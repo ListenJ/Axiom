@@ -18,6 +18,19 @@ import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { AgentBootstrap } from "./memory/bootstrap.js";
 import { MemoryDistiller } from "./memory/distiller.js";
 import { HealthMonitor } from "./utils/resilience.js";
+import { validateEnv } from "./utils/env-validation.js";
+import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-shutdown.js";
+import { createSecurityHeaders, createCorsHeaders, sanitizeRequestBody } from "./utils/security.js";
+import { metrics } from "./utils/metrics.js";
+
+// ===== 环境验证 =====
+const envValidation = validateEnv({ strict: false, exitOnError: false });
+if (!envValidation.valid) {
+  logger.warn("Environment validation warnings present", {
+    missing: envValidation.missing,
+    invalid: envValidation.invalid.map(i => i.name),
+  });
+}
 
 // ===== 初始化 =====
 
@@ -172,13 +185,23 @@ async function checkPlatform(name: string, apiKey?: string): Promise<boolean> {
   catch { return false; }
 }
 
-function corsHeaders(): Record<string, string> {
-  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" };
+const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: false });
+
+function corsHeaders(origin?: string): Record<string, string> {
+  return createCorsHeaders(origin, {
+    allowedOrigins: process.env.CORS_ORIGINS?.split(",") || ["*"],
+    allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+    allowCredentials: !!process.env.CORS_CREDENTIALS,
+  });
 }
 
 function jsonResponse(data: unknown, status = 200, extraHeaders?: Record<string, string>): Response {
-  return Response.json(data, { status, headers: { ...corsHeaders(), ...extraHeaders } });
+  return Response.json(data, { status, headers: { ...securityHeaders, ...corsHeaders(), ...extraHeaders } });
 }
+
+// 请求体大小限制
+const MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || "1048576", 10); // 1MB default
 
 async function logRequest(req: Request, status: number, durationMs: number, extra?: Record<string, unknown>) {
   const url = new URL(req.url);
@@ -196,14 +219,18 @@ const server = Bun.serve({
   async fetch(req, server) {
     const startTime = performance.now();
     const url = new URL(req.url);
+    const requestOrigin = req.headers.get("origin") || "";
 
-    if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
+    // 添加安全头到所有响应
+    const baseHeaders = { ...securityHeaders, ...corsHeaders(requestOrigin) };
+
+    if (req.method === "OPTIONS") return new Response(null, { headers: baseHeaders });
 
     // WebSocket
     if (url.pathname === "/ws") {
       const success = server.upgrade(req, { data: { clientId: crypto.randomUUID() } } as any);
       if (success) return undefined as any;
-      return jsonResponse({ error: "WebSocket upgrade failed" }, 400);
+      return jsonResponse({ error: "WebSocket upgrade failed" }, 400, baseHeaders);
     }
 
     const rl = await rateLimitCheck(req);
@@ -212,8 +239,25 @@ const server = Bun.serve({
       return jsonResponse({ error: "Rate limit exceeded" }, 429, rl.headers);
     }
 
+    // 请求体大小检查
+    if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+      const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
+      if (contentLength > MAX_BODY_SIZE) {
+        await logRequest(req, 413, Math.round(performance.now() - startTime));
+        return jsonResponse({ error: `Request body too large (max ${MAX_BODY_SIZE} bytes)` }, 413, baseHeaders);
+      }
+    }
+
     try {
       let response: Response;
+
+      // === Metrics ===
+      if (url.pathname === "/metrics" && req.method === "GET") {
+        response = new Response(metrics.getPrometheusFormat(), {
+          status: 200,
+          headers: { "Content-Type": "text/plain; version=0.0.4", ...baseHeaders },
+        });
+      }
 
       // === Dashboard ===
       if (url.pathname === "/" || url.pathname === "/index.html") {
@@ -808,13 +852,19 @@ const server = Bun.serve({
         }, 200, rl.headers);
       }
 
+      // 请求指标收集
+      const duration = (performance.now() - startTime) / 1000;
+      metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: String(response.status) });
+      metrics.histogram("http_request_duration_seconds", duration, { method: req.method, path: url.pathname });
+
       await logRequest(req, response.status, Math.round(performance.now() - startTime));
       return response;
     } catch (e: any) {
       const duration = Math.round(performance.now() - startTime);
       logger.error(`Request failed: ${url.pathname}`, e, { method: req.method, duration });
       await logRequest(req, 500, duration, { error: e.message });
-      return jsonResponse({ error: e.message, path: url.pathname }, 500, rl.headers);
+      metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: "500" });
+      return jsonResponse({ error: e.message, path: url.pathname }, 500, { ...rl.headers, ...securityHeaders });
     }
   },
 
@@ -825,6 +875,46 @@ const server = Bun.serve({
   },
 });
 
+// 注册优雅关闭钩子
+registerShutdownHook({
+  name: "health-monitor",
+  handler: () => healthMonitor.stop(),
+  priority: 100,
+});
+registerShutdownHook({
+  name: "file-watcher",
+  handler: () => fileWatcher?.stop(),
+  priority: 80,
+});
+registerShutdownHook({
+  name: "vault",
+  handler: () => vault?.close(),
+  priority: 70,
+});
+registerShutdownHook({
+  name: "knowledge-graph",
+  handler: () => kg.close(),
+  priority: 60,
+});
+registerShutdownHook({
+  name: "database",
+  handler: () => db.close(),
+  priority: 50,
+});
+registerShutdownHook({
+  name: "http-server",
+  handler: () => server.stop(),
+  priority: 40,
+});
+registerShutdownHook({
+  name: "heartbeat",
+  handler: () => clearInterval(heartbeatInterval),
+  priority: 30,
+});
+
+// 设置优雅关闭
+setupGracefulShutdown({ timeout: 30000, signals: ["SIGTERM", "SIGINT"] });
+
 logger.info("Server started", { port, url: `http://localhost:${port}` });
 
 console.log(`
@@ -833,11 +923,6 @@ console.log(`
 ║  记忆: Obsidian Vault (确定性推理)                           ║
 ║  Dashboard: http://localhost:${port}/                          ║
 ║  WebSocket: ws://localhost:${port}/ws                          ║
+║  Metrics:  http://localhost:${port}/metrics                    ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
-
-process.on("SIGINT", () => {
-  logger.info("Shutting down...");
-  healthMonitor.stop();
-  db.close(); vault?.close(); kg.close(); server.stop(); process.exit(0);
-});
