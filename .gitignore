@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Data
+data/*.db
+data/*.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Obsidian
+.obsidian/
+
+# Python virtual environment
+.venv/
+
+# OMC state
+.omc/
+
+# Raw data
+data/raw/

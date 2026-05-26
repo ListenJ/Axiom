@@ -1,0 +1,40 @@
+# MCP服务器注册配置
+# 所有 API Key 通过环境变量注入，本文件不包含任何密钥
+servers:
+  # 文件系统访问
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+
+  # SQLite数据库
+  sqlite:
+    command: "bun"
+    args: ["run", "src/mcp/sqlite-server.ts"]
+
+  # Obsidian Vault操作
+  obsidian:
+    command: "bun"
+    args: ["run", "src/mcp/server.ts"]
+
+  # 网页搜索 (SerpAPI)
+  search:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-serpapi"]
+    env:
+      SERPAPI_API_KEY: "${SERPAPI_KEY}"
+
+  # OpenCode 编码 Agent（通过 stdio 暴露编码工具）
+  opencode:
+    command: "bun"
+    args: ["run", "src/mcp/server.ts", "--stdio"]
+    env:
+      OPENCODE_API_KEY: "${OPENCODE_API_KEY}"
+      OPENCODE_DEFAULT_MODEL: "opencode/deepseek-v4-flash-free"
+
+  # Hermes 项目管理 Agent（如已安装可启用）
+  # 安装: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+  # hermes:
+  #   command: "hermes"
+  #   args: ["mcp", "serve"]
+  #   env:
+  #     OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"

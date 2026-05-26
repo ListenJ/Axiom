@@ -1,0 +1,142 @@
+# 多平台分层模型路由配置 v3.0
+# 所有 API Key 从环境变量读取，本文件不包含任何密钥
+#
+# 架构分层:
+#   L1 Decision    - 主力决策模型: DeepSeek-V4 Pro
+#   L2 Architecture- 系统架构设计: KIMI-k2.6
+#   L3 Tool Pool   - 免费工具模型池（编码/英文/RL/通用），带限流和熔断
+#   L4 Evaluation  - 评估层: Tencent hy3-preview ($5额度) + DeepSeek 联合评估
+#
+# 网关:
+#   - OpenRouter: https://openrouter.ai/api/v1 (免费模型主力平台)
+#   - DeepSeek:   https://api.deepseek.com/v1 (官方 DeepSeek-V4 Pro)
+#   - SiliconFlow: https://api.siliconflow.cn/v1
+#   - OfoxAI:      https://api.ofox.ai/v1
+#   - OpenCode:    https://api.opencode.ai/v1
+#   - Kimi Code:   https://api.kimi.com/coding/v1 (OpenAI 兼容)
+
+# ========== L1 决策层 ==========
+decision:
+  - provider: openrouter
+    model: deepseek/deepseek-v4-pro
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: deepseek
+    model: deepseek-v4-pro
+    priority: 1
+    maxRetries: 2
+    timeout: 60000
+
+# ========== L2 架构层 ==========
+architecture:
+  - provider: openrouter
+    model: moonshotai/kimi-k2.6
+    priority: 0
+    maxRetries: 2
+    timeout: 45000
+  - provider: openrouter
+    model: z-ai/glm-4.5-air
+    priority: 1
+    maxRetries: 2
+    timeout: 30000
+
+# ========== L4 评估层 ==========
+evaluation:
+  - provider: openrouter
+    model: tencent/hy3-preview
+    priority: 0
+    maxRetries: 1
+    timeout: 60000
+  - provider: openrouter
+    model: deepseek/deepseek-v4-pro
+    priority: 1
+    maxRetries: 2
+    timeout: 60000
+
+# ========== L3 工具层（免费模型池，在代码中动态管理） ==========
+# 编码工具模型:
+#   - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free  (RPM: 5)
+#   - deepseek/deepseek-v4-flash:free                     (RPM: 10)
+#   - z-ai/glm-4.5-air:free                               (RPM: 8)
+#   - qwen/qwen3-coder-480b-a35b-instruct-turbo:free       (RPM: 8)
+#
+# 英文处理:
+#   - google/gemma-4-31b-it:free                          (RPM: 5)
+#
+# RL/推理:
+#   - arcee-ai/trinity-large-thinking:free                (RPM: 3)
+#
+# 通用工具:
+#   - nvidia/nemotron-3-super-120b-a12b:free              (RPM: 3)
+#   - openai/gpt-oss-120b:free                            (RPM: 3)
+#   - nousresearch/hermes-3-llama-3.1-405b:free           (RPM: 3)
+
+# ========== 向后兼容路由 ==========
+general-chat:
+  - provider: openrouter
+    model: deepseek/deepseek-v4-flash:free
+    priority: 0
+    maxRetries: 2
+    timeout: 20000
+  - provider: ofoxai
+    model: z-ai/glm-4.7-flash:free
+    priority: 1
+    maxRetries: 2
+    timeout: 15000
+  - provider: siliconflow
+    model: Qwen/Qwen2-7B-Instruct
+    priority: 2
+    maxRetries: 2
+    timeout: 10000
+
+code-generation:
+  - provider: kimi
+    model: kimi-for-coding
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: openrouter
+    model: deepseek/deepseek-v4-flash:free
+    priority: 1
+    maxRetries: 2
+    timeout: 30000
+  - provider: openrouter
+    model: qwen/qwen3-coder:free
+    priority: 2
+    maxRetries: 2
+    timeout: 25000
+  - provider: deepseek
+    model: deepseek-v4-flash
+    priority: 3
+    maxRetries: 2
+    timeout: 30000
+
+embedding:
+  - provider: siliconflow
+    model: BAAI/bge-large-zh
+    priority: 0
+    maxRetries: 2
+    timeout: 10000
+
+# ========== 降级策略 ==========
+fallback:
+  trigger:
+    - http_429
+    - http_5xx
+    - timeout_gt_10s
+    - circuit_breaker_open
+  maxFallbackDepth: 3
+
+# ========== 限流配置 ==========
+rate_limits:
+  free_models:
+    rpm_warning: 0.8      # RPM 使用率超过 80% 时告警
+    concurrent_warning: 1  # 并发达到上限时告警
+    circuit_breaker:
+      failure_threshold: 3   # 连续失败 3 次熔断
+      recovery_timeout: 60s  # 熔断后 60 秒恢复
+  paid_models:
+    tencent_hy3:
+      budget_limit: 5.0      # $5 额度限制
+      budget_warning: 4.0    # $4 时告警

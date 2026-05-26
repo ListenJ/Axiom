@@ -1,0 +1,38 @@
+{
+  "name": "openclaw-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "dev": "bun --watch run src/main.ts",
+    "openclaw": "bun run src/launcher.ts",
+    "ocl": "bun run src/launcher.ts",
+    "build": "bun build src/main.ts --outdir ./dist",
+    "mcp": "bun run src/mcp/server.ts",
+    "cli": "bun run src/cli.ts",
+    "health": "bun run scripts/health-check.ts",
+    "discover": "bun run scripts/discover-free-models.ts",
+    "migrate": "bun run src/db/migrate.ts",
+    "demo": "bun run scripts/demo-crawl.ts",
+    "serpapi": "bun run scripts/serpapi-search.ts",
+    "test": "bun test",
+    "lint": "tsc --noEmit",
+    "code:open": "bun run src/cli.ts code:open",
+    "code:models": "bun run src/cli.ts code:models",
+    "agent:status": "bun run src/cli.ts agent:status",
+    "setup:agents": "bash scripts/setup-agents.sh"
+  },
+  "dependencies": {
+    "@colbymchenry/codegraph": "^0.9.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "blessed": "^0.1.81",
+    "drizzle-orm": "^0.30.0",
+    "yaml": "^2.4.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/blessed": "^0.1.27",
+    "@types/bun": "latest",
+    "typescript": "^5.3.0"
+  }
+}
