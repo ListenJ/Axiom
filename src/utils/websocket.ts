@@ -8,6 +8,7 @@ export type WsEventType =
   | "system.status"
   | "search.completed"
   | "crawl.completed"
+  | "vault_change"
   | "model.usage"
   | "health.check"
   | "heartbeat"

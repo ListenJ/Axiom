@@ -749,6 +749,33 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "agents:discover": {
+    desc: "自动发现并更新 Agent 索引",
+    run: async () => {
+      const { discoverAgents, listAgentSources } = await import("./agents/agent-discovery.js");
+      const sources = listAgentSources();
+      console.log("🔍 Agent 自动发现\n");
+      if (sources.length === 0) {
+        console.log("⚠️ 未找到 Agent 源目录");
+        console.log("  将 Agent .md 文件放入 ./data/agents/ 目录，或设置 AGENTS_DIR 环境变量");
+        console.log("  例如: AGENTS_DIR=./agency-agents-main bun run src/cli.ts agents:discover");
+        return;
+      }
+      console.log(`  发现 ${sources.length} 个源目录:`);
+      for (const s of sources) console.log(`    • ${s}`);
+      console.log("");
+      for (const sourceDir of sources) {
+        const result = discoverAgents({ sourceDir, force: false });
+        console.log(`  ✅ ${sourceDir}`);
+        console.log(`     总计: ${result.count} 个 Agent`);
+        console.log(`     新增: ${result.newCount} | 更新: ${result.updatedCount} | 跳过: ${result.skippedCount}`);
+        console.log(`     分类: ${result.categories.join(", ")}`);
+        console.log("");
+      }
+      console.log("  索引已保存到 ./data/agents-index.json");
+    },
+  },
+
   help: {
     desc: "显示帮助信息",
     run: () => {

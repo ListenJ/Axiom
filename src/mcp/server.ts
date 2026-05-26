@@ -14,6 +14,7 @@ import { SerpApiClient } from "../crawl/serpapi-client.js";
 import { proxyManager } from "../crawl/proxy-manager.js";
 import { VaultManager } from "../memory/vault-manager.js";
 import { KnowledgeGraph } from "../kg/graph.js";
+import { withRetry, withTimeout } from "../utils/resilience.js";
 import {
   openCodeSession,
   checkOpenCode,
@@ -650,49 +651,225 @@ if (transport === "stdio") {
   mcp.connect(stdio);
 } else {
   const port = Number(process.env.MCP_PORT) || 3001;
+  // 构建工具处理器映射
+  const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
+    memory_search: async (args) => vault.search(args.query as string, {
+      limit: args.limit as number,
+      types: args.types as string[],
+      tags: args.tags as string[],
+      paraCategory: args.paraCategory as string,
+    }),
+    memory_read: async (args) => vault.readNote(args.path as string),
+    memory_write: async (args) => vault.writeNote(args.path as string, args.content as string, {
+      title: args.title as string,
+      type: args.type as string,
+      tags: args.tags as string[],
+      source: args.source as string,
+      overwrite: args.overwrite as boolean,
+    }),
+    memory_atomic: async (args) => vault.writeAtomicNote(args.title as string, args.coreIdea as string, {
+      context: args.context as string,
+      relatedNotes: args.relatedNotes as string[],
+    }),
+    memory_browse: async (args) => {
+      if (args.category) return vault.browsePara(args.category as string);
+      if (args.tag) return vault.browseTag(args.tag as string);
+      return { error: "Provide 'category' or 'tag'" };
+    },
+    memory_network: async (args) => vault.getNetwork(args.notePath as string, args.depth as number),
+    memory_stats: async () => vault.stats(),
+    code_index: async (args) => {
+      if (args.filePath) return vault.indexCodeFile(args.filePath as string);
+      return vault.indexCode();
+    },
+    web_fetch: async (args) => {
+      const dp = new DataPipeline({ maxDepth: args.depth as number || 1 });
+      const result = await dp.crawlStructured(args.url as string, args.depth as number || 1);
+      if (result) {
+        await vault.writeCrawlResult(result);
+        return { success: true, url: result.url, title: result.title };
+      }
+      return { success: false, error: "Failed to fetch" };
+    },
+    web_search: async (args) => {
+      const dp = new DataPipeline({ maxDepth: 1 });
+      const results = await dp.searchMulti(args.query as string, {
+        num: args.num as number,
+        engines: args.engines as string[],
+      });
+      return results;
+    },
+    search_engines_list: async () => searchAggregator.listEngines(),
+    proxy_status: async () => {
+      // Access internal state through type assertion since ProxyManager doesn't expose list method
+      const pm = proxyManager as unknown as { proxies: Array<{ url: string; tag?: string; healthy?: boolean; latencyMs?: number }> };
+      return pm.proxies.map((p) => ({
+        url: p.url,
+        tag: p.tag,
+        healthy: p.healthy !== false,
+        latencyMs: p.latencyMs,
+      }));
+    },
+    kg_create_entity: async (args) => kg.createEntity(args.name as string, args.type as string as any, args.properties as Record<string, unknown>),
+    kg_create_relationship: async (args) => kg.createRelationship(args.sourceId as number, args.targetId as number, args.type as string as any, args.properties as Record<string, unknown>),
+    kg_search: async (args) => kg.searchEntities(args.query as string, args.limit as number),
+    kg_shortest_path: async (args) => {
+      const from = kg.getEntityByName(args.from as string);
+      const to = kg.getEntityByName(args.to as string);
+      if (!from || !to) return { error: "Entity not found" };
+      return kg.shortestPath(from.id, to.id, args.maxDepth as number);
+    },
+    model_chat: async (args) => {
+      const { router } = await import("../router/model-router.js");
+      const messages = [
+        ...(args.systemPrompt ? [{ role: "system" as const, content: args.systemPrompt as string }] : []),
+        { role: "user" as const, content: args.prompt as string },
+      ];
+      return router.chat(args.model as string || "general", messages);
+    },
+    db_query: async (args) => {
+      const stmt = db.query(args.query as string);
+      const params = (args.params as Array<string | number | boolean | null> | undefined) || [];
+      return stmt.all(...params);
+    },
+    list_free_models: async () => {
+      const rows = db.query("SELECT id, name, provider, context_length FROM free_models WHERE is_available = 1").all();
+      return rows;
+    },
+    code_generate: async (args) => {
+      const ok = await checkOpenCode();
+      if (!ok) return { error: "OpenCode not available", guide: getOpenCodeInstallGuide() };
+      const pid = await openCodeSession({ prompt: args.prompt as string, model: args.model as string });
+      return { success: true, pid };
+    },
+    code_refactor: async (args) => {
+      const ok = await checkOpenCode();
+      if (!ok) return { error: "OpenCode not available" };
+      const pid = await openCodeSession({ prompt: `Refactor: ${args.prompt}`, model: args.model as string });
+      return { success: true, pid };
+    },
+    code_review: async (args) => {
+      const ok = await checkOpenCode();
+      if (!ok) return { error: "OpenCode not available" };
+      const pid = await openCodeSession({ prompt: `Review: ${args.prompt}`, model: args.model as string });
+      return { success: true, pid };
+    },
+    code_test: async (args) => {
+      const ok = await checkOpenCode();
+      if (!ok) return { error: "OpenCode not available" };
+      const pid = await openCodeSession({ prompt: `Run tests: ${args.file}`, model: args.model as string });
+      return { success: true, pid };
+    },
+    opencode_status: async () => ({ available: await checkOpenCode(), models: await listOpenCodeModels() }),
+    project_plan: async (args) => {
+      const ok = await checkHermes();
+      if (!ok) return { error: "Hermes not available", guide: getHermesInstallGuide() };
+      return planProject(args.description as string, args.cwd as string);
+    },
+    project_research: async (args) => {
+      const ok = await checkHermes();
+      if (!ok) return { error: "Hermes not available" };
+      return deepResearch(args.topic as string, args.cwd as string);
+    },
+    project_arch_review: async (args) => {
+      const ok = await checkHermes();
+      if (!ok) return { error: "Hermes not available" };
+      return architectureReview(args.projectPath as string, args.cwd as string);
+    },
+    hermes_status: async () => ({ available: await checkHermes() }),
+  };
+
+  const toolsMeta = [
+    { name: "memory_search", description: "Vault 确定性记忆搜索" },
+    { name: "memory_read", description: "读取 Vault 笔记" },
+    { name: "memory_write", description: "写入 Vault 笔记" },
+    { name: "memory_atomic", description: "写入原子笔记" },
+    { name: "memory_browse", description: "PARA/标签浏览" },
+    { name: "memory_network", description: "笔记关联网络" },
+    { name: "memory_stats", description: "Vault 统计" },
+    { name: "code_index", description: "索引代码到 Vault" },
+    { name: "web_fetch", description: "网页抓取（自动写入 Vault）" },
+    { name: "web_search", description: "多引擎搜索（自动写入 Vault）" },
+    { name: "search_engines_list", description: "搜索引擎列表" },
+    { name: "proxy_status", description: "代理状态" },
+    { name: "kg_create_entity", description: "创建 KG 实体" },
+    { name: "kg_create_relationship", description: "创建 KG 关系" },
+    { name: "kg_search", description: "搜索 KG 实体" },
+    { name: "kg_shortest_path", description: "KG 最短路径" },
+    { name: "model_chat", description: "模型聊天" },
+    { name: "db_query", description: "数据库查询" },
+    { name: "list_free_models", description: "免费模型列表" },
+    { name: "code_generate", description: "OpenCode 代码生成" },
+    { name: "code_refactor", description: "OpenCode 代码重构" },
+    { name: "code_review", description: "OpenCode 代码审查" },
+    { name: "code_test", description: "OpenCode 运行测试" },
+    { name: "opencode_status", description: "OpenCode 状态检查" },
+    { name: "project_plan", description: "Hermes 项目计划" },
+    { name: "project_research", description: "Hermes 深度研究" },
+    { name: "project_arch_review", description: "Hermes 架构审查" },
+    { name: "hermes_status", description: "Hermes 状态检查" },
+  ];
+
   Bun.serve({
     port,
     async fetch(req) {
       if (req.method !== "POST") return Response.json({ error: "Only POST supported" }, { status: 405 });
-      const body = await req.json();
-      if (body.method === "tools/list") {
-        return Response.json({
-          jsonrpc: "2.0", id: body.id,
-          result: {
-            tools: [
-              { name: "memory_search", description: "Vault 确定性记忆搜索" },
-              { name: "memory_read", description: "读取 Vault 笔记" },
-              { name: "memory_write", description: "写入 Vault 笔记" },
-              { name: "memory_atomic", description: "写入原子笔记" },
-              { name: "memory_browse", description: "PARA/标签浏览" },
-              { name: "memory_network", description: "笔记关联网络" },
-              { name: "memory_stats", description: "Vault 统计" },
-              { name: "code_index", description: "索引代码到 Vault" },
-              { name: "web_fetch", description: "网页抓取（自动写入 Vault）" },
-              { name: "web_search", description: "多引擎搜索（自动写入 Vault）" },
-              { name: "search_engines_list", description: "搜索引擎列表" },
-              { name: "proxy_status", description: "代理状态" },
-              { name: "kg_create_entity", description: "创建 KG 实体" },
-              { name: "kg_create_relationship", description: "创建 KG 关系" },
-              { name: "kg_search", description: "搜索 KG 实体" },
-              { name: "kg_shortest_path", description: "KG 最短路径" },
-              { name: "model_chat", description: "模型聊天" },
-              { name: "db_query", description: "数据库查询" },
-              { name: "list_free_models", description: "免费模型列表" },
-              { name: "code_generate", description: "OpenCode 代码生成" },
-              { name: "code_refactor", description: "OpenCode 代码重构" },
-              { name: "code_review", description: "OpenCode 代码审查" },
-              { name: "code_test", description: "OpenCode 运行测试" },
-              { name: "opencode_status", description: "OpenCode 状态检查" },
-              { name: "project_plan", description: "Hermes 项目计划" },
-              { name: "project_research", description: "Hermes 深度研究" },
-              { name: "project_arch_review", description: "Hermes 架构审查" },
-              { name: "hermes_status", description: "Hermes 状态检查" },
-            ],
-          },
-        });
+      try {
+        const body = await req.json();
+        // MCP initialize handshake
+        if (body.method === "initialize") {
+          return Response.json({
+            jsonrpc: "2.0", id: body.id,
+            result: {
+              protocolVersion: "2024-11-05",
+              capabilities: { tools: { listChanged: true } },
+              serverInfo: { name: "OpenClaw Agent MCP Server", version: "2.1.0" },
+            },
+          });
+        }
+        if (body.method === "initialized") {
+          return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
+        }
+        if (body.method === "tools/list") {
+          return Response.json({
+            jsonrpc: "2.0", id: body.id,
+            result: { tools: toolsMeta },
+          });
+        }
+        if (body.method === "tools/call") {
+          const { name, arguments: args } = body.params;
+          const handler = toolHandlers[name];
+          if (!handler) {
+            return Response.json({
+              jsonrpc: "2.0", id: body.id,
+              error: { code: -32602, message: `Tool '${name}' not found` },
+            }, { status: 400 });
+          }
+          try {
+            const result = await withTimeout(
+              withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
+              30000
+            );
+            return Response.json({
+              jsonrpc: "2.0", id: body.id,
+              result: {
+                content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+              },
+            });
+          } catch (err) {
+            return Response.json({
+              jsonrpc: "2.0", id: body.id,
+              result: {
+                content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
+                isError: true,
+              },
+            });
+          }
+        }
+        return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
+      } catch (err) {
+        return Response.json({ error: (err as Error).message }, { status: 400 });
       }
-      return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
     },
   });
   console.log(`[MCP] Server running on http://localhost:${port}`);

@@ -17,6 +17,7 @@ import { wsManager } from "./utils/websocket.js";
 import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { AgentBootstrap } from "./memory/bootstrap.js";
 import { MemoryDistiller } from "./memory/distiller.js";
+import { HealthMonitor } from "./utils/resilience.js";
 
 // ===== 初始化 =====
 
@@ -58,14 +59,33 @@ logger.info("DataPipeline initialized");
 // Knowledge Graph
 const kg = new KnowledgeGraph(dbPath);
 
+// Agent Auto-Discovery — 启动时自动检查/更新索引
+{
+  const { discoverAgentsIfNeeded, listAgentSources } = await import("./agents/agent-discovery.js");
+  const sources = listAgentSources();
+  if (sources.length > 0) {
+    for (const sourceDir of sources) {
+      const result = discoverAgentsIfNeeded({ sourceDir, force: false });
+      if (result) {
+        logger.info("Agent index updated", {
+          source: sourceDir,
+          total: result.count,
+          new: result.newCount,
+          updated: result.updatedCount,
+        });
+      }
+    }
+  }
+}
+
 // File Watcher — Vault 变更自动刷新索引
 let fileWatcher: VaultFileWatcher | null = null;
 if (vault) {
   fileWatcher = new VaultFileWatcher({ vaultPath: config.memory.vaultPath });
   fileWatcher.start((event, path) => {
     wsManager.broadcast({
-      type: "system.status",
-      payload: { event: "vault_change", file: path, type: event },
+      type: "vault_change",
+      payload: { event, file: path },
       timestamp: new Date().toISOString(),
     });
   });
@@ -75,6 +95,67 @@ if (vault) {
 // Cron
 try { await import("./cron/scheduler.js"); logger.info("Cron scheduler started"); }
 catch (e: any) { logger.warn("Cron scheduler not started", { error: e.message }); }
+
+// HealthMonitor — 周期性健康检查
+const healthMonitor = new HealthMonitor();
+healthMonitor.register({
+  name: "database",
+  check: async () => {
+    try { db.query("SELECT 1").get(); return true; }
+    catch { return false; }
+  },
+  interval: 60000,
+});
+if (vault) {
+  healthMonitor.register({
+    name: "vault",
+    check: async () => {
+      try { vault!.stats(); return true; }
+      catch { return false; }
+    },
+    interval: 60000,
+  });
+}
+healthMonitor.register({
+  name: "siliconflow",
+  check: async () => checkPlatform("siliconflow", process.env.SILICONFLOW_API_KEY),
+  interval: 120000,
+});
+healthMonitor.register({
+  name: "ofoxai",
+  check: async () => checkPlatform("ofoxai", process.env.OFOXAI_API_KEY),
+  interval: 120000,
+});
+healthMonitor.register({
+  name: "openrouter",
+  check: async () => checkPlatform("openrouter", process.env.OPENROUTER_API_KEY),
+  interval: 120000,
+});
+healthMonitor.register({
+  name: "deepseek",
+  check: async () => checkPlatform("deepseek", process.env.DEEPSEEK_API_KEY),
+  interval: 120000,
+});
+healthMonitor.register({
+  name: "kimiCode",
+  check: async () => checkPlatform("kimi-code", process.env.KIMI_CODE_API_KEY),
+  interval: 120000,
+});
+healthMonitor.start();
+logger.info("HealthMonitor started", { checks: Array.from((healthMonitor as any).checks?.keys?.() || []) });
+
+// WebSocket 心跳 — 每 30 秒广播一次系统状态
+const heartbeatInterval = setInterval(() => {
+  wsManager.broadcast({
+    type: "heartbeat",
+    payload: {
+      uptime: Date.now() - startupTime,
+      clients: wsManager.getStats().connectedClients,
+      vaultNotes: vault?.stats().totalNotes ?? 0,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}, 30000);
 
 // ===== 辅助函数 =====
 
@@ -144,16 +225,7 @@ const server = Bun.serve({
 
       // === Health ===
       else if (url.pathname === "/health") {
-        const checks: Record<string, boolean> = {};
-        checks.database = (() => { try { db.query("SELECT 1").get(); return true; } catch { return false; } })();
-        const [sf, ofx, or, ds, kimi] = await Promise.all([
-          checkPlatform("siliconflow", process.env.SILICONFLOW_API_KEY),
-          checkPlatform("ofoxai", process.env.OFOXAI_API_KEY),
-          checkPlatform("openrouter", process.env.OPENROUTER_API_KEY),
-          checkPlatform("deepseek", process.env.DEEPSEEK_API_KEY),
-          checkPlatform("kimi-code", process.env.KIMI_CODE_API_KEY),
-        ]);
-        checks.siliconflow = sf; checks.ofoxai = ofx; checks.openrouter = or; checks.deepseek = ds; checks.kimiCode = kimi;
+        const checks = await healthMonitor.checkAll();
         const vStats = vault?.stats();
         response = jsonResponse({
           status: "ok", timestamp: new Date().toISOString(), version: "2.1.0",
@@ -766,5 +838,6 @@ console.log(`
 
 process.on("SIGINT", () => {
   logger.info("Shutting down...");
+  healthMonitor.stop();
   db.close(); vault?.close(); kg.close(); server.stop(); process.exit(0);
 });

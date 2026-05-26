@@ -19,6 +19,7 @@ import { fpGen } from "./anti-fingerprint.js";
 import { proxyManager } from "./proxy-manager.js";
 import { Database } from "bun:sqlite";
 import { VaultManager } from "../memory/vault-manager.js";
+import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
 
 // ========== 类型定义 ==========
 
@@ -287,43 +288,52 @@ export class DataPipeline {
     await this.delay(fpGen.randomJitter(this.options.requestDelay));
 
     try {
-      const fp = fpGen.generate();
-      const headers = fpGen.buildHeaders(fp, {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        Referer: "", // 空 Referer，减少追踪
-      });
+      return await withRetry(
+        async () => {
+          const fp = fpGen.generate();
+          const headers = fpGen.buildHeaders(fp, {
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Referer: "", // 空 Referer，减少追踪
+          });
 
-      // 隐私：代理轮换
-      const proxy = proxyManager.next();
-      const proxyOpt = proxy ? { proxy: proxy.url } : {};
+          // 隐私：代理轮换
+          const proxy = proxyManager.next();
+          const proxyOpt = proxy ? { proxy: proxy.url } : {};
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 15000);
 
-      const res = await fetch(url, {
-        ...proxyOpt,
-        headers,
-        signal: controller.signal,
-      });
+          const res = await fetch(url, {
+            ...proxyOpt,
+            headers,
+            signal: controller.signal,
+          });
 
-      clearTimeout(timer);
+          clearTimeout(timer);
 
-      if (proxy) {
-        if (res.ok) proxyManager.markSuccess(proxy.url, 0);
-        else proxyManager.markFailed(proxy.url);
-      }
+          if (proxy) {
+            if (res.ok) proxyManager.markSuccess(proxy.url, 0);
+            else proxyManager.markFailed(proxy.url);
+          }
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const html = await res.text();
-      const result = this.parseStructured(url, html);
+          const html = await res.text();
+          const result = this.parseStructured(url, html);
 
-      // 保存原始数据（注意：不保存指纹信息）
-      await this.saveRaw(url, { html: html.slice(0, 50000), structured: result });
+          // 保存原始数据（注意：不保存指纹信息）
+          await this.saveRaw(url, { html: html.slice(0, 50000), structured: result });
 
-      return result;
+          return result;
+        },
+        {
+          maxAttempts: 3,
+          baseDelay: 1000,
+          retryable: (e: Error) => isRetryableError(e) || (e instanceof Error && e.message.startsWith("HTTP")),
+        }
+      );
     } catch (e: any) {
-      console.warn(`[Pipeline] Failed to crawl ${url}: ${e.message}`);
+      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e.message}`);
       return null;
     }
   }

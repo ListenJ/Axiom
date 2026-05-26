@@ -18,6 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
+import { getCircuitBreaker, withFallback, withRetry, isRetryableError } from "../utils/resilience.js";
 
 interface ModelRoute {
   provider: string;
@@ -217,7 +218,7 @@ class MultiPlatformRouter {
     return { ...result, layer: "architecture" };
   }
 
-  // ---- L3 工具层（免费模型池，带限流） ----
+  // ---- L3 工具层（免费模型池，带限流 + 熔断） ----
   async tool(role: ToolRole, messages: ChatMessage[]): Promise<ChatResponse> {
     const maxAttempts = 3;
     let lastError: Error | undefined;
@@ -229,6 +230,11 @@ class MultiPlatformRouter {
         break;
       }
 
+      const cb = getCircuitBreaker(`${model.provider}:${model.id}`, {
+        failureThreshold: 3,
+        resetTimeout: 20000,
+      });
+
       toolPool.markRequestStart(model.id);
       logger.info(`[Router] Tool call ${role}`, {
         model: model.id,
@@ -236,11 +242,8 @@ class MultiPlatformRouter {
       });
 
       try {
-        const response = await this.callProvider(
-          model.provider,
-          model.id,
-          messages,
-          30000
+        const response = await cb.execute(() =>
+          this.callProvider(model.provider, model.id, messages, 30000)
         );
         toolPool.markRequestSuccess(model.id);
         return {
@@ -261,7 +264,14 @@ class MultiPlatformRouter {
       }
     }
 
-    throw lastError || new Error(`All tool models exhausted for role: ${role}`);
+    // 降级：返回静态响应
+    logger.error(`[Router] All tool models exhausted for role: ${role}, returning degraded response`);
+    return {
+      content: `Tool execution failed for ${role}. Please retry or check model availability.`,
+      model: "degraded",
+      provider: "local",
+      layer: "tool",
+    };
   }
 
   // ---- L4 评估层 ----
@@ -278,33 +288,52 @@ class MultiPlatformRouter {
     const sortedRoutes = routes.sort((a, b) => a.priority - b.priority);
 
     for (const route of sortedRoutes) {
-      for (let attempt = 0; attempt <= route.maxRetries; attempt++) {
-        try {
-          const response = await this.callProvider(
-            route.provider,
-            route.model,
-            messages,
-            route.timeout
-          );
-          return {
-            content: response.content,
-            model: route.model,
-            provider: route.provider,
-            usage: response.usage,
-            layer: "general",
-          };
-        } catch (error: any) {
-          logger.warn(
-            `[Router] Attempt ${attempt + 1} failed for ${route.provider}/${route.model}`,
-            { error: error.message }
-          );
-          if (attempt === route.maxRetries) continue;
-          await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
+      const cb = getCircuitBreaker(route.provider, {
+        failureThreshold: 3,
+        resetTimeout: 30000,
+      });
+
+      try {
+        const response = await cb.execute(() =>
+          withRetry(
+            () => this.callProvider(route.provider, route.model, messages, route.timeout),
+            {
+              maxAttempts: route.maxRetries + 1,
+              baseDelay: 1000,
+              maxDelay: 10000,
+              retryable: isRetryableError,
+              onRetry: (err, attempt) => {
+                logger.warn(`[Router] Retry ${attempt} for ${route.provider}/${route.model}`, {
+                  error: err.message,
+                });
+              },
+            }
+          )
+        );
+        return {
+          content: response.content,
+          model: route.model,
+          provider: route.provider,
+          usage: response.usage,
+          layer: "general",
+        };
+      } catch (error: any) {
+        if (error.name === "CircuitOpenError") {
+          logger.warn(`[Router] Circuit open for ${route.provider}, skipping`);
+        } else {
+          logger.warn(`[Router] Route failed ${route.provider}/${route.model}`, { error: error.message });
         }
       }
     }
 
-    throw new Error("All model routes exhausted");
+    // 降级：返回本地缓存或静态响应
+    logger.error("[Router] All model routes exhausted, returning degraded response");
+    return {
+      content: "I'm currently experiencing high load. Please try again in a moment.",
+      model: "degraded",
+      provider: "local",
+      layer: "general",
+    };
   }
 
   // ---- 按意图自动路由到对应层级 ----
