@@ -19,6 +19,9 @@
 import { logger } from "../utils/logger.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
 import { getCircuitBreaker, withFallback, withRetry, isRetryableError } from "../utils/resilience.js";
+import { assignModel, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import { claudeCode } from "../utils/claude-code-adapter.js";
+import { kimiCode } from "../utils/kimi-code-adapter.js";
 
 interface ModelRoute {
   provider: string;
@@ -43,6 +46,30 @@ interface ChatResponse {
     total_tokens?: number;
   };
   layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
+}
+
+// ========== 智能任务分配接口 ==========
+export interface SmartAssignmentResponse {
+  role: TaskRole;
+  model: string;
+  provider: string;
+  endpoint: string;
+  content: string | null;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    cost_usd?: number;
+  };
+  latency_ms?: number;
+  fallback_used?: boolean;
+}
+
+export interface RoleAssignment {
+  role: TaskRole;
+  messages: ChatMessage[];
+  temperature?: number;
+  maxTokens?: number;
 }
 
 // ========== 静态路由配置表 ==========
@@ -566,6 +593,195 @@ class MultiPlatformRouter {
     if (!res.ok) throw new Error(`Embedding request failed: ${res.status}`);
     const data = await res.json();
     return data.data?.map((d: any) => d.embedding) ?? [];
+  }
+
+  // ========== 智能任务分配 (v4.0) ==========
+  /**
+   * 为指定角色智能分配最优模型
+   * @param role - 任务角色
+   * @returns 分配结果（模型信息 + 端点）
+   */
+  assign(role: TaskRole): AssignmentResult {
+    const result = assignModel(role);
+    if (!result) {
+      throw new Error(`No model found for role: ${role}`);
+    }
+    return result;
+  }
+
+  /**
+   * 使用指定角色执行对话
+   * @param role - 任务角色
+   * @param messages - 对话消息
+   * @param options - 可选参数 (temperature, maxTokens)
+   * @returns 智能分配响应
+   */
+  async executeWithRole(
+    role: TaskRole,
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number }
+  ): Promise<SmartAssignmentResponse> {
+    const startTime = Date.now();
+    const assignment = this.assign(role);
+
+    const model = assignment.model;
+
+    // 特殊处理：Claude Code 通过 CLI
+    if (model.provider === "claude-code") {
+      try {
+        const result = await claudeCode.execute(
+          messages[messages.length - 1]?.content ?? "",
+          { outputFormat: "text" }
+        );
+        return {
+          role,
+          model: model.id,
+          provider: model.provider,
+          endpoint: "local-cli",
+          content: result.content,
+          latency_ms: Date.now() - startTime,
+          fallback_used: false,
+        };
+      } catch (error) {
+        // 降级到 DeepSeek Pro
+        const fallback = this.callProvider("deepseek", "deepseek-v4-pro", messages, 60000);
+        const response = await fallback;
+        return {
+          role,
+          model: "deepseek-v4-pro",
+          provider: "deepseek",
+          endpoint: "https://api.deepseek.com/v1",
+          content: response.content,
+          latency_ms: Date.now() - startTime,
+          fallback_used: true,
+        };
+      }
+    }
+
+    // 特殊处理：Kimi Code 通过 API
+    if (model.provider === "kimi-code") {
+      try {
+        const result = await kimiCode.chat(
+          messages.map((m) => ({ role: m.role, content: m.content })),
+          { temperature: options?.temperature ?? 0.6, maxTokens: options?.maxTokens ?? 4096 }
+        );
+        return {
+          role,
+          model: model.id,
+          provider: model.provider,
+          endpoint: "https://api.kimi.com/coding/v1",
+          content: result.content,
+          usage: result.usage,
+          latency_ms: Date.now() - startTime,
+          fallback_used: false,
+        };
+      } catch (error) {
+        const fallback = this.callProvider("openrouter", "qwen/qwen3-0309-coder:free", messages, 30000);
+        const response = await fallback;
+        return {
+          role,
+          model: "qwen/qwen3-0309-coder:free",
+          provider: "openrouter",
+          endpoint: "https://openrouter.ai/api/v1",
+          content: response.content,
+          latency_ms: Date.now() - startTime,
+          fallback_used: true,
+        };
+      }
+    }
+
+    // 标准 HTTP 调用
+    try {
+      const response = await withRetry(
+        () => this.callProvider(model.provider, model.id, messages, 60000),
+        {
+          maxAttempts: 3,
+          baseDelay: 1000,
+          retryable: (err: any) => isRetryableError(err),
+        }
+      );
+      return {
+        role,
+        model: model.id,
+        provider: model.provider,
+        endpoint: model.provider === "openrouter" ? "https://openrouter.ai/api/v1" : model.provider === "deepseek" ? "https://api.deepseek.com/v1" : "https://api.siliconflow.cn/v1",
+        content: response.content,
+        usage: response.usage,
+        latency_ms: Date.now() - startTime,
+        fallback_used: false,
+      };
+    } catch (error) {
+      // 使用能力注册表的降级链
+      const fallbackResult = await this.executeFallback(role, messages, options);
+      return {
+        ...fallbackResult,
+        latency_ms: Date.now() - startTime,
+        fallback_used: true,
+      };
+    }
+  }
+
+  /**
+   * 批量并行执行多角色任务
+   * @param assignments - 角色分配列表
+   * @returns 并行执行结果
+   */
+  async batchExecute(
+    assignments: RoleAssignment[]
+  ): Promise<SmartAssignmentResponse[]> {
+    const promises = assignments.map((a) =>
+      this.executeWithRole(a.role, a.messages, {
+        temperature: a.temperature,
+        maxTokens: a.maxTokens,
+      }).catch((err) => ({
+        role: a.role,
+        model: "error",
+        provider: "error",
+        endpoint: "",
+        content: `Error: ${err.message}`,
+        latency_ms: 0,
+        fallback_used: true,
+      }))
+    );
+    return Promise.all(promises);
+  }
+
+  /**
+   * 降级执行
+   */
+  private async executeFallback(
+    role: TaskRole,
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number }
+  ): Promise<SmartAssignmentResponse> {
+    // 通用降级到 openrouter 免费模型
+    try {
+      const response = await this.callProvider(
+        "openrouter",
+        "qwen/qwen3-0309-coder:free",
+        messages,
+        30000
+      );
+      return {
+        role,
+        model: "qwen/qwen3-0309-coder:free",
+        provider: "openrouter",
+        endpoint: "https://openrouter.ai/api/v1",
+        content: response.content,
+        latency_ms: 0,
+        fallback_used: true,
+      };
+    } catch {
+      return {
+        role,
+        model: "local",
+        provider: "local",
+        endpoint: "",
+        content: `[System] All models for role "${role}" are unavailable. Please try again later.`,
+        latency_ms: 0,
+        fallback_used: true,
+      };
+    }
   }
 
   private delay(ms: number): Promise<void> {
