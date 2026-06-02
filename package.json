@@ -27,10 +27,12 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "blessed": "^0.1.81",
     "drizzle-orm": "^0.30.0",
+    "opencode-ai": "^1.15.13",
     "yaml": "^2.4.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/blessed": "^0.1.27",
     "@types/bun": "latest",
     "typescript": "^5.3.0"

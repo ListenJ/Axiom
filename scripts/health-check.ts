@@ -61,22 +61,22 @@ async function healthCheckAll(): Promise<HealthResult[]> {
 
 // 主执行
 async function main() {
-  console.log("🏥 Running health checks...\n");
+  console.log("[健康检查] Running health checks...\n");
   const health = await healthCheckAll();
 
   let allUp = true;
   for (const h of health) {
-    const icon = h.status === "UP" ? "🟢" : "🔴";
+    const icon = h.status === "UP" ? "[正常]" : "[异常]";
     console.log(`${icon} ${h.platform}: ${h.status} (${h.latencyMs}ms)${h.error ? ` — ${h.error}` : ""}`);
     if (h.status === "DOWN") allUp = false;
   }
 
   console.log("");
   if (allUp) {
-    console.log("✅ All platforms healthy");
+    console.log("[完成] All platforms healthy");
     process.exit(0);
   } else {
-    console.log("❌ Some platforms are down");
+    console.log("[错误] Some platforms are down");
     process.exit(1);
   }
 }

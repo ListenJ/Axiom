@@ -40,7 +40,7 @@ async function createBackup(options: BackupOptions): Promise<void> {
     await copyFile(options.sourceDb, dbBackupPath);
     console.log(`✓ Database backed up: ${options.sourceDb}`);
   } else {
-    console.warn(`⚠ Database not found: ${options.sourceDb}`);
+    console.warn(`[警告] Database not found: ${options.sourceDb}`);
   }
 
   // Backup vault (metadata only, skip large files)
@@ -50,7 +50,7 @@ async function createBackup(options: BackupOptions): Promise<void> {
     await copyVault(options.sourceVault, vaultBackupPath);
     console.log(`✓ Vault backed up: ${options.sourceVault}`);
   } else {
-    console.warn(`⚠ Vault not found: ${options.sourceVault}`);
+    console.warn(`[警告] Vault not found: ${options.sourceVault}`);
   }
 
   // Create manifest

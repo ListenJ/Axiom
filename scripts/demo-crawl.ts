@@ -8,13 +8,13 @@ import { DataPipeline } from "../src/crawl/data-pipeline.js";
 const url = process.argv[2] || "https://developer.mozilla.org/en-US/docs/Web/JavaScript";
 
 async function main() {
-  console.log(`🔍 结构化爬取演示: ${url}\n`);
+  console.log(`[搜索] 结构化爬取演示: ${url}\n`);
 
   const pipeline = new DataPipeline({ requestDelay: 0 });
   const result = await pipeline.crawlStructured(url);
 
   if (!result) {
-    console.error("❌ 爬取失败");
+    console.error("[错误] 爬取失败");
     process.exit(1);
   }
 
@@ -39,7 +39,7 @@ async function main() {
   }
 
   console.log("\n" + "═".repeat(60));
-  console.log("📊 表格 (" + result.tables.length + ")");
+  console.log("[表格] (" + result.tables.length + ")");
   console.log("═".repeat(60));
   for (const t of result.tables.slice(0, 3)) {
     console.log(`\n表格: ${t.caption || "(无标题)"}`);
@@ -57,7 +57,7 @@ async function main() {
   }
 
   console.log("\n" + "═".repeat(60));
-  console.log("🖼️ 图片 (" + result.images.length + ")");
+  console.log("[图片] (" + result.images.length + ")");
   console.log("═".repeat(60));
   for (const img of result.images.slice(0, 5)) {
     console.log(`  ${img.alt || "(无描述)"}: ${img.src.slice(0, 80)}`);
@@ -71,7 +71,7 @@ async function main() {
   }
 
   console.log("\n" + "═".repeat(60));
-  console.log("🏗️ Schema.org / JSON-LD (" + result.structuredData.length + ")");
+  console.log("[结构化数据] Schema.org / JSON-LD (" + result.structuredData.length + ")");
   console.log("═".repeat(60));
   for (const d of result.structuredData.slice(0, 5)) {
     console.log(`  @type: ${d["@type"] || "Unknown"}`);
@@ -85,11 +85,11 @@ async function main() {
   }
 
   console.log("\n" + "═".repeat(60));
-  console.log("📝 Markdown 预览 (前 800 字符)");
+  console.log("[Markdown] 预览 (前 800 字符)");
   console.log("═".repeat(60));
   console.log(result.markdown.slice(0, 800) + "\n...");
 
-  console.log("\n✅ 完成！完整 Markdown 已输出到控制台。");
+  console.log("\n[完成] 完整 Markdown 已输出到控制台。");
 }
 
 main().catch(console.error);
