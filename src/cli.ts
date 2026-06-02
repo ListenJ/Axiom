@@ -5,11 +5,9 @@
  * 用法: bun run src/cli.ts <command> [options]
  */
 import { Database } from "bun:sqlite";
-import { KnowledgeGraph } from "./kg/graph.js";
 import { searchAggregator } from "./crawl/search-engines.js";
-import { enhancedSearch } from "./crawl/enhanced-search.js";
+import { unifiedSearch } from "./crawl/unified-search.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
-import { proxyManager } from "./crawl/proxy-manager.js";
 import { VaultManager } from "./memory/vault-manager.js";
 import { logger } from "./utils/logger.js";
 import {
@@ -30,17 +28,13 @@ import {
 } from "./agents/kimi-code-agent.js";
 import {
   runHermesTask,
-  planProject,
   deepResearch,
-  architectureReview,
   checkHermes,
   getHermesInstallGuide,
 } from "./agents/hermes-agent.js";
 import {
   recognizeIntent,
   buildAgentMessages,
-  listAgentCategories,
-  listAgentsByCategory,
 } from "./agents/intent-router.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
@@ -51,19 +45,19 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: () => {
       const db = new Database(dbPath);
       const tables = ["conversations", "tasks", "knowledge", "entities", "relationships", "crawl_results", "search_history", "model_usage"];
-      console.log("📊 数据库统计:\n");
+      console.log("[数据库统计]\n");
       for (const t of tables) {
         const row = db.query(`SELECT COUNT(*) as c FROM ${t}`).get() as any;
         console.log(`  ${t.padEnd(20)} ${String(row?.c || 0).padStart(6)} 条记录`);
       }
       db.close();
 
-      console.log("\n🔍 搜索引擎:");
+      console.log("\n[搜索引擎]");
       for (const e of searchAggregator.listEngines()) {
-        console.log(`  ${e.name.padEnd(15)} ${e.available ? "✅ 可用" : "⚪ 未配置"}`);
+        console.log(`  ${e.name.padEnd(15)} ${e.available ? "[可用]" : "[未配置]"}`);
       }
 
-      console.log(`\n🔌 代理: ${proxyManager.getHealthyCount()} 个健康代理`);
+      console.log("\n[代理] 未配置代理池");
     },
   },
 
@@ -76,7 +70,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const enginesArg = args.find((a) => a.startsWith("--engines="))?.slice(10)?.split(",") || ["duckduckgo", "searxng"];
       const num = Number(args.find((a) => a.startsWith("--num="))?.slice(6)) || 10;
 
-      console.log(`🔍 搜索: "${query}" via [${enginesArg.join(", ")}]\n`);
+      console.log(`[搜索] "${query}" via [${enginesArg.join(", ")}]\n`);
       const results = await searchAggregator.searchMulti({ query, num }, enginesArg);
       for (const r of results) {
         console.log(`  ${r.position}. ${r.title}`);
@@ -97,31 +91,31 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const mode = args.find((a) => a.startsWith("--mode="))?.slice(7) || "quick";
       const num = Number(args.find((a) => a.startsWith("--num="))?.slice(6)) || 10;
 
-      console.log(`🔍 增强搜索 [${mode}]: "${query}"\n`);
+      console.log(`[增强搜索] [${mode}]: "${query}"\n`);
 
       let results;
       switch (mode) {
         case "deep":
-          results = await enhancedSearch.deepSearch(query, num);
+          results = await unifiedSearch.deepSearch(query, num);
           break;
         case "news":
-          results = await enhancedSearch.newsSearch(query, num);
+          results = await unifiedSearch.newsSearch(query, num);
           break;
         case "academic":
-          results = await enhancedSearch.academicSearch(query, num);
+          results = await unifiedSearch.academicSearch(query, num);
           break;
         case "code":
-          results = await enhancedSearch.codeSearch(query, num);
+          results = await unifiedSearch.codeSearch(query, num);
           break;
         default:
-          results = await enhancedSearch.quickSearch(query, num);
+          results = await unifiedSearch.quickSearch(query, num);
       }
 
       for (const r of results) {
-        console.log(`  ${r.position}. ${r.title} ${r.isAuthoritative ? "⭐" : ""}`);
+        console.log(`  ${r.position}. ${r.title}`);
         console.log(`     ${r.link}`);
-        console.log(`     ${r.enhancedSnippet || r.snippet.slice(0, 120)}...`);
-        console.log(`     📊 相关性: ${(r.relevanceScore * 100).toFixed(0)}% | 来源: ${r.engine}`);
+        console.log(`     ${r.snippet.slice(0, 120)}...`);
+        console.log(`     [相关性] ${(r.relevanceScore * 100).toFixed(0)}% | 来源: ${r.engine}`);
         console.log();
       }
       console.log(`共 ${results.length} 条结果`);
@@ -134,7 +128,10 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const partial = args[0];
       if (!partial) { console.error("Usage: search:suggestions <partial_query>"); return; }
 
-      const suggestions = enhancedSearch.getSuggestions(partial, 10);
+      const suggestionsDb = new Database(dbPath);
+      const rows = suggestionsDb.query("SELECT DISTINCT query FROM search_history WHERE query LIKE ? ORDER BY created_at DESC LIMIT 10").all(`${partial}%`) as { query: string }[];
+      suggestionsDb.close();
+      const suggestions = rows.map(r => r.query);
       console.log(`搜索建议 for "${partial}":\n`);
       suggestions.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
     },
@@ -144,19 +141,26 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "搜索统计 (search:stats [--days=7])",
     run: async (args) => {
       const days = Number(args.find((a) => a.startsWith("--days="))?.slice(7)) || 7;
-      const stats = enhancedSearch.getStats(days);
+      const stats = unifiedSearch.getStats(days);
 
-      console.log(`📊 搜索统计 (最近 ${days} 天)\n`);
+      console.log(`[搜索统计] (最近 ${days} 天)\n`);
       console.log(`总搜索次数: ${stats.totalSearches}`);
       console.log(`唯一查询: ${stats.uniqueQueries}`);
       console.log(`平均结果数: ${stats.avgResults}`);
       console.log(`平均延迟: ${stats.avgLatency}ms\n`);
 
-      console.log("🔥 热门查询:");
+      console.log("[热门查询]");
       stats.topQueries.forEach((q, i) => console.log(`  ${i + 1}. ${q.query} (${q.count}次)`));
 
-      console.log("\n⚙️ 引擎使用:");
-      stats.topEngines.forEach((e, i) => console.log(`  ${i + 1}. ${e.engine} (${e.count}次)`));
+      const statsDb = new Database(dbPath);
+      const since = Math.floor(Date.now() / 1000) - days * 86400;
+      const topEngines = statsDb.query(`
+        SELECT engines as engine, COUNT(*) as count FROM search_history
+        WHERE created_at >= ? GROUP BY engines ORDER BY count DESC LIMIT 10
+      `).all(since) as { engine: string; count: number }[];
+      statsDb.close();
+      console.log("\n[引擎使用]");
+      topEngines.forEach((e, i) => console.log(`  ${i + 1}. ${e.engine} (${e.count}次)`));
     },
   },
 
@@ -164,9 +168,9 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "搜索历史 (search:history [--limit=50])",
     run: async (args) => {
       const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 50;
-      const history = enhancedSearch.getHistory(limit);
+      const history = unifiedSearch.getHistory(limit);
 
-      console.log(`📜 最近 ${history.length} 条搜索历史:\n`);
+      console.log(`[最近 ${history.length} 条搜索历史]\n`);
       history.forEach((h, i) => {
         console.log(`  ${i + 1}. [${new Date(h.createdAt).toLocaleString()}] "${h.query}"`);
         console.log(`     引擎: ${h.engines} | 结果: ${h.resultCount} | 耗时: ${h.latencyMs}ms`);
@@ -177,9 +181,9 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "search:clear": {
     desc: "清除搜索缓存和历史",
     run: async () => {
-      enhancedSearch.clearCache();
-      enhancedSearch.clearHistory();
-      console.log("✅ 搜索缓存和历史已清除");
+      unifiedSearch.clearCache();
+      unifiedSearch.clearHistory();
+      console.log("[完成] 搜索缓存和历史已清除");
     },
   },
 
@@ -190,7 +194,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!url) { console.error("Usage: fetch <url>"); return; }
 
       const pipeline = new DataPipeline();
-      console.log(`🌐 抓取: ${url}\n`);
+      console.log(`[抓取] ${url}\n`);
       const result = await pipeline.crawlStructured(url);
       if (!result) { console.error("抓取失败"); return; }
 
@@ -209,79 +213,6 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
-  "kg:entity": {
-    desc: "知识图谱: 创建实体 (kg:entity <name> <type> [json_props])",
-    run: (args) => {
-      const [name, type, propsJson] = args;
-      if (!name || !type) { console.error("Usage: kg:entity <name> <type> [json_props]"); return; }
-      const kg = new KnowledgeGraph();
-      const props = propsJson ? JSON.parse(propsJson) : undefined;
-      const entity = kg.createEntity(name, type as any, props);
-      console.log(`✅ 创建实体: #${entity.id} ${entity.name} (${entity.type})`);
-      kg.close();
-    },
-  },
-
-  "kg:relate": {
-    desc: "知识图谱: 创建关系 (kg:relate <source_name> <target_name> <type>)",
-    run: (args) => {
-      const [sourceName, targetName, relType] = args;
-      if (!sourceName || !targetName || !relType) { console.error("Usage: kg:relate <source> <target> <type>"); return; }
-      const kg = new KnowledgeGraph();
-      const src = kg.getEntityByName(sourceName);
-      const tgt = kg.getEntityByName(targetName);
-      if (!src) { console.error(`实体不存在: ${sourceName}`); return; }
-      if (!tgt) { console.error(`实体不存在: ${targetName}`); return; }
-      const rel = kg.createRelationship(src.id, tgt.id, relType as any);
-      console.log(`✅ 创建关系: #${rel.id} ${sourceName} --[${relType}]--> ${targetName}`);
-      kg.close();
-    },
-  },
-
-  "kg:search": {
-    desc: "知识图谱: 搜索实体 (kg:search <query>)",
-    run: (args) => {
-      const query = args[0];
-      if (!query) { console.error("Usage: kg:search <query>"); return; }
-      const kg = new KnowledgeGraph();
-      const results = kg.searchEntities(query, 20);
-      console.log(`找到 ${results.length} 个实体:\n`);
-      for (const e of results) {
-        console.log(`  #${e.id} ${e.name} [${e.type}]`);
-      }
-      kg.close();
-    },
-  },
-
-  "kg:stats": {
-    desc: "知识图谱: 统计信息",
-    run: () => {
-      const kg = new KnowledgeGraph();
-      const stats = kg.stats();
-      console.log(`实体数: ${stats.entityCount}`);
-      console.log(`关系数: ${stats.relationCount}`);
-      console.log("类型分布:");
-      for (const [type, count] of Object.entries(stats.typeDistribution)) {
-        console.log(`  ${type}: ${count}`);
-      }
-      kg.close();
-    },
-  },
-
-  "kg:centrality": {
-    desc: "知识图谱: 中心性分析 (度中心性 Top N)",
-    run: (args) => {
-      const limit = Number(args[0]) || 20;
-      const kg = new KnowledgeGraph();
-      const results = kg.centrality(limit);
-      console.log("度中心性排名:\n");
-      for (const { entity, degree } of results) {
-        console.log(`  ${degree.toString().padStart(3)}  #${entity.id} ${entity.name} [${entity.type}]`);
-      }
-      kg.close();
-    },
-  },
-
   "vault:search": {
     desc: "Vault 确定性记忆搜索 (vault:search <query> [--limit=10] [--para=resources])",
     run: (args) => {
@@ -291,13 +222,13 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const para = args.find((a) => a.startsWith("--para="))?.slice(7);
       const vault = new VaultManager();
       const results = vault.search(query, { limit, paraCategory: para });
-      console.log(`🔍 Vault 搜索结果: "${query}" (${results.length} 条)\n`);
+      console.log(`[搜索] Vault 搜索结果: "${query}" (${results.length} 条)\n`);
       for (const r of results) {
         console.log(`  [${r.score.toFixed(1)}] ${r.note.title}`);
-        console.log(`      📁 ${r.note.path}`);
-        console.log(`      🏷️  ${r.note.tags.join(", ") || "无标签"}`);
-        console.log(`      💡 ${r.reasons.join("; ")}`);
-        console.log(`      📝 ${r.excerpt.slice(0, 120)}...`);
+        console.log(`      [文件] ${r.note.path}`);
+        console.log(`      [标签] ${r.note.tags.join(", ") || "无标签"}`);
+        console.log(`      [原因] ${r.reasons.join("; ")}`);
+        console.log(`      [摘要] ${r.excerpt.slice(0, 120)}...`);
         console.log();
       }
     },
@@ -326,7 +257,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!category) { console.error("Usage: vault:para <category>"); return; }
       const vault = new VaultManager();
       const notes = vault.browsePara(category);
-      console.log(`📂 PARA / ${category} (${notes.length} 条)\n`);
+      console.log(`[PARA] / ${category} (${notes.length} 条)\n`);
       for (const n of notes.slice(0, 30)) {
         console.log(`  ${n.title} — ${n.path} [${n.tags.join(", ") || "无标签"}]`);
       }
@@ -339,7 +270,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: () => {
       const vault = new VaultManager();
       const stats = vault.stats();
-      console.log("📊 Vault 统计:\n");
+      console.log("[统计] Vault 统计:\n");
       console.log(`  总笔记数: ${stats.totalNotes}`);
       console.log(`  总词数: ${stats.totalWords}`);
       console.log(`  总标签数: ${stats.totalTags}`);
@@ -355,10 +286,10 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "索引项目代码到 Vault",
     run: async () => {
       const vault = new VaultManager();
-      console.log("🔄 正在索引代码...");
+      console.log("[索引] 正在索引代码...");
       const result = await vault.indexCode();
-      console.log(`✅ 索引完成: ${result.indexed} 个文件`);
-      if (result.errors.length) console.log(`❌ 错误: ${result.errors.join(", ")}`);
+      console.log(`[索引完成] ${result.indexed} 个文件`);
+      if (result.errors.length) console.log(`[错误] ${result.errors.join(", ")}`);
     },
   },
 
@@ -389,17 +320,17 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         { name: "kimi-code", url: "https://api.kimi.com/coding/v1/models", key: process.env.KIMI_CODE_API_KEY },
       ];
 
-      console.log("🏥 平台健康检查:\n");
+      console.log("[健康检查] 平台健康检查:\n");
       for (const p of platforms) {
-        if (!p.key) { console.log(`  🔴 ${p.name.padEnd(12)} 未配置 API Key`); continue; }
+        if (!p.key) { console.log(`  [缺失] ${p.name.padEnd(12)} 未配置 API Key`); continue; }
         try {
           const res = await fetch(p.url, {
             headers: { Authorization: `Bearer ${p.key}` },
             signal: AbortSignal.timeout(5000),
           });
-          console.log(`  ${res.ok ? "🟢" : "🔴"} ${p.name.padEnd(12)} ${res.status} ${res.statusText}`);
+          console.log(`  ${res.ok ? "[正常]" : "[异常]"} ${p.name.padEnd(12)} ${res.status} ${res.statusText}`);
         } catch (e: any) {
-          console.log(`  🔴 ${p.name.padEnd(12)} ${e.message}`);
+          console.log(`  [错误] ${p.name.padEnd(12)} ${e.message}`);
         }
       }
     },
@@ -429,7 +360,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         source: "cli-manual",
         sourceType: "manual",
       });
-      console.log(`✅ 原子笔记已创建: ${path}`);
+      console.log(`[原子笔记已创建] ${path}`);
     },
   },
 
@@ -440,7 +371,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!installed) { console.log(getOpenCodeInstallGuide()); return; }
       const model = args.find((a) => a.startsWith("--model="))?.slice(8);
       const prompt = args.find((a) => !a.startsWith("--"));
-      console.log(`🚀 启动 OpenCode 会话 (模型: ${model || OPENCODE_FREE_MODELS[0]})...\n`);
+      console.log(`[启动] OpenCode 会话 (模型: ${model || OPENCODE_FREE_MODELS[0]})...\n`);
       await openCodeSession({ cwd: process.cwd(), model, prompt });
     },
   },
@@ -450,9 +381,9 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async () => {
       const installed = await checkOpenCode();
       if (!installed) { console.log(getOpenCodeInstallGuide()); return; }
-      console.log("🆓 OpenCode 推荐免费模型:\n");
+      console.log("[OpenCode 推荐免费模型]\n");
       for (const m of OPENCODE_FREE_MODELS) console.log(`  • ${m}`);
-      console.log("\n📋 所有可用模型:");
+      console.log("\n[所有可用模型]");
       const models = await listOpenCodeModels();
       for (const m of models.slice(0, 30)) console.log(`  • ${m}`);
       if (models.length > 30) console.log(`  ... 还有 ${models.length - 30} 个`);
@@ -465,7 +396,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const installed = await checkOpenCode();
       if (!installed) { console.log(getOpenCodeInstallGuide()); return; }
       const port = Number(args.find((a) => a.startsWith("--port="))?.slice(7)) || 0;
-      console.log(`🌐 启动 OpenCode 后台服务... 按 Ctrl+C 停止\n`);
+      console.log(`[启动] OpenCode 后台服务... 按 Ctrl+C 停止\n`);
       const server = startOpenCodeServer({ cwd: process.cwd(), port });
       process.on("SIGINT", () => { server.stop(); process.exit(0); });
       await new Promise(() => {}); // 永久等待
@@ -485,7 +416,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       }
 
       const temp = Number(args.find((a) => a.startsWith("--temp="))?.slice(7)) || 0.7;
-      console.log(`🦅 Kimi Code 编码中... (模型: ${KIMI_CODE_MODEL}, temp: ${temp})\n`);
+      console.log(`[Kimi Code 编码中] (模型: ${KIMI_CODE_MODEL}, temp: ${temp})\n`);
 
       try {
         const result = await kimiCodeChat({
@@ -500,7 +431,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
           console.log(`\n--- 用量: ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} tokens ---`);
         }
       } catch (e: any) {
-        console.error(`\n❌ Kimi Code 调用失败: ${e.message}`);
+        console.error(`\n[错误] Kimi Code 调用失败: ${e.message}`);
       }
     },
   },
@@ -510,14 +441,14 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async (args) => {
       const installed = await checkKimiCli();
       if (!installed) {
-        console.log("❌ kimi CLI 未安装。安装方式:\n");
+        console.log("[错误] kimi CLI 未安装。安装方式:\n");
         console.log("  macOS / Linux: curl -LsSf https://code.kimi.com/install.sh | bash");
         console.log("  Windows:       Invoke-RestMethod https://code.kimi.com/install.ps1 | Invoke-Expression\n");
         console.log(getKimiCodeGuide());
         return;
       }
       const prompt = args.find((a) => !a.startsWith("--"));
-      console.log(`🚀 启动 Kimi Code CLI 会话...\n`);
+      console.log(`[启动] Kimi Code CLI 会话...\n`);
       await startKimiCliSession({ cwd: process.cwd(), prompt });
     },
   },
@@ -525,11 +456,11 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "kimi:status": {
     desc: "检查 Kimi Code 配置和 CLI 状态",
     run: async () => {
-      console.log("🦅 Kimi Code 状态检查\n");
+      console.log("[Kimi Code 状态检查]\n");
       const apiKeyOk = checkKimiCodeApiKey();
-      console.log(`  API Key:   ${apiKeyOk ? "✅ 已配置" : "❌ 未配置 (KIMI_CODE_API_KEY)"}`);
+      console.log(`  API Key:   ${apiKeyOk ? "[已配置]" : "[未配置] (KIMI_CODE_API_KEY)"}`);
       const cliOk = await checkKimiCli();
-      console.log(`  CLI 工具:  ${cliOk ? "✅ 已安装" : "❌ 未安装 (curl -LsSf https://code.kimi.com/install.sh | bash)"}`);
+      console.log(`  CLI 工具:  ${cliOk ? "[已安装]" : "[未安装] (curl -LsSf https://code.kimi.com/install.sh | bash)"}`);
       console.log(`  模型 ID:   ${KIMI_CODE_MODEL}`);
       console.log(`  Base URL:  ${process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1"}`);
       console.log(`\n使用指南: bun run src/cli.ts kimi:guide`);
@@ -543,44 +474,17 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
-  "project:plan": {
-    desc: "使用 Hermes 创建项目计划 (project:plan <description>)",
-    run: async (args) => {
-      const description = args.join(" ");
-      if (!description) { console.error("Usage: project:plan <description>"); return; }
-      const installed = await checkHermes();
-      if (!installed) { console.log("❌ Hermes 未安装。运行: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash"); return; }
-      console.log(`📋 Hermes 制定项目计划中...\n`);
-      const result = await planProject(description, process.cwd());
-      console.log(result.stdout);
-      if (result.stderr) console.error("⚠️  stderr:", result.stderr);
-    },
-  },
-
   "project:research": {
     desc: "使用 Hermes 深度研究 (project:research <topic>)",
     run: async (args) => {
       const topic = args.join(" ");
       if (!topic) { console.error("Usage: project:research <topic>"); return; }
       const installed = await checkHermes();
-      if (!installed) { console.log("❌ Hermes 未安装。运行: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash"); return; }
-      console.log(`🔬 Hermes 深度研究中...\n`);
+      if (!installed) { console.log("[错误] Hermes 未安装。运行: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash"); return; }
+      console.log(`[Hermes] 深度研究中...\n`);
       const result = await deepResearch(topic, process.cwd());
       console.log(result.stdout);
-      if (result.stderr) console.error("⚠️  stderr:", result.stderr);
-    },
-  },
-
-  "project:arch": {
-    desc: "使用 Hermes 架构审查 (project:arch [--path=.])",
-    run: async (args) => {
-      const projectPath = args.find((a) => a.startsWith("--path="))?.slice(7);
-      const installed = await checkHermes();
-      if (!installed) { console.log("❌ Hermes 未安装。运行: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash"); return; }
-      console.log(`🏗️  Hermes 架构审查中...\n`);
-      const result = await architectureReview(projectPath, process.cwd());
-      console.log(result.stdout);
-      if (result.stderr) console.error("⚠️  stderr:", result.stderr);
+      if (result.stderr) console.error("[警告] stderr:", result.stderr);
     },
   },
 
@@ -599,22 +503,22 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!message) { console.error("Usage: chat <message>"); return; }
       const noIntent = args.includes("--no-intent");
 
-      let intent: ReturnType<typeof buildAgentMessages>["intent"] = null;
+      let intent: ReturnType<typeof buildAgentMessages>["intent"] | null = null;
       let messages: ReturnType<typeof buildAgentMessages>["messages"] = [];
 
       if (!noIntent) {
-        console.log(`🧠 正在识别意图...\n`);
+        console.log(`[意图识别] 正在识别...\n`);
         const { buildAgentMessages } = await import("./agents/intent-router.js");
         const result = buildAgentMessages(message);
         intent = result.intent;
         messages = result.messages;
 
         if (intent) {
-          console.log(`🎯 识别意图: ${intent.agent.emoji} ${intent.agentName} (${intent.intent})`);
+          console.log(`[意图] ${intent.agentName} (${intent.intent})`);
           console.log(`   置信度: ${(intent.confidence * 100).toFixed(0)}%`);
           console.log(`   匹配词: ${intent.matchedKeywords.join(", ") || "无"}\n`);
         } else {
-          console.log(`🎯 识别意图: 通用助手\n`);
+          console.log(`[意图] 通用助手\n`);
         }
       } else {
         messages = [{ role: "user", content: message }];
@@ -628,19 +532,19 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!intent) {
         result = await router.chat("general-chat", messages);
       } else if (["strategy", "evaluation", "decision"].includes(intentType || "")) {
-        console.log(`🔮 调用决策层 (DeepSeek-V4 Pro)...\n`);
+        console.log(`[调用] 决策层 (DeepSeek-V4 Pro)...\n`);
         result = await router.decide(messages);
       } else if (["architecture", "system-design", "infra"].includes(intentType || "")) {
-        console.log(`🏛️ 调用架构层 (GLM-5.1)...\n`);
+        console.log(`[调用] 架构层 (GLM-5.1)...\n`);
         result = await router.architect(messages);
       } else if (["engineering", "game-development", "integrations", "testing"].includes(intentType || "")) {
-        console.log(`🛠️ 调用工具层 (编码免费模型)...\n`);
+        console.log(`[调用] 工具层 (编码免费模型)...\n`);
         result = await router.tool("coding", messages);
       } else if (["english", "translation", "localization"].includes(intentType || "")) {
-        console.log(`🌐 调用工具层 (英文处理)...\n`);
+        console.log(`[调用] 工具层 (英文处理)...\n`);
         result = await router.tool("english", messages);
       } else if (["rl", "reasoning", "optimization"].includes(intentType || "")) {
-        console.log(`🧠 调用工具层 (RL/推理)...\n`);
+        console.log(`[调用] 工具层 (RL/推理)...\n`);
         result = await router.tool("rl", messages);
       } else {
         const taskType = ["academic", "product", "project-management"].includes(intentType || "")
@@ -649,7 +553,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         result = await router.chat(taskType, messages);
       }
 
-      console.log(`🤖 ${result.provider} / ${result.model}\n`);
+      console.log(`[AI] ${result.provider} / ${result.model}\n`);
       console.log(result.content);
       if (result.usage) {
         console.log(`\n--- 用量: ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} tokens ---`);
@@ -661,10 +565,10 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "初始化 CodeGraph 代码知识索引",
     run: async () => {
       const { initializeCodegraph, getStatus } = await import("./memory/codegraph-index.js");
-      console.log("🔧 初始化 CodeGraph...\n");
+      console.log("[初始化] CodeGraph...\n");
       await initializeCodegraph();
       const status = await getStatus();
-      console.log("✅ CodeGraph 初始化完成");
+      console.log("[完成] CodeGraph 初始化完成");
       console.log(`  文件数: ${status?.files ?? "?"}`);
       console.log(`  节点数: ${status?.nodes ?? "?"}`);
       console.log(`  边数: ${status?.edges ?? "?"}`);
@@ -679,11 +583,11 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
       const { searchSymbols } = await import("./memory/codegraph-index.js");
       const results = await searchSymbols(query, { limit });
-      console.log(`🔍 CodeGraph 搜索结果: "${query}" (${results.length} 个符号)\n`);
+      console.log(`[搜索] CodeGraph 搜索结果: "${query}" (${results.length} 个符号)\n`);
       for (const r of results.slice(0, limit)) {
         console.log(`  ${r.node.kind} ${r.node.name}`);
-        console.log(`     📁 ${r.node.filePath}:${r.node.startLine}`);
-        console.log(`     📝 ${r.node.signature ?? "no signature"}`);
+        console.log(`     [文件] ${r.node.filePath}:${r.node.startLine}`);
+        console.log(`     [签名] ${r.node.signature ?? "no signature"}`);
         console.log();
       }
     },
@@ -695,7 +599,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const task = args.join(" ");
       if (!task) { console.error("Usage: cg:context <task description>"); return; }
       const { buildContext } = await import("./memory/codegraph-index.js");
-      console.log("🧠 构建 CodeGraph 上下文...\n");
+      console.log("[构建] CodeGraph 上下文...\n");
       const context = await buildContext(task, { maxNodes: 15, includeCode: true });
       console.log(context);
     },
@@ -706,13 +610,13 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async () => {
       const { toolPool } = await import("./router/tool-pool.js");
       const stats = toolPool.getStats() as Record<string, any>;
-      console.log("🤖 模型路由分层状态\n");
+      console.log("[模型路由] 分层状态\n");
       console.log("  L1 决策层:    DeepSeek-V4 Pro (paid)");
       console.log("  L2 架构层:    GLM-5.1 (paid)");
       console.log("  L3 工具层:    免费模型池（带限流）");
       console.log("  L4 评估层:    Tencent hy3-preview ($5额度) + DeepSeek-V4 Pro\n");
 
-      console.log("🛠️ 工具模型池健康度:\n");
+      console.log("[工具池] 健康度:\n");
       const grouped: Record<string, any[]> = {};
       for (const [id, s] of Object.entries(stats)) {
         const role = s.role as string;
@@ -734,18 +638,27 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "agent:status": {
     desc: "检查编码和项目管理 Agent 状态",
     run: async () => {
-      console.log("🤖 Agent 状态检查\n");
+      console.log("[Agent 状态检查]\n");
       const opencodeOk = await checkOpenCode();
-      console.log(`  OpenCode: ${opencodeOk ? "✅ 已安装" : "❌ 未安装 (curl -fsSL https://opencode.ai/install.sh | bash)"}`);
+      console.log(`  OpenCode: ${opencodeOk ? "[已安装]" : "[未安装] (curl -fsSL https://opencode.ai/install.sh | bash)"}`);
       if (opencodeOk) {
-        console.log(`  OpenCode 免费模型:`);
+        console.log(`  [OpenCode 免费模型]`);
         for (const m of OPENCODE_FREE_MODELS) console.log(`    • ${m}`);
       }
       const hermesOk = await checkHermes();
-      console.log(`  Hermes:    ${hermesOk ? "✅ 已安装" : "❌ 未安装 (curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash)"}`);
+      console.log(`  Hermes:    ${hermesOk ? "[已安装]" : "[未安装] (curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash)"}`);
       const kimiApiOk = checkKimiCodeApiKey();
       const kimiCliOk = await checkKimiCli();
-      console.log(`  Kimi Code: ${kimiApiOk || kimiCliOk ? "✅" : "❌"} API Key ${kimiApiOk ? "已配置" : "未配置"} | CLI ${kimiCliOk ? "已安装" : "未安装"}`);
+      console.log(`  Kimi Code: ${kimiApiOk || kimiCliOk ? "[OK]" : "[缺失]"} API Key ${kimiApiOk ? "已配置" : "未配置"} | CLI ${kimiCliOk ? "已安装" : "未安装"}`);
+
+      // Prompt Engineer 状态
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const templates = promptEngineer.listTemplates();
+      const skills = promptEngineer.listSkills();
+      console.log(`\n  Prompt Engineer:`);
+      console.log(`    模板数: ${templates.length}`);
+      console.log(`    Skill数: ${skills.length}`);
+      console.log(`    匹配模式: 零向量 (确定性关键词计数)`);
     },
   },
 
@@ -754,9 +667,9 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async () => {
       const { discoverAgents, listAgentSources } = await import("./agents/agent-discovery.js");
       const sources = listAgentSources();
-      console.log("🔍 Agent 自动发现\n");
+      console.log("[Agent 自动发现]\n");
       if (sources.length === 0) {
-        console.log("⚠️ 未找到 Agent 源目录");
+        console.log("[警告] 未找到 Agent 源目录");
         console.log("  将 Agent .md 文件放入 ./data/agents/ 目录，或设置 AGENTS_DIR 环境变量");
         console.log("  例如: AGENTS_DIR=./agency-agents-main bun run src/cli.ts agents:discover");
         return;
@@ -766,7 +679,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("");
       for (const sourceDir of sources) {
         const result = discoverAgents({ sourceDir, force: false });
-        console.log(`  ✅ ${sourceDir}`);
+        console.log(`  [完成] ${sourceDir}`);
         console.log(`     总计: ${result.count} 个 Agent`);
         console.log(`     新增: ${result.newCount} | 更新: ${result.updatedCount} | 跳过: ${result.skippedCount}`);
         console.log(`     分类: ${result.categories.join(", ")}`);
@@ -776,37 +689,185 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "prompt:list": {
+    desc: "列出所有提示词模板 (prompt:list [--category=engineering])",
+    run: async (args) => {
+      const category = args.find((a) => a.startsWith("--category="))?.slice(11);
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const templates = promptEngineer.listTemplates(category);
+      console.log(`[提示词模板] (${category || "全部"})\n`);
+      for (const t of templates) {
+        console.log(`  [${t.category}] ${t.name} (${t.id})`);
+        console.log(`     描述: ${t.description}`);
+        console.log(`     思考强度: ${t.thinkingIntensity}`);
+        console.log(`     标签: ${t.tags.join(", ")}`);
+        console.log(`     变量: ${t.variables.join(", ")}`);
+        console.log();
+      }
+      console.log(`共 ${templates.length} 个模板`);
+    },
+  },
+
+  "prompt:match": {
+    desc: "匹配提示词模板 (prompt:match <task_description> [--intensity=low|medium|high])",
+    run: async (args) => {
+      const desc = args.find((a) => !a.startsWith("--"));
+      if (!desc) { console.error("Usage: prompt:match <task_description>"); return; }
+      const intensity = args.find((a) => a.startsWith("--intensity="))?.slice(12) as any;
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const match = promptEngineer.matchTemplate(desc, { thinkingIntensity: intensity });
+      if (!match) {
+        console.log("[错误] 未找到匹配的模板");
+        return;
+      }
+      console.log(`[匹配] 模板: ${match.template.name}`);
+      console.log(`   分数: ${match.score}`);
+      console.log(`   原因: ${match.reasons.join(", ")}`);
+      console.log(`   思考强度: ${match.template.thinkingIntensity}`);
+      console.log(`\n--- 模板内容 ---\n`);
+      console.log(match.template.template.slice(0, 500));
+      if (match.template.template.length > 500) console.log("...");
+    },
+  },
+
+  "prompt:fill": {
+    desc: "填充提示词模板 (prompt:fill <template_id> <json_variables>)",
+    run: async (args) => {
+      const templateId = args[0];
+      const varsJson = args[1];
+      if (!templateId || !varsJson) { console.error("Usage: prompt:fill <template_id> <json_variables>"); return; }
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const template = promptEngineer.listTemplates().find((t) => t.id === templateId);
+      if (!template) { console.error(`模板不存在: ${templateId}`); return; }
+      const variables = JSON.parse(varsJson);
+      const filled = promptEngineer.fillTemplate(template, variables);
+      console.log(`[填充] 模板: ${template.name}\n`);
+      console.log(filled);
+    },
+  },
+
+  "prompt:skill": {
+    desc: "匹配 Skill (prompt:skill <trigger>)",
+    run: async (args) => {
+      const trigger = args.join(" ");
+      if (!trigger) { console.error("Usage: prompt:skill <trigger>"); return; }
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const skill = promptEngineer.matchSkill(trigger);
+      if (!skill) {
+        console.log("[错误] 未找到匹配的 Skill");
+        return;
+      }
+      console.log(`[匹配] Skill: ${skill.name}`);
+      console.log(`   描述: ${skill.description}`);
+      console.log(`   触发词: ${skill.triggers.join(", ")}`);
+      console.log(`   所需工具: ${skill.requiredTools.join(", ")}`);
+      console.log(`   输出格式: ${skill.outputFormat}`);
+    },
+  },
+
+  "prompt:generate": {
+    desc: "使用 Hermes 生成新提示词模板 (prompt:generate <description> <category> [var1,var2,...])",
+    run: async (args) => {
+      const description = args[0];
+      const category = args[1];
+      const vars = args[2]?.split(",") || [];
+      if (!description || !category) { console.error("Usage: prompt:generate <description> <category> [var1,var2,...]"); return; }
+      const { checkHermes } = await import("./agents/hermes-agent.js");
+      const installed = await checkHermes();
+      if (!installed) { console.log("[错误] Hermes 未安装"); return; }
+      console.log(`[Hermes] 生成提示词模板...\n`);
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const template = await promptEngineer.generateTemplateWithHermes(description, category, vars);
+      if (!template) { console.log("[错误] 生成失败"); return; }
+      console.log(`[生成] 模板: ${template.name}`);
+      console.log(`   ID: ${template.id}`);
+      console.log(`   思考强度: ${template.thinkingIntensity}`);
+      console.log(`\n--- 模板内容 ---\n`);
+      console.log(template.template);
+    },
+  },
+
+  "prompt:optimize": {
+    desc: "使用 Hermes 优化提示词 (prompt:optimize <goal>)",
+    run: async (args) => {
+      const goal = args.join(" ");
+      if (!goal) { console.error("Usage: prompt:optimize <goal>"); return; }
+      // 从 stdin 读取提示词
+      console.log("请粘贴要优化的提示词 (Ctrl+D 结束):\n");
+      const prompt = await new Promise<string>((resolve) => {
+        let data = "";
+        process.stdin.on("data", (chunk) => { data += chunk; });
+        process.stdin.on("end", () => resolve(data));
+      });
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      console.log("[优化中]...\n");
+      const optimized = await promptEngineer.optimizePromptWithHermes(prompt, goal);
+      if (!optimized) { console.log("[错误] 优化失败"); return; }
+      console.log(`[优化完成]\n\n${optimized}`);
+    },
+  },
+
+  "prompt:hermes-skill": {
+    desc: "使用 Hermes 生成 Skill 定义 (prompt:hermes-skill <name> <description> [trigger1,trigger2,...])",
+    run: async (args) => {
+      const name = args[0];
+      const description = args[1];
+      const triggers = args[2]?.split(",") || [];
+      if (!name || !description) { console.error("Usage: prompt:hermes-skill <name> <description> [triggers]"); return; }
+      const { checkHermes } = await import("./agents/hermes-agent.js");
+      const installed = await checkHermes();
+      if (!installed) { console.log("[错误] Hermes 未安装"); return; }
+      console.log(`[Hermes] 生成 Skill...\n`);
+      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const skill = await promptEngineer.generateSkillWithHermes(name, description, triggers);
+      if (!skill) { console.log("[错误] 生成失败"); return; }
+      console.log(`[生成] Skill: ${skill.name}`);
+      console.log(`   ID: ${skill.id}`);
+      console.log(`   触发词: ${skill.triggers.join(", ")}`);
+      console.log(`   所需工具: ${skill.requiredTools.join(", ")}`);
+    },
+  },
+
   help: {
     desc: "显示帮助信息",
     run: () => {
-      console.log("🦅 OpenClaw AI Agent CLI\n");
+      console.log("OpenClaw AI Agent CLI\n");
       console.log("用法: bun run src/cli.ts <command> [args...]\n");
       console.log("命令:");
       const maxLen = Math.max(...Object.keys(commands).map((k) => k.length));
       for (const [name, cmd] of Object.entries(commands)) {
         console.log(`  ${name.padEnd(maxLen)}  ${cmd.desc}`);
       }
-      console.log("\n🖥️ TUI 终端界面:");
+      console.log("\n[TUI 终端界面]");
       console.log("  bun run src/cli.ts tui");
-      console.log("\n🗨️ AI 聊天（分层路由）:");
-      console.log("  bun run src/cli.ts chat \"帮我写一个React组件\"     → L3 Tool Pool (coding)");
-      console.log("  bun run src/cli.ts chat \"帮我写论文\"               → general-chat");
-      console.log("\n🧠 CodeGraph 代码记忆:");
+      console.log("\n[AI 聊天 - 分层路由]");
+      console.log("  bun run src/cli.ts chat \"帮我写一个React组件\"     -> L3 Tool Pool (coding)");
+      console.log("  bun run src/cli.ts chat \"帮我写论文\"               -> general-chat");
+      console.log("\n[CodeGraph 代码记忆]");
       console.log("  bun run src/cli.ts cg:init                          初始化索引");
       console.log("  bun run src/cli.ts cg:search recognizeIntent        搜索符号");
       console.log("  bun run src/cli.ts cg:context \"fix login bug\"       构建上下文");
-      console.log("\n📊 模型状态:");
+      console.log("\n[模型状态]");
       console.log("  bun run src/cli.ts model:status                     查看工具池健康度");
-      console.log("\n编码 Agent (OpenCode) — 使用免费模型:");
+      console.log("\n[Prompt Engineer - 零向量提示词引擎]");
+      console.log("  bun run src/cli.ts prompt:list                      列出所有模板");
+      console.log("  bun run src/cli.ts prompt:list --category=engineering  按类别筛选");
+      console.log("  bun run src/cli.ts prompt:match \"审查代码安全性\"     匹配模板");
+      console.log("  bun run src/cli.ts prompt:fill code-review '{\"language\":\"ts\",\"code\":\"...\"}'  填充模板");
+      console.log("  bun run src/cli.ts prompt:skill \"搜索 React 19\"      匹配 Skill");
+      console.log("  bun run src/cli.ts prompt:generate \"数据库优化\" engineering \"schema,query\"  Hermes生成模板");
+      console.log("  bun run src/cli.ts prompt:optimize \"提高清晰度\"      Hermes优化提示词");
+      console.log("  bun run src/cli.ts prompt:hermes-skill \"API测试\" \"自动生成API测试用例\" \"测试,api,接口\"  Hermes生成Skill");
+      console.log("\n[编码 Agent - OpenCode - 使用免费模型]");
       console.log("  bun run src/cli.ts code:open \"写一个HTTP服务器\" --model=opencode/deepseek-v4-flash-free");
       console.log("  bun run src/cli.ts code:models");
       console.log("  bun run src/cli.ts code:serve --port=8765");
-      console.log("\n编码 Agent (Kimi Code) — Kimi 会员权益:");
+      console.log("\n[编码 Agent - Kimi Code - Kimi 会员权益]");
       console.log("  bun run src/cli.ts kimi:status                  检查配置状态");
       console.log("  bun run src/cli.ts kimi:chat \"写一个HTTP服务器\"  API 直连编码");
       console.log("  bun run src/cli.ts kimi:open                    启动 CLI 交互会话");
       console.log("  bun run src/cli.ts kimi:guide                   查看安装指南");
-      console.log("\n项目管理 Agent (Hermes):")
+      console.log("\n[项目管理 Agent - Hermes]")
       console.log("  bun run src/cli.ts project:plan \"构建一个电商后台\"");
       console.log("  bun run src/cli.ts project:research \"Rust vs Go 性能对比\"");
       console.log("  bun run src/cli.ts project:arch --path=.");
@@ -835,7 +896,7 @@ async function main() {
     await handler.run(args);
   } catch (e: any) {
     logger.error(`CLI command "${cmd}" failed`, e);
-    console.error(`\n❌ 错误: ${e.message}`);
+    console.error(`\n[错误] ${e.message}`);
     process.exit(1);
   }
 }

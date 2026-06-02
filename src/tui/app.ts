@@ -35,7 +35,7 @@ const header = blessed.box({
   tags: true,
   style: { fg: "white", bg: "blue" },
   content:
-    " {center}🦅 OpenClaw AI Agent v3.0 | DeepSeek-V4 Pro (Decision) | KIMI-k2.6 (Architecture) | Free Tool Pool | Tencent hy3 (Eval){/center} ",
+    " {center}[OpenClaw] AI Agent v3.0 | DeepSeek-V4 Pro (Decision) | KIMI-k2.6 (Architecture) | Free Tool Pool | Tencent hy3 (Eval){/center} ",
 });
 
 // 左侧：聊天历史
@@ -77,10 +77,10 @@ const modelStatusBox = blessed.box({
   tags: true,
   scrollable: true,
   content:
-    "{bold}L1 Decision{/bold}:    🟢 deepseek-v4-pro\n" +
-    "{bold}L2 Architecture{/bold}: 🟢 kimi-k2.6\n" +
+    "{bold}L1 Decision{/bold}:    [正常] deepseek-v4-pro\n" +
+    "{bold}L2 Architecture{/bold}: [正常] kimi-k2.6\n" +
     "{bold}L3 Tool Pool{/bold}:    see Tool Health tab\n" +
-    "{bold}L4 Evaluation{/bold}:   🟡 tencent/hy3 ($5 limit)",
+    "{bold}L4 Evaluation{/bold}:   [警告] tencent/hy3 ($5 limit)",
 });
 
 // 右侧中：WebSocket / 社交连接
@@ -186,12 +186,12 @@ inputBox.on("submit", async (text: string) => {
 async function handleChat(userInput: string) {
   try {
     // Step 1: 意图识别
-    chatBox.log("{cyan-fg}🧠 Recognizing intent...{/cyan-fg}");
+    chatBox.log("{cyan-fg}[意图识别] Recognizing intent...{/cyan-fg}");
     const { intent, messages } = buildAgentMessages(userInput);
 
     if (intent) {
       chatBox.log(
-        `{cyan-fg}🎯 Intent: ${intent.agent.emoji} ${intent.agentName} (${intent.intent}) — ${(
+        `{cyan-fg}[意图] ${intent.agentName} (${intent.intent}) — ${(
           intent.confidence * 100
         ).toFixed(0)}%{/cyan-fg}`
       );
@@ -204,20 +204,20 @@ async function handleChat(userInput: string) {
     chatBox.log(result.content ?? "(no response)");
     chatBox.log("");
   } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Error: ${e.message}{/red-fg}`);
+    chatBox.log(`{red-fg}[错误]: ${e.message}{/red-fg}`);
   }
   screen.render();
 }
 
 async function handleOrchestrate(task: string) {
   try {
-    chatBox.log("{yellow-fg}🎼 Orchestrating complex task...{/yellow-fg}");
+    chatBox.log("{yellow-fg}[编排] Orchestrating complex task...{/yellow-fg}");
     const start = Date.now();
 
     const result = await orchestrator.execute(task);
 
-    chatBox.log(`{yellow-fg}✅ Completed in ${result.totalLatencyMs}ms | ${result.totalTokens} tokens{/yellow-fg}`);
-    chatBox.log(`{yellow-fg}📊 Layers used: ${result.layersUsed.join(", ")}{/yellow-fg}`);
+    chatBox.log(`{yellow-fg}[完成] Completed in ${result.totalLatencyMs}ms | ${result.totalTokens} tokens{/yellow-fg}`);
+    chatBox.log(`{yellow-fg}[层级] Layers used: ${result.layersUsed.join(", ")}{/yellow-fg}`);
 
     for (const r of result.subTaskResults) {
       chatBox.log(
@@ -229,14 +229,14 @@ async function handleOrchestrate(task: string) {
     chatBox.log(result.finalAnswer);
     chatBox.log("");
   } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Orchestration failed: ${e.message}{/red-fg}`);
+    chatBox.log(`{red-fg}[错误] Orchestration failed: ${e.message}{/red-fg}`);
   }
   screen.render();
 }
 
 async function handleCodegraphQuery(query: string) {
   try {
-    chatBox.log(`{green-fg}🔍 CodeGraph: "${query}"{/green-fg}`);
+    chatBox.log(`{green-fg}[搜索] CodeGraph: "${query}"{/green-fg}`);
     const result = await retrieveCodeMemory(query);
     if (result) {
       chatBox.log(`{green-fg}Found ${result.symbols.length} symbols{/green-fg}`);
@@ -245,7 +245,7 @@ async function handleCodegraphQuery(query: string) {
       chatBox.log("{gray-fg}No CodeGraph memory found.{/gray-fg}");
     }
   } catch (e: any) {
-    chatBox.log(`{red-fg}❌ CodeGraph error: ${e.message}{/red-fg}`);
+    chatBox.log(`{red-fg}[错误] CodeGraph error: ${e.message}{/red-fg}`);
   }
   screen.render();
 }
@@ -254,14 +254,14 @@ async function handleToolQuery(roleInput: string) {
   const validRoles = ["coding", "english", "rl", "general-tool"];
   const role = validRoles.includes(roleInput) ? roleInput : "general-tool";
   try {
-    chatBox.log(`{magenta-fg}🛠️ Tool call [${role}]...{/magenta-fg}`);
+    chatBox.log(`{magenta-fg}[工具] Tool call [${role}]...{/magenta-fg}`);
     const result = await router.tool(role as any, [
       { role: "user", content: "Ready for task assignment." },
     ]);
     chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model}{/gray-fg}`);
     chatBox.log(result.content ?? "(no response)");
   } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Tool error: ${e.message}{/red-fg}`);
+    chatBox.log(`{red-fg}[错误] Tool error: ${e.message}{/red-fg}`);
   }
   screen.render();
 }
@@ -282,7 +282,7 @@ function refreshToolHealth() {
   for (const [role, models] of Object.entries(grouped)) {
     toolHealthBox.log(`{bold}${role.toUpperCase()}{/bold}`);
     for (const m of models) {
-      const icon = m.health.includes("🔴") ? "🔴" : m.health.includes("🟡") ? "🟡" : "🟢";
+      const icon = m.health.includes("[异常]") ? "[异常]" : m.health.includes("[警告]") ? "[警告]" : "[正常]";
       const shortId = m.id.split("/").pop()?.slice(0, 30) ?? m.id;
       toolHealthBox.log(`  ${icon} ${shortId} | ${m.rpmThisMinute}/${m.rpmLimit} RPM`);
     }
