@@ -7,7 +7,7 @@ import { Database } from "bun:sqlite";
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
 
-console.log("🗄️  Initializing database...\n");
+console.log("[数据库] Initializing database...\n");
 
 // ========== 核心表 ==========
 
@@ -25,7 +25,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("✅ conversations");
+console.log("[完成] conversations");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
@@ -46,7 +46,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("✅ tasks");
+console.log("[完成] tasks");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS knowledge (
@@ -64,7 +64,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("✅ knowledge");
+console.log("[完成] knowledge");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS entities (
@@ -76,7 +76,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("✅ entities");
+console.log("[完成] entities");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS relationships (
@@ -88,7 +88,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("✅ relationships");
+console.log("[完成] relationships");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS model_usage (
@@ -107,7 +107,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("✅ model_usage");
+console.log("[完成] model_usage");
 
 // ========== 爬取结果持久化 ==========
 
@@ -139,7 +139,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("✅ crawl_results");
+console.log("[完成] crawl_results");
 
 // ========== 搜索历史 ==========
 
@@ -155,7 +155,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("✅ search_history");
+console.log("[完成] search_history");
 
 // ========== FTS5 全文索引 ==========
 
@@ -165,7 +165,7 @@ db.run(`
     tokenize = 'porter unicode61'
   )
 `);
-console.log("✅ notes_fts (Porter + Unicode61)");
+console.log("[完成] notes_fts (Porter + Unicode61)");
 
 db.run(`
   CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts_cjk USING fts5(
@@ -173,7 +173,7 @@ db.run(`
     tokenize = 'trigram'
   )
 `);
-console.log("✅ notes_fts_cjk (Trigram)");
+console.log("[完成] notes_fts_cjk (Trigram)");
 
 // ========== 索引 ==========
 
@@ -193,7 +193,7 @@ db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_site ON crawl_results(site_name)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_created ON crawl_results(created_at)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_search_query_hash ON search_history(query_hash)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_search_created ON search_history(created_at)`);
-console.log("✅ indexes");
+console.log("[完成] indexes");
 
 // ========== 系统状态 ==========
 

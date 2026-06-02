@@ -8,6 +8,7 @@
 import { spawn } from "bun";
 import { statSync } from "fs";
 import { logger } from "../utils/logger.js";
+import { getGlobalVault } from "../memory/vault-manager.js";
 
 export interface HermesTask {
   /** 任务描述 */
@@ -189,32 +190,188 @@ export async function runHermesTask(task: HermesTask): Promise<HermesResult> {
   };
 }
 
-/** 项目管理：创建任务计划 */
-export async function planProject(description: string, cwd?: string): Promise<HermesResult> {
-  return runHermesTask({
-    prompt: `作为项目管理助手，请为以下项目创建详细的任务计划，包括里程碑、依赖关系和风险评估。使用 Markdown 格式输出：\n\n${description}`,
-    cwd,
-    timeoutMs: 300_000,
-  });
-}
-
-/** 深度研究 */
+/** 深度研究（自动读取历史上下文 + 结果沉淀） */
 export async function deepResearch(topic: string, cwd?: string): Promise<HermesResult> {
-  return runHermesTask({
-    prompt: `对以下主题进行深度研究，搜索网络资料，整理关键发现、数据来源和结论。将研究结果保存为结构化文档：\n\n${topic}`,
+  // 1. 读取历史研究上下文
+  const { context } = getResearchContext(topic);
+  const fullPrompt = context
+    ? `对以下主题进行深度研究，搜索网络资料，整理关键发现、数据来源和结论。\n\n${context}\n\n## 研究主题\n${topic}`
+    : `对以下主题进行深度研究，搜索网络资料，整理关键发现、数据来源和结论。\n\n${topic}`;
+
+  const result = await runHermesTask({
+    prompt: fullPrompt,
     cwd,
     timeoutMs: 600_000,
   });
+
+  // 2. 成功后沉淀到 Vault（非阻塞）
+  if (result.success && result.stdout.length > 500) {
+    learnFromResearch(topic, result.stdout, "deep-research")
+      .catch(e => logger.warn("Failed to save deep-research result", { topic, error: (e as Error).message }));
+  }
+
+  return result;
 }
 
-/** 代码审查（Hermes 模式，侧重架构和安全） */
-export async function architectureReview(projectPath?: string, cwd?: string): Promise<HermesResult> {
-  const target = projectPath || ".";
-  return runHermesTask({
-    prompt: `审查 ${target} 项目的整体架构。评估：1) 技术栈选型合理性 2) 模块依赖关系 3) 安全漏洞 4) 可扩展性 5) 是否符合最佳实践。输出详细报告。`,
-    cwd,
-    timeoutMs: 600_000,
-  });
+/**
+ * 代码审查 - 使用 SiliconFlow GLM-5.1 模型
+ * 通过 SiliconFlow API 进行代码审查，不依赖 Hermes CLI
+ */
+export async function codeReview(
+  code: string,
+  language: string = "unknown",
+  context?: string,
+): Promise<{ success: boolean; review: string; model: string }> {
+  const apiKey = process.env.SILICONFLOW_API_KEY;
+  if (!apiKey) {
+    return {
+      success: false,
+      review: "SILICONFLOW_API_KEY 未设置，无法使用 GLM-5.1 进行代码审查。",
+      model: "THUDM/GLM-5.1",
+    };
+  }
+
+  const baseUrl = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
+
+  const reviewPrompt = `你是一位资深代码审查专家。请对以下${language}代码进行全面审查：
+
+1. **代码质量**: 可读性、命名规范、代码结构
+2. **潜在Bug**: 逻辑错误、边界条件、空指针、类型安全
+3. **性能问题**: 时间/空间复杂度、不必要的计算、内存泄漏
+4. **安全风险**: SQL注入、XSS、敏感信息泄露
+5. **最佳实践**: 设计模式、SOLID原则、DRY原则
+6. **改进建议**: 具体的重构方案和优化建议
+
+${context ? `**项目上下文**: ${context}\n\n` : ""}**待审查代码**:
+\`\`\`${language}
+${code}
+\`\`\`
+
+请用中文输出结构化的审查报告，包含严重程度（🔴严重/🟡中等/🟢建议）和具体修改建议。`;
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "THUDM/GLM-5.1",
+        messages: [{ role: "user", content: reviewPrompt }],
+        max_tokens: 4096,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      return {
+        success: false,
+        review: `SiliconFlow API 错误 (${resp.status}): ${errText}`,
+        model: "THUDM/GLM-5.1",
+      };
+    }
+
+    const data = (await resp.json()) as any;
+    const review = data.choices?.[0]?.message?.content || "未获得审查结果";
+
+    // 审查结果沉淀到 Vault（非阻塞）
+    const reviewTopic = context
+      ? `代码审查: ${context.slice(0, 50)}`
+      : `代码审查 (${language})`;
+    learnFromResearch(reviewTopic, review, "code-review")
+      .catch(e => logger.warn("Failed to save code-review result", { topic: reviewTopic, error: (e as Error).message }));
+
+    return { success: true, review, model: "THUDM/GLM-5.1" };
+  } catch (e: any) {
+    return {
+      success: false,
+      review: `代码审查请求失败: ${e.message}`,
+      model: "THUDM/GLM-5.1",
+    };
+  }
+}
+
+/** 获取 VaultManager 实例（惰性初始化） */
+function getVault() {
+  return getGlobalVault();
+}
+
+/** 读取历史研究上下文 — 启动前调用 */
+export function getResearchContext(topic: string): {
+  relatedNotes: Array<{ title: string; path: string; excerpt: string }>;
+  context: string;
+} {
+  try {
+    const vault = getVault();
+    const results = vault.search(topic, { limit: 5, tags: ["research", "hermes"] });
+    const relatedNotes = results.map((r) => ({
+      title: r.note.title,
+      path: r.note.path,
+      excerpt: r.excerpt.slice(0, 200),
+    }));
+
+    if (relatedNotes.length === 0) {
+      return { relatedNotes: [], context: "" };
+    }
+
+    const context = `## 相关历史研究\n\n${relatedNotes
+      .map((n, i) => `${i + 1}. **${n.title}**\n   ${n.excerpt}`)
+      .join("\n\n")}\n\n请在以上研究基础上继续深入，避免重复已有结论。`;
+
+    return { relatedNotes, context };
+  } catch (e: any) {
+    logger.warn("[Hermes] Failed to get research context", { error: e.message });
+    return { relatedNotes: [], context: "" };
+  }
+}
+
+/** 将研究结果沉淀到 Vault — 研究完成后调用 */
+export async function learnFromResearch(
+  topic: string,
+  result: string,
+  type: "deep-research" | "code-review" = "deep-research",
+): Promise<{ success: boolean; path: string }> {
+  try {
+    const vault = getVault();
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const slug = topic
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60);
+
+    const notePath = `03-Resources/Hermes/${type}/${timestamp}-${slug}.md`;
+
+    const content = `# ${topic}\n\n## 类型\n${type === "deep-research" ? "深度研究" : "代码审查"}\n\n## 时间\n${timestamp}\n\n## 结果\n\n${result}\n\n---\n\n*由 Hermes Agent 自动生成并沉淀到记忆库*`;
+
+    await vault.writeNote(notePath, content, {
+      title: topic,
+      tags: ["hermes", type, "research", "auto-generated"],
+      type: "research-note",
+      source: "hermes-agent",
+      paraCategory: "resources",
+      gateContext: {
+        agentRole: "hermes",
+        taskType: "research",
+        responseLength: result.length,
+        hasCode: result.includes("```"),
+        hasCitations: result.includes("http"),
+        hasErrors: false,
+        userMessageLength: topic.length,
+        isFirstTurn: false,
+        hasStructuredData: result.includes("## "),
+        hasTechnicalTerms: /\b(API|SDK|framework|library|model|dataset)\b/i.test(result),
+      },
+    });
+
+    logger.info("[Hermes] Research learned to vault", { path: notePath, topic, type });
+    return { success: true, path: notePath };
+  } catch (e: any) {
+    logger.warn("[Hermes] Failed to learn from research", { error: e.message, topic });
+    return { success: false, path: "" };
+  }
 }
 
 /** 生成 MCP 配置以连接 OpenClaw */

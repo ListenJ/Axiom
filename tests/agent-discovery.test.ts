@@ -168,7 +168,7 @@ describe("AgentDiscovery", () => {
     createTestAgent(TEST_AGENTS_DIR, "old.md", {
       name: "OldAgent",
       description: "Existing agent",
-      emoji: "🔮",
+      emoji: "[魔法]",
     });
     discoverAgents({ sourceDir: TEST_AGENTS_DIR, outputPath: TEST_INDEX_PATH });
 
@@ -197,7 +197,7 @@ describe("AgentDiscovery", () => {
     // 修改文件内容
     fs.writeFileSync(
       path.join(TEST_AGENTS_DIR, "agent.md"),
-      `---\nname: MutableAgent\ndescription: Updated description\nemoji: 🚀\n---\n\nUpdated content`,
+      `---\nname: MutableAgent\ndescription: Updated description\nemoji: [火箭]\n---\n\nUpdated content`,
       "utf-8"
     );
 
@@ -207,7 +207,7 @@ describe("AgentDiscovery", () => {
     expect(result.updatedCount).toBe(1);
     const agent = result.agents.find((a) => a.name === "MutableAgent");
     expect(agent?.description).toBe("Updated description");
-    expect(agent?.emoji).toBe("🚀");
+    expect(agent?.emoji).toBe("[火箭]");
   });
 
   test("force 覆盖跳过合并", () => {
@@ -291,7 +291,7 @@ describe("AgentDiscovery", () => {
       outputPath: TEST_INDEX_PATH,
     });
 
-    expect(result.agents[0].emoji).toBe("🤖");
+    expect(result.agents[0].emoji).toBe("[AI]");
   });
 
   test("空目录返回空结果", () => {
@@ -399,7 +399,7 @@ describe("AgentDiscovery", () => {
     createTestAgent(TEST_AGENTS_DIR, "agent.md", {
       name: "PersistedAgent",
       description: "Should be in JSON",
-      emoji: "💾",
+      emoji: "[磁盘]",
       vibe: "persistent",
       tools: "save",
     });
@@ -411,7 +411,7 @@ describe("AgentDiscovery", () => {
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.length).toBe(1);
     expect(parsed[0].name).toBe("PersistedAgent");
-    expect(parsed[0].emoji).toBe("💾");
+    expect(parsed[0].emoji).toBe("[磁盘]");
   });
 
   test("分类统计正确", () => {
@@ -522,7 +522,7 @@ describe("AgentDiscovery", () => {
 
     // 手动修改索引中的 emoji
     const index = JSON.parse(fs.readFileSync(TEST_INDEX_PATH, "utf-8"));
-    index[0].emoji = "🎨";
+    index[0].emoji = "[艺术]";
     fs.writeFileSync(TEST_INDEX_PATH, JSON.stringify(index, null, 2), "utf-8");
 
     // 重新发现（描述相同，不应更新 emoji）
@@ -539,6 +539,6 @@ describe("AgentDiscovery", () => {
     expect(result.skippedCount).toBe(1);
     const agent = result.agents.find((a) => a.name === "Preserved");
     // emoji 应保持手工修改的值
-    expect(agent?.emoji).toBe("🎨");
+    expect(agent?.emoji).toBe("[艺术]");
   });
 });

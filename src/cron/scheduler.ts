@@ -6,7 +6,6 @@
  * 或在主服务中 import 启动
  */
 import { Database } from "bun:sqlite";
-import { proxyManager } from "../crawl/proxy-manager.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
@@ -57,17 +56,7 @@ async function discoverFreeModelsTask() {
   }
 }
 
-// ===== 任务 3: 代理健康检查（每 5 分钟）=====
-async function proxyHealthTask() {
-  if (proxyManager.getHealthyCount() === 0) {
-    console.log("[Cron] No proxies configured, skipping proxy health check");
-    return;
-  }
-  console.log("[Cron] Checking proxy health...");
-  await proxyManager.healthCheck("https://httpbin.org/ip");
-}
-
-// ===== 任务 4: 心跳（每 30 分钟）=====
+// ===== 任务 3: 心跳（每 30 分钟）=====
 async function heartbeatTask() {
   console.log("[Cron] HEARTBEAT — System OK");
   db.run(
@@ -89,22 +78,20 @@ async function cleanupTask() {
 
 if (typeof Bun !== "undefined" && Bun.cron) {
   Bun.cron("*/1 * * * *", healthCheckTask);
-  Bun.cron("*/5 * * * *", proxyHealthTask);
   Bun.cron("*/10 * * * *", discoverFreeModelsTask);
   Bun.cron("*/30 * * * *", heartbeatTask);
   Bun.cron("0 3 * * *", cleanupTask);
 
-  console.log("✅ Cron jobs registered:");
+  console.log("[完成] Cron jobs registered:");
   console.log("   • Health check: every 60s");
-  console.log("   • Proxy check: every 5min");
   console.log("   • Free model discovery: every 10min");
   console.log("   • Heartbeat: every 30min");
   console.log("   • Cleanup: daily at 03:00");
 } else {
-  console.warn("⚠️ Bun.cron not available. Run with Bun 1.1+");
+  console.warn("[警告] Bun.cron not available. Run with Bun 1.1+");
 }
 
 // 立即执行一次
 healthCheckTask();
 
-export { healthCheckTask, proxyHealthTask, heartbeatTask, cleanupTask };
+export { healthCheckTask, heartbeatTask, cleanupTask };

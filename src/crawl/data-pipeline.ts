@@ -15,8 +15,6 @@
  */
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
-import { fpGen } from "./anti-fingerprint.js";
-import { proxyManager } from "./proxy-manager.js";
 import { Database } from "bun:sqlite";
 import { VaultManager } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
@@ -278,50 +276,37 @@ export class DataPipeline {
   // ===== 爬虫层：结构化提取 =====
 
   /**
-   * 结构化单页爬取（带隐私保护）
+   * 结构化单页爬取
    */
   async crawlStructured(url: string, depth = 0): Promise<StructuredCrawlResult | null> {
     if (this.visited.has(url) || depth > this.options.maxDepth) return null;
     this.visited.add(url);
 
-    // 隐私：请求间隔抖动
-    await this.delay(fpGen.randomJitter(this.options.requestDelay));
+    // 请求间隔
+    await this.delay(this.options.requestDelay);
 
     try {
       return await withRetry(
         async () => {
-          const fp = fpGen.generate();
-          const headers = fpGen.buildHeaders(fp, {
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            Referer: "", // 空 Referer，减少追踪
-          });
-
-          // 隐私：代理轮换
-          const proxy = proxyManager.next();
-          const proxyOpt = proxy ? { proxy: proxy.url } : {};
-
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
 
           const res = await fetch(url, {
-            ...proxyOpt,
-            headers,
+            headers: {
+              "User-Agent": this.options.userAgent,
+              Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
             signal: controller.signal,
           });
 
           clearTimeout(timer);
-
-          if (proxy) {
-            if (res.ok) proxyManager.markSuccess(proxy.url, 0);
-            else proxyManager.markFailed(proxy.url);
-          }
 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           const html = await res.text();
           const result = this.parseStructured(url, html);
 
-          // 保存原始数据（注意：不保存指纹信息）
+          // 保存原始数据
           await this.saveRaw(url, { html: html.slice(0, 50000), structured: result });
 
           return result;

@@ -12,6 +12,7 @@
  */
 
 import { VaultManager } from "./vault-manager.js";
+import { SQLiteMemory } from "./sqlite-memory.js";
 import { logger } from "../utils/logger.js";
 
 interface BootstrapContext {
@@ -45,9 +46,11 @@ interface BootstrapOptions {
 
 export class AgentBootstrap {
   private vault: VaultManager;
+  private sqliteMemory: SQLiteMemory;
 
   constructor(vaultPath?: string) {
     this.vault = new VaultManager({ vaultPath });
+    this.sqliteMemory = this.vault.getSqliteMemory();
   }
 
   /** 执行完整启动流程 */
@@ -172,21 +175,34 @@ export class AgentBootstrap {
     const memories: Array<{ title: string; path: string; excerpt: string }> = [];
     const seen = new Set<string>();
 
-    // 如果有主题，搜索相关记忆
+    // 如果有主题，先搜索SQLite（快速），再搜索Vault（确定性）
     if (topic.trim()) {
-      const results = this.vault.search(topic, { limit: depth });
-      for (const r of results) {
-        if (seen.has(r.note.path)) continue;
-        seen.add(r.note.path);
-
-        // 跳过代码索引（除非明确要求）
-        if (!includeCodeIndex && r.note.path.includes("code-index")) continue;
-
+      // SQLite FTS5 优先搜索
+      const sqliteResults = this.sqliteMemory.search(topic, { limit: depth });
+      for (const r of sqliteResults) {
+        if (seen.has(r.record.path)) continue;
+        seen.add(r.record.path);
+        if (!includeCodeIndex && r.record.path.includes("code-index")) continue;
         memories.push({
-          title: r.note.title,
-          path: r.note.path,
+          title: r.record.title,
+          path: r.record.path,
           excerpt: r.excerpt,
         });
+      }
+
+      // 如果SQLite结果不足，用Vault确定性搜索补充
+      if (memories.length < depth) {
+        const vaultResults = this.vault.search(topic, { limit: depth - memories.length });
+        for (const r of vaultResults) {
+          if (seen.has(r.note.path)) continue;
+          seen.add(r.note.path);
+          if (!includeCodeIndex && r.note.path.includes("code-index")) continue;
+          memories.push({
+            title: r.note.title,
+            path: r.note.path,
+            excerpt: r.excerpt,
+          });
+        }
       }
     }
 

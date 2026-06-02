@@ -1,16 +1,18 @@
 /**
- * 确定性记忆搜索引擎
+ * 确定性记忆搜索引擎 — 磁盘优先、按需加载版
  *
  * 设计哲学：
  * - 零概率、零向量、零 embedding
- * - 所有匹配基于精确规则、关键词频率、图谱关系、目录结构
+ * - 笔记内容常驻磁盘，内存仅保留轻量级索引
+ * - 按需读取：匹配时用索引，返回结果时才读内容
  * - 可解释：每个结果都有明确的得分来源
  *
- * 检索管道（四阶段漏斗）：
- *   1. 精确匹配 → 文件名/id/alias/wiki-link
- *   2. 关键词匹配 → 标题(3x) + 标签(2.5x) + 内容(1x) + 路径(0.5x)
- *   3. 关系推导 → 图谱关联 + wiki-link 网络遍历(2跳)
- *   4. PARA 语义 → 同项目/区域/资源笔记
+ * 索引结构（内存）：
+ *   notes: Map<path, LiteNote> — 不含 content
+ *   wikiLinkIndex, tagIndex, titleIndex, linkTargetIndex
+ *
+ * 内容访问（磁盘 → 可选缓存）：
+ *   readContent(path) → 从 .md 文件读取，LRU 缓存热点内容
  */
 
 import fs from "fs";
@@ -23,7 +25,7 @@ export interface VaultNote {
   frontmatter: Record<string, unknown>;
   tags: string[];
   wikiLinks: string[];
-  backlinks: string[];  // 被哪些笔记引用
+  backlinks: string[];
   wordCount: number;
   modifiedAt: number;
 }
@@ -31,31 +33,61 @@ export interface VaultNote {
 export interface SearchResult {
   note: VaultNote;
   score: number;
-  reasons: string[];  // 为什么匹配，用于可解释性
+  reasons: string[];
   excerpt: string;
 }
 
 interface SearchOptions {
   limit?: number;
-  types?: string[];        // 按 frontmatter.type 过滤
-  tags?: string[];         // 必须包含的标签
-  paraCategory?: string;   // PARA 分类: projects/areas/resources/archives
+  types?: string[];
+  tags?: string[];
+  paraCategory?: string;
   dateRange?: { after?: string; before?: string };
   includeReasons?: boolean;
 }
 
-/** 纯确定性搜索引擎 */
+/** 内存中的轻量笔记索引 — 不含 content */
+interface LiteNote {
+  path: string;
+  title: string;
+  frontmatter: Record<string, unknown>;
+  tags: string[];
+  wikiLinks: string[];
+  backlinks: string[];
+  wordCount: number;
+  modifiedAt: number;
+}
+
+interface CacheEntry {
+  content: string;
+  at: number; // timestamp for LRU
+}
+
+/** 纯确定性搜索引擎 — 磁盘优先、按需加载 */
 export class DeterministicSearchEngine {
-  private notes = new Map<string, VaultNote>();
+  private vaultPath: string;
+  private notes = new Map<string, LiteNote>();
   private wikiLinkIndex = new Map<string, Set<string>>(); // link -> [paths]
   private tagIndex = new Map<string, Set<string>>();      // tag -> [paths]
-  private titleIndex = new Map<string, Set<string>>();    // lowercase word -> [paths]
+  private titleIndex = new Map<string, Set<string>>();    // word -> [paths]
+  private linkTargetIndex = new Map<string, Set<string>>(); // normalized -> [paths]
+
+  // Memoization caches
+  private tokenizeCache = new Map<string, string[]>();
+  private paraCache = new Map<string, string>();
+
+  // Content LRU cache (on-demand disk reads)
+  private contentCache = new Map<string, CacheEntry>();
+  private readonly CONTENT_CACHE_MAX = 50;
+  private cacheHits = 0;
+  private cacheMisses = 0;
 
   constructor(vaultPath: string) {
+    this.vaultPath = vaultPath;
     this.buildIndex(vaultPath);
   }
 
-  // ===== 索引构建 =====
+  // ===== 索引构建（只提取元数据，不保留 content） =====
 
   private buildIndex(vaultPath: string) {
     this.scanDirectory(vaultPath, "");
@@ -68,10 +100,8 @@ export class DeterministicSearchEngine {
 
     for (const entry of entries) {
       const entryRel = relPath ? `${relPath}/${entry.name}` : entry.name;
-      const entryFull = nodePath.join(basePath, entryRel);
 
       if (entry.isDirectory()) {
-        // 跳过隐藏目录和附件目录
         if (entry.name.startsWith(".") || entry.name === "attachments") continue;
         this.scanDirectory(basePath, entryRel);
       } else if (entry.name.endsWith(".md")) {
@@ -82,8 +112,9 @@ export class DeterministicSearchEngine {
 
   private indexNote(basePath: string, relPath: string) {
     const fullPath = nodePath.join(basePath, relPath);
-    const content = fs.readFileSync(fullPath, "utf-8");
-    const { frontmatter, body } = this.parseFrontmatter(content);
+    // 读取完整文件用于索引提取（仅在 buildIndex 时发生一次）
+    const raw = fs.readFileSync(fullPath, "utf-8");
+    const { frontmatter, body } = this.parseFrontmatter(raw);
 
     const title = (frontmatter.title as string) || this.extractTitle(body) || nodePath.basename(relPath, ".md");
     const tags = this.extractTags(frontmatter, body);
@@ -91,10 +122,9 @@ export class DeterministicSearchEngine {
     const wordCount = body.split(/\s+/).filter(Boolean).length;
     const stat = fs.statSync(fullPath);
 
-    const note: VaultNote = {
+    const lite: LiteNote = {
       path: relPath,
       title,
-      content: body,
       frontmatter,
       tags,
       wikiLinks,
@@ -103,7 +133,7 @@ export class DeterministicSearchEngine {
       modifiedAt: stat.mtimeMs,
     };
 
-    this.notes.set(relPath, note);
+    this.notes.set(relPath, lite);
 
     // 更新索引
     for (const tag of tags) {
@@ -117,33 +147,78 @@ export class DeterministicSearchEngine {
       this.wikiLinkIndex.get(normalized)!.add(relPath);
     }
 
-    // 标题词索引
     const titleWords = this.tokenize(title);
     for (const word of titleWords) {
       if (!this.titleIndex.has(word)) this.titleIndex.set(word, new Set());
       this.titleIndex.get(word)!.add(relPath);
     }
+
+    for (const link of wikiLinks) {
+      const normalized = this.normalizeLink(link);
+      if (!this.linkTargetIndex.has(normalized)) this.linkTargetIndex.set(normalized, new Set());
+      this.linkTargetIndex.get(normalized)!.add(relPath);
+    }
   }
 
   private buildBacklinks() {
-    for (const note of this.notes.values()) {
+    // 建立链接目标到路径的映射（按文件名和标题）
+    const linkToPath = new Map<string, string>();
+    for (const [path, note] of this.notes) {
+      const baseName = nodePath.basename(path, ".md").toLowerCase();
+      linkToPath.set(baseName, path);
+      linkToPath.set(this.normalizeLink(note.title), path);
+    }
+
+    for (const [sourcePath, note] of this.notes) {
       for (const link of note.wikiLinks) {
         const normalized = this.normalizeLink(link);
-        // 查找被链接的笔记
-        for (const [path, target] of this.notes) {
-          if (this.noteMatchesLink(target, normalized)) {
-            target.backlinks.push(note.path);
-          }
+        const targetPath = linkToPath.get(normalized);
+        if (targetPath && targetPath !== sourcePath) {
+          this.notes.get(targetPath)?.backlinks.push(sourcePath);
         }
       }
     }
   }
 
-  private noteMatchesLink(note: VaultNote, link: string): boolean {
-    const baseName = nodePath.basename(note.path, ".md").toLowerCase();
-    const title = note.title.toLowerCase();
-    const linkLower = link.toLowerCase();
-    return baseName === linkLower || title.toLowerCase() === linkLower;
+  // ===== 内容按需读取（磁盘 → LRU 缓存） =====
+
+  private readContent(relPath: string): string {
+    const cached = this.contentCache.get(relPath);
+    if (cached) {
+      this.cacheHits++;
+      cached.at = Date.now();
+      return cached.content;
+    }
+
+    this.cacheMisses++;
+    try {
+      const fullPath = nodePath.join(this.vaultPath, relPath);
+      const raw = fs.readFileSync(fullPath, "utf-8");
+      const { body } = this.parseFrontmatter(raw);
+      this.putContentCache(relPath, body);
+      return body;
+    } catch {
+      return "";
+    }
+  }
+
+  private putContentCache(relPath: string, content: string) {
+    // 删除旧条目以更新 LRU 顺序
+    this.contentCache.delete(relPath);
+    if (this.contentCache.size >= this.CONTENT_CACHE_MAX) {
+      // Map 保持插入顺序，第一个 entry 就是最旧的
+      const oldest = this.contentCache.keys().next().value;
+      if (oldest) this.contentCache.delete(oldest);
+    }
+    this.contentCache.set(relPath, { content, at: Date.now() });
+  }
+
+  private resolveNote(lite: LiteNote): VaultNote {
+    return { ...lite, content: this.readContent(lite.path) };
+  }
+
+  private getNoteLite(path: string): LiteNote | undefined {
+    return this.notes.get(path);
   }
 
   // ===== 核心搜索 =====
@@ -153,49 +228,73 @@ export class DeterministicSearchEngine {
     if (!q) return [];
 
     const queryWords = this.tokenize(q);
-    const scores = new Map<string, { score: number; reasons: Set<string> }>();
+    const scores = new Map<string, { s: number; r: string[] }>();
 
-    // 阶段 1: 精确匹配（最高权重）
+    const addScore = (path: string, delta: number, reason?: string) => {
+      let entry = scores.get(path);
+      if (!entry) {
+        entry = { s: 0, r: [] };
+        scores.set(path, entry);
+      }
+      entry.s += delta;
+      if (reason) entry.r.push(reason);
+    };
+
+    const passesFilter = (note: LiteNote): boolean => {
+      if (opts.types?.length && !opts.types.includes(String(note.frontmatter.type || ""))) return false;
+      if (opts.tags?.length) {
+        const noteTags = new Set(note.tags.map((t) => t.toLowerCase()));
+        if (!opts.tags.every((t) => noteTags.has(t.toLowerCase()))) return false;
+      }
+      if (opts.paraCategory && this.getParaCategory(note.path) !== opts.paraCategory) return false;
+      if (opts.dateRange) {
+        const created = note.frontmatter.created as string;
+        if (created) {
+          if (opts.dateRange.after && created < opts.dateRange.after) return false;
+          if (opts.dateRange.before && created > opts.dateRange.before) return false;
+        }
+      }
+      return true;
+    };
+
+    // Stage 1: Exact match
     for (const [path, note] of this.notes) {
-      const r = new Set<string>();
-      let s = 0;
-
-      // 1a: 文件名精确匹配
+      if (!passesFilter(note)) continue;
       const fileName = nodePath.basename(path, ".md").toLowerCase();
-      if (fileName === q || fileName.replace(/-/g, " ") === q) {
-        s += 100;
-        r.add("文件名精确匹配");
-      }
-
-      // 1b: 标题精确匹配
-      if (note.title.toLowerCase() === q) {
-        s += 90;
-        r.add("标题精确匹配");
-      }
-
-      // 1c: alias 精确匹配
+      if (fileName === q || fileName.replace(/-/g, " ") === q) addScore(path, 100, "文件名精确匹配");
+      if (note.title.toLowerCase() === q) addScore(path, 90, "标题精确匹配");
+      if (note.frontmatter.id === q) addScore(path, 95, "ID 精确匹配");
       const aliases = this.getAliases(note);
-      if (aliases.some((a) => a.toLowerCase() === q)) {
-        s += 85;
-        r.add("别名精确匹配");
-      }
-
-      // 1d: id 精确匹配
-      if (note.frontmatter.id === q) {
-        s += 95;
-        r.add("ID 精确匹配");
-      }
-
-      if (s > 0) scores.set(path, { score: s, reasons: r });
+      if (aliases.some((a) => a.toLowerCase() === q)) addScore(path, 85, "别名精确匹配");
     }
 
-    // 阶段 2: 关键词匹配
-    for (const [path, note] of this.notes) {
-      const existing = scores.get(path);
-      const r = existing ? new Set(existing.reasons) : new Set<string>();
-      let s = existing ? existing.score : 0;
+    // Stage 2: Keyword matching — 优先使用 titleIndex 筛选候选，避免全量扫描
+    const candidatePaths = new Set<string>();
+    for (const qw of queryWords) {
+      const indexedPaths = this.titleIndex.get(qw);
+      if (indexedPaths) {
+        for (const p of indexedPaths) candidatePaths.add(p);
+      }
+    }
+    // titleIndex 无命中时回退到全量扫描（冷启动或罕见词）
+    const pathsToScan = candidatePaths.size > 0 ? candidatePaths : this.notes.keys();
 
-      // 2a: 标题关键词（权重 3x）
+    // 确保候选路径在 scores 中有条目，让关系推导能正确处理
+    for (const path of candidatePaths) {
+      if (!scores.has(path)) {
+        const note = this.notes.get(path);
+        if (note && passesFilter(note)) {
+          scores.set(path, { s: 0, r: [] });
+        }
+      }
+    }
+
+    for (const path of pathsToScan) {
+      const note = this.notes.get(path);
+      if (!note || !passesFilter(note)) continue;
+      const entry = scores.get(path);
+      const existingScore = entry?.s ?? 0;
+
       const titleWords = this.tokenize(note.title);
       let titleMatches = 0;
       for (const qw of queryWords) {
@@ -203,134 +302,125 @@ export class DeterministicSearchEngine {
           if (tw.includes(qw) || qw.includes(tw)) titleMatches++;
         }
       }
-      if (titleMatches > 0) {
-        s += Math.min(titleMatches * 15, 60);
-        r.add(`标题关键词匹配 x${titleMatches}`);
-      }
+      if (titleMatches > 0) addScore(path, Math.min(titleMatches * 15, 60), `标题关键词匹配 x${titleMatches}`);
 
-      // 2b: 标签精确/前缀匹配（权重 2.5x）
       let tagMatches = 0;
       for (const qw of queryWords) {
         for (const tag of note.tags) {
           if (tag.toLowerCase() === qw || tag.toLowerCase().includes(qw)) tagMatches++;
         }
       }
-      if (tagMatches > 0) {
-        s += Math.min(tagMatches * 12, 50);
-        r.add(`标签匹配 x${tagMatches}`);
+      if (tagMatches > 0) addScore(path, Math.min(tagMatches * 12, 50), `标签匹配 x${tagMatches}`);
+
+      // Content keywords — lazy disk read only when needed
+      if (existingScore < 80) {
+        const contentLower = this.readContent(path).toLowerCase();
+        let contentMatches = 0;
+        for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
+        if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
       }
 
-      // 2c: 内容关键词（权重 1x）
-      const contentLower = note.content.toLowerCase();
-      let contentMatches = 0;
-      for (const qw of queryWords) {
-        const count = this.countOccurrences(contentLower, qw);
-        contentMatches += count;
-      }
-      if (contentMatches > 0) {
-        s += Math.min(contentMatches * 3, 30);
-        r.add(`内容关键词 x${contentMatches}`);
-      }
-
-      // 2d: 路径关键词（权重 0.5x）
       const pathLower = note.path.toLowerCase();
       let pathMatches = 0;
-      for (const qw of queryWords) {
-        if (pathLower.includes(qw)) pathMatches++;
-      }
-      if (pathMatches > 0) {
-        s += pathMatches * 5;
-        r.add(`路径匹配 x${pathMatches}`);
-      }
-
-      if (s > 0) scores.set(path, { score: s, reasons: r });
+      for (const qw of queryWords) { if (pathLower.includes(qw)) pathMatches++; }
+      if (pathMatches > 0) addScore(path, pathMatches * 5, `路径匹配 x${pathMatches}`);
     }
 
-    // 阶段 3: 关系推导（图谱 + wiki-link 网络）
+    // Stage 3: Relation boosting
     this.boostByRelations(scores, queryWords);
 
-    // 阶段 4: PARA 语义提升
+    // Stage 4: PARA semantics
     this.boostByParaSemantics(scores, q);
 
-    // 过滤
-    let results = Array.from(scores.entries())
-      .map(([path, { score, reasons }]) => {
-        const note = this.notes.get(path)!;
-        return {
-          note,
-          score,
-          reasons: Array.from(reasons),
-          excerpt: this.generateExcerpt(note, queryWords),
-        };
-      })
-      .filter((r) => this.applyFilters(r.note, opts));
+    // Build results: resolve VaultNote on-demand + 过滤
+    const limit = opts.limit ?? 20;
+    const results: SearchResult[] = [];
 
-    // 排序
+    for (const [path, { s, r }] of scores) {
+      if (s <= 0) continue;
+      const lite = this.notes.get(path);
+      if (!lite || !passesFilter(lite)) continue;
+      const note = this.resolveNote(lite);
+      results.push({
+        note,
+        score: s,
+        reasons: r,
+        excerpt: this.generateExcerpt(note, queryWords),
+      });
+    }
+
     results.sort((a, b) => b.score - a.score);
-
-    return results.slice(0, opts.limit ?? 20);
+    return results.length > limit ? results.slice(0, limit) : results;
   }
 
   // ===== 关系推导 =====
 
-  private boostByRelations(scores: Map<string, { score: number; reasons: Set<string> }>, queryWords: string[]) {
-    // 找出查询中提到的已知笔记名
+  private boostByRelations(scores: Map<string, { s: number; r: string[] }>, queryWords: string[]) {
+    // 建立链接目标（文件名/标题）到路径的映射
+    const linkToPath = new Map<string, string>();
+    for (const [path, note] of this.notes) {
+      const baseName = nodePath.basename(path, ".md").toLowerCase();
+      linkToPath.set(baseName, path);
+      linkToPath.set(this.normalizeLink(note.title), path);
+    }
+
     const mentionedPaths = new Set<string>();
     for (const [path, note] of this.notes) {
       const name = nodePath.basename(path, ".md").toLowerCase();
       const title = note.title.toLowerCase();
       for (const qw of queryWords) {
-        if (name === qw || title === qw || name.replace(/-/g, "") === qw.replace(/\s/g, "")) {
+        if (name === qw || title === qw || name.includes(qw) || title.includes(qw) || name.replace(/-/g, "") === qw.replace(/\s/g, "")) {
           mentionedPaths.add(path);
+        }
+        // wikiLinks 匹配查询词也视为 mentioned（如 [[SQLite]] 匹配 "sqlite"）
+        for (const link of note.wikiLinks) {
+          if (this.normalizeLink(link) === qw) {
+            mentionedPaths.add(path);
+          }
         }
       }
     }
+
+    const boost = (path: string, delta: number, reason: string) => {
+      let e = scores.get(path);
+      if (!e) {
+        e = { s: 0, r: [] };
+        scores.set(path, e);
+      }
+      e.s += delta;
+      e.r.push(reason);
+    };
 
     for (const mentioned of mentionedPaths) {
       const note = this.notes.get(mentioned);
       if (!note) continue;
 
-      // 提升 wiki-link 出链（1 跳 +10）
+      // 出链提升：mentioned 引用的笔记获得加分
       for (const link of note.wikiLinks) {
         const normalized = this.normalizeLink(link);
-        for (const [targetPath, target] of this.notes) {
-          if (this.noteMatchesLink(target, normalized)) {
-            const existing = scores.get(targetPath);
-            if (existing) {
-              existing.score += 10;
-              existing.reasons.add(`被 [[${note.title}]] 引用`);
-            }
-          }
+        const targetPath = linkToPath.get(normalized);
+        if (targetPath && targetPath !== mentioned) {
+          boost(targetPath, 10, `被 [[${note.title}]] 引用`);
         }
       }
 
-      // 提升 backlink（被引用 +8）
+      // 入链提升：引用 mentioned 的笔记获得加分
       for (const backPath of note.backlinks) {
-        const existing = scores.get(backPath);
-        if (existing) {
-          existing.score += 8;
-          existing.reasons.add(`引用了 [[${note.title}]]`);
-        }
+        boost(backPath, 8, `引用了 [[${note.title}]]`);
       }
 
-      // 2 跳网络
+      // 二级关联：共同关联的笔记
       for (const link of note.wikiLinks) {
         const normalized = this.normalizeLink(link);
-        for (const [midPath, mid] of this.notes) {
-          if (!this.noteMatchesLink(mid, normalized)) continue;
-          for (const midLink of mid.wikiLinks) {
-            const midNormalized = this.normalizeLink(midLink);
-            for (const [targetPath, target] of this.notes) {
-              if (targetPath === mentioned) continue;
-              if (this.noteMatchesLink(target, midNormalized)) {
-                const existing = scores.get(targetPath);
-                if (existing) {
-                  existing.score += 4;
-                  existing.reasons.add(`与 [[${note.title}]] 有共同关联`);
-                }
-              }
-            }
-          }
+        const midPath = linkToPath.get(normalized);
+        if (!midPath || midPath === mentioned) continue;
+        const mid = this.notes.get(midPath);
+        if (!mid) continue;
+        for (const midLink of mid.wikiLinks) {
+          const midNorm = this.normalizeLink(midLink);
+          const targetPath = linkToPath.get(midNorm);
+          if (!targetPath || targetPath === mentioned) continue;
+          boost(targetPath, 4, `与 [[${note.title}]] 有共同关联`);
         }
       }
     }
@@ -338,8 +428,7 @@ export class DeterministicSearchEngine {
 
   // ===== PARA 语义 =====
 
-  private boostByParaSemantics(scores: Map<string, { score: number; reasons: Set<string> }>, query: string) {
-    // 如果查询包含项目名，提升同一项目下的笔记
+  private boostByParaSemantics(scores: Map<string, { s: number; r: string[] }>, query: string) {
     const paraKeywords: Record<string, string[]> = {
       project: ["项目", "project", "proj"],
       area: ["领域", "area", "关注"],
@@ -350,44 +439,13 @@ export class DeterministicSearchEngine {
     for (const [paraType, keywords] of Object.entries(paraKeywords)) {
       if (keywords.some((k) => query.includes(k))) {
         for (const [path, entry] of scores) {
-          const para = this.getParaCategory(path);
-          if (para === paraType) {
-            entry.score += 5;
-            entry.reasons.add(`PARA 分类: ${paraType}`);
+          if (this.getParaCategory(path) === paraType) {
+            entry.s += 5;
+            entry.r.push(`PARA 分类: ${paraType}`);
           }
         }
       }
     }
-  }
-
-  // ===== 过滤 =====
-
-  private applyFilters(note: VaultNote, opts: SearchOptions): boolean {
-    if (opts.types && opts.types.length > 0) {
-      const noteType = String(note.frontmatter.type || "");
-      if (!opts.types.includes(noteType)) return false;
-    }
-
-    if (opts.tags && opts.tags.length > 0) {
-      const noteTags = new Set(note.tags.map((t) => t.toLowerCase()));
-      for (const tag of opts.tags) {
-        if (!noteTags.has(tag.toLowerCase())) return false;
-      }
-    }
-
-    if (opts.paraCategory) {
-      if (this.getParaCategory(note.path) !== opts.paraCategory) return false;
-    }
-
-    if (opts.dateRange) {
-      const created = note.frontmatter.created as string;
-      if (created) {
-        if (opts.dateRange.after && created < opts.dateRange.after) return false;
-        if (opts.dateRange.before && created > opts.dateRange.before) return false;
-      }
-    }
-
-    return true;
   }
 
   // ===== 辅助方法 =====
@@ -435,7 +493,6 @@ export class DeterministicSearchEngine {
     } else if (fmTags) {
       tags.add(String(fmTags));
     }
-    // 内联标签 #tag
     const inlineTags = body.match(/#([\w\-\u4e00-\u9fa5]+)/g);
     if (inlineTags) {
       for (const t of inlineTags) tags.add(t.slice(1));
@@ -452,7 +509,7 @@ export class DeterministicSearchEngine {
     return links;
   }
 
-  private getAliases(note: VaultNote): string[] {
+  private getAliases(note: LiteNote): string[] {
     const alias = note.frontmatter.alias || note.frontmatter.aliases;
     if (Array.isArray(alias)) return alias.map(String);
     if (alias) return [String(alias)];
@@ -460,23 +517,31 @@ export class DeterministicSearchEngine {
   }
 
   private getParaCategory(notePath: string): string {
+    let cached = this.paraCache.get(notePath);
+    if (cached) return cached;
     const parts = notePath.split("/");
-    if (parts[0] === "01-Projects") return "project";
-    if (parts[0] === "02-Areas") return "area";
-    if (parts[0] === "03-Resources") return "resource";
-    if (parts[0] === "04-Conversations") return "conversation";
-    if (parts[0] === "05-Archives") return "archive";
-    if (parts[0] === "05-Tasks") return "task";
-    if (parts[0] === "00-Meta") return "meta";
-    return "uncategorized";
+    if (parts[0] === "01-Projects") cached = "projects";
+    else if (parts[0] === "02-Areas") cached = "areas";
+    else if (parts[0] === "03-Resources") cached = "resources";
+    else if (parts[0] === "04-Conversations") cached = "conversations";
+    else if (parts[0] === "05-Archives") cached = "archives";
+    else if (parts[0] === "05-Tasks") cached = "tasks";
+    else if (parts[0] === "00-Meta") cached = "meta";
+    else cached = "uncategorized";
+    this.paraCache.set(notePath, cached);
+    return cached;
   }
 
   private tokenize(text: string): string[] {
-    return text
+    let cached = this.tokenizeCache.get(text);
+    if (cached) return cached;
+    cached = text
       .toLowerCase()
       .replace(/[^\w\u4e00-\u9fa5]+/g, " ")
       .split(/\s+/)
       .filter((w) => w.length >= 2 || /[\u4e00-\u9fa5]/.test(w));
+    this.tokenizeCache.set(text, cached);
+    return cached;
   }
 
   private countOccurrences(text: string, substring: string): number {
@@ -508,58 +573,68 @@ export class DeterministicSearchEngine {
 
   // ===== 公共 API =====
 
-  /** 获取单篇笔记 */
+  /** 获取单篇笔记（按需读取 content） */
   getNote(path: string): VaultNote | undefined {
-    return this.notes.get(path);
+    const lite = this.notes.get(path);
+    if (!lite) return undefined;
+    return this.resolveNote(lite);
   }
 
-  /** 按 PARA 分类浏览 */
+  /** 按 PARA 分类浏览（按需读取 content） */
   browseByPara(category: string): VaultNote[] {
     return Array.from(this.notes.values())
       .filter((n) => this.getParaCategory(n.path) === category)
-      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .map((lite) => this.resolveNote(lite));
   }
 
-  /** 按标签浏览 */
+  /** 按标签浏览（按需读取 content） */
   browseByTag(tag: string): VaultNote[] {
     const paths = this.tagIndex.get(tag.toLowerCase());
     if (!paths) return [];
     return Array.from(paths)
-      .map((p) => this.notes.get(p)!)
+      .map((p) => this.notes.get(p))
       .filter(Boolean)
+      .map((lite) => this.resolveNote(lite!))
       .sort((a, b) => b.modifiedAt - a.modifiedAt);
   }
 
-  /** 获取笔记的关联网络（wiki-link 1跳） */
+  /** 获取笔记的关联网络 */
   getNetwork(notePath: string, depth = 1): { notes: VaultNote[]; relationships: Array<{ from: string; to: string; type: string }> } {
+    // 建立链接目标（文件名/标题）到路径的映射
+    const linkToPath = new Map<string, string>();
+    for (const [path, note] of this.notes) {
+      const baseName = nodePath.basename(path, ".md").toLowerCase();
+      linkToPath.set(baseName, path);
+      linkToPath.set(this.normalizeLink(note.title), path);
+    }
+
     const visited = new Set<string>();
     const queue: Array<{ path: string; d: number }> = [{ path: notePath, d: 0 }];
     const notes: VaultNote[] = [];
     const relationships: Array<{ from: string; to: string; type: string }> = [];
+    let head = 0;
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    while (head < queue.length) {
+      const current = queue[head++];
       if (visited.has(current.path)) continue;
       visited.add(current.path);
 
-      const note = this.notes.get(current.path);
-      if (!note) continue;
-      notes.push(note);
+      const lite = this.notes.get(current.path);
+      if (!lite) continue;
+      notes.push(this.resolveNote(lite));
       if (current.d >= depth) continue;
 
-      // 出链
-      for (const link of note.wikiLinks) {
+      for (const link of lite.wikiLinks) {
         const normalized = this.normalizeLink(link);
-        for (const [p, n] of this.notes) {
-          if (this.noteMatchesLink(n, normalized)) {
-            relationships.push({ from: current.path, to: p, type: "links_to" });
-            if (!visited.has(p)) queue.push({ path: p, d: current.d + 1 });
-          }
+        const targetPath = linkToPath.get(normalized);
+        if (targetPath) {
+          relationships.push({ from: current.path, to: targetPath, type: "links_to" });
+          if (!visited.has(targetPath)) queue.push({ path: targetPath, d: current.d + 1 });
         }
       }
 
-      // 入链
-      for (const back of note.backlinks) {
+      for (const back of lite.backlinks) {
         if (!visited.has(back)) {
           relationships.push({ from: back, to: current.path, type: "linked_by" });
           queue.push({ path: back, d: current.d + 1 });
@@ -571,7 +646,7 @@ export class DeterministicSearchEngine {
   }
 
   /** 索引统计 */
-  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number> } {
+  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number>; cacheHitRate: number } {
     const paraDistribution: Record<string, number> = {};
     let totalWords = 0;
     let totalTags = 0;
@@ -585,12 +660,16 @@ export class DeterministicSearchEngine {
       totalLinks += note.wikiLinks.length;
     }
 
+    const total = this.cacheHits + this.cacheMisses;
+    const cacheHitRate = total > 0 ? Math.round((this.cacheHits / total) * 100) : 0;
+
     return {
       totalNotes: this.notes.size,
       totalWords,
       totalTags,
       totalLinks,
       paraDistribution,
+      cacheHitRate,
     };
   }
 
@@ -600,6 +679,13 @@ export class DeterministicSearchEngine {
     this.wikiLinkIndex.clear();
     this.tagIndex.clear();
     this.titleIndex.clear();
+    this.linkTargetIndex.clear();
+    this.tokenizeCache.clear();
+    this.paraCache.clear();
+    this.contentCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    this.vaultPath = vaultPath;
     this.buildIndex(vaultPath);
   }
 }

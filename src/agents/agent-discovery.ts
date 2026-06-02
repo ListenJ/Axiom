@@ -105,7 +105,7 @@ function extractAgentMeta(filePath: string, baseDir: string): AgentMeta | null {
       category: inferCategory(filePath, baseDir),
       name: name.trim(),
       description: description.trim(),
-      emoji: frontmatter.emoji?.trim() || "🤖",
+      emoji: frontmatter.emoji?.trim() || "[AI]",
       vibe: frontmatter.vibe?.trim() || frontmatter.personality?.trim() || "",
       tools: frontmatter.tools?.trim() || "",
     };

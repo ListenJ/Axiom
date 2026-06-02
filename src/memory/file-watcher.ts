@@ -15,9 +15,12 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
 import { DeterministicSearchEngine } from "./deterministic-search.js";
+import { initializeCodegraph } from "./codegraph-index.js";
 
 interface WatcherOptions {
   vaultPath: string;
+  /** 项目源码路径，用于 CodeGraph 自动重索引 */
+  codegraphProjectPath?: string;
   debounceMs?: number;
   ignored?: RegExp;
 }
@@ -25,17 +28,23 @@ interface WatcherOptions {
 type WatcherEvent = "add" | "change" | "unlink" | "ready";
 
 export class VaultFileWatcher {
-  private opts: Required<WatcherOptions>;
+  private opts: Required<Omit<WatcherOptions, "codegraphProjectPath">> & Pick<WatcherOptions, "codegraphProjectPath">;
   private engine: DeterministicSearchEngine;
   private watchers = new Map<string, fs.FSWatcher>();
   private pendingReload = false;
   private reloadTimer: ReturnType<typeof setTimeout> | null = null;
   private isReady = false;
   private onEvent?: (event: WatcherEvent, filePath: string) => void;
+  // CodeGraph 状态
+  private cgTimer: ReturnType<typeof setTimeout> | null = null;
+  private cgPending = false;
+  private cgIndexing = false;
+  private cgWatcherCount = 0;
 
   constructor(opts: WatcherOptions) {
     this.opts = {
       vaultPath: opts.vaultPath,
+      codegraphProjectPath: opts.codegraphProjectPath,
       debounceMs: opts.debounceMs ?? 1500,
       ignored: opts.ignored ?? /(^|[\/\\])\.|~$|\.tmp$|\.swp$|\.bak$/,
     };
@@ -53,9 +62,19 @@ export class VaultFileWatcher {
     logger.info("VaultFileWatcher starting", { vaultPath: this.opts.vaultPath });
 
     this.watchDirectory(this.opts.vaultPath);
+
+    // 启动 CodeGraph 源码监视
+    if (this.opts.codegraphProjectPath) {
+      this.watchCodegraphDirectory(this.opts.codegraphProjectPath);
+      logger.info("CodeGraph watcher starting", { path: this.opts.codegraphProjectPath });
+    }
+
     this.isReady = true;
     this.onEvent?.("ready", this.opts.vaultPath);
-    logger.info("VaultFileWatcher ready");
+    logger.info("VaultFileWatcher ready", {
+      vaultDirs: this.watchers.size,
+      codegraphEnabled: !!this.opts.codegraphProjectPath,
+    });
   }
 
   /** 停止所有监视 */
@@ -68,6 +87,10 @@ export class VaultFileWatcher {
     if (this.reloadTimer) {
       clearTimeout(this.reloadTimer);
       this.reloadTimer = null;
+    }
+    if (this.cgTimer) {
+      clearTimeout(this.cgTimer);
+      this.cgTimer = null;
     }
     this.isReady = false;
   }
@@ -99,14 +122,12 @@ export class VaultFileWatcher {
         if (!filename.endsWith(".md")) return;
 
         if (eventType === "rename") {
-          // rename 事件在添加和删除时都会触发
           if (fs.existsSync(fullPath)) {
             this.handleEvent("add", fullPath);
           } else {
             this.handleEvent("unlink", fullPath);
           }
         } else {
-          // change 事件
           this.handleEvent("change", fullPath);
         }
       });
@@ -126,6 +147,61 @@ export class VaultFileWatcher {
       }
     } catch (e: any) {
       logger.warn("Failed to watch directory", { dir: dirPath, error: e.message });
+    }
+  }
+
+  /** 监视项目源码目录，触发 CodeGraph 重索引 */
+  private watchCodegraphDirectory(dirPath: string): void {
+    if (this.watchers.has(dirPath)) return;
+
+    try {
+      const watcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        // 只关注源码文件
+        if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(filename)) return;
+        // 忽略 node_modules 和 dist
+        if (filename.includes("node_modules") || filename.includes("dist") || filename.includes(".git")) return;
+
+        this.triggerCodegraphReload();
+      });
+
+      this.watchers.set(dirPath, watcher);
+      this.cgWatcherCount++;
+    } catch (e: any) {
+      logger.warn("Failed to watch CodeGraph directory", { dir: dirPath, error: e.message });
+    }
+  }
+
+  /** 防抖触发 CodeGraph 重索引（30s debounce） */
+  private triggerCodegraphReload(): void {
+    if (this.cgIndexing) {
+      this.cgPending = true;
+      return;
+    }
+    if (this.cgTimer) clearTimeout(this.cgTimer);
+    this.cgPending = true;
+    this.cgTimer = setTimeout(() => {
+      this.cgPending = false;
+      this.runCodegraphIndex();
+    }, 30000); // 30s debounce，全量索引较慢
+  }
+
+  private async runCodegraphIndex(): Promise<void> {
+    if (this.cgIndexing || !this.opts.codegraphProjectPath) return;
+    this.cgIndexing = true;
+    logger.info("[CodeGraph] Auto-reindexing started", { path: this.opts.codegraphProjectPath });
+    try {
+      await initializeCodegraph(this.opts.codegraphProjectPath);
+      logger.info("[CodeGraph] Auto-reindexing completed");
+    } catch (e: any) {
+      logger.warn("[CodeGraph] Auto-reindexing failed", { error: e.message });
+    } finally {
+      this.cgIndexing = false;
+      // 如果期间又有变更，继续触发
+      if (this.cgPending) {
+        this.cgPending = false;
+        this.triggerCodegraphReload();
+      }
     }
   }
 

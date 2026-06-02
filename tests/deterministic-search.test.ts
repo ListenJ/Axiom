@@ -150,11 +150,11 @@ tags: [random]
 
   test("PARA 分类浏览", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
-    const resources = engine.browseByPara("resource");
+    const resources = engine.browseByPara("resources");
     expect(resources.length).toBe(1);
     expect(resources[0].path).toBe("03-Resources/sqlite-guide.md");
 
-    const projects = engine.browseByPara("project");
+    const projects = engine.browseByPara("projects");
     expect(projects.length).toBe(1);
     expect(projects[0].path).toBe("01-Projects/openclaw.md");
   });
@@ -191,7 +191,7 @@ tags: [random]
 
   test("过滤：paraCategory 过滤", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
-    const results = engine.search("Agent", { paraCategory: "project" });
+    const results = engine.search("Agent", { paraCategory: "projects" });
     expect(results.length).toBe(1);
     expect(results[0].note.path).toBe("01-Projects/openclaw.md");
   });
@@ -201,9 +201,9 @@ tags: [random]
     const stats = engine.stats();
     expect(stats.totalNotes).toBe(5);
     expect(stats.totalWords).toBeGreaterThan(0);
-    expect(stats.paraDistribution.project).toBe(1);
-    expect(stats.paraDistribution.resource).toBe(1);
-    expect(stats.paraDistribution.conversation).toBe(1);
+    expect(stats.paraDistribution.projects).toBe(1);
+    expect(stats.paraDistribution.resources).toBe(1);
+    expect(stats.paraDistribution.conversations).toBe(1);
   });
 
   test("可解释性：每个结果都有原因", () => {

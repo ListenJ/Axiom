@@ -129,7 +129,7 @@ export function startKimiCliSession(options?: {
 /** 获取 Kimi Code 安装与登录指南 */
 export function getKimiCodeGuide(): string {
   return `
-🦅 Kimi Code 安装与配置指南
+[Kimi Code] 安装与配置指南
 
 Kimi Code 是 Kimi 会员权益中的智能编程服务，基于 Kimi 最新旗舰模型。
 
