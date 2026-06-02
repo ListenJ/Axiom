@@ -41,3 +41,21 @@ data/raw/
 
 # Generated memory content
 openclaw-memory/
+
+# Temporary files
+.tmp/
+
+# Test results
+test-results/
+playwright-report/
+
+# Evaluation results
+eval-results/
+e2e/
+
+# Backup files
+*.bundle
+
+# SQLite databases
+openclaw-memory.db
+openclaw-memory.db-*
