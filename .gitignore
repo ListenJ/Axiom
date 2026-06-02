@@ -38,3 +38,6 @@ Thumbs.db
 
 # Raw data
 data/raw/
+
+# Generated memory content
+openclaw-memory/
