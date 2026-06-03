@@ -45,6 +45,16 @@ function buildHeaders(config: MiniMaxConfig): Record<string, string> {
   };
 }
 
+/**
+ * 验证 MiniMax API 响应格式
+ */
+function validateMiniMaxResponse<T>(data: unknown): T {
+  if (data === null || typeof data !== "object") {
+    throw new Error("Invalid MiniMax API response: expected object, got " + typeof data);
+  }
+  return data as T;
+}
+
 /** 通用 API 调用 */
 async function callMiniMaxAPI<T>(
   endpoint: string,
@@ -73,7 +83,8 @@ async function callMiniMaxAPI<T>(
     TIMEOUTS.API_DEFAULT
   );
 
-  return response.json() as Promise<T>;
+  const jsonData = await response.json();
+  return validateMiniMaxResponse<T>(jsonData);
 }
 
 // ==================== 网络搜索 ====================
@@ -99,7 +110,7 @@ export interface MiniMaxWebSearchResponse {
  */
 export async function minimaxWebSearch(
   query: string,
-  opts?: { num?: number; lang?: string }
+  _opts?: { num?: number; lang?: string }
 ): Promise<MiniMaxWebSearchResponse> {
   try {
     const response = await callMiniMaxAPI<{
@@ -216,6 +227,7 @@ export async function minimaxImageUnderstand(
 
 /**
  * 检查 MiniMax API 是否可用
+ * 使用一个轻量级调用验证 key 有效性，避免产生费用
  */
 export async function checkMiniMaxHealth(): Promise<{
   ok: boolean;
@@ -225,13 +237,27 @@ export async function checkMiniMaxHealth(): Promise<{
   const start = Date.now();
   try {
     const config = getMiniMaxConfig();
-    // 尝试一个轻量级调用验证 key 有效性
-    await callMiniMaxAPI<{ status?: string }>(
-      "/v1/coding_plan/search",
-      { q: "test" },
-      config
-    );
-    return { ok: true, latency: Date.now() - start };
+    // 使用 HEAD 请求检查 API 可用性，避免产生费用
+    const url = `${config.baseUrl}/v1/models`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${config.apiKey}`,
+        "MM-API-Source": "Minimax-MCP-Health",
+      },
+    });
+    
+    if (res.ok || res.status === 404) {
+      // 404 表示端点不存在但服务可用
+      return { ok: true, latency: Date.now() - start };
+    }
+    
+    const errorText = await res.text();
+    return { 
+      ok: false, 
+      latency: Date.now() - start, 
+      error: `HTTP ${res.status}: ${errorText}` 
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, latency: Date.now() - start, error: message };

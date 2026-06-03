@@ -6,12 +6,22 @@
  * Stores plugin state in SQLite via PluginStorage.
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, promises as fsPromises } from "fs";
 import { join, basename, resolve } from "path";
 import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions } from "./types.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
+
+/** Safely parse JSON with fallback value */
+function safeJsonParse<T>(json: string, fallback: T): T {
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    logger.warn(`Failed to parse JSON, using fallback: ${json.substring(0, 100)}`);
+    return fallback;
+  }
+}
 
 /** Plugin storage directory */
 const PLUGIN_DIR = process.env.OPENCLAW_PLUGIN_DIR || "./plugins";
@@ -103,17 +113,17 @@ export class PluginRegistry {
           author: row.author,
           description: row.description,
           category: row.category as Plugin["manifest"]["category"],
-          tags: row.tags ? JSON.parse(row.tags) : [],
+          tags: row.tags ? safeJsonParse(row.tags, []) : [],
           entry: row.entry || "index.js",
-          config: row.config ? JSON.parse(row.config) : undefined,
-          dependencies: row.dependencies ? JSON.parse(row.dependencies) : undefined,
+          config: row.config ? safeJsonParse(row.config, undefined) : undefined,
+          dependencies: row.dependencies ? safeJsonParse(row.dependencies, undefined) : undefined,
           requiresOpenClaw: row.requiresOpenClaw,
           icon: row.icon,
           docsUrl: row.docsUrl,
         },
         status: row.status as PluginStatus,
         path: row.path,
-        configValues: row.configValues ? JSON.parse(row.configValues) : {},
+        configValues: row.configValues ? safeJsonParse(row.configValues, {}) : {},
         error: row.error || undefined,
         installedAt: row.installedAt,
         enabledAt: row.enabledAt,
@@ -144,7 +154,15 @@ export class PluginRegistry {
       throw new Error(`Plugin manifest not found: ${manifestPath}`);
     }
 
-    const manifest = JSON.parse(await Bun.file(manifestPath).text()) as PluginManifest;
+    let manifest: PluginManifest;
+    try {
+      manifest = JSON.parse(await Bun.file(manifestPath).text()) as PluginManifest;
+      if (!manifest.id || !manifest.name || !manifest.version) {
+        throw new Error("Invalid plugin.json: missing required fields (id, name, version)");
+      }
+    } catch (e) {
+      throw new Error(`Failed to parse plugin.json at ${manifestPath}: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     // Check if already exists
     if (this.plugins.has(manifest.id) && !opts.overwrite) {
@@ -233,8 +251,8 @@ export class PluginRegistry {
 
     logger.info(`Installed plugin ${manifest.id} v${manifest.version}`);
 
-    // Enable if requested
-    if (opts.enable !== false) {
+    // Enable if explicitly requested (default: disabled for security)
+    if (opts.enable === true) {
       await this.enable(manifest.id);
     }
 
@@ -253,9 +271,9 @@ export class PluginRegistry {
       await this.disablePlugin(plugin);
     }
 
-    // Remove from filesystem
+    // Remove from filesystem (secure recursive delete)
     if (existsSync(plugin.path)) {
-      await Bun.$`rm -rf ${plugin.path}`;
+      await fsPromises.rm(plugin.path, { recursive: true, force: true });
     }
 
     // Remove from DB

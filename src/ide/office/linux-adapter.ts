@@ -17,42 +17,57 @@
 import { BaseOfficeAdapter, OfficeDocumentType, PlatformCapabilities } from "./office-adapter.js";
 import { UniversalDocument, DocumentNode, ConversionOptions } from "../document-bridge.js";
 import { logger } from "../../utils/logger.js";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { existsSync, mkdtempSync, writeFileSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { tmpdir } from "os";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /** Check if LibreOffice is installed */
 async function isLibreOfficeAvailable(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync("which libreoffice || which soffice", { timeout: 5000 });
-    return stdout.trim().length > 0;
+    await execFileAsync("which", ["libreoffice"], { timeout: 5000 });
+    return true;
   } catch {
-    return false;
+    try {
+      await execFileAsync("which", ["soffice"], { timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
 /** Check if Python with office libraries is available */
 async function isPythonOfficeAvailable(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync(
-      "python3 -c \"import docx; import openpyxl; import pptx; print('OK')\" 2>/dev/null || python -c \"import docx; import openpyxl; import pptx; print('OK')\" 2>/dev/null",
+    await execFileAsync(
+      "python3",
+      ["-c", "import docx; import openpyxl; import pptx; print('OK')"],
       { timeout: 10000 },
     );
-    return stdout.trim() === "OK";
+    return true;
   } catch {
-    return false;
+    try {
+      await execFileAsync(
+        "python",
+        ["-c", "import docx; import openpyxl; import pptx; print('OK')"],
+        { timeout: 10000 },
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
 /** Check if xclip is available */
 async function isXclipAvailable(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync("which xclip", { timeout: 5000 });
-    return stdout.trim().length > 0;
+    await execFileAsync("which", ["xclip"], { timeout: 5000 });
+    return true;
   } catch {
     return false;
   }
@@ -61,8 +76,8 @@ async function isXclipAvailable(): Promise<boolean> {
 /** Check if xdotool is available */
 async function isXdotoolAvailable(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync("which xdotool", { timeout: 5000 });
-    return stdout.trim().length > 0;
+    await execFileAsync("which", ["xdotool"], { timeout: 5000 });
+    return true;
   } catch {
     return false;
   }
@@ -109,12 +124,14 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
   /**
    * Execute LibreOffice command
+   * Uses execFile to avoid shell injection
    */
-  protected async runLibreOffice(args: string[], timeout = 60000): Promise<string> {
+  protected async runLibreOffice(args: string[], timeout = 30000): Promise<string> {
     const libreOfficePath = await this.findLibreOfficePath();
-    const cmd = `${libreOfficePath} --headless ${args.join(" ")}`;
-    logger.debug(`[LinuxAdapter] Running: ${cmd}`);
-    const { stdout, stderr } = await execAsync(cmd, { timeout });
+    const { stdout, stderr } = await execFileAsync(libreOfficePath, args, {
+      timeout,
+      env: { ...process.env, DISPLAY: process.env.DISPLAY || ":0" },
+    });
     if (stderr) {
       logger.warn("[LinuxAdapter] LibreOffice stderr:", { stderr: stderr.trim() });
     }
@@ -123,11 +140,11 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
   /** Find LibreOffice executable path */
   private async findLibreOfficePath(): Promise<string> {
-    const paths = ["libreoffice", "soffice", "/usr/bin/libreoffice", "/usr/bin/soffice"];
-    for (const path of paths) {
+    const candidates = ["libreoffice", "soffice"];
+    for (const cmd of candidates) {
       try {
-        await execAsync(`which ${path}`, { timeout: 5000 });
-        return path;
+        await execFileAsync("which", [cmd], { timeout: 5000 });
+        return cmd;
       } catch {
         continue;
       }
@@ -137,9 +154,7 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
   /**
    * Convert document using LibreOffice
-   * @param inputPath Input file path
-   * @param outputDir Output directory
-   * @param format Output format (e.g., "txt", "html", "pdf")
+   * Uses execFile with array arguments to prevent shell injection
    */
   protected async convertWithLibreOffice(
     inputPath: string,
@@ -147,9 +162,10 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
     format: string,
   ): Promise<string> {
     await this.runLibreOffice([
+      "--headless",
       "--convert-to", format,
       "--outdir", outputDir,
-      `"${inputPath}"`,
+      inputPath, // Pass as array element, not shell string
     ]);
 
     // Find the converted file
@@ -163,6 +179,7 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
   /**
    * Execute Python script for document processing
+   * Writes script to temp file and executes with execFile
    */
   protected async runPythonScript(script: string, timeout = 30000): Promise<string> {
     const tmpDir = mkdtempSync(join(tmpdir(), "openclaw-linux-"));
@@ -171,8 +188,9 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
     try {
       const pythonCmd = await this.findPythonPath();
-      const { stdout, stderr } = await execAsync(
-        `${pythonCmd} "${scriptPath}"`,
+      const { stdout, stderr } = await execFileAsync(
+        pythonCmd,
+        [scriptPath], // Pass as array element
         { timeout },
       );
       if (stderr) {
@@ -185,11 +203,11 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
   }
 
   /** Find Python executable path */
-  private async findPythonPath(): Promise<string> {
+  protected async findPythonPath(): Promise<string> {
     const commands = ["python3", "python"];
     for (const cmd of commands) {
       try {
-        await execAsync(`which ${cmd}`, { timeout: 5000 });
+        await execFileAsync("which", [cmd], { timeout: 5000 });
         return cmd;
       } catch {
         continue;
@@ -232,8 +250,22 @@ abstract class LinuxBaseAdapter extends BaseOfficeAdapter {
 
   /** Strip HTML tags from text */
   private stripHtmlTags(html: string): string {
-    return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").trim();
+    return html
+      .replace(/<[^\u003e]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .trim();
   }
+}
+
+/** Helper to safely escape strings for Python scripts */
+function escapePythonString(str: string): string {
+  // Use triple quotes to avoid most escaping issues
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/"""/g, '\\"""');
 }
 
 /** Linux Word Adapter using LibreOffice/Python */
@@ -256,7 +288,9 @@ class LinuxWordAdapter extends LinuxBaseAdapter {
           nodes,
           metadata: {
             sourceFormat: extname(filePath).slice(1),
-            wordCount: nodes.filter((n) => n.type === "paragraph" || n.type === "heading").reduce((sum, n) => sum + n.content.split(/\s+/).length, 0),
+            wordCount: nodes
+              .filter((n) => n.type === "paragraph" || n.type === "heading")
+              .reduce((sum, n) => sum + n.content.split(/\s+/).length, 0),
           },
         };
       } finally {
@@ -264,17 +298,19 @@ class LinuxWordAdapter extends LinuxBaseAdapter {
       }
     } else {
       // Fallback to python-docx
+      // Pass file path as command line argument to avoid injection
       const script = `
 import sys
 from docx import Document
 
-doc = Document("${filePath.replace(/"/g, '\\"')}")
+file_path = sys.argv[1]
+doc = Document(file_path)
 title = doc.paragraphs[0].text if doc.paragraphs else "Untitled"
 print(f"TITLE:{title}")
 for i, para in enumerate(doc.paragraphs):
     print(f"P:{i}:{para.text}")
 `;
-      const output = await this.runPythonScript(script);
+      const output = await this.runPythonScriptWithArg(script, filePath);
       const lines = output.split("\n");
       const title = lines.find((l) => l.startsWith("TITLE:"))?.slice(6) || basename(filePath);
       const nodes: DocumentNode[] = [];
@@ -304,32 +340,59 @@ for i, para in enumerate(doc.paragraphs):
     const hasPython = await this.hasPythonOffice();
 
     if (hasPython) {
+      // Generate Python script with triple-quoted strings for safety
+      const nodesJson = JSON.stringify(
+        doc.nodes.map((n) => ({
+          type: n.type,
+          content: n.content,
+          level: n.level,
+        }))
+      );
+
       const script = `
 from docx import Document
 from docx.shared import Pt
+import json
 
 doc = Document()
-title = doc.add_heading("${doc.title.replace(/"/g, '\\"')}", 0)
+nodes = json.loads('''${escapePythonString(nodesJson)}''')
 
-${doc.nodes.map((node) => {
-  switch (node.type) {
-    case "heading":
-      return `doc.add_heading("${node.content.replace(/"/g, '\\"')}", level=${node.level || 1})`;
-    case "paragraph":
-      return `doc.add_paragraph("${node.content.replace(/"/g, '\\"')}")`;
-    case "code":
-      return `doc.add_paragraph("${node.content.replace(/"/g, '\\"')}", style='Intense Quote')`;
-    default:
-      return `doc.add_paragraph("${node.content.replace(/"/g, '\\"')}")`;
-  }
-}).join("\n")}
+for node in nodes:
+    if node["type"] == "heading":
+        doc.add_heading(node["content"], level=node.get("level", 1))
+    elif node["type"] == "code":
+        doc.add_paragraph(node["content"], style='Intense Quote')
+    else:
+        doc.add_paragraph(node["content"])
 
-doc.save("${filePath.replace(/"/g, '\\"')}")
+doc.save('''${escapePythonString(filePath)}''')
 print("OK")
 `;
       await this.runPythonScript(script);
     } else {
       throw new Error("Python with python-docx is required for writing Word documents on Linux");
+    }
+  }
+
+  /** Run Python script with a file path argument */
+  private async runPythonScriptWithArg(script: string, arg: string): Promise<string> {
+    const tmpDir = mkdtempSync(join(tmpdir(), "openclaw-linux-"));
+    const scriptPath = join(tmpDir, "script.py");
+    writeFileSync(scriptPath, script, "utf8");
+
+    try {
+      const pythonCmd = await this.findPythonPath();
+      const { stdout, stderr } = await execFileAsync(
+        pythonCmd,
+        [scriptPath, arg], // Pass arg as array element
+        { timeout: 30000 },
+      );
+      if (stderr) {
+        logger.warn("[LinuxAdapter] Python stderr:", { stderr: stderr.trim() });
+      }
+      return stdout;
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 }
@@ -386,13 +449,14 @@ class LinuxExcelAdapter extends LinuxBaseAdapter {
 import sys
 from openpyxl import load_workbook
 
-wb = load_workbook("${filePath.replace(/"/g, '\\"')}")
+file_path = sys.argv[1]
+wb = load_workbook(file_path)
 ws = wb.active
 print(f"TITLE:{ws.title}")
 for row in ws.iter_rows(values_only=True):
     print(f"R:{':'.join(str(c) if c is not None else '' for c in row)}")
 `;
-      const output = await this.runPythonScript(script);
+      const output = await this.runPythonScriptWithArg(script, filePath);
       const lines = output.split("\n");
       const title = lines.find((l) => l.startsWith("TITLE:"))?.slice(6) || basename(filePath);
 
@@ -430,26 +494,50 @@ for row in ws.iter_rows(values_only=True):
       const tableNode = doc.nodes.find((n) => n.type === "table");
       const rows = tableNode?.rows || [];
 
-      const rowInserts = rows.map((row) =>
-        `ws.append([${row.cells.map((c: string) => `"${c.replace(/"/g, '\\"')}"`).join(", ")}])`
-      ).join("\n");
+      // Serialize rows as JSON to avoid injection
+      const rowsJson = JSON.stringify(rows.map((r) => r.cells));
 
       const script = `
 from openpyxl import Workbook
 from openpyxl.styles import Font
+import json
 
 wb = Workbook()
 ws = wb.active
-ws.title = "${doc.title.replace(/"/g, '\\"')}" or "Sheet1"
+ws.title = '''${escapePythonString(doc.title)}''' or "Sheet1"
 
-${rowInserts}
+rows = json.loads('''${escapePythonString(rowsJson)}''')
+for row in rows:
+    ws.append(row)
 
-wb.save("${filePath.replace(/"/g, '\\"')}")
+wb.save('''${escapePythonString(filePath)}''')
 print("OK")
 `;
       await this.runPythonScript(script);
     } else {
       throw new Error("Python with openpyxl is required for writing Excel documents on Linux");
+    }
+  }
+
+  /** Run Python script with a file path argument */
+  private async runPythonScriptWithArg(script: string, arg: string): Promise<string> {
+    const tmpDir = mkdtempSync(join(tmpdir(), "openclaw-linux-"));
+    const scriptPath = join(tmpDir, "script.py");
+    writeFileSync(scriptPath, script, "utf8");
+
+    try {
+      const pythonCmd = await this.findPythonPath();
+      const { stdout, stderr } = await execFileAsync(
+        pythonCmd,
+        [scriptPath, arg], // Pass arg as array element
+        { timeout: 30000 },
+      );
+      if (stderr) {
+        logger.warn("[LinuxAdapter] Python stderr:", { stderr: stderr.trim() });
+      }
+      return stdout;
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 }
@@ -480,16 +568,18 @@ class LinuxPowerPointAdapter extends LinuxBaseAdapter {
     } else {
       // Fallback to python-pptx
       const script = `
+import sys
 from pptx import Presentation
 
-prs = Presentation("${filePath.replace(/"/g, '\\"')}")
+file_path = sys.argv[1]
+prs = Presentation(file_path)
 print(f"SLIDES:{len(prs.slides)}")
 for i, slide in enumerate(prs.slides):
     for shape in slide.shapes:
         if hasattr(shape, "text"):
             print(f"S:{i}:{shape.text}")
 `;
-      const output = await this.runPythonScript(script);
+      const output = await this.runPythonScriptWithArg(script, filePath);
       const lines = output.split("\n");
       const slideCount = lines.find((l) => l.startsWith("SLIDES:"))?.slice(7) || "0";
 
@@ -522,32 +612,59 @@ for i, slide in enumerate(prs.slides):
     const hasPython = await this.hasPythonOffice();
 
     if (hasPython) {
-      const slideCreations = doc.nodes.map((node: DocumentNode, i: number) =>
-        `
-slide_layout = prs.slide_layouts[1]  # Title and Content
-slide = prs.slides.add_slide(slide_layout)
-title = slide.shapes.title
-title.text = "Slide ${i + 1}"
-content = slide.placeholders[1]
-content.text = "${node.content.replace(/"/g, '\\"')}"
-`
-      ).join("\n");
+      // Serialize nodes as JSON to avoid injection
+      const nodesJson = JSON.stringify(
+        doc.nodes.map((n, i) => ({
+          index: i,
+          content: n.content,
+        }))
+      );
 
       const script = `
 from pptx import Presentation
 from pptx.util import Inches, Pt
+import json
 
 prs = Presentation()
-prs.core_properties.title = "${doc.title.replace(/"/g, '\\"')}"
+prs.core_properties.title = '''${escapePythonString(doc.title)}'''
 
-${slideCreations}
+nodes = json.loads('''${escapePythonString(nodesJson)}''')
+for node in nodes:
+    slide_layout = prs.slide_layouts[1]  # Title and Content
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    title.text = f"Slide {node['index'] + 1}"
+    content = slide.placeholders[1]
+    content.text = node["content"]
 
-prs.save("${filePath.replace(/"/g, '\\"')}")
+prs.save('''${escapePythonString(filePath)}''')
 print("OK")
 `;
       await this.runPythonScript(script);
     } else {
       throw new Error("Python with python-pptx is required for writing PowerPoint documents on Linux");
+    }
+  }
+
+  /** Run Python script with a file path argument */
+  private async runPythonScriptWithArg(script: string, arg: string): Promise<string> {
+    const tmpDir = mkdtempSync(join(tmpdir(), "openclaw-linux-"));
+    const scriptPath = join(tmpDir, "script.py");
+    writeFileSync(scriptPath, script, "utf8");
+
+    try {
+      const pythonCmd = await this.findPythonPath();
+      const { stdout, stderr } = await execFileAsync(
+        pythonCmd,
+        [scriptPath, arg], // Pass arg as array element
+        { timeout: 30000 },
+      );
+      if (stderr) {
+        logger.warn("[LinuxAdapter] Python stderr:", { stderr: stderr.trim() });
+      }
+      return stdout;
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 }
@@ -584,10 +701,19 @@ export class LinuxSystemAdapter {
     if (!(await this.hasXclip())) {
       throw new Error("xclip is not installed. Install with: sudo apt-get install xclip");
     }
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
-    await execAsync(`echo "${text.replace(/"/g, '\\"')}" | xclip -selection clipboard`, { timeout: 5000 });
+    const { spawn } = await import("child_process");
+    return new Promise((resolve, reject) => {
+      const proc = spawn("xclip", ["-selection", "clipboard"], {
+        timeout: 5000,
+      });
+      proc.stdin.write(text, "utf8");
+      proc.stdin.end();
+      proc.on("error", reject);
+      proc.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`xclip exited with code ${code}`));
+      });
+    });
   }
 
   /** Get clipboard content using xclip */
@@ -595,10 +721,9 @@ export class LinuxSystemAdapter {
     if (!(await this.hasXclip())) {
       throw new Error("xclip is not installed. Install with: sudo apt-get install xclip");
     }
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
-    const { stdout } = await execAsync("xclip -selection clipboard -o", { timeout: 5000 });
+    const { stdout } = await execFileAsync("xclip", ["-selection", "clipboard", "-o"], {
+      timeout: 5000,
+    });
     return stdout;
   }
 
@@ -607,10 +732,9 @@ export class LinuxSystemAdapter {
     if (!(await this.hasXdotool())) {
       throw new Error("xdotool is not installed. Install with: sudo apt-get install xdotool");
     }
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
-    const { stdout } = await execAsync("xdotool getactivewindow getwindowname", { timeout: 5000 });
+    const { stdout } = await execFileAsync("xdotool", ["getactivewindow", "getwindowname"], {
+      timeout: 5000,
+    });
     return stdout.trim();
   }
 
@@ -619,10 +743,20 @@ export class LinuxSystemAdapter {
     if (!(await this.hasXdotool())) {
       throw new Error("xdotool is not installed. Install with: sudo apt-get install xdotool");
     }
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
-    await execAsync(`xdotool type "${text.replace(/"/g, '\\"')}"`, { timeout: 5000 });
+    // Use stdin to avoid shell injection
+    const { spawn } = await import("child_process");
+    return new Promise((resolve, reject) => {
+      const proc = spawn("xdotool", ["type", "--clearmodifiers", "-"], {
+        timeout: 5000,
+      });
+      proc.stdin.write(text, "utf8");
+      proc.stdin.end();
+      proc.on("error", reject);
+      proc.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`xdotool exited with code ${code}`));
+      });
+    });
   }
 
   /** Get setup instructions for Linux */

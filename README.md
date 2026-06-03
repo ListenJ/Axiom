@@ -131,7 +131,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 26 个工具，兼容任何 MCP Client：
+暴露 26+ 个工具，兼容任何 MCP Client：
 
 | 类别 | 工具 |
 |------|------|
@@ -143,6 +143,52 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | 模型 | `model_chat`, `list_free_models` |
 | 数据 | `db_query` |
 | Agent | `opencode_status`, `project_plan`, `project_research`, `project_arch_review`, `hermes_status` |
+| 插件 | 动态加载（取决于已启用的插件） |
+
+### 🐧 Linux Office 适配器
+
+支持 Linux 桌面环境（Ubuntu/Debian/Fedora/Arch）的 Office 文档自动化：
+
+- **LibreOffice**: 文档转换（DOCX/ODT/PDF）、批量处理
+- **Python 后备**: `python-docx`, `openpyxl`, `python-pptx`
+- **系统工具**: `xclip`（剪贴板）、`xdotool`（窗口自动化）、`wmctrl`（窗口管理）
+
+```bash
+# 安装依赖
+sudo apt-get install -y libreoffice xclip xdotool wmctrl
+pip3 install python-docx openpyxl python-pptx
+
+# 使用适配器
+bun run src/cli.ts office:convert input.docx output.pdf
+```
+
+### 🔌 插件市场
+
+内部插件系统，支持动态扩展 Agent 能力：
+
+- **安装/卸载**: 本地插件管理，无需外部服务
+- **启用/禁用**: 运行时加载/卸载，无需重启
+- **配置**: 每个插件独立的配置项
+- **安全沙箱**: 受限的文件/网络/系统访问权限
+
+```bash
+# 查看已安装插件
+bun run src/cli.ts plugins:list
+
+# 安装插件
+bun run src/cli.ts plugins:install openclaw.plugins.code-analysis
+
+# 启用插件
+bun run src/cli.ts plugins:enable openclaw.plugins.code-analysis
+
+# 查看插件市场界面
+open http://localhost:18789/plugins.html
+```
+
+**内置示例插件**:
+- `code-analysis-enhanced` - 代码复杂度分析、依赖图、漏洞检测
+- `git-workflow-enhanced` - 分支命名、提交消息生成、PR 模板
+- `doc-generator` - API 文档、README 生成、架构决策记录
 
 ## CLI 工具
 
@@ -365,6 +411,11 @@ Hermes 安装后可通过 MCP 连接 OpenClaw 共享记忆库。
 | `/bootstrap` | GET | Agent 启动加载 |
 | `/kg/*` | - | 知识图谱 API |
 | `/ws` | WS | 实时推送 |
+| `/plugins` | GET | 插件列表 |
+| `/plugins/available` | GET | 可用插件 |
+| `/plugins/install` | POST | 安装插件 |
+| `/plugins/:id/enable` | POST | 启用插件 |
+| `/plugins/:id/disable` | POST | 禁用插件 |
 
 ## 环境变量
 
