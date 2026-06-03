@@ -1,0 +1,26 @@
+{
+  "id": "git-workflow-enhanced",
+  "name": "Git Workflow Enhanced",
+  "version": "1.0.0",
+  "author": "OpenClaw Team",
+  "description": "Advanced Git workflow automation with branch naming, commit message generation, PR template, and changelog management",
+  "category": "development",
+  "tags": ["git", "workflow", "automation", "commit", "changelog"],
+  "license": "MIT",
+  "repository": "https://github.com/openclaw/plugins/git-workflow-enhanced",
+  "readme": "# Git Workflow Enhanced Plugin\n\nAutomates Git workflows:\n- Smart branch naming from task descriptions\n- Conventional commit message generation\n- PR template generation\n- Changelog management\n- Git hook management",
+  "icon": "🌿",
+  "tools": ["generate_branch_name", "generate_commit_message", "generate_pr_template", "update_changelog", "manage_git_hooks"],
+  "skills": [],
+  "patterns": [],
+  "permissions": ["git:execute", "filesystem:read", "filesystem:write"],
+  "config": {
+    "schema": {
+      "commitStyle": { "type": "string", "default": "conventional", "description": "Commit message style (conventional, semantic, simple)" },
+      "branchPrefix": { "type": "string", "default": "feature", "description": "Default branch prefix" },
+      "changelogFormat": { "type": "string", "default": "keepachangelog", "description": "Changelog format (keepachangelog, standard)" },
+      "enableHooks": { "type": "boolean", "default": true, "description": "Enable Git hook management" }
+    }
+  },
+  "entry": "index.js"
+}

@@ -131,13 +131,14 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 23 个工具，兼容任何 MCP Client：
+暴露 26 个工具，兼容任何 MCP Client：
 
 | 类别 | 工具 |
 |------|------|
 | 记忆 | `memory_search`, `memory_read`, `memory_write`, `memory_atomic`, `memory_browse`, `memory_network`, `memory_stats` |
 | 代码 | `code_index`, `code_generate`, `code_refactor`, `code_review`, `code_test` |
 | 采集 | `web_fetch`, `web_search`, `search_engines_list`, `proxy_status` |
+| 搜索 | `minimax_web_search`, `minimax_image_understand`, `minimax_health` |
 | 图谱 | `kg_create_entity`, `kg_create_relationship`, `kg_search`, `kg_shortest_path` |
 | 模型 | `model_chat`, `list_free_models` |
 | 数据 | `db_query` |
@@ -216,6 +217,14 @@ bun run src/cli.ts kimi:guide
 ```
 
 **配置方式**：
+
+💡 **推荐：使用交互式配置向导**
+```bash
+# 自动检测 CLI、引导安装、配置认证
+bun run scripts/setup-kimi-code.ts
+```
+
+**手动配置**：
 1. **API Key** (推荐，第三方工具/自建应用):
    - 访问 [Kimi Code 控制台](https://www.kimi.com/code) 创建 API Key
    - 在 `.env` 中配置 `KIMI_CODE_API_KEY=your-key`
@@ -227,9 +236,9 @@ bun run src/cli.ts kimi:guide
 
 **协议**: OpenAI 兼容 (`https://api.kimi.com/coding/v1`)
 
-### 🐉 MiniMax (MiniMax AI) — 国内直连长文本旗舰
+### 🐉 MiniMax — 国内直连
 
-MiniMax 是一家国内大模型厂商，旗舰模型 `MiniMax-Text-01` 支持 **1M context** 长文本，abab-6.5 系列覆盖对话/代码/工具场景，国内网络直连。
+MiniMax 是一家国内大模型厂商，最新系列包括 **M3**（旗舰）、**M2.7**（均衡）、**M2.5**（轻量）三大语言模型，国内网络直连。
 
 **配置方式**（两种任选其一）：
 
@@ -243,7 +252,7 @@ MINIMAX_BASE_URL=https://api.minimax.chat/v1  # 可选，默认已设置
 
 **方式 2：在前端 Settings 页面运行时配置（推荐用于临时测试）**
 
-打开 `http://localhost:18789/`，进入 **Settings → Provider API Keys** 卡片，在 **MiniMax (MiniMax AI)** 那一行填入 API Key 即可。
+打开 `http://localhost:18789/`，进入 **Settings → Provider API Keys** 卡片，在 **MiniMax** 那一行填入 API Key 即可。
 - 运行时设置仅保存在服务器内存中，**不写入** `.env`
 - 重启服务后会失效
 - 优先级：运行时设置 > `.env` 中的值
@@ -252,9 +261,36 @@ MINIMAX_BASE_URL=https://api.minimax.chat/v1  # 可选，默认已设置
 
 | 模型 ID | 角色 | Context | 说明 |
 |---------|------|---------|------|
-| `MiniMax-Text-01` | general-chat / architecture / decision / research | 1M | 旗舰长文本 |
-| `abab-6.5s-chat` | general-chat / english | 8K | 通用对话 |
-| `abab-6.5g-chat` | coding / code-generation / code-review | 8K | 代码/工具 |
+| `MiniMax-M3` | general-chat / architecture / research | 256K | 旗舰模型，架构设计+研究分析 |
+| `MiniMax-M2.7` | general-chat / english | 128K | 均衡模型，通用对话与内容分析 |
+| `MiniMax-M2.5` | general-chat / english / general-tool | 32K | 轻量快速模型，高频对话场景 |
+
+**MiniMax MCP 工具**（若订阅 Token Plan，同一 API Key 可同时用于模型调用和 MCP 工具）：
+
+| 工具 | 说明 |
+|------|------|
+| `minimax_web_search` | 实时网络搜索，支持中文优化 |
+| `minimax_image_understand` | 图像识别分析，支持 URL 或 base64 |
+| `minimax_health` | 检查 MiniMax API 连接状态 |
+
+**使用示例**：
+
+```bash
+# 通过 MCP 调用 MiniMax 网络搜索
+curl -X POST http://localhost:18789/mcp/tools/minimax_web_search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"人工智能最新进展","num":5}'
+
+# 通过 MCP 调用图像识别
+curl -X POST http://localhost:18789/mcp/tools/minimax_image_understand \
+  -H "Content-Type: application/json" \
+  -d '{"image":"https://example.com/image.jpg","prompt":"描述这张图片"}'
+```
+
+**Token Plan 说明**：
+- 标准版 API：`https://api.minimax.chat`（按调用计费）
+- Token Plan：`https://api.minimax.io`（订阅制，同一 Key 可用于模型+MCP）
+- 切换方式：设置 `MINIMAX_BASE_URL=https://api.minimax.io`
 
 **API 调用**：
 
@@ -267,7 +303,7 @@ curl -X POST http://localhost:18789/chat \
 # 直接调用某个 MiniMax 模型
 curl -X POST http://localhost:18789/agent-chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"用 Python 写个快排","taskType":"coding"}'
+  -d '{"message":"分析一下这个架构设计的优缺点","taskType":"architecture"}'
 ```
 
 **管理 API（编程方式设置）**：
@@ -342,7 +378,7 @@ Hermes 安装后可通过 MCP 连接 OpenClaw 共享记忆库。
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 否 |
 | `OPENROUTER_API_KEY` | OpenRouter API Key | 否 |
 | `KIMI_CODE_API_KEY` | Kimi Code API Key | 否 |
-| `MINIMAX_API_KEY` | MiniMax (MiniMax AI) API Key — 也可前端运行时配置 | 否 |
+| `MINIMAX_API_KEY` | MiniMax API Key (M3/M2.7/M2.5) — 也可前端运行时配置 | 否 |
 | `MINIMAX_BASE_URL` | MiniMax API 端点 | 否 (默认 https://api.minimax.chat/v1) |
 | `BING_API_KEY` | Bing Search API | 否 |
 | `YANDEX_API_KEY` | Yandex XML API | 否 |

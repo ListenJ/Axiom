@@ -11,6 +11,7 @@ import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
 import { handleProxies } from "./proxies.js";
+import { handlePluginRoutes } from "./plugin-adapter.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -70,6 +71,8 @@ const handlers: RouteHandler[] = [
   handleProxies,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
+  // Plugin Market (插件市场)
+  handlePluginRoutes,
   // Scene Router (MCP 场景驱动工具调用)
   handleSceneRoutes,
   // OCR Document Processing
@@ -126,6 +129,16 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /api-keys/:provider      — 单个 provider 状态",
       "POST   /api-keys                — 设置 runtime override { provider, apiKey, baseURL? }",
       "DELETE /api-keys/:provider      — 清除 runtime override",
+      "--- Plugin Market (插件市场) ---",
+      "GET    /plugins                   — 列出已安装插件",
+      "GET    /plugins/available         — 列出可用插件",
+      "GET    /plugins/:id               — 获取插件详情",
+      "POST   /plugins/install           — 安装插件",
+      "POST   /plugins/:id/uninstall     — 卸载插件",
+      "POST   /plugins/:id/enable        — 启用插件",
+      "POST   /plugins/:id/disable       — 禁用插件",
+      "POST   /plugins/:id/config        — 配置插件",
+      "GET    /plugins/active-tools      — 获取活跃工具",
     ],
   }, 200, ctx.baseHeaders);
 }

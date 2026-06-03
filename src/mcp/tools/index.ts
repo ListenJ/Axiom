@@ -51,3 +51,14 @@ export {
   type ReferenceResult,
   type OutlineResult,
 } from "./code-analysis.js";
+
+export {
+  minimaxWebSearch,
+  minimaxImageUnderstand,
+  checkMiniMaxHealth,
+  getMiniMaxInfo,
+  type MiniMaxWebSearchResult,
+  type MiniMaxWebSearchResponse,
+  type MiniMaxImageUnderstandResult,
+  type MiniMaxImageUnderstandResponse,
+} from "./minimax.js";

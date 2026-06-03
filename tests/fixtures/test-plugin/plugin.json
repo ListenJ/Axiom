@@ -1,0 +1,9 @@
+{
+  "id": "test-plugin",
+  "name": "Test Plugin",
+  "version": "1.0.0",
+  "author": "Test Author",
+  "description": "A test plugin for testing",
+  "category": "developer-tools",
+  "tags": ["test", "dev"]
+}

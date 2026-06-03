@@ -84,6 +84,12 @@ import {
   TOOL_CLASSIFICATIONS,
 } from "../agents/execution-mode.js";
 import { getConstitutionForMode } from "../agents/constitution.js";
+import {
+  minimaxWebSearch,
+  minimaxImageUnderstand,
+  checkMiniMaxHealth,
+  getMiniMaxInfo,
+} from "./tools/minimax.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
@@ -351,6 +357,76 @@ registry.add({
       news: response.news_results?.length ?? 0,
       latency_ms: latency,
       vault_path: vaultPath || null,
+    };
+  },
+});
+
+// -- MiniMax MCP 工具（网络搜索 + 图像识别）--
+// 若订阅了 MiniMax Token Plan，可使用同一 API Key 同时调用模型和 MCP 工具
+registry.add({
+  name: "minimax_web_search",
+  description: "MiniMax 网络搜索（实时搜索结果，支持中文优化）",
+  inputSchema: {
+    query: z.string().describe("搜索关键词"),
+    num: z.number().optional().default(10).describe("返回结果数量"),
+    lang: z.string().optional().default("zh").describe("搜索语言"),
+  },
+  handler: async (args) => {
+    const result = await minimaxWebSearch(args.query as string, {
+      num: args.num as number,
+      lang: args.lang as string,
+    });
+    return {
+      success: result.success,
+      query: result.query,
+      total_results: result.totalResults,
+      results: result.results.map((r) => ({
+        title: r.title,
+        link: r.link,
+        snippet: r.snippet,
+        displayed_url: r.displayedUrl,
+        date: r.date,
+      })),
+    };
+  },
+});
+
+registry.add({
+  name: "minimax_image_understand",
+  description: "MiniMax 图像识别（分析图像内容，支持 URL 或 base64）",
+  inputSchema: {
+    image: z.string().describe("图像 URL 或 base64 编码数据"),
+    prompt: z.string().optional().describe("自定义提示词（可选）"),
+  },
+  handler: async (args) => {
+    const result = await minimaxImageUnderstand(args.image as string, {
+      prompt: args.prompt as string,
+    });
+    return {
+      success: result.success,
+      description: result.result?.description,
+      objects: result.result?.objects,
+      text: result.result?.text,
+      scenes: result.result?.scenes,
+      error: result.error,
+    };
+  },
+});
+
+registry.add({
+  name: "minimax_health",
+  description: "检查 MiniMax API 连接状态",
+  inputSchema: {},
+  handler: async () => {
+    const health = await checkMiniMaxHealth();
+    const info = getMiniMaxInfo();
+    return {
+      ok: health.ok,
+      latency_ms: health.latency,
+      error: health.error,
+      configured: info.configured,
+      base_url: info.baseUrl,
+      has_token_plan: info.hasTokenPlan,
     };
   },
 });

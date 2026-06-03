@@ -136,6 +136,13 @@ for (const [name, envKey] of platformChecks) {
 }
 healthMonitor.start();
 
+// Plugin Market (插件市场)
+import { initPluginRoutes } from "./routes/plugin-adapter.js";
+import { ToolRegistry } from "./mcp/tool-registry.js";
+const pluginToolRegistry = new ToolRegistry();
+initPluginRoutes(db, pluginToolRegistry);
+logger.info("Plugin market initialized");
+
 import { TIMEOUTS } from "./constants/timeouts.js";
 import { toOpenClawError, createErrorResponse } from "./utils/errors.js";
 
@@ -335,6 +342,7 @@ registerShutdownHook({ name: "vault", handler: () => vault?.close(), priority: 7
 registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50 });
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
+registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 

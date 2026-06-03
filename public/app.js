@@ -21,6 +21,7 @@ const pages = {
   search: { label: "Search", icon: "🔍" },
   vault: { label: "Vault", icon: "📚" },
   agents: { label: "Agents", icon: "🤖" },
+  plugins: { label: "Plugins", icon: "🔌" },
   code: { label: "Code", icon: "💻" },
   settings: { label: "Settings", icon: "⚙️" },
 };
@@ -49,6 +50,7 @@ function navigate(page) {
   else if (page === "search") renderSearch();
   else if (page === "vault") renderVault();
   else if (page === "agents") renderAgents();
+  else if (page === "plugins") renderPlugins();
   else if (page === "code") renderCodeAgent();
   else if (page === "settings") renderSettings();
 }
@@ -299,6 +301,14 @@ async function renderAgents() {
           `\u003cli\u003e\u003cspan\u003e${p.country || p.host}\u003c/span\u003e\u003cspan class="badge ${p.active?'ok':'off'}"\u003e${p.active?'可用':'离线'}\u003c/span\u003e\u003c/li\u003e`).join("")}\u003c/ul\u003e\u003c/div\u003e
       \u003c/div>`;
   } catch {}
+}
+
+// ===== Plugins =====
+function renderPlugins() {
+  document.getElementById("pageContent").innerHTML = `
+    <div style="height:calc(100vh - 80px)">
+      <iframe src="/plugins.html" style="width:100%;height:100%;border:none;border-radius:12px"></iframe>
+    </div>`;
 }
 
 // ===== Code Agent =====

@@ -5,11 +5,11 @@
  * Automatically detects platform and selects appropriate adapter.
  * 
  * Platform Matrix:
- * | Platform | Primary       | Fallback      |
- * |----------|--------------|---------------|
- * | Windows  | Office COM   | python-docx   |
- * | macOS    | AppleScript  | python-docx   |
- * | Linux    | WPS JS API   | python-docx   |
+ * | Platform | Primary       | Secondary     | Fallback      |
+ * |----------|--------------|---------------|---------------|
+ * | Windows  | Office COM   | WPS          | python-docx   |
+ * | macOS    | AppleScript  | WPS          | python-docx   |
+ * | Linux    | LibreOffice  | Python libs  | WPS Office    |
  */
 
 import { OfficeAdapter, OfficeDocumentType, BaseOfficeAdapter, OfficeUtils, PlatformCapabilities } from "./office-adapter.js";
@@ -19,6 +19,7 @@ import { PowerPointAdapter } from "./powerpoint-adapter.js";
 import { ComWordAdapter, ComExcelAdapter, ComPowerPointAdapter } from "./com-adapter.js";
 import { AppleScriptWordAdapter, AppleScriptExcelAdapter, AppleScriptPowerPointAdapter } from "./applescript-adapter.js";
 import { WPSWordAdapter, WPSExcelAdapter, WPSPowerPointAdapter } from "./wps-adapter.js";
+import { LinuxWordAdapter, LinuxExcelAdapter, LinuxPowerPointAdapter } from "./linux-adapter.js";
 import { logger } from "../../utils/logger.js";
 
 // Re-export types for convenience
@@ -76,8 +77,8 @@ export class PlatformAdapter {
       hasOffice = await this.checkCommand("osascript -e 'tell application \"System Events\" to return name of exists application \"Microsoft Word\"'");
       hasWPS = await this.checkCommand("which wps");
     } else if (type === "linux") {
+      hasOffice = await this.checkCommand("which libreoffice || which soffice"); // LibreOffice as primary
       hasWPS = await this.checkCommand("which wps || which et");
-      hasOffice = false; // No native Office on Linux
     }
 
     this.detectedPlatform = {
@@ -126,6 +127,19 @@ export class PlatformAdapter {
           case "powerpoint":
             return new AppleScriptPowerPointAdapter();
         }
+      }
+    }
+
+    // Try Linux native adapters (LibreOffice + Python)
+    if (platform.type === "linux") {
+      logger.info(`[PlatformAdapter] Using Linux native integration for ${docType}`);
+      switch (docType) {
+        case "word":
+          return new LinuxWordAdapter();
+        case "excel":
+          return new LinuxExcelAdapter();
+        case "powerpoint":
+          return new LinuxPowerPointAdapter();
       }
     }
 
@@ -194,9 +208,11 @@ macOS Office Integration:
       case "linux":
         return `
 Linux Office Integration:
-1. Install WPS Office (optional, for native integration)
-2. Python fallback requires: pip3 install python-docx openpyxl python-pptx
-3. WPS JS API requires WPS Office 2019 or later
+1. LibreOffice (recommended): sudo apt-get install libreoffice-calc libreoffice-writer libreoffice-impress
+2. Python libraries: pip3 install python-docx openpyxl python-pptx
+3. System tools: sudo apt-get install xclip xdotool wmctrl
+4. Optional WPS Office: https://www.wps.com/linux
+5. Optional: sudo apt-get install unoconv
         `.trim();
       
       default:
