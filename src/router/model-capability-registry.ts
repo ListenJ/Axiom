@@ -27,6 +27,8 @@ export interface ModelCapability {
   contextWindow: number;
   adapter?: "claude_code" | "kimi_code";
   tags: string[];
+  priority?: number;
+  timeout?: number;
 }
 
 export interface AssignmentResult {
@@ -48,6 +50,8 @@ function toCapability(um: UnifiedModel): ModelCapability {
     roles: um.roles,
     contextWindow: um.contextWindow,
     tags: um.tags,
+    priority: um.priority,
+    timeout: um.timeout,
   };
 }
 

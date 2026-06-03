@@ -35,7 +35,7 @@ describe("ModelRouter", () => {
       // Auto routing may fail if models are unavailable
       expect(true).toBe(true);
     }
-  }, 10000);
+  }, 30000);
 
   it("should assign models for known roles", () => {
     const roles = ["coding", "research", "decision", "general-chat"] as const;
@@ -71,7 +71,7 @@ describe("ModelRouter", () => {
         expect(true).toBe(true);
       }
     }
-  }, 10000);
+  }, 30000);
 
   it("should handle batch execution", async () => {
     const assignments = [
@@ -94,7 +94,7 @@ describe("ModelRouter", () => {
       // Models may not be available
       expect(true).toBe(true);
     }
-  }, 10000);
+  }, 30000);
 
   it("should handle embeddings request", async () => {
     try {
@@ -125,7 +125,7 @@ describe("ModelRouter", () => {
       // Tool pool may be empty in test environment
       expect(true).toBe(true);
     }
-  }, 10000);
+  }, 30000);
 
   it("should return degraded response when all models fail", async () => {
     // This tests the fallback mechanism indirectly

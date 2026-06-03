@@ -9,8 +9,8 @@
 
 import { logger } from "../utils/logger.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
-import { assignModel, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
-import { PROVIDER_CONFIG, findModelsForRole, getFallbackChain, type UnifiedModel } from "./models.js";
+import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
@@ -260,6 +260,14 @@ class MultiPlatformRouter {
   async autoRoute(messages: ChatMessage[]): Promise<ChatResponse & { routing?: { role: TaskRole; thinking: string; reason: string } }> {
     const startTime = Date.now();
 
+    // 使用注册表中的 decision 角色模型做路由决策
+    const routingModel = assignModel("decision");
+    if (!routingModel) {
+      logger.warn("[AutoRoute] No decision model configured, falling back to general-chat");
+      const fallback = await this.chat("general-chat", messages);
+      return { ...fallback, routing: { role: "general-chat" as TaskRole, thinking: "none", reason: "无决策模型配置" } };
+    }
+
     // 构建路由提示词
     const routingMessages: ChatMessage[] = [
       {
@@ -291,18 +299,20 @@ class MultiPlatformRouter {
     ];
 
     try {
-      // 使用廉价 flash 模型做路由决策
-      const flashResponse = await callProvider("openrouter", "deepseek/deepseek-v4-flash:free", routingMessages, 10000);
+      // 使用配置的决策模型做路由
+      const model = routingModel.model;
+      const flashResponse = await callProvider(model.provider, model.model, routingMessages, 10000);
       const routing = this.parseRoutingDecision(flashResponse.content);
 
       logger.info("[AutoRoute] Routing decision", {
         role: routing.role,
         thinking: routing.thinking,
         reason: routing.reason,
+        model: model.id,
       });
 
       // 跟踪路由调用
-      trackCall("deepseek/deepseek-v4-flash:free", "openrouter", routingMessages, { latencyMs: Date.now() - startTime, success: true }, { role: "decision", taskType: "auto_route" });
+      trackCall(model.id, model.provider, routingMessages, { latencyMs: Date.now() - startTime, success: true }, { role: "decision", taskType: "auto_route" });
 
       // 根据路由决策执行
       const result = await this.executeWithRole(routing.role as TaskRole, messages);
@@ -442,12 +452,19 @@ class MultiPlatformRouter {
 
   private async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
     try {
-      const response = await callProvider("openrouter", "qwen/qwen3-0309-coder:free", messages, TIMEOUTS.API_DEFAULT);
+      // 使用注册表中的第一个可用模型作为fallback
+      const fallbackModels = findModelsForRole(role);
+      if (fallbackModels.length === 0) {
+        throw new Error(`No models available for role: ${role}`);
+      }
+      const fallbackModel = fallbackModels[0];
+      const config = PROVIDER_CONFIG[fallbackModel.provider as keyof typeof PROVIDER_CONFIG];
+      const response = await callProvider(fallbackModel.provider, fallbackModel.model, messages, TIMEOUTS.API_DEFAULT);
       return {
         role,
-        model: "qwen/qwen3-0309-coder:free",
-        provider: "openrouter",
-        endpoint: "https://openrouter.ai/api/v1",
+        model: fallbackModel.id,
+        provider: fallbackModel.provider,
+        endpoint: config?.baseURL ?? "",
         content: response.content,
         latency_ms: 0,
         fallback_used: true,
