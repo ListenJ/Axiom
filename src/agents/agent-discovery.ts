@@ -105,12 +105,12 @@ function extractAgentMeta(filePath: string, baseDir: string): AgentMeta | null {
       category: inferCategory(filePath, baseDir),
       name: name.trim(),
       description: description.trim(),
-      emoji: frontmatter.emoji?.trim() || "🤖",
+      emoji: frontmatter.emoji?.trim() || "[AI]",
       vibe: frontmatter.vibe?.trim() || frontmatter.personality?.trim() || "",
       tools: frontmatter.tools?.trim() || "",
     };
-  } catch (e: any) {
-    logger.warn("[AgentDiscovery] Failed to parse file", { file: filePath, message: e.message });
+  } catch (e: unknown) {
+    logger.warn("[AgentDiscovery] Failed to parse file", { file: filePath, message: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

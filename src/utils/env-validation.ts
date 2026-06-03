@@ -45,6 +45,11 @@ export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
     description: "KimiCode API key",
   },
   {
+    name: "MINIMAX_API_KEY",
+    required: false,
+    description: "MiniMax (MiniMax AI) API key — 也可通过前端 Settings 运行时配置",
+  },
+  {
     name: "SERPAPI_KEY",
     required: false,
     description: "SerpAPI key for search aggregation",
@@ -57,7 +62,7 @@ export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
   {
     name: "PORT",
     required: false,
-    default: "3000",
+    default: "18789",
     validate: (v) => {
       const port = parseInt(v, 10);
       return port > 0 && port < 65536;
@@ -100,6 +105,22 @@ export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
     default: "true",
     validate: (v) => ["true", "false"].includes(v.toLowerCase()),
     description: "Enable WebSocket server",
+  },
+  {
+    name: "OPENCLAW_GATEWAY_PORT",
+    required: false,
+    default: "18789",
+    validate: (v) => {
+      const port = parseInt(v, 10);
+      return Number.isFinite(port) && port > 0 && port < 65536;
+    },
+    description: "HTTP gateway port for OpenClaw",
+  },
+  {
+    name: "OPENCLAW_AUTH_TOKEN",
+    required: false,
+    validate: (v) => v.length >= 16,
+    description: "Gateway auth token (min 16 chars). If unset or default placeholder, server logs a loud warning and /api-keys returns 401.",
   },
 ];
 
@@ -167,6 +188,22 @@ export function validateEnv(options?: {
           .join(", ") || "none found"}?`
       );
     }
+  }
+
+  // Security warnings for OPENCLAW_AUTH_TOKEN
+  const authToken = process.env.OPENCLAW_AUTH_TOKEN;
+  if (!authToken) {
+    result.warnings.push(
+      "⚠️  OPENCLAW_AUTH_TOKEN is unset. All /api-keys requests will be refused (503). Generate one with: openssl rand -hex 32"
+    );
+  } else if (authToken === "your-secure-random-token") {
+    result.warnings.push(
+      "⚠️  OPENCLAW_AUTH_TOKEN is still the default placeholder. Replace it with a real secret (openssl rand -hex 32)."
+    );
+  } else if (authToken.length < 32) {
+    result.warnings.push(
+      `⚠️  OPENCLAW_AUTH_TOKEN is only ${authToken.length} chars. Use at least 32 chars for production (openssl rand -hex 32).`
+    );
   }
 
   // Log results

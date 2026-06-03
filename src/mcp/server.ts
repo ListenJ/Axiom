@@ -1,6 +1,6 @@
 /**
- * MCP 服务器入口 v2.1
- * 基于 @modelcontextprotocol/sdk，暴露 Vault 核心记忆、确定性搜索、知识图谱等工具
+ * MCP 服务器入口 v2.2
+ * 基于 @modelcontextprotocol/sdk，使用 ToolRegistry 统一注册，消除 stdio/HTTP 重复
  *
  * 所有记忆操作通过 Obsidian Vault 文件系统进行，确保所有 Agent 共享同一记忆库。
  */
@@ -11,41 +11,98 @@ import { Database } from "bun:sqlite";
 import { DataPipeline } from "../crawl/data-pipeline.js";
 import { searchAggregator } from "../crawl/search-engines.js";
 import { SerpApiClient } from "../crawl/serpapi-client.js";
-import { proxyManager } from "../crawl/proxy-manager.js";
 import { VaultManager } from "../memory/vault-manager.js";
-import { KnowledgeGraph } from "../kg/graph.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 import {
   openCodeSession,
   checkOpenCode,
   listOpenCodeModels,
   OPENCODE_FREE_MODELS,
   getOpenCodeInstallGuide,
+  executeCodeGenerate,
+  executeCodeRefactor,
+  executeCodeReview,
+  executeCodeTest,
 } from "../agents/opencode-agent.js";
 import {
   runHermesTask,
-  planProject,
   deepResearch,
-  architectureReview,
   checkHermes,
   getHermesInstallGuide,
+  codeReview,
 } from "../agents/hermes-agent.js";
+import {
+  readFile,
+  writeFile,
+  listDirectory,
+  searchFiles,
+  deleteFile,
+  moveFile,
+} from "./tools/filesystem.js";
+import {
+  executeCommand,
+  listProcesses,
+  getSystemInfo,
+} from "./tools/terminal.js";
+import {
+  gitStatus,
+  gitDiff,
+  gitLog,
+  gitBranch,
+  gitBlame,
+} from "./tools/git.js";
+import {
+  findSymbols,
+  findReferences,
+  getDiagnostics,
+  getFileOutline,
+  analyzeCode,
+  getQuickDiagnostics,
+  getCodeActions,
+  detectLanguage,
+} from "./tools/code-analysis.js";
+import {
+  loadSkillsFromDirectories,
+  saveSkillFile,
+  createSkillFileBoilerplate,
+  clearSkillCache,
+} from "../skills/skill-loader.js";
+import { router } from "../router/model-router.js";
+import { getTokenTracker } from "../router/token-tracker.js";
+import { ToolRegistry } from "./tool-registry.js";
+import {
+  createSnapshot,
+  revertSnapshot,
+  listSnapshots,
+  diffSnapshot,
+  getSnapshotStatus,
+} from "./tools/workspace-snapshot.js";
+import {
+  executionMode,
+  type ExecutionMode,
+  TOOL_CLASSIFICATIONS,
+} from "../agents/execution-mode.js";
+import { getConstitutionForMode } from "../agents/constitution.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
 
 // 初始化 Vault（共享记忆库）
 const vault = new VaultManager();
-const kg = new KnowledgeGraph(dbPath);
 
 const mcp = new McpServer({
   name: "OpenClaw Agent MCP Server",
-  version: "2.1.0",
+  version: "2.2.0",
 });
 
-// ===== Vault 核心记忆工具 =====
+// ===== 工具定义（单一事实来源） =====
 
-mcp.registerTool("memory_search", {
+const registry = new ToolRegistry();
+
+// -- Vault 核心记忆工具 --
+registry.add({
+  name: "memory_search",
   description: "确定性搜索 Vault 中的记忆笔记（关键词 + PARA + 标签 + 关系推导）",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
@@ -54,42 +111,39 @@ mcp.registerTool("memory_search", {
     tags: z.array(z.string()).optional().describe("必须包含的标签"),
     paraCategory: z.enum(["projects", "areas", "resources", "archives", "conversations", "meta"]).optional().describe("PARA 分类"),
   },
-}, async ({ query, limit, types, tags, paraCategory }) => {
-  const results = vault.search(query, { limit, types, tags, paraCategory });
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify(results.map((r) => ({
-        path: r.note.path,
-        title: r.note.title,
-        score: r.score,
-        reasons: r.reasons,
-        excerpt: r.excerpt,
-        tags: r.note.tags,
-      })), null, 2),
-    }],
-  };
+  handler: async (args) => {
+    const results = vault.search(args.query as string, {
+      limit: args.limit as number,
+      types: args.types as string[],
+      tags: args.tags as string[],
+      paraCategory: args.paraCategory as string,
+    });
+    return results.map((r) => ({
+      path: r.note.path,
+      title: r.note.title,
+      score: r.score,
+      reasons: r.reasons,
+      excerpt: r.excerpt,
+      tags: r.note.tags,
+    }));
+  },
 });
 
-mcp.registerTool("memory_read", {
+registry.add({
+  name: "memory_read",
   description: "读取指定路径的 Vault 笔记",
   inputSchema: {
     path: z.string().describe("笔记路径，如 '00-Meta/SOUL.md'"),
   },
-}, async ({ path }) => {
-  const note = vault.readNote(path);
-  if (!note) {
-    return { content: [{ type: "text" as const, text: "Note not found" }] };
-  }
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ path, frontmatter: note.frontmatter, content: note.content.slice(0, 5000) }, null, 2),
-    }],
-  };
+  handler: async (args) => {
+    const note = vault.readNote(args.path as string);
+    if (!note) return { error: "Note not found" };
+    return { path: args.path, frontmatter: note.frontmatter, content: note.content.slice(0, 5000) };
+  },
 });
 
-mcp.registerTool("memory_write", {
+registry.add({
+  name: "memory_write",
   description: "写入 Vault 笔记（自动处理 frontmatter 和路径）",
   inputSchema: {
     path: z.string().describe("笔记路径"),
@@ -100,12 +154,20 @@ mcp.registerTool("memory_write", {
     source: z.string().optional().describe("来源 URL 或引用"),
     overwrite: z.boolean().optional().default(false).describe("是否覆盖"),
   },
-}, async ({ path, content, title, type, tags, source, overwrite }) => {
-  const written = await vault.writeNote(path, content, { title, type, tags, source, overwrite });
-  return { content: [{ type: "text" as const, text: `Saved to ${written}` }] };
+  handler: async (args) => {
+    const written = await vault.writeNote(args.path as string, args.content as string, {
+      title: args.title as string,
+      type: args.type as string,
+      tags: args.tags as string[],
+      source: args.source as string,
+      overwrite: args.overwrite as boolean,
+    });
+    return { savedTo: written };
+  },
 });
 
-mcp.registerTool("memory_atomic", {
+registry.add({
+  name: "memory_atomic",
   description: "写入原子笔记（Zettelkasten 风格）",
   inputSchema: {
     title: z.string().describe("笔记标题"),
@@ -114,701 +176,941 @@ mcp.registerTool("memory_atomic", {
     relatedNotes: z.array(z.string()).optional().describe("关联笔记标题（wiki-link 格式）"),
     tags: z.array(z.string()).optional().describe("标签"),
   },
-}, async ({ title, idea, context, relatedNotes, tags }) => {
-  const notePath = await vault.writeAtomicNote(title, idea, { context, relatedNotes, tags });
-  return { content: [{ type: "text" as const, text: `Atomic note created: ${notePath}` }] };
+  handler: async (args) => {
+    const notePath = await vault.writeAtomicNote(args.title as string, args.idea as string, {
+      context: args.context as string,
+      relatedNotes: args.relatedNotes as string[],
+      tags: args.tags as string[],
+    });
+    return { notePath };
+  },
 });
 
-mcp.registerTool("memory_browse", {
+registry.add({
+  name: "memory_browse",
   description: "按 PARA 分类或标签浏览 Vault 笔记",
   inputSchema: {
     by: z.enum(["para", "tag"]).describe("浏览方式"),
     value: z.string().describe("分类名或标签名"),
     limit: z.number().optional().default(20).describe("数量限制"),
   },
-}, async ({ by, value, limit }) => {
-  const notes = by === "para"
-    ? vault.browsePara(value).slice(0, limit)
-    : vault.browseTag(value).slice(0, limit);
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify(notes.map((n) => ({ path: n.path, title: n.title, tags: n.tags, modifiedAt: n.modifiedAt })), null, 2),
-    }],
-  };
+  handler: async (args) => {
+    const notes = args.by === "para"
+      ? vault.browsePara(args.value as string).slice(0, (args.limit as number) || 20)
+      : vault.browseTag(args.value as string).slice(0, (args.limit as number) || 20);
+    return notes.map((n) => ({ path: n.path, title: n.title, tags: n.tags, modifiedAt: n.modifiedAt }));
+  },
 });
 
-mcp.registerTool("memory_network", {
+registry.add({
+  name: "memory_network",
   description: "获取 Vault 笔记的关联网络（wiki-link 1-2 跳）",
   inputSchema: {
     path: z.string().describe("笔记路径"),
     depth: z.number().optional().default(1).describe("遍历深度（1-2）"),
   },
-}, async ({ path, depth }) => {
-  const network = vault.getNetwork(path, Math.min(depth, 2));
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({
-        center: path,
-        relatedNotes: network.notes.map((n) => n.title),
-        relationships: network.relationships,
-      }, null, 2),
-    }],
-  };
+  handler: async (args) => {
+    const network = vault.getNetwork(args.path as string, Math.min((args.depth as number) || 1, 2));
+    return {
+      center: args.path,
+      relatedNotes: network.notes.map((n) => n.title),
+      relationships: network.relationships,
+    };
+  },
 });
 
-mcp.registerTool("memory_stats", {
+registry.add({
+  name: "memory_stats",
   description: "Vault 记忆库统计",
   inputSchema: {},
-}, async () => {
-  const stats = vault.stats();
-  return { content: [{ type: "text" as const, text: JSON.stringify(stats, null, 2) }] };
+  handler: async () => vault.stats(),
 });
 
-// ===== 代码索引工具 =====
-
-mcp.registerTool("code_index", {
+// -- 代码索引工具 --
+registry.add({
+  name: "code_index",
   description: "将项目源代码索引到 Vault（所有 Agent 可共享检索）",
   inputSchema: {},
-}, async () => {
-  const result = await vault.indexCode();
-  return { content: [{ type: "text" as const, text: `Indexed ${result.indexed} files. Errors: ${result.errors.join(", ") || "none"}` }] };
+  handler: async () => {
+    const result = await vault.indexCode();
+    return { indexed: result.indexed, errors: result.errors };
+  },
 });
 
-// ===== 结构化数据采集工具 =====
-
-mcp.registerTool("web_fetch", {
+// -- 结构化数据采集工具 --
+registry.add({
+  name: "web_fetch",
   description: "抓取网页并提取结构化数据（自动写入 Vault 记忆库）",
   inputSchema: { url: z.string().url().describe("目标 URL") },
-}, async ({ url }) => {
-  const pipeline = new DataPipeline();
-  const result = await pipeline.crawlStructured(url);
-  if (!result) return { content: [{ type: "text" as const, text: "Failed to fetch URL" }] };
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({
-        url: result.url, title: result.title, description: result.description,
-        headings: result.headings.length, tables: result.tables.length,
-        codeBlocks: result.codeBlocks.length, images: result.images.length,
-        savedToVault: true,
-      }, null, 2),
-    }],
-  };
+  handler: async (args) => {
+    const pipeline = new DataPipeline();
+    const result = await pipeline.crawlStructured(args.url as string);
+    if (!result) return { error: "Failed to fetch URL" };
+    return {
+      url: result.url,
+      title: result.title,
+      description: result.description,
+      headings: result.headings.length,
+      tables: result.tables.length,
+      codeBlocks: result.codeBlocks.length,
+      images: result.images.length,
+      savedToVault: true,
+    };
+  },
 });
 
-mcp.registerTool("web_search", {
+registry.add({
+  name: "web_search",
   description: "多引擎搜索（结果自动写入 Vault）",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
     engines: z.array(z.string()).optional().describe("引擎列表"),
     num: z.number().optional().default(10).describe("每个引擎数量"),
   },
-}, async ({ query, engines, num }) => {
-  const pipeline = new DataPipeline();
-  const results = await pipeline.searchMulti(query, { engines, num });
-  return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
+  handler: async (args) => {
+    const pipeline = new DataPipeline();
+    return pipeline.searchMulti(args.query as string, {
+      engines: args.engines as string[],
+      num: args.num as number,
+    });
+  },
 });
 
-mcp.registerTool("search_engines_list", {
+registry.add({
+  name: "search_engines_list",
   description: "列出可用搜索引擎",
   inputSchema: {},
-}, async () => {
-  return { content: [{ type: "text" as const, text: JSON.stringify(searchAggregator.listEngines(), null, 2) }] };
+  handler: async () => searchAggregator.listEngines(),
 });
 
-// ===== SerpAPI 深度搜索工具 =====
-
-mcp.registerTool("serpapi_search", {
+// -- SerpAPI 深度搜索工具 --
+registry.add({
+  name: "serpapi_search",
   description: "使用 SerpAPI 执行 Google 深度搜索，结果以结构化 Markdown 保存到 Vault，含完整原始 JSON",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
-    location: z.string().optional().describe("地理位置，如 'Austin, Texas, United States'"),
-    lang: z.string().optional().default("en").describe("界面语言，如 zh-CN、en"),
-    region: z.string().optional().default("us").describe("国家代码，如 cn、us"),
+    location: z.string().optional().describe("地理位置"),
+    lang: z.string().optional().default("en").describe("界面语言"),
+    region: z.string().optional().default("us").describe("国家代码"),
     num: z.number().optional().default(10).describe("结果数量 1-100"),
     safe: z.enum(["active", "off"]).optional().default("active").describe("安全搜索"),
-    timeRange: z.string().optional().describe("时间范围，如 qdr:d(一天内), qdr:w(一周内), qdr:m(一月内), qdr:y(一年内)"),
-    site: z.string().optional().describe("限定站点，如 'github.com'"),
+    timeRange: z.string().optional().describe("时间范围"),
+    site: z.string().optional().describe("限定站点"),
     saveToVault: z.boolean().optional().default(true).describe("是否保存到 Vault"),
   },
-}, async ({ query, location, lang, region, num, safe, timeRange, site, saveToVault }) => {
-  const client = new SerpApiClient();
-  const start = performance.now();
-  const response = await client.search({
-    q: query,
-    location,
-    hl: lang,
-    gl: region,
-    num: Math.min(num, 100),
-    safe,
-    ...(timeRange ? { tbs: timeRange } : {}),
-    ...(site ? { as_sitesearch: site } : {}),
-  });
-  const latency = Math.round(performance.now() - start);
-
-  let vaultPath = "";
-  if (saveToVault) {
-    vaultPath = await vault.writeSerpApiResult(query, response as Record<string, unknown>, {
-      location,
-      lang,
-      region,
-      latencyMs: latency,
+  handler: async (args) => {
+    const client = new SerpApiClient();
+    const start = performance.now();
+    const response = await client.search({
+      q: args.query as string,
+      location: args.location as string,
+      hl: args.lang as string,
+      gl: args.region as string,
+      num: Math.min((args.num as number) || 10, 100),
+      safe: args.safe as "active" | "off",
+      ...(args.timeRange ? { tbs: args.timeRange as string } : {}),
+      ...(args.site ? { as_sitesearch: args.site as string } : {}),
     });
-  }
+    const latency = Math.round(performance.now() - start);
 
-  // 记录到 SQLite
-  try {
-    db.run(
-      `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        query,
-        String(Bun.hash(query)),
-        "serpapi:google",
-        response.organic_results?.length ?? 0,
-        response.organic_results?.[0]?.link || null,
-        latency,
-        Date.now(),
-      ]
-    );
-  } catch { /* ignore */ }
+    let vaultPath = "";
+    if (args.saveToVault !== false) {
+      vaultPath = await vault.writeSerpApiResult(args.query as string, response as Record<string, unknown>, {
+        location: args.location as string,
+        lang: args.lang as string,
+        region: args.region as string,
+        latencyMs: latency,
+      });
+    }
 
-  const summary = {
-    query,
-    search_id: response.search_metadata?.id,
-    organic_count: response.organic_results?.length ?? 0,
-    knowledge_graph: !!response.knowledge_graph,
-    related_questions: response.related_questions?.length ?? 0,
-    related_searches: response.related_searches?.length ?? 0,
-    images: response.images_results?.length ?? 0,
-    videos: response.videos_results?.length ?? 0,
-    news: response.news_results?.length ?? 0,
-    latency_ms: latency,
-    vault_path: vaultPath || null,
-  };
+    try {
+      db.run(
+        `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          args.query as string,
+          String(Bun.hash(args.query as string)),
+          "serpapi:google",
+          response.organic_results?.length ?? 0,
+          (response.organic_results?.[0]?.link as string | null) ?? null,
+          latency,
+          Date.now(),
+        ]
+      );
+    } catch { /* ignore */ }
 
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify(summary, null, 2),
-    }],
-  };
+    return {
+      query: args.query,
+      search_id: response.search_metadata?.id ?? null,
+      organic_count: response.organic_results?.length ?? 0,
+      knowledge_graph: !!response.knowledge_graph,
+      related_questions: response.related_questions?.length ?? 0,
+      related_searches: response.related_searches?.length ?? 0,
+      images: response.images_results?.length ?? 0,
+      videos: response.videos_results?.length ?? 0,
+      news: response.news_results?.length ?? 0,
+      latency_ms: latency,
+      vault_path: vaultPath || null,
+    };
+  },
 });
 
-mcp.registerTool("serpapi_search_and_crawl", {
-  description: "SerpAPI 搜索 + 自动爬取前 N 个结果，搜索和爬取结果均保存到 Vault",
+registry.add({
+  name: "serpapi_search_and_crawl",
+  description: "SerpAPI 搜索 + 自动爬取前 N 个结果",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
     location: z.string().optional().describe("地理位置"),
     lang: z.string().optional().default("en").describe("界面语言"),
     region: z.string().optional().default("us").describe("国家代码"),
     num: z.number().optional().default(10).describe("搜索结果数量"),
-    crawlTopN: z.number().optional().default(3).describe("爬取前 N 个结果（最多 10）"),
+    crawlTopN: z.number().optional().default(3).describe("爬取前 N 个结果"),
     safe: z.enum(["active", "off"]).optional().default("active").describe("安全搜索"),
   },
-}, async ({ query, location, lang, region, num, crawlTopN, safe }) => {
-  const client = new SerpApiClient();
-  const pipeline = new DataPipeline();
+  handler: async (args) => {
+    const client = new SerpApiClient();
+    const pipeline = new DataPipeline();
+    const searchStart = performance.now();
+    const response = await client.search({
+      q: args.query as string,
+      location: args.location as string,
+      hl: args.lang as string,
+      gl: args.region as string,
+      num: Math.min((args.num as number) || 10, 100),
+      safe: args.safe as "active" | "off",
+    });
+    const searchLatency = Math.round(performance.now() - searchStart);
 
-  // 1. 搜索
-  const searchStart = performance.now();
-  const response = await client.search({
-    q: query,
-    location,
-    hl: lang,
-    gl: region,
-    num: Math.min(num, 100),
-    safe,
-  });
-  const searchLatency = Math.round(performance.now() - searchStart);
+    const vaultPath = await vault.writeSerpApiResult(args.query as string, response as Record<string, unknown>, {
+      location: args.location as string,
+      lang: args.lang as string,
+      region: args.region as string,
+      latencyMs: searchLatency,
+    });
 
-  const vaultPath = await vault.writeSerpApiResult(query, response as Record<string, unknown>, {
-    location,
-    lang,
-    region,
-    latencyMs: searchLatency,
-  });
+    const organic = (response.organic_results || []).slice(0, Math.min((args.crawlTopN as number) || 3, 10));
+    const crawled: Array<{ url: string; title: string; success: boolean; error?: string }> = [];
 
-  // 2. 爬取前 N 个有机结果
-  const organic = (response.organic_results || []).slice(0, Math.min(crawlTopN, 10));
-  const crawled: Array<{ url: string; title: string; success: boolean; vaultPath?: string; error?: string }> = [];
-
-  for (const item of organic) {
-    if (!item.link) continue;
-    try {
-      const result = await pipeline.crawlStructured(item.link);
-      if (result) {
-        await pipeline.saveCrawlResult(result);
-        crawled.push({ url: item.link, title: result.title, success: true });
-      } else {
-        crawled.push({ url: item.link, title: item.title || item.link, success: false, error: "Crawl returned null" });
+    for (const item of organic) {
+      if (!item.link) continue;
+      try {
+        const result = await pipeline.crawlStructured(item.link);
+        if (result) {
+          await pipeline.saveCrawlResult(result);
+          crawled.push({ url: item.link, title: result.title, success: true });
+        } else {
+          crawled.push({ url: item.link, title: item.title || item.link, success: false, error: "Crawl returned null" });
+        }
+      } catch (e: unknown) {
+        crawled.push({ url: item.link, title: item.title || item.link, success: false, error: e instanceof Error ? e.message : String(e) });
       }
-    } catch (e: any) {
-      crawled.push({ url: item.link, title: item.title || item.link, success: false, error: e.message });
     }
-  }
 
-  // 3. 记录搜索历史
-  try {
-    db.run(
-      `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [query, String(Bun.hash(query)), "serpapi:google+crawl", organic.length, organic[0]?.link || null, searchLatency, Date.now()]
-    );
-  } catch { /* ignore */ }
+    try {
+      db.run(
+        `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [args.query as string, String(Bun.hash(args.query as string)), "serpapi:google+crawl", organic.length, (organic[0]?.link as string | null) ?? null, searchLatency, Date.now()]
+      );
+    } catch { /* ignore */ }
 
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({
-        query,
-        search_id: response.search_metadata?.id,
-        search_vault_path: vaultPath,
-        organic_count: organic.length,
-        crawled_count: crawled.filter((c) => c.success).length,
-        failed_count: crawled.filter((c) => !c.success).length,
-        crawled,
-      }, null, 2),
-    }],
-  };
-});
-
-mcp.registerTool("proxy_status", {
-  description: "代理池健康状态",
-  inputSchema: {},
-}, async () => {
-  return { content: [{ type: "text" as const, text: `Healthy proxies: ${proxyManager.getHealthyCount()}` }] };
-});
-
-// ===== 知识图谱工具 =====
-
-mcp.registerTool("kg_create_entity", {
-  description: "在知识图谱中创建实体",
-  inputSchema: {
-    name: z.string().describe("实体名称"),
-    type: z.enum(["person", "org", "concept", "tool", "file", "project", "topic"]).describe("实体类型"),
-    properties: z.record(z.any()).optional().describe("属性 JSON"),
+    return {
+      query: args.query,
+      search_id: response.search_metadata?.id ?? null,
+      search_vault_path: vaultPath,
+      organic_count: organic.length,
+      crawled_count: crawled.filter((c) => c.success).length,
+      failed_count: crawled.filter((c) => !c.success).length,
+      crawled,
+    };
   },
-}, async ({ name, type, properties }) => {
-  const entity = kg.createEntity(name, type, properties);
-  return { content: [{ type: "text" as const, text: JSON.stringify(entity, null, 2) }] };
 });
 
-mcp.registerTool("kg_create_relationship", {
-  description: "创建实体间关系",
-  inputSchema: {
-    sourceName: z.string().describe("源实体名称"),
-    targetName: z.string().describe("目标实体名称"),
-    relationType: z.enum(["uses", "depends_on", "part_of", "mentions", "created_by", "related_to", "contains", "references"]).describe("关系类型"),
-  },
-}, async ({ sourceName, targetName, relationType }) => {
-  const src = kg.getEntityByName(sourceName);
-  const tgt = kg.getEntityByName(targetName);
-  if (!src) return { content: [{ type: "text" as const, text: `Entity not found: ${sourceName}` }] };
-  if (!tgt) return { content: [{ type: "text" as const, text: `Entity not found: ${targetName}` }] };
-  const rel = kg.createRelationship(src.id, tgt.id, relationType);
-  return { content: [{ type: "text" as const, text: JSON.stringify(rel, null, 2) }] };
-});
-
-mcp.registerTool("kg_search", {
-  description: "搜索知识图谱实体",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    limit: z.number().optional().default(10),
-  },
-}, async ({ query, limit }) => {
-  const results = kg.searchEntities(query, limit);
-  return { content: [{ type: "text" as const, text: JSON.stringify(results, null, 2) }] };
-});
-
-mcp.registerTool("kg_shortest_path", {
-  description: "查找两实体间最短路径",
-  inputSchema: {
-    fromName: z.string().describe("起始实体名称"),
-    toName: z.string().describe("目标实体名称"),
-  },
-}, async ({ fromName, toName }) => {
-  const from = kg.getEntityByName(fromName);
-  const to = kg.getEntityByName(toName);
-  if (!from) return { content: [{ type: "text" as const, text: `Entity not found: ${fromName}` }] };
-  if (!to) return { content: [{ type: "text" as const, text: `Entity not found: ${toName}` }] };
-  const path = kg.shortestPath(from.id, to.id);
-  return { content: [{ type: "text" as const, text: JSON.stringify(path, null, 2) }] };
-});
-
-// ===== 编码 Agent 工具 (OpenCode) =====
-// OpenCode 是交互式 TUI，非交互环境下提供状态检查和指导
-
-mcp.registerTool("code_generate", {
-  description: "使用 OpenCode Agent 生成代码（支持免费模型 deepseek-v4-flash-free）。注意：OpenCode 是交互式工具，需在终端运行 bun run src/cli.ts code:open",
+// -- 编码 Agent 工具 --
+registry.add({
+  name: "code_generate",
+  description: "使用 AI 模型生成代码（自动注入 CodeGraph 上下文，支持免费模型）",
   inputSchema: {
     prompt: z.string().describe("代码生成需求描述"),
-    model: z.string().optional().describe("模型名称（默认 opencode/deepseek-v4-flash-free）"),
-  },
-}, async ({ prompt, model }) => {
-  const available = await checkOpenCode();
-  if (!available) {
-    return { content: [{ type: "text" as const, text: getOpenCodeInstallGuide() }] };
-  }
-  const m = model || OPENCODE_FREE_MODELS[0];
-  return {
-    content: [{
-      type: "text" as const,
-      text: `OpenCode 已安装。请在交互式终端中运行以下命令生成代码：\n\n  bun run src/cli.ts code:open "${prompt.replace(/"/g, '\\"')}" --model=${m}\n\n免费模型推荐: ${OPENCODE_FREE_MODELS.join(", ")}`,
-    }],
-  };
-});
-
-mcp.registerTool("code_refactor", {
-  description: "使用 OpenCode Agent 重构代码。需在终端交互式运行。",
-  inputSchema: {
-    description: z.string().describe("重构需求"),
-    filePath: z.string().optional().describe("目标文件路径"),
+    language: z.string().optional().describe("编程语言"),
+    context: z.string().optional().describe("现有代码上下文"),
     model: z.string().optional().describe("模型名称"),
   },
-}, async ({ description, filePath, model }) => {
-  const available = await checkOpenCode();
-  if (!available) {
-    return { content: [{ type: "text" as const, text: getOpenCodeInstallGuide() }] };
-  }
-  const m = model || OPENCODE_FREE_MODELS[0];
-  const fileArg = filePath ? ` --file=${filePath}` : "";
-  return {
-    content: [{
-      type: "text" as const,
-      text: `请在交互式终端中运行：\n\n  bun run src/cli.ts code:open "重构: ${description.replace(/"/g, '\\"')}" --model=${m}${fileArg}`,
-    }],
-  };
-});
-
-mcp.registerTool("code_review", {
-  description: "使用 OpenCode Agent 审查代码。需在终端交互式运行。",
-  inputSchema: {
-    filePath: z.string().describe("要审查的文件路径"),
-    model: z.string().optional().describe("模型名称"),
+  handler: async (args) => {
+    const result = await executeCodeGenerate({
+      prompt: args.prompt as string,
+      language: args.language as string | undefined,
+      context: args.context as string | undefined,
+      model: args.model as string | undefined,
+    });
+    return result;
   },
-}, async ({ filePath, model }) => {
-  const available = await checkOpenCode();
-  if (!available) {
-    return { content: [{ type: "text" as const, text: getOpenCodeInstallGuide() }] };
-  }
-  const m = model || OPENCODE_FREE_MODELS[0];
-  return {
-    content: [{
-      type: "text" as const,
-      text: `请在交互式终端中运行：\n\n  bun run src/cli.ts code:open "审查代码: ${filePath}" --model=${m}\n\n或直接打开 OpenCode：\n  bun run src/cli.ts code:open --model=${m}`,
-    }],
-  };
 });
 
-mcp.registerTool("code_test", {
-  description: "使用 OpenCode Agent 运行测试。需在终端交互式运行。",
+registry.add({
+  name: "code_refactor",
+  description: "使用 AI 模型重构代码（自动注入 CodeGraph 上下文）",
   inputSchema: {
-    testCommand: z.string().optional().describe("测试命令（如 bun test）"),
+    code: z.string().describe("要重构的代码"),
+    description: z.string().describe("重构需求描述"),
+    language: z.string().optional().describe("编程语言"),
   },
-}, async ({ testCommand }) => {
-  const available = await checkOpenCode();
-  if (!available) {
-    return { content: [{ type: "text" as const, text: getOpenCodeInstallGuide() }] };
-  }
-  return {
-    content: [{
-      type: "text" as const,
-      text: `请在交互式终端中运行：\n\n  bun run src/cli.ts code:open "运行测试${testCommand ? ": " + testCommand : ""}"`,
-    }],
-  };
+  handler: async (args) => {
+    const result = await executeCodeRefactor({
+      code: args.code as string,
+      description: args.description as string,
+      language: args.language as string | undefined,
+    });
+    return result;
+  },
 });
 
-mcp.registerTool("opencode_status", {
+registry.add({
+  name: "code_review",
+  description: "使用 AI 模型审查代码（优先 GLM-5.1）",
+  inputSchema: {
+    code: z.string().describe("要审查的代码"),
+    language: z.string().optional().describe("编程语言"),
+    context: z.string().optional().describe("代码上下文"),
+  },
+  handler: async (args) => {
+    const result = await executeCodeReview({
+      code: args.code as string,
+      language: args.language as string | undefined,
+      context: args.context as string | undefined,
+    });
+    return result;
+  },
+});
+
+registry.add({
+  name: "code_test",
+  description: "使用 AI 模型生成测试用例",
+  inputSchema: {
+    code: z.string().describe("要测试的代码"),
+    language: z.string().optional().describe("编程语言"),
+    framework: z.string().optional().describe("测试框架"),
+  },
+  handler: async (args) => {
+    const result = await executeCodeTest({
+      code: args.code as string,
+      language: args.language as string | undefined,
+      framework: args.framework as string | undefined,
+    });
+    return result;
+  },
+});
+
+registry.add({
+  name: "opencode_status",
   description: "检查 OpenCode Agent 状态和可用模型",
   inputSchema: {},
-}, async () => {
-  const available = await checkOpenCode();
-  const models = available ? await listOpenCodeModels() : [];
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ installed: available, freeModels: OPENCODE_FREE_MODELS, allModels: models.slice(0, 50), cliCommand: "bun run src/cli.ts code:open" }, null, 2),
-    }],
-  };
-});
-
-// ===== 项目管理 Agent 工具 (Hermes) =====
-
-mcp.registerTool("project_plan", {
-  description: "使用 Hermes Agent 创建项目任务计划",
-  inputSchema: {
-    description: z.string().describe("项目描述"),
-    cwd: z.string().optional().describe("工作目录"),
+  handler: async () => {
+    const available = await checkOpenCode();
+    const models = available ? await listOpenCodeModels() : [];
+    return { installed: available, freeModels: OPENCODE_FREE_MODELS, allModels: models.slice(0, 50) };
   },
-}, async ({ description, cwd }) => {
-  const result = await planProject(description, cwd);
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ success: result.success, output: result.stdout, errors: result.stderr }, null, 2),
-    }],
-  };
 });
 
-mcp.registerTool("project_research", {
+// -- Hermes 工具 --
+registry.add({
+  name: "project_research",
   description: "使用 Hermes Agent 进行深度研究",
   inputSchema: {
     topic: z.string().describe("研究主题"),
     cwd: z.string().optional().describe("工作目录"),
   },
-}, async ({ topic, cwd }) => {
-  const result = await deepResearch(topic, cwd);
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ success: result.success, output: result.stdout, errors: result.stderr }, null, 2),
-    }],
-  };
-});
-
-mcp.registerTool("project_arch_review", {
-  description: "使用 Hermes Agent 进行架构审查",
-  inputSchema: {
-    projectPath: z.string().optional().describe("项目路径（默认当前目录）"),
-    cwd: z.string().optional().describe("工作目录"),
+  handler: async (args) => {
+    const result = await deepResearch(args.topic as string, args.cwd as string);
+    return { success: result.success, output: result.stdout, errors: result.stderr };
   },
-}, async ({ projectPath, cwd }) => {
-  const result = await architectureReview(projectPath, cwd);
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ success: result.success, output: result.stdout, errors: result.stderr }, null, 2),
-    }],
-  };
 });
 
-mcp.registerTool("hermes_status", {
+registry.add({
+  name: "hermes_status",
   description: "检查 Hermes Agent 安装状态",
   inputSchema: {},
-}, async () => {
-  const available = await checkHermes();
-  return {
-    content: [{
-      type: "text" as const,
-      text: JSON.stringify({ installed: available, installGuide: available ? "Hermes is ready" : "Run: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash" }, null, 2),
-    }],
-  };
+  handler: async () => {
+    const available = await checkHermes();
+    return { installed: available, installGuide: available ? "Hermes is ready" : "Run: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash" };
+  },
 });
 
-// ===== 模型路由工具 =====
-
-mcp.registerTool("model_chat", {
+// -- 模型路由工具 --
+registry.add({
+  name: "model_chat",
   description: "通过多平台路由器发送聊天请求",
   inputSchema: {
     taskType: z.enum(["general-chat", "code-generation", "complex-reasoning"]).describe("任务类型"),
     messages: z.array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() })).describe("消息列表"),
   },
-}, async ({ taskType, messages }) => {
-  const { router } = await import("../router/model-router.js");
-  const result = await router.chat(taskType, messages);
-  return { content: [{ type: "text" as const, text: result.content || "" }] };
+  handler: async (args) => {
+    const messages = (args.messages as Array<{ role: string; content: string }>).map((m) => ({
+      role: m.role as "system" | "user" | "assistant",
+      content: m.content,
+    }));
+    const result = await router.chat(args.taskType as string, messages);
+    return { content: result.content || "" };
+  },
 });
 
-// ===== 数据库工具 =====
-
-mcp.registerTool("db_query", {
+// -- 数据库工具 --
+registry.add({
+  name: "db_query",
   description: "执行 SQLite 查询（只读）",
   inputSchema: {
     sql: z.string().describe("SELECT 查询语句"),
     params: z.array(z.any()).optional().default([]),
   },
-}, async ({ sql, params }) => {
-  const normalized = sql.trim().toLowerCase();
-  if (!normalized.startsWith("select")) {
-    return { content: [{ type: "text" as const, text: "Error: Only SELECT queries are allowed" }] };
-  }
-  try {
-    const rows = db.query(sql).all(...params);
-    return { content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }] };
-  } catch (e: any) {
-    return { content: [{ type: "text" as const, text: `Error: ${e.message}` }] };
-  }
+  handler: async (args) => {
+    const normalized = (args.sql as string).trim().toLowerCase();
+    if (!normalized.startsWith("select")) {
+      return { error: "Only SELECT queries are allowed" };
+    }
+    try {
+      return db.query(args.sql as string).all(...((args.params || []) as (string | number | boolean | null)[]));
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  },
 });
 
-// ===== 免费模型工具 =====
-
-mcp.registerTool("list_free_models", {
+registry.add({
+  name: "list_free_models",
   description: "列出当前可用的免费模型",
   inputSchema: {},
-}, async () => {
-  const rows = db.query("SELECT id, name, provider, context_length FROM free_models WHERE is_available = 1").all();
-  return { content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }] };
+  handler: async () => {
+    return db.query("SELECT id, name, provider, context_length FROM free_models WHERE is_available = 1").all();
+  },
 });
 
-// 启动服务器
+// -- 文件系统工具 --
+registry.add({
+  name: "fs_read",
+  description: "读取文件内容（支持偏移和限制）",
+  inputSchema: {
+    path: z.string().describe("文件路径"),
+    offset: z.number().optional().describe("起始行偏移"),
+    limit: z.number().optional().describe("最大读取行数"),
+  },
+  handler: async (args) => readFile(args.path as string, { offset: args.offset as number, limit: args.limit as number }),
+});
+
+registry.add({
+  name: "fs_write",
+  description: "写入或追加文件内容",
+  inputSchema: {
+    path: z.string().describe("文件路径"),
+    content: z.string().describe("写入内容"),
+    append: z.boolean().optional().describe("是否追加模式"),
+  },
+  handler: async (args) => writeFile(args.path as string, args.content as string, { append: args.append as boolean }),
+});
+
+registry.add({
+  name: "fs_list",
+  description: "列出目录内容",
+  inputSchema: {
+    path: z.string().optional().describe("目录路径，默认当前目录"),
+  },
+  handler: async (args) => listDirectory((args.path as string) || "."),
+});
+
+registry.add({
+  name: "fs_search",
+  description: "在文件中搜索内容",
+  inputSchema: {
+    query: z.string().describe("搜索关键词或正则表达式"),
+    path: z.string().optional().describe("搜索目录，默认当前目录"),
+    maxResults: z.number().optional().describe("最大结果数"),
+  },
+  handler: async (args) => searchFiles(args.query as string, { path: args.path as string, maxResults: args.maxResults as number }),
+});
+
+registry.add({
+  name: "fs_delete",
+  description: "删除文件或目录",
+  inputSchema: {
+    path: z.string().describe("要删除的路径"),
+  },
+  handler: async (args) => deleteFile(args.path as string),
+});
+
+registry.add({
+  name: "fs_move",
+  description: "移动或重命名文件",
+  inputSchema: {
+    source: z.string().describe("源路径"),
+    destination: z.string().describe("目标路径"),
+  },
+  handler: async (args) => moveFile(args.source as string, args.destination as string),
+});
+
+// -- 终端工具 --
+registry.add({
+  name: "terminal_exec",
+  description: "执行终端命令（有安全检查）",
+  inputSchema: {
+    command: z.string().describe("要执行的命令"),
+    cwd: z.string().optional().describe("工作目录"),
+    timeout: z.number().optional().describe("超时毫秒数"),
+  },
+  handler: async (args) => executeCommand(args.command as string, { cwd: args.cwd as string, timeout: args.timeout as number }),
+});
+
+registry.add({
+  name: "terminal_list",
+  description: "列出当前进程",
+  inputSchema: {},
+  handler: async () => listProcesses(),
+});
+
+registry.add({
+  name: "terminal_info",
+  description: "获取系统信息",
+  inputSchema: {},
+  handler: async () => getSystemInfo(),
+});
+
+// -- Git 工具 --
+registry.add({
+  name: "git_status",
+  description: "获取 Git 仓库状态",
+  inputSchema: {
+    repoPath: z.string().optional().describe("仓库路径，默认当前目录"),
+  },
+  handler: async (args) => gitStatus(args.repoPath as string),
+});
+
+registry.add({
+  name: "git_diff",
+  description: "获取 Git diff",
+  inputSchema: {
+    repoPath: z.string().optional().describe("仓库路径"),
+    target: z.string().optional().describe("对比目标（commit/branch）"),
+    filePath: z.string().optional().describe("指定文件路径"),
+    staged: z.boolean().optional().describe("是否只看 staged"),
+  },
+  handler: async (args) => gitDiff(args.repoPath as string, { since: args.target as string, file: args.filePath as string, staged: args.staged as boolean }),
+});
+
+registry.add({
+  name: "git_log",
+  description: "获取 Git 提交历史",
+  inputSchema: {
+    repoPath: z.string().optional().describe("仓库路径"),
+    maxCount: z.number().optional().describe("最大提交数"),
+    filePath: z.string().optional().describe("指定文件"),
+  },
+  handler: async (args) => gitLog(args.repoPath as string, { maxCount: args.maxCount as number, file: args.filePath as string }),
+});
+
+registry.add({
+  name: "git_branch",
+  description: "获取 Git 分支信息",
+  inputSchema: {
+    repoPath: z.string().optional().describe("仓库路径"),
+  },
+  handler: async (args) => gitBranch(args.repoPath as string),
+});
+
+registry.add({
+  name: "git_blame",
+  description: "获取文件 Git blame 信息",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+    repoPath: z.string().optional().describe("仓库路径"),
+  },
+  handler: async (args) => gitBlame((args.repoPath as string) || ".", args.filePath as string),
+});
+
+// -- 代码分析工具 --
+registry.add({
+  name: "code_symbols",
+  description: "查找代码中的符号（函数、类、接口等）",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+    type: z.enum(["function", "class", "interface", "type", "variable", "export"]).optional().describe("符号类型过滤"),
+  },
+  handler: async (args) => {
+    const result = await findSymbols(args.filePath as string);
+    const filterType = args.type as string;
+    if (filterType && result.success && result.symbols) {
+      result.symbols = result.symbols.filter((s: any) => s.type === filterType);
+    }
+    return result;
+  },
+});
+
+registry.add({
+  name: "code_references",
+  description: "查找符号引用",
+  inputSchema: {
+    symbol: z.string().describe("符号名称"),
+    path: z.string().optional().describe("搜索目录"),
+  },
+  handler: async (args) => findReferences(args.symbol as string, args.path as string),
+});
+
+registry.add({
+  name: "code_diagnostics",
+  description: "获取 TypeScript 诊断信息",
+  inputSchema: {
+    filePath: z.string().optional().describe("指定文件路径，默认全项目"),
+  },
+  handler: async (args) => getDiagnostics(args.filePath as string),
+});
+
+registry.add({
+  name: "code_outline",
+  description: "获取文件代码大纲",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+  },
+  handler: async (args) => getFileOutline(args.filePath as string),
+});
+
+registry.add({
+  name: "code_analyze",
+  description: "分析代码复杂度、依赖和 TODO",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+  },
+  handler: async (args) => analyzeCode(args.filePath as string),
+});
+
+// -- LSP 增强工具 --
+
+registry.add({
+  name: "code_quick_diagnostics",
+  description: "快速诊断单个文件（使用增量检查，更快）",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+  },
+  handler: async (args) => getQuickDiagnostics(args.filePath as string),
+});
+
+registry.add({
+  name: "code_actions",
+  description: "获取代码修复建议（Code Actions）",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+  },
+  handler: async (args) => getCodeActions(args.filePath as string),
+});
+
+registry.add({
+  name: "code_detect_language",
+  description: "检测文件编程语言",
+  inputSchema: {
+    filePath: z.string().describe("文件路径"),
+  },
+  handler: async (args) => ({
+    success: true,
+    language: detectLanguage(args.filePath as string),
+    filePath: args.filePath,
+  }),
+});
+
+// -- Skill 管理工具 --
+const skillDirs = [
+  process.env.SKILL_DIR || "./skills",
+  "./openclaw-memory/03-Resources/skills",
+];
+
+registry.add({
+  name: "skill_list",
+  description: "列出所有已加载的 skills 和 prompt templates",
+  inputSchema: {
+    includeBuiltin: z.boolean().optional().default(true).describe("是否包含内置 skills"),
+    includeFile: z.boolean().optional().default(true).describe("是否包含从文件加载的 skills"),
+  },
+  handler: async (args) => {
+    const loaded = loadSkillsFromDirectories({ skillDirs });
+    const includeBuiltin = args.includeBuiltin !== false;
+    const includeFile = args.includeFile !== false;
+
+    const skills = Array.from(loaded.skills.values())
+      .filter((s) => {
+        if (s.source === "builtin" && !includeBuiltin) return false;
+        if (s.source === "file" && !includeFile) return false;
+        return true;
+      })
+      .map((s) => ({
+        id: s.id, name: s.name, description: s.description,
+        triggers: s.triggers, outputFormat: s.outputFormat,
+        version: s.version, source: s.source, filePath: s.filePath,
+      }));
+
+    const templates = Array.from(loaded.templates.values())
+      .filter((t) => {
+        if (t.source === "builtin" && !includeBuiltin) return false;
+        if (t.source === "file" && !includeFile) return false;
+        return true;
+      })
+      .map((t) => ({
+        id: t.id, name: t.name, category: t.category,
+        description: t.description, variables: t.variables,
+        tags: t.tags, version: t.version, source: t.source, filePath: t.filePath,
+      }));
+
+    return { skills, templates, errors: loaded.errors };
+  },
+});
+
+registry.add({
+  name: "skill_reload",
+  description: "重新从磁盘加载所有 skill 文件",
+  inputSchema: {},
+  handler: async () => {
+    clearSkillCache();
+    const loaded = loadSkillsFromDirectories({ skillDirs }, true);
+    return {
+      success: true,
+      skillsLoaded: loaded.skills.size,
+      templatesLoaded: loaded.templates.size,
+      errors: loaded.errors,
+    };
+  },
+});
+
+registry.add({
+  name: "skill_create",
+  description: "创建新的 skill 文件",
+  inputSchema: {
+    filePath: z.string().describe("skill 文件路径（.json 或 .yaml）"),
+    name: z.string().describe("skill 名称"),
+    description: z.string().describe("skill 描述"),
+    author: z.string().optional().describe("作者"),
+  },
+  handler: async (args) => {
+    const boilerplate = createSkillFileBoilerplate({
+      name: args.name as string,
+      description: args.description as string,
+      author: args.author as string | undefined,
+    });
+    saveSkillFile(args.filePath as string, boilerplate);
+    return { success: true, filePath: args.filePath, boilerplate };
+  },
+});
+
+// -- Token 使用统计工具 --
+registry.add({
+  name: "token_stats",
+  description: "获取总体 token 使用统计（调用次数、token 消耗、成功率、延迟）",
+  inputSchema: {
+    since: z.number().optional().describe("起始时间戳（毫秒）"),
+    until: z.number().optional().describe("结束时间戳（毫秒）"),
+  },
+  handler: async (args) => {
+    const tracker = getTokenTracker();
+    const stats = tracker.getOverallStats({
+      since: args.since as number | undefined,
+      until: args.until as number | undefined,
+    });
+    return stats;
+  },
+});
+
+registry.add({
+  name: "token_stats_by_model",
+  description: "按模型统计 token 使用情况",
+  inputSchema: {
+    since: z.number().optional().describe("起始时间戳（毫秒）"),
+    limit: z.number().optional().default(20).describe("返回模型数量"),
+  },
+  handler: async (args) => {
+    const tracker = getTokenTracker();
+    const stats = tracker.getStatsByModel({
+      since: args.since as number | undefined,
+      limit: args.limit as number | undefined,
+    });
+    return stats;
+  },
+});
+
+registry.add({
+  name: "token_stats_by_role",
+  description: "按角色统计 token 使用情况",
+  inputSchema: {
+    since: z.number().optional().describe("起始时间戳（毫秒）"),
+    limit: z.number().optional().default(20).describe("返回角色数量"),
+  },
+  handler: async (args) => {
+    const tracker = getTokenTracker();
+    const stats = tracker.getStatsByRole({
+      since: args.since as number | undefined,
+      limit: args.limit as number | undefined,
+    });
+    return stats;
+  },
+});
+
+registry.add({
+  name: "token_daily_stats",
+  description: "按天统计 token 使用情况",
+  inputSchema: {
+    days: z.number().optional().default(7).describe("最近多少天"),
+  },
+  handler: async (args) => {
+    const tracker = getTokenTracker();
+    const stats = tracker.getDailyStats(args.days as number | undefined);
+    return stats;
+  },
+});
+
+// -- 执行模式管理工具 (CodeWhale-inspired) --
+registry.add({
+  name: "set_mode",
+  description: "切换执行模式: plan(只读调查) / agent(默认,需审批) / yolo(自动批准)",
+  inputSchema: {
+    mode: z.enum(["plan", "agent", "yolo"]).describe("目标执行模式"),
+    reason: z.string().optional().describe("切换原因"),
+  },
+  handler: async (args) => {
+    const mode = args.mode as ExecutionMode;
+    const previous = executionMode.getMode();
+    executionMode.setMode(mode);
+    return {
+      success: true,
+      previous,
+      current: mode,
+      reason: args.reason as string | undefined,
+      config: executionMode.getConfig(),
+      constitution: getConstitutionForMode(mode),
+    };
+  },
+});
+
+registry.add({
+  name: "get_mode",
+  description: "获取当前执行模式和宪法",
+  inputSchema: {},
+  handler: async () => {
+    const mode = executionMode.getMode();
+    return {
+      mode,
+      config: executionMode.getConfig(),
+      constitution: getConstitutionForMode(mode),
+      history: executionMode.getModeHistory(),
+    };
+  },
+});
+
+registry.add({
+  name: "list_mode_tools",
+  description: "列出当前模式下允许使用的工具",
+  inputSchema: {
+    category: z.string().optional().describe("按分类过滤"),
+    risk: z.enum(["safe", "caution", "destructive"]).optional().describe("按风险等级过滤"),
+  },
+  handler: async (args) => {
+    const tools = executionMode.getAllowedTools();
+    let filtered = tools;
+    if (args.category) {
+      filtered = filtered.filter((t) => t.category === args.category);
+    }
+    if (args.risk) {
+      filtered = filtered.filter((t) => t.risk === args.risk);
+    }
+    return {
+      mode: executionMode.getMode(),
+      total: TOOL_CLASSIFICATIONS.length,
+      allowed: tools.length,
+      filtered: filtered.length,
+      tools: filtered.map((t) => ({
+        name: t.name,
+        risk: t.risk,
+        category: t.category,
+        description: t.description,
+      })),
+    };
+  },
+});
+
+registry.add({
+  name: "revert_mode",
+  description: "回退到上一个执行模式",
+  inputSchema: {},
+  handler: async () => {
+    const previous = executionMode.getMode();
+    const current = executionMode.revertMode();
+    return {
+      success: true,
+      previous,
+      current,
+      constitution: getConstitutionForMode(current),
+    };
+  },
+});
+
+// ===== Workspace Snapshot 工具 =====
+
+registry.add({
+  name: "snapshot_create",
+  description: "创建工作区快照（保存当前所有文件状态）",
+  inputSchema: {
+    message: z.string().optional().describe("快照说明信息"),
+  },
+  handler: async (args: { message?: string }) => {
+    return await createSnapshot(args.message);
+  },
+});
+
+registry.add({
+  name: "snapshot_revert",
+  description: "回退到指定快照",
+  inputSchema: {
+    snapshotId: z.string().describe("快照ID（commit hash）"),
+  },
+  handler: async (args: Record<string, unknown>) => {
+    return await revertSnapshot(args.snapshotId as string);
+  },
+});
+
+registry.add({
+  name: "snapshot_list",
+  description: "列出所有工作区快照",
+  inputSchema: {},
+  handler: async () => {
+    return await listSnapshots();
+  },
+});
+
+registry.add({
+  name: "snapshot_diff",
+  description: "查看快照差异",
+  inputSchema: {
+    snapshotId: z.string().optional().describe("快照ID，不提供则对比最近两次快照"),
+  },
+  handler: async (args: { snapshotId?: string }) => {
+    return await diffSnapshot(args.snapshotId);
+  },
+});
+
+registry.add({
+  name: "snapshot_status",
+  description: "获取快照系统状态",
+  inputSchema: {},
+  handler: async () => {
+    return { success: true, ...getSnapshotStatus() };
+  },
+});
+
+// ===== 启动服务器 =====
+
 const transport = process.argv.includes("--stdio") ? "stdio" : "http";
 
 if (transport === "stdio") {
+  // stdio 传输：注册所有工具
+  registry.registerWithMcp(mcp);
   const stdio = new StdioServerTransport();
   mcp.connect(stdio);
 } else {
+  // HTTP 传输：构建 handlers 和 meta
+  const toolHandlers = registry.buildHttpHandlers();
+  const toolsMeta = registry.getToolsMeta();
   const port = Number(process.env.MCP_PORT) || 3001;
-  // 构建工具处理器映射
-  const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<unknown>> = {
-    memory_search: async (args) => vault.search(args.query as string, {
-      limit: args.limit as number,
-      types: args.types as string[],
-      tags: args.tags as string[],
-      paraCategory: args.paraCategory as string,
-    }),
-    memory_read: async (args) => vault.readNote(args.path as string),
-    memory_write: async (args) => vault.writeNote(args.path as string, args.content as string, {
-      title: args.title as string,
-      type: args.type as string,
-      tags: args.tags as string[],
-      source: args.source as string,
-      overwrite: args.overwrite as boolean,
-    }),
-    memory_atomic: async (args) => vault.writeAtomicNote(args.title as string, args.coreIdea as string, {
-      context: args.context as string,
-      relatedNotes: args.relatedNotes as string[],
-    }),
-    memory_browse: async (args) => {
-      if (args.category) return vault.browsePara(args.category as string);
-      if (args.tag) return vault.browseTag(args.tag as string);
-      return { error: "Provide 'category' or 'tag'" };
-    },
-    memory_network: async (args) => vault.getNetwork(args.notePath as string, args.depth as number),
-    memory_stats: async () => vault.stats(),
-    code_index: async (args) => {
-      if (args.filePath) return vault.indexCodeFile(args.filePath as string);
-      return vault.indexCode();
-    },
-    web_fetch: async (args) => {
-      const dp = new DataPipeline({ maxDepth: args.depth as number || 1 });
-      const result = await dp.crawlStructured(args.url as string, args.depth as number || 1);
-      if (result) {
-        await vault.writeCrawlResult(result);
-        return { success: true, url: result.url, title: result.title };
-      }
-      return { success: false, error: "Failed to fetch" };
-    },
-    web_search: async (args) => {
-      const dp = new DataPipeline({ maxDepth: 1 });
-      const results = await dp.searchMulti(args.query as string, {
-        num: args.num as number,
-        engines: args.engines as string[],
-      });
-      return results;
-    },
-    search_engines_list: async () => searchAggregator.listEngines(),
-    proxy_status: async () => {
-      // Access internal state through type assertion since ProxyManager doesn't expose list method
-      const pm = proxyManager as unknown as { proxies: Array<{ url: string; tag?: string; healthy?: boolean; latencyMs?: number }> };
-      return pm.proxies.map((p) => ({
-        url: p.url,
-        tag: p.tag,
-        healthy: p.healthy !== false,
-        latencyMs: p.latencyMs,
-      }));
-    },
-    kg_create_entity: async (args) => kg.createEntity(args.name as string, args.type as string as any, args.properties as Record<string, unknown>),
-    kg_create_relationship: async (args) => kg.createRelationship(args.sourceId as number, args.targetId as number, args.type as string as any, args.properties as Record<string, unknown>),
-    kg_search: async (args) => kg.searchEntities(args.query as string, args.limit as number),
-    kg_shortest_path: async (args) => {
-      const from = kg.getEntityByName(args.from as string);
-      const to = kg.getEntityByName(args.to as string);
-      if (!from || !to) return { error: "Entity not found" };
-      return kg.shortestPath(from.id, to.id, args.maxDepth as number);
-    },
-    model_chat: async (args) => {
-      const { router } = await import("../router/model-router.js");
-      const messages = [
-        ...(args.systemPrompt ? [{ role: "system" as const, content: args.systemPrompt as string }] : []),
-        { role: "user" as const, content: args.prompt as string },
-      ];
-      return router.chat(args.model as string || "general", messages);
-    },
-    db_query: async (args) => {
-      const stmt = db.query(args.query as string);
-      const params = (args.params as Array<string | number | boolean | null> | undefined) || [];
-      return stmt.all(...params);
-    },
-    list_free_models: async () => {
-      const rows = db.query("SELECT id, name, provider, context_length FROM free_models WHERE is_available = 1").all();
-      return rows;
-    },
-    code_generate: async (args) => {
-      const ok = await checkOpenCode();
-      if (!ok) return { error: "OpenCode not available", guide: getOpenCodeInstallGuide() };
-      const pid = await openCodeSession({ prompt: args.prompt as string, model: args.model as string });
-      return { success: true, pid };
-    },
-    code_refactor: async (args) => {
-      const ok = await checkOpenCode();
-      if (!ok) return { error: "OpenCode not available" };
-      const pid = await openCodeSession({ prompt: `Refactor: ${args.prompt}`, model: args.model as string });
-      return { success: true, pid };
-    },
-    code_review: async (args) => {
-      const ok = await checkOpenCode();
-      if (!ok) return { error: "OpenCode not available" };
-      const pid = await openCodeSession({ prompt: `Review: ${args.prompt}`, model: args.model as string });
-      return { success: true, pid };
-    },
-    code_test: async (args) => {
-      const ok = await checkOpenCode();
-      if (!ok) return { error: "OpenCode not available" };
-      const pid = await openCodeSession({ prompt: `Run tests: ${args.file}`, model: args.model as string });
-      return { success: true, pid };
-    },
-    opencode_status: async () => ({ available: await checkOpenCode(), models: await listOpenCodeModels() }),
-    project_plan: async (args) => {
-      const ok = await checkHermes();
-      if (!ok) return { error: "Hermes not available", guide: getHermesInstallGuide() };
-      return planProject(args.description as string, args.cwd as string);
-    },
-    project_research: async (args) => {
-      const ok = await checkHermes();
-      if (!ok) return { error: "Hermes not available" };
-      return deepResearch(args.topic as string, args.cwd as string);
-    },
-    project_arch_review: async (args) => {
-      const ok = await checkHermes();
-      if (!ok) return { error: "Hermes not available" };
-      return architectureReview(args.projectPath as string, args.cwd as string);
-    },
-    hermes_status: async () => ({ available: await checkHermes() }),
-  };
-
-  const toolsMeta = [
-    { name: "memory_search", description: "Vault 确定性记忆搜索" },
-    { name: "memory_read", description: "读取 Vault 笔记" },
-    { name: "memory_write", description: "写入 Vault 笔记" },
-    { name: "memory_atomic", description: "写入原子笔记" },
-    { name: "memory_browse", description: "PARA/标签浏览" },
-    { name: "memory_network", description: "笔记关联网络" },
-    { name: "memory_stats", description: "Vault 统计" },
-    { name: "code_index", description: "索引代码到 Vault" },
-    { name: "web_fetch", description: "网页抓取（自动写入 Vault）" },
-    { name: "web_search", description: "多引擎搜索（自动写入 Vault）" },
-    { name: "search_engines_list", description: "搜索引擎列表" },
-    { name: "proxy_status", description: "代理状态" },
-    { name: "kg_create_entity", description: "创建 KG 实体" },
-    { name: "kg_create_relationship", description: "创建 KG 关系" },
-    { name: "kg_search", description: "搜索 KG 实体" },
-    { name: "kg_shortest_path", description: "KG 最短路径" },
-    { name: "model_chat", description: "模型聊天" },
-    { name: "db_query", description: "数据库查询" },
-    { name: "list_free_models", description: "免费模型列表" },
-    { name: "code_generate", description: "OpenCode 代码生成" },
-    { name: "code_refactor", description: "OpenCode 代码重构" },
-    { name: "code_review", description: "OpenCode 代码审查" },
-    { name: "code_test", description: "OpenCode 运行测试" },
-    { name: "opencode_status", description: "OpenCode 状态检查" },
-    { name: "project_plan", description: "Hermes 项目计划" },
-    { name: "project_research", description: "Hermes 深度研究" },
-    { name: "project_arch_review", description: "Hermes 架构审查" },
-    { name: "hermes_status", description: "Hermes 状态检查" },
-  ];
 
   Bun.serve({
     port,
@@ -816,14 +1118,13 @@ if (transport === "stdio") {
       if (req.method !== "POST") return Response.json({ error: "Only POST supported" }, { status: 405 });
       try {
         const body = await req.json();
-        // MCP initialize handshake
         if (body.method === "initialize") {
           return Response.json({
             jsonrpc: "2.0", id: body.id,
             result: {
               protocolVersion: "2024-11-05",
               capabilities: { tools: { listChanged: true } },
-              serverInfo: { name: "OpenClaw Agent MCP Server", version: "2.1.0" },
+              serverInfo: { name: "OpenClaw Agent MCP Server", version: "2.2.0" },
             },
           });
         }
@@ -848,7 +1149,7 @@ if (transport === "stdio") {
           try {
             const result = await withTimeout(
               withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
-              30000
+              TIMEOUTS.MCP_TOOL_DEFAULT
             );
             return Response.json({
               jsonrpc: "2.0", id: body.id,

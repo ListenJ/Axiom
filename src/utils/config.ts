@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import YAML from "yaml";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 interface GatewayConfig {
   port: number;
@@ -101,7 +102,7 @@ export function getModelRoutes(config?: AppConfig): Record<string, Array<{ provi
     ],
     "complex-reasoning": [
       { provider: "ofoxai", model: "z-ai/glm-4.7-flash:free", priority: 0, maxRetries: 2, timeout: 20000 },
-      { provider: "deepseek", model: "deepseek-chat", priority: 1, maxRetries: 2, timeout: 30000 },
+      { provider: "deepseek", model: "deepseek-chat", priority: 1, maxRetries: 2, timeout: TIMEOUTS.API_DEFAULT },
     ],
     "embedding": [
       { provider: "siliconflow", model: "BAAI/bge-large-zh", priority: 0, maxRetries: 2, timeout: 10000 },
@@ -118,7 +119,7 @@ export function getModelRoutes(config?: AppConfig): Record<string, Array<{ provi
         model: m.model,
         priority: m.priority,
         maxRetries: 2,
-        timeout: purpose.includes("reasoning") ? 30000 : 15000,
+        timeout: purpose.includes("reasoning") ? TIMEOUTS.API_DEFAULT : TIMEOUTS.API_MEDIUM,
       });
     }
   }

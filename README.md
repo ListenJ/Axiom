@@ -227,6 +227,64 @@ bun run src/cli.ts kimi:guide
 
 **协议**: OpenAI 兼容 (`https://api.kimi.com/coding/v1`)
 
+### 🐉 MiniMax (MiniMax AI) — 国内直连长文本旗舰
+
+MiniMax 是一家国内大模型厂商，旗舰模型 `MiniMax-Text-01` 支持 **1M context** 长文本，abab-6.5 系列覆盖对话/代码/工具场景，国内网络直连。
+
+**配置方式**（两种任选其一）：
+
+**方式 1：在 `.env` 中配置（推荐用于生产）**
+
+```bash
+# .env
+MINIMAX_API_KEY=your-minimax-api-key
+MINIMAX_BASE_URL=https://api.minimax.chat/v1  # 可选，默认已设置
+```
+
+**方式 2：在前端 Settings 页面运行时配置（推荐用于临时测试）**
+
+打开 `http://localhost:18789/`，进入 **Settings → Provider API Keys** 卡片，在 **MiniMax (MiniMax AI)** 那一行填入 API Key 即可。
+- 运行时设置仅保存在服务器内存中，**不写入** `.env`
+- 重启服务后会失效
+- 优先级：运行时设置 > `.env` 中的值
+
+**已注册的 MiniMax 模型**：
+
+| 模型 ID | 角色 | Context | 说明 |
+|---------|------|---------|------|
+| `MiniMax-Text-01` | general-chat / architecture / decision / research | 1M | 旗舰长文本 |
+| `abab-6.5s-chat` | general-chat / english | 8K | 通用对话 |
+| `abab-6.5g-chat` | coding / code-generation / code-review | 8K | 代码/工具 |
+
+**API 调用**：
+
+```bash
+# 走模型路由器（自动按 role 路由）
+curl -X POST http://localhost:18789/chat \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"你好"}],"taskType":"general-chat"}'
+
+# 直接调用某个 MiniMax 模型
+curl -X POST http://localhost:18789/agent-chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"用 Python 写个快排","taskType":"coding"}'
+```
+
+**管理 API（编程方式设置）**：
+
+```bash
+# 查看所有 provider 状态（API Key 已脱敏）
+curl http://localhost:18789/api-keys
+
+# 运行时设置 MiniMax API Key
+curl -X POST http://localhost:18789/api-keys \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"minimax","apiKey":"eyJhbGciOiJSUzI1NiIs..."}'
+
+# 清除运行时 override（回退到 .env）
+curl -X DELETE http://localhost:18789/api-keys/minimax
+```
+
 ### 📋 项目管理 Agent (Hermes)
 
 ```bash
@@ -284,6 +342,8 @@ Hermes 安装后可通过 MCP 连接 OpenClaw 共享记忆库。
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 否 |
 | `OPENROUTER_API_KEY` | OpenRouter API Key | 否 |
 | `KIMI_CODE_API_KEY` | Kimi Code API Key | 否 |
+| `MINIMAX_API_KEY` | MiniMax (MiniMax AI) API Key — 也可前端运行时配置 | 否 |
+| `MINIMAX_BASE_URL` | MiniMax API 端点 | 否 (默认 https://api.minimax.chat/v1) |
 | `BING_API_KEY` | Bing Search API | 否 |
 | `YANDEX_API_KEY` | Yandex XML API | 否 |
 | `SERPAPI_KEY` | SERPAPI Key | 否 |

@@ -22,6 +22,8 @@ import fs from "fs";
 import path from "path";
 import { DeterministicSearchEngine, type SearchResult, type VaultNote } from "./deterministic-search.js";
 import { CodeIndexer } from "./code-indexer.js";
+import { SQLiteMemory } from "./sqlite-memory.js";
+import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
 
 interface VaultConfig {
@@ -31,14 +33,16 @@ interface VaultConfig {
 }
 
 interface WriteNoteOptions {
-  title?: string;
-  tags?: string[];
-  type?: string;
-  source?: string;
-  confidence?: number;
-  paraCategory?: "projects" | "areas" | "resources" | "archives" | "conversations" | "meta" | "memory";
-  append?: boolean;
-  overwrite?: boolean;
+  title?: string | undefined;
+  tags?: string[] | undefined;
+  type?: string | undefined;
+  source?: string | undefined;
+  confidence?: number | undefined;
+  paraCategory?: "projects" | "areas" | "resources" | "archives" | "conversations" | "meta" | "memory" | undefined;
+  append?: boolean | undefined;
+  overwrite?: boolean | undefined;
+  /** Smart gate context — if provided, memory-gate decides whether to write */
+  gateContext?: SignificanceContext | undefined;
 }
 
 export class VaultManager {
@@ -46,6 +50,9 @@ export class VaultManager {
   private engine: DeterministicSearchEngine;
   private baseUrl: string;
   private codeIndexer: CodeIndexer;
+  private sqliteMemory: SQLiteMemory;
+  private slugifyCache = new Map<string, string>();
+  private readonly SLUGIFY_CACHE_MAX = 1000;
 
   constructor(config: Partial<VaultConfig> = {}) {
     this.config = {
@@ -61,6 +68,8 @@ export class VaultManager {
       vaultRoot: this.config.vaultPath,
     });
 
+    this.sqliteMemory = new SQLiteMemory();
+
     logger.info("VaultManager initialized", {
       vaultPath: this.config.vaultPath,
       notes: this.engine.stats().totalNotes,
@@ -69,11 +78,58 @@ export class VaultManager {
 
   // ===== 确定性检索 =====
 
-  /** 全文搜索 — 四阶段确定性漏斗 */
+  /** 全文搜索 — SQLite FTS5 为主，确定性引擎为 fallback */
   search(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string }): SearchResult[] {
-    const results = this.engine.search(query, opts);
-    logger.debug("Vault search", { query, results: results.length });
+    const limit = opts?.limit ?? 10;
+
+    // 1. SQLite FTS5 搜索（主要）
+    const ftsResults = this.sqliteMemory.search(query, {
+      limit,
+      tags: opts?.tags,
+      paraCategory: opts?.paraCategory,
+      type: opts?.types?.[0],
+    });
+
+    let results: SearchResult[] = ftsResults.map((r) => ({
+      note: this.memoryRecordToVaultNote(r.record),
+      score: r.score,
+      reasons: ["fts5-match"],
+      excerpt: r.excerpt,
+    }));
+
+    // 2. 结果不足或质量低时用确定性引擎补充
+    const minResults = 3;
+    const minQuality = -2.0; // FTS rank 是负数，越接近 0 越差
+    const needsFallback = results.length < minResults ||
+      (results.length > 0 && results[0].score > minQuality);
+    if (needsFallback) {
+      const fallback = this.engine.search(query, opts);
+      const seen = new Set(results.map((r) => r.note.path));
+      for (const r of fallback) {
+        if (!seen.has(r.note.path)) {
+          results.push(r);
+          seen.add(r.note.path);
+        }
+      }
+      results = results.slice(0, limit);
+    }
+
+    logger.debug("Vault search", { query, fts: ftsResults.length, total: results.length });
     return results;
+  }
+
+  private memoryRecordToVaultNote(record: import("./sqlite-memory.js").MemoryRecord): VaultNote {
+    return {
+      path: record.path,
+      title: record.title,
+      content: record.content,
+      frontmatter: {}, // FTS index 不保留 frontmatter，需要时可从文件读取
+      tags: record.tags,
+      wikiLinks: [],
+      backlinks: [],
+      wordCount: record.content.split(/\s+/).length,
+      modifiedAt: record.updatedAt,
+    };
   }
 
   /** 精确读取单篇笔记 */
@@ -83,7 +139,8 @@ export class VaultManager {
       const content = fs.readFileSync(fullPath, "utf-8");
       const { frontmatter, body } = this.parseFrontmatter(content);
       return { content: body, frontmatter };
-    } catch {
+    } catch (e) {
+      logger.warn("readNote failed", { path: notePath, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }
@@ -110,6 +167,16 @@ export class VaultManager {
    * 自动处理 frontmatter、路径、PARA 分类
    */
   async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}): Promise<string> {
+    // Smart gate: skip low-value writes if context provided
+    if (opts.gateContext) {
+      const gate = getMemoryGate();
+      const decision = gate.shouldWrite(content, content, opts.gateContext);
+      if (!decision.shouldWrite) {
+        logger.info("[MemoryGate] Write skipped", { path: notePath, reason: decision.reason, category: decision.category });
+        return notePath;
+      }
+    }
+
     const fullPath = path.join(this.config.vaultPath, notePath);
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -121,7 +188,6 @@ export class VaultManager {
     const existing = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, "utf-8") : null;
 
     if (opts.append && existing) {
-      // 追加模式：保留原 frontmatter，追加内容
       const { body } = this.parseFrontmatter(existing);
       finalContent = frontmatter + "\n\n" + body + "\n\n" + content;
     } else if (opts.overwrite || !existing) {
@@ -132,8 +198,31 @@ export class VaultManager {
 
     fs.writeFileSync(fullPath, finalContent, "utf-8");
 
-    // 刷新索引
-    this.engine.reload(this.config.vaultPath);
+    // Sync to SQLite index
+    const stat = fs.statSync(fullPath);
+    this.sqliteMemory.upsertNote({
+      path: notePath,
+      title: opts.title || path.basename(notePath, ".md"),
+      content: finalContent,
+      excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
+      tags: opts.tags || [],
+      paraCategory: opts.paraCategory || "resources",
+      type: opts.type || "note",
+      source: opts.source,
+      confidence: opts.confidence ?? 0.7,
+      createdAt: stat.birthtimeMs || stat.ctimeMs,
+      updatedAt: stat.mtimeMs,
+    });
+
+    // SQLite FTS index updated via upsertNote above.
+    // Deterministic engine rebuilds lazily on next search if needed.
+
+    // Record write for gate dedup tracking
+    if (opts.gateContext) {
+      const gate = getMemoryGate();
+      const hash = `${notePath}:${content.slice(0, 200)}`;
+      gate.recordWrite(hash, notePath);
+    }
 
     logger.info("Vault note written", { path: notePath, type: opts.type });
     return notePath;
@@ -428,7 +517,7 @@ ${resultLines}
 | 搜索 ID | \`${searchId}\` |
 | 结果总数 | ${info?.total_results ?? organic.length} |
 | 有机结果 | ${organic.length} |
-| 知识图谱 | ${knowledgeGraph ? "✅" : "❌"} |
+| 知识图谱 | ${knowledgeGraph ? "[有]" : "[无]"} |
 | 相关问题 | ${relatedQuestions.length} |
 | 关联搜索 | ${relatedSearches.length} |
 | 图片结果 | ${images.length} |
@@ -483,8 +572,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
       this.engine.reload(this.config.vaultPath);
       logger.info("Code indexed to Vault", { indexed: entries.length });
       return { indexed: entries.length, errors };
-    } catch (e: any) {
-      errors.push(e.message);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
       return { indexed: 0, errors };
     }
   }
@@ -498,8 +587,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
         return true;
       }
       return false;
-    } catch (e: any) {
-      logger.warn("Code index failed", { file: filePath, error: e.message });
+    } catch (e) {
+      logger.warn("Code index failed", { file: filePath, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
   }
@@ -550,6 +639,11 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
     return this.engine;
   }
 
+  /** 获取SQLite记忆索引实例 */
+  getSqliteMemory(): SQLiteMemory {
+    return this.sqliteMemory;
+  }
+
   /** 重新构建索引 */
   reload(): void {
     this.engine.reload(this.config.vaultPath);
@@ -559,35 +653,28 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
   // ===== 辅助方法 =====
 
   private buildFrontmatter(opts: Record<string, unknown>): string {
-    const lines = ["---"];
-    const ordered = ["title", "type", "created", "updated", "source", "tags", "confidence"];
+    const fmKeys = ["title", "type", "created", "updated", "source", "tags", "confidence"];
+    const fmEntries: Array<[string, unknown]> = [];
+    const extraEntries: Array<[string, unknown]> = [];
 
-    for (const key of ordered) {
-      if (opts[key] !== undefined) {
-        const val = opts[key];
-        if (Array.isArray(val)) {
-          lines.push(`${key}: [${val.map((v) => `"${v}"`).join(", ")}]`);
-        } else if (typeof val === "number") {
-          lines.push(`${key}: ${val}`);
-        } else {
-          lines.push(`${key}: ${val}`);
-        }
-      }
+    // Single-pass partition: ordered keys first, rest after
+    for (const [k, v] of Object.entries(opts)) {
+      if (v === undefined) continue;
+      if (fmKeys.includes(k)) fmEntries.push([k, v]);
+      else extraEntries.push([k, v]);
     }
 
-    // 其余未处理的字段
-    for (const [key, val] of Object.entries(opts)) {
-      if (ordered.includes(key)) continue;
-      if (val === undefined) continue;
-      if (Array.isArray(val)) {
-        lines.push(`${key}: [${val.map((v) => `"${v}"`).join(", ")}]`);
-      } else if (typeof val === "number") {
-        lines.push(`${key}: ${val}`);
-      } else {
-        lines.push(`${key}: ${val}`);
-      }
-    }
+    // Ensure order
+    fmEntries.sort((a, b) => fmKeys.indexOf(a[0]) - fmKeys.indexOf(b[0]));
 
+    const formatVal = (val: unknown): string => {
+      if (Array.isArray(val)) return `[${val.map((v) => `"${v}"`).join(", ")}]`;
+      return String(val);
+    };
+
+    const lines: string[] = ["---"];
+    for (const [k, v] of fmEntries) lines.push(`${k}: ${formatVal(v)}`);
+    for (const [k, v] of extraEntries) lines.push(`${k}: ${formatVal(v)}`);
     lines.push("---");
     return lines.join("\n");
   }
@@ -623,16 +710,36 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
   }
 
   private slugify(text: string): string {
-    return text
+    let cached = this.slugifyCache.get(text);
+    if (cached) return cached;
+    cached = text
       .toLowerCase()
       .replace(/[^\w\u4e00-\u9fa5\s-]/g, "")
       .replace(/\s+/g, "-")
       .slice(0, 80);
+    // LRU: evict oldest entries when cache grows too large
+    if (this.slugifyCache.size >= this.SLUGIFY_CACHE_MAX) {
+      const firstKey = this.slugifyCache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.slugifyCache.delete(firstKey);
+      }
+    }
+    this.slugifyCache.set(text, cached);
+    return cached;
   }
 
   close() {
-    // VaultManager 不持有需要关闭的资源
+    this.sqliteMemory.close();
   }
+}
+
+/** 全局 VaultManager 单例 — 防止同一进程中重复实例化导致内存浪费 */
+let _globalVault: VaultManager | null = null;
+export function getGlobalVault(): VaultManager {
+  if (!_globalVault) {
+    _globalVault = new VaultManager();
+  }
+  return _globalVault;
 }
 
 export default VaultManager;

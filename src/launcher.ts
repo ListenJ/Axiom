@@ -170,12 +170,11 @@ class HookPreloader {
     Log.info("Warming up search engines...");
     
     try {
-      // Load enhanced search module
-      const { EnhancedSearchAggregator } = await import("./crawl/enhanced-search.js");
-      const search = new EnhancedSearchAggregator();
+      // Load unified search module
+      const { unifiedSearch } = await import("./crawl/unified-search.js");
       // Preload with a test query to initialize caches
-      await search.quickSearch("openclaw test", 1);
-      Log.success("Enhanced search aggregator warmed up");
+      await unifiedSearch.quickSearch("openclaw test", 1);
+      Log.success("Unified search warmed up");
     } catch (err) {
       Log.warn(`Enhanced search warmup skipped: ${err}`);
       // Fallback to basic search
@@ -251,7 +250,7 @@ async function serveMode(args: string[]): Promise<void> {
     await pm.start("mcp", "bun", [CONFIG.paths.mcp]);
   }
 
-  Log.success(`\n🌐 Server running at http://localhost:${CONFIG.ports.http}`);
+  Log.success(`\n[服务] Server running at http://localhost:${CONFIG.ports.http}`);
   Log.info("Press Ctrl+C to stop\n");
 }
 
@@ -271,7 +270,7 @@ async function agentMode(): Promise<void> {
   // Full preload
   await preloader.preload();
 
-  Log.success("\n🤖 Agent ready with preloaded hooks");
+  Log.success("\n[Agent] ready with preloaded hooks");
   Log.info("Available: web_search, memory, code_analysis, task_orchestration");
   Log.info("Press Ctrl+C to exit\n");
 
@@ -289,7 +288,7 @@ async function fullMode(): Promise<void> {
   await pm.start("http", "bun", [CONFIG.paths.main]);
   await pm.start("mcp", "bun", [CONFIG.paths.mcp]);
 
-  Log.success(`\n🚀 Full stack running:`);
+  Log.success(`\n[全栈] Full stack running:`);
   Log.info(`   HTTP: http://localhost:${CONFIG.ports.http}`);
   Log.info(`   MCP:  http://localhost:${CONFIG.ports.mcp}`);
   

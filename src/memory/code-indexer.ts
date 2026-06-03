@@ -40,13 +40,24 @@ interface IndexerOptions {
 export class CodeIndexer {
   private opts: Required<IndexerOptions>;
 
+  private static readonly LANG_EXT_MAP: Record<string, string> = {
+    ".ts": "typescript", ".js": "javascript", ".md": "markdown",
+    ".go": "go", ".py": "python", ".java": "java",
+    ".c": "c", ".cpp": "cpp", ".h": "c", ".hpp": "cpp",
+    ".rs": "rust", ".cs": "csharp", ".rb": "ruby",
+    ".php": "php", ".swift": "swift", ".kt": "kotlin",
+    ".scala": "scala", ".sh": "bash", ".dockerfile": "dockerfile",
+  };
+
   constructor(opts: Partial<IndexerOptions> = {}) {
+    const allLangs = Object.keys(CodeIndexer.LANG_EXT_MAP);
+    const defaultPatterns = allLangs.map((ext) => `**/*${ext}`);
     this.opts = {
       sourceRoot: opts.sourceRoot || "./src",
       vaultRoot: opts.vaultRoot || "./openclaw-memory",
       vaultOutputDir: opts.vaultOutputDir || "03-Resources/code-index",
-      includePatterns: opts.includePatterns || ["**/*.ts", "**/*.js", "**/*.md"],
-      excludePatterns: opts.excludePatterns || ["node_modules", "dist", ".git", "**/*.test.ts"],
+      includePatterns: opts.includePatterns || defaultPatterns,
+      excludePatterns: opts.excludePatterns || ["node_modules", "dist", ".git", "__pycache__", ".venv", "vendor", "target", "build", "*.min.js", "*.test.*", "*_test.*"],
     };
   }
 
@@ -68,14 +79,15 @@ export class CodeIndexer {
 
     const content = fs.readFileSync(filePath, "utf-8");
     const ext = path.extname(filePath);
+    const lang = ext === ".md" ? undefined : this.detectLang(filePath);
 
     const entry: CodeIndexEntry = {
       filePath: relPath,
       vaultPath: this.toVaultPath(relPath),
       moduleName: this.toModuleName(relPath),
-      exports: ext === ".md" ? [] : this.extractExports(content),
-      imports: ext === ".md" ? [] : this.extractImports(content),
-      summary: ext === ".md" ? this.summarizeMarkdown(content) : this.summarizeCode(content, relPath),
+      exports: ext === ".md" ? [] : this.extractExports(content, lang),
+      imports: ext === ".md" ? [] : this.extractImports(content, lang),
+      summary: ext === ".md" ? this.summarizeMarkdown(content) : this.summarizeCode(content, relPath, lang),
       lastIndexed: new Date().toISOString(),
     };
 
@@ -103,7 +115,7 @@ export class CodeIndexer {
 
   private shouldInclude(relPath: string): boolean {
     const ext = path.extname(relPath);
-    if (![".ts", ".js", ".md"].includes(ext)) return false;
+    if (!Object.keys(CodeIndexer.LANG_EXT_MAP).includes(ext)) return false;
     for (const p of this.opts.excludePatterns) {
       if (this.matchGlob(relPath, p)) return false;
     }
@@ -141,75 +153,166 @@ export class CodeIndexer {
   }
 
   private toModuleName(relPath: string): string {
-    return relPath.replace(/\//g, ".").replace(/\\/g, ".").replace(/\.ts$/, "").replace(/\.js$/, "");
+    let name = relPath.replace(/\//g, ".").replace(/\\/g, ".");
+    for (const ext of Object.keys(CodeIndexer.LANG_EXT_MAP)) {
+      if (name.endsWith(ext)) {
+        name = name.slice(0, -ext.length);
+        break;
+      }
+    }
+    return name;
   }
 
-  private extractExports(content: string): Array<{ kind: string; name: string; line: number }> {
+  private detectLang(filePath: string): string {
+    const ext = path.extname(filePath);
+    return CodeIndexer.LANG_EXT_MAP[ext] || "text";
+  }
+
+  private extractExports(content: string, lang?: string): Array<{ kind: string; name: string; line: number }> {
     const exports: Array<{ kind: string; name: string; line: number }> = [];
     const lines = content.split("\n");
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (line.trim().startsWith("//")) continue;
 
-      // export class Name
-      const classMatch = line.match(/export\s+(?:abstract\s+)?class\s+(\w+)/);
-      if (classMatch) {
-        exports.push({ kind: "class", name: classMatch[1], line: i + 1 });
-        continue;
-      }
-
-      // export interface Name
-      const interfaceMatch = line.match(/export\s+interface\s+(\w+)/);
-      if (interfaceMatch) {
-        exports.push({ kind: "interface", name: interfaceMatch[1], line: i + 1 });
-        continue;
-      }
-
-      // export function name
-      const funcMatch = line.match(/export\s+(?:async\s+)?function\s+(\w+)/);
-      if (funcMatch) {
-        exports.push({ kind: "function", name: funcMatch[1], line: i + 1 });
-        continue;
-      }
-
-      // export const name =
-      const constMatch = line.match(/export\s+(?:const|let|var)\s+(\w+)/);
-      if (constMatch) {
-        exports.push({ kind: "variable", name: constMatch[1], line: i + 1 });
-        continue;
-      }
-
-      // export { name1, name2 }
-      const namedMatch = line.match(/export\s*\{([^}]+)\}/);
-      if (namedMatch) {
-        for (const name of namedMatch[1].split(",").map((s) => s.trim().split("as")[0].trim())) {
-          if (name) exports.push({ kind: "named", name, line: i + 1 });
+      // TypeScript / JavaScript
+      if (!lang || lang === "typescript" || lang === "javascript") {
+        const m1 = line.match(/export\s+(?:abstract\s+)?class\s+(\w+)/);
+        if (m1) { exports.push({ kind: "class", name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/export\s+interface\s+(\w+)/);
+        if (m2) { exports.push({ kind: "interface", name: m2[1], line: i + 1 }); continue; }
+        const m3 = line.match(/export\s+(?:async\s+)?function\s+(\w+)/);
+        if (m3) { exports.push({ kind: "function", name: m3[1], line: i + 1 }); continue; }
+        const m4 = line.match(/export\s+(?:const|let|var)\s+(\w+)/);
+        if (m4) { exports.push({ kind: "variable", name: m4[1], line: i + 1 }); continue; }
+        const m5 = line.match(/export\s*\{([^}]+)\}/);
+        if (m5) {
+          for (const name of m5[1].split(",").map((s) => s.trim().split("as")[0].trim())) {
+            if (name) exports.push({ kind: "named", name, line: i + 1 });
+          }
+          continue;
         }
+      }
+
+      // Go
+      if (lang === "go") {
+        const m1 = line.match(/^func\s+(?:[\w\*]+\s+)?(\w+)\s*\(/);
+        if (m1) { exports.push({ kind: "function", name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/^type\s+(\w+)\s+(?:struct|interface)/);
+        if (m2) { exports.push({ kind: m2[0].includes("interface") ? "interface" : "struct", name: m2[1], line: i + 1 }); continue; }
+        const m3 = line.match(/^(const|var)\s+(\w+)/);
+        if (m3) { exports.push({ kind: "variable", name: m3[2], line: i + 1 }); continue; }
+      }
+
+      // Python
+      if (lang === "python") {
+        const m1 = line.match(/^class\s+(\w+)/);
+        if (m1) { exports.push({ kind: "class", name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/^(?:async\s+)?def\s+(\w+)/);
+        if (m2) { exports.push({ kind: "function", name: m2[1], line: i + 1 }); continue; }
+      }
+
+      // Java
+      if (lang === "java") {
+        const m1 = line.match(/(?:public\s+)?(?:abstract\s+)?(?:final\s+)?class\s+(\w+)/);
+        if (m1) { exports.push({ kind: "class", name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/(?:public\s+)?interface\s+(\w+)/);
+        if (m2) { exports.push({ kind: "interface", name: m2[1], line: i + 1 }); continue; }
+        const m3 = line.match(/(?:public|private|protected)\s+\w+\s+\w+\s*(?:<[^>]+>)?\s+(\w+)\s*\(/);
+        if (m3) { exports.push({ kind: "method", name: m3[1], line: i + 1 }); continue; }
+      }
+
+      // C / C++
+      if (lang === "c" || lang === "cpp") {
+        const m1 = line.match(/(?:struct|enum|union)\s+(\w+)/);
+        if (m1) { exports.push({ kind: m1[0].trim(), name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/^\s*\w+(?:\s+\w+)*(?:\s*\*)?\s+(\w+)\s*\([^)]*\)\s*\{/);
+        if (m2 && !line.includes("if ") && !line.includes("while ") && !line.includes("for ")) {
+          exports.push({ kind: "function", name: m2[1], line: i + 1 }); continue;
+        }
+        const m3 = line.match(/typedef\s+.*\s+(\w+);/);
+        if (m3) { exports.push({ kind: "typedef", name: m3[1], line: i + 1 }); continue; }
+      }
+
+      // Rust
+      if (lang === "rust") {
+        const m1 = line.match(/^fn\s+(\w+)/);
+        if (m1) { exports.push({ kind: "function", name: m1[1], line: i + 1 }); continue; }
+        const m2 = line.match(/^(?:pub\s+)?(?:struct|enum|trait|impl)\s+(?:<[^>]+>\s+)?(\w+)/);
+        if (m2) { exports.push({ kind: m2[0].trim().split(/\s+/).pop() || "type", name: m2[1], line: i + 1 }); continue; }
       }
     }
 
     return exports;
   }
 
-  private extractImports(content: string): string[] {
+  private extractImports(content: string, lang?: string): string[] {
     const imports = new Set<string>();
-    const re = /import\s+.*?\s+from\s+["']([^"']+)["']/g;
-    for (const m of content.matchAll(re)) {
-      const mod = m[1];
-      if (mod.startsWith(".")) {
-        // 本地导入，转为 wiki-link 友好格式
-        imports.add(mod.replace(/^\.\.?\//, "").replace(/\.ts$/, "").replace(/\//g, "-"));
-      } else {
-        imports.add(mod);
+    const lines = content.split("\n");
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.trim().startsWith("//")) continue;
+
+      // TypeScript / JavaScript / Java
+      if (!lang || lang === "typescript" || lang === "javascript" || lang === "java") {
+        const m = line.match(/import\s+.*?\s+from\s+["']([^"']+)["']/);
+        if (m) {
+          const mod = m[1];
+          if (mod.startsWith(".")) {
+            imports.add(mod.replace(/^\.\.?\//, "").replace(/\.\w+$/, "").replace(/\//g, "-"));
+          } else {
+            imports.add(mod);
+          }
+          continue;
+        }
+      }
+
+      // Go
+      if (lang === "go") {
+        const m = line.match(/import\s+["']([^"']+)["']/);
+        if (m) { imports.add(m[1]); continue; }
+        const block = line.match(/import\s+\(/);
+        if (block) {
+          for (let j = i + 1; j < lines.length; j++) {
+            const bline = lines[j];
+            if (bline.includes(")")) break;
+            const bm = bline.match(/["']([^"']+)["']/);
+            if (bm) imports.add(bm[1]);
+          }
+          continue;
+        }
+      }
+
+      // Python
+      if (lang === "python") {
+        const m1 = line.match(/from\s+([\w.]+)\s+import/);
+        if (m1) { imports.add(m1[1]); continue; }
+        const m2 = line.match(/import\s+([\w.]+)/);
+        if (m2) { imports.add(m2[1]); continue; }
+      }
+
+      // C / C++
+      if (lang === "c" || lang === "cpp") {
+        const m = line.match(/#include\s+["<]([^">]+)[">]/);
+        if (m) { imports.add(m[1]); continue; }
+      }
+
+      // Rust
+      if (lang === "rust") {
+        const m = line.match(/use\s+([\w:]+)/);
+        if (m) { imports.add(m[1]); continue; }
       }
     }
+
     return Array.from(imports);
   }
 
-  private summarizeCode(content: string, relPath: string): string {
+  private summarizeCode(content: string, relPath: string, lang?: string): string {
     const lines = content.split("\n").length;
-    const exports = this.extractExports(content);
-    const imports = this.extractImports(content);
+    const exports = this.extractExports(content, lang);
+    const imports = this.extractImports(content, lang);
 
     const parts: string[] = [];
     parts.push(`代码文件: ${relPath}`);
@@ -245,6 +348,7 @@ export class CodeIndexer {
     }
 
     const isCode = !entry.filePath.endsWith(".md");
+    const detectedLang = this.detectLang(entry.filePath);
 
     // 生成 frontmatter
     const frontmatterLines = [
@@ -252,7 +356,7 @@ export class CodeIndexer {
       `id: code-${entry.moduleName}`,
       `type: ${isCode ? "code-index" : "document-index"}`,
       `source: ${entry.filePath}`,
-      `lang: ${isCode ? "typescript" : "markdown"}`,
+      `lang: ${isCode ? detectedLang : "markdown"}`,
       `created: ${entry.lastIndexed.slice(0, 10)}`,
       `updated: ${entry.lastIndexed.slice(0, 10)}`,
       `word_count: ${rawContent.split(/\s+/).filter(Boolean).length}`,
@@ -304,7 +408,7 @@ export class CodeIndexer {
     if (isCode) {
       contentLines.push("## 代码");
       contentLines.push("");
-      contentLines.push("```typescript");
+      contentLines.push(`\`\`\`${detectedLang}`);
       contentLines.push(rawContent);
       contentLines.push("```");
     } else {

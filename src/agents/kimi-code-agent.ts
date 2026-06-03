@@ -90,9 +90,9 @@ export async function kimiCodeChat(options: {
       content: data.choices?.[0]?.message?.content ?? null,
       usage: data.usage,
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     clearTimeout(timer);
-    if (e.name === "AbortError") {
+    if (e instanceof Error && e.name === "AbortError") {
       throw new Error("Kimi Code API 请求超时");
     }
     throw e;
@@ -129,7 +129,7 @@ export function startKimiCliSession(options?: {
 /** 获取 Kimi Code 安装与登录指南 */
 export function getKimiCodeGuide(): string {
   return `
-🦅 Kimi Code 安装与配置指南
+[Kimi Code] 安装与配置指南
 
 Kimi Code 是 Kimi 会员权益中的智能编程服务，基于 Kimi 最新旗舰模型。
 

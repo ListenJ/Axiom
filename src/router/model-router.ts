@@ -1,32 +1,18 @@
 /**
- * 多平台分层模型路由器 v3.0
+ * 多平台模型路由器 v4.0 (简化版)
  *
- * 架构分层:
- *   L1 Decision    - 主力决策模型: DeepSeek-V4 Pro
- *   L2 Architecture- 系统架构设计: Kimi-2.6
- *   L3 Tool Pool   - 免费工具模型池（编码/英文/RL/通用），带限流和熔断
- *   L4 Evaluation  - 评估层: Tencent hy3-preview ($5额度) + DeepSeek 联合评估
- *
- * 网关支持:
- *   - OpenRouter: https://openrouter.ai/api/v1 (免费模型主力平台)
- *   - DeepSeek:   https://api.deepseek.com/v1 (官方 DeepSeek-V4 Pro)
- *   - SiliconFlow: https://api.siliconflow.cn/v1
- *   - OfoxAI:      https://api.ofox.ai/v1
- *   - OpenCode:    https://api.opencode.ai/v1
- *   - Kimi Code:   https://api.kimi.com/coding/v1
+ * 核心原则:
+ *   - 单一 OpenAI 兼容 API
+ *   - 静态配置表 + 简单 fallback
+ *   - 无 circuit breaker, 无 protocol 适配层
  */
 
 import { logger } from "../utils/logger.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
-import { getCircuitBreaker, withFallback, withRetry, isRetryableError } from "../utils/resilience.js";
-
-interface ModelRoute {
-  provider: string;
-  model: string;
-  priority: number;
-  maxRetries: number;
-  timeout: number;
-}
+import { assignModel, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import { PROVIDER_CONFIG, findModelsForRole, getFallbackChain, type UnifiedModel } from "./models.js";
+import { getTokenTracker } from "./token-tracker.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -45,227 +31,160 @@ interface ChatResponse {
   layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
 }
 
-// ========== 静态路由配置表 ==========
-const MODEL_ROUTES: Record<string, ModelRoute[]> = {
-  // L1 决策层 - 主力决策模型
-  decision: [
-    {
-      provider: "deepseek",
-      model: "deepseek-v4-pro",
-      priority: 1,
-      maxRetries: 2,
-      timeout: 60000,
-    },
-  ],
+// ========== 智能任务分配接口 ==========
+export interface SmartAssignmentResponse {
+  role: TaskRole;
+  model: string;
+  provider: string;
+  endpoint: string;
+  content: string | null;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    cost_usd?: number;
+  };
+  latency_ms?: number;
+  fallback_used?: boolean;
+}
 
-  // L2 架构层 - 系统架构设计
-  architecture: [
-    {
-      provider: "openrouter",
-      model: "moonshotai/kimi-k2.6",
-      priority: 0,
-      maxRetries: 2,
-      timeout: 60000,
-    },
-    {
-      provider: "openrouter",
-      model: "moonshotai/kimi-k2.6:free",
-      priority: 1,
-      maxRetries: 2,
-      timeout: 60000,
-    },
-  ],
+export interface RoleAssignment {
+  role: TaskRole;
+  messages: ChatMessage[];
+  temperature?: number;
+  maxTokens?: number;
+}
 
-  // L4 评估层 - 付费评估 + 联合决策
-  evaluation: [
-    {
-      provider: "openrouter",
-      model: "tencent/hy3-preview",
-      priority: 0,
-      maxRetries: 1,
-      timeout: 60000,
-    },
-    {
-      provider: "deepseek",
-      model: "deepseek-v4-pro",
-      priority: 1,
-      maxRetries: 2,
-      timeout: 60000,
-    },
-  ],
+// ========== Token 追踪辅助 ==========
+function trackCall(
+  model: string,
+  provider: string,
+  messages: ChatMessage[],
+  result: {
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    latencyMs: number;
+    success: boolean;
+    fallbackUsed?: boolean;
+  },
+  meta?: { role?: string; taskType?: string }
+) {
+  const usage = result.usage;
+  if (!usage || !usage.total_tokens) return; // 不追踪无 usage 的记录
 
-  // 向后兼容路由
-  "general-chat": [
-    {
-      provider: "openrouter",
-      model: "deepseek/deepseek-v4-flash:free",
-      priority: 0,
-      maxRetries: 2,
-      timeout: 20000,
-    },
-    {
-      provider: "ofoxai",
-      model: "z-ai/glm-4.7-flash:free",
-      priority: 1,
-      maxRetries: 2,
-      timeout: 15000,
-    },
-    {
-      provider: "siliconflow",
-      model: "Qwen/Qwen2-7B-Instruct",
-      priority: 2,
-      maxRetries: 2,
-      timeout: 10000,
-    },
-  ],
+  getTokenTracker().record({
+    timestamp: Date.now(),
+    model,
+    provider,
+    role: meta?.role,
+    taskType: meta?.taskType,
+    promptTokens: usage.prompt_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? 0,
+    totalTokens: usage.total_tokens ?? 0,
+    latencyMs: result.latencyMs,
+    contentLength: messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0),
+    success: result.success,
+    fallbackUsed: result.fallbackUsed ?? false,
+  });
+}
 
-  "code-generation": [
-    {
-      provider: "kimi",
-      model: "kimi-for-coding",
-      priority: 0,
-      maxRetries: 2,
-      timeout: 60000,
-    },
-    {
-      provider: "openrouter",
-      model: "deepseek/deepseek-v4-flash:free",
-      priority: 1,
-      maxRetries: 2,
-      timeout: 30000,
-    },
-    {
-      provider: "openrouter",
-      model: "qwen/qwen3-coder-480b-a35b-instruct-turbo:free",
-      priority: 2,
-      maxRetries: 2,
-      timeout: 25000,
-    },
-    {
-      provider: "deepseek",
-      model: "deepseek-v4-flash",
-      priority: 3,
-      maxRetries: 2,
-      timeout: 30000,
-    },
-  ],
+// ========== 通用 HTTP 调用 ==========
+async function callProvider(
+  provider: string,
+  model: string,
+  messages: ChatMessage[],
+  timeoutMs: number
+): Promise<{ content: string | null; usage?: any }> {
+  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
+  if (!config) throw new Error(`Unknown provider: ${provider}`);
 
-  embedding: [
-    {
-      provider: "siliconflow",
-      model: "BAAI/bge-large-zh",
-      priority: 0,
-      maxRetries: 2,
-      timeout: 10000,
-    },
-  ],
-};
+  // 优先使用运行时 override，其次使用 process.env（支持前端 Settings 页面运行时设置）
+  const { getEffectiveApiKey, getEffectiveBaseURL } = await import("../utils/api-key-store.js");
+  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
+  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
 
-// ========== 平台配置 ==========
-const PROVIDER_CONFIG: Record<
-  string,
-  { baseURL: string; apiKeyEnv: string; protocol?: "openai" | "anthropic" | "gemini" }
-> = {
-  siliconflow: {
-    baseURL: process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1",
-    apiKeyEnv: "SILICONFLOW_API_KEY",
-  },
-  ofoxai: {
-    baseURL: process.env.OFOXAI_BASE_URL || "https://api.ofox.ai/v1",
-    apiKeyEnv: "OFOXAI_API_KEY",
-    protocol: "openai",
-  },
-  "ofoxai-anthropic": {
-    baseURL: process.env.OFOXAI_ANTHROPIC_BASE_URL || "https://api.ofox.ai/anthropic",
-    apiKeyEnv: "OFOXAI_API_KEY",
-    protocol: "anthropic",
-  },
-  "ofoxai-gemini": {
-    baseURL: process.env.OFOXAI_GEMINI_BASE_URL || "https://api.ofox.ai/gemini",
-    apiKeyEnv: "OFOXAI_API_KEY",
-    protocol: "gemini",
-  },
-  openrouter: {
-    baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
-    apiKeyEnv: "OPENROUTER_API_KEY",
-  },
-  deepseek: {
-    baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
-    apiKeyEnv: "DEEPSEEK_API_KEY",
-  },
-  opencode: {
-    baseURL: process.env.OPENCODE_BASE_URL || "https://api.opencode.ai/v1",
-    apiKeyEnv: "OPENCODE_API_KEY",
-  },
-  kimi: {
-    baseURL: process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1",
-    apiKeyEnv: "KIMI_CODE_API_KEY",
-    protocol: "openai",
-  },
-};
+  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
 
-// ========== 分层路由器 ==========
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    };
+
+    if (provider === "openrouter") {
+      headers["HTTP-Referer"] = "https://openclaw.ai";
+      headers["X-Title"] = "OpenClaw Agent";
+    }
+
+    const res = await fetch(`${baseURL}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model, messages, temperature: 0.7 }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    return {
+      content: data.choices?.[0]?.message?.content ?? null,
+      usage: data.usage,
+    };
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+// ========== 路由器 ==========
 class MultiPlatformRouter {
-  // ---- L1 决策层 ----
   async decide(messages: ChatMessage[]): Promise<ChatResponse> {
     const result = await this.chat("decision", messages);
     return { ...result, layer: "decision" };
   }
 
-  // ---- L2 架构层 ----
   async architect(messages: ChatMessage[]): Promise<ChatResponse> {
     const result = await this.chat("architecture", messages);
     return { ...result, layer: "architecture" };
   }
 
-  // ---- L3 工具层（免费模型池，带限流 + 熔断） ----
   async tool(role: ToolRole, messages: ChatMessage[]): Promise<ChatResponse> {
     const maxAttempts = 3;
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const model = toolPool.selectNext(role);
-      if (!model) {
-        logger.warn(`[Router] No available tool model for role ${role}, attempt ${attempt + 1}`);
-        break;
-      }
-
-      const cb = getCircuitBreaker(`${model.provider}:${model.id}`, {
-        failureThreshold: 3,
-        resetTimeout: 20000,
-      });
+      if (!model) break;
 
       toolPool.markRequestStart(model.id);
-      logger.info(`[Router] Tool call ${role}`, {
-        model: model.id,
-        attempt: attempt + 1,
-      });
+      const startTime = Date.now();
 
       try {
-        const response = await cb.execute(() =>
-          this.callProvider(model.provider, model.id, messages, 30000)
-        );
+        const response = await callProvider(model.provider, model.id, messages, TIMEOUTS.API_DEFAULT);
+        const latencyMs = Date.now() - startTime;
+        toolPool.recordLatency(model.id, latencyMs);
         toolPool.markRequestSuccess(model.id);
-        return {
-          ...response,
-          model: model.id,
-          provider: model.provider,
-          layer: "tool",
-        };
-      } catch (error: any) {
-        toolPool.markRequestFailure(model.id, error.message);
-        lastError = error;
-        logger.warn(
-          `[Router] Tool model ${model.id} failed (attempt ${attempt + 1})`,
-          { error: error.message }
-        );
-        // 指数退避
+        const result: ChatResponse = { ...response, model: model.id, provider: model.provider, layer: "tool" };
+        trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: "tool" });
+        return result;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        toolPool.markRequestFailure(model.id, msg);
+        lastError = error instanceof Error ? error : new Error(String(error));
+        trackCall(model.id, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role, taskType: "tool" });
+        logger.warn(`[Router] Tool ${model.id} failed (attempt ${attempt + 1})`, { error: msg });
         await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
       }
     }
 
-    // 降级：返回静态响应
-    logger.error(`[Router] All tool models exhausted for role: ${role}, returning degraded response`);
+    logger.error(`[Router] All tool models exhausted for role: ${role}`);
     return {
       content: `Tool execution failed for ${role}. Please retry or check model availability.`,
       model: "degraded",
@@ -274,59 +193,32 @@ class MultiPlatformRouter {
     };
   }
 
-  // ---- L4 评估层 ----
   async evaluate(messages: ChatMessage[]): Promise<ChatResponse> {
     const result = await this.chat("evaluation", messages);
     return { ...result, layer: "evaluation" };
   }
 
-  // ---- 通用聊天（向后兼容） ----
   async chat(taskType: string, messages: ChatMessage[]): Promise<ChatResponse> {
-    const routes = MODEL_ROUTES[taskType];
-    if (!routes) throw new Error(`Unknown task type: ${taskType}`);
+    const models = findModelsForRole(taskType as TaskRole);
+    if (models.length === 0) throw new Error(`Unknown task type: ${taskType}`);
 
-    const sortedRoutes = routes.sort((a, b) => a.priority - b.priority);
+    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
-    for (const route of sortedRoutes) {
-      const cb = getCircuitBreaker(route.provider, {
-        failureThreshold: 3,
-        resetTimeout: 30000,
-      });
-
+    for (const model of sortedModels) {
+      const startTime = Date.now();
       try {
-        const response = await cb.execute(() =>
-          withRetry(
-            () => this.callProvider(route.provider, route.model, messages, route.timeout),
-            {
-              maxAttempts: route.maxRetries + 1,
-              baseDelay: 1000,
-              maxDelay: 10000,
-              retryable: isRetryableError,
-              onRetry: (err, attempt) => {
-                logger.warn(`[Router] Retry ${attempt} for ${route.provider}/${route.model}`, {
-                  error: err.message,
-                });
-              },
-            }
-          )
-        );
-        return {
-          content: response.content,
-          model: route.model,
-          provider: route.provider,
-          usage: response.usage,
-          layer: "general",
-        };
-      } catch (error: any) {
-        if (error.name === "CircuitOpenError") {
-          logger.warn(`[Router] Circuit open for ${route.provider}, skipping`);
-        } else {
-          logger.warn(`[Router] Route failed ${route.provider}/${route.model}`, { error: error.message });
-        }
+        const response = await callProvider(model.provider, model.model, messages, model.timeout ?? 60000);
+        const latencyMs = Date.now() - startTime;
+        const result: ChatResponse = { content: response.content, model: model.model, provider: model.provider, usage: response.usage, layer: "general" };
+        trackCall(model.model, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role: taskType, taskType });
+        return result;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.warn(`[Router] Route failed ${model.provider}/${model.model}`, { error: msg });
+        trackCall(model.model, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role: taskType, taskType });
       }
     }
 
-    // 降级：返回本地缓存或静态响应
     logger.error("[Router] All model routes exhausted, returning degraded response");
     return {
       content: "I'm currently experiencing high load. Please try again in a moment.",
@@ -336,236 +228,241 @@ class MultiPlatformRouter {
     };
   }
 
-  // ---- 按意图自动路由到对应层级 ----
-  async routeByIntent(
-    intent: string,
-    messages: ChatMessage[],
-    options?: { preferTool?: boolean }
-  ): Promise<ChatResponse> {
-    // L1: 需要深度决策的意图
-    if (["strategy", "evaluation", "decision"].includes(intent)) {
-      return this.decide(messages);
-    }
+  async routeByIntent(intent: string, messages: ChatMessage[], options?: { preferTool?: boolean }): Promise<ChatResponse> {
+    const DECISION_INTENTS = new Set(["strategy", "evaluation", "decision"]);
+    const ARCH_INTENTS = new Set(["architecture", "system-design", "infra"]);
+    const CODE_INTENTS = new Set(["engineering", "game-development", "integrations", "testing"]);
+    const ENG_INTENTS = new Set(["english", "translation", "localization"]);
+    const RL_INTENTS = new Set(["rl", "reasoning", "optimization"]);
 
-    // L2: 架构设计类意图
-    if (["architecture", "system-design", "infra"].includes(intent)) {
-      return this.architect(messages);
-    }
+    if (DECISION_INTENTS.has(intent)) return this.decide(messages);
+    if (ARCH_INTENTS.has(intent)) return this.architect(messages);
 
-    // L3: 工具层（编码/英文/RL）
     if (options?.preferTool !== false) {
-      if (["engineering", "game-development", "integrations", "testing"].includes(intent)) {
-        return this.tool("coding", messages);
-      }
-      if (["english", "translation", "localization"].includes(intent)) {
-        return this.tool("english", messages);
-      }
-      if (["rl", "reasoning", "optimization"].includes(intent)) {
-        return this.tool("rl", messages);
-      }
+      if (CODE_INTENTS.has(intent)) return this.tool("coding", messages);
+      if (ENG_INTENTS.has(intent)) return this.tool("english", messages);
+      if (RL_INTENTS.has(intent)) return this.tool("rl", messages);
     }
 
-    // 默认走通用层
-    const taskType = ["engineering", "game-development", "integrations", "testing"].includes(
-      intent
-    )
-      ? "code-generation"
-      : "general-chat";
+    const taskType = CODE_INTENTS.has(intent) ? "code-generation" : "general-chat";
     return this.chat(taskType, messages);
   }
 
-  // ---- 内部调用实现 ----
-  private async callProvider(
-    provider: string,
-    model: string,
-    messages: ChatMessage[],
-    timeoutMs: number
-  ): Promise<{ content: string | null; usage?: any }> {
-    const config = PROVIDER_CONFIG[provider];
-    if (!config) throw new Error(`Unknown provider: ${provider}`);
+  /**
+   * Auto Route — 使用廉价模型做 per-turn 路由决策 (CodeWhale-inspired)
+   *
+   * 1. 用 deepseek-v4-flash:free 分析用户输入
+   * 2. 决定: 任务类型、角色、思考强度
+   * 3. 路由到适当的模型执行
+   *
+   * 比静态规则更准确，成本极低（flash 模型几乎免费）
+   */
+  async autoRoute(messages: ChatMessage[]): Promise<ChatResponse & { routing?: { role: TaskRole; thinking: string; reason: string } }> {
+    const startTime = Date.now();
 
-    const apiKey = process.env[config.apiKeyEnv];
-    if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
+    // 构建路由提示词
+    const routingMessages: ChatMessage[] = [
+      {
+        role: "system",
+        content: `你是一个任务路由专家。分析用户请求，输出 JSON 格式的路由决策。
 
-    const protocol = config.protocol || "openai";
+可用角色:
+- coding: 代码生成、重构、调试
+- review: 代码审查、质量评估
+- research: 技术研究、知识查询
+- architecture: 架构设计、系统规划
+- decision: 决策分析、方案比较
+- general-chat: 一般对话、解释说明
 
-    if (protocol === "anthropic") {
-      return this.callAnthropic(config.baseURL, apiKey, model, messages, timeoutMs);
-    }
-    if (protocol === "gemini") {
-      return this.callGemini(config.baseURL, apiKey, model, messages, timeoutMs);
-    }
-    return this.callOpenAICompatible(config.baseURL, apiKey, model, messages, timeoutMs, provider);
-  }
+思考强度:
+- none: 简单任务，直接回答
+- low: 标准思考，平衡速度和质量
+- medium: 复杂任务，需要多步推理
+- high: 非常困难的任务，深度分析
 
-  private async callOpenAICompatible(
-    baseURL: string,
-    apiKey: string,
-    model: string,
-    messages: ChatMessage[],
-    timeoutMs: number,
-    provider: string
-  ): Promise<{ content: string | null; usage?: any }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+输出格式:
+{
+  "role": "角色名称",
+  "thinking": "none/low/medium/high",
+  "reason": "简要说明选择理由"
+}`,
+      },
+      messages[messages.length - 1], // 只取最后一条用户消息做路由
+    ];
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      };
+      // 使用廉价 flash 模型做路由决策
+      const flashResponse = await callProvider("openrouter", "deepseek/deepseek-v4-flash:free", routingMessages, 10000);
+      const routing = this.parseRoutingDecision(flashResponse.content);
 
-      if (provider === "openrouter") {
-        headers["HTTP-Referer"] = "https://openclaw.ai";
-        headers["X-Title"] = "OpenClaw Agent";
-      }
-
-      const res = await fetch(`${baseURL}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.7,
-        }),
-        signal: controller.signal,
+      logger.info("[AutoRoute] Routing decision", {
+        role: routing.role,
+        thinking: routing.thinking,
+        reason: routing.reason,
       });
 
-      clearTimeout(timer);
+      // 跟踪路由调用
+      trackCall("deepseek/deepseek-v4-flash:free", "openrouter", routingMessages, { latencyMs: Date.now() - startTime, success: true }, { role: "decision", taskType: "auto_route" });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errText}`);
-      }
+      // 根据路由决策执行
+      const result = await this.executeWithRole(routing.role as TaskRole, messages);
 
-      const data = await res.json();
       return {
-        content: data.choices?.[0]?.message?.content ?? null,
-        usage: data.usage,
-      };
-    } catch (e) {
-      clearTimeout(timer);
-      throw e;
-    }
-  }
-
-  private async callAnthropic(
-    baseURL: string,
-    apiKey: string,
-    model: string,
-    messages: ChatMessage[],
-    timeoutMs: number
-  ): Promise<{ content: string | null; usage?: any }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const systemMsg = messages.find((m) => m.role === "system")?.content || "";
-      const chatMessages = messages
-        .filter((m) => m.role !== "system")
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      const res = await fetch(`${baseURL}/v1/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+        content: result.content,
+        model: result.model,
+        provider: result.provider,
+        usage: result.usage,
+        layer: "general",
+        routing: {
+          role: routing.role as TaskRole,
+          thinking: routing.thinking,
+          reason: routing.reason,
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          system: systemMsg,
-          messages: chatMessages,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timer);
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errText}`);
-      }
-
-      const data = await res.json();
-      return {
-        content: data.content?.[0]?.text ?? null,
-        usage: data.usage,
       };
-    } catch (e) {
-      clearTimeout(timer);
-      throw e;
+    } catch (error) {
+      logger.warn("[AutoRoute] Routing failed, falling back to general-chat", { error: (error as Error).message });
+      // 路由失败时回退到通用聊天
+      const fallback = await this.chat("general-chat", messages);
+      return { ...fallback, routing: { role: "general-chat" as TaskRole, thinking: "none", reason: "路由失败，使用默认回退" } };
     }
   }
 
-  private async callGemini(
-    baseURL: string,
-    apiKey: string,
-    model: string,
-    messages: ChatMessage[],
-    timeoutMs: number
-  ): Promise<{ content: string | null; usage?: any }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  private parseRoutingDecision(content: string | null): { role: string; thinking: string; reason: string } {
+    const defaultResult = { role: "general-chat", thinking: "none", reason: "解析失败，使用默认值" };
+    if (!content) return defaultResult;
 
     try {
-      const contents = messages.map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
-
-      const res = await fetch(
-        `${baseURL}/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents }),
-          signal: controller.signal,
-        }
-      );
-
-      clearTimeout(timer);
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errText}`);
+      // 尝试提取 JSON
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          role: parsed.role || defaultResult.role,
+          thinking: parsed.thinking || defaultResult.thinking,
+          reason: parsed.reason || defaultResult.reason,
+        };
       }
-
-      const data = await res.json();
-      return {
-        content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? null,
-        usage: data.usageMetadata,
-      };
-    } catch (e) {
-      clearTimeout(timer);
-      throw e;
+    } catch {
+      // JSON 解析失败，使用关键词匹配
+      const lower = content.toLowerCase();
+      if (lower.includes("code") || lower.includes("编码") || lower.includes("代码")) return { role: "coding", thinking: "medium", reason: "关键词匹配: code" };
+      if (lower.includes("review") || lower.includes("审查")) return { role: "review", thinking: "medium", reason: "关键词匹配: review" };
+      if (lower.includes("arch") || lower.includes("架构")) return { role: "architecture", thinking: "high", reason: "关键词匹配: architecture" };
+      if (lower.includes("research") || lower.includes("调研")) return { role: "research", thinking: "high", reason: "关键词匹配: research" };
     }
+
+    return defaultResult;
   }
 
   async embeddings(texts: string[]): Promise<number[][]> {
-    const route = MODEL_ROUTES["embedding"]?.[0];
-    if (!route) throw new Error("No embedding route configured");
+    const models = findModelsForRole("embedding" as TaskRole);
+    if (models.length === 0) throw new Error("No embedding route configured");
+    const model = models[0];
 
-    const config = PROVIDER_CONFIG[route.provider];
-    const apiKey = process.env[config.apiKeyEnv];
+    const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
+    const { getEffectiveApiKey, getEffectiveBaseURL } = await import("../utils/api-key-store.js");
+    const apiKey = getEffectiveApiKey(model.provider, config.apiKeyEnv);
     if (!apiKey) throw new Error(`Missing API key for embedding`);
 
-    const res = await fetch(`${config.baseURL}/embeddings`, {
+    const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
+
+    const res = await fetch(`${baseURL}/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: route.model,
-        input: texts,
-      }),
+      body: JSON.stringify({ model: model.model, input: texts }),
     });
 
     if (!res.ok) throw new Error(`Embedding request failed: ${res.status}`);
     const data = await res.json();
     return data.data?.map((d: any) => d.embedding) ?? [];
+  }
+
+  // ========== 智能任务分配 (简化版) ==========
+  assign(role: TaskRole, opts?: { excludeModels?: string[] }): AssignmentResult {
+    const result = assignModel(role, { excludeModels: opts?.excludeModels });
+    if (!result) throw new Error(`No model found for role: ${role}`);
+    return result;
+  }
+
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[] }): Promise<SmartAssignmentResponse> {
+    const startTime = Date.now();
+    const assignment = this.assign(role, { excludeModels: options?.excludeModels });
+    const model = assignment.model;
+
+    const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
+    try {
+      const response = await callProvider(model.provider, model.model, messages, 60000);
+      const latencyMs = Date.now() - startTime;
+      const result: SmartAssignmentResponse = {
+        role,
+        model: model.id,
+        provider: model.provider,
+        endpoint: config?.baseURL ?? "",
+        content: response.content,
+        usage: response.usage,
+        latency_ms: latencyMs,
+        fallback_used: false,
+      };
+      trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: role });
+      return result;
+    } catch (error) {
+      const fallbackResult = await this.executeFallback(role, messages, options);
+      const latencyMs = Date.now() - startTime;
+      trackCall(model.id, model.provider, messages, { latencyMs, success: false, fallbackUsed: true }, { role, taskType: role });
+      return { ...fallbackResult, latency_ms: latencyMs, fallback_used: true };
+    }
+  }
+
+  async batchExecute(assignments: RoleAssignment[], opts?: { preventDuplicateModels?: boolean }): Promise<SmartAssignmentResponse[]> {
+    const usedModels: string[] = [];
+    const promises = assignments.map((a) => {
+      const exclude = opts?.preventDuplicateModels ? [...usedModels] : undefined;
+      return this.executeWithRole(a.role, a.messages, {
+        temperature: a.temperature,
+        maxTokens: a.maxTokens,
+        excludeModels: exclude,
+      }).then((res) => {
+        if (opts?.preventDuplicateModels) usedModels.push(res.model);
+        return res;
+      }).catch((err) => ({
+        role: a.role,
+        model: "error",
+        provider: "error",
+        endpoint: "",
+        content: `Error: ${err.message}`,
+        latency_ms: 0,
+        fallback_used: true,
+      }));
+    });
+    return Promise.all(promises);
+  }
+
+  private async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
+    try {
+      const response = await callProvider("openrouter", "qwen/qwen3-0309-coder:free", messages, TIMEOUTS.API_DEFAULT);
+      return {
+        role,
+        model: "qwen/qwen3-0309-coder:free",
+        provider: "openrouter",
+        endpoint: "https://openrouter.ai/api/v1",
+        content: response.content,
+        latency_ms: 0,
+        fallback_used: true,
+      };
+    } catch {
+      return {
+        role,
+        model: "local",
+        provider: "local",
+        endpoint: "",
+        content: `[System] All models for role "${role}" are unavailable. Please try again later.`,
+        latency_ms: 0,
+        fallback_used: true,
+      };
+    }
   }
 
   private delay(ms: number): Promise<void> {

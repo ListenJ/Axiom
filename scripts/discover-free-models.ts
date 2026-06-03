@@ -118,7 +118,7 @@ function saveToDatabase(models: FreeModel[]): void {
 }
 
 async function main() {
-  console.log("🔍 Starting free model discovery...");
+  console.log("[搜索] Starting free model discovery...");
   const allModels: FreeModel[] = [];
 
   for (const platform of Object.keys(PLATFORMS) as Array<keyof typeof PLATFORMS>) {
@@ -178,7 +178,7 @@ async function main() {
     return acc;
   }, {} as Record<string, FreeModel[]>);
 
-  console.log("\n📋 Router configuration recommendations:");
+  console.log("\n[配置] Router configuration recommendations:");
   for (const [provider, providerModels] of Object.entries(grouped)) {
     console.log(`\n${provider.toUpperCase()}:`);
     for (const m of providerModels) {

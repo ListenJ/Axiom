@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 export interface ShutdownHook {
   name: string;
@@ -19,7 +20,7 @@ export function setupGracefulShutdown(options?: {
   timeout?: number;
   signals?: NodeJS.Signals[];
 }): void {
-  const { timeout = 30000, signals = ["SIGTERM", "SIGINT"] } = options || {};
+  const { timeout = TIMEOUTS.GRACEFUL_SHUTDOWN, signals = ["SIGTERM", "SIGINT"] } = options || {};
 
   for (const signal of signals) {
     process.on(signal, async () => {
@@ -41,7 +42,7 @@ export function setupGracefulShutdown(options?: {
   });
 }
 
-export async function gracefulShutdown(timeoutMs = 30000): Promise<void> {
+export async function gracefulShutdown(timeoutMs: number = TIMEOUTS.GRACEFUL_SHUTDOWN): Promise<void> {
   if (isShuttingDown) {
     logger.warn("Shutdown already in progress, waiting...");
     return;

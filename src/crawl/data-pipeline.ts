@@ -15,8 +15,6 @@
  */
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
-import { fpGen } from "./anti-fingerprint.js";
-import { proxyManager } from "./proxy-manager.js";
 import { Database } from "bun:sqlite";
 import { VaultManager } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
@@ -41,7 +39,7 @@ interface StructuredCrawlResult {
   siteName?: string;
   language?: string;
   markdown: string;
-  structuredData: Record<string, any>[];
+  structuredData: Record<string, unknown>[];
   tables: MarkdownTable[];
   codeBlocks: CodeBlock[];
   images: ImageInfo[];
@@ -278,50 +276,37 @@ export class DataPipeline {
   // ===== 爬虫层：结构化提取 =====
 
   /**
-   * 结构化单页爬取（带隐私保护）
+   * 结构化单页爬取
    */
   async crawlStructured(url: string, depth = 0): Promise<StructuredCrawlResult | null> {
     if (this.visited.has(url) || depth > this.options.maxDepth) return null;
     this.visited.add(url);
 
-    // 隐私：请求间隔抖动
-    await this.delay(fpGen.randomJitter(this.options.requestDelay));
+    // 请求间隔
+    await this.delay(this.options.requestDelay);
 
     try {
       return await withRetry(
         async () => {
-          const fp = fpGen.generate();
-          const headers = fpGen.buildHeaders(fp, {
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            Referer: "", // 空 Referer，减少追踪
-          });
-
-          // 隐私：代理轮换
-          const proxy = proxyManager.next();
-          const proxyOpt = proxy ? { proxy: proxy.url } : {};
-
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
 
           const res = await fetch(url, {
-            ...proxyOpt,
-            headers,
+            headers: {
+              "User-Agent": this.options.userAgent,
+              Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
             signal: controller.signal,
           });
 
           clearTimeout(timer);
-
-          if (proxy) {
-            if (res.ok) proxyManager.markSuccess(proxy.url, 0);
-            else proxyManager.markFailed(proxy.url);
-          }
 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           const html = await res.text();
           const result = this.parseStructured(url, html);
 
-          // 保存原始数据（注意：不保存指纹信息）
+          // 保存原始数据
           await this.saveRaw(url, { html: html.slice(0, 50000), structured: result });
 
           return result;
@@ -332,8 +317,8 @@ export class DataPipeline {
           retryable: (e: Error) => isRetryableError(e) || (e instanceof Error && e.message.startsWith("HTTP")),
         }
       );
-    } catch (e: any) {
-      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e.message}`);
+    } catch (e: unknown) {
+      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   }
@@ -431,8 +416,8 @@ export class DataPipeline {
 
   // ===== JSON-LD / Schema.org =====
 
-  private extractJsonLd(html: string): Record<string, any>[] {
-    const results: Record<string, any>[] = [];
+  private extractJsonLd(html: string): Record<string, unknown>[] {
+    const results: Record<string, unknown>[] = [];
     const re = /<script\s+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
     for (const m of html.matchAll(re)) {
       try {
@@ -795,9 +780,9 @@ export class DataPipeline {
         markdown: result.markdown,
         headings: result.headings,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Vault 写入失败不影响主流程
-      console.warn("[Pipeline] Vault write failed:", e.message);
+      console.warn("[Pipeline] Vault write failed:", e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -865,7 +850,7 @@ export class DataPipeline {
 
   // ===== 工具方法 =====
 
-  private async saveRaw(url: string, data: any): Promise<void> {
+  private async saveRaw(url: string, data: unknown): Promise<void> {
     const hash = Bun.hash(url).toString(16).slice(0, 16);
     await Bun.write(`./data/raw/${hash}.json`, JSON.stringify(data, null, 2));
   }

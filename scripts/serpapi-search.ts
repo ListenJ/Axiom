@@ -37,7 +37,7 @@ const { values, positionals } = parseArgs({
 
 if (values.help || (!values.query && positionals.length === 0)) {
   console.log(`
-📡 SerpAPI 搜索 CLI (OpenClaw)
+[SerpAPI] 搜索 CLI (OpenClaw)
 
 用法:
   bun run scripts/serpapi-search.ts [选项]
@@ -68,13 +68,13 @@ if (values.help || (!values.query && positionals.length === 0)) {
 
 const query = values.query || positionals.join(" ");
 if (!query) {
-  console.error("❌ 错误: 必须提供 --query 或位置参数");
+  console.error("[错误] 错误: 必须提供 --query 或位置参数");
   process.exit(1);
 }
 
 const apiKey = process.env.SERPAPI_KEY;
 if (!apiKey) {
-  console.error("❌ 错误: 环境变量 SERPAPI_KEY 未设置");
+  console.error("[错误] 错误: 环境变量 SERPAPI_KEY 未设置");
   console.error("   请在 .env 文件中添加 SERPAPI_KEY=your_key");
   process.exit(1);
 }
@@ -96,8 +96,8 @@ async function main() {
     ...(values.site ? { as_sitesearch: values.site } : {}),
   };
 
-  console.log(`🔍 搜索: "${query}"`);
-  if (values.location) console.log(`📍 位置: ${values.location}`);
+  console.log(`[搜索] "${query}"`);
+  if (values.location) console.log(`[位置] ${values.location}`);
   console.log("⏳ 请求 SerpAPI...\n");
 
   const start = performance.now();
@@ -113,16 +113,16 @@ async function main() {
   const news = response.news_results || [];
   const info = response.search_information;
 
-  console.log("✅ 搜索完成!\n");
+  console.log("[完成] 搜索完成!\n");
   console.log(`───────────────────────────────`);
-  console.log(`📋 查询摘要`);
+  console.log(`[摘要] 查询摘要`);
   console.log(`───────────────────────────────`);
   console.log(`  搜索 ID : ${response.search_metadata?.id}`);
   console.log(`  状态    : ${response.search_metadata?.status}`);
   console.log(`  总结果  : ${info?.total_results ?? "N/A"}`);
   console.log(`  耗时    : ${latency} ms (API) / ${info?.time_taken_displayed ?? "N/A"} s (Google)`);
   console.log(`  有机结果: ${organic.length}`);
-  console.log(`  知识图谱: ${kg ? "✅" : "❌"}`);
+  console.log(`  知识图谱: ${kg ? "[有]" : "[无]"}`);
   console.log(`  相关问题: ${rq.length}`);
   console.log(`  关联搜索: ${rs.length}`);
   console.log(`  图片结果: ${images.length}`);
@@ -145,7 +145,7 @@ async function main() {
   // 保存到 Vault
   let vaultPath = "";
   if (values.save) {
-    console.log("💾 保存到 Vault...");
+    console.log("[保存] 保存到 Vault...");
     const vault = new VaultManager({ vaultPath: values.vault });
     vaultPath = await vault.writeSerpApiResult(query, response as Record<string, unknown>, {
       location: values.location,
@@ -157,7 +157,7 @@ async function main() {
     vault.close();
 
     // 保存到 SQLite
-    console.log("🗄️  保存到 SQLite...");
+    console.log("[数据库] 保存到 SQLite...");
     const dbPath = values.db;
     const db = new Database(dbPath);
     try {
@@ -181,7 +181,7 @@ async function main() {
     db.close();
   }
 
-  console.log("\n🎉 完成!");
+  console.log("\n[完成]");
   if (vaultPath) {
     console.log(`   笔记路径: openclaw-memory/${vaultPath}`);
     console.log(`   在 Obsidian 中打开 Vault 即可查看和管理此笔记。`);
@@ -189,6 +189,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("\n❌ 错误:", e.message);
+  console.error("\n[错误]:", e.message);
   process.exit(1);
 });

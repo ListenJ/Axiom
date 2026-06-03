@@ -13,7 +13,7 @@
  */
 import blessed from "blessed";
 import { logger } from "../utils/logger.js";
-import { router, toolPool } from "../router/model-router.js";
+import { router, toolPool, type ToolRole } from "../router/model-router.js";
 import { orchestrator } from "../router/task-orchestrator.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
@@ -35,7 +35,7 @@ const header = blessed.box({
   tags: true,
   style: { fg: "white", bg: "blue" },
   content:
-    " {center}🦅 OpenClaw AI Agent v3.0 | DeepSeek-V4 Pro (Decision) | KIMI-k2.6 (Architecture) | Free Tool Pool | Tencent hy3 (Eval){/center} ",
+    " {center}[OpenClaw] AI Agent v3.0 | DeepSeek-V4 Pro (Decision) | KIMI-k2.6 (Architecture) | Free Tool Pool | Tencent hy3 (Eval){/center} ",
 });
 
 // 左侧：聊天历史
@@ -77,10 +77,10 @@ const modelStatusBox = blessed.box({
   tags: true,
   scrollable: true,
   content:
-    "{bold}L1 Decision{/bold}:    🟢 deepseek-v4-pro\n" +
-    "{bold}L2 Architecture{/bold}: 🟢 kimi-k2.6\n" +
+    "{bold}L1 Decision{/bold}:    [正常] deepseek-v4-pro\n" +
+    "{bold}L2 Architecture{/bold}: [正常] kimi-k2.6\n" +
     "{bold}L3 Tool Pool{/bold}:    see Tool Health tab\n" +
-    "{bold}L4 Evaluation{/bold}:   🟡 tencent/hy3 ($5 limit)",
+    "{bold}L4 Evaluation{/bold}:   [警告] tencent/hy3 ($5 limit)",
 });
 
 // 右侧中：WebSocket / 社交连接
@@ -94,11 +94,11 @@ const socialBox = blessed.box({
   style: { border: { fg: "yellow" }, fg: "white" },
   tags: true,
   content:
-    "{bold}WebSocket Server{/bold}: ws://localhost:3000\n" +
+    "{bold}WebSocket Server{/bold}: ws://localhost:18789\n" +
     "  Connected clients: 0\n" +
     "  Subscriptions: system.status, agent.intent\n\n" +
     "{bold}MCP Server{/bold}: 23 tools registered\n" +
-    "{bold}HTTP API{/bold}: http://localhost:3000",
+    "{bold}HTTP API{/bold}: http://localhost:18789",
 });
 
 // 右侧下：工具池健康度
@@ -186,12 +186,12 @@ inputBox.on("submit", async (text: string) => {
 async function handleChat(userInput: string) {
   try {
     // Step 1: 意图识别
-    chatBox.log("{cyan-fg}🧠 Recognizing intent...{/cyan-fg}");
+    chatBox.log("{cyan-fg}[意图识别] Recognizing intent...{/cyan-fg}");
     const { intent, messages } = buildAgentMessages(userInput);
 
     if (intent) {
       chatBox.log(
-        `{cyan-fg}🎯 Intent: ${intent.agent.emoji} ${intent.agentName} (${intent.intent}) — ${(
+        `{cyan-fg}[意图] ${intent.agentName} (${intent.intent}) — ${(
           intent.confidence * 100
         ).toFixed(0)}%{/cyan-fg}`
       );
@@ -203,21 +203,21 @@ async function handleChat(userInput: string) {
     chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [${result.layer}]{/gray-fg}`);
     chatBox.log(result.content ?? "(no response)");
     chatBox.log("");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Error: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误]: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
 
 async function handleOrchestrate(task: string) {
   try {
-    chatBox.log("{yellow-fg}🎼 Orchestrating complex task...{/yellow-fg}");
+    chatBox.log("{yellow-fg}[编排] Orchestrating complex task...{/yellow-fg}");
     const start = Date.now();
 
     const result = await orchestrator.execute(task);
 
-    chatBox.log(`{yellow-fg}✅ Completed in ${result.totalLatencyMs}ms | ${result.totalTokens} tokens{/yellow-fg}`);
-    chatBox.log(`{yellow-fg}📊 Layers used: ${result.layersUsed.join(", ")}{/yellow-fg}`);
+    chatBox.log(`{yellow-fg}[完成] Completed in ${result.totalLatencyMs}ms | ${result.totalTokens} tokens{/yellow-fg}`);
+    chatBox.log(`{yellow-fg}[层级] Layers used: ${result.layersUsed.join(", ")}{/yellow-fg}`);
 
     for (const r of result.subTaskResults) {
       chatBox.log(
@@ -228,15 +228,15 @@ async function handleOrchestrate(task: string) {
     chatBox.log("{bold}Final Answer:{/bold}");
     chatBox.log(result.finalAnswer);
     chatBox.log("");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Orchestration failed: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Orchestration failed: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
 
 async function handleCodegraphQuery(query: string) {
   try {
-    chatBox.log(`{green-fg}🔍 CodeGraph: "${query}"{/green-fg}`);
+    chatBox.log(`{green-fg}[搜索] CodeGraph: "${query}"{/green-fg}`);
     const result = await retrieveCodeMemory(query);
     if (result) {
       chatBox.log(`{green-fg}Found ${result.symbols.length} symbols{/green-fg}`);
@@ -244,8 +244,8 @@ async function handleCodegraphQuery(query: string) {
     } else {
       chatBox.log("{gray-fg}No CodeGraph memory found.{/gray-fg}");
     }
-  } catch (e: any) {
-    chatBox.log(`{red-fg}❌ CodeGraph error: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] CodeGraph error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -254,14 +254,14 @@ async function handleToolQuery(roleInput: string) {
   const validRoles = ["coding", "english", "rl", "general-tool"];
   const role = validRoles.includes(roleInput) ? roleInput : "general-tool";
   try {
-    chatBox.log(`{magenta-fg}🛠️ Tool call [${role}]...{/magenta-fg}`);
-    const result = await router.tool(role as any, [
+    chatBox.log(`{magenta-fg}[工具] Tool call [${role}]...{/magenta-fg}`);
+    const result = await router.tool(role as ToolRole, [
       { role: "user", content: "Ready for task assignment." },
     ]);
     chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model}{/gray-fg}`);
     chatBox.log(result.content ?? "(no response)");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}❌ Tool error: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Tool error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -269,10 +269,10 @@ async function handleToolQuery(roleInput: string) {
 // ===== 工具池健康度刷新 =====
 
 function refreshToolHealth() {
-  const stats = toolPool.getStats() as Record<string, any>;
+  const stats = toolPool.getStats() as Record<string, { role: string; health: string; rpmThisMinute: number; rpmLimit: number }>;
   toolHealthBox.setContent("");
 
-  const grouped: Record<string, any[]> = {};
+  const grouped: Record<string, Array<{ id: string; role: string; health: string; rpmThisMinute: number; rpmLimit: number }>> = {};
   for (const [id, s] of Object.entries(stats)) {
     const role = s.role as string;
     if (!grouped[role]) grouped[role] = [];
@@ -282,7 +282,7 @@ function refreshToolHealth() {
   for (const [role, models] of Object.entries(grouped)) {
     toolHealthBox.log(`{bold}${role.toUpperCase()}{/bold}`);
     for (const m of models) {
-      const icon = m.health.includes("🔴") ? "🔴" : m.health.includes("🟡") ? "🟡" : "🟢";
+      const icon = m.health.includes("[异常]") ? "[异常]" : m.health.includes("[警告]") ? "[警告]" : "[正常]";
       const shortId = m.id.split("/").pop()?.slice(0, 30) ?? m.id;
       toolHealthBox.log(`  ${icon} ${shortId} | ${m.rpmThisMinute}/${m.rpmLimit} RPM`);
     }
@@ -290,13 +290,22 @@ function refreshToolHealth() {
   screen.render();
 }
 
-// 定时刷新工具池状态
-setInterval(refreshToolHealth, 10000);
-refreshToolHealth();
+let toolHealthInterval: ReturnType<typeof setInterval> | null = null;
+
+/** 停止TUI定时器 */
+export function stopTUI(): void {
+  if (toolHealthInterval) {
+    clearInterval(toolHealthInterval);
+    toolHealthInterval = null;
+  }
+}
 
 // ===== 启动 =====
 
 export async function startTUI(): Promise<void> {
+  // 启动定时刷新工具池状态
+  toolHealthInterval = setInterval(refreshToolHealth, 10000);
+  refreshToolHealth();
   chatBox.log("{center}{bold}Welcome to OpenClaw AI Agent v3.0{/bold}{/center}");
   chatBox.log("{center}Type a message and press Enter to chat.{/center}");
   chatBox.log("{center}Commands: /orchestrate <task> | /codegraph <query> | /tool <role>{/center}");

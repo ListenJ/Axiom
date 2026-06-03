@@ -26,6 +26,8 @@ interface WsClient {
   connectedAt: number;
 }
 
+const MAX_WS_CLIENTS = 100; // 限制最大连接数防止内存耗尽
+
 export class WebSocketManager {
   private clients = new Map<string, WsClient>();
   private messageHistory: WsMessage[] = [];
@@ -33,6 +35,12 @@ export class WebSocketManager {
 
   /** 客户端连接 */
   onOpen(ws: ServerWebSocket<{ clientId: string }>): void {
+    // 连接数限制检查
+    if (this.clients.size >= MAX_WS_CLIENTS) {
+      ws.close(1013, "Server overloaded"); // Try Again Later
+      return;
+    }
+
     const clientId = ws.data.clientId;
     this.clients.set(clientId, {
       ws,

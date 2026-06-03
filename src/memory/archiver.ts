@@ -156,8 +156,8 @@ export class MemoryArchiver {
     try {
       await this.moveToArchive(fileRel, frontmatter);
       result.archived.push(fileRel);
-    } catch (e: any) {
-      result.errors.push(`${fileRel}: ${e.message}`);
+    } catch (e) {
+      result.errors.push(`${fileRel}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

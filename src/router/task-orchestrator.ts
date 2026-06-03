@@ -1,26 +1,30 @@
 /**
- * 任务编排器 (Task Orchestrator) v1.0
+ * 任务编排器 (Task Orchestrator) v2.0
  *
- * 分层任务调度策略：
- *   1. L1 Decision: DeepSeek-V4 Pro 分解任务为子任务
- *   2. L2 Architecture: KIMI-k2.6 设计系统架构（如需要）
- *   3. L3 Tool Pool: 免费模型并行执行子任务
- *   4. L4 Evaluation: Tencent hy3 + DeepSeek 评估结果质量
- *   5. 整合: L1 Decision 汇总输出最终答案
+ * 思维链：Understand → Retrieve → Execute → Output
  *
- * 免费模型使用策略：
- *   - 每个子任务标记所需 role (coding/english/rl/general)
- *   - ToolPool 自动选择可用模型，带限流和熔断
- *   - 并发控制：同角色最多 N 个并行（N = 该角色模型数）
+ * 1. Understand: 识别任务类型（关键词匹配，无需 LLM）
+ * 2. Retrieve: 按需检索 Vault/SQLite 记忆和代码记忆
+ * 3. Execute: 单角色直接执行 或 多角色并行协作
+ * 4. Output: 返回结果（多角色时自动汇总）
+ *
+ * 设计原则：
+ *   - 无 L1-L4 分层：避免过度编排，减少延迟
+ *   - 无架构设计步骤：Agent 自行决定是否需要架构
+ *   - 无评估层：质量由调用方判断，避免自我审查开销
+ *   - 简单任务直接执行，复杂任务才分解
  */
 import { logger } from "../utils/logger.js";
-import { router, toolPool, type ToolRole } from "./model-router.js";
+import { router, toolPool, type SmartAssignmentResponse } from "./model-router.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
-import type { ChatMessage } from "./model-router.js";
+import type { ChatMessage, RoleAssignment } from "./model-router.js";
+import type { TaskRole } from "./model-capability-registry.js";
+import { executionMode } from "../agents/execution-mode.js";
+import { injectConstitution } from "../agents/constitution.js";
 
 export interface SubTask {
   id: string;
-  role: ToolRole | "decision" | "architecture" | "evaluation";
+  role: TaskRole;
   description: string;
   systemPrompt?: string;
   messages: ChatMessage[];
@@ -52,84 +56,43 @@ export interface OrchestratedResult {
 
 class TaskOrchestrator {
   /**
-   * 执行一个复杂任务，自动分层调度
+   * 执行任务：Understand → Retrieve → Execute → Output
    */
   async execute(task: string, opts?: { history?: ChatMessage[]; projectPath?: string }): Promise<OrchestratedResult> {
     const startTime = Date.now();
-    const subTaskResults: TaskResult[] = [];
-    const layersUsed = new Set<string>();
 
-    // === Step 1: L1 决策层 — 分解任务 ===
-    logger.info("[Orchestrator] Step 1: Decomposing task with L1 Decision");
-    const decomposition = await this.decomposeTask(task, opts?.history);
-    layersUsed.add("decision");
+    // === Step 1: Understand — 识别任务类型 ===
+    const taskType = this.classifyTask(task);
+    logger.info("[Orchestrator] Understand", { taskType, task: task.slice(0, 80) });
 
-    // === Step 2: 检索代码记忆（如需要） ===
-    let codeContext = "";
-    if (decomposition.needsCodeContext) {
-      const cgMemory = await retrieveCodeMemory(task, { projectPath: opts?.projectPath });
-      if (cgMemory) {
-        codeContext = cgMemory.results;
-        logger.info("[Orchestrator] Retrieved code memory", {
-          symbols: cgMemory.symbols.length,
-          contextLength: codeContext.length,
-        });
-      }
+    // === Step 2: Retrieve — 按需检索记忆 ===
+    const context = await this.retrieveContext(task, taskType, opts);
+    if (context) {
+      logger.info("[Orchestrator] Retrieve", {
+        vaultSnippets: context.vaultSnippets?.length ?? 0,
+        codeSymbols: context.codeSymbols?.length ?? 0,
+      });
     }
 
-    // === Step 3: 并行执行子任务 ===
-    const pendingTasks = this.buildSubTasks(decomposition, codeContext);
-    logger.info("[Orchestrator] Step 3: Executing sub-tasks", { count: pendingTasks.length });
+    // === Step 3: Execute — 执行 ===
+    let subTaskResults: TaskResult[];
+    const messages = this.buildMessages(task, context, opts?.history);
 
-    // 按依赖关系分层执行
-    const executedIds = new Set<string>();
-    while (executedIds.size < pendingTasks.length) {
-      const readyTasks = pendingTasks.filter(
-        (t) => !executedIds.has(t.id) && (t.dependsOn ?? []).every((d) => executedIds.has(d))
-      );
-      if (readyTasks.length === 0) break;
-
-      // 同角色并行限制：按角色分组，每组最多并行 N 个
-      const byRole = this.groupByRole(readyTasks);
-      const batchPromises: Promise<void>[] = [];
-
-      for (const [role, tasks] of Object.entries(byRole)) {
-        const concurrency = role === "coding" ? 2 : 1; // coding 模型最多 2 个并行
-        const chunks = this.chunkArray(tasks, concurrency);
-        for (const chunk of chunks) {
-          batchPromises.push(
-            (async () => {
-              const results = await Promise.all(
-                chunk.map((st) => this.executeSubTask(st))
-              );
-              for (const r of results) {
-                subTaskResults.push(r);
-                layersUsed.add(r.layer);
-                executedIds.add(r.subTaskId);
-              }
-            })()
-          );
-        }
-      }
-
-      await Promise.all(batchPromises);
+    if (taskType.needsMultiRole) {
+      // 多视角并行（如代码审查+重构）
+      logger.info("[Orchestrator] Execute (multi-role)", { roles: taskType.roles });
+      subTaskResults = await this.executeRoles(taskType.roles, messages);
+    } else {
+      // 单一角色直接执行
+      logger.info("[Orchestrator] Execute (single)", { role: taskType.roles[0] });
+      const result = await this.executeSingle(taskType.roles[0], messages);
+      subTaskResults = [result];
     }
 
-    // === Step 4: L4 评估层（可选，关键任务） ===
-    if (decomposition.needsEvaluation) {
-      logger.info("[Orchestrator] Step 4: Evaluating results with L4");
-      const evalResult = await this.evaluateResults(task, subTaskResults);
-      if (evalResult.quality < 0.7) {
-        logger.warn("[Orchestrator] Quality below threshold, re-executing with refined prompts");
-        // 可以在这里实现重试逻辑
-      }
-      layersUsed.add("evaluation");
-    }
-
-    // === Step 5: L1 决策层 — 汇总最终答案 ===
-    logger.info("[Orchestrator] Step 5: Synthesizing final answer");
-    const finalAnswer = await this.synthesizeAnswer(task, subTaskResults, opts?.history);
-    layersUsed.add("decision");
+    // === Step 4: Output — 返回结果 ===
+    const finalAnswer = taskType.needsMultiRole
+      ? await this.synthesizeAnswer(task, subTaskResults, opts?.history)
+      : (subTaskResults[0]?.content ?? "");
 
     const totalLatencyMs = Date.now() - startTime;
     const totalTokens = subTaskResults.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
@@ -139,212 +102,246 @@ class TaskOrchestrator {
       subTaskResults,
       totalLatencyMs,
       totalTokens,
-      layersUsed: [...layersUsed],
+      layersUsed: [...new Set(subTaskResults.map((r) => r.layer))],
     };
   }
 
-  // ========== 私有方法 ==========
+  // ========== 私有方法：扁平思维链 ==========
 
-  private async decomposeTask(task: string, history?: ChatMessage[]): Promise<{
-    subTasks: Array<{ role: ToolRole | "architecture"; description: string; systemPrompt?: string }>;
-    needsCodeContext: boolean;
-    needsEvaluation: boolean;
-    needsArchitecture: boolean;
-  }> {
-    const messages: ChatMessage[] = [
-      {
-        role: "system",
-        content:
-          `You are a task decomposition engine. Analyze the user's request and break it into sub-tasks.
+  /**
+   * Understand: 轻量级任务分类（无需 LLM）
+   */
+  private classifyTask(task: string): { roles: TaskRole[]; needsMultiRole: boolean } {
+    const t = task.toLowerCase();
 
-Rules:
-1. Each sub-task must have a clear role: coding | english | rl | general-tool | architecture
-2. Mark if the task needs code context retrieval
-3. Mark if the task needs quality evaluation
-4. Keep sub-tasks minimal and focused
+    // 多角色需求（需要多视角协作）
+    if (/review.*refactor|audit.*fix|analyze.*improve|代码审查.*重构|审查.*优化/i.test(t)) {
+      return { roles: ["review", "coding"], needsMultiRole: true };
+    }
+    if (/research.*code|调研.*实现|investigate.*implement/i.test(t)) {
+      return { roles: ["research", "coding"], needsMultiRole: true };
+    }
 
-Output JSON only:
-{
-  "subTasks": [{"role": "...", "description": "...", "systemPrompt": "optional"}],
-  "needsCodeContext": boolean,
-  "needsEvaluation": boolean,
-  "needsArchitecture": boolean
-}`,
-      },
-      ...(history ?? []),
-      { role: "user", content: task },
-    ];
+    // 单角色需求
+    if (/refactor|重构|重构代码/i.test(t)) return { roles: ["coding"], needsMultiRole: false };
+    if (/review|audit|审查|评审|code review/i.test(t)) return { roles: ["review"], needsMultiRole: false };
+    if (/test|测试|unit test|spec/i.test(t)) return { roles: ["coding"], needsMultiRole: false };
+    if (/debug|fix|bug|修复|调试/i.test(t)) return { roles: ["coding"], needsMultiRole: false };
+    if (/architecture|design|架构|设计/i.test(t)) return { roles: ["decision"], needsMultiRole: false };
+    if (/explain|how|what|为什么|如何|解释/i.test(t)) return { roles: ["research"], needsMultiRole: false };
 
+    // 默认：编码任务
+    return { roles: ["coding"], needsMultiRole: false };
+  }
+
+  /**
+   * Retrieve: 按需检索上下文（Vault + CodeGraph）
+   */
+  private async retrieveContext(
+    task: string,
+    taskType: { roles: TaskRole[] },
+    opts?: { projectPath?: string }
+  ): Promise<{ vaultSnippets?: string[]; codeSymbols?: string[] } | null> {
+    const isCodeTask = taskType.roles.some((r) => r === "coding" || r === "review");
+    if (!isCodeTask) return null;
+
+    const context: { vaultSnippets?: string[]; codeSymbols?: string[] } = {};
+
+    // 检索代码记忆
     try {
-      const result = await router.decide(messages);
-      const parsed = this.extractJson(result.content ?? "{}");
-      return {
-        subTasks: parsed.subTasks ?? [],
-        needsCodeContext: parsed.needsCodeContext ?? false,
-        needsEvaluation: parsed.needsEvaluation ?? false,
-        needsArchitecture: parsed.needsArchitecture ?? false,
-      };
-    } catch (e: any) {
-      logger.error("[Orchestrator] Task decomposition failed", e);
-      // 回退：单任务直接执行
-      return {
-        subTasks: [{ role: "general-tool", description: task }],
-        needsCodeContext: false,
-        needsEvaluation: false,
-        needsArchitecture: false,
-      };
+      const cgMemory = await retrieveCodeMemory(task, { projectPath: opts?.projectPath });
+      if (cgMemory) {
+        context.codeSymbols = cgMemory.symbols.map((s) => `${s.node.name} (${s.node.kind})`);
+      }
+    } catch (e) {
+      logger.warn(`[Orchestrator] Code memory retrieval failed: ${e instanceof Error ? e.message : String(e)}`);
     }
+
+    return context.codeSymbols ? context : null;
   }
 
-  private buildSubTasks(
-    decomposition: {
-      subTasks: Array<{ role: ToolRole | "architecture"; description: string; systemPrompt?: string }>;
-      needsCodeContext: boolean;
-      needsEvaluation: boolean;
-      needsArchitecture: boolean;
-    },
-    codeContext: string
-  ): SubTask[] {
-    const tasks: SubTask[] = [];
-    let idCounter = 0;
+  /**
+   * 构建执行消息（注入检索到的上下文 + 宪法）
+   */
+  private buildMessages(
+    task: string,
+    context: { vaultSnippets?: string[]; codeSymbols?: string[] } | null,
+    history?: ChatMessage[]
+  ): ChatMessage[] {
+    const parts: string[] = [];
 
-    // 如需要架构设计，先执行
-    if (decomposition.needsArchitecture) {
-      tasks.push({
-        id: `arch-${idCounter++}`,
-        role: "architecture",
-        description: "Design system architecture",
-        messages: [
-          { role: "system", content: "You are a system architect. Design clean, scalable architecture." },
-          { role: "user", content: `Design architecture for: ${decomposition.subTasks.map((s) => s.description).join("\n")}` },
-        ],
-        priority: 0,
-      });
+    // 注入宪法提示词
+    const constitution = executionMode.getConstitutionPrompt();
+    parts.push(constitution);
+
+    if (context?.codeSymbols?.length) {
+      parts.push(`[Code Context]\n${context.codeSymbols.slice(0, 20).join("\n")}`);
+    }
+    if (context?.vaultSnippets?.length) {
+      parts.push(`[Related Notes]\n${context.vaultSnippets.slice(0, 5).join("\n---\n")}`);
     }
 
-    for (const st of decomposition.subTasks) {
-      const id = `task-${idCounter++}`;
-      const messages: ChatMessage[] = [
-        ...(st.systemPrompt ? [{ role: "system" as const, content: st.systemPrompt }] : []),
-        { role: "user" as const, content: codeContext ? `[Code Context]\n${codeContext}\n\n[Task]\n${st.description}` : st.description },
-      ];
+    parts.push(`[Task]\n${task}`);
 
-      tasks.push({
-        id,
-        role: st.role,
-        description: st.description,
-        messages,
-        priority: 1,
-        dependsOn: decomposition.needsArchitecture ? [tasks[0].id] : undefined,
-      });
-    }
-
-    return tasks.sort((a, b) => a.priority - b.priority);
+    return [
+      ...(history ?? []),
+      { role: "user", content: parts.join("\n\n") },
+    ];
   }
 
-  private async executeSubTask(subTask: SubTask): Promise<TaskResult> {
+  /**
+   * Execute (single): 单角色直接执行
+   */
+  private async executeSingle(role: TaskRole, messages: ChatMessage[]): Promise<TaskResult> {
     const start = Date.now();
     try {
-      let result;
-      switch (subTask.role) {
-        case "decision":
-          result = await router.decide(subTask.messages);
-          break;
-        case "architecture":
-          result = await router.architect(subTask.messages);
-          break;
-        case "evaluation":
-          result = await router.evaluate(subTask.messages);
-          break;
-        default:
-          result = await router.tool(subTask.role, subTask.messages);
-      }
-
+      const result = await router.executeWithRole(role, messages);
       return {
-        subTaskId: subTask.id,
+        subTaskId: role,
         content: result.content ?? "",
         model: result.model,
         provider: result.provider,
-        layer: result.layer ?? subTask.role,
+        layer: result.role ?? role,
         usage: result.usage,
         latencyMs: Date.now() - start,
       };
-    } catch (e: any) {
-      logger.error(`[Orchestrator] Sub-task ${subTask.id} failed`, e);
+    } catch (e) {
+      logger.error(`[Orchestrator] Single execution failed`, e instanceof Error ? e : new Error(String(e)));
       return {
-        subTaskId: subTask.id,
-        content: `Error: ${e.message}`,
+        subTaskId: role,
+        content: `Error: ${e instanceof Error ? e.message : String(e)}`,
         model: "error",
         provider: "error",
-        layer: subTask.role,
+        layer: role,
         latencyMs: Date.now() - start,
       };
     }
   }
 
-  private async evaluateResults(task: string, results: TaskResult[]): Promise<{ quality: number; feedback: string }> {
-    const evalMessages: ChatMessage[] = [
-      {
-        role: "system",
-        content:
-          "You are a quality evaluator. Rate the task completion quality from 0.0 to 1.0 and provide brief feedback.",
-      },
-      {
-        role: "user",
-        content: `Task: ${task}\n\nResults:\n${results.map((r) => `[${r.layer}] ${r.model}: ${r.content?.slice(0, 500)}`).join("\n---\n")}\n\nOutput JSON: { "quality": number, "feedback": string }`,
-      },
-    ];
+  /**
+   * Execute (multi-role): 顺序分配模型，避免不同角色使用同一实例
+   */
+  private async executeRoles(roles: TaskRole[], messages: ChatMessage[]): Promise<TaskResult[]> {
+    const usedModels: string[] = [];
+    const results: TaskResult[] = [];
 
-    try {
-      const result = await router.evaluate(evalMessages);
-      const parsed = this.extractJson(result.content ?? "{}");
-      return { quality: parsed.quality ?? 0.5, feedback: parsed.feedback ?? "" };
-    } catch {
-      return { quality: 0.5, feedback: "Evaluation failed" };
+    for (const role of roles) {
+      const start = Date.now();
+      try {
+        const result = await router.executeWithRole(role, messages, { excludeModels: usedModels });
+        usedModels.push(result.model);
+        results.push({
+          subTaskId: role,
+          content: result.content ?? "",
+          model: result.model,
+          provider: result.provider,
+          layer: result.role ?? role,
+          usage: result.usage,
+          latencyMs: Date.now() - start,
+        });
+      } catch (e) {
+        logger.error(`[Orchestrator] Role ${role} failed`, e instanceof Error ? e : new Error(String(e)));
+        results.push({
+          subTaskId: role,
+          content: `Error: ${e instanceof Error ? e.message : String(e)}`,
+          model: "error",
+          provider: "error",
+          layer: role,
+          latencyMs: Date.now() - start,
+        });
+      }
     }
+    return results;
   }
 
+  /**
+   * Output: 多角色结果汇总（单角色时跳过）
+   */
   private async synthesizeAnswer(task: string, results: TaskResult[], history?: ChatMessage[]): Promise<string> {
     const synthesisMessages: ChatMessage[] = [
       {
         role: "system",
-        content:
-          "You are a synthesis engine. Combine the sub-task results into a coherent, final answer for the user.",
+        content: "Combine the sub-task results into a coherent final answer.",
       },
       ...(history ?? []),
       {
         role: "user",
-        content: `Original task: ${task}\n\nSub-task results:\n${results
-          .map((r) => `### [${r.layer}] via ${r.model}\n${r.content ?? ""}`)
-          .join("\n\n")}\n\nPlease provide the final synthesized answer.`,
+        content: `Task: ${task}\n\nResults:\n${results
+          .map((r) => `### [${r.layer}] ${r.model}\n${r.content ?? ""}`)
+          .join("\n\n")}`,
       },
     ];
 
     try {
-      const result = await router.decide(synthesisMessages);
+      const result = await router.executeWithRole("decision", synthesisMessages);
       return result.content ?? "Synthesis failed";
     } catch {
-      // 回退：拼接所有结果
       return results.map((r) => r.content).filter(Boolean).join("\n\n---\n\n");
     }
   }
 
-  private groupByRole(tasks: SubTask[]): Record<string, SubTask[]> {
-    const groups: Record<string, SubTask[]> = {};
-    for (const t of tasks) {
-      const key = t.role;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(t);
-    }
-    return groups;
-  }
+  /**
+   * 多Agent并行执行 —— 使用智能任务分配矩阵
+   * 
+   * 将任务分解为多个角色，每个角色分配最优模型，并行执行。
+   * 适用于需要多视角协作的复杂任务（如深度研究、代码审查+重构）。
+   */
+  async executeMultiAgent(
+    task: string,
+    roles: TaskRole[],
+    opts?: { history?: ChatMessage[]; projectPath?: string }
+  ): Promise<OrchestratedResult> {
+    const startTime = Date.now();
 
-  private chunkArray<T>(arr: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < arr.length; i += size) {
-      chunks.push(arr.slice(i, i + size));
-    }
-    return chunks;
+    // Step 1: 为每个角色构建任务消息
+    const assignments: RoleAssignment[] = roles.map((role) => ({
+      role,
+      messages: [
+        {
+          role: "system",
+          content: `You are a ${role} specialist. Complete the following task to the best of your ability.`,
+        },
+        ...(opts?.history ?? []),
+        { role: "user", content: task },
+      ],
+    }));
+
+    logger.info("[Orchestrator] Multi-agent parallel execution", {
+      roles,
+      task: task.slice(0, 100),
+    });
+
+    // Step 2: 并行执行所有角色
+    const results = await router.batchExecute(assignments);
+
+    const subTaskResults: TaskResult[] = results.map((r, i) => ({
+      subTaskId: `agent-${roles[i]}`,
+      content: r.content,
+      model: r.model,
+      provider: r.provider,
+      layer: r.role,
+      usage: r.usage,
+      latencyMs: r.latency_ms ?? 0,
+    }));
+
+    const layersUsed = new Set(roles);
+
+    // Step 3: 汇总结果
+    const finalAnswer = await this.synthesizeAnswer(task, subTaskResults, opts?.history);
+
+    const totalLatencyMs = Date.now() - startTime;
+    const totalTokens = subTaskResults.reduce(
+      (sum, r) => sum + (r.usage?.total_tokens ?? 0),
+      0
+    );
+
+    return {
+      finalAnswer,
+      subTaskResults,
+      totalLatencyMs,
+      totalTokens,
+      layersUsed: [...layersUsed],
+    };
   }
 
   private extractJson(text: string): any {

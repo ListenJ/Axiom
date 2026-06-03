@@ -2,397 +2,247 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenClaw AI Agent v2.1 — Vault 核心记忆监控</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0b0f19">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<title>OpenClaw AI Agent — Vault 核心记忆</title>
 <style>
-  :root { --bg:#0b0f19; --card:#151b2b; --text:#e2e8f0; --muted:#64748b; --accent:#38bdf8; --success:#4ade80; --warn:#fbbf24; --danger:#f87171; --purple:#a78bfa; --orange:#fb923c; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
-  .container { max-width:1400px; margin:0 auto; padding:20px; }
-  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
-  h1 { font-size:1.5rem; }
-  .status-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px; background:#064e3b; color:var(--success); font-size:0.85rem; }
-  .status-badge.danger { background:#450a0a; color:var(--danger); }
-  .status-badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--success); animation:pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-bottom:24px; }
-  .card { background:var(--card); border-radius:12px; padding:20px; border:1px solid #1e293b; transition:border-color .2s; }
-  .card:hover { border-color:#334155; }
-  .card h2 { font-size:0.9rem; color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
-  .metric { font-size:2rem; font-weight:700; color:var(--accent); }
-  .metric-label { font-size:0.8rem; color:var(--muted); }
-  .list { list-style:none; }
-  .list li { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #1e293b; font-size:0.85rem; }
-  .list li:last-child { border-bottom:none; }
-  .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.7rem; background:#1e293b; }
-  .tag.ok { background:#064e3b; color:var(--success); }
-  .tag.warn { background:#451a03; color:var(--warn); }
-  .tag.off { background:#450a0a; color:var(--danger); }
-  .endpoint { font-family:monospace; font-size:0.8rem; color:var(--accent); background:#0c4a6e; padding:2px 8px; border-radius:4px; }
-  .refresh { position:fixed; bottom:20px; right:20px; padding:12px 20px; border-radius:999px; background:var(--accent); color:#0f172a; border:none; cursor:pointer; font-weight:600; box-shadow:0 4px 12px rgba(56,189,248,.3); }
-  .refresh:hover { transform:translateY(-2px); }
-  .section-title { font-size:1rem; margin:24px 0 12px; color:var(--muted); font-weight:600; }
-  table { width:100%; border-collapse:collapse; font-size:0.85rem; }
-  th, td { padding:10px; text-align:left; border-bottom:1px solid #1e293b; }
-  th { color:var(--muted); font-weight:500; }
-  td { color:var(--text); }
-  tr:hover td { background:#1e293b; }
-  .ws-status { display:inline-flex; align-items:center; gap:4px; font-size:0.8rem; color:var(--muted); }
-  .ws-dot { width:6px; height:6px; border-radius:50%; background:var(--muted); }
-  .ws-dot.connected { background:var(--success); animation:pulse 2s infinite; }
-  .live-badge { font-size:0.65rem; padding:1px 6px; border-radius:999px; background:var(--success); color:#064e3b; margin-left:8px; }
-  .event-log { max-height:200px; overflow-y:auto; font-size:0.8rem; font-family:monospace; }
-  .event-log .entry { padding:4px 0; border-bottom:1px solid #1e293b; }
-  .event-log .time { color:var(--muted); }
-  .event-log .type { color:var(--accent); }
-  .tab-nav { display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid #1e293b; padding-bottom:8px; }
-  .tab-nav button { background:none; border:none; color:var(--muted); padding:8px 16px; cursor:pointer; border-radius:6px; font-size:0.85rem; }
-  .tab-nav button.active { background:#1e293b; color:var(--text); }
-  .tab-panel { display:none; }
-  .tab-panel.active { display:block; }
-  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width: 768px) { .two-col { grid-template-columns:1fr; } }
-  .para-bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
-  .para-bar-label { width:80px; font-size:0.8rem; color:var(--muted); }
-  .para-bar-track { flex:1; height:20px; background:#1e293b; border-radius:4px; overflow:hidden; }
-  .para-bar-fill { height:100%; border-radius:4px; transition:width 0.5s ease; }
-  .para-bar-value { width:40px; text-align:right; font-size:0.8rem; }
-  .search-box { display:flex; gap:8px; margin-bottom:16px; }
-  .search-box input { flex:1; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 14px; color:var(--text); font-size:0.9rem; }
-  .search-box input:focus { outline:none; border-color:var(--accent); }
-  .search-box button { background:var(--accent); color:#0f172a; border:none; border-radius:8px; padding:10px 20px; font-weight:600; cursor:pointer; }
-  .search-result { padding:12px; border-radius:8px; background:#0f172a; margin-bottom:8px; border:1px solid #1e293b; }
-  .search-result:hover { border-color:#334155; }
-  .search-result .score { color:var(--accent); font-size:0.8rem; font-weight:600; }
-  .search-result .title { font-weight:600; margin:4px 0; }
-  .search-result .path { font-size:0.75rem; color:var(--muted); font-family:monospace; }
-  .search-result .reasons { font-size:0.75rem; color:var(--warn); margin-top:4px; }
-  .search-result .excerpt { font-size:0.8rem; color:var(--muted); margin-top:4px; }
-  .network-node { display:inline-block; padding:4px 10px; border-radius:999px; background:#1e293b; border:1px solid #334155; font-size:0.8rem; margin:2px; }
-  .network-node.center { background:#0c4a6e; border-color:var(--accent); color:var(--accent); }
-  .network-edge { color:var(--muted); font-size:0.75rem; margin:0 4px; }
+:root {
+  --bg: #0b0f19; --card: #151b2b; --text: #e2e8f0; --muted: #64748b;
+  --accent: #38bdf8; --success: #4ade80; --warn: #fbbf24; --danger: #f87171;
+  --purple: #a78bfa; --orange: #fb923c; --border: #1e293b; --hover: #334155;
+  --sidebar-w: 220px; --header-h: 56px;
+}
+[data-theme="light"] {
+  --bg: #f8fafc; --card: #fff; --text: #1e293b; --muted: #64748b;
+  --accent: #0284c7; --border: #e2e8f0; --hover: #f1f5f9;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6;
+  overflow-x: hidden; -webkit-font-smoothing: antialiased;
+}
+#app { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w); background: var(--card); border-right: 1px solid var(--border);
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+  transform: translateX(0); transition: transform 0.3s ease;
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.sidebar.closed { transform: translateX(-100%); }
+.sidebar-header {
+  padding: 16px; border-bottom: 1px solid var(--border); display: flex;
+  align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 700;
+}
+.sidebar-header .logo { font-size: 1.4rem; }
+.nav-items { flex: 1; padding: 8px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  color: var(--muted); font-size: 0.9rem; margin-bottom: 2px;
+}
+.nav-item:hover { background: var(--hover); color: var(--text); }
+.nav-item.active { background: var(--hover); color: var(--accent); }
+.nav-item .icon { font-size: 1.1rem; width: 22px; text-align: center; }
+.sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+.sidebar-footer .version { font-size: 0.7rem; color: var(--muted); text-align: center; }
+
+/* Overlay for mobile */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.overlay.show { opacity: 1; pointer-events: auto; }
+
+/* Header */
+.header {
+  height: var(--header-h); background: var(--card); border-bottom: 1px solid var(--border);
+  position: fixed; top: 0; left: var(--sidebar-w); right: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+  transition: left 0.3s;
+}
+.header.full { left: 0; }
+.header .left { display: flex; align-items: center; gap: 12px; }
+.hamburger {
+  display: none; width: 36px; height: 36px; border-radius: 8px;
+  background: var(--hover); border: none; color: var(--text); font-size: 1.2rem; cursor: pointer;
+}
+.header-title { font-size: 1rem; font-weight: 600; }
+.header .right { display: flex; align-items: center; gap: 8px; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.theme-btn, .refresh-btn {
+  width: 36px; height: 36px; border-radius: 8px; background: var(--hover);
+  border: none; color: var(--text); cursor: pointer; font-size: 1rem;
+}
+
+/* Main */
+.main {
+  margin-left: var(--sidebar-w); margin-top: var(--header-h);
+  padding: 20px; min-height: calc(100vh - var(--header-h));
+  transition: margin-left 0.3s; max-width: 1400px;
+}
+.main.full { margin-left: 0; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .hamburger { display: flex; align-items: center; justify-content: center; }
+  .header { left: 0; }
+  .main { margin-left: 0; padding: 12px; }
+  .sidebar { width: 260px; }
+}
+
+/* Common Components */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.card {
+  background: var(--card); border-radius: 12px; padding: 16px;
+  border: 1px solid var(--border); transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--hover); }
+.card h2 { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.metric { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+.metric-label { font-size: 0.75rem; color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: 8px; background: var(--accent); color: #fff; border: none;
+  cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.9; }
+.btn.secondary { background: var(--hover); color: var(--text); }
+.btn.small { padding: 6px 12px; font-size: 0.8rem; }
+.input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; color: var(--text); font-size: 0.9rem; outline: none;
+}
+.input:focus { border-color: var(--accent); }
+textarea.input { min-height: 120px; resize: vertical; font-family: inherit; }
+.select {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; color: var(--text); font-size: 0.85rem; outline: none;
+}
+.search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border-radius: 999px; font-size: 0.7rem; background: var(--hover);
+}
+.badge.ok { background: #064e3b; color: var(--success); }
+.badge.warn { background: #451a03; color: var(--warn); }
+.badge.danger { background: #450a0a; color: var(--danger); }
+
+/* Tabs */
+.tab-nav { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; overflow-x: auto; }
+.tab-nav button {
+  background: none; border: none; color: var(--muted); padding: 8px 14px;
+  cursor: pointer; border-radius: 6px; font-size: 0.85rem; white-space: nowrap;
+}
+.tab-nav button.active { background: var(--hover); color: var(--text); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Chat */
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - 140px); }
+.chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.msg {
+  max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem;
+  word-break: break-word;
+}
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg.assistant { align-self: flex-start; background: var(--hover); }
+.msg.system { align-self: center; font-size: 0.8rem; color: var(--muted); background: none; }
+.msg pre { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; margin-top: 6px; }
+.msg code { font-family: monospace; font-size: 0.85rem; }
+.chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+
+/* Search results */
+.result-item {
+  padding: 12px; border-radius: 8px; background: var(--bg); margin-bottom: 8px;
+  border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s;
+}
+.result-item:hover { border-color: var(--accent); }
+.result-item .score { color: var(--accent); font-size: 0.8rem; font-weight: 600; }
+.result-item .title { font-weight: 600; margin: 4px 0; }
+.result-item .path { font-size: 0.75rem; color: var(--muted); font-family: monospace; }
+.result-item .snippet { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+/* Vault */
+.vault-browser { display: grid; grid-template-columns: 250px 1fr; gap: 16px; }
+@media (max-width: 768px) { .vault-browser { grid-template-columns: 1fr; } }
+.vault-sidebar { background: var(--card); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
+.vault-sidebar h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+.vault-item { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.vault-item:hover { background: var(--hover); color: var(--text); }
+.vault-item.active { background: var(--hover); color: var(--accent); }
+.vault-content { background: var(--card); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
+
+/* Code Agent */
+.code-output { background: var(--bg); border-radius: 8px; padding: 12px; border: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; overflow-x: auto; white-space: pre-wrap; }
+.code-output .issue { color: var(--warn); }
+.code-output .suggestion { color: var(--success); }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--muted); }
+.spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--hover); }
+
+/* Bottom nav for mobile */
+.bottom-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--card); border-top: 1px solid var(--border);
+  z-index: 50; justify-content: space-around; padding: 6px 0;
+}
+.bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; color: var(--muted); font-size: 0.65rem; cursor: pointer; border: none; background: none; }
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-item .icon { font-size: 1.2rem; }
+@media (max-width: 768px) {
+  .bottom-nav { display: flex; }
+  .main { padding-bottom: 70px; }
+}
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <div>
-      <h1>🦅 OpenClaw AI Agent <span style="font-size:0.75rem;color:var(--muted)">v2.1</span></h1>
-      <div style="color:var(--muted);font-size:.85rem">Vault 核心记忆引擎 — 确定性推理</div>
+<div id="app">
+  <div class="overlay" id="overlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><span class="logo">🦅</span> OpenClaw</div>
+    <nav class="nav-items" id="navItems"></nav>
+    <div class="sidebar-footer"><div class="version">v2.2 · Vault 记忆引擎</div></div>
+  </aside>
+
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="left">
+      <button class="hamburger" id="hamburger">☰</button>
+      <span class="header-title" id="pageTitle">Dashboard</span>
     </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span class="ws-status"><span class="ws-dot" id="wsDot"></span><span id="wsText">离线</span></span>
-      <span class="status-badge" id="systemStatus">运行中</span>
+    <div class="right">
+      <span class="badge ok" id="connStatus"><span class="status-dot"></span> 在线</span>
+      <button class="theme-btn" id="themeBtn">🌙</button>
+      <button class="refresh-btn" onclick="location.reload()">⟳</button>
     </div>
   </header>
 
-  <div class="grid">
-    <div class="card">
-      <h2>🧠 Vault 记忆</h2>
-      <div class="metric" id="vaultNoteCount">—</div>
-      <div class="metric-label">笔记总数</div>
-      <ul class="list" id="vaultStats">
-        <li><span>加载中...</span></li>
-      </ul>
-    </div>
+  <!-- Main Content -->
+  <main class="main" id="main"><div id="pageContent"></div></main>
 
-    <div class="card">
-      <h2>📊 PARA 分布</h2>
-      <div id="paraDistribution" style="margin-top:8px">
-        <div class="para-bar"><span class="para-bar-label">加载中</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>🔍 搜索统计</h2>
-      <div class="metric" id="searchCount">—</div>
-      <div class="metric-label">累计搜索次数</div>
-      <div class="metric-label" style="margin-top:4px">缓存命中率: <span id="searchHitRate">—</span></div>
-    </div>
-
-    <div class="card">
-      <h2>🕸️ 爬取统计</h2>
-      <div class="metric" id="crawlCount">—</div>
-      <div class="metric-label">已爬取页面</div>
-      <div class="metric-label" style="margin-top:4px">缓存命中率: <span id="crawlHitRate">—</span></div>
-    </div>
-
-    <div class="card">
-      <h2>🌐 系统状态</h2>
-      <div class="metric" id="platformCount">—</div>
-      <div class="metric-label">可用平台 / 引擎</div>
-      <ul class="list" id="engineList"><li><span>加载中...</span></li></ul>
-    </div>
-
-    <div class="card">
-      <h2>📡 文件监视</h2>
-      <div class="metric" id="watchStatus">—</div>
-      <div class="metric-label">监视目录数</div>
-      <ul class="list">
-        <li><span>Vault 自动索引</span><span class="tag ok" id="watchBadge">运行中</span></li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="section-title">🔎 Vault 记忆搜索</div>
-  <div class="card">
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="输入关键词搜索 Vault..." onkeydown="if(event.key==='Enter')doSearch()">
-      <button onclick="doSearch()">搜索</button>
-    </div>
-    <div id="searchResults"></div>
-  </div>
-
-  <div class="section-title">📝 系统日志</div>
-  <div class="card">
-    <div class="event-log" id="eventLog"><div class="entry"><span class="time">--:--:--</span> 等待连接...</div></div>
-  </div>
-
-  <div class="section-title">📡 API 端点</div>
-  <div class="card">
-    <div class="tab-nav">
-      <button class="active" onclick="switchTab('tab-core',this)">核心</button>
-      <button onclick="switchTab('tab-vault',this)">Vault</button>
-      <button onclick="switchTab('tab-kg',this)">知识图谱</button>
-      <button onclick="switchTab('tab-ws',this)">WebSocket</button>
-    </div>
-    <div class="tab-panel active" id="tab-core">
-      <table>
-        <thead><tr><th>端点</th><th>方法</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="endpoint">/health</span></td><td>GET</td><td>健康检查 + 平台状态</td></tr>
-          <tr><td><span class="endpoint">/chat</span></td><td>POST</td><td>模型聊天</td></tr>
-          <tr><td><span class="endpoint">/search?q=</span></td><td>GET</td><td>Vault 确定性记忆搜索</td></tr>
-          <tr><td><span class="endpoint">/web-search?q=</span></td><td>GET</td><td>多引擎搜索（带缓存）</td></tr>
-          <tr><td><span class="endpoint">/web-fetch?url=</span></td><td>GET</td><td>结构化抓取（带缓存）</td></tr>
-          <tr><td><span class="endpoint">/bootstrap?topic=</span></td><td>GET</td><td>Agent 启动记忆加载</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="tab-panel" id="tab-vault">
-      <table>
-        <thead><tr><th>端点</th><th>方法</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="endpoint">/vault/stats</span></td><td>GET</td><td>Vault 统计</td></tr>
-          <tr><td><span class="endpoint">/vault/para/:category</span></td><td>GET</td><td>PARA 分类浏览</td></tr>
-          <tr><td><span class="endpoint">/vault/tags/:tag</span></td><td>GET</td><td>标签浏览</td></tr>
-          <tr><td><span class="endpoint">/vault/network/:path</span></td><td>GET</td><td>笔记关联网络</td></tr>
-          <tr><td><span class="endpoint">/vault/note?path=</span></td><td>GET</td><td>读取笔记</td></tr>
-          <tr><td><span class="endpoint">/vault/write</span></td><td>POST</td><td>写入笔记</td></tr>
-          <tr><td><span class="endpoint">/vault/atomic</span></td><td>POST</td><td>原子笔记</td></tr>
-          <tr><td><span class="endpoint">/vault/distill</span></td><td>POST</td><td>记忆蒸馏</td></tr>
-          <tr><td><span class="endpoint">/vault/code-index</span></td><td>POST</td><td>索引代码</td></tr>
-          <tr><td><span class="endpoint">/vault/reload</span></td><td>POST</td><td>重建索引</td></tr>
-          <tr><td><span class="endpoint">/vault/watch-status</span></td><td>GET</td><td>文件监视器状态</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="tab-panel" id="tab-kg">
-      <table>
-        <thead><tr><th>端点</th><th>方法</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="endpoint">/kg/stats</span></td><td>GET</td><td>KG 统计</td></tr>
-          <tr><td><span class="endpoint">/kg/centrality</span></td><td>GET</td><td>度中心性 Top N</td></tr>
-          <tr><td><span class="endpoint">/kg/search?q=</span></td><td>GET</td><td>实体搜索</td></tr>
-          <tr><td><span class="endpoint">/kg/entities</span></td><td>GET/POST</td><td>实体列表/创建</td></tr>
-          <tr><td><span class="endpoint">/kg/entities/:id</span></td><td>GET</td><td>实体详情</td></tr>
-          <tr><td><span class="endpoint">/kg/relationships</span></td><td>POST</td><td>创建关系</td></tr>
-          <tr><td><span class="endpoint">/kg/bfs/:id</span></td><td>GET</td><td>BFS 子图遍历</td></tr>
-          <tr><td><span class="endpoint">/kg/path?from=&to=</span></td><td>GET</td><td>最短路径</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="tab-panel" id="tab-ws">
-      <table>
-        <thead><tr><th>事件类型</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="endpoint">system.status</span></td><td>系统状态变更</td></tr>
-          <tr><td><span class="endpoint">search.completed</span></td><td>搜索完成</td></tr>
-          <tr><td><span class="endpoint">crawl.completed</span></td><td>爬取完成</td></tr>
-          <tr><td><span class="endpoint">vault_change</span></td><td>Vault 文件变更</td></tr>
-          <tr><td><span class="endpoint">model.usage</span></td><td>模型调用</td></tr>
-          <tr><td><span class="endpoint">heartbeat</span></td><td>系统心跳</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="section-title">📝 最近搜索</div>
-  <div class="card">
-    <table>
-      <thead><tr><th>时间</th><th>查询</th><th>引擎</th><th>结果数</th></tr></thead>
-      <tbody id="recentSearches"><tr><td colspan="4" style="text-align:center;color:var(--muted)">暂无数据</td></tr></tbody>
-    </table>
-  </div>
+  <!-- Bottom Navigation (mobile) -->
+  <nav class="bottom-nav" id="bottomNav"></nav>
 </div>
 
-<button class="refresh" onclick="location.reload()">🔄 刷新</button>
-
-<script>
-const API_BASE = '';
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
-let ws = null;
-const eventLog = document.getElementById('eventLog');
-
-function addLog(type, text) {
-  const time = new Date().toLocaleTimeString('zh-CN', {hour12:false});
-  const entry = document.createElement('div');
-  entry.className = 'entry';
-  entry.innerHTML = `<span class="time">${time}</span> <span class="type">[${type}]</span> ${text}`;
-  eventLog.insertBefore(entry, eventLog.firstChild);
-  while (eventLog.children.length > 50) eventLog.removeChild(eventLog.lastChild);
-}
-
-function connectWs() {
-  ws = new WebSocket(WS_URL);
-  ws.onopen = () => {
-    document.getElementById('wsDot').classList.add('connected');
-    document.getElementById('wsText').textContent = '实时连接';
-    ws.send(JSON.stringify({ action: 'subscribe', types: ['system.status','search.completed','crawl.completed','vault_change','model.usage','heartbeat'] }));
-    addLog('WS', 'WebSocket 已连接');
-  };
-  ws.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'vault_change') {
-        addLog('VAULT', `${msg.payload.type}: ${msg.payload.file}`);
-        fetchData();
-      } else if (msg.type === 'search.completed') {
-        addLog('SEARCH', `"${msg.payload.query}" → ${msg.payload.resultCount} 条`);
-        fetchData();
-      } else if (msg.type === 'crawl.completed') {
-        addLog('CRAWL', msg.payload.title || msg.payload.url);
-      } else if (msg.type === 'model.usage') {
-        addLog('MODEL', `${msg.payload.provider}/${msg.payload.taskType}`);
-      }
-    } catch {}
-  };
-  ws.onclose = () => {
-    document.getElementById('wsDot').classList.remove('connected');
-    document.getElementById('wsText').textContent = '重连中...';
-    setTimeout(connectWs, 5000);
-  };
-}
-
-async function fetchData() {
-  try {
-    const health = await fetch(`${API_BASE}/health`).then(r => r.json()).catch(() => null);
-    if (health) {
-      document.getElementById('systemStatus').textContent = health.status === 'ok' ? '运行中' : '异常';
-      if (health.status !== 'ok') document.getElementById('systemStatus').className = 'status-badge danger';
-      if (health.searchEngines) {
-        const avail = health.searchEngines.filter(e => e.available).length;
-        document.getElementById('platformCount').textContent = `${avail}/${health.searchEngines.length}`;
-        document.getElementById('engineList').innerHTML = health.searchEngines.map(e =>
-          `<li><span>${e.name}</span><span class="tag ${e.available ? 'ok' : 'off'}">${e.available ? '可用' : '未配置'}</span></li>`
-        ).join('');
-      }
-      if (health.vault) {
-        document.getElementById('vaultNoteCount').textContent = health.vault.notes;
-      }
-      if (health.cache) {
-        document.getElementById('searchHitRate').textContent = health.cache.search?.hitRate ? (health.cache.search.hitRate*100).toFixed(1)+'%' : '—';
-        document.getElementById('crawlHitRate').textContent = health.cache.crawl?.hitRate ? (health.cache.crawl.hitRate*100).toFixed(1)+'%' : '—';
-      }
-    }
-
-    const stats = await fetch(`${API_BASE}/stats`).then(r => r.json()).catch(() => null);
-    if (stats) {
-      document.getElementById('searchCount').textContent = stats.searchCount ?? '—';
-      document.getElementById('crawlCount').textContent = stats.crawlCount ?? '—';
-    }
-
-    const vstats = await fetch(`${API_BASE}/vault/stats`).then(r => r.json()).catch(() => null);
-    if (vstats) {
-      document.getElementById('vaultNoteCount').textContent = vstats.totalNotes;
-      document.getElementById('vaultStats').innerHTML = `
-        <li><span>总词数</span><span>${vstats.totalWords.toLocaleString()}</span></li>
-        <li><span>标签数</span><span>${vstats.totalTags}</span></li>
-        <li><span>wiki-link</span><span>${vstats.totalLinks}</span></li>
-      `;
-      renderPara(vstats.paraDistribution);
-    }
-
-    const watch = await fetch(`${API_BASE}/vault/watch-status`).then(r => r.json()).catch(() => null);
-    if (watch) {
-      document.getElementById('watchStatus').textContent = watch.watchedDirectories;
-      document.getElementById('watchBadge').textContent = watch.watching ? '运行中' : '已停止';
-      document.getElementById('watchBadge').className = 'tag ' + (watch.watching ? 'ok' : 'off');
-    }
-
-    const recent = await fetch(`${API_BASE}/searches/recent?limit=10`).then(r => r.json()).catch(() => null);
-    if (recent?.searches?.length) {
-      document.getElementById('recentSearches').innerHTML = recent.searches.map(s => {
-        const d = new Date(s.created_at);
-        const time = `${d.getMonth()+1}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
-        return `<tr><td>${time}</td><td>${s.query}</td><td>${s.engines || 'default'}</td><td>${s.results_count}</td></tr>`;
-      }).join('');
-    }
-  } catch (e) {
-    console.error('Fetch error:', e);
-  }
-}
-
-function renderPara(distribution) {
-  const colors = {
-    project: '#38bdf8', area: '#a78bfa', resource: '#4ade80',
-    conversation: '#fb923c', archive: '#94a3b8', meta: '#fbbf24',
-    task: '#f87171', uncategorized: '#64748b'
-  };
-  const labels = {
-    project: 'Projects', area: 'Areas', resource: 'Resources',
-    conversation: 'Conversations', archive: 'Archives', meta: 'Meta',
-    task: 'Tasks', uncategorized: '其他'
-  };
-  const total = Object.values(distribution).reduce((a,b) => a+b, 0);
-  const container = document.getElementById('paraDistribution');
-  container.innerHTML = Object.entries(distribution).sort((a,b) => b[1]-a[1]).map(([type, count]) => {
-    const pct = total > 0 ? (count/total*100).toFixed(1) : 0;
-    return `
-      <div class="para-bar">
-        <span class="para-bar-label">${labels[type] || type}</span>
-        <div class="para-bar-track"><div class="para-bar-fill" style="width:${pct}%;background:${colors[type] || '#64748b'}"></div></div>
-        <span class="para-bar-value">${count}</span>
-      </div>`;
-  }).join('');
-}
-
-async function doSearch() {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
-  const container = document.getElementById('searchResults');
-  container.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">搜索中...</div>';
-  try {
-    const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&limit=10`);
-    const data = await res.json();
-    if (!data.results?.length) {
-      container.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">无结果</div>';
-      return;
-    }
-    container.innerHTML = data.results.map(r => `
-      <div class="search-result">
-        <div class="score">得分: ${r.score.toFixed(1)}</div>
-        <div class="title">${r.note.title}</div>
-        <div class="path">${r.note.path}</div>
-        <div class="reasons">${r.reasons.join(' · ')}</div>
-        <div class="excerpt">${r.excerpt}</div>
-      </div>
-    `).join('');
-  } catch (e) {
-    container.innerHTML = '<div style="color:var(--danger);padding:20px;text-align:center">搜索失败</div>';
-  }
-}
-
-function switchTab(id, btn) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  btn.classList.add('active');
-}
-
-fetchData();
-connectWs();
-setInterval(fetchData, 30000);
-</script>
+<script src="/app.js"></script>
 </body>
 </html>
