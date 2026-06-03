@@ -13,6 +13,7 @@ import { searchAggregator } from "../crawl/search-engines.js";
 import { SerpApiClient } from "../crawl/serpapi-client.js";
 import { VaultManager } from "../memory/vault-manager.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 import {
   openCodeSession,
   checkOpenCode,
@@ -327,11 +328,11 @@ registry.add({
         `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
-          args.query,
+          args.query as string,
           String(Bun.hash(args.query as string)),
           "serpapi:google",
-          (response as any).organic_results?.length ?? 0,
-          (response as any).organic_results?.[0]?.link || null,
+          response.organic_results?.length ?? 0,
+          (response.organic_results?.[0]?.link as string | null) ?? null,
           latency,
           Date.now(),
         ]
@@ -340,14 +341,14 @@ registry.add({
 
     return {
       query: args.query,
-      search_id: (response as any).search_metadata?.id,
-      organic_count: (response as any).organic_results?.length ?? 0,
-      knowledge_graph: !!(response as any).knowledge_graph,
-      related_questions: (response as any).related_questions?.length ?? 0,
-      related_searches: (response as any).related_searches?.length ?? 0,
-      images: (response as any).images_results?.length ?? 0,
-      videos: (response as any).videos_results?.length ?? 0,
-      news: (response as any).news_results?.length ?? 0,
+      search_id: response.search_metadata?.id ?? null,
+      organic_count: response.organic_results?.length ?? 0,
+      knowledge_graph: !!response.knowledge_graph,
+      related_questions: response.related_questions?.length ?? 0,
+      related_searches: response.related_searches?.length ?? 0,
+      images: response.images_results?.length ?? 0,
+      videos: response.videos_results?.length ?? 0,
+      news: response.news_results?.length ?? 0,
       latency_ms: latency,
       vault_path: vaultPath || null,
     };
@@ -387,7 +388,7 @@ registry.add({
       latencyMs: searchLatency,
     });
 
-    const organic = ((response as any).organic_results || []).slice(0, Math.min((args.crawlTopN as number) || 3, 10));
+    const organic = (response.organic_results || []).slice(0, Math.min((args.crawlTopN as number) || 3, 10));
     const crawled: Array<{ url: string; title: string; success: boolean; error?: string }> = [];
 
     for (const item of organic) {
@@ -400,8 +401,8 @@ registry.add({
         } else {
           crawled.push({ url: item.link, title: item.title || item.link, success: false, error: "Crawl returned null" });
         }
-      } catch (e: any) {
-        crawled.push({ url: item.link, title: item.title || item.link, success: false, error: e.message });
+      } catch (e: unknown) {
+        crawled.push({ url: item.link, title: item.title || item.link, success: false, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -409,13 +410,13 @@ registry.add({
       db.run(
         `INSERT INTO search_history (query, query_hash, engines, results_count, top_result_url, latency_ms, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [args.query, String(Bun.hash(args.query as string)), "serpapi:google+crawl", organic.length, organic[0]?.link || null, searchLatency, Date.now()]
+        [args.query as string, String(Bun.hash(args.query as string)), "serpapi:google+crawl", organic.length, (organic[0]?.link as string | null) ?? null, searchLatency, Date.now()]
       );
     } catch { /* ignore */ }
 
     return {
       query: args.query,
-      search_id: (response as any).search_metadata?.id,
+      search_id: response.search_metadata?.id ?? null,
       search_vault_path: vaultPath,
       organic_count: organic.length,
       crawled_count: crawled.filter((c) => c.success).length,
@@ -567,9 +568,9 @@ registry.add({
       return { error: "Only SELECT queries are allowed" };
     }
     try {
-      return db.query(args.sql as string).all(...(args.params as any[] || []));
-    } catch (e: any) {
-      return { error: e.message };
+      return db.query(args.sql as string).all(...((args.params || []) as (string | number | boolean | null)[]));
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   },
 });
@@ -1148,7 +1149,7 @@ if (transport === "stdio") {
           try {
             const result = await withTimeout(
               withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
-              30000
+              TIMEOUTS.MCP_TOOL_DEFAULT
             );
             return Response.json({
               jsonrpc: "2.0", id: body.id,

@@ -6,7 +6,6 @@ import { describe, test, expect, beforeEach } from "bun:test";
 import {
   withRetry,
   CircuitBreaker,
-  CircuitOpenError,
   withFallback,
   withTimeout,
   HealthMonitor,
@@ -14,6 +13,7 @@ import {
   isRetryableError,
   getCircuitBreaker,
 } from "../src/utils/resilience.js";
+import { CircuitOpenError } from "../src/utils/errors.js";
 
 describe("withRetry", () => {
   test("succeeds on first attempt", async () => {

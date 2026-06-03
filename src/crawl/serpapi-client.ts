@@ -223,9 +223,9 @@ export class SerpApiClient {
       });
 
       return data;
-    } catch (e: any) {
+    } catch (e: unknown) {
       clearTimeout(timer);
-      logger.error("[SerpAPI] Request failed", e, { query: params.q });
+      logger.error("[SerpAPI] Request failed", e instanceof Error ? e : new Error(String(e)), { query: params.q });
       throw e;
     }
   }
@@ -244,8 +244,8 @@ export class SerpApiClient {
       try {
         const res = await this.search(params);
         results.push(res);
-      } catch (e: any) {
-        logger.warn("[SerpAPI] Batch item failed", { q: params.q, error: e.message });
+      } catch (e: unknown) {
+        logger.warn("[SerpAPI] Batch item failed", { q: params.q, error: e instanceof Error ? e.message : String(e) });
       }
       if (results.length < queries.length) {
         await new Promise((r) => setTimeout(r, delay));
@@ -262,8 +262,8 @@ export class SerpApiClient {
       // 使用一个无害的查询测试连通性
       await this.search({ q: "test", num: 1 });
       return { ok: true, latency: Math.round(performance.now() - start) };
-    } catch (e: any) {
-      return { ok: false, latency: Math.round(performance.now() - start), error: e.message };
+    } catch (e: unknown) {
+      return { ok: false, latency: Math.round(performance.now() - start), error: e instanceof Error ? e.message : String(e) };
     }
   }
 }

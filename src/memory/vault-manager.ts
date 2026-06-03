@@ -139,8 +139,8 @@ export class VaultManager {
       const content = fs.readFileSync(fullPath, "utf-8");
       const { frontmatter, body } = this.parseFrontmatter(content);
       return { content: body, frontmatter };
-    } catch (e: any) {
-      logger.warn("readNote failed", { path: notePath, error: e.message });
+    } catch (e) {
+      logger.warn("readNote failed", { path: notePath, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }
@@ -572,8 +572,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
       this.engine.reload(this.config.vaultPath);
       logger.info("Code indexed to Vault", { indexed: entries.length });
       return { indexed: entries.length, errors };
-    } catch (e: any) {
-      errors.push(e.message);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
       return { indexed: 0, errors };
     }
   }
@@ -587,8 +587,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
         return true;
       }
       return false;
-    } catch (e: any) {
-      logger.warn("Code index failed", { file: filePath, error: e.message });
+    } catch (e) {
+      logger.warn("Code index failed", { file: filePath, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
   }

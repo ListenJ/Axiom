@@ -124,9 +124,10 @@ export async function createSnapshot(
         message: commitMsg,
         timestamp,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       // If nothing to commit, still return success
-      if (e.stdout?.includes("nothing to commit") || e.stderr?.includes("nothing to commit")) {
+      const execError = e as { stdout?: string; stderr?: string };
+      if (execError.stdout?.includes("nothing to commit") || execError.stderr?.includes("nothing to commit")) {
         return {
           success: true,
           message: commitMsg,

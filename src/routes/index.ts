@@ -10,6 +10,7 @@ import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpe
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
+import { handleProxies } from "./proxies.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -21,6 +22,7 @@ const handlers: RouteHandler[] = [
   handleStats,
   handleCacheStats,
   handleEngines,
+  handleProxies,
   handleMemoryGateStats,
   handleTrends,
   handleConfig,
@@ -64,6 +66,8 @@ const handlers: RouteHandler[] = [
   handleKimiChat,
   handleKimiOpen,
   handleHermesTask,
+  // Proxies
+  handleProxies,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
   // Scene Router (MCP 场景驱动工具调用)
@@ -87,7 +91,7 @@ export async function dispatch(ctx: RouteContext): Promise<Response | null> {
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
   return ctx.jsonResponse({
-    name: "OpenClaw AI Agent", version: "2.1.0",
+    name: "OpenClaw AI Agent", version: "2.2.0",
     uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
     endpoints: [
       "GET  /                        — Dashboard",

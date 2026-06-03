@@ -18,6 +18,7 @@ import { Database } from "bun:sqlite";
 import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 export interface TokenUsageRecord {
   timestamp: number;
@@ -67,12 +68,56 @@ interface BufferEntry extends TokenUsageRecord {
   id?: number;
 }
 
+/** SQLite 查询结果行类型 */
+interface StatsRow {
+  total_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  avg_latency: number;
+  avg_tokens: number;
+  success_rate: number;
+  fallback_rate: number;
+}
+
+interface ModelStatsRow extends StatsRow {
+  model: string;
+  provider: string;
+}
+
+interface RoleStatsRow extends StatsRow {
+  role: string;
+}
+
+interface DailyStatsRow {
+  date: string;
+  total_calls: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
+interface UsageRecordRow {
+  timestamp: number;
+  model: string;
+  provider: string;
+  role: string | null;
+  task_type: string | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+  content_length: number;
+  success: number;
+  fallback_used: number;
+}
+
 export class TokenTracker {
   private db: Database;
   private buffer: BufferEntry[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private maxBufferSize = 50;
-  private flushIntervalMs = 30000; // 30 秒自动刷盘
+  private flushIntervalMs = TIMEOUTS.TOKEN_TRACKER_FLUSH; // 30 秒自动刷盘
   private dbPath: string;
 
   constructor(dbPath = "./data/token-usage.db") {
@@ -185,7 +230,7 @@ export class TokenTracker {
         COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate
       FROM token_usage
       ${where}
-    `).get(params) as any;
+    `).get(params) as StatsRow;
 
     return {
       totalCalls: row.total_calls,
@@ -223,7 +268,7 @@ export class TokenTracker {
       GROUP BY model, provider
       ORDER BY total_tokens DESC
       LIMIT ${limit}
-    `).all(params) as any[];
+    `).all(params) as ModelStatsRow[];
 
     return rows.map((r) => ({
       model: r.model,
@@ -262,7 +307,7 @@ export class TokenTracker {
       GROUP BY role
       ORDER BY total_tokens DESC
       LIMIT ${limit}
-    `).all(params) as any[];
+    `).all(params) as RoleStatsRow[];
 
     return rows.map((r) => ({
       role: r.role,
@@ -290,7 +335,7 @@ export class TokenTracker {
       WHERE timestamp >= strftime('%s', 'now', '-${days} days')
       GROUP BY date
       ORDER BY date DESC
-    `).all() as any[];
+    `).all() as DailyStatsRow[];
 
     return rows.map((r) => ({
       date: r.date,
@@ -311,7 +356,7 @@ export class TokenTracker {
       FROM token_usage
       ORDER BY timestamp DESC
       LIMIT ${limit}
-    `).all() as any[];
+    `).all() as UsageRecordRow[];
 
     return rows.map((r) => ({
       timestamp: r.timestamp,

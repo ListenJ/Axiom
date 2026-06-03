@@ -90,9 +90,9 @@ export async function kimiCodeChat(options: {
       content: data.choices?.[0]?.message?.content ?? null,
       usage: data.usage,
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     clearTimeout(timer);
-    if (e.name === "AbortError") {
+    if (e instanceof Error && e.name === "AbortError") {
       throw new Error("Kimi Code API 请求超时");
     }
     throw e;

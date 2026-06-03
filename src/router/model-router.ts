@@ -12,6 +12,7 @@ import { toolPool, type ToolRole } from "./tool-pool.js";
 import { assignModel, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
 import { PROVIDER_CONFIG, findModelsForRole, getFallbackChain, type UnifiedModel } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -166,18 +167,19 @@ class MultiPlatformRouter {
       const startTime = Date.now();
 
       try {
-        const response = await callProvider(model.provider, model.id, messages, 30000);
+        const response = await callProvider(model.provider, model.id, messages, TIMEOUTS.API_DEFAULT);
         const latencyMs = Date.now() - startTime;
         toolPool.recordLatency(model.id, latencyMs);
         toolPool.markRequestSuccess(model.id);
         const result: ChatResponse = { ...response, model: model.id, provider: model.provider, layer: "tool" };
         trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: "tool" });
         return result;
-      } catch (error: any) {
-        toolPool.markRequestFailure(model.id, error.message);
-        lastError = error;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        toolPool.markRequestFailure(model.id, msg);
+        lastError = error instanceof Error ? error : new Error(String(error));
         trackCall(model.id, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role, taskType: "tool" });
-        logger.warn(`[Router] Tool ${model.id} failed (attempt ${attempt + 1})`, { error: error.message });
+        logger.warn(`[Router] Tool ${model.id} failed (attempt ${attempt + 1})`, { error: msg });
         await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
       }
     }
@@ -197,7 +199,7 @@ class MultiPlatformRouter {
   }
 
   async chat(taskType: string, messages: ChatMessage[]): Promise<ChatResponse> {
-    const models = findModelsForRole(taskType as any);
+    const models = findModelsForRole(taskType as TaskRole);
     if (models.length === 0) throw new Error(`Unknown task type: ${taskType}`);
 
     const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
@@ -210,8 +212,9 @@ class MultiPlatformRouter {
         const result: ChatResponse = { content: response.content, model: model.model, provider: model.provider, usage: response.usage, layer: "general" };
         trackCall(model.model, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role: taskType, taskType });
         return result;
-      } catch (error: any) {
-        logger.warn(`[Router] Route failed ${model.provider}/${model.model}`, { error: error.message });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.warn(`[Router] Route failed ${model.provider}/${model.model}`, { error: msg });
         trackCall(model.model, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role: taskType, taskType });
       }
     }
@@ -352,7 +355,7 @@ class MultiPlatformRouter {
   }
 
   async embeddings(texts: string[]): Promise<number[][]> {
-    const models = findModelsForRole("embedding" as any);
+    const models = findModelsForRole("embedding" as TaskRole);
     if (models.length === 0) throw new Error("No embedding route configured");
     const model = models[0];
 
@@ -439,7 +442,7 @@ class MultiPlatformRouter {
 
   private async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
     try {
-      const response = await callProvider("openrouter", "qwen/qwen3-0309-coder:free", messages, 30000);
+      const response = await callProvider("openrouter", "qwen/qwen3-0309-coder:free", messages, TIMEOUTS.API_DEFAULT);
       return {
         role,
         model: "qwen/qwen3-0309-coder:free",

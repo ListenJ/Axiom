@@ -109,8 +109,8 @@ function extractAgentMeta(filePath: string, baseDir: string): AgentMeta | null {
       vibe: frontmatter.vibe?.trim() || frontmatter.personality?.trim() || "",
       tools: frontmatter.tools?.trim() || "",
     };
-  } catch (e: any) {
-    logger.warn("[AgentDiscovery] Failed to parse file", { file: filePath, message: e.message });
+  } catch (e: unknown) {
+    logger.warn("[AgentDiscovery] Failed to parse file", { file: filePath, message: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

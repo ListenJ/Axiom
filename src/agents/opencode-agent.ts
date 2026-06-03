@@ -285,8 +285,8 @@ ${content}
     });
     logger.info("[CodeAgent] Result saved to Vault", { path, type, model: metadata.model });
     return path;
-  } catch (e: any) {
-    logger.warn("[CodeAgent] Failed to save to Vault", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("[CodeAgent] Failed to save to Vault", { error: e instanceof Error ? e.message : String(e) });
     return notePath;
   }
 }

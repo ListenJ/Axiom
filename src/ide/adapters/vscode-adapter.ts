@@ -152,8 +152,8 @@ export class VSCodeAdapter implements IdeAdapter {
         const parsed: VSCodeMessage = JSON.parse(msg);
         this.processMessage(parsed);
       }
-    } catch (error: any) {
-      logger.error("[VSCodeAdapter] Failed to parse message", error);
+    } catch (error: unknown) {
+      logger.error("[VSCodeAdapter] Failed to parse message", error instanceof Error ? error : undefined);
     }
   }
 
@@ -167,7 +167,7 @@ export class VSCodeAdapter implements IdeAdapter {
                message.method === "refactor" || message.method === "explain" || 
                message.method === "fix") {
       this.handleAction({
-        type: message.method as any,
+        type: message.method as IdeAction["type"],
         context: message.params?.context as CodeContext,
         params: message.params,
       }).then((result) => {

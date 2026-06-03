@@ -112,8 +112,8 @@ export class SceneRouter {
             const params = this.buildParams(input, toolName, context);
             const result = await handler(params);
             return { tool: toolName, success: true, result };
-          } catch (e: any) {
-            return { tool: toolName, success: false, result: null, error: e.message };
+          } catch (e: unknown) {
+            return { tool: toolName, success: false, result: null, error: e instanceof Error ? e.message : String(e) };
           }
         })
       );
@@ -130,8 +130,8 @@ export class SceneRouter {
           const params = this.buildParams(input, toolName, context);
           const result = await handler(params);
           executed.push({ tool: toolName, success: true, result });
-        } catch (e: any) {
-          executed.push({ tool: toolName, success: false, result: null, error: e.message });
+        } catch (e: unknown) {
+          executed.push({ tool: toolName, success: false, result: null, error: e instanceof Error ? e.message : String(e) });
         }
       }
     }
@@ -174,6 +174,11 @@ export class SceneRouter {
       description: s.description,
       tools: s.tools,
     }));
+  }
+
+  /** 获取单个场景详情 */
+  getScene(id: string): Scene | null {
+    return this.scenes.find(s => s.id === id) || null;
   }
 }
 

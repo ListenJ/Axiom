@@ -15,10 +15,10 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     let codegraphContext = "";
 
     if (enableIntent !== false && messages.length > 0) {
-      const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
+      const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
       if (lastUserMsg?.content) {
         const { buildAgentMessages } = await import("../agents/intent-router.js");
-        const history = messages.slice(0, -1).filter((m: any) => m.role !== "system");
+        const history = messages.slice(0, -1).filter((m: { role: string; content: string }) => m.role !== "system");
         const { intent, messages: agentMessages } = buildAgentMessages(lastUserMsg.content, history);
         chatMessages = agentMessages;
         intentInfo = intent;
@@ -32,7 +32,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
               codegraphContext = cgResult.results.slice(0, 3000);
               chatMessages = [
                 { role: "system", content: `[CodeGraph Context]\n${codegraphContext}` },
-                ...chatMessages.filter((m: any) => m.role !== "system"),
+                ...chatMessages.filter((m: { role: string; content: string }) => m.role !== "system"),
               ];
             }
           } catch { /* ignore codegraph errors */ }

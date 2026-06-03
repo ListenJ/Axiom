@@ -165,11 +165,11 @@ export class DirectToolCaller {
         latencyMs: Math.round(performance.now() - startTime),
         fallbackNeeded: false,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
         tool: classification.tool,
-        result: { error: error.message },
+        result: { error: error instanceof Error ? error.message : String(error) },
         latencyMs: Math.round(performance.now() - startTime),
         fallbackNeeded: true,
       };
@@ -200,11 +200,11 @@ export class DirectToolCaller {
         latencyMs: Math.round(performance.now() - startTime),
         fallbackNeeded: false,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
         tool: toolName,
-        result: { error: error.message },
+        result: { error: error instanceof Error ? error.message : String(error) },
         latencyMs: Math.round(performance.now() - startTime),
         fallbackNeeded: true,
       };

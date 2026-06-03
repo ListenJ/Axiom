@@ -5,7 +5,7 @@
     "": {
       "name": "openclaw-agent",
       "dependencies": {
-        "@colbymchenry/codegraph": "^0.9.4",
+        "@colbymchenry/codegraph": "^0.9.9",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "blessed": "^0.1.81",
         "drizzle-orm": "^0.30.0",
@@ -23,19 +23,19 @@
     },
   },
   "packages": {
-    "@colbymchenry/codegraph": ["@colbymchenry/codegraph@0.9.4", "", { "optionalDependencies": { "@colbymchenry/codegraph-darwin-arm64": "0.9.4", "@colbymchenry/codegraph-darwin-x64": "0.9.4", "@colbymchenry/codegraph-linux-arm64": "0.9.4", "@colbymchenry/codegraph-linux-x64": "0.9.4", "@colbymchenry/codegraph-win32-arm64": "0.9.4", "@colbymchenry/codegraph-win32-x64": "0.9.4" }, "bin": { "codegraph": "npm-shim.js" } }, "sha512-E5HMrKKJ+578KQ4h1L7HDRb3tK7JJ8KHlSPDamY/35PvBuzQMvhfI8xGKPoPF8fT9gLFW+0sUzu3T2IXLWmh2A=="],
+    "@colbymchenry/codegraph": ["@colbymchenry/codegraph@0.9.9", "", { "optionalDependencies": { "@colbymchenry/codegraph-darwin-arm64": "0.9.9", "@colbymchenry/codegraph-darwin-x64": "0.9.9", "@colbymchenry/codegraph-linux-arm64": "0.9.9", "@colbymchenry/codegraph-linux-x64": "0.9.9", "@colbymchenry/codegraph-win32-arm64": "0.9.9", "@colbymchenry/codegraph-win32-x64": "0.9.9" }, "bin": { "codegraph": "npm-shim.js" } }, "sha512-23Dl9q0RHKVhJRp+Y823GfmQJjcPiRycoKN7TkaI8eJitluRvieoVlclPILqua8znvkAw9KevYziFfK3k74CBQ=="],
 
-    "@colbymchenry/codegraph-darwin-arm64": ["@colbymchenry/codegraph-darwin-arm64@0.9.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-hGWbFPXxU22tAxubX6x/FEieCJXdRx+gaZ/pEH+IlPeu+zQSib60RwefDrLrVLQpcBa0Kib2noNNbpWjfdInoQ=="],
+    "@colbymchenry/codegraph-darwin-arm64": ["@colbymchenry/codegraph-darwin-arm64@0.9.9", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Mu6xhG4bF1OLeTqN2eSI5U8z2esymK/RjxP3T8cCigA4YprDIvd3XSGmTZREbDNRCuqrCi0R1LCJ7fsdFfpAPA=="],
 
-    "@colbymchenry/codegraph-darwin-x64": ["@colbymchenry/codegraph-darwin-x64@0.9.4", "", { "os": "darwin", "cpu": "x64" }, "sha512-Ol7OfSM7HaRtJualYeDBa/B49ktJMbeTt5Qm8HAK2lVsKdzwLoDax+pShBUfjrKiIQkUPeQefWqimBaCy6tauw=="],
+    "@colbymchenry/codegraph-darwin-x64": ["@colbymchenry/codegraph-darwin-x64@0.9.9", "", { "os": "darwin", "cpu": "x64" }, "sha512-xShaChiPJsajmBxvr1yP2XWsYstq0kJzHwQmiUG1huWrE14tP9NJnJ36hsbzHfHiqwBOJo2+5MZHuXmmzJa/vQ=="],
 
-    "@colbymchenry/codegraph-linux-arm64": ["@colbymchenry/codegraph-linux-arm64@0.9.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-c0e6f5XYHnvy7JpJGe4jbNku4MU8JDSB+BRF1IYfn4RxiKmSc2qYOM/rI+xJuZShaFFXE6zw1Qp5b4fo0PEtbw=="],
+    "@colbymchenry/codegraph-linux-arm64": ["@colbymchenry/codegraph-linux-arm64@0.9.9", "", { "os": "linux", "cpu": "arm64" }, "sha512-zccx1m3gGB2jAGfz41U+1GQNK12mtLGuX48XyZXiyQIGFsJQCFS8v/OvShAfPygSGhUr3zKMetbkMnztp7ULtg=="],
 
-    "@colbymchenry/codegraph-linux-x64": ["@colbymchenry/codegraph-linux-x64@0.9.4", "", { "os": "linux", "cpu": "x64" }, "sha512-zSQqQqhpYjhXIgUivr2Pe4Dj90ioYUCs6jZkKNwATX2KHDfJkDEKm6FqfFvGh+XWqprXfNmFhx2Hbz5kCh7syQ=="],
+    "@colbymchenry/codegraph-linux-x64": ["@colbymchenry/codegraph-linux-x64@0.9.9", "", { "os": "linux", "cpu": "x64" }, "sha512-vQfe5VdSQb/cVo1pwO12FyzTNaDIXtN3dLuAS/LIPsg2tQVyT9fwr10QmL10qWUNBShjgnRsomHdMG7hCjW3Yg=="],
 
-    "@colbymchenry/codegraph-win32-arm64": ["@colbymchenry/codegraph-win32-arm64@0.9.4", "", { "os": "win32", "cpu": "arm64" }, "sha512-+8K691Oxi54uCQp7/PrVay4gJQcWUHrazMYaOhySisvJAxOjq8TTpFXLBpSaDchXdD+fCGdvzOj1nhdSEt7+Cw=="],
+    "@colbymchenry/codegraph-win32-arm64": ["@colbymchenry/codegraph-win32-arm64@0.9.9", "", { "os": "win32", "cpu": "arm64" }, "sha512-U2QlTT434ulbEw6sTJVS+VNhjJUbZqCnw8tXuXSKkcuzGPZq/Hxoofe9UpY77+J9hAJu9PwwiWjEEaiDX9yb1w=="],
 
-    "@colbymchenry/codegraph-win32-x64": ["@colbymchenry/codegraph-win32-x64@0.9.4", "", { "os": "win32", "cpu": "x64" }, "sha512-/BoGmNzm8zAjmt9o4ENBQxsAhsrSZ1RG3LYxaB37U6ewCgcaRJ2D8Di3zOO2oRSTWYtmkH4AFSZ/3yKN8Vg3pA=="],
+    "@colbymchenry/codegraph-win32-x64": ["@colbymchenry/codegraph-win32-x64@0.9.9", "", { "os": "win32", "cpu": "x64" }, "sha512-N7Xgt80BeEy78nNeqHaUgcsngxmy1Hty570QSa4hOh4zl6z6v6n7i9ZSUfraktESVUkfmMbUwoqfEzVwUbB0/g=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 

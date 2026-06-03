@@ -166,7 +166,7 @@ export class AstEngine {
       };
     }
 
-    return parser.parse(content, options);
+    return parser.parse(content, { ...options, contentType });
   }
 
   /** Build knowledge graph from parse result */

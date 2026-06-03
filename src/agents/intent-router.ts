@@ -207,7 +207,7 @@ export function buildAgentMessages(
 
   // 历史对话（最近 6 条）
   for (const h of history.slice(-6)) {
-    messages.push({ role: h.role as any, content: h.content });
+    messages.push({ role: h.role as "system" | "user" | "assistant", content: h.content });
   }
 
   // 当前输入

@@ -149,16 +149,17 @@ class ClaudeCodeAdapter {
         usage,
         durationMs,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
+      const err = error instanceof Error ? error : new Error(String(error));
 
-      if (error.killed || error.signal === "SIGTERM") {
+      if ("killed" in err && (err as Error & { killed?: boolean }).killed || "signal" in err && (err as Error & { signal?: string }).signal === "SIGTERM") {
         throw new Error(
-          `Claude Code timed out after ${timeout}ms: ${error.message}`
+          `Claude Code timed out after ${timeout}ms: ${err.message}`
         );
       }
 
-      if (error.code === "ENOENT") {
+      if ((err as Error & { code?: string }).code === "ENOENT") {
         throw new Error(
           "Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code"
         );
@@ -166,11 +167,11 @@ class ClaudeCodeAdapter {
 
       logger.error(
         "[ClaudeCode] Execution failed",
-        error,
+        err,
         { durationMs }
       );
 
-      throw new Error(`Claude Code failed: ${error.message}`);
+      throw new Error(`Claude Code failed: ${err.message}`);
     }
   }
 
@@ -199,10 +200,10 @@ class ClaudeCodeAdapter {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         return await this.execute(prompt, options);
-      } catch (error: any) {
-        lastError = error;
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
         logger.warn(`[ClaudeCode] Attempt ${attempt + 1} failed`, {
-          error: error.message,
+          error: lastError.message,
         });
 
         if (attempt < maxAttempts - 1) {

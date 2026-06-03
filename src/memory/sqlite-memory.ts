@@ -228,8 +228,8 @@ export class SQLiteMemory {
         score: -row.rank,
         excerpt: row.excerpt,
       }));
-    } catch (e: any) {
-      logger.warn("SQLite FTS search failed", { query, error: e.message });
+    } catch (e) {
+      logger.warn("SQLite FTS search failed", { query, error: e instanceof Error ? e.message : String(e) });
       return [];
     }
   }
@@ -447,8 +447,8 @@ export class SQLiteMemory {
               updatedAt: stat.mtimeMs,
             });
             synced++;
-          } catch (e: any) {
-            errors.push(`${fullPath}: ${e.message}`);
+          } catch (e) {
+            errors.push(`${fullPath}: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
       }

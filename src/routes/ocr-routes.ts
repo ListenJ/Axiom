@@ -85,10 +85,11 @@ export async function handleOCRRoutes(ctx: RouteContext): Promise<Response | nul
         duration: ocrDuration,
       }, 200, ctx.baseHeaders);
 
-    } catch (e: any) {
-      logger.error("[OCR] Scan failed", e);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error("[OCR] Scan failed", e instanceof Error ? e : new Error(msg));
       return ctx.jsonResponse(
-        { error: "OCR scan failed", message: e.message },
+        { error: "OCR scan failed", message: msg },
         500,
         ctx.baseHeaders
       );
@@ -163,10 +164,11 @@ export async function handleOCRRoutes(ctx: RouteContext): Promise<Response | nul
         },
       });
 
-    } catch (e: any) {
-      logger.error("[OCR] Export failed", e);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error("[OCR] Export failed", e instanceof Error ? e : new Error(msg));
       return ctx.jsonResponse(
-        { error: "OCR export failed", message: e.message },
+        { error: "OCR export failed", message: msg },
         500,
         ctx.baseHeaders
       );

@@ -3,6 +3,9 @@
  */
 import { logger } from "../utils/logger.js";
 import type { RouteContext } from "./types.js";
+import type { SearchEngineResult } from "../crawl/search-engines.js";
+import type { UnifiedSearchResult } from "../crawl/unified-search.js";
+import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
 
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
@@ -33,17 +36,17 @@ export async function handleWebSearch(ctx: RouteContext): Promise<Response | nul
     const cacheKey = `${query}::${engines?.join(",") || "default"}::${num}`;
     const results = await searchCache.getOrSet(cacheKey, async () => {
       return ctx.pipeline.searchMulti(query, { engines, num });
-    }, 10 * 60 * 1000);
+    }, 10 * 60 * 1000) as SearchEngineResult[];
 
     ctx.db.run(`INSERT INTO search_history (query, query_hash, engines, results_count, created_at) VALUES (?, ?, ?, ?, ?)`,
-      [query, String(Bun.hash(query)), engines?.join(",") || "", (results as any[]).length, Date.now()]);
+      [query, String(Bun.hash(query)), engines?.join(",") || "", results.length, Date.now()]);
 
     if (ctx.vault) {
-      ctx.vault.writeSearchResult(query, engines || ["duckduckgo"], results as any[])
-        .catch(e => logger.warn("Failed to persist search result", { query, error: (e as Error).message }));
+      ctx.vault.writeSearchResult(query, engines || ["duckduckgo"], results.map(r => ({ title: r.title, link: r.link, snippet: r.snippet })))
+        .catch((e: unknown) => logger.warn("Failed to persist search result", { query, error: (e as Error).message }));
     }
 
-    wsManager.broadcast({ type: "search.completed", payload: { query, resultCount: (results as any[]).length }, timestamp: new Date().toISOString() });
+    wsManager.broadcast({ type: "search.completed", payload: { query, resultCount: results.length }, timestamp: new Date().toISOString() });
     return ctx.jsonResponse({ query, engines, results }, 200, ctx.baseHeaders);
   }
   return null;
@@ -57,10 +60,10 @@ export async function handleEnhancedSearch(ctx: RouteContext): Promise<Response 
     const { unifiedSearch } = await import("../crawl/unified-search.js");
     const { wsManager } = await import("../utils/websocket.js");
 
-    const mode = (ctx.url.searchParams.get("mode") as any) || "quick";
+    const mode = (ctx.url.searchParams.get("mode") as "deep" | "academic" | "news" | "code" | "quick") || "quick";
     const num = Number(ctx.url.searchParams.get("num")) || 10;
 
-    let results: any[];
+    let results: UnifiedSearchResult[];
     switch (mode) {
       case "deep": results = await unifiedSearch.deepSearch(query, num); break;
       case "academic": results = await unifiedSearch.academicSearch(query, num); break;
@@ -71,8 +74,8 @@ export async function handleEnhancedSearch(ctx: RouteContext): Promise<Response 
 
     // Persist search results to Vault + SQLite
     if (ctx.vault) {
-      ctx.vault.writeSearchResult(query, ['unified'], results as any[])
-        .catch(e => logger.warn("Failed to persist unified search result", { query, error: (e as Error).message }));
+      ctx.vault.writeSearchResult(query, ['unified'], results.map(r => ({ title: r.title, link: r.link, snippet: r.snippet })))
+        .catch((e: unknown) => logger.warn("Failed to persist unified search result", { query, error: (e as Error).message }));
     }
 
     wsManager.broadcast({
@@ -92,10 +95,11 @@ export async function handleSearchSuggestions(ctx: RouteContext): Promise<Respon
     if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
 
     // Simple suggestion: return recent searches matching prefix
+    interface SuggestionRow { query: string }
     const rows = ctx.db.query(
       "SELECT DISTINCT query FROM search_history WHERE query LIKE ? ORDER BY created_at DESC LIMIT 10"
-    ).all(`${query}%`) as any[];
-    return ctx.jsonResponse({ query, suggestions: rows.map((r: any) => r.query) }, 200, ctx.baseHeaders);
+    ).all(`${query}%`) as SuggestionRow[];
+    return ctx.jsonResponse({ query, suggestions: rows.map((r: SuggestionRow) => r.query) }, 200, ctx.baseHeaders);
   }
   return null;
 }
@@ -121,7 +125,7 @@ export async function handleSearchHistory(ctx: RouteContext): Promise<Response |
 
 export async function handleRecentSearches(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/searches/recent" && ctx.req.method === "GET") {
-    const rows = ctx.db.query("SELECT * FROM search_history ORDER BY created_at DESC LIMIT ?").all(Number(ctx.url.searchParams.get("limit")) || 20) as any[];
+    const rows = ctx.db.query("SELECT * FROM search_history ORDER BY created_at DESC LIMIT ?").all(Number(ctx.url.searchParams.get("limit")) || 20) as Array<Record<string, unknown>>;
     return ctx.jsonResponse({ searches: rows }, 200, ctx.baseHeaders);
   }
   return null;
@@ -136,11 +140,11 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
     const { wsManager } = await import("../utils/websocket.js");
 
     const cacheKey = `crawl::${targetUrl}`;
-    let result: any = crawlCache.get(cacheKey);
+    let result = crawlCache.get(cacheKey) as StructuredCrawlResult | undefined;
     if (!result) {
-      result = await ctx.pipeline.crawlStructured(targetUrl);
+      result = (await ctx.pipeline.crawlStructured(targetUrl)) ?? undefined;
       if (result) {
-        crawlCache.set(cacheKey, result, 30 * 60 * 1000);
+        crawlCache.set(cacheKey, result as unknown as Record<string, unknown>, 30 * 60 * 1000);
         await ctx.pipeline.saveCrawlResult(result);
       }
     }

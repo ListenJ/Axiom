@@ -2,6 +2,8 @@
  * 弹性工具集 - 提供重试、熔断、降级、超时等可靠性模式
  */
 import { logger } from "./logger.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
+import { CircuitOpenError } from "./errors.js";
 
 // ========== 重试机制 ==========
 
@@ -17,7 +19,7 @@ export interface RetryOptions {
 const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxAttempts: 3,
   baseDelay: 1000,
-  maxDelay: 30000,
+  maxDelay: TIMEOUTS.CIRCUIT_BREAKER_MAX_DELAY,
   backoffMultiplier: 2,
   retryable: () => true,
   onRetry: () => {},
@@ -36,7 +38,7 @@ export async function withRetry<T>(
   for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error instanceof Error ? error : new Error(String(error));
       
       if (attempt === opts.maxAttempts || !opts.retryable(lastError)) {
@@ -79,7 +81,7 @@ export class CircuitBreaker {
   ) {
     this.opts = {
       failureThreshold: options.failureThreshold ?? 5,
-      resetTimeout: options.resetTimeout ?? 30000,
+      resetTimeout: options.resetTimeout ?? TIMEOUTS.CIRCUIT_BREAKER_RESET,
       halfOpenMaxCalls: options.halfOpenMaxCalls ?? 3,
     };
   }
@@ -107,7 +109,7 @@ export class CircuitBreaker {
       const result = await fn();
       this.onSuccess();
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.onFailure();
       throw error;
     }
@@ -145,13 +147,6 @@ export class CircuitBreaker {
   }
 }
 
-export class CircuitOpenError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CircuitOpenError";
-  }
-}
-
 // ========== 降级处理 ==========
 
 export interface FallbackOptions<T> {
@@ -168,9 +163,10 @@ export async function withFallback<T>(
 ): Promise<T> {
   try {
     return await fn();
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
     if (options.logFailure !== false) {
-      logger.warn(`[Fallback] Primary failed, using fallback`, { error: error.message });
+      logger.warn(`[Fallback] Primary failed, using fallback`, { error: err.message });
     }
     
     if (typeof options.fallback === "function") {
@@ -227,7 +223,7 @@ export class HealthMonitor {
   register(check: HealthCheck) {
     this.checks.set(check.name, {
       check: check.check,
-      interval: check.interval || 30000,
+      interval: check.interval || TIMEOUTS.HEARTBEAT_INTERVAL,
     });
   }
 
@@ -245,8 +241,8 @@ export class HealthMonitor {
             logger.warn(`[HealthMonitor] ${name} unhealthy`);
           }
           cfg.lastStatus = ok;
-        } catch (error: any) {
-          logger.error(`[HealthMonitor] ${name} check failed`, error);
+        } catch (error: unknown) {
+          logger.error(`[HealthMonitor] ${name} check failed`, error instanceof Error ? error : new Error(String(error)));
           cfg.lastStatus = false;
         }
       }, cfg.interval);
@@ -277,7 +273,7 @@ export class HealthMonitor {
 
 export interface BatchResult<T> {
   success: T[];
-  failed: Array<{ item: any; error: string }>;
+  failed: Array<{ item: unknown; error: string }>;
 }
 
 /**
@@ -299,9 +295,10 @@ export async function batchWithResilience<T, R>(
       try {
         const r = await fn(item);
         result.success.push(r);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (continueOnError) {
-          result.failed.push({ item, error: error.message });
+          const err = error instanceof Error ? error : new Error(String(error));
+          result.failed.push({ item, error: err.message });
         } else {
           throw error;
         }

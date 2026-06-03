@@ -363,12 +363,12 @@ export class IdePluginCore {
         suggestions,
         analysis,
       };
-    } catch (error: any) {
-      logger.error("[IdePlugin] Action handling failed", error);
+    } catch (error: unknown) {
+      logger.error("[IdePlugin] Action handling failed", error instanceof Error ? error : new Error(String(error)));
       return {
         success: false,
         suggestions: [],
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

@@ -101,12 +101,12 @@ async function callModel(
     };
   }
 
-  const data = await res.json() as any;
+  const data = await res.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number } };
   const content = data.choices?.[0]?.message?.content || "[EMPTY RESPONSE]";
   // OpenCode doesn't always return total_tokens; try various paths
   const tokensUsed = data.usage?.total_tokens
     || (data.usage?.prompt_tokens || 0) + (data.usage?.completion_tokens || 0)
-    || data.usage?.input_tokens + data.usage?.output_tokens
+    || (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
     || 0;
 
   // Estimate cost (free models = $0)

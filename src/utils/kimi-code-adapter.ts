@@ -130,15 +130,16 @@ class KimiCodeAdapter {
         usage,
         durationMs,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timer);
 
-      if (error.name === "AbortError") {
+      if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Kimi Code request timed out after ${timeout}ms`);
       }
 
-      logger.error("[KimiCode] Request failed", error);
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error("[KimiCode] Request failed", err);
+      throw err;
     }
   }
 

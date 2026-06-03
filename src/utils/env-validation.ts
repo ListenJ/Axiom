@@ -62,7 +62,7 @@ export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
   {
     name: "PORT",
     required: false,
-    default: "3000",
+    default: "18789",
     validate: (v) => {
       const port = parseInt(v, 10);
       return port > 0 && port < 65536;

@@ -153,8 +153,8 @@ class TaskOrchestrator {
       if (cgMemory) {
         context.codeSymbols = cgMemory.symbols.map((s) => `${s.node.name} (${s.node.kind})`);
       }
-    } catch (e: any) {
-      logger.warn(`[Orchestrator] Code memory retrieval failed: ${e.message}`);
+    } catch (e) {
+      logger.warn(`[Orchestrator] Code memory retrieval failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     return context.codeSymbols ? context : null;
@@ -205,11 +205,11 @@ class TaskOrchestrator {
         usage: result.usage,
         latencyMs: Date.now() - start,
       };
-    } catch (e: any) {
-      logger.error(`[Orchestrator] Single execution failed`, e);
+    } catch (e) {
+      logger.error(`[Orchestrator] Single execution failed`, e instanceof Error ? e : new Error(String(e)));
       return {
         subTaskId: role,
-        content: `Error: ${e.message}`,
+        content: `Error: ${e instanceof Error ? e.message : String(e)}`,
         model: "error",
         provider: "error",
         layer: role,
@@ -239,11 +239,11 @@ class TaskOrchestrator {
           usage: result.usage,
           latencyMs: Date.now() - start,
         });
-      } catch (e: any) {
-        logger.error(`[Orchestrator] Role ${role} failed`, e);
+      } catch (e) {
+        logger.error(`[Orchestrator] Role ${role} failed`, e instanceof Error ? e : new Error(String(e)));
         results.push({
           subTaskId: role,
-          content: `Error: ${e.message}`,
+          content: `Error: ${e instanceof Error ? e.message : String(e)}`,
           model: "error",
           provider: "error",
           layer: role,

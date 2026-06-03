@@ -57,8 +57,25 @@ export async function handleSceneRoutes(ctx: RouteContext): Promise<Response | n
     return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   }
 
-  // GET /mcp/scenes/:id — 场景详情（TODO: 可扩展）
-  // if (path.match(/^\/mcp\/scenes\/\w+$/)) { ... }
+  // GET /mcp/scenes/:id — 场景详情
+  const sceneDetailMatch = path.match(/^\/mcp\/scenes\/([\w-]+)$/);
+  if (sceneDetailMatch && ctx.req.method === "GET") {
+    const sceneId = sceneDetailMatch[1];
+    const router = getSceneRouter();
+    const scene = router.getScene(sceneId);
+    if (!scene) {
+      return ctx.jsonResponse({ error: `Scene '${sceneId}' not found` }, 404, ctx.baseHeaders);
+    }
+    return ctx.jsonResponse({
+      id: scene.id,
+      name: scene.name,
+      description: scene.description,
+      tools: scene.tools,
+      parallel: scene.parallel ?? false,
+      priority: scene.priority ?? 0,
+      match: Array.isArray(scene.match) ? scene.match : "[custom matcher]",
+    }, 200, ctx.baseHeaders);
+  }
 
   return null;
 }

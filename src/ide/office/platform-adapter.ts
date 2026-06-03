@@ -16,6 +16,9 @@ import { OfficeAdapter, OfficeDocumentType, BaseOfficeAdapter, OfficeUtils, Plat
 import { WordAdapter } from "./word-adapter.js";
 import { ExcelAdapter } from "./excel-adapter.js";
 import { PowerPointAdapter } from "./powerpoint-adapter.js";
+import { ComWordAdapter, ComExcelAdapter, ComPowerPointAdapter } from "./com-adapter.js";
+import { AppleScriptWordAdapter, AppleScriptExcelAdapter, AppleScriptPowerPointAdapter } from "./applescript-adapter.js";
+import { WPSWordAdapter, WPSExcelAdapter, WPSPowerPointAdapter } from "./wps-adapter.js";
 import { logger } from "../../utils/logger.js";
 
 // Re-export types for convenience
@@ -101,10 +104,42 @@ export class PlatformAdapter {
     const platform = await this.detectPlatform();
 
     // Try native integration first
-    if (platform.hasOffice || platform.hasWPS) {
-      logger.info(`[PlatformAdapter] Using native integration for ${docType}`);
-      // TODO: Implement COM/AppleScript/WPS adapters
-      // For now, fall back to Python-based
+    if (platform.hasOffice) {
+      logger.info(`[PlatformAdapter] Using native Office integration for ${docType}`);
+      if (platform.type === "windows") {
+        // Use COM adapters on Windows
+        switch (docType) {
+          case "word":
+            return new ComWordAdapter();
+          case "excel":
+            return new ComExcelAdapter();
+          case "powerpoint":
+            return new ComPowerPointAdapter();
+        }
+      } else if (platform.type === "macos") {
+        // Use AppleScript adapters on macOS
+        switch (docType) {
+          case "word":
+            return new AppleScriptWordAdapter();
+          case "excel":
+            return new AppleScriptExcelAdapter();
+          case "powerpoint":
+            return new AppleScriptPowerPointAdapter();
+        }
+      }
+    }
+
+    // Try WPS Office
+    if (platform.hasWPS) {
+      logger.info(`[PlatformAdapter] Using WPS Office integration for ${docType}`);
+      switch (docType) {
+        case "word":
+          return new WPSWordAdapter();
+        case "excel":
+          return new WPSExcelAdapter();
+        case "powerpoint":
+          return new WPSPowerPointAdapter();
+      }
     }
 
     // Fall back to Python-based adapters

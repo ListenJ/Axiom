@@ -11,6 +11,8 @@ import type { ContentType, AstNodeType } from "../src/ide/types.js";
 
 describe("AST Engine", () => {
   const engine = new AstEngine();
+  engine.registerParser(new MarkdownParser());
+  engine.registerParser(new CodeParser());
 
   test("should auto-detect markdown content", () => {
     const markdown = `# Hello World

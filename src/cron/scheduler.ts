@@ -6,11 +6,12 @@
  * 或在主服务中 import 启动
  */
 import { Database } from "bun:sqlite";
+import { logger } from "../utils/logger.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
 
-console.log("⏰ Cron scheduler starting...\n");
+logger.info("⏰ Cron scheduler starting...\n");
 
 // ===== 任务 1: 平台健康检查（每 60 秒）=====
 async function healthCheckTask() {
@@ -40,25 +41,25 @@ async function healthCheckTask() {
   );
 
   const up = Object.values(checks).filter(Boolean).length;
-  console.log(`[Cron] Health check: ${up}/${platforms.length} platforms up`);
+  logger.info(`[Cron] Health check: ${up}/${platforms.length} platforms up`);
 }
 
 // ===== 任务 2: 免费模型发现（每 10 分钟）=====
 async function discoverFreeModelsTask() {
-  console.log("[Cron] Discovering free models...");
+  logger.info("[Cron] Discovering free models...");
   try {
     // 触发免费模型发现脚本的逻辑
     // 这里简化处理，实际可调用 scripts/discover-free-models.ts
-    const freeCount = db.query("SELECT COUNT(*) as c FROM free_models WHERE is_available = 1").get() as any;
-    console.log(`[Cron] Current free models: ${freeCount?.c || 0}`);
-  } catch (e: any) {
-    console.warn("[Cron] Free model discovery failed:", e.message);
+    const freeCount = db.query("SELECT COUNT(*) as c FROM free_models WHERE is_available = 1").get() as { c: number } | null;
+    logger.info(`[Cron] Current free models: ${freeCount?.c || 0}`);
+  } catch (e: unknown) {
+    logger.warn("[Cron] Free model discovery failed", { error: e instanceof Error ? e.message : String(e) });
   }
 }
 
 // ===== 任务 3: 心跳（每 30 分钟）=====
 async function heartbeatTask() {
-  console.log("[Cron] HEARTBEAT — System OK");
+  logger.info("[Cron] HEARTBEAT — System OK");
   db.run(
     `INSERT INTO system_state (key, value, updated_at) VALUES (?, ?, unixepoch())
      ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
@@ -68,10 +69,10 @@ async function heartbeatTask() {
 
 // ===== 任务 5: 清理过期缓存（每天凌晨）=====
 async function cleanupTask() {
-  console.log("[Cron] Running daily cleanup...");
+  logger.info("[Cron] Running daily cleanup...");
   db.run(`DELETE FROM search_history WHERE created_at < unixepoch() - 2592000`);
   db.run(`DELETE FROM crawl_results WHERE status != 'success' AND created_at < unixepoch() - 604800`);
-  console.log("[Cron] Cleanup complete");
+  logger.info("[Cron] Cleanup complete");
 }
 
 // ===== 注册定时任务 =====
@@ -82,13 +83,13 @@ if (typeof Bun !== "undefined" && Bun.cron) {
   Bun.cron("*/30 * * * *", heartbeatTask);
   Bun.cron("0 3 * * *", cleanupTask);
 
-  console.log("[完成] Cron jobs registered:");
-  console.log("   • Health check: every 60s");
-  console.log("   • Free model discovery: every 10min");
-  console.log("   • Heartbeat: every 30min");
-  console.log("   • Cleanup: daily at 03:00");
+  logger.info("[完成] Cron jobs registered:");
+  logger.info("   • Health check: every 60s");
+  logger.info("   • Free model discovery: every 10min");
+  logger.info("   • Heartbeat: every 30min");
+  logger.info("   • Cleanup: daily at 03:00");
 } else {
-  console.warn("[警告] Bun.cron not available. Run with Bun 1.1+");
+  logger.warn("[警告] Bun.cron not available. Run with Bun 1.1+");
 }
 
 // 立即执行一次

@@ -1,13 +1,13 @@
 {
   "name": "openclaw-agent",
-  "version": "1.0.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "start": "bun run src/main.ts",
     "dev": "bun --watch run src/main.ts",
     "openclaw": "bun run src/launcher.ts",
     "ocl": "bun run src/launcher.ts",
-    "build": "bun build src/main.ts --outdir ./dist",
+    "build": "bun build src/main.ts --outdir ./dist --target bun",
     "mcp": "bun run src/mcp/server.ts",
     "cli": "bun run src/cli.ts",
     "health": "bun run scripts/health-check.ts",
@@ -23,7 +23,7 @@
     "setup:agents": "bash scripts/setup-agents.sh"
   },
   "dependencies": {
-    "@colbymchenry/codegraph": "^0.9.4",
+    "@colbymchenry/codegraph": "^0.9.9",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "blessed": "^0.1.81",
     "drizzle-orm": "^0.30.0",

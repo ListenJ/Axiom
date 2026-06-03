@@ -5,6 +5,7 @@
  * Routes 拆分到 src/routes/ 模块，main.ts 只负责初始化和服务器启动
  */
 import { Database } from "bun:sqlite";
+import type { ServerWebSocket } from "bun";
 import { VaultManager } from "./memory/vault-manager.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
 import { logger } from "./utils/logger.js";
@@ -64,8 +65,8 @@ let vault: VaultManager | null = null;
 try {
   vault = new VaultManager({ vaultPath: config.memory.vaultPath });
   logger.info("VaultManager initialized", { notes: vault.stats().totalNotes });
-} catch (e: any) {
-  logger.warn("VaultManager init failed", { error: e.message });
+} catch (e: unknown) {
+  logger.warn("VaultManager init failed", { error: (e as Error).message });
 }
 
 // Pipeline
@@ -104,7 +105,7 @@ if (vault) {
 
 // Cron
 try { await import("./cron/scheduler.js"); logger.info("Cron scheduler started"); }
-catch (e: any) { logger.warn("Cron scheduler not started", { error: e.message }); }
+catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Error).message }); }
 
 // Health Monitor
 const healthMonitor = new HealthMonitor();
@@ -135,14 +136,29 @@ for (const [name, envKey] of platformChecks) {
 }
 healthMonitor.start();
 
+import { TIMEOUTS } from "./constants/timeouts.js";
+import { toOpenClawError, createErrorResponse } from "./utils/errors.js";
+
 // WebSocket heartbeat
-const heartbeatInterval = setInterval(() => {
-  wsManager.broadcast({
-    type: "heartbeat",
-    payload: { uptime: Date.now() - startupTime, clients: wsManager.getStats().connectedClients, vaultNotes: vault?.stats().totalNotes ?? 0 },
-    timestamp: new Date().toISOString(),
-  });
-}, 30000);
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+function startHeartbeat(): void {
+  heartbeatInterval = setInterval(() => {
+    wsManager.broadcast({
+      type: "heartbeat",
+      payload: { uptime: Date.now() - startupTime, clients: wsManager.getStats().connectedClients, vaultNotes: vault?.stats().totalNotes ?? 0 },
+      timestamp: new Date().toISOString(),
+    });
+  }, TIMEOUTS.HEARTBEAT_INTERVAL);
+}
+
+/** 停止心跳 */
+export function stopHeartbeat(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+}
 
 // ===== HTTP 服务 =====
 const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: false });
@@ -209,15 +225,20 @@ const API_KEY = process.env.OPENCLAW_AUTH_TOKEN;
 function checkApiKey(req: Request): boolean {
   // Fail-closed: if no server-side auth token is configured, deny ALL requests.
   // This protects /chat and other endpoints from open access when env is misconfigured.
+  const url = new URL(req.url);
+  logger.debug("checkApiKey called", { path: url.pathname, apiKeyExists: !!API_KEY, apiKeyLength: API_KEY?.length });
   if (!API_KEY) {
+    logger.warn("Auth check failed: OPENCLAW_AUTH_TOKEN not configured");
     return false;
   }
-  const url = new URL(req.url);
   const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
   if (publicPaths.includes(url.pathname)) return true;
   // Allow all static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
   const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
-  if (STATIC_MIME[staticExt]) return true;
+  if (STATIC_MIME[staticExt]) {
+    logger.debug("Static asset allowed without auth", { path: url.pathname, ext: staticExt });
+    return true;
+  }
   // WebSocket: check auth in upgrade handler, not here
   if (url.pathname.startsWith("/ws")) return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
@@ -248,7 +269,7 @@ const server = Bun.serve({
       }
       const wsData: WebSocketData = { clientId: crypto.randomUUID() };
       const success = server.upgrade(req, { data: wsData } as unknown as Parameters<typeof server.upgrade>[1]);
-      if (success) return undefined as any;
+      if (success) return undefined as unknown as Response;
       return jsonResponse({ error: "WebSocket upgrade failed" }, 400, baseHeaders);
     }
 
@@ -288,20 +309,24 @@ const server = Bun.serve({
       metrics.histogram("http_request_duration_seconds", duration, { method: req.method, path: url.pathname });
 
       return response;
-    } catch (e: any) {
+    } catch (e) {
       const duration = Math.round(performance.now() - startTime);
-      logger.error(`Request failed: ${url.pathname}`, e, { method: req.method, duration });
+      const error = toOpenClawError(e, `Request failed: ${url.pathname}`);
+      logger.error(error.message, error, { method: req.method, duration, path: url.pathname });
       metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: "500" });
-      return jsonResponse({ error: e.message, path: url.pathname }, 500, { ...rl.headers, ...securityHeaders });
+      return jsonResponse(createErrorResponse(error), 500, { ...rl.headers, ...securityHeaders });
     }
   },
 
   websocket: {
-    open(ws) { wsManager.onOpen(ws as any); },
-    message(ws, message) { wsManager.onMessage(ws as any, message as string); },
-    close(ws) { wsManager.onClose(ws as any); },
+    open(ws) { wsManager.onOpen(ws as unknown as ServerWebSocket<{ clientId: string }>); },
+    message(ws, message) { wsManager.onMessage(ws as unknown as ServerWebSocket<{ clientId: string }>, message as string); },
+    close(ws) { wsManager.onClose(ws as unknown as ServerWebSocket<{ clientId: string }>); },
   },
 });
+
+// 启动心跳
+startHeartbeat();
 
 // ===== Shutdown hooks =====
 registerShutdownHook({ name: "health-monitor", handler: () => healthMonitor.stop(), priority: 100 });
@@ -309,9 +334,9 @@ registerShutdownHook({ name: "file-watcher", handler: () => fileWatcher?.stop(),
 registerShutdownHook({ name: "vault", handler: () => vault?.close(), priority: 70 });
 registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50 });
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
-registerShutdownHook({ name: "heartbeat", handler: () => clearInterval(heartbeatInterval), priority: 30 });
+registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 
-setupGracefulShutdown({ timeout: 30000, signals: ["SIGTERM", "SIGINT"] });
+setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 
 logger.info("Server started", { port, hostname: "0.0.0.0", url: `http://0.0.0.0:${port}` });
 

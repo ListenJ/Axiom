@@ -79,9 +79,10 @@ export class OCREngine {
         languages,
         duration: Math.round(performance.now() - start),
       });
-    } catch (e: any) {
-      logger.error("[OCR] Failed to initialize worker", e);
-      throw new Error(`OCR initialization failed: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      logger.error("[OCR] Failed to initialize worker", err);
+      throw new Error(`OCR initialization failed: ${err.message}`);
     }
   }
 
@@ -103,13 +104,13 @@ export class OCREngine {
       // Set PSM if provided
       if (options.psm !== undefined) {
         await this.worker!.setParameters({
-          tessedit_pageseg_mode: options.psm as any,
+          tessedit_pageseg_mode: String(options.psm) as unknown as import("tesseract.js").PSM,
         });
       }
 
-      const result = await this.worker!.recognize(source as any);
+      const result = await this.worker!.recognize(source as string | Buffer);
       const duration = Math.round(performance.now() - start);
-      const data = result.data as any;
+      const data = result.data as unknown as { lines: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number; }; words?: Array<unknown> }>; confidence: number; detectedLang?: string; };
 
       // Build structured blocks from lines
       const blocks: OCRBlock[] = [];
@@ -147,9 +148,10 @@ export class OCREngine {
         language: data.detectedLang || this.currentLangs[0],
         duration,
       };
-    } catch (e: any) {
-      logger.error("[OCR] Recognition failed", e);
-      throw new Error(`OCR recognition failed: ${e.message}`);
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      logger.error("[OCR] Recognition failed", err);
+      throw new Error(`OCR recognition failed: ${err.message}`);
     }
   }
 
@@ -162,10 +164,11 @@ export class OCREngine {
     }
 
     try {
-      const result = await this.worker!.detect(source as any);
+      const result = await this.worker!.detect(source as string | Buffer);
       return result.data.script || "unknown";
-    } catch (e: any) {
-      logger.error("[OCR] Language detection failed", e);
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      logger.error("[OCR] Language detection failed", err);
       return "unknown";
     }
   }

@@ -214,7 +214,7 @@ async function callJudge(
     throw new Error(`Judge API error: ${res.status} ${await res.text()}`);
   }
 
-  const data = await res.json() as any;
+  const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   return data.choices?.[0]?.message?.content || "";
 }
 

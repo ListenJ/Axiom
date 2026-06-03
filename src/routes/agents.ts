@@ -79,8 +79,9 @@ export async function handleKimiChat(ctx: RouteContext): Promise<Response | null
         timeout: body.timeout ?? 60000,
       });
       return ctx.jsonResponse({ ...result, model: KIMI_CODE_MODEL }, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -130,8 +131,9 @@ export async function handleOpenCodeGenerate(ctx: RouteContext): Promise<Respons
         model: body.model,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -148,8 +150,9 @@ export async function handleOpenCodeRefactor(ctx: RouteContext): Promise<Respons
         language: body.language,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -166,8 +169,9 @@ export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response 
         context: body.context,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -184,8 +188,9 @@ export async function handleOpenCodeTest(ctx: RouteContext): Promise<Response | 
         framework: body.framework,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
     }
   }
   return null;

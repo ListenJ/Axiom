@@ -16,6 +16,7 @@ import path from "path";
 import { logger } from "../utils/logger.js";
 import { DeterministicSearchEngine } from "./deterministic-search.js";
 import { initializeCodegraph } from "./codegraph-index.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
 
 interface WatcherOptions {
   vaultPath: string;
@@ -145,8 +146,8 @@ export class VaultFileWatcher {
       } catch {
         // 忽略无权限目录
       }
-    } catch (e: any) {
-      logger.warn("Failed to watch directory", { dir: dirPath, error: e.message });
+    } catch (e) {
+      logger.warn("Failed to watch directory", { dir: dirPath, error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -167,8 +168,8 @@ export class VaultFileWatcher {
 
       this.watchers.set(dirPath, watcher);
       this.cgWatcherCount++;
-    } catch (e: any) {
-      logger.warn("Failed to watch CodeGraph directory", { dir: dirPath, error: e.message });
+    } catch (e) {
+      logger.warn("Failed to watch CodeGraph directory", { dir: dirPath, error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -183,7 +184,7 @@ export class VaultFileWatcher {
     this.cgTimer = setTimeout(() => {
       this.cgPending = false;
       this.runCodegraphIndex();
-    }, 30000); // 30s debounce，全量索引较慢
+    }, TIMEOUTS.FILE_WATCHER_DEBOUNCE); // 30s debounce，全量索引较慢
   }
 
   private async runCodegraphIndex(): Promise<void> {
@@ -193,8 +194,8 @@ export class VaultFileWatcher {
     try {
       await initializeCodegraph(this.opts.codegraphProjectPath);
       logger.info("[CodeGraph] Auto-reindexing completed");
-    } catch (e: any) {
-      logger.warn("[CodeGraph] Auto-reindexing failed", { error: e.message });
+    } catch (e) {
+      logger.warn("[CodeGraph] Auto-reindexing failed", { error: e instanceof Error ? e.message : String(e) });
     } finally {
       this.cgIndexing = false;
       // 如果期间又有变更，继续触发

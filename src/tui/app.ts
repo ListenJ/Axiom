@@ -13,7 +13,7 @@
  */
 import blessed from "blessed";
 import { logger } from "../utils/logger.js";
-import { router, toolPool } from "../router/model-router.js";
+import { router, toolPool, type ToolRole } from "../router/model-router.js";
 import { orchestrator } from "../router/task-orchestrator.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
@@ -94,11 +94,11 @@ const socialBox = blessed.box({
   style: { border: { fg: "yellow" }, fg: "white" },
   tags: true,
   content:
-    "{bold}WebSocket Server{/bold}: ws://localhost:3000\n" +
+    "{bold}WebSocket Server{/bold}: ws://localhost:18789\n" +
     "  Connected clients: 0\n" +
     "  Subscriptions: system.status, agent.intent\n\n" +
     "{bold}MCP Server{/bold}: 23 tools registered\n" +
-    "{bold}HTTP API{/bold}: http://localhost:3000",
+    "{bold}HTTP API{/bold}: http://localhost:18789",
 });
 
 // 右侧下：工具池健康度
@@ -203,8 +203,8 @@ async function handleChat(userInput: string) {
     chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [${result.layer}]{/gray-fg}`);
     chatBox.log(result.content ?? "(no response)");
     chatBox.log("");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}[错误]: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误]: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -228,8 +228,8 @@ async function handleOrchestrate(task: string) {
     chatBox.log("{bold}Final Answer:{/bold}");
     chatBox.log(result.finalAnswer);
     chatBox.log("");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}[错误] Orchestration failed: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Orchestration failed: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -244,8 +244,8 @@ async function handleCodegraphQuery(query: string) {
     } else {
       chatBox.log("{gray-fg}No CodeGraph memory found.{/gray-fg}");
     }
-  } catch (e: any) {
-    chatBox.log(`{red-fg}[错误] CodeGraph error: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] CodeGraph error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -255,13 +255,13 @@ async function handleToolQuery(roleInput: string) {
   const role = validRoles.includes(roleInput) ? roleInput : "general-tool";
   try {
     chatBox.log(`{magenta-fg}[工具] Tool call [${role}]...{/magenta-fg}`);
-    const result = await router.tool(role as any, [
+    const result = await router.tool(role as ToolRole, [
       { role: "user", content: "Ready for task assignment." },
     ]);
     chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model}{/gray-fg}`);
     chatBox.log(result.content ?? "(no response)");
-  } catch (e: any) {
-    chatBox.log(`{red-fg}[错误] Tool error: ${e.message}{/red-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Tool error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -269,10 +269,10 @@ async function handleToolQuery(roleInput: string) {
 // ===== 工具池健康度刷新 =====
 
 function refreshToolHealth() {
-  const stats = toolPool.getStats() as Record<string, any>;
+  const stats = toolPool.getStats() as Record<string, { role: string; health: string; rpmThisMinute: number; rpmLimit: number }>;
   toolHealthBox.setContent("");
 
-  const grouped: Record<string, any[]> = {};
+  const grouped: Record<string, Array<{ id: string; role: string; health: string; rpmThisMinute: number; rpmLimit: number }>> = {};
   for (const [id, s] of Object.entries(stats)) {
     const role = s.role as string;
     if (!grouped[role]) grouped[role] = [];
@@ -290,13 +290,22 @@ function refreshToolHealth() {
   screen.render();
 }
 
-// 定时刷新工具池状态
-setInterval(refreshToolHealth, 10000);
-refreshToolHealth();
+let toolHealthInterval: ReturnType<typeof setInterval> | null = null;
+
+/** 停止TUI定时器 */
+export function stopTUI(): void {
+  if (toolHealthInterval) {
+    clearInterval(toolHealthInterval);
+    toolHealthInterval = null;
+  }
+}
 
 // ===== 启动 =====
 
 export async function startTUI(): Promise<void> {
+  // 启动定时刷新工具池状态
+  toolHealthInterval = setInterval(refreshToolHealth, 10000);
+  refreshToolHealth();
   chatBox.log("{center}{bold}Welcome to OpenClaw AI Agent v3.0{/bold}{/center}");
   chatBox.log("{center}Type a message and press Enter to chat.{/center}");
   chatBox.log("{center}Commands: /orchestrate <task> | /codegraph <query> | /tool <role>{/center}");

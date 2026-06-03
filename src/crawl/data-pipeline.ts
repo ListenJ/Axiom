@@ -39,7 +39,7 @@ interface StructuredCrawlResult {
   siteName?: string;
   language?: string;
   markdown: string;
-  structuredData: Record<string, any>[];
+  structuredData: Record<string, unknown>[];
   tables: MarkdownTable[];
   codeBlocks: CodeBlock[];
   images: ImageInfo[];
@@ -317,8 +317,8 @@ export class DataPipeline {
           retryable: (e: Error) => isRetryableError(e) || (e instanceof Error && e.message.startsWith("HTTP")),
         }
       );
-    } catch (e: any) {
-      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e.message}`);
+    } catch (e: unknown) {
+      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   }
@@ -416,8 +416,8 @@ export class DataPipeline {
 
   // ===== JSON-LD / Schema.org =====
 
-  private extractJsonLd(html: string): Record<string, any>[] {
-    const results: Record<string, any>[] = [];
+  private extractJsonLd(html: string): Record<string, unknown>[] {
+    const results: Record<string, unknown>[] = [];
     const re = /<script\s+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
     for (const m of html.matchAll(re)) {
       try {
@@ -780,9 +780,9 @@ export class DataPipeline {
         markdown: result.markdown,
         headings: result.headings,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Vault 写入失败不影响主流程
-      console.warn("[Pipeline] Vault write failed:", e.message);
+      console.warn("[Pipeline] Vault write failed:", e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -850,7 +850,7 @@ export class DataPipeline {
 
   // ===== 工具方法 =====
 
-  private async saveRaw(url: string, data: any): Promise<void> {
+  private async saveRaw(url: string, data: unknown): Promise<void> {
     const hash = Bun.hash(url).toString(16).slice(0, 16);
     await Bun.write(`./data/raw/${hash}.json`, JSON.stringify(data, null, 2));
   }

@@ -75,7 +75,7 @@ export class AgentBootstrap {
     // 4. 系统状态
     const stats = this.vault.stats();
     const systemStatus = {
-      version: "2.1.0",
+      version: "2.2.0",
       vaultNotes: stats.totalNotes,
       availableModels: this.getAvailableModels(),
       lastBoot: new Date().toISOString(),

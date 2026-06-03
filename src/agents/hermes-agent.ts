@@ -161,8 +161,8 @@ export async function runHermesTask(task: HermesTask): Promise<HermesResult> {
       if (done) break;
       stdout += textDecoder.decode(value, { stream: true });
     }
-  } catch (e: any) {
-    logger.warn("[Hermes] stdout read error", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("[Hermes] stdout read error", { error: e instanceof Error ? e.message : String(e) });
   }
 
   const errReader = proc.stderr.getReader();
@@ -172,8 +172,8 @@ export async function runHermesTask(task: HermesTask): Promise<HermesResult> {
       if (done) break;
       stderr += textDecoder.decode(value, { stream: true });
     }
-  } catch (e: any) {
-    logger.warn("[Hermes] stderr read error", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("[Hermes] stderr read error", { error: e instanceof Error ? e.message : String(e) });
   }
 
   const exitCode = await proc.exited;
@@ -273,7 +273,7 @@ ${code}
       };
     }
 
-    const data = (await resp.json()) as any;
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
     const review = data.choices?.[0]?.message?.content || "未获得审查结果";
 
     // 审查结果沉淀到 Vault（非阻塞）
@@ -284,10 +284,10 @@ ${code}
       .catch(e => logger.warn("Failed to save code-review result", { topic: reviewTopic, error: (e as Error).message }));
 
     return { success: true, review, model: "THUDM/GLM-5.1" };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       success: false,
-      review: `代码审查请求失败: ${e.message}`,
+      review: `代码审查请求失败: ${e instanceof Error ? e.message : String(e)}`,
       model: "THUDM/GLM-5.1",
     };
   }
@@ -321,8 +321,8 @@ export function getResearchContext(topic: string): {
       .join("\n\n")}\n\n请在以上研究基础上继续深入，避免重复已有结论。`;
 
     return { relatedNotes, context };
-  } catch (e: any) {
-    logger.warn("[Hermes] Failed to get research context", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("[Hermes] Failed to get research context", { error: e instanceof Error ? e.message : String(e) });
     return { relatedNotes: [], context: "" };
   }
 }
@@ -368,8 +368,8 @@ export async function learnFromResearch(
 
     logger.info("[Hermes] Research learned to vault", { path: notePath, topic, type });
     return { success: true, path: notePath };
-  } catch (e: any) {
-    logger.warn("[Hermes] Failed to learn from research", { error: e.message, topic });
+  } catch (e: unknown) {
+    logger.warn("[Hermes] Failed to learn from research", { error: e instanceof Error ? e.message : String(e), topic });
     return { success: false, path: "" };
   }
 }

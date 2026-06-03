@@ -76,10 +76,10 @@ export async function readFile(
       result = lines.slice(start, end).join("\n");
     }
     return { success: true, content: result, path: filePath };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to read '${filePath}': ${err.message}`,
+      error: `Failed to read '${filePath}': ${err instanceof Error ? err.message : String(err)}`,
       path: filePath,
     };
   }
@@ -105,10 +105,10 @@ export async function writeFile(
       await fs.writeFile(resolved, content, "utf-8");
     }
     return { success: true, path: filePath };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to write '${filePath}': ${err.message}`,
+      error: `Failed to write '${filePath}': ${err instanceof Error ? err.message : String(err)}`,
       path: filePath,
     };
   }
@@ -145,10 +145,10 @@ export async function listDirectory(dirPath: string): Promise<DirectoryResult> {
       })
     );
     return { success: true, entries: result, path: dirPath };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to list '${dirPath}': ${err.message}`,
+      error: `Failed to list '${dirPath}': ${err instanceof Error ? err.message : String(err)}`,
       path: dirPath,
     };
   }
@@ -264,10 +264,10 @@ export async function searchFiles(
       searched: 1,
       matched: results.length,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Search failed: ${err.message}`,
+      error: `Search failed: ${err instanceof Error ? err.message : String(err)}`,
       searched: 0,
       matched: 0,
     };
@@ -284,10 +284,10 @@ export async function deleteFile(filePath: string): Promise<FileResult> {
   try {
     await fs.unlink(resolved);
     return { success: true, path: filePath };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to delete '${filePath}': ${err.message}`,
+      error: `Failed to delete '${filePath}': ${err instanceof Error ? err.message : String(err)}`,
       path: filePath,
     };
   }
@@ -313,10 +313,10 @@ export async function moveFile(
     await fs.mkdir(dir, { recursive: true });
     await fs.rename(srcResolved, dstResolved);
     return { success: true, path: destination };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to move '${source}' to '${destination}': ${err.message}`,
+      error: `Failed to move '${source}' to '${destination}': ${err instanceof Error ? err.message : String(err)}`,
       path: source,
     };
   }

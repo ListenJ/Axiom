@@ -25,6 +25,7 @@ export class Cache<V = unknown> {
   private db?: Database;
   private hitCount = 0;
   private missCount = 0;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: CacheOptions = {}) {
     this.opts = {
@@ -150,6 +151,16 @@ export class Cache<V = unknown> {
     this.db?.run("DELETE FROM cache_store WHERE namespace = ?", [this.opts.namespace]);
   }
 
+  /** 停止清理定时器 */
+  destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.clear();
+    this.db?.close();
+  }
+
   /** 缓存统计 */
   stats(): { size: number; hits: number; misses: number; hitRate: number } {
     const total = this.hitCount + this.missCount;
@@ -179,7 +190,7 @@ export class Cache<V = unknown> {
 
   private scheduleCleanup() {
     // 每 5 分钟清理过期条目
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, entry] of this.store) {
         if (now > entry.expiresAt) this.store.delete(key);

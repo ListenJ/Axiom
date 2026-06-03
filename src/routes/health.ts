@@ -12,7 +12,7 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
     const { wsManager } = await import("../utils/websocket.js");
 
     return ctx.jsonResponse({
-      status: "ok", timestamp: new Date().toISOString(), version: "2.1.0",
+      status: "ok", timestamp: new Date().toISOString(), version: "2.2.0",
       uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
       checks, searchEngines: searchAggregator.listEngines(),
       vault: vStats ? { notes: vStats.totalNotes, words: vStats.totalWords } : null,
@@ -49,7 +49,7 @@ export async function handleDashboard(ctx: RouteContext): Promise<Response | nul
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/stats" && ctx.req.method === "GET") {
     const { searchCache, crawlCache } = await import("../utils/cache.js");
-    const s = (table: string) => (ctx.db.query(`SELECT COUNT(*) as c FROM ${table}`).get() as any)?.c || 0;
+    const s = (table: string) => (ctx.db.query(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number } | null)?.c || 0;
     return ctx.jsonResponse({
       searchCount: s("search_history"), crawlCount: s("crawl_results"),
       memoryCount: s("conversations"), entityCount: s("entities"),
@@ -172,8 +172,9 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
       fs.writeFileSync("./config/openclaw.yaml", yamlStr, "utf-8");
       reloadConfig();
       return ctx.jsonResponse({ success: true, message: "Config updated" }, 200, ctx.baseHeaders);
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 400, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 400, ctx.baseHeaders);
     }
   }
   return null;

@@ -47,7 +47,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const tables = ["conversations", "tasks", "knowledge", "entities", "relationships", "crawl_results", "search_history", "model_usage"];
       console.log("[数据库统计]\n");
       for (const t of tables) {
-        const row = db.query(`SELECT COUNT(*) as c FROM ${t}`).get() as any;
+        const row = db.query(`SELECT COUNT(*) as c FROM ${t}`).get() as { c: number };
         console.log(`  ${t.padEnd(20)} ${String(row?.c || 0).padStart(6)} 条记录`);
       }
       db.close();
@@ -202,7 +202,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log(`站点: ${result.siteName}`);
       console.log(`语言: ${result.language}`);
       console.log(`描述: ${result.description?.slice(0, 200) || "无"}`);
-      console.log(`\n结构化数据类型: ${result.structuredData.map((d: any) => d["@type"] || "Unknown").join(", ") || "无"}`);
+      console.log(`\n结构化数据类型: ${result.structuredData.map((d: { "@type"?: string }) => d["@type"] || "Unknown").join(", ") || "无"}`);
       console.log(`标题层级: ${result.headings.length} 个`);
       console.log(`表格: ${result.tables.length} 个`);
       console.log(`代码块: ${result.codeBlocks.length} 个`);
@@ -302,8 +302,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       try {
         const rows = db.query(sql).all();
         console.log(JSON.stringify(rows, null, 2));
-      } catch (e: any) {
-        console.error("查询错误:", e.message);
+      } catch (e: unknown) {
+        console.error("查询错误:", e instanceof Error ? e.message : String(e));
       }
       db.close();
     },
@@ -329,8 +329,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
             signal: AbortSignal.timeout(5000),
           });
           console.log(`  ${res.ok ? "[正常]" : "[异常]"} ${p.name.padEnd(12)} ${res.status} ${res.statusText}`);
-        } catch (e: any) {
-          console.log(`  [错误] ${p.name.padEnd(12)} ${e.message}`);
+        } catch (e: unknown) {
+          console.log(`  [错误] ${p.name.padEnd(12)} ${e instanceof Error ? e.message : String(e)}`);
         }
       }
     },
@@ -430,8 +430,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         if (result.usage) {
           console.log(`\n--- 用量: ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} tokens ---`);
         }
-      } catch (e: any) {
-        console.error(`\n[错误] Kimi Code 调用失败: ${e.message}`);
+      } catch (e: unknown) {
+        console.error(`\n[错误] Kimi Code 调用失败: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
   },
@@ -609,7 +609,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "查看模型路由状态和工具池健康度",
     run: async () => {
       const { toolPool } = await import("./router/tool-pool.js");
-      const stats = toolPool.getStats() as Record<string, any>;
+      const stats = toolPool.getStats() as Record<string, { role?: string; [key: string]: unknown }>;
       console.log("[模型路由] 分层状态\n");
       console.log("  L1 决策层:    DeepSeek-V4 Pro (paid)");
       console.log("  L2 架构层:    GLM-5.1 (paid)");
@@ -617,11 +617,21 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("  L4 评估层:    Tencent hy3-preview ($5额度) + DeepSeek-V4 Pro\n");
 
       console.log("[工具池] 健康度:\n");
-      const grouped: Record<string, any[]> = {};
+      interface ToolModel {
+        id: string;
+        role?: string;
+        health: string;
+        rpmThisMinute: number;
+        rpmLimit: number;
+        activeRequests: number;
+        totalCalls: number;
+        totalFailures: number;
+      }
+      const grouped: Record<string, ToolModel[]> = {};
       for (const [id, s] of Object.entries(stats)) {
         const role = s.role as string;
         if (!grouped[role]) grouped[role] = [];
-        grouped[role].push({ id, ...s });
+        grouped[role].push({ id, ...s } as ToolModel);
       }
       for (const [role, models] of Object.entries(grouped)) {
         console.log(`  [${role.toUpperCase()}]`);
@@ -713,7 +723,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async (args) => {
       const desc = args.find((a) => !a.startsWith("--"));
       if (!desc) { console.error("Usage: prompt:match <task_description>"); return; }
-      const intensity = args.find((a) => a.startsWith("--intensity="))?.slice(12) as any;
+      const intensity = args.find((a) => a.startsWith("--intensity="))?.slice(12) as "low" | "medium" | "high" | undefined;
       const { promptEngineer } = await import("./agents/prompt-engineer.js");
       const match = promptEngineer.matchTemplate(desc, { thinkingIntensity: intensity });
       if (!match) {
@@ -894,9 +904,9 @@ async function main() {
 
   try {
     await handler.run(args);
-  } catch (e: any) {
-    logger.error(`CLI command "${cmd}" failed`, e);
-    console.error(`\n[错误] ${e.message}`);
+  } catch (e: unknown) {
+    logger.error(`CLI command "${cmd}" failed`, e instanceof Error ? e : new Error(String(e)));
+    console.error(`\n[错误] ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
   }
 }
