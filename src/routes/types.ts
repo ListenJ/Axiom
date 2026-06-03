@@ -22,3 +22,15 @@ export interface RouteContext {
 }
 
 export type RouteHandler = (ctx: RouteContext) => Promise<Response | null>;
+
+/** Request body for POST /api-keys */
+export interface ApiKeyRequestBody {
+  provider: string;
+  apiKey: string;
+  baseURL?: string;
+}
+
+/** WebSocket connection data */
+export interface WebSocketData {
+  clientId: string;
+}

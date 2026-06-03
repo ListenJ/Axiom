@@ -8,6 +8,7 @@ import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchS
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
+import { handleSceneRoutes } from "./scene-routes.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -64,6 +65,8 @@ const handlers: RouteHandler[] = [
   handleHermesTask,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
+  // Scene Router (MCP 场景驱动工具调用)
+  handleSceneRoutes,
 ];
 
 /**

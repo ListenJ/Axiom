@@ -14,7 +14,7 @@
  *   - In-memory only — restart reverts to process.env values (until DB persistence is added)
  */
 
-import type { RouteContext } from "./types.js";
+import type { RouteContext, ApiKeyRequestBody } from "./types.js";
 import {
   listProviderStatus,
   setApiKeyOverride,
@@ -26,6 +26,9 @@ import {
   deleteApiKeyOverride,
 } from "../utils/api-key-persistence.js";
 import { logger } from "../utils/logger.js";
+
+/** Minimum API key length for validation */
+const MIN_API_KEY_LENGTH = 8;
 
 function requireAuth(ctx: RouteContext): Response | null {
   const token = process.env.OPENCLAW_AUTH_TOKEN;
@@ -48,22 +51,32 @@ function requireAuth(ctx: RouteContext): Response | null {
   return null;
 }
 
+/** Validate baseURL format if provided */
+function isValidBaseURL(url: string | undefined): boolean {
+  if (!url) return true; // optional field
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function handleApiKeys(ctx: RouteContext): Promise<Response | null> {
   const path = ctx.url.pathname;
 
+  // All /api-keys routes require authentication
+  const authErr = requireAuth(ctx);
+  if (authErr) return authErr;
+
   // GET /api-keys — list all
   if (path === "/api-keys" && ctx.req.method === "GET") {
-    const authErr = requireAuth(ctx);
-    if (authErr) return authErr;
     return ctx.jsonResponse({ providers: listProviderStatus() }, 200, ctx.baseHeaders);
   }
 
   // POST /api-keys — set one
   if (path === "/api-keys" && ctx.req.method === "POST") {
-    const authErr = requireAuth(ctx);
-    if (authErr) return authErr;
-
-    let body: any;
+    let body: ApiKeyRequestBody | undefined;
     try {
       body = await ctx.req.json();
     } catch {
@@ -84,29 +97,45 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
     if (!apiKey || typeof apiKey !== "string") {
       return ctx.jsonResponse({ error: "Missing 'apiKey' field" }, 400, ctx.baseHeaders);
     }
-    if (apiKey.length < 8) {
-      return ctx.jsonResponse({ error: "API key looks too short (min 8 chars)" }, 400, ctx.baseHeaders);
+    if (apiKey.length < MIN_API_KEY_LENGTH) {
+      return ctx.jsonResponse(
+        { error: `API key too short (min ${MIN_API_KEY_LENGTH} chars)` },
+        400,
+        ctx.baseHeaders
+      );
+    }
+    if (!isValidBaseURL(baseURL)) {
+      return ctx.jsonResponse(
+        { error: "Invalid baseURL format (must be http:// or https://)" },
+        400,
+        ctx.baseHeaders
+      );
     }
 
     try {
-      setApiKeyOverride(provider, apiKey, baseURL);
+      // Persist to DB first, then update memory — ensures consistency
       saveApiKeyOverride(ctx.db, provider, apiKey, baseURL);
+      setApiKeyOverride(provider, apiKey, baseURL);
       logger.info(`[api-keys] Set override for ${provider}`);
       return ctx.jsonResponse(
         { success: true, provider, message: `Runtime override set for ${provider}` },
         200,
         ctx.baseHeaders
       );
-    } catch (e: any) {
-      return ctx.jsonResponse({ error: e.message }, 500, ctx.baseHeaders);
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      logger.error("[api-keys] Failed to set override", err);
+      return ctx.jsonResponse(
+        { error: "Failed to save API key override" },
+        500,
+        ctx.baseHeaders
+      );
     }
   }
 
   // GET /api-keys/:provider
   const getMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (getMatch && ctx.req.method === "GET") {
-    const authErr = requireAuth(ctx);
-    if (authErr) return authErr;
     const provider = getMatch[1];
     if (!isKnownProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
@@ -118,14 +147,13 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   // DELETE /api-keys/:provider
   const deleteMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (deleteMatch && ctx.req.method === "DELETE") {
-    const authErr = requireAuth(ctx);
-    if (authErr) return authErr;
     const provider = deleteMatch[1];
     if (!isKnownProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
-    clearApiKeyOverride(provider);
+    // Delete from DB first, then clear memory — ensures consistency
     deleteApiKeyOverride(ctx.db, provider);
+    clearApiKeyOverride(provider);
     return ctx.jsonResponse(
       { success: true, provider, message: `Runtime override cleared for ${provider}` },
       200,

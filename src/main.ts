@@ -17,7 +17,7 @@ import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-sh
 import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { metrics } from "./utils/metrics.js";
-import type { RouteContext } from "./routes/types.js";
+import type { RouteContext, WebSocketData } from "./routes/types.js";
 import { dispatch, defaultResponse } from "./routes/index.js";
 import {
   initApiKeyOverridesTable,
@@ -215,10 +215,11 @@ function checkApiKey(req: Request): boolean {
   const url = new URL(req.url);
   const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
   if (publicPaths.includes(url.pathname)) return true;
-  if (url.pathname.startsWith("/ws")) return true;
   // Allow all static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
   const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
   if (STATIC_MIME[staticExt]) return true;
+  // WebSocket: check auth in upgrade handler, not here
+  if (url.pathname.startsWith("/ws")) return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
   return auth === API_KEY;
 }
@@ -239,9 +240,14 @@ const server = Bun.serve({
       return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
     }
 
-    // WebSocket
+    // WebSocket — verify auth token before upgrade
     if (url.pathname === "/ws") {
-      const success = server.upgrade(req, { data: { clientId: crypto.randomUUID() } } as any);
+      const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
+      if (wsAuth !== API_KEY) {
+        return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
+      }
+      const wsData: WebSocketData = { clientId: crypto.randomUUID() };
+      const success = server.upgrade(req, { data: wsData } as unknown as Parameters<typeof server.upgrade>[1]);
       if (success) return undefined as any;
       return jsonResponse({ error: "WebSocket upgrade failed" }, 400, baseHeaders);
     }
