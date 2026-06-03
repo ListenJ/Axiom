@@ -1,4 +1,4 @@
-# 🦅 OpenClaw AI Agent
+# 🦅 OpenClaw AI Agent v2.2.0
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
