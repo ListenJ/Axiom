@@ -28,6 +28,7 @@
     "blessed": "^0.1.81",
     "drizzle-orm": "^0.30.0",
     "opencode-ai": "^1.15.13",
+    "tesseract.js": "^7.0.0",
     "yaml": "^2.4.0",
     "zod": "^3.22.0"
   },

@@ -9,6 +9,7 @@ import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork,
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
+import { handleOCRRoutes } from "./ocr-routes.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -67,6 +68,8 @@ const handlers: RouteHandler[] = [
   handleApiKeys,
   // Scene Router (MCP 场景驱动工具调用)
   handleSceneRoutes,
+  // OCR Document Processing
+  handleOCRRoutes,
 ];
 
 /**
