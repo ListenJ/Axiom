@@ -7,6 +7,25 @@ import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
 
+// SSRF protection: block internal/private IPs and dangerous protocols
+const BLOCKED_PROTOCOLS = ["file:", "ftp:", "gopher:", "dict:"];
+const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "169.254.169.254", "metadata.google.internal"];
+
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (BLOCKED_PROTOCOLS.some(p => parsed.protocol === p)) return false;
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (BLOCKED_HOSTS.some(h => hostname === h || hostname.endsWith("." + h))) return false;
+    // Block private IP ranges
+    if (/^10\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^192\.168\./.test(hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
     const query = ctx.url.searchParams.get("q");
@@ -135,6 +154,11 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
   if (ctx.url.pathname === "/web-fetch" && ctx.req.method === "GET") {
     const targetUrl = ctx.url.searchParams.get("url");
     if (!targetUrl) return ctx.jsonResponse({ error: "Missing url param" }, 400, ctx.baseHeaders);
+
+    // SSRF protection: block internal/private IPs and dangerous protocols
+    if (!isSafeUrl(targetUrl)) {
+      return ctx.jsonResponse({ error: "URL blocked by security policy" }, 403, ctx.baseHeaders);
+    }
 
     const { crawlCache } = await import("../utils/cache.js");
     const { wsManager } = await import("../utils/websocket.js");

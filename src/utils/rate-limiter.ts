@@ -94,7 +94,9 @@ export class RateLimiter {
 /** 基于 IP 的限流中间件 */
 export function createRateLimitMiddleware(limiter: RateLimiter) {
   return async (req: Request): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "anonymous";
+    // Use x-real-ip from trusted reverse proxy only; fall back to anonymous
+    // Do NOT trust x-forwarded-for from client (easily spoofed)
+    const ip = req.headers.get("x-real-ip") || "anonymous";
     const url = new URL(req.url);
     const result = limiter.check(ip, url.pathname);
     return {

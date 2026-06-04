@@ -13,6 +13,7 @@
  *   - 请求间隔抖动
  *   - URL 跟踪参数去除
  */
+import { proxyFetch } from "../utils/proxy-fetch.js";
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
 import { Database } from "bun:sqlite";
@@ -291,7 +292,7 @@ export class DataPipeline {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
 
-          const res = await fetch(url, {
+          const res = await proxyFetch(url, {
             headers: {
               "User-Agent": this.options.userAgent,
               Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

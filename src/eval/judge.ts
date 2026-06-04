@@ -3,6 +3,7 @@
  * Lambda-style scoring pipeline with pointer-stable rubrics
  */
 import type { EvalTestCase } from "./test-cases.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 
 // ===== Types =====
 export interface JudgeScore {
@@ -191,7 +192,7 @@ async function callJudge(
   const key = apiKey || process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY required for Claude Sonnet judge");
 
-  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const res = await proxyFetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

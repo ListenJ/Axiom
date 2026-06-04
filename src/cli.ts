@@ -838,51 +838,253 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
-  help: {
-    desc: "显示帮助信息",
-    run: () => {
-      console.log("OpenClaw AI Agent CLI\n");
-      console.log("用法: bun run src/cli.ts <command> [args...]\n");
-      console.log("命令:");
-      const maxLen = Math.max(...Object.keys(commands).map((k) => k.length));
-      for (const [name, cmd] of Object.entries(commands)) {
-        console.log(`  ${name.padEnd(maxLen)}  ${cmd.desc}`);
+  "kg:build": {
+    desc: "构建知识图谱 (kg:build --path=. --name=openclaw [--embeddings])",
+    run: async (args) => {
+      const path = args.find((a) => a.startsWith("--path="))?.slice(7) || ".";
+      const name = args.find((a) => a.startsWith("--name="))?.slice(7) || "current";
+      const embeddings = args.includes("--embeddings");
+      console.log(`[知识图谱] 构建中... 项目: ${name}, 路径: ${path}\n`);
+      const { buildKnowledgeGraph } = await import("./memory/knowledge-graph-builder.js");
+      const result = await buildKnowledgeGraph({
+        projectPath: path,
+        projectName: name,
+        generateEmbeddings: embeddings,
+      });
+      console.log("[构建完成]");
+      console.log(`  实体创建: ${result.entitiesCreated}`);
+      console.log(`  实体更新: ${result.entitiesUpdated}`);
+      console.log(`  关系创建: ${result.relationshipsCreated}`);
+      if (result.errors.length > 0) {
+        console.log(`  错误 (${result.errors.length}):`);
+        for (const e of result.errors.slice(0, 10)) console.log(`    - ${e}`);
+        if (result.errors.length > 10) console.log(`    ... +${result.errors.length - 10} more`);
       }
-      console.log("\n[TUI 终端界面]");
-      console.log("  bun run src/cli.ts tui");
-      console.log("\n[AI 聊天 - 分层路由]");
-      console.log("  bun run src/cli.ts chat \"帮我写一个React组件\"     -> L3 Tool Pool (coding)");
-      console.log("  bun run src/cli.ts chat \"帮我写论文\"               -> general-chat");
-      console.log("\n[CodeGraph 代码记忆]");
-      console.log("  bun run src/cli.ts cg:init                          初始化索引");
-      console.log("  bun run src/cli.ts cg:search recognizeIntent        搜索符号");
-      console.log("  bun run src/cli.ts cg:context \"fix login bug\"       构建上下文");
-      console.log("\n[模型状态]");
-      console.log("  bun run src/cli.ts model:status                     查看工具池健康度");
-      console.log("\n[Prompt Engineer - 零向量提示词引擎]");
-      console.log("  bun run src/cli.ts prompt:list                      列出所有模板");
-      console.log("  bun run src/cli.ts prompt:list --category=engineering  按类别筛选");
-      console.log("  bun run src/cli.ts prompt:match \"审查代码安全性\"     匹配模板");
-      console.log("  bun run src/cli.ts prompt:fill code-review '{\"language\":\"ts\",\"code\":\"...\"}'  填充模板");
-      console.log("  bun run src/cli.ts prompt:skill \"搜索 React 19\"      匹配 Skill");
-      console.log("  bun run src/cli.ts prompt:generate \"数据库优化\" engineering \"schema,query\"  Hermes生成模板");
-      console.log("  bun run src/cli.ts prompt:optimize \"提高清晰度\"      Hermes优化提示词");
-      console.log("  bun run src/cli.ts prompt:hermes-skill \"API测试\" \"自动生成API测试用例\" \"测试,api,接口\"  Hermes生成Skill");
-      console.log("\n[编码 Agent - OpenCode - 使用免费模型]");
-      console.log("  bun run src/cli.ts code:open \"写一个HTTP服务器\" --model=opencode/deepseek-v4-flash-free");
-      console.log("  bun run src/cli.ts code:models");
-      console.log("  bun run src/cli.ts code:serve --port=8765");
-      console.log("\n[编码 Agent - Kimi Code - Kimi 会员权益]");
-      console.log("  bun run src/cli.ts kimi:status                  检查配置状态");
-      console.log("  bun run src/cli.ts kimi:chat \"写一个HTTP服务器\"  API 直连编码");
-      console.log("  bun run src/cli.ts kimi:open                    启动 CLI 交互会话");
-      console.log("  bun run src/cli.ts kimi:guide                   查看安装指南");
-      console.log("\n[项目管理 Agent - Hermes]")
-      console.log("  bun run src/cli.ts project:plan \"构建一个电商后台\"");
-      console.log("  bun run src/cli.ts project:research \"Rust vs Go 性能对比\"");
-      console.log("  bun run src/cli.ts project:arch --path=.");
     },
   },
+
+  "kg:stats": {
+    desc: "查看知识图谱统计",
+    run: async () => {
+      const { isPgAvailable, getPG } = await import("./db/pg-client.js");
+      if (!(await isPgAvailable())) {
+        console.log("[错误] PostgreSQL 不可用，请先启动 PostgreSQL + pgvector");
+        return;
+      }
+      const pg = getPG();
+      const [entityStats] = await pg`SELECT type, COUNT(*)::int AS cnt FROM kg_entities GROUP BY type ORDER BY cnt DESC`;
+      const [relStats] = await pg`SELECT relation_type, COUNT(*)::int AS cnt FROM kg_relationships GROUP BY relation_type ORDER BY cnt DESC`;
+      const [total] = await pg`SELECT COUNT(*)::int AS entities FROM kg_entities`;
+      const [totalRels] = await pg`SELECT COUNT(*)::int AS rels FROM kg_relationships`;
+      console.log("[知识图谱统计]\n");
+      console.log(`  实体总数: ${total.entities}`);
+      console.log(`  关系总数: ${totalRels.rels}\n`);
+      if (entityStats) {
+        console.log("  [实体类型]");
+        for (const row of entityStats as any[]) console.log(`    ${String(row.type).padEnd(20)} ${row.cnt}`);
+      }
+      if (relStats) {
+        console.log("\n  [关系类型]");
+        for (const row of relStats as any[]) console.log(`    ${String(row.relation_type).padEnd(20)} ${row.cnt}`);
+      }
+    },
+  },
+
+  "kg:search": {
+    desc: "搜索知识图谱 (kg:search <query> [--limit=10])",
+    run: async (args) => {
+      const query = args.find((a) => !a.startsWith("--")) || args[0];
+      if (!query) { console.error("Usage: kg:search <query>"); return; }
+      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
+      const { buildResearchContext } = await import("./memory/knowledge-graph-builder.js");
+      console.log(`[知识图谱搜索] "${query}"\n`);
+      const ctx = await buildResearchContext(query, { maxEntities: limit, maxDepth: 2 });
+      console.log(`  匹配实体: ${ctx.entities.length}`);
+      console.log(`  匹配关系: ${ctx.relationships.length}`);
+      console.log(`  文件: ${ctx.codeStructure.files}, 函数: ${ctx.codeStructure.functions}, 类: ${ctx.codeStructure.classes}\n`);
+      if (ctx.summary) console.log(ctx.summary);
+    },
+  },
+
+  "advisor:recommend": {
+    desc: "模型推荐 (advisor:recommend --role=coding|research|general)",
+    run: async (args) => {
+      const role = args.find((a) => a.startsWith("--role="))?.slice(7) || "coding";
+      const { recommendModels } = await import("./router/model-advisor.js");
+      console.log(`[模型推荐] 角色: ${role}\n`);
+      const recs = await recommendModels(role as any);
+      if (recs.length === 0) {
+        console.log("  暂无推荐模型");
+        return;
+      }
+      for (const r of recs.slice(0, 10)) {
+        console.log(`  ${(r as any).id || (r as any).model || JSON.stringify(r).slice(0, 80)}`);
+      }
+    },
+  },
+
+  "advisor:free": {
+    desc: "发现免费模型",
+    run: async () => {
+      const { discoverFreeModels } = await import("./router/model-advisor.js");
+      console.log("[发现免费模型]\n");
+      const models = await discoverFreeModels();
+      if (models.length === 0) {
+        console.log("  未发现免费模型");
+        return;
+      }
+      for (const m of models) {
+        console.log(`  ${(m as any).id || (m as any).name || JSON.stringify(m).slice(0, 80)}`);
+      }
+    },
+  },
+
+  "advisor:evolve": {
+    desc: "触发模型进化周期",
+    run: async () => {
+      const { runEvolutionCycle } = await import("./router/model-advisor.js");
+      console.log("[模型进化] 开始进化周期...\n");
+      const result = await runEvolutionCycle();
+      console.log("[进化完成]");
+      console.log(JSON.stringify(result, null, 2));
+    },
+  },
+
+  "research": {
+    desc: "KG增强深度研究 (research <query> [--depth=quick|deep|exhaustive])",
+    run: async (args) => {
+      const query = args.filter((a) => !a.startsWith("--")).join(" ");
+      if (!query) { console.error("Usage: research <query>"); return; }
+      const depth = (args.find((a) => a.startsWith("--depth="))?.slice(8) || "deep") as "quick" | "deep" | "exhaustive";
+      console.log(`[深度研究] "${query}" (深度: ${depth})\n`);
+      const { runKnowledgeGraphResearch } = await import("./agents/kg-research-agent.js");
+      const result = await runKnowledgeGraphResearch({ query, depth });
+      console.log(`[研究完成] 模型: ${result.model}, 耗时: ${result.durationMs}ms, 置信度: ${result.confidence}\n`);
+      console.log(`引用实体: ${result.referencedEntities.length}`);
+      console.log(`新发现实体: ${result.newFindings.entities.length}\n`);
+      console.log(result.conclusion);
+    },
+  },
+
+  help: {
+    desc: "显示帮助信息",
+    run: (args) => {
+      if (args.includes("--all")) {
+        console.log("OpenClaw AI Agent CLI — 完整命令列表\n");
+        const maxLen = Math.max(...Object.keys(commands).map(k => k.length));
+        for (const [name, cmd] of Object.entries(commands)) {
+          if (name === "help") continue;
+          console.log(`  ${name.padEnd(maxLen)}  ${cmd.desc}`);
+        }
+        console.log("\n  help                 显示帮助信息");
+        return;
+      }
+
+      console.log("OpenClaw AI Agent CLI\n");
+      console.log("用法: openclaw <命令> [子命令] [参数...]\n");
+
+      console.log("核心命令:");
+      console.log("  status              系统状态概览");
+      console.log("  chat <消息>         AI 对话 (自动路由)");
+      console.log("  research <主题>     深度研究 (KG增强)");
+      console.log("  health              平台健康检查");
+      console.log("  tui                 启动终端界面\n");
+
+      console.log("子命令组:");
+      console.log("  search <query>      搜索 (search run|enhanced|history)");
+      console.log("  vault <action>      记忆库 (vault search|read|stats|para)");
+      console.log("  kg <action>         知识图谱 (kg build|stats|search)");
+      console.log("  cg <action>         代码图谱 (cg init|search|context)");
+      console.log("  code <action>       OpenCode (code open|models|serve)");
+      console.log("  kimi <action>       Kimi (kimi chat|open|status)");
+      console.log("  agent <action>      Agent管理 (agent status|discover)");
+      console.log("  advisor <action>    模型顾问 (advisor recommend|free|evolve)");
+      console.log("  prompt <action>     提示词 (prompt list|match|fill)\n");
+
+      console.log("快捷别名:");
+      console.log("  s = search, c = chat, r = research, k = kg, v = vault\n");
+
+      console.log("示例:");
+      console.log("  openclaw s \"React 19 新特性\"          搜索");
+      console.log("  openclaw c \"帮我写HTTP服务器\"          对话");
+      console.log("  openclaw r \"多智能体架构分析\"          深度研究");
+      console.log("  openclaw kg build --path=. --name=x   构建知识图谱");
+      console.log("  openclaw vault search \"部署方案\"       记忆库搜索");
+      console.log("  openclaw advisor free                  发现免费模型\n");
+
+      console.log("高级命令: openclaw help --all");
+    },
+  },
+};
+
+// ===== 二级子命令分发 =====
+
+const subcommands: Record<string, Record<string, { desc: string; run: (args: string[]) => Promise<void> | void }>> = {
+  kg: {
+    build: commands["kg:build"],
+    stats: commands["kg:stats"],
+    search: commands["kg:search"],
+  },
+  cg: {
+    init: commands["cg:init"],
+    search: commands["cg:search"],
+    context: commands["cg:context"],
+  },
+  vault: {
+    search: commands["vault:search"],
+    read: commands["vault:read"],
+    para: commands["vault:para"],
+    stats: commands["vault:stats"],
+    index: commands["vault:index-code"],
+  },
+  code: {
+    open: commands["code:open"],
+    models: commands["code:models"],
+    serve: commands["code:serve"],
+  },
+  kimi: {
+    chat: commands["kimi:chat"],
+    open: commands["kimi:open"],
+    status: commands["kimi:status"],
+    guide: commands["kimi:guide"],
+  },
+  agent: {
+    status: commands["agent:status"],
+    discover: commands["agents:discover"],
+    models: commands["code:models"],
+  },
+  advisor: {
+    recommend: commands["advisor:recommend"],
+    free: commands["advisor:free"],
+    evolve: commands["advisor:evolve"],
+    status: commands["model:status"],
+  },
+  prompt: {
+    list: commands["prompt:list"],
+    match: commands["prompt:match"],
+    fill: commands["prompt:fill"],
+    skill: commands["prompt:skill"],
+    generate: commands["prompt:generate"],
+    optimize: commands["prompt:optimize"],
+  },
+  search: {
+    run: commands["search"],
+    enhanced: commands["esearch"],
+    suggestions: commands["search:suggestions"],
+    stats: commands["search:stats"],
+    history: commands["search:history"],
+    clear: commands["search:clear"],
+  },
+};
+
+// Short aliases for common commands
+const aliases: Record<string, string> = {
+  s: "search",        // openclaw s "query" → openclaw search "query"
+  c: "chat",          // openclaw c "message"
+  r: "research",      // openclaw r "topic"
+  k: "kg",            // openclaw k build
+  v: "vault",         // openclaw v search
+  h: "help",
 };
 
 // ===== 入口 =====
@@ -895,20 +1097,53 @@ async function main() {
     return;
   }
 
-  const handler = commands[cmd];
-  if (!handler) {
-    console.error(`未知命令: ${cmd}`);
-    console.error(`运行 "bun run src/cli.ts help" 查看可用命令`);
-    process.exit(1);
+  // Resolve alias
+  const resolvedCmd = aliases[cmd] || cmd;
+
+  // Check for subcommand: `openclaw kg build` or `openclaw kg:build`
+  if (args.length > 0 && subcommands[resolvedCmd]?.[args[0]]) {
+    const sub = args[0];
+    try {
+      await subcommands[resolvedCmd][sub].run(args.slice(1));
+    } catch (e: unknown) {
+      logger.error(`CLI "${resolvedCmd} ${sub}" failed`, e instanceof Error ? e : new Error(String(e)));
+      console.error(`\n[错误] ${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    }
+    return;
   }
 
-  try {
-    await handler.run(args);
-  } catch (e: unknown) {
-    logger.error(`CLI command "${cmd}" failed`, e instanceof Error ? e : new Error(String(e)));
-    console.error(`\n[错误] ${e instanceof Error ? e.message : String(e)}`);
-    process.exit(1);
+  // Also support colon syntax: `openclaw kg:build`
+  const handler = commands[resolvedCmd];
+  if (handler) {
+    try {
+      await handler.run(args);
+    } catch (e: unknown) {
+      logger.error(`CLI command "${resolvedCmd}" failed`, e instanceof Error ? e : new Error(String(e)));
+      console.error(`\n[错误] ${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    }
+    return;
   }
+
+  // Check if it's a subcommand group without sub-action
+  if (subcommands[resolvedCmd]) {
+    console.log(`\n用法: openclaw ${resolvedCmd} <子命令>\n`);
+    console.log(`可用子命令:`);
+    const maxLen = Math.max(...Object.keys(subcommands[resolvedCmd]).map(k => k.length));
+    for (const [name, sub] of Object.entries(subcommands[resolvedCmd])) {
+      console.log(`  ${name.padEnd(maxLen)}  ${sub.desc}`);
+    }
+    return;
+  }
+
+  console.error(`未知命令: ${cmd}`);
+  console.error(`运行 "openclaw help" 查看可用命令\n`);
+  // Suggest closest match
+  const allCmds = [...Object.keys(commands), ...Object.keys(subcommands), ...Object.keys(aliases)];
+  const suggestion = allCmds.find(c => c.startsWith(cmd.slice(0, 2)) || c.includes(cmd));
+  if (suggestion) console.error(`你可能想输入: ${suggestion}`);
+  process.exit(1);
 }
 
 main();

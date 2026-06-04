@@ -6,6 +6,7 @@ import { ALL_TEST_CASES, getTestCasesByDimension, getTestCasesByCategory, ALL_CA
 import { evaluateResponse, type ModelResponse, type EvaluatedResponse } from "./judge.js";
 import { generateReport, toMarkdown, toJSON, type EvalReport } from "./reporter.js";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 
 // ===== Config =====
 const OUTPUT_DIR = "./eval-results";
@@ -68,7 +69,7 @@ async function callModel(
   }
   messages.push({ role: "user" as const, content: testCase.prompt });
 
-  const res = await fetch(`${base}/chat/completions`, {
+  const res = await proxyFetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

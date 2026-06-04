@@ -5,6 +5,8 @@
  * 移除：反指纹、代理管理、Yandex、Google SerpAPI
  */
 
+import { proxyFetch } from "../utils/proxy-fetch.js";
+
 export interface SearchEngineResult {
   position: number;
   title: string;
@@ -32,11 +34,16 @@ abstract class SearchEngine {
   abstract readonly name: string;
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
 
-  protected async fetch(url: string, init: RequestInit = {}): Promise<Response> {
+  protected async fetch(url: string, init: RequestInit = {}): Promise<any> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const res = await fetch(url, { ...init, signal: controller.signal });
+      const res = await proxyFetch(url, {
+        method: init.method || "GET",
+        headers: init.headers as Record<string, string>,
+        body: init.body as string | null,
+        signal: controller.signal,
+      });
       clearTimeout(timer);
       return res;
     } catch (e) {

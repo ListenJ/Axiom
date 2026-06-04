@@ -10,8 +10,40 @@ import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpe
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
+import {
+  handleEvalStats,
+  handleEvalResults,
+  handleEvalModel,
+  handleEvalTrend,
+  handleEvalModels,
+  handleEvalRun,
+  handleEvalAssign,
+  handleEvalAssignments,
+  handleEvalAssignReport,
+} from "./eval-routes.js";
 import { handleProxies } from "./proxies.js";
 import { handlePluginRoutes } from "./plugin-adapter.js";
+import {
+  handleKGStats,
+  handleKGEntities,
+  handleKGEntityDetail,
+  handleKGTraverse,
+  handleKGBuild,
+  handleKGSearch,
+  handleAdvisorRecommend,
+  handleAdvisorFreeModels,
+  handleAdvisorEvolve,
+  handleAdvisorStatus,
+  handleResearchRun,
+} from "./knowledge-graph.js";
+import {
+  handleSaveConversation,
+  handleGetConversations,
+  handleListSessions,
+  handleKnowledgeSearch,
+  handleListTasks,
+  handleModelUsage,
+} from "./memory-api.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -67,8 +99,6 @@ const handlers: RouteHandler[] = [
   handleKimiChat,
   handleKimiOpen,
   handleHermesTask,
-  // Proxies
-  handleProxies,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
   // Plugin Market (插件市场)
@@ -77,6 +107,36 @@ const handlers: RouteHandler[] = [
   handleSceneRoutes,
   // OCR Document Processing
   handleOCRRoutes,
+  // Model Evaluation & Dynamic Assignment (模型评估与动态分配)
+  handleEvalStats,
+  handleEvalResults,
+  handleEvalModel,
+  handleEvalTrend,
+  handleEvalModels,
+  handleEvalRun,
+  handleEvalAssign,
+  handleEvalAssignments,
+  handleEvalAssignReport,
+  // Memory API (跨会话记忆)
+  handleSaveConversation,
+  handleGetConversations,
+  handleListSessions,
+  handleKnowledgeSearch,
+  handleListTasks,
+  handleModelUsage,
+  // Knowledge Graph & Model Advisor (知识图谱 + 模型顾问)
+  handleKGStats,
+  handleKGEntities,
+  handleKGEntityDetail,
+  handleKGTraverse,
+  handleKGBuild,
+  handleKGSearch,
+  handleAdvisorRecommend,
+  handleAdvisorFreeModels,
+  handleAdvisorEvolve,
+  handleAdvisorStatus,
+  // Research (KG 增强的深度研究)
+  handleResearchRun,
 ];
 
 /**
@@ -139,6 +199,37 @@ export function defaultResponse(ctx: RouteContext): Response {
       "POST   /plugins/:id/disable       — 禁用插件",
       "POST   /plugins/:id/config        — 配置插件",
       "GET    /plugins/active-tools      — 获取活跃工具",
+      "--- Model Evaluation (模型评估) ---",
+      "GET    /eval/stats                — 评估统计摘要",
+      "GET    /eval/results              — 查询评估结果",
+      "GET    /eval/model/:id            — 模型评估详情",
+      "GET    /eval/trend/:id            — 模型评估趋势",
+      "GET    /eval/models               — OpenRouter 模型列表",
+      "POST   /eval/run                  — 触发模型评估",
+      "POST   /eval/assign               — 触发动态分配",
+      "GET    /eval/assignments          — 查看动态分配",
+      "GET    /eval/assign/report        — 分配报告",
+      "--- Memory API (跨会话记忆) ---",
+      "POST   /memory/conversations      — 保存对话消息",
+      "GET    /memory/conversations       — 获取对话历史",
+      "GET    /memory/sessions            — 列出所有会话",
+      "GET    /memory/knowledge           — 跨表知识搜索",
+      "GET    /memory/tasks               — 列出任务",
+      "GET    /memory/usage               — 模型用量统计",
+      "--- Knowledge Graph (知识图谱) ---",
+      "GET    /kg/stats                  — 知识图谱统计",
+      "GET    /kg/entities               — 列出实体",
+      "GET    /kg/entity/:name           — 实体详情",
+      "GET    /kg/traverse/:name         — 图谱遍历",
+      "POST   /kg/build                  — 构建知识图谱",
+      "POST   /kg/search                 — 知识图谱搜索",
+      "--- Model Advisor (模型顾问) ---",
+      "GET    /advisor/recommend         — 模型推荐",
+      "GET    /advisor/free-models       — 发现免费模型",
+      "POST   /advisor/evolve            — 触发进化周期",
+      "GET    /advisor/status            — 顾问状态",
+      "--- Research (深度研究) ---",
+      "POST   /research/run              — KG增强深度研究",
     ],
   }, 200, ctx.baseHeaders);
 }

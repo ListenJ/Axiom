@@ -9,6 +9,7 @@ import { spawn } from "bun";
 import { statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 
 export interface HermesTask {
   /** 任务描述 */
@@ -250,7 +251,7 @@ ${code}
 请用中文输出结构化的审查报告，包含严重程度（🔴严重/🟡中等/🟢建议）和具体修改建议。`;
 
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
+    const resp = await proxyFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

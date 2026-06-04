@@ -8,6 +8,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
 import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
 import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.js";
@@ -118,7 +119,7 @@ async function callProvider(
       headers["X-Title"] = "OpenClaw Agent";
     }
 
-    const res = await fetch(`${baseURL}/chat/completions`, {
+    const res = await proxyFetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, messages, temperature: 0.7 }),
@@ -376,7 +377,7 @@ class MultiPlatformRouter {
 
     const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
 
-    const res = await fetch(`${baseURL}/embeddings`, {
+    const res = await proxyFetch(`${baseURL}/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

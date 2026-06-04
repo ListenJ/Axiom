@@ -81,9 +81,11 @@ function showError(msg) {
 }
 
 // ===== WebSocket =====
+let wsRetryCount = 0;
 function connectWs() {
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
+    wsRetryCount = 0;
     document.getElementById("connStatus").innerHTML = `<span class="status-dot"></span> 在线`;
     document.getElementById("connStatus").className = "badge ok";
     ws.send(JSON.stringify({ action: "subscribe", types: ["system.status", "search.completed", "crawl.completed", "vault_change", "model.usage", "heartbeat"] }));
@@ -91,7 +93,9 @@ function connectWs() {
   ws.onclose = () => {
     document.getElementById("connStatus").innerHTML = `⚠️ 重连中`;
     document.getElementById("connStatus").className = "badge warn";
-    setTimeout(connectWs, 5000);
+    const delay = Math.min(5000 * Math.pow(1.5, wsRetryCount), 60000);
+    wsRetryCount++;
+    setTimeout(connectWs, delay);
   };
   ws.onmessage = (e) => {
     try {
@@ -196,13 +200,27 @@ async function sendChat() {
     }
 
     chatHistory = chatHistory.filter(m => m.id !== typingId);
+    const aiContent = res.response || res.result || res.code || res.review || JSON.stringify(res, null, 2);
     chatHistory.push({
       role: "assistant",
-      content: res.response || res.result || res.code || res.review || JSON.stringify(res, null, 2),
+      content: aiContent,
       agent: res.agent || intentRes.intent,
       toolCalls: res.toolCalls
     });
+    // Cap in-memory history to prevent memory leak (1000 messages max)
+    if (chatHistory.length > 1000) chatHistory.splice(0, chatHistory.length - 1000);
     localStorage.setItem("chatHistory", JSON.stringify(chatHistory.slice(-100)));
+    // Persist to server for cross-session memory
+    const sessionId = localStorage.getItem("sessionId") || crypto.randomUUID();
+    localStorage.setItem("sessionId", sessionId);
+    api("/memory/conversations", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, role: "user", content: text })
+    }).catch(() => {});
+    api("/memory/conversations", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, role: "assistant", content: aiContent })
+    }).catch(() => {});
     renderChat();
   } catch (e) {
     chatHistory = chatHistory.filter(m => !m.id?.startsWith("typing-"));
@@ -384,6 +402,7 @@ async function doWebSearch() {
 }
 
 // ===== OCR =====
+let ocrObjectUrl = null;
 function renderOcr() {
   document.getElementById("pageContent").innerHTML = `
     <div class="card">
@@ -405,9 +424,16 @@ async function handleOcrFile(input) {
   const result = document.getElementById("ocrResult");
   result.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
 
+  // Revoke previous Object URL to prevent memory leak
+  if (ocrObjectUrl) { URL.revokeObjectURL(ocrObjectUrl); ocrObjectUrl = null; }
+
   if (file.type.startsWith("image/")) {
     const url = URL.createObjectURL(file);
+    ocrObjectUrl = url;
     preview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:300px;border-radius:8px">`;
+    // Auto-revoke after image loads
+    const img = preview.querySelector("img");
+    if (img) img.onload = () => { URL.revokeObjectURL(url); ocrObjectUrl = null; };
   } else {
     preview.innerHTML = `<div style="padding:20px;background:var(--bg);border-radius:8px;text-align:center">📄 ${file.name}</div>`;
   }
@@ -741,16 +767,35 @@ function updateAgentStatus(payload) {
 }
 
 // ===== Utils =====
-function escapeHtml(text) {
-  if (!text) return "";
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML.replace(/\n/g, "<br>");
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\n/g, "<br>");
 }
 
 // ===== Init =====
 renderNav();
 connectWs();
+
+// Load last session's conversation from server
+(async function loadLastSession() {
+  try {
+    const res = await api("/memory/conversations?limit=100");
+    if (res.messages && res.messages.length > 0) {
+      const serverHistory = res.messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        agent: m.agent_id,
+      }));
+      // Merge with local history (server takes precedence for older messages)
+      if (serverHistory.length > chatHistory.length) {
+        chatHistory.length = 0;
+        chatHistory.push(...serverHistory);
+        localStorage.setItem("chatHistory", JSON.stringify(chatHistory.slice(-100)));
+      }
+    }
+  } catch {}
+})();
+
 navigate("chat");
 
 // PWA

@@ -7,6 +7,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 
@@ -196,7 +197,7 @@ export class SerpApiClient {
     const timer = setTimeout(() => controller.abort(), 20000);
 
     try {
-      const res = await fetch(url.toString(), {
+      const res = await proxyFetch(url.toString(), {
         method: "GET",
         headers: {
           Accept: "application/json",

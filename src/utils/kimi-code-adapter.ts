@@ -9,6 +9,7 @@
  */
 
 import { logger } from "./logger.js";
+import { proxyFetch } from "./proxy-fetch.js";
 
 export interface KimiCodeOptions {
   /** Temperature (0-2, default: 0.6) */
@@ -89,7 +90,7 @@ class KimiCodeAdapter {
     });
 
     try {
-      const res = await fetch(`${KIMI_CODE_BASE_URL}/chat/completions`, {
+      const res = await proxyFetch(`${KIMI_CODE_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

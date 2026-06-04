@@ -12,6 +12,7 @@
  * 
  * 若订阅了 MiniMax Token Plan，可使用同一 API Key 同时调用模型和 MCP 工具
  */
+import { proxyFetch } from "../../utils/proxy-fetch.js";
 
 import { logger } from "../../utils/logger.js";
 import { TIMEOUTS } from "../../constants/timeouts.js";
@@ -67,9 +68,9 @@ async function callMiniMaxAPI<T>(
   const response = await withTimeout(
     withRetry(
       async () => {
-        const res = await fetch(url, {
+        const res = await proxyFetch(url, {
           method: "POST",
-          headers: buildHeaders(cfg),
+          headers: buildHeaders(cfg) as Record<string, string>,
           body: JSON.stringify(body),
         });
         if (!res.ok) {
@@ -239,7 +240,7 @@ export async function checkMiniMaxHealth(): Promise<{
     const config = getMiniMaxConfig();
     // 使用 HEAD 请求检查 API 可用性，避免产生费用
     const url = `${config.baseUrl}/v1/models`;
-    const res = await fetch(url, {
+    const res = await proxyFetch(url, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${config.apiKey}`,

@@ -13,6 +13,7 @@
  * 服务地址: https://api.kimi.com/coding/v1 (OpenAI 兼容)
  * 模型 ID:  kimi-for-coding
  */
+import { proxyFetch } from "../utils/proxy-fetch.js";
 import { spawn } from "bun";
 import { logger } from "../utils/logger.js";
 
@@ -64,7 +65,7 @@ export async function kimiCodeChat(options: {
   const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const res = await fetch(`${baseURL}/chat/completions`, {
+    const res = await proxyFetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

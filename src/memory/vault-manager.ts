@@ -134,8 +134,8 @@ export class VaultManager {
 
   /** 精确读取单篇笔记 */
   readNote(notePath: string): { content: string; frontmatter: Record<string, unknown> } | null {
-    const fullPath = path.join(this.config.vaultPath, notePath);
     try {
+      const fullPath = this.resolveSafePath(notePath);
       const content = fs.readFileSync(fullPath, "utf-8");
       const { frontmatter, body } = this.parseFrontmatter(content);
       return { content: body, frontmatter };
@@ -177,7 +177,7 @@ export class VaultManager {
       }
     }
 
-    const fullPath = path.join(this.config.vaultPath, notePath);
+    const fullPath = this.resolveSafePath(notePath);
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -622,7 +622,7 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
   async ensureDailyNote(): Promise<string> {
     const today = new Date().toISOString().slice(0, 10);
     const notePath = `memory/${today}.md`;
-    const fullPath = path.join(this.config.vaultPath, notePath);
+    const fullPath = this.resolveSafePath(notePath);
     if (!fs.existsSync(fullPath)) {
       return this.createDailyNote();
     }
@@ -651,6 +651,20 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
   }
 
   // ===== 辅助方法 =====
+
+  /**
+   * Resolve a note path safely within the vault directory.
+   * Blocks path traversal attempts (e.g. ../../etc/passwd).
+   */
+  private resolveSafePath(notePath: string): string {
+    const resolved = path.resolve(this.config.vaultPath, notePath);
+    const base = path.resolve(this.config.vaultPath);
+    const relative = path.relative(base, resolved);
+    if (relative.startsWith("..") || relative === "..") {
+      throw new Error(`Path traversal blocked: ${notePath}`);
+    }
+    return resolved;
+  }
 
   private buildFrontmatter(opts: Record<string, unknown>): string {
     const fmKeys = ["title", "type", "created", "updated", "source", "tags", "confidence"];

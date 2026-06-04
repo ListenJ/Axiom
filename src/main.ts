@@ -168,14 +168,14 @@ export function stopHeartbeat(): void {
 }
 
 // ===== HTTP 服务 =====
-const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: false });
+const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: true });
 const rateLimitCheck = createRateLimitMiddleware(apiLimiter);
 const MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || "1048576", 10);
 const port = config.gateway.port;
 
 function corsHeaders(origin?: string): Record<string, string> {
   return createCorsHeaders(origin, {
-    allowedOrigins: process.env.CORS_ORIGINS?.split(",") || ["*"],
+    allowedOrigins: process.env.CORS_ORIGINS?.split(",") || [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
     allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
     allowCredentials: !!process.env.CORS_CREDENTIALS,
@@ -254,7 +254,7 @@ function checkApiKey(req: Request): boolean {
 
 const server = Bun.serve({
   port,
-  hostname: "0.0.0.0",
+  hostname: process.env.HOST || "127.0.0.1",
   async fetch(req, server) {
     const startTime = performance.now();
     const url = new URL(req.url);
@@ -346,7 +346,7 @@ registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins sh
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 
-logger.info("Server started", { port, hostname: "0.0.0.0", url: `http://0.0.0.0:${port}` });
+logger.info("Server started", { port, hostname: process.env.HOST || "127.0.0.1", url: `http://${process.env.HOST || "127.0.0.1"}:${port}` });
 
 const localUrl = `http://localhost:${port}`;
 import { networkInterfaces } from "os";
@@ -370,7 +370,7 @@ console.log(`
 ║                                                                      ║
 ║  本地访问:  ${localUrl.padEnd(58)} ║
 ║  局域网:    ${lanUrl.padEnd(58)} ║
-║  WebSocket: ws://0.0.0.0:${port}/ws${"".padEnd(38)} ║
+║  WebSocket: ws://${process.env.HOST || "127.0.0.1"}:${port}/ws${"".padEnd(38)} ║
 ║  API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
