@@ -8,7 +8,7 @@
  *   bun run scripts/expand-knowledge.ts           # 安静模式 (默认)
  *   bun run scripts/expand-knowledge.ts --verbose  # 详细输出
  */
-import { smartRender } from "../src/crawl/lightpanda-client.js";
+import { fetchPageContent, type PageContent } from "../src/crawl/lightpanda-client.js";
 import { directSearch } from "../src/crawl/lightpanda-search.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -154,6 +154,18 @@ function extractTextContent(html: string): { title: string; text: string; headin
   }
 
   return { title, text, headings: headings.slice(0, 30) };
+}
+
+/** 从 Markdown 内容提取标题列表 */
+function extractHeadingsFromMarkdown(md: string): string[] {
+  const headings: string[] = [];
+  const re = /^#{1,4}\s+(.+)$/gm;
+  let m;
+  while ((m = re.exec(md)) !== null) {
+    const text = m[1].replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim();
+    if (text.length > 2 && text.length < 80) headings.push(text);
+  }
+  return headings.slice(0, 25);
 }
 
 // ═══════════ 原子笔记生成 ═══════════
@@ -347,29 +359,32 @@ async function main() {
     log(`\n━━━ ${source.topic} (${source.category}) ━━━`);
     const topics: string[] = [];
 
-    // 1. 爬取指定 URL
+    // 1. 爬取指定 URL (使用 fetchPageContent: markdown dump, 不渲染前端)
     for (const url of source.urls) {
       step++;
       try {
         log(`  🌐 爬取: ${url}`);
-        const result = await smartRender(url, { timeout: 15000 });
-        const content = extractTextContent(result.html);
+        const page = await fetchPageContent(url, { timeout: 15000 });
 
-        if (content.text.length < 100) {
-          log(`  ⚠️  内容过少 (${content.text.length} 字), 跳过`);
+        if (page.content.length < 100) {
+          log(`  ⚠️  内容过少 (${page.content.length} 字), 跳过`);
           if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: 跳过 (内容过少)   `);
           continue;
         }
 
         const noteName = `${source.topic.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${url.split("/").pop() || "index"}`.replace(/[^a-z0-9-]/g, "");
-        const note = generateAtomicNote(source.topic, source.category, url, content);
+        const note = generateAtomicNote(source.topic, source.category, url, {
+          title: page.title,
+          text: page.content.slice(0, 5000),
+          headings: extractHeadingsFromMarkdown(page.content),
+        });
         const notePath = path.join(ATOMIC_DIR, `${noteName}.md`);
 
         fs.writeFileSync(notePath, note, "utf-8");
         topics.push(source.topic);
         totalCrawled++;
-        log(`  ✅ ${content.title || url} (${content.text.length} 字, ${result.method}, ${result.loadTimeMs}ms)`);
-        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: +1 笔记 (${content.text.length}字)   `);
+        log(`  ✅ ${page.title || url} (${page.content.length} 字, ${page.format}, ${page.loadTimeMs}ms)`);
+        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: +1 笔记 (${page.content.length}字)   `);
       } catch (err) {
         log(`  ❌ 爬取失败: ${(err as Error).message}`);
       }
@@ -400,21 +415,20 @@ async function main() {
           // 深度爬取前 2 个搜索结果
           for (const r of results.slice(0, 2)) {
             try {
-              const deepResult = await smartRender(r.link, { timeout: 15000 });
-              const deepContent = extractTextContent(deepResult.html);
+              const deepPage = await fetchPageContent(r.link, { timeout: 15000 });
 
-              if (deepContent.text.length > 200) {
+              if (deepPage.content.length > 200) {
                 const deepSlug = r.link.replace(/https?:\/\//, "").replace(/[^a-z0-9]/g, "-").slice(0, 60);
                 const deepNote = generateAtomicNote(
                   `${source.topic} — ${r.title}`,
                   source.category,
                   r.link,
-                  deepContent,
+                  { title: deepPage.title || r.title, text: deepPage.content.slice(0, 5000), headings: extractHeadingsFromMarkdown(deepPage.content) },
                 );
                 const deepPath = path.join(ATOMIC_DIR, `deep-${deepSlug}.md`);
                 fs.writeFileSync(deepPath, deepNote, "utf-8");
                 totalCrawled++;
-                log(`  📄 深度爬取: ${r.title.slice(0, 50)} (${deepContent.text.length} 字)`);
+                log(`  📄 深度爬取: ${r.title.slice(0, 50)} (${deepPage.content.length} 字)`);
               }
             } catch {
               // 深度爬取失败不阻断流程

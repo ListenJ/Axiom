@@ -156,23 +156,25 @@ export async function renderWithDockerCLI(
   containerName: string,
   url: string,
   timeout: number = 20000,
+  options: { dumpFormat?: "html" | "markdown" | "text"; stripMode?: string } = {},
 ): Promise<RenderResult> {
+  const { dumpFormat = "html", stripMode } = options;
   const startTime = Date.now();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
 
+  const args = ["docker", "exec", containerName, "lightpanda", "fetch", url,
+    "--dump", dumpFormat,
+    "--wait-ms", String(Math.min(timeout - 2000, 10000))];
+  if (stripMode) args.push("--strip-mode", stripMode);
+
   try {
-    const proc = Bun.spawn(
-      ["docker", "exec", containerName, "lightpanda", "fetch", url,
-        "--dump", "html",
-        "--wait-ms", String(Math.min(timeout - 2000, 10000))],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-        signal: controller.signal,
-      },
-    );
+    const proc = Bun.spawn(args, {
+      stdout: "pipe",
+      stderr: "pipe",
+      signal: controller.signal,
+    });
 
     const exitCode = await proc.exited;
     clearTimeout(timer);
@@ -436,4 +438,99 @@ export async function startLightpandaDocker(): Promise<boolean> {
     logger.warn(`[Lightpanda] Docker not available: ${(err as Error).message}`);
     return false;
   }
+}
+
+// ========== 内容提取 (知识库优化) ==========
+
+export interface PageContent {
+  url: string;
+  title: string;
+  content: string;     // markdown or plain text
+  format: "markdown" | "html" | "fallback";
+  loadTimeMs: number;
+}
+
+/**
+ * 提取页面纯文本/Markdown 内容 (用于知识库构建)
+ * 优先使用 markdown dump + strip，跳过 JS/CSS/UI 资源，速度更快、内容更干净。
+ */
+export async function fetchPageContent(
+  url: string,
+  options: { timeout?: number; containerName?: string } = {},
+): Promise<PageContent> {
+  const { timeout = 20000, containerName } = options;
+  const startTime = Date.now();
+
+  if (!lightpandaInfo) lightpandaInfo = await detectLightpanda();
+
+  // 1. Docker CLI markdown dump (最优路径)
+  if (lightpandaInfo.available && lightpandaInfo.method === "docker-cli") {
+    try {
+      const result = await renderWithDockerCLI(
+        containerName || lightpandaInfo.container || "lightpanda",
+        url, timeout,
+        { dumpFormat: "markdown", stripMode: "js,ui,css" },
+      );
+      if (result.html.length > 200) {
+        const title = extractMarkdownTitle(result.html) || result.title;
+        return { url, title, content: result.html, format: "markdown", loadTimeMs: result.loadTimeMs };
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 2. Local binary markdown dump
+  if (lightpandaInfo.available && lightpandaInfo.method === "binary" && lightpandaInfo.path) {
+    try {
+      const proc = Bun.spawn(
+        [lightpandaInfo.path, "fetch", url, "--dump", "markdown", "--strip-mode", "js,ui,css",
+          "--wait-ms", String(Math.min(timeout - 2000, 10000))],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      const stdout = await new Response(proc.stdout).text();
+      if ((await proc.exited) === 0 && stdout.length > 200) {
+        return { url, title: extractMarkdownTitle(stdout) || "", content: stdout, format: "markdown", loadTimeMs: Date.now() - startTime };
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 3. HTTP fallback (proxyFetch)
+  try {
+    const res = await proxyFetch(url, {
+      timeout,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; OpenClaw/2.3)" },
+    });
+    const html = await res.text();
+    const textContent = htmlToPlainText(html);
+    const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/is);
+    return {
+      url,
+      title: titleMatch?.[1].trim() || "",
+      content: textContent,
+      format: "fallback",
+      loadTimeMs: Date.now() - startTime,
+    };
+  } catch (err) {
+    return { url, title: "", content: "", format: "fallback", loadTimeMs: Date.now() - startTime };
+  }
+}
+
+function extractMarkdownTitle(md: string): string {
+  const match = md.match(/^#\s+(.+)$/m);
+  return match ? match[1].trim() : "";
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
