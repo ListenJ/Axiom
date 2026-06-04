@@ -168,6 +168,182 @@ function extractHeadingsFromMarkdown(md: string): string[] {
   return headings.slice(0, 25);
 }
 
+// ═══════════ MeMo 增强: 实体提取 & Reflection QA ═══════════
+
+/** 常见英文停用词（句首大写不应被当作专有名词） */
+const STOP_WORDS = new Set([
+  "The", "This", "That", "These", "Those", "What", "When", "Where",
+  "Which", "Who", "How", "Why", "Does", "About", "After", "Before",
+  "Using", "With", "From", "Into", "Over", "Under", "Also", "Note",
+  "However", "But", "And", "For", "Not", "All", "Each", "Every",
+  "Some", "Any", "Many", "Most", "Such", "Both", "Other", "New",
+  "See", "Add", "Set", "Get", "Run", "Use", "Try", "Let", "May",
+  "Can", "Will", "Has", "Had", "Was", "Are", "Were", "Been",
+  "Being", "Have", "Having", "Make", "Like", "Just", "More",
+  "Than", "Then", "Very", "Only", "Still", "Even", "Back",
+  "Here", "There", "Now", "Way", "Day", "Because", "While",
+  "If", "Our", "Your", "Their", "Its", "His", "Her",
+]);
+
+/**
+ * 从文本中提取实体：专有名词、库名、协议名、技术术语。
+ * 纯规则/模板方法，不调用 LLM。
+ */
+export function extractEntities(text: string): string[] {
+  const entities = new Set<string>();
+
+  // 1. 反引号包裹的代码术语 (e.g. `pgvector`, `Bun.serve`)
+  for (const m of text.match(/`([^`]{2,50})`/g) || []) {
+    const term = m.slice(1, -1).trim();
+    if (term.length >= 2 && term.length <= 50) entities.add(term);
+  }
+
+  // 2. 引号中的术语 (双引号)
+  for (const m of text.match(/"([^"]{2,60})"/g) || []) {
+    const term = m.slice(1, -1).trim();
+    if (term.length >= 2 && !term.includes(" ") || term.split(" ").length <= 3) {
+      entities.add(term);
+    }
+  }
+
+  // 3. 大写开头的专有名词（排除句首停用词）
+  for (const m of text.match(/\b[A-Z][a-z]{1,30}(?:\s+[A-Z][a-z]+)*\b/g) || []) {
+    const word = m.trim();
+    if (!STOP_WORDS.has(word) && word.length > 2) {
+      entities.add(word);
+    }
+  }
+
+  // 4. 技术缩写：全大写 2-8 字符 (HTTP, API, RAG, CDP, etc.)
+  for (const m of text.match(/\b[A-Z]{2,8}\b/g) || []) {
+    if (!STOP_WORDS.has(m)) entities.add(m);
+  }
+
+  // 5. 连字符技术术语 (e.g. tree-shaking, hot-reloading)
+  for (const m of text.match(/\b[a-z]+-[a-z]+(?:-[a-z]+)?\b/g) || []) {
+    if (m.length >= 5) entities.add(m);
+  }
+
+  // 6. 带版本号的名称 (e.g. TypeScript 5, React 18)
+  for (const m of text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+\d+(?:\.\d+)?\b/g) || []) {
+    entities.add(m.trim());
+  }
+
+  // 过滤过于简短或通用的结果
+  const filtered = [...entities].filter(e => {
+    if (e.length < 2) return false;
+    // 排除纯数字
+    if (/^\d+$/.test(e)) return false;
+    return true;
+  });
+
+  return filtered.slice(0, 30);
+}
+
+/**
+ * 生成 Reflection QA：从文档内容中提取自包含的问答对。
+ * 灵感来自 MeMo 论文 — 通过反射性问答增强记忆检索。
+ * 纯模板/规则方法，不调用 LLM。
+ */
+export function generateReflectionQA(
+  content: { title: string; text: string; headings: string[] },
+  topic: string,
+  category: string,
+): string {
+  const qaPairs: { question: string; answer: string }[] = [];
+  const text = content.text;
+  const headings = content.headings;
+
+  if (headings.length === 0) return "";
+
+  for (let i = 0; i < headings.length; i++) {
+    const heading = headings[i];
+    // 跳过过短或过长的标题
+    if (heading.length < 3 || heading.length > 80) continue;
+
+    // 定位标题在文本中的位置，提取其后的段落内容
+    const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const headingRegex = new RegExp(`(?:^|\\n)#+\\s*${escapedHeading}\\s*\\n?`, "i");
+    const headingMatch = headingRegex.exec(text);
+
+    let paragraph = "";
+    if (headingMatch) {
+      const startIdx = headingMatch.index + headingMatch[0].length;
+      // 找到下一个同级或更高级标题的位置
+      const nextHeadingPattern = /\n#{1,4}\s+/;
+      const remaining = text.slice(startIdx);
+      const nextMatch = nextHeadingPattern.exec(remaining);
+      const endIdx = nextMatch ? startIdx + nextMatch.index : Math.min(startIdx + 600, text.length);
+      paragraph = text.slice(startIdx, endIdx).trim();
+    }
+
+    // 如果没找到段落内容，取标题附近 400 字
+    if (!paragraph) {
+      const simpleIdx = text.indexOf(heading);
+      if (simpleIdx >= 0) {
+        paragraph = text.slice(simpleIdx + heading.length, simpleIdx + heading.length + 400).trim();
+      }
+    }
+
+    // 截断答案到 200 字符并保持完整性
+    if (paragraph.length > 200) {
+      const cutPoint = paragraph.lastIndexOf("。", 200);
+      const cutPointEn = paragraph.lastIndexOf(". ", 200);
+      const bestCut = Math.max(cutPoint, cutPointEn);
+      paragraph = paragraph.slice(0, bestCut > 20 ? bestCut + 1 : 200).trim();
+    }
+
+    if (paragraph.length < 15) continue; // 内容太少，跳过
+
+    // 清理 heading 中的 markdown 格式
+    const cleanHeading = heading
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[*_]/g, "")
+      .trim();
+
+    // 直接问题 (显式事实)
+    const isChinese = /[\u4e00-\u9fff]/.test(cleanHeading);
+    const directQ = isChinese
+      ? `${cleanHeading}是什么？在${topic}中有什么作用？`
+      : `What is ${cleanHeading} in the context of ${topic}?`;
+
+    qaPairs.push({ question: directQ, answer: paragraph });
+
+    // 间接问题 (推理/关联)，交替使用不同模板
+    let indirectQ: string;
+    if (i % 3 === 0) {
+      indirectQ = isChinese
+        ? `为什么${cleanHeading}对于${topic}很重要？`
+        : `Why is ${cleanHeading} important for ${topic}?`;
+    } else if (i % 3 === 1) {
+      indirectQ = isChinese
+        ? `${cleanHeading}与${topic}之间的关系是什么？`
+        : `How does ${cleanHeading} relate to ${topic}?`;
+    } else {
+      indirectQ = isChinese
+        ? `在${category}领域中，${cleanHeading}的关键特性有哪些？`
+        : `What are the key features of ${cleanHeading} in ${category}?`;
+    }
+
+    qaPairs.push({ question: indirectQ, answer: paragraph });
+
+    // 最多生成 10 个 QA 对
+    if (qaPairs.length >= 10) break;
+  }
+
+  // 限制到 10 个
+  const finalPairs = qaPairs.slice(0, 10);
+  if (finalPairs.length === 0) return "";
+
+  // 格式化为 markdown
+  const qaMarkdown = finalPairs
+    .map((qa, i) => `### Q${i + 1}: ${qa.question}\nA: ${qa.answer}`)
+    .join("\n\n");
+
+  return `## Reflection QA\n\n${qaMarkdown}`;
+}
+
 // ═══════════ 原子笔记生成 ═══════════
 
 function generateAtomicNote(
@@ -189,6 +365,20 @@ function generateAtomicNote(
     .map(h => `- ${h}`)
     .join("\n");
 
+  // MeMo 增强: 提取实体
+  const entities = extractEntities(content.text);
+  const entitiesYaml = entities.length > 0
+    ? `[${entities.map(e => `"${e.replace(/"/g, '\\"')}"`).join(", ")}]`
+    : "[]";
+
+  // MeMo 增强: 生成 Reflection QA
+  const reflectionQA = generateReflectionQA(content, topic, category);
+  // 统计 QA 对数量 (匹配 "### Q" 开头的行)
+  const qaCount = (reflectionQA.match(/### Q\d+:/g) || []).length;
+
+  // 构建 Reflection QA 段落（插入在"关键章节"与"详细内容摘要"之间）
+  const reflectionSection = reflectionQA ? `\n\n${reflectionQA}` : "";
+
   return `---
 created: ${date}
 type: atomic-note
@@ -196,6 +386,8 @@ tags: [${category}, ${slug}]
 confidence: 0.8
 source: ${source}
 topic: ${topic}
+entities: ${entitiesYaml}
+qa_count: ${qaCount}
 ---
 
 # ${content.title || topic}
@@ -207,6 +399,7 @@ ${corePoints}
 ## 关键章节
 
 ${keySections || "(无明确章节结构)"}
+${reflectionSection}
 
 ## 详细内容摘要
 

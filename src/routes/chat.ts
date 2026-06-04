@@ -2,6 +2,7 @@
  * Chat and agent-chat routes
  */
 import type { RouteContext } from "./types.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/chat" && ctx.req.method === "POST") {
@@ -36,6 +37,27 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
               ];
             }
           } catch { /* ignore codegraph errors */ }
+        }
+
+        // Knowledge retrieval for knowledge/research intents
+        if (intentInfo && ["knowledge", "research"].includes(intentInfo.intent)) {
+          try {
+            const { decomposeQuery, searchKnowledgeBase, synthesizeResults, buildKnowledgePrompt } = await import("../agents/query-decomposer.js");
+            const decomposed = decomposeQuery(lastUserMsg.content);
+            const fragments = await searchKnowledgeBase(decomposed.subQueries, ctx.vault);
+            if (fragments.length > 0) {
+              const context = synthesizeResults(fragments, lastUserMsg.content);
+              const knowledgePrompt = buildKnowledgePrompt(context);
+              // Prepend knowledge context to chat messages
+              chatMessages = [
+                { role: "system", content: knowledgePrompt },
+                ...chatMessages,
+              ];
+            }
+          } catch (err) {
+            // Non-fatal: continue without knowledge context
+            logger.debug("Knowledge retrieval failed, continuing without context", { error: (err as Error).message });
+          }
         }
       }
     }

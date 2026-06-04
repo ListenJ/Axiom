@@ -1,6 +1,6 @@
 /**
  * 意图路由器 v2.0
- * 简化为 5 个通用类别：code / research / write / plan / chat
+ * 简化为 6 个通用类别：code / research / knowledge / write / plan / chat
  * 零成本意图识别（关键词匹配）→ 返回类别 + 推荐角色
  *
  * 移除 agents-index.json 依赖，内置通用 Agent Prompt
@@ -32,7 +32,7 @@ export interface IntentResult {
   recommendedRole: TaskRole;
 }
 
-/** 5 大类意图映射规则 */
+/** 6 大类意图映射规则 */
 const CATEGORY_INTENTS: Record<string, {
   keywords: string[];
   label: string;
@@ -66,6 +66,16 @@ const CATEGORY_INTENTS: Record<string, {
     ],
     label: "research",
     agentName: "Research Analyst",
+    role: "research",
+  },
+  knowledge: {
+    keywords: [
+      "知识库", "笔记", "知识", "学到", "记住", "记忆", "知识库搜索",
+      "之前", "上次", "历史", "记录", "vault", "knowledge",
+      "什么是", "解释", "概念", "原理", "定义",
+    ],
+    label: "knowledge",
+    agentName: "Knowledge Navigator",
     role: "research",
   },
   write: {
@@ -195,6 +205,7 @@ export function buildAgentMessages(
   const systemPrompts: Record<string, string> = {
     code: "You are a skilled software engineer. Help the user with coding, debugging, architecture, and technical implementation. Be precise, provide code examples, and follow best practices.",
     research: "You are a research analyst. Help the user with analysis, investigation, data interpretation, and evidence-based recommendations. Be thorough and cite sources when possible.",
+    knowledge: "You are a knowledge navigator with access to the project's knowledge vault. Use the provided knowledge context to answer accurately. Cite specific notes when relevant. If the knowledge base doesn't contain relevant information, say so clearly.",
     write: "You are a technical writer. Help the user with documentation, reports, articles, and clear communication. Focus on clarity, structure, and professional tone.",
     plan: "You are a project planner. Help the user with task breakdown, scheduling, risk assessment, and project organization. Be structured and actionable.",
     chat: "You are a helpful general assistant. Answer user questions accurately and concisely.",

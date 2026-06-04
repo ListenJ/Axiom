@@ -199,3 +199,23 @@ export async function handleDirectSearch(ctx: RouteContext): Promise<Response | 
   const results = await directMultiSearch(query, { engines, num });
   return ctx.jsonResponse({ results, count: results.length, query }, 200, ctx.baseHeaders);
 }
+
+/** POST /search/decompose -- Decompose a complex query into sub-queries */
+export async function handleQueryDecompose(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/search/decompose" || ctx.req.method !== "POST") return null;
+  const body = await ctx.req.json().catch(() => ({}));
+  const { query } = body;
+  if (!query) return ctx.jsonResponse({ error: "query is required" }, 400, ctx.baseHeaders);
+
+  const { decomposeQuery } = await import("../agents/query-decomposer.js");
+  const result = decomposeQuery(query);
+
+  // If vault is available, also run search
+  let fragments: import("../agents/query-decomposer.js").KnowledgeFragment[] = [];
+  if (ctx.vault) {
+    const { searchKnowledgeBase } = await import("../agents/query-decomposer.js");
+    fragments = await searchKnowledgeBase(result.subQueries, ctx.vault);
+  }
+
+  return ctx.jsonResponse({ decomposed: result, fragments, count: fragments.length }, 200, ctx.baseHeaders);
+}
