@@ -153,6 +153,115 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
   }
 }
 
+// ===== Knowledge Pending Review =====
+
+/** GET /knowledge/pending-review — List notes with status: pending-review */
+export async function handleKnowledgePendingReview(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/knowledge/pending-review" || ctx.req.method !== "GET") return null;
+
+  try {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+    const atomicDir = path.join(vaultPath, "03-Knowledge", "atomic-notes");
+
+    if (!fs.existsSync(atomicDir)) {
+      return ctx.jsonResponse({ notes: [], count: 0 }, 200, ctx.baseHeaders);
+    }
+
+    const pendingNotes: Array<{
+      file: string;
+      title: string;
+      source: string;
+      reason?: string;
+      created: string;
+      updated?: string;
+    }> = [];
+
+    for (const file of fs.readdirSync(atomicDir)) {
+      if (!file.endsWith(".md")) continue;
+      const content = fs.readFileSync(path.join(atomicDir, file), "utf-8");
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      if (!fmMatch) continue;
+
+      const fm = fmMatch[1];
+      const status = fm.match(/^status:\s*(.+)$/m)?.[1].trim();
+      if (status !== "pending-review") continue;
+
+      pendingNotes.push({
+        file,
+        title: fm.match(/^topic:\s*(.+)$/m)?.[1].trim()
+          || content.match(/^#\s+(.+)$/m)?.[1].trim()
+          || file.replace(".md", ""),
+        source: fm.match(/^source:\s*(.+)$/m)?.[1].trim() || "",
+        reason: fm.match(/^review-reason:\s*(.+)$/m)?.[1].trim(),
+        created: fm.match(/^created:\s*(.+)$/m)?.[1].trim() || "",
+        updated: fm.match(/^updated:\s*(.+)$/m)?.[1].trim(),
+      });
+    }
+
+    return ctx.jsonResponse({ notes: pendingNotes, count: pendingNotes.length }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to scan pending review notes", err as Error);
+    return ctx.jsonResponse({ error: "Failed to scan pending review notes" }, 500, ctx.baseHeaders);
+  }
+}
+
+/** POST /knowledge/pending-review/approve — Approve or reject a pending note */
+export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/knowledge/pending-review/action" || ctx.req.method !== "POST") return null;
+
+  const body = await ctx.req.json().catch(() => ({}));
+  const { file, action } = body; // action: "approve" | "reject"
+
+  if (!file || !action) {
+    return ctx.jsonResponse({ error: "file and action are required" }, 400, ctx.baseHeaders);
+  }
+
+  try {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+    const filepath = path.join(vaultPath, "03-Knowledge", "atomic-notes", file);
+
+    if (!fs.existsSync(filepath)) {
+      return ctx.jsonResponse({ error: "Note not found" }, 404, ctx.baseHeaders);
+    }
+
+    let content = fs.readFileSync(filepath, "utf-8");
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) {
+      return ctx.jsonResponse({ error: "Invalid frontmatter" }, 400, ctx.baseHeaders);
+    }
+
+    let fm = fmMatch[1];
+    const today = new Date().toISOString().split("T")[0];
+
+    if (action === "approve") {
+      fm = fm.replace(/^status:.*$/m, "status: active");
+      fm = fm.replace(/^review-reason:.*$/m, "");
+    } else if (action === "reject") {
+      fm = fm.replace(/^status:.*$/m, "status: archived");
+    } else {
+      return ctx.jsonResponse({ error: "action must be 'approve' or 'reject'" }, 400, ctx.baseHeaders);
+    }
+
+    if (fm.match(/^updated:/m)) {
+      fm = fm.replace(/^updated:.*$/m, `updated: ${today}`);
+    } else {
+      fm += `\nupdated: ${today}`;
+    }
+
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+    fs.writeFileSync(filepath, content, "utf-8");
+
+    return ctx.jsonResponse({ ok: true, file, action }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to process review action", err as Error);
+    return ctx.jsonResponse({ error: "Failed to process review action" }, 500, ctx.baseHeaders);
+  }
+}
+
 // ===== Task Management =====
 
 /** GET /memory/tasks?status=X — List tasks */

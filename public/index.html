@@ -210,6 +210,27 @@ textarea.input { min-height: 120px; resize: vertical; font-family: inherit; }
   .bottom-nav { display: flex; }
   .main { padding-bottom: 70px; }
 }
+
+/* Knowledge review notification */
+.review-notification {
+  display: none; align-items: center; gap: 8px; padding: 6px 14px;
+  background: var(--warn); color: #1a1a1a; border-radius: 20px;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  margin-left: auto; margin-right: 12px;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.review-notification:hover { transform: scale(1.05); background: #fcd34d; }
+.review-dot {
+  width: 8px; height: 8px; background: #dc2626; border-radius: 50%;
+  display: inline-block; animation: pulse-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.btn.ok { background: var(--success); color: #1a1a1a; }
+.btn.danger { background: var(--danger); color: #fff; }
 </style>
 </head>
 <body>

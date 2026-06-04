@@ -766,6 +766,91 @@ function updateAgentStatus(payload) {
   if (currentPage === "chat") loadAgentStatus();
 }
 
+// ===== Knowledge Pending Review Notification =====
+let pendingReviewCount = 0;
+
+async function checkPendingReview() {
+  try {
+    const res = await api("/knowledge/pending-review");
+    pendingReviewCount = res.count || 0;
+    updateNotificationBadge();
+  } catch {}
+}
+
+function updateNotificationBadge() {
+  let badge = document.getElementById("reviewBadge");
+  if (pendingReviewCount > 0) {
+    if (!badge) {
+      const rightDiv = document.querySelector("#header .right");
+      const div = document.createElement("div");
+      div.id = "reviewBadge";
+      div.className = "review-notification";
+      div.onclick = showPendingReviewPanel;
+      rightDiv.insertBefore(div, rightDiv.firstChild);
+    }
+    badge = document.getElementById("reviewBadge");
+    badge.innerHTML = `<span class="review-dot"></span> ${pendingReviewCount} 篇笔记待审核`;
+    badge.style.display = "flex";
+  } else if (badge) {
+    badge.style.display = "none";
+  }
+}
+
+async function showPendingReviewPanel() {
+  navigate("search");
+  // Wait for search page to render, then show pending review
+  setTimeout(async () => {
+    const el = document.getElementById("pageContent");
+    try {
+      const res = await api("/knowledge/pending-review");
+      if (!res.notes?.length) { el.innerHTML += `<div class="card" style="margin-top:12px"><div class="loading">暂无待审核笔记</div></div>`; return; }
+
+      const panel = document.createElement("div");
+      panel.className = "card";
+      panel.style.marginTop = "12px";
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3>📋 待审核知识库笔记 (${res.count})</h3>
+          <button class="btn small secondary" onclick="checkPendingReview();this.closest('.card').remove()">关闭</button>
+        </div>
+        ${res.notes.map(n => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg)">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(n.title)}</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
+                ${n.reason === "source-no-longer-tracked" ? "来源已不再追踪" : n.reason || "需要人工确认"}
+                ${n.updated ? ` · ${n.updated}` : ""}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px">
+              <button class="btn small ok" onclick="reviewAction('${escapeHtml(n.file)}','approve',this)">✓ 通过</button>
+              <button class="btn small danger" onclick="reviewAction('${escapeHtml(n.file)}','reject',this)">✕ 归档</button>
+            </div>
+          </div>`).join("")}`;
+      el.insertBefore(panel, el.firstChild);
+    } catch {}
+  }, 100);
+}
+
+async function reviewAction(file, action, btn) {
+  try {
+    await api("/knowledge/pending-review/action", {
+      method: "POST",
+      body: JSON.stringify({ file, action })
+    });
+    const row = btn.closest("[style]");
+    if (row) { row.style.opacity = "0.5"; row.style.pointerEvents = "none"; }
+    pendingReviewCount = Math.max(0, pendingReviewCount - 1);
+    updateNotificationBadge();
+    if (pendingReviewCount === 0) {
+      const panel = btn.closest(".card");
+      if (panel) setTimeout(() => panel.remove(), 300);
+    }
+  } catch (e) {
+    alert("操作失败: " + e.message);
+  }
+}
+
 // ===== Utils =====
 function escapeHtml(s) {
   if (!s) return "";
@@ -775,6 +860,7 @@ function escapeHtml(s) {
 // ===== Init =====
 renderNav();
 connectWs();
+checkPendingReview();
 
 // Load last session's conversation from server
 (async function loadLastSession() {

@@ -41,6 +41,8 @@ import {
   handleGetConversations,
   handleListSessions,
   handleKnowledgeSearch,
+  handleKnowledgePendingReview,
+  handleKnowledgeReviewAction,
   handleListTasks,
   handleModelUsage,
 } from "./memory-api.js";
@@ -125,6 +127,8 @@ const handlers: RouteHandler[] = [
   handleGetConversations,
   handleListSessions,
   handleKnowledgeSearch,
+  handleKnowledgePendingReview,
+  handleKnowledgeReviewAction,
   handleListTasks,
   handleModelUsage,
   // Knowledge Graph & Model Advisor (知识图谱 + 模型顾问)
@@ -221,6 +225,8 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /memory/knowledge           — 跨表知识搜索",
       "GET    /memory/tasks               — 列出任务",
       "GET    /memory/usage               — 模型用量统计",
+      "GET    /knowledge/pending-review    — 待审核知识库笔记",
+      "POST   /knowledge/pending-review/action — 审核操作 (approve/reject)",
       "--- Knowledge Graph (知识图谱) ---",
       "GET    /kg/stats                  — 知识图谱统计",
       "GET    /kg/entities               — 列出实体",

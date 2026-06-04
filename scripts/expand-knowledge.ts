@@ -329,6 +329,87 @@ ${topics.map(t => `- [[${t}]]`).join("\n")}
 `;
 }
 
+// ═══════════ 增量更新: 扫描现有笔记 ═══════════
+
+interface ExistingNote {
+  filepath: string;
+  source: string;
+  query?: string;
+  created: string;
+  status: string;
+  contentHash: string;
+}
+
+/** 简单哈希用于内容变更检测 */
+function simpleHash(text: string): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) {
+    h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+  }
+  return h.toString(36);
+}
+
+/** 解析 frontmatter 并扫描所有现有笔记 */
+function scanExistingNotes(): Map<string, ExistingNote> {
+  const notes = new Map<string, ExistingNote>();
+  if (!fs.existsSync(ATOMIC_DIR)) return notes;
+
+  for (const file of fs.readdirSync(ATOMIC_DIR)) {
+    if (!file.endsWith(".md")) continue;
+    const filepath = path.join(ATOMIC_DIR, file);
+    const content = fs.readFileSync(filepath, "utf-8");
+
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) continue;
+
+    const fm = fmMatch[1];
+    const source = fm.match(/^source:\s*(.+)$/m)?.[1].trim() || "";
+    const query = fm.match(/^query:\s*(.+)$/m)?.[1].trim();
+    const created = fm.match(/^created:\s*(.+)$/m)?.[1].trim() || "";
+    const status = fm.match(/^status:\s*(.+)$/m)?.[1].trim() || "active";
+
+    // 用 source URL 或 query 作为唯一键
+    const key = query ? `search:${query}` : source;
+    if (!key) continue;
+
+    // 提取正文部分（frontmatter 之后）计算 hash
+    const body = content.slice(fmMatch[0].length);
+    notes.set(key, { filepath, source, query, created, status, contentHash: simpleHash(body) });
+  }
+  return notes;
+}
+
+/** 给笔记 frontmatter 添加/更新 status 字段 */
+function setNoteStatus(filepath: string, status: string, reason?: string) {
+  let content = fs.readFileSync(filepath, "utf-8");
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return;
+
+  let fm = fmMatch[1];
+  if (fm.match(/^status:/m)) {
+    fm = fm.replace(/^status:.*$/m, `status: ${status}`);
+  } else {
+    fm += `\nstatus: ${status}`;
+  }
+  if (reason) {
+    if (fm.match(/^review-reason:/m)) {
+      fm = fm.replace(/^review-reason:.*$/m, `review-reason: ${reason}`);
+    } else {
+      fm += `\nreview-reason: ${reason}`;
+    }
+  }
+  // 更新时间戳
+  const today = new Date().toISOString().split("T")[0];
+  if (fm.match(/^updated:/m)) {
+    fm = fm.replace(/^updated:.*$/m, `updated: ${today}`);
+  } else {
+    fm += `\nupdated: ${today}`;
+  }
+
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${fm}\n---`);
+  fs.writeFileSync(filepath, content, "utf-8");
+}
+
 // ═══════════ 主流程 ═══════════
 
 async function main() {
@@ -337,21 +418,24 @@ async function main() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 
+  // 扫描现有笔记 (增量更新)
+  const existingNotes = scanExistingNotes();
+  const activeSources = new Set<string>(); // 本轮活跃的 source URL/query
+
   const allTopics: string[] = [];
   const categoryMap = new Map<string, string[]>();
-  let totalCrawled = 0;
-  let totalSearches = 0;
+  let stats = { created: 0, updated: 0, skipped: 0, orphaned: 0 };
   let totalSteps = 0;
 
-  // 计算总步数
   for (const s of KNOWLEDGE_SOURCES) {
     totalSteps += s.urls.length + s.searchQueries.length;
   }
 
   if (!VERBOSE) {
-    console.log(`知识库扩充: ${KNOWLEDGE_SOURCES.length} 个主题, ${totalSteps} 个任务`);
+    console.log(`知识库扩充: ${KNOWLEDGE_SOURCES.length} 主题, ${totalSteps} 任务, ${existingNotes.size} 现有笔记`);
   } else {
-    console.log("🧠 OpenClaw 知识库扩充 — 使用 Lightpanda 爬取技术文档\n");
+    console.log("🧠 OpenClaw 知识库增量扩充\n");
+    console.log(`  现有笔记: ${existingNotes.size} 篇\n`);
   }
 
   let step = 0;
@@ -359,85 +443,98 @@ async function main() {
     log(`\n━━━ ${source.topic} (${source.category}) ━━━`);
     const topics: string[] = [];
 
-    // 1. 爬取指定 URL (使用 fetchPageContent: markdown dump, 不渲染前端)
+    // 1. 爬取指定 URL
     for (const url of source.urls) {
       step++;
+      activeSources.add(url);
       try {
-        log(`  🌐 爬取: ${url}`);
         const page = await fetchPageContent(url, { timeout: 15000 });
-
         if (page.content.length < 100) {
-          log(`  ⚠️  内容过少 (${page.content.length} 字), 跳过`);
-          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: 跳过 (内容过少)   `);
+          log(`  ⚠️  ${url}: 内容过少`);
+          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] 跳过 (内容过少)   `);
+          continue;
+        }
+
+        const newHash = simpleHash(page.content.slice(0, 5000));
+        const existing = existingNotes.get(url);
+
+        if (existing && existing.contentHash === newHash && existing.status !== "pending-review") {
+          stats.skipped++;
+          log(`  ⏭️  无变化, 跳过: ${url}`);
+          topics.push(source.topic);
+          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] 跳过 (无变化)   `);
           continue;
         }
 
         const noteName = `${source.topic.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${url.split("/").pop() || "index"}`.replace(/[^a-z0-9-]/g, "");
         const note = generateAtomicNote(source.topic, source.category, url, {
-          title: page.title,
-          text: page.content.slice(0, 5000),
+          title: page.title, text: page.content.slice(0, 5000),
           headings: extractHeadingsFromMarkdown(page.content),
         });
-        const notePath = path.join(ATOMIC_DIR, `${noteName}.md`);
-
+        const notePath = existing?.filepath || path.join(ATOMIC_DIR, `${noteName}.md`);
         fs.writeFileSync(notePath, note, "utf-8");
+
+        if (existing) { stats.updated++; log(`  🔄 已更新: ${page.title || url}`); }
+        else { stats.created++; log(`  ✅ 新建: ${page.title || url} (${page.content.length}字)`); }
         topics.push(source.topic);
-        totalCrawled++;
-        log(`  ✅ ${page.title || url} (${page.content.length} 字, ${page.format}, ${page.loadTimeMs}ms)`);
-        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: +1 笔记 (${page.content.length}字)   `);
+        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${existing ? "更新" : "新建"} (${page.content.length}字)   `);
       } catch (err) {
-        log(`  ❌ 爬取失败: ${(err as Error).message}`);
+        log(`  ❌ ${url}: ${(err as Error).message}`);
       }
     }
 
     // 2. 补充搜索
     for (const query of source.searchQueries) {
       step++;
+      const searchKey = `search:${query}`;
+      activeSources.add(searchKey);
       try {
-        log(`  🔍 搜索: "${query}"`);
-        const results = await directSearch({
-          query,
-          engine: "bing",
-          num: 8,
-          timeout: 20000,
-        });
+        const results = await directSearch({ query, engine: "bing", num: 8, timeout: 20000 });
+        if (results.length === 0) { log(`  ⚠️  无结果: "${query}"`); continue; }
 
-        if (results.length > 0) {
-          const searchNoteName = `${source.topic.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-search-${totalSearches}`;
-          const note = generateSearchNote(source.topic, source.category, query, results);
-          const notePath = path.join(ATOMIC_DIR, `${searchNoteName}.md`);
+        const newContent = results.map(r => r.link).join(",");
+        const newHash = simpleHash(newContent);
+        const existing = existingNotes.get(searchKey);
 
-          fs.writeFileSync(notePath, note, "utf-8");
+        if (existing && existing.contentHash === newHash && existing.status !== "pending-review") {
+          stats.skipped++;
+          log(`  ⏭️  搜索结果无变化, 跳过: "${query}"`);
           topics.push(`${source.topic} Search`);
-          totalSearches++;
-          log(`  ✅ ${results.length} 个搜索结果已保存`);
+          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] 跳过 (无变化)   `);
+          continue;
+        }
 
-          // 深度爬取前 2 个搜索结果
+        const searchNoteName = `${source.topic.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-search-${[...existingNotes.keys()].filter(k => k.startsWith("search:")).length}`;
+        const note = generateSearchNote(source.topic, source.category, query, results);
+        const notePath = existing?.filepath || path.join(ATOMIC_DIR, `${searchNoteName}.md`);
+        fs.writeFileSync(notePath, note, "utf-8");
+
+        if (existing) { stats.updated++; log(`  🔄 搜索已更新: "${query}"`); }
+        else { stats.created++; log(`  ✅ 搜索新建: "${query}" (${results.length} 结果)`); }
+        topics.push(`${source.topic} Search`);
+
+        // 深度爬取 (仅新增时)
+        if (!existing) {
           for (const r of results.slice(0, 2)) {
             try {
               const deepPage = await fetchPageContent(r.link, { timeout: 15000 });
-
               if (deepPage.content.length > 200) {
                 const deepSlug = r.link.replace(/https?:\/\//, "").replace(/[^a-z0-9]/g, "-").slice(0, 60);
-                const deepNote = generateAtomicNote(
-                  `${source.topic} — ${r.title}`,
-                  source.category,
-                  r.link,
-                  { title: deepPage.title || r.title, text: deepPage.content.slice(0, 5000), headings: extractHeadingsFromMarkdown(deepPage.content) },
-                );
                 const deepPath = path.join(ATOMIC_DIR, `deep-${deepSlug}.md`);
-                fs.writeFileSync(deepPath, deepNote, "utf-8");
-                totalCrawled++;
-                log(`  📄 深度爬取: ${r.title.slice(0, 50)} (${deepPage.content.length} 字)`);
+                if (!fs.existsSync(deepPath)) {
+                  const deepNote = generateAtomicNote(
+                    `${source.topic} — ${r.title}`, source.category, r.link,
+                    { title: deepPage.title || r.title, text: deepPage.content.slice(0, 5000), headings: extractHeadingsFromMarkdown(deepPage.content) },
+                  );
+                  fs.writeFileSync(deepPath, deepNote, "utf-8");
+                  stats.created++;
+                  log(`  📄 深度爬取: ${r.title.slice(0, 50)}`);
+                }
               }
-            } catch {
-              // 深度爬取失败不阻断流程
-            }
+            } catch { /* skip */ }
           }
-          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: 搜索 +${results.length} 结果   `);
-        } else {
-          log(`  ⚠️  无搜索结果`);
         }
+        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] 搜索 ${existing ? "更新" : "新建"} +${results.length}   `);
       } catch (err) {
         log(`  ❌ 搜索失败: ${(err as Error).message}`);
       }
@@ -449,20 +546,33 @@ async function main() {
     }
   }
 
-  // 3. 生成概念图
+  // 3. 孤儿检测: 现有笔记中 source 不在活跃列表的 → 标记 pending-review
+  for (const [key, note] of existingNotes) {
+    if (!activeSources.has(key) && note.status !== "pending-review" && note.source) {
+      setNoteStatus(note.filepath, "pending-review", "source-no-longer-tracked");
+      stats.orphaned++;
+      log(`  🏷️ 标记待审核: ${path.basename(note.filepath)}`);
+    }
+  }
+
+  // 4. 生成概念图 + 索引
   const conceptMap = generateConceptMap([...new Set(allTopics)], categoryMap);
-  const conceptPath = path.join(CONCEPT_DIR, "openclaw-knowledge-map.md");
-  fs.writeFileSync(conceptPath, conceptMap, "utf-8");
+  fs.writeFileSync(path.join(CONCEPT_DIR, "openclaw-knowledge-map.md"), conceptMap, "utf-8");
 
-  // 4. 生成索引
   const allFiles = fs.readdirSync(ATOMIC_DIR).filter(f => f.endsWith(".md"));
-  const indexContent = `# OpenClaw 知识库索引\n\n> 自动生成于 ${new Date().toISOString().split("T")[0]}\n\n## 统计\n\n- 原子笔记: ${totalCrawled + totalSearches} 篇\n- URL 爬取: ${totalCrawled} 次\n- 搜索补充: ${totalSearches} 次\n- 分类数: ${categoryMap.size}\n\n## 分类\n\n${Array.from(categoryMap.entries()).map(([cat, items]) => `### ${cat}\n${items.map(i => `- ${i}`).join("\n")}`).join("\n\n")}\n\n## 文件列表\n\n${allFiles.map(f => `- [${f}](atomic-notes/${f})`).join("\n")}\n`;
-  const indexPath = path.join(KNOWLEDGE_DIR, "INDEX.md");
-  fs.writeFileSync(indexPath, indexContent, "utf-8");
+  const pendingCount = allFiles.filter(f => {
+    const c = fs.readFileSync(path.join(ATOMIC_DIR, f), "utf-8");
+    return c.includes("status: pending-review");
+  }).length;
 
-  // 最终输出 (安静模式也显示)
-  console.log(`\n\n📊 知识库扩充完成 — ${totalCrawled} 篇爬取 + ${totalSearches} 篇搜索 = ${totalCrawled + totalSearches} 篇笔记`);
-  console.log(`   路径: ${KNOWLEDGE_DIR}`);
+  const indexContent = `# OpenClaw 知识库索引\n\n> 更新于 ${new Date().toISOString().split("T")[0]}\n\n## 统计\n\n- 总笔记: ${allFiles.length} 篇\n- 待审核: ${pendingCount} 篇\n\n## 文件列表\n\n${allFiles.map(f => `- [${f}](atomic-notes/${f})`).join("\n")}\n`;
+  fs.writeFileSync(path.join(KNOWLEDGE_DIR, "INDEX.md"), indexContent, "utf-8");
+
+  // 最终输出
+  console.log(`\n\n📊 增量更新完成 — 新建:${stats.created} 更新:${stats.updated} 跳过:${stats.skipped} 待审核:${stats.orphaned} | 总计:${allFiles.length}篇`);
+  if (pendingCount > 0) {
+    console.log(`   ⚠️  ${pendingCount} 篇笔记待审核，登录后请在知识库页面确认`);
+  }
 }
 
 main().then(() => {
