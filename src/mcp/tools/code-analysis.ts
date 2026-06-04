@@ -245,25 +245,28 @@ function getLinterConfig(filePath: string): LinterConfig | null {
     case "typescript":
     case "javascript": {
       // Prefer eslint if available, fallback to tsc
+      const safeFilePath = filePath.replace(/"/g, '\\"');
       return {
         cmd: "npx",
-        args: ["eslint", "--format", "json", filePath],
+        args: ["eslint", "--format", "json", `"${safeFilePath}"`],
         parseOutput: parseEslintOutput,
         timeout: 30000,
       };
     }
     case "python": {
+      const safeFilePath = filePath.replace(/"/g, '\\"');
       return {
         cmd: "python",
-        args: ["-m", "pylint", "--output-format=text", filePath],
+        args: ["-m", "pylint", "--output-format=text", `"${safeFilePath}"`],
         parseOutput: parsePylintOutput,
         timeout: 30000,
       };
     }
     case "go": {
+      const safeFilePath = filePath.replace(/"/g, '\\"');
       return {
         cmd: "go",
-        args: ["vet", filePath],
+        args: ["vet", `"${safeFilePath}"`],
         parseOutput: parseGoVetOutput,
         timeout: 30000,
       };
@@ -413,9 +416,10 @@ export async function getDiagnostics(
   if (!linterConfig) {
     // Fallback to TypeScript for TS/JS or basic syntax check
     if (lang === "typescript" || lang === "javascript") {
+      const safeFilePath = filePath.replace(/"/g, '\\"');
       const cmd = options?.quick
-        ? `npx tsc --noEmit --skipLibCheck "${filePath}"`
-        : `npx tsc --noEmit "${filePath}"`;
+        ? `npx tsc --noEmit --skipLibCheck "${safeFilePath}"`
+        : `npx tsc --noEmit "${safeFilePath}"`;
       const result = await executeCommand(cmd, { timeout: 60000 });
       const diagnostics = parseTscOutput(result.stdout + result.stderr);
       const errorCount = diagnostics.filter((d) => d.severity === "error").length;

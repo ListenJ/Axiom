@@ -134,7 +134,8 @@ export async function gitDiff(
     cmd += ` ${options.since}..HEAD`;
   }
   if (options?.file) {
-    cmd += ` -- "${options.file}"`;
+    const safeFile = options.file.replace(/"/g, '\\"');
+    cmd += ` -- "${safeFile}"`;
   }
   cmd += " --stat";
 
@@ -172,8 +173,9 @@ export async function gitDiff(
   // Also get full diff if a specific file was requested
   let fullDiff: string | undefined;
   if (options?.file) {
+    const safeFile = options.file.replace(/"/g, '\\"');
     const diffResult = await executeCommand(
-      `git diff${options.staged ? " --staged" : ""} -- "${options.file}"`,
+      `git diff${options.staged ? " --staged" : ""} -- "${safeFile}"`,
       { cwd: repoPath, timeout: 15000 }
     );
     if (diffResult.success) {
@@ -201,16 +203,20 @@ export async function gitLog(
     cmd += " -n 20";
   }
   if (options?.file) {
-    cmd += ` -- "${options.file}"`;
+    const safeFile = options.file.replace(/"/g, '\\"');
+    cmd += ` -- "${safeFile}"`;
   }
   if (options?.author) {
-    cmd += ` --author="${options.author}"`;
+    const safeAuthor = options.author.replace(/"/g, '\\"');
+    cmd += ` --author="${safeAuthor}"`;
   }
   if (options?.since) {
-    cmd += ` --since="${options.since}"`;
+    const safeSince = options.since.replace(/"/g, '\\"');
+    cmd += ` --since="${safeSince}"`;
   }
   if (options?.grep) {
-    cmd += ` --grep="${options.grep}"`;
+    const safeGrep = options.grep.replace(/"/g, '\\"');
+    cmd += ` --grep="${safeGrep}"`;
   }
 
   const result = await executeCommand(cmd, { cwd: repoPath, timeout: 15000 });
@@ -297,7 +303,15 @@ export async function gitShow(
   repoPath: string = ".",
   ref: string = "HEAD"
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-  const result = await executeCommand(`git show --stat ${ref}`, {
+  // Validate ref to prevent command injection (only allow safe characters)
+  const safeRef = ref.replace(/[^a-zA-Z0-9_\-\.\/\^~@{}]/g, "");
+  if (safeRef !== ref) {
+    return {
+      success: false,
+      error: "Invalid git ref: contains unsafe characters",
+    };
+  }
+  const result = await executeCommand(`git show --stat ${safeRef}`, {
     cwd: repoPath,
     timeout: 10000,
   });
@@ -327,7 +341,9 @@ export async function gitBlame(
   }>;
   error?: string;
 }> {
-  let cmd = `git blame --porcelain "${file}"`;
+  // Escape quotes in filename to prevent command injection
+  const safeFile = file.replace(/"/g, '\\"');
+  let cmd = `git blame --porcelain "${safeFile}"`;
   if (line) {
     cmd += ` -L ${line},${line + 20}`;
   }

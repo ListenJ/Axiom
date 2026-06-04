@@ -43,11 +43,13 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
   try {
     const resolved = path.resolve(targetPath);
     const cwd = process.cwd();
-    // Allow paths within cwd or explicit absolute paths
-    if (!resolved.startsWith(cwd) && !path.isAbsolute(targetPath)) {
+    // Strict: path must be within cwd (prevent path traversal)
+    // Use path.relative to check if path escapes cwd
+    const relative = path.relative(cwd, resolved);
+    if (relative.startsWith("..") || relative === "..") {
       return {
         safe: false,
-        error: `Path '${targetPath}' escapes working directory. Use absolute path or path within project.`,
+        error: `Path '${targetPath}' escapes working directory. Only paths within the project are allowed.`,
       };
     }
     return { safe: true };
@@ -67,6 +69,11 @@ export async function readFile(
   }
 
   try {
+    // Check file size to prevent memory exhaustion
+    const stats = await fs.stat(resolved);
+    if (stats.size > 10 * 1024 * 1024) {
+      return { success: false, error: `File too large (${(stats.size / 1024 / 1024).toFixed(1)}MB > 10MB limit)`, path: filePath };
+    }
     const content = await fs.readFile(resolved, "utf-8");
     let result = content;
     if (options?.offset !== undefined || options?.limit !== undefined) {
@@ -175,9 +182,19 @@ export async function searchFiles(
 
   const results: Array<{ file: string; line: number; content: string }> = [];
   const maxResults = options?.maxResults ?? 50;
-  const regex = options?.pattern
-    ? new RegExp(options.pattern, "i")
-    : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  let regex: RegExp;
+  try {
+    regex = options?.pattern
+      ? new RegExp(options.pattern, "i")
+      : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  } catch (e: unknown) {
+    return {
+      success: false,
+      error: `Invalid search pattern: ${options?.pattern ?? query}`,
+      searched: 0,
+      matched: 0,
+    };
+  }
 
   async function scan(dir: string): Promise<void> {
     if (results.length >= maxResults) return;
@@ -323,8 +340,11 @@ export async function moveFile(
 }
 
 export async function fileExists(filePath: string): Promise<boolean> {
+  const resolved = resolvePath(filePath);
+  const safety = isPathSafe(resolved);
+  if (!safety.safe) return false;
   try {
-    await fs.access(resolvePath(filePath));
+    await fs.access(resolved);
     return true;
   } catch {
     return false;

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import * as os from "node:os";
+import { TIMEOUTS } from "../../constants/timeouts.js";
 
 export interface CommandResult {
   success: boolean;
@@ -24,20 +25,27 @@ export interface ProcessListResult {
   error?: string;
 }
 
+// Valid Unix signals for process termination
+const VALID_SIGNALS = new Set([
+  "SIGTERM", "SIGKILL", "SIGINT", "SIGUSR1", "SIGUSR2", "SIGHUP",
+]);
+
 function sanitizeCommand(command: string): { safe: boolean; error?: string } {
-  // Block obviously dangerous commands
+  // Block commands that could delete or modify system/user data
   const dangerous = [
-    /rm\s+-rf\s+\/\s*$/,
-    />&\s*\/dev\/null/,
-    /:\(\)\s*\{\s*:\u007c:\u0026\s*\};;:\s*$/,
-    /curl\s+.*\s*\|>?\s*bash/,
-    /wget\s+.*\s*\|>?\s*bash/,
-    /mkfs\./,
-    /dd\s+if=.*of=\/dev\//,
+    /(?:^|\s|;|&&|\|\||\()\s*rm\s+(?:-\w*\s+)*(-rf|-fr|-r\s+-f|-f\s+-r)\s+/i,
+    /(?:^|\s|;|&&|\|\||\()\s*mkfs\./i,
+    /(?:^|\s|;|&&|\|\||\()\s*dd\s+if=/i,
+    /(?:^|\s|;|&&|\|\||\()\s*fdisk\s+/i,
+    /(?:^|\s|;|&&|\|\||\()\s*format\s+/i,
+    />\s*\/dev\/[sh]d[a-z]/,
+    /curl\s+.*\|\s*(ba)?sh/i,
+    /wget\s+.*\|\s*(ba)?sh/i,
+    /:\(\)\s*\{\s*:\u007c:\u0026\s*\};/,
   ];
   for (const pattern of dangerous) {
     if (pattern.test(command)) {
-      return { safe: false, error: `Command blocked for safety: ${command}` };
+      return { safe: false, error: `Dangerous command blocked for safety` };
     }
   }
   return { safe: true };
@@ -75,9 +83,15 @@ export async function executeCommand(
       cmd = isWin ? "cmd" : "sh";
       args = isWin ? ["/c", command] : ["-c", command];
     } else {
-      const parts = command.split(/\s+/);
-      cmd = parts[0];
-      args = parts.slice(1);
+      // Use shell-quote-like parsing for non-shell mode
+      const parts = command.match(/(?:"([^"]+)"|'([^']+)'|(\S+))/g);
+      if (parts) {
+        cmd = parts[0].replace(/^["']|["']$/g, "");
+        args = parts.slice(1).map((p) => p.replace(/^["']|["']$/g, ""));
+      } else {
+        cmd = command;
+        args = [];
+      }
     }
 
     const env = { ...process.env, ...options?.env };
@@ -92,7 +106,7 @@ export async function executeCommand(
     let stderr = "";
     let killed = false;
 
-    const timeout = options?.timeout ?? 30000;
+    const timeout = options?.timeout ?? TIMEOUTS.TERMINAL_COMMAND;
     const timer = setTimeout(() => {
       killed = true;
       child.kill("SIGTERM");
@@ -223,7 +237,20 @@ export async function killProcess(pid: number, signal: string = "SIGTERM"): Prom
   if (isWin) {
     return executeCommand(`taskkill /PID ${pid} /F`, { shell: true, timeout: 5000 });
   }
-  return executeCommand(`kill -${signal.replace("SIG", "")} ${pid}`, { shell: true, timeout: 5000 });
+  // Validate signal name for safety
+  const normalizedSignal = signal.startsWith("SIG") ? signal : `SIG${signal}`;
+  if (!VALID_SIGNALS.has(normalizedSignal)) {
+    const validSignalsList = Array.from(VALID_SIGNALS).join(", ");
+    return {
+      success: false,
+      stdout: "",
+      stderr: `Invalid signal: ${signal}`,
+      exitCode: -1,
+      error: `Invalid signal: ${signal}. Valid signals: ${validSignalsList}`,
+      command: `kill -${signal} ${pid}`,
+    };
+  }
+  return executeCommand(`kill -${normalizedSignal.replace("SIG", "")} ${pid}`, { shell: true, timeout: 5000 });
 }
 
 export function getSystemInfo(): {
