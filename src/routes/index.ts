@@ -4,7 +4,7 @@
 import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
 import { handleChat, handleAgentChat } from "./chat.js";
-import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch } from "./search.js";
+import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
@@ -71,6 +71,9 @@ const handlers: RouteHandler[] = [
   handleSearchHistory,
   handleRecentSearches,
   handleWebFetch,
+  // Lightpanda browser integration
+  handleLightpandaStatus,
+  handleDirectSearch,
   // Vault & CodeGraph
   handleVaultStats,
   handleVaultPara,
@@ -168,6 +171,8 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET  /web-search?q=           — 多引擎搜索",
       "GET  /enhanced-search?q=      — 增强搜索",
       "GET  /web-fetch?url=          — 结构化抓取",
+      "GET  /lightpanda/status       — Lightpanda 浏览器状态",
+      "GET  /direct-search?q=        — 直连搜索 (无需 API Key)",
       "--- Vault 核心记忆 ---",
       "GET  /vault/stats             — Vault 统计",
       "GET  /vault/para/:category    — PARA 分类浏览",

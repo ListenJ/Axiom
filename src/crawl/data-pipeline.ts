@@ -13,6 +13,7 @@
  *   - 请求间隔抖动
  *   - URL 跟踪参数去除
  */
+import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
@@ -304,7 +305,22 @@ export class DataPipeline {
 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-          const html = await res.text();
+          let html = await res.text();
+
+          // After fetching HTML, check if we need browser rendering
+          // (dynamic import — Lightpanda may not be installed)
+          const { needsBrowserRendering } = await import("./lightpanda-client.js");
+          if (needsBrowserRendering(html)) {
+            logger.info(`[Crawl] Page needs browser rendering: ${url}`);
+            const { smartRender } = await import("./lightpanda-client.js");
+            const rendered = await smartRender(url, { preferBrowser: true, timeout: 20000 });
+            if (rendered.rendered && rendered.html.length > html.length * 1.5) {
+              const ratio = Math.round(rendered.html.length / html.length * 100);
+              html = rendered.html;
+              logger.info(`[Crawl] Browser rendering produced ${ratio}% more content`);
+            }
+          }
+
           const result = this.parseStructured(url, html);
 
           // 保存原始数据

@@ -66,5 +66,14 @@ services:
       retries: 3
       start_period: 30s
 
+  lightpanda:
+    image: ghcr.io/lightpanda-io/browser:latest
+    container_name: openclaw-lightpanda
+    command: serve
+    ports:
+      - "9222:9222"
+    restart: unless-stopped
+    mem_limit: 256M
+
 volumes:
   pgdata:

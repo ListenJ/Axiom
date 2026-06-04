@@ -179,3 +179,23 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
   }
   return null;
 }
+
+/** GET /lightpanda/status -- Check Lightpanda availability */
+export async function handleLightpandaStatus(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/lightpanda/status" || ctx.req.method !== "GET") return null;
+  const { getLightpandaStatus } = await import("../crawl/lightpanda-client.js");
+  const status = await getLightpandaStatus();
+  return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+}
+
+/** GET /direct-search?q=X&engines=google,bing -- Direct search without API keys */
+export async function handleDirectSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/direct-search" || ctx.req.method !== "GET") return null;
+  const query = ctx.url.searchParams.get("q");
+  if (!query) return ctx.jsonResponse({ error: "Missing q parameter" }, 400, ctx.baseHeaders);
+  const engines = ctx.url.searchParams.get("engines")?.split(",") || ["google", "bing"];
+  const num = parseInt(ctx.url.searchParams.get("num") || "10", 10);
+  const { directMultiSearch } = await import("../crawl/lightpanda-search.js");
+  const results = await directMultiSearch(query, { engines, num });
+  return ctx.jsonResponse({ results, count: results.length, query }, 200, ctx.baseHeaders);
+}
