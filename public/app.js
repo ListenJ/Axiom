@@ -18,6 +18,7 @@ applyTheme();
 const pages = {
   chat: { label: "Chat", icon: "💬", desc: "与 Agent 沟通" },
   search: { label: "Search", icon: "🔍", desc: "Vault / Web 搜索" },
+  kg: { label: "KG", icon: "🕸️", desc: "知识图谱可视化" },
   ocr: { label: "OCR", icon: "📄", desc: "文档扫描识别" },
   settings: { label: "Settings", icon: "⚙️", desc: "配置中心" },
 };
@@ -43,6 +44,7 @@ function navigate(page) {
   closeSidebar();
   if (page === "chat") renderChat();
   else if (page === "search") renderSearch();
+  else if (page === "kg") renderKG();
   else if (page === "ocr") renderOcr();
   else if (page === "settings") renderSettings();
 }
@@ -399,6 +401,588 @@ async function doWebSearch() {
         <div class="snippet">${escapeHtml(r.snippet)}</div>
       </div>`).join("");
   } catch (e) { el.innerHTML = `<div style="color:var(--danger)">搜索失败: ${e.message}</div>`; }
+}
+
+// ===== KG (Knowledge Graph Visualization) =====
+let kgCy = null;           // Cytoscape instance
+let kgSelectedNode = null; // currently selected node id
+
+function renderKG() {
+  if (typeof cytoscape === "undefined") {
+    document.getElementById("pageContent").innerHTML = `
+      <div class="card" style="text-align:center;padding:40px">
+        <h2 style="color:var(--warn)">Cytoscape.js 未加载</h2>
+        <p style="color:var(--muted);margin-top:8px">请检查网络连接，CDN 加载失败后无法显示图谱。</p>
+        <button class="btn secondary" style="margin-top:16px" onclick="location.reload()">刷新页面</button>
+      </div>`;
+    return;
+  }
+
+  document.getElementById("pageContent").innerHTML = `
+    <!-- Build bar -->
+    <div class="kg-build-bar">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" onclick="kgBuild()">🔨 构建图谱</button>
+        <button class="btn secondary" onclick="kgRefresh()">⟳ 刷新</button>
+        <span id="kgBuildStatus" style="font-size:0.8rem;color:var(--muted)"></span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn small secondary" onclick="kgFitView()">🎯 适应</button>
+        <button class="btn small secondary" onclick="kgLayout()">🔄 重排布局</button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="kg-stats-row" id="kgStats">
+      <div class="kg-stat-card"><div class="kg-stat-value">-</div><div class="kg-stat-label">节点</div></div>
+      <div class="kg-stat-card"><div class="kg-stat-value">-</div><div class="kg-stat-label">边</div></div>
+      <div class="kg-stat-card"><div class="kg-stat-value">-</div><div class="kg-stat-label">项目</div></div>
+      <div class="kg-stat-card"><div class="kg-stat-value">-</div><div class="kg-stat-label">文件</div></div>
+    </div>
+
+    <!-- Main layout: entity list + graph canvas -->
+    <div class="kg-layout">
+      <div class="kg-entity-panel">
+        <div class="search-box">
+          <input type="text" class="input" id="kgEntitySearch" placeholder="搜索实体..." onkeydown="if(event.key==='Enter')kgFilterEntities()">
+          <select class="select" id="kgTypeFilter" onchange="kgFilterEntities()">
+            <option value="">全部类型</option>
+            <option value="project">project</option>
+            <option value="file">file</option>
+            <option value="code_function">function</option>
+            <option value="code_method">method</option>
+            <option value="code_class">class</option>
+            <option value="code_interface">interface</option>
+            <option value="tool">tool</option>
+            <option value="concept">concept</option>
+          </select>
+        </div>
+        <div class="kg-entity-list" id="kgEntityList">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div class="kg-canvas-wrap">
+        <div class="kg-canvas-toolbar">
+          <button title="放大" onclick="kgZoomIn()">+</button>
+          <button title="缩小" onclick="kgZoomOut()">-</button>
+          <button title="适应" onclick="kgFitView()">⊡</button>
+        </div>
+        <div id="kgCy"></div>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="kg-detail-panel" id="kgDetail">
+      <div class="kg-detail-header">
+        <h3 id="kgDetailTitle">实体详情</h3>
+        <div style="display:flex;gap:6px">
+          <button class="btn small secondary" id="kgExpandBtn" onclick="kgExpandSelected()">🔍 展开关系</button>
+          <button class="btn small secondary" onclick="kgHideDetail()">✕</button>
+        </div>
+      </div>
+      <div id="kgDetailBody"></div>
+    </div>`;
+
+  kgLoadStats();
+  kgLoadGraph();
+}
+
+// --- Stats ---
+async function kgLoadStats() {
+  try {
+    const res = await api("/kg/stats");
+    const d = res.data || res;
+    const cards = document.querySelectorAll("#kgStats .kg-stat-card");
+    if (cards.length >= 4) {
+      cards[0].querySelector(".kg-stat-value").textContent = d.totalNodes ?? 0;
+      cards[1].querySelector(".kg-stat-value").textContent = d.totalEdges ?? 0;
+      cards[2].querySelector(".kg-stat-value").textContent = d.totalProjects ?? 0;
+      cards[3].querySelector(".kg-stat-value").textContent = d.totalFiles ?? 0;
+    }
+  } catch {}
+}
+
+// --- Graph load ---
+async function kgLoadGraph() {
+  try {
+    const res = await api("/kg/graph");
+    const data = res.data || res;
+    const nodes = (data.nodes || []).map(n => ({
+      data: { id: String(n.id), name: n.name, label: n.label || n.name, type: n.type }
+    }));
+    const edges = (data.edges || []).map((e, i) => ({
+      data: { id: `e${i}`, source: String(e.source), target: String(e.target), type: e.type }
+    }));
+    kgInitCy(nodes, edges);
+  } catch {
+    // Fallback: load from entities + traverse
+    kgLoadFromEntities();
+  }
+}
+
+async function kgLoadFromEntities() {
+  try {
+    const res = await api("/kg/entities?limit=200");
+    const entities = res.data || [];
+    const nodes = entities.map(e => ({
+      data: { id: String(e.id), name: e.name, label: e.name.split("/").pop().split(".").pop(), type: e.type }
+    }));
+    kgInitCy(nodes, []);
+  } catch {}
+}
+
+// --- Cytoscape init ---
+function kgInitCy(nodes, edges) {
+  const container = document.getElementById("kgCy");
+  if (!container) return;
+
+  // Destroy previous instance to prevent memory leak
+  if (kgCy) { kgCy.destroy(); kgCy = null; }
+
+  const typeColors = {
+    project:        { bg: "var(--accent)",  shape: "hexagon",   size: 50 },
+    file:           { bg: "#3b82f6",        shape: "rectangle",  size: 35 },
+    code_function:  { bg: "#22c55e",        shape: "ellipse",    size: 30 },
+    code_method:    { bg: "#22c55e",        shape: "ellipse",    size: 28 },
+    code_class:     { bg: "#a855f7",        shape: "diamond",    size: 38 },
+    code_interface: { bg: "#a855f7",        shape: "diamond",    size: 36 },
+    tool:           { bg: "#f97316",        shape: "triangle",   size: 32 },
+    concept:        { bg: "#eab308",        shape: "star",       size: 32 },
+  };
+
+  const edgeStyles = {
+    calls:      { style: "solid",  color: "#64748b" },
+    part_of:    { style: "dashed", color: "#475569" },
+    depends_on: { style: "dotted", color: "#94a3b8" },
+    imports:    { style: "dashed", color: "#6366f1" },
+    contains:   { style: "solid",  color: "#64748b" },
+  };
+
+  const nodeStyles = Object.entries(typeColors).map(([type, cfg]) => ({
+    selector: `node[type="${type}"]`,
+    style: {
+      "background-color": cfg.bg,
+      shape: cfg.shape,
+      width: cfg.size,
+      height: cfg.size,
+      label: "data(label)",
+      "font-size": "10px",
+      color: "#e2e8f0",
+      "text-valign": "bottom",
+      "text-margin-y": 6,
+      "text-max-width": "80px",
+      "text-wrap": "ellipsis",
+      "border-width": 0,
+    }
+  }));
+
+  // Default node style for unknown types
+  nodeStyles.push({
+    selector: "node",
+    style: {
+      "background-color": "#6b7280",
+      shape: "ellipse",
+      width: 28,
+      height: 28,
+      label: "data(label)",
+      "font-size": "10px",
+      color: "#e2e8f0",
+      "text-valign": "bottom",
+      "text-margin-y": 6,
+      "text-max-width": "80px",
+      "text-wrap": "ellipsis",
+    }
+  });
+
+  const edgeStyleRules = Object.entries(edgeStyles).map(([type, cfg]) => ({
+    selector: `edge[type="${type}"]`,
+    style: {
+      "line-style": cfg.style,
+      "line-color": cfg.color,
+      "target-arrow-color": cfg.color,
+      "target-arrow-shape": "triangle",
+      width: 1.5,
+      opacity: 0.6,
+      "curve-style": "bezier",
+    }
+  }));
+
+  // Default edge style
+  edgeStyleRules.push({
+    selector: "edge",
+    style: {
+      "line-style": "solid",
+      "line-color": "#475569",
+      "target-arrow-color": "#475569",
+      "target-arrow-shape": "triangle",
+      width: 1,
+      opacity: 0.5,
+      "curve-style": "bezier",
+    }
+  });
+
+  // Highlighted styles
+  edgeStyleRules.push({
+    selector: "edge.highlighted",
+    style: {
+      "line-color": "#38bdf8",
+      "target-arrow-color": "#38bdf8",
+      width: 2.5,
+      opacity: 1,
+      "z-index": 999,
+    }
+  });
+
+  nodeStyles.push({
+    selector: "node.highlighted",
+    style: {
+      "border-width": 3,
+      "border-color": "#38bdf8",
+      "border-opacity": 1,
+      "z-index": 999,
+    }
+  });
+
+  nodeStyles.push({
+    selector: "node.faded",
+    style: { opacity: 0.25 }
+  });
+
+  edgeStyleRules.push({
+    selector: "edge.faded",
+    style: { opacity: 0.1 }
+  });
+
+  kgCy = cytoscape({
+    container,
+    elements: [...nodes, ...edges],
+    style: [...nodeStyles, ...edgeStyleRules],
+    layout: { name: "cose", animate: false, nodeRepulsion: 8000, idealEdgeLength: 80, padding: 30 },
+    minZoom: 0.1,
+    maxZoom: 4,
+    wheelSensitivity: 0.3,
+  });
+
+  // Node click handler
+  kgCy.on("tap", "node", (evt) => {
+    const node = evt.target;
+    kgSelectNode(node.id());
+    // Highlight neighborhood
+    kgCy.elements().removeClass("highlighted faded");
+    const neighborhood = node.closedNeighborhood();
+    kgCy.elements().addClass("faded");
+    neighborhood.removeClass("faded").addClass("highlighted");
+  });
+
+  // Background click resets
+  kgCy.on("tap", (evt) => {
+    if (evt.target === kgCy) {
+      kgCy.elements().removeClass("highlighted faded");
+      kgHideDetail();
+    }
+  });
+
+  // Populate entity list sidebar
+  kgPopulateEntityList(nodes);
+}
+
+function kgPopulateEntityList(nodes) {
+  const list = document.getElementById("kgEntityList");
+  if (!list) return;
+
+  if (!nodes || nodes.length === 0) {
+    list.innerHTML = `<div style="color:var(--muted);text-align:center;padding:20px;font-size:0.85rem">暂无实体数据</div>`;
+    return;
+  }
+
+  const typeColors = {
+    project: "var(--accent)", file: "#3b82f6",
+    code_function: "#22c55e", code_method: "#22c55e",
+    code_class: "#a855f7", code_interface: "#a855f7",
+    tool: "#f97316", concept: "#eab308",
+  };
+
+  list.innerHTML = nodes.map(n => {
+    const d = n.data;
+    const color = typeColors[d.type] || "#6b7280";
+    return `<div class="kg-entity-item" data-id="${d.id}" onclick="kgSelectEntityFromList('${d.id}')">
+      <span class="name" style="border-left:3px solid ${color};padding-left:8px">${escapeHtml(d.label)}</span>
+      <span class="type-badge">${d.type || "unknown"}</span>
+    </div>`;
+  }).join("");
+}
+
+function kgSelectEntityFromList(id) {
+  if (!kgCy) return;
+  const node = kgCy.getElementById(id);
+  if (node.length) {
+    kgCy.elements().removeClass("highlighted faded");
+    const neighborhood = node.closedNeighborhood();
+    kgCy.elements().addClass("faded");
+    neighborhood.removeClass("faded").addClass("highlighted");
+    kgCy.center(node);
+    kgSelectNode(id);
+  }
+  // Mark active in list
+  document.querySelectorAll(".kg-entity-item").forEach(el => el.classList.remove("active"));
+  const activeEl = document.querySelector(`.kg-entity-item[data-id="${id}"]`);
+  if (activeEl) activeEl.classList.add("active");
+}
+
+async function kgSelectNode(id) {
+  kgSelectedNode = id;
+  const panel = document.getElementById("kgDetail");
+  const title = document.getElementById("kgDetailTitle");
+  const body = document.getElementById("kgDetailBody");
+  if (!panel || !title || !body) return;
+
+  // Get node data from Cytoscape
+  const node = kgCy ? kgCy.getElementById(id) : null;
+  const name = node?.data("name") || id;
+  title.textContent = name;
+  panel.classList.add("show");
+  body.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+
+  try {
+    const res = await api(`/kg/entity/${encodeURIComponent(name)}`);
+    const entity = res.data?.entity || {};
+    const rels = res.data?.relationships || [];
+
+    const props = typeof entity.properties === "string" ? JSON.parse(entity.properties || "{}") : (entity.properties || {});
+    const propHtml = Object.entries(props).slice(0, 8).map(([k, v]) =>
+      `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8rem;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted)">${escapeHtml(k)}</span>
+        <span style="font-family:monospace;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(String(v))}</span>
+      </div>`
+    ).join("");
+
+    const relHtml = rels.length > 0 ? rels.map(r =>
+      `<div class="kg-rel-item" onclick="kgSelectEntityFromList(null);kgNavigateEntity('${encodeURIComponent(r.other_entity)}')">
+        <span class="rel-type">${r.relation_type}</span>
+        <span style="color:${r.direction === 'outgoing' ? 'var(--success)' : 'var(--accent)'}">${r.direction === 'outgoing' ? '→' : '←'}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.other_entity)}</span>
+        <span style="font-size:0.65rem;color:var(--muted)">${r.other_type || ""}</span>
+      </div>`
+    ).join("") : `<div style="color:var(--muted);font-size:0.8rem">暂无关系</div>`;
+
+    body.innerHTML = `
+      <div class="kg-detail-grid">
+        <div class="kg-detail-section">
+          <h4>基本信息</h4>
+          <div style="font-size:0.8rem;margin-bottom:8px">
+            <div style="margin-bottom:4px"><strong>类型:</strong> <span class="badge">${entity.type || "unknown"}</span></div>
+            ${entity.description ? `<div style="margin-bottom:4px"><strong>描述:</strong> ${escapeHtml(entity.description)}</div>` : ""}
+            ${entity.source ? `<div><strong>来源:</strong> <span style="font-family:monospace;font-size:0.75rem">${escapeHtml(entity.source)}</span></div>` : ""}
+          </div>
+          ${propHtml ? `<h4 style="margin-top:8px">属性</h4>${propHtml}` : ""}
+        </div>
+        <div class="kg-detail-section">
+          <h4>关系 (${rels.length})</h4>
+          <div class="kg-rel-list">${relHtml}</div>
+        </div>
+      </div>`;
+  } catch {
+    body.innerHTML = `<div style="color:var(--muted);font-size:0.8rem">加载详情失败</div>`;
+  }
+}
+
+function kgHideDetail() {
+  const panel = document.getElementById("kgDetail");
+  if (panel) panel.classList.remove("show");
+  kgSelectedNode = null;
+}
+
+async function kgExpandSelected() {
+  if (!kgSelectedNode || !kgCy) return;
+  const node = kgCy.getElementById(kgSelectedNode);
+  const name = node?.data("name");
+  if (!name) return;
+
+  const status = document.getElementById("kgBuildStatus");
+  if (status) status.textContent = "正在展开关系...";
+
+  try {
+    const res = await api(`/kg/traverse/${encodeURIComponent(name)}?depth=2`);
+    const results = res.data || [];
+    if (results.length === 0) {
+      if (status) status.textContent = "无更多关系";
+      return;
+    }
+
+    // Add new nodes and edges to existing graph
+    const existingIds = new Set(kgCy.nodes().map(n => n.id()));
+    const newElements = [];
+
+    results.forEach(row => {
+      // The traverse function returns rows with entity/related entity info
+      const relId = String(row.related_id || row.id);
+      const relName = row.related_name || row.name;
+      const relType = row.related_type || row.type;
+
+      if (relId && !existingIds.has(relId)) {
+        existingIds.add(relId);
+        newElements.push({
+          data: {
+            id: relId,
+            name: relName,
+            label: (relName || "").split("/").pop().split(".").pop(),
+            type: relType,
+          }
+        });
+      }
+
+      // Add edge if both endpoints exist
+      if (row.entity_id && row.related_id) {
+        newElements.push({
+          data: {
+            id: `exp_${row.entity_id}_${row.related_id}`,
+            source: String(row.entity_id),
+            target: String(row.related_id),
+            type: row.relation_type || "related",
+          }
+        });
+      }
+    });
+
+    if (newElements.length > 0) {
+      kgCy.add(newElements);
+      kgCy.layout({ name: "cose", animate: true, nodeRepulsion: 8000, idealEdgeLength: 80 }).run();
+    }
+
+    if (status) status.textContent = `已展开 ${results.length} 条关系`;
+  } catch {
+    if (status) status.textContent = "展开失败";
+  }
+}
+
+function kgNavigateEntity(encodedName) {
+  if (!encodedName) return;
+  // Try to find the entity in the current graph
+  const name = decodeURIComponent(encodedName);
+  const found = kgCy?.nodes().find(n => n.data("name") === name);
+  if (found) {
+    kgSelectEntityFromList(found.id());
+  } else {
+    // Load entity detail to see its relationships
+    kgSelectedNode = null;
+    kgSelectNodeByName(name);
+  }
+}
+
+async function kgSelectNodeByName(name) {
+  const panel = document.getElementById("kgDetail");
+  const title = document.getElementById("kgDetailTitle");
+  const body = document.getElementById("kgDetailBody");
+  if (!panel || !title || !body) return;
+  title.textContent = name;
+  panel.classList.add("show");
+  body.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  try {
+    const res = await api(`/kg/entity/${encodeURIComponent(name)}`);
+    const entity = res.data?.entity || {};
+    const rels = res.data?.relationships || [];
+    body.innerHTML = `
+      <div class="kg-detail-grid">
+        <div class="kg-detail-section">
+          <h4>基本信息</h4>
+          <div style="font-size:0.8rem">
+            <div style="margin-bottom:4px"><strong>类型:</strong> <span class="badge">${entity.type || "unknown"}</span></div>
+            ${entity.description ? `<div>${escapeHtml(entity.description)}</div>` : ""}
+          </div>
+        </div>
+        <div class="kg-detail-section">
+          <h4>关系 (${rels.length})</h4>
+          <div class="kg-rel-list">${rels.map(r =>
+            `<div class="kg-rel-item" onclick="kgNavigateEntity('${encodeURIComponent(r.other_entity)}')">
+              <span class="rel-type">${r.relation_type}</span>
+              <span>${r.direction === 'outgoing' ? '→' : '←'}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.other_entity)}</span>
+            </div>`
+          ).join("")}</div>
+        </div>
+      </div>`;
+  } catch {
+    body.innerHTML = `<div style="color:var(--muted);font-size:0.8rem">加载失败</div>`;
+  }
+}
+
+// --- Entity list filter ---
+async function kgFilterEntities() {
+  const q = document.getElementById("kgEntitySearch")?.value.trim() || "";
+  const type = document.getElementById("kgTypeFilter")?.value || "";
+  const list = document.getElementById("kgEntityList");
+  if (!list) return;
+  list.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+
+  try {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (type) params.set("type", type);
+    params.set("limit", "100");
+    const res = await api(`/kg/entities?${params.toString()}`);
+    const entities = (res.data || []);
+
+    const typeColors = {
+      project: "var(--accent)", file: "#3b82f6",
+      code_function: "#22c55e", code_method: "#22c55e",
+      code_class: "#a855f7", code_interface: "#a855f7",
+      tool: "#f97316", concept: "#eab308",
+    };
+
+    if (entities.length === 0) {
+      list.innerHTML = `<div style="color:var(--muted);text-align:center;padding:20px;font-size:0.85rem">无匹配实体</div>`;
+      return;
+    }
+
+    list.innerHTML = entities.map(e => {
+      const color = typeColors[e.type] || "#6b7280";
+      const label = (e.name || "").split("/").pop().split(".").pop();
+      return `<div class="kg-entity-item" data-id="${e.id}" onclick="kgSelectEntityFromList('${String(e.id)}')">
+        <span class="name" style="border-left:3px solid ${color};padding-left:8px">${escapeHtml(label)}</span>
+        <span class="type-badge">${e.type || "unknown"}</span>
+      </div>`;
+    }).join("");
+  } catch {
+    list.innerHTML = `<div style="color:var(--danger);padding:12px;font-size:0.85rem">加载失败</div>`;
+  }
+}
+
+// --- Graph actions ---
+async function kgBuild() {
+  const status = document.getElementById("kgBuildStatus");
+  if (status) status.textContent = "正在构建图谱，请稍候...";
+  try {
+    await api("/kg/build", { method: "POST" });
+    if (status) status.textContent = "构建完成！正在刷新...";
+    setTimeout(() => kgRefresh(), 500);
+  } catch (e) {
+    if (status) status.textContent = "构建失败: " + e.message;
+  }
+}
+
+function kgRefresh() {
+  kgLoadStats();
+  kgLoadGraph();
+  const status = document.getElementById("kgBuildStatus");
+  if (status) status.textContent = "";
+}
+
+function kgFitView() {
+  if (kgCy) kgCy.fit(undefined, 30);
+}
+
+function kgLayout() {
+  if (kgCy) {
+    kgCy.layout({ name: "cose", animate: true, nodeRepulsion: 8000, idealEdgeLength: 80, padding: 30 }).run();
+  }
+}
+
+function kgZoomIn() {
+  if (kgCy) kgCy.zoom(kgCy.zoom() * 1.3);
+}
+
+function kgZoomOut() {
+  if (kgCy) kgCy.zoom(kgCy.zoom() / 1.3);
 }
 
 // ===== OCR =====

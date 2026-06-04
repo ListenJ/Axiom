@@ -20,7 +20,8 @@ import { validateTableName, validateColumnName, quoteIdentifier } from "../utils
 
 function getConnectionConfig() {
   const url = process.env.DATABASE_URL;
-  if (url) {
+  // 只有 postgresql:// 或 postgres:// 格式的 URL 才用于 PG 连接
+  if (url && (url.startsWith("postgresql://") || url.startsWith("postgres://"))) {
     return { url };
   }
 

@@ -231,7 +231,84 @@ textarea.input { min-height: 120px; resize: vertical; font-family: inherit; }
 }
 .btn.ok { background: var(--success); color: #1a1a1a; }
 .btn.danger { background: var(--danger); color: #fff; }
+
+/* KG Page */
+.kg-stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kg-stat-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; text-align: center; transition: border-color 0.2s;
+}
+.kg-stat-card:hover { border-color: var(--accent); }
+.kg-stat-value { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+.kg-stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+.kg-layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 768px) { .kg-layout { grid-template-columns: 1fr; } }
+
+.kg-entity-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 600px;
+}
+.kg-entity-panel .search-box { flex-direction: column; }
+.kg-entity-list {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px solid var(--border); padding-top: 8px;
+}
+.kg-entity-item {
+  padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+  display: flex; justify-content: space-between; align-items: center;
+  border: 1px solid transparent; transition: background 0.15s, border-color 0.15s;
+}
+.kg-entity-item:hover { background: var(--hover); border-color: var(--border); }
+.kg-entity-item.active { background: var(--hover); border-color: var(--accent); }
+.kg-entity-item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.kg-entity-item .type-badge {
+  font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;
+  background: var(--hover); color: var(--muted); flex-shrink: 0; margin-left: 6px;
+}
+
+.kg-canvas-wrap {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden; position: relative; min-height: 500px;
+}
+.kg-canvas-wrap #kgCy { width: 100%; height: 100%; min-height: 500px; }
+.kg-canvas-toolbar {
+  position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 10;
+}
+.kg-canvas-toolbar button {
+  width: 32px; height: 32px; border-radius: 6px; background: var(--card);
+  border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.kg-canvas-toolbar button:hover { background: var(--hover); }
+
+.kg-detail-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; display: none;
+}
+.kg-detail-panel.show { display: block; }
+.kg-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.kg-detail-header h3 { font-size: 1rem; font-weight: 700; }
+.kg-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 768px) { .kg-detail-grid { grid-template-columns: 1fr; } }
+.kg-detail-section h4 { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+.kg-rel-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.kg-rel-item {
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  border-radius: 4px; font-size: 0.8rem; background: var(--bg); cursor: pointer;
+}
+.kg-rel-item:hover { background: var(--hover); }
+.kg-rel-item .rel-type {
+  font-size: 0.65rem; padding: 1px 6px; border-radius: 3px;
+  background: var(--hover); color: var(--muted);
+}
+
+.kg-build-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+}
 </style>
+<script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>
 </head>
 <body>
 <div id="app">

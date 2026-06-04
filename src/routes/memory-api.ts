@@ -14,7 +14,7 @@ export async function handleSaveConversation(ctx: RouteContext): Promise<Respons
   if (ctx.url.pathname !== "/memory/conversations" || ctx.req.method !== "POST") return null;
   
   const body = await ctx.req.json().catch(() => ({}));
-  const { sessionId, role, content, agentId, toolCalls, toolResults, tokensUsed, latencyMs, model } = body;
+  const { sessionId, role, content, agentId, toolCalls, toolResults, tokensUsed, latencyMs } = body;
   
   if (!sessionId || !role || !content) {
     return ctx.jsonResponse({ error: "sessionId, role, and content are required" }, 400, ctx.baseHeaders);
@@ -22,12 +22,12 @@ export async function handleSaveConversation(ctx: RouteContext): Promise<Respons
 
   try {
     ctx.db.run(
-      `INSERT INTO conversations (session_id, role, content, agent_id, tool_calls, tool_results, tokens_used, latency_ms, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-      sessionId, role, content, agentId || null,
+      `INSERT INTO conversations (session_id, role, content, agent_id, tool_calls, tool_results, tokens_used, latency_ms, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sessionId, role, content, agentId || "default",
       toolCalls ? JSON.stringify(toolCalls) : null,
       toolResults ? JSON.stringify(toolResults) : null,
-      tokensUsed || 0, latencyMs || 0, model || null
+      tokensUsed || 0, latencyMs || 0, Math.floor(Date.now() / 1000)
     );
     return ctx.jsonResponse({ ok: true, sessionId }, 201, ctx.baseHeaders);
   } catch (err) {
@@ -48,7 +48,7 @@ export async function handleGetConversations(ctx: RouteContext): Promise<Respons
     let messages;
     if (sessionId) {
       messages = ctx.db.query(
-        `SELECT id, session_id, role, content, agent_id, tool_calls, tool_results, tokens_used, latency_ms, model, created_at
+        `SELECT id, session_id, role, content, agent_id, tool_calls, tool_results, tokens_used, latency_ms, created_at
          FROM conversations WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?`
       ).all(sessionId, limit, offset);
     } else {
@@ -107,9 +107,9 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
 
     // Search knowledge table
     if (!type || type === "knowledge") {
-      let sql = `SELECT id, tier, title, content, confidence, access_count, created_at FROM knowledge WHERE 1=1`;
+      let sql = `SELECT id, tier, topic_key as title, content, confidence, access_count, created_at FROM knowledge WHERE 1=1`;
       const params: any[] = [];
-      if (query) { sql += ` AND (title LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
+      if (query) { sql += ` AND (topic_key LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (tier) { sql += ` AND tier = ?`; params.push(tier); }
       sql += ` ORDER BY confidence DESC, access_count DESC LIMIT ?`;
       params.push(limit);
@@ -118,9 +118,9 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
 
     // Search entities (knowledge graph)
     if (!type || type === "entity") {
-      let sql = `SELECT id, name, type, description, created_at FROM entities WHERE 1=1`;
+      let sql = `SELECT id, name, type, properties, created_at FROM entities WHERE 1=1`;
       const params: any[] = [];
-      if (query) { sql += ` AND (name LIKE ? OR description LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
+      if (query) { sql += ` AND (name LIKE ? OR properties LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (type && type !== "entity") { sql += ` AND type = ?`; params.push(type); }
       sql += ` ORDER BY name LIMIT ?`;
       params.push(limit);
@@ -272,7 +272,7 @@ export async function handleListTasks(ctx: RouteContext): Promise<Response | nul
   const limit = Math.min(parseInt(ctx.url.searchParams.get("limit") || "50", 10), 200);
 
   try {
-    let sql = `SELECT id, title, status, priority, parent_id, context_summary, result_summary, created_at, updated_at FROM tasks WHERE 1=1`;
+    let sql = `SELECT id, title, status, priority, parent_task_id, context_summary, result_summary, created_at, updated_at FROM tasks WHERE 1=1`;
     const params: any[] = [];
     if (status) { sql += ` AND status = ?`; params.push(status); }
     sql += ` ORDER BY priority DESC, updated_at DESC LIMIT ?`;
@@ -293,18 +293,19 @@ export async function handleModelUsage(ctx: RouteContext): Promise<Response | nu
 
   const days = parseInt(ctx.url.searchParams.get("days") || "7", 10);
   try {
+    const sinceEpoch = Math.floor(Date.now() / 1000) - (days * 86400);
     const usage = ctx.db.query(
-      `SELECT provider, model, 
+      `SELECT provider, model_name, 
               COUNT(*) as call_count,
-              SUM(prompt_tokens) as total_prompt_tokens,
-              SUM(completion_tokens) as total_completion_tokens,
+              SUM(tokens_input) as total_prompt_tokens,
+              SUM(tokens_output) as total_completion_tokens,
               AVG(latency_ms) as avg_latency_ms,
               SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count
        FROM model_usage 
-       WHERE created_at > datetime('now', ? || ' days')
-       GROUP BY provider, model
+       WHERE created_at > ?
+       GROUP BY provider, model_name
        ORDER BY call_count DESC`
-    ).all(`-${days}`);
+    ).all(sinceEpoch);
     return ctx.jsonResponse({ usage, days }, 200, ctx.baseHeaders);
   } catch (err) {
     logger.error("Failed to get usage stats", err as Error);

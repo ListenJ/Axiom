@@ -25,8 +25,35 @@ export async function handleKGStats(ctx: RouteContext): Promise<Response | null>
   if (ctx.url.pathname !== "/kg/stats" || ctx.req.method !== "GET") return null;
 
   try {
-    const { getProjectStats } = await import("../db/codegraph-sync.js");
-    const stats = await getProjectStats();
+    const { isPgAvailable, getPG } = await import("../db/pg-client.js");
+    if (!(await isPgAvailable())) {
+      return ctx.jsonResponse({ success: false, error: "PostgreSQL not available" }, 503, ctx.baseHeaders);
+    }
+
+    const pg = getPG();
+
+    const [entityCount] = await pg`SELECT COUNT(*)::int as count FROM kg_entities`;
+    const [relCount] = await pg`SELECT COUNT(*)::int as count FROM kg_relationships`;
+
+    const typeCounts = await pg`
+      SELECT type, COUNT(*)::int as count FROM kg_entities GROUP BY type ORDER BY count DESC
+    `;
+    const nodesByKind: Record<string, number> = {};
+    for (const t of typeCounts) nodesByKind[t.type] = t.count;
+
+    const sourceCounts = await pg`
+      SELECT source, COUNT(*)::int as count FROM kg_entities GROUP BY source
+    `;
+    const sources: Record<string, number> = {};
+    for (const s of sourceCounts) sources[s.source || "unknown"] = s.count;
+
+    const stats = {
+      totalNodes: entityCount?.count || 0,
+      totalEdges: relCount?.count || 0,
+      nodesByKind,
+      sources,
+    };
+
     return ctx.jsonResponse({ success: true, data: stats }, 200, ctx.baseHeaders);
   } catch (err) {
     logger.error("[KGRoute] Stats failed", err as Error);
@@ -191,6 +218,69 @@ export async function handleKGSearch(ctx: RouteContext): Promise<Response | null
     return ctx.jsonResponse({ success: true, data: result }, 200, ctx.baseHeaders);
   } catch (err) {
     logger.error("[KGRoute] Search failed", err as Error);
+    return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
+  }
+}
+
+export async function handleKGGraph(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/kg/graph" || ctx.req.method !== "GET") return null;
+
+  try {
+    const { isPgAvailable, getPG } = await import("../db/pg-client.js");
+    if (!(await isPgAvailable())) {
+      return ctx.jsonResponse({ success: false, error: "PostgreSQL not available" }, 503, ctx.baseHeaders);
+    }
+
+    const pg = getPG();
+
+    // Fetch nodes — always include project entities + most recent others (limit 500)
+    const projects = await pg`
+      SELECT id, name, type, description FROM kg_entities WHERE type = 'project'
+    `;
+    const others = await pg`
+      SELECT id, name, type, description FROM kg_entities
+      WHERE type != 'project'
+      ORDER BY updated_at DESC
+      LIMIT ${500 - projects.length}
+    `;
+    const entities = [...projects, ...others];
+
+    const nodeIds = entities.map((e: any) => String(e.id));
+
+    // Fetch edges — only those where both endpoints are in the node set
+    const relationships = await pg.unsafe(
+      `SELECT r.source_id, r.target_id, r.relation_type
+       FROM kg_relationships r
+       WHERE r.source_id = ANY($1::bigint[])
+         AND r.target_id = ANY($1::bigint[])
+       ORDER BY r.weight DESC
+       LIMIT 2000`,
+      [nodeIds]
+    );
+
+    const nodes = entities.map((e: any) => ({
+      id: e.id,
+      name: e.name,
+      type: e.type,
+      label: e.name.split("/").pop()?.split(".").pop() || e.name,
+    }));
+
+    const edges = relationships.map((r: any) => ({
+      source: r.source_id,
+      target: r.target_id,
+      type: r.relation_type,
+    }));
+
+    return ctx.jsonResponse({
+      success: true,
+      data: {
+        nodes,
+        edges,
+        stats: { nodeCount: nodes.length, edgeCount: edges.length },
+      },
+    }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("[KGRoute] Graph failed", err as Error);
     return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
   }
 }
