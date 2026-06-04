@@ -488,6 +488,37 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "analyze": {
+    desc: "自动分析新项目 (analyze <path> [--depth=quick|standard|deep])",
+    run: async (args) => {
+      const projectPath = args.find((a) => !a.startsWith("--")) || ".";
+      const depth = (args.find((a) => a.startsWith("--depth="))?.slice(8) || "standard") as "quick" | "standard" | "deep";
+      const focusRaw = args.find((a) => a.startsWith("--focus="))?.slice(8);
+      const focusAreas = focusRaw ? focusRaw.split(",") : undefined;
+
+      console.log(`[项目分析] 路径: ${projectPath}, 深度: ${depth}\n`);
+      const { indexNewProject } = await import("./agents/project-analyzer.js");
+      const result = await indexNewProject({ projectPath, depth, focusAreas });
+
+      console.log(`[分析完成] ${result.projectName}`);
+      console.log(`  语言: ${Object.entries(result.structure.languages).map(([l, c]) => `${l}(${c})`).join(", ")}`);
+      console.log(`  框架: ${result.structure.frameworks.map(f => f.name).join(", ") || "未检测到"}`);
+      console.log(`  文件数: ${result.structure.totalFiles}`);
+      console.log(`  知识图谱: ${result.kgEntities} 实体, ${result.kgRelationships} 关系`);
+      console.log(`  代码图谱: ${result.codegraphNodes} 节点`);
+      console.log(`  耗时: ${result.durationMs}ms\n`);
+      console.log(result.architectureSummary);
+      if (result.keyFindings.length > 0) {
+        console.log("\n[关键发现]");
+        for (const f of result.keyFindings) console.log(`  • ${f}`);
+      }
+      if (result.recommendations.length > 0) {
+        console.log("\n[建议]");
+        for (const r of result.recommendations) console.log(`  • ${r}`);
+      }
+    },
+  },
+
   tui: {
     desc: "启动 TUI 终端交互界面",
     run: async () => {
@@ -987,6 +1018,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("  status              系统状态概览");
       console.log("  chat <消息>         AI 对话 (自动路由)");
       console.log("  research <主题>     深度研究 (KG增强)");
+      console.log("  analyze <路径>      自动分析新项目");
       console.log("  health              平台健康检查");
       console.log("  tui                 启动终端界面\n");
 
@@ -995,6 +1027,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("  vault <action>      记忆库 (vault search|read|stats|para)");
       console.log("  kg <action>         知识图谱 (kg build|stats|search)");
       console.log("  cg <action>         代码图谱 (cg init|search|context)");
+      console.log("  project <action>    项目分析 (project analyze|research)");
       console.log("  code <action>       OpenCode (code open|models|serve)");
       console.log("  kimi <action>       Kimi (kimi chat|open|status)");
       console.log("  agent <action>      Agent管理 (agent status|discover)");
@@ -1008,6 +1041,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("  openclaw s \"React 19 新特性\"          搜索");
       console.log("  openclaw c \"帮我写HTTP服务器\"          对话");
       console.log("  openclaw r \"多智能体架构分析\"          深度研究");
+      console.log("  openclaw p analyze ../my-project       分析新项目");
       console.log("  openclaw kg build --path=. --name=x   构建知识图谱");
       console.log("  openclaw vault search \"部署方案\"       记忆库搜索");
       console.log("  openclaw advisor free                  发现免费模型\n");
@@ -1067,6 +1101,10 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
     generate: commands["prompt:generate"],
     optimize: commands["prompt:optimize"],
   },
+  project: {
+    analyze: commands["analyze"],
+    research: commands["project:research"],
+  },
   search: {
     run: commands["search"],
     enhanced: commands["esearch"],
@@ -1084,6 +1122,7 @@ const aliases: Record<string, string> = {
   r: "research",      // openclaw r "topic"
   k: "kg",            // openclaw k build
   v: "vault",         // openclaw v search
+  p: "project",       // openclaw p analyze <path>
   h: "help",
 };
 

@@ -249,7 +249,7 @@ export class TokenTracker {
     const params: Record<string, number | string> = {};
     let where = "";
     if (opts?.since) { where = "WHERE timestamp >= $since"; params.$since = opts.since; }
-    const limit = opts?.limit ?? 20;
+    const limit = Math.max(1, Math.min(Math.floor(opts?.limit ?? 20), 1000));
 
     const rows = this.db.query(`
       SELECT
@@ -267,8 +267,8 @@ export class TokenTracker {
       ${where}
       GROUP BY model, provider
       ORDER BY total_tokens DESC
-      LIMIT ${limit}
-    `).all(params) as ModelStatsRow[];
+      LIMIT $limit
+    `).all({ ...params, $limit: limit }) as ModelStatsRow[];
 
     return rows.map((r) => ({
       model: r.model,
@@ -306,8 +306,8 @@ export class TokenTracker {
       ${where}
       GROUP BY role
       ORDER BY total_tokens DESC
-      LIMIT ${limit}
-    `).all(params) as RoleStatsRow[];
+      LIMIT $limit
+    `).all({ ...params, $limit: limit }) as RoleStatsRow[];
 
     return rows.map((r) => ({
       role: r.role,
@@ -324,6 +324,8 @@ export class TokenTracker {
 
   /** 按天统计 */
   getDailyStats(days = 30): DailyStats[] {
+    const safeDays = Math.max(1, Math.min(Math.floor(days), 3650));
+    const daysStr = `-${safeDays} days`;
     const rows = this.db.query(`
       SELECT
         date(timestamp, 'unixepoch', 'localtime') as date,
@@ -332,10 +334,10 @@ export class TokenTracker {
         COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
         COALESCE(SUM(completion_tokens), 0) as completion_tokens
       FROM token_usage
-      WHERE timestamp >= strftime('%s', 'now', '-${days} days')
+      WHERE timestamp >= strftime('%s', 'now', $daysStr)
       GROUP BY date
       ORDER BY date DESC
-    `).all() as DailyStatsRow[];
+    `).all({ $daysStr: daysStr }) as DailyStatsRow[];
 
     return rows.map((r) => ({
       date: r.date,
@@ -348,6 +350,7 @@ export class TokenTracker {
 
   /** 最近使用记录 */
   getRecentUsage(limit = 20): TokenUsageRecord[] {
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
     const rows = this.db.query(`
       SELECT
         timestamp, model, provider, role, task_type,
@@ -355,8 +358,8 @@ export class TokenTracker {
         latency_ms, content_length, success, fallback_used
       FROM token_usage
       ORDER BY timestamp DESC
-      LIMIT ${limit}
-    `).all() as UsageRecordRow[];
+      LIMIT $limit
+    `).all({ $limit: safeLimit }) as UsageRecordRow[];
 
     return rows.map((r) => ({
       timestamp: r.timestamp,

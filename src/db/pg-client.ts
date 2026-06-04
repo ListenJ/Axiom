@@ -210,7 +210,9 @@ export async function pgVectorSearch(
   const quotedCol = quoteIdentifier(safeColumn);
 
   const embeddingStr = `[${queryEmbedding.join(",")}]`;
-  const whereClause = where ? `AND ${where}` : "";
+  // SECURITY: `where` is a raw SQL fragment — only pass trusted, pre-validated conditions
+  // Never pass user input directly. Use parameterized values ($1, $2, ...) where possible.
+  const whereClause = where ? `AND (${where})` : "";
 
   const results = await pg.unsafe(`
     SELECT ${safeCols},
