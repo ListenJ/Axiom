@@ -53,7 +53,7 @@ export async function directSearch(options: DirectSearchOptions): Promise<Direct
     }
 
     const results = extractSearchResults(result.html, engine);
-    logger.info(`[DirectSearch] ${engine}: ${results.length} results for "${query}" (${result.loadTimeMs}ms, method: ${result.method})`);
+    logger.debug(`[DirectSearch] ${engine}: ${results.length} results for "${query}" (${result.loadTimeMs}ms)`);
     return results.slice(0, num);
   } catch (err) {
     logger.warn(`[DirectSearch] ${engine} failed: ${(err as Error).message}`);

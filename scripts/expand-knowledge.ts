@@ -4,13 +4,17 @@
  * 爬取 OpenClaw 项目核心技术栈文档，提取关键知识，
  * 生成原子笔记 (atomic notes) 存入 Vault 知识库。
  *
- * 使用: bun run scripts/expand-knowledge.ts
+ * 使用:
+ *   bun run scripts/expand-knowledge.ts           # 安静模式 (默认)
+ *   bun run scripts/expand-knowledge.ts --verbose  # 详细输出
  */
 import { smartRender } from "../src/crawl/lightpanda-client.js";
 import { directSearch } from "../src/crawl/lightpanda-search.js";
-import { logger } from "../src/utils/logger.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
+
+const VERBOSE = process.argv.includes("--verbose") || process.argv.includes("-v");
+const log = (...args: unknown[]) => { if (VERBOSE) console.log(...args); };
 
 const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
 const KNOWLEDGE_DIR = path.join(VAULT_PATH, "03-Knowledge");
@@ -316,34 +320,44 @@ ${topics.map(t => `- [[${t}]]`).join("\n")}
 // ═══════════ 主流程 ═══════════
 
 async function main() {
-  console.log("🧠 OpenClaw 知识库扩充 — 使用 Lightpanda 爬取技术文档\n");
-
   // 确保目录存在
   for (const dir of [ATOMIC_DIR, CONCEPT_DIR]) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      console.log(`  📁 创建目录: ${dir}`);
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 
   const allTopics: string[] = [];
   const categoryMap = new Map<string, string[]>();
   let totalCrawled = 0;
   let totalSearches = 0;
+  let totalSteps = 0;
 
+  // 计算总步数
+  for (const s of KNOWLEDGE_SOURCES) {
+    totalSteps += s.urls.length + s.searchQueries.length;
+  }
+
+  if (!VERBOSE) {
+    console.log(`知识库扩充: ${KNOWLEDGE_SOURCES.length} 个主题, ${totalSteps} 个任务`);
+  } else {
+    console.log("🧠 OpenClaw 知识库扩充 — 使用 Lightpanda 爬取技术文档\n");
+  }
+
+  let step = 0;
   for (const source of KNOWLEDGE_SOURCES) {
-    console.log(`\n━━━ ${source.topic} (${source.category}) ━━━`);
+    log(`\n━━━ ${source.topic} (${source.category}) ━━━`);
     const topics: string[] = [];
 
     // 1. 爬取指定 URL
     for (const url of source.urls) {
+      step++;
       try {
-        console.log(`  🌐 爬取: ${url}`);
+        log(`  🌐 爬取: ${url}`);
         const result = await smartRender(url, { timeout: 15000 });
         const content = extractTextContent(result.html);
 
         if (content.text.length < 100) {
-          console.log(`  ⚠️  内容过少 (${content.text.length} 字), 跳过`);
+          log(`  ⚠️  内容过少 (${content.text.length} 字), 跳过`);
+          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: 跳过 (内容过少)   `);
           continue;
         }
 
@@ -354,16 +368,18 @@ async function main() {
         fs.writeFileSync(notePath, note, "utf-8");
         topics.push(source.topic);
         totalCrawled++;
-        console.log(`  ✅ ${content.title || url} (${content.text.length} 字, ${result.method}, ${result.loadTimeMs}ms)`);
+        log(`  ✅ ${content.title || url} (${content.text.length} 字, ${result.method}, ${result.loadTimeMs}ms)`);
+        if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: +1 笔记 (${content.text.length}字)   `);
       } catch (err) {
-        console.log(`  ❌ 爬取失败: ${(err as Error).message}`);
+        log(`  ❌ 爬取失败: ${(err as Error).message}`);
       }
     }
 
     // 2. 补充搜索
     for (const query of source.searchQueries) {
+      step++;
       try {
-        console.log(`  🔍 搜索: "${query}"`);
+        log(`  🔍 搜索: "${query}"`);
         const results = await directSearch({
           query,
           engine: "bing",
@@ -379,7 +395,7 @@ async function main() {
           fs.writeFileSync(notePath, note, "utf-8");
           topics.push(`${source.topic} Search`);
           totalSearches++;
-          console.log(`  ✅ ${results.length} 个搜索结果已保存`);
+          log(`  ✅ ${results.length} 个搜索结果已保存`);
 
           // 深度爬取前 2 个搜索结果
           for (const r of results.slice(0, 2)) {
@@ -398,17 +414,18 @@ async function main() {
                 const deepPath = path.join(ATOMIC_DIR, `deep-${deepSlug}.md`);
                 fs.writeFileSync(deepPath, deepNote, "utf-8");
                 totalCrawled++;
-                console.log(`  📄 深度爬取: ${r.title.slice(0, 50)} (${deepContent.text.length} 字)`);
+                log(`  📄 深度爬取: ${r.title.slice(0, 50)} (${deepContent.text.length} 字)`);
               }
             } catch {
               // 深度爬取失败不阻断流程
             }
           }
+          if (!VERBOSE) process.stdout.write(`\r  [${step}/${totalSteps}] ${source.topic}: 搜索 +${results.length} 结果   `);
         } else {
-          console.log(`  ⚠️  无搜索结果`);
+          log(`  ⚠️  无搜索结果`);
         }
       } catch (err) {
-        console.log(`  ❌ 搜索失败: ${(err as Error).message}`);
+        log(`  ❌ 搜索失败: ${(err as Error).message}`);
       }
     }
 
@@ -419,47 +436,19 @@ async function main() {
   }
 
   // 3. 生成概念图
-  console.log("\n━━━ 生成概念图 ━━━");
-  const conceptMap = generateConceptMap(
-    [...new Set(allTopics)],
-    categoryMap,
-  );
+  const conceptMap = generateConceptMap([...new Set(allTopics)], categoryMap);
   const conceptPath = path.join(CONCEPT_DIR, "openclaw-knowledge-map.md");
   fs.writeFileSync(conceptPath, conceptMap, "utf-8");
-  console.log(`  ✅ 概念图已保存: ${conceptPath}`);
 
-  // 4. 生成索引 README
-  const indexContent = `# OpenClaw 知识库索引
-
-> 自动生成于 ${new Date().toISOString().split("T")[0]}
-
-## 统计
-
-- 原子笔记: ${totalCrawled + totalSearches} 篇
-- URL 爬取: ${totalCrawled} 次
-- 搜索补充: ${totalSearches} 次
-- 分类数: ${categoryMap.size}
-
-## 分类
-
-${Array.from(categoryMap.entries()).map(([cat, items]) => `### ${cat}\n${items.map(i => `- ${i}`).join("\n")}`).join("\n\n")}
-
-## 文件列表
-
-${fs.readdirSync(ATOMIC_DIR).filter(f => f.endsWith(".md")).map(f => `- [${f}](atomic-notes/${f})`).join("\n")}
-`;
-
+  // 4. 生成索引
+  const allFiles = fs.readdirSync(ATOMIC_DIR).filter(f => f.endsWith(".md"));
+  const indexContent = `# OpenClaw 知识库索引\n\n> 自动生成于 ${new Date().toISOString().split("T")[0]}\n\n## 统计\n\n- 原子笔记: ${totalCrawled + totalSearches} 篇\n- URL 爬取: ${totalCrawled} 次\n- 搜索补充: ${totalSearches} 次\n- 分类数: ${categoryMap.size}\n\n## 分类\n\n${Array.from(categoryMap.entries()).map(([cat, items]) => `### ${cat}\n${items.map(i => `- ${i}`).join("\n")}`).join("\n\n")}\n\n## 文件列表\n\n${allFiles.map(f => `- [${f}](atomic-notes/${f})`).join("\n")}\n`;
   const indexPath = path.join(KNOWLEDGE_DIR, "INDEX.md");
   fs.writeFileSync(indexPath, indexContent, "utf-8");
-  console.log(`  ✅ 索引已保存: ${indexPath}`);
 
-  // 总结
-  console.log(`\n${"═".repeat(50)}`);
-  console.log(`📊 知识库扩充完成`);
-  console.log(`   URL 爬取: ${totalCrawled} 篇`);
-  console.log(`   搜索补充: ${totalSearches} 篇`);
-  console.log(`   总计笔记: ${totalCrawled + totalSearches} 篇`);
-  console.log(`   存放路径: ${KNOWLEDGE_DIR}`);
+  // 最终输出 (安静模式也显示)
+  console.log(`\n\n📊 知识库扩充完成 — ${totalCrawled} 篇爬取 + ${totalSearches} 篇搜索 = ${totalCrawled + totalSearches} 篇笔记`);
+  console.log(`   路径: ${KNOWLEDGE_DIR}`);
 }
 
 main().then(() => {
