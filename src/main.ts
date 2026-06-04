@@ -160,7 +160,7 @@ function startHeartbeat(): void {
 }
 
 /** 停止心跳 */
-export function stopHeartbeat(): void {
+function stopHeartbeat(): void {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;

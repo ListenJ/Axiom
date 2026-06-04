@@ -81,6 +81,3 @@ export async function gracefulShutdown(timeoutMs: number = TIMEOUTS.GRACEFUL_SHU
   process.exit(0);
 }
 
-export function isShutdownInProgress(): boolean {
-  return isShuttingDown;
-}

@@ -4,7 +4,6 @@
  */
 import fs from "fs";
 import YAML from "yaml";
-import { TIMEOUTS } from "../constants/timeouts.js";
 
 interface GatewayConfig {
   port: number;
@@ -39,7 +38,7 @@ interface CrawlerConfig {
   requestDelay: number;
 }
 
-export interface AppConfig {
+interface AppConfig {
   gateway: GatewayConfig;
   models: ModelConfig[];
   memory: MemoryConfig;
@@ -47,7 +46,7 @@ export interface AppConfig {
 }
 
 /** 从 YAML 文件加载配置 */
-export function loadConfig(path = "./config/openclaw.yaml"): AppConfig {
+function loadConfig(path = "./config/openclaw.yaml"): AppConfig {
   if (!fs.existsSync(path)) {
     throw new Error(`Config file not found: ${path}`);
   }
@@ -84,53 +83,6 @@ function resolveEnvVars(obj: unknown): unknown {
   return obj;
 }
 
-/** 获取模型路由配置（从 YAML 加载或回退到默认） */
-export function getModelRoutes(config?: AppConfig): Record<string, Array<{ provider: string; model: string; priority: number; maxRetries: number; timeout: number }>> {
-  if (!config) return {
-    "general-chat": [
-      { provider: "ofoxai", model: "z-ai/glm-4.7-flash:free", priority: 0, maxRetries: 2, timeout: 15000 },
-      { provider: "siliconflow", model: "Qwen/Qwen2-7B-Instruct", priority: 1, maxRetries: 2, timeout: 10000 },
-    ],
-    "code-generation": [
-      { provider: "opencode", model: "opencode/deepseek-v4-flash-free", priority: 0, maxRetries: 2, timeout: 20000 },
-      { provider: "ofoxai", model: "z-ai/glm-4.7-flash:free", priority: 1, maxRetries: 2, timeout: 15000 },
-      { provider: "deepseek", model: "deepseek-v4-flash", priority: 2, maxRetries: 2, timeout: 20000 },
-    ],
-    "coding": [
-      { provider: "opencode", model: "opencode/deepseek-v4-flash-free", priority: 0, maxRetries: 2, timeout: 20000 },
-      { provider: "deepseek", model: "deepseek-v4-flash", priority: 1, maxRetries: 2, timeout: 20000 },
-    ],
-    "complex-reasoning": [
-      { provider: "ofoxai", model: "z-ai/glm-4.7-flash:free", priority: 0, maxRetries: 2, timeout: 20000 },
-      { provider: "deepseek", model: "deepseek-chat", priority: 1, maxRetries: 2, timeout: TIMEOUTS.API_DEFAULT },
-    ],
-    "embedding": [
-      { provider: "siliconflow", model: "BAAI/bge-large-zh", priority: 0, maxRetries: 2, timeout: 10000 },
-    ],
-  };
-
-  const routes: Record<string, Array<{ provider: string; model: string; priority: number; maxRetries: number; timeout: number }>> = {};
-
-  for (const m of config.models) {
-    for (const purpose of m.purpose) {
-      if (!routes[purpose]) routes[purpose] = [];
-      routes[purpose].push({
-        provider: m.provider,
-        model: m.model,
-        priority: m.priority,
-        maxRetries: 2,
-        timeout: purpose.includes("reasoning") ? TIMEOUTS.API_DEFAULT : TIMEOUTS.API_MEDIUM,
-      });
-    }
-  }
-
-  // 按优先级排序
-  for (const key of Object.keys(routes)) {
-    routes[key].sort((a, b) => a.priority - b.priority);
-  }
-
-  return routes;
-}
 
 /** 全局配置缓存 */
 let cachedConfig: AppConfig | null = null;

@@ -1,13 +1,12 @@
 /**
- * 弹性工具集 - 提供重试、熔断、降级、超时等可靠性模式
+ * 弹性工具集 - 提供重试、降级、超时等可靠性模式
  */
 import { logger } from "./logger.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
-import { CircuitOpenError } from "./errors.js";
 
 // ========== 重试机制 ==========
 
-export interface RetryOptions {
+interface RetryOptions {
   maxAttempts?: number;
   baseDelay?: number;
   maxDelay?: number;
@@ -58,98 +57,9 @@ export async function withRetry<T>(
   throw lastError || new Error("Retry exhausted");
 }
 
-// ========== 熔断器 ==========
-
-export interface CircuitBreakerOptions {
-  failureThreshold?: number;    // 触发熔断的失败次数
-  resetTimeout?: number;        // 熔断后恢复时间(ms)
-  halfOpenMaxCalls?: number;    // 半开状态最大测试调用数
-}
-
-type CircuitState = "closed" | "open" | "half-open";
-
-export class CircuitBreaker {
-  private state: CircuitState = "closed";
-  private failures = 0;
-  private lastFailureTime?: number;
-  private halfOpenCalls = 0;
-  private readonly opts: Required<CircuitBreakerOptions>;
-
-  constructor(
-    private name: string,
-    options: CircuitBreakerOptions = {}
-  ) {
-    this.opts = {
-      failureThreshold: options.failureThreshold ?? 5,
-      resetTimeout: options.resetTimeout ?? TIMEOUTS.CIRCUIT_BREAKER_RESET,
-      halfOpenMaxCalls: options.halfOpenMaxCalls ?? 3,
-    };
-  }
-
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === "open") {
-      if (Date.now() - (this.lastFailureTime || 0) > this.opts.resetTimeout) {
-        this.state = "half-open";
-        this.halfOpenCalls = 0;
-        logger.info(`[CircuitBreaker] ${this.name} entering half-open state`);
-      } else {
-        throw new CircuitOpenError(`Circuit breaker '${this.name}' is OPEN`);
-      }
-    }
-
-    if (this.state === "half-open" && this.halfOpenCalls >= this.opts.halfOpenMaxCalls) {
-      throw new CircuitOpenError(`Circuit breaker '${this.name}' half-open limit reached`);
-    }
-
-    if (this.state === "half-open") {
-      this.halfOpenCalls++;
-    }
-
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (error: unknown) {
-      this.onFailure();
-      throw error;
-    }
-  }
-
-  private onSuccess() {
-    if (this.state === "half-open") {
-      this.state = "closed";
-      this.failures = 0;
-      this.halfOpenCalls = 0;
-      logger.info(`[CircuitBreaker] ${this.name} closed (recovery successful)`);
-    }
-  }
-
-  private onFailure() {
-    this.failures++;
-    this.lastFailureTime = Date.now();
-    
-    if (this.failures >= this.opts.failureThreshold) {
-      this.state = "open";
-      logger.warn(`[CircuitBreaker] ${this.name} OPENED after ${this.failures} failures`);
-    }
-  }
-
-  getState(): CircuitState {
-    return this.state;
-  }
-
-  getStats() {
-    return {
-      state: this.state,
-      failures: this.failures,
-      lastFailureTime: this.lastFailureTime,
-    };
-  }
-}
-
 // ========== 降级处理 ==========
 
-export interface FallbackOptions<T> {
+interface FallbackOptions<T> {
   fallback: T | (() => T | Promise<T>);
   logFailure?: boolean;
 }
@@ -210,7 +120,7 @@ export function withTimeout<T>(
 
 // ========== 健康检查 ==========
 
-export interface HealthCheck {
+interface HealthCheck {
   name: string;
   check: () => Promise<boolean>;
   interval?: number;
@@ -269,55 +179,6 @@ export class HealthMonitor {
   }
 }
 
-// ========== 批量操作容错 ==========
-
-export interface BatchResult<T> {
-  success: T[];
-  failed: Array<{ item: unknown; error: string }>;
-}
-
-/**
- * 批量执行，单个失败不影响整体
- */
-export async function batchWithResilience<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  options?: { concurrency?: number; continueOnError?: boolean }
-): Promise<BatchResult<R>> {
-  const { concurrency = 3, continueOnError = true } = options || {};
-  const result: BatchResult<R> = { success: [], failed: [] };
-
-  // 简单的并发控制
-  const executing: Promise<void>[] = [];
-
-  for (const item of items) {
-    const promise = (async () => {
-      try {
-        const r = await fn(item);
-        result.success.push(r);
-      } catch (error: unknown) {
-        if (continueOnError) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          result.failed.push({ item, error: err.message });
-        } else {
-          throw error;
-        }
-      }
-    })().finally(() => {
-      const idx = executing.indexOf(promise);
-      if (idx > -1) executing.splice(idx, 1);
-    });
-
-    executing.push(promise);
-    if (executing.length >= concurrency) {
-      await Promise.race(executing);
-    }
-  }
-
-  await Promise.all(executing);
-  return result;
-}
-
 // ========== 工具函数 ==========
 
 function sleep(ms: number): Promise<void> {
@@ -341,14 +202,4 @@ export function isRetryableError(error: Error): boolean {
     msg.includes("502") ||
     msg.includes("504")
   );
-}
-
-// 全局熔断器实例（按 provider 分）
-const circuitBreakers = new Map<string, CircuitBreaker>();
-
-export function getCircuitBreaker(name: string, options?: CircuitBreakerOptions): CircuitBreaker {
-  if (!circuitBreakers.has(name)) {
-    circuitBreakers.set(name, new CircuitBreaker(name, options));
-  }
-  return circuitBreakers.get(name)!;
 }

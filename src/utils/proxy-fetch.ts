@@ -235,11 +235,6 @@ export async function getProxyConfig(): Promise<ProxyConfig | null> {
   return null;
 }
 
-/** 清除缓存的代理配置（用于运行时重新检测） */
-export function clearProxyCache(): void {
-  cachedProxyConfig = undefined;
-}
-
 // ========== CONNECT 隧道 ==========
 
 function createConnectTunnel(

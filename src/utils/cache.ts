@@ -214,9 +214,3 @@ export const crawlCache = new Cache<Record<string, unknown>>({
   defaultTtlMs: 30 * 60 * 1000, // 30min
   persistent: true,
 });
-
-export const modelResponseCache = new Cache<Record<string, unknown>>({
-  namespace: "model",
-  maxSize: 100,
-  defaultTtlMs: 2 * 60 * 1000, // 2min
-});

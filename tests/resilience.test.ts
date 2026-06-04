@@ -1,19 +1,15 @@
 /**
  * Resilience toolkit integration tests
- * Covers: retry, circuit breaker, fallback, timeout, health monitor, batch resilience
+ * Covers: retry, fallback, timeout, health monitor
  */
 import { describe, test, expect, beforeEach } from "bun:test";
 import {
   withRetry,
-  CircuitBreaker,
   withFallback,
   withTimeout,
   HealthMonitor,
-  batchWithResilience,
   isRetryableError,
-  getCircuitBreaker,
 } from "../src/utils/resilience.js";
-import { CircuitOpenError } from "../src/utils/errors.js";
 
 describe("withRetry", () => {
   test("succeeds on first attempt", async () => {
@@ -75,82 +71,6 @@ describe("withRetry", () => {
     expect(retries).toHaveLength(2);
     expect(retries[0].attempt).toBe(1);
     expect(retries[1].attempt).toBe(2);
-  });
-});
-
-describe("CircuitBreaker", () => {
-  let cb: CircuitBreaker;
-
-  beforeEach(() => {
-    cb = new CircuitBreaker("test", { failureThreshold: 3, resetTimeout: 100 });
-  });
-
-  test("executes normally when closed", async () => {
-    const result = await cb.execute(() => Promise.resolve(42));
-    expect(result).toBe(42);
-    expect(cb.getState()).toBe("closed");
-  });
-
-  test("opens after threshold failures", async () => {
-    for (let i = 0; i < 3; i++) {
-      try {
-        await cb.execute(() => Promise.reject(new Error("fail")));
-      } catch {
-        // ignore
-      }
-    }
-    expect(cb.getState()).toBe("open");
-    expect(cb.getStats().failures).toBe(3);
-  });
-
-  test("rejects when open", async () => {
-    // Force open
-    for (let i = 0; i < 3; i++) {
-      try {
-        await cb.execute(() => Promise.reject(new Error("fail")));
-      } catch {
-        // ignore
-      }
-    }
-
-    await expect(cb.execute(() => Promise.resolve(1))).rejects.toBeInstanceOf(CircuitOpenError);
-  });
-
-  test("allows execution after timeout (recovery path)", async () => {
-    // Force open
-    for (let i = 0; i < 3; i++) {
-      try {
-        await cb.execute(() => Promise.reject(new Error("fail")));
-      } catch {
-        // ignore
-      }
-    }
-
-    expect(cb.getState()).toBe("open");
-
-    // Wait for reset timeout, then call execute to trigger recovery
-    await new Promise((r) => setTimeout(r, 150));
-    // After timeout, execute should be allowed (half-open → success → closed)
-    const result = await cb.execute(() => Promise.resolve("recovered"));
-    expect(result).toBe("recovered");
-    expect(cb.getState()).toBe("closed");
-  });
-
-  test("closes after successful half-open call", async () => {
-    // Force open
-    for (let i = 0; i < 3; i++) {
-      try {
-        await cb.execute(() => Promise.reject(new Error("fail")));
-      } catch {
-        // ignore
-      }
-    }
-
-    await new Promise((r) => setTimeout(r, 150));
-    const result = await cb.execute(() => Promise.resolve("recovered"));
-    expect(result).toBe("recovered");
-    expect(cb.getState()).toBe("closed");
-    expect(cb.getStats().failures).toBe(0);
   });
 });
 
@@ -263,64 +183,6 @@ describe("HealthMonitor", () => {
   });
 });
 
-describe("batchWithResilience", () => {
-  test("processes all items successfully", async () => {
-    const items = [1, 2, 3];
-    const result = await batchWithResilience(items, (x) => Promise.resolve(x * 2));
-
-    expect(result.success).toEqual([2, 4, 6]);
-    expect(result.failed).toHaveLength(0);
-  });
-
-  test("continues on individual errors", async () => {
-    const items = [1, 2, 3];
-    const result = await batchWithResilience(items, (x) => {
-      if (x === 2) return Promise.reject(new Error("bad"));
-      return Promise.resolve(x * 2);
-    });
-
-    expect(result.success).toEqual([2, 6]);
-    expect(result.failed).toHaveLength(1);
-    expect(result.failed[0].item).toBe(2);
-    expect(result.failed[0].error).toBe("bad");
-  });
-
-  test("throws on first error when continueOnError=false", async () => {
-    const items = [1, 2, 3];
-    await expect(
-      batchWithResilience(
-        items,
-        (x) => {
-          if (x === 2) return Promise.reject(new Error("bad"));
-          return Promise.resolve(x);
-        },
-        { continueOnError: false, concurrency: 1 }
-      )
-    ).rejects.toThrow("bad");
-  });
-
-  test("respects concurrency limit", async () => {
-    let concurrent = 0;
-    let maxConcurrent = 0;
-
-    const items = [1, 2, 3, 4, 5];
-    const result = await batchWithResilience(
-      items,
-      async (x) => {
-        concurrent++;
-        maxConcurrent = Math.max(maxConcurrent, concurrent);
-        await new Promise((r) => setTimeout(r, 20));
-        concurrent--;
-        return x;
-      },
-      { concurrency: 2 }
-    );
-
-    expect(result.success).toEqual([1, 2, 3, 4, 5]);
-    expect(maxConcurrent).toBeLessThanOrEqual(2);
-  });
-});
-
 describe("isRetryableError", () => {
   test("identifies network errors as retryable", () => {
     expect(isRetryableError(new Error("ECONNRESET"))).toBe(true);
@@ -343,24 +205,5 @@ describe("isRetryableError", () => {
     expect(isRetryableError(new Error("validation failed"))).toBe(false);
     expect(isRetryableError(new Error("not found"))).toBe(false);
     expect(isRetryableError(new Error("permission denied"))).toBe(false);
-  });
-});
-
-describe("getCircuitBreaker", () => {
-  test("returns same instance for same name", () => {
-    const cb1 = getCircuitBreaker("provider-a");
-    const cb2 = getCircuitBreaker("provider-a");
-    expect(cb1).toBe(cb2);
-  });
-
-  test("returns different instances for different names", () => {
-    const cb1 = getCircuitBreaker("provider-a");
-    const cb2 = getCircuitBreaker("provider-b");
-    expect(cb1).not.toBe(cb2);
-  });
-
-  test("returns CircuitBreaker instance", () => {
-    const cb = getCircuitBreaker("test-provider");
-    expect(cb).toBeInstanceOf(CircuitBreaker);
   });
 });

@@ -396,9 +396,3 @@ export function getTokenTracker(): TokenTracker {
   return _tracker;
 }
 
-export function resetTokenTracker(): void {
-  if (_tracker) {
-    _tracker.close().catch(() => {});
-    _tracker = null;
-  }
-}
