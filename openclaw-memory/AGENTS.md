@@ -20,6 +20,7 @@ version: 2.1
 - [ ] 检查当日日志 `memory/YYYY-MM-DD.md`
 - [ ] 确认可用模型列表（查询 `free_models` 表）
 - [ ] **(新)** 调用 `memory_search` 检索与当前主题相关的 Vault 笔记
+- [ ] **(新)** 读取 `02-Areas/operational-rules/reusable-workflows.md` 加载操作流程（避免重复探索）
 
 ## 记忆管理策略
 

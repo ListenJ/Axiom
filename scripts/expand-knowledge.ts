@@ -31,6 +31,7 @@ interface KnowledgeSource {
 }
 
 const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
+  // ═══════ 运行时 & 语言 ═══════
   {
     topic: "Bun Runtime",
     category: "runtime",
@@ -40,8 +41,10 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
       "https://bun.sh/docs/api/websockets",
       "https://bun.sh/docs/api/spawn",
       "https://bun.sh/docs/api/fetch",
+      "https://bun.sh/docs/runtime/bundler",
+      "https://bun.sh/docs/api/sqlite",
     ],
-    searchQueries: ["Bun runtime performance tips 2026", "Bun vs Node.js TLS fetch"],
+    searchQueries: ["Bun runtime performance tips 2026", "Bun vs Node.js TLS fetch", "Bun bundler tree-shaking"],
   },
   {
     topic: "TypeScript Best Practices",
@@ -49,9 +52,79 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
     urls: [
       "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html",
       "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+      "https://www.typescriptlang.org/docs/handbook/2/generics.html",
+      "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html",
     ],
-    searchQueries: ["TypeScript 5 strict mode best practices"],
+    searchQueries: ["TypeScript 5 strict mode best practices", "TypeScript satisfies operator vs type assertion", "TypeScript isolatedDeclarations"],
   },
+  {
+    topic: "JavaScript Modern Patterns",
+    category: "language",
+    urls: [],
+    searchQueries: ["JavaScript structured concurrency proposal 2026", "ES modules import attributes", "JavaScript iterator helpers pattern"],
+  },
+
+  // ═══════ 前端框架 ═══════
+  {
+    topic: "React 19 & Patterns",
+    category: "frontend",
+    urls: [
+      "https://react.dev/reference/react",
+      "https://react.dev/blog/2024/12/02/react-19",
+    ],
+    searchQueries: ["React 19 server components best practices", "React compiler auto-memoization", "React 19 use hook pattern"],
+  },
+  {
+    topic: "Vue 3 Composition API",
+    category: "frontend",
+    urls: [
+      "https://vuejs.org/guide/extras/composition-api-faq.html",
+      "https://vuejs.org/guide/typescript/composition-api.html",
+    ],
+    searchQueries: ["Vue 3 script setup TypeScript best practices 2026", "VueUse composable patterns", "Vue 3 reactivity performance"],
+  },
+  {
+    topic: "Next.js App Router",
+    category: "frontend",
+    urls: [
+      "https://nextjs.org/docs/app/building-your-application/routing",
+      "https://nextjs.org/docs/app/building-your-application/data-fetching",
+    ],
+    searchQueries: ["Next.js app router server actions patterns", "Next.js parallel routes streaming", "Next.js cache revalidation strategy"],
+  },
+  {
+    topic: "Tailwind CSS & Design Systems",
+    category: "frontend",
+    urls: [
+      "https://tailwindcss.com/docs/utility-first",
+    ],
+    searchQueries: ["Tailwind CSS v4 engine changes 2026", "shadcn/ui component composition pattern", "CSS container queries vs media queries"],
+  },
+
+  // ═══════ 后端框架 ═══════
+  {
+    topic: "Hono Framework",
+    category: "backend",
+    urls: [
+      "https://hono.dev/docs/guides/jsx",
+      "https://hono.dev/docs/guides/middleware",
+    ],
+    searchQueries: ["Hono framework edge runtime performance", "Hono vs Express vs Fastify comparison 2026"],
+  },
+  {
+    topic: "Express.js Patterns",
+    category: "backend",
+    urls: [],
+    searchQueries: ["Express.js 5 migration guide", "Express middleware error handling best practices", "Express rate limiting security"],
+  },
+  {
+    topic: "WebSocket & Real-time",
+    category: "backend",
+    urls: [],
+    searchQueries: ["WebSocket vs SSE vs long polling comparison", "Socket.io scaling patterns", "real-time collaboration CRDT implementation"],
+  },
+
+  // ═══════ 数据库 & ORM ═══════
   {
     topic: "PostgreSQL + pgvector",
     category: "database",
@@ -59,8 +132,63 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
       "https://github.com/pgvector/pgvector",
       "https://www.postgresql.org/docs/current/textsearch.html",
     ],
-    searchQueries: ["pgvector HNSW index performance tuning", "PostgreSQL pg_trgm fuzzy search"],
+    searchQueries: ["pgvector HNSW index performance tuning", "PostgreSQL pg_trgm fuzzy search", "PostgreSQL JSONB indexing strategy"],
   },
+  {
+    topic: "Drizzle ORM",
+    category: "database",
+    urls: [
+      "https://orm.drizzle.team/docs/overview",
+      "https://orm.drizzle.team/docs/select",
+    ],
+    searchQueries: ["Drizzle ORM vs Prisma comparison 2026", "Drizzle ORM migration patterns", "Drizzle schema design best practices"],
+  },
+  {
+    topic: "Redis & Caching",
+    category: "database",
+    urls: [],
+    searchQueries: ["Redis caching patterns 2026", "Redis vs Memcached performance", "Redis streams for event sourcing"],
+  },
+
+  // ═══════ 工程实践 ═══════
+  {
+    topic: "Docker & Containerization",
+    category: "devops",
+    urls: [
+      "https://docs.docker.com/develop/best-practices/",
+    ],
+    searchQueries: ["Docker multi-stage build optimization", "Docker compose vs Kubernetes for small teams", "distroless container images security"],
+  },
+  {
+    topic: "CI/CD & GitHub Actions",
+    category: "devops",
+    urls: [
+      "https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions",
+    ],
+    searchQueries: ["GitHub Actions matrix strategy best practices", "GitHub Actions caching node_modules Bun", "CI/CD pipeline monorepo turborepo"],
+  },
+  {
+    topic: "Testing Strategies",
+    category: "devops",
+    urls: [],
+    searchQueries: ["Bun test runner vs Vitest comparison", "integration testing patterns TypeScript 2026", "testcontainers database integration testing"],
+  },
+  {
+    topic: "Observability & Monitoring",
+    category: "devops",
+    urls: [],
+    searchQueries: ["OpenTelemetry JavaScript SDK setup", "structured logging best practices Node.js Bun", "distributed tracing microservices"],
+  },
+
+  // ═══════ 安全 ═══════
+  {
+    topic: "API Security",
+    category: "security",
+    urls: [],
+    searchQueries: ["API rate limiting strategies 2026", "JWT vs session token security comparison", "OWASP API security top 10 2026", "CORS CSP headers security best practices"],
+  },
+
+  // ═══════ AI & Agent ═══════
   {
     topic: "Chrome DevTools Protocol",
     category: "browser",
@@ -84,6 +212,7 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
     searchQueries: [
       "multi-agent AI orchestration patterns 2026",
       "三省六部制 software architecture agent",
+      "agent tool use function calling protocol",
     ],
   },
   {
@@ -93,6 +222,7 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
     searchQueries: [
       "knowledge graph construction from code",
       "code knowledge graph entity extraction",
+      "graph database vs vector database comparison",
     ],
   },
   {
@@ -102,7 +232,43 @@ const KNOWLEDGE_SOURCES: KnowledgeSource[] = [
     searchQueries: [
       "RAG retrieval augmented generation best practices 2026",
       "vector embedding similarity search optimization",
+      "RAG chunking strategy comparison 2026",
+      "RAG reranking cross-encoder performance",
     ],
+  },
+  {
+    topic: "LLM Prompt Engineering",
+    category: "ai",
+    urls: [],
+    searchQueries: [
+      "structured output JSON mode LLM prompting 2026",
+      "chain of thought vs tree of thought prompting",
+      "LLM context window management strategies",
+    ],
+  },
+  {
+    topic: "MCP Protocol",
+    category: "ai",
+    urls: [],
+    searchQueries: [
+      "Model Context Protocol MCP specification",
+      "MCP server implementation TypeScript",
+      "MCP tool definition best practices",
+    ],
+  },
+
+  // ═══════ 代码文档 & API 设计 ═══════
+  {
+    topic: "JSDoc & Code Documentation",
+    category: "documentation",
+    urls: [],
+    searchQueries: ["JSDoc TypeScript type generation", "API documentation OpenAPI 3.1 spec", "code documentation automation tools 2026"],
+  },
+  {
+    topic: "API Design Patterns",
+    category: "documentation",
+    urls: [],
+    searchQueries: ["REST API design best practices 2026", "GraphQL vs REST API decision guide", "API versioning strategies URL vs header", "OpenAPI spec generation from TypeScript"],
   },
 ];
 

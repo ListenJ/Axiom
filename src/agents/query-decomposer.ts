@@ -47,8 +47,9 @@ const MULTI_HOP_KEYWORDS = ["如何", "为什么", "关系", "比较", "区别",
 /** 比较查询关键词 */
 const COMPARATIVE_KEYWORDS = ["vs", "对比", "比较", "哪个好", "优劣", "差异"];
 
-/** 中文连接词 */
-const CONJUNCTIONS = ["和", "与", "以及", "同时", "还有", "或者"];
+/** 中英文连接词 */
+const CONJUNCTIONS_CN = ["和", "与", "以及", "同时", "还有", "或者"];
+const CONJUNCTIONS_EN = [" and ", " or ", " as well as ", " also ", " plus "];
 
 /**
  * 检测查询复杂度
@@ -62,7 +63,7 @@ function detectComplexity(query: string): "simple" | "multi-hop" | "comparative"
   if (MULTI_HOP_KEYWORDS.some(kw => lower.includes(kw))) {
     return "multi-hop";
   }
-  if (query.length < 15 && !CONJUNCTIONS.some(c => query.includes(c))) {
+  if (query.length < 15 && !CONJUNCTIONS_CN.some(c => query.includes(c)) && !CONJUNCTIONS_EN.some(c => query.toLowerCase().includes(c.trim()))) {
     return "simple";
   }
 
@@ -106,7 +107,11 @@ function generateSubQueries(query: string, strategy: "simple" | "multi-hop" | "c
     return subQueries;
   }
 
-  const parts = query.split(new RegExp(`[${CONJUNCTIONS.join("")}]`)).filter(p => p.trim());
+  // 按连接词分割查询 (中文单字 + 英文短语)
+  const cnPattern = `[${CONJUNCTIONS_CN.join("")}]`;
+  const enPattern = CONJUNCTIONS_EN.map(c => c.trim().replace(/\s+/g, "\\s+")).join("|");
+  const splitPattern = new RegExp(`${cnPattern}|(?:${enPattern})`, "i");
+  const parts = query.split(splitPattern).map(p => p.trim()).filter(p => p.length > 1);
 
   if (strategy === "comparative" && entities.length >= 2) {
     entities.forEach((entity, idx) => {
