@@ -102,6 +102,87 @@ export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
 // Unified Model Registry — All models in one place
 // ═══════════════════════════════════════════════════════════════
 export const UNIFIED_REGISTRY: UnifiedModel[] = [
+  // ═══════════════════════════════════════════════════════════════
+  // 用户指定主力模型配置 (2026-06-04)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── SiliconFlow Paid: GLM5.1 (主力任务模型) ───
+  {
+    id: "glm5.1",
+    provider: "siliconflow",
+    model: "zhipu/GLM-5.1",
+    roles: [
+      "decision",
+      "architecture",
+      "code-generation",
+      "code-review",
+      "general-chat",
+      "research",
+      "review",
+      "general-tool",
+    ],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["paid", "main", "reasoning", "coding"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM 5.1 (SiliconFlow) — 主力任务模型，覆盖决策/架构/编码/研究",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Kimi CLI: kimi-k2.6 (任务补全) ───
+  {
+    id: "kimi-k2.6",
+    provider: "kimi",
+    model: "kimi-k2.6",
+    roles: ["code-generation", "code-review", "coding", "general-tool", "review"],
+    contextWindow: 256000,
+    isFree: false,
+    tags: ["paid", "coding", "long-context"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Kimi K2.6 — 代码补全与长上下文任务",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── OfoxAI: GLM4.7 Flash (Agent 行为模型) ───
+  {
+    id: "glm4.7-flash",
+    provider: "ofoxai",
+    model: "z-ai/glm-4.7-flash",
+    roles: ["decision", "general-chat", "evaluation", "general-tool"],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["paid", "agent", "fast"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM 4.7 Flash (OfoxAI) — Agent 行为与快速响应",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── OpenRouter: Hermes Agent 自进化 ───
+  {
+    id: "hermes-evolution",
+    provider: "openrouter",
+    model: "nousresearch/hermes-3-llama-3.1-405b:free",
+    roles: ["rl", "research", "deep_research", "evaluation"],
+    contextWindow: 131072,
+    isFree: true,
+    tags: ["free", "hermes", "self-evolution", "rl"],
+    rpmLimit: 10,
+    concurrentLimit: 1,
+    description: "Hermes-3 Llama 3.1 405B (OpenRouter) — Hermes Agent 自进化专用",
+    priority: 1,
+    maxRetries: 2,
+    timeout: 120000,
+  },
+
   // ─── Decision / Routing ───
   {
     id: "nvidia-nano",
@@ -114,7 +195,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     rpmLimit: 60,
     concurrentLimit: 2,
     description: "NVIDIA Nemotron 3 Nano — fast decision router",
-    priority: 1,
+    priority: 3,
     maxRetries: 2,
     timeout: 15000,
   },
@@ -134,7 +215,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     maxRetries: 3,
     timeout: 120000,
   },
-  // ─── Code Generation ───
+  // ─── Code Generation (legacy: DeepSeek Coder) ───
   {
     id: "deepseek-coder",
     provider: "deepseek",
@@ -145,8 +226,8 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     tags: ["coding"],
     rpmLimit: 30,
     concurrentLimit: 2,
-    description: "DeepSeek Coder — code generation",
-    priority: 1,
+    description: "DeepSeek Coder — code generation (legacy)",
+    priority: 5,
     maxRetries: 3,
     timeout: 120000,
   },
