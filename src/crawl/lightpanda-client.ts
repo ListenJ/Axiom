@@ -8,9 +8,10 @@
  *   - 智能回退: 静态页面走 HTTP, 动态页面走浏览器
  *
  * 使用方式:
- *   1. 直接 CLI: `lightpanda fetch --dump html URL`
- *   2. CDP Server: `lightpanda serve` -> Puppeteer/Playwright 连接
- *   3. Docker: `docker run ghcr.io/lightpanda-io/browser serve`
+ *   1. 直接 CLI: `lightpanda fetch <url> --dump html`
+ *   2. Docker CLI: `docker exec lightpanda lightpanda fetch <url> --dump html`
+ *   3. CDP Server: `lightpanda serve --host 0.0.0.0` -> WebSocket CDP
+ *   4. Docker CDP: `docker run openclaw-lightpanda serve`
  */
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
@@ -35,13 +36,13 @@ export interface RenderResult {
   statusCode: number;
   rendered: boolean;  // whether JS was executed
   loadTimeMs: number;
-  method: "cli" | "cdp" | "fallback";
+  method: "cli" | "docker-cli" | "cdp" | "fallback";
 }
 
 // ========== 安装检测 ==========
 
 /** 检测 Lightpanda 是否可用 */
-export async function detectLightpanda(): Promise<{ available: boolean; path: string | null; method: "binary" | "docker" | "none" }> {
+export async function detectLightpanda(): Promise<{ available: boolean; path: string | null; method: "binary" | "docker-cli" | "cdp" | "none"; container?: string }> {
   // 1. 检查本地二进制
   const candidates = [
     process.env.LIGHTPANDA_PATH,
@@ -53,7 +54,7 @@ export async function detectLightpanda(): Promise<{ available: boolean; path: st
 
   for (const bin of candidates) {
     try {
-      const proc = Bun.spawn([bin, "--version"], { stdout: "pipe", stderr: "pipe" });
+      const proc = Bun.spawn([bin, "version"], { stdout: "pipe", stderr: "pipe" });
       const exitCode = await proc.exited;
       if (exitCode === 0) {
         const version = await new Response(proc.stdout).text();
@@ -63,28 +64,29 @@ export async function detectLightpanda(): Promise<{ available: boolean; path: st
     } catch { /* not found */ }
   }
 
-  // 2. 检查 Docker
+  // 2. 检查 Docker 容器 (优先使用 docker exec CLI 模式)
   try {
-    const proc = Bun.spawn(["docker", "ps", "--filter", "name=lightpanda", "--format", "{{.Names}}"], {
+    const proc = Bun.spawn(["docker", "ps", "--filter", "name=lightpanda", "--format", "{{.Names}}|{{.Status}}"], {
       stdout: "pipe", stderr: "pipe",
     });
     const exitCode = await proc.exited;
     if (exitCode === 0) {
-      const output = await new Response(proc.stdout).text();
+      const output = (await new Response(proc.stdout).text()).trim();
       if (output.includes("lightpanda")) {
-        logger.info("[Lightpanda] Found Docker container");
-        return { available: true, path: null, method: "docker" };
+        const containerName = output.split("|")[0].trim();
+        logger.info(`[Lightpanda] Found Docker container: ${containerName}`);
+        return { available: true, path: null, method: "docker-cli", container: containerName };
       }
     }
   } catch { /* docker not available */ }
 
-  // 3. 检查 CDP 端口 (9222)
+  // 3. 检查 CDP 端口 (9222) — 仅用于非 Docker 的独立 CDP 服务器
   try {
     const res = await proxyFetch("http://127.0.0.1:9222/json/version", { timeout: 2000 });
     if (res.ok) {
       const data = await res.json();
       logger.info("[Lightpanda] Found CDP server", { browser: data.Browser });
-      return { available: true, path: null, method: "docker" }; // CDP available
+      return { available: true, path: null, method: "cdp" };
     }
   } catch { /* no CDP server */ }
 
@@ -106,7 +108,7 @@ export async function renderWithCLI(
 
   try {
     const proc = Bun.spawn(
-      [binaryPath, "fetch", "--dump", "html", url],
+      [binaryPath, "fetch", url, "--dump", "html", "--wait-ms", String(Math.min(timeout, 10000))],
       {
         stdout: "pipe",
         stderr: "pipe",
@@ -130,7 +132,7 @@ export async function renderWithCLI(
     const title = titleMatch ? titleMatch[1].trim() : "";
 
     const loadTimeMs = Date.now() - startTime;
-    logger.debug(`[Lightpanda] Rendered ${url} in ${loadTimeMs}ms (${stdout.length} bytes)`);
+    logger.debug(`[Lightpanda] CLI rendered ${url} in ${loadTimeMs}ms (${stdout.length} bytes)`);
 
     return {
       url,
@@ -140,6 +142,63 @@ export async function renderWithCLI(
       rendered: true,
       loadTimeMs,
       method: "cli",
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+// ========== Docker CLI 渲染 ==========
+
+/** 使用 Docker exec 调用 Lightpanda CLI 渲染页面 (适用于 Windows/macOS 无原生二进制时) */
+export async function renderWithDockerCLI(
+  containerName: string,
+  url: string,
+  timeout: number = 20000,
+): Promise<RenderResult> {
+  const startTime = Date.now();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const proc = Bun.spawn(
+      ["docker", "exec", containerName, "lightpanda", "fetch", url,
+        "--dump", "html",
+        "--wait-ms", String(Math.min(timeout - 2000, 10000))],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+        signal: controller.signal,
+      },
+    );
+
+    const exitCode = await proc.exited;
+    clearTimeout(timer);
+
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+
+    if (exitCode !== 0) {
+      logger.warn(`[Lightpanda] Docker CLI fetch failed: ${stderr.slice(0, 200)}`);
+      throw new Error(`Docker CLI error (exit ${exitCode}): ${stderr.slice(0, 200)}`);
+    }
+
+    const titleMatch = stdout.match(/<title[^>]*>(.*?)<\/title>/is);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+
+    const loadTimeMs = Date.now() - startTime;
+    logger.debug(`[Lightpanda] Docker CLI rendered ${url} in ${loadTimeMs}ms (${stdout.length} bytes)`);
+
+    return {
+      url,
+      html: stdout,
+      title,
+      statusCode: 200,
+      rendered: true,
+      loadTimeMs,
+      method: "docker-cli",
     };
   } catch (err) {
     clearTimeout(timer);
@@ -269,8 +328,13 @@ export async function smartRender(
       if (lightpandaInfo.method === "binary" && lightpandaInfo.path) {
         return await renderWithCLI(lightpandaInfo.path, url, timeout);
       }
-      // Docker / CDP mode
-      return await renderWithCDP(url, "http://127.0.0.1:9222", timeout, jsWaitTime);
+      if (lightpandaInfo.method === "docker-cli") {
+        return await renderWithDockerCLI(lightpandaInfo.container || "lightpanda", url, timeout);
+      }
+      // CDP mode (standalone CDP server, not Docker)
+      if (lightpandaInfo.method === "cdp") {
+        return await renderWithCDP(url, "http://127.0.0.1:9222", timeout, jsWaitTime);
+      }
     } catch (err) {
       logger.warn(`[Lightpanda] Render failed, falling back to HTTP: ${(err as Error).message}`);
     }
@@ -351,9 +415,10 @@ export async function startLightpandaDocker(): Promise<boolean> {
       "docker", "run", "-d",
       "--name", "lightpanda",
       "-p", "9222:9222",
+      "--memory", "256m",
       "--rm",
-      "ghcr.io/lightpanda-io/browser:latest",
-      "serve",
+      "openclaw-lightpanda",
+      "serve", "--host", "0.0.0.0", "--advertise-host", "127.0.0.1",
     ], { stdout: "pipe", stderr: "pipe" });
 
     const exitCode = await proc.exited;

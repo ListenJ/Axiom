@@ -462,7 +462,9 @@ ${fs.readdirSync(ATOMIC_DIR).filter(f => f.endsWith(".md")).map(f => `- [${f}](a
   console.log(`   存放路径: ${KNOWLEDGE_DIR}`);
 }
 
-main().catch(err => {
+main().then(() => {
+  process.exit(0);
+}).catch(err => {
   console.error("知识库扩充失败:", err);
   process.exit(1);
 });
