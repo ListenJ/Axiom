@@ -26,7 +26,7 @@ interface WatcherOptions {
   ignored?: RegExp;
 }
 
-type WatcherEvent = "add" | "change" | "unlink" | "ready";
+export type WatcherEvent = "add" | "change" | "unlink" | "ready";
 
 export class VaultFileWatcher {
   private opts: Required<Omit<WatcherOptions, "codegraphProjectPath">> & Pick<WatcherOptions, "codegraphProjectPath">;

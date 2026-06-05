@@ -145,7 +145,7 @@ async function callProvider(
 }
 
 // ========== 路由器 ==========
-class MultiPlatformRouter {
+export class MultiPlatformRouter {
   async decide(messages: ChatMessage[]): Promise<ChatResponse> {
     const result = await this.chat("decision", messages);
     return { ...result, layer: "decision" };
