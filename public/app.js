@@ -107,8 +107,102 @@ function connectWs() {
   };
 }
 
+// ===== Session Manager =====
+const SessionManager = {
+  currentId: null,
+  sessions: [],
+
+  init() {
+    this.currentId = localStorage.getItem("openclaw_session") || this.create();
+    this._injectStyles();
+  },
+
+  create() {
+    const id = crypto.randomUUID();
+    localStorage.setItem("openclaw_session", id);
+    this.currentId = id;
+    return id;
+  },
+
+  switchTo(sessionId) {
+    this.currentId = sessionId;
+    localStorage.setItem("openclaw_session", sessionId);
+    chatHistory.length = 0;
+    loadChatHistory().then(() => {
+      if (currentPage === "chat") renderChat();
+      scrollToBottom();
+    });
+  },
+
+  newSession() {
+    const oldId = this.currentId;
+    const newId = this.create();
+    chatHistory.length = 0;
+    localStorage.setItem("chatHistory", "[]");
+    return { oldId, newId };
+  },
+
+  async loadList() {
+    try {
+      const res = await api("/memory/sessions");
+      this.sessions = res.sessions || [];
+      return this.sessions;
+    } catch { return []; }
+  },
+
+  async loadHistory() {
+    try {
+      const res = await api(`/memory/conversations?session=${this.currentId}&limit=200`);
+      return (res.messages || []).map(m => ({
+        role: m.role,
+        content: m.content,
+        agent: m.agent_id,
+        timestamp: m.created_at,
+      }));
+    } catch { return []; }
+  },
+
+  async persist(message) {
+    try {
+      await api("/memory/conversations", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: this.currentId,
+          role: message.role,
+          content: message.content,
+          agentId: message.agent || "default",
+        })
+      });
+    } catch {}
+  },
+
+  _injectStyles() {
+    if (document.getElementById("session-styles")) return;
+    const style = document.createElement("style");
+    style.id = "session-styles";
+    style.textContent = `
+      .typing-dots { display:inline-flex;gap:4px;align-items:center;padding:4px 0 }
+      .typing-dots span { width:8px;height:8px;border-radius:50%;background:var(--muted);animation:typingBounce 1.4s infinite ease-in-out both }
+      .typing-dots span:nth-child(1) { animation-delay:-0.32s }
+      .typing-dots span:nth-child(2) { animation-delay:-0.16s }
+      .typing-dots span:nth-child(3) { animation-delay:0s }
+      @keyframes typingBounce { 0%,80%,100%{transform:scale(0);opacity:.4} 40%{transform:scale(1);opacity:1} }
+      .msg.user { border-radius:16px 16px 4px 16px }
+      .msg.assistant { border-radius:16px 16px 16px 4px }
+      .msg.system { border-radius:12px }
+      .msg-timestamp { font-size:0.7rem;color:var(--muted);margin-top:4px;opacity:0.7 }
+      .session-item { padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:0.8rem;transition:background 0.15s }
+      .session-item:hover { background:var(--bg) }
+      .session-item.active { border-color:var(--accent);background:var(--bg) }
+      .session-item .session-preview { color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px }
+      .session-item .session-time { font-size:0.7rem;color:var(--muted);margin-top:2px }
+    `;
+    document.head.appendChild(style);
+  }
+};
+
 // ===== Chat (Agent Hub) =====
-let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+let chatHistory = [];
 
 function renderChat() {
   const el = document.getElementById("pageContent");
@@ -130,7 +224,16 @@ function renderChat() {
         </div>
       </div>
       <div class="card" style="height:100%;overflow-y:auto">
-        <h2>🤖 Agent 状态</h2>
+        <div style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h2 style="margin:0;font-size:0.85rem">📋 会话</h2>
+            <button class="btn small" onclick="createNewSession()">+ 新建</button>
+          </div>
+          <div id="sessionList" style="max-height:200px;overflow-y:auto">
+            <div class="loading" style="font-size:0.8rem;color:var(--muted)">加载中...</div>
+          </div>
+        </div>
+        <h2 style="font-size:0.85rem">🤖 Agent 状态</h2>
         <div id="agentStatusList"><div class="loading"><div class="spinner"></div></div></div>
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
           <h2 style="font-size:0.8rem">⚡ 快捷工具</h2>
@@ -142,14 +245,48 @@ function renderChat() {
       </div>
     </div>`;
   setTimeout(() => {
-    const msgs = document.getElementById("chatMsgs");
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    scrollToBottom();
     loadAgentStatus();
+    loadSessionList();
   }, 10);
 }
 
+async function loadSessionList() {
+  const listEl = document.getElementById("sessionList");
+  if (!listEl) return;
+  try {
+    const sessions = await SessionManager.loadList();
+    if (!sessions.length) {
+      listEl.innerHTML = `<div style="font-size:0.8rem;color:var(--muted);text-align:center;padding:8px">暂无历史会话</div>`;
+      return;
+    }
+    listEl.innerHTML = sessions.slice(0, 20).map(s => {
+      const sid = s.session_id || s.id || "";
+      const isActive = sid === SessionManager.currentId;
+      const preview = s.last_message || s.summary || sid.slice(0, 8) + "...";
+      const time = s.updated_at || s.last_active || s.created_at || "";
+      const timeStr = time ? new Date(typeof time === "number" && time < 1e12 ? time * 1000 : time).toLocaleString("zh-CN", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+      return `<div class="session-item ${isActive ? 'active' : ''}" onclick="switchSession('${sid}')">
+        <div class="session-preview">${escapeHtml(preview)}</div>
+        <div class="session-time">${timeStr}${s.message_count ? ` · ${s.message_count}条` : ""}</div>
+      </div>`;
+    }).join("");
+  } catch {
+    listEl.innerHTML = `<div style="font-size:0.8rem;color:var(--muted);text-align:center;padding:8px">加载失败</div>`;
+  }
+}
+
 function renderMsg(m) {
+  if (m._typing) {
+    return `<div class="msg assistant">
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px">🦅 Agent</div>
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>`;
+  }
   const agentBadge = m.agent ? `<span class="badge" style="background:var(--purple);color:#fff;margin-left:8px">${m.agent}</span>` : "";
+  const rawTs = m.timestamp;
+  const tsDate = rawTs ? new Date(typeof rawTs === "number" && rawTs < 1e12 ? rawTs * 1000 : rawTs) : null;
+  const ts = tsDate ? `<div class="msg-timestamp">${tsDate.toLocaleString("zh-CN", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })}</div>` : "";
   const toolCalls = m.toolCalls ? `<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:6px;font-size:0.8rem">
     <div style="color:var(--muted);margin-bottom:4px">🔧 工具调用:</div>
     ${m.toolCalls.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
@@ -162,6 +299,7 @@ function renderMsg(m) {
     </div>
     ${escapeHtml(m.content)}
     ${toolCalls}
+    ${ts}
   </div>`;
 }
 
@@ -175,19 +313,22 @@ async function sendChat() {
   delete input.dataset.pendingAction;
   input.placeholder = "输入消息，OpenClaw 会自动分发给最合适的 Agent...";
 
-  chatHistory.push({ role: "user", content: text });
+  // Add user message
+  const userMsg = { role: "user", content: text };
+  chatHistory.push(userMsg);
   renderChat();
+  scrollToBottom();
+
+  // Persist to server
+  SessionManager.persist(userMsg);
+
+  // Show typing indicator
+  const typingMsg = { role: "assistant", content: "...", _typing: true };
+  chatHistory.push(typingMsg);
+  renderChat();
+  scrollToBottom();
 
   try {
-    const intentRes = await api("/agents/detect-intent", {
-      method: "POST",
-      body: JSON.stringify({ prompt: text })
-    }).catch(() => ({ intent: "general", confidence: 0.5 }));
-
-    const typingId = "typing-" + Date.now();
-    chatHistory.push({ role: "system", content: `正在分发给 ${intentRes.intent || "general"} agent...`, id: typingId });
-    renderChat();
-
     let res;
     if (pendingAction) {
       res = await api(`/agents/opencode/${pendingAction}`, {
@@ -197,37 +338,37 @@ async function sendChat() {
     } else {
       res = await api("/chat", {
         method: "POST",
-        body: JSON.stringify({ messages: [{ role: "user", content: text }], intent: intentRes.intent })
+        body: JSON.stringify({ message: text, stream: false })
       });
     }
 
-    chatHistory = chatHistory.filter(m => m.id !== typingId);
-    const aiContent = res.response || res.result || res.code || res.review || JSON.stringify(res, null, 2);
-    chatHistory.push({
+    // Remove typing indicator
+    chatHistory = chatHistory.filter(m => !m._typing);
+
+    const aiContent = res.content || res.response || res.result || res.code || res.review || JSON.stringify(res, null, 2);
+    const aiMsg = {
       role: "assistant",
       content: aiContent,
-      agent: res.agent || intentRes.intent,
-      toolCalls: res.toolCalls
-    });
-    // Cap in-memory history to prevent memory leak (1000 messages max)
-    if (chatHistory.length > 1000) chatHistory.splice(0, chatHistory.length - 1000);
-    localStorage.setItem("chatHistory", JSON.stringify(chatHistory.slice(-100)));
-    // Persist to server for cross-session memory
-    const sessionId = localStorage.getItem("sessionId") || crypto.randomUUID();
-    localStorage.setItem("sessionId", sessionId);
-    api("/memory/conversations", {
-      method: "POST",
-      body: JSON.stringify({ sessionId, role: "user", content: text })
-    }).catch(() => {});
-    api("/memory/conversations", {
-      method: "POST",
-      body: JSON.stringify({ sessionId, role: "assistant", content: aiContent })
-    }).catch(() => {});
+      agent: res.intent || res.agent || null,
+      toolCalls: res.toolCalls,
+      timestamp: new Date().toISOString(),
+    };
+    chatHistory.push(aiMsg);
+
+    // Persist to server
+    SessionManager.persist(aiMsg);
+
+    // Save local history (last 100)
+    const forStorage = chatHistory.filter(m => !m._typing).slice(-100);
+    localStorage.setItem("chatHistory", JSON.stringify(forStorage));
+
     renderChat();
+    scrollToBottom();
   } catch (e) {
-    chatHistory = chatHistory.filter(m => !m.id?.startsWith("typing-"));
+    chatHistory = chatHistory.filter(m => !m._typing);
     chatHistory.push({ role: "system", content: `错误: ${e.message}` });
     renderChat();
+    scrollToBottom();
   }
 }
 
@@ -284,6 +425,36 @@ function exportChat() {
   a.download = `openclaw-chat-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ===== Session Helpers =====
+function createNewSession() {
+  const { oldId, newId } = SessionManager.newSession();
+  renderChat();
+  scrollToBottom();
+}
+
+function switchSession(sessionId) {
+  if (sessionId === SessionManager.currentId) return;
+  SessionManager.switchTo(sessionId);
+}
+
+async function loadChatHistory() {
+  const serverHistory = await SessionManager.loadHistory();
+  if (serverHistory.length > 0) {
+    chatHistory.length = 0;
+    chatHistory.push(...serverHistory);
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistory.slice(-100)));
+  } else {
+    chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "[]");
+  }
+}
+
+function scrollToBottom() {
+  setTimeout(() => {
+    const msgs = document.getElementById("chatMsgs");
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }, 5);
 }
 
 // ===== Search (Vault + Web) =====
@@ -1077,6 +1248,7 @@ function renderSettings() {
       <button onclick="switchSettingsTab('mcp',this)">🔧 MCP 工具</button>
       <button onclick="switchSettingsTab('skills',this)">🎯 Skill 市场</button>
       <button onclick="switchSettingsTab('features',this)">⚡ 功能开关</button>
+      <button onclick="switchSettingsTab('sessions',this)">📋 会话历史</button>
     </div>
     <div id="settingsTabContent">${renderApiKeysTab()}</div>`;
   loadApiKeyStatus();
@@ -1091,6 +1263,7 @@ function switchSettingsTab(tab, btn) {
   else if (tab === "mcp") { content.innerHTML = renderMcpTab(); loadMcpTools(); }
   else if (tab === "skills") { content.innerHTML = renderSkillsTab(); loadSkills(); }
   else if (tab === "features") { content.innerHTML = renderFeaturesTab(); loadFeatures(); }
+  else if (tab === "sessions") { content.innerHTML = renderSessionsTab(); loadAllSessions(); }
 }
 
 // --- API Keys Tab ---
@@ -1264,6 +1437,78 @@ function clearCache() {
   localStorage.removeItem("chatHistory");
   if ("caches" in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
   alert("缓存已清除");
+}
+
+// --- Sessions Tab ---
+function renderSessionsTab() {
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="margin:0">📋 会话历史</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn small secondary" onclick="exportAllSessions()">📥 导出全部</button>
+          <button class="btn small" onclick="createNewSession();switchSettingsTab('sessions',document.querySelector('.tab-nav button:last-child'))">+ 新建会话</button>
+        </div>
+      </div>
+      <div id="allSessionsList" class="loading"><div class="spinner"></div></div>
+    </div>`;
+}
+
+async function loadAllSessions() {
+  const el = document.getElementById("allSessionsList");
+  if (!el) return;
+  try {
+    const sessions = await SessionManager.loadList();
+    if (!sessions.length) {
+      el.innerHTML = `<div style="color:var(--muted);text-align:center;padding:24px">暂无会话记录</div>`;
+      return;
+    }
+    el.innerHTML = sessions.map(s => {
+      const sid = s.session_id || s.id || "";
+      const isActive = sid === SessionManager.currentId;
+      const created = s.created_at || s.started_at ? new Date(typeof (s.created_at || s.started_at) === "number" && (s.created_at || s.started_at) < 1e12 ? (s.created_at || s.started_at) * 1000 : (s.created_at || s.started_at)).toLocaleString("zh-CN") : "未知";
+      const updated = s.updated_at || s.last_active ? new Date(typeof (s.updated_at || s.last_active) === "number" && (s.updated_at || s.last_active) < 1e12 ? (s.updated_at || s.last_active) * 1000 : (s.updated_at || s.last_active)).toLocaleString("zh-CN") : created;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;${isActive ? 'border-color:var(--accent);background:var(--bg)' : ''}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <code style="font-size:0.75rem;color:var(--muted)">${sid.slice(0, 8)}...</code>
+            ${isActive ? '<span class="badge ok">当前</span>' : ''}
+          </div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">
+            ${s.message_count ? s.message_count + ' 条消息' : ''}
+            ${s.message_count ? ' · ' : ''}开始: ${created}
+          </div>
+          <div style="font-size:0.75rem;color:var(--muted)">最后活跃: ${updated}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px">
+          ${!isActive ? `<button class="btn small secondary" onclick="switchSession('${sid}');navigate('chat')">切换</button>` : ''}
+        </div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--danger)">加载失败: ${e.message}</div>`;
+  }
+}
+
+async function exportAllSessions() {
+  try {
+    const sessions = await SessionManager.loadList();
+    const allData = {};
+    for (const s of sessions) {
+      const sid = s.session_id || s.id;
+      const res = await api(`/memory/conversations?session=${sid}&limit=500`);
+      allData[sid] = res.messages || [];
+    }
+    const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `openclaw-all-sessions-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert("导出失败: " + e.message);
+  }
 }
 
 // ===== Provider API Key Manager =====
@@ -1442,31 +1687,16 @@ function escapeHtml(s) {
 }
 
 // ===== Init =====
+SessionManager.init();
 renderNav();
 connectWs();
 checkPendingReview();
 
-// Load last session's conversation from server
-(async function loadLastSession() {
-  try {
-    const res = await api("/memory/conversations?limit=100");
-    if (res.messages && res.messages.length > 0) {
-      const serverHistory = res.messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        agent: m.agent_id,
-      }));
-      // Merge with local history (server takes precedence for older messages)
-      if (serverHistory.length > chatHistory.length) {
-        chatHistory.length = 0;
-        chatHistory.push(...serverHistory);
-        localStorage.setItem("chatHistory", JSON.stringify(chatHistory.slice(-100)));
-      }
-    }
-  } catch {}
+// Load chat history (server first, then local fallback)
+(async function initChat() {
+  await loadChatHistory();
+  navigate("chat");
 })();
-
-navigate("chat");
 
 // PWA
 if ("serviceWorker" in navigator) {

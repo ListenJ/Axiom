@@ -36,10 +36,17 @@ import {
   recognizeIntent,
   buildAgentMessages,
 } from "./agents/intent-router.js";
+import { runSetupWizard } from "./cli/setup.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 
 const commands: Record<string, { desc: string; run: (args: string[]) => Promise<void> | void }> = {
+  setup: {
+    desc: "交互式配置向导 - 设置所有 LLM 厂商 API Key",
+    run: async (args: string[]) => {
+      await runSetupWizard(args);
+    },
+  },
   status: {
     desc: "查看系统状态",
     run: () => {
