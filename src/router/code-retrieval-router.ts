@@ -29,6 +29,7 @@ import {
 import { router, type ChatMessage } from "./model-router.js";
 import { assignModel } from "./model-capability-registry.js";
 import { findModelsForRole, type TaskRole } from "./models.js";
+import { PiAgentAdapter } from "../pi-agent/pi-agent-adapter.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Type Definitions
@@ -39,7 +40,8 @@ export type RetrievalStrategy =
   | "dependency"   // 基于调用关系 (callers/callees)
   | "impact"       // 基于影响半径分析
   | "fulltext"     // 全文本搜索 (CodeGraph buildContext)
-  | "hybrid";      // 混合策略
+  | "hybrid"       // 混合策略
+  | "pi-agent";    // 使用 Pi Agent 本地工具（零 token 消耗）
 
 export interface QueryAnalysis {
   intent: string;           // 用户意图: "find_definition", "understand_flow", "refactor", etc.
@@ -107,6 +109,12 @@ const ROUTING_PROMPT = `你是一个代码检索策略路由专家。分析用�
 // ═══════════════════════════════════════════════════════════════
 
 export class CodeRetrievalRouter {
+  private piAgent: PiAgentAdapter;
+
+  constructor(cwd?: string) {
+    this.piAgent = new PiAgentAdapter(cwd);
+  }
+
   /**
    * 分析用户查询，确定检索策略
    *
@@ -227,6 +235,9 @@ export class CodeRetrievalRouter {
           break;
         case "hybrid":
           await this.executeHybridStrategy(query, analysis, result);
+          break;
+        case "pi-agent":
+          await this.executePiAgentStrategy(query, result);
           break;
       }
     } catch (err) {
@@ -420,6 +431,32 @@ export class CodeRetrievalRouter {
 
     result.metadata.totalNodes = result.symbols.length + result.callers.length + result.callees.length;
     result.metadata.totalRelationships = result.callers.length + result.callees.length;
+  }
+
+  private async executePiAgentStrategy(
+    query: string,
+    result: RetrievalResult
+  ): Promise<void> {
+    // 使用 Pi Agent 本地工具执行检索（零 token 消耗）
+    const piResult = await this.piAgent.retrieveCodeContext(query);
+
+    if (piResult.success) {
+      result.context = piResult.content;
+      result.metadata.totalNodes = 1; // Pi Agent 返回聚合结果
+      result.metadata.modelUsed = `pi-agent:${piResult.toolUsed}`;
+
+      logger.info("[CodeRetrieval] Pi Agent retrieval completed", {
+        toolUsed: piResult.toolUsed,
+        executionTime: piResult.executionTimeMs,
+        tokenSaved: piResult.tokenSaved,
+      });
+    } else {
+      // Pi Agent 失败，回退到 fulltext
+      logger.warn("[CodeRetrieval] Pi Agent failed, falling back to fulltext", {
+        error: piResult.error,
+      });
+      await this.executeFulltextStrategy(query, result);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

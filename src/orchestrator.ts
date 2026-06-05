@@ -14,14 +14,17 @@ import { ContextManager } from './context/context-manager.js';
 import { GracefulDegradationRouter } from './router/graceful-degradation.js';
 import { EnhancedFileWatcher } from './memory/enhanced-watcher.js';
 import type { EnhancedWatcherOptions } from './memory/enhanced-watcher.js';
+import { PiAgentAdapter } from './pi-agent/pi-agent-adapter.js';
 
 export interface OrchestratorConfig {
   enableCodeRetrieval: boolean;
   enableContextManagement: boolean;
   enableGracefulDegradation: boolean;
   enableEnhancedWatcher: boolean;
+  enablePiAgent: boolean;
   contextThreshold: number;
   codeRetrievalThreshold: number;
+  piAgentCwd?: string;
 }
 
 const DEFAULT_CONFIG: OrchestratorConfig = {
@@ -29,6 +32,7 @@ const DEFAULT_CONFIG: OrchestratorConfig = {
   enableContextManagement: true,
   enableGracefulDegradation: true,
   enableEnhancedWatcher: true,
+  enablePiAgent: true,
   contextThreshold: 0.6,
   codeRetrievalThreshold: 0.5,
 };
@@ -39,6 +43,7 @@ export class SystemOrchestrator {
   private contextManager?: ContextManager;
   private degradationRouter?: GracefulDegradationRouter;
   private enhancedWatcher?: EnhancedFileWatcher;
+  private piAgent?: PiAgentAdapter;
   private config: OrchestratorConfig;
 
   constructor(
@@ -58,6 +63,10 @@ export class SystemOrchestrator {
 
     if (this.config.enableGracefulDegradation) {
       this.degradationRouter = new GracefulDegradationRouter();
+    }
+
+    if (this.config.enablePiAgent) {
+      this.piAgent = new PiAgentAdapter(this.config.piAgentCwd);
     }
   }
 
@@ -98,18 +107,34 @@ export class SystemOrchestrator {
 
     // Step 2: Determine if code retrieval is needed
     let codeContext = '';
+    let piAgentUsed = false;
+    let tokensSaved = 0;
+
     if (this.codeRetrieval && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.content) {
         const analysis = await this.codeRetrieval.analyzeQuery(lastMessage.content);
         if (analysis.confidence > this.config.codeRetrievalThreshold) {
-          const strategy = await this.codeRetrieval.selectStrategy(analysis);
-          const retrievalResult = await this.codeRetrieval.executeRetrieval(
-            lastMessage.content,
-            analysis,
-            strategy
-          );
-          codeContext = retrievalResult.context;
+          // 优先使用 Pi Agent 进行本地检索（零 token 消耗）
+          if (this.piAgent && analysis.suggestedStrategy === 'pi-agent') {
+            const piResult = await this.piAgent.retrieveCodeContext(lastMessage.content);
+            if (piResult.success) {
+              codeContext = piResult.content;
+              piAgentUsed = true;
+              tokensSaved = piResult.tokenSaved;
+            }
+          }
+
+          // 如果 Pi Agent 未使用或失败，使用 CodeGraph 检索
+          if (!codeContext) {
+            const strategy = await this.codeRetrieval.selectStrategy(analysis);
+            const retrievalResult = await this.codeRetrieval.executeRetrieval(
+              lastMessage.content,
+              analysis,
+              strategy
+            );
+            codeContext = retrievalResult.context;
+          }
         }
       }
     }
@@ -144,7 +169,7 @@ export class SystemOrchestrator {
 
     // Step 5: Track response metrics
     const duration = Date.now() - startTime;
-    this.logMetrics(requestId, duration, contextUsagePercent, codeContext);
+    this.logMetrics(requestId, duration, contextUsagePercent, codeContext, piAgentUsed, tokensSaved);
 
     return response;
   }
@@ -185,7 +210,9 @@ export class SystemOrchestrator {
     requestId: string,
     duration: number,
     contextUsagePercent: number,
-    codeContext: string
+    codeContext: string,
+    piAgentUsed?: boolean,
+    tokensSaved?: number
   ): void {
     console.log(`[Orchestrator] Request ${requestId} completed:`, {
       duration: `${duration}ms`,
@@ -195,6 +222,11 @@ export class SystemOrchestrator {
         codeRetrieval: !!this.codeRetrieval,
         contextManagement: !!this.contextManager,
         gracefulDegradation: !!this.degradationRouter,
+        piAgent: !!this.piAgent,
+      },
+      piAgent: {
+        used: piAgentUsed ?? false,
+        tokensSaved: tokensSaved ?? 0,
       },
     });
   }
@@ -209,6 +241,7 @@ export class SystemOrchestrator {
       contextManager: boolean;
       degradationRouter: boolean;
       enhancedWatcher: boolean;
+      piAgent: boolean;
     };
   } {
     return {
@@ -218,6 +251,7 @@ export class SystemOrchestrator {
         contextManager: !!this.contextManager,
         degradationRouter: !!this.degradationRouter,
         enhancedWatcher: !!this.enhancedWatcher,
+        piAgent: !!this.piAgent,
       },
     };
   }
