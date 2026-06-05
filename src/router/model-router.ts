@@ -1,8 +1,10 @@
 /**
- * 多平台模型路由器 v4.0 (简化版)
+ * 多平台模型路由器 v5.0 — 扁平化架构
  *
- * 核心原则:
+ * 设计原则:
  *   - 单一 OpenAI 兼容 API
+ *   - 扁平路由表: intent → role 直接映射，无嵌套 if/else
+ *   - 统一执行端口: 所有调用走统一的 execute() 管线
  *   - 静态配置表 + 简单 fallback
  *   - 无 circuit breaker, 无 protocol 适配层
  */
@@ -15,12 +17,18 @@ import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.j
 import { getTokenTracker } from "./token-tracker.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
+// =============================================================================
+// 端口定义 (Input / Output Ports)
+// =============================================================================
+
+/** 输入消息 */
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-interface ChatResponse {
+/** 基础输出 */
+export interface ChatResponse {
   content: string | null;
   model: string;
   provider: string;
@@ -32,7 +40,7 @@ interface ChatResponse {
   layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
 }
 
-// ========== 智能任务分配接口 ==========
+/** 智能任务分配输出 */
 export interface SmartAssignmentResponse {
   role: TaskRole;
   model: string;
@@ -49,6 +57,7 @@ export interface SmartAssignmentResponse {
   fallback_used?: boolean;
 }
 
+/** 批量任务输入 */
 export interface RoleAssignment {
   role: TaskRole;
   messages: ChatMessage[];
@@ -56,7 +65,69 @@ export interface RoleAssignment {
   maxTokens?: number;
 }
 
-// ========== Token 追踪辅助 ==========
+/** 路由决策元数据 */
+export interface RoutingMeta {
+  role: TaskRole;
+  thinking: "none" | "low" | "medium" | "high";
+  reason: string;
+}
+
+/** 统一执行端口输入 */
+export interface ExecuteInput {
+  role: TaskRole;
+  messages: ChatMessage[];
+  timeout?: number;
+  temperature?: number;
+  trackAs?: string;
+}
+
+/** 统一执行端口输出 */
+export interface ExecuteOutput {
+  content: string | null;
+  model: string;
+  provider: string;
+  usage?: ChatResponse["usage"];
+  latencyMs: number;
+  fallbackUsed: boolean;
+  routingMeta?: RoutingMeta;
+}
+
+// =============================================================================
+// 扁平化路由表
+// =============================================================================
+
+/** intent 关键词 → 角色映射 (扁平化，无嵌套) */
+const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> = {
+  // Decision
+  strategy:     { role: "decision", useTool: false },
+  evaluation:   { role: "evaluation", useTool: false },
+  decision:     { role: "decision", useTool: false },
+
+  // Architecture
+  architecture:   { role: "architecture", useTool: false },
+  "system-design": { role: "architecture", useTool: false },
+  infra:          { role: "architecture", useTool: false },
+
+  // Tool-based
+  engineering:        { role: "coding", useTool: true },
+  "game-development": { role: "coding", useTool: true },
+  integrations:       { role: "coding", useTool: true },
+  testing:            { role: "coding", useTool: true },
+  english:            { role: "english", useTool: true },
+  translation:        { role: "english", useTool: true },
+  localization:       { role: "english", useTool: true },
+  rl:                 { role: "rl", useTool: true },
+  reasoning:          { role: "rl", useTool: true },
+  optimization:       { role: "rl", useTool: true },
+};
+
+/** 默认兜底角色 */
+const DEFAULT_ROLE: TaskRole = "general-chat";
+
+// =============================================================================
+// Token 追踪辅助
+// =============================================================================
+
 function trackCall(
   model: string,
   provider: string,
@@ -70,7 +141,7 @@ function trackCall(
   meta?: { role?: string; taskType?: string }
 ) {
   const usage = result.usage;
-  if (!usage || !usage.total_tokens) return; // 不追踪无 usage 的记录
+  if (!usage || !usage.total_tokens) return;
 
   getTokenTracker().record({
     timestamp: Date.now(),
@@ -88,17 +159,20 @@ function trackCall(
   });
 }
 
-// ========== 通用 HTTP 调用 ==========
+// =============================================================================
+// 通用 HTTP 调用
+// =============================================================================
+
 async function callProvider(
   provider: string,
   model: string,
   messages: ChatMessage[],
-  timeoutMs: number
+  timeoutMs: number,
+  temperature = 0.7
 ): Promise<{ content: string | null; usage?: any }> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
 
-  // 优先使用运行时 override，其次使用 process.env（支持前端 Settings 页面运行时设置）
   const { getEffectiveApiKey, getEffectiveBaseURL } = await import("../utils/api-key-store.js");
   const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
   if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
@@ -122,7 +196,7 @@ async function callProvider(
     const res = await proxyFetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, temperature: 0.7 }),
+      body: JSON.stringify({ model, messages, temperature }),
       signal: controller.signal,
     });
 
@@ -144,17 +218,105 @@ async function callProvider(
   }
 }
 
-// ========== 路由器 ==========
+// =============================================================================
+// 路由器 v5.0 — 扁平化核心
+// =============================================================================
+
 export class MultiPlatformRouter {
+  // ---------------------------------------------------------------------------
+  // 统一执行端口 (Unified Execution Port)
+  // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
+  // ---------------------------------------------------------------------------
+  async execute(input: ExecuteInput): Promise<ExecuteOutput> {
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs } = input;
+    const startTime = Date.now();
+
+    const models = findModelsForRole(role);
+    if (models.length === 0) {
+      logger.warn(`[Router] No models for role: ${role}`);
+      return {
+        content: `[System] No models configured for role "${role}".`,
+        model: "none",
+        provider: "local",
+        latencyMs: 0,
+        fallbackUsed: true,
+      };
+    }
+
+    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+
+    for (const model of sortedModels) {
+      const loopStart = Date.now();
+      try {
+        const response = await callProvider(
+          model.provider,
+          model.model,
+          messages,
+          model.timeout ?? timeout,
+          temperature
+        );
+        const latencyMs = Date.now() - loopStart;
+        trackCall(model.model, model.provider, messages, {
+          usage: response.usage,
+          latencyMs,
+          success: true,
+        }, { role: trackAs ?? role, taskType: trackAs ?? role });
+
+        return {
+          content: response.content,
+          model: model.model,
+          provider: model.provider,
+          usage: response.usage,
+          latencyMs,
+          fallbackUsed: false,
+        };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.warn(`[Router] Execute failed ${model.provider}/${model.model}`, { error: msg });
+        trackCall(model.model, model.provider, messages, {
+          latencyMs: Date.now() - loopStart,
+          success: false,
+        }, { role: trackAs ?? role, taskType: trackAs ?? role });
+      }
+    }
+
+    logger.error(`[Router] All models exhausted for role: ${role}`);
+    return {
+      content: "I'm currently experiencing high load. Please try again in a moment.",
+      model: "degraded",
+      provider: "local",
+      latencyMs: Date.now() - startTime,
+      fallbackUsed: true,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 高层 API (向后兼容)
+  // ---------------------------------------------------------------------------
+
   async decide(messages: ChatMessage[]): Promise<ChatResponse> {
-    const result = await this.chat("decision", messages);
-    return { ...result, layer: "decision" };
+    const result = await this.execute({ role: "decision", messages, trackAs: "decide" });
+    return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "decision" };
   }
 
   async architect(messages: ChatMessage[]): Promise<ChatResponse> {
-    const result = await this.chat("architecture", messages);
-    return { ...result, layer: "architecture" };
+    const result = await this.execute({ role: "architecture", messages, trackAs: "architect" });
+    return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "architecture" };
   }
+
+  async evaluate(messages: ChatMessage[]): Promise<ChatResponse> {
+    const result = await this.execute({ role: "evaluation", messages, trackAs: "evaluate" });
+    return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "evaluation" };
+  }
+
+  async chat(taskType: TaskRole | string, messages: ChatMessage[]): Promise<ChatResponse> {
+    const result = await this.execute({ role: taskType as TaskRole, messages, trackAs: "chat" });
+    return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "general" };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tool Pool (独立端口，保持与之前相同的重试逻辑)
+  // ---------------------------------------------------------------------------
 
   async tool(role: ToolRole, messages: ChatMessage[]): Promise<ChatResponse> {
     const maxAttempts = 3;
@@ -194,82 +356,38 @@ export class MultiPlatformRouter {
     };
   }
 
-  async evaluate(messages: ChatMessage[]): Promise<ChatResponse> {
-    const result = await this.chat("evaluation", messages);
-    return { ...result, layer: "evaluation" };
-  }
-
-  async chat(taskType: string, messages: ChatMessage[]): Promise<ChatResponse> {
-    const models = findModelsForRole(taskType as TaskRole);
-    if (models.length === 0) throw new Error(`Unknown task type: ${taskType}`);
-
-    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
-
-    for (const model of sortedModels) {
-      const startTime = Date.now();
-      try {
-        const response = await callProvider(model.provider, model.model, messages, model.timeout ?? 60000);
-        const latencyMs = Date.now() - startTime;
-        const result: ChatResponse = { content: response.content, model: model.model, provider: model.provider, usage: response.usage, layer: "general" };
-        trackCall(model.model, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role: taskType, taskType });
-        return result;
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        logger.warn(`[Router] Route failed ${model.provider}/${model.model}`, { error: msg });
-        trackCall(model.model, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role: taskType, taskType });
-      }
-    }
-
-    logger.error("[Router] All model routes exhausted, returning degraded response");
-    return {
-      content: "I'm currently experiencing high load. Please try again in a moment.",
-      model: "degraded",
-      provider: "local",
-      layer: "general",
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // 扁平化意图路由
+  // ---------------------------------------------------------------------------
 
   async routeByIntent(intent: string, messages: ChatMessage[], options?: { preferTool?: boolean }): Promise<ChatResponse> {
-    const DECISION_INTENTS = new Set(["strategy", "evaluation", "decision"]);
-    const ARCH_INTENTS = new Set(["architecture", "system-design", "infra"]);
-    const CODE_INTENTS = new Set(["engineering", "game-development", "integrations", "testing"]);
-    const ENG_INTENTS = new Set(["english", "translation", "localization"]);
-    const RL_INTENTS = new Set(["rl", "reasoning", "optimization"]);
+    const route = INTENT_ROUTE_TABLE[intent];
 
-    if (DECISION_INTENTS.has(intent)) return this.decide(messages);
-    if (ARCH_INTENTS.has(intent)) return this.architect(messages);
-
-    if (options?.preferTool !== false) {
-      if (CODE_INTENTS.has(intent)) return this.tool("coding", messages);
-      if (ENG_INTENTS.has(intent)) return this.tool("english", messages);
-      if (RL_INTENTS.has(intent)) return this.tool("rl", messages);
+    if (route) {
+      if (route.useTool && options?.preferTool !== false) {
+        return this.tool(route.role as ToolRole, messages);
+      }
+      return this.chat(route.role, messages);
     }
 
-    const taskType = CODE_INTENTS.has(intent) ? "code-generation" : "general-chat";
-    return this.chat(taskType, messages);
+    // 未匹配到任何意图，走默认
+    return this.chat(DEFAULT_ROLE, messages);
   }
 
-  /**
-   * Auto Route — 使用廉价模型做 per-turn 路由决策 (CodeWhale-inspired)
-   *
-   * 1. 用 deepseek-v4-flash:free 分析用户输入
-   * 2. 决定: 任务类型、角色、思考强度
-   * 3. 路由到适当的模型执行
-   *
-   * 比静态规则更准确，成本极低（flash 模型几乎免费）
-   */
-  async autoRoute(messages: ChatMessage[]): Promise<ChatResponse & { routing?: { role: TaskRole; thinking: string; reason: string } }> {
+  // ---------------------------------------------------------------------------
+  // Auto Route — 使用廉价模型做 per-turn 路由决策
+  // ---------------------------------------------------------------------------
+
+  async autoRoute(messages: ChatMessage[]): Promise<ChatResponse & { routing?: RoutingMeta }> {
     const startTime = Date.now();
 
-    // 使用注册表中的 decision 角色模型做路由决策
     const routingModel = assignModel("decision");
     if (!routingModel) {
       logger.warn("[AutoRoute] No decision model configured, falling back to general-chat");
       const fallback = await this.chat("general-chat", messages);
-      return { ...fallback, routing: { role: "general-chat" as TaskRole, thinking: "none", reason: "无决策模型配置" } };
+      return { ...fallback, routing: { role: "general-chat", thinking: "none", reason: "无决策模型配置" } };
     }
 
-    // 构建路由提示词
     const routingMessages: ChatMessage[] = [
       {
         role: "system",
@@ -296,11 +414,10 @@ export class MultiPlatformRouter {
   "reason": "简要说明选择理由"
 }`,
       },
-      messages[messages.length - 1], // 只取最后一条用户消息做路由
+      messages[messages.length - 1],
     ];
 
     try {
-      // 使用配置的决策模型做路由
       const model = routingModel.model;
       const flashResponse = await callProvider(model.provider, model.model, routingMessages, 10000);
       const routing = this.parseRoutingDecision(flashResponse.content);
@@ -312,11 +429,9 @@ export class MultiPlatformRouter {
         model: model.id,
       });
 
-      // 跟踪路由调用
       trackCall(model.id, model.provider, routingMessages, { latencyMs: Date.now() - startTime, success: true }, { role: "decision", taskType: "auto_route" });
 
-      // 根据路由决策执行
-      const result = await this.executeWithRole(routing.role as TaskRole, messages);
+      const result = await this.executeWithRole(routing.role, messages);
 
       return {
         content: result.content,
@@ -325,36 +440,33 @@ export class MultiPlatformRouter {
         usage: result.usage,
         layer: "general",
         routing: {
-          role: routing.role as TaskRole,
+          role: routing.role,
           thinking: routing.thinking,
           reason: routing.reason,
         },
       };
     } catch (error) {
       logger.warn("[AutoRoute] Routing failed, falling back to general-chat", { error: (error as Error).message });
-      // 路由失败时回退到通用聊天
       const fallback = await this.chat("general-chat", messages);
-      return { ...fallback, routing: { role: "general-chat" as TaskRole, thinking: "none", reason: "路由失败，使用默认回退" } };
+      return { ...fallback, routing: { role: "general-chat", thinking: "none", reason: "路由失败，使用默认回退" } };
     }
   }
 
-  private parseRoutingDecision(content: string | null): { role: string; thinking: string; reason: string } {
-    const defaultResult = { role: "general-chat", thinking: "none", reason: "解析失败，使用默认值" };
+  parseRoutingDecision(content: string | null): RoutingMeta {
+    const defaultResult: RoutingMeta = { role: "general-chat", thinking: "none", reason: "解析失败，使用默认值" };
     if (!content) return defaultResult;
 
     try {
-      // 尝试提取 JSON
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         return {
-          role: parsed.role || defaultResult.role,
+          role: (parsed.role as TaskRole) || defaultResult.role,
           thinking: parsed.thinking || defaultResult.thinking,
           reason: parsed.reason || defaultResult.reason,
         };
       }
     } catch {
-      // JSON 解析失败，使用关键词匹配
       const lower = content.toLowerCase();
       if (lower.includes("code") || lower.includes("编码") || lower.includes("代码")) return { role: "coding", thinking: "medium", reason: "关键词匹配: code" };
       if (lower.includes("review") || lower.includes("审查")) return { role: "review", thinking: "medium", reason: "关键词匹配: review" };
@@ -365,8 +477,12 @@ export class MultiPlatformRouter {
     return defaultResult;
   }
 
+  // ---------------------------------------------------------------------------
+  // Embeddings
+  // ---------------------------------------------------------------------------
+
   async embeddings(texts: string[]): Promise<number[][]> {
-    const models = findModelsForRole("embedding" as TaskRole);
+    const models = findModelsForRole("embedding");
     if (models.length === 0) throw new Error("No embedding route configured");
     const model = models[0];
 
@@ -391,7 +507,10 @@ export class MultiPlatformRouter {
     return data.data?.map((d: any) => d.embedding) ?? [];
   }
 
-  // ========== 智能任务分配 (简化版) ==========
+  // ---------------------------------------------------------------------------
+  // 智能任务分配
+  // ---------------------------------------------------------------------------
+
   assign(role: TaskRole, opts?: { excludeModels?: string[] }): AssignmentResult {
     const result = assignModel(role, { excludeModels: opts?.excludeModels });
     if (!result) throw new Error(`No model found for role: ${role}`);
@@ -405,7 +524,7 @@ export class MultiPlatformRouter {
 
     const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
     try {
-      const response = await callProvider(model.provider, model.model, messages, 60000);
+      const response = await callProvider(model.provider, model.model, messages, 60000, options?.temperature);
       const latencyMs = Date.now() - startTime;
       const result: SmartAssignmentResponse = {
         role,
@@ -451,9 +570,8 @@ export class MultiPlatformRouter {
     return Promise.all(promises);
   }
 
-  private async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
+  async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
     try {
-      // 使用注册表中的第一个可用模型作为fallback
       const fallbackModels = findModelsForRole(role);
       if (fallbackModels.length === 0) {
         throw new Error(`No models available for role: ${role}`);

@@ -47,6 +47,98 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       await runSetupWizard(args);
     },
   },
+
+  key: {
+    desc: "快速添加/更新单个厂商 API Key (key <provider> <api_key>)",
+    run: async (args: string[]) => {
+      const provider = args[0];
+      const apiKey = args[1];
+
+      if (!provider || !apiKey) {
+        console.error("Usage: key <provider> <api_key>");
+        console.error("Available providers: siliconflow, ofoxai, openrouter, deepseek, opencode, kimi, minimax");
+        return;
+      }
+
+      const envPath = ".env";
+      const fs = await import("fs");
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
+
+      const providerKeyMap: Record<string, string> = {
+        siliconflow: "SILICONFLOW_API_KEY",
+        ofoxai: "OFOXAI_API_KEY",
+        openrouter: "OPENROUTER_API_KEY",
+        deepseek: "DEEPSEEK_API_KEY",
+        opencode: "OPENCODE_API_KEY",
+        kimi: "KIMI_API_KEY",
+        minimax: "MINIMAX_API_KEY",
+      };
+
+      const envKey = providerKeyMap[provider.toLowerCase()];
+      if (!envKey) {
+        console.error(`Unknown provider: ${provider}`);
+        console.error(`Supported: ${Object.keys(providerKeyMap).join(", ")}`);
+        return;
+      }
+
+      // Update or add the key
+      const regex = new RegExp(`^${envKey}=.*$`, "m");
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${envKey}=${apiKey}`);
+        console.log(`[Updated] ${envKey}`);
+      } else {
+        envContent += `\n${envKey}=${apiKey}\n`;
+        console.log(`[Added] ${envKey}`);
+      }
+
+      fs.writeFileSync(envPath, envContent);
+      console.log(`[Success] API key for ${provider} saved to .env`);
+    },
+  },
+
+  "key:remove": {
+    desc: "移除厂商 API Key (key:remove <provider>)",
+    run: async (args: string[]) => {
+      const provider = args[0];
+      if (!provider) {
+        console.error("Usage: key:remove <provider>");
+        return;
+      }
+
+      const envPath = ".env";
+      const fs = await import("fs");
+      if (!fs.existsSync(envPath)) {
+        console.error("No .env file found");
+        return;
+      }
+
+      const providerKeyMap: Record<string, string> = {
+        siliconflow: "SILICONFLOW_API_KEY",
+        ofoxai: "OFOXAI_API_KEY",
+        openrouter: "OPENROUTER_API_KEY",
+        deepseek: "DEEPSEEK_API_KEY",
+        opencode: "OPENCODE_API_KEY",
+        kimi: "KIMI_API_KEY",
+        minimax: "MINIMAX_API_KEY",
+      };
+
+      const envKey = providerKeyMap[provider.toLowerCase()];
+      if (!envKey) {
+        console.error(`Unknown provider: ${provider}`);
+        return;
+      }
+
+      let envContent = fs.readFileSync(envPath, "utf-8");
+      const regex = new RegExp(`^${envKey}=.*$`, "m");
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `# ${envKey}=(removed)`);
+        fs.writeFileSync(envPath, envContent);
+        console.log(`[Removed] ${envKey}`);
+      } else {
+        console.log(`[Not Found] ${envKey} not in .env`);
+      }
+    },
+  },
   status: {
     desc: "查看系统状态",
     run: () => {
