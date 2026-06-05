@@ -19,3 +19,13 @@ export {
   type PiAgentRetrievalResult,
   type PiAgentRetrievalOptions,
 } from "./pi-agent-adapter.js";
+
+export {
+  PiCodeEngine,
+  piCodeEngine,
+  type CodeGenerateResult,
+  type CodeRefactorResult,
+  type CodeReviewResult,
+  type CodeTestResult,
+  type PiCodeEngineOptions,
+} from "./pi-code-engine.js";

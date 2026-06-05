@@ -34,7 +34,13 @@
     "code:open": "bun run src/cli.ts code:open",
     "code:models": "bun run src/cli.ts code:models",
     "agent:status": "bun run src/cli.ts agent:status",
-    "setup:agents": "bash scripts/setup-agents.sh"
+    "setup:agents": "bash scripts/setup-agents.sh",
+    "start:daemon": "bash scripts/start.sh daemon",
+    "start:prod": "bash scripts/start.sh prod",
+    "stop": "bash scripts/start.sh stop",
+    "restart": "bash scripts/start.sh restart",
+    "status": "bash scripts/start.sh status",
+    "logs": "bash scripts/start.sh logs"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",
