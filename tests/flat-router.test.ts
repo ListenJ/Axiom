@@ -1,10 +1,37 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, spyOn } from "bun:test";
 import { router, type ChatMessage, type ExecuteInput, type ExecuteOutput } from "../src/router/model-router.js";
 
 describe("Flat Router v5.0", () => {
   const testMessages: ChatMessage[] = [
     { role: "user", content: "Hello, how are you?" },
   ];
+
+  let executeSpy: ReturnType<typeof spyOn> | undefined;
+  let toolSpy: ReturnType<typeof spyOn> | undefined;
+
+  beforeAll(() => {
+    executeSpy = spyOn(router, "execute").mockImplementation(async () => ({
+      content: "test response",
+      model: "test-model",
+      provider: "test-provider",
+      usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+      routingMeta: { role: "general-chat", thinking: "none", reason: "test" },
+      latencyMs: 100,
+      fallbackUsed: false,
+    }));
+    toolSpy = spyOn(router, "tool").mockImplementation(async () => ({
+      content: "test tool response",
+      model: "test-tool-model",
+      provider: "test-provider",
+      usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+      layer: "tool",
+    }));
+  });
+
+  afterAll(() => {
+    executeSpy?.mockRestore();
+    toolSpy?.mockRestore();
+  });
 
   it("should have flat INTENT_ROUTE_TABLE", () => {
     // Verify that routeByIntent uses a flat table internally

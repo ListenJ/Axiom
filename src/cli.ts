@@ -17,6 +17,9 @@ import {
   listOpenCodeModels,
   OPENCODE_FREE_MODELS,
   getOpenCodeInstallGuide,
+  getOpenCodeToolAgent,
+  quickExecute,
+  type ExecutionStrategy,
 } from "./agents/opencode-agent.js";
 import {
   kimiCodeChat,
@@ -502,6 +505,55 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "oc:tool": {
+    desc: "OpenCode 工具 Agent — 轻量任务智能执行 (oc:tool <prompt> [--strategy=parallel] [--no-context])",
+    run: async (args) => {
+      const installed = await checkOpenCode();
+      if (!installed) { console.log(getOpenCodeInstallGuide()); return; }
+
+      const prompt = args.find((a) => !a.startsWith("--"));
+      if (!prompt) { console.error("Usage: oc:tool <prompt> [--strategy=opencode-only|parallel|opencode-primary|openclaw-only] [--no-context]"); return; }
+
+      const strategyArg = args.find((a) => a.startsWith("--strategy="))?.slice(11) as ExecutionStrategy | undefined;
+      const noContext = args.includes("--no-context");
+
+      console.log(`[OpenCode Tool Agent] 分析任务并执行...\n`);
+
+      const result = await quickExecute(prompt, {
+        strategy: strategyArg,
+        injectContext: !noContext,
+        cwd: process.cwd(),
+      });
+
+      console.log(`\n═══════════════════════════════════════════════════════`);
+      console.log(`策略: ${result.strategy}`);
+      console.log(`模型: ${result.model} (${result.provider})`);
+      console.log(`延迟: ${result.latencyMs}ms`);
+      console.log(`节省 token: ${result.tokenSaved}`);
+      console.log(`回退: ${result.fallbackUsed ? "是" : "否"}`);
+      console.log(`上下文注入: ${result.contextInjected ? "是" : "否"}`);
+      console.log(`工具: ${result.toolsUsed.join(", ") || "无"}`);
+      console.log(`═══════════════════════════════════════════════════════\n`);
+      console.log(result.content);
+    },
+  },
+
+  "oc:health": {
+    desc: "查看 OpenCode 工具 Agent 健康状态",
+    run: async () => {
+      const agent = getOpenCodeToolAgent(process.cwd());
+      const report = agent.getHealthReport();
+      console.log("[OpenCode Tool Agent 健康状态]\n");
+      for (const [model, state] of Object.entries(report)) {
+        console.log(`  ${model}:`);
+        for (const [key, val] of Object.entries(state as Record<string, unknown>)) {
+          console.log(`    ${key}: ${val}`);
+        }
+        console.log();
+      }
+    },
+  },
+
   "kimi:chat": {
     desc: "使用 Kimi Code API 进行编码对话 (kimi:chat <prompt> [--temp=0.7])",
     run: async (args) => {
@@ -623,6 +675,108 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async () => {
       const { startTUI } = await import("./tui/app.js");
       await startTUI();
+    },
+  },
+
+  diag: {
+    desc: "运行系统诊断 (diag [--fix])",
+    run: async (args) => {
+      const autoFix = args.includes("--fix");
+      const { runHealthCheck, printHealthReport } = await import("./core/health-checker.js");
+      console.log("[诊断] 运行系统健康检查...\n");
+      const report = await runHealthCheck();
+      printHealthReport(report);
+
+      if (autoFix) {
+        console.log("[自动修复] 尝试修复可自动修复的问题...\n");
+        const fixed: string[] = [];
+        for (const check of report.checks) {
+          if (check.autoFixable && check.fix) {
+            try {
+              const { execSync } = await import("child_process");
+              if (check.fix.startsWith("mkdir")) {
+                execSync(check.fix);
+                fixed.push(check.component);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (fixed.length > 0) {
+          console.log(`✅ 已自动修复: ${fixed.join(", ")}\n`);
+        } else {
+          console.log("ℹ️ 没有可自动修复的问题\n");
+        }
+      }
+    },
+  },
+
+  config: {
+    desc: "配置管理 (config [get|set|list|validate] [key] [value])",
+    run: async (args) => {
+      const sub = args[0] || "list";
+      const { getConfigCenter } = await import("./core/config-center.js");
+      const center = getConfigCenter();
+
+      switch (sub) {
+        case "list": {
+          const all = center.getAll();
+          console.log("[配置列表]\n");
+          for (const [key, val] of Object.entries(all)) {
+            console.log(`  ${key.padEnd(35)} ${val.masked.padEnd(30)} [${val.source}]`);
+          }
+          break;
+        }
+        case "get": {
+          const key = args[1];
+          if (!key) { console.error("Usage: config get <key>"); return; }
+          const value = center.getString(key);
+          console.log(`${key} = ${value || "(not set)"}`);
+          break;
+        }
+        case "set": {
+          const key = args[1];
+          const value = args[2];
+          if (!key || value === undefined) { console.error("Usage: config set <key> <value>"); return; }
+          center.set(key, value, "cli", true);
+          console.log(`✅ ${key} = ${value}`);
+          break;
+        }
+        case "validate": {
+          const result = center.validate();
+          console.log("[配置验证]\n");
+          console.log(`状态: ${result.valid ? "✅ 有效" : "❌ 无效"}\n`);
+          if (result.missing.length > 0) {
+            console.log("缺失配置:");
+            for (const m of result.missing) console.log(`  ❌ ${m.key} — ${m.description}`);
+          }
+          if (result.errors.length > 0) {
+            console.log("错误:");
+            for (const e of result.errors) console.log(`  ❌ ${e.key} — ${e.message}`);
+          }
+          if (result.warnings.length > 0) {
+            console.log("警告:");
+            for (const w of result.warnings) console.log(`  ⚠️ ${w.key} — ${w.message}`);
+          }
+          if (result.valid && result.errors.length === 0 && result.warnings.length === 0) {
+            console.log("✅ 所有配置项有效");
+          }
+          break;
+        }
+        case "diagnose": {
+          const results = center.diagnose();
+          console.log("[配置诊断]\n");
+          for (const r of results) {
+            const icon = r.status === "ok" ? "✅" : r.status === "warning" ? "⚠️" : "❌";
+            console.log(`  ${icon} ${r.component.padEnd(15)} ${r.message}`);
+            if (r.fix) console.log(`     💡 ${r.fix}`);
+          }
+          break;
+        }
+        default:
+          console.error("Usage: config [get|set|list|validate|diagnose]");
+      }
     },
   },
 

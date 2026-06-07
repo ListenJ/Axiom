@@ -1,55 +1,77 @@
 /**
  * Vault and CodeGraph routes
+ * 读操作经过 ReadOptimizerFacade (黑板 → 缓存 → 批量 → 字段投影)
  */
 import type { RouteContext } from "./types.js";
+import { getReadOptimizer } from "../utils/read-optimizer.js";
+
+async function vaultRead(
+  ctx: RouteContext,
+  action: string,
+  params: Record<string, unknown>,
+  fields?: string[]
+): Promise<unknown> {
+  if (!ctx.vault) return null;
+  const facade = getReadOptimizer();
+  const res = await facade.read({
+    resource: "vault",
+    action,
+    params,
+    agentId: "vault-route",
+    fields,
+    cacheTtlMs: 30_000,
+  });
+  return res.data;
+}
 
 export async function handleVaultStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/stats" && ctx.req.method === "GET") {
-    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
-    return ctx.jsonResponse(ctx.vault.stats(), 200, ctx.baseHeaders);
+    const data = await vaultRead(ctx, "stats", {});
+    if (data === null) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    return ctx.jsonResponse(data, 200, ctx.baseHeaders);
   }
   return null;
 }
 
 export async function handleVaultPara(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname.startsWith("/vault/para/") && ctx.req.method === "GET") {
-    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const category = ctx.url.pathname.slice("/vault/para/".length);
-    const notes = ctx.vault.browsePara(category);
-    return ctx.jsonResponse({ category, notes }, 200, ctx.baseHeaders);
+    const data = await vaultRead(ctx, "browsePara", { category });
+    if (data === null) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    return ctx.jsonResponse({ category, notes: data }, 200, ctx.baseHeaders);
   }
   return null;
 }
 
 export async function handleVaultTags(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname.startsWith("/vault/tags/") && ctx.req.method === "GET") {
-    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const tag = decodeURIComponent(ctx.url.pathname.slice("/vault/tags/".length));
-    const notes = ctx.vault.browseTag(tag);
-    return ctx.jsonResponse({ tag, notes }, 200, ctx.baseHeaders);
+    const data = await vaultRead(ctx, "browseTag", { tag });
+    if (data === null) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    return ctx.jsonResponse({ tag, notes: data }, 200, ctx.baseHeaders);
   }
   return null;
 }
 
 export async function handleVaultNetwork(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname.startsWith("/vault/network/") && ctx.req.method === "GET") {
-    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const notePath = decodeURIComponent(ctx.url.pathname.slice("/vault/network/".length));
     const depth = Number(ctx.url.searchParams.get("depth")) || 1;
-    const network = ctx.vault.getNetwork(notePath, depth);
-    return ctx.jsonResponse({ notePath, depth, ...network }, 200, ctx.baseHeaders);
+    const data = await vaultRead(ctx, "getNetwork", { notePath, depth });
+    if (data === null) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    return ctx.jsonResponse({ notePath, depth, ...(data as Record<string, unknown>) }, 200, ctx.baseHeaders);
   }
   return null;
 }
 
 export async function handleVaultNote(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/note" && ctx.req.method === "GET") {
-    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const notePath = ctx.url.searchParams.get("path");
     if (!notePath) return ctx.jsonResponse({ error: "Missing path param" }, 400, ctx.baseHeaders);
-    const note = ctx.vault.readNote(notePath);
-    if (!note) return ctx.jsonResponse({ error: "Note not found" }, 404, ctx.baseHeaders);
-    return ctx.jsonResponse({ path: notePath, ...note }, 200, ctx.baseHeaders);
+    const data = await vaultRead(ctx, "readNote", { notePath });
+    if (data === null) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    if (!data) return ctx.jsonResponse({ error: "Note not found" }, 404, ctx.baseHeaders);
+    return ctx.jsonResponse(data, 200, ctx.baseHeaders);
   }
   return null;
 }

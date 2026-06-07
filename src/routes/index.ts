@@ -162,6 +162,142 @@ export async function dispatch(ctx: RouteContext): Promise<Response | null> {
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Trie 路由注册 — 将简单路由注册到高性能路由引擎
+// ═══════════════════════════════════════════════════════════════
+
+import { RouterEngine, type RouteRecord } from "../core/router-engine.js";
+
+export function registerTrieRoutes(engine: RouterEngine): void {
+  const routes: RouteRecord[] = [
+    // Health & system
+    { method: "GET", path: "/health", handler: handleHealth },
+    { method: "GET", path: "/metrics", handler: handleMetrics },
+    { method: "GET", path: "/", handler: handleDashboard },
+    { method: "GET", path: "/index.html", handler: handleDashboard },
+    { method: "GET", path: "/stats", handler: handleStats },
+    { method: "GET", path: "/cache/stats", handler: handleCacheStats },
+    { method: "GET", path: "/engines", handler: handleEngines },
+    { method: "GET", path: "/memory-gate/stats", handler: handleMemoryGateStats },
+    { method: "GET", path: "/stats/trends", handler: handleTrends },
+    { method: "GET", path: "/config", handler: handleConfig },
+    { method: "POST", path: "/config", handler: handleConfig },
+    { method: "GET", path: "/proxies", handler: handleProxies },
+
+    // Chat
+    { method: "POST", path: "/chat", handler: handleChat },
+    { method: "POST", path: "/agent-chat", handler: handleAgentChat },
+
+    // Search
+    { method: "GET", path: "/search", handler: handleVaultSearch },
+    { method: "GET", path: "/web-search", handler: handleWebSearch },
+    { method: "GET", path: "/enhanced-search", handler: handleEnhancedSearch },
+    { method: "GET", path: "/search/suggestions", handler: handleSearchSuggestions },
+    { method: "GET", path: "/search/stats", handler: handleSearchStats },
+    { method: "GET", path: "/search/history", handler: handleSearchHistory },
+    { method: "GET", path: "/searches/recent", handler: handleRecentSearches },
+    { method: "GET", path: "/web-fetch", handler: handleWebFetch },
+    { method: "GET", path: "/lightpanda/status", handler: handleLightpandaStatus },
+    { method: "GET", path: "/direct-search", handler: handleDirectSearch },
+    { method: "POST", path: "/search/decompose", handler: handleQueryDecompose },
+
+    // Vault
+    { method: "GET", path: "/vault/stats", handler: handleVaultStats },
+    { method: "GET", path: "/vault/para/:category", handler: handleVaultPara },
+    { method: "GET", path: "/vault/tags/:tag", handler: handleVaultTags },
+    { method: "GET", path: "/vault/network/:path", handler: handleVaultNetwork },
+    { method: "GET", path: "/vault/note", handler: handleVaultNote },
+    { method: "POST", path: "/vault/write", handler: handleVaultWrite },
+    { method: "POST", path: "/vault/atomic", handler: handleVaultAtomic },
+    { method: "POST", path: "/vault/code-index", handler: handleVaultCodeIndex },
+    { method: "POST", path: "/vault/reload", handler: handleVaultReload },
+    { method: "GET", path: "/vault/watch-status", handler: handleVaultWatchStatus },
+    { method: "POST", path: "/vault/distill", handler: handleVaultDistill },
+    { method: "GET", path: "/bootstrap", handler: handleBootstrap },
+    { method: "GET", path: "/codegraph/search", handler: handleCodegraphSearch },
+    { method: "POST", path: "/codegraph/init", handler: handleCodegraphInit },
+    { method: "GET", path: "/codegraph/status", handler: handleCodegraphStatus },
+
+    // Agents
+    { method: "GET", path: "/agents/status", handler: handleAgentsStatus },
+    { method: "GET", path: "/agents/opencode/models", handler: handleOpenCodeModels },
+    { method: "POST", path: "/agents/opencode/open", handler: handleOpenCodeOpen },
+    { method: "GET", path: "/agents/kimi/status", handler: handleKimiStatus },
+    { method: "POST", path: "/agents/kimi/chat", handler: handleKimiChat },
+    { method: "POST", path: "/agents/kimi/open", handler: handleKimiOpen },
+    { method: "POST", path: "/agents/hermes/task", handler: handleHermesTask },
+    { method: "POST", path: "/agents/opencode/generate", handler: handleOpenCodeGenerate },
+    { method: "POST", path: "/agents/opencode/refactor", handler: handleOpenCodeRefactor },
+    { method: "POST", path: "/agents/opencode/review", handler: handleOpenCodeReview },
+    { method: "POST", path: "/agents/opencode/test", handler: handleOpenCodeTest },
+
+    // Eval
+    { method: "GET", path: "/eval/stats", handler: handleEvalStats },
+    { method: "GET", path: "/eval/results", handler: handleEvalResults },
+    { method: "GET", path: "/eval/model/:id", handler: handleEvalModel },
+    { method: "GET", path: "/eval/trend/:id", handler: handleEvalTrend },
+    { method: "GET", path: "/eval/models", handler: handleEvalModels },
+    { method: "POST", path: "/eval/run", handler: handleEvalRun },
+    { method: "POST", path: "/eval/assign", handler: handleEvalAssign },
+    { method: "GET", path: "/eval/assignments", handler: handleEvalAssignments },
+    { method: "GET", path: "/eval/assign/report", handler: handleEvalAssignReport },
+
+    // Knowledge Graph
+    { method: "GET", path: "/kg/stats", handler: handleKGStats },
+    { method: "GET", path: "/kg/entities", handler: handleKGEntities },
+    { method: "GET", path: "/kg/entity/:name", handler: handleKGEntityDetail },
+    { method: "GET", path: "/kg/traverse/:name", handler: handleKGTraverse },
+    { method: "POST", path: "/kg/build", handler: handleKGBuild },
+    { method: "POST", path: "/kg/search", handler: handleKGSearch },
+    { method: "GET", path: "/kg/graph", handler: handleKGGraph },
+    { method: "GET", path: "/advisor/recommend", handler: handleAdvisorRecommend },
+    { method: "GET", path: "/advisor/free-models", handler: handleAdvisorFreeModels },
+    { method: "POST", path: "/advisor/evolve", handler: handleAdvisorEvolve },
+    { method: "GET", path: "/advisor/status", handler: handleAdvisorStatus },
+    { method: "POST", path: "/research/run", handler: handleResearchRun },
+
+    // Memory API
+    { method: "POST", path: "/memory/conversations", handler: handleSaveConversation },
+    { method: "GET", path: "/memory/conversations", handler: handleGetConversations },
+    { method: "GET", path: "/memory/sessions", handler: handleListSessions },
+    { method: "GET", path: "/memory/knowledge", handler: handleKnowledgeSearch },
+    { method: "GET", path: "/knowledge/pending-review", handler: handleKnowledgePendingReview },
+    { method: "POST", path: "/knowledge/pending-review/action", handler: handleKnowledgeReviewAction },
+    { method: "GET", path: "/memory/tasks", handler: handleListTasks },
+    { method: "GET", path: "/memory/usage", handler: handleModelUsage },
+
+    // API Keys (通配 fallback — 内部做多路径匹配)
+    { method: "GET", path: "/api-keys", handler: handleApiKeys },
+    { method: "POST", path: "/api-keys", handler: handleApiKeys },
+    { method: "GET", path: "/api-keys/**", handler: handleApiKeys },
+    { method: "DELETE", path: "/api-keys/**", handler: handleApiKeys },
+
+    // Plugins (通配 fallback — 内部做多路径匹配)
+    { method: "GET", path: "/plugins", handler: handlePluginRoutes },
+    { method: "GET", path: "/plugins/available", handler: handlePluginRoutes },
+    { method: "GET", path: "/plugins/active-tools", handler: handlePluginRoutes },
+    { method: "POST", path: "/plugins/install", handler: handlePluginRoutes },
+    { method: "GET", path: "/plugins/**", handler: handlePluginRoutes },
+    { method: "POST", path: "/plugins/**", handler: handlePluginRoutes },
+
+    // MCP Scene Router
+    { method: "GET", path: "/mcp/scenes", handler: handleSceneRoutes },
+    { method: "POST", path: "/mcp/scene", handler: handleSceneRoutes },
+    { method: "GET", path: "/mcp/scenes/:id", handler: handleSceneRoutes },
+    { method: "GET", path: "/mcp/**", handler: handleSceneRoutes },
+    { method: "POST", path: "/mcp/**", handler: handleSceneRoutes },
+
+    // OCR
+    { method: "GET", path: "/ocr/status", handler: handleOCRRoutes },
+    { method: "POST", path: "/ocr/scan", handler: handleOCRRoutes },
+    { method: "POST", path: "/ocr/export", handler: handleOCRRoutes },
+    { method: "GET", path: "/ocr/**", handler: handleOCRRoutes },
+    { method: "POST", path: "/ocr/**", handler: handleOCRRoutes },
+  ];
+
+  engine.registerBatch(routes);
+}
+
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
   return ctx.jsonResponse({

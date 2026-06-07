@@ -256,12 +256,14 @@ async function serveMode(args: string[]): Promise<void> {
 
 async function tuiMode(): Promise<void> {
   Log.info("=== Native Mode (TUI) ===");
-  
+
   // Preload hooks
   await preloader.preload();
 
-  // Start TUI
-  await pm.start("tui", "bun", [CONFIG.paths.tui]);
+  // Start Enhanced TUI
+  Log.info("Starting Enhanced TUI v2.0...");
+  const { startEnhancedTUI } = await import("./core/enhanced-tui.js");
+  await startEnhancedTUI();
 }
 
 async function agentMode(): Promise<void> {

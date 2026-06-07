@@ -1,5 +1,6 @@
 import { createReadTool, createGrepTool, createFindTool, createLsTool } from "../../vendor/pi-agent/packages/coding-agent/src/core/tools/index.js";
 import type { AgentTool, AgentToolResult } from "../../vendor/pi-agent/packages/agent/src/index.js";
+import { isCodegraphInitialized, searchFiles } from "../memory/codegraph-index.js";
 import { logger } from "../utils/logger.js";
 
 export type PiToolName = "read" | "grep" | "find" | "ls";
@@ -108,18 +109,46 @@ export class PiCodeToolsAdapter {
 
   /**
    * 查找文件
+   *
+   * 优先使用 CodeGraph 索引查询，若未初始化则回退到原生 find 工具。
    */
   async findFiles(
     pattern: string,
-    options?: { path?: string }
+    options?: { path?: string; limit?: number }
   ): Promise<PiToolResult> {
-    const tool = this.tools.get("find");
-    if (!tool) throw new Error("Find tool not initialized");
-
     try {
+      const codegraphAvailable = await isCodegraphInitialized(this.cwd);
+
+      if (codegraphAvailable) {
+        const results = await searchFiles(pattern, {
+          path: options?.path ?? this.cwd,
+          limit: options?.limit ?? 1000,
+          projectPath: this.cwd,
+        });
+
+        if (results.length === 0) {
+          return {
+            content: "No files found matching pattern",
+            success: true,
+          };
+        }
+
+        const paths = results.map((r) => r.path).join("\n");
+        return {
+          content: paths,
+          success: true,
+          details: { count: results.length },
+        };
+      }
+
+      // Fallback: 回退到原生 find 工具
+      const tool = this.tools.get("find");
+      if (!tool) throw new Error("Find tool not initialized");
+
       const result = (await tool.execute("find-1", {
-        regex: pattern,
+        pattern,
         path: options?.path ?? this.cwd,
+        limit: options?.limit,
       })) as AgentToolResult<any>;
 
       return {

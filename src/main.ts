@@ -2,7 +2,12 @@
  * OpenClaw AI Agent — 主入口 v2.2
  * Vault 核心记忆引擎 + 确定性推理 + Obsidian 共享记忆库
  *
- * Routes 拆分到 src/routes/ 模块，main.ts 只负责初始化和服务器启动
+ * 架构升级:
+ *   - O(1) 路由引擎 (Trie + 请求缓存 + 性能分析)
+ *   - 统一配置中心 (交互式配置管理)
+ *   - 架构自检系统 (启动时自动健康检查)
+ *   - 黑板系统 (多 Agent 状态共享)
+ *   - 读取优化管道 (分层缓存 + 字段投影)
  */
 import { Database } from "bun:sqlite";
 import type { ServerWebSocket } from "bun";
@@ -19,12 +24,36 @@ import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { metrics } from "./utils/metrics.js";
 import type { RouteContext, WebSocketData } from "./routes/types.js";
-import { dispatch, defaultResponse } from "./routes/index.js";
+import { dispatch, defaultResponse, registerTrieRoutes } from "./routes/index.js";
 import {
   initApiKeyOverridesTable,
   loadApiKeyOverrides,
 } from "./utils/api-key-persistence.js";
 import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store.js";
+
+// ═══════════════════════════════════════════════════════════════
+// 核心架构组件
+// ═══════════════════════════════════════════════════════════════
+import { getConfigCenter } from "./core/config-center.js";
+import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
+import { getRouterEngine } from "./core/router-engine.js";
+import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
+
+// ===== 统一配置中心 =====
+const configCenter = getConfigCenter();
+logger.info("[ConfigCenter] Initialized", { keys: configCenter.getAll().length });
+
+// ===== 架构自检 =====
+const healthReport = await runHealthCheck();
+printHealthReport(healthReport);
+
+if (healthReport.overall === "critical") {
+  logger.error("[HealthCheck] System in critical state, please fix errors before starting");
+  process.exit(1);
+}
+
+// ===== 读取优化管道初始化 =====
+initializeReadOptimizers(process.cwd());
 
 // ===== 环境验证 =====
 const envValidation = validateEnv({ strict: false, exitOnError: false });
@@ -67,6 +96,32 @@ try {
   logger.info("VaultManager initialized", { notes: vault.stats().totalNotes });
 } catch (e: unknown) {
   logger.warn("VaultManager init failed", { error: (e as Error).message });
+}
+
+// 注册 VaultManager 执行器到 ReadOptimizerFacade
+if (vault) {
+  const { getReadOptimizer } = await import("./utils/read-optimizer.js");
+  const facade = getReadOptimizer();
+  facade.registerExecutor("vault", async (req) => {
+    const { action, params } = req;
+    switch (action) {
+      case "stats": return vault!.stats();
+      case "browsePara": return vault!.browsePara(String(params.category ?? ""));
+      case "browseTag": return vault!.browseTag(String(params.tag ?? ""));
+      case "getNetwork": return vault!.getNetwork(String(params.notePath ?? ""), Number(params.depth ?? 1));
+      case "readNote": {
+        const note = vault!.readNote(String(params.notePath ?? ""));
+        return note ? { path: params.notePath, ...note } : null;
+      }
+      case "search": {
+        const query = String(params.query ?? "");
+        const limit = Number(params.limit ?? 20);
+        return vault!.search(query, { limit });
+      }
+      default:
+        throw new Error(`Unknown vault action: ${action}`);
+    }
+  });
 }
 
 // Pipeline
@@ -138,9 +193,11 @@ healthMonitor.start();
 
 // Plugin Market (插件市场)
 import { initPluginRoutes } from "./routes/plugin-adapter.js";
+import { initSceneRouter } from "./routes/scene-routes.js";
 import { ToolRegistry } from "./mcp/tool-registry.js";
 const pluginToolRegistry = new ToolRegistry();
 initPluginRoutes(db, pluginToolRegistry);
+initSceneRouter(pluginToolRegistry);
 logger.info("Plugin market initialized");
 
 import { TIMEOUTS } from "./constants/timeouts.js";
@@ -166,6 +223,11 @@ function stopHeartbeat(): void {
     heartbeatInterval = null;
   }
 }
+
+// ===== 注册 Trie 路由 (启动时一次性注册) =====
+const routerEngine = getRouterEngine();
+registerTrieRoutes(routerEngine);
+logger.info("[RouterEngine] Trie routes registered", { count: routerEngine.getRoutes().length });
 
 // ===== HTTP 服务 =====
 const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: true });
@@ -302,8 +364,14 @@ const server = Bun.serve({
         startupTime, baseHeaders, jsonResponse,
       };
 
-      // Dispatch to route handlers
-      let response = await dispatch(ctx);
+      // 使用高性能路由引擎 (O(1) Trie + 请求缓存 + 性能分析)
+      let response = await routerEngine.execute(ctx);
+
+      // 回退到传统路由系统
+      if (!response) {
+        response = await dispatch(ctx);
+      }
+
       if (!response) {
         // Try to serve a static file from public/ before falling back to JSON default
         const staticResp = await serveStaticFile(url.pathname);

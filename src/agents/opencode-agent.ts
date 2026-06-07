@@ -245,5 +245,59 @@ export async function executeCodeTest(options: {
   return piCodeEngine.executeCodeTest(options);
 }
 
+// ═══════════════════════════════════════════════════════════════
+// OpenCode 工具 Agent v3.0 兼容层
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 使用 OpenCode 工具 Agent 执行轻量任务（叠加所有优化）
+ *
+ * 自动：
+ *   - 评估任务复杂度
+ *   - Pi Agent 本地工具预处理（零 token）
+ *   - CodeGraph 上下文注入
+ *   - 免费模型轮询 + circuit breaker
+ *   - 优雅降级（失败回退 OpenClaw）
+ *   - Token 节省追踪
+ *   - 黑板优先 (Blackboard-First)
+ *   - 读取优化管道 (ReadOptimizerFacade)
+ *   - 字段投影 (列裁剪)
+ */
+export {
+  OpenCodeToolAgent,
+  getOpenCodeToolAgent,
+  quickExecute,
+  checkOpenCodeCli,
+  getAvailableFreeModels,
+  OPENCODE_FREE_MODELS as TOOL_AGENT_FREE_MODELS,
+  type TaskType,
+  type ExecutionStrategy,
+  type OpenCodeToolResult,
+} from "./opencode-tool-agent.js";
+
+// 重新导出黑板和读取优化（供上层使用）
+export {
+  getGlobalBlackboard,
+  writeFact,
+  readFact,
+  readOrCompute,
+  type BlackboardEntry,
+  type ReadOptions,
+  type ReadResult,
+  type WriteOptions,
+} from "../memory/blackboard.js";
+
+export {
+  getReadOptimizer,
+  type ReadRequest,
+  type ReadResponse,
+  type Interceptor,
+} from "../utils/read-optimizer.js";
+
+export {
+  initializeReadOptimizers,
+  isReadOptimizerInitialized,
+} from "../utils/read-optimizer-init.js";
+
 // 重新导出类型，保持向后兼容
 export type { CodeGenerateResult, CodeRefactorResult, CodeReviewResult, CodeTestResult };

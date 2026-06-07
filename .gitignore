@@ -44,6 +44,7 @@ openclaw-memory/
 
 # Temporary files
 .tmp/
+.tmp-build/
 
 # Test results
 test-results/
@@ -52,6 +53,9 @@ playwright-report/
 # Evaluation results
 eval-results/
 e2e/
+
+# Vendored dependencies
+vendor/
 
 # Backup files
 *.bundle

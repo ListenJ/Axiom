@@ -1,8 +1,13 @@
 /**
- * 多层缓存系统
- * 支持 TTL、LRU 淘汰、内存 + SQLite 持久化缓存
+ * 多层缓存系统 v2.0 — 支持 L1 内存 / L2 Redis / L3 SQLite 分层缓存
+ *
+ * 读取顺序: L1 内存 → L2 Redis → L3 SQLite
+ * 写入顺序: 同步写入 L1 + L3，异步写入 L2 (不阻塞)
+ * 无 Redis 时自动回退到 L1 + L3
  */
 import { Database } from "bun:sqlite";
+import { getRedisClient, type RedisClient } from "./redis-client.js";
+import { logger } from "./logger.js";
 
 interface CacheEntry<V> {
   value: V;
@@ -12,29 +17,42 @@ interface CacheEntry<V> {
 }
 
 interface CacheOptions {
-  maxSize?: number;        // 最大条目数
+  maxSize?: number;        // 最大条目数 (L1)
   defaultTtlMs?: number;   // 默认 TTL (ms)
-  persistent?: boolean;    // 是否持久化到 SQLite
+  persistent?: boolean;    // 是否持久化到 SQLite (L3)
   dbPath?: string;         // 持久化数据库路径
   namespace?: string;      // 命名空间隔离
+  redis?: boolean;         // 是否启用 Redis (L2)
+  redisTtlMs?: number;     // Redis TTL (默认与 defaultTtlMs 相同)
 }
 
 export class Cache<V = unknown> {
   private store = new Map<string, CacheEntry<V>>();
   private opts: Required<CacheOptions>;
   private db?: Database;
+  private redis: RedisClient | null = null;
+  private redisReady = false;
   private hitCount = 0;
   private missCount = 0;
+  private redisHitCount = 0;
+  private redisMissCount = 0;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: CacheOptions = {}) {
     this.opts = {
       maxSize: opts.maxSize ?? 1000,
-      defaultTtlMs: opts.defaultTtlMs ?? 5 * 60 * 1000, // 5min
+      defaultTtlMs: opts.defaultTtlMs ?? 5 * 60 * 1000,
       persistent: opts.persistent ?? false,
       dbPath: opts.dbPath ?? "./data/agent.db",
       namespace: opts.namespace ?? "default",
+      redis: opts.redis ?? true, // 默认尝试启用 Redis
+      redisTtlMs: opts.redisTtlMs ?? opts.defaultTtlMs ?? 5 * 60 * 1000,
     };
+
+    // 初始化 Redis (异步，不阻塞构造)
+    if (this.opts.redis) {
+      this.initRedis();
+    }
 
     if (this.opts.persistent) {
       this.db = new Database(this.opts.dbPath);
@@ -53,11 +71,24 @@ export class Cache<V = unknown> {
     }
   }
 
-  /** 获取缓存值 */
-  get(key: string): V | undefined {
-    const fullKey = this.key(key);
-    const entry = this.store.get(fullKey);
+  private async initRedis(): Promise<void> {
+    try {
+      this.redis = await getRedisClient();
+      this.redisReady = this.redis !== null;
+      if (this.redisReady) {
+        logger.info("[Cache] Redis L2 cache enabled", { namespace: this.opts.namespace });
+      }
+    } catch {
+      this.redisReady = false;
+    }
+  }
 
+  /** 获取缓存值 — L1 → L2 → L3 */
+  async get(key: string): Promise<V | undefined> {
+    const fullKey = this.key(key);
+
+    // L1: 内存缓存
+    const entry = this.store.get(fullKey);
     if (entry) {
       if (Date.now() > entry.expiresAt) {
         this.store.delete(fullKey);
@@ -70,7 +101,31 @@ export class Cache<V = unknown> {
       return entry.value;
     }
 
-    // 尝试从持久化缓存读取
+    // L2: Redis 缓存
+    if (this.redisReady && this.redis) {
+      try {
+        const redisKey = `${this.opts.namespace}:${key}`;
+        const raw = await this.redis.get(redisKey);
+        if (raw) {
+          const value = JSON.parse(raw) as V;
+          // 回填 L1
+          this.store.set(fullKey, {
+            value,
+            expiresAt: Date.now() + this.opts.defaultTtlMs,
+            accessCount: 1,
+            lastAccessed: Date.now(),
+          });
+          this.redisHitCount++;
+          this.hitCount++;
+          return value;
+        }
+        this.redisMissCount++;
+      } catch (err) {
+        logger.debug("[Cache] Redis read failed", { error: (err as Error).message });
+      }
+    }
+
+    // L3: SQLite 持久化缓存
     if (this.db) {
       const row = this.db
         .query("SELECT value, expires_at FROM cache_store WHERE namespace = ? AND key = ?")
@@ -103,16 +158,29 @@ export class Cache<V = unknown> {
     return undefined;
   }
 
-  /** 设置缓存值 */
+  /** 同步获取 (仅 L1，用于兼容旧代码路径) */
+  getSync(key: string): V | undefined {
+    const fullKey = this.key(key);
+    const entry = this.store.get(fullKey);
+    if (entry && Date.now() <= entry.expiresAt) {
+      entry.accessCount++;
+      entry.lastAccessed = Date.now();
+      this.hitCount++;
+      return entry.value;
+    }
+    return undefined;
+  }
+
+  /** 设置缓存值 — L1 + L2 + L3 */
   set(key: string, value: V, ttlMs?: number): void {
     const fullKey = this.key(key);
-    const expiresAt = Date.now() + (ttlMs ?? this.opts.defaultTtlMs);
+    const effectiveTtl = ttlMs ?? this.opts.defaultTtlMs;
+    const expiresAt = Date.now() + effectiveTtl;
 
-    // LRU: 如果超出容量，淘汰最少访问的
+    // L1: 内存
     if (this.store.size >= this.opts.maxSize && !this.store.has(fullKey)) {
       this.evictLRU();
     }
-
     this.store.set(fullKey, {
       value,
       expiresAt,
@@ -120,6 +188,16 @@ export class Cache<V = unknown> {
       lastAccessed: Date.now(),
     });
 
+    // L2: Redis (异步，不阻塞)
+    if (this.redisReady && this.redis) {
+      const redisKey = `${this.opts.namespace}:${key}`;
+      const redisTtl = Math.floor((this.opts.redisTtlMs ?? effectiveTtl) / 1000);
+      this.redis.set(redisKey, JSON.stringify(value), redisTtl).catch((err) => {
+        logger.debug("[Cache] Redis write failed", { error: (err as Error).message });
+      });
+    }
+
+    // L3: SQLite
     if (this.db) {
       this.db.run(
         `INSERT OR REPLACE INTO cache_store (namespace, key, value, expires_at)
@@ -131,7 +209,7 @@ export class Cache<V = unknown> {
 
   /** 原子获取或计算 */
   async getOrSet(key: string, factory: () => Promise<V>, ttlMs?: number): Promise<V> {
-    const cached = this.get(key);
+    const cached = await this.get(key);
     if (cached !== undefined) return cached;
     const value = await factory();
     this.set(key, value, ttlMs);
@@ -142,12 +220,23 @@ export class Cache<V = unknown> {
   delete(key: string): void {
     const fullKey = this.key(key);
     this.store.delete(fullKey);
+
+    if (this.redisReady && this.redis) {
+      const redisKey = `${this.opts.namespace}:${key}`;
+      this.redis.del(redisKey).catch(() => {});
+    }
+
     this.db?.run("DELETE FROM cache_store WHERE namespace = ? AND key = ?", [this.opts.namespace, key]);
   }
 
   /** 清空缓存 */
   clear(): void {
     this.store.clear();
+
+    if (this.redisReady && this.redis) {
+      this.redis.flushdb().catch(() => {});
+    }
+
     this.db?.run("DELETE FROM cache_store WHERE namespace = ?", [this.opts.namespace]);
   }
 
@@ -162,13 +251,27 @@ export class Cache<V = unknown> {
   }
 
   /** 缓存统计 */
-  stats(): { size: number; hits: number; misses: number; hitRate: number } {
+  stats(): {
+    size: number;
+    hits: number;
+    misses: number;
+    hitRate: number;
+    redisHits: number;
+    redisMisses: number;
+    redisHitRate: number;
+    redisConnected: boolean;
+  } {
     const total = this.hitCount + this.missCount;
+    const redisTotal = this.redisHitCount + this.redisMissCount;
     return {
       size: this.store.size,
       hits: this.hitCount,
       misses: this.missCount,
       hitRate: total > 0 ? Math.round((this.hitCount / total) * 1000) / 1000 : 0,
+      redisHits: this.redisHitCount,
+      redisMisses: this.redisMissCount,
+      redisHitRate: redisTotal > 0 ? Math.round((this.redisHitCount / redisTotal) * 1000) / 1000 : 0,
+      redisConnected: this.redisReady,
     };
   }
 

@@ -76,6 +76,52 @@ export interface CodeGraphContextResult {
   summary?: string;
 }
 
+export interface CodeGraphFileResult {
+  path: string;
+  language: string;
+  nodeCount: number;
+  size: number;
+}
+
+/**
+ * 通过 glob 模式搜索已索引的文件
+ *
+ * 使用 codegraph files --pattern <glob> --format flat -j 查询
+ */
+export async function searchFiles(
+  pattern: string,
+  opts?: { path?: string; limit?: number; projectPath?: string }
+): Promise<CodeGraphFileResult[]> {
+  const args = ["files", "--pattern", pattern, "--format", "flat", "--json"];
+
+  if (opts?.path) {
+    const projectPath = opts.projectPath || process.cwd();
+    let filterPath = opts.path;
+    if (path.isAbsolute(filterPath)) {
+      filterPath = path.relative(projectPath, filterPath);
+    }
+    if (filterPath && filterPath !== "." && filterPath !== "") {
+      args.push("--filter", filterPath);
+    }
+  }
+
+  const { stdout, stderr, exitCode } = await runCodegraph(args, opts?.projectPath);
+  if (exitCode !== 0) {
+    logger.warn("[CodeGraph] Files search failed", { pattern, error: stderr });
+    return [];
+  }
+
+  try {
+    const results = JSON.parse(stdout) as CodeGraphFileResult[];
+    if (opts?.limit && opts.limit > 0) {
+      return results.slice(0, opts.limit);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 /** 检查项目是否已索引 */
 export async function isCodegraphInitialized(projectPath?: string): Promise<boolean> {
   const cwd = projectPath || process.cwd();

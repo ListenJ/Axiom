@@ -10,6 +10,7 @@
 import type { RouteContext } from "../routes/types.js";
 import { SceneRouter, DEFAULT_SCENES } from "../mcp/scene-router.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
+import { logger } from "../utils/logger.js";
 
 let sceneRouter: SceneRouter | null = null;
 
@@ -17,11 +18,13 @@ let sceneRouter: SceneRouter | null = null;
 export function initSceneRouter(registry: ToolRegistry): SceneRouter {
   sceneRouter = new SceneRouter(registry);
   sceneRouter.addScenes(DEFAULT_SCENES);
+  logger.debug("[SceneRouter] Initialized");
   return sceneRouter;
 }
 
 /** 获取当前场景路由器实例 */
 export function getSceneRouter(): SceneRouter {
+  logger.debug("[SceneRouter] Get instance");
   if (!sceneRouter) {
     throw new Error("SceneRouter not initialized. Call initSceneRouter() first.");
   }
@@ -31,6 +34,7 @@ export function getSceneRouter(): SceneRouter {
 /** 处理 /mcp/* 路由 */
 export async function handleSceneRoutes(ctx: RouteContext): Promise<Response | null> {
   const path = ctx.url.pathname;
+  logger.debug("[SceneRouter] Handle route", { path, method: ctx.req.method });
 
   // GET /mcp/scenes — 列出所有场景
   if (path === "/mcp/scenes" && ctx.req.method === "GET") {

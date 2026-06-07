@@ -1,7 +1,32 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, spyOn } from "bun:test";
 import { CodeRetrievalRouter, type QueryAnalysis, type RetrievalStrategy } from "../src/router/code-retrieval-router.js";
 import { ContextManager, type ContextStats, type SplitOptions } from "../src/context/context-manager.js";
 import { GracefulDegradationRouter, type DegradationOptions, type AggregationStrategy } from "../src/router/graceful-degradation.js";
+import { router } from "../src/router/model-router.js";
+
+let executeWithRoleSpy: ReturnType<typeof spyOn> | undefined;
+let embeddingsSpy: ReturnType<typeof spyOn> | undefined;
+
+beforeAll(() => {
+  executeWithRoleSpy = spyOn(router, "executeWithRole").mockImplementation(async () => ({
+    content: "test summary",
+    role: "decision",
+    model: "test-model",
+    provider: "test-provider",
+    endpoint: "https://test.example.com",
+    usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+    latency_ms: 100,
+    fallback_used: false,
+  }));
+  embeddingsSpy = spyOn(router, "embeddings").mockImplementation(async (texts) =>
+    (Array.isArray(texts) ? texts : [texts]).map(() => new Array(128).fill(0).map((_, i) => i / 128))
+  );
+});
+
+afterAll(() => {
+  executeWithRoleSpy?.mockRestore();
+  embeddingsSpy?.mockRestore();
+});
 
 describe("CodeRetrievalRouter", () => {
   it("should initialize with default config", () => {

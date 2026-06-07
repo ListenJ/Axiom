@@ -164,7 +164,8 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
     const { wsManager } = await import("../utils/websocket.js");
 
     const cacheKey = `crawl::${targetUrl}`;
-    let result = crawlCache.get(cacheKey) as StructuredCrawlResult | undefined;
+    const cached = await crawlCache.get(cacheKey);
+    let result = cached ? (cached as unknown as StructuredCrawlResult) : undefined;
     if (!result) {
       result = (await ctx.pipeline.crawlStructured(targetUrl)) ?? undefined;
       if (result) {
