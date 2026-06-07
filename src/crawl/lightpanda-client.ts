@@ -440,6 +440,356 @@ export async function startLightpandaDocker(): Promise<boolean> {
   }
 }
 
+// ========== CDP 截图 ==========
+
+export interface ScreenshotResult {
+  base64: string;
+  width: number;
+  height: number;
+  format: "png" | "jpeg";
+  loadTimeMs: number;
+}
+
+/**
+ * 使用 CDP 截取当前页面截图
+ *
+ * 流程:
+ *   1. 创建 CDP target
+ *   2. 导航到 URL（如果指定）
+ *   3. 调用 Page.captureScreenshot
+ *   4. 返回 base64 图片
+ */
+export async function captureScreenshot(
+  url?: string,
+  cdpUrl: string = "http://127.0.0.1:9222",
+  options: { format?: "png" | "jpeg"; quality?: number; fullPage?: boolean; timeout?: number } = {}
+): Promise<ScreenshotResult> {
+  const startTime = Date.now();
+  const { format = "png", quality = 90, fullPage = false, timeout = 15000 } = options;
+
+  // 1. 创建 target
+  const targetRes = await proxyFetch(`${cdpUrl}/json/new`, { method: "PUT", timeout: 5000 });
+  if (!targetRes.ok) throw new Error("Failed to create CDP target for screenshot");
+  const target = await targetRes.json();
+  const wsUrl: string | undefined = target.webSocketDebuggerUrl;
+  if (!wsUrl) throw new Error("No WebSocket debugger URL");
+
+  return new Promise<ScreenshotResult>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error(`Screenshot timeout after ${timeout}ms`));
+    }, timeout);
+
+    const ws = new WebSocket(wsUrl);
+    let messageId = 1;
+    let navigated = false;
+
+    ws.onopen = () => {
+      if (url) {
+        ws.send(JSON.stringify({ id: messageId++, method: "Page.navigate", params: { url } }));
+      } else {
+        // No navigation needed, capture immediately
+        ws.send(JSON.stringify({
+          id: messageId++,
+          method: "Page.captureScreenshot",
+          params: { format, quality: format === "jpeg" ? quality : undefined, fromSurface: true },
+        }));
+      }
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      const msg = JSON.parse(String(event.data));
+
+      // Navigation complete
+      if (msg.method === "Page.loadEventFired" || msg.method === "Page.frameStoppedLoading") {
+        if (!navigated) {
+          navigated = true;
+          // Wait for JS + visual stable
+          setTimeout(() => {
+            const params: Record<string, unknown> = { format, fromSurface: true };
+            if (format === "jpeg") params.quality = quality;
+            if (fullPage) {
+              // Capture full page: get document dimensions first
+              ws.send(JSON.stringify({
+                id: messageId++,
+                method: "Runtime.evaluate",
+                params: { expression: "JSON.stringify({w:document.documentElement.scrollWidth,h:document.documentElement.scrollHeight})" },
+              }));
+            } else {
+              ws.send(JSON.stringify({ id: messageId++, method: "Page.captureScreenshot", params }));
+            }
+          }, 500);
+        }
+      }
+
+      // Got document dimensions for full page capture
+      if (msg.result?.result?.value && msg.result.result.value.includes('"w":')) {
+        const dims = JSON.parse(msg.result.result.value);
+        ws.send(JSON.stringify({
+          id: messageId++,
+          method: "Emulation.setDeviceMetricsOverride",
+          params: { width: dims.w, height: dims.h, deviceScaleFactor: 1, mobile: false },
+        }));
+        setTimeout(() => {
+          ws.send(JSON.stringify({
+            id: messageId++,
+            method: "Page.captureScreenshot",
+            params: { format, fromSurface: true },
+          }));
+        }, 300);
+      }
+
+      // Got screenshot data
+      if (msg.result?.data) {
+        clearTimeout(timer);
+        ws.send(JSON.stringify({ id: messageId++, method: "Page.close", params: {} }));
+        ws.close();
+        resolve({
+          base64: msg.result.data,
+          width: 0, // Could query from CDP but not critical
+          height: 0,
+          format,
+          loadTimeMs: Date.now() - startTime,
+        });
+      }
+
+      // Navigation response (when url provided)
+      if (msg.id === 1 && msg.result?.frameId) {
+        // Navigation initiated, wait for load event
+      }
+
+      if (msg.error) {
+        clearTimeout(timer);
+        ws.close();
+        reject(new Error(`CDP error: ${msg.error.message}`));
+      }
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("CDP WebSocket error during screenshot"));
+    };
+  });
+}
+
+// ========== CDP 元素提取 ==========
+
+export interface InteractiveElement {
+  index: number;
+  tag: string;
+  text: string;
+  role: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+  visible: boolean;
+  attrs: Record<string, string>;
+}
+
+/**
+ * 通过 CDP 提取页面所有可交互元素
+ *
+ * 提取: button, a, input, textarea, select, [onclick], [role=button]
+ * 返回: 元素列表（含坐标、文本、类型）
+ *
+ * 此信息发送给视觉模型，可大幅降低 token 消耗并提高定位精度。
+ */
+export async function extractInteractiveElements(
+  cdpUrl: string = "http://127.0.0.1:9222",
+  timeout: number = 10000
+): Promise<InteractiveElement[]> {
+  const targetRes = await proxyFetch(`${cdpUrl}/json/new`, { method: "PUT", timeout: 5000 });
+  if (!targetRes.ok) throw new Error("Failed to create CDP target for element extraction");
+  const target = await targetRes.json();
+  const wsUrl: string | undefined = target.webSocketDebuggerUrl;
+  if (!wsUrl) throw new Error("No WebSocket debugger URL");
+
+  const selector = `
+    button, a, input, textarea, select,
+    [onclick], [role="button"], [role="link"], [role="input"],
+    [contenteditable="true"], label, summary, [tabindex]:not([tabindex="-1"])
+  `;
+
+  const script = `
+    (function() {
+      const els = document.querySelectorAll(${JSON.stringify(selector)});
+      const results = [];
+      let idx = 0;
+      for (const el of els) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2) continue;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+        const text = (el.textContent || el.value || el.placeholder || el.title || "").trim().slice(0, 80);
+        const role = el.getAttribute("role") || el.tagName.toLowerCase();
+        const attrs = {};
+        for (const attr of ["id", "class", "name", "type", "href", "placeholder", "aria-label"]) {
+          const v = el.getAttribute(attr);
+          if (v) attrs[attr] = v;
+        }
+        results.push({
+          index: idx++,
+          tag: el.tagName.toLowerCase(),
+          text: text,
+          role: role,
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          centerX: Math.round(rect.x + rect.width / 2),
+          centerY: Math.round(rect.y + rect.height / 2),
+          visible: true,
+          attrs: attrs
+        });
+      }
+      return JSON.stringify(results);
+    })()
+  `;
+
+  return new Promise<InteractiveElement[]>((resolve, reject) => {
+    const timer = setTimeout(() => { ws.close(); reject(new Error("Element extraction timeout")); }, timeout);
+    const ws = new WebSocket(wsUrl);
+    let messageId = 1;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        id: messageId++,
+        method: "Runtime.evaluate",
+        params: { expression: script, returnByValue: true },
+      }));
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      const msg = JSON.parse(String(event.data));
+      if (msg.result?.result?.value) {
+        clearTimeout(timer);
+        ws.send(JSON.stringify({ id: messageId++, method: "Page.close", params: {} }));
+        ws.close();
+        try {
+          const data = JSON.parse(msg.result.result.value);
+          resolve(data as InteractiveElement[]);
+        } catch { resolve([]); }
+      }
+      if (msg.error) {
+        clearTimeout(timer);
+        ws.close();
+        reject(new Error(msg.error.message));
+      }
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("CDP WebSocket error during element extraction"));
+    };
+  });
+}
+
+// ========== CDP 操作执行 ==========
+
+export interface CDPAction {
+  type: "click" | "type" | "keypress" | "scroll" | "navigate" | "wait";
+  x?: number;
+  y?: number;
+  text?: string;
+  keys?: string[];
+  url?: string;
+  ms?: number;
+  selector?: string;
+}
+
+/**
+ * 通过 CDP 执行操作指令
+ */
+export async function executeCDPAction(
+  action: CDPAction,
+  cdpUrl: string = "http://127.0.0.1:9222",
+  timeout: number = 10000
+): Promise<{ success: boolean; message?: string }> {
+  const targetRes = await proxyFetch(`${cdpUrl}/json/new`, { method: "PUT", timeout: 5000 });
+  if (!targetRes.ok) throw new Error("Failed to create CDP target for action execution");
+  const target = await targetRes.json();
+  const wsUrl: string | undefined = target.webSocketDebuggerUrl;
+  if (!wsUrl) throw new Error("No WebSocket debugger URL");
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { ws.close(); reject(new Error("Action execution timeout")); }, timeout);
+    const ws = new WebSocket(wsUrl);
+    let messageId = 1;
+    let done = false;
+
+    ws.onopen = async () => {
+      switch (action.type) {
+        case "click": {
+          const x = action.x ?? 0;
+          const y = action.y ?? 0;
+          ws.send(JSON.stringify({ id: messageId++, method: "Input.dispatchMouseEvent", params: { type: "mousePressed", x, y, button: "left", clickCount: 1 } }));
+          setTimeout(() => {
+            ws.send(JSON.stringify({ id: messageId++, method: "Input.dispatchMouseEvent", params: { type: "mouseReleased", x, y, button: "left", clickCount: 1 } }));
+            done = true;
+            setTimeout(() => finish(), 200);
+          }, 50);
+          break;
+        }
+        case "type": {
+          if (action.text) {
+            ws.send(JSON.stringify({ id: messageId++, method: "Input.insertText", params: { text: action.text } }));
+          }
+          done = true;
+          setTimeout(() => finish(), 200);
+          break;
+        }
+        case "keypress": {
+          for (const key of action.keys || []) {
+            ws.send(JSON.stringify({ id: messageId++, method: "Input.dispatchKeyEvent", params: { type: "keyDown", key } }));
+            ws.send(JSON.stringify({ id: messageId++, method: "Input.dispatchKeyEvent", params: { type: "keyUp", key } }));
+          }
+          done = true;
+          setTimeout(() => finish(), 200);
+          break;
+        }
+        case "scroll": {
+          const script = `window.scrollBy(${action.x ?? 0}, ${action.y ?? 0})`;
+          ws.send(JSON.stringify({ id: messageId++, method: "Runtime.evaluate", params: { expression: script } }));
+          done = true;
+          setTimeout(() => finish(), 300);
+          break;
+        }
+        case "navigate": {
+          if (action.url) {
+            ws.send(JSON.stringify({ id: messageId++, method: "Page.navigate", params: { url: action.url } }));
+          }
+          done = true;
+          setTimeout(() => finish(), 500);
+          break;
+        }
+        case "wait": {
+          setTimeout(() => { done = true; finish(); }, action.ms ?? 1000);
+          break;
+        }
+        default:
+          done = true;
+          finish();
+      }
+    };
+
+    function finish() {
+      clearTimeout(timer);
+      ws.send(JSON.stringify({ id: messageId++, method: "Page.close", params: {} }));
+      ws.close();
+      resolve({ success: done, message: `${action.type} executed` });
+    }
+
+    ws.onmessage = () => { /* responses ignored */ };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("CDP WebSocket error during action execution"));
+    };
+  });
+}
+
 // ========== 内容提取 (知识库优化) ==========
 
 export interface PageContent {

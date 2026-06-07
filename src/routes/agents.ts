@@ -180,6 +180,7 @@ export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response 
 // ===== Computer Use Agent API =====
 
 export async function handleComputerUse(ctx: RouteContext): Promise<Response | null> {
+  // POST /agents/computer-use — 分析截图/任务
   if (ctx.url.pathname === "/agents/computer-use" && ctx.req.method === "POST") {
     const body = await ctx.req.json();
     const { analyzeScreenshot } = await import("../agents/computer-use-agent.js");
@@ -191,6 +192,8 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
         imageType: body.imageType,
         modelId: body.modelId,
         history: body.history,
+        cdpUrl: body.cdpUrl,
+        targetUrl: body.targetUrl,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
@@ -199,21 +202,68 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
     }
   }
 
+  // GET /agents/computer-use/models — 列出视觉模型
   if (ctx.url.pathname === "/agents/computer-use/models" && ctx.req.method === "GET") {
     const { getComputerUseAgent } = await import("../agents/computer-use-agent.js");
     const agent = getComputerUseAgent();
     return ctx.jsonResponse({ models: agent.listVisionModels() }, 200, ctx.baseHeaders);
   }
 
-  if (ctx.url.pathname === "/agents/computer-use/plan" && ctx.req.method === "POST") {
+  // POST /agents/computer-use/screenshot — CDP 截图
+  if (ctx.url.pathname === "/agents/computer-use/screenshot" && ctx.req.method === "POST") {
     const body = await ctx.req.json();
-    const { planComputerTask } = await import("../agents/computer-use-agent.js");
+    const { captureScreenshot } = await import("../crawl/lightpanda-client.js");
     try {
-      const result = await planComputerTask(
-        body.goal || body.task || "",
-        { imageBase64: body.imageBase64, imageUrl: body.imageUrl, imageType: body.imageType }
+      const result = await captureScreenshot(
+        body.url,
+        body.cdpUrl || "http://127.0.0.1:9222",
+        { format: body.format || "png", fullPage: body.fullPage, timeout: body.timeout || 20000 }
       );
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+    }
+  }
+
+  // POST /agents/computer-use/elements — CDP 提取元素
+  if (ctx.url.pathname === "/agents/computer-use/elements" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { extractInteractiveElements } = await import("../crawl/lightpanda-client.js");
+    try {
+      const result = await extractInteractiveElements(body.cdpUrl || "http://127.0.0.1:9222", body.timeout || 10000);
+      return ctx.jsonResponse({ elements: result, count: result.length }, 200, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+    }
+  }
+
+  // POST /agents/computer-use/execute — CDP 执行操作
+  if (ctx.url.pathname === "/agents/computer-use/execute" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { executeComputerAction } = await import("../agents/computer-use-agent.js");
+    try {
+      const result = await executeComputerAction(body.action, body.cdpUrl);
+      return ctx.jsonResponse(result, 200, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+    }
+  }
+
+  // POST /agents/computer-use/task — 多步任务执行
+  if (ctx.url.pathname === "/agents/computer-use/task" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { runComputerTask } = await import("../agents/computer-use-agent.js");
+    try {
+      const result = await runComputerTask(
+        body.goal || body.task || "",
+        body.cdpUrl || "http://127.0.0.1:9222",
+        body.targetUrl,
+        body.maxSteps || 10
+      );
+      return ctx.jsonResponse({ steps: result, totalSteps: result.length }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);

@@ -17,6 +17,7 @@ applyTheme();
 // ===== Navigation =====
 const pages = {
   chat: { label: "Chat", icon: "💬", desc: "与 Agent 沟通" },
+  computer: { label: "Computer", icon: "🖥️", desc: "视觉自动化" },
   search: { label: "Search", icon: "🔍", desc: "Vault / Web 搜索" },
   kg: { label: "KG", icon: "🕸️", desc: "知识图谱可视化" },
   ocr: { label: "OCR", icon: "📄", desc: "文档扫描识别" },
@@ -43,6 +44,7 @@ function navigate(page) {
   renderNav();
   closeSidebar();
   if (page === "chat") renderChat();
+  else if (page === "computer") renderComputer();
   else if (page === "search") renderSearch();
   else if (page === "kg") renderKG();
   else if (page === "ocr") renderOcr();
@@ -1684,6 +1686,302 @@ async function reviewAction(file, action, btn) {
 function escapeHtml(s) {
   if (!s) return "";
   return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\n/g, "<br>");
+}
+
+// ===== Computer Use (Visual Automation) =====
+let computerState = {
+  screenshot: null,
+  elements: [],
+  actions: [],
+  cdpUrl: "http://127.0.0.1:9222",
+  targetUrl: "",
+  modelId: "",
+  loading: false,
+};
+
+function renderComputer() {
+  const el = document.getElementById("pageContent");
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;height:calc(100vh - 120px)">
+      <!-- Left: Screenshot + Overlay -->
+      <div class="card" style="display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2 style="margin:0">🖥️ Computer Use</h2>
+          <div style="display:flex;gap:6px">
+            <button class="btn small" onclick="computerTakeScreenshot()" ${computerState.loading ? 'disabled' : ''}>📸 截图</button>
+            <button class="btn small secondary" onclick="computerUpload()">📁 上传</button>
+            <button class="btn small secondary" onclick="computerClear()">🗑️ 清空</button>
+          </div>
+        </div>
+        <input type="file" id="computerFile" accept="image/*" style="display:none" onchange="handleComputerFile(this)">
+        <div id="computerPreview" style="flex:1;overflow:auto;position:relative;background:var(--bg);border-radius:8px;border:1px solid var(--border);min-height:200px;display:flex;align-items:center;justify-content:center">
+          <div style="color:var(--muted);text-align:center;padding:20px">
+            <div style="font-size:2rem;margin-bottom:8px">🖼️</div>
+            <div>拖拽截图到此处，或点击「截图」/「上传」</div>
+            <div style="font-size:0.8rem;margin-top:4px">支持 CDP 远程截图 或 本地图片</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Controls + Results -->
+      <div style="display:flex;flex-direction:column;gap:12px;overflow:hidden">
+        <!-- Config -->
+        <div class="card">
+          <h2>⚙️ 配置</h2>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div>
+              <label style="font-size:0.75rem;color:var(--muted)">CDP 地址</label>
+              <input type="text" class="input" id="computerCdpUrl" value="${computerState.cdpUrl}" placeholder="http://127.0.0.1:9222" style="margin-top:4px">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;color:var(--muted)">目标 URL (可选)</label>
+              <input type="text" class="input" id="computerTargetUrl" value="${computerState.targetUrl}" placeholder="https://example.com" style="margin-top:4px">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;color:var(--muted)">视觉模型</label>
+              <select class="select" id="computerModel" style="margin-top:4px;width:100%"><option value="">默认 (自动选择)</option></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task -->
+        <div class="card" style="flex:1;display:flex;flex-direction:column">
+          <h2>🎯 任务</h2>
+          <textarea class="input" id="computerTask" placeholder="描述要完成的任务，例如：点击登录按钮并输入用户名..." style="flex:1;margin:8px 0;min-height:80px"></textarea>
+          <div style="display:flex;gap:6px">
+            <button class="btn" onclick="computerAnalyze()" style="flex:1" ${computerState.loading ? 'disabled' : ''}>🧠 分析</button>
+            <button class="btn secondary" onclick="computerRunTask()" style="flex:1" ${computerState.loading ? 'disabled' : ''}>▶️ 执行任务</button>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card" style="max-height:250px;overflow-y:auto">
+          <h2>📋 结果</h2>
+          <div id="computerResults" style="font-size:0.8rem">
+            <div style="color:var(--muted)">等待分析...</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    loadComputerModels();
+    setupComputerDragDrop();
+    if (computerState.screenshot) {
+      displayComputerScreenshot(computerState.screenshot, computerState.elements);
+    }
+  }, 10);
+}
+
+async function loadComputerModels() {
+  try {
+    const res = await api("/agents/computer-use/models");
+    const select = document.getElementById("computerModel");
+    if (!select) return;
+    const models = res.models || [];
+    // Prefer Qwen vision models
+    const preferred = models.filter((m) => /qwen.*vl|qvq/i.test(m.id));
+    const others = models.filter((m) => !/qwen.*vl|qvq/i.test(m.id));
+    select.innerHTML = '<option value="">默认 (自动选择)</option>' +
+      preferred.map((m) => `<option value="${m.id}" ${/qwen2\.5-vl/i.test(m.id) ? 'selected' : ''}>${m.id} (${m.provider})</option>`).join("") +
+      others.map((m) => `<option value="${m.id}">${m.id} (${m.provider})</option>`).join("");
+  } catch {}
+}
+
+function setupComputerDragDrop() {
+  const preview = document.getElementById("computerPreview");
+  if (!preview) return;
+  preview.ondragover = (e) => { e.preventDefault(); preview.style.borderColor = "var(--accent)"; };
+  preview.ondragleave = () => { preview.style.borderColor = "var(--border)"; };
+  preview.ondrop = (e) => {
+    e.preventDefault();
+    preview.style.borderColor = "var(--border)";
+    const file = e.dataTransfer?.files[0];
+    if (file) processComputerFile(file);
+  };
+}
+
+function computerUpload() {
+  document.getElementById("computerFile")?.click();
+}
+
+function handleComputerFile(input) {
+  const file = input.files[0];
+  if (file) processComputerFile(file);
+}
+
+function processComputerFile(file) {
+  if (!file.type.startsWith("image/")) { alert("请选择图片文件"); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = String(e.target?.result || "").split(",")[1];
+    computerState.screenshot = base64;
+    computerState.elements = [];
+    displayComputerScreenshot(base64, []);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function computerTakeScreenshot() {
+  const cdpUrl = document.getElementById("computerCdpUrl")?.value || computerState.cdpUrl;
+  const targetUrl = document.getElementById("computerTargetUrl")?.value || "";
+  computerState.loading = true;
+  renderComputer();
+  try {
+    const res = await api("/agents/computer-use/screenshot", {
+      method: "POST",
+      body: JSON.stringify({ cdpUrl, url: targetUrl || undefined, format: "png" }),
+    });
+    computerState.screenshot = res.base64;
+    computerState.cdpUrl = cdpUrl;
+    computerState.targetUrl = targetUrl;
+    // Also extract elements
+    try {
+      const elRes = await api("/agents/computer-use/elements", {
+        method: "POST",
+        body: JSON.stringify({ cdpUrl }),
+      });
+      computerState.elements = elRes.elements || [];
+    } catch {}
+    displayComputerScreenshot(res.base64, computerState.elements);
+    showComputerResult("✅ 截图成功" + (computerState.elements.length ? `，提取 ${computerState.elements.length} 个元素` : ""));
+  } catch (e) {
+    showComputerResult("❌ 截图失败: " + (e instanceof Error ? e.message : String(e)));
+  } finally {
+    computerState.loading = false;
+    renderComputer();
+    // restore screenshot display
+    if (computerState.screenshot) {
+      setTimeout(() => displayComputerScreenshot(computerState.screenshot, computerState.elements), 10);
+    }
+  }
+}
+
+function displayComputerScreenshot(base64, elements) {
+  const preview = document.getElementById("computerPreview");
+  if (!preview) return;
+  const img = new Image();
+  img.onload = () => {
+    const containerWidth = preview.clientWidth - 24;
+    const scale = Math.min(containerWidth / img.width, 1);
+    const w = img.width * scale;
+    const h = img.height * scale;
+
+    // Build element overlay
+    let overlayHtml = "";
+    for (const el of elements.slice(0, 50)) {
+      const ex = el.x * scale;
+      const ey = el.y * scale;
+      const ew = el.width * scale;
+      const eh = el.height * scale;
+      if (ew < 4 || eh < 4) continue;
+      overlayHtml += `
+        <div style="position:absolute;left:${ex}px;top:${ey}px;width:${ew}px;height:${eh}px;
+          border:1.5px solid var(--accent);border-radius:2px;pointer-events:none;opacity:0.6">
+          <span style="position:absolute;top:-16px;left:0;background:var(--accent);color:#fff;
+            font-size:9px;padding:1px 4px;border-radius:3px;white-space:nowrap">[${el.index}] ${escapeHtml(el.text.slice(0, 15))}</span>
+        </div>`;
+    }
+
+    preview.innerHTML = `
+      <div style="position:relative;display:inline-block">
+        <img src="data:image/png;base64,${base64}" style="max-width:100%;border-radius:6px;display:block">
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%">${overlayHtml}</div>
+      </div>`;
+  };
+  img.src = "data:image/png;base64," + base64;
+}
+
+async function computerAnalyze() {
+  const task = document.getElementById("computerTask")?.value.trim();
+  if (!task) { alert("请输入任务描述"); return; }
+  if (!computerState.screenshot) { alert("请先截图或上传图片"); return; }
+
+  const modelId = document.getElementById("computerModel")?.value || "";
+  computerState.loading = true;
+  showComputerResult("🧠 分析中...");
+
+  try {
+    const res = await api("/agents/computer-use", {
+      method: "POST",
+      body: JSON.stringify({
+        task,
+        imageBase64: computerState.screenshot,
+        modelId: modelId || undefined,
+        cdpUrl: computerState.cdpUrl,
+        targetUrl: computerState.targetUrl || undefined,
+      }),
+    });
+
+    computerState.actions = res.actions || [];
+    let html = `<div style="margin-bottom:8px"><strong>模型:</strong> ${res.model} (${res.provider})</div>`;
+    html += `<div style="margin-bottom:8px"><strong>思考:</strong> ${escapeHtml(res.reasoning)}</div>`;
+    html += `<div style="margin-bottom:8px"><strong>元素增强:</strong> ${res.elementEnhanced ? "✅ 是" : "❌ 否"}</div>`;
+    html += `<div style="margin-bottom:8px"><strong>建议操作:</strong></div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:4px">`;
+    for (const action of res.actions || []) {
+      const badge = action.type === "done" ? "ok" : action.type === "click" ? "warn" : "";
+      html += `<div style="padding:6px 8px;background:var(--bg);border-radius:4px;border-left:3px solid var(--accent)">
+        <span class="badge ${badge}">${action.type}</span>
+        ${escapeHtml(JSON.stringify(action))}
+      </div>`;
+    }
+    html += `</div>`;
+    if (res.completed) html += `<div style="margin-top:8px;color:var(--success)">✅ 任务已完成</div>`;
+
+    showComputerResult(html);
+  } catch (e) {
+    showComputerResult("❌ 分析失败: " + (e instanceof Error ? e.message : String(e)));
+  } finally {
+    computerState.loading = false;
+    renderComputer();
+    setTimeout(() => displayComputerScreenshot(computerState.screenshot, computerState.elements), 10);
+  }
+}
+
+async function computerRunTask() {
+  const goal = document.getElementById("computerTask")?.value.trim();
+  if (!goal) { alert("请输入任务目标"); return; }
+  const cdpUrl = document.getElementById("computerCdpUrl")?.value || computerState.cdpUrl;
+  const targetUrl = document.getElementById("computerTargetUrl")?.value || "";
+
+  computerState.loading = true;
+  showComputerResult("▶️ 开始执行任务...");
+
+  try {
+    const res = await api("/agents/computer-use/task", {
+      method: "POST",
+      body: JSON.stringify({ goal, cdpUrl, targetUrl, maxSteps: 10 }),
+    });
+
+    let html = `<div style="margin-bottom:8px"><strong>执行完成，共 ${res.totalSteps} 步</strong></div>`;
+    for (const step of res.steps || []) {
+      html += `<div style="padding:8px;background:var(--bg);border-radius:6px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px">模型: ${step.model} · 延迟: ${step.latencyMs}ms · ${step.elementEnhanced ? "元素增强" : "纯视觉"}</div>
+        <div style="margin-bottom:4px">${escapeHtml(step.reasoning)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+      for (const a of step.actions || []) {
+        html += `<span class="badge">${a.type}</span>`;
+      }
+      html += `</div></div>`;
+    }
+    showComputerResult(html);
+  } catch (e) {
+    showComputerResult("❌ 任务执行失败: " + (e instanceof Error ? e.message : String(e)));
+  } finally {
+    computerState.loading = false;
+    renderComputer();
+  }
+}
+
+function showComputerResult(html) {
+  const el = document.getElementById("computerResults");
+  if (el) el.innerHTML = html;
+}
+
+function computerClear() {
+  computerState = { screenshot: null, elements: [], actions: [], cdpUrl: computerState.cdpUrl, targetUrl: "", modelId: "", loading: false };
+  renderComputer();
 }
 
 // ===== Init =====

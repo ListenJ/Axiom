@@ -233,7 +233,10 @@ export function registerTrieRoutes(engine: RouterEngine): void {
     { method: "POST", path: "/agents/opencode/test", handler: handleOpenCodeTest },
     { method: "POST", path: "/agents/computer-use", handler: handleComputerUse },
     { method: "GET", path: "/agents/computer-use/models", handler: handleComputerUse },
-    { method: "POST", path: "/agents/computer-use/plan", handler: handleComputerUse },
+    { method: "POST", path: "/agents/computer-use/screenshot", handler: handleComputerUse },
+    { method: "POST", path: "/agents/computer-use/elements", handler: handleComputerUse },
+    { method: "POST", path: "/agents/computer-use/execute", handler: handleComputerUse },
+    { method: "POST", path: "/agents/computer-use/task", handler: handleComputerUse },
 
     // Eval
     { method: "GET", path: "/eval/stats", handler: handleEvalStats },

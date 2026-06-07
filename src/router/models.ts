@@ -511,6 +511,57 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 30000,
   },
 
+  // ─── Qwen2.5-VL-72B-Instruct (Vision — 旗舰) ───
+  {
+    id: "qwen2.5-vl-72b",
+    provider: "siliconflow",
+    model: "Qwen/Qwen2.5-VL-72B-Instruct",
+    roles: ["computer-use", "general-chat", "english", "research"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use", "flagship"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen2.5-VL-72B — 旗舰视觉语言模型，支持高分辨率截图分析和计算机自动化 (32K ctx)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Qwen2-VL-72B-Instruct (Vision — 备选) ───
+  {
+    id: "qwen2-vl-72b",
+    provider: "siliconflow",
+    model: "Qwen/Qwen2-VL-72B-Instruct",
+    roles: ["computer-use", "general-chat", "english"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen2-VL-72B — 大参数视觉语言模型 (32K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── QVQ-72B-Preview (Vision Reasoning) ───
+  {
+    id: "qvq-72b",
+    provider: "siliconflow",
+    model: "Qwen/QVQ-72B-Preview",
+    roles: ["computer-use", "deep_research", "research", "general-chat"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "reasoning", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "QVQ-72B-Preview — 视觉推理模型，支持深度视觉分析和复杂任务规划 (32K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
   // ─── Mistral Medium 3.5 ───
   {
     id: "mistral-medium-3.5",
