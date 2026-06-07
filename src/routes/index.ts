@@ -6,7 +6,7 @@ import { handleMetrics, handleDashboard, handleHealth, handleStats, handleCacheS
 import { handleChat, handleAgentChat } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
-import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask } from "./agents.js";
+import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
@@ -103,6 +103,7 @@ const handlers: RouteHandler[] = [
   handleOpenCodeRefactor,
   handleOpenCodeReview,
   handleOpenCodeTest,
+  handleComputerUse,
   handleKimiStatus,
   handleKimiChat,
   handleKimiOpen,
@@ -230,6 +231,9 @@ export function registerTrieRoutes(engine: RouterEngine): void {
     { method: "POST", path: "/agents/opencode/refactor", handler: handleOpenCodeRefactor },
     { method: "POST", path: "/agents/opencode/review", handler: handleOpenCodeReview },
     { method: "POST", path: "/agents/opencode/test", handler: handleOpenCodeTest },
+    { method: "POST", path: "/agents/computer-use", handler: handleComputerUse },
+    { method: "GET", path: "/agents/computer-use/models", handler: handleComputerUse },
+    { method: "POST", path: "/agents/computer-use/plan", handler: handleComputerUse },
 
     // Eval
     { method: "GET", path: "/eval/stats", handler: handleEvalStats },

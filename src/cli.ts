@@ -956,6 +956,58 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "computer:use": {
+    desc: "Computer Use — 视觉模型分析截图并返回操作指令 (computer:use <task> [--image=path.png] [--model=gpt-5.5])",
+    run: async (args) => {
+      const task = args.find((a) => !a.startsWith("--"));
+      if (!task) { console.error("Usage: computer:use <task> [--image=path.png] [--model=gpt-5.5] [--url=https://...]"); return; }
+
+      const imagePath = args.find((a) => a.startsWith("--image="))?.slice(8);
+      const imageUrl = args.find((a) => a.startsWith("--url="))?.slice(6);
+      const modelId = args.find((a) => a.startsWith("--model="))?.slice(8);
+
+      let imageBase64: string | undefined;
+      if (imagePath) {
+        const fs = await import("fs");
+        if (!fs.existsSync(imagePath)) { console.error(`图片不存在: ${imagePath}`); return; }
+        const buffer = fs.readFileSync(imagePath);
+        imageBase64 = buffer.toString("base64");
+      }
+
+      const { analyzeScreenshot } = await import("./agents/computer-use-agent.js");
+      console.log(`[Computer Use] 分析中... (任务: ${task})\n`);
+      const result = await analyzeScreenshot({
+        task,
+        imageBase64,
+        imageUrl,
+        modelId,
+      });
+
+      console.log(`模型: ${result.model} (${result.provider})`);
+      console.log(`延迟: ${result.latencyMs}ms`);
+      console.log(`完成: ${result.completed ? "是" : "否"}\n`);
+      console.log(`思考: ${result.reasoning}\n`);
+      console.log("建议操作:");
+      for (const action of result.actions) {
+        console.log(`  [${action.type}] ${JSON.stringify(action)}`);
+      }
+    },
+  },
+
+  "computer:models": {
+    desc: "列出可用的 Computer Use 视觉模型",
+    run: async () => {
+      const { getComputerUseAgent } = await import("./agents/computer-use-agent.js");
+      const agent = getComputerUseAgent();
+      const models = agent.listVisionModels();
+      console.log("[Computer Use 可用视觉模型]\n");
+      for (const m of models) {
+        console.log(`  ${m.id.padEnd(25)} ${m.provider.padEnd(15)} ctx=${m.contextWindow}`);
+      }
+      console.log(`\n共 ${models.length} 个模型`);
+    },
+  },
+
   "agents:discover": {
     desc: "自动发现并更新 Agent 索引",
     run: async () => {

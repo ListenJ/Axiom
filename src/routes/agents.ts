@@ -177,6 +177,52 @@ export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response 
   return null;
 }
 
+// ===== Computer Use Agent API =====
+
+export async function handleComputerUse(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/agents/computer-use" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { analyzeScreenshot } = await import("../agents/computer-use-agent.js");
+    try {
+      const result = await analyzeScreenshot({
+        task: body.task || body.goal || "Analyze the screenshot",
+        imageBase64: body.imageBase64,
+        imageUrl: body.imageUrl,
+        imageType: body.imageType,
+        modelId: body.modelId,
+        history: body.history,
+      });
+      return ctx.jsonResponse(result, 200, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+    }
+  }
+
+  if (ctx.url.pathname === "/agents/computer-use/models" && ctx.req.method === "GET") {
+    const { getComputerUseAgent } = await import("../agents/computer-use-agent.js");
+    const agent = getComputerUseAgent();
+    return ctx.jsonResponse({ models: agent.listVisionModels() }, 200, ctx.baseHeaders);
+  }
+
+  if (ctx.url.pathname === "/agents/computer-use/plan" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { planComputerTask } = await import("../agents/computer-use-agent.js");
+    try {
+      const result = await planComputerTask(
+        body.goal || body.task || "",
+        { imageBase64: body.imageBase64, imageUrl: body.imageUrl, imageType: body.imageType }
+      );
+      return ctx.jsonResponse(result, 200, ctx.baseHeaders);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+    }
+  }
+
+  return null;
+}
+
 export async function handleOpenCodeTest(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/test" && ctx.req.method === "POST") {
     const body = await ctx.req.json();
