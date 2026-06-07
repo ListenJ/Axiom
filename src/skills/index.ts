@@ -15,3 +15,11 @@ export {
   type SkillLoaderOptions,
   type LoadedSkills,
 } from "./skill-loader.js";
+export {
+  SkillRegistry,
+  getSkillRegistry,
+  resetSkillRegistry,
+  type SkillMatch,
+  type SkillExecuteResult,
+  type SkillRegistryOptions,
+} from "./skill-registry.js";

@@ -178,6 +178,20 @@ inputBox.on("submit", async (text: string) => {
   } else if (text.startsWith("/tool ")) {
     const role = text.replace("/tool ", "").trim();
     await handleToolQuery(role);
+  } else if (text.startsWith("/skill ")) {
+    const query = text.replace("/skill ", "");
+    await handleSkill(query);
+  } else if (text.startsWith("/computer ")) {
+    const task = text.replace("/computer ", "");
+    await handleComputerUseTUI(task);
+  } else if (text === "/health") {
+    await handleHealthCheck();
+  } else if (text === "/config") {
+    await handleConfigView();
+  } else if (text === "/skills") {
+    await handleSkillList();
+  } else if (text === "/help") {
+    showHelp();
   } else {
     await handleChat(text);
   }
@@ -266,6 +280,139 @@ async function handleToolQuery(roleInput: string) {
   screen.render();
 }
 
+// ===== Skill 命令 =====
+
+async function handleSkill(query: string) {
+  try {
+    chatBox.log(`{blue-fg}[Skill] Matching: "${query}"...{/blue-fg}`);
+    const { getSkillRegistry } = await import("../skills/skill-registry.js");
+    const registry = getSkillRegistry();
+    const match = registry.match(query);
+
+    if (!match) {
+      chatBox.log("{gray-fg}No matching skill found. Try /skills to list all.{/gray-fg}");
+      // Fallback to general chat
+      await handleChat(query);
+      return;
+    }
+
+    chatBox.log(`{blue-fg}[Skill] Matched: ${match.skill.name} (${match.confidence} confidence, score: ${match.score}){/blue-fg}`);
+    const result = await registry.execute(match);
+    chatBox.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [skill: ${result.skillId}] (${result.latencyMs}ms){/gray-fg}`);
+    chatBox.log(result.content);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Skill error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
+async function handleSkillList() {
+  try {
+    const { getSkillRegistry } = await import("../skills/skill-registry.js");
+    const registry = getSkillRegistry();
+    const skills = registry.list();
+    const stats = registry.stats();
+
+    chatBox.log(`{blue-fg}[Skill Registry] ${stats.total} skills (${stats.builtin} builtin, ${stats.file} file, ${stats.hermes} hermes){/blue-fg}`);
+    for (const skill of skills) {
+      const src = skill.source === "builtin" ? "[B]" : skill.source === "file" ? "[F]" : "[H]";
+      chatBox.log(`  ${src} ${skill.id.padEnd(20)} ${skill.name} — ${skill.triggers.slice(0, 3).join(", ")}`);
+    }
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
+// ===== Computer Use 命令 =====
+
+async function handleComputerUseTUI(task: string) {
+  try {
+    chatBox.log(`{cyan-fg}[Computer Use] Task: ${task}{/cyan-fg}`);
+    chatBox.log("{gray-fg}Note: Computer Use requires CDP browser connection at http://127.0.0.1:9222{/gray-fg}");
+    chatBox.log("{gray-fg}Use '/computer <task>' with CDP running.{/gray-fg}");
+
+    // Try to analyze with existing screenshot if available
+    const { getComputerUseAgent } = await import("../agents/computer-use-agent.js");
+    const agent = getComputerUseAgent();
+
+    chatBox.log("{cyan-fg}[Computer Use] Available vision models:{/cyan-fg}");
+    const models = agent.listVisionModels();
+    for (const m of models.slice(0, 5)) {
+      chatBox.log(`  • ${m.id} (${m.provider})`);
+    }
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Computer Use error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
+// ===== Health Check 命令 =====
+
+async function handleHealthCheck() {
+  try {
+    chatBox.log("{yellow-fg}[HealthCheck] Running system diagnostics...{/yellow-fg}");
+    const { runHealthCheck } = await import("../core/health-checker.js");
+    const report = await runHealthCheck();
+
+    const icons = { ok: "✅", warning: "⚠️", error: "❌", skipped: "⏭️" };
+    for (const check of report.checks.slice(0, 15)) {
+      const icon = icons[check.status];
+      chatBox.log(`  ${icon} ${check.component.padEnd(20)} ${check.message.slice(0, 50)}`);
+    }
+    chatBox.log(`{yellow-fg}Overall: ${report.overall.toUpperCase()}{/yellow-fg}`);
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Health check failed: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
+// ===== Config View 命令 =====
+
+async function handleConfigView() {
+  try {
+    const { getConfigCenter } = await import("../core/config-center.js");
+    const center = getConfigCenter();
+    const categories = ["gateway", "model", "memory", "crawler", "security", "advanced"];
+    const names: Record<string, string> = {
+      gateway: "🌐 网关", model: "🤖 模型", memory: "🧠 记忆",
+      crawler: "🔍 采集", security: "🔒 安全", advanced: "⚙️ 高级",
+    };
+
+    chatBox.log("{green-fg}[ConfigCenter] Current Configuration{/green-fg}");
+    for (const cat of categories) {
+      chatBox.log(`{bold}${names[cat]}{/bold}`);
+      const configs = center.getByCategory(cat as any);
+      for (const c of configs.slice(0, 6)) {
+        const masked = c.masked || String(c.value ?? "(not set)");
+        chatBox.log(`  ${c.key.padEnd(35)} ${masked.slice(0, 30)}`);
+      }
+    }
+  } catch (e) {
+    chatBox.log(`{red-fg}[错误] Config error: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
+// ===== Help =====
+
+function showHelp() {
+  chatBox.log("{bold}OpenClaw TUI Commands:{/bold}");
+  chatBox.log("  /orchestrate <task>  — 任务编排模式");
+  chatBox.log("  /codegraph <query>   — CodeGraph 代码搜索");
+  chatBox.log("  /tool <role>        — 工具池调用 (coding/english/rl)");
+  chatBox.log("  /skill <query>      — Skill 匹配执行");
+  chatBox.log("  /skills             — 列出所有 Skill");
+  chatBox.log("  /computer <task>    — Computer Use 视觉自动化");
+  chatBox.log("  /health             — 系统健康检查");
+  chatBox.log("  /config             — 查看配置中心");
+  chatBox.log("  /help               — 显示此帮助");
+  chatBox.log("  Ctrl+O              — 切换编排模式");
+  chatBox.log("  Ctrl+S              — 刷新工具池状态");
+  chatBox.log("  Ctrl+C              — 退出");
+  screen.render();
+}
+
 // ===== 工具池健康度刷新 =====
 
 function refreshToolHealth() {
@@ -308,7 +455,7 @@ export async function startTUI(): Promise<void> {
   refreshToolHealth();
   chatBox.log("{center}{bold}Welcome to OpenClaw AI Agent v3.0{/bold}{/center}");
   chatBox.log("{center}Type a message and press Enter to chat.{/center}");
-  chatBox.log("{center}Commands: /orchestrate <task> | /codegraph <query> | /tool <role>{/center}");
+  chatBox.log("{center}Commands: /help | /skill <query> | /computer <task> | /health | /config{/center}");
   chatBox.log("");
   screen.render();
 
