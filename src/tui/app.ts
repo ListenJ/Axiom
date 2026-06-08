@@ -322,7 +322,7 @@ screen.key(["f4"], () => showNativeStatus());
 screen.key(["C-o"], () => {
   orchestratorMode = !orchestratorMode;
   chatLog.log(`{yellow-fg}[Mode] Orchestrator ${orchestratorMode ? "ON" : "OFF"}{/yellow-fg}`);
-  inputBox.setLabel(orchestratorMode ? " Orchestrator Input " : " Input ");
+  chatInput.setLabel(orchestratorMode ? " Orchestrator Input " : " Input ");
   screen.render();
 });
 screen.key(["C-s"], () => refreshPerfPanel());
@@ -375,9 +375,9 @@ async function handleChat(userInput: string) {
     const result = await router.routeByIntent(intent?.intent ?? "general-chat", messages);
     chatLog.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [${result.layer}]{/gray-fg}`);
     chatLog.log(result.content ?? "(no response)");
-    chatBox.log("");
+    chatLog.log("");
   } catch (e) {
-    chatBox.log(`{red-fg}[错误]: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误]: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -388,9 +388,9 @@ async function handleOrchestrate(task: string) {
     const result = await orchestrator.execute(task);
     chatLog.log(`{yellow-fg}[完成] ${result.totalLatencyMs}ms | ${result.totalTokens} tokens{/yellow-fg}`);
     for (const r of result.subTaskResults) chatLog.log(`{gray-fg}[${r.layer}] ${r.model} (${r.latencyMs}ms){/gray-fg}`);
-    chatLog.log("{bold}Final:{/bold}"); chatLog.log(result.finalAnswer); chatBox.log("");
+    chatLog.log("{bold}Final:{/bold}"); chatLog.log(result.finalAnswer); chatLog.log("");
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -402,7 +402,7 @@ async function handleCodegraphQuery(query: string) {
     if (result) { chatLog.log(`{green-fg}Found ${result.symbols.length} symbols{/green-fg}`); chatLog.log(result.results.slice(0, 2000)); }
     else chatLog.log("{gray-fg}No CodeGraph memory found.{/gray-fg}");
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -414,7 +414,7 @@ async function handleToolQuery(roleInput: string) {
     chatLog.log(`{gray-fg}⚡ ${result.provider} / ${result.model}{/gray-fg}`);
     chatLog.log(result.content ?? "(no response)");
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -424,12 +424,12 @@ async function handleSkill(query: string) {
     const { getSkillRegistry } = await import("../skills/skill-registry.js");
     const registry = getSkillRegistry();
     const match = registry.match(query);
-    if (!match) { chatBox.log("{gray-fg}No skill matched.{/gray-fg}"); await handleChat(query); return; }
+    if (!match) { chatLog.log("{gray-fg}No skill matched.{/gray-fg}"); await handleChat(query); return; }
     const result = await registry.execute(match);
     chatLog.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [${result.skillId}]{/gray-fg}`);
     chatLog.log(result.content);
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -441,7 +441,7 @@ async function handleSkillList() {
     const stats = registry.stats();
     chatLog.log(`{blue-fg}[Skills] ${stats.total} total{/blue-fg}`);
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -451,7 +451,7 @@ async function handleComputerUseTUI(task: string) {
     chatLog.log(`{cyan-fg}[Computer] ${task}{/cyan-fg}`);
     chatLog.log("{gray-fg}Requires CDP at http://127.0.0.1:9222{/gray-fg}");
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -464,28 +464,28 @@ async function handleHealthCheck() {
     for (const check of report.checks.slice(0, 15)) chatLog.log(`  ${icons[check.status]} ${check.component.padEnd(20)} ${check.message.slice(0, 50)}`);
     chatLog.log(`{yellow-fg}Overall: ${report.overall.toUpperCase()}{/yellow-fg}`);
   } catch (e) {
-    chatBox.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
 
 function showHelp() {
-  chatBox.log("{bold}Commands:{/bold}");
-  chatBox.log("  /orchestrate <task>  — Task orchestration");
-  chatBox.log("  /codegraph <query>   — CodeGraph search");
-  chatBox.log("  /tool <role>         — Tool pool");
-  chatBox.log("  /skill <query>       — Skill match");
-  chatBox.log("  /skills              — List skills");
-  chatBox.log("  /computer <task>     — Computer Use");
-  chatBox.log("  /health              — Health check");
-  chatBox.log("  /config              — Config panel");
-  chatBox.log("  /perf                — Performance panel");
-  chatBox.log("  /native              — Native core status");
-  chatBox.log("  /help                — This help");
-  chatBox.log("  Ctrl+O               — Toggle orchestrator");
-  chatBox.log("  Ctrl+S               — Refresh perf");
-  chatBox.log("  Tab/F1-F4            — Switch panels");
-  chatBox.log("  Ctrl+C               — Exit");
+  chatLog.log("{bold}Commands:{/bold}");
+  chatLog.log("  /orchestrate <task>  — Task orchestration");
+  chatLog.log("  /codegraph <query>   — CodeGraph search");
+  chatLog.log("  /tool <role>         — Tool pool");
+  chatLog.log("  /skill <query>       — Skill match");
+  chatLog.log("  /skills              — List skills");
+  chatLog.log("  /computer <task>     — Computer Use");
+  chatLog.log("  /health              — Health check");
+  chatLog.log("  /config              — Config panel");
+  chatLog.log("  /perf                — Performance panel");
+  chatLog.log("  /native              — Native core status");
+  chatLog.log("  /help                — This help");
+  chatLog.log("  Ctrl+O               — Toggle orchestrator");
+  chatLog.log("  Ctrl+S               — Refresh perf");
+  chatLog.log("  Tab/F1-F4            — Switch panels");
+  chatLog.log("  Ctrl+C               — Exit");
   screen.render();
 }
 
