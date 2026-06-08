@@ -30,7 +30,7 @@
     "research": "bun run src/cli.ts research",
     "db:init": "bun run src/db/pg-init.ts",
     "test": "bun test tests/",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-e2e.cjs",
     "lint": "tsc --noEmit",
     "code:open": "bun run src/cli.ts code:open",
     "code:models": "bun run src/cli.ts code:models",

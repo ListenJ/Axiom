@@ -35,13 +35,21 @@ jobs:
       - name: Type check
         run: bun run build
 
-      - name: Run tests
+      - name: Run unit tests
         run: bun test
         env:
           NODE_ENV: test
 
       - name: Run linter
         run: bun run lint
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run E2E tests
+        run: bun run test:e2e
+        env:
+          NODE_ENV: test
 
   build:
     name: Build Docker Image

@@ -394,8 +394,10 @@ chatInput.onkeydown = (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
 };
 chatInput.oninput = () => {
-  chatInput.style.height = "auto";
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + "px";
+  requestAnimationFrame(() => {
+    chatInput.style.height = "auto";
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + "px";
+  });
 };
 document.getElementById("sendBtn").onclick = sendChat;
 
@@ -519,6 +521,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ===== Init =====
+if (window.innerWidth <= 768) {
+  document.getElementById("sidebar").classList.add("collapsed");
+  sidebarOpen = false;
+}
 detectEdition();
 checkNativeStatus();
 connectWS();
