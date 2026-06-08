@@ -41,14 +41,41 @@ function updateEditionBadge() {
     local: "🏠 Local",
     cloud: "☁️ Cloud",
     typescript: "📜 TS-Only",
+    tauri: "🖥️ Native App",
   };
   const colors = {
     local: "var(--success)",
     cloud: "var(--accent)",
     typescript: "var(--warning)",
+    tauri: "var(--purple)",
   };
-  badge.textContent = labels[systemEdition] || systemEdition;
-  badge.style.background = colors[systemEdition] || "var(--muted)";
+  const edition = isTauri ? "tauri" : systemEdition;
+  badge.textContent = labels[edition] || edition;
+  badge.style.background = colors[edition] || "var(--muted)";
+}
+
+// ===== Tauri Native Bridge =====
+const isTauri = typeof window !== 'undefined' && !!window.__TAURI__;
+
+async function tauriNativeSearch(query, limit = 10) {
+  if (!isTauri) return null;
+  try {
+    return await window.__TAURI__.core.invoke('native_search', { query, limit });
+  } catch (e) { console.warn('Tauri search failed:', e); return null; }
+}
+
+async function tauriNativeStats() {
+  if (!isTauri) return null;
+  try {
+    return await window.__TAURI__.core.invoke('native_stats');
+  } catch (e) { console.warn('Tauri stats failed:', e); return null; }
+}
+
+async function tauriSystemInfo() {
+  if (!isTauri) return null;
+  try {
+    return await window.__TAURI__.core.invoke('get_system_info');
+  } catch (e) { console.warn('Tauri system info failed:', e); return null; }
 }
 
 // ===== Native Bridge Status =====
@@ -140,10 +167,33 @@ function navigate(page) {
 }
 
 async function fetchNativeStatus() {
+  const panel = document.getElementById("nativeStatusPanel");
+  if (!panel) return;
+
+  if (isTauri) {
+    const info = await tauriSystemInfo();
+    const stats = await tauriNativeStats();
+    panel.innerHTML = `
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:200px;">
+          <div class="metric-label">Edition</div>
+          <div class="metric" style="font-size:1.2rem;color:var(--purple);">🖥️ Native App</div>
+        </div>
+        <div class="card" style="flex:1;min-width:200px;">
+          <div class="metric-label">Version</div>
+          <div class="metric" style="font-size:1.2rem;">${info?.version || "2.3.0"}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:200px;">
+          <div class="metric-label">Vault Notes</div>
+          <div class="metric" style="font-size:1.2rem;">${stats?.total_notes || "-"}</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   try {
     const res = await fetch("http://127.0.0.1:18790/health", { signal: AbortSignal.timeout(1500) });
-    const panel = document.getElementById("nativeStatusPanel");
-    if (!panel) return;
     if (res.ok) {
       const data = await res.json();
       panel.innerHTML = `
@@ -167,8 +217,7 @@ async function fetchNativeStatus() {
         <p class="text-muted" style="font-size:0.8rem;">To enable: <code>bun run native:build</code> then restart.</p>`;
     }
   } catch {
-    const panel = document.getElementById("nativeStatusPanel");
-    if (panel) panel.innerHTML = `<p class="text-muted">📜 Rust core not running. TypeScript-only mode active.</p>`;
+    panel.innerHTML = `<p class="text-muted">📜 Rust core not running. TypeScript-only mode active.</p>`;
   }
 }
 
@@ -321,12 +370,42 @@ document.getElementById("menuBtn").onclick = () => {
   document.getElementById("sidebar").classList.toggle("collapsed", !sidebarOpen);
 };
 
+// ===== Tauri-enhanced search =====
+async function doNativeSearch() {
+  if (!isTauri) { doSearch(); return; }
+  const q = document.getElementById("searchInput").value.trim();
+  if (!q) return;
+  const resultsDiv = document.getElementById("searchResults");
+  resultsDiv.innerHTML = "<p class='text-muted'>Searching via Tauri Native...</p>";
+  const data = await tauriNativeSearch(q, 10);
+  if (!data || !data.results || data.results.length === 0) {
+    resultsDiv.innerHTML = "<p class='text-muted'>No results found.</p>";
+    return;
+  }
+  resultsDiv.innerHTML = data.results.map(r => `
+    <div class="result-card">
+      <div class="result-title">${escapeHtml(r.note.title)} <span class="score">${r.score.toFixed(1)}</span></div>
+      <div class="result-path">${escapeHtml(r.note.path)}</div>
+      <div class="result-excerpt">${escapeHtml(r.excerpt)}</div>
+      <div class="result-reasons">${r.reasons.map(x => `<span class="tag">${escapeHtml(x)}</span>`).join("")}</div>
+    </div>
+  `).join("");
+}
+
 // ===== Init =====
 detectEdition();
 checkNativeStatus();
 connectWS();
 renderNav();
 navigate("chat");
+
+// If Tauri, override search button
+if (isTauri) {
+  document.getElementById("searchBtn").onclick = doNativeSearch;
+  document.getElementById("searchInput").onkeydown = (e) => {
+    if (e.key === "Enter") doNativeSearch();
+  };
+}
 
 // Update sidebar edition badge
 (async () => {

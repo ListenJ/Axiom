@@ -48,7 +48,9 @@
     "native:run:local": "./native/target/release/openclaw-local",
     "native:run:cloud": "./native/target/release/openclaw-cloud",
     "tui": "bun run src/tui/app.ts",
-    "tui:install": "bun run src/tui/install-wizard.ts"
+    "tui:install": "bun run src/tui/install-wizard.ts",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",
