@@ -51,6 +51,14 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  install: {
+    desc: "交互式安装向导 - 选择 Local/Cloud 版本并初始化系统",
+    run: async (_args: string[]) => {
+      const { startInstallWizard } = await import("./tui/install-wizard.js");
+      await startInstallWizard();
+    },
+  },
+
   key: {
     desc: "快速添加/更新单个厂商 API Key (key <provider> <api_key>)",
     run: async (args: string[]) => {

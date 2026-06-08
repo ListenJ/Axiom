@@ -260,10 +260,10 @@ async function tuiMode(): Promise<void> {
   // Preload hooks
   await preloader.preload();
 
-  // Start Enhanced TUI
-  Log.info("Starting Enhanced TUI v2.0...");
-  const { startEnhancedTUI } = await import("./core/enhanced-tui.js");
-  await startEnhancedTUI();
+  // Start Unified TUI
+  Log.info("Starting Unified TUI v3.0...");
+  const { startTUI } = await import("./tui/app.js");
+  await startTUI();
 }
 
 async function agentMode(): Promise<void> {

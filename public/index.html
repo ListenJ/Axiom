@@ -946,6 +946,11 @@ textarea.input {
   .kg-detail-grid { grid-template-columns: 1fr; }
 }
 
+/* ===== Utility ===== */
+.hidden { display: none !important; }
+.text-muted { color: var(--muted); font-size: 0.85rem; }
+.text-error { color: var(--danger); font-size: 0.85rem; }
+
 /* ===== Selection ===== */
 ::selection {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
@@ -962,7 +967,7 @@ textarea.input {
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header"><span class="logo">🦅</span> OpenClaw</div>
     <nav class="nav-items" id="navItems"></nav>
-    <div class="sidebar-footer"><div class="version">v2.2 · Agent Hub</div></div>
+    <div class="sidebar-footer"><div class="version">v2.3 · <span id="sidebarEdition">Agent Hub</span></div></div>
   </aside>
 
   <!-- Header -->
@@ -972,6 +977,8 @@ textarea.input {
       <span class="header-title" id="pageTitle">Dashboard</span>
     </div>
     <div class="right">
+      <span class="badge ok" id="editionBadge" style="font-size:0.7rem;">📜 TS-Only</span>
+      <span class="badge" id="nativeIndicator" style="font-size:0.7rem;color:var(--muted);">📜 TS Core</span>
       <span class="badge ok" id="connStatus"><span class="status-dot"></span> 在线</span>
       <button class="theme-btn" id="themeBtn">🌙</button>
       <button class="refresh-btn" onclick="location.reload()">⟳</button>
@@ -979,7 +986,50 @@ textarea.input {
   </header>
 
   <!-- Main Content -->
-  <main class="main" id="main"><div id="pageContent"></div></main>
+  <main class="main" id="main">
+    <div id="pageContent">
+      <div id="page-chat" class="page hidden">
+        <div class="chat-container">
+          <div class="chat-messages" id="chatLog"></div>
+          <div class="chat-input">
+            <textarea class="input" id="chatInput" placeholder="输入消息..."></textarea>
+            <button class="btn" id="sendBtn">发送</button>
+          </div>
+        </div>
+      </div>
+      <div id="page-search" class="page hidden">
+        <div class="search-box">
+          <input class="input" id="searchInput" placeholder="搜索 Vault..." />
+          <button class="btn" id="searchBtn">🔍 搜索</button>
+        </div>
+        <div id="searchResults"></div>
+      </div>
+      <div id="page-kg" class="page hidden"><h2>知识图谱</h2></div>
+      <div id="page-perf" class="page hidden">
+        <div class="card">
+          <h2>📊 性能监控</h2>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:12px;">实时监控路由性能与 Rust 核心状态</p>
+          <div id="perfPanel">
+            <p class="text-muted">加载中...</p>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <h2>🦀 Native Core Status</h2>
+          <div id="nativeStatusPanel">
+            <p class="text-muted">检测中...</p>
+          </div>
+        </div>
+      </div>
+      <div id="page-settings" class="page hidden">
+        <div class="card">
+          <h2>⚙️ Settings</h2>
+          <label style="display:block;margin:12px 0;font-size:0.85rem;">API Key</label>
+          <input class="input" id="settingApiKey" type="password" placeholder="x-api-key" />
+          <button class="btn" id="saveSettingsBtn" style="margin-top:12px;">保存</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
   <!-- Bottom Navigation (mobile) -->
   <nav class="bottom-nav" id="bottomNav"></nav>

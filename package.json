@@ -1,6 +1,6 @@
 {
   "name": "openclaw-agent",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "start": "bun run src/main.ts",
@@ -41,7 +41,14 @@
     "stop": "bash scripts/start.sh stop",
     "restart": "bash scripts/start.sh restart",
     "status": "bash scripts/start.sh status",
-    "logs": "bash scripts/start.sh logs"
+    "logs": "bash scripts/start.sh logs",
+    "install:wizard": "bun run src/tui/install-wizard.ts",
+    "native:build": "cd native && cargo build --release --features local",
+    "native:build:cloud": "cd native && cargo build --release --features cloud",
+    "native:run:local": "./native/target/release/openclaw-local",
+    "native:run:cloud": "./native/target/release/openclaw-cloud",
+    "tui": "bun run src/tui/app.ts",
+    "tui:install": "bun run src/tui/install-wizard.ts"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",

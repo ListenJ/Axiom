@@ -32,6 +32,39 @@ import {
 import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store.js";
 
 // ═══════════════════════════════════════════════════════════════
+// Native Bridge — Rust 高性能核心 (v2.3)
+// ═══════════════════════════════════════════════════════════════
+import {
+  initNativeBridge,
+  stopNativeBridge,
+  nativeSearch,
+  nativeRouterPerf,
+  nativeStats,
+  isNativeReady,
+  detectEdition,
+} from "./native-bridge.js";
+
+const edition = detectEdition();
+logger.info(`[Edition] Detected: ${edition}`);
+
+// 启动 Rust 核心 (sidecar)
+const nativeEnabled = process.env.OPENCLAW_NATIVE !== "false";
+if (nativeEnabled) {
+  const nativeOk = await initNativeBridge({
+    edition,
+    port: 18790,
+    vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory",
+    dbPath: process.env.DATABASE_PATH || "./data/agent.db",
+    databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL,
+    enabled: true,
+  });
+  if (nativeOk) {
+    logger.info("[NativeBridge] Rust core active — search/routing accelerated");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 核心架构组件
 // ═══════════════════════════════════════════════════════════════
 import { getConfigCenter } from "./core/config-center.js";
@@ -74,7 +107,9 @@ const db = new Database(dbPath);
 const startupTime = Date.now();
 
 logger.info("OpenClaw AI Agent 启动中", {
-  version: "2.2.0",
+  version: "2.3.0",
+  edition,
+  native: isNativeReady(),
   node: process.version,
   bun: Bun.version,
   env: process.env.NODE_ENV || "development",
@@ -411,6 +446,7 @@ registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
+registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 
@@ -433,8 +469,10 @@ const lanUrl = `http://${lanIp}:${port}`;
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════════════╗
-║     OpenClaw AI Agent v2.2 — Vault 核心记忆引擎运行中               ║
+║     OpenClaw AI Agent v2.3 — Vault 核心记忆引擎运行中               ║
 ║  记忆: Obsidian Vault (确定性推理)                                   ║
+║  版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
+║  原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║
 ║                                                                      ║
 ║  本地访问:  ${localUrl.padEnd(58)} ║
 ║  局域网:    ${lanUrl.padEnd(58)} ║

@@ -22,6 +22,7 @@ import {
   handleEvalAssignReport,
 } from "./eval-routes.js";
 import { handleProxies } from "./proxies.js";
+import { handleNativeSearch, handleNativeRouterPerf, handleNativeStats, handleNativeProxy } from "./native-routes.js";
 import { handlePluginRoutes } from "./plugin-adapter.js";
 import {
   handleKGStats,
@@ -65,6 +66,12 @@ const handlers: RouteHandler[] = [
   // Chat (most common API call)
   handleChat,
   handleAgentChat,
+  // Native Bridge (Rust core)
+  handleNativeSearch,
+  handleNativeRouterPerf,
+  handleNativeStats,
+  handleNativeProxy,
+
   // Search
   handleVaultSearch,
   handleWebSearch,
@@ -300,6 +307,13 @@ export function registerTrieRoutes(engine: RouterEngine): void {
     { method: "POST", path: "/ocr/export", handler: handleOCRRoutes },
     { method: "GET", path: "/ocr/**", handler: handleOCRRoutes },
     { method: "POST", path: "/ocr/**", handler: handleOCRRoutes },
+
+    // Native Bridge (Rust core)
+    { method: "POST", path: "/native/search", handler: handleNativeSearch },
+    { method: "GET", path: "/native/router/perf", handler: handleNativeRouterPerf },
+    { method: "GET", path: "/native/stats", handler: handleNativeStats },
+    { method: "GET", path: "/native/**", handler: handleNativeProxy },
+    { method: "POST", path: "/native/**", handler: handleNativeProxy },
   ];
 
   engine.registerBatch(routes);
@@ -308,7 +322,7 @@ export function registerTrieRoutes(engine: RouterEngine): void {
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
   return ctx.jsonResponse({
-    name: "OpenClaw AI Agent", version: "2.2.0",
+    name: "OpenClaw AI Agent", version: "2.3.0",
     uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
     endpoints: [
       "GET  /                        — Dashboard",
