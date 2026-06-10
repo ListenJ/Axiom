@@ -220,9 +220,12 @@ function renderPerfPanel() {
 const pages = {
   chat: { label: "Chat", icon: "💬", shortcut: "1" },
   search: { label: "Search", icon: "🔍", shortcut: "2" },
-  kg: { label: "KG", icon: "🕸️", shortcut: "3" },
-  perf: { label: "Perf", icon: "📊", shortcut: "4" },
-  settings: { label: "Settings", icon: "⚙️", shortcut: "5" },
+  code: { label: "Code", icon: "💻", shortcut: "3" },
+  agents: { label: "Agents", icon: "🤖", shortcut: "4" },
+  router: { label: "Router", icon: "🧭", shortcut: "5" },
+  vault: { label: "Vault", icon: "📁", shortcut: "6" },
+  perf: { label: "Perf", icon: "📊", shortcut: "7" },
+  settings: { label: "Settings", icon: "⚙️", shortcut: "8" },
 };
 
 function renderNav() {
@@ -261,6 +264,11 @@ function navigate(page) {
   if (page === "perf") { fetchPerfMetrics(); fetchNativeStatus(); }
   if (page === "chat") setTimeout(() => document.getElementById("chatInput")?.focus(), 100);
   if (page === "search") setTimeout(() => document.getElementById("searchInput")?.focus(), 100);
+  if (page === "code") { fetchCodegraphStatus(); fetchFileIndexStatus(); }
+  if (page === "agents") { /* Agent workspace loads on demand */ }
+  if (page === "router") { fetchRouterStatus(); fetchTokenStats(); fetchModelHealth(); }
+  if (page === "vault") { fetchVaultStats(); fetchVaultTags(); fetchVaultPara(); fetchVaultNetwork(); }
+  if (page === "kg") { fetchKgOverview(); fetchKgEntities(); fetchKgRelations(); }
 }
 
 // ===== Native Status Panel =====
@@ -514,8 +522,8 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     setTheme(darkMode ? "light" : "dark");
   }
-  if (["1","2","3","4","5"].includes(e.key)) {
-    const map = { "1":"chat","2":"search","3":"kg","4":"perf","5":"settings" };
+  if (["1","2","3","4","5","6","7","8"].includes(e.key)) {
+    const map = { "1":"chat","2":"search","3":"code","4":"agents","5":"router","6":"vault","7":"perf","8":"settings" };
     navigate(map[e.key]);
   }
 });
@@ -556,3 +564,356 @@ setTimeout(() => {
     appendMessage("assistant", "欢迎使用 **OpenClaw AI Agent v2.3**！\n\n按 `?` 查看快捷键，或直接在下方输入消息开始对话。", "OpenClaw");
   }
 }, 500);
+
+// ===== Code Analysis =====
+async function fetchCodegraphStatus() {
+  const panel = document.getElementById("codegraphStatusPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/codegraph/status", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">文件数</div><div class="metric" style="font-size:1.3rem;">${data.files || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">节点数</div><div class="metric" style="font-size:1.3rem;">${data.nodes || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">边数</div><div class="metric" style="font-size:1.3rem;">${data.edges || 0}</div></div>
+      </div>
+      <div class="mt-3"><span class="badge ${data.ready ? 'ok' : 'warn'}">${data.ready ? '✅ 就绪' : '⚠️ 未就绪'}</span><span class="badge info ml-2">${data.language || 'unknown'}</span></div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📊</div><p>CodeGraph 未初始化</p></div>`;
+  }
+}
+
+async function initCodegraph() {
+  try {
+    const res = await fetch("/codegraph/init", { method: "POST", signal: AbortSignal.timeout(30000) });
+    const data = await res.json();
+    showToast(data.message || "CodeGraph 初始化完成", data.success ? "success" : "warn");
+    fetchCodegraphStatus();
+  } catch (e) {
+    showToast("初始化失败: " + e.message, "error");
+  }
+}
+
+async function searchSymbols() {
+  const input = document.getElementById("symbolSearchInput");
+  const q = input.value.trim();
+  if (!q) return;
+  const resultsDiv = document.getElementById("symbolSearchResults");
+  resultsDiv.innerHTML = `<div class="skeleton skeleton-text" style="width:80%"></div><div class="skeleton skeleton-text" style="width:60%"></div>`;
+  
+  try {
+    const res = await fetch(`/codegraph/search?q=${encodeURIComponent(q)}&limit=10`, { signal: AbortSignal.timeout(10000) });
+    const data = await res.json();
+    if (!data.results || data.results.length === 0) {
+      resultsDiv.innerHTML = `<div class="kg-placeholder" style="padding:40px;"><div class="icon">🔍</div><p>未找到符号</p></div>`;
+      return;
+    }
+    resultsDiv.innerHTML = data.results.map((r, i) => `
+      <div class="result-card" style="animation-delay:${i * 50}ms">
+        <div class="result-title">${escapeHtml(r.name)} <span class="tag">${escapeHtml(r.kind)}</span></div>
+        <div class="result-path">${escapeHtml(r.file)}:${r.line}</div>
+        <div class="result-excerpt">${escapeHtml(r.signature || '')}</div>
+      </div>
+    `).join("");
+  } catch (e) {
+    resultsDiv.innerHTML = `<div class="kg-placeholder" style="padding:40px;"><div class="icon">❌</div><p>搜索失败</p><p class="text-muted">${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+async function fetchFileIndexStatus() {
+  const panel = document.getElementById("fileIndexStatus");
+  if (!panel) return;
+  try {
+    const res = await fetch("/vault/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">总笔记</div><div class="metric" style="font-size:1.3rem;">${data.total_notes || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">总标签</div><div class="metric" style="font-size:1.3rem;">${data.total_tags || 0}</div></div>
+      </div>
+      <div class="mt-3"><span class="badge ok">✅ 已索引</span></div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📁</div><p>文件索引未就绪</p></div>`;
+  }
+}
+
+// ===== Agent Workspace =====
+function switchAgentTab(tab) {
+  document.querySelectorAll('.agent-tabs .btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.agentTab === tab);
+  });
+  document.querySelectorAll('.agent-tab-panel').forEach(panel => {
+    panel.classList.toggle('hidden', panel.id !== `agent-${tab}`);
+  });
+}
+
+async function runAgent(type) {
+  const resultDiv = document.getElementById("agentResult");
+  resultDiv.innerHTML = `<div class="skeleton skeleton-text" style="width:80%"></div><div class="skeleton skeleton-text" style="width:60%"></div>`;
+  
+  let endpoint = "";
+  let body = {};
+  
+  switch (type) {
+    case "generate":
+      endpoint = "/agents/opencode/generate";
+      body = { description: document.getElementById("agentGenerateDesc").value, path: document.getElementById("agentGeneratePath").value };
+      break;
+    case "refactor":
+      endpoint = "/agents/opencode/refactor";
+      body = { description: document.getElementById("agentRefactorDesc").value, path: document.getElementById("agentRefactorPath").value };
+      break;
+    case "review":
+      endpoint = "/agents/opencode/review";
+      body = { code: document.getElementById("agentReviewCode").value };
+      break;
+    case "test":
+      endpoint = "/agents/opencode/test";
+      body = { code: document.getElementById("agentTestCode").value };
+      break;
+  }
+  
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": localStorage.getItem("apiKey") || "" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
+    });
+    const data = await res.json();
+    if (data.error) {
+      resultDiv.innerHTML = `<div class="card" style="border-left:3px solid var(--danger)"><h3>❌ 错误</h3><p>${escapeHtml(data.error)}</p></div>`;
+    } else {
+      resultDiv.innerHTML = `<div class="card"><h3>✅ 结果</h3><pre><code>${escapeHtml(data.content || data.code || JSON.stringify(data, null, 2))}</code></pre></div>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="card" style="border-left:3px solid var(--danger)"><h3>❌ 网络错误</h3><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+// ===== Model Router =====
+async function fetchRouterStatus() {
+  const panel = document.getElementById("routerStatusPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/advisor/status", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">已配置模型</div><div class="metric" style="font-size:1.3rem;">${data.models || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">健康模型</div><div class="metric" style="font-size:1.3rem;color:var(--success);">${data.healthy || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">降级模型</div><div class="metric" style="font-size:1.3rem;color:var(--warn);">${data.degraded || 0}</div></div>
+      </div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🧭</div><p>路由状态不可用</p></div>`;
+  }
+}
+
+async function fetchTokenStats() {
+  const panel = document.getElementById("tokenStatsPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/memory/usage", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">Token 使用量</div><div class="metric" style="font-size:1.3rem;">${data.tokens?.toLocaleString() || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">对话数</div><div class="metric" style="font-size:1.3rem;">${data.conversations?.toLocaleString() || 0}</div></div>
+      </div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📈</div><p>Token 统计不可用</p></div>`;
+  }
+}
+
+async function fetchModelHealth() {
+  const panel = document.getElementById("modelHealthPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/agents/status", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.agents) {
+      const rows = data.agents.map(a => `
+        <tr>
+          <td><span class="badge ${a.status === 'online' ? 'ok' : a.status === 'degraded' ? 'warn' : 'error'}">${a.status}</span></td>
+          <td>${escapeHtml(a.name)}</td>
+          <td>${escapeHtml(a.provider || '-')}</td>
+          <td>${a.latency ? a.latency + 'ms' : '-'}</td>
+        </tr>
+      `).join("");
+      panel.innerHTML = `<table class="data-table"><thead><tr><th>状态</th><th>名称</th><th>提供商</th><th>延迟</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🤖</div><p>暂无模型状态数据</p></div>`;
+    }
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🤖</div><p>模型健康状态不可用</p></div>`;
+  }
+}
+
+// ===== Vault Explorer =====
+async function fetchVaultStats() {
+  const panel = document.getElementById("vaultStatsPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/vault/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">笔记</div><div class="metric" style="font-size:1.3rem;">${data.total_notes || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">标签</div><div class="metric" style="font-size:1.3rem;">${data.total_tags || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">链接</div><div class="metric" style="font-size:1.3rem;">${data.total_links || 0}</div></div>
+      </div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📁</div><p>Vault 统计不可用</p></div>`;
+  }
+}
+
+async function fetchVaultTags() {
+  const panel = document.getElementById("vaultTagsPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/vault/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.tags && data.tags.length > 0) {
+      panel.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;">${data.tags.map(t => `
+        <span class="tag" style="font-size:0.9rem;padding:6px 12px;">${escapeHtml(t.name)} <span style="opacity:0.6">(${t.count})</span></span>
+      `).join("")}</div>`;
+    } else {
+      panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🏷️</div><p>暂无标签</p></div>`;
+    }
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🏷️</div><p>标签数据不可用</p></div>`;
+  }
+}
+
+async function fetchVaultPara() {
+  const panel = document.getElementById("vaultParaPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/vault/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    const categories = [
+      { key: "projects", label: "📁 Projects", color: "var(--accent)" },
+      { key: "areas", label: "📂 Areas", color: "var(--purple)" },
+      { key: "resources", label: "📚 Resources", color: "var(--success)" },
+      { key: "conversations", label: "💬 Conversations", color: "var(--orange)" },
+      { key: "archives", label: "🗄️ Archives", color: "var(--muted)" },
+    ];
+    panel.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;">${categories.map(c => {
+      const count = data[c.key] || 0;
+      return `<div style="display:flex;align-items:center;gap:12px;">
+        <span style="width:24px;text-align:center;">${c.label.split(' ')[0]}</span>
+        <span style="flex:1;">${c.label.split(' ')[1]}</span>
+        <span class="badge" style="background:${c.color};color:white;">${count}</span>
+      </div>`;
+    }).join("")}</div>`;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📂</div><p>PARA 分类不可用</p></div>`;
+  }
+}
+
+async function fetchVaultNetwork() {
+  const panel = document.getElementById("vaultNetworkPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/kg/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">实体</div><div class="metric" style="font-size:1.3rem;">${data.entities || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">关系</div><div class="metric" style="font-size:1.3rem;">${data.relations || 0}</div></div>
+      </div>
+      <div class="mt-3"><a href="#" onclick="navigate('kg');return false;" class="btn secondary">查看知识图谱 →</a></div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🕸️</div><p>笔记网络不可用</p></div>`;
+  }
+}
+
+// ===== Knowledge Graph =====
+async function fetchKgOverview() {
+  const panel = document.getElementById("kgOverviewPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/kg/stats", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    panel.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;">
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">实体</div><div class="metric" style="font-size:1.3rem;">${data.entities || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">关系</div><div class="metric" style="font-size:1.3rem;">${data.relations || 0}</div></div>
+        <div class="card" style="text-align:center;padding:16px;"><div class="metric-label">三元组</div><div class="metric" style="font-size:1.3rem;">${data.triples || 0}</div></div>
+      </div>
+      <div class="mt-3"><span class="badge ${data.built ? 'ok' : 'warn'}">${data.built ? '✅ 已构建' : '⚠️ 未构建'}</span></div>
+    `;
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🕸️</div><p>知识图谱概览不可用</p></div>`;
+  }
+}
+
+async function fetchKgEntities() {
+  const panel = document.getElementById("kgEntitiesPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/kg/entities?limit=20", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.entities && data.entities.length > 0) {
+      const rows = data.entities.slice(0, 10).map(e => `
+        <tr><td>${escapeHtml(e.name)}</td><td><span class="tag">${escapeHtml(e.type)}</span></td><td>${e.occurrences || 0}</td></tr>
+      `).join("");
+      panel.innerHTML = `<table class="data-table"><thead><tr><th>名称</th><th>类型</th><th>出现次数</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📊</div><p>暂无实体数据</p></div>`;
+    }
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">📊</div><p>实体统计不可用</p></div>`;
+  }
+}
+
+async function fetchKgRelations() {
+  const panel = document.getElementById("kgRelationsPanel");
+  if (!panel) return;
+  try {
+    const res = await fetch("/kg/graph?limit=50", { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.edges && data.edges.length > 0) {
+      const rows = data.edges.slice(0, 10).map(edge => `
+        <tr><td>${escapeHtml(edge.source)}</td><td><span class="badge info">${escapeHtml(edge.relation)}</span></td><td>${escapeHtml(edge.target)}</td></tr>
+      `).join("");
+      panel.innerHTML = `<table class="data-table"><thead><tr><th>源实体</th><th>关系</th><th>目标实体</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🔗</div><p>暂无关系数据</p></div>`;
+    }
+  } catch {
+    panel.innerHTML = `<div class="kg-placeholder" style="padding:20px;"><div class="icon">🔗</div><p>关系浏览不可用</p></div>`;
+  }
+}
+
+async function searchKgEntities() {
+  const input = document.getElementById("kgSearchInput");
+  const q = input.value.trim();
+  if (!q) return;
+  const resultsDiv = document.getElementById("kgSearchResults");
+  resultsDiv.innerHTML = `<div class="skeleton skeleton-text" style="width:80%"></div><div class="skeleton skeleton-text" style="width:60%"></div>`;
+  
+  try {
+    const res = await fetch(`/kg/entities?q=${encodeURIComponent(q)}&limit=10`, { signal: AbortSignal.timeout(10000) });
+    const data = await res.json();
+    if (!data.entities || data.entities.length === 0) {
+      resultsDiv.innerHTML = `<div class="kg-placeholder" style="padding:40px;"><div class="icon">🔍</div><p>未找到实体</p></div>`;
+      return;
+    }
+    resultsDiv.innerHTML = data.entities.map((e, i) => `
+      <div class="result-card" style="animation-delay:${i * 50}ms">
+        <div class="result-title">${escapeHtml(e.name)} <span class="tag">${escapeHtml(e.type)}</span></div>
+        <div class="result-excerpt">${escapeHtml(e.description || '')}</div>
+      </div>
+    `).join("");
+  } catch (e) {
+    resultsDiv.innerHTML = `<div class="kg-placeholder" style="padding:40px;"><div class="icon">❌</div><p>搜索失败</p><p class="text-muted">${escapeHtml(e.message)}</p></div>`;
+  }
+}

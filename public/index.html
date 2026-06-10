@@ -840,12 +840,28 @@ body {
 
     <!-- KG Page -->
     <div id="page-kg" class="page hidden">
-      <div class="card">
-        <h2>🕸️ 知识图谱</h2>
-        <div class="kg-placeholder">
-          <div class="icon">🕸️</div>
-          <p>知识图谱可视化即将推出</p>
-          <p class="text-muted">使用 /kg/build API 构建图谱数据</p>
+      <div class="grid">
+        <div class="card">
+          <h2>🕸️ 知识图谱概览</h2>
+          <div id="kgOverviewPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>📊 实体统计</h2>
+          <div id="kgEntitiesPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+      </div>
+      <div class="grid mt-4">
+        <div class="card">
+          <h2>🔗 关系浏览</h2>
+          <div id="kgRelationsPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🔍 实体搜索</h2>
+          <div class="search-box" style="margin-bottom:16px">
+            <input class="input" id="kgSearchInput" placeholder="搜索实体..." />
+            <button class="btn" onclick="searchKgEntities()">搜索</button>
+          </div>
+          <div id="kgSearchResults"></div>
         </div>
       </div>
     </div>
@@ -860,6 +876,137 @@ body {
         <div class="card">
           <h2>🦀 Native Core</h2>
           <div id="nativeStatusPanel"><p class="text-muted">检测中...</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Analysis Page -->
+    <div id="page-code" class="page hidden">
+      <div class="grid">
+        <div class="card">
+          <h2>📊 CodeGraph 状态</h2>
+          <div id="codegraphStatusPanel"><p class="text-muted">加载中...</p></div>
+          <button class="btn secondary mt-3" onclick="initCodegraph()">🔄 初始化索引</button>
+        </div>
+        <div class="card">
+          <h2>🔍 符号搜索</h2>
+          <div class="search-box" style="margin-bottom:16px">
+            <input class="input" id="symbolSearchInput" placeholder="输入函数名、类名或符号..." />
+            <button class="btn" onclick="searchSymbols()">搜索</button>
+          </div>
+          <div id="symbolSearchResults"></div>
+        </div>
+      </div>
+      <div class="grid mt-4">
+        <div class="card">
+          <h2>📁 文件索引</h2>
+          <div id="fileIndexStatus"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🔗 代码检索历史</h2>
+          <div id="codeRetrievalHistory"><p class="text-muted">暂无检索记录</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Workspace Page -->
+    <div id="page-agents" class="page hidden">
+      <div class="grid">
+        <div class="card">
+          <h2>🤖 Agent 工作区</h2>
+          <div class="agent-tabs" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <button class="btn secondary active" data-agent-tab="generate" onclick="switchAgentTab('generate')">✨ 代码生成</button>
+            <button class="btn secondary" data-agent-tab="refactor" onclick="switchAgentTab('refactor')">🔧 重构</button>
+            <button class="btn secondary" data-agent-tab="review" onclick="switchAgentTab('review')">👁️ 代码审查</button>
+            <button class="btn secondary" data-agent-tab="test" onclick="switchAgentTab('test')">🧪 测试生成</button>
+          </div>
+          <div id="agentPanel">
+            <div id="agent-generate" class="agent-tab-panel">
+              <div class="setting-item">
+                <label>描述需求</label>
+                <textarea class="input" id="agentGenerateDesc" rows="3" placeholder="描述需要生成的代码功能..."></textarea>
+              </div>
+              <div class="setting-item mt-3">
+                <label>目标文件路径</label>
+                <input class="input" id="agentGeneratePath" placeholder="src/feature/module.ts" />
+              </div>
+              <button class="btn mt-3" onclick="runAgent('generate')">✨ 生成代码</button>
+            </div>
+            <div id="agent-refactor" class="agent-tab-panel hidden">
+              <div class="setting-item">
+                <label>重构描述</label>
+                <textarea class="input" id="agentRefactorDesc" rows="3" placeholder="描述需要进行的重构..."></textarea>
+              </div>
+              <div class="setting-item mt-3">
+                <label>目标文件</label>
+                <input class="input" id="agentRefactorPath" placeholder="src/old-code.ts" />
+              </div>
+              <button class="btn mt-3" onclick="runAgent('refactor')">🔧 重构代码</button>
+            </div>
+            <div id="agent-review" class="agent-tab-panel hidden">
+              <div class="setting-item">
+                <label>代码审查</label>
+                <textarea class="input" id="agentReviewCode" rows="5" placeholder="粘贴需要审查的代码..."></textarea>
+              </div>
+              <button class="btn mt-3" onclick="runAgent('review')">👁️ 审查代码</button>
+            </div>
+            <div id="agent-test" class="agent-tab-panel hidden">
+              <div class="setting-item">
+                <label>测试目标代码</label>
+                <textarea class="input" id="agentTestCode" rows="5" placeholder="粘贴需要生成测试的代码..."></textarea>
+              </div>
+              <button class="btn mt-3" onclick="runAgent('test')">🧪 生成测试</button>
+            </div>
+          </div>
+          <div id="agentResult" class="mt-4"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Router Page -->
+    <div id="page-router" class="page hidden">
+      <div class="grid">
+        <div class="card">
+          <h2>🧭 模型路由监控</h2>
+          <div id="routerStatusPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>📈 Token 使用统计</h2>
+          <div id="tokenStatsPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+      </div>
+      <div class="grid mt-4">
+        <div class="card">
+          <h2>🤖 模型健康状态</h2>
+          <div id="modelHealthPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🎯 路由决策日志</h2>
+          <div id="routingLogPanel"><p class="text-muted">暂无日志</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vault Explorer Page -->
+    <div id="page-vault" class="page hidden">
+      <div class="grid">
+        <div class="card">
+          <h2>📁 Vault 概览</h2>
+          <div id="vaultStatsPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🏷️ 标签云</h2>
+          <div id="vaultTagsPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+      </div>
+      <div class="grid mt-4">
+        <div class="card">
+          <h2>📂 PARA 分类浏览</h2>
+          <div id="vaultParaPanel"><p class="text-muted">加载中...</p></div>
+        </div>
+        <div class="card">
+          <h2>🕸️ 笔记网络</h2>
+          <div id="vaultNetworkPanel"><p class="text-muted">加载中...</p></div>
         </div>
       </div>
     </div>
@@ -911,7 +1058,7 @@ body {
     <div class="modal" style="position:relative;">
       <button class="modal-close" id="kbdModalClose">&times;</button>
       <h3>⌨️ 键盘快捷键</h3>
-      <div class="kbd-row"><span>切换页面</span><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd></div></div>
+      <div class="kbd-row"><span>切换页面</span><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> <kbd>8</kbd></div></div>
       <div class="kbd-row"><span>发送消息</span><kbd>Enter</kbd></div>
       <div class="kbd-row"><span>换行</span><kbd>Shift</kbd> + <kbd>Enter</kbd></div>
       <div class="kbd-row"><span>切换主题</span><kbd>Shift</kbd> + <kbd>T</kbd></div>
