@@ -15,6 +15,48 @@
 import { spawn } from "child_process";
 import path from "path";
 import { logger } from "../utils/logger.js";
+import { Cache } from "../utils/cache.js";
+import { TIMEOUTS } from "../constants/timeouts.js";
+
+// ═══════════════════════════════════════════════════════════════
+// CodeGraph 查询缓存层 (P0 优化)
+// ═══════════════════════════════════════════════════════════════
+
+const codegraphCache = new Cache<unknown>({
+  namespace: "codegraph",
+  maxSize: 500,
+  defaultTtlMs: TIMEOUTS.CODEGRAPH_CACHE_TTL,
+  persistent: false, // 内存缓存即可，索引变更时自动失效
+  redis: false,
+});
+
+/** 生成缓存 key */
+function cacheKey(method: string, params: unknown): string {
+  return `${method}:${JSON.stringify(params)}`;
+}
+
+/** 包装带缓存的查询 */
+async function cachedQuery<T>(
+  method: string,
+  params: unknown,
+  executor: () => Promise<T>
+): Promise<T> {
+  const key = cacheKey(method, params);
+  const cached = codegraphCache.getSync(key) as T | undefined;
+  if (cached !== undefined) {
+    logger.debug("[CodeGraph] Cache hit", { method, params });
+    return cached;
+  }
+  const result = await executor();
+  codegraphCache.set(key, result as unknown, TIMEOUTS.CODEGRAPH_CACHE_TTL);
+  return result;
+}
+
+/** 使缓存失效（在索引重建后调用） */
+export function invalidateCodegraphCache(): void {
+  codegraphCache.clear();
+  logger.info("[CodeGraph] Cache invalidated after reindex");
+}
 
 let codegraphBin: string | null = null;
 
@@ -145,71 +187,78 @@ export async function initializeCodegraph(projectPath?: string): Promise<void> {
   logger.info("[CodeGraph] Initialized and indexed", { path: cwd });
 }
 
-/** 搜索符号 */
+/** 搜索符号 (带缓存) */
 export async function searchSymbols(
   query: string,
   opts?: { kind?: string; limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
-  const args = ["query", query, "--json"];
-  if (opts?.kind) args.push("--kind", opts.kind);
-  if (opts?.limit) args.push("--limit", String(opts.limit));
+  return cachedQuery("searchSymbols", { query, ...opts }, async () => {
+    const args = ["query", query, "--json"];
+    if (opts?.kind) args.push("--kind", opts.kind);
+    if (opts?.limit) args.push("--limit", String(opts.limit));
 
-  const { stdout, stderr, exitCode } = await runCodegraph(args, opts?.projectPath);
-  if (exitCode !== 0) {
-    logger.warn("[CodeGraph] Search failed", { query, error: stderr });
-    return [];
-  }
+    const { stdout, stderr, exitCode } = await runCodegraph(args, opts?.projectPath);
+    if (exitCode !== 0) {
+      logger.warn("[CodeGraph] Search failed", { query, error: stderr });
+      return [];
+    }
 
-  try {
-    const results = JSON.parse(stdout) as CodeGraphSearchResult[];
-    return results;
-  } catch {
-    return [];
-  }
+    try {
+      return JSON.parse(stdout) as CodeGraphSearchResult[];
+    } catch {
+      return [];
+    }
+  });
 }
 
-/** 获取符号的调用者 */
+/** 获取符号的调用者 (带缓存) */
 export async function getCallers(
   symbolName: string,
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
-  const args = ["callers", symbolName, "--json"];
-  if (opts?.limit) args.push("--limit", String(opts.limit));
+  return cachedQuery("getCallers", { symbolName, ...opts }, async () => {
+    const args = ["callers", symbolName, "--json"];
+    if (opts?.limit) args.push("--limit", String(opts.limit));
 
-  const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
-  if (exitCode !== 0) return [];
-  try { return JSON.parse(stdout); } catch { return []; }
+    const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
+    if (exitCode !== 0) return [];
+    try { return JSON.parse(stdout); } catch { return []; }
+  });
 }
 
-/** 获取符号的被调用者 */
+/** 获取符号的被调用者 (带缓存) */
 export async function getCallees(
   symbolName: string,
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
-  const args = ["callees", symbolName, "--json"];
-  if (opts?.limit) args.push("--limit", String(opts.limit));
+  return cachedQuery("getCallees", { symbolName, ...opts }, async () => {
+    const args = ["callees", symbolName, "--json"];
+    if (opts?.limit) args.push("--limit", String(opts.limit));
 
-  const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
-  if (exitCode !== 0) return [];
-  try { return JSON.parse(stdout); } catch { return []; }
+    const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
+    if (exitCode !== 0) return [];
+    try { return JSON.parse(stdout); } catch { return []; }
+  });
 }
 
-/** 构建任务相关的代码上下文 */
+/** 构建任务相关的代码上下文 (带缓存) */
 export async function buildContext(
   task: string,
   opts?: { maxNodes?: number; includeCode?: boolean; format?: "markdown" | "json"; projectPath?: string }
 ): Promise<string> {
-  const args = ["context", task];
-  if (opts?.maxNodes) args.push("--max-nodes", String(opts.maxNodes));
-  if (opts?.includeCode !== false) args.push("--include-code");
-  if (opts?.format) args.push("--format", opts.format);
+  return cachedQuery("buildContext", { task, ...opts }, async () => {
+    const args = ["context", task];
+    if (opts?.maxNodes) args.push("--max-nodes", String(opts.maxNodes));
+    if (opts?.includeCode !== false) args.push("--include-code");
+    if (opts?.format) args.push("--format", opts.format);
 
-  const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
-  if (exitCode !== 0) {
-    logger.warn("[CodeGraph] Context build failed", { task, error: stdout });
-    return "";
-  }
-  return stdout;
+    const { stdout, exitCode } = await runCodegraph(args, opts?.projectPath);
+    if (exitCode !== 0) {
+      logger.warn("[CodeGraph] Context build failed", { task, error: stdout });
+      return "";
+    }
+    return stdout;
+  });
 }
 
 /** 获取符号的影响半径 */

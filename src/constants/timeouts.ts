@@ -57,6 +57,12 @@ export const TIMEOUTS = {
 
   // 心跳检测间隔
   HEARTBEAT_INTERVAL: 30_000,
+
+  // CodeGraph 重索引最小间隔（避免频繁全量重建）
+  CODEGRAPH_REINDEX_COOLDOWN: 30_000,
+
+  // CodeGraph 查询缓存 TTL
+  CODEGRAPH_CACHE_TTL: 60_000,
 } as const;
 
 // 保持向后兼容的默认导出

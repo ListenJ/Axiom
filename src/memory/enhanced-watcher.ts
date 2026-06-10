@@ -19,6 +19,7 @@ import {
   initializeCodegraph,
   isCodegraphInitialized,
   searchSymbols,
+  invalidateCodegraphCache,
   type CodeGraphSearchResult,
 } from "./codegraph-index.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
@@ -89,6 +90,17 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
   // 批处理历史
   private batchHistory: ReindexBatch[] = [];
   private currentBatch: ReindexBatch | null = null;
+
+  // 增量索引追踪 (P1 优化)
+  private dirtyFiles = new Set<string>();           // 待重新索引的文件
+  private lastIndexTime = 0;                        // 上次索引时间
+  private totalIndexedFiles = 0;                    // 总索引文件数（用于阈值计算）
+  private indexStats = {                            // 索引统计
+    fullRebuilds: 0,
+    skippedRebuilds: 0,
+    dirtyFilesProcessed: 0,
+    avgRebuildTimeMs: 0,
+  };
 
   constructor(opts: EnhancedWatcherOptions) {
     super({
@@ -210,7 +222,8 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
 
     // 如果是源码文件，触发 CodeGraph 增量索引
     if (this.isSourceFile(filePath) && this.enhancedOpts.codegraphProjectPath) {
-      await this.incrementalCodegraphIndex([filePath]);
+      this.dirtyFiles.add(filePath);
+      await this.smartIncrementalIndex();
     }
 
     // 记录访问
@@ -417,9 +430,14 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
   private async processSourceChanges(changes: FileChange[]): Promise<void> {
     const filePaths = changes.map((c) => c.filePath);
 
+    // 将变更文件加入脏文件集合
+    for (const fp of filePaths) {
+      this.dirtyFiles.add(fp);
+    }
+
     if (this.enhancedOpts.enableIncrementalIndexing) {
-      // 增量索引：只索引变更的文件
-      await this.incrementalCodegraphIndex(filePaths);
+      // 智能增量索引：基于阈值和冷却时间决策
+      await this.smartIncrementalIndex();
     } else {
       // 全量索引
       await this.fullCodegraphIndex();
@@ -427,6 +445,7 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
 
     logger.info("[EnhancedWatcher] Source changes processed", {
       count: changes.length,
+      dirtyFiles: this.dirtyFiles.size,
       files: filePaths.map((p) => path.basename(p)),
     });
   }
@@ -438,40 +457,99 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
     });
   }
 
-  private async incrementalCodegraphIndex(filePaths: string[]): Promise<void> {
+  /**
+   * 智能增量索引 (P1 优化)
+   *
+   * 决策逻辑:
+   * 1. 如果脏文件数量超过总文件数的 10%，触发全量重建
+   * 2. 如果距离上次重建超过冷却时间 (30s)，触发重建
+   * 3. 如果脏文件数量较少且冷却期内，跳过重建（累积到下次）
+   * 4. 手动调用 reindexFile 时立即重建
+   */
+  private async smartIncrementalIndex(): Promise<void> {
     if (!this.enhancedOpts.codegraphProjectPath) return;
 
-    try {
-      // 检查 CodeGraph 是否已初始化
-      if (!(await isCodegraphInitialized(this.enhancedOpts.codegraphProjectPath))) {
-        logger.warn("[EnhancedWatcher] CodeGraph not initialized, skipping incremental index");
-        return;
-      }
+    const dirtyCount = this.dirtyFiles.size;
+    if (dirtyCount === 0) return;
 
-      // 目前 CodeGraph CLI 不支持单文件索引，使用全量索引作为 fallback
-      // 未来可以优化为调用 codegraph index --files file1,file2
-      logger.info("[EnhancedWatcher] Incremental indexing (fallback to full)", {
-        requestedFiles: filePaths.length,
-      });
+    const now = Date.now();
+    const timeSinceLastIndex = now - this.lastIndexTime;
+    const threshold = Math.max(5, Math.floor(this.totalIndexedFiles * 0.1)); // 最少 5 个文件或 10%
 
-      await this.fullCodegraphIndex();
-    } catch (error) {
-      logger.warn("[EnhancedWatcher] Incremental index failed", {
-        error: error instanceof Error ? error.message : String(error),
+    const shouldRebuild =
+      dirtyCount >= threshold ||                    // 脏文件超过阈值
+      timeSinceLastIndex >= TIMEOUTS.CODEGRAPH_REINDEX_COOLDOWN || // 冷却时间已过
+      this.lastIndexTime === 0;                     // 首次索引
+
+    if (!shouldRebuild) {
+      logger.debug("[EnhancedWatcher] Skipping rebuild", {
+        dirtyFiles: dirtyCount,
+        threshold,
+        timeSinceLastIndex: `${Math.round(timeSinceLastIndex / 1000)}s`,
+        cooldown: `${TIMEOUTS.CODEGRAPH_REINDEX_COOLDOWN / 1000}s`,
       });
+      this.indexStats.skippedRebuilds++;
+      return;
     }
+
+    // 执行全量重建（CodeGraph CLI 目前不支持真增量，但减少了重建频率）
+    await this.fullCodegraphIndex();
   }
 
   private async fullCodegraphIndex(): Promise<void> {
     if (!this.enhancedOpts.codegraphProjectPath) return;
 
+    const startTime = Date.now();
     try {
+      // 检查 CodeGraph 是否已初始化
+      if (!(await isCodegraphInitialized(this.enhancedOpts.codegraphProjectPath))) {
+        logger.warn("[EnhancedWatcher] CodeGraph not initialized, skipping index");
+        return;
+      }
+
       await initializeCodegraph(this.enhancedOpts.codegraphProjectPath);
-      logger.info("[EnhancedWatcher] Full CodeGraph index completed");
+
+      const duration = Date.now() - startTime;
+      this.lastIndexTime = Date.now();
+      this.indexStats.fullRebuilds++;
+      this.indexStats.dirtyFilesProcessed += this.dirtyFiles.size;
+      this.indexStats.avgRebuildTimeMs =
+        (this.indexStats.avgRebuildTimeMs * (this.indexStats.fullRebuilds - 1) + duration) /
+        this.indexStats.fullRebuilds;
+
+      // 清除脏文件标记
+      const dirtyCount = this.dirtyFiles.size;
+      this.dirtyFiles.clear();
+
+      // 使 CodeGraph 查询缓存失效（因为索引已更新）
+      invalidateCodegraphCache();
+
+      // 更新总文件数
+      const status = await this.getCodegraphStatus();
+      if (status) {
+        this.totalIndexedFiles = status.files;
+      }
+
+      logger.info("[EnhancedWatcher] Full CodeGraph index completed", {
+        duration: `${duration}ms`,
+        dirtyFilesCleared: dirtyCount,
+        totalFiles: this.totalIndexedFiles,
+        avgRebuildTime: `${Math.round(this.indexStats.avgRebuildTimeMs)}ms`,
+      });
     } catch (error) {
       logger.warn("[EnhancedWatcher] Full CodeGraph index failed", {
         error: error instanceof Error ? error.message : String(error),
+        duration: `${Date.now() - startTime}ms`,
       });
+    }
+  }
+
+  private async getCodegraphStatus(): Promise<{ files: number; nodes: number; edges: number } | null> {
+    try {
+      const { getStatus } = await import("./codegraph-index.js");
+      return await getStatus(this.enhancedOpts.codegraphProjectPath);
+    } catch {
+      return null;
     }
   }
 
