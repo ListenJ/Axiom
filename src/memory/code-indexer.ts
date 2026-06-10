@@ -18,6 +18,8 @@
 
 import fs from "fs";
 import path from "path";
+import { getFileSymbolsFromCodeGraph, type FileIndexData } from "./codegraph-index.js";
+import { logger } from "../utils/logger.js";
 
 export interface CodeIndexEntry {
   filePath: string;       // 原始代码路径
@@ -81,18 +83,51 @@ export class CodeIndexer {
     const ext = path.extname(filePath);
     const lang = ext === ".md" ? undefined : this.detectLang(filePath);
 
+    // P3: 优先使用 CodeGraph 的 AST 数据，避免重复解析
+    const cgData = ext !== ".md"
+      ? await this.tryGetCodeGraphData(filePath)
+      : null;
+
     const entry: CodeIndexEntry = {
       filePath: relPath,
       vaultPath: this.toVaultPath(relPath),
       moduleName: this.toModuleName(relPath),
-      exports: ext === ".md" ? [] : this.extractExports(content, lang),
-      imports: ext === ".md" ? [] : this.extractImports(content, lang),
-      summary: ext === ".md" ? this.summarizeMarkdown(content) : this.summarizeCode(content, relPath, lang),
+      exports: cgData
+        ? cgData.exports.map((e) => ({ kind: e.kind, name: e.name, line: e.line }))
+        : ext === ".md"
+          ? []
+          : this.extractExports(content, lang),
+      imports: cgData
+        ? cgData.imports.map((i) => i.source)
+        : ext === ".md"
+          ? []
+          : this.extractImports(content, lang),
+      summary: ext === ".md"
+        ? this.summarizeMarkdown(content)
+        : cgData
+          ? cgData.summary
+          : this.summarizeCode(content, relPath, lang),
       lastIndexed: new Date().toISOString(),
     };
 
     await this.writeVaultNote(entry, content);
     return entry;
+  }
+
+  /**
+   * P3: 尝试从 CodeGraph 获取文件符号数据
+   * 成功时避免本地 regex 解析，失败时静默回退
+   */
+  private async tryGetCodeGraphData(filePath: string): Promise<FileIndexData | null> {
+    try {
+      const data = await getFileSymbolsFromCodeGraph(filePath);
+      if (data) {
+        logger.debug("[CodeIndexer] Using CodeGraph AST data", { file: path.basename(filePath), symbols: data.exports.length });
+      }
+      return data;
+    } catch {
+      return null;
+    }
   }
 
   private async scanDirectory(dir: string, relPrefix: string, entries: CodeIndexEntry[]) {

@@ -288,8 +288,12 @@ export async function getStatus(projectPath?: string): Promise<{ files: number; 
 /** 全文本搜索记忆（优先使用 CodeGraph，回退到 Vault） */
 export async function retrieveCodeMemory(
   query: string,
-  opts?: { limit?: number; includeContext?: boolean; projectPath?: string }
-): Promise<{ source: "codegraph"; results: string; symbols: CodeGraphSearchResult[] } | null> {
+  opts?: { limit?: number; includeContext?: boolean; projectPath?: string; structured?: boolean }
+): Promise<
+  | { source: "codegraph"; results: string; symbols: CodeGraphSearchResult[] }
+  | { source: "codegraph-structured"; data: StructuredContextResult; symbols: CodeGraphSearchResult[] }
+  | null
+> {
   if (!(await isCodegraphInitialized(opts?.projectPath))) {
     logger.warn("[CodeGraph] Not initialized, skipping code memory retrieval");
     return null;
@@ -298,7 +302,21 @@ export async function retrieveCodeMemory(
   // 1. 搜索相关符号
   const symbols = await searchSymbols(query, { limit: opts?.limit ?? 10, projectPath: opts?.projectPath });
 
-  // 2. 构建上下文
+  // 2. 构建上下文（结构化或文本）
+  if (opts?.structured) {
+    const data = await buildStructuredContext(query, {
+      maxNodes: opts?.limit ?? 10,
+      includeCode: opts?.includeContext ?? true,
+      projectPath: opts?.projectPath,
+    });
+
+    return {
+      source: "codegraph-structured",
+      data,
+      symbols,
+    };
+  }
+
   const context = await buildContext(query, {
     maxNodes: opts?.limit ?? 10,
     includeCode: opts?.includeContext ?? true,
@@ -311,4 +329,249 @@ export async function retrieveCodeMemory(
     results: context,
     symbols,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// P4: 结构化返回接口
+// ═══════════════════════════════════════════════════════════════
+
+export interface StructuredContextNode {
+  node: CodeGraphNode;
+  code?: string;
+  relevance: number;
+}
+
+export interface StructuredContextRelationship {
+  from: string;      // node id
+  to: string;        // node id
+  type: string;      // calls | imports | extends | implements
+  strength: number;  // 0-1
+}
+
+export interface StructuredContextResult {
+  task: string;
+  nodes: StructuredContextNode[];
+  relationships: StructuredContextRelationship[];
+  summary: string;
+  stats: {
+    totalNodes: number;
+    totalRelationships: number;
+    languages: Record<string, number>;
+    avgRelevance: number;
+  };
+}
+
+/**
+ * 构建结构化的代码上下文 (P4)
+ * 返回类型化的节点和关系数据，供下游程序消费
+ */
+export async function buildStructuredContext(
+  task: string,
+  opts?: { maxNodes?: number; includeCode?: boolean; projectPath?: string }
+): Promise<StructuredContextResult> {
+  const maxNodes = opts?.maxNodes ?? 12;
+
+  // 1. 搜索相关符号
+  const symbols = await searchSymbols(task, { limit: maxNodes, projectPath: opts?.projectPath });
+
+  // 2. 获取调用关系
+  const relationshipMap = new Map<string, StructuredContextRelationship[]>();
+  const allNodeIds = new Set<string>();
+
+  const nodes: StructuredContextNode[] = await Promise.all(
+    symbols.map(async (s, idx) => {
+      allNodeIds.add(s.node.id);
+
+      // 尝试获取代码片段
+      let code: string | undefined;
+      if (opts?.includeCode !== false && s.node.filePath) {
+        try {
+          const { readFileSync } = require("fs");
+          const content = readFileSync(s.node.filePath, "utf-8");
+          const lines = content.split("\n");
+          const start = Math.max(0, s.node.startLine - 1);
+          const end = Math.min(lines.length, s.node.endLine);
+          code = lines.slice(start, end).join("\n");
+        } catch { /* ignore */ }
+      }
+
+      // 获取调用关系
+      try {
+        const [callers, callees] = await Promise.all([
+          getCallers(s.node.name, { limit: 5, projectPath: opts?.projectPath }),
+          getCallees(s.node.name, { limit: 5, projectPath: opts?.projectPath }),
+        ]);
+
+        const rels: StructuredContextRelationship[] = [];
+        for (const c of callers) {
+          rels.push({
+            from: c.node.id,
+            to: s.node.id,
+            type: "calls",
+            strength: c.score,
+          });
+          allNodeIds.add(c.node.id);
+        }
+        for (const c of callees) {
+          rels.push({
+            from: s.node.id,
+            to: c.node.id,
+            type: "calls",
+            strength: c.score,
+          });
+          allNodeIds.add(c.node.id);
+        }
+        relationshipMap.set(s.node.id, rels);
+      } catch { /* ignore */ }
+
+      return {
+        node: s.node,
+        code,
+        relevance: Math.max(0, 1 - idx / maxNodes), // 排名越靠前相关性越高
+      };
+    })
+  );
+
+  // 3. 扁平化关系
+  const allRelationships: StructuredContextRelationship[] = [];
+  for (const rels of relationshipMap.values()) {
+    allRelationships.push(...rels);
+  }
+
+  // 4. 生成摘要
+  const languages: Record<string, number> = {};
+  for (const n of nodes) {
+    const lang = n.node.language || "unknown";
+    languages[lang] = (languages[lang] || 0) + 1;
+  }
+
+  const avgRelevance = nodes.length > 0
+    ? nodes.reduce((sum, n) => sum + n.relevance, 0) / nodes.length
+    : 0;
+
+  const summary = [
+    `Task: ${task}`,
+    `Found ${nodes.length} relevant symbols across ${Object.keys(languages).length} languages`,
+    `Top symbols: ${nodes.slice(0, 5).map((n) => n.node.name).join(", ")}`,
+  ].join("; ");
+
+  return {
+    task,
+    nodes,
+    relationships: allRelationships,
+    summary,
+    stats: {
+      totalNodes: nodes.length,
+      totalRelationships: allRelationships.length,
+      languages,
+      avgRelevance: Math.round(avgRelevance * 100) / 100,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// P3: 统一索引层 — 文件级符号查询 (供 CodeIndexer 使用)
+// ═══════════════════════════════════════════════════════════════
+
+export interface FileSymbolInfo {
+  kind: string;
+  name: string;
+  line: number;
+  signature?: string;
+}
+
+export interface FileImportInfo {
+  source: string;
+  names: string[];
+  line: number;
+}
+
+export interface FileIndexData {
+  filePath: string;
+  exports: FileSymbolInfo[];
+  imports: FileImportInfo[];
+  summary: string;
+  nodeCount: number;
+  language: string;
+}
+
+/**
+ * 从 CodeGraph 获取文件的符号信息 (P3)
+ * 替代 code-indexer.ts 中的 regex 解析
+ */
+export async function getFileSymbolsFromCodeGraph(
+  filePath: string,
+  opts?: { projectPath?: string }
+): Promise<FileIndexData | null> {
+  if (!(await isCodegraphInitialized(opts?.projectPath))) {
+    return null;
+  }
+
+  try {
+    // 1. 搜索该文件中的所有符号
+    const basename = path.basename(filePath, path.extname(filePath));
+    const allSymbols = await searchSymbols(basename, {
+      limit: 100,
+      projectPath: opts?.projectPath,
+    });
+
+    // 过滤出属于该文件的符号
+    const fileSymbols = allSymbols.filter(
+      (s) => s.node.filePath === filePath || s.node.filePath.endsWith(filePath)
+    );
+
+    if (fileSymbols.length === 0) {
+      return null;
+    }
+
+    // 2. 转换为统一格式
+    const exports: FileSymbolInfo[] = fileSymbols.map((s) => ({
+      kind: s.node.kind,
+      name: s.node.name,
+      line: s.node.startLine,
+      signature: s.node.signature,
+    }));
+
+    // 3. 获取文件信息
+    const fileResults = await searchFiles("*", {
+      path: filePath,
+      limit: 1,
+      projectPath: opts?.projectPath,
+    });
+
+    const fileInfo = fileResults[0];
+
+    return {
+      filePath,
+      exports,
+      imports: [], // CodeGraph 暂不提供导入信息，下游可补充
+      summary: `File: ${filePath}; ${exports.length} symbols; Language: ${fileInfo?.language || "unknown"}`,
+      nodeCount: fileSymbols.length,
+      language: fileInfo?.language || "unknown",
+    };
+  } catch (error) {
+    logger.debug("[CodeGraph] Failed to get file symbols", { filePath, error });
+    return null;
+  }
+}
+
+/**
+ * 批量获取多个文件的符号信息 (P3)
+ */
+export async function getBatchFileSymbols(
+  filePaths: string[],
+  opts?: { projectPath?: string }
+): Promise<Map<string, FileIndexData>> {
+  const results = new Map<string, FileIndexData>();
+
+  await Promise.all(
+    filePaths.map(async (fp) => {
+      const data = await getFileSymbolsFromCodeGraph(fp, opts);
+      if (data) {
+        results.set(fp, data);
+      }
+    })
+  );
+
+  return results;
 }
