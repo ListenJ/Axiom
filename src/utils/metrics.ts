@@ -212,3 +212,21 @@ metrics.register({
   help: "Memory usage in bytes",
   type: "gauge",
 });
+
+metrics.register({
+  name: "routing_decisions_total",
+  help: "Total routing decisions by source and role",
+  type: "counter",
+});
+
+metrics.register({
+  name: "routing_duration_seconds",
+  help: "Time spent computing routing decision",
+  type: "histogram",
+});
+
+metrics.register({
+  name: "routing_fallback_total",
+  help: "Total times a fallback model was used",
+  type: "counter",
+});

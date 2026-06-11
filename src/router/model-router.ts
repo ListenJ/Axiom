@@ -17,6 +17,7 @@ import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.j
 import { getTokenTracker } from "./token-tracker.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
+import { metrics } from "../utils/metrics.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -293,6 +294,10 @@ export class MultiPlatformRouter {
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
 
+          // Record routing decision metric
+          metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: model.id });
+          metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "execute" });
+
           return {
             content: response.content,
             model: model.model,
@@ -319,12 +324,15 @@ export class MultiPlatformRouter {
           }
         }
       }
+      // Track fallback to next model
+      metrics.increment("routing_fallback_total", 1, { role });
       logger.warn(`[Router] Model ${model.provider}/${model.model} exhausted retries`, {
         error: lastError?.message,
       });
     }
 
     logger.error(`[Router] All models exhausted for role: ${role}`);
+    metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: "degraded" });
     return {
       content: "I'm currently experiencing high load. Please try again in a moment.",
       model: "degraded",
@@ -645,7 +653,11 @@ export class MultiPlatformRouter {
         latency_ms: 0,
         fallback_used: true,
       };
-    } catch {
+    } catch (error) {
+      logger.error(
+        `[Router] All models for role "${role}" exhausted`,
+        error instanceof Error ? error : undefined
+      );
       return {
         role,
         model: "local",
