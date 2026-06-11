@@ -207,19 +207,21 @@ const platformChecks: [string, string][] = [
   ["siliconflow", "SILICONFLOW_API_KEY"], ["ofoxai", "OFOXAI_API_KEY"],
   ["openrouter", "OPENROUTER_API_KEY"], ["deepseek", "DEEPSEEK_API_KEY"],
   ["kimiCode", "KIMI_CODE_API_KEY"],
+  ["nvidia-nim", "NIM_API_KEY"],
 ];
+const platformEndpoints: Record<string, string> = {
+  siliconflow: "https://api.siliconflow.cn/v1/models", ofoxai: "https://api.ofox.ai/v1/models",
+  openrouter: "https://openrouter.ai/api/v1/models", deepseek: "https://api.deepseek.com/v1/models",
+  kimiCode: "https://api.kimi.com/coding/v1/models",
+  "nvidia-nim": "https://integrate.api.nvidia.com/v1/models",
+};
 for (const [name, envKey] of platformChecks) {
-  const endpoints: Record<string, string> = {
-    siliconflow: "https://api.siliconflow.cn/v1/models", ofoxai: "https://api.ofox.ai/v1/models",
-    openrouter: "https://openrouter.ai/api/v1/models", deepseek: "https://api.deepseek.com/v1/models",
-    kimiCode: "https://api.kimi.com/coding/v1/models",
-  };
   healthMonitor.register({
     name, interval: 120000,
     check: async () => {
       const apiKey = process.env[envKey];
       if (!apiKey) return false;
-      try { const res = await fetch(endpoints[name], { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(3000) }); return res.ok; }
+      try {       const res = await fetch(platformEndpoints[name], { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(3000) }); return res.ok; }
       catch { return false; }
     },
   });

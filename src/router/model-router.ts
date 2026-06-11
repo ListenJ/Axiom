@@ -15,6 +15,7 @@ import { toolPool, type ToolRole } from "./tool-pool.js";
 import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
 import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
+import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
 // =============================================================================
@@ -173,7 +174,6 @@ async function callProvider(
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
 
-  const { getEffectiveApiKey, getEffectiveBaseURL } = await import("../utils/api-key-store.js");
   const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
   if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
 
@@ -246,38 +246,57 @@ export class MultiPlatformRouter {
     const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     for (const model of sortedModels) {
-      const loopStart = Date.now();
-      try {
-        const response = await callProvider(
-          model.provider,
-          model.model,
-          messages,
-          model.timeout ?? timeout,
-          temperature
-        );
-        const latencyMs = Date.now() - loopStart;
-        trackCall(model.model, model.provider, messages, {
-          usage: response.usage,
-          latencyMs,
-          success: true,
-        }, { role: trackAs ?? role, taskType: trackAs ?? role });
+      // Per-model retry: default 1 attempt; respect maxRetries if exposed in capability
+      const maxRetries = Math.max(1, (model as ModelCapability & { maxRetries?: number }).maxRetries ?? 1);
+      let lastError: Error | undefined;
 
-        return {
-          content: response.content,
-          model: model.model,
-          provider: model.provider,
-          usage: response.usage,
-          latencyMs,
-          fallbackUsed: false,
-        };
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        logger.warn(`[Router] Execute failed ${model.provider}/${model.model}`, { error: msg });
-        trackCall(model.model, model.provider, messages, {
-          latencyMs: Date.now() - loopStart,
-          success: false,
-        }, { role: trackAs ?? role, taskType: trackAs ?? role });
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const loopStart = Date.now();
+        try {
+          const response = await callProvider(
+            model.provider,
+            model.model,
+            messages,
+            model.timeout ?? timeout,
+            temperature
+          );
+          const latencyMs = Date.now() - loopStart;
+          trackCall(model.model, model.provider, messages, {
+            usage: response.usage,
+            latencyMs,
+            success: true,
+          }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
+
+          return {
+            content: response.content,
+            model: model.model,
+            provider: model.provider,
+            usage: response.usage,
+            latencyMs,
+            fallbackUsed: false,
+          };
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          const msg = lastError.message;
+          logger.warn(
+            `[Router] Execute failed ${model.provider}/${model.model} (attempt ${attempt + 1}/${maxRetries})`,
+            { error: msg }
+          );
+          trackCall(model.model, model.provider, messages, {
+            latencyMs: Date.now() - loopStart,
+            success: false,
+          }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // Exponential backoff with jitter, capped at 5s
+          if (attempt < maxRetries - 1) {
+            const backoff = Math.min(500 * Math.pow(2, attempt) + Math.random() * 200, 5000);
+            await new Promise((r) => setTimeout(r, backoff));
+          }
+        }
       }
+      logger.warn(`[Router] Model ${model.provider}/${model.model} exhausted retries`, {
+        error: lastError?.message,
+      });
     }
 
     logger.error(`[Router] All models exhausted for role: ${role}`);
@@ -487,7 +506,6 @@ export class MultiPlatformRouter {
     const model = models[0];
 
     const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
-    const { getEffectiveApiKey, getEffectiveBaseURL } = await import("../utils/api-key-store.js");
     const apiKey = getEffectiveApiKey(model.provider, config.apiKeyEnv);
     if (!apiKey) throw new Error(`Missing API key for embedding`);
 
