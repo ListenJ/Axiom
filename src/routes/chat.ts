@@ -29,7 +29,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
           try {
             const { retrieveCodeMemory } = await import("../memory/codegraph-index.js");
             const cgResult = await retrieveCodeMemory(lastUserMsg.content);
-            if (cgResult && cgResult.results) {
+            if (cgResult && cgResult.source === "codegraph" && cgResult.results) {
               codegraphContext = cgResult.results.slice(0, 3000);
               chatMessages = [
                 { role: "system", content: `[CodeGraph Context]\n${codegraphContext}` },

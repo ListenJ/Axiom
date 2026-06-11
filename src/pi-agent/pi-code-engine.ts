@@ -458,7 +458,7 @@ Requirements:
     // 策略 2: 回退到 CodeGraph
     try {
       const memory = await retrieveCodeMemory(query, { limit: 6, includeContext: true });
-      if (memory?.results) {
+      if (memory?.source === "codegraph" && memory.results) {
         return { context: memory.results, tokenSaved: 0 };
       }
     } catch (e) {

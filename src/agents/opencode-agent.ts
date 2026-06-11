@@ -149,7 +149,7 @@ export async function runWithCodeContext(options: {
   if (needsCode) {
     logger.info("[OpenCode] CodeGraph context injection triggered", { prompt: prompt.slice(0, 80) });
     const memory = await retrieveCodeMemory(prompt, { limit: 8, includeContext: true });
-    if (memory && memory.results) {
+    if (memory && memory.source === "codegraph" && memory.results) {
       injectedContext = memory.results;
       enhancedPrompt = `## 项目代码上下文 (来自 CodeGraph 索引)\n\n${injectedContext}\n\n---\n\n## 任务\n\n${prompt}`;
       logger.info("[OpenCode] CodeGraph context injected", {

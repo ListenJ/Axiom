@@ -399,7 +399,7 @@ async function handleCodegraphQuery(query: string) {
   try {
     chatLog.log(`{green-fg}[CodeGraph] "${query}"{/green-fg}`);
     const result = await retrieveCodeMemory(query);
-    if (result) { chatLog.log(`{green-fg}Found ${result.symbols.length} symbols{/green-fg}`); chatLog.log(result.results.slice(0, 2000)); }
+    if (result) { chatLog.log(`{green-fg}Found ${result.symbols.length} symbols{/green-fg}`); if (result.source === "codegraph") chatLog.log(result.results.slice(0, 2000)); }
     else chatLog.log("{gray-fg}No CodeGraph memory found.{/gray-fg}");
   } catch (e) {
     chatLog.log(`{red-fg}[错误] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
