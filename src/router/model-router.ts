@@ -164,6 +164,13 @@ function trackCall(
 // 通用 HTTP 调用
 // =============================================================================
 
+// 输入大小限制：防止单次请求发送过大 payload (默认 1MB)
+const MAX_REQUEST_BYTES = 1 * 1024 * 1024;
+// 上下文 token 上限（粗略估算 1 token ≈ 3 字符）
+const MAX_CONTEXT_CHARS = 600_000;
+// 每个模型的默认重试次数 (ModelCapability 接口未暴露 maxRetries, 这里使用统一默认值)
+const DEFAULT_RETRY_ATTEMPTS = 3;
+
 async function callProvider(
   provider: string,
   model: string,
@@ -178,6 +185,23 @@ async function callProvider(
   if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
 
   const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
+
+  // 输入大小校验
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new Error("messages must be a non-empty array");
+  }
+  const totalChars = messages.reduce((sum, m) => sum + (typeof m?.content === "string" ? m.content.length : 0), 0);
+  if (totalChars > MAX_CONTEXT_CHARS) {
+    throw new Error(
+      `Message content too large: ${totalChars} chars (max ${MAX_CONTEXT_CHARS}). Please trim context.`,
+    );
+  }
+  const payloadSize = JSON.stringify({ model, messages, temperature }).length;
+  if (payloadSize > MAX_REQUEST_BYTES) {
+    throw new Error(
+      `Request payload too large: ${payloadSize} bytes (max ${MAX_REQUEST_BYTES}). Reduce message count or size.`,
+    );
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -246,8 +270,9 @@ export class MultiPlatformRouter {
     const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     for (const model of sortedModels) {
-      // Per-model retry: default 1 attempt; respect maxRetries if exposed in capability
-      const maxRetries = Math.max(1, (model as ModelCapability & { maxRetries?: number }).maxRetries ?? 1);
+      // Per-model retry: default DEFAULT_RETRY_ATTEMPTS (since ModelCapability doesn't expose maxRetries)
+      // Note: ModelCapability interface lacks maxRetries; we use a constant default for transient-error resilience.
+      const maxRetries = Math.max(1, DEFAULT_RETRY_ATTEMPTS);
       let lastError: Error | undefined;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -473,17 +498,31 @@ export class MultiPlatformRouter {
 
   parseRoutingDecision(content: string | null): RoutingMeta {
     const defaultResult: RoutingMeta = { role: "general-chat", thinking: "none", reason: "解析失败，使用默认值" };
-    if (!content) return defaultResult;
+    if (!content) {
+      logger.warn("[AutoRoute] Empty content from decision model, using default route");
+      return defaultResult;
+    }
 
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          role: (parsed.role as TaskRole) || defaultResult.role,
-          thinking: parsed.thinking || defaultResult.thinking,
-          reason: parsed.reason || defaultResult.reason,
-        };
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return {
+            role: (parsed.role as TaskRole) || defaultResult.role,
+            thinking: parsed.thinking || defaultResult.thinking,
+            reason: parsed.reason || defaultResult.reason,
+          };
+        } catch (jsonErr) {
+          logger.warn("[AutoRoute] JSON.parse failed on extracted block", {
+            snippet: jsonMatch[0].slice(0, 200),
+            error: (jsonErr as Error).message,
+          });
+        }
+      } else {
+        logger.warn("[AutoRoute] No JSON block found in decision model output", {
+          snippet: content.slice(0, 200),
+        });
       }
     } catch {
       const lower = content.toLowerCase();

@@ -3,13 +3,14 @@
  */
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
+import { router } from "../router/model-router.js";
+import { wsManager } from "../utils/websocket.js";
+import { buildAgentMessages } from "../agents/intent-router.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/chat" && ctx.req.method === "POST") {
     const body = await ctx.req.json();
     const { taskType, messages = [], intent: enableIntent = true } = body;
-    const { router } = await import("../router/model-router.js");
-    const { wsManager } = await import("../utils/websocket.js");
 
     let chatMessages = messages;
     let intentInfo = null;
@@ -18,7 +19,6 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     if (enableIntent !== false && messages.length > 0) {
       const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
       if (lastUserMsg?.content) {
-        const { buildAgentMessages } = await import("../agents/intent-router.js");
         const history = messages.slice(0, -1).filter((m: { role: string; content: string }) => m.role !== "system");
         const { intent, messages: agentMessages } = buildAgentMessages(lastUserMsg.content, history);
         chatMessages = agentMessages;
@@ -103,10 +103,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
   if (ctx.url.pathname === "/agent-chat" && ctx.req.method === "POST") {
     const body = await ctx.req.json();
     const { message, history = [], taskType } = body;
-    const { buildAgentMessages } = await import("../agents/intent-router.js");
     const { intent, messages: agentMessages } = buildAgentMessages(message, history);
-    const { router } = await import("../router/model-router.js");
-    const { wsManager } = await import("../utils/websocket.js");
 
     let result;
     if (intent) {

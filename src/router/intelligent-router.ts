@@ -18,7 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { getTokenTracker, type ModelStats } from "./token-tracker.js";
-import { PROVIDER_CONFIG, type UnifiedModel, type ModelProvider, type TaskRole } from "./models.js";
+import { PROVIDER_CONFIG, UNIFIED_REGISTRY, type UnifiedModel, type ModelProvider, type TaskRole } from "./models.js";
 
 // =============================================================================
 // 类型定义
@@ -52,6 +52,8 @@ export interface OutcomeRecord {
   success: boolean;
   latencyMs: number;
   errorMessage?: string;
+  /** When this outcome was recorded (ms since epoch). Defaults to Date.now() in recordOutcome. */
+  timestamp?: number;
 }
 
 // =============================================================================
@@ -365,6 +367,10 @@ export class IntelligentRouter {
    * 记录路由 outcome, 用于后续性能感知选择
    */
   recordOutcome(record: OutcomeRecord): void {
+    // Stamp the timestamp automatically if caller didn't supply one
+    if (record.timestamp === undefined) {
+      record.timestamp = Date.now();
+    }
     this.outcomes.push(record);
     if (this.outcomes.length > this.maxOutcomes) {
       this.outcomes = this.outcomes.slice(-this.maxOutcomes);
@@ -381,12 +387,12 @@ export class IntelligentRouter {
   }
 
   /**
-   * 获取最近的成功率 (内存缓存)
+   * 获取最近的成功率 (内存缓存,按时间窗过滤)
    */
   getRecentSuccessRate(modelId: string, windowMs = 3600_000): number | null {
     const cutoff = Date.now() - windowMs;
     const recent = this.outcomes.filter(
-      (o) => o.decision.model.id === modelId && Date.now() - (o.decision.model.id.length > 0 ? 0 : 0) >= 0
+      (o) => o.decision.model.id === modelId && (o.timestamp ?? 0) >= cutoff
     );
     if (recent.length < 3) return null; // 数据不足
     const successes = recent.filter((o) => o.success).length;
@@ -596,8 +602,6 @@ export class IntelligentRouter {
 // =============================================================================
 
 let _modelsCache: UnifiedModel[] | null = null;
-
-import { UNIFIED_REGISTRY } from "./models.js";
 
 function getAllModelsCached(): UnifiedModel[] {
   if (_modelsCache === null) {

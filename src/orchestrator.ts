@@ -1,5 +1,5 @@
 /**
- * OpenClaw AI Agent - System Orchestrator v2.2.0
+ * OpenClaw AI Agent - System Orchestrator v2.3.0
  * Integrates code retrieval router, context manager, graceful degradation,
  * and enhanced file watcher into the main system.
  */

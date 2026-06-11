@@ -90,4 +90,72 @@ describe("IntelligentRouter", () => {
     expect(decision).toBeDefined();
     expect(decision.role).toBeDefined();
   });
+
+  it("getRecentSuccessRate should respect time window", () => {
+    const localRouter = new IntelligentRouter();
+    const decision = localRouter.getOptimalRoute({
+      messages: [{ role: "user", content: "implement a binary search tree" }],
+    });
+
+    // Record 4 outcomes: 3 success + 1 failure, all with current timestamp
+    for (let i = 0; i < 3; i++) {
+      localRouter.recordOutcome({
+        decision,
+        success: true,
+        latencyMs: 1000,
+      });
+    }
+    localRouter.recordOutcome({
+      decision,
+      success: false,
+      latencyMs: 2000,
+      errorMessage: "test failure",
+    });
+
+    // Within 1 hour window: 3/4 = 0.75
+    const recentRate = localRouter.getRecentSuccessRate(decision.model.id, 3600_000);
+    expect(recentRate).toBe(0.75);
+
+    // Add 3 records with timestamps far in the past (older than 100ms window)
+    for (let i = 0; i < 3; i++) {
+      localRouter.recordOutcome({
+        decision,
+        success: true,
+        latencyMs: 1000,
+        timestamp: Date.now() - 10_000, // 10 seconds ago
+      });
+    }
+    // With a tiny 100ms window, the 3 fresh + 1 failure are still in window (3/4 = 0.75)
+    // But the old ones (10s ago) should be filtered out
+    const narrowRate = localRouter.getRecentSuccessRate(decision.model.id, 100);
+    expect(narrowRate).toBe(0.75); // still 3/4 from the fresh records
+
+    // Now test that with no fresh records and a tiny window, we get null
+    const emptyRouter = new IntelligentRouter();
+    const emptyDecision = emptyRouter.getOptimalRoute({
+      messages: [{ role: "user", content: "implement a binary search tree" }],
+    });
+    for (let i = 0; i < 3; i++) {
+      emptyRouter.recordOutcome({
+        decision: emptyDecision,
+        success: true,
+        latencyMs: 1000,
+        timestamp: Date.now() - 10_000, // all old
+      });
+    }
+    // 100ms window should exclude the 10s-old records → 0 records → null
+    const oldRate = emptyRouter.getRecentSuccessRate(emptyDecision.model.id, 100);
+    expect(oldRate).toBeNull();
+  });
+
+  it("getRecentSuccessRate should return null when fewer than 3 samples", () => {
+    const localRouter = new IntelligentRouter();
+    const decision = localRouter.getOptimalRoute({
+      messages: [{ role: "user", content: "implement a binary search tree" }],
+    });
+    localRouter.recordOutcome({ decision, success: true, latencyMs: 1000 });
+    localRouter.recordOutcome({ decision, success: true, latencyMs: 1000 });
+    // Only 2 samples — should return null
+    expect(localRouter.getRecentSuccessRate(decision.model.id, 3600_000)).toBeNull();
+  });
 });

@@ -60,22 +60,62 @@ export interface ProxyFetchResponse {
 
 // ========== 连接池 (性能优化) ==========
 
-const agentCache = new Map<string, http.Agent | https.Agent>();
+// 最大缓存的 agent 数量，超过后按 LRU 淘汰最久未使用的 agent
+const MAX_AGENT_CACHE_SIZE = 32;
+// key → { agent, lastUsedAt }
+interface CachedAgent {
+  agent: http.Agent | https.Agent;
+  lastUsedAt: number;
+}
+const agentCache = new Map<string, CachedAgent>();
+
+/**
+ * LRU 淘汰：当缓存超过 MAX_AGENT_CACHE_SIZE 时销毁最久未使用的 agent
+ */
+function evictOldestAgent(): void {
+  if (agentCache.size <= MAX_AGENT_CACHE_SIZE) return;
+  let oldestKey: string | null = null;
+  let oldestTime = Infinity;
+  for (const [key, entry] of agentCache) {
+    if (entry.lastUsedAt < oldestTime) {
+      oldestTime = entry.lastUsedAt;
+      oldestKey = key;
+    }
+  }
+  if (oldestKey) {
+    const entry = agentCache.get(oldestKey);
+    if (entry) {
+      try {
+        entry.agent.destroy();
+      } catch {
+        // 忽略关闭错误
+      }
+    }
+    agentCache.delete(oldestKey);
+  }
+}
 
 function getAgent(protocol: string, proxy?: ProxyConfig | null): http.Agent | https.Agent {
   const key = `${protocol}::${proxy ? `${proxy.host}:${proxy.port}` : "direct"}`;
-  if (!agentCache.has(key)) {
-    const isHttps = protocol === "https:";
-    const Agent = isHttps ? https.Agent : http.Agent;
-    agentCache.set(key, new Agent({
-      keepAlive: true,
-      keepAliveMsecs: 30000,
-      maxSockets: 50,
-      maxFreeSockets: 10,
-      timeout: 60000,
-    }));
+  const existing = agentCache.get(key);
+  if (existing) {
+    existing.lastUsedAt = Date.now();
+    return existing.agent;
   }
-  return agentCache.get(key)!;
+
+  evictOldestAgent();
+
+  const isHttps = protocol === "https:";
+  const Agent = isHttps ? https.Agent : http.Agent;
+  const agent = new Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 50,
+    maxFreeSockets: 10,
+    timeout: 60000,
+  });
+  agentCache.set(key, { agent, lastUsedAt: Date.now() });
+  return agent;
 }
 
 // ========== 代理检测 ==========
@@ -89,12 +129,22 @@ interface ProxyConfig {
 }
 
 let cachedProxyConfig: ProxyConfig | null | undefined = undefined; // undefined = not yet checked
+// Windows 注册表结果缓存（避免重复 spawnSync）
+let cachedWindowsProxy: { value: { proxy: string; bypass: string } | null; expiresAt: number } | null = null;
+const WINDOWS_PROXY_CACHE_TTL_MS = 60_000; // 1 分钟
 
 /**
  * 从 Windows 注册表读取系统代理设置
+ * 结果会被缓存，避免每次请求都执行 spawnSync
  */
 async function getWindowsSystemProxy(): Promise<{ proxy: string; bypass: string } | null> {
   if (process.platform !== "win32") return null;
+
+  // 检查缓存
+  const now = Date.now();
+  if (cachedWindowsProxy && cachedWindowsProxy.expiresAt > now) {
+    return cachedWindowsProxy.value;
+  }
 
   try {
     const { spawnSync } = await import("node:child_process");
@@ -104,9 +154,15 @@ async function getWindowsSystemProxy(): Promise<{ proxy: string; bypass: string 
       "/v", "ProxyEnable",
     ], { encoding: "utf-8", timeout: 3000 });
 
-    if (result.status !== 0) return null;
+    if (result.status !== 0) {
+      cachedWindowsProxy = { value: null, expiresAt: now + WINDOWS_PROXY_CACHE_TTL_MS };
+      return null;
+    }
     const enabled = result.stdout.includes("0x1");
-    if (!enabled) return null;
+    if (!enabled) {
+      cachedWindowsProxy = { value: null, expiresAt: now + WINDOWS_PROXY_CACHE_TTL_MS };
+      return null;
+    }
 
     const serverResult = spawnSync("reg", [
       "query",
@@ -133,8 +189,11 @@ async function getWindowsSystemProxy(): Promise<{ proxy: string; bypass: string 
       if (match) bypass = match[1].trim();
     }
 
-    return proxy ? { proxy, bypass } : null;
+    const value = proxy ? { proxy, bypass } : null;
+    cachedWindowsProxy = { value, expiresAt: now + WINDOWS_PROXY_CACHE_TTL_MS };
+    return value;
   } catch {
+    cachedWindowsProxy = { value: null, expiresAt: now + WINDOWS_PROXY_CACHE_TTL_MS };
     return null;
   }
 }
