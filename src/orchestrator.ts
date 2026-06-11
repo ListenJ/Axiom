@@ -15,6 +15,9 @@ import { GracefulDegradationRouter } from './router/graceful-degradation.js';
 import { EnhancedFileWatcher } from './memory/enhanced-watcher.js';
 import type { EnhancedWatcherOptions } from './memory/enhanced-watcher.js';
 import { PiAgentAdapter } from './pi-agent/pi-agent-adapter.js';
+import { getOptimalRoute, recordOutcome, type RoutingDecision } from './router/intelligent-router.js';
+import { type TaskRole } from './router/models.js';
+import { logger } from './utils/logger.js';
 
 export interface OrchestratorConfig {
   enableCodeRetrieval: boolean;
@@ -22,6 +25,12 @@ export interface OrchestratorConfig {
   enableGracefulDegradation: boolean;
   enableEnhancedWatcher: boolean;
   enablePiAgent: boolean;
+  /**
+   * When true, use IntelligentRouter to determine role/complexity from the
+   * user's messages instead of always hardcoding `code-generation`.
+   * Defaults to true.
+   */
+  enableIntelligentRouting: boolean;
   contextThreshold: number;
   codeRetrievalThreshold: number;
   piAgentCwd?: string;
@@ -33,6 +42,7 @@ const DEFAULT_CONFIG: OrchestratorConfig = {
   enableGracefulDegradation: true,
   enableEnhancedWatcher: true,
   enablePiAgent: true,
+  enableIntelligentRouting: true,
   contextThreshold: 0.6,
   codeRetrievalThreshold: 0.5,
 };
@@ -45,6 +55,7 @@ export class SystemOrchestrator {
   private enhancedWatcher?: EnhancedFileWatcher;
   private piAgent?: PiAgentAdapter;
   private config: OrchestratorConfig;
+  private lastDecision?: RoutingDecision;
 
   constructor(
     router: MultiPlatformRouter,
@@ -146,17 +157,34 @@ export class SystemOrchestrator {
     );
 
     // Step 4: Route request with graceful degradation
+    // If intelligent routing is enabled, use IntelligentRouter to determine
+    // the right role based on user intent + message complexity. Otherwise
+    // fall back to the historical hardcoded `code-generation` role.
+    let selectedRole: TaskRole = 'code-generation';
+    let intelligentDecision: RoutingDecision | undefined;
+    if (this.config.enableIntelligentRouting) {
+      try {
+        const decision = getOptimalRoute({ messages: enhancedMessages });
+        intelligentDecision = decision;
+        this.lastDecision = decision;
+        selectedRole = decision.role;
+        logger.info(`[Orchestrator] Intelligent routing → intent=${decision.intent} role=${decision.role} complexity=${decision.complexity} confidence=${decision.confidence.toFixed(2)} model=${decision.model.id}`);
+      } catch (err) {
+        logger.warn('[Orchestrator] IntelligentRouter failed, falling back to code-generation', { error: (err as Error).message });
+      }
+    }
+
     let response: SmartAssignmentResponse;
     if (this.degradationRouter) {
       response = await this.degradationRouter.executeWithFallback(
-        'code-generation',
+        selectedRole,
         enhancedMessages,
         { timeoutMs: 30000 }
       );
     } else {
-      const chatResponse = await this.router.chat('code-generation', enhancedMessages);
+      const chatResponse = await this.router.chat(selectedRole, enhancedMessages);
       response = {
-        role: 'code-generation',
+        role: selectedRole,
         model: chatResponse.model,
         provider: chatResponse.provider,
         endpoint: '',
@@ -165,6 +193,21 @@ export class SystemOrchestrator {
         latency_ms: Date.now() - startTime,
         fallback_used: false,
       };
+    }
+
+    // Step 4b: Record the routing outcome for adaptive learning
+    if (intelligentDecision) {
+      try {
+        recordOutcome({
+          decision: intelligentDecision,
+          success: !!response.content,
+          latencyMs: response.latency_ms ?? Date.now() - startTime,
+          errorMessage: response.content ? undefined : 'empty content',
+        });
+      } catch (err) {
+        // Non-fatal — never break the request on outcome-recording errors
+        logger.debug('[Orchestrator] recordOutcome failed', { error: (err as Error).message });
+      }
     }
 
     // Step 5: Track response metrics
@@ -242,6 +285,14 @@ export class SystemOrchestrator {
       degradationRouter: boolean;
       enhancedWatcher: boolean;
       piAgent: boolean;
+      intelligentRouting: boolean;
+    };
+    lastDecision?: {
+      intent: string;
+      role: TaskRole;
+      complexity: string;
+      model: string;
+      confidence: number;
     };
   } {
     return {
@@ -252,7 +303,17 @@ export class SystemOrchestrator {
         degradationRouter: !!this.degradationRouter,
         enhancedWatcher: !!this.enhancedWatcher,
         piAgent: !!this.piAgent,
+        intelligentRouting: this.config.enableIntelligentRouting,
       },
+      lastDecision: this.lastDecision
+        ? {
+            intent: this.lastDecision.intent,
+            role: this.lastDecision.role,
+            complexity: this.lastDecision.complexity,
+            model: this.lastDecision.model.id,
+            confidence: this.lastDecision.confidence,
+          }
+        : undefined,
     };
   }
 
