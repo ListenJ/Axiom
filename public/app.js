@@ -926,11 +926,11 @@ OC.register('nav', {
 OC.register('theme', {
   init() {
     const saved = localStorage.getItem('theme');
-    if (saved && saved !== 'auto') {
+    if (saved) {
       document.documentElement.setAttribute('data-theme', saved);
     } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+      // Default to light theme
+      document.documentElement.setAttribute('data-theme', 'light');
     }
     
     document.getElementById('themeBtn').onclick = () => {

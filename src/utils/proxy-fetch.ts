@@ -58,6 +58,26 @@ export interface ProxyFetchResponse {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
+// ========== 连接池 (性能优化) ==========
+
+const agentCache = new Map<string, http.Agent | https.Agent>();
+
+function getAgent(protocol: string, proxy?: ProxyConfig | null): http.Agent | https.Agent {
+  const key = `${protocol}::${proxy ? `${proxy.host}:${proxy.port}` : "direct"}`;
+  if (!agentCache.has(key)) {
+    const isHttps = protocol === "https:";
+    const Agent = isHttps ? https.Agent : http.Agent;
+    agentCache.set(key, new Agent({
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 50,
+      maxFreeSockets: 10,
+      timeout: 60000,
+    }));
+  }
+  return agentCache.get(key)!;
+}
+
 // ========== 代理检测 ==========
 
 interface ProxyConfig {
@@ -558,6 +578,7 @@ async function makeRequest(
       requestOpts.hostname = effectiveProxy.host;
       requestOpts.port = effectiveProxy.port;
       requestOpts.path = url.href; // 完整 URL
+      requestOpts.agent = getAgent(url.protocol, effectiveProxy);
       if (effectiveProxy.auth) {
         headers["Proxy-Authorization"] = `Basic ${Buffer.from(effectiveProxy.auth).toString("base64")}`;
       }
@@ -574,7 +595,8 @@ async function makeRequest(
       return;
     }
 
-    // 直连
+    // 直连 (使用连接池)
+    requestOpts.agent = getAgent(url.protocol, null);
     const transport = isHttps ? https : http;
     req = transport.request(requestOpts, (res) => handleResponse(res));
     req.on("error", reject);
