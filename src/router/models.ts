@@ -15,7 +15,8 @@ export type ModelProvider =
   | "deepseek"
   | "opencode"
   | "kimi"
-  | "minimax";
+  | "minimax"
+  | "nvidia-nim";
 
 export type TaskRole =
   | "decision"
@@ -100,6 +101,10 @@ export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
   minimax: {
     baseURL: process.env.MINIMAX_BASE_URL || "https://api.minimax.chat/v1",
     apiKeyEnv: "MINIMAX_API_KEY",
+  },
+  "nvidia-nim": {
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKeyEnv: "NIM_API_KEY",
   },
 };
 
@@ -931,6 +936,130 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     priority: 3,
     maxRetries: 3,
     timeout: 120000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // NVIDIA NIM Models (2026) — 优先级: GLM5.1 最高
+  // Base URL: https://integrate.api.nvidia.com/v1
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── GLM5.1 (NVIDIA NIM, 智谱, 优先级最高) ───
+  {
+    id: "nim-glm5.1",
+    provider: "nvidia-nim",
+    model: "z-ai/glm5.1",
+    roles: ["code-generation", "architecture", "deep_research", "research", "general-chat", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "coding", "chinese", "nim-priority"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM5.1 (NVIDIA NIM) — 智谱旗舰 754B MoE, 200K ctx, 优先使用",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Pro (NVIDIA NIM) ───
+  {
+    id: "nim-deepseek-v4-pro",
+    provider: "nvidia-nim",
+    model: "deepseek-ai/deepseek-v4-pro",
+    roles: ["code-generation", "architecture", "deep_research", "research", "review"],
+    contextWindow: 163840,
+    isFree: false,
+    tags: ["main", "reasoning", "coding", "nim"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "DeepSeek V4 Pro (NVIDIA NIM) — 1.6T MoE, 128K ctx",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Flash (NVIDIA NIM) ───
+  {
+    id: "nim-deepseek-v4-flash",
+    provider: "nvidia-nim",
+    model: "deepseek-ai/deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    contextWindow: 163840,
+    isFree: false,
+    tags: ["fast", "coding", "nim"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "DeepSeek V4 Flash (NVIDIA NIM) — 极速响应, 128K ctx",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Qwen3 80B Thinking (NVIDIA NIM) ───
+  {
+    id: "nim-qwen3-80b",
+    provider: "nvidia-nim",
+    model: "qwen/qwen3-next-80b-a3b-thinking",
+    roles: ["deep_research", "architecture", "math", "research", "code-generation"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["reasoning", "thinking", "nim"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen3 80B Thinking (NVIDIA NIM) — 推理增强, 128K ctx",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Llama 3.3 Nemotron Super (NVIDIA NIM) ───
+  {
+    id: "nim-nemotron-super",
+    provider: "nvidia-nim",
+    model: "nvidia/llama-3.3-nemotron-super-49b-v1",
+    roles: ["general-chat", "code-generation", "review", "general-tool"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["fast", "balanced", "nim"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Nemotron Super 49B (NVIDIA NIM) — 高性能均衡, 128K ctx",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Kimi K2.6 (NVIDIA NIM) ───
+  {
+    id: "nim-kimi-k2.6",
+    provider: "nvidia-nim",
+    model: "moonshotai/kimi-k2.6",
+    roles: ["code-generation", "general-chat", "research", "review"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["coding", "chinese", "nim"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "Kimi K2.6 (NVIDIA NIM) — Moonshot 编程模型, 128K ctx",
+    priority: 3,
+    maxRetries: 3,
+    timeout: 90000,
+  },
+
+  // ─── MiniMax M2.7 (NVIDIA NIM) ───
+  {
+    id: "nim-minimax-m2.7",
+    provider: "nvidia-nim",
+    model: "minimaxai/minimax-m2.7",
+    roles: ["general-chat", "code-generation", "research"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["fast", "chinese", "nim"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "MiniMax M2.7 (NVIDIA NIM) — 快速通用, 128K ctx",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
   },
 ];
 

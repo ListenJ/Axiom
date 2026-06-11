@@ -1,5 +1,18 @@
 const CACHE_NAME = "openclaw-v3";
-const STATIC_ASSETS = ["/", "/manifest.json", "/app.js", "/js/core/router.js", "/js/core/state.js", "/js/core/api.js", "/js/core/events.js", "/js/utils/dom.js", "/js/utils/format.js"];
+const STATIC_ASSETS = [
+  "/",
+  "/manifest.json",
+  "/app.js",
+  "/js/core/router.js",
+  "/js/core/state.js",
+  "/js/core/api.js",
+  "/js/core/events.js",
+  "/js/utils/dom.js",
+  "/js/utils/format.js",
+  "/js/components/base.js",
+  "/js/components/layout.js",
+  "/js/components/pages.js"
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(STATIC_ASSETS)));

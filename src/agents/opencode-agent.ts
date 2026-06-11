@@ -129,48 +129,6 @@ export async function listOpenCodeModels(): Promise<string[]> {
   }
 }
 
-/**
- * 运行 OpenCode 编码任务，自动注入 CodeGraph 代码上下文
- * @deprecated 建议使用 runWithPiAgent 替代，可节省 60-80% tokens
- */
-export async function runWithCodeContext(options: {
-  prompt: string;
-  cwd?: string;
-  model?: string;
-  codeContext?: boolean;
-}): Promise<{ command: string[]; enhancedPrompt: string; injectedContext: string }> {
-  const prompt = options.prompt;
-  let enhancedPrompt = prompt;
-  let injectedContext = "";
-
-  // 自动检测是否需要代码上下文
-  const needsCode = options.codeContext !== false && isCodeTask(prompt);
-
-  if (needsCode) {
-    logger.info("[OpenCode] CodeGraph context injection triggered", { prompt: prompt.slice(0, 80) });
-    const memory = await retrieveCodeMemory(prompt, { limit: 8, includeContext: true });
-    if (memory && memory.source === "codegraph" && memory.results) {
-      injectedContext = memory.results;
-      enhancedPrompt = `## 项目代码上下文 (来自 CodeGraph 索引)\n\n${injectedContext}\n\n---\n\n## 任务\n\n${prompt}`;
-      logger.info("[OpenCode] CodeGraph context injected", {
-        symbols: memory.symbols.length,
-        contextLength: injectedContext.length,
-      });
-    } else {
-      logger.warn("[OpenCode] CodeGraph not available, running without context");
-    }
-  }
-
-  const model = options.model || DEFAULT_CODE_MODEL;
-  const cwd = options.cwd || process.cwd();
-
-  return {
-    command: ["opencode", "run", "--model", model, enhancedPrompt],
-    enhancedPrompt,
-    injectedContext,
-  };
-}
-
 /** 获取 OpenCode 安装引导 */
 export function getOpenCodeInstallGuide(): string {
   return `

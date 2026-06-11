@@ -95,6 +95,13 @@ const providers: ProviderConfig[] = [
     baseUrl: "https://api.replicate.com/v1",
     required: false,
   },
+  {
+    key: "NIM_API_KEY",
+    name: "NVIDIA NIM",
+    description: "NVIDIA NIM - 免费推理平台 (GLM5.1, DeepSeek V4, Qwen3 等)",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    required: false,
+  },
 ];
 
 const optionalConfigs = [
