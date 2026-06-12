@@ -10,7 +10,7 @@ const UI = {
   version: '3.0.0',
   
   // ===== Button Component =====
-  Button: class extends Component {
+  Button: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.text = options.text || '';
@@ -57,7 +57,7 @@ const UI = {
   },
 
   // ===== Card Component =====
-  Card: class extends Component {
+  Card: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.title = options.title || '';
@@ -124,7 +124,7 @@ const UI = {
   },
 
   // ===== Modal Component =====
-  Modal: class extends Component {
+  Modal: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.title = options.title || '';
@@ -214,7 +214,7 @@ const UI = {
   },
 
   // ===== Input Component =====
-  Input: class extends Component {
+  Input: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.type = options.type || 'text'; // text, password, number, textarea, select
@@ -394,7 +394,7 @@ const UI = {
   },
 
   // ===== Badge Component =====
-  Badge: class extends Component {
+  Badge: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.text = options.text || '';
@@ -415,7 +415,7 @@ const UI = {
   },
 
   // ===== Tabs Component =====
-  Tabs: class extends Component {
+  Tabs: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.tabs = options.tabs || []; // [{ id, label, content }]

@@ -58,20 +58,20 @@ OC.register('state', {
 OC.register('router', {
   routes: {},
   current: null,
-  
+
   register(path, handler) {
     this.routes[path] = handler;
   },
-  
+
   navigate(path) {
     if (this.current === path) return;
-    
+
     // Hide current page
     if (this.current) {
       const el = document.getElementById(`page-${this.current}`);
       if (el) el.classList.add('hidden');
     }
-    
+
     // Show new page
     const newEl = document.getElementById(`page-${path}`);
     if (newEl) {
@@ -80,16 +80,17 @@ OC.register('router', {
       newEl.offsetHeight;
       newEl.style.animation = '';
     }
-    
+
     this.current = path;
-    
+
     // Update UI
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const navEl = document.querySelector(`[data-page="${path}"]`);
     if (navEl) navEl.classList.add('active');
-    
+
     // Update title
     const titles = {
+      home: 'Dashboard',
       chat: 'Chat',
       search: 'Search',
       kg: 'Knowledge Graph',
@@ -101,13 +102,13 @@ OC.register('router', {
       settings: 'Settings'
     };
     document.getElementById('pageTitle').textContent = titles[path] || path;
-    
+
     // Update URL hash
     window.location.hash = path;
-    
+
     // Trigger route handler
     if (this.routes[path]) this.routes[path]();
-    
+
     // Emit event
     OC.get('events').emit('route:changed', path);
   }
@@ -834,6 +835,7 @@ OC.register('settings', {
 // ===== Module: Navigation =====
 OC.register('nav', {
   pages: [
+    { id: 'home', icon: '🏠', label: 'Home', shortcut: '0' },
     { id: 'chat', icon: '💬', label: 'Chat', shortcut: '1' },
     { id: 'search', icon: '🔍', label: 'Search', shortcut: '2' },
     { id: 'code', icon: '💻', label: 'Code', shortcut: '3' },
@@ -875,9 +877,9 @@ OC.register('nav', {
   
   setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-      // Number keys 1-9 for page switching
-      if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const idx = parseInt(e.key) - 1;
+      // Number keys 0-9 for page switching (0 = home)
+      if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const idx = parseInt(e.key);
         if (idx < this.pages.length) {
           OC.get('router').navigate(this.pages[idx].id);
         }
@@ -1069,20 +1071,76 @@ window.runAgent = (type) => {
   OC.get('agents').runAgent(type);
 };
 
+// ===== Module: Home / Dashboard =====
+OC.register('home', {
+  init() {
+    OC.get('router').register('home', () => this.load());
+  },
+
+  async load() {
+    // Update boot time
+    const bootEl = document.getElementById('homeBootTime');
+    if (bootEl) bootEl.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    // Update greeting
+    const greetEl = document.getElementById('homeGreeting');
+    if (greetEl) {
+      const h = new Date().getHours();
+      const greeting = h < 6 ? '夜猫子' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+      greetEl.textContent = greeting;
+    }
+
+    // Update today count from memory dir
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const r = await OC.get('api').get(`/vault/stats`);
+      if (r && typeof r.totalNotes === 'number') {
+        document.getElementById('homeStatNotes').textContent = r.totalNotes;
+      }
+    } catch (_) { /* silent */ }
+
+    try {
+      const r = await OC.get('api').get(`/agents/status`);
+      const models = (r && r.models) || [];
+      document.getElementById('homeStatModels').textContent = models.length || '3+';
+    } catch (_) { /* silent */ }
+
+    try {
+      const r = await OC.get('api').get(`/kg/stats`);
+      if (r && typeof r.entities === 'number') {
+        document.getElementById('homeStatEntities').textContent = r.entities;
+      }
+    } catch (_) { /* silent */ }
+
+    try {
+      const r = await OC.get('api').get(`/plugins`);
+      const plugins = (r && (r.plugins || r.items)) || [];
+      document.getElementById('homeStatPlugins').textContent = plugins.length || '0';
+    } catch (_) { /* silent */ }
+
+    try {
+      const r = await OC.get('api').get(`/memory/usage`);
+      if (r && typeof r.conversations === 'number') {
+        document.getElementById('homeTodayCount').textContent = r.conversations;
+      }
+    } catch (_) { /* silent */ }
+  }
+});
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
   OC.init();
-  
+
   // Setup sidebar toggle
   document.getElementById('menuBtn').onclick = () => OC.get('ui').toggleSidebar();
   document.getElementById('overlay').onclick = () => OC.get('ui').toggleSidebar();
-  
+
   // Handle URL hash
   const hash = window.location.hash.slice(1);
   if (hash && document.getElementById(`page-${hash}`)) {
     OC.get('router').navigate(hash);
   } else {
-    OC.get('router').navigate('chat');
+    OC.get('router').navigate('home');
   }
   
   // Auto-refresh data on certain pages

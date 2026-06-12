@@ -272,4 +272,6 @@ class Component {
 }
 
 export { Router, Component };
+// Expose Component on window for cross-module access (ES module isolation)
+if (typeof window !== "undefined") window.Component = Component;
 export default Router;

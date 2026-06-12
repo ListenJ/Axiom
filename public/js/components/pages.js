@@ -3,11 +3,14 @@
  * Base Page class and specific page templates
  */
 
+// Pre-declare placeholder so self-references via globalThis.Pages work in ESM (TDZ-safe)
+// window.Pages = window.Pages || {};
+
 const Pages = {
   version: '3.0.0',
-  
+
   // ===== Base Page Class =====
-  Page: class extends Component {
+  Page: class extends globalThis.Component {
     constructor(options = {}) {
       super();
       this.pageId = options.pageId || '';
@@ -111,7 +114,7 @@ const Pages = {
   },
 
   // ===== Chat Page Template =====
-  ChatPage: class extends Pages.Page {
+  ChatPage: class extends globalThis.Component {
     constructor(options = {}) {
       super({
         pageId: 'chat',
@@ -214,7 +217,7 @@ const Pages = {
   },
 
   // ===== Code Page Template =====
-  CodePage: class extends Pages.Page {
+  CodePage: class extends globalThis.Component {
     constructor(options = {}) {
       super({
         pageId: 'code',
@@ -325,7 +328,7 @@ const Pages = {
   },
 
   // ===== Agents Page Template =====
-  AgentsPage: class extends Pages.Page {
+  AgentsPage: class extends globalThis.Component {
     constructor(options = {}) {
       super({
         pageId: 'agents',

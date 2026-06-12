@@ -377,10 +377,11 @@ const server = Bun.serve({
       return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
     }
 
-    // WebSocket — verify auth token before upgrade
+    // WebSocket — verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
+      const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
       const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
-      if (wsAuth !== API_KEY) {
+      if (!isLocal && wsAuth !== API_KEY) {
         return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
       }
       const wsData: WebSocketData = { clientId: crypto.randomUUID() };
