@@ -179,6 +179,14 @@ body {
   background: var(--hover);
 }
 
+button.nav-item {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+}
+
 .sidebar-footer {
   padding: 14px;
   border-top: 1px solid var(--border);
@@ -1079,6 +1087,17 @@ textarea:focus-visible {
 .vl-load-more:hover {
   background: var(--hover);
   border-color: var(--border-hover);
+}
+
+/* ===== Vault tags virtual grid ===== */
+.vault-tags-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vault-tags-grid .vl-load-more {
+  width: 100%;
+  flex-basis: 100%;
 }
 
 ::selection {
@@ -2059,8 +2078,8 @@ textarea:focus-visible {
 
   <!-- Keyboard Help Modal -->
   <div class="modal-overlay" id="kbdModal">
-    <div class="modal" style="position:relative;">
-      <button class="modal-close" id="kbdModalClose">&times;</button>
+    <div class="modal">
+      <button class="modal-close" id="kbdModalClose" aria-label="关闭帮助">&times;</button>
       <h3>⌨️ 键盘快捷键</h3>
       <div class="kbd-row"><span>切换页面</span><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> <kbd>8</kbd></div></div>
       <div class="kbd-row"><span>发送消息</span><kbd>Enter</kbd></div>

@@ -58,31 +58,39 @@ OC.register('state', {
 OC.register('router', {
   routes: {},
   current: null,
+  transitionLock: false,
+  pendingTimers: [],
 
   register(path, handler) {
     this.routes[path] = handler;
   },
 
   navigate(path) {
-    if (this.current === path) return;
+    if (this.current === path || this.transitionLock) return;
+    this.transitionLock = true;
+    this.pendingTimers.forEach(id => clearTimeout(id));
+    this.pendingTimers = [];
 
     // Hide current page with fade-out
     if (this.current) {
       const el = document.getElementById(`page-${this.current}`);
       if (el) {
+        el.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
         el.style.opacity = '0';
         el.style.transform = 'translateY(-8px)';
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           el.classList.add('hidden');
           el.style.opacity = '';
           el.style.transform = '';
+          el.style.transition = '';
         }, 150);
+        this.pendingTimers.push(timer);
       }
     }
 
     // Show new page with fade-in (after brief delay for fade-out)
     const delay = this.current ? 160 : 0;
-    setTimeout(() => {
+    const showTimer = setTimeout(() => {
       const newEl = document.getElementById(`page-${path}`);
       if (newEl) {
         newEl.classList.remove('hidden');
@@ -92,12 +100,17 @@ OC.register('router', {
           newEl.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
           newEl.style.opacity = '1';
           newEl.style.transform = 'translateY(0)';
-          setTimeout(() => {
+          const cleanup = setTimeout(() => {
             newEl.style.transition = '';
+            this.transitionLock = false;
           }, 260);
+          this.pendingTimers.push(cleanup);
         });
+      } else {
+        this.transitionLock = false;
       }
     }, delay);
+    this.pendingTimers.push(showTimer);
 
     this.current = path;
 
@@ -140,24 +153,54 @@ OC.register('router', {
 // ===== Core: API Client =====
 OC.register('api', {
   baseURL: '',
-  
+  pending: new Map(),
+  timeoutMs: 15000,
+
+  abortKey(method, path) { return `${method}:${path}`; },
+
+  abortPending(method, path) {
+    const key = this.abortKey(method, path);
+    const existing = this.pending.get(key);
+    if (existing) {
+      try { existing.abort(); } catch (e) { /* ignore */ }
+      this.pending.delete(key);
+    }
+  },
+
   async request(method, path, data = null) {
     const url = this.baseURL + path;
+    this.abortPending(method, path);
+    const controller = new AbortController();
+    const key = this.abortKey(method, path);
+    this.pending.set(key, controller);
+
     const options = {
       method,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
     };
-    
+
     const apiKey = localStorage.getItem('apiKey');
     if (apiKey) options.headers['x-api-key'] = apiKey;
-    
     if (data) options.body = JSON.stringify(data);
-    
-    const res = await fetch(url, options);
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
-    return res.json();
+
+    const timeoutId = setTimeout(() => controller.abort('timeout'), this.timeoutMs);
+
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`API Error: ${res.status}`);
+      return res.json();
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error(controller.signal.reason === 'timeout' ? '请求超时' : '请求已取消');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+      this.pending.delete(key);
+    }
   },
-  
+
   get(path) { return this.request('GET', path); },
   post(path, data) { return this.request('POST', path, data); }
 });
@@ -421,20 +464,25 @@ OC.register('search', {
       container.innerHTML = '<p class="text-muted">未找到结果</p>';
       return;
     }
-    
-    container.innerHTML = results.map(r => `
-      <div class="result-card" onclick="OC.get('search').openResult('${r.path || ''}')">
-        <div class="result-title">
-          ${r.title}
-          ${r.score ? `<span class="score">${(r.score * 100).toFixed(0)}%</span>` : ''}
+
+    this._searchVl = VirtualList.create({
+      container,
+      items: results,
+      pageSize: 20,
+      renderItem: (r) => `
+        <div class="result-card" onclick="OC.get('search').openResult('${(r.path || '').replace(/'/g, "\\'")}')">
+          <div class="result-title">
+            ${r.title}
+            ${r.score ? `<span class="score">${(r.score * 100).toFixed(0)}%</span>` : ''}
+          </div>
+          <div class="result-path">${r.path || ''}</div>
+          <div class="result-excerpt">${r.excerpt || r.content || ''}</div>
+          <div class="result-reasons">
+            ${(r.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}
+          </div>
         </div>
-        <div class="result-path">${r.path || ''}</div>
-        <div class="result-excerpt">${r.excerpt || r.content || ''}</div>
-        <div class="result-reasons">
-          ${(r.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}
-        </div>
-      </div>
-    `).join('');
+      `
+    });
   },
   
   openResult(path) {
@@ -685,14 +733,20 @@ OC.register('vault', {
     try {
       const stats = await OC.get('api').get('/vault/stats');
       const tags = stats.tags || [];
-      
-      panel.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${tags.map(t => `
-            <span class="badge" style="font-size:0.85rem;padding:4px 10px">${t}</span>
-          `).join('') || '<span class="text-muted">暂无标签</span>'}
-        </div>
-      `;
+
+      panel.innerHTML = '';
+      panel.className = 'vault-tags-grid';
+      if (tags.length === 0) {
+        panel.innerHTML = '<span class="text-muted">暂无标签</span>';
+        return;
+      }
+
+      this._vaultVl = VirtualList.create({
+        container: panel,
+        items: tags,
+        pageSize: 40,
+        renderItem: (t) => `<span class="badge" style="font-size:0.85rem;padding:4px 10px">${t}</span>`
+      });
     } catch (err) {
       panel.innerHTML = `<p class="text-muted">无法获取标签</p>`;
     }
@@ -738,25 +792,36 @@ OC.register('kg', {
     try {
       const data = await OC.get('api').get('/kg/entities');
       const entities = data.entities || [];
-      
+
       panel.innerHTML = `
         <div class="data-table-wrapper">
           <table class="data-table">
             <thead>
               <tr><th>实体</th><th>类型</th><th>出现次数</th></tr>
             </thead>
-            <tbody>
-              ${entities.slice(0, 10).map(e => `
-                <tr>
-                  <td>${e.name}</td>
-                  <td><span class="badge">${e.type}</span></td>
-                  <td>${e.count || 0}</td>
-                </tr>
-              `).join('') || '<tr><td colspan="3" class="text-muted">暂无实体</td></tr>'}
-            </tbody>
+            <tbody id="kgEntitiesTbody"></tbody>
           </table>
         </div>
       `;
+
+      const tbody = document.getElementById('kgEntitiesTbody');
+      if (entities.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-muted">暂无实体</td></tr>';
+        return;
+      }
+
+      this._kgVl = VirtualList.create({
+        container: tbody,
+        items: entities,
+        pageSize: 25,
+        renderItem: (e) => `
+          <tr>
+            <td>${e.name}</td>
+            <td><span class="badge">${e.type}</span></td>
+            <td>${e.count || 0}</td>
+          </tr>
+        `
+      });
     } catch (err) {
       panel.innerHTML = `<p class="text-muted">无法获取实体列表</p>`;
     }
@@ -926,11 +991,11 @@ OC.register('nav', {
   renderSidebar() {
     const container = document.getElementById('navItems');
     container.innerHTML = this.pages.map(p => `
-      <div class="nav-item" data-page="${p.id}" onclick="OC.get('router').navigate('${p.id}')">
+      <button class="nav-item" type="button" data-page="${p.id}" onclick="OC.get('router').navigate('${p.id}')">
         <span class="icon">${p.icon}</span>
         <span>${p.label}</span>
         <span class="shortcut">${p.shortcut}</span>
-      </div>
+      </button>
     `).join('');
   },
   
@@ -957,10 +1022,9 @@ OC.register('nav', {
       
       // Shift+T for theme
       if (e.key === 'T' && e.shiftKey) {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const newTheme = isDark ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
+        const current = localStorage.getItem('theme') || 'dark';
+        const newTheme = current === 'dark' ? 'light' : 'dark';
+        if (typeof window.setTheme === 'function') window.setTheme(newTheme);
       }
       
       // Ctrl+K or / for search
@@ -974,14 +1038,14 @@ OC.register('nav', {
       
       // ? for help
       if (e.key === '?' && !e.ctrlKey) {
-        document.getElementById('kbdModal').classList.add('show');
+        OC.get('ui').openModal('kbdModal');
       }
 
       // Escape: close modal or blur focused element
       if (e.key === 'Escape') {
         const kbdModal = document.getElementById('kbdModal');
         if (kbdModal.classList.contains('show')) {
-          kbdModal.classList.remove('show');
+          OC.get('ui').closeModal('kbdModal');
         } else if (document.activeElement && document.activeElement !== document.body) {
           document.activeElement.blur();
         } else {
@@ -989,15 +1053,15 @@ OC.register('nav', {
         }
       }
     });
-    
+
     document.getElementById('kbdModalClose').onclick = () => {
-      document.getElementById('kbdModal').classList.remove('show');
+      OC.get('ui').closeModal('kbdModal');
     };
-    
+
     // Close modal on overlay click
     document.getElementById('kbdModal').onclick = (e) => {
       if (e.target === document.getElementById('kbdModal')) {
-        document.getElementById('kbdModal').classList.remove('show');
+        OC.get('ui').closeModal('kbdModal');
       }
     };
   }
@@ -1015,11 +1079,14 @@ OC.register('theme', {
     }
     
     document.getElementById('themeBtn').onclick = () => {
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      const newTheme = isDark ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      OC.get('ui').showToast('主题已切换', 'info');
+      const current = localStorage.getItem('theme') || 'dark';
+      const newTheme = current === 'dark' ? 'light' : 'dark';
+      if (typeof window.setTheme === 'function') {
+        window.setTheme(newTheme);
+      } else {
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      }
     };
   }
 });
@@ -1077,6 +1144,61 @@ OC.register('ui', {
       header.classList.add('full');
       main.classList.add('full');
     }
+  },
+
+  openModal(modalId, options = {}) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    const content = modal.querySelector('.modal');
+    if (content) {
+      content.setAttribute('role', 'dialog');
+      content.setAttribute('aria-modal', 'true');
+      if (options.title) content.setAttribute('aria-label', options.title);
+    }
+    modal.setAttribute('aria-hidden', 'false');
+    this._activeModal = modalId;
+    this._previouslyFocused = document.activeElement;
+    modal.classList.add('show');
+
+    // Focus trap
+    const focusable = () => Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter(el => el.offsetParent !== null);
+    const first = focusable()[0];
+    if (first) {
+      setTimeout(() => first.focus(), 10);
+    }
+
+    this._focusTrapHandler = (e) => {
+      if (e.key !== 'Tab') return;
+      const nodes = focusable();
+      if (nodes.length === 0) return;
+      const firstNode = nodes[0];
+      const lastNode = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === firstNode) {
+        e.preventDefault();
+        lastNode.focus();
+      } else if (!e.shiftKey && document.activeElement === lastNode) {
+        e.preventDefault();
+        firstNode.focus();
+      }
+    };
+    document.addEventListener('keydown', this._focusTrapHandler);
+  },
+
+  closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    if (this._focusTrapHandler) {
+      document.removeEventListener('keydown', this._focusTrapHandler);
+      this._focusTrapHandler = null;
+    }
+    if (this._previouslyFocused && this._activeModal === modalId) {
+      this._previouslyFocused.focus();
+      this._previouslyFocused = null;
+    }
+    this._activeModal = null;
   }
 });
 
@@ -1217,6 +1339,15 @@ OC.register('home', {
     OC.get('router').register('home', () => this.load());
   },
 
+  async fetchWithFallback(path, fallback) {
+    try {
+      return await OC.get('api').get(path);
+    } catch (err) {
+      console.warn(`[Home] ${path} failed:`, err);
+      return fallback;
+    }
+  },
+
   async load() {
     // Update boot time
     const bootEl = document.getElementById('homeBootTime');
@@ -1230,40 +1361,29 @@ OC.register('home', {
       greetEl.textContent = greeting;
     }
 
-    // Update today count from memory dir
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      const r = await OC.get('api').get(`/vault/stats`);
-      if (r && typeof r.totalNotes === 'number') {
-        document.getElementById('homeStatNotes').textContent = r.totalNotes;
-      }
-    } catch (_) { /* silent */ }
+    // Parallel API calls with safe fallbacks (API client already enforces 15s timeout)
+    const [vault, agents, kg, plugins, memory] = await Promise.all([
+      this.fetchWithFallback('/vault/stats', { totalNotes: 0 }),
+      this.fetchWithFallback('/agents/status', { models: [] }),
+      this.fetchWithFallback('/kg/stats', { entities: 0 }),
+      this.fetchWithFallback('/plugins', { plugins: [], items: [] }),
+      this.fetchWithFallback('/memory/usage', { conversations: 0 })
+    ]);
 
-    try {
-      const r = await OC.get('api').get(`/agents/status`);
-      const models = (r && r.models) || [];
-      document.getElementById('homeStatModels').textContent = models.length || '3+';
-    } catch (_) { /* silent */ }
+    const totalNotes = vault && typeof vault.totalNotes === 'number' ? vault.totalNotes : 0;
+    document.getElementById('homeStatNotes').textContent = totalNotes;
 
-    try {
-      const r = await OC.get('api').get(`/kg/stats`);
-      if (r && typeof r.entities === 'number') {
-        document.getElementById('homeStatEntities').textContent = r.entities;
-      }
-    } catch (_) { /* silent */ }
+    const models = (agents && agents.models) || [];
+    document.getElementById('homeStatModels').textContent = models.length || '3+';
 
-    try {
-      const r = await OC.get('api').get(`/plugins`);
-      const plugins = (r && (r.plugins || r.items)) || [];
-      document.getElementById('homeStatPlugins').textContent = plugins.length || '0';
-    } catch (_) { /* silent */ }
+    const entities = kg && typeof kg.entities === 'number' ? kg.entities : 0;
+    document.getElementById('homeStatEntities').textContent = entities;
 
-    try {
-      const r = await OC.get('api').get(`/memory/usage`);
-      if (r && typeof r.conversations === 'number') {
-        document.getElementById('homeTodayCount').textContent = r.conversations;
-      }
-    } catch (_) { /* silent */ }
+    const pluginList = (plugins && (plugins.plugins || plugins.items)) || [];
+    document.getElementById('homeStatPlugins').textContent = pluginList.length || '0';
+
+    const conversations = memory && typeof memory.conversations === 'number' ? memory.conversations : 0;
+    document.getElementById('homeTodayCount').textContent = conversations;
   }
 });
 
