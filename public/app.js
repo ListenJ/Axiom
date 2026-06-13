@@ -66,27 +66,50 @@ OC.register('router', {
   navigate(path) {
     if (this.current === path) return;
 
-    // Hide current page
+    // Hide current page with fade-out
     if (this.current) {
       const el = document.getElementById(`page-${this.current}`);
-      if (el) el.classList.add('hidden');
+      if (el) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-8px)';
+        setTimeout(() => {
+          el.classList.add('hidden');
+          el.style.opacity = '';
+          el.style.transform = '';
+        }, 150);
+      }
     }
 
-    // Show new page
-    const newEl = document.getElementById(`page-${path}`);
-    if (newEl) {
-      newEl.classList.remove('hidden');
-      newEl.style.animation = 'none';
-      newEl.offsetHeight;
-      newEl.style.animation = '';
-    }
+    // Show new page with fade-in (after brief delay for fade-out)
+    const delay = this.current ? 160 : 0;
+    setTimeout(() => {
+      const newEl = document.getElementById(`page-${path}`);
+      if (newEl) {
+        newEl.classList.remove('hidden');
+        newEl.style.opacity = '0';
+        newEl.style.transform = 'translateY(8px)';
+        requestAnimationFrame(() => {
+          newEl.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+          newEl.style.opacity = '1';
+          newEl.style.transform = 'translateY(0)';
+          setTimeout(() => {
+            newEl.style.transition = '';
+          }, 260);
+        });
+      }
+    }, delay);
 
     this.current = path;
 
-    // Update UI
+    // Update UI — sidebar nav
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const navEl = document.querySelector(`[data-page="${path}"]`);
     if (navEl) navEl.classList.add('active');
+
+    // Update UI — bottom nav (mobile)
+    document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+    const bottomNavEl = document.querySelector(`.bottom-nav-item[data-page="${path}"]`);
+    if (bottomNavEl) bottomNavEl.classList.add('active');
 
     // Update title
     const titles = {
@@ -823,11 +846,46 @@ OC.register('settings', {
     };
   },
   
-  save() {
+  async save() {
+    const btn = document.getElementById('saveSettingsBtn');
+    const originalText = btn.textContent;
     const apiKey = document.getElementById('settingApiKey').value.trim();
-    if (apiKey) {
-      localStorage.setItem('apiKey', apiKey);
+
+    // Loading state
+    btn.textContent = '保存中…';
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+
+    try {
+      if (apiKey) {
+        localStorage.setItem('apiKey', apiKey);
+      }
+      // Simulate brief save delay for UX feedback
+      await new Promise(r => setTimeout(r, 400));
+
+      // Success state
+      btn.textContent = '✓ 已保存';
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
       OC.get('ui').showToast('设置已保存', 'success');
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('is-success');
+        btn.disabled = false;
+      }, 1500);
+    } catch (err) {
+      // Error state
+      btn.textContent = '✗ 保存失败';
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-error');
+      OC.get('ui').showToast('保存失败: ' + err.message, 'error');
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('is-error');
+        btn.disabled = false;
+      }, 2000);
     }
   }
 });
@@ -893,21 +951,30 @@ OC.register('nav', {
         localStorage.setItem('theme', newTheme);
       }
       
-      // Escape to chat
-      if (e.key === 'Escape') {
-        OC.get('router').navigate('chat');
+      // Ctrl+K or / for search
+      if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !e.ctrlKey && !e.metaKey)) {
+        e.preventDefault();
+        OC.get('router').navigate('search');
+        const input = document.getElementById('searchInput');
+        input.focus();
+        input.select();
       }
       
       // ? for help
       if (e.key === '?' && !e.ctrlKey) {
         document.getElementById('kbdModal').classList.add('show');
       }
-      
-      // / for search
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        OC.get('router').navigate('search');
-        document.getElementById('searchInput').focus();
+
+      // Escape: close modal or blur focused element
+      if (e.key === 'Escape') {
+        const kbdModal = document.getElementById('kbdModal');
+        if (kbdModal.classList.contains('show')) {
+          kbdModal.classList.remove('show');
+        } else if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur();
+        } else {
+          OC.get('router').navigate('chat');
+        }
       }
     });
     
@@ -952,18 +1019,31 @@ OC.register('ui', {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     const icons = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌' };
-    toast.innerHTML = `${icons[type] || 'ℹ️'} ${message}`;
+    toast.innerHTML = `
+      <span class="toast-body">${icons[type] || 'ℹ️'} ${message}</span>
+      <button class="toast-close" aria-label="关闭" onclick="this.parentElement.remove()">×</button>
+    `;
     container.appendChild(toast);
-    
+
     // Animate in
     requestAnimationFrame(() => {
       toast.style.animation = 'toastIn 0.3s ease forwards';
     });
-    
-    setTimeout(() => {
+
+    // Auto-dismiss with hover pause
+    let timer = setTimeout(() => dismiss(), duration);
+    toast.addEventListener('mouseenter', () => {
+      clearTimeout(timer);
+    });
+    toast.addEventListener('mouseleave', () => {
+      timer = setTimeout(() => dismiss(), 1500);
+    });
+
+    function dismiss() {
+      if (!toast.parentElement) return;
       toast.style.animation = 'toastOut 0.3s ease forwards';
       setTimeout(() => toast.remove(), 300);
-    }, duration);
+    }
   },
   
   toggleSidebar() {
@@ -987,6 +1067,54 @@ OC.register('ui', {
     }
   }
 });
+
+// ===== Utility: Virtual List (renders only visible items) =====
+// Usage: VirtualList.create({ container, items, renderItem, pageSize: 50 })
+const VirtualList = {
+  create({ container, items = [], renderItem, pageSize = 50 }) {
+    let rendered = 0;
+    container.innerHTML = '';
+    container.style.position = 'relative';
+
+    function renderChunk() {
+      const end = Math.min(rendered + pageSize, items.length);
+      const fragment = document.createDocumentFragment();
+      for (let i = rendered; i < end; i++) {
+        const el = document.createElement('div');
+        el.innerHTML = renderItem(items[i], i);
+        fragment.appendChild(el.firstElementChild || el);
+      }
+      container.appendChild(fragment);
+      rendered = end;
+
+      // Add "load more" button if there are more items
+      if (rendered < items.length) {
+        let loadMoreBtn = container.querySelector('.vl-load-more');
+        if (!loadMoreBtn) {
+          loadMoreBtn = document.createElement('button');
+          loadMoreBtn.className = 'vl-load-more';
+          loadMoreBtn.textContent = `加载更多 (${items.length - rendered} 条)`;
+          loadMoreBtn.style.cssText = 'width:100%;padding:12px;margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:13px;';
+          loadMoreBtn.onclick = () => {
+            renderChunk();
+            loadMoreBtn.textContent = rendered < items.length
+              ? `加载更多 (${items.length - rendered} 条)`
+              : '已加载全部';
+          };
+          container.appendChild(loadMoreBtn);
+        } else {
+          loadMoreBtn.textContent = `加载更多 (${items.length - rendered} 条)`;
+        }
+      } else {
+        const existing = container.querySelector('.vl-load-more');
+        if (existing) existing.remove();
+      }
+    }
+
+    renderChunk();
+    return { refresh(newItems) { items = newItems; rendered = 0; renderChunk(); } };
+  }
+};
 
 // ===== Global Functions for HTML onclick =====
 window.initCodegraph = async () => {

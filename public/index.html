@@ -807,12 +807,28 @@ body {
   font-weight: 500;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   animation: toastIn 0.3s ease;
   pointer-events: auto;
   box-shadow: var(--shadow-lg);
   max-width: 400px;
 }
+.toast-body { display: flex; align-items: center; gap: 8px; flex: 1; }
+.toast-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.toast-close:hover { opacity: 1; background: rgba(255,255,255,0.15); }
 .toast.toast-out { animation: toastOut 0.3s ease forwards; }
 .toast.success { background: var(--success); color: #fff; }
 .toast.error { background: var(--danger); color: #fff; }
@@ -900,6 +916,24 @@ body {
   font-size: 0.78rem;
   color: var(--muted);
 }
+/* Settings button states */
+.btn.is-loading { opacity: 0.7; cursor: wait; pointer-events: none; }
+.btn.is-success { background: var(--success); color: #fff; border-color: var(--success); }
+.btn.is-error { background: var(--danger); color: #fff; border-color: var(--danger); }
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: var(--muted);
+  gap: 12px;
+  text-align: center;
+}
+.empty-state svg { opacity: 0.35; margin-bottom: 4px; }
+.empty-state .empty-title { font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); }
+.empty-state .empty-desc { font-size: 0.82rem; max-width: 260px; line-height: 1.5; }
 
 /* ===== KG Placeholder ===== */
 .kg-placeholder {
@@ -1505,7 +1539,24 @@ body {
               <div class="text-muted" style="font-size:0.8rem">BFS · 最短路径 · 中心性</div>
             </div>
           </div>
-          <div id="kgOverviewPanel"><p class="text-muted">加载中...</p></div>
+          <div id="kgOverviewPanel">
+            <div class="empty-state">
+              <svg width="48" height="48" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <line x1="8" y1="8" x2="56" y2="8" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="8" y1="56" x2="56" y2="56" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="8" y1="8" x2="8" y2="56" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="56" y1="8" x2="56" y2="56" stroke="var(--border-hover)" stroke-width="2"/>
+                <circle cx="18" cy="18" r="6" fill="var(--accent)"/>
+                <circle cx="46" cy="18" r="6" fill="var(--success)"/>
+                <circle cx="32" cy="46" r="6" fill="var(--purple)"/>
+                <line x1="18" y1="18" x2="46" y2="18" stroke="var(--border-hover)" stroke-width="1.5"/>
+                <line x1="18" y1="18" x2="32" y2="46" stroke="var(--border-hover)" stroke-width="1.5"/>
+                <line x1="46" y1="18" x2="32" y2="46" stroke="var(--border-hover)" stroke-width="1.5"/>
+              </svg>
+              <span class="empty-title">知识图谱概览</span>
+              <span class="empty-desc">点击上方图标初始化知识图谱</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>📊 实体统计</h2>
@@ -1522,13 +1573,37 @@ body {
             <rect x="270" y="30" width="20" height="30" fill="var(--orange)"/>
             <rect x="300" y="10" width="20" height="50" fill="var(--accent)"/>
           </svg>
-          <div id="kgEntitiesPanel"><p class="text-muted">加载中...</p></div>
+          <div id="kgEntitiesPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="4" y="4" width="56" height="56" rx="8" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <rect x="12" y="42" width="8" height="18" rx="2" fill="var(--accent)" opacity="0.6"/>
+                <rect x="28" y="30" width="8" height="30" rx="2" fill="var(--success)" opacity="0.6"/>
+                <rect x="44" y="20" width="8" height="40" rx="2" fill="var(--purple)" opacity="0.6"/>
+              </svg>
+              <span class="empty-title">实体统计</span>
+              <span class="empty-desc">加载实体数据后显示分布</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="grid mt-4">
         <div class="card">
           <h2>🔗 关系浏览</h2>
-          <div id="kgRelationsPanel"><p class="text-muted">加载中...</p></div>
+          <div id="kgRelationsPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="16" cy="16" r="10" fill="var(--accent)"/>
+                <circle cx="48" cy="16" r="10" fill="var(--success)"/>
+                <circle cx="32" cy="48" r="10" fill="var(--warn)"/>
+                <line x1="24" y1="20" x2="40" y2="20" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="20" y1="24" x2="28" y2="40" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="44" y1="24" x2="36" y2="40" stroke="var(--border-hover)" stroke-width="2"/>
+              </svg>
+              <span class="empty-title">关系浏览</span>
+              <span class="empty-desc">实体间关系数据加载后显示</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🔍 实体搜索</h2>
@@ -1552,7 +1627,20 @@ body {
             <polyline points="0,72 30,68 60,66 90,60 120,62 150,52 180,56 210,46 240,50 270,40 300,44 320,34"
                       fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"/>
           </svg>
-          <div id="perfPanel"><p class="text-muted">加载中...</p></div>
+          <div id="perfPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="32" cy="32" r="24" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <polyline points="12,44 24,36 36,40 52,20" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="12" cy="44" r="3" fill="var(--accent)"/>
+                <circle cx="24" cy="36" r="3" fill="var(--accent)"/>
+                <circle cx="36" cy="40" r="3" fill="var(--accent)"/>
+                <circle cx="52" cy="20" r="3" fill="var(--accent)"/>
+              </svg>
+              <span class="empty-title">路由性能</span>
+              <span class="empty-desc">性能数据加载后显示趋势图</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🦀 Native Core</h2>
@@ -1568,7 +1656,17 @@ body {
               <div class="text-muted" style="font-size:0.8rem">检测中...</div>
             </div>
           </div>
-          <div id="nativeStatusPanel"><p class="text-muted">检测中...</p></div>
+          <div id="nativeStatusPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="12" y="8" width="40" height="48" rx="4" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <text x="32" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="var(--warn)" font-family="monospace">Rust</text>
+                <rect x="20" y="48" width="24" height="4" rx="2" fill="var(--border-hover)"/>
+              </svg>
+              <span class="empty-title">Native Core 检测中</span>
+              <span class="empty-desc">Rust 核心模块健康状态</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1578,7 +1676,20 @@ body {
       <div class="grid">
         <div class="card">
           <h2>📊 CodeGraph 状态</h2>
-          <div id="codegraphStatusPanel"><p class="text-muted">加载中...</p></div>
+          <div id="codegraphStatusPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="16" cy="32" r="8" fill="var(--accent)"/>
+                <circle cx="48" cy="16" r="6" fill="var(--success)"/>
+                <circle cx="48" cy="48" r="6" fill="var(--warn)"/>
+                <line x1="24" y1="32" x2="42" y2="18" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="24" y1="32" x2="42" y2="46" stroke="var(--border-hover)" stroke-width="2"/>
+                <text x="16" y="36" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="monospace">CG</text>
+              </svg>
+              <span class="empty-title">CodeGraph 状态</span>
+              <span class="empty-desc">点击"初始化索引"构建代码知识图谱</span>
+            </div>
+          </div>
           <button class="btn secondary mt-3" onclick="initCodegraph()">🔄 初始化索引</button>
         </div>
         <div class="card">
@@ -1593,7 +1704,19 @@ body {
       <div class="grid mt-4">
         <div class="card">
           <h2>📁 文件索引</h2>
-          <div id="fileIndexStatus"><p class="text-muted">加载中...</p></div>
+          <div id="fileIndexStatus">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <path d="M12 8h24l16 16v32a4 4 0 01-4 4H12a4 4 0 01-4-4V12a4 4 0 014-4z" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <path d="M36 8v16h16" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <rect x="18" y="36" width="28" height="2" rx="1" fill="var(--accent)" opacity="0.5"/>
+                <rect x="18" y="44" width="20" height="2" rx="1" fill="var(--accent)" opacity="0.3"/>
+                <rect x="18" y="52" width="24" height="2" rx="1" fill="var(--accent)" opacity="0.3"/>
+              </svg>
+              <span class="empty-title">文件索引</span>
+              <span class="empty-desc">CodeGraph 初始化后显示已索引文件</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🔗 代码检索历史</h2>
@@ -1690,11 +1813,31 @@ body {
       <div class="grid mt-4">
         <div class="card">
           <h2>🤖 模型健康状态</h2>
-          <div id="modelHealthPanel"><p class="text-muted">加载中...</p></div>
+          <div id="modelHealthPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="32" cy="32" r="24" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <path d="M32 14v18l12 8" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+              <span class="empty-title">模型健康状态</span>
+              <span class="empty-desc">检测各模型可用性和响应时间</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🎯 路由决策日志</h2>
-          <div id="routingLogPanel"><p class="text-muted">暂无日志</p></div>
+          <div id="routingLogPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="8" y="8" width="48" height="48" rx="6" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="16" y1="20" x2="48" y2="20" stroke="var(--accent)" stroke-width="2" opacity="0.5"/>
+                <line x1="16" y1="30" x2="40" y2="30" stroke="var(--success)" stroke-width="2" opacity="0.4"/>
+                <line x1="16" y1="40" x2="44" y2="40" stroke="var(--purple)" stroke-width="2" opacity="0.3"/>
+              </svg>
+              <span class="empty-title">路由决策日志</span>
+              <span class="empty-desc">模型路由事件发生后记录</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1716,21 +1859,80 @@ body {
               <div class="text-muted" style="font-size:0.8rem">Projects · Areas · Resources · Archives</div>
             </div>
           </div>
-          <div id="vaultStatsPanel"><p class="text-muted">加载中...</p></div>
+          <div id="vaultStatsPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="8" y="12" width="48" height="40" rx="4" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="28" y1="12" x2="28" y2="52" stroke="var(--border-hover)" stroke-width="2"/>
+                <line x1="8" y1="32" x2="56" y2="32" stroke="var(--border-hover)" stroke-width="2"/>
+                <text x="18" y="26" font-size="7" fill="var(--accent)" font-weight="600" font-family="sans-serif">P</text>
+                <text x="40" y="26" font-size="7" fill="var(--success)" font-weight="600" font-family="sans-serif">A</text>
+                <text x="18" y="46" font-size="7" fill="var(--purple)" font-weight="600" font-family="sans-serif">R</text>
+                <text x="40" y="46" font-size="7" fill="var(--warn)" font-weight="600" font-family="sans-serif">A</text>
+              </svg>
+              <span class="empty-title">Vault 概览</span>
+              <span class="empty-desc">PARA 分类笔记数据加载后显示</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🏷️ 标签云</h2>
-          <div id="vaultTagsPanel"><p class="text-muted">加载中...</p></div>
+          <div id="vaultTagsPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="20" cy="20" r="10" fill="var(--accent)" opacity="0.4"/>
+                <circle cx="40" cy="24" r="8" fill="var(--success)" opacity="0.4"/>
+                <circle cx="28" cy="40" r="12" fill="var(--purple)" opacity="0.3"/>
+                <circle cx="44" cy="44" r="6" fill="var(--warn)" opacity="0.4"/>
+                <text x="20" y="24" text-anchor="middle" font-size="8" fill="var(--text)" font-weight="600">1</text>
+                <text x="40" y="28" text-anchor="middle" font-size="7" fill="var(--text)" font-weight="600">2</text>
+                <text x="28" y="44" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="600">3</text>
+              </svg>
+              <span class="empty-title">标签云</span>
+              <span class="empty-desc">笔记标签统计加载后显示</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="grid mt-4">
         <div class="card">
           <h2>📂 PARA 分类浏览</h2>
-          <div id="vaultParaPanel"><p class="text-muted">加载中...</p></div>
+          <div id="vaultParaPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="4" y="4" width="24" height="24" rx="4" fill="var(--accent)" opacity="0.4"/>
+                <rect x="36" y="4" width="24" height="24" rx="4" fill="var(--success)" opacity="0.4"/>
+                <rect x="4" y="36" width="24" height="24" rx="4" fill="var(--purple)" opacity="0.3"/>
+                <rect x="36" y="36" width="24" height="24" rx="4" fill="var(--warn)" opacity="0.3"/>
+                <text x="16" y="20" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700">P</text>
+                <text x="48" y="20" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700">A</text>
+                <text x="16" y="52" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700">R</text>
+                <text x="48" y="52" text-anchor="middle" font-size="9" fill="var(--text)" font-weight="700">A</text>
+              </svg>
+              <span class="empty-title">PARA 分类浏览</span>
+              <span class="empty-desc">笔记分类数据加载后显示</span>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>🕸️ 笔记网络</h2>
-          <div id="vaultNetworkPanel"><p class="text-muted">加载中...</p></div>
+          <div id="vaultNetworkPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="32" cy="32" r="6" fill="var(--accent)"/>
+                <circle cx="12" cy="16" r="4" fill="var(--success)"/>
+                <circle cx="52" cy="16" r="4" fill="var(--purple)"/>
+                <circle cx="12" cy="48" r="4" fill="var(--warn)"/>
+                <circle cx="52" cy="48" r="4" fill="var(--orange)"/>
+                <line x1="28" y1="28" x2="14" y2="18" stroke="var(--border-hover)" stroke-width="1.5"/>
+                <line x1="36" y1="28" x2="50" y2="18" stroke="var(--border-hover)" stroke-width="1.5"/>
+                <line x1="28" y1="36" x2="14" y2="46" stroke="var(--border-hover)" stroke-width="1.5"/>
+                <line x1="36" y1="36" x2="50" y2="46" stroke="var(--border-hover)" stroke-width="1.5"/>
+              </svg>
+              <span class="empty-title">笔记网络</span>
+              <span class="empty-desc">笔记引用关系加载后显示</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
