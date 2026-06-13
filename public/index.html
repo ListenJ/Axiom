@@ -306,6 +306,10 @@ button.nav-item {
   min-width: 0;
 }
 
+.grid--stats {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .card {
   background: var(--card);
   border-radius: var(--radius);
@@ -319,6 +323,16 @@ button.nav-item {
   border-color: var(--border-hover);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
 }
 
 /* Prevent flex/grid children from forcing horizontal overflow */
@@ -579,7 +593,7 @@ button.nav-item {
 }
 .input::placeholder { color: var(--muted); }
 
-.search-box { display: flex; gap: 10px; margin-bottom: 20px; align-items: stretch; }
+.search-box { display: flex; gap: 10px; margin-bottom: 16px; align-items: stretch; }
 .search-box .input { flex: 1; }
 
 /* ===== Badge ===== */
@@ -1039,7 +1053,7 @@ button.nav-item {
 
 /* ===== Utilities ===== */
 .hidden { display: none !important; }
-.text-muted { color: var(--muted); }
+.text-muted { color: var(--muted); font-size: 0.8rem; }
 .text-secondary { color: var(--text-secondary); }
 .text-error { color: var(--danger); }
 .text-success { color: var(--success); }
@@ -1053,6 +1067,13 @@ button.nav-item {
 .mt-3 { margin-top: 12px; }
 .mt-4 { margin-top: 16px; }
 .mb-4 { margin-bottom: 16px; }
+
+.agent-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
 .w-full { width: 100%; }
 
 /* ===== Focus-visible (keyboard navigation) ===== */
@@ -1447,7 +1468,7 @@ textarea:focus-visible {
       </section>
 
       <!-- Stat cards (each with SVG mini chart) -->
-      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <div class="grid grid--stats">
         <div class="stat-card">
           <div class="stat-card__head">
             <span class="stat-card__label">Vault 笔记</span>
@@ -1661,7 +1682,7 @@ textarea:focus-visible {
       <div class="grid">
         <div class="card">
           <h2>🕸️ 知识图谱概览</h2>
-          <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px;padding:14px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <div class="card-header">
             <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
               <line x1="14" y1="14" x2="32" y2="32" stroke="var(--border-hover)" stroke-width="1.5"/>
               <line x1="50" y1="14" x2="32" y2="32" stroke="var(--border-hover)" stroke-width="1.5"/>
@@ -1679,7 +1700,7 @@ textarea:focus-visible {
             </svg>
             <div>
               <div style="font-size:0.95rem;font-weight:600">实体关系网络</div>
-              <div class="text-muted" style="font-size:0.8rem">BFS · 最短路径 · 中心性</div>
+              <div class="text-muted">BFS · 最短路径 · 中心性</div>
             </div>
           </div>
           <div id="kgOverviewPanel">
@@ -1750,7 +1771,7 @@ textarea:focus-visible {
         </div>
         <div class="card">
           <h2>🔍 实体搜索</h2>
-          <div class="search-box" style="margin-bottom:16px">
+          <div class="search-box">
             <input class="input" id="kgSearchInput" placeholder="搜索实体..." />
             <button class="btn" onclick="searchKgEntities()">搜索</button>
           </div>
@@ -1787,7 +1808,7 @@ textarea:focus-visible {
         </div>
         <div class="card">
           <h2>🦀 Native Core</h2>
-          <div style="display:flex;align-items:center;gap:18px;margin-bottom:14px">
+          <div class="card-header">
             <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
               <circle cx="28" cy="28" r="24" fill="none" stroke="var(--border)" stroke-width="4"/>
               <circle cx="28" cy="28" r="24" fill="none" stroke="var(--warn)" stroke-width="4"
@@ -1796,7 +1817,7 @@ textarea:focus-visible {
             </svg>
             <div>
               <div style="font-size:0.95rem;font-weight:600">Rust Core 健康度</div>
-              <div class="text-muted" style="font-size:0.8rem">检测中...</div>
+              <div class="text-muted">检测中...</div>
             </div>
           </div>
           <div id="nativeStatusPanel">
@@ -1837,7 +1858,7 @@ textarea:focus-visible {
         </div>
         <div class="card">
           <h2>🔍 符号搜索</h2>
-          <div class="search-box" style="margin-bottom:16px">
+          <div class="search-box">
             <input class="input" id="symbolSearchInput" placeholder="输入函数名、类名或符号..." />
             <button class="btn" onclick="searchSymbols()">搜索</button>
           </div>
@@ -1873,7 +1894,7 @@ textarea:focus-visible {
       <div class="grid">
         <div class="card">
           <h2>🤖 Agent 工作区</h2>
-          <div class="agent-tabs flex gap-2" style="margin-bottom:16px;flex-wrap:wrap">
+          <div class="agent-tabs flex gap-2">
             <button class="btn secondary active" data-agent-tab="generate" onclick="switchAgentTab('generate')">✨ 代码生成</button>
             <button class="btn secondary" data-agent-tab="refactor" onclick="switchAgentTab('refactor')">🔧 重构</button>
             <button class="btn secondary" data-agent-tab="review" onclick="switchAgentTab('review')">👁️ 代码审查</button>
@@ -1927,7 +1948,7 @@ textarea:focus-visible {
       <div class="grid">
         <div class="card">
           <h2>🧭 模型路由监控</h2>
-          <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px;padding:14px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <div class="card-header">
             <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
               <circle cx="32" cy="32" r="22" fill="none" stroke="var(--border)" stroke-width="6"/>
               <path d="M32 10 A22 22 0 0 1 54 32 L32 32 Z" fill="var(--success)"/>
@@ -1937,10 +1958,21 @@ textarea:focus-visible {
             </svg>
             <div>
               <div style="font-size:0.95rem;font-weight:600">Provider 分布</div>
-              <div class="text-muted" style="font-size:0.8rem">SiliconFlow · OfoxAI · DeepSeek · OpenRouter</div>
+              <div class="text-muted">SiliconFlow · OfoxAI · DeepSeek · OpenRouter</div>
             </div>
           </div>
-          <div id="routerStatusPanel"><p class="text-muted">加载中...</p></div>
+          <div id="routerStatusPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="32" cy="20" r="10" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <circle cx="18" cy="44" r="8" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <circle cx="46" cy="44" r="8" fill="none" stroke="var(--border-hover)" stroke-width="2"/>
+                <path d="M26 27L22 37M38 27L42 37" stroke="var(--border-hover)" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <div class="empty-title">Provider 数据为空</div>
+              <div class="empty-desc">初始化后将展示 SiliconFlow、OfoxAI、DeepSeek、OpenRouter 的分布状态。</div>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h2>📈 Token 使用统计</h2>
@@ -1950,7 +1982,17 @@ textarea:focus-visible {
             <polyline points="0,40 20,32 40,36 60,24 80,28 100,18 120,22 140,12 160,16 180,8 200,14 220,6 240,10 260,4 280,8 300,2 320,6 320,80 0,80"
                       fill="var(--accent-glow)" stroke="none"/>
           </svg>
-          <div id="tokenStatsPanel"><p class="text-muted">加载中...</p></div>
+          <div id="tokenStatsPanel">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <rect x="10" y="38" width="10" height="16" rx="2" fill="var(--border-hover)"/>
+                <rect x="27" y="26" width="10" height="28" rx="2" fill="var(--border-hover)"/>
+                <rect x="44" y="14" width="10" height="40" rx="2" fill="var(--border-hover)"/>
+              </svg>
+              <div class="empty-title">Token 统计为空</div>
+              <div class="empty-desc">模型路由运行后会汇总输入/输出 Token 的消耗趋势。</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="grid mt-4">
@@ -1990,7 +2032,7 @@ textarea:focus-visible {
       <div class="grid">
         <div class="card">
           <h2>📁 Vault 概览</h2>
-          <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px;padding:14px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <div class="card-header">
             <svg width="60" height="60" viewBox="0 0 60 60" aria-hidden="true">
               <circle cx="30" cy="30" r="26" fill="none" stroke="var(--border)" stroke-width="6"/>
               <path d="M30 4 A26 26 0 0 1 56 30 L30 30 Z" fill="var(--accent)"/>
@@ -1999,7 +2041,7 @@ textarea:focus-visible {
             </svg>
             <div>
               <div style="font-size:0.95rem;font-weight:600">PARA 分布</div>
-              <div class="text-muted" style="font-size:0.8rem">Projects · Areas · Resources · Archives</div>
+              <div class="text-muted">Projects · Areas · Resources · Archives</div>
             </div>
           </div>
           <div id="vaultStatsPanel">
