@@ -4,6 +4,12 @@ node_modules/
 # Build output
 dist/
 
+# TypeScript incremental
+*.tsbuildinfo
+
+# Frontend screenshots
+frontend/screenshots/
+
 # Environment variables
 .env
 .env.local

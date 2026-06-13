@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "identifier": "ai.openclaw.app",
   "build": {
-    "frontendDist": "./public",
+    "frontendDist": "./frontend/dist",
     "devUrl": "http://localhost:18789",
-    "beforeDevCommand": "bun run start"
+    "beforeDevCommand": "cd frontend && bun run dev",
+    "beforeBuildCommand": "cd frontend && bun run build"
   },
   "app": {
     "windows": [
