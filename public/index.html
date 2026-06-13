@@ -387,6 +387,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 24px;
   padding: 32px;
   background: var(--card);
@@ -577,7 +578,7 @@ body {
 .badge.info { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 
 /* ===== Chat ===== */
-.chat-container { display: flex; flex-direction: column; height: calc(100vh - var(--header-h) - 48px); }
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); }
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -1007,9 +1008,78 @@ body {
 .justify-between { justify-content: space-between; }
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
+.mt-3 { margin-top: 12px; }
 .mt-4 { margin-top: 16px; }
 .mb-4 { margin-bottom: 16px; }
 .w-full { width: 100%; }
+
+/* ===== Focus-visible (keyboard navigation) ===== */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:focus-visible,
+.btn:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ===== Bottom Nav touch target ===== */
+.bottom-nav-item {
+  min-height: 44px;
+  padding: 6px 12px;
+}
+
+/* ===== Activity kbd ===== */
+.activity-item kbd {
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
+/* ===== Search select ===== */
+.search-select {
+  width: auto;
+  min-width: 120px;
+}
+
+/* ===== Button active state (tabs/toggles) ===== */
+.btn.secondary.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ===== Settings theme active ===== */
+.theme-option.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ===== Virtual List load-more ===== */
+.vl-load-more {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.vl-load-more:hover {
+  background: var(--hover);
+  border-color: var(--border-hover);
+}
 
 ::selection {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
@@ -1476,7 +1546,7 @@ body {
           </div>
           <div class="activity-item">
             <span class="activity-item__dot" style="background:var(--warn)"></span>
-            <span class="activity-item__text">提示：按 <kbd style="background:var(--hover);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:0.7rem;font-family:monospace;">/</kbd> 快速搜索，<kbd style="background:var(--hover);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:0.7rem;font-family:monospace;">?</kbd> 查看快捷键</span>
+            <span class="activity-item__text">提示：按 <kbd>/</kbd> 快速搜索，<kbd>?</kbd> 查看快捷键</span>
             <span class="activity-item__time">提示</span>
           </div>
         </div>
@@ -1486,7 +1556,15 @@ body {
     <!-- Chat Page -->
     <div id="page-chat" class="page">
       <div class="chat-container">
-        <div class="chat-messages" id="chatLog"></div>
+        <div class="chat-messages" id="chatLog">
+          <div class="empty-state" id="chatEmpty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            <span class="empty-title">开始对话</span>
+            <span class="empty-desc">输入消息与 AI 交互，支持代码分析、知识图谱查询等</span>
+          </div>
+        </div>
         <div class="chat-input">
           <textarea class="input" id="chatInput" placeholder="输入消息，按 Enter 发送，Shift+Enter 换行..."></textarea>
           <button class="btn" id="sendBtn">
@@ -1500,7 +1578,7 @@ body {
     <div id="page-search" class="page hidden">
       <div class="search-box">
         <input class="input" id="searchInput" placeholder="搜索 Vault、笔记、标签..." />
-        <select class="select" id="searchParaFilter" style="width:auto;min-width:120px;">
+        <select class="select search-select" id="searchParaFilter">
           <option value="">所有分类</option>
           <option value="projects">📁 Projects</option>
           <option value="areas">📂 Areas</option>
@@ -1730,7 +1808,7 @@ body {
       <div class="grid">
         <div class="card">
           <h2>🤖 Agent 工作区</h2>
-          <div class="agent-tabs" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <div class="agent-tabs flex gap-2" style="margin-bottom:16px;flex-wrap:wrap">
             <button class="btn secondary active" data-agent-tab="generate" onclick="switchAgentTab('generate')">✨ 代码生成</button>
             <button class="btn secondary" data-agent-tab="refactor" onclick="switchAgentTab('refactor')">🔧 重构</button>
             <button class="btn secondary" data-agent-tab="review" onclick="switchAgentTab('review')">👁️ 代码审查</button>
@@ -1953,10 +2031,10 @@ body {
           <h2>🎨 外观</h2>
           <div class="setting-item">
             <label>主题模式</label>
-            <div class="flex gap-2">
-              <button class="btn secondary" onclick="setTheme('dark')">🌙 深色</button>
-              <button class="btn secondary" onclick="setTheme('light')">☀️ 浅色</button>
-              <button class="btn secondary" onclick="setTheme('auto')">🖥️ 跟随系统</button>
+            <div class="flex gap-2" id="themeOptions">
+              <button class="btn secondary theme-option" data-theme-val="dark" onclick="setTheme('dark')">🌙 深色</button>
+              <button class="btn secondary theme-option" data-theme-val="light" onclick="setTheme('light')">☀️ 浅色</button>
+              <button class="btn secondary theme-option" data-theme-val="auto" onclick="setTheme('auto')">🖥️ 跟随系统</button>
             </div>
           </div>
         </div>

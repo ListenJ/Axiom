@@ -297,6 +297,9 @@ OC.register('chat', {
   
   addMessage(role, content) {
     const log = document.getElementById('chatLog');
+    // Hide empty state on first message
+    const empty = document.getElementById('chatEmpty');
+    if (empty) empty.remove();
     const msg = document.createElement('div');
     msg.className = `msg ${role}`;
     
@@ -842,8 +845,17 @@ OC.register('settings', {
         document.documentElement.setAttribute('data-theme', theme);
       }
       localStorage.setItem('theme', theme);
+      // Highlight active theme button
+      document.querySelectorAll('.theme-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.themeVal === theme);
+      });
       OC.get('ui').showToast('主题已切换', 'success');
     };
+    // Set initial active state
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    document.querySelectorAll('.theme-option').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.themeVal === currentTheme);
+    });
   },
   
   async save() {
@@ -1094,7 +1106,7 @@ const VirtualList = {
           loadMoreBtn = document.createElement('button');
           loadMoreBtn.className = 'vl-load-more';
           loadMoreBtn.textContent = `加载更多 (${items.length - rendered} 条)`;
-          loadMoreBtn.style.cssText = 'width:100%;padding:12px;margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:13px;';
+          loadMoreBtn.style.cssText = '';
           loadMoreBtn.onclick = () => {
             renderChunk();
             loadMoreBtn.textContent = rendered < items.length
