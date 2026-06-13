@@ -289,7 +289,7 @@ OC.register('chat', {
     const el = document.getElementById('wsStatus');
     if (el) {
       el.className = `badge ${connected ? 'ok' : ''}`;
-      el.innerHTML = `<span class="status-dot" style="background:${connected ? 'var(--success)' : 'var(--muted)'}"></span>`;
+      el.innerHTML = `\u003cspan class="status-dot ${connected ? 'status-dot--connected' : 'status-dot--disconnected'}">\u003c/span>`;
       el.title = connected ? 'Connected' : 'Disconnected';
     }
   },
@@ -569,7 +569,7 @@ OC.register('agents', {
     
     const resultEl = document.getElementById('agentResult');
     resultEl.innerHTML = `
-      <div class="card" style="background:var(--accent-glow);border-color:var(--accent)">
+      <div class="card card--highlight">
         <h3>⏳ 正在运行 ${this.getAgentLabel(type)}...</h3>
         <p class="text-muted">请稍候，Agent 正在处理您的请求</p>
       </div>
@@ -582,7 +582,7 @@ OC.register('agents', {
       resultEl.innerHTML = `
         <div class="card">
           <h3>✅ ${this.getAgentLabel(type)} 完成</h3>
-          <pre style="background:var(--bg-elevated);padding:16px;border-radius:8px;overflow:auto;max-height:400px"><code>${this.escapeHtml(res.code || res.result || res.output || '无输出')}</code></pre>
+          <pre class="code-block"><code>${this.escapeHtml(res.code || res.result || res.output || '无输出')}</code></pre>
           ${res.filePath ? `<p class="text-muted mt-2">📁 文件: ${res.filePath}</p>` : ''}
         </div>
       `;
@@ -590,7 +590,7 @@ OC.register('agents', {
       OC.get('ui').showToast(`${this.getAgentLabel(type)} 完成`, 'success');
     } catch (err) {
       resultEl.innerHTML = `
-        <div class="card" style="border-color:var(--danger)">
+        <div class="card card--error">
           <h3>❌ ${this.getAgentLabel(type)} 失败</h3>
           <p class="text-muted">${err.message}</p>
         </div>
@@ -669,13 +669,13 @@ OC.register('router-monitor', {
     try {
       const usage = await OC.get('api').get('/memory/usage');
       panel.innerHTML = `
-        <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px">
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--accent)">${usage.totalTokens || 0}</div>
+        <div class="grid grid--2 gap-md">
+          <div class="card card--pad">
+            <div class="metric-lg text-accent">${usage.totalTokens || 0}</div>
             <div class="text-muted">总 Token</div>
           </div>
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--success)">${usage.conversations || 0}</div>
+          <div class="card card--pad">
+            <div class="metric-lg text-success">${usage.conversations || 0}</div>
             <div class="text-muted">对话数</div>
           </div>
         </div>
@@ -704,21 +704,21 @@ OC.register('vault', {
     try {
       const stats = await OC.get('api').get('/vault/stats');
       panel.innerHTML = `
-        <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px">
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--accent)">${stats.totalNotes || 0}</div>
+        <div class="grid grid--2 gap-md">
+          <div class="card card--pad">
+            <div class="metric-lg text-accent">${stats.totalNotes || 0}</div>
             <div class="text-muted">笔记</div>
           </div>
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--purple)">${stats.totalTags || 0}</div>
+          <div class="card card--pad">
+            <div class="metric-lg text-purple">${stats.totalTags || 0}</div>
             <div class="text-muted">标签</div>
           </div>
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--success)">${stats.totalLinks || 0}</div>
+          <div class="card card--pad">
+            <div class="metric-lg text-success">${stats.totalLinks || 0}</div>
             <div class="text-muted">链接</div>
           </div>
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--warn)">${stats.paraCategories || 0}</div>
+          <div class="card card--pad">
+            <div class="metric-lg text-warn">${stats.paraCategories || 0}</div>
             <div class="text-muted">PARA 分类</div>
           </div>
         </div>
@@ -745,7 +745,7 @@ OC.register('vault', {
         container: panel,
         items: tags,
         pageSize: 40,
-        renderItem: (t) => `<span class="badge" style="font-size:0.85rem;padding:4px 10px">${t}</span>`
+        renderItem: (t) => `<span class="badge badge--lg">${t}</span>`
       });
     } catch (err) {
       panel.innerHTML = `<p class="text-muted">无法获取标签</p>`;
@@ -771,13 +771,13 @@ OC.register('kg', {
     try {
       const stats = await OC.get('api').get('/kg/stats');
       panel.innerHTML = `
-        <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px">
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--accent)">${stats.entities || 0}</div>
+        <div class="grid grid--2 gap-md">
+          <div class="card card--pad">
+            <div class="metric-lg text-accent">${stats.entities || 0}</div>
             <div class="text-muted">实体</div>
           </div>
-          <div class="card" style="padding:16px">
-            <div style="font-size:24px;font-weight:700;color:var(--purple)">${stats.relations || 0}</div>
+          <div class="card card--pad">
+            <div class="metric-lg text-purple">${stats.relations || 0}</div>
             <div class="text-muted">关系</div>
           </div>
         </div>
@@ -880,10 +880,12 @@ OC.register('perf', {
       if (indicator) {
         if (native.available) {
           indicator.textContent = '🦀 Rust Core';
-          indicator.style.color = 'var(--success)';
+          indicator.classList.remove('ts-core');
+          indicator.classList.add('rust-core');
         } else {
           indicator.textContent = '📜 TS Core';
-          indicator.style.color = 'var(--muted)';
+          indicator.classList.remove('rust-core');
+          indicator.classList.add('ts-core');
         }
       }
     } catch (err) {
@@ -1088,6 +1090,12 @@ OC.register('theme', {
         localStorage.setItem('theme', newTheme);
       }
     };
+
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.onclick = () => location.reload();
+
+    const kbdHelpBtn = document.getElementById('kbdHelpBtn');
+    if (kbdHelpBtn) kbdHelpBtn.onclick = () => OC.get('ui').openModal('kbdModal');
   }
 });
 
@@ -1130,9 +1138,21 @@ OC.register('ui', {
     const overlay = document.getElementById('overlay');
     const header = document.getElementById('header');
     const main = document.getElementById('main');
-    
+    const isMobile = window.innerWidth <= 768;
+
+    if (isMobile) {
+      const isOpen = sidebar.classList.contains('is-open');
+      if (isOpen) {
+        sidebar.classList.remove('is-open');
+        overlay.classList.remove('show');
+      } else {
+        sidebar.classList.add('is-open');
+        overlay.classList.add('show');
+      }
+      return;
+    }
+
     const isCollapsed = sidebar.classList.contains('collapsed');
-    
     if (isCollapsed) {
       sidebar.classList.remove('collapsed');
       overlay.classList.remove('show');

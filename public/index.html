@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0c1222">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -151,7 +151,7 @@ table { border-collapse: collapse; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 14px;
+  padding: 13px 14px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -161,6 +161,7 @@ table { border-collapse: collapse; }
   margin-bottom: 3px;
   border-left: 3px solid transparent;
   position: relative;
+  min-height: 44px;
 }
 .nav-item:hover {
   background: var(--hover);
@@ -218,7 +219,8 @@ button.nav-item {
 
 /* ===== Header ===== */
 .header {
-  height: var(--header-h);
+  height: auto;
+  min-height: var(--header-h);
   background: var(--card);
   border-bottom: 1px solid var(--border);
   position: fixed;
@@ -229,16 +231,15 @@ button.nav-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 0 20px;
   transition: left 0.4s cubic-bezier(0.4,0,0.2,1), background-color 0.4s;
 }
-.header.full { left: 0; }
-.header .left { display: flex; align-items: center; gap: 14px; }
-.header .right { display: flex; align-items: center; gap: 10px; }
+.header .right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
 .hamburger {
   display: none;
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;
   border-radius: var(--radius-sm);
   background: var(--hover);
   border: 1px solid var(--border);
@@ -262,7 +263,7 @@ button.nav-item {
 }
 
 .theme-btn, .refresh-btn, .kbd-help-btn {
-  width: 36px; height: 36px;
+  width: 44px; height: 44px;
   border-radius: var(--radius-sm);
   background: var(--hover);
   border: 1px solid var(--border);
@@ -288,6 +289,7 @@ button.nav-item {
   transition: margin-left 0.4s cubic-bezier(0.4,0,0.2,1);
   max-width: 1400px;
   width: 100%;
+  min-width: 0;
 }
 .main.full { margin-left: 0; }
 
@@ -497,8 +499,8 @@ button.nav-item {
   margin: 0;
 }
 .home-action__desc {
-  font-size: 0.78rem;
-  color: var(--muted);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
   margin: 2px 0 0;
 }
 
@@ -519,8 +521,8 @@ button.nav-item {
   color: var(--text-secondary);
 }
 .section-head__hint {
-  font-size: 0.78rem;
-  color: var(--muted);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 /* ===== Activity list (Home) ===== */
@@ -529,9 +531,10 @@ button.nav-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: var(--radius-sm);
   transition: background-color 0.2s;
+  min-height: 48px;
 }
 .activity-item:hover { background: var(--hover); }
 .activity-item__dot {
@@ -752,7 +755,7 @@ button.nav-item {
 .chat-input {
   display: flex;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
   background: var(--card);
   align-items: flex-end;
@@ -971,7 +974,7 @@ button.nav-item {
 }
 .empty-state svg { opacity: 0.35; margin-bottom: 4px; }
 .empty-state .empty-title { font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); }
-.empty-state .empty-desc { font-size: 0.82rem; max-width: 260px; line-height: 1.5; }
+.empty-state .empty-desc { font-size: 0.85rem; max-width: 260px; line-height: 1.5; color: var(--text-secondary); }
 
 /* ===== KG Placeholder ===== */
 .kg-placeholder {
@@ -1016,6 +1019,9 @@ button.nav-item {
   border: none;
   background: none;
   transition: color 0.2s;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
 }
 .bottom-nav-item.active { color: var(--accent); }
 .bottom-nav-item .icon { font-size: 1.3rem; }
@@ -1034,9 +1040,13 @@ button.nav-item {
   :root { --sidebar-w: 280px; }
   .hamburger { display: flex; }
   .header { left: 0; }
+  .header .right { gap: 6px; }
+  .header .badge:not(#wsStatus) { display: none; }
   .main { margin-left: 0; padding: 16px; padding-bottom: 80px; }
-  .sidebar { width: 280px; }
-  .bottom-nav { display: flex; }
+  .sidebar { width: 280px; transform: translateX(-100%); box-shadow: none; }
+  .sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .bottom-nav { display: flex; padding-bottom: env(safe-area-inset-bottom, 0); }
+  .bottom-nav-item { min-height: 48px; font-size: 0.7rem; }
   .chat-container { height: calc(100vh - var(--header-h) - 76px); }
   .msg { max-width: 92%; }
   .grid { grid-template-columns: 1fr; }
@@ -1049,6 +1059,12 @@ button.nav-item {
   .card { padding: 16px; }
   .metric { font-size: 1.6rem; }
   .stat-value { font-size: 1.5rem; }
+  .theme-btn, .refresh-btn, .kbd-help-btn { width: 44px; height: 44px; }
+  .empty-state { padding: 32px 16px; }
+  .empty-state svg { width: 96px; height: 96px; }
+  .empty-state .empty-title { font-size: 0.9rem; }
+  .empty-state .empty-desc { font-size: 0.8rem; }
+  .nav-item { padding: 15px 16px; }
 }
 
 /* ===== Utilities ===== */
@@ -1075,6 +1091,45 @@ button.nav-item {
   margin-bottom: 16px;
 }
 .w-full { width: 100%; }
+
+/* ===== Card / content helpers ===== */
+.card--compact { padding: 8px 12px; }
+.card--pad { padding: 16px; }
+.card--highlight { background: var(--accent-glow); border-color: var(--accent); }
+.card--error { border-color: var(--danger); }
+.card-header__title { font-size: 0.95rem; font-weight: 600; }
+
+.chart-svg { width: 100%; height: 50px; margin-bottom: 14px; display: block; }
+.chart-svg--lg { height: 60px; }
+
+.metric-lg { font-size: 24px; font-weight: 700; }
+.text-accent { color: var(--accent); }
+.text-success { color: var(--success); }
+.text-purple { color: var(--purple); }
+.text-warn { color: var(--warn); }
+.text-danger { color: var(--danger); }
+
+.grid--2 { grid-template-columns: repeat(2, 1fr); }
+.gap-sm { gap: 12px; }
+.gap-md { gap: 16px; }
+
+.mt-2 { margin-top: 8px; }
+
+.code-block { background: var(--bg-elevated); padding: 16px; border-radius: 8px; overflow: auto; max-height: 400px; }
+
+.badge--lg { font-size: 0.85rem; padding: 4px 10px; }
+.badge.ts-core { color: var(--muted); }
+.badge.rust-core { color: var(--success); }
+
+.activity-item__dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; background: var(--muted); }
+.activity-item__dot--success { background: var(--success); }
+.activity-item__dot--accent { background: var(--accent); }
+.activity-item__dot--purple { background: var(--purple); }
+.activity-item__dot--warn { background: var(--warn); }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot--connected { background: var(--success); }
+.status-dot--disconnected { background: var(--muted); }
 
 /* ===== Focus-visible (keyboard navigation) ===== */
 :focus-visible {
@@ -1429,12 +1484,12 @@ textarea:focus-visible {
       <span class="header-title" id="pageTitle">Chat</span>
     </div>
     <div class="right">
-      <span class="badge info" id="editionBadge" style="font-size:0.72rem;">📜 TS-Only</span>
-      <span class="badge" id="nativeIndicator" style="font-size:0.72rem;color:var(--muted);">📜 TS Core</span>
+      <span class="badge info" id="editionBadge">📜 TS-Only</span>
+      <span class="badge ts-core" id="nativeIndicator">📜 TS Core</span>
       <span class="badge ok" id="wsStatus" title="Disconnected"><span class="status-dot"></span></span>
       <button class="kbd-help-btn" id="kbdHelpBtn" title="Keyboard shortcuts">⌘</button>
       <button class="theme-btn" id="themeBtn" title="Toggle theme">🌙</button>
-      <button class="refresh-btn" onclick="location.reload()" title="Refresh">⟳</button>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh">⟳</button>
     </div>
   </header>
 
@@ -1613,25 +1668,25 @@ textarea:focus-visible {
         <h2 class="section-head__title">最近活动</h2>
         <span class="section-head__hint">实时从系统事件总线获取</span>
       </div>
-      <div class="card" style="padding:8px 12px;">
+      <div class="card card--compact">
         <div class="activity-list" id="homeActivityList">
           <div class="activity-item">
-            <span class="activity-item__dot" style="background:var(--success)"></span>
+            <span class="activity-item__dot activity-item__dot--success"></span>
             <span class="activity-item__text">系统启动 — Vault 索引已就绪</span>
             <span class="activity-item__time" id="homeBootTime">刚刚</span>
           </div>
           <div class="activity-item">
-            <span class="activity-item__dot" style="background:var(--accent)"></span>
+            <span class="activity-item__dot activity-item__dot--accent"></span>
             <span class="activity-item__text">模型路由已加载 <strong>3</strong> 个 Provider</span>
             <span class="activity-item__time">刚刚</span>
           </div>
           <div class="activity-item">
-            <span class="activity-item__dot" style="background:var(--purple)"></span>
+            <span class="activity-item__dot activity-item__dot--purple"></span>
             <span class="activity-item__text">知识图谱 — 实体关系网络已构建</span>
             <span class="activity-item__time">1 分钟前</span>
           </div>
           <div class="activity-item">
-            <span class="activity-item__dot" style="background:var(--warn)"></span>
+            <span class="activity-item__dot activity-item__dot--warn"></span>
             <span class="activity-item__text">提示：按 <kbd>/</kbd> 快速搜索，<kbd>?</kbd> 查看快捷键</span>
             <span class="activity-item__time">提示</span>
           </div>
@@ -1699,7 +1754,7 @@ textarea:focus-visible {
               <circle cx="32" cy="32" r="6" fill="var(--orange)"/>
             </svg>
             <div>
-              <div style="font-size:0.95rem;font-weight:600">实体关系网络</div>
+              <div class="card-header__title">实体关系网络</div>
               <div class="text-muted">BFS · 最短路径 · 中心性</div>
             </div>
           </div>
@@ -1724,7 +1779,7 @@ textarea:focus-visible {
         </div>
         <div class="card">
           <h2>📊 实体统计</h2>
-          <svg viewBox="0 0 320 60" preserveAspectRatio="none" style="width:100%;height:50px;margin-bottom:14px" aria-hidden="true">
+          <svg class="chart-svg" viewBox="0 0 320 60" preserveAspectRatio="none" aria-hidden="true">
             <rect x="0" y="30" width="20" height="30" fill="var(--accent)"/>
             <rect x="30" y="20" width="20" height="40" fill="var(--success)"/>
             <rect x="60" y="10" width="20" height="50" fill="var(--purple)"/>
@@ -1785,7 +1840,7 @@ textarea:focus-visible {
       <div class="grid">
         <div class="card">
           <h2>📊 路由性能</h2>
-          <svg viewBox="0 0 320 80" preserveAspectRatio="none" style="width:100%;height:60px;margin-bottom:14px" aria-hidden="true">
+          <svg class="chart-svg chart-svg--lg" viewBox="0 0 320 80" preserveAspectRatio="none" aria-hidden="true">
             <polyline points="0,60 30,52 60,56 90,40 120,46 150,30 180,38 210,22 240,28 270,18 300,24 320,12"
                       fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
             <polyline points="0,72 30,68 60,66 90,60 120,62 150,52 180,56 210,46 240,50 270,40 300,44 320,34"
@@ -1816,7 +1871,7 @@ textarea:focus-visible {
               <text x="28" y="33" text-anchor="middle" font-size="11" font-weight="700" fill="var(--warn)" font-family="monospace">65%</text>
             </svg>
             <div>
-              <div style="font-size:0.95rem;font-weight:600">Rust Core 健康度</div>
+              <div class="card-header__title">Rust Core 健康度</div>
               <div class="text-muted">检测中...</div>
             </div>
           </div>
@@ -1957,7 +2012,7 @@ textarea:focus-visible {
               <circle cx="32" cy="32" r="6" fill="var(--card)"/>
             </svg>
             <div>
-              <div style="font-size:0.95rem;font-weight:600">Provider 分布</div>
+              <div class="card-header__title">Provider 分布</div>
               <div class="text-muted">SiliconFlow · OfoxAI · DeepSeek · OpenRouter</div>
             </div>
           </div>
@@ -1976,7 +2031,7 @@ textarea:focus-visible {
         </div>
         <div class="card">
           <h2>📈 Token 使用统计</h2>
-          <svg viewBox="0 0 320 80" preserveAspectRatio="none" style="width:100%;height:60px;margin-bottom:14px" aria-hidden="true">
+          <svg class="chart-svg chart-svg--lg" viewBox="0 0 320 80" preserveAspectRatio="none" aria-hidden="true">
             <polyline points="0,40 20,32 40,36 60,24 80,28 100,18 120,22 140,12 160,16 180,8 200,14 220,6 240,10 260,4 280,8 300,2 320,6"
                       fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
             <polyline points="0,40 20,32 40,36 60,24 80,28 100,18 120,22 140,12 160,16 180,8 200,14 220,6 240,10 260,4 280,8 300,2 320,6 320,80 0,80"
@@ -2040,7 +2095,7 @@ textarea:focus-visible {
               <text x="30" y="34" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text)" font-family="monospace">PARA</text>
             </svg>
             <div>
-              <div style="font-size:0.95rem;font-weight:600">PARA 分布</div>
+              <div class="card-header__title">PARA 分布</div>
               <div class="text-muted">Projects · Areas · Resources · Archives</div>
             </div>
           </div>
