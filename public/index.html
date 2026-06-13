@@ -93,6 +93,11 @@ body {
 
 #app { display: flex; min-height: 100vh; }
 
+/* ===== Global overflow safeguards ===== */
+img, svg { max-width: 100%; height: auto; }
+pre, code { overflow-wrap: break-word; word-break: break-word; }
+table { border-collapse: collapse; }
+
 /* ===== Animations ===== */
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
@@ -282,6 +287,7 @@ button.nav-item {
   min-height: calc(100vh - var(--header-h));
   transition: margin-left 0.4s cubic-bezier(0.4,0,0.2,1);
   max-width: 1400px;
+  width: 100%;
 }
 .main.full { margin-left: 0; }
 
@@ -297,6 +303,7 @@ button.nav-item {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
   margin-bottom: 28px;
+  min-width: 0;
 }
 
 .card {
@@ -306,11 +313,19 @@ button.nav-item {
   border: 1px solid var(--border);
   transition: all 0.3s ease;
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 .card:hover {
   border-color: var(--border-hover);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+/* Prevent flex/grid children from forcing horizontal overflow */
+.main, .search-box, .section-head, .result-card, .agent-tabs,
+.msg, .msg-bubble, .code-block pre, .home-hero, .home-actions,
+.stat-card, .settings-grid, .vault-tags-grid, .data-table-wrapper {
+  min-width: 0;
 }
 .card h2 {
   font-size: 0.85rem;
@@ -992,7 +1007,17 @@ button.nav-item {
 .bottom-nav-item .icon { font-size: 1.3rem; }
 
 /* ===== Responsive ===== */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 220px; }
+  .header { padding: 0 16px; }
+  .main { padding: 24px 20px; }
+  .grid { gap: 16px; margin-bottom: 20px; }
+  .card { padding: 20px; }
+  .metric { font-size: 1.7rem; }
+}
+
 @media (max-width: 768px) {
+  :root { --sidebar-w: 280px; }
   .hamburger { display: flex; }
   .header { left: 0; }
   .main { margin-left: 0; padding: 16px; padding-bottom: 80px; }
@@ -1000,7 +1025,16 @@ button.nav-item {
   .bottom-nav { display: flex; }
   .chat-container { height: calc(100vh - var(--header-h) - 76px); }
   .msg { max-width: 92%; }
+  .grid { grid-template-columns: 1fr; }
+  .home-actions { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; }
+  .search-box { flex-direction: column; align-items: stretch; }
+  .search-box .input { width: 100%; }
+  .section-head { flex-wrap: wrap; gap: 8px; }
+  .modal { width: calc(100% - 32px); margin: 16px; max-width: none; }
+  .card { padding: 16px; }
+  .metric { font-size: 1.6rem; }
+  .stat-value { font-size: 1.5rem; }
 }
 
 /* ===== Utilities ===== */
@@ -1098,6 +1132,18 @@ textarea:focus-visible {
 .vault-tags-grid .vl-load-more {
   width: 100%;
   flex-basis: 100%;
+}
+
+/* ===== Data table horizontal scroll wrapper ===== */
+.data-table-wrapper {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.data-table-wrapper .data-table {
+  width: 100%;
+  min-width: 600px;
 }
 
 ::selection {
