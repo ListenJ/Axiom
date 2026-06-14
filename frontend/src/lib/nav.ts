@@ -13,6 +13,9 @@ import {
   BarChart3,
   Puzzle,
   Database,
+  TrendingUp,
+  ScanText,
+  Microscope,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -36,6 +39,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'sessions', path: '/sessions',  label: 'Sessions', shortcut: '8', icon: Database,     mobilePrimary: false },
   { id: 'eval',     path: '/eval',      label: 'Eval',     shortcut: '9', icon: BarChart3,    mobilePrimary: false },
   { id: 'plugins',  path: '/plugins',   label: 'Plugins',  shortcut: '0', icon: Puzzle,       mobilePrimary: false },
+  { id: 'trends',   path: '/trends',    label: 'Trends',   shortcut: 't', icon: TrendingUp,   mobilePrimary: false },
+  { id: 'ocr',      path: '/ocr',       label: 'OCR',      shortcut: 'o', icon: ScanText,     mobilePrimary: false },
+  { id: 'research', path: '/research',  label: 'Research', shortcut: 'r', icon: Microscope,   mobilePrimary: false },
   { id: 'perf',     path: '/perf',      label: 'Perf',     shortcut: '-', icon: Activity,     mobilePrimary: false },
   { id: 'settings', path: '/settings',  label: 'Settings', shortcut: '=', icon: Settings,     mobilePrimary: false },
 ]

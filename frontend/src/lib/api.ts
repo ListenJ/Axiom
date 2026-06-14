@@ -306,6 +306,20 @@ export const endpoints = {
       api.get('/memory/tasks', { params }),
     usage: (days: number) => api.get('/memory/usage', { params: { days } }),
   },
+  trends: {
+    summary: (days: number) => api.get('/stats/trends', { params: { days } }),
+  },
+  ocr: {
+    status: () => api.get('/ocr/status'),
+    scan: (body: { path?: string; url?: string; languages?: string[] }) =>
+      api.post('/ocr/scan', body),
+    export: (body: { path?: string; format?: 'md' | 'txt' | 'json' }) =>
+      api.post('/ocr/export', body),
+  },
+  research: {
+    run: (body: { query: string; depth?: number; maxSources?: number }) =>
+      api.post('/research/run', body),
+  },
   system: {
     health: () => api.get('/health'),
     version: () => api.get('/version'),
