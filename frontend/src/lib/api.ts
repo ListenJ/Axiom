@@ -296,6 +296,16 @@ export const endpoints = {
       api.post(`/plugins/${encodeURIComponent(id)}/config`, config),
     activeTools: () => api.get('/plugins/active-tools'),
   },
+  memory: {
+    sessions: () => api.get('/memory/sessions'),
+    conversations: (sessionId: string, options?: Record<string, string | number | boolean | undefined>) =>
+      api.get('/memory/conversations', { params: { session: sessionId, ...options } }),
+    knowledge: (query: string, options?: Record<string, string | number | boolean | undefined>) =>
+      api.get('/memory/knowledge', { params: { q: query, ...options } }),
+    tasks: (params?: Record<string, string | number | boolean | undefined>) =>
+      api.get('/memory/tasks', { params }),
+    usage: (days: number) => api.get('/memory/usage', { params: { days } }),
+  },
   system: {
     health: () => api.get('/health'),
     version: () => api.get('/version'),

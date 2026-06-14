@@ -12,6 +12,7 @@ import {
   Settings,
   BarChart3,
   Puzzle,
+  Database,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -32,10 +33,11 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'router',   path: '/router',    label: 'Router',   shortcut: '5', icon: Compass,      mobilePrimary: false },
   { id: 'vault',    path: '/vault',     label: 'Vault',    shortcut: '6', icon: Folder,       mobilePrimary: false },
   { id: 'kg',       path: '/kg',        label: 'KG',       shortcut: '7', icon: Network,      mobilePrimary: false },
-  { id: 'eval',     path: '/eval',      label: 'Eval',     shortcut: '8', icon: BarChart3,    mobilePrimary: false },
-  { id: 'plugins',  path: '/plugins',   label: 'Plugins',  shortcut: '9', icon: Puzzle,       mobilePrimary: false },
-  { id: 'perf',     path: '/perf',      label: 'Perf',     shortcut: '0', icon: Activity,     mobilePrimary: false },
-  { id: 'settings', path: '/settings',  label: 'Settings', shortcut: '-', icon: Settings,     mobilePrimary: false },
+  { id: 'sessions', path: '/sessions',  label: 'Sessions', shortcut: '8', icon: Database,     mobilePrimary: false },
+  { id: 'eval',     path: '/eval',      label: 'Eval',     shortcut: '9', icon: BarChart3,    mobilePrimary: false },
+  { id: 'plugins',  path: '/plugins',   label: 'Plugins',  shortcut: '0', icon: Puzzle,       mobilePrimary: false },
+  { id: 'perf',     path: '/perf',      label: 'Perf',     shortcut: '-', icon: Activity,     mobilePrimary: false },
+  { id: 'settings', path: '/settings',  label: 'Settings', shortcut: '=', icon: Settings,     mobilePrimary: false },
 ]
 
 export const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((i) => i.mobilePrimary)

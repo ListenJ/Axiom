@@ -10,6 +10,7 @@ import Vault from '@/pages/Vault'
 import KG from '@/pages/KG'
 import Eval from '@/pages/Eval'
 import Plugins from '@/pages/Plugins'
+import Sessions from '@/pages/Sessions'
 import Perf from '@/pages/Perf'
 import Settings from '@/pages/Settings'
 
@@ -26,6 +27,7 @@ function App() {
           <Route path="router" element={<Router />} />
           <Route path="vault" element={<Vault />} />
           <Route path="kg" element={<KG />} />
+          <Route path="sessions" element={<Sessions />} />
           <Route path="eval" element={<Eval />} />
           <Route path="plugins" element={<Plugins />} />
           <Route path="perf" element={<Perf />} />
