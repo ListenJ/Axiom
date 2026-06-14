@@ -1,14 +1,78 @@
+import { useEffect, useRef, useState } from 'react'
 import { Send, Paperclip, Bot, User } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
+import { endpoints, HttpError } from '@/lib/api'
+import { useApp } from '@/state/useApp'
 
-const messages = [
-  { role: 'user', content: '帮我分析这段代码的性能瓶颈。' },
-  { role: 'assistant', content: '已收到请求。从代码结构看，主要瓶颈在于频繁的状态更新导致大量重渲染，建议将状态提升到公共父组件或使用 memo 优化。' },
-  { role: 'user', content: '如何集成 Tauri 2.0 与 React？' },
-  { role: 'assistant', content: '可以使用 Vite 创建 React 模板，然后通过 @tauri-apps/cli 初始化 Tauri，配置 frontendDist 指向 Vite 构建输出即可。' },
-]
+interface Message {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+}
+
+let idCounter = 0
 
 export default function Chat() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const toast = useApp((s) => s.toast)
+
+  useEffect(() => {
+    endpoints.chat
+      .history()
+      .then((d) => {
+        if (Array.isArray(d)) {
+          setMessages(
+            d
+              .filter((m): m is { role: string; content: string } =>
+                typeof m === 'object' && m !== null && 'role' in m && 'content' in m,
+              )
+              .map((m) => ({
+                id: ++idCounter,
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: String(m.content ?? ''),
+              })),
+          )
+        }
+      })
+      .catch(() => {
+        // ignore — history endpoint may be unavailable
+      })
+  }, [])
+
+  useEffect(() => {
+    if (scroller.current) {
+      scroller.current.scrollTop = scroller.current.scrollHeight
+    }
+  }, [messages])
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    const userMsg: Message = { id: ++idCounter, role: 'user', content: text }
+    setMessages((m) => [...m, userMsg])
+    setInput('')
+    setSending(true)
+    try {
+      const res = await endpoints.chat.send(text)
+      const content =
+        typeof res === 'string'
+          ? res
+          : res && typeof res === 'object' && 'message' in (res as Record<string, unknown>)
+            ? String((res as Record<string, unknown>).message)
+            : JSON.stringify(res)
+      setMessages((m) => [...m, { id: ++idCounter, role: 'assistant', content }])
+    } catch (e) {
+      const msg = e instanceof HttpError ? e.message : String((e as Error)?.message ?? e)
+      setMessages((m) => [...m, { id: ++idCounter, role: 'assistant', content: `[错误] ${msg}` }])
+      toast('发送失败：' + msg, 'error')
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="space-y-1">
@@ -16,42 +80,79 @@ export default function Chat() {
         <p className="text-text-secondary">与 OpenClaw AI Agent 实时交互。</p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-surface p-4">
-        {messages.map((msg, i) => (
-          <ShimmerCard key={i} glow={msg.role === 'assistant'} className="max-w-[85%] self-start">
+      <div
+        ref={scroller}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-surface p-4"
+      >
+        {messages.length === 0 && (
+          <p className="m-auto text-sm text-text-muted">开始对话吧（按 1 聚焦 /）。</p>
+        )}
+        {messages.map((msg) => (
+          <ShimmerCard
+            key={msg.id}
+            glow={msg.role === 'assistant'}
+            className={`max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}
+          >
             <div className="flex items-start gap-3">
               <div
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                  msg.role === 'assistant' ? 'bg-accent/20 text-accent' : 'bg-surface-hover text-text-secondary'
+                  msg.role === 'assistant'
+                    ? 'bg-accent/20 text-accent'
+                    : 'bg-surface-hover text-text-secondary'
                 }`}
               >
                 {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-text-secondary">{msg.role === 'assistant' ? 'OpenClaw' : '你'}</p>
-                <p className="mt-1 text-sm leading-relaxed text-text">{msg.content}</p>
+                <p className="text-sm font-medium text-text-secondary">
+                  {msg.role === 'assistant' ? 'OpenClaw' : '你'}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-text">
+                  {msg.content}
+                </p>
               </div>
             </div>
           </ShimmerCard>
         ))}
+        {sending && (
+          <ShimmerCard className="max-w-[40%] self-start" glow>
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+              <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:120ms]" />
+              <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:240ms]" />
+              思考中…
+            </div>
+          </ShimmerCard>
+        )}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-text-secondary transition-colors hover:text-text"
+          className="focus-ring hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-text-secondary transition hover:text-text sm:flex"
           aria-label="附件"
         >
           <Paperclip size={18} />
         </button>
         <input
           type="text"
-          placeholder="输入消息..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void send()
+            }
+          }}
+          placeholder="输入消息，回车发送…"
           className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-bg px-4 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+          aria-label="消息输入"
         />
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition-colors hover:bg-accent-hover"
+          onClick={() => void send()}
+          disabled={sending || !input.trim()}
+          className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition hover:bg-accent-hover disabled:opacity-50 sm:w-auto sm:px-5"
           aria-label="发送"
         >
           <Send size={18} />

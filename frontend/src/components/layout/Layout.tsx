@@ -3,9 +3,15 @@ import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
+import HelpModal from '@/components/ui/HelpModal'
+import Toasts from '@/components/ui/Toasts'
+import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
+import { useTheme } from '@/hooks/useTheme'
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  useGlobalHotkeys()
+  useTheme()
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-text">
@@ -30,6 +36,9 @@ export default function Layout() {
           aria-hidden="true"
         />
       )}
+
+      <HelpModal />
+      <Toasts />
     </div>
   )
 }

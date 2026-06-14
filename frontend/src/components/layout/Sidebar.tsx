@@ -1,24 +1,17 @@
-import { Home, MessageSquare, BarChart3, Settings, X, Bot, FileText, Shield } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { X } from 'lucide-react'
+import { NAV_ITEMS } from '@/lib/nav'
 
 interface SidebarProps {
   open: boolean
   onClose: () => void
 }
 
-const navItems = [
-  { icon: Home, label: '首页', href: '#/' },
-  { icon: MessageSquare, label: '对话', href: '#/chat' },
-  { icon: BarChart3, label: '分析', href: '#/' },
-  { icon: Bot, label: '智能体', href: '#/' },
-  { icon: FileText, label: '文档', href: '#/' },
-  { icon: Shield, label: '安全', href: '#/' },
-]
-
 export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 w-60 transform border-r border-border bg-bg-secondary transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 flex w-60 flex-col transform border-r border-border bg-bg-secondary transition-transform duration-300 ease-in-out
         lg:static lg:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}
@@ -34,7 +27,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-surface lg:hidden"
+          className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-surface hover:text-text lg:hidden"
           aria-label="关闭菜单"
         >
           <X size={18} />
@@ -42,31 +35,32 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {navItems.map((item) => {
+        {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           return (
-            <a
-              key={item.label}
-              href={item.href}
+            <NavLink
+              key={item.id}
+              to={item.path}
+              end={item.path === '/'}
               onClick={() => onClose()}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text"
+              className={({ isActive }) =>
+                `focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-accent/15 text-accent'
+                    : 'text-text-secondary hover:bg-surface hover:text-text'
+                }`
+              }
             >
               <Icon size={18} />
-              {item.label}
-            </a>
+              <span className="flex-1">{item.label}</span>
+              <span className="font-mono text-2xs text-text-muted">{item.shortcut}</span>
+            </NavLink>
           )
         })}
       </nav>
 
-      <div className="border-t border-border p-3">
-        <a
-          href="#/settings"
-          onClick={() => onClose()}
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text"
-        >
-          <Settings size={18} />
-          设置
-        </a>
+      <div className="border-t border-border p-3 text-2xs text-text-muted">
+        <p>OpenClaw v2.3 · Tauri + React</p>
       </div>
     </aside>
   )
