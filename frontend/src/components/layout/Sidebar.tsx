@@ -11,30 +11,39 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 flex w-60 flex-col transform border-r border-border bg-bg-secondary transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-[var(--border)]
+        bg-[var(--bg-secondary)]/95 backdrop-blur-md
+        transform transition-transform duration-300 ease-out
         lg:static lg:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}
       aria-label="主导航"
     >
-      <div className="flex h-14 items-center justify-between border-b border-border px-4">
+      {/* Brand */}
+      <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-sm font-bold text-white shadow-[var(--shadow-sm)]">
             OC
           </div>
-          <span className="text-base font-semibold">OpenClaw</span>
+          <div className="flex flex-col leading-tight">
+            <span className="font-display text-sm font-semibold tracking-tight text-[var(--text)]">
+              OpenClaw
+            </span>
+            <span className="text-2xs text-[var(--text-muted)]">v2.3 · Tauri+React</span>
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-surface hover:text-text lg:hidden"
+          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
           aria-label="关闭菜单"
         >
           <X size={18} />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      {/* Nav items */}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           return (
@@ -44,23 +53,49 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               end={item.path === '/'}
               onClick={() => onClose()}
               className={({ isActive }) =>
-                `focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                `press group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-text-secondary hover:bg-surface hover:text-text'
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
                 }`
               }
             >
-              <Icon size={18} />
-              <span className="flex-1">{item.label}</span>
-              <span className="font-mono text-2xs text-text-muted">{item.shortcut}</span>
+              {({ isActive }) => (
+                <>
+                  <Icon
+                    size={18}
+                    className={`shrink-0 transition-transform group-hover:scale-110 ${
+                      isActive ? 'text-[var(--accent)]' : ''
+                    }`}
+                  />
+                  <span className="flex-1">{item.label}</span>
+                  <kbd
+                    className={`font-mono text-2xs ${
+                      isActive
+                        ? 'text-[var(--accent)] opacity-70'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  >
+                    {item.shortcut}
+                  </kbd>
+                </>
+              )}
             </NavLink>
           )
         })}
       </nav>
 
-      <div className="border-t border-border p-3 text-2xs text-text-muted">
-        <p>OpenClaw v2.3 · Tauri + React</p>
+      {/* Footer */}
+      <div className="border-t border-[var(--border)] p-3">
+        <div className="rounded-lg bg-[var(--bg-tertiary)]/50 p-2.5">
+          <div className="flex items-center gap-2">
+            <div className="pulse-dot size-2 rounded-full bg-[var(--success)]" />
+            <span className="text-2xs text-[var(--text-muted)]">系统在线</span>
+          </div>
+          <p className="mt-1 text-2xs text-[var(--text-muted)]">
+            OpenClaw v2.3
+          </p>
+        </div>
       </div>
     </aside>
   )

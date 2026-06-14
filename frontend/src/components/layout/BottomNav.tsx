@@ -4,7 +4,7 @@ import { MOBILE_NAV_ITEMS } from '@/lib/nav'
 export default function BottomNav() {
   return (
     <nav
-      className="flex h-16 shrink-0 items-center justify-around border-t border-border bg-bg-secondary pb-safe lg:hidden"
+      className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--border)] bg-[var(--bg-secondary)]/95 pb-safe pt-1 backdrop-blur-md lg:hidden"
       aria-label="底部导航"
     >
       {MOBILE_NAV_ITEMS.map((item) => {
@@ -15,13 +15,26 @@ export default function BottomNav() {
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `focus-ring flex min-w-[4.5rem] flex-col items-center justify-center gap-1 py-2 transition-colors ${
-                isActive ? 'text-accent' : 'text-text-secondary active:text-accent'
+              `press group flex min-w-[4.5rem] flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
+                isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] active:text-[var(--accent)]'
               }`
             }
           >
-            <Icon size={22} />
-            <span className="text-2xs font-medium">{item.label}</span>
+            {({ isActive }) => (
+              <>
+                <span
+                  className={`flex h-6 items-center justify-center transition-transform group-hover:scale-110 ${
+                    isActive ? 'scale-110' : ''
+                  }`}
+                >
+                  <Icon size={22} />
+                </span>
+                <span className="text-2xs font-medium">{item.label}</span>
+                {isActive && (
+                  <span className="absolute -top-px left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-b-full bg-[var(--accent)]" />
+                )}
+              </>
+            )}
           </NavLink>
         )
       })}
