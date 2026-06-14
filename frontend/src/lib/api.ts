@@ -270,6 +270,32 @@ export const endpoints = {
     metrics: () => api.get('/metrics'),
     native: () => api.get('/native/stats').catch(() => null),
   },
+  eval: {
+    stats: () => api.get('/eval/stats'),
+    results: (params?: Record<string, string | number | boolean | undefined>) =>
+      api.get('/eval/results', { params }),
+    model: (id: string) => api.get(`/eval/model/${encodeURIComponent(id)}`),
+    trend: (id: string, params?: Record<string, string | number | boolean | undefined>) =>
+      api.get(`/eval/trend/${encodeURIComponent(id)}`, { params }),
+    models: (params?: Record<string, string | number | boolean | undefined>) =>
+      api.get('/eval/models', { params }),
+    run: (body: Record<string, unknown>) => api.post('/eval/run', body),
+    assign: (body?: Record<string, unknown>) => api.post('/eval/assign', body),
+    assignments: () => api.get('/eval/assignments'),
+    assignReport: () => api.get('/eval/assign/report'),
+  },
+  plugins: {
+    list: () => api.get('/plugins'),
+    available: () => api.get('/plugins/available'),
+    detail: (id: string) => api.get(`/plugins/${encodeURIComponent(id)}`),
+    install: (path: string, enable = true) => api.post('/plugins/install', { path, enable }),
+    uninstall: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/uninstall`),
+    enable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/enable`),
+    disable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/disable`),
+    config: (id: string, config: Record<string, unknown>) =>
+      api.post(`/plugins/${encodeURIComponent(id)}/config`, config),
+    activeTools: () => api.get('/plugins/active-tools'),
+  },
   system: {
     health: () => api.get('/health'),
     version: () => api.get('/version'),
