@@ -320,6 +320,14 @@ export const endpoints = {
     run: (body: { query: string; depth?: number; maxSources?: number }) =>
       api.post('/research/run', body),
   },
+  knowledge: {
+    pendingReview: () => api.get('/knowledge/pending-review'),
+    reviewAction: (body: { file: string; action: 'approve' | 'reject' }) =>
+      api.post('/knowledge/pending-review/action', body),
+  },
+  proxies: {
+    list: () => api.get('/proxies'),
+  },
   system: {
     health: () => api.get('/health'),
     version: () => api.get('/version'),

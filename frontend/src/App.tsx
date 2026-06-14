@@ -14,6 +14,8 @@ import Sessions from '@/pages/Sessions'
 import Trends from '@/pages/Trends'
 import OCR from '@/pages/OCR'
 import Research from '@/pages/Research'
+import Knowledge from '@/pages/Knowledge'
+import Proxies from '@/pages/Proxies'
 import Perf from '@/pages/Perf'
 import Settings from '@/pages/Settings'
 
@@ -36,6 +38,8 @@ function App() {
           <Route path="trends" element={<Trends />} />
           <Route path="ocr" element={<OCR />} />
           <Route path="research" element={<Research />} />
+          <Route path="knowledge" element={<Knowledge />} />
+          <Route path="proxies" element={<Proxies />} />
           <Route path="perf" element={<Perf />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Home />} />

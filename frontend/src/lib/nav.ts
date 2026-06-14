@@ -16,6 +16,8 @@ import {
   TrendingUp,
   ScanText,
   Microscope,
+  BookCheck,
+  Globe,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -42,6 +44,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'trends',   path: '/trends',    label: 'Trends',   shortcut: 't', icon: TrendingUp,   mobilePrimary: false },
   { id: 'ocr',      path: '/ocr',       label: 'OCR',      shortcut: 'o', icon: ScanText,     mobilePrimary: false },
   { id: 'research', path: '/research',  label: 'Research', shortcut: 'r', icon: Microscope,   mobilePrimary: false },
+  { id: 'knowledge',path: '/knowledge', label: 'Review',   shortcut: 'k', icon: BookCheck,    mobilePrimary: false },
+  { id: 'proxies',  path: '/proxies',   label: 'Proxies',  shortcut: 'p', icon: Globe,        mobilePrimary: false },
   { id: 'perf',     path: '/perf',      label: 'Perf',     shortcut: '-', icon: Activity,     mobilePrimary: false },
   { id: 'settings', path: '/settings',  label: 'Settings', shortcut: '=', icon: Settings,     mobilePrimary: false },
 ]
