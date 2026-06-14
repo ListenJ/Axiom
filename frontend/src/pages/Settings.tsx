@@ -70,7 +70,7 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setTheme('dark')}
-                className={`focus-ring rounded-md px-3 py-1 text-sm transition ${theme === 'dark' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'}`}
+                className={`focus-ring rounded-md px-3 py-1 text-sm transition-colors ${theme === 'dark' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'}`}
                 aria-label="深色主题"
                 aria-pressed={theme === 'dark'}
               >
@@ -79,7 +79,7 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setTheme('light')}
-                className={`focus-ring rounded-md px-3 py-1 text-sm transition ${theme === 'light' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'}`}
+                className={`focus-ring rounded-md px-3 py-1 text-sm transition-colors ${theme === 'light' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'}`}
                 aria-label="浅色主题"
                 aria-pressed={theme === 'light'}
               >

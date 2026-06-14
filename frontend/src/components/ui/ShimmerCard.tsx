@@ -10,8 +10,8 @@ export default function ShimmerCard({ children, glow = false, className = '' }: 
   return (
     <div
       className={`
-        relative overflow-hidden rounded-2xl bg-surface p-4 transition-transform
-        ${glow ? 'border-glow' : 'border border-border'}
+        relative overflow-hidden rounded-2xl bg-surface p-4 transition-all duration-200
+        ${glow ? 'border-glow hover:-translate-y-0.5 hover:shadow-lg' : 'border border-border hover:border-border-hover'}
         ${className}
       `}
     >

@@ -40,7 +40,7 @@ export default function Toasts() {
             <button
               type="button"
               onClick={() => dismiss(t.id)}
-              className="text-text-muted hover:text-text"
+              className="focus-ring -m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
               aria-label="关闭通知"
             >
               <X size={14} />

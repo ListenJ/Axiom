@@ -59,13 +59,35 @@ export default function Search() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="输入关键词，按 / 聚焦…"
-          className="h-11 w-full rounded-xl border border-border bg-surface pl-9 pr-4 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+          aria-label="搜索关键词"
+          className="h-11 w-full rounded-xl border border-border bg-surface pl-9 pr-4 text-sm text-text placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
         />
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      {loading && <p className="text-sm text-text-muted">搜索中…</p>}
+      {loading && (
+        <div className="space-y-3" aria-busy="true" aria-label="正在搜索">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 rounded-2xl border border-border bg-surface p-4"
+              aria-hidden="true"
+            >
+              <div className="mt-0.5 size-4 shrink-0 animate-pulse rounded bg-bg-tertiary" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-1/2 animate-pulse rounded bg-bg-tertiary" />
+                <div className="h-3 w-full animate-pulse rounded bg-bg-tertiary" />
+                <div className="h-3 w-1/3 animate-pulse rounded bg-bg-tertiary" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!loading && q && results.length === 0 && (
         <ShimmerCard>

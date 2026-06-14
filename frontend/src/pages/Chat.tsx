@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Send, Paperclip, Bot, User } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints, HttpError } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 
 interface Message {
-  id: number
+  id: string
   role: 'user' | 'assistant'
   content: string
 }
 
-let idCounter = 0
+function nextId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+}
 
 export default function Chat() {
+  const location = useLocation()
+  const initialMessage = (location.state as { initialMessage?: string } | null)?.initialMessage
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -30,7 +35,7 @@ export default function Chat() {
                 typeof m === 'object' && m !== null && 'role' in m && 'content' in m,
               )
               .map((m) => ({
-                id: ++idCounter,
+                id: nextId(),
                 role: m.role === 'user' ? 'user' : 'assistant',
                 content: String(m.content ?? ''),
               })),
@@ -48,26 +53,32 @@ export default function Chat() {
     }
   }, [messages])
 
-  const send = async () => {
-    const text = input.trim()
-    if (!text || sending) return
-    const userMsg: Message = { id: ++idCounter, role: 'user', content: text }
+  useEffect(() => {
+    if (initialMessage && !sending && messages.length === 0) {
+      setInput(initialMessage)
+    }
+  }, [initialMessage])
+
+  const send = async (text?: string) => {
+    const msg = (text ?? input).trim()
+    if (!msg || sending) return
+    const userMsg: Message = { id: nextId(), role: 'user', content: msg }
     setMessages((m) => [...m, userMsg])
     setInput('')
     setSending(true)
     try {
-      const res = await endpoints.chat.send(text)
+      const res = await endpoints.chat.send(msg)
       const content =
         typeof res === 'string'
           ? res
           : res && typeof res === 'object' && 'message' in (res as Record<string, unknown>)
             ? String((res as Record<string, unknown>).message)
             : JSON.stringify(res)
-      setMessages((m) => [...m, { id: ++idCounter, role: 'assistant', content }])
+      setMessages((m) => [...m, { id: nextId(), role: 'assistant', content }])
     } catch (e) {
-      const msg = e instanceof HttpError ? e.message : String((e as Error)?.message ?? e)
-      setMessages((m) => [...m, { id: ++idCounter, role: 'assistant', content: `[错误] ${msg}` }])
-      toast('发送失败：' + msg, 'error')
+      const errMsg = e instanceof HttpError ? e.message : String((e as Error)?.message ?? e)
+      setMessages((m) => [...m, { id: nextId(), role: 'assistant', content: `[错误] ${errMsg}` }])
+      toast('发送失败：' + errMsg, 'error')
     } finally {
       setSending(false)
     }

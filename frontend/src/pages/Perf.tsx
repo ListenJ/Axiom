@@ -28,6 +28,8 @@ export default function Perf() {
     })
   }, [])
 
+  const loading = m === null
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -38,24 +40,44 @@ export default function Perf() {
         <p className="text-text-secondary">运行时指标与原生模块统计。</p>
       </header>
 
-      {error && <p className="text-sm text-warning">部分指标暂不可用：{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-warning">
+          部分指标暂不可用：{error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-busy={loading}>
         <ShimmerCard glow>
           <p className="text-sm text-text-muted">CPU</p>
-          <p className="mt-1 text-3xl font-bold">{m?.cpu !== undefined ? `${m.cpu.toFixed(1)}%` : '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{m?.cpu !== undefined ? `${m.cpu.toFixed(1)}%` : '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">内存</p>
-          <p className="mt-1 text-3xl font-bold">{m?.memory !== undefined ? `${m.memory.toFixed(1)}%` : '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{m?.memory !== undefined ? `${m.memory.toFixed(1)}%` : '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">RPS</p>
-          <p className="mt-1 text-3xl font-bold">{m?.rps ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{m?.rps ?? '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">P95</p>
-          <p className="mt-1 text-3xl font-bold">{m?.p95 !== undefined ? `${m.p95}ms` : '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-14 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{m?.p95 !== undefined ? `${m.p95}ms` : '—'}</p>
+          )}
         </ShimmerCard>
       </div>
 
@@ -64,9 +86,18 @@ export default function Perf() {
           <Cpu className="size-4 text-accent" />
           原生模块
         </h2>
-        <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-border bg-bg p-3 text-xs text-text-secondary">
-          {native ? JSON.stringify(native, null, 2) : '原生模块未启用或暂无数据。'}
-        </pre>
+        {native ? (
+          <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-border bg-bg p-3 text-xs text-text-secondary">
+            {JSON.stringify(native, null, 2)}
+          </pre>
+        ) : (
+          <div className="mt-3 space-y-2" aria-hidden="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-3 w-full animate-pulse rounded bg-bg-tertiary" />
+            ))}
+            <p className="mt-2 text-xs text-text-muted">原生模块未启用或暂无数据。</p>
+          </div>
+        )}
       </ShimmerCard>
     </div>
   )

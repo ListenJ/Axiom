@@ -68,13 +68,39 @@ export default function Agents() {
         <p className="text-text-secondary">管理 OpenCode 智能体并触发代码任务。</p>
       </header>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        aria-busy={agents.length === 0 && !error}
+        aria-label="智能体列表"
+      >
         {agents.length === 0 ? (
-          <ShimmerCard>
-            <p className="text-sm text-text-muted">{error ? '加载失败' : '加载中…'}</p>
-          </ShimmerCard>
+          error ? (
+            <ShimmerCard>
+              <p className="text-sm text-danger">加载失败：{error}</p>
+            </ShimmerCard>
+          ) : (
+            <>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-border bg-surface p-4"
+                  aria-hidden="true"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
+                    <div className="h-3 w-10 animate-pulse rounded bg-bg-tertiary" />
+                  </div>
+                  <div className="mt-3 h-3 w-32 animate-pulse rounded bg-bg-tertiary" />
+                </div>
+              ))}
+            </>
+          )
         ) : (
           agents.map((a) => (
             <ShimmerCard key={a.name} glow={a.available}>
@@ -94,18 +120,25 @@ export default function Agents() {
 
       <ShimmerCard>
         <h2 className="text-base font-semibold">代码任务</h2>
+        <label htmlFor="agents-code-input" className="sr-only">
+          代码输入
+        </label>
         <textarea
+          id="agents-code-input"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           rows={6}
-          className="mt-3 w-full rounded-xl border border-border bg-bg p-3 font-mono text-xs text-text focus:border-accent focus:outline-none"
+          aria-label="代码输入"
+          placeholder="在此粘贴或输入代码…"
+          className="mt-3 w-full rounded-xl border border-border bg-bg p-3 font-mono text-xs text-text placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => run('review')}
             disabled={running !== null}
-            className="focus-ring flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+            aria-label="审查代码"
+            className="focus-ring flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FileSearch className="size-4" />
             审查
@@ -114,7 +147,8 @@ export default function Agents() {
             type="button"
             onClick={() => run('test')}
             disabled={running !== null}
-            className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 text-sm font-medium text-text transition hover:bg-surface-hover disabled:opacity-50"
+            aria-label="生成测试"
+            className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 text-sm font-medium text-text transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FlaskConical className="size-4" />
             生成测试
@@ -123,7 +157,8 @@ export default function Agents() {
             type="button"
             onClick={() => run('refactor')}
             disabled={running !== null}
-            className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 text-sm font-medium text-text transition hover:bg-surface-hover disabled:opacity-50"
+            aria-label="重构代码"
+            className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 text-sm font-medium text-text transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Wand2 className="size-4" />
             重构
@@ -134,7 +169,16 @@ export default function Agents() {
             {review}
           </pre>
         )}
-        {running && <p className="mt-2 text-sm text-text-muted">正在执行 {running}…</p>}
+        {running && (
+          <p className="mt-2 flex items-center gap-2 text-sm text-text-muted" aria-live="polite">
+            <span className="inline-flex gap-1" aria-hidden="true">
+              <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+              <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:120ms]" />
+              <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:240ms]" />
+            </span>
+            正在执行 {running}…
+          </p>
+        )}
       </ShimmerCard>
     </div>
   )

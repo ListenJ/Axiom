@@ -20,6 +20,8 @@ export default function KG() {
       .catch((e) => setError(String((e as Error)?.message ?? e)))
   }, [])
 
+  const loading = stats === null
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -30,20 +32,36 @@ export default function KG() {
         <p className="text-text-secondary">PrimeKG 实体、关系与社区统计。</p>
       </header>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
         <ShimmerCard glow>
           <p className="text-sm text-text-muted">实体</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.entities ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.entities ?? '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">关系</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.relations ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.relations ?? '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">社区</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.communities ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.communities ?? '—'}</p>
+          )}
         </ShimmerCard>
       </div>
     </div>

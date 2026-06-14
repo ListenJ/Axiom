@@ -26,6 +26,8 @@ export default function Vault() {
     })
   }, [])
 
+  const loading = stats === null
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -36,20 +38,36 @@ export default function Vault() {
         <p className="text-text-secondary">Obsidian Vault 笔记与 PARA 视图。</p>
       </header>
 
-      {error && <p className="text-sm text-warning">部分指标暂不可用：{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-warning">
+          部分指标暂不可用：{error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
         <ShimmerCard glow>
           <p className="text-sm text-text-muted">笔记</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.notes ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.notes ?? '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">标签</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.tags ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.tags ?? '—'}</p>
+          )}
         </ShimmerCard>
         <ShimmerCard>
           <p className="text-sm text-text-muted">链接</p>
-          <p className="mt-1 text-3xl font-bold">{stats?.links ?? '—'}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold">{stats?.links ?? '—'}</p>
+          )}
         </ShimmerCard>
       </div>
 

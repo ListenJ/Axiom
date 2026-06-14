@@ -35,6 +35,8 @@ export default function Router() {
     })
   }, [])
 
+  const loading = status === null
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -45,16 +47,29 @@ export default function Router() {
         <p className="text-text-secondary">Advisor + Health + Token 使用统计。</p>
       </header>
 
-      {error && <p className="text-sm text-warning">部分指标暂不可用：{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-warning">
+          部分指标暂不可用：{error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
         <ShimmerCard glow>
           <div className="flex items-center gap-2 text-text-muted">
             <Heart className="size-4" />
             <span className="text-sm">健康模型</span>
           </div>
-          <p className="mt-2 text-3xl font-bold">{status?.healthy ?? '—'}</p>
-          <p className="mt-1 text-xs text-text-muted">共 {status?.models ?? '—'} 个模型</p>
+          {loading ? (
+            <>
+              <div className="mt-3 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+              <div className="mt-2 h-3 w-24 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-3xl font-bold">{status?.healthy ?? '—'}</p>
+              <p className="mt-1 text-xs text-text-muted">共 {status?.models ?? '—'} 个模型</p>
+            </>
+          )}
         </ShimmerCard>
 
         <ShimmerCard>
@@ -62,12 +77,21 @@ export default function Router() {
             <Coins className="size-4" />
             <span className="text-sm">Token 使用</span>
           </div>
-          <p className="mt-2 text-3xl font-bold">
-            {status?.tokens ? status.tokens.used.toLocaleString() : '—'}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            / {status?.tokens ? status.tokens.total.toLocaleString() : '—'}
-          </p>
+          {loading ? (
+            <>
+              <div className="mt-3 h-8 w-24 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+              <div className="mt-2 h-3 w-20 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-3xl font-bold">
+                {status?.tokens ? status.tokens.used.toLocaleString() : '—'}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                / {status?.tokens ? status.tokens.total.toLocaleString() : '—'}
+              </p>
+            </>
+          )}
         </ShimmerCard>
 
         <ShimmerCard>
@@ -75,7 +99,11 @@ export default function Router() {
             <Compass className="size-4" />
             <span className="text-sm">路由状态</span>
           </div>
-          <p className="mt-2 text-3xl font-bold capitalize text-success">{status?.status ?? '—'}</p>
+          {loading ? (
+            <div className="mt-3 h-8 w-20 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
+          ) : (
+            <p className="mt-2 text-3xl font-bold capitalize text-success">{status?.status ?? '—'}</p>
+          )}
         </ShimmerCard>
       </div>
     </div>
