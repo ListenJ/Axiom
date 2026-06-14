@@ -60,6 +60,10 @@ playwright-report/
 eval-results/
 e2e/
 
+# Generated test fixtures
+tests/fixtures/agents-index.json
+tests/fixtures/agents/
+
 # Vendored dependencies
 vendor/
 
