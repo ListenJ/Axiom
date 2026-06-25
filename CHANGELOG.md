@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.6.0 (2026-06-26)
+
+### ✨ 新增功能
+
+- **多 Agent 编排统一** - 新增 `src/agents/orchestrator.ts`
+  - Agent Registry — 动态注册/发现 Agent
+  - Task Router — 基于任务类型自动选择 Agent
+  - Task Decomposition — 复杂任务分解为子任务
+  - Parallel Execution — 并行执行独立子任务
+  - Result Aggregation — 合并子任务结果
+  - 支持串行/并行/DAG 三种执行模式
+  - 5 个新 MCP 工具: `orchestrator_execute_task`, `orchestrator_execute_plan`, `orchestrator_list_agents`, `orchestrator_health_check`, `orchestrator_status`
+- **MCP 工具总数** - 从 113 扩展到 120+ 个工具
+
 ## v2.5.3 (2026-06-25)
 
 ### 🔧 代码质量改进

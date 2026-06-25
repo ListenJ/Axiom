@@ -1,4 +1,4 @@
-﻿# 🦅 OpenClaw AI Agent v2.5.3
+﻿# 🦅 OpenClaw AI Agent v2.6.0
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
@@ -215,7 +215,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 100+ 个工具，兼容任何 MCP Client：
+暴露 120+ 个工具，兼容任何 MCP Client：
 
 | 类别 | 工具 |
 |------|------|
@@ -227,6 +227,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | GitHub | `github_list_repos`, `github_get_repo`, `github_create_repo`, `github_fork_repo`, `github_list_issues`, `github_get_issue`, `github_create_issue`, `github_add_issue_comment`, `github_list_prs`, `github_create_pr`, `github_review_pr`, `github_get_pr_files`, `github_get_file_contents`, `github_list_directory`, `github_search_code`, `github_list_releases`, `github_create_release`, `github_list_workflows`, `github_trigger_workflow`, `github_list_workflow_runs`, `github_get_workflow_run`, `github_health` |
 | 竞技场榜单 | `arena_collect`, `arena_search_models`, `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`, `arena_role_recommendation`, `arena_stats`, `arena_sources` |
 | Prompt 连接池 | `prompt_pool_acquire`, `prompt_pool_metrics`, `prompt_pool_status`, `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict` |
+| 多 Agent 编排 | `orchestrator_execute_task`, `orchestrator_execute_plan`, `orchestrator_list_agents`, `orchestrator_health_check`, `orchestrator_status` |
 | 知识图谱 | `kg_stats`, `kg_entities`, `kg_entity_detail`, `kg_traverse`, `kg_build`, `kg_search`, `kg_graph` |
 | 模型 | `model_chat`, `list_free_models` |
 | 数据 | `db_query` |
