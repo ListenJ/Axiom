@@ -1,0 +1,44 @@
+# MCP服务器注册配置
+# 免费方案：无需 API Key，开箱即用
+# 运行时：统一使用 bun/bunx（非 node/npx）
+servers:
+  # Context7 — 文档查询（免费，无需 API Key）
+  # 提供 7000+ 库的版本化文档
+  context7:
+    type: "remote"
+    url: "https://mcp.context7.com/mcp"
+
+  # free-search — 多引擎网络搜索（DuckDuckGo, Mojeek, Startpage）
+  # 无需 API Key，本地优先
+  free-search:
+    command: "bunx"
+    args: ["-y", "free-search-mcp"]
+
+  # freeweb — 网页浏览和内容提取（7层回退，无需 API Key）
+  # 支持 Playwright 浏览器自动化
+  freeweb:
+    command: "bunx"
+    args: ["-y", "freeweb-mcp"]
+
+  # 文件系统访问
+  filesystem:
+    command: "bunx"
+    args: ["-y", "@anthropic-ai/mcp-server-filesystem", "."]
+
+  # SQLite数据库
+  sqlite:
+    command: "bun"
+    args: ["run", "src/mcp/sqlite-server.ts"]
+
+  # Obsidian Vault操作
+  obsidian:
+    command: "bun"
+    args: ["run", "src/mcp/server.ts"]
+
+  # OpenCode 编码 Agent（通过 stdio 暴露编码工具）
+  opencode:
+    command: "bun"
+    args: ["run", "src/mcp/server.ts", "--stdio"]
+    env:
+      OPENCODE_API_KEY: "${OPENCODE_API_KEY}"
+      OPENCODE_DEFAULT_MODEL: "opencode/deepseek-v4-flash-free"

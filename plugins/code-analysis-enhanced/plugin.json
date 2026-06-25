@@ -1,0 +1,25 @@
+{
+  "id": "code-analysis-enhanced",
+  "name": "Enhanced Code Analysis",
+  "version": "1.0.0",
+  "author": "OpenClaw Team",
+  "description": "Advanced code analysis with complexity metrics, dependency graph, and security vulnerability detection",
+  "category": "development",
+  "tags": ["code-analysis", "metrics", "security", "dependencies"],
+  "license": "MIT",
+  "repository": "https://github.com/openclaw/plugins/code-analysis-enhanced",
+  "readme": "# Enhanced Code Analysis Plugin\n\nProvides advanced code analysis capabilities:\n- Complexity metrics (cyclomatic, cognitive)\n- Dependency graph generation\n- Security vulnerability detection\n- Code smell detection\n- Architecture analysis",
+  "icon": "🔍",
+  "tools": ["analyze_complexity", "generate_dependency_graph", "detect_vulnerabilities", "find_code_smells"],
+  "skills": [],
+  "patterns": [],
+  "permissions": ["filesystem:read", "code:analyze"],
+  "config": {
+    "schema": {
+      "maxComplexity": { "type": "number", "default": 10, "description": "Maximum allowed cyclomatic complexity" },
+      "enableSecurityScan": { "type": "boolean", "default": true, "description": "Enable security vulnerability scanning" },
+      "ignoredPatterns": { "type": "array", "default": ["node_modules", "dist", "*.min.js"], "description": "Patterns to ignore during analysis" }
+    }
+  },
+  "entry": "index.js"
+}

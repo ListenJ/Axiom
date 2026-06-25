@@ -1,0 +1,27 @@
+[package]
+name = "oc-search"
+version = "2.3.0"
+edition = "2021"
+
+[dependencies]
+oc-shared = { path = "../shared" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+rayon = { workspace = true }
+lru = { workspace = true }
+regex = { workspace = true }
+aho-corasick = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+serde_yaml = "0.9"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "search_bench"
+harness = false

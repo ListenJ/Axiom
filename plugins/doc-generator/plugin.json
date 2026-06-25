@@ -1,0 +1,26 @@
+{
+  "id": "doc-generator",
+  "name": "Documentation Generator",
+  "version": "1.0.0",
+  "author": "OpenClaw Team",
+  "description": "Auto-generate documentation from code comments, API specs, and project structure",
+  "category": "productivity",
+  "tags": ["documentation", "generator", "api-docs", "readme", "markdown"],
+  "license": "MIT",
+  "repository": "https://github.com/openclaw/plugins/doc-generator",
+  "readme": "# Documentation Generator Plugin\n\nAutomates documentation creation:\n- API documentation from OpenAPI specs\n- README generation from project structure\n- Code documentation from JSDoc comments\n- Architecture decision records (ADRs)\n- Changelog generation",
+  "icon": "📚",
+  "tools": ["generate_api_docs", "generate_readme", "generate_adr", "generate_code_docs", "generate_wiki"],
+  "skills": [],
+  "patterns": [],
+  "permissions": ["filesystem:read", "filesystem:write", "code:analyze"],
+  "config": {
+    "schema": {
+      "outputFormat": { "type": "string", "default": "markdown", "description": "Output format (markdown, html, json)" },
+      "includePrivate": { "type": "boolean", "default": false, "description": "Include private APIs in docs" },
+      "templateDir": { "type": "string", "default": "", "description": "Custom templates directory" },
+      "autoGenerate": { "type": "boolean", "default": true, "description": "Auto-generate docs on file changes" }
+    }
+  },
+  "entry": "index.js"
+}

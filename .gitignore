@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript incremental
+*.tsbuildinfo
+
+# Frontend screenshots
+frontend/screenshots/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Data
+data/*.db
+data/*.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Obsidian
+.obsidian/
+
+# Python virtual environment
+.venv/
+
+# OMC state
+.omc/
+
+# Raw data
+data/raw/
+
+# Generated memory content
+openclaw-memory/
+
+# Temporary files
+.tmp/
+.tmp-build/
+
+# Test results
+test-results/
+playwright-report/
+coverage/
+
+# Evaluation results
+eval-results/
+e2e/
+
+# Generated test fixtures
+tests/fixtures/agents-index.json
+tests/fixtures/agents/
+
+# Vendored dependencies
+vendor/
+
+# Backup files
+*.bundle
+
+# SQLite databases
+openclaw-memory.db
+openclaw-memory.db-*
+lightpanda-linux

@@ -1,0 +1,155 @@
+# 多平台分层模型路由配置 v3.1
+# 用户指定路由策略 (2026-06-04):
+#   - SiliconFlow Paid: GLM5.1 (主力任务模型)
+#   - Kimi CLI: kimi-k2.6 (任务补全)
+#   - OpenRouter Free: 工具模型池 (备用)
+#   - OfoxAI: GLM4.7 Flash (Agent 行为模型)
+#   - OpenRouter: nousresearch/hermes-3-llama-3.1-405b:free (Hermes 自进化)
+#
+# 所有 API Key 从环境变量读取，本文件不包含任何密钥
+
+# ========== L1 决策层 ==========
+decision:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: ofoxai
+    model: z-ai/glm-4.7-flash
+    priority: 1
+    maxRetries: 2
+    timeout: 30000
+  - provider: openrouter
+    model: nvidia/nemotron-3-nano:free
+    priority: 2
+    maxRetries: 2
+    timeout: 15000
+
+# ========== L2 架构层 ==========
+architecture:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 120000
+  - provider: kimi
+    model: kimi-k2.6
+    priority: 1
+    maxRetries: 2
+    timeout: 120000
+
+# ========== L3 代码层 ==========
+code-generation:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 120000
+  - provider: kimi
+    model: kimi-k2.6
+    priority: 1
+    maxRetries: 2
+    timeout: 120000
+  - provider: openrouter
+    model: qwen/qwen3-coder:free
+    priority: 2
+    maxRetries: 2
+    timeout: 60000
+
+code-review:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 120000
+  - provider: kimi
+    model: kimi-k2.6
+    priority: 1
+    maxRetries: 2
+    timeout: 120000
+
+# ========== L4 评估层 ==========
+evaluation:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: openrouter
+    model: nousresearch/hermes-3-llama-3.1-405b:free
+    priority: 1
+    maxRetries: 1
+    timeout: 120000
+
+# ========== L5 通用对话 ==========
+general-chat:
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: ofoxai
+    model: z-ai/glm-4.7-flash
+    priority: 1
+    maxRetries: 2
+    timeout: 30000
+
+# ========== L6 工具层（免费模型池） ==========
+general-tool:
+  - provider: openrouter
+    model: google/gemma-4-26b-a4b-it:free
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: openrouter
+    model: qwen/qwen3-coder:free
+    priority: 1
+    maxRetries: 2
+    timeout: 60000
+  - provider: openrouter
+    model: moonshotai/kimi-k2.6:free
+    priority: 2
+    maxRetries: 2
+    timeout: 60000
+
+# ========== Hermes 自进化专用 ==========
+rl:
+  - provider: openrouter
+    model: nousresearch/hermes-3-llama-3.1-405b:free
+    priority: 0
+    maxRetries: 2
+    timeout: 120000
+
+# ========== 嵌入 ==========
+embedding:
+  - provider: siliconflow
+    model: BAAI/bge-m3
+    priority: 0
+    maxRetries: 2
+    timeout: 30000
+
+# ========== 降级策略 ==========
+fallback:
+  trigger:
+    - http_429
+    - http_5xx
+    - timeout_gt_10s
+    - circuit_breaker_open
+  maxFallbackDepth: 3
+
+# ========== 限流配置 ==========
+rate_limits:
+  free_models:
+    rpm_warning: 0.8
+    concurrent_warning: 1
+    circuit_breaker:
+      failure_threshold: 3
+      recovery_timeout: 60s
+  paid_models:
+    glm5.1:
+      budget_limit: 50.0
+      budget_warning: 40.0
+    kimi_k2.6:
+      budget_limit: 30.0
+      budget_warning: 25.0
