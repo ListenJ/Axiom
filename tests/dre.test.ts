@@ -3,11 +3,11 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { VFS, NodeType } from "../dre/vfs";
-import { SqliteBackend } from "../dre/storage/sqlite-backend";
-import { KnowledgeStore } from "../dre/storage/knowledge-store";
-import { ConsciousnessStream, WorkingMemory, EpisodicMemory, ReflectionQueue } from "../dre/consciousness/stream";
-import { KnowledgeGraph } from "../dre/kg/graph";
+import { VFS, NodeType } from "../src/dre/vfs";
+import { SqliteBackend } from "../src/dre/storage/sqlite-backend";
+import { KnowledgeStore } from "../src/dre/storage/knowledge-store";
+import { ConsciousnessStream, WorkingMemory, EpisodicMemory, ReflectionQueue } from "../src/dre/consciousness/stream";
+import { KnowledgeGraph } from "../src/dre/kg/graph";
 import { Database } from "bun:sqlite";
 
 describe("DRE VFS", () => {

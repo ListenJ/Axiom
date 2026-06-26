@@ -714,7 +714,7 @@ registry.add({
       title: pr.title,
       html_url: pr.html_url,
       state: pr.state,
-      draft: pr.draft,
+      draft: (pr as any).draft,
     };
   },
 });
@@ -2362,7 +2362,7 @@ registry.add({
       query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
       params.push(limit);
 
-      const entities = await pg.unsafe(query, params);
+      const entities = await pg.unsafe(query, params as any[]);
       return { success: true, data: entities, count: entities.length };
     } catch (err) {
       return { success: false, error: (err as Error).message };
@@ -2518,7 +2518,7 @@ registry.add({
         SELECT id, name, type, description FROM kg_entities
         ORDER BY updated_at DESC LIMIT 500
       `;
-      const nodeIds = entities.map((e: { id: number }) => String(e.id));
+      const nodeIds = entities.map((e: any) => String(e.id));
 
       const relationships = await pg.unsafe(
         `SELECT r.source_id, r.target_id, r.relation_type
@@ -2530,14 +2530,14 @@ registry.add({
         [nodeIds]
       );
 
-      const nodes = entities.map((e: { id: number; name: string; type: string }) => ({
+      const nodes = entities.map((e: any) => ({
         id: e.id,
         name: e.name,
         type: e.type,
         label: e.name.split("/").pop()?.split(".").pop() || e.name,
       }));
 
-      const edges = relationships.map((r: { source_id: number; target_id: number; relation_type: string }) => ({
+      const edges = relationships.map((r: any) => ({
         source: r.source_id,
         target: r.target_id,
         type: r.relation_type,

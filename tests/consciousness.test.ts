@@ -110,7 +110,7 @@ function installShims(): void {
   const promptEngineer: PromptEngineerSubset = {
     generateSkillWithHermes: async () => null,
   };
-  setPromptEngineerForTest(promptEngineer);
+  setPromptEngineerForTest(promptEngineer as any);
 
   const skillRegistry: SkillRegistrySubset = {
     register: () => {},
@@ -125,27 +125,27 @@ function installShims(): void {
     }),
     reload: () => {},
   };
-  setSkillRegistryForTest(skillRegistry);
+  setSkillRegistryForTest(skillRegistry as any);
 
   const distiller: MemoryDistillerSubset = {
     distillConversation: async () => [],
     distillWebClip: async () => [],
     distillManual: async () => "",
   };
-  setMemoryDistillerForTest(distiller);
+  setMemoryDistillerForTest(distiller as any);
 
   const archiver: MemoryArchiverSubset = {
     archive: async () => ({ archived: [], skipped: [], errors: [] }),
     stats: () => ({ archivedCount: 0, byCategory: {} }),
   };
-  setMemoryArchiverForTest(archiver);
+  setMemoryArchiverForTest(archiver as any);
 
   const sqlite: SQLiteMemorySubset = {
     upsertNote: () => 0,
     search: () => [],
     close: () => {},
   };
-  setSqliteMemoryForTest(sqlite);
+  setSqliteMemoryForTest(sqlite as any);
 }
 
 /**
@@ -571,7 +571,7 @@ describe("skill promoter", () => {
     const skillGen: PromptEngineerSubset = {
       generateSkillWithHermes: async () => fakeSkill,
     };
-    setPromptEngineerForTest(skillGen);
+    setPromptEngineerForTest(skillGen as any);
 
     const promoter = new SkillPromoter({
       ...DEFAULT_PROMOTER_CONFIG,
