@@ -1,4 +1,4 @@
-﻿# 🦅 OpenClaw AI Agent v2.8.0
+﻿# 🦅 OpenClaw AI Agent v2.8.1
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
@@ -215,26 +215,38 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 140+ 个工具，兼容任何 MCP Client：
+暴露 111 个工具，兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md)。
+
+**工具分层**:
+
+| 层级 | 数量 | 说明 |
+|------|------|------|
+| 核心工具 | 65 | 零配置，安装 Bun 即可用 |
+| 配置工具 | 34 | 需要 API Key |
+| 外部服务 | 12 | 需要 PostgreSQL/llama.cpp 等 |
+
+**核心工具类别**:
 
 | 类别 | 工具 |
 |------|------|
-| 记忆 | `memory_search`, `memory_read`, `memory_write`, `memory_atomic`, `memory_browse`, `memory_network`, `memory_stats` |
-| 代码 | `code_index`, `code_generate`, `code_refactor`, `code_review`, `code_test` |
-| 采集 | `web_fetch`, `web_search`, `search_engines_list`, `proxy_status` |
-| 搜索 | `minimax_web_search`, `minimax_image_understand`, `minimax_health` |
-| 高级搜索 | `tavily_search`, `brave_search`, `jina_read`, `jina_search`, `search_providers_health` |
-| GitHub | `github_list_repos`, `github_get_repo`, `github_create_repo`, `github_fork_repo`, `github_list_issues`, `github_get_issue`, `github_create_issue`, `github_add_issue_comment`, `github_list_prs`, `github_create_pr`, `github_review_pr`, `github_get_pr_files`, `github_get_file_contents`, `github_list_directory`, `github_search_code`, `github_list_releases`, `github_create_release`, `github_list_workflows`, `github_trigger_workflow`, `github_list_workflow_runs`, `github_get_workflow_run`, `github_health` |
-| 竞技场榜单 | `arena_collect`, `arena_search_models`, `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`, `arena_role_recommendation`, `arena_stats`, `arena_sources` |
-| Prompt 连接池 | `prompt_pool_acquire`, `prompt_pool_metrics`, `prompt_pool_status`, `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict` |
-| 多 Agent 编排 | `orchestrator_execute_task`, `orchestrator_execute_plan`, `orchestrator_list_agents`, `orchestrator_health_check`, `orchestrator_status` |
-| DRE 确定性推理 | `dre_write_knowledge`, `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_consciousness_step`, `dre_status` |
-| 知识图谱基础 | `kg_stats`, `kg_entities`, `kg_entity_detail`, `kg_traverse`, `kg_build`, `kg_search`, `kg_graph` |
-| 知识图谱增强 | `kg_add_node`, `kg_add_edge`, `kg_search_nodes`, `kg_subgraph`, `kg_shortest_path`, `kg_detect_communities`, `kg_echarts_data`, `kg_d3_data`, `kg_nl_query`, `kg_enhanced_stats` |
-| 模型 | `model_chat`, `list_free_models` |
-| 数据 | `db_query` |
-| Agent | `opencode_status`, `project_research`, `hermes_status` |
-| 插件 | 动态加载（取决于已启用的插件） |
+| 记忆 | `memory_search`, `memory_read`, `memory_write`, `memory_atomic`, `memory_browse`, `memory_network`, `memory_stats`, `code_index` |
+| 文件系统 | `fs_read`, `fs_write`, `fs_list`, `fs_search`, `fs_delete`, `fs_move` |
+| Git | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_blame` |
+| 代码分析 | `code_symbols`, `code_references`, `code_outline`, `code_analyze`, `code_detect_language` |
+| 快照 | `snapshot_create`, `snapshot_revert`, `snapshot_list`, `snapshot_diff`, `snapshot_status` |
+| Prompt 池 | `prompt_pool_acquire`, `prompt_pool_metrics`, `prompt_pool_status`, `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict` |
+| 竞技场 | `arena_search_models`, `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`, `arena_role_recommendation`, `arena_stats`, `arena_sources` |
+| 知识图谱 | `kg_add_node`, `kg_add_edge`, `kg_search_nodes`, `kg_subgraph`, `kg_shortest_path`, `kg_detect_communities`, `kg_echarts_data`, `kg_d3_data`, `kg_nl_query`, `kg_enhanced_stats` |
+| DRE (只读) | `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_status` |
+
+**配置工具类别** (需 API Key):
+
+| 类别 | 环境变量 | 工具数 |
+|------|----------|--------|
+| GitHub | `GITHUB_TOKEN` | 22 |
+| 模型路由 | `DEEPSEEK_API_KEY` 等 | 5 |
+| MiniMax | `MINIMAX_API_KEY` | 3 |
+| 编排器 | 模型 API | 2 |
 
 ### 🐧 Linux Office 适配器
 

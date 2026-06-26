@@ -132,7 +132,7 @@ const vault = new VaultManager();
 
 const mcp = new McpServer({
   name: "OpenClaw Agent MCP Server",
-  version: "2.8.0",
+  version: "2.8.1",
 });
 
 // ===== 工具定义（单一事实来源） =====
@@ -1783,72 +1783,6 @@ registry.add({
   inputSchema: {},
   handler: async () => {
     return { success: true, ...getSnapshotStatus() };
-  },
-});
-
-// ===== 新增搜索引擎 MCP 工具 (Tavily / Brave / Jina) =====
-
-registry.add({
-  name: "tavily_search",
-  description: "Tavily AI-native 搜索引擎 (免费 1000次/月，需 TAVILY_API_KEY)",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    num: z.number().optional().default(10).describe("结果数量"),
-    searchDepth: z.enum(["basic", "advanced"]).optional().default("basic").describe("搜索深度"),
-  },
-  handler: async (args) => {
-    return tavilySearch(args.query as string, {
-      num: args.num as number,
-      searchDepth: args.searchDepth as "basic" | "advanced",
-    });
-  },
-});
-
-registry.add({
-  name: "brave_search",
-  description: "Brave Search 隐私搜索引擎 (免费 2000次/月，需 BRAVE_SEARCH_API_KEY)",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    num: z.number().optional().default(10).describe("结果数量"),
-    country: z.string().optional().describe("国家代码，如 cn, us"),
-  },
-  handler: async (args) => {
-    return braveSearch(args.query as string, {
-      num: args.num as number,
-      country: args.country as string,
-    });
-  },
-});
-
-registry.add({
-  name: "jina_read",
-  description: "Jina Reader — AI 优化的网页阅读器 (免费 1M tokens/月)",
-  inputSchema: {
-    url: z.string().url().describe("要读取的网页 URL"),
-  },
-  handler: async (args) => {
-    return jinaReadPage(args.url as string);
-  },
-});
-
-registry.add({
-  name: "jina_search",
-  description: "Jina Search — AI 搜索并返回 Markdown 摘要",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    num: z.number().optional().default(10).describe("结果数量"),
-  },
-  handler: async (args) => {
-    return jinaSearch(args.query as string, { num: args.num as number });
-  },
-});
-
-registry.add({
-  name: "search_providers_health",
-  description: "查看所有搜索引擎的健康状态和配置情况",
-  inputSchema: {},
-  handler: async () => {
-    return getSearchProvidersHealth();
   },
 });
 
