@@ -1,18 +1,20 @@
 /**
- * 任务编排器 (Task Orchestrator) v2.0
+ * 任务编排器 (Task Orchestrator) v3.0
  *
- * 思维链：Understand → Retrieve → Execute → Output
+ * 思维链：Understand → Plan → Retrieve → Execute → Verify → Output
  *
  * 1. Understand: 识别任务类型（关键词匹配，无需 LLM）
- * 2. Retrieve: 按需检索 Vault/SQLite 记忆和代码记忆
- * 3. Execute: 单角色直接执行 或 多角色并行协作
- * 4. Output: 返回结果（多角色时自动汇总）
+ * 2. Plan: 规划阶段（第一性原理 + 反幻觉约束）
+ * 3. Retrieve: 按需检索 Vault/SQLite 记忆和代码记忆
+ * 4. Execute: 单角色直接执行 或 多角色并行协作
+ * 5. Verify: 验证输出是否符合规划标准
+ * 6. Output: 返回结果（多角色时自动汇总）
  *
  * 设计原则：
- *   - 无 L1-L4 分层：避免过度编排，减少延迟
- *   - 无架构设计步骤：Agent 自行决定是否需要架构
- *   - 无评估层：质量由调用方判断，避免自我审查开销
- *   - 简单任务直接执行，复杂任务才分解
+ *   - 简单任务跳过 Plan/Verify（passthrough）
+ *   - 复杂任务必须经过 Plan → Execute → Verify 完整链路
+ *   - Plan 失败降级为直接执行，不阻塞用户
+ *   - Verify 失败标记 confidence，不阻塞输出
  */
 import { logger } from "../utils/logger.js";
 import { router, toolPool, type SmartAssignmentResponse } from "./model-router.js";
@@ -21,6 +23,8 @@ import type { ChatMessage, RoleAssignment } from "./model-router.js";
 import type { TaskRole } from "./model-capability-registry.js";
 import { executionMode } from "../agents/execution-mode.js";
 import { injectConstitution } from "../agents/constitution.js";
+import { planExecution, verifyPlanExecution } from "../agents/planning/index.js";
+import type { ExecutionPlan } from "../agents/planning/index.js";
 
 export interface SubTask {
   id: string;
@@ -52,11 +56,15 @@ export interface OrchestratedResult {
   totalLatencyMs: number;
   totalTokens: number;
   layersUsed: string[];
+  /** Planning phase result (null for simple tasks that skipped planning) */
+  plan: ExecutionPlan | null;
+  /** Verification result (null for simple tasks that skipped verification) */
+  verification: { passed: boolean; confidence: number; summary: string } | null;
 }
 
 class TaskOrchestrator {
   /**
-   * 执行任务：Understand → Retrieve → Execute → Output
+   * 执行任务：Understand → Plan → Retrieve → Execute → Verify → Output
    */
   async execute(task: string, opts?: { history?: ChatMessage[]; projectPath?: string }): Promise<OrchestratedResult> {
     const startTime = Date.now();
@@ -65,7 +73,21 @@ class TaskOrchestrator {
     const taskType = this.classifyTask(task);
     logger.info("[Orchestrator] Understand", { taskType, task: task.slice(0, 80) });
 
-    // === Step 2: Retrieve — 按需检索记忆 ===
+    // === Step 2: Plan — 规划阶段 ===
+    const planResult = await planExecution(task, opts?.history);
+    const plan = planResult.plan;
+    logger.info("[Orchestrator] Plan", {
+      skipped: planResult.skipped,
+      complexity: plan.complexity,
+      steps: plan.steps.length,
+      latencyMs: planResult.latencyMs,
+      hasClarifications: (plan.clarificationsNeeded?.length ?? 0) > 0,
+    });
+
+    // 如果规划发现需要向用户确认，附加到输出中
+    const clarifications = plan.clarificationsNeeded ?? [];
+
+    // === Step 3: Retrieve — 按需检索记忆 ===
     const context = await this.retrieveContext(task, taskType, opts);
     if (context) {
       logger.info("[Orchestrator] Retrieve", {
@@ -74,9 +96,9 @@ class TaskOrchestrator {
       });
     }
 
-    // === Step 3: Execute — 执行 ===
+    // === Step 4: Execute — 执行 ===
     let subTaskResults: TaskResult[];
-    const messages = this.buildMessages(task, context, opts?.history);
+    const messages = this.buildMessages(task, context, opts?.history, plan);
 
     if (taskType.needsMultiRole) {
       // 多视角并行（如代码审查+重构）
@@ -89,10 +111,25 @@ class TaskOrchestrator {
       subTaskResults = [result];
     }
 
-    // === Step 4: Output — 返回结果 ===
-    const finalAnswer = taskType.needsMultiRole
+    // === Step 5: Output — 返回结果 ===
+    let finalAnswer = taskType.needsMultiRole
       ? await this.synthesizeAnswer(task, subTaskResults, opts?.history)
       : (subTaskResults[0]?.content ?? "");
+
+    // 如果规划发现了需要确认的问题，附加到输出前面
+    if (clarifications.length > 0) {
+      const clarificationText = clarifications.map((q) => `- ${q}`).join("\n");
+      finalAnswer = `Before proceeding, I need to clarify:\n${clarificationText}\n\n${finalAnswer}`;
+    }
+
+    // === Step 6: Verify — 验证输出 ===
+    const verification = await verifyPlanExecution(plan, finalAnswer);
+    if (!verification.passed) {
+      logger.warn("[Orchestrator] Verification failed", {
+        summary: verification.summary,
+        issues: verification.issues.length,
+      });
+    }
 
     const totalLatencyMs = Date.now() - startTime;
     const totalTokens = subTaskResults.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
@@ -103,6 +140,8 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...new Set(subTaskResults.map((r) => r.layer))],
+      plan: planResult.skipped ? null : plan,
+      verification: planResult.skipped ? null : verification,
     };
   }
 
@@ -161,18 +200,35 @@ class TaskOrchestrator {
   }
 
   /**
-   * 构建执行消息（注入检索到的上下文 + 宪法）
+   * 构建执行消息（注入检索到的上下文 + 宪法 + 规划上下文）
    */
   private buildMessages(
     task: string,
     context: { vaultSnippets?: string[]; codeSymbols?: string[] } | null,
-    history?: ChatMessage[]
+    history?: ChatMessage[],
+    plan?: ExecutionPlan,
   ): ChatMessage[] {
     const parts: string[] = [];
 
     // 注入宪法提示词
     const constitution = executionMode.getConstitutionPrompt();
     parts.push(constitution);
+
+    // 注入规划上下文（如果存在）
+    if (plan && plan.steps.length > 1) {
+      const planContext = [
+        "[Execution Plan]",
+        `Understanding: ${plan.understanding}`,
+        `Steps: ${plan.steps.map((s) => `${s.id}. ${s.description}`).join(" → ")}`,
+        `Verification: ${plan.verificationCriteria}`,
+        plan.firstPrinciples.length > 0
+          ? `First Principles: ${plan.firstPrinciples.join("; ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      parts.push(planContext);
+    }
 
     if (context?.codeSymbols?.length) {
       parts.push(`[Code Context]\n${context.codeSymbols.slice(0, 20).join("\n")}`);
@@ -341,6 +397,8 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...layersUsed],
+      plan: null,
+      verification: null,
     };
   }
 

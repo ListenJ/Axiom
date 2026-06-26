@@ -41,6 +41,19 @@ import { evaluate, buildScheduleTrigger, buildManualTrigger, isWithinQuietHours 
 import type { ReflectionOutcome, ReflectionTrigger, TriggerConfig } from "./types.js";
 import { DEFAULT_TRIGGER_CONFIG } from "./types.js";
 
+// ─── Routing Signal (for UnifiedRouter) ────────────────────────────────────
+
+export interface RoutingSignal {
+  /** Intent drift detected — user switched topics */
+  patternDrift: boolean;
+  /** Context fatigue — long conversation, model may lose coherence */
+  fatigueIndicator: boolean;
+  /** Inferred expertise from message complexity */
+  expertiseSignal: "beginner" | "intermediate" | "expert";
+  /** Urgency level from message tone */
+  urgencyLevel: "low" | "normal" | "high";
+}
+
 export interface ConsciousnessOptions extends Partial<TriggerConfig> {
   /** Quiet hours — suppress reflection in this window (local time). */
   quietHours?: { startHour: number; endHour: number };
@@ -105,6 +118,56 @@ class Consciousness {
       getActivityTracker().bumpUserActivity(userInput, intent);
     } catch (e) {
       logger.debug("[Consciousness] observe failed", { error: (e as Error).message });
+    }
+  }
+
+  /**
+   * Generate routing signals from consciousness state.
+   * Called by the UnifiedRouter before routing decisions.
+   * O(1) — reads from existing state, no LLM calls.
+   */
+  getRoutingSignal(): RoutingSignal {
+    try {
+      const tracker = getActivityTracker();
+      const store = getStateStore();
+      const state = store.read();
+
+      // Pattern drift: detect if user switched topics
+      const recentPatterns = Object.keys(state.patternCounts);
+      const lastPattern = recentPatterns[recentPatterns.length - 1];
+      const patternDrift = lastPattern
+        ? (state.patternCounts[lastPattern] ?? 0) <= 1
+        : false;
+
+      // Fatigue: long session with many patterns
+      const totalPatterns = Object.values(state.patternCounts).reduce((a, b) => a + b, 0);
+      const fatigueIndicator = totalPatterns > 20 || state.tokensSpentThisSession > 100_000;
+
+      // Expertise: infer from recent focus topics
+      const focusTopics = state.recentFocus;
+      const expertTopics = ["architecture", "refactor", "optimize", "concurrent", "async"];
+      const hasExpertFocus = focusTopics.some((t) =>
+        expertTopics.some((et) => t.toLowerCase().includes(et)),
+      );
+      const expertiseSignal: RoutingSignal["expertiseSignal"] = hasExpertFocus
+        ? "expert"
+        : totalPatterns > 10
+          ? "intermediate"
+          : "beginner";
+
+      // Urgency: detect from recent activity frequency
+      const idleMs = tracker.getIdleMs();
+      const urgencyLevel: RoutingSignal["urgencyLevel"] =
+        idleMs < 5000 ? "high" : idleMs < 30000 ? "normal" : "low";
+
+      return { patternDrift, fatigueIndicator, expertiseSignal, urgencyLevel };
+    } catch {
+      return {
+        patternDrift: false,
+        fatigueIndicator: false,
+        expertiseSignal: "intermediate",
+        urgencyLevel: "normal",
+      };
     }
   }
 

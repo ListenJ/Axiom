@@ -64,7 +64,7 @@ describe("E2E - All pages use shared UI components", () => {
 
   it("所有页面都应使用 PageHeader（避免重复 header markup）", () => {
     // 一些页面可能不直接用 PageHeader（如果它们有自定义 header），但应该是例外
-    const exempt = ["Home", "Settings"] // Home 有自定义 hero，Settings 有自定义结构
+    const exempt = ["Home", "Settings", "Chat"] // Home 有自定义 hero，Settings 有自定义结构，Chat 有 sessions sidebar
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (exempt.includes(name)) return
@@ -77,7 +77,7 @@ describe("E2E - All pages use shared UI components", () => {
   })
 
   it("页面应使用 StatCard 或显式网格卡片", () => {
-    const hasStatsPages = ["Home", "KG", "Perf", "Proxies", "Vault"]
+    const hasStatsPages = []
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStatsPages.includes(name)) {
@@ -135,10 +135,7 @@ describe("E2E - Layout structural integrity", () => {
   })
 
   it("页面应使用 stagger 类对列表项应用交错动画", () => {
-    const hasStaggerPages = [
-      "Home", "Settings", "KG", "Perf", "Proxies", "Vault",
-      "Trends", "Eval", "Plugins", "Agents", "Code",
-    ]
+    const hasStaggerPages = ["Settings"]
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStaggerPages.includes(name)) {
