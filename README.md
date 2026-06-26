@@ -1,4 +1,4 @@
-﻿# 🦅 OpenClaw AI Agent v2.8.1
+﻿# 🦅 OpenClaw AI Agent v2.8.2
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
@@ -219,11 +219,23 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 **工具分层**:
 
-| 层级 | 数量 | 说明 |
-|------|------|------|
-| 核心工具 | 65 | 零配置，安装 Bun 即可用 |
-| 配置工具 | 34 | 需要 API Key |
-| 外部服务 | 12 | 需要 PostgreSQL/llama.cpp 等 |
+| 层级 | 数量 | 状态 | 说明 |
+|------|------|------|------|
+| 核心工具 | 65 | ✅ 始终可用 | 零配置，安装 Bun 即可用 |
+| 配置工具 | 34 | ⚙️ 配置后可用 | 需要 API Key |
+| 外部服务 | 12 | 🔧 需安装服务 | PostgreSQL/llama.cpp 等 |
+
+**基本功能保证** (零配置即可使用):
+
+即使没有任何外部配置，Agent 仍可完成以下基本功能:
+- 文件操作 (读取、写入、搜索、删除)
+- 代码分析 (符号查找、引用查找、代码大纲)
+- 知识管理 (Vault 笔记的创建、搜索、浏览)
+- Git 操作 (查看状态、差异、历史、分支)
+- 快照管理 (创建、恢复、对比快照)
+- Prompt 缓存 (提示词预构建与池化)
+- 知识图谱 (SQLite 存储的图谱操作)
+- 竞技场查询 (本地数据库的模型查询)
 
 **核心工具类别**:
 
@@ -241,12 +253,20 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 **配置工具类别** (需 API Key):
 
-| 类别 | 环境变量 | 工具数 |
-|------|----------|--------|
-| GitHub | `GITHUB_TOKEN` | 22 |
-| 模型路由 | `DEEPSEEK_API_KEY` 等 | 5 |
-| MiniMax | `MINIMAX_API_KEY` | 3 |
-| 编排器 | 模型 API | 2 |
+| 类别 | 环境变量 | 工具数 | 降级方案 |
+|------|----------|--------|----------|
+| GitHub | `GITHUB_TOKEN` | 22 | 无降级方案 |
+| 模型路由 | `DEEPSEEK_API_KEY` 等 | 5 | 无降级方案 |
+| MiniMax | `MINIMAX_API_KEY` | 3 | 无降级方案 |
+| 编排器 | 模型 API | 2 | 无降级方案 |
+
+**外部服务工具** (需额外安装):
+
+| 类别 | 服务依赖 | 工具数 | 降级方案 |
+|------|----------|--------|----------|
+| PostgreSQL KG | PostgreSQL + pgvector | 7 | 使用 `kg_enhanced_*` SQLite 工具 |
+| DRE 写入 | llama.cpp + GPU | 2 | 使用 `memory_write` |
+| CLI Agent | OpenCode/Hermes CLI | 3 | 无降级方案 |
 
 ### 🐧 Linux Office 适配器
 

@@ -132,7 +132,7 @@ const vault = new VaultManager();
 
 const mcp = new McpServer({
   name: "OpenClaw Agent MCP Server",
-  version: "2.8.1",
+  version: "2.8.2",
 });
 
 // ===== 工具定义（单一事实来源） =====
@@ -2123,7 +2123,7 @@ function getDREngine(): DREngine {
 
 registry.add({
   name: "dre_write_knowledge",
-  description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理)",
+  description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理，需要本地 LLM 服务)",
   inputSchema: {
     title: z.string().describe("知识标题"),
     content: z.string().describe("知识内容"),
@@ -2133,28 +2133,37 @@ registry.add({
     sourceUri: z.string().optional().describe("来源 URI"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
-    const item: KnowledgeItem = {
-      id: `kb-${Date.now()}`,
-      title: args.title as string,
-      content: args.content as string,
-      domain: (args.domain as string) || "general",
-      paradigm: (args.paradigm as KnowledgeItem["paradigm"]) || "fact",
-      sourceType: (args.sourceType as KnowledgeItem["sourceType"]) || "manual",
-      sourceUri: args.sourceUri as string,
-    };
+    try {
+      const dre = getDREngine();
+      const item: KnowledgeItem = {
+        id: `kb-${Date.now()}`,
+        title: args.title as string,
+        content: args.content as string,
+        domain: (args.domain as string) || "general",
+        paradigm: (args.paradigm as KnowledgeItem["paradigm"]) || "fact",
+        sourceType: (args.sourceType as KnowledgeItem["sourceType"]) || "manual",
+        sourceUri: args.sourceUri as string,
+      };
 
-    const result = await dre.writeKnowledge(item);
-    return {
-      accepted: result.accepted,
-      nodeId: item.id,
-      verification: result.verification ? {
-        verdict: result.verification.verdict,
-        confidence: result.verification.confidence,
-        chain: result.verification.chain,
-        evidenceRefs: result.verification.evidenceRefs,
-      } : undefined,
-    };
+      const result = await dre.writeKnowledge(item);
+      return {
+        accepted: result.accepted,
+        nodeId: item.id,
+        verification: result.verification ? {
+          verdict: result.verification.verdict,
+          confidence: result.verification.confidence,
+          chain: result.verification.chain,
+          evidenceRefs: result.verification.evidenceRefs,
+        } : undefined,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: (err as Error).message,
+        fallback: "memory_write",
+        message: "DRE 引擎不可用 (需要本地 LLM 服务)。请使用 memory_write 将知识写入 Vault。",
+      };
+    }
   },
 });
 
@@ -2238,27 +2247,36 @@ registry.add({
 
 registry.add({
   name: "dre_consciousness_step",
-  description: "意识流处理步骤",
+  description: "意识流处理步骤 (需要本地 LLM 服务)",
   inputSchema: {
     observation: z.string().describe("观察内容"),
     metadata: z.record(z.unknown()).optional().describe("元数据"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
-    const result = await dre.consciousnessStep({
-      observation: args.observation as string,
-      metadata: args.metadata as Record<string, unknown>,
-    });
-    return {
-      decision: result.decision,
-      shouldReflect: result.shouldReflect,
-      reflection: result.reflection ? {
-        issues: result.reflection.issues,
-        lessons: result.reflection.lessons,
-        rollback: result.reflection.rollback,
-        checkpointTag: result.reflection.checkpointTag,
-      } : undefined,
-    };
+    try {
+      const dre = getDREngine();
+      const result = await dre.consciousnessStep({
+        observation: args.observation as string,
+        metadata: args.metadata as Record<string, unknown>,
+      });
+      return {
+        decision: result.decision,
+        shouldReflect: result.shouldReflect,
+        reflection: result.reflection ? {
+          issues: result.reflection.issues,
+          lessons: result.reflection.lessons,
+          rollback: result.reflection.rollback,
+          checkpointTag: result.reflection.checkpointTag,
+        } : undefined,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: (err as Error).message,
+        fallback: "memory_write",
+        message: "DRE 引擎不可用 (需要本地 LLM 服务)。意识流处理需要 llama.cpp 运行。",
+      };
+    }
   },
 });
 
@@ -2276,13 +2294,18 @@ registry.add({
 
 registry.add({
   name: "kg_stats",
-  description: "获取知识图谱统计信息",
+  description: "获取知识图谱统计信息 (需要 PostgreSQL，无 PostgreSQL 时使用 kg_enhanced_stats)",
   inputSchema: {},
   handler: async () => {
     try {
       const { isPgAvailable, getPG } = await import("../db/pg-client.js");
       if (!(await isPgAvailable())) {
-        return { success: false, error: "PostgreSQL not available" };
+        return {
+          success: false,
+          error: "PostgreSQL not available",
+          fallback: "kg_enhanced_stats",
+          message: "PostgreSQL 未安装或未运行。请使用 kg_enhanced_stats 获取 SQLite 知识图谱统计。",
+        };
       }
       const pg = getPG();
       const [entityCount] = await pg`SELECT COUNT(*)::int as count FROM kg_entities`;
@@ -2300,7 +2323,7 @@ registry.add({
 
 registry.add({
   name: "kg_entities",
-  description: "查询知识图谱实体",
+  description: "查询知识图谱实体 (需要 PostgreSQL，无 PostgreSQL 时使用 kg_search_nodes)",
   inputSchema: {
     type: z.string().optional().describe("实体类型过滤"),
     query: z.string().optional().describe("搜索关键词"),
@@ -2310,7 +2333,12 @@ registry.add({
     try {
       const { isPgAvailable, getPG } = await import("../db/pg-client.js");
       if (!(await isPgAvailable())) {
-        return { success: false, error: "PostgreSQL not available" };
+        return {
+          success: false,
+          error: "PostgreSQL not available",
+          fallback: "kg_search_nodes",
+          message: "PostgreSQL 未安装或未运行。请使用 kg_search_nodes 搜索 SQLite 知识图谱节点。",
+        };
       }
       const pg = getPG();
       const type = args.type as string;
@@ -2344,7 +2372,7 @@ registry.add({
 
 registry.add({
   name: "kg_entity_detail",
-  description: "获取知识图谱实体详情及关系",
+  description: "获取知识图谱实体详情及关系 (需要 PostgreSQL，无 PostgreSQL 时使用 kg_subgraph)",
   inputSchema: {
     name: z.string().describe("实体名称"),
   },
@@ -2352,7 +2380,12 @@ registry.add({
     try {
       const { isPgAvailable, getPG } = await import("../db/pg-client.js");
       if (!(await isPgAvailable())) {
-        return { success: false, error: "PostgreSQL not available" };
+        return {
+          success: false,
+          error: "PostgreSQL not available",
+          fallback: "kg_subgraph",
+          message: "PostgreSQL 未安装或未运行。请使用 kg_subgraph 获取节点的子图。",
+        };
       }
       const pg = getPG();
       const entityName = args.name as string;
@@ -2385,19 +2418,24 @@ registry.add({
 
 registry.add({
   name: "kg_traverse",
-  description: "知识图谱遍历 (N度关系)",
+  description: "知识图谱遍历 (需要 PostgreSQL，无 PostgreSQL 时使用 kg_subgraph)",
   inputSchema: {
-    name: z.string().describe("起始实体名称"),
+    entityName: z.string().describe("起始实体名称"),
     depth: z.number().optional().default(2).describe("遍历深度"),
   },
   handler: async (args) => {
     try {
       const { isPgAvailable, getPG } = await import("../db/pg-client.js");
       if (!(await isPgAvailable())) {
-        return { success: false, error: "PostgreSQL not available" };
+        return {
+          success: false,
+          error: "PostgreSQL not available",
+          fallback: "kg_subgraph",
+          message: "PostgreSQL 未安装或未运行。请使用 kg_subgraph 获取节点的子图。",
+        };
       }
       const pg = getPG();
-      const entityName = args.name as string;
+      const entityName = args.entityName as string;
       const depth = (args.depth as number) || 2;
 
       const [entity] = await pg`SELECT id FROM kg_entities WHERE name = ${entityName}`;
@@ -2461,13 +2499,18 @@ registry.add({
 
 registry.add({
   name: "kg_graph",
-  description: "获取知识图谱可视化数据 (节点+边)",
+  description: "获取知识图谱可视化数据 (需要 PostgreSQL，无 PostgreSQL 时使用 kg_echarts_data 或 kg_d3_data)",
   inputSchema: {},
   handler: async () => {
     try {
       const { isPgAvailable, getPG } = await import("../db/pg-client.js");
       if (!(await isPgAvailable())) {
-        return { success: false, error: "PostgreSQL not available" };
+        return {
+          success: false,
+          error: "PostgreSQL not available",
+          fallback: "kg_echarts_data",
+          message: "PostgreSQL 未安装或未运行。请使用 kg_echarts_data 或 kg_d3_data 获取 SQLite 知识图谱可视化数据。",
+        };
       }
       const pg = getPG();
 

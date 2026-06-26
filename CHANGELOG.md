@@ -1,5 +1,40 @@
 # Changelog
 
+## v2.8.2 (2026-06-26)
+
+### 📁 文件结构整理
+
+- **归档历史文件**: 将过时的文档和报告移到 `archive/`
+  - `archive/docs/` — 历史文档
+  - `archive/reports/` — 研究报告
+  - `archive/tests/` — 测试文件
+- **清理根目录**: 移除散落的 `.md` 文件和 `.bundle` 备份
+- **更新 .gitignore**: 标记不上传 GitHub 的文件
+
+### 📚 文档整理
+
+- **新增 `docs/ARCHITECTURE.md`**: 完整技术架构文档
+  - 系统概览与架构图
+  - 技术栈详解
+  - MCP 工具架构 (111 个工具)
+  - 引擎层详解 (Vault/Arena/KG/DRE)
+  - 开发路径与版本历史
+  - 工具降级策略
+  - 部署指南
+- **更新 README.md**: 添加工具可用性说明和降级方案
+
+### 🔧 工具降级改进
+
+- **PostgreSQL 工具**: 添加降级提示，建议使用 SQLite 替代方案
+  - `kg_stats` → `kg_enhanced_stats`
+  - `kg_entities` → `kg_search_nodes`
+  - `kg_entity_detail` → `kg_subgraph`
+  - `kg_traverse` → `kg_subgraph`
+  - `kg_graph` → `kg_echarts_data` / `kg_d3_data`
+- **DRE 工具**: 添加降级提示，建议使用 `memory_write`
+  - `dre_write_knowledge` → `memory_write`
+  - `dre_consciousness_step` → 无降级方案
+
 ## v2.8.1 (2026-06-26)
 
 ### 🔧 代码质量改进
