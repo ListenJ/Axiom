@@ -264,7 +264,7 @@ export class KnowledgeGraphEnhanced {
     sql += " ORDER BY importance DESC LIMIT ?";
     params.push(options?.limit || 20);
 
-    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+    const rows = this.db.prepare(sql).all(...(params as any[])) as Array<Record<string, unknown>>;
     return rows.map((row) => this.rowToNode(row));
   }
 

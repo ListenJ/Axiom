@@ -56,6 +56,8 @@ export interface AgentTask {
   timeout?: number;
   /** 是否需要人工确认 */
   requireConfirmation?: boolean;
+  /** 依赖的任务 IDs */
+  dependsOn?: string[];
 }
 
 /** Agent 执行结果 */
@@ -383,7 +385,7 @@ export class AgentOrchestrator {
       logger.error("[Orchestrator] Task failed", {
         taskId: task.id,
         error: error.message,
-      });
+      } as any);
 
       return {
         taskId: task.id,

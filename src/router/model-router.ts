@@ -13,6 +13,7 @@ import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
 import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+export type { TaskRole } from "./model-capability-registry.js";
 import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";

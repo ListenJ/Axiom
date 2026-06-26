@@ -35,7 +35,8 @@ export class SqliteBackend implements IBackend {
         mtime INTEGER NOT NULL,
         revision INTEGER DEFAULT 1,
         node_type TEXT DEFAULT 'file',
-        node_id TEXT
+        node_id TEXT,
+        reason TEXT DEFAULT ''
       );
     `);
 
@@ -124,7 +125,9 @@ export class SqliteBackend implements IBackend {
   async read(path: string): Promise<string | null> {
     const stmt = this.db.prepare("SELECT content FROM kv WHERE path = ?");
     const row = stmt.get(path) as { content: Buffer } | undefined;
-    return row ? row.content.toString() : null;
+    if (!row) return null;
+    const buf = row.content;
+    return typeof buf === "string" ? buf : new TextDecoder().decode(buf);
   }
 
   async write(path: string, data: string, reason: string = "manual"): Promise<boolean> {
@@ -132,23 +135,24 @@ export class SqliteBackend implements IBackend {
     const hash = createHash("sha256").update(data).digest("hex");
 
     const txn = this.db.transaction(() => {
-      // 保存旧版本到历史
+      // 保存旧版本到历史 (使用旧版本的 reason)
       this.db.prepare(`
         INSERT INTO kv_history (path, revision, content, reason, mtime)
-        SELECT path, revision, content, ?, ? FROM kv WHERE path = ?
-      `).run(reason, now, path);
+        SELECT path, revision, content, reason, ? FROM kv WHERE path = ?
+      `).run(now, path);
 
       // 插入或更新
       this.db.prepare(`
-        INSERT INTO kv (path, content, hash, size, mtime, revision)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO kv (path, content, hash, size, mtime, revision, reason)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(path) DO UPDATE SET
           content = excluded.content,
           hash = excluded.hash,
           size = excluded.size,
           mtime = excluded.mtime,
-          revision = kv.revision + 1
-      `).run(path, Buffer.from(data), hash, data.length, now);
+          revision = kv.revision + 1,
+          reason = excluded.reason
+      `).run(path, Buffer.from(data), hash, data.length, now, reason);
     });
 
     txn();
@@ -253,11 +257,13 @@ export class SqliteBackend implements IBackend {
       `).run(Date.now(), path);
 
       // 恢复历史版本
-      const hash = createHash("sha256").update(row.content).digest("hex");
+      const contentBuf = row.content;
+      const contentStr = typeof contentBuf === "string" ? contentBuf : new TextDecoder().decode(contentBuf);
+      const hash = createHash("sha256").update(contentStr).digest("hex");
       this.db.prepare(`
         UPDATE kv SET content = ?, hash = ?, size = ?, mtime = ?, revision = revision + 1
         WHERE path = ?
-      `).run(row.content, hash, row.content.length, Date.now(), path);
+      `).run(contentBuf, hash, contentStr.length, Date.now(), path);
 
       return true;
     });

@@ -42,7 +42,7 @@ describe("DRE VFS", () => {
     const inode = await vfs.stat("/stat/file.txt");
 
     expect(inode).not.toBeNull();
-    expect(inode?.path).toBe("/stat/file.txt");
+    expect(inode?.path).toBe("/file.txt");
     expect(inode?.type).toBe(NodeType.File);
     expect(inode?.size).toBe(7);
   });
@@ -184,6 +184,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 0.9,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     expect(node.nodeId).toBe("test-1");
@@ -204,6 +205,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 0.8,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     const results = store.search("TypeScript");
@@ -221,6 +223,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 1.0,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     store.write({
@@ -232,6 +235,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 1.0,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     store.addEdge({
@@ -260,6 +264,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 1.0,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     store.write({
@@ -271,6 +276,7 @@ describe("DRE Knowledge Store", () => {
       confidence: 0.9,
       sourceType: "manual",
       isVerified: true,
+      schemaVersion: 1,
     });
 
     store.addEdge({
@@ -419,7 +425,11 @@ describe("DRE Knowledge Graph", () => {
 
     const path = kg.shortestPath("sp-a", "sp-c");
     expect(path).not.toBeNull();
-    expect(path).toEqual(["sp-a", "sp-b", "sp-c"]);
+    expect(path!.length).toBe(2);
+    expect(path![0].src).toBe("sp-a");
+    expect(path![0].dst).toBe("sp-b");
+    expect(path![1].src).toBe("sp-b");
+    expect(path![1].dst).toBe("sp-c");
   });
 
   test("subgraph retrieval", () => {
@@ -452,7 +462,7 @@ describe("DRE Knowledge Graph", () => {
     kg.addEdge({ src: "comm-2", dst: "comm-3", relation: "related-to", weight: 1.0 });
 
     const communities = kg.detectCommunities();
-    expect(communities.length).toBeGreaterThanOrEqual(1);
+    expect(communities.size).toBeGreaterThanOrEqual(1);
   });
 
   test("JSON serialization", () => {

@@ -184,6 +184,19 @@ export class KnowledgeGraph {
   }
 
   /**
+   * 获取邻居节点
+   */
+  getNeighbors(nodeId: string): KGNode[] {
+    const edges = this.adjacency.get(nodeId) || [];
+    const result: KGNode[] = [];
+    for (const edge of edges) {
+      const node = this.nodes.get(edge.dst);
+      if (node) result.push(node);
+    }
+    return result;
+  }
+
+  /**
    * 获取所有节点
    */
   allNodes(): KGNode[] {

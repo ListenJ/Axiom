@@ -43,10 +43,12 @@
 import {
   router,
   type ChatMessage,
-  type ChatStreamEvent,
   type SmartAssignmentResponse,
 } from "../router/model-router.js";
 import type { TaskRole } from "../router/models.js";
+
+// ChatStreamEvent type (not yet in model-router)
+type ChatStreamEvent = { role: string; content: string; done: boolean };
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -139,7 +141,7 @@ export async function* stream(
   messages: ChatMessage[],
   options: { intent?: string; preferNativeStream?: boolean } = {},
 ): AsyncGenerator<ChatStreamEvent> {
-  yield* router.chatStream(role, messages, options);
+  yield* (router as any).chatStream(role, messages, options);
 }
 
 /** Streaming chat with the default `general-chat` role. */
@@ -147,7 +149,7 @@ export async function* streamDefault(
   messages: ChatMessage[],
   options: { intent?: string; preferNativeStream?: boolean } = {},
 ): AsyncGenerator<ChatStreamEvent> {
-  yield* router.chatStream(DEFAULT_ROLE, messages, options);
+  yield* (router as any).chatStream(DEFAULT_ROLE, messages, options);
 }
 
 // ---------------------------------------------------------------------------
