@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.7.0 (2026-06-26)
+
+### ✨ 新增功能
+
+- **DRE 确定性推理引擎** - 自研文件系统 + 三段式自甄别 + 意识流 + 知识图谱
+  - VFS 虚拟文件系统: 统一挂载知识库/项目/缓存，最长前缀匹配路由
+  - SQLite 存储后端: WAL 模式 + 自动版本快照 + 内容哈希 (sha256)
+  - 知识库存储: 3NF/4NF 范式设计 + 版本历史 + 三段甄别集成
+  - 三段甄别流水线: 预筛(规则引擎) → 网络校验(Playwright) → LLM 自推理(强约束)
+  - 意识流: 工作记忆(16项FIFO) + 短期记忆(TTL=1h) + 反思队列
+  - 知识图谱: BFS 子图检索 + 最短路径 + 社区检测
+  - Agent Harness: Planner/Coder/Retriever/Reflector 四类 Agent
+  - LLM 客户端: JSON Schema 约束 + 拒绝采样(n=3取众数) + 温度=0
+  - 6 个新 MCP 工具: `dre_write_knowledge`, `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_consciousness_step`, `dre_status`
+- **MCP 工具总数** - 从 120+ 扩展到 130+ 个工具
+
+### 架构设计
+
+- TypeScript 实现意识流核心 (类型安全 + JSON 处理 + 流式响应)
+- 4GB 显存优化: Qwen3-1.7B Q4_K_M 主推理 + Qwen3-0.6B 甄别 + KV Cache Q8
+- 确定性保证: 温度=0 + 固定种子 + 全量 trace + JSON Schema 约束
+
 ## v2.6.0 (2026-06-26)
 
 ### ✨ 新增功能

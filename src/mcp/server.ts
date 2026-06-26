@@ -121,6 +121,7 @@ import { getPromptPool, type AgentRole } from "../agents/prompt-pool.js";
 import { getIssue as getGitHubIssue } from "./tools/github.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
 import { getAgentOrchestrator, type AgentTask } from "../agents/orchestrator.js";
+import { DREngine, type KnowledgeItem } from "../dre/index.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
@@ -130,7 +131,7 @@ const vault = new VaultManager();
 
 const mcp = new McpServer({
   name: "OpenClaw Agent MCP Server",
-  version: "2.6.0",
+  version: "2.7.0",
 });
 
 // ===== 工具定义（单一事实来源） =====
@@ -2154,6 +2155,185 @@ registry.add({
   handler: async () => {
     const orchestrator = getAgentOrchestrator();
     return orchestrator.getStatus();
+  },
+});
+
+// ===== DRE 确定性推理引擎工具 =====
+
+// DRE 引擎单例
+let dreEngine: DREngine | null = null;
+
+function getDREngine(): DREngine {
+  if (!dreEngine) {
+    dreEngine = new DREngine({
+      dbPath: process.env.DRE_DB_PATH || "./data/dre.db",
+      mainLLM: {
+        baseUrl: process.env.DRE_LLM_URL || "http://127.0.0.1:8080",
+        model: process.env.DRE_LLM_MODEL || "qwen3-1.7b-instruct",
+        temperature: 0.0,
+        topK: 1,
+        seed: 42,
+      },
+      discriminLLM: process.env.DRE_DISCRIMIN_URL ? {
+        baseUrl: process.env.DRE_DISCRIMIN_URL,
+        model: process.env.DRE_DISCRIMIN_MODEL || "qwen3-0.6b-instruct",
+        temperature: 0.0,
+        topK: 1,
+        seed: 42,
+      } : undefined,
+    });
+  }
+  return dreEngine;
+}
+
+registry.add({
+  name: "dre_write_knowledge",
+  description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理)",
+  inputSchema: {
+    title: z.string().describe("知识标题"),
+    content: z.string().describe("知识内容"),
+    domain: z.string().optional().default("general").describe("分类: math/cs/bio/..."),
+    paradigm: z.enum(["fact", "rule", "procedure", "concept"]).optional().default("fact").describe("范式"),
+    sourceType: z.enum(["manual", "web", "llm", "ocr", "kg"]).optional().default("manual").describe("来源类型"),
+    sourceUri: z.string().optional().describe("来源 URI"),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const item: KnowledgeItem = {
+      id: `kb-${Date.now()}`,
+      title: args.title as string,
+      content: args.content as string,
+      domain: (args.domain as string) || "general",
+      paradigm: (args.paradigm as KnowledgeItem["paradigm"]) || "fact",
+      sourceType: (args.sourceType as KnowledgeItem["sourceType"]) || "manual",
+      sourceUri: args.sourceUri as string,
+    };
+
+    const result = await dre.writeKnowledge(item);
+    return {
+      accepted: result.accepted,
+      nodeId: item.id,
+      verification: result.verification ? {
+        verdict: result.verification.verdict,
+        confidence: result.verification.confidence,
+        chain: result.verification.chain,
+        evidenceRefs: result.verification.evidenceRefs,
+      } : undefined,
+    };
+  },
+});
+
+registry.add({
+  name: "dre_read_knowledge",
+  description: "读取知识条目",
+  inputSchema: {
+    nodeId: z.string().describe("知识条目 ID"),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const node = dre.readKnowledge(args.nodeId as string);
+    if (!node) {
+      return { success: false, error: "Knowledge node not found" };
+    }
+    return {
+      success: true,
+      data: {
+        nodeId: node.nodeId,
+        title: node.title,
+        content: node.content.slice(0, 5000),
+        domain: node.domain,
+        paradigm: node.paradigm,
+        confidence: node.confidence,
+        sourceType: node.sourceType,
+        revision: node.revision,
+        isVerified: node.isVerified,
+      },
+    };
+  },
+});
+
+registry.add({
+  name: "dre_search_knowledge",
+  description: "搜索知识库",
+  inputSchema: {
+    query: z.string().describe("搜索关键词"),
+    domain: z.string().optional().describe("分类过滤"),
+    paradigm: z.enum(["fact", "rule", "procedure", "concept"]).optional().describe("范式过滤"),
+    minConfidence: z.number().optional().describe("最低置信度"),
+    limit: z.number().optional().default(10).describe("返回数量"),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const results = dre.searchKnowledge(args.query as string, {
+      domain: args.domain as string,
+      paradigm: args.paradigm as string,
+      minConfidence: args.minConfidence as number,
+      limit: args.limit as number,
+    });
+    return results.map((r) => ({
+      nodeId: r.nodeId,
+      title: r.title,
+      domain: r.domain,
+      paradigm: r.paradigm,
+      confidence: r.confidence,
+      isVerified: r.isVerified,
+    }));
+  },
+});
+
+registry.add({
+  name: "dre_subgraph",
+  description: "知识图谱子图检索 (BFS)",
+  inputSchema: {
+    nodeId: z.string().describe("起始节点 ID"),
+    depth: z.number().optional().default(2).describe("遍历深度"),
+    maxNodes: z.number().optional().default(50).describe("最大节点数"),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const nodes = dre.subgraph(args.nodeId as string, args.depth as number, args.maxNodes as number);
+    return nodes.map((n) => ({
+      nodeId: n.nodeId,
+      title: n.title,
+      domain: n.domain,
+      confidence: n.confidence,
+    }));
+  },
+});
+
+registry.add({
+  name: "dre_consciousness_step",
+  description: "意识流处理步骤",
+  inputSchema: {
+    observation: z.string().describe("观察内容"),
+    metadata: z.record(z.unknown()).optional().describe("元数据"),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const result = await dre.consciousnessStep({
+      observation: args.observation as string,
+      metadata: args.metadata as Record<string, unknown>,
+    });
+    return {
+      decision: result.decision,
+      shouldReflect: result.shouldReflect,
+      reflection: result.reflection ? {
+        issues: result.reflection.issues,
+        lessons: result.reflection.lessons,
+        rollback: result.reflection.rollback,
+        checkpointTag: result.reflection.checkpointTag,
+      } : undefined,
+    };
+  },
+});
+
+registry.add({
+  name: "dre_status",
+  description: "获取 DRE 引擎状态",
+  inputSchema: {},
+  handler: async () => {
+    const dre = getDREngine();
+    return dre.getStatus();
   },
 });
 
