@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { TrendingUp, BarChart3, Search, MessageSquare, Cpu, CheckCircle2 } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -34,14 +34,14 @@ export default function Trends() {
   const totalChats = data?.chatTrend?.reduce((s, d) => s + d.count, 0) ?? 0
 
   return (
-    <div className="space-y-4">
+    <div className="fade-in stagger space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
+        <div className="fade-in stagger space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <TrendingUp className="size-6 text-accent" />
-            趋势分析
+            瓒嬪娍鍒嗘瀽
           </h1>
-          <p className="text-text-secondary">搜索、对话、模型调用、任务的趋势统计。</p>
+          <p className="text-text-secondary">鎼滅储銆佸璇濄€佹ā鍨嬭皟鐢ㄣ€佷换鍔＄殑瓒嬪娍缁熻銆?/p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
           {[1, 7, 30, 90].map((d) => (
@@ -53,7 +53,7 @@ export default function Trends() {
                 days === d ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-secondary'
               }`}
             >
-              {d} 天
+              {d} 澶?
             </button>
           ))}
         </div>
@@ -61,7 +61,7 @@ export default function Trends() {
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          趋势数据暂不可用：{error}
+          瓒嬪娍鏁版嵁鏆備笉鍙敤锛歿error}
         </p>
       )}
 
@@ -69,30 +69,30 @@ export default function Trends() {
         <ShimmerCard glow>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <Search className="size-3.5" />
-            总搜索量
+            鎬绘悳绱㈤噺
           </p>
-          <p className="mt-1 text-3xl font-bold">{loading ? '—' : totalSearches}</p>
+          <p className="mt-1 text-3xl font-bold">{loading ? '鈥? : totalSearches}</p>
         </ShimmerCard>
         <ShimmerCard>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <MessageSquare className="size-3.5" />
-            总对话数
+            鎬诲璇濇暟
           </p>
-          <p className="mt-1 text-3xl font-bold">{loading ? '—' : totalChats}</p>
+          <p className="mt-1 text-3xl font-bold">{loading ? '鈥? : totalChats}</p>
         </ShimmerCard>
         <ShimmerCard>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <Cpu className="size-3.5" />
-            活跃模型
+            娲昏穬妯″瀷
           </p>
-          <p className="mt-1 text-3xl font-bold">{loading ? '—' : data?.modelTrend?.length ?? 0}</p>
+          <p className="mt-1 text-3xl font-bold">{loading ? '鈥? : data?.modelTrend?.length ?? 0}</p>
         </ShimmerCard>
         <ShimmerCard>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <CheckCircle2 className="size-3.5" />
-            任务状态
+            浠诲姟鐘舵€?
           </p>
-          <p className="mt-1 text-3xl font-bold">{loading ? '—' : data?.taskTrend?.length ?? 0}</p>
+          <p className="mt-1 text-3xl font-bold">{loading ? '鈥? : data?.taskTrend?.length ?? 0}</p>
         </ShimmerCard>
       </div>
 
@@ -100,12 +100,12 @@ export default function Trends() {
         <ShimmerCard>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Search className="size-4 text-accent" />
-            搜索趋势
+            鎼滅储瓒嬪娍
           </h2>
           {loading ? (
             <div className="mt-4 h-40 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : !data?.searchTrend?.length ? (
-            <p className="mt-4 text-sm text-text-muted">暂无搜索数据</p>
+            <p className="mt-4 text-sm text-text-muted">鏆傛棤鎼滅储鏁版嵁</p>
           ) : (
             <div className="mt-4 flex h-40 items-end gap-1">
               {data.searchTrend.map((d, i) => (
@@ -125,12 +125,12 @@ export default function Trends() {
         <ShimmerCard>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <MessageSquare className="size-4 text-accent" />
-            对话趋势
+            瀵硅瘽瓒嬪娍
           </h2>
           {loading ? (
             <div className="mt-4 h-40 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : !data?.chatTrend?.length ? (
-            <p className="mt-4 text-sm text-text-muted">暂无对话数据</p>
+            <p className="mt-4 text-sm text-text-muted">鏆傛棤瀵硅瘽鏁版嵁</p>
           ) : (
             <div className="mt-4 flex h-40 items-end gap-1">
               {data.chatTrend.map((d, i) => (
@@ -151,7 +151,7 @@ export default function Trends() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Cpu className="size-4 text-accent" />
-          模型调用 Top {data?.modelTrend?.length ?? 0}
+          妯″瀷璋冪敤 Top {data?.modelTrend?.length ?? 0}
         </h2>
         {loading ? (
           <div className="mt-3 space-y-2" aria-hidden="true">
@@ -160,14 +160,14 @@ export default function Trends() {
             ))}
           </div>
         ) : !data?.modelTrend?.length ? (
-          <p className="mt-3 text-sm text-text-muted">暂无模型调用</p>
+          <p className="mt-3 text-sm text-text-muted">鏆傛棤妯″瀷璋冪敤</p>
         ) : (
           <div className="mt-3 space-y-2">
             {data.modelTrend.map((m, i) => (
               <div key={i} className="flex items-center justify-between rounded-lg border border-border p-2 text-sm">
                 <span className="truncate font-medium" title={m.model_name}>{m.model_name}</span>
                 <div className="flex shrink-0 items-center gap-4 text-xs text-text-muted">
-                  <span>{m.count} 次</span>
+                  <span>{m.count} 娆?/span>
                   <span>~{Math.round(m.avg_latency ?? 0)}ms</span>
                 </div>
               </div>
@@ -180,7 +180,7 @@ export default function Trends() {
         <ShimmerCard>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <BarChart3 className="size-4 text-accent" />
-            任务状态分布
+            浠诲姟鐘舵€佸垎甯?
           </h2>
           <div className="mt-3 flex flex-wrap gap-3">
             {data.taskTrend.map((t, i) => (

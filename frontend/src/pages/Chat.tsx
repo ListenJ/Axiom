@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Send, Paperclip, Bot, User } from 'lucide-react'
+import { Send, Paperclip, Bot, User, MessageSquare } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
+import PageHeader from '@/components/ui/PageHeader'
 import { endpoints, HttpError } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 
@@ -86,10 +87,11 @@ export default function Chat() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">对话</h1>
-        <p className="text-text-secondary">与 OpenClaw AI Agent 实时交互。</p>
-      </div>
+      <PageHeader
+        icon={<MessageSquare className="size-5 text-accent" />}
+        title="对话"
+        description="与 OpenClaw AI Agent 实时交互"
+      />
 
       <div
         ref={scroller}

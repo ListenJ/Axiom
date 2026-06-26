@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Compass, Heart, Coins } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -38,18 +38,18 @@ export default function Router() {
   const loading = status === null
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in space-y-4">
+      <header className="fade-in space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Compass className="size-6 text-accent" />
-          模型路由
+          妯″瀷璺敱
         </h1>
-        <p className="text-text-secondary">Advisor + Health + Token 使用统计。</p>
+        <p className="text-text-secondary">Advisor + Health + Token 浣跨敤缁熻銆?/p>
       </header>
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          部分指标暂不可用：{error}
+          閮ㄥ垎鎸囨爣鏆備笉鍙敤锛歿error}
         </p>
       )}
 
@@ -57,7 +57,7 @@ export default function Router() {
         <ShimmerCard glow>
           <div className="flex items-center gap-2 text-text-muted">
             <Heart className="size-4" />
-            <span className="text-sm">健康模型</span>
+            <span className="text-sm">鍋ュ悍妯″瀷</span>
           </div>
           {loading ? (
             <>
@@ -66,8 +66,8 @@ export default function Router() {
             </>
           ) : (
             <>
-              <p className="mt-2 text-3xl font-bold">{status?.healthy ?? '—'}</p>
-              <p className="mt-1 text-xs text-text-muted">共 {status?.models ?? '—'} 个模型</p>
+              <p className="mt-2 text-3xl font-bold">{status?.healthy ?? '鈥?}</p>
+              <p className="mt-1 text-xs text-text-muted">鍏?{status?.models ?? '鈥?} 涓ā鍨?/p>
             </>
           )}
         </ShimmerCard>
@@ -75,7 +75,7 @@ export default function Router() {
         <ShimmerCard>
           <div className="flex items-center gap-2 text-text-muted">
             <Coins className="size-4" />
-            <span className="text-sm">Token 使用</span>
+            <span className="text-sm">Token 浣跨敤</span>
           </div>
           {loading ? (
             <>
@@ -85,10 +85,10 @@ export default function Router() {
           ) : (
             <>
               <p className="mt-2 text-3xl font-bold">
-                {status?.tokens ? status.tokens.used.toLocaleString() : '—'}
+                {status?.tokens ? status.tokens.used.toLocaleString() : '鈥?}
               </p>
               <p className="mt-1 text-xs text-text-muted">
-                / {status?.tokens ? status.tokens.total.toLocaleString() : '—'}
+                / {status?.tokens ? status.tokens.total.toLocaleString() : '鈥?}
               </p>
             </>
           )}
@@ -97,12 +97,12 @@ export default function Router() {
         <ShimmerCard>
           <div className="flex items-center gap-2 text-text-muted">
             <Compass className="size-4" />
-            <span className="text-sm">路由状态</span>
+            <span className="text-sm">璺敱鐘舵€?/span>
           </div>
           {loading ? (
             <div className="mt-3 h-8 w-20 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-2 text-3xl font-bold capitalize text-success">{status?.status ?? '—'}</p>
+            <p className="mt-2 text-3xl font-bold capitalize text-success">{status?.status ?? '鈥?}</p>
           )}
         </ShimmerCard>
       </div>

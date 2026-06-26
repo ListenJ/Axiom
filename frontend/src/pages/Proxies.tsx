@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Globe, Shield, CheckCircle2, XCircle, Server, AlertTriangle } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -20,7 +20,7 @@ export default function Proxies() {
     endpoints.proxies
       .list()
       .then((d) => {
-        // Backend returns raw array (or possibly wrapped) — handle both
+        // Backend returns raw array (or possibly wrapped) 鈥?handle both
         if (Array.isArray(d)) {
           setProxies(d as Proxy[])
         } else if (d && typeof d === 'object' && Array.isArray((d as { proxies?: unknown }).proxies)) {
@@ -34,13 +34,13 @@ export default function Proxies() {
   }, [])
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in stagger space-y-4">
+      <header className="fade-in stagger space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Globe className="size-6 text-accent" />
-          代理管理
+          浠ｇ悊绠＄悊
         </h1>
-        <p className="text-text-secondary">系统代理状态 · 隐私保护配置。</p>
+        <p className="text-text-secondary">绯荤粺浠ｇ悊鐘舵€?路 闅愮淇濇姢閰嶇疆銆?/p>
       </header>
 
       {error && (
@@ -54,28 +54,28 @@ export default function Proxies() {
         <ShimmerCard glow>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <Server className="size-3.5" />
-            代理总数
+            浠ｇ悊鎬绘暟
           </p>
           <p className="mt-1 text-3xl font-bold">
-            {loading ? '—' : proxies.length}
+            {loading ? '鈥? : proxies.length}
           </p>
         </ShimmerCard>
         <ShimmerCard>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <CheckCircle2 className="size-3.5" />
-            活跃代理
+            娲昏穬浠ｇ悊
           </p>
           <p className="mt-1 text-3xl font-bold text-success">
-            {loading ? '—' : proxies.filter((p) => p.active).length}
+            {loading ? '鈥? : proxies.filter((p) => p.active).length}
           </p>
         </ShimmerCard>
         <ShimmerCard>
           <p className="flex items-center gap-1.5 text-sm text-text-muted">
             <XCircle className="size-3.5" />
-            非活跃
+            闈炴椿璺?
           </p>
           <p className="mt-1 text-3xl font-bold text-text-muted">
-            {loading ? '—' : proxies.filter((p) => !p.active).length}
+            {loading ? '鈥? : proxies.filter((p) => !p.active).length}
           </p>
         </ShimmerCard>
       </div>
@@ -83,7 +83,7 @@ export default function Proxies() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Shield className="size-4 text-accent" />
-          代理配置
+          浠ｇ悊閰嶇疆
         </h2>
         {loading ? (
           <div className="mt-3 space-y-2" aria-hidden="true">
@@ -94,11 +94,11 @@ export default function Proxies() {
         ) : proxies.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-border bg-bg-secondary/30 p-6 text-center">
             <Globe className="mx-auto mb-3 size-10 text-text-muted opacity-50" />
-            <p className="text-sm text-text-secondary">未配置代理</p>
+            <p className="text-sm text-text-secondary">鏈厤缃唬鐞?/p>
             <p className="mt-1 text-xs text-text-muted">
-              可通过 <code className="rounded bg-bg-tertiary px-1">HTTP_PROXY</code> 和{' '}
+              鍙€氳繃 <code className="rounded bg-bg-tertiary px-1">HTTP_PROXY</code> 鍜寋' '}
               <code className="rounded bg-bg-tertiary px-1">HTTPS_PROXY</code>{' '}
-              环境变量配置
+              鐜鍙橀噺閰嶇疆
             </p>
           </div>
         ) : (
@@ -124,7 +124,7 @@ export default function Proxies() {
                       {p.port && <span className="text-text-muted">:{p.port}</span>}
                     </p>
                     <p className="text-2xs text-text-muted">
-                      {p.protocol} · {p.country}
+                      {p.protocol} 路 {p.country}
                     </p>
                   </div>
                 </div>
@@ -135,7 +135,7 @@ export default function Proxies() {
                       : 'bg-bg-tertiary text-text-muted'
                   }`}
                 >
-                  {p.active ? '活跃' : '禁用'}
+                  {p.active ? '娲昏穬' : '绂佺敤'}
                 </span>
               </div>
             ))}
@@ -144,7 +144,7 @@ export default function Proxies() {
       </ShimmerCard>
 
       <p className="text-2xs text-text-muted">
-        代理仅用于出站爬取请求，不会影响本地 API 访问。
+        浠ｇ悊浠呯敤浜庡嚭绔欑埇鍙栬姹傦紝涓嶄細褰卞搷鏈湴 API 璁块棶銆?
       </p>
     </div>
   )

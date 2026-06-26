@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { ScanText, Upload, FileText, Download, Loader2, AlertCircle } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { useApp } from '@/state/useApp'
@@ -32,7 +32,7 @@ export default function OCR() {
 
   const handleScan = async () => {
     if (!path.trim()) {
-      toast('请输入文件路径', 'warning')
+      toast('璇疯緭鍏ユ枃浠惰矾寰?, 'warning')
       return
     }
     setScanning(true)
@@ -42,11 +42,11 @@ export default function OCR() {
       const res = await endpoints.ocr.scan({ path: path.trim(), languages })
       const text = typeof res === 'string' ? res : JSON.stringify(res, null, 2)
       setResult(text)
-      toast('扫描完成', 'success')
+      toast('鎵弿瀹屾垚', 'success')
     } catch (e) {
       const msg = (e as Error)?.message ?? String(e)
       setError(msg)
-      toast('扫描失败：' + msg, 'error')
+      toast('鎵弿澶辫触锛? + msg, 'error')
     } finally {
       setScanning(false)
     }
@@ -64,20 +64,20 @@ export default function OCR() {
       a.download = `${path.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, '') ?? 'ocr'}.${format}`
       a.click()
       URL.revokeObjectURL(url)
-      toast('导出成功', 'success')
+      toast('瀵煎嚭鎴愬姛', 'success')
     } catch (e) {
-      toast('导出失败：' + ((e as Error)?.message ?? String(e)), 'error')
+      toast('瀵煎嚭澶辫触锛? + ((e as Error)?.message ?? String(e)), 'error')
     }
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in space-y-4">
+      <header className="fade-in space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <ScanText className="size-6 text-accent" />
-          文字识别
+          鏂囧瓧璇嗗埆
         </h1>
-        <p className="text-text-secondary">OCR 文档扫描、识别与导出。</p>
+        <p className="text-text-secondary">OCR 鏂囨。鎵弿銆佽瘑鍒笌瀵煎嚭銆?/p>
       </header>
 
       {status && (
@@ -89,7 +89,7 @@ export default function OCR() {
           }`}
         >
           <span className={`size-2 rounded-full ${status.ready ? 'bg-success' : 'bg-warning'}`} />
-          OCR 引擎 {status.ready ? '就绪' : '未就绪'} · 支持 {status.languages.length} 种语言
+          OCR 寮曟搸 {status.ready ? '灏辩华' : '鏈氨缁?} 路 鏀寔 {status.languages.length} 绉嶈瑷€
         </div>
       )}
 
@@ -103,24 +103,24 @@ export default function OCR() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Upload className="size-4 text-accent" />
-          扫描文档
+          鎵弿鏂囨。
         </h2>
         <div className="mt-3 space-y-3">
           <div>
             <label htmlFor="ocr-path" className="text-sm text-text-secondary">
-              文件路径
+              鏂囦欢璺緞
             </label>
             <input
               id="ocr-path"
               type="text"
               value={path}
               onChange={(e) => setPath(e.target.value)}
-              placeholder="/path/to/image.png 或 C:\path\to\doc.pdf"
+              placeholder="/path/to/image.png 鎴?C:\path\to\doc.pdf"
               className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
           </div>
           <div>
-            <label className="text-sm text-text-secondary">识别语言（逗号分隔）</label>
+            <label className="text-sm text-text-secondary">璇嗗埆璇█锛堥€楀彿鍒嗛殧锛?/label>
             <input
               type="text"
               value={languages.join(',')}
@@ -138,7 +138,7 @@ export default function OCR() {
             className="focus-ring flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {scanning ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
-            {scanning ? '扫描中…' : '开始扫描'}
+            {scanning ? '鎵弿涓€? : '寮€濮嬫壂鎻?}
           </button>
         </div>
       </ShimmerCard>
@@ -148,7 +148,7 @@ export default function OCR() {
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <FileText className="size-4 text-accent" />
-              识别结果
+              璇嗗埆缁撴灉
             </h2>
             <div className="flex gap-1">
               {(['md', 'txt', 'json'] as const).map((fmt) => (

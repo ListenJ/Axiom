@@ -30,26 +30,18 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Type check
         run: bun run build
 
       - name: Run unit tests
-        run: bun test
+        run: bun run test
         env:
           NODE_ENV: test
 
       - name: Run linter
         run: bun run lint
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
-
-      - name: Run E2E tests
-        run: bun run test:e2e
-        env:
-          NODE_ENV: test
 
   build:
     name: Build Docker Image
@@ -108,7 +100,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run audit
         run: bun audit

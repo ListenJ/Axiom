@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   Puzzle,
   Download,
@@ -126,28 +126,28 @@ export default function Plugins() {
   }
 
   const tabs = [
-    { id: 'installed' as const, label: '已安装', icon: Puzzle, count: installed.length },
-    { id: 'available' as const, label: '可用插件', icon: Download, count: available.length },
-    { id: 'tools' as const, label: '活跃工具', icon: Settings, count: activeTools.length },
+    { id: 'installed' as const, label: '宸插畨瑁?, icon: Puzzle, count: installed.length },
+    { id: 'available' as const, label: '鍙敤鎻掍欢', icon: Download, count: available.length },
+    { id: 'tools' as const, label: '娲昏穬宸ュ叿', icon: Settings, count: activeTools.length },
   ]
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in stagger space-y-4">
+      <header className="fade-in stagger space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Puzzle className="size-6 text-accent" />
-          插件市场
+          鎻掍欢甯傚満
         </h1>
-        <p className="text-text-secondary">管理已安装插件、浏览可用插件、查看活跃工具。</p>
+        <p className="text-text-secondary">绠＄悊宸插畨瑁呮彃浠躲€佹祻瑙堝彲鐢ㄦ彃浠躲€佹煡鐪嬫椿璺冨伐鍏枫€?/p>
       </header>
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          操作失败：{error}
+          鎿嶄綔澶辫触锛歿error}
         </p>
       )}
 
-      {/* 标签页 */}
+      {/* 鏍囩椤?*/}
       <div className="flex gap-1 rounded-lg border border-border p-1">
         {tabs.map((tab) => (
           <button
@@ -168,11 +168,11 @@ export default function Plugins() {
         ))}
       </div>
 
-      {/* 已安装插件 */}
+      {/* 宸插畨瑁呮彃浠?*/}
       {activeTab === 'installed' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="h-20 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -180,11 +180,11 @@ export default function Plugins() {
           ) : installed.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <Puzzle className="mb-3 size-12 opacity-30" />
-              <p>暂无已安装插件</p>
-              <p className="text-sm">前往"可用插件"标签页安装</p>
+              <p>鏆傛棤宸插畨瑁呮彃浠?/p>
+              <p className="text-sm">鍓嶅線"鍙敤鎻掍欢"鏍囩椤靛畨瑁?/p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {installed.map((plugin) => (
                 <div
                   key={plugin.id}
@@ -200,7 +200,7 @@ export default function Plugins() {
                         {plugin.enabled && (
                           <span className="flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-500">
                             <Check className="size-3" />
-                            已启用
+                            宸插惎鐢?
                           </span>
                         )}
                       </div>
@@ -226,33 +226,33 @@ export default function Plugins() {
                             ? 'text-green-500 hover:bg-green-500/10'
                             : 'text-text-muted hover:bg-bg-secondary'
                         }`}
-                        title={plugin.enabled ? '禁用' : '启用'}
+                        title={plugin.enabled ? '绂佺敤' : '鍚敤'}
                       >
                         {plugin.enabled ? <Power className="size-4" /> : <PowerOff className="size-4" />}
                       </button>
                       <button
                         onClick={() => setConfiguring(plugin.id)}
                         className="rounded-lg p-2 text-text-muted hover:bg-bg-secondary"
-                        title="配置"
+                        title="閰嶇疆"
                       >
                         <Settings className="size-4" />
                       </button>
                       <button
                         onClick={() => handleUninstall(plugin.id)}
                         className="rounded-lg p-2 text-text-muted hover:bg-red-500/10 hover:text-red-500"
-                        title="卸载"
+                        title="鍗歌浇"
                       >
                         <Trash2 className="size-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* 配置面板 */}
+                  {/* 閰嶇疆闈㈡澘 */}
                   {configuring === plugin.id && (
                     <div className="mt-4 rounded-lg border border-border bg-bg p-3">
-                      <h4 className="mb-2 text-sm font-medium">插件配置</h4>
+                      <h4 className="mb-2 text-sm font-medium">鎻掍欢閰嶇疆</h4>
                       {plugin.config && Object.keys(plugin.config).length > 0 ? (
-                        <div className="space-y-2">
+                        <div className="fade-in stagger space-y-2">
                           {Object.entries(plugin.config).map(([key, value]) => (
                             <div key={key} className="flex items-center gap-2">
                               <label className="w-32 text-xs text-text-muted">{key}</label>
@@ -268,14 +268,14 @@ export default function Plugins() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-text-muted">此插件无可配置项</p>
+                        <p className="text-sm text-text-muted">姝ゆ彃浠舵棤鍙厤缃」</p>
                       )}
                       <div className="mt-3 flex gap-2">
                         <button
                           onClick={() => handleConfig(plugin.id)}
                           className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
                         >
-                          保存
+                          淇濆瓨
                         </button>
                         <button
                           onClick={() => {
@@ -284,7 +284,7 @@ export default function Plugins() {
                           }}
                           className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-secondary"
                         >
-                          取消
+                          鍙栨秷
                         </button>
                       </div>
                     </div>
@@ -296,11 +296,11 @@ export default function Plugins() {
         </ShimmerCard>
       )}
 
-      {/* 可用插件 */}
+      {/* 鍙敤鎻掍欢 */}
       {activeTab === 'available' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="h-16 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -308,10 +308,10 @@ export default function Plugins() {
           ) : available.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <Download className="mb-3 size-12 opacity-30" />
-              <p>暂无可用插件</p>
+              <p>鏆傛棤鍙敤鎻掍欢</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {available.map((plugin) => (
                 <div
                   key={plugin.id}
@@ -325,7 +325,7 @@ export default function Plugins() {
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-text-muted">{plugin.description}</p>
-                    <p className="mt-1 text-xs text-text-muted">作者: {plugin.author}</p>
+                    <p className="mt-1 text-xs text-text-muted">浣滆€? {plugin.author}</p>
                   </div>
                   <button
                     onClick={() => handleInstall(plugin.id)}
@@ -337,7 +337,7 @@ export default function Plugins() {
                     ) : (
                       <Download className="size-3.5" />
                     )}
-                    安装
+                    瀹夎
                   </button>
                 </div>
               ))}
@@ -346,11 +346,11 @@ export default function Plugins() {
         </ShimmerCard>
       )}
 
-      {/* 活跃工具 */}
+      {/* 娲昏穬宸ュ叿 */}
       {activeTab === 'tools' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="h-12 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -358,11 +358,11 @@ export default function Plugins() {
           ) : activeTools.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <Settings className="mb-3 size-12 opacity-30" />
-              <p>暂无活跃工具</p>
-              <p className="text-sm">安装并启用插件后，工具将在此显示</p>
+              <p>鏆傛棤娲昏穬宸ュ叿</p>
+              <p className="text-sm">瀹夎骞跺惎鐢ㄦ彃浠跺悗锛屽伐鍏峰皢鍦ㄦ鏄剧ず</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="fade-in stagger space-y-2">
               {activeTools.map((tool) => (
                 <div
                   key={tool.name}

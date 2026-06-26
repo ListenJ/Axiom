@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import {
   MessageSquare,
   Clock,
@@ -8,10 +8,11 @@ import {
   RefreshCw,
   AlertTriangle,
 } from 'lucide-react'
-import { endpoints } from '../lib/api'
-import ShimmerCard from '../components/ui/ShimmerCard'
+import { endpoints } from '@/lib/api'
+import ShimmerCard from '@/components/ui/ShimmerCard'
+import PageHeader from '@/components/ui/PageHeader'
 
-/* ── Types ─────────────────────────────────────────────────────────── */
+/* 鈹€鈹€ Types 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 interface Session {
   session_id: string
@@ -46,20 +47,20 @@ interface UsageStat {
 
 type Tab = 'sessions' | 'usage'
 
-/* ── Helpers ───────────────────────────────────────────────────────── */
+/* 鈹€鈹€ Helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 function formatTime(epoch: number): string {
-  if (!epoch) return '—'
+  if (!epoch) return '鈥?
   const date = new Date(epoch * 1000)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return '刚刚'
-  if (diffMin < 60) return `${diffMin}分钟前`
+  if (diffMin < 1) return '鍒氬垰'
+  if (diffMin < 60) return `${diffMin}鍒嗛挓鍓峘
   const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}小时前`
+  if (diffHr < 24) return `${diffHr}灏忔椂鍓峘
   const diffDay = Math.floor(diffHr / 24)
-  if (diffDay < 7) return `${diffDay}天前`
+  if (diffDay < 7) return `${diffDay}澶╁墠`
   return date.toLocaleDateString('zh-CN')
 }
 
@@ -74,7 +75,7 @@ function truncateText(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
 }
 
-/* ── Session List Component ────────────────────────────────────────── */
+/* 鈹€鈹€ Session List Component 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 function SessionList({
   sessions,
@@ -91,13 +92,13 @@ function SessionList({
     return (
       <div className="text-center py-12 text-text-secondary">
         <MessageSquare className="w-12 h-12 mx-auto mb-4 text-text-muted" />
-        <p>暂无会话记录</p>
+        <p>鏆傛棤浼氳瘽璁板綍</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-2">
+    <div className="fade-in space-y-2">
       {sorted.map((s) => (
         <div
           key={s.session_id}
@@ -130,20 +131,20 @@ function SessionList({
   )
 }
 
-/* ── Conversation Viewer Component ─────────────────────────────────── */
+/* 鈹€鈹€ Conversation Viewer Component 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 function ConversationViewer({ messages }: { messages: Message[] }) {
   if (messages.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
         <MessageSquare className="w-12 h-12 mx-auto mb-4 text-text-muted" />
-        <p>选择一个会话查看对话记录</p>
+        <p>閫夋嫨涓€涓細璇濇煡鐪嬪璇濊褰?/p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3 max-h-[500px] overflow-y-auto">
+    <div className="fade-in space-y-3 max-h-[500px] overflow-y-auto">
       {messages.map((msg) => (
         <div
           key={msg.id}
@@ -161,7 +162,7 @@ function ConversationViewer({ messages }: { messages: Message[] }) {
                   : 'bg-green-600/20 text-green-400'
               }`}
             >
-              {msg.role === 'user' ? '用户' : '助手'}
+              {msg.role === 'user' ? '鐢ㄦ埛' : '鍔╂墜'}
             </span>
             {msg.agent_id && (
               <span className="text-xs text-text-muted">{msg.agent_id}</span>
@@ -181,20 +182,20 @@ function ConversationViewer({ messages }: { messages: Message[] }) {
   )
 }
 
-/* ── Usage Stats Component ─────────────────────────────────────────── */
+/* 鈹€鈹€ Usage Stats Component 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 function UsageStats({ usage }: { usage: UsageStat[] }) {
   if (usage.length === 0) {
     return (
       <div className="text-center py-12 text-text-secondary">
         <Activity className="w-12 h-12 mx-auto mb-4 text-text-muted" />
-        <p>暂无使用数据</p>
+        <p>鏆傛棤浣跨敤鏁版嵁</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="fade-in space-y-3">
       {usage.map((u, i) => (
         <div key={i} className="p-3 rounded-xl bg-surface border border-border">
           <div className="flex items-center justify-between mb-2">
@@ -205,21 +206,21 @@ function UsageStats({ usage }: { usage: UsageStat[] }) {
               <span className="text-xs text-text-muted">/ {u.model_name}</span>
             </div>
             <span className="text-xs text-text-secondary">
-              {u.call_count} 次调用
+              {u.call_count} 娆¤皟鐢?
             </span>
           </div>
           <div className="flex items-center gap-4 text-xs text-text-muted">
             <span>
-              提示: {formatTokens(u.total_prompt_tokens)}
+              鎻愮ず: {formatTokens(u.total_prompt_tokens)}
             </span>
             <span>
-              输出: {formatTokens(u.total_completion_tokens)}
+              杈撳嚭: {formatTokens(u.total_completion_tokens)}
             </span>
             <span>
-              平均延迟: {Math.round(u.avg_latency_ms)}ms
+              骞冲潎寤惰繜: {Math.round(u.avg_latency_ms)}ms
             </span>
             <span>
-              成功率: {u.call_count > 0 ? Math.round((u.success_count / u.call_count) * 100) : 0}%
+              鎴愬姛鐜? {u.call_count > 0 ? Math.round((u.success_count / u.call_count) * 100) : 0}%
             </span>
           </div>
         </div>
@@ -228,7 +229,7 @@ function UsageStats({ usage }: { usage: UsageStat[] }) {
   )
 }
 
-/* ── Main Component ────────────────────────────────────────────────── */
+/* 鈹€鈹€ Main Component 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 export default function Sessions() {
   const [activeTab, setActiveTab] = useState<Tab>('sessions')
@@ -259,7 +260,7 @@ export default function Sessions() {
         setUsage(data.usage || [])
       }
     } catch {
-      setError('加载失败')
+      setError('鍔犺浇澶辫触')
     } finally {
       setLoading(false)
     }
@@ -282,29 +283,24 @@ export default function Sessions() {
   }, [days])
 
   const tabs = [
-    { id: 'sessions' as Tab, label: '会话列表', icon: MessageSquare },
-    { id: 'usage' as Tab, label: '使用统计', icon: Activity },
+    { id: 'sessions' as Tab, label: '浼氳瘽鍒楄〃', icon: MessageSquare },
+    { id: 'usage' as Tab, label: '浣跨敤缁熻', icon: Activity },
   ]
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      {/* Header */}
+    <div className="fade-in stagger min-h-screen bg-background p-6">
+      <PageHeader
+        icon={<Database className="size-5 text-accent" />}
+        title="会话管理"
+        description="查看会话历史、对话记录和使用统计"
+      />
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Database className="w-8 h-8 text-blue-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-text">会话管理</h1>
-            <p className="text-sm text-text-secondary">
-              查看会话历史、对话记录和使用统计
-            </p>
-          </div>
-        </div>
         <button
           onClick={fetchAll}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
-          刷新
+          鍒锋柊
         </button>
       </div>
 
@@ -353,7 +349,7 @@ export default function Sessions() {
               <div>
                 <h2 className="text-lg font-semibold text-text mb-4 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-blue-400" />
-                  会话列表 ({sessions.length})
+                  浼氳瘽鍒楄〃 ({sessions.length})
                 </h2>
                 <SessionList
                   sessions={sessions}
@@ -364,7 +360,7 @@ export default function Sessions() {
               <div>
                 <h2 className="text-lg font-semibold text-text mb-4 flex items-center gap-2">
                   <ChevronRight className="w-5 h-5 text-green-400" />
-                  对话记录
+                  瀵硅瘽璁板綍
                 </h2>
                 <ConversationViewer messages={messages} />
               </div>
@@ -376,16 +372,16 @@ export default function Sessions() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-text flex items-center gap-2">
                   <Activity className="w-5 h-5 text-purple-400" />
-                  模型使用统计
+                  妯″瀷浣跨敤缁熻
                 </h2>
                 <select
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
                   className="px-3 py-1 bg-surface border border-border rounded-lg text-sm text-text"
                 >
-                  <option value={7}>近7天</option>
-                  <option value={30}>近30天</option>
-                  <option value={90}>近90天</option>
+                  <option value={7}>杩?澶?/option>
+                  <option value={30}>杩?0澶?/option>
+                  <option value={90}>杩?0澶?/option>
                 </select>
               </div>
               <UsageStats usage={usage} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Folder, Tag, Network as NetworkIcon } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -29,44 +29,44 @@ export default function Vault() {
   const loading = stats === null
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in stagger space-y-4">
+      <header className="fade-in stagger space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Folder className="size-6 text-accent" />
-          知识库
+          鐭ヨ瘑搴?
         </h1>
-        <p className="text-text-secondary">Obsidian Vault 笔记与 PARA 视图。</p>
+        <p className="text-text-secondary">Obsidian Vault 绗旇涓?PARA 瑙嗗浘銆?/p>
       </header>
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          部分指标暂不可用：{error}
+          閮ㄥ垎鎸囨爣鏆備笉鍙敤锛歿error}
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
         <ShimmerCard glow>
-          <p className="text-sm text-text-muted">笔记</p>
+          <p className="text-sm text-text-muted">绗旇</p>
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{stats?.notes ?? '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{stats?.notes ?? '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">标签</p>
+          <p className="text-sm text-text-muted">鏍囩</p>
           {loading ? (
             <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{stats?.tags ?? '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{stats?.tags ?? '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">链接</p>
+          <p className="text-sm text-text-muted">閾炬帴</p>
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{stats?.links ?? '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{stats?.links ?? '鈥?}</p>
           )}
         </ShimmerCard>
       </div>
@@ -74,10 +74,10 @@ export default function Vault() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Tag className="size-4 text-accent" />
-          标签
+          鏍囩
         </h2>
         {tags.length === 0 ? (
-          <p className="mt-3 text-sm text-text-muted">暂无标签。</p>
+          <p className="mt-3 text-sm text-text-muted">鏆傛棤鏍囩銆?/p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
             {tags.map((t, i) => (
@@ -95,10 +95,10 @@ export default function Vault() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <NetworkIcon className="size-4 text-accent" />
-          PARA 视图
+          PARA 瑙嗗浘
         </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          在原生 OpenClaw 应用中打开 Vault 浏览器以查看 PARA 分类与反向链接。
+          鍦ㄥ師鐢?OpenClaw 搴旂敤涓墦寮€ Vault 娴忚鍣ㄤ互鏌ョ湅 PARA 鍒嗙被涓庡弽鍚戦摼鎺ャ€?
         </p>
       </ShimmerCard>
     </div>

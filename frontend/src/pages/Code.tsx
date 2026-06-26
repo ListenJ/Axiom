@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Code2, RefreshCw } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -39,64 +39,64 @@ export default function Code() {
   }, [])
 
   return (
-    <div className="space-y-4">
+    <div className="fade-in stagger space-y-4">
       <header className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
+        <div className="fade-in stagger space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Code2 className="size-6 text-accent" />
-            代码图谱
+            浠ｇ爜鍥捐氨
           </h1>
-          <p className="text-text-secondary">CodeGraph 索引状态与文件列表。</p>
+          <p className="text-text-secondary">CodeGraph 绱㈠紩鐘舵€佷笌鏂囦欢鍒楄〃銆?/p>
         </div>
         <button
           type="button"
           onClick={refresh}
           disabled={loading}
-          aria-label="刷新 CodeGraph 数据"
+          aria-label="鍒锋柊 CodeGraph 鏁版嵁"
           className="focus-ring flex h-10 items-center gap-2 rounded-xl bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RefreshCw className={`size-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
-          刷新
+          鍒锋柊
         </button>
       </header>
 
       {error && (
         <ShimmerCard>
           <p role="alert" className="text-sm text-danger">
-            加载失败：{error}
+            鍔犺浇澶辫触锛歿error}
           </p>
         </ShimmerCard>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">已索引文件</p>
+          <p className="text-sm text-text-muted">宸茬储寮曟枃浠?/p>
           {loading && !status ? (
             <div className="mt-2 h-7 w-20 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-2xl font-bold">{status?.indexed ?? '—'}</p>
+            <p className="mt-1 text-2xl font-bold">{status?.indexed ?? '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">状态</p>
+          <p className="text-sm text-text-muted">鐘舵€?/p>
           {loading && !status ? (
             <div className="mt-2 h-5 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-base font-medium">{status?.status ?? '未知'}</p>
+            <p className="mt-1 text-base font-medium">{status?.status ?? '鏈煡'}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">最近构建</p>
+          <p className="text-sm text-text-muted">鏈€杩戞瀯寤?/p>
           {loading && !status ? (
             <div className="mt-2 h-4 w-32 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-sm font-mono">{status?.last_build ?? '—'}</p>
+            <p className="mt-1 text-sm font-mono">{status?.last_build ?? '鈥?}</p>
           )}
         </ShimmerCard>
       </div>
 
       <ShimmerCard>
-        <h2 className="text-base font-semibold">文件列表</h2>
+        <h2 className="text-base font-semibold">鏂囦欢鍒楄〃</h2>
         {loading && files.length === 0 ? (
           <div className="mt-3 space-y-2" aria-hidden="true">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -104,7 +104,7 @@ export default function Code() {
             ))}
           </div>
         ) : files.length === 0 ? (
-          <p className="mt-3 text-sm text-text-muted">暂无文件。请先运行 CodeGraph 索引。</p>
+          <p className="mt-3 text-sm text-text-muted">鏆傛棤鏂囦欢銆傝鍏堣繍琛?CodeGraph 绱㈠紩銆?/p>
         ) : (
           <ul className="mt-3 max-h-80 space-y-1 overflow-y-auto font-mono text-xs">
             {files.map((f, i) => (

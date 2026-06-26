@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { BarChart3, Zap, RefreshCw, Play, Settings } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -106,20 +106,20 @@ export default function Eval() {
   }
 
   const tabs = [
-    { id: 'results' as const, label: '评估结果', icon: BarChart3 },
-    { id: 'assignments' as const, label: '动态分配', icon: Settings },
-    { id: 'models' as const, label: '模型列表', icon: Zap },
+    { id: 'results' as const, label: '璇勪及缁撴灉', icon: BarChart3 },
+    { id: 'assignments' as const, label: '鍔ㄦ€佸垎閰?, icon: Settings },
+    { id: 'models' as const, label: '妯″瀷鍒楄〃', icon: Zap },
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="fade-in stagger space-y-4">
       <header className="flex items-center justify-between">
-        <div className="space-y-1">
+        <div className="fade-in stagger space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <BarChart3 className="size-6 text-accent" />
-            模型评估
+            妯″瀷璇勪及
           </h1>
-          <p className="text-text-secondary">评估模型质量、速度和成本，支持动态分配。</p>
+          <p className="text-text-secondary">璇勪及妯″瀷璐ㄩ噺銆侀€熷害鍜屾垚鏈紝鏀寔鍔ㄦ€佸垎閰嶃€?/p>
         </div>
         <div className="flex gap-2">
           <button
@@ -128,7 +128,7 @@ export default function Eval() {
             className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {running ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-            快速评估
+            蹇€熻瘎浼?
           </button>
           <button
             onClick={handleAssign}
@@ -136,21 +136,21 @@ export default function Eval() {
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-secondary disabled:opacity-50"
           >
             <Settings className="size-3.5" />
-            重新分配
+            閲嶆柊鍒嗛厤
           </button>
         </div>
       </header>
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          部分数据暂不可用：{error}
+          閮ㄥ垎鏁版嵁鏆備笉鍙敤锛歿error}
         </p>
       )}
 
-      {/* 统计卡片 */}
+      {/* 缁熻鍗＄墖 */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-busy={loading}>
         <ShimmerCard glow>
-          <p className="text-sm text-text-muted">已评估模型</p>
+          <p className="text-sm text-text-muted">宸茶瘎浼版ā鍨?/p>
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
@@ -161,17 +161,17 @@ export default function Eval() {
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">平均分</p>
+          <p className="text-sm text-text-muted">骞冲潎鍒?/p>
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
             <p className={`mt-1 text-3xl font-bold ${getScoreColor(stats?.avgScore ?? 0)}`}>
-              {stats?.avgScore !== undefined ? `${(stats.avgScore * 100).toFixed(1)}%` : '—'}
+              {stats?.avgScore !== undefined ? `${(stats.avgScore * 100).toFixed(1)}%` : '鈥?}
             </p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">活跃分配</p>
+          <p className="text-sm text-text-muted">娲昏穬鍒嗛厤</p>
           {loading ? (
             <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
@@ -179,18 +179,18 @@ export default function Eval() {
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">上次评估</p>
+          <p className="text-sm text-text-muted">涓婃璇勪及</p>
           {loading ? (
             <div className="mt-2 h-8 w-20 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
             <p className="mt-1 text-lg font-bold">
-              {stats?.lastEvalTime ? new Date(stats.lastEvalTime).toLocaleDateString() : '—'}
+              {stats?.lastEvalTime ? new Date(stats.lastEvalTime).toLocaleDateString() : '鈥?}
             </p>
           )}
         </ShimmerCard>
       </div>
 
-      {/* 筛选器 */}
+      {/* 绛涢€夊櫒 */}
       <div className="flex items-center gap-4">
         <div className="flex gap-1 rounded-lg border border-border p-1">
           {tabs.map((tab) => (
@@ -215,30 +215,30 @@ export default function Eval() {
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              <option value="overall">综合分</option>
-              <option value="quality">质量</option>
-              <option value="speed">速度</option>
-              <option value="cost">成本</option>
+              <option value="overall">缁煎悎鍒?/option>
+              <option value="quality">璐ㄩ噺</option>
+              <option value="speed">閫熷害</option>
+              <option value="cost">鎴愭湰</option>
             </select>
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
               className="rounded-lg border border-border bg-bg px-3 py-1.5 text-sm text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              <option value={1}>1 天</option>
-              <option value={7}>7 天</option>
-              <option value={30}>30 天</option>
-              <option value={90}>90 天</option>
+              <option value={1}>1 澶?/option>
+              <option value={7}>7 澶?/option>
+              <option value={30}>30 澶?/option>
+              <option value={90}>90 澶?/option>
             </select>
           </>
         )}
       </div>
 
-      {/* 评估结果 */}
+      {/* 璇勪及缁撴灉 */}
       {activeTab === 'results' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-12 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -246,21 +246,21 @@ export default function Eval() {
           ) : sortedResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <BarChart3 className="mb-3 size-12 opacity-30" />
-              <p>暂无评估结果</p>
-              <p className="text-sm">点击"快速评估"开始评估模型</p>
+              <p>鏆傛棤璇勪及缁撴灉</p>
+              <p className="text-sm">鐐瑰嚮"蹇€熻瘎浼?寮€濮嬭瘎浼版ā鍨?/p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-text-muted">
-                    <th className="pb-2 font-medium">模型</th>
-                    <th className="pb-2 font-medium">提供商</th>
-                    <th className="pb-2 font-medium">综合</th>
-                    <th className="pb-2 font-medium">质量</th>
-                    <th className="pb-2 font-medium">速度</th>
-                    <th className="pb-2 font-medium">成本</th>
-                    <th className="pb-2 font-medium">上次评估</th>
+                    <th className="pb-2 font-medium">妯″瀷</th>
+                    <th className="pb-2 font-medium">鎻愪緵鍟?/th>
+                    <th className="pb-2 font-medium">缁煎悎</th>
+                    <th className="pb-2 font-medium">璐ㄩ噺</th>
+                    <th className="pb-2 font-medium">閫熷害</th>
+                    <th className="pb-2 font-medium">鎴愭湰</th>
+                    <th className="pb-2 font-medium">涓婃璇勪及</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,11 +286,11 @@ export default function Eval() {
         </ShimmerCard>
       )}
 
-      {/* 动态分配 */}
+      {/* 鍔ㄦ€佸垎閰?*/}
       {activeTab === 'assignments' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="h-16 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -298,11 +298,11 @@ export default function Eval() {
           ) : assignments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <Settings className="mb-3 size-12 opacity-30" />
-              <p>暂无活跃分配</p>
-              <p className="text-sm">点击"重新分配"开始动态分配模型</p>
+              <p>鏆傛棤娲昏穬鍒嗛厤</p>
+              <p className="text-sm">鐐瑰嚮"閲嶆柊鍒嗛厤"寮€濮嬪姩鎬佸垎閰嶆ā鍨?/p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {assignments.map((a) => (
                 <div
                   key={a.id}
@@ -334,11 +334,11 @@ export default function Eval() {
         </ShimmerCard>
       )}
 
-      {/* 模型列表 */}
+      {/* 妯″瀷鍒楄〃 */}
       {activeTab === 'models' && (
         <ShimmerCard>
           {loading ? (
-            <div className="space-y-3">
+            <div className="fade-in stagger space-y-3">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-14 w-full animate-pulse rounded bg-bg-tertiary" />
               ))}
@@ -346,10 +346,10 @@ export default function Eval() {
           ) : models.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-text-muted">
               <Zap className="mb-3 size-12 opacity-30" />
-              <p>暂无可用模型</p>
+              <p>鏆傛棤鍙敤妯″瀷</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="fade-in stagger space-y-2">
               {models.map((m) => (
                 <div
                   key={m.id}
@@ -365,7 +365,7 @@ export default function Eval() {
                     </div>
                   </div>
                   <div className="flex items-center gap-6 text-sm text-text-muted">
-                    <span>上下文: {m.contextLength.toLocaleString()}</span>
+                    <span>涓婁笅鏂? {m.contextLength.toLocaleString()}</span>
                     <span>
                       ${(m.pricing.prompt * 1000).toFixed(4)}/1K
                     </span>
