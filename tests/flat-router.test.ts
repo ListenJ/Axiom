@@ -202,6 +202,33 @@ describe("Quick Key Commands", () => {
 const describeOrSkip = process.env.CI ? describe.skip : describe;
 
 describeOrSkip("Router Performance", () => {
+  let assignSpy: ReturnType<typeof spyOn> | undefined;
+  let routeByIntentSpy: ReturnType<typeof spyOn> | undefined;
+
+  beforeAll(() => {
+    assignSpy = spyOn(router, "assign").mockImplementation(() => ({
+      model: "mocked-model",
+      provider: "mocked-provider",
+      role: "coding" as any,
+      thinking: "none" as any,
+      reason: "test",
+    }));
+    routeByIntentSpy = spyOn(router, "routeByIntent").mockImplementation(async () => ({
+      content: "mocked response",
+      model: "mocked-model",
+      provider: "mocked-provider",
+      usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+      routingMeta: { role: "general-chat", thinking: "none", reason: "test" },
+      latencyMs: 10,
+      fallbackUsed: false,
+    }));
+  });
+
+  afterAll(() => {
+    assignSpy?.mockRestore();
+    routeByIntentSpy?.mockRestore();
+  });
+
   it("should handle concurrent requests", async () => {
     const promises = Array.from({ length: 5 }, (_, i) =>
       router.routeByIntent("chat", [
@@ -209,17 +236,13 @@ describeOrSkip("Router Performance", () => {
       ])
     );
 
-    try {
-      const results = await Promise.allSettled(promises);
-      expect(results.length).toBe(5);
+    const results = await Promise.allSettled(promises);
+    expect(results.length).toBe(5);
 
-      for (const result of results) {
-        expect(result.status).toBeOneOf(["fulfilled", "rejected"]);
-      }
-    } catch {
-      expect(true).toBe(true);
+    for (const result of results) {
+      expect(result.status).toBe("fulfilled");
     }
-  }, 30000);
+  });
 
   it("should assign models quickly", () => {
     const start = performance.now();

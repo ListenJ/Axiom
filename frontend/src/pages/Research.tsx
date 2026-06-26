@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Microscope, Search, Loader2, ExternalLink, AlertCircle, Sparkles } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { useApp } from '@/state/useApp'
@@ -31,7 +31,7 @@ export default function Research() {
   const handleRun = async () => {
     const q = query.trim()
     if (!q) {
-      toast('请输入研究问题', 'warning')
+      toast('璇疯緭鍏ョ爺绌堕棶棰?, 'warning')
       return
     }
     setRunning(true)
@@ -47,42 +47,42 @@ export default function Research() {
         entities: Array.isArray(r.entities) ? r.entities : [],
         depth,
       })
-      toast('研究完成', 'success')
+      toast('鐮旂┒瀹屾垚', 'success')
     } catch (e) {
       const msg = (e as Error)?.message ?? String(e)
       setError(msg)
-      toast('研究失败：' + msg, 'error')
+      toast('鐮旂┒澶辫触锛? + msg, 'error')
     } finally {
       setRunning(false)
     }
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in space-y-4">
+      <header className="fade-in space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Microscope className="size-6 text-accent" />
-          深度研究
+          娣卞害鐮旂┒
         </h1>
-        <p className="text-text-secondary">基于知识图谱的多源深度研究。</p>
+        <p className="text-text-secondary">鍩轰簬鐭ヨ瘑鍥捐氨鐨勫婧愭繁搴︾爺绌躲€?/p>
       </header>
 
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Sparkles className="size-4 text-accent" />
-          研究问题
+          鐮旂┒闂
         </h2>
         <div className="mt-3 space-y-3">
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             rows={3}
-            placeholder="输入研究问题，例如：Rust vs Go 在微服务中的性能对比"
+            placeholder="杈撳叆鐮旂┒闂锛屼緥濡傦細Rust vs Go 鍦ㄥ井鏈嶅姟涓殑鎬ц兘瀵规瘮"
             className="w-full rounded-lg border border-border bg-bg p-3 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-text-muted">搜索深度 (1-5)</label>
+              <label className="text-xs text-text-muted">鎼滅储娣卞害 (1-5)</label>
               <input
                 type="number"
                 min={1}
@@ -93,7 +93,7 @@ export default function Research() {
               />
             </div>
             <div>
-              <label className="text-xs text-text-muted">最大来源数</label>
+              <label className="text-xs text-text-muted">鏈€澶ф潵婧愭暟</label>
               <input
                 type="number"
                 min={1}
@@ -111,7 +111,7 @@ export default function Research() {
             className="focus-ring flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {running ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-            {running ? '研究中…' : '开始研究'}
+            {running ? '鐮旂┒涓€? : '寮€濮嬬爺绌?}
           </button>
         </div>
       </ShimmerCard>
@@ -129,7 +129,7 @@ export default function Research() {
             <ShimmerCard>
               <h2 className="flex items-center gap-2 text-base font-semibold">
                 <Sparkles className="size-4 text-accent" />
-                研究摘要
+                鐮旂┒鎽樿
               </h2>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-text">
                 {result.summary}
@@ -139,14 +139,14 @@ export default function Research() {
 
           {result.entities && result.entities.length > 0 && (
             <ShimmerCard>
-              <h2 className="text-base font-semibold">相关实体 ({result.entities.length})</h2>
+              <h2 className="text-base font-semibold">鐩稿叧瀹炰綋 ({result.entities.length})</h2>
               <div className="mt-3 flex flex-wrap gap-2">
                 {result.entities.map((e, i) => (
                   <span
                     key={i}
                     className="rounded-full border border-border bg-bg-tertiary px-3 py-1 text-xs text-text-secondary"
                   >
-                    {e.name} <span className="text-text-muted">· {e.type}</span>
+                    {e.name} <span className="text-text-muted">路 {e.type}</span>
                   </span>
                 ))}
               </div>
@@ -154,9 +154,9 @@ export default function Research() {
           )}
 
           <ShimmerCard>
-            <h2 className="text-base font-semibold">参考来源 ({result.sources.length})</h2>
+            <h2 className="text-base font-semibold">鍙傝€冩潵婧?({result.sources.length})</h2>
             {result.sources.length === 0 ? (
-              <p className="mt-3 text-sm text-text-muted">未找到来源</p>
+              <p className="mt-3 text-sm text-text-muted">鏈壘鍒版潵婧?/p>
             ) : (
               <div className="mt-3 space-y-2">
                 {result.sources.map((s, i) => (
@@ -174,7 +174,7 @@ export default function Research() {
                           <p className="mt-1 line-clamp-2 text-xs text-text-muted">{s.snippet}</p>
                         )}
                         <p className="mt-1 truncate text-2xs text-text-muted">
-                          {s.source} · {s.link}
+                          {s.source} 路 {s.link}
                         </p>
                       </div>
                       <ExternalLink className="size-3.5 shrink-0 text-text-muted" />

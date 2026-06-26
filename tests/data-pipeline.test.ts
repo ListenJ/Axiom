@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { DataPipeline } from "../src/crawl/data-pipeline.js";
 
-const describeOrSkip = process.env.CI ? describe.skip : describe;
-describeOrSkip("DataPipeline", () => {
+describe("DataPipeline", () => {
   let pipeline: DataPipeline;
 
   beforeEach(() => {

@@ -53,7 +53,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               end={item.path === '/'}
               onClick={() => onClose()}
               className={({ isActive }) =>
-                `press group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Search as SearchIcon, Code, FileText } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -45,10 +45,10 @@ export default function Search() {
   }, [q])
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">搜索</h1>
-        <p className="text-text-secondary">统一搜索 Vault 笔记与代码库。</p>
+    <div className="fade-in space-y-4">
+      <header className="fade-in space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight">鎼滅储</h1>
+        <p className="text-text-secondary">缁熶竴鎼滅储 Vault 绗旇涓庝唬鐮佸簱銆?/p>
       </header>
 
       <div className="relative">
@@ -58,8 +58,8 @@ export default function Search() {
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="输入关键词，按 / 聚焦…"
-          aria-label="搜索关键词"
+          placeholder="杈撳叆鍏抽敭璇嶏紝鎸?/ 鑱氱劍鈥?
+          aria-label="鎼滅储鍏抽敭璇?
           className="h-11 w-full rounded-xl border border-border bg-surface pl-9 pr-4 text-sm text-text placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
         />
       </div>
@@ -71,7 +71,7 @@ export default function Search() {
       )}
 
       {loading && (
-        <div className="space-y-3" aria-busy="true" aria-label="正在搜索">
+        <div className="fade-in space-y-3" aria-busy="true" aria-label="姝ｅ湪鎼滅储">
           {[0, 1, 2].map((i) => (
             <div
               key={i}
@@ -91,11 +91,11 @@ export default function Search() {
 
       {!loading && q && results.length === 0 && (
         <ShimmerCard>
-          <p className="text-sm text-text-secondary">没有匹配结果。</p>
+          <p className="text-sm text-text-secondary">娌℃湁鍖归厤缁撴灉銆?/p>
         </ShimmerCard>
       )}
 
-      <div className="space-y-3">
+      <div className="fade-in space-y-3">
         {results.map((r, i) => {
           const Icon = r.type === 'code' ? Code : FileText
           return (

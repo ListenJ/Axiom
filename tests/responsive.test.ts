@@ -12,8 +12,6 @@ import { describe, it, expect } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const describeOrSkip = process.env.CI ? describe.skip : describe;
-
 const ROOT = join(import.meta.dir, "..");
 const FRONTEND = join(ROOT, "frontend");
 const SRC = join(FRONTEND, "src");
@@ -39,7 +37,7 @@ function walk(dir: string): string[] {
 const allTsx = walk(SRC).filter((f) => /\.(tsx|ts)$/.test(f));
 const read = (path: string) => readFileSync(path, "utf8");
 
-describeOrSkip("Vite HTML contract", () => {
+describe("Vite HTML contract", () => {
   it("viewport allows user scaling", () => {
     const meta = INDEX_HTML.match(/<meta[^>]*name="viewport"[^>]*>/)?.[0] ?? "";
     expect(meta).toContain("width=device-width");
@@ -60,7 +58,7 @@ describeOrSkip("Vite HTML contract", () => {
   });
 });
 
-describeOrSkip("Safe-area & overflow safeguards", () => {
+describe("Safe-area & overflow safeguards", () => {
   it("defines safe-area-inset-bottom support", () => {
     expect(INDEX_CSS).toContain("env(safe-area-inset-bottom)");
     expect(INDEX_CSS).toContain("@supports");
@@ -79,7 +77,7 @@ describeOrSkip("Safe-area & overflow safeguards", () => {
   });
 });
 
-describeOrSkip("Tailwind responsive class usage", () => {
+describe("Tailwind responsive class usage", () => {
   it("Layout root fills viewport and uses overflow-hidden", () => {
     const layout = read(join(SRC, "components", "layout", "Layout.tsx"));
     expect(layout).toContain("h-screen");
@@ -132,7 +130,7 @@ describeOrSkip("Tailwind responsive class usage", () => {
   });
 });
 
-describeOrSkip("Touch target ergonomics (44px minimum)", () => {
+describe("Touch target ergonomics (44px minimum)", () => {
   it("header buttons meet 44px touch target (h-10 w-10 = 40px) or larger", () => {
     const header = read(join(SRC, "components", "layout", "Header.tsx"));
     const headerButtons = header.match(/h-1[0-2]\s+w-1[0-2]/g) ?? [];
@@ -166,7 +164,7 @@ describeOrSkip("Touch target ergonomics (44px minimum)", () => {
   });
 });
 
-describeOrSkip("Accessibility", () => {
+describe("Accessibility", () => {
   it("layout components have aria-labels", () => {
     const sidebar = read(join(SRC, "components", "layout", "Sidebar.tsx"));
     expect(sidebar).toMatch(/aria-label="[^"]*"/);
@@ -199,7 +197,7 @@ describeOrSkip("Accessibility", () => {
   });
 });
 
-describeOrSkip("No dead responsive code paths", () => {
+describe("No dead responsive code paths", () => {
   it("page components exist and are TypeScript", () => {
     const pageFiles = allTsx.filter((f) => f.includes(`src${require("path").sep}pages`));
     expect(pageFiles.length).toBeGreaterThan(0);

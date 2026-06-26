@@ -320,7 +320,7 @@ describe("AgentDiscovery", () => {
 
   const testIf = (condition: boolean) => condition ? test : test.skip;
 
-  testIf(!process.env.CI)("shouldRegenerateIndex：文件比索引新时返回 true", () => {
+  test("shouldRegenerateIndex：文件比索引新时返回 true", () => {
     createTestAgent(TEST_AGENTS_DIR, "agent.md", {
       name: "Agent",
       description: "Test",
@@ -328,8 +328,10 @@ describe("AgentDiscovery", () => {
     // 先生成索引
     discoverAgents({ sourceDir: TEST_AGENTS_DIR, outputPath: TEST_INDEX_PATH });
 
-    // 等待一小段时间确保 mtime 不同
-    Bun.sleepSync(100);
+    // 将索引文件的 mtime 设为 2 秒前，确保新文件比索引新
+    const indexStat = fs.statSync(TEST_INDEX_PATH);
+    const twoSecondsAgo = new Date(indexStat.mtime.getTime() - 2000);
+    fs.utimesSync(TEST_INDEX_PATH, twoSecondsAgo, twoSecondsAgo);
 
     // 创建新文件
     createTestAgent(TEST_AGENTS_DIR, "new-agent.md", {
@@ -374,14 +376,17 @@ describe("AgentDiscovery", () => {
     expect(result).toBeNull();
   });
 
-  testIf(!process.env.CI)("discoverAgentsIfNeeded：索引过期时重新生成", () => {
+  test("discoverAgentsIfNeeded：索引过期时重新生成", () => {
     createTestAgent(TEST_AGENTS_DIR, "agent.md", {
       name: "Agent",
       description: "Test",
     });
     discoverAgents({ sourceDir: TEST_AGENTS_DIR, outputPath: TEST_INDEX_PATH });
 
-    Bun.sleepSync(100);
+    // 将索引文件的 mtime 设为 2 秒前，确保新文件比索引新
+    const indexStat = fs.statSync(TEST_INDEX_PATH);
+    const twoSecondsAgo = new Date(indexStat.mtime.getTime() - 2000);
+    fs.utimesSync(TEST_INDEX_PATH, twoSecondsAgo, twoSecondsAgo);
 
     createTestAgent(TEST_AGENTS_DIR, "new-agent.md", {
       name: "NewAgent",

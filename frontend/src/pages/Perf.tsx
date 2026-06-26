@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Activity, Cpu } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { endpoints } from '@/lib/api'
@@ -31,18 +31,18 @@ export default function Perf() {
   const loading = m === null
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
+    <div className="fade-in stagger space-y-4">
+      <header className="fade-in stagger space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Activity className="size-6 text-accent" />
-          性能
+          鎬ц兘
         </h1>
-        <p className="text-text-secondary">运行时指标与原生模块统计。</p>
+        <p className="text-text-secondary">杩愯鏃舵寚鏍囦笌鍘熺敓妯″潡缁熻銆?/p>
       </header>
 
       {error && (
         <p role="alert" className="text-sm text-warning">
-          部分指标暂不可用：{error}
+          閮ㄥ垎鎸囨爣鏆備笉鍙敤锛歿error}
         </p>
       )}
 
@@ -52,15 +52,15 @@ export default function Perf() {
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{m?.cpu !== undefined ? `${m.cpu.toFixed(1)}%` : '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{m?.cpu !== undefined ? `${m.cpu.toFixed(1)}%` : '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
-          <p className="text-sm text-text-muted">内存</p>
+          <p className="text-sm text-text-muted">鍐呭瓨</p>
           {loading ? (
             <div className="mt-2 h-8 w-16 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{m?.memory !== undefined ? `${m.memory.toFixed(1)}%` : '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{m?.memory !== undefined ? `${m.memory.toFixed(1)}%` : '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
@@ -68,7 +68,7 @@ export default function Perf() {
           {loading ? (
             <div className="mt-2 h-8 w-12 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{m?.rps ?? '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{m?.rps ?? '鈥?}</p>
           )}
         </ShimmerCard>
         <ShimmerCard>
@@ -76,7 +76,7 @@ export default function Perf() {
           {loading ? (
             <div className="mt-2 h-8 w-14 animate-pulse rounded bg-bg-tertiary" aria-hidden="true" />
           ) : (
-            <p className="mt-1 text-3xl font-bold">{m?.p95 !== undefined ? `${m.p95}ms` : '—'}</p>
+            <p className="mt-1 text-3xl font-bold">{m?.p95 !== undefined ? `${m.p95}ms` : '鈥?}</p>
           )}
         </ShimmerCard>
       </div>
@@ -84,7 +84,7 @@ export default function Perf() {
       <ShimmerCard>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Cpu className="size-4 text-accent" />
-          原生模块
+          鍘熺敓妯″潡
         </h2>
         {native ? (
           <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-border bg-bg p-3 text-xs text-text-secondary">
@@ -95,7 +95,7 @@ export default function Perf() {
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="h-3 w-full animate-pulse rounded bg-bg-tertiary" />
             ))}
-            <p className="mt-2 text-xs text-text-muted">原生模块未启用或暂无数据。</p>
+            <p className="mt-2 text-xs text-text-muted">鍘熺敓妯″潡鏈惎鐢ㄦ垨鏆傛棤鏁版嵁銆?/p>
           </div>
         )}
       </ShimmerCard>
