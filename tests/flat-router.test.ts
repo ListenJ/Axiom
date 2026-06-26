@@ -207,11 +207,12 @@ describeOrSkip("Router Performance", () => {
 
   beforeAll(() => {
     assignSpy = spyOn(router, "assign").mockImplementation(() => ({
-      model: "mocked-model",
+      model: "mocked-model" as any,
       provider: "mocked-provider",
       role: "coding" as any,
       thinking: "none" as any,
       reason: "test",
+      fallbackChain: [],
     }));
     routeByIntentSpy = spyOn(router, "routeByIntent").mockImplementation(async () => ({
       content: "mocked response",
