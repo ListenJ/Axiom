@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.8.0 (2026-06-26)
+
+### ✨ 新增功能
+
+- **知识图谱增强** - 新增 `src/kg/enhanced.ts`
+  - 语义层: 节点语义描述、标签系统
+  - 可视化: ECharts/D3.js 数据格式生成
+  - 社区检测: Louvain 算法 (简化版)
+  - 自然语言查询: NL → 图查询转换
+  - 多跳路径查找: BFS + DFS 混合策略
+  - 10 个新 MCP 工具:
+    - `kg_add_node`: 添加节点
+    - `kg_add_edge`: 添加边
+    - `kg_search_nodes`: 搜索节点
+    - `kg_subgraph`: 子图检索
+    - `kg_shortest_path`: 最短路径
+    - `kg_detect_communities`: 社区检测
+    - `kg_echarts_data`: ECharts 可视化数据
+    - `kg_d3_data`: D3.js 可视化数据
+    - `kg_nl_query`: 自然语言查询
+    - `kg_enhanced_stats`: 增强统计信息
+- **MCP 工具总数** - 从 130+ 扩展到 140+ 个工具
+
 ## v2.7.0 (2026-06-26)
 
 ### ✨ 新增功能

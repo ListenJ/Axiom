@@ -1,4 +1,4 @@
-﻿# 🦅 OpenClaw AI Agent v2.7.0
+﻿# 🦅 OpenClaw AI Agent v2.8.0
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
@@ -215,7 +215,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 130+ 个工具，兼容任何 MCP Client：
+暴露 140+ 个工具，兼容任何 MCP Client：
 
 | 类别 | 工具 |
 |------|------|
@@ -229,7 +229,8 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | Prompt 连接池 | `prompt_pool_acquire`, `prompt_pool_metrics`, `prompt_pool_status`, `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict` |
 | 多 Agent 编排 | `orchestrator_execute_task`, `orchestrator_execute_plan`, `orchestrator_list_agents`, `orchestrator_health_check`, `orchestrator_status` |
 | DRE 确定性推理 | `dre_write_knowledge`, `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_consciousness_step`, `dre_status` |
-| 知识图谱 | `kg_stats`, `kg_entities`, `kg_entity_detail`, `kg_traverse`, `kg_build`, `kg_search`, `kg_graph` |
+| 知识图谱基础 | `kg_stats`, `kg_entities`, `kg_entity_detail`, `kg_traverse`, `kg_build`, `kg_search`, `kg_graph` |
+| 知识图谱增强 | `kg_add_node`, `kg_add_edge`, `kg_search_nodes`, `kg_subgraph`, `kg_shortest_path`, `kg_detect_communities`, `kg_echarts_data`, `kg_d3_data`, `kg_nl_query`, `kg_enhanced_stats` |
 | 模型 | `model_chat`, `list_free_models` |
 | 数据 | `db_query` |
 | Agent | `opencode_status`, `project_research`, `hermes_status` |

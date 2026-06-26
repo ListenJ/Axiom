@@ -122,6 +122,7 @@ import { getIssue as getGitHubIssue } from "./tools/github.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
 import { getAgentOrchestrator, type AgentTask } from "../agents/orchestrator.js";
 import { DREngine, type KnowledgeItem } from "../dre/index.js";
+import { KnowledgeGraphEnhanced } from "../kg/enhanced.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
@@ -131,7 +132,7 @@ const vault = new VaultManager();
 
 const mcp = new McpServer({
   name: "OpenClaw Agent MCP Server",
-  version: "2.7.0",
+  version: "2.8.0",
 });
 
 // ===== 工具定义（单一事实来源） =====
@@ -2576,6 +2577,208 @@ registry.add({
     } catch (err) {
       return { success: false, error: (err as Error).message };
     }
+  },
+});
+
+// ===== 知识图谱增强工具 =====
+
+// 知识图谱增强实例
+let kgEnhanced: KnowledgeGraphEnhanced | null = null;
+
+function getKGEnhanced(): KnowledgeGraphEnhanced {
+  if (!kgEnhanced) {
+    kgEnhanced = new KnowledgeGraphEnhanced(db);
+  }
+  return kgEnhanced;
+}
+
+registry.add({
+  name: "kg_add_node",
+  description: "添加知识图谱节点",
+  inputSchema: {
+    type: z.enum(["function", "class", "module", "interface", "type", "variable", "file", "directory", "concept", "entity"]).describe("节点类型"),
+    name: z.string().describe("节点名称"),
+    description: z.string().optional().describe("节点描述"),
+    filePath: z.string().optional().describe("文件路径"),
+    lineNumber: z.number().optional().describe("行号"),
+    signature: z.string().optional().describe("函数签名"),
+    tags: z.array(z.string()).optional().describe("标签"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    kg.addNode({
+      id: nodeId,
+      type: args.type as any,
+      name: args.name as string,
+      description: args.description as string,
+      filePath: args.filePath as string,
+      lineNumber: args.lineNumber as number,
+      signature: args.signature as string,
+      tags: args.tags as string[],
+    });
+    return { success: true, nodeId };
+  },
+});
+
+registry.add({
+  name: "kg_add_edge",
+  description: "添加知识图谱边",
+  inputSchema: {
+    source: z.string().describe("源节点 ID"),
+    target: z.string().describe("目标节点 ID"),
+    type: z.enum(["calls", "imports", "extends", "implements", "contains", "depends-on", "related-to", "is-a", "part-of", "uses", "defines", "exports"]).describe("边类型"),
+    weight: z.number().optional().default(1.0).describe("权重"),
+    description: z.string().optional().describe("描述"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    const edgeId = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    kg.addEdge({
+      id: edgeId,
+      source: args.source as string,
+      target: args.target as string,
+      type: args.type as any,
+      weight: (args.weight as number) || 1.0,
+      description: args.description as string,
+    });
+    return { success: true, edgeId };
+  },
+});
+
+registry.add({
+  name: "kg_search_nodes",
+  description: "搜索知识图谱节点",
+  inputSchema: {
+    query: z.string().describe("搜索关键词"),
+    type: z.enum(["function", "class", "module", "interface", "type", "variable", "file", "directory", "concept", "entity"]).optional().describe("节点类型过滤"),
+    limit: z.number().optional().default(20).describe("返回数量"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    const nodes = kg.searchNodes(args.query as string, {
+      type: args.type as any,
+      limit: args.limit as number,
+    });
+    return nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      name: n.name,
+      description: n.description,
+      importance: n.importance,
+    }));
+  },
+});
+
+registry.add({
+  name: "kg_subgraph",
+  description: "获取知识图谱子图 (BFS)",
+  inputSchema: {
+    nodeId: z.string().describe("起始节点 ID"),
+    depth: z.number().optional().default(2).describe("遍历深度"),
+    maxNodes: z.number().optional().default(100).describe("最大节点数"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    const result = kg.subgraph(args.nodeId as string, args.depth as number, args.maxNodes as number);
+    return {
+      nodes: result.nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        name: n.name,
+        description: n.description,
+      })),
+      edges: result.edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: e.type,
+        weight: e.weight,
+      })),
+    };
+  },
+});
+
+registry.add({
+  name: "kg_shortest_path",
+  description: "查找两个节点之间的最短路径",
+  inputSchema: {
+    startId: z.string().describe("起始节点 ID"),
+    endId: z.string().describe("结束节点 ID"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    const path = kg.shortestPath(args.startId as string, args.endId as string);
+    if (!path) {
+      return { success: false, error: "No path found" };
+    }
+    return { success: true, path };
+  },
+});
+
+registry.add({
+  name: "kg_detect_communities",
+  description: "检测知识图谱社区",
+  inputSchema: {},
+  handler: async () => {
+    const kg = getKGEnhanced();
+    const communities = kg.detectCommunities();
+    return communities.map((c) => ({
+      id: c.id,
+      label: c.label,
+      description: c.description,
+      nodeCount: c.nodes.length,
+    }));
+  },
+});
+
+registry.add({
+  name: "kg_echarts_data",
+  description: "获取 ECharts 可视化数据",
+  inputSchema: {
+    maxNodes: z.number().optional().default(200).describe("最大节点数"),
+    includeEdges: z.boolean().optional().default(true).describe("是否包含边"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    return kg.toEChartsData({
+      maxNodes: args.maxNodes as number,
+      includeEdges: args.includeEdges as boolean,
+    });
+  },
+});
+
+registry.add({
+  name: "kg_d3_data",
+  description: "获取 D3.js 可视化数据",
+  inputSchema: {
+    maxNodes: z.number().optional().default(200).describe("最大节点数"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    return kg.toD3Data({ maxNodes: args.maxNodes as number });
+  },
+});
+
+registry.add({
+  name: "kg_nl_query",
+  description: "自然语言查询知识图谱",
+  inputSchema: {
+    question: z.string().describe("自然语言问题"),
+  },
+  handler: async (args) => {
+    const kg = getKGEnhanced();
+    return kg.queryNL(args.question as string);
+  },
+});
+
+registry.add({
+  name: "kg_enhanced_stats",
+  description: "获取知识图谱增强统计信息",
+  inputSchema: {},
+  handler: async () => {
+    const kg = getKGEnhanced();
+    return kg.getStats();
   },
 });
 
