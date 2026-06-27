@@ -19,6 +19,7 @@
 import type { TriggerConfig } from "./types.js";
 import { getActivityTracker } from "./activity-tracker.js";
 import { getStateStore } from "./state-store.js";
+import { analyzeTrace } from "./trace-analyzer.js";
 
 export function evaluate(config: TriggerConfig, now: number = Date.now()): {
   fired: import("./types.js").ReflectionTrigger;
@@ -33,6 +34,12 @@ export function evaluate(config: TriggerConfig, now: number = Date.now()): {
   // Token-budget trigger — cheap to check.
   if (state.tokensSpentThisSession >= config.tokenBudget) {
     return { fired: { kind: "token-budget", tokensUsed: state.tokensSpentThisSession, budget: config.tokenBudget }, withinQuietHours: false };
+  }
+
+  // Trace anomaly trigger — deterministic, zero LLM cost (ported from DRE).
+  const anomaly = analyzeTrace();
+  if (anomaly && anomaly.severity > 0.5) {
+    return { fired: { kind: "trace-anomaly", anomaly }, withinQuietHours: false };
   }
 
   // Idle trigger — only if we've actually seen a user.

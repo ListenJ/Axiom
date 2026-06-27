@@ -266,5 +266,7 @@ export function _resetConsciousnessForTest(): void {
 }
 
 // Re-exports for convenience.
-export type { ReflectionOutcome, ReflectionTrigger, TriggerConfig };
-export { DEFAULT_TRIGGER_CONFIG };
+export type { ReflectionOutcome, ReflectionTrigger, TriggerConfig, TraceAnomaly } from "./types.js";
+export { DEFAULT_TRIGGER_CONFIG } from "./types.js";
+export { recordTraceEntry, getTraceEntries, clearTrace, analyzeTrace } from "./trace-analyzer.js";
+export type { TraceEntry } from "./trace-analyzer.js";

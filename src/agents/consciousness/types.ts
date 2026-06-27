@@ -46,7 +46,18 @@ export type ReflectionTrigger =
   | { kind: "schedule"; cron: string }
   | { kind: "token-budget"; tokensUsed: number; budget: number }
   | { kind: "manual"; reason?: string }
-  | { kind: "blackboard-signal"; key: string };
+  | { kind: "blackboard-signal"; key: string }
+  | { kind: "trace-anomaly"; anomaly: TraceAnomaly };
+
+/** Deterministic anomaly detected in reasoning trace (ported from DRE). */
+export interface TraceAnomaly {
+  /** "consecutive-failures" | "output-inconsistency" | "confidence-variance" */
+  type: string;
+  /** Severity score 0-1 */
+  severity: number;
+  /** Human-readable description */
+  description: string;
+}
 
 export interface TriggerConfig {
   /** Trigger when no user activity for this many ms. */
