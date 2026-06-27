@@ -119,29 +119,47 @@ class UnifiedRouter {
   ): Promise<UnifiedRoutingDecision> {
     const startTime = Date.now();
 
-    // Step 1: Keyword fast-path
+    // Step 1: Build routing context first (needed for guarded fast-path)
+    const context = buildRoutingContext(messages, opts);
+
+    // Step 2: Keyword fast-path with context guards
+    // Inspired by MARCH (arXiv:2603.24579) — information asymmetry prevents
+    // self-confirmation bias. Here, we check context before trusting keywords.
     const fastPath = keywordFastPath(input);
     if (fastPath && fastPath.confidence > 0.8) {
-      const latencyMs = Date.now() - startTime;
-      logger.info("[UnifiedRouter] Fast-path hit", {
-        role: fastPath.role,
-        confidence: fastPath.confidence,
-        latencyMs,
-      });
-      return {
-        role: fastPath.role,
-        strategy: "keyword-fast-path",
-        confidence: fastPath.confidence,
-        reason: `Keyword match: ${fastPath.role}`,
-        thinkingIntensity: "none",
-        planned: false,
-        latencyMs,
-        fastPath: true,
-      };
-    }
+      // Guard: fall through to full scoring if context suggests keyword is misleading
+      const roleFailures = context.recentFailures.filter((f) => f.role === fastPath.role);
+      const hasDrift = opts?.signal?.patternDrift ?? false;
+      const hasFatigue = opts?.signal?.fatigueIndicator ?? false;
+      const consecutiveFails = context.consecutiveFailures;
 
-    // Step 2: Build routing context
-    const context = buildRoutingContext(messages, opts);
+      if (roleFailures.length === 0 && !hasDrift && !hasFatigue && consecutiveFails < 3) {
+        const latencyMs = Date.now() - startTime;
+        logger.info("[UnifiedRouter] Fast-path hit", {
+          role: fastPath.role,
+          confidence: fastPath.confidence,
+          latencyMs,
+        });
+        return {
+          role: fastPath.role,
+          strategy: "keyword-fast-path",
+          confidence: fastPath.confidence,
+          reason: `Keyword match: ${fastPath.role}`,
+          thinkingIntensity: "none",
+          planned: false,
+          latencyMs,
+          fastPath: true,
+        };
+      }
+
+      logger.info("[UnifiedRouter] Fast-path guarded (falling through)", {
+        role: fastPath.role,
+        roleFailures: roleFailures.length,
+        hasDrift,
+        hasFatigue,
+        consecutiveFails,
+      });
+    }
 
     // Step 3: Score candidates
     const candidates = this.getCandidates();

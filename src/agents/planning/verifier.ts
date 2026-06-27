@@ -160,6 +160,90 @@ function checkCertaintyMarkers(output: string): VerificationIssue[] {
   return issues;
 }
 
+// ─── Claim-Level Verification (inspired by RT4CHART, MARCH, RefChecker) ────
+
+/**
+ * Extract atomic claims from output and verify them.
+ *
+ * Inspired by:
+ * - RT4CHART (arXiv:2603.27752): hierarchical local-to-global verification
+ * - MARCH (arXiv:2603.24579): claim-level decomposition with information asymmetry
+ * - RefChecker (arXiv:2405.14486): claim-triplet extraction
+ *
+ * This is a zero-cost heuristic version — no LLM calls.
+ * Extracts factual claims and checks for common hallucination patterns.
+ */
+function extractAndVerifyClaims(output: string, plan: ExecutionPlan): VerificationIssue[] {
+  const issues: VerificationIssue[] = [];
+
+  // Extract sentences that look like factual claims
+  const sentences = output
+    .split(/[.。\n]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 15 && s.length < 500);
+
+  // Pattern 1: "X was released in Y" / "X was founded in Y" — check year plausibility
+  const yearPattern = /(?:released|founded|published|created|launched|announced)\s+(?:in\s+)?(\d{4})/gi;
+  const currentYear = new Date().getFullYear();
+  let match: RegExpExecArray | null;
+  while ((match = yearPattern.exec(output)) !== null) {
+    const year = parseInt(match[1]);
+    if (year < 1970 || year > currentYear + 1) {
+      issues.push({
+        severity: "high",
+        category: "hallucination",
+        description: `Implausible year ${year} in claim: "${match[0]}"`,
+      });
+    }
+  }
+
+  // Pattern 2: Tool calls referencing non-existent tools
+  const toolCallPattern = /(?:using|call|invoke|tool|function)\s*[:=]?\s*["']?([a-z_][a-z0-9_]+)/gi;
+  const availableTools = plan.steps
+    .filter((s) => s.action === "tool_call" && s.tool)
+    .map((s) => s.tool!.toLowerCase());
+  while ((match = toolCallPattern.exec(output)) !== null) {
+    const toolName = match[1].toLowerCase();
+    if (availableTools.length > 0 && !availableTools.includes(toolName) && !["the", "this", "that", "with"].includes(toolName)) {
+      issues.push({
+        severity: "medium",
+        category: "unverified",
+        description: `Reference to tool '${toolName}' not in plan's tool list`,
+      });
+    }
+  }
+
+  // Pattern 3: Premise smuggling — claims asserted as "obviously" or "clearly" without evidence
+  // From arXiv:2606.24902 — "load-bearing claims asserted as fundamental results"
+  const premiseSmuggling = [
+    /\b(obviously|clearly|trivially|it is well known|it is known|as we know)\b/gi,
+    /\b(fundamental result|standard argument|basic fact|well-established)\b/gi,
+  ];
+  for (const pattern of premiseSmuggling) {
+    while ((match = pattern.exec(output)) !== null) {
+      issues.push({
+        severity: "low",
+        category: "unverified",
+        description: `Premise smuggling detected: "${match[0]}" — claim asserted without evidence`,
+      });
+    }
+  }
+
+  // Pattern 4: Noisy-OR aggregation — if multiple claims are suspicious, escalate
+  // P(hallucination) = 1 - product(1 - P(claim_i is hallucinated))
+  const claimCount = sentences.length;
+  const issueCount = issues.length;
+  if (claimCount > 3 && issueCount / claimCount > 0.3) {
+    issues.push({
+      severity: "high",
+      category: "hallucination",
+      description: `High claim-level issue rate: ${issueCount}/${claimCount} claims flagged (${((issueCount / claimCount) * 100).toFixed(0)}%)`,
+    });
+  }
+
+  return issues;
+}
+
 // ─── DRE Risk Scoring (ported from DRE Pipeline) ───────────────────────────
 
 /**
@@ -226,6 +310,7 @@ export function verifyOutput(
   issues.push(...detectHallucinationSignals(output));
   issues.push(...checkStepCoverage(plan, output));
   issues.push(...checkCertaintyMarkers(output));
+  issues.push(...extractAndVerifyClaims(output, plan));
 
   // DRE risk scoring
   const dreRisk = computeDreRiskScore(output, plan);

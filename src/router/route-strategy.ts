@@ -72,8 +72,12 @@ function recordCircuitFailure(model: string): void {
 function recordCircuitSuccess(model: string): void {
   const state = circuits.get(model);
   if (state) {
-    state.failures = 0;
-    state.isOpen = false;
+    // Exponential decay: halve failures on success instead of instant reset
+    // A flaky model that succeeds 1 in 4 times will stay circuit-broken
+    state.failures = Math.max(0, Math.floor(state.failures * 0.5));
+    if (state.failures < CIRCUIT_THRESHOLD) {
+      state.isOpen = false;
+    }
   }
 }
 

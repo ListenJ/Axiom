@@ -14,6 +14,47 @@
 import { logger } from "../../utils/logger.js";
 import type { TraceAnomaly } from "./types.js";
 
+// ─── EWMA Adaptive Threshold (from arXiv:2602.17431) ────────────────────────
+
+/**
+ * Exponentially Weighted Moving Average control chart.
+ * Adapts thresholds to the system's recent behavior instead of
+ * using fixed magic numbers.
+ *
+ * Anomaly detected when: |value - EWMA| > k * sqrt(EWMA_variance)
+ */
+class AdaptiveThreshold {
+  private ewma = 0;
+  private ewmaVariance = 0;
+  private readonly alpha: number;
+  private readonly k: number;
+  private initialized = false;
+
+  constructor(alpha = 0.2, k = 3) {
+    this.alpha = alpha;
+    this.k = k;
+  }
+
+  update(value: number): boolean {
+    if (!this.initialized) {
+      this.ewma = value;
+      this.ewmaVariance = 0;
+      this.initialized = true;
+      return false;
+    }
+
+    const delta = value - this.ewma;
+    this.ewma += this.alpha * delta;
+    this.ewmaVariance = (1 - this.alpha) * (this.ewmaVariance + this.alpha * delta * delta);
+
+    const sigma = Math.sqrt(this.ewmaVariance);
+    return sigma > 0 && Math.abs(value - this.ewma) > this.k * sigma;
+  }
+
+  getEwma(): number { return this.ewma; }
+  getSigma(): number { return Math.sqrt(this.ewmaVariance); }
+}
+
 // ─── Trace Entry ───────────────────────────────────────────────────────────
 
 export interface TraceEntry {
@@ -46,10 +87,27 @@ export function clearTrace(): void {
   entries.length = 0;
 }
 
+// ─── EWMA Thresholds (per-step-type) ───────────────────────────────────────
+
+const failureRateThreshold = new AdaptiveThreshold(0.2, 2.5);
+const uniquenessThreshold = new AdaptiveThreshold(0.2, 2.5);
+const confidenceThresholds = new Map<string, AdaptiveThreshold>();
+
+function getConfidenceThreshold(stepType: string): AdaptiveThreshold {
+  let t = confidenceThresholds.get(stepType);
+  if (!t) {
+    t = new AdaptiveThreshold(0.15, 2.0);
+    confidenceThresholds.set(stepType, t);
+  }
+  return t;
+}
+
 // ─── Analysis Functions ────────────────────────────────────────────────────
 
 /**
- * Detect 3+ consecutive failures in last N entries.
+ * Detect consecutive failures using EWMA on failure rate.
+ * Instead of fixed ">= 3", tracks the running failure rate and
+ * flags when the current rate deviates significantly from baseline.
  */
 function detectConsecutiveFailures(window: number = 10): TraceAnomaly | null {
   const recent = entries.slice(-window);
@@ -66,19 +124,24 @@ function detectConsecutiveFailures(window: number = 10): TraceAnomaly | null {
     }
   }
 
-  if (maxStreak >= 3) {
+  // Use EWMA on failure rate (0-1)
+  const failureRate = recent.filter((e) => !e.success).length / recent.length;
+  const isAnomaly = failureRateThreshold.update(failureRate);
+
+  // Also check hard streak threshold (3+ consecutive is always bad)
+  if (maxStreak >= 3 || (isAnomaly && failureRate > 0.5)) {
     return {
       type: "consecutive-failures",
-      severity: Math.min(1, maxStreak / 5),
-      description: `${maxStreak} consecutive failures in last ${recent.length} steps`,
+      severity: Math.min(1, Math.max(maxStreak / 5, failureRate)),
+      description: `${maxStreak} consecutive failures, ${(failureRate * 100).toFixed(0)}% failure rate in last ${recent.length} steps`,
     };
   }
   return null;
 }
 
 /**
- * Detect output inconsistency in think steps.
- * If <70% of recent think outputs are unique, the model may be looping.
+ * Detect output inconsistency using EWMA on uniqueness ratio.
+ * Tracks the running uniqueness baseline instead of fixed 70%.
  */
 function detectOutputInconsistency(window: number = 10): TraceAnomaly | null {
   const thinkSteps = entries
@@ -90,35 +153,52 @@ function detectOutputInconsistency(window: number = 10): TraceAnomaly | null {
   const uniqueOutputs = new Set(thinkSteps.map((e) => e.outputHash));
   const uniqueRatio = uniqueOutputs.size / thinkSteps.length;
 
-  if (uniqueRatio < 0.7) {
+  // EWMA tracks the normal uniqueness ratio; anomaly when current is far below
+  const isAnomaly = uniquenessThreshold.update(uniqueRatio);
+
+  if (uniqueRatio < 0.5 || (isAnomaly && uniqueRatio < 0.7)) {
     return {
       type: "output-inconsistency",
       severity: 1 - uniqueRatio,
-      description: `Only ${(uniqueRatio * 100).toFixed(0)}% unique outputs in last ${thinkSteps.length} think steps (expected ≥70%)`,
+      description: `Only ${(uniqueRatio * 100).toFixed(0)}% unique outputs in last ${thinkSteps.length} think steps`,
     };
   }
   return null;
 }
 
 /**
- * Detect confidence variance in recent entries.
- * High variance (std-dev > 0.15) suggests the model is uncertain.
+ * Detect confidence variance using per-step-type EWMA tracking.
+ * Instead of a global threshold, tracks normal variance per step type
+ * and flags when variance exceeds the adaptive baseline.
  */
 function detectConfidenceVariance(window: number = 10): TraceAnomaly | null {
   const recent = entries.slice(-window);
   if (recent.length < 4) return null;
 
-  const confidences = recent.map((e) => e.confidence);
-  const mean = confidences.reduce((a, b) => a + b, 0) / confidences.length;
-  const variance = confidences.reduce((sum, c) => sum + (c - mean) ** 2, 0) / confidences.length;
-  const stdDev = Math.sqrt(variance);
+  // Track variance per step type
+  const byType = new Map<string, number[]>();
+  for (const entry of recent) {
+    const arr = byType.get(entry.stepType) ?? [];
+    arr.push(entry.confidence);
+    byType.set(entry.stepType, arr);
+  }
 
-  if (stdDev > 0.15) {
-    return {
-      type: "confidence-variance",
-      severity: Math.min(1, stdDev),
-      description: `Confidence std-dev ${(stdDev * 100).toFixed(1)}% (threshold 15%) across ${recent.length} entries`,
-    };
+  for (const [stepType, confidences] of byType) {
+    if (confidences.length < 2) continue;
+    const mean = confidences.reduce((a, b) => a + b, 0) / confidences.length;
+    const variance = confidences.reduce((sum, c) => sum + (c - mean) ** 2, 0) / confidences.length;
+    const stdDev = Math.sqrt(variance);
+
+    const threshold = getConfidenceThreshold(stepType);
+    const isAnomaly = threshold.update(stdDev);
+
+    if (isAnomaly && stdDev > 0.1) {
+      return {
+        type: "confidence-variance",
+        severity: Math.min(1, stdDev * 2),
+        description: `Confidence std-dev ${(stdDev * 100).toFixed(1)}% in '${stepType}' steps (adaptive threshold)`,
+      };
+    }
   }
   return null;
 }

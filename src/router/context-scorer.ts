@@ -194,15 +194,39 @@ export function scoreCandidates(
     // Drift penalty
     const driftPenalty = context.isTopicContinuation ? 0 : WEIGHTS.driftPenalty;
 
-    const totalScore =
-      basePriority +
-      historyBonus +
-      failurePenalty +
-      expertiseBonus +
-      complexityMatch +
-      contextFatigue +
-      timePreference +
-      driftPenalty;
+    // Normalize each feature to [0, 1] range before weighting
+    // Prevents basePriority (25-100) from dominating all other signals (-40 to +15)
+    const normalizedBase = basePriority / 100; // 0-1
+    const normalizedHistory = (historyBonus + 10) / 20; // 0-1 (range: -10 to +10)
+    const normalizedFailure = (failurePenalty + 40) / 40; // 0-1 (range: -40 to 0)
+    const normalizedExpertise = (expertiseBonus + 10) / 20; // 0-1 (range: -10 to +10)
+    const normalizedComplexity = (complexityMatch + 10) / 20; // 0-1 (range: -10 to +10)
+    const normalizedFatigue = (contextFatigue + 20) / 20; // 0-1 (range: -20 to 0)
+    const normalizedTime = (timePreference + 10) / 10; // 0-1 (range: -10 to 0)
+    const normalizedDrift = (driftPenalty + 10) / 10; // 0-1 (range: -10 to 0)
+
+    // Weighted sum (weights sum to 1.0)
+    const W = {
+      base: 0.25,      // role priority
+      history: 0.10,   // recent success
+      failure: 0.20,   // recent failures
+      expertise: 0.10, // user level
+      complexity: 0.15, // task complexity match
+      fatigue: 0.10,   // context length
+      time: 0.05,      // time of day
+      drift: 0.05,     // topic drift
+    };
+
+    const totalScore = 100 * (
+      W.base * normalizedBase +
+      W.history * normalizedHistory +
+      W.failure * normalizedFailure +
+      W.expertise * normalizedExpertise +
+      W.complexity * normalizedComplexity +
+      W.fatigue * normalizedFatigue +
+      W.time * normalizedTime +
+      W.drift * normalizedDrift
+    );
 
     return {
       model: c.model,
@@ -272,32 +296,90 @@ export function buildRoutingContext(
   };
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+// ─── Bayesian Expertise Tracker ─────────────────────────────────────────────
+
+/**
+ * Bayesian expertise inference with temporal smoothing.
+ *
+ * Instead of a single-sample binary threshold, maintains a running
+ * posterior probability over {beginner, intermediate, expert} that
+ * updates with each message using Bayes' theorem.
+ *
+ * Inspired by: Fine-Grained UQ (arXiv:2602.17431) — claim-level
+ * uncertainty quantification with calibrated scoring.
+ */
+
+const EXPERT_SIGNALS = [
+  /\b(implement|refactor|architect|optimize|concurrent|async|await|generic|polymorph)\b/,
+  /\b(docker|kubernetes|terraform|webpack|vite|turbopack|nginx|redis)\b/,
+  /\b(typescript|rust|golang|python|java|c\+\+|swift|kotlin)\b/,
+  /```[\s\S]{20,}```/,
+  /\b(mutex|semaphore|coroutine|microservice|monolith|sharding)\b/,
+];
+
+const BEGINNER_SIGNALS = [
+  /^(hi|hello|hey|你好|help|帮助|what|怎么)\b/i,
+  /^.{0,20}$/,
+];
+
+class ExpertiseTracker {
+  private posterior = { beginner: 0.33, intermediate: 0.34, expert: 0.33 };
+  private readonly decay = 0.85; // per-message decay on prior beliefs
+
+  update(message: string): void {
+    const lower = message.toLowerCase();
+    const likelihood = this.computeLikelihood(lower, message);
+
+    // Bayesian update with decay
+    for (const cat of ["beginner", "intermediate", "expert"] as const) {
+      this.posterior[cat] = this.posterior[cat] * this.decay * likelihood[cat];
+    }
+
+    // Normalize
+    const total = Object.values(this.posterior).reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      for (const cat of ["beginner", "intermediate", "expert"] as const) {
+        this.posterior[cat] /= total;
+      }
+    }
+  }
+
+  private computeLikelihood(lower: string, raw: string): Record<string, number> {
+    let expertScore = 0;
+    for (const pattern of EXPERT_SIGNALS) {
+      if (pattern.test(lower)) expertScore++;
+    }
+
+    let beginnerScore = 0;
+    for (const pattern of BEGINNER_SIGNALS) {
+      if (pattern.test(raw)) beginnerScore++;
+    }
+
+    // Convert to likelihoods (not normalized — Bayes normalization handles it)
+    return {
+      beginner: Math.exp(-expertScore * 1.5) * (1 + beginnerScore),
+      intermediate: Math.exp(-Math.abs(expertScore - 1) * 0.8),
+      expert: Math.exp(-Math.max(0, 2 - expertScore) * 1.2),
+    };
+  }
+
+  classify(): "beginner" | "intermediate" | "expert" {
+    const entries = Object.entries(this.posterior) as [string, number][];
+    entries.sort(([, a], [, b]) => b - a);
+    return entries[0][0] as "beginner" | "intermediate" | "expert";
+  }
+
+  getDistribution(): { beginner: number; intermediate: number; expert: number } {
+    return { ...this.posterior };
+  }
+}
+
+// Per-session tracker (resets on new buildRoutingContext call)
+let expertiseTracker = new ExpertiseTracker();
 
 function inferExpertise(message: string): "beginner" | "intermediate" | "expert" {
-  const lower = message.toLowerCase();
-
-  // Expert signals: technical terms, specific tool names, code patterns
-  const expertPatterns = [
-    /\b(implement|refactor|architect|optimize|concurrent|async|await)\b/,
-    /\b(docker|kubernetes|terraform|webpack|vite|turbopack)\b/,
-    /\b(typescript|rust|golang|python|java|c\+\+)\b/,
-    /```[\s\S]{20,}```/, // code blocks
-    /[{}\[\]();]/.source.length > 3, // code-like syntax
-  ];
-
-  const expertMatches = expertPatterns.filter((p) => {
-    if (p instanceof RegExp) return p.test(lower);
-    return false;
-  }).length;
-
-  if (expertMatches >= 2) return "expert";
-
-  // Beginner signals: short messages, simple questions
-  if (message.length < 30 && !/[?？]/.test(message)) return "beginner";
-  if (/^(hi|hello|hey|你好|help|帮助)\b/i.test(message)) return "beginner";
-
-  return "intermediate";
+  expertiseTracker.update(message);
+  return expertiseTracker.classify();
 }
 
 function inferComplexity(message: string): "simple" | "medium" | "complex" {

@@ -471,80 +471,135 @@ export class KnowledgeGraphEnhanced {
   /**
    * 社区检测 (简化版 Louvain)
    */
+  /**
+   * Community detection using Louvain Phase 1 (modularity optimization).
+   *
+   * Replaces naive label propagation with proper modularity Q optimization:
+   * Q = (1/2m) * sum_ij [ A_ij - (k_i * k_j)/(2m) ] * delta(c_i, c_j)
+   *
+   * Inspired by: arXiv:2603.20637 (AEGIS) — graph-guided reasoning with
+   * dialectical verification over structured evidence.
+   */
   detectCommunities(): Community[] {
-    const communities = new Map<number, string[]>();
-    const nodeToCommunity = new Map<string, number>();
-    let communityId = 0;
+    const nodeIds = Array.from(this.nodes.keys());
+    if (nodeIds.length === 0) return [];
 
-    // 初始化
-    for (const node of this.nodes.keys()) {
-      nodeToCommunity.set(node, communityId);
-      communities.set(communityId, [node]);
-      communityId++;
+    // Initialize: each node in its own community
+    const nodeToCommunity = new Map<string, number>();
+    const communities = new Map<number, Set<string>>();
+    for (let i = 0; i < nodeIds.length; i++) {
+      nodeToCommunity.set(nodeIds[i], i);
+      communities.set(i, new Set([nodeIds[i]]));
     }
 
-    // 迭代优化 (简化版)
-    let changed = true;
-    let iterations = 0;
-    const maxIterations = 10;
+    // Compute total edge weight (2m)
+    let totalWeight = 0;
+    for (const edge of this.edges.values()) {
+      totalWeight += edge.weight;
+    }
+    if (totalWeight === 0) totalWeight = 1; // avoid division by zero
 
-    while (changed && iterations < maxIterations) {
-      changed = false;
+    // Compute weighted degree for each node
+    const weightedDegree = new Map<string, number>();
+    for (const node of nodeIds) {
+      let degree = 0;
+      for (const edge of this.edges.values()) {
+        if (edge.source === node || edge.target === node) {
+          degree += edge.weight;
+        }
+      }
+      weightedDegree.set(node, degree);
+    }
+
+    // Louvain Phase 1: iterate until no improvement
+    let improved = true;
+    let iterations = 0;
+    const maxIterations = 20;
+
+    while (improved && iterations < maxIterations) {
+      improved = false;
       iterations++;
 
-      for (const nodeId of this.nodes.keys()) {
-        const neighbors = this.getNeighbors(nodeId);
-        const neighborCommunities = new Map<number, number>();
+      for (const nodeId of nodeIds) {
+        const currentComm = nodeToCommunity.get(nodeId)!;
+        const ki = weightedDegree.get(nodeId) ?? 0;
 
-        for (const neighbor of neighbors) {
-          const comm = nodeToCommunity.get(neighbor.id)!;
-          neighborCommunities.set(comm, (neighborCommunities.get(comm) || 0) + 1);
+        // Compute neighbor community weights
+        const neighborWeights = new Map<number, number>();
+        for (const edge of this.edges.values()) {
+          let neighbor: string | null = null;
+          if (edge.source === nodeId) neighbor = edge.target;
+          else if (edge.target === nodeId) neighbor = edge.source;
+          if (!neighbor) continue;
+
+          const neighborComm = nodeToCommunity.get(neighbor)!;
+          neighborWeights.set(neighborComm, (neighborWeights.get(neighborComm) ?? 0) + edge.weight);
         }
 
-        // 找到最佳社区
-        let bestCommunity = nodeToCommunity.get(nodeId)!;
-        let bestCount = 0;
+        // Find best community by modularity gain
+        let bestComm = currentComm;
+        let bestDeltaQ = 0;
 
-        for (const [comm, count] of neighborCommunities) {
-          if (count > bestCount) {
-            bestCount = count;
-            bestCommunity = comm;
+        for (const [comm, neighborWeight] of neighborWeights) {
+          if (comm === currentComm) continue;
+
+          // Modularity gain from moving nodeId to comm
+          // deltaQ = (neighborWeight/m) - (sigmaTot * ki) / (2 * m^2)
+          const sigmaTot = this.getCommunityTotalWeight(comm, nodeToCommunity);
+          const deltaQ = (neighborWeight / totalWeight) - (sigmaTot * ki) / (2 * totalWeight * totalWeight);
+
+          if (deltaQ > bestDeltaQ) {
+            bestDeltaQ = deltaQ;
+            bestComm = comm;
           }
         }
 
-        // 如果有更好的社区，移动节点
-        if (bestCommunity !== nodeToCommunity.get(nodeId)) {
-          const oldCommunity = nodeToCommunity.get(nodeId)!;
-          const oldNodes = communities.get(oldCommunity)!;
-          const index = oldNodes.indexOf(nodeId);
-          if (index > -1) {
-            oldNodes.splice(index, 1);
-          }
+        // Move node if improvement found
+        if (bestComm !== currentComm) {
+          // Remove from old community
+          const oldSet = communities.get(currentComm)!;
+          oldSet.delete(nodeId);
+          if (oldSet.size === 0) communities.delete(currentComm);
 
-          if (!communities.has(bestCommunity)) {
-            communities.set(bestCommunity, []);
-          }
-          communities.get(bestCommunity)!.push(nodeId);
-          nodeToCommunity.set(nodeId, bestCommunity);
-          changed = true;
+          // Add to new community
+          if (!communities.has(bestComm)) communities.set(bestComm, new Set());
+          communities.get(bestComm)!.add(nodeId);
+          nodeToCommunity.set(nodeId, bestComm);
+          improved = true;
         }
       }
     }
 
-    // 生成社区标签
+    // Generate community labels
     const result: Community[] = [];
-    for (const [id, nodes] of communities) {
-      if (nodes.length > 0) {
+    let id = 0;
+    for (const [_, nodes] of communities) {
+      if (nodes.size > 0) {
         result.push({
-          id,
-          nodes,
+          id: id++,
+          nodes: Array.from(nodes),
           label: `Community ${id}`,
-          description: this.generateCommunityDescription(nodes),
+          description: this.generateCommunityDescription(Array.from(nodes)),
         });
       }
     }
 
     return result;
+  }
+
+  /**
+   * Get total edge weight within a community.
+   */
+  private getCommunityTotalWeight(comm: number, nodeToCommunity: Map<string, number>): number {
+    let weight = 0;
+    for (const edge of this.edges.values()) {
+      const srcComm = nodeToCommunity.get(edge.source);
+      const tgtComm = nodeToCommunity.get(edge.target);
+      if (srcComm === comm && tgtComm === comm) {
+        weight += edge.weight;
+      }
+    }
+    return weight;
   }
 
   /**
