@@ -184,17 +184,57 @@ export interface PlanningResult {
   error?: string;
 }
 
+// ─── Plan Cache (LRU, 60s TTL) ─────────────────────────────────────────────
+
+const PLAN_CACHE_MAX = 32;
+const PLAN_CACHE_TTL = 60_000; // 60 seconds
+const planCache = new Map<string, { result: PlanningResult; at: number }>();
+
+function cacheKey(input: string): string {
+  // Simple hash: first 100 chars + length
+  return `${input.slice(0, 100)}|${input.length}`;
+}
+
+function getCached(input: string): PlanningResult | null {
+  const key = cacheKey(input);
+  const entry = planCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > PLAN_CACHE_TTL) {
+    planCache.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+function setCache(input: string, result: PlanningResult): void {
+  const key = cacheKey(input);
+  if (planCache.size >= PLAN_CACHE_MAX) {
+    // Evict oldest
+    const first = planCache.keys().next().value;
+    if (first) planCache.delete(first);
+  }
+  planCache.set(key, { result, at: Date.now() });
+}
+
 /**
  * Generate an execution plan for the given user input.
  *
  * - Simple tasks → passthrough plan (0ms, 0 tokens)
  * - Medium/complex tasks → LLM-generated plan (decision model, ~1-2s)
  * - If planning fails → passthrough plan with error logged
+ * - Results cached for 60s to avoid redundant LLM calls
  */
 export async function planExecution(
   userInput: string,
   conversationHistory: ChatMessage[] = [],
 ): Promise<PlanningResult> {
+  // Check cache first
+  const cached = getCached(userInput);
+  if (cached) {
+    logger.debug("[Planner] Cache hit");
+    return { ...cached, latencyMs: 0 };
+  }
+
   const startTime = Date.now();
 
   // Step 1: Classify complexity (zero cost)
@@ -278,7 +318,9 @@ export async function planExecution(
       hasClarifications: (plan.clarificationsNeeded?.length ?? 0) > 0,
     });
 
-    return { plan, classification, latencyMs, skipped: false };
+    const result: PlanningResult = { plan, classification, latencyMs, skipped: false };
+    setCache(userInput, result);
+    return result;
   } catch (err) {
     const errorMsg = (err as Error).message;
     logger.error("[Planner] Planning failed, using passthrough", err instanceof Error ? err : new Error(String(err)));

@@ -13,7 +13,8 @@ export type WsEventType =
   | "health.check"
   | "heartbeat"
   | "agent.intent"
-  | "routing.decision";
+  | "routing.decision"
+  | "consciousness.status";
 
 export interface WsMessage {
   type: WsEventType;

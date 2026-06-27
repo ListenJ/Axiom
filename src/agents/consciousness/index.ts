@@ -40,6 +40,7 @@ import { getReflectionLoop, _resetReflectionLoopForTest } from "./reflection-loo
 import { evaluate, buildScheduleTrigger, buildManualTrigger, isWithinQuietHours } from "./trigger.js";
 import type { ReflectionOutcome, ReflectionTrigger, TriggerConfig } from "./types.js";
 import { DEFAULT_TRIGGER_CONFIG } from "./types.js";
+import { wsManager } from "../../utils/websocket.js";
 
 // ─── Routing Signal (for UnifiedRouter) ────────────────────────────────────
 
@@ -224,7 +225,7 @@ class Consciousness {
     }
   }
 
-  /** Single dispatch point — guarantees outcome bookkeeping. */
+  /** Single dispatch point — guarantees outcome bookkeeping + WebSocket broadcast. */
   private async dispatch(trigger: ReflectionTrigger): Promise<ReflectionOutcome> {
     logger.info("[Consciousness] dispatch", { kind: trigger.kind });
     const outcome = await getReflectionLoop().runOnce(trigger);
@@ -233,6 +234,24 @@ class Consciousness {
     // fresh activity). Keep lastUserActivityAt — that's the source of truth
     // for idle detection.
     getActivityTracker().resetCounters();
+
+    // Broadcast reflection outcome via WebSocket
+    try {
+      wsManager.broadcast({
+        type: "consciousness.status",
+        payload: {
+          trigger: trigger.kind,
+          summary: outcome.summary,
+          durationMs: outcome.durationMs,
+          tokensUsed: outcome.tokensUsed,
+          promotedSkills: outcome.promotedSkillIds,
+          archivedCount: outcome.archivedCount,
+          abortedReason: outcome.abortedReason,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch { /* non-fatal */ }
+
     return outcome;
   }
 }
