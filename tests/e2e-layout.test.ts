@@ -77,7 +77,7 @@ describe("E2E - All pages use shared UI components", () => {
   })
 
   it("页面应使用 StatCard 或显式网格卡片", () => {
-    const hasStatsPages = []
+    const hasStatsPages: string[] = []
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStatsPages.includes(name)) {
