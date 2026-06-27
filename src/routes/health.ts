@@ -11,13 +11,30 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
     const { searchCache, crawlCache } = await import("../utils/cache.js");
     const { wsManager } = await import("../utils/websocket.js");
 
+    // New module status
+    const { getConsciousness } = await import("../agents/consciousness/index.js");
+    const consciousness = getConsciousness();
+    const consciousnessStatus = consciousness.status();
+
     return ctx.jsonResponse({
-      status: "ok", timestamp: new Date().toISOString(), version: "2.2.0",
+      status: "ok", timestamp: new Date().toISOString(), version: "2.8.2",
       uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
       checks, searchEngines: searchAggregator.listEngines(),
       vault: vStats ? { notes: vStats.totalNotes, words: vStats.totalWords } : null,
       cache: { search: searchCache.stats(), crawl: crawlCache.stats() },
       websocket: wsManager.getStats(),
+      modules: {
+        planning: { status: "active", features: ["first-principles", "anti-hallucination", "lru-cache"] },
+        routing: { status: "active", features: ["unified-router", "context-scorer", "route-strategy", "guarded-fast-path"] },
+        consciousness: {
+          status: consciousnessStatus.enabled ? "active" : "disabled",
+          running: consciousnessStatus.running,
+          lastReflection: consciousnessStatus.lastReflectionAt,
+          features: ["trace-analyzer", "ewma-detection", "topic-shift", "websocket-events"],
+        },
+        verification: { status: "active", features: ["claim-extraction", "dre-risk-scoring", "premise-smuggling"] },
+        knowledge: { status: "active", features: ["louvain-communities", "modularity-optimization"] },
+      },
     }, 200, ctx.baseHeaders);
   }
   return null;
