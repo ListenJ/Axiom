@@ -1222,6 +1222,19 @@ if (transport === "stdio") {
               error: { code: -32602, message: `Tool '${name}' not found` },
             }, { status: 400 });
           }
+
+          // Execution mode enforcement
+          const modeCheck = executionMode.canExecute(name);
+          if (!modeCheck.allowed) {
+            return Response.json({
+              jsonrpc: "2.0", id: body.id,
+              result: {
+                content: [{ type: "text" as const, text: `Blocked: ${modeCheck.reason}` }],
+                isError: true,
+              },
+            });
+          }
+
           try {
             const result = await withTimeout(
               withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),

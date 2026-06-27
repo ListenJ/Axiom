@@ -261,10 +261,20 @@ export async function planExecution(
     .map((m) => `${m.role}: ${m.content.slice(0, 200)}`)
     .join("\n");
 
+  // Include dynamically generated tools from ToolFactory
+  const { toolFactory } = await import("../../mcp/tool-factory.js");
+  const generatedTools = toolFactory.getGenerated();
+  const toolList = [
+    "memory_search, memory_read, memory_write, web_search, web_fetch",
+    "code_generate, code_review, code_refactor, terminal_exec, git_status, git_diff",
+    "fs_read, fs_write, fs_search, code_symbols, code_diagnostics",
+    ...generatedTools.map((t) => t.name),
+  ].join(", ");
+
   const planningPrompt = buildPlanningPrompt(
     userInput,
     historyText,
-    "memory_search, memory_read, memory_write, web_search, web_fetch, code_generate, code_review, code_refactor, terminal_exec, git_status, git_diff",
+    toolList,
     new Date().toISOString(),
   );
 
