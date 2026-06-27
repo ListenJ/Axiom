@@ -182,7 +182,7 @@ export class SceneRouter {
   }
 }
 
-/** 预定义场景库 */
+/** 预定义场景库 — 使用实际注册的工具名称 */
 export const DEFAULT_SCENES: Scene[] = [
   {
     id: "git_ops",
@@ -198,7 +198,7 @@ export const DEFAULT_SCENES: Scene[] = [
     name: "文件读取",
     description: "读取文件内容",
     match: ["读取", "查看", "read", "show", "content", "cat"],
-    tools: ["read_file"],
+    tools: ["fs_read"],
     priority: 5,
   },
   {
@@ -206,7 +206,7 @@ export const DEFAULT_SCENES: Scene[] = [
     name: "文件写入",
     description: "写入或修改文件",
     match: ["写入", "修改", "write", "edit", "update", "create"],
-    tools: ["write_file"],
+    tools: ["fs_write"],
     priority: 5,
   },
   {
@@ -214,7 +214,7 @@ export const DEFAULT_SCENES: Scene[] = [
     name: "代码分析",
     description: "分析代码结构、符号、诊断",
     match: ["分析", "符号", "诊断", "analyze", "symbol", "diagnostic", "outline"],
-    tools: ["find_symbols", "get_diagnostics", "get_file_outline", "analyze_code"],
+    tools: ["code_symbols", "code_diagnostics", "code_outline", "code_analyze"],
     parallel: true,
     priority: 8,
   },
@@ -223,7 +223,7 @@ export const DEFAULT_SCENES: Scene[] = [
     name: "终端命令",
     description: "执行终端命令",
     match: ["执行", "运行", "execute", "run", "command", "cmd", "npm", "bun"],
-    tools: ["execute_command"],
+    tools: ["terminal_exec"],
     priority: 7,
   },
   {
@@ -231,7 +231,7 @@ export const DEFAULT_SCENES: Scene[] = [
     name: "搜索",
     description: "Web 搜索或文件搜索",
     match: ["搜索", "查找", "search", "find", "google", "查询"],
-    tools: ["web_search", "search_files"],
+    tools: ["web_search", "fs_search"],
     parallel: true,
     priority: 6,
   },
