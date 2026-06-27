@@ -196,3 +196,56 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
   }
   return null;
 }
+
+/**
+ * API Documentation endpoint — auto-generates from registered routes and tools.
+ */
+export async function handleApiDocs(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/api" && ctx.req.method === "GET") {
+    const { getConsciousness } = await import("../agents/consciousness/index.js");
+    const { toolFactory } = await import("../mcp/tool-factory.js");
+    const { getAllMetrics } = await import("../mcp/tool-middleware.js");
+
+    const consciousness = getConsciousness();
+    const generatedTools = toolFactory.getGenerated();
+    const metrics = getAllMetrics();
+
+    return ctx.jsonResponse({
+      version: "2.8.2",
+      documentation: {
+        health: "GET /health — System health with module status",
+        metrics: "GET /metrics — Prometheus-format metrics",
+        stats: "GET /stats — Database and cache statistics",
+        config: "GET /config — Current configuration",
+        chat: "POST /chat — Send message (streaming supported)",
+        search: "GET /search?q=... — Unified search",
+        vault: "GET /vault/stats — Vault statistics",
+        agents: "GET /agents/status — Agent status",
+        eval: "GET /eval/stats — Model evaluation stats",
+        kg: "GET /kg/stats — Knowledge graph stats",
+        ocr: "POST /ocr/scan — OCR document scanning",
+        research: "POST /research/run — Deep research",
+        plugins: "GET /plugins — Plugin list",
+        consciousness: "GET /consciousness/status — Consciousness status",
+      },
+      tools: {
+        registered: metrics.size,
+        generated: generatedTools.length,
+        generatedTools: generatedTools.map((t) => ({
+          name: t.name,
+          template: t.spec.template,
+          usage: t.usageCount,
+          successRate: t.successRate,
+        })),
+      },
+      modules: {
+        planning: "First-principles + anti-hallucination + LRU cache",
+        routing: "Unified router + consciousness signals + Bayesian expertise",
+        consciousness: "Trace analyzer + EWMA + topic-shift + WebSocket",
+        verification: "Claim extraction + DRE risk + premise smuggling",
+        tools: "Factory + middleware + composition + scene router",
+      },
+    }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
