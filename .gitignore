@@ -1,76 +1,117 @@
-# Dependencies
+# ============================================
+# OpenClaw AI Agent .gitignore
+# 只上传 README.md 和核心代码到 GitHub
+# 其他文档需手动下载
+# ============================================
+
+# === Dependencies ===
 node_modules/
 
-# Build output
+# === Build output ===
 dist/
-
-# TypeScript incremental
 *.tsbuildinfo
 
-# Frontend screenshots
-frontend/screenshots/
-
-# Environment variables
+# === Environment variables ===
 .env
 .env.local
 .env.*.local
 
-# Data
+# === Data ===
 data/*.db
 data/*.json
+data/raw/
 
-# Logs
+# === Logs ===
 *.log
 logs/
 
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
 
-# IDE
+# === IDE ===
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Obsidian
+# === Obsidian ===
 .obsidian/
 
-# Python virtual environment
+# === Python ===
 .venv/
 
-# OMC state
+# === OMC state ===
 .omc/
 
-# Raw data
-data/raw/
-
-# Generated memory content
+# === Generated memory content ===
 openclaw-memory/
 
-# Temporary files
+# === Temporary files ===
 .tmp/
 .tmp-build/
 
-# Test results
+# === Test results ===
 test-results/
 playwright-report/
+coverage/
+frontend/coverage/
 
-# Evaluation results
+# === Evaluation results ===
 eval-results/
 e2e/
 
-# Generated test fixtures
+# === Generated test fixtures ===
 tests/fixtures/agents-index.json
 tests/fixtures/agents/
 
-# Vendored dependencies
+# === Vendored dependencies ===
 vendor/
 
-# Backup files
+# === Backup files ===
 *.bundle
 
-# SQLite databases
+# === SQLite databases ===
 openclaw-memory.db
 openclaw-memory.db-*
+
+# === Lightpanda ===
 lightpanda-linux
+
+# ============================================
+# 不上传 GitHub 的文件
+# 需要时从本地下载或重新生成
+# ============================================
+
+# 文档 (除 README 外)
+docs/architecture-evolution.md
+docs/MCP_TOOLS_GUIDE.md
+CHANGELOG.md
+
+# Docker
+docker-compose.yml
+Dockerfile
+Dockerfile.lightpanda
+
+# 前端 (未使用)
+frontend/
+
+# Tauri
+src-tauri/
+
+# Python
+python_libs/
+
+# Native bindings
+native/
+
+# 部署配置
+deploy/
+
+# 审计/分析报告
+.audits/
+.codegraph/
+.workbuddy/
+
+# Archive
+archive/

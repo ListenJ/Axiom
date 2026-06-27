@@ -3,7 +3,7 @@
  */
 import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
-import { handleChat, handleAgentChat } from "./chat.js";
+import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
@@ -65,6 +65,7 @@ const handlers: RouteHandler[] = [
   handleConfig,
   // Chat (most common API call)
   handleChat,
+  handleChatStream,
   handleAgentChat,
   // Native Bridge (Rust core)
   handleNativeSearch,
@@ -190,10 +191,13 @@ export function registerTrieRoutes(engine: RouterEngine): void {
     { method: "GET", path: "/stats/trends", handler: handleTrends },
     { method: "GET", path: "/config", handler: handleConfig },
     { method: "POST", path: "/config", handler: handleConfig },
+    { method: "GET", path: "/consciousness/status", handler: handleConsciousness },
+    { method: "POST", path: "/consciousness/reflect", handler: handleConsciousness },
     { method: "GET", path: "/proxies", handler: handleProxies },
 
     // Chat
     { method: "POST", path: "/chat", handler: handleChat },
+    { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
 
     // Search
@@ -328,11 +332,14 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET  /                        — Dashboard",
       "GET  /health                  — 健康检查",
       "POST /chat                    — 模型聊天（自动意图识别）",
+      "POST /chat/stream             — SSE 流式聊天（text/event-stream）",
       "GET  /search?q=               — Vault 确定性记忆搜索",
       "GET  /memory-gate/stats        — 记忆门控统计",
       "GET  /stats/trends?days=7      — 趋势数据",
       "GET  /config                   — 系统配置（脱敏）",
       "POST /config                   — 更新配置",
+      "GET  /consciousness/status      — 意识模块状态",
+      "POST /consciousness/reflect     — 手动触发反思",
       "GET  /web-search?q=           — 多引擎搜索",
       "GET  /enhanced-search?q=      — 增强搜索",
       "GET  /web-fetch?url=          — 结构化抓取",
