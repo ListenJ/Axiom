@@ -93,8 +93,10 @@ docker-compose.yml
 Dockerfile
 Dockerfile.lightpanda
 
-# 前端 (未使用)
-frontend/
+# 前端构建产物
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
 
 # Tauri
 src-tauri/

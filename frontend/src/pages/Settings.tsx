@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Moon, Sun, Bell, Shield, Globe, Database, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Moon, Sun, Bell, Shield, Globe, Database, Trash2, Cpu, Activity, Zap } from 'lucide-react'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import { useApp } from '@/state/useApp'
 import { api } from '@/lib/api'
@@ -183,6 +183,51 @@ export default function Settings() {
                 <Trash2 className="size-3.5" />
                 清空缓存
               </button>
+            </div>
+          </ShimmerCard>
+        </div>
+      </section>
+
+      {/* System Info Section */}
+      <section className="space-y-3">
+        <h2 className="text-2xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          System
+        </h2>
+        <div className="stagger space-y-3">
+          <ShimmerCard padding="md">
+            <div className="flex items-center gap-4">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <Cpu className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-[var(--text)]">Planning Phase</h3>
+                <p className="text-xs text-[var(--text-secondary)]">First-principles anti-hallucination</p>
+              </div>
+              <span className="text-2xs text-[var(--success)]">Active</span>
+            </div>
+          </ShimmerCard>
+          <ShimmerCard padding="md">
+            <div className="flex items-center gap-4">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--info-soft)] text-[var(--info)]">
+                <Activity className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-[var(--text)]">Unified Router</h3>
+                <p className="text-xs text-[var(--text-secondary)]">Consciousness-aware dynamic routing</p>
+              </div>
+              <span className="text-2xs text-[var(--success)]">Active</span>
+            </div>
+          </ShimmerCard>
+          <ShimmerCard padding="md">
+            <div className="flex items-center gap-4">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--warning-soft)] text-[var(--warning)]">
+                <Zap className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-[var(--text)]">Consciousness</h3>
+                <p className="text-xs text-[var(--text-secondary)]">Background reflection + trace analysis</p>
+              </div>
+              <span className="text-2xs text-[var(--success)]">Active</span>
             </div>
           </ShimmerCard>
         </div>
