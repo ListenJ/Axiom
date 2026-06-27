@@ -5,6 +5,7 @@
  * - UnifiedRouter (consciousness-aware dynamic routing)
  * - Consciousness.observe() + getRoutingSignal()
  * - Planning Phase for complex tasks
+ * - Helpful error messages with recovery suggestions
  */
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
@@ -14,6 +15,7 @@ import { wsManager } from "../utils/websocket.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { planExecution } from "../agents/planning/index.js";
+import { generateHelpfulError, formatErrorForResponse } from "../utils/error-handler.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/chat" && ctx.req.method === "POST") {
@@ -145,8 +147,17 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
           timestamp: new Date().toISOString(),
         });
       } catch (err) {
-        // Fallback to legacy routing
-        logger.warn("[Chat] UnifiedRouter failed, falling back to legacy", { error: (err as Error).message });
+        // Fallback to legacy routing with helpful error
+        const helpful = generateHelpfulError({
+          operation: "routing",
+          source: "UnifiedRouter",
+          originalError: (err as Error).message,
+        });
+        logger.warn("[Chat] UnifiedRouter failed, falling back to legacy", {
+          error: helpful.message,
+          cause: helpful.cause,
+          retryable: helpful.retryable,
+        });
         if (intentInfo) {
           result = await router.routeByIntent(intentInfo.intent, chatMessages);
         } else if (taskType) {

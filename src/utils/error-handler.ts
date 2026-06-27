@@ -1,0 +1,208 @@
+/**
+ * Error Handler — Provides helpful error messages and recovery suggestions.
+ *
+ * Instead of raw error messages, provides:
+ * 1. What went wrong (clear description)
+ * 2. Why it might have happened (context)
+ * 3. What to try next (recovery suggestions)
+ * 4. Related documentation links
+ */
+
+import { logger } from "../utils/logger.js";
+
+export interface ErrorContext {
+  /** The operation that failed */
+  operation: string
+  /** The tool or module that failed */
+  source?: string
+  /** The original error message */
+  originalError: string
+  /** Additional context */
+  metadata?: Record<string, unknown>
+}
+
+export interface HelpfulError {
+  /** User-friendly error message */
+  message: string
+  /** What might have caused this */
+  cause: string
+  /** Recovery suggestions */
+  suggestions: string[]
+  /** Error severity */
+  severity: "low" | "medium" | "high" | "critical"
+  /** Whether retry is recommended */
+  retryable: boolean
+}
+
+/**
+ * Generate a helpful error message from an error context.
+ */
+export function generateHelpfulError(ctx: ErrorContext): HelpfulError {
+  const error = ctx.originalError.toLowerCase();
+
+  // Network errors
+  if (error.includes("econnrefused") || error.includes("enotfound") || error.includes("timeout")) {
+    return {
+      message: `Network error during ${ctx.operation}`,
+      cause: "The remote service is unavailable or the connection timed out",
+      suggestions: [
+        "Check your internet connection",
+        "Verify the API endpoint is correct",
+        "Try again in a few seconds",
+        "Check if the service is down (status page)",
+      ],
+      severity: "medium",
+      retryable: true,
+    };
+  }
+
+  // Authentication errors
+  if (error.includes("401") || error.includes("unauthorized") || error.includes("api key")) {
+    return {
+      message: `Authentication failed during ${ctx.operation}`,
+      cause: "Invalid or missing API key",
+      suggestions: [
+        "Check your API key in .env file",
+        "Verify the key hasn't expired",
+        "Ensure the key has the required permissions",
+      ],
+      severity: "high",
+      retryable: false,
+    };
+  }
+
+  // Rate limiting
+  if (error.includes("429") || error.includes("rate limit") || error.includes("too many requests")) {
+    return {
+      message: `Rate limited during ${ctx.operation}`,
+      cause: "Too many requests to the API",
+      suggestions: [
+        "Wait a few seconds before retrying",
+        "Reduce request frequency",
+        "Check your API plan limits",
+      ],
+      severity: "low",
+      retryable: true,
+    };
+  }
+
+  // Model errors
+  if (error.includes("model") && (error.includes("not found") || error.includes("unavailable"))) {
+    return {
+      message: `Model unavailable for ${ctx.operation}`,
+      cause: "The requested model is not available",
+      suggestions: [
+        "Try a different model",
+        "Check model availability in /eval/stats",
+        "The system will auto-fallback to another model",
+      ],
+      severity: "medium",
+      retryable: true,
+    };
+  }
+
+  // Tool execution errors
+  if (ctx.source && error.includes("tool")) {
+    return {
+      message: `Tool execution failed: ${ctx.source}`,
+      cause: "The tool encountered an error during execution",
+      suggestions: [
+        "Check tool parameters",
+        "Verify the tool is available",
+        "Try with different parameters",
+        "Check /health for tool status",
+      ],
+      severity: "medium",
+      retryable: true,
+    };
+  }
+
+  // File system errors
+  if (error.includes("enoent") || error.includes("file not found")) {
+    return {
+      message: `File not found during ${ctx.operation}`,
+      cause: "The requested file does not exist",
+      suggestions: [
+        "Check the file path",
+        "Ensure the file exists",
+        "Use fs_list to browse available files",
+      ],
+      severity: "low",
+      retryable: false,
+    };
+  }
+
+  if (error.includes("eacces") || error.includes("permission denied")) {
+    return {
+      message: `Permission denied during ${ctx.operation}`,
+      cause: "Insufficient permissions to access the resource",
+      suggestions: [
+        "Check file permissions",
+        "Run with appropriate user privileges",
+        "Ensure the file is not locked by another process",
+      ],
+      severity: "medium",
+      retryable: false,
+    };
+  }
+
+  // Planning errors
+  if (error.includes("planning") || error.includes("plan")) {
+    return {
+      message: `Planning failed during ${ctx.operation}`,
+      cause: "The planning phase encountered an error",
+      suggestions: [
+        "The system will use a simple passthrough plan",
+        "Try rephrasing your request",
+        "Break down complex requests into smaller parts",
+      ],
+      severity: "low",
+      retryable: true,
+    };
+  }
+
+  // Default
+  return {
+    message: `Error during ${ctx.operation}`,
+    cause: ctx.originalError,
+    suggestions: [
+      "Try again",
+      "Check /health for system status",
+      "Simplify your request if it was complex",
+    ],
+    severity: "medium",
+    retryable: true,
+  };
+}
+
+/**
+ * Format a helpful error for API response.
+ */
+export function formatErrorForResponse(error: HelpfulError): {
+  error: string
+  cause: string
+  suggestions: string[]
+  severity: string
+  retryable: boolean
+} {
+  return {
+    error: error.message,
+    cause: error.cause,
+    suggestions: error.suggestions,
+    severity: error.severity,
+    retryable: error.retryable,
+  };
+}
+
+/**
+ * Log a helpful error with context.
+ */
+export function logHelpfulError(ctx: ErrorContext, error: HelpfulError): void {
+  logger.error(`[${ctx.source ?? "System"}] ${error.message}`, {
+    cause: error.cause,
+    severity: error.severity,
+    retryable: error.retryable,
+    originalError: ctx.originalError,
+    operation: ctx.operation,
+  });
+}
