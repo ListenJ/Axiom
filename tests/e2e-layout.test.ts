@@ -77,7 +77,7 @@ describe("E2E - All pages use shared UI components", () => {
   })
 
   it("页面应使用 StatCard 或显式网格卡片", () => {
-    const hasStatsPages: string[] = []
+    const hasStatsPages = ["Home", "KG", "Perf", "Proxies", "Vault"]
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStatsPages.includes(name)) {
@@ -135,7 +135,10 @@ describe("E2E - Layout structural integrity", () => {
   })
 
   it("页面应使用 stagger 类对列表项应用交错动画", () => {
-    const hasStaggerPages = ["Settings"]
+    const hasStaggerPages = [
+      "Home", "Settings", "KG", "Perf", "Proxies", "Vault",
+      "Trends", "Eval", "Plugins", "Agents", "Code",
+    ]
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStaggerPages.includes(name)) {

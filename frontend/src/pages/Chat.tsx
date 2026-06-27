@@ -1,17 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   Send, Paperclip, Bot, User, MessageSquare,
   Clock, Activity, ChevronLeft, ChevronRight,
+  Plus,
 } from 'lucide-react'
-import ShimmerCard from '@/components/ui/ShimmerCard'
-import { endpoints, HttpError } from '@/lib/api'
+import {
+  ShimmerCard,
+  Button,
+  InlineEmptyState,
+  LoadingDots,
+  Input,
+} from '@/components/ui'
+import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  streaming?: boolean
+  error?: boolean
 }
 
 interface Session {
@@ -31,10 +40,10 @@ function formatTime(epoch: number): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'just now'
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 1) return 'now'
+  if (diffMin < 60) return `${diffMin}m`
   const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}h ago`
+  if (diffHr < 24) return `${diffHr}h`
   return date.toLocaleDateString()
 }
 
@@ -52,10 +61,24 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const scroller = useRef<HTMLDivElement | null>(null)
   const toast = useApp((s) => s.toast)
+  const abortRef = useRef<AbortController | null>(null)
 
-  // Sessions sidebar state
+  // Sessions sidebar
   const [sessions, setSessions] = useState<Session[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeSession, setActiveSession] = useState<string | null>(null)
+
+  const loadSessions = useCallback(() => {
+    endpoints.memory
+      .sessions()
+      .then((d) => {
+        const data = d as { sessions: Session[] }
+        if (Array.isArray(data.sessions)) {
+          setSessions(data.sessions.sort((a, b) => b.last_active - a.last_active))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     endpoints.chat
@@ -76,20 +99,8 @@ export default function Chat() {
         }
       })
       .catch(() => {})
-  }, [])
-
-  // Load sessions for sidebar
-  useEffect(() => {
-    endpoints.memory
-      .sessions()
-      .then((d) => {
-        const data = d as { sessions: Session[] }
-        if (Array.isArray(data.sessions)) {
-          setSessions(data.sessions.sort((a, b) => b.last_active - a.last_active))
-        }
-      })
-      .catch(() => {})
-  }, [messages.length]) // Refresh when messages change
+    loadSessions()
+  }, [loadSessions])
 
   useEffect(() => {
     if (scroller.current) {
@@ -103,69 +114,160 @@ export default function Chat() {
     }
   }, [initialMessage])
 
+  // Refresh sessions when messages change
+  useEffect(() => {
+    if (messages.length > 0) loadSessions()
+  }, [messages.length, loadSessions])
+
+  const newChat = () => {
+    setMessages([])
+    setActiveSession(null)
+    setInput('')
+  }
+
+  const loadSession = async (sessionId: string) => {
+    setActiveSession(sessionId)
+    try {
+      const data = (await endpoints.memory.conversations(sessionId)) as { messages: Array<{ role: string; content: string }> }
+      if (Array.isArray(data.messages)) {
+        setMessages(
+          data.messages.map((m) => ({
+            id: nextId(),
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: String(m.content ?? ''),
+          })),
+        )
+      }
+    } catch {
+      toast('Failed to load session', 'error')
+    }
+  }
+
   const send = async (text?: string) => {
     const msg = (text ?? input).trim()
     if (!msg || sending) return
     const userMsg: Message = { id: nextId(), role: 'user', content: msg }
-    setMessages((m) => [...m, userMsg])
+    const assistantId = nextId()
+    setMessages((m) => [...m, userMsg, { id: assistantId, role: 'assistant', content: '', streaming: true }])
     setInput('')
     setSending(true)
+
+    const appendToken = (chunk: string) => {
+      setMessages((m) =>
+        m.map((item) =>
+          item.id === assistantId ? { ...item, content: item.content + chunk } : item,
+        ),
+      )
+    }
+    const clearStreaming = () => {
+      setMessages((m) =>
+        m.map((item) =>
+          item.id === assistantId ? { ...item, streaming: false } : item,
+        ),
+      )
+    }
+    const appendError = (text: string) => {
+      setMessages((m) =>
+        m.map((item) =>
+          item.id === assistantId
+            ? {
+                ...item,
+                streaming: false,
+                error: true,
+                content: item.content ? `${item.content}\n[Error] ${text}` : `[Error] ${text}`,
+              }
+            : item,
+        ),
+      )
+    }
+
     try {
-      const res = await endpoints.chat.send(msg)
-      const content =
-        typeof res === 'string'
-          ? res
-          : res && typeof res === 'object' && 'message' in (res as Record<string, unknown>)
-            ? String((res as Record<string, unknown>).message)
-            : JSON.stringify(res)
-      setMessages((m) => [...m, { id: nextId(), role: 'assistant', content }])
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      const streamMessages: ChatMessage[] = [{ role: 'user', content: msg }]
+      await endpoints.chat.stream(
+        streamMessages,
+        (event: ChatStreamEvent) => {
+          switch (event.type) {
+            case 'start':
+              break
+            case 'token':
+              appendToken(event.content)
+              break
+            case 'done':
+              clearStreaming()
+              break
+            case 'error':
+              appendError(event.message ?? event.content ?? 'stream error')
+              toast('Stream error: ' + (event.message ?? 'unknown'), 'error')
+              break
+          }
+        },
+        { signal: controller.signal },
+      )
     } catch (e) {
       const errMsg = e instanceof HttpError ? e.message : String((e as Error)?.message ?? e)
-      setMessages((m) => [...m, { id: nextId(), role: 'assistant', content: `[Error] ${errMsg}` }])
+      appendError(errMsg)
       toast('Send failed: ' + errMsg, 'error')
     } finally {
       setSending(false)
+      abortRef.current = null
     }
   }
 
   return (
-    <div className="flex h-full gap-0">
+    <div className="flex h-full gap-0 fade-in">
       {/* Sessions Sidebar */}
       <div
         className={`${
           sidebarOpen ? 'w-64' : 'w-0'
-        } shrink-0 overflow-hidden border-r border-border bg-surface transition-all duration-300`}
+        } shrink-0 overflow-hidden border-r border-[var(--border)] bg-[var(--surface)] transition-all duration-300`}
       >
         <div className="flex h-full w-64 flex-col">
-          <div className="flex items-center justify-between border-b border-border p-3">
-            <span className="text-sm font-semibold text-text">Sessions</span>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1 text-text-muted hover:text-text"
-            >
-              <ChevronLeft size={16} />
-            </button>
+          <div className="flex items-center justify-between border-b border-[var(--border)] p-3">
+            <span className="text-sm font-semibold text-[var(--text)]">Sessions</span>
+            <div className="flex gap-1">
+              <button
+                onClick={newChat}
+                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+                title="New chat"
+              >
+                <Plus size={14} />
+              </button>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+              >
+                <ChevronLeft size={14} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {sessions.length === 0 ? (
-              <p className="p-4 text-center text-xs text-text-muted">No sessions yet</p>
+              <p className="p-4 text-center text-xs text-[var(--text-muted)]">No sessions</p>
             ) : (
               <div className="space-y-1">
                 {sessions.map((s) => (
                   <div
                     key={s.session_id}
-                    className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-surface-hover"
+                    onClick={() => void loadSession(s.session_id)}
+                    className={`cursor-pointer rounded-lg p-2.5 transition-colors ${
+                      activeSession === s.session_id
+                        ? 'bg-[var(--accent-soft)] border border-[var(--accent)]/20'
+                        : 'hover:bg-[var(--surface-hover)] border border-transparent'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="truncate text-xs font-medium text-text">
-                        {s.session_id.slice(0, 12)}
+                      <span className="truncate text-xs font-medium text-[var(--text)]">
+                        {s.session_id.slice(0, 16)}
                       </span>
-                      <span className="flex items-center gap-1 text-2xs text-text-muted">
+                      <span className="flex items-center gap-1 text-2xs text-[var(--text-muted)]">
                         <MessageSquare size={10} />
                         {s.message_count}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-2xs text-text-muted">
+                    <div className="mt-1 flex items-center gap-3 text-2xs text-[var(--text-muted)]">
                       <span className="flex items-center gap-1">
                         <Clock size={10} />
                         {formatTime(s.last_active)}
@@ -182,22 +284,25 @@ export default function Chat() {
 
       {/* Main Chat Area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header with sidebar toggle + status */}
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        {/* Header */}
+        <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-2">
           {!sidebarOpen && (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               aria-label="Open sessions"
             >
               <ChevronRight size={16} />
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <MessageSquare size={16} className="text-accent" />
-            <span className="text-sm font-semibold text-text">Chat</span>
-          </div>
-          <div className="ml-auto flex items-center gap-3 text-2xs text-text-muted">
+          <MessageSquare size={16} className="text-[var(--accent)]" />
+          <span className="text-sm font-semibold text-[var(--text)]">Chat</span>
+          {activeSession && (
+            <span className="text-2xs text-[var(--text-muted)]">
+              ({activeSession.slice(0, 8)})
+            </span>
+          )}
+          <div className="ml-auto flex items-center gap-3 text-2xs text-[var(--text-muted)]">
             <span className="flex items-center gap-1">
               <Activity size={12} />
               {messages.length} msgs
@@ -211,57 +316,61 @@ export default function Chat() {
           className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
         >
           {messages.length === 0 && (
-            <p className="m-auto text-sm text-text-muted">Start chatting (press 2 to focus).</p>
+            <InlineEmptyState
+              icon={<MessageSquare className="size-5" />}
+              title="Start chatting"
+            />
           )}
-          {messages.map((msg) => (
-            <ShimmerCard
-              key={msg.id}
-              glow={msg.role === 'assistant'}
-              className={`max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                    msg.role === 'assistant'
-                      ? 'bg-accent/20 text-accent'
-                      : 'bg-surface-hover text-text-secondary'
-                  }`}
-                >
-                  {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
+          {messages.map((msg) => {
+            const isUser = msg.role === 'user'
+            return (
+              <ShimmerCard
+                key={msg.id}
+                variant={isUser ? 'default' : 'accent'}
+                className={`max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                      isUser
+                        ? 'bg-[var(--surface-hover)] text-[var(--text-secondary)]'
+                        : 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    }`}
+                  >
+                    {isUser ? <User size={16} /> : <Bot size={16} />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">
+                      {isUser ? 'You' : 'OpenClaw'}
+                    </p>
+                    {msg.streaming && msg.content === '' ? (
+                      <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                        <LoadingDots size="sm" />
+                        <span>Thinking...</span>
+                      </div>
+                    ) : (
+                      <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${msg.error ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
+                        {msg.content}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text-secondary">
-                    {msg.role === 'assistant' ? 'OpenClaw' : 'You'}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-text">
-                    {msg.content}
-                  </p>
-                </div>
-              </div>
-            </ShimmerCard>
-          ))}
-          {sending && (
-            <ShimmerCard className="max-w-[40%] self-start" glow>
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:120ms]" />
-                <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:240ms]" />
-                Thinking...
-              </div>
-            </ShimmerCard>
-          )}
+              </ShimmerCard>
+            )
+          })}
         </div>
 
         {/* Input bar */}
-        <div className="flex gap-2 border-t border-border p-3 sm:gap-3">
-          <button
+        <div className="flex gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
+          <Button
             type="button"
-            className="focus-ring hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-text-secondary transition hover:text-text sm:flex"
+            size="icon"
+            variant="secondary"
             aria-label="Attach"
-          >
-            <Paperclip size={18} />
-          </button>
-          <input
+            className="hidden h-11 w-11 shrink-0 sm:flex"
+            icon={<Paperclip size={18} />}
+          />
+          <Input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -272,18 +381,17 @@ export default function Chat() {
               }
             }}
             placeholder="Type a message..."
-            className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-bg px-4 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
             aria-label="Message input"
+            className="h-11 min-w-0 flex-1"
           />
-          <button
-            type="button"
+          <Button
             onClick={() => void send()}
-            disabled={sending || !input.trim()}
-            className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition hover:bg-accent-hover disabled:opacity-50 sm:w-auto sm:px-5"
-            aria-label="Send"
+            loading={sending}
+            disabled={!input.trim()}
+            icon={<Send size={18} />}
           >
-            <Send size={18} />
-          </button>
+            <span className="hidden sm:inline">Send</span>
+          </Button>
         </div>
       </div>
     </div>
