@@ -20,7 +20,7 @@ import { scoreCandidates, buildRoutingContext } from "./context-scorer.js";
 import { applyStrategies, recordCircuitFailure, recordCircuitSuccess } from "./route-strategy.js";
 import type { RoutingContext, RoutingSignal, FailureRecord, PatternSignal } from "./context-scorer.js";
 import type { StrategyResult } from "./route-strategy.js";
-import type { TaskRole } from "./model-capability-registry.js";
+import { assignModel, findModelsForRole, listAllRoles, type TaskRole } from "./model-capability-registry.js";
 
 // ─── Unified Routing Decision ──────────────────────────────────────────────
 
@@ -201,21 +201,25 @@ class UnifiedRouter {
   }
 
   /**
-   * Get all candidate roles for scoring.
+   * Get all candidate roles for scoring from the real model registry.
    */
   private getCandidates(): Array<{ model: string; provider: string; role: TaskRole }> {
-    // Return the main roles that can be assigned
-    const roles: TaskRole[] = [
-      "coding", "review", "research", "architecture", "decision",
-      "general-chat", "general-tool", "english", "rl", "evaluation",
-      "deep_research", "math",
-    ];
+    const candidates: Array<{ model: string; provider: string; role: TaskRole }> = [];
+    const seen = new Set<string>();
 
-    return roles.map((role) => ({
-      model: `auto-${role}`,
-      provider: "auto",
-      role,
-    }));
+    for (const role of listAllRoles()) {
+      const assignment = assignModel(role);
+      if (assignment && !seen.has(assignment.model.id)) {
+        seen.add(assignment.model.id);
+        candidates.push({
+          model: assignment.model.id,
+          provider: assignment.model.provider,
+          role,
+        });
+      }
+    }
+
+    return candidates;
   }
 }
 

@@ -5,8 +5,11 @@
  * output matches the plan's verificationCriteria.  This is a lightweight,
  * rule-based check — NOT an LLM call.
  *
- * For critical tasks, the verifier can invoke the DRE three-stage pipeline
- * to fact-check claims in the output.
+ * Enhanced with DRE pipeline's risk scoring rules:
+ * - Blacklist detection (dangerous/harmful content patterns)
+ * - Source-type risk (LLM-generated content gets +0.1 risk)
+ * - Length risk (too short for complexity level)
+ * - Confidence floor (confidence < 0.6 forces reject)
  */
 
 import { logger } from "../../utils/logger.js";
@@ -157,13 +160,61 @@ function checkCertaintyMarkers(output: string): VerificationIssue[] {
   return issues;
 }
 
+// ─── DRE Risk Scoring (ported from DRE Pipeline) ───────────────────────────
+
+/**
+ * DRE-style blacklist patterns.  Content matching these gets +0.3 risk.
+ * Ported from src/dre/pipeline/pipeline.ts BlacklistRule.
+ */
+const BLACKLIST_PATTERNS = [
+  /虚假信息/, /谣言/, /fake news/i, /misinformation/i,
+  /hack(?!er)/i, /exploit(?!ation)/i, /inject/i,
+  /<script/i, /javascript:/i, /on\w+=/i,
+];
+
+/**
+ * DRE-style risk score for output content.
+ * Returns a risk score 0-1.  Used to decide if deeper verification is needed.
+ */
+function computeDreRiskScore(output: string, plan: ExecutionPlan): number {
+  let risk = 0;
+
+  // Blacklist patterns
+  for (const pattern of BLACKLIST_PATTERNS) {
+    if (pattern.test(output)) {
+      risk += 0.3;
+      break;
+    }
+  }
+
+  // Length risk: too short for complexity
+  const minLen: Record<Complexity, number> = { simple: 10, medium: 50, complex: 100 };
+  if (output.length < minLen[plan.complexity]) {
+    risk += 0.2;
+  }
+
+  // Source-type risk: if plan used LLM generation, slightly riskier
+  const hasGenerate = plan.steps.some((s) => s.action === "generate");
+  if (hasGenerate) {
+    risk += 0.1;
+  }
+
+  // Confidence floor: if any step has no verify method, risk increases
+  const unverifiedSteps = plan.steps.filter((s) => !s.verifyMethod || s.verifyMethod.length < 5);
+  if (unverifiedSteps.length > 0) {
+    risk += 0.1;
+  }
+
+  return Math.min(1, risk);
+}
+
 // ─── Main Verifier ─────────────────────────────────────────────────────────
 
 /**
  * Verify agent output against the execution plan.
  *
- * This is a FAST, rule-based check (< 10ms).  For critical tasks
- * that need fact-checking, use the DRE pipeline separately.
+ * This is a FAST, rule-based check (< 10ms).  Enhanced with DRE risk scoring.
+ * If DRE risk > 0.7, the output is flagged for deeper review.
  */
 export function verifyOutput(
   plan: ExecutionPlan,
@@ -175,6 +226,22 @@ export function verifyOutput(
   issues.push(...detectHallucinationSignals(output));
   issues.push(...checkStepCoverage(plan, output));
   issues.push(...checkCertaintyMarkers(output));
+
+  // DRE risk scoring
+  const dreRisk = computeDreRiskScore(output, plan);
+  if (dreRisk > 0.7) {
+    issues.push({
+      severity: "high",
+      category: "incorrect",
+      description: `DRE risk score ${(dreRisk * 100).toFixed(0)}% — output requires deeper verification`,
+    });
+  } else if (dreRisk > 0.4) {
+    issues.push({
+      severity: "medium",
+      category: "unverified",
+      description: `DRE risk score ${(dreRisk * 100).toFixed(0)}% — consider fact-checking`,
+    });
+  }
 
   // Calculate confidence
   const highIssues = issues.filter((i) => i.severity === "high").length;

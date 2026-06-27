@@ -132,28 +132,26 @@ class Consciousness {
       const store = getStateStore();
       const state = store.read();
 
-      // Pattern drift: detect if user switched topics
-      const recentPatterns = Object.keys(state.patternCounts);
-      const lastPattern = recentPatterns[recentPatterns.length - 1];
-      const patternDrift = lastPattern
-        ? (state.patternCounts[lastPattern] ?? 0) <= 1
-        : false;
+      // Pattern drift: use topic-shift detection from ActivityTracker
+      const patternDrift = tracker.detectTopicShift();
 
-      // Fatigue: long session with many patterns
+      // Fatigue: long session with many turns
+      const turnCount = tracker.getTurnCount();
       const totalPatterns = Object.values(state.patternCounts).reduce((a, b) => a + b, 0);
-      const fatigueIndicator = totalPatterns > 20 || state.tokensSpentThisSession > 100_000;
+      const fatigueIndicator = turnCount > 30 || totalPatterns > 20 || state.tokensSpentThisSession > 100_000;
 
-      // Expertise: infer from recent focus topics
+      // Expertise: infer from recent focus topics + dominant intent
       const focusTopics = state.recentFocus;
       const expertTopics = ["architecture", "refactor", "optimize", "concurrent", "async"];
       const hasExpertFocus = focusTopics.some((t) =>
         expertTopics.some((et) => t.toLowerCase().includes(et)),
       );
-      const expertiseSignal: RoutingSignal["expertiseSignal"] = hasExpertFocus
-        ? "expert"
-        : totalPatterns > 10
-          ? "intermediate"
-          : "beginner";
+      const dominantIntent = tracker.getDominantIntent();
+      const isExpertIntent = dominantIntent === "code" || dominantIntent === "architecture";
+      const expertiseSignal: RoutingSignal["expertiseSignal"] =
+        hasExpertFocus || isExpertIntent ? "expert"
+        : turnCount > 15 ? "intermediate"
+        : "beginner";
 
       // Urgency: detect from recent activity frequency
       const idleMs = tracker.getIdleMs();

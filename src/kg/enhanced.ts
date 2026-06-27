@@ -16,7 +16,11 @@
 
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
-import type { LLMClient } from "../dre/llm/client.js";
+
+/** Minimal LLM client interface (replaces DRE dependency). */
+interface LLMClient {
+  generate(prompt: string, maxTokens?: number): Promise<string>;
+}
 
 // ========== 类型定义 ==========
 
