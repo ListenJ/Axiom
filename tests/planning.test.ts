@@ -99,5 +99,16 @@ describe("Planning Phase", () => {
       const result = verifyOutput(complexPlan, "short");
       expect(result.issues.some((i) => i.category === "incomplete")).toBe(true);
     });
+
+    it("DRE risk score flags blacklist + short output", () => {
+      // Blacklist (0.3) + too short for complex (0.2) = 0.5 > 0.4 threshold
+      const result = verifyOutput(complexPlan, "fake news");
+      expect(result.issues.some((i) => i.description.includes("DRE risk"))).toBe(true);
+    });
+
+    it("DRE risk score flags too-short output for complex plan", () => {
+      const result = verifyOutput(complexPlan, "ok");
+      expect(result.issues.some((i) => i.category === "incomplete")).toBe(true);
+    });
   });
 });
