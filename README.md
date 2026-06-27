@@ -2,484 +2,214 @@
 
 > 基于 Bun + TypeScript 的 AI Agent，以 Obsidian Vault 为核心记忆引擎，采用确定性推理（零向量、零 embedding），所有 Agent 共享同一 Markdown 记忆库。
 
-## v2.8.2 新特性
+[![Tests](https://img.shields.io/badge/tests-500%20pass-brightgreen)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-zero%20errors-blue)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
+
+## 架构概览
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    OpenClaw AI Agent v2.8.2              │
+├─────────────────────────────────────────────────────────┤
+│  前端 (4 页)                                             │
+│  ├─ Home: 欢迎 + 快速输入                                │
+│  ├─ Chat: 流式对话 + 会话侧边栏                          │
+│  ├─ Search: 统一搜索                                     │
+│  └─ Settings: 主题 + 行为 + 系统状态                     │
+├─────────────────────────────────────────────────────────┤
+│  规划层: 第一性原理 + 反幻觉 + LRU 缓存                  │
+│  路由层: 贝叶斯专业度 + 受保护快速路径 + 归一化评分       │
+│  意识层: EWMA 自适应 + 话题漂移 + WebSocket              │
+│  工具层: 动态生成 + 中间件管道 + 组合执行                 │
+│  错误处理: 上下文感知恢复建议                             │
+├─────────────────────────────────────────────────────────┤
+│  API: 90+ 端点 (GET /health, /api, POST /chat, ...)     │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 核心特性
 
 ### 🧠 规划优先 + 反幻觉
+
 - **第一性原理约束** — 每次推理前分解为原子事实
 - **声明级验证** — 年份/工具引用/前提走私检测
 - **DRE 风险评分** — 黑名单/长度/来源风险叠加
 - **Noisy-OR 聚合** — 多声明联合幻觉概率
 
 ### 🔀 意识感知动态路由
+
 - **统一路由器** — 取代 4 套分散路由器
 - **贝叶斯专业度推断** — 后验概率替代单样本阈值
 - **受保护快速路径** — 检查失败/漂移/疲劳后才使用
 - **EWMA 自适应异常检测** — 控制图替代固定阈值
 
+### 🔧 自适应工具系统
+
+- **ToolFactory** — 动态生成 REST/CLI/转换/管道工具
+- **ToolMiddleware** — 验证/模式守卫/缓存/指标/断路器
+- **ToolComposition** — 顺序/并行/条件/错误恢复管道
+- **ExecutionMode** — Plan/Agent/YOLO 模式守卫
+
 ### 🎨 前端做减法
+
 - **4 页精简** — Home/Chat/Search/Settings
 - **启动动画** — 线框绘制 + 径向填充
 - **会话侧边栏** — Chat 集成会话管理
 
-### 🔧 架构优化
-- **~10,400 行死代码删除** — DRE 引擎/孤立模块/旧前端
-- **断路器指数衰减** — 单次成功不再完全重置
-- **评分归一化** — Min-Max 归一化防止特征主导
-
-## 架构概览
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      OpenClaw AI Agent                      │
-├─────────────┬─────────────┬─────────────┬───────────────────┤
-│  HTTP API   │  MCP Server │  WebSocket  │     CLI Tool      │
-│  (18789)    │  (3001)     │  (/ws)      │  (src/cli.ts)     │
-├─────────────┴─────────────┴─────────────┴───────────────────┤
-│                     Vault 核心记忆引擎                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ 确定性搜索   │  │ 文件监视器   │  │ 代码索引器   │      │
-│  │ (关键词+关系)│  │ (自动刷新)   │  │ (src→Vault)  │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Agent Bootstrap│ │ 记忆蒸馏器   │  │ 归档自动化   │      │
-│  │ (启动加载)   │  │ (提炼原子笔记)│  │ (PARA归档)  │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-├─────────────────────────────────────────────────────────────┤
-│                   openclaw-memory/ (Obsidian Vault)         │
-│  00-Meta/  01-Projects/  02-Areas/  03-Resources/           │
-│  04-Conversations/  05-Archives/  memory/                   │
-├─────────────────────────────────────────────────────────────┤
-│  数据采集层: 多搜索引擎(DDG/Bing/Google/Yandex/SearXNG)     │
-│  隐私保护: 指纹随机化 + 代理轮换 + 反追踪                    │
-│  模型路由: 硅基流动 → OfoxAI → DeepSeek → OpenRouter        │
-│  知识图谱: SQLite 实体关系图 (BFS/最短路径/中心性)          │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
+# 1. 克隆仓库
+git clone https://github.com/ListenJ/openclaw-fusion.git
+cd openclaw-fusion
+
+# 2. 安装依赖
 bun install
+cd frontend && npm install && cd ..
 
-# 2. 配置环境变量
+# 3. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入 API 密钥（可选，DDG/SearXNG 无需 Key）
-
-# 3. 初始化数据库
-bun run migrate
+# 编辑 .env，填入 API 密钥
 
 # 4. 启动服务
 bun run start
 
-# 5. 打开 Dashboard
-open http://localhost:18789/
+# 5. 打开浏览器
+open http://localhost:18789
 ```
-
-## 核心特性
-
-### 🔍 确定性记忆引擎（无向量）
-
-四阶段漏斗检索，每个结果都有明确的得分来源：
-
-| 阶段 | 机制 | 权重 |
-|------|------|------|
-| 精确匹配 | 文件名/标题/alias/ID | 85-100 |
-| 关键词 | 标题(3x) > 标签(2.5x) > 内容(1x) > 路径(0.5x) | - |
-| 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
-| PARA 语义 | 同分类笔记提升(+5) | - |
-
-```bash
-# 搜索记忆
-bun run src/cli.ts vault:search "OpenClaw" --limit=5
-
-# HTTP API
-curl "http://localhost:18789/search?q=OpenClaw&limit=5"
-```
-
-### 🧠 Vault 共享记忆库
-
-所有 Agent 读写同一 Obsidian Vault：
-
-```
-openclaw-memory/
-├── 00-Meta/              # 元数据（SOUL.md, AGENTS.md, IDENTITY.md...）
-├── 01-Projects/          # 项目（有明确截止日期）
-├── 02-Areas/             # 领域（长期责任）
-├── 03-Resources/         # 资源（参考材料、代码索引、原子笔记）
-│   ├── code-index/       # 项目代码自动索引
-│   ├── web-clips/        # 爬取结果
-│   ├── search-results/   # 搜索结果
-│   └── atomic-notes/     # Zettelkasten 原子笔记
-├── 04-Conversations/     # 会话日志
-├── 05-Archives/          # 归档
-└── memory/               # 每日日志
-```
-
-### 🤖 Agent Bootstrap
-
-会话启动时自动加载记忆上下文：
-
-```bash
-curl "http://localhost:18789/bootstrap?topic=memory&depth=5&format=prompt"
-# 返回可直接注入 LLM system prompt 的文本
-```
-
-### 📝 记忆蒸馏
-
-从会话/爬取/搜索内容自动提炼原子笔记：
-
-```bash
-# 手动蒸馏
-curl -X POST http://localhost:18789/vault/distill \
-  -H "Content-Type: application/json" \
-  -d '{"title":"核心发现","content":"...","tags":["research"]}'
-```
-
-### 🕸️ 知识图谱
-
-基于 SQLite 的轻量级图数据库：
-
-```bash
-# 创建实体
-curl -X POST http://localhost:18789/kg/entities \
-  -d '{"name":"OpenClaw","type":"project"}'
-
-# 创建关系
-curl -X POST http://localhost:18789/kg/relationships \
-  -d '{"sourceId":1,"targetId":2,"type":"uses"}'
-
-# 最短路径
-curl "http://localhost:18789/kg/path?from=1&to=2"
-```
-
-### 🔌 MCP 协议支持
-
-暴露 26+ 个工具，兼容任何 MCP Client：
-
-| 类别 | 工具 |
-|------|------|
-| 记忆 | `memory_search`, `memory_read`, `memory_write`, `memory_atomic`, `memory_browse`, `memory_network`, `memory_stats` |
-| 代码 | `code_index`, `code_generate`, `code_refactor`, `code_review`, `code_test` |
-| 采集 | `web_fetch`, `web_search`, `search_engines_list`, `proxy_status` |
-| 搜索 | `minimax_web_search`, `minimax_image_understand`, `minimax_health` |
-| 图谱 | `kg_create_entity`, `kg_create_relationship`, `kg_search`, `kg_shortest_path` |
-| 模型 | `model_chat`, `list_free_models` |
-| 数据 | `db_query` |
-| Agent | `opencode_status`, `project_plan`, `project_research`, `project_arch_review`, `hermes_status` |
-| 插件 | 动态加载（取决于已启用的插件） |
-
-### 🐧 Linux Office 适配器
-
-支持 Linux 桌面环境（Ubuntu/Debian/Fedora/Arch）的 Office 文档自动化：
-
-- **LibreOffice**: 文档转换（DOCX/ODT/PDF）、批量处理
-- **Python 后备**: `python-docx`, `openpyxl`, `python-pptx`
-- **系统工具**: `xclip`（剪贴板）、`xdotool`（窗口自动化）、`wmctrl`（窗口管理）
-
-```bash
-# 安装依赖
-sudo apt-get install -y libreoffice xclip xdotool wmctrl
-pip3 install python-docx openpyxl python-pptx
-
-# 使用适配器
-bun run src/cli.ts office:convert input.docx output.pdf
-```
-
-### 🔌 插件市场
-
-内部插件系统，支持动态扩展 Agent 能力：
-
-- **安装/卸载**: 本地插件管理，无需外部服务
-- **启用/禁用**: 运行时加载/卸载，无需重启
-- **配置**: 每个插件独立的配置项
-- **安全沙箱**: 受限的文件/网络/系统访问权限
-
-```bash
-# 查看已安装插件
-bun run src/cli.ts plugins:list
-
-# 安装插件
-bun run src/cli.ts plugins:install openclaw.plugins.code-analysis
-
-# 启用插件
-bun run src/cli.ts plugins:enable openclaw.plugins.code-analysis
-
-# 查看插件市场界面
-open http://localhost:18789/plugins.html
-```
-
-**内置示例插件**:
-- `code-analysis-enhanced` - 代码复杂度分析、依赖图、漏洞检测
-- `git-workflow-enhanced` - 分支命名、提交消息生成、PR 模板
-- `doc-generator` - API 文档、README 生成、架构决策记录
-
-## CLI 工具
-
-```bash
-# 系统状态
-bun run src/cli.ts status
-
-# 多引擎搜索
-bun run src/cli.ts search "TypeScript" --engines=duckduckgo,searxng --num=10
-
-# 网页抓取
-bun run src/cli.ts fetch "https://example.com"
-
-# Vault 搜索
-bun run src/cli.ts vault:search "关键词" --limit=10 --para=resources
-
-# PARA 浏览
-bun run src/cli.ts vault:para projects
-
-# 知识图谱
-bun run src/cli.ts kg:entity "SQLite" "tool"
-bun run src/cli.ts kg:relate "OpenClaw" "SQLite" "uses"
-bun run src/cli.ts kg:stats
-
-# Agent 启动
-bun run src/cli.ts bootstrap --topic="项目主题" --depth=5
-
-# 代码索引
-bun run src/cli.ts vault:index-code
-
-# 健康检查
-bun run src/cli.ts health
-```
-
-### 🤖 编码 Agent (OpenCode) — 免费模型
-
-```bash
-# 检查 Agent 状态
-bun run src/cli.ts agent:status
-
-# 启动 OpenCode 交互式编码会话（使用免费模型 deepseek-v4-flash-free）
-bun run src/cli.ts code:open "写一个 TypeScript HTTP 服务器" --model=opencode/deepseek-v4-flash-free
-
-# 列出所有可用模型
-bun run src/cli.ts code:models
-
-# 启动 OpenCode 后台 Web 服务
-bun run src/cli.ts code:serve --port=8765
-```
-
-**OpenCode 免费模型**：
-- `opencode/deepseek-v4-flash-free` — 推荐，DeepSeek V4 Flash 免费版
-- `opencode/big-pickle` — Big Pickle 免费版
-- `opencode/nemotron-3-super-free` — NVIDIA Nemotron 3 Super 免费版
-
-### 🦅 编码 Agent (Kimi Code) — Kimi 会员权益
-
-Kimi Code 基于 Kimi 最新旗舰模型，为开发者提供代码阅读、文件编辑、命令执行等 AI 辅助能力。
-
-```bash
-# 检查 Kimi Code 配置状态
-bun run src/cli.ts kimi:status
-
-# API 直连编码对话（无需安装 CLI）
-bun run src/cli.ts kimi:chat "写一个 TypeScript HTTP 服务器"
-
-# 启动 Kimi Code CLI 交互式会话（需先安装 CLI）
-bun run src/cli.ts kimi:open
-
-# 查看完整安装指南
-bun run src/cli.ts kimi:guide
-```
-
-**配置方式**：
-
-💡 **推荐：使用交互式配置向导**
-```bash
-# 自动检测 CLI、引导安装、配置认证
-bun run scripts/setup-kimi-code.ts
-```
-
-**手动配置**：
-1. **API Key** (推荐，第三方工具/自建应用):
-   - 访问 [Kimi Code 控制台](https://www.kimi.com/code) 创建 API Key
-   - 在 `.env` 中配置 `KIMI_CODE_API_KEY=your-key`
-2. **OAuth 登录** (官方 CLI):
-   - 安装 CLI: `curl -LsSf https://code.kimi.com/install.sh | bash`
-   - 登录: `kimi /login`
-
-**模型 ID**: `kimi-for-coding`（固定 ID，后端自动升级对应模型）
-
-**协议**: OpenAI 兼容 (`https://api.kimi.com/coding/v1`)
-
-### 🐉 MiniMax — 国内直连
-
-MiniMax 是一家国内大模型厂商，最新系列包括 **M3**（旗舰）、**M2.7**（均衡）、**M2.5**（轻量）三大语言模型，国内网络直连。
-
-**配置方式**（两种任选其一）：
-
-**方式 1：在 `.env` 中配置（推荐用于生产）**
-
-```bash
-# .env
-MINIMAX_API_KEY=your-minimax-api-key
-MINIMAX_BASE_URL=https://api.minimax.chat/v1  # 可选，默认已设置
-```
-
-**方式 2：在前端 Settings 页面运行时配置（推荐用于临时测试）**
-
-打开 `http://localhost:18789/`，进入 **Settings → Provider API Keys** 卡片，在 **MiniMax** 那一行填入 API Key 即可。
-- 运行时设置仅保存在服务器内存中，**不写入** `.env`
-- 重启服务后会失效
-- 优先级：运行时设置 > `.env` 中的值
-
-**已注册的 MiniMax 模型**：
-
-| 模型 ID | 角色 | Context | 说明 |
-|---------|------|---------|------|
-| `MiniMax-M3` | general-chat / architecture / research | 256K | 旗舰模型，架构设计+研究分析 |
-| `MiniMax-M2.7` | general-chat / english | 128K | 均衡模型，通用对话与内容分析 |
-| `MiniMax-M2.5` | general-chat / english / general-tool | 32K | 轻量快速模型，高频对话场景 |
-
-**MiniMax MCP 工具**（若订阅 Token Plan，同一 API Key 可同时用于模型调用和 MCP 工具）：
-
-| 工具 | 说明 |
-|------|------|
-| `minimax_web_search` | 实时网络搜索，支持中文优化 |
-| `minimax_image_understand` | 图像识别分析，支持 URL 或 base64 |
-| `minimax_health` | 检查 MiniMax API 连接状态 |
-
-**使用示例**：
-
-```bash
-# 通过 MCP 调用 MiniMax 网络搜索
-curl -X POST http://localhost:18789/mcp/tools/minimax_web_search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"人工智能最新进展","num":5}'
-
-# 通过 MCP 调用图像识别
-curl -X POST http://localhost:18789/mcp/tools/minimax_image_understand \
-  -H "Content-Type: application/json" \
-  -d '{"image":"https://example.com/image.jpg","prompt":"描述这张图片"}'
-```
-
-**Token Plan 说明**：
-- 标准版 API：`https://api.minimax.chat`（按调用计费）
-- Token Plan：`https://api.minimax.io`（订阅制，同一 Key 可用于模型+MCP）
-- 切换方式：设置 `MINIMAX_BASE_URL=https://api.minimax.io`
-
-**API 调用**：
-
-```bash
-# 走模型路由器（自动按 role 路由）
-curl -X POST http://localhost:18789/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"你好"}],"taskType":"general-chat"}'
-
-# 直接调用某个 MiniMax 模型
-curl -X POST http://localhost:18789/agent-chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"分析一下这个架构设计的优缺点","taskType":"architecture"}'
-```
-
-**管理 API（编程方式设置）**：
-
-```bash
-# 查看所有 provider 状态（API Key 已脱敏）
-curl http://localhost:18789/api-keys
-
-# 运行时设置 MiniMax API Key
-curl -X POST http://localhost:18789/api-keys \
-  -H "Content-Type: application/json" \
-  -d '{"provider":"minimax","apiKey":"eyJhbGciOiJSUzI1NiIs..."}'
-
-# 清除运行时 override（回退到 .env）
-curl -X DELETE http://localhost:18789/api-keys/minimax
-```
-
-### 📋 项目管理 Agent (Hermes)
-
-```bash
-# 创建项目计划
-bun run src/cli.ts project:plan "构建一个电商后台管理系统"
-
-# 深度研究
-bun run src/cli.ts project:research "Rust vs Go 在微服务中的性能对比"
-
-# 架构审查
-bun run src/cli.ts project:arch --path=.
-```
-
-**安装 Hermes Agent**（如未安装）：
-```bash
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
-```
-
-Hermes 安装后可通过 MCP 连接 OpenClaw 共享记忆库。
-
-## API 端点速查
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/` | GET | Dashboard |
-| `/health` | GET | 健康检查 |
-| `/chat` | POST | 模型聊天 |
-| `/search?q=` | GET | Vault 确定性搜索 |
-| `/web-search?q=` | GET | 多引擎搜索 |
-| `/web-fetch?url=` | GET | 结构化抓取 |
-| `/vault/stats` | GET | Vault 统计 |
-| `/vault/para/:category` | GET | PARA 浏览 |
-| `/vault/tags/:tag` | GET | 标签浏览 |
-| `/vault/network/:path` | GET | 笔记关联网络 |
-| `/vault/note?path=` | GET | 读取笔记 |
-| `/vault/write` | POST | 写入笔记 |
-| `/vault/atomic` | POST | 原子笔记 |
-| `/vault/distill` | POST | 记忆蒸馏 |
-| `/vault/code-index` | POST | 索引代码 |
-| `/vault/reload` | POST | 重建索引 |
-| `/vault/watch-status` | GET | 文件监视器状态 |
-| `/bootstrap` | GET | Agent 启动加载 |
-| `/kg/*` | - | 知识图谱 API |
-| `/ws` | WS | 实时推送 |
-| `/plugins` | GET | 插件列表 |
-| `/plugins/available` | GET | 可用插件 |
-| `/plugins/install` | POST | 安装插件 |
-| `/plugins/:id/enable` | POST | 启用插件 |
-| `/plugins/:id/disable` | POST | 禁用插件 |
 
 ## 环境变量
 
-| 变量 | 说明 | 必需 |
+```bash
+# 必需
+OPENCLAW_AUTH_TOKEN=your-auth-token
+
+# 可选 (至少一个 LLM 提供商)
+SILICONFLOW_API_KEY=your-key
+DEEPSEEK_API_KEY=your-key
+OPENROUTER_API_KEY=your-key
+
+# 可选 (搜索)
+SERPAPI_API_KEY=your-key
+
+# 可选 (GitHub)
+GITHUB_TOKEN=your-token
+```
+
+## API 端点
+
+| 方法 | 路径 | 描述 |
 |------|------|------|
-| `OPENCLAW_GATEWAY_PORT` | HTTP 端口 | 否 (默认 18789) |
-| `OBSIDIAN_VAULT_PATH` | Vault 路径 | 否 (默认 ./openclaw-memory) |
-| `DATABASE_PATH` | SQLite 路径 | 否 (默认 ./data/agent.db) |
-| `SILICONFLOW_API_KEY` | 硅基流动 API Key | 否 |
-| `OFOXAI_API_KEY` | OfoxAI API Key | 否 |
-| `DEEPSEEK_API_KEY` | DeepSeek API Key | 否 |
-| `OPENROUTER_API_KEY` | OpenRouter API Key | 否 |
-| `KIMI_CODE_API_KEY` | Kimi Code API Key | 否 |
-| `MINIMAX_API_KEY` | MiniMax API Key (M3/M2.7/M2.5) — 也可前端运行时配置 | 否 |
-| `MINIMAX_BASE_URL` | MiniMax API 端点 | 否 (默认 https://api.minimax.chat/v1) |
-| `BING_API_KEY` | Bing Search API | 否 |
-| `YANDEX_API_KEY` | Yandex XML API | 否 |
-| `SERPAPI_KEY` | SERPAPI Key | 否 |
-| `LOG_LEVEL` | 日志级别 | 否 (默认 info) |
+| GET | `/health` | 系统健康 + 模块状态 |
+| GET | `/api` | API 文档 (自动生成) |
+| GET | `/metrics` | Prometheus 格式指标 |
+| POST | `/chat` | 流式对话 |
+| GET | `/search?q=...` | 统一搜索 |
+| GET | `/vault/stats` | Vault 统计 |
+| GET | `/agents/status` | Agent 状态 |
+| GET | `/consciousness/status` | 意识状态 |
 
-## 技术栈
+完整 API 文档见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-- **运行时**: Bun 1.3+
-- **语言**: TypeScript (ESM, strict)
-- **数据库**: SQLite (bun:sqlite) + Drizzle ORM Schema
-- **协议**: MCP (Model Context Protocol) v1.29
-- **搜索**: DuckDuckGo / Bing / Yandex / Google(SERPAPI) / SearXNG
-- **隐私**: 指纹随机化 + 代理轮换 + 反追踪
-- **记忆**: Obsidian Vault (Markdown) + 确定性搜索引擎
+## 项目结构
+
+```
+openclaw-fusion/
+├── src/
+│   ├── agents/
+│   │   ├── planning/          # 规划层
+│   │   │   ├── planner.ts     # 复杂度分类 + LLM 规划
+│   │   │   ├── verifier.ts    # 声明级验证
+│   │   │   └── first-principles.ts
+│   │   └── consciousness/     # 意识层
+│   │       ├── trace-analyzer.ts  # EWMA 异常检测
+│   │       └── activity-tracker.ts # 话题漂移
+│   ├── router/
+│   │   ├── unified-router.ts  # 统一路由
+│   │   ├── context-scorer.ts  # 贝叶斯评分
+│   │   └── route-strategy.ts  # 断路器策略
+│   ├── mcp/
+│   │   ├── tool-factory.ts    # 动态工具生成
+│   │   ├── tool-middleware.ts  # 中间件管道
+│   │   ├── tool-composition.ts # 工具组合
+│   │   └── server.ts          # MCP 服务器
+│   └── routes/
+│       ├── chat.ts            # 聊天路由
+│       ├── health.ts          # 健康检查
+│       └── ...
+├── frontend/
+│   └── src/
+│       ├── pages/
+│       │   ├── Home.tsx       # 欢迎页
+│       │   ├── Chat.tsx       # 流式对话
+│       │   ├── Search.tsx     # 统一搜索
+│       │   └── Settings.tsx   # 设置
+│       └── components/
+│           └── layout/
+│               └── OpeningAnimation.tsx
+├── tests/                     # 507 测试
+├── docs/
+│   └── ARCHITECTURE.md        # 完整架构文档
+└── config/
+    ├── openclaw.yaml          # 主配置
+    └── model-router.yaml      # 路由配置
+```
 
 ## 测试
 
 ```bash
-# 运行测试
-bun test
+# 运行所有测试
+bun test tests/
 
-# 确定性搜索引擎测试
-bun test tests/deterministic-search.test.ts
+# 运行特定测试
+bun test tests/planning.test.ts
+
+# TypeScript 检查
+bunx tsc --noEmit
+
+# 前端构建
+cd frontend && npx vite build
 ```
+
+### 测试统计
+
+```
+总计: 507 tests across 43 files
+通过: 500 pass
+跳过: 6 skip (MiniMax API key)
+失败: 1 fail (DataPipeline 网络超时)
+错误: 1 error (OCR tesseract.js 依赖)
+```
+
+## 论文引用
+
+| 论文 | arXiv | 应用 |
+|------|-------|------|
+| Fine-Grained UQ | 2602.17431 | 贝叶斯专业度推断 |
+| MARCH | 2603.24579 | 受保护快速路径 |
+| RT4CHART | 2603.27752 | 声明级幻觉检测 |
+| Premise Smuggling | 2606.24902 | 前提走私检测 |
+| RefChecker | 2405.14486 | 声明三元组 |
+| AEGIS | 2603.20637 | 图引导推理 |
+| 控制图理论 | — | EWMA 自适应阈值 |
+
+## 版本历史
+
+| 版本 | 日期 | 主要变更 |
+|------|------|---------|
+| v2.8.2 | 2026-06-28 | 规划层 + 动态路由 + 工具系统 + 前端精简 |
+| v2.3.0 | 2026-06-20 | Rust 原生核心 + 双版本 + 统一 TUI |
+| v2.2.0 | 2026-06-10 | 扁平路由架构 + 快速键 CLI |
+| v2.1.0 | 2026-06-01 | 智能任务分配 + 模型能力注册表 |
+| v2.0.0 | 2026-05-20 | 初始发布 |
+
+## 相关文档
+
+- [完整架构文档](docs/ARCHITECTURE.md)
+- [API 端点文档](http://localhost:18789/api) (运行时访问)
+- [系统健康状态](http://localhost:18789/health) (运行时访问)
 
 ## 许可证
 
-MIT
+MIT License
