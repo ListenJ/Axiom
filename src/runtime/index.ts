@@ -67,3 +67,15 @@ export type { Capability, CapabilitySearchResult, CapabilityProvider } from "./c
 // Knowledge Network
 export { knowledgeNetwork } from "./knowledge-network.js";
 export type { KnowledgeEntity, EntityState, Evidence, TimelineEntry, EntityKind } from "./knowledge-network.js";
+
+// Memory Engine
+export { memoryEngine } from "./memory-engine.js";
+export type { Observation, Episode, Pattern, Knowledge, Skill, Policy, MemoryStage } from "./memory-engine.js";
+
+// Rule Engine
+export { ruleEngine, initRules } from "./rule-engine.js";
+export type { Rule, RuleType, RuleMatch, RuleExecutionResult } from "./rule-engine.js";
+
+// Agent Executor
+export { agentExecutor } from "./agent-executor.js";
+export type { AgentTask, AgentObservation, AgentExecution, AgentReport, AgentState } from "./agent-executor.js";

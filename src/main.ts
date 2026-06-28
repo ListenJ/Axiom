@@ -102,12 +102,14 @@ import { initRuntime, initProjections, tickEngine, worldState, eventBus, getRunt
 import { initActors } from "./runtime/actors.js";
 import { initConstraints } from "./runtime/constraint-solver.js";
 import { initCapabilities } from "./runtime/capability-registry.js";
+import { initRules } from "./runtime/rule-engine.js";
 
 initRuntime();
 initProjections();
 initActors();
 initConstraints();
 initCapabilities();
+initRules();
 
 // Store startup time in world state
 worldState.set("system.startTime", Date.now());

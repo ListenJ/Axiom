@@ -1,0 +1,515 @@
+/**
+ * Memory Engine — Observation → Episode → Pattern → Knowledge → Skill → Policy
+ *
+ * Memory 不是存东西。Memory 是经验系统。
+ *
+ * 今天：用户修 Bug → Memory 记录：修了 Bug
+ * 以后：Observation → Bug → 原因 → 解决方案 → 抽象 → Skill → 自动复用
+ *
+ * Memory 最终应该产生 Skill，而不是 Note。
+ *
+ * 对应认知科学：
+ * - Observation: 感知输入
+ * - Episode: 情节记忆（具体事件）
+ * - Pattern: 模式识别（重复出现的模式）
+ * - Knowledge: 语义知识（抽象规则）
+ * - Skill: 程序性知识（可执行能力）
+ * - Policy: 策略（决策规则）
+ */
+
+import { logger } from "../utils/logger.js";
+import { eventBus, worldState } from "./kernel.js";
+import { atomStore } from "./atom-engine.js";
+import { knowledgeNetwork } from "./knowledge-network.js";
+
+// ─── Memory Types ──────────────────────────────────────────────────────────
+
+export type MemoryStage = "observation" | "episode" | "pattern" | "knowledge" | "skill" | "policy";
+
+export interface Observation {
+  id: string
+  content: string
+  source: string
+  timestamp: number
+  metadata: Record<string, unknown>
+  entities: string[]  // extracted entity IDs
+}
+
+export interface Episode {
+  id: string
+  observations: string[]  // observation IDs
+  summary: string
+  outcome: "success" | "failure" | "neutral"
+  cause?: string
+  solution?: string
+  timestamp: number
+  confidence: number
+}
+
+export interface Pattern {
+  id: string
+  episodes: string[]  // episode IDs
+  description: string
+  frequency: number
+  firstSeen: number
+  lastSeen: number
+  confidence: number
+}
+
+export interface Knowledge {
+  id: string
+  patterns: string[]  // pattern IDs
+  statement: string
+  domain: string
+  confidence: number
+  evidence: string[]
+  createdAt: number
+}
+
+export interface Skill {
+  id: string
+  knowledge: string[]  // knowledge IDs
+  name: string
+  description: string
+  trigger: string       // what activates this skill
+  action: string        // what the skill does
+  verification: string  // how to verify success
+  confidence: number
+  usageCount: number
+  successRate: number
+  createdAt: number
+  lastUsed: number
+}
+
+export interface Policy {
+  id: string
+  skills: string[]  // skill IDs
+  name: string
+  description: string
+  rule: string      // the policy rule
+  priority: number
+  confidence: number
+  createdAt: number
+}
+
+// ─── Memory Engine ─────────────────────────────────────────────────────────
+
+class MemoryEngineImpl {
+  private observations = new Map<string, Observation>();
+  private episodes = new Map<string, Episode>();
+  private patterns = new Map<string, Pattern>();
+  private knowledge = new Map<string, Knowledge>();
+  private skills = new Map<string, Skill>();
+  private policies = new Map<string, Policy>();
+  private stats = { observations: 0, episodes: 0, patterns: 0, knowledge: 0, skills: 0, policies: 0 };
+
+  // ─── Observation ─────────────────────────────────────────────────
+
+  /**
+   * Record an observation from the external world.
+   */
+  observe(content: string, source: string, metadata?: Record<string, unknown>): Observation {
+    const id = `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // Extract entities from content
+    const entities = this.extractEntities(content);
+
+    const observation: Observation = {
+      id,
+      content,
+      source,
+      timestamp: Date.now(),
+      metadata: metadata ?? {},
+      entities,
+    };
+
+    this.observations.set(id, observation);
+    this.stats.observations++;
+
+    // Store as atom
+    atomStore.create("observation", content, {
+      source,
+      metadata: { observationId: id, entities },
+    });
+
+    // Update world state
+    worldState.set("memory.lastObservation", {
+      timestamp: Date.now(),
+      content: content.slice(0, 200),
+      source,
+    });
+
+    eventBus.publish({
+      type: "memory.observation",
+      source: "memory-engine",
+      data: { id, content: content.slice(0, 200), source, entityCount: entities.length },
+      priority: "low",
+    });
+
+    // Try to form an episode from recent observations
+    this.tryFormEpisode();
+
+    return observation;
+  }
+
+  // ─── Episode ─────────────────────────────────────────────────────
+
+  /**
+   * Form an episode from recent observations.
+   */
+  private tryFormEpisode(): Episode | null {
+    const recentObs = Array.from(this.observations.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 5);
+
+    if (recentObs.length < 2) return null;
+
+    // Check if observations form a coherent episode
+    const sharedEntities = this.findSharedEntities(recentObs);
+    if (sharedEntities.length === 0) return null;
+
+    const id = `ep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const summary = recentObs.map((o) => o.content.slice(0, 50)).join(" → ");
+
+    const episode: Episode = {
+      id,
+      observations: recentObs.map((o) => o.id),
+      summary,
+      outcome: "neutral",
+      timestamp: Date.now(),
+      confidence: 0.7,
+    };
+
+    this.episodes.set(id, episode);
+    this.stats.episodes++;
+
+    // Store as atom
+    atomStore.create("experience", summary, {
+      source: "memory-engine",
+      metadata: { episodeId: id, sharedEntities },
+    });
+
+    eventBus.publish({
+      type: "memory.episode",
+      source: "memory-engine",
+      data: { id, summary, outcome: episode.outcome },
+      priority: "normal",
+    });
+
+    // Try to extract patterns
+    this.tryExtractPatterns();
+
+    return episode;
+  }
+
+  /**
+   * Mark an episode with outcome and cause/solution.
+   */
+  completeEpisode(episodeId: string, outcome: "success" | "failure", cause?: string, solution?: string): boolean {
+    const episode = this.episodes.get(episodeId);
+    if (!episode) return false;
+
+    episode.outcome = outcome;
+    episode.cause = cause;
+    episode.solution = solution;
+
+    // If successful, try to form knowledge
+    if (outcome === "success" && solution) {
+      this.tryFormKnowledge(episode);
+    }
+
+    return true;
+  }
+
+  // ─── Pattern ─────────────────────────────────────────────────────
+
+  /**
+   * Extract patterns from episodes.
+   */
+  private tryExtractPatterns(): void {
+    const allEpisodes = Array.from(this.episodes.values());
+
+    // Group episodes by shared entities
+    const groups = new Map<string, Episode[]>();
+    for (const ep of allEpisodes) {
+      const key = ep.observations.sort().join("|");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(ep);
+    }
+
+    // Find patterns (recurring episode groups)
+    for (const [key, episodes] of groups) {
+      if (episodes.length >= 2) {
+        const id = `pattern_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const description = `Recurring pattern: ${episodes[0].summary.slice(0, 100)}`;
+
+        const pattern: Pattern = {
+          id,
+          episodes: episodes.map((e) => e.id),
+          description,
+          frequency: episodes.length,
+          firstSeen: Math.min(...episodes.map((e) => e.timestamp)),
+          lastSeen: Math.max(...episodes.map((e) => e.timestamp)),
+          confidence: Math.min(0.5 + episodes.length * 0.1, 0.95),
+        };
+
+        this.patterns.set(id, pattern);
+        this.stats.patterns++;
+
+        // Store as atom
+        atomStore.create("concept", description, {
+          source: "memory-engine",
+          metadata: { patternId: id, frequency: pattern.frequency },
+        });
+
+        eventBus.publish({
+          type: "memory.pattern",
+          source: "memory-engine",
+          data: { id, description, frequency: pattern.frequency },
+          priority: "normal",
+        });
+      }
+    }
+  }
+
+  // ─── Knowledge ───────────────────────────────────────────────────
+
+  /**
+   * Form knowledge from a successful episode.
+   */
+  private tryFormKnowledge(episode: Episode): void {
+    if (!episode.solution) return;
+
+    const id = `know_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const statement = episode.cause
+      ? `When ${episode.cause}, then ${episode.solution}`
+      : episode.solution;
+
+    const kn: Knowledge = {
+      id,
+      patterns: [],
+      statement,
+      domain: this.inferDomain(episode),
+      confidence: episode.confidence,
+      evidence: [episode.id],
+      createdAt: Date.now(),
+    };
+
+    this.knowledge.set(id, kn);
+    this.stats.knowledge++;
+
+    // Store in knowledge network
+    knowledgeNetwork.create("fact", statement, statement, {
+      confidence: episode.confidence,
+      source: "memory-engine",
+      evidence: [{
+        source: `episode:${episode.id}`,
+        confidence: episode.confidence,
+        timestamp: Date.now(),
+        description: episode.summary,
+      }],
+    });
+
+    // Store as atom
+    atomStore.create("fact", statement, {
+      source: "memory-engine",
+      confidence: episode.confidence > 0.8 ? "certain" : "inferred",
+      metadata: { knowledgeId: id },
+    });
+
+    eventBus.publish({
+      type: "memory.knowledge",
+      source: "memory-engine",
+      data: { id, statement, domain: kn.domain },
+      priority: "normal",
+    });
+
+    // Try to form a skill
+    this.tryFormSkill(kn);
+  }
+
+  // ─── Skill ───────────────────────────────────────────────────────
+
+  /**
+   * Form a skill from knowledge.
+   */
+  private tryFormSkill(knowledge: Knowledge): void {
+    const id = `skill_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const skill: Skill = {
+      id,
+      knowledge: [knowledge.id],
+      name: `auto_${knowledge.domain}_${Date.now()}`,
+      description: knowledge.statement,
+      trigger: this.inferTrigger(knowledge),
+      action: this.inferAction(knowledge),
+      verification: "check outcome matches expectation",
+      confidence: knowledge.confidence,
+      usageCount: 0,
+      successRate: 1.0,
+      createdAt: Date.now(),
+      lastUsed: 0,
+    };
+
+    this.skills.set(id, skill);
+    this.stats.skills++;
+
+    // Store in capability registry
+    const { capabilityRegistry } = require("./capability-registry.js");
+    capabilityRegistry.register({
+      name: skill.name,
+      description: skill.description,
+      inputSchema: {},
+      outputSchema: {},
+      provider: "internal",
+      cost: 0,
+      latencyMs: 100,
+      reliability: skill.confidence,
+      constraints: [],
+      metadata: { skillId: id, autoGenerated: true },
+    });
+
+    eventBus.publish({
+      type: "memory.skill",
+      source: "memory-engine",
+      data: { id, name: skill.name, description: skill.description },
+      priority: "high",
+    });
+
+    logger.info("[MemoryEngine] Skill created", { id, name: skill.name });
+  }
+
+  // ─── Policy ──────────────────────────────────────────────────────
+
+  /**
+   * Create a policy from a skill.
+   */
+  createPolicy(skillId: string, rule: string, priority = 0): Policy | null {
+    const skill = this.skills.get(skillId);
+    if (!skill) return null;
+
+    const id = `policy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const policy: Policy = {
+      id,
+      skills: [skillId],
+      name: `Policy: ${skill.name}`,
+      description: `Auto-generated policy for ${skill.name}`,
+      rule,
+      priority,
+      confidence: skill.confidence,
+      createdAt: Date.now(),
+    };
+
+    this.policies.set(id, policy);
+    this.stats.policies++;
+
+    // Store as constraint
+    const { constraintSolver } = require("./constraint-solver.js");
+    constraintSolver.addConstraint({
+      type: "requires",
+      source: skill.name,
+      target: rule,
+      confidence: policy.confidence,
+      evidence: "auto-generated policy",
+    });
+
+    eventBus.publish({
+      type: "memory.policy",
+      source: "memory-engine",
+      data: { id, name: policy.name, rule },
+      priority: "normal",
+    });
+
+    return policy;
+  }
+
+  // ─── Query ───────────────────────────────────────────────────────
+
+  /**
+   * Search across all memory stages.
+   */
+  search(query: string): {
+    observations: Observation[]
+    episodes: Episode[]
+    patterns: Pattern[]
+    knowledge: Knowledge[]
+    skills: Skill[]
+  } {
+    const lower = query.toLowerCase();
+
+    return {
+      observations: Array.from(this.observations.values()).filter((o) => o.content.toLowerCase().includes(lower)),
+      episodes: Array.from(this.episodes.values()).filter((e) => e.summary.toLowerCase().includes(lower)),
+      patterns: Array.from(this.patterns.values()).filter((p) => p.description.toLowerCase().includes(lower)),
+      knowledge: Array.from(this.knowledge.values()).filter((k) => k.statement.toLowerCase().includes(lower)),
+      skills: Array.from(this.skills.values()).filter((s) => s.description.toLowerCase().includes(lower)),
+    };
+  }
+
+  /**
+   * Get all skills.
+   */
+  getSkills(): Skill[] {
+    return Array.from(this.skills.values());
+  }
+
+  /**
+   * Get stats.
+   */
+  getStats(): Record<string, number> {
+    return { ...this.stats };
+  }
+
+  // ─── Private Helpers ─────────────────────────────────────────────
+
+  private extractEntities(content: string): string[] {
+    const entities: string[] = [];
+    // Simple entity extraction: capitalized words, code patterns
+    const patterns = [
+      /\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b/g,  // CamelCase
+      /\b[a-z]+(?:_[a-z]+)+\b/g,            // snake_case
+      /\b\w+\.(ts|js|tsx|jsx|py|rs|go)\b/g, // file extensions
+      /`[^`]+`/g,                             // backtick code
+    ];
+
+    for (const pattern of patterns) {
+      const matches = content.match(pattern);
+      if (matches) entities.push(...matches.slice(0, 5));
+    }
+
+    return [...new Set(entities)].slice(0, 10);
+  }
+
+  private findSharedEntities(observations: Observation[]): string[] {
+    if (observations.length === 0) return [];
+    const sets = observations.map((o) => new Set(o.entities));
+    const shared = sets[0];
+    for (let i = 1; i < sets.length; i++) {
+      for (const e of shared) {
+        if (!sets[i].has(e)) shared.delete(e);
+      }
+    }
+    return Array.from(shared);
+  }
+
+  private inferDomain(episode: Episode): string {
+    const content = episode.summary.toLowerCase();
+    if (content.includes("bug") || content.includes("fix") || content.includes("error")) return "debugging";
+    if (content.includes("test") || content.includes("spec")) return "testing";
+    if (content.includes("refactor") || content.includes("optimize")) return "refactoring";
+    if (content.includes("doc") || content.includes("readme")) return "documentation";
+    return "general";
+  }
+
+  private inferTrigger(knowledge: Knowledge): string {
+    if (knowledge.cause) return `When ${knowledge.cause}`;
+    return `When ${knowledge.domain} task detected`;
+  }
+
+  private inferAction(knowledge: Knowledge): string {
+    return knowledge.statement;
+  }
+}
+
+export const memoryEngine = new MemoryEngineImpl();
