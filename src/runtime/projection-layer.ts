@@ -70,6 +70,36 @@ class ProjectionRegistryImpl {
     }
     return stats;
   }
+
+  /**
+   * Sync all projections to their respective stores.
+   * This is the "write-back" from World State to persistent storage.
+   */
+  async syncAll(): Promise<{ synced: number; errors: string[] }> {
+    let synced = 0;
+    const errors: string[] = [];
+
+    for (const [name, projection] of this.projections) {
+      try {
+        await projection.project();
+        synced++;
+        logger.debug(`[ProjectionRegistry] Synced: ${name}`);
+      } catch (err) {
+        errors.push(`${name}: ${(err as Error).message}`);
+        logger.error(`[ProjectionRegistry] Sync failed for ${name}`, err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+
+    // Publish sync event
+    eventBus.publish({
+      type: "projections.synced",
+      source: "projection-registry",
+      data: { synced, errors: errors.length },
+      priority: "low",
+    });
+
+    return { synced, errors };
+  }
 }
 
 export const projectionRegistry = new ProjectionRegistryImpl();
