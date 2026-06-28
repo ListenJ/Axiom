@@ -404,26 +404,26 @@ src/agents/
 | v2.9.0 | Capability Registry + Constraint Solver | ✅ 完成 |
 | v3.0.0 | Knowledge Network + Memory Engine + Agent 瘦身 | ✅ 完成 |
 | v3.1.0 | Rule Engine + Verification + Evidence | ✅ 完成 |
-| v3.2.0 | Projection Layer 完善 + 全面测试 | 🔄 进行中 |
+| v3.2.0 | Projection Layer + 全面测试 + 边界测试 | ✅ 完成 |
 
 ### 当前进度
 
 ```
 ✅ Runtime Kernel (Event Bus + World State + Tick Engine + Actor RT)
-✅ Atom Engine (统一原子表示)
-✅ Constraint Solver (约束求解)
-✅ Capability Registry (能力调度)
-✅ Knowledge Network (Entity+State+Constraint+Capability+Evidence)
-✅ Memory Engine (Observation→Episode→Pattern→Skill)
-✅ Rule Engine (Rule 作为 Knowledge)
-✅ Agent Executor (纯执行体 Observe→Execute→Report)
-✅ Verification Engine (全流程验证)
+✅ Atom Engine (统一原子表示 + 代码/Markdown 解析)
+✅ Constraint Solver (5种约束类型 + 求解 + 学习)
+✅ Capability Registry (能力搜索/选择/记录)
+✅ Knowledge Network (Entity+State+Constraint+Capability+Evidence+Timeline)
+✅ Memory Engine (Observation→Episode→Pattern→Skill + 模式检测)
+✅ Rule Engine (6种操作符 + 17条规则 + 可学习)
+✅ Agent Executor (纯执行体 + 真实工具调用)
+✅ Verification Engine (Input→Reasoning→Execution→Result)
 ✅ Scheduler (任务调度 + Cognitive Pipeline)
+✅ Projection Layer (Markdown/SQLite/KG/Cache + syncAll)
 ✅ Context Engine (统一上下文构建)
 ✅ Actors (Memory/Reflection/Planner/Search)
-✅ Integration (main.ts 启动序列)
-✅ Tests (46 个 Runtime 测试)
-🔄 Projection Layer (Vault/KG/SQLite 作为投影)
+✅ Integration (chat route + health endpoint)
+✅ Tests (102 个 Runtime 测试 + 边界测试)
 ```
 
 ---
