@@ -19,6 +19,7 @@ import { router, type ChatMessage } from "../../router/model-router.js";
 import type { ExecutionPlan, PlanStep, Complexity } from "./plan-schema.js";
 import { EXECUTION_PLAN_SCHEMA, buildPlanningPrompt } from "./plan-schema.js";
 import { injectFirstPrinciplesContext } from "./first-principles.js";
+import { eventBus, worldState } from "../../runtime/kernel.js";
 
 // ─── Complexity Classifier (zero-cost, keyword-based) ──────────────────────
 
@@ -330,6 +331,29 @@ export async function planExecution(
 
     const result: PlanningResult = { plan, classification, latencyMs, skipped: false };
     setCache(userInput, result);
+
+    // Publish planning event to Runtime Event Bus
+    eventBus.publish({
+      type: "planning.completed",
+      source: "planner",
+      data: {
+        complexity: plan.complexity,
+        steps: plan.steps.length,
+        latencyMs,
+        hasUnknowns: plan.unknowns.length > 0,
+        hasClarifications: (plan.clarificationsNeeded?.length ?? 0) > 0,
+      },
+      priority: "normal",
+    });
+
+    // Update world state
+    worldState.set("planning.lastPlan", {
+      timestamp: Date.now(),
+      complexity: plan.complexity,
+      steps: plan.steps.length,
+      understanding: plan.understanding,
+    });
+
     return result;
   } catch (err) {
     const errorMsg = (err as Error).message;

@@ -21,6 +21,7 @@ import { applyStrategies, recordCircuitFailure, recordCircuitSuccess } from "./r
 import type { RoutingContext, RoutingSignal, FailureRecord, PatternSignal } from "./context-scorer.js";
 import type { StrategyResult } from "./route-strategy.js";
 import { assignModel, findModelsForRole, listAllRoles, type TaskRole } from "./model-capability-registry.js";
+import { eventBus, worldState } from "../runtime/kernel.js";
 
 // ─── Unified Routing Decision ──────────────────────────────────────────────
 
@@ -176,6 +177,28 @@ class UnifiedRouter {
       confidence: strategyResult.confidence,
       thinkingIntensity: strategyResult.thinkingIntensity,
       latencyMs,
+    });
+
+    // Publish routing decision to Event Bus
+    eventBus.publish({
+      type: "routing.decision",
+      source: "unified-router",
+      data: {
+        role: strategyResult.role,
+        strategy: strategyResult.strategy,
+        confidence: strategyResult.confidence,
+        thinkingIntensity: strategyResult.thinkingIntensity,
+        latencyMs,
+      },
+      priority: "normal",
+    });
+
+    // Update world state with routing decision
+    worldState.set("routing.lastDecision", {
+      timestamp: Date.now(),
+      role: strategyResult.role,
+      strategy: strategyResult.strategy,
+      confidence: strategyResult.confidence,
     });
 
     return {

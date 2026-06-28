@@ -41,6 +41,7 @@ import { evaluate, buildScheduleTrigger, buildManualTrigger, isWithinQuietHours 
 import type { ReflectionOutcome, ReflectionTrigger, TriggerConfig } from "./types.js";
 import { DEFAULT_TRIGGER_CONFIG } from "./types.js";
 import { wsManager } from "../../utils/websocket.js";
+import { eventBus, worldState } from "../../runtime/kernel.js";
 
 // ─── Routing Signal (for UnifiedRouter) ────────────────────────────────────
 
@@ -117,6 +118,21 @@ class Consciousness {
   observe(userInput: string, intent: { intent: string; agentName: string }): void {
     try {
       getActivityTracker().bumpUserActivity(userInput, intent);
+
+      // Publish to Runtime Event Bus
+      eventBus.publish({
+        type: "consciousness.observation",
+        source: "consciousness",
+        data: { input: userInput.slice(0, 200), intent: intent.intent, agent: intent.agentName },
+        priority: "low",
+      });
+
+      // Update world state
+      worldState.set("consciousness.lastObservation", {
+        timestamp: Date.now(),
+        intent: intent.intent,
+        agent: intent.agentName,
+      });
     } catch (e) {
       logger.debug("[Consciousness] observe failed", { error: (e as Error).message });
     }
@@ -249,6 +265,29 @@ class Consciousness {
           abortedReason: outcome.abortedReason,
         },
         timestamp: new Date().toISOString(),
+      });
+
+      // Publish to Runtime Event Bus
+      eventBus.publish({
+        type: "consciousness.reflection",
+        source: "consciousness",
+        data: {
+          trigger: trigger.kind,
+          summary: outcome.summary,
+          durationMs: outcome.durationMs,
+          tokensUsed: outcome.tokensUsed,
+          promotedSkills: outcome.promotedSkillIds,
+        },
+        priority: "normal",
+      });
+
+      // Update world state with reflection result
+      worldState.set("consciousness.lastReflection", {
+        timestamp: Date.now(),
+        trigger: trigger.kind,
+        summary: outcome.summary,
+        mood: getStateStore().read().mood,
+        nextGoal: getStateStore().read().nextGoal,
       });
     } catch { /* non-fatal */ }
 

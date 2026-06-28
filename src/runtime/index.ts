@@ -52,3 +52,6 @@ export type { Projection } from "./projection-layer.js";
 // Context Engine
 export { contextEngine } from "./context-engine.js";
 export type { RuntimeContext } from "./context-engine.js";
+
+// Actors
+export { initActors } from "./actors.js";

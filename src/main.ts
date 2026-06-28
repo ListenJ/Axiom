@@ -99,9 +99,11 @@ if (!envValidation.valid) {
 
 // ===== Runtime Kernel 初始化 =====
 import { initRuntime, initProjections, tickEngine, worldState, eventBus, getRuntimeStatus } from "./runtime/index.js";
+import { initActors } from "./runtime/actors.js";
 
 initRuntime();
 initProjections();
+initActors();
 
 // Store startup time in world state
 worldState.set("system.startTime", Date.now());
