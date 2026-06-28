@@ -197,18 +197,33 @@ class RuleEngineImpl {
 
   private evaluateRule(rule: Rule, context: Record<string, unknown>): RuleMatch {
     // Simple condition evaluation
-    // In production, this would be a proper expression evaluator
     try {
-      // Check if condition references context keys
-      const conditionKeys = rule.condition.match(/\b\w+\b/g) ?? [];
-      const allPresent = conditionKeys.every((key) => key in context);
-
-      if (!allPresent) {
-        return { rule, matched: false, reason: `Missing context keys: ${conditionKeys.filter((k) => !(k in context)).join(", ")}` };
+      // Parse condition: "key operator value"
+      const match = rule.condition.match(/^(\w+)\s*(==|!=|contains)\s*(.+)$/);
+      if (!match) {
+        return { rule, matched: false, reason: "Invalid condition format" };
       }
 
-      // Simple pattern matching
-      const matched = this.matchCondition(rule.condition, context);
+      const [, key, operator, value] = match;
+      const contextValue = context[key];
+
+      if (contextValue === undefined) {
+        return { rule, matched: false, reason: `Missing context key: ${key}` };
+      }
+
+      let matched = false;
+      switch (operator) {
+        case "==":
+          matched = String(contextValue) === value.trim();
+          break;
+        case "!=":
+          matched = String(contextValue) !== value.trim();
+          break;
+        case "contains":
+          matched = String(contextValue).includes(value.trim());
+          break;
+      }
+
       return { rule, matched, reason: matched ? "Condition satisfied" : "Condition not satisfied" };
     } catch (err) {
       return { rule, matched: false, reason: `Error: ${(err as Error).message}` };

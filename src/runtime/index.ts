@@ -79,3 +79,7 @@ export type { Rule, RuleType, RuleMatch, RuleExecutionResult } from "./rule-engi
 // Agent Executor
 export { agentExecutor } from "./agent-executor.js";
 export type { AgentTask, AgentObservation, AgentExecution, AgentReport, AgentState } from "./agent-executor.js";
+
+// Verification Engine
+export { verificationEngine } from "./verification-engine.js";
+export type { VerificationReport, VerificationCheck, VerificationIssue, VerificationStage, VerificationVerdict } from "./verification-engine.js";
