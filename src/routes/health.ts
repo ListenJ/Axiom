@@ -249,3 +249,38 @@ export async function handleApiDocs(ctx: RouteContext): Promise<Response | null>
   }
   return null;
 }
+
+/**
+ * Runtime status endpoint — shows the new Runtime Architecture state.
+ */
+export async function handleRuntimeStatus(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/runtime" && ctx.req.method === "GET") {
+    const { getRuntimeStatus, worldState, eventBus, tickEngine, scheduler, atomStore, contextEngine } = await import("../runtime/index.js");
+
+    const status = getRuntimeStatus();
+    const schedulerStatus = scheduler.getStatus();
+    const atomStats = atomStore.getStats();
+    const contextStats = contextEngine.getStats();
+
+    return ctx.jsonResponse({
+      runtime: {
+        version: "2.8.2-runtime",
+        architecture: "Runtime First (Event-Driven, State-First, LLM-Last)",
+        ...status,
+      },
+      scheduler: {
+        queued: schedulerStatus.queued,
+        running: schedulerStatus.running,
+        completed: schedulerStatus.completed,
+      },
+      atoms: atomStats,
+      context: contextStats,
+      worldState: {
+        version: worldState.getVersion(),
+        snapshot: worldState.snapshot(),
+      },
+      eventBus: eventBus.getStats(),
+    }, 200, ctx.baseHeaders);
+  }
+  return null;
+}

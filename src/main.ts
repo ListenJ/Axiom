@@ -97,6 +97,33 @@ if (!envValidation.valid) {
   });
 }
 
+// ===== Runtime Kernel 初始化 =====
+import { initRuntime, initProjections, tickEngine, worldState, eventBus, getRuntimeStatus } from "./runtime/index.js";
+
+initRuntime();
+initProjections();
+
+// Store startup time in world state
+worldState.set("system.startTime", Date.now());
+worldState.set("system.version", "2.8.2");
+worldState.set("system.edition", edition);
+
+// Start tick engine (1 second interval)
+tickEngine.start(1000);
+
+// Subscribe to runtime events for logging
+eventBus.subscribe("task.completed", (evt) => {
+  const data = evt.data as { name?: string; duration?: number };
+  logger.debug("[Runtime] Task completed", { name: data.name, duration: data.duration });
+});
+
+eventBus.subscribe("task.failed", (evt) => {
+  const data = evt.data as { name?: string; error?: string };
+  logger.warn("[Runtime] Task failed", { name: data.name, error: data.error });
+});
+
+logger.info("[Runtime] Kernel initialized", getRuntimeStatus());
+
 // ===== 初始化 =====
 await Bun.write("./data/.gitkeep", "").catch(() => {});
 await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
