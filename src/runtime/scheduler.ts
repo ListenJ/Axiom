@@ -454,11 +454,32 @@ class CognitivePipelineImpl {
       return ctx;
     });
 
-    // Stage 3: Entity Resolution — identify entities
+    // Stage 3: Entity Resolution — identify entities from input
     this.registerStage("entity-resolution", async (ctx) => {
-      // Simple entity resolution: atoms with kind "entity" are entities
       const { atomStore } = await import("./atom-engine.js");
-      ctx.entities = ctx.atoms.filter((a: any) => a.kind === "entity" || a.kind === "class" || a.kind === "function");
+
+      // Find entities mentioned in input
+      const input = ctx.input as string;
+      const inputLower = input.toLowerCase();
+
+      // Search for known entities
+      const searchResults = atomStore.search(input, 20);
+      ctx.entities = searchResults.filter((a) =>
+        a.kind === "entity" || a.kind === "class" || a.kind === "function" ||
+        a.kind === "concept" || a.kind === "fact"
+      );
+
+      // Also check knowledge network for matching entities
+      try {
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+        const knResults = knowledgeNetwork.search(input, 10);
+        for (const entity of knResults) {
+          if (!ctx.entities.some((e: any) => e.id === entity.id)) {
+            ctx.entities.push(entity);
+          }
+        }
+      } catch { /* non-fatal */ }
+
       return ctx;
     });
 
@@ -469,14 +490,51 @@ class CognitivePipelineImpl {
         timestamp: Date.now(),
         atomCount: ctx.atoms.length,
         entityCount: ctx.entities.length,
+        input: (ctx.input as string).slice(0, 200),
       }));
+
+      // Record entity states
+      for (const entity of ctx.entities.slice(0, 5)) {
+        const e = entity as any;
+        if (e?.id) {
+          worldState.set(`entities.${e.id}`, {
+            kind: e.kind,
+            content: e.content?.slice(0, 200),
+            lastSeen: Date.now(),
+          });
+        }
+      }
+
       return ctx;
     });
 
     // Stage 5: Constraint Check — verify constraints
     this.registerStage("constraint-check", async (ctx) => {
-      // Check for contradictions or violations
-      // This is where the "deterministic" part really matters
+      // Check constraints on discovered entities
+      const { constraintSolver } = await import("./constraint-solver.js");
+      const entityIds = ctx.entities.map((e: any) => e.id || e.content).filter(Boolean);
+
+      if (entityIds.length > 0) {
+        const constraintResult = constraintSolver.solve(entityIds);
+        ctx.constraints = constraintResult.violations;
+
+        if (!constraintResult.satisfied) {
+          // Log violations but don't block — let the planner decide
+          eventBus.publish({
+            type: "pipeline.constraint_violation",
+            source: "cognitive-pipeline",
+            data: {
+              violations: constraintResult.violations.map((v) => ({
+                type: v.constraint.type,
+                message: v.message,
+                severity: v.severity,
+              })),
+            },
+            priority: "high",
+          });
+        }
+      }
+
       return ctx;
     });
 
@@ -485,12 +543,29 @@ class CognitivePipelineImpl {
       // Use atom relations for graph-based reasoning
       if (ctx.entities.length > 0) {
         const { atomStore } = await import("./atom-engine.js");
-        const entity = ctx.entities[0] as any;
-        if (entity?.id) {
-          const related = atomStore.getRelated(entity.id);
-          if (related.length > 0) {
-            ctx.result = { found: true, related: related.map((r) => r.content) };
+
+        // Search across all entities
+        const allRelated: string[] = [];
+        for (const entity of ctx.entities.slice(0, 3)) {
+          const e = entity as any;
+          if (e?.id) {
+            const related = atomStore.getRelated(e.id);
+            allRelated.push(...related.map((r) => r.content));
           }
+        }
+
+        // Also search knowledge network
+        try {
+          const { knowledgeNetwork } = await import("./knowledge-network.js");
+          const input = ctx.input as string;
+          const knResults = knowledgeNetwork.search(input, 5);
+          for (const entity of knResults) {
+            allRelated.push(`${entity.name}: ${entity.content.slice(0, 100)}`);
+          }
+        } catch { /* non-fatal */ }
+
+        if (allRelated.length > 0) {
+          ctx.result = { found: true, related: [...new Set(allRelated)].slice(0, 10) };
         }
       }
       return ctx;

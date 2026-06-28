@@ -16,6 +16,10 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
     const consciousness = getConsciousness();
     const consciousnessStatus = consciousness.status();
 
+    // Runtime status
+    const { getRuntimeStatus, constraintSolver, capabilityRegistry, memoryEngine, ruleEngine, atomStore } = await import("../runtime/index.js");
+    const runtimeStatus = getRuntimeStatus();
+
     return ctx.jsonResponse({
       status: "ok", timestamp: new Date().toISOString(), version: "2.8.2",
       uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
@@ -34,6 +38,17 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
         },
         verification: { status: "active", features: ["claim-extraction", "dre-risk-scoring", "premise-smuggling"] },
         knowledge: { status: "active", features: ["louvain-communities", "modularity-optimization"] },
+      },
+      runtime: {
+        tick: runtimeStatus.tick,
+        events: runtimeStatus.events,
+        actors: runtimeStatus.actors,
+        stateVersion: runtimeStatus.stateVersion,
+        atoms: atomStore.getStats(),
+        constraints: constraintSolver.getStats(),
+        capabilities: capabilityRegistry.getStats(),
+        memory: memoryEngine.getStats(),
+        rules: ruleEngine.getStats(),
       },
     }, 200, ctx.baseHeaders);
   }

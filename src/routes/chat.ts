@@ -114,14 +114,58 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
 
     if (lastUserMsg?.content) {
+      // ── Runtime Cognitive Pipeline: try deterministic first ──
       try {
-        // Get consciousness routing signal
-        const signal = getConsciousness().getRoutingSignal();
+        const { cognitivePipeline, memoryEngine, verificationEngine } = await import("../runtime/index.js");
 
-        // Use unified router for routing decision
-        const decision = await unifiedRouter.route(lastUserMsg.content, chatMessages, {
-          signal,
-          isTopicContinuation: messages.length > 2,
+        // Record observation in memory
+        memoryEngine.observe(lastUserMsg.content, "user");
+
+        // Run cognitive pipeline (deterministic first, LLM last)
+        const pipelineResult = await cognitivePipeline.run(lastUserMsg.content);
+
+        if (pipelineResult.result && !pipelineResult.needsLLM) {
+          // Deterministic answer found — no LLM needed
+          const pipelineData = pipelineResult.result as { found?: boolean; related?: string[] };
+          if (pipelineData.found && pipelineData.related) {
+            const deterministicAnswer = `Based on knowledge: ${pipelineData.related.join("; ")}`;
+            result = {
+              content: deterministicAnswer,
+              model: "deterministic-pipeline",
+              provider: "runtime",
+              layer: "general" as const,
+            };
+
+            logger.info("[Chat] Deterministic pipeline answered", {
+              stageTimings: Object.fromEntries(pipelineResult.stageTimings),
+            });
+          }
+        }
+
+        // Verify the result if we got one
+        if (result?.content) {
+          const verification = await verificationEngine.verifyResult("chat", result.content);
+          if (verification.overallVerdict === "fail") {
+            logger.warn("[Chat] Result verification failed, falling back to LLM", {
+              issues: verification.issues.length,
+            });
+            result = undefined; // Fall through to LLM
+          }
+        }
+      } catch (err) {
+        logger.debug("[Chat] Cognitive pipeline failed, using LLM", { error: (err as Error).message });
+      }
+
+      // ── If no deterministic answer, use LLM routing ──
+      if (!result) {
+        try {
+          // Get consciousness routing signal
+          const signal = getConsciousness().getRoutingSignal();
+
+          // Use unified router for routing decision
+          const decision = await unifiedRouter.route(lastUserMsg.content, chatMessages, {
+            signal,
+            isTopicContinuation: messages.length > 2,
         });
 
         logger.info("[Chat] UnifiedRouter decision", {
@@ -166,6 +210,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
           result = await router.chat("general-chat", chatMessages);
         }
       }
+      } // end if (!result)
     } else {
       // No user message — use legacy routing
       if (intentInfo) {
