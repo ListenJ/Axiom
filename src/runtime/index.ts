@@ -55,3 +55,15 @@ export type { RuntimeContext } from "./context-engine.js";
 
 // Actors
 export { initActors } from "./actors.js";
+
+// Constraint Solver
+export { constraintSolver, initConstraints } from "./constraint-solver.js";
+export type { Constraint, ConstraintViolation, SolveResult, ConstraintType } from "./constraint-solver.js";
+
+// Capability Registry
+export { capabilityRegistry, initCapabilities } from "./capability-registry.js";
+export type { Capability, CapabilitySearchResult, CapabilityProvider } from "./capability-registry.js";
+
+// Knowledge Network
+export { knowledgeNetwork } from "./knowledge-network.js";
+export type { KnowledgeEntity, EntityState, Evidence, TimelineEntry, EntityKind } from "./knowledge-network.js";
