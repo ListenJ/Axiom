@@ -536,6 +536,16 @@ class MemoryEngineImpl {
   }
 
   /**
+   * Get the current (most recent, uncompleted) episode.
+   * Used by the feedback loop to mark episodes as success/failure.
+   */
+  getCurrentEpisode(): Episode | null {
+    const episodes = Array.from(this.episodes.values())
+      .sort((a, b) => b.timestamp - a.timestamp);
+    return episodes.find((e) => e.outcome === "neutral") ?? null;
+  }
+
+  /**
    * Get stats.
    */
   getStats(): Record<string, number> {

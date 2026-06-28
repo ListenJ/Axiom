@@ -545,6 +545,69 @@ export function initRuntime(): void {
     if (ctx.tickNumber % 10 === 0) {
       logger.debug("[Runtime] Tick", { tick: ctx.tickNumber, phase: ctx.phase });
     }
+
+    // Publish tick event for other modules
+    eventBus.publish({
+      type: "tick.observe",
+      source: "tick-engine",
+      data: { tick: ctx.tickNumber, deltaTime: ctx.deltaTime },
+      priority: "low",
+    });
+  });
+
+  tickEngine.onPhase("update", () => {
+    // Update phase: sync world state from external stores
+    const eventStats = eventBus.getStats();
+    worldState.set("runtime.events", {
+      published: eventStats.published,
+      handled: eventStats.handled,
+      errors: eventStats.errors,
+      timestamp: Date.now(),
+    });
+  });
+
+  tickEngine.onPhase("reason", async () => {
+    // Reason phase: evaluate rules against current context
+    try {
+      const { ruleEngine } = await import("./rule-engine.js");
+      const context = {
+        stateVersion: worldState.getVersion(),
+        timestamp: Date.now(),
+      };
+      const matches = ruleEngine.evaluate(context);
+      if (matches.length > 0) {
+        worldState.set("runtime.ruleMatches", {
+          count: matches.length,
+          rules: matches.filter((m) => m.matched).map((m) => m.rule.name),
+          timestamp: Date.now(),
+        });
+      }
+    } catch { /* non-fatal */ }
+  });
+
+  tickEngine.onPhase("schedule", async () => {
+    // Schedule phase: check for pending tasks
+    try {
+      const { scheduler } = await import("./scheduler.js");
+      const status = scheduler.getStatus();
+      worldState.set("runtime.scheduler", {
+        queued: status.queued,
+        running: status.running,
+        completed: status.completed,
+        timestamp: Date.now(),
+      });
+    } catch { /* non-fatal */ }
+  });
+
+  tickEngine.onPhase("execute", () => {
+    // Execute phase: process any pending actor messages
+    const actorStats = actorRuntime.getStats();
+    worldState.set("runtime.actors", {
+      count: actorStats.actorCount,
+      queueSize: actorStats.queueSize,
+      messagesSent: actorStats.messagesSent,
+      timestamp: Date.now(),
+    });
   });
 
   tickEngine.onPhase("reflect", () => {
@@ -560,6 +623,15 @@ export function initRuntime(): void {
       actorStats,
       timestamp: Date.now(),
     });
+  });
+
+  tickEngine.onPhase("sleep", () => {
+    // Sleep phase: cleanup and maintenance
+    // Clean old events from the event bus log
+    const stats = eventBus.getStats();
+    if (stats.published > 10000) {
+      logger.info("[Runtime] High event count, consider cleanup", { published: stats.published });
+    }
   });
 
   logger.info("[Runtime] Runtime Kernel initialized");

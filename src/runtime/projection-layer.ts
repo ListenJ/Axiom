@@ -388,11 +388,21 @@ export function initProjections(): void {
   projectionRegistry.register(new KGProjection());
   projectionRegistry.register(new CacheProjection());
 
-  // Subscribe to state changes and update projections
+  // Auto-sync projections when world state changes
+  let lastSync = 0;
+  const SYNC_DEBOUNCE_MS = 5000;
+
   eventBus.subscribe("state.changed", async () => {
-    // Debounce: only project every 5 seconds
-    // In production, this would be more sophisticated
+    const now = Date.now();
+    if (now - lastSync > SYNC_DEBOUNCE_MS) {
+      lastSync = now;
+      try {
+        await projectionRegistry.syncAll();
+      } catch (err) {
+        logger.error("[ProjectionLayer] Auto-sync failed", err instanceof Error ? err : new Error(String(err)));
+      }
+    }
   });
 
-  logger.info("[ProjectionLayer] Initialized all projections");
+  logger.info("[ProjectionLayer] Initialized all projections with auto-sync");
 }

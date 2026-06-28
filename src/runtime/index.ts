@@ -83,3 +83,7 @@ export type { AgentTask, AgentObservation, AgentExecution, AgentReport, AgentSta
 // Verification Engine
 export { verificationEngine } from "./verification-engine.js";
 export type { VerificationReport, VerificationCheck, VerificationIssue, VerificationStage, VerificationVerdict } from "./verification-engine.js";
+
+// Chat Actor
+export { getChatActor } from "./chat-actor.js";
+export type { ChatRequest, ChatResponse } from "./chat-actor.js";

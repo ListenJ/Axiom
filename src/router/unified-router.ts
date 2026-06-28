@@ -162,7 +162,49 @@ class UnifiedRouter {
       });
     }
 
-    // Step 3: Score candidates
+    // Step 3: Check Capability Registry first
+    try {
+      const { capabilityRegistry } = await import("../runtime/capability-registry.js");
+      const capability = capabilityRegistry.select(input);
+      if (capability) {
+        logger.info("[UnifiedRouter] Capability matched", {
+          name: capability.name,
+          provider: capability.provider,
+        });
+        // Use the capability's provider to determine the role
+        const roleMap: Record<string, TaskRole> = {
+          "code_analyze": "coding",
+          "code_diagnostics": "coding",
+          "memory_search": "research",
+          "planning": "architecture",
+          "constraint_solving": "decision",
+          "hermes_planning": "research",
+          "claude_reasoning": "research",
+          "opencode_coding": "coding",
+        };
+        const role = roleMap[capability.name] ?? "general-chat";
+
+        eventBus.publish({
+          type: "routing.capability",
+          source: "unified-router",
+          data: { capability: capability.name, role, provider: capability.provider },
+          priority: "normal",
+        });
+
+        return {
+          role,
+          strategy: "capability-registry",
+          confidence: capability.reliability,
+          reason: `Capability: ${capability.name} (${capability.provider})`,
+          thinkingIntensity: "none",
+          planned: false,
+          latencyMs: Date.now() - startTime,
+          fastPath: false,
+        };
+      }
+    } catch { /* non-fatal: fall through to scoring */ }
+
+    // Step 4: Score candidates
     const candidates = this.getCandidates();
     const scores = scoreCandidates(candidates, context);
 

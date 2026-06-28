@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 import { actorRuntime, eventBus, worldState } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 import type { Actor, ActorMessage } from "./kernel.js";
+import { getChatActor } from "./chat-actor.js";
 
 // ─── Memory Actor ──────────────────────────────────────────────────────────
 
@@ -226,6 +227,7 @@ class SearchActor implements Actor {
  * Call once at startup.
  */
 export function initActors(): void {
+  actorRuntime.register(getChatActor());
   actorRuntime.register(new MemoryActor());
   actorRuntime.register(new ReflectionActor());
   actorRuntime.register(new PlannerActor());

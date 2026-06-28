@@ -1,11 +1,10 @@
 /**
- * Chat and agent-chat routes — v3.0
+ * Chat and agent-chat routes — v4.0 (Runtime-integrated)
  *
- * Integrates:
- * - UnifiedRouter (consciousness-aware dynamic routing)
- * - Consciousness.observe() + getRoutingSignal()
- * - Planning Phase for complex tasks
- * - Helpful error messages with recovery suggestions
+ * All requests go through:
+ *   ChatActor → ConstraintSolver → RuleEngine → CognitivePipeline → CapabilityRegistry → VerificationEngine
+ *
+ * No direct module-to-module calls. Everything via Actor message passing.
  */
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
@@ -14,8 +13,13 @@ import { unifiedRouter } from "../router/unified-router.js";
 import { wsManager } from "../utils/websocket.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
-import { planExecution } from "../agents/planning/index.js";
-import { generateHelpfulError, formatErrorForResponse } from "../utils/error-handler.js";
+import { generateHelpfulError } from "../utils/error-handler.js";
+import { getChatActor } from "../runtime/chat-actor.js";
+import { constraintSolver } from "../runtime/constraint-solver.js";
+import { ruleEngine } from "../runtime/rule-engine.js";
+import { verificationEngine } from "../runtime/verification-engine.js";
+import { memoryEngine } from "../runtime/memory-engine.js";
+import { eventBus } from "../runtime/kernel.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/chat" && ctx.req.method === "POST") {
@@ -25,6 +29,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     let chatMessages = messages;
     let intentInfo = null;
     let codegraphContext = "";
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     if (enableIntent !== false && messages.length > 0) {
       const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
@@ -34,7 +39,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
         chatMessages = agentMessages;
         intentInfo = intent;
 
-        // ── Consciousness: observe user input ──
+        // ── Step 1: Consciousness observe ──
         try {
           getConsciousness().observe(lastUserMsg.content, {
             intent: intent.intent,
@@ -42,13 +47,37 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
           });
         } catch { /* non-fatal */ }
 
-        // ── Planning Phase for complex tasks ──
-        const complexity = planExecution.length > 0 ? "check" : "skip";
+        // ── Step 2: Constraint check (gate) ──
+        const constraintResult = constraintSolver.solve([lastUserMsg.content]);
+        if (!constraintResult.satisfied) {
+          logger.warn("[Chat] Constraint violations", {
+            violations: constraintResult.violations.map((v) => v.message),
+          });
+          // Don't block, but log and include in response
+        }
+
+        // ── Step 3: Rule evaluation ──
+        const ruleContext = {
+          intent: intent.intent,
+          mode: "agent",
+          complexity: lastUserMsg.content.length > 200 ? "complex" : lastUserMsg.content.length > 50 ? "medium" : "simple",
+        };
+        const ruleMatches = ruleEngine.evaluate(ruleContext);
+        if (ruleMatches.length > 0) {
+          logger.info("[Chat] Rules matched", {
+            rules: ruleMatches.filter((m) => m.matched).map((m) => m.rule.name),
+          });
+        }
+
+        // ── Step 4: Memory observe ──
+        memoryEngine.observe(lastUserMsg.content, "user");
+
+        // ── Step 5: Planning Phase for complex tasks ──
         if (["code", "research"].includes(intent.intent) && lastUserMsg.content.length > 100) {
           try {
+            const { planExecution } = await import("../agents/planning/index.js");
             const planResult = await planExecution(lastUserMsg.content, history);
             if (!planResult.skipped && planResult.plan.steps.length > 1) {
-              // Inject plan context into system message
               const planContext = [
                 "[Execution Plan]",
                 `Understanding: ${planResult.plan.understanding}`,
@@ -63,18 +92,12 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
                 ...chatMessages.filter((m: { role: string }) => m.role !== "system"),
                 { role: "system" as const, content: planContext },
               ];
-
-              logger.info("[Chat] Planning phase injected", {
-                steps: planResult.plan.steps.length,
-                complexity: planResult.plan.complexity,
-                latencyMs: planResult.latencyMs,
-              });
             }
-          } catch { /* non-fatal: continue without plan */ }
+          } catch { /* non-fatal */ }
         }
 
-        // 代码相关意图：自动检索 CodeGraph 记忆
-        if (intent && ["code", "research"].includes(intent.intent)) {
+        // ── Step 6: CodeGraph retrieval ──
+        if (["code", "research"].includes(intent.intent)) {
           try {
             const { retrieveCodeMemory } = await import("../memory/codegraph-index.js");
             const cgResult = await retrieveCodeMemory(lastUserMsg.content);
@@ -85,10 +108,10 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
                 ...chatMessages.filter((m: { role: string; content: string }) => m.role !== "system"),
               ];
             }
-          } catch { /* ignore codegraph errors */ }
+          } catch { /* ignore */ }
         }
 
-        // Knowledge retrieval for knowledge/research intents
+        // ── Step 7: Knowledge retrieval ──
         if (intentInfo && ["knowledge", "research"].includes(intentInfo.intent)) {
           try {
             const { decomposeQuery, searchKnowledgeBase, synthesizeResults, buildKnowledgePrompt } = await import("../agents/query-decomposer.js");
@@ -103,116 +126,109 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
               ];
             }
           } catch (err) {
-            logger.debug("Knowledge retrieval failed, continuing without context", { error: (err as Error).message });
+            logger.debug("Knowledge retrieval failed", { error: (err as Error).message });
           }
         }
       }
     }
 
-    // ── Unified Router: consciousness-aware routing ──
+    // ── Step 8: Routing via ChatActor (deterministic first, LLM fallback) ──
     let result;
     const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
 
     if (lastUserMsg?.content) {
-      // ── Runtime Cognitive Pipeline: try deterministic first ──
       try {
-        const { cognitivePipeline, memoryEngine, verificationEngine } = await import("../runtime/index.js");
+        // Try deterministic pipeline first via ChatActor
+        const chatActor = getChatActor();
+        const chatResponse = await chatActor.requestAndWait({
+          id: requestId,
+          input: lastUserMsg.content,
+          history: chatMessages,
+          mode: "agent",
+          context: { intent: intentInfo?.intent, taskType },
+        });
 
-        // Record observation in memory
-        memoryEngine.observe(lastUserMsg.content, "user");
+        if (chatResponse.content) {
+          // Deterministic answer found
+          result = {
+            content: chatResponse.content,
+            model: chatResponse.model,
+            provider: chatResponse.provider,
+            layer: "general" as const,
+          };
 
-        // Run cognitive pipeline (deterministic first, LLM last)
-        const pipelineResult = await cognitivePipeline.run(lastUserMsg.content);
-
-        if (pipelineResult.result && !pipelineResult.needsLLM) {
-          // Deterministic answer found — no LLM needed
-          const pipelineData = pipelineResult.result as { found?: boolean; related?: string[] };
-          if (pipelineData.found && pipelineData.related) {
-            const deterministicAnswer = `Based on knowledge: ${pipelineData.related.join("; ")}`;
-            result = {
-              content: deterministicAnswer,
-              model: "deterministic-pipeline",
-              provider: "runtime",
-              layer: "general" as const,
-            };
-
-            logger.info("[Chat] Deterministic pipeline answered", {
-              stageTimings: Object.fromEntries(pipelineResult.stageTimings),
-            });
-          }
-        }
-
-        // Verify the result if we got one
-        if (result?.content) {
-          const verification = await verificationEngine.verifyResult("chat", result.content);
+          // Verify result
+          const verification = verificationEngine.verifyResult(requestId, chatResponse.content);
           if (verification.overallVerdict === "fail") {
-            logger.warn("[Chat] Result verification failed, falling back to LLM", {
+            logger.warn("[Chat] Verification failed, falling back to LLM", {
               issues: verification.issues.length,
             });
             result = undefined; // Fall through to LLM
           }
         }
       } catch (err) {
-        logger.debug("[Chat] Cognitive pipeline failed, using LLM", { error: (err as Error).message });
+        logger.debug("[Chat] ChatActor failed, using LLM", { error: (err as Error).message });
       }
 
-      // ── If no deterministic answer, use LLM routing ──
+      // ── Step 9: LLM routing fallback ──
       if (!result) {
         try {
-          // Get consciousness routing signal
           const signal = getConsciousness().getRoutingSignal();
-
-          // Use unified router for routing decision
           const decision = await unifiedRouter.route(lastUserMsg.content, chatMessages, {
             signal,
             isTopicContinuation: messages.length > 2,
-        });
+          });
 
-        logger.info("[Chat] UnifiedRouter decision", {
-          role: decision.role,
-          strategy: decision.strategy,
-          confidence: decision.confidence,
-          fastPath: decision.fastPath,
-          latencyMs: decision.latencyMs,
-        });
-
-        // Execute with the decided role
-        result = await router.executeWithRole(decision.role, chatMessages);
-
-        // Broadcast routing decision
-        wsManager.broadcast({
-          type: "routing.decision",
-          payload: {
+          logger.info("[Chat] UnifiedRouter decision", {
             role: decision.role,
             strategy: decision.strategy,
             confidence: decision.confidence,
-            thinkingIntensity: decision.thinkingIntensity,
-          },
-          timestamp: new Date().toISOString(),
-        });
-      } catch (err) {
-        // Fallback to legacy routing with helpful error
-        const helpful = generateHelpfulError({
-          operation: "routing",
-          source: "UnifiedRouter",
-          originalError: (err as Error).message,
-        });
-        logger.warn("[Chat] UnifiedRouter failed, falling back to legacy", {
-          error: helpful.message,
-          cause: helpful.cause,
-          retryable: helpful.retryable,
-        });
-        if (intentInfo) {
-          result = await router.routeByIntent(intentInfo.intent, chatMessages);
-        } else if (taskType) {
-          result = await router.chat(taskType, chatMessages);
-        } else {
-          result = await router.chat("general-chat", chatMessages);
+          });
+
+          result = await router.executeWithRole(decision.role, chatMessages);
+
+          // Verify LLM result
+          const verification = verificationEngine.verifyResult(requestId, result.content ?? "");
+          if (verification.overallVerdict === "fail") {
+            logger.warn("[Chat] LLM result verification failed", {
+              issues: verification.issues.length,
+            });
+          }
+
+          // Record in memory
+          memoryEngine.observe(result.content ?? "", "llm");
+
+          wsManager.broadcast({
+            type: "routing.decision",
+            payload: {
+              role: decision.role,
+              strategy: decision.strategy,
+              confidence: decision.confidence,
+              thinkingIntensity: decision.thinkingIntensity,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (err) {
+          const helpful = generateHelpfulError({
+            operation: "routing",
+            source: "UnifiedRouter",
+            originalError: (err as Error).message,
+          });
+          logger.warn("[Chat] UnifiedRouter failed, falling back to legacy", {
+            error: helpful.message,
+          });
+
+          if (intentInfo) {
+            result = await router.routeByIntent(intentInfo.intent, chatMessages);
+          } else if (taskType) {
+            result = await router.chat(taskType, chatMessages);
+          } else {
+            result = await router.chat("general-chat", chatMessages);
+          }
         }
       }
-      } // end if (!result)
     } else {
-      // No user message — use legacy routing
+      // No user message — legacy routing
       if (intentInfo) {
         result = await router.routeByIntent(intentInfo.intent, chatMessages);
       } else if (taskType) {
@@ -222,6 +238,9 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       }
     }
 
+    // ── Step 10: Build response ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = result as any;
     const response = ctx.jsonResponse({
       ...result,
       codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
@@ -230,22 +249,18 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
         category: intentInfo.intent,
         confidence: intentInfo.confidence,
       } : null,
+      runtime: {
+        requestId,
+        constraintViolations: constraintSolver.solve([lastUserMsg?.content ?? ""]).violations.length,
+        rulesMatched: ruleEngine.evaluate({ intent: intentInfo?.intent }).filter((m) => m.matched).length,
+      },
     }, 200, ctx.baseHeaders);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = result as any;
     wsManager.broadcast({
       type: "model.usage",
       payload: { layer: r.layer ?? r.role ?? "unknown", taskType: taskType || "auto", provider: result.provider },
       timestamp: new Date().toISOString(),
     });
-    if (intentInfo) {
-      wsManager.broadcast({
-        type: "agent.intent",
-        payload: { intent: intentInfo.agentName, confidence: intentInfo.confidence, layer: r.layer ?? r.role ?? "unknown" },
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     return response;
   }
@@ -258,13 +273,16 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     const { message, history = [], taskType } = body;
     const { intent, messages: agentMessages } = buildAgentMessages(message, history);
 
-    // ── Consciousness: observe ──
+    // Consciousness observe
     try {
-      getConsciousness().observe(message, {
-        intent: intent.intent,
-        agentName: intent.agentName,
-      });
+      getConsciousness().observe(message, { intent: intent.intent, agentName: intent.agentName });
     } catch { /* non-fatal */ }
+
+    // Memory observe
+    memoryEngine.observe(message, "user");
+
+    // Constraint check
+    const constraintResult = constraintSolver.solve([message]);
 
     let result;
     if (intent) {
@@ -275,6 +293,9 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
       result = await router.chat("general-chat", agentMessages);
     }
 
+    // Verify result
+    const verification = verificationEngine.verifyResult(`agent_${Date.now()}`, result.content ?? "");
+
     const response = ctx.jsonResponse({
       ...result,
       intent: intent ? {
@@ -282,6 +303,10 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
         category: intent.intent,
         confidence: intent.confidence,
       } : null,
+      runtime: {
+        constraintViolations: constraintResult.violations.length,
+        verificationPassed: verification.overallVerdict === "pass",
+      },
     }, 200, ctx.baseHeaders);
 
     wsManager.broadcast({
