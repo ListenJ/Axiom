@@ -156,28 +156,37 @@ class MemoryEngineImpl {
 
   /**
    * Form an episode from recent observations.
+   * Enhanced: detects problem→investigation→solution patterns.
    */
   private tryFormEpisode(): Episode | null {
     const recentObs = Array.from(this.observations.values())
       .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 5);
+      .slice(0, 10);
 
     if (recentObs.length < 2) return null;
 
     // Check if observations form a coherent episode
     const sharedEntities = this.findSharedEntities(recentObs);
-    if (sharedEntities.length === 0) return null;
+    const hasTimeCoherence = this.checkTimeCoherence(recentObs, 60000); // within 60 seconds
+    const hasSemanticCoherence = this.checkSemanticCoherence(recentObs);
+
+    if (sharedEntities.length === 0 && !hasTimeCoherence && !hasSemanticCoherence) return null;
+
+    // Detect episode pattern
+    const pattern = this.detectEpisodePattern(recentObs);
 
     const id = `ep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const summary = recentObs.map((o) => o.content.slice(0, 50)).join(" → ");
+    const summary = recentObs.slice(0, 3).map((o) => o.content.slice(0, 50)).join(" → ");
 
     const episode: Episode = {
       id,
       observations: recentObs.map((o) => o.id),
       summary,
-      outcome: "neutral",
+      outcome: pattern.outcome,
+      cause: pattern.cause,
+      solution: pattern.solution,
       timestamp: Date.now(),
-      confidence: 0.7,
+      confidence: sharedEntities.length > 0 ? 0.8 : 0.6,
     };
 
     this.episodes.set(id, episode);
@@ -186,13 +195,13 @@ class MemoryEngineImpl {
     // Store as atom
     atomStore.create("experience", summary, {
       source: "memory-engine",
-      metadata: { episodeId: id, sharedEntities },
+      metadata: { episodeId: id, sharedEntities, pattern: pattern.type },
     });
 
     eventBus.publish({
       type: "memory.episode",
       source: "memory-engine",
-      data: { id, summary, outcome: episode.outcome },
+      data: { id, summary, outcome: episode.outcome, pattern: pattern.type },
       priority: "normal",
     });
 
@@ -203,7 +212,79 @@ class MemoryEngineImpl {
   }
 
   /**
-   * Mark an episode with outcome and cause/solution.
+   * Check if observations are within a time window.
+   */
+  private checkTimeCoherence(observations: Observation[], windowMs: number): boolean {
+    if (observations.length < 2) return false;
+    const newest = Math.max(...observations.map((o) => o.timestamp));
+    const oldest = Math.min(...observations.map((o) => o.timestamp));
+    return (newest - oldest) < windowMs;
+  }
+
+  /**
+   * Check semantic coherence (shared keywords).
+   */
+  private checkSemanticCoherence(observations: Observation[]): boolean {
+    if (observations.length < 2) return false;
+    const keywords = observations.flatMap((o) =>
+      o.content.toLowerCase().match(/\b\w{4,}\b/g) ?? []
+    );
+    const unique = new Set(keywords);
+    return unique.size < keywords.length * 0.7; // 30%+ keyword overlap
+  }
+
+  /**
+   * Detect the pattern of an episode (problem→investigation→solution, etc.).
+   */
+  private detectEpisodePattern(observations: Observation[]): {
+    type: string
+    outcome: "success" | "failure" | "neutral"
+    cause?: string
+    solution?: string
+  } {
+    const contents = observations.map((o) => o.content.toLowerCase());
+
+    // Pattern: problem → investigation → solution
+    const hasProblem = contents.some((c) =>
+      c.includes("bug") || c.includes("error") || c.includes("fail") || c.includes("issue")
+    );
+    const hasInvestigation = contents.some((c) =>
+      c.includes("search") || c.includes("find") || c.includes("look") || c.includes("check")
+    );
+    const hasSolution = contents.some((c) =>
+      c.includes("fix") || c.includes("solve") || c.includes("done") || c.includes("work")
+    );
+
+    if (hasProblem && hasSolution) {
+      return {
+        type: "problem-solution",
+        outcome: "success",
+        cause: contents.find((c) => c.includes("bug") || c.includes("error")),
+        solution: contents.find((c) => c.includes("fix") || c.includes("solve")),
+      };
+    }
+
+    if (hasProblem && hasInvestigation) {
+      return {
+        type: "problem-investigation",
+        outcome: "neutral",
+        cause: contents.find((c) => c.includes("bug") || c.includes("error")),
+      };
+    }
+
+    // Pattern: question → answer
+    const hasQuestion = contents.some((c) => c.includes("?") || c.includes("how") || c.includes("what"));
+    const hasAnswer = contents.some((c) => c.length > 50); // substantial answer
+
+    if (hasQuestion && hasAnswer) {
+      return { type: "question-answer", outcome: "success" };
+    }
+
+    return { type: "sequence", outcome: "neutral" };
+  }
+
+  /**
+   * Check if observations are within a time window.
    */
   completeEpisode(episodeId: string, outcome: "success" | "failure", cause?: string, solution?: string): boolean {
     const episode = this.episodes.get(episodeId);

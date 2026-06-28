@@ -196,10 +196,10 @@ class RuleEngineImpl {
   // ─── Private ─────────────────────────────────────────────────────
 
   private evaluateRule(rule: Rule, context: Record<string, unknown>): RuleMatch {
-    // Simple condition evaluation
+    // Enhanced condition evaluation
     try {
       // Parse condition: "key operator value"
-      const match = rule.condition.match(/^(\w+)\s*(==|!=|contains)\s*(.+)$/);
+      const match = rule.condition.match(/^(\w+)\s*(==|!=|contains|>|<|>=|<=|matches|in)\s*(.+)$/);
       if (!match) {
         return { rule, matched: false, reason: "Invalid condition format" };
       }
@@ -212,15 +212,36 @@ class RuleEngineImpl {
       }
 
       let matched = false;
+      const trimmedValue = value.trim();
+
       switch (operator) {
         case "==":
-          matched = String(contextValue) === value.trim();
+          matched = String(contextValue) === trimmedValue;
           break;
         case "!=":
-          matched = String(contextValue) !== value.trim();
+          matched = String(contextValue) !== trimmedValue;
           break;
         case "contains":
-          matched = String(contextValue).includes(value.trim());
+          matched = String(contextValue).includes(trimmedValue);
+          break;
+        case ">":
+          matched = Number(contextValue) > Number(trimmedValue);
+          break;
+        case "<":
+          matched = Number(contextValue) < Number(trimmedValue);
+          break;
+        case ">=":
+          matched = Number(contextValue) >= Number(trimmedValue);
+          break;
+        case "<=":
+          matched = Number(contextValue) <= Number(trimmedValue);
+          break;
+        case "matches":
+          matched = new RegExp(trimmedValue).test(String(contextValue));
+          break;
+        case "in":
+          const values = trimmedValue.split(",").map((v) => v.trim());
+          matched = values.includes(String(contextValue));
           break;
       }
 
