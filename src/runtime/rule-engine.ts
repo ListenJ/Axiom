@@ -334,5 +334,108 @@ export function initRules(): void {
     source: "predefined",
   });
 
+  // Additional inference rules
+  ruleEngine.addRule({
+    type: "inference",
+    name: "debug-task-detection",
+    description: "Detect debugging tasks",
+    condition: "intent == debug",
+    action: "route_to_coding_role",
+    priority: 10,
+    confidence: 0.9,
+    source: "predefined",
+  });
+
+  ruleEngine.addRule({
+    type: "inference",
+    name: "test-task-detection",
+    description: "Detect testing tasks",
+    condition: "intent == test",
+    action: "route_to_coding_role",
+    priority: 10,
+    confidence: 0.9,
+    source: "predefined",
+  });
+
+  ruleEngine.addRule({
+    type: "inference",
+    name: "architecture-task-detection",
+    description: "Detect architecture tasks",
+    condition: "intent == architecture",
+    action: "route_to_architecture_role",
+    priority: 10,
+    confidence: 0.9,
+    source: "predefined",
+  });
+
+  // Action rules
+  ruleEngine.addRule({
+    type: "action",
+    name: "auto-save-on-success",
+    description: "Auto-save successful results to memory",
+    condition: "success == true",
+    action: "save_to_memory",
+    priority: 3,
+    confidence: 0.7,
+    source: "predefined",
+  });
+
+  ruleEngine.addRule({
+    type: "action",
+    name: "log-on-failure",
+    description: "Log failures for learning",
+    condition: "success == false",
+    action: "log_failure",
+    priority: 5,
+    confidence: 0.9,
+    source: "predefined",
+  });
+
+  // Validation rules
+  ruleEngine.addRule({
+    type: "validation",
+    name: "check-token-budget",
+    description: "Check token budget before expensive operations",
+    condition: "complexity == complex",
+    action: "validate_token_budget",
+    priority: 40,
+    confidence: 0.8,
+    source: "predefined",
+  });
+
+  ruleEngine.addRule({
+    type: "validation",
+    name: "check-model-availability",
+    description: "Check model availability before routing",
+    condition: "provider != internal",
+    action: "check_model_health",
+    priority: 45,
+    confidence: 0.9,
+    source: "predefined",
+  });
+
+  // Constraint rules
+  ruleEngine.addRule({
+    type: "constraint",
+    name: "max-retries",
+    description: "Limit retry attempts",
+    condition: "retries >= 3",
+    action: "stop_retrying",
+    priority: 100,
+    confidence: 1.0,
+    source: "predefined",
+  });
+
+  ruleEngine.addRule({
+    type: "constraint",
+    name: "timeout-enforcement",
+    description: "Enforce execution timeout",
+    condition: "latency > 30000",
+    action: "abort_execution",
+    priority: 90,
+    confidence: 1.0,
+    source: "predefined",
+  });
+
   logger.info("[RuleEngine] Initialized predefined rules");
 }

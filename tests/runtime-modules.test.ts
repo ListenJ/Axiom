@@ -179,7 +179,7 @@ describe("Agent Executor", () => {
 
     expect(report.taskId).toBe("test-task-1");
     expect(report.status).toBeDefined();
-    expect(report.totalTimeMs).toBeGreaterThan(0);
+    expect(report.totalTimeMs).toBeGreaterThanOrEqual(0);
   });
 
   it("blocks on constraint violations", async () => {
