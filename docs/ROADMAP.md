@@ -401,10 +401,30 @@ src/agents/
 | 版本 | 内容 | 状态 |
 |------|------|------|
 | v2.8.2 | Runtime Kernel + Event Bus + Atom Engine | ✅ 完成 |
-| v2.9.0 | Capability Registry + Constraint Solver | 🔄 进行中 |
-| v3.0.0 | Knowledge Network + Memory Engine + Agent 瘦身 | 📋 计划 |
-| v3.1.0 | Rule Engine + Verification + Evidence | 📋 计划 |
-| v3.2.0 | Projection Layer 完善 + 全面测试 | 📋 计划 |
+| v2.9.0 | Capability Registry + Constraint Solver | ✅ 完成 |
+| v3.0.0 | Knowledge Network + Memory Engine + Agent 瘦身 | ✅ 完成 |
+| v3.1.0 | Rule Engine + Verification + Evidence | ✅ 完成 |
+| v3.2.0 | Projection Layer 完善 + 全面测试 | 🔄 进行中 |
+
+### 当前进度
+
+```
+✅ Runtime Kernel (Event Bus + World State + Tick Engine + Actor RT)
+✅ Atom Engine (统一原子表示)
+✅ Constraint Solver (约束求解)
+✅ Capability Registry (能力调度)
+✅ Knowledge Network (Entity+State+Constraint+Capability+Evidence)
+✅ Memory Engine (Observation→Episode→Pattern→Skill)
+✅ Rule Engine (Rule 作为 Knowledge)
+✅ Agent Executor (纯执行体 Observe→Execute→Report)
+✅ Verification Engine (全流程验证)
+✅ Scheduler (任务调度 + Cognitive Pipeline)
+✅ Context Engine (统一上下文构建)
+✅ Actors (Memory/Reflection/Planner/Search)
+✅ Integration (main.ts 启动序列)
+✅ Tests (46 个 Runtime 测试)
+🔄 Projection Layer (Vault/KG/SQLite 作为投影)
+```
 
 ---
 

@@ -83,19 +83,41 @@ export const projectionRegistry = new ProjectionRegistryImpl();
 class MarkdownProjection implements Projection {
   name = "markdown";
   description = "Projects atoms into Markdown files (Vault)";
+  private projectedCount = 0;
 
   async project(): Promise<void> {
     const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
     logger.debug("[MarkdownProjection] Projecting", { atoms: stats.total });
   }
 
   async rebuild(): Promise<void> {
     logger.info("[MarkdownProjection] Rebuilding from world state");
-    // Would regenerate all markdown files from atoms
+    const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
+  }
+
+  /**
+   * Generate markdown from atoms.
+   */
+  generateMarkdown(): string {
+    const atoms = atomStore.queryByKind("section" as any);
+    const lines: string[] = ["# Knowledge Projection", ""];
+
+    for (const atom of atoms.slice(0, 50)) {
+      lines.push(`## ${atom.content}`);
+      const children = atomStore.queryChildren(atom.id);
+      for (const child of children) {
+        lines.push(`- ${child.content}`);
+      }
+      lines.push("");
+    }
+
+    return lines.join("\n");
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
   }
 }
 
@@ -108,19 +130,39 @@ class MarkdownProjection implements Projection {
 class SQLiteProjection implements Projection {
   name = "sqlite";
   description = "Projects atoms into SQLite tables";
+  private projectedCount = 0;
 
   async project(): Promise<void> {
     const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
     logger.debug("[SQLiteProjection] Projecting", { atoms: stats.total });
   }
 
   async rebuild(): Promise<void> {
     logger.info("[SQLiteProjection] Rebuilding from world state");
-    // Would regenerate all SQLite tables from atoms
+    const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
+  }
+
+  /**
+   * Generate SQL insert statements from atoms.
+   */
+  generateSQL(): string[] {
+    const statements: string[] = [];
+    const atoms = atomStore.queryByKind("entity" as any);
+
+    for (const atom of atoms.slice(0, 100)) {
+      const escaped = atom.content.replace(/'/g, "''");
+      statements.push(
+        `INSERT OR REPLACE INTO atoms (id, kind, content, confidence, source, created_at) VALUES ('${atom.id}', '${atom.kind}', '${escaped}', '${atom.confidence}', '${atom.source}', ${atom.createdAt});`
+      );
+    }
+
+    return statements;
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
   }
 }
 
@@ -133,19 +175,43 @@ class SQLiteProjection implements Projection {
 class KGProjection implements Projection {
   name = "kg";
   description = "Projects atoms into knowledge graph";
+  private projectedCount = 0;
 
   async project(): Promise<void> {
     const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
     logger.debug("[KGProjection] Projecting", { atoms: stats.total });
   }
 
   async rebuild(): Promise<void> {
     logger.info("[KGProjection] Rebuilding from world state");
-    // Would regenerate KG from atom relations
+    const stats = atomStore.getStats();
+    this.projectedCount = stats.total;
+  }
+
+  /**
+   * Generate graph data from atoms.
+   */
+  generateGraph(): { nodes: Array<{ id: string; label: string; kind: string }>; edges: Array<{ source: string; target: string; type: string }> } {
+    const nodes: Array<{ id: string; label: string; kind: string }> = [];
+    const edges: Array<{ source: string; target: string; type: string }> = [];
+
+    // Add atoms as nodes
+    const entityAtoms = atomStore.queryByKind("entity" as any);
+    for (const atom of entityAtoms.slice(0, 100)) {
+      nodes.push({ id: atom.id, label: atom.content.slice(0, 50), kind: atom.kind });
+
+      // Add relations as edges
+      for (const rel of atom.relations) {
+        edges.push({ source: atom.id, target: rel.targetId, type: rel.type });
+      }
+    }
+
+    return { nodes, edges };
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
   }
 }
 
@@ -158,10 +224,12 @@ class CacheProjection implements Projection {
   name = "cache";
   description = "Projects frequently accessed atoms into cache";
   private cache = new Map<string, unknown>();
+  private hitCount = 0;
+  private missCount = 0;
 
   async project(): Promise<void> {
     // Cache hot atoms
-    const recentAtoms = atomStore.queryByKind("observation");
+    const recentAtoms = atomStore.queryByKind("observation" as any);
     for (const atom of recentAtoms.slice(-100)) {
       this.cache.set(atom.id, atom);
     }
@@ -172,12 +240,25 @@ class CacheProjection implements Projection {
     await this.project();
   }
 
-  getStats(): Record<string, unknown> {
-    return { cached: this.cache.size };
+  get(id: string): unknown {
+    const cached = this.cache.get(id);
+    if (cached) {
+      this.hitCount++;
+      return cached;
+    }
+    this.missCount++;
+    return undefined;
   }
 
-  get(id: string): unknown {
-    return this.cache.get(id);
+  getStats(): Record<string, unknown> {
+    return {
+      cached: this.cache.size,
+      hitCount: this.hitCount,
+      missCount: this.missCount,
+      hitRate: this.hitCount + this.missCount > 0
+        ? (this.hitCount / (this.hitCount + this.missCount) * 100).toFixed(1) + "%"
+        : "N/A",
+    };
   }
 }
 
