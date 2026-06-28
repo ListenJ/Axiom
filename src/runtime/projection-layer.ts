@@ -15,6 +15,8 @@
 import { logger } from "../utils/logger.js";
 import { worldState, eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from "fs";
+import { join } from "path";
 
 // ─── Projection Types ──────────────────────────────────────────────────────
 
@@ -114,21 +116,107 @@ class MarkdownProjection implements Projection {
   name = "markdown";
   description = "Projects atoms into Markdown files (Vault)";
   private projectedCount = 0;
+  private projectionDir = "./data/projections/markdown";
 
   async project(): Promise<void> {
     const stats = atomStore.getStats();
     this.projectedCount = stats.total;
-    logger.debug("[MarkdownProjection] Projecting", { atoms: stats.total });
+
+    // Ensure projection directory exists
+    if (!existsSync(this.projectionDir)) {
+      mkdirSync(this.projectionDir, { recursive: true });
+    }
+
+    // Write atom index
+    const indexContent = this.generateIndex();
+    writeFileSync(join(this.projectionDir, "index.md"), indexContent, "utf-8");
+
+    // Write atoms by kind
+    const kinds = ["entity", "fact", "concept", "observation", "experience", "rule"];
+    for (const kind of kinds) {
+      const atoms = atomStore.queryByKind(kind as any);
+      if (atoms.length > 0) {
+        const content = this.generateKindMarkdown(kind, atoms);
+        writeFileSync(join(this.projectionDir, `${kind}.md`), content, "utf-8");
+      }
+    }
+
+    logger.debug("[MarkdownProjection] Projected to disk", {
+      atoms: stats.total,
+      dir: this.projectionDir,
+    });
   }
 
   async rebuild(): Promise<void> {
     logger.info("[MarkdownProjection] Rebuilding from world state");
-    const stats = atomStore.getStats();
-    this.projectedCount = stats.total;
+
+    // Clean old projections
+    if (existsSync(this.projectionDir)) {
+      for (const file of readdirSync(this.projectionDir)) {
+        unlinkSync(join(this.projectionDir, file));
+      }
+    }
+
+    await this.project();
   }
 
   /**
-   * Generate markdown from atoms.
+   * Generate index markdown.
+   */
+  private generateIndex(): string {
+    const stats = atomStore.getStats();
+    const lines: string[] = [
+      "# Knowledge Projection Index",
+      "",
+      `Generated: ${new Date().toISOString()}`,
+      `Total atoms: ${stats.total}`,
+      "",
+      "## By Kind",
+      "",
+    ];
+
+    for (const [kind, count] of Object.entries(stats.byKind)) {
+      lines.push(`- **${kind}**: ${count}`);
+    }
+
+    lines.push("");
+    lines.push("## Recent Atoms");
+    lines.push("");
+
+    const recent = atomStore.queryByKind("observation" as any).slice(-10);
+    for (const atom of recent) {
+      lines.push(`- [${atom.kind}] ${atom.content.slice(0, 80)}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Generate markdown for atoms of a specific kind.
+   */
+  private generateKindMarkdown(kind: string, atoms: Array<{ id: string; content: string; confidence: string; source: string; createdAt: number }>): string {
+    const lines: string[] = [
+      `# ${kind.charAt(0).toUpperCase() + kind.slice(1)} Atoms`,
+      "",
+      `Count: ${atoms.length}`,
+      "",
+    ];
+
+    for (const atom of atoms.slice(0, 100)) {
+      lines.push(`## ${atom.content.slice(0, 80)}`);
+      lines.push("");
+      lines.push(`- **ID**: ${atom.id}`);
+      lines.push(`- **Confidence**: ${atom.confidence}`);
+      lines.push(`- **Source**: ${atom.source}`);
+      lines.push(`- **Created**: ${new Date(atom.createdAt).toISOString()}`);
+      lines.push("");
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Generate markdown from atoms (legacy method).
    */
   generateMarkdown(): string {
     const atoms = atomStore.queryByKind("section" as any);
@@ -147,7 +235,7 @@ class MarkdownProjection implements Projection {
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount, dir: this.projectionDir };
   }
 }
 

@@ -431,12 +431,35 @@ class CognitivePipelineImpl {
   // ─── Default Stages ─────────────────────────────────────────────
 
   private registerDefaultStages(): void {
-    // Stage 1: Observation — collect raw input
+    // Stage 1: Observation — collect raw input and search all knowledge sources
     this.registerStage("observation", async (ctx) => {
-      // Parse input into atoms if it's a string
       if (typeof ctx.input === "string") {
         const { atomStore } = await import("./atom-engine.js");
+        const { memoryEngine } = await import("./memory-engine.js");
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+
+        // Search atoms
         ctx.atoms = atomStore.search(ctx.input, 10);
+
+        // Search memory (observations, episodes, patterns, knowledge, skills)
+        const memoryResults = memoryEngine.search(ctx.input);
+        ctx.atoms.push(...memoryResults.knowledge.map((k) => ({
+          id: k.id,
+          kind: "fact",
+          content: k.statement,
+          confidence: "inferred" as const,
+          source: "memory",
+        })));
+
+        // Search knowledge network
+        const knResults = knowledgeNetwork.search(ctx.input, 5);
+        ctx.atoms.push(...knResults.map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          content: e.content.slice(0, 200),
+          confidence: e.confidence > 0.8 ? "certain" as const : "inferred" as const,
+          source: "knowledge-network",
+        })));
       }
       return ctx;
     });
