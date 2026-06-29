@@ -26,6 +26,8 @@ import { capabilityRegistry } from "./capability-registry.js";
 import { verificationEngine } from "./verification-engine.js";
 import { cognitivePipeline } from "./scheduler.js";
 import { contextEngine } from "./context-engine.js";
+import { reasoningGraphBuilder } from "./reasoning-graph.js";
+import { mentalModelManager } from "./mental-model.js";
 
 // ─── Chat Request/Response ─────────────────────────────────────────────────
 
@@ -199,7 +201,37 @@ export class ChatActor implements Actor {
       }
     }
 
-    // ── Step 7: No deterministic answer — need LLM ──
+    // ── Step 5: Build Reasoning Graph (break LLM black box) ──
+    const knowledgeResults = memoryEngine.search(request.input, 5);
+    const reasoningGraph = reasoningGraphBuilder.build(request.input, {
+      knowledge: knowledgeResults.knowledge.map((k) => ({
+        id: k.id,
+        content: k.statement,
+        confidence: k.confidence,
+      })),
+    });
+
+    logger.info("[ChatActor] Reasoning graph built", {
+      nodes: reasoningGraph.nodes.length,
+      gaps: reasoningGraph.gaps.length,
+      completeness: reasoningGraph.completeness,
+      needsLLM: reasoningGraph.needsLLM,
+    });
+
+    // If reasoning graph has gaps, they become specific LLM queries
+    if (reasoningGraph.needsLLM && reasoningGraph.llmQueries.length > 0) {
+      eventBus.publish({
+        type: "reasoning.gaps_detected",
+        source: "chat-actor",
+        data: {
+          gaps: reasoningGraph.llmQueries,
+          completeness: reasoningGraph.completeness,
+        },
+        priority: "normal",
+      });
+    }
+
+    // ── Step 6: No deterministic answer — need LLM ──
     // Return a signal that the caller should use LLM routing
     return {
       id: request.id,

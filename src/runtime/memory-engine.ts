@@ -21,6 +21,7 @@ import { logger } from "../utils/logger.js";
 import { eventBus, worldState } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 import { knowledgeNetwork } from "./knowledge-network.js";
+import { mentalModelManager } from "./mental-model.js";
 
 // ─── Memory Types ──────────────────────────────────────────────────────────
 
@@ -797,6 +798,69 @@ class MemoryEngineImpl {
     }
 
     return formed;
+  }
+
+  /**
+   * Use Mental Model to bridge Pattern → Skill.
+   * When a pattern is detected, use the mental model to simulate
+   * the scenario and generate a skill from the simulation.
+   */
+  formSkillsFromMentalModels(): number {
+    let formed = 0;
+    const patterns = Array.from(this.patterns.values())
+      .filter((p) => p.frequency >= 2 && p.confidence >= 0.6);
+
+    for (const pattern of patterns) {
+      // Find a relevant mental model
+      const domain = this.inferDomainFromPattern(pattern);
+      const model = mentalModelManager.getModel(domain);
+
+      if (model) {
+        // Simulate the pattern scenario
+        const simulation = mentalModelManager.simulate(model.id, pattern.description, {
+          pattern: pattern.description,
+          frequency: pattern.frequency,
+        });
+
+        if (simulation && simulation.outcome === "success") {
+          // Generate skill from simulation
+          const skillDesc = mentalModelManager.generateSkillFromSimulation(model.id, simulation.id);
+          if (skillDesc) {
+            // Form knowledge from the skill
+            const knowledge: Knowledge = {
+              id: `know_mental_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              patterns: [pattern.id],
+              statement: skillDesc,
+              domain,
+              confidence: simulation.confidence,
+              evidence: pattern.episodes,
+              createdAt: Date.now(),
+            };
+
+            this.knowledge.set(knowledge.id, knowledge);
+            this.stats.knowledge++;
+
+            // Form skill from knowledge
+            this.tryFormSkill(knowledge);
+            formed++;
+          }
+        }
+      }
+    }
+
+    return formed;
+  }
+
+  /**
+   * Infer domain from pattern description.
+   */
+  private inferDomainFromPattern(pattern: Pattern): string {
+    const desc = pattern.description.toLowerCase();
+    if (desc.includes("git") || desc.includes("merge") || desc.includes("commit")) return "git";
+    if (desc.includes("auth") || desc.includes("token") || desc.includes("login")) return "auth";
+    if (desc.includes("database") || desc.includes("sql") || desc.includes("query")) return "database";
+    if (desc.includes("api") || desc.includes("endpoint") || desc.includes("request")) return "api";
+    return "general";
   }
 
   /**
