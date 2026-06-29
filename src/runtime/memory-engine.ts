@@ -309,20 +309,57 @@ class MemoryEngineImpl {
    */
   private tryExtractPatterns(): void {
     const allEpisodes = Array.from(this.episodes.values());
+    if (allEpisodes.length < 2) return;
 
-    // Group episodes by shared entities
-    const groups = new Map<string, Episode[]>();
+    // Method 1: Group episodes by shared entities
+    const entityGroups = new Map<string, Episode[]>();
     for (const ep of allEpisodes) {
-      const key = ep.observations.sort().join("|");
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(ep);
+      const obs = ep.observations.map((id) => this.observations.get(id)).filter(Boolean);
+      const entities = obs.flatMap((o) => o.entities);
+      const uniqueEntities = [...new Set(entities)].sort();
+      if (uniqueEntities.length > 0) {
+        const key = uniqueEntities.join("|");
+        if (!entityGroups.has(key)) entityGroups.set(key, []);
+        entityGroups.get(key)!.push(ep);
+      }
     }
 
-    // Find patterns (recurring episode groups)
-    for (const [key, episodes] of groups) {
+    // Method 2: Group episodes by outcome type
+    const outcomeGroups = new Map<string, Episode[]>();
+    for (const ep of allEpisodes) {
+      if (ep.outcome !== "neutral") {
+        const key = ep.outcome;
+        if (!outcomeGroups.has(key)) outcomeGroups.set(key, []);
+        outcomeGroups.get(key)!.push(ep);
+      }
+    }
+
+    // Method 3: Group episodes by similar summaries (keyword overlap)
+    const summaryGroups = new Map<string, Episode[]>();
+    for (const ep of allEpisodes) {
+      const keywords = ep.summary.toLowerCase().match(/\b\w{4,}\b/g) ?? [];
+      const key = keywords.slice(0, 3).sort().join("|");
+      if (key.length > 0) {
+        if (!summaryGroups.has(key)) summaryGroups.set(key, []);
+        summaryGroups.get(key)!.push(ep);
+      }
+    }
+
+    // Merge all groups and create patterns
+    const allGroups = new Map<string, Episode[]>();
+    for (const [key, eps] of entityGroups) allGroups.set(`entity:${key}`, eps);
+    for (const [key, eps] of outcomeGroups) allGroups.set(`outcome:${key}`, eps);
+    for (const [key, eps] of summaryGroups) allGroups.set(`summary:${key}`, eps);
+
+    for (const [key, episodes] of allGroups) {
       if (episodes.length >= 2) {
+        // Check if pattern already exists
+        const existing = Array.from(this.patterns.values())
+          .some((p) => p.episodes.join("|") === episodes.map((e) => e.id).join("|"));
+        if (existing) continue;
+
         const id = `pattern_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const description = `Recurring pattern: ${episodes[0].summary.slice(0, 100)}`;
+        const description = `Recurring ${key.split(":")[0]} pattern: ${episodes[0].summary.slice(0, 80)}`;
 
         const pattern: Pattern = {
           id,
@@ -340,13 +377,13 @@ class MemoryEngineImpl {
         // Store as atom
         atomStore.create("concept", description, {
           source: "memory-engine",
-          metadata: { patternId: id, frequency: pattern.frequency },
+          metadata: { patternId: id, frequency: pattern.frequency, groupKey: key },
         });
 
         eventBus.publish({
           type: "memory.pattern",
           source: "memory-engine",
-          data: { id, description, frequency: pattern.frequency },
+          data: { id, description, frequency: pattern.frequency, groupKey: key },
           priority: "normal",
         });
       }
