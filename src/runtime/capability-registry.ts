@@ -18,8 +18,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { eventBus, worldState } from "./kernel.js";
-import { atomStore } from "./atom-engine.js";
+import { eventBus } from "./kernel.js";
 
 // ─── Abstract Capability Contracts ─────────────────────────────────────────
 

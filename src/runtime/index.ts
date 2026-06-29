@@ -55,6 +55,7 @@ export type { RuntimeContext } from "./context-engine.js";
 
 // Actors
 export { initActors } from "./actors.js";
+export { initSpecializedActors } from "./specialized-actors.js";
 
 // Constraint Solver
 export { constraintSolver, initConstraints } from "./constraint-solver.js";
@@ -87,3 +88,11 @@ export type { VerificationReport, VerificationCheck, VerificationIssue, Verifica
 // Chat Actor
 export { getChatActor } from "./chat-actor.js";
 export type { ChatRequest, ChatResponse } from "./chat-actor.js";
+
+// Mental Model
+export { mentalModelManager, initMentalModels } from "./mental-model.js";
+export type { MentalModel, MentalModelState, MentalModelRule } from "./mental-model.js";
+
+// Reasoning Graph
+export { reasoningGraphBuilder } from "./reasoning-graph.js";
+export type { ReasoningGraph, ReasoningNode, ReasoningEdge } from "./reasoning-graph.js";

@@ -9,7 +9,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { actorRuntime, eventBus, worldState } from "./kernel.js";
+import { actorRuntime, eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 import type { Actor, ActorMessage } from "./kernel.js";
 import { getChatActor } from "./chat-actor.js";

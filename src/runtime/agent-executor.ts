@@ -9,11 +9,10 @@
  * 所有智能都在 Runtime 中。
  */
 
-import { logger } from "../utils/logger.js";
 import { eventBus, worldState } from "./kernel.js";
-import { scheduler } from "./scheduler.js";
 import { constraintSolver } from "./constraint-solver.js";
 import { capabilityRegistry } from "./capability-registry.js";
+import { memoryEngine } from "./memory-engine.js";
 
 // ─── Agent Types ───────────────────────────────────────────────────────────
 

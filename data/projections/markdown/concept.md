@@ -1,703 +1,703 @@
 # Concept Atoms
 
-Count: 215
+Count: 213
 
 ## git Mental Model
 
-- **ID**: atom_concept_1782756316924_mk42q7
+- **ID**: atom_concept_1782759583071_5la11y
 - **Confidence**: uncertain
 - **Source**: mental-model
-- **Created**: 2026-06-29T18:05:16.924Z
+- **Created**: 2026-06-29T18:59:43.071Z
 
 ## auth Mental Model
 
-- **ID**: atom_concept_1782756316924_xl8brv
+- **ID**: atom_concept_1782759583071_g5gimp
 - **Confidence**: uncertain
 - **Source**: mental-model
-- **Created**: 2026-06-29T18:05:16.924Z
+- **Created**: 2026-06-29T18:59:43.071Z
 
-## Skill from git: test scenario
+## git Mental Model
 
-- **ID**: atom_concept_1782756316927_adeolq
+- **ID**: atom_concept_1782759583515_ns4zvc
 - **Confidence**: uncertain
 - **Source**: mental-model
-- **Created**: 2026-06-29T18:05:16.927Z
+- **Created**: 2026-06-29T18:59:43.515Z
+
+## auth Mental Model
+
+- **ID**: atom_concept_1782759583515_hrr1dt
+- **Confidence**: uncertain
+- **Source**: mental-model
+- **Created**: 2026-06-29T18:59:43.515Z
 
 ## Recurring similarity pattern: Git merge conflict in main branch → Resolved confl
 
-- **ID**: atom_concept_1782756317264_d0650s
+- **ID**: atom_concept_1782759583533_564ni4
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.264Z
+- **Created**: 2026-06-29T18:59:43.533Z
 
 ## Recurring entity pattern: User: How to fix TypeScript error? → Git merge conflic
 
-- **ID**: atom_concept_1782756317264_do38pe
+- **ID**: atom_concept_1782759583533_xfyx8v
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.264Z
+- **Created**: 2026-06-29T18:59:43.533Z
 
 ## Recurring similarity pattern: Git merge conflict in main branch → Resolved confl
 
-- **ID**: atom_concept_1782756317264_7h48se
+- **ID**: atom_concept_1782759583534_blrowk
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.264Z
+- **Created**: 2026-06-29T18:59:43.534Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317265_8myxap
+- **ID**: atom_concept_1782759583535_klcqkr
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.265Z
+- **Created**: 2026-06-29T18:59:43.535Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317265_7dg3ng
+- **ID**: atom_concept_1782759583536_sx96px
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.265Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring summary pattern: Tool code_diagnostics succeeded: Found 3 errors → Ass
 
-- **ID**: atom_concept_1782756317265_nof9we
+- **ID**: atom_concept_1782759583536_7h9efr
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.265Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317265_fa1v50
+- **ID**: atom_concept_1782759583536_svy4ri
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.265Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
-## Recurring summary pattern: Tool terminal_exec failed: Connection timeout → User:
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756317265_j2ajls
+- **ID**: atom_concept_1782759583536_ers21v
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.265Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring entity pattern: Fixed bug in AuthService.ts → Tool code_diagnostics su
 
-- **ID**: atom_concept_1782756317266_omv4hs
+- **ID**: atom_concept_1782759583536_w44bdz
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.266Z
-
-## Recurring entity pattern: Tool terminal_exec failed: Connection timeout → Fixed 
-
-- **ID**: atom_concept_1782756317266_4c8359
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.266Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317266_wel16j
+- **ID**: atom_concept_1782759583536_wni4ro
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.266Z
+- **Created**: 2026-06-29T18:59:43.536Z
 
-## Recurring entity pattern: Tool terminal_exec failed: Connection timeout → Fixed 
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756317268_jau7dt
+- **ID**: atom_concept_1782759583536_isaayx
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.268Z
+- **Created**: 2026-06-29T18:59:43.536Z
+
+## Recurring entity pattern: Fixed bug in AuthService.ts → Tool code_diagnostics su
+
+- **ID**: atom_concept_1782759583537_kq81na
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-29T18:59:43.537Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317268_0z28kj
+- **ID**: atom_concept_1782759583537_lid674
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.268Z
+- **Created**: 2026-06-29T18:59:43.537Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring entity pattern: Fixed bug in AuthService.ts → Tool code_diagnostics su
 
-- **ID**: atom_concept_1782756317268_nrrd3p
+- **ID**: atom_concept_1782759583537_ca040w
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.268Z
-
-## Recurring entity pattern: Tool terminal_exec failed: Connection timeout → Fixed 
-
-- **ID**: atom_concept_1782756317269_0pxvmm
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.269Z
+- **Created**: 2026-06-29T18:59:43.537Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756317269_i5h36l
+- **ID**: atom_concept_1782759583537_gkaemy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:17.269Z
+- **Created**: 2026-06-29T18:59:43.537Z
 
-## Recurring entity pattern: Tool terminal_exec failed: Connection timeout → Fixed 
+## Recurring summary pattern: Task completed successfully → Fixed bug in AuthServic
 
-- **ID**: atom_concept_1782756326418_c8cf6h
+- **ID**: atom_concept_1782759583537_c7ksf2
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.418Z
+- **Created**: 2026-06-29T18:59:43.537Z
+
+## Recurring entity pattern: Fixed bug in AuthService.ts → Tool code_diagnostics su
+
+- **ID**: atom_concept_1782759593272_don6ld
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-29T18:59:53.272Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326418_6iahfs
+- **ID**: atom_concept_1782759593272_lei8mf
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.418Z
+- **Created**: 2026-06-29T18:59:53.272Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326418_pvjk8x
+- **ID**: atom_concept_1782759593272_fzjtnl
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.418Z
+- **Created**: 2026-06-29T18:59:53.272Z
 
-## Recurring entity pattern: Tool terminal_exec failed: Connection timeout → Fixed 
+## Recurring entity pattern: Fixed bug in AuthService.ts → Tool code_diagnostics su
 
-- **ID**: atom_concept_1782756326419_y1rugo
+- **ID**: atom_concept_1782759593273_trzpbi
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.419Z
+- **Created**: 2026-06-29T18:59:53.273Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326419_ihezxm
+- **ID**: atom_concept_1782759593273_90quu7
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.419Z
+- **Created**: 2026-06-29T18:59:53.273Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326419_8lcb34
+- **ID**: atom_concept_1782759593273_2ftuhb
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.419Z
+- **Created**: 2026-06-29T18:59:53.273Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326420_5zj697
+- **ID**: atom_concept_1782759593274_hrwnx7
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.420Z
+- **Created**: 2026-06-29T18:59:53.274Z
 
 ## Recurring entity pattern: Applied fix by adding token refresh logic → The bug wa
 
-- **ID**: atom_concept_1782756326421_uomnzu
+- **ID**: atom_concept_1782759593276_spjq7v
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.421Z
+- **Created**: 2026-06-29T18:59:53.276Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326421_6jgzpb
+- **ID**: atom_concept_1782759593276_icm16t
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.421Z
+- **Created**: 2026-06-29T18:59:53.276Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326422_4caamu
+- **ID**: atom_concept_1782759593277_9wjras
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.422Z
-
-## Recurring summary pattern: Found a bug in the login system → Applied fix by addi
-
-- **ID**: atom_concept_1782756326422_6llpy4
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.422Z
+- **Created**: 2026-06-29T18:59:53.277Z
 
 ## Recurring similarity pattern: Applied fix by adding token refresh logic → The bu
 
-- **ID**: atom_concept_1782756326422_o3z3b3
+- **ID**: atom_concept_1782759593277_dzxk6i
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.422Z
-
-## Recurring entity pattern: Found a bug in the login system → The error was caused
-
-- **ID**: atom_concept_1782756326423_a6lajo
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.423Z
+- **Created**: 2026-06-29T18:59:53.277Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326423_273a8r
+- **ID**: atom_concept_1782759593278_bj0lpl
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.423Z
+- **Created**: 2026-06-29T18:59:53.278Z
 
 ## Recurring similarity pattern: Applied fix by adding token refresh logic → The bu
 
-- **ID**: atom_concept_1782756326423_quamj9
+- **ID**: atom_concept_1782759593278_199xe2
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.423Z
+- **Created**: 2026-06-29T18:59:53.278Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326424_rq6lgv
+- **ID**: atom_concept_1782759593280_6a27py
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.424Z
+- **Created**: 2026-06-29T18:59:53.280Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756326424_trrc2o
+- **ID**: atom_concept_1782759593280_6ou1yf
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.424Z
+- **Created**: 2026-06-29T18:59:53.280Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326425_9gmxt8
+- **ID**: atom_concept_1782759593281_0csc6p
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.425Z
+- **Created**: 2026-06-29T18:59:53.281Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326425_b7ogoy
+- **ID**: atom_concept_1782759593281_m84umz
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.425Z
+- **Created**: 2026-06-29T18:59:53.281Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756326425_h83sy7
+- **ID**: atom_concept_1782759593281_yrvfvh
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.425Z
+- **Created**: 2026-06-29T18:59:53.281Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326426_l6a4uo
+- **ID**: atom_concept_1782759593282_hnnl8x
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.426Z
+- **Created**: 2026-06-29T18:59:53.282Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326426_bpzii7
+- **ID**: atom_concept_1782759593282_rycx8c
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.426Z
+- **Created**: 2026-06-29T18:59:53.282Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756326426_tgcyb6
+- **ID**: atom_concept_1782759593283_566oia
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.426Z
+- **Created**: 2026-06-29T18:59:53.283Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326427_qsb80e
+- **ID**: atom_concept_1782759593284_7rm81e
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.427Z
+- **Created**: 2026-06-29T18:59:53.284Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326427_6o218x
+- **ID**: atom_concept_1782759593285_1v7gqb
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.427Z
+- **Created**: 2026-06-29T18:59:53.285Z
 
-## Recurring similarity pattern: User: How to fix TypeScript error? → Assistant: Yo
+## Recurring similarity pattern: Tool code_diagnostics succeeded: Found 3 errors → 
 
-- **ID**: atom_concept_1782756326427_hvmmpb
+- **ID**: atom_concept_1782759593285_mwae30
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.427Z
+- **Created**: 2026-06-29T18:59:53.285Z
 
 ## Recurring entity pattern: User: How to fix TypeScript error? → Git merge conflic
 
-- **ID**: atom_concept_1782756326428_1ibvn5
+- **ID**: atom_concept_1782759593286_4g8f5e
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.428Z
+- **Created**: 2026-06-29T18:59:53.286Z
 
 ## Recurring outcome pattern: User: How to fix TypeScript error? → Git merge confli
 
-- **ID**: atom_concept_1782756326428_r2oapu
+- **ID**: atom_concept_1782759593286_w1yl1w
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.428Z
-
-## Recurring summary pattern: The bug was caused by expired tokens → Fixed authenti
-
-- **ID**: atom_concept_1782756326428_6czf5r
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.428Z
+- **Created**: 2026-06-29T18:59:53.286Z
 
 ## Recurring similarity pattern: Applied fix by adding token refresh logic → The bu
 
-- **ID**: atom_concept_1782756326428_s0pz90
+- **ID**: atom_concept_1782759593286_3eoh06
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.428Z
+- **Created**: 2026-06-29T18:59:53.286Z
 
 ## Recurring entity pattern: User: How to fix TypeScript error? → Git merge conflic
 
-- **ID**: atom_concept_1782756326437_9uukb9
+- **ID**: atom_concept_1782759593307_2mhrd1
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.437Z
+- **Created**: 2026-06-29T18:59:53.307Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326437_2x7qro
+- **ID**: atom_concept_1782759593307_f1s0za
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.437Z
+- **Created**: 2026-06-29T18:59:53.307Z
 
 ## Recurring similarity pattern: Applied fix by adding token refresh logic → The bu
 
-- **ID**: atom_concept_1782756326437_bya56s
+- **ID**: atom_concept_1782759593307_snmdiy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.437Z
+- **Created**: 2026-06-29T18:59:53.307Z
 
 ## Recurring entity pattern: User: How to fix TypeScript error? → Git merge conflic
 
-- **ID**: atom_concept_1782756326438_nohr2c
+- **ID**: atom_concept_1782759593308_7ank18
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.438Z
+- **Created**: 2026-06-29T18:59:53.308Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326438_qk5pif
+- **ID**: atom_concept_1782759593309_hm5x2f
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.438Z
+- **Created**: 2026-06-29T18:59:53.309Z
 
 ## Recurring entity pattern: User: How to fix TypeScript error? → Git merge conflic
 
-- **ID**: atom_concept_1782756326439_dihmzm
+- **ID**: atom_concept_1782759593310_4pxj0s
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.439Z
+- **Created**: 2026-06-29T18:59:53.310Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326439_zva4ag
+- **ID**: atom_concept_1782759593310_sb47dm
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.439Z
+- **Created**: 2026-06-29T18:59:53.310Z
 
 ## Recurring similarity pattern: Found leak in event listener → Debugging memory le
 
-- **ID**: atom_concept_1782756326439_otgrgj
+- **ID**: atom_concept_1782759593310_pt3rob
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.439Z
+- **Created**: 2026-06-29T18:59:53.310Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326441_jlu73v
+- **ID**: atom_concept_1782759593312_tn05jo
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.441Z
+- **Created**: 2026-06-29T18:59:53.312Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326441_sj8fgw
+- **ID**: atom_concept_1782759593312_jf6u4c
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.441Z
+- **Created**: 2026-06-29T18:59:53.312Z
 
-## Recurring similarity pattern: Found leak in event listener → Debugging memory le
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326441_dj4hr6
+- **ID**: atom_concept_1782759593312_ncpycs
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.441Z
+- **Created**: 2026-06-29T18:59:53.312Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326442_d8n2n4
+- **ID**: atom_concept_1782759593314_kbpv6w
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.442Z
+- **Created**: 2026-06-29T18:59:53.314Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326442_gv6w05
+- **ID**: atom_concept_1782759593314_mqoq6k
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.442Z
+- **Created**: 2026-06-29T18:59:53.314Z
 
-## Recurring summary pattern: Fixed bug in AuthService.ts → Another task completed 
+## Recurring summary pattern: Fixed bug in AuthService.ts → Another fix in AuthServ
 
-- **ID**: atom_concept_1782756326442_m6omof
+- **ID**: atom_concept_1782759593315_sjaafy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.442Z
+- **Created**: 2026-06-29T18:59:53.315Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326442_lerx9q
+- **ID**: atom_concept_1782759593315_82qjaf
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.442Z
+- **Created**: 2026-06-29T18:59:53.315Z
+
+## Recurring entity pattern: Fixed by adding null check → The error was caused by m
+
+- **ID**: atom_concept_1782759593317_5rbohu
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-29T18:59:53.317Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326443_564b5a
+- **ID**: atom_concept_1782759593317_93ww8s
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.443Z
+- **Created**: 2026-06-29T18:59:53.317Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326443_ttz00y
+- **ID**: atom_concept_1782759593317_zkmhqe
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.443Z
+- **Created**: 2026-06-29T18:59:53.317Z
 
-## Recurring entity pattern: Task 1 completed → Fixed another bug in AuthService.ts
+## Recurring entity pattern: Fixed by adding null check → The error was caused by m
 
-- **ID**: atom_concept_1782756326443_o67zk2
+- **ID**: atom_concept_1782759593320_5piikn
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.443Z
+- **Created**: 2026-06-29T18:59:53.320Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326443_0vkfyy
+- **ID**: atom_concept_1782759593320_vtadze
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.443Z
+- **Created**: 2026-06-29T18:59:53.320Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326444_anwrk6
+- **ID**: atom_concept_1782759593320_0gz2hl
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.444Z
+- **Created**: 2026-06-29T18:59:53.320Z
 
-## Recurring entity pattern: Task 1 completed → Fixed another bug in AuthService.ts
+## Recurring entity pattern: Fixed by adding null check → The error was caused by m
 
-- **ID**: atom_concept_1782756326445_jfaky5
+- **ID**: atom_concept_1782759593322_45r691
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.445Z
+- **Created**: 2026-06-29T18:59:53.322Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326445_n5lwnk
+- **ID**: atom_concept_1782759593322_wt1x8r
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.445Z
-
-## Recurring similarity pattern: Another task completed → Task completed successful
-
-- **ID**: atom_concept_1782756326445_4kl3hg
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.445Z
+- **Created**: 2026-06-29T18:59:53.322Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326447_h10fv4
+- **ID**: atom_concept_1782759593327_bkea3s
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.447Z
+- **Created**: 2026-06-29T18:59:53.327Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326447_o093v5
+- **ID**: atom_concept_1782759593327_se9v38
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.447Z
+- **Created**: 2026-06-29T18:59:53.327Z
 
-## Recurring similarity pattern: Another task completed → Task completed successful
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756326447_1ckg8r
+- **ID**: atom_concept_1782759593327_yzztw6
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.447Z
+- **Created**: 2026-06-29T18:59:53.327Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326450_vsz6d9
+- **ID**: atom_concept_1782759593330_jgfi2b
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.450Z
+- **Created**: 2026-06-29T18:59:53.330Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326450_f802w2
+- **ID**: atom_concept_1782759593331_qn3v7v
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.450Z
+- **Created**: 2026-06-29T18:59:53.331Z
 
-## Recurring similarity pattern: Another task completed → Task completed successful
+## Recurring similarity pattern: UniqueSearchTerm445566 → Task 2 completed → Task 1
 
-- **ID**: atom_concept_1782756326451_50ha27
+- **ID**: atom_concept_1782759593331_zne04x
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.451Z
+- **Created**: 2026-06-29T18:59:53.331Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756326452_ubm5fo
+- **ID**: atom_concept_1782759593334_u18ewi
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.452Z
+- **Created**: 2026-06-29T18:59:53.334Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756326453_mo47wd
+- **ID**: atom_concept_1782759593334_i0arzj
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:26.453Z
+- **Created**: 2026-06-29T18:59:53.334Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328316_b7yap5
+- **ID**: atom_concept_1782759595153_mi098a
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.316Z
+- **Created**: 2026-06-29T18:59:55.153Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328316_u1dzrf
+- **ID**: atom_concept_1782759595153_h8zono
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.316Z
+- **Created**: 2026-06-29T18:59:55.153Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756328316_vsvfqe
+- **ID**: atom_concept_1782759595154_33nno5
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.316Z
+- **Created**: 2026-06-29T18:59:55.154Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328331_9kvvab
+- **ID**: atom_concept_1782759595190_7vcoff
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.331Z
+- **Created**: 2026-06-29T18:59:55.190Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328331_3t5x6k
+- **ID**: atom_concept_1782759595191_ornfdg
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.331Z
+- **Created**: 2026-06-29T18:59:55.191Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756328331_vnzhli
+- **ID**: atom_concept_1782759595191_kf5m7z
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.331Z
+- **Created**: 2026-06-29T18:59:55.191Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328335_pkcpdb
+- **ID**: atom_concept_1782759595197_ngntgr
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.335Z
+- **Created**: 2026-06-29T18:59:55.197Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328336_ic9hg8
+- **ID**: atom_concept_1782759595197_ht3c73
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.336Z
+- **Created**: 2026-06-29T18:59:55.197Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756328336_n50waw
+- **ID**: atom_concept_1782759595197_9kqt2k
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.336Z
+- **Created**: 2026-06-29T18:59:55.197Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328393_q2y7ox
+- **ID**: atom_concept_1782759595284_7v2s64
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.393Z
+- **Created**: 2026-06-29T18:59:55.284Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328394_fweqyf
+- **ID**: atom_concept_1782759595284_bcowyu
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.394Z
+- **Created**: 2026-06-29T18:59:55.284Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756328394_d0othp
+- **ID**: atom_concept_1782759595285_j7p6jb
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.394Z
+- **Created**: 2026-06-29T18:59:55.285Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328395_wc1yo6
+- **ID**: atom_concept_1782759595287_4s7imt
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.395Z
+- **Created**: 2026-06-29T18:59:55.287Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328395_48rjz4
+- **ID**: atom_concept_1782759595288_a3hdpy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.395Z
+- **Created**: 2026-06-29T18:59:55.288Z
 
 ## Recurring summary pattern: The bug was caused by JWT token expiration → Fixed bu
 
-- **ID**: atom_concept_1782756328395_zp3ydm
+- **ID**: atom_concept_1782759595288_lod4tp
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.395Z
+- **Created**: 2026-06-29T18:59:55.288Z
 
-## Recurring similarity pattern: Another fix in AuthService.ts → Tool terminal_exec
+## Recurring similarity pattern: Task completed successfully → Fixed bug in AuthSer
 
-- **ID**: atom_concept_1782756328396_t3j3mj
+- **ID**: atom_concept_1782759595288_ejebwt
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.396Z
+- **Created**: 2026-06-29T18:59:55.288Z
 
 ## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
 
-- **ID**: atom_concept_1782756328397_nxwbjk
+- **ID**: atom_concept_1782759595292_2jy0n6
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.397Z
+- **Created**: 2026-06-29T18:59:55.292Z
 
 ## Recurring outcome pattern: Git merge conflict in main branch → Resolved conflict
 
-- **ID**: atom_concept_1782756328398_fw3emv
+- **ID**: atom_concept_1782759595292_s27lbe
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.398Z
+- **Created**: 2026-06-29T18:59:55.292Z
 
 ## Recurring summary pattern: Applied fix by adding token refresh logic → The bug w
 
-- **ID**: atom_concept_1782756328398_hkxz70
+- **ID**: atom_concept_1782759595292_lvp3uj
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.398Z
+- **Created**: 2026-06-29T18:59:55.292Z
 
 ## Recurring similarity pattern: Applied fix by adding token refresh logic → The bu
 
-- **ID**: atom_concept_1782756328398_xfdyh8
+- **ID**: atom_concept_1782759595293_bgl7y5
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T18:05:28.398Z
+- **Created**: 2026-06-29T18:59:55.293Z
+
+## TestConcept
+
+- **ID**: atom_concept_1782759595515_bb0jaw
+- **Confidence**: inferred
+- **Source**: knowledge-network
+- **Created**: 2026-06-29T18:59:55.515Z
+
+## Recurring entity pattern: How do I fix a TypeScript error? → Fixed by adding nul
+
+- **ID**: atom_concept_1782759595519_6dxbtc
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-29T18:59:55.519Z

@@ -870,6 +870,16 @@ export function initRuntime(): void {
     }
   });
 
+  // Initialize mental models
+  import("./mental-model.js").then(({ initMentalModels }) => {
+    initMentalModels();
+  }).catch(() => { /* non-fatal */ });
+
+  // Initialize specialized actors
+  import("./specialized-actors.js").then(({ initSpecializedActors }) => {
+    initSpecializedActors();
+  }).catch(() => { /* non-fatal */ });
+
   logger.info("[Runtime] Runtime Kernel initialized");
 }
 

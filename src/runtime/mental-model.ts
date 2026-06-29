@@ -11,7 +11,6 @@
 
 import { logger } from "../utils/logger.js";
 import { eventBus } from "./kernel.js";
-import { atomStore } from "./atom-engine.js";
 import { knowledgeNetwork } from "./knowledge-network.js";
 
 // ─── Mental Model Types ────────────────────────────────────────────────────

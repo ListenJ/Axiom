@@ -9,7 +9,6 @@
  * All modules READ context from here. Nobody builds their own.
  */
 
-import { logger } from "../utils/logger.js";
 import { worldState, eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 

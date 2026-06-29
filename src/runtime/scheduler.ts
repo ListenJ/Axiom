@@ -12,8 +12,7 @@
  * - Preemption for critical tasks
  */
 
-import { logger } from "../utils/logger.js";
-import { eventBus, worldState } from "./kernel.js";
+import { eventBus } from "./kernel.js";
 
 // ─── Task Types ────────────────────────────────────────────────────────────
 

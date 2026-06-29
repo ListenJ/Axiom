@@ -11,7 +11,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { eventBus, worldState } from "./kernel.js";
+import { eventBus } from "./kernel.js";
 import { constraintSolver } from "./constraint-solver.js";
 import { ruleEngine } from "./rule-engine.js";
 

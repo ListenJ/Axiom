@@ -17,7 +17,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { eventBus, worldState } from "./kernel.js";
+import { eventBus } from "./kernel.js";
 import type { Actor, ActorMessage } from "./kernel.js";
 import { memoryEngine } from "./memory-engine.js";
 import { constraintSolver } from "./constraint-solver.js";
@@ -48,6 +48,7 @@ export interface ChatResponse {
   verification?: { passed: boolean; confidence: number; issues: string[] }
   ruleMatches: string[]
   constraintViolations: string[]
+  simulations?: Array<{ domain: string; outcome: string; confidence: number }>
   latencyMs: number
 }
 
@@ -139,6 +140,13 @@ export class ChatActor implements Actor {
     const ruleMatches: string[] = [];
     const constraintViolations: string[] = [];
 
+    // ── Step 0: Build unified context ──
+    const context = await contextEngine.build(request.input, {
+      history: request.history,
+      mode: request.mode,
+      metadata: request.context,
+    });
+
     // ── Step 1: Record observation in Memory ──
     memoryEngine.observe(request.input, "user");
 
@@ -162,6 +170,23 @@ export class ChatActor implements Actor {
       if (match.matched) {
         ruleMatches.push(match.rule.name);
         logger.info("[ChatActor] Rule matched", { rule: match.rule.name, action: match.rule.action });
+      }
+    }
+
+    // ── Step 3.5: Mental model simulation ──
+    const models = mentalModelManager.getModels();
+    const simulations: Array<{ domain: string; outcome: string; confidence: number }> = [];
+    for (const model of models.slice(0, 3)) {
+      const sim = mentalModelManager.simulate(model.id, request.input, {
+        context: context.goals.map((g) => g.description),
+        constraints: constraintViolations,
+      });
+      if (sim) {
+        simulations.push({
+          domain: model.domain,
+          outcome: sim.outcome,
+          confidence: sim.confidence,
+        });
       }
     }
 
@@ -196,6 +221,7 @@ export class ChatActor implements Actor {
           },
           ruleMatches,
           constraintViolations,
+          simulations,
           latencyMs: Date.now() - startTime,
         };
       }
@@ -241,6 +267,7 @@ export class ChatActor implements Actor {
       source: "llm",
       ruleMatches,
       constraintViolations,
+      simulations,
       latencyMs: Date.now() - startTime,
     };
   }

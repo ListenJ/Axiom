@@ -18,7 +18,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { eventBus, worldState } from "./kernel.js";
+import { eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 
 // ─── Rule Types ────────────────────────────────────────────────────────────
@@ -302,24 +302,6 @@ class RuleEngineImpl {
     } catch (err) {
       return { rule, matched: false, reason: `Error: ${(err as Error).message}` };
     }
-  }
-
-  private matchCondition(condition: string, context: Record<string, unknown>): boolean {
-    // Simple condition matching
-    // Format: "key operator value"
-    const parts = condition.split(/\s+(?:==|!=|>|<|>=|<=|contains|matches)\s+/);
-    if (parts.length !== 2) return false;
-
-    const [left, right] = parts.map((p) => p.trim());
-    const leftValue = context[left];
-    const rightValue = right.replace(/['"]/g, "");
-
-    // Simple equality check
-    if (condition.includes("==")) return String(leftValue) === rightValue;
-    if (condition.includes("!=")) return String(leftValue) !== rightValue;
-    if (condition.includes("contains")) return String(leftValue).includes(rightValue);
-
-    return false;
   }
 
   private executeRule(rule: Rule, context: Record<string, unknown>): unknown {

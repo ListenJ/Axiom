@@ -8,7 +8,6 @@
  * 打破 LLM 黑盒。
  */
 
-import { logger } from "../utils/logger.js";
 import { eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 

@@ -6,7 +6,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { eventBus, worldState, actorRuntime } from "./kernel.js";
+import { eventBus, actorRuntime } from "./kernel.js";
 import type { Actor, ActorMessage } from "./kernel.js";
 
 // ─── Knowledge Actor ───────────────────────────────────────────────────────
