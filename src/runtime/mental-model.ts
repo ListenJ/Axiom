@@ -128,6 +128,7 @@ class MentalModelManagerImpl {
   /**
    * Simulate a scenario in a mental model.
    * Returns the simulation result without actually executing.
+   * Enhanced: applies state transitions based on rules.
    */
   simulate(modelId: string, scenario: string, initialState: Record<string, unknown>): Simulation | null {
     const model = this.models.get(modelId);
@@ -137,15 +138,47 @@ class MentalModelManagerImpl {
 
     const steps: SimulationStep[] = [];
     const state = { ...initialState };
+    const stateHistory: Array<Record<string, unknown>> = [{ ...state }];
 
-    // Apply rules to simulate
+    // Apply rules to simulate state transitions
     for (const rule of model.rules) {
-      // Simple rule application (in production, this would be more sophisticated)
-      steps.push({
-        action: rule.action,
-        result: `Applied: ${rule.condition}`,
-        state: { ...state },
-      });
+      // Check if rule condition matches current state
+      const conditionMet = this.evaluateCondition(rule.condition, state);
+
+      if (conditionMet) {
+        // Apply the rule's action to transition state
+        const stateChange = this.applyAction(rule.action, state);
+
+        steps.push({
+          action: rule.action,
+          result: `Applied: ${rule.condition} → ${rule.action}`,
+          state: { ...state },
+        });
+
+        // Update state
+        Object.assign(state, stateChange);
+        stateHistory.push({ ...state });
+      }
+    }
+
+    // Also apply concept relationships as state transitions
+    for (const rel of model.relationships) {
+      const sourceConcept = model.concepts.find((c) => c.id === rel.source);
+      const targetConcept = model.concepts.find((c) => c.id === rel.target);
+
+      if (sourceConcept && targetConcept) {
+        const sourceState = state[sourceConcept.name];
+        if (sourceState !== undefined) {
+          // Apply relationship effect
+          if (rel.type === "causes") {
+            state[targetConcept.name] = `affected_by_${sourceConcept.name}`;
+          } else if (rel.type === "requires") {
+            if (!state[targetConcept.name]) {
+              state[targetConcept.name] = `missing_required_by_${sourceConcept.name}`;
+            }
+          }
+        }
+      }
     }
 
     const simulation: Simulation = {
@@ -153,7 +186,7 @@ class MentalModelManagerImpl {
       scenario,
       steps,
       outcome: steps.length > 0 ? "success" : "uncertain",
-      confidence: model.confidence,
+      confidence: model.confidence * (steps.length > 0 ? 1 : 0.5),
       timestamp: Date.now(),
     };
 
@@ -161,6 +194,62 @@ class MentalModelManagerImpl {
     model.updatedAt = Date.now();
 
     return simulation;
+  }
+
+  /**
+   * Evaluate a condition against current state.
+   * Simple key-value matching.
+   */
+  private evaluateCondition(condition: string, state: Record<string, unknown>): boolean {
+    // Parse condition: "key == value" or "key exists"
+    const eqMatch = condition.match(/^(\w+)\s*==\s*(.+)$/);
+    if (eqMatch) {
+      const [, key, value] = eqMatch;
+      return String(state[key]) === value.trim();
+    }
+
+    const existsMatch = condition.match(/^(\w+)\s+exists$/);
+    if (existsMatch) {
+      return state[existsMatch[1]] !== undefined;
+    }
+
+    const containsMatch = condition.match(/^(\w+)\s+contains\s+(.+)$/);
+    if (containsMatch) {
+      const [, key, value] = containsMatch;
+      const stateValue = String(state[key] ?? "");
+      return stateValue.includes(value.trim());
+    }
+
+    // Default: check if condition string appears in any state value
+    const stateStr = JSON.stringify(state).toLowerCase();
+    return stateStr.includes(condition.toLowerCase());
+  }
+
+  /**
+   * Apply an action to the current state.
+   * Returns the state changes.
+   */
+  private applyAction(action: string, state: Record<string, unknown>): Record<string, unknown> {
+    const changes: Record<string, unknown> = {};
+
+    // Parse action: "set key to value" or "increment key"
+    const setMatch = action.match(/^set\s+(\w+)\s+to\s+(.+)$/i);
+    if (setMatch) {
+      changes[setMatch[1]] = setMatch[2].trim();
+      return changes;
+    }
+
+    const incrementMatch = action.match(/^increment\s+(\w+)$/i);
+    if (incrementMatch) {
+      const key = incrementMatch[1];
+      const current = Number(state[key] ?? 0);
+      changes[key] = current + 1;
+      return changes;
+    }
+
+    // Default: store action as a state change
+    changes[action] = Date.now();
+    return changes;
   }
 
   /**
