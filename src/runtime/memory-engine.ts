@@ -641,6 +641,69 @@ class MemoryEngineImpl {
   }
 
   /**
+   * Form skills from successful episodes with clear cause-solution patterns.
+   * Called by the Tick Engine's reflect phase.
+   */
+  formSkillsFromSuccessfulEpisodes(): number {
+    let formed = 0;
+    const successfulEpisodes = Array.from(this.episodes.values())
+      .filter((e) => e.outcome === "success" && e.cause && e.solution);
+
+    for (const episode of successfulEpisodes) {
+      // Check if knowledge already exists for this episode
+      const existingKnowledge = Array.from(this.knowledge.values())
+        .some((k) => k.evidence.includes(episode.id));
+      if (existingKnowledge) continue;
+
+      // Form knowledge from episode
+      const knowledge: Knowledge = {
+        id: `know_episode_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        patterns: [],
+        statement: `When ${episode.cause}, then ${episode.solution}`,
+        domain: this.inferDomain(episode),
+        confidence: episode.confidence,
+        evidence: [episode.id],
+        createdAt: Date.now(),
+      };
+
+      this.knowledge.set(knowledge.id, knowledge);
+      this.stats.knowledge++;
+
+      // Store in knowledge network
+      knowledgeNetwork.create("fact", knowledge.statement, knowledge.statement, {
+        confidence: knowledge.confidence,
+        source: "memory-engine",
+        evidence: [{
+          source: `episode:${episode.id}`,
+          confidence: knowledge.confidence,
+          timestamp: Date.now(),
+          description: episode.summary,
+        }],
+      });
+
+      // Store as atom
+      atomStore.create("fact", knowledge.statement, {
+        source: "memory-engine",
+        confidence: knowledge.confidence > 0.8 ? "certain" as const : "inferred" as const,
+        metadata: { knowledgeId: knowledge.id },
+      });
+
+      // Try to form skill
+      this.tryFormSkill(knowledge);
+      formed++;
+
+      eventBus.publish({
+        type: "memory.skill_from_episode",
+        source: "memory-engine",
+        data: { episodeId: episode.id, knowledgeId: knowledge.id, statement: knowledge.statement },
+        priority: "normal",
+      });
+    }
+
+    return formed;
+  }
+
+  /**
    * Get stats.
    */
   getStats(): Record<string, number> {

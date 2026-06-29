@@ -732,6 +732,12 @@ export function initRuntime(): void {
         if (formed > 0) {
           logger.info("[Runtime] Formed new skills from patterns", { count: formed });
         }
+
+        // Also try to form skills from successful episodes
+        const formedFromEpisodes = memoryEngine.formSkillsFromSuccessfulEpisodes();
+        if (formedFromEpisodes > 0) {
+          logger.info("[Runtime] Formed new skills from successful episodes", { count: formedFromEpisodes });
+        }
       } catch { /* non-fatal */ }
     }
   });
