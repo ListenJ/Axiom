@@ -10,6 +10,11 @@
  * - Priority（优先级）
  * - Confidence（置信度）
  * - Source（来源）
+ *
+ * 增强：支持过程性知识（Procedure）
+ * - Steps（步骤序列）
+ * - Checkpoints（检查点）
+ * - Rollback（回滚策略）
  */
 
 import { logger } from "../utils/logger.js";
@@ -18,7 +23,7 @@ import { atomStore } from "./atom-engine.js";
 
 // ─── Rule Types ────────────────────────────────────────────────────────────
 
-export type RuleType = "inference" | "constraint" | "action" | "validation" | "routing";
+export type RuleType = "inference" | "constraint" | "action" | "validation" | "routing" | "procedure";
 
 export interface Rule {
   id: string
@@ -30,11 +35,23 @@ export interface Rule {
   priority: number       // 越高越优先
   confidence: number     // 0-1
   source: string         // 来源
+  steps?: ProcedureStep[] // 过程性步骤 (for procedure type)
   version: number
   createdAt: number
   lastFired: number
   fireCount: number
   successCount: number
+}
+
+/**
+ * Procedure Step — 过程性知识步骤
+ */
+export interface ProcedureStep {
+  order: number
+  action: string
+  expected: string
+  checkpoint?: string  // 检查点
+  rollback?: string    // 回滚策略
 }
 
 export interface RuleMatch {

@@ -8,6 +8,13 @@
  * - prohibits: A prohibits B（A 禁止 B）
  * - enables: A enables B（A 启用 B）
  * - conflicts: A conflicts B（A 与 B 冲突）
+ * - excludes: A excludes B（A 与 B 互斥）
+ *
+ * 多维约束：
+ * - resource: 资源约束 (GPU, 内存, Token)
+ * - semantic: 语义约束 (用户意图, 上下文)
+ * - policy: 策略约束 (生产环境保护, 安全策略)
+ * - temporal: 时间约束 (截止日期, 超时)
  *
  * 约束求解：
  * - 给定一组实体和约束
@@ -22,10 +29,12 @@ import { atomStore } from "./atom-engine.js";
 // ─── Constraint Types ──────────────────────────────────────────────────────
 
 export type ConstraintType = "requires" | "prohibits" | "enables" | "conflicts" | "excludes";
+export type ConstraintDimension = "logical" | "resource" | "semantic" | "policy" | "temporal";
 
 export interface Constraint {
   id: string
   type: ConstraintType
+  dimension: ConstraintDimension  // 约束维度
   source: string      // 实体 ID 或名称
   target: string      // 实体 ID 或名称
   condition?: string  // 可选条件表达式
@@ -244,12 +253,23 @@ class ConstraintSolverImpl {
   }
 
   /**
+   * Get all constraints of a specific dimension.
+   */
+  getConstraintsByDimension(dimension: ConstraintDimension): Constraint[] {
+    const result: Constraint[] = [];
+    for (const c of this.constraints.values()) {
+      if (c.dimension === dimension) result.push(c);
+    }
+    return result;
+  }
+
+  /**
    * Learn a constraint from observation.
    */
-  learn(source: string, type: ConstraintType, target: string, evidence: string, confidence = 0.8): Constraint {
-    logger.info("[ConstraintSolver] Learning constraint", { source, type, target, confidence });
+  learn(source: string, type: ConstraintType, target: string, evidence: string, confidence = 0.8, dimension: ConstraintDimension = "logical"): Constraint {
+    logger.info("[ConstraintSolver] Learning constraint", { source, type, target, confidence, dimension });
     this.stats.resolved++;
-    return this.addConstraint({ type, source, target, confidence, evidence });
+    return this.addConstraint({ type, dimension, source, target, confidence, evidence });
   }
 
   /**

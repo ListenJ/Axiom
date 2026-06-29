@@ -2,9 +2,12 @@
  * Knowledge Network — 升级知识系统
  *
  * 不再是简单的 Entity + Relation (Graph)。
- * 而是 Entity + State + Constraint + Capability + Evidence + Timeline (Network)。
+ * 而是 Entity + State + Constraint + Capability + Evidence + Timeline + Behavior + Prediction。
  *
- * Graph 只是其中一个 View。
+ * 关键创新：
+ * - Behavior: 实体的行为模式（苹果会腐烂）
+ * - Prediction: 基于行为的预测（如果不关火，水会干）
+ * - Hypothesis: 假设验证机制
  */
 
 import { logger } from "../utils/logger.js";
@@ -20,6 +23,7 @@ export type EntityKind =
   | "goal" | "plan" | "step" | "action"
   | "observation" | "experience" | "belief" | "insight"
   | "constraint" | "capability" | "agent" | "tool" | "model"
+  | "behavior" | "prediction" | "hypothesis"
 
 export interface KnowledgeEntity {
   id: string
@@ -31,6 +35,9 @@ export interface KnowledgeEntity {
   capabilities: string[]    // capability names
   evidence: Evidence[]
   timeline: TimelineEntry[]
+  behaviors: Behavior[]     // 行为模式
+  predictions: Prediction[] // 预测
+  hypotheses: Hypothesis[]  // 假设
   confidence: number        // 0-1
   source: string
   createdAt: number
@@ -56,6 +63,50 @@ export interface TimelineEntry {
   state: string
   event: string
   metadata?: Record<string, unknown>
+}
+
+/**
+ * Behavior — 实体的行为模式
+ * 描述实体在特定条件下的反应
+ */
+export interface Behavior {
+  id: string
+  trigger: string           // 触发条件
+  action: string            // 行为描述
+  effect: string            // 效果
+  confidence: number        // 0-1
+  observedCount: number     // 观察次数
+  lastObserved: number      // 最后观察时间
+}
+
+/**
+ * Prediction — 基于行为的预测
+ * 描述在特定条件下会发生什么
+ */
+export interface Prediction {
+  id: string
+  condition: string         // 条件
+  outcome: string           // 预测结果
+  confidence: number        // 0-1
+  timeHorizon: string       // 时间范围
+  basedOn: string[]         // 基于的行为/证据 ID
+  validated: boolean        // 是否已验证
+  validatedAt?: number      // 验证时间
+}
+
+/**
+ * Hypothesis — 假设验证机制
+ * 科学态度：怀疑和验证
+ */
+export interface Hypothesis {
+  id: string
+  statement: string         // 假设陈述
+  evidence: string[]        // 支持证据
+  counterEvidence: string[] // 反对证据
+  status: "proposed" | "testing" | "confirmed" | "rejected"
+  confidence: number        // 0-1
+  proposedAt: number
+  resolvedAt?: number
 }
 
 // ─── Knowledge Network ─────────────────────────────────────────────────────
@@ -99,6 +150,9 @@ class KnowledgeNetworkImpl {
         state: opts?.state ?? "active",
         event: "created",
       }],
+      behaviors: [],
+      predictions: [],
+      hypotheses: [],
       confidence: opts?.confidence ?? 0.8,
       source: opts?.source ?? "system",
       createdAt: now,
@@ -224,6 +278,126 @@ class KnowledgeNetworkImpl {
       entity.updatedAt = Date.now();
       entity.version++;
     }
+
+    return true;
+  }
+
+  /**
+   * Add a behavior to an entity.
+   * 描述实体在特定条件下的反应。
+   */
+  addBehavior(id: string, behavior: Omit<Behavior, "id" | "observedCount" | "lastObserved">): boolean {
+    const entity = this.entities.get(id);
+    if (!entity) return false;
+
+    const newBehavior: Behavior = {
+      ...behavior,
+      id: `beh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      observedCount: 1,
+      lastObserved: Date.now(),
+    };
+
+    entity.behaviors.push(newBehavior);
+    entity.updatedAt = Date.now();
+    entity.version++;
+
+    eventBus.publish({
+      type: "knowledge.behavior_added",
+      source: "knowledge-network",
+      data: { entityId: id, behavior: newBehavior.trigger },
+      priority: "normal",
+    });
+
+    return true;
+  }
+
+  /**
+   * Add a prediction to an entity.
+   * 基于行为的预测。
+   */
+  addPrediction(id: string, prediction: Omit<Prediction, "id" | "validated" | "validatedAt">): boolean {
+    const entity = this.entities.get(id);
+    if (!entity) return false;
+
+    const newPrediction: Prediction = {
+      ...prediction,
+      id: `pred_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      validated: false,
+    };
+
+    entity.predictions.push(newPrediction);
+    entity.updatedAt = Date.now();
+    entity.version++;
+
+    eventBus.publish({
+      type: "knowledge.prediction_added",
+      source: "knowledge-network",
+      data: { entityId: id, prediction: newPrediction.condition },
+      priority: "normal",
+    });
+
+    return true;
+  }
+
+  /**
+   * Add a hypothesis to an entity.
+   * 假设验证机制。
+   */
+  addHypothesis(id: string, hypothesis: Omit<Hypothesis, "id" | "status" | "proposedAt">): boolean {
+    const entity = this.entities.get(id);
+    if (!entity) return false;
+
+    const newHypothesis: Hypothesis = {
+      ...hypothesis,
+      id: `hyp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      status: "proposed",
+      proposedAt: Date.now(),
+    };
+
+    entity.hypotheses.push(newHypothesis);
+    entity.updatedAt = Date.now();
+    entity.version++;
+
+    eventBus.publish({
+      type: "knowledge.hypothesis_added",
+      source: "knowledge-network",
+      data: { entityId: id, hypothesis: newHypothesis.statement },
+      priority: "normal",
+    });
+
+    return true;
+  }
+
+  /**
+   * Resolve a hypothesis (confirm or reject).
+   */
+  resolveHypothesis(entityId: string, hypothesisId: string, status: "confirmed" | "rejected", evidence?: string): boolean {
+    const entity = this.entities.get(entityId);
+    if (!entity) return false;
+
+    const hypothesis = entity.hypotheses.find((h) => h.id === hypothesisId);
+    if (!hypothesis) return false;
+
+    hypothesis.status = status;
+    hypothesis.resolvedAt = Date.now();
+
+    if (evidence) {
+      if (status === "confirmed") {
+        hypothesis.evidence.push(evidence);
+      } else {
+        hypothesis.counterEvidence.push(evidence);
+      }
+    }
+
+    entity.updatedAt = Date.now();
+    entity.version++;
+
+    eventBus.publish({
+      type: "knowledge.hypothesis_resolved",
+      source: "knowledge-network",
+      data: { entityId, hypothesisId, status },
+      priority: "normal",
+    });
 
     return true;
   }

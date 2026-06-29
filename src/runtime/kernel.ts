@@ -255,6 +255,70 @@ class WorldStateImpl {
     return result;
   }
 
+  // ─── Mental Dimensions ────────────────────────────────────────────
+
+  /**
+   * Set the current intent (what the user wants to do).
+   */
+  setIntent(intent: string, confidence: number): void {
+    this.set("mental.intent", { intent, confidence, timestamp: Date.now() });
+  }
+
+  /**
+   * Get the current intent.
+   */
+  getIntent(): { intent: string; confidence: number; timestamp: number } | undefined {
+    return this.get("mental.intent");
+  }
+
+  /**
+   * Set a goal (what the system wants to achieve).
+   */
+  setGoal(goalId: string, description: string, status: "active" | "completed" | "abandoned"): void {
+    const goals = this.get<Record<string, unknown>>("mental.goals") ?? {};
+    goals[goalId] = { description, status, timestamp: Date.now() };
+    this.set("mental.goals", goals);
+  }
+
+  /**
+   * Get all goals.
+   */
+  getGoals(): Record<string, { description: string; status: string; timestamp: number }> {
+    return this.get("mental.goals") ?? {};
+  }
+
+  /**
+   * Set a belief (what the system thinks is true).
+   */
+  setBelief(beliefId: string, statement: string, confidence: number): void {
+    const beliefs = this.get<Record<string, unknown>>("mental.beliefs") ?? {};
+    beliefs[beliefId] = { statement, confidence, timestamp: Date.now() };
+    this.set("mental.beliefs", beliefs);
+  }
+
+  /**
+   * Get all beliefs.
+   */
+  getBeliefs(): Record<string, { statement: string; confidence: number; timestamp: number }> {
+    return this.get("mental.beliefs") ?? {};
+  }
+
+  /**
+   * Set a hypothesis (what the system thinks might be true).
+   */
+  setHypothesis(hypothesisId: string, statement: string, status: "proposed" | "testing" | "confirmed" | "rejected"): void {
+    const hypotheses = this.get<Record<string, unknown>>("mental.hypotheses") ?? {};
+    hypotheses[hypothesisId] = { statement, status, timestamp: Date.now() };
+    this.set("mental.hypotheses", hypotheses);
+  }
+
+  /**
+   * Get all hypotheses.
+   */
+  getHypotheses(): Record<string, { statement: string; status: string; timestamp: number }> {
+    return this.get("mental.hypotheses") ?? {};
+  }
+
   /**
    * Get the current version number.
    */
