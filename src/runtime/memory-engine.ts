@@ -390,6 +390,78 @@ class MemoryEngineImpl {
     }
   }
 
+  /**
+   * Calculate similarity between two observations using keyword overlap.
+   * Returns a score between 0 (no similarity) and 1 (identical).
+   */
+  private calculateSimilarity(text1: string, text2: string): number {
+    const keywords1 = new Set(text1.toLowerCase().match(/\b\w{3,}\b/g) ?? []);
+    const keywords2 = new Set(text2.toLowerCase().match(/\b\w{3,}\b/g) ?? []);
+
+    if (keywords1.size === 0 || keywords2.size === 0) return 0;
+
+    let overlap = 0;
+    for (const word of keywords1) {
+      if (keywords2.has(word)) overlap++;
+    }
+
+    return overlap / Math.max(keywords1.size, keywords2.size);
+  }
+
+  /**
+   * Find similar observations to a given input.
+   * Used to find related knowledge and episodes.
+   */
+  findSimilarObservations(input: string, limit = 5): Observation[] {
+    const observations = Array.from(this.observations.values());
+    const scored = observations.map((obs) => ({
+      observation: obs,
+      score: this.calculateSimilarity(input, obs.content),
+    }));
+
+    return scored
+      .filter((s) => s.score > 0.2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((s) => s.observation);
+  }
+
+  /**
+   * Find similar episodes to a given input.
+   */
+  findSimilarEpisodes(input: string, limit = 3): Episode[] {
+    const episodes = Array.from(this.episodes.values());
+    const scored = episodes.map((ep) => ({
+      episode: ep,
+      score: this.calculateSimilarity(input, ep.summary),
+    }));
+
+    return scored
+      .filter((s) => s.score > 0.2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((s) => s.episode);
+  }
+
+  /**
+   * Clean up old observations to prevent memory bloat.
+   * Keeps the most recent N observations and removes the rest.
+   */
+  cleanup(maxObservations = 1000): number {
+    const observations = Array.from(this.observations.values())
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    if (observations.length <= maxObservations) return 0;
+
+    const toRemove = observations.slice(maxObservations);
+    for (const obs of toRemove) {
+      this.observations.delete(obs.id);
+    }
+
+    this.stats.observations = this.observations.size;
+    return toRemove.length;
+  }
+
   // ─── Knowledge ───────────────────────────────────────────────────
 
   /**

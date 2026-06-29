@@ -742,12 +742,29 @@ export function initRuntime(): void {
     }
   });
 
-  tickEngine.onPhase("sleep", () => {
+  tickEngine.onPhase("sleep", async () => {
     // Sleep phase: cleanup and maintenance
     // Clean old events from the event bus log
     const stats = eventBus.getStats();
     if (stats.published > 10000) {
       logger.info("[Runtime] High event count, consider cleanup", { published: stats.published });
+    }
+
+    // Auto-cleanup old observations every 100 ticks
+    if (tickEngine.getTickNumber() % 100 === 0) {
+      try {
+        const { memoryEngine } = await import("./memory-engine.js");
+        const removed = memoryEngine.cleanup(1000);
+        if (removed > 0) {
+          logger.info("[Runtime] Cleaned up old observations", { removed });
+          eventBus.publish({
+            type: "memory.cleanup",
+            source: "tick-engine",
+            data: { removed },
+            priority: "low",
+          });
+        }
+      } catch { /* non-fatal */ }
     }
   });
 
