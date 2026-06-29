@@ -658,7 +658,7 @@ export function initRuntime(): void {
   });
 
   tickEngine.onPhase("schedule", async () => {
-    // Schedule phase: check for pending tasks
+    // Schedule phase: check for pending tasks and process them
     try {
       const { scheduler } = await import("./scheduler.js");
       const status = scheduler.getStatus();
@@ -668,6 +668,19 @@ export function initRuntime(): void {
         completed: status.completed,
         timestamp: Date.now(),
       });
+
+      // Process next task from queue if resources available
+      if (status.queued > 0 && status.running < 5) {
+        const task = scheduler.getNext();
+        if (task) {
+          eventBus.publish({
+            type: "scheduler.task_started",
+            source: "tick-engine",
+            data: { id: task.id, name: task.name, priority: task.priority },
+            priority: "normal",
+          });
+        }
+      }
     } catch { /* non-fatal */ }
   });
 
