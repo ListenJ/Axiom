@@ -638,6 +638,7 @@ class CognitivePipelineImpl {
   /**
    * Extract entity names from input text using heuristics.
    * Returns unique entity names found in the text.
+   * Enhanced with NER-like patterns for better entity detection.
    */
   private extractEntitiesFromText(text: string): string[] {
     const entities: string[] = [];
@@ -666,8 +667,37 @@ class CognitivePipelineImpl {
     const versions = text.match(/\bv?\d+\.\d+(?:\.\d+)?\b/g);
     if (versions) entities.push(...versions);
 
+    // Pattern 7: URLs
+    const urls = text.match(/https?:\/\/[^\s)]+/g);
+    if (urls) entities.push(...urls);
+
+    // Pattern 8: Email addresses
+    const emails = text.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
+    if (emails) entities.push(...emails);
+
+    // Pattern 9: IP addresses
+    const ips = text.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g);
+    if (ips) entities.push(...ips);
+
+    // Pattern 10: Docker/image references
+    const dockerImages = text.match(/\b[a-z0-9-]+(?:\/[a-z0-9-]+)*:[a-z0-9.-]+\b/g);
+    if (dockerImages) entities.push(...dockerImages);
+
+    // Pattern 11: npm/bun package names
+    const packageNames = text.match(/(?:npm|bun|yarn)\s+(?:install|add|remove)\s+([a-z0-9-@/]+)/gi);
+    if (packageNames) {
+      for (const match of packageNames) {
+        const pkg = match.replace(/^(?:npm|bun|yarn)\s+(?:install|add|remove)\s+/i, "");
+        if (pkg.length > 2) entities.push(pkg);
+      }
+    }
+
+    // Pattern 12: Git branch names
+    const branchNames = text.match(/\b(?:feature|fix|hotfix|release|bugfix)\/[a-z0-9-]+\b/g);
+    if (branchNames) entities.push(...branchNames);
+
     // Deduplicate and limit
-    return [...new Set(entities)].slice(0, 10);
+    return [...new Set(entities)].slice(0, 15);
   }
 }
 

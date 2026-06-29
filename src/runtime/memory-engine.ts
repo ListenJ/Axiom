@@ -704,6 +704,77 @@ class MemoryEngineImpl {
   }
 
   /**
+   * Auto-learn from a successful chat interaction.
+   * Called by ChatActor after a successful response.
+   */
+  learnFromChatInteraction(
+    input: string,
+    output: string,
+    intent: string,
+    success: boolean,
+  ): void {
+    // Record the interaction as an observation
+    this.observe(`User: ${input.slice(0, 200)}`, "user");
+    this.observe(`Assistant: ${output.slice(0, 200)}`, "assistant");
+
+    // If successful, try to form knowledge
+    if (success && output.length > 50) {
+      const episode = this.getCurrentEpisode();
+      if (episode) {
+        this.completeEpisode(episode.id, "success", input.slice(0, 100), output.slice(0, 100));
+      }
+    }
+
+    // Try to extract patterns from the interaction
+    this.tryExtractPatterns();
+  }
+
+  /**
+   * Auto-learn from a tool execution result.
+   * Called after a tool is executed successfully.
+   */
+  learnFromToolExecution(
+    toolName: string,
+    input: string,
+    output: string,
+    success: boolean,
+  ): void {
+    const observation = success
+      ? `Tool ${toolName} succeeded: ${output.slice(0, 100)}`
+      : `Tool ${toolName} failed: ${output.slice(0, 100)}`;
+
+    this.observe(observation, "tool");
+
+    // If successful, form knowledge about the tool usage
+    if (success) {
+      const knowledge: Knowledge = {
+        id: `know_tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        patterns: [],
+        statement: `Tool ${toolName} can be used for: ${input.slice(0, 100)}`,
+        domain: "tool-usage",
+        confidence: 0.8,
+        evidence: [],
+        createdAt: Date.now(),
+      };
+
+      this.knowledge.set(knowledge.id, knowledge);
+      this.stats.knowledge++;
+
+      // Store in knowledge network
+      knowledgeNetwork.create("fact", knowledge.statement, knowledge.statement, {
+        confidence: knowledge.confidence,
+        source: "memory-engine",
+        evidence: [{
+          source: `tool:${toolName}`,
+          confidence: knowledge.confidence,
+          timestamp: Date.now(),
+          description: `Tool execution: ${toolName}`,
+        }],
+      });
+    }
+  }
+
+  /**
    * Get stats.
    */
   getStats(): Record<string, number> {
