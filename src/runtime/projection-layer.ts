@@ -17,6 +17,7 @@ import { worldState, eventBus } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 import { existsSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
+import { Database } from "bun:sqlite";
 
 // ─── Projection Types ──────────────────────────────────────────────────────
 
@@ -249,17 +250,75 @@ class SQLiteProjection implements Projection {
   name = "sqlite";
   description = "Projects atoms into SQLite tables";
   private projectedCount = 0;
+  private dbPath = "./data/projections/runtime.db";
+  private db: Database | null = null;
+
+  private getDb(): Database {
+    if (!this.db) {
+      const dir = join(this.dbPath, "..");
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      this.db = new Database(this.dbPath);
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS atoms (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          content TEXT NOT NULL,
+          confidence TEXT,
+          source TEXT,
+          created_at INTEGER,
+          updated_at INTEGER
+        )
+      `);
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS world_state (
+          key TEXT PRIMARY KEY,
+          value TEXT,
+          updated_at INTEGER
+        )
+      `);
+    }
+    return this.db;
+  }
 
   async project(): Promise<void> {
     const stats = atomStore.getStats();
     this.projectedCount = stats.total;
-    logger.debug("[SQLiteProjection] Projecting", { atoms: stats.total });
+
+    try {
+      const db = this.getDb();
+      const atoms = atomStore.queryByKind("entity" as any);
+
+      // Batch insert atoms
+      const stmt = db.prepare(
+        "INSERT OR REPLACE INTO atoms (id, kind, content, confidence, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      );
+
+      for (const atom of atoms.slice(0, 500)) {
+        stmt.run(atom.id, atom.kind, atom.content, atom.confidence, atom.source, atom.createdAt, Date.now());
+      }
+
+      // Sync world state
+      const stateStmt = db.prepare(
+        "INSERT OR REPLACE INTO world_state (key, value, updated_at) VALUES (?, ?, ?)"
+      );
+      const snapshot = worldState.snapshot();
+      for (const [key, value] of Object.entries(snapshot).slice(0, 100)) {
+        stateStmt.run(key, JSON.stringify(value), Date.now());
+      }
+
+      logger.debug("[SQLiteProjection] Projected to database", { atoms: stats.total });
+    } catch (err) {
+      logger.error("[SQLiteProjection] Projection failed", err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   async rebuild(): Promise<void> {
     logger.info("[SQLiteProjection] Rebuilding from world state");
-    const stats = atomStore.getStats();
-    this.projectedCount = stats.total;
+    if (this.db) {
+      this.db.run("DELETE FROM atoms");
+      this.db.run("DELETE FROM world_state");
+    }
+    await this.project();
   }
 
   /**
@@ -280,7 +339,7 @@ class SQLiteProjection implements Projection {
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount, dbPath: this.dbPath };
   }
 }
 

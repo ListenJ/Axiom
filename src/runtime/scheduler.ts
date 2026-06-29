@@ -485,7 +485,7 @@ class CognitivePipelineImpl {
       const input = ctx.input as string;
       const inputLower = input.toLowerCase();
 
-      // Search for known entities
+      // Search for known entities in atom store
       const searchResults = atomStore.search(input, 20);
       ctx.entities = searchResults.filter((a) =>
         a.kind === "entity" || a.kind === "class" || a.kind === "function" ||
@@ -502,6 +502,24 @@ class CognitivePipelineImpl {
           }
         }
       } catch { /* non-fatal */ }
+
+      // Extract entities from input text using heuristics
+      const extractedEntities = this.extractEntitiesFromText(input);
+      for (const entityName of extractedEntities) {
+        // Check if already in entities list
+        const exists = ctx.entities.some((e: any) =>
+          e.content?.toLowerCase().includes(entityName.toLowerCase())
+        );
+        if (!exists) {
+          // Create a new atom for this entity
+          const atom = atomStore.create("entity", entityName, {
+            source: "cognitive-pipeline",
+            confidence: "inferred",
+            metadata: { extractedFrom: "input-text" },
+          });
+          ctx.entities.push(atom);
+        }
+      }
 
       return ctx;
     });
@@ -615,6 +633,41 @@ class CognitivePipelineImpl {
       }
       return ctx;
     });
+  }
+
+  /**
+   * Extract entity names from input text using heuristics.
+   * Returns unique entity names found in the text.
+   */
+  private extractEntitiesFromText(text: string): string[] {
+    const entities: string[] = [];
+
+    // Pattern 1: CamelCase words (likely class/function names)
+    const camelCase = text.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b/g);
+    if (camelCase) entities.push(...camelCase);
+
+    // Pattern 2: snake_case words (likely variable/function names)
+    const snakeCase = text.match(/\b[a-z]+(?:_[a-z]+)+\b/g);
+    if (snakeCase) entities.push(...snakeCase);
+
+    // Pattern 3: File paths with extensions
+    const filePaths = text.match(/\b\w+\.(ts|js|tsx|jsx|py|rs|go|md|json|yaml|yml)\b/g);
+    if (filePaths) entities.push(...filePaths);
+
+    // Pattern 4: Backtick-quoted code
+    const backtickCode = text.match(/`[^`]+`/g);
+    if (backtickCode) entities.push(...backtickCode.map((c) => c.slice(1, -1)));
+
+    // Pattern 5: Quoted strings (potential entity names)
+    const quotedStrings = text.match(/"[^"]{3,50}"/g);
+    if (quotedStrings) entities.push(...quotedStrings.map((s) => s.slice(1, -1)));
+
+    // Pattern 6: Version numbers
+    const versions = text.match(/\bv?\d+\.\d+(?:\.\d+)?\b/g);
+    if (versions) entities.push(...versions);
+
+    // Deduplicate and limit
+    return [...new Set(entities)].slice(0, 10);
   }
 }
 
