@@ -546,6 +546,64 @@ class MemoryEngineImpl {
   }
 
   /**
+   * Get all patterns.
+   */
+  getPatterns(): Pattern[] {
+    return Array.from(this.patterns.values());
+  }
+
+  /**
+   * Get all knowledge.
+   */
+  getKnowledge(): Knowledge[] {
+    return Array.from(this.knowledge.values());
+  }
+
+  /**
+   * Get all episodes.
+   */
+  getEpisodes(): Episode[] {
+    return Array.from(this.episodes.values());
+  }
+
+  /**
+   * Force skill formation from successful patterns.
+   * Call this periodically or when patterns reach a threshold.
+   */
+  formSkillsFromPatterns(): number {
+    let formed = 0;
+    const patterns = Array.from(this.patterns.values())
+      .filter((p) => p.frequency >= 3 && p.confidence >= 0.7);
+
+    for (const pattern of patterns) {
+      // Check if skill already exists for this pattern
+      const existing = Array.from(this.skills.values())
+        .some((s) => s.knowledge.some((k) => pattern.episodes.includes(k)));
+      if (existing) continue;
+
+      // Form knowledge from pattern
+      const knowledge: Knowledge = {
+        id: `know_pattern_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        patterns: [pattern.id],
+        statement: pattern.description,
+        domain: "pattern",
+        confidence: pattern.confidence,
+        evidence: pattern.episodes,
+        createdAt: Date.now(),
+      };
+
+      this.knowledge.set(knowledge.id, knowledge);
+      this.stats.knowledge++;
+
+      // Form skill from knowledge
+      this.tryFormSkill(knowledge);
+      formed++;
+    }
+
+    return formed;
+  }
+
+  /**
    * Get stats.
    */
   getStats(): Record<string, number> {
