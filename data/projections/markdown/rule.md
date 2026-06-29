@@ -4,448 +4,448 @@ Count: 64
 
 ## code-task-detection
 
-- **ID**: atom_rule_1782760030701_xe23y7
+- **ID**: atom_rule_1782760981231_nzulv4
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## research-task-detection
 
-- **ID**: atom_rule_1782760030701_nzp0b7
+- **ID**: atom_rule_1782760981231_aqsl30
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## plan-mode-read-only
 
-- **ID**: atom_rule_1782760030701_93n8f2
+- **ID**: atom_rule_1782760981231_ig0f6c
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## auto-retry-on-failure
 
-- **ID**: atom_rule_1782760030701_g50s5x
+- **ID**: atom_rule_1782760981231_w8hgg5
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## check-api-key
 
-- **ID**: atom_rule_1782760030701_8vks1x
+- **ID**: atom_rule_1782760981231_kbrf5c
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## use-local-first
 
-- **ID**: atom_rule_1782760030701_mkmb1b
+- **ID**: atom_rule_1782760981231_mt3j4s
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## debug-task-detection
 
-- **ID**: atom_rule_1782760030701_ejp6m6
+- **ID**: atom_rule_1782760981231_7k708v
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## test-task-detection
 
-- **ID**: atom_rule_1782760030701_15owle
+- **ID**: atom_rule_1782760981231_j0oxnb
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## architecture-task-detection
 
-- **ID**: atom_rule_1782760030701_og886j
+- **ID**: atom_rule_1782760981231_u3dk3v
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## auto-save-on-success
 
-- **ID**: atom_rule_1782760030701_568ygm
+- **ID**: atom_rule_1782760981231_s5pg1u
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## log-on-failure
 
-- **ID**: atom_rule_1782760030701_ucnokx
+- **ID**: atom_rule_1782760981231_m1cwj3
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## check-token-budget
 
-- **ID**: atom_rule_1782760030701_2h0q6m
+- **ID**: atom_rule_1782760981231_ps63us
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## check-model-availability
 
-- **ID**: atom_rule_1782760030701_edqgpj
+- **ID**: atom_rule_1782760981231_tj50gf
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## max-retries
 
-- **ID**: atom_rule_1782760030701_865b1m
+- **ID**: atom_rule_1782760981231_kssbso
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## timeout-enforcement
 
-- **ID**: atom_rule_1782760030701_3wrjbk
+- **ID**: atom_rule_1782760981231_vvm3a1
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.701Z
+- **Created**: 2026-06-29T19:23:01.231Z
 
 ## test-rule
 
-- **ID**: atom_rule_1782760030787_4ss4jn
+- **ID**: atom_rule_1782760981292_tyh148
 - **Confidence**: inferred
 - **Source**: learned
-- **Created**: 2026-06-29T19:07:10.787Z
+- **Created**: 2026-06-29T19:23:01.292Z
 
 ## code-task-detection
 
-- **ID**: atom_rule_1782760030874_6brs38
+- **ID**: atom_rule_1782760981362_tn7ldp
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## research-task-detection
 
-- **ID**: atom_rule_1782760030874_9c8fil
+- **ID**: atom_rule_1782760981362_hctyon
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## plan-mode-read-only
 
-- **ID**: atom_rule_1782760030874_6lr3wt
+- **ID**: atom_rule_1782760981362_zrz4t2
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## auto-retry-on-failure
 
-- **ID**: atom_rule_1782760030874_3kuzpa
+- **ID**: atom_rule_1782760981362_qh5jfs
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## check-api-key
 
-- **ID**: atom_rule_1782760030874_qcvcyq
+- **ID**: atom_rule_1782760981362_zdwirh
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## use-local-first
 
-- **ID**: atom_rule_1782760030874_yp2wih
+- **ID**: atom_rule_1782760981362_b98bxo
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## debug-task-detection
 
-- **ID**: atom_rule_1782760030874_389ers
+- **ID**: atom_rule_1782760981362_e8i7ya
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## test-task-detection
 
-- **ID**: atom_rule_1782760030874_vv6t32
+- **ID**: atom_rule_1782760981362_w7iqxd
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## architecture-task-detection
 
-- **ID**: atom_rule_1782760030874_134mok
+- **ID**: atom_rule_1782760981362_y18565
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## auto-save-on-success
 
-- **ID**: atom_rule_1782760030874_8j3mfc
+- **ID**: atom_rule_1782760981362_lxmrci
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## log-on-failure
 
-- **ID**: atom_rule_1782760030874_llenm8
+- **ID**: atom_rule_1782760981362_fk1ubc
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## check-token-budget
 
-- **ID**: atom_rule_1782760030874_mydelr
+- **ID**: atom_rule_1782760981362_45vkjo
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## check-model-availability
 
-- **ID**: atom_rule_1782760030874_tdk00f
+- **ID**: atom_rule_1782760981362_exx66x
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## max-retries
 
-- **ID**: atom_rule_1782760030874_t0yaaz
+- **ID**: atom_rule_1782760981362_l2aqxk
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## timeout-enforcement
 
-- **ID**: atom_rule_1782760030874_vb9j2v
+- **ID**: atom_rule_1782760981362_mqv6pe
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:10.874Z
+- **Created**: 2026-06-29T19:23:01.362Z
 
 ## numeric-test
 
-- **ID**: atom_rule_1782760031797_0vbi65
+- **ID**: atom_rule_1782760982075_aqjw4h
 - **Confidence**: certain
 - **Source**: test
-- **Created**: 2026-06-29T19:07:11.797Z
+- **Created**: 2026-06-29T19:23:02.075Z
 
 ## regex-test
 
-- **ID**: atom_rule_1782760031798_tpmtmk
+- **ID**: atom_rule_1782760982075_u6iqd0
 - **Confidence**: certain
 - **Source**: test
-- **Created**: 2026-06-29T19:07:11.798Z
+- **Created**: 2026-06-29T19:23:02.075Z
 
 ## test-learned-rule
 
-- **ID**: atom_rule_1782760032494_kalugi
+- **ID**: atom_rule_1782760982563_jikev6
 - **Confidence**: inferred
 - **Source**: learned
-- **Created**: 2026-06-29T19:07:12.494Z
+- **Created**: 2026-06-29T19:23:02.563Z
 
 ## code-task-detection
 
-- **ID**: atom_rule_1782760032506_zyrmvt
+- **ID**: atom_rule_1782760982571_wnu5bf
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## research-task-detection
 
-- **ID**: atom_rule_1782760032506_v1ulc3
+- **ID**: atom_rule_1782760982571_1drd78
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## plan-mode-read-only
 
-- **ID**: atom_rule_1782760032506_dit93n
+- **ID**: atom_rule_1782760982571_88bpcv
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## auto-retry-on-failure
 
-- **ID**: atom_rule_1782760032506_ayvhg4
+- **ID**: atom_rule_1782760982571_gztwtm
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## check-api-key
 
-- **ID**: atom_rule_1782760032506_sm19v7
+- **ID**: atom_rule_1782760982571_2vokqc
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## use-local-first
 
-- **ID**: atom_rule_1782760032506_xx3qli
+- **ID**: atom_rule_1782760982571_zttmxo
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## debug-task-detection
 
-- **ID**: atom_rule_1782760032506_mqvzxp
+- **ID**: atom_rule_1782760982571_g7q3v3
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## test-task-detection
 
-- **ID**: atom_rule_1782760032506_gy67vt
+- **ID**: atom_rule_1782760982571_wasko0
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## architecture-task-detection
 
-- **ID**: atom_rule_1782760032506_w13vg7
+- **ID**: atom_rule_1782760982571_qh14yk
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## auto-save-on-success
 
-- **ID**: atom_rule_1782760032506_fh4qfl
+- **ID**: atom_rule_1782760982571_078bsh
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## log-on-failure
 
-- **ID**: atom_rule_1782760032506_d3pk23
+- **ID**: atom_rule_1782760982571_b9gaq7
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## check-token-budget
 
-- **ID**: atom_rule_1782760032506_93cs52
+- **ID**: atom_rule_1782760982571_vm9tte
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## check-model-availability
 
-- **ID**: atom_rule_1782760032506_8s5coz
+- **ID**: atom_rule_1782760982571_9pffkm
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## max-retries
 
-- **ID**: atom_rule_1782760032506_hixiyr
+- **ID**: atom_rule_1782760982571_607ncj
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## timeout-enforcement
 
-- **ID**: atom_rule_1782760032506_trt50o
+- **ID**: atom_rule_1782760982571_vkh4ms
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.506Z
+- **Created**: 2026-06-29T19:23:02.571Z
 
 ## code-task-detection
 
-- **ID**: atom_rule_1782760032642_el541q
+- **ID**: atom_rule_1782760982693_1kdwv9
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## research-task-detection
 
-- **ID**: atom_rule_1782760032642_aegfiy
+- **ID**: atom_rule_1782760982693_x70cjm
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## plan-mode-read-only
 
-- **ID**: atom_rule_1782760032642_aoi8uu
+- **ID**: atom_rule_1782760982693_y7kjkm
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## auto-retry-on-failure
 
-- **ID**: atom_rule_1782760032642_i85ig3
+- **ID**: atom_rule_1782760982693_7mrwip
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## check-api-key
 
-- **ID**: atom_rule_1782760032642_ff2w50
+- **ID**: atom_rule_1782760982693_d13il1
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## use-local-first
 
-- **ID**: atom_rule_1782760032642_mqlvm2
+- **ID**: atom_rule_1782760982693_t3fx35
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## debug-task-detection
 
-- **ID**: atom_rule_1782760032642_mqpeqa
+- **ID**: atom_rule_1782760982693_g6ksyb
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## test-task-detection
 
-- **ID**: atom_rule_1782760032642_l62zdd
+- **ID**: atom_rule_1782760982693_9n0frt
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## architecture-task-detection
 
-- **ID**: atom_rule_1782760032642_g9unpl
+- **ID**: atom_rule_1782760982693_wzi6ai
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## auto-save-on-success
 
-- **ID**: atom_rule_1782760032642_fb8mve
+- **ID**: atom_rule_1782760982693_u43w48
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## log-on-failure
 
-- **ID**: atom_rule_1782760032642_l1fji8
+- **ID**: atom_rule_1782760982693_9f6bd6
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## check-token-budget
 
-- **ID**: atom_rule_1782760032642_14jauu
+- **ID**: atom_rule_1782760982693_kkhtcp
 - **Confidence**: inferred
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.642Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## check-model-availability
 
-- **ID**: atom_rule_1782760032643_46am4z
+- **ID**: atom_rule_1782760982693_5eufnb
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.643Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## max-retries
 
-- **ID**: atom_rule_1782760032643_enuvwf
+- **ID**: atom_rule_1782760982693_e7quc5
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.643Z
+- **Created**: 2026-06-29T19:23:02.693Z
 
 ## timeout-enforcement
 
-- **ID**: atom_rule_1782760032643_3192xb
+- **ID**: atom_rule_1782760982693_jgamqy
 - **Confidence**: certain
 - **Source**: predefined
-- **Created**: 2026-06-29T19:07:12.643Z
+- **Created**: 2026-06-29T19:23:02.693Z

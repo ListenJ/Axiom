@@ -353,32 +353,84 @@ class KGProjection implements Projection {
   name = "kg";
   description = "Projects atoms into knowledge graph";
   private projectedCount = 0;
+  private graphNodes: Array<{ id: string; label: string; kind: string }> = [];
+  private graphEdges: Array<{ source: string; target: string; type: string }> = [];
 
   async project(): Promise<void> {
+    // Build knowledge graph from atoms
     const stats = atomStore.getStats();
-    this.projectedCount = stats.total;
-    logger.debug("[KGProjection] Projecting", { atoms: stats.total });
+    this.graphNodes = [];
+    this.graphEdges = [];
+
+    // Add atoms as nodes
+    const allAtoms = atomStore.queryByKind("entity" as any);
+    for (const atom of allAtoms.slice(0, 200)) {
+      this.graphNodes.push({
+        id: atom.id,
+        label: atom.content.slice(0, 50),
+        kind: atom.kind,
+      });
+
+      // Add relations as edges
+      for (const rel of atom.relations) {
+        this.graphEdges.push({
+          source: atom.id,
+          target: rel.targetId,
+          type: rel.type,
+        });
+      }
+    }
+
+    // Also project knowledge network entities
+    try {
+      const { knowledgeNetwork } = await import("../knowledge-network.js");
+      const entities = knowledgeNetwork.queryByKind("entity" as any);
+      for (const entity of entities.slice(0, 100)) {
+        if (!this.graphNodes.some((n) => n.id === entity.id)) {
+          this.graphNodes.push({
+            id: entity.id,
+            label: entity.name.slice(0, 50),
+            kind: entity.kind,
+          });
+        }
+
+        for (const rel of entity.relations) {
+          this.graphEdges.push({
+            source: entity.id,
+            target: rel.targetId,
+            type: rel.type,
+          });
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    this.projectedCount = this.graphNodes.length;
+    logger.debug("[KGProjection] Projected", { nodes: this.graphNodes.length, edges: this.graphEdges.length });
   }
 
   async rebuild(): Promise<void> {
     logger.info("[KGProjection] Rebuilding from world state");
-    const stats = atomStore.getStats();
-    this.projectedCount = stats.total;
+    this.graphNodes = [];
+    this.graphEdges = [];
+    await this.project();
   }
 
   /**
    * Generate graph data from atoms.
    */
   generateGraph(): { nodes: Array<{ id: string; label: string; kind: string }>; edges: Array<{ source: string; target: string; type: string }> } {
+    // Return cached graph if available
+    if (this.graphNodes.length > 0) {
+      return { nodes: this.graphNodes, edges: this.graphEdges };
+    }
+
+    // Fallback: build on-demand
     const nodes: Array<{ id: string; label: string; kind: string }> = [];
     const edges: Array<{ source: string; target: string; type: string }> = [];
 
-    // Add atoms as nodes
     const entityAtoms = atomStore.queryByKind("entity" as any);
     for (const atom of entityAtoms.slice(0, 100)) {
       nodes.push({ id: atom.id, label: atom.content.slice(0, 50), kind: atom.kind });
-
-      // Add relations as edges
       for (const rel of atom.relations) {
         edges.push({ source: atom.id, target: rel.targetId, type: rel.type });
       }
@@ -388,7 +440,7 @@ class KGProjection implements Projection {
   }
 
   getStats(): Record<string, unknown> {
-    return { atoms: atomStore.getStats().total, projected: this.projectedCount };
+    return { atoms: atomStore.getStats().total, projected: this.projectedCount, nodes: this.graphNodes.length, edges: this.graphEdges.length };
   }
 }
 

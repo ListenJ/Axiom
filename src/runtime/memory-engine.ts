@@ -1076,11 +1076,59 @@ class MemoryEngineImpl {
 
   private inferTrigger(knowledge: Knowledge): string {
     if (knowledge.cause) return `When ${knowledge.cause}`;
-    return `When ${knowledge.domain} task detected`;
+
+    const stmt = knowledge.statement.toLowerCase();
+    const domain = knowledge.domain.toLowerCase();
+
+    // Extract trigger patterns from the statement
+    if (stmt.includes("when ")) {
+      const whenIdx = stmt.indexOf("when ");
+      const trigger = stmt.slice(whenIdx, Math.min(stmt.length, whenIdx + 80));
+      return trigger.charAt(0).toUpperCase() + trigger.slice(1);
+    }
+    if (stmt.includes("if ")) {
+      const ifIdx = stmt.indexOf("if ");
+      const trigger = stmt.slice(ifIdx, Math.min(stmt.length, ifIdx + 80));
+      return trigger.charAt(0).toUpperCase() + trigger.slice(1);
+    }
+
+    // Domain-specific triggers
+    if (domain.includes("debug") || stmt.includes("error") || stmt.includes("bug")) {
+      return `When ${domain} error is detected`;
+    }
+    if (domain.includes("test") || stmt.includes("test")) {
+      return `When ${domain} test scenario occurs`;
+    }
+    if (domain.includes("tool") || stmt.includes("tool")) {
+      return `When ${domain} tool is invoked`;
+    }
+
+    return `When ${domain} task matching "${stmt.slice(0, 40)}" is detected`;
   }
 
   private inferAction(knowledge: Knowledge): string {
-    return knowledge.statement;
+    const stmt = knowledge.statement;
+
+    // Extract action verbs
+    const actionPatterns = [
+      /(?:should|must|need to|can)\s+(.{20,60})/i,
+      /(?:use|apply|run|execute|call|invoke)\s+(.{20,60})/i,
+      /(?:check|verify|validate|test)\s+(.{20,60})/i,
+    ];
+
+    for (const pattern of actionPatterns) {
+      const match = stmt.match(pattern);
+      if (match) {
+        return match[0].charAt(0).toUpperCase() + match[0].slice(1);
+      }
+    }
+
+    // Fallback: extract the core predicate
+    const words = stmt.split(/\s+/);
+    if (words.length > 5) {
+      return words.slice(0, 8).join(" ");
+    }
+    return stmt;
   }
 }
 

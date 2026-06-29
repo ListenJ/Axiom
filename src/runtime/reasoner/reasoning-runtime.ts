@@ -313,23 +313,85 @@ export class ReasoningRuntime {
       return ctx;
     });
 
-    // Stage 7: Planning — create execution plan
+    // Stage 7: Planning — attempt deterministic planning before LLM fallback
     this.registerStage("planning", async (ctx) => {
       if (!ctx.result) {
+        // Try to decompose the input into sub-tasks
+        const input = ctx.input as string;
+        const subTasks: string[] = [];
+
+        // Check if input contains multiple questions/requests
+        const sentences = input.split(/[.!?;]\s+/).filter((s) => s.trim().length > 10);
+        if (sentences.length > 1) {
+          subTasks.push(...sentences.map((s) => s.trim()));
+        }
+
+        // Check if we can solve any sub-tasks deterministically
+        try {
+          const { knowledgeNetwork } = await import("../knowledge-network.js");
+          const solvable: string[] = [];
+
+          for (const task of subTasks.slice(0, 5)) {
+            const results = knowledgeNetwork.search(task, 3);
+            if (results.length > 0 && results[0].confidence > 0.7) {
+              solvable.push(`${task} → ${results[0].name}`);
+            }
+          }
+
+          if (solvable.length > 0) {
+            ctx.result = {
+              found: true,
+              related: solvable,
+              plan: { subTasks, solvable: solvable.length, total: subTasks.length },
+            };
+            return ctx;
+          }
+        } catch { /* non-fatal */ }
+
+        // No deterministic solution found
         ctx.needsLLM = true;
       }
       return ctx;
     });
 
-    // Stage 8: Verification — verify result
+    // Stage 8: Verification — verify result using verification engine
     this.registerStage("verification", async (ctx) => {
       if (ctx.result && !ctx.needsLLM) {
-        eventBus.publish({
-          type: "pipeline.verification",
-          source: "reasoning-runtime",
-          data: { result: ctx.result, verified: true },
-          priority: "normal",
-        });
+        try {
+          const { verificationEngine } = await import("../verification-engine.js");
+          const report = verificationEngine.verifyResult(
+            `pipeline_${Date.now()}`,
+            JSON.stringify(ctx.result),
+          );
+
+          const verified = report.overallVerdict === "pass";
+          const confidence = report.overallConfidence;
+
+          eventBus.publish({
+            type: "pipeline.verification",
+            source: "reasoning-runtime",
+            data: {
+              result: ctx.result,
+              verified,
+              confidence,
+              issues: report.issues.map((i) => i.description),
+            },
+            priority: "normal",
+          });
+
+          // If verification fails, mark as needing LLM
+          if (!verified && confidence < 0.5) {
+            ctx.needsLLM = true;
+          }
+        } catch {
+          // Fallback: publish without verification
+          eventBus.publish({
+            type: "pipeline.verification",
+            source: "reasoning-runtime",
+            data: { result: ctx.result, verified: false, confidence: 0 },
+            priority: "normal",
+          });
+        }
       }
       return ctx;
     });

@@ -995,6 +995,62 @@ export function initRuntime(): void {
     });
   });
 
+  // Memory events: track memory pipeline progression
+  eventBus.subscribe("memory.observation", (evt) => {
+    const data = evt.data as { id: string; content: string };
+    worldState.set("runtime.lastObservation", {
+      id: data.id,
+      content: data.content.slice(0, 100),
+      timestamp: Date.now(),
+    });
+  });
+
+  eventBus.subscribe("memory.skill", (evt) => {
+    const data = evt.data as { id: string; name: string };
+    worldState.set("runtime.lastSkill", {
+      id: data.id,
+      name: data.name,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Knowledge events: track knowledge growth
+  eventBus.subscribe("knowledge.behavior_added", (evt) => {
+    const data = evt.data as { id: string; entityId: string };
+    worldState.set("runtime.lastBehavior", {
+      id: data.id,
+      entityId: data.entityId,
+      timestamp: Date.now(),
+    });
+  });
+
+  eventBus.subscribe("knowledge.hypothesis_resolved", (evt) => {
+    const data = evt.data as { hypothesisId: string; status: string };
+    worldState.set("runtime.lastHypothesisResolution", {
+      id: data.hypothesisId,
+      status: data.status,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Agent routing: track rule-based routing decisions
+  eventBus.subscribe("agent.route", (evt) => {
+    const data = evt.data as { action: string };
+    worldState.set("runtime.lastRoute", {
+      action: data.action,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Task retry: track retry requests
+  eventBus.subscribe("task.retry_requested", (evt) => {
+    const data = evt.data as { backoffMs: number };
+    worldState.set("runtime.lastRetry", {
+      backoffMs: data.backoffMs,
+      timestamp: Date.now(),
+    });
+  });
+
   logger.info("[Runtime] Runtime Kernel initialized");
 }
 
