@@ -345,11 +345,35 @@ class MemoryEngineImpl {
       }
     }
 
+    // Method 4: Group episodes by similarity (keyword overlap > 0.3)
+    const similarityGroups = new Map<string, Episode[]>();
+    const processed = new Set<string>();
+    for (const ep of allEpisodes) {
+      if (processed.has(ep.id)) continue;
+      const similar = [ep];
+      processed.add(ep.id);
+
+      for (const other of allEpisodes) {
+        if (processed.has(other.id)) continue;
+        const similarity = this.calculateSimilarity(ep.summary, other.summary);
+        if (similarity > 0.3) {
+          similar.push(other);
+          processed.add(other.id);
+        }
+      }
+
+      if (similar.length >= 2) {
+        const key = `sim_${ep.id}`;
+        similarityGroups.set(key, similar);
+      }
+    }
+
     // Merge all groups and create patterns
     const allGroups = new Map<string, Episode[]>();
     for (const [key, eps] of entityGroups) allGroups.set(`entity:${key}`, eps);
     for (const [key, eps] of outcomeGroups) allGroups.set(`outcome:${key}`, eps);
     for (const [key, eps] of summaryGroups) allGroups.set(`summary:${key}`, eps);
+    for (const [key, eps] of similarityGroups) allGroups.set(`similarity:${key}`, eps);
 
     for (const [key, episodes] of allGroups) {
       if (episodes.length >= 2) {
@@ -844,6 +868,90 @@ class MemoryEngineImpl {
         }],
       });
     }
+  }
+
+  /**
+   * Auto-learn from all successful patterns.
+   * Called periodically by the Tick Engine's reflect phase.
+   * Combines pattern formation, skill formation, and knowledge formation.
+   */
+  autoLearnFromPatterns(): { patterns: number; skills: number; knowledge: number } {
+    // Extract patterns
+    this.tryExtractPatterns();
+
+    // Form skills from patterns
+    const skillsFromPatterns = this.formSkillsFromPatterns();
+
+    // Form skills from successful episodes
+    const skillsFromEpisodes = this.formSkillsFromSuccessfulEpisodes();
+
+    // Form knowledge from similar observations
+    const knowledgeFromSimilar = this.formKnowledgeFromSimilarObservations();
+
+    return {
+      patterns: this.patterns.size,
+      skills: skillsFromPatterns + skillsFromEpisodes,
+      knowledge: knowledgeFromSimilar,
+    };
+  }
+
+  /**
+   * Form knowledge from groups of similar observations.
+   * When multiple observations share keywords, form a knowledge entry.
+   */
+  private formKnowledgeFromSimilarObservations(): number {
+    const observations = Array.from(this.observations.values());
+    let formed = 0;
+
+    // Group observations by keyword similarity
+    const groups = new Map<string, Observation[]>();
+    const processed = new Set<string>();
+
+    for (const obs of observations) {
+      if (processed.has(obs.id)) continue;
+      const similar = [obs];
+      processed.add(obs.id);
+
+      for (const other of observations) {
+        if (processed.has(other.id)) continue;
+        const similarity = this.calculateSimilarity(obs.content, other.content);
+        if (similarity > 0.4) {
+          similar.push(other);
+          processed.add(other.id);
+        }
+      }
+
+      if (similar.length >= 3) {
+        const keywords = obs.content.toLowerCase().match(/\b\w{4,}\b/g) ?? [];
+        const key = keywords.slice(0, 2).sort().join("|");
+        if (key.length > 0) {
+          groups.set(key, similar);
+        }
+      }
+    }
+
+    // Form knowledge from groups
+    for (const [key, group] of groups) {
+      const existing = Array.from(this.knowledge.values())
+        .some((k) => k.statement.includes(key));
+      if (existing) continue;
+
+      const knowledge: Knowledge = {
+        id: `know_obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        patterns: [],
+        statement: `Recurring observation pattern: ${key}`,
+        domain: "observation",
+        confidence: 0.7,
+        evidence: group.map((o) => o.id),
+        createdAt: Date.now(),
+      };
+
+      this.knowledge.set(knowledge.id, knowledge);
+      this.stats.knowledge++;
+      formed++;
+    }
+
+    return formed;
   }
 
   /**
