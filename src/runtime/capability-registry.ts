@@ -1,41 +1,72 @@
 /**
- * Capability Registry — 用能力而非 Agent 进行调度
+ * Capability Registry — 能力与模型解耦
  *
- * Runtime 不再调用 Agent。
- * Runtime 调用 Capability。
+ * 能力是抽象的 (ICodeReasoning, IArchitectureAnalysis)，
+ * 模型是 Provider (Hermes, Claude, GPT, 本地算法)。
+ *
+ * 运行时根据 Latency、Cost、Confidence 动态选择 Provider。
  *
  * 例如：
- * Need: Planning
+ * Need: CodeReasoning
  * ↓
- * Search Capability
- * ├─ Hermes (external)
- * ├─ Claude (external)
- * ├─ Planner (internal)
- * └─ 本地算法
+ * Search Providers
+ * ├─ local-algorithm (cost=0, latency=100ms, confidence=0.7)
+ * ├─ hermes (cost=$0.01, latency=2000ms, confidence=0.9)
+ * ├─ claude (cost=$0.03, latency=3000ms, confidence=0.95)
  * ↓
- * 选择最优
+ * 选择最优 (基于当前上下文)
  */
 
 import { logger } from "../utils/logger.js";
 import { eventBus, worldState } from "./kernel.js";
 import { atomStore } from "./atom-engine.js";
 
-// ─── Capability Types ──────────────────────────────────────────────────────
+// ─── Abstract Capability Contracts ─────────────────────────────────────────
 
-export type CapabilityProvider = "internal" | "hermes" | "claude" | "gpt" | "opencode" | "local-model";
+/**
+ * 抽象能力契约 — 与具体模型解耦
+ */
+export type CapabilityContract =
+  | "code.reasoning"       // 代码推理
+  | "code.generation"      // 代码生成
+  | "code.review"          // 代码审查
+  | "architecture.analysis" // 架构分析
+  | "research.synthesis"   // 研究综合
+  | "planning.structured"  // 结构化规划
+  | "knowledge.retrieval"  // 知识检索
+  | "memory.consolidation" // 记忆整合
+  | "verification.factual" // 事实验证
+  | "reasoning.causal"     // 因果推理
+  | "reasoning.analogical" // 类比推理
+  | "reasoning.deductive"  // 演绎推理
+  | "generation.creative"  // 创意生成
+  | "analysis.sentiment"   // 情感分析
+  | "analysis.summarization" // 摘要分析
+
+// ─── Provider Types ────────────────────────────────────────────────────────
+
+export interface CapabilityProvider {
+  id: string
+  name: string
+  type: "internal" | "external" | "hybrid"
+  capabilities: CapabilityContract[]
+  costPerCall: number       // 0 = free
+  avgLatencyMs: number
+  reliability: number       // 0-1
+  maxConcurrency: number
+  metadata: Record<string, unknown>
+}
 
 export interface Capability {
   id: string
+  contract: CapabilityContract
+  provider: CapabilityProvider
   name: string
   description: string
-  inputSchema: Record<string, unknown>
-  outputSchema: Record<string, unknown>
-  provider: CapabilityProvider
-  cost: number          // 0 = free, higher = more expensive
-  latencyMs: number     // expected latency in ms
-  reliability: number   // 0-1, how reliable this capability is
-  constraints: string[] // constraint IDs that must be satisfied
-  metadata: Record<string, unknown>
+  cost: number
+  latencyMs: number
+  reliability: number
+  constraints: string[]
   createdAt: number
   lastUsed: number
   usageCount: number
@@ -51,96 +82,84 @@ export interface CapabilitySearchResult {
 // ─── Capability Registry ───────────────────────────────────────────────────
 
 class CapabilityRegistryImpl {
+  private providers = new Map<string, CapabilityProvider>();
   private capabilities = new Map<string, Capability>();
   private stats = { searches: 0, selections: 0, fallbacks: 0 };
 
   /**
-   * Register a capability.
+   * Register a provider.
    */
-  register(cap: Omit<Capability, "id" | "createdAt" | "lastUsed" | "usageCount" | "successRate">): Capability {
-    const id = `cap_${cap.name}_${cap.provider}_${Date.now()}`;
-    const full: Capability = {
-      ...cap,
-      id,
-      createdAt: Date.now(),
-      lastUsed: 0,
-      usageCount: 0,
-      successRate: 1.0,
-    };
+  registerProvider(provider: CapabilityProvider): void {
+    this.providers.set(provider.id, provider);
 
-    this.capabilities.set(id, full);
+    // Auto-create capabilities for each contract
+    for (const contract of provider.capabilities) {
+      const cap: Capability = {
+        id: `${provider.id}:${contract}`,
+        contract,
+        provider,
+        name: `${contract} via ${provider.name}`,
+        description: `${contract} capability provided by ${provider.name}`,
+        cost: provider.costPerCall,
+        latencyMs: provider.avgLatencyMs,
+        reliability: provider.reliability,
+        constraints: [],
+        createdAt: Date.now(),
+        lastUsed: 0,
+        usageCount: 0,
+        successRate: 1.0,
+      };
+      this.capabilities.set(cap.id, cap);
+    }
 
-    // Store as atom
-    atomStore.create("concept", `Capability: ${cap.name}`, {
-      source: "capability-registry",
-      metadata: {
-        provider: cap.provider,
-        cost: cap.cost,
-        latency: cap.latencyMs,
-        reliability: cap.reliability,
-      },
+    logger.info("[CapabilityRegistry] Registered provider", {
+      id: provider.id,
+      capabilities: provider.capabilities.length,
     });
-
-    eventBus.publish({
-      type: "capability.registered",
-      source: "capability-registry",
-      data: { id, name: cap.name, provider: cap.provider },
-      priority: "low",
-    });
-
-    return full;
   }
 
   /**
-   * Search for capabilities that match a need.
+   * Search for capabilities that match a contract.
    */
-  search(need: string, opts?: {
+  search(contract: CapabilityContract, opts?: {
     maxCost?: number
     maxLatency?: number
     minReliability?: number
-    provider?: CapabilityProvider
   }): CapabilitySearchResult[] {
     this.stats.searches++;
     const results: CapabilitySearchResult[] = [];
-    const lowerNeed = need.toLowerCase();
 
     for (const cap of this.capabilities.values()) {
+      if (cap.contract !== contract) continue;
+
       // Filter by options
       if (opts?.maxCost && cap.cost > opts.maxCost) continue;
       if (opts?.maxLatency && cap.latencyMs > opts.maxLatency) continue;
       if (opts?.minReliability && cap.reliability < opts.minReliability) continue;
-      if (opts?.provider && cap.provider !== opts.provider) continue;
 
-      // Score by relevance
-      let score = 0;
-      if (cap.name.toLowerCase().includes(lowerNeed)) score += 0.5;
-      if (cap.description.toLowerCase().includes(lowerNeed)) score += 0.3;
+      // Score: lower cost + lower latency + higher reliability = better
+      const costScore = cap.cost === 0 ? 1.0 : Math.max(0, 1 - cap.cost / 0.1);
+      const latencyScore = Math.max(0, 1 - cap.latencyMs / 10000);
+      const reliabilityScore = cap.reliability;
 
-      // Bonus for low cost
-      score += (1 - Math.min(cap.cost, 1)) * 0.1;
+      const score = (costScore * 0.3) + (latencyScore * 0.3) + (reliabilityScore * 0.4);
 
-      // Bonus for high reliability
-      score += cap.reliability * 0.1;
-
-      if (score > 0) {
-        results.push({
-          capability: cap,
-          score,
-          reason: `${cap.name} (${cap.provider}) — cost=${cap.cost}, latency=${cap.latencyMs}ms`,
-        });
-      }
+      results.push({
+        capability: cap,
+        score,
+        reason: `${cap.provider.name} — cost=${cap.cost}, latency=${cap.latencyMs}ms, reliability=${cap.reliability}`,
+      });
     }
 
-    // Sort by score descending
     results.sort((a, b) => b.score - a.score);
     return results;
   }
 
   /**
-   * Select the best capability for a need.
+   * Select the best capability for a contract.
    */
-  select(need: string, opts?: Parameters<typeof this.search>[1]): Capability | null {
-    const results = this.search(need, opts);
+  select(contract: CapabilityContract, opts?: Parameters<typeof this.search>[1]): Capability | null {
+    const results = this.search(contract, opts);
     if (results.length === 0) {
       this.stats.fallbacks++;
       return null;
@@ -149,14 +168,18 @@ class CapabilityRegistryImpl {
     const selected = results[0].capability;
     this.stats.selections++;
 
-    // Update usage
     selected.lastUsed = Date.now();
     selected.usageCount++;
 
     eventBus.publish({
       type: "capability.selected",
       source: "capability-registry",
-      data: { id: selected.id, name: selected.name, provider: selected.provider, need },
+      data: {
+        contract,
+        provider: selected.provider.name,
+        cost: selected.cost,
+        latency: selected.latencyMs,
+      },
       priority: "normal",
     });
 
@@ -166,12 +189,22 @@ class CapabilityRegistryImpl {
   /**
    * Record the result of using a capability.
    */
-  recordResult(id: string, success: boolean): void {
-    const cap = this.capabilities.get(id);
+  recordResult(capabilityId: string, success: boolean): void {
+    const cap = this.capabilities.get(capabilityId);
     if (!cap) return;
 
     cap.usageCount++;
     cap.successRate = (cap.successRate * (cap.usageCount - 1) + (success ? 1 : 0)) / cap.usageCount;
+
+    // Update provider reliability
+    cap.provider.reliability = (cap.provider.reliability * 0.9) + (success ? 0.1 : 0);
+  }
+
+  /**
+   * Get all providers.
+   */
+  getProviders(): CapabilityProvider[] {
+    return Array.from(this.providers.values());
   }
 
   /**
@@ -182,147 +215,109 @@ class CapabilityRegistryImpl {
   }
 
   /**
-   * Get capabilities by provider.
+   * Get capabilities by contract.
    */
-  listByProvider(provider: CapabilityProvider): Capability[] {
-    return Array.from(this.capabilities.values()).filter((c) => c.provider === provider);
-  }
-
-  /**
-   * Get a capability by ID.
-   */
-  get(id: string): Capability | undefined {
-    return this.capabilities.get(id);
-  }
-
-  /**
-   * Remove a capability.
-   */
-  remove(id: string): boolean {
-    return this.capabilities.delete(id);
+  listByContract(contract: CapabilityContract): Capability[] {
+    return Array.from(this.capabilities.values()).filter((c) => c.contract === contract);
   }
 
   /**
    * Get stats.
    */
-  getStats(): { total: number; searches: number; selections: number; fallbacks: number } {
-    return { total: this.capabilities.size, ...this.stats };
+  getStats(): { providers: number; capabilities: number; searches: number; selections: number; fallbacks: number } {
+    return {
+      providers: this.providers.size,
+      capabilities: this.capabilities.size,
+      ...this.stats,
+    };
   }
 }
 
 export const capabilityRegistry = new CapabilityRegistryImpl();
 
-// ─── Predefined Capabilities ───────────────────────────────────────────────
+// ─── Predefined Providers ──────────────────────────────────────────────────
 
 /**
- * Initialize common capabilities.
+ * Initialize common providers and capabilities.
  */
 export function initCapabilities(): void {
-  // Internal capabilities (free, fast)
-  capabilityRegistry.register({
-    name: "code_analyze",
-    description: "Analyze code structure, complexity, and dependencies",
-    inputSchema: { file: "string" },
-    outputSchema: { analysis: "object" },
-    provider: "internal",
-    cost: 0,
-    latencyMs: 100,
-    reliability: 0.95,
-    constraints: [],
+  // Internal algorithm provider (free, fast, lower confidence)
+  capabilityRegistry.registerProvider({
+    id: "internal-algorithm",
+    name: "Internal Algorithm",
+    type: "internal",
+    capabilities: [
+      "code.reasoning",
+      "knowledge.retrieval",
+      "memory.consolidation",
+      "reasoning.deductive",
+    ],
+    costPerCall: 0,
+    avgLatencyMs: 100,
+    reliability: 0.7,
+    maxConcurrency: 100,
     metadata: {},
   });
 
-  capabilityRegistry.register({
-    name: "code_diagnostics",
-    description: "Run TypeScript/ESLint diagnostics",
-    inputSchema: { file: "string" },
-    outputSchema: { diagnostics: "array" },
-    provider: "internal",
-    cost: 0,
-    latencyMs: 200,
+  // Local model provider (free, medium latency)
+  capabilityRegistry.registerProvider({
+    id: "local-model",
+    name: "Local Model (Qwen3)",
+    type: "internal",
+    capabilities: [
+      "code.reasoning",
+      "code.generation",
+      "code.review",
+      "planning.structured",
+      "reasoning.causal",
+      "reasoning.analogical",
+    ],
+    costPerCall: 0,
+    avgLatencyMs: 500,
+    reliability: 0.8,
+    maxConcurrency: 4,
+    metadata: { model: "qwen3-1.7b" },
+  });
+
+  // Hermes provider (external, higher confidence)
+  capabilityRegistry.registerProvider({
+    id: "hermes",
+    name: "Hermes Agent",
+    type: "external",
+    capabilities: [
+      "architecture.analysis",
+      "research.synthesis",
+      "code.reasoning",
+      "planning.structured",
+      "verification.factual",
+    ],
+    costPerCall: 0.01,
+    avgLatencyMs: 2000,
     reliability: 0.9,
-    constraints: ["constraint_code_diagnostics_typescript"],
-    metadata: {},
+    maxConcurrency: 2,
+    metadata: { agent: "hermes" },
   });
 
-  capabilityRegistry.register({
-    name: "memory_search",
-    description: "Search the knowledge vault",
-    inputSchema: { query: "string" },
-    outputSchema: { results: "array" },
-    provider: "internal",
-    cost: 0,
-    latencyMs: 50,
+  // Claude provider (external, highest confidence)
+  capabilityRegistry.registerProvider({
+    id: "claude",
+    name: "Claude",
+    type: "external",
+    capabilities: [
+      "reasoning.causal",
+      "reasoning.analogical",
+      "reasoning.deductive",
+      "generation.creative",
+      "analysis.sentiment",
+      "analysis.summarization",
+      "verification.factual",
+    ],
+    costPerCall: 0.03,
+    avgLatencyMs: 3000,
     reliability: 0.95,
-    constraints: [],
-    metadata: {},
+    maxConcurrency: 2,
+    metadata: { model: "claude-3.5-sonnet" },
   });
 
-  capabilityRegistry.register({
-    name: "planning",
-    description: "Create execution plans using deterministic pipeline",
-    inputSchema: { input: "string" },
-    outputSchema: { plan: "object" },
-    provider: "internal",
-    cost: 0,
-    latencyMs: 500,
-    reliability: 0.85,
-    constraints: [],
-    metadata: {},
-  });
-
-  capabilityRegistry.register({
-    name: "constraint_solving",
-    description: "Solve constraints for a set of entities",
-    inputSchema: { entities: "array" },
-    outputSchema: { satisfied: "boolean", violations: "array" },
-    provider: "internal",
-    cost: 0,
-    latencyMs: 10,
-    reliability: 1.0,
-    constraints: [],
-    metadata: {},
-  });
-
-  // External capabilities (cost, latency)
-  capabilityRegistry.register({
-    name: "hermes_planning",
-    description: "Advanced planning using Hermes agent",
-    inputSchema: { task: "string" },
-    outputSchema: { plan: "object" },
-    provider: "hermes",
-    cost: 0.01,
-    latencyMs: 2000,
-    reliability: 0.9,
-    constraints: ["constraint_hermes_installation"],
-    metadata: {},
-  });
-
-  capabilityRegistry.register({
-    name: "claude_reasoning",
-    description: "Complex reasoning using Claude",
-    inputSchema: { prompt: "string" },
-    outputSchema: { response: "string" },
-    provider: "claude",
-    cost: 0.03,
-    latencyMs: 3000,
-    reliability: 0.95,
-    constraints: [],
-    metadata: {},
-  });
-
-  capabilityRegistry.register({
-    name: "opencode_coding",
-    description: "Code generation using OpenCode",
-    inputSchema: { task: "string" },
-    outputSchema: { code: "string" },
-    provider: "opencode",
-    cost: 0,
-    latencyMs: 5000,
-    reliability: 0.85,
-    constraints: ["constraint_opencode_installation"],
-    metadata: {},
-  });
-
-  logger.info("[CapabilityRegistry] Initialized predefined capabilities");
+  logger.info("[CapabilityRegistry] Initialized providers and capabilities");
 }

@@ -54,28 +54,28 @@ describe("Constraint Solver", () => {
 });
 
 describe("Capability Registry", () => {
-  it("searches for capabilities", () => {
-    const results = capabilityRegistry.search("code");
+  it("searches for capabilities by contract", () => {
+    const results = capabilityRegistry.search("code.reasoning");
     expect(results.length).toBeGreaterThan(0);
   });
 
   it("selects best capability", () => {
-    const cap = capabilityRegistry.select("code analysis");
+    const cap = capabilityRegistry.select("code.reasoning");
     expect(cap).not.toBeNull();
     expect(cap!.name).toBeDefined();
   });
 
   it("records results", () => {
-    const cap = capabilityRegistry.select("test");
+    const cap = capabilityRegistry.select("code.reasoning");
     if (cap) {
       capabilityRegistry.recordResult(cap.id, true);
       expect(cap.successRate).toBeGreaterThanOrEqual(0);
     }
   });
 
-  it("lists by provider", () => {
-    const internal = capabilityRegistry.listByProvider("internal");
-    expect(internal.length).toBeGreaterThan(0);
+  it("lists providers", () => {
+    const providers = capabilityRegistry.getProviders();
+    expect(providers.length).toBeGreaterThan(0);
   });
 });
 

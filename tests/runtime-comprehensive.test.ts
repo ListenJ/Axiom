@@ -39,7 +39,7 @@ describe("Runtime Comprehensive Tests", () => {
 
     it("capability registry has capabilities", () => {
       const stats = capabilityRegistry.getStats();
-      expect(stats.total).toBeGreaterThan(0);
+      expect(stats.capabilities).toBeGreaterThan(0);
     });
 
     it("rule engine has rules", () => {
