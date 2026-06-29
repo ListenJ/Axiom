@@ -760,7 +760,7 @@ export function initRuntime(): void {
   });
 
   tickEngine.onPhase("reflect", async () => {
-    // Reflection phase: periodic self-assessment + rule learning
+    // Reflection phase: periodic self-assessment + rule learning + mental model simulation
     const stateVersion = worldState.getVersion();
     const eventStats = eventBus.getStats();
     const actorStats = actorRuntime.getStats();
@@ -789,7 +789,7 @@ export function initRuntime(): void {
         }
       } catch { /* non-fatal */ }
 
-      // Also try to form skills from patterns
+      // Form skills from patterns
       try {
         const { memoryEngine } = await import("./memory-engine.js");
         const formed = memoryEngine.formSkillsFromPatterns();
@@ -797,10 +797,48 @@ export function initRuntime(): void {
           logger.info("[Runtime] Formed new skills from patterns", { count: formed });
         }
 
-        // Also try to form skills from successful episodes
+        // Form skills from successful episodes
         const formedFromEpisodes = memoryEngine.formSkillsFromSuccessfulEpisodes();
         if (formedFromEpisodes > 0) {
-          logger.info("[Runtime] Formed new skills from successful episodes", { count: formedFromEpisodes });
+          logger.info("[Runtime] Formed new skills from episodes", { count: formedFromEpisodes });
+        }
+
+        // Form skills from mental models
+        const formedFromModels = memoryEngine.formSkillsFromMentalModels();
+        if (formedFromModels > 0) {
+          logger.info("[Runtime] Formed new skills from mental models", { count: formedFromModels });
+        }
+      } catch { /* non-fatal */ }
+
+      // Run mental model simulations on recent patterns
+      try {
+        const { mentalModelManager } = await import("./mental-model.js");
+        const models = mentalModelManager.getModels();
+        for (const model of models.slice(0, 3)) {
+          const simulation = mentalModelManager.simulate(model.id, "periodic_check", {
+            timestamp: Date.now(),
+            tick: tickEngine.getTickNumber(),
+          });
+          if (simulation) {
+            worldState.set(`mental.simulation.${model.domain}`, {
+              outcome: simulation.outcome,
+              confidence: simulation.confidence,
+              timestamp: Date.now(),
+            });
+          }
+        }
+      } catch { /* non-fatal */ }
+
+      // Update mental beliefs based on system state
+      try {
+        const metrics = worldState.get<Record<string, unknown>>("runtime.metrics");
+        if (metrics) {
+          const eventStats = metrics.eventStats as { errors?: number } | undefined;
+          if (eventStats && eventStats.errors > 10) {
+            worldState.setBelief("system_health", "System may be experiencing issues", 0.7);
+          } else {
+            worldState.setBelief("system_health", "System is operating normally", 0.9);
+          }
         }
       } catch { /* non-fatal */ }
     }
