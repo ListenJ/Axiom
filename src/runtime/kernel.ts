@@ -567,20 +567,62 @@ export function initRuntime(): void {
   });
 
   tickEngine.onPhase("reason", async () => {
-    // Reason phase: evaluate rules against current context
+    // Reason phase: evaluate rules + check constraints
     try {
       const { ruleEngine } = await import("./rule-engine.js");
+      const { constraintSolver } = await import("./constraint-solver.js");
+
+      // Evaluate rules against current world state
       const context = {
         stateVersion: worldState.getVersion(),
         timestamp: Date.now(),
+        tickNumber: tickEngine.getTickNumber(),
       };
       const matches = ruleEngine.evaluate(context);
-      if (matches.length > 0) {
+      const matchedRules = matches.filter((m) => m.matched);
+
+      if (matchedRules.length > 0) {
         worldState.set("runtime.ruleMatches", {
-          count: matches.length,
-          rules: matches.filter((m) => m.matched).map((m) => m.rule.name),
+          count: matchedRules.length,
+          rules: matchedRules.map((m) => ({ name: m.rule.name, action: m.rule.action })),
           timestamp: Date.now(),
         });
+
+        // Publish rule match events
+        for (const match of matchedRules) {
+          eventBus.publish({
+            type: "rule.matched",
+            source: "tick-engine",
+            data: { rule: match.rule.name, action: match.rule.action },
+            priority: "normal",
+          });
+        }
+      }
+
+      // Check constraints on current entities
+      const entityKeys = worldState.query("entities.");
+      const entityIds = Array.from(entityKeys.keys()).map((k) => k.replace("entities.", ""));
+      if (entityIds.length > 0) {
+        const constraintResult = constraintSolver.solve(entityIds);
+        worldState.set("runtime.constraints", {
+          satisfied: constraintResult.satisfied,
+          violationCount: constraintResult.violations.length,
+          violations: constraintResult.violations.map((v) => ({
+            type: v.constraint.type,
+            message: v.message,
+            severity: v.severity,
+          })),
+          timestamp: Date.now(),
+        });
+
+        if (!constraintResult.satisfied) {
+          eventBus.publish({
+            type: "tick.constraint_violation",
+            source: "tick-engine",
+            data: { violations: constraintResult.violations.length },
+            priority: "high",
+          });
+        }
       }
     } catch { /* non-fatal */ }
   });

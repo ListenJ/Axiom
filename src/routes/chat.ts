@@ -198,6 +198,18 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
           // Record in memory
           memoryEngine.observe(result.content ?? "", "llm");
 
+          // Complete episode with result
+          const episode = memoryEngine.getCurrentEpisode();
+          if (episode) {
+            const verification = verificationEngine.verifyResult(requestId, result.content ?? "");
+            memoryEngine.completeEpisode(
+              episode.id,
+              verification.overallVerdict === "pass" ? "success" : "failure",
+              verification.overallVerdict === "fail" ? "verification failed" : undefined,
+              result.content ?? undefined,
+            );
+          }
+
           wsManager.broadcast({
             type: "routing.decision",
             payload: {
