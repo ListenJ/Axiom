@@ -166,6 +166,42 @@ class RuleEngineImpl {
   }
 
   /**
+   * Learn rules from successful patterns in memory.
+   * Called periodically by the Tick Engine's reflect phase.
+   */
+  async learnFromMemory(): Promise<number> {
+    try {
+      const { memoryEngine } = await import("./memory-engine.js");
+      const patterns = memoryEngine.getPatterns();
+      let learned = 0;
+
+      for (const pattern of patterns) {
+        if (pattern.frequency >= 3 && pattern.confidence >= 0.7) {
+          // Check if rule already exists for this pattern
+          const existing = Array.from(this.rules.values())
+            .some((r) => r.description.includes(pattern.id));
+          if (existing) continue;
+
+          // Learn a routing rule from the pattern
+          this.learn(
+            "inference",
+            `pattern_${pattern.id}`,
+            `frequency >= ${pattern.frequency}`,
+            `route_to_pattern_handler`,
+            `Pattern: ${pattern.description}`,
+            pattern.confidence,
+          );
+          learned++;
+        }
+      }
+
+      return learned;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * Get all rules.
    */
   list(): Rule[] {

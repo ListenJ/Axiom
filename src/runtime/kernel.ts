@@ -555,15 +555,45 @@ export function initRuntime(): void {
     });
   });
 
-  tickEngine.onPhase("update", () => {
+  tickEngine.onPhase("update", async () => {
     // Update phase: sync world state from external stores
-    const eventStats = eventBus.getStats();
-    worldState.set("runtime.events", {
-      published: eventStats.published,
-      handled: eventStats.handled,
-      errors: eventStats.errors,
-      timestamp: Date.now(),
-    });
+    try {
+      // Sync runtime metrics
+      const eventStats = eventBus.getStats();
+      const actorStats = actorRuntime.getStats();
+      worldState.set("runtime.events", {
+        published: eventStats.published,
+        handled: eventStats.handled,
+        errors: eventStats.errors,
+        timestamp: Date.now(),
+      });
+      worldState.set("runtime.actors", {
+        count: actorStats.actorCount,
+        queueSize: actorStats.queueSize,
+        messagesSent: actorStats.messagesSent,
+        timestamp: Date.now(),
+      });
+
+      // Sync atom store stats
+      const { atomStore } = await import("./atom-engine.js");
+      worldState.set("runtime.atoms", atomStore.getStats());
+
+      // Sync memory engine stats
+      const { memoryEngine } = await import("./memory-engine.js");
+      worldState.set("runtime.memory", memoryEngine.getStats());
+
+      // Sync constraint solver stats
+      const { constraintSolver } = await import("./constraint-solver.js");
+      worldState.set("runtime.constraints", constraintSolver.getStats());
+
+      // Sync capability registry stats
+      const { capabilityRegistry } = await import("./capability-registry.js");
+      worldState.set("runtime.capabilities", capabilityRegistry.getStats());
+
+      // Sync rule engine stats
+      const { ruleEngine } = await import("./rule-engine.js");
+      worldState.set("runtime.rules", ruleEngine.getStats());
+    } catch { /* non-fatal */ }
   });
 
   tickEngine.onPhase("reason", async () => {
@@ -652,8 +682,8 @@ export function initRuntime(): void {
     });
   });
 
-  tickEngine.onPhase("reflect", () => {
-    // Reflection phase: periodic self-assessment
+  tickEngine.onPhase("reflect", async () => {
+    // Reflection phase: periodic self-assessment + rule learning
     const stateVersion = worldState.getVersion();
     const eventStats = eventBus.getStats();
     const actorStats = actorRuntime.getStats();
@@ -665,6 +695,32 @@ export function initRuntime(): void {
       actorStats,
       timestamp: Date.now(),
     });
+
+    // Learn rules from successful patterns (every 10 ticks)
+    if (tickEngine.getTickNumber() % 10 === 0) {
+      try {
+        const { ruleEngine } = await import("./rule-engine.js");
+        const learned = await ruleEngine.learnFromMemory();
+        if (learned > 0) {
+          logger.info("[Runtime] Learned new rules from patterns", { count: learned });
+          eventBus.publish({
+            type: "rules.learned",
+            source: "tick-engine",
+            data: { count: learned },
+            priority: "normal",
+          });
+        }
+      } catch { /* non-fatal */ }
+
+      // Also try to form skills from patterns
+      try {
+        const { memoryEngine } = await import("./memory-engine.js");
+        const formed = memoryEngine.formSkillsFromPatterns();
+        if (formed > 0) {
+          logger.info("[Runtime] Formed new skills from patterns", { count: formed });
+        }
+      } catch { /* non-fatal */ }
+    }
   });
 
   tickEngine.onPhase("sleep", () => {
