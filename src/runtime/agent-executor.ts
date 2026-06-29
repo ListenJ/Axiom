@@ -230,6 +230,14 @@ class AgentExecutorImpl {
 
       capabilityRegistry.recordResult(capability.id, true);
 
+      // Learn from successful tool execution
+      memoryEngine.learnFromToolExecution(
+        capability.name,
+        task.description,
+        typeof result === "string" ? result : JSON.stringify(result ?? "").slice(0, 500),
+        true,
+      ).catch(() => { /* non-fatal */ });
+
       return {
         taskId: task.id,
         action: capability.name,
@@ -240,6 +248,14 @@ class AgentExecutorImpl {
       };
     } catch (err) {
       capabilityRegistry.recordResult(capability.id, false);
+
+      // Learn from failed tool execution
+      memoryEngine.learnFromToolExecution(
+        capability.name,
+        task.description,
+        (err as Error).message,
+        false,
+      ).catch(() => { /* non-fatal */ });
 
       return {
         taskId: task.id,

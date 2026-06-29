@@ -695,6 +695,13 @@ class MemoryEngineImpl {
   }
 
   /**
+   * Get all policies.
+   */
+  getPolicies(): Policy[] {
+    return Array.from(this.policies.values());
+  }
+
+  /**
    * Get all episodes.
    */
   getEpisodes(): Episode[] {

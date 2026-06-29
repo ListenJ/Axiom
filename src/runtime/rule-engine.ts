@@ -305,9 +305,83 @@ class RuleEngineImpl {
   }
 
   private executeRule(rule: Rule, context: Record<string, unknown>): unknown {
-    // Simple action execution
-    // In production, this would be a proper action executor
-    return { rule: rule.name, action: rule.action, context };
+    const action = rule.action;
+    const result: Record<string, unknown> = { rule: rule.name, action, dispatched: false };
+
+    // Dispatch action to event bus so other modules can react
+    eventBus.publish({
+      type: "rule.action",
+      source: "rule-engine",
+      data: { ruleId: rule.id, ruleName: rule.name, action, context },
+      priority: rule.priority > 50 ? "high" : "normal",
+    });
+
+    // Apply known action side-effects
+    switch (action) {
+      case "block_write_operations":
+        result.dispatched = true;
+        result.effect = "writes_blocked";
+        eventBus.publish({
+          type: "constraint.write_blocked",
+          source: "rule-engine",
+          data: { rule: rule.name, reason: rule.description },
+          priority: "high",
+        });
+        break;
+
+      case "retry_with_backoff":
+        result.dispatched = true;
+        result.effect = "retry_scheduled";
+        eventBus.publish({
+          type: "task.retry_requested",
+          source: "rule-engine",
+          data: { context, backoffMs: 1000 * (rule.fireCount + 1) },
+          priority: "normal",
+        });
+        break;
+
+      case "route_to_coding_role":
+      case "route_to_research_role":
+        result.dispatched = true;
+        result.effect = "routed";
+        eventBus.publish({
+          type: "agent.route",
+          source: "rule-engine",
+          data: { action, context },
+          priority: "normal",
+        });
+        break;
+
+      case "validate_api_key":
+        result.dispatched = true;
+        result.effect = "validation_requested";
+        eventBus.publish({
+          type: "validation.api_key",
+          source: "rule-engine",
+          data: { context },
+          priority: "high",
+        });
+        break;
+
+      case "use_local_model":
+        result.dispatched = true;
+        result.effect = "local_model_preferred";
+        eventBus.publish({
+          type: "routing.local_model",
+          source: "rule-engine",
+          data: { context },
+          priority: "normal",
+        });
+        break;
+
+      default:
+        // Unknown action — still publish for potential listeners
+        result.dispatched = false;
+        result.effect = "unhandled";
+        break;
+    }
+
+    return result;
   }
 }
 

@@ -841,6 +841,74 @@ export function initRuntime(): void {
           }
         }
       } catch { /* non-fatal */ }
+
+      // Generate hypotheses from knowledge patterns
+      try {
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+        const patterns = knowledgeNetwork.queryByKind("pattern");
+        let hypothesesCreated = 0;
+
+        for (const pattern of patterns.slice(0, 3)) {
+          // Check if hypothesis already exists
+          const existing = knowledgeNetwork.queryByKind("hypothesis");
+          const alreadyHypothesized = existing.some((e) =>
+            e.name.includes(pattern.name),
+          );
+
+          if (!alreadyHypothesized && pattern.confidence > 0.5) {
+            knowledgeNetwork.addHypothesis(
+              pattern.name,
+              `Pattern "${pattern.name}" may indicate a broader trend`,
+              0.6,
+            );
+            hypothesesCreated++;
+          }
+        }
+
+        // Resolve pending hypotheses based on new evidence
+        const hypotheses = knowledgeNetwork.queryByKind("hypothesis");
+        for (const hyp of hypotheses) {
+          const hypData = hyp.metadata as { status?: string } | undefined;
+          if (hypData?.status === "testing") {
+            // Check if we have confirming evidence
+            const relatedKnowledge = knowledgeNetwork.search(hyp.name);
+            if (relatedKnowledge.length >= 2) {
+              knowledgeNetwork.resolveHypothesis(hyp.id, "confirmed", relatedKnowledge.length);
+            }
+          }
+        }
+
+        if (hypothesesCreated > 0) {
+          logger.info("[Runtime] Generated hypotheses", { count: hypothesesCreated });
+        }
+      } catch { /* non-fatal */ }
+
+      // Create policies from high-confidence skills
+      try {
+        const { memoryEngine } = await import("./memory-engine.js");
+        const skills = memoryEngine.getSkills();
+        let policiesCreated = 0;
+
+        for (const skill of skills) {
+          if (skill.confidence >= 0.9 && skill.usageCount >= 3 && skill.successRate >= 0.8) {
+            const existing = memoryEngine.getPolicies();
+            const alreadyPolicy = existing.some((p) => p.skills.includes(skill.id));
+
+            if (!alreadyPolicy) {
+              memoryEngine.createPolicy(
+                skill.id,
+                `Auto-approve: ${skill.trigger}`,
+                1,
+              );
+              policiesCreated++;
+            }
+          }
+        }
+
+        if (policiesCreated > 0) {
+          logger.info("[Runtime] Created policies from skills", { count: policiesCreated });
+        }
+      } catch { /* non-fatal */ }
     }
   });
 
@@ -879,6 +947,53 @@ export function initRuntime(): void {
   import("./specialized-actors.js").then(({ initSpecializedActors }) => {
     initSpecializedActors();
   }).catch(() => { /* non-fatal */ });
+
+  // ── Event Subscribers ──────────────────────────────────────────────────
+
+  // Constraint veto: block actions when constraints are violated
+  eventBus.subscribe("constraint.veto", (evt) => {
+    const data = evt.data as { violations: Array<{ type: string; message: string; severity: string }> };
+    const critical = data.violations.filter((v) => v.severity === "critical" || v.severity === "high");
+    if (critical.length > 0) {
+      worldState.set("runtime.constraintVeto", {
+        active: true,
+        violations: critical.map((v) => v.message),
+        timestamp: Date.now(),
+      });
+      logger.warn("[Runtime] Constraint veto active", { violations: critical.length });
+    }
+  });
+
+  // Rule actions: update world state with last fired rule
+  eventBus.subscribe("rule.action", (evt) => {
+    const data = evt.data as { ruleName: string; action: string };
+    worldState.set("runtime.lastRuleAction", {
+      rule: data.ruleName,
+      action: data.action,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Agent lifecycle: track agent performance
+  eventBus.subscribe("agent.completed", (evt) => {
+    const data = evt.data as { taskId: string; status: string; totalTimeMs: number };
+    worldState.set("runtime.lastAgentResult", {
+      taskId: data.taskId,
+      status: data.status,
+      totalTimeMs: data.totalTimeMs,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Verification results: update world state
+  eventBus.subscribe("verification.completed", (evt) => {
+    const data = evt.data as { report: { overallVerdict: string; overallConfidence: number } };
+    worldState.set("runtime.lastVerification", {
+      verdict: data.report.overallVerdict,
+      confidence: data.report.overallConfidence,
+      timestamp: Date.now(),
+    });
+  });
 
   logger.info("[Runtime] Runtime Kernel initialized");
 }

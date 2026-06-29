@@ -28,6 +28,7 @@ import { cognitivePipeline } from "./scheduler.js";
 import { contextEngine } from "./context-engine.js";
 import { reasoningGraphBuilder } from "./reasoning-graph.js";
 import { mentalModelManager } from "./mental-model.js";
+import { agentExecutor } from "./agent-executor.js";
 
 // ─── Chat Request/Response ─────────────────────────────────────────────────
 
@@ -257,8 +258,39 @@ export class ChatActor implements Actor {
       });
     }
 
-    // ── Step 6: No deterministic answer — need LLM ──
-    // Return a signal that the caller should use LLM routing
+    // ── Step 6: No deterministic answer — use Agent Executor ──
+    // Delegate to agent executor for capability-based execution
+    try {
+      const agentReport = await agentExecutor.execute({
+        id: request.id,
+        description: request.input,
+        resources: [],
+        constraints: constraintViolations,
+        goal: "answer user question",
+        priority: "normal",
+        metadata: { mode: request.mode, simulations },
+      });
+
+      if (agentReport.status === "completed" && agentReport.result) {
+        const agentResult = agentReport.result as { results?: unknown[] };
+        if (agentResult.results && agentResult.results.length > 0) {
+          const content = JSON.stringify(agentResult.results.slice(0, 3));
+          return {
+            id: request.id,
+            content,
+            model: "agent-executor",
+            provider: "runtime",
+            source: "capability",
+            ruleMatches,
+            constraintViolations,
+            simulations,
+            latencyMs: Date.now() - startTime,
+          };
+        }
+      }
+    } catch { /* fall through to LLM signal */ }
+
+    // ── Step 7: No deterministic answer — need LLM ──
     return {
       id: request.id,
       content: "", // Empty = caller should use LLM
