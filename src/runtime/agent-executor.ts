@@ -307,12 +307,41 @@ class AgentExecutorImpl {
         return await cognitivePipeline.run(task.description);
       }
 
-      // For other tools, try to call via the MCP server
-      // This would be a real HTTP call in production
+      if (capabilityName === "code_analyze" || capabilityName === "code_diagnostics") {
+        // Delegate to knowledge network for code analysis
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+        const results = knowledgeNetwork.search(task.description, 5);
+        return {
+          findings: results.map((e) => ({ name: e.name, content: e.content.slice(0, 200), confidence: e.confidence })),
+        };
+      }
+
+      if (capabilityName === "code_generate") {
+        // Use cognitive pipeline for deterministic generation
+        const { cognitivePipeline } = await import("./scheduler.js");
+        return await cognitivePipeline.run(`generate: ${task.description}`);
+      }
+
+      if (capabilityName === "code_review") {
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+        const results = knowledgeNetwork.search(task.description, 5);
+        return {
+          reviewItems: results.map((e) => ({ entity: e.name, analysis: e.content.slice(0, 200) })),
+        };
+      }
+
+      // For truly external tools, emit event for MCP server routing
+      eventBus.publish({
+        type: "tool.external_request",
+        source: "agent-executor",
+        data: { tool: toolName, task: task.description, capability: capabilityName },
+        priority: "normal",
+      });
+
       return {
         tool: toolName,
         task: task.description,
-        result: "executed via capability",
+        result: `external_request_sent_to_${toolName}`,
         capability: capabilityName,
       };
     } catch (err) {

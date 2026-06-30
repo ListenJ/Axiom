@@ -558,7 +558,7 @@ class MemoryEngineImpl {
       description: knowledge.statement,
       trigger: this.inferTrigger(knowledge),
       action: this.inferAction(knowledge),
-      verification: "check outcome matches expectation",
+      verification: `verify: ${knowledge.statement.slice(0, 60)}`,
       confidence: knowledge.confidence,
       usageCount: 0,
       successRate: 1.0,
@@ -1075,8 +1075,6 @@ class MemoryEngineImpl {
   }
 
   private inferTrigger(knowledge: Knowledge): string {
-    if (knowledge.cause) return `When ${knowledge.cause}`;
-
     const stmt = knowledge.statement.toLowerCase();
     const domain = knowledge.domain.toLowerCase();
 

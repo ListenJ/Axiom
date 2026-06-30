@@ -174,7 +174,7 @@ class ReasoningGraphBuilderImpl {
     gapNode.source = "llm";
 
     // Remove from gaps
-    graph.gaps = graph.gaps.filter((g) => g.id !== gapId.replace("gap_", "gap_"));
+    graph.gaps = graph.gaps.filter((g) => g.id !== gapId);
 
     // Recalculate
     graph.completeness = this.calculateCompleteness(graph);

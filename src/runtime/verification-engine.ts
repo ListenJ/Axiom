@@ -338,7 +338,7 @@ class VerificationEngineImpl {
       description: name,
       verdict: passed ? "pass" : "fail",
       confidence: passed ? 1.0 : 0.0,
-      evidence: passed ? "Check passed" : "Check failed",
+      evidence: passed ? `${name}: passed` : `${name}: failed`,
       timestamp: Date.now(),
     };
   }

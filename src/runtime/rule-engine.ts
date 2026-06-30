@@ -204,7 +204,7 @@ class RuleEngineImpl {
             "inference",
             `pattern_${pattern.id}`,
             `frequency >= ${pattern.frequency}`,
-            `route_to_pattern_handler`,
+            `save_to_memory`,
             `Pattern: ${pattern.description}`,
             pattern.confidence,
           );
@@ -370,6 +370,83 @@ class RuleEngineImpl {
           type: "routing.local_model",
           source: "rule-engine",
           data: { context },
+          priority: "normal",
+        });
+        break;
+
+      case "save_to_memory":
+        result.dispatched = true;
+        result.effect = "memory_saved";
+        eventBus.publish({
+          type: "memory.save_requested",
+          source: "rule-engine",
+          data: { context },
+          priority: "normal",
+        });
+        break;
+
+      case "log_failure":
+        result.dispatched = true;
+        result.effect = "failure_logged";
+        eventBus.publish({
+          type: "memory.log_failure",
+          source: "rule-engine",
+          data: { context },
+          priority: "normal",
+        });
+        break;
+
+      case "validate_token_budget":
+        result.dispatched = true;
+        result.effect = "token_budget_checked";
+        eventBus.publish({
+          type: "validation.token_budget",
+          source: "rule-engine",
+          data: { context },
+          priority: "normal",
+        });
+        break;
+
+      case "check_model_health":
+        result.dispatched = true;
+        result.effect = "model_health_checked";
+        eventBus.publish({
+          type: "validation.model_health",
+          source: "rule-engine",
+          data: { context },
+          priority: "normal",
+        });
+        break;
+
+      case "stop_retrying":
+        result.dispatched = true;
+        result.effect = "retry_stopped";
+        eventBus.publish({
+          type: "task.retry_stopped",
+          source: "rule-engine",
+          data: { context },
+          priority: "high",
+        });
+        break;
+
+      case "abort_execution":
+        result.dispatched = true;
+        result.effect = "execution_aborted";
+        eventBus.publish({
+          type: "task.aborted",
+          source: "rule-engine",
+          data: { context },
+          priority: "critical",
+        });
+        break;
+
+      case "route_to_architecture_role":
+        result.dispatched = true;
+        result.effect = "routed";
+        eventBus.publish({
+          type: "agent.route",
+          source: "rule-engine",
+          data: { action: "architecture", context },
           priority: "normal",
         });
         break;

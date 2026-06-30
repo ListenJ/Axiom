@@ -4,322 +4,322 @@ Count: 46
 
 ## Tool code_diagnostics can be used for: Check TypeScript errors
 
-- **ID**: atom_fact_1782760969224_ajvfna
+- **ID**: atom_fact_1782804143339_m1v0ma
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:49.224Z
+- **Created**: 2026-06-30T07:22:23.339Z
 
 ## When expired tokens, then add token refresh
 
-- **ID**: atom_fact_1782760979309_pdhi8w
+- **ID**: atom_fact_1782804154441_6pm96e
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.309Z
+- **Created**: 2026-06-30T07:22:34.441Z
 
 ## When expired tokens, then add token refresh
 
-- **ID**: atom_fact_1782760979309_ozbxfk
+- **ID**: atom_fact_1782804154441_w2o8fy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.309Z
+- **Created**: 2026-06-30T07:22:34.441Z
 
 ## When user: how to fix typescript error?, then user: how to fix typescript error?
 
-- **ID**: atom_fact_1782760979310_h39dho
+- **ID**: atom_fact_1782804154442_zwdnoi
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.310Z
+- **Created**: 2026-06-30T07:22:34.442Z
 
 ## When user: how to fix typescript error?, then user: how to fix typescript error?
 
-- **ID**: atom_fact_1782760979310_y78d73
+- **ID**: atom_fact_1782804154442_onhw3h
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.310Z
+- **Created**: 2026-06-30T07:22:34.442Z
 
-## When user: how to fix typescript error?, then user: how to fix typescript error?
+## When user: how to fix typescript error?, then assistant: you can fix it by addin
 
-- **ID**: atom_fact_1782760979311_fwg13g
+- **ID**: atom_fact_1782804154443_3stitt
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
-## When user: how to fix typescript error?, then user: how to fix typescript error?
+## When user: how to fix typescript error?, then assistant: you can fix it by addin
 
-- **ID**: atom_fact_1782760979311_jwlsyf
+- **ID**: atom_fact_1782804154443_g22bxu
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
-## When tool code_diagnostics succeeded: found 3 errors, then user: how to fix type
+## When tool code_diagnostics succeeded: found 3 errors, then assistant: you can fi
 
-- **ID**: atom_fact_1782760979311_jihjce
+- **ID**: atom_fact_1782804154443_56prql
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
-## When tool code_diagnostics succeeded: found 3 errors, then user: how to fix type
+## When tool code_diagnostics succeeded: found 3 errors, then assistant: you can fi
 
-- **ID**: atom_fact_1782760979311_x8l5nz
+- **ID**: atom_fact_1782804154443_rj4h0g
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
-## When tool code_diagnostics succeeded: found 3 errors, then user: how to fix type
+## When tool code_diagnostics succeeded: found 3 errors, then assistant: you can fi
 
-- **ID**: atom_fact_1782760979311_bobcqk
+- **ID**: atom_fact_1782804154443_p3ff1f
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
-## When tool code_diagnostics succeeded: found 3 errors, then user: how to fix type
+## When tool code_diagnostics succeeded: found 3 errors, then assistant: you can fi
 
-- **ID**: atom_fact_1782760979311_ektko0
+- **ID**: atom_fact_1782804154443_o259np
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.311Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then fixed bug in authserv
-
-- **ID**: atom_fact_1782760979312_5tenv3
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.312Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then fixed bug in authserv
-
-- **ID**: atom_fact_1782760979312_3plc3b
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.312Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979312_lp1lou
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.312Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979312_i1gx4c
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.312Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979312_ik9zs4
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.312Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979313_sirfp9
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979313_x038uv
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
-
-## When tool code_diagnostics succeeded: found 3 errors, then another fix in authse
-
-- **ID**: atom_fact_1782760979313_2ayjhk
-- **Confidence**: inferred
-- **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
 ## When fixed bug in authservice.ts, then fixed bug in authservice.ts
 
-- **ID**: atom_fact_1782760979313_wwq5gt
+- **ID**: atom_fact_1782804154443_khbofy
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
+- **Created**: 2026-06-30T07:22:34.443Z
 
 ## When fixed bug in authservice.ts, then fixed bug in authservice.ts
 
-- **ID**: atom_fact_1782760979313_ka4ogb
+- **ID**: atom_fact_1782804154443_y4i51h
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
+- **Created**: 2026-06-30T07:22:34.443Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_yuwh6j
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_auspgv
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_fldam2
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_zg01k7
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_1y2ptz
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then another fix in authservice.ts
+
+- **ID**: atom_fact_1782804154444_rmvw4v
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.444Z
+
+## When fixed bug in authservice.ts, then fixed bug in authservice.ts
+
+- **ID**: atom_fact_1782804154445_5oslj8
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.445Z
+
+## When fixed bug in authservice.ts, then fixed bug in authservice.ts
+
+- **ID**: atom_fact_1782804154445_lmcaeh
+- **Confidence**: inferred
+- **Source**: memory-engine
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When the bug was caused by jwt token expiration, then fixed bug in authservice.t
 
-- **ID**: atom_fact_1782760979313_arx1xy
+- **ID**: atom_fact_1782804154445_jpaamc
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When the bug was caused by jwt token expiration, then fixed bug in authservice.t
 
-- **ID**: atom_fact_1782760979313_hp7gr8
+- **ID**: atom_fact_1782804154445_zdakab
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.313Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When the bug was caused by jwt token expiration, then applied fix by adding toke
 
-- **ID**: atom_fact_1782760979314_gfsgxd
+- **ID**: atom_fact_1782804154445_0o8xfx
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When the bug was caused by jwt token expiration, then applied fix by adding toke
 
-- **ID**: atom_fact_1782760979314_ysr2bg
+- **ID**: atom_fact_1782804154445_lk11mj
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When found a bug in the login system, then applied fix by adding token refresh l
 
-- **ID**: atom_fact_1782760979314_86wc0s
+- **ID**: atom_fact_1782804154445_vpngal
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
 ## When found a bug in the login system, then applied fix by adding token refresh l
 
-- **ID**: atom_fact_1782760979314_9wmfz2
+- **ID**: atom_fact_1782804154445_sw5278
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
-## When found a bug in the login system, then applied fix by adding token refresh l
+## When the error was caused by missing null check, then applied fix by adding toke
 
-- **ID**: atom_fact_1782760979314_m712ci
+- **ID**: atom_fact_1782804154445_5frjm0
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
-## When found a bug in the login system, then applied fix by adding token refresh l
+## When the error was caused by missing null check, then applied fix by adding toke
 
-- **ID**: atom_fact_1782760979314_3kjzt6
+- **ID**: atom_fact_1782804154445_2qa2a0
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.314Z
+- **Created**: 2026-06-30T07:22:34.445Z
 
-## When found a bug in the login system, then fixed by adding null check
+## When the error was caused by missing null check, then fixed by adding null check
 
-- **ID**: atom_fact_1782760979315_bphszx
+- **ID**: atom_fact_1782804154446_pqrux8
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
-## When found a bug in the login system, then fixed by adding null check
+## When the error was caused by missing null check, then fixed by adding null check
 
-- **ID**: atom_fact_1782760979315_3sj1fj
+- **ID**: atom_fact_1782804154446_d6zb5j
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When how do i fix a typescript error?, then how do i fix a typescript error?
 
-- **ID**: atom_fact_1782760979315_iopl9c
+- **ID**: atom_fact_1782804154446_cpbevk
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When how do i fix a typescript error?, then how do i fix a typescript error?
 
-- **ID**: atom_fact_1782760979315_l0tx5w
+- **ID**: atom_fact_1782804154446_4sea0v
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When how do i fix a typescript error?, then you can fix it by adding type annota
 
-- **ID**: atom_fact_1782760979315_is62pq
+- **ID**: atom_fact_1782804154446_jgclrp
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When how do i fix a typescript error?, then you can fix it by adding type annota
 
-- **ID**: atom_fact_1782760979315_f75ggy
+- **ID**: atom_fact_1782804154446_j4x608
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When fixed authentication bug, then fixed authentication bug
 
-- **ID**: atom_fact_1782760979315_p1cawz
+- **ID**: atom_fact_1782804154446_pacmqk
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When fixed authentication bug, then fixed authentication bug
 
-- **ID**: atom_fact_1782760979315_m4l3w9
+- **ID**: atom_fact_1782804154446_7bt856
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When the bug was caused by expired tokens, then fixed authentication bug
 
-- **ID**: atom_fact_1782760979315_h00emq
+- **ID**: atom_fact_1782804154446_n9wbs3
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When the bug was caused by expired tokens, then fixed authentication bug
 
-- **ID**: atom_fact_1782760979315_zv572e
+- **ID**: atom_fact_1782804154446_blbzi2
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.446Z
 
 ## When the bug was caused by expired tokens, then applied fix: add token refresh
 
-- **ID**: atom_fact_1782760979315_1of0jw
+- **ID**: atom_fact_1782804154447_notc63
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.447Z
 
 ## When the bug was caused by expired tokens, then applied fix: add token refresh
 
-- **ID**: atom_fact_1782760979315_ex1zzc
+- **ID**: atom_fact_1782804154447_mfykm4
 - **Confidence**: inferred
 - **Source**: memory-engine
-- **Created**: 2026-06-29T19:22:59.315Z
+- **Created**: 2026-06-30T07:22:34.447Z
 
 ## TestFact for context
 
-- **ID**: atom_fact_1782760981073_9qrpcv
+- **ID**: atom_fact_1782804157175_fpz25c
 - **Confidence**: inferred
 - **Source**: test
-- **Created**: 2026-06-29T19:23:01.073Z
+- **Created**: 2026-06-30T07:22:37.175Z
 
 ## TestFact
 
-- **ID**: atom_fact_1782760981234_b0kjki
+- **ID**: atom_fact_1782804157376_m899tm
 - **Confidence**: inferred
 - **Source**: test
-- **Created**: 2026-06-29T19:23:01.234Z
+- **Created**: 2026-06-30T07:22:37.376Z
 
 ## EvidenceFact
 
-- **ID**: atom_fact_1782760981288_usiqzt
+- **ID**: atom_fact_1782804157446_e5s4jb
 - **Confidence**: inferred
 - **Source**: knowledge-network
-- **Created**: 2026-06-29T19:23:01.288Z
+- **Created**: 2026-06-30T07:22:37.446Z
 
 ## EvidenceFact
 
-- **ID**: atom_fact_1782760981459_xs81kl
+- **ID**: atom_fact_1782804157660_k91ydz
 - **Confidence**: inferred
 - **Source**: knowledge-network
-- **Created**: 2026-06-29T19:23:01.459Z
+- **Created**: 2026-06-30T07:22:37.660Z
 
 ## TestFact
 
-- **ID**: atom_fact_1782760982563_l7z0p0
+- **ID**: atom_fact_1782804159040_0mmxej
 - **Confidence**: certain
 - **Source**: test
-- **Created**: 2026-06-29T19:23:02.563Z
+- **Created**: 2026-06-30T07:22:39.040Z

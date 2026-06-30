@@ -383,7 +383,7 @@ class KGProjection implements Projection {
 
     // Also project knowledge network entities
     try {
-      const { knowledgeNetwork } = await import("../knowledge-network.js");
+      const { knowledgeNetwork } = await import("./knowledge-network.js");
       const entities = knowledgeNetwork.queryByKind("entity" as any);
       for (const entity of entities.slice(0, 100)) {
         if (!this.graphNodes.some((n) => n.id === entity.id)) {
@@ -394,11 +394,21 @@ class KGProjection implements Projection {
           });
         }
 
-        for (const rel of entity.relations) {
+        // Create edges from evidence sources
+        for (const ev of entity.evidence) {
+          this.graphEdges.push({
+            source: ev.source,
+            target: entity.id,
+            type: "supports",
+          });
+        }
+
+        // Create edges from behaviors
+        for (const b of entity.behaviors) {
           this.graphEdges.push({
             source: entity.id,
-            target: rel.targetId,
-            type: rel.type,
+            target: b.action,
+            type: "behaves",
           });
         }
       }

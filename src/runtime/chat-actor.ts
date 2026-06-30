@@ -261,12 +261,21 @@ export class ChatActor implements Actor {
     // ── Step 6: No deterministic answer — use Agent Executor ──
     // Delegate to agent executor for capability-based execution
     try {
+      // Derive goal from user input
+      const inputLower = request.input.toLowerCase();
+      let goal = "answer user question";
+      if (inputLower.includes("how") || inputLower.includes("怎么做")) goal = "explain how to accomplish task";
+      else if (inputLower.includes("what") || inputLower.includes("什么是")) goal = "provide information";
+      else if (inputLower.includes("fix") || inputLower.includes("bug") || inputLower.includes("修复")) goal = "diagnose and fix issue";
+      else if (inputLower.includes("create") || inputLower.includes("build") || inputLower.includes("创建")) goal = "create or build artifact";
+      else if (inputLower.includes("review") || inputLower.includes("审查")) goal = "review and provide feedback";
+
       const agentReport = await agentExecutor.execute({
         id: request.id,
         description: request.input,
         resources: [],
         constraints: constraintViolations,
-        goal: "answer user question",
+        goal,
         priority: "normal",
         metadata: { mode: request.mode, simulations },
       });
