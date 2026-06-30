@@ -3,7 +3,7 @@
  */
 import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handleApiDocs, handleRuntimeStatus } from "./health.js";
-import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
+import { handleChat, handleAgentChat, handleChatStream, handleConsciousness } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";

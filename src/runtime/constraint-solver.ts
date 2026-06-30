@@ -328,19 +328,19 @@ export const constraintSolver = new ConstraintSolverImpl();
  */
 export function initConstraints(): void {
   // Tool constraints
-  constraintSolver.addConstraint({ type: "requires", source: "terminal_exec", target: "shell", confidence: 1.0, evidence: "System requirement" });
-  constraintSolver.addConstraint({ type: "requires", source: "code_diagnostics", target: "typescript", confidence: 0.9, evidence: "TypeScript compiler needed" });
-  constraintSolver.addConstraint({ type: "requires", source: "git_status", target: "git", confidence: 1.0, evidence: "Git binary required" });
-  constraintSolver.addConstraint({ type: "prohibits", source: "plan_mode", target: "fs_write", confidence: 1.0, evidence: "Plan mode is read-only" });
-  constraintSolver.addConstraint({ type: "prohibits", source: "plan_mode", target: "terminal_exec", confidence: 1.0, evidence: "Plan mode is read-only" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "terminal_exec", target: "shell", confidence: 1.0, evidence: "System requirement" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "code_diagnostics", target: "typescript", confidence: 0.9, evidence: "TypeScript compiler needed" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "git_status", target: "git", confidence: 1.0, evidence: "Git binary required" });
+  constraintSolver.addConstraint({ type: "prohibits", dimension: "policy", source: "plan_mode", target: "fs_write", confidence: 1.0, evidence: "Plan mode is read-only" });
+  constraintSolver.addConstraint({ type: "prohibits", dimension: "policy", source: "plan_mode", target: "terminal_exec", confidence: 1.0, evidence: "Plan mode is read-only" });
 
   // Model constraints
-  constraintSolver.addConstraint({ type: "requires", source: "deep_research", target: "high_context_model", confidence: 0.9, evidence: "Deep research needs large context" });
-  constraintSolver.addConstraint({ type: "conflicts", source: "local_model", target: "cloud_model", confidence: 0.7, evidence: "Cannot use both simultaneously" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "deep_research", target: "high_context_model", confidence: 0.9, evidence: "Deep research needs large context" });
+  constraintSolver.addConstraint({ type: "conflicts", dimension: "logical", source: "local_model", target: "cloud_model", confidence: 0.7, evidence: "Cannot use both simultaneously" });
 
   // Agent constraints
-  constraintSolver.addConstraint({ type: "requires", source: "hermes", target: "hermes_installation", confidence: 1.0, evidence: "Hermes must be installed" });
-  constraintSolver.addConstraint({ type: "requires", source: "opencode", target: "opencode_installation", confidence: 1.0, evidence: "OpenCode must be installed" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "hermes", target: "hermes_installation", confidence: 1.0, evidence: "Hermes must be installed" });
+  constraintSolver.addConstraint({ type: "requires", dimension: "resource", source: "opencode", target: "opencode_installation", confidence: 1.0, evidence: "OpenCode must be installed" });
 
   logger.info("[ConstraintSolver] Initialized predefined constraints");
 }

@@ -62,6 +62,7 @@ describe("End-to-End Runtime Integration", () => {
       // Add a constraint that will violate
       constraintSolver.addConstraint({
         type: "prohibits",
+        dimension: "policy",
         source: "plan_mode",
         target: "fs_write",
         confidence: 1.0,

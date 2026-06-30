@@ -315,7 +315,7 @@ class MemoryEngineImpl {
     // Method 1: Group episodes by shared entities
     const entityGroups = new Map<string, Episode[]>();
     for (const ep of allEpisodes) {
-      const obs = ep.observations.map((id) => this.observations.get(id)).filter(Boolean);
+      const obs = ep.observations.map((id) => this.observations.get(id)).filter((o): o is Observation => !!o);
       const entities = obs.flatMap((o) => o.entities);
       const uniqueEntities = [...new Set(entities)].sort();
       if (uniqueEntities.length > 0) {
@@ -623,6 +623,7 @@ class MemoryEngineImpl {
     import("./constraint-solver.js").then(({ constraintSolver }) => {
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "policy",
         source: skill.name,
         target: rule,
         confidence: policy.confidence,

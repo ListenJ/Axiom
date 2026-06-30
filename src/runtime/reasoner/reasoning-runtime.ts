@@ -15,7 +15,27 @@
 
 import { logger } from "../../utils/logger.js";
 import { eventBus, worldState } from "../kernel.js";
-import type { PipelineStage, PipelineContext } from "../scheduler.js";
+
+export type PipelineStage =
+  | "perception" | "memory_retrieval" | "reasoning" | "planning" | "verification" | "execution" | "consolidation"
+  | "observation" | "normalization" | "entity-resolution" | "state-update" | "constraint-check" | "graph-reasoning"
+  | "llm-assist" | "reflection";
+export interface PipelineContext {
+  stage: PipelineStage;
+  input: string;
+  output?: string;
+  result?: unknown;
+  needsLLM: boolean;
+  stageTimings: Map<string, number>;
+  startTime: number;
+  atoms: unknown[];
+  entities: unknown[];
+  stateChanges: unknown[];
+  constraints: unknown[];
+  violations: unknown[];
+  plan: unknown;
+  metadata?: Record<string, unknown>;
+}
 
 type StageHandler = (ctx: PipelineContext) => Promise<PipelineContext>;
 
@@ -60,7 +80,7 @@ export class ReasoningRuntime {
   /**
    * Run the reasoning pipeline on an input.
    */
-  async run(input: unknown): Promise<PipelineContext> {
+  async run(input: string): Promise<PipelineContext> {
     const startTime = Date.now();
     this.stats.runs++;
 

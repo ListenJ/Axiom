@@ -51,6 +51,7 @@ describe("ChatActor Integration", () => {
     // Add a constraint that will violate
     constraintSolver.addConstraint({
       type: "prohibits",
+      dimension: "policy",
       source: "blocked_input",
       target: "forbidden_action",
       confidence: 1.0,
@@ -106,6 +107,7 @@ describe("Constraint Gate", () => {
   it("blocks when constraint violated", () => {
     constraintSolver.addConstraint({
       type: "requires",
+      dimension: "resource",
       source: "tool_a",
       target: "dependency_b",
       confidence: 1.0,
@@ -125,6 +127,7 @@ describe("Constraint Gate", () => {
   it("handles multiple constraints", () => {
     constraintSolver.addConstraint({
       type: "prohibits",
+      dimension: "policy",
       source: "plan_mode",
       target: "fs_write",
       confidence: 1.0,

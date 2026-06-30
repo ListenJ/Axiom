@@ -87,6 +87,7 @@ describe("Runtime Comprehensive Tests", () => {
     it("solves constraints correctly", () => {
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "tool_a",
         target: "dependency_b",
         confidence: 1.0,
@@ -105,6 +106,7 @@ describe("Runtime Comprehensive Tests", () => {
     it("detects prohibited combinations", () => {
       constraintSolver.addConstraint({
         type: "prohibits",
+        dimension: "policy",
         source: "plan_mode",
         target: "fs_write",
         confidence: 1.0,

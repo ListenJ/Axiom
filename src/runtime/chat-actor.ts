@@ -142,11 +142,7 @@ export class ChatActor implements Actor {
     const constraintViolations: string[] = [];
 
     // ── Step 0: Build unified context ──
-    const context = await contextEngine.build(request.input, {
-      history: request.history,
-      mode: request.mode,
-      metadata: request.context,
-    });
+    const context = await contextEngine.build(request.input, request.history);
 
     // ── Step 1: Record observation in Memory ──
     memoryEngine.observe(request.input, "user");
@@ -229,14 +225,8 @@ export class ChatActor implements Actor {
     }
 
     // ── Step 5: Build Reasoning Graph (break LLM black box) ──
-    const knowledgeResults = memoryEngine.search(request.input, 5);
-    const reasoningGraph = reasoningGraphBuilder.build(request.input, {
-      knowledge: knowledgeResults.knowledge.map((k) => ({
-        id: k.id,
-        content: k.statement,
-        confidence: k.confidence,
-      })),
-    });
+    const knowledgeResults = memoryEngine.search(request.input);
+    const reasoningGraph = reasoningGraphBuilder.build(request.input);
 
     logger.info("[ChatActor] Reasoning graph built", {
       nodes: reasoningGraph.nodes.length,

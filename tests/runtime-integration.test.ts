@@ -49,6 +49,7 @@ describe("Runtime Integration", () => {
     it("constraint solver integrates with agent executor", async () => {
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "test_tool",
         target: "test_dep",
         confidence: 1.0,

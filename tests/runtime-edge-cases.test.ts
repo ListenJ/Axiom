@@ -50,6 +50,7 @@ describe("Edge Cases", () => {
     it("handles duplicate constraints", () => {
       const id1 = constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "dup",
         target: "target",
         confidence: 1.0,
@@ -57,6 +58,7 @@ describe("Edge Cases", () => {
       });
       const id2 = constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "dup",
         target: "target",
         confidence: 1.0,
@@ -69,6 +71,7 @@ describe("Edge Cases", () => {
     it("handles self-referencing constraints", () => {
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "self",
         target: "self",
         confidence: 1.0,
@@ -221,13 +224,13 @@ describe("Edge Cases", () => {
   describe("World State", () => {
     it("handles nested paths", () => {
       worldState.set("a.b.c.d", "deep");
-      expect(worldState.get("a.b.c.d")).toBe("deep");
+      expect(worldState.get<string>("a.b.c.d")).toBe("deep");
     });
 
     it("handles overwriting values", () => {
       worldState.set("overwrite.test", "old");
       worldState.set("overwrite.test", "new");
-      expect(worldState.get("overwrite.test")).toBe("new");
+      expect(worldState.get<string>("overwrite.test")).toBe("new");
     });
 
     it("handles query with no matches", () => {

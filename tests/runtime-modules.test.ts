@@ -16,6 +16,7 @@ describe("Constraint Solver", () => {
   it("adds and solves constraints", () => {
     constraintSolver.addConstraint({
       type: "requires",
+      dimension: "resource",
       source: "toolA",
       target: "dependencyB",
       confidence: 1.0,
@@ -35,6 +36,7 @@ describe("Constraint Solver", () => {
   it("detects prohibited combinations", () => {
     constraintSolver.addConstraint({
       type: "prohibits",
+      dimension: "policy",
       source: "plan_mode",
       target: "fs_write",
       confidence: 1.0,
@@ -186,6 +188,7 @@ describe("Agent Executor", () => {
     // Add a constraint that will violate
     constraintSolver.addConstraint({
       type: "prohibits",
+      dimension: "policy",
       source: "blocked_task",
       target: "forbidden_resource",
       confidence: 1.0,

@@ -165,7 +165,31 @@ class UnifiedRouter {
     // Step 3: Check Capability Registry first
     try {
       const { capabilityRegistry } = await import("../runtime/capability-registry.js");
-      const capability = capabilityRegistry.select(input);
+      
+      // Map input to a valid CapabilityContract
+      const contractMap: Record<string, string> = {
+        code: "code.reasoning",
+        analyze: "code.reasoning",
+        generate: "code.generation",
+        create: "code.generation",
+        review: "code.review",
+        architecture: "architecture.analysis",
+        research: "research.synthesis",
+        plan: "planning.structured",
+        memory: "memory.consolidation",
+        verify: "verification.factual",
+      };
+      
+      const inputLower = input.toLowerCase();
+      let contract = "code.reasoning";
+      for (const [key, value] of Object.entries(contractMap)) {
+        if (inputLower.includes(key)) {
+          contract = value;
+          break;
+        }
+      }
+      
+      const capability = capabilityRegistry.select(contract as any);
       if (capability) {
         logger.info("[UnifiedRouter] Capability matched", {
           name: capability.name,

@@ -11,7 +11,7 @@
 
 import { eventBus, worldState } from "./kernel.js";
 import { constraintSolver } from "./constraint-solver.js";
-import { capabilityRegistry } from "./capability-registry.js";
+import { capabilityRegistry, type CapabilityContract } from "./capability-registry.js";
 import { memoryEngine } from "./memory-engine.js";
 
 // ─── Agent Types ───────────────────────────────────────────────────────────
@@ -211,7 +211,30 @@ class AgentExecutorImpl {
     }
 
     // Find the best capability for this task
-    const capability = capabilityRegistry.select(task.description);
+    // Map task description to a valid CapabilityContract
+    const contractMap: Record<string, CapabilityContract> = {
+      code: "code.reasoning",
+      analyze: "code.reasoning",
+      generate: "code.generation",
+      create: "code.generation",
+      review: "code.review",
+      architecture: "architecture.analysis",
+      research: "research.synthesis",
+      plan: "planning.structured",
+      memory: "memory.consolidation",
+      verify: "verification.factual",
+    };
+    
+    const descLower = task.description.toLowerCase();
+    let contract: CapabilityContract = "code.reasoning"; // default
+    for (const [key, value] of Object.entries(contractMap)) {
+      if (descLower.includes(key)) {
+        contract = value;
+        break;
+      }
+    }
+    
+    const capability = capabilityRegistry.select(contract);
 
     if (!capability) {
       return {
@@ -236,7 +259,7 @@ class AgentExecutorImpl {
         task.description,
         typeof result === "string" ? result : JSON.stringify(result ?? "").slice(0, 500),
         true,
-      ).catch(() => { /* non-fatal */ });
+      );
 
       return {
         taskId: task.id,
@@ -255,7 +278,7 @@ class AgentExecutorImpl {
         task.description,
         (err as Error).message,
         false,
-      ).catch(() => { /* non-fatal */ });
+      );
 
       return {
         taskId: task.id,

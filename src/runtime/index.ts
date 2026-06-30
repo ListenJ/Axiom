@@ -91,7 +91,7 @@ export type { ChatRequest, ChatResponse } from "./chat-actor.js";
 
 // Mental Model
 export { mentalModelManager, initMentalModels } from "./mental-model.js";
-export type { MentalModel, MentalModelState, MentalModelRule } from "./mental-model.js";
+export type { MentalModel } from "./mental-model.js";
 
 // Reasoning Graph
 export { reasoningGraphBuilder } from "./reasoning-graph.js";

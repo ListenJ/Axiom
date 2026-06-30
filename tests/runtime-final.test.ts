@@ -82,6 +82,7 @@ describe("Runtime Comprehensive Integration", () => {
     it("solves complex constraint chains", () => {
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "A",
         target: "B",
         confidence: 1.0,
@@ -89,6 +90,7 @@ describe("Runtime Comprehensive Integration", () => {
       });
       constraintSolver.addConstraint({
         type: "requires",
+        dimension: "resource",
         source: "B",
         target: "C",
         confidence: 1.0,

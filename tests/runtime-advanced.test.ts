@@ -45,6 +45,7 @@ describe("Constraint Solver Advanced", () => {
   it("detects conflicts", () => {
     constraintSolver.addConstraint({
       type: "conflicts",
+      dimension: "logical",
       source: "model_a",
       target: "model_b",
       confidence: 0.9,
@@ -59,6 +60,7 @@ describe("Constraint Solver Advanced", () => {
   it("suggests additions for enables", () => {
     constraintSolver.addConstraint({
       type: "enables",
+      dimension: "logical",
       source: "gpu",
       target: "cuda_support",
       confidence: 0.8,
@@ -73,6 +75,7 @@ describe("Constraint Solver Advanced", () => {
     // Add a constraint first
     constraintSolver.addConstraint({
       type: "requires",
+      dimension: "resource",
       source: "entityA",
       target: "entityB",
       confidence: 1.0,

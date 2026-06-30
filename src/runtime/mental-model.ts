@@ -96,7 +96,7 @@ class MentalModelManagerImpl {
     knowledgeNetwork.create("concept", `${domain} Mental Model`, JSON.stringify(concepts), {
       confidence: 0.5,
       source: "mental-model",
-      metadata: { modelId: id, domain },
+      properties: { modelId: id, domain },
     });
 
     eventBus.publish({
@@ -270,7 +270,7 @@ class MentalModelManagerImpl {
     knowledgeNetwork.create("concept", skillDescription, JSON.stringify(simulation.steps), {
       confidence: simulation.confidence,
       source: "mental-model",
-      metadata: { modelId, simulationId },
+      properties: { modelId, simulationId },
     });
 
     return skillDescription;

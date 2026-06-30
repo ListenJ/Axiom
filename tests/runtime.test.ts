@@ -29,7 +29,7 @@ describe("Runtime Kernel", () => {
   describe("World State", () => {
     it("sets and gets values", () => {
       worldState.set("test.key", "test.value");
-      expect(worldState.get("test.key")).toBe("test.value");
+      expect(worldState.get<string>("test.key")).toBe("test.value");
     });
 
     it("watches for changes", () => {

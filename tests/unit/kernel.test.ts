@@ -11,12 +11,12 @@ import {
 describe("WorldState", () => {
   it("should set and get values", () => {
     worldState.set("test.key", "value");
-    expect(worldState.get("test.key")).toBe("value");
+    expect(worldState.get<string>("test.key")).toBe("value");
   });
 
   it("should handle nested keys", () => {
     worldState.set("a.b.c.d", 42);
-    expect(worldState.get("a.b.c.d")).toBe(42);
+    expect(worldState.get<number>("a.b.c.d")).toBe(42);
   });
 
   it("should return undefined for non-existent keys", () => {
@@ -50,7 +50,7 @@ describe("WorldState", () => {
   });
 
   it("should set and get intent", () => {
-    worldState.setIntent("Test intent");
+    worldState.setIntent("Test intent", 1.0);
     const intent = worldState.getIntent();
     expect(intent).toBeDefined();
     expect(intent?.intent).toBe("Test intent");

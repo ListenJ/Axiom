@@ -167,7 +167,7 @@ class KnowledgeNetworkImpl {
     this.addToIndex(this.byState, entity.state.current, id);
 
     // Store as atom
-    atomStore.create(kind, name, {
+    atomStore.create(kind as any, name, {
       source: opts?.source ?? "knowledge-network",
       confidence: opts?.confidence ? (opts.confidence > 0.8 ? "certain" : opts.confidence > 0.5 ? "inferred" : "uncertain") : "inferred",
       metadata: { entityId: id },

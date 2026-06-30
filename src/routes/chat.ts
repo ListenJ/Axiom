@@ -331,3 +331,59 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
   }
   return null;
 }
+
+/**
+ * Handle POST /chat/stream — streaming chat via WebSocket
+ */
+export async function handleChatStream(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/chat/stream" && ctx.req.method === "POST") {
+    const body = await ctx.req.json();
+    const { message, history = [] } = body;
+
+    memoryEngine.observe(message, "user");
+
+    const result = await router.chat("general-chat", [
+      ...history.map((h: { role: string; content: string }) => ({ role: h.role, content: h.content })),
+      { role: "user", content: message },
+    ]);
+
+    return ctx.jsonResponse({
+      ...result,
+      stream: true,
+      note: "WebSocket streaming not implemented in this handler",
+    }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+/**
+ * Handle consciousness routes
+ */
+export async function handleConsciousness(ctx: RouteContext): Promise<Response | null> {
+  const path = ctx.url.pathname;
+
+  if (path === "/consciousness/status" && ctx.req.method === "GET") {
+    try {
+      const consciousness = getConsciousness();
+      const status = consciousness.status();
+      return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+    } catch {
+      return ctx.jsonResponse({ status: "error", message: "Consciousness not initialized" }, 500, ctx.baseHeaders);
+    }
+  }
+
+  if (path === "/consciousness/reflect" && ctx.req.method === "POST") {
+    try {
+      const body = await ctx.req.json();
+      const { input, context } = body;
+      const consciousness = getConsciousness();
+      // Use observe to feed input to consciousness, then trigger a poll cycle
+      consciousness.observe(input, { intent: "manual", agentName: "user" });
+      return ctx.jsonResponse({ status: "reflect_triggered", input, context }, 200, ctx.baseHeaders);
+    } catch (e) {
+      return ctx.jsonResponse({ error: (e as Error).message }, 500, ctx.baseHeaders);
+    }
+  }
+
+  return null;
+}

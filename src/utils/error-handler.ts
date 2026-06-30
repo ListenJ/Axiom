@@ -198,8 +198,9 @@ export function formatErrorForResponse(error: HelpfulError): {
  * Log a helpful error with context.
  */
 export function logHelpfulError(ctx: ErrorContext, error: HelpfulError): void {
-  logger.error(`[${ctx.source ?? "System"}] ${error.message}`, {
-    cause: error.cause,
+  const err = new Error(error.message);
+  err.cause = error.cause;
+  logger.error(`[${ctx.source ?? "System"}] ${error.message}`, err, {
     severity: error.severity,
     retryable: error.retryable,
     originalError: ctx.originalError,

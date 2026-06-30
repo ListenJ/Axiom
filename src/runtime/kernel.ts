@@ -517,9 +517,12 @@ class ActorRuntimeImpl {
   unregister(id: string): void {
     const actor = this.actors.get(id);
     if (actor?.onStop) {
-      actor.onStop().catch((err) => {
-        logger.error(`[ActorRuntime] Actor ${id} onStop failed`, err instanceof Error ? err : new Error(String(err)));
-      });
+      const result = actor.onStop();
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((err: unknown) => {
+          logger.error(`[ActorRuntime] Actor ${id} onStop failed`, err instanceof Error ? err : new Error(String(err)));
+        });
+      }
     }
     this.actors.delete(id);
   }
@@ -834,7 +837,7 @@ export function initRuntime(): void {
         const metrics = worldState.get<Record<string, unknown>>("runtime.metrics");
         if (metrics) {
           const eventStats = metrics.eventStats as { errors?: number } | undefined;
-          if (eventStats && eventStats.errors > 10) {
+          if (eventStats && (eventStats.errors ?? 0) > 10) {
             worldState.setBelief("system_health", "System may be experiencing issues", 0.7);
           } else {
             worldState.setBelief("system_health", "System is operating normally", 0.9);
