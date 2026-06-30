@@ -5,11 +5,14 @@
  *
  * DO NOT add business logic here. Just import + memoize.
  */
+import { createRequire } from "module";
 import type { MemoryArchiver } from "../../memory/archiver.js";
 import { createLazySingleton } from "../../utils/lazy-singleton.js";
 
+const _require = createRequire(import.meta.url);
+
 const singleton = createLazySingleton<MemoryArchiver>(
-  () => new (require("../../memory/archiver.js").MemoryArchiver)()
+  () => new (_require("../../memory/archiver.js").MemoryArchiver)()
 );
 
 export const getGlobalMemoryArchiver = singleton.get.bind(singleton);

@@ -5,11 +5,14 @@
  *
  * DO NOT add business logic here. Just import + memoize.
  */
+import { createRequire } from "module";
 import type { MemoryDistiller } from "../../memory/distiller.js";
 import { createLazySingleton } from "../../utils/lazy-singleton.js";
 
+const _require = createRequire(import.meta.url);
+
 const singleton = createLazySingleton<MemoryDistiller>(
-  () => new (require("../../memory/distiller.js").MemoryDistiller)()
+  () => new (_require("../../memory/distiller.js").MemoryDistiller)()
 );
 
 export const getGlobalMemoryDistiller = singleton.get.bind(singleton);
