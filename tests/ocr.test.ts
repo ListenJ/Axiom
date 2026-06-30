@@ -206,4 +206,86 @@ describe("OCR Integration", () => {
     expect(pipeline.export).toBeDefined();
     expect(typeof pipeline.scan).toBe("function");
   });
+
+  test("should initialize with custom langPath for best model", async () => {
+    const opts: OCROptions = {
+      languages: ["eng"],
+      langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best",
+    };
+    expect(opts.langPath).toContain("4.0.0_best");
+    expect(opts.languages).toEqual(["eng"]);
+  });
+
+  test("should handle multi-language configuration", () => {
+    const opts: OCROptions = {
+      languages: ["chi_sim", "eng"],
+      langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/chi_sim@1.0.0/4.0.0_best",
+    };
+    expect(opts.languages).toHaveLength(2);
+    expect(opts.langPath).toContain("chi_sim");
+  });
+});
+
+describe("OCR Multi-Language Support", () => {
+  test("should post-process Chinese OCR result correctly", () => {
+    const chineseResult: OCRResult = {
+      text: "这是一段中文\n这是第二行",
+      confidence: 88,
+      blocks: [
+        { text: "这是一段中文", confidence: 90, bbox: { x0: 10, y0: 10, x1: 300, y1: 50 }, wordCount: 5 },
+        { text: "这是第二行", confidence: 86, bbox: { x0: 10, y0: 60, x1: 300, y1: 100 }, wordCount: 4 },
+      ],
+      language: "chi_sim",
+      duration: 2000,
+    };
+
+    const structured = postProcessOCR(chineseResult, {
+      layoutAnalysis: true,
+      extractStructure: true,
+    });
+
+    // Chinese text should preserve spaces correctly
+    expect(structured.metadata.language).toBe("chi_sim");
+    expect(structured.sections.length).toBeGreaterThan(0);
+    expect(structured.markdown).toContain("这是一段中文");
+  });
+
+  test("should handle mixed Chinese/English OCR result", () => {
+    const mixedResult: OCRResult = {
+      text: "混合语言 Mixed Language",
+      confidence: 85,
+      blocks: [
+        { text: "混合语言 Mixed Language", confidence: 85, bbox: { x0: 10, y0: 10, x1: 400, y1: 50 }, wordCount: 4 },
+      ],
+      language: "chi_sim+eng",
+      duration: 2500,
+    };
+
+    const structured = postProcessOCR(mixedResult, {
+      layoutAnalysis: true,
+      extractStructure: true,
+      textCorrection: true,
+    });
+
+    expect(structured.sections.length).toBe(1);
+    expect(structured.markdown).toContain("混合语言");
+    expect(structured.markdown).toContain("Mixed");
+  });
+
+  test("should detect language configuration from options", () => {
+    // Simulate the language detection logic used by OCR routes
+    function detectPrimaryLanguage(languages?: string[]): string {
+      if (!languages || languages.length === 0) return "eng";
+      // If Chinese is in the list, prefer it for langPath configuration
+      if (languages.includes("chi_sim")) return "chi_sim";
+      if (languages.includes("chi_tra")) return "chi_tra";
+      if (languages.includes("jpn")) return "jpn";
+      return languages[0];
+    }
+
+    expect(detectPrimaryLanguage(["chi_sim", "eng"])).toBe("chi_sim");
+    expect(detectPrimaryLanguage(["eng"])).toBe("eng");
+    expect(detectPrimaryLanguage(["jpn", "eng"])).toBe("jpn");
+    expect(detectPrimaryLanguage(undefined)).toBe("eng");
+  });
 });

@@ -245,14 +245,15 @@ function extractStructureFromBlocks(
 
 /** Detect if text is a heading */
 function isHeading(text: string, block: OCRBlock): boolean {
-  // Short text (likely heading)
-  if (text.length < 80 && text.length > 0) {
-    // All caps
-    if (text === text.toUpperCase() && text.length > 3) return true;
+  // Short text (likely heading) — use character count for CJK support
+  const charLen = [...text].length; // Unicode-aware length
+  if (charLen < 80 && charLen > 0) {
+    // All caps (Latin only)
+    if (text === text.toUpperCase() && /[A-Z]{2,}/.test(text)) return true;
     // Starts with markdown heading
     if (/^#{1,6}\s+/.test(text)) return true;
-    // Single line with no ending punctuation (stricter: max 5 words, no code indicators)
-    if (!/[.!?;:}]$/.test(text) && block.wordCount <= 5 && !isCodeBlock(text)) return true;
+    // Single line with no ending punctuation, short enough
+    if (!/[.!?;:}]$/.test(text) && charLen <= 30 && !isCodeBlock(text)) return true;
   }
   return false;
 }
@@ -275,8 +276,14 @@ function isCodeBlock(text: string): boolean {
   const codeIndicators = [
     /^(function|class|const|let|var|import|export)\s/,
     /^(def|class|import|from)\s/,
+    /^using\s/,
+    /^#include\s/,
+    /^package\s/,
+    /^public\s+(class|interface|enum)\s/,
+    /^(fn|pub|impl|struct|enum|trait)\s/,
     /[{};]\s*$/, // Ends with brace or semicolon
     /^```/,
+    /^\s*\/\//, // Comment lines
   ];
   return codeIndicators.some((re) => re.test(text));
 }
