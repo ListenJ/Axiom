@@ -845,35 +845,36 @@ export function initRuntime(): void {
       // Generate hypotheses from knowledge patterns
       try {
         const { knowledgeNetwork } = await import("./knowledge-network.js");
-        const patterns = knowledgeNetwork.queryByKind("pattern");
+        const entities = knowledgeNetwork.queryByKind("fact" as any);
         let hypothesesCreated = 0;
 
-        for (const pattern of patterns.slice(0, 3)) {
-          // Check if hypothesis already exists
-          const existing = knowledgeNetwork.queryByKind("hypothesis");
-          const alreadyHypothesized = existing.some((e) =>
-            e.name.includes(pattern.name),
+        for (const entity of entities.slice(0, 3)) {
+          // Check if hypothesis already exists on this entity
+          const alreadyHypothesized = entity.hypotheses.some((h) =>
+            h.statement.includes(entity.name),
           );
 
-          if (!alreadyHypothesized && pattern.confidence > 0.5) {
-            knowledgeNetwork.addHypothesis(
-              pattern.name,
-              `Pattern "${pattern.name}" may indicate a broader trend`,
-              0.6,
-            );
+          if (!alreadyHypothesized && entity.confidence > 0.5) {
+            knowledgeNetwork.addHypothesis(entity.id, {
+              statement: `Pattern "${entity.name}" may indicate a broader trend`,
+              evidence: [],
+              counterEvidence: [],
+              confidence: 0.6,
+            });
             hypothesesCreated++;
           }
         }
 
         // Resolve pending hypotheses based on new evidence
-        const hypotheses = knowledgeNetwork.queryByKind("hypothesis");
-        for (const hyp of hypotheses) {
-          const hypData = hyp.metadata as { status?: string } | undefined;
-          if (hypData?.status === "testing") {
-            // Check if we have confirming evidence
-            const relatedKnowledge = knowledgeNetwork.search(hyp.name);
-            if (relatedKnowledge.length >= 2) {
-              knowledgeNetwork.resolveHypothesis(hyp.id, "confirmed", relatedKnowledge.length);
+        const entitiesWithHyps = knowledgeNetwork.queryByKind("fact" as any);
+        for (const entity of entitiesWithHyps) {
+          for (const hyp of entity.hypotheses) {
+            if (hyp.status === "testing") {
+              // Check if we have confirming evidence
+              const relatedKnowledge = knowledgeNetwork.search(hyp.statement);
+              if (relatedKnowledge.length >= 2) {
+                knowledgeNetwork.resolveHypothesis(entity.id, hyp.id, "confirmed", relatedKnowledge.map((e) => e.name).join(", "));
+              }
             }
           }
         }
@@ -907,6 +908,43 @@ export function initRuntime(): void {
 
         if (policiesCreated > 0) {
           logger.info("[Runtime] Created policies from skills", { count: policiesCreated });
+        }
+      } catch { /* non-fatal */ }
+
+      // Generate behaviors and predictions from knowledge entities
+      try {
+        const { knowledgeNetwork } = await import("./knowledge-network.js");
+        const entities = knowledgeNetwork.queryByKind("fact" as any);
+        let behaviorsAdded = 0;
+        let predictionsAdded = 0;
+
+        for (const entity of entities.slice(0, 5)) {
+          // Add behavior if entity has evidence but no behaviors yet
+          if (entity.behaviors.length === 0 && entity.evidence.length > 0) {
+            knowledgeNetwork.addBehavior(entity.id, {
+              trigger: `When ${entity.name} is encountered`,
+              action: `Apply knowledge: ${entity.content.slice(0, 60)}`,
+              effect: `Improve understanding of ${entity.name}`,
+              confidence: entity.confidence,
+            });
+            behaviorsAdded++;
+          }
+
+          // Add prediction if entity has high confidence but no predictions
+          if (entity.predictions.length === 0 && entity.confidence > 0.7) {
+            knowledgeNetwork.addPrediction(entity.id, {
+              condition: `If ${entity.name} state changes`,
+              outcome: `Related entities may need updating`,
+              confidence: entity.confidence * 0.8,
+              timeHorizon: "immediate",
+              basedOn: entity.evidence.map((e) => e.source),
+            });
+            predictionsAdded++;
+          }
+        }
+
+        if (behaviorsAdded > 0 || predictionsAdded > 0) {
+          logger.info("[Runtime] Generated behaviors and predictions", { behaviors: behaviorsAdded, predictions: predictionsAdded });
         }
       } catch { /* non-fatal */ }
     }

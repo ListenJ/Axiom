@@ -24,7 +24,7 @@ import { constraintSolver } from "./constraint-solver.js";
 import { ruleEngine } from "./rule-engine.js";
 import { capabilityRegistry } from "./capability-registry.js";
 import { verificationEngine } from "./verification-engine.js";
-import { cognitivePipeline } from "./scheduler.js";
+import { cognitivePipeline, scheduler } from "./scheduler.js";
 import { contextEngine } from "./context-engine.js";
 import { reasoningGraphBuilder } from "./reasoning-graph.js";
 import { mentalModelManager } from "./mental-model.js";
@@ -269,6 +269,15 @@ export class ChatActor implements Actor {
       else if (inputLower.includes("fix") || inputLower.includes("bug") || inputLower.includes("修复")) goal = "diagnose and fix issue";
       else if (inputLower.includes("create") || inputLower.includes("build") || inputLower.includes("创建")) goal = "create or build artifact";
       else if (inputLower.includes("review") || inputLower.includes("审查")) goal = "review and provide feedback";
+
+      // Submit task to scheduler for tracking
+      const scheduledTask = scheduler.submit({
+        name: `chat_${request.id}`,
+        priority: "normal",
+        payload: { input: request.input, goal, mode: request.mode },
+        maxRetries: 2,
+        dependencies: [],
+      });
 
       const agentReport = await agentExecutor.execute({
         id: request.id,

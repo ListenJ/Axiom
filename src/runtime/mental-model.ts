@@ -307,7 +307,7 @@ export const mentalModelManager = new MentalModelManagerImpl();
  */
 export function initMentalModels(): void {
   // Git Mental Model
-  mentalModelManager.createModel("git", [
+  const gitModel = mentalModelManager.createModel("git", [
     { id: "HEAD", name: "HEAD", description: "Current commit pointer", properties: {}, kind: "object" },
     { id: "Index", name: "Index", description: "Staging area", properties: {}, kind: "object" },
     { id: "WorkingDir", name: "Working Directory", description: "Current files", properties: {}, kind: "object" },
@@ -318,8 +318,25 @@ export function initMentalModels(): void {
     { source: "HEAD", target: "Index", type: "part-of", weight: 1.0 },
   ]);
 
+  // Add rules to Git model
+  mentalModelManager.addRule(gitModel.id, {
+    condition: "state.conflictDetected === true",
+    action: "resolve_conflict",
+    confidence: 0.8,
+  });
+  mentalModelManager.addRule(gitModel.id, {
+    condition: "state.stagedFiles > 0 && state.readyToCommit === true",
+    action: "commit_changes",
+    confidence: 0.9,
+  });
+  mentalModelManager.addRule(gitModel.id, {
+    condition: "state.diverged === true",
+    action: "merge_or_rebase",
+    confidence: 0.85,
+  });
+
   // Auth Mental Model
-  mentalModelManager.createModel("auth", [
+  const authModel = mentalModelManager.createModel("auth", [
     { id: "Token", name: "Token", description: "Authentication token", properties: {}, kind: "object" },
     { id: "Refresh", name: "Refresh", description: "Token refresh", properties: {}, kind: "process" },
     { id: "Expiry", name: "Expiry", description: "Token expiration", properties: {}, kind: "state" },
@@ -328,6 +345,40 @@ export function initMentalModels(): void {
     { source: "Expiry", target: "Refresh", type: "causes", weight: 1.0 },
     { source: "Token", target: "Validation", type: "requires", weight: 1.0 },
   ]);
+
+  // Add rules to Auth model
+  mentalModelManager.addRule(authModel.id, {
+    condition: "state.tokenExpired === true",
+    action: "refresh_token",
+    confidence: 0.95,
+  });
+  mentalModelManager.addRule(authModel.id, {
+    condition: "state.validationFailed === true",
+    action: "reauthenticate",
+    confidence: 0.9,
+  });
+
+  // Database Mental Model
+  const dbModel = mentalModelManager.createModel("database", [
+    { id: "Query", name: "Query", description: "Database query", properties: {}, kind: "process" },
+    { id: "Connection", name: "Connection", description: "DB connection pool", properties: {}, kind: "object" },
+    { id: "Transaction", name: "Transaction", description: "ACID transaction", properties: {}, kind: "process" },
+    { id: "Deadlock", name: "Deadlock", description: "Deadlock state", properties: {}, kind: "state" },
+  ], [
+    { source: "Query", target: "Connection", type: "requires", weight: 1.0 },
+    { source: "Transaction", target: "Deadlock", type: "creates", weight: 0.1 },
+  ]);
+
+  mentalModelManager.addRule(dbModel.id, {
+    condition: "state.connectionPoolExhausted === true",
+    action: "wait_or_reject",
+    confidence: 0.9,
+  });
+  mentalModelManager.addRule(dbModel.id, {
+    condition: "state.deadlockDetected === true",
+    action: "abort_and_retry",
+    confidence: 0.95,
+  });
 
   logger.info("[MentalModel] Initialized mental models");
 }

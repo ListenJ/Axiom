@@ -1,11 +1,11 @@
 # Knowledge Projection Index
 
-Generated: 2026-06-30T07:22:39.259Z
-Total atoms: 749
+Generated: 2026-06-30T07:41:31.577Z
+Total atoms: 752
 
 ## By Kind
 
-- **concept**: 216
+- **concept**: 219
 - **entity**: 141
 - **constraint**: 55
 - **observation**: 106

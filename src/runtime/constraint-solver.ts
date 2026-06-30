@@ -120,6 +120,12 @@ class ConstraintSolverImpl {
 
       if (!sourcePresent && !targetPresent) continue;
 
+      // Evaluate conditional expression if present
+      if (constraint.condition && context) {
+        const conditionMet = this.evaluateCondition(constraint.condition, context);
+        if (!conditionMet) continue; // Skip constraint if condition not met
+      }
+
       switch (constraint.type) {
         case "requires": {
           // Source requires Target
@@ -226,6 +232,39 @@ class ConstraintSolverImpl {
 
     const result = this.solve(entities);
     return !result.violations.some((v) => v.constraint.id === constraintId);
+  }
+
+  /**
+   * Evaluate a condition string against context.
+   * Supports: "key == value", "key != value", "key > value", "key < value", "key contains value"
+   */
+  private evaluateCondition(condition: string, context: Record<string, unknown>): boolean {
+    try {
+      // Parse "key operator value" patterns
+      const operators = ["==", "!=", ">=", "<=", ">", "<", "contains"];
+      for (const op of operators) {
+        const idx = condition.indexOf(op);
+        if (idx > 0) {
+          const left = condition.slice(0, idx).trim();
+          const right = condition.slice(idx + op.length).trim().replace(/['"]/g, "");
+          const contextValue = context[left];
+          const rightNum = Number(right);
+
+          switch (op) {
+            case "==": return String(contextValue) === right;
+            case "!=": return String(contextValue) !== right;
+            case ">": return Number(contextValue) > rightNum;
+            case "<": return Number(contextValue) < rightNum;
+            case ">=": return Number(contextValue) >= rightNum;
+            case "<=": return Number(contextValue) <= rightNum;
+            case "contains": return String(contextValue).includes(right);
+          }
+        }
+      }
+      return true; // If condition can't be parsed, assume met
+    } catch {
+      return true; // On error, assume condition is met
+    }
   }
 
   /**
