@@ -1,7 +1,7 @@
 /**
  * 知识库扩充脚本 — 使用 Lightpanda/smartRender 爬取技术文档
  *
- * 爬取 OpenClaw 项目核心技术栈文档，提取关键知识，
+ * 爬取 Axiom 项目核心技术栈文档，提取关键知识，
  * 生成原子笔记 (atomic notes) 存入 Vault 知识库。
  *
  * 使用:
@@ -16,7 +16,7 @@ import * as path from "node:path";
 const VERBOSE = process.argv.includes("--verbose") || process.argv.includes("-v");
 const log = (...args: unknown[]) => { if (VERBOSE) console.log(...args); };
 
-const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
 const KNOWLEDGE_DIR = path.join(VAULT_PATH, "03-Knowledge");
 const ATOMIC_DIR = path.join(KNOWLEDGE_DIR, "atomic-notes");
 const CONCEPT_DIR = path.join(KNOWLEDGE_DIR, "concept-maps");
@@ -642,7 +642,7 @@ type: concept-map
 tags: [knowledge-index, project-overview]
 ---
 
-# OpenClaw 项目知识图谱
+# Axiom 项目知识图谱
 
 ## 技术领域
 
@@ -793,7 +793,7 @@ async function main() {
   if (!VERBOSE) {
     console.log(`知识库扩充: ${KNOWLEDGE_SOURCES.length} 主题, ${totalSteps} 任务, ${existingNotes.size} 现有笔记`);
   } else {
-    console.log("🧠 OpenClaw 知识库增量扩充\n");
+    console.log("🧠 Axiom 知识库增量扩充\n");
     console.log(`  现有笔记: ${existingNotes.size} 篇\n`);
   }
 
@@ -916,7 +916,7 @@ async function main() {
 
   // 4. 生成概念图 + 索引
   const conceptMap = generateConceptMap([...new Set(allTopics)], categoryMap);
-  fs.writeFileSync(path.join(CONCEPT_DIR, "openclaw-knowledge-map.md"), conceptMap, "utf-8");
+  fs.writeFileSync(path.join(CONCEPT_DIR, "axiom-knowledge-map.md"), conceptMap, "utf-8");
 
   const allFiles = fs.readdirSync(ATOMIC_DIR).filter(f => f.endsWith(".md"));
   const pendingCount = allFiles.filter(f => {
@@ -924,7 +924,7 @@ async function main() {
     return c.includes("status: pending-review");
   }).length;
 
-  const indexContent = `# OpenClaw 知识库索引\n\n> 更新于 ${new Date().toISOString().split("T")[0]}\n\n## 统计\n\n- 总笔记: ${allFiles.length} 篇\n- 待审核: ${pendingCount} 篇\n\n## 文件列表\n\n${allFiles.map(f => `- [${f}](atomic-notes/${f})`).join("\n")}\n`;
+  const indexContent = `# Axiom 知识库索引\n\n> 更新于 ${new Date().toISOString().split("T")[0]}\n\n## 统计\n\n- 总笔记: ${allFiles.length} 篇\n- 待审核: ${pendingCount} 篇\n\n## 文件列表\n\n${allFiles.map(f => `- [${f}](atomic-notes/${f})`).join("\n")}\n`;
   fs.writeFileSync(path.join(KNOWLEDGE_DIR, "INDEX.md"), indexContent, "utf-8");
 
   // 最终输出

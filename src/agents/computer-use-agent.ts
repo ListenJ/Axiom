@@ -12,11 +12,20 @@
  *   - Token 消耗降低 60-80%（模型不需要自己"看"坐标）
  *   - 定位精度接近 100%（CDP 提供精确坐标）
  *   - 支持复杂交互链（多步操作）
+ *
+ * 关于"是否走 model-router / InternalAgent":
+ *   callVisionModel() 的消息载荷是 OpenAI 兼容的多模态格式：
+ *     `content: string | Array<{type:"text"} | {type:"image_url", image_url:{url,...}}>`
+ *   model-router 的 `ChatMessage.content` 当前只接受 `string`（窄类型）。
+ *   按任务约束 `MUST NOT touch` 中"不要用 `as any` 压制类型错误"的硬规则，
+ *   本函数维持直接 `proxyFetch`（与 Kimi Code、ModelEval `/models` 同属
+ *   "特殊外部载荷"例外）。模型选择仍走 `findModelsForRole("computer-use")`
+ *   复用统一的视觉模型清单。
  */
 
 import { logger } from "../utils/logger.js";
-import { proxyFetch } from "../utils/proxy-fetch.js";
 import { findModelsForRole } from "../router/model-capability-registry.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 import { PROVIDER_CONFIG } from "../router/models.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import {
@@ -355,6 +364,12 @@ export class ComputerUseAgent {
     model: { provider: string; model: string },
     messages: VisionMessage[]
   ): Promise<{ content: string | null }> {
+    // 多模态消息载荷（content: string | VisionContentPart[]）无法直接走
+    // model-router（其 ChatMessage.content 是窄类型 string）。此处保留直接通道：
+    //   - 模型清单仍通过 findModelsForRole("computer-use") 与 router 共享
+    //   - provider / API key / base URL 走与 router 同一套解析（PROVIDER_CONFIG +
+    //     getEffectiveApiKey + getEffectiveBaseURL），避免重复配置
+    //   - 加上显式 AbortSignal.timeout + Bearer header，行为与 router 路径一致
     const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
     if (!config) throw new Error(`Unknown provider: ${model.provider}`);
 
@@ -368,10 +383,9 @@ export class ComputerUseAgent {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     };
-
     if (model.provider === "openrouter") {
-      headers["HTTP-Referer"] = "https://openclaw.ai";
-      headers["X-Title"] = "OpenClaw Agent";
+      headers["HTTP-Referer"] = "https://axiom-runtime.ai";
+      headers["X-Title"] = "Axiom Agent";
     }
 
     const res = await proxyFetch(`${baseURL}/chat/completions`, {

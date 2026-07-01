@@ -1,6 +1,6 @@
 use_default_settings: true
 general:
-  instance_name: "OpenClaw SearXNG"
+  instance_name: "Axiom SearXNG"
   debug: false
 
 search:
@@ -14,7 +14,7 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "openclaw-searxng-secret-2026"
+  secret_key: "axiom-searxng-secret-2026"
   limiter: false
   public_instance: false
 

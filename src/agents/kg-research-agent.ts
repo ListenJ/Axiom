@@ -16,7 +16,7 @@
  *   - 模型仅负责"解读"而非"发现"代码结构
  */
 import { logger } from "../utils/logger.js";
-import { proxyFetch } from "../utils/proxy-fetch.js";
+import { internalAgent } from "./internal-agent.js";
 import { isPgAvailable, getPG } from "../db/pg-client.js";
 import {
   buildResearchContext,
@@ -223,51 +223,31 @@ function buildEnhancedPrompt(
 
 // ========== 模型调用 ==========
 
+/**
+ * 通过 model-router 路由研究任务。`model` 参数被映射为 role（向后兼容）：
+ *   - 当提供具体模型 ID 时，记录在 `trackAs` 中以便 token 追踪可识别
+ *   - 按 `research` role 选择模型，享受重试/降级/超时
+ */
 async function callResearchModel(
   model: string,
   prompt: string,
   timeout: number,
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY required for research model");
-  }
-
-  const res = await proxyFetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://openclaw.ai",
-      "X-Title": "OpenClaw Agent - KG Research",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: `You are a senior software architect performing code analysis.
+  // model-router 通过 role 选择实际模型；传入的 `model` 名称用于追踪标签
+  const result = await internalAgent.executeWithRole("research", [
+    {
+      role: "system",
+      content: `You are a senior software architect performing code analysis.
 You have been given verified code structure data from static analysis.
 Your task is to analyze and interpret this data accurately.
 Always cite specific entities and relationships from the provided data.
 Never fabricate or speculate about code structure.
 Respond in the same language as the research question.`,
-        },
-        { role: "user", content: prompt },
-      ],
-      max_tokens: 4096,
-      temperature: 0.3,
-    }),
-    timeout,
-  });
+    },
+    { role: "user", content: prompt },
+  ], { maxTokens: 4096, temperature: 0.3, timeout, trackAs: `kg-research:${model}` });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Research model API error: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "[No response from research model]";
+  return result.content || "[No response from research model]";
 }
 
 // ========== 新发现提取 ==========

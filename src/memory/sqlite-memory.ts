@@ -52,7 +52,7 @@ export class SQLiteMemory {
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || process.env.SQLITE_MEMORY_DB || "./openclaw-memory.db";
+    this.dbPath = dbPath || process.env.SQLITE_MEMORY_DB || "./axiom-memory.db";
     this.db = new Database(this.dbPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");

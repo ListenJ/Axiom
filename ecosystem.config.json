@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "openclaw-fusion",
+      "name": "axiom-runtime",
       "script": "./src/main.ts",
       "interpreter": "bun",
       "instances": 1,

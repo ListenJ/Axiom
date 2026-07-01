@@ -130,7 +130,7 @@ function prompt(rl: ReturnType<typeof createInterface>, question: string): Promi
 function printBanner() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           OpenClaw AI Agent - 交互式配置向导                  ║
+║           Axiom AI Agent - 交互式配置向导                  ║
 ║                        v2.2.0                                ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
@@ -163,7 +163,7 @@ function validateKey(key: string, provider: string): boolean {
 
 function generateEnvContent(configs: Record<string, string>): string {
   const lines: string[] = [
-    "# OpenClaw AI Agent - 环境变量配置",
+    "# Axiom AI Agent - 环境变量配置",
     "# 生成时间: " + new Date().toISOString(),
     "",
     "# ══════════════════════════════════════════════════════════════",
@@ -265,7 +265,7 @@ export async function runSetupWizard(args: string[]) {
 
   printBanner();
 
-  console.log("欢迎使用 OpenClaw AI Agent 配置向导！");
+  console.log("欢迎使用 Axiom AI Agent 配置向导！");
   console.log("本向导将帮助您配置所有支持的 LLM 厂商 API Key。\n");
   console.log("💡 提示:");
   console.log("   - 至少配置 2-3 个厂商以确保系统冗余和降级能力");
@@ -403,10 +403,10 @@ export async function runSetupWizard(args: string[]) {
 
   console.log("\n✅ 配置已成功保存到 .env 文件!");
   console.log(`📁 文件路径: ${envPath}`);
-  console.log("\n🚀 您现在可以运行以下命令启动 OpenClaw:");
-  console.log("   bun run openclaw    # 启动主程序");
+  console.log("\n🚀 您现在可以运行以下命令启动 Axiom:");
+  console.log("   bun run axiom    # 启动主程序");
   console.log("   bun run cli         # 启动 CLI 工具");
-  console.log("\n📖 更多信息请查看文档: https://github.com/ListenJ/openclaw-fusion\n");
+  console.log("\n📖 更多信息请查看文档: https://github.com/ListenJ/axiom-runtime\n");
 
   rl.close();
 }

@@ -16,11 +16,7 @@
 
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
-
-/** Minimal LLM client interface (replaces DRE dependency). */
-interface LLMClient {
-  generate(prompt: string, maxTokens?: number): Promise<string>;
-}
+import type { LLMClient } from "../dre/index.js";
 
 // ========== 类型定义 ==========
 
@@ -268,7 +264,7 @@ export class KnowledgeGraphEnhanced {
     sql += " ORDER BY importance DESC LIMIT ?";
     params.push(options?.limit || 20);
 
-    const rows = this.db.prepare(sql).all(...(params as any[])) as Array<Record<string, unknown>>;
+    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
     return rows.map((row) => this.rowToNode(row));
   }
 

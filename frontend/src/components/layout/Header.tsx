@@ -38,7 +38,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             OC
           </div>
           <span className="hidden font-display text-base font-semibold tracking-tight sm:inline">
-            OpenClaw
+            Axiom
           </span>
         </button>
       </div>

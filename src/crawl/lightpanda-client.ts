@@ -11,7 +11,7 @@
  *   1. 直接 CLI: `lightpanda fetch <url> --dump html`
  *   2. Docker CLI: `docker exec lightpanda lightpanda fetch <url> --dump html`
  *   3. CDP Server: `lightpanda serve --host 0.0.0.0` -> WebSocket CDP
- *   4. Docker CDP: `docker run openclaw-lightpanda serve`
+ *   4. Docker CDP: `docker run axiom-lightpanda serve`
  */
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
@@ -419,7 +419,7 @@ export async function startLightpandaDocker(): Promise<boolean> {
       "-p", "9222:9222",
       "--memory", "256m",
       "--rm",
-      "openclaw-lightpanda",
+      "axiom-lightpanda",
       "serve", "--host", "0.0.0.0", "--advertise-host", "127.0.0.1",
     ], { stdout: "pipe", stderr: "pipe" });
 
@@ -847,7 +847,7 @@ export async function fetchPageContent(
   try {
     const res = await proxyFetch(url, {
       timeout,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; OpenClaw/2.3)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Axiom/2.3)" },
     });
     const html = await res.text();
     const textContent = htmlToPlainText(html);

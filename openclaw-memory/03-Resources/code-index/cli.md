@@ -33,7 +33,7 @@ imports: ["bun:sqlite", "kg-graph.js", "crawl-search-engines.js", "crawl-data-pi
 
 ```typescript
 /**
- * OpenClaw AI Agent — CLI 命令行工具
+ * Axiom AI Agent — CLI 命令行工具
  * 提供交互式命令行接口，用于日常运维和数据操作
  *
  * 用法: bun run src/cli.ts <command> [options]
@@ -315,7 +315,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   help: {
     desc: "显示帮助信息",
     run: () => {
-      console.log("🦅 OpenClaw AI Agent CLI\n");
+      console.log("🦅 Axiom AI Agent CLI\n");
       console.log("用法: bun run src/cli.ts <command> [args...]\n");
       console.log("命令:");
       const maxLen = Math.max(...Object.keys(commands).map((k) => k.length));

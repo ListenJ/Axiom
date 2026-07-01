@@ -86,7 +86,7 @@ export interface AppConfig {
 }
 
 /** 从 YAML 文件加载配置 */
-export function loadConfig(path = "./config/openclaw.yaml"): AppConfig {
+export function loadConfig(path = "./config/axiom.yaml"): AppConfig {
   if (!fs.existsSync(path)) {
     throw new Error(`Config file not found: ${path}`);
   }
@@ -175,13 +175,13 @@ export function getConfig(): AppConfig {
       // 回退到环境变量
       cachedConfig = {
         gateway: {
-          port: Number(process.env.OPENCLAW_GATEWAY_PORT) || 18789,
-          bind: process.env.OPENCLAW_BIND || "127.0.0.1",
-          auth: { token: process.env.OPENCLAW_AUTH_TOKEN },
+          port: Number(process.env.AXIOM_GATEWAY_PORT) || 18789,
+          bind: process.env.AXIOM_BIND || "127.0.0.1",
+          auth: { token: process.env.AXIOM_AUTH_TOKEN },
         },
         models: [],
         memory: {
-          vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory",
+          vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
           obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,
           obsidianApiToken: process.env.OBSIDIAN_API_TOKEN || "",
           databasePath: process.env.DATABASE_PATH || "./data/agent.db",

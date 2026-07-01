@@ -11,7 +11,7 @@ type: long-term-memory
 
 ## 系统信息
 
-- **项目**: OpenClaw AI Agent
+- **项目**: Axiom AI Agent
 - **版本**: v2.1.0
 - **技术栈**: Bun 1.3+ / TypeScript / SQLite (结构化数据) / Obsidian Vault (记忆存储)
 - **架构**: MCP Server + HTTP API + Vault 核心记忆引擎
@@ -81,7 +81,7 @@ type: long-term-memory
 - MCP 端口: 3001
 - WebSocket: ws://localhost:18789/ws
 - 数据库: `./data/agent.db`
-- Vault 路径: `./openclaw-memory/`
+- Vault 路径: `./axiom-memory/`
 - 默认模型路由: siliconflow → ofoxai → deepseek → openrouter
 
 ## 已知限制

@@ -215,7 +215,7 @@ export async function executeCodeTest(options: {
  *   - Pi Agent 本地工具预处理（零 token）
  *   - CodeGraph 上下文注入
  *   - 免费模型轮询 + circuit breaker
- *   - 优雅降级（失败回退 OpenClaw）
+ *   - 优雅降级（失败回退 Axiom）
  *   - Token 节省追踪
  *   - 黑板优先 (Blackboard-First)
  *   - 读取优化管道 (ReadOptimizerFacade)

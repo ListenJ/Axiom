@@ -39,7 +39,7 @@ async function cmdEval() {
   const modelFilter = getFlag("models")?.split(",");
   const includeBenchmarks = flags.benchmarks || flags.full;
 
-  console.log("\n🔬 OpenClaw Model Evaluation Service");
+  console.log("\n🔬 Axiom Model Evaluation Service");
   console.log(`   Mode: ${flags.full ? "full" : "quick"}`);
   console.log(`   Benchmarks: ${includeBenchmarks ? "enabled" : "disabled"}`);
   console.log(`   Models: ${modelFilter ? modelFilter.join(", ") : "all"}`);
@@ -103,7 +103,7 @@ async function cmdEval() {
 async function cmdAssign() {
   const assigner = getDynamicModelAssigner();
 
-  console.log("\n🎯 OpenClaw Dynamic Model Assignment");
+  console.log("\n🎯 Axiom Dynamic Model Assignment");
   console.log(`   Force refresh: ${flags.force ? "yes" : "no"}`);
   console.log("");
 
@@ -158,7 +158,7 @@ async function cmdStats() {
     return;
   }
 
-  console.log("\n📊 OpenClaw Model Evaluation Stats");
+  console.log("\n📊 Axiom Model Evaluation Stats");
   console.log(`   Total evaluations: ${stats.totalEvaluations}`);
   console.log(`   Unique models: ${stats.modelsEvaluated}`);
   console.log(`   Last eval: ${stats.lastEvalAt || "never"}`);
@@ -230,7 +230,7 @@ async function cmdTrend() {
 
 function showHelp() {
   console.log(`
-OpenClaw Model Evaluation CLI
+Axiom Model Evaluation CLI
 =============================
 
 Commands:

@@ -30,6 +30,7 @@ interface VaultConfig {
   vaultPath: string;
   apiPort: number;
   apiToken: string;
+  dbPath?: string;
 }
 
 interface WriteNoteOptions {
@@ -56,9 +57,10 @@ export class VaultManager {
 
   constructor(config: Partial<VaultConfig> = {}) {
     this.config = {
-      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory",
+      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
       apiPort: config.apiPort || Number(process.env.OBSIDIAN_API_PORT) || 27124,
       apiToken: config.apiToken || process.env.OBSIDIAN_API_TOKEN || "",
+      dbPath: config.dbPath,
     };
     this.baseUrl = `https://127.0.0.1:${this.config.apiPort}`;
 
@@ -68,7 +70,7 @@ export class VaultManager {
       vaultRoot: this.config.vaultPath,
     });
 
-    this.sqliteMemory = new SQLiteMemory();
+    this.sqliteMemory = new SQLiteMemory(this.config.dbPath);
 
     logger.info("VaultManager initialized", {
       vaultPath: this.config.vaultPath,

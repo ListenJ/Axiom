@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 多平台模型路由器 v5.0 — 扁平化架构
  *
  * 设计原则:
@@ -13,12 +13,12 @@ import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
 import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
-export type { TaskRole } from "./model-capability-registry.js";
 import { PROVIDER_CONFIG, getFallbackChain, type UnifiedModel } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { metrics } from "../utils/metrics.js";
+import { calculateBackoffDelay } from "../utils/resilience.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -29,6 +29,23 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
+
+/** 流式输出回调 */
+export type StreamChunkCallback = (chunk: string) => void;
+
+/**
+ * 流式事件 — `chatStream` 异步生成器 yield 的事件类型。
+ *
+ *  - start: 流开始，携带 routing 元数据（model / provider / role / intent）
+ *  - token:  增量文本块（来自上游 delta 或整段缓冲内容）
+ *  - done:   流结束，携带 usage 与汇总信息
+ *  - error:  任意阶段错误（保留 stream 语义，调用方可决定是否中断）
+ */
+export type ChatStreamEvent =
+  | { type: "start"; model: string; provider: string; role: TaskRole; layer?: "decision" | "architecture" | "tool" | "evaluation" | "general"; intent?: string }
+  | { type: "token"; content: string }
+  | { type: "done"; content: string; usage?: ChatResponse["usage"]; model: string; provider: string; fallbackUsed: boolean }
+  | { type: "error"; message: string };
 
 /** 基础输出 */
 export interface ChatResponse {
@@ -82,6 +99,12 @@ export interface ExecuteInput {
   timeout?: number;
   temperature?: number;
   trackAs?: string;
+  /**
+   * Models to skip during fallback iteration. Used by `executeWithRole`
+   * (single-shot) and `dispatcher.dispatchBatch` (`preventDuplicateModels: true`)
+   * to avoid re-trying models that already failed for this call.
+   */
+  excludeModels?: string[];
 }
 
 /** 统一执行端口输出 */
@@ -103,7 +126,7 @@ export interface ExecuteOutput {
 const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> = {
   // Decision
   strategy:     { role: "decision", useTool: false },
-  evaluation:   { role: "evaluation", useTool: false },
+  evaluation:   { role: "decision", useTool: false },
   decision:     { role: "decision", useTool: false },
 
   // Architecture
@@ -112,20 +135,28 @@ const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> =
   infra:          { role: "architecture", useTool: false },
 
   // Tool-based
-  engineering:        { role: "coding", useTool: true },
-  "game-development": { role: "coding", useTool: true },
-  integrations:       { role: "coding", useTool: true },
-  testing:            { role: "coding", useTool: true },
-  english:            { role: "english", useTool: true },
-  translation:        { role: "english", useTool: true },
-  localization:       { role: "english", useTool: true },
-  rl:                 { role: "rl", useTool: true },
-  reasoning:          { role: "rl", useTool: true },
-  optimization:       { role: "rl", useTool: true },
+  engineering:        { role: "main_coding", useTool: true },
+  "game-development": { role: "main_coding", useTool: true },
+  integrations:       { role: "main_coding", useTool: true },
+  testing:            { role: "code_review", useTool: true },
+  english:            { role: "tool_use", useTool: true },
+  translation:        { role: "tool_use", useTool: true },
+  localization:       { role: "tool_use", useTool: true },
+  rl:                 { role: "tool_use", useTool: true },
+  reasoning:          { role: "tool_use", useTool: true },
+  optimization:       { role: "tool_use", useTool: true },
+
+  // Research
+  research:           { role: "research", useTool: false },
+  deep_research:      { role: "research", useTool: false },
+
+  // Review
+  code_review:        { role: "code_review", useTool: true },
+  review:             { role: "code_review", useTool: true },
 };
 
 /** 默认兜底角色 */
-const DEFAULT_ROLE: TaskRole = "general-chat";
+const DEFAULT_ROLE: TaskRole = "general_chat";
 
 // =============================================================================
 // Token 追踪辅助
@@ -215,8 +246,8 @@ async function callProvider(
     };
 
     if (provider === "openrouter") {
-      headers["HTTP-Referer"] = "https://openclaw.ai";
-      headers["X-Title"] = "OpenClaw Agent";
+      headers["HTTP-Referer"] = "https://axiom-runtime.ai";
+      headers["X-Title"] = "Axiom Agent";
     }
 
     const res = await proxyFetch(`${baseURL}/chat/completions`, {
@@ -245,6 +276,155 @@ async function callProvider(
 }
 
 // =============================================================================
+// 原生流式调用 — progressive enhancement via global fetch + ReadableStream
+// 当 proxyFetch（仅缓冲）不可用于流式时，使用全局 fetch（Bun 内置）逐块读取。
+// 这条路径绕过 proxyFetch 的缓冲，提供真正的 token 级增量。
+// =============================================================================
+
+interface NativeStreamResult {
+  content: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+}
+
+/**
+ * 使用全局 fetch 调用 provider，支持真正的 token 流。
+ * 通过 ReadableStream 增量读取 SSE 响应，调用 onChunk(delta)。
+ *
+ * 与 callProvider 的区别：本函数不会一次性返回完整内容，而是在每个 delta 上回调。
+ * 适用于需要 SSE 增量推送的场景。
+ */
+async function callProviderNativeStream(
+  provider: string,
+  model: string,
+  messages: ChatMessage[],
+  timeoutMs: number,
+  temperature = 0.7,
+  onChunk: StreamChunkCallback,
+  signal?: AbortSignal
+): Promise<NativeStreamResult> {
+  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
+  if (!config) throw new Error(`Unknown provider: ${provider}`);
+
+  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
+  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
+
+  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new Error("messages must be a non-empty array");
+  }
+  const totalChars = messages.reduce(
+    (sum, m) => sum + (typeof m?.content === "string" ? m.content.length : 0),
+    0,
+  );
+  if (totalChars > MAX_CONTEXT_CHARS) {
+    throw new Error(
+      `Message content too large: ${totalChars} chars (max ${MAX_CONTEXT_CHARS}). Please trim context.`,
+    );
+  }
+  const payloadSize = JSON.stringify({ model, messages, temperature, stream: true }).length;
+  if (payloadSize > MAX_REQUEST_BYTES) {
+    throw new Error(
+      `Request payload too large: ${payloadSize} bytes (max ${MAX_REQUEST_BYTES}). Reduce message count or size.`,
+    );
+  }
+
+  // 使用全局 fetch（Bun 内置），自带 AbortSignal + streaming 响应体
+  const fetchFn = (typeof globalThis.fetch === "function" ? globalThis.fetch : null);
+  if (!fetchFn) {
+    throw new Error("Global fetch is not available in this runtime");
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "text/event-stream",
+  };
+
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] = "https://axiom-runtime.ai";
+    headers["X-Title"] = "Axiom Agent";
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Bridge external signal to internal controller
+  const onExternalAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener("abort", onExternalAbort, { once: true });
+    }
+  }
+
+  try {
+    const res = await fetchFn(`${baseURL}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model, messages, temperature, stream: true }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${errText}`);
+    }
+
+    if (!res.body || typeof res.body.getReader !== "function") {
+      throw new Error("Response body is not readable");
+    }
+
+    const body = res.body as ReadableStream<Uint8Array>;
+    const reader = body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let fullContent = "";
+    let usage: NativeStreamResult["usage"];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        const payload = trimmed.slice(6);
+        if (payload === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(payload) as {
+            choices?: Array<{ delta?: { content?: unknown } }>;
+            usage?: NativeStreamResult["usage"];
+          };
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (typeof delta === "string" && delta.length > 0) {
+            fullContent += delta;
+            onChunk(delta);
+          }
+          if (parsed.usage) {
+            usage = parsed.usage;
+          }
+        } catch {
+          // Ignore malformed SSE chunks
+        }
+      }
+    }
+
+    return { content: fullContent, usage };
+  } finally {
+    clearTimeout(timer);
+    if (signal) {
+      signal.removeEventListener("abort", onExternalAbort);
+    }
+  }
+}
+
+// =============================================================================
 // 路由器 v5.0 — 扁平化核心
 // =============================================================================
 
@@ -257,8 +437,8 @@ export class MultiPlatformRouter {
     const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs } = input;
     const startTime = Date.now();
 
-    const models = findModelsForRole(role);
-    if (models.length === 0) {
+    const allModels = findModelsForRole(role);
+    if (allModels.length === 0) {
       logger.warn(`[Router] No models for role: ${role}`);
       return {
         content: `[System] No models configured for role "${role}".`,
@@ -269,7 +449,26 @@ export class MultiPlatformRouter {
       };
     }
 
-    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    // Phase P0-3: filter out models that already failed for this call.
+    // executeWithRole passes its `excludeModels` option through; dispatcher
+    // accumulates excludeModels as it walks preventDuplicateModels: true.
+    const excluded = new Set(input.excludeModels ?? []);
+    const candidates = excluded.size > 0
+      ? allModels.filter((m) => !excluded.has(m.id) && !excluded.has(m.model))
+      : allModels;
+    if (candidates.length === 0) {
+      logger.warn(`[Router] No candidate models for role ${role} after exclude`, {
+        excluded: Array.from(excluded),
+      });
+      return {
+        content: `[System] No available models for role "${role}" after exclusions.`,
+        model: "none",
+        provider: "local",
+        latencyMs: 0,
+        fallbackUsed: true,
+      };
+    }
+    const sortedModels = [...candidates].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     for (const model of sortedModels) {
       // Per-model retry: default DEFAULT_RETRY_ATTEMPTS (since ModelCapability doesn't expose maxRetries)
@@ -320,8 +519,8 @@ export class MultiPlatformRouter {
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
           // Exponential backoff with jitter, capped at 5s
           if (attempt < maxRetries - 1) {
-            const backoff = Math.min(500 * Math.pow(2, attempt) + Math.random() * 200, 5000);
-            await new Promise((r) => setTimeout(r, backoff));
+            const delay = calculateBackoffDelay(attempt);
+            await new Promise((r) => setTimeout(r, delay));
           }
         }
       }
@@ -367,6 +566,241 @@ export class MultiPlatformRouter {
     return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "general" };
   }
 
+  /**
+   * 流式 chat：异步生成器 yield ChatStreamEvent。
+   *
+   * 两条路径:
+   *   1. 原生流式（默认开启）— 通过全局 fetch + ReadableStream 真正按 delta 推送。
+   *      proxyFetch 会缓冲整个响应，无法用于真流式；这里使用 runtime 内置的
+   *      globalThis.fetch（Bun / Node 18+）实现真正的增量读取。
+   *   2. 缓冲回退 — 当原生 fetch 失败、被禁用或不在 runtime 中时，回退到
+   *      `callProvider`（buffered）一次性拿到完整回复，再作为单个 token 事件发出，
+   *      实现 SSE 协议兼容的“模拟流式”。
+   *
+   *  任何路径都会保证: start → (token* | error) → done  的事件序列。
+   */
+  async *chatStream(
+    taskType: TaskRole | string,
+    messages: ChatMessage[],
+    options?: { preferNativeStream?: boolean; intent?: string }
+  ): AsyncGenerator<ChatStreamEvent> {
+    const role = taskType as TaskRole;
+    const preferNative = options?.preferNativeStream !== false;
+    const intentLabel = options?.intent;
+    const models = findModelsForRole(role);
+    if (models.length === 0) {
+      logger.warn(`[Router/chatStream] No models for role: ${role}`);
+      yield { type: "error", message: `No models configured for role "${role}".` };
+      return;
+    }
+
+    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+
+    // 流事件先一次性给出 routing metadata，让前端可在首字节前就显示 provider 信息
+    const firstModel = sortedModels[0]!;
+    yield {
+      type: "start",
+      model: firstModel.id,
+      provider: firstModel.provider,
+      role,
+      layer: "general",
+      ...(intentLabel ? { intent: intentLabel } : {}),
+    };
+
+    const startTime = Date.now();
+    let lastError: Error | undefined;
+
+    for (const model of sortedModels) {
+      const maxRetries = Math.max(1, DEFAULT_RETRY_ATTEMPTS);
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const loopStart = Date.now();
+        // 缓冲路径：复用 callProvider 拿到完整文本，整段作为一个 token 推送
+        const fallbackBufferedStream = async (): Promise<NativeStreamResult> => {
+          const response = await callProvider(
+            model.provider,
+            model.model,
+            messages,
+            model.timeout ?? TIMEOUTS.API_DEFAULT,
+            0.7,
+          );
+          const text = response.content ?? "";
+          // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
+          return { content: text, usage: response.usage };
+        };
+
+        try {
+          // 路径选择：
+          //   preferNative=true  → 先尝试原生 fetch 流式；失败时回退到缓冲
+          //   preferNative=false → 直接走缓冲路径
+          let nativeOk = false;
+
+          if (preferNative) {
+            // 异步队列：在 onChunk 回调里把每个 delta 推入队列，
+            // 异步生成器在 while 循环里立即读出并 yield —— 实现真正的 token 级增量。
+            // 这避免了在 callback 中直接 yield 造成的生成器状态错乱。
+            type StreamItem =
+              | { kind: "chunk"; content: string }
+              | { kind: "done"; result: NativeStreamResult }
+              | { kind: "error"; error: Error };
+
+            const queue: StreamItem[] = [];
+            let pending: (() => void) | null = null;
+            let streamClosed = false;
+
+            const enqueue = (item: StreamItem): void => {
+              queue.push(item);
+              if (pending) {
+                const wake = pending;
+                pending = null;
+                wake();
+              }
+            };
+
+            const waitForNext = (): Promise<void> => {
+              if (queue.length > 0 || streamClosed) return Promise.resolve();
+              return new Promise<void>((resolve) => {
+                pending = resolve;
+              });
+            };
+
+            // 后台启动原生流式调用；onChunk 把每个 delta 推进队列。
+            const streamPromise = callProviderNativeStream(
+              model.provider,
+              model.model,
+              messages,
+              model.timeout ?? TIMEOUTS.API_STREAMING,
+              0.7,
+              (delta) => {
+                enqueue({ kind: "chunk", content: delta });
+              },
+            ).then(
+              (result) => enqueue({ kind: "done", result }),
+              (err: unknown) =>
+                enqueue({
+                  kind: "error",
+                  error: err instanceof Error ? err : new Error(String(err)),
+                }),
+            ).finally(() => {
+              streamClosed = true;
+              if (pending) {
+                const wake = pending;
+                pending = null;
+                wake();
+              }
+            });
+            // 链式 .then().finally() 始终 resolve（错误已转入队列），无未处理拒绝；
+            // 保留引用以防调用方注册额外的 .then 处理器。
+            void streamPromise;
+
+            let nativeResult: NativeStreamResult | null = null;
+            try {
+              while (true) {
+                await waitForNext();
+                if (queue.length === 0) break;
+                const item = queue.shift();
+                if (!item) continue;
+                if (item.kind === "chunk") {
+                  yield { type: "token", content: item.content };
+                } else if (item.kind === "done") {
+                  nativeResult = item.result;
+                  break;
+                } else {
+                  // item.kind === "error"
+                  throw item.error;
+                }
+              }
+            } catch (nativeErr) {
+              // 原生流式失败（无 fetch / proxy 不支持 / 网络错误）— 静默回退到缓冲
+              logger.debug(`[Router/chatStream] native stream failed for ${model.provider}/${model.model}, falling back to buffered`, {
+                error: nativeErr instanceof Error ? nativeErr.message : String(nativeErr),
+              });
+            }
+
+            if (nativeResult) {
+              const latencyMs = Date.now() - loopStart;
+              trackCall(model.model, model.provider, messages, {
+                usage: nativeResult.usage,
+                latencyMs,
+                success: true,
+                fallbackUsed: false,
+              }, { role, taskType: "chat-stream" });
+              metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
+              metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
+              logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
+
+              yield {
+                type: "done",
+                content: nativeResult.content,
+                usage: nativeResult.usage,
+                model: model.id,
+                provider: model.provider,
+                fallbackUsed: false,
+              };
+              nativeOk = true;
+            }
+          }
+
+          if (!nativeOk) {
+            // 缓冲路径：整段内容作为单个 token 事件推送（模拟流式）
+            const result = await fallbackBufferedStream();
+            const latencyMs = Date.now() - loopStart;
+            trackCall(model.model, model.provider, messages, {
+              usage: result.usage,
+              latencyMs,
+              success: true,
+              fallbackUsed: !preferNative,
+            }, { role, taskType: "chat-stream" });
+            metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
+            logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
+
+            if (result.content.length > 0) {
+              yield { type: "token", content: result.content };
+            }
+            yield {
+              type: "done",
+              content: result.content,
+              usage: result.usage,
+              model: model.id,
+              provider: model.provider,
+              fallbackUsed: !preferNative,
+            };
+          }
+
+          return;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          const msg = lastError.message;
+          logger.warn(
+            `[Router/chatStream] ${model.provider}/${model.model} failed (attempt ${attempt + 1}/${maxRetries})`,
+            { error: msg },
+          );
+          trackCall(model.model, model.provider, messages, {
+            latencyMs: Date.now() - loopStart,
+            success: false,
+          }, { role, taskType: "chat-stream" });
+          if (attempt < maxRetries - 1) {
+            const delay = calculateBackoffDelay(attempt);
+            await new Promise((r) => setTimeout(r, delay));
+          }
+        }
+      }
+      // 进入下一个 model 前计数一次 fallback
+      metrics.increment("routing_fallback_total", 1, { role });
+      logger.warn(`[Router/chatStream] Model ${model.provider}/${model.model} exhausted retries`, {
+        error: lastError?.message,
+      });
+    }
+
+    // 所有 model 都失败
+    logger.error(`[Router/chatStream] All models exhausted for role: ${role}`);
+    metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: "degraded" });
+    yield {
+      type: "error",
+      message: lastError?.message ?? `All models for role "${role}" are unavailable.`,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Tool Pool (独立端口，保持与之前相同的重试逻辑)
   // ---------------------------------------------------------------------------
@@ -396,7 +830,7 @@ export class MultiPlatformRouter {
         lastError = error instanceof Error ? error : new Error(String(error));
         trackCall(model.id, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role, taskType: "tool" });
         logger.warn(`[Router] Tool ${model.id} failed (attempt ${attempt + 1})`, { error: msg });
-        await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
+        await this.delay(calculateBackoffDelay(attempt, { baseDelay: 1000 }));
       }
     }
 
@@ -583,33 +1017,40 @@ export class MultiPlatformRouter {
     return result;
   }
 
+  /**
+   * Phase P0-3: executeWithRole now delegates to the unified `execute()`
+   * port. Both `chat()` and `executeWithRole()` therefore go through the
+   * same fallback chain, the same per-model retry+backoff, and the same
+   * `excludeModels` skip — no more double-attempting a model that already
+   * failed for the same call.
+   *
+   * Backward compat: the return shape (SmartAssignmentResponse) is
+   * unchanged. The `model.id` field now uses the executed model (after
+   * fallback), which matches what `chat()` and `chatStream()` already
+   * returned.
+   */
   async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[] }): Promise<SmartAssignmentResponse> {
-    const startTime = Date.now();
+    const out = await this.execute({
+      role,
+      messages,
+      ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+      trackAs: role,
+      ...(options?.excludeModels && options.excludeModels.length > 0
+        ? { excludeModels: options.excludeModels }
+        : {}),
+    });
     const assignment = this.assign(role, { excludeModels: options?.excludeModels });
-    const model = assignment.model;
-
-    const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
-    try {
-      const response = await callProvider(model.provider, model.model, messages, 60000, options?.temperature);
-      const latencyMs = Date.now() - startTime;
-      const result: SmartAssignmentResponse = {
-        role,
-        model: model.id,
-        provider: model.provider,
-        endpoint: config?.baseURL ?? "",
-        content: response.content,
-        usage: response.usage,
-        latency_ms: latencyMs,
-        fallback_used: false,
-      };
-      trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: role });
-      return result;
-    } catch (error) {
-      const fallbackResult = await this.executeFallback(role, messages, options);
-      const latencyMs = Date.now() - startTime;
-      trackCall(model.id, model.provider, messages, { latencyMs, success: false, fallbackUsed: true }, { role, taskType: role });
-      return { ...fallbackResult, latency_ms: latencyMs, fallback_used: true };
-    }
+    const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
+    return {
+      role,
+      model: out.model,
+      provider: out.provider,
+      endpoint: config?.baseURL ?? "",
+      content: out.content,
+      usage: out.usage,
+      latency_ms: out.latencyMs,
+      fallback_used: out.fallbackUsed,
+    };
   }
 
   async batchExecute(assignments: RoleAssignment[], opts?: { preventDuplicateModels?: boolean }): Promise<SmartAssignmentResponse[]> {
@@ -636,41 +1077,6 @@ export class MultiPlatformRouter {
     return Promise.all(promises);
   }
 
-  async executeFallback(role: TaskRole, messages: ChatMessage[], _options?: { temperature?: number; maxTokens?: number }): Promise<SmartAssignmentResponse> {
-    try {
-      const fallbackModels = findModelsForRole(role);
-      if (fallbackModels.length === 0) {
-        throw new Error(`No models available for role: ${role}`);
-      }
-      const fallbackModel = fallbackModels[0];
-      const config = PROVIDER_CONFIG[fallbackModel.provider as keyof typeof PROVIDER_CONFIG];
-      const response = await callProvider(fallbackModel.provider, fallbackModel.model, messages, TIMEOUTS.API_DEFAULT);
-      return {
-        role,
-        model: fallbackModel.id,
-        provider: fallbackModel.provider,
-        endpoint: config?.baseURL ?? "",
-        content: response.content,
-        latency_ms: 0,
-        fallback_used: true,
-      };
-    } catch (error) {
-      logger.error(
-        `[Router] All models for role "${role}" exhausted`,
-        error instanceof Error ? error : undefined
-      );
-      return {
-        role,
-        model: "local",
-        provider: "local",
-        endpoint: "",
-        content: `[System] All models for role "${role}" are unavailable. Please try again later.`,
-        latency_ms: 0,
-        fallback_used: true,
-      };
-    }
-  }
-
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -678,3 +1084,4 @@ export class MultiPlatformRouter {
 
 export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
+export type { TaskRole } from "./model-capability-registry.js";

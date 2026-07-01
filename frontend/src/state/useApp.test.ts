@@ -20,7 +20,7 @@ describe('useApp store', () => {
     it('setTheme updates state and persists to localStorage', () => {
       useApp.getState().setTheme('light')
       expect(useApp.getState().theme).toBe('light')
-      expect(localStorage.getItem('openclaw:theme')).toBe('light')
+      expect(localStorage.getItem('axiom:theme')).toBe('light')
     })
 
     it('toggleTheme flips dark <-> light', () => {

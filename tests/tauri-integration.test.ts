@@ -70,7 +70,7 @@ describe("Tauri 2.0 Configuration", () => {
   })
 
   it("has correct product name and version", () => {
-    expect(conf.productName).toBe("openclaw")
+    expect(conf.productName).toBe("axiom")
     expect(conf.version).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
@@ -133,7 +133,7 @@ describe("Tauri Window Configuration", () => {
 
   it("window title matches app name", () => {
     const w = conf.app.windows[0]
-    expect(w.title).toContain("OpenClaw")
+    expect(w.title).toContain("Axiom")
   })
 })
 
@@ -211,7 +211,7 @@ describe("Tauri-Source Layout", () => {
 })
 
 describe("Tauri ↔ Backend Port Alignment", () => {
-  it("dev URL port matches OpenClaw gateway default (18789)", () => {
+  it("dev URL port matches Axiom gateway default (18789)", () => {
     const conf = readJson<TauriConfig>(TAURI_CONF)
     const port = new URL(conf.build.devUrl).port
     expect(port).toBe("18789")

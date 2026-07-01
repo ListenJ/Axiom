@@ -3,7 +3,7 @@
  * Lambda-style scoring pipeline with pointer-stable rubrics
  */
 import type { EvalTestCase } from "./test-cases.js";
-import { proxyFetch } from "../utils/proxy-fetch.js";
+import { internalAgent } from "../agents/internal-agent.js";
 
 // ===== Types =====
 export interface JudgeScore {
@@ -79,7 +79,7 @@ Return ONLY a JSON object:
 // ===== Judge Functions (Lambda-style) =====
 
 const JUDGE_MODEL = (process.env.JUDGE_MODEL || "anthropic/claude-sonnet-4.6");
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+// (formerly `OPENROUTER_BASE` — now unused after migrating to model-router)
 
 type RubricFn = (testCase: EvalTestCase, response: string) => { system: string; user: string };
 
@@ -189,34 +189,17 @@ async function callJudge(
   userPrompt: string,
   apiKey?: string
 ): Promise<string> {
-  const key = apiKey || process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY required for Claude Sonnet judge");
+  // apiKey 参数被忽略：model-router 通过 `evaluation` role 选择评分模型，
+  // 自动使用当前配置好的 provider API key。
+  void apiKey;
 
-  const res = await proxyFetch(`${OPENROUTER_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${key}`,
-      "HTTP-Referer": "https://openclaw.dev",
-    },
-    body: JSON.stringify({
-      model: JUDGE_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 512,
-      temperature: 0,
-    }),
-    signal: AbortSignal.timeout(30000),
-  });
+  // 走 model-router → `evaluation` role；token 追踪按 JUDGE_MODEL 标签分组。
+  const result = await internalAgent.executeWithRole("evaluation", [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ], { maxTokens: 512, temperature: 0, timeout: 30000, trackAs: `judge:${JUDGE_MODEL}` });
 
-  if (!res.ok) {
-    throw new Error(`Judge API error: ${res.status} ${await res.text()}`);
-  }
-
-  const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return data.choices?.[0]?.message?.content || "";
+  return result.content || "";
 }
 
 // ===== Helper: generate summary scores =====

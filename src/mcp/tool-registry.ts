@@ -20,6 +20,8 @@ export interface ToolDef {
   handler: ToolHandler;
   /** Output format for stdio transport */
   format?: "json" | "text";
+  /** 工具分组标签 (用于懒加载) */
+  tags?: string[];
 }
 
 /** Tool registry that manages dual transport registration */
@@ -77,6 +79,19 @@ export class ToolRegistry {
   /** Get count */
   get size(): number {
     return this.tools.length;
+  }
+
+  /** 按标签过滤工具 */
+  getToolsByTags(tags: string[]): ToolDef[] {
+    const tagSet = new Set(tags);
+    return this.tools.filter((t) => t.tags?.some((tag) => tagSet.has(tag)));
+  }
+
+  /** 获取工具元数据 (按标签过滤) */
+  getToolsMetaFiltered(tags?: string[]): Array<{ name: string; description: string }> {
+    if (!tags || tags.length === 0) return this.getToolsMeta();
+    const filtered = this.getToolsByTags(tags);
+    return filtered.map((t) => ({ name: t.name, description: t.description }));
   }
 }
 

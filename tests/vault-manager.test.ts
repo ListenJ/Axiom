@@ -21,10 +21,13 @@ describe("VaultManager", () => {
       vaultPath: tempDir,
       apiPort: 18789,
       apiToken: "test-token",
+      dbPath: path.join(tempDir, "memory.db"),
     });
   });
 
   afterEach(() => {
+    // Close DB connection before cleanup so temp dir can be removed on Windows
+    vaultManager?.close();
     // Cleanup
     fs.rmSync(tempDir, { recursive: true, force: true });
   });

@@ -63,9 +63,9 @@ export interface ValidationResult {
 
 export const CONFIG_SCHEMA: ConfigSchema[] = [
   // Gateway
-  { key: "gateway.port", envVar: "OPENCLAW_GATEWAY_PORT", yamlPath: "gateway.port", type: "number", required: true, default: 18789, description: "HTTP 服务端口", category: "gateway" },
-  { key: "gateway.bind", envVar: "OPENCLAW_BIND", yamlPath: "gateway.bind", type: "string", required: true, default: "127.0.0.1", description: "绑定地址", category: "gateway" },
-  { key: "gateway.auth_token", envVar: "OPENCLAW_AUTH_TOKEN", yamlPath: "gateway.auth.token", type: "api_key", required: false, description: "API 鉴权 Token", category: "security", sensitive: true },
+  { key: "gateway.port", envVar: "AXIOM_GATEWAY_PORT", yamlPath: "gateway.port", type: "number", required: true, default: 18789, description: "HTTP 服务端口", category: "gateway" },
+  { key: "gateway.bind", envVar: "AXIOM_BIND", yamlPath: "gateway.bind", type: "string", required: true, default: "127.0.0.1", description: "绑定地址", category: "gateway" },
+  { key: "gateway.auth_token", envVar: "AXIOM_AUTH_TOKEN", yamlPath: "gateway.auth.token", type: "api_key", required: false, description: "API 鉴权 Token", category: "security", sensitive: true },
 
   // Models
   { key: "model.siliconflow_key", envVar: "SILICONFLOW_API_KEY", yamlPath: "models.0.apiKey", type: "api_key", required: false, description: "硅基流动 API Key", category: "model", sensitive: true },
@@ -76,7 +76,7 @@ export const CONFIG_SCHEMA: ConfigSchema[] = [
   { key: "model.minimax_key", envVar: "MINIMAX_API_KEY", yamlPath: "models.5.apiKey", type: "api_key", required: false, description: "MiniMax API Key", category: "model", sensitive: true },
 
   // Memory
-  { key: "memory.vault_path", envVar: "OBSIDIAN_VAULT_PATH", yamlPath: "memory.vaultPath", type: "path", required: true, default: "./openclaw-memory", description: "Obsidian Vault 路径", category: "memory" },
+  { key: "memory.vault_path", envVar: "OBSIDIAN_VAULT_PATH", yamlPath: "memory.vaultPath", type: "path", required: true, default: "./axiom-memory", description: "Obsidian Vault 路径", category: "memory" },
   { key: "memory.database_path", envVar: "DATABASE_PATH", yamlPath: "memory.databasePath", type: "path", required: true, default: "./data/agent.db", description: "SQLite 数据库路径", category: "memory" },
   { key: "memory.redis_url", envVar: "REDIS_URL", yamlPath: "memory.redisUrl", type: "url", required: false, description: "Redis URL (可选)", category: "memory" },
 
@@ -104,7 +104,7 @@ export class ConfigCenter {
   private yamlData: Record<string, unknown> = {};
   private listeners = new Set<(key: string, value: unknown) => void>();
 
-  constructor(yamlPath = "./config/openclaw.yaml") {
+  constructor(yamlPath = "./config/axiom.yaml") {
     this.yamlPath = yamlPath;
     this.loadAll();
   }
@@ -369,7 +369,7 @@ export class ConfigCenter {
     // Auth Token
     const authToken = this.getString("gateway.auth_token");
     if (!authToken) {
-      results.push({ component: "安全", status: "error", message: "未设置 OPENCLAW_AUTH_TOKEN，所有请求将被拒绝", fix: "设置 OPENCLAW_AUTH_TOKEN 环境变量" });
+      results.push({ component: "安全", status: "error", message: "未设置 AXIOM_AUTH_TOKEN，所有请求将被拒绝", fix: "设置 AXIOM_AUTH_TOKEN 环境变量" });
     } else if (authToken.length < 16) {
       results.push({ component: "安全", status: "warning", message: "API Token 过短，建议至少 16 位", fix: "生成更长的随机 Token" });
     } else {

@@ -20,11 +20,11 @@ const APP_JS_PATH = join(ROOT, "public", "app.js");
 const INDEX_HTML = existsSync(INDEX_HTML_PATH) ? readFileSync(INDEX_HTML_PATH, "utf8") : "";
 const APP_JS = existsSync(APP_JS_PATH) ? readFileSync(APP_JS_PATH, "utf8") : "";
 
-const fixturesMissing = !INDEX_HTML || !APP_JS;
-
 // ---------------------------------------------------------------------------
 // (A) HTML contract — public/index.html
 // ---------------------------------------------------------------------------
+
+const fixturesMissing = !INDEX_HTML || !APP_JS;
 
 describe.skipIf(fixturesMissing)("Home page HTML structure", () => {
   it("ships a #page-home container", () => {

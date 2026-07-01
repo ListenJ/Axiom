@@ -85,7 +85,7 @@ export class SharedBlackboard {
   private redisPub?: RedisClient;
   private redisSub?: RedisClient;
   private redisEnabled = false;
-  private readonly channel = "openclaw:blackboard";
+  private readonly channel = "axiom:blackboard";
 
   constructor(options?: { cleanupIntervalMs?: number; persistent?: boolean; redis?: boolean }) {
     this.cache = new Cache<BlackboardEntry>({

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Moon, Sun, Bell, Shield, Globe, Database, Trash2 } from 'lucide-react'
-import ShimmerCard from '@/components/ui/ShimmerCard'
+import { ShimmerCard, PageHeader, Button } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 import { api } from '@/lib/api'
 
@@ -13,8 +13,8 @@ interface ToggleSetting {
 }
 
 const TOGGLES: ToggleSetting[] = [
-  { id: 'notifications', icon: Bell, label: '通知', desc: '启用桌面通知', storageKey: 'openclaw:notifications' },
-  { id: 'safeMode', icon: Shield, label: '隐私', desc: '本地优先，数据不离开设备', storageKey: 'openclaw:safeMode' },
+  { id: 'notifications', icon: Bell, label: '通知', desc: '启用桌面通知', storageKey: 'axiom:notifications' },
+  { id: 'safeMode', icon: Shield, label: '隐私', desc: '本地优先，数据不离开设备', storageKey: 'axiom:safeMode' },
 ]
 
 function readStored(key: string, fallback: boolean): boolean {
@@ -52,14 +52,11 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 fade-in">
-      <header className="space-y-1">
-        <h1 className="font-display text-2xl tracking-tight text-[var(--text)]">
-          设置
-        </h1>
-        <p className="text-sm text-[var(--text-secondary)]">
-          自定义 OpenClaw 的外观与行为。
-        </p>
-      </header>
+      <PageHeader
+        icon={<SettingsIcon theme={theme} />}
+        title="设置"
+        description="自定义 Axiom 的外观与行为。"
+      />
 
       {/* Appearance Section */}
       <section className="space-y-3">
@@ -69,7 +66,11 @@ export default function Settings() {
         <ShimmerCard variant="accent" padding="md">
           <div className="flex items-center gap-4">
             <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-              {theme === 'dark' ? <Moon className="size-5" /> : <Sun className="size-5 text-[var(--warning)]" />}
+              {theme === 'dark' ? (
+                <Moon className="size-5" />
+              ) : (
+                <Sun className="size-5 text-[var(--warning)]" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
@@ -83,21 +84,17 @@ export default function Settings() {
               className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1"
             >
               {(['dark', 'light'] as const).map((t) => (
-                <button
+                <Button
                   key={t}
-                  type="button"
+                  size="sm"
+                  variant={theme === t ? 'primary' : 'ghost'}
                   onClick={() => setTheme(t)}
-                  className={`press rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                    theme === t
-                      ? 'bg-[var(--accent)] text-white'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
-                  }`}
                   role="radio"
                   aria-checked={theme === t}
                   aria-label={t === 'dark' ? '深色主题' : '浅色主题'}
                 >
                   {t === 'dark' ? '深色' : '浅色'}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -116,9 +113,13 @@ export default function Settings() {
             return (
               <ShimmerCard key={t.id} padding="md">
                 <div className="flex items-center gap-4">
-                  <div className={`flex size-10 items-center justify-center rounded-xl transition-colors ${
-                    isOn ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                  }`}>
+                  <div
+                    className={`flex size-10 items-center justify-center rounded-xl transition-colors ${
+                      isOn
+                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                    }`}
+                  >
                     <Icon className="size-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -137,7 +138,7 @@ export default function Settings() {
                   >
                     <span
                       className={`absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                        isOn ? 'right-0.5' : 'left-0.5'
+                        isOn ? 'translate-x-5' : 'translate-x-0.5'
                       }`}
                     />
                   </button>
@@ -172,26 +173,29 @@ export default function Settings() {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-medium text-[var(--text)]">数据存储</h3>
-                <p className="text-xs text-[var(--text-secondary)]">本地 SQLite + 远程同步</p>
+                <p className="text-xs text-[var(--text-secondary)]">本地存储 + 远程同步</p>
               </div>
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={clearCache}
-                className="press flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                 aria-label="清空 API 缓存"
+                icon={<Trash2 className="size-3.5" />}
               >
-                <Trash2 className="size-3.5" />
                 清空缓存
-              </button>
+              </Button>
             </div>
           </ShimmerCard>
         </div>
       </section>
-
-      <p className="text-2xs text-[var(--text-muted)]">
-        按 <kbd className="rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono">?</kbd> 查看所有快捷键 ·
-        <kbd className="ml-1 rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono">Shift+T</kbd> 切换主题
-      </p>
     </div>
+  )
+}
+
+function SettingsIcon({ theme }: { theme: string }) {
+  return theme === 'dark' ? (
+    <Moon className="size-5" />
+  ) : (
+    <Sun className="size-5" />
   )
 }

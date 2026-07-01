@@ -1,12 +1,12 @@
 /**
- * OpenClaw AI Agent — 主入口 v2.2
- * Vault 核心记忆引擎 + 确定性推理 + Obsidian 共享记忆库
+ * Axiom AI Agent �?主入�?v2.2
+ * Vault 核心记忆引擎 + 确定性推�?+ Obsidian 共享记忆�?
  *
  * 架构升级:
  *   - O(1) 路由引擎 (Trie + 请求缓存 + 性能分析)
- *   - 统一配置中心 (交互式配置管理)
- *   - 架构自检系统 (启动时自动健康检查)
- *   - 黑板系统 (多 Agent 状态共享)
+ *   - 统一配置中心 (交互式配置管�?
+ *   - 架构自检系统 (启动时自动健康检�?
+ *   - 黑板系统 (�?Agent 状态共�?
  *   - 读取优化管道 (分层缓存 + 字段投影)
  */
 import { Database } from "bun:sqlite";
@@ -18,7 +18,7 @@ import { getConfig } from "./utils/config.js";
 import { wsManager } from "./utils/websocket.js";
 import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { HealthMonitor } from "./utils/resilience.js";
-import { validateEnv } from "./utils/env-validation.js";
+import { validateEnv } from "./utils/env.js";
 import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-shutdown.js";
 import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
@@ -31,9 +31,9 @@ import {
 } from "./utils/api-key-persistence.js";
 import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store.js";
 
-// ═══════════════════════════════════════════════════════════════
-// Native Bridge — Rust 高性能核心 (v2.3)
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════�?
+// Native Bridge �?Rust 高性能核心 (v2.3)
+// ══════════════════════════════════════════════════════════════�?
 import {
   initNativeBridge,
   stopNativeBridge,
@@ -48,29 +48,41 @@ const edition = detectEdition();
 logger.info(`[Edition] Detected: ${edition}`);
 
 // 启动 Rust 核心 (sidecar)
-const nativeEnabled = process.env.OPENCLAW_NATIVE !== "false";
+const nativeEnabled = process.env.AXIOM_NATIVE !== "false";
 if (nativeEnabled) {
   const nativeOk = await initNativeBridge({
     edition,
     port: 18790,
-    vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory",
+    vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
     dbPath: process.env.DATABASE_PATH || "./data/agent.db",
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
     enabled: true,
   });
   if (nativeOk) {
-    logger.info("[NativeBridge] Rust core active — search/routing accelerated");
+    logger.info("[NativeBridge] Rust core active �?search/routing accelerated");
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════�?
 // 核心架构组件
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════�?
 import { getConfigCenter } from "./core/config-center.js";
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
 import { getRouterEngine } from "./core/router-engine.js";
 import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
+import { getConsciousness } from "./agents/consciousness/index.js";
+
+// �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+// ��ѧͻ��ģ�� (Math Breakthroughs)
+// �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+import { VIBCompressor } from "./memory/vib-compressor.js";
+import { ConformalRetriever } from "./memory/conformal-retriever.js";
+import { ConformalHallucinationDetector } from "./memory/hallucination-detector.js";
+import { createThompsonRouter } from "./router/thompson-router.js";
+import { RateDistortionCompressor } from "./context/rate-distortion-compressor.js";
+import { ConsensusEngine } from "./agents/consensus-engine.js";
+import { MathEnhancedMemory } from "./memory/math-enhanced-memory.js";
 
 // ===== 统一配置中心 =====
 const configCenter = getConfigCenter();
@@ -85,7 +97,7 @@ if (healthReport.overall === "critical") {
   process.exit(1);
 }
 
-// ===== 读取优化管道初始化 =====
+// ===== 读取优化管道初始�?=====
 initializeReadOptimizers(process.cwd());
 
 // ===== 环境验证 =====
@@ -97,7 +109,7 @@ if (!envValidation.valid) {
   });
 }
 
-// ===== 初始化 =====
+// ===== 初始�?=====
 await Bun.write("./data/.gitkeep", "").catch(() => {});
 await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
 
@@ -106,7 +118,7 @@ const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
 const startupTime = Date.now();
 
-logger.info("OpenClaw AI Agent 启动中", {
+logger.info("Axiom AI Agent 启动�?, {
   version: "2.3.0",
   edition,
   native: isNativeReady(),
@@ -115,7 +127,7 @@ logger.info("OpenClaw AI Agent 启动中", {
   env: process.env.NODE_ENV || "development",
 });
 
-// 系统状态
+// 系统状�?
 db.run(`CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER DEFAULT (unixepoch()))`);
 db.run(`INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)`, ["last_boot", new Date().toISOString()]);
 
@@ -124,7 +136,7 @@ initApiKeyOverridesTable(db);
 const persistedOverrides = loadApiKeyOverrides(db);
 loadApiKeyStoreOverrides(persistedOverrides);
 
-// Vault — 核心记忆引擎
+// Vault �?核心记忆引擎
 let vault: VaultManager | null = null;
 try {
   vault = new VaultManager({ vaultPath: config.memory.vaultPath });
@@ -132,6 +144,26 @@ try {
 } catch (e: unknown) {
   logger.warn("VaultManager init failed", { error: (e as Error).message });
 }
+
+// Math breakthrough modules
+const mathContext = {
+  vibCompressor: new VIBCompressor({ beta: 1.5, capacity: 100 }),
+  conformalRetriever: new ConformalRetriever<unknown>({ alpha: 0.1 }),
+  hallucinationDetector: new ConformalHallucinationDetector({ alpha: 0.05, factBase: [] }),
+  thompsonRouter: createThompsonRouter({ arms: [], minSamples: 5, inMemory: true }),
+  rateDistortionCompressor: new RateDistortionCompressor({ maxDistortion: 0.3, minRate: 0.1 }),
+  consensusEngine: new ConsensusEngine({ agents: [], beta: 0.5, mode: "wma" }),
+  enhancedMemory: null as MathEnhancedMemory | null,
+};
+if (vault) {
+  mathContext.enhancedMemory = new MathEnhancedMemory({
+    vaultPath: config.memory.vaultPath,
+    vibConfig: { beta: 1.5, capacity: 50 },
+    conformalConfig: { alpha: 0.1 },
+    hallucinationConfig: { alpha: 0.05 },
+  });
+}
+logger.info("[MathBreakthroughs] All 6 modules initialized");
 
 // 注册 VaultManager 执行器到 ReadOptimizerFacade
 if (vault) {
@@ -197,6 +229,14 @@ if (vault) {
 try { await import("./cron/scheduler.js"); logger.info("Cron scheduler started"); }
 catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Error).message }); }
 
+// Consciousness (self-reflection module)
+try {
+  await getConsciousness().start({ enabled: process.env.CONSCIOUSNESS_ENABLED !== "false" });
+  logger.info("[Consciousness] started");
+} catch (e: unknown) {
+  logger.warn("[Consciousness] failed to start", { error: (e as Error).message });
+}
+
 // Health Monitor
 const healthMonitor = new HealthMonitor();
 healthMonitor.register({ name: "database", check: async () => { try { db.query("SELECT 1").get(); return true; } catch { return false; } }, interval: 60000 });
@@ -238,18 +278,33 @@ initSceneRouter(pluginToolRegistry);
 logger.info("Plugin market initialized");
 
 import { TIMEOUTS } from "./constants/timeouts.js";
-import { toOpenClawError, createErrorResponse } from "./utils/errors.js";
+import { toAxiomError, createErrorResponse } from "./utils/errors.js";
 
 // WebSocket heartbeat
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 function startHeartbeat(): void {
+  // Phase P1-6: vault?.stats() is replaced with the async-refreshed cache.
+  // The heartbeat must NEVER block the event loop, even briefly �?the
+  // cache runs in its own microtask, the heartbeat tick just reads.
+  void (async () => {
+    const { vaultStatsCache } = await import("./utils/vault-stats-cache.js");
+    if (vault) vaultStatsCache.init(vault);
+  })();
   heartbeatInterval = setInterval(() => {
-    wsManager.broadcast({
-      type: "heartbeat",
-      payload: { uptime: Date.now() - startupTime, clients: wsManager.getStats().connectedClients, vaultNotes: vault?.stats().totalNotes ?? 0 },
-      timestamp: new Date().toISOString(),
-    });
+    void (async () => {
+      const { vaultStatsCache } = await import("./utils/vault-stats-cache.js");
+      const vStats = vaultStatsCache.read();
+      wsManager.broadcast({
+        type: "heartbeat",
+        payload: {
+          uptime: Date.now() - startupTime,
+          clients: wsManager.getStats().connectedClients,
+          vaultNotes: vStats?.totalNotes ?? 0,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    })();
   }, TIMEOUTS.HEARTBEAT_INTERVAL);
 }
 
@@ -261,7 +316,7 @@ function stopHeartbeat(): void {
   }
 }
 
-// ===== 注册 Trie 路由 (启动时一次性注册) =====
+// ===== 注册 Trie 路由 (启动时一次性注�? =====
 const routerEngine = getRouterEngine();
 registerTrieRoutes(routerEngine);
 logger.info("[RouterEngine] Trie routes registered", { count: routerEngine.getRoutes().length });
@@ -316,7 +371,7 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   const safe = pathname.replace(/^\/+/, "");
   if (safe.includes("..") || safe.includes("\\")) return null;
   const ext = safe.includes(".") ? safe.slice(safe.lastIndexOf(".")) : "";
-  if (!STATIC_MIME[ext]) return null; // unknown extension → not a static asset
+  if (!STATIC_MIME[ext]) return null; // unknown extension �?not a static asset
   const filePath = `${STATIC_ROOT}/${safe}`;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
@@ -326,7 +381,7 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   });
 }
 
-const API_KEY = process.env.OPENCLAW_AUTH_TOKEN;
+const API_KEY = process.env.AXIOM_AUTH_TOKEN;
 
 function checkApiKey(req: Request): boolean {
   // Fail-closed: if no server-side auth token is configured, deny ALL requests.
@@ -342,7 +397,7 @@ function checkApiKey(req: Request): boolean {
     const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
     if (publicPaths.includes(url.pathname)) return true;
     if (url.pathname.startsWith("/ws")) return true;
-    logger.warn("Auth check failed: OPENCLAW_AUTH_TOKEN not configured");
+    logger.warn("Auth check failed: AXIOM_AUTH_TOKEN not configured");
     return false;
   }
   const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
@@ -359,7 +414,7 @@ function checkApiKey(req: Request): boolean {
   return auth === API_KEY;
 }
 
-console.log("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
+console.log("[SERVER] Auth relaxed for localhost/127.0.0.1 �?starting...");
 
 const server = Bun.serve({
   port,
@@ -374,15 +429,15 @@ const server = Bun.serve({
 
     // API Key authentication
     if (!checkApiKey(req)) {
-      return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
+      return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
     }
 
-    // WebSocket — verify auth token before upgrade (localhost always allowed for dev)
+    // WebSocket �?verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
       const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
       const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
       if (!isLocal && wsAuth !== API_KEY) {
-        return jsonResponse({ error: "Unauthorized — invalid or missing API key" }, 401, baseHeaders);
+        return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
       }
       const wsData: WebSocketData = { clientId: crypto.randomUUID() };
       const success = server.upgrade(req, { data: wsData } as unknown as Parameters<typeof server.upgrade>[1]);
@@ -420,7 +475,7 @@ const server = Bun.serve({
         response = await routerEngine.execute(ctx);
       }
 
-      // 回退到传统路由系统
+      // 回退到传统路由系�?
       if (!response) {
         response = await dispatch(ctx);
       }
@@ -437,7 +492,7 @@ const server = Bun.serve({
       return response;
     } catch (e) {
       const duration = Math.round(performance.now() - startTime);
-      const error = toOpenClawError(e, `Request failed: ${url.pathname}`);
+      const error = toAxiomError(e, `Request failed: ${url.pathname}`);
       logger.error(error.message, error, { method: req.method, duration, path: url.pathname });
       metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: "500" });
       return jsonResponse(createErrorResponse(error), 500, { ...rl.headers, ...securityHeaders });
@@ -457,6 +512,7 @@ startHeartbeat();
 // ===== Shutdown hooks =====
 registerShutdownHook({ name: "health-monitor", handler: () => healthMonitor.stop(), priority: 100 });
 registerShutdownHook({ name: "file-watcher", handler: () => fileWatcher?.stop(), priority: 80 });
+registerShutdownHook({ name: "consciousness", handler: () => getConsciousness().stop(), priority: 75 });
 registerShutdownHook({ name: "vault", handler: () => vault?.close(), priority: 70 });
 registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50 });
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
@@ -485,14 +541,14 @@ const lanUrl = `http://${lanIp}:${port}`;
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════════════╗
-║     OpenClaw AI Agent v2.3 — Vault 核心记忆引擎运行中               ║
-║  记忆: Obsidian Vault (确定性推理)                                   ║
-║  版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
-║  原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║
-║                                                                      ║
-║  本地访问:  ${localUrl.padEnd(58)} ║
-║  局域网:    ${lanUrl.padEnd(58)} ║
-║  WebSocket: ws://${process.env.HOST || "127.0.0.1"}:${port}/ws${"".padEnd(38)} ║
-║  API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
+�?    Axiom AI Agent v2.3 �?Vault 核心记忆引擎运行�?              �?
+�? 记忆: Obsidian Vault (确定性推�?                                   �?
+�? 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} �?
+�? 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} �?
+�?                                                                     �?
+�? 本地访问:  ${localUrl.padEnd(58)} �?
+�? 局域网:    ${lanUrl.padEnd(58)} �?
+�? WebSocket: ws://${process.env.HOST || "127.0.0.1"}:${port}/ws${"".padEnd(38)} �?
+�? API Key:   ${API_KEY ? "已启�?(x-api-key 鉴权)" : "未设�?(所有请求将被拒�?"}            �?
 ╚══════════════════════════════════════════════════════════════════════╝
 `);

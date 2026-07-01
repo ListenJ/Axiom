@@ -24,7 +24,7 @@ interface PiAgentTool {
 /**
  * Pi Agent 工具适配器
  *
- * 将 Pi Agent 的本地工具（read, grep, find, ls）暴露给 OpenClaw 使用。
+ * 将 Pi Agent 的本地工具（read, grep, find, ls）暴露给 Axiom 使用。
  * 这些工具在本地执行，不消耗 LLM token。
  *
  * 采用动态 import 加载 vendor 工具，避免编译时追踪 vendor 目录。

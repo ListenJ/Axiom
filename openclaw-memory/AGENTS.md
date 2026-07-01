@@ -27,7 +27,7 @@ version: 2.1
 ### Vault 作为唯一真理来源
 
 ```
-openclaw-memory/           ← 所有 Agent 共享此目录
+axiom-memory/           ← 所有 Agent 共享此目录
 ├── 00-Meta/               ← 元数据（人格、规则、身份）
 │   ├── SOUL.md            ← 所有 Agent 共享同一人格
 │   ├── AGENTS.md          ← 本文件

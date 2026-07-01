@@ -1,8 +1,8 @@
-# OpenClaw Architecture Evolution v2.3
+# Axiom Architecture Evolution v2.3
 
 ## Overview
 
-OpenClaw v2.2 已完成基础设施层、AI编排层、存储引擎层的全面重构。v2.3 将聚焦三大方向：**平台适配扩展**、**生态系统开放**、**工具能力增强**。
+Axiom v2.2 已完成基础设施层、AI编排层、存储引擎层的全面重构。v2.3 将聚焦三大方向：**平台适配扩展**、**生态系统开放**、**工具能力增强**。
 
 本文档定义从 v2.2 到 v2.5 的架构演进路线。
 
@@ -12,7 +12,7 @@ OpenClaw v2.2 已完成基础设施层、AI编排层、存储引擎层的全面�
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OpenClaw v2.2 Architecture               │
+│                    Axiom v2.2 Architecture               │
 ├─────────────────────────────────────────────────────────────┤
 │  HTTP API (18789)  │  WebSocket (/ws)  │  MCP Server (3001) │
 ├────────────────────┴───────────────────┴────────────────────┤
@@ -47,7 +47,7 @@ OpenClaw v2.2 已完成基础设施层、AI编排层、存储引擎层的全面�
 **Status**: ✅ Implemented
 **Priority**: P0
 
-**动机**: OpenClaw 目前仅支持 Windows (COM) 和 macOS (AppleScript) 的 Office 自动化。Linux 桌面用户（特别是 Ubuntu/Debian 开发者）需要完整的文档处理能力。
+**动机**: Axiom 目前仅支持 Windows (COM) 和 macOS (AppleScript) 的 Office 自动化。Linux 桌面用户（特别是 Ubuntu/Debian 开发者）需要完整的文档处理能力。
 
 **实现**:
 - **原生层**: LibreOffice 命令行转换 (`libreoffice --headless --convert-to`)
@@ -96,33 +96,22 @@ OpenClaw v2.2 已完成基础设施层、AI编排层、存储引擎层的全面�
 ### Phase 2: Ecosystem Integration (Q2 2026)
 
 #### 2.1 GitHub MCP Server Integration
-**Status**: 🔄 Research Complete, Pending Implementation
+**Status**: ✅ Implemented (v2.4.0)
 **Priority**: P0
 
 **动机**: GitHub MCP Server (30K⭐) 是开发者工作流的核心。集成后可实现：代码仓库管理、Issue/PR 自动化、代码审查、发布管理。
 
-**功能规划**:
-- **Repository Management**: create_repo, fork_repo, list_repos
-- **Issue/PR**: create_issue, list_issues, create_pr, review_pr
-- **Code Review**: get_file_contents, create_review_comment
-- **Release**: create_release, list_releases
-- **Actions**: trigger_workflow, get_workflow_status
-
-**技术方案**:
-```typescript
-// src/mcp/tools/github.ts
-export class GitHubMCPTool {
-  private octokit: Octokit;
-  
-  async createIssue(args: { repo: string; title: string; body?: string; labels?: string[] }): Promise<GitHubIssueResult>;
-  async createPR(args: { repo: string; title: string; head: string; base: string; body?: string }): Promise<GitHubPRResult>;
-  async reviewPR(args: { repo: string; pr: number; event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'; body?: string }): Promise<void>;
-}
-```
+**已实现功能** (22 个 MCP 工具):
+- **Repository Management**: `github_list_repos`, `github_get_repo`, `github_create_repo`, `github_fork_repo`
+- **Issue**: `github_list_issues`, `github_get_issue`, `github_create_issue`, `github_add_issue_comment`
+- **Pull Request**: `github_list_prs`, `github_create_pr`, `github_review_pr`, `github_get_pr_files`
+- **Code**: `github_get_file_contents`, `github_list_directory`, `github_search_code`
+- **Release**: `github_list_releases`, `github_create_release`
+- **Actions**: `github_list_workflows`, `github_trigger_workflow`, `github_list_workflow_runs`, `github_get_workflow_run`
+- **Health**: `github_health`
 
 **配置**:
 - `GITHUB_TOKEN` - Personal Access Token (classic) 或 Fine-grained Token
-- `GITHUB_ENTERPRISE_URL` - 企业版 GitHub 地址（可选）
 
 #### 2.2 Ollama Integration (Postponed)
 **Status**: ⏸️ Postponed per user request
@@ -183,6 +172,41 @@ export class GitHubMCPTool {
 - **React/Vue Migration**: 现代化前端框架
 - **Plugin Market UI**: 可视化插件管理
 - **Knowledge Graph Viz**: 代码知识图谱可视化
+
+#### 3.4 Arena Leaderboard Collector (新增)
+**Status**: ✅ Implemented (v2.5.0)
+**Priority**: P0
+
+**动机**: 基于 Chapter 3 研究文档，实现确定性竞技场榜单数据采集，消除评估幻觉。
+
+**已实现功能** (8 个 MCP 工具):
+- **数据采集**: `arena_collect` — 支持 LMSYS Arena、OpenCompass、HuggingFace、LLM Stats
+- **搜索**: `arena_search_models` — FTS5 BM25 确定性检索
+- **查询**: `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`
+- **推荐**: `arena_role_recommendation` — 确定性矩阵乘法匹配
+- **元数据**: `arena_stats`, `arena_sources`
+
+**核心特性**:
+- JSON Schema 验证，每条数据必填 source_url
+- SQLite FTS5 存储，BM25 确定性检索
+- 数据新鲜度管理 (FRESH/STALE/UNAVAILABLE)
+
+#### 3.5 User Agent Prompt Connection Pool (新增)
+**Status**: ✅ Implemented (v2.5.0)
+**Priority**: P0
+
+**动机**: 基于 Chapter 5 研究文档，实现 System Prompt Only Caching，降低 41-80% 成本。
+
+**已实现功能** (6 个 MCP 工具):
+- **获取**: `prompt_pool_acquire` — 从连接池获取缓存友好提示词
+- **监控**: `prompt_pool_metrics`, `prompt_pool_status`
+- **管理**: `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict`
+
+**核心特性**:
+- 8 核心角色系统提示词预构建与池化
+- XXH3 增量哈希前缀指纹
+- 混合 LRU/LFU/TTL 淘汰策略
+- 缓存预热与监控指标
 - **Settings Panel**: 可视化配置管理
 
 ---
@@ -191,7 +215,7 @@ export class GitHubMCPTool {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OpenClaw v2.5 Vision                      │
+│                    Axiom v2.5 Vision                      │
 ├─────────────────────────────────────────────────────────────┤
 │  Web UI (React)  │  Desktop (Tauri)  │  CLI  │  API        │
 ├──────────────────┴───────────────────┴───────┴─────────────┤
@@ -241,7 +265,9 @@ export class GitHubMCPTool {
 | Linux Office Adapter | P0 | ✅ Done | Medium | High |
 | MiniMax MCP | P0 | ✅ Done | Low | Medium |
 | Plugin Market | P0 | ✅ Done | High | High |
-| GitHub MCP Server | P0 | 🔄 Planned | Medium | High |
+| GitHub MCP Server | P0 | ✅ Done (v2.4.0) | Medium | High |
+| Arena Leaderboard Collector | P0 | ✅ Done (v2.5.0) | High | High |
+| Prompt Connection Pool | P0 | ✅ Done (v2.5.0) | Medium | High |
 | CodeGraph Enhancement | P1 | 🔄 Partial | Medium | High |
 | Multi-Agent Orchestration | P1 | 🔄 Partial | High | High |
 | Ollama | P1 | ⏸️ Postponed | Low | Medium |
@@ -299,11 +325,20 @@ export class GitHubMCPTool {
 
 ## Conclusion
 
-OpenClaw v2.3 已完成 Linux 适配器、MiniMax MCP、插件市场三大核心功能。下一阶段将重点实现 GitHub MCP Server 集成，并持续优化多 Agent 编排和知识图谱能力。
+Axiom v2.5.3 已完成以下核心功能：
 
-项目已达到生产就绪状态（Build ✅, TypeScript ✅, Tests 98.5% ✅）。
+- ✅ Linux 适配器、MiniMax MCP、插件市场 (v2.2.0)
+- ✅ GitHub MCP Server 集成 (v2.4.0) — 22 个工具
+- ✅ 竞技场榜单采集器 (v2.5.0) — 8 个工具，确定性评估
+- ✅ Prompt 连接池 (v2.5.0) — 6 个工具，缓存优化
+- ✅ 代码质量改进 (v2.5.1-v2.5.3) — 消除重复，统一错误处理
+
+**当前状态**: 113 个 MCP 工具，生产就绪。
+
+**下一阶段**: 多 Agent 编排统一、知识图谱增强、前端现代化。
 
 ---
 
-*Last Updated: 2026-06-03*
+*Last Updated: 2026-06-26*
+*Version: v2.5.3*
 *Version: v2.3.0*

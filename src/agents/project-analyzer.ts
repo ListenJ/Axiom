@@ -14,7 +14,7 @@
 import { readdirSync, statSync, readFileSync, existsSync } from "fs";
 import { join, extname, relative, basename } from "path";
 import { logger } from "../utils/logger.js";
-import { proxyFetch } from "../utils/proxy-fetch.js";
+import { internalAgent } from "./internal-agent.js";
 import { buildKnowledgeGraph, type KGBuildResult } from "../memory/knowledge-graph-builder.js";
 import { syncCodeGraphToPG } from "../db/codegraph-sync.js";
 import { buildContext, getStatus, isCodegraphInitialized } from "../memory/codegraph-index.js";
@@ -863,70 +863,42 @@ export function generateAnalysisPrompt(
   return sections.join("\n");
 }
 
-// ========== Hermes / OpenRouter 分析执行 ==========
+// ========== 模型调用 ==========
 
 /**
- * 调用 Hermes CLI 或 OpenRouter API 进行深度分析
+ * 通过 model-router 进行深度项目分析
+ *
+ * 走 InternalAgent → model-router.execute，按 `architecture` role 分派，
+ * 享受重试、降级、超时、token 追踪。
+ * 失败时回退到 Hermes CLI 进程（保持原行为）。
  */
 export async function runHermesAnalysis(
   prompt: string,
   depth: string = "standard",
 ): Promise<{ content: string; model: string }> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const maxTokens = depth === "quick" ? 2048 : depth === "deep" ? 8192 : 4096;
+  const timeout = depth === "quick" ? 30000 : depth === "deep" ? 180000 : 90000;
 
-  // 优先使用 OpenRouter API (更可靠)
-  if (apiKey) {
-    const modelMap: Record<string, string> = {
-      quick: "nousresearch/hermes-3-llama-3.1-405b:free",
-      standard: "nousresearch/hermes-3-llama-3.1-405b:free",
-      deep: "nousresearch/hermes-3-llama-3.1-405b:free",
-    };
-    const model = modelMap[depth] || modelMap.standard;
-    const maxTokens = depth === "quick" ? 2048 : depth === "deep" ? 8192 : 4096;
-    const timeout = depth === "quick" ? 30000 : depth === "deep" ? 180000 : 90000;
+  logger.info("[ProjectAnalyzer] Calling model via router", { depth });
 
-    logger.info("[ProjectAnalyzer] Calling OpenRouter API", { model, depth });
-
-    try {
-      const res = await proxyFetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://openclaw.ai",
-          "X-Title": "OpenClaw Agent - Project Analyzer",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "system",
-              content: `You are a senior software architect performing automated project analysis.
+  try {
+    const result = await internalAgent.executeWithRole("architecture", [
+      {
+        role: "system",
+        content: `You are a senior software architect performing automated project analysis.
 You analyze codebases to understand architecture, identify patterns, and provide actionable recommendations.
 Always be specific and cite actual code elements when possible.
 Respond in Chinese (中文) unless the project is entirely in another language.`,
-            },
-            { role: "user", content: prompt },
-          ],
-          max_tokens: maxTokens,
-          temperature: 0.3,
-        }),
-        timeout,
-      });
+      },
+      { role: "user", content: prompt },
+    ], { maxTokens, temperature: 0.3, timeout, trackAs: "project-analyzer" });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`OpenRouter API error: ${res.status} ${errText.slice(0, 200)}`);
-      }
-
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content || "[No response from model]";
-      return { content, model };
-    } catch (err) {
-      logger.warn("[ProjectAnalyzer] OpenRouter API failed, falling back to Hermes CLI", {
-        error: (err as Error).message,
-      });
-    }
+    const content = result.content || "[No response from model]";
+    return { content, model: result.model || "router" };
+  } catch (err) {
+    logger.warn("[ProjectAnalyzer] model-router failed, falling back to Hermes CLI", {
+      error: (err as Error).message,
+    });
   }
 
   // Fallback: Hermes CLI

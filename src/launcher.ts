@@ -1,5 +1,5 @@
 /**
- * OpenClaw Unified Launcher
+ * Axiom Unified Launcher
  * 
  * Usage:
  *   bun run src/launcher.ts [mode] [options]
@@ -65,7 +65,7 @@ class ProcessManager {
     
     const proc = spawn(cmd, args, {
       stdio: "inherit",
-      env: { ...process.env, OPENCLAW_MODE: name },
+      env: { ...process.env, AXIOM_MODE: name },
     });
 
     this.processes.set(name, proc);
@@ -173,7 +173,7 @@ class HookPreloader {
       // Load unified search module
       const { unifiedSearch } = await import("./crawl/unified-search.js");
       // Preload with a test query to initialize caches
-      await unifiedSearch.quickSearch("openclaw test", 1);
+      await unifiedSearch.quickSearch("axiom test", 1);
       Log.success("Unified search warmed up");
     } catch (err) {
       Log.warn(`Enhanced search warmup skipped: ${err}`);
@@ -338,7 +338,7 @@ async function statusMode(): Promise<void> {
 
 function showHelp(): void {
   console.log(`
-  \x1b[1mOpenClaw Launcher\x1b[0m - Unified terminal entry point
+  \x1b[1mAxiom Launcher\x1b[0m - Unified terminal entry point
 
   \x1b[36mUsage:\x1b[0m
     bun run src/launcher.ts <mode> [options]

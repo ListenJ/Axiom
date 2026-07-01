@@ -17,8 +17,8 @@ interface BackupOptions {
 }
 
 const DEFAULT_OPTIONS: BackupOptions = {
-  sourceDb: process.env.DATABASE_URL?.replace("sqlite:", "") || "./data/openclaw.db",
-  sourceVault: process.env.VAULT_PATH || "./openclaw-memory",
+  sourceDb: process.env.DATABASE_URL?.replace("sqlite:", "") || "./data/axiom.db",
+  sourceVault: process.env.VAULT_PATH || "./axiom-memory",
   backupDir: process.env.BACKUP_DIR || "./backups",
   keepBackups: parseInt(process.env.KEEP_BACKUPS || "7", 10),
   compress: process.env.COMPRESS_BACKUPS !== "false",
@@ -179,7 +179,7 @@ if (command === "create") {
   listBackups(DEFAULT_OPTIONS.backupDir).then(() => process.exit(0));
 } else if (command === "help") {
   console.log(`
-OpenClaw Backup Tool
+Axiom Backup Tool
 
 Usage: bun run scripts/backup.ts [command]
 
@@ -189,8 +189,8 @@ Commands:
   help      Show this help message
 
 Environment Variables:
-  DATABASE_URL      Database file path (default: ./data/openclaw.db)
-  VAULT_PATH        Vault directory path (default: ./openclaw-memory)
+  DATABASE_URL      Database file path (default: ./data/axiom.db)
+  VAULT_PATH        Vault directory path (default: ./axiom-memory)
   BACKUP_DIR        Backup destination (default: ./backups)
   KEEP_BACKUPS      Number of backups to keep (default: 7)
   COMPRESS_BACKUPS  Enable compression (default: true)

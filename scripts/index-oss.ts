@@ -19,7 +19,7 @@ async function main() {
           ["Requests", "fd", "Flask", "etcd", "RocksDB", "Astro"].includes(p.name)
         );
 
-  const vaultRoot = "./openclaw-memory";
+  const vaultRoot = "./axiom-memory";
   const results: { name: string; status: "ok" | "fail"; files: number; error?: string }[] = [];
 
   for (const proj of projects) {

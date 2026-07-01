@@ -12,6 +12,17 @@
  *
  * 服务地址: https://api.kimi.com/coding/v1 (OpenAI 兼容)
  * 模型 ID:  kimi-for-coding
+ *
+ * 关于"是否走 model-router":
+ *   此处的调用故意保留为直接 `proxyFetch`，原因：
+ *     - Kimi Code 走独立端点 `https://api.kimi.com/coding/v1` 与专属 env `KIMI_CODE_API_KEY`，
+ *       与 `src/router/models.ts` 中注册的 `kimi` provider（端点 `https://api.moonshot.cn/v1`、
+ *       env `KIMI_API_KEY`、model id `kimi-k2.6 / kimi-k2.5 / kimi-latest`）不同。
+ *     - `kimi-for-coding` 不是通用 LLM chat 入口；它是 Kimi 会员专享的编程服务，
+ *       行为类似 MiniMax MCP 工具、SerpAPI、Lightpanda 等"特定外部工具 API"。
+ *   按任务约束 `MUST NOT touch` 中"specific external tool API"的例外条款，
+ *   此类调用维持直接通道；其它通用 chat 路径（hermes-agent / project-analyzer /
+ *   kg-research / judge / computer-use）已统一走 InternalAgent → model-router。
  */
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { spawn } from "bun";

@@ -18,7 +18,7 @@ import { initPgSchema, isPgAvailable, getPG, closePg } from "./pg-client.js";
 import { logger } from "../utils/logger.js";
 
 async function main() {
-  console.log("OpenClaw PostgreSQL Initialization");
+  console.log("Axiom PostgreSQL Initialization");
   console.log("====================================\n");
 
   // Step 1: 检查连接
@@ -28,7 +28,7 @@ async function main() {
     console.error("ERROR: PostgreSQL is not available.");
     console.error("Make sure PostgreSQL is running and DATABASE_URL is set correctly.");
     console.error("\nFor Docker: docker-compose up postgres -d");
-    console.error("For local:  Set DATABASE_URL=postgresql://user:pass@localhost:5432/openclaw");
+    console.error("For local:  Set DATABASE_URL=postgresql://user:pass@localhost:5432/axiom");
     process.exit(1);
   }
   console.log("  ✓ PostgreSQL connected\n");

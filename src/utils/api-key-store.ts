@@ -13,7 +13,7 @@
  *
  * 安全说明:
  *   - 不写入 .env
- *   - 前端请求需携带有效的 x-api-key（OPENCLAW_AUTH_TOKEN）
+ *   - 前端请求需携带有效的 x-api-key（AXIOM_AUTH_TOKEN）
  */
 
 import { logger } from "./logger.js";

@@ -7,6 +7,40 @@
 
 // ─── Self State ────────────────────────────────────────────────────────────
 
+/** A belief about the world — confidence-weighted proposition. */
+export interface Belief {
+  /** Unique belief identifier. */
+  id: string;
+  /** Proposition content (e.g. "User is debugging a Git conflict"). */
+  proposition: string;
+  /** Confidence in this belief (0-1). */
+  confidence: number;
+  /** Evidence supporting this belief. */
+  supportingEvidence: string[];
+  /** Evidence contradicting this belief. */
+  contradictingEvidence: string[];
+  /** When this belief was first formed. */
+  formedAt: number;
+  /** When this belief was last updated. */
+  updatedAt: number;
+  /** Belief status. */
+  status: "active" | "weakened" | "strengthened" | "retracted";
+}
+
+/** Mental dimension of world state — what the agent thinks, wants, and believes. */
+export interface MentalState {
+  /** Current intent (what the agent is trying to do right now). */
+  currentIntent: string;
+  /** Active goals (what the agent wants to achieve). */
+  goals: Array<{ id: string; description: string; priority: number; status: "active" | "achieved" | "abandoned" }>;
+  /** Active beliefs about the world. */
+  beliefs: Belief[];
+  /** Hypotheses being tested. */
+  activeHypotheses: string[];
+  /** Current mood (from reflection). */
+  mood: string;
+}
+
 /** Mutable self-state the consciousness loop reads/writes via the Blackboard. */
 export interface SelfState {
   /** Last time the agent received user input (epoch ms). */
@@ -25,6 +59,8 @@ export interface SelfState {
   mood: string;
   /** Free-form 1-sentence goal, refreshed each reflection. */
   nextGoal: string;
+  /** Mental state — beliefs, goals, intent (v2.9.1 cognitive enhancement). */
+  mental: MentalState;
 }
 
 /** Fresh / default self-state. */
@@ -37,6 +73,13 @@ export const EMPTY_SELF_STATE: SelfState = {
   recentInsights: [],
   mood: "neutral",
   nextGoal: "Observe system and wait for first user signal.",
+  mental: {
+    currentIntent: "observe",
+    goals: [],
+    beliefs: [],
+    activeHypotheses: [],
+    mood: "neutral",
+  },
 };
 
 // ─── Triggers ─────────────────────────────────────────────────────────────
@@ -46,18 +89,7 @@ export type ReflectionTrigger =
   | { kind: "schedule"; cron: string }
   | { kind: "token-budget"; tokensUsed: number; budget: number }
   | { kind: "manual"; reason?: string }
-  | { kind: "blackboard-signal"; key: string }
-  | { kind: "trace-anomaly"; anomaly: TraceAnomaly };
-
-/** Deterministic anomaly detected in reasoning trace (ported from DRE). */
-export interface TraceAnomaly {
-  /** "consecutive-failures" | "output-inconsistency" | "confidence-variance" */
-  type: string;
-  /** Severity score 0-1 */
-  severity: number;
-  /** Human-readable description */
-  description: string;
-}
+  | { kind: "blackboard-signal"; key: string };
 
 export interface TriggerConfig {
   /** Trigger when no user activity for this many ms. */

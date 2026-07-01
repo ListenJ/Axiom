@@ -56,7 +56,7 @@ export class CodeIndexer {
     const defaultPatterns = allLangs.map((ext) => `**/*${ext}`);
     this.opts = {
       sourceRoot: opts.sourceRoot || "./src",
-      vaultRoot: opts.vaultRoot || "./openclaw-memory",
+      vaultRoot: opts.vaultRoot || "./axiom-memory",
       vaultOutputDir: opts.vaultOutputDir || "03-Resources/code-index",
       includePatterns: opts.includePatterns || defaultPatterns,
       excludePatterns: opts.excludePatterns || ["node_modules", "dist", ".git", "__pycache__", ".venv", "vendor", "target", "build", "*.min.js", "*.test.*", "*_test.*"],

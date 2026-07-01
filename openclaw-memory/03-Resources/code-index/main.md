@@ -37,7 +37,7 @@ imports: ["bun:sqlite", "memory-vault-manager.js", "crawl-data-pipeline.js", "cr
 
 ```typescript
 /**
- * OpenClaw AI Agent — 主入口 v2.1
+ * Axiom AI Agent — 主入口 v2.1
  * Vault 核心记忆引擎 + 确定性推理 + Obsidian 共享记忆库
  */
 import { Database } from "bun:sqlite";
@@ -62,7 +62,7 @@ const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
 const startupTime = Date.now();
 
-logger.info("OpenClaw AI Agent 启动中", {
+logger.info("Axiom AI Agent 启动中", {
   version: "2.1.0",
   node: process.version,
   bun: Bun.version,
@@ -405,7 +405,7 @@ const server = Bun.serve({
       // === Default ===
       else {
         response = jsonResponse({
-          name: "OpenClaw AI Agent", version: "2.1.0",
+          name: "Axiom AI Agent", version: "2.1.0",
           uptime: Math.floor((Date.now() - startupTime) / 1000),
           endpoints: [
             "GET  /                        — Dashboard",
@@ -460,7 +460,7 @@ logger.info("Server started", { port, url: `http://localhost:${port}` });
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║     OpenClaw AI Agent v2.1 — Vault 核心记忆引擎运行中       ║
+║     Axiom AI Agent v2.1 — Vault 核心记忆引擎运行中       ║
 ║  记忆: Obsidian Vault (确定性推理)                           ║
 ║  Dashboard: http://localhost:${port}/                          ║
 ║  WebSocket: ws://localhost:${port}/ws                          ║

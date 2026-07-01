@@ -8,13 +8,27 @@
  *   - 每日配额: 有限制，超过后返回 429
  *
  * 策略:
- *   1. Token Bucket 限流（每分钟请求数限制）
+ *   1. 每模型独立 RateLimitedSemaphore (concurrency + RPM 双闸门, O(1))
  *   2. 健康检查（连续失败自动降级）
- *   3. Round-robin 负载均衡（同角色多模型轮询）
+ *   3. 评分选择（成功率 × 空闲率 × RPM余量）
  *   4. 熔断器（连续失败 N 次后暂停使用）
+ *
+ * Phase B.2b migration notes:
+ *   - Replaced manual `activeRequests` counter + `lastMinuteRequests[]`
+ *     sliding window with a per-model `RateLimitedSemaphore` (one per
+ *     model in TOOL_MODEL_REGISTRY). All O(1) admission checks, no
+ *     filter() scanning on every query.
+ *   - `markRequestStart/Success/Failure` use the semaphore's sync
+ *     `tryAcquire/tryRelease` so the public API stays synchronous —
+ *     callers in this codebase fire-and-forget these calls without
+ *     awaiting. `tryAcquire` returning false (model at capacity) now
+ *     surfaces as `droppedStarts` in getStats(), which the old code
+ *     silently ignored by blindly incrementing.
+ *   - Circuit breaker, latency history, totals — all unchanged.
  */
 import { logger } from "../utils/logger.js";
 import { listFreeModels, type TaskRole } from "./models.js";
+import { RateLimitedSemaphore } from "../utils/concurrency/rate-limited-semaphore.js";
 
 export interface ToolModel {
   id: string;                 // 模型完整 ID，如 "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
@@ -58,39 +72,41 @@ function buildToolRegistry(): ToolModel[] {
 /** 免费工具模型注册表 — 从统一注册表生成 */
 const TOOL_MODEL_REGISTRY: ToolModel[] = buildToolRegistry();
 
-/** 单个模型的运行时状态 */
+/** Per-model runtime state — everything except concurrency/RPM, which now lives in the semaphore. */
 interface ModelRuntimeState {
-  lastMinuteRequests: number[];   // 时间戳数组，最近一分钟的请求
-  activeRequests: number;         // 当前活跃请求数
-  consecutiveFailures: number;    // 连续失败次数
-  circuitOpen: boolean;           // 熔断器是否打开
-  circuitOpenUntil: number;       // 熔断器恢复时间
-  totalCalls: number;             // 总调用次数
-  totalFailures: number;          // 总失败次数
-  latencyHistory: number[];       // 最近10次响应延迟(ms)
-  lastSuccessAt: number;          // 上次成功时间戳
+  /** Rolling-window RPM semaphore. Owns active concurrency + rate limit state. */
+  sem: RateLimitedSemaphore;
+  consecutiveFailures: number;
+  circuitOpen: boolean;
+  circuitOpenUntil: number;
+  totalCalls: number;
+  totalFailures: number;
+  /** Number of markRequestStart calls that were dropped because the semaphore was full. */
+  droppedStarts: number;
+  latencyHistory: number[];
+  lastSuccessAt: number;
 }
 
 export class ToolModelPool {
   private states = new Map<string, ModelRuntimeState>();
-  private roleIndex = new Map<ToolRole, number>(); // round-robin 索引
 
   constructor() {
     for (const m of TOOL_MODEL_REGISTRY) {
       this.states.set(m.id, {
-        lastMinuteRequests: [],
-        activeRequests: 0,
+        sem: new RateLimitedSemaphore({
+          permits: m.concurrentLimit,
+          rpm: m.rpmLimit,
+          windowMs: 60_000,
+        }),
         consecutiveFailures: 0,
         circuitOpen: false,
         circuitOpenUntil: 0,
         totalCalls: 0,
         totalFailures: 0,
+        droppedStarts: 0,
         latencyHistory: [],
         lastSuccessAt: 0,
       });
-      if (!this.roleIndex.has(m.role)) {
-        this.roleIndex.set(m.role, 0);
-      }
     }
   }
 
@@ -109,14 +125,10 @@ export class ToolModelPool {
         state.consecutiveFailures = 0;
       }
 
-      // 清理过期的请求记录（超过1分钟）
-      state.lastMinuteRequests = state.lastMinuteRequests.filter((t) => now - t < 60000);
-
-      // 检查 RPM 限制
-      if (state.lastMinuteRequests.length >= m.rpmLimit) return false;
-
-      // 检查并发限制
-      if (state.activeRequests >= m.concurrentLimit) return false;
+      // Concurrency check (O(1) via semaphore)
+      if (state.sem.active >= state.sem.permits) return false;
+      // RPM check (O(1) via ring buffer)
+      if (state.sem.availableRpm <= 0) return false;
 
       return true;
     });
@@ -157,10 +169,10 @@ export class ToolModelPool {
         : 1;
 
       // 空闲率：当前并发越少越好
-      const idleRatio = 1 - state.activeRequests / m.concurrentLimit;
+      const idleRatio = 1 - state.sem.active / state.sem.permits;
 
       // RPM余量：剩余速率限制越多越好
-      const rpmRatio = 1 - state.lastMinuteRequests.length / m.rpmLimit;
+      const rpmRatio = state.sem.availableRpm / state.sem.rpm;
 
       // 简单延迟惩罚：平均延迟>5秒则扣分
       const avgLatency = state.latencyHistory.length > 0
@@ -193,12 +205,17 @@ export class ToolModelPool {
     return null;
   }
 
-  /** 标记请求开始 */
+  /**
+   * 标记请求开始. 如果模型当前已满（concurrency 或 RPM 都满），
+   * tryAcquire 返回 false，droppedStarts++ 让运维可以监控。
+   */
   markRequestStart(modelId: string): void {
     const state = this.states.get(modelId);
     if (!state) return;
-    state.activeRequests++;
-    state.lastMinuteRequests.push(Date.now());
+    if (!state.sem.tryAcquire()) {
+      state.droppedStarts++;
+      return;
+    }
     state.totalCalls++;
   }
 
@@ -206,7 +223,7 @@ export class ToolModelPool {
   markRequestSuccess(modelId: string, latencyMs?: number): void {
     const state = this.states.get(modelId);
     if (!state) return;
-    state.activeRequests = Math.max(0, state.activeRequests - 1);
+    state.sem.tryRelease();
     state.consecutiveFailures = 0;
     state.lastSuccessAt = Date.now();
     if (latencyMs !== undefined && latencyMs > 0) {
@@ -229,7 +246,7 @@ export class ToolModelPool {
   markRequestFailure(modelId: string, error?: string): void {
     const state = this.states.get(modelId);
     if (!state) return;
-    state.activeRequests = Math.max(0, state.activeRequests - 1);
+    state.sem.tryRelease();
     state.consecutiveFailures++;
     state.totalFailures++;
 
@@ -254,9 +271,10 @@ export class ToolModelPool {
         : 0;
       stats[m.id] = {
         role: m.role,
-        activeRequests: state.activeRequests,
-        rpmThisMinute: state.lastMinuteRequests.filter((t) => Date.now() - t < 60000).length,
+        activeRequests: state.sem.active,
+        rpmThisMinute: state.sem.currentRpm,
         rpmLimit: m.rpmLimit,
+        droppedStarts: state.droppedStarts,
         consecutiveFailures: state.consecutiveFailures,
         circuitOpen: state.circuitOpen,
         totalCalls: state.totalCalls,
@@ -289,8 +307,8 @@ export class ToolModelPool {
       const state = this.states.get(m.id)!;
       totalSuccess += state.totalCalls - state.totalFailures;
       totalCalls += state.totalCalls;
-      totalActive += state.activeRequests;
-      totalRpmHeadroom += Math.max(0, m.rpmLimit - state.lastMinuteRequests.filter((t) => Date.now() - t < 60000).length);
+      totalActive += state.sem.active;
+      totalRpmHeadroom += state.sem.availableRpm;
 
       if (state.latencyHistory.length > 0) {
         totalLatency += state.latencyHistory.reduce((a, b) => a + b, 0);
@@ -301,7 +319,7 @@ export class ToolModelPool {
         roleHealth[m.role] = { available: 0, total: 0, successRate: 0, avgLatency: 0 };
       }
       roleHealth[m.role].total++;
-      if (!state.circuitOpen && state.activeRequests < m.concurrentLimit) {
+      if (!state.circuitOpen && state.sem.active < state.sem.permits && state.sem.availableRpm > 0) {
         roleHealth[m.role].available++;
       }
     }
@@ -328,7 +346,7 @@ export class ToolModelPool {
 
     return {
       overallSuccessRate: totalCalls > 0 ? totalSuccess / totalCalls : 1,
-      overallAvgLatency: latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0,
+      overallAvgLatency: totalCalls > 0 ? Math.round(totalLatency / latencyCount) : 0,
       totalActiveRequests: totalActive,
       totalRpmHeadroom: totalRpmHeadroom,
       roleHealth: roleHealth as Record<ToolRole, { available: number; total: number; successRate: number; avgLatency: number }>,

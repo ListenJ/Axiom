@@ -32,7 +32,7 @@ export class MemoryArchiver {
   private archivePath: string;
 
   constructor(vaultPath?: string) {
-    this.vaultPath = vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+    this.vaultPath = vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
     this.archivePath = path.join(this.vaultPath, "05-Archives");
   }
 

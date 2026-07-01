@@ -1,0 +1,94 @@
+# Axiom AI Agent 主配置 v2.1
+# 注意：所有 API Key 通过环境变量注入，本文件不包含任何密钥
+
+gateway:
+  port: 18789
+  bind: "127.0.0.1"
+  auth:
+    token: "${AXIOM_AUTH_TOKEN}"
+
+# 模型配置 — 四层路由
+# 优先级：OfoxAI免费 > 硅基流动免费 > 付费主力 > OpenRouter兜底
+models:
+  # Tier 1: OfoxAI 免费层
+  - name: "ofox-free-glm"
+    provider: "ofoxai"
+    model: "z-ai/glm-4.7-flash:free"
+    baseUrl: "https://api.ofox.ai/v1"
+    apiKey: "${OFOXAI_API_KEY}"
+    tier: 1
+    purpose: ["general-chat", "code-generation", "complex-reasoning"]
+    priority: 10
+    freeOnly: true
+
+  # Tier 1: OpenCode 免费模型（编码专用）
+  - name: "opencode-free-flash"
+    provider: "opencode"
+    model: "opencode/deepseek-v4-flash-free"
+    baseUrl: "https://api.opencode.ai/v1"
+    apiKey: "${OPENCODE_API_KEY}"
+    tier: 1
+    purpose: ["code-generation", "coding"]
+    priority: 10
+    freeOnly: true
+
+  # Tier 1: 硅基流动免费模型
+  - name: "sf-qwen2-7b"
+    provider: "siliconflow"
+    model: "Qwen/Qwen2-7B-Instruct"
+    baseUrl: "https://api.siliconflow.cn/v1"
+    apiKey: "${SILICONFLOW_API_KEY}"
+    tier: 1
+    purpose: ["tool_call", "classification", "embedding"]
+    priority: 9
+
+  # Tier 2: 付费主力模型
+  - name: "ds-chat"
+    provider: "deepseek"
+    model: "deepseek-chat"
+    baseUrl: "https://api.deepseek.com/v1"
+    apiKey: "${DEEPSEEK_API_KEY}"
+    tier: 2
+    purpose: ["reasoning", "coding", "research"]
+    priority: 8
+
+  # Tier 2: DeepSeek Flash（低成本编码）
+  - name: "ds-flash"
+    provider: "deepseek"
+    model: "deepseek-v4-flash"
+    baseUrl: "https://api.deepseek.com/v1"
+    apiKey: "${DEEPSEEK_API_KEY}"
+    tier: 2
+    purpose: ["code-generation", "coding"]
+    priority: 7
+
+  # Tier 3: OpenRouter 兜底
+  - name: "or-backup"
+    provider: "openrouter"
+    model: "openrouter/free"
+    baseUrl: "https://openrouter.ai/api/v1"
+    apiKey: "${OPENROUTER_API_KEY}"
+    httpProxy: "${OPENROUTER_HTTP_PROXY}"
+    tier: 3
+    purpose: ["fallback"]
+    priority: 1
+
+# OfoxAI 多网关配置（可选，用于直接访问 Anthropic/Gemini 协议）
+ofoxai_gateways:
+  openai:    "${OFOXAI_BASE_URL:-https://api.ofox.ai/v1}"
+  anthropic: "${OFOXAI_ANTHROPIC_BASE_URL:-https://api.ofox.ai/anthropic}"
+  gemini:    "${OFOXAI_GEMINI_BASE_URL:-https://api.ofox.ai/gemini}"
+
+# 记忆管理
+memory:
+  vaultPath: "${OBSIDIAN_VAULT_PATH}"
+  obsidianApiPort: 27124
+  obsidianApiToken: "${OBSIDIAN_API_TOKEN}"
+  databasePath: "${DATABASE_PATH}"
+
+# 数据采集
+crawler:
+  searchApi: "multi-engine"
+  serpapiKey: "${SERPAPI_KEY}"
+  maxConcurrent: 3
+  requestDelay: 1000

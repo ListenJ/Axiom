@@ -127,11 +127,11 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
       results.entities = ctx.db.query(sql).all(...params);
     }
 
-    // Search vault notes (cross-database: openclaw-memory.db)
+    // Search vault notes (cross-database: axiom-memory.db)
     if (!type || type === "note") {
       try {
         const { Database } = await import("bun:sqlite");
-        const memDb = new Database("./openclaw-memory.db", { readonly: true });
+        const memDb = new Database("./axiom-memory.db", { readonly: true });
         let sql = `SELECT id, path, title, excerpt, score FROM memory_notes WHERE 1=1`;
         const params: any[] = [];
         if (query) { sql += ` AND (title LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
@@ -162,7 +162,7 @@ export async function handleKnowledgePendingReview(ctx: RouteContext): Promise<R
   try {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
     const atomicDir = path.join(vaultPath, "03-Knowledge", "atomic-notes");
 
     if (!fs.existsSync(atomicDir)) {
@@ -221,7 +221,7 @@ export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Re
   try {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
     const filepath = path.join(vaultPath, "03-Knowledge", "atomic-notes", file);
 
     if (!fs.existsSync(filepath)) {

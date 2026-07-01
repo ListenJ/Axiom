@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { X } from 'lucide-react'
-import { NAV_ITEMS } from '@/lib/nav'
+import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 
 interface SidebarProps {
   open: boolean
@@ -27,9 +27,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </div>
           <div className="flex flex-col leading-tight">
             <span className="font-display text-sm font-semibold tracking-tight text-[var(--text)]">
-              OpenClaw
+              Axiom
             </span>
-            <span className="text-2xs text-[var(--text-muted)]">v2.3 · Tauri+React</span>
+            <span className="text-2xs text-[var(--text-muted)]">智能工作台</span>
           </div>
         </div>
         <button
@@ -44,7 +44,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Nav items */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
-        {NAV_ITEMS.map((item) => {
+        {VISIBLE_NAV_ITEMS.map((item) => {
           const Icon = item.icon
           return (
             <NavLink
@@ -93,7 +93,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <span className="text-2xs text-[var(--text-muted)]">系统在线</span>
           </div>
           <p className="mt-1 text-2xs text-[var(--text-muted)]">
-            OpenClaw v2.3
+            全部服务在线
           </p>
         </div>
       </div>

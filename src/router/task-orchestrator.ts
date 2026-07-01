@@ -1,30 +1,27 @@
 /**
- * 任务编排器 (Task Orchestrator) v3.0
+ * 任务编排器 (Task Orchestrator) v2.0
  *
- * 思维链：Understand → Plan → Retrieve → Execute → Verify → Output
+ * 思维链：Understand → Retrieve → Execute → Output
  *
  * 1. Understand: 识别任务类型（关键词匹配，无需 LLM）
- * 2. Plan: 规划阶段（第一性原理 + 反幻觉约束）
- * 3. Retrieve: 按需检索 Vault/SQLite 记忆和代码记忆
- * 4. Execute: 单角色直接执行 或 多角色并行协作
- * 5. Verify: 验证输出是否符合规划标准
- * 6. Output: 返回结果（多角色时自动汇总）
+ * 2. Retrieve: 按需检索 Vault/SQLite 记忆和代码记忆
+ * 3. Execute: 单角色直接执行 或 多角色并行协作
+ * 4. Output: 返回结果（多角色时自动汇总）
  *
  * 设计原则：
- *   - 简单任务跳过 Plan/Verify（passthrough）
- *   - 复杂任务必须经过 Plan → Execute → Verify 完整链路
- *   - Plan 失败降级为直接执行，不阻塞用户
- *   - Verify 失败标记 confidence，不阻塞输出
+ *   - 无 L1-L4 分层：避免过度编排，减少延迟
+ *   - 无架构设计步骤：Agent 自行决定是否需要架构
+ *   - 无评估层：质量由调用方判断，避免自我审查开销
+ *   - 简单任务直接执行，复杂任务才分解
  */
 import { logger } from "../utils/logger.js";
 import { router, toolPool, type SmartAssignmentResponse } from "./model-router.js";
+import { getDispatcher } from "./dispatcher.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
 import type { ChatMessage, RoleAssignment } from "./model-router.js";
 import type { TaskRole } from "./model-capability-registry.js";
 import { executionMode } from "../agents/execution-mode.js";
-import { injectConstitution } from "../agents/constitution.js";
-import { planExecution, verifyPlanExecution } from "../agents/planning/index.js";
-import type { ExecutionPlan } from "../agents/planning/index.js";
+import { getConstitutionForMode, injectConstitution } from "../agents/constitution.js";
 
 export interface SubTask {
   id: string;
@@ -56,15 +53,11 @@ export interface OrchestratedResult {
   totalLatencyMs: number;
   totalTokens: number;
   layersUsed: string[];
-  /** Planning phase result (null for simple tasks that skipped planning) */
-  plan: ExecutionPlan | null;
-  /** Verification result (null for simple tasks that skipped verification) */
-  verification: { passed: boolean; confidence: number; summary: string } | null;
 }
 
 class TaskOrchestrator {
   /**
-   * 执行任务：Understand → Plan → Retrieve → Execute → Verify → Output
+   * 执行任务：Understand → Retrieve → Execute → Output
    */
   async execute(task: string, opts?: { history?: ChatMessage[]; projectPath?: string }): Promise<OrchestratedResult> {
     const startTime = Date.now();
@@ -73,21 +66,7 @@ class TaskOrchestrator {
     const taskType = this.classifyTask(task);
     logger.info("[Orchestrator] Understand", { taskType, task: task.slice(0, 80) });
 
-    // === Step 2: Plan — 规划阶段 ===
-    const planResult = await planExecution(task, opts?.history);
-    const plan = planResult.plan;
-    logger.info("[Orchestrator] Plan", {
-      skipped: planResult.skipped,
-      complexity: plan.complexity,
-      steps: plan.steps.length,
-      latencyMs: planResult.latencyMs,
-      hasClarifications: (plan.clarificationsNeeded?.length ?? 0) > 0,
-    });
-
-    // 如果规划发现需要向用户确认，附加到输出中
-    const clarifications = plan.clarificationsNeeded ?? [];
-
-    // === Step 3: Retrieve — 按需检索记忆 ===
+    // === Step 2: Retrieve — 按需检索记忆 ===
     const context = await this.retrieveContext(task, taskType, opts);
     if (context) {
       logger.info("[Orchestrator] Retrieve", {
@@ -96,9 +75,9 @@ class TaskOrchestrator {
       });
     }
 
-    // === Step 4: Execute — 执行 ===
+    // === Step 3: Execute — 执行 ===
     let subTaskResults: TaskResult[];
-    const messages = this.buildMessages(task, context, opts?.history, plan);
+    const messages = this.buildMessages(task, context, opts?.history);
 
     if (taskType.needsMultiRole) {
       // 多视角并行（如代码审查+重构）
@@ -111,25 +90,10 @@ class TaskOrchestrator {
       subTaskResults = [result];
     }
 
-    // === Step 5: Output — 返回结果 ===
-    let finalAnswer = taskType.needsMultiRole
+    // === Step 4: Output — 返回结果 ===
+    const finalAnswer = taskType.needsMultiRole
       ? await this.synthesizeAnswer(task, subTaskResults, opts?.history)
       : (subTaskResults[0]?.content ?? "");
-
-    // 如果规划发现了需要确认的问题，附加到输出前面
-    if (clarifications.length > 0) {
-      const clarificationText = clarifications.map((q) => `- ${q}`).join("\n");
-      finalAnswer = `Before proceeding, I need to clarify:\n${clarificationText}\n\n${finalAnswer}`;
-    }
-
-    // === Step 6: Verify — 验证输出 ===
-    const verification = await verifyPlanExecution(plan, finalAnswer);
-    if (!verification.passed) {
-      logger.warn("[Orchestrator] Verification failed", {
-        summary: verification.summary,
-        issues: verification.issues.length,
-      });
-    }
 
     const totalLatencyMs = Date.now() - startTime;
     const totalTokens = subTaskResults.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
@@ -140,8 +104,6 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...new Set(subTaskResults.map((r) => r.layer))],
-      plan: planResult.skipped ? null : plan,
-      verification: planResult.skipped ? null : verification,
     };
   }
 
@@ -200,35 +162,19 @@ class TaskOrchestrator {
   }
 
   /**
-   * 构建执行消息（注入检索到的上下文 + 宪法 + 规划上下文）
+   * 构建执行消息（注入检索到的上下文 + 宪法）
    */
   private buildMessages(
     task: string,
     context: { vaultSnippets?: string[]; codeSymbols?: string[] } | null,
-    history?: ChatMessage[],
-    plan?: ExecutionPlan,
+    history?: ChatMessage[]
   ): ChatMessage[] {
     const parts: string[] = [];
 
-    // 注入宪法提示词
-    const constitution = executionMode.getConstitutionPrompt();
-    parts.push(constitution);
-
-    // 注入规划上下文（如果存在）
-    if (plan && plan.steps.length > 1) {
-      const planContext = [
-        "[Execution Plan]",
-        `Understanding: ${plan.understanding}`,
-        `Steps: ${plan.steps.map((s) => `${s.id}. ${s.description}`).join(" → ")}`,
-        `Verification: ${plan.verificationCriteria}`,
-        plan.firstPrinciples.length > 0
-          ? `First Principles: ${plan.firstPrinciples.join("; ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-      parts.push(planContext);
-    }
+    // Phase P1-5: use the full mode-aware constitution from constitution.ts
+    // (preamble + base sections + mode-specific sections), not the
+    // minimal hand-rolled prompt that used to live on ExecutionModeManager.
+    parts.push(getConstitutionForMode(executionMode.getMode()));
 
     if (context?.codeSymbols?.length) {
       parts.push(`[Code Context]\n${context.codeSymbols.slice(0, 20).join("\n")}`);
@@ -275,39 +221,37 @@ class TaskOrchestrator {
   }
 
   /**
-   * Execute (multi-role): 顺序分配模型，避免不同角色使用同一实例
+   * Execute (multi-role): 真并行，所有角色同时通过 dispatcher 派发，
+   * 由 dispatcher 的 `preventDuplicateModels` 选项保证不同角色落到不同
+   * 模型实例。延迟从 sum(单角色) 降到 max(单角色)。
+   *
+   * 之前的实现是顺序 `for` 循环 + 累加 `excludeModels`，既慢又有
+   * 序号依赖（第一个角色先选模型，第二个角色避开第一个的模型，依此类推）。
+   * 改用 dispatcher 后，并发 + 互斥由框架统一负责。
    */
   private async executeRoles(roles: TaskRole[], messages: ChatMessage[]): Promise<TaskResult[]> {
-    const usedModels: string[] = [];
-    const results: TaskResult[] = [];
-
-    for (const role of roles) {
-      const start = Date.now();
-      try {
-        const result = await router.executeWithRole(role, messages, { excludeModels: usedModels });
-        usedModels.push(result.model);
-        results.push({
-          subTaskId: role,
-          content: result.content ?? "",
-          model: result.model,
-          provider: result.provider,
-          layer: result.role ?? role,
-          usage: result.usage,
-          latencyMs: Date.now() - start,
-        });
-      } catch (e) {
-        logger.error(`[Orchestrator] Role ${role} failed`, e instanceof Error ? e : new Error(String(e)));
-        results.push({
-          subTaskId: role,
-          content: `Error: ${e instanceof Error ? e.message : String(e)}`,
-          model: "error",
-          provider: "error",
-          layer: role,
-          latencyMs: Date.now() - start,
-        });
-      }
-    }
-    return results;
+    const start = Date.now();
+    const assignments = roles.map((role) => ({ role, messages }));
+    // dispatcher.dispatchBatch 已经处理 per-item try/catch（失败返回 Error:…），
+    // 所以这里不需要再包一层。
+    const results = await getDispatcher().dispatchBatch(assignments, {
+      preventDuplicateModels: true,
+    });
+    const totalLatencyMs = Date.now() - start;
+    logger.info(`[Orchestrator] Multi-role parallel complete`, {
+      roles,
+      totalLatencyMs,
+      perItemAvgMs: Math.round(totalLatencyMs / Math.max(roles.length, 1)),
+    });
+    return results.map((r, i) => ({
+      subTaskId: roles[i]!,
+      content: r.content ?? "",
+      model: r.model,
+      provider: r.provider,
+      layer: r.role ?? roles[i]!,
+      usage: r.usage,
+      latencyMs: r.latency_ms ?? 0,
+    }));
   }
 
   /**
@@ -368,7 +312,7 @@ class TaskOrchestrator {
     });
 
     // Step 2: 并行执行所有角色
-    const results = await router.batchExecute(assignments);
+    const results = await getDispatcher().dispatchBatch(assignments, { preventDuplicateModels: true });
 
     const subTaskResults: TaskResult[] = results.map((r, i) => ({
       subTaskId: `agent-${roles[i]}`,
@@ -397,8 +341,6 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...layersUsed],
-      plan: null,
-      verification: null,
     };
   }
 

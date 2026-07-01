@@ -307,7 +307,7 @@ export class HealthChecker {
     }
 
     if (errors.some((r) => r.component === "安全")) {
-      recommendations.push("🔒 设置 OPENCLAW_AUTH_TOKEN 以启用 API 鉴权。建议长度 >= 16 位的随机字符串");
+      recommendations.push("🔒 设置 AXIOM_AUTH_TOKEN 以启用 API 鉴权。建议长度 >= 16 位的随机字符串");
     }
 
     if (warnings.some((r) => r.component === "CodeGraph")) {

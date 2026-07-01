@@ -1,5 +1,5 @@
 /**
- * OpenClaw Native Bridge v2.3
+ * Axiom Native Bridge v2.3
  * TypeScript ↔ Rust 高性能核心通信层
  *
  * 架构:
@@ -29,7 +29,7 @@ interface NativeConfig {
 let nativeConfig: NativeConfig = {
   edition: "local",
   port: 18790,
-  vaultPath: "./openclaw-memory",
+  vaultPath: "./axiom-memory",
   dbPath: "./data/agent.db",
   enabled: false,
 };
@@ -39,7 +39,7 @@ let nativeReady = false;
 
 /** 检测当前部署版本 */
 export function detectEdition(): NativeEdition {
-  const env = process.env.OPENCLAW_EDITION;
+  const env = process.env.AXIOM_EDITION;
   if (env === "cloud") return "cloud";
   if (env === "local") return "local";
   // Auto-detect: cloud if DATABASE_URL or REDIS_URL present
@@ -56,7 +56,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
     return false;
   }
 
-  const binaryName = nativeConfig.edition === "cloud" ? "openclaw-cloud" : "openclaw-local";
+  const binaryName = nativeConfig.edition === "cloud" ? "axiom-cloud" : "axiom-local";
   const binaryPath = `./native/target/release/${binaryName}`;
 
   try {

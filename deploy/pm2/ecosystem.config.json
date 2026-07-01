@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "openclaw-agent",
+      "name": "axiom-agent",
       "script": "src/main.ts",
       "interpreter": "bun",
       "cwd": ".",
@@ -20,14 +20,14 @@
       "max_restarts": 10,
       "min_uptime": "10s",
       "merge_logs": true,
-      "log_file": "./data/logs/openclaw-combined.log",
-      "out_file": "./data/logs/openclaw-out.log",
-      "error_file": "./data/logs/openclaw-error.log",
+      "log_file": "./data/logs/axiom-combined.log",
+      "out_file": "./data/logs/axiom-out.log",
+      "error_file": "./data/logs/axiom-error.log",
       "time": true,
       "kill_timeout": 30000,
       "listen_timeout": 10000,
       "autorestart": true,
-      "post_restart": "echo 'OpenClaw restarted at $(date)'"
+      "post_restart": "echo 'Axiom restarted at $(date)'"
     }
   ]
 }

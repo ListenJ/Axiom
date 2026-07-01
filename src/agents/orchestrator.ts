@@ -16,7 +16,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { toOpenClawError } from "../utils/errors.js";
+import { toAxiomError } from "../utils/errors.js";
 import { recognizeIntent, type IntentResult } from "./intent-router.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
 
@@ -56,8 +56,6 @@ export interface AgentTask {
   timeout?: number;
   /** 是否需要人工确认 */
   requireConfirmation?: boolean;
-  /** 依赖的任务 IDs */
-  dependsOn?: string[];
 }
 
 /** Agent 执行结果 */
@@ -381,11 +379,11 @@ export class AgentOrchestrator {
 
       return result;
     } catch (err) {
-      const error = toOpenClawError(err, "Task execution failed");
+      const error = toAxiomError(err, "Task execution failed");
       logger.error("[Orchestrator] Task failed", {
         taskId: task.id,
         error: error.message,
-      } as any);
+      });
 
       return {
         taskId: task.id,
@@ -442,7 +440,7 @@ export class AgentOrchestrator {
         errors,
       };
     } catch (err) {
-      const error = toOpenClawError(err, "Plan execution failed");
+      const error = toAxiomError(err, "Plan execution failed");
       errors.push(error.message);
 
       return {

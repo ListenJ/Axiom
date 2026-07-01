@@ -33,7 +33,7 @@ export interface SnapshotDiffResult {
 }
 
 function getSnapshotDir(): string {
-  return path.join(process.cwd(), ".openclaw", "snapshots");
+  return path.join(process.cwd(), ".axiom", "snapshots");
 }
 
 function ensureSnapshotRepo(): string {
@@ -41,8 +41,8 @@ function ensureSnapshotRepo(): string {
   if (!existsSync(path.join(snapshotDir, ".git"))) {
     try {
       execSync("git init", { cwd: snapshotDir, stdio: "pipe" });
-      execSync('git config user.email "openclaw@local"', { cwd: snapshotDir, stdio: "pipe" });
-      execSync('git config user.name "OpenClaw"', { cwd: snapshotDir, stdio: "pipe" });
+      execSync('git config user.email "axiom@local"', { cwd: snapshotDir, stdio: "pipe" });
+      execSync('git config user.name "Axiom"', { cwd: snapshotDir, stdio: "pipe" });
     } catch (e) {
       logger.warn("Failed to init snapshot repo: " + e);
     }
@@ -60,12 +60,12 @@ function getWorkspaceFiles(): string[] {
     return output
       .split("\n")
       .map((f) => f.trim())
-      .filter((f) => f.length > 0 && !f.includes(".openclaw/"));
+      .filter((f) => f.length > 0 && !f.includes(".axiom/"));
   } catch {
     // Fallback: use find/dir
     try {
       const output = execSync(
-        'find . -type f -not -path "*/\\.git/*" -not -path "*/node_modules/*" -not -path "*/\\.openclaw/*" 2>/dev/null',
+        'find . -type f -not -path "*/\\.git/*" -not -path "*/node_modules/*" -not -path "*/\\.axiom/*" 2>/dev/null',
         { cwd, encoding: "utf-8" }
       );
       return output
@@ -227,7 +227,7 @@ export async function listSnapshots(): Promise<SnapshotListResult> {
           id: id || "",
           message: message || "",
           timestamp: timestamp || "",
-          author: author || "OpenClaw",
+          author: author || "Axiom",
         };
       });
 

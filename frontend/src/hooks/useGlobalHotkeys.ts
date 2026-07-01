@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/state/useApp'
-import { NAV_ITEMS } from '@/lib/nav'
+import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 
 /**
  * Global keyboard shortcuts, mirroring the legacy frontend.
@@ -34,7 +34,9 @@ export function useGlobalHotkeys() {
 
       if (e.key === 'Escape') {
         setHelpOpen(false)
-        if (target && target !== document.body) target.blur()
+        if (target && target !== document.body && typeof (target as HTMLElement).blur === 'function') {
+          ;(target as HTMLElement).blur()
+        }
         return
       }
 
@@ -54,7 +56,7 @@ export function useGlobalHotkeys() {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
         if (e.key >= '0' && e.key <= '9') {
           const idx = Number(e.key)
-          const target = NAV_ITEMS[idx]
+          const target = VISIBLE_NAV_ITEMS[idx]
           if (target) {
             e.preventDefault()
             navigate(target.path)

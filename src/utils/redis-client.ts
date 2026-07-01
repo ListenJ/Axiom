@@ -34,7 +34,7 @@ export class RedisClient {
   constructor(config: RedisConfig) {
     this.config = {
       connectTimeout: 5000,
-      keyPrefix: "openclaw:",
+      keyPrefix: "axiom:",
       ...config,
     };
   }

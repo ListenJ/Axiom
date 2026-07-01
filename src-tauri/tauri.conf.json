@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "openclaw",
+  "productName": "axiom",
   "version": "0.1.0",
-  "identifier": "ai.openclaw.app",
+  "identifier": "ai.axiom.app",
   "build": {
     "frontendDist": "./frontend/dist",
     "devUrl": "http://localhost:18789",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "OpenClaw AI Agent v2.3",
+        "title": "Axiom AI Agent v2.3",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

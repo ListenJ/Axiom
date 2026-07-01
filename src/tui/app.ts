@@ -1,5 +1,5 @@
 /**
- * OpenClaw TUI (Terminal User Interface) v3.0 Unified
+ * Axiom TUI (Terminal User Interface) v3.0 Unified
  * 合并 v1 聊天功能 + v2 配置/诊断/性能/Native 面板
  *
  * 面板: Chat | Config | Diagnostics | Performance
@@ -17,14 +17,14 @@ import { getRouterEngine } from "../core/router-engine.js";
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
-const screen = blessed.screen({ smartCSR: true, title: "OpenClaw AI Agent v3.0" });
+const screen = blessed.screen({ smartCSR: true, title: "Axiom AI Agent v3.0" });
 
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 const header = blessed.box({
   top: 0, left: 0, width: "100%", height: 3,
   tags: true, style: { fg: "white", bg: "blue" },
-  content: " {center}{bold}OpenClaw AI Agent v3.0 — Unified TUI{/bold}{/center} ",
+  content: " {center}{bold}Axiom AI Agent v3.0 — Unified TUI{/bold}{/center} ",
 });
 
 const contentBox = blessed.box({
@@ -297,7 +297,7 @@ async function showNativeStatus(): Promise<void> {
       }
     } else {
       chatLog.log("{gray-fg}📜 TypeScript-only mode (Rust core not running){/gray-fg}");
-      chatLog.log("{gray-fg}  To enable: set OPENCLAW_NATIVE=true and build Rust core{/gray-fg}");
+      chatLog.log("{gray-fg}  To enable: set AXIOM_NATIVE=true and build Rust core{/gray-fg}");
     }
   } catch (e) {
     chatLog.log(`{red-fg}[Native] Error: ${(e as Error).message}{/red-fg}`);
@@ -536,7 +536,7 @@ setInterval(async () => {
 
 export async function startTUI(): Promise<void> {
   chatInput.focus();
-  chatLog.log("{center}{bold}Welcome to OpenClaw AI Agent v3.0 — Unified TUI{/bold}{/center}");
+  chatLog.log("{center}{bold}Welcome to Axiom AI Agent v3.0 — Unified TUI{/bold}{/center}");
   chatLog.log("{center}Chat | Config (F2) | Diagnostics (F1) | Performance (F3) | Native (F4){/center}");
   chatLog.log("{center}Commands: /help | /config | /perf | /native{/center}\n");
   screen.render();

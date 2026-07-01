@@ -45,8 +45,8 @@ async function discoverFreeModels(platform: keyof typeof PLATFORMS): Promise<Fre
   };
 
   if (platform === "openrouter") {
-    headers["HTTP-Referer"] = "https://openclaw.ai";
-    headers["X-Title"] = "OpenClaw Agent";
+    headers["HTTP-Referer"] = "https://axiom-runtime.ai";
+    headers["X-Title"] = "Axiom Agent";
   }
 
   try {

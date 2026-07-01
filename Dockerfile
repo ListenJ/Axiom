@@ -1,5 +1,5 @@
-# OpenClaw AI Agent — Docker 镜像 (多阶段构建)
-# 构建: docker build -t openclaw-agent .
+# Axiom AI Agent — Docker 镜像 (多阶段构建)
+# 构建: docker build -t axiom-agent .
 # 运行: docker-compose up -d
 
 # ========== Stage 1: Dependencies ==========
@@ -39,7 +39,7 @@ COPY package.json ./
 COPY config/ ./config/
 COPY public/ ./public/
 COPY scripts/ ./scripts/
-COPY openclaw-memory/ ./openclaw-memory/
+COPY axiom-memory/ ./axiom-memory/
 COPY src/db/pg-schema.sql ./src/db/pg-schema.sql
 
 # 创建数据目录

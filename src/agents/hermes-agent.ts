@@ -1,7 +1,7 @@
 /**
  * Hermes Agent 集成模块 v1.0
  * 通过子进程调用 hermes CLI 执行项目管理、深度研究等任务
- * Hermes 支持 MCP，可连接 OpenClaw 的 MCP Server 共享记忆
+ * Hermes 支持 MCP，可连接 Axiom 的 MCP Server 共享记忆
  *
  * 所有 API Key 通过环境变量注入，本模块不包含任何密钥
  */
@@ -9,7 +9,7 @@ import { spawn } from "bun";
 import { statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
-import { proxyFetch } from "../utils/proxy-fetch.js";
+import { internalAgent } from "./internal-agent.js";
 
 export interface HermesTask {
   /** 任务描述 */
@@ -215,8 +215,9 @@ export async function deepResearch(topic: string, cwd?: string): Promise<HermesR
 }
 
 /**
- * 代码审查 - 使用 SiliconFlow GLM-5.1 模型
- * 通过 SiliconFlow API 进行代码审查，不依赖 Hermes CLI
+ * 代码审查 - 使用 GLM-5.1 模型
+ * 通过 InternalAgent 走 model-router 路由，享受重试/降级/超时/追踪
+ * （之前直接调用 SiliconFlow endpoint；现在由路由器按 `code-review` role 分派）
  */
 export async function codeReview(
   code: string,
@@ -231,8 +232,6 @@ export async function codeReview(
       model: "THUDM/GLM-5.1",
     };
   }
-
-  const baseUrl = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
 
   const reviewPrompt = `你是一位资深代码审查专家。请对以下${language}代码进行全面审查：
 
@@ -251,31 +250,12 @@ ${code}
 请用中文输出结构化的审查报告，包含严重程度（🔴严重/🟡中等/🟢建议）和具体修改建议。`;
 
   try {
-    const resp = await proxyFetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "THUDM/GLM-5.1",
-        messages: [{ role: "user", content: reviewPrompt }],
-        max_tokens: 4096,
-        temperature: 0.3,
-      }),
-    });
+    // 走 model-router，由其按 role="code-review" 选择模型并接管重试/降级
+    const result = await internalAgent.executeWithRole("code-review", [
+      { role: "user", content: reviewPrompt },
+    ], { maxTokens: 4096, temperature: 0.3 });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return {
-        success: false,
-        review: `SiliconFlow API 错误 (${resp.status}): ${errText}`,
-        model: "THUDM/GLM-5.1",
-      };
-    }
-
-    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const review = data.choices?.[0]?.message?.content || "未获得审查结果";
+    const review = result.content || "未获得审查结果";
 
     // 审查结果沉淀到 Vault（非阻塞）
     const reviewTopic = context
@@ -284,7 +264,7 @@ ${code}
     learnFromResearch(reviewTopic, review, "code-review")
       .catch(e => logger.warn("Failed to save code-review result", { topic: reviewTopic, error: (e as Error).message }));
 
-    return { success: true, review, model: "THUDM/GLM-5.1" };
+    return { success: true, review, model: result.model || "THUDM/GLM-5.1" };
   } catch (e: unknown) {
     return {
       success: false,
@@ -375,17 +355,17 @@ export async function learnFromResearch(
   }
 }
 
-/** 生成 MCP 配置以连接 OpenClaw */
+/** 生成 MCP 配置以连接 Axiom */
 export function generateHermesMcpConfig(): string {
   return `
-# 在 ~/.hermes/config.yaml 中添加以下内容，使 Hermes 可以访问 OpenClaw 的 MCP 工具
+# 在 ~/.hermes/config.yaml 中添加以下内容，使 Hermes 可以访问 Axiom 的 MCP 工具
 
 mcp_servers:
-  openclaw:
+  axiom:
     command: "bun"
     args: ["run", "src/mcp/server.ts", "--stdio"]
     env:
       DATABASE_PATH: "${process.env.DATABASE_PATH || "./data/agent.db"}"
-      OBSIDIAN_VAULT_PATH: "${process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory"}"
+      OBSIDIAN_VAULT_PATH: "${process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory"}"
 `;
 }

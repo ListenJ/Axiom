@@ -8,10 +8,10 @@ interface ErrorContext {
 }
 
 /**
- * OpenClaw 基础错误类
+ * Axiom 基础错误类
  * 所有自定义错误的基类
  */
-export class OpenClawError extends Error {
+export class AxiomError extends Error {
   public readonly code: string;
   public readonly context?: ErrorContext;
   public readonly cause?: Error;
@@ -57,28 +57,28 @@ export class OpenClawError extends Error {
 /**
  * 电路断路器错误（从 resilience.ts 迁移）
  */
-export class CircuitOpenError extends OpenClawError {
+export class CircuitOpenError extends AxiomError {
   constructor(message: string, context?: ErrorContext) {
     super(message, "CIRCUIT_OPEN", context);
   }
 }
 
 /**
- * 从未知错误创建 OpenClawError
+ * 从未知错误创建 AxiomError
  */
-export function toOpenClawError(
+export function toAxiomError(
   error: unknown,
   defaultMessage = "Unknown error"
-): OpenClawError {
-  if (error instanceof OpenClawError) {
+): AxiomError {
+  if (error instanceof AxiomError) {
     return error;
   }
 
   if (error instanceof Error) {
-    return new OpenClawError(error.message, "UNKNOWN_ERROR", undefined, error);
+    return new AxiomError(error.message, "UNKNOWN_ERROR", undefined, error);
   }
 
-  return new OpenClawError(
+  return new AxiomError(
     typeof error === "string" ? error : defaultMessage,
     "UNKNOWN_ERROR",
     { originalError: error }
@@ -92,26 +92,26 @@ export function createErrorResponse(
   error: unknown,
   includeStack = false
 ): Record<string, unknown> {
-  const openClawError = toOpenClawError(error);
+  const axiomError = toAxiomError(error);
 
   const response: Record<string, unknown> = {
     success: false,
     error: {
-      name: openClawError.name,
-      code: openClawError.code,
-      message: openClawError.message,
+      name: axiomError.name,
+      code: axiomError.code,
+      message: axiomError.message,
     },
   };
 
-  if (includeStack && openClawError.stack) {
+  if (includeStack && axiomError.stack) {
     response.error = {
       ...response.error as Record<string, unknown>,
-      stack: openClawError.stack,
+      stack: axiomError.stack,
     };
   }
 
-  if (openClawError.context && Object.keys(openClawError.context).length > 0) {
-    response.meta = openClawError.context;
+  if (axiomError.context && Object.keys(axiomError.context).length > 0) {
+    response.meta = axiomError.context;
   }
 
   return response;

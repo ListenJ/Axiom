@@ -389,7 +389,7 @@ export class PromptEngineer {
   reloadSkillsFromDisk(): void {
     const skillDirs = [
       "./skills",
-      "./openclaw-memory/03-Resources/skills",
+      "./axiom-memory/03-Resources/skills",
     ];
 
     const loaded = loadSkillsFromDirectories({
@@ -786,7 +786,7 @@ ${triggers.join(", ")}
   /**
    * 保存模板到文件
    */
-  saveTemplateToFile(template: PromptTemplate, dir: string = "./openclaw-memory/03-Resources/prompts"): string {
+  saveTemplateToFile(template: PromptTemplate, dir: string = "./axiom-memory/03-Resources/prompts"): string {
     const filePath = path.join(dir, `${template.id}.json`);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(template, null, 2), "utf-8");

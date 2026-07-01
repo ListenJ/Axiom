@@ -9,7 +9,7 @@
  * Security:
  *   - The actual API key is never returned (only masked)
  *   - Auth is ALWAYS enforced (no dev-mode bypass)
- *   - Caller must provide OPENCLAW_AUTH_TOKEN via `x-api-key` header or
+ *   - Caller must provide AXIOM_AUTH_TOKEN via `x-api-key` header or
  *     `Authorization: Bearer <token>` header
  *   - In-memory only — restart reverts to process.env values (until DB persistence is added)
  */
@@ -31,11 +31,11 @@ import { logger } from "../utils/logger.js";
 const MIN_API_KEY_LENGTH = 8;
 
 function requireAuth(ctx: RouteContext): Response | null {
-  const token = process.env.OPENCLAW_AUTH_TOKEN;
+  const token = process.env.AXIOM_AUTH_TOKEN;
   if (!token) {
     // Fail closed: if the operator hasn't configured a token, refuse all calls.
     return ctx.jsonResponse(
-      { error: "Server auth not configured (OPENCLAW_AUTH_TOKEN missing)" },
+      { error: "Server auth not configured (AXIOM_AUTH_TOKEN missing)" },
       503,
       ctx.baseHeaders
     );

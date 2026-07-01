@@ -6,7 +6,10 @@ import type { RouteContext } from "./types.js";
 export async function handleHealth(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/health" && ctx.req.method === "GET") {
     const checks = await ctx.healthMonitor.checkAll();
-    const vStats = ctx.vault?.stats();
+    // Phase P1-6: read from the async-refreshed cache instead of calling
+    // vault.stats() synchronously inside the request hot path.
+    const { vaultStatsCache } = await import("../utils/vault-stats-cache.js");
+    const vStats = vaultStatsCache.read();
     const { searchAggregator } = await import("../crawl/search-engines.js");
     const { searchCache, crawlCache } = await import("../utils/cache.js");
     const { wsManager } = await import("../utils/websocket.js");
@@ -49,13 +52,15 @@ export async function handleDashboard(ctx: RouteContext): Promise<Response | nul
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/stats" && ctx.req.method === "GET") {
     const { searchCache, crawlCache } = await import("../utils/cache.js");
+    const { vaultStatsCache } = await import("../utils/vault-stats-cache.js");
     const s = (table: string) => (ctx.db.query(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number } | null)?.c || 0;
     return ctx.jsonResponse({
       searchCount: s("search_history"), crawlCount: s("crawl_results"),
       memoryCount: s("conversations"), entityCount: s("entities"),
       relationCount: s("relationships"), taskCount: s("tasks"),
       uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
-      vault: ctx.vault?.stats(),
+      // Phase P1-6: cached, never blocks the request thread.
+      vault: vaultStatsCache.read(),
       cache: { search: searchCache.stats(), crawl: crawlCache.stats() },
     }, 200, ctx.baseHeaders);
   }
@@ -169,7 +174,7 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
       const fs = await import("fs");
       const YAML = await import("yaml");
       const yamlStr = YAML.stringify(updated);
-      fs.writeFileSync("./config/openclaw.yaml", yamlStr, "utf-8");
+      fs.writeFileSync("./config/axiom.yaml", yamlStr, "utf-8");
       reloadConfig();
       return ctx.jsonResponse({ success: true, message: "Config updated" }, 200, ctx.baseHeaders);
     } catch (e) {

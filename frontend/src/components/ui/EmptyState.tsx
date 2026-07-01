@@ -4,7 +4,7 @@ import ShimmerCard from './ShimmerCard'
 interface EmptyStateProps {
   icon: ReactNode
   title: string
-  description?: string
+  description?: ReactNode
   action?: ReactNode
   className?: string
 }

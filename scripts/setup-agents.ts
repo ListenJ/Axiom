@@ -6,7 +6,7 @@
  * 1. 检测系统已安装的外部 Agent/CLI 工具
  * 2. 检测版本信息
  * 3. 为未安装的工具提供安装引导
- * 4. 检测 OpenClaw 项目依赖是否完整
+ * 4. 检测 Axiom 项目依赖是否完整
  * 5. 生成环境配置报告
  *
  * 检测的 Agent：
@@ -237,7 +237,7 @@ async function checkProjectDeps(): Promise<{
 function printBanner(): void {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           🤖 OpenClaw Agent 检测与配置向导                   ║
+║           🤖 Axiom Agent 检测与配置向导                   ║
 ║                                                              ║
 ║  本脚本检测系统上已安装的 AI Agent 和开发工具，              ║
 ║  并提供缺失工具的安装引导。                                  ║

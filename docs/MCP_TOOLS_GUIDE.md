@@ -1,20 +1,20 @@
-# OpenClaw Fusion MCP 工具指南
+# Axiom Runtime MCP 工具指南
 
 > 适用于 Windows 11 + OpenCode 环境
-> 最后更新: 2026-06-26
+> 最后更新: 2026-06-30
 
 ## 工具总览
 
 | 分类 | 数量 | 状态 |
 |------|------|------|
-| 核心工具 (零配置) | 65 | ✅ 始终可用 |
-| 配置工具 (需 API Key) | 34 | ⚙️ 配置后可用 |
+| 核心工具 (零配置) | 88 | ✅ 始终可用 |
+| 配置工具 (需 API Key) | 33 | ⚙️ 配置后可用 |
 | 外部服务工具 | 12 | 🔧 需安装服务 |
-| **总计** | **111** | - |
+| **去重总计** | **133** | - |
 
 ---
 
-## 第一层：核心工具 (零配置，65 个)
+## 第一层：核心工具 (零配置，88 个)
 
 这些工具在 Windows 11 上安装 Bun 后即可使用，无需任何额外配置。
 
@@ -52,7 +52,7 @@
 | `git_branch` | 查看分支 |
 | `git_blame` | 查看文件修改记录 |
 
-### 代码分析工具 (5 个)
+### 代码分析工具 (8 个)
 
 | 工具 | 功能 |
 |------|------|
@@ -61,6 +61,9 @@
 | `code_outline` | 获取代码大纲 |
 | `code_analyze` | 分析代码复杂度 |
 | `code_detect_language` | 检测编程语言 |
+| `code_diagnostics` | 代码诊断 |
+| `code_quick_diagnostics` | 快速诊断 |
+| `code_actions` | 代码操作建议 |
 
 ### 快照工具 (5 个)
 
@@ -110,16 +113,84 @@
 | `kg_nl_query` | 自然语言查询 |
 | `kg_enhanced_stats` | 图谱统计 |
 
-### DRE 确定性推理 (4 个只读工具)
+### DRE 确定性推理 (6 个)
 
 | 工具 | 功能 |
 |------|------|
+| `dre_write_knowledge` | 写入知识 (三段甄别) |
 | `dre_read_knowledge` | 读取知识条目 |
 | `dre_search_knowledge` | 搜索知识库 |
 | `dre_subgraph` | 知识图谱子图 |
 | `dre_status` | DRE 引擎状态 |
+| `dre_consciousness_step` | 意识流处理 (三级降级) |
 
-### 其他工具 (9 个)
+### KAL 统一知识访问层 (2 个)
+
+| 工具 | 功能 |
+|------|------|
+| `kal_query` | 跨 Vault/KG/DRE 统一查询 |
+| `kal_references` | 跨存储引用查找 |
+
+### DIP 文档处理管道 (2 个)
+
+| 工具 | 功能 |
+|------|------|
+| `dip_ingest_document` | 文档→KG 管道 (Markdown→AST→KG) |
+| `dip_query_ast` | 确定性 AST 查询 |
+
+### 场景路由 (2 个)
+
+| 工具 | 功能 |
+|------|------|
+| `scene_suggest_tools` | 根据输入推荐工具子集 |
+| `scene_list` | 列出所有场景 |
+
+### VRAM 预算 (1 个)
+
+| 工具 | 功能 |
+|------|------|
+| `vram_status` | GPU VRAM 预算状态 |
+
+### 心智模型 (3 个)
+
+| 工具 | 功能 |
+|------|------|
+| `mental_model_list` | 列出所有心智模型 |
+| `mental_model_match` | 观察→概念链→状态路径匹配 |
+| `mental_model_predict` | 状态→触发→预测下一步 |
+
+### 推理图 (4 个)
+
+| 工具 | 功能 |
+|------|------|
+| `reasoning_build` | 构建推理图 (前提→结论+空洞检测) |
+| `reasoning_detect_gaps` | 检测推理链中的缺失环节 |
+| `reasoning_fill_gap` | 用 LLM 结果精确填补空洞 |
+| `reasoning_result` | 获取推理结果 (结论+链+置信度) |
+
+### 过程性知识 (1 个)
+
+| 工具 | 功能 |
+|------|------|
+| `procedure_parse` | 解析过程性知识 (步骤序列、条件分支) |
+
+### 约束求解器 (4 个)
+
+| 工具 | 功能 |
+|------|------|
+| `constraint_check` | 检查动作是否满足所有约束 |
+| `constraint_select_best` | 从候选动作中选择最佳动作 |
+| `constraint_list` | 列出所有约束 (可按维度过滤) |
+| `constraint_stats` | 约束求解器统计信息 |
+
+### Actor 系统 (2 个)
+
+| 工具 | 功能 |
+|------|------|
+| `actor_list` | 列出所有 Actor |
+| `actor_send` | 向 Actor 发送消息 |
+
+### 其他工具 (7 个)
 
 | 工具 | 功能 |
 |------|------|
@@ -129,14 +200,11 @@
 | `token_stats_by_model` | 按模型统计 |
 | `token_stats_by_role` | 按角色统计 |
 | `token_daily_stats` | 每日统计 |
-| `set_mode` / `get_mode` | 执行模式切换 |
-| `orchestrator_list_agents` | 列出 Agent |
-| `orchestrator_status` | 编排器状态 |
 | `proxy_status` | 代理状态 |
 
 ---
 
-## 第二层：配置工具 (需 API Key，34 个)
+## 第二层：配置工具 (需 API Key，33 个)
 
 配置对应的环境变量后即可使用。
 
@@ -273,7 +341,7 @@ llama-server -m qwen3-1.7b-instruct-q4_k_m.gguf -ngl 99 -c 4096 --port 8080
 
 ### 最小配置 (零成本)
 
-只需安装 Bun，即可使用 65 个核心工具。
+只需安装 Bun，即可使用 88 个核心工具。
 
 ```bash
 # 安装 Bun
@@ -310,19 +378,16 @@ MINIMAX_API_KEY=your_minimax_key
 ┌─────────────────────────────────────────────────────────────┐
 │                    Windows 11 + Bun                          │
 ├─────────────────────────────────────────────────────────────┤
-│  核心工具 (65)                                               │
-│  ├── Vault 记忆 (8) ← 文件系统                               │
-│  ├── 文件系统 (6) ← node:fs                                  │
-│  ├── Git (5) ← Git CLI                                      │
-│  ├── 代码分析 (5) ← 文件解析                                 │
-│  ├── 快照 (5) ← Git CLI                                     │
-│  ├── Prompt 池 (6) ← 内存                                    │
-│  ├── 竞技场 (7) ← SQLite                                     │
-│  ├── 知识图谱 (10) ← SQLite                                  │
-│  ├── DRE 只读 (4) ← SQLite                                   │
-│  └── 其他 (9) ← SQLite/内存                                  │
+│  核心工具 (88)                                               │
+│  ├── Vault 记忆         ├── 文件系统        ├── 终端          │
+│  ├── Git                ├── 代码分析        ├── 快照          │
+│  ├── Prompt 池           ├── 竞技场          ├── 知识图谱      │
+│  ├── DRE                ├── KAL             ├── DIP           │
+│  ├── 场景路由            ├── VRAM            ├── 心智模型      │
+│  ├── 推理图              ├── 过程知识        ├── 约束求解      │
+│  ├── Actor              └── 其他                               │
 ├─────────────────────────────────────────────────────────────┤
-│  配置工具 (34) ← API Key                                     │
+│  配置工具 (33) ← API Key                                     │
 │  ├── GitHub (22) ← GITHUB_TOKEN                              │
 │  ├── 模型 (5) ← 各平台 API Key                               │
 │  ├── MiniMax (3) ← MINIMAX_API_KEY                           │
@@ -356,4 +421,4 @@ A: Personal Access Token 需要以下权限：
 
 ### Q: 工具太多会不会影响性能？
 
-A: MCP 工具注册是惰性的，只有调用时才会执行。111 个工具的注册开销可以忽略不计。
+A: MCP 工具注册是惰性的，只有调用时才会执行。150 个工具的注册开销可以忽略不计。

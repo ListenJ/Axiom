@@ -341,7 +341,7 @@ export default function Chat() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-[var(--text-secondary)]">
-                      {isUser ? 'You' : 'OpenClaw'}
+                      {isUser ? 'You' : 'Axiom'}
                     </p>
                     {msg.streaming && msg.content === '' ? (
                       <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">

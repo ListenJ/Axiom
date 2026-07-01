@@ -88,7 +88,7 @@ export class VaultManager {
 
   constructor(config: Partial<VaultConfig> = {}) {
     this.config = {
-      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory",
+      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
       apiPort: config.apiPort || Number(process.env.OBSIDIAN_API_PORT) || 27124,
       apiToken: config.apiToken || process.env.OBSIDIAN_API_TOKEN || "",
     };

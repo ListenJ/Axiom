@@ -26,7 +26,7 @@ tags: [meta, personality]
 
 # SOUL — Agent 人格定义
 
-我是 OpenClaw，一个 AI Agent。核心使命是协助用户完成研究任务。
+我是 Axiom，一个 AI Agent。核心使命是协助用户完成研究任务。
 
 ## 核心原则
 
@@ -34,13 +34,13 @@ tags: [meta, personality]
 - 最小依赖：能用内置能力解决的，不引入新依赖
 `);
 
-    fs.writeFileSync(path.join(TEST_VAULT, "01-Projects", "openclaw.md"), `---
-title: OpenClaw Project
+    fs.writeFileSync(path.join(TEST_VAULT, "01-Projects", "axiom.md"), `---
+title: Axiom Project
 type: project-doc
 tags: [project, typescript, bun]
 ---
 
-# OpenClaw 项目
+# Axiom 项目
 
 基于 Bun + TypeScript 构建的 AI Agent。
 
@@ -66,7 +66,7 @@ SQLite 是一个嵌入式数据库。FTS5 支持全文检索。
 - 单文件存储
 - 支持 JSON
 
-[[openclaw]]
+[[axiom]]
 `);
 
     fs.writeFileSync(path.join(TEST_VAULT, "04-Conversations", "2026-05-25.md"), `---
@@ -118,7 +118,7 @@ tags: [random]
     const engine = new DeterministicSearchEngine(TEST_VAULT);
     const results = engine.search("TypeScript");
     const paths = results.map((r) => r.note.path);
-    expect(paths).toContain("01-Projects/openclaw.md");
+    expect(paths).toContain("01-Projects/axiom.md");
   });
 
   test("关键词匹配：标签匹配权重更高", () => {
@@ -131,21 +131,21 @@ tags: [random]
 
   test("关系推导：wiki-link 出链提升", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
-    // 搜索 "openclaw" 时，SOUL.md 因为被 openclaw.md 引用而应该被提升
-    const results = engine.search("openclaw");
+    // 搜索 "axiom" 时，SOUL.md 因为被 axiom.md 引用而应该被提升
+    const results = engine.search("axiom");
     const soulResult = results.find((r) => r.note.path === "SOUL.md");
-    // SOUL 被 openclaw.md 引用，应该出现在结果中
+    // SOUL 被 axiom.md 引用，应该出现在结果中
     expect(soulResult).toBeDefined();
   });
 
   test("关系推导：backlink 提升", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
-    // sqlite-guide.md 引用了 [[openclaw]]
-    // 搜索 "sqlite-guide" 或 "sqlite" 时，openclaw.md 应该被 backlink 提升
+    // sqlite-guide.md 引用了 [[axiom]]
+    // 搜索 "sqlite-guide" 或 "sqlite" 时，axiom.md 应该被 backlink 提升
     const results = engine.search("sqlite");
-    const openclawResult = results.find((r) => r.note.path === "01-Projects/openclaw.md");
-    // openclaw.md 引用了 [[SQLite]]，所以搜索 sqlite 时它会被提升
-    expect(openclawResult).toBeDefined();
+    const axiomResult = results.find((r) => r.note.path === "01-Projects/axiom.md");
+    // axiom.md 引用了 [[SQLite]]，所以搜索 sqlite 时它会被提升
+    expect(axiomResult).toBeDefined();
   });
 
   test("PARA 分类浏览", () => {
@@ -156,7 +156,7 @@ tags: [random]
 
     const projects = engine.browseByPara("projects");
     expect(projects.length).toBe(1);
-    expect(projects[0].path).toBe("01-Projects/openclaw.md");
+    expect(projects[0].path).toBe("01-Projects/axiom.md");
   });
 
   test("标签浏览", () => {
@@ -168,7 +168,7 @@ tags: [random]
 
   test("关联网络", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
-    const network = engine.getNetwork("01-Projects/openclaw.md", 1);
+    const network = engine.getNetwork("01-Projects/axiom.md", 1);
     const relatedPaths = network.notes.map((n) => n.path);
     expect(relatedPaths).toContain("SOUL.md");
     expect(relatedPaths).toContain("03-Resources/sqlite-guide.md");
@@ -193,7 +193,7 @@ tags: [random]
     const engine = new DeterministicSearchEngine(TEST_VAULT);
     const results = engine.search("Agent", { paraCategory: "projects" });
     expect(results.length).toBe(1);
-    expect(results[0].note.path).toBe("01-Projects/openclaw.md");
+    expect(results[0].note.path).toBe("01-Projects/axiom.md");
   });
 
   test("统计信息", () => {

@@ -9,11 +9,20 @@
  *   5. 与 model-capability-registry.ts 集成，为动态分配提供数据支撑
  *
  * 架构: "三省六部制" — 隶属中书省(TaskOrchestrator)的评估子系统
+ *
+ * 关于 fetchOpenRouterModels():
+ *   该函数直接调用 OpenRouter `/v1/models` 端点拉取模型目录元数据
+ *   （价格、上下文窗口、provider 等），**不是 LLM chat 调用**。InternalAgent
+ *   包装层只覆盖 chat completion；model-router 自身的 `embeddings()` 同样
+ *   保留直接 fetch（见 src/router/model-router.ts）。此处的目录拉取是评估
+ *   服务的核心数据源（"看门人"），不属于 InternalAgent 应替换的范围。
  */
 
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { safeJsonParse } from "../utils/json.js";
+import { toAxiomError } from "../utils/errors.js";
 
 // ========== 类型定义 ==========
 
@@ -43,7 +52,7 @@ export interface OpenRouterModelInfo {
 }
 
 export interface BenchmarkScore {
-  source: string;          // "llm-arena" | "sota" | "openrouter" | "openclaw-eval"
+  source: string;          // "llm-arena" | "sota" | "openrouter" | "axiom-eval"
   benchmark: string;       // "MMLU" | "HumanEval" | "MATH" | "SWE-Bench" | "arena-elo" etc.
   score: number;           // normalized 0-100
   rawScore?: number;       // original score
@@ -159,8 +168,8 @@ async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouterModelIn
     const res = await proxyFetch(`${OPENROUTER_API_BASE}/models`, {
       headers: {
         "Authorization": `Bearer ${key}`,
-        "HTTP-Referer": "https://openclaw.ai",
-        "X-Title": "OpenClaw Agent",
+        "HTTP-Referer": "https://axiom-runtime.ai",
+        "X-Title": "Axiom Agent",
       },
       timeout: 15000,
     });
@@ -378,7 +387,7 @@ function estimateFromMetadata(modelId: string, modelName: string): BenchmarkScor
   else if (lower.includes(":free") || lower.includes("free")) baseScore = 60;
 
   return [{
-    source: "openclaw-eval",
+    source: "axiom-eval",
     benchmark: "metadata-estimate",
     score: baseScore,
     date: now,
@@ -486,7 +495,7 @@ function computeCapabilityScore(
   }
 
   // Fallback: estimate from metadata
-  const estimates = benchmarks.filter(b => b.source === "openclaw-eval");
+  const estimates = benchmarks.filter(b => b.source === "axiom-eval");
   if (estimates.length > 0) {
     return Math.round(estimates.reduce((sum, b) => sum + b.score, 0) / estimates.length);
   }
@@ -628,7 +637,8 @@ export class ModelEvalService {
         elapsedMs: elapsed,
       });
     } catch (err) {
-      logger.error("[ModelEval] Full evaluation failed", err as Error);
+      const axiomErr = toAxiomError(err, "Full evaluation failed");
+      logger.error("[ModelEval] Full evaluation failed", axiomErr);
     } finally {
       this.evalInProgress = false;
     }
@@ -941,13 +951,6 @@ export class ModelEvalService {
   close() {
     this.db.close();
   }
-}
-
-// ========== 工具函数 ==========
-
-function safeJsonParse<T>(str: string | undefined, fallback: T): T {
-  if (!str) return fallback;
-  try { return JSON.parse(str); } catch { return fallback; }
 }
 
 // ========== 全局单例 ==========

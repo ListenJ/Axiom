@@ -1,5 +1,5 @@
 /**
- * OpenClaw Installation Wizard v2.3
+ * Axiom Installation Wizard v2.3
  * TUI-based interactive installer for Local / Cloud edition selection
  *
  * Run: bun run src/tui/install-wizard.ts
@@ -36,7 +36,7 @@ let config: InstallConfig = {
   edition: "local",
   port: 18789,
   bind: "127.0.0.1",
-  vaultPath: "./openclaw-memory",
+  vaultPath: "./axiom-memory",
   dbPath: "./data/agent.db",
   installRust: false,
 };
@@ -50,7 +50,7 @@ const STEPS = ["edition", "network", "storage", "rust", "review", "install"];
 function createScreen(): blessed.Widgets.Screen {
   return blessed.screen({
     smartCSR: true,
-    title: "OpenClaw Installer v2.3",
+    title: "Axiom Installer v2.3",
   });
 }
 
@@ -59,7 +59,7 @@ function createLayout() {
     top: 0, left: 0, width: "100%", height: 3,
     tags: true,
     style: { fg: "white", bg: "blue" },
-    content: " {center}{bold}OpenClaw AI Agent v2.3 — Installation Wizard{/bold}{/center} ",
+    content: " {center}{bold}Axiom AI Agent v2.3 — Installation Wizard{/bold}{/center} ",
   });
 
   const progress = (blessed as any).progressbar({
@@ -256,7 +256,7 @@ function renderStorageStep(contentBox: blessed.Widgets.BoxElement) {
     });
 
     saveBtn.on("press", () => {
-      config.vaultPath = vaultInput.getValue() || "./openclaw-memory";
+      config.vaultPath = vaultInput.getValue() || "./axiom-memory";
       config.dbPath = dbInput.getValue() || "./data/agent.db";
       nextStep();
     });
@@ -266,7 +266,7 @@ function renderStorageStep(contentBox: blessed.Widgets.BoxElement) {
     const pgInput = blessed.textbox({
       parent: form, top: 2, left: 16, width: 50, height: 1,
       inputOnFocus: true,
-      value: config.databaseUrl ?? "postgres://user:pass@localhost/openclaw",
+      value: config.databaseUrl ?? "postgres://user:pass@localhost/axiom",
     });
 
     blessed.text({ parent: form, top: 4, left: 0, content: "Redis URL:" });
@@ -284,7 +284,7 @@ function renderStorageStep(contentBox: blessed.Widgets.BoxElement) {
     });
 
     saveBtn.on("press", () => {
-      config.vaultPath = vaultInput.getValue() || "./openclaw-memory";
+      config.vaultPath = vaultInput.getValue() || "./axiom-memory";
       config.databaseUrl = pgInput.getValue() || undefined;
       config.redisUrl = redisInput.getValue() || undefined;
       nextStep();
@@ -373,7 +373,7 @@ function renderReviewStep(contentBox: blessed.Widgets.BoxElement) {
 
   lines.push("\n{bold}Files to be created:{/bold}");
   lines.push("  .env                  — Environment variables");
-  lines.push("  config/openclaw.yaml  — Main configuration");
+  lines.push("  config/axiom.yaml  — Main configuration");
   if (config.installRust) {
     lines.push("  native/target/release/ — Rust binaries");
   }
@@ -426,11 +426,11 @@ async function runInstallation(log: blessed.Widgets.Log) {
 
   log.log("{cyan-fg}[2/5] Writing .env...{/cyan-fg}");
   const envLines = [
-    `OPENCLAW_GATEWAY_PORT=${config.port}`,
-    `OPENCLAW_AUTH_TOKEN=${config.apiKey ?? ""}`,
+    `AXIOM_GATEWAY_PORT=${config.port}`,
+    `AXIOM_AUTH_TOKEN=${config.apiKey ?? ""}`,
     `OBSIDIAN_VAULT_PATH=${config.vaultPath}`,
     `DATABASE_PATH=${config.dbPath}`,
-    `OPENCLAW_EDITION=${config.edition}`,
+    `AXIOM_EDITION=${config.edition}`,
     `LOG_LEVEL=info`,
     "",
     "# Model Providers (optional)",
@@ -448,10 +448,10 @@ async function runInstallation(log: blessed.Widgets.Log) {
   fs.writeFileSync(".env", envLines.join("\n") + "\n");
   log.log("  ✓ .env");
 
-  log.log("{cyan-fg}[3/5] Writing config/openclaw.yaml...{/cyan-fg}");
+  log.log("{cyan-fg}[3/5] Writing config/axiom.yaml...{/cyan-fg}");
   const yamlContent = generateConfigYaml();
-  fs.writeFileSync("config/openclaw.yaml", yamlContent);
-  log.log("  ✓ config/openclaw.yaml");
+  fs.writeFileSync("config/axiom.yaml", yamlContent);
+  log.log("  ✓ config/axiom.yaml");
 
   if (config.installRust) {
     log.log("{cyan-fg}[4/5] Building Rust core (this may take 3-5 minutes)...{/cyan-fg}");
@@ -473,13 +473,13 @@ async function runInstallation(log: blessed.Widgets.Log) {
   }
 
   log.log("{cyan-fg}[5/5] Finalizing...{/cyan-fg}");
-  fs.writeFileSync(".openclaw-installed", JSON.stringify({
+  fs.writeFileSync(".axiom-installed", JSON.stringify({
     edition: config.edition,
     version: "2.3.0",
     installedAt: new Date().toISOString(),
     rustEnabled: config.installRust,
   }, null, 2));
-  log.log("  ✓ .openclaw-installed");
+  log.log("  ✓ .axiom-installed");
 
   log.log("\n{green-fg}{bold}✅ Installation complete!{/bold}{/green-fg}");
   log.log(`\nStart with: {bold}bun run src/main.ts{/bold}`);
@@ -492,7 +492,7 @@ function generateConfigYaml(): string {
   port: ${config.port}
   bind: "${config.bind}"
   auth:
-    token: "\${OPENCLAW_AUTH_TOKEN}"
+    token: "\${AXIOM_AUTH_TOKEN}"
 
 edition: ${config.edition}
 

@@ -4,7 +4,7 @@
  * Reads ActivityTracker.snapshot(), selects patterns that exceed a
  * frequency threshold, then calls PromptEngineer.generateSkillWithHermes()
  * to draft a SkillDefinition, validates it, persists it to
- * openclaw-memory/03-Resources/skills/<id>.json, and registers it via
+ * axiom-memory/03-Resources/skills/<id>.json, and registers it via
  * SkillRegistry.register().
  *
  * This module does NOT call providers directly. It composes existing
@@ -37,7 +37,7 @@ export interface PromoterConfig {
 export const DEFAULT_PROMOTER_CONFIG: PromoterConfig = {
   minCount: 5,
   maxPromotionsPerCycle: 2,
-  skillDirRel: "./openclaw-memory/03-Resources/skills",
+  skillDirRel: "./axiom-memory/03-Resources/skills",
   skipExisting: true,
 };
 

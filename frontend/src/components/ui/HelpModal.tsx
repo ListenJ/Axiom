@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { NAV_ITEMS } from '@/lib/nav'
+import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 import { useApp } from '@/state/useApp'
 
 export default function HelpModal() {
@@ -8,7 +8,7 @@ export default function HelpModal() {
   if (!open) return null
 
   const shortcuts: { key: string; desc: string }[] = [
-    ...NAV_ITEMS.map((n) => ({ key: n.shortcut, desc: `打开 ${n.label}` })),
+    ...VISIBLE_NAV_ITEMS.map((n) => ({ key: n.shortcut, desc: `打开 ${n.label}` })),
     { key: 'Shift+T', desc: '切换深色 / 浅色主题' },
     { key: '/', desc: '聚焦搜索' },
     { key: 'Ctrl/Cmd+K', desc: '聚焦搜索' },

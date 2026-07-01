@@ -111,7 +111,7 @@ describe("Research Page", () => {
   describe("实体提取", () => {
     it("应能按类型分组实体", () => {
       const entities: ResearchEntity[] = [
-        { name: "OpenClaw", type: "project" },
+        { name: "Axiom", type: "project" },
         { name: "Bun", type: "tool" },
         { name: "SQLite", type: "tool" },
         { name: "Hermes", type: "project" },
@@ -121,7 +121,7 @@ describe("Research Page", () => {
         acc[e.type].push(e.name)
         return acc
       }, {} as Record<string, string[]>)
-      expect(byType["project"]).toEqual(["OpenClaw", "Hermes"])
+      expect(byType["project"]).toEqual(["Axiom", "Hermes"])
       expect(byType["tool"]).toEqual(["Bun", "SQLite"])
     })
 

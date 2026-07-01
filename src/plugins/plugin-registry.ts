@@ -12,19 +12,10 @@ import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions } from "./types.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
-
-/** Safely parse JSON with fallback value */
-function safeJsonParse<T>(json: string, fallback: T): T {
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    logger.warn(`Failed to parse JSON, using fallback: ${json.substring(0, 100)}`);
-    return fallback;
-  }
-}
+import { safeJsonParse } from "../utils/json.js";
 
 /** Plugin storage directory */
-const PLUGIN_DIR = process.env.OPENCLAW_PLUGIN_DIR || "./plugins";
+const PLUGIN_DIR = process.env.AXIOM_PLUGIN_DIR || "./plugins";
 
 /** Plugin registry for lifecycle management */
 export class PluginRegistry {
@@ -65,7 +56,7 @@ export class PluginRegistry {
         entry TEXT,
         config TEXT,
         dependencies TEXT,
-        requiresOpenClaw TEXT,
+        requiresAxiom TEXT,
         icon TEXT,
         docsUrl TEXT,
         status TEXT DEFAULT 'installed',
@@ -93,7 +84,7 @@ export class PluginRegistry {
       entry: string;
       config: string;
       dependencies: string;
-      requiresOpenClaw: string;
+      requiresAxiom: string;
       icon: string;
       docsUrl: string;
       status: string;
@@ -117,7 +108,7 @@ export class PluginRegistry {
           entry: row.entry || "index.js",
           config: row.config ? safeJsonParse(row.config, undefined) : undefined,
           dependencies: row.dependencies ? safeJsonParse(row.dependencies, undefined) : undefined,
-          requiresOpenClaw: row.requiresOpenClaw,
+          requiresAxiom: row.requiresAxiom,
           icon: row.icon,
           docsUrl: row.docsUrl,
         },
@@ -457,7 +448,7 @@ export class PluginRegistry {
       `
       INSERT OR REPLACE INTO plugins 
       (id, name, version, author, description, category, tags, entry, config, dependencies,
-       requiresOpenClaw, icon, docsUrl, status, path, configValues, error, installedAt, enabledAt)
+       requiresAxiom, icon, docsUrl, status, path, configValues, error, installedAt, enabledAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
@@ -471,7 +462,7 @@ export class PluginRegistry {
         m.entry ?? "index.js",
         m.config ? JSON.stringify(m.config) : null,
         m.dependencies ? JSON.stringify(m.dependencies) : null,
-        m.requiresOpenClaw || null,
+        m.requiresAxiom || null,
         m.icon || null,
         m.docsUrl || null,
         plugin.status,

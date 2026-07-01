@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  openclaw:
+  axiom:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
-    container_name: openclaw-agent
+    container_name: axiom-agent
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
@@ -15,11 +15,11 @@ services:
     env_file:
       - ../../.env
     volumes:
-      - openclaw-data:/app/data
-      - openclaw-vault:/app/data/vault
-      - openclaw-codegraph:/app/.codegraph
+      - axiom-data:/app/data
+      - axiom-vault:/app/data/vault
+      - axiom-codegraph:/app/.codegraph
     networks:
-      - openclaw-network
+      - axiom-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -28,10 +28,10 @@ services:
       start_period: 10s
 
 volumes:
-  openclaw-data:
-  openclaw-vault:
-  openclaw-codegraph:
+  axiom-data:
+  axiom-vault:
+  axiom-codegraph:
 
 networks:
-  openclaw-network:
+  axiom-network:
     driver: bridge

@@ -1,13 +1,13 @@
 /**
  * OpenCode 工具 Agent v3.0 — 免费模型驱动的轻量任务执行器
  *
- * 设计理念：OpenCode 内置免费模型，可直接执行简单任务，无需经过 OpenClaw 模型路由。
+ * 设计理念：OpenCode 内置免费模型，可直接执行简单任务，无需经过 Axiom 模型路由。
  * 将所有优化方案叠加：
  *   1. Pi Agent 本地工具预处理（grep/find/read/ls）— 零 token
  *   2. CodeGraph 索引 — 文件/符号搜索
  *   3. 任务复杂度评估 — 自动选择执行路径
  *   4. 并行执行 + 最快优先 — 同时调用 OpenCode + 主路由
- *   5. 优雅降级 — OpenCode 失败自动回退到 OpenClaw
+ *   5. 优雅降级 — OpenCode 失败自动回退到 Axiom
  *   6. Token 节省追踪 — 量化收益
  *   7. 免费模型轮询 — 多模型负载均衡 + circuit breaker
  *   8. 上下文自动注入 — CodeGraph/Pi Agent 检索结果自动增强 prompt
@@ -15,9 +15,9 @@
 import { spawn } from "bun";
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage } from "../router/model-router.js";
-import { gracefulDegradationRouter, type AggregationStrategy } from "../router/graceful-degradation.js";
 import { toolPool } from "../router/tool-pool.js";
 import { getTokenTracker } from "../router/token-tracker.js";
+import { RateLimitedSemaphore } from "../utils/concurrency/rate-limited-semaphore.js";
 import { PiCodeToolsAdapter } from "../pi-agent/pi-code-tools.js";
 import {
   isCodegraphInitialized,
@@ -36,9 +36,9 @@ import { getReadOptimizer, type ReadRequest } from "../utils/read-optimizer.js";
 
 /** OpenCode 免费模型（按推荐度排序） */
 export const OPENCODE_FREE_MODELS = [
-  { id: "opencode/deepseek-v4-flash-free", rpm: 30, context: 128000, priority: 1 },
-  { id: "opencode/big-pickle", rpm: 20, context: 64000, priority: 2 },
-  { id: "opencode/nemotron-3-super-free", rpm: 20, context: 128000, priority: 3 },
+  { id: "opencode/deepseek-v4-flash-free", rpm: 30, concurrentLimit: 2, context: 128000, priority: 1 },
+  { id: "opencode/big-pickle", rpm: 20, concurrentLimit: 2, context: 64000, priority: 2 },
+  { id: "opencode/nemotron-3-super-free", rpm: 20, concurrentLimit: 2, context: 128000, priority: 3 },
 ];
 
 /** 默认编码模型 */
@@ -65,9 +65,9 @@ export type TaskType =
 /** 执行策略 */
 export type ExecutionStrategy =
   | "opencode-only"     // 仅 OpenCode（最简单任务）
-  | "parallel"          // 并行 OpenCode + OpenClaw（取最快）
+  | "parallel"          // 并行 OpenCode + Axiom（取最快）
   | "opencode-primary"  // OpenCode 优先，失败回退
-  | "openclaw-only";    // 仅 OpenClaw（最复杂任务）
+  | "axiom-only";    // 仅 Axiom（最复杂任务）
 
 /** 执行结果 */
 export interface OpenCodeToolResult {
@@ -82,15 +82,24 @@ export interface OpenCodeToolResult {
   toolsUsed: string[];        // 使用的本地工具
 }
 
-/** 运行时状态 */
+/**
+ * 运行时状态 — Phase Audit-#1 migration.
+ *
+ * Old: lastMinuteRequests: number[] (O(n) per query via filter scan) +
+ *      activeRequests: number (counter).
+ * New: a single per-model RateLimitedSemaphore that owns both the
+ *      concurrent-slot gate and the rolling 60s RPM window with O(1)
+ *      admission. Other state (circuit, latency, totals) is unchanged.
+ */
 interface ModelRuntimeState {
-  lastMinuteRequests: number[];
-  activeRequests: number;
+  sem: RateLimitedSemaphore;
   consecutiveFailures: number;
   circuitOpen: boolean;
   circuitOpenUntil: number;
   totalCalls: number;
   totalFailures: number;
+  /** Times markRequestStart was called but the semaphore was full (race). */
+  droppedStarts: number;
   latencyHistory: number[];
 }
 
@@ -116,16 +125,20 @@ export class OpenCodeToolAgent {
     this.cwd = cwd ?? process.cwd();
     this.piTools = new PiCodeToolsAdapter(this.cwd);
 
-    // 初始化模型状态
+    // 初始化模型状态 — 每个模型一个 RateLimitedSemaphore
     for (const m of OPENCODE_FREE_MODELS) {
       this.modelStates.set(m.id, {
-        lastMinuteRequests: [],
-        activeRequests: 0,
+        sem: new RateLimitedSemaphore({
+          permits: m.concurrentLimit,
+          rpm: m.rpm,
+          windowMs: 60_000,
+        }),
         consecutiveFailures: 0,
         circuitOpen: false,
         circuitOpenUntil: 0,
         totalCalls: 0,
         totalFailures: 0,
+        droppedStarts: 0,
         latencyHistory: [],
       });
     }
@@ -136,7 +149,7 @@ export class OpenCodeToolAgent {
   // ---------------------------------------------------------------------------
 
   /**
-   * 执行用户请求 — 智能路由到 OpenCode 或 OpenClaw
+   * 执行用户请求 — 智能路由到 OpenCode 或 Axiom
    *
    * 叠加所有优化方案:
    *   1. 黑板优先 (Blackboard-First) — 检查是否已有相同任务结果
@@ -213,8 +226,8 @@ export class OpenCodeToolAgent {
       case "opencode-primary":
         result = await this.runOpenCodePrimary(enhancedPrompt, assessment.taskType, options);
         break;
-      case "openclaw-only":
-        result = await this.runOpenClawOnly(enhancedPrompt, assessment.taskType, options);
+      case "axiom-only":
+        result = await this.runAxiomOnly(enhancedPrompt, assessment.taskType, options);
         break;
       default:
         result = await this.runOpenCodePrimary(enhancedPrompt, assessment.taskType, options);
@@ -282,6 +295,9 @@ export class OpenCodeToolAgent {
           ? ((state.totalCalls - state.totalFailures) / state.totalCalls * 100).toFixed(1) + "%"
           : "N/A",
         avgLatencyMs: avgLatency,
+        activeRequests: state.sem.active,
+        rpmThisMinute: state.sem.currentRpm,
+        droppedStarts: state.droppedStarts,
         circuitOpen: state.circuitOpen,
         health: state.circuitOpen ? "🔴熔断" : state.consecutiveFailures > 0 ? "🟡告警" : "🟢健康",
       };
@@ -314,7 +330,7 @@ export class OpenCodeToolAgent {
     };
   }
 
-  /** 并行执行：OpenCode + OpenClaw 同时调用，取最快 */
+  /** 并行执行：OpenCode + Axiom 同时调用，取最快 */
   private async runParallel(
     prompt: string,
     taskType: TaskType,
@@ -330,15 +346,15 @@ export class OpenCodeToolAgent {
         result: { content: "", model, latencyMs: 0, error: err.message },
       }));
 
-    const openclawPromise = this.callOpenClaw(prompt, taskType)
-      .then((r): { source: "openclaw"; result: typeof r } => ({ source: "openclaw", result: r }))
-      .catch((err): { source: "openclaw"; result: { content: string; model: string; provider: string; latencyMs: number; error?: string } } => ({
-        source: "openclaw",
+    const axiomPromise = this.callAxiom(prompt, taskType)
+      .then((r): { source: "axiom"; result: typeof r } => ({ source: "axiom", result: r }))
+      .catch((err): { source: "axiom"; result: { content: string; model: string; provider: string; latencyMs: number; error?: string } } => ({
+        source: "axiom",
         result: { content: "", model: "", provider: "", latencyMs: 0, error: err.message },
       }));
 
     // 等待第一个成功返回的
-    const winner = await Promise.race([opencodePromise, openclawPromise]);
+    const winner = await Promise.race([opencodePromise, axiomPromise]);
 
     // 如果 OpenCode 赢了
     if (winner.source === "opencode" && winner.result.content) {
@@ -356,8 +372,8 @@ export class OpenCodeToolAgent {
       };
     }
 
-    // 如果 OpenClaw 赢了或 OpenCode 失败，等待另一个
-    const settled = await Promise.allSettled([opencodePromise, openclawPromise]);
+    // 如果 Axiom 赢了或 OpenCode 失败，等待另一个
+    const settled = await Promise.allSettled([opencodePromise, axiomPromise]);
 
     for (const s of settled) {
       if (s.status === "fulfilled" && s.value.result.content && !("error" in s.value.result)) {
@@ -365,7 +381,7 @@ export class OpenCodeToolAgent {
         return {
           content: s.value.result.content,
           model: s.value.result.model,
-          provider: isOpenCode ? "opencode" : (s.value.result as any).provider || "openclaw",
+          provider: isOpenCode ? "opencode" : (s.value.result as any).provider || "axiom",
           strategy: "parallel",
           latencyMs: Date.now() - startTime,
           tokenSaved: isOpenCode ? this.estimateTokenSaved(prompt, s.value.result.content) : 0,
@@ -390,7 +406,7 @@ export class OpenCodeToolAgent {
     };
   }
 
-  /** OpenCode 优先，失败回退到 OpenClaw */
+  /** OpenCode 优先，失败回退到 Axiom */
   private async runOpenCodePrimary(
     prompt: string,
     taskType: TaskType,
@@ -413,12 +429,12 @@ export class OpenCodeToolAgent {
         toolsUsed: [],
       };
     } catch (error) {
-      logger.warn("[OpenCodeToolAgent] OpenCode failed, falling back to OpenClaw", {
+      logger.warn("[OpenCodeToolAgent] OpenCode failed, falling back to Axiom", {
         model,
         error: error instanceof Error ? error.message : String(error),
       });
 
-      const ocResult = await this.callOpenClaw(prompt, taskType);
+      const ocResult = await this.callAxiom(prompt, taskType);
       return {
         content: ocResult.content,
         model: ocResult.model,
@@ -433,20 +449,20 @@ export class OpenCodeToolAgent {
     }
   }
 
-  /** 仅 OpenClaw — 复杂任务 */
-  private async runOpenClawOnly(
+  /** 仅 Axiom — 复杂任务 */
+  private async runAxiomOnly(
     prompt: string,
     taskType: TaskType,
     _options?: { model?: string; timeoutMs?: number }
   ): Promise<OpenCodeToolResult> {
     const startTime = Date.now();
-    const result = await this.callOpenClaw(prompt, taskType);
+    const result = await this.callAxiom(prompt, taskType);
 
     return {
       content: result.content,
       model: result.model,
       provider: result.provider,
-      strategy: "openclaw-only",
+      strategy: "axiom-only",
       latencyMs: Date.now() - startTime,
       tokenSaved: 0,
       fallbackUsed: false,
@@ -468,9 +484,13 @@ export class OpenCodeToolAgent {
     const startTime = Date.now();
     const state = this.modelStates.get(model)!;
 
-    // 标记请求开始
-    state.activeRequests++;
-    state.lastMinuteRequests.push(Date.now());
+    // 标记请求开始 — sem.tryAcquire() 是 O(1) 原子操作，
+    // 如果模型已满（concurrent 或 RPM），记录到 droppedStarts 供运维监控。
+    if (!state.sem.tryAcquire()) {
+      state.droppedStarts++;
+      state.totalCalls++;
+      throw new Error(`[OpenCodeToolAgent] model ${model} is at capacity (active=${state.sem.active}/${state.sem.permits}, rpm=${state.sem.currentRpm}/${state.sem.rpm})`);
+    }
     state.totalCalls++;
 
     const controller = new AbortController();
@@ -517,7 +537,7 @@ export class OpenCodeToolAgent {
       clearTimeout(timer);
 
       const latencyMs = Date.now() - startTime;
-      state.activeRequests = Math.max(0, state.activeRequests - 1);
+      state.sem.tryRelease();
 
       if (exitCode !== 0 && !output) {
         state.consecutiveFailures++;
@@ -536,7 +556,7 @@ export class OpenCodeToolAgent {
       return { content: cleaned, model, latencyMs };
     } catch (error) {
       clearTimeout(timer);
-      state.activeRequests = Math.max(0, state.activeRequests - 1);
+      state.sem.tryRelease();
       state.consecutiveFailures++;
       state.totalFailures++;
       this.checkCircuitBreaker(model, state);
@@ -544,8 +564,8 @@ export class OpenCodeToolAgent {
     }
   }
 
-  /** 调用 OpenClaw 模型路由 */
-  private async callOpenClaw(
+  /** 调用 Axiom 模型路由 */
+  private async callAxiom(
     prompt: string,
     taskType: TaskType
   ): Promise<{ content: string; model: string; provider: string }> {
@@ -860,8 +880,8 @@ export class OpenCodeToolAgent {
       strategy = "opencode-primary";
       reasons.push("较复杂 → OpenCode 优先，失败回退");
     } else {
-      strategy = "openclaw-only";
-      reasons.push("复杂任务 → 直接走 OpenClaw 主力模型");
+      strategy = "axiom-only";
+      reasons.push("复杂任务 → 直接走 Axiom 主力模型");
     }
 
     return { score, taskType, recommendedStrategy: strategy, reasons };
@@ -917,21 +937,19 @@ export class OpenCodeToolAgent {
     for (const m of OPENCODE_FREE_MODELS) {
       const state = this.modelStates.get(m.id)!;
 
-      // 清理过期请求记录
-      state.lastMinuteRequests = state.lastMinuteRequests.filter((t) => now - t < 60000);
-
-      // 检查熔断器
+      // 检查熔断器（RateLimitedSemaphore 不管熔断，单独处理）
       if (state.circuitOpen) {
         if (now < state.circuitOpenUntil) continue;
+        // 熔断器自动恢复
         state.circuitOpen = false;
         state.consecutiveFailures = 0;
       }
 
-      // 检查 RPM 限制
-      if (state.lastMinuteRequests.length >= m.rpm) continue;
+      // 并发限制：O(1) 读 sem.active vs sem.permits
+      if (state.sem.active >= state.sem.permits) continue;
 
-      // 检查并发限制
-      if (state.activeRequests >= 2) continue; // 默认并发限制 2
+      // RPM 限制：O(1) 读 sem.availableRpm
+      if (state.sem.availableRpm <= 0) continue;
 
       available.push(m.id);
     }
@@ -1067,7 +1085,7 @@ export class OpenCodeToolAgent {
   }
 
   private estimateTokenSaved(prompt: string, result: string): number {
-    // 估算：如果走 OpenClaw 路由，需要支付 prompt + result 的 token
+    // 估算：如果走 Axiom 路由，需要支付 prompt + result 的 token
     // OpenCode 免费，只计算 result 的 token（但实际上免费模型不收费）
     // 保守估算节省量 = prompt token * 0.5（因为预处理已经做了一部分）
     const promptTokens = this.estimateTokens(prompt);

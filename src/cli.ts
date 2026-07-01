@@ -1,5 +1,5 @@
 /**
- * OpenClaw AI Agent — CLI 命令行工具
+ * Axiom AI Agent — CLI 命令行工具
  * 提供交互式命令行接口，用于日常运维和数据操作
  *
  * 用法: bun run src/cli.ts <command> [options]
@@ -520,7 +520,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!installed) { console.log(getOpenCodeInstallGuide()); return; }
 
       const prompt = args.find((a) => !a.startsWith("--"));
-      if (!prompt) { console.error("Usage: oc:tool <prompt> [--strategy=opencode-only|parallel|opencode-primary|openclaw-only] [--no-context]"); return; }
+      if (!prompt) { console.error("Usage: oc:tool <prompt> [--strategy=opencode-only|parallel|opencode-primary|axiom-only] [--no-context]"); return; }
 
       const strategyArg = args.find((a) => a.startsWith("--strategy="))?.slice(11) as ExecutionStrategy | undefined;
       const noContext = args.includes("--no-context");
@@ -1183,7 +1183,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   },
 
   "kg:build": {
-    desc: "构建知识图谱 (kg:build --path=. --name=openclaw [--embeddings])",
+    desc: "构建知识图谱 (kg:build --path=. --name=axiom [--embeddings])",
     run: async (args) => {
       const path = args.find((a) => a.startsWith("--path="))?.slice(7) || ".";
       const name = args.find((a) => a.startsWith("--name="))?.slice(7) || "current";
@@ -1314,7 +1314,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "显示帮助信息",
     run: (args) => {
       if (args.includes("--all")) {
-        console.log("OpenClaw AI Agent CLI — 完整命令列表\n");
+        console.log("Axiom AI Agent CLI — 完整命令列表\n");
         const maxLen = Math.max(...Object.keys(commands).map(k => k.length));
         for (const [name, cmd] of Object.entries(commands)) {
           if (name === "help") continue;
@@ -1324,8 +1324,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         return;
       }
 
-      console.log("OpenClaw AI Agent CLI\n");
-      console.log("用法: openclaw <命令> [子命令] [参数...]\n");
+      console.log("Axiom AI Agent CLI\n");
+      console.log("用法: axiom <命令> [子命令] [参数...]\n");
 
       console.log("核心命令:");
       console.log("  status              系统状态概览");
@@ -1351,15 +1351,15 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("  s = search, c = chat, r = research, k = kg, v = vault\n");
 
       console.log("示例:");
-      console.log("  openclaw s \"React 19 新特性\"          搜索");
-      console.log("  openclaw c \"帮我写HTTP服务器\"          对话");
-      console.log("  openclaw r \"多智能体架构分析\"          深度研究");
-      console.log("  openclaw p analyze ../my-project       分析新项目");
-      console.log("  openclaw kg build --path=. --name=x   构建知识图谱");
-      console.log("  openclaw vault search \"部署方案\"       记忆库搜索");
-      console.log("  openclaw advisor free                  发现免费模型\n");
+      console.log("  axiom s \"React 19 新特性\"          搜索");
+      console.log("  axiom c \"帮我写HTTP服务器\"          对话");
+      console.log("  axiom r \"多智能体架构分析\"          深度研究");
+      console.log("  axiom p analyze ../my-project       分析新项目");
+      console.log("  axiom kg build --path=. --name=x   构建知识图谱");
+      console.log("  axiom vault search \"部署方案\"       记忆库搜索");
+      console.log("  axiom advisor free                  发现免费模型\n");
 
-      console.log("高级命令: openclaw help --all");
+      console.log("高级命令: axiom help --all");
     },
   },
 };
@@ -1430,12 +1430,12 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
 
 // Short aliases for common commands
 const aliases: Record<string, string> = {
-  s: "search",        // openclaw s "query" → openclaw search "query"
-  c: "chat",          // openclaw c "message"
-  r: "research",      // openclaw r "topic"
-  k: "kg",            // openclaw k build
-  v: "vault",         // openclaw v search
-  p: "project",       // openclaw p analyze <path>
+  s: "search",        // axiom s "query" → axiom search "query"
+  c: "chat",          // axiom c "message"
+  r: "research",      // axiom r "topic"
+  k: "kg",            // axiom k build
+  v: "vault",         // axiom v search
+  p: "project",       // axiom p analyze <path>
   h: "help",
 };
 
@@ -1452,7 +1452,7 @@ async function main() {
   // Resolve alias
   const resolvedCmd = aliases[cmd] || cmd;
 
-  // Check for subcommand: `openclaw kg build` or `openclaw kg:build`
+  // Check for subcommand: `axiom kg build` or `axiom kg:build`
   if (args.length > 0 && subcommands[resolvedCmd]?.[args[0]]) {
     const sub = args[0];
     try {
@@ -1465,7 +1465,7 @@ async function main() {
     return;
   }
 
-  // Also support colon syntax: `openclaw kg:build`
+  // Also support colon syntax: `axiom kg:build`
   const handler = commands[resolvedCmd];
   if (handler) {
     try {
@@ -1480,7 +1480,7 @@ async function main() {
 
   // Check if it's a subcommand group without sub-action
   if (subcommands[resolvedCmd]) {
-    console.log(`\n用法: openclaw ${resolvedCmd} <子命令>\n`);
+    console.log(`\n用法: axiom ${resolvedCmd} <子命令>\n`);
     console.log(`可用子命令:`);
     const maxLen = Math.max(...Object.keys(subcommands[resolvedCmd]).map(k => k.length));
     for (const [name, sub] of Object.entries(subcommands[resolvedCmd])) {
@@ -1490,7 +1490,7 @@ async function main() {
   }
 
   console.error(`未知命令: ${cmd}`);
-  console.error(`运行 "openclaw help" 查看可用命令\n`);
+  console.error(`运行 "axiom help" 查看可用命令\n`);
   // Suggest closest match
   const allCmds = [...Object.keys(commands), ...Object.keys(subcommands), ...Object.keys(aliases)];
   const suggestion = allCmds.find(c => c.startsWith(cmd.slice(0, 2)) || c.includes(cmd));

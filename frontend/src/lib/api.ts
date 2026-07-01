@@ -23,6 +23,7 @@ interface RequestOptions {
   headers?: Record<string, string>
   cache?: boolean | CacheOptions
   timeout?: number
+  signal?: AbortSignal
 }
 
 class HttpError extends Error {
@@ -32,6 +33,116 @@ class HttpError extends Error {
     super(message)
     this.status = status
     this.data = data
+  }
+}
+
+/**
+ * Structured events emitted by `APIClient.stream` while parsing an
+ * `text/event-stream` response. The discriminator is `type` so callers
+ * can use exhaustive switch narrowing. Extra fields from the upstream
+ * payload (model, usage, role, ...) are preserved via the index
+ * signature and accessible through the `extra` namespace.
+ */
+export type ChatStreamEvent =
+  | ({ type: 'start' } & ChatStreamMeta)
+  | ({ type: 'token'; content: string } & ChatStreamMeta)
+  | ({ type: 'done' } & ChatStreamMeta)
+  | ({ type: 'error'; message?: string; content?: string } & ChatStreamMeta)
+
+interface ChatStreamMeta {
+  model?: string
+  provider?: string
+  role?: string
+  usage?: Record<string, unknown>
+}
+
+export type ChatStreamHandler = (event: ChatStreamEvent) => void
+
+/**
+ * OpenAI-style chat message shape expected by the backend
+ * (`POST /chat/stream` and `POST /chat`). `role` is intentionally
+ * typed as `string` (instead of a literal union) so that custom
+ * system/tool messages from upstream providers pass through
+ * unchanged. `content` is the textual payload of the message.
+ */
+export interface ChatMessage {
+  role: string
+  content: string
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** Best-effort extraction of the assistant message from a legacy `/chat` JSON response. */
+function extractChatMessage(payload: unknown): string {
+  if (typeof payload === 'string') return payload
+  if (!isPlainObject(payload)) return JSON.stringify(payload)
+  const obj = payload as Record<string, unknown>
+  const candidates = ['message', 'content', 'text', 'reply', 'response']
+  for (const key of candidates) {
+    const value = obj[key]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return JSON.stringify(payload)
+}
+
+function pickMeta(parsed: Record<string, unknown>): ChatStreamMeta {
+  const meta: ChatStreamMeta = {}
+  if (typeof parsed.model === 'string') meta.model = parsed.model
+  if (typeof parsed.provider === 'string') meta.provider = parsed.provider
+  if (typeof parsed.role === 'string') meta.role = parsed.role
+  if (isPlainObject(parsed.usage)) meta.usage = parsed.usage
+  return meta
+}
+
+function dispatchSseEvent(parsed: Record<string, unknown>, onEvent: ChatStreamHandler): void {
+  const meta = pickMeta(parsed)
+  const type = typeof parsed.type === 'string' ? parsed.type : ''
+  const content = parsed.content !== undefined ? String(parsed.content) : undefined
+  switch (type) {
+    case 'start':
+      onEvent({ type: 'start', ...meta })
+      return
+    case 'token':
+      onEvent({ type: 'token', content: content ?? '', ...meta })
+      return
+    case 'done':
+      onEvent({ type: 'done', ...meta })
+      return
+    case 'error': {
+      const errorEvent: ChatStreamEvent = {
+        type: 'error',
+        ...meta,
+      }
+      if (typeof parsed.message === 'string') errorEvent.message = parsed.message
+      if (content !== undefined) errorEvent.content = content
+      onEvent(errorEvent)
+      return
+    }
+    default:
+      onEvent({ type: 'token', content: content ?? '', ...meta })
+  }
+}
+
+function handleSseLine(rawLine: string, onEvent: ChatStreamHandler): void {
+  const trimmed = rawLine.trim()
+  if (!trimmed || trimmed.startsWith(':')) return
+  if (!trimmed.startsWith('data:')) return
+  const payload = trimmed.slice(5).trim()
+  if (payload === '[DONE]') {
+    onEvent({ type: 'done' })
+    return
+  }
+  try {
+    const parsed = JSON.parse(payload) as unknown
+    if (isPlainObject(parsed)) {
+      dispatchSseEvent(parsed, onEvent)
+      return
+    }
+    onEvent({ type: 'token', content: payload })
+  } catch {
+    onEvent({ type: 'token', content: payload })
   }
 }
 
@@ -98,6 +209,11 @@ export class APIClient {
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), config.timeout)
+    const onExternalAbort = () => controller.abort()
+    if (options.signal) {
+      if (options.signal.aborted) controller.abort()
+      else options.signal.addEventListener('abort', onExternalAbort, { once: true })
+    }
 
     try {
       const response = await fetch(config.url, {
@@ -159,29 +275,53 @@ export class APIClient {
   async stream(
     path: string,
     body: unknown,
-    onChunk: (chunk: string) => void,
+    onEvent: (event: ChatStreamEvent) => void,
     options: { headers?: Record<string, string>; signal?: AbortSignal } = {},
   ): Promise<AbortController> {
     const url = this.buildURL(path)
     const controller = new AbortController()
     const response = await fetch(url, {
       method: 'POST',
-      headers: { ...this.defaultHeaders, ...(options.headers ?? {}) },
+      headers: { ...this.defaultHeaders, ...(options.headers ?? {}), Accept: 'text/event-stream' },
       body: JSON.stringify(body),
       signal: options.signal ?? controller.signal,
     })
     if (!response.ok || !response.body) {
       throw new HttpError(`HTTP ${response.status}`, response.status, null)
     }
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('text/event-stream')) {
+      // The backend responded with a non-SSE payload (legacy JSON endpoint or
+      // a transitional response). Drain and discard the body, then fall back
+      // to the non-streaming chat endpoint so the same caller keeps working
+      // against older backends that haven't deployed `/chat/stream` yet.
+      await response.body?.cancel()
+      const fallbackBody = isPlainObject(body) ? body : { message: body }
+      const fallback = await api.post('/chat', fallbackBody, { signal: controller.signal })
+      const text = extractChatMessage(fallback)
+      onEvent({ type: 'token', content: text })
+      onEvent({ type: 'done' })
+      return controller
+    }
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    let buffer = ''
     ;(async () => {
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          onChunk(decoder.decode(value, { stream: true }))
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            handleSseLine(line, onEvent)
+          }
         }
+        if (buffer.trim()) {
+          handleSseLine(buffer, onEvent)
+        }
+        onEvent({ type: 'done' })
       } catch {
         /* aborted */
       }
@@ -224,8 +364,32 @@ export const endpoints = {
   chat: {
     send: (message: string, options: Record<string, unknown> = {}) =>
       api.post('/chat', { message, ...options }),
-    stream: (message: string, onChunk: (c: string) => void, options: Record<string, unknown> = {}) =>
-      api.stream('/chat', { message, ...options }, onChunk),
+    stream: (
+      messages: ChatMessage[],
+      onEvent: ChatStreamHandler,
+      options: {
+        intent?: boolean
+        preferNativeStream?: boolean
+        signal?: AbortSignal
+      } = {},
+    ) => {
+      // Destructure `signal` so it is NEVER serialized into the JSON body.
+      // The signal belongs on the fetch init, not in the request payload.
+      const { signal, ...bodyOptions } = options
+      // Defensive: if a caller ever passes a `signal`-shaped key inside the
+      // body options (e.g. via a loose `Record<string, unknown>`), strip it
+      // so it cannot leak into `JSON.stringify` and corrupt the request.
+      const safeBodyOptions: Record<string, unknown> = { ...bodyOptions }
+      if ('signal' in safeBodyOptions) {
+        delete safeBodyOptions.signal
+      }
+      return api.stream(
+        '/chat/stream',
+        { messages, taskType: 'general-chat', ...safeBodyOptions },
+        onEvent,
+        signal !== undefined ? { signal } : {},
+      )
+    },
     history: () => api.get('/chat/history'),
   },
   search: {

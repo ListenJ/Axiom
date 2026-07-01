@@ -27,7 +27,7 @@ const { values, positionals } = parseArgs({
     tbs: { type: "string" },
     site: { type: "string" },
     save: { type: "boolean", default: true },
-    vault: { type: "string", default: "./openclaw-memory" },
+    vault: { type: "string", default: "./axiom-memory" },
     db: { type: "string", default: "./data/agent.db" },
     help: { type: "boolean", short: "h", default: false },
   },
@@ -37,7 +37,7 @@ const { values, positionals } = parseArgs({
 
 if (values.help || (!values.query && positionals.length === 0)) {
   console.log(`
-[SerpAPI] 搜索 CLI (OpenClaw)
+[SerpAPI] 搜索 CLI (Axiom)
 
 用法:
   bun run scripts/serpapi-search.ts [选项]
@@ -183,7 +183,7 @@ async function main() {
 
   console.log("\n[完成]");
   if (vaultPath) {
-    console.log(`   笔记路径: openclaw-memory/${vaultPath}`);
+    console.log(`   笔记路径: axiom-memory/${vaultPath}`);
     console.log(`   在 Obsidian 中打开 Vault 即可查看和管理此笔记。`);
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "OpenClaw Native App permissions",
+  "description": "Axiom Native App permissions",
   "windows": ["main"],
   "permissions": [
     "core:default",

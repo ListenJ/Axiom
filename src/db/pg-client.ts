@@ -27,9 +27,9 @@ function getConnectionConfig() {
 
   const host = process.env.PG_HOST || "localhost";
   const port = parseInt(process.env.PG_PORT || "5432");
-  const user = process.env.PG_USER || "openclaw";
-  const password = process.env.PG_PASSWORD || "openclaw";
-  const database = process.env.PG_DATABASE || "openclaw";
+  const user = process.env.PG_USER || "axiom";
+  const password = process.env.PG_PASSWORD || "axiom";
+  const database = process.env.PG_DATABASE || "axiom";
 
   return {
     url: `postgresql://${user}:${password}@${host}:${port}/${database}`,

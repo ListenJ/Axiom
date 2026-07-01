@@ -1,0 +1,207 @@
+/**
+ * Rate-Distortion Context Compressor
+ * Based on Rate-Distortion Theory for context compression with distortion guarantees.
+ *
+ * Core Math:
+ *   Rate:       R = compressed_tokens / original_tokens
+ *   Distortion: D = KL[P_LLM(output|full_context) || P_LLM(output|compressed_context)]
+ *   Optimization: min R(D) = min compression rate subject to D <= D_max
+ *
+ * Progressive Compression:
+ *   Layer 1: Drop low-relevance items (relevance < 0.1)
+ *   Layer 2: Truncate long items (keep first N sentences)
+ *   Layer 3: Merge similar items (Jaccard > 0.7)
+ *   After each layer, estimate distortion -> stop if exceeds D_max
+ *
+ * Distortion estimation (lightweight, no LLM needed):
+ *   - Jaccard proxy: distortion ~= 1 - Jaccard(original_summary, compressed_summary)
+ *   - Key sentence preservation: fraction of key sentences retained
+ *
+ * LLM-based estimation (optional):
+ *   - Set via setLLMEstimator() to use LLM for semantic distortion evaluation
+ */
+
+import { logger } from "../utils/logger.js";
+
+// ================================================================
+// Type Definitions
+// ================================================================
+
+/** Context item representing an independent content fragment */
+export interface ContextItem {
+  id: string;
+  content: string;
+  relevance: number;
+  tokens: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** Compressed context result */
+export interface CompressedContext {
+  items: ContextItem[];
+  rate: number;
+  distortion: number;
+  stats: CompressionStats;
+  appliedLayers: CompressionLayer[];
+}
+
+/** Compression statistics */
+export interface CompressionStats {
+  originalTokens: number;
+  compressedTokens: number;
+  rate: number;
+  estimatedDistortion: number;
+  compressionRatio: number;
+  droppedItems: number;
+  truncatedItems: number;
+  mergedItems: number;
+}
+
+/** Compression layer identifier */
+export type CompressionLayer = "drop-low-relevance" | "truncate-long" | "merge-similar";
+
+/** Rate-Distortion compressor configuration */
+export interface RateDistortionConfig {
+  maxDistortion: number;
+  minRate: number;
+  verificationModel?: string;
+  lowRelevanceThreshold?: number;
+  truncateSentenceCount?: number;
+  mergeSimilarityThreshold?: number;
+  maxDistortionIncrement?: number;
+}
+
+/** LLM-based distortion estimator function signature */
+export type LLMEstimator = (original: string, compressed: string, query: string) => Promise<number>;
+
+// ================================================================
+// Rate-Distortion Compressor
+// ================================================================
+
+export class RateDistortionCompressor {
+  private readonly config: Required<RateDistortionConfig>;
+  private llmEstimator: ((original: string, compressed: string, query: string) => Promise<number>) | null = null;
+  private lastDistortion: number = 0;
+  private lastRate: number | undefined;
+
+  constructor(config: RateDistortionConfig = {}) {
+    this.config = {
+      maxDistortion: config.maxDistortion ?? 0.15,
+      minRate: config.minRate ?? 0.5,
+      verificationModel: config.verificationModel ?? "",
+      lowRelevanceThreshold: config.lowRelevanceThreshold ?? 0.1,
+      truncateSentenceCount: config.truncateSentenceCount ?? 3,
+      mergeSimilarityThreshold: config.mergeSimilarityThreshold ?? 0.7,
+      maxDistortionIncrement: config.maxDistortionIncrement ?? 0.05,
+    };
+  }
+
+  /**
+   * Set an LLM-based distortion estimator.
+   * When set, compress() will use this instead of the Jaccard proxy.
+   */
+  setLLMEstimator(
+    estimator: (original: string, compressed: string, query: string) => Promise<number>
+  ): void {
+    this.llmEstimator = estimator;
+    logger.info("[RateDistortion] LLM estimator registered");
+  }
+
+  /**
+   * Estimate distortion using LLM if available, otherwise fallback to Jaccard proxy.
+   * Combines original items into single text, same for compressed.
+   */
+  async estimateDistortionLLM(
+    original: ContextItem[],
+    compressed: ContextItem[],
+    query?: string
+  ): Promise<number> {
+    if (this.llmEstimator) {
+      const originalText = original.map((item) => item.content).join("\n\n");
+      const compressedText = compressed.map((item) => item.content).join("\n\n");
+      const distortion = await this.llmEstimator(originalText, compressedText, query ?? "");
+      logger.debug("[RateDistortion] LLM distortion estimate", { distortion: distortion.toFixed(4) });
+      return Math.max(0, Math.min(1, distortion));
+    }
+
+    // Fallback to Jaccard proxy
+    const originalSummary = this.buildSummary(original);
+    return this.estimateDistortion(original, compressed, originalSummary);
+  }
+
+  /**
+   * Get compression efficiency metric.
+   * efficiency = (1 - rate) / max(0.01, lastDistortion)
+   * Higher = better compression per unit distortion.
+   */
+  getCompressionEfficiency(): number {
+    if (this.lastRate === undefined) return 0;
+    const divisor = Math.max(0.01, this.lastDistortion);
+    return (1 - this.lastRate) / divisor;
+  }
+
+  /**
+   * Auto-tune maxDistortion based on task complexity and compress.
+   *
+   * Heuristic:
+   *   - Complex keywords (critical, precise, exact, complex, research) -> lower maxDistortion (0.05-0.15)
+   *   - Simple keywords (summary, overview, quick, simple) -> higher maxDistortion (0.3-0.5)
+   *   - Normal (no strong signal) -> default range (0.15-0.3)
+   */
+  async optimizeForTask(
+    taskDescription: string,
+    items: ContextItem[]
+  ): Promise<CompressedContext> {
+    const lower = taskDescription.toLowerCase();
+
+    const complexKeywords = ["critical", "precise", "exact", "complex", "research"];
+    const simpleKeywords = ["summary", "overview", "quick", "simple"];
+
+    let complexScore = 0;
+    let simpleScore = 0;
+
+    for (const kw of complexKeywords) {
+      const regex = new RegExp(kw, "gi");
+      const matches = lower.match(regex);
+      if (matches) complexScore += matches.length;
+    }
+
+    for (const kw of simpleKeywords) {
+      const regex = new RegExp(kw, "gi");
+      const matches = lower.match(regex);
+      if (matches) simpleScore += matches.length;
+    }
+
+    let autoMaxDistortion: number;
+
+    if (complexScore > simpleScore) {
+      // Complex task: lower distortion tolerance for higher fidelity
+      autoMaxDistortion = 0.05 + (0.10 * Math.min(complexScore, 5) / 5);
+    } else if (simpleScore > complexScore) {
+      // Simple task: higher distortion tolerance
+      autoMaxDistortion = 0.3 + (0.20 * Math.min(simpleScore, 5) / 5);
+    } else {
+      // Normal: middle range
+      autoMaxDistortion = 0.15 + 0.075;
+    }
+
+    logger.info("[RateDistortion] Task-optimized tuning", {
+      taskDescription,
+      complexScore,
+      simpleScore,
+      autoMaxDistortion: autoMaxDistortion.toFixed(4),
+    });
+
+    // Create a compressor with auto-tuned maxDistortion
+    const compressor = new RateDistortionCompressor({
+      ...this.config,
+      maxDistortion: autoMaxDistortion,
+    });
+
+    // Transfer LLM estimator if set
+    if (this.llmEstimator) {
+      compressor.setLLMEstimator(this.llmEstimator);
+    }
+
+    return compressor.compress(items);
+  }

@@ -17,6 +17,7 @@ import { logger } from "../utils/logger.js";
 import { DeterministicSearchEngine } from "./deterministic-search.js";
 import { initializeCodegraph } from "./codegraph-index.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
+import { getConsciousness } from "../agents/consciousness/index.js";
 
 interface WatcherOptions {
   vaultPath: string;
@@ -210,6 +211,7 @@ export class VaultFileWatcher {
     const relPath = path.relative(this.opts.vaultPath, filePath);
     logger.debug("Vault file changed", { event, path: relPath });
     this.onEvent?.(event, relPath);
+    getConsciousness().observeVaultWrite();
 
     // 防抖刷新索引
     if (this.reloadTimer) clearTimeout(this.reloadTimer);

@@ -15,7 +15,7 @@ interface AppState {
   dismissToast: (id: number) => void
 }
 
-const THEME_KEY = 'openclaw:theme'
+const THEME_KEY = 'axiom:theme'
 
 function readInitialTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'dark'

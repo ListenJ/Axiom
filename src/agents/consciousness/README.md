@@ -1,6 +1,6 @@
 # Consciousness Module
 
-> Self-reflection / cleanup / skill-promotion background agent for OpenClaw.
+> Self-reflection / cleanup / skill-promotion background agent for Axiom.
 > Designed to be **strictly background** and **strictly orchestrating** — never
 > re-implements memory cleanup, prompt engineering, or model routing.
 
@@ -55,7 +55,7 @@ Default config (`types.ts`):
 | LLM reasoning | `router.executeWithRole` | `router.executeWithRole("general-chat", messages, {temperature: 0.3})` |
 | Skill draft | `PromptEngineer` | `engineer.generateSkillWithHermes(name, desc, triggers)` |
 | Skill registration | `SkillRegistry` | `registry.register(skillDef)` |
-| Skill persistence | filesystem + `loadSkillsFromDirectories` | write to `openclaw-memory/03-Resources/skills/auto-*.json` |
+| Skill persistence | filesystem + `loadSkillsFromDirectories` | write to `axiom-memory/03-Resources/skills/auto-*.json` |
 | Memory write | `VaultManager` | `vault.writeNote(path, content, {type: "consciousness-reflection"})` |
 | Distill stale convos | `MemoryDistiller` | `distiller.distillConversation(path)` |
 | Move to archive | `MemoryArchiver` | `archiver.archive()` |
@@ -151,7 +151,7 @@ await c.stop();
 
 - Frontend UI (Tauri 2.0 + React) — leave for a follow-up; the HTTP API is sufficient
 - Token-budget accounting for normal user requests (only reflection tokens are tracked here)
-- Cross-process consciousness (only one OpenClaw process per machine for v1)
+- Cross-process consciousness (only one Axiom process per machine for v1)
 - Replacing `MemoryArchiver` / `MemoryDistiller` / `PromptEngineer` — those are the *implementations* this module orchestrates
 
 ## Future Work (deferred)

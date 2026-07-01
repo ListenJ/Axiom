@@ -17,16 +17,16 @@ describe("Native Bridge v2.3", () => {
   });
 
   it("should detect edition from env", () => {
-    const original = process.env.OPENCLAW_EDITION;
-    process.env.OPENCLAW_EDITION = "cloud";
+    const original = process.env.AXIOM_EDITION;
+    process.env.AXIOM_EDITION = "cloud";
     expect(detectEdition()).toBe("cloud");
-    process.env.OPENCLAW_EDITION = "local";
+    process.env.AXIOM_EDITION = "local";
     expect(detectEdition()).toBe("local");
-    delete process.env.OPENCLAW_EDITION;
+    delete process.env.AXIOM_EDITION;
     delete process.env.DATABASE_URL;
     delete process.env.REDIS_URL;
     expect(detectEdition()).toBe("local");
-    if (original) process.env.OPENCLAW_EDITION = original;
+    if (original) process.env.AXIOM_EDITION = original;
   });
 
   it("should detect cloud edition from DATABASE_URL", () => {
@@ -69,7 +69,7 @@ describe("Native Bridge v2.3", () => {
       edition: "local",
       port: 19999,
       enabled: true,
-      vaultPath: "./openclaw-memory",
+      vaultPath: "./axiom-memory",
     });
     // Binary not built yet, should return false but not throw
     expect(typeof result).toBe("boolean");

@@ -1,10 +1,29 @@
 # MCP服务器注册配置
-# 所有 API Key 通过环境变量注入，本文件不包含任何密钥
+# 免费方案：无需 API Key，开箱即用
+# 运行时：统一使用 bun/bunx（非 node/npx）
 servers:
+  # Context7 — 文档查询（免费，无需 API Key）
+  # 提供 7000+ 库的版本化文档
+  context7:
+    type: "remote"
+    url: "https://mcp.context7.com/mcp"
+
+  # free-search — 多引擎网络搜索（DuckDuckGo, Mojeek, Startpage）
+  # 无需 API Key，本地优先
+  free-search:
+    command: "bunx"
+    args: ["-y", "free-search-mcp"]
+
+  # freeweb — 网页浏览和内容提取（7层回退，无需 API Key）
+  # 支持 Playwright 浏览器自动化
+  freeweb:
+    command: "bunx"
+    args: ["-y", "freeweb-mcp"]
+
   # 文件系统访问
   filesystem:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    command: "bunx"
+    args: ["-y", "@anthropic-ai/mcp-server-filesystem", "."]
 
   # SQLite数据库
   sqlite:
@@ -16,13 +35,6 @@ servers:
     command: "bun"
     args: ["run", "src/mcp/server.ts"]
 
-  # 网页搜索 (SerpAPI)
-  search:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-serpapi"]
-    env:
-      SERPAPI_API_KEY: "${SERPAPI_KEY}"
-
   # OpenCode 编码 Agent（通过 stdio 暴露编码工具）
   opencode:
     command: "bun"
@@ -30,11 +42,3 @@ servers:
     env:
       OPENCODE_API_KEY: "${OPENCODE_API_KEY}"
       OPENCODE_DEFAULT_MODEL: "opencode/deepseek-v4-flash-free"
-
-  # Hermes 项目管理 Agent（如已安装可启用）
-  # 安装: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
-  # hermes:
-  #   command: "hermes"
-  #   args: ["mcp", "serve"]
-  #   env:
-  #     OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"

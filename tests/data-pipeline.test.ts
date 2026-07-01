@@ -26,7 +26,7 @@ describe("DataPipeline", () => {
   });
 
   it("should search and return results", async () => {
-    const results = await pipeline.searchStructured("OpenClaw AI agent", "duckduckgo", { num: 3 });
+    const results = await pipeline.searchStructured("Axiom AI agent", "duckduckgo", { num: 3 });
     expect(Array.isArray(results)).toBe(true);
     expect(results.length).toBeGreaterThanOrEqual(0);
     

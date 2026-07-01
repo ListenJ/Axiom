@@ -201,7 +201,7 @@ export class SerpApiClient {
         method: "GET",
         headers: {
           Accept: "application/json",
-          "User-Agent": "OpenClaw-Agent/1.0 (Bun)",
+          "User-Agent": "Axiom-Agent/1.0 (Bun)",
         },
         signal: controller.signal,
       });

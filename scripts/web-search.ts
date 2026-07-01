@@ -44,7 +44,7 @@ for (let i = 0; i < args.length; i++) {
 }
 const query = args.filter((_, i) => !skipIndices.has(i))[0];
 
-const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || "./openclaw-memory";
+const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
 const ATOMIC_DIR = path.join(VAULT_PATH, "03-Knowledge", "atomic-notes");
 
 // ═══════════ 主题自动查询生成 ═══════════

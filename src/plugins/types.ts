@@ -53,7 +53,7 @@ export interface PluginConfig {
 
 /** Plugin manifest - defines a plugin */
 export interface PluginManifest {
-  /** Unique ID (reverse domain, e.g. "openclaw.plugins.code-analysis") */
+  /** Unique ID (reverse domain, e.g. "axiom.plugins.code-analysis") */
   id: string;
   /** Human-readable name */
   name: string;
@@ -73,8 +73,8 @@ export interface PluginManifest {
   config?: PluginConfig[];
   /** Plugin IDs this depends on */
   dependencies?: string[];
-  /** Minimum OpenClaw version required */
-  requiresOpenClaw?: string;
+  /** Minimum Axiom version required */
+  requiresAxiom?: string;
   /** Icon emoji or URL */
   icon?: string;
   /** README or docs URL */

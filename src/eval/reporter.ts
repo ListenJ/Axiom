@@ -46,7 +46,7 @@ export function generateReport(
   const summaries = models.map((model) => buildModelSummary(results, model));
 
   const report: EvalReport = {
-    title: "OpenClaw Agent Model Evaluation Report",
+    title: "Axiom Agent Model Evaluation Report",
     timestamp: new Date().toISOString(),
     models,
     testCount: results.length,

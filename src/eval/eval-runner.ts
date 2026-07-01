@@ -29,7 +29,7 @@ const helpRequested = args.includes("--help") || args.includes("-h");
 
 if (helpRequested) {
   console.log(`
-OpenClaw Model Evaluation Runner
+Axiom Model Evaluation Runner
 =================================
 Usage: bun run src/eval/eval-runner.ts [options]
 
@@ -74,7 +74,7 @@ async function callModel(
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${key}`,
-      "HTTP-Referer": "https://openclaw.dev",
+      "HTTP-Referer": "https://axiom-runtime.dev",
     },
     body: JSON.stringify({
       model,
@@ -163,7 +163,7 @@ async function main() {
   const judgeModel = process.env.JUDGE_MODEL || "anthropic/claude-sonnet-4.6";
 
   const filterLabel = categoryFilter || dimensionFilter || "all";
-  console.log(`\n🔬 OpenClaw Model Evaluation`);
+  console.log(`\n🔬 Axiom Model Evaluation`);
   console.log(`   Models: ${models.join(", ")}`);
   console.log(`   Test cases: ${testCases.length} (${filterLabel})`);
   console.log(`   Judge: ${noJudge ? "disabled" : judgeModel}`);

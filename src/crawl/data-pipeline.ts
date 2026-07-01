@@ -225,7 +225,7 @@ export class DataPipeline {
       requestDelay: options.requestDelay || 1000,
       maxDepth: options.maxDepth || 2,
       retries: options.retries || 3,
-      userAgent: options.userAgent || "OpenClaw/1.0 (Research Bot; +https://openclaw.ai)",
+      userAgent: options.userAgent || "Axiom/1.0 (Research Bot; +https://axiom-runtime.ai)",
     };
   }
 

@@ -203,3 +203,27 @@ export function isRetryableError(error: Error): boolean {
     msg.includes("504")
   );
 }
+
+/**
+ * 计算指数退避延迟（带抖动）
+ * 用于 model-router.ts 等需要自定义重试逻辑的场景
+ */
+export function calculateBackoffDelay(
+  attempt: number,
+  options: {
+    baseDelay?: number;
+    maxDelay?: number;
+    backoffMultiplier?: number;
+    jitterMax?: number;
+  } = {}
+): number {
+  const baseDelay = options.baseDelay ?? 500;
+  const maxDelay = options.maxDelay ?? 5000;
+  const backoffMultiplier = options.backoffMultiplier ?? 2;
+  const jitterMax = options.jitterMax ?? 200;
+
+  return Math.min(
+    baseDelay * Math.pow(backoffMultiplier, attempt) + Math.random() * jitterMax,
+    maxDelay
+  );
+}

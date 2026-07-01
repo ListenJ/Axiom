@@ -1,5 +1,5 @@
 # ============================================
-# OpenClaw AI Agent .gitignore
+# Axiom AI Agent .gitignore
 # 只上传 README.md 和核心代码到 GitHub
 # 其他文档需手动下载
 # ============================================
@@ -46,6 +46,7 @@ Thumbs.db
 
 # === Generated memory content ===
 openclaw-memory/
+axiom-memory/
 
 # === Temporary files ===
 .tmp/
@@ -74,6 +75,8 @@ vendor/
 # === SQLite databases ===
 openclaw-memory.db
 openclaw-memory.db-*
+axiom-memory.db
+axiom-memory.db-*
 
 # === Lightpanda ===
 lightpanda-linux

@@ -2,7 +2,33 @@
  * MiniMax MCP 工具测试
  * 测试网络搜索和图像识别功能
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect, beforeAll, mock } from "bun:test";
+
+// Mock the network boundary (proxyFetch) before the tool module is imported so
+// tests stay deterministic and never hit api.minimax.io.
+mock.module("../src/utils/proxy-fetch.js", () => ({
+  proxyFetch: mock(async (_url: string, _init?: RequestInit) => {
+    return new Response(
+      JSON.stringify({
+        data: {
+          results: [
+            {
+              title: "Mocked MiniMax result",
+              link: "https://example.com/mock",
+              snippet: "Mocked snippet for offline test",
+              displayedUrl: "example.com",
+            },
+          ],
+          totalResults: 1,
+          description: "Mocked MiniMax image description",
+          objects: ["object-1"],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }),
+}));
+
 import {
   minimaxWebSearch,
   minimaxImageUnderstand,
@@ -23,10 +49,10 @@ describeIf("MiniMax Tools", () => {
 
   describe("minimaxWebSearch", () => {
     it("should search the web or gracefully handle no Token Plan", async () => {
-      const result = await minimaxWebSearch("OpenClaw AI Agent");
+      const result = await minimaxWebSearch("Axiom AI Agent");
       expect(result).toBeDefined();
       expect(result).toHaveProperty("success");
-      expect(result.query).toBe("OpenClaw AI Agent");
+      expect(result.query).toBe("Axiom AI Agent");
       expect(Array.isArray(result.results)).toBe(true);
       // 如果成功，验证结果结构
       if (result.success && result.results.length > 0) {

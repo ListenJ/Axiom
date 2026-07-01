@@ -187,17 +187,17 @@ export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
     description: "Enable WebSocket server",
   },
   {
-    name: "OPENCLAW_GATEWAY_PORT",
+    name: "AXIOM_GATEWAY_PORT",
     required: false,
     default: "18789",
     validate: (v) => {
       const port = parseInt(v, 10);
       return Number.isFinite(port) && port > 0 && port < 65536;
     },
-    description: "HTTP gateway port for OpenClaw",
+    description: "HTTP gateway port for Axiom",
   },
   {
-    name: "OPENCLAW_AUTH_TOKEN",
+    name: "AXIOM_AUTH_TOKEN",
     required: false,
     validate: (v) => v.length >= 16,
     description: "Gateway auth token (min 16 chars). If unset or default placeholder, server logs a loud warning and /api-keys returns 401.",
@@ -254,30 +254,30 @@ export function validateEnv(options?: {
   // Unknown env vars that look like typos
   const knownVars = new Set(REQUIRED_ENV_VARS.map((v) => v.name));
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("OPENCLAW_") && !knownVars.has(key)) {
+    if (key.startsWith("AXIOM_") && !knownVars.has(key)) {
       result.warnings.push(
         `Unknown environment variable: ${key}. Did you mean one of: ${
           Array.from(knownVars)
-            .filter((k) => k.toLowerCase().includes(key.toLowerCase().replace("openclaw_", "")))
+            .filter((k) => k.toLowerCase().includes(key.toLowerCase().replace("axiom_", "")))
             .join(", ") || "none found"
         }?`,
       );
     }
   }
 
-  // Security warnings for OPENCLAW_AUTH_TOKEN
-  const authToken = process.env.OPENCLAW_AUTH_TOKEN;
+  // Security warnings for AXIOM_AUTH_TOKEN
+  const authToken = process.env.AXIOM_AUTH_TOKEN;
   if (!authToken) {
     result.warnings.push(
-      "⚠️  OPENCLAW_AUTH_TOKEN is unset. All /api-keys requests will be refused (503). Generate one with: openssl rand -hex 32",
+      "⚠️  AXIOM_AUTH_TOKEN is unset. All /api-keys requests will be refused (503). Generate one with: openssl rand -hex 32",
     );
   } else if (authToken === "your-secure-random-token") {
     result.warnings.push(
-      "⚠️  OPENCLAW_AUTH_TOKEN is still the default placeholder. Replace it with a real secret (openssl rand -hex 32).",
+      "⚠️  AXIOM_AUTH_TOKEN is still the default placeholder. Replace it with a real secret (openssl rand -hex 32).",
     );
   } else if (authToken.length < 32) {
     result.warnings.push(
-      `⚠️  OPENCLAW_AUTH_TOKEN is only ${authToken.length} chars. Use at least 32 chars for production (openssl rand -hex 32).`,
+      `⚠️  AXIOM_AUTH_TOKEN is only ${authToken.length} chars. Use at least 32 chars for production (openssl rand -hex 32).`,
     );
   }
 

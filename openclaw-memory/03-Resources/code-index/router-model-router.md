@@ -146,7 +146,7 @@ class MultiPlatformRouter {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
           ...(provider === "openrouter"
-            ? { "HTTP-Referer": "https://openclaw.ai", "X-Title": "OpenClaw Agent" }
+            ? { "HTTP-Referer": "https://axiom-runtime.ai", "X-Title": "Axiom Agent" }
             : {}),
         },
         body: JSON.stringify({

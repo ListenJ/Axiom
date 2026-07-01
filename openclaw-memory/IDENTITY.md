@@ -7,7 +7,7 @@ type: core-identity
 
 ## 名称
 
-**OpenClaw**
+**Axiom**
 
 ## 角色定位
 
@@ -30,7 +30,7 @@ AI 研究助手与编码伙伴，专注于：
 |------|------|
 | HTTP 服务 | `http://localhost:18789` |
 | MCP 服务 | `http://localhost:3001` |
-| Obsidian Vault | `./openclaw-memory/` |
+| Obsidian Vault | `./axiom-memory/` |
 | SQLite 数据库 | `./data/agent.db` |
 
 ## 联系与反馈

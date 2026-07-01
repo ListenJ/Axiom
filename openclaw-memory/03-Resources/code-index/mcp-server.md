@@ -58,7 +58,7 @@ const vault = new VaultManager();
 const kg = new KnowledgeGraph(dbPath);
 
 const mcp = new McpServer({
-  name: "OpenClaw Agent MCP Server",
+  name: "Axiom Agent MCP Server",
   version: "2.1.0",
 });
 

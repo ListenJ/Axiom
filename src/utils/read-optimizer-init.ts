@@ -140,7 +140,7 @@ export function initializeReadOptimizers(cwd?: string): void {
 
   facade.registerExecutor("vault", async (req) => {
     const { action, params } = req;
-    const vaultPath = String(params.vaultPath ?? process.env.OBSIDIAN_VAULT_PATH ?? "./openclaw-memory");
+    const vaultPath = String(params.vaultPath ?? process.env.OBSIDIAN_VAULT_PATH ?? "./axiom-memory");
 
     switch (action) {
       case "search": {

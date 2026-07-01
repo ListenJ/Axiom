@@ -1,48 +1,58 @@
-# OpenClaw AI Agent — 技术架构文档
+# Axiom Runtime — 技术架构文档
 
-> 版本: v2.8.1 | 更新: 2026-06-26
+> 版本: v4.0.0 | 更新: 2026-06-30
+>
+> 📖 设计哲学与长期方向请参见 [PHILOSOPHY.md](PHILOSOPHY.md) — 本文档为技术实现细节。
 
 ## 1. 系统概览
 
-OpenClaw AI Agent 是一个本地部署的 AI 工作流引擎，通过 MCP (Model Context Protocol) 暴露 111 个工具，支持多 Agent 协作、确定性推理、知识图谱管理。
+Axiom 是一个**认知运行时 (Cognitive Runtime)**，融合确定性推理引擎与世界模型，面向消费级 GPU 的本地 AI 开发辅助系统。通过 MCP 协议暴露 150 个工具，核心创新在于将 LLM 从推理主体降级为 Runtime 中的 Cognitive Accelerator（认知加速器）。
 
 ### 1.1 核心定位
 
+- **本质定义**: Runtime + World Model + Deterministic Cognitive System（详见 [PHILOSOPHY.md](PHILOSOPHY.md)）
 - **部署方式**: 本地部署 (Windows 11 + Bun)
 - **硬件要求**: Intel/AMD PC + NVIDIA RTX 3050 Ti Laptop (4GB VRAM)
-- **推理策略**: Qwen3-1.7B Q4_K_M 本地 + 云 API 降级
+- **推理策略**: LLM 仅做认知加速器 — Qwen3-1.7B Q4_K_M 本地 + 云 API 降级 + 确定性规则兜底
 - **数据存储**: SQLite (结构化) + 文件系统 (Vault) + 图谱 (知识网络)
+- **知识统一**: KAL 统一访问层 (跨 Vault/KG/DRE 查询)
 
 ### 1.2 架构图
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    OpenClaw v2.8.1 Architecture                  │
+│                    Axiom Runtime v4.0.0 Architecture                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  MCP Server (111 tools)  │  HTTP API (:18789)  │  CLI          │
+│  MCP Server (150 tools)  │  HTTP API (:18789)  │  CLI          │
 ├──────────────────────────┴────────────────────┴────────────────┤
-│                    智能路由层 (Model Router)                      │
-│  ┌─────────────┬──────────────┬─────────────┬───────────────┐  │
-│  │ 确定性路由   │ 意图识别      │ 任务编排     │ 成本优化       │  │
-│  └─────────────┴──────────────┴─────────────┴───────────────┘  │
+│  场景路由层 (SceneRouter, 21场景)  │  智能路由层 (Model Router)    │
+│  意图→工具子集匹配 (降低 context)  │  确定性路由/意图识别/成本优化  │
 ├─────────────────────────────────────────────────────────────────┤
-│                    工具层 (111 MCP Tools)                        │
+│                    工具层 (150 MCP Tools)                        │
 │  ┌───────────────┬───────────────────┬─────────────────────┐   │
-│  │ 核心 (65)      │ 配置 (34)         │ 外部服务 (12)       │   │
+│  │ 核心 (88)      │ 配置 (33)         │ 外部服务 (12)       │   │
 │  │ Vault/Git/FS   │ GitHub/Model/Mini │ PostgreSQL/llama.cpp│   │
-│  │ 代码分析/快照   │                   │                     │   │
+│  │ 代码分析/KAL    │ DIP/Scene/VRAM    │ DRE/KG              │   │
 │  └───────────────┴───────────────────┴─────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────┤
 │                    引擎层                                       │
 │  ┌─────────────┬──────────────┬─────────────┬───────────────┐  │
 │  │ Vault 引擎   │ Arena 引擎    │ KG 引擎      │ DRE 引擎       │  │
 │  │ (SQLite+FTS) │ (确定性评估)   │ (知识图谱)    │ (确定性推理)    │  │
+│  ├─────────────┼──────────────┼─────────────┼───────────────┤  │
+│  │ KAL 统一层   │ DIP 管道      │ VRAM 预算    │ 场景路由       │  │
+│  │ (跨库查询)   │ (文档→KG)    │ (GPU管理)    │ (工具懒加载)   │  │
+│  ├─────────────┼──────────────┼─────────────┼───────────────┤  │
+│  │ 心智模型     │ 推理图        │ 约束求解器   │ Actor 系统     │  │
+│  │ (领域模拟)   │ (LLM空洞填补) │ (5维约束)   │ (万物皆Actor)  │  │
 │  └─────────────┴──────────────┴─────────────┴───────────────┘  │
 ├─────────────────────────────────────────────────────────────────┤
 │                    存储层                                       │
 │  ┌─────────────┬──────────────┬─────────────┬───────────────┐  │
 │  │ Obsidian     │ SQLite       │ CodeGraph   │ DRE SQLite    │  │
 │  │ Vault        │ (结构化数据)  │ (代码索引)   │ (知识/图谱)    │  │
+│  │              │ + KAL 引用    │             │ + 行为/预测    │  │
+│  │              │              │             │ + 假设/过程    │  │
 │  └─────────────┴──────────────┴─────────────┴───────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -101,13 +111,13 @@ registry.add({
 
 | 层级 | 数量 | 状态 | 依赖 |
 |------|------|------|------|
-| 核心工具 | 65 | ✅ 始终可用 | 零配置 |
-| 配置工具 | 34 | ⚙️ 配置后可用 | API Key |
+| 核心工具 | 88 | ✅ 始终可用 | 零配置 |
+| 配置工具 | 33 | ⚙️ 配置后可用 | API Key |
 | 外部服务 | 12 | 🔧 需安装服务 | PostgreSQL/llama.cpp |
 
 ### 3.3 工具分类
 
-#### 核心工具 (65 个)
+#### 核心工具 (88 个)
 
 **Vault 记忆引擎 (8)**
 - `memory_search` — 确定性搜索 Vault 笔记
@@ -125,8 +135,9 @@ registry.add({
 **Git (5)**
 - `git_status`, `git_diff`, `git_log`, `git_branch`, `git_blame`
 
-**代码分析 (5)**
+**代码分析 (8)**
 - `code_symbols`, `code_references`, `code_outline`, `code_analyze`, `code_detect_language`
+- `code_quick_diagnostics`, `code_actions`, `code_test`
 
 **快照 (5)**
 - `snapshot_create`, `snapshot_revert`, `snapshot_list`, `snapshot_diff`, `snapshot_status`
@@ -134,35 +145,78 @@ registry.add({
 **Prompt 连接池 (6)**
 - `prompt_pool_acquire`, `prompt_pool_metrics`, `prompt_pool_status`, `prompt_pool_roles`, `prompt_pool_warmup`, `prompt_pool_evict`
 
-**竞技场 (7)**
-- `arena_search_models`, `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`, `arena_role_recommendation`, `arena_stats`, `arena_sources`
+**竞技场 (8)**
+- `arena_search_models`, `arena_get_model_scores`, `arena_benchmark_ranking`, `arena_composite_ranking`, `arena_role_recommendation`, `arena_stats`, `arena_sources`, `arena_collect`
 
-**知识图谱增强 (10)**
+**知识图谱 (统一 PostgreSQL+SQLite 自动降级) (17)**
+- `kg_stats`, `kg_entities`, `kg_entity_detail`, `kg_traverse`, `kg_search`, `kg_graph`, `kg_build`
 - `kg_add_node`, `kg_add_edge`, `kg_search_nodes`, `kg_subgraph`, `kg_shortest_path`, `kg_detect_communities`, `kg_echarts_data`, `kg_d3_data`, `kg_nl_query`, `kg_enhanced_stats`
 
-**DRE 只读 (4)**
-- `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_status`
+**DRE 确定性推理 (三级降级: 本地→云API→规则) (6)**
+- `dre_write_knowledge`, `dre_read_knowledge`, `dre_search_knowledge`, `dre_subgraph`, `dre_status`, `dre_consciousness_step`
 
-**其他 (9)**
-- `db_query`, `list_free_models`, `token_stats`, `token_stats_by_model`, `token_stats_by_role`, `token_daily_stats`, `set_mode`, `get_mode`, `proxy_status`
+**KAL 统一知识访问层 (2)**
+- `kal_query` — 跨 Vault/KG/DRE 统一查询
+- `kal_references` — 跨存储引用查找
 
-#### 配置工具 (34 个)
+**DIP 文档处理管道 (2)**
+- `dip_ingest_document` — 文档→KG 管道 (Markdown→AST→节点→KG)
+- `dip_query_ast` — 确定性 AST 查询
+
+**场景路由 (2)**
+- `scene_suggest_tools` — 根据输入推荐工具子集
+- `scene_list` — 列出所有场景
+
+**VRAM 预算 (1)**
+- `vram_status` — GPU VRAM 预算状态
+
+**心智模型 (3)**
+- `mental_model_list` — 列出所有心智模型
+- `mental_model_match` — 观察→概念链→状态路径匹配
+- `mental_model_predict` — 状态→触发→预测下一步
+
+**推理图 (4)**
+- `reasoning_build` — 构建推理图 (前提→结论+空洞检测)
+- `reasoning_detect_gaps` — 检测推理链中的缺失环节
+- `reasoning_fill_gap` — 用 LLM 结果精确填补空洞
+- `reasoning_result` — 获取推理结果 (结论+链+置信度)
+
+**过程性知识 (1)**
+- `procedure_parse` — 从知识节点中解析过程性知识 (步骤序列、条件分支、循环)
+
+**约束求解器 (4)**
+- `constraint_check` — 检查动作是否满足所有约束 (逻辑/物理/语义/策略/时间)
+- `constraint_select_best` — 从候选动作中选择满足约束的最佳动作
+- `constraint_list` — 列出所有约束 (可按维度过滤)
+- `constraint_stats` — 获取约束求解器统计信息
+
+**Actor 系统 (2)**
+- `actor_list` — 列出所有 Actor (知识/约束/心智模型/推理)
+- `actor_send` — 向 Actor 发送消息 (触发主动响应)
+
+**其他 (7)**
+- `db_query`, `list_free_models`, `token_stats`, `token_stats_by_model`, `token_stats_by_role`, `token_daily_stats`, `proxy_status`
+
+#### 配置工具 (33 个)
 
 | 类别 | 工具数 | 环境变量 |
 |------|--------|----------|
 | GitHub | 22 | `GITHUB_TOKEN` |
 | 模型路由 | 5 | `DEEPSEEK_API_KEY` 等 |
 | MiniMax | 3 | `MINIMAX_API_KEY` |
-| 编排器 | 2 | 模型 API |
+| 编排器 | 5 | 模型 API |
 | 榜单采集 | 1 | 网络 |
+| 模式管理 | 4 | 无 |
+| 技能管理 | 2 | 无 |
 
 #### 外部服务工具 (12 个)
 
 | 类别 | 工具数 | 服务依赖 |
 |------|--------|----------|
-| PostgreSQL KG | 7 | PostgreSQL + pgvector |
-| DRE 写入 | 2 | llama.cpp + GPU |
+| PostgreSQL KG | 7 | PostgreSQL + pgvector (自动降级到 SQLite) |
+| DRE 写入 | 2 | llama.cpp + GPU (三级降级) |
 | CLI Agent | 3 | OpenCode/Hermes CLI |
+| Arena 采集 | 1 | 网络 |
 
 ---
 
@@ -213,7 +267,7 @@ registry.add({
 - 自然语言查询
 
 **降级策略**:
-- 无 PostgreSQL: 使用 SQLite 替代 `kg_stats`, `kg_entities` 等
+- 无 PostgreSQL: 自动降级到 SQLite (`kg_stats`→`kg_enhanced_stats`, `kg_entities`→`kg_search_nodes`, 等)
 - 无 GPU: 使用 `memory_write` 替代 `dre_write_knowledge`
 
 ### 4.4 DRE 引擎 (确定性推理)
@@ -235,9 +289,177 @@ registry.add({
               (AsyncGenerator)
 ```
 
----
+**三级降级链** (v2.9.0):
+```
+L1: 本地 Qwen3-1.7B (llama.cpp)
+    ↓ OOM/连接失败
+L2: 云 API (DeepSeek, 通过 Model Router)
+    ↓ API 不可用
+L3: 规则推理 (关键词匹配 + 工作记忆快照, 零LLM)
+```
 
-## 5. 开发路径
+### 4.5 KAL 统一知识访问层 (v2.9.0 新增)
+
+**技术栈**: TypeScript + SQLite
+
+**核心特性**:
+- 全局 node_id 体系 (`{store}:{type}:{identifier}`)
+- 跨 Vault/KG/DRE 统一查询
+- Fan-out 查询 + 结果合并
+- 按相关性排序
+
+**数据流**:
+```
+kal_query → 路由到 [Vault, KG, DRE]
+         → 并行查询各存储
+         → 合并结果 (按 relevance 排序)
+         → 返回统一格式 KnowledgeUnit[]
+```
+
+### 4.6 DIP 文档处理管道 (v2.9.0 新增)
+
+**技术栈**: TypeScript + SQLite (零LLM)
+
+**核心特性**:
+- Markdown AST 解析 (正则提取函数/类/导入)
+- AST→KG 节点写入
+- 确定性 AST 查询
+
+**数据流**:
+```
+dip_ingest_document(markdown, title)
+  → parseMarkdownAST(markdown) → AST 节点树
+  → extractAllEntities(ast) → [function, class, import]
+  → KGWriter.writeAST(ast) → kg_nodes + kg_edges
+```
+
+### 4.7 VRAM 预算管理 (v2.9.0 新增)
+
+**技术栈**: nvidia-smi + TypeScript
+
+**核心特性**:
+- GPU VRAM 可用性检测
+- 推荐最大上下文长度
+- 自动降级到云 API
+
+**预算配置** (RTX 3050 Ti 4GB):
+```typescript
+modelBase: 1100 MB     // Qwen3-1.7B Q4_K_M
+kvCacheMax: 2200 MB    // 剩余给 KV Cache
+safetyMargin: 200 MB   // 保留
+fallbackThreshold: 500 MB  // 触发降级
+```
+
+### 4.8 场景路由 (v2.9.0 新增)
+
+**技术栈**: TypeScript (零LLM)
+
+**核心特性**:
+- 21 个预定义场景覆盖全部工具组
+- 关键词匹配 → 工具子集推荐
+- 降低 context token 消耗
+
+### 4.9 知识层增强 (v2.9.0 认知升级)
+
+**技术栈**: TypeScript + SQLite
+
+**核心特性**:
+- 扩展知识范式: fact/rule/procedure/concept + **behavior/prediction/hypothesis**
+- **Behavior (行为)**: 让知识"动"起来 — 描述触发条件→可能结果(带概率)
+- **Prediction (预测)**: 给定条件→预期结果+置信度+验证方法
+- **Hypothesis (假设)**: 科学验证态度 — 陈述+支持/反对证据+自动状态更新
+- **BehaviorKnowledge**: 从规则中提取行为模式，预测条件下的结果
+- **HypothesisManager**: 假设生命周期管理 (untested→testing→confirmed/refuted)
+
+### 4.10 心智模型层 (v2.9.0 认知升级)
+
+**技术栈**: TypeScript
+
+**核心特性**:
+- 桥接 Pattern→Skill 的认知断层
+- 心智模型 = 概念图 + 状态转换图 + 预测函数
+- 预注册模型: Git 冲突模型、代码重构模型
+- 模式匹配: 观察→概念链→状态路径
+- 预测: 状态→触发→预测下一步
+
+**数据流**:
+```
+观察 "Git merge 冲突"
+  → mental_model_match("git-conflict", ["merge", "conflict"])
+  → 匹配概念: [HEAD, WorkingTree, Conflict]
+  → 状态路径: clean → merging → conflict
+  → mental_model_predict("git-conflict", "resolve")
+  → 预测: conflict → resolved (概率 1.0)
+```
+
+### 4.11 推理图 (v2.9.0 认知升级)
+
+**技术栈**: TypeScript
+
+**核心特性**:
+- 打破 LLM 黑盒: 不再整体调用 LLM
+- 先构建推理图 (前提→推理→结论)
+- Gap Detection 识别推理链中的空洞
+- 精细化 LLM 调用: 仅填补空洞，不重复已有推理
+- 支持 4 种空洞类型: missing_premise, missing_inference, missing_evidence, weak_link
+
+**数据流**:
+```
+reasoning_build(premises=["A", "B"], conclusion="C")
+  → 构建推理图: A→C, B→C
+  → reasoning_detect_gaps()
+  → 发现空洞: "A 和 B 如何推导到 C？"
+  → 生成精确 LLM 提示 (仅填补空洞)
+  → reasoning_fill_gap(gapId, llmResponse)
+  → 完整推理链: A→D→C, B→D→C
+  → reasoning_result()
+  → 结论 C, 置信度 0.85
+```
+
+### 4.12 多维约束求解器 (v2.9.2 认知增强)
+
+**技术栈**: TypeScript
+
+**核心特性**:
+- 5 维约束: logical(逻辑依赖) / physical(GPU资源) / semantic(用户意图) / policy(生产环境) / temporal(时间限制)
+- 约束检查: 单个动作是否满足所有约束
+- 最佳选择: 从候选动作中选择满足约束的最佳动作
+- 预定义约束: GPU VRAM 最低要求、生产环境保护、工作时间限制
+
+**约束类型**:
+```
+logical:  requires / prohibits / enables / conflicts / excludes
+physical: min_value / max_value / between
+semantic: equals / not_equals / in_set / not_in_set
+policy:   not_equals / in_set (环境限制)
+temporal: between / not_in_set (时间限制)
+```
+
+**数据流**:
+```
+constraint_check("local_inference", { gpu_free_vram_mb: 300 })
+  → 检查物理约束: gpu-vram-min (min 500MB)
+  → 违反: "GPU VRAM 300MB 低于最低要求 500MB"
+  → 建议: "使用云 API 降级"
+```
+
+### 4.13 轻量级 Actor 系统 (v2.9.2 认知增强)
+
+**技术栈**: TypeScript + EventEmitter
+
+**核心特性**:
+- 万物皆 Actor: Knowledge / Constraint / MentalModel / Reasoning 均为 Actor
+- 消息邮箱: 每个 Actor 有独立消息队列
+- 异步处理: 消息异步处理，不阻塞其他 Actor
+- 代理模式: Actor 可代理调用底层模块 (KAL/ConstraintSolver/MentalModelPool/ReasoningGraph)
+
+**Actor 类型**:
+```
+KnowledgeActor:     知识查询和更新代理
+ConstraintActor:    约束检查和建议代理
+MentalModelActor:   模式匹配和预测代理
+ReasoningActor:     推理图构建和空洞检测代理
+```
 
 ### 5.1 版本历史
 
@@ -251,11 +473,14 @@ registry.add({
 | v2.7.0 | 2026-06 | DRE 确定性推理引擎 |
 | v2.8.0 | 2026-06 | 知识图谱增强 (10 tools) |
 | v2.8.1 | 2026-06 | 文档整理, 幽灵工具移除 |
+| v2.9.0 | 2026-06 | KAL 统一知识层, DIP 文档管道, VRAM 预算, 场景路由, 双KG合并, DRE 三级降级 |
+| v2.9.1 | 2026-06 | 认知增强: 知识层扩展(Behavior/Prediction/Hypothesis), 心智模型层, 推理图(空洞检测+LLM精确填补), 过程性知识, Belief/MentalState |
+| v2.9.2 | 2026-06 | 认知增强: 多维约束求解器(5维), 轻量级Actor系统(4个Actor), 全部10个v3.2.0缺陷修复完成 |
 
 ### 5.2 文件结构
 
 ```
-openclaw-fusion/
+axiom-runtime/
 ├── src/                    # 核心代码
 │   ├── agents/             # Agent 系统
 │   ├── cli.ts              # CLI 入口
@@ -264,15 +489,26 @@ openclaw-fusion/
 │   ├── context/            # 上下文管理
 │   ├── core/               # 核心模块
 │   ├── crawl/              # 爬虫工具
+│   │   └── processor/      # DIP 文档处理管道 (AST→KG)
 │   ├── cron/               # 定时任务
 │   ├── db/                 # 数据库
 │   ├── dre/                # DRE 引擎
+│   │   ├── actor/          # 轻量级 Actor 系统
+│   │   ├── constraint/     # 多维约束求解器
+│   │   ├── mental-model/   # 心智模型层
+│   │   ├── reasoning/      # 推理图 (空洞检测)
+│   │   └── vram-budget.ts  # VRAM 预算管理
 │   ├── eval/               # 评估系统
+│   ├── kal/                # KAL 统一知识访问层
+│   │   ├── node-id.ts      # 全局 node_id 体系
+│   │   └── knowledge-access-layer.ts
 │   ├── kg/                 # 知识图谱
 │   ├── launcher.ts         # 启动器
 │   ├── main.ts             # 主入口
 │   ├── mcp/                # MCP 服务器
-│   │   ├── server.ts       # 111 个工具注册
+│   │   ├── server.ts       # 150 个工具注册
+│   │   ├── scene-router.ts # 场景路由 (16场景)
+│   │   ├── tool-registry.ts# 工具注册表 (支持 tags)
 │   │   └── tools/          # 工具实现
 │   ├── memory/             # 记忆引擎
 │   ├── plugins/            # 插件系统
@@ -287,7 +523,7 @@ openclaw-fusion/
 ├── scripts/                # 脚本工具
 ├── deploy/                 # 部署配置
 ├── plugins/                # 插件目录
-├── openclaw-memory/        # Vault 存储
+├── axiom-memory/        # Vault 存储
 ├── package.json
 ├── tsconfig.json
 ├── README.md               # 唯一上传 GitHub 的文档
@@ -415,10 +651,12 @@ llama-server -m qwen3-1.7b-instruct-q4_k_m.gguf -ngl 99 -c 4096 --port 8080
 | 文件 | 覆盖范围 |
 |------|----------|
 | `tests/dre.test.ts` | DRE 引擎 |
+| `tests/cognitive-modules.test.ts` | 认知模块 (心智模型/推理图/约束求解/Actor/过程知识) |
 | `tests/kg-enhanced.test.ts` | 知识图谱增强 |
 | `tests/orchestrator.test.ts` | 多 Agent 编排 |
 | `tests/mcp-server.test.ts` | MCP 服务器 |
 | `tests/model-router.test.ts` | 模型路由器 |
+| `tests/scene-router.test.ts` | 场景路由器 |
 | `tests/prompt-engineer.test.ts` | 提示词引擎 |
 | `tests/vault-manager.test.ts` | Vault 管理器 |
 
@@ -430,5 +668,5 @@ bun test
 
 ---
 
-*Last Updated: 2026-06-26*
-*Version: v2.8.1*
+*Last Updated: 2026-06-30*
+*Version: v2.9.2*
