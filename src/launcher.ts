@@ -23,6 +23,7 @@
 
 import { spawn, type ChildProcess } from "child_process";
 import { resolve } from "path";
+import { logger } from "./utils/logger.js";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -49,10 +50,10 @@ const CONFIG = {
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
 const Log = {
-  info: (msg: string) => console.log(`\x1b[36m[LAUNCHER]\x1b[0m ${msg}`),
-  success: (msg: string) => console.log(`\x1b[32m[LAUNCHER]\x1b[0m ${msg}`),
-  warn: (msg: string) => console.log(`\x1b[33m[LAUNCHER]\x1b[0m ${msg}`),
-  error: (msg: string) => console.log(`\x1b[31m[LAUNCHER]\x1b[0m ${msg}`),
+  info: (msg: string) => logger.info(`[LAUNCHER] ${msg}`),
+  success: (msg: string) => logger.info(`[LAUNCHER] ${msg}`),
+  warn: (msg: string) => logger.warn(`[LAUNCHER] ${msg}`),
+  error: (msg: string) => logger.error(`[LAUNCHER] ${msg}`),
 };
 
 // ─── Process Manager ─────────────────────────────────────────────────────────

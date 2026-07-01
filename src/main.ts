@@ -414,7 +414,7 @@ function checkApiKey(req: Request): boolean {
   return auth === API_KEY;
 }
 
-console.log("[SERVER] Auth relaxed for localhost/127.0.0.1 �?starting...");
+logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
 const server = Bun.serve({
   port,
@@ -539,12 +539,11 @@ for (const name of Object.keys(nets)) {
 }
 const lanUrl = `http://${lanIp}:${port}`;
 
-console.log(`
-╔══════════════════════════════════════════════════════════════════════╗
-�?    Axiom AI Agent v2.3 �?Vault 核心记忆引擎运行�?              �?
-�? 记忆: Obsidian Vault (确定性推�?                                   �?
-�? 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} �?
-�? 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} �?
+logger.info(`╔══════════════════════════════════════════════════════════════════════╗
+║     Axiom Runtime v4.0 — Vault 核心记忆引擎运行中              ║
+║ 记忆: Obsidian Vault (确定性推理)                                   ║
+║ 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
+║ 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║
 �?                                                                     �?
 �? 本地访问:  ${localUrl.padEnd(58)} �?
 �? 局域网:    ${lanUrl.padEnd(58)} �?

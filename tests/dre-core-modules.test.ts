@@ -407,3 +407,71 @@ describe("Pipeline", () => {
     expect(authResults[0].domain).toBe("auth");
   });
 });
+
+// ========== VFS ==========
+
+describe("VFS", () => {
+  test("should mount and list mounts", async () => {
+    const { VFS } = await import("../src/dre/vfs.js");
+    const vfs = VFS.instance();
+
+    // Create a mock backend
+    const mockBackend = {
+      read: async () => null,
+      write: async () => true,
+      stat: async () => null,
+      list: async () => [],
+      delete: async () => true,
+    };
+
+    vfs.mount("/test", mockBackend);
+    const mounts = vfs.listMounts();
+    expect(mounts).toContain("/test");
+  });
+
+  test("should route to longest prefix match", async () => {
+    const { VFS } = await import("../src/dre/vfs.js");
+    const vfs = VFS.instance();
+
+    const backend1 = { read: async () => "backend1", write: async () => true, stat: async () => null, list: async () => [], delete: async () => true };
+    const backend2 = { read: async () => "backend2", write: async () => true, stat: async () => null, list: async () => [], delete: async () => true };
+
+    vfs.mount("/kb", backend1);
+    vfs.mount("/kb/sub", backend2);
+
+    // /kb/sub/file should route to backend2 (longer prefix)
+    const result = await vfs.read("/kb/sub/file");
+    expect(result).toBe("backend2");
+  });
+});
+
+// ========== VRAM Budget ==========
+
+describe("VRAMBudgetManager", () => {
+  test("should create with default config", async () => {
+    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
+    const mgr = getVRAMBudgetManager();
+    expect(mgr).toBeDefined();
+  });
+
+  test("should detect GPU (or report unavailable)", async () => {
+    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
+    const mgr = getVRAMBudgetManager();
+    const gpu = await mgr.detectGPU();
+
+    expect(typeof gpu.available).toBe("boolean");
+    if (gpu.available) {
+      expect(gpu.name).toBeDefined();
+      expect(gpu.totalMemoryMB).toBeGreaterThan(0);
+    }
+  });
+
+  test("should check canRunLocal", async () => {
+    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
+    const mgr = getVRAMBudgetManager();
+    const result = await mgr.canRunLocal();
+
+    expect(typeof result.canRun).toBe("boolean");
+    expect(typeof result.reason).toBe("string");
+  });
+});
