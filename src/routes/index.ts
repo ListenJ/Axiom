@@ -326,7 +326,7 @@ export function registerTrieRoutes(engine: RouterEngine): void {
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
   return ctx.jsonResponse({
-    name: "Axiom AI Agent", version: "2.3.0",
+    name: "Axiom Runtime", version: "4.0.0",
     uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
     endpoints: [
       "GET  /                        — Dashboard",

@@ -1,13 +1,13 @@
 #!/bin/bash
-# OpenClaw AI Agent 启动脚本
+# Axiom AI Agent 启动脚本
 # 支持开发模式、生产模式、后台守护进程模式
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-PID_FILE="$PROJECT_DIR/.openclaw.pid"
-LOG_FILE="$PROJECT_DIR/data/logs/openclaw.log"
+PID_FILE="$PROJECT_DIR/.axiom.pid"
+LOG_FILE="$PROJECT_DIR/data/logs/axiom.log"
 MODE="${1:-prod}"
 
 cd "$PROJECT_DIR"
@@ -30,25 +30,25 @@ fi
 
 case "$MODE" in
     dev)
-        echo "🚀 启动 OpenClaw 开发模式..."
+        echo "🚀 启动 Axiom 开发模式..."
         bun --watch run src/main.ts
         ;;
     
     prod|production)
-        echo "🚀 启动 OpenClaw 生产模式..."
+        echo "🚀 启动 Axiom 生产模式..."
         bun run src/main.ts
         ;;
     
     daemon|background)
         if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-            echo "⚠️  OpenClaw 已经在运行 (PID: $(cat "$PID_FILE"))"
+            echo "⚠️  Axiom 已经在运行 (PID: $(cat "$PID_FILE"))"
             exit 0
         fi
         
-        echo "🚀 后台启动 OpenClaw..."
+        echo "🚀 后台启动 Axiom..."
         nohup bun run src/main.ts > "$LOG_FILE" 2>&1 &
         echo $! > "$PID_FILE"
-        echo "✅ OpenClaw 已后台启动 (PID: $(cat "$PID_FILE"))"
+        echo "✅ Axiom 已后台启动 (PID: $(cat "$PID_FILE"))"
         echo "📋 日志文件: $LOG_FILE"
         ;;
     
@@ -56,16 +56,16 @@ case "$MODE" in
         if [ -f "$PID_FILE" ]; then
             PID=$(cat "$PID_FILE")
             if kill -0 "$PID" 2>/dev/null; then
-                echo "🛑 停止 OpenClaw (PID: $PID)..."
+                echo "🛑 停止 Axiom (PID: $PID)..."
                 kill "$PID"
                 rm -f "$PID_FILE"
-                echo "✅ OpenClaw 已停止"
+                echo "✅ Axiom 已停止"
             else
                 echo "⚠️  进程不存在，清理 PID 文件"
                 rm -f "$PID_FILE"
             fi
         else
-            echo "⚠️  OpenClaw 未运行"
+            echo "⚠️  Axiom 未运行"
         fi
         ;;
     
@@ -79,14 +79,14 @@ case "$MODE" in
         if [ -f "$PID_FILE" ]; then
             PID=$(cat "$PID_FILE")
             if kill -0 "$PID" 2>/dev/null; then
-                echo "✅ OpenClaw 运行中 (PID: $PID)"
+                echo "✅ Axiom 运行中 (PID: $PID)"
                 echo "📋 日志: $LOG_FILE"
                 echo "🌐 端口: ${PORT:-3000}"
             else
-                echo "❌ OpenClaw 未运行 (PID 文件存在但进程不存在)"
+                echo "❌ Axiom 未运行 (PID 文件存在但进程不存在)"
             fi
         else
-            echo "❌ OpenClaw 未运行"
+            echo "❌ Axiom 未运行"
         fi
         ;;
     
@@ -99,7 +99,7 @@ case "$MODE" in
         ;;
     
     setup)
-        echo "🔧 运行 OpenClaw 设置向导..."
+        echo "🔧 运行 Axiom 设置向导..."
         bun run src/cli.ts setup
         ;;
     

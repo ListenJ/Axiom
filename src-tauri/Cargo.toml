@@ -24,7 +24,7 @@ log = "0.4"
 tauri = { version = "2.11.2" }
 tauri-plugin-log = "2"
 
-# OpenClaw Native Core
+# Axiom Native Core
 oc-shared = { path = "../native/crates/shared" }
 oc-search = { path = "../native/crates/search" }
 oc-route = { path = "../native/crates/route" }

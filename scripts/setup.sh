@@ -1,10 +1,10 @@
 #!/bin/bash
-# OpenClaw AI Agent — 一键安装脚本
+# Axiom AI Agent — 一键安装脚本
 
 set -e
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║     OpenClaw AI Agent — 安装脚本                            ║"
+echo "║     Axiom AI Agent — 安装脚本                            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 
 # 检查 Bun

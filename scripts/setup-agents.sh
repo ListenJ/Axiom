@@ -1,11 +1,11 @@
 #!/bin/bash
-# OpenClaw Agent 安装辅助脚本
+# Axiom Agent 安装辅助脚本
 # 一键检测并安装 OpenCode 和 Hermes Agent
 # 用法: bash scripts/setup-agents.sh
 
 set -e
 
-echo "🦅 OpenClaw Agent 安装辅助脚本"
+echo "🦅 Axiom Agent 安装辅助脚本"
 echo "================================"
 echo ""
 
@@ -58,8 +58,8 @@ echo ""
 echo "🔧 检查 Hermes Agent..."
 if command -v hermes &> /dev/null; then
   echo "  ✅ Hermes 已安装"
-  echo "  📝 配置 MCP 连接 OpenClaw:"
-  echo "     编辑 ~/.hermes/config.yaml，添加 mcp_servers.openclaw"
+  echo "  📝 配置 MCP 连接 Axiom:"
+  echo "     编辑 ~/.hermes/config.yaml，添加 mcp_servers.axiom"
 else
   echo "  ❌ Hermes 未安装"
   echo "  📥 安装方式:"
@@ -85,7 +85,7 @@ echo "🎉 检查完成!"
 echo ""
 echo "快速开始:"
 echo "  1. 复制 .env.example 为 .env 并填入 API Key"
-echo "  2. 启动 OpenClaw:     bun run start"
+echo "  2. 启动 Axiom:     bun run start"
 echo "  3. 编码:              bun run src/cli.ts code:open"
 echo "  4. 项目管理:          bun run src/cli.ts project:plan '你的项目描述'"
 echo "  5. 检查状态:          bun run src/cli.ts agent:status"

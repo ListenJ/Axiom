@@ -15,7 +15,7 @@ import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrapling bridge for OpenClaw")
+    parser = argparse.ArgumentParser(description="Scrapling bridge for Axiom")
     parser.add_argument("url", help="Target URL")
     parser.add_argument("mode", choices=["get", "fetch", "stealthy"], help="Fetcher mode")
     parser.add_argument("output_format", choices=["markdown", "html", "text", "json"], help="Output format")

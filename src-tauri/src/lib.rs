@@ -51,7 +51,7 @@ fn get_system_info() -> Result<SystemStatus, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vault_path = std::env::var("OBSIDIAN_VAULT_PATH")
-        .unwrap_or_else(|_| "./openclaw-memory".to_string());
+        .unwrap_or_else(|_| "./axiom-memory".to_string());
 
     let state = AppState {
         search: Arc::new(DeterministicEngine::new(vault_path)),
