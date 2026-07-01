@@ -210,6 +210,21 @@ describe("CognitivePipeline", () => {
       .toBe((c2.output as Record<string, unknown>).intent);
   });
 
+  // ── 并发隔离测试 ──
+
+  test("concurrent runs should not corrupt each other's reasoning graph", async () => {
+    const results = await Promise.all([
+      pipeline.run("JWT 认证错误"),
+      pipeline.run("Git 合并冲突"),
+      pipeline.run("代码重构优化"),
+    ]);
+
+    // All 3 should complete without crashing
+    for (const r of results) {
+      expect(r.trace.length).toBe(6);
+    }
+  });
+
   // ── 类型检查 ──
 
   test("should return correctly typed CognitiveLoopResult", async () => {

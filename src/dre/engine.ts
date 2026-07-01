@@ -73,10 +73,15 @@ export class DREngine {
   private db: Database;
   private sqliteBackend: SqliteBackend;
   private config: DREConfig;
+  private _ready: Promise<void>;
+  private _readyResolve!: () => void;
 
   constructor(config: DREConfig) {
     // 保存配置
     this.config = config;
+
+    // 就绪门控
+    this._ready = new Promise<void>((resolve) => { this._readyResolve = resolve; });
 
     // 初始化数据库
     this.db = new Database(config.dbPath);
@@ -150,7 +155,16 @@ export class DREngine {
       logger.info("[DRE] Actor system initialized", { actors: this.actors.size });
     } catch (err) {
       logger.warn("[DRE] Actor system init failed", { error: (err as Error).message });
+    } finally {
+      this._readyResolve();
     }
+  }
+
+  /**
+   * 等待引擎就绪 (Actor 初始化完成)
+   */
+  async waitForReady(): Promise<void> {
+    return this._ready;
   }
 
   /**

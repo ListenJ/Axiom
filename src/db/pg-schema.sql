@@ -1,5 +1,5 @@
 -- ============================================================
--- OpenClaw PostgreSQL + pgvector Schema v1.0
+-- Axiom Runtime PostgreSQL + pgvector Schema v1.0
 --
 -- 四层架构:
 --   L0: 代码图谱 (Code Graph) — 文件/节点/边/向量
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS code_nodes (
     file_id         BIGINT REFERENCES code_files(id) ON DELETE CASCADE,
     kind            TEXT NOT NULL,   -- function, class, interface, method, variable, enum, struct, module, type
     name            TEXT NOT NULL,
-    qualified_name  TEXT NOT NULL,   -- e.g. "openclaw.memory.SQLiteMemory.query"
+    qualified_name  TEXT NOT NULL,   -- e.g. "axiom.memory.SQLiteMemory.query"
     signature       TEXT,
     start_line      INTEGER NOT NULL,
     end_line        INTEGER NOT NULL,

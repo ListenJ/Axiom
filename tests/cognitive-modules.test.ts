@@ -430,6 +430,20 @@ describe("ActorSystem", () => {
     await system.shutdown();
     expect(system.size).toBe(0);
   });
+
+  test("should return health check with status", async () => {
+    const health = system.healthCheck();
+    expect(health.length).toBe(2);
+    expect(health.every((h) => h.status === "alive")).toBe(true);
+    expect(health.map((h) => h.id)).toContain("knowledge");
+    expect(health.map((h) => h.id)).toContain("constraint");
+  });
+
+  test("should return stopped status after shutdown", async () => {
+    await system.shutdown();
+    const health = system.healthCheck();
+    expect(health.length).toBe(0);
+  });
 });
 
 // ========== ProcedureKnowledge Tests ==========

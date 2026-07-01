@@ -13,7 +13,7 @@
  */
 
 import type { DREngine } from "../engine.js";
-import type { ReasoningNode } from "../reasoning/graph.js";
+import { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "../reasoning/graph.js";
 import type { ReflectionResult } from "../consciousness/stream.js";
 import type { KnowledgeNode } from "../storage/knowledge-store.js";
 import { logger } from "../../utils/logger.js";
@@ -270,9 +270,9 @@ export class CognitivePipeline {
   private buildReasoning(
     knowledge: KnowledgeNode[],
     input: string,
-  ): { conclusionNode: ReasoningNode | null; gaps: import("../reasoning/graph.js").ReasoningGap[]; premiseCount: number } {
-    const graph = this.engine.reasoning;
-    graph.clear();
+  ): { conclusionNode: ReasoningNode | null; gaps: ReasoningGap[]; premiseCount: number } {
+    // 每次调用创建独立推理图，避免并发竞态
+    const graph = new ReasoningGraph();
 
     // 1. 添加知识节点作为前提
     const premiseIds: string[] = [];

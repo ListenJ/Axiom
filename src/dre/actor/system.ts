@@ -174,6 +174,7 @@ class ActorInstance extends EventEmitter {
           const handler = (msg: ActorMessage) => {
             if (!resolved && msg.replyTo === replyId && msg.type === "response") {
               resolved = true;
+              clearTimeout(timerId);
               this.removeListener("message", handler);
               resolve(msg.payload);
             }
@@ -192,7 +193,7 @@ class ActorInstance extends EventEmitter {
           this.system.deliver(msg);
 
           // 超时清理
-          setTimeout(() => {
+          const timerId = setTimeout(() => {
             if (!resolved) {
               resolved = true;
               this.removeListener("message", handler);
@@ -228,6 +229,7 @@ class ActorInstance extends EventEmitter {
 
 export class ActorSystem {
   private actors = new Map<string, ActorInstance>();
+  private stopped = false;
 
   /**
    * 注册 Actor
@@ -254,6 +256,10 @@ export class ActorSystem {
    * 投递消息
    */
   deliver(message: ActorMessage): void {
+    if (this.stopped) {
+      logger.warn("[ActorSystem] Message dropped — system stopped", { to: message.to });
+      return;
+    }
     const actor = this.actors.get(message.to);
     if (actor) {
       actor.receive(message);
@@ -298,11 +304,34 @@ export class ActorSystem {
   /**
    * 清理所有 Actor
    */
-  async shutdown(): Promise<void> {
-    for (const actor of this.actors.values()) {
-      await actor.destroy();
-    }
+  async shutdown(timeoutMs: number = 5000): Promise<void> {
+    this.stopped = true;
+    const destroyPromises = Array.from(this.actors.entries()).map(async ([id, actor]) => {
+      try {
+        await Promise.race([
+          actor.destroy(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error(`Actor ${id} destroy timeout`)), timeoutMs)
+          ),
+        ]);
+      } catch (err) {
+        logger.warn("[ActorSystem] Actor destroy failed", { id, error: (err as Error).message });
+      }
+    });
+    await Promise.all(destroyPromises);
     this.actors.clear();
+    logger.info("[ActorSystem] Shutdown complete");
+  }
+
+  /**
+   * 健康检查 — 返回所有 Actor 状态
+   */
+  healthCheck(): Array<{ id: string; type: string; status: "alive" | "stopped" }> {
+    return Array.from(this.actors.values()).map((a) => ({
+      id: a.id,
+      type: a.behavior.type,
+      status: this.stopped ? ("stopped" as const) : ("alive" as const),
+    }));
   }
 }
 

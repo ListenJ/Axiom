@@ -257,7 +257,10 @@ export class KnowledgeStore {
     }
 
     sql += " ORDER BY confidence DESC, updated_at DESC";
-    sql += ` LIMIT ${options?.limit || 10}`;
+
+    const limit = Math.max(1, Math.min(100, Number(options?.limit) || 10));
+    sql += " LIMIT ?";
+    params.push(limit);
 
     const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
     return rows.map((row) => this.rowToNode(row));
