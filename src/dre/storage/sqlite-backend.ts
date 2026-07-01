@@ -95,6 +95,30 @@ export class SqliteBackend implements IBackend {
       );
     `);
 
+    // FTS5 全文索引 (用于 knowledge_node 快速搜索)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_node_fts USING fts5(
+        node_id, title, content, domain,
+        content=knowledge_node,
+        content_rowid=rowid
+      );
+      -- 同步触发器: 自动维护 FTS 索引
+      CREATE TRIGGER IF NOT EXISTS knowledge_node_ai AFTER INSERT ON knowledge_node BEGIN
+        INSERT INTO knowledge_node_fts(rowid, node_id, title, content, domain)
+        VALUES (new.rowid, new.node_id, new.title, new.content, new.domain);
+      END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_node_ad AFTER DELETE ON knowledge_node BEGIN
+        INSERT INTO knowledge_node_fts(knowledge_node_fts, rowid, node_id, title, content, domain)
+        VALUES ('delete', old.rowid, old.node_id, old.title, old.content, old.domain);
+      END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_node_au AFTER UPDATE ON knowledge_node BEGIN
+        INSERT INTO knowledge_node_fts(knowledge_node_fts, rowid, node_id, title, content, domain)
+        VALUES ('delete', old.rowid, old.node_id, old.title, old.content, old.domain);
+        INSERT INTO knowledge_node_fts(rowid, node_id, title, content, domain)
+        VALUES (new.rowid, new.node_id, new.title, new.content, new.domain);
+      END;
+    `);
+
     // 知识图谱边表
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS kg_edge (

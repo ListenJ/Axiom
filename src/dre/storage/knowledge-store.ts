@@ -233,6 +233,35 @@ export class KnowledgeStore {
     minConfidence?: number;
     limit?: number;
   }): KnowledgeNode[] {
+    const limit = Math.max(1, Math.min(100, Number(options?.limit) || 10));
+
+    // 有查询时优先使用 FTS5 全文索引 (O(log N) vs O(N))
+    if (query && query.trim().length > 0) {
+      try {
+        const ftsSql = `
+          SELECT n.* FROM knowledge_node n
+          JOIN knowledge_node_fts f ON n.node_id = f.node_id
+          WHERE knowledge_node_fts MATCH ?
+          ${options?.domain ? "AND n.domain = ?" : ""}
+          ${options?.paradigm ? "AND n.paradigm = ?" : ""}
+          ${options?.minConfidence ? "AND n.confidence >= ?" : ""}
+          ORDER BY n.confidence DESC, n.updated_at DESC
+          LIMIT ?
+        `;
+        const ftsParams: unknown[] = [query];
+        if (options?.domain) ftsParams.push(options.domain);
+        if (options?.paradigm) ftsParams.push(options.paradigm);
+        if (options?.minConfidence) ftsParams.push(options.minConfidence);
+        ftsParams.push(limit);
+
+        const rows = this.db.prepare(ftsSql).all(...ftsParams) as Array<Record<string, unknown>>;
+        if (rows.length > 0) return rows.map((row) => this.rowToNode(row));
+      } catch {
+        // FTS5 不可用或查询语法错误，降级到 LIKE
+      }
+    }
+
+    // 降级: LIKE 全表扫描
     let sql = "SELECT * FROM knowledge_node WHERE 1=1";
     const params: unknown[] = [];
 
@@ -257,8 +286,6 @@ export class KnowledgeStore {
     }
 
     sql += " ORDER BY confidence DESC, updated_at DESC";
-
-    const limit = Math.max(1, Math.min(100, Number(options?.limit) || 10));
     sql += " LIMIT ?";
     params.push(limit);
 

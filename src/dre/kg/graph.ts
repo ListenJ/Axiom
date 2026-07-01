@@ -37,6 +37,7 @@ export interface KGEdge {
 export class KnowledgeGraph {
   private nodes = new Map<string, KGNode>();
   private adjacency = new Map<string, KGEdge[]>();
+  private _edgeCount = 0;
 
   /**
    * 添加节点
@@ -52,10 +53,18 @@ export class KnowledgeGraph {
    * 添加边
    */
   addEdge(edge: KGEdge): void {
+    // 防止重复边
+    const key = `${edge.src}->${edge.dst}:${edge.relation}`;
+    if (this.adjacency.get(edge.src)?.some((e) => `${e.src}->${e.dst}:${e.relation}` === key)) {
+      return;
+    }
+
     // 确保节点存在
     if (!this.nodes.has(edge.src) || !this.nodes.has(edge.dst)) {
       throw new Error(`Node not found: ${!this.nodes.has(edge.src) ? edge.src : edge.dst}`);
     }
+
+    this._edgeCount++;
 
     // 添加出边
     if (!this.adjacency.has(edge.src)) {
@@ -223,7 +232,7 @@ export class KnowledgeGraph {
    * 边数
    */
   get edgeCount(): number {
-    return this.allEdges().length;
+    return this._edgeCount;
   }
 
   /**
