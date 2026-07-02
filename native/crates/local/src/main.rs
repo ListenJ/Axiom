@@ -18,13 +18,13 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 #[derive(Parser, Debug)]
-#[command(name = "openclaw-local", version = "2.3.0")]
+#[command(name = "Axiom-local", version = "2.3.0")]
 struct Args {
     #[arg(short, long, default_value = "18789")]
     port: u16,
     #[arg(short, long, default_value = "127.0.0.1")]
     bind: String,
-    #[arg(short, long, default_value = "./openclaw-memory")]
+    #[arg(short, long, default_value = "./Axiom-memory")]
     vault_path: String,
     #[arg(long, default_value = "./data/agent.db")]
     db_path: String,
@@ -66,14 +66,14 @@ async fn main() {
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| format!("openclaw_local={},tower_http=warn", args.log_level).into()),
+                .unwrap_or_else(|_| format!("Axiom_local={},tower_http=warn", args.log_level).into()),
         )
         .with_target(false)
         .with_thread_ids(false)
         .compact()
         .init();
 
-    info!("OpenClaw Local Edition v2.3.0 starting...");
+    info!("Axiom Local Edition v2.3.0 starting...");
     info!("Vault path: {}", args.vault_path);
     info!("Database: {}", args.db_path);
 
@@ -187,3 +187,4 @@ async fn router_perf_handler(State(state): State<Arc<AppState>>) -> Json<serde_j
         "hotspots": hotspots,
     }))
 }
+

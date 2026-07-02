@@ -18,13 +18,13 @@ use tokio_postgres::NoTls;
 use tracing::{info, warn};
 
 #[derive(Parser, Debug)]
-#[command(name = "openclaw-cloud", version = "2.3.0")]
+#[command(name = "Axiom-cloud", version = "2.3.0")]
 struct Args {
     #[arg(short, long, default_value = "18789")]
     port: u16,
     #[arg(short, long, default_value = "0.0.0.0")]
     bind: String,
-    #[arg(long, default_value = "./openclaw-memory")]
+    #[arg(long, default_value = "./Axiom-memory")]
     vault_path: String,
     #[arg(long, env = "DATABASE_URL")]
     database_url: Option<String>,
@@ -74,13 +74,13 @@ async fn main() {
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| format!("openclaw_cloud={},tower_http=warn", args.log_level).into()),
+                .unwrap_or_else(|_| format!("Axiom_cloud={},tower_http=warn", args.log_level).into()),
         )
         .with_target(false)
         .json()
         .init();
 
-    info!("OpenClaw Cloud Edition v2.3.0 starting...");
+    info!("Axiom Cloud Edition v2.3.0 starting...");
     info!("Workers: {}", args.workers);
     info!("Vault path: {}", args.vault_path);
 
@@ -99,7 +99,7 @@ async fn main() {
             }
         }
     } else {
-        warn!("No DATABASE_URL provided â€” running without PostgreSQL");
+        warn!("No DATABASE_URL provided â€?running without PostgreSQL");
         None
     };
 
@@ -270,3 +270,4 @@ async fn cluster_status_handler(State(state): State<Arc<AppState>>) -> Json<serd
         "distributed_ready": state.redis.is_some() && state.pg_pool.is_some(),
     }))
 }
+

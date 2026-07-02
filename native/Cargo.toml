@@ -1,10 +1,10 @@
 [package]
-name = "openclaw-native"
+name = "Axiom-native"
 version = "2.3.0"
 edition = "2021"
 rust-version = "1.78"
-authors = ["OpenClaw Team"]
-description = "High-performance native core for OpenClaw AI Agent"
+authors = ["Axiom Team"]
+description = "High-performance native core for Axiom AI Agent"
 
 [workspace]
 members = ["crates/*"]
@@ -50,3 +50,4 @@ codegen-units = 4
 default = ["local"]
 local = ["rusqlite"]
 cloud = ["redis", "deadpool-postgres", "tokio-postgres", "rusqlite"]
+

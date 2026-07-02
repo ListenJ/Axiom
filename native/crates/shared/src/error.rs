@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
-pub enum OpenClawError {
+pub enum AxiomError {
     #[error("IO error: {0}")]
     Io(String),
     #[error("Search error: {0}")]
@@ -32,16 +32,17 @@ pub enum OpenClawError {
     Unknown(String),
 }
 
-pub type Result<T> = std::result::Result<T, OpenClawError>;
+pub type Result<T> = std::result::Result<T, AxiomError>;
 
-impl From<std::io::Error> for OpenClawError {
+impl From<std::io::Error> for AxiomError {
     fn from(e: std::io::Error) -> Self {
-        OpenClawError::Io(e.to_string())
+        AxiomError::Io(e.to_string())
     }
 }
 
-impl From<serde_json::Error> for OpenClawError {
+impl From<serde_json::Error> for AxiomError {
     fn from(e: serde_json::Error) -> Self {
-        OpenClawError::Serialization(e.to_string())
+        AxiomError::Serialization(e.to_string())
     }
 }
+
