@@ -1,10 +1,10 @@
 # Axiom Runtime v4.0.0 — 综合报告与开发指南
 
-> **677 pass / 699 total / 45 test files / 26 commits / 0 regressions**
+> **682 pass / 706 total / 46 test files / 29 commits / 10 runtime modules / 0 regressions**
 >
-> 本文档为项目的权威参考：架构、模块、API、测试、性能基准、分支演化。
+> 本文档为项目的 **唯一权威参考**：架构、模块、API、测试、性能基准、分支演化、提取审查。
 >
-> 📖 哲学指导参见 [PHILOSOPHY.md](PHILOSOPHY.md) | 技术细节参见 [ARCHITECTURE.md](ARCHITECTURE.md)
+> 📖 哲学指导 [PHILOSOPHY.md](PHILOSOPHY.md) | 技术细节 [ARCHITECTURE.md](ARCHITECTURE.md) | 路线图 [ROADMAP.md](ROADMAP.md)
 
 ---
 
@@ -33,8 +33,10 @@ Tier 2: 认知运行时 (Cognitive Runtime)
 │  CognitivePipeline (6-step 闭环)                         │
 │  TaskGraph (DAG 执行 + 回滚 + Checkpoint/Resume)          │
 │  ActorSystem (轻量 Actor + 健康检查)                      │
-│  EventBus + WorldState + AtomEngine + KnowledgeNetwork    │
-│  Scheduler + ReasoningRuntime (Runtime Kernel v1)         │
+│  Runtime Kernel v1 (10 modules):                          │
+│    EventBus + WorldState + AtomEngine + KnowledgeNetwork  │
+│    Scheduler + ReasoningRuntime + RuleEngine              │
+│    CapabilityRegistry + ContextEngine                     │
 │  ConsciousnessStream (三层记忆 + 反思)                     │
 ├──────────────────────────────────────────────────────────┤
 Tier 3: 认知引擎 (Cognitive Modules)
@@ -276,6 +278,44 @@ scene-router  classify  search   ReasoningGraph  check   TaskGraph   stream
 | `getReasoningRuntime()` | 获取推理引擎单例 |
 | 订阅 `scheduler.task_*` 事件 | 接收任务通知并推理 |
 
+### 3.14 RuleEngine (564 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/rule-engine.ts`
+
+规则引擎 — 规则评估 + 自动学习 + 策略预测。依赖 eventBus + atomStore。
+
+| API | 说明 |
+|-----|------|
+| `ruleEngine.addRule(rule)` | 添加规则 |
+| `ruleEngine.evaluate(context)` | 评估规则 (返回匹配/不匹配) |
+| `ruleEngine.learnFromMemory()` | 从记忆中自动学习规则 |
+| `ruleEngine.getStats()` | 规则统计 |
+
+### 3.15 CapabilityRegistry (274 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/capability-registry.ts`
+
+能力注册表 — Agent/工具的能力描述。仅依赖 eventBus (零额外依赖)。
+
+| API | 说明 |
+|-----|------|
+| `capabilityRegistry.register(cap)` | 注册能力 |
+| `capabilityRegistry.get(name)` | 查询能力 |
+| `capabilityRegistry.getAll()` | 所有能力 |
+| `capabilityRegistry.getStats()` | 统计 |
+
+预注册: 14 个能力 (code-generation, code-review, research, architecture 等)
+
+### 3.16 ContextEngine (179 行, 🆕 from openclaw-clean, ✅ 16 tests pass)
+**文件**: `src/dre/runtime/context-engine.ts`
+
+上下文引擎 — 自动构建 LLM 上下文。依赖 eventBus + worldState + atomStore。
+
+| API | 说明 |
+|-----|------|
+| `contextEngine.build(opts?)` | 构建上下文 (项目/目标/知识/信念) |
+| `contextEngine.formatForPrompt()` | 格式化为 LLM prompt |
+| `contextEngine.invalidateCache()` | 清除缓存 |
+| `contextEngine.getStats()` | 缓存统计 |
+
 ---
 
 ### 3.14 DREngine (462 行)
@@ -406,12 +446,12 @@ GPU VRAM 检测 — nvidia-smi + 预算管理。
 ```
 文件类型           数量
 ──────────        ────
-总测试文件         45 个
-总测试用例         699 个
-通过              677 (96.9%)
+总测试文件         46 个
+总测试用例         706 个
+通过              682 (96.7%)
 跳过              21  (3.0%)
 失败              1   (0.1%, pre-existing tesseract.js)
-expect() 调用      ~12000+
+expect() 调用      ~13000+
 ```
 
 ### 4.2 按模块测试覆盖
@@ -428,6 +468,7 @@ expect() 调用      ~12000+
 | TaskGraph | task-graph.test.ts | 12 | ✅ |
 | EventBus | dre-core-modules.test.ts + merge-stress.test.ts | 10 | ✅ |
 | WorldState | dre-core-modules.test.ts + merge-stress.test.ts | 11 | ✅ |
+| ContextEngine 🆕 | context-engine.test.ts | 16 | ✅ |
 | SqliteBackend | dre-core-modules.test.ts | 6 | ✅ |
 | LLMClient | dre-core-modules.test.ts | 5 | ✅ |
 | KnowledgeGraph | dre-core-modules.test.ts | 8 | ✅ |
@@ -531,24 +572,24 @@ expect() 调用      ~12000+
 **分支关系**: `cognitive-runtime ⊃ runtime-integration ⊃ runtime-kernel` (层层包含)
 所有有价值代码均来自 cognitive-runtime，其余分支无额外 unique 内容。
 
-### cognitive-runtime 待提取清单 (14 modules)
+### cognitive-runtime 待提取清单 (11 modules remaining)
 
-| 模块 | 行数 | 优先级 | 说明 |
+| 模块 | 行数 | 稳定性 | 原因 |
 |------|------|--------|------|
-| kernel.ts | 969 | ⭐⭐⭐⭐⭐ | 完整 TickEngine + initRuntime |
-| memory-engine.ts | 962 | ⭐⭐⭐ | Skills/Patterns/Episodes |
-| rule-engine.ts | 564 | ⭐⭐⭐⭐ | 规则评估 + 自动学习 |
-| projection-layer.ts | 453 | ⭐⭐⭐ | 知识投影层 |
-| verification-engine.ts | 345 | ⭐⭐⭐ | 验证引擎 |
-| agent-executor.ts | 322 | ⭐⭐ | Agent 执行器 |
-| chat-actor.ts | 287 | ⭐⭐ | Chat Actor |
-| capability-registry.ts | 274 | ⭐⭐⭐ | 能力注册表 |
-| specialized-actors.ts | 230 | ⭐⭐ | 专业 Actor 行为 |
-| actors.ts | 214 | ⭐⭐ | Actor 基类 (与 ActorSystem 重叠) |
-| reasoning-graph.ts | 214 | ⭐⭐ | 推理图 (与 ReasoningGraph 重叠) |
-| constraint-solver.ts | 292 | ⭐⭐ | 约束求解 (与 ConstraintSolver 重叠) |
-| context-engine.ts | 179 | ⭐⭐⭐ | 上下文引擎 |
-| index.ts | 81 | ⭐ | Barrel 导出 |
+| kernel.ts | 969 | ❌ 不稳定 | 依赖所有模块，循环引用 |
+| memory-engine.ts | 962 | ❌ 不稳定 | 依赖 kernel |
+| projection-layer.ts | 453 | ⚠️ 有副作用 | 文件系统写入操作 |
+| verification-engine.ts | 345 | ❌ 不稳定 | 依赖 solver+rule，循环链 |
+| agent-executor.ts | 322 | ⚠️ 依赖深 | 依赖 kernel + actors |
+| chat-actor.ts | 287 | ❌ 不稳定 | 依赖 6+ 其他模块 |
+| capability-registry.ts | 274 | ✅ 已提取 | — |
+| constraint-solver.ts | 292 | ⚠️ 重叠 | 与 ConstraintSolver 重叠 |
+| actors.ts | 214 | ⚠️ 重叠 | 与 ActorSystem 重叠 |
+| reasoning-graph.ts | 214 | ⚠️ 重叠 | 与 ReasoningGraph 重叠 |
+| context-engine.ts | 179 | ✅ 已提取 (16 tests pass) | — |
+| specialized-actors.ts | 230 | ❌ 不稳定 | 依赖 kernel + actors |
+| rule-engine.ts | 564 | ✅ 已提取 | — |
+| index.ts | 81 | ⚠️ 需全部 | 依赖所有模块 |
 
 ---
 
@@ -587,4 +628,4 @@ expect() 调用      ~12000+
 
 ---
 
-*Generated 2026-07-02 | Axiom Runtime v4.0.0 | 26 commits | 677 pass / 699 total | 7 runtime modules from openclaw-clean*
+*Generated 2026-07-02 | Axiom Runtime v4.0.0 | 29 commits | 682 pass / 706 total | 10 runtime modules extracted from openclaw-clean*
