@@ -188,7 +188,7 @@ export class EpisodicMemory {
  * 反思队列 — 触发自反思
  */
 export class ReflectionQueue {
-  private triggers: Array<(trace: TraceEntry[]) => boolean> = [];
+  private triggers: Array<(trace: TraceEntry[]) => { triggered: boolean; issues: string[]; lessons: string[] }> = [];
 
   constructor() {
     // 注册默认触发条件
@@ -198,52 +198,87 @@ export class ReflectionQueue {
   }
 
   /**
-   * 检查是否应该触发反思
+   * 检查是否应该触发反思 (返回匹配的 issues/lessons)
    */
-  shouldReflect(trace: TraceEntry[]): boolean {
-    if (trace.length < 10) return false;
-    return this.triggers.some((trigger) => trigger(trace));
+  shouldReflect(trace: TraceEntry[]): { triggered: boolean; issues: string[]; lessons: string[] } {
+    if (trace.length < 10) return { triggered: false, issues: [], lessons: [] };
+
+    for (const trigger of this.triggers) {
+      const result = trigger(trace);
+      if (result.triggered) return result;
+    }
+
+    return { triggered: false, issues: [], lessons: [] };
   }
 
   /**
    * 触发条件 1: 连续 3 次同子任务失败
    */
-  private checkConsecutiveFailures(trace: TraceEntry[]): boolean {
+  private checkConsecutiveFailures(trace: TraceEntry[]): { triggered: boolean; issues: string[]; lessons: string[] } {
     const recent = trace.slice(-10);
     const failures = recent.filter((t) => t.status === "failed");
-    return failures.length >= 3;
+    if (failures.length >= 3) {
+      return {
+        triggered: true,
+        issues: [`发现 ${failures.length} 个失败步骤`],
+        lessons: ["需要加强错误处理和重试机制"],
+      };
+    }
+    // 即使不足 3 次, 仍在 reflect 时报告
+    if (failures.length > 0) {
+      return {
+        triggered: false,
+        issues: [`发现 ${failures.length} 个失败步骤`],
+        lessons: ["需要加强错误处理和重试机制"],
+      };
+    }
+    return { triggered: false, issues: [], lessons: [] };
   }
 
   /**
    * 触发条件 2: output_hash 不一致
    */
-  private checkOutputInconsistency(trace: TraceEntry[]): boolean {
+  private checkOutputInconsistency(trace: TraceEntry[]): { triggered: boolean; issues: string[]; lessons: string[] } {
     const recent = trace.slice(-10);
     const outputs = recent
       .filter((t) => t.stepType === "think")
       .map((t) => t.outputHash);
 
-    if (outputs.length < 3) return false;
+    if (outputs.length < 3) return { triggered: false, issues: [], lessons: [] };
 
     const uniqueOutputs = new Set(outputs);
-    return uniqueOutputs.size < outputs.length * 0.7;
+    const inconsistent = uniqueOutputs.size < outputs.length * 0.7;
+    if (inconsistent) {
+      return {
+        triggered: true,
+        issues: ["输出不一致，可能存在幻觉"],
+        lessons: ["需要加强确定性约束"],
+      };
+    }
+    return { triggered: false, issues: [], lessons: [] };
   }
 
   /**
    * 触发条件 3: 置信度方差 > 0.15
    */
-  private checkConfidenceVariance(trace: TraceEntry[]): boolean {
+  private checkConfidenceVariance(trace: TraceEntry[]): { triggered: boolean; issues: string[]; lessons: string[] } {
     const recent = trace.slice(-10);
     const confidences = recent
-      .map((t) => t.confidence ?? 1.0)
-      .filter((c) => c !== undefined);
+      .map((t) => t.confidence ?? 1.0);
 
-    if (confidences.length < 3) return false;
+    if (confidences.length < 3) return { triggered: false, issues: [], lessons: [] };
 
     const mean = confidences.reduce((a, b) => a + b, 0) / confidences.length;
     const variance = confidences.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / confidences.length;
-
-    return Math.sqrt(variance) > 0.15;
+    const volatile = Math.sqrt(variance) > 0.15;
+    if (volatile) {
+      return {
+        triggered: true,
+        issues: ["置信度波动过大"],
+        lessons: ["需要更稳定的推理策略"],
+      };
+    }
+    return { triggered: false, issues: [], lessons: [] };
   }
 }
 
@@ -339,11 +374,12 @@ export class ConsciousnessStream extends EventEmitter {
     this.trace.push(traceEntry);
 
     // 5. 反思检查
-    const shouldReflect = this.reflectionQueue.shouldReflect(this.trace);
+    const reflectionResult = this.reflectionQueue.shouldReflect(this.trace);
+    const shouldReflect = reflectionResult.triggered;
     let reflection: ReflectionResult | undefined;
 
     if (shouldReflect) {
-      reflection = await this.reflect();
+      reflection = await this.reflect(reflectionResult);
       this.lastReflectionAt = Date.now();
       this.reflectionCount++;
 
@@ -362,51 +398,26 @@ export class ConsciousnessStream extends EventEmitter {
   }
 
   /**
-   * 反思
+   * 反思 — 基于 ReflectionQueue 的分析结果生成经验教训
    */
-  async reflect(): Promise<ReflectionResult> {
-    const recentTrace = this.trace.slice(-20);
-
-    // 分析追踪记录
-    const issues: string[] = [];
-    const lessons: string[] = [];
-
-    // 检测失败
-    const failures = recentTrace.filter((t) => t.status === "failed");
-    if (failures.length > 0) {
-      issues.push(`发现 ${failures.length} 个失败步骤`);
-      lessons.push("需要加强错误处理和重试机制");
+  async reflect(analysis?: { triggered: boolean; issues: string[]; lessons: string[] }): Promise<ReflectionResult> {
+    if (analysis) {
+      // 使用已有分析结果 (来自 shouldReflect)
+      const rollback = analysis.issues.length >= 3;
+      return {
+        issues: analysis.issues,
+        lessons: analysis.lessons,
+        rollback,
+        checkpointTag: rollback ? `checkpoint-${this.stepCounter}` : undefined,
+      };
     }
 
-    // 检测输出不一致
-    const outputs = recentTrace
-      .filter((t) => t.stepType === "think")
-      .map((t) => t.outputHash);
-    const uniqueOutputs = new Set(outputs);
-    if (uniqueOutputs.size < outputs.length * 0.7) {
-      issues.push("输出不一致，可能存在幻觉");
-      lessons.push("需要加强确定性约束");
-    }
-
-    // 检测置信度波动
-    const confidences = recentTrace
-      .map((t) => t.confidence ?? 1.0)
-      .filter((c) => c !== undefined);
-    if (confidences.length > 0) {
-      const mean = confidences.reduce((a, b) => a + b, 0) / confidences.length;
-      const variance = confidences.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / confidences.length;
-      if (Math.sqrt(variance) > 0.15) {
-        issues.push("置信度波动过大");
-        lessons.push("需要更稳定的推理策略");
-      }
-    }
-
-    // 决定是否需要回滚
-    const rollback = issues.length >= 3;
-
+    // 降级: 无分析结果时直接从 trace 分析
+    const result = this.reflectionQueue.shouldReflect(this.trace);
+    const rollback = result.issues.length >= 3;
     return {
-      issues,
-      lessons,
+      issues: result.issues,
+      lessons: result.lessons,
       rollback,
       checkpointTag: rollback ? `checkpoint-${this.stepCounter}` : undefined,
     };

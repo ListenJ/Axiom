@@ -96,7 +96,7 @@ describe("ReflectionQueue", () => {
     const trace = [
       { stepSeq: 1, stepType: "think" as const, inputHash: "a", outputHash: "b", status: "success" as const, timestamp: 1 },
     ];
-    expect(rq.shouldReflect(trace)).toBe(false);
+    expect(rq.shouldReflect(trace).triggered).toBe(false);
   });
 
   test("should reflect on consecutive failures", () => {
@@ -110,7 +110,7 @@ describe("ReflectionQueue", () => {
       status: "failed" as const,
       timestamp: i,
     }));
-    expect(rq.shouldReflect(trace)).toBe(true);
+    expect(rq.shouldReflect(trace).triggered).toBe(true);
   });
 });
 
