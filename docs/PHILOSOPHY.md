@@ -90,7 +90,7 @@ Reasoning Graph:
   Property: confidence, source, chain
 ```
 
-方便解释、验证、追溯。（v2.9.2 的 `ReasoningGraph` 已实现此结构的雏形）
+方便解释、验证、追溯。（v4.0.0 的 `ReasoningGraph` 已实现此结构的雏形）
 
 ### 3.3 Execution Representation（执行表示层）
 
@@ -133,7 +133,7 @@ Learning
 如果这一条流水线统一了，整个系统就统一了。
 否则再多模块，最终都会变成 `Module A → Module B → Module C` 的线性堆叠。
 
-> **当前实现**: `CognitivePipeline` (v2.9.2) — 已实现 classify → knowledge → reasoning → constraint → action → reflection 的 6 步闭环，零 LLM 确定性管道，每步可追踪。
+> **当前实现**: `CognitivePipeline` (v4.0.0) — 已实现 classify → knowledge → reasoning → constraint → action → reflection 的 6 步闭环，零 LLM 确定性管道，每步可追踪。
 
 ### 最大批判：模块设计而非信息流动
 
@@ -142,7 +142,7 @@ Learning
 > `Observation → Atom → State → Knowledge → Reasoning → Planning → Execution → Reflection → Learning`
 > 这一条流水线如何流动。
 
-这是目前最需要警惕的倾向。v2.9.2 新增了 5 个认知模块，但如果没有统一的信息流水线将它们连接，新增模块只会增加维护负担而非系统能力。
+这是目前最需要警惕的倾向。v4.0.0 新增了 5 个认知模块，但如果没有统一的信息流水线将它们连接，新增模块只会增加维护负担而非系统能力。
 
 ---
 

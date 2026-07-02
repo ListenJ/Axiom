@@ -669,4 +669,4 @@ bun test
 ---
 
 *Last Updated: 2026-06-30*
-*Version: v2.9.2*
+*Version: v4.0.0*

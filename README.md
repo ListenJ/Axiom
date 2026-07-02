@@ -145,7 +145,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 ## 核心特性
 
-### 🧠 认知运行时 (v2.9.2)
+### 🧠 认知运行时 (v4.0.0)
 
 10 项架构改进 + 7 项核心缺陷修复，从碎片化多智能体系统升级为统一认知运行时：
 
@@ -241,7 +241,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 150 个工具，兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v2.9.2 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。
+暴露 150 个工具，兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。
 
 **工具分层**:
 
