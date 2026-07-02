@@ -16,6 +16,7 @@ import type { DREngine } from "../engine.js";
 import { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "../reasoning/graph.js";
 import type { ReflectionResult } from "../consciousness/stream.js";
 import type { KnowledgeNode } from "../storage/knowledge-store.js";
+import { TaskGraph } from "./task-graph.js";
 import { logger } from "../../utils/logger.js";
 
 // ========== 流水线类型 ==========
@@ -191,6 +192,49 @@ export class CognitivePipeline {
         lessons: [String((err as Error).message)],
         totalDurationMs: totalMs,
       };
+    }
+  }
+
+  /**
+   * 执行完整认知闭环 + TaskGraph 执行
+   * 在 run() 的基础上，如果有推荐动作，创建并执行 TaskGraph
+   */
+  async runFull(input: string): Promise<CognitiveLoopResult & {
+    executionGraph?: { tasks: number; completed: number; failed: number; status: string };
+  }> {
+    const base = await this.run(input);
+    if (!base.recommendedAction || !base.constraintPassed) return base;
+
+    try {
+      const graph = new TaskGraph();
+      graph.addTask("exec-action", base.recommendedAction, async () => {
+        await this.engine.actors.send("pipeline", "knowledge", "request", "execute", {
+          action: base.recommendedAction,
+          conclusion: base.conclusion,
+        });
+        return { dispatched: true, action: base.recommendedAction };
+      }, {
+        rollback: async () => {
+          await this.engine.actors.send("pipeline", "knowledge", "notify", "rollback", {
+            action: base.recommendedAction,
+          });
+        },
+      });
+
+      await graph.executeAll();
+
+      return {
+        ...base,
+        executionGraph: {
+          tasks: graph.getAllTasks().length,
+          completed: graph.getStatus() === "completed" ? 1 : 0,
+          failed: graph.getStatus() === "failed" ? 1 : 0,
+          status: graph.getStatus(),
+        },
+      };
+    } catch (err) {
+      logger.warn("[CognitivePipeline] TaskGraph execution failed", { error: (err as Error).message });
+      return base;
     }
   }
 

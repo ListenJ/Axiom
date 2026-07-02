@@ -30,6 +30,7 @@ export { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "./reasoni
 export { ConstraintSolver, createDefaultConstraintSolver, type Constraint, type ConstraintCheckResult, type ConstraintViolation } from "./constraint/solver.js";
 export { ActorSystem, createDefaultActorSystem, KnowledgeActorBehavior, ConstraintActorBehavior, MentalModelActorBehavior, ReasoningActorBehavior, type ActorMessage, type ActorBehavior } from "./actor/system.js";
 export { CognitivePipeline, type CognitiveStep, type CognitiveLoopResult } from "./pipeline/cognitive-pipeline.js";
+export { TaskGraph, type Task, type TaskStatus, type TaskGraphSnapshot, type TaskGraphStatus } from "./pipeline/task-graph.js";
 
 // 版本
 export const DRE_VERSION = "2.0.0";
