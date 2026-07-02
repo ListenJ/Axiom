@@ -123,10 +123,38 @@ Observation → State → Knowledge → Reasoning → Constraint → Action → 
 ### 短期 (v4.1)
 
 #### Runtime Kernel 增强
-- [ ] 提取 `EventBus` 统一事件总线 (from cognitive-runtime branch)
-- [ ] 提取 `WorldState` 统一状态树 (from cognitive-runtime branch)
+- [x] 提取 `EventBus` 统一事件总线 (from openclaw-clean)
+- [x] 提取 `WorldState` 统一状态树 (from openclaw-clean)
+- [x] 提取 `AtomEngine` Atom 表示层 (from openclaw-clean)
+- [x] 提取 `KnowledgeNetwork` 知识网络 (from openclaw-clean)
+- [x] 提取 `Scheduler` 任务调度器 (from openclaw-clean)
+- [x] 提取 `ReasoningRuntime` 推理引擎 (from openclaw-clean)
+- [ ] 提取 `Kernel` 完整 TickEngine + initRuntime (969行, 依赖复杂)
+- [ ] 提取 `RuleEngine` 规则引擎 (564行)
+- [ ] 提取 `MemoryEngine` 记忆引擎 (962行) — 与现有 ConsciousnessStream 重合
+- [ ] 提取 `ProjectionLayer` 知识投影 (453行)
+- [ ] 提取 `VerificationEngine` 验证引擎 (345行)
 - [ ] 将 CognitivePipeline 注册为 TickEngine phase handler
 - [ ] 将 ActorSystem 与 ActorRuntime 统一
+
+#### D:\openclaw-clean 待提取模块 (14 个)
+
+| 模块 | 行数 | 优先级 | 依赖 |
+|------|------|--------|------|
+| kernel.ts | 969 | ⭐⭐⭐⭐⭐ | eventBus + 所有 runtime |
+| memory-engine.ts | 962 | ⭐⭐⭐ | kernel + atom-engine |
+| rule-engine.ts | 564 | ⭐⭐⭐⭐ | kernel |
+| projection-layer.ts | 453 | ⭐⭐⭐ | kernel + atom-engine |
+| verification-engine.ts | 345 | ⭐⭐⭐ | kernel |
+| agent-executor.ts | 322 | ⭐⭐ | kernel + actors |
+| chat-actor.ts | 287 | ⭐⭐ | kernel |
+| capability-registry.ts | 274 | ⭐⭐⭐ | kernel |
+| specialized-actors.ts | 230 | ⭐⭐ | kernel + actors |
+| actors.ts | 214 | ⭐⭐ | kernel (与 ActorSystem 重叠) |
+| reasoning-graph.ts | 214 | ⭐⭐ | kernel (与 ReasoningGraph 重叠) |
+| constraint-solver.ts | 292 | ⭐⭐ | kernel (与 ConstraintSolver 重叠) |
+| context-engine.ts | 179 | ⭐⭐⭐ | kernel |
+| index.ts | 81 | ⭐ | 所有模块 |
 
 #### 推理增强
 - [ ] `evaluateCondition` 支持 `>`, `<`, `&&`, `||` 运算符

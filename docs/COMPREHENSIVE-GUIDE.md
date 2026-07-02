@@ -218,6 +218,53 @@ scene-router  classify  search   ReasoningGraph  check   TaskGraph   stream
 
 ---
 
+### 3.10 AtomEngine (355 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/atom-engine.ts`
+
+统一的 Atom 表示层 — 系统中所有数据都表示为 Atom。Markdown/SQLite/KG 均为 Atom 的投影。
+
+| API | 说明 |
+|-----|------|
+| `atomStore.create(kind, content, meta?)` | 创建 Atom |
+| `atomStore.get(id)` | 读取 |
+| `atomStore.update(id, changes)` | 更新 (版本递增) |
+| `atomStore.query(opts)` | 按 kind/source/parent 查询 |
+| `atomStore.link(srcId, dstId, relType)` | 建立 Atom 关系 |
+| `atomStore.getStats()` | Atom 统计 |
+
+**29 种 AtomKind**: `function | class | interface | type | variable | entity | fact | rule | concept | procedure | document | section | paragraph | sentence | goal | plan | step | action | observation | experience | belief | insight | event | state | constraint | relation` + 3 more
+
+### 3.11 KnowledgeNetwork (395 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/knowledge-network.ts`
+
+升级知识系统 — 不仅是 Graph，而是实体 + 行为 + 预测 + 假设。
+
+| API | 说明 |
+|-----|------|
+| `knowledgeNetwork.create(kind, name, content, opts?)` | 创建知识实体 |
+| `knowledgeNetwork.get(id)` | 读取 |
+| `knowledgeNetwork.queryByKind(kind)` | 按类型查询 |
+| `knowledgeNetwork.search(query)` | 搜索 |
+| `knowledgeNetwork.addBehavior(entityId, behavior)` | 添加行为模式 |
+| `knowledgeNetwork.addPrediction(entityId, prediction)` | 添加预测 |
+| `knowledgeNetwork.addHypothesis(entityId, hypothesis)` | 添加假设 |
+| `knowledgeNetwork.resolveHypothesis(entityId, hypId, status, reason)` | 假设解决 |
+
+### 3.12 Scheduler (232 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/scheduler.ts`
+
+纯任务调度器 — 只处理"何时"运行，不处理"做什么"。
+
+| API | 说明 |
+|-----|------|
+| `scheduler.enqueue(task)` | 入队 |
+| `scheduler.dequeue()` | 出队 |
+| `scheduler.getNext()` | 获取下一个就绪任务 |
+| `scheduler.getStatus()` | 队列状态 |
+| `scheduler.complete(taskId, result)` | 标记完成 |
+| `scheduler.fail(taskId, error)` | 标记失败 |
+| `scheduler.setBudget(budget)` | 设置资源预算 |
+
 ## 4. 全链路测试结果
 
 ### 4.1 总体统计
