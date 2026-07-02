@@ -248,7 +248,7 @@ export class DataPipeline {
       timeRange: opts?.timeRange,
     };
 
-    console.log(`[Pipeline] Multi-engine search: "${query}" via [${engines.join(", ")}]`);
+    logger.info(`[Pipeline] Multi-engine search: "${query}" via [${engines.join(", ")}]`);
     return searchAggregator.searchMulti(searchOpts, engines);
   }
 
@@ -260,7 +260,7 @@ export class DataPipeline {
     engine: string = "duckduckgo",
     opts?: { num?: number; lang?: string; site?: string; safe?: boolean }
   ): Promise<SearchEngineResult[]> {
-    console.log(`[Pipeline] Search via ${engine}: "${query}"`);
+    logger.info(`[Pipeline] Search via ${engine}: "${query}"`);
     return searchAggregator.search(engine, {
       query,
       num: opts?.num ?? 10,

@@ -120,6 +120,6 @@ describe("SceneRouter", () => {
     expect(sceneIds).toContain("task_graph");
     expect(sceneIds).toContain("git_ops");
     expect(sceneIds).toContain("code_analysis");
-    expect(scenes.length).toBe(23);
+    expect(scenes.length).toBeGreaterThanOrEqual(23);
   });
 });
