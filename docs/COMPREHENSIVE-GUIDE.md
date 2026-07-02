@@ -276,6 +276,129 @@ scene-router  classify  search   ReasoningGraph  check   TaskGraph   stream
 | `getReasoningRuntime()` | 获取推理引擎单例 |
 | 订阅 `scheduler.task_*` 事件 | 接收任务通知并推理 |
 
+---
+
+### 3.14 DREngine (462 行)
+**文件**: `src/dre/engine.ts`
+
+确定性推理引擎顶层编排器。初始化所有子系统。
+
+| API | 说明 |
+|-----|------|
+| `constructor(config)` | 初始化 VFS/SQLite/KnowledgeStore/Pipeline/LLM/Consciousness/MentalModels/Reasoning/Constraints/Actors |
+| `writeKnowledge(item)` | 写入知识 (触发三段甄别) |
+| `readKnowledge(nodeId)` | 读取知识 |
+| `searchKnowledge(query, opts?)` | 搜索知识 |
+| `subgraph(seed, depth?, max?)` | BFS 子图检索 |
+| `consciousnessStep(input)` | 意识流步骤 (三级降级: 本地LLM→云API→规则) |
+| `getStatus()` | 完整引擎状态快照 |
+| `waitForReady()` | 等待引擎就绪 (Actor 初始化完成) |
+| `close()` | 异步关闭所有子系统 |
+| `createPlannerAgent/CoderAgent/RetrieverAgent/ReflectorAgent()` | Agent 工厂方法 |
+
+### 3.15 Pipeline (283 行)
+**文件**: `src/dre/pipeline/pipeline.ts`
+
+三段甄别管道 — 知识质量验证。
+
+| API | 说明 |
+|-----|------|
+| `process(item)` | 三段甄别: 预筛→网络校验→LLM 自推理 |
+| Stage 1 | 规则引擎 + 向量召回 → 风险评分 |
+| Stage 2 | 网络检索校验 (Playwright) |
+| Stage 3 | LLM 自推理 (强约束 + 拒绝采样) |
+
+路由: `risk < 0.3 → accept | 0.3-0.7 → Stage 2 | > 0.7 → Stage 3`
+
+### 3.16 LLMClient (275 行)
+**文件**: `src/dre/llm/client.ts`
+
+OpenAI-compatible HTTP 客户端 (llama.cpp 或任何兼容 API)。
+
+| API | 说明 |
+|-----|------|
+| `generate(prompt, opts?)` | 标准生成 (temperature=0, 确定性) |
+| `streamGenerate(prompt, opts?)` | SSE 流式生成 |
+| `generateConstrained(prompt, schema, opts?)` | 强约束生成 (JSON Schema + 拒绝采样 n=3) |
+
+### 3.17 ConsciousnessStream (395 行)
+**文件**: `src/dre/consciousness/stream.ts`
+
+三层记忆架构 + 事件驱动意识流。
+
+| 组件 | 说明 |
+|------|------|
+| `WorkingMemory` | FIFO, 容量受限, 当前任务上下文 |
+| `EpisodicMemory` | TTL 过期, 向量索引 |
+| `ReflectionQueue` | 3 触发条件: 连续失败/输出不一致/置信度波动 |
+| `step(input)` | 观察→工作记忆→决策→追踪→反思 |
+| `reflect(analysis?)` | 基于 ReflectionQueue 分析生成经验教训 |
+| `getState()` / `getTrace()` | 状态快照 |
+
+### 3.18 KnowledgeGraph (253 行)
+**文件**: `src/dre/kg/graph.ts`
+
+内存知识图谱 — 邻接表 + O(1) 索引。
+
+| API | 说明 |
+|-----|------|
+| `addNode(node)` / `getNode(id)` | 节点管理 |
+| `addEdge(edge)` | 边管理 (去重 + 双向) |
+| `subgraph(seed, depth, max?)` | BFS 子图 |
+| `shortestPath(start, end)` | BFS 最短路径 |
+| `detectCommunities()` | 连通分量社区检测 |
+| `toJSON()` / `fromJSON(data)` | 序列化 |
+| `nodesByDomain(domain)` / `nodesByEnv(hash)` | O(1) Map 索引查询 |
+
+### 3.19 AgentHarness (228 行)
+**文件**: `src/dre/harness/agent.ts`
+
+Agent 编排 — 工具调用循环。
+
+| 子类 | 说明 |
+|------|------|
+| `PlannerAgent` | 确定性规划 |
+| `CoderAgent` | Codex 风格沙箱执行 |
+| `RetrieverAgent` | 检索 Agent |
+| `ReflectorAgent` | 反思 Agent |
+
+### 3.20 SqliteBackend (277 行)
+**文件**: `src/dre/storage/sqlite-backend.ts`
+
+VFS 的 SQLite 存储后端 — WAL 模式 + 自动建表 + 版本快照。
+
+| API | 说明 |
+|-----|------|
+| `read(path)` / `write(path, data, reason)` | 读写 KV |
+| `stat(path)` / `list(dir)` | 元数据 |
+| `delete(path)` | 删除 |
+| `getHistory(path)` | 版本历史 |
+| `rollback(path, revision)` | 版本回滚 |
+
+### 3.21 VFS (130 行)
+**文件**: `src/dre/vfs.ts`
+
+虚拟文件系统 — 统一挂载点 + 最长前缀路由。
+
+| API | 说明 |
+|-----|------|
+| `mount(path, backend)` | 挂载后端 |
+| `read(path)` / `write(path, data, reason)` | 读写 |
+| `listMounts()` | 列出挂载点 |
+
+### 3.22 VRAM Budget Manager (155 行)
+**文件**: `src/dre/vram-budget.ts`
+
+GPU VRAM 检测 — nvidia-smi + 预算管理。
+
+| API | 说明 |
+|-----|------|
+| `detectGPU()` | 检测 GPU (30s 缓存) |
+| `canRunLocal()` | 判断能否本地推理 |
+| `getStatus()` | VRAM 状态快照 |
+
+默认: modelBaseMB=1100, kvCacheMaxMB=2200, safetyMarginMB=200 (RTX 3050 Ti 4GB)
+
 ## 4. 全链路测试结果
 
 ### 4.1 总体统计
@@ -396,13 +519,36 @@ expect() 调用      ~12000+
 
 ## 8. 分支与合并状态
 
-| 分支 | 状态 | 已合并内容 |
-|------|------|-----------|
-| `main` (当前) | ✅ 活跃 | Axiom Runtime v4.0.0 |
-| `feature/cognitive-runtime` | 📦 | MentalModelPool 增强 + Runtime Kernel (EventBus/WorldState) |
-| `feature/runtime-integration` | 📦 | 与认知运行时重叠 (不需要重复合并) |
-| `feature/ide-plugin` | ✅ | IDE 插件 |
-| `feat/v2.2.0-intelligent-routing` | ✅ | 智能路由 |
+| 分支 | 状态 | 未合并 commits | 已提取内容 |
+|------|------|---------------|-----------|
+| `main` (当前) | ✅ 活跃 | 0 | Axiom Runtime v4.0.0 |
+| `feature/cognitive-runtime` | 📦 56 ahead | EventBus,WorldState,AtomEngine,KnowledgeNetwork,Scheduler,ReasoningRuntime,MentalModel 增强 | — |
+| `feature/runtime-kernel` | 📦 27 ahead | 与 cognitive-runtime 重叠，无 unique 模块 | — |
+| `feature/runtime-integration` | 📦 42 ahead | 与 cognitive-runtime 重叠，无 unique 模块 | — |
+| `feature/ide-plugin` | ✅ 0 ahead | 已完全合并 | — |
+| `feat/v2.2.0-intelligent-routing` | ✅ 0 ahead | 已完全合并 | — |
+
+**分支关系**: `cognitive-runtime ⊃ runtime-integration ⊃ runtime-kernel` (层层包含)
+所有有价值代码均来自 cognitive-runtime，其余分支无额外 unique 内容。
+
+### cognitive-runtime 待提取清单 (14 modules)
+
+| 模块 | 行数 | 优先级 | 说明 |
+|------|------|--------|------|
+| kernel.ts | 969 | ⭐⭐⭐⭐⭐ | 完整 TickEngine + initRuntime |
+| memory-engine.ts | 962 | ⭐⭐⭐ | Skills/Patterns/Episodes |
+| rule-engine.ts | 564 | ⭐⭐⭐⭐ | 规则评估 + 自动学习 |
+| projection-layer.ts | 453 | ⭐⭐⭐ | 知识投影层 |
+| verification-engine.ts | 345 | ⭐⭐⭐ | 验证引擎 |
+| agent-executor.ts | 322 | ⭐⭐ | Agent 执行器 |
+| chat-actor.ts | 287 | ⭐⭐ | Chat Actor |
+| capability-registry.ts | 274 | ⭐⭐⭐ | 能力注册表 |
+| specialized-actors.ts | 230 | ⭐⭐ | 专业 Actor 行为 |
+| actors.ts | 214 | ⭐⭐ | Actor 基类 (与 ActorSystem 重叠) |
+| reasoning-graph.ts | 214 | ⭐⭐ | 推理图 (与 ReasoningGraph 重叠) |
+| constraint-solver.ts | 292 | ⭐⭐ | 约束求解 (与 ConstraintSolver 重叠) |
+| context-engine.ts | 179 | ⭐⭐⭐ | 上下文引擎 |
+| index.ts | 81 | ⭐ | Barrel 导出 |
 
 ---
 
