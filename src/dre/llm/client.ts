@@ -9,7 +9,6 @@
  * - 支持 llama.cpp HTTP API
  */
 
-import { z } from "zod";
 import { logger } from "../../utils/logger.js";
 
 /** LLM 配置 */

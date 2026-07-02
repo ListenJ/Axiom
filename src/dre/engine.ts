@@ -24,7 +24,7 @@ import { getVRAMBudgetManager } from "./vram-budget.js";
 import { MentalModelPool, createDefaultMentalModelPool } from "./mental-model/pool.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
 import { ConstraintSolver, createDefaultConstraintSolver } from "./constraint/solver.js";
-import { ActorSystem, createDefaultActorSystem } from "./actor/system.js";
+import { ActorSystem } from "./actor/system.js";
 import { logger } from "../utils/logger.js";
 
 /** DRE 配置 */
@@ -345,8 +345,8 @@ export class DREngine {
     return {
       vfs: { mounts: this.vfs.listMounts() },
       knowledge: {
-        nodes: this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as number,
-        edges: this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as number,
+        nodes: (this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as { c: number }).c,
+        edges: (this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as { c: number }).c,
       },
       consciousness: this.consciousness.getState(),
       kg: {
