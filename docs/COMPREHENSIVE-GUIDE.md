@@ -1,6 +1,6 @@
 # Axiom Runtime v4.0.0 — 综合报告与开发指南
 
-> **677 pass / 699 total / 45 test files / 24 commits / 0 regressions**
+> **677 pass / 699 total / 45 test files / 26 commits / 0 regressions**
 >
 > 本文档为项目的权威参考：架构、模块、API、测试、性能基准、分支演化。
 >
@@ -33,7 +33,8 @@ Tier 2: 认知运行时 (Cognitive Runtime)
 │  CognitivePipeline (6-step 闭环)                         │
 │  TaskGraph (DAG 执行 + 回滚 + Checkpoint/Resume)          │
 │  ActorSystem (轻量 Actor + 健康检查)                      │
-│  EventBus + WorldState (Runtime Kernel v1)               │
+│  EventBus + WorldState + AtomEngine + KnowledgeNetwork    │
+│  Scheduler + ReasoningRuntime (Runtime Kernel v1)         │
 │  ConsciousnessStream (三层记忆 + 反思)                     │
 ├──────────────────────────────────────────────────────────┤
 Tier 3: 认知引擎 (Cognitive Modules)
@@ -257,13 +258,23 @@ scene-router  classify  search   ReasoningGraph  check   TaskGraph   stream
 
 | API | 说明 |
 |-----|------|
-| `scheduler.enqueue(task)` | 入队 |
-| `scheduler.dequeue()` | 出队 |
+| `scheduler.submit(task)` | 提交任务 |
 | `scheduler.getNext()` | 获取下一个就绪任务 |
-| `scheduler.getStatus()` | 队列状态 |
 | `scheduler.complete(taskId, result)` | 标记完成 |
 | `scheduler.fail(taskId, error)` | 标记失败 |
+| `scheduler.cancel(taskId)` | 取消任务 |
+| `scheduler.getStatus()` | 队列状态 {queued, running, completed, failed} |
 | `scheduler.setBudget(budget)` | 设置资源预算 |
+
+### 3.13 ReasoningRuntime (369 行, 🆕 from openclaw-clean)
+**文件**: `src/dre/runtime/reasoner/reasoning-runtime.ts`
+
+独立推理引擎 — 从 Scheduler 中拆分，负责任务的"逻辑推理"部分。
+
+| API | 说明 |
+|-----|------|
+| `getReasoningRuntime()` | 获取推理引擎单例 |
+| 订阅 `scheduler.task_*` 事件 | 接收任务通知并推理 |
 
 ## 4. 全链路测试结果
 
@@ -430,4 +441,4 @@ expect() 调用      ~12000+
 
 ---
 
-*Generated 2026-07-02 | Axiom Runtime v4.0.0 | 24 commits | 677 pass / 699 total*
+*Generated 2026-07-02 | Axiom Runtime v4.0.0 | 26 commits | 677 pass / 699 total | 7 runtime modules from openclaw-clean*
