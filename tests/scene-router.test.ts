@@ -108,7 +108,7 @@ describe("SceneRouter", () => {
     expect(scene?.tools).toContain("procedure_parse");
   });
 
-  test("should list all 22 scenes", () => {
+  test("should list all 23 scenes", () => {
     const scenes = router.listScenes();
     const sceneIds = scenes.map((s) => s.id);
     expect(sceneIds).toContain("constraint_ops");
@@ -117,8 +117,9 @@ describe("SceneRouter", () => {
     expect(sceneIds).toContain("actor_ops");
     expect(sceneIds).toContain("procedure_ops");
     expect(sceneIds).toContain("cognitive_loop");
+    expect(sceneIds).toContain("task_graph");
     expect(sceneIds).toContain("git_ops");
     expect(sceneIds).toContain("code_analysis");
-    expect(scenes.length).toBe(22);
+    expect(scenes.length).toBe(23);
   });
 });

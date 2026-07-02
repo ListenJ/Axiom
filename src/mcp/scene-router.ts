@@ -368,4 +368,12 @@ export const DEFAULT_SCENES: Scene[] = [
     tools: ["cognitive_loop"],
     priority: 8,
   },
+  {
+    id: "task_graph",
+    name: "任务图执行",
+    description: "创建执行任务图: 并行任务/依赖解析/失败回滚/Checkpoint",
+    match: ["任务图", "task graph", "并行任务", "执行计划", "checkpoint"],
+    tools: ["task_graph_execute"],
+    priority: 8,
+  },
 ];

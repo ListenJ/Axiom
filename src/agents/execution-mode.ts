@@ -187,6 +187,7 @@ export const TOOL_CLASSIFICATIONS: ToolClassification[] = [
   { name: "actor_send", risk: "safe", category: "actor", description: "发送 Actor 消息" },
   // 认知闭环 (v2.9.2)
   { name: "cognitive_loop", risk: "safe", category: "cognitive_runtime", description: "执行完整认知闭环" },
+  { name: "task_graph_execute", risk: "safe", category: "cognitive_runtime", description: "任务图执行" },
 
   // ===== 谨慎工具（可能影响状态） =====
   // 文件系统

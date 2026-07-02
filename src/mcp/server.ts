@@ -2586,6 +2586,55 @@ registry.add({
   },
 });
 
+registry.add({
+  name: "task_graph_execute",
+  description: "创建并执行任务图 (TaskGraph): 任务并行/依赖解析/失败回滚, 支持 Checkpoint/Resume",
+  inputSchema: {
+    tasks: z.array(z.object({
+      id: z.string(),
+      description: z.string(),
+      dependsOn: z.array(z.string()).optional(),
+      action: z.string().describe("发送到 Actor 的动作名"),
+      payload: z.record(z.unknown()).optional(),
+      hasRollback: z.boolean().optional().describe("是否注册回滚 (默认 false)"),
+    })).min(1),
+  },
+  handler: async (args) => {
+    const dre = getDREngine();
+    const { TaskGraph } = await import("../dre/pipeline/task-graph.js");
+    const graph = new TaskGraph();
+
+    for (const taskDef of (args.tasks as Array<Record<string, unknown>>)) {
+      const id = taskDef.id as string;
+      const desc = taskDef.description as string;
+      const deps = taskDef.dependsOn as string[] | undefined;
+      const action = taskDef.action as string;
+      const payload = taskDef.payload as Record<string, unknown> | undefined;
+      const hasRollback = taskDef.hasRollback as boolean | undefined;
+
+      graph.addTask(id, desc, async () => {
+        await dre.actors.send("user", "knowledge", "request", action, payload ?? {});
+        return { dispatched: true, action };
+      }, {
+        dependsOn: deps,
+        rollback: hasRollback ? async () => {
+          await dre.actors.send("user", "knowledge", "notify", `rollback:${action}`, payload ?? {});
+        } : undefined,
+      });
+    }
+
+    await graph.executeAll();
+    const checkpointId = await graph.checkpoint(dre.knowledgeStore);
+
+    return {
+      status: graph.getStatus(),
+      tasksCompleted: graph.getAllTasks().filter((t) => t.status === "completed").length,
+      tasksFailed: graph.getAllTasks().filter((t) => t.status === "failed").length,
+      checkpointId,
+    };
+  },
+});
+
 // ===== 统一知识访问层 (KAL) 工具 =====
 
 let kal: KnowledgeAccessLayer | null = null;
