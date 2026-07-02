@@ -157,7 +157,7 @@ export class SqliteBackend implements IBackend {
   async read(path: string): Promise<string | null> {
     const stmt = this.db.prepare("SELECT content FROM kv WHERE path = ?");
     const row = stmt.get(path) as { content: Buffer } | undefined;
-    return row ? row.content.toString() : null;
+    return row ? new TextDecoder().decode(row.content as Uint8Array) : null;
   }
 
   async write(path: string, data: string, reason: string = "manual"): Promise<boolean> {

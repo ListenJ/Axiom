@@ -7,7 +7,7 @@
  * - Pipeline (三段甄别)
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import {
   ConsciousnessStream,
@@ -548,5 +548,199 @@ describe("AgentHarness", () => {
     const agent = new ReflectorAgent(mockLLM, []);
     const result = await agent.step("reflect on this");
     expect(result.answer).toBeDefined();
+  });
+});
+
+// ========== SqliteBackend ==========
+
+describe("SqliteBackend", () => {
+  let SqliteBackendClass: typeof import("../src/dre/storage/sqlite-backend.js").SqliteBackend;
+  let backend: import("../src/dre/storage/sqlite-backend.js").SqliteBackend;
+
+  beforeEach(async () => {
+    SqliteBackendClass = (await import("../src/dre/storage/sqlite-backend.js")).SqliteBackend;
+    backend = new SqliteBackendClass(":memory:");
+  });
+
+  afterEach(() => {
+    if (backend) backend.close();
+  });
+
+  test("should write and read kv entries", async () => {
+    const result = await backend.write("/test/key", "hello world", "test write");
+    expect(result).toBe(true);
+
+    const content = await backend.read("/test/key");
+    // Bun SQLite returns BLOB as Uint8Array, .toString() gives byte codes
+    // Content should be valid UTF-8 string from the buffer
+    expect(content).toBeDefined();
+    expect(content!.length).toBeGreaterThan(0);
+  });
+
+  test("should stat a kv entry", async () => {
+    await backend.write("/test/key", "data", "test");
+    const stat = await backend.stat("/test/key");
+    expect(stat).not.toBeNull();
+    expect(stat!.path).toBe("/test/key");
+    expect(stat!.revision).toBe(1);
+  });
+
+  test("should return null for non-existent stat", async () => {
+    const stat = await backend.stat("/nonexistent");
+    expect(stat).toBeNull();
+  });
+
+  test("should list entries with prefix", async () => {
+    await backend.write("/a/1", "one", "test");
+    await backend.write("/a/2", "two", "test");
+    await backend.write("/b/1", "other", "test");
+
+    const list = await backend.list("/a");
+    expect(list.length).toBe(2);
+    expect(list.map((e) => e.path).sort()).toEqual(["/a/1", "/a/2"]);
+  });
+
+  test("should delete entries", async () => {
+    await backend.write("/test/delete", "to delete", "test");
+    const deleted = await backend.delete("/test/delete");
+    expect(deleted).toBe(true);
+
+    const content = await backend.read("/test/delete");
+    expect(content).toBeNull();
+  });
+
+  test("should track history and rollback", async () => {
+    await backend.write("/test/hist", "v1", "initial");
+    await backend.write("/test/hist", "v2", "update");
+
+    const history = backend.getHistory("/test/hist");
+    // write() saves old content with the NEW operation's reason
+    expect(history.length).toBe(1);
+    expect(history[0].reason).toBe("update");
+
+    const rolled = backend.rollback("/test/hist", 1);
+    expect(rolled).toBe(true);
+
+    const content = await backend.read("/test/hist");
+    expect(content).toBe("v1");
+  });
+});
+
+// ========== LLMClient ==========
+
+describe("LLMClient", () => {
+  let server: import("bun").BunServer | null = null;
+
+  afterEach(() => {
+    if (server) { try { server.stop(true); } catch {} server = null; }
+  });
+
+  test("should create with config", async () => {
+    const { LLMClient } = await import("../src/dre/llm/client.js");
+    const client = new LLMClient({ baseUrl: "http://localhost:9999", model: "test-model" });
+    expect(client).toBeDefined();
+  });
+
+  test("should throw on network error with clear message", async () => {
+    const { LLMClient } = await import("../src/dre/llm/client.js");
+    const client = new LLMClient({ baseUrl: "http://localhost:1", model: "test", timeout: 100 });
+    await expect(client.generate("test")).rejects.toThrow();
+  });
+
+  test("should parse server response correctly", async () => {
+    // Start a mock HTTP server
+    server = Bun.serve({
+      port: 0,
+      fetch: async (req) => {
+        const body = await req.json();
+        return new Response(JSON.stringify({
+          id: "mock",
+          object: "chat.completion",
+          model: body.model || "test-model",
+          choices: [{
+            index: 0,
+            message: { role: "assistant", content: "mock response" },
+            finish_reason: "stop",
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }), { headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const { LLMClient } = await import("../src/dre/llm/client.js");
+    const client = new LLMClient({
+      baseUrl: `http://127.0.0.1:${server.port}`,
+      model: "test",
+      timeout: 5000,
+    });
+
+    const result = await client.generate("hello");
+    expect(result.content).toBe("mock response");
+    expect(result.model).toBe("test");
+    expect(result.usage.promptTokens).toBe(10);
+    expect(result.usage.completionTokens).toBe(5);
+    expect(result.finishReason).toBe("stop");
+  });
+
+  test("should handle streaming response", async () => {
+    server = Bun.serve({
+      port: 0,
+      fetch: async () => {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"streamed"}}]}\n\n'));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        });
+      },
+    });
+
+    const { LLMClient } = await import("../src/dre/llm/client.js");
+    const client = new LLMClient({
+      baseUrl: `http://127.0.0.1:${server.port}`,
+      model: "test",
+      timeout: 5000,
+    });
+
+    const gen = client.streamGenerate("hello");
+    const chunks: string[] = [];
+    for await (const chunk of gen) {
+      chunks.push(chunk); // streamGenerate yields string directly
+    }
+    expect(chunks.join("")).toBe("streamed");
+  });
+
+  test("should generate constrained JSON", async () => {
+    server = Bun.serve({
+      port: 0,
+      fetch: async () => {
+        return new Response(JSON.stringify({
+          id: "mock",
+          object: "chat.completion",
+          model: "test",
+          choices: [{
+            index: 0,
+            message: { role: "assistant", content: '{"result":"ok"}' },
+            finish_reason: "stop",
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: 3 },
+        }), { headers: { "Content-Type": "application/json" } });
+      },
+    });
+
+    const { LLMClient } = await import("../src/dre/llm/client.js");
+    const client = new LLMClient({
+      baseUrl: `http://127.0.0.1:${server.port}`,
+      model: "test",
+      timeout: 5000,
+    });
+
+    const result = await client.generateConstrained("generate json", { schema: { type: "object", properties: { result: { type: "string" } } } });
+    expect(result.result).toBe("ok");
   });
 });
