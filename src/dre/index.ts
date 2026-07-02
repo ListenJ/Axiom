@@ -31,6 +31,8 @@ export { ConstraintSolver, createDefaultConstraintSolver, type Constraint, type 
 export { ActorSystem, createDefaultActorSystem, KnowledgeActorBehavior, ConstraintActorBehavior, MentalModelActorBehavior, ReasoningActorBehavior, type ActorMessage, type ActorBehavior } from "./actor/system.js";
 export { CognitivePipeline, type CognitiveStep, type CognitiveLoopResult } from "./pipeline/cognitive-pipeline.js";
 export { TaskGraph, type Task, type TaskStatus, type TaskGraphSnapshot, type TaskGraphStatus } from "./pipeline/task-graph.js";
+export { eventBus, type RuntimeEvent, type EventHandler, type EventPriority } from "./runtime/event-bus.js";
+export { worldState, type MentalIntent, type MentalGoal, type MentalBelief, type MentalHypothesis } from "./runtime/world-state.js";
 
 // 版本
 export const DRE_VERSION = "2.0.0";

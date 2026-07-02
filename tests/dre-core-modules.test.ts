@@ -20,6 +20,8 @@ import { KnowledgeStore } from "../src/dre/storage/knowledge-store.js";
 import { Pipeline } from "../src/dre/pipeline/pipeline.js";
 import { LLMClient } from "../src/dre/llm/client.js";
 import { AgentHarness, type Tool, PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent } from "../src/dre/harness/agent.js";
+import { eventBus } from "../src/dre/runtime/event-bus.js";
+import { worldState } from "../src/dre/runtime/world-state.js";
 
 // ========== WorkingMemory ==========
 
@@ -742,5 +744,81 @@ describe("LLMClient", () => {
 
     const result = await client.generateConstrained("generate json", { schema: { type: "object", properties: { result: { type: "string" } } } });
     expect(result.result).toBe("ok");
+  });
+});
+
+// ========== EventBus ==========
+
+describe("EventBus", () => {
+  test("should publish and subscribe", () => {
+    let received: unknown = null;
+    eventBus.subscribe("test.event", (e) => { received = e.data; });
+    eventBus.publish({ type: "test.event", source: "test", data: "hello", priority: "normal" });
+    expect(received).toBe("hello");
+  });
+
+  test("should handle priority ordering", () => {
+    const order: string[] = [];
+    eventBus.subscribe("priority.test", () => { order.push("low"); }, 0);
+    eventBus.subscribe("priority.test", () => { order.push("high"); }, 10);
+    eventBus.publish({ type: "priority.test", source: "test", data: null, priority: "normal" });
+    expect(order[0]).toBe("high");
+  });
+
+  test("subscribeOnce should auto-unsubscribe", () => {
+    let count = 0;
+    eventBus.subscribeOnce("once.test", () => { count++; });
+    eventBus.publish({ type: "once.test", source: "test", data: null, priority: "normal" });
+    eventBus.publish({ type: "once.test", source: "test", data: null, priority: "normal" });
+    expect(count).toBe(1);
+  });
+
+  test("should track stats", () => {
+    eventBus.publish({ type: "stats.test", source: "s", data: "x", priority: "low" });
+    const stats = eventBus.getStats();
+    expect(stats.published).toBeGreaterThan(0);
+  });
+});
+
+// ========== WorldState ==========
+
+describe("WorldState", () => {
+  test("should get and set values", () => {
+    worldState.set("test.key", "value");
+    expect(worldState.get("test.key")).toBe("value");
+  });
+
+  test("should watch changes", () => {
+    let changed = false;
+    const unsub = worldState.watch("watch.key", (val) => { changed = true; });
+    worldState.set("watch.key", 42);
+    expect(changed).toBe(true);
+    unsub();
+  });
+
+  test("should track mental intent/goals/beliefs", () => {
+    worldState.setIntent("analyze", 0.9);
+    worldState.setGoal("g1", "完成测试", "active");
+    worldState.setBelief("b1", "测试通过", 0.95);
+    worldState.setHypothesis("h1", "可能存在问题", "proposed");
+
+    expect(worldState.getIntent()?.intent).toBe("analyze");
+    expect(worldState.getGoals().g1.description).toBe("完成测试");
+    expect(worldState.getBeliefs().b1.confidence).toBe(0.95);
+    expect(worldState.getHypotheses().h1.status).toBe("proposed");
+  });
+
+  test("should query by prefix", () => {
+    worldState.set("entities.A", { name: "A" });
+    worldState.set("entities.B", { name: "B" });
+    worldState.set("other.X", { name: "X" });
+    const result = worldState.query("entities.");
+    expect(result.size).toBe(2);
+  });
+
+  test("should snapshot state", () => {
+    worldState.set("snap.key", "data");
+    const snap = worldState.snapshot();
+    expect(snap["snap.key"]).toBe("data");
   });
 });
