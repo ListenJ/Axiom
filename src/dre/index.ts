@@ -25,7 +25,7 @@ export { KnowledgeGraph, type KGNode, type KGEdge as KGEdgeType } from "./kg/gra
 export { AgentHarness, PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent, type Tool, type AgentResponse } from "./harness/agent.js";
 export { LLMClient, type LLMConfig, type LLMResponse, type ConstrainedGenerationOptions } from "./llm/client.js";
 export { DREngine, type DREConfig } from "./engine.js";
-export { MentalModelPool, type MentalModel, type ModelPattern } from "./mental-model/pool.js";
+export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, type Simulation, type SimulationStep } from "./mental-model/pool.js";
 export { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "./reasoning/graph.js";
 export { ConstraintSolver, createDefaultConstraintSolver, type Constraint, type ConstraintCheckResult, type ConstraintViolation } from "./constraint/solver.js";
 export { ActorSystem, createDefaultActorSystem, KnowledgeActorBehavior, ConstraintActorBehavior, MentalModelActorBehavior, ReasoningActorBehavior, type ActorMessage, type ActorBehavior } from "./actor/system.js";

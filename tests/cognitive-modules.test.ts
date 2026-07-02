@@ -53,9 +53,11 @@ describe("MentalModelPool", () => {
 
   test("should register and list models", () => {
     const models = pool.list();
-    expect(models.length).toBe(2);
+    expect(models.length).toBe(4); // Git + Code + Auth + Database
     expect(models.map((m) => m.id)).toContain("git-conflict");
     expect(models.map((m) => m.id)).toContain("code-refactor");
+    expect(models.map((m) => m.id)).toContain("auth-flow");
+    expect(models.map((m) => m.id)).toContain("database-tx");
   });
 
   test("should get model by id", () => {
@@ -146,6 +148,44 @@ describe("MentalModelPool", () => {
     expect(pattern?.statePath).toBeDefined();
     expect(pattern?.statePath.length).toBeGreaterThan(0);
     expect(pattern?.statePath[0]).toBe("clean"); // initial state
+  });
+
+  // v4.0 增强: 规则 + 模拟 + Skill 生成
+  test("should add and use rules", () => {
+    const ok = pool.addRule("git-conflict", "conflictDetected == true", "resolve_conflict");
+    expect(ok).toBe(true);
+    const model = pool.get("git-conflict");
+    expect(model?.rules.length).toBeGreaterThan(0);
+  });
+
+  test("should simulate scenario with rules", () => {
+    const sim = pool.simulate("git-conflict", "merge conflict scenario", {
+      conflictDetected: "true",
+      stagedFiles: 1,
+    });
+    expect(sim).not.toBeNull();
+    expect(sim!.steps.length).toBeGreaterThan(0);
+  });
+
+  test("should generate skill from successful simulation", () => {
+    pool.addRule("git-conflict", "testKey exists", "resolve", 0.9);
+    const sim = pool.simulate("git-conflict", "merge test", { testKey: true });
+    expect(sim).not.toBeNull();
+    expect(sim!.outcome).toBe("success");
+    const skill = pool.generateSkillFromSimulation("git-conflict", sim!.id);
+    expect(skill).toContain("git");
+  });
+
+  test("should return null for failed/unexisting simulation", () => {
+    const skill = pool.generateSkillFromSimulation("git-conflict", "nonexistent");
+    expect(skill).toBeNull();
+  });
+
+  test("should return stats", () => {
+    // Simulate to generate stats
+    pool.simulate("git-conflict", "test", { conflictDetected: "true" });
+    const stats = pool.getStats();
+    expect(stats.models).toBe(4);
   });
 });
 

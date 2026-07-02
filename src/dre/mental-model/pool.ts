@@ -1,20 +1,16 @@
 /**
- * 心智模型层 (Mental Model Layer)
+ * 心智模型层 (Mental Model Layer) — v4.0 增强版
  *
  * 桥接 Pattern → Skill 的认知断层
  *
- * 核心思想:
- * 当系统学习到一个模式 (如 "Git 经常冲突") 时，
- * 不应直接生成 Skill，
- * 而是先构建一个内部模拟模型 (如 Git 的 HEAD/Index/Merge 概念)，
- * 并在此模型上演练出 Skill。
+ * 增强特性 (from cognitive-runtime branch):
+ * - 领域规则 (ModelRule): condition→action 条件推理
+ * - 场景模拟 (Simulation): what-if 演练
+ * - Skill 生成: 从成功模拟自动生成技能
+ * - 统计追踪: 模型数/模拟数/技能数
+ * - 4 个预注册模型: Git Conflicts + Code Refactor + Auth + Database
  *
- * 心智模型 = 概念图 + 状态转换 + 预测函数
- *
- * 例如: Git 冲突模型
- * - 概念: HEAD, Index, WorkingTree, Merge, Conflict
- * - 状态转换: merge → conflict → resolve → commit
- * - 预测: 如果两个分支修改同一文件，则 merge 会产生 conflict
+ * 心智模型 = 概念图 + 状态转换 + 规则 + 模拟 + 预测函数
  */
 
 import { logger } from "../../utils/logger.js";
@@ -59,6 +55,31 @@ export interface ModelPattern {
   suggestedSkill?: string;
 }
 
+/** 领域规则 (condition → action) */
+export interface ModelRule {
+  id: string;
+  condition: string;
+  action: string;
+  confidence: number;
+}
+
+/** 模拟步骤 */
+export interface SimulationStep {
+  action: string;
+  result: string;
+  state: Record<string, unknown>;
+}
+
+/** 场景模拟 */
+export interface Simulation {
+  id: string;
+  scenario: string;
+  steps: SimulationStep[];
+  outcome: "success" | "failure" | "uncertain";
+  confidence: number;
+  timestamp: number;
+}
+
 /** 心智模型 */
 export interface MentalModel {
   id: string;
@@ -81,6 +102,10 @@ export interface MentalModel {
   lastUsedAt: number;
   /** 创建时间 */
   createdAt: number;
+  /** 领域规则 (v4.0) */
+  rules: ModelRule[];
+  /** 模拟结果 (v4.0) */
+  simulations: Simulation[];
 }
 
 // ========== 心智模型池 ==========
@@ -236,6 +261,92 @@ export class MentalModelPool {
   }
 
   /**
+   * 添加规则到模型 (v4.0)
+   */
+  addRule(modelId: string, condition: string, action: string, confidence: number = 0.8): boolean {
+    const model = this.models.get(modelId);
+    if (!model) return false;
+    model.rules.push({
+      id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      condition,
+      action,
+      confidence,
+    });
+    return true;
+  }
+
+  /**
+   * 场景模拟 (v4.0): 在模型上运行 what-if 演练
+   * 应用规则和概念关系来模拟状态转换
+   */
+  simulate(modelId: string, scenario: string, initialState: Record<string, unknown>): Simulation | null {
+    const model = this.models.get(modelId);
+    if (!model) return null;
+
+    const steps: SimulationStep[] = [];
+    const state = { ...initialState };
+
+    // 应用规则模拟状态转换
+    for (const rule of model.rules) {
+      if (this.evaluateCondition(rule.condition, state)) {
+        const stateChange = this.applyAction(rule.action, state);
+        steps.push({ action: rule.action, result: `Applied: ${rule.condition} → ${rule.action}`, state: { ...state } });
+        Object.assign(state, stateChange);
+      }
+    }
+
+    // 应用概念关系作为状态转换
+    for (const concept of model.concepts) {
+      for (const rel of concept.relations) {
+        const sourceState = state[concept.name];
+        if (sourceState !== undefined) {
+          if (rel.type === "causes" || rel.type === "may-cause") {
+            state[rel.target] = `affected_by_${concept.name}`;
+          } else if (rel.type === "requires") {
+            if (!state[rel.target]) state[rel.target] = `missing_required_by_${concept.name}`;
+          }
+        }
+      }
+    }
+
+    const simulation: Simulation = {
+      id: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      scenario,
+      steps,
+      outcome: steps.length > 0 ? "success" : "uncertain",
+      confidence: model.confidence * (steps.length > 0 ? 1 : 0.5),
+      timestamp: Date.now(),
+    };
+
+    model.simulations.push(simulation);
+    return simulation;
+  }
+
+  /**
+   * 从成功模拟生成技能描述 (v4.0)
+   */
+  generateSkillFromSimulation(modelId: string, simulationId: string): string | null {
+    const model = this.models.get(modelId);
+    if (!model) return null;
+    const sim = model.simulations.find((s) => s.id === simulationId);
+    if (!sim || sim.outcome !== "success") return null;
+    return `Skill from ${model.domain}: ${sim.scenario}`;
+  }
+
+  /**
+   * 获取统计 (v4.0)
+   */
+  getStats(): { models: number; totalSimulations: number; totalRules: number } {
+    let sims = 0;
+    let rules = 0;
+    for (const m of this.models.values()) {
+      sims += m.simulations.length;
+      rules += m.rules.length;
+    }
+    return { models: this.models.size, totalSimulations: sims, totalRules: rules };
+  }
+
+  /**
    * 查找状态路径 (BFS)
    */
   private findStatePath(model: MentalModel, conceptIds: string[]): string[] {
@@ -255,6 +366,32 @@ export class MentalModelPool {
     }
 
     return path;
+  }
+
+  /**
+   * 评估条件 (v4.0): key==value | key exists | key contains value
+   */
+  private evaluateCondition(condition: string, state: Record<string, unknown>): boolean {
+    const eqMatch = condition.match(/^(\w+)\s*==\s*(.+)$/);
+    if (eqMatch) return String(state[eqMatch[1]]) === eqMatch[2].trim();
+    const existsMatch = condition.match(/^(\w+)\s+exists$/);
+    if (existsMatch) return state[existsMatch[1]] !== undefined;
+    const containsMatch = condition.match(/^(\w+)\s+contains\s+(.+)$/);
+    if (containsMatch) return String(state[containsMatch[1]] ?? "").includes(containsMatch[2].trim());
+    return JSON.stringify(state).toLowerCase().includes(condition.toLowerCase());
+  }
+
+  /**
+   * 应用动作到状态 (v4.0): set key to value | increment key
+   */
+  private applyAction(action: string, state: Record<string, unknown>): Record<string, unknown> {
+    const changes: Record<string, unknown> = {};
+    const setMatch = action.match(/^set\s+(\w+)\s+to\s+(.+)$/i);
+    if (setMatch) { changes[setMatch[1]] = setMatch[2].trim(); return changes; }
+    const incMatch = action.match(/^increment\s+(\w+)$/i);
+    if (incMatch) { changes[incMatch[1]] = (Number(state[incMatch[1]]) || 0) + 1; return changes; }
+    changes[action] = Date.now();
+    return changes;
   }
 }
 
@@ -289,6 +426,8 @@ export const GIT_CONFLICT_MODEL: MentalModel = {
   usageCount: 0,
   lastUsedAt: 0,
   createdAt: Date.now(),
+  rules: [],
+  simulations: [],
 };
 
 /**
@@ -319,6 +458,65 @@ export const CODE_REFACTOR_MODEL: MentalModel = {
   usageCount: 0,
   lastUsedAt: 0,
   createdAt: Date.now(),
+  rules: [],
+  simulations: [],
+};
+
+// ========== v4.0 新增预定义模型 ==========
+
+export const AUTH_MODEL: MentalModel = {
+  id: "auth-flow",
+  name: "认证流程模型",
+  domain: "auth",
+  description: "JWT/OAuth2 认证的三个核心阶段: Token → Refresh → Expiry",
+  concepts: [
+    { id: "Token", name: "Token", description: "认证令牌", properties: {}, relations: [] },
+    { id: "Refresh", name: "Refresh", description: "Token 刷新流程", properties: {}, relations: [] },
+    { id: "Expiry", name: "Expiry", description: "Token 过期状态", properties: {}, relations: [{ target: "Refresh", type: "may-cause" }] },
+    { id: "Validation", name: "Validation", description: "Token 校验流程", properties: {}, relations: [{ target: "Token", type: "requires" }] },
+  ],
+  transitions: [
+    { id: "t1", fromState: "authenticated", toState: "expiring", trigger: "token-expiring", requiredConcepts: ["Expiry"], probability: 1.0 },
+    { id: "t2", fromState: "expiring", toState: "refreshing", trigger: "refresh", requiredConcepts: ["Refresh"], probability: 0.9 },
+    { id: "t3", fromState: "expiring", toState: "unauthenticated", trigger: "token-expired", requiredConcepts: ["Expiry"], probability: 0.1 },
+    { id: "t4", fromState: "refreshing", toState: "authenticated", trigger: "token-refreshed", requiredConcepts: ["Token"], probability: 0.95 },
+  ],
+  initialState: "authenticated",
+  currentState: "authenticated",
+  confidence: 0.92,
+  usageCount: 0,
+  lastUsedAt: 0,
+  createdAt: Date.now(),
+  rules: [],
+  simulations: [],
+};
+
+export const DATABASE_MODEL: MentalModel = {
+  id: "database-tx",
+  name: "数据库事务模型",
+  domain: "database",
+  description: "ACID 事务生命周期: Query → Transaction → Deadlock → Retry",
+  concepts: [
+    { id: "Query", name: "Query", description: "数据库查询", properties: {}, relations: [] },
+    { id: "Connection", name: "Connection", description: "连接池", properties: {}, relations: [{ target: "Query", type: "requires" }] },
+    { id: "Transaction", name: "Transaction", description: "ACID 事务", properties: {}, relations: [] },
+    { id: "Deadlock", name: "Deadlock", description: "死锁状态", properties: {}, relations: [{ target: "Transaction", type: "may-cause" }] },
+  ],
+  transitions: [
+    { id: "t1", fromState: "connected", toState: "querying", trigger: "execute", requiredConcepts: ["Query"], probability: 1.0 },
+    { id: "t2", fromState: "querying", toState: "in-transaction", trigger: "begin", requiredConcepts: ["Transaction"], probability: 0.8 },
+    { id: "t3", fromState: "in-transaction", toState: "deadlocked", trigger: "lock-conflict", requiredConcepts: ["Deadlock"], probability: 0.2 },
+    { id: "t4", fromState: "in-transaction", toState: "committed", trigger: "commit", requiredConcepts: [], probability: 0.8 },
+    { id: "t5", fromState: "deadlocked", toState: "in-transaction", trigger: "retry", requiredConcepts: ["Transaction"], probability: 0.7 },
+  ],
+  initialState: "connected",
+  currentState: "connected",
+  confidence: 0.88,
+  usageCount: 0,
+  lastUsedAt: 0,
+  createdAt: Date.now(),
+  rules: [],
+  simulations: [],
 };
 
 /**
@@ -328,5 +526,18 @@ export function createDefaultMentalModelPool(): MentalModelPool {
   const pool = new MentalModelPool();
   pool.register(GIT_CONFLICT_MODEL);
   pool.register(CODE_REFACTOR_MODEL);
+  pool.register(AUTH_MODEL);
+  pool.register(DATABASE_MODEL);
+
+  // 为 Git 模型添加规则
+  pool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+  pool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+
+  // 为 Auth 模型添加规则
+  pool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+
+  // 为 Database 模型添加规则
+  pool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
+
   return pool;
 }
