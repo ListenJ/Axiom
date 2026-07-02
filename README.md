@@ -5,6 +5,8 @@
 > **认知运行时 v4.0.0**: 认知闭环 + 品牌重塑为 Axiom Runtime + 577 tests
 >
 > 📖 [项目哲学](docs/PHILOSOPHY.md) — 了解 Axiom 的设计理念与长期方向
+>
+> 📚 [综合报告与开发指南](docs/COMPREHENSIVE-GUIDE.md) — 架构/模块/API/测试/性能 完整参考
 
 ## 架构概览
 
