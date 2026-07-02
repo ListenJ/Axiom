@@ -38,6 +38,8 @@ export class KnowledgeGraph {
   private nodes = new Map<string, KGNode>();
   private adjacency = new Map<string, KGEdge[]>();
   private _edgeCount = 0;
+  private _nodesByDomain = new Map<string, KGNode[]>();
+  private _nodesByEnv = new Map<string, KGNode[]>();
 
   /**
    * 添加节点
@@ -46,6 +48,16 @@ export class KnowledgeGraph {
     this.nodes.set(node.id, node);
     if (!this.adjacency.has(node.id)) {
       this.adjacency.set(node.id, []);
+    }
+    // 更新域索引
+    const domainList = this._nodesByDomain.get(node.domain) || [];
+    domainList.push(node);
+    this._nodesByDomain.set(node.domain, domainList);
+    // 更新环境索引
+    if (node.envHash) {
+      const envList = this._nodesByEnv.get(node.envHash) || [];
+      envList.push(node);
+      this._nodesByEnv.set(node.envHash, envList);
     }
   }
 
@@ -168,30 +180,14 @@ export class KnowledgeGraph {
    * 按环境指纹检索项目节点
    */
   nodesByEnv(envHash: string): KGNode[] {
-    const result: KGNode[] = [];
-
-    for (const node of this.nodes.values()) {
-      if (node.envHash === envHash) {
-        result.push(node);
-      }
-    }
-
-    return result;
+    return this._nodesByEnv.get(envHash) || [];
   }
 
   /**
    * 按域检索
    */
   nodesByDomain(domain: string): KGNode[] {
-    const result: KGNode[] = [];
-
-    for (const node of this.nodes.values()) {
-      if (node.domain === domain) {
-        result.push(node);
-      }
-    }
-
-    return result;
+    return this._nodesByDomain.get(domain) || [];
   }
 
   /**
