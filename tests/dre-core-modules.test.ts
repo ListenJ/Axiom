@@ -19,6 +19,7 @@ import { KnowledgeGraph, type KGNode, type KGEdge } from "../src/dre/kg/graph.js
 import { KnowledgeStore } from "../src/dre/storage/knowledge-store.js";
 import { Pipeline } from "../src/dre/pipeline/pipeline.js";
 import { LLMClient } from "../src/dre/llm/client.js";
+import { AgentHarness, type Tool, PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent } from "../src/dre/harness/agent.js";
 
 // ========== WorkingMemory ==========
 
@@ -473,5 +474,79 @@ describe("VRAMBudgetManager", () => {
 
     expect(typeof result.canRun).toBe("boolean");
     expect(typeof result.reason).toBe("string");
+  });
+});
+
+// ========== Agent Harness ==========
+
+describe("AgentHarness", () => {
+  // Mock LLM client
+  const mockLLM = {
+    generate: async () => ({ content: "test response", model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }),
+    streamGenerate: async function* () { yield { content: "test", model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }; },
+    generateConstrained: async () => ({ content: '{"result": true}', model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }),
+  } as unknown as LLMClient;
+
+  test("should create harness with tools", () => {
+    const tools: Tool[] = [
+      { name: "test_tool", description: "A test tool", schema: {}, handler: async () => "ok" },
+    ];
+    const harness = new AgentHarness(mockLLM, tools);
+    expect(harness).toBeDefined();
+  });
+
+  test("should execute step and return response", async () => {
+    const harness = new AgentHarness(mockLLM, []);
+    const result = await harness.step("hello");
+    expect(result.answer).toBe("test response");
+    expect(result.steps).toBe(1);
+    expect(result.history.length).toBe(2); // user + assistant
+  });
+
+  test("should call tool when LLM requests it", async () => {
+    let toolCalled = false;
+    const tools: Tool[] = [
+      { name: "my_tool", description: "test", schema: {}, handler: async () => { toolCalled = true; return "tool result"; } },
+    ];
+
+    // Mock LLM that returns tool call XML in content
+    const toolLLM = {
+      generate: async () => {
+        return { content: '<tool_call>{"name":"my_tool","arguments":{}}</tool>', model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" };
+      },
+      streamGenerate: async function* () { yield { content: "test", model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }; },
+      generateConstrained: async () => ({ content: '{}', model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }),
+    } as unknown as LLMClient;
+
+    const harness = new AgentHarness(toolLLM, tools, { maxSteps: 3 });
+    const result = await harness.step("use tool");
+    // Tool should be called at least once
+    expect(toolCalled).toBe(true);
+    // History should contain tool result
+    expect(result.history.some((h) => h.content === "tool result")).toBe(true);
+  });
+
+  test("PlannerAgent should have correct system prompt", async () => {
+    const agent = new PlannerAgent(mockLLM, []);
+    const result = await agent.step("plan this");
+    expect(result.answer).toBeDefined();
+  });
+
+  test("CoderAgent should have correct system prompt", async () => {
+    const agent = new CoderAgent(mockLLM, []);
+    const result = await agent.step("write code");
+    expect(result.answer).toBeDefined();
+  });
+
+  test("RetrieverAgent should have correct system prompt", async () => {
+    const agent = new RetrieverAgent(mockLLM, []);
+    const result = await agent.step("find info");
+    expect(result.answer).toBeDefined();
+  });
+
+  test("ReflectorAgent should have correct system prompt", async () => {
+    const agent = new ReflectorAgent(mockLLM, []);
+    const result = await agent.step("reflect on this");
+    expect(result.answer).toBeDefined();
   });
 });

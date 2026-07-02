@@ -6,6 +6,7 @@
  */
 
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { logger } from "../utils/logger.js";
 
 export interface SearchEngineResult {
   position: number;
@@ -122,7 +123,7 @@ class BingEngine extends SearchEngine {
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
     const apiKey = process.env.BING_API_KEY;
     if (!apiKey) {
-      console.warn("[SearchEngine] BING_API_KEY not set");
+      logger.warn("[SearchEngine] BING_API_KEY not set");
       return [];
     }
 
@@ -231,11 +232,11 @@ export class SearchAggregator {
       .map((name) => {
         const engine = this.engines.get(name);
         if (!engine) {
-          console.warn(`[SearchAggregator] Unknown engine: ${name}`);
+          logger.warn(`[SearchAggregator] Unknown engine: ${name}`);
           return null;
         }
         return engine.search(opts).catch((e) => {
-          console.warn(`[SearchAggregator] ${name} failed:`, e.message);
+          logger.warn(`[SearchAggregator] ${name} failed:`, e.message);
           return [] as SearchEngineResult[];
         });
       })
