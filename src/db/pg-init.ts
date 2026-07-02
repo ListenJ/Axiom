@@ -18,51 +18,51 @@ import { initPgSchema, isPgAvailable, getPG, closePg } from "./pg-client.js";
 import { logger } from "../utils/logger.js";
 
 async function main() {
-  console.log("Axiom PostgreSQL Initialization");
-  console.log("====================================\n");
+  logger.info("Axiom PostgreSQL Initialization");
+  logger.info("====================================\n");
 
   // Step 1: 检查连接
-  console.log("[1/4] Checking PostgreSQL connection...");
+  logger.info("[1/4] Checking PostgreSQL connection...");
   const available = await isPgAvailable();
   if (!available) {
-    console.error("ERROR: PostgreSQL is not available.");
-    console.error("Make sure PostgreSQL is running and DATABASE_URL is set correctly.");
-    console.error("\nFor Docker: docker-compose up postgres -d");
-    console.error("For local:  Set DATABASE_URL=postgresql://user:pass@localhost:5432/axiom");
+    logger.error("ERROR: PostgreSQL is not available.");
+    logger.error("Make sure PostgreSQL is running and DATABASE_URL is set correctly.");
+    logger.error("\nFor Docker: docker-compose up postgres -d");
+    logger.error("For local:  Set DATABASE_URL=postgresql://user:pass@localhost:5432/axiom");
     process.exit(1);
   }
-  console.log("  ✓ PostgreSQL connected\n");
+  logger.info("  ✓ PostgreSQL connected\n");
 
   // Step 2: 检查 pgvector 扩展
-  console.log("[2/4] Checking pgvector extension...");
+  logger.info("[2/4] Checking pgvector extension...");
   const pg = getPG();
   try {
     const [ext] = await pg`SELECT * FROM pg_extension WHERE extname = 'vector'`;
     if (!ext) {
-      console.log("  → Installing pgvector extension...");
+      logger.info("  → Installing pgvector extension...");
       await pg`CREATE EXTENSION IF NOT EXISTS vector`;
-      console.log("  ✓ pgvector installed");
+      logger.info("  ✓ pgvector installed");
     } else {
-      console.log("  ✓ pgvector already installed");
+      logger.info("  ✓ pgvector already installed");
     }
   } catch (err) {
-    console.error("  ✗ Failed to install pgvector:", (err as Error).message);
-    console.error("  Make sure pgvector is installed: apt install postgresql-16-pgvector");
+    logger.error("  ✗ Failed to install pgvector:", (err as Error).message);
+    logger.error("  Make sure pgvector is installed: apt install postgresql-16-pgvector");
     process.exit(1);
   }
 
   // Step 3: 执行 schema
-  console.log("\n[3/4] Initializing schema...");
+  logger.info("\n[3/4] Initializing schema...");
   try {
     await initPgSchema();
-    console.log("  ✓ Schema initialized\n");
+    logger.info("  ✓ Schema initialized\n");
   } catch (err) {
-    console.error("  ✗ Schema initialization failed:", (err as Error).message);
+    logger.error("  ✗ Schema initialization failed:", (err as Error).message);
     process.exit(1);
   }
 
   // Step 4: 验证表结构
-  console.log("[4/4] Verifying tables...");
+  logger.info("[4/4] Verifying tables...");
   const expectedTables = [
     "code_projects", "code_files", "code_nodes", "code_edges",
     "kg_entities", "kg_relationships",
@@ -78,9 +78,9 @@ async function main() {
   let allOk = true;
   for (const table of expectedTables) {
     if (existingTables.has(table)) {
-      console.log(`  ✓ ${table}`);
+      logger.info(`  ✓ ${table}`);
     } else {
-      console.log(`  ✗ ${table} (MISSING)`);
+      logger.info(`  ✗ ${table} (MISSING)`);
       allOk = false;
     }
   }
@@ -92,21 +92,21 @@ async function main() {
   `;
   const existingFunctions = new Set(functions.map((f: any) => f.routine_name));
 
-  console.log("\nFunctions:");
+  logger.info("\nFunctions:");
   for (const fn of ["search_code_nodes", "search_kg_entities", "hybrid_search_memory", "kg_traverse"]) {
     if (existingFunctions.has(fn)) {
-      console.log(`  ✓ ${fn}()`);
+      logger.info(`  ✓ ${fn}()`);
     } else {
-      console.log(`  ✗ ${fn}() (MISSING)`);
+      logger.info(`  ✗ ${fn}() (MISSING)`);
       allOk = false;
     }
   }
 
-  console.log("\n====================================");
+  logger.info("\n====================================");
   if (allOk) {
-    console.log("All checks passed! Database is ready.");
+    logger.info("All checks passed! Database is ready.");
   } else {
-    console.log("Some checks failed. Review the output above.");
+    logger.info("Some checks failed. Review the output above.");
   }
 
   await closePg();
@@ -114,6 +114,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  logger.error("Fatal error:", err);
   process.exit(1);
 });

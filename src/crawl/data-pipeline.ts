@@ -335,7 +335,7 @@ export class DataPipeline {
         }
       );
     } catch (e: unknown) {
-      console.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e instanceof Error ? e.message : String(e)}`);
+      logger.warn(`[Pipeline] Failed to crawl ${url} after retries: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   }
@@ -799,7 +799,7 @@ export class DataPipeline {
       });
     } catch (e: unknown) {
       // Vault 写入失败不影响主流程
-      console.warn("[Pipeline] Vault write failed:", e instanceof Error ? e.message : String(e));
+      logger.warn("[Pipeline] Vault write failed:", e instanceof Error ? e.message : String(e));
     }
   }
 

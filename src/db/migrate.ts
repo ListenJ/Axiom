@@ -3,11 +3,12 @@
  * 运行: bun run src/db/migrate.ts
  */
 import { Database } from "bun:sqlite";
+import { logger } from "../utils/logger.js";
 
 const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
 const db = new Database(dbPath);
 
-console.log("[数据库] Initializing database...\n");
+logger.info("[数据库] Initializing database...");
 
 // ========== 核心表 ==========
 
@@ -25,7 +26,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] conversations");
+logger.info("[完成] conversations");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
@@ -46,7 +47,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] tasks");
+logger.info("[完成] tasks");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS knowledge (
@@ -64,7 +65,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] knowledge");
+logger.info("[完成] knowledge");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS entities (
@@ -76,7 +77,7 @@ db.run(`
     updated_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] entities");
+logger.info("[完成] entities");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS relationships (
@@ -88,7 +89,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] relationships");
+logger.info("[完成] relationships");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS model_usage (
@@ -107,7 +108,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] model_usage");
+logger.info("[完成] model_usage");
 
 // ========== 爬取结果持久化 ==========
 
@@ -139,7 +140,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] crawl_results");
+logger.info("[完成] crawl_results");
 
 // ========== 搜索历史 ==========
 
@@ -155,7 +156,7 @@ db.run(`
     created_at INTEGER NOT NULL
   )
 `);
-console.log("[完成] search_history");
+logger.info("[完成] search_history");
 
 // ========== FTS5 全文索引 ==========
 
@@ -165,7 +166,7 @@ db.run(`
     tokenize = 'porter unicode61'
   )
 `);
-console.log("[完成] notes_fts (Porter + Unicode61)");
+logger.info("[完成] notes_fts (Porter + Unicode61)");
 
 db.run(`
   CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts_cjk USING fts5(
@@ -173,7 +174,7 @@ db.run(`
     tokenize = 'trigram'
   )
 `);
-console.log("[完成] notes_fts_cjk (Trigram)");
+logger.info("[完成] notes_fts_cjk (Trigram)");
 
 // ========== 索引 ==========
 
@@ -193,7 +194,7 @@ db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_site ON crawl_results(site_name)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_created ON crawl_results(created_at)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_search_query_hash ON search_history(query_hash)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_search_created ON search_history(created_at)`);
-console.log("[完成] indexes");
+logger.info("[完成] indexes");
 
 // ========== 系统状态 ==========
 
@@ -213,8 +214,8 @@ db.run(
   [new Date().toISOString()]
 );
 
-console.log("\n🎉 Database initialization complete!");
-console.log(`   Path: ${dbPath}`);
-console.log(`   Schema version: 1.1.0`);
+logger.info("\n🎉 Database initialization complete!");
+logger.info(`   Path: ${dbPath}`);
+logger.info(`   Schema version: 1.1.0`);
 
 db.close();
