@@ -122,7 +122,7 @@ import { getArenaCollector } from "../eval/arena-collector.js";
 import { getPromptPool, type AgentRole } from "../agents/prompt-pool.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
 import { getAgentOrchestrator, type AgentTask } from "../agents/orchestrator.js";
-import { DREngine, type KnowledgeItem, CognitivePipeline } from "../dre/index.js";
+import { DREngine, type KnowledgeItem, CognitivePipeline, TaskGraph } from "../dre/index.js";
 import { getVRAMBudgetManager } from "../dre/vram-budget.js";
 import { KnowledgeGraphEnhanced, type KGNodeType, type KGEdgeType } from "../kg/enhanced.js";
 import { KnowledgeAccessLayer } from "../kal/knowledge-access-layer.js";
@@ -2587,6 +2587,20 @@ registry.add({
 });
 
 registry.add({
+  name: "cognitive_loop_full",
+  description: "认知闭环 + TaskGraph 执行 (包含认知推理+动作执行+回滚), 基于 runFull()",
+  inputSchema: {
+    input: z.string().describe("用户输入或任务描述"),
+  },
+  tags: ["cognitive", "reasoning", "execution", "deterministic"],
+  handler: async (args) => {
+    const dre = getDREngine();
+    const pipeline = new CognitivePipeline(dre);
+    return pipeline.runFull(args.input as string);
+  },
+});
+
+registry.add({
   name: "task_graph_execute",
   description: "创建并执行任务图 (TaskGraph): 任务并行/依赖解析/失败回滚, 支持 Checkpoint/Resume",
   inputSchema: {
@@ -2601,7 +2615,6 @@ registry.add({
   },
   handler: async (args) => {
     const dre = getDREngine();
-    const { TaskGraph } = await import("../dre/pipeline/task-graph.js");
     const graph = new TaskGraph();
 
     for (const taskDef of (args.tasks as Array<Record<string, unknown>>)) {
