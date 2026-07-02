@@ -33,6 +33,9 @@ export { CognitivePipeline, type CognitiveStep, type CognitiveLoopResult } from 
 export { TaskGraph, type Task, type TaskStatus, type TaskGraphSnapshot, type TaskGraphStatus } from "./pipeline/task-graph.js";
 export { eventBus, type RuntimeEvent, type EventHandler, type EventPriority } from "./runtime/event-bus.js";
 export { worldState, type MentalIntent, type MentalGoal, type MentalBelief, type MentalHypothesis } from "./runtime/world-state.js";
+export { atomStore, type Atom, type AtomKind, type AtomRelation, type AtomConfidence } from "./runtime/atom-engine.js";
+export { knowledgeNetwork, type KnowledgeEntity, type EntityKind, type EntityState, type Evidence, type Behavior, type Prediction, type Hypothesis, type TimelineEntry } from "./runtime/knowledge-network.js";
+export { scheduler, type ScheduledTask, type TaskStatus, type TaskPriority } from "./runtime/scheduler.js";
 
 // 版本
 export const DRE_VERSION = "2.0.0";
