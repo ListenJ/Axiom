@@ -1,7 +1,7 @@
 #!/bin/bash
 # CI: run lint + test in Docker
 # Usage: .ci/run.sh [--lint-only|--test-only]
-# Updated: uses Docker to avoid host permission issues
+# CI: run lint + test in Docker. Trigger: safe.directory fix
 
 set -eo pipefail
 cd "$(dirname "$0")/.."
