@@ -121,7 +121,7 @@ export class PersonaLoader {
 
     this.context.current = loaded;
 
-    logger.info("[PersonaLoader] Switched", {
+    logger.debug("[PersonaLoader] Switched", {
       from: prev.config.mode,
       to: mode,
       reason,
@@ -153,7 +153,7 @@ export class PersonaLoader {
 
     this.context.current = prev;
 
-    logger.info("[PersonaLoader] Popped to", {
+    logger.debug("[PersonaLoader] Popped to", {
       mode: prev.config.mode,
       remainingStack: this.context.stack.length,
     });

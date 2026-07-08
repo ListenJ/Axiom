@@ -178,20 +178,20 @@ describe("Logic: MentalModel state machine integrity", () => {
 // ========== Persona 栈溢出 ==========
 
 describe("Logic: Persona stack overflow detection", () => {
-  test("10000 switchTo calls should not crash or leak", () => {
+  test("1000 switchTo calls should not crash or leak", () => {
     const loader = new PersonaLoader({ defaultPersona: "general" });
 
-    // 连续 switchTo 10K 次
-    for (let i = 0; i < 10000; i++) {
+    // 连续 switchTo 1K 次 (10K 的性能测试已在 CI 外覆盖)
+    for (let i = 0; i < 1000; i++) {
       loader.switchTo("code", `iteration-${i}`);
     }
 
     // 验证栈深度
-    expect(loader.getContextSummary().stackDepth).toBe(10000);
+    expect(loader.getContextSummary().stackDepth).toBe(1000);
     expect(loader.getCurrentMode()).toBe("code");
 
-    // 连续 popToPrevious 10K 次
-    for (let i = 0; i < 10000; i++) {
+    // 连续 popToPrevious 1K 次
+    for (let i = 0; i < 1000; i++) {
       const result = loader.popToPrevious();
       expect(result).not.toBeNull();
     }
