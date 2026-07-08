@@ -18,6 +18,22 @@ import { proxyFetch } from "../utils/proxy-fetch.js";
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
 import { Database } from "bun:sqlite";
+
+// Precompiled noise-removal patterns (module-level, reused on every crawl pass
+// instead of recompiling a RegExp per pattern per call).
+const DEFAULT_NOISE_PATTERNS = [
+  "<script[^>]*>[\\s\\S]*?</script>",
+  "<style[^>]*>[\\s\\S]*?</style>",
+  "<nav[^>]*>[\\s\\S]*?</nav>",
+  "<header[^>]*>[\\s\\S]*?</header>",
+  "<footer[^>]*>[\\s\\S]*?</footer>",
+  "<aside[^>]*>[\\s\\S]*?</aside>",
+  "<noscript[^>]*>[\\s\\S]*?</noscript>",
+  '<iframe[^>]*>[\\s\\S]*?</iframe>',
+  '<div[^>]*class=["\'][^"\']*(?:ad|banner|popup|cookie|consent)[^"\']*["\'][^>]*>[\\s\\S]*?</div>',
+];
+const DEFAULT_NOISE_RE = DEFAULT_NOISE_PATTERNS.map((p) => new RegExp(p, "gi"));
+
 import { VaultManager } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
 
@@ -451,21 +467,9 @@ export class DataPipeline {
   // ===== 噪声移除 =====
 
   private removeNoise(html: string, extraSelectors?: string[]): string {
-    const defaultNoise = [
-      "<script[^>]*>[\\s\\S]*?</script>",
-      "<style[^>]*>[\\s\\S]*?</style>",
-      "<nav[^>]*>[\\s\\S]*?</nav>",
-      "<header[^>]*>[\\s\\S]*?</header>",
-      "<footer[^>]*>[\\s\\S]*?</footer>",
-      "<aside[^>]*>[\\s\\S]*?</aside>",
-      "<noscript[^>]*>[\\s\\S]*?</noscript>",
-      '<iframe[^>]*>[\\s\\S]*?</iframe>',
-      '<div[^>]*class=["\'][^"\']*(?:ad|banner|popup|cookie|consent)[^"\']*["\'][^>]*>[\\s\\S]*?</div>',
-    ];
-
     let cleaned = html;
-    for (const pattern of defaultNoise) {
-      cleaned = cleaned.replace(new RegExp(pattern, "gi"), "");
+    for (const re of DEFAULT_NOISE_RE) {
+      cleaned = cleaned.replace(re, "");
     }
 
     // 额外选择器移除

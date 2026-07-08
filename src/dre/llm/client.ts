@@ -11,6 +11,33 @@
 
 import { logger } from "../../utils/logger.js";
 
+/** 重试配置 */
+export interface RetryConfig {
+  maxRetries: number;             // 最大重试次数 (不含首次), 默认 2
+  baseDelayMs: number;            // 初始退避延迟, 默认 200ms
+  maxDelayMs: number;             // 最大退避延迟, 默认 2000ms
+  retryableStatusCodes: Set<number>; // 可重试的 HTTP 状态码
+}
+
+/** 熔断器配置 */
+export interface CircuitBreakerConfig {
+  failureThreshold: number;       // 连续失败阈值, 默认 5
+  cooldownMs: number;             // 熔断后冷却时间, 默认 30000ms
+}
+
+/** 熔断器状态 */
+export type CircuitState = "closed" | "open" | "half-open";
+
+/** LLM 调用统计 */
+export interface LLMStats {
+  totalCalls: number;
+  successCount: number;
+  failureCount: number;
+  retryCount: number;
+  circuitState: CircuitState;
+  consecutiveFailures: number;
+}
+
 /** LLM 配置 */
 export interface LLMConfig {
   baseUrl: string;          // llama.cpp server URL
@@ -21,6 +48,8 @@ export interface LLMConfig {
   seed?: number;            // 默认 42
   maxTokens?: number;       // 默认 512
   timeout?: number;         // 默认 120000ms
+  retry?: Partial<RetryConfig>;     // 重试配置
+  circuitBreaker?: Partial<CircuitBreakerConfig>; // 熔断器配置
 }
 
 /** LLM 响应 */
@@ -42,11 +71,33 @@ export interface ConstrainedGenerationOptions {
   seed?: number;
 }
 
+const DEFAULT_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
 /**
  * LLM 客户端
+ *
+ * 内置:
+ * - 指数退避重试 (仅对瞬时故障: 网络错误, 429, 5xx)
+ * - 熔断器 (连续失败 N 次后断开, 冷却期内快速失败)
+ * - 调用统计 (用于可观测性)
  */
 export class LLMClient {
   private config: LLMConfig;
+  private retryConfig: RetryConfig;
+  private breakerConfig: CircuitBreakerConfig;
+
+  // 熔断器状态
+  private circuitState: CircuitState = "closed";
+  private consecutiveFailures = 0;
+  private lastFailureTime = 0;
+
+  // 调用统计
+  private stats = {
+    totalCalls: 0,
+    successCount: 0,
+    failureCount: 0,
+    retryCount: 0,
+  };
 
   constructor(config: LLMConfig) {
     this.config = {
@@ -57,10 +108,99 @@ export class LLMClient {
       timeout: 120000,
       ...config,
     };
+    this.retryConfig = {
+      maxRetries: config.retry?.maxRetries ?? 2,
+      baseDelayMs: config.retry?.baseDelayMs ?? 200,
+      maxDelayMs: config.retry?.maxDelayMs ?? 2000,
+      retryableStatusCodes: config.retry?.retryableStatusCodes ?? DEFAULT_RETRYABLE_STATUS,
+    };
+    this.breakerConfig = {
+      failureThreshold: config.circuitBreaker?.failureThreshold ?? 5,
+      cooldownMs: config.circuitBreaker?.cooldownMs ?? 30000,
+    };
+  }
+
+  /** 获取熔断器状态 */
+  getCircuitState(): CircuitState {
+    if (this.circuitState === "open" && Date.now() - this.lastFailureTime > this.breakerConfig.cooldownMs) {
+      this.circuitState = "half-open";
+    }
+    return this.circuitState;
+  }
+
+  /** 获取调用统计 */
+  getStats(): LLMStats {
+    return {
+      ...this.stats,
+      circuitState: this.getCircuitState(),
+      consecutiveFailures: this.consecutiveFailures,
+    };
+  }
+
+  /** 手动重置熔断器 (用于运维干预) */
+  resetCircuit(): void {
+    this.circuitState = "closed";
+    this.consecutiveFailures = 0;
+    logger.info("[LLM] Circuit breaker manually reset");
+  }
+
+  /** 熔断器检查: 是否允许发起请求 */
+  private canExecute(): boolean {
+    return this.getCircuitState() !== "open";
+  }
+
+  /** 记录成功 */
+  private recordSuccess(): void {
+    this.stats.successCount++;
+    if (this.consecutiveFailures > 0 || this.circuitState === "half-open") {
+      logger.info("[LLM] Circuit breaker recovered", {
+        previousState: this.circuitState,
+        consecutiveFailures: this.consecutiveFailures,
+      });
+    }
+    this.consecutiveFailures = 0;
+    this.circuitState = "closed";
+  }
+
+  /** 记录失败 */
+  private recordFailure(): void {
+    this.stats.failureCount++;
+    this.consecutiveFailures++;
+    this.lastFailureTime = Date.now();
+    if (this.consecutiveFailures >= this.breakerConfig.failureThreshold) {
+      if (this.circuitState !== "open") {
+        logger.warn("[LLM] Circuit breaker tripped to OPEN", {
+          consecutiveFailures: this.consecutiveFailures,
+          threshold: this.breakerConfig.failureThreshold,
+          cooldownMs: this.breakerConfig.cooldownMs,
+        });
+      }
+      this.circuitState = "open";
+    }
+  }
+
+  /** 指数退避延迟 (含 jitter) */
+  private async backoff(attempt: number): Promise<void> {
+    const expDelay = this.retryConfig.baseDelayMs * Math.pow(2, attempt);
+    const cappedDelay = Math.min(expDelay, this.retryConfig.maxDelayMs);
+    const jitter = Math.random() * cappedDelay * 0.1; // ±10% jitter
+    const delay = cappedDelay + jitter;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  /** 判断错误是否可重试 */
+  private isRetryableError(err: unknown, statusCode?: number): boolean {
+    if (statusCode !== undefined) {
+      return this.retryConfig.retryableStatusCodes.has(statusCode);
+    }
+    // 无状态码 = 网络层错误 (连接拒绝/DNS失败/超时/中断)
+    // fetch 只在网络层失败时抛异常, HTTP 错误通过 !response.ok 路径处理 (带 statusCode)
+    // Bun: "Unable to connect..." / Node: TypeError "fetch failed" 均为 Error 实例
+    return err instanceof Error;
   }
 
   /**
-   * 标准生成
+   * 标准生成 (带重试 + 熔断)
    */
   async generate(prompt: string, options?: {
     system?: string;
@@ -68,54 +208,108 @@ export class LLMClient {
     temperature?: number;
     stop?: string[];
   }): Promise<LLMResponse> {
-    const messages = [];
+    // 熔断器检查
+    if (!this.canExecute()) {
+      throw new Error(
+        `LLM circuit breaker is OPEN (consecutive failures: ${this.consecutiveFailures}, ` +
+        `cooldown: ${this.breakerConfig.cooldownMs}ms). Call resetCircuit() to force reset.`
+      );
+    }
 
+    this.stats.totalCalls++;
+    const messages = [];
     if (options?.system) {
       messages.push({ role: "system", content: options.system });
     }
-
     messages.push({ role: "user", content: prompt });
 
-    const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        messages,
-        temperature: options?.temperature ?? this.config.temperature,
-        top_k: this.config.topK,
-        max_tokens: options?.maxTokens ?? this.config.maxTokens,
-        seed: this.config.seed,
-        stop: options?.stop,
-      }),
-      signal: AbortSignal.timeout(this.config.timeout!),
+    const body = JSON.stringify({
+      model: this.config.model,
+      messages,
+      temperature: options?.temperature ?? this.config.temperature,
+      top_k: this.config.topK,
+      max_tokens: options?.maxTokens ?? this.config.maxTokens,
+      seed: this.config.seed,
+      stop: options?.stop,
     });
 
-    if (!response.ok) {
-      throw new Error(`LLM API error: ${response.status} ${response.statusText}`);
+    const headers = {
+      "Content-Type": "application/json",
+      ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+    };
+
+    let lastError: Error | null = null;
+    const maxAttempts = this.retryConfig.maxRetries + 1;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers,
+          body,
+          signal: AbortSignal.timeout(this.config.timeout!),
+        });
+
+        if (!response.ok) {
+          const err = new Error(`LLM API error: ${response.status} ${response.statusText}`);
+          if (this.isRetryableError(err, response.status) && attempt < maxAttempts - 1) {
+            this.stats.retryCount++;
+            logger.warn("[LLM] Retryable HTTP error, backing off", {
+              status: response.status,
+              attempt: attempt + 1,
+              maxAttempts,
+            });
+            lastError = err;
+            await this.backoff(attempt);
+            continue;
+          }
+          // 不可重试的 HTTP 错误 (4xx 除 429)
+          this.recordFailure();
+          throw err;
+        }
+
+        const data = await response.json() as {
+          choices: Array<{
+            message: { content: string };
+            finish_reason: string;
+          }>;
+          model: string;
+          usage: { prompt_tokens: number; completion_tokens: number };
+        };
+
+        this.recordSuccess();
+        return {
+          content: data.choices[0].message.content,
+          model: data.model,
+          usage: {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+          },
+          finishReason: data.choices[0].finish_reason,
+        };
+      } catch (err) {
+        lastError = err as Error;
+        // 熔断器已断开, 不再重试
+        if (err instanceof Error && err.message.includes("circuit breaker is OPEN")) {
+          throw err;
+        }
+        if (this.isRetryableError(err) && attempt < maxAttempts - 1) {
+          this.stats.retryCount++;
+          logger.warn("[LLM] Retryable error, backing off", {
+            error: (err as Error).message,
+            attempt: attempt + 1,
+            maxAttempts,
+          });
+          await this.backoff(attempt);
+          continue;
+        }
+        // 不可重试或已耗尽重试次数
+        break;
+      }
     }
 
-    const data = await response.json() as {
-      choices: Array<{
-        message: { content: string };
-        finish_reason: string;
-      }>;
-      model: string;
-      usage: { prompt_tokens: number; completion_tokens: number };
-    };
-
-    return {
-      content: data.choices[0].message.content,
-      model: data.model,
-      usage: {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-      },
-      finishReason: data.choices[0].finish_reason,
-    };
+    this.recordFailure();
+    throw lastError ?? new Error("LLM generate failed after all retries");
   }
 
   /**

@@ -45,32 +45,14 @@ function logGamma(z: number): number {
 }
 
 // ============================================================================
-// Static decision tree (cold start fallback)
+// Cold-start handling
+//
+// Thompson Sampling already provides principled cold-start exploration via the
+// uninformative Beta(1,1) prior: arms with no observations sample ~uniformly,
+// so they are naturally explored without disabling sampling for *all* arms.
+// We therefore always run TS (see route()), rather than falling back to a
+// static heuristic that previously turned off sampling until every arm warmed.
 // ============================================================================
-const TASK_TYPE_HEURISTICS: Record<string, string[]> = {
-  "code-generation": ["deepseek-v3", "deepseek-r1", "claude-sonnet-4-20250514"],
-  "code-review": ["claude-sonnet-4-20250514", "deepseek-v3", "gpt-4o"],
-  "architecture": ["claude-opus-4-20250514", "deepseek-r1", "o3-mini"],
-  "math": ["deepseek-r1", "o3-mini", "claude-sonnet-4-20250514"],
-  "general-chat": ["deepseek-v3", "claude-sonnet-4-20250514", "gpt-4o"],
-  "research": ["deepseek-r1", "claude-opus-4-20250514", "gpt-4o"],
-  "embedding": ["bge-m3", "text-embedding-3-large"],
-  "english": ["claude-sonnet-4-20250514", "gpt-4o", "deepseek-v3"],
-};
-const LONG_CONTEXT_MODELS = ["gemini-2.5-pro","claude-sonnet-4-20250514","claude-opus-4-20250514","deepseek-v3"];
-
-function staticDecision(arms: RouterArm[], context: RoutingContext): RouterArm | null {
-  const preferredIds = TASK_TYPE_HEURISTICS[context.taskType] ?? [];
-  const armMap = new Map(arms.map((a) => [a.id, a]));
-  if (context.inputLength > 100_000) {
-    for (const id of LONG_CONTEXT_MODELS) { const arm = armMap.get(id); if (arm) return arm; }
-  }
-  for (const id of preferredIds) { const arm = armMap.get(id); if (arm) return arm; }
-  if (context.timeWindow != null && context.timeWindow < 5000) {
-    for (const id of ["deepseek-v3","gpt-4o-mini","claude-haiku"]) { const arm = armMap.get(id); if (arm) return arm; }
-  }
-  return arms.length > 0 ? arms[0] : null;
-}
 
 
 // ============================================================================
@@ -192,11 +174,14 @@ export class ThompsonRouter {
   // --------------------------------------------------------------------------
   private getEffectiveParams(armId: string): { alpha: number; beta: number } {
     const obs = this.observations.get(armId);
-    if (!obs || obs.length === 0 || this.decayFactor >= 1) {
+    if (!obs || obs.length === 0) {
       const arm = this.arms.get(armId);
       if (!arm) return { alpha: 1, beta: 1 };
       return { alpha: arm.alpha, beta: arm.beta };
     }
+    // Single source of truth: derive posterior params from the observation log.
+    // With decayFactor >= 1 this reduces to the raw success/failure counts,
+    // which is consistent with reportFeedback's arm.alpha/beta increments.
     let effectiveAlpha = 1; let effectiveBeta = 1;
     for (const o of obs) {
       const w = o.weight * Math.pow(this.decayFactor, this.totalRounds - o.round);
@@ -226,16 +211,9 @@ export class ThompsonRouter {
   // --------------------------------------------------------------------------
   async route(context: RoutingContext): Promise<RoutingDecision> {
     const samples: Array<{ armId: string; value: number }> = [];
-    let hasColdArm = false;
-    for (const arm of this.arms.values()) {
-      if (arm.alpha + arm.beta - 2 < this.minSamples) { hasColdArm = true; break; }
-    }
-    if (hasColdArm) {
-      logger.debug("[ThompsonRouter] cold start fallback", { taskType: context.taskType, inputLength: context.inputLength });
-      const arm = staticDecision(Array.from(this.arms.values()), context);
-      if (!arm) throw new Error("[ThompsonRouter] no available routing arm");
-      return { arm, confidence: 0.5, reason: "Cold start fallback: taskType=" + context.taskType + ", inputLength=" + context.inputLength, samples: [] };
-    }
+    // Thompson Sampling runs unconditionally. Cold arms (alpha+beta-2 < minSamples)
+    // carry the uninformative Beta(1,1) prior and are explored naturally; we no
+    // longer disable sampling for every arm just because one is still warming up.
     let bestArm: RouterArm | null = null; let bestValue = -1;
     for (const arm of this.arms.values()) {
       const { alpha, beta } = this.getEffectiveParams(arm.id);

@@ -13,7 +13,7 @@ import { buildAgentMessages } from "../agents/intent-router.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
 import { getConfigCenter } from "../core/config-center.js";
 import { runHealthCheck } from "../core/health-checker.js";
-import { getRouterEngine } from "../core/router-engine.js";
+import { getHttpRouter } from "../core/http-router.js";
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
@@ -255,7 +255,7 @@ diagButton.on("press", runDiagnostics);
 // ─── Performance Panel Logic ────────────────────────────────────────────────
 
 function refreshPerfPanel(): void {
-  const engine = getRouterEngine();
+  const engine = getHttpRouter();
   const report = engine.getPerfReport();
   const hotspots = engine.getHotspotReport();
 

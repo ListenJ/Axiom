@@ -17,7 +17,7 @@
  * - Rollback（回滚策略）
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from "../../utils/logger.js";
 import { eventBus } from "./event-bus.js";
 import { atomStore } from "./atom-engine.js";
 
@@ -64,6 +64,17 @@ export interface RuleExecutionResult {
   fired: Rule[]
   results: unknown[]
   errors: string[]
+}
+
+/**
+ * Memory pattern — from memory-engine (optional module).
+ * Used by learnFromMemory() to auto-learn rules from recurring patterns.
+ */
+export interface MemoryPattern {
+  id: string
+  description: string
+  frequency: number
+  confidence: number
 }
 
 // ─── Rule Engine ───────────────────────────────────────────────────────────
@@ -138,13 +149,15 @@ class RuleEngineImpl {
     for (const match of matches) {
       try {
         // Execute the rule action
-        const result = this.executeRule(match.rule, context);
+        const result = this.executeRule(match.rule, context) as { dispatched: boolean };
         results.push(result);
 
         // Update rule stats
         match.rule.lastFired = Date.now();
         match.rule.fireCount++;
-        match.rule.successCount++;
+        if (result.dispatched) {
+          match.rule.successCount++;
+        }
         fired.push(match.rule);
         this.stats.fired++;
 
@@ -161,6 +174,31 @@ class RuleEngineImpl {
     }
 
     return { fired, results, errors };
+  }
+
+  /**
+   * Update an existing rule (version bump).
+   * Only updates the provided fields; preserves id, createdAt, fireCount, etc.
+   */
+  update(id: string, updates: Partial<Omit<Rule, "id" | "createdAt" | "version" | "fireCount" | "successCount" | "lastFired">>): Rule | null {
+    const existing = this.rules.get(id);
+    if (!existing) return null;
+
+    const updated: Rule = {
+      ...existing,
+      ...updates,
+      version: existing.version + 1,
+    };
+    this.rules.set(id, updated);
+
+    eventBus.publish({
+      type: "rule.updated",
+      source: "rule-engine",
+      data: { id, version: updated.version, updates: Object.keys(updates) },
+      priority: "low",
+    });
+
+    return updated;
   }
 
   /**
@@ -185,11 +223,15 @@ class RuleEngineImpl {
   /**
    * Learn rules from successful patterns in memory.
    * Called periodically by the Tick Engine's reflect phase.
+   *
+   * NOTE: memory-engine module is optional and may not exist in all builds.
+   * If unavailable, this method is a no-op returning 0.
    */
   async learnFromMemory(): Promise<number> {
     try {
+      // @ts-expect-error memory-engine module does not exist in this build; import is optional
       const { memoryEngine } = await import("./memory-engine.js");
-      const patterns = memoryEngine.getPatterns();
+      const patterns: MemoryPattern[] = memoryEngine.getPatterns();
       let learned = 0;
 
       for (const pattern of patterns) {
@@ -212,8 +254,16 @@ class RuleEngineImpl {
         }
       }
 
+      if (learned > 0) {
+        logger.info("[RuleEngine] Learned rules from memory patterns", { count: learned });
+      }
+
       return learned;
-    } catch {
+    } catch (err) {
+      // memory-engine not available — non-fatal, log once for debugging
+      logger.debug("[RuleEngine] learnFromMemory skipped (module unavailable)", {
+        error: (err as Error).message,
+      });
       return 0;
     }
   }
@@ -249,59 +299,106 @@ class RuleEngineImpl {
   // ─── Private ─────────────────────────────────────────────────────
 
   private evaluateRule(rule: Rule, context: Record<string, unknown>): RuleMatch {
-    // Enhanced condition evaluation
     try {
-      // Parse condition: "key operator value"
-      const match = rule.condition.match(/^(\w+)\s*(==|!=|contains|>|<|>=|<=|matches|in)\s*(.+)$/);
-      if (!match) {
-        return { rule, matched: false, reason: "Invalid condition format" };
+      // Support compound conditions: "A AND B", "A OR B", "A AND B AND C"
+      // Split on AND/OR (case-insensitive, word-boundary) preserving the operator
+      const parts = rule.condition.split(/\s+(AND|OR)\s+/i);
+      if (parts.length === 1) {
+        // Single condition (original path)
+        return this.evaluateSingleCondition(rule, rule.condition.trim(), context);
       }
 
-      const [, key, operator, value] = match;
-      const contextValue = context[key];
+      // Compound condition: evaluate each part and combine with AND/OR
+      // parts format: [cond1, op1, cond2, op2, cond3, ...]
+      let combinedResult = true;
+      let currentOp: "AND" | "OR" | null = null;
+      const reasons: string[] = [];
 
-      if (contextValue === undefined) {
-        return { rule, matched: false, reason: `Missing context key: ${key}` };
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 1) {
+          currentOp = parts[i].toUpperCase() as "AND" | "OR";
+          continue;
+        }
+
+        const partResult = this.evaluateSingleCondition(rule, parts[i].trim(), context);
+        reasons.push(partResult.reason);
+
+        if (i === 0) {
+          combinedResult = partResult.matched;
+        } else if (currentOp === "AND") {
+          combinedResult = combinedResult && partResult.matched;
+        } else if (currentOp === "OR") {
+          combinedResult = combinedResult || partResult.matched;
+        }
       }
 
-      let matched = false;
-      const trimmedValue = value.trim();
-
-      switch (operator) {
-        case "==":
-          matched = String(contextValue) === trimmedValue;
-          break;
-        case "!=":
-          matched = String(contextValue) !== trimmedValue;
-          break;
-        case "contains":
-          matched = String(contextValue).includes(trimmedValue);
-          break;
-        case ">":
-          matched = Number(contextValue) > Number(trimmedValue);
-          break;
-        case "<":
-          matched = Number(contextValue) < Number(trimmedValue);
-          break;
-        case ">=":
-          matched = Number(contextValue) >= Number(trimmedValue);
-          break;
-        case "<=":
-          matched = Number(contextValue) <= Number(trimmedValue);
-          break;
-        case "matches":
-          matched = new RegExp(trimmedValue).test(String(contextValue));
-          break;
-        case "in":
-          const values = trimmedValue.split(",").map((v) => v.trim());
-          matched = values.includes(String(contextValue));
-          break;
-      }
-
-      return { rule, matched, reason: matched ? "Condition satisfied" : "Condition not satisfied" };
+      return {
+        rule,
+        matched: combinedResult,
+        reason: combinedResult ? "Compound condition satisfied" : `Compound condition not satisfied: ${reasons.join("; ")}`,
+      };
     } catch (err) {
       return { rule, matched: false, reason: `Error: ${(err as Error).message}` };
     }
+  }
+
+  /**
+   * Evaluate a single condition: "key operator value"
+   * Supported operators: == != contains > < >= <= matches in
+   */
+  private evaluateSingleCondition(
+    rule: Rule,
+    condition: string,
+    context: Record<string, unknown>,
+  ): RuleMatch {
+    const match = condition.match(/^(\w+)\s*(==|!=|contains|>|<|>=|<=|matches|in)\s*(.+)$/);
+    if (!match) {
+      return { rule, matched: false, reason: `Invalid condition format: "${condition}"` };
+    }
+
+    const [, key, operator, value] = match;
+    const contextValue = context[key];
+
+    if (contextValue === undefined) {
+      return { rule, matched: false, reason: `Missing context key: ${key}` };
+    }
+
+    let matched = false;
+    const trimmedValue = value.trim();
+
+    switch (operator) {
+      case "==":
+        matched = String(contextValue) === trimmedValue;
+        break;
+      case "!=":
+        matched = String(contextValue) !== trimmedValue;
+        break;
+      case "contains":
+        matched = String(contextValue).includes(trimmedValue);
+        break;
+      case ">":
+        matched = Number(contextValue) > Number(trimmedValue);
+        break;
+      case "<":
+        matched = Number(contextValue) < Number(trimmedValue);
+        break;
+      case ">=":
+        matched = Number(contextValue) >= Number(trimmedValue);
+        break;
+      case "<=":
+        matched = Number(contextValue) <= Number(trimmedValue);
+        break;
+      case "matches":
+        matched = new RegExp(trimmedValue).test(String(contextValue));
+        break;
+      case "in": {
+        const values = trimmedValue.split(",").map((v) => v.trim());
+        matched = values.includes(String(contextValue));
+        break;
+      }
+    }
+
+    return { rule, matched, reason: matched ? "Condition satisfied" : "Condition not satisfied" };
   }
 
   private executeRule(rule: Rule, context: Record<string, unknown>): unknown {

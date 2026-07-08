@@ -1,11 +1,14 @@
 /**
- * DRE 虚拟文件系统 (VFS)
+ * DRE 虚拟文件系统 (VFS) / StorageAdapter
  *
  * 设计哲学:
  * - 统一挂载点: /kb (知识库), /proj (项目), /cache (缓存), /log (日志)
- * - 最长前缀匹配路由
+ * - 当前所有挂载点共享同一个 SqliteBackend (简化架构)
+ * - 挂载路由保留用于未来的多源异构存储需求
  * - 写入自动版本快照
  * - 内容哈希 (sha256) 保证确定性
+ *
+ * VFS → IBackend → SqliteBackend → SQLite (唯一实现路径)
  */
 
 import { createHash } from "crypto";

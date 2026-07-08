@@ -5,7 +5,7 @@
  *
  * 移除 agents-index.json 依赖，内置通用 Agent Prompt
  */
-import type { TaskRole } from "../router/model-capability-registry.js";
+import type { TaskRole } from "../services/index.js";
 
 /** Agent 元数据（供 agent-discovery 使用） */
 export interface AgentMeta {

@@ -347,6 +347,37 @@ export class MentalModelPool {
   }
 
   /**
+   * 激活心智模型 (v4.1 — Persona 系统集成)
+   *
+   * 仅更新 lastUsedAt — usageCount 由 matchPattern/predict 等"实际使用"路径自增,
+   * 避免 Persona 激活后再 matchPattern 导致 usageCount 双计数。
+   */
+  activate(modelId: string): boolean {
+    const model = this.models.get(modelId);
+    if (!model) return false;
+    model.lastUsedAt = Date.now();
+    return true;
+  }
+
+  /**
+   * 停用心智模型 (v4.1 — Persona 系统集成)
+   */
+  deactivate(_modelId: string): void {
+    // Persona 退出时清理, 当前仅标记
+  }
+
+  /**
+   * 获取活跃的心智模型 IDs (v4.1 — Persona 系统集成)
+   * 最近使用过的模型视为活跃
+   */
+  getActiveIds(): string[] {
+    const recentThreshold = Date.now() - 3600000; // 1小时内
+    return Array.from(this.models.values())
+      .filter((m) => m.lastUsedAt > recentThreshold)
+      .map((m) => m.id);
+  }
+
+  /**
    * 查找状态路径 (BFS)
    */
   private findStatePath(model: MentalModel, conceptIds: string[]): string[] {

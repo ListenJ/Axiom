@@ -334,7 +334,7 @@ export class ContextManager {
     return {
       entries: this.memory.length,
       totalTokens: this.memory.reduce((sum, e) => sum + e.tokenCount, 0),
-      oldestEntry: this.memory.length > 0 ? Math.min(...this.memory.map((e) => e.timestamp)) : null,
+      oldestEntry: this.memory.length > 0 ? this.memory.reduce((min, e) => Math.min(min, e.timestamp), this.memory[0]!.timestamp) : null,
     };
   }
 

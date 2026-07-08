@@ -353,6 +353,26 @@ export class ReasoningGraph {
   }
 
   /**
+   * 批量填补空洞 — 避免循环调用 fillGap() 时每次重算 detectGaps() (O(n²) 风险)
+   *
+   * 直接按 gapId 在传入的 gaps 数组中匹配，调用 fillGapFromObject 回填。
+   * 调用方应传入同一批 detectGaps() 的结果，避免图状态变化导致 gap 漂移。
+   */
+  fillGapsBatch(
+    gaps: ReasoningGap[],
+    fillers: Array<{ gapId: string; response: string; confidence: number }>,
+  ): ReasoningNode[] {
+    const filled: ReasoningNode[] = [];
+    for (const filler of fillers) {
+      const gap = gaps.find((g) => g.id === filler.gapId);
+      if (!gap) continue;
+      const node = this.fillGapFromObject(gap, filler.response, filler.confidence);
+      if (node) filled.push(node);
+    }
+    return filled;
+  }
+
+  /**
    * 获取推理结果
    */
   getResult(): ReasoningResult {

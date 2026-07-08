@@ -7,7 +7,7 @@
  * - Pipeline: 三段甄别
  * - Consciousness: 意识流
  * - KG: 知识图谱
- * - Harness: Agent 编排
+ * - Persona: 动态角色加载 (替代 AgentHarness)
  * - LLM: 本地推理
  */
 
@@ -20,11 +20,15 @@ import { Pipeline, type KnowledgeItem, type VerificationResult } from "./pipelin
 import { KnowledgeGraph, type KGNode } from "./kg/graph.js";
 import { LLMClient, type LLMConfig } from "./llm/client.js";
 import { PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent, type Tool } from "./harness/agent.js";
-import { getVRAMBudgetManager } from "./vram-budget.js";
+import { getResourceBudgetManager } from "./system-resource.js";
 import { MentalModelPool, createDefaultMentalModelPool } from "./mental-model/pool.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
 import { ConstraintSolver, createDefaultConstraintSolver } from "./constraint/solver.js";
 import { ActorSystem } from "./actor/system.js";
+import { PersonaLoader } from "./persona/loader.js";
+import type { PersonaMode, LoadedPersona } from "./persona/types.js";
+import { worldState } from "./runtime/world-state.js";
+import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
 /** DRE 配置 */
@@ -69,6 +73,8 @@ export class DREngine {
   readonly reasoning: ReasoningGraph;
   readonly constraints: ConstraintSolver;
   readonly actors: ActorSystem;
+  readonly persona: PersonaLoader;
+  readonly data: DataUnifier;
 
   private db: Database;
   private sqliteBackend: SqliteBackend;
@@ -98,6 +104,11 @@ export class DREngine {
     // 初始化知识库存储
     this.knowledgeStore = new KnowledgeStore(this.db);
 
+    // 初始化统一数据入口 (AtomEngine + KnowledgeStore)
+    this.data = dataUnifier;
+    this.data.init(this.db, this.knowledgeStore);
+    this.data.setAutoPersist(true);  // 写入时自动持久化 Atom 到 SQLite
+
     // 初始化 LLM 客户端
     this.mainLLM = new LLMClient(config.mainLLM);
     this.discriminLLM = config.discriminLLM ? new LLMClient(config.discriminLLM) : null;
@@ -116,6 +127,13 @@ export class DREngine {
 
     // 初始化约束求解器 (预注册 GPU/策略/时间约束)
     this.constraints = createDefaultConstraintSolver();
+
+    // 初始化 Persona 加载器 (替换 AgentHarness)
+    this.persona = new PersonaLoader({
+      constraintSolver: this.constraints,
+      mentalModelPool: this.mentalModels,
+      defaultPersona: "general",
+    });
 
     // 初始化 Actor 系统 (异步，不阻塞构造)
     this.actors = new ActorSystem();
@@ -138,8 +156,8 @@ export class DREngine {
       discriminModel: config.discriminLLM?.model,
     });
 
-    // 异步检查 VRAM (不阻塞构造)
-    this.checkVRAMBudget();
+    // 检查资源预算 (不阻塞构造)
+    this.checkResourceBudget();
   }
 
   /**
@@ -168,30 +186,132 @@ export class DREngine {
   }
 
   /**
-   * 检查 VRAM 预算，如果不足则记录警告
+   * Health check — verify all subsystems are operational.
+   * Returns a structured report; does not throw.
+   *
+   * Inspired by LangGraph's health check and Kubernetes readiness probes.
+   * Use this for:
+   * - Startup readiness gates
+   * - Periodic monitoring
+   * - Debugging "why is nothing working?"
    */
-  private async checkVRAMBudget(): Promise<void> {
+  async healthCheck(): Promise<{
+    healthy: boolean
+    version: string
+    uptime: number
+    checks: Array<{ name: string; ok: boolean; detail?: string }>
+  }> {
+    const checks: Array<{ name: string; ok: boolean; detail?: string }> = [];
+
+    // DB connectivity
     try {
-      const vram = getVRAMBudgetManager();
-      const status = await vram.getStatus();
+      this.db.query("SELECT 1").get();
+      checks.push({ name: "database", ok: true });
+    } catch (err) {
+      checks.push({ name: "database", ok: false, detail: (err as Error).message });
+    }
+
+    // Knowledge store
+    try {
+      this.knowledgeStore.search("");
+      checks.push({ name: "knowledgeStore", ok: true });
+    } catch (err) {
+      checks.push({ name: "knowledgeStore", ok: false, detail: (err as Error).message });
+    }
+
+    // LLM client (circuit state, not a real call)
+    try {
+      const state = this.mainLLM.getCircuitState?.();
+      checks.push({
+        name: "mainLLM",
+        ok: state !== "open",
+        detail: state ? `circuit=${state}` : undefined,
+      });
+    } catch {
+      checks.push({ name: "mainLLM", ok: true, detail: "circuit check unavailable" });
+    }
+
+    // Consciousness stream
+    try {
+      const state = this.consciousness.getState();
+      checks.push({
+        name: "consciousness",
+        ok: typeof state.workingMemorySize === "number",
+      });
+    } catch (err) {
+      checks.push({ name: "consciousness", ok: false, detail: (err as Error).message });
+    }
+
+    // Actor system
+    try {
+      checks.push({
+        name: "actors",
+        ok: this.actors.size > 0,
+        detail: `${this.actors.size} actors`,
+      });
+    } catch (err) {
+      checks.push({ name: "actors", ok: false, detail: (err as Error).message });
+    }
+
+    // Scheduler
+    try {
+      const { scheduler } = await import("./runtime/scheduler.js");
+      const status = scheduler.getStatus();
+      checks.push({
+        name: "scheduler",
+        ok: status.budget.currentTasks >= 0,
+      });
+    } catch (err) {
+      checks.push({ name: "scheduler", ok: false, detail: (err as Error).message });
+    }
+
+    // Resource budget
+    try {
+      const budget = getResourceBudgetManager();
+      const status = budget.getStatus();
+      checks.push({
+        name: "resources",
+        ok: status.canRunLocal || !!this.config.cloudFallback,
+        detail: status.canRunLocal ? "local" : (this.config.cloudFallback ? "cloud-fallback" : "insufficient"),
+      });
+    } catch {
+      checks.push({ name: "resources", ok: true, detail: "check skipped" });
+    }
+
+    const healthy = checks.every((c) => c.ok);
+    return {
+      healthy,
+      version: "3.1.0",
+      uptime: Date.now() - this._startTime,
+      checks,
+    };
+  }
+
+  private readonly _startTime = Date.now();
+
+  /**
+   * 检查资源预算，如果不足则记录警告
+   */
+  private checkResourceBudget(): void {
+    try {
+      const budget = getResourceBudgetManager();
+      const status = budget.getStatus();
       if (!status.canRunLocal) {
-        logger.warn("[DRE] VRAM budget insufficient for local inference", {
-          gpu: status.gpu.name,
-          freeMB: status.gpu.freeMemoryMB,
+        logger.warn("[DRE] Resource budget insufficient for local inference", {
+          availableMemory: status.resource.availableMemory,
           recommendedMaxTokens: status.recommendedMaxTokens,
           suggestion: this.config.cloudFallback
             ? "Cloud fallback is configured"
             : "Configure cloudFallback in DREConfig for automatic degradation",
         });
       } else {
-        logger.info("[DRE] VRAM budget OK", {
-          gpu: status.gpu.name,
-          freeMB: status.gpu.freeMemoryMB,
+        logger.info("[DRE] Resource budget OK", {
+          availableMemory: status.resource.availableMemory,
           recommendedMaxTokens: status.recommendedMaxTokens,
         });
       }
     } catch (err) {
-      logger.debug("[DRE] VRAM budget check skipped (nvidia-smi unavailable)", { error: (err as Error).message });
+      logger.debug("[DRE] Resource budget check skipped", { error: (err as Error).message });
     }
   }
 
@@ -207,13 +327,24 @@ export class DREngine {
     const result = await this.pipeline.process(item);
 
     if (result.accepted) {
-      // 同步到知识图谱
+      // via DataUnifier
+      this.data.write({
+        id: item.id,
+        content: item.content,
+        kind: "entity",
+        domain: item.domain,
+        paradigm: item.paradigm,
+        sourceType: item.sourceType,
+        metadata: { title: item.title },
+      });
+
       this.syncToKG(item);
 
       logger.info("[DRE] Knowledge accepted", {
         id: item.id,
         stage: result.riskReport.nextStage === 0 ? "prefilter" :
-               result.riskReport.nextStage === 2 ? "webverify" : "llmverify",
+               result.riskReport.nextStage === 2 ? "webverify" :
+               result.riskReport.nextStage === 3 ? "llmverify" : "unknown",
       });
     } else {
       logger.warn("[DRE] Knowledge rejected", {
@@ -234,7 +365,19 @@ export class DREngine {
   }
 
   /**
-   * 搜索知识
+   * 搜索数据 (通过 DataUnifier 统一搜索 Atom + KnowledgeStore)
+   */
+  searchData(query: string, options?: {
+    domain?: string;
+    paradigm?: string;
+    minConfidence?: number;
+    limit?: number;
+  }) {
+    return this.data.search(query, options);
+  }
+
+  /**
+   * @deprecated 使用 searchData() 替代 (DataUnifier 统一搜索)
    */
   searchKnowledge(query: string, options?: {
     domain?: string;
@@ -242,9 +385,9 @@ export class DREngine {
     minConfidence?: number;
     limit?: number;
   }): KnowledgeNode[] {
-    return this.knowledgeStore.search(query, options);
+    const result = this.data.search(query, options);
+    return result.knowledgeNodes;
   }
-
   /**
    * 子图检索
    */
@@ -293,6 +436,7 @@ export class DREngine {
   }
 
   /**
+   * @deprecated Use {@link createAgent} (Persona-based) instead.
    * 创建规划 Agent
    */
   createPlannerAgent(tools: Tool[]): PlannerAgent {
@@ -300,6 +444,7 @@ export class DREngine {
   }
 
   /**
+   * @deprecated Use {@link createAgent} (Persona-based) instead.
    * 创建编码 Agent
    */
   createCoderAgent(tools: Tool[]): CoderAgent {
@@ -307,6 +452,7 @@ export class DREngine {
   }
 
   /**
+   * @deprecated Use {@link createAgent} (Persona-based) instead.
    * 创建检索 Agent
    */
   createRetrieverAgent(tools: Tool[]): RetrieverAgent {
@@ -314,10 +460,121 @@ export class DREngine {
   }
 
   /**
+   * @deprecated Use {@link createAgent} (Persona-based) instead.
    * 创建反思 Agent
    */
   createReflectorAgent(tools: Tool[]): ReflectorAgent {
     return new ReflectorAgent(this.mainLLM, tools);
+  }
+
+  /**
+   * 切换 Persona 模式
+   */
+  switchPersona(mode: PersonaMode, reason?: string): LoadedPersona {
+    return this.persona.switchTo(mode, reason);
+  }
+
+  /**
+   * 获取当前 Persona
+   */
+  getCurrentPersona(): PersonaMode {
+    return this.persona.getCurrentMode();
+  }
+
+  /**
+   * 获取统一认知状态 (CognitiveState)
+   *
+   * 聚合所有子系统的状态为单一可查询结构。
+   * "状态式"交互模式的核心入口。
+   */
+  getCognitiveState(): {
+    persona: {
+      mode: PersonaMode;
+      name: string;
+      temperature: number;
+      allowWrite: boolean;
+      canUseTools: boolean;
+      stackDepth: number;
+      switchCount: number;
+    };
+    consciousness: {
+      workingMemorySize: number;
+      episodicMemorySize: number;
+      traceLength: number;
+      reflectionCount: number;
+      lastReflectionAt: number;
+    };
+    reasoning: {
+      totalNodes: number;
+      totalEdges: number;
+      gaps: number;
+    };
+    constraints: {
+      total: number;
+      byDimension: Record<string, number>;
+    };
+    goals: Array<{ id: string; description: string; status: string }>;
+    beliefs: Array<{ statement: string; confidence: number }>;
+    hypotheses: Array<{ statement: string; status: string }>;
+    resource: {
+      availableMemory: number;
+      canRunLocal: boolean;
+    };
+  } {
+    const personaSummary = this.persona.getContextSummary();
+    const consciousnessState = this.consciousness.getState();
+    const reasoningStats = this.reasoning.getStats();
+    const constraintStats = this.constraints.getStats();
+    const budgetStatus = getResourceBudgetManager().getStatus();
+
+    const goals = Object.entries(worldState.getGoals()).map(([id, g]) => ({
+        id,
+        description: g.description,
+        status: g.status,
+      }));
+    const beliefs = Object.values(worldState.getBeliefs()).map((b) => ({
+        statement: b.statement,
+        confidence: b.confidence,
+      }));
+    const hypotheses = Object.values(worldState.getHypotheses()).map((h) => ({
+        statement: h.statement,
+        status: h.status,
+      }));
+
+    return {
+      persona: {
+        mode: personaSummary.currentMode as PersonaMode,
+        name: personaSummary.currentPersona,
+        temperature: this.persona.getTemperature(),
+        allowWrite: this.persona.canWrite(),
+        canUseTools: this.persona.canUseTools(),
+        stackDepth: personaSummary.stackDepth,
+        switchCount: personaSummary.switchCount,
+      },
+      consciousness: {
+        workingMemorySize: consciousnessState.workingMemorySize,
+        episodicMemorySize: consciousnessState.episodicMemorySize,
+        traceLength: consciousnessState.traceLength,
+        reflectionCount: consciousnessState.reflectionCount,
+        lastReflectionAt: consciousnessState.lastReflectionAt,
+      },
+      reasoning: {
+        totalNodes: reasoningStats.totalNodes,
+        totalEdges: reasoningStats.totalEdges,
+        gaps: reasoningStats.gaps,
+      },
+      constraints: {
+        total: constraintStats.total,
+        byDimension: constraintStats.byDimension,
+      },
+      goals,
+      beliefs,
+      hypotheses,
+      resource: {
+        availableMemory: budgetStatus.resource.availableMemory,
+        canRunLocal: budgetStatus.canRunLocal,
+      },
+    };
   }
 
   /**
@@ -337,16 +594,19 @@ export class DREngine {
     reasoning: { nodes: number; edges: number; gaps: number };
     constraints: { total: number; byDimension: Record<string, number> };
     actors: { count: number; types: string[] };
+    resource: { availableMemory: number; maxMemory: number; canRunLocal: boolean };
+    persona: { currentMode: PersonaMode; currentPersona: string; stackDepth: number; switchCount: number };
   } {
     const mmList = this.mentalModels.list();
     const reasoningStats = this.reasoning.getStats();
     const constraintStats = this.constraints.getStats();
     const actorList = this.actors.list();
+    const budgetStatus = getResourceBudgetManager().getStatus();
     return {
       vfs: { mounts: this.vfs.listMounts() },
       knowledge: {
-        nodes: (this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as { c: number }).c,
-        edges: (this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as { c: number }).c,
+        nodes: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as { c: number }).c; } catch { return 0; } })(),
+        edges: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as { c: number }).c; } catch { return 0; } })(),
       },
       consciousness: this.consciousness.getState(),
       kg: {
@@ -370,6 +630,12 @@ export class DREngine {
         count: actorList.length,
         types: actorList.map((a) => a.type),
       },
+      resource: {
+        availableMemory: budgetStatus.resource.availableMemory,
+        maxMemory: budgetStatus.resource.maxMemory,
+        canRunLocal: budgetStatus.canRunLocal,
+      },
+      persona: this.persona.getContextSummary(),
     };
   }
 
@@ -444,9 +710,12 @@ export class DREngine {
     // 关闭 Actor 系统
     await this.actors.shutdown();
     logger.info("[DRE] Actor system shut down");
-
-    this.db.close();
-    this.sqliteBackend.close();
+    try { this.db.close(); } catch (err) {
+      logger.warn("[DRE] DB close error", { error: (err as Error).message });
+    }
+    try { this.sqliteBackend.close(); } catch (err) {
+      logger.warn("[DRE] SQLite backend close error", { error: (err as Error).message });
+    }
     logger.info("[DRE] Engine closed");
   }
 

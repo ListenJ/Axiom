@@ -56,6 +56,8 @@ export interface AgentTask {
   timeout?: number;
   /** 是否需要人工确认 */
   requireConfirmation?: boolean;
+  /** 依赖的任务 ID 列表 */
+  dependsOn?: string[];
 }
 
 /** Agent 执行结果 */
@@ -380,10 +382,7 @@ export class AgentOrchestrator {
       return result;
     } catch (err) {
       const error = toAxiomError(err, "Task execution failed");
-      logger.error("[Orchestrator] Task failed", {
-        taskId: task.id,
-        error: error.message,
-      });
+      logger.error(`[Orchestrator] Task ${task.id} failed`, error);
 
       return {
         taskId: task.id,

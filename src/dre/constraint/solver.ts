@@ -8,7 +8,7 @@
  * 约束维度:
  * - logical:  逻辑依赖 (A requires B, A conflicts B)
  * - physical: 物理资源 (GPU VRAM >= 500MB, disk >= 1GB)
- * - semantic: 语义约束 (intent == "code-review", domain == "git")
+ * - field_match: 字段匹配约束 (field == value, field != value, field in set)
  * - policy:   策略约束 (environment != "production", security_level >= 2)
  * - temporal: 时间约束 (time_of_day between 9-17, day_of_week != "sunday")
  */
@@ -18,7 +18,7 @@ import { logger } from "../../utils/logger.js";
 // ========== 类型定义 ==========
 
 /** 约束维度 */
-export type ConstraintDimension = "logical" | "physical" | "semantic" | "policy" | "temporal";
+export type ConstraintDimension = "logical" | "physical" | "field_match" | "policy" | "temporal";
 
 /** 约束类型 */
 export type ConstraintType =
@@ -263,8 +263,8 @@ export class ConstraintSolver {
         return this.evaluateLogical(constraint, action, ctx);
       case "physical":
         return this.evaluatePhysical(constraint, action, ctx);
-      case "semantic":
-        return this.evaluateSemantic(constraint, action, ctx);
+      case "field_match":
+        return this.evaluateFieldMatch(constraint, action, ctx);
       case "policy":
         return this.evaluatePolicy(constraint, action, ctx);
       case "temporal":
@@ -377,7 +377,7 @@ export class ConstraintSolver {
     }
   }
 
-  private evaluateSemantic(
+  private evaluateFieldMatch(
     constraint: Constraint,
     action: string,
     ctx: Record<string, unknown>
@@ -494,7 +494,7 @@ export class ConstraintSolver {
     const dimensionWeight: Record<ConstraintDimension, number> = {
       logical: 5,
       physical: 8,
-      semantic: 3,
+      field_match: 3,
       policy: 9,
       temporal: 2,
     };
@@ -504,7 +504,37 @@ export class ConstraintSolver {
 
 // ========== 预定义约束 ==========
 
-/** GPU 资源约束 */
+/** 资源预算约束 (通用, 不依赖特定硬件) */
+export const RESOURCE_CONSTRAINTS: Constraint[] = [
+  {
+    id: "resource-memory-min",
+    dimension: "physical",
+    type: "min_value",
+    name: "内存最低要求",
+    description: "本地推理需要至少 500MB 可用内存",
+    subject: "available_memory_mb",
+    params: { min: 500 },
+    priority: 3,
+    enabled: true,
+    createdAt: Date.now(),
+  },
+  {
+    id: "resource-memory-model",
+    dimension: "physical",
+    type: "min_value",
+    name: "模型内存要求",
+    description: "Qwen3-1.7B Q4_K_M 需要至少 1100MB 内存",
+    subject: "available_memory_mb",
+    params: { min: 1100 },
+    priority: 5,
+    enabled: true,
+    createdAt: Date.now(),
+  },
+];
+
+/**
+ * @deprecated Use {@link RESOURCE_CONSTRAINTS} instead (hardware-agnostic)
+ */
 export const GPU_CONSTRAINTS: Constraint[] = [
   {
     id: "gpu-vram-min",
@@ -571,7 +601,47 @@ export const TEMPORAL_CONSTRAINTS: Constraint[] = [
     subject: "hour",
     params: { min: 9, max: 18 },
     priority: 2,
-    enabled: false, // 默认禁用，按需启用
+    enabled: false,
+    createdAt: Date.now(),
+  },
+];
+
+/** 安全审计约束 (Persona: audit) */
+export const AUDIT_CONSTRAINTS: Constraint[] = [
+  {
+    id: "persona-audit-no-write",
+    dimension: "policy",
+    type: "not_equals",
+    name: "审计模式禁止写操作",
+    description: "安全审计模式下禁止任何写操作 (文件/数据库/配置)",
+    subject: "action",
+    target: "write",
+    priority: 10,
+    enabled: true,
+    createdAt: Date.now(),
+  },
+  {
+    id: "persona-audit-no-delete",
+    dimension: "policy",
+    type: "not_equals",
+    name: "审计模式禁止删除",
+    description: "安全审计模式下禁止删除操作",
+    subject: "action",
+    target: "delete",
+    priority: 10,
+    enabled: true,
+    createdAt: Date.now(),
+  },
+  {
+    id: "persona-audit-no-exec",
+    dimension: "policy",
+    type: "not_equals",
+    name: "审计模式禁止执行",
+    description: "安全审计模式下禁止执行任意代码/命令",
+    subject: "action",
+    target: "execute",
+    priority: 10,
+    enabled: true,
     createdAt: Date.now(),
   },
 ];
@@ -581,6 +651,6 @@ export const TEMPORAL_CONSTRAINTS: Constraint[] = [
  */
 export function createDefaultConstraintSolver(): ConstraintSolver {
   const solver = new ConstraintSolver();
-  solver.registerAll([...GPU_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
+  solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
   return solver;
 }

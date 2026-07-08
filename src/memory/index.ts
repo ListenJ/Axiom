@@ -33,7 +33,6 @@ export {
   type CompressionStats,
   type VIBConfig,
 } from "./vib-compressor.js";
-export { default as VIBCompressorDefault } from "./vib-compressor.js";
 
 // ============================================================================
 // ConformalRetriever — 共形预测检索器
@@ -44,7 +43,6 @@ export {
   type ConformalResult,
   type ConformalRetrieverConfig,
 } from "./conformal-retriever.js";
-export { default as ConformalRetrieverDefault } from "./conformal-retriever.js";
 
 // ============================================================================
 // ConformalHallucinationDetector — 幻觉检测器

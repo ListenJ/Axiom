@@ -1,4 +1,5 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+﻿import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import Home from '@/pages/Home'
 import Chat from '@/pages/Chat'
@@ -19,32 +20,79 @@ import Research from '@/pages/Research'
 import Proxies from '@/pages/Proxies'
 import Perf from '@/pages/Perf'
 
+interface ErrorBoundaryState {
+  error: Error | null
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    // eslint-disable-next-line no-console
+    console.error('[App] Unhandled render error', error, info.componentStack)
+  }
+
+  private handleRetry = (): void => {
+    this.setState({ error: null })
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--surface)] p-6 text-center">
+          <h1 className="text-lg font-semibold text-[var(--text)]">出错了</h1>
+          <p className="max-w-md text-sm text-[var(--text-muted)]">
+            页面渲染时发生意外错误，可重试恢复。若问题持续，请查看控制台日志。
+          </p>
+          <pre className="max-w-md overflow-auto rounded-lg bg-[var(--surface-hover)] p-3 text-left text-xs text-[var(--text-muted)]">
+            {this.state.error.message}
+          </pre>
+          <button
+            type="button"
+            onClick={this.handleRetry}
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+          >
+            重试
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="chat" element={<Chat />} />
-          <Route path="search" element={<Search />} />
-          <Route path="code" element={<Code />} />
-          <Route path="agents" element={<Agents />} />
-          <Route path="router" element={<Router />} />
-          <Route path="vault" element={<Vault />} />
-          <Route path="kg" element={<KG />} />
-          <Route path="sessions" element={<Sessions />} />
-          <Route path="eval" element={<Eval />} />
-          <Route path="plugins" element={<Plugins />} />
-          <Route path="trends" element={<Trends />} />
-          <Route path="ocr" element={<OCR />} />
-          <Route path="research" element={<Research />} />
-          <Route path="knowledge" element={<Knowledge />} />
-          <Route path="proxies" element={<Proxies />} />
-          <Route path="perf" element={<Perf />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="search" element={<Search />} />
+            <Route path="code" element={<Code />} />
+            <Route path="agents" element={<Agents />} />
+            <Route path="router" element={<Router />} />
+            <Route path="vault" element={<Vault />} />
+            <Route path="kg" element={<KG />} />
+            <Route path="sessions" element={<Sessions />} />
+            <Route path="eval" element={<Eval />} />
+            <Route path="plugins" element={<Plugins />} />
+            <Route path="trends" element={<Trends />} />
+            <Route path="ocr" element={<OCR />} />
+            <Route path="research" element={<Research />} />
+            <Route path="knowledge" element={<Knowledge />} />
+            <Route path="proxies" element={<Proxies />} />
+            <Route path="perf" element={<Perf />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

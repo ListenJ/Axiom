@@ -37,6 +37,9 @@ export class Cache<V = unknown> {
   private redisHitCount = 0;
   private redisMissCount = 0;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  // In-flight factory promises per key, used to dedupe concurrent getOrSet calls
+  // (thundering-herd protection).
+  private inFlight = new Map<string, Promise<V>>();
 
   constructor(opts: CacheOptions = {}) {
     this.opts = {
@@ -211,9 +214,24 @@ export class Cache<V = unknown> {
   async getOrSet(key: string, factory: () => Promise<V>, ttlMs?: number): Promise<V> {
     const cached = await this.get(key);
     if (cached !== undefined) return cached;
-    const value = await factory();
-    this.set(key, value, ttlMs);
-    return value;
+
+    // Dedupe concurrent misses for the same key so we don't run the (possibly
+    // expensive) factory multiple times at once.
+    const fullKey = this.key(key);
+    const existing = this.inFlight.get(fullKey);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      try {
+        const value = await factory();
+        this.set(key, value, ttlMs);
+        return value;
+      } finally {
+        this.inFlight.delete(fullKey);
+      }
+    })();
+    this.inFlight.set(fullKey, promise);
+    return promise;
   }
 
   /** 删除缓存 */
@@ -280,14 +298,23 @@ export class Cache<V = unknown> {
   }
 
   private evictLRU() {
-    let oldest: { key: string; lastAccessed: number } | null = null;
+    // First reclaim any expired entries (cheap, also improves hit rate).
+    const now = Date.now();
     for (const [key, entry] of this.store) {
-      if (!oldest || entry.lastAccessed < oldest.lastAccessed) {
-        oldest = { key, lastAccessed: entry.lastAccessed };
-      }
+      if (now > entry.expiresAt) this.store.delete(key);
     }
-    if (oldest) {
-      this.store.delete(oldest.key);
+    // Then evict the least-recently-used entry until back under capacity.
+    while (this.store.size >= this.opts.maxSize && this.store.size > 0) {
+      let oldestKey: string | null = null;
+      let oldestTime = Infinity;
+      for (const [key, entry] of this.store) {
+        if (entry.lastAccessed < oldestTime) {
+          oldestTime = entry.lastAccessed;
+          oldestKey = key;
+        }
+      }
+      if (oldestKey === null) break;
+      this.store.delete(oldestKey);
     }
   }
 

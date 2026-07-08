@@ -309,7 +309,13 @@ export class VIBCompressor {
       totalSurprisal += -Math.log(Math.max(prob, 1e-10));
     }
 
-    return totalSurprisal;
+    // Return average per-token surprisal (information density) rather than the
+    // token-sum. With no background model every token's probability is a fixed
+    // constant, so the raw sum scaled linearly with length and the compressor
+    // degenerate into "keep the longest memories". Averaging makes retention
+    // length-independent when no n-gram model is available, and keeps relative
+    // ordering meaningful once a real model is present.
+    return totalSurprisal / tokens.length;
   }
 
   /**

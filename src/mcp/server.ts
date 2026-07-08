@@ -34,41 +34,17 @@ import {
   codeReview,
 } from "../agents/hermes-agent.js";
 import {
-  readFile,
-  writeFile,
-  listDirectory,
-  searchFiles,
-  deleteFile,
-  moveFile,
-} from "./tools/filesystem.js";
-import {
-  executeCommand,
-  listProcesses,
-  getSystemInfo,
-} from "./tools/terminal.js";
-import {
-  gitStatus,
-  gitDiff,
-  gitLog,
-  gitBranch,
-  gitBlame,
-} from "./tools/git.js";
-import {
-  findSymbols,
-  findReferences,
-  getDiagnostics,
-  getFileOutline,
-  analyzeCode,
-  getQuickDiagnostics,
-  getCodeActions,
-  detectLanguage,
-} from "./tools/code-analysis.js";
-import {
   loadSkillsFromDirectories,
   saveSkillFile,
   createSkillFileBoilerplate,
   clearSkillCache,
 } from "../skills/skill-loader.js";
+import {
+  // LSP / quick-diagnostics tools still use these
+  getQuickDiagnostics,
+  getCodeActions,
+  detectLanguage,
+} from "./tools/code-analysis.js";
 import { SceneRouter, DEFAULT_SCENES } from "./scene-router.js";
 import { router } from "../router/model-router.js";
 import { getTokenTracker } from "../router/token-tracker.js";
@@ -86,12 +62,6 @@ import {
   TOOL_CLASSIFICATIONS,
 } from "../agents/execution-mode.js";
 import { getConstitutionForMode } from "../agents/constitution.js";
-import {
-  minimaxWebSearch,
-  minimaxImageUnderstand,
-  checkMiniMaxHealth,
-  getMiniMaxInfo,
-} from "./tools/minimax.js";
 import {
   listRepos,
   getRepo,
@@ -122,9 +92,10 @@ import { getArenaCollector } from "../eval/arena-collector.js";
 import { getPromptPool, type AgentRole } from "../agents/prompt-pool.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
 import { getAgentOrchestrator, type AgentTask } from "../agents/orchestrator.js";
-import { DREngine, type KnowledgeItem, CognitivePipeline, TaskGraph } from "../dre/index.js";
-import { getVRAMBudgetManager } from "../dre/vram-budget.js";
+import { DREngine, Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem } from "../dre/index.js";
+import { getResourceBudgetManager } from "../dre/system-resource.js";
 import { KnowledgeGraphEnhanced, type KGNodeType, type KGEdgeType } from "../kg/enhanced.js";
+import { registerExternalTools } from "./register-external-tools.js";
 import { KnowledgeAccessLayer } from "../kal/knowledge-access-layer.js";
 import { createNodeId } from "../kal/node-id.js";
 import { parseMarkdownAST, extractAllEntities } from "../crawl/processor/markdown-ast.js";
@@ -144,6 +115,11 @@ const mcp = new McpServer({
 // ===== 工具定义（单一事实来源） =====
 
 const registry = new ToolRegistry();
+
+// Register self-contained external tools (MiniMax / fs / terminal / git / code-analysis).
+// Moved to mcp/register-external-tools.ts to reduce this file from ~3500 to ~3200 lines.
+// Remaining internal tools (memory, scene, pipeline, dre, kg, persona …) follow below.
+registerExternalTools(registry);
 
 // -- Vault 核心记忆工具 --
 registry.add({
@@ -396,76 +372,6 @@ registry.add({
       news: response.news_results?.length ?? 0,
       latency_ms: latency,
       vault_path: vaultPath || null,
-    };
-  },
-});
-
-// -- MiniMax MCP 工具（网络搜索 + 图像识别）--
-// 若订阅了 MiniMax Token Plan，可使用同一 API Key 同时调用模型和 MCP 工具
-registry.add({
-  name: "minimax_web_search",
-  description: "MiniMax 网络搜索（实时搜索结果，支持中文优化）",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    num: z.number().optional().default(10).describe("返回结果数量"),
-    lang: z.string().optional().default("zh").describe("搜索语言"),
-  },
-  handler: async (args) => {
-    const result = await minimaxWebSearch(args.query as string, {
-      num: args.num as number,
-      lang: args.lang as string,
-    });
-    return {
-      success: result.success,
-      query: result.query,
-      total_results: result.totalResults,
-      results: result.results.map((r) => ({
-        title: r.title,
-        link: r.link,
-        snippet: r.snippet,
-        displayed_url: r.displayedUrl,
-        date: r.date,
-      })),
-    };
-  },
-});
-
-registry.add({
-  name: "minimax_image_understand",
-  description: "MiniMax 图像识别（分析图像内容，支持 URL 或 base64）",
-  inputSchema: {
-    image: z.string().describe("图像 URL 或 base64 编码数据"),
-    prompt: z.string().optional().describe("自定义提示词（可选）"),
-  },
-  handler: async (args) => {
-    const result = await minimaxImageUnderstand(args.image as string, {
-      prompt: args.prompt as string,
-    });
-    return {
-      success: result.success,
-      description: result.result?.description,
-      objects: result.result?.objects,
-      text: result.result?.text,
-      scenes: result.result?.scenes,
-      error: result.error,
-    };
-  },
-});
-
-registry.add({
-  name: "minimax_health",
-  description: "检查 MiniMax API 连接状态",
-  inputSchema: {},
-  handler: async () => {
-    const health = await checkMiniMaxHealth();
-    const info = getMiniMaxInfo();
-    return {
-      ok: health.ok,
-      latency_ms: health.latency,
-      error: health.error,
-      configured: info.configured,
-      base_url: info.baseUrl,
-      has_token_plan: info.hasTokenPlan,
     };
   },
 });
@@ -1279,201 +1185,6 @@ registry.add({
   },
 });
 
-// -- 文件系统工具 --
-registry.add({
-  name: "fs_read",
-  description: "读取文件内容（支持偏移和限制）",
-  inputSchema: {
-    path: z.string().describe("文件路径"),
-    offset: z.number().optional().describe("起始行偏移"),
-    limit: z.number().optional().describe("最大读取行数"),
-  },
-  handler: async (args) => readFile(args.path as string, { offset: args.offset as number, limit: args.limit as number }),
-});
-
-registry.add({
-  name: "fs_write",
-  description: "写入或追加文件内容",
-  inputSchema: {
-    path: z.string().describe("文件路径"),
-    content: z.string().describe("写入内容"),
-    append: z.boolean().optional().describe("是否追加模式"),
-  },
-  handler: async (args) => writeFile(args.path as string, args.content as string, { append: args.append as boolean }),
-});
-
-registry.add({
-  name: "fs_list",
-  description: "列出目录内容",
-  inputSchema: {
-    path: z.string().optional().describe("目录路径，默认当前目录"),
-  },
-  handler: async (args) => listDirectory((args.path as string) || "."),
-});
-
-registry.add({
-  name: "fs_search",
-  description: "在文件中搜索内容",
-  inputSchema: {
-    query: z.string().describe("搜索关键词或正则表达式"),
-    path: z.string().optional().describe("搜索目录，默认当前目录"),
-    maxResults: z.number().optional().describe("最大结果数"),
-  },
-  handler: async (args) => searchFiles(args.query as string, { path: args.path as string, maxResults: args.maxResults as number }),
-});
-
-registry.add({
-  name: "fs_delete",
-  description: "删除文件或目录",
-  inputSchema: {
-    path: z.string().describe("要删除的路径"),
-  },
-  handler: async (args) => deleteFile(args.path as string),
-});
-
-registry.add({
-  name: "fs_move",
-  description: "移动或重命名文件",
-  inputSchema: {
-    source: z.string().describe("源路径"),
-    destination: z.string().describe("目标路径"),
-  },
-  handler: async (args) => moveFile(args.source as string, args.destination as string),
-});
-
-// -- 终端工具 --
-registry.add({
-  name: "terminal_exec",
-  description: "执行终端命令（有安全检查）",
-  inputSchema: {
-    command: z.string().describe("要执行的命令"),
-    cwd: z.string().optional().describe("工作目录"),
-    timeout: z.number().optional().describe("超时毫秒数"),
-  },
-  handler: async (args) => executeCommand(args.command as string, { cwd: args.cwd as string, timeout: args.timeout as number }),
-});
-
-registry.add({
-  name: "terminal_list",
-  description: "列出当前进程",
-  inputSchema: {},
-  handler: async () => listProcesses(),
-});
-
-registry.add({
-  name: "terminal_info",
-  description: "获取系统信息",
-  inputSchema: {},
-  handler: async () => getSystemInfo(),
-});
-
-// -- Git 工具 --
-registry.add({
-  name: "git_status",
-  description: "获取 Git 仓库状态",
-  inputSchema: {
-    repoPath: z.string().optional().describe("仓库路径，默认当前目录"),
-  },
-  handler: async (args) => gitStatus(args.repoPath as string),
-});
-
-registry.add({
-  name: "git_diff",
-  description: "获取 Git diff",
-  inputSchema: {
-    repoPath: z.string().optional().describe("仓库路径"),
-    target: z.string().optional().describe("对比目标（commit/branch）"),
-    filePath: z.string().optional().describe("指定文件路径"),
-    staged: z.boolean().optional().describe("是否只看 staged"),
-  },
-  handler: async (args) => gitDiff(args.repoPath as string, { since: args.target as string, file: args.filePath as string, staged: args.staged as boolean }),
-});
-
-registry.add({
-  name: "git_log",
-  description: "获取 Git 提交历史",
-  inputSchema: {
-    repoPath: z.string().optional().describe("仓库路径"),
-    maxCount: z.number().optional().describe("最大提交数"),
-    filePath: z.string().optional().describe("指定文件"),
-  },
-  handler: async (args) => gitLog(args.repoPath as string, { maxCount: args.maxCount as number, file: args.filePath as string }),
-});
-
-registry.add({
-  name: "git_branch",
-  description: "获取 Git 分支信息",
-  inputSchema: {
-    repoPath: z.string().optional().describe("仓库路径"),
-  },
-  handler: async (args) => gitBranch(args.repoPath as string),
-});
-
-registry.add({
-  name: "git_blame",
-  description: "获取文件 Git blame 信息",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-    repoPath: z.string().optional().describe("仓库路径"),
-  },
-  handler: async (args) => gitBlame((args.repoPath as string) || ".", args.filePath as string),
-});
-
-// -- 代码分析工具 --
-registry.add({
-  name: "code_symbols",
-  description: "查找代码中的符号（函数、类、接口等）",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-    type: z.enum(["function", "class", "interface", "type", "variable", "export"]).optional().describe("符号类型过滤"),
-  },
-  handler: async (args) => {
-    const result = await findSymbols(args.filePath as string);
-    const filterType = args.type as string;
-    if (filterType && result.success && result.symbols) {
-      result.symbols = result.symbols.filter((s: any) => s.type === filterType);
-    }
-    return result;
-  },
-});
-
-registry.add({
-  name: "code_references",
-  description: "查找符号引用",
-  inputSchema: {
-    symbol: z.string().describe("符号名称"),
-    path: z.string().optional().describe("搜索目录"),
-  },
-  handler: async (args) => findReferences(args.symbol as string, args.path as string),
-});
-
-registry.add({
-  name: "code_diagnostics",
-  description: "获取 TypeScript 诊断信息",
-  inputSchema: {
-    filePath: z.string().optional().describe("指定文件路径，默认全项目"),
-  },
-  handler: async (args) => getDiagnostics(args.filePath as string),
-});
-
-registry.add({
-  name: "code_outline",
-  description: "获取文件代码大纲",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-  },
-  handler: async (args) => getFileOutline(args.filePath as string),
-});
-
-registry.add({
-  name: "code_analyze",
-  description: "分析代码复杂度、依赖和 TODO",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-  },
-  handler: async (args) => analyzeCode(args.filePath as string),
-});
-
 // -- LSP 增强工具 --
 
 registry.add({
@@ -2101,35 +1812,30 @@ registry.add({
 
 // ===== DRE 确定性推理引擎工具 =====
 
-// DRE 引擎单例
-let dreEngine: DREngine | null = null;
+// Kernel 单例 (替代裸 DREngine, 提供生命周期管理 + tick 循环)
+let kernel: Kernel | null = null;
 
-function getDREngine(): DREngine {
-  if (!dreEngine) {
-    dreEngine = new DREngine({
-      dbPath: process.env.DRE_DB_PATH || "./data/dre.db",
-      mainLLM: {
-        baseUrl: process.env.DRE_LLM_URL || "http://127.0.0.1:8080",
-        model: process.env.DRE_LLM_MODEL || "qwen3-1.7b-instruct",
-        temperature: 0.0,
-        topK: 1,
-        seed: 42,
-      },
-      discriminLLM: process.env.DRE_DISCRIMIN_URL ? {
-        baseUrl: process.env.DRE_DISCRIMIN_URL,
-        model: process.env.DRE_DISCRIMIN_MODEL || "qwen3-0.6b-instruct",
-        temperature: 0.0,
-        topK: 1,
-        seed: 42,
-      } : undefined,
-      cloudFallback: process.env.DEEPSEEK_API_KEY ? {
-        baseUrl: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-        model: "deepseek-chat",
-      } : undefined,
-    });
+function getKernel(): Kernel {
+  if (!kernel) {
+    const config = new ConfigLoader().toKernelConfig();
+    kernel = new Kernel({ ...config, tickInterval: 10000, autoTick: true });
+    // 异步初始化 (不阻塞 MCP 启动)
+    kernel.init().catch((err) => logger.warn("[MCP] Kernel init failed", { error: (err as Error).message }));
   }
-  return dreEngine;
+  return kernel;
+}
+
+/** @deprecated 使用 getKernel().getEngine() 替代 */
+function getDREngine(): DREngine {
+  return getKernel().getEngine();
+}
+
+/** 关闭 Kernel */
+async function shutdownKernel(): Promise<void> {
+  if (kernel) {
+    await kernel.shutdown();
+    kernel = null;
+  }
 }
 
 registry.add({
@@ -2145,7 +1851,7 @@ registry.add({
   },
   handler: async (args) => {
     try {
-      const dre = getDREngine();
+      const dre = getKernel().getEngine();
       const item: KnowledgeItem = {
         id: `kb-${Date.now()}`,
         title: args.title as string,
@@ -2185,7 +1891,7 @@ registry.add({
     nodeId: z.string().describe("知识条目 ID"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const node = dre.readKnowledge(args.nodeId as string);
     if (!node) {
       return { success: false, error: "Knowledge node not found" };
@@ -2218,7 +1924,7 @@ registry.add({
     limit: z.number().optional().default(10).describe("返回数量"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const results = dre.searchKnowledge(args.query as string, {
       domain: args.domain as string,
       paradigm: args.paradigm as string,
@@ -2245,7 +1951,7 @@ registry.add({
     maxNodes: z.number().optional().default(50).describe("最大节点数"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const nodes = dre.subgraph(args.nodeId as string, args.depth as number, args.maxNodes as number);
     return nodes.map((n) => ({
       nodeId: n.nodeId,
@@ -2265,7 +1971,7 @@ registry.add({
   },
   handler: async (args) => {
     try {
-      const dre = getDREngine();
+      const dre = getKernel().getEngine();
       const result = await dre.consciousnessStep({
         observation: args.observation as string,
         metadata: args.metadata as Record<string, unknown>,
@@ -2297,19 +2003,187 @@ registry.add({
   description: "获取 DRE 引擎状态",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.getStatus();
   },
 });
 
 registry.add({
-  name: "vram_status",
-  description: "获取 GPU VRAM 预算状态 (检测 GPU、可用显存、推荐上下文长度)",
+  name: "resource_status",
+  description: "获取系统资源预算状态 (可用内存、算力、是否可运行本地推理)",
   inputSchema: {},
   handler: async () => {
-    const vram = getVRAMBudgetManager();
-    return vram.getStatus();
+    const budget = getResourceBudgetManager();
+    return budget.getStatus();
   },
+});
+
+// ===== Persona 工具 (v3.0.0 — 替代 AgentHarness) =====
+
+registry.add({
+  name: "persona_switch",
+  description: "切换 Persona 模式 (plan/code/retrieve/reflect/audit/creative/general)",
+  inputSchema: {
+    mode: z.enum(["plan", "code", "retrieve", "reflect", "audit", "creative", "research", "general"]).describe("Persona 模式"),
+    reason: z.string().optional().describe("切换原因 (可选)"),
+  },
+  handler: async (args) => {
+    const loaded = getKernel().getEngine().switchPersona(args.mode as string, args.reason as string);
+    return {
+      mode: loaded.config.mode,
+      name: loaded.config.name,
+      allowWrite: loaded.config.allowWrite,
+      temperature: loaded.config.temperature,
+      loadedAt: loaded.loadedAt,
+    };
+  },
+});
+
+registry.add({
+  name: "persona_status",
+  description: "获取当前 Persona 状态和切换历史",
+  inputSchema: {},
+  handler: async () => {
+    const persona = getKernel().getEngine().persona;
+    return {
+      ...persona.getContextSummary(),
+      temperature: persona.getTemperature(),
+      canWrite: persona.canWrite(),
+      canUseTools: persona.canUseTools(),
+      availableModes: persona.getAvailableModes(),
+    };
+  },
+});
+
+registry.add({
+  name: "persona_list",
+  description: "列出所有可用 Persona 模式",
+  inputSchema: {},
+  handler: async () => {
+    return getKernel().getEngine().persona.getAvailableModes();
+  },
+});
+
+registry.add({
+  name: "cognitive_state",
+  description: "获取统一认知状态 (Persona + 意识流 + 推理 + 约束 + 目标 + 信念 + 资源 + Atom数据)",
+  inputSchema: {},
+  handler: async () => {
+    const engine = getKernel().getEngine();
+    const state = engine.getCognitiveState();
+    return {
+      ...state,
+      dataUnifier: engine.data.getAtomStats(),
+    };
+  },
+});
+
+// ===== 认知管道工具 (v3.1) =====
+
+registry.add({
+  name: "cognitive_pipeline_run",
+  description: "运行认知管道 (含 LLM 降级链: L1确定→L2本地LLM→L3云→L4规则)",
+  inputSchema: {
+    input: z.string().describe("输入文本 (问题/任务描述)"),
+  },
+  handler: async (args) => {
+    const dre = getKernel().getEngine();
+    const pipeline = new CognitivePipeline(dre);
+    pipeline.setToolExecutor(async (toolName, args) => {
+      const handlers = registry.buildHttpHandlers();
+      const handler = handlers[toolName];
+      if (!handler) throw new Error('Tool not found: ' + toolName);
+      return handler(args);
+    });
+    return pipeline.runWithLLM(args.input as string);
+  },
+});
+
+registry.add({
+  name: "cognitive_pipeline_run_full",
+  description: "运行认知管道 + TaskGraph 执行 (含 LLM 降级链)",
+  inputSchema: {
+    input: z.string().describe("输入文本 (问题/任务描述)"),
+  },
+  handler: async (args) => {
+    const dre = getKernel().getEngine();
+    const pipeline = new CognitivePipeline(dre);
+    pipeline.setToolExecutor(async (toolName, args) => {
+      const handlers = registry.buildHttpHandlers();
+      const handler = handlers[toolName];
+      if (!handler) throw new Error('Tool not found: ' + toolName);
+      return handler(args);
+    });
+    return pipeline.runFullWithLLM(args.input as string);
+  },
+});
+
+// ===== 统一数据入口工具 (v3.1 DataUnifier) =====
+
+registry.add({
+  name: "data_write",
+  description: "通过 DataUnifier 统一写入数据 (创建 Atom + 持久化到 KnowledgeStore)",
+  inputSchema: {
+    content: z.string().describe("数据内容"),
+    kind: z.enum(["entity", "fact", "rule", "concept", "procedure", "observation", "insight"]).describe("数据类型"),
+    domain: z.string().optional().describe("领域 (如 git, code, security)"),
+    paradigm: z.string().optional().describe("范式 (fact, rule, procedure, concept)"),
+    sourceType: z.string().optional().describe("来源类型 (manual, web, llm)"),
+  },
+  handler: async (args) => {
+    const dre = getKernel().getEngine();
+    const { atom } = dre.data.write({
+      content: args.content as string,
+      kind: args.kind as string,
+      domain: args.domain as string,
+      paradigm: args.paradigm as string,
+      sourceType: args.sourceType as string,
+    });
+    return { atomId: atom.id, kind: atom.kind, content: atom.content.slice(0, 100) };
+  },
+});
+
+registry.add({
+  name: "data_search",
+  description: "通过 DataUnifier 统一搜索 (Atom + KnowledgeStore)",
+  inputSchema: {
+    query: z.string().describe("搜索关键词"),
+    limit: z.number().optional().default(10).describe("返回条数上限"),
+    kind: z.enum(["entity", "fact", "rule", "concept", "procedure", "observation", "insight"]).optional().describe("按数据类型过滤"),
+  },
+  handler: async (args) => {
+    const dre = getKernel().getEngine();
+    const result = dre.data.search(args.query as string, {
+      limit: (args.limit as number) ?? 10,
+    });
+    return {
+      atoms: result.atoms.map((a) => ({ id: a.id, kind: a.kind, content: a.content.slice(0, 120) })),
+      knowledgeNodes: result.knowledgeNodes.map((n) => ({ id: n.nodeId, domain: n.domain, content: n.content.slice(0, 120) })),
+    };
+  },
+});
+
+registry.add({
+  name: "data_stats",
+  description: "获取 DataUnifier / AtomEngine 统计信息",
+  inputSchema: {},
+  handler: async () => {
+    const dre = getKernel().getEngine();
+    return {
+      atomStats: dre.data.getAtomStats(),
+    };
+  },
+});
+
+registry.add({
+  name: "data_persist",
+  description: "手动持久化所有 Atom 到 SQLite",
+  inputSchema: {},
+  handler: async () => {
+    getKernel().getEngine().data.persist();
+    return { success: true, timestamp: Date.now() };
+  },
+
 });
 
 // ===== 心智模型工具 (v2.9.0 认知增强) =====
@@ -2319,7 +2193,7 @@ registry.add({
   description: "列出所有心智模型 (Git冲突/代码重构等领域模型)",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.mentalModels.list().map((m) => ({
       id: m.id,
       name: m.name,
@@ -2341,7 +2215,7 @@ registry.add({
     observations: z.array(z.string()).describe("观察列表"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const result = dre.mentalModels.matchPattern(
       args.modelId as string,
       args.observations as string[]
@@ -2359,7 +2233,7 @@ registry.add({
     observation: z.string().describe("当前观察"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const result = dre.mentalModels.predict(
       args.modelId as string,
       args.observation as string
@@ -2379,7 +2253,7 @@ registry.add({
     conclusion: z.string().optional().describe("结论"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     dre.reasoning.clear();
 
     // 添加前提
@@ -2419,7 +2293,7 @@ registry.add({
   description: "检测推理图中的空洞 (缺失的推理步骤/前提/证据)",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const gaps = dre.reasoning.detectGaps();
     return {
       totalGaps: gaps.length,
@@ -2443,7 +2317,7 @@ registry.add({
     confidence: z.number().optional().default(0.8).describe("置信度"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const node = dre.reasoning.fillGap(
       args.gapId as string,
       args.response as string,
@@ -2466,7 +2340,7 @@ registry.add({
   description: "获取推理结果 (结论、推理链、总置信度)",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.reasoning.getResult();
   },
 });
@@ -2480,7 +2354,7 @@ registry.add({
     nodeId: z.string().describe("知识节点 ID"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const node = dre.readKnowledge(args.nodeId as string);
     if (!node) return { success: false, error: "知识节点未找到" };
     const { ProcedureKnowledge } = await import("../dre/index.js");
@@ -2501,7 +2375,7 @@ registry.add({
     context: z.record(z.unknown()).optional().describe("额外上下文 (如 gpu_free_vram_mb, environment)"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.constraints.check(args.action as string, args.context as Record<string, unknown>);
   },
 });
@@ -2514,7 +2388,7 @@ registry.add({
     context: z.record(z.unknown()).optional().describe("额外上下文"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.constraints.selectBest(args.candidates as string[], args.context as Record<string, unknown>);
   },
 });
@@ -2523,12 +2397,12 @@ registry.add({
   name: "constraint_list",
   description: "列出所有约束 (可按维度过滤)",
   inputSchema: {
-    dimension: z.enum(["logical", "physical", "semantic", "policy", "temporal"]).optional().describe("约束维度过滤"),
+    dimension: z.enum(["logical", "physical", "field_match", "policy", "temporal"]).optional().describe("约束维度过滤"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const dimension = args.dimension as string | undefined;
-    if (dimension) return dre.constraints.listByDimension(dimension as "logical" | "physical" | "semantic" | "policy" | "temporal");
+    if (dimension) return dre.constraints.listByDimension(dimension as "logical" | "physical" | "field_match" | "policy" | "temporal");
     return dre.constraints.list();
   },
 });
@@ -2538,7 +2412,7 @@ registry.add({
   description: "获取约束求解器统计信息",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.constraints.getStats();
   },
 });
@@ -2550,7 +2424,7 @@ registry.add({
   description: "列出所有 Actor (知识/约束/心智模型/推理)",
   inputSchema: {},
   handler: async () => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     return dre.actors.list();
   },
 });
@@ -2564,7 +2438,7 @@ registry.add({
     payload: z.record(z.unknown()).optional().describe("消息负载"),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     await dre.actors.send("user", args.to as string, "request", args.topic as string, args.payload || {});
     return { sent: true, to: args.to, topic: args.topic };
   },
@@ -2580,8 +2454,14 @@ registry.add({
   },
   tags: ["cognitive", "reasoning", "deterministic"],
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const pipeline = new CognitivePipeline(dre);
+    pipeline.setToolExecutor(async (toolName, args) => {
+      const handlers = registry.buildHttpHandlers();
+      const handler = handlers[toolName];
+      if (!handler) throw new Error('Tool not found: ' + toolName);
+      return handler(args);
+    });
     return pipeline.run(args.input as string);
   },
 });
@@ -2594,8 +2474,14 @@ registry.add({
   },
   tags: ["cognitive", "reasoning", "execution", "deterministic"],
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const pipeline = new CognitivePipeline(dre);
+    pipeline.setToolExecutor(async (toolName, args) => {
+      const handlers = registry.buildHttpHandlers();
+      const handler = handlers[toolName];
+      if (!handler) throw new Error('Tool not found: ' + toolName);
+      return handler(args);
+    });
     return pipeline.runFull(args.input as string);
   },
 });
@@ -2614,7 +2500,7 @@ registry.add({
     })).min(1),
   },
   handler: async (args) => {
-    const dre = getDREngine();
+    const dre = getKernel().getEngine();
     const graph = new TaskGraph();
 
     for (const taskDef of (args.tasks as Array<Record<string, unknown>>)) {
@@ -3257,6 +3143,21 @@ registry.add({
     return sceneRouter.listScenes();
   },
 });
+
+// ===== 进程退出清理 =====
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  logger.info(`[MCP] Received ${signal}, shutting down...`);
+  try {
+    await shutdownKernel();
+  } catch (err) {
+    logger.warn("[MCP] Shutdown error", { error: (err as Error).message });
+  }
+  process.exit(0);
+}
+
+process.on("SIGINT", () => { void gracefulShutdown("SIGINT"); });
+process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
 
 // ===== 启动服务器 =====
 

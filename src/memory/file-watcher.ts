@@ -17,7 +17,7 @@ import { logger } from "../utils/logger.js";
 import { DeterministicSearchEngine } from "./deterministic-search.js";
 import { initializeCodegraph } from "./codegraph-index.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
-import { getConsciousness } from "../agents/consciousness/index.js";
+import { getConsciousness } from "../services/index.js";
 
 interface WatcherOptions {
   vaultPath: string;

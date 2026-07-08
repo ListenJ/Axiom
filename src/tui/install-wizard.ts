@@ -204,7 +204,12 @@ function renderNetworkStep(contentBox: blessed.Widgets.BoxElement) {
   });
 
   saveBtn.on("press", () => {
-    config.port = parseInt(portInput.getValue(), 10) || 18789;
+    const parsed = parseInt(portInput.getValue(), 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+      config.port = 18789;
+    } else {
+      config.port = parsed;
+    }
     config.bind = bindInput.getValue() || "127.0.0.1";
     config.apiKey = keyInput.getValue() || undefined;
     nextStep();
@@ -569,8 +574,26 @@ function prevStep() {
 function setupKeyboard() {
   screen.key(["C-c"], () => process.exit(0));
 
-  screen.key(["tab"], () => nextStep());
-  screen.key(["S-tab"], () => prevStep());
+  // Tab only advances/retreats the wizard when focus is NOT inside a form
+  // field. When a textbox/button is focused we let Tab traverse fields
+  // instead, so the Network step's Port/Bind/API Key inputs are reachable.
+  const isFormField = (el: blessed.Widgets.Node | null | undefined): boolean =>
+    !!el && (el.type === "textbox" || el.type === "textarea" || el.type === "button");
+
+  screen.key(["tab"], () => {
+    if (isFormField(screen.focused)) {
+      screen.focusNext();
+    } else {
+      nextStep();
+    }
+  });
+  screen.key(["S-tab"], () => {
+    if (isFormField(screen.focused)) {
+      screen.focusPrevious();
+    } else {
+      prevStep();
+    }
+  });
 
   screen.key(["right"], () => {
     if (STEPS[currentStep] === "edition") {

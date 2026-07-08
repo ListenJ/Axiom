@@ -280,9 +280,10 @@ export function listAgentSources(): string[] {
   const defaultDir = process.env.AGENTS_DIR || "./data/agents";
   if (fs.existsSync(defaultDir)) sources.push(defaultDir);
 
-  // 检查常见的 agency-agents 位置
+  // 检查常见的 agency-agents 位置（通过环境变量可覆盖，避免硬编码个人路径）
+  const agencyDir = process.env.AGENCY_AGENTS_DIR;
   const commonPaths = [
-    "C:/Users/18336/Downloads/agency-agents-main",
+    ...(agencyDir ? [agencyDir] : []),
     "./agency-agents-main",
     "../agency-agents-main",
   ];

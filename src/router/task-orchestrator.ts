@@ -20,8 +20,8 @@ import { getDispatcher } from "./dispatcher.js";
 import { retrieveCodeMemory } from "../memory/codegraph-index.js";
 import type { ChatMessage, RoleAssignment } from "./model-router.js";
 import type { TaskRole } from "./model-capability-registry.js";
-import { executionMode } from "../agents/execution-mode.js";
-import { getConstitutionForMode, injectConstitution } from "../agents/constitution.js";
+import { executionMode } from "../services/index.js";
+import { getConstitutionForMode, injectConstitution } from "../services/index.js";
 
 export interface SubTask {
   id: string;

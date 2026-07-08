@@ -45,8 +45,8 @@ import {
   type ChatMessage,
   type ChatStreamEvent,
   type SmartAssignmentResponse,
-} from "../router/model-router.js";
-import type { TaskRole } from "../router/models.js";
+} from "../services/index.js";
+import type { TaskRole } from "../services/index.js";
 
 // ---------------------------------------------------------------------------
 // Public types

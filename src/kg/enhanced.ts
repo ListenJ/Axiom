@@ -16,7 +16,6 @@
 
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
-import type { LLMClient } from "../dre/index.js";
 
 // ========== 类型定义 ==========
 
@@ -145,14 +144,12 @@ const NODE_COLORS: Record<KGNodeType, string> = {
 
 export class KnowledgeGraphEnhanced {
   private db: Database;
-  private llm: LLMClient | null;
   private nodes = new Map<string, KGNode>();
   private edges = new Map<string, KGEdge>();
   private adjacency = new Map<string, string[]>(); // nodeId → edgeIds
 
-  constructor(db: Database, llm?: LLMClient) {
+  constructor(db: Database) {
     this.db = db;
-    this.llm = llm || null;
     this.initializeDatabase();
   }
 
@@ -254,7 +251,7 @@ export class KnowledgeGraphEnhanced {
     limit?: number;
   }): KGNode[] {
     let sql = "SELECT * FROM kg_nodes WHERE (name LIKE ? OR description LIKE ? OR semantic LIKE ?)";
-    const params: unknown[] = [`%${query}%`, `%${query}%`, `%${query}%`];
+    const params: (string | number)[] = [`%${query}%`, `%${query}%`, `%${query}%`];
 
     if (options?.type) {
       sql += " AND type = ?";

@@ -19,6 +19,9 @@ import { logger } from "../../utils/logger.js";
 
 // ========== 类型定义 ==========
 
+/** 工具执行器 — 使 TaskGraph 节点可以直接调用 MCP 工具 */
+export type ToolExecutor = (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+
 /** 任务状态 */
 export type TaskStatus =
   | "pending"   // 初始
@@ -82,6 +85,25 @@ export class TaskGraph {
   private createdAt = Date.now();
   private completedIds = new Set<string>();
   private failedIds = new Set<string>();
+  private toolExecutor: ToolExecutor | null = null;
+
+  /**
+   * 注册工具执行器 — TaskGraph 节点可通过 callTool() 调用 MCP 工具
+   */
+  setToolExecutor(executor: ToolExecutor): void {
+    this.toolExecutor = executor;
+  }
+
+  /**
+   * 调用 MCP 工具 (需先通过 setToolExecutor 注册执行器)
+   */
+  async callTool(toolName: string, args: Record<string, unknown> = {}): Promise<unknown> {
+    if (!this.toolExecutor) {
+      throw new Error(`ToolExecutor not set. Cannot call tool: ${toolName}`);
+    }
+    logger.info("[TaskGraph] Calling tool", { tool: toolName });
+    return this.toolExecutor(toolName, args);
+  }
 
   // ── 任务管理 ──
 

@@ -17,7 +17,7 @@
  * 选择最优 (基于当前上下文)
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from "../../utils/logger.js";
 import { eventBus } from "./event-bus.js";
 
 // ─── Abstract Capability Contracts ─────────────────────────────────────────
@@ -156,11 +156,16 @@ class CapabilityRegistryImpl {
 
   /**
    * Select the best capability for a contract.
+   * Note: selection marks lastUsed + bumps stats only; usageCount/successRate
+   * are updated by recordResult() after the call resolves. This avoids
+   * double-counting usage when a selection is made but the call is not yet
+   * executed (or fails before invocation).
    */
   select(contract: CapabilityContract, opts?: Parameters<typeof this.search>[1]): Capability | null {
     const results = this.search(contract, opts);
     if (results.length === 0) {
       this.stats.fallbacks++;
+      logger.warn("[CapabilityRegistry] No provider available for contract", { contract });
       return null;
     }
 
@@ -168,7 +173,6 @@ class CapabilityRegistryImpl {
     this.stats.selections++;
 
     selected.lastUsed = Date.now();
-    selected.usageCount++;
 
     eventBus.publish({
       type: "capability.selected",
@@ -187,6 +191,9 @@ class CapabilityRegistryImpl {
 
   /**
    * Record the result of using a capability.
+   * This is the single source of truth for usageCount/successRate — select()
+   * does NOT increment usageCount to avoid counting selections that never
+   * actually invoke the provider.
    */
   recordResult(capabilityId: string, success: boolean): void {
     const cap = this.capabilities.get(capabilityId);
@@ -195,8 +202,54 @@ class CapabilityRegistryImpl {
     cap.usageCount++;
     cap.successRate = (cap.successRate * (cap.usageCount - 1) + (success ? 1 : 0)) / cap.usageCount;
 
-    // Update provider reliability
+    // Update provider reliability with exponential moving average
     cap.provider.reliability = (cap.provider.reliability * 0.9) + (success ? 0.1 : 0);
+  }
+
+  /**
+   * Unregister a provider and all its capabilities.
+   */
+  unregisterProvider(providerId: string): boolean {
+    const provider = this.providers.get(providerId);
+    if (!provider) return false;
+
+    // Remove all capabilities belonging to this provider
+    for (const capId of [...this.capabilities.keys()]) {
+      if (capId.startsWith(`${providerId}:`)) {
+        this.capabilities.delete(capId);
+      }
+    }
+
+    this.providers.delete(providerId);
+
+    eventBus.publish({
+      type: "capability.provider_unregistered",
+      source: "capability-registry",
+      data: { providerId },
+      priority: "normal",
+    });
+
+    logger.info("[CapabilityRegistry] Unregistered provider", {
+      providerId,
+      capabilities: provider.capabilities.length,
+    });
+    return true;
+  }
+
+  /**
+   * Get a capability by ID.
+   */
+  getCapability(capabilityId: string): Capability | undefined {
+    return this.capabilities.get(capabilityId);
+  }
+
+  /**
+   * Reset all registry state. Useful for tests.
+   */
+  reset(): void {
+    this.providers.clear();
+    this.capabilities.clear();
+    this.stats = { searches: 0, selections: 0, fallbacks: 0 };
   }
 
   /**

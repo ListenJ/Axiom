@@ -22,7 +22,6 @@ import { ReasoningGraph } from "../src/dre/reasoning/graph.js";
 import {
   ConstraintSolver,
   createDefaultConstraintSolver,
-  GPU_CONSTRAINTS,
   POLICY_CONSTRAINTS,
 } from "../src/dre/constraint/solver.js";
 import {
@@ -339,18 +338,18 @@ describe("ConstraintSolver", () => {
   test("should register and list constraints", () => {
     const constraints = solver.list();
     expect(constraints.length).toBeGreaterThan(0);
-    expect(constraints.some((c) => c.id === "gpu-vram-min")).toBe(true);
+    expect(constraints.some((c) => c.id === "resource-memory-min")).toBe(true);
     expect(constraints.some((c) => c.id === "prod-no-delete")).toBe(true);
   });
 
-  test("should check physical constraint: GPU VRAM sufficient", () => {
-    solver.updateContext("gpu_free_vram_mb", 2000);
+  test("should check physical constraint: memory sufficient", () => {
+    solver.updateContext("available_memory_mb", 2000);
     const result = solver.check("local_inference");
     expect(result.satisfied).toBe(true);
   });
 
-  test("should check physical constraint: GPU VRAM insufficient", () => {
-    solver.updateContext("gpu_free_vram_mb", 300);
+  test("should check physical constraint: memory insufficient", () => {
+    solver.updateContext("available_memory_mb", 300);
     const result = solver.check("local_inference");
     expect(result.satisfied).toBe(false);
     expect(result.violations.some((v) => v.dimension === "physical")).toBe(true);
@@ -370,14 +369,14 @@ describe("ConstraintSolver", () => {
   });
 
   test("should select best action from candidates", () => {
-    solver.updateContext("gpu_free_vram_mb", 2000);
+    solver.updateContext("available_memory_mb", 2000);
     const { selected, results } = solver.selectBest(["action_a", "action_b"]);
     expect(selected).not.toBeNull();
     expect(results.length).toBe(2);
   });
 
   test("should return null when no action satisfies constraints", () => {
-    solver.updateContext("gpu_free_vram_mb", 100); // too low
+    solver.updateContext("available_memory_mb", 100); // too low
     const { selected } = solver.selectBest(["local_inference"]);
     expect(selected).toBeNull();
   });
@@ -401,13 +400,36 @@ describe("ConstraintSolver", () => {
 
   test("should unregister constraint", () => {
     const before = solver.list().length;
-    solver.unregister("gpu-vram-min");
+    solver.unregister("resource-memory-min");
     expect(solver.list().length).toBe(before - 1);
   });
 
   test("should handle additional context", () => {
-    const result = solver.check("local_inference", { gpu_free_vram_mb: 3000 });
+    const result = solver.check("local_inference", { available_memory_mb: 3000 });
     expect(result.satisfied).toBe(true);
+  });
+
+  test("should support field_match dimension after rename", () => {
+    solver.register({
+      id: "test-field-match-1",
+      dimension: "field_match",
+      type: "equals",
+      name: "测试字段匹配",
+      description: "验证改名后 field_match 维度可用",
+      subject: "test_field",
+      target: "expected_value",
+      priority: 1,
+      enabled: true,
+      createdAt: Date.now(),
+    });
+    const fm = solver.listByDimension("field_match");
+    expect(fm.length).toBeGreaterThan(0);
+    expect(fm.every((c) => c.dimension === "field_match")).toBe(true);
+
+    // field_match 约束在 context 匹配时应通过
+    solver.updateContext("test_field", "expected_value");
+    const ok = solver.check("any_action", { test_field: "expected_value" });
+    expect(ok.satisfied).toBe(true);
   });
 });
 

@@ -14,9 +14,7 @@
  */
 import { spawn } from "bun";
 import { logger } from "../utils/logger.js";
-import { router, type ChatMessage } from "../router/model-router.js";
-import { toolPool } from "../router/tool-pool.js";
-import { getTokenTracker } from "../router/token-tracker.js";
+import { router, type ChatMessage, toolPool, getTokenTracker } from "../services/index.js";
 import { RateLimitedSemaphore } from "../utils/concurrency/rate-limited-semaphore.js";
 import { PiCodeToolsAdapter } from "../pi-agent/pi-code-tools.js";
 import {

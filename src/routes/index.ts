@@ -10,6 +10,7 @@ import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpe
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
+import { handleConsciousness } from "./consciousness.js";
 import {
   handleEvalStats,
   handleEvalResults,
@@ -175,9 +176,9 @@ export async function dispatch(ctx: RouteContext): Promise<Response | null> {
 // Trie 路由注册 — 将简单路由注册到高性能路由引擎
 // ═══════════════════════════════════════════════════════════════
 
-import { RouterEngine, type RouteRecord } from "../core/router-engine.js";
+import { HttpRouter, type RouteRecord } from "../core/http-router.js";
 
-export function registerTrieRoutes(engine: RouterEngine): void {
+export function registerTrieRoutes(engine: HttpRouter): void {
   const routes: RouteRecord[] = [
     // Health & system
     { method: "GET", path: "/health", handler: handleHealth },

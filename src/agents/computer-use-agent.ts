@@ -24,9 +24,8 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { findModelsForRole } from "../router/model-capability-registry.js";
+import { findModelsForRole, PROVIDER_CONFIG } from "../services/index.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
-import { PROVIDER_CONFIG } from "../router/models.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import {
   captureScreenshot,

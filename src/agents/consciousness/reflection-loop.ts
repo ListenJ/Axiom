@@ -18,13 +18,12 @@
  */
 
 import { logger } from "../../utils/logger.js";
-import { router } from "../../router/model-router.js";
+import { router, type ChatMessage } from "../../services/index.js";
 import { getStateStore } from "./state-store.js";
 import { getActivityTracker } from "./activity-tracker.js";
 import { SkillPromoter, DEFAULT_PROMOTER_CONFIG } from "./skill-promoter.js";
 import { MemoryCurator, DEFAULT_CURATOR_CONFIG } from "./memory-curator.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
-import type { ChatMessage } from "../../router/model-router.js";
 import type { ReflectionOutcome, ReflectionTrigger, MentalState, Belief } from "./types.js";
 
 const REFLECTION_TEMPERATURE = 0.3;

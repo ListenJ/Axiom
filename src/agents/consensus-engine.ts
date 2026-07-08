@@ -84,7 +84,7 @@ export interface ConsensusEngineConfig {
 
 // ─── 内部记录类型 ────────────────────────────────────────────────────────────
 
-interface AgentPrediction {
+interface PredictionRecord {
   /** 预测概率 (agent confidence 折算) */
   probability: number;
   /** 实际结果 (0 或 1，仅在 reportOutcome 后可知) */
@@ -98,7 +98,7 @@ interface AgentRecord {
   /** 累计错误次数 */
   mistakes: number;
   /** 预测历史 (用于 Brier 分数计算) */
-  history: AgentPrediction[];
+  history: PredictionRecord[];
 }
 
 // ─── 共识引擎 ────────────────────────────────────────────────────────────────
@@ -483,7 +483,7 @@ export class ConsensusEngine {
    *   UNC = o(1 − o)                       不确定性 (uncertainty)
    */
   private computeBrierDecomposition(
-    history: AgentPrediction[],
+    history: PredictionRecord[],
   ): BrierDecomposition {
     const N = history.length;
     if (N === 0) {
@@ -532,7 +532,7 @@ export class ConsensusEngine {
    * 将预测按概率分 10 个等宽箱
    * 箱边界: [0, 0.1), [0.1, 0.2), ..., [0.9, 1.0]
    */
-  private binPredictions(history: AgentPrediction[]): Array<{
+  private binPredictions(history: PredictionRecord[]): Array<{
     count: number;
     forecastSum: number;
     outcomeSum: number;

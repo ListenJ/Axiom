@@ -118,3 +118,9 @@ deploy/
 
 # Archive
 archive/
+
+# === IDE / Tooling ===
+.trae/
+
+# === Personal notes ===
+ai-daily-*.md

@@ -5,136 +5,84 @@ import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-router.js";
 import { wsManager } from "../utils/websocket.js";
-import { buildAgentMessages } from "../agents/intent-router.js";
-import { getConsciousness } from "../agents/consciousness/index.js";
+import { prepareChatContext, executeChat } from "../services/index.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
-  if (ctx.url.pathname === "/chat" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
-    const { taskType, messages = [], intent: enableIntent = true } = body;
+  if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
-    let chatMessages = messages;
-    let intentInfo = null;
-    let codegraphContext = "";
+  const body = await ctx.req.json();
+  const { taskType, messages = [], intent: enableIntent = true } = body;
 
-    if (enableIntent !== false && messages.length > 0) {
-      const lastUserMsg = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user");
-      if (lastUserMsg?.content) {
-        const history = messages.slice(0, -1).filter((m: { role: string; content: string }) => m.role !== "system");
-        const { intent, messages: agentMessages } = buildAgentMessages(lastUserMsg.content, history);
-        chatMessages = agentMessages;
-        intentInfo = intent;
-        getConsciousness().observe(lastUserMsg.content, intent);
+  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+    messages,
+    enableIntent,
+    ctx.vault,
+  );
+  const result = await executeChat(chatMessages, intentInfo, taskType);
 
-        // 代码相关意图：自动检索 CodeGraph 记忆
-        if (intent && ["code", "research"].includes(intent.intent)) {
-          try {
-            const { retrieveCodeMemory } = await import("../memory/codegraph-index.js");
-            const cgResult = await retrieveCodeMemory(lastUserMsg.content);
-            if (cgResult && cgResult.source === "codegraph" && cgResult.results) {
-              codegraphContext = cgResult.results.slice(0, 3000);
-              chatMessages = [
-                { role: "system", content: `[CodeGraph Context]\n${codegraphContext}` },
-                ...chatMessages.filter((m: { role: string; content: string }) => m.role !== "system"),
-              ];
-            }
-          } catch { /* ignore codegraph errors */ }
+  const response = ctx.jsonResponse({
+    ...result,
+    codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
+    intent: intentInfo
+      ? {
+          name: intentInfo.agentName,
+          category: intentInfo.intent,
+          confidence: intentInfo.confidence,
         }
+      : null,
+  }, 200, ctx.baseHeaders);
 
-        // Knowledge retrieval for knowledge/research intents
-        if (intentInfo && ["knowledge", "research"].includes(intentInfo.intent)) {
-          try {
-            const { decomposeQuery, searchKnowledgeBase, synthesizeResults, buildKnowledgePrompt } = await import("../agents/query-decomposer.js");
-            const decomposed = decomposeQuery(lastUserMsg.content);
-            const fragments = await searchKnowledgeBase(decomposed.subQueries, ctx.vault);
-            if (fragments.length > 0) {
-              const context = synthesizeResults(fragments, lastUserMsg.content);
-              const knowledgePrompt = buildKnowledgePrompt(context);
-              // Prepend knowledge context to chat messages
-              chatMessages = [
-                { role: "system", content: knowledgePrompt },
-                ...chatMessages,
-              ];
-            }
-          } catch (err) {
-            // Non-fatal: continue without knowledge context
-            logger.debug("Knowledge retrieval failed, continuing without context", { error: (err as Error).message });
-          }
-        }
-      }
-    }
-
-    let result;
-    if (intentInfo) {
-      result = await router.routeByIntent(intentInfo.intent, chatMessages);
-    } else if (taskType) {
-      result = await router.chat(taskType, chatMessages);
-    } else {
-      result = await router.chat("general-chat", chatMessages);
-    }
-
-    const response = ctx.jsonResponse({
-      ...result,
-      codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
-      intent: intentInfo ? {
-        name: intentInfo.agentName,
-        category: intentInfo.intent,
-        confidence: intentInfo.confidence,
-      } : null,
-    }, 200, ctx.baseHeaders);
-
+  wsManager.broadcast({
+    type: "model.usage",
+    payload: { layer: result.layer, taskType: taskType || "auto", provider: result.provider },
+    timestamp: new Date().toISOString(),
+  });
+  if (intentInfo) {
     wsManager.broadcast({
-      type: "model.usage",
-      payload: { layer: result.layer, taskType: taskType || "auto", provider: result.provider },
+      type: "agent.intent",
+      payload: { intent: intentInfo.agentName, confidence: intentInfo.confidence, layer: result.layer },
       timestamp: new Date().toISOString(),
     });
-    if (intentInfo) {
-      wsManager.broadcast({
-        type: "agent.intent",
-        payload: { intent: intentInfo.agentName, confidence: intentInfo.confidence, layer: result.layer },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return response;
   }
-  return null;
+
+  return response;
 }
 
 export async function handleAgentChat(ctx: RouteContext): Promise<Response | null> {
-  if (ctx.url.pathname === "/agent-chat" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
-    const { message, history = [], taskType } = body;
-    const { intent, messages: agentMessages } = buildAgentMessages(message, history);
-    getConsciousness().observe(message, intent);
+  if (ctx.url.pathname !== "/agent-chat" || ctx.req.method !== "POST") return null;
 
-    let result;
-    if (intent) {
-      result = await router.routeByIntent(intent.intent, agentMessages);
-    } else if (taskType) {
-      result = await router.chat(taskType, agentMessages);
-    } else {
-      result = await router.chat("general-chat", agentMessages);
-    }
+  const body = await ctx.req.json();
+  const { message, history = [], taskType } = body;
+  const messages: Array<{ role: string; content: string }> = [
+    ...(history as Array<{ role: string; content: string }>),
+    { role: "user", content: message },
+  ];
 
-    const response = ctx.jsonResponse({
-      ...result,
-      intent: intent ? {
-        name: intent.agentName,
-        category: intent.intent,
-        confidence: intent.confidence,
-      } : null,
-    }, 200, ctx.baseHeaders);
+  const { chatMessages, intentInfo } = await prepareChatContext(
+    messages,
+    true,
+    ctx.vault,
+  );
+  const result = await executeChat(chatMessages, intentInfo, taskType);
 
-    wsManager.broadcast({
-      type: "agent.intent",
-      payload: { intent: intent?.agentName || "general", confidence: intent?.confidence || 0, layer: result.layer },
-      timestamp: new Date().toISOString(),
-    });
+  const response = ctx.jsonResponse({
+    ...result,
+    intent: intentInfo
+      ? {
+          name: intentInfo.agentName,
+          category: intentInfo.intent,
+          confidence: intentInfo.confidence,
+        }
+      : null,
+  }, 200, ctx.baseHeaders);
 
-    return response;
-  }
-  return null;
+  wsManager.broadcast({
+    type: "agent.intent",
+    payload: { intent: intentInfo?.agentName || "general", confidence: intentInfo?.confidence || 0, layer: result.layer },
+    timestamp: new Date().toISOString(),
+  });
+
+  return response;
 }
 
 /**
@@ -276,61 +224,11 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     typeof body.preferNativeStream === "boolean" ? body.preferNativeStream : undefined;
 
   // 复用 handleChat 的消息构建逻辑（包含 intent + codegraph + knowledge context）
-  let chatMessages: ChatMessage[] = messages.map((m) => ({
-    role: m.role as ChatMessage["role"],
-    content: m.content,
-  }));
-  let intentInfo: { intent: string; agentName: string; confidence: number } | null = null;
-  let codegraphContext = "";
-
-  if (enableIntent !== false && messages.length > 0) {
-    const lastUserMsg = [...messages].reverse().find(
-      (m: { role: string; content: string }) => m.role === "user",
-    );
-    if (lastUserMsg?.content) {
-      const history = messages
-        .slice(0, -1)
-        .filter((m: { role: string; content: string }) => m.role !== "system");
-      const { intent, messages: agentMessages } = buildAgentMessages(lastUserMsg.content, history);
-      chatMessages = agentMessages;
-      intentInfo = intent;
-      getConsciousness().observe(lastUserMsg.content, intent);
-
-      if (intent && ["code", "research"].includes(intent.intent)) {
-        try {
-          const { retrieveCodeMemory } = await import("../memory/codegraph-index.js");
-          const cgResult = await retrieveCodeMemory(lastUserMsg.content);
-          if (cgResult && cgResult.source === "codegraph" && cgResult.results) {
-            codegraphContext = cgResult.results.slice(0, 3000);
-            chatMessages = [
-              { role: "system", content: `[CodeGraph Context]\n${codegraphContext}` },
-              ...chatMessages.filter((m) => m.role !== "system"),
-            ];
-          }
-        } catch {
-          /* ignore codegraph errors */
-        }
-      }
-
-      if (intentInfo && ["knowledge", "research"].includes(intentInfo.intent)) {
-        try {
-          const { decomposeQuery, searchKnowledgeBase, synthesizeResults, buildKnowledgePrompt } =
-            await import("../agents/query-decomposer.js");
-          const decomposed = decomposeQuery(lastUserMsg.content);
-          const fragments = await searchKnowledgeBase(decomposed.subQueries, ctx.vault);
-          if (fragments.length > 0) {
-            const context = synthesizeResults(fragments, lastUserMsg.content);
-            const knowledgePrompt = buildKnowledgePrompt(context);
-            chatMessages = [{ role: "system", content: knowledgePrompt }, ...chatMessages];
-          }
-        } catch (err) {
-          logger.debug("Knowledge retrieval failed, continuing without context", {
-            error: (err as Error).message,
-          });
-        }
-      }
-    }
-  }
+  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+    messages,
+    enableIntent,
+    ctx.vault,
+  );
 
   // 选择路由（与 handleChat 保持一致：intent > taskType）
   // taskType 已经在上面规范化过，缺失/非法时默认 'general-chat'

@@ -248,7 +248,7 @@ export class KnowledgeStore {
           ORDER BY n.confidence DESC, n.updated_at DESC
           LIMIT ?
         `;
-        const ftsParams: unknown[] = [query];
+        const ftsParams: (string | number)[] = [query];
         if (options?.domain) ftsParams.push(options.domain);
         if (options?.paradigm) ftsParams.push(options.paradigm);
         if (options?.minConfidence) ftsParams.push(options.minConfidence);
@@ -263,7 +263,7 @@ export class KnowledgeStore {
 
     // 降级: LIKE 全表扫描
     let sql = "SELECT * FROM knowledge_node WHERE 1=1";
-    const params: unknown[] = [];
+    const params: (string | number)[] = [];
 
     if (query) {
       sql += " AND (title LIKE ? OR content LIKE ?)";

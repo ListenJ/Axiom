@@ -13,9 +13,12 @@
  * 订阅 Event Bus 事件，不再由 Scheduler 直接调用。
  */
 
-import { logger } from "../../utils/logger.js";
+import { logger } from "../../../utils/logger.js";
 import { eventBus } from "../event-bus.js";
 import { worldState } from "../world-state.js";
+import { ReasoningGraph, type ReasoningGap, type ReasoningNode } from "../../reasoning/graph.js";
+import { ConstraintSolver, createDefaultConstraintSolver } from "../../constraint/solver.js";
+import type { RefineCallback } from "../verification-engine.js";
 
 export type PipelineStage =
   | "perception" | "memory_retrieval" | "reasoning" | "planning" | "verification" | "execution" | "consolidation"
@@ -46,6 +49,23 @@ type StageHandler = (ctx: PipelineContext) => Promise<PipelineContext>;
 export class ReasoningRuntime {
   private stages = new Map<PipelineStage, StageHandler>();
   private stats = { runs: 0, llmCalls: 0, deterministicWins: 0, gapsDetected: 0 };
+  /**
+   * Working graph — task-level temporary ReasoningGraph.
+   * Reset at the start of each run() to avoid cross-task pollution.
+   * Distinct from engine.reasoning (persistent singleton graph used by CognitivePipeline).
+   */
+  private workingGraph = new ReasoningGraph();
+  /**
+   * Constraint solver used by the verification stage.
+   * Lazily initialized to avoid registration cost if verification never runs.
+   */
+  private constraintSolver: ConstraintSolver | null = null;
+  /**
+   * Optional refine callback invoked by the verification stage when verifyResult
+   * returns non-pass. Injected via registerRefineCallback to break the
+   * ReasoningRuntime -> DREngine circular dependency (same pattern as fillGap).
+   */
+  private refineCallback: RefineCallback | null = null;
 
   constructor() {
     this.registerDefaultStages();
@@ -84,6 +104,8 @@ export class ReasoningRuntime {
   async run(input: string): Promise<PipelineContext> {
     const startTime = Date.now();
     this.stats.runs++;
+    // Reset working graph for this task to avoid cross-task pollution
+    this.workingGraph.clear();
 
     let ctx: PipelineContext = {
       input,
@@ -128,8 +150,12 @@ export class ReasoningRuntime {
 
       ctx.stageTimings.set(stage, Date.now() - stageStart);
 
-      // Early exit if deterministic answer found
-      if (ctx.result && !ctx.needsLLM) {
+      // Always run the verification stage (the last stage) — previously this
+      // early-exit skipped verification whenever graph-reasoning produced a
+      // result, defeating the hallucination/constraint guarantees for the
+      // common entity-bearing query case. Verification is the final stage, so
+      // counting a deterministic win here is safe and correct.
+      if (ctx.result && !ctx.needsLLM && stage === "verification") {
         this.stats.deterministicWins++;
         break;
       }
@@ -178,28 +204,81 @@ export class ReasoningRuntime {
     };
   }
 
+  /**
+   * P0-3: Detect gaps in the working reasoning graph.
+   *
+   * Pure query — does not invoke LLM. Returns the current gaps detected by
+   * ReasoningGraph's topological rules (isolated premises, unsupported conclusions,
+   * weak links, disconnected chains).
+   *
+   * The working graph is populated by the graph-reasoning stage during run().
+   * Calling this before run() completes will return an empty array.
+   */
+  detectGaps(): ReasoningGap[] {
+    return this.workingGraph.detectGaps();
+  }
+
+  /**
+   * P0-3: Fill a single gap using an LLM caller.
+   *
+   * Generates a per-gap prompt via ReasoningGraph.generateGapFillingPrompt,
+   * invokes the supplied llmCaller (typically wrapping DREngine.consciousnessStep),
+   * then backfills the gap node via fillGapFromObject.
+   *
+   * ReasoningRuntime deliberately does not hold a DREngine reference — the caller
+   * supplies the LLM invocation to avoid a circular dependency.
+   *
+   * @returns the newly created ReasoningNode, or null if the gap could not be filled
+   */
+  async fillGap(
+    gap: ReasoningGap,
+    llmCaller: (prompt: string) => Promise<{ response: string; confidence: number }>,
+  ): Promise<ReasoningNode | null> {
+    const prompt = this.workingGraph.generateGapFillingPrompt(gap);
+    const { response, confidence } = await llmCaller(prompt);
+    return this.workingGraph.fillGapFromObject(gap, response, confidence);
+  }
+
+  /**
+   * Register a refine callback for the verification stage.
+   *
+   * When set, the verification stage passes this callback to verifyResult.
+   * On non-pass verdicts, verifyResult invokes the callback to let an LLM
+   * (typically DREngine.consciousnessStep) refine the result, then re-verifies.
+   *
+   * Follows the same dependency-injection pattern as fillGap's llmCaller:
+   * ReasoningRuntime deliberately does not hold a DREngine reference.
+   */
+  registerRefineCallback(cb: RefineCallback): void {
+    this.refineCallback = cb;
+  }
+
   // ─── Default Stages ─────────────────────────────────────────────
 
   private registerDefaultStages(): void {
     // Stage 1: Observation — collect raw input and search all knowledge sources
     this.registerStage("observation", async (ctx) => {
       if (typeof ctx.input === "string") {
+        // DRE_RUNTIME_V2: unified context building via ContextEngine
+        if (process.env.DRE_RUNTIME_V2 === "1") {
+          const { contextEngine } = await import("../context-engine.js");
+          const runtimeCtx = contextEngine.build(ctx.input, []);
+
+          ctx.atoms = runtimeCtx.atoms as unknown[];
+          ctx.entities = runtimeCtx.entities as unknown[];
+          ctx.metadata = ctx.metadata ?? {};
+          ctx.metadata.memories = runtimeCtx.memories;
+          ctx.metadata.knowledgeNodes = runtimeCtx.knowledgeNodes;
+          ctx.metadata.system = runtimeCtx.system;
+          return ctx;
+        }
+
+        // Legacy path (preserved for rollback)
         const { atomStore } = await import("../atom-engine.js");
-        const { memoryEngine } = await import("../memory-engine.js");
         const { knowledgeNetwork } = await import("../knowledge-network.js");
 
         // Search atoms
         ctx.atoms = atomStore.search(ctx.input, 10);
-
-        // Search memory
-        const memoryResults = memoryEngine.search(ctx.input);
-        ctx.atoms.push(...memoryResults.knowledge.map((k) => ({
-          id: k.id,
-          kind: "fact",
-          content: k.statement,
-          confidence: "inferred" as const,
-          source: "memory",
-        })));
 
         // Search knowledge network
         const knResults = knowledgeNetwork.search(ctx.input, 5);
@@ -278,11 +357,18 @@ export class ReasoningRuntime {
 
     // Stage 5: Constraint Check — verify constraints
     this.registerStage("constraint-check", async (ctx) => {
-      const { constraintSolver } = await import("../constraint-solver.js");
+      // Old constraint-solver.js was replaced by constraint/solver.ts (multi-dimensional).
+      // Reuse the lazily-initialized solver (same instance used by verification stage).
+      if (this.constraintSolver === null) {
+        this.constraintSolver = createDefaultConstraintSolver();
+      }
       const entityIds = ctx.entities.map((e: any) => e.id || e.content).filter(Boolean);
 
       if (entityIds.length > 0) {
-        const constraintResult = constraintSolver.solve(entityIds);
+        const constraintResult = this.constraintSolver.check(
+          entityIds.join(","),
+          { entities: entityIds, environment: process.env.NODE_ENV ?? "development" },
+        );
         ctx.constraints = constraintResult.violations;
 
         if (!constraintResult.satisfied) {
@@ -291,8 +377,8 @@ export class ReasoningRuntime {
             source: "reasoning-runtime",
             data: {
               violations: constraintResult.violations.map((v) => ({
-                type: v.constraint.type,
-                message: v.message,
+                type: v.dimension,
+                message: v.reason,
                 severity: v.severity,
               })),
             },
@@ -331,6 +417,46 @@ export class ReasoningRuntime {
           ctx.result = { found: true, related: [...new Set(allRelated)].slice(0, 10) };
         }
       }
+
+      // P0-3: Feed entities into working graph and run gap detection.
+      // Bridges ReasoningRuntime's 8-stage pipeline with ReasoningGraph's gap mechanism
+      // (previously declared in the file header comment but never implemented).
+      const premiseIds: string[] = [];
+      for (const entity of ctx.entities.slice(0, 5)) {
+        const e = entity as { content?: string; name?: string; confidence?: number };
+        const content = e?.content ?? e?.name;
+        if (content) {
+          const premise = this.workingGraph.addPremise(
+            String(content).slice(0, 200),
+            typeof e?.confidence === "number" ? e.confidence : 0.7,
+          );
+          premiseIds.push(premise.id);
+        }
+      }
+      if (premiseIds.length >= 2) {
+        this.workingGraph.addInference(
+          `从 ${premiseIds.length} 个实体推导: ${ctx.input}`,
+          premiseIds,
+          Math.min(0.7, 0.3 + premiseIds.length * 0.05),
+        );
+        this.workingGraph.addConclusion(
+          `基于 ${premiseIds.length} 个相关实体对 "${ctx.input}" 的判断`,
+          premiseIds,
+          0.5,
+        );
+      }
+
+      const gaps = this.workingGraph.detectGaps();
+      if (gaps.length > 0) {
+        this.stats.gapsDetected += gaps.length;
+        ctx.metadata = ctx.metadata ?? {};
+        ctx.metadata.gaps = gaps;
+        logger.debug("[ReasoningRuntime] Gaps detected in working graph", {
+          count: gaps.length,
+          types: gaps.map((g) => g.gapType),
+        });
+      }
+
       return ctx;
     });
 
@@ -380,30 +506,59 @@ export class ReasoningRuntime {
       if (ctx.result && !ctx.needsLLM) {
         try {
           const { verificationEngine } = await import("../verification-engine.js");
-          const report = verificationEngine.verifyResult(
+
+          // P0-4: Lazy-init constraint solver and pass full context.
+          // Previous call omitted constraintSolver entirely, so constraint
+          // verification was silently skipped.
+          if (this.constraintSolver === null) {
+            this.constraintSolver = createDefaultConstraintSolver();
+          }
+
+          // Build constraint context from pipeline metadata + environment.
+          // ConstraintSolver.check reads these fields (e.g. ctx.intent, ctx.environment)
+          // via the per-dimension evaluators.
+          const constraintContext: Record<string, unknown> = {
+            environment: process.env.NODE_ENV ?? "development",
+            intent: (ctx.metadata?.intent as string) ?? "query",
+            domain: (ctx.metadata?.domain as string) ?? "general",
+            action: (ctx.metadata?.action as string) ?? "query",
+          };
+
+          const report = await verificationEngine.verifyResult(
             `pipeline_${Date.now()}`,
             JSON.stringify(ctx.result),
+            {
+              constraintSolver: this.constraintSolver,
+              constraintContext,
+              refineCallback: this.refineCallback ?? undefined,
+              maxRefine: 2,
+            },
           );
 
-          const verified = report.overallVerdict === "pass";
-          const confidence = report.overallConfidence;
+          // Consume refined result if the callback produced a different one
+          if (typeof report.finalResult === "string" && report.finalResult !== JSON.stringify(ctx.result)) {
+            try {
+              ctx.result = JSON.parse(report.finalResult);
+            } catch {
+              ctx.result = report.finalResult; // non-JSON string; use as-is
+            }
+          }
+
+          // needsLLM signal from verification drives downstream LLM routing
+          ctx.needsLLM = report.needsLLM;
 
           eventBus.publish({
             type: "pipeline.verification",
             source: "reasoning-runtime",
             data: {
               result: ctx.result,
-              verified,
-              confidence,
+              verified: report.overallVerdict === "pass",
+              confidence: report.overallConfidence,
               issues: report.issues.map((i) => i.description),
+              refineIterations: report.refineIterations ?? 0,
             },
             priority: "normal",
           });
-
-          // If verification fails, mark as needing LLM
-          if (!verified && confidence < 0.5) {
-            ctx.needsLLM = true;
-          }
         } catch {
           // Fallback: publish without verification
           eventBus.publish({

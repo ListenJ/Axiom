@@ -138,25 +138,25 @@ const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> =
   engineering:        { role: "main_coding", useTool: true },
   "game-development": { role: "main_coding", useTool: true },
   integrations:       { role: "main_coding", useTool: true },
-  testing:            { role: "code_review", useTool: true },
-  english:            { role: "tool_use", useTool: true },
-  translation:        { role: "tool_use", useTool: true },
-  localization:       { role: "tool_use", useTool: true },
-  rl:                 { role: "tool_use", useTool: true },
-  reasoning:          { role: "tool_use", useTool: true },
-  optimization:       { role: "tool_use", useTool: true },
+  testing:            { role: "code-review", useTool: true },
+  english:            { role: "general-tool", useTool: true },
+  translation:        { role: "general-tool", useTool: true },
+  localization:       { role: "general-tool", useTool: true },
+  rl:                 { role: "general-tool", useTool: true },
+  reasoning:          { role: "general-tool", useTool: true },
+  optimization:       { role: "general-tool", useTool: true },
 
   // Research
   research:           { role: "research", useTool: false },
   deep_research:      { role: "research", useTool: false },
 
   // Review
-  code_review:        { role: "code_review", useTool: true },
-  review:             { role: "code_review", useTool: true },
+  code_review:        { role: "code-review", useTool: true },
+  review:             { role: "code-review", useTool: true },
 };
 
 /** 默认兜底角色 */
-const DEFAULT_ROLE: TaskRole = "general_chat";
+const DEFAULT_ROLE: TaskRole = "general-chat";
 
 // =============================================================================
 // Token 追踪辅助
@@ -201,7 +201,7 @@ function trackCall(
 const MAX_REQUEST_BYTES = 1 * 1024 * 1024;
 // 上下文 token 上限（粗略估算 1 token ≈ 3 字符）
 const MAX_CONTEXT_CHARS = 600_000;
-// 每个模型的默认重试次数 (ModelCapability 接口未暴露 maxRetries, 这里使用统一默认值)
+// 默认重试次数；当 ModelCapability.maxRetries 未设置时使用
 const DEFAULT_RETRY_ATTEMPTS = 3;
 
 async function callProvider(
@@ -471,9 +471,8 @@ export class MultiPlatformRouter {
     const sortedModels = [...candidates].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
     for (const model of sortedModels) {
-      // Per-model retry: default DEFAULT_RETRY_ATTEMPTS (since ModelCapability doesn't expose maxRetries)
-      // Note: ModelCapability interface lacks maxRetries; we use a constant default for transient-error resilience.
-      const maxRetries = Math.max(1, DEFAULT_RETRY_ATTEMPTS);
+      // Per-model retry: honor the model's own maxRetries, falling back to DEFAULT_RETRY_ATTEMPTS.
+      const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
       let lastError: Error | undefined;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -611,7 +610,7 @@ export class MultiPlatformRouter {
     let lastError: Error | undefined;
 
     for (const model of sortedModels) {
-      const maxRetries = Math.max(1, DEFAULT_RETRY_ATTEMPTS);
+      const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const loopStart = Date.now();

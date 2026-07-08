@@ -6,7 +6,6 @@
  * DO NOT add business logic here. Just import + memoize.
  */
 import type { PromptEngineer } from "../../agents/prompt-engineer.js";
-import type { SkillDefinition } from "../../skills/types.js";
 import { createLazySingleton } from "../../utils/lazy-singleton.js";
 
 const singleton = createLazySingleton<PromptEngineer>(
@@ -21,6 +20,3 @@ export const setPromptEngineerForTest = singleton.setForTest.bind(singleton);
  * SkillPromoter only ever calls generateSkillWithHermes.
  */
 export type PromptEngineerSubset = Pick<PromptEngineer, "generateSkillWithHermes">;
-
-/** Compile-time guard: ensure SkillDefinition stays compatible. */
-export type _Assert = SkillDefinition;

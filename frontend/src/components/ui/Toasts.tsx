@@ -29,11 +29,14 @@ export default function Toasts() {
     <div className="pointer-events-none fixed inset-x-0 top-4 z-[200] flex flex-col items-center gap-2 px-4">
       {toasts.map((t) => {
         const Icon = ICONS[t.type]
+        // Error/warning toasts must be announced assertively; info/success are polite.
+        const isAlert = t.type === 'error' || t.type === 'warning'
         return (
           <div
             key={t.id}
             className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${TONE[t.type]}`}
-            role="status"
+            role={isAlert ? 'alert' : 'status'}
+            aria-live={isAlert ? 'assertive' : 'polite'}
           >
             <Icon className={`mt-0.5 size-4 shrink-0 ${ICON_TONE[t.type]}`} />
             <p className="flex-1 text-sm">{t.message}</p>

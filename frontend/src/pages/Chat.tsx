@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
-  Send, Paperclip, Bot, User, MessageSquare,
+  Send, Bot, User, MessageSquare,
   Clock, Activity, ChevronLeft, ChevronRight,
-  Plus,
+  Plus, Square,
 } from 'lucide-react'
 import {
   ShimmerCard,
   Button,
   InlineEmptyState,
   LoadingDots,
-  Input,
 } from '@/components/ui'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
 import { useApp } from '@/state/useApp'
@@ -216,6 +215,10 @@ export default function Chat() {
     }
   }
 
+  const stop = () => {
+    abortRef.current?.abort()
+  }
+
   return (
     <div className="flex h-full gap-0 fade-in">
       {/* Sessions Sidebar */}
@@ -362,16 +365,7 @@ export default function Chat() {
 
         {/* Input bar */}
         <div className="flex gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            aria-label="Attach"
-            className="hidden h-11 w-11 shrink-0 sm:flex"
-            icon={<Paperclip size={18} />}
-          />
-          <Input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -382,16 +376,28 @@ export default function Chat() {
             }}
             placeholder="Type a message..."
             aria-label="Message input"
-            className="h-11 min-w-0 flex-1"
+            rows={1}
+            className="h-11 min-w-0 flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
           />
-          <Button
-            onClick={() => void send()}
-            loading={sending}
-            disabled={!input.trim()}
-            icon={<Send size={18} />}
-          >
-            <span className="hidden sm:inline">Send</span>
-          </Button>
+          {sending ? (
+            <Button
+              type="button"
+              onClick={stop}
+              variant="secondary"
+              aria-label="Stop generating"
+              icon={<Square size={18} />}
+            >
+              <span className="hidden sm:inline">Stop</span>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void send()}
+              disabled={!input.trim()}
+              icon={<Send size={18} />}
+            >
+              <span className="hidden sm:inline">Send</span>
+            </Button>
+          )}
         </div>
       </div>
     </div>

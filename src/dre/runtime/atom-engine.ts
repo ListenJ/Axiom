@@ -15,6 +15,8 @@
  */
 
 import { eventBus } from "./event-bus.js";
+import { logger } from "../../utils/logger.js";
+import type { Database } from "bun:sqlite";
 
 // ─── Atom Types ────────────────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ class AtomStoreImpl {
     source?: string
     parentId?: string
   }): Atom {
-    const id = `atom_${kind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id = `atom_${kind}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const now = Date.now();
 
     const atom: Atom = {
@@ -309,6 +311,136 @@ class AtomStoreImpl {
       "supports": "supports",
     };
     return inverseMap[type] ?? null;
+  }
+
+  /**
+   * Initialize persistence — create atom table in SQLite.
+   */
+  initPersist(db: Database): void {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS atom (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        content TEXT NOT NULL,
+        metadata TEXT DEFAULT '{}',
+        confidence TEXT DEFAULT 'inferred',
+        source TEXT DEFAULT 'system',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        version INTEGER DEFAULT 1,
+        parent_id TEXT,
+        children TEXT DEFAULT '[]',
+        relations TEXT DEFAULT '[]'
+      )
+    `);
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_atom_kind ON atom(kind)
+    `);
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_atom_source ON atom(source)
+    `);
+    // 旧表无 relations 列时补列 (ALTER TABLE 幂等: 失败说明列已存在)
+    try {
+      db.run(`ALTER TABLE atom ADD COLUMN relations TEXT DEFAULT '[]'`);
+    } catch {
+      // column already exists — expected on subsequent runs
+    }
+    logger.info("[AtomEngine] Persistence initialized");
+  }
+
+  /**
+   * Persist all atoms to SQLite (upsert).
+   */
+  persist(db: Database): void {
+    const stmt = db.prepare(`
+      INSERT INTO atom (id, kind, content, metadata, confidence, source, created_at, updated_at, version, parent_id, children, relations)
+      VALUES ($id, $kind, $content, $metadata, $confidence, $source, $createdAt, $updatedAt, $version, $parentId, $children, $relations)
+      ON CONFLICT(id) DO UPDATE SET
+        content = excluded.content,
+        metadata = excluded.metadata,
+        version = excluded.version,
+        updated_at = excluded.updated_at,
+        relations = excluded.relations
+    `);
+
+    const tx = db.transaction(() => {
+      for (const atom of this.atoms.values()) {
+        stmt.run({
+          $id: atom.id,
+          $kind: atom.kind,
+          $content: atom.content,
+          $metadata: JSON.stringify(atom.metadata),
+          $confidence: atom.confidence,
+          $source: atom.source,
+          $createdAt: atom.createdAt,
+          $updatedAt: atom.updatedAt,
+          $version: atom.version,
+          $parentId: atom.parentId ?? null,
+          $children: JSON.stringify(atom.children),
+          $relations: JSON.stringify(atom.relations),
+        });
+      }
+    });
+    tx();
+    logger.info("[AtomEngine] Persisted", { count: this.atoms.size });
+  }
+
+  /**
+   * Load atoms from SQLite into memory.
+   */
+  load(db: Database): number {
+    const rows = db.query(`
+      SELECT * FROM atom ORDER BY created_at ASC
+    `).all() as Array<{
+      id: string; kind: string; content: string; metadata: string;
+      confidence: string; source: string; created_at: number; updated_at: number;
+      version: number; parent_id: string | null; children: string; relations: string;
+    }>;
+
+    let loaded = 0;
+    const validKinds = new Set(["function","class","interface","type","variable","statement","expression","entity","fact","rule","concept","procedure","document","section","paragraph","sentence","goal","plan","step","action","observation","experience","belief","insight","event","state","constraint","relation"]);
+    const validConfidences = new Set(["certain","inferred","uncertain","hypothetical"]);
+
+    for (const row of rows) {
+      if (!validKinds.has(row.kind)) {
+        logger.warn("[AtomEngine] Skipping atom with invalid kind", { id: row.id, kind: row.kind });
+        continue;
+      }
+      if (!validConfidences.has(row.confidence)) {
+        logger.warn("[AtomEngine] Skipping atom with invalid confidence", { id: row.id, confidence: row.confidence });
+        continue;
+      }
+
+      let relations: AtomRelation[] = [];
+      try {
+        relations = JSON.parse(row.relations ?? "[]") as AtomRelation[];
+      } catch {
+        // malformed JSON — leave empty
+      }
+
+      const atom: Atom = {
+        id: row.id,
+        kind: row.kind as AtomKind,
+        content: row.content,
+        metadata: JSON.parse(row.metadata),
+        relations,
+        confidence: row.confidence as AtomConfidence,
+        source: row.source,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        version: row.version,
+        parentId: row.parent_id ?? undefined,
+        children: JSON.parse(row.children),
+      };
+      this.atoms.set(atom.id, atom);
+      this.addToIndex(this.byKind, atom.kind, atom.id);
+      this.addToIndex(this.bySource, atom.source, atom.id);
+      if (atom.parentId) this.addToIndex(this.byParent, atom.parentId, atom.id);
+      loaded++;
+    }
+
+    logger.info("[AtomEngine] Loaded from SQLite", { count: loaded });
+    return loaded;
   }
 }
 

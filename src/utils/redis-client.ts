@@ -26,7 +26,14 @@ export class RedisClient {
   private socket: any | null = null;
   private config: RedisConfig;
   private connected = false;
-  private pendingResolves = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void }>();
+  // FIFO queue of in-flight commands, in the order they were written to the
+  // socket. RESP2 replies arrive strictly in request order on a single
+  // connection, so resolving from the front of the queue is correct.
+  private pendingQueue: Array<{
+    cmdId: number;
+    resolve: (val: unknown) => void;
+    reject: (err: Error) => void;
+  }> = [];
   private cmdId = 0;
   private buffer = "";
   private pushHandler?: (channel: string, message: string) => void;
@@ -200,7 +207,7 @@ export class RedisClient {
     const cmdId = ++this.cmdId;
 
     return new Promise((resolve, reject) => {
-      this.pendingResolves.set(cmdId, { resolve, reject });
+      this.pendingQueue.push({ cmdId, resolve, reject });
 
       // 构建 RESP 命令
       const parts = [command, ...args];
@@ -231,12 +238,10 @@ export class RedisClient {
         }
       }
 
-      // 找到下一个 pending resolve
-      const nextId = Array.from(this.pendingResolves.keys())[0];
-      if (nextId !== undefined) {
-        const { resolve, reject } = this.pendingResolves.get(nextId)!;
-        this.pendingResolves.delete(nextId);
-
+      // Resolve the oldest in-flight command (FIFO — matches RESP2 ordering).
+      const pending = this.pendingQueue.shift();
+      if (pending) {
+        const { resolve, reject } = pending;
         if (result instanceof Error) {
           reject(result);
         } else {

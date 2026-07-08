@@ -190,7 +190,7 @@ export class KnowledgeAccessLayer {
       `;
 
       const pattern = `%${intent.query}%`;
-      const params: unknown[] = [pattern, pattern, pattern];
+      const params: (string | number)[] = [pattern, pattern, pattern];
       if (intent.typeFilter) {
         params.push(...intent.typeFilter);
       }
@@ -235,7 +235,7 @@ export class KnowledgeAccessLayer {
       `;
 
       const pattern = `%${intent.query}%`;
-      const params: unknown[] = [pattern, pattern];
+      const params: (string | number)[] = [pattern, pattern];
       if (intent.typeFilter) {
         params.push(...intent.typeFilter);
       }

@@ -75,7 +75,7 @@ export interface RateDistortionConfig {
 export class RateDistortionCompressor {
   private readonly config: Required<RateDistortionConfig>;
 
-  constructor(config: RateDistortionConfig = {}) {
+  constructor(config: Partial<RateDistortionConfig> = {}) {
     this.config = {
       maxDistortion: config.maxDistortion ?? 0.15,
       minRate: config.minRate ?? 0.5,

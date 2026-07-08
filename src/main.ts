@@ -69,7 +69,7 @@ if (nativeEnabled) {
 // ══════════════════════════════════════════════════════════════�?
 import { getConfigCenter } from "./core/config-center.js";
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
-import { getRouterEngine } from "./core/router-engine.js";
+import { getHttpRouter } from "./core/http-router.js";
 import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 
@@ -118,7 +118,7 @@ const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
 const startupTime = Date.now();
 
-logger.info("Axiom AI Agent 启动�?, {
+logger.info("Axiom AI Agent 启动", {
   version: "2.3.0",
   edition,
   native: isNativeReady(),
@@ -317,9 +317,9 @@ function stopHeartbeat(): void {
 }
 
 // ===== 注册 Trie 路由 (启动时一次性注�? =====
-const routerEngine = getRouterEngine();
-registerTrieRoutes(routerEngine);
-logger.info("[RouterEngine] Trie routes registered", { count: routerEngine.getRoutes().length });
+const httpRouter = getHttpRouter();
+registerTrieRoutes(httpRouter);
+logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes().length });
 
 // ===== HTTP 服务 =====
 const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: true });
@@ -472,7 +472,7 @@ const server = Bun.serve({
 
       // 使用高性能路由引擎 (O(1) Trie + 请求缓存 + 性能分析)
       if (!response) {
-        response = await routerEngine.execute(ctx);
+        response = await httpRouter.execute(ctx);
       }
 
       // 回退到传统路由系�?

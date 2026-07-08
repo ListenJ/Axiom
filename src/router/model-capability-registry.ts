@@ -29,6 +29,7 @@ export interface ModelCapability {
   tags: string[];
   priority?: number;
   timeout?: number;
+  maxRetries?: number;
 }
 
 export interface AssignmentResult {
@@ -52,6 +53,7 @@ function toCapability(um: UnifiedModel): ModelCapability {
     tags: um.tags,
     priority: um.priority,
     timeout: um.timeout,
+    maxRetries: um.maxRetries,
   };
 }
 

@@ -1,12 +1,14 @@
-﻿# 🦅 Axiom Runtime v4.0.0
+﻿# Axiom Runtime v3.1
 
-> 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)，融合世界模型与认知引擎。LLM 从推理主体降级为 Cognitive Accelerator，确定性推理为核心。
+> 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
-> **认知运行时 v4.0.0**: 认知闭环 + 品牌重塑为 Axiom Runtime + 577 tests
+> **93 tests | 0 fail | 22 module groups | 133 MCP tools | 8 Persona modes**
+
+> 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >
-> 📖 [项目哲学](docs/PHILOSOPHY.md) — 了解 Axiom 的设计理念与长期方向
+> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/133 MCP 工具/配置/测试覆盖
 >
-> 📚 [综合报告与开发指南](docs/COMPREHENSIVE-GUIDE.md) — 架构/模块/API/测试/性能 完整参考
+> 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
 
 ## 架构概览
 

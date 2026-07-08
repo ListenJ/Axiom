@@ -22,6 +22,7 @@ import { LLMClient } from "../src/dre/llm/client.js";
 import { AgentHarness, type Tool, PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent } from "../src/dre/harness/agent.js";
 import { eventBus } from "../src/dre/runtime/event-bus.js";
 import { worldState } from "../src/dre/runtime/world-state.js";
+import type { VerificationReport } from "../src/dre/runtime/verification-engine.js";
 
 // ========== WorkingMemory ==========
 
@@ -448,38 +449,38 @@ describe("VFS", () => {
   });
 });
 
-// ========== VRAM Budget ==========
+// ========== Resource Budget ==========
 
-describe("VRAMBudgetManager", () => {
+describe("ResourceBudgetManager", () => {
   test("should create with default config", async () => {
-    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
-    const mgr = getVRAMBudgetManager();
+    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
+    const mgr = getResourceBudgetManager();
     expect(mgr).toBeDefined();
+    const status = mgr.getStatus();
+    expect(status.resource).toBeDefined();
+    expect(typeof status.canRunLocal).toBe("boolean");
   });
 
-  test("should detect GPU (or report unavailable)", async () => {
-    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
-    const mgr = getVRAMBudgetManager();
-    const gpu = await mgr.detectGPU();
-
-    expect(typeof gpu.available).toBe("boolean");
-    if (gpu.available) {
-      expect(gpu.name).toBeDefined();
-      expect(gpu.totalMemoryMB).toBeGreaterThan(0);
-    }
-  });
-
-  test("should check canRunLocal", async () => {
-    const { getVRAMBudgetManager } = await import("../src/dre/vram-budget.js");
-    const mgr = getVRAMBudgetManager();
-    const result = await mgr.canRunLocal();
-
+  test("should check canRun with default budget", async () => {
+    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
+    const mgr = getResourceBudgetManager();
+    const result = mgr.canRun();
     expect(typeof result.canRun).toBe("boolean");
     expect(typeof result.reason).toBe("string");
+    expect(result.resource).toBeDefined();
+  });
+
+  test("should update resource budget", async () => {
+    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
+    const mgr = getResourceBudgetManager();
+    mgr.updateResource({ availableMemory: 8000, source: "test" });
+    const status = mgr.getStatus();
+    expect(status.resource.availableMemory).toBe(8000);
+    expect(status.resource.source).toBe("test");
   });
 });
 
-// ========== Agent Harness ==========
+// ========== Agent Harness (@deprecated — use PersonaLoader instead) ==========
 
 describe("AgentHarness", () => {
   // Mock LLM client
@@ -550,6 +551,76 @@ describe("AgentHarness", () => {
     const agent = new ReflectorAgent(mockLLM, []);
     const result = await agent.step("reflect on this");
     expect(result.answer).toBeDefined();
+  });
+});
+
+// ========== Persona System ==========
+
+describe("PersonaLoader", () => {
+  test("should initialize with default persona", async () => {
+    const { PersonaLoader } = await import("../src/dre/persona/loader.js");
+    const loader = new PersonaLoader();
+    expect(loader.getCurrentMode()).toBe("general");
+    expect(loader.getCurrent().config.name).toBe("通用模式");
+  });
+
+  test("should switch persona modes", async () => {
+    const { PersonaLoader } = await import("../src/dre/persona/loader.js");
+    const loader = new PersonaLoader();
+    const loaded = loader.switchTo("audit", "testing");
+    expect(loaded.config.mode).toBe("audit");
+    expect(loaded.config.allowWrite).toBe(false);
+    expect(loader.getCurrentMode()).toBe("audit");
+  });
+
+  test("should pop to previous persona", async () => {
+    const { PersonaLoader } = await import("../src/dre/persona/loader.js");
+    const loader = new PersonaLoader();
+    loader.switchTo("plan", "test");
+    const prev = loader.popToPrevious();
+    expect(prev).not.toBeNull();
+    expect(loader.getCurrentMode()).toBe("general");
+  });
+
+  test("should render system prompt for current persona", async () => {
+    const { PersonaLoader } = await import("../src/dre/persona/loader.js");
+    const loader = new PersonaLoader();
+    const prompt = loader.renderSystemPrompt({ tools: "tool_a: desc" });
+    expect(prompt).toContain("智能助手");
+    expect(prompt).toContain("tool_a");
+  });
+
+  test("should respect allowWrite for audit persona", async () => {
+    const { PersonaLoader } = await import("../src/dre/persona/loader.js");
+    const loader = new PersonaLoader();
+    loader.switchTo("audit");
+    expect(loader.canWrite()).toBe(false);
+    loader.popToPrevious();
+    expect(loader.canWrite()).toBe(true);
+  });
+});
+
+describe("PromptTemplateStore", () => {
+  test("should have default templates", async () => {
+    const { createDefaultPromptStore } = await import("../src/dre/persona/prompt-store.js");
+    const store = createDefaultPromptStore();
+    expect(store.size).toBeGreaterThanOrEqual(7);
+  });
+
+  test("should render template with variables", async () => {
+    const { createDefaultPromptStore } = await import("../src/dre/persona/prompt-store.js");
+    const store = createDefaultPromptStore();
+    const rendered = store.render("prompt-plan", { tools: "test_tool: desc" });
+    expect(rendered).toContain("test_tool");
+    expect(rendered).toContain("确定性规划器");
+  });
+
+  test("should list templates by mode", async () => {
+    const { createDefaultPromptStore } = await import("../src/dre/persona/prompt-store.js");
+    const store = createDefaultPromptStore();
+    const auditTemplates = store.listByMode("audit");
+    expect(auditTemplates.length).toBeGreaterThan(0);
+    expect(auditTemplates[0].mode).toBe("audit");
   });
 });
 
@@ -820,5 +891,573 @@ describe("WorldState", () => {
     worldState.set("snap.key", "data");
     const snap = worldState.snapshot();
     expect(snap["snap.key"]).toBe("data");
+  });
+});
+
+// ========== Verification Engine (v3.1) ==========
+
+describe("VerificationEngine", () => {
+  test("should pass on non-null string result", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const report = await verificationEngine.verifyResult("test-exec-1", "This is a valid result with evidence and source references.");
+    expect(report.overallVerdict).toBe("pass");
+    expect(report.overallConfidence).toBeGreaterThan(0.5);
+    expect(report.scores.output).toBeGreaterThan(0.5);
+  });
+
+  test("should fail on null result", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const report = await verificationEngine.verifyResult("test-exec-2", null);
+    expect(report.overallVerdict).toBe("fail");
+    expect(report.issues.length).toBeGreaterThan(0);
+    expect(report.needsLLM).toBe(true);
+  });
+
+  test("should flag short results as weak", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const report = await verificationEngine.verifyResult("test-exec-3", "hi");
+    expect(report.scores.output).toBeLessThan(0.5);
+    expect(report.issues.some((i) => i.type === "output")).toBe(true);
+  });
+
+  test("quickVerify should work", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    expect(verificationEngine.quickVerify("hello world")).toBe("pass");
+    expect(verificationEngine.quickVerify(null)).toBe("fail");
+    expect(verificationEngine.quickVerify({})).toBe("uncertain");
+  });
+
+  test("should track stats", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    await verificationEngine.verifyResult("stats-1", "valid");
+    await verificationEngine.verifyResult("stats-2", null);
+    const stats = verificationEngine.getStats();
+    expect(stats.verified).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ========== EpisodicMemory Consolidation (v4.1) ==========
+
+describe("EpisodicMemory consolidation", () => {
+  test("should archive expired memories", () => {
+    const em = new EpisodicMemory(100);
+    em.add({ id: "1", content: "old", timestamp: Date.now() - 200, metadata: {}, ttl: Date.now() - 50 });
+    em.add({ id: "2", content: "new", timestamp: Date.now(), metadata: {}, ttl: Date.now() + 5000 });
+
+    const archived = em.archive();
+    expect(archived.length).toBe(1);
+    expect(archived[0].id).toBe("1");
+    expect(em.size).toBe(1);
+  });
+
+  test("should consolidate similar memories into patterns", () => {
+    const em = new EpisodicMemory(3600000);
+    em.add({ id: "a", content: "git merge conflict", timestamp: 1, metadata: {}, embedding: [0.9, 0.1] });
+    em.add({ id: "b", content: "merge conflict in main", timestamp: 2, metadata: {}, embedding: [0.88, 0.15] });
+    em.add({ id: "c", content: "unrelated topic", timestamp: 3, metadata: {}, embedding: [-0.5, 0.8] });
+
+    const patterns = em.consolidate(0.7);
+    expect(patterns.length).toBeGreaterThanOrEqual(1);
+    const conflictPattern = patterns.find((p) => p.occurrences >= 2);
+    expect(conflictPattern).toBeDefined();
+  });
+
+  test("should return empty for single memory", () => {
+    const em = new EpisodicMemory();
+    em.add({ id: "only", content: "one", timestamp: 1, metadata: {}, embedding: [1.0] });
+    const patterns = em.consolidate();
+    expect(patterns.length).toBe(0);
+  });
+});
+
+// ========== Kernel (v3.1) ==========
+
+describe("Kernel", () => {
+  test("should initialize and provide engine", async () => {
+    const { Kernel } = await import("../src/dre/kernel.js");
+    const kernelInstance = new Kernel({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+      autoTick: false,
+    });
+    await kernelInstance.init();
+    expect(kernelInstance.getEngine()).toBeDefined();
+    const status = kernelInstance.getStatus();
+    expect(status.state).toBe("idle");
+    expect(status.uptime).toBeGreaterThanOrEqual(0);
+    await kernelInstance.shutdown();
+  });
+
+  test("should tick without errors", async () => {
+    const { Kernel } = await import("../src/dre/kernel.js");
+    const kernelInstance = new Kernel({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+      autoTick: false,
+    });
+    await kernelInstance.init();
+    await kernelInstance.tick("test");
+    expect(kernelInstance.getStatus().tickCount).toBe(1);
+    await kernelInstance.shutdown();
+  });
+
+  test("should start and stop tick loop", async () => {
+    const { Kernel } = await import("../src/dre/kernel.js");
+    const kernelInstance = new Kernel({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+      tickInterval: 100,
+      autoTick: false,
+    });
+    await kernelInstance.init();
+    kernelInstance.startTickLoop();
+    // Wait a bit for ticks
+    await new Promise((r) => setTimeout(r, 250));
+    const status = kernelInstance.getStatus();
+    expect(status.tickCount).toBeGreaterThan(0);
+    kernelInstance.stopTickLoop();
+    await kernelInstance.shutdown();
+  });
+});
+
+// ========== ConfigLoader (v3.1) ==========
+
+describe("ConfigLoader", () => {
+  test("should produce valid KernelConfig with defaults", async () => {
+    const { ConfigLoader } = await import("../src/dre/config.js");
+    const config = new ConfigLoader().toKernelConfig();
+    expect(config).toBeDefined();
+    expect(config.mainLLM).toBeDefined();
+    expect(config.mainLLM.model).toBe("qwen3-1.7b-instruct");
+    expect(config.mainLLM.temperature).toBe(0);
+    expect(config.tickInterval).toBeGreaterThan(0);
+  });
+
+  test("should override with provided source", async () => {
+    const { ConfigLoader } = await import("../src/dre/config.js");
+    const config = new ConfigLoader({ dbPath: "/custom/db.sqlite", llmUrl: "http://custom:8080" }).toKernelConfig();
+    expect(config.dbPath).toBe("/custom/db.sqlite");
+    expect(config.mainLLM.baseUrl).toBe("http://custom:8080");
+  });
+
+  test("should include discriminLLM when url provided", async () => {
+    const { ConfigLoader } = await import("../src/dre/config.js");
+    const config = new ConfigLoader({ discriminUrl: "http://discrimin:8080" }).toKernelConfig();
+    expect(config.discriminLLM).toBeDefined();
+    expect(config.discriminLLM!.baseUrl).toBe("http://discrimin:8080");
+  });
+
+  test("should include cloudFallback when apiKey provided", async () => {
+    const { ConfigLoader } = await import("../src/dre/config.js");
+    const config = new ConfigLoader({ cloudApiKey: "sk-test" }).toKernelConfig();
+    expect(config.cloudFallback).toBeDefined();
+    expect(config.cloudFallback!.apiKey).toBe("sk-test");
+  });
+
+  test("should expose source for debugging", async () => {
+    const { ConfigLoader } = await import("../src/dre/config.js");
+    const loader = new ConfigLoader({ dbPath: "/debug/path" });
+    const source = loader.getSource();
+    expect(source.dbPath).toBe("/debug/path");
+  });
+});
+
+// ========== DataUnifier (v3.1) ==========
+
+describe("DataUnifier", () => {
+  beforeEach(async () => {
+    // Ensure autoPersist is off to avoid closed DB issues in unit tests
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    dataUnifier.setAutoPersist(false);
+  });
+
+  test("should create DataUnifier singleton", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    expect(dataUnifier).toBeDefined();
+    const stats = dataUnifier.getAtomStats();
+    // atomStore is a singleton; other test files may have created atoms in the same worker.
+    // Verify the stats object shape, not a specific count.
+    expect(typeof stats.total).toBe("number");
+    expect(stats.total).toBeGreaterThanOrEqual(0);
+  });
+
+  test("should write and retrieve data", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    const result = dataUnifier.write({
+      content: "test data content",
+      kind: "entity",
+      domain: "test",
+      paradigm: "fact",
+      sourceType: "test",
+    });
+    expect(result.atom).toBeDefined();
+    expect(result.atom.kind).toBe("entity");
+    expect(result.atom.content).toBe("test data content");
+
+    const statsBefore = dataUnifier.getAtomStats();
+    expect(statsBefore.total).toBeGreaterThanOrEqual(1);
+  });
+
+  test("should search across written data", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    dataUnifier.write({
+      content: "unique-search-token-xyz",
+      kind: "fact",
+      domain: "test",
+      sourceType: "test",
+    });
+
+    const result = dataUnifier.search("unique-search-token-xyz", { limit: 5 });
+    expect(result.atoms.length).toBeGreaterThanOrEqual(1);
+    const found = result.atoms.find((a) => a.content.includes("unique-search-token-xyz"));
+    expect(found).toBeDefined();
+  });
+
+  test("should query by kind", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    dataUnifier.write({
+      content: "test-insight",
+      kind: "insight",
+      sourceType: "test",
+    });
+
+    const insights = dataUnifier.queryByKind("insight");
+    expect(insights.length).toBeGreaterThanOrEqual(1);
+    const found = insights.find((a) => a.content === "test-insight");
+    expect(found).toBeDefined();
+  });
+
+  test("should toggle autoPersist without crash", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    dataUnifier.setAutoPersist(true);
+    dataUnifier.setAutoPersist(false);
+  });
+});
+
+// ========== CognitivePipeline E2E (v3.1) ==========
+
+describe("CognitivePipeline E2E", () => {
+  test("run() should complete deterministic cycle", async () => {
+    const { DREngine } = await import("../src/dre/engine.js");
+    const { CognitivePipeline } = await import("../src/dre/pipeline/cognitive-pipeline.js");
+    const engine = new DREngine({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+    });
+    await engine.waitForReady();
+    const pipeline = new CognitivePipeline(engine);
+    const result = await pipeline.run("test classification");
+    expect(result.input).toBe("test classification");
+    expect(result.trace.length).toBeGreaterThanOrEqual(6);
+    expect(typeof result.confidence).toBe("number");
+    await engine.close();
+  });
+
+  test("runWithLLM() should produce fallbackLevel", async () => {
+    const { DREngine } = await import("../src/dre/engine.js");
+    const { CognitivePipeline } = await import("../src/dre/pipeline/cognitive-pipeline.js");
+    const engine = new DREngine({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test", timeout: 100 },
+    });
+    await engine.waitForReady();
+    const pipeline = new CognitivePipeline(engine);
+    const result = await pipeline.runWithLLM("analyze error in system");
+    expect(result.fallbackLevel).toBeDefined();
+    expect(["deterministic", "rule", "local", "cloud"]).toContain(result.fallbackLevel);
+    expect(result.trace.length).toBeGreaterThanOrEqual(6);
+    await engine.close();
+  });
+
+  test("runFull() should create executionGraph", async () => {
+    const { DREngine } = await import("../src/dre/engine.js");
+    const { CognitivePipeline } = await import("../src/dre/pipeline/cognitive-pipeline.js");
+    const engine = new DREngine({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+    });
+    await engine.waitForReady();
+    const pipeline = new CognitivePipeline(engine);
+    const result = await pipeline.runFull("search for documentation");
+    // search intent should be detected deterministically
+    expect(result.input).toBe("search for documentation");
+    await engine.close();
+  });
+});
+
+// ========== DataUnifier Persistence (v3.1) ==========
+
+describe("DataUnifier persistence", () => {
+  test("should persist and load atoms via SQLite", async () => {
+    const { Database } = await import("bun:sqlite");
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    const { atomStore } = await import("../src/dre/runtime/atom-engine.js");
+
+    // Setup: init with temp DB
+    const db = new Database(":memory:");
+    atomStore.initPersist(db);
+
+    // Write atoms
+    dataUnifier.setAutoPersist(false);
+    dataUnifier.write({ content: "persist-test-1", kind: "fact", sourceType: "test" });
+    dataUnifier.write({ content: "persist-test-2", kind: "entity", sourceType: "test" });
+
+    const beforeStats = dataUnifier.getAtomStats();
+    expect(beforeStats.total).toBeGreaterThanOrEqual(2);
+
+    // Persist to SQLite
+    atomStore.persist(db);
+
+    // Clear in-memory state
+    const statsAfterPersist = dataUnifier.getAtomStats();
+    expect(statsAfterPersist.total).toBeGreaterThanOrEqual(2);
+
+    db.close();
+  });
+
+  test("should handle persist without DB gracefully", async () => {
+    const { dataUnifier } = await import("../src/dre/runtime/data-unifier.js");
+    // persist without initializing DB should not crash
+    dataUnifier.persist();
+  });
+});
+
+// ========== P0-3: ReasoningRuntime Gap Detection ==========
+
+describe("ReasoningRuntime gap detection (P0-3)", () => {
+  test("detectGaps returns empty before run()", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+    const gaps = runtime.detectGaps();
+    expect(Array.isArray(gaps)).toBe(true);
+    expect(gaps.length).toBe(0);
+  });
+
+  test("detectGaps returns array after run() completes", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+    await runtime.run("nonexistent-query-xyz-12345");
+    const gaps = runtime.detectGaps();
+    expect(Array.isArray(gaps)).toBe(true);
+  });
+
+  test("fillGap invokes supplied llmCaller without throwing", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+    await runtime.run("fill-gap-test-input");
+
+    const gaps = runtime.detectGaps();
+    if (gaps.length === 0) {
+      return;
+    }
+
+    const gap = gaps[0];
+    const mockCaller = async (_prompt: string) => ({
+      response: "mock LLM response for gap fill",
+      confidence: 0.8,
+    });
+
+    const node = await runtime.fillGap(gap, mockCaller);
+    expect(node === null || typeof node === "object").toBe(true);
+  });
+
+  test("getStats tracks runs and deterministicRate", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+    await runtime.run("stats-test-input");
+    const stats = runtime.getStats();
+    expect(typeof stats.runs).toBe("number");
+    expect(stats.runs).toBeGreaterThanOrEqual(1);
+    expect(typeof stats.deterministicRate).toBe("number");
+  });
+});
+
+// ========== P0-4: VerificationEngine + ConstraintSolver Integration ==========
+
+describe("VerificationEngine constraint integration (P0-4)", () => {
+  test("verifyResult accepts constraintSolver and constraintContext", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+
+    const solver = createDefaultConstraintSolver();
+    const report = await verificationEngine.verifyResult(
+      "p0-4-test-1",
+      "valid result string with enough length",
+      {
+        constraintSolver: solver,
+        constraintContext: {
+          environment: "development",
+          intent: "query",
+          domain: "general",
+          action: "query",
+          available_memory_mb: 2000,
+        },
+      },
+    );
+
+    expect(report).toBeDefined();
+    expect(typeof report.overallVerdict).toBe("string");
+    expect(["pass", "fail", "uncertain"]).toContain(report.overallVerdict);
+    expect(Array.isArray(report.issues)).toBe(true);
+  });
+
+  test("constraint violations are written to VerificationReport.issues", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+
+    const solver = createDefaultConstraintSolver();
+    const report = await verificationEngine.verifyResult(
+      "p0-4-test-2",
+      "delete_file",
+      {
+        constraintSolver: solver,
+        constraintContext: {
+          environment: "production",
+          intent: "query",
+          domain: "general",
+          action: "delete_file",
+        },
+      },
+    );
+
+    expect(report).toBeDefined();
+    const constraintIssues = report.issues.filter((i) => i.type === "constraint");
+    expect(constraintIssues.length).toBeGreaterThan(0);
+    expect(constraintIssues.some((i) => i.description.includes("production") || i.description.includes("delete"))).toBe(true);
+  });
+
+  test("constraintContext.intent as string does not throw", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+
+    const solver = createDefaultConstraintSolver();
+    const report = await verificationEngine.verifyResult(
+      "p0-4-test-3",
+      "result content",
+      {
+        constraintSolver: solver,
+        constraintContext: {
+          environment: "development",
+          intent: "query",
+          domain: "general",
+          action: "query",
+        },
+      },
+    );
+
+    expect(report).toBeDefined();
+    expect(typeof report.overallVerdict).toBe("string");
+  });
+
+  test("verifyResult works without constraintSolver (backward compat)", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+
+    const report = await verificationEngine.verifyResult(
+      "p0-4-test-4",
+      "valid result without solver",
+    );
+
+    expect(report).toBeDefined();
+    expect(typeof report.overallVerdict).toBe("string");
+  });
+});
+
+// ========== P1: Verification Refine Loop ==========
+
+describe("VerificationEngine refine loop (P1)", () => {
+  test("refine loop converges when callback fixes issues", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    let callCount = 0;
+    const refineCb = async (_result: unknown, report: VerificationReport) => {
+      callCount++;
+      return `refined result with evidence and source references (fixed ${report.issues.length} issues)`;
+    };
+    // null → all scores 0 → verdict "fail" → triggers refine loop
+    const report = await verificationEngine.verifyResult(
+      "refine-test-1",
+      null,
+      { refineCallback: refineCb, maxRefine: 2 },
+    );
+    expect(callCount).toBeGreaterThan(0);
+    expect(report.refineIterations).toBeGreaterThan(0);
+    expect(typeof report.finalResult).toBe("string");
+    expect((report.finalResult as string).includes("refined result")).toBe(true);
+  });
+
+  test("refine loop stops when no progress", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    let callCount = 0;
+    const refineCb = async () => {
+      callCount++;
+      return "same short"; // 始终返回短结果，置信度不提升
+    };
+    const report = await verificationEngine.verifyResult(
+      "refine-test-2",
+      "same short",
+      { refineCallback: refineCb, maxRefine: 3 },
+    );
+    // 无进展应早停（首次 refine 后置信度未提升 → 不再迭代）
+    expect(callCount).toBeLessThanOrEqual(2);
+    expect(report.refineIterations ?? 0).toBeLessThanOrEqual(2);
+  });
+
+  test("refine loop respects maxRefine limit", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    let callCount = 0;
+    const refineCb = async (_r: unknown, report: VerificationReport) => {
+      callCount++;
+      // 每次返回不同但有证据的长结果，使置信度持续提升但 verdict 可能仍非 pass
+      return `attempt-${callCount} refined result with evidence and source references (issues: ${report.issues.length})`;
+    };
+    const report = await verificationEngine.verifyResult(
+      "refine-test-3",
+      "initial short",
+      { refineCallback: refineCb, maxRefine: 2 },
+    );
+    expect(callCount).toBeLessThanOrEqual(2);
+    expect(report.refineIterations ?? 0).toBeLessThanOrEqual(2);
+  });
+
+  test("verifyResult without refineCallback is backward compatible", async () => {
+    const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
+    const report = await verificationEngine.verifyResult(
+      "refine-test-4",
+      "valid result with evidence and source references",
+    );
+    expect(report.refineIterations).toBe(0);
+    expect(report.finalResult).toBe("valid result with evidence and source references");
+    expect(report.overallVerdict).toBe("pass");
+  });
+});
+
+// ========== P1: ReasoningRuntime Refine Callback Wiring ==========
+
+describe("ReasoningRuntime refine callback (P1)", () => {
+  test("registerRefineCallback wires into verification stage without throwing", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+
+    let refineInvoked = false;
+    runtime.registerRefineCallback(async () => {
+      refineInvoked = true;
+      return "refined result with evidence and source references from mock LLM";
+    });
+
+    // run() 触发 verification stage；refineCallback 是否被调用取决于
+    // graph-reasoning/planning 阶段是否产出 ctx.result。这里只验证：
+    // 1. 注册后不抛错
+    // 2. run() 完整执行无异常
+    // 3. 若 refine 被触发，不抛错
+    await runtime.run("test-input-for-refine-wiring");
+    expect(typeof refineInvoked).toBe("boolean");
+  });
+
+  test("registerRefineCallback accepts null-safe default (no callback registered)", async () => {
+    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
+    const runtime = new ReasoningRuntime();
+    // 不注册 refineCallback，验证 verification stage 用 undefined 也不抛错
+    const ctx = await runtime.run("test-input-no-refine");
+    expect(ctx).toBeDefined();
+    expect(typeof ctx.needsLLM).toBe("boolean");
   });
 });

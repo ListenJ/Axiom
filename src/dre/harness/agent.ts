@@ -1,13 +1,14 @@
 /**
  * DRE Agent Harness
  *
- * 借鉴 Anthropic Claude Agent SDK / OpenAI Codex 的 harness 设计
+ * @deprecated 使用 src/dre/persona/ PersonaLoader + PromptTemplateStore 替代。
+ * 保留仅用于向后兼容。
  *
  * Agent 类型:
- * - PlannerAgent: 确定性规划器
- * - CoderAgent: Codex 风格沙箱执行
- * - RetrieverAgent: 检索 Agent
- * - ReflectorAgent: 反思 Agent
+ * - PlannerAgent → Persona "plan" mode + prompt-plan 模板
+ * - CoderAgent → Persona "code" mode + prompt-code 模板
+ * - RetrieverAgent → Persona "retrieve" mode + prompt-retrieve 模板
+ * - ReflectorAgent → Persona "reflect" mode + prompt-reflect 模板
  */
 
 import type { LLMClient } from "../llm/client.js";

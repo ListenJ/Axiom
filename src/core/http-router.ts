@@ -61,7 +61,7 @@ interface TrieNode {
 // 高性能路由引擎
 // ═══════════════════════════════════════════════════════════════
 
-export class RouterEngine {
+export class HttpRouter {
   private root = new Map<string, TrieNode>(); // method -> trie root
   private cache: Cache<Response>;
   private perfLog = new Map<string, number[]>(); // endpoint -> latencies
@@ -354,16 +354,16 @@ export class RouterEngine {
 // 全局实例
 // ═══════════════════════════════════════════════════════════════
 
-let globalEngine: RouterEngine | null = null;
+let globalEngine: HttpRouter | null = null;
 
-export function getRouterEngine(): RouterEngine {
+export function getHttpRouter(): HttpRouter {
   if (!globalEngine) {
-    globalEngine = new RouterEngine();
+    globalEngine = new HttpRouter();
   }
   return globalEngine;
 }
 
 /** 重置引擎（用于测试） */
-export function resetRouterEngine(): void {
+export function resetHttpRouter(): void {
   globalEngine = null;
 }

@@ -139,7 +139,41 @@ describe("ContextEngine", () => {
       const stats = contextEngine.getStats();
       expect(typeof stats.cached).toBe("boolean");
       expect(typeof stats.cacheAge).toBe("number");
-      expect(typeof stats.atomCount).toBe("number");
+      expect(typeof stats.cacheHitRate).toBe("number");
+      expect(typeof stats.buildCount).toBe("number");
+      expect(typeof stats.memoryCount).toBe("number");
+    });
+  });
+
+  describe("buildRaw()", () => {
+    it("returns a valid RuntimeContext without cache", () => {
+      contextEngine.invalidateCache();
+      const ctx = contextEngine.buildRaw("raw-test-input");
+      expect(ctx.input).toBe("raw-test-input");
+      expect(Array.isArray(ctx.atoms)).toBe(true);
+      expect(ctx.system).toBeDefined();
+    });
+
+    it("does not populate cache (subsequent build() still rebuilds)", () => {
+      contextEngine.invalidateCache();
+      contextEngine.buildRaw("raw-no-cache");
+      expect(contextEngine.getStats().cached).toBe(false);
+
+      worldState.setGoal("build-raw-test-goal", "verify rebuild", "active");
+      const builtCtx = contextEngine.build("after-raw");
+      expect(builtCtx.goals.some((g) => g.description === "verify rebuild")).toBe(true);
+    });
+
+    it("reflects fresh world state on each call", () => {
+      contextEngine.invalidateCache();
+      const ctx1 = contextEngine.buildRaw("fresh-1");
+      const version1 = ctx1.system.stateVersion;
+
+      worldState.set("fresh.test", { value: 1 });
+      const ctx2 = contextEngine.buildRaw("fresh-2");
+      const version2 = ctx2.system.stateVersion;
+
+      expect(version2).toBeGreaterThanOrEqual(version1);
     });
   });
 });

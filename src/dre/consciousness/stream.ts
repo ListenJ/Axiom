@@ -45,7 +45,8 @@ export interface ConsciousnessState {
   workingMemorySize: number;
   episodicMemorySize: number;
   traceLength: number;
-  lastReflectionAt: number | null;
+  /** 最后反思时间戳 */
+  lastReflectionAt: number;
   reflectionCount: number;
 }
 
@@ -110,9 +111,6 @@ export class EpisodicMemory {
     this.defaultTTL = defaultTTL;
   }
 
-  /**
-   * 添加记忆条目
-   */
   add(item: MemoryItem): void {
     if (!item.ttl) {
       item.ttl = Date.now() + this.defaultTTL;
@@ -120,33 +118,96 @@ export class EpisodicMemory {
     this.items.push(item);
   }
 
-  /**
-   * 搜索相似记忆 (余弦相似度)
-   */
   search(queryEmbedding: number[], k: number = 5): MemoryItem[] {
     if (!queryEmbedding || this.items.length === 0) return [];
 
-    // 计算余弦相似度
-    const similarities = this.items
-      .filter((item) => item.embedding && item.embedding.length > 0)
-      .map((item) => ({
-        item,
-        similarity: this.cosineSimilarity(queryEmbedding, item.embedding!),
-      }))
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, k);
+    const scored = this.items.map((item) => ({
+      item,
+      score: item.embedding ? this.cosineSimilarity(queryEmbedding, item.embedding) : 0,
+    }));
 
-    return similarities.map((s) => s.item);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, k).map((s) => s.item);
   }
 
   /**
-   * 清理过期记忆
+   * 归档过期记忆 (v4.1 — memory-engine consolidation)
+   * 移除并返回已过期条目，调用方应将其存入 KnowledgeStore 或长期存储
+   *
+   * ttl=undefined 视为永不过期 (?? Infinity)。
    */
-  cleanup(): number {
+  archive(): MemoryItem[] {
     const now = Date.now();
-    const before = this.items.length;
-    this.items = this.items.filter((item) => !item.ttl || item.ttl > now);
-    return before - this.items.length;
+    const expired = this.items.filter(
+      (item) => (item.ttl ?? Infinity) <= now
+    );
+    this.items = this.items.filter(
+      (item) => (item.ttl ?? Infinity) > now
+    );
+    return expired;
+  }
+
+  /**
+   * 记忆整合 (v4.1 — memory-engine consolidation)
+   * 将相似的情景记忆合成为程序性知识
+   *
+   * 启发式: 如果多条记忆的嵌入向量余弦相似度 > 0.7，
+   * 则合并为一条 "模式" (带出现次数权重)
+   */
+  consolidate(similarityThreshold: number = 0.7): Array<{
+    pattern: string;
+    occurrences: number;
+    confidence: number;
+    sourceIds: string[];
+  }> {
+    if (this.items.length < 2) return [];
+
+    const patterns: Array<{
+      pattern: string;
+      occurrences: number;
+      confidence: number;
+      sourceIds: string[];
+    }> = [];
+
+    const visited = new Set<number>();
+
+    for (let i = 0; i < this.items.length; i++) {
+      if (visited.has(i)) continue;
+      const itemA = this.items[i];
+      if (!itemA.embedding) continue;
+
+      const cluster: MemoryItem[] = [itemA];
+      visited.add(i);
+
+      for (let j = i + 1; j < this.items.length; j++) {
+        if (visited.has(j)) continue;
+        const itemB = this.items[j];
+        if (!itemB.embedding) continue;
+
+        const sim = this.cosineSimilarity(itemA.embedding, itemB.embedding);
+        if (sim > similarityThreshold) {
+          cluster.push(itemB);
+          visited.add(j);
+        }
+      }
+
+      if (cluster.length >= 2) {
+        patterns.push({
+          pattern: cluster.map((m) => m.content).join(" | ").slice(0, 500),
+          occurrences: cluster.length,
+          confidence: Math.min(1.0, cluster.length / 5),
+          sourceIds: cluster.map((m) => m.id),
+        });
+      }
+    }
+
+    return patterns;
+  }
+
+  cleanup(): number {
+    const count = this.items.length;
+    this.items = this.items.filter((item) => (item.ttl ?? Infinity) > Date.now());
+    return count - this.items.length;
   }
 
   /**
@@ -314,7 +375,7 @@ export class ConsciousnessStream extends EventEmitter {
 
   private trace: TraceEntry[] = [];
   private stepCounter: number = 0;
-  private lastReflectionAt: number | null = null;
+  private lastReflectionAt: number = 0;
   private reflectionCount: number = 0;
 
   constructor(options?: {
@@ -444,12 +505,41 @@ export class ConsciousnessStream extends EventEmitter {
   }
 
   /**
+   * 归档并清理过期记忆 (v4.1 — memory-engine consolidation)
+   *
+   * 流程: 先合并 (consolidate) → 再归档 (archive)
+   * consolidate 将相似情景记忆转化为模式
+   * archive 移除并返回已过期条目供外部存入 KnowledgeStore
+   *
+   * 注意: archive() 已完成移除, 不再调用 cleanup() (否则 removed 恒为 0)。
+   */
+  archiveAndConsolidate(): {
+    archived: MemoryItem[];
+    patterns: Array<{ pattern: string; occurrences: number; confidence: number; sourceIds: string[] }>;
+    removed: number;
+  } {
+    const patterns = this.episodicMemory.consolidate();
+    const archived = this.episodicMemory.archive();
+    const removed = archived.length;
+
+    if (archived.length > 0 || patterns.length > 0) {
+      this.emit("consolidation", {
+        archived: archived.length,
+        patterns: patterns.length,
+        removed,
+      });
+    }
+
+    return { archived, patterns, removed };
+  }
+
+  /**
    * 清理过期记忆
    */
   cleanup(): void {
-    const removed = this.episodicMemory.cleanup();
-    if (removed > 0) {
-      this.emit("cleanup", { removed });
+    const { archived, patterns, removed } = this.archiveAndConsolidate();
+    if (removed > 0 || archived.length > 0) {
+      this.emit("cleanup", { removed, archived: archived.length, patterns: patterns.length });
     }
   }
 

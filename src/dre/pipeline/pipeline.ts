@@ -201,12 +201,12 @@ export class Pipeline {
     });
 
     return {
-      verdict: result.verdict || "reject",
-      confidence: result.confidence || 0,
-      chain: result.chain || [],
-      evidenceRefs: result.evidence_refs || [],
-      corrected: result.corrected,
-      reasoning: result.chain?.join("\n") || "",
+      verdict: (result as any).verdict || "reject",
+      confidence: (result as any).confidence || 0,
+      chain: (result as any).chain || [],
+      evidenceRefs: (result as any).evidence_refs || [],
+      corrected: (result as any).corrected,
+      reasoning: (result as any).chain?.join("\n") || "",
     };
   }
 

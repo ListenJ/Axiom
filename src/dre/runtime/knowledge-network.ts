@@ -50,6 +50,20 @@ export interface EntityState {
   lastChanged: number
 }
 
+/**
+ * EntityLink — relationship between two entities.
+ * The "network" needs edges, not just nodes.
+ */
+export interface EntityLink {
+  id: string
+  src: string
+  dst: string
+  relation: string
+  weight: number
+  evidence?: string
+  createdAt: number
+}
+
 export interface Evidence {
   source: string
   confidence: number
@@ -110,10 +124,18 @@ export interface Hypothesis {
 
 // ─── Knowledge Network ─────────────────────────────────────────────────────
 
+/** Max timeline entries kept per entity; oldest are trimmed when exceeded. */
+const MAX_TIMELINE_ENTRIES = 1000;
+
 class KnowledgeNetworkImpl {
   private entities = new Map<string, KnowledgeEntity>();
   private byKind = new Map<EntityKind, Set<string>>();
   private byState = new Map<string, Set<string>>();
+  private links = new Map<string, EntityLink>();
+  private linksBySrc = new Map<string, Set<string>>();
+  private linksByDst = new Map<string, Set<string>>();
+  /** Reverse index: entityId → atomId (for atomStore sync on update/delete) */
+  private entityToAtom = new Map<string, string>();
   private stats = { created: 0, queried: 0, updated: 0 };
 
   /**
@@ -166,12 +188,13 @@ class KnowledgeNetworkImpl {
     this.addToIndex(this.byKind, kind, id);
     this.addToIndex(this.byState, entity.state.current, id);
 
-    // Store as atom
-    atomStore.create(kind as any, name, {
+    // Store as atom and track the atomId for sync on update/delete
+    const atom = atomStore.create(kind as any, name, {
       source: opts?.source ?? "knowledge-network",
       confidence: opts?.confidence ? (opts.confidence > 0.8 ? "certain" : opts.confidence > 0.5 ? "inferred" : "uncertain") : "inferred",
       metadata: { entityId: id },
     });
+    this.entityToAtom.set(id, atom.id);
 
     eventBus.publish({
       type: "knowledge.created",
@@ -216,6 +239,7 @@ class KnowledgeNetworkImpl {
       state: newState,
       event: `state_changed: ${oldState} → ${newState}`,
     });
+    this.trimTimeline(entity);
 
     entity.updatedAt = Date.now();
     entity.version++;
@@ -446,9 +470,166 @@ class KnowledgeNetworkImpl {
   }
 
   /**
+   * Update entity content/name (with version bump + timeline entry).
+   * Syncs the corresponding atom in atomStore so ContextEngine sees fresh content.
+   */
+  update(id: string, patch: { name?: string; content?: string }): boolean {
+    const entity = this.entities.get(id);
+    if (!entity) return false;
+
+    const changes: string[] = [];
+    if (patch.name !== undefined && patch.name !== entity.name) {
+      entity.name = patch.name;
+      changes.push("name");
+    }
+    if (patch.content !== undefined && patch.content !== entity.content) {
+      entity.content = patch.content;
+      changes.push("content");
+    }
+    if (changes.length === 0) return true;
+
+    entity.timeline.push({
+      timestamp: Date.now(),
+      state: entity.state.current,
+      event: `updated: ${changes.join(", ")}`,
+    });
+    this.trimTimeline(entity);
+    entity.updatedAt = Date.now();
+    entity.version++;
+    this.stats.updated++;
+
+    // Sync atom store — use name as atom content (matches create() behavior)
+    const atomId = this.entityToAtom.get(id);
+    if (atomId) {
+      atomStore.update(atomId, entity.name, { entityId: id });
+    }
+
+    eventBus.publish({
+      type: "knowledge.updated",
+      source: "knowledge-network",
+      data: { id, changes },
+      priority: "normal",
+    });
+
+    return true;
+  }
+
+  /**
+   * Delete an entity. Also removes all links referencing it and the corresponding atom.
+   */
+  delete(id: string): boolean {
+    const entity = this.entities.get(id);
+    if (!entity) return false;
+
+    this.removeFromIndex(this.byKind, entity.kind, id);
+    this.removeFromIndex(this.byState, entity.state.current, id);
+    this.entities.delete(id);
+
+    // Remove all links that reference this entity
+    const linkIdsToRemove = new Set<string>();
+    const srcLinks = this.linksBySrc.get(id);
+    if (srcLinks) for (const lid of srcLinks) linkIdsToRemove.add(lid);
+    const dstLinks = this.linksByDst.get(id);
+    if (dstLinks) for (const lid of dstLinks) linkIdsToRemove.add(lid);
+
+    for (const lid of linkIdsToRemove) {
+      this.deleteLink(lid);
+    }
+
+    // Remove the corresponding atom to prevent stale references in ContextEngine
+    const atomId = this.entityToAtom.get(id);
+    if (atomId) {
+      atomStore.delete(atomId);
+      this.entityToAtom.delete(id);
+    }
+
+    eventBus.publish({
+      type: "knowledge.deleted",
+      source: "knowledge-network",
+      data: { id, kind: entity.kind },
+      priority: "normal",
+    });
+
+    return true;
+  }
+
+  /**
+   * Create a directed link between two entities.
+   * If a link with the same src/dst/relation already exists, update its weight/evidence
+   * instead of creating a duplicate (matches atomStore.relate() dedup behavior).
+   * Both endpoints must exist.
+   */
+  link(src: string, dst: string, relation: string, opts?: { weight?: number; evidence?: string }): EntityLink | null {
+    if (!this.entities.has(src) || !this.entities.has(dst)) return null;
+
+    // Check for existing link with same src/dst/relation
+    const existing = this.findLink(src, dst, relation);
+    if (existing) {
+      if (opts?.weight !== undefined) existing.weight = opts.weight;
+      if (opts?.evidence !== undefined) existing.evidence = opts.evidence;
+      return existing;
+    }
+
+    const id = `link_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const link: EntityLink = {
+      id,
+      src,
+      dst,
+      relation,
+      weight: opts?.weight ?? 1.0,
+      evidence: opts?.evidence,
+      createdAt: Date.now(),
+    };
+
+    this.links.set(id, link);
+    this.addToIndex(this.linksBySrc, src, id);
+    this.addToIndex(this.linksByDst, dst, id);
+
+    eventBus.publish({
+      type: "knowledge.linked",
+      source: "knowledge-network",
+      data: { id, src, dst, relation },
+      priority: "low",
+    });
+
+    return link;
+  }
+
+  /**
+   * Find an existing link by src/dst/relation triple.
+   */
+  private findLink(src: string, dst: string, relation: string): EntityLink | undefined {
+    const linkIds = this.linksBySrc.get(src);
+    if (!linkIds) return undefined;
+    for (const lid of linkIds) {
+      const link = this.links.get(lid);
+      if (link && link.dst === dst && link.relation === relation) return link;
+    }
+    return undefined;
+  }
+
+  /**
+   * Get all links from an entity (outgoing).
+   */
+  getLinksFrom(src: string): EntityLink[] {
+    const ids = this.linksBySrc.get(src);
+    if (!ids) return [];
+    return Array.from(ids).map((id) => this.links.get(id)!).filter(Boolean);
+  }
+
+  /**
+   * Get all links to an entity (incoming).
+   */
+  getLinksTo(dst: string): EntityLink[] {
+    const ids = this.linksByDst.get(dst);
+    if (!ids) return [];
+    return Array.from(ids).map((id) => this.links.get(id)!).filter(Boolean);
+  }
+
+  /**
    * Get stats.
    */
-  getStats(): { total: number; byKind: Record<string, number>; byState: Record<string, number>; created: number; queried: number; updated: number } {
+  getStats(): { total: number; byKind: Record<string, number>; byState: Record<string, number>; created: number; queried: number; updated: number; links: number } {
     const byKind: Record<string, number> = {};
     for (const [kind, ids] of this.byKind) {
       byKind[kind] = ids.size;
@@ -457,10 +638,38 @@ class KnowledgeNetworkImpl {
     for (const [state, ids] of this.byState) {
       byState[state] = ids.size;
     }
-    return { total: this.entities.size, byKind, byState, ...this.stats };
+    return { total: this.entities.size, byKind, byState, links: this.links.size, ...this.stats };
+  }
+
+  /**
+   * Reset all network state. Useful for tests.
+   */
+  reset(): void {
+    this.entities.clear();
+    this.byKind.clear();
+    this.byState.clear();
+    this.links.clear();
+    this.linksBySrc.clear();
+    this.linksByDst.clear();
+    this.entityToAtom.clear();
+    this.stats = { created: 0, queried: 0, updated: 0 };
   }
 
   // ─── Private ─────────────────────────────────────────────────────
+
+  private deleteLink(linkId: string): void {
+    const link = this.links.get(linkId);
+    if (!link) return;
+    this.links.delete(linkId);
+    this.removeFromIndex(this.linksBySrc, link.src, linkId);
+    this.removeFromIndex(this.linksByDst, link.dst, linkId);
+  }
+
+  private trimTimeline(entity: KnowledgeEntity): void {
+    while (entity.timeline.length > MAX_TIMELINE_ENTRIES) {
+      entity.timeline.shift();
+    }
+  }
 
   private addToIndex(index: Map<string, Set<string>>, key: string, id: string): void {
     if (!index.has(key)) index.set(key, new Set());
