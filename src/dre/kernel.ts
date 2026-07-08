@@ -78,7 +78,7 @@ export class Kernel {
     });
 
     eventBus.subscribe("task.failed", (event: RuntimeEvent) => {
-      logger.warn("[Kernel] Task failed", event.data);
+      logger.warn("[Kernel] Task failed", event.data as Record<string, unknown>);
     });
 
     logger.info("[Kernel] Ready", { state: this._state });
@@ -126,10 +126,7 @@ export class Kernel {
       });
 
     } catch (err) {
-      logger.error("[Kernel] Tick error", {
-        tick: this._tickCount,
-        error: (err as Error).message,
-      });
+      logger.error(`[Kernel] Tick #${this._tickCount} error: ${(err as Error).message}`);
     } finally {
       this._state = prevState === "running" ? "running" : "idle";
     }

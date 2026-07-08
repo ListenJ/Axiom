@@ -122,10 +122,7 @@ class ActorInstance extends EventEmitter {
         this.system.deliver(response);
       }
     } catch (err) {
-      logger.error(`[Actor:${this.id}] Error processing message`, {
-        error: (err as Error).message,
-        topic: message.topic,
-      });
+      logger.error(`[Actor:${this.id}] Error processing message: ${(err as Error).message}`);
 
       // 发送错误响应
       const errorResponse: ActorMessage = {

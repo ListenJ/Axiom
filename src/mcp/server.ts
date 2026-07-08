@@ -2028,7 +2028,7 @@ registry.add({
     reason: z.string().optional().describe("切换原因 (可选)"),
   },
   handler: async (args) => {
-    const loaded = getKernel().getEngine().switchPersona(args.mode as string, args.reason as string);
+    const loaded = getKernel().getEngine().switchPersona(args.mode as any, args.reason as string);
     return {
       mode: loaded.config.mode,
       name: loaded.config.name,
@@ -2134,7 +2134,7 @@ registry.add({
     const dre = getKernel().getEngine();
     const { atom } = dre.data.write({
       content: args.content as string,
-      kind: args.kind as string,
+      kind: args.kind as any,
       domain: args.domain as string,
       paradigm: args.paradigm as string,
       sourceType: args.sourceType as string,

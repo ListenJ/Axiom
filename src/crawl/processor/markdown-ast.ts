@@ -81,7 +81,7 @@ export function parseMarkdownAST(markdown: string): ASTNode {
         root.children.push(heading);
         currentParent = heading;
         currentHeading = heading;
-      } else if (currentHeading && level > (currentHeading.metadata.level || 1)) {
+      } else if (currentHeading && level > ((currentHeading.metadata as Record<string, number>).level ?? 1)) {
         currentHeading.children.push(heading);
         currentParent = heading;
         currentHeading = heading;

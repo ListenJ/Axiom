@@ -46,7 +46,7 @@ async function main() {
       logger.info("  ✓ pgvector already installed");
     }
   } catch (err) {
-    logger.error("  ✗ Failed to install pgvector:", (err as Error).message);
+    logger.error("  ✗ Failed to install pgvector: " + (err as Error).message);
     logger.error("  Make sure pgvector is installed: apt install postgresql-16-pgvector");
     process.exit(1);
   }
@@ -57,7 +57,7 @@ async function main() {
     await initPgSchema();
     logger.info("  ✓ Schema initialized\n");
   } catch (err) {
-    logger.error("  ✗ Schema initialization failed:", (err as Error).message);
+    logger.error("  ✗ Schema initialization failed: " + (err as Error).message);
     process.exit(1);
   }
 

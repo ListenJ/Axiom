@@ -273,7 +273,7 @@ export class VIBCompressor {
       processingTimeMs: Date.now() - startTime,
     };
 
-    logger.info("压缩完成", stats);
+    logger.info("压缩完成", stats as unknown as Record<string, unknown>);
 
     return {
       retained: retained.map((s) => s.memory),
