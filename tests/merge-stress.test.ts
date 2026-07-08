@@ -143,7 +143,7 @@ describe("EventBus Stress", () => {
 
 describe("WorldState Stress", () => {
   afterAll(() => {
-    logger.info("[Stress/WorldState] Version", worldState.getVersion());
+    logger.info("[Stress/WorldState] Version", worldState.getVersion() as unknown as Record<string, unknown>);
   });
 
   test("10K keys write and read", () => {
@@ -157,7 +157,7 @@ describe("WorldState Stress", () => {
     const readStart = performance.now();
     for (let i = 0; i < 1000; i++) {
       const idx = Math.floor(Math.random() * 10000);
-      expect(worldState.get(`stress.k${idx}`)).toBe(`v${idx}`);
+      expect((worldState.get(`stress.k${idx}`) as string)).toBe(`v${idx}`);
     }
     const readTime = performance.now() - readStart;
 

@@ -702,7 +702,7 @@ describe("SqliteBackend", () => {
 // ========== LLMClient ==========
 
 describe("LLMClient", () => {
-  let server: import("bun").BunServer | null = null;
+  let server: any | null = null;
 
   afterEach(() => {
     if (server) { try { server.stop(true); } catch {} server = null; }
@@ -856,7 +856,7 @@ describe("EventBus", () => {
 describe("WorldState", () => {
   test("should get and set values", () => {
     worldState.set("test.key", "value");
-    expect(worldState.get("test.key")).toBe("value");
+    expect((worldState.get("test.key") as string)).toBe("value");
   });
 
   test("should watch changes", () => {
@@ -1164,7 +1164,7 @@ describe("CognitivePipeline E2E", () => {
     const pipeline = new CognitivePipeline(engine);
     const result = await pipeline.runWithLLM("analyze error in system");
     expect(result.fallbackLevel).toBeDefined();
-    expect(["deterministic", "rule", "local", "cloud"]).toContain(result.fallbackLevel);
+    expect(["deterministic", "rule", "local", "cloud"] as string[]).toContain(result.fallbackLevel as string);
     expect(result.trace.length).toBeGreaterThanOrEqual(6);
     await engine.close();
   });

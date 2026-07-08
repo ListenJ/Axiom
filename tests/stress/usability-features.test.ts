@@ -52,8 +52,8 @@ describe("DRE Error Hierarchy", () => {
     expect(json.name).toBe("DREPipelineError");
     expect(json.code).toBe("PIPELINE_ERROR");
     expect(json.message).toBe("stage 2 failed");
-    expect(json.context?.stage).toBe("verification");
-    expect(json.context?.nodeId).toBe("n1");
+    expect((json.context as Record<string, unknown>)?.stage).toBe("verification");
+    expect((json.context as Record<string, unknown>)?.nodeId).toBe("n1");
   });
 
   test("wrapDREError preserves DREError instances", () => {

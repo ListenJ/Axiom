@@ -211,7 +211,7 @@ describe("KnowledgeGraph index performance", () => {
 
     // 模拟线性扫描
     const linearTimes: number[] = [];
-    const allNodes = kg.getTask ? [] : [];
+    const allNodes: string[] = (kg as any).getTask ? [] : [];
     // 我们无法访问私有 nodes.values(), 用 getNode 代替
     for (let d = 0; d < 10; d++) {
       const start = performance.now();
