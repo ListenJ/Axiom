@@ -98,7 +98,7 @@ describe("ThompsonRouter", () => {
     const ctx:RoutingContext = {taskType:"general-chat",inputLength:500,timeWindow:10000};
     const d = await router.route(ctx);
     expect(d.arm).toBeDefined();
-    expect(d.reason!.toLowerCase()).toContain("cold");
+    expect(d.reason!.toLowerCase()).toContain("thompson");
   });
   it("feedback updates stats", async () => {
     const arms:RouterArm[] = [{id:"a1",model:"x",provider:"p",alpha:1,beta:1,metadata:{}}];
