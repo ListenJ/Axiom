@@ -25,6 +25,7 @@ export interface WriteOutput {
 export const writeTool: Tool<WriteInput, WriteOutput> = {
   name: "write",
   description: "写入文件或记忆库",
+  consumesModelToken: false,
 
   validate(input: WriteInput): string | null {
     if (!input.target) return "target is required (file|memory)";

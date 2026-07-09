@@ -30,6 +30,7 @@ export interface QueryOutput {
 export const queryTool: Tool<QueryInput, QueryOutput> = {
   name: "query",
   description: "搜索网络或本地知识库",
+  consumesModelToken: false,
 
   validate(input: QueryInput): string | null {
     if (!input.query || input.query.length === 0) return "query is required";

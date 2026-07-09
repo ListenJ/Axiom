@@ -28,6 +28,7 @@ export interface ReadOutput {
 export const readTool: Tool<ReadInput, ReadOutput> = {
   name: "read",
   description: "读取文件/网页/记忆库内容",
+  consumesModelToken: false,
 
   validate(input: ReadInput): string | null {
     if (!input.source) return "source is required (file|web|memory)";
