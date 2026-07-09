@@ -76,7 +76,7 @@ export class HttpRouter {
       namespace: "router_cache",
       maxSize: options?.cacheMaxSize ?? 200,
       defaultTtlMs: options?.cacheTtlMs ?? 30 * 1000,
-      redis: true,
+      redis: false,
     });
   }
 
