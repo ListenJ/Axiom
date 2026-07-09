@@ -124,3 +124,7 @@ archive/
 
 # === Personal notes ===
 ai-daily-*.md
+
+# === Runtime artifacts ===
+.session-context.json
+.tmp-tool-test/
