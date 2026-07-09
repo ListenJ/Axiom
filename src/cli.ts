@@ -1250,6 +1250,42 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     },
   },
 
+  "kg:query": {
+    desc: "自然语言查询知识图谱 (kg:query <question> [--limit=5])",
+    run: async (args) => {
+      const question = args.find((a) => !a.startsWith("--")) || args.join(" ");
+      if (!question) { console.error("Usage: kg:query <question>"); return; }
+      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 5;
+      console.log(`[KG自然语言查询] "${question}"\n`);
+      const { buildResearchContext } = await import("./memory/knowledge-graph-builder.js");
+      const ctx = await buildResearchContext(question, { maxEntities: limit, maxDepth: 2 });
+      console.log(`  匹配实体: ${ctx.entities.length}`);
+      console.log(`  匹配关系: ${ctx.relationships.length}`);
+      console.log(`  文件: ${ctx.codeStructure.files}, 函数: ${ctx.codeStructure.functions}, 类: ${ctx.codeStructure.classes}\n`);
+      if (ctx.summary) console.log(`结论: ${ctx.summary}`);
+      if (ctx.entities.length > 0) {
+        console.log(`\n相关实体:`);
+        for (const e of ctx.entities.slice(0, limit)) {
+          console.log(`  · ${e.name || e}: ${(e.description || "").slice(0, 100)}`);
+        }
+      }
+    },
+  },
+
+  "kg:feedback": {
+    desc: "知识图谱反馈 — 对查询结果评价以改进 (kg:feedback <query> [--relevant|--irrelevant] [--entity=<id>])",
+    run: async (args) => {
+      const query = args.find((a) => !a.startsWith("--")) || args[0];
+      if (!query) { console.error("Usage: kg:feedback <query> [--relevant] [--entity=<id>]"); return; }
+      const isRelevant = args.includes("--relevant");
+      const entityId = args.find((a) => a.startsWith("--entity="))?.slice(9);
+      console.log(`[KG反馈] 查询: "${query}"`);
+      console.log(`  评价: ${isRelevant ? "相关 ✓" : "无关 ✗"}`);
+      if (entityId) console.log(`  实体: ${entityId}`);
+      console.log(`\n  反馈已记录 (当前为模拟, 需接入真实反馈存储)`);
+    },
+  },
+
   "advisor:recommend": {
     desc: "模型推荐 (advisor:recommend --role=coding|research|general)",
     run: async (args) => {
@@ -1338,7 +1374,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log("子命令组:");
       console.log("  search <query>      搜索 (search run|enhanced|history)");
       console.log("  vault <action>      记忆库 (vault search|read|stats|para)");
-      console.log("  kg <action>         知识图谱 (kg build|stats|search)");
+      console.log("  kg <action>         知识图谱 (kg build|stats|search|query|feedback)");
       console.log("  cg <action>         代码图谱 (cg init|search|context)");
       console.log("  project <action>    项目分析 (project analyze|research)");
       console.log("  code <action>       OpenCode (code open|models|serve)");
@@ -1371,6 +1407,8 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
     build: commands["kg:build"],
     stats: commands["kg:stats"],
     search: commands["kg:search"],
+    query: commands["kg:query"],
+    feedback: commands["kg:feedback"],
   },
   cg: {
     init: commands["cg:init"],
