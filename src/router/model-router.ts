@@ -250,7 +250,7 @@ async function callProvider(
       headers["X-Title"] = "Axiom Agent";
     }
 
-    const res = await proxyFetch(`${baseURL}/chat/completions`, {
+    const res = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, messages, temperature }),

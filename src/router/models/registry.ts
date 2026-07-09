@@ -164,7 +164,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "deepseek-v4-pro",
     provider: "deepseek",
-    model: "deepseek-v4-pro",
+    model: "deepseek-chat",
     roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research"],
     contextWindow: 1000000,
     isFree: false,
