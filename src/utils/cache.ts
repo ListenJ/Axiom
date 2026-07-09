@@ -86,6 +86,16 @@ export class Cache<V = unknown> {
     }
   }
 
+  private touch(fullKey: string): void {
+    const entry = this.store.get(fullKey);
+    if (entry) {
+      entry.lastAccessed = Date.now();
+      // Re-insert to move to end of Map (updating LRU order)
+      this.store.delete(fullKey);
+      this.store.set(fullKey, entry);
+    }
+  }
+
   /** 获取缓存值 — L1 → L2 → L3 */
   async get(key: string): Promise<V | undefined> {
     const fullKey = this.key(key);
@@ -99,7 +109,7 @@ export class Cache<V = unknown> {
         return undefined;
       }
       entry.accessCount++;
-      entry.lastAccessed = Date.now();
+      this.touch(fullKey);
       this.hitCount++;
       return entry.value;
     }
@@ -167,7 +177,7 @@ export class Cache<V = unknown> {
     const entry = this.store.get(fullKey);
     if (entry && Date.now() <= entry.expiresAt) {
       entry.accessCount++;
-      entry.lastAccessed = Date.now();
+      this.touch(fullKey);
       this.hitCount++;
       return entry.value;
     }
@@ -183,6 +193,10 @@ export class Cache<V = unknown> {
     // L1: 内存
     if (this.store.size >= this.opts.maxSize && !this.store.has(fullKey)) {
       this.evictLRU();
+    }
+    // Update order for existing keys (delete+re-insert to move to end)
+    if (this.store.has(fullKey)) {
+      this.store.delete(fullKey);
     }
     this.store.set(fullKey, {
       value,
@@ -298,23 +312,10 @@ export class Cache<V = unknown> {
   }
 
   private evictLRU() {
-    // First reclaim any expired entries (cheap, also improves hit rate).
-    const now = Date.now();
-    for (const [key, entry] of this.store) {
-      if (now > entry.expiresAt) this.store.delete(key);
-    }
-    // Then evict the least-recently-used entry until back under capacity.
-    while (this.store.size >= this.opts.maxSize && this.store.size > 0) {
-      let oldestKey: string | null = null;
-      let oldestTime = Infinity;
-      for (const [key, entry] of this.store) {
-        if (entry.lastAccessed < oldestTime) {
-          oldestTime = entry.lastAccessed;
-          oldestKey = key;
-        }
-      }
-      if (oldestKey === null) break;
-      this.store.delete(oldestKey);
+    // O(1): Map insertion order tracks LRU. First key is least recently used.
+    const first = this.store.keys().next().value;
+    if (first !== undefined) {
+      this.store.delete(first);
     }
   }
 

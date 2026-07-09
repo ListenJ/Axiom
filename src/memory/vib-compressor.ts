@@ -87,6 +87,10 @@
 
 import { logger } from "../utils/logger.js";
 
+// Precompiled regex patterns for tokenizer
+const PUNCTUATION_RE = /([\u3000-\u303F\uFF00-\uFFEF.,!?;:"'\x60()\[\]{}<>\/\\\-])/g;
+const WHITESPACE_RE = /\s+/;
+
 // ============================= 类型定义 =============================
 
 /** 单条记忆项 */
@@ -442,11 +446,8 @@ export class VIBCompressor {
   private tokenize(text: string): string[] {
     if (!text || text.trim().length === 0) return [];
 
-    const withSpaces = text.replace(
-      /([\u3000-\u303F\uFF00-\uFFEF.,!?;:"'\x60()\[\]{}<>\/\\\-])/g,
-      " $1 "
-    );
+    const withSpaces = text.replace(PUNCTUATION_RE, " $1 ");
 
-    return withSpaces.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+    return withSpaces.toLowerCase().split(WHITESPACE_RE).filter((t) => t.length > 0);
   }
 }

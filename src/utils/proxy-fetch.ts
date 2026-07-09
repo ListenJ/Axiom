@@ -452,6 +452,11 @@ async function makeRequest(
             `${method} ${path} HTTP/1.1`,
             `Host: ${url.host}`,
           ];
+          // Ensure Content-Length for POST/PUT/PATCH bodies
+          if (opts.body && !headers["Content-Length"] && !headers["content-length"]) {
+            const bodyStr = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
+            lines.push(`Content-Length: ${Buffer.byteLength(bodyStr)}`);
+          }
           for (const [key, val] of Object.entries(headers)) {
             if (key.toLowerCase() !== "host") {
               lines.push(`${key}: ${val}`);
