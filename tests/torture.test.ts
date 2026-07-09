@@ -149,7 +149,7 @@ describe("Chaos Thompson", () => {
     for (let i = 0; i < 1_000_000; i++) ts.reportFeedback(i % 10 === 0 ? "b" : "g", i % 7 !== 0);
     console.log(`  1M fb: ${(performance.now() - t0).toFixed(0)}ms`);
     const s = ts.getArmStats();
-    expect(s.find(x => x.id === "g")!.mean).toBeGreaterThan(s.find(x => x.id === "b")!.mean);
+    expect((s.find((x: any) => x.id === "g")!).mean).toBeGreaterThan((s.find((x: any) => x.id === "b")!).mean);
   }, 30000);
 
   it("decayFactor=0 no crash", () => {
@@ -237,6 +237,6 @@ describe("Chaos Concurrency", () => {
       })
     ));
     expect(r.length).toBe(1000);
-    r.forEach(x => expect(x.ok).toBeTrue());
+    r.forEach((x: any) => expect(x.ok).toBeTrue());
   }, 15000);
 });

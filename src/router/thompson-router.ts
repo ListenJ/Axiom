@@ -222,7 +222,7 @@ export class ThompsonRouter {
       if (sampleValue > bestValue) { bestValue = sampleValue; bestArm = arm; }
     }
     if (!bestArm) throw new Error("[ThompsonRouter] TS selected no arm");
-    logger.info("[ThompsonRouter] TS routing decision", { selectedArm: bestArm.id, confidence: bestValue, taskType: context.taskType });
+    logger.debug("[ThompsonRouter] TS routing decision", { selectedArm: bestArm.id, confidence: bestValue, taskType: context.taskType });
     return { arm: bestArm, confidence: bestValue, reason: "Thompson Sampling: p=" + bestValue.toFixed(4) + " (max over " + samples.length + " arms)", samples: samples.sort((a, b) => b.value - a.value) };
   }
 
@@ -242,7 +242,7 @@ export class ThompsonRouter {
     this.saveObservation(armId, success, this.totalRounds, 1.0);
     if (this.totalRounds % 100 === 0) this.applyDecay();
     const mean = arm.alpha / (arm.alpha + arm.beta);
-    logger.info("[ThompsonRouter] feedback recorded", { armId, success, alpha: arm.alpha.toFixed(2), beta: arm.beta.toFixed(2), mean: mean.toFixed(4), totalRounds: this.totalRounds });
+    logger.debug("[ThompsonRouter] feedback recorded", { armId, success, alpha: arm.alpha.toFixed(2), beta: arm.beta.toFixed(2), mean: mean.toFixed(4), totalRounds: this.totalRounds });
   }
 
   // --------------------------------------------------------------------------
