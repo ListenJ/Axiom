@@ -49,6 +49,7 @@
     "workflow": "bun run scripts/workflow.ts",
     "wip": "bun run scripts/workflow.ts continue",
     "summary": "bun run scripts/session-summary.ts",
+    "clean": "bun -e \"const fs=require('fs');['.tmp-tool-test','data/session.json','.session-context.json'].forEach(f=>fs.rmSync(f,{recursive:true,force:true}));console.log('cleaned')\"",
     "native:build": "cd native && cargo build --release --features local",
     "native:build:cloud": "cd native && cargo build --release --features cloud",
     "native:run:local": "./native/target/release/axiom-local",
