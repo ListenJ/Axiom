@@ -26,6 +26,12 @@ describe("模型注册表", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("无重复 model+provider 对", async () => {
+    const { UNIFIED_REGISTRY } = await import("../src/router/models/registry.js");
+    const pairs = UNIFIED_REGISTRY.map(m => `${m.provider}:${m.model}`);
+    expect(new Set(pairs).size).toBe(pairs.length);
+  });
+
   it("所有模型引用有效 provider", async () => {
     const { UNIFIED_REGISTRY } = await import("../src/router/models/registry.js");
     const { PROVIDER_CONFIG } = await import("../src/router/models/providers.js");
