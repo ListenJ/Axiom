@@ -1,66 +1,143 @@
 /**
- * 工具层核心类型 — 数据隔离 + 资源约束
- *
- * 每个工具在其自己的管道中执行，输入/输出严格隔离，
- * 不与其他工具共享可变状态。
+ * 工具层核心类型 v2 — 进度回调 + 用量跟踪 + 循环保护
  */
+import { logger } from "../utils/logger.js";
 
-/** 工具执行上下文（每个请求独立） */
+// ─── 进度回调 ──────────────────────────────────────
+export type ProgressStage = "validate" | "execute" | "transform" | "complete" | "error" | "timeout" | "loop-detected";
+
+export interface ProgressEvent {
+  readonly stage: ProgressStage;
+  readonly toolName: string;
+  readonly message: string;
+  readonly pct?: number;        // 0-100
+  readonly elapsedMs: number;
+}
+
+export type ProgressCallback = (event: ProgressEvent) => void;
+
+// ─── Token 用量 ────────────────────────────────────
+export interface TokenBudget {
+  /** 总 Token 预算 */
+  maxTokens: number;
+  /** 已消耗 Token */
+  usedTokens: number;
+  /** Token 单价 (模拟) */
+  readonly costPerToken: number;
+}
+
+// ─── Token 跟踪器 ──────────────────────────────────
+const _tokenTracker = {
+  calls: 0,
+  totalTokens: 0,
+};
+
+export function getTokenStats() {
+  return { ..._tokenTracker };
+}
+
+export function estimateTokens(text: string): number {
+  // 粗略估算: 1 token ≈ 4 chars
+  return Math.ceil(text.length / 4);
+}
+
+export function trackTokenUsage(tokens: number): void {
+  _tokenTracker.calls++;
+  _tokenTracker.totalTokens += tokens;
+}
+
+// ─── 循环检测 ──────────────────────────────────────
+const RECENT_CALLS_MAX = 100;
+const recentCalls = new Map<string, number[]>(); // toolName → timestamps
+
+export function detectLoop(toolName: string, input: string): boolean {
+  const key = `${toolName}:${input.slice(0, 200)}`;
+  const now = Date.now();
+  const calls = recentCalls.get(key) ?? [];
+  // 清除 60s 前的记录
+  const recent = calls.filter(t => now - t < 60000);
+  recent.push(now);
+  recentCalls.set(key, recent);
+  // 60s 内同一输入超过 5 次 → 循环
+  if (recent.length > 5) {
+    logger.warn(`[ToolGuard] Loop detected: ${key} (${recent.length} calls in 60s)`);
+    return true;
+  }
+  return false;
+}
+
+export function clearLoopCache(): void {
+  recentCalls.clear();
+}
+
+// ─── 上下文 (增强) ─────────────────────────────────
 export interface ToolContext {
   readonly requestId: string;
   readonly startTime: number;
-  /** 最大内存预算 (bytes)，超限则终止 */
   readonly maxMemoryBytes: number;
-  /** 最大 CPU 预算 (ms)，超限则终止 */
   readonly maxCpuMs: number;
-  /** 工具专属存储（不与其他工具交联） */
   readonly localStore: Map<string, unknown>;
+  readonly tokenBudget: TokenBudget;
+  readonly onProgress?: ProgressCallback;
+  /** 最大管道深度 (防递归) */
+  maxDepth: number;
+  /** 当前执行深度 */
+  depth: number;
+  /** 已终止标志 */
+  aborted: boolean;
 }
 
-/** 工具输入 */
+/** 上下文用尽的 Token */
+export function consumeTokens(ctx: ToolContext, text: string): boolean {
+  const tokens = estimateTokens(text);
+  if (ctx.tokenBudget.usedTokens + tokens > ctx.tokenBudget.maxTokens) {
+    ctx.aborted = true;
+    logger.warn(`[ToolGuard] Token budget exceeded: ${ctx.tokenBudget.usedTokens}/${ctx.tokenBudget.maxTokens}`);
+    return false;
+  }
+  ctx.tokenBudget.usedTokens += tokens;
+  trackTokenUsage(tokens);
+  return true;
+}
+
+// ─── 工具接口 ──────────────────────────────────────
 export interface ToolInput<I = unknown> {
   readonly payload: I;
   readonly context: ToolContext;
 }
 
-/** 工具执行指标 */
 export interface ToolMetrics {
   readonly durationMs: number;
   readonly cpuMs: number;
   readonly memoryBytes: number;
+  readonly tokensUsed: number;
 }
 
-/** 工具输出 */
 export interface ToolOutput<O = unknown> {
   readonly data: O;
   readonly metrics: ToolMetrics;
 }
 
-/** 工具接口 */
 export interface Tool<I = unknown, O = unknown> {
   readonly name: string;
   readonly description: string;
-  /** 执行验证（同步，返回错误信息或 null） */
   validate?(input: I): string | null;
-  /** 核心执行逻辑 */
   execute(input: ToolInput<I>): Promise<ToolOutput<O>>;
-  /** 清理资源 */
   dispose?(): void | Promise<void>;
 }
 
-/** 工具管道编排 */
 export type ToolPipeline = {
-  /** 按序执行一系列工具 */
   readonly pipe: readonly Tool[];
-  /** 管道名称 */
   readonly name: string;
 };
 
-/** 创建资源受限的执行上下文 */
+// ─── 工厂 ──────────────────────────────────────────
 export function createToolContext(
   requestId?: string,
-  maxMemoryBytes = 50 * 1024 * 1024,  // 50MB
-  maxCpuMs = 5_000,                    // 5s
+  maxMemoryBytes = 50 * 1024 * 1024,
+  maxCpuMs = 10_000,
+  maxTokens = 100_000,
+  onProgress?: ProgressCallback,
 ): ToolContext {
   return {
     requestId: requestId ?? crypto.randomUUID(),
@@ -68,17 +145,39 @@ export function createToolContext(
     maxMemoryBytes,
     maxCpuMs,
     localStore: new Map(),
+    tokenBudget: { maxTokens, usedTokens: 0, costPerToken: 0.000002 },
+    onProgress,
+    maxDepth: 10,
+    depth: 0,
+    aborted: false,
   };
 }
 
-/** 创建工具输出 */
-export function createToolOutput<O>(data: O, startTime: number): ToolOutput<O> {
+export function createToolOutput<O>(data: O, startTime: number, tokensUsed = 0): ToolOutput<O> {
   return {
     data,
     metrics: {
       durationMs: Date.now() - startTime,
-      cpuMs: Date.now() - startTime, // simplified: wall time
+      cpuMs: Date.now() - startTime,
       memoryBytes: process.memoryUsage?.()?.rss ?? 0,
+      tokensUsed,
     },
   };
+}
+
+/** Emit progress event (no-op if no callback) */
+export function emitProgress(
+  ctx: ToolContext,
+  stage: ProgressStage,
+  toolName: string,
+  message: string,
+  pct?: number,
+): void {
+  ctx.onProgress?.({
+    stage,
+    toolName,
+    message,
+    pct,
+    elapsedMs: Date.now() - ctx.startTime,
+  });
 }

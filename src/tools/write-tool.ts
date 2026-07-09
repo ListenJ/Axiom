@@ -6,6 +6,7 @@
  */
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
+import { dirname } from "node:path";
 
 export interface WriteInput {
   target: "file" | "memory";
@@ -42,6 +43,9 @@ export const writeTool: Tool<WriteInput, WriteOutput> = {
     switch (target) {
       case "file": {
         const fs = await import("fs/promises");
+        // 自动创建父目录
+        const dir = dirname(path);
+        if (dir) await fs.mkdir(dir, { recursive: true }).catch(() => {});
         if (append) {
           await fs.appendFile(path, content, "utf-8");
         } else {
