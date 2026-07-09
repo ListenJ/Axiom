@@ -15,7 +15,7 @@ describe("系统压力测试", () => {
       router.register({
         method: i % 2 === 0 ? "GET" : "POST",
         path: `/api/v1/${Math.random().toString(36).slice(2)}`,
-        handler: () => new Response("ok"),
+        handler: async () => new Response("ok"),
       });
     }
 
