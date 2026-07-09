@@ -1,9 +1,14 @@
 /**
- * Chat service — intent routing, knowledge retrieval, and context assembly.
+ * Chat service — intent routing, adaptive knowledge retrieval, and context assembly.
  *
  * Routes delegate here instead of importing from agents/ / router/ / memory/
  * directly, breaking the flat graph and providing a single entry point for the
  * request → model call pipeline.
+ *
+ * 自适应知识检索:
+ *   1. 意图识别 → 判断是否需要外部知识
+ *   2. 需要 → 触发 tool pipeline (queryTool) 搜索网络
+ *   3. 合并结果作为系统提示注入
  */
 import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
@@ -22,9 +27,8 @@ export interface PreparedContext {
 }
 
 /**
- * Assemble messages + intent + codegraph + knowledge context for a chat
- * request. This is the pipeline that was previously duplicated in
- * handleChat and handleChatStream.
+ * Assemble messages + intent + codegraph + adaptive knowledge context for a chat
+ * request. This replaces the previous duplicated logic in handleChat/handleChatStream.
  */
 export async function prepareChatContext(
   messages: Array<{ role: string; content: string }>,
@@ -81,39 +85,41 @@ export async function prepareChatContext(
         }
       }
 
-      // Knowledge retrieval for knowledge / research intents
-      if (intentInfo && ["knowledge", "research"].includes(intentInfo.intent)) {
+      // Adaptive knowledge retrieval — uses tool pipeline
+      // triggered for any intent that may need external info
+      if (intentInfo && shouldSearch(intentInfo.intent)) {
         try {
-          const {
-            decomposeQuery,
-            searchKnowledgeBase,
-            synthesizeResults,
-            buildKnowledgePrompt,
-          } = await import("../agents/query-decomposer.js");
-          const decomposed = decomposeQuery(lastUserMsg.content);
-          const fragments = await searchKnowledgeBase(
-            decomposed.subQueries,
-            vault,
-          );
-          if (fragments.length > 0) {
-            const context = synthesizeResults(fragments, lastUserMsg.content);
-            const knowledgePrompt = buildKnowledgePrompt(context);
+          const { retrieveKnowledge } = await import("./knowledge.js");
+          const kr = await retrieveKnowledge({
+            query: lastUserMsg.content,
+            intent: intentInfo.intent,
+            confidence: intentInfo.confidence,
+          });
+          if (kr.sources.length > 0) {
             chatMessages = [
-              { role: "system", content: knowledgePrompt },
+              { role: "system", content: kr.context },
               ...chatMessages,
             ];
           }
         } catch (err) {
-          logger.debug(
-            "Knowledge retrieval failed, continuing without context",
-            { error: (err as Error).message },
-          );
+          logger.debug("Adaptive knowledge retrieval failed", {
+            error: (err as Error).message,
+          });
         }
       }
     }
   }
 
   return { chatMessages, intentInfo, codegraphContext };
+}
+
+/** 需要自适应搜索的意图类别 */
+function shouldSearch(intent: string): boolean {
+  return [
+    "research", "knowledge", "news", "fact", "question",
+    "code", "tutorial", "comparison", "howto", "write",
+    "explain", "analyze", "review",
+  ].includes(intent);
 }
 
 /**

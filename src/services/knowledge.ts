@@ -1,0 +1,97 @@
+/**
+ * 自适应知识检索服务
+ *
+ * 流程:
+ *   1. 接收用户查询
+ *   2. 意图识别 → 判断是否需要外部知识
+ *   3. 需要则触发 knowledgetool 搜索
+ *   4. 合并本地 + 网络结果
+ *   5. 格式化为 AI 上下文
+ */
+import { queryTool } from "../tools/query-tool.js";
+import { readTool } from "../tools/read-tool.js";
+import { createToolContext } from "../tools/types.js";
+import { runPipeline } from "../tools/pipeline.js";
+
+export interface KnowledgeRequest {
+  query: string;
+  intent: string;
+  confidence: number;
+  existingContext?: string;
+}
+
+export interface KnowledgeResult {
+  context: string;
+  sources: Array<{ source: string; title: string; url?: string }>;
+  totalResults: number;
+  pipelineError?: string;
+}
+
+/**
+ * 自适应知识检索 — 根据意图和置信度决定是否触发搜索
+ */
+export async function retrieveKnowledge(req: KnowledgeRequest): Promise<KnowledgeResult> {
+  // 需要外部搜索的意图
+  const NEEDS_WEB = new Set([
+    "research", "knowledge", "news", "fact", "question",
+    "code", "tutorial", "comparison", "howto",
+  ]);
+
+  const shouldSearch = NEEDS_WEB.has(req.intent) || req.confidence < 0.6;
+
+  if (!shouldSearch) {
+    return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
+  }
+
+  // 创建工具管道
+  const ctx = createToolContext(`knowledge-${Date.now()}`);
+
+  // 注入 vault 实例
+  try {
+    const { VaultManager } = await import("../memory/vault-manager.js");
+    ctx.localStore.set("vaultManager", new VaultManager());
+  } catch { /* vault 不可用 */ }
+
+  const pipeline = [
+    {
+      tool: queryTool,
+      input: { query: req.query, scope: "auto" as const, maxResults: 8 },
+    },
+  ];
+
+  const result = await runPipeline(pipeline, ctx);
+
+  if (result.error) {
+    return {
+      context: req.existingContext ?? "",
+      sources: [],
+      totalResults: 0,
+      pipelineError: result.error,
+    };
+  }
+
+  const queryOutput = result.stepResults[0] as any;
+  if (!queryOutput?.results?.length) {
+    return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
+  }
+
+  // 格式化为 AI 上下文
+  const sources = queryOutput.results.map((r: any) => ({
+    source: r.source,
+    title: r.title,
+    url: r.url,
+  }));
+
+  let context = req.existingContext ? req.existingContext + "\n\n" : "";
+  context += `[自适应检索: "${req.query}"]\n`;
+  context += `检索范围: ${queryOutput.scopeUsed}\n`;
+  context += `找到 ${queryOutput.totalFound} 条结果:\n\n`;
+
+  for (const r of queryOutput.results.slice(0, 5)) {
+    context += `• [${r.source}] ${r.title}\n`;
+    if (r.snippet) context += `  ${r.snippet.slice(0, 300)}\n`;
+    context += "\n";
+  }
+
+  return { context, sources, totalResults: queryOutput.totalResults };
+}
