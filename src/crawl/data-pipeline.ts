@@ -34,7 +34,7 @@ const DEFAULT_NOISE_PATTERNS = [
 ];
 const DEFAULT_NOISE_RE = DEFAULT_NOISE_PATTERNS.map((p) => new RegExp(p, "gi"));
 
-import { VaultManager } from "../memory/vault-manager.js";
+import { VaultManager, getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
 
 // ========== 类型定义 ==========
@@ -791,7 +791,7 @@ export class DataPipeline {
 
     // 2. 保存到 Vault（人类可读的记忆）
     try {
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       await vault.writeCrawlResult({
         url: result.url,
         title: result.title,

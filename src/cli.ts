@@ -8,7 +8,7 @@ import { Database } from "bun:sqlite";
 import { searchAggregator } from "./crawl/search-engines.js";
 import { unifiedSearch } from "./crawl/unified-search.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
-import { VaultManager } from "./memory/vault-manager.js";
+import { getGlobalVault } from "./memory/vault-manager.js";
 import { logger } from "./utils/logger.js";
 import {
   openCodeSession,
@@ -330,7 +330,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       if (!query) { console.error("Usage: vault:search <query>"); return; }
       const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
       const para = args.find((a) => a.startsWith("--para="))?.slice(7);
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       const results = vault.search(query, { limit, paraCategory: para });
       console.log(`[搜索] Vault 搜索结果: "${query}" (${results.length} 条)\n`);
       for (const r of results) {
@@ -349,7 +349,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: (args) => {
       const notePath = args[0];
       if (!notePath) { console.error("Usage: vault:read <path>"); return; }
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       const note = vault.readNote(notePath);
       if (!note) { console.error("笔记不存在:"); return; }
       console.log(`--- ${notePath} ---\n`);
@@ -365,7 +365,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: (args) => {
       const category = args[0];
       if (!category) { console.error("Usage: vault:para <category>"); return; }
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       const notes = vault.browsePara(category);
       console.log(`[PARA] / ${category} (${notes.length} 条)\n`);
       for (const n of notes.slice(0, 30)) {
@@ -378,7 +378,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "vault:stats": {
     desc: "Vault 记忆库统计",
     run: () => {
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       const stats = vault.stats();
       console.log("[统计] Vault 统计:\n");
       console.log(`  总笔记数: ${stats.totalNotes}`);
@@ -395,7 +395,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "vault:index-code": {
     desc: "索引项目代码到 Vault",
     run: async () => {
-      const vault = new VaultManager();
+      const vault = getGlobalVault();
       console.log("[索引] 正在索引代码...");
       const result = await vault.indexCode();
       console.log(`[索引完成] ${result.indexed} 个文件`);

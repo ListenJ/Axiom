@@ -194,8 +194,8 @@ class HookPreloader {
     Log.info("Warming up memory vault...");
     
     try {
-      const { VaultManager } = await import("./memory/vault-manager.js");
-      const vault = new VaultManager();
+      const { getGlobalVault } = await import("./memory/vault-manager.js");
+      const vault = getGlobalVault();
       // Just instantiate to verify it loads; health check via stats
       vault.stats();
       Log.success("Memory vault warmed up");
