@@ -52,9 +52,10 @@ export const readTool: Tool<ReadInput, ReadOutput> = {
         try {
           buffer = await fs.readFile(path);
         } catch {
-          const vault = store.get("vaultManager") as any;
+          const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager;
           if (vault?.readNote) {
-            content = await vault.readNote(path);
+            const note = vault.readNote(path);
+            content = note?.content ?? "";
           } else {
             throw new Error(`File not found: ${path}`);
           }
@@ -75,9 +76,9 @@ export const readTool: Tool<ReadInput, ReadOutput> = {
       }
 
       case "memory": {
-        const vault = store.get("vaultManager") as any;
-        if (vault?.searchNotes) {
-          const results = await vault.searchNotes(path, { limit: limit ?? 10 });
+        const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager;
+        if (vault) {
+          const results = vault.search(path, { limit: limit ?? 10 });
           content = JSON.stringify(results);
         } else {
           throw new Error("VaultManager not available in context");

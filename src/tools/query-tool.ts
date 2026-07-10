@@ -46,17 +46,17 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
 
     // 1. 本地知识库搜索（始终执行）
     const store = ctx.context.localStore;
-    const vault = store.get("vaultManager") as any;
-    const kg = store.get("knowledgeGraph") as any;
+    const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager | undefined;
+    const kg = store.get("knowledgeGraph") as { queryNL?(query: string): Promise<{ nodes?: Array<{ name?: string; id?: string; content?: string }> }> } | undefined;
 
-    if (vault?.searchNotes) {
+    if (vault?.search) {
       try {
-        const local = await vault.searchNotes(query, { limit: maxResults });
-        for (const item of Array.isArray(local) ? local : []) {
+        const local = vault.search(query, { limit: maxResults });
+        for (const item of local) {
           results.push({
             source: "local",
-            title: item.title ?? item.id ?? "",
-            snippet: (item.content ?? item.snippet ?? "").slice(0, 200),
+            title: item.note.title ?? item.note.path ?? "",
+            snippet: (item.note.content ?? item.excerpt ?? "").slice(0, 200),
             relevance: 0.9,
           });
         }
@@ -85,7 +85,7 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
 
     if (needWeb) {
       try {
-        const searchEngine = store.get("searchEngine") as any;
+        const searchEngine = store.get("searchEngine") as { search?(query: string, opts?: { limit?: number }): Promise<Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }>> } | undefined;
         let webResults: any[] = [];
 
         if (searchEngine?.search) {

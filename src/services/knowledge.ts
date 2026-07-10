@@ -70,7 +70,7 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     };
   }
 
-  const queryOutput = result.stepResults[0] as any;
+  const queryOutput = result.stepResults[0] as { results: Array<{source: string; title: string; url?: string; snippet: string}>; totalFound: number; scopeUsed: string };
   if (!queryOutput?.results?.length) {
     return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
   }
@@ -93,5 +93,5 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     context += "\n";
   }
 
-  return { context, sources, totalResults: queryOutput.totalResults };
+  return { context, sources, totalResults: queryOutput.totalFound };
 }

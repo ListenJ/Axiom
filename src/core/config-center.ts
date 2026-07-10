@@ -188,6 +188,11 @@ export class ConfigCenter {
     return Boolean(val);
   }
 
+  /** 获取原始 YAML 数据 */
+  getYamlData(): Record<string, unknown> {
+    return this.yamlData;
+  }
+
   /** 获取脱敏后的值（用于日志和前端展示） */
   getMasked(key: string): string {
     const schema = CONFIG_SCHEMA.find((s) => s.key === key);
@@ -574,7 +579,7 @@ export function getConfig(): AppConfig {
       bind: cc.getString("gateway.bind"),
       auth: { token: cc.getString("gateway.auth_token") || undefined },
     },
-    models: (cc as any).yamlData?.models ?? [],
+    models: (cc.getYamlData()?.models ?? []) as ModelConfig[],
     memory: {
       vaultPath: cc.getString("memory.vault_path"),
       obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,

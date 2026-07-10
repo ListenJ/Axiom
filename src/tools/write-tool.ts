@@ -58,7 +58,7 @@ export const writeTool: Tool<WriteInput, WriteOutput> = {
       }
 
       case "memory": {
-        const vault = store.get("vaultManager") as any;
+        const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager;
         if (vault?.writeNote) {
           await vault.writeNote(path, content, { append });
           bytesWritten = Buffer.byteLength(content, "utf-8");

@@ -91,6 +91,8 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
   private batchHistory: ReindexBatch[] = [];
   private currentBatch: ReindexBatch | null = null;
 
+  private vaultPath: string;
+
   // 增量索引追踪 (P1 优化)
   private dirtyFiles = new Set<string>();           // 待重新索引的文件
   private lastIndexTime = 0;                        // 上次索引时间
@@ -108,6 +110,8 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
       codegraphProjectPath: opts.codegraphProjectPath,
       debounceMs: opts.debounceMs ?? 1500,
     });
+
+    this.vaultPath = opts.vaultPath;
 
     this.enhancedOpts = {
       codegraphProjectPath: opts.codegraphProjectPath,
@@ -652,9 +656,7 @@ export class EnhancedFileWatcher extends VaultFileWatcher {
   }
 
   private getVaultPath(): string {
-    // 访问父类的私有属性需要使用 hack，这里直接返回已知路径
-    // 实际项目中应该通过 getter 访问
-    return (this as any).opts?.vaultPath || ".";
+    return this.vaultPath || ".";
   }
 }
 
