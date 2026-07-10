@@ -79,7 +79,12 @@ export function detectLoop(toolName: string, input: string): boolean {
   recent.push(now);
   recentCalls.set(key, recent);
   if (recent.length > 5) {
-    logger.warn(`[ToolGuard] Loop detected: ${key} (${recent.length} calls in 60s)`);
+    // Only warn once per cycle — skip if we already warned in this window
+    const alreadyWarned = calls.find(t => t === -1);
+    if (!alreadyWarned) {
+      recentCalls.set(key, [-1]);
+      logger.warn(`[ToolGuard] Loop detected: ${key} (${recent.length} calls in 60s)`);
+    }
     return true;
   }
   return false;
