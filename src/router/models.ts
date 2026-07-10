@@ -8,4 +8,6 @@
  * New code SHOULD prefer importing from `./models/{types,providers,registry}.js`
  * directly to avoid pulling the full registry data when only types are needed.
  */
-export * from "./models/index.js";
+export type { ModelProvider, TaskRole, UnifiedModel, ProviderConfig } from "./models/types.js";
+export { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "./models/providers.js";
+export { UNIFIED_REGISTRY, findModelsForRole, getModel, getFallbackChain, listFreeModels, listAllModels, listAllRoles } from "./models/registry.js";
