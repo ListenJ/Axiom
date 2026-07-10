@@ -17,7 +17,23 @@
  */
 
 import { logger } from "./logger.js";
-import { PROVIDER_CONFIG, type ModelProvider } from "../router/models.js";
+
+interface ProviderEntry {
+  apiKeyEnv: string;
+  baseURL: string;
+}
+
+const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
+  siliconflow: { apiKeyEnv: "SILICONFLOW_API_KEY", baseURL: "https://api.siliconflow.cn/v1" },
+  ofoxai: { apiKeyEnv: "OFOXAI_API_KEY", baseURL: "https://api.ofox.ai/v1" },
+  openrouter: { apiKeyEnv: "OPENROUTER_API_KEY", baseURL: "https://openrouter.ai/api/v1" },
+  deepseek: { apiKeyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com/v1" },
+  kimi: { apiKeyEnv: "KIMI_API_KEY", baseURL: "https://api.moonshot.cn/v1" },
+  minimax: { apiKeyEnv: "MINIMAX_API_KEY", baseURL: "https://api.minimax.chat/v1" },
+  nim: { apiKeyEnv: "NIM_API_KEY", baseURL: "https://integrate.api.nvidia.com/v1" },
+};
+
+type ModelProvider = keyof typeof PROVIDER_CONFIG;
 
 type ProviderKey = ModelProvider | string;
 
