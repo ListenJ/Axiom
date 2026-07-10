@@ -96,6 +96,10 @@ import { DREngine, Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type Know
 import { getResourceBudgetManager } from "../dre/system-resource.js";
 import { KnowledgeGraphEnhanced, type KGNodeType, type KGEdgeType } from "../kg/enhanced.js";
 import { registerExternalTools } from "./register-external-tools.js";
+import { adaptTools } from "./adapt-tool.js";
+import { readTool } from "../tools/read-tool.js";
+import { writeTool } from "../tools/write-tool.js";
+import { queryTool } from "../tools/query-tool.js";
 import { KnowledgeAccessLayer } from "../kal/knowledge-access-layer.js";
 import { createNodeId } from "../kal/node-id.js";
 import { parseMarkdownAST, extractAllEntities } from "../crawl/processor/markdown-ast.js";
@@ -120,6 +124,9 @@ const registry = new ToolRegistry();
 // Moved to mcp/register-external-tools.ts to reduce this file from ~3500 to ~3200 lines.
 // Remaining internal tools (memory, scene, pipeline, dre, kg, persona …) follow below.
 registerExternalTools(registry);
+
+// -- Pipeline 通用工具 (缓存优先/循环检测/进度/资源限制) --
+for (const td of adaptTools([readTool, writeTool, queryTool])) registry.add(td);
 
 // -- Vault 核心记忆工具 --
 registry.add({

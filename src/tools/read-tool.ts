@@ -32,6 +32,7 @@ export const readTool: Tool<ReadInput, ReadOutput> = {
 
   validate(input: ReadInput): string | null {
     if (!input.source) return "source is required (file|web|memory)";
+    if (!["file", "web", "memory"].includes(input.source)) return `invalid source: ${input.source} (must be file|web|memory)`;
     if (!input.path || input.path.length === 0) return "path is required";
     return null;
   },
