@@ -23,6 +23,7 @@
 
 import { readString } from "../utils/env.js";
 import type { DREConfig } from "./engine.js";
+import type { LLMConfig } from "./llm/client.js";
 
 /** Common LLM configurations. */
 export const LLM_PRESETS = {
@@ -61,7 +62,7 @@ export const PRESETS = {
   minimal(): DREConfig {
     return {
       dbPath: ":memory:",
-      mainLLM: LLM_PRESETS.none() as any,
+      mainLLM: LLM_PRESETS.none() as LLMConfig,
       workingMemoryCapacity: 8,
       episodicTTL: 60000,
     };
@@ -74,7 +75,7 @@ export const PRESETS = {
   standard(opts?: { dbPath?: string; model?: string }): DREConfig {
     return {
       dbPath: opts?.dbPath ?? "./dre.db",
-      mainLLM: LLM_PRESETS.local(opts?.model) as any,
+      mainLLM: LLM_PRESETS.local(opts?.model) as LLMConfig,
       workingMemoryCapacity: 16,
       episodicTTL: 3600000,
       cloudFallback: undefined,
@@ -93,8 +94,8 @@ export const PRESETS = {
   }): DREConfig {
     return {
       dbPath: opts.dbPath,
-      mainLLM: LLM_PRESETS.cloud(opts.model, opts.apiKey) as any,
-      discriminLLM: LLM_PRESETS.local() as any,
+      mainLLM: LLM_PRESETS.cloud(opts.model, opts.apiKey) as LLMConfig,
+      discriminLLM: LLM_PRESETS.local() as LLMConfig,
       workingMemoryCapacity: 32,
       episodicTTL: 7200000,
       cloudFallback: opts.cloudFallback,
@@ -108,7 +109,7 @@ export const PRESETS = {
   research(opts?: { dbPath?: string; model?: string }): DREConfig {
     return {
       dbPath: opts?.dbPath ?? "./research.db",
-      mainLLM: LLM_PRESETS.local(opts?.model) as any,
+      mainLLM: LLM_PRESETS.local(opts?.model) as LLMConfig,
       workingMemoryCapacity: 64,
       episodicTTL: 86400000,
     };

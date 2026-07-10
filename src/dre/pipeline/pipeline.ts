@@ -54,6 +54,15 @@ export interface VerificationResult {
   reasoning: string;
 }
 
+/** Raw LLM response shape from generateConstrained (snake_case keys). */
+interface LLMVerificationResponse {
+  verdict: string;
+  confidence: number;
+  chain: string[];
+  evidence_refs: string[];
+  corrected?: string;
+}
+
 /**
  * 三段甄别流水线
  */
@@ -200,13 +209,14 @@ export class Pipeline {
       },
     });
 
+    const llmResult = result as unknown as LLMVerificationResponse;
     return {
-      verdict: (result as any).verdict || "reject",
-      confidence: (result as any).confidence || 0,
-      chain: (result as any).chain || [],
-      evidenceRefs: (result as any).evidence_refs || [],
-      corrected: (result as any).corrected,
-      reasoning: (result as any).chain?.join("\n") || "",
+      verdict: (llmResult.verdict || "reject") as "accept" | "reject" | "need_more",
+      confidence: llmResult.confidence || 0,
+      chain: llmResult.chain || [],
+      evidenceRefs: llmResult.evidence_refs || [],
+      corrected: llmResult.corrected,
+      reasoning: llmResult.chain?.join("\n") || "",
     };
   }
 

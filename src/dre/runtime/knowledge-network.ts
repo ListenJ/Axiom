@@ -11,7 +11,7 @@
  */
 
 import { eventBus } from "./event-bus.js";
-import { atomStore } from "./atom-engine.js";
+import { atomStore, type AtomKind } from "./atom-engine.js";
 
 // ─── Knowledge Entity ──────────────────────────────────────────────────────
 
@@ -189,7 +189,7 @@ class KnowledgeNetworkImpl {
     this.addToIndex(this.byState, entity.state.current, id);
 
     // Store as atom and track the atomId for sync on update/delete
-    const atom = atomStore.create(kind as any, name, {
+    const atom = atomStore.create(kind as AtomKind, name, {
       source: opts?.source ?? "knowledge-network",
       confidence: opts?.confidence ? (opts.confidence > 0.8 ? "certain" : opts.confidence > 0.5 ? "inferred" : "uncertain") : "inferred",
       metadata: { entityId: id },
