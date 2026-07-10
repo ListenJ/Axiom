@@ -151,6 +151,129 @@ describe("性能基准", () => {
     console.log(`  shouldWrite ×10k: ${avg.toFixed(4)}ms/iter`);
   });
 
+  it("[perf] Cache.getOrSet 1万次", async () => {
+    const { Cache } = require("../src/utils/cache.js");
+    const cache = new Cache({ maxSize: 200, defaultTtlMs: 60000, redis: false, persistent: false });
+    for (let i = 0; i < 100; i++) cache.set(`k-${i}`, `v-${i}`);
+    let counter = 0;
+    const avg = await benchAsync("cache.getOrSet", async () => {
+      for (let i = 0; i < 100; i++) {
+        await cache.getOrSet(`k-${(counter++) % 150}`, async () => `v`, 60000);
+      }
+    }, 100);
+    console.log(`  cache.getOrSet ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
+    cache.destroy();
+  });
+
+  it("[perf] Cache.evictLRU 1000次", () => {
+    const { Cache } = require("../src/utils/cache.js");
+    const cache = new Cache({ maxSize: 10, defaultTtlMs: 60000, redis: false, persistent: false });
+    for (let i = 0; i < 10; i++) cache.set(`k-${i}`, `v-${i}`);
+    let idx = 0;
+    const avg = bench("cache.evictLRU", () => {
+      cache.set(`ev-${idx++}`, `v`);
+    }, 1000);
+    console.log(`  cache.evictLRU ×1k: ${avg.toFixed(4)}ms/iter`);
+    cache.destroy();
+  });
+
+  it("[perf] ThompsonRouter.route 1万次", async () => {
+    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+    const router = new ThompsonRouter({
+      arms: [
+        { id: "fast", model: "gpt-3.5", provider: "openai", alpha: 10, beta: 2 },
+        { id: "cheap", model: "claude-haiku", provider: "anthropic", alpha: 5, beta: 5 },
+        { id: "smart", model: "gpt-4", provider: "openai", alpha: 20, beta: 3 },
+      ],
+      minSamples: 10, decayFactor: 0.95, inMemory: true,
+    });
+    const ctx = { taskType: "qa", inputLength: 100 };
+    const avg = await benchAsync("thompsonRouter.route", async () => {
+      for (let i = 0; i < 100; i++) await router.route(ctx);
+    }, 100);
+    console.log(`  thompsonRouter.route ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
+  });
+
+  it("[perf] ThompsonRouter.reportFeedback 1万次", () => {
+    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+    const router = new ThompsonRouter({
+      arms: [
+        { id: "fast", model: "gpt-3.5", provider: "openai", alpha: 1, beta: 1 },
+        { id: "cheap", model: "claude-haiku", provider: "anthropic", alpha: 1, beta: 1 },
+      ],
+      minSamples: 10, decayFactor: 0.95, inMemory: true,
+    });
+    const avg = bench("thompsonRouter.reportFeedback", () => {
+      for (let i = 0; i < 100; i++) router.reportFeedback(i % 2 === 0 ? "fast" : "cheap", i % 3 !== 0);
+    }, 100);
+    console.log(`  thompsonRouter.reportFeedback ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
+  });
+
+  it("[perf] ConstraintSolver.check (RESOURCE_CONSTRAINTS) 1万次", () => {
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = require("../src/dre/constraint/solver.js");
+    const s = new ConstraintSolver();
+    s.registerAll(RESOURCE_CONSTRAINTS);
+    s.registerAll([
+      { id: "add-mem-min", dimension: "physical", type: "min_value", name: "", description: "", subject: "available_memory_mb", params: { min: 256 }, priority: 2, enabled: true, createdAt: 0 },
+      { id: "add-mem-max", dimension: "physical", type: "max_value", name: "", description: "", subject: "available_memory_mb", params: { max: 32000 }, priority: 1, enabled: true, createdAt: 0 },
+      { id: "policy-env", dimension: "policy", type: "not_equals", name: "", description: "", subject: "env", target: "prod", priority: 10, enabled: true, createdAt: 0 },
+      { id: "field-role", dimension: "field_match", type: "equals", name: "", description: "", subject: "role", target: "admin", priority: 5, enabled: true, createdAt: 0 },
+      { id: "logical-dep", dimension: "logical", type: "requires", name: "", description: "", subject: "deploy", target: "docker", priority: 7, enabled: true, createdAt: 0 },
+      { id: "temporal-hours", dimension: "temporal", type: "between", name: "", description: "", subject: "deploy", params: { min: 6, max: 22 }, priority: 3, enabled: true, createdAt: 0 },
+      { id: "field-category", dimension: "field_match", type: "in_set", name: "", description: "", subject: "category", params: { values: ["web", "api", "worker"] }, priority: 2, enabled: true, createdAt: 0 },
+      { id: "policy-action", dimension: "policy", type: "in_set", name: "", description: "", subject: "action", params: { values: ["deploy", "rollback", "scale"] }, priority: 8, enabled: true, createdAt: 0 },
+    ]);
+    const avg = bench("constraintSolver.check (RESOURCE_CONSTRAINTS)", () => {
+      s.check("deploy", { available_memory_mb: 2000, env: "staging", role: "admin", has_docker: true, category: "web", action: "deploy" });
+    }, 10000);
+    console.log(`  constraintSolver.check (10约束) ×10k: ${avg.toFixed(4)}ms/iter`);
+  });
+
+  it("[perf] MockVaultManager.search 1万次", () => {
+    const { MockVaultManager } = require("./helpers/vault-mock.js");
+    const vm = new MockVaultManager();
+    for (let i = 0; i < 100; i++) {
+      vm.notes.set(`note-${i}.md`, {
+        path: `note-${i}.md`, title: `Note ${i}`,
+        content: `This is the content of note ${i}. It contains searchable text like apple, banana, cherry.`,
+        frontmatter: {}, tags: [`tag-${i % 10}`], wikiLinks: [], backlinks: [],
+        wordCount: 20, modifiedAt: Date.now(),
+      });
+    }
+    const avg = bench("mockVault.search", () => {
+      for (let i = 0; i < 100; i++) vm.search(`search-term-${i % 10}`);
+    }, 100);
+    console.log(`  mockVault.search ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
+  });
+
+  it("[perf] MockVaultManager.callCount 1万次", () => {
+    const { MockVaultManager } = require("./helpers/vault-mock.js");
+    const vm = new MockVaultManager();
+    for (let i = 0; i < 20; i++) { vm.search(`q-${i}`); vm.readNote(`note-${i}.md`); }
+    const avg = bench("mockVault.callCount", () => {
+      for (let i = 0; i < 100; i++) vm.callCount(i % 2 === 0 ? "search" : "readNote");
+    }, 100);
+    console.log(`  mockVault.callCount ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
+  });
+
+  it("[perf] ConfigCenter get/getString/getNumber 混合读取 1万次", () => {
+    const { ConfigCenter } = require("../src/core/config-center.js");
+    const cc = new ConfigCenter(":memory:");
+    const avg = bench("configCenter.mixedReads", () => {
+      for (let i = 0; i < 100; i++) {
+        cc.get("gateway.port");
+        cc.getString("gateway.bind");
+        cc.getNumber("crawler.max_concurrent");
+        cc.get("model.siliconflow_key");
+        cc.getString("memory.vault_path");
+        cc.getNumber("security.max_body_size");
+        cc.get("advanced.codegraph_auto_index");
+        cc.getString("gateway.auth_token");
+      }
+    }, 125);
+    console.log(`  configCenter.mixedReads ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 800).toFixed(4)}ms/op)`);
+  });
+
   it("[perf] 模块导入时间", async () => {
     const modules = [
       "../src/tools/types.js",
