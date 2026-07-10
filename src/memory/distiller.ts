@@ -14,6 +14,17 @@
 import { VaultManager } from "./vault-manager.js";
 import { logger } from "../utils/logger.js";
 
+/** Try to extract a hostname from a URL string, returning a fallback on failure */
+export function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    // Strip protocol-less strings like "localhost" or "example.com/foo"
+    const cleaned = url.replace(/^https?:\/\//, "").split("/")[0].split("?")[0];
+    return cleaned || url;
+  }
+}
+
 interface DistillOptions {
   source: string;           // 来源路径或 URL
   sourceType: "conversation" | "web-clip" | "search-result" | "code" | "manual";
@@ -75,7 +86,7 @@ export class MemoryDistiller {
       const path = await this.vault.writeAtomicNote(idea.title, idea.content, {
         context: `Distilled from web clip: ${note.frontmatter.source || clipPath}`,
         relatedNotes: [clipPath],
-        tags: ["distilled", "web-clip", ...(note.frontmatter.tags as string[] || [])],
+        tags: ["distilled", "web-clip", ...(Array.isArray(note.frontmatter.tags) ? note.frontmatter.tags.filter((t): t is string => typeof t === "string") : [])],
       });
       created.push(path);
     }
@@ -164,11 +175,11 @@ export class MemoryDistiller {
       codeIndex++;
       const code = m[1].trim();
       if (code.length > 50 && code.length < 500) {
-        ideas.push({
-          title: `代码片段 #${codeIndex} (${sourceUrl ? new URL(sourceUrl).hostname : "web"})`,
-          content: `\`\`\`\n${code}\n\`\`\``,
-          reason: "有价值的代码参考",
-        });
+    ideas.push({
+      title: `代码片段 #${codeIndex} (${sourceUrl ? safeHostname(sourceUrl) : "web"})`,
+      content: `\`\`\`\n${code}\n\`\`\``,
+      reason: "有价值的代码参考",
+    });
       }
     }
 

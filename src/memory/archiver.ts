@@ -212,8 +212,9 @@ export class MemoryArchiver {
   }
 
   private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!match) return { frontmatter: {}, body: content };
+    const normalized = content.replace(/\r\n/g, "\n");
+    const match = normalized.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return { frontmatter: {}, body: normalized };
 
     const fm: Record<string, unknown> = {};
     for (const line of match[1].split("\n")) {
@@ -232,7 +233,7 @@ export class MemoryArchiver {
         }
       }
     }
-    return { frontmatter: fm, body: content.slice(match[0].length).trim() };
+    return { frontmatter: fm, body: normalized.slice(match[0].length).trim() };
   }
 
   /** 获取归档统计 */
