@@ -91,7 +91,13 @@ export class MemoryArchiver {
       const fullDir = path.join(dir, relPrefix);
       if (!fs.existsSync(fullDir)) return;
 
-      const entries = fs.readdirSync(fullDir, { withFileTypes: true });
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(fullDir, { withFileTypes: true });
+      } catch (e) {
+        result.errors.push(`Cannot read directory ${fullDir}: ${(e as Error).message}`);
+        return;
+      }
       for (const entry of entries) {
         const entryRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
 
@@ -104,8 +110,14 @@ export class MemoryArchiver {
     };
 
     // 扫描 Vault 根目录
-    const entries = fs.readdirSync(this.vaultPath, { withFileTypes: true });
-    for (const entry of entries) {
+    let rootEntries: fs.Dirent[];
+    try {
+      rootEntries = fs.readdirSync(this.vaultPath, { withFileTypes: true });
+    } catch (e) {
+      result.errors.push(`Cannot read vault root ${this.vaultPath}: ${(e as Error).message}`);
+      return;
+    }
+    for (const entry of rootEntries) {
       if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("05-Archives")) {
         await scanDir(this.vaultPath, entry.name);
       } else if (entry.isFile() && entry.name.endsWith(".md") && rule.sourcePattern.test(entry.name)) {
@@ -246,7 +258,12 @@ export class MemoryArchiver {
     const byCategory: Record<string, number> = {};
 
     const scan = (dir: string, rel: string) => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
       for (const entry of entries) {
         const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
         if (entry.isDirectory()) {

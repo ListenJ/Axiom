@@ -274,10 +274,16 @@ export class ConformalRetriever<T> {
     const pValues = new Map<T, number>();
 
     for (const doc of candidates) {
-      const similarity = similarityFn(query, doc);
+      let similarity: number;
+      try {
+        similarity = similarityFn(query, doc);
+      } catch (e) {
+        logger.error(`[ConformalRetriever] similarityFn threw for doc`, e instanceof Error ? e : new Error(String(e)));
+        similarity = 0;
+      }
 
-      // 边界检查：相似度应在 [0, 1] 范围内
-      const clampedSimilarity = Math.max(0, Math.min(1, similarity));
+      // 边界检查: NaN/Infinity → 0 (最保守), 超出 [0, 1] 截断
+      const clampedSimilarity = Number.isFinite(similarity) ? Math.max(0, Math.min(1, similarity)) : 0;
 
       // 非一致性得分: s_new = 1 - similarity
       const nonconformityScore = 1 - clampedSimilarity;

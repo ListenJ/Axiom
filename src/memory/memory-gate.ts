@@ -109,6 +109,16 @@ export class MemoryGate {
     userMessage: string,
     ctx: SignificanceContext,
   ): WriteDecision {
+    // 防御: null/undefined 参数降级
+    if (!response || !userMessage || !ctx) {
+      return {
+        shouldWrite: false,
+        reason: "Invalid arguments: response, userMessage, and ctx are required",
+        confidence: 0,
+        category: "skip",
+      };
+    }
+
     // 1. 基础检查：响应太短 → 跳过
     if (response.length < this.config.minResponseLength) {
       return {

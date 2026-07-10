@@ -29,6 +29,7 @@ export const writeTool: Tool<WriteInput, WriteOutput> = {
 
   validate(input: WriteInput): string | null {
     if (!input.target) return "target is required (file|memory)";
+    if (!["file", "memory"].includes(input.target)) return `invalid target: ${input.target} (must be file|memory)`;
     if (!input.path) return "path is required";
     if (input.content === undefined) return "content is required";
     return null;
