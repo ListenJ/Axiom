@@ -245,9 +245,85 @@ describe("PBT Vault (Mock)", () => {
     await vault.writeNote("test/c.md", "c");
     expect(vault.stats().totalNotes).toBe(3);
   });
+
+  it("INV7: atomicNote writes a readable note", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    const path = await vault.writeAtomicNote("My Atomic Idea", "core insight here", { tags: ["atomic"] });
+    const note = vault.readNote(path);
+    expect(note).not.toBeNull();
+    expect(note!.content).toContain("My Atomic Idea");
+    expect(note!.content).toContain("core insight here");
+  });
+
+  it("INV8: getNetwork returns notes and relationships", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeNote("a.md", "alpha");
+    await vault.writeNote("b.md", "beta");
+    const net = vault.getNetwork("a.md");
+    expect(net.notes.length).toBe(2);
+    expect(net.relationships).toBeArray();
+  });
+
+  it("INV9: reset() clears calls and notes", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeNote("x.md", "content");
+    vault.search("x");
+    expect(vault.notes.size).toBe(1);
+    expect(vault.callCount("writeNote")).toBe(1);
+    vault.reset();
+    expect(vault.notes.size).toBe(0);
+    expect(vault.callCount("writeNote")).toBe(0);
+  });
+
+  it("INV10: callCount tracks per-method invocations", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeNote("a.md", "a");
+    await vault.writeNote("b.md", "b");
+    vault.search("test");
+    vault.readNote("a.md");
+    vault.stats();
+    expect(vault.callCount("writeNote")).toBe(2);
+    expect(vault.callCount("search")).toBe(1);
+    expect(vault.callCount("readNote")).toBe(1);
+    expect(vault.callCount("stats")).toBe(1);
+  });
 });
 
-// 5. Soak test
+// 5. ConfigCenter invariants
+describe("PBT ConfigCenter", () => {
+  it("INV1: get returns what was set", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    cc.set("gateway.port", 9999, "test", false);
+    const val = cc.get<number>("gateway.port");
+    expect(val).toBe(9999);
+    expect(cc.getNumber("gateway.port")).toBe(9999);
+  });
+
+  it("INV2: getString returns string type", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    const val = cc.getString("gateway.bind");
+    expect(typeof val).toBe("string");
+  });
+
+  it("INV3: getNumber returns number or 0", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    const val = cc.getNumber("gateway.port");
+    expect(typeof val).toBe("number");
+    expect(isNaN(val)).toBeFalse();
+  });
+});
+
+// 6. Soak test
 describe("SOAK", () => {
   it("Cache+Router+TS 5000 iterations", async () => {
     const [mC, mR, mT] = await Promise.all([import("../src/utils/cache.js"), import("../src/core/http-router.js"), import("../src/router/thompson-router.js")]);
