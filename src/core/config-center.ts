@@ -521,3 +521,76 @@ export function getConfigCenter(): ConfigCenter {
 export function resetConfigCenter(): void {
   globalCenter = null;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 向下兼容: 提供 utils/config.ts 的 getConfig() 接口
+// ═══════════════════════════════════════════════════════════════
+
+interface GatewayConfig {
+  port: number;
+  bind: string;
+  auth?: { token?: string };
+}
+
+interface ModelConfig {
+  name: string;
+  provider: string;
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  tier: number;
+  purpose: string[];
+  priority: number;
+  freeOnly?: boolean;
+  httpProxy?: string;
+}
+
+interface MemoryConfig {
+  vaultPath: string;
+  obsidianApiPort: number;
+  obsidianApiToken: string;
+  databasePath: string;
+}
+
+interface CrawlerConfig {
+  searchApi: string;
+  serpapiKey: string;
+  maxConcurrent: number;
+  requestDelay: number;
+}
+
+interface AppConfig {
+  gateway: GatewayConfig;
+  models: ModelConfig[];
+  memory: MemoryConfig;
+  crawler: CrawlerConfig;
+}
+
+export function getConfig(): AppConfig {
+  const cc = getConfigCenter();
+  return {
+    gateway: {
+      port: cc.getNumber("gateway.port"),
+      bind: cc.getString("gateway.bind"),
+      auth: { token: cc.getString("gateway.auth_token") || undefined },
+    },
+    models: (cc as any).yamlData?.models ?? [],
+    memory: {
+      vaultPath: cc.getString("memory.vault_path"),
+      obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,
+      obsidianApiToken: process.env.OBSIDIAN_API_TOKEN || "",
+      databasePath: cc.getString("memory.database_path"),
+    },
+    crawler: {
+      searchApi: process.env.CRAWLER_SEARCH_API || "multi-engine",
+      serpapiKey: cc.getString("crawler.serpapi_key"),
+      maxConcurrent: cc.getNumber("crawler.max_concurrent") || 3,
+      requestDelay: Number(process.env.CRAWLER_REQUEST_DELAY) || 1000,
+    },
+  };
+}
+
+export function reloadConfig(): AppConfig {
+  resetConfigCenter();
+  return getConfig();
+}

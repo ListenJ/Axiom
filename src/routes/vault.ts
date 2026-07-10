@@ -131,7 +131,7 @@ export async function handleVaultWatchStatus(ctx: RouteContext): Promise<Respons
 export async function handleVaultDistill(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/distill" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
-    const { getConfig } = await import("../utils/config.js");
+    const { getConfig } = await import("../core/config-center.js");
     const { MemoryDistiller } = await import("../memory/distiller.js");
     const config = getConfig();
     const body = await ctx.req.json();
@@ -149,7 +149,7 @@ export async function handleVaultDistill(ctx: RouteContext): Promise<Response | 
 
 export async function handleBootstrap(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/bootstrap" && ctx.req.method === "GET") {
-    const { getConfig } = await import("../utils/config.js");
+    const { getConfig } = await import("../core/config-center.js");
     const { AgentBootstrap } = await import("../memory/bootstrap.js");
     const config = getConfig();
     const bootstrap = new AgentBootstrap(config.memory.vaultPath);

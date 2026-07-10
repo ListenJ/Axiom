@@ -18,8 +18,7 @@ import path from "path";
 import fs from "fs";
 import { logger } from "../../utils/logger.js";
 import { getActivityTracker } from "./activity-tracker.js";
-import { getPromptEngineer } from "./prompt-engineer-shim.js";
-import { getSkillRegistry } from "./skill-registry-shim.js";
+import { getPromptEngineer, getSkillRegistry } from "./shims.js";
 import type { PatternCandidate } from "./types.js";
 import type { SkillDefinition } from "../../skills/types.js";
 

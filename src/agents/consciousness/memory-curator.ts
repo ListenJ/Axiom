@@ -24,9 +24,7 @@
 
 import { logger } from "../../utils/logger.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
-import { getGlobalMemoryDistiller } from "./memory-distiller-shim.js";
-import { getGlobalMemoryArchiver } from "./memory-archiver-shim.js";
-import { getSqliteMemory } from "./sqlite-memory-shim.js";
+import { getGlobalMemoryDistiller, getGlobalMemoryArchiver, getSqliteMemory } from "./shims.js";
 import type { MemoryRecord } from "../../memory/sqlite-memory.js";
 
 export interface CuratorConfig {

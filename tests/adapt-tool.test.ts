@@ -68,7 +68,9 @@ describe("MCP ToolRegistry 集成", () => {
   it("注册适配工具后可通过 getToolsMeta 查询", async () => {
     const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
     const { adaptTools } = await import("../src/mcp/adapt-tool.js");
-    const { readTool, writeTool, queryTool } = await import("../src/tools/index.js");
+    const { readTool } = await import("../src/tools/read-tool.js");
+    const { writeTool } = await import("../src/tools/write-tool.js");
+    const { queryTool } = await import("../src/tools/query-tool.js");
     const registry = new ToolRegistry();
     for (const td of adaptTools([readTool, writeTool, queryTool])) registry.add(td);
     const meta = registry.getToolsMeta();
@@ -81,7 +83,9 @@ describe("MCP ToolRegistry 集成", () => {
   it("HttpHandlers 映射正确", async () => {
     const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
     const { adaptTools } = await import("../src/mcp/adapt-tool.js");
-    const { readTool, writeTool, queryTool } = await import("../src/tools/index.js");
+    const { readTool } = await import("../src/tools/read-tool.js");
+    const { writeTool } = await import("../src/tools/write-tool.js");
+    const { queryTool } = await import("../src/tools/query-tool.js");
     const registry = new ToolRegistry();
     for (const td of adaptTools([readTool, writeTool, queryTool])) registry.add(td);
     const handlers = registry.buildHttpHandlers();

@@ -139,7 +139,7 @@ export async function handleTrends(ctx: RouteContext): Promise<Response | null> 
 
 export async function handleConfig(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/config" && ctx.req.method === "GET") {
-    const { getConfig } = await import("../utils/config.js");
+    const { getConfig } = await import("../core/config-center.js");
     const config = getConfig();
     // 过滤掉敏感字段（apiKey 只返回前8位）
     const safeModels = config.models.map((m) => ({
@@ -162,7 +162,7 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
   if (ctx.url.pathname === "/config" && ctx.req.method === "POST") {
     try {
       const body = await ctx.req.json();
-      const { getConfig, reloadConfig } = await import("../utils/config.js");
+      const { getConfig, reloadConfig } = await import("../core/config-center.js");
       const current = getConfig();
       // 只支持更新 gateway 和 crawler 配置
       const updated = {

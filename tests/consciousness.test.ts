@@ -30,24 +30,16 @@ import { router, type SmartAssignmentResponse } from "../src/router/model-router
 import { getGlobalBlackboard } from "../src/memory/blackboard.js";
 import {
   setPromptEngineerForTest,
-  type PromptEngineerSubset,
-} from "../src/agents/consciousness/prompt-engineer-shim.js";
-import {
   setSkillRegistryForTest,
-  type SkillRegistrySubset,
-} from "../src/agents/consciousness/skill-registry-shim.js";
-import {
   setMemoryDistillerForTest,
-  type MemoryDistillerSubset,
-} from "../src/agents/consciousness/memory-distiller-shim.js";
-import {
   setMemoryArchiverForTest,
-  type MemoryArchiverSubset,
-} from "../src/agents/consciousness/memory-archiver-shim.js";
-import {
   setSqliteMemoryForTest,
+  type PromptEngineerSubset,
+  type SkillRegistrySubset,
+  type MemoryDistillerSubset,
+  type MemoryArchiverSubset,
   type SQLiteMemorySubset,
-} from "../src/agents/consciousness/sqlite-memory-shim.js";
+} from "../src/agents/consciousness/shims.js";
 import { getStateStore } from "../src/agents/consciousness/state-store.js";
 import {
   getActivityTracker,
