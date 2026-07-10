@@ -30,7 +30,6 @@
 
 import { logger } from "./logger.js";
 import { Cache } from "./cache.js";
-import { getGlobalBlackboard, type ReadOptions, type ReadResult } from "../memory/blackboard.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -55,6 +54,13 @@ export interface ReadResponse {
   fieldsProjected: boolean;
   batched: boolean;
   cached: boolean;
+}
+
+interface ReadResult {
+  hit: boolean;
+  reason: string;
+  projected?: unknown;
+  entry?: { value: unknown };
 }
 
 export interface InterceptorContext {
@@ -83,6 +89,7 @@ export interface BatchWindow {
 export class ReadOptimizerFacade {
   private interceptors: Interceptor[] = [];
   private cache: Cache<unknown>;
+  private blackboard?: import("../memory/blackboard.js").SharedBlackboard;
   private rateLimiters = new Map<string, TokenBucket>();
   private batchQueues = new Map<string, BatchQueue>();
   private stats = {
@@ -106,6 +113,10 @@ export class ReadOptimizerFacade {
 
     // 注册默认拦截器
     this.registerDefaultInterceptors();
+  }
+
+  setBlackboard(bb: import("../memory/blackboard.js").SharedBlackboard): void {
+    this.blackboard = bb;
   }
 
   // ---------------------------------------------------------------------------
@@ -453,7 +464,8 @@ export class ReadOptimizerFacade {
   }
 
   private readFromBlackboard(request: ReadRequest): ReadResult {
-    const bb = getGlobalBlackboard();
+    const bb = this.blackboard;
+    if (!bb) throw new Error("Blackboard not injected");
     const key = `${request.resource}:${request.action}:${JSON.stringify(request.params)}`;
 
     return bb.read(key, {

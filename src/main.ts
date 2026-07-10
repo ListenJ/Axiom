@@ -14,7 +14,7 @@ import type { ServerWebSocket } from "bun";
 import { VaultManager } from "./memory/vault-manager.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
 import { logger } from "./utils/logger.js";
-import { getConfig } from "./utils/config.js";
+import { getConfig, getConfigCenter } from "./core/config-center.js";
 import { wsManager } from "./utils/websocket.js";
 import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { HealthMonitor } from "./utils/resilience.js";
@@ -67,9 +67,10 @@ if (nativeEnabled) {
 // ══════════════════════════════════════════════════════════════�?
 // 核心架构组件
 // ══════════════════════════════════════════════════════════════�?
-import { getConfigCenter } from "./core/config-center.js";
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
 import { getHttpRouter } from "./core/http-router.js";
+import { getGlobalBlackboard } from "./memory/blackboard.js";
+import { getReadOptimizer } from "./utils/read-optimizer.js";
 import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 
@@ -98,6 +99,7 @@ if (healthReport.overall === "critical") {
 }
 
 // ===== 读取优化管道初始�?=====
+getReadOptimizer().setBlackboard(getGlobalBlackboard());
 initializeReadOptimizers(process.cwd());
 
 // ===== 环境验证 =====
