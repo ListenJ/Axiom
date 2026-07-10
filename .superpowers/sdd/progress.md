@@ -1,12 +1,7 @@
-# SDD Progress
+# SDD Progress — Final
 
-| Task | Status | Commits | Review |
-|------|--------|---------|--------|
-| Item 1-4 | ✅ complete | c8e130a | clean |
-| Task 0-6 | ✅ complete | 8eac244~c8e130a | clean |
-| Item 6 (export\*) | 🔄 running | — | — |
-| MCP继续拆 | ⏳ pending | — | — |
-| process.env其他文件 | ⏳ pending | — | — |
-| as any残余 | ⏳ pending | — | — |
-| PBT 19→30+ | ⏳ pending | — | — |
-| deprecated调用者 | ⏳ pending | — | — |
+| Batch | Items | Status |
+|-------|-------|--------|
+| 原始架构修复 | 死代码、barrel、shim、config合并、中科工具MCP初拆 | ✅ |
+| Task 0-6 (子代理) | 测试基建、死导入、Vault单例化、utils层级3项、MCP域抽取、env收口、as any修复 | ✅ |
+| 继续完善 | Item6(export*)、PBT 30+、MCP继续拆、deprecated清理、as any残余、env其他文件 | ✅ |

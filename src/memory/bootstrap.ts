@@ -14,6 +14,7 @@
 import { VaultManager } from "./vault-manager.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
 interface BootstrapContext {
   /** Agent 人格定义 */
@@ -230,10 +231,10 @@ export class AgentBootstrap {
 
   private getAvailableModels(): string[] {
     const models: string[] = [];
-    if (process.env.SILICONFLOW_API_KEY) models.push("siliconflow");
-    if (process.env.OFOXAI_API_KEY) models.push("ofoxai");
-    if (process.env.DEEPSEEK_API_KEY) models.push("deepseek");
-    if (process.env.OPENROUTER_API_KEY) models.push("openrouter");
+    if (readString("SILICONFLOW_API_KEY")) models.push("siliconflow");
+    if (readString("OFOXAI_API_KEY")) models.push("ofoxai");
+    if (readString("DEEPSEEK_API_KEY")) models.push("deepseek");
+    if (readString("OPENROUTER_API_KEY")) models.push("openrouter");
     return models;
   }
 }

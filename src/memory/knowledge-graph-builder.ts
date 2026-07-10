@@ -13,6 +13,7 @@
  *       避免 LLM 对项目结构的"猜测"式推理。
  */
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import { isPgAvailable, getPG } from "../db/pg-client.js";
 import {
   searchSymbols,
@@ -378,7 +379,7 @@ async function extractPackageDependencies(
 async function generateEntityEmbeddings(pg: any, result: KGBuildResult): Promise<void> {
   try {
     const { proxyFetch } = await import("../utils/proxy-fetch.js");
-    const apiKey = process.env.SILICONFLOW_API_KEY;
+    const apiKey = readString("SILICONFLOW_API_KEY");
     if (!apiKey) {
       logger.warn("[KGBuild] No SILICONFLOW_API_KEY, skipping embedding generation");
       return;

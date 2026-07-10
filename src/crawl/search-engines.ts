@@ -7,6 +7,7 @@
 
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
 export interface SearchEngineResult {
   position: number;
@@ -121,7 +122,7 @@ class BingEngine extends SearchEngine {
   readonly name = "bing";
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
-    const apiKey = process.env.BING_API_KEY;
+    const apiKey = readString("BING_API_KEY");
     if (!apiKey) {
       logger.warn("[SearchEngine] BING_API_KEY not set");
       return [];
@@ -179,7 +180,7 @@ class SearXngEngine extends SearchEngine {
 
   constructor(instance?: string) {
     super();
-    this.instance = instance || process.env.SEARXNG_INSTANCE || "https://search.sapti.me";
+    this.instance = instance || readString("SEARXNG_INSTANCE", "https://search.sapti.me");
   }
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
@@ -265,7 +266,7 @@ export class SearchAggregator {
       case "searxng":
         return true;
       case "bing":
-        return !!process.env.BING_API_KEY;
+        return !!readString("BING_API_KEY");
       default:
         return false;
     }

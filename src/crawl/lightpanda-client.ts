@@ -15,6 +15,7 @@
  */
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { readString } from "../utils/env.js";
 
 export interface LightpandaConfig {
   /** Lightpanda 二进制路径 */
@@ -45,7 +46,7 @@ export interface RenderResult {
 export async function detectLightpanda(): Promise<{ available: boolean; path: string | null; method: "binary" | "docker-cli" | "cdp" | "none"; container?: string }> {
   // 1. 检查本地二进制
   const candidates = [
-    process.env.LIGHTPANDA_PATH,
+    readString("LIGHTPANDA_PATH"),
     "lightpanda",
     "./lightpanda",
     "/usr/local/bin/lightpanda",

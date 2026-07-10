@@ -8,6 +8,7 @@
 
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { readString } from "../utils/env.js";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 
@@ -165,7 +166,7 @@ export class SerpApiClient {
   private baseUrl: string;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.SERPAPI_KEY || "";
+    this.apiKey = apiKey || readString("SERPAPI_KEY", "");
     this.baseUrl = SERPAPI_BASE;
     if (!this.apiKey) {
       logger.warn("SerpApiClient initialized without API key");

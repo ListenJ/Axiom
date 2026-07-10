@@ -36,6 +36,7 @@ const DEFAULT_NOISE_RE = DEFAULT_NOISE_PATTERNS.map((p) => new RegExp(p, "gi"));
 
 import { VaultManager, getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
+import { readString } from "../utils/env.js";
 
 // ========== 类型定义 ==========
 
@@ -755,7 +756,7 @@ export class DataPipeline {
    */
   async saveCrawlResult(result: StructuredCrawlResult): Promise<void> {
     // 1. 保存到 SQLite（结构化查询）
-    const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
+    const dbPath = readString("DATABASE_PATH", "./data/agent.db");
     const db = new Database(dbPath);
     const wordCount = result.chunks.reduce((sum, c) => sum + c.wordCount, 0);
     const qualityScore = this.calculateQualityScore(result, wordCount);

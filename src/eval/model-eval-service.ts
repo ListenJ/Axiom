@@ -23,6 +23,7 @@ import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { safeJsonParse } from "../utils/json.js";
 import { toAxiomError } from "../utils/errors.js";
+import { readString } from "../utils/env.js";
 
 // ========== 类型定义 ==========
 
@@ -158,7 +159,7 @@ function initEvalDatabase(db: Database) {
 // ========== OpenRouter API 数据拉取 ==========
 
 async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouterModelInfo[]> {
-  const key = apiKey || process.env.OPENROUTER_API_KEY;
+  const key = apiKey || readString("OPENROUTER_API_KEY");
   if (!key) {
     logger.warn("[ModelEval] No OPENROUTER_API_KEY, skipping OpenRouter fetch");
     return [];

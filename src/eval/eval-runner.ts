@@ -7,6 +7,7 @@ import { evaluateResponse, type ModelResponse, type EvaluatedResponse } from "./
 import { generateReport, toMarkdown, toJSON, type EvalReport } from "./reporter.js";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { readString } from "../utils/env.js";
 
 // ===== Config =====
 const OUTPUT_DIR = "./eval-results";
@@ -60,7 +61,7 @@ async function callModel(
 ): Promise<ModelResponse> {
   const t0 = performance.now();
 
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = readString("OPENROUTER_API_KEY");
   const base = "https://openrouter.ai/api/v1";
 
   const messages = [];
@@ -160,7 +161,7 @@ async function main() {
       : ALL_TEST_CASES;
 
   const models = modelFilter ? [modelFilter] : DEFAULT_MODELS;
-  const judgeModel = process.env.JUDGE_MODEL || "anthropic/claude-sonnet-4.6";
+  const judgeModel = readString("JUDGE_MODEL", "anthropic/claude-sonnet-4.6");
 
   const filterLabel = categoryFilter || dimensionFilter || "all";
   console.log(`\n🔬 Axiom Model Evaluation`);
