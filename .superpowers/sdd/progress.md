@@ -1,7 +1,11 @@
-# SDD Progress — Final
+# Session Complete
 
-| Batch | Items | Status |
-|-------|-------|--------|
-| 原始架构修复 | 死代码、barrel、shim、config合并、中科工具MCP初拆 | ✅ |
-| Task 0-6 (子代理) | 测试基建、死导入、Vault单例化、utils层级3项、MCP域抽取、env收口、as any修复 | ✅ |
-| 继续完善 | Item6(export*)、PBT 30+、MCP继续拆、deprecated清理、as any残余、env其他文件 | ✅ |
+| 项目 | 状态 | 变更 |
+|------|------|------|
+| 拆 GitHub 工具块 | ✅ | server.ts 1093→**462**行 (+github-tools.ts) |
+| DRE Actor 简化 | ✅ | 3个工厂函数 inline |
+| PBT 32→40+ | ✅ | **46 invariants** (+11个) |
+| WorldState 测试修复 | ✅ | **真实bug修复** (共享引用变异→防御拷贝) |
+| `incrementalUpdate()` | ✅ | TODO→实现 (mtime增量检测) |
+| Frontend `node_modules` | ✅ | npm install 完成 |
+| 总后端测试 | ✅ | **943 pass, 0 fail** |
