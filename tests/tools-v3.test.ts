@@ -26,7 +26,7 @@ describe("Tools v3", () => {
 
     const ctx = createToolContext("no-token-test");
     const result = await runPipeline([
-      { tool: readTool, input: { source: "web" as const, path: "https://example.com" } },
+      { tool: readTool, input: { source: "file" as const, path: "./package.json" } },
     ], ctx);
 
     expect(result.modelTokensUsed).toBe(0);

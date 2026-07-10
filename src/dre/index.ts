@@ -25,9 +25,6 @@ export { ConsciousnessStream, WorkingMemory, EpisodicMemory, ReflectionQueue, ty
 export { Pipeline, type KnowledgeItem, type RiskReport, type Evidence, type VerificationResult } from "./pipeline/pipeline.js";
 export { KnowledgeGraph, type KGNode, type KGEdge as KGEdgeType } from "./kg/graph.js";
 
-/** @deprecated 使用 PersonaLoader + PromptTemplateStore 替代 */
-export { AgentHarness, PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent, type Tool, type AgentResponse } from "./harness/agent.js";
-
 export { LLMClient, type LLMConfig, type LLMResponse, type ConstrainedGenerationOptions } from "./llm/client.js";
 export { DREngine, type DREConfig } from "./engine.js";
 export { Kernel, type KernelConfig, type KernelStatus } from "./kernel.js";
