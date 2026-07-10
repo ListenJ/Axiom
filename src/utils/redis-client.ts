@@ -11,6 +11,7 @@
  *   await redis.del("key");
  */
 
+import { readString } from "./env.js";
 import { logger } from "./logger.js";
 
 export interface RedisConfig {
@@ -47,7 +48,7 @@ export class RedisClient {
   }
 
   static async connect(url?: string): Promise<RedisClient | null> {
-    const config = parseRedisUrl(url || process.env.REDIS_URL);
+    const config = parseRedisUrl(url || readString("REDIS_URL"));
     if (!config) return null;
 
     const client = new RedisClient(config);

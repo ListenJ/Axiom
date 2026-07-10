@@ -8,6 +8,7 @@
 import { spawn } from "bun";
 import { statSync } from "fs";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { internalAgent } from "./internal-agent.js";
 
@@ -90,8 +91,8 @@ Hermes Agent 未安装。安装方式（选择一种）：
 /** 检测终端环境是否兼容 Hermes */
 function checkHermesTerminal(): { ok: boolean; reason?: string } {
   // Git Bash / MSYS / Cygwin 环境下 prompt_toolkit 会报错
-  const term = process.env.TERM || "";
-  const msys = process.env.MSYSTEM || "";
+  const term = readString("TERM", "");
+  const msys = readString("MSYSTEM", "");
   if (term.includes("xterm") && msys) {
     return {
       ok: false,
@@ -141,7 +142,7 @@ export async function runHermesTask(task: HermesTask): Promise<HermesResult> {
     cwd,
     env: {
       ...process.env,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY,
+      OPENAI_API_KEY: readString("OPENAI_API_KEY") || readString("DEEPSEEK_API_KEY"),
       ...task.env,
     },
   });
@@ -224,7 +225,7 @@ export async function codeReview(
   language: string = "unknown",
   context?: string,
 ): Promise<{ success: boolean; review: string; model: string }> {
-  const apiKey = process.env.SILICONFLOW_API_KEY;
+  const apiKey = readString("SILICONFLOW_API_KEY");
   if (!apiKey) {
     return {
       success: false,
@@ -365,7 +366,7 @@ mcp_servers:
     command: "bun"
     args: ["run", "src/mcp/server.ts", "--stdio"]
     env:
-      DATABASE_PATH: "${process.env.DATABASE_PATH || "./data/agent.db"}"
-      OBSIDIAN_VAULT_PATH: "${process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory"}"
+      DATABASE_PATH: "${readString("DATABASE_PATH", "./data/agent.db")}"
+      OBSIDIAN_VAULT_PATH: "${readString("OBSIDIAN_VAULT_PATH", "./axiom-memory")}"
 `;
 }

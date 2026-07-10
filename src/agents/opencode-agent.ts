@@ -7,6 +7,7 @@
  * - 本模块保留 OpenCode CLI 交互和状态查询功能
  */
 import { spawn } from "bun";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import { getMemoryGate, type SignificanceContext } from "../memory/memory-gate.js";
 import {
@@ -31,7 +32,7 @@ export const OPENCODE_FREE_MODELS = [
 ];
 
 /** 默认编码模型（免费） */
-export const DEFAULT_CODE_MODEL = process.env.OPENCODE_DEFAULT_MODEL || OPENCODE_FREE_MODELS[0];
+export const DEFAULT_CODE_MODEL = readString("OPENCODE_DEFAULT_MODEL", OPENCODE_FREE_MODELS[0]);
 
 /** 检测 opencode 是否可用 */
 export async function checkOpenCode(): Promise<boolean> {

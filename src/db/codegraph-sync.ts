@@ -15,6 +15,7 @@
  *   - 从文件系统直接扫描 (tree-sitter 风格的简易解析)
  */
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import { isPgAvailable, getPG } from "./pg-client.js";
 import {
   searchSymbols,
@@ -305,7 +306,7 @@ async function generateNodeEmbedding(node: CodeGraphNode): Promise<number[] | nu
     if (text.length < 10) return null;
 
     // 使用 SiliconFlow embedding API (免费)
-    const apiKey = process.env.SILICONFLOW_API_KEY;
+    const apiKey = readString("SILICONFLOW_API_KEY");
     if (!apiKey) return null;
 
     const res = await proxyFetch("https://api.siliconflow.cn/v1/embeddings", {

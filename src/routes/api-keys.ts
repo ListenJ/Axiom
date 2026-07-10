@@ -25,13 +25,14 @@ import {
   saveApiKeyOverride,
   deleteApiKeyOverride,
 } from "../utils/api-key-persistence.js";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 /** Minimum API key length for validation */
 const MIN_API_KEY_LENGTH = 8;
 
 function requireAuth(ctx: RouteContext): Response | null {
-  const token = process.env.AXIOM_AUTH_TOKEN;
+  const token = readString("AXIOM_AUTH_TOKEN");
   if (!token) {
     // Fail closed: if the operator hasn't configured a token, refuse all calls.
     return ctx.jsonResponse(

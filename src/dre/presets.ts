@@ -21,6 +21,7 @@
  *   });
  */
 
+import { readString } from "../utils/env.js";
 import { DREngine, type DREConfig } from "./engine.js";
 
 /** Create a DREngine from a config (thin wrapper for ergonomic import). */
@@ -48,7 +49,7 @@ export const LLM_PRESETS = {
   cloud: (model = "gpt-4o-mini", apiKey?: string) => ({
     model,
     baseUrl: "https://api.openai.com/v1",
-    apiKey: apiKey ?? process.env.OPENAI_API_KEY,
+    apiKey: apiKey ?? readString("OPENAI_API_KEY"),
     retry: { maxRetries: 3 },
   }),
 } as const;

@@ -6,6 +6,7 @@
  */
 
 import type { KernelConfig } from "./kernel.js";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export interface ConfigSource {
@@ -75,7 +76,7 @@ export class ConfigLoader {
   private loadFromEnv(): ConfigSource {
     const result: ConfigSource = {};
     for (const [envKey, configKey] of Object.entries(ENV_MAP)) {
-      const value = process.env[envKey];
+      const value = readString(envKey);
       if (value !== undefined && value !== "") {
         // 类型推断
         if (configKey === "llmTemperature" || configKey === "llmTopK" || configKey === "llmSeed") {

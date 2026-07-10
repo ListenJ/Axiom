@@ -14,6 +14,7 @@
  *   - 自动淘汰低分模型，引入新的高分模型
  */
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { isPgAvailable, getPG } from "../db/pg-client.js";
 
@@ -133,7 +134,7 @@ const ROLE_WEIGHTS: Record<string, {
  */
 export async function discoverFreeModels(): Promise<ModelListing[]> {
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = readString("OPENROUTER_API_KEY");
     if (!apiKey) return [];
 
     const res = await proxyFetch("https://openrouter.ai/api/v1/models", {
@@ -178,7 +179,7 @@ export async function discoverFreeModels(): Promise<ModelListing[]> {
  */
 export async function discoverSiliconFlowModels(): Promise<ModelListing[]> {
   try {
-    const apiKey = process.env.SILICONFLOW_API_KEY;
+    const apiKey = readString("SILICONFLOW_API_KEY");
     if (!apiKey) return [];
 
     const res = await proxyFetch("https://api.siliconflow.cn/v1/models", {
@@ -242,7 +243,7 @@ export async function recommendModels(
 
   // 1. 从已知供应商
   for (const [providerKey, provider] of Object.entries(KNOWN_PROVIDERS)) {
-    if (!process.env[provider.apiKeyEnv]) continue;
+    if (!readString(provider.apiKeyEnv)) continue;
 
     for (const model of provider.models) {
       allModels.push({ model, provider: providerKey });

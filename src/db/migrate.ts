@@ -4,8 +4,9 @@
  */
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
-const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
+const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
 
 logger.info("[数据库] Initializing database...");

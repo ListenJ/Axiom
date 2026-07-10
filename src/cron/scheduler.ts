@@ -7,8 +7,9 @@
  */
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
-const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
+const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
 
 logger.info("⏰ Cron scheduler starting...\n");
@@ -17,10 +18,10 @@ logger.info("⏰ Cron scheduler starting...\n");
 async function healthCheckTask() {
   const checks: Record<string, boolean> = {};
   const platforms = [
-    { name: "siliconflow", url: "https://api.siliconflow.cn/v1/models", key: process.env.SILICONFLOW_API_KEY },
-    { name: "ofoxai", url: "https://api.ofox.ai/v1/models", key: process.env.OFOXAI_API_KEY },
-    { name: "openrouter", url: "https://openrouter.ai/api/v1/models", key: process.env.OPENROUTER_API_KEY },
-    { name: "deepseek", url: "https://api.deepseek.com/v1/models", key: process.env.DEEPSEEK_API_KEY },
+    { name: "siliconflow", url: "https://api.siliconflow.cn/v1/models", key: readString("SILICONFLOW_API_KEY") },
+    { name: "ofoxai", url: "https://api.ofox.ai/v1/models", key: readString("OFOXAI_API_KEY") },
+    { name: "openrouter", url: "https://openrouter.ai/api/v1/models", key: readString("OPENROUTER_API_KEY") },
+    { name: "deepseek", url: "https://api.deepseek.com/v1/models", key: readString("DEEPSEEK_API_KEY") },
   ];
 
   for (const p of platforms) {

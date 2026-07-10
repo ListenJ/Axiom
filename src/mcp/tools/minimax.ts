@@ -15,6 +15,7 @@
 import { proxyFetch } from "../../utils/proxy-fetch.js";
 
 import { logger } from "../../utils/logger.js";
+import { readString } from "../../utils/env.js";
 import { TIMEOUTS } from "../../constants/timeouts.js";
 import { withRetry, withTimeout } from "../../utils/resilience.js";
 
@@ -25,7 +26,7 @@ interface MiniMaxConfig {
 }
 
 function getMiniMaxConfig(): MiniMaxConfig {
-  const apiKey = process.env.MINIMAX_API_KEY;
+  const apiKey = readString("MINIMAX_API_KEY");
   if (!apiKey) {
     throw new Error(
       "MiniMax API key not configured. Set MINIMAX_API_KEY environment variable. " +
@@ -33,7 +34,7 @@ function getMiniMaxConfig(): MiniMaxConfig {
     );
   }
   // Token Plan 使用 api.minimax.io（网络搜索+图像识别），标准版使用 api.minimax.chat
-  const baseUrl = process.env.MINIMAX_BASE_URL || "https://api.minimax.io";
+  const baseUrl = readString("MINIMAX_BASE_URL", "https://api.minimax.io");
   return { apiKey, baseUrl };
 }
 

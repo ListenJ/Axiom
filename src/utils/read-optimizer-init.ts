@@ -10,6 +10,7 @@
  *   - 降级
  */
 
+import { readString } from "./env.js";
 import { logger } from "./logger.js";
 import { getReadOptimizer } from "./read-optimizer.js";
 
@@ -146,7 +147,7 @@ export function initializeReadOptimizers(cwd?: string, deps?: ReadOptimizerDeps)
 
   facade.registerExecutor("vault", async (req) => {
     const { action, params } = req;
-    const vaultPath = String(params.vaultPath ?? process.env.OBSIDIAN_VAULT_PATH ?? "./axiom-memory");
+    const vaultPath = String(params.vaultPath ?? readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"));
 
     switch (action) {
       case "search": {

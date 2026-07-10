@@ -5,6 +5,7 @@
  * across sessions. Supports cross-table joins between SQLite databases.
  */
 import type { RouteContext, RouteHandler } from "./types.js";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 // ===== Conversation History (Server-side persistence) =====
@@ -162,7 +163,7 @@ export async function handleKnowledgePendingReview(ctx: RouteContext): Promise<R
   try {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
+    const vaultPath = readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
     const atomicDir = path.join(vaultPath, "03-Knowledge", "atomic-notes");
 
     if (!fs.existsSync(atomicDir)) {
@@ -221,7 +222,7 @@ export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Re
   try {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const vaultPath = process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
+    const vaultPath = readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
     const filepath = path.join(vaultPath, "03-Knowledge", "atomic-notes", file);
 
     if (!fs.existsSync(filepath)) {

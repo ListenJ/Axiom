@@ -12,10 +12,11 @@ import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions } from "./types.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
+import { readString } from "../utils/env.js";
 import { safeJsonParse } from "../utils/json.js";
 
 /** Plugin storage directory */
-const PLUGIN_DIR = process.env.AXIOM_PLUGIN_DIR || "./plugins";
+const PLUGIN_DIR = readString("AXIOM_PLUGIN_DIR", "./plugins");
 
 /** Plugin registry for lifecycle management */
 export class PluginRegistry {

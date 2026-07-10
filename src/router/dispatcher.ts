@@ -38,6 +38,7 @@ import {
   type TaskRole,
 } from "./model-router.js";
 import { Semaphore } from "../utils/concurrency/semaphore.js";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export interface DispatcherOptions {
@@ -213,7 +214,7 @@ export function getDispatcher(): Dispatcher {
 
 /** Test seam: replace the default dispatcher. No-op outside tests. */
 export function _setDispatcherForTest(d: Dispatcher | null): void {
-  if (process.env.NODE_ENV === "production") return;
+  if (readString("NODE_ENV") === "production") return;
   _default = d;
 }
 

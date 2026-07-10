@@ -20,6 +20,7 @@ import { TaskGraph } from "./task-graph.js";
 import type { ToolExecutor } from "./task-graph.js";
 import { eventBus } from "../runtime/event-bus.js";
 import { worldState } from "../runtime/world-state.js";
+import { readString } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
 
 // ========== 流水线类型 ==========
@@ -355,7 +356,7 @@ export class CognitivePipeline {
     // L1.5: 精细 Gap 填补 (per-gap LLM call)
     // 仅在 DRE_GAP_FILL_FINE !== "0" (默认开启) 且确定性推理检测到空洞时触发
     // 对每个 gap 单独生成 prompt 调用 LLM，避免粗粒度地把整个上下文丢给 LLM
-    const fineGapFillEnabled = process.env.DRE_GAP_FILL_FINE !== "0";
+    const fineGapFillEnabled = readString("DRE_GAP_FILL_FINE") !== "0";
     if (fineGapFillEnabled && deterministic.hasGaps) {
       const gaps = this.engine.reasoning.detectGaps();
       if (gaps.length > 0 && gaps.length <= 5) {

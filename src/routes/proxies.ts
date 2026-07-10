@@ -2,14 +2,15 @@
  * 代理状态路由 — 返回系统代理配置
  */
 import type { RouteContext } from "./types.js";
+import { readString } from "../utils/env.js";
 
 export async function handleProxies(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/proxies") return null;
   if (ctx.req.method !== "GET") return null;
 
   // 从环境变量读取代理配置
-  const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
-  const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+  const httpProxy = readString("HTTP_PROXY") || readString("http_proxy");
+  const httpsProxy = readString("HTTPS_PROXY") || readString("https_proxy");
 
   const proxies = [];
 

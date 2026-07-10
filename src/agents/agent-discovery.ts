@@ -5,6 +5,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import type { AgentMeta } from "./intent-router.js";
 
@@ -173,8 +174,8 @@ function mergeIndexes(existing: AgentMeta[], discovered: AgentMeta[]): { merged:
 
 /** 自动发现并生成 Agent 索引 */
 export function discoverAgents(options: DiscoveryOptions = {}): DiscoveryResult {
-  const sourceDir = options.sourceDir || process.env.AGENTS_DIR || "./data/agents";
-  const outputPath = options.outputPath || process.env.AGENTS_INDEX_PATH || "./data/agents-index.json";
+  const sourceDir = options.sourceDir || readString("AGENTS_DIR", "./data/agents");
+  const outputPath = options.outputPath || readString("AGENTS_INDEX_PATH", "./data/agents-index.json");
   const recursive = options.recursive !== false;
   const force = options.force || false;
 
@@ -258,8 +259,8 @@ export function shouldRegenerateIndex(indexPath: string, sourceDir: string): boo
 
 /** 条件性重新生成索引 */
 export function discoverAgentsIfNeeded(options: DiscoveryOptions = {}): DiscoveryResult | null {
-  const sourceDir = options.sourceDir || process.env.AGENTS_DIR || "./data/agents";
-  const outputPath = options.outputPath || process.env.AGENTS_INDEX_PATH || "./data/agents-index.json";
+  const sourceDir = options.sourceDir || readString("AGENTS_DIR", "./data/agents");
+  const outputPath = options.outputPath || readString("AGENTS_INDEX_PATH", "./data/agents-index.json");
 
   if (!fs.existsSync(sourceDir)) {
     logger.debug("[AgentDiscovery] Source directory does not exist, skipping", { sourceDir });
@@ -277,11 +278,11 @@ export function discoverAgentsIfNeeded(options: DiscoveryOptions = {}): Discover
 /** 列出可用的 Agent 源目录 */
 export function listAgentSources(): string[] {
   const sources: string[] = [];
-  const defaultDir = process.env.AGENTS_DIR || "./data/agents";
+  const defaultDir = readString("AGENTS_DIR", "./data/agents");
   if (fs.existsSync(defaultDir)) sources.push(defaultDir);
 
   // 检查常见的 agency-agents 位置（通过环境变量可覆盖，避免硬编码个人路径）
-  const agencyDir = process.env.AGENCY_AGENTS_DIR;
+  const agencyDir = readString("AGENCY_AGENTS_DIR");
   const commonPaths = [
     ...(agencyDir ? [agencyDir] : []),
     "./agency-agents-main",

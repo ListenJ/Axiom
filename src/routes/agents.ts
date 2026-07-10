@@ -2,6 +2,7 @@
  * Agent status and tool routes
  */
 import type { RouteContext } from "./types.js";
+import { readString } from "../utils/env.js";
 
 export async function handleAgentsStatus(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/status" && ctx.req.method === "GET") {
@@ -55,7 +56,7 @@ export async function handleKimiStatus(ctx: RouteContext): Promise<Response | nu
       apiKeyConfigured: apiKeyOk,
       cliInstalled: cliOk,
       model: KIMI_CODE_MODEL,
-      baseUrl: process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1",
+      baseUrl: readString("KIMI_CODE_BASE_URL", "https://api.kimi.com/coding/v1"),
       ready: apiKeyOk || cliOk,
     }, 200, ctx.baseHeaders);
   }

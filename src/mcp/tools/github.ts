@@ -15,6 +15,7 @@
  */
 import { proxyFetch } from "../../utils/proxy-fetch.js";
 import { logger } from "../../utils/logger.js";
+import { readString } from "../../utils/env.js";
 import { TIMEOUTS } from "../../constants/timeouts.js";
 import { withRetry, withTimeout } from "../../utils/resilience.js";
 
@@ -25,14 +26,14 @@ interface GitHubConfig {
 }
 
 function getGitHubConfig(): GitHubConfig {
-  const token = process.env.GITHUB_TOKEN;
+  const token = readString("GITHUB_TOKEN");
   if (!token) {
     throw new Error(
       "GitHub token not configured. Set GITHUB_TOKEN environment variable. " +
       "Generate a token at https://github.com/settings/tokens"
     );
   }
-  const baseUrl = process.env.GITHUB_API_URL || "https://api.github.com";
+  const baseUrl = readString("GITHUB_API_URL", "https://api.github.com");
   return { token, baseUrl };
 }
 

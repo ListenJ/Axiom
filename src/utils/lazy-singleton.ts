@@ -11,6 +11,8 @@
  *     );
  */
 
+import { readString } from "./env.js";
+
 export interface LazySingleton<T> {
   /** 获取单例实例（首次调用时延迟加载） */
   get(): T;
@@ -35,7 +37,7 @@ export function createLazySingleton<T>(factory: () => T): LazySingleton<T> {
     },
 
     setForTest(inst: T | null): void {
-      if (process.env.NODE_ENV === "production") return;
+      if (readString("NODE_ENV") === "production") return;
       instance = inst;
     },
   };

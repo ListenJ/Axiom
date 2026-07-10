@@ -66,13 +66,14 @@ import {
 } from "./tools/github.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
 import { registerExternalTools } from "./register-external-tools.js";
+import { readString } from "../utils/env.js";
 import { adaptTools } from "./adapt-tool.js";
 import { readTool } from "../tools/read-tool.js";
 import { writeTool } from "../tools/write-tool.js";
 import { queryTool } from "../tools/query-tool.js";
 
 
-const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
+const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
 
 // 初始化 Vault（共享记忆库）
@@ -835,7 +836,7 @@ registerLspTools(registry);
 
 // -- Skill 管理工具 (extracted to server/skill-tools.ts) --
 const skillDirs = [
-  process.env.SKILL_DIR || "./skills",
+  readString("SKILL_DIR", "./skills"),
   "./axiom-memory/03-Resources/skills",
 ];
 registerSkillTools(registry, skillDirs);
@@ -1025,7 +1026,7 @@ if (transport === "stdio") {
   // HTTP 传输：构建 handlers 和 meta
   const toolHandlers = registry.buildHttpHandlers();
   const toolsMeta = registry.getToolsMeta();
-  const port = Number(process.env.MCP_PORT) || 3001;
+  const port = Number(readString("MCP_PORT", "3001"));
 
   Bun.serve({
     port,

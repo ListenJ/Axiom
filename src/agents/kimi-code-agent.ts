@@ -26,6 +26,7 @@
  */
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { spawn } from "bun";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export const KIMI_CODE_MODEL = "kimi-for-coding";
@@ -33,7 +34,7 @@ export const KIMI_CODE_BASE_URL = "https://api.kimi.com/coding/v1";
 
 /** 检测 Kimi Code API Key 是否已配置 */
 export function checkKimiCodeApiKey(): boolean {
-  return !!process.env.KIMI_CODE_API_KEY;
+  return !!readString("KIMI_CODE_API_KEY");
 }
 
 /** 检测 kimi CLI 是否已安装 */
@@ -64,12 +65,12 @@ export async function kimiCodeChat(options: {
     total_tokens?: number;
   };
 }> {
-  const apiKey = process.env.KIMI_CODE_API_KEY;
+  const apiKey = readString("KIMI_CODE_API_KEY");
   if (!apiKey) {
     throw new Error("KIMI_CODE_API_KEY 未配置。请在 .env 中设置 KIMI_CODE_API_KEY，或运行 kimi /login 完成 OAuth 登录。");
   }
 
-  const baseURL = process.env.KIMI_CODE_BASE_URL || KIMI_CODE_BASE_URL;
+  const baseURL = readString("KIMI_CODE_BASE_URL", KIMI_CODE_BASE_URL);
   const timeout = options.timeout || 60000;
 
   const controller = new AbortController();

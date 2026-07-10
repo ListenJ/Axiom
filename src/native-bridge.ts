@@ -12,6 +12,7 @@
  *   - cloud: PostgreSQL + Redis, 多节点
  */
 
+import { readString } from "./utils/env.js";
 import { logger } from "./utils/logger.js";
 
 export type NativeEdition = "local" | "cloud";
@@ -39,11 +40,11 @@ let nativeReady = false;
 
 /** 检测当前部署版本 */
 export function detectEdition(): NativeEdition {
-  const env = process.env.AXIOM_EDITION;
+  const env = readString("AXIOM_EDITION");
   if (env === "cloud") return "cloud";
   if (env === "local") return "local";
   // Auto-detect: cloud if DATABASE_URL or REDIS_URL present
-  if (process.env.DATABASE_URL || process.env.REDIS_URL) return "cloud";
+  if (readString("DATABASE_URL", "") || readString("REDIS_URL", "")) return "cloud";
   return "local";
 }
 
@@ -70,7 +71,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
     const args = [
       "--port", String(nativeConfig.port),
       "--vault-path", nativeConfig.vaultPath,
-      "--log-level", process.env.LOG_LEVEL ?? "info",
+      "--log-level", readString("LOG_LEVEL", "info"),
     ];
     if (nativeConfig.edition === "cloud") {
       if (nativeConfig.databaseUrl) args.push("--database-url", nativeConfig.databaseUrl);
