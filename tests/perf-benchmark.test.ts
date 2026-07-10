@@ -149,16 +149,6 @@ describe("性能基准", () => {
     console.log(`  shouldWrite ×10k: ${avg.toFixed(4)}ms/iter`);
   });
 
-  it("[perf] ReasoningRuntime.run 快速路径 50次", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r = getReasoningRuntime();
-
-    const avg = await benchAsync("reasoningRuntime.run", async () => {
-      await r.run("quick test");
-    }, 50);
-    console.log(`  reasoningRuntime.run ×50: ${avg.toFixed(2)}ms/iter`);
-  });
-
   it("[perf] 模块导入时间", async () => {
     const modules = [
       "../src/tools/types.js",
@@ -170,7 +160,6 @@ describe("性能基准", () => {
       "../src/services/knowledge.js",
       "../src/memory/vib-compressor.js",
       "../src/memory/memory-gate.js",
-      "../src/dre/runtime/reasoner/reasoning-runtime.js",
       "../src/dre/constraint/solver.js",
       "../src/dre/runtime/event-bus.js",
       "../src/dre/runtime/world-state.js",

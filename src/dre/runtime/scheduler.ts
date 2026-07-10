@@ -2,7 +2,7 @@
  * Scheduler — Unified Task Scheduling (Pure)
  *
  * Scheduler only handles "when" to run, not "what" to do.
- * Reasoning is handled by src/runtime/reasoner/reasoning-runtime.ts.
+ * Reasoning is handled by the DRE kernel.
  *
  * Responsibilities:
  * - Task Queue with priority

@@ -12,116 +12,18 @@
  */
 
 import { describe, test, expect, afterEach } from "bun:test";
-import { eventBus, type RuntimeEvent } from "../../src/dre/runtime/event-bus.js";
+import { eventBus } from "../../src/dre/runtime/event-bus.js";
 import {
   ConstraintSolver,
   RESOURCE_CONSTRAINTS,
   POLICY_CONSTRAINTS,
 } from "../../src/dre/constraint/solver.js";
-import { ReasoningRuntime } from "../../src/dre/runtime/reasoner/reasoning-runtime.js";
-
 const SUBSCRIPTIONS: string[] = [];
 
 afterEach(() => {
   for (const id of SUBSCRIPTIONS.splice(0)) {
     try { eventBus.unsubscribe(id); } catch { /* already removed */ }
   }
-});
-
-// ========== ReasoningRuntime 回放一致性 ==========
-
-describe("Determinism: ReasoningRuntime replay", () => {
-  test("same input should produce same event type sequence", async () => {
-    const input = "deterministic replay test input";
-
-    // 收集事件的辅助函数
-    const collectEvents = (): { events: Array<{ type: string }>; subIds: string[] } => {
-      const events: Array<{ type: string }> = [];
-      const subIds: string[] = [];
-
-      // 订阅 pipeline 相关事件类型 (精确匹配, 无通配符)
-      const eventTypes = [
-        "pipeline.completed",
-        "pipeline.llm_needed",
-        "pipeline.constraint_violation",
-        "atom.created",
-        "state.changed",
-      ];
-
-      for (const type of eventTypes) {
-        const id = eventBus.subscribe(type, (e: RuntimeEvent) => {
-          events.push({ type: e.type });
-        });
-        subIds.push(id);
-      }
-
-      return { events, subIds };
-    };
-
-    // Run 1
-    const runtime1 = new ReasoningRuntime();
-    const collector1 = collectEvents();
-    await runtime1.run(input);
-    await new Promise((r) => setTimeout(r, 100)); // 等微任务清空
-    collector1.subIds.forEach((id) => eventBus.unsubscribe(id));
-
-    // Run 2 (相同输入, 新 runtime 实例)
-    const runtime2 = new ReasoningRuntime();
-    const collector2 = collectEvents();
-    await runtime2.run(input);
-    await new Promise((r) => setTimeout(r, 100));
-    collector2.subIds.forEach((id) => eventBus.unsubscribe(id));
-
-    // 断言: 两次运行产生相同数量的事件
-    // 注意: state.changed 事件可能因单例 WorldState 累积而略有差异,
-    // 但 pipeline.* 事件应一致
-    const pipelineEvents1 = collector1.events.filter((e) => e.type.startsWith("pipeline."));
-    const pipelineEvents2 = collector2.events.filter((e) => e.type.startsWith("pipeline."));
-
-    // pipeline.completed 事件应至少各有一个
-    expect(pipelineEvents1.some((e) => e.type === "pipeline.completed")).toBe(true);
-    expect(pipelineEvents2.some((e) => e.type === "pipeline.completed")).toBe(true);
-
-    // 事件类型序列应一致 (确定性)
-    const types1 = pipelineEvents1.map((e) => e.type);
-    const types2 = pipelineEvents2.map((e) => e.type);
-    expect(types2).toEqual(types1);
-  });
-
-  test("same input should produce same needsLLM flag", async () => {
-    const input = "deterministic needsLLM test";
-
-    const runtime1 = new ReasoningRuntime();
-    const ctx1 = await runtime1.run(input);
-    const needsLLM1 = ctx1.needsLLM;
-
-    const runtime2 = new ReasoningRuntime();
-    const ctx2 = await runtime2.run(input);
-    const needsLLM2 = ctx2.needsLLM;
-
-    // 相同输入应产生相同 needsLLM 标志
-    expect(needsLLM2).toBe(needsLLM1);
-  });
-
-  test("same input should produce same stats increment", async () => {
-    const input = "deterministic stats test";
-
-    const runtime1 = new ReasoningRuntime();
-    const stats1Before = runtime1.getStats();
-    await runtime1.run(input);
-    const stats1After = runtime1.getStats();
-    const runsDelta1 = stats1After.runs - stats1Before.runs;
-
-    const runtime2 = new ReasoningRuntime();
-    const stats2Before = runtime2.getStats();
-    await runtime2.run(input);
-    const stats2After = runtime2.getStats();
-    const runsDelta2 = stats2After.runs - stats2Before.runs;
-
-    // 两次都应增加 1 次 run
-    expect(runsDelta1).toBe(1);
-    expect(runsDelta2).toBe(1);
-  });
 });
 
 // ========== ConstraintSolver 确定性 ==========

@@ -96,51 +96,6 @@ describe("ConstraintSolver 边界", () => {
   });
 });
 
-// ─── ReasoningRuntime ────────────────────────────────────────────
-
-describe("ReasoningRuntime 边界", () => {
-  it("getReasoningRuntime 返回单例", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r1 = getReasoningRuntime();
-    const r2 = getReasoningRuntime();
-    expect(r1).toBe(r2);
-  });
-
-  it("run 返回 PipelineContext", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r = getReasoningRuntime();
-    const result = await r.run("test input");
-    expect(result).toHaveProperty("input", "test input");
-    expect(result).toHaveProperty("stage");
-    expect(result).toHaveProperty("stageTimings");
-    expect(result).toHaveProperty("result");
-  });
-
-  it("run handles empty input", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r = getReasoningRuntime();
-    const result = await r.run("");
-    expect(result.stage).toBeString();
-  });
-
-  it("getStats returns metrics", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r = getReasoningRuntime();
-    const stats = r.getStats();
-    expect(stats.runs).toBeNumber();
-    expect(stats.deterministicRate).toBeNumber();
-    expect(stats.deterministicRate).toBeGreaterThanOrEqual(0);
-    expect(stats.deterministicRate).toBeLessThanOrEqual(1);
-  });
-
-  it("detectGaps 返回空数组 (无实体时)", async () => {
-    const { getReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const r = getReasoningRuntime();
-    const gaps = r.detectGaps();
-    expect(gaps).toBeArray();
-  });
-});
-
 // ─── Archiver 跨平台 ├───
 
 describe("Archiver parseFrontmatter 跨平台", () => {

@@ -1222,56 +1222,6 @@ describe("DataUnifier persistence", () => {
   });
 });
 
-// ========== P0-3: ReasoningRuntime Gap Detection ==========
-
-describe("ReasoningRuntime gap detection (P0-3)", () => {
-  test("detectGaps returns empty before run()", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-    const gaps = runtime.detectGaps();
-    expect(Array.isArray(gaps)).toBe(true);
-    expect(gaps.length).toBe(0);
-  });
-
-  test("detectGaps returns array after run() completes", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-    await runtime.run("nonexistent-query-xyz-12345");
-    const gaps = runtime.detectGaps();
-    expect(Array.isArray(gaps)).toBe(true);
-  });
-
-  test("fillGap invokes supplied llmCaller without throwing", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-    await runtime.run("fill-gap-test-input");
-
-    const gaps = runtime.detectGaps();
-    if (gaps.length === 0) {
-      return;
-    }
-
-    const gap = gaps[0];
-    const mockCaller = async (_prompt: string) => ({
-      response: "mock LLM response for gap fill",
-      confidence: 0.8,
-    });
-
-    const node = await runtime.fillGap(gap, mockCaller);
-    expect(node === null || typeof node === "object").toBe(true);
-  });
-
-  test("getStats tracks runs and deterministicRate", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-    await runtime.run("stats-test-input");
-    const stats = runtime.getStats();
-    expect(typeof stats.runs).toBe("number");
-    expect(stats.runs).toBeGreaterThanOrEqual(1);
-    expect(typeof stats.deterministicRate).toBe("number");
-  });
-});
-
 // ========== P0-4: VerificationEngine + ConstraintSolver Integration ==========
 
 describe("VerificationEngine constraint integration (P0-4)", () => {
@@ -1430,34 +1380,4 @@ describe("VerificationEngine refine loop (P1)", () => {
   });
 });
 
-// ========== P1: ReasoningRuntime Refine Callback Wiring ==========
 
-describe("ReasoningRuntime refine callback (P1)", () => {
-  test("registerRefineCallback wires into verification stage without throwing", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-
-    let refineInvoked = false;
-    runtime.registerRefineCallback(async () => {
-      refineInvoked = true;
-      return "refined result with evidence and source references from mock LLM";
-    });
-
-    // run() 触发 verification stage；refineCallback 是否被调用取决于
-    // graph-reasoning/planning 阶段是否产出 ctx.result。这里只验证：
-    // 1. 注册后不抛错
-    // 2. run() 完整执行无异常
-    // 3. 若 refine 被触发，不抛错
-    await runtime.run("test-input-for-refine-wiring");
-    expect(typeof refineInvoked).toBe("boolean");
-  });
-
-  test("registerRefineCallback accepts null-safe default (no callback registered)", async () => {
-    const { ReasoningRuntime } = await import("../src/dre/runtime/reasoner/reasoning-runtime.js");
-    const runtime = new ReasoningRuntime();
-    // 不注册 refineCallback，验证 verification stage 用 undefined 也不抛错
-    const ctx = await runtime.run("test-input-no-refine");
-    expect(ctx).toBeDefined();
-    expect(typeof ctx.needsLLM).toBe("boolean");
-  });
-});

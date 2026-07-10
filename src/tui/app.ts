@@ -544,6 +544,9 @@ export async function startTUI(): Promise<void> {
   await new Promise(() => {});
 }
 
-export function stopTUI(): void { /* placeholder for shutdown */ }
+export function stopTUI(): void {
+  logger.info("[TUI] Shutting down");
+  process.exit(0);
+}
 
 if (import.meta.url === `file://${process.argv[1]}`) startTUI();

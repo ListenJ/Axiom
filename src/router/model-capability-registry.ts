@@ -7,11 +7,7 @@
 import { logger } from "../utils/logger.js";
 import {
   UNIFIED_REGISTRY,
-  findModelsForRole as _findModelsForRole,
-  getFallbackChain as _getFallbackChain,
   getModel as _getModel,
-  listAllModels as _listAllModels,
-  listAllRoles as _listAllRoles,
   type UnifiedModel,
   type TaskRole,
   type ModelProvider,
@@ -30,6 +26,7 @@ export interface ModelCapability {
   priority?: number;
   timeout?: number;
   maxRetries?: number;
+  isFree?: boolean;
 }
 
 export interface AssignmentResult {
@@ -54,6 +51,7 @@ function toCapability(um: UnifiedModel): ModelCapability {
     priority: um.priority,
     timeout: um.timeout,
     maxRetries: um.maxRetries,
+    isFree: um.isFree,
   };
 }
 

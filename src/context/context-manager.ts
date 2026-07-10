@@ -13,7 +13,7 @@
 
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage } from "../router/model-router.js";
-import { findModelsForRole, type TaskRole, type UnifiedModel } from "../router/models.js";
+import { findModelsForRole, type TaskRole, type ModelCapability } from "../router/model-capability-registry.js";
 import { getTokenTracker } from "../router/token-tracker.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
@@ -84,7 +84,7 @@ export class ContextManager {
   private chunks: ContextChunk[] = [];
   private memory: MemoryEntry[] = [];
   private maxContextWindow: number;
-  private defaultModel: UnifiedModel | null = null;
+  private defaultModel: ModelCapability | null = null;
 
   constructor(options?: { maxContextWindow?: number }) {
     this.maxContextWindow = options?.maxContextWindow ?? 128000;

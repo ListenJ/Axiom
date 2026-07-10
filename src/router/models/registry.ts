@@ -971,16 +971,10 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
 // Convenience lookups
 // ═══════════════════════════════════════════════════════════════
 
-/** Get all models supporting a specific role */
+/** Get all models supporting a specific role
+ * @deprecated Use model-capability-registry's findModelsForRole (supports opts, extensions) */
 export function findModelsForRole(role: TaskRole): UnifiedModel[] {
   return UNIFIED_REGISTRY.filter((m) => m.roles.includes(role));
-}
-
-/** Get models for a task (legacy alias for model-router) */
-export function getModelsForTask(task: string): UnifiedModel[] {
-  return UNIFIED_REGISTRY.filter(
-    (m) => m.roles.includes(task as TaskRole) || m.roles.includes("general-tool")
-  );
 }
 
 /** Get a model by ID */
@@ -1012,22 +1006,5 @@ export function listAllRoles(): TaskRole[] {
   return Array.from(roles);
 }
 
-/** Get provider config for a model */
-export function getProviderConfig(modelId: string): ProviderConfig | undefined {
-  const model = getModel(modelId);
-  if (!model) return undefined;
-  return PROVIDER_CONFIG[model.provider];
-}
 
-/** Check if a provider is configured */
-export function isProviderConfigured(provider: ModelProvider): boolean {
-  const config = PROVIDER_CONFIG[provider];
-  if (!config) return false;
-  return !!process.env[config.apiKeyEnv];
-}
-
-/** List configured providers */
-export function listConfiguredProviders(): ModelProvider[] {
-  return (Object.keys(PROVIDER_CONFIG) as ModelProvider[]).filter(isProviderConfigured);
-}
 

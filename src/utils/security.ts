@@ -122,6 +122,8 @@ export function createCorsHeaders(
   return headers;
 }
 
+const rateLimitStore = new Map<string, { timestamps: number[] }>();
+
 export function checkRateLimit(
   identifier: string,
   options?: {
@@ -129,20 +131,27 @@ export function checkRateLimit(
     maxRequests?: number;
   }
 ): { allowed: boolean; remaining: number; resetTime: number } {
-  // Simple in-memory rate limiting
-  // In production, use Redis or similar
   const windowMs = options?.windowMs || 60000;
   const maxRequests = options?.maxRequests || 100;
-
   const now = Date.now();
   const windowStart = now - windowMs;
 
-  // This is a placeholder - actual implementation would use a proper store
-  logger.debug(`Rate limit check for ${identifier}: ${maxRequests}/${windowMs}ms`);
+  let entry = rateLimitStore.get(identifier);
+  if (!entry) {
+    entry = { timestamps: [] };
+    rateLimitStore.set(identifier, entry);
+  }
 
-  return {
-    allowed: true,
-    remaining: maxRequests,
-    resetTime: now + windowMs,
-  };
+  entry.timestamps = entry.timestamps.filter(t => t > windowStart);
+  entry.timestamps.push(now);
+
+  const allowed = entry.timestamps.length <= maxRequests;
+  const remaining = Math.max(0, maxRequests - entry.timestamps.length);
+  const resetTime = entry.timestamps.length > 0 ? entry.timestamps[0] + windowMs : now + windowMs;
+
+  if (!allowed) {
+    logger.warn(`Rate limit exceeded for ${identifier}: ${entry.timestamps.length}/${windowMs}ms`);
+  }
+
+  return { allowed, remaining, resetTime };
 }

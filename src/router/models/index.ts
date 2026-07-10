@@ -23,11 +23,9 @@ export {
 export {
   UNIFIED_REGISTRY,
   findModelsForRole,
-  getModelsForTask,
   getModel,
   getFallbackChain,
   listFreeModels,
   listAllModels,
   listAllRoles,
-  getProviderConfig,
 } from "./registry.js";

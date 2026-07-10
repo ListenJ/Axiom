@@ -46,10 +46,10 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
   // 创建工具管道
   const ctx = createToolContext(`knowledge-${Date.now()}`);
 
-  // 注入 vault 实例
+  // 注入 vault 实例（复用全局单例）
   try {
-    const { VaultManager } = await import("../memory/vault-manager.js");
-    ctx.localStore.set("vaultManager", new VaultManager());
+    const { getGlobalVault } = await import("../memory/vault-manager.js");
+    ctx.localStore.set("vaultManager", getGlobalVault());
   } catch { /* vault 不可用 */ }
 
   const pipeline = [
