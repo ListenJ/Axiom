@@ -18,7 +18,7 @@ import { getConfig, getConfigCenter } from "./core/config-center.js";
 import { wsManager } from "./utils/websocket.js";
 import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { HealthMonitor } from "./utils/resilience.js";
-import { validateEnv } from "./utils/env.js";
+import { validateEnv, readString, readInt, readBool } from "./utils/env.js";
 import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-shutdown.js";
 import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
@@ -48,15 +48,15 @@ const edition = detectEdition();
 logger.info(`[Edition] Detected: ${edition}`);
 
 // 启动 Rust 核心 (sidecar)
-const nativeEnabled = process.env.AXIOM_NATIVE !== "false";
+const nativeEnabled = readBool("AXIOM_NATIVE", true);
 if (nativeEnabled) {
   const nativeOk = await initNativeBridge({
     edition,
     port: 18790,
-    vaultPath: process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
-    dbPath: process.env.DATABASE_PATH || "./data/agent.db",
-    databaseUrl: process.env.DATABASE_URL,
-    redisUrl: process.env.REDIS_URL,
+    vaultPath: readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
+    dbPath: readString("DATABASE_PATH", "./data/agent.db"),
+    databaseUrl: readString("DATABASE_URL"),
+    redisUrl: readString("REDIS_URL"),
     enabled: true,
   });
   if (nativeOk) {
@@ -145,7 +145,7 @@ logger.info("Axiom AI Agent 启动", {
   native: isNativeReady(),
   node: process.version,
   bun: Bun.version,
-  env: process.env.NODE_ENV || "development",
+  env: readString("NODE_ENV", "development"),
 });
 
 // 系统状�?
@@ -252,7 +252,7 @@ catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Er
 
 // Consciousness (self-reflection module)
 try {
-  await getConsciousness().start({ enabled: process.env.CONSCIOUSNESS_ENABLED !== "false" });
+  await getConsciousness().start({ enabled: readBool("CONSCIOUSNESS_ENABLED", true) });
   logger.info("[Consciousness] started");
 } catch (e: unknown) {
   logger.warn("[Consciousness] failed to start", { error: (e as Error).message });
@@ -343,17 +343,19 @@ registerTrieRoutes(httpRouter);
 logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes().length });
 
 // ===== HTTP 服务 =====
-const securityHeaders = createSecurityHeaders({ hsts: process.env.NODE_ENV === "production", csp: true });
+const securityHeaders = createSecurityHeaders({ hsts: readString("NODE_ENV") === "production", csp: true });
 const rateLimitCheck = createRateLimitMiddleware(apiLimiter);
-const MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || "1048576", 10);
+const MAX_BODY_SIZE = readInt("MAX_BODY_SIZE", 1048576);
 const port = config.gateway.port;
 
 function corsHeaders(origin?: string): Record<string, string> {
+  const corsOriginsStr = readString("CORS_ORIGINS");
+  const allowedOrigins = corsOriginsStr ? corsOriginsStr.split(",") : [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
   return createCorsHeaders(origin, {
-    allowedOrigins: process.env.CORS_ORIGINS?.split(",") || [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
+    allowedOrigins,
     allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
-    allowCredentials: !!process.env.CORS_CREDENTIALS,
+    allowCredentials: readBool("CORS_CREDENTIALS"),
   });
 }
 
@@ -402,7 +404,7 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   });
 }
 
-const API_KEY = process.env.AXIOM_AUTH_TOKEN;
+const API_KEY = readString("AXIOM_AUTH_TOKEN");
 
 function checkApiKey(req: Request): boolean {
   // Fail-closed: if no server-side auth token is configured, deny ALL requests.
@@ -439,7 +441,7 @@ logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
 const server = Bun.serve({
   port,
-  hostname: process.env.HOST || "127.0.0.1",
+  hostname: readString("HOST", "127.0.0.1"),
   async fetch(req, server) {
     const startTime = performance.now();
     const url = new URL(req.url);
@@ -543,7 +545,7 @@ registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(),
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 
-logger.info("Server started", { port, hostname: process.env.HOST || "127.0.0.1", url: `http://${process.env.HOST || "127.0.0.1"}:${port}` });
+logger.info("Server started", { port, hostname: readString("HOST", "127.0.0.1"), url: `http://${readString("HOST", "127.0.0.1")}:${port}` });
 
 const localUrl = `http://localhost:${port}`;
 import { networkInterfaces } from "os";
@@ -568,7 +570,7 @@ logger.info(`╔═════════════════════�
 �?                                                                     �?
 �? 本地访问:  ${localUrl.padEnd(58)} �?
 �? 局域网:    ${lanUrl.padEnd(58)} �?
-�? WebSocket: ws://${process.env.HOST || "127.0.0.1"}:${port}/ws${"".padEnd(38)} �?
+�? WebSocket: ws://${readString("HOST", "127.0.0.1")}:${port}/ws${"".padEnd(38)} �?
 �? API Key:   ${API_KEY ? "已启�?(x-api-key 鉴权)" : "未设�?(所有请求将被拒�?"}            �?
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
