@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Toasts from './Toasts'
@@ -14,7 +15,20 @@ describe('Toasts', () => {
     expect(container.firstChild?.childNodes).toHaveLength(0)
   })
 
-  it('renders one toast per entry with role=status', () => {
+  it('renders one toast per entry with role=alert for errors', () => {
+    useApp.setState({
+      toasts: [
+        { id: 1, type: 'error', message: 'oops' },
+        { id: 2, type: 'warning', message: 'caution' },
+      ],
+    })
+    render(<Toasts />)
+    expect(screen.getAllByRole('alert')).toHaveLength(2)
+    expect(screen.getByText('oops')).toBeInTheDocument()
+    expect(screen.getByText('caution')).toBeInTheDocument()
+  })
+
+  it('renders info/success with role=status', () => {
     useApp.setState({
       toasts: [
         { id: 1, type: 'info', message: 'hello' },
@@ -28,7 +42,7 @@ describe('Toasts', () => {
   })
 
   it('dismisses a toast when the close button is clicked', async () => {
-    useApp.setState({ toasts: [{ id: 42, type: 'error', message: 'oops' }] })
+    useApp.setState({ toasts: [{ id: 42, type: 'info', message: 'oops' }] })
     const user = userEvent.setup()
     render(<Toasts />)
     const toast = screen.getByRole('status')
@@ -42,7 +56,6 @@ describe('Toasts', () => {
     useApp.getState().toast('auto-dismiss-test')
     expect(useApp.getState().toasts).toHaveLength(1)
     render(<Toasts />)
-    // The store schedules a setTimeout(4000) for dismissal.
     vi.advanceTimersByTime(4000)
     expect(useApp.getState().toasts).toHaveLength(0)
     vi.useRealTimers()

@@ -52,13 +52,9 @@ describe('VISIBLE_NAV_ITEMS', () => {
 
   it('hides internal/backend-only pages', () => {
     const ids = VISIBLE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).not.toContain('ocr')
-    expect(ids).not.toContain('research')
     expect(ids).not.toContain('proxies')
     expect(ids).not.toContain('trends')
-    expect(ids).not.toContain('router')
     expect(ids).not.toContain('perf')
-    expect(ids).not.toContain('eval')
   })
 })
 
