@@ -8,8 +8,6 @@
  */
 import { spawn } from "bun";
 import { logger } from "../utils/logger.js";
-import { retrieveCodeMemory } from "../memory/codegraph-index.js";
-import { getGlobalVault } from "../memory/vault-manager.js";
 import { getMemoryGate, type SignificanceContext } from "../memory/memory-gate.js";
 import {
   piCodeEngine,

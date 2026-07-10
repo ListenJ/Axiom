@@ -20,11 +20,8 @@ import { PiCodeToolsAdapter } from "../pi-agent/pi-code-tools.js";
 import {
   isCodegraphInitialized,
   searchSymbols,
-  searchFiles,
-  buildContext,
   type CodeGraphSearchResult,
 } from "../memory/codegraph-index.js";
-import { retrieveCodeMemory } from "../memory/codegraph-index.js";
 import { getGlobalBlackboard, type WriteOptions } from "../memory/blackboard.js";
 import { getReadOptimizer, type ReadRequest } from "../utils/read-optimizer.js";
 

@@ -18,8 +18,6 @@ import {
   searchSymbols,
   getCallers,
   getCallees,
-  buildContext,
-  getStatus,
   type CodeGraphNode,
   type CodeGraphSearchResult,
 } from "../memory/codegraph-index.js";
