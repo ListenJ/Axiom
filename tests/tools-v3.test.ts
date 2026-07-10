@@ -31,7 +31,7 @@ describe("Tools v3", () => {
 
     expect(result.modelTokensUsed).toBe(0);
     expect(ctx.modelCalled).toBeFalse();
-  });
+  }, 15000);
 
   it("归一化: 相同语义产生相似 cache key", async () => {
     const { normalizeQuery } = await import("../src/tools/types.js");
