@@ -12,21 +12,27 @@
 
 import { logger } from "./logger.js";
 import { getReadOptimizer } from "./read-optimizer.js";
-import {
-  searchSymbols,
-  searchFiles,
-  buildContext,
-  getCallers,
-  getCallees,
-  getImpact,
-  getStatus,
-} from "../memory/codegraph-index.js";
-import { PiCodeToolsAdapter } from "../pi-agent/pi-code-tools.js";
+
+export interface ReadOptimizerDeps {
+  searchSymbols: (query: string, opts?: any) => Promise<any[]>;
+  searchFiles: (pattern: string, opts?: any) => Promise<any[]>;
+  buildContext: (task: string, opts?: any) => Promise<any>;
+  getCallers: (symbol: string, opts?: any) => Promise<any[]>;
+  getCallees: (symbol: string, opts?: any) => Promise<any[]>;
+  getImpact: (symbol: string, opts?: any) => Promise<any>;
+  getStatus: (projectPath?: string) => Promise<any>;
+  PiCodeToolsAdapter: new (workDir: string) => any;
+}
 
 let initialized = false;
 
-export function initializeReadOptimizers(cwd?: string): void {
+export function initializeReadOptimizers(cwd?: string, deps?: ReadOptimizerDeps): void {
   if (initialized) return;
+  if (!deps) {
+    throw new Error(
+      "ReadOptimizerDeps required — see src/main.ts for the dependency wiring"
+    );
+  }
   const facade = getReadOptimizer();
   const workDir = cwd ?? process.cwd();
 
@@ -43,7 +49,7 @@ export function initializeReadOptimizers(cwd?: string): void {
         const query = String(params.query ?? "");
         const kind = params.kind ? String(params.kind) : undefined;
         const limit = Number(params.limit ?? 10);
-        const results = await searchSymbols(query, { kind, limit, projectPath });
+        const results = await deps.searchSymbols(query, { kind, limit, projectPath });
         // 字段投影已在 facade 中处理
         return results;
       }
@@ -52,35 +58,35 @@ export function initializeReadOptimizers(cwd?: string): void {
         const pattern = String(params.pattern ?? "*");
         const path = params.path ? String(params.path) : undefined;
         const limit = Number(params.limit ?? 100);
-        return searchFiles(pattern, { path, limit, projectPath });
+        return deps.searchFiles(pattern, { path, limit, projectPath });
       }
 
       case "buildContext": {
         const task = String(params.task ?? "");
         const maxNodes = Number(params.maxNodes ?? 10);
-        return buildContext(task, { maxNodes, includeCode: true, format: "markdown", projectPath });
+        return deps.buildContext(task, { maxNodes, includeCode: true, format: "markdown", projectPath });
       }
 
       case "getCallers": {
         const symbol = String(params.symbol ?? "");
         const limit = Number(params.limit ?? 10);
-        return getCallers(symbol, { limit, projectPath });
+        return deps.getCallers(symbol, { limit, projectPath });
       }
 
       case "getCallees": {
         const symbol = String(params.symbol ?? "");
         const limit = Number(params.limit ?? 10);
-        return getCallees(symbol, { limit, projectPath });
+        return deps.getCallees(symbol, { limit, projectPath });
       }
 
       case "getImpact": {
         const symbol = String(params.symbol ?? "");
         const depth = Number(params.depth ?? 2);
-        return getImpact(symbol, { depth, projectPath });
+        return deps.getImpact(symbol, { depth, projectPath });
       }
 
       case "getStatus": {
-        return getStatus(projectPath);
+        return deps.getStatus(projectPath);
       }
 
       default:
@@ -92,7 +98,7 @@ export function initializeReadOptimizers(cwd?: string): void {
   // 2. Pi Agent 工具执行器
   // ═══════════════════════════════════════════════════════════════
 
-  const piTools = new PiCodeToolsAdapter(workDir);
+  const piTools = new deps.PiCodeToolsAdapter(workDir);
 
   facade.registerExecutor("pi-tools", async (req) => {
     const { action, params } = req;

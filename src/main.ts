@@ -72,6 +72,16 @@ import { getHttpRouter } from "./core/http-router.js";
 import { getGlobalBlackboard } from "./memory/blackboard.js";
 import { getReadOptimizer } from "./utils/read-optimizer.js";
 import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
+import {
+  searchSymbols,
+  searchFiles,
+  buildContext,
+  getCallers,
+  getCallees,
+  getImpact,
+  getStatus,
+} from "./memory/codegraph-index.js";
+import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 
 // �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
@@ -100,7 +110,16 @@ if (healthReport.overall === "critical") {
 
 // ===== 读取优化管道初始�?=====
 getReadOptimizer().setBlackboard(getGlobalBlackboard());
-initializeReadOptimizers(process.cwd());
+initializeReadOptimizers(process.cwd(), {
+  searchSymbols,
+  searchFiles,
+  buildContext,
+  getCallers,
+  getCallees,
+  getImpact,
+  getStatus,
+  PiCodeToolsAdapter,
+});
 
 // ===== 环境验证 =====
 const envValidation = validateEnv({ strict: false, exitOnError: false });
