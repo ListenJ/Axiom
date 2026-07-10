@@ -12,6 +12,7 @@
 
 import fs from "fs";
 import path from "path";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 interface ArchiveRule {
@@ -32,7 +33,7 @@ export class MemoryArchiver {
   private archivePath: string;
 
   constructor(vaultPath?: string) {
-    this.vaultPath = vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory";
+    this.vaultPath = vaultPath || readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
     this.archivePath = path.join(this.vaultPath, "05-Archives");
   }
 

@@ -1,3 +1,4 @@
+import { readString } from "./env.js";
 import { logger } from "./logger.js";
 
 export interface SecurityHeaders {
@@ -28,7 +29,7 @@ export function createSecurityHeaders(
 ): Record<string, string> {
   const headers = { ...DEFAULT_SECURITY_HEADERS };
 
-  if (options?.hsts || process.env.NODE_ENV === "production") {
+  if (options?.hsts || readString("NODE_ENV") === "production") {
     headers["Strict-Transport-Security"] =
       "max-age=31536000; includeSubDomains; preload";
   }

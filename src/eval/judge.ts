@@ -2,6 +2,7 @@
  * LLM-as-Judge — uses DeepSeek V4 Pro to score model responses
  * Lambda-style scoring pipeline with pointer-stable rubrics
  */
+import { readString } from "../utils/env.js";
 import type { EvalTestCase } from "./test-cases.js";
 import { internalAgent } from "../agents/internal-agent.js";
 
@@ -78,7 +79,7 @@ Return ONLY a JSON object:
 
 // ===== Judge Functions (Lambda-style) =====
 
-const JUDGE_MODEL = (process.env.JUDGE_MODEL || "anthropic/claude-sonnet-4.6");
+const JUDGE_MODEL = readString("JUDGE_MODEL", "anthropic/claude-sonnet-4.6");
 // (formerly `OPENROUTER_BASE` — now unused after migrating to model-router)
 
 type RubricFn = (testCase: EvalTestCase, response: string) => { system: string; user: string };

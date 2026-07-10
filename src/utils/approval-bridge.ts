@@ -31,6 +31,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export type ApprovalRisk = "safe" | "caution" | "destructive" | "unknown";
@@ -220,7 +221,7 @@ export function getApprovalBridge(): ApprovalBridge {
 }
 
 export function setApprovalBridge(bridge: ApprovalBridge): void {
-  if (process.env.NODE_ENV === "production") return;
+  if (readString("NODE_ENV") === "production") return;
   // Deny any in-flight approvals from the old bridge before swapping.
   _bridge.denyAll("bridge-replaced");
   _bridge = bridge;

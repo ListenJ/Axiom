@@ -16,6 +16,7 @@
 import { Database } from "bun:sqlite";
 import fs from "fs";
 import path from "path";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export interface MemoryRecord {
@@ -52,7 +53,7 @@ export class SQLiteMemory {
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || process.env.SQLITE_MEMORY_DB || "./axiom-memory.db";
+    this.dbPath = dbPath || readString("SQLITE_MEMORY_DB", "./axiom-memory.db");
     this.db = new Database(this.dbPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");

@@ -13,6 +13,7 @@
  *   8. 上下文自动注入 — CodeGraph/Pi Agent 检索结果自动增强 prompt
  */
 import { spawn } from "bun";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage, toolPool, getTokenTracker } from "../services/index.js";
 import { RateLimitedSemaphore } from "../utils/concurrency/rate-limited-semaphore.js";
@@ -37,7 +38,7 @@ export const OPENCODE_FREE_MODELS = [
 ];
 
 /** 默认编码模型 */
-export const DEFAULT_OPEN_CODE_MODEL = process.env.OPENCODE_DEFAULT_MODEL || OPENCODE_FREE_MODELS[0].id;
+export const DEFAULT_OPEN_CODE_MODEL = readString("OPENCODE_DEFAULT_MODEL", OPENCODE_FREE_MODELS[0].id);
 
 /** 复杂度阈值（字符数/turn 数） */
 const COMPLEXITY_THRESHOLDS = {
@@ -372,15 +373,14 @@ export class OpenCodeToolAgent {
 
     for (const s of settled) {
       if (s.status === "fulfilled" && s.value.result.content && !("error" in s.value.result)) {
-        const isOpenCode = s.value.source === "opencode";
         return {
           content: s.value.result.content,
           model: s.value.result.model,
-          provider: isOpenCode ? "opencode" : (s.value.result as any).provider || "axiom",
+          provider: s.value.source === "opencode" ? "opencode" : s.value.result.provider || "axiom",
           strategy: "parallel",
           latencyMs: Date.now() - startTime,
-          tokenSaved: isOpenCode ? this.estimateTokenSaved(prompt, s.value.result.content) : 0,
-          fallbackUsed: !isOpenCode,
+          tokenSaved: s.value.source === "opencode" ? this.estimateTokenSaved(prompt, s.value.result.content) : 0,
+          fallbackUsed: s.value.source !== "opencode",
           contextInjected: true,
           toolsUsed: [],
         };

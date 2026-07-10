@@ -10,6 +10,7 @@ import { unifiedSearch } from "./crawl/unified-search.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
 import { getGlobalVault } from "./memory/vault-manager.js";
 import { logger } from "./utils/logger.js";
+import { readString } from "./utils/env.js";
 import {
   openCodeSession,
   startOpenCodeServer,
@@ -41,7 +42,7 @@ import {
 } from "./agents/intent-router.js";
 import { runSetupWizard } from "./cli/setup.js";
 
-const dbPath = process.env.DATABASE_PATH || "./data/agent.db";
+const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 
 const commands: Record<string, { desc: string; run: (args: string[]) => Promise<void> | void }> = {
   setup: {
@@ -423,11 +424,11 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "执行平台健康检查",
     run: async () => {
       const platforms = [
-        { name: "siliconflow", url: "https://api.siliconflow.cn/v1/models", key: process.env.SILICONFLOW_API_KEY },
-        { name: "ofoxai", url: "https://api.ofox.ai/v1/models", key: process.env.OFOXAI_API_KEY },
-        { name: "openrouter", url: "https://openrouter.ai/api/v1/models", key: process.env.OPENROUTER_API_KEY },
-        { name: "deepseek", url: "https://api.deepseek.com/v1/models", key: process.env.DEEPSEEK_API_KEY },
-        { name: "kimi-code", url: "https://api.kimi.com/coding/v1/models", key: process.env.KIMI_CODE_API_KEY },
+        { name: "siliconflow", url: "https://api.siliconflow.cn/v1/models", key: readString("SILICONFLOW_API_KEY") },
+        { name: "ofoxai", url: "https://api.ofox.ai/v1/models", key: readString("OFOXAI_API_KEY") },
+        { name: "openrouter", url: "https://openrouter.ai/api/v1/models", key: readString("OPENROUTER_API_KEY") },
+        { name: "deepseek", url: "https://api.deepseek.com/v1/models", key: readString("DEEPSEEK_API_KEY") },
+        { name: "kimi-code", url: "https://api.kimi.com/coding/v1/models", key: readString("KIMI_CODE_API_KEY") },
       ];
 
       console.log("[健康检查] 平台健康检查:\n");
@@ -621,7 +622,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const cliOk = await checkKimiCli();
       console.log(`  CLI 工具:  ${cliOk ? "[已安装]" : "[未安装] (curl -LsSf https://code.kimi.com/install.sh | bash)"}`);
       console.log(`  模型 ID:   ${KIMI_CODE_MODEL}`);
-      console.log(`  Base URL:  ${process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1"}`);
+      console.log(`  Base URL:  ${readString("KIMI_CODE_BASE_URL", "https://api.kimi.com/coding/v1")}`);
       console.log(`\n使用指南: bun run src/cli.ts kimi:guide`);
     },
   },

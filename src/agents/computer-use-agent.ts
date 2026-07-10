@@ -83,6 +83,11 @@ type VisionContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
 
+interface ResolvedAction {
+  x?: number; y?: number; text?: string; keys?: string[]; ms?: number;
+  elementIndex?: number;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 系统提示
 // ═══════════════════════════════════════════════════════════════
@@ -189,13 +194,14 @@ export class ComputerUseAgent {
       // 如果 action 有 elementIndex，从上次提取的元素中获取坐标
       const resolvedAction = await this.resolveElementCoordinates(action, cdpUrl);
 
+      const ra = resolvedAction as ResolvedAction;
       const cdpAction: CDPAction = {
         type: resolvedAction.type as CDPAction["type"],
-        x: (resolvedAction as any).x,
-        y: (resolvedAction as any).y,
-        text: (resolvedAction as any).text,
-        keys: (resolvedAction as any).keys,
-        ms: (resolvedAction as any).ms,
+        x: ra.x,
+        y: ra.y,
+        text: ra.text,
+        keys: ra.keys,
+        ms: ra.ms,
       };
 
       const execResult = await executeCDPAction(cdpAction, cdpUrl, 10000);
@@ -256,7 +262,7 @@ export class ComputerUseAgent {
       // 如果最后一个操作是 screenshot 或 wait，继续循环
       const lastAction = result.actions[result.actions.length - 1];
       if (lastAction?.type === "screenshot" || lastAction?.type === "wait") {
-        await new Promise((r) => setTimeout(r, (lastAction as any).ms ?? 1000));
+        await new Promise((r) => setTimeout(r, (lastAction as ResolvedAction).ms ?? 1000));
       }
     }
 
@@ -454,11 +460,12 @@ export class ComputerUseAgent {
     action: ComputerAction,
     cdpUrl: string
   ): Promise<ComputerAction> {
-    if (!(action as any).elementIndex) return action;
+    const ra = action as ResolvedAction;
+    if (ra.elementIndex == null) return action;
 
     try {
       const elements = await extractInteractiveElements(cdpUrl, 10000);
-      const el = elements.find((e) => e.index === (action as any).elementIndex);
+      const el = elements.find((e) => e.index === ra.elementIndex);
       if (el) {
         if (action.type === "click") {
           return { ...action, x: el.centerX, y: el.centerY };

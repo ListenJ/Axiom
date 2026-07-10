@@ -14,22 +14,23 @@
  */
 import postgres from "postgres";
 import { logger } from "../utils/logger.js";
+import { readString, readInt } from "../utils/env.js";
 import { validateTableName, validateColumnName, quoteIdentifier } from "../utils/db-guard.js";
 
 // ========== 连接配置 ==========
 
 function getConnectionConfig() {
-  const url = process.env.DATABASE_URL;
+  const url = readString("DATABASE_URL");
   // 只有 postgresql:// 或 postgres:// 格式的 URL 才用于 PG 连接
   if (url && (url.startsWith("postgresql://") || url.startsWith("postgres://"))) {
     return { url };
   }
 
-  const host = process.env.PG_HOST || "localhost";
-  const port = parseInt(process.env.PG_PORT || "5432");
-  const user = process.env.PG_USER || "axiom";
-  const password = process.env.PG_PASSWORD || "axiom";
-  const database = process.env.PG_DATABASE || "axiom";
+  const host = readString("PG_HOST", "localhost");
+  const port = readInt("PG_PORT", 5432);
+  const user = readString("PG_USER", "axiom");
+  const password = readString("PG_PASSWORD", "axiom");
+  const database = readString("PG_DATABASE", "axiom");
 
   return {
     url: `postgresql://${user}:${password}@${host}:${port}/${database}`,
