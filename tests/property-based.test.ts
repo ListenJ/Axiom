@@ -177,7 +177,77 @@ describe("PBT HttpRouter", () => {
   });
 });
 
-// 4. Soak test
+// 4. Vault (Mock) invariants
+describe("PBT Vault (Mock)", () => {
+  it("INV1: writeNote → readNote returns same content", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    for (let i = 0; i < 500; i++) {
+      const path = `test/note-${i}.md`;
+      const content = `content-${i}-${Math.random().toString(36).slice(2, 8)}`;
+      await vault.writeNote(path, content);
+      const read = vault.readNote(path);
+      expect(read).not.toBeNull();
+      expect(read!.content).toBe(content);
+    }
+  });
+
+  it("INV2: concurrent writes don't lose data", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    const paths = Array.from({ length: 100 }, (_, i) => `concurrent/n${i}.md`);
+    await Promise.all(paths.map((p, i) => vault.writeNote(p, `data-${i}`)));
+    for (let i = 0; i < paths.length; i++) {
+      const read = vault.readNote(paths[i]);
+      expect(read).not.toBeNull();
+      expect(read!.content).toBe(`data-${i}`);
+    }
+    expect(vault.notes.size).toBe(100);
+  });
+
+  it("INV3: search finds written notes", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeNote("search-test/alpha.md", "lorem ipsum dolor");
+    await vault.writeNote("search-test/beta.md", "consectetur adipiscing");
+    await vault.writeNote("search-test/gamma.md", "lorem consectetur");
+    const results = vault.search("lorem");
+    expect(results.length).toBe(2);
+    expect(results.some(r => r.note.path.includes("alpha"))).toBeTrue();
+    expect(results.some(r => r.note.path.includes("gamma"))).toBeTrue();
+  });
+
+  it("INV4: browsePara returns correct category", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeNote("00-Meta/config.md", "meta config");
+    await vault.writeNote("01-Projects/task1.md", "project one");
+    await vault.writeNote("01-Projects/task2.md", "project two");
+    await vault.writeNote("02-Areas/dev.md", "area dev");
+    expect(vault.browsePara("01-Projects").length).toBe(2);
+    expect(vault.browsePara("00-Meta").length).toBe(1);
+    expect(vault.browsePara("03-Resources").length).toBe(0);
+  });
+
+  it("INV5: readNote on non-existent returns null", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    expect(vault.readNote("nonexistent.md")).toBeNull();
+    expect(vault.readNote("")).toBeNull();
+  });
+
+  it("INV6: stats reflect note count", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    expect(vault.stats().totalNotes).toBe(0);
+    await vault.writeNote("test/a.md", "a");
+    await vault.writeNote("test/b.md", "b");
+    await vault.writeNote("test/c.md", "c");
+    expect(vault.stats().totalNotes).toBe(3);
+  });
+});
+
+// 5. Soak test
 describe("SOAK", () => {
   it("Cache+Router+TS 5000 iterations", async () => {
     const [mC, mR, mT] = await Promise.all([import("../src/utils/cache.js"), import("../src/core/http-router.js"), import("../src/router/thompson-router.js")]);
