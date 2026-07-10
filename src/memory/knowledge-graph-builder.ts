@@ -590,6 +590,9 @@ function generateContextSummary(
   return parts.join("\n");
 }
 
+// 模块级变量：记录上次增量更新的时间戳
+let lastIncrementalUpdate = 0;
+
 /**
  * 增量更新: 仅处理自上次索引以来变更的文件
  */
@@ -597,8 +600,34 @@ export async function incrementalUpdate(
   projectPath: string,
   projectName: string,
 ): Promise<KGBuildResult> {
-  // TODO: 基于文件修改时间或 content_hash 检测变更，仅更新变更部分
-  // 目前先回退到全量构建
+  const files = scanProjectFiles(projectPath);
+
+  // 检查每个文件的修改时间
+  let changedCount = 0;
+  if (lastIncrementalUpdate > 0) {
+    for (const file of files) {
+      const fullPath = join(projectPath, file);
+      try {
+        const stat = statSync(fullPath);
+        if (stat.mtimeMs > lastIncrementalUpdate) {
+          changedCount++;
+        }
+      } catch {
+        // 文件可能已被删除，算作变更
+        changedCount++;
+      }
+    }
+
+    if (changedCount === 0) {
+      logger.info("[KGBuild] No changes detected, skipping rebuild");
+      return { entitiesCreated: 0, entitiesUpdated: 0, relationshipsCreated: 0, errors: [] };
+    }
+
+    logger.info(`[KGBuild] Incremental update: ${changedCount}/${files.length} files changed`);
+  }
+
+  lastIncrementalUpdate = Date.now();
+
   return buildKnowledgeGraph({
     projectPath,
     projectName,

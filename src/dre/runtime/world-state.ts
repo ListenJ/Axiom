@@ -105,33 +105,33 @@ class WorldStateImpl {
   }
 
   setGoal(goalId: string, description: string, status: MentalGoal["status"]): void {
-    const goals = this.get<Record<string, MentalGoal>>("mental.goals") ?? {};
+    const goals = { ...this.get<Record<string, MentalGoal>>("mental.goals") ?? {} };
     goals[goalId] = { description, status, timestamp: Date.now() };
     this.set("mental.goals", goals);
   }
 
   getGoals(): Record<string, MentalGoal> {
-    return this.get("mental.goals") ?? {};
+    return { ...this.get("mental.goals") ?? {} };
   }
 
   setBelief(beliefId: string, statement: string, confidence: number): void {
-    const beliefs = this.get<Record<string, MentalBelief>>("mental.beliefs") ?? {};
+    const beliefs = { ...this.get<Record<string, MentalBelief>>("mental.beliefs") ?? {} };
     beliefs[beliefId] = { statement, confidence, timestamp: Date.now() };
     this.set("mental.beliefs", beliefs);
   }
 
   getBeliefs(): Record<string, MentalBelief> {
-    return this.get("mental.beliefs") ?? {};
+    return { ...this.get("mental.beliefs") ?? {} };
   }
 
   setHypothesis(id: string, statement: string, status: MentalHypothesis["status"]): void {
-    const hyps = this.get<Record<string, MentalHypothesis>>("mental.hypotheses") ?? {};
+    const hyps = { ...this.get<Record<string, MentalHypothesis>>("mental.hypotheses") ?? {} };
     hyps[id] = { statement, status, timestamp: Date.now() };
     this.set("mental.hypotheses", hyps);
   }
 
   getHypotheses(): Record<string, MentalHypothesis> {
-    return this.get("mental.hypotheses") ?? {};
+    return { ...this.get("mental.hypotheses") ?? {} };
   }
 
   getVersion(): number {

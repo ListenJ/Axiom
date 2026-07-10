@@ -89,6 +89,22 @@ describe("PBT Cache", () => {
     c.delete("a");
     c.delete("nonexistent");
   });
+
+  it("INV10: stats reflects hit count after gets", async () => {
+    const { Cache } = await import("../src/utils/cache.js");
+    const c = new Cache({ maxSize: 100, redis: false } as any);
+    c.set("x", 42);
+    c.getSync("x");
+    c.getSync("x");
+    const s = c.stats();
+    expect(s.hits).toBe(2);
+  });
+
+  it("INV11: get on unknown key returns undefined", async () => {
+    const { Cache } = await import("../src/utils/cache.js");
+    const c = new Cache({ maxSize: 100, redis: false } as any);
+    expect(c.getSync("nonexistent")).toBeUndefined();
+  });
 });
 
 // 2. Thompson invariants
@@ -146,6 +162,31 @@ describe("PBT Thompson", () => {
       expect(isFinite(x.mean)).toBeTrue();
     });
   });
+
+  it("INV5: higher alpha arm has higher mean after feedback", async () => {
+    const { createThompsonRouter } = await import("../src/router/thompson-router.js");
+    const r = createThompsonRouter({ arms: [
+      { id: "a", model: "a", provider: "p", alpha: 1, beta: 1, metadata: {} },
+      { id: "b", model: "b", provider: "p", alpha: 1, beta: 1, metadata: {} },
+    ], minSamples: 0, inMemory: true });
+    for (let i = 0; i < 50; i++) {
+      r.reportFeedback("a", true);
+      r.reportFeedback("b", false);
+    }
+    const stats = r.getArmStats();
+    const aMean = stats.find(x => x.id === "a")!.mean;
+    const bMean = stats.find(x => x.id === "b")!.mean;
+    expect(aMean).toBeGreaterThan(bMean);
+  });
+
+  it("INV6: addArm makes arm available", async () => {
+    const { createThompsonRouter } = await import("../src/router/thompson-router.js");
+    const r = createThompsonRouter({ arms: [{ id: "existing", model: "e", provider: "p", alpha: 1, beta: 1, metadata: {} }], minSamples: 0, inMemory: true });
+    r.addArm({ id: "new", model: "n", provider: "p", alpha: 1, beta: 1, metadata: {} });
+    const ids = r.getArmIds();
+    expect(ids).toContain("new");
+    expect(ids).toContain("existing");
+  });
 });
 
 // 3. HttpRouter invariants
@@ -174,6 +215,15 @@ describe("PBT HttpRouter", () => {
       const ctx: any = { url: new URL(`http://h${p}`), req: new Request(`http://h${p}`), vault: null, db: null, pipeline: null, healthMonitor: null, fileWatcher: null, startupTime: 0, baseHeaders: {}, jsonResponse: (d: any) => d };
       expect(await r.execute(ctx)).toBeNull();
     }
+  });
+
+  it("INV3: match extracts route params", async () => {
+    const { HttpRouter } = await import("../src/core/http-router.js");
+    const r = new HttpRouter({} as any);
+    r.register({ method: "GET", path: "/users/:id", handler: async () => new Response("ok") });
+    const result = r.match("GET", "/users/42");
+    expect(result).not.toBeNull();
+    expect(result!.params.id).toBe("42");
   });
 });
 
@@ -291,6 +341,29 @@ describe("PBT Vault (Mock)", () => {
     expect(vault.callCount("readNote")).toBe(1);
     expect(vault.callCount("stats")).toBe(1);
   });
+
+  it("INV11: writeCrawlResult records a call", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.writeCrawlResult({ url: "http://example.com" });
+    expect(vault.callCount("writeCrawlResult")).toBe(1);
+  });
+
+  it("INV12: indexCode returns expected shape", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    const result = await vault.indexCode();
+    expect(result).toHaveProperty("indexed");
+    expect(result).toHaveProperty("errors");
+    expect(Array.isArray(result.errors)).toBeTrue();
+  });
+
+  it("INV13: appendNote records a call", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
+    const vault = new MockVaultManager();
+    await vault.appendNote("test.md", "extra");
+    expect(vault.callCount("appendNote")).toBe(1);
+  });
 });
 
 // 5. ConfigCenter invariants
@@ -320,6 +393,33 @@ describe("PBT ConfigCenter", () => {
     const val = cc.getNumber("gateway.port");
     expect(typeof val).toBe("number");
     expect(isNaN(val)).toBeFalse();
+  });
+
+  it("INV4: getBoolean returns boolean type", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    const val = cc.getBoolean("advanced.codegraph_auto_index");
+    expect(typeof val).toBe("boolean");
+  });
+
+  it("INV5: setting same key twice updates value", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    cc.set("gateway.port", 1111, "test", false);
+    expect(cc.getNumber("gateway.port")).toBe(1111);
+    cc.set("gateway.port", 2222, "test", false);
+    expect(cc.getNumber("gateway.port")).toBe(2222);
+  });
+
+  it("INV6: getAll returns a record", async () => {
+    const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
+    resetConfigCenter();
+    const cc = getConfigCenter();
+    const all = cc.getAll();
+    expect(all).not.toBeNull();
+    expect(typeof all).toBe("object");
   });
 });
 
