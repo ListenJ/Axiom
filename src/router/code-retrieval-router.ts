@@ -28,7 +28,7 @@ import {
 } from "../memory/codegraph-index.js";
 import { router, type ChatMessage } from "./model-router.js";
 import { assignModel } from "./model-capability-registry.js";
-import { findModelsForRole, type TaskRole } from "./models.js";
+import type { TaskRole } from "./models.js";
 import { PiAgentAdapter } from "../pi-agent/pi-agent-adapter.js";
 
 // ═══════════════════════════════════════════════════════════════

@@ -535,7 +535,7 @@ export const RESOURCE_CONSTRAINTS: Constraint[] = [
 /**
  * @deprecated Use {@link RESOURCE_CONSTRAINTS} instead (hardware-agnostic)
  */
-export const GPU_CONSTRAINTS: Constraint[] = [
+const GPU_CONSTRAINTS: Constraint[] = [
   {
     id: "gpu-vram-min",
     dimension: "physical",

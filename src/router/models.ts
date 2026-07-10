@@ -10,4 +10,4 @@
  */
 export type { ModelProvider, TaskRole, UnifiedModel, ProviderConfig } from "./models/types.js";
 export { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "./models/providers.js";
-export { UNIFIED_REGISTRY, findModelsForRole, getModel, getFallbackChain, listFreeModels, listAllModels, listAllRoles } from "./models/registry.js";
+export { UNIFIED_REGISTRY, getModel, getFallbackChain, listFreeModels, listAllModels, listAllRoles } from "./models/registry.js";

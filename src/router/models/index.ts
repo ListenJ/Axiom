@@ -22,7 +22,6 @@ export {
 
 export {
   UNIFIED_REGISTRY,
-  findModelsForRole,
   getModel,
   getFallbackChain,
   listFreeModels,

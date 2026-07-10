@@ -973,7 +973,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
 
 /** Get all models supporting a specific role
  * @deprecated Use model-capability-registry's findModelsForRole (supports opts, extensions) */
-export function findModelsForRole(role: TaskRole): UnifiedModel[] {
+function findModelsForRole(role: TaskRole): UnifiedModel[] {
   return UNIFIED_REGISTRY.filter((m) => m.roles.includes(role));
 }
 

@@ -39,6 +39,52 @@ describe("[Review] Tools 接口完整性", () => {
   });
 });
 
+describe("[Review] readTool 边缘", () => {
+  it("空 source 字符串被拒绝", async () => {
+    const { readTool } = await import("../src/tools/read-tool.js");
+    expect(readTool.validate!({ source: "" as any, path: "/ok" })).toBeString();
+  });
+
+  it("无效 source 枚举被拒绝", async () => {
+    const { readTool } = await import("../src/tools/read-tool.js");
+    expect(readTool.validate!({ source: "invalid" as any, path: "/ok" })).toBeString();
+  });
+
+  it("缺失 path 被拒绝", async () => {
+    const { readTool } = await import("../src/tools/read-tool.js");
+    expect(readTool.validate!({ source: "file" as const } as any)).toBeString();
+  });
+});
+
+describe("[Review] writeTool 边缘", () => {
+  it("空 content 字符串被接受", async () => {
+    const { writeTool } = await import("../src/tools/write-tool.js");
+    expect(writeTool.validate!({ target: "file" as const, path: "/ok", content: "" })).toBeNull();
+  });
+
+  it("无效 target 枚举被拒绝", async () => {
+    const { writeTool } = await import("../src/tools/write-tool.js");
+    expect(writeTool.validate!({ target: "invalid" as any, path: "/ok", content: "x" })).toBeString();
+  });
+
+  it("缺失 target + path 被拒绝", async () => {
+    const { writeTool } = await import("../src/tools/write-tool.js");
+    expect(writeTool.validate!({} as any)).toBeString();
+  });
+});
+
+describe("[Review] queryTool 边缘", () => {
+  it("超长查询被接受", async () => {
+    const { queryTool } = await import("../src/tools/query-tool.js");
+    expect(queryTool.validate!({ query: "a".repeat(10000) })).toBeNull();
+  });
+
+  it("纯空白查询通过 validate", async () => {
+    const { queryTool } = await import("../src/tools/query-tool.js");
+    expect(queryTool.validate!({ query: "   " })).toBeNull();
+  });
+});
+
 describe("[Review] Pipeline 边界", () => {
   it("空管道立即返回", async () => {
     const { createToolContext } = await import("../src/tools/types.js");
@@ -116,6 +162,17 @@ describe("[Review] normalizeQuery 边界", () => {
     const r1 = normalizeQuery("capital of France");
     const r2 = normalizeQuery("france capital");
     expect(r1).toBe(r2);
+  });
+
+  it("已标准化字符串保持原样", async () => {
+    const { normalizeQuery } = await import("../src/tools/types.js");
+    expect(normalizeQuery("hello world")).toBe("hello world");
+  });
+
+  it("全角字符被正则过滤", async () => {
+    const { normalizeQuery } = await import("../src/tools/types.js");
+    expect(normalizeQuery("１２３")).toBe("");
+    expect(normalizeQuery("Ｈｅｌｌｏ")).toBe("");
   });
 });
 
