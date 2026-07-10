@@ -15,7 +15,6 @@ import {
   CODE_REFACTOR_MODEL,
   AUTH_MODEL,
   DATABASE_MODEL,
-  createDefaultMentalModelPool,
   type MentalModel,
 } from "../../src/dre/mental-model/pool.js";
 import { PersonaLoader } from "../../src/dre/persona/loader.js";
@@ -112,7 +111,15 @@ describe("Logic: MentalModel state machine integrity", () => {
   });
 
   test("all predefined models: no unreachable states", () => {
-    const pool = createDefaultMentalModelPool();
+    const pool = new MentalModelPool();
+    pool.register(GIT_CONFLICT_MODEL);
+    pool.register(CODE_REFACTOR_MODEL);
+    pool.register(AUTH_MODEL);
+    pool.register(DATABASE_MODEL);
+    pool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    pool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    pool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    pool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
     const models = pool.list();
 
     expect(models.length).toBeGreaterThanOrEqual(4);

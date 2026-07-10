@@ -33,7 +33,7 @@ export { DREngine, type DREConfig } from "./engine.js";
 export { Kernel, type KernelConfig, type KernelStatus } from "./kernel.js";
 export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, type Simulation, type SimulationStep } from "./mental-model/pool.js";
 export { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "./reasoning/graph.js";
-export { ConstraintSolver, createDefaultConstraintSolver, RESOURCE_CONSTRAINTS, GPU_CONSTRAINTS, AUDIT_CONSTRAINTS, type Constraint, type ConstraintCheckResult, type ConstraintViolation } from "./constraint/solver.js";
+export { ConstraintSolver, RESOURCE_CONSTRAINTS, GPU_CONSTRAINTS, AUDIT_CONSTRAINTS, type Constraint, type ConstraintCheckResult, type ConstraintViolation } from "./constraint/solver.js";
 export { ActorSystem, createDefaultActorSystem, KnowledgeActorBehavior, ConstraintActorBehavior, MentalModelActorBehavior, ReasoningActorBehavior, type ActorMessage, type ActorBehavior } from "./actor/system.js";
 export { CognitivePipeline, type CognitiveStep, type CognitiveLoopResult } from "./pipeline/cognitive-pipeline.js";
 export { TaskGraph, type Task, type TaskStatus, type TaskGraphSnapshot, type TaskGraphStatus } from "./pipeline/task-graph.js";
@@ -52,7 +52,7 @@ export { PersonaLoader, PromptTemplateStore, createDefaultPromptStore, DEFAULT_P
 export type { PersonaMode, PersonaConfig, LoadedPersona, PersonaContext, PersonaLoaderConfig, PromptTemplate, TemplateVariables } from "./persona/index.js";
 export { ConfigLoader, type ConfigSource } from "./config.js";
 export { DataUnifier, dataUnifier, type DataItem, type SearchOptions, type SearchResult } from "./runtime/data-unifier.js";
-export { createDRE, PRESETS, LLM_PRESETS } from "./presets.js";
+export { PRESETS, LLM_PRESETS } from "./presets.js";
 export { DREError, DREValidationError, DREResourceError, DREPipelineError, DRELLMError, DREConsistencyError, DRETaskError, wrapDREError } from "./errors.js";
 
 // 版本

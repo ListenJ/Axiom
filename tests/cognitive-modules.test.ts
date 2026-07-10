@@ -16,13 +16,15 @@ import {
   MentalModelPool,
   GIT_CONFLICT_MODEL,
   CODE_REFACTOR_MODEL,
-  createDefaultMentalModelPool,
+  AUTH_MODEL,
+  DATABASE_MODEL,
 } from "../src/dre/mental-model/pool.js";
 import { ReasoningGraph } from "../src/dre/reasoning/graph.js";
 import {
   ConstraintSolver,
-  createDefaultConstraintSolver,
+  RESOURCE_CONSTRAINTS,
   POLICY_CONSTRAINTS,
+  TEMPORAL_CONSTRAINTS,
 } from "../src/dre/constraint/solver.js";
 import {
   ActorSystem,
@@ -47,7 +49,15 @@ describe("MentalModelPool", () => {
   let pool: MentalModelPool;
 
   beforeEach(() => {
-    pool = createDefaultMentalModelPool();
+    pool = new MentalModelPool();
+    pool.register(GIT_CONFLICT_MODEL);
+    pool.register(CODE_REFACTOR_MODEL);
+    pool.register(AUTH_MODEL);
+    pool.register(DATABASE_MODEL);
+    pool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    pool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    pool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    pool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
   });
 
   test("should register and list models", () => {
@@ -121,7 +131,15 @@ describe("MentalModelPool", () => {
   });
 
   test("should not advance state for invalid trigger", () => {
-    const freshPool = createDefaultMentalModelPool(); // fresh pool
+    const freshPool = new MentalModelPool();
+    freshPool.register(GIT_CONFLICT_MODEL);
+    freshPool.register(CODE_REFACTOR_MODEL);
+    freshPool.register(AUTH_MODEL);
+    freshPool.register(DATABASE_MODEL);
+    freshPool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    freshPool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    freshPool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    freshPool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
     const result = freshPool.advanceState("git-conflict", "nonexistent-trigger");
     expect(result).toBe(false);
 
@@ -130,7 +148,15 @@ describe("MentalModelPool", () => {
   });
 
   test("should track usage count", () => {
-    const freshPool = createDefaultMentalModelPool(); // fresh pool
+    const freshPool = new MentalModelPool();
+    freshPool.register(GIT_CONFLICT_MODEL);
+    freshPool.register(CODE_REFACTOR_MODEL);
+    freshPool.register(AUTH_MODEL);
+    freshPool.register(DATABASE_MODEL);
+    freshPool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    freshPool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    freshPool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    freshPool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
     const model = freshPool.get("git-conflict");
     expect(model?.usageCount).toBe(0);
 
@@ -142,7 +168,15 @@ describe("MentalModelPool", () => {
   });
 
   test("should find state path via BFS", () => {
-    const freshPool = createDefaultMentalModelPool(); // fresh pool
+    const freshPool = new MentalModelPool();
+    freshPool.register(GIT_CONFLICT_MODEL);
+    freshPool.register(CODE_REFACTOR_MODEL);
+    freshPool.register(AUTH_MODEL);
+    freshPool.register(DATABASE_MODEL);
+    freshPool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    freshPool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    freshPool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    freshPool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
     const pattern = freshPool.matchPattern("git-conflict", ["merge 操作"]);
     expect(pattern?.statePath).toBeDefined();
     expect(pattern?.statePath.length).toBeGreaterThan(0);
@@ -332,7 +366,8 @@ describe("ConstraintSolver", () => {
   let solver: ConstraintSolver;
 
   beforeEach(() => {
-    solver = createDefaultConstraintSolver();
+    solver = new ConstraintSolver();
+    solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
   });
 
   test("should register and list constraints", () => {

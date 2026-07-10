@@ -550,25 +550,4 @@ export const DATABASE_MODEL: MentalModel = {
   simulations: [],
 };
 
-/**
- * 获取预注册的心智模型池
- */
-export function createDefaultMentalModelPool(): MentalModelPool {
-  const pool = new MentalModelPool();
-  pool.register(GIT_CONFLICT_MODEL);
-  pool.register(CODE_REFACTOR_MODEL);
-  pool.register(AUTH_MODEL);
-  pool.register(DATABASE_MODEL);
 
-  // 为 Git 模型添加规则
-  pool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
-  pool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
-
-  // 为 Auth 模型添加规则
-  pool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
-
-  // 为 Database 模型添加规则
-  pool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
-
-  return pool;
-}

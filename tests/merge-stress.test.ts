@@ -17,7 +17,7 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { eventBus, type RuntimeEvent } from "../src/dre/runtime/event-bus.js";
 import { worldState } from "../src/dre/runtime/world-state.js";
-import { MentalModelPool, createDefaultMentalModelPool } from "../src/dre/mental-model/pool.js";
+import { MentalModelPool, GIT_CONFLICT_MODEL, CODE_REFACTOR_MODEL, AUTH_MODEL, DATABASE_MODEL } from "../src/dre/mental-model/pool.js";
 import { logger } from "../src/utils/logger.js";
 
 // ========== EventBus 压力测试 ==========
@@ -234,7 +234,15 @@ describe("MentalModelPool Stress", () => {
   let pool: MentalModelPool;
 
   beforeAll(() => {
-    pool = createDefaultMentalModelPool();
+    pool = new MentalModelPool();
+    pool.register(GIT_CONFLICT_MODEL);
+    pool.register(CODE_REFACTOR_MODEL);
+    pool.register(AUTH_MODEL);
+    pool.register(DATABASE_MODEL);
+    pool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    pool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    pool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    pool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
   });
 
   test("100 parallel simulations on Git model", async () => {
@@ -406,7 +414,15 @@ describe("Adaptation Quality Report", () => {
   });
 
   test("MentalModelPool API compatibility (post-merge)", () => {
-    const testPool = createDefaultMentalModelPool();
+    const testPool = new MentalModelPool();
+    testPool.register(GIT_CONFLICT_MODEL);
+    testPool.register(CODE_REFACTOR_MODEL);
+    testPool.register(AUTH_MODEL);
+    testPool.register(DATABASE_MODEL);
+    testPool.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    testPool.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    testPool.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    testPool.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
     expect(typeof testPool.simulate).toBe("function");
     expect(typeof testPool.addRule).toBe("function");
     expect(typeof testPool.generateSkillFromSimulation).toBe("function");

@@ -22,12 +22,7 @@
  */
 
 import { readString } from "../utils/env.js";
-import { DREngine, type DREConfig } from "./engine.js";
-
-/** Create a DREngine from a config (thin wrapper for ergonomic import). */
-export function createDRE(config: DREConfig): DREngine {
-  return new DREngine(config);
-}
+import type { DREConfig } from "./engine.js";
 
 /** Common LLM configurations. */
 export const LLM_PRESETS = {

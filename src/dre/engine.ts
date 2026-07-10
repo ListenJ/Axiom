@@ -21,9 +21,9 @@ import { KnowledgeGraph, type KGNode } from "./kg/graph.js";
 import { LLMClient, type LLMConfig } from "./llm/client.js";
 
 import { getResourceBudgetManager } from "./system-resource.js";
-import { MentalModelPool, createDefaultMentalModelPool } from "./mental-model/pool.js";
+import { MentalModelPool, GIT_CONFLICT_MODEL, CODE_REFACTOR_MODEL, AUTH_MODEL, DATABASE_MODEL } from "./mental-model/pool.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
-import { ConstraintSolver, createDefaultConstraintSolver } from "./constraint/solver.js";
+import { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } from "./constraint/solver.js";
 import { ActorSystem } from "./actor/system.js";
 import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
@@ -120,13 +120,22 @@ export class DREngine {
     this.kg = new KnowledgeGraph();
 
     // 初始化心智模型池 (预注册 Git/Code 等领域模型)
-    this.mentalModels = createDefaultMentalModelPool();
+    this.mentalModels = new MentalModelPool();
+    this.mentalModels.register(GIT_CONFLICT_MODEL);
+    this.mentalModels.register(CODE_REFACTOR_MODEL);
+    this.mentalModels.register(AUTH_MODEL);
+    this.mentalModels.register(DATABASE_MODEL);
+    this.mentalModels.addRule("git-conflict", "same-file-change exists", "resolve_conflict");
+    this.mentalModels.addRule("git-conflict", "stagedFiles > 0 && readyToCommit exists", "commit_changes", 0.9);
+    this.mentalModels.addRule("auth-flow", "tokenExpired exists", "refresh_token", 0.95);
+    this.mentalModels.addRule("database-tx", "deadlockDetected exists", "abort_and_retry", 0.95);
 
     // 初始化推理图
     this.reasoning = new ReasoningGraph();
 
     // 初始化约束求解器 (预注册 GPU/策略/时间约束)
-    this.constraints = createDefaultConstraintSolver();
+    this.constraints = new ConstraintSolver();
+    this.constraints.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
 
     // 初始化 Persona 加载器 (替换 AgentHarness)
     this.persona = new PersonaLoader({

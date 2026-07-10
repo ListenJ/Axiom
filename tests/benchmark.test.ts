@@ -13,7 +13,7 @@ import { unlinkSync, existsSync } from "fs";
 import { DREngine } from "../src/dre/engine.js";
 import { CognitivePipeline } from "../src/dre/pipeline/cognitive-pipeline.js";
 import { TaskGraph } from "../src/dre/pipeline/task-graph.js";
-import { ConstraintSolver, createDefaultConstraintSolver } from "../src/dre/constraint/solver.js";
+import { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } from "../src/dre/constraint/solver.js";
 import { KnowledgeGraph } from "../src/dre/kg/graph.js";
 import { KnowledgeStore } from "../src/dre/storage/knowledge-store.js";
 import { ReasoningGraph } from "../src/dre/reasoning/graph.js";
@@ -328,7 +328,8 @@ describe("FTS5 search performance", () => {
 
 describe("ConstraintSolver throughput", () => {
   test("100 次约束检查", () => {
-    const solver = createDefaultConstraintSolver();
+    const solver = new ConstraintSolver();
+    solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
     const actions = ["delete prod-data", "run experiment", "view report", "update config", "deploy release"];
     const start = performance.now();
     for (let i = 0; i < 100; i++) {

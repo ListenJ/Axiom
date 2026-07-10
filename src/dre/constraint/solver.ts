@@ -646,11 +646,4 @@ export const AUDIT_CONSTRAINTS: Constraint[] = [
   },
 ];
 
-/**
- * 创建预配置的约束求解器
- */
-export function createDefaultConstraintSolver(): ConstraintSolver {
-  const solver = new ConstraintSolver();
-  solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
-  return solver;
-}
+

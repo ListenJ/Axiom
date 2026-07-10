@@ -1227,9 +1227,10 @@ describe("DataUnifier persistence", () => {
 describe("VerificationEngine constraint integration (P0-4)", () => {
   test("verifyResult accepts constraintSolver and constraintContext", async () => {
     const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
-    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
 
-    const solver = createDefaultConstraintSolver();
+    const solver = new ConstraintSolver();
+    solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
     const report = await verificationEngine.verifyResult(
       "p0-4-test-1",
       "valid result string with enough length",
@@ -1253,9 +1254,10 @@ describe("VerificationEngine constraint integration (P0-4)", () => {
 
   test("constraint violations are written to VerificationReport.issues", async () => {
     const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
-    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
 
-    const solver = createDefaultConstraintSolver();
+    const solver = new ConstraintSolver();
+    solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
     const report = await verificationEngine.verifyResult(
       "p0-4-test-2",
       "delete_file",
@@ -1278,9 +1280,10 @@ describe("VerificationEngine constraint integration (P0-4)", () => {
 
   test("constraintContext.intent as string does not throw", async () => {
     const { verificationEngine } = await import("../src/dre/runtime/verification-engine.js");
-    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
 
-    const solver = createDefaultConstraintSolver();
+    const solver = new ConstraintSolver();
+    solver.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
     const report = await verificationEngine.verifyResult(
       "p0-4-test-3",
       "result content",

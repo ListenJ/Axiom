@@ -78,8 +78,9 @@ describe("ConstraintSolver 边界", () => {
   });
 
   it("getStats 统计正确", async () => {
-    const { createDefaultConstraintSolver } = await import("../src/dre/constraint/solver.js");
-    const s = createDefaultConstraintSolver();
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
+    const s = new ConstraintSolver();
+    s.registerAll([...RESOURCE_CONSTRAINTS, ...POLICY_CONSTRAINTS, ...TEMPORAL_CONSTRAINTS]);
     const stats = s.getStats();
     expect(stats.total).toBeGreaterThan(0);
     expect(stats.enabled + stats.disabled).toBe(stats.total);
