@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
-import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem } from "../../dre/index.js";
+import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
 import { getResourceBudgetManager } from "../../dre/system-resource.js";
 
 let kernel: Kernel | null = null;
@@ -216,7 +216,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       reason: z.string().optional().describe("切换原因 (可选)"),
     },
     handler: async (args) => {
-      const loaded = getKernel().getEngine().switchPersona(args.mode as any, args.reason as string);
+      const loaded = getKernel().getEngine().switchPersona(args.mode as PersonaMode, args.reason as string);
       return {
         mode: loaded.config.mode,
         name: loaded.config.name,
@@ -322,7 +322,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       const dre = getKernel().getEngine();
       const { atom } = dre.data.write({
         content: args.content as string,
-        kind: args.kind as any,
+        kind: args.kind as AtomKind,
         domain: args.domain as string,
         paradigm: args.paradigm as string,
         sourceType: args.sourceType as string,

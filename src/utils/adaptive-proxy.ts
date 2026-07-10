@@ -16,6 +16,7 @@
  *   }
  */
 import { logger } from "./logger.js";
+import { readString } from "./env.js";
 
 // ========== 类型定义 ==========
 
@@ -134,7 +135,7 @@ function detectEnvProxy(): ProxyEndpoint[] {
   const envVars = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"];
 
   for (const envVar of envVars) {
-    const val = process.env[envVar];
+    const val = readString(envVar);
     if (!val) continue;
 
     try {

@@ -139,72 +139,9 @@ export function initializeReadOptimizers(cwd?: string, deps?: ReadOptimizerDeps)
     }
   });
 
-  // ═══════════════════════════════════════════════════════════════
-  // 3. Vault 执行器
-  // ═══════════════════════════════════════════════════════════════
-
-  const vaultEngineCache = new Map<string, import("../memory/deterministic-search.js").DeterministicSearchEngine>();
-
-  facade.registerExecutor("vault", async (req) => {
-    const { action, params } = req;
-    const vaultPath = String(params.vaultPath ?? readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"));
-
-    switch (action) {
-      case "search": {
-        const { DeterministicSearchEngine } = await import("../memory/deterministic-search.js");
-        let engine = vaultEngineCache.get(vaultPath);
-        if (!engine) {
-          engine = new DeterministicSearchEngine(vaultPath);
-          vaultEngineCache.set(vaultPath, engine);
-        }
-        const query = String(params.query ?? "");
-        return engine.search(query, {
-          limit: Number(params.limit ?? 10),
-          tags: params.tags ? (params.tags as string[]) : undefined,
-        });
-      }
-
-      case "getNote": {
-        const { DeterministicSearchEngine } = await import("../memory/deterministic-search.js");
-        let engine = vaultEngineCache.get(vaultPath);
-        if (!engine) {
-          engine = new DeterministicSearchEngine(vaultPath);
-          vaultEngineCache.set(vaultPath, engine);
-        }
-        const notePath = String(params.notePath ?? "");
-        return engine.getNote(notePath);
-      }
-
-      case "browseByTag": {
-        const { DeterministicSearchEngine } = await import("../memory/deterministic-search.js");
-        let engine = vaultEngineCache.get(vaultPath);
-        if (!engine) {
-          engine = new DeterministicSearchEngine(vaultPath);
-          vaultEngineCache.set(vaultPath, engine);
-        }
-        const tag = String(params.tag ?? "");
-        return engine.browseByTag(tag);
-      }
-
-      case "browseByPara": {
-        const { DeterministicSearchEngine } = await import("../memory/deterministic-search.js");
-        let engine = vaultEngineCache.get(vaultPath);
-        if (!engine) {
-          engine = new DeterministicSearchEngine(vaultPath);
-          vaultEngineCache.set(vaultPath, engine);
-        }
-        const category = String(params.category ?? "");
-        return engine.browseByPara(category);
-      }
-
-      default:
-        throw new Error(`Unknown Vault action: ${action}`);
-    }
-  });
-
   initialized = true;
   logger.info("[ReadOptimizerInit] All executors registered", {
-    executors: ["codegraph", "pi-tools", "vault"],
+    executors: ["codegraph", "pi-tools"],
   });
 }
 

@@ -1226,11 +1226,11 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log(`  关系总数: ${totalRels.rels}\n`);
       if (entityStats) {
         console.log("  [实体类型]");
-        for (const row of entityStats as any[]) console.log(`    ${String(row.type).padEnd(20)} ${row.cnt}`);
+        for (const row of entityStats as { type: string; cnt: number }[]) console.log(`    ${String(row.type).padEnd(20)} ${row.cnt}`);
       }
       if (relStats) {
         console.log("\n  [关系类型]");
-        for (const row of relStats as any[]) console.log(`    ${String(row.relation_type).padEnd(20)} ${row.cnt}`);
+        for (const row of relStats as { relation_type: string; cnt: number }[]) console.log(`    ${String(row.relation_type).padEnd(20)} ${row.cnt}`);
       }
     },
   },
@@ -1293,13 +1293,13 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const role = args.find((a) => a.startsWith("--role="))?.slice(7) || "coding";
       const { recommendModels } = await import("./router/model-advisor.js");
       console.log(`[模型推荐] 角色: ${role}\n`);
-      const recs = await recommendModels(role as any);
+      const recs = await recommendModels(role);
       if (recs.length === 0) {
         console.log("  暂无推荐模型");
         return;
       }
       for (const r of recs.slice(0, 10)) {
-        console.log(`  ${(r as any).id || (r as any).model || JSON.stringify(r).slice(0, 80)}`);
+        console.log(`  ${r.modelId || JSON.stringify(r).slice(0, 80)}`);
       }
     },
   },
@@ -1315,7 +1315,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         return;
       }
       for (const m of models) {
-        console.log(`  ${(m as any).id || (m as any).name || JSON.stringify(m).slice(0, 80)}`);
+        console.log(`  ${m.id || m.name || JSON.stringify(m).slice(0, 80)}`);
       }
     },
   },

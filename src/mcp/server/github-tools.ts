@@ -277,7 +277,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
         title: pr.title,
         html_url: pr.html_url,
         state: pr.state,
-        draft: (pr as any).draft,
+        draft: pr.draft,
       };
     },
   });

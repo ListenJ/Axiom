@@ -178,13 +178,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
           const limit = (args.limit as number) || 50;
           let query = "SELECT id, name, type, description FROM kg_entities";
           const conditions: string[] = [];
-          const params: unknown[] = [];
+          const params: (string | number)[] = [];
           if (type) { params.push(type); conditions.push(`type = $${params.length}`); }
           if (search) { params.push(`%${search}%`); conditions.push(`(name ILIKE $${params.length} OR description ILIKE $${params.length})`); }
           if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
           query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
           params.push(limit);
-          const entities = await pg.unsafe(query, params as any[]);
+          const entities = await pg.unsafe(query, params);
           return { success: true, backend: "postgresql", data: entities, count: entities.length };
         }
       } catch { /* fall through */ }

@@ -82,6 +82,11 @@ export interface BatchWindow {
   maxBatchSize: number;       // 最大批量大小
 }
 
+// Minimal interface to avoid importing from higher (memory/) layer
+interface BlackboardLike {
+  read(key: string, options?: { minConfidence?: number; fields?: string[]; agentId?: string }): ReadResult;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 读取优化门面
 // ═══════════════════════════════════════════════════════════════
@@ -89,7 +94,7 @@ export interface BatchWindow {
 export class ReadOptimizerFacade {
   private interceptors: Interceptor[] = [];
   private cache: Cache<unknown>;
-  private blackboard?: import("../memory/blackboard.js").SharedBlackboard;
+  private blackboard?: BlackboardLike;
   private rateLimiters = new Map<string, TokenBucket>();
   private batchQueues = new Map<string, BatchQueue>();
   private stats = {
@@ -115,7 +120,7 @@ export class ReadOptimizerFacade {
     this.registerDefaultInterceptors();
   }
 
-  setBlackboard(bb: import("../memory/blackboard.js").SharedBlackboard): void {
+  setBlackboard(bb: BlackboardLike): void {
     this.blackboard = bb;
   }
 

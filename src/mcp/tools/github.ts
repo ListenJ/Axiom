@@ -234,6 +234,7 @@ export interface GitHubPR {
   title: string;
   body: string | null;
   state: "open" | "closed";
+  draft?: boolean;
   html_url: string;
   user: { login: string };
   head: { ref: string; sha: string };
