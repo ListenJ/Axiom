@@ -110,11 +110,13 @@ describe("性能基准", () => {
   });
 
   it("[perf] detectLoop 热路径 (干净缓存)", () => {
-    const { detectLoop, clearLoopCache } = require("../src/tools/types.js");
+    const { detectLoop } = require("../src/tools/types.js");
+    let iter = 0;
 
     const avg = bench("detectLoop (no collision)", () => {
-      for (let i = 0; i < 100; i++) detectLoop(`tool-${i}`, `input-${i}`);
-    }, 5000);
+      for (let i = 0; i < 100; i++) detectLoop(`tool-${iter}-${i}`, `input-${i}`);
+      iter++;
+    }, 500);
     console.log(`  detectLoop (不同输入) ×100/iter: ${(avg / 100).toFixed(4)}ms/op`);
   });
 
