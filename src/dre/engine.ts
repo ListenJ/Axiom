@@ -19,7 +19,7 @@ import { ConsciousnessStream, type ReflectionResult } from "./consciousness/stre
 import { Pipeline, type KnowledgeItem, type VerificationResult } from "./pipeline/pipeline.js";
 import { KnowledgeGraph, type KGNode } from "./kg/graph.js";
 import { LLMClient, type LLMConfig } from "./llm/client.js";
-import { PlannerAgent, CoderAgent, RetrieverAgent, ReflectorAgent, type Tool } from "./harness/agent.js";
+
 import { getResourceBudgetManager } from "./system-resource.js";
 import { MentalModelPool, createDefaultMentalModelPool } from "./mental-model/pool.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
@@ -377,18 +377,6 @@ export class DREngine {
   }
 
   /**
-   * @deprecated 使用 searchData() 替代 (DataUnifier 统一搜索)
-   */
-  searchKnowledge(query: string, options?: {
-    domain?: string;
-    paradigm?: string;
-    minConfidence?: number;
-    limit?: number;
-  }): KnowledgeNode[] {
-    const result = this.data.search(query, options);
-    return result.knowledgeNodes;
-  }
-  /**
    * 子图检索
    */
   subgraph(seedNodeId: string, depth: number = 2, maxNodes: number = 50): KnowledgeNode[] {
@@ -433,38 +421,6 @@ export class DREngine {
       const ruleResult = this.ruleBasedConsciousnessStep(input);
       return { ...ruleResult, fallbackLevel: "rule" };
     }
-  }
-
-  /**
-   * @deprecated Use {@link createAgent} (Persona-based) instead.
-   * 创建规划 Agent
-   */
-  createPlannerAgent(tools: Tool[]): PlannerAgent {
-    return new PlannerAgent(this.mainLLM, tools);
-  }
-
-  /**
-   * @deprecated Use {@link createAgent} (Persona-based) instead.
-   * 创建编码 Agent
-   */
-  createCoderAgent(tools: Tool[]): CoderAgent {
-    return new CoderAgent(this.mainLLM, tools);
-  }
-
-  /**
-   * @deprecated Use {@link createAgent} (Persona-based) instead.
-   * 创建检索 Agent
-   */
-  createRetrieverAgent(tools: Tool[]): RetrieverAgent {
-    return new RetrieverAgent(this.mainLLM, tools);
-  }
-
-  /**
-   * @deprecated Use {@link createAgent} (Persona-based) instead.
-   * 创建反思 Agent
-   */
-  createReflectorAgent(tools: Tool[]): ReflectorAgent {
-    return new ReflectorAgent(this.mainLLM, tools);
   }
 
   /**

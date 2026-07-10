@@ -113,13 +113,13 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     handler: async (args) => {
       const dre = getKernel().getEngine();
-      const results = dre.searchKnowledge(args.query as string, {
+      const results = dre.searchData(args.query as string, {
         domain: args.domain as string,
         paradigm: args.paradigm as string,
         minConfidence: args.minConfidence as number,
         limit: args.limit as number,
       });
-      return results.map((r) => ({
+      return results.knowledgeNodes.map((r) => ({
         nodeId: r.nodeId,
         title: r.title,
         domain: r.domain,

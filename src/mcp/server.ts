@@ -15,37 +15,21 @@ import { getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
 import { logger } from "../utils/logger.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
-import {
-  openCodeSession,
-  checkOpenCode,
-  listOpenCodeModels,
-  OPENCODE_FREE_MODELS,
-  getOpenCodeInstallGuide,
-  executeCodeGenerate,
-  executeCodeRefactor,
-  executeCodeReview,
-  executeCodeTest,
-} from "../agents/opencode-agent.js";
-import {
-  runHermesTask,
-  deepResearch,
-  checkHermes,
-  getHermesInstallGuide,
-  codeReview,
-} from "../agents/hermes-agent.js";
-import {
-  // LSP / quick-diagnostics tools still use these
-  getQuickDiagnostics,
-  getCodeActions,
-  detectLanguage,
-} from "./tools/code-analysis.js";
 import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
 import { registerSkillTools } from "./server/skill-tools.js";
 import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
 import { registerKgTools } from "./server/kg-tools.js";
+import { registerCodeAgentTools } from "./server/code-agent-tools.js";
+import { registerHermesTools } from "./server/hermes-tools.js";
+import { registerRouterTools } from "./server/router-tools.js";
+import { registerDbTools } from "./server/db-tools.js";
+import { registerLspTools } from "./server/lsp-tools.js";
+import { registerTokenTools } from "./server/token-tools.js";
+import { registerModeTools } from "./server/mode-tools.js";
+import { registerArenaTools } from "./server/arena-tools.js";
+import { registerPromptTools } from "./server/prompt-tools.js";
+import { registerOrchestratorTools } from "./server/orchestrator-tools.js";
 import { SceneRouter, DEFAULT_SCENES } from "./scene-router.js";
-import { router } from "../router/model-router.js";
-import { getTokenTracker } from "../router/token-tracker.js";
 import { ToolRegistry } from "./tool-registry.js";
 import {
   createSnapshot,
@@ -54,12 +38,6 @@ import {
   diffSnapshot,
   getSnapshotStatus,
 } from "./tools/workspace-snapshot.js";
-import {
-  executionMode,
-  type ExecutionMode,
-  TOOL_CLASSIFICATIONS,
-} from "../agents/execution-mode.js";
-import { getConstitutionForMode } from "../agents/constitution.js";
 import {
   listRepos,
   getRepo,
@@ -86,10 +64,7 @@ import {
   getGitHubInfo,
   getIssue as getGitHubIssue,
 } from "./tools/github.js";
-import { getArenaCollector } from "../eval/arena-collector.js";
-import { getPromptPool, type AgentRole } from "../agents/prompt-pool.js";
 import { getProxyStatus } from "../utils/adaptive-proxy.js";
-import { getAgentOrchestrator, type AgentTask } from "../agents/orchestrator.js";
 import { registerExternalTools } from "./register-external-tools.js";
 import { adaptTools } from "./adapt-tool.js";
 import { readTool } from "../tools/read-tool.js";
@@ -848,196 +823,15 @@ registry.add({
   },
 });
 
-// -- 编码 Agent 工具 --
-registry.add({
-  name: "code_generate",
-  description: "使用 AI 模型生成代码（自动注入 CodeGraph 上下文，支持免费模型）",
-  inputSchema: {
-    prompt: z.string().describe("代码生成需求描述"),
-    language: z.string().optional().describe("编程语言"),
-    context: z.string().optional().describe("现有代码上下文"),
-    model: z.string().optional().describe("模型名称"),
-  },
-  handler: async (args) => {
-    const result = await executeCodeGenerate({
-      prompt: args.prompt as string,
-      language: args.language as string | undefined,
-      context: args.context as string | undefined,
-      model: args.model as string | undefined,
-    });
-    return result;
-  },
-});
+registerCodeAgentTools(registry);
 
-registry.add({
-  name: "code_refactor",
-  description: "使用 AI 模型重构代码（自动注入 CodeGraph 上下文）",
-  inputSchema: {
-    code: z.string().describe("要重构的代码"),
-    description: z.string().describe("重构需求描述"),
-    language: z.string().optional().describe("编程语言"),
-  },
-  handler: async (args) => {
-    const result = await executeCodeRefactor({
-      code: args.code as string,
-      description: args.description as string,
-      language: args.language as string | undefined,
-    });
-    return result;
-  },
-});
+registerHermesTools(registry);
 
-registry.add({
-  name: "code_review",
-  description: "使用 AI 模型审查代码（优先 GLM-5.1）",
-  inputSchema: {
-    code: z.string().describe("要审查的代码"),
-    language: z.string().optional().describe("编程语言"),
-    context: z.string().optional().describe("代码上下文"),
-  },
-  handler: async (args) => {
-    const result = await executeCodeReview({
-      code: args.code as string,
-      language: args.language as string | undefined,
-      context: args.context as string | undefined,
-    });
-    return result;
-  },
-});
+registerRouterTools(registry);
 
-registry.add({
-  name: "code_test",
-  description: "使用 AI 模型生成测试用例",
-  inputSchema: {
-    code: z.string().describe("要测试的代码"),
-    language: z.string().optional().describe("编程语言"),
-    framework: z.string().optional().describe("测试框架"),
-  },
-  handler: async (args) => {
-    const result = await executeCodeTest({
-      code: args.code as string,
-      language: args.language as string | undefined,
-      framework: args.framework as string | undefined,
-    });
-    return result;
-  },
-});
+registerDbTools(registry, db);
 
-registry.add({
-  name: "opencode_status",
-  description: "检查 OpenCode Agent 状态和可用模型",
-  inputSchema: {},
-  handler: async () => {
-    const available = await checkOpenCode();
-    const models = available ? await listOpenCodeModels() : [];
-    return { installed: available, freeModels: OPENCODE_FREE_MODELS, allModels: models.slice(0, 50) };
-  },
-});
-
-// -- Hermes 工具 --
-registry.add({
-  name: "project_research",
-  description: "使用 Hermes Agent 进行深度研究",
-  inputSchema: {
-    topic: z.string().describe("研究主题"),
-    cwd: z.string().optional().describe("工作目录"),
-  },
-  handler: async (args) => {
-    const result = await deepResearch(args.topic as string, args.cwd as string);
-    return { success: result.success, output: result.stdout, errors: result.stderr };
-  },
-});
-
-registry.add({
-  name: "hermes_status",
-  description: "检查 Hermes Agent 安装状态",
-  inputSchema: {},
-  handler: async () => {
-    const available = await checkHermes();
-    return { installed: available, installGuide: available ? "Hermes is ready" : "Run: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash" };
-  },
-});
-
-// -- 模型路由工具 --
-registry.add({
-  name: "model_chat",
-  description: "通过多平台路由器发送聊天请求",
-  inputSchema: {
-    taskType: z.enum(["general-chat", "code-generation", "complex-reasoning"]).describe("任务类型"),
-    messages: z.array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() })).describe("消息列表"),
-  },
-  handler: async (args) => {
-    const messages = (args.messages as Array<{ role: string; content: string }>).map((m) => ({
-      role: m.role as "system" | "user" | "assistant",
-      content: m.content,
-    }));
-    const result = await router.chat(args.taskType as string, messages);
-    return { content: result.content || "" };
-  },
-});
-
-// -- 数据库工具 --
-registry.add({
-  name: "db_query",
-  description: "执行 SQLite 查询（只读）",
-  inputSchema: {
-    sql: z.string().describe("SELECT 查询语句"),
-    params: z.array(z.any()).optional().default([]),
-  },
-  handler: async (args) => {
-    const normalized = (args.sql as string).trim().toLowerCase();
-    if (!normalized.startsWith("select")) {
-      return { error: "Only SELECT queries are allowed" };
-    }
-    try {
-      return db.query(args.sql as string).all(...((args.params || []) as (string | number | boolean | null)[]));
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
-  },
-});
-
-registry.add({
-  name: "list_free_models",
-  description: "列出当前可用的免费模型",
-  inputSchema: {},
-  handler: async () => {
-    return db.query("SELECT id, name, provider, context_length FROM free_models WHERE is_available = 1").all();
-  },
-});
-
-// -- LSP 增强工具 --
-
-registry.add({
-  name: "code_quick_diagnostics",
-  description: "快速诊断单个文件（使用增量检查，更快）",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-  },
-  handler: async (args) => getQuickDiagnostics(args.filePath as string),
-});
-
-registry.add({
-  name: "code_actions",
-  description: "获取代码修复建议（Code Actions）",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-  },
-  handler: async (args) => getCodeActions(args.filePath as string),
-});
-
-registry.add({
-  name: "code_detect_language",
-  description: "检测文件编程语言",
-  inputSchema: {
-    filePath: z.string().describe("文件路径"),
-  },
-  handler: async (args) => ({
-    success: true,
-    language: detectLanguage(args.filePath as string),
-    filePath: args.filePath,
-  }),
-});
+registerLspTools(registry);
 
 // -- Skill 管理工具 (extracted to server/skill-tools.ts) --
 const skillDirs = [
@@ -1046,155 +840,9 @@ const skillDirs = [
 ];
 registerSkillTools(registry, skillDirs);
 
-// -- Token 使用统计工具 --
-registry.add({
-  name: "token_stats",
-  description: "获取总体 token 使用统计（调用次数、token 消耗、成功率、延迟）",
-  inputSchema: {
-    since: z.number().optional().describe("起始时间戳（毫秒）"),
-    until: z.number().optional().describe("结束时间戳（毫秒）"),
-  },
-  handler: async (args) => {
-    const tracker = getTokenTracker();
-    const stats = tracker.getOverallStats({
-      since: args.since as number | undefined,
-      until: args.until as number | undefined,
-    });
-    return stats;
-  },
-});
+registerTokenTools(registry);
 
-registry.add({
-  name: "token_stats_by_model",
-  description: "按模型统计 token 使用情况",
-  inputSchema: {
-    since: z.number().optional().describe("起始时间戳（毫秒）"),
-    limit: z.number().optional().default(20).describe("返回模型数量"),
-  },
-  handler: async (args) => {
-    const tracker = getTokenTracker();
-    const stats = tracker.getStatsByModel({
-      since: args.since as number | undefined,
-      limit: args.limit as number | undefined,
-    });
-    return stats;
-  },
-});
-
-registry.add({
-  name: "token_stats_by_role",
-  description: "按角色统计 token 使用情况",
-  inputSchema: {
-    since: z.number().optional().describe("起始时间戳（毫秒）"),
-    limit: z.number().optional().default(20).describe("返回角色数量"),
-  },
-  handler: async (args) => {
-    const tracker = getTokenTracker();
-    const stats = tracker.getStatsByRole({
-      since: args.since as number | undefined,
-      limit: args.limit as number | undefined,
-    });
-    return stats;
-  },
-});
-
-registry.add({
-  name: "token_daily_stats",
-  description: "按天统计 token 使用情况",
-  inputSchema: {
-    days: z.number().optional().default(7).describe("最近多少天"),
-  },
-  handler: async (args) => {
-    const tracker = getTokenTracker();
-    const stats = tracker.getDailyStats(args.days as number | undefined);
-    return stats;
-  },
-});
-
-// -- 执行模式管理工具 (CodeWhale-inspired) --
-registry.add({
-  name: "set_mode",
-  description: "切换执行模式: plan(只读调查) / agent(默认,需审批) / yolo(自动批准)",
-  inputSchema: {
-    mode: z.enum(["plan", "agent", "yolo"]).describe("目标执行模式"),
-    reason: z.string().optional().describe("切换原因"),
-  },
-  handler: async (args) => {
-    const mode = args.mode as ExecutionMode;
-    const previous = executionMode.getMode();
-    executionMode.setMode(mode);
-    return {
-      success: true,
-      previous,
-      current: mode,
-      reason: args.reason as string | undefined,
-      config: executionMode.getConfig(),
-      constitution: getConstitutionForMode(mode),
-    };
-  },
-});
-
-registry.add({
-  name: "get_mode",
-  description: "获取当前执行模式和宪法",
-  inputSchema: {},
-  handler: async () => {
-    const mode = executionMode.getMode();
-    return {
-      mode,
-      config: executionMode.getConfig(),
-      constitution: getConstitutionForMode(mode),
-      history: executionMode.getModeHistory(),
-    };
-  },
-});
-
-registry.add({
-  name: "list_mode_tools",
-  description: "列出当前模式下允许使用的工具",
-  inputSchema: {
-    category: z.string().optional().describe("按分类过滤"),
-    risk: z.enum(["safe", "caution", "destructive"]).optional().describe("按风险等级过滤"),
-  },
-  handler: async (args) => {
-    const tools = executionMode.getAllowedTools();
-    let filtered = tools;
-    if (args.category) {
-      filtered = filtered.filter((t) => t.category === args.category);
-    }
-    if (args.risk) {
-      filtered = filtered.filter((t) => t.risk === args.risk);
-    }
-    return {
-      mode: executionMode.getMode(),
-      total: TOOL_CLASSIFICATIONS.length,
-      allowed: tools.length,
-      filtered: filtered.length,
-      tools: filtered.map((t) => ({
-        name: t.name,
-        risk: t.risk,
-        category: t.category,
-        description: t.description,
-      })),
-    };
-  },
-});
-
-registry.add({
-  name: "revert_mode",
-  description: "回退到上一个执行模式",
-  inputSchema: {},
-  handler: async () => {
-    const previous = executionMode.getMode();
-    const current = executionMode.revertMode();
-    return {
-      success: true,
-      previous,
-      current,
-      constitution: getConstitutionForMode(current),
-    };
-  },
-});
+registerModeTools(registry);
 
 // ===== Workspace Snapshot 工具 =====
 
@@ -1249,312 +897,11 @@ registry.add({
   },
 });
 
-// ===== 竞技场榜单采集工具 (Chapter 3) =====
+registerArenaTools(registry);
 
-registry.add({
-  name: "arena_collect",
-  description: "采集竞技场榜单数据 (LMSYS/OpenCompass/HuggingFace/LLM Stats)",
-  inputSchema: {
-    source: z.string().optional().describe("指定源名称 (如 'LMSYS Arena')，不指定则采集全部"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    if (args.source) {
-      const count = await collector.collectSource(args.source as string);
-      return { success: true, source: args.source, recordsCollected: count };
-    }
-    return collector.collectAll();
-  },
-});
+registerPromptTools(registry);
 
-registry.add({
-  name: "arena_search_models",
-  description: "搜索竞技场榜单中的模型 (FTS5 BM25 确定性检索)",
-  inputSchema: {
-    query: z.string().describe("搜索关键词"),
-    limit: z.number().optional().default(20).describe("返回数量"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    return collector.searchModels(args.query as string, args.limit as number);
-  },
-});
-
-registry.add({
-  name: "arena_get_model_scores",
-  description: "获取模型在所有基准上的分数",
-  inputSchema: {
-    model_name: z.string().describe("模型名称"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    return collector.getModelScores(args.model_name as string);
-  },
-});
-
-registry.add({
-  name: "arena_benchmark_ranking",
-  description: "获取基准上所有模型的排名",
-  inputSchema: {
-    benchmark: z.string().describe("基准名称 (如 'MMLU', 'HumanEval', 'arena-elo')"),
-    limit: z.number().optional().default(50).describe("返回数量"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    return collector.getBenchmarkRanking(args.benchmark as string, args.limit as number);
-  },
-});
-
-registry.add({
-  name: "arena_composite_ranking",
-  description: "获取综合评分排名 (确定性加权公式)",
-  inputSchema: {
-    limit: z.number().optional().default(50).describe("返回数量"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    return collector.getCompositeRanking(args.limit as number);
-  },
-});
-
-registry.add({
-  name: "arena_role_recommendation",
-  description: "获取角色推荐 (确定性矩阵乘法匹配)",
-  inputSchema: {
-    role: z.enum(["code-generation", "research", "math", "general-chat", "architecture", "decision", "review", "general-tool"]).describe("角色类型"),
-    limit: z.number().optional().default(10).describe("返回数量"),
-  },
-  handler: async (args) => {
-    const collector = getArenaCollector();
-    return collector.getRoleRecommendation(args.role as string, args.limit as number);
-  },
-});
-
-registry.add({
-  name: "arena_stats",
-  description: "获取竞技场榜单统计信息",
-  inputSchema: {},
-  handler: async () => {
-    const collector = getArenaCollector();
-    return collector.getStats();
-  },
-});
-
-registry.add({
-  name: "arena_sources",
-  description: "列出所有可用的榜单数据源",
-  inputSchema: {},
-  handler: async () => {
-    const collector = getArenaCollector();
-    return collector.listSources();
-  },
-});
-
-// ===== Prompt 连接池工具 (Chapter 5) =====
-
-registry.add({
-  name: "prompt_pool_acquire",
-  description: "从连接池获取角色的缓存友好提示词",
-  inputSchema: {
-    role: z.enum(["main_coding", "code_review", "research", "architecture", "decision", "general_chat", "tool_use", "computer_use"]).describe("角色类型"),
-    task_description: z.string().describe("任务描述"),
-    context: z.string().optional().describe("上下文信息"),
-    user_input: z.string().optional().describe("用户输入"),
-  },
-  handler: async (args) => {
-    const pool = getPromptPool();
-    const result = pool.acquire(args.role as AgentRole, {
-      task_description: args.task_description as string,
-      context: args.context as string,
-      user_input: args.user_input as string,
-    });
-    return {
-      role: result.role,
-      version: result.version,
-      prefixHash: result.prefixHash,
-      tokenCount: result.tokenCount,
-      cacheControlMarker: result.cacheControlMarker,
-      systemPromptLength: result.systemPrompt.length,
-      staticPrefixLength: result.staticPrefix.length,
-      dynamicSuffixLength: result.dynamicSuffix.length,
-    };
-  },
-});
-
-registry.add({
-  name: "prompt_pool_metrics",
-  description: "获取 Prompt 连接池缓存监控指标",
-  inputSchema: {},
-  handler: async () => {
-    const pool = getPromptPool();
-    return pool.getMetrics();
-  },
-});
-
-registry.add({
-  name: "prompt_pool_status",
-  description: "获取 Prompt 连接池状态",
-  inputSchema: {},
-  handler: async () => {
-    const pool = getPromptPool();
-    return pool.getPoolStatus();
-  },
-});
-
-registry.add({
-  name: "prompt_pool_roles",
-  description: "列出所有角色配置",
-  inputSchema: {},
-  handler: async () => {
-    const pool = getPromptPool();
-    return pool.listRoles();
-  },
-});
-
-registry.add({
-  name: "prompt_pool_warmup",
-  description: "预热 Prompt 连接池缓存",
-  inputSchema: {},
-  handler: async () => {
-    const pool = getPromptPool();
-    pool.warmup();
-    return { success: true, message: "Cache warmup initiated for all roles" };
-  },
-});
-
-registry.add({
-  name: "prompt_pool_evict",
-  description: "执行连接池淘汰 (LRU/LFU/TTL 混合策略)",
-  inputSchema: {},
-  handler: async () => {
-    const pool = getPromptPool();
-    const evictedCount = pool.evict();
-    return { evictedCount, message: `Evicted ${evictedCount} entries` };
-  },
-});
-
-// ===== 多 Agent 编排工具 =====
-
-registry.add({
-  name: "orchestrator_execute_task",
-  description: "执行单个 Agent 任务",
-  inputSchema: {
-    type: z.string().describe("任务类型 (如 code-generation, research, analysis)"),
-    description: z.string().describe("任务描述"),
-    input: z.record(z.unknown()).optional().describe("任务输入"),
-    context: z.record(z.unknown()).optional().describe("任务上下文"),
-    priority: z.number().optional().default(5).describe("优先级 (1-10)"),
-    timeout: z.number().optional().describe("超时时间 (ms)"),
-  },
-  handler: async (args) => {
-    const orchestrator = getAgentOrchestrator();
-    const task: AgentTask = {
-      id: `task-${Date.now()}`,
-      type: args.type as string,
-      description: args.description as string,
-      input: (args.input as Record<string, unknown>) || {},
-      context: args.context as Record<string, unknown>,
-      priority: args.priority as number,
-      timeout: args.timeout as number,
-    };
-    return orchestrator.executeTask(task);
-  },
-});
-
-registry.add({
-  name: "orchestrator_execute_plan",
-  description: "执行编排计划 (串行/并行/DAG)",
-  inputSchema: {
-    name: z.string().describe("计划名称"),
-    mode: z.enum(["sequential", "parallel", "dag"]).describe("执行模式"),
-    steps: z.array(z.object({
-      name: z.string(),
-      agentId: z.string().optional(),
-      taskType: z.string(),
-      taskDescription: z.string(),
-      dependsOn: z.array(z.string()).optional(),
-      requireConfirmation: z.boolean().optional(),
-    })).describe("执行步骤"),
-  },
-  handler: async (args) => {
-    const orchestrator = getAgentOrchestrator();
-    const planId = `plan-${Date.now()}`;
-
-    const steps = (args.steps as Array<{
-      name: string;
-      agentId?: string;
-      taskType: string;
-      taskDescription: string;
-      dependsOn?: string[];
-      requireConfirmation?: boolean;
-    }>).map((step, index) => ({
-      id: `${planId}-step-${index}`,
-      name: step.name,
-      agentId: step.agentId || "internal",
-      task: {
-        id: `${planId}-task-${index}`,
-        type: step.taskType,
-        description: step.taskDescription,
-        input: {},
-      },
-      dependsOn: step.dependsOn,
-      requireConfirmation: step.requireConfirmation,
-    }));
-
-    const plan = {
-      id: planId,
-      name: args.name as string,
-      steps,
-      mode: args.mode as "sequential" | "parallel" | "dag",
-    };
-
-    const result = await orchestrator.executePlan(plan);
-    return {
-      planId: result.planId,
-      success: result.success,
-      totalDuration: result.totalDuration,
-      errors: result.errors,
-      stepResults: Object.fromEntries(result.stepResults),
-    };
-  },
-});
-
-registry.add({
-  name: "orchestrator_list_agents",
-  description: "列出所有注册的 Agent",
-  inputSchema: {},
-  handler: async () => {
-    const orchestrator = getAgentOrchestrator();
-    const agents = orchestrator.getRegistry().list();
-    return agents.map((a) => ({
-      id: a.id,
-      name: a.name,
-      description: a.description,
-      capabilities: a.capabilities,
-    }));
-  },
-});
-
-registry.add({
-  name: "orchestrator_health_check",
-  description: "检查所有 Agent 健康状态",
-  inputSchema: {},
-  handler: async () => {
-    const orchestrator = getAgentOrchestrator();
-    const health = await orchestrator.getRegistry().healthCheckAll();
-    return Object.fromEntries(health);
-  },
-});
-
-registry.add({
-  name: "orchestrator_status",
-  description: "获取编排器状态",
-  inputSchema: {},
-  handler: async () => {
-    const orchestrator = getAgentOrchestrator();
-    return orchestrator.getStatus();
-  },
-});
+registerOrchestratorTools(registry);
 
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
 registerDreTools(registry);

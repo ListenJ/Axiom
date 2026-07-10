@@ -124,7 +124,7 @@ describe("CognitivePipeline", () => {
     expect(node!.title).toBe("测试模块 A");
     expect(node!.confidence).toBe(0.9);
 
-    const results = engine.searchKnowledge("JWT", { limit: 5 });
+    const results = engine.searchData("JWT", { limit: 5 }).knowledgeNodes;
     expect(results.length).toBeGreaterThan(0);
   });
 
