@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Send, TrendingUp, Cpu, Search as SearchIcon, ArrowRight, Bot, User, Square } from 'lucide-react'
+import { Sparkles, Send, TrendingUp, Cpu, Search as SearchIcon, ArrowRight, Bot, User, Square, ChevronDown } from 'lucide-react'
 import { endpoints, HttpError } from '@/lib/api'
 import { LoadingDots } from '@/components/ui'
 import type { ChatStreamEvent } from '@/lib/api'
+
+interface ModelOption { id: string; label: string }
 
 interface Message {
   id: string
@@ -21,8 +23,15 @@ const suggestions = [
 
 function nextId(): string { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36) }
 
+const MODELS: ModelOption[] = [
+  { id: 'glm-4-flash-zhipu', label: 'GLM-4-Flash (智谱)' },
+  { id: 'glm-4.7-flash-free', label: 'GLM-4.7-Flash (免费)' },
+]
+
 export default function Home() {
   const [input, setInput] = useState('')
+  const [selectedModel, setSelectedModel] = useState(MODELS[0].id)
+  const [showModelPicker, setShowModelPicker] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [sending, setSending] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -74,7 +83,7 @@ export default function Home() {
             appendError(event.message ?? 'stream error')
           }
         },
-        { signal: controller.signal },
+        { signal: controller.signal, model: selectedModel },
       )
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') return
@@ -178,6 +187,40 @@ export default function Home() {
             <Send className="size-4" />
           </button>
         </form>
+        {/* Model switcher */}
+        <div className="relative mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowModelPicker(!showModelPicker)}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-2xs text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]"
+          >
+            {MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}
+            <ChevronDown className="size-3" />
+          </button>
+
+          {showModelPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} />
+              <div className="absolute bottom-full z-50 mb-1 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg">
+                {MODELS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${
+                      selectedModel === m.id
+                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         {!hasMessages && (
           <p className="mt-2 text-center text-2xs text-[var(--text-muted)]">Axiom 可能产生不准确的信息，请核实重要信息。</p>
         )}

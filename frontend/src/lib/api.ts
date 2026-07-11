@@ -372,6 +372,7 @@ export const endpoints = {
         intent?: boolean
         preferNativeStream?: boolean
         signal?: AbortSignal
+        model?: string
       } = {},
     ) => {
       // Destructure `signal` so it is NEVER serialized into the JSON body.
