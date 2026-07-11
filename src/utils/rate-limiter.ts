@@ -91,8 +91,15 @@ export class RateLimiter {
   }
 }
 
+/** Rate-limit middleware function type returned by {@link createRateLimitMiddleware}. */
+export type RateLimitMiddleware = (
+  req: Request,
+) => Promise<{ allowed: boolean; headers: Record<string, string> }>;
+
 /** 基于 IP 的限流中间件 */
-export function createRateLimitMiddleware(limiter: RateLimiter) {
+export function createRateLimitMiddleware(
+  limiter: RateLimiter,
+): RateLimitMiddleware {
   return async (req: Request): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
     // Use x-real-ip from trusted reverse proxy only; fall back to anonymous
     // Do NOT trust x-forwarded-for from client (easily spoofed)

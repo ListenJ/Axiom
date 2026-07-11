@@ -42,43 +42,56 @@ export interface EventHandler {
 class EventBusImpl extends EventEmitter {
   private handlers = new Map<string, EventHandler[]>();
   private eventLog: RuntimeEvent[] = [];
+  private eventLogIndex = 0;
   private maxLogSize = 1000;
   private stats = { published: 0, handled: 0, errors: 0 };
+  private eidCounter = 0;
 
   publish(event: Omit<RuntimeEvent, "id" | "timestamp">): RuntimeEvent {
+    const now = Date.now();
     const fullEvent: RuntimeEvent = {
-      ...event,
-      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: Date.now(),
+      type: event.type,
+      source: event.source,
+      data: event.data,
+      priority: event.priority,
+      correlationId: event.correlationId,
+      replyTo: event.replyTo,
+      id: `evt_${now}_${this.eidCounter++}`,
+      timestamp: now,
     };
 
     this.stats.published++;
-    this.eventLog.push(fullEvent);
-    if (this.eventLog.length > this.maxLogSize) {
-      this.eventLog.shift();
+    if (this.eventLog.length < this.maxLogSize) {
+      this.eventLog.push(fullEvent);
+    } else {
+      this.eventLog[this.eventLogIndex] = fullEvent;
     }
+    this.eventLogIndex = (this.eventLogIndex + 1) % this.maxLogSize;
 
-    const handlers = this.handlers.get(event.type) ?? [];
-    const sorted = [...handlers].sort((a, b) => b.priority - a.priority);
-
-    for (const h of sorted) {
-      try {
-        const result = h.handler(fullEvent);
-        if (result instanceof Promise) {
-          result.catch((err) => {
-            this.stats.errors++;
-            logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
-          });
+    const handlers = this.handlers.get(event.type);
+    if (handlers !== undefined && handlers.length > 0) {
+      const sorted = [...handlers].sort((a, b) => b.priority - a.priority);
+      for (const h of sorted) {
+        try {
+          const result = h.handler(fullEvent);
+          if (result instanceof Promise) {
+            result.catch((err) => {
+              this.stats.errors++;
+              logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
+            });
+          }
+          this.stats.handled++;
+          if (h.once) this.unsubscribe(h.id);
+        } catch (err) {
+          this.stats.errors++;
+          logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
         }
-        this.stats.handled++;
-        if (h.once) this.unsubscribe(h.id);
-      } catch (err) {
-        this.stats.errors++;
-        logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
       }
     }
+    if (this.listenerCount(event.type) > 0) {
+      this.emit(event.type, fullEvent);
+    }
 
-    this.emit(event.type, fullEvent);
     return fullEvent;
   }
 
@@ -108,7 +121,17 @@ class EventBusImpl extends EventEmitter {
   }
 
   getRecentEvents(count = 20): RuntimeEvent[] {
-    return this.eventLog.slice(-count);
+    const len = this.eventLog.length;
+    if (len === 0) return [];
+    if (len < this.maxLogSize) {
+      return this.eventLog.slice(-count);
+    }
+    const take = Math.min(count, len);
+    const start = (this.eventLogIndex - take + this.maxLogSize) % this.maxLogSize;
+    // Rotate the array so the oldest event comes first: [start..end, 0..start)
+    return start === 0
+      ? this.eventLog.slice(0, take)
+      : this.eventLog.slice(start, len).concat(this.eventLog.slice(0, start));
   }
 
   getStats(): { published: number; handled: number; errors: number; subscriberCount: number } {
