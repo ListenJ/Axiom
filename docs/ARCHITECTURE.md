@@ -1,6 +1,6 @@
 # Axiom 架构权威参考
 
-> 最后更新: 2026-07-10
+> 最后更新: 2026-07-11
 > 本文件是 Axiom 项目的唯一架构权威参考。所有架构决策、分层规则、模块职责均以此为准。
 
 ---
@@ -18,7 +18,7 @@ Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、�
 | 测试文件 | 66 个 |
 | 测试总数 | ~1,100 (136 核心 + 154 前端 + 其他) |
 | PBT invariants | 46 |
-| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 15 |
+| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 13 |
 
 ---
 
@@ -32,7 +32,7 @@ src/
 ├── core/            — 核心基础设施 (config-center, http-router, health-checker)
 ├── crawl/           — 数据采集管道 (web fetch, search, serpapi)
 ├── cron/            — 定时任务
-├── db/              — 数据库访问层 (pg, sqlite, codegraph-sync)
+├── db/              — 数据库访问层 (sqlite, codegraph-sync)
 ├── dre/             — 确定性推理引擎 (constraint, runtime, pipeline, persona, actor)
 ├── eval/            — 模型评估框架
 ├── kal/             — 知识访问层
@@ -50,6 +50,8 @@ src/
 ├── tui/             — 终端 UI
 └── utils/           — 通用工具函数 (叶子层)
 ```
+
+**数据库:** PostgreSQL 已完全移除, SQLite 是唯一数据库。所有持久化通过 `sqlite-memory.ts` (FTS5) 和 `codegraph-sync.ts` 完成。
 
 ### 2.1 分层规则
 
@@ -98,7 +100,7 @@ core   → routes   ← agents        (路由注册)
 
 | 组件 | 行数 | 职责 |
 |------|------|------|
-| `model-router.ts` | 963 | 多平台模型路由 (fallback, retry, streaming) |
+| `model-router.ts` | 728 | 多平台模型路由 (fallback, retry, streaming) |
 | `models/registry.ts` | 933 | 模型注册表 (UnifiedModel 数据) |
 | `model-capability-registry.ts` | 162 | 能力注册表 (推荐式, 支持 opts+EXTENSIONS) |
 | `tool-pool.ts` | 240 | 工具执行池 (并发/限流) |
@@ -118,7 +120,7 @@ core   → routes   ← agents        (路由注册)
 | `server/code-agent-tools.ts` | 93 | 编码 Agent 工具 |
 | `server/arena-tools.ts` | 96 | 竞技场榜单工具 |
 | `server/orchestrator-tools.ts` | 118 | 多 Agent 编排工具 |
-| `total 15 域文件` | — | 遵循 `registerXxxTools(registry, deps?)` 模式 |
+| `total 16 域文件` | — | 遵循 `registerXxxTools(registry, deps?)` 模式 |
 
 ### 3.4 `dre/` — 确定性推理引擎
 
@@ -140,7 +142,8 @@ test:core         136 tests  — 核心模块单元测试 (566ms)
 test:arch          22 tests  — 架构完整性约束 (497ms)
 test:perf          32 tests  — 性能基准 (含 200% 超标基线)
 test:integration   11 tests  — 集成/并发测试
-test:full         170 tests  — 以上全部 (6.1s)
+test:e2e           31 tests  — E2E 端到端测试 (真实文件 I/O, HTTP 路由, MCP 工具, 弹性, 配置)
+test:full         232 tests  — 以上全部 (~13s)
 frontend          154 tests  — React 组件测试 (vitest + jsdom)
 ```
 
@@ -175,6 +178,14 @@ frontend          154 tests  — React 组件测试 (vitest + jsdom)
 | Pipeline 10k empty | < 100ms | **实测 8.7ms** |
 | EventBus 100k pub | < 50ms | **实测 29ms** (O(1) 环形缓冲区) |
 
+### 4.3 E2E 端到端测试 (31 项)
+
+E2E 测试覆盖真实文件系统 I/O、HTTP 路由、MCP 工具调用、系统弹性与配置加载场景,与架构完整性测试一同在 CI 中自动执行。
+
+### 4.4 CI/CD
+
+CI 运行 `bun run test:full` (232 项测试, ~13s),代替原先的 `bun test`。架构完整性测试 (22 项) 和 E2E 测试 (31 项) 为 CI 必过门槛。
+
 ---
 
 ## 5. 代码质量规则
@@ -196,7 +207,7 @@ frontend          154 tests  — React 组件测试 (vitest + jsdom)
 
 仅允许在以下场景使用 `as any`：
 - Bun 内部 API (redis-client.ts)
-- SQLite/PG 查询结果行 (pg-client.ts, codegraph-sync.ts, model-eval-service.ts)
+- SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts)
 - 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts)
 - 第三方库兼容 (install-wizard.ts: blessed)
 
@@ -211,6 +222,11 @@ frontend          154 tests  — React 组件测试 (vitest + jsdom)
 | ReadOptimizer | `getReadOptimizer()` | `utils/read-optimizer.ts` |
 | Consciousness | `getConsciousness()` | `agents/consciousness/index.ts` |
 | DRE Kernel | `getKernel()` | `dre/kernel.ts` |
+
+### 5.4 安全
+
+- **环境变量密钥轮换:** `.env` 中的 API Key 支持运行时动态轮换,通过 `api-key-store.ts` 统一管理
+- **速率限制:** `http-router.ts` 内置令牌桶速率限制器,防止滥用
 
 ---
 
@@ -241,12 +257,18 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 | 日期 | 变更 | 影响 |
 |------|------|------|
+| 2026-07-11 | PostgreSQL 移除, SQLite 为唯一数据库 | 简化数据层 |
+| 2026-07-11 | `opencode-tool-agent.ts` 按需加载重构 | 1021→64 行 (-94%) |
+| 2026-07-11 | `cli.ts` 拆分为 `cli/commands/` | 1411→1207 行 |
+| 2026-07-11 | `model-router.ts` 拆分 | 963→728 行 |
+| 2026-07-11 | CI 优化: `bun test` → `test:full` | 232 tests in ~13s |
+| 2026-07-11 | `as any` 持续削减 | 59→13 (-78%) |
 | 2026-07-10 | EventBus O(n)→O(1) 环形缓冲区 | 100k publish: 77ms→29ms |
 | 2026-07-10 | 架构完整性测试 22 项 | CI 自动化约束检查 |
 | 2026-07-10 | 性能基准 32 项 (200% 超标) | 性能回归预防 |
-| 2026-07-09 | `mcp/server.ts` 拆分为 15 域文件 | 3246→407 行 |
+| 2026-07-09 | `mcp/server.ts` 拆分为 16 域文件 | 3246→407 行 |
 | 2026-07-09 | `utils/` 层级违规清零 | 3→0 |
 | 2026-07-09 | VaultManager 单例化 | 8→1 实例化点 |
 | 2026-07-09 | `process.env` 收口 | 100+→30 合法 |
 | 2026-07-09 | DRE 工厂简化 | 3 单实现工厂 inline |
-| 2026-07-09 | `as any` 修复 | 59→19 (-68%) |
+| 2026-07-09 | `as any` 修复 | 59→19 |

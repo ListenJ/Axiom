@@ -35,8 +35,11 @@ jobs:
       - name: Type check
         run: bun run build
 
+      - name: Run type check
+        run: bun run lint
+
       - name: Run unit tests
-        run: bun test
+        run: bun run test:full
         env:
           NODE_ENV: test
 

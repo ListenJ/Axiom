@@ -62,7 +62,7 @@ function createLayout() {
     content: " {center}{bold}Axiom AI Agent v2.3 — Installation Wizard{/bold}{/center} ",
   });
 
-  const progress = (blessed as any).progressbar({
+  const progress = blessed.progressbar({
     top: 3, left: 0, width: "100%", height: 1,
     filled: 0,
     style: { bar: { bg: "green" } },

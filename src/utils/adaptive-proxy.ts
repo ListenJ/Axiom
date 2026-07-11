@@ -144,7 +144,7 @@ function detectEnvProxy(): ProxyEndpoint[] {
       const endpoint: ProxyEndpoint = {
         host: url.hostname,
         port: parseInt(url.port) || (protocol === "socks5" ? 1080 : 8080),
-        protocol: protocol as any,
+        protocol: protocol as "http" | "socks5",
         label: envVar,
       };
       if (url.username) {

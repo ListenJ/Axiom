@@ -299,7 +299,7 @@ async function generateNodeEmbedding(node: CodeGraphNode): Promise<number[] | nu
     const text = [
       node.qualifiedName,
       node.signature || "",
-      (node as any).docstring || "",
+      (node as CodeGraphNode & { docstring?: string }).docstring || "",
       `${node.kind} in ${node.filePath}`,
     ].filter(Boolean).join("\n");
 
@@ -377,15 +377,15 @@ export async function searchCode(
     LIMIT $2
   `, params);
 
-  return (results as any[]).map((r) => ({
-    id: r.id,
-    name: r.name,
-    qualifiedName: r.qualified_name,
-    kind: r.kind,
-    filePath: r.file_path,
-    language: r.language,
-    similarity: r.similarity,
-  })) as CodeSearchResult[];
+  return (results as Record<string, unknown>[]).map((r) => ({
+    id: r.id as number,
+    name: r.name as string,
+    qualifiedName: r.qualified_name as string,
+    kind: r.kind as string,
+    filePath: r.file_path as string,
+    language: r.language as string,
+    similarity: r.similarity as number,
+  }));
 }
 
 /**
@@ -395,10 +395,10 @@ export async function getCodeGraph(
   entityName: string,
   depth: number = 2,
 ): Promise<{
-  entity: any;
-  callers: any[];
-  callees: any[];
-  impactRadius: any[];
+  entity: Record<string, unknown> | null;
+  callers: Array<{ name: string; qualified_name: string; kind: string; depth: number }>;
+  callees: Array<{ name: string; qualified_name: string; kind: string; depth: number }>;
+  impactRadius: Array<{ name: string; qualified_name: string; kind: string; depth: number }>;
 }> {
   if (!(await isPgAvailable())) {
     return { entity: null, callers: [], callees: [], impactRadius: [] };
@@ -461,9 +461,9 @@ export async function getCodeGraph(
 
   return {
     entity,
-    callers: callers as any[],
-    callees: callees as any[],
-    impactRadius: callers as any[],  // 调用者即为影响半径
+    callers: callers as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
+    callees: callees as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
+    impactRadius: callers as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
   };
 }
 

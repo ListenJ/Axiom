@@ -773,7 +773,7 @@ export class ModelEvalService {
       SELECT * FROM model_evaluations
       WHERE model_id = ?
       ORDER BY evaluated_at DESC LIMIT 1
-    `).get(modelId) as any;
+    `).get(modelId) as Record<string, unknown> | null;
 
     return row ? this.rowToEvalResult(row) : null;
   }
