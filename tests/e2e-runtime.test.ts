@@ -222,4 +222,158 @@ describe("E2E Runtime (real I/O)", () => {
       expect(result).toBe("fallback value");
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 8. Memory Archiver — parseFrontmatter
+  // ══════════════════════════════════════════════════════════════════
+  describe("Memory Archiver parseFrontmatter", () => {
+    it("parses frontmatter with \\r\\n line endings", async () => {
+      const { MemoryArchiver } = await import("../src/memory/archiver.js");
+      const archiver = new MemoryArchiver("./nonexistent");
+      const content = "---\r\ntitle: Test\r\ntags: [a, b]\r\n---\r\n\r\nBody text";
+      const result = (archiver as any).parseFrontmatter(content);
+      expect(result.frontmatter.title).toBe("Test");
+      expect(result.frontmatter.tags).toEqual(["a", "b"]);
+      expect(result.body).toContain("Body text");
+    });
+
+    it("parses frontmatter with \\n line endings", async () => {
+      const { MemoryArchiver } = await import("../src/memory/archiver.js");
+      const archiver = new MemoryArchiver("./nonexistent");
+      const content = "---\ntitle: Hello\nstatus: completed\n---\n\nNote body";
+      const result = (archiver as any).parseFrontmatter(content);
+      expect(result.frontmatter.title).toBe("Hello");
+      expect(result.frontmatter.status).toBe("completed");
+    });
+
+    it("parses content without frontmatter (does not crash)", async () => {
+      const { MemoryArchiver } = await import("../src/memory/archiver.js");
+      const archiver = new MemoryArchiver("./nonexistent");
+      const content = "Just a plain note with no YAML frontmatter.\n\nSecond paragraph.";
+      const result = (archiver as any).parseFrontmatter(content);
+      expect(result.frontmatter).toEqual({});
+      expect(result.body).toContain("plain note");
+    });
+
+    it("writes a note with frontmatter then reads and verifies parse", async () => {
+      const { MemoryArchiver } = await import("../src/memory/archiver.js");
+      const { join } = await import("path");
+      const { writeFileSync, readFileSync, existsSync, mkdirSync } = await import("fs");
+      const noteDir = join(dir, "vault", "TestArea");
+      mkdirSync(noteDir, { recursive: true });
+      const notePath = join(noteDir, "frontmatter-test.md");
+      const content = "---\nkey: value\ncount: 42\npermanent: true\n---\n\nWritten content.";
+      writeFileSync(notePath, content, "utf-8");
+      expect(existsSync(notePath)).toBeTrue();
+      const archiver = new MemoryArchiver(join(dir, "vault"));
+      const readContent = readFileSync(notePath, "utf-8");
+      const result = (archiver as any).parseFrontmatter(readContent);
+      expect(result.frontmatter.key).toBe("value");
+      expect(result.frontmatter.permanent).toBeTrue();
+      expect(result.body).toContain("Written content.");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 9. Memory Distiller — safeHostname
+  // ══════════════════════════════════════════════════════════════════
+  describe("Memory Distiller safeHostname", () => {
+    it("invalid URL returns a safe string (not throws)", async () => {
+      const { safeHostname } = await import("../src/memory/distiller.js");
+      const result = safeHostname("not a url at all");
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("valid URL returns the hostname", async () => {
+      const { safeHostname } = await import("../src/memory/distiller.js");
+      expect(safeHostname("https://example.com/path")).toBe("example.com");
+      expect(safeHostname("http://sub.domain.org:8080/page")).toBe("sub.domain.org");
+    });
+
+    it("very long URLs are handled", async () => {
+      const { safeHostname } = await import("../src/memory/distiller.js");
+      const long = "https://a" + "b".repeat(1000) + ".com/x";
+      const result = safeHostname(long);
+      expect(typeof result).toBe("string");
+      expect(result).toContain("ab");
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 10. DRY Constraint Solver
+  // ══════════════════════════════════════════════════════════════════
+  describe("DRY Constraint Solver", () => {
+    it("creates ConstraintSolver and registers RESOURCE_CONSTRAINTS", async () => {
+      const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
+      const solver = new ConstraintSolver();
+      solver.registerAll(RESOURCE_CONSTRAINTS);
+      expect(solver.list().length).toBe(RESOURCE_CONSTRAINTS.length);
+    });
+
+    it("check returns satisfied for valid context", async () => {
+      const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
+      const solver = new ConstraintSolver();
+      solver.registerAll(RESOURCE_CONSTRAINTS);
+      const result = solver.check("infer", { available_memory_mb: 4096 });
+      expect(result.satisfied).toBeTrue();
+      expect(result.violations.length).toBe(0);
+    });
+
+    it("check returns violations when constraints are violated", async () => {
+      const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
+      const solver = new ConstraintSolver();
+      solver.registerAll(RESOURCE_CONSTRAINTS);
+      const result = solver.check("infer", { available_memory_mb: 200 });
+      expect(result.satisfied).toBeFalse();
+      expect(result.violations.length).toBeGreaterThan(0);
+      expect(result.suggestions.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 11. OpenCode Agent
+  // ══════════════════════════════════════════════════════════════════
+  describe("OpenCode Agent", () => {
+    it("checkOpenCode returns a boolean", async () => {
+      const { checkOpenCode } = await import("../src/agents/opencode-agent.js");
+      const result = await checkOpenCode();
+      expect(typeof result).toBe("boolean");
+    });
+
+    it("listOpenCodeModels returns an array", async () => {
+      const { listOpenCodeModels } = await import("../src/agents/opencode-agent.js");
+      const models = await listOpenCodeModels();
+      expect(Array.isArray(models)).toBeTrue();
+    });
+
+    it("OPENCODE_FREE_MODELS has at least 1 model", async () => {
+      const { OPENCODE_FREE_MODELS } = await import("../src/agents/opencode-agent.js");
+      expect(OPENCODE_FREE_MODELS.length).toBeGreaterThanOrEqual(1);
+      expect(OPENCODE_FREE_MODELS[0]).toBeString();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 12. GitHub Tools
+  // ══════════════════════════════════════════════════════════════════
+  describe("GitHub Tools", () => {
+    it("checkGitHubHealth returns status object without throwing", async () => {
+      const { checkGitHubHealth } = await import("../src/mcp/tools/github.js");
+      const result = await checkGitHubHealth();
+      expect(result).toHaveProperty("ok");
+      expect(typeof result.ok).toBe("boolean");
+      expect(result).toHaveProperty("latency");
+      expect(typeof result.latency).toBe("number");
+    });
+
+    it("getGitHubInfo returns info without throwing", async () => {
+      const { getGitHubInfo } = await import("../src/mcp/tools/github.js");
+      const info = getGitHubInfo();
+      expect(info).toHaveProperty("configured");
+      expect(typeof info.configured).toBe("boolean");
+      expect(info).toHaveProperty("baseUrl");
+      expect(info).toHaveProperty("tokenPrefix");
+    });
+  });
 });
