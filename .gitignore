@@ -128,3 +128,5 @@ ai-daily-*.md
 # === Runtime artifacts ===
 .session-context.json
 .tmp-tool-test/
+.tmp-*
+*.tmp
