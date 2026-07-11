@@ -1,11 +1,13 @@
-# Session Complete
+# SDD Progress — Final Complete
 
-| 项目 | 状态 | 变更 |
-|------|------|------|
-| 拆 GitHub 工具块 | ✅ | server.ts 1093→**462**行 (+github-tools.ts) |
-| DRE Actor 简化 | ✅ | 3个工厂函数 inline |
-| PBT 32→40+ | ✅ | **46 invariants** (+11个) |
-| WorldState 测试修复 | ✅ | **真实bug修复** (共享引用变异→防御拷贝) |
-| `incrementalUpdate()` | ✅ | TODO→实现 (mtime增量检测) |
-| Frontend `node_modules` | ✅ | npm install 完成 |
-| 总后端测试 | ✅ | **943 pass, 0 fail** |
+| Round | Items | Status |
+|-------|-------|--------|
+| 架构审核→修复 | config合并、死代码/barrel/shim清理、路由注册表统一、utils层级违规3→0、VaultManager单例化8→1、env收口100+→30合法、as any 59→15、deprecated清理、export*清理 | ✅ |
+| MCP server 拆分 | 3246→**407**行, 15个域文件 | ✅ |
+| DRE 简化 | 3个单实现工厂inline | ✅ |
+| 测试增强 | 102→**136核心**, PBT 19→**46 invariants** | ✅ |
+| 前端测试激活 | 0→**154** (vitest+jsdom) | ✅ |
+| 架构完整性测试 | 7→**22项** | ✅ |
+| 性能基准 200% | 8→**32项**, 含EventBus O(n)→O(1) | ✅ |
+| GitHub/WorldState/DRE修复 | 多项bug+优化 | ✅ |
+| 权威文档 | ARCHITECTURE.md + COMPREHENSIVE-GUIDE.md | ✅ |
