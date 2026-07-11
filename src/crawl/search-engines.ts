@@ -86,10 +86,11 @@ class DuckDuckGoEngine extends SearchEngine {
       if (!titleMatch || !hrefMatch) continue;
 
       let link = hrefMatch[1];
-      const uMatch = link.match(/[?&]u=([^&]+)/);
+      const uMatch = link.match(/[?&]u(?:ddg)?=([^&]+)/);
       if (uMatch) {
         try { link = decodeURIComponent(uMatch[1]); } catch { /* ignore */ }
       }
+      if (link.startsWith("//")) link = "https:" + link;
 
       results.push({
         position: results.length + 1,

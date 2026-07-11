@@ -1,37 +1,26 @@
-import { searchAggregator } from "../crawl/search-engines.js";
 import { DataPipeline } from "../crawl/data-pipeline.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { logger } from "../utils/logger.js";
-import { RateLimiter } from "../utils/rate-limiter.js";
 import { searchDomain, getSubdomainsForDomain } from "./searcher.js";
 import { getKnowledgeStore } from "./store.js";
 import type { KnowledgeSource, CollectOptions, CollectResult } from "./types.js";
 
-const rateLimiter = new RateLimiter({ windowMs: 60_000, maxRequests: 20 });
 const pipeline = new DataPipeline({ maxConcurrent: 2, requestDelay: 1500, maxDepth: 1 });
 
 function validateContent(markdown: string): number {
   let score = 0;
-
   const wordCount = markdown.split(/\s+/).length;
-  if (wordCount > 500) score += 0.3;
+  if (wordCount > 500) score += 0.25;
   else if (wordCount > 200) score += 0.15;
-
   const hasHeadings = /^#{1,6}\s+/m.test(markdown);
   if (hasHeadings) score += 0.2;
-
   const hasCode = /```[\s\S]*?```/g.test(markdown);
-  if (hasCode) score += 0.15;
-
-  const hasEquations = /\$[\s\S]*?\$/g.test(markdown) || /\\\[[\s\S]*?\\\]/g.test(markdown);
-  if (hasEquations) score += 0.2;
-
+  if (hasCode) score += 0.2;
+  if (wordCount > 100) score += 0.15;
   const hasLists = /^[-*]\s/m.test(markdown) || /^\d+\.\s/m.test(markdown);
   if (hasLists) score += 0.1;
-
   const hasLinks = /\[.*?\]\(.*?\)/g.test(markdown);
-  if (hasLinks) score += 0.05;
-
+  if (hasLinks) score += 0.1;
   return Math.min(score, 1);
 }
 
@@ -76,12 +65,6 @@ export async function collectKnowledge(opts: CollectOptions): Promise<CollectRes
 
   for (const result of searchResults) {
     if (collected >= maxSources) break;
-
-    const { allowed } = rateLimiter.check(result.link);
-    if (!allowed) {
-      logger.debug(`[KnowledgeCollector] Rate limited, skipping ${result.link}`);
-      continue;
-    }
 
     if (!force && store.isCollected(result.link)) {
       skipped++;
@@ -162,19 +145,15 @@ export async function collectDictionaryWords(
       continue;
     }
 
-    const query = `site:en.wiktionary.org ${word} etymology`;
+    const url = `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`;
     try {
-      const results = await searchAggregator.searchMulti({ query, num: 3 }, ["searxng", "duckduckgo"]);
-
+      const res = await proxyFetch(url);
       let entryFound = false;
-      for (const r of results) {
-        const res = await proxyFetch(r.link);
-        if (!res.ok) continue;
-
+      if (res.ok) {
         const html = await res.text();
         const entry = parseWiktionaryHtml(word, html);
         if (entry) {
-          const stored = store.saveDictionaryEntry(entry, r.link);
+          const stored = store.saveDictionaryEntry(entry, url);
           if (stored) {
             collected++;
             sources.push({
@@ -182,13 +161,12 @@ export async function collectDictionaryWords(
               title: word,
               domain: "dictionary",
               subdomain: "general",
-              url: r.link,
+              url,
               quality: 0.8,
               storedAt: Date.now(),
             });
             entryFound = true;
           }
-          break;
         }
       }
 
