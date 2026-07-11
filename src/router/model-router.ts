@@ -19,19 +19,12 @@ import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { metrics } from "../utils/metrics.js";
 import { calculateBackoffDelay } from "../utils/resilience.js";
+import { callProvider, callProviderNativeStream, type ChatMessage, type StreamChunkCallback, type NativeStreamResult } from "./provider-caller.js";
+import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
 // =============================================================================
-
-/** 输入消息 */
-export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-/** 流式输出回调 */
-export type StreamChunkCallback = (chunk: string) => void;
 
 /**
  * 流式事件 — `chatStream` 异步生成器 yield 的事件类型。
@@ -119,46 +112,6 @@ export interface ExecuteOutput {
 }
 
 // =============================================================================
-// 扁平化路由表
-// =============================================================================
-
-/** intent 关键词 → 角色映射 (扁平化，无嵌套) */
-const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> = {
-  // Decision
-  strategy:     { role: "decision", useTool: false },
-  evaluation:   { role: "decision", useTool: false },
-  decision:     { role: "decision", useTool: false },
-
-  // Architecture
-  architecture:   { role: "architecture", useTool: false },
-  "system-design": { role: "architecture", useTool: false },
-  infra:          { role: "architecture", useTool: false },
-
-  // Tool-based
-  engineering:        { role: "main_coding", useTool: true },
-  "game-development": { role: "main_coding", useTool: true },
-  integrations:       { role: "main_coding", useTool: true },
-  testing:            { role: "code-review", useTool: true },
-  english:            { role: "general-tool", useTool: true },
-  translation:        { role: "general-tool", useTool: true },
-  localization:       { role: "general-tool", useTool: true },
-  rl:                 { role: "general-tool", useTool: true },
-  reasoning:          { role: "general-tool", useTool: true },
-  optimization:       { role: "general-tool", useTool: true },
-
-  // Research
-  research:           { role: "research", useTool: false },
-  deep_research:      { role: "research", useTool: false },
-
-  // Review
-  code_review:        { role: "code-review", useTool: true },
-  review:             { role: "code-review", useTool: true },
-};
-
-/** 默认兜底角色 */
-const DEFAULT_ROLE: TaskRole = "general-chat";
-
-// =============================================================================
 // Token 追踪辅助
 // =============================================================================
 
@@ -193,236 +146,7 @@ function trackCall(
   });
 }
 
-// =============================================================================
-// 通用 HTTP 调用
-// =============================================================================
-
-// 输入大小限制：防止单次请求发送过大 payload (默认 1MB)
-const MAX_REQUEST_BYTES = 1 * 1024 * 1024;
-// 上下文 token 上限（粗略估算 1 token ≈ 3 字符）
-const MAX_CONTEXT_CHARS = 600_000;
-// 默认重试次数；当 ModelCapability.maxRetries 未设置时使用
 const DEFAULT_RETRY_ATTEMPTS = 3;
-
-async function callProvider(
-  provider: string,
-  model: string,
-  messages: ChatMessage[],
-  timeoutMs: number,
-  temperature = 0.7
-): Promise<{ content: string | null; usage?: any }> {
-  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) throw new Error(`Unknown provider: ${provider}`);
-
-  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
-  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
-
-  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
-
-  // 输入大小校验
-  if (!Array.isArray(messages) || messages.length === 0) {
-    throw new Error("messages must be a non-empty array");
-  }
-  const totalChars = messages.reduce((sum, m) => sum + (typeof m?.content === "string" ? m.content.length : 0), 0);
-  if (totalChars > MAX_CONTEXT_CHARS) {
-    throw new Error(
-      `Message content too large: ${totalChars} chars (max ${MAX_CONTEXT_CHARS}). Please trim context.`,
-    );
-  }
-  const payloadSize = JSON.stringify({ model, messages, temperature }).length;
-  if (payloadSize > MAX_REQUEST_BYTES) {
-    throw new Error(
-      `Request payload too large: ${payloadSize} bytes (max ${MAX_REQUEST_BYTES}). Reduce message count or size.`,
-    );
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    };
-
-    if (provider === "openrouter") {
-      headers["HTTP-Referer"] = "https://axiom-runtime.ai";
-      headers["X-Title"] = "Axiom Agent";
-    }
-
-    const res = await fetch(`${baseURL}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ model, messages, temperature }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`HTTP ${res.status}: ${errText}`);
-    }
-
-    const data = await res.json();
-    return {
-      content: data.choices?.[0]?.message?.content ?? null,
-      usage: data.usage,
-    };
-  } catch (e) {
-    clearTimeout(timer);
-    throw e;
-  }
-}
-
-// =============================================================================
-// 原生流式调用 — progressive enhancement via global fetch + ReadableStream
-// 当 proxyFetch（仅缓冲）不可用于流式时，使用全局 fetch（Bun 内置）逐块读取。
-// 这条路径绕过 proxyFetch 的缓冲，提供真正的 token 级增量。
-// =============================================================================
-
-interface NativeStreamResult {
-  content: string;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-}
-
-/**
- * 使用全局 fetch 调用 provider，支持真正的 token 流。
- * 通过 ReadableStream 增量读取 SSE 响应，调用 onChunk(delta)。
- *
- * 与 callProvider 的区别：本函数不会一次性返回完整内容，而是在每个 delta 上回调。
- * 适用于需要 SSE 增量推送的场景。
- */
-async function callProviderNativeStream(
-  provider: string,
-  model: string,
-  messages: ChatMessage[],
-  timeoutMs: number,
-  temperature = 0.7,
-  onChunk: StreamChunkCallback,
-  signal?: AbortSignal
-): Promise<NativeStreamResult> {
-  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) throw new Error(`Unknown provider: ${provider}`);
-
-  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
-  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
-
-  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    throw new Error("messages must be a non-empty array");
-  }
-  const totalChars = messages.reduce(
-    (sum, m) => sum + (typeof m?.content === "string" ? m.content.length : 0),
-    0,
-  );
-  if (totalChars > MAX_CONTEXT_CHARS) {
-    throw new Error(
-      `Message content too large: ${totalChars} chars (max ${MAX_CONTEXT_CHARS}). Please trim context.`,
-    );
-  }
-  const payloadSize = JSON.stringify({ model, messages, temperature, stream: true }).length;
-  if (payloadSize > MAX_REQUEST_BYTES) {
-    throw new Error(
-      `Request payload too large: ${payloadSize} bytes (max ${MAX_REQUEST_BYTES}). Reduce message count or size.`,
-    );
-  }
-
-  // 使用全局 fetch（Bun 内置），自带 AbortSignal + streaming 响应体
-  const fetchFn = (typeof globalThis.fetch === "function" ? globalThis.fetch : null);
-  if (!fetchFn) {
-    throw new Error("Global fetch is not available in this runtime");
-  }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    Accept: "text/event-stream",
-  };
-
-  if (provider === "openrouter") {
-    headers["HTTP-Referer"] = "https://axiom-runtime.ai";
-    headers["X-Title"] = "Axiom Agent";
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  // Bridge external signal to internal controller
-  const onExternalAbort = () => controller.abort();
-  if (signal) {
-    if (signal.aborted) {
-      controller.abort();
-    } else {
-      signal.addEventListener("abort", onExternalAbort, { once: true });
-    }
-  }
-
-  try {
-    const res = await fetchFn(`${baseURL}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ model, messages, temperature, stream: true }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status}: ${errText}`);
-    }
-
-    if (!res.body || typeof res.body.getReader !== "function") {
-      throw new Error("Response body is not readable");
-    }
-
-    const body = res.body as ReadableStream<Uint8Array>;
-    const reader = body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    let fullContent = "";
-    let usage: NativeStreamResult["usage"];
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-        const payload = trimmed.slice(6);
-        if (payload === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(payload) as {
-            choices?: Array<{ delta?: { content?: unknown } }>;
-            usage?: NativeStreamResult["usage"];
-          };
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (typeof delta === "string" && delta.length > 0) {
-            fullContent += delta;
-            onChunk(delta);
-          }
-          if (parsed.usage) {
-            usage = parsed.usage;
-          }
-        } catch {
-          // Ignore malformed SSE chunks
-        }
-      }
-    }
-
-    return { content: fullContent, usage };
-  } finally {
-    clearTimeout(timer);
-    if (signal) {
-      signal.removeEventListener("abort", onExternalAbort);
-    }
-  }
-}
 
 // =============================================================================
 // 路由器 v5.0 — 扁平化核心
@@ -1084,3 +808,4 @@ export class MultiPlatformRouter {
 export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
 export type { TaskRole } from "./model-capability-registry.js";
+export type { ChatMessage, StreamChunkCallback } from "./provider-caller.js";

@@ -6,9 +6,6 @@
  */
 import { Database } from "bun:sqlite";
 import { searchAggregator } from "./crawl/search-engines.js";
-import { unifiedSearch } from "./crawl/unified-search.js";
-import { DataPipeline } from "./crawl/data-pipeline.js";
-import { getGlobalVault } from "./memory/vault-manager.js";
 import { logger } from "./utils/logger.js";
 import { readString } from "./utils/env.js";
 import {
@@ -41,6 +38,27 @@ import {
   buildAgentMessages,
 } from "./agents/intent-router.js";
 import { runSetupWizard } from "./cli/setup.js";
+import {
+  handleSearch,
+  handleESearch,
+  handleSearchSuggestions,
+  handleSearchStats,
+  handleSearchHistory,
+  handleSearchClear,
+  handleFetch,
+  handleVaultSearch,
+  handleVaultRead,
+  handleVaultPara,
+  handleVaultStats,
+  handleVaultIndexCode,
+  handleDistill,
+  handleKgBuild,
+  handleKgStats,
+  handleKgSearch,
+  handleKgQuery,
+  handleKgFeedback,
+  handleEvalCommands,
+} from "./cli/commands/index.js";
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 
@@ -174,234 +192,62 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
 
   search: {
     desc: "多引擎搜索 (search <query> [--engines=ddg,bing] [--num=10])",
-    run: async (args) => {
-      const query = args[0];
-      if (!query) { console.error("Usage: search <query>"); return; }
-
-      const enginesArg = args.find((a) => a.startsWith("--engines="))?.slice(10)?.split(",") || ["duckduckgo", "searxng"];
-      const num = Number(args.find((a) => a.startsWith("--num="))?.slice(6)) || 10;
-
-      console.log(`[搜索] "${query}" via [${enginesArg.join(", ")}]\n`);
-      const results = await searchAggregator.searchMulti({ query, num }, enginesArg);
-      for (const r of results) {
-        console.log(`  ${r.position}. ${r.title}`);
-        console.log(`     ${r.link}`);
-        console.log(`     ${r.snippet.slice(0, 120)}...`);
-        console.log();
-      }
-      console.log(`共 ${results.length} 条结果`);
-    },
+    run: async (args) => { await handleSearch(args); },
   },
 
   esearch: {
     desc: "增强搜索 (esearch <query> [--mode=quick|deep|news|academic|code] [--num=10])",
-    run: async (args) => {
-      const query = args[0];
-      if (!query) { console.error("Usage: esearch <query> [--mode=quick|deep|news|academic|code] [--num=10]"); return; }
-
-      const mode = args.find((a) => a.startsWith("--mode="))?.slice(7) || "quick";
-      const num = Number(args.find((a) => a.startsWith("--num="))?.slice(6)) || 10;
-
-      console.log(`[增强搜索] [${mode}]: "${query}"\n`);
-
-      let results;
-      switch (mode) {
-        case "deep":
-          results = await unifiedSearch.deepSearch(query, num);
-          break;
-        case "news":
-          results = await unifiedSearch.newsSearch(query, num);
-          break;
-        case "academic":
-          results = await unifiedSearch.academicSearch(query, num);
-          break;
-        case "code":
-          results = await unifiedSearch.codeSearch(query, num);
-          break;
-        default:
-          results = await unifiedSearch.quickSearch(query, num);
-      }
-
-      for (const r of results) {
-        console.log(`  ${r.position}. ${r.title}`);
-        console.log(`     ${r.link}`);
-        console.log(`     ${r.snippet.slice(0, 120)}...`);
-        console.log(`     [相关性] ${(r.relevanceScore * 100).toFixed(0)}% | 来源: ${r.engine}`);
-        console.log();
-      }
-      console.log(`共 ${results.length} 条结果`);
-    },
+    run: async (args) => { await handleESearch(args); },
   },
 
   "search:suggestions": {
     desc: "获取搜索建议 (search:suggestions <partial_query>)",
-    run: async (args) => {
-      const partial = args[0];
-      if (!partial) { console.error("Usage: search:suggestions <partial_query>"); return; }
-
-      const suggestionsDb = new Database(dbPath);
-      const rows = suggestionsDb.query("SELECT DISTINCT query FROM search_history WHERE query LIKE ? ORDER BY created_at DESC LIMIT 10").all(`${partial}%`) as { query: string }[];
-      suggestionsDb.close();
-      const suggestions = rows.map(r => r.query);
-      console.log(`搜索建议 for "${partial}":\n`);
-      suggestions.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
-    },
+    run: async (args) => { await handleSearchSuggestions(args, dbPath); },
   },
 
   "search:stats": {
     desc: "搜索统计 (search:stats [--days=7])",
-    run: async (args) => {
-      const days = Number(args.find((a) => a.startsWith("--days="))?.slice(7)) || 7;
-      const stats = unifiedSearch.getStats(days);
-
-      console.log(`[搜索统计] (最近 ${days} 天)\n`);
-      console.log(`总搜索次数: ${stats.totalSearches}`);
-      console.log(`唯一查询: ${stats.uniqueQueries}`);
-      console.log(`平均结果数: ${stats.avgResults}`);
-      console.log(`平均延迟: ${stats.avgLatency}ms\n`);
-
-      console.log("[热门查询]");
-      stats.topQueries.forEach((q, i) => console.log(`  ${i + 1}. ${q.query} (${q.count}次)`));
-
-      const statsDb = new Database(dbPath);
-      const since = Math.floor(Date.now() / 1000) - days * 86400;
-      const topEngines = statsDb.query(`
-        SELECT engines as engine, COUNT(*) as count FROM search_history
-        WHERE created_at >= ? GROUP BY engines ORDER BY count DESC LIMIT 10
-      `).all(since) as { engine: string; count: number }[];
-      statsDb.close();
-      console.log("\n[引擎使用]");
-      topEngines.forEach((e, i) => console.log(`  ${i + 1}. ${e.engine} (${e.count}次)`));
-    },
+    run: async (args) => { await handleSearchStats(args, dbPath); },
   },
 
   "search:history": {
     desc: "搜索历史 (search:history [--limit=50])",
-    run: async (args) => {
-      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 50;
-      const history = unifiedSearch.getHistory(limit);
-
-      console.log(`[最近 ${history.length} 条搜索历史]\n`);
-      history.forEach((h, i) => {
-        console.log(`  ${i + 1}. [${new Date(h.createdAt).toLocaleString()}] "${h.query}"`);
-        console.log(`     引擎: ${h.engines} | 结果: ${h.resultCount} | 耗时: ${h.latencyMs}ms`);
-      });
-    },
+    run: async (args) => { await handleSearchHistory(args); },
   },
 
   "search:clear": {
     desc: "清除搜索缓存和历史",
-    run: async () => {
-      unifiedSearch.clearCache();
-      unifiedSearch.clearHistory();
-      console.log("[完成] 搜索缓存和历史已清除");
-    },
+    run: async () => { await handleSearchClear(); },
   },
 
   fetch: {
     desc: "结构化抓取网页 (fetch <url>)",
-    run: async (args) => {
-      const url = args[0];
-      if (!url) { console.error("Usage: fetch <url>"); return; }
-
-      const pipeline = new DataPipeline();
-      console.log(`[抓取] ${url}\n`);
-      const result = await pipeline.crawlStructured(url);
-      if (!result) { console.error("抓取失败"); return; }
-
-      console.log(`标题: ${result.title}`);
-      console.log(`站点: ${result.siteName}`);
-      console.log(`语言: ${result.language}`);
-      console.log(`描述: ${result.description?.slice(0, 200) || "无"}`);
-      console.log(`\n结构化数据类型: ${result.structuredData.map((d: { "@type"?: string }) => d["@type"] || "Unknown").join(", ") || "无"}`);
-      console.log(`标题层级: ${result.headings.length} 个`);
-      console.log(`表格: ${result.tables.length} 个`);
-      console.log(`代码块: ${result.codeBlocks.length} 个`);
-      console.log(`图片: ${result.images.length} 个`);
-      console.log(`链接: ${result.links.length} 个`);
-      console.log(`内容分块: ${result.chunks.length} 个`);
-      console.log(`\n--- Markdown 预览 (前 800 字符) ---\n${result.markdown.slice(0, 800)}...`);
-    },
+    run: async (args) => { await handleFetch(args); },
   },
 
   "vault:search": {
     desc: "Vault 确定性记忆搜索 (vault:search <query> [--limit=10] [--para=resources])",
-    run: (args) => {
-      const query = args[0];
-      if (!query) { console.error("Usage: vault:search <query>"); return; }
-      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
-      const para = args.find((a) => a.startsWith("--para="))?.slice(7);
-      const vault = getGlobalVault();
-      const results = vault.search(query, { limit, paraCategory: para });
-      console.log(`[搜索] Vault 搜索结果: "${query}" (${results.length} 条)\n`);
-      for (const r of results) {
-        console.log(`  [${r.score.toFixed(1)}] ${r.note.title}`);
-        console.log(`      [文件] ${r.note.path}`);
-        console.log(`      [标签] ${r.note.tags.join(", ") || "无标签"}`);
-        console.log(`      [原因] ${r.reasons.join("; ")}`);
-        console.log(`      [摘要] ${r.excerpt.slice(0, 120)}...`);
-        console.log();
-      }
-    },
+    run: (args) => { handleVaultSearch(args); },
   },
 
   "vault:read": {
     desc: "读取 Vault 笔记 (vault:read <path>)",
-    run: (args) => {
-      const notePath = args[0];
-      if (!notePath) { console.error("Usage: vault:read <path>"); return; }
-      const vault = getGlobalVault();
-      const note = vault.readNote(notePath);
-      if (!note) { console.error("笔记不存在:"); return; }
-      console.log(`--- ${notePath} ---\n`);
-      console.log("frontmatter:", JSON.stringify(note.frontmatter, null, 2));
-      console.log("\n--- 内容 ---\n");
-      console.log(note.content.slice(0, 3000));
-      if (note.content.length > 3000) console.log("\n... (截断)");
-    },
+    run: (args) => { handleVaultRead(args); },
   },
 
   "vault:para": {
     desc: "PARA 分类浏览 (vault:para <projects|areas|resources|archives>)",
-    run: (args) => {
-      const category = args[0];
-      if (!category) { console.error("Usage: vault:para <category>"); return; }
-      const vault = getGlobalVault();
-      const notes = vault.browsePara(category);
-      console.log(`[PARA] / ${category} (${notes.length} 条)\n`);
-      for (const n of notes.slice(0, 30)) {
-        console.log(`  ${n.title} — ${n.path} [${n.tags.join(", ") || "无标签"}]`);
-      }
-      if (notes.length > 30) console.log(`  ... 还有 ${notes.length - 30} 条`);
-    },
+    run: (args) => { handleVaultPara(args); },
   },
 
   "vault:stats": {
     desc: "Vault 记忆库统计",
-    run: () => {
-      const vault = getGlobalVault();
-      const stats = vault.stats();
-      console.log("[统计] Vault 统计:\n");
-      console.log(`  总笔记数: ${stats.totalNotes}`);
-      console.log(`  总词数: ${stats.totalWords}`);
-      console.log(`  总标签数: ${stats.totalTags}`);
-      console.log(`  总 wiki-link: ${stats.totalLinks}`);
-      console.log("  PARA 分布:");
-      for (const [type, count] of Object.entries(stats.paraDistribution)) {
-        console.log(`    ${type}: ${count}`);
-      }
-    },
+    run: () => { handleVaultStats(); },
   },
 
   "vault:index-code": {
     desc: "索引项目代码到 Vault",
-    run: async () => {
-      const vault = getGlobalVault();
-      console.log("[索引] 正在索引代码...");
-      const result = await vault.indexCode();
-      console.log(`[索引完成] ${result.indexed} 个文件`);
-      if (result.errors.length) console.log(`[错误] ${result.errors.join(", ")}`);
-    },
+    run: async () => { await handleVaultIndexCode(); },
   },
 
   "db:query": {
@@ -461,18 +307,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
 
   distill: {
     desc: "手动蒸馏原子笔记 (distill <title> <content>)",
-    run: async (args) => {
-      const title = args[0];
-      const content = args.slice(1).join(" ");
-      if (!title || !content) { console.error("Usage: distill <title> <content>"); return; }
-      const { MemoryDistiller } = await import("./memory/distiller.js");
-      const distiller = new MemoryDistiller();
-      const path = await distiller.distillManual(title, content, {
-        source: "cli-manual",
-        sourceType: "manual",
-      });
-      console.log(`[原子笔记已创建] ${path}`);
-    },
+    run: async (args) => { await handleDistill(args); },
   },
 
   "code:open": {
@@ -1185,106 +1020,52 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
 
   "kg:build": {
     desc: "构建知识图谱 (kg:build --path=. --name=axiom [--embeddings])",
-    run: async (args) => {
-      const path = args.find((a) => a.startsWith("--path="))?.slice(7) || ".";
-      const name = args.find((a) => a.startsWith("--name="))?.slice(7) || "current";
-      const embeddings = args.includes("--embeddings");
-      console.log(`[知识图谱] 构建中... 项目: ${name}, 路径: ${path}\n`);
-      const { buildKnowledgeGraph } = await import("./memory/knowledge-graph-builder.js");
-      const result = await buildKnowledgeGraph({
-        projectPath: path,
-        projectName: name,
-        generateEmbeddings: embeddings,
-      });
-      console.log("[构建完成]");
-      console.log(`  实体创建: ${result.entitiesCreated}`);
-      console.log(`  实体更新: ${result.entitiesUpdated}`);
-      console.log(`  关系创建: ${result.relationshipsCreated}`);
-      if (result.errors.length > 0) {
-        console.log(`  错误 (${result.errors.length}):`);
-        for (const e of result.errors.slice(0, 10)) console.log(`    - ${e}`);
-        if (result.errors.length > 10) console.log(`    ... +${result.errors.length - 10} more`);
-      }
-    },
+    run: async (args) => { await handleKgBuild(args); },
   },
 
   "kg:stats": {
     desc: "查看知识图谱统计",
-    run: async () => {
-      const { isPgAvailable, getPG } = await import("./db/pg-client.js");
-      if (!(await isPgAvailable())) {
-        console.log("[错误] PostgreSQL 不可用，请先启动 PostgreSQL + pgvector");
-        return;
-      }
-      const pg = getPG();
-      const [entityStats] = await pg`SELECT type, COUNT(*)::int AS cnt FROM kg_entities GROUP BY type ORDER BY cnt DESC`;
-      const [relStats] = await pg`SELECT relation_type, COUNT(*)::int AS cnt FROM kg_relationships GROUP BY relation_type ORDER BY cnt DESC`;
-      const [total] = await pg`SELECT COUNT(*)::int AS entities FROM kg_entities`;
-      const [totalRels] = await pg`SELECT COUNT(*)::int AS rels FROM kg_relationships`;
-      console.log("[知识图谱统计]\n");
-      console.log(`  实体总数: ${total.entities}`);
-      console.log(`  关系总数: ${totalRels.rels}\n`);
-      if (entityStats) {
-        console.log("  [实体类型]");
-        for (const row of entityStats as { type: string; cnt: number }[]) console.log(`    ${String(row.type).padEnd(20)} ${row.cnt}`);
-      }
-      if (relStats) {
-        console.log("\n  [关系类型]");
-        for (const row of relStats as { relation_type: string; cnt: number }[]) console.log(`    ${String(row.relation_type).padEnd(20)} ${row.cnt}`);
-      }
-    },
+    run: async () => { await handleKgStats(); },
   },
 
   "kg:search": {
     desc: "搜索知识图谱 (kg:search <query> [--limit=10])",
-    run: async (args) => {
-      const query = args.find((a) => !a.startsWith("--")) || args[0];
-      if (!query) { console.error("Usage: kg:search <query>"); return; }
-      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
-      const { buildResearchContext } = await import("./memory/knowledge-graph-builder.js");
-      console.log(`[知识图谱搜索] "${query}"\n`);
-      const ctx = await buildResearchContext(query, { maxEntities: limit, maxDepth: 2 });
-      console.log(`  匹配实体: ${ctx.entities.length}`);
-      console.log(`  匹配关系: ${ctx.relationships.length}`);
-      console.log(`  文件: ${ctx.codeStructure.files}, 函数: ${ctx.codeStructure.functions}, 类: ${ctx.codeStructure.classes}\n`);
-      if (ctx.summary) console.log(ctx.summary);
-    },
+    run: async (args) => { await handleKgSearch(args); },
   },
 
   "kg:query": {
     desc: "自然语言查询知识图谱 (kg:query <question> [--limit=5])",
-    run: async (args) => {
-      const question = args.find((a) => !a.startsWith("--")) || args.join(" ");
-      if (!question) { console.error("Usage: kg:query <question>"); return; }
-      const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 5;
-      console.log(`[KG自然语言查询] "${question}"\n`);
-      const { buildResearchContext } = await import("./memory/knowledge-graph-builder.js");
-      const ctx = await buildResearchContext(question, { maxEntities: limit, maxDepth: 2 });
-      console.log(`  匹配实体: ${ctx.entities.length}`);
-      console.log(`  匹配关系: ${ctx.relationships.length}`);
-      console.log(`  文件: ${ctx.codeStructure.files}, 函数: ${ctx.codeStructure.functions}, 类: ${ctx.codeStructure.classes}\n`);
-      if (ctx.summary) console.log(`结论: ${ctx.summary}`);
-      if (ctx.entities.length > 0) {
-        console.log(`\n相关实体:`);
-        for (const e of ctx.entities.slice(0, limit)) {
-          console.log(`  · ${e.name || e}: ${(e.description || "").slice(0, 100)}`);
-        }
-      }
-    },
+    run: async (args) => { await handleKgQuery(args); },
   },
 
   "kg:feedback": {
     desc: "知识图谱反馈 — 对查询结果评价以改进 (kg:feedback <query> [--relevant|--irrelevant] [--entity=<id>])",
-    run: async (args) => {
-      const query = args.find((a) => !a.startsWith("--")) || args[0];
-      if (!query) { console.error("Usage: kg:feedback <query> [--relevant] [--entity=<id>]"); return; }
-      const isRelevant = args.includes("--relevant");
-      const entityId = args.find((a) => a.startsWith("--entity="))?.slice(9);
-      console.log(`[KG反馈] 查询: "${query}"`);
-      console.log(`  评价: ${isRelevant ? "相关 ✓" : "无关 ✗"}`);
-      if (entityId) console.log(`  实体: ${entityId}`);
-      console.log(`\n  反馈已记录 (当前为模拟, 需接入真实反馈存储)`);
-    },
+    run: async (args) => { await handleKgFeedback(args); },
+  },
+
+  "eval:eval": {
+    desc: "运行模型评估 (eval:eval [--full] [--models=a,b] [--benchmarks])",
+    run: async (args) => { await handleEvalCommands(["eval", ...args]); },
+  },
+
+  "eval:assign": {
+    desc: "运行动态模型分配 (eval:assign [--force])",
+    run: async (args) => { await handleEvalCommands(["assign", ...args]); },
+  },
+
+  "eval:stats": {
+    desc: "查看评估统计 (eval:stats)",
+    run: async (args) => { await handleEvalCommands(["stats", ...args]); },
+  },
+
+  "eval:results": {
+    desc: "查看最新评估结果 (eval:results [--top=20])",
+    run: async (args) => { await handleEvalCommands(["results", ...args]); },
+  },
+
+  "eval:trend": {
+    desc: "查看模型评估趋势 (eval:trend <modelId> [--days=30])",
+    run: async (args) => { await handleEvalCommands(["trend", ...args]); },
   },
 
   "advisor:recommend": {
@@ -1464,6 +1245,13 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
     stats: commands["search:stats"],
     history: commands["search:history"],
     clear: commands["search:clear"],
+  },
+  eval: {
+    eval: commands["eval:eval"],
+    assign: commands["eval:assign"],
+    stats: commands["eval:stats"],
+    results: commands["eval:results"],
+    trend: commands["eval:trend"],
   },
 };
 
