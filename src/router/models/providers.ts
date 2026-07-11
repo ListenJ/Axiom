@@ -45,6 +45,10 @@ export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
     baseURL: "https://integrate.api.nvidia.com/v1",
     apiKeyEnv: "NIM_API_KEY",
   },
+  zhipu: {
+    baseURL: "https://open.bigmodel.cn/api/paas/v4",
+    apiKeyEnv: "ZHIPU_API_KEY",
+  },
 };
 
 /** Check if a provider is configured (its API key env var is set). */

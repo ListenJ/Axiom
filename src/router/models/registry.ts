@@ -576,7 +576,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 20000,
   },
 
-  // ─── GLM-4.7-Flash (Free) ───
+  // ─── GLM-4.7-Flash (Free) via SiliconFlow ───
   {
     id: "glm-4.7-flash-free",
     provider: "siliconflow",
@@ -589,6 +589,23 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     concurrentLimit: 8,
     description: "GLM-4.7-Flash — 智谱免费极速模型 (200K ctx)",
     priority: 5,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── GLM-4-Flash (ZhiPu 官方 API) ───
+  {
+    id: "glm-4-flash-zhipu",
+    provider: "zhipu",
+    model: "glm-4-flash",
+    roles: ["general-chat", "general-tool", "english"],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["chinese", "fast", "zhipu"],
+    rpmLimit: 60,
+    concurrentLimit: 5,
+    description: "GLM-4-Flash — 智谱官方 API 极速模型 (128K ctx)",
+    priority: 3,
     maxRetries: 2,
     timeout: 30000,
   },

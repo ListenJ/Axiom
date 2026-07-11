@@ -13,7 +13,8 @@ export type ModelProvider =
   | "opencode"
   | "kimi"
   | "minimax"
-  | "nvidia-nim";
+  | "nvidia-nim"
+  | "zhipu";
 
 export type TaskRole =
   | "decision"
