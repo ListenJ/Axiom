@@ -59,6 +59,10 @@ import {
   handleKgFeedback,
   handleEvalCommands,
 } from "./cli/commands/index.js";
+import {
+  handleKnowledgeCollect,
+  handleKnowledgeStats,
+} from "./cli/commands/knowledge.js";
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 
@@ -1043,6 +1047,16 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async (args) => { await handleKgFeedback(args); },
   },
 
+  "knowledge:collect": {
+    desc: "收集开放教育资源 (knowledge:collect --domain=mathematics|computer-science|philosophy|dictionary [--subdomain=<topic>] [--max=5] [--force])",
+    run: async (args) => { await handleKnowledgeCollect(args); },
+  },
+
+  "knowledge:stats": {
+    desc: "知识收集统计",
+    run: async () => { await handleKnowledgeStats(); },
+  },
+
   "eval:eval": {
     desc: "运行模型评估 (eval:eval [--full] [--models=a,b] [--benchmarks])",
     run: async (args) => { await handleEvalCommands(["eval", ...args]); },
@@ -1191,6 +1205,10 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
     search: commands["kg:search"],
     query: commands["kg:query"],
     feedback: commands["kg:feedback"],
+  },
+  knowledge: {
+    collect: commands["knowledge:collect"],
+    stats: commands["knowledge:stats"],
   },
   cg: {
     init: commands["cg:init"],

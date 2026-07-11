@@ -161,68 +161,68 @@ export default function Home() {
           )}
         </div>
       )}
-
-      {/* Input — always at bottom */}
+      {/* Input — always at bottom, with integrated model selector */}
       <div className="pb-4 pt-2">
         <form
           onSubmit={(e) => { e.preventDefault(); send() }}
-          className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
+          className="relative flex items-center gap-1 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] pl-1 pr-2 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
         >
-          <Sparkles className="ml-1 size-5 shrink-0 text-[var(--accent)]" />
+          {/* Model selector pill — integrated into input bar */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-2xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]"
+            >
+              <Sparkles className="size-3.5 text-[var(--accent)]" />
+              <span className="hidden sm:inline">{MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}</span>
+              <ChevronDown className="size-3" />
+            </button>
+
+            {showModelPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} />
+                <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg">
+                  {MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }}
+                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${
+                        selectedModel === m.id
+                          ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           <input
             id="home-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={hasMessages ? '继续提问…' : '输入你的问题…'}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
+            className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 text-sm text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
             disabled={sending}
           />
           <button
             type="submit"
             disabled={!input.trim() || sending}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-white transition-all hover:opacity-90 disabled:opacity-30"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-white transition-all hover:opacity-90 disabled:opacity-30"
             aria-label="发送"
           >
             <Send className="size-4" />
           </button>
         </form>
-        {/* Model switcher */}
-        <div className="relative mt-2 flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowModelPicker(!showModelPicker)}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-2xs text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]"
-          >
-            {MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}
-            <ChevronDown className="size-3" />
-          </button>
-
-          {showModelPicker && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} />
-              <div className="absolute bottom-full z-50 mb-1 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg">
-                {MODELS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }}
-                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${
-                      selectedModel === m.id
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
 
         {!hasMessages && (
-          <p className="mt-2 text-center text-2xs text-[var(--text-muted)]">Axiom 可能产生不准确的信息，请核实重要信息。</p>
+          <p className="mt-2.5 text-center text-xs text-[var(--text-muted)]">Axiom 可能产生不准确的信息，请核实重要信息。</p>
         )}
       </div>
     </div>
