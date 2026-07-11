@@ -18,7 +18,7 @@ Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、�
 | 测试文件 | 66 个 |
 | 测试总数 | ~1,100 (136 核心 + 154 前端 + 其他) |
 | PBT invariants | 46 |
-| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 19 |
+| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 15 |
 
 ---
 
@@ -200,7 +200,7 @@ frontend          154 tests  — React 组件测试 (vitest + jsdom)
 - 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts)
 - 第三方库兼容 (install-wizard.ts: blessed)
 
-总数不得 > 25, 每文件不得 > 5。
+总数不得 > 20, 每文件不得 > 5。
 
 ### 5.3 单例模式
 

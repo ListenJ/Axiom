@@ -429,9 +429,9 @@ export class ComputerUseAgent {
       const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
 
       // 解析 action，如果有 elementIndex 则解析为坐标
-      const actions: ComputerAction[] = rawActions.map((a: any) => {
+      const actions: ComputerAction[] = rawActions.map((a: ComputerAction) => {
         const base = { type: a.type, description: a.description };
-        if (a.elementIndex !== undefined && elements) {
+        if ("elementIndex" in a && a.elementIndex !== undefined && elements) {
           const el = elements.find((e) => e.index === a.elementIndex);
           if (el) {
             if (a.type === "click") {
@@ -442,7 +442,7 @@ export class ComputerUseAgent {
             }
           }
         }
-        return a as ComputerAction;
+        return a;
       });
 
       return {

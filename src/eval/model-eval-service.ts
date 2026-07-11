@@ -761,7 +761,7 @@ export class ModelEvalService {
       params.push(opts.limit);
     }
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
     return rows.map(this.rowToEvalResult);
   }
 

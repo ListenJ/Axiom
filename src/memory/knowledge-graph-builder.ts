@@ -154,7 +154,7 @@ export async function buildKnowledgeGraph(
                 filePath: node.filePath,
                 startLine: node.startLine,
                 endLine: node.endLine,
-                signature: (node as any).signature,
+                signature: (node as {signature: string}).signature,
                 project: projectName,
               },
               source: "codegraph",
@@ -274,8 +274,8 @@ function scanProjectFiles(projectPath: string): string[] {
 }
 
 async function upsertEntity(pg: any, entity: KGEntity): Promise<number> {
-  const embeddingStr = (entity as any)._embedding
-    ? `'${JSON.stringify((entity as any)._embedding)}'::vector`
+  const embeddingStr = (entity as {_embedding?: string})._embedding
+    ? `'${JSON.stringify((entity as unknown as {_embedding: string})._embedding)}'::vector`
     : "NULL";
 
   const [result] = await pg`
