@@ -1,7 +1,6 @@
 ﻿import type { LucideIcon } from 'lucide-react'
 import {
   Home,
-  MessageSquare,
   Search,
   Code2,
   Folder,
@@ -21,7 +20,6 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'home',      path: '/',          label: 'Home',      shortcut: '1', icon: Home,         mobilePrimary: true,  visible: true },
-  { id: 'chat',      path: '/chat',      label: 'Chat',      shortcut: '2', icon: MessageSquare, mobilePrimary: true,  visible: true },
   { id: 'search',    path: '/search',    label: 'Search',    shortcut: '3', icon: Search,       mobilePrimary: true,  visible: true },
   { id: 'code',      path: '/code',      label: 'Code',      shortcut: '4', icon: Code2,        mobilePrimary: true,  visible: true },
   { id: 'vault',     path: '/vault',     label: 'Vault',     shortcut: '5', icon: Folder,       mobilePrimary: false, visible: true },

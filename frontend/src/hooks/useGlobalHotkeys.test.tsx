@@ -81,7 +81,7 @@ describe('useGlobalHotkeys', () => {
   it('navigates via number keys based on visible nav items', async () => {
     renderHook('/')
     press('1')
-    await waitFor(() => expect(screen.getByText('Chat')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Home')).toBeInTheDocument())
   })
 
   it('does not hijack shortcuts inside inputs', async () => {

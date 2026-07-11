@@ -55,8 +55,7 @@ export function useGlobalHotkeys() {
 
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
         if (e.key >= '0' && e.key <= '9') {
-          const idx = Number(e.key)
-          const target = VISIBLE_NAV_ITEMS[idx]
+          const target = VISIBLE_NAV_ITEMS.find((i) => i.shortcut === e.key)
           if (target) {
             e.preventDefault()
             navigate(target.path)
