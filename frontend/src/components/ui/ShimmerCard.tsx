@@ -52,13 +52,14 @@ export default function ShimmerCard({
   return (
     <div
       className={`
-        relative overflow-hidden rounded-xl text-[var(--text)]
-        transition-colors duration-200
+        relative overflow-hidden rounded-[14px] text-[var(--text)]
+        transition-all duration-200
         ${glow ? 'border-glow' : VARIANT_CLASSES[variant]}
         ${PADDING_CLASSES[padding]}
         ${hoverable ? 'card-hover cursor-pointer' : ''}
         ${pressable ? 'press' : ''}
         ${animate ? 'fade-in' : ''}
+        elevation-1
         ${className}
       `}
       {...rest}
