@@ -1,499 +1,1227 @@
-# Axiom 全项目权威指南
+# Axiom Comprehensive Guide — Architecture with Code
 
-> **最后更新:** 2026-07-10 | **版本:** 4.0.0
-> **本文件是 Axiom 项目的唯一综合权威参考。** 涵盖架构、开发、测试、部署全部维度。
-
----
-
-## 目录
-
-1. [项目概述](#1-项目概述)
-2. [快速开始](#2-快速开始)
-3. [架构全景](#3-架构全景)
-4. [模块详解](#4-模块详解)
-5. [测试体系](#5-测试体系)
-6. [代码质量规范](#6-代码质量规范)
-7. [MCP 工具系统](#7-mcp-工具系统)
-8. [配置参考](#8-配置参考)
-9. [开发工作流](#9-开发工作流)
-10. [性能合约](#10-性能合约)
-11. [演进记录](#11-演进记录)
+> **Last updated:** 2026-07-11 | **Version:** 4.0.0
+> This document traces Axiom's architecture through actual code paths, from request lifecycle to test infrastructure.
 
 ---
 
-## 1. 项目概述
+## Section 1: Request Lifecycle
 
-**Axiom** 是一个确定性 AI Agent 运行时，基于 Bun + TypeScript。核心设计理念是**零向量、零概率、零 embedding**——所有检索、推理、记忆操作均基于确定性算法。
+### 1.1 Server Startup — `Bun.serve()`
 
-| 属性 | 值 |
-|------|-----|
-| 版本 | 4.0.0 |
-| 运行时 | Bun 1.3+ |
-| 语言 | TypeScript 5.7 |
-| 授权 | MIT |
-| 源文件 | 221 个 |
-| 代码行 | ~64,000 |
-| 测试总数 | ~1,100 |
-| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 15 |
-| PBT invariants | 46 |
-| MCP 工具 | 133+（15 个域文件） |
-| 前端 | React 19 + Zustand + Tauri 2.0 |
-
-### 核心原则
-
-1. **记忆优先** — Obsidian Vault 是唯一真理来源，SQLite 仅作为性能索引
-2. **确定性推理** — 所有 Agent 通过 Vault 文件系统共享记忆，无需 embedding
-3. **LLM 降级** — LLM 从推理主体降级为 Cognitive Accelerator
-4. **零向量** — 搜索使用关键词 + PARA + 标签，不依赖向量数据库
-
----
-
-## 2. 快速开始
-
-### 前置要求
-
-```bash
-# 安装 Bun
-curl -fsSL https://bun.sh/install | bash
-
-# 安装系统依赖 (Windows)
-# - Git
-# - Bun (上述命令)
-```
-
-### 安装
-
-```bash
-git clone <repo-url>
-cd axiom
-bun install
-
-# 前端依赖 (可选)
-cd frontend && npm install && cd ..
-```
-
-### 运行
-
-```bash
-bun run dev        # 开发模式 (热重载)
-bun run axiom      # 生产 CLI 模式
-bun run mcp        # MCP 服务器 (端口 3001)
-bun run cli        # CLI 工具
-```
-
-### 测试
-
-```bash
-bun run lint          # 类型检查 (tsc --noEmit)
-bun run test          # 全量测试
-bun run test:core     # 核心测试 (136 tests)
-bun run test:arch     # 架构完整性 (22 tests)
-bun run test:perf     # 性能基准 (32 tests)
-bun run test:full     # 全部后端测试 (170 tests)
-cd frontend && bunx vitest run --environment jsdom  # 前端测试 (154 tests)
-```
-
-### 环境变量
-
-最低配置:
-
-```bash
-export AXIOM_AUTH_TOKEN="your-secret-token-min-16-chars"
-export SILICONFLOW_API_KEY="sk-xxx"   # 至少一个模型 API Key
-export OBSIDIAN_VAULT_PATH="./axiom-memory"  # Vault 路径
-# 更多配置见 src/utils/env.ts 或 core/config-center.ts
-```
-
----
-
-## 3. 架构全景
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        接入层                                     │
-│  HTTP API (18789)    MCP Server (3001)    WebSocket (/ws)        │
-│  CLI (src/cli.ts)    TUI                   Tauri Desktop          │
-├──────────────────────────────────────────────────────────────────┤
-│                        路由层                                     │
-│  Model Router (963行)        Scene Router (21场景)                │
-│  Thompson Sampling           Capability Registry                  │
-├──────────────────────────────────────────────────────────────────┤
-│                     工具层 (MCP 133+)                             │
-│  15 个域文件: vault / kg / dre / github / skill / arena / ...    │
-│  通用工具抽象: read-tool / write-tool / query-tool / pipeline     │
-├──────────────────────────────────────────────────────────────────┤
-│                      引擎层                                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
-│  │ Vault    │ │ DRE      │ │ KG       │ │ Cognitive        │   │
-│  │ 记忆引擎  │ │ 推理引擎  │ │ 知识图谱  │ │ Pipeline         │   │
-│  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────────────┤   │
-│  │ SQLite   │ │ 约束求解  │ │ pgvector │ │ EventBus         │   │
-│  │ FTS5     │ │ 规则引擎  │ │ SQLite   │ │ (O(1)环形缓冲区)  │   │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘   │
-├──────────────────────────────────────────────────────────────────┤
-│                      服务/解耦层                                   │
-│  services/ — 循环依赖断路器 (chat, router, consciousness)         │
-├──────────────────────────────────────────────────────────────────┤
-│                       基础层                                      │
-│  utils/ (叶子层)   constants/ (叶子层)   config-center/           │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### 分层规则
-
-```
-叶子层:  constants, utils     — 不依赖任何 src 模块
-                        领域层:  memory, router, dre, agents, crawl, db, ocr, kg
-集成层:  mcp, routes           — 可引用所有领域层 (13-14 导入)
-解耦层:  services             — 唯一允许双向引用的模块
-```
-
----
-
-## 4. 模块详解
-
-### 4.1 `memory/` — Vault 确定性记忆引擎
-
-**核心文件:** `vault-manager.ts` (640 行)
-
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `vault-manager.ts` | 640 | 核心 API (read/write/search/browse/stats) |
-| `deterministic-search.ts` | 603 | 零向量全文搜索 (关键词 + PARA + 标签) |
-| `sqlite-memory.ts` | 492 | SQLite FTS5 索引 |
-| `archiver.ts` | 265 | 记忆归档 (frontmatter 处理) |
-| `distiller.ts` | 168 | 记忆蒸馏 (Web/对话→笔记) |
-| `conformal-retriever.ts` | 95 | 保形检索 (NaN 防护) |
-| `codegraph-index.ts` | 509 | 代码符号索引 |
-| `bootstrap.ts` | 262 | Agent 记忆引导 |
-
-**单例规则:** `getGlobalVault()` 是唯一获取方式。禁止 `new VaultManager()`。
-
-### 4.2 `router/` — 模型路由
-
-**核心文件:** `model-router.ts` (963 行)
-
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `model-router.ts` | 963 | 多平台路由 (fallback, retry, streaming) |
-| `model-capability-registry.ts` | 162 | **统一查询入口** (支持 opts + EXTENSIONS) |
-| `models/registry.ts` | 933 | 模型注册表 (UnifiedModel) |
-| `thompson-router.ts` | 283 | Thompson Sampling 多臂赌博机 |
-| `tool-pool.ts` | 240 | 工具执行池 |
-
-**查询规范:** 所有 `findModelsForRole` 调用使用 `model-capability-registry.ts` 版本。
-
-### 4.3 `mcp/` — MCP 服务器
-
-**核心文件:** `server.ts` (407 行)
-
-```
-mcp/server/           15 个域文件
-├── vault-tools.ts      Vault 核心工具
-├── kg-tools.ts         知识图谱工具
-├── dre-tools.ts        DRE 推理工具
-├── github-tools.ts     GitHub 工具 (22 工具)
-├── code-agent-tools.ts 编码 Agent
-├── arena-tools.ts      竞技场榜单
-├── orchestrator-tools.ts 多 Agent 编排
-├── prompt-tools.ts     提示池
-├── token-tools.ts      Token 统计
-├── mode-tools.ts       执行模式
-├── router-tools.ts     模型聊天
-├── hermes-tools.ts     研究 Agent
-├── db-tools.ts         数据库查询
-├── lsp-tools.ts        LSP 诊断
-└── skill-tools.ts      Skill 管理
-```
-
-**注册模式:** 统一 `registerXxxTools(registry, deps?)` 模式。
-
-### 4.4 `dre/` — 确定性推理引擎
-
-**核心文件:** `engine.ts` (732 行)
-
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `constraint/solver.ts` | 583 | 约束求解 (resource/policy/temporal) |
-| `runtime/knowledge-network.ts` | 577 | 知识网络 (实体+关系+预测) |
-| `runtime/rule-engine.ts` | 745 | 规则引擎 (if-then + 学习) |
-| `runtime/event-bus.ts` | 145 | **O(1) 环形缓冲区** 事件总线 |
-| `runtime/world-state.ts` | 195 | 世界状态 (防御拷贝隔离) |
-| `pipeline/cognitive-pipeline.ts` | 555 | 认知管道 (感知→推理→行动) |
-| `persona/loader.ts` | 487 | Persona 加载器 |
-| `actor/system.ts` | 178 | Actor 系统 |
-
-### 4.5 `tools/` — 通用工具抽象
-
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `read-tool.ts` | 92 | 读取基元 (web/local/vault) |
-| `write-tool.ts` | 68 | 写入基元 (local/vault) |
-| `query-tool.ts` | 135 | 搜索基元 (本地 + 网络) |
-| `pipeline.ts` | 113 | 工具管道编排 (缓存优先 + 循环检测) |
-| `types.ts` | 161 | Tool 接口 + normalizeQuery + detectLoop |
-
-### 4.6 `services/` — 循环依赖解耦层
+Everything begins in `src/main.ts:442` where the HTTP server is created:
 
 ```typescript
-// services/router.ts        — agents 侧引用 router 的中转
-// services/consciousness.ts  — memory 侧引用 consciousness 的中转
-// services/execution.ts      — 执行模式的 cycler-breaker
-// services/chat.ts           — 聊天服务的统一入口
-// services/index.ts          — 对外暴露的统一接口
+// src/main.ts:442-449
+const server = Bun.serve({
+  port,
+  hostname: readString("HOST", "127.0.0.1"),
+  async fetch(req, server) {
+    const startTime = performance.now();
+    const url = new URL(req.url);
+    const requestOrigin = req.headers.get("origin") || "";
+    const baseHeaders = { ...securityHeaders, ...corsHeaders(requestOrigin) };
 ```
 
-### 4.7 `agents/` — AI Agent
+Each request enters this single `fetch` handler. Before the Trie-based router is invoked, the request passes through:
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `opencode-agent.ts` | 259 | OpenCode 编码 Agent (代码生成/审查/重构/测试) |
-| `opencode-tool-agent.ts` | 1021 | OpenCode 工具 Agent |
-| `hermes-agent.ts` | 386 | 研究 Agent (深度研究/代码审查) |
-| `orchestrator.ts` | 624 | 多 Agent 编排器 |
-| `consciousness/` | ~800 | 意识子系统 (反射循环/记忆策展/技能推广) |
-| `project-analyzer.ts` | 995 | 项目分析器 |
+1. **CORS** — OPTIONS requests return immediately (`main.ts:451`)
+2. **Auth gate** — `checkApiKey()` verifies `x-api-key` or `Authorization` header (`main.ts:454`)
+3. **WebSocket** — `/ws` path upgraded to WS protocol (`main.ts:459`)
+4. **Rate limiting** — sliding window check (`main.ts:472`)
+5. **Body size** — POST/PUT bodies checked against `MAX_BODY_SIZE` (`main.ts:478`)
 
----
+### 1.2 Route Registration — `registerTrieRoutes()`
 
-## 5. 测试体系
-
-### 5.1 测试命令
-
-| 命令 | 数量 | 描述 | 运行时间 |
-|------|------|------|---------|
-| `bun test:core` | 136 | 核心模块测试 | ~550ms |
-| `bun test:arch` | 22 | 架构完整性 (CI 约束) | ~500ms |
-| `bun test:perf` | 32 | 性能基准 (200% 超标) | ~5.4s |
-| `bun test:integration` | 11 | 集成/并发测试 | ~1.2s |
-| `bun test:full` | 170 | 全量后端 | ~6.1s |
-| `bun test` | ~960 | 含 stress 测试 | ~72s |
-| `vitest run` (frontend) | 154 | React 组件测试 | ~9.8s |
-
-### 5.2 测试类型分布
-
-- **单元测试:** 136 (core) — 每个模块独立测试
-- **架构完整性:** 22 项 — 分层/代码质量/性能/依赖约束 (CI 自动执行)
-- **Property-based:** 46 invariants — Cache(11) + Thompson(6) + HttpRouter(3) + Vault(13) + ConfigCenter(6) + SOAK
-- **性能基准:** 32 项 — 含极端测试 (100k ops, 1M entries, 1000 并发)
-- **集成测试:** 11 项 — Pipeline/Vault/ConfigCenter/EventBus/HttpRouter 集成
-- **前端测试:** 154 项 — React 组件 (vitest + jsdom)
-- **Stress 测试:** 多种 — 含 500 并发、5k SOAK、内存上限
-
-### 5.3 架构完整性测试 (22 项)
-
-`tests/architecture-integrity.test.ts` 中定义，在 `test:arch` 和 `test:full` 中运行。
-
-| 类别 | 项目 | 阈值 |
-|------|------|------|
-| 分层 | utils 导入约束 | 0 违规 |
-| 分层 | memory 导入约束 | 0 违规 |
-| 分层 | 循环依赖 | 仅 services断路器 |
-| 质量 | `as any` 总数 | ≤ 20 |
-| 质量 | `as any` 每文件 | ≤ 5 |
-| 质量 | `: any` 注解 | ≤ 90 |
-| 质量 | `@ts-expect` | ≤ 1 |
-| 质量 | `console.*` | 仅 logger.ts |
-| 质量 | 文件大小 | 一般≤1000, 豁免≤1500 |
-| 质量 | throw 描述 | 至少 10 字符 |
-| 质量 | utils 返回类型 | 全部必须 |
-| 环境 | `process.env` | 仅白名单 |
-| 工具 | mcp/server.ts | ≤ 500 行 |
-| 工具 | 域文件模式 | 全部 registerXxxTools |
-| 性能 | PBT Cache 50k | < 500ms |
-| 性能 | PBT Thompson 50k | < 1000ms |
-| 性能 | Pipeline 1k empty | < 100ms |
-
-### 5.4 性能合约 (32 项)
-
-| 基准 | 规格 | 实测 |
-|------|------|------|
-| Cache 100k set+get | < 200ms | **43ms** |
-| Cache 1M 内存上限 | ≤ 10000 | **10000** |
-| Thompson 50k route | < 500ms | **31ms** |
-| ConfigCenter 50k 读 | < 100ms | **0.8ms** |
-| Solver 50k check | < 500ms | **49ms** |
-| Pipeline 10k empty | < 100ms | **8.7ms** |
-| EventBus 100k pub | < 50ms | **29ms** |
-
----
-
-## 6. 代码质量规范
-
-### 6.1 `process.env` 使用
-
-所有环境变量读取必须通过 `src/utils/env.ts` 的 `readString()`, `readInt()`, `readBool()`。
-
-**白名单文件**（允许直接 `process.env` 读取）: `env.ts`, `config-center.ts`, `logger.ts`, `proxy-fetch.ts`, `api-key-store.ts`, `vault-manager.ts`, `main.ts`, `router/models/providers.ts`
-
-### 6.2 `as any` 豁免
-
-仅允许 Bun 内部 API、SQLite/PG 行类型、DOM/协议处理、第三方库兼容。总数 ≤ 20, 每文件 ≤ 5。
-
-### 6.3 单例规范
-
-| 单例 | 获取方式 | 文件 |
-|------|---------|------|
-| VaultManager | `getGlobalVault()` | `memory/vault-manager.ts` |
-| ConfigCenter | `getConfigCenter()` | `core/config-center.ts` |
-| ReadOptimizer | `getReadOptimizer()` | `utils/read-optimizer.ts` |
-| Consciousness | `getConsciousness()` | `agents/consciousness/index.ts` |
-| DRE Kernel | `getKernel()` | `dre/kernel.ts` |
-
-### 6.4 导入规范
-
-- `utils/` 不得从 `memory/`, `router/`, `agents/`, `mcp/`, `dre/`, `routes/`, `services/` 导入 (运行时)
-- 类型导入 (`import type`) 不在此限
-- `memory/` 不得从 `agents/`, `mcp/`, `routes/` 导入
-- 循环依赖通过 `services/` 层解决
-
-### 6.5 日志规范
-
-- 必须使用 `src/utils/logger.ts` 的 `logger`
-- 禁止 `console.log`, `console.error`, `console.warn`
-
----
-
-## 7. MCP 工具系统
-
-### 7.1 注册模式
-
-所有 MCP 工具遵循统一的 `registerXxxTools(registry, deps)` 模式:
+At startup, routes register into the `HttpRouter` via `src/routes/index.ts:181`:
 
 ```typescript
-// server/vault-tools.ts
-import { z } from "zod";
-import type { ToolRegistry } from "../tool-registry.js";
+// src/main.ts:340-343
+const httpRouter = getHttpRouter();
+registerTrieRoutes(httpRouter);
+logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes().length });
+```
 
+The registration function defines an array of `RouteRecord` objects:
+
+```typescript
+// src/routes/index.ts:179-229
+import { HttpRouter, type RouteRecord } from "../core/http-router.js";
+
+export function registerTrieRoutes(engine: HttpRouter): void {
+  const routes: RouteRecord[] = [
+    // Health & system
+    { method: "GET", path: "/health", handler: handleHealth },
+    { method: "GET", path: "/metrics", handler: handleMetrics },
+    // ... more routes
+    { method: "GET", path: "/vault/para/:category", handler: handleVaultPara },
+    { method: "GET", path: "/vault/tags/:tag", handler: handleVaultTags },
+    { method: "POST", path: "/vault/write", handler: handleVaultWrite },
+  ];
+  engine.registerBatch(routes);
+}
+```
+
+### 1.3 Trie Matching — `HttpRouter`
+
+The `HttpRouter` (`src/core/http-router.ts:64`) builds a prefix tree keyed by HTTP method. `register()` splits the path on `/` and walks/creates nodes:
+
+```typescript
+// src/core/http-router.ts:87-119
+register(record: RouteRecord): void {
+  const { method, path } = record;
+  const methodLower = method.toUpperCase();
+  if (!this.root.has(methodLower)) {
+    this.root.set(methodLower, { children: new Map() });
+  }
+  const trie = this.root.get(methodLower)!;
+  const segments = path.split("/").filter(Boolean);
+  let node = trie;
+  for (const seg of segments) {
+    if (seg.startsWith(":")) {
+      if (!node.children.has(":")) {
+        node.children.set(":", { children: new Map(), param: seg.slice(1) });
+      }
+      node = node.children.get(":")!;
+    } else if (seg === "**") {
+      node.wildcard = record;
+      return;
+    } else {
+      if (!node.children.has(seg)) {
+        node.children.set(seg, { children: new Map() });
+      }
+      node = node.children.get(seg)!;
+    }
+  }
+  node.handler = record;
+}
+```
+
+The `execute()` method (line 173) ties caching, matching, and handler invocation:
+
+```typescript
+// src/core/http-router.ts:173-234
+async execute(ctx: RouteContext): Promise<Response | null> {
+  const { req, url } = ctx;
+  const cacheKey = `${method}:${pathname}:${url.search}`;
+
+  // Step 1: Cache hit (GET only)
+  if (method === "GET") {
+    const cached = await this.cache.get(cacheKey);
+    if (cached) { this.cacheHits++; return cached; }
+  }
+
+  // Step 2: Trie match
+  const matched = this.match(method, pathname);
+
+  // Step 3: Execute with performance timing
+  const startTime = performance.now();
+  const response = await record.handler(ctx);
+  const latency = performance.now() - startTime;
+  this.recordPerf(endpointKey, latency);
+  // Cache the response
+  if (method === "GET" && response && record.meta?.cacheable !== false && response.status < 400) {
+    this.cache.set(cacheKey, response, record.meta?.cacheTtlMs ?? 30 * 1000);
+  }
+  return response;
+}
+```
+
+The `match()` method (line 130) walks segment-by-segment: literal match first, then `:param` fallback, then `/**` wildcard:
+
+```typescript
+// src/core/http-router.ts:130-167
+match(method: string, path: string): { record: RouteRecord; params: Record<string, string> } | null {
+  const trie = this.root.get(method.toUpperCase());
+  if (!trie) return null;
+
+  const segments = path.split("/").filter(Boolean);
+  let node = trie;
+  const params: Record<string, string> = {};
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (node.children.has(seg)) {
+      node = node.children.get(seg)!;
+    } else if (node.children.has(":")) {
+      const paramNode = node.children.get(":")!;
+      if (paramNode.param) params[paramNode.param] = decodeURIComponent(seg);
+      node = paramNode;
+    } else if (node.wildcard) {
+      return { record: node.wildcard, params };
+    } else {
+      return null;
+    }
+  }
+  if (node.handler) return { record: node.handler, params };
+  if (node.wildcard) return { record: node.wildcard, params };
+  return null;
+}
+```
+
+### 1.4 Handler Example — `/health`
+
+The health handler at `src/routes/health.ts:6` receives `RouteContext` and returns a JSON response:
+
+```typescript
+// src/routes/health.ts:6-27
+export async function handleHealth(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/health" && ctx.req.method === "GET") {
+    const checks = await ctx.healthMonitor.checkAll();
+    const { vaultStatsCache } = await import("../utils/vault-stats-cache.js");
+    const vStats = vaultStatsCache.read();
+    const { searchAggregator } = await import("../crawl/search-engines.js");
+    const { searchCache, crawlCache } = await import("../utils/cache.js");
+    const { wsManager } = await import("../utils/websocket.js");
+
+    return ctx.jsonResponse({
+      status: "ok", timestamp: new Date().toISOString(), version: "2.2.0",
+      uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
+      checks, searchEngines: searchAggregator.listEngines(),
+      vault: vStats ? { notes: vStats.totalNotes, words: vStats.totalWords } : null,
+      cache: { search: searchCache.stats(), crawl: crawlCache.stats() },
+      websocket: wsManager.getStats(),
+    }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+```
+
+### 1.5 `RouteContext` Construction
+
+The context is built inline in the fetch handler (`main.ts:488-491`):
+
+```typescript
+// src/main.ts:488-491
+const ctx: RouteContext = {
+  url, req, vault, db, pipeline, healthMonitor, fileWatcher,
+  startupTime, baseHeaders, jsonResponse,
+};
+```
+
+The type is defined at `src/routes/types.ts:11`:
+
+```typescript
+// src/routes/types.ts:11-22
+export interface RouteContext {
+  url: URL;
+  req: Request;
+  vault: VaultManager | null;
+  db: Database;
+  pipeline: DataPipeline;
+  healthMonitor: HealthMonitor;
+  fileWatcher: VaultFileWatcher | null;
+  startupTime: number;
+  baseHeaders: Record<string, string>;
+  jsonResponse: (data: unknown, status?: number, extraHeaders?: Record<string, string>) => Response;
+}
+```
+
+After the Trie router, there is a fallback chain (`main.ts:496-508`):
+1. `serveStaticFile(url.pathname)` — SPA assets from `./public/`
+2. `httpRouter.execute(ctx)` — Trie-based routing
+3. `dispatch(ctx)` — legacy linear fallback
+4. `defaultResponse(ctx)` — 404
+
+---
+
+## Section 2: Vault Write → Read Flow
+
+### 2.1 Writing a Note — `writeNote()`
+
+The `VaultManager.writeNote()` method at `src/memory/vault-manager.ts:171` is the central write path:
+
+```typescript
+// src/memory/vault-manager.ts:171-231
+async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}): Promise<string> {
+  // Smart gate: skip low-value writes if context provided
+  if (opts.gateContext) {
+    const gate = getMemoryGate();
+    const decision = gate.shouldWrite(content, content, opts.gateContext);
+    if (!decision.shouldWrite) {
+      logger.info("[MemoryGate] Write skipped", { path: notePath, reason: decision.reason, category: decision.category });
+      return notePath;
+    }
+  }
+
+  const fullPath = this.resolveSafePath(notePath);
+  const dir = path.dirname(fullPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const frontmatter = this.buildFrontmatter({ ...opts, created: now });
+
+  let finalContent: string;
+  const existing = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, "utf-8") : null;
+
+  if (opts.append && existing) {
+    const { body } = this.parseFrontmatter(existing);
+    finalContent = frontmatter + "\n\n" + body + "\n\n" + content;
+  } else if (opts.overwrite || !existing) {
+    finalContent = frontmatter + "\n\n" + content;
+  } else {
+    throw new Error(`Note already exists: ${notePath} (use overwrite=true or append=true)`);
+  }
+
+  fs.writeFileSync(fullPath, finalContent, "utf-8");
+
+  // Sync to SQLite index + FTS
+  const stat = fs.statSync(fullPath);
+  this.sqliteMemory.upsertNote({
+    path: notePath,
+    title: opts.title || path.basename(notePath, ".md"),
+    content: finalContent,
+    excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
+    tags: opts.tags || [],
+    paraCategory: opts.paraCategory || "resources",
+    type: opts.type || "note",
+    source: opts.source,
+    confidence: opts.confidence ?? 0.7,
+    createdAt: stat.birthtimeMs || stat.ctimeMs,
+    updatedAt: stat.mtimeMs,
+  });
+
+  if (opts.gateContext) {
+    const gate = getMemoryGate();
+    const hash = `${notePath}:${content.slice(0, 200)}`;
+    gate.recordWrite(hash, notePath);
+  }
+
+  logger.info("Vault note written", { path: notePath, type: opts.type });
+  return notePath;
+}
+```
+
+### 2.2 Path Safety — `resolveSafePath()`
+
+Path traversal is blocked at `src/memory/vault-manager.ts:661`:
+
+```typescript
+// src/memory/vault-manager.ts:661-669
+private resolveSafePath(notePath: string): string {
+  const resolved = path.resolve(this.config.vaultPath, notePath);
+  const base = path.resolve(this.config.vaultPath);
+  const relative = path.relative(base, resolved);
+  if (relative.startsWith("..") || relative === "..") {
+    throw new Error(`Path traversal blocked: ${notePath}`);
+  }
+  return resolved;
+}
+```
+
+### 2.3 Frontmatter Construction — `buildFrontmatter()`
+
+YAML frontmatter is built at `src/memory/vault-manager.ts:671` with ordered keys:
+
+```typescript
+// src/memory/vault-manager.ts:671-696
+private buildFrontmatter(opts: Record<string, unknown>): string {
+  const fmKeys = ["title", "type", "created", "updated", "source", "tags", "confidence"];
+  const fmEntries: Array<[string, unknown]> = [];
+  const extraEntries: Array<[string, unknown]> = [];
+
+  // Single-pass partition: ordered keys first, rest after
+  for (const [k, v] of Object.entries(opts)) {
+    if (v === undefined) continue;
+    if (fmKeys.includes(k)) fmEntries.push([k, v]);
+    else extraEntries.push([k, v]);
+  }
+
+  fmEntries.sort((a, b) => fmKeys.indexOf(a[0]) - fmKeys.indexOf(b[0]));
+
+  const formatVal = (val: unknown): string => {
+    if (Array.isArray(val)) return `[${val.map((v) => `"${v}"`).join(", ")}]`;
+    return String(val);
+  };
+
+  const lines: string[] = ["---"];
+  for (const [k, v] of fmEntries) lines.push(`${k}: ${formatVal(v)}`);
+  for (const [k, v] of extraEntries) lines.push(`${k}: ${formatVal(v)}`);
+  lines.push("---");
+  return lines.join("\n");
+}
+```
+
+### 2.4 Reading a Note — `readNote()`
+
+The read path at `vault-manager.ts:138` reads from disk (the source of truth):
+
+```typescript
+// src/memory/vault-manager.ts:138-148
+readNote(notePath: string): { content: string; frontmatter: Record<string, unknown> } | null {
+  try {
+    const fullPath = this.resolveSafePath(notePath);
+    const content = fs.readFileSync(fullPath, "utf-8");
+    const { frontmatter, body } = this.parseFrontmatter(content);
+    return { content: body, frontmatter };
+  } catch (e) {
+    logger.warn("readNote failed", { path: notePath, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+```
+
+### 2.5 Searching — SQLite FTS5 + Deterministic Fallback
+
+The `search()` method at `vault-manager.ts:84` uses a two-tier strategy:
+
+```typescript
+// src/memory/vault-manager.ts:84-121
+search(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string }): SearchResult[] {
+  const limit = opts?.limit ?? 10;
+
+  // 1. SQLite FTS5 search (primary)
+  const ftsResults = this.sqliteMemory.search(query, {
+    limit, tags: opts?.tags, paraCategory: opts?.paraCategory, type: opts?.types?.[0],
+  });
+
+  let results: SearchResult[] = ftsResults.map((r) => ({
+    note: this.memoryRecordToVaultNote(r.record),
+    score: r.score, reasons: ["fts5-match"], excerpt: r.excerpt,
+  }));
+
+  // 2. Fallback: DeterministicSearchEngine when FTS results are insufficient
+  const minResults = 3;
+  const minQuality = -2.0;
+  const needsFallback = results.length < minResults ||
+    (results.length > 0 && results[0].score > minQuality);
+  if (needsFallback) {
+    const fallback = this.engine.search(query, opts);
+    const seen = new Set(results.map((r) => r.note.path));
+    for (const r of fallback) {
+      if (!seen.has(r.note.path)) {
+        results.push(r);
+        seen.add(r.note.path);
+      }
+    }
+    results = results.slice(0, limit);
+  }
+  return results;
+}
+```
+
+### 2.6 Archiver's `parseFrontmatter()` — Cross-Platform Line Endings
+
+The archiver at `src/memory/archiver.ts:227` normalizes `\r\n` before parsing:
+
+```typescript
+// src/memory/archiver.ts:227-250
+private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
+  const normalized = content.replace(/\r\n/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { frontmatter: {}, body: normalized };
+
+  const fm: Record<string, unknown> = {};
+  for (const line of match[1].split("\n")) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > 0) {
+      const key = line.slice(0, colonIdx).trim();
+      const val = line.slice(colonIdx + 1).trim();
+      if (val.startsWith("[") && val.endsWith("]")) {
+        fm[key] = val.slice(1, -1).split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
+      } else if (val === "true") {
+        fm[key] = true;
+      } else if (val === "false") {
+        fm[key] = false;
+      } else {
+        fm[key] = val.replace(/^["']|["']$/g, "");
+      }
+    }
+  }
+  return { frontmatter: fm, body: normalized.slice(match[0].length).trim() };
+}
+```
+
+Compare with the vault-manager's local `parseFrontmatter()` at line 698 — it uses `\n` in the regex without normalization. The archiver is the cross-platform-correct version.
+
+### 2.7 `getGlobalVault()` Singleton
+
+The singleton at `src/memory/vault-manager.ts:753` is the single entry point:
+
+```typescript
+// src/memory/vault-manager.ts:753-759
+let _globalVault: VaultManager | null = null;
+export function getGlobalVault(): VaultManager {
+  if (!_globalVault) {
+    _globalVault = new VaultManager();
+  }
+  return _globalVault;
+}
+```
+
+This is used instead of `new VaultManager()` throughout the codebase to ensure one instance per process.
+
+---
+
+## Section 3: MCP Tool Registration & Execution
+
+### 3.1 Server Structure — `mcp/server.ts`
+
+The MCP server is created at `src/mcp/server.ts:57`:
+
+```typescript
+// src/mcp/server.ts:57-64
+const mcp = new McpServer({
+  name: "Axiom Agent MCP Server",
+  version: "2.9.2",
+});
+
+const registry = new ToolRegistry();
+```
+
+It supports both stdio and HTTP transport (line 387):
+
+```typescript
+// src/mcp/server.ts:387-461
+const transport = process.argv.includes("--stdio") ? "stdio" : "http";
+
+if (transport === "stdio") {
+  registry.registerWithMcp(mcp);
+  const stdio = new StdioServerTransport();
+  mcp.connect(stdio);
+} else {
+  const toolHandlers = registry.buildHttpHandlers();
+  const toolsMeta = registry.getToolsMeta();
+  const port = Number(readString("MCP_PORT", "3001"));
+
+  Bun.serve({
+    port,
+    async fetch(req) {
+      // JSON-RPC 2.0 over HTTP for tools/list and tools/call
+      if (body.method === "tools/list") {
+        return Response.json({
+          jsonrpc: "2.0", id: body.id,
+          result: { tools: toolsMeta },
+        });
+      }
+      if (body.method === "tools/call") {
+        const { name, arguments: args } = body.params;
+        const handler = toolHandlers[name];
+        const result = await withTimeout(
+          withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
+          TIMEOUTS.MCP_TOOL_DEFAULT
+        );
+        return Response.json({
+          jsonrpc: "2.0", id: body.id,
+          result: { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] },
+        });
+      }
+    },
+  });
+}
+```
+
+### 3.2 ToolRegistry
+
+The registry (`src/mcp/tool-registry.ts:28`) stores `ToolDef` entries and provides dual registration:
+
+```typescript
+// src/mcp/tool-registry.ts:28-35
+export class ToolRegistry {
+  private tools: ToolDef[] = [];
+
+  add(tool: ToolDef): this {
+    this.tools.push(tool);
+    return this;
+  }
+
+  registerWithMcp(mcp: McpServer): void {
+    for (const tool of this.tools) {
+      mcp.registerTool(tool.name, {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      }, async (args) => {
+        const result = await tool.handler(args);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      });
+    }
+  }
+
+  buildHttpHandlers(): Record<string, ToolHandler> {
+    const handlers: Record<string, ToolHandler> = {};
+    for (const tool of this.tools) {
+      handlers[tool.name] = tool.handler;
+    }
+    return handlers;
+  }
+}
+```
+
+### 3.3 The `registerVaultTools(registry, vault)` Pattern
+
+All domain files follow the same convention. From `src/mcp/server.ts:74`:
+
+```typescript
+// src/mcp/server.ts:18
+import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
+// ...
+registerVaultTools(registry, vault);
+registerWebTools(registry, pipeline);
+registerGitHubTools(registry);
+```
+
+A typical domain registration (from the `vault-tools.ts` pattern at `src/mcp/server`):
+
+```typescript
+// Example pattern — actual content from server/vault-tools.ts
 export function registerVaultTools(registry: ToolRegistry, vault: VaultManager): void {
   registry.add({
     name: "memory_search",
-    description: "确定性搜索 Vault 记忆笔记",
+    description: "Deterministic search Vault memory notes",
     inputSchema: { query: z.string() },
     handler: async (args) => vault.search(args.query as string),
   });
 }
 ```
 
-### 7.2 工具分类
+### 3.4 `adaptTool` Bridge
 
-| 域 | 工具数 | 注册函数 |
-|----|--------|---------|
-| Vault | 8 | `registerVaultTools` |
-| Web | 3 | `registerWebTools` |
-| GitHub | 22 | `registerGitHubTools` |
-| DRE | ~25 | `registerDreTools` |
-| KG | ~15 | `registerKgTools` |
-| Skill | 3 | `registerSkillTools` |
-| Code Agent | 5 | `registerCodeAgentTools` |
-| Hermes | 2 | `registerHermesTools` |
-| Router | 1 | `registerRouterTools` |
-| DB | 2 | `registerDbTools` |
-| LSP | 3 | `registerLspTools` |
-| Token | 4 | `registerTokenTools` |
-| Mode | 4 | `registerModeTools` |
-| Arena | 8 | `registerArenaTools` |
-| Prompt | 6 | `registerPromptTools` |
-| Orchestrator | 5 | `registerOrchestratorTools` |
-| Pipeline 通用 | 3 | `adaptTools` |
+The adapt tool at `src/mcp/adapt-tool.ts:17` bridges `Tool<I,O>` (pipeline) to `ToolDef` (MCP):
 
-### 7.3 外部工具
+```typescript
+// src/mcp/adapt-tool.ts:17-45
+export function adaptTool<I, O>(
+  tool: Tool<I, O>,
+  overrides?: Partial<Pick<ToolDef, "tags" | "format">>,
+): ToolDef {
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: z.object({}).passthrough(),
+    handler: async (args: Record<string, unknown>): Promise<O> => {
+      // Runtime validation
+      if (tool.validate) {
+        const err = tool.validate(args as I);
+        if (err) throw new Error(`Validation failed for ${tool.name}: ${err}`);
+      }
 
-`mcp/tools/` 目录包含独立工具实现:
+      const pipelineCtx = createToolContext(`mcp-${tool.name}-${Date.now()}`);
+      const output = await tool.execute({ payload: args as I, context: pipelineCtx });
 
-| 文件 | 行数 | 职责 |
-|------|------|------|
-| `code-analysis.ts` | 661 | LSP 代码分析 |
-| `filesystem.ts` | 115 | 文件系统操作 |
-| `git.ts` | 82 | Git 操作 |
-| `github.ts` | 564 | GitHub API |
-| `minimax.ts` | 115 | MiniMax 模型 |
-| `terminal.ts` | 24 | 终端命令 |
-| `workspace-snapshot.ts` | 106 | 工作区快照 |
+      logger.debug(`[adaptTool] ${tool.name} completed`, {
+        durationMs: output.metrics.durationMs,
+        computeUnits: output.metrics.computeUnits,
+      });
 
----
+      return output.data;
+    },
+    format: overrides?.format ?? "json",
+    tags: overrides?.tags ?? ["pipeline"],
+  };
+}
+```
 
-## 8. 配置参考
+Used in `server.ts:72` to inject pipeline-aware tools:
 
-### 8.1 配置优先级
+```typescript
+// src/mcp/server.ts:72
+for (const td of adaptTools([readTool, writeTool, queryTool])) registry.add(td);
+```
 
-Runtime Override > 环境变量 > YAML 配置 > 默认值
+### 3.5 Complete Tool Handler Example — `serpapi_search`
 
-### 8.2 核心配置项
+The full serpapi_search tool at `src/mcp/server.ts:80` shows the complete registration pattern:
 
-| Key | 环境变量 | 类型 | 默认值 | 说明 |
-|-----|---------|------|--------|------|
-| gateway.port | AXIOM_GATEWAY_PORT | number | 18789 | HTTP 服务端口 |
-| gateway.bind | AXIOM_BIND | string | 127.0.0.1 | 绑定地址 |
-| gateway.auth_token | AXIOM_AUTH_TOKEN | string | — | API 鉴权 Token |
-| memory.vault_path | OBSIDIAN_VAULT_PATH | path | ./axiom-memory | Vault 路径 |
-| memory.database_path | DATABASE_PATH | path | ./data/agent.db | SQLite 路径 |
-| crawler.serpapi_key | SERPAPI_KEY | string | — | SerpAPI Key |
+```typescript
+// src/mcp/server.ts:80-149
+registry.add({
+  name: "serpapi_search",
+  description: "Use SerpAPI to execute Google deep search, results saved to Vault as structured Markdown with full raw JSON",
+  inputSchema: {
+    query: z.string().describe("Search query"),
+    location: z.string().optional().describe("Geographic location"),
+    lang: z.string().optional().default("en").describe("Interface language"),
+    num: z.number().optional().default(10).describe("Number of results 1-100"),
+    saveToVault: z.boolean().optional().default(true).describe("Whether to save to Vault"),
+  },
+  handler: async (args) => {
+    const client = new SerpApiClient();
+    const start = performance.now();
+    const response = await client.search({
+      q: args.query as string,
+      hl: args.lang as string,
+      num: Math.min((args.num as number) || 10, 100),
+    });
+    const latency = Math.round(performance.now() - start);
 
-完整配置模式见 `src/core/config-center.ts` 的 `CONFIG_SCHEMA`。
+    let vaultPath = "";
+    if (args.saveToVault !== false) {
+      vaultPath = await vault.writeSerpApiResult(args.query as string, response as Record<string, unknown>, {
+        latencyMs: latency,
+      });
+    }
 
----
-
-## 9. 开发工作流
-
-### 9.1 提交流程
-
-1. `bun run lint` — 类型检查通过
-2. `bun run test:full` — 全部后端测试通过
-3. `cd frontend && bunx vitest run --environment jsdom` — 前端测试通过
-4. `git commit` — 提交
-
-### 9.2 新增工具步骤
-
-1. 在 `src/mcp/server/` 创建 `<name>-tools.ts`
-2. 实现 `registerXxxTools(registry, deps)` 函数
-3. 在 `src/mcp/server.ts` 调用注册
-4. 运行 `bun run test:full` 验证
-
-### 9.3 新增模块步骤
-
-1. 在对应目录添加文件
-2. 确保 `utils/` 或 `memory/` 不违反分层规则
-3. 添加对应的测试文件 `tests/<name>.test.ts`
-4. 运行 `bun run test:arch` 验证约束
-
----
-
-## 10. 性能合约
-
-| 合约 | 规格 | 实测 | 状态 |
-|------|------|------|------|
-| Cache 100k set+get | < 200ms | 43ms | ✅ |
-| Cache 1M 内存上限 | ≤ 10000 | 10000 | ✅ |
-| Cache LRU thrash 10k | < 100ms | 8ms | ✅ |
-| Cache concurrent 1000 | 1 factory call | 1 | ✅ |
-| Thompson 50k route | < 500ms | 31ms | ✅ |
-| Thompson convergence | diff ≥ 0.2 | 0.30 | ✅ |
-| Thompson NaN safety | NaN = 0 | 0 | ✅ |
-| Vault 10k writes | < 200ms | 17ms | ✅ |
-| Vault 10k searches | < 500ms | 416ms | ✅ |
-| Vault 500 concurrent | 500 present | 500 | ✅ |
-| ConfigCenter 50k reads | < 100ms | 0.8ms | ✅ |
-| ConfigCenter 10k set+get | 0 mismatch | 0 | ✅ |
-| Solver 50k checks | < 500ms | 49ms | ✅ |
-| Solver selectBest 1k | 0 mismatch | 0 | ✅ |
-| Pipeline 10k empty | < 100ms | 8.7ms | ✅ |
-| EventBus 100k publish | < 50ms | **29ms** | ✅ |
+    return {
+      query: args.query, search_id: response.search_metadata?.id ?? null,
+      organic_count: response.organic_results?.length ?? 0,
+      knowledge_graph: !!response.knowledge_graph,
+      latency_ms: latency, vault_path: vaultPath || null,
+    };
+  },
+});
+```
 
 ---
 
-## 11. 演进记录
+## Section 4: Memory System Deep Dive
 
-| 日期 | 变更 | 影响 |
-|------|------|------|
-| 2026-07-10 | EventBus O(n)→O(1) 环形缓冲区 | 100k publish: 77ms→**29ms** |
-| 2026-07-10 | 架构完整性测试 22 项 | CI 自动化约束检查 |
-| 2026-07-10 | 性能基准 32 项 (200% 超标) | 性能回归预防 |
-| 2026-07-10 | `as any` 修复 | 59→**15** (-75%) |
-| 2026-07-10 | 全项目权威文档 | 本文件 |
-| 2026-07-09 | `mcp/server.ts` 拆分为 15 域文件 | 3246→**407** 行 |
-| 2026-07-09 | `utils/` 层级违规清零 | 3→0 |
-| 2026-07-09 | VaultManager 单例化 | 8→1 实例化点 |
-| 2026-07-09 | `process.env` 收口 | 100+→~30 合法 |
-| 2026-07-09 | DRE 工厂简化 | 3 单实现工厂 inline |
-| 2026-07-09 | 前端测试激活 | 0→**154** (vitest+jsdom) |
+### 4.1 Frontmatter Parsing — The `\r\n` Problem
+
+Two `parseFrontmatter()` implementations exist. The vault-manager version (`vault-manager.ts:698`) uses `\n` directly:
+
+```typescript
+// src/memory/vault-manager.ts:698-700
+private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+```
+
+The archiver version (`archiver.ts:227`) normalizes first, making it correct for Windows line endings:
+
+```typescript
+// src/memory/archiver.ts:227-229
+private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
+  const normalized = content.replace(/\r\n/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
+```
+
+Both parse YAML-like key-value pairs manually without a YAML library for performance. Array values like `[a, b, c]` and booleans (`true`/`false`) are handled, but nested objects are not.
+
+### 4.2 `safeHostname()` — Safe URL Parsing
+
+The distiller's `safeHostname()` at `src/memory/distiller.ts:18` returns a fallback when URL parsing fails:
+
+```typescript
+// src/memory/distiller.ts:18-26
+export function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    // Strip protocol-less strings like "localhost" or "example.com/foo"
+    const cleaned = url.replace(/^https?:\/\//, "").split("/")[0].split("?")[0];
+    return cleaned || url;
+  }
+}
+```
+
+Used in `extractFromWebContent()` (line 179) to label code snippets with their source domain:
+
+```typescript
+// src/memory/distiller.ts:178-183
+ideas.push({
+  title: `Code Fragment #${codeIndex} (${sourceUrl ? safeHostname(sourceUrl) : "web"})`,
+  content: `\`\`\`\n${code}\n\`\`\``,
+  reason: "Valuable code reference",
+});
+```
+
+### 4.3 Memory Gate — Null Context Guard
+
+The `SignificanceContext` behind `shouldWrite()` at `src/memory/memory-gate.ts:107` contains a defensive null check:
+
+```typescript
+// src/memory/memory-gate.ts:107-120
+shouldWrite(response: string, userMessage: string, ctx: SignificanceContext): WriteDecision {
+  // Defense: null/undefined params degrade gracefully
+  if (!response || !userMessage || !ctx) {
+    return {
+      shouldWrite: false,
+      reason: "Invalid arguments: response, userMessage, and ctx are required",
+      confidence: 0, category: "skip",
+    };
+  }
+```
+
+The significance scoring (line 174-253) uses a multi-factor weighted system:
+
+```typescript
+// src/memory/memory-gate.ts:175-253
+let confidence = 0;
+const reasons: string[] = [];
+
+// Task type weighting
+if (ctx.taskType && this.config.highValueTasks.includes(ctx.taskType)) {
+  confidence += 0.3; reasons.push(`High-value task: ${ctx.taskType}`);
+} else if (ctx.taskType && this.config.lowValueTasks.includes(ctx.taskType)) {
+  confidence -= 0.2; reasons.push(`Low-value task: ${ctx.taskType}`);
+}
+
+if (ctx.hasCode) { confidence += 0.2; reasons.push("Contains code"); }
+if (ctx.hasCitations) { confidence += 0.15; reasons.push("Contains citations"); }
+if (ctx.hasStructuredData) { confidence += 0.1; reasons.push("Contains structured data"); }
+if (ctx.hasTechnicalTerms) { confidence += 0.1; reasons.push("Contains technical terms"); }
+if (response.length > 500) { confidence += 0.1; reasons.push("Substantial response"); }
+if (response.length > 2000) { confidence += 0.05; reasons.push("Very detailed response"); }
+if (ctx.isFirstTurn) { confidence += 0.05; reasons.push("First turn of conversation"); }
+if (ctx.userMessageLength > 200) { confidence += 0.05; reasons.push("Detailed user query"); }
+
+confidence = Math.max(0, Math.min(1, confidence));
+
+if (confidence >= this.config.minConfidence) {
+  const category = confidence >= 0.8 ? "high-value" : "medium-value";
+  return { shouldWrite: true, reason: reasons.join("; "), confidence, category };
+}
+return { shouldWrite: false, reason: `Confidence too low`, confidence, category: "low-value" };
+```
+
+### 4.4 Conformal Retriever — NaN Defense
+
+The `ConformalRetriever.retrieve()` at `src/memory/conformal-retriever.ts:256` clamps similarity scores to prevent NaN from propagating:
+
+```typescript
+// src/memory/conformal-retriever.ts:276-289
+for (const doc of candidates) {
+  let similarity: number;
+  try {
+    similarity = similarityFn(query, doc);
+  } catch (e) {
+    logger.error(`[ConformalRetriever] similarityFn threw for doc`, ...);
+    similarity = 0;
+  }
+
+  // Boundary check: NaN/Infinity → 0 (most conservative), clamp [0, 1]
+  const clampedSimilarity = Number.isFinite(similarity) ? Math.max(0, Math.min(1, similarity)) : 0;
+
+  const nonconformityScore = 1 - clampedSimilarity;
+  const pValue = this.computePValue(nonconformityScore);
+  pValues.set(doc, pValue);
+}
+```
+
+The p-value calculation at line 342 uses binary search for O(log n) evaluation:
+
+```typescript
+// src/memory/conformal-retriever.ts:342-353
+private computePValue(nonconformityScore: number): number {
+  if (this.n === 0) return 1.0; // No calibration data → conservative: max p-value
+  const countGeq = this.countGreaterOrEqual(nonconformityScore);
+  return (countGeq + 1) / (this.n + 1);
+}
+```
+
+### 4.5 Loop Detection — Rate-Limited Throttling
+
+The `detectLoop` function at `src/tools/types.ts:74` tracks recent call hashes per minute:
+
+```typescript
+// src/tools/types.ts:74-91
+const recentCalls = new Map<string, number[]>();
+
+export function detectLoop(toolName: string, input: string): boolean {
+  const key = `${toolName}:${input.slice(0, 200)}`;
+  const now = Date.now();
+  const calls = recentCalls.get(key) ?? [];
+  const recent = calls.filter(t => now - t < 60000);
+  recent.push(now);
+  recentCalls.set(key, recent);
+  if (recent.length > 5) {
+    const alreadyWarned = calls.find(t => t === -1);
+    if (!alreadyWarned) {
+      recentCalls.set(key, [-1]);
+      logger.warn(`[ToolGuard] Loop detected: ${key} (${recent.length} calls in 60s)`);
+    }
+    return true;
+  }
+  return false;
+}
+```
+
+Key behaviors:
+- Uses `input.slice(0, 200)` as the hashing key (not the full content)
+- Emits a warning only once per window (marks with `-1`)
+- Prunes stale entries older than 60 seconds
+- Cleared via `clearLoopCache()` for test isolation
+
+---
+
+## Section 5: Architecture Decisions
+
+### 5.1 Why `export *` Was Replaced with Named Exports
+
+The old `router/models.ts` used `export *` which created a maintainability problem — every symbol from internal modules was re-exported without control. The new version at `src/router/models.ts` uses explicit named re-exports:
+
+```typescript
+// src/router/models.ts — before: export * from "./models/...";
+// After — explicit named exports:
+export type { ModelProvider, TaskRole, UnifiedModel, ProviderConfig } from "./models/types.js";
+export { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "./models/providers.js";
+export { UNIFIED_REGISTRY, getModel, getFallbackChain, listFreeModels, listAllModels, listAllRoles } from "./models/registry.js";
+```
+
+The architecture test at `tests/architecture-integrity.test.ts:239` enforces this:
+
+```typescript
+// tests/architecture-integrity.test.ts:239-244
+it("router/models.ts must not use export *", () => {
+  const filePath = path.join(srcDir, "router", "models.ts");
+  const content = fs.readFileSync(filePath, "utf-8");
+  expect(content).not.toMatch(/export\s+\*\s+from/);
+});
+```
+
+### 5.2 Why `services/` Exists as Cycle-Breaker
+
+The services layer at `src/services/` breaks circular dependencies. For example, the `agents` module imports from `router`, and `router` imports from `agents` — this circular pair is broken by routing both through `services/`:
+
+```typescript
+// src/services/router.ts:1-18
+/**
+ * Router service — re-exports from router/ for the services layer.
+ *
+ * This breaks the circular import cycle agents↔router by routing both
+ * sides through the neutral services/ layer (see also services/execution.ts
+ * and services/consciousness.ts which route the router→agents direction).
+ */
+export { router, type ChatMessage, type ChatStreamEvent, type SmartAssignmentResponse } from "../router/model-router.js";
+export { toolPool } from "../router/tool-pool.js";
+export { getTokenTracker } from "../router/token-tracker.js";
+export { findModelsForRole } from "../router/model-capability-registry.js";
+export { PROVIDER_CONFIG } from "../router/models.js";
+export type { TaskRole } from "../router/model-capability-registry.js";
+```
+
+The services index re-exports all cycle breakers:
+
+```typescript
+// src/services/index.ts
+export { prepareChatContext, executeChat, type PreparedContext } from "./chat.js";
+export { executionMode, getConstitutionForMode, injectConstitution } from "./execution.js";
+export { getConsciousness } from "./consciousness.js";
+export { router, type ChatMessage, type ChatStreamEvent, type SmartAssignmentResponse, toolPool, getTokenTracker, findModelsForRole, PROVIDER_CONFIG, type TaskRole, } from "./router.js";
+```
+
+The circular pairs are explicitly listed in the architecture test exemptions:
+
+```typescript
+// tests/architecture-integrity.test.ts:363-371
+const KNOWN_CIRCULAR_PAIRS = new Set<string>([
+  "agents <-> services",
+  "core <-> routes",
+  "db <-> memory",
+  "eval <-> router",
+  "memory <-> services",
+  "pi-agent <-> router",
+  "router <-> services",
+]);
+```
+
+### 5.3 Why `getConfig()` Was Merged into `config-center.ts`
+
+The legacy `utils/config.ts` was merged into `src/core/config-center.ts` to create a single configuration entry point. The `getConfig()` function at line 574 reads from the `ConfigCenter` singleton:
+
+```typescript
+// src/core/config-center.ts:574-596
+export function getConfig(): AppConfig {
+  const cc = getConfigCenter();
+  return {
+    gateway: {
+      port: cc.getNumber("gateway.port"),
+      bind: cc.getString("gateway.bind"),
+      auth: { token: cc.getString("gateway.auth_token") || undefined },
+    },
+    models: (cc.getYamlData()?.models ?? []) as ModelConfig[],
+    memory: {
+      vaultPath: cc.getString("memory.vault_path"),
+      obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,
+      obsidianApiToken: process.env.OBSIDIAN_API_TOKEN || "",
+      databasePath: cc.getString("memory.database_path"),
+    },
+    crawler: {
+      searchApi: process.env.CRAWLER_SEARCH_API || "multi-engine",
+      serpapiKey: cc.getString("crawler.serpapi_key"),
+      maxConcurrent: cc.getNumber("crawler.max_concurrent") || 3,
+      requestDelay: Number(process.env.CRAWLER_REQUEST_DELAY) || 1000,
+    },
+  };
+}
+```
+
+The merge eliminated duplicate env-var reading logic and ensured all configuration flows through the priority chain: Runtime Override > ENV > YAML > Default.
+
+### 5.4 Why `createDefaultMentalModelPool` Was Inlined
+
+Previously, multiple factory functions created `MentalModelPool` instances with different configurations. After refactoring, there is a single `new MentalModelPool()` call at `src/dre/engine.ts:123`:
+
+```typescript
+// src/dre/engine.ts:123
+this.mentalModels = new MentalModelPool();
+```
+
+All variants were consolidated because the pool is always initialized with the same defaults. The exported type at `src/dre/index.ts:31` remains:
+
+```typescript
+export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, type Simulation, type SimulationStep } from "./mental-model/pool.js";
+```
+
+### 5.5 Why EventBus Uses O(1) Ring Buffer
+
+The `EventBusImpl` at `src/dre/runtime/event-bus.ts:42` uses a ring buffer for the event log instead of an unbounded array:
+
+```typescript
+// src/dre/runtime/event-bus.ts:62-69
+this.stats.published++;
+if (this.eventLog.length < this.maxLogSize) {
+  this.eventLog.push(fullEvent);
+} else {
+  this.eventLog[this.eventLogIndex] = fullEvent;
+}
+this.eventLogIndex = (this.eventLogIndex + 1) % this.maxLogSize;
+```
+
+The `getRecentEvents()` method reads from the ring buffer with modular arithmetic:
+
+```typescript
+// src/dre/runtime/event-bus.ts:123-135
+getRecentEvents(count = 20): RuntimeEvent[] {
+  const len = this.eventLog.length;
+  if (len === 0) return [];
+  if (len < this.maxLogSize) {
+    return this.eventLog.slice(-count);
+  }
+  const take = Math.min(count, len);
+  const start = (this.eventLogIndex - take + this.maxLogSize) % this.maxLogSize;
+  return start === 0
+    ? this.eventLog.slice(0, take)
+    : this.eventLog.slice(start, len).concat(this.eventLog.slice(0, start));
+}
+```
+
+This improved 100k publish from 77ms to 29ms (a 2.65x speedup) by eliminating the O(n) `shift()` on the event log array.
+
+---
+
+## Section 6: Test Architecture
+
+### 6.1 Architecture Integrity Tests (22 Checks)
+
+Defined at `tests/architecture-integrity.test.ts:134`, these run via `bun run test:arch`. They enforce:
+
+**Layer constraints** (test 1, line 136): utils/ must not import from higher layers:
+
+```typescript
+// tests/architecture-integrity.test.ts:136-158
+it("src/utils/ must not import from higher layers", () => {
+  const re = /(?:from\s+['"]|import\s*\(\s*['"])\.\.\/(memory|router|agents|mcp|dre|routes|services)\//;
+  const violations: string[] = [];
+  const files = getTsFiles(path.join(srcDir, "utils"));
+  for (const file of files) {
+    const content = fs.readFileSync(file, "utf-8");
+    const relative = path.relative(srcDir, file).replace(/\\/g, "/");
+    const lines = content.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (re.test(lines[i])) violations.push(`${relative}:${i + 1}: ${lines[i].trim()}`);
+    }
+  }
+  expect(violations).toHaveLength(0);
+});
+```
+
+**process.env whitelist** (test 2, line 161): only 9 whitelisted files may read env vars directly:
+
+```typescript
+// tests/architecture-integrity.test.ts:123-132
+const ENV_WHITELIST = new Set([
+  "utils/env.ts", "core/config-center.ts", "utils/logger.ts",
+  "utils/proxy-fetch.ts", "utils/api-key-store.ts",
+  "memory/vault-manager.ts", "main.ts", "router/models/providers.ts",
+]);
+```
+
+**Code quality** checks include: `as any` ≤ 25 total (test 3, line 190), `@ts-expect-error` ≤ 1 (test 4, line 205), no `console.log/error` outside whitelist (test 16, line 407), `: any` annotations ≤ 90 (test 17, line 428), descriptive `throw` messages ≥ 10 chars (test 18, line 447), exported functions in `utils/` must have return types (test 19, line 475):
+
+```typescript
+// tests/architecture-integrity.test.ts:474-487
+it("all exported functions in utils/ must have return type annotations", () => {
+  const files = walkDir(path.join(srcDir, "utils"));
+  const violations: string[] = [];
+  for (const file of files) {
+    const rel = path.relative(srcDir, file).replace(/\\/g, "/");
+    const content = fs.readFileSync(file, "utf-8");
+    for (const name of exportedFunctionsWithoutReturnType(content)) {
+      violations.push(`${rel}: ${name}`);
+    }
+  }
+  expect(violations).toHaveLength(0);
+});
+```
+
+### 6.2 Performance Benchmarks (32 Benchmarks)
+
+Defined at `tests/perf-benchmark.test.ts`, these include extreme benchmarks that must sustain 200% of normal load:
+
+```typescript
+// tests/perf-benchmark.test.ts:305-315 — Cache 100k set+get < 200ms
+it("[perf-extreme] Cache 100k set+get < 200ms", () => {
+  const { Cache } = require("../src/utils/cache.js");
+  const cache = new Cache({ maxSize: 200000, defaultTtlMs: 60000, redis: false, persistent: false });
+  const avg = bench("cache100k-set+get", () => {
+    cache.set("ek", "ev");
+    cache.getSync("ek");
+  }, 100000);
+  cache.destroy();
+  expect(avg).toBeLessThan(0.002);
+});
+
+// tests/perf-benchmark.test.ts:329-344 — Concurrent getOrSet factory once
+it("[perf-extreme] Cache concurrent getOrSet 1000 → factory exactly once", async () => {
+  const { Cache } = require("../src/utils/cache.js");
+  const cache = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false, persistent: false });
+  let factoryCalls = 0;
+  const results = await Promise.all(
+    Array.from({ length: 1000 }, () =>
+      cache.getOrSet("shared-key", async () => { factoryCalls++; return "computed"; }, 60000),
+    ),
+  );
+  expect(factoryCalls).toBe(1);
+  expect(results.every((r) => r === "computed")).toBe(true);
+});
+```
+
+```typescript
+// tests/perf-benchmark.test.ts:346-361 — Memory ceiling: 1M writes → maxSize=10000
+it("[perf-extreme] Cache memory ceiling: 1M entries, maxSize=10000", () => {
+  const { Cache } = require("../src/utils/cache.js");
+  const cache = new Cache({ maxSize: 10000, defaultTtlMs: 60000, redis: false, persistent: false });
+  for (let i = 0; i < 1_000_000; i++) {
+    cache.set(`k-${i}`, i);
+  }
+  expect(cache.stats().size).toBeLessThanOrEqual(10000);
+});
+```
+
+### 6.3 Property-Based Tests (46 Invariants)
+
+The PBT suite at `tests/property-based.test.ts` covers 6 modules with invariants:
+
+**Cache (11 invariants, lines 13-108):**
+```typescript
+// tests/property-based.test.ts:14-21 — INV1: set→get returns same value
+it("INV1: set->get returns same value", async () => {
+  const { Cache } = await import("../src/utils/cache.js");
+  const c = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false });
+  for (let i = 0; i < 1000; i++) {
+    c.set(`k${i}`, { index: i, data: randStr(20) });
+    expect((c.getSync(`k${i}`) as any).index).toBe(i);
+  }
+});
+```
+
+**HttpRouter (3 invariants, lines 269-299):**
+```typescript
+// tests/property-based.test.ts:270-277 — INV1: 1000 random routes
+it("INV1: match registered route for 1000 random routes", () => {
+  // ...statistical sampling of route matching correctness
+});
+```
+
+**Vault (13 invariants, lines 296-367):**
+```typescript
+// tests/property-based.test.ts:296-307 — Atomic note round-trip
+it("INV7: atomic note round trip", async () => {
+  const { MockVaultManager } = await import("./helpers/vault-mock.js");
+  const vault = new MockVaultManager();
+  const path = await vault.writeAtomicNote("My Atomic Idea", "core insight here", { tags: ["atomic"] });
+  const note = vault.readNote(path);
+  expect(note).not.toBeNull();
+  expect(note!.content).toContain("My Atomic Idea");
+  expect(note!.content).toContain("core insight here");
+});
+```
+
+### 6.4 SOAK Test (5000 Iterations)
+
+The SOAK test at `tests/property-based.test.ts:427` exercises Cache + HttpRouter + ThompsonRouter in a single 5000-iteration loop:
+
+```typescript
+// tests/property-based.test.ts:427-450
+describe("SOAK", () => {
+  it("Cache+Router+TS 5000 iterations", async () => {
+    const [mC, mR, mT] = await Promise.all([
+      import("../src/utils/cache.js"),
+      import("../src/core/http-router.js"),
+      import("../src/router/thompson-router.js"),
+    ]);
+    const cache = new mC.Cache({ maxSize: 100, defaultTtlMs: 60000, redis: false });
+    const router = new mR.HttpRouter({ redis: false } as any);
+    const ts = mT.createThompsonRouter({
+      arms: Array.from({length:5},(_,i)=>({id:`a${i}`,model:`m${i}`,provider:"p",alpha:10-i,beta:1+i,metadata:{}})),
+      minSamples: 3, inMemory: true,
+    });
+    for (let i = 0; i < 10; i++) router.register({ method: "GET", path: `/e/${i}`, handler: async () => new Response("ok") });
+
+    const t0 = performance.now();
+    for (let it = 0; it < 5000; it++) {
+      cache.set(`s${rand(50)}`, { it });
+      if (it % 2 === 0) cache.getSync(`s${rand(50)}`);
+      if (it % 5 === 0) {
+        const ctx: any = { url: new URL(`http://h/e/${rand(10)}`), req: new Request(`http://h/e/${rand(10)}`), vault: null, db: null, pipeline: null, healthMonitor: null, fileWatcher: null, startupTime: 0, baseHeaders: {}, jsonResponse: (d: any) => d };
+        await router.execute(ctx).catch(() => null);
+      }
+      if (it % 3 === 0) {
+        const d = await ts.route({ taskType: ["chat","code","math"][rand(3)], inputLength: rand(1000) });
+        ts.reportFeedback(d.arm.id, rand(5) !== 0);
+      }
+    }
+    console.log(`  5000 iter: ${(performance.now()-t0).toFixed(0)}ms`);
+  }, 60000);
+});
+```
+
+### 6.5 MockVaultManager — Isolated Testing
+
+`tests/helpers/vault-mock.ts` provides a lightweight in-memory mock that replaces the file-system-backed `VaultManager`:
+
+```typescript
+// tests/helpers/vault-mock.ts:9-117
+export class MockVaultManager {
+  public calls: MockCallRecord[] = [];
+  public notes = new Map<string, VaultNote>();
+
+  search(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string }): SearchResult[] {
+    this.calls.push({ method: "search", args: [query, opts], timestamp: Date.now() });
+    const results: SearchResult[] = [];
+    for (const [path, note] of this.notes) {
+      if (results.length >= (opts?.limit ?? 10)) break;
+      if (note.content.includes(query) || note.title.includes(query)) {
+        results.push({ note, score: 1, reasons: ["mock-match"], excerpt: note.content.slice(0, 100) });
+      }
+    }
+    return results;
+  }
+
+  async writeNote(path: string, content: string, opts?: Record<string, unknown>): Promise<string> {
+    this.calls.push({ method: "writeNote", args: [path, content, opts], timestamp: Date.now() });
+    this.notes.set(path, this.makeNote(path, content));
+    return path;
+  }
+
+  readNote(path: string): { content: string; frontmatter: Record<string, unknown> } | null {
+    this.calls.push({ method: "readNote", args: [path], timestamp: Date.now() });
+    const note = this.notes.get(path);
+    return note ? { content: note.content, frontmatter: note.frontmatter } : null;
+  }
+
+  reset(): void { this.calls = []; this.notes.clear(); }
+  callCount(method: string): number { return this.calls.filter(c => c.method === method).length; }
+}
+```
+
+The mock tracks all calls (enabling `callCount` assertions) while avoiding filesystem I/O. Performance benchmarks use it for vault operations — 10k mock writes complete in ~17ms vs 200ms+ for real filesystem operations.
+
+---
+
+## Summary
+
+| Path | Lines | Key Pattern |
+|------|-------|-------------|
+| `src/main.ts` | 576 | `Bun.serve()` entry, Trie router, auth gate |
+| `src/core/http-router.ts` | 369 | O(1) Trie matching, cache, perf reporting |
+| `src/routes/index.ts` | 416 | `registerTrieRoutes()`, handler imports |
+| `src/memory/vault-manager.ts` | 761 | Deterministic vault, FTS5+fallback search |
+| `src/mcp/server.ts` | 462 | Dual transport, 15 domain registrations |
+| `src/mcp/tool-registry.ts` | 103 | `ToolDef` + `ToolRegistry` abstraction |
+| `src/dre/runtime/event-bus.ts` | 144 | O(1) ring buffer, priority dispatch |
+| `src/memory/memory-gate.ts` | 331 | Significance scoring, null guard |
+| `src/memory/conformal-retriever.ts` | 456 | NaN clamp, binary-search p-value |
+| `tests/architecture-integrity.test.ts` | 543 | 22 checks, layer/code-quality/perf |
+| `tests/perf-benchmark.test.ts` | 557 | 32 benchmarks, extreme (200%) |
+| `tests/property-based.test.ts` | 451 | 46 invariants, 5000 SOAK |
