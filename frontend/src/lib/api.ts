@@ -361,6 +361,7 @@ api.responseInterceptor((data) => {
 })
 
 export const endpoints = {
+  stats: () => api.get('/api/stats'),
   chat: {
     send: (message: string, options: Record<string, unknown> = {}) =>
       api.post('/chat', { message, ...options }),

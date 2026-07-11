@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
+import StatsBar from './StatsBar'
 import HelpModal from '@/components/ui/HelpModal'
 import Toasts from '@/components/ui/Toasts'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
@@ -26,6 +27,7 @@ export default function Layout() {
           </div>
         </main>
 
+        <StatsBar />
         <BottomNav />
       </div>
 

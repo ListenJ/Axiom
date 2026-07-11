@@ -2,7 +2,8 @@
  * Route dispatcher — delegates to route handlers by priority
  */
 import type { RouteContext, RouteHandler } from "./types.js";
-import { handleMetrics, handleDashboard, handleHealth, handleStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
+import { handleMetrics, handleDashboard, handleHealth, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
+import { handleStats } from "./stats.js";
 import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
@@ -57,7 +58,7 @@ const handlers: RouteHandler[] = [
   handleDashboard,
   // Health & system
   handleHealth,
-  handleStats,
+  handleHealthStats,
   handleCacheStats,
   handleEngines,
   handleProxies,
@@ -185,7 +186,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/metrics", handler: handleMetrics },
     { method: "GET", path: "/", handler: handleDashboard },
     { method: "GET", path: "/index.html", handler: handleDashboard },
-    { method: "GET", path: "/stats", handler: handleStats },
+    { method: "GET", path: "/stats", handler: handleHealthStats },
+    { method: "GET", path: "/api/stats", handler: handleStats },
     { method: "GET", path: "/cache/stats", handler: handleCacheStats },
     { method: "GET", path: "/engines", handler: handleEngines },
     { method: "GET", path: "/memory-gate/stats", handler: handleMemoryGateStats },

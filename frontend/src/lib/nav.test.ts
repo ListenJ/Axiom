@@ -7,8 +7,8 @@ describe('NAV_ITEMS', () => {
     expect(paths).toContain('/')
     expect(paths).toContain('/chat')
     expect(paths).toContain('/search')
-    expect(paths).toContain('/plugins')
     expect(paths).toContain('/settings')
+    expect(paths).toContain('/vault')
   })
 
   it('every item has required fields', () => {
@@ -45,9 +45,9 @@ describe('VISIBLE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/chat/search/code/agents entries', () => {
+  it('contains the home/chat/search/code entries', () => {
     const ids = VISIBLE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'chat', 'search', 'code', 'agents']))
+    expect(ids).toEqual(expect.arrayContaining(['home', 'chat', 'search', 'code']))
   })
 
   it('hides internal/backend-only pages', () => {
@@ -67,8 +67,8 @@ describe('MOBILE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/chat/search/code/agents entries', () => {
+  it('contains the home/chat/search/code entries', () => {
     const ids = MOBILE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'chat', 'search', 'code', 'agents']))
+    expect(ids).toEqual(expect.arrayContaining(['home', 'chat', 'search', 'code']))
   })
 })
