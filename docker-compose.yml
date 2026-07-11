@@ -1,46 +1,17 @@
 version: "3.8"
 
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: axiom-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: axiom
-      POSTGRES_USER: axiom
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-axiom_secret}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./src/db/pg-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    ports:
-      - "${PG_PORT:-5432}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U axiom"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-
   axiom-agent:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: axiom-agent
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     ports:
       - "${AXIOM_GATEWAY_PORT:-18789}:18789"
       - "3001:3001"
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=postgresql://axiom:${PG_PASSWORD:-axiom_secret}@postgres:5432/axiom
     volumes:
       - ./data:/app/data
       - ./axiom-memory:/app/axiom-memory
@@ -74,6 +45,3 @@ services:
       - "9222:9222"
     restart: unless-stopped
     mem_limit: 256M
-
-volumes:
-  pgdata:
