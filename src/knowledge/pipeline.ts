@@ -108,7 +108,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
         const detailLines = repos.map((r) =>
           `## [${r.fullName}](${r.url})\n- **Description:** ${r.description}\n- **Language:** ${r.language ?? "-"}\n- **Stars:** ${r.stars || "?"} | **Today:** ${r.starsToday}\n- **Topics:** ${r.topics.join(", ") || "-"}\n`
         ).join("\n")
-        await vault.writeNote(`00-Knowledge/GitHub/trending/${new Date().toISOString().slice(0, 10)}.md`, content + detailLines)
+        await vault.writeNote(`00-Knowledge/GitHub/trending/${new Date().toISOString().slice(0, 10)}.md`, content + detailLines, { overwrite: true })
         result.githubReposCollected = repos.length
         result.notesWritten++
       }
@@ -136,7 +136,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
             "",
           ].join("\n")
           const safeTopic = topic.replace(/[^\w-]/g, "-").toLowerCase()
-          await vault.writeNote(`00-Knowledge/Books/${safeTopic}.md`, content)
+          await vault.writeNote(`00-Knowledge/Books/${safeTopic}.md`, content, { overwrite: true })
           result.booksDiscovered += books.length
           result.notesWritten++
 
