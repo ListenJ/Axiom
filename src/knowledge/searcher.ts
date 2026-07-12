@@ -76,19 +76,63 @@ const KNOWN_RESOURCES: Record<string, CuratedSource[]> = {
   ],
 }
 
+const SUBDOMAIN_QUERIES: Record<string, string[]> = {
+  "advanced-math": ["real analysis", "complex analysis", "abstract algebra"],
+  probability: ["probability theory", "statistics", "bayesian inference"],
+  "linear-algebra": ["linear algebra", "matrix theory", "vector spaces"],
+  os: ["operating systems", "OS kernel", "process scheduling"],
+  "comp-arch": ["computer architecture", "CPU design", "memory hierarchy"],
+  networking: ["computer networks", "TCP/IP", "network protocols"],
+  compilers: ["compiler design", "parsing", "code generation"],
+  "gpu-programming": ["GPU programming", "CUDA", "parallel computing"],
+  "data-structures": ["data structures", "algorithms", "complexity analysis"],
+  ethics: ["ethics", "moral philosophy"],
+  logic: ["logic", "philosophical logic"],
+  epistemology: ["epistemology", "theory of knowledge"],
+  metaphysics: ["metaphysics", "ontology", "causation"],
+}
+
 export async function searchDomain(
-  domain: string,   // ignored — we search by subdomain key
+  domain: string,
   subdomain: string,
-  _maxResults = 10,
+  maxResults = 10,
 ): Promise<{ link: string; title: string; snippet: string }[]> {
+  const { searchAggregator } = await import("../crawl/search-engines.js")
   const resources = KNOWN_RESOURCES[subdomain]
   if (!resources || resources.length === 0) {
     logger.warn(`[KnowledgeSearcher] No known resources for: ${subdomain}`)
     return []
   }
 
-  logger.info(`[KnowledgeSearcher] Found ${resources.length} curated sources for ${subdomain}`)
-  return resources.map((r) => ({
+  // Try live web search first, fall back to curated sources
+  const queries = SUBDOMAIN_QUERIES[subdomain] ?? []
+  const searchResults: typeof resources = []
+  const seenUrls = new Set<string>()
+
+  for (const q of queries.slice(0, 2)) {
+    try {
+      const results = await searchAggregator.searchMulti({ query: q + " textbook " + domain, num: 5 }, ["duckduckgo"])
+      for (const r of results) {
+        if (r.link && !seenUrls.has(r.link)) {
+          seenUrls.add(r.link)
+          searchResults.push({ name: r.title, url: r.link, quality: 0.6, type: "paper" })
+        }
+      }
+    } catch { /* ignore search failures */ }
+  }
+
+  // Add curated sources that weren't already found
+  for (const r of resources) {
+    if (!seenUrls.has(r.url)) {
+      searchResults.push(r)
+    }
+  }
+
+  logger.info(`[KnowledgeSearcher] ${searchResults.length} sources for ${subdomain} (${searchResults.length - resources.length} from web)`)
+
+  // Return web results first (more specific), then curated
+  const sorted = searchResults.sort((a, b) => b.quality - a.quality)
+  return sorted.slice(0, maxResults).map((r) => ({
     link: r.url,
     title: r.name,
     snippet: `${r.type} (quality: ${r.quality})`,
