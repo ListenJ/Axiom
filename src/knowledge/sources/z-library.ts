@@ -107,12 +107,12 @@ export async function discoverBooks(query: string, opts?: { sources?: BookInfo["
   return results.sort((a, b) => b.quality - a.quality)
 }
 
-export function getPdfUrl(book: BookInfo): string | null {
+export function getPdfUrl(book: BookInfo): string {
   switch (book.source) {
     case "gutenberg":
-      return book.url.replace(/\/ebooks\//, "/ebooks/").replace(/$/, ".pdf") || null
+      return book.url.replace(/\/ebooks\//, "/ebooks/").replace(/$/, ".pdf")
     case "arxiv":
-      return book.url.replace("/abs/", "/pdf/") + ".pdf"
+      return book.url.replace("/abs/", "/pdf/")
     default:
       return book.url
   }

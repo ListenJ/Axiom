@@ -10,7 +10,7 @@ describe("getPdfUrl", () => {
 
   it("converts arxiv abs URL to PDF", () => {
     const book: BookInfo = { title: "Paper", author: "Author", url: "https://arxiv.org/abs/2401.12345", source: "arxiv", quality: 0.7 }
-    expect(getPdfUrl(book)).toBe("https://arxiv.org/pdf/2401.12345.pdf")
+    expect(getPdfUrl(book)).toBe("https://arxiv.org/pdf/2401.12345")
   })
 
   it("returns url as-is for unknown sources", () => {
