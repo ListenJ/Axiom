@@ -63,7 +63,7 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                     "metadata": {"url": url, "size_bytes": len(resp.content)},
                 }
 
-            elif task_type == "pdf:convert":
+            elif task_type == "pdf:convert" or task_type == "pdf:text":
                 url = payload["url"]
                 proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
                 dest_dir = CACHE_DIR / task_id
@@ -77,28 +77,42 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                     pdf_path.write_bytes(resp.content)
                 tasks[task_id]["progress"] = 0.3
 
-                output_dir = dest_dir / "mineru_output"
-                output_dir.mkdir(exist_ok=True)
-                cmd = f"mineru --cpu=true --pdf {pdf_path} --output-dir {output_dir}"
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    raise RuntimeError(f"MinerU failed (exit={proc.returncode}): {stderr.decode()[:500]}")
-
-                tasks[task_id]["progress"] = 0.7
-
-                md_files = list(output_dir.glob("**/*.md"))
                 markdown = ""
-                for mf in md_files[:1]:
-                    markdown = mf.read_text(encoding="utf-8")
-
-                tasks[task_id]["result"] = {
-                    "markdown": markdown,
-                    "metadata": {"url": url, "pages": len(md_files)},
-                    "file_path": str(output_dir),
-                }
+                try:
+                    import fitz
+                    doc = fitz.open(pdf_path)
+                    pages = []
+                    for page_num in range(len(doc)):
+                        page = doc[page_num]
+                        text = page.get_text()
+                        pages.append(f"## Page {page_num + 1}\n\n{text}")
+                    markdown = "\n\n".join(pages)
+                    doc.close()
+                    tasks[task_id]["progress"] = 0.7
+                    tasks[task_id]["result"] = {
+                        "markdown": markdown,
+                        "metadata": {"url": url, "pages": len(pages)},
+                        "file_path": str(pdf_path),
+                    }
+                except ImportError:
+                    output_dir = dest_dir / "mineru_output"
+                    output_dir.mkdir(exist_ok=True)
+                    cmd = f"mineru --cpu=true --pdf {pdf_path} --output-dir {output_dir}"
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+                    if proc.returncode != 0:
+                        raise RuntimeError(f"MinerU failed (exit={proc.returncode}): {stderr.decode()[:500]}")
+                    tasks[task_id]["progress"] = 0.7
+                    md_files = list(output_dir.glob("**/*.md"))
+                    for mf in md_files[:1]:
+                        markdown = mf.read_text(encoding="utf-8")
+                    tasks[task_id]["result"] = {
+                        "markdown": markdown,
+                        "metadata": {"url": url, "pages": len(md_files)},
+                        "file_path": str(output_dir),
+                    }
 
             tasks[task_id]["status"] = "completed"
             tasks[task_id]["progress"] = 1.0
