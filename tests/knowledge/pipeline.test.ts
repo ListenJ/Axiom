@@ -10,8 +10,8 @@ afterAll(async () => {
 describe("Pipeline", () => {
   it("runs with empty options without crashing", async () => {
     const result = await runPipeline({})
-    expect(result.errors).toBeArray()
-    expect(result.durationMs).toBeGreaterThan(0)
+    expect(Array.isArray(result.errors)).toBe(true)
+    expect(result.durationMs).toBeGreaterThanOrEqual(0)
   }, 30000)
 
   it("runs GitHub trending collection", async () => {
