@@ -1,5 +1,3 @@
-import { logger } from "../utils/logger.js"
-
 export interface WorkerResponse<T = unknown> {
   task_id: string
   status: "queued" | "running" | "completed" | "failed"
@@ -39,7 +37,7 @@ export function createPdfWorkerClient(baseUrl: string): PdfWorkerClient {
 
   async function getStatus(taskId: string): Promise<WorkerResponse> {
     const res = await fetch(`${baseUrl}/v1/status/${taskId}`)
-    if (!res.ok) throw new Error(`PDF Worker status failed: ${res.status}`)
+    if (!res.ok) throw new Error(`PDF Worker status failed: ${res.status} ${await res.text().catch(() => "")}`)
     return res.json() as Promise<WorkerResponse>
   }
 
