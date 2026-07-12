@@ -49,8 +49,11 @@ export async function fetchGitHubTrending(language = "", since = "daily"): Promi
     const langMatch = /<span[^>]*itemprop="programmingLanguage"[^>]*>([\s\S]*?)<\/span>/.exec(block)
     const language = langMatch ? langMatch[1].trim() : null
 
-    const starMatch = /<span[^>]*class="d-inline-block float-sm-right"[^>]*>([\s\S]*?)<\/span>/.exec(block)
+    const starMatch = /<span[^>]*class="d-inline-block float-sm-right"[^>]*>[\s\S]*?<\/svg>([\s\S]*?)<\/span>/.exec(block)
     const starsToday = starMatch ? parseInt(starMatch[1].replace(/[^0-9]/g, ""), 10) || 0 : 0
+
+    const totalStarsMatch = /href="\/[^/]+\/[^/]+\/stargazers"[^>]*>[\s\S]*?<\/svg>([^<]+?)<\//.exec(block)
+    const totalStars = totalStarsMatch ? parseInt(totalStarsMatch[1].replace(/[^0-9]/g, ""), 10) || 0 : 0
 
     repos.push({
       name: repoName ?? fullName,
@@ -58,7 +61,7 @@ export async function fetchGitHubTrending(language = "", since = "daily"): Promi
       url: `https://github.com/${fullName}`,
       description,
       language,
-      stars: 0,
+      stars: totalStars,
       forks: 0,
       starsToday,
       topics: [],
@@ -137,7 +140,7 @@ export async function discoverGitHubRepos(opts?: {
       all.push(repo)
     }
   }
-  return all.sort((a, b) => (b.stars || b.starsToday) - (a.stars || a.starsToday))
+  return all.sort((a, b) => b.stars - a.stars || b.starsToday - a.starsToday)
 }
 
 /**
@@ -150,7 +153,7 @@ export function formatTrendingTable(repos: TrendingRepo[]): string {
   ]
   repos.slice(0, 50).forEach((r, i) => {
     const desc = r.description.replace(/\|/g, "-").slice(0, 60)
-    lines.push(`| ${i + 1} | [${r.fullName}](${r.url}) | ${desc} | ${r.language ?? "-"} | ${r.stars ?? "?"} | ${r.starsToday || "-"} |`)
+    lines.push(`| ${i + 1} | [${r.fullName}](${r.url}) | ${desc} | ${r.language ?? "-"} | ${r.stars || "?"} | ${r.starsToday || "-"} |`)
   })
   return lines.join("\n")
 }
