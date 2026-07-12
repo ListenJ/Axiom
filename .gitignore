@@ -130,3 +130,6 @@ ai-daily-*.md
 .tmp-tool-test/
 .tmp-*
 *.tmp
+
+# SDD progress
+.superpowers/
