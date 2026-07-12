@@ -2,6 +2,7 @@ import { logger } from "../utils/logger.js"
 import { discoverGitHubRepos, formatTrendingTable } from "./sources/github-trending.js"
 import { discoverBooks, getPdfUrl } from "./sources/z-library.js"
 import { getGlobalVault } from "../memory/vault-manager.js"
+import { getKnowledgeStore } from "./store.js"
 
 const ZHIPU_API_BASE = "https://open.bigmodel.cn/api/paas/v4"
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
