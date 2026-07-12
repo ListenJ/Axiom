@@ -1,5 +1,6 @@
 import { getKnowledgeStore } from "../../knowledge/store.js";
 import { collectKnowledge } from "../../knowledge/collector.js";
+import { runPipeline } from "../../knowledge/pipeline.js";
 
 export async function handleKnowledgeCollect(args: string[]) {
   const domain = args.find((a) => a.startsWith("--domain="))?.slice(9);
@@ -56,5 +57,33 @@ export async function handleKnowledgeStats() {
     for (const [domain, count] of Object.entries(stats.byDomain)) {
       console.log(`  ${domain.padEnd(20)} ${count}`);
     }
+  }
+}
+
+export async function handleKnowledgePipeline(args: string[]): Promise<void> {
+  const flags: Record<string, string> = {}
+  for (const arg of args) {
+    if (arg.startsWith("--")) {
+      const [k, v] = arg.slice(2).split("=")
+      flags[k] = v ?? "true"
+    }
+  }
+
+  const result = await runPipeline({
+    githubTrending: flags["github"] === "true",
+    bookTopics: flags["topics"] ? flags["topics"].split(",") : undefined,
+    pdfWorkerUrl: flags["pdf-worker"] || undefined,
+    convertPdf: flags["convert"] === "true",
+  })
+
+  console.log(`\nPipeline Results:`)
+  console.log(`  GitHub repos:  ${result.githubReposCollected}`)
+  console.log(`  Books:         ${result.booksDiscovered}`)
+  console.log(`  PDFs converted: ${result.pdfsConverted}`)
+  console.log(`  Notes written: ${result.notesWritten}`)
+  console.log(`  Duration:      ${(result.durationMs / 1000).toFixed(1)}s`)
+  if (result.errors.length > 0) {
+    console.log(`  Errors:        ${result.errors.length}`)
+    for (const e of result.errors) console.log(`    - ${e}`)
   }
 }

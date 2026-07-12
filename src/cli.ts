@@ -61,6 +61,7 @@ import {
 } from "./cli/commands/index.js";
 import {
   handleKnowledgeCollect,
+  handleKnowledgePipeline,
   handleKnowledgeStats,
 } from "./cli/commands/knowledge.js";
 
@@ -1057,6 +1058,11 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async () => { await handleKnowledgeStats(); },
   },
 
+  "knowledge:pipeline": {
+    desc: "运行完整知识采集管道 (knowledge:pipeline --github --topics=ml,algorithms --pdf-worker=http://192.168.2.11:8000)",
+    run: async (args) => { await handleKnowledgePipeline(args); },
+  },
+
   "eval:eval": {
     desc: "运行模型评估 (eval:eval [--full] [--models=a,b] [--benchmarks])",
     run: async (args) => { await handleEvalCommands(["eval", ...args]); },
@@ -1209,6 +1215,7 @@ const subcommands: Record<string, Record<string, { desc: string; run: (args: str
   knowledge: {
     collect: commands["knowledge:collect"],
     stats: commands["knowledge:stats"],
+    pipeline: commands["knowledge:pipeline"],
   },
   cg: {
     init: commands["cg:init"],
