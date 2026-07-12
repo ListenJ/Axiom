@@ -150,7 +150,7 @@ export function formatTrendingTable(repos: TrendingRepo[]): string {
   ]
   repos.slice(0, 50).forEach((r, i) => {
     const desc = r.description.replace(/\|/g, "-").slice(0, 60)
-    lines.push(`| ${i + 1} | [${r.fullName}](${r.url}) | ${desc} | ${r.language ?? "-"} | ${r.stars || "?"} | ${r.starsToday || "-"} |`)
+    lines.push(`| ${i + 1} | [${r.fullName}](${r.url}) | ${desc} | ${r.language ?? "-"} | ${r.stars ?? "?"} | ${r.starsToday || "-"} |`)
   })
   return lines.join("\n")
 }
