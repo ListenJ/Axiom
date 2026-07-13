@@ -284,7 +284,17 @@ export class MentalModelPool {
     if (!model) return null;
 
     const steps: SimulationStep[] = [];
-    const state = { ...initialState };
+    // Deep-copy initialState so mutations during simulation (Object.assign,
+    // direct key assignments) don't leak back to the caller. A shallow copy
+    // would share nested object/array references, mutating the caller's state.
+    let state: Record<string, unknown>;
+    try {
+      state = structuredClone(initialState);
+    } catch {
+      // Fallback for non-cloneable values (functions, etc.) — shallow copy
+      // is still better than mutating the caller's object directly.
+      state = { ...initialState };
+    }
 
     // 应用规则模拟状态转换
     for (const rule of model.rules) {

@@ -111,9 +111,15 @@ export class DataUnifier {
       }
     }
 
-    // 3. 可选自动持久化
+    // 3. 可选自动持久化 — persist only the newly written atom (O(1)), not the
+    // entire store. The old code called atomStore.persist(this.db) on every
+    // write, which re-upserted all N atoms each time — O(N²) over N writes.
     if (this.autoPersist && this.db) {
-      atomStore.persist(this.db);
+      try {
+        atomStore.persistOne(this.db, atom);
+      } catch (err) {
+        logger.warn("[DataUnifier] persistOne failed", { error: (err as Error).message });
+      }
     }
 
     return { atom, knowledgeNode };

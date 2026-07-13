@@ -308,7 +308,10 @@ export class ReflectionQueue {
     if (outputs.length < 3) return { triggered: false, issues: [], lessons: [] };
 
     const uniqueOutputs = new Set(outputs);
-    const inconsistent = uniqueOutputs.size < outputs.length * 0.7;
+    // Trigger when more than 70% of outputs are unique (diverse) — this indicates
+    // non-determinism / hallucination. The previous `<` was inverted: it fired when
+    // outputs were SIMILAR (few unique), the opposite of "inconsistency".
+    const inconsistent = uniqueOutputs.size > outputs.length * 0.7;
     if (inconsistent) {
       return {
         triggered: true,
@@ -374,6 +377,7 @@ export class ConsciousnessStream extends EventEmitter {
   readonly reflectionQueue: ReflectionQueue;
 
   private trace: TraceEntry[] = [];
+  private readonly maxTraceLength: number;
   private stepCounter: number = 0;
   private lastReflectionAt: number = 0;
   private reflectionCount: number = 0;
@@ -381,12 +385,17 @@ export class ConsciousnessStream extends EventEmitter {
   constructor(options?: {
     workingMemoryCapacity?: number;
     episodicTTL?: number;
+    maxTraceLength?: number;
   }) {
     super();
 
     this.workingMemory = new WorkingMemory(options?.workingMemoryCapacity ?? 16);
     this.episodicMemory = new EpisodicMemory(options?.episodicTTL ?? 3600000);
     this.reflectionQueue = new ReflectionQueue();
+    // Cap trace length to prevent unbounded growth in long-running processes.
+    // Reflection triggers only inspect the last 10 entries, so 1000 is ample
+    // headroom for any historical analysis while bounding memory.
+    this.maxTraceLength = options?.maxTraceLength ?? 1000;
   }
 
   /**
@@ -433,6 +442,10 @@ export class ConsciousnessStream extends EventEmitter {
       timestamp: now,
     };
     this.trace.push(traceEntry);
+    // Trim oldest entries to bound memory in long-running processes.
+    if (this.trace.length > this.maxTraceLength) {
+      this.trace.splice(0, this.trace.length - this.maxTraceLength);
+    }
 
     // 5. 反思检查
     const reflectionResult = this.reflectionQueue.shouldReflect(this.trace);

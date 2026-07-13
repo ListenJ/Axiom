@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import * as fsSync from "node:fs";
 import * as path from "node:path";
 
 export interface FileResult {
@@ -43,15 +44,48 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
   try {
     const resolved = path.resolve(targetPath);
     const cwd = process.cwd();
-    // Strict: path must be within cwd (prevent path traversal)
-    // Use path.relative to check if path escapes cwd
     const relative = path.relative(cwd, resolved);
-    if (relative.startsWith("..") || relative === "..") {
+
+    // Check 1: ".."-prefixed relative path means path escapes cwd (standard traversal)
+    // Check 2: absolute relative path means cross-drive on Windows
+    //          (e.g., path.relative("D:\\proj", "C:\\Users") → "C:\\Users")
+    //          This bypasses the ".." check because the result doesn't start with ".."
+    if (relative.startsWith("..") || relative === ".." || path.isAbsolute(relative)) {
       return {
         safe: false,
         error: `Path '${targetPath}' escapes working directory. Only paths within the project are allowed.`,
       };
     }
+
+    // Check 3: resolve symlinks to prevent symlink-based traversal
+    // A symlink within cwd could point outside cwd, bypassing the relative check above.
+    // Only check if the path exists (writeFile to a new file won't exist yet).
+    try {
+      const realPath = fsSync.realpathSync(resolved);
+      const realRelative = path.relative(cwd, realPath);
+      if (realRelative.startsWith("..") || realRelative === ".." || path.isAbsolute(realRelative)) {
+        return {
+          safe: false,
+          error: `Path '${targetPath}' resolves to a location outside the working directory (symlink escape).`,
+        };
+      }
+    } catch {
+      // Path doesn't exist yet (e.g., new file write) — parent directory check
+      const parentDir = path.dirname(resolved);
+      try {
+        const realParent = fsSync.realpathSync(parentDir);
+        const parentRelative = path.relative(cwd, realParent);
+        if (parentRelative.startsWith("..") || parentRelative === ".." || path.isAbsolute(parentRelative)) {
+          return {
+            safe: false,
+            error: `Path '${targetPath}' parent directory resolves outside the working directory.`,
+          };
+        }
+      } catch {
+        // Parent doesn't exist either — allow (mkdir will create it within cwd)
+      }
+    }
+
     return { safe: true };
   } catch {
     return { safe: false, error: "Invalid path" };

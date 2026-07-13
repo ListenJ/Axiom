@@ -104,8 +104,11 @@ export class Kernel {
       const nextTask = scheduler.getNext();
       if (nextTask) {
         try {
-          // 将任务派发给 Actor 系统
-          this.engine.actors.send(
+          // 将任务派发给 Actor 系统 — must await so the task is only marked
+          // complete after the actor has accepted (and processed) the message.
+          // Without await, scheduler.complete() runs before dispatch resolves,
+          // masking actor failures as successes.
+          await this.engine.actors.send(
             "kernel",
             nextTask.assignedTo || "knowledge",
             "request",

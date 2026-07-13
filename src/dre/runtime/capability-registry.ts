@@ -131,10 +131,11 @@ class CapabilityRegistryImpl {
     for (const cap of this.capabilities.values()) {
       if (cap.contract !== contract) continue;
 
-      // Filter by options
-      if (opts?.maxCost && cap.cost > opts.maxCost) continue;
-      if (opts?.maxLatency && cap.latencyMs > opts.maxLatency) continue;
-      if (opts?.minReliability && cap.reliability < opts.minReliability) continue;
+      // Filter by options — use `!== undefined` instead of truthiness so that
+      // maxCost=0 (audit mode: only free capabilities) is respected, not skipped.
+      if (opts?.maxCost !== undefined && cap.cost > opts.maxCost) continue;
+      if (opts?.maxLatency !== undefined && cap.latencyMs > opts.maxLatency) continue;
+      if (opts?.minReliability !== undefined && cap.reliability < opts.minReliability) continue;
 
       // Score: lower cost + lower latency + higher reliability = better
       const costScore = cap.cost === 0 ? 1.0 : Math.max(0, 1 - cap.cost / 0.1);

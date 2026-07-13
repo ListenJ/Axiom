@@ -657,6 +657,8 @@ export class DREngine {
     // 经验写入长期记忆 (需经三段甄别)
     if (result.lessons.length > 0) {
       const lessonContent = result.lessons.join("\n");
+      // writeKnowledge is async; EventEmitter does not await listeners, so attach
+      // a .catch() to prevent an unhandled rejection from crashing the process.
       this.writeKnowledge({
         id: `reflection-${Date.now()}`,
         title: "经验教训",
@@ -664,6 +666,8 @@ export class DREngine {
         domain: "meta",
         paradigm: "rule",
         sourceType: "llm",
+      }).catch((err) => {
+        logger.warn("[DRE] Failed to persist reflection lessons", { error: (err as Error).message });
       });
     }
   }

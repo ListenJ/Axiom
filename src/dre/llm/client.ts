@@ -183,15 +183,19 @@ export class LLMClient {
   private async backoff(attempt: number): Promise<void> {
     const expDelay = this.retryConfig.baseDelayMs * Math.pow(2, attempt);
     const cappedDelay = Math.min(expDelay, this.retryConfig.maxDelayMs);
-    const jitter = Math.random() * cappedDelay * 0.1; // ±10% jitter
+    const jitter = Math.random() * cappedDelay * 0.1; // +0-10% jitter (prevents thundering herd)
     const delay = cappedDelay + jitter;
     await new Promise((r) => setTimeout(r, delay));
   }
 
   /** 判断错误是否可重试 */
   private isRetryableError(err: unknown, statusCode?: number): boolean {
-    if (statusCode !== undefined) {
-      return this.retryConfig.retryableStatusCodes.has(statusCode);
+    // Prefer the explicit argument; fall back to a statusCode property attached
+    // to the error (set in the !response.ok path so the catch block classifies
+    // HTTP errors correctly instead of treating them as retryable network errors).
+    const code = statusCode ?? (err as { statusCode?: number } | null)?.statusCode;
+    if (code !== undefined) {
+      return this.retryConfig.retryableStatusCodes.has(code);
     }
     // 无状态码 = 网络层错误 (连接拒绝/DNS失败/超时/中断)
     // fetch 只在网络层失败时抛异常, HTTP 错误通过 !response.ok 路径处理 (带 statusCode)
@@ -252,6 +256,11 @@ export class LLMClient {
 
         if (!response.ok) {
           const err = new Error(`LLM API error: ${response.status} ${response.statusText}`);
+          // Attach statusCode so the catch block can correctly classify the error.
+          // Without this, isRetryableError(err) without statusCode returns true for
+          // any Error, causing non-retryable 4xx (e.g. 401/403) to be retried and
+          // over-count failures toward the circuit breaker.
+          (err as Error & { statusCode?: number }).statusCode = response.status;
           if (this.isRetryableError(err, response.status) && attempt < maxAttempts - 1) {
             this.stats.retryCount++;
             logger.warn("[LLM] Retryable HTTP error, backing off", {
@@ -461,7 +470,12 @@ export class LLMClient {
 
     // 检查 confidence 范围
     if (properties?.confidence) {
-      const confidence = obj.confidence as number;
+      const confidence = obj.confidence;
+      // Missing or non-number confidence must fail validation.
+      // Without this guard, `undefined < min` is `false` and the check passes.
+      if (typeof confidence !== "number") {
+        return false;
+      }
       const min = properties.confidence.minimum as number ?? 0;
       const max = properties.confidence.maximum as number ?? 1;
       if (confidence < min || confidence > max) {
@@ -471,7 +485,11 @@ export class LLMClient {
 
     // 检查 chain 长度
     if (properties?.chain) {
-      const chain = obj.chain as unknown[];
+      const chain = obj.chain;
+      // Missing or non-array chain must fail validation (not throw TypeError on .length).
+      if (!Array.isArray(chain)) {
+        return false;
+      }
       const minItems = properties.chain.minItems as number ?? 0;
       const maxItems = properties.chain.maxItems as number ?? Infinity;
       if (chain.length < minItems || chain.length > maxItems) {
@@ -480,7 +498,7 @@ export class LLMClient {
     }
 
     // 检查低置信度约束
-    if ((obj.confidence as number) < 0.6 && obj.verdict === "accept") {
+    if (typeof obj.confidence === "number" && obj.confidence < 0.6 && obj.verdict === "accept") {
       return false;
     }
 

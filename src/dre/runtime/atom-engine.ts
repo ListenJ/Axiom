@@ -33,6 +33,11 @@ export type AtomKind =
   | "observation" | "experience" | "belief" | "insight"
   // System atoms
   | "event" | "state" | "constraint" | "relation"
+  // Cognitive/system entity atoms (mirror KnowledgeNetwork.EntityKind so that
+  // KnowledgeNetwork.create() can store entities as atoms without an invalid
+  // cast that would produce atoms with kinds outside this union)
+  | "capability" | "agent" | "tool" | "model"
+  | "behavior" | "prediction" | "hypothesis"
 
 export type AtomConfidence = "certain" | "inferred" | "uncertain" | "hypothetical";
 
@@ -386,6 +391,37 @@ class AtomStoreImpl {
   }
 
   /**
+   * Persist a single atom to SQLite (upsert). O(1) per call — use this in
+   * autoPersist hot paths instead of persist() which re-writes the entire store.
+   */
+  persistOne(db: Database, atom: Atom): void {
+    const stmt = db.prepare(`
+      INSERT INTO atom (id, kind, content, metadata, confidence, source, created_at, updated_at, version, parent_id, children, relations)
+      VALUES ($id, $kind, $content, $metadata, $confidence, $source, $createdAt, $updatedAt, $version, $parentId, $children, $relations)
+      ON CONFLICT(id) DO UPDATE SET
+        content = excluded.content,
+        metadata = excluded.metadata,
+        version = excluded.version,
+        updated_at = excluded.updated_at,
+        relations = excluded.relations
+    `);
+    stmt.run({
+      $id: atom.id,
+      $kind: atom.kind,
+      $content: atom.content,
+      $metadata: JSON.stringify(atom.metadata),
+      $confidence: atom.confidence,
+      $source: atom.source,
+      $createdAt: atom.createdAt,
+      $updatedAt: atom.updatedAt,
+      $version: atom.version,
+      $parentId: atom.parentId ?? null,
+      $children: JSON.stringify(atom.children),
+      $relations: JSON.stringify(atom.relations),
+    });
+  }
+
+  /**
    * Load atoms from SQLite into memory.
    */
   load(db: Database): number {
@@ -398,7 +434,7 @@ class AtomStoreImpl {
     }>;
 
     let loaded = 0;
-    const validKinds = new Set(["function","class","interface","type","variable","statement","expression","entity","fact","rule","concept","procedure","document","section","paragraph","sentence","goal","plan","step","action","observation","experience","belief","insight","event","state","constraint","relation"]);
+    const validKinds = new Set(["function","class","interface","type","variable","statement","expression","entity","fact","rule","concept","procedure","document","section","paragraph","sentence","goal","plan","step","action","observation","experience","belief","insight","event","state","constraint","relation","capability","agent","tool","model","behavior","prediction","hypothesis"]);
     const validConfidences = new Set(["certain","inferred","uncertain","hypothetical"]);
 
     for (const row of rows) {
@@ -418,11 +454,25 @@ class AtomStoreImpl {
         // malformed JSON — leave empty
       }
 
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = JSON.parse(row.metadata) as Record<string, unknown>;
+      } catch {
+        // malformed JSON — use empty object
+      }
+
+      let children: string[] = [];
+      try {
+        children = JSON.parse(row.children) as string[];
+      } catch {
+        // malformed JSON — use empty array
+      }
+
       const atom: Atom = {
         id: row.id,
         kind: row.kind as AtomKind,
         content: row.content,
-        metadata: JSON.parse(row.metadata),
+        metadata,
         relations,
         confidence: row.confidence as AtomConfidence,
         source: row.source,
@@ -430,7 +480,7 @@ class AtomStoreImpl {
         updatedAt: row.updated_at,
         version: row.version,
         parentId: row.parent_id ?? undefined,
-        children: JSON.parse(row.children),
+        children,
       };
       this.atoms.set(atom.id, atom);
       this.addToIndex(this.byKind, atom.kind, atom.id);

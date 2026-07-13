@@ -113,6 +113,8 @@ export class CognitivePipeline {
       return s;
     };
 
+    this.currentGraph = new ReasoningGraph();
+
     try {
       const t1 = performance.now();
       const classification = this.classify(input);
@@ -142,7 +144,7 @@ export class CognitivePipeline {
       const t3 = performance.now();
       const { conclusionNode, gaps, premiseCount } = this.buildReasoning(knowledge, input);
       track("reasoning", `premises=${premiseCount}`, {
-        nodes: this.engine.reasoning.getStats().totalNodes,
+        nodes: this.currentGraph?.getStats().totalNodes ?? 0,
         gaps: gaps.length,
         hasConclusion: conclusionNode !== null,
         confidence: conclusionNode?.confidence ?? 0,
@@ -358,12 +360,16 @@ export class CognitivePipeline {
     // 对每个 gap 单独生成 prompt 调用 LLM，避免粗粒度地把整个上下文丢给 LLM
     const fineGapFillEnabled = readString("DRE_GAP_FILL_FINE") !== "0";
     if (fineGapFillEnabled && deterministic.hasGaps) {
-      const gaps = this.engine.reasoning.detectGaps();
+      const graph = this.currentGraph;
+      if (!graph) {
+        return { ...deterministic, fallbackLevel: "rule", lessons: [...deterministic.lessons, "No reasoning graph available"] };
+      }
+      const gaps = graph.detectGaps();
       if (gaps.length > 0 && gaps.length <= 5) {
         try {
           const fillers: Array<{ gapId: string; response: string; confidence: number }> = [];
           for (const gap of gaps) {
-            const prompt = this.engine.reasoning.generateGapFillingPrompt(gap);
+            const prompt = graph.generateGapFillingPrompt(gap);
             const gapResult = await this.engine.consciousnessStep({ observation: prompt });
             const response = typeof gapResult.decision === "string"
               ? gapResult.decision
@@ -375,12 +381,12 @@ export class CognitivePipeline {
                 : 0.6;
             fillers.push({ gapId: gap.id, response, confidence });
           }
-          this.engine.reasoning.fillGapsBatch(gaps, fillers);
+          graph.fillGapsBatch(gaps, fillers);
           this.stats.gapsFilled += fillers.length;
 
           // 重新检测 gaps，若全部填补或整体置信度达标则提前返回
-          const remainingGaps = this.engine.reasoning.detectGaps();
-          const result = this.engine.reasoning.getResult();
+          const remainingGaps = graph.detectGaps();
+          const result = graph.getResult();
           if (remainingGaps.length === 0 || result.confidence > 0.5) {
             return {
               ...deterministic,
@@ -562,7 +568,7 @@ export class CognitivePipeline {
     knowledge: KnowledgeNode[],
     input: string,
   ): { conclusionNode: ReasoningNode | null; gaps: ReasoningGap[]; premiseCount: number } {
-    const graph = this.engine.reasoning;
+    const graph = this.currentGraph ?? this.engine.reasoning;
 
     const premiseIds: string[] = [];
     for (const node of knowledge) {
