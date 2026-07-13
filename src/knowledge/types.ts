@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 export interface KnowledgeSource {
   id: string;
   title: string;
-  domain: 'philosophy' | 'mathematics' | 'computer-science' | 'dictionary';
+  domain: 'philosophy' | 'mathematics' | 'computer-science' | 'dictionary' | 'physics' | 'books' | 'github' | 'general';
   subdomain: string;
   url: string;
   quality: number;

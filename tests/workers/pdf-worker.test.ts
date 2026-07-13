@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test"
 
 const TEST_PORT = 19899
-let server: import("bun").Server
+let server: import("bun").Server<any>
 
 beforeAll(() => {
   server = Bun.serve({

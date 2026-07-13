@@ -1,11 +1,5 @@
-import { describe, it, expect, afterAll } from "bun:test"
+import { describe, it, expect } from "bun:test"
 import { runPipeline } from "../../src/knowledge/pipeline.js"
-
-afterAll(async () => {
-  const vault = (await import("../../src/memory/vault-manager.js")).getGlobalVault()
-  try { await vault.deleteNote("00-Knowledge/GitHub/trending") } catch {}
-  try { await vault.deleteNote("00-Knowledge/Books") } catch {}
-})
 
 describe("Pipeline", () => {
   it("runs with empty options without crashing", async () => {

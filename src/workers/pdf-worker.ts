@@ -7,7 +7,7 @@ export interface WorkerResponse<T = unknown> {
 }
 
 export interface SubmitPayload {
-  task_type: "pdf:download" | "pdf:convert" | "pdf:text" | "url:fetch"
+  task_type: "pdf:download" | "pdf:convert" | "pdf:text" | "url:fetch" | "embed"
   payload: Record<string, unknown>
 }
 

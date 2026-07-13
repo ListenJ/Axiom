@@ -67,6 +67,52 @@ export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   return null;
 }
 
+export async function handleApiDocs(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/api" && ctx.req.method === "GET") {
+    const { getTokenTracker } = await import("../router/token-tracker.js");
+    const tracker = getTokenTracker();
+    const overallStats = tracker.getOverallStats();
+
+    return ctx.jsonResponse({
+      version: "2.9.0",
+      documentation: {
+        health: "GET /health — System health with module status",
+        metrics: "GET /metrics — Prometheus-format metrics",
+        stats: "GET /stats — Database and cache statistics",
+        config: "GET /config — Current configuration",
+        chat: "POST /chat — Send message (streaming supported via /chat/stream)",
+        search: "GET /search?q=... — Unified search",
+        vault: "GET /vault/stats — Vault statistics",
+        knowledge: "GET /knowledge/pending-review — Pending knowledge reviews",
+        agents: "GET /agents/status — Agent status",
+        eval: "GET /eval/stats — Model evaluation stats",
+        kg: "GET /kg/stats — Knowledge graph stats",
+        ocr: "POST /ocr/scan — OCR document scanning",
+        research: "POST /research/run — Deep research",
+        plugins: "GET /plugins — Plugin list",
+        consciousness: "GET /consciousness/status — Consciousness status",
+        tokenUsage: "GET /memory/usage — Per-model token usage",
+        trends: "GET /stats/trends?days=7 — Usage trends",
+      },
+      tokenStats: {
+        totalTokens: overallStats.totalTokens,
+        totalCalls: overallStats.totalCalls,
+      },
+      endpoints: [
+        "/health", "/metrics", "/stats", "/config", "/api",
+        "/chat", "/chat/stream", "/search", "/web-search",
+        "/vault/stats", "/vault/note", "/vault/atomic",
+        "/kg/stats", "/kg/entities", "/kg/search",
+        "/agents/status", "/eval/stats", "/eval/models",
+        "/ocr/scan", "/research/run", "/plugins",
+        "/consciousness/status", "/memory/usage", "/stats/trends",
+        "/knowledge/pending-review", "/proxies",
+      ],
+    }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
 export async function handleCacheStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/cache/stats" && ctx.req.method === "GET") {
     const { searchCache, crawlCache } = await import("../utils/cache.js");

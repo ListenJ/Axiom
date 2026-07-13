@@ -2,7 +2,7 @@
  * Route dispatcher — delegates to route handlers by priority
  */
 import type { RouteContext, RouteHandler } from "./types.js";
-import { handleMetrics, handleDashboard, handleHealth, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
+import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
 import { handleStats } from "./stats.js";
 import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
@@ -58,6 +58,7 @@ const handlers: RouteHandler[] = [
   handleDashboard,
   // Health & system
   handleHealth,
+  handleApiDocs,
   handleHealthStats,
   handleCacheStats,
   handleEngines,
@@ -183,6 +184,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
   const routes: RouteRecord[] = [
     // Health & system
     { method: "GET", path: "/health", handler: handleHealth },
+    { method: "GET", path: "/api", handler: handleApiDocs },
     { method: "GET", path: "/metrics", handler: handleMetrics },
     { method: "GET", path: "/", handler: handleDashboard },
     { method: "GET", path: "/index.html", handler: handleDashboard },

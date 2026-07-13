@@ -22,7 +22,8 @@ export function createLlmWorkerClient(baseUrl: string) {
 
   async function embed(data: EmbedPayload): Promise<WorkerResponse<EmbedResult>> {
     const resp = await inner.submit({ task_type: "embed", payload: data as unknown as Record<string, unknown> })
-    return inner.waitForCompletion(resp.task_id) as Promise<WorkerResponse<EmbedResult>>
+    const result = await inner.waitForCompletion(resp.task_id)
+    return result as unknown as WorkerResponse<EmbedResult>
   }
 
   return { baseUrl, embed }
