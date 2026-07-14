@@ -277,6 +277,64 @@ a:focus-visible,
   box-shadow: var(--shadow-md);
 }
 
+/* ── Glassmorphism System ──────────────────────────────────────── */
+/* Frosted glass for modals, sidebar, overlays */
+.glass {
+  background: rgba(17, 17, 20, 0.72);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-sm {
+  background: rgba(17, 17, 20, 0.64);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-lg {
+  background: rgba(17, 17, 20, 0.80);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Light mode glass — lighter background */
+[data-theme='light'] .glass {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+[data-theme='light'] .glass-sm {
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+[data-theme='light'] .glass-lg {
+  background: rgba(255, 255, 255, 0.80);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+/* ── Elevation 4 (modal/dialog) ──────────────────────────────── */
+.elevation-4 {
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='light'] .elevation-4 {
+  box-shadow:
+    0 24px 64px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+/* ── Backdrop overlay ──────────────────────────────────────────── */
+.backdrop-glass {
+  background: rgba(0, 0, 0, 0.50);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
 /* ── Apple HIG Elevation System ──────────────────────────────── */
 /* Light from top-left: shadow-bottom-right + subtle top-left glow */
 

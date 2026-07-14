@@ -16,7 +16,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
     'press flex h-10 w-10 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none'
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-secondary)]/80 px-4 backdrop-blur-md">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] glass-sm px-4">
       {/* Left: Menu + Brand */}
       <div className="flex items-center gap-2">
         <button

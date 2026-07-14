@@ -4,7 +4,7 @@ import { MOBILE_NAV_ITEMS } from '@/lib/nav'
 export default function BottomNav() {
   return (
     <nav
-      className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--border)] bg-[var(--bg-secondary)]/95 pb-safe pt-1 backdrop-blur-md lg:hidden"
+      className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--border)] glass-sm pb-safe pt-1 lg:hidden"
       aria-label="底部导航"
     >
       {MOBILE_NAV_ITEMS.map((item) => {

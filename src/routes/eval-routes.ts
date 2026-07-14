@@ -24,10 +24,10 @@ export async function handleEvalStats(ctx: RouteContext): Promise<Response | nul
       const { getModelEvalService } = await import("../eval/model-eval-service.js");
       const service = getModelEvalService();
       const stats = service.getStats();
-      return ctx.jsonResponse({ success: true, data: stats }, 200, ctx.baseHeaders);
+      return ctx.jsonResponse(stats, 200, ctx.baseHeaders);
     } catch (err) {
       logger.error("[EvalRoute] Stats failed", err as Error);
-      return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: (err as Error).message }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -55,15 +55,10 @@ export async function handleEvalResults(ctx: RouteContext): Promise<Response | n
         sinceDays,
       });
 
-      return ctx.jsonResponse({
-        success: true,
-        data: results,
-        query: { provider, minOverall, sortBy, limit, sinceDays },
-        count: results.length,
-      }, 200, ctx.baseHeaders);
+      return ctx.jsonResponse(results, 200, ctx.baseHeaders);
     } catch (err) {
       logger.error("[EvalRoute] Results query failed", err as Error);
-      return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: (err as Error).message }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -134,16 +129,10 @@ export async function handleEvalModels(ctx: RouteContext): Promise<Response | nu
       const limit = Number(ctx.url.searchParams.get("limit")) || 50;
       const offset = Number(ctx.url.searchParams.get("offset")) || 0;
 
-      return ctx.jsonResponse({
-        success: true,
-        data: models.slice(offset, offset + limit),
-        total: models.length,
-        limit,
-        offset,
-      }, 200, ctx.baseHeaders);
+      return ctx.jsonResponse(models.slice(offset, offset + limit), 200, ctx.baseHeaders);
     } catch (err) {
       logger.error("[EvalRoute] Models list failed", err as Error);
-      return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: (err as Error).message }, 500, ctx.baseHeaders);
     }
   }
   return null;
@@ -229,14 +218,10 @@ export async function handleEvalAssignments(ctx: RouteContext): Promise<Response
       const assigner = getDynamicModelAssigner();
       const assignments = assigner.getAllAssignments();
 
-      return ctx.jsonResponse({
-        success: true,
-        data: assignments,
-        count: assignments.length,
-      }, 200, ctx.baseHeaders);
+      return ctx.jsonResponse(assignments, 200, ctx.baseHeaders);
     } catch (err) {
       logger.error("[EvalRoute] Assignments list failed", err as Error);
-      return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: (err as Error).message }, 500, ctx.baseHeaders);
     }
   }
   return null;

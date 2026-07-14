@@ -178,6 +178,15 @@ function isValidChatMessage(m: unknown): m is { role: string; content: string } 
  * 兼容：若 proxyFetch 已缓冲，则流式退化为“整段一次性 token 推送”，仍满足 SSE 协议。
  *       原生 fetch 流式通过 ReadableStream 实现真实增量（progressive enhancement）。
  */
+export async function handleChatHistory(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/chat/history" || ctx.req.method !== "GET") return null;
+  const limit = parseInt(ctx.url.searchParams.get("limit") || "50", 10);
+  const sessions = ctx.db.query(
+    "SELECT id, title, created_at as createdAt, updated_at as updatedAt FROM conversations ORDER BY updated_at DESC LIMIT ?"
+  ).all(limit);
+  return ctx.jsonResponse({ sessions, total: sessions.length }, 200, ctx.baseHeaders);
+}
+
 export async function handleChatStream(ctx: RouteContext): Promise<Response | null> {
   if (!(ctx.url.pathname === "/chat/stream" && ctx.req.method === "POST")) {
     return null;

@@ -329,6 +329,15 @@ export async function handleAdvisorEvolve(ctx: RouteContext): Promise<Response |
   }
 }
 
+export async function handleAdvisorHealth(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/advisor/health" || ctx.req.method !== "GET") return null;
+  return ctx.jsonResponse({
+    status: "ok",
+    models: [],
+    timestamp: Date.now(),
+  }, 200, ctx.baseHeaders);
+}
+
 export async function handleAdvisorStatus(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/advisor/status" || ctx.req.method !== "GET") return null;
 

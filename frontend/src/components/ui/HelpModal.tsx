@@ -18,14 +18,14 @@ export default function HelpModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center backdrop-glass"
       role="dialog"
       aria-modal="true"
       aria-label="键盘快捷键"
       onClick={() => setOpen(false)}
     >
       <div
-        className="w-[min(90vw,28rem)] rounded-2xl border border-border bg-bg-secondary p-5 shadow-2xl"
+         className="w-[min(90vw,28rem)] elevation-4 glass rounded-2xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

@@ -13,11 +13,17 @@ export async function handleAgentsStatus(ctx: RouteContext): Promise<Response | 
     const hermesOk = await checkHermes();
     const kimiApiOk = checkKimiCodeApiKey();
     const kimiCliOk = await checkKimiCli();
-    return ctx.jsonResponse({
-      opencode: { installed: opencodeOk, freeModels: OPENCODE_FREE_MODELS, cli: "bun run src/cli.ts code:open" },
-      hermes: { installed: hermesOk, installGuide: "curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash" },
-      kimiCode: { apiKeyConfigured: kimiApiOk, cliInstalled: kimiCliOk, model: KIMI_CODE_MODEL, cli: "bun run src/cli.ts kimi:open" },
-    }, 200, ctx.baseHeaders);
+    const status = {
+      opencode: { available: opencodeOk, last_used: null, installed: opencodeOk, freeModels: OPENCODE_FREE_MODELS, cli: "bun run src/cli.ts code:open" },
+      hermes: { available: hermesOk, last_used: null, installed: hermesOk, installGuide: "curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash" },
+      kimiCode: { available: kimiApiOk || kimiCliOk, last_used: null, apiKeyConfigured: kimiApiOk, cliInstalled: kimiCliOk, model: KIMI_CODE_MODEL, cli: "bun run src/cli.ts kimi:open" },
+    };
+    const agentList = [
+      { name: "opencode", available: status.opencode.available ?? false, last_used: status.opencode.last_used ?? null },
+      { name: "hermes", available: status.hermes.available ?? false, last_used: status.hermes.last_used ?? null },
+      { name: "kimiCode", available: status.kimiCode.available ?? false, last_used: status.kimiCode.last_used ?? null },
+    ];
+    return ctx.jsonResponse(agentList, 200, ctx.baseHeaders);
   }
   return null;
 }

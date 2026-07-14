@@ -43,6 +43,17 @@ export async function handleVaultPara(ctx: RouteContext): Promise<Response | nul
   return null;
 }
 
+export async function handleVaultTagsList(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/vault/tags" && ctx.req.method === "GET") {
+    const rows = ctx.db.query(
+      "SELECT DISTINCT json_each.value as tag FROM memory_notes, json_each(memory_notes.tags) ORDER BY tag"
+    ).all() as { tag: string }[];
+    const tags = rows.map(r => r.tag);
+    return ctx.jsonResponse({ tags }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
 export async function handleVaultTags(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname.startsWith("/vault/tags/") && ctx.req.method === "GET") {
     const tag = decodeURIComponent(ctx.url.pathname.slice("/vault/tags/".length));

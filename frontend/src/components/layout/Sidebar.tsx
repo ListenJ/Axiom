@@ -12,7 +12,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     <aside
       className={`
         fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-[var(--border)]
-        bg-[var(--bg-secondary)]/95 backdrop-blur-md
+        glass-sm
         transform transition-transform duration-300 ease-out
         lg:static lg:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}

@@ -5,9 +5,10 @@ import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
-import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
+import { handleToolExecute } from "./tools.js";
+import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
-import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
+import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
 import { handleSceneRoutes } from "./scene-routes.js";
@@ -38,6 +39,7 @@ import {
   handleAdvisorRecommend,
   handleAdvisorFreeModels,
   handleAdvisorEvolve,
+  handleAdvisorHealth,
   handleAdvisorStatus,
   handleResearchRun,
 } from "./knowledge-graph.js";
@@ -68,7 +70,9 @@ const handlers: RouteHandler[] = [
   handleTrends,
   handleConfig,
   handleTokenDetails,
+  handleToolExecute,
   // Chat (most common API call)
+  handleChatHistory,
   handleChat,
   handleChatStream,
   handleAgentChat,
@@ -95,6 +99,7 @@ const handlers: RouteHandler[] = [
   // Vault & CodeGraph
   handleVaultStats,
   handleVaultPara,
+  handleVaultTagsList,
   handleVaultTags,
   handleVaultNetwork,
   handleVaultNote,
@@ -159,6 +164,7 @@ const handlers: RouteHandler[] = [
   handleAdvisorRecommend,
   handleAdvisorFreeModels,
   handleAdvisorEvolve,
+  handleAdvisorHealth,
   handleAdvisorStatus,
   // Research (KG 增强的深度研究)
   handleResearchRun,
@@ -206,6 +212,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/proxies", handler: handleProxies },
 
     // Chat
+    { method: "GET", path: "/chat/history", handler: handleChatHistory },
     { method: "POST", path: "/chat", handler: handleChat },
     { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
@@ -228,6 +235,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     // Vault
     { method: "GET", path: "/vault/stats", handler: handleVaultStats },
     { method: "GET", path: "/vault/para/:category", handler: handleVaultPara },
+    { method: "GET", path: "/vault/tags", handler: handleVaultTagsList },
     { method: "GET", path: "/vault/tags/:tag", handler: handleVaultTags },
     { method: "GET", path: "/vault/network/:path", handler: handleVaultNetwork },
     { method: "GET", path: "/vault/note", handler: handleVaultNote },
@@ -283,6 +291,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/advisor/recommend", handler: handleAdvisorRecommend },
     { method: "GET", path: "/advisor/free-models", handler: handleAdvisorFreeModels },
     { method: "POST", path: "/advisor/evolve", handler: handleAdvisorEvolve },
+    { method: "GET", path: "/advisor/health", handler: handleAdvisorHealth },
     { method: "GET", path: "/advisor/status", handler: handleAdvisorStatus },
     { method: "POST", path: "/research/run", handler: handleResearchRun },
 
@@ -330,6 +339,9 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/native/stats", handler: handleNativeStats },
     { method: "GET", path: "/native/**", handler: handleNativeProxy },
     { method: "POST", path: "/native/**", handler: handleNativeProxy },
+
+    // Tool execution
+    { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
   ];
 
   engine.registerBatch(routes);
@@ -422,6 +434,8 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /advisor/status            — 顾问状态",
       "--- Research (深度研究) ---",
       "POST   /research/run              — KG增强深度研究",
+      "--- Tool Execution (工具执行) ---",
+      "POST   /api/tools/execute         — 标准化工具执行",
     ],
   }, 200, ctx.baseHeaders);
 }

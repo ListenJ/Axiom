@@ -479,9 +479,9 @@ export const endpoints = {
   ocr: {
     status: () => api.get('/ocr/status'),
     scan: (body: { path?: string; url?: string; languages?: string[] }) =>
-      api.post('/ocr/scan', body),
+      api.post('/ocr/scan', { image: body.path || body.url, options: { languages: body.languages } }),
     export: (body: { path?: string; format?: 'md' | 'txt' | 'json' }) =>
-      api.post('/ocr/export', body),
+      api.post('/ocr/export', { image: body.path, format: body.format === 'md' ? 'markdown' : body.format === 'txt' ? 'text' : 'json', options: {} }),
   },
   research: {
     run: (body: { query: string; depth?: number; maxSources?: number }) =>
