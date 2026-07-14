@@ -1,6 +1,6 @@
 # Axiom 架构权威参考
 
-> 最后更新: 2026-07-11
+> 最后更新: 2026-07-13
 > 本文件是 Axiom 项目的唯一架构权威参考。所有架构决策、分层规则、模块职责均以此为准。
 
 ---
@@ -13,12 +13,12 @@ Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、�
 |------|-----|
 | 语言 | TypeScript 5.x |
 | 运行时 | Bun 1.3+ |
-| 总源文件 | 221 个 |
-| 总代码行 | ~64,000 |
-| 测试文件 | 66 个 |
-| 测试总数 | ~1,100 (136 核心 + 154 前端 + 其他) |
+| 总源文件 | 260+ 个 |
+| 总代码行 | ~70,000 |
+| 测试文件 | 80+ 个 |
+| 测试总数 | ~1,170 (1042 后端 + 154 前端 + 其他) |
 | PBT invariants | 46 |
-| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 13 |
+| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 4 |
 
 ---
 
@@ -27,6 +27,7 @@ Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、�
 ```
 src/
 ├── agents/          — AI Agent 实现 (opencode, hermes, consciousness, orchestrator)
+├── cli/              — CLI 子命令 (knowledge, vault, eval, kg, db)
 ├── constants/       — 共享常量 (叶子层)
 ├── context/         — 上下文管理
 ├── core/            — 核心基础设施 (config-center, http-router, health-checker)
@@ -37,18 +38,21 @@ src/
 ├── eval/            — 模型评估框架
 ├── kal/             — 知识访问层
 ├── kg/              — 知识图谱增强
+├── knowledge/        — 知识库系统 (pipeline, collector, searcher, store, sources)
 ├── mcp/             — MCP 服务器 + 工具注册表 (15 领域文件)
 ├── memory/          — Vault 核心记忆引擎 (确定性搜索, archiver, distiller)
 ├── ocr/             — OCR 引擎
 ├── pi-agent/        — Pi Agent 代码工具适配器
 ├── plugins/         — 插件注册表
 ├── router/          — 模型路由 (model-router, thompson, capability-registry)
-├── routes/          — HTTP API 路由处理器
+├── routes/          — HTTP API 路由 (chat, search, vault, agents, eval, stats, tools, sandbox, pipeline, traces, models)
+├── sandbox/         — 沙盒执行环境 (docker-sandbox, process-sandbox)
 ├── services/        — 循环依赖解耦层 (见 2.1 节)
 ├── skills/          — Skill 加载器
 ├── tools/           — 通用工具抽象 (read/write/query + pipeline)
 ├── tui/             — 终端 UI
-└── utils/           — 通用工具函数 (叶子层)
+├── utils/           — 通用工具函数 (cache, env, logger, security, permissions, agent-trace)
+├── workers/         — 远程 Worker 客户端 (pdf-worker, llm-worker)
 ```
 
 **数据库:** PostgreSQL 已完全移除, SQLite 是唯一数据库。所有持久化通过 `sqlite-memory.ts` (FTS5) 和 `codegraph-sync.ts` 完成。
@@ -272,3 +276,38 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 | 2026-07-09 | `process.env` 收口 | 100+→30 合法 |
 | 2026-07-09 | DRE 工厂简化 | 3 单实现工厂 inline |
 | 2026-07-09 | `as any` 修复 | 59→19 |
+
+---
+
+## 10. 分布式知识网络
+
+系统采用三机分布式架构进行知识采集与处理：
+
+| 节点 | IP | 角色 | 硬件 |
+|------|-----|------|------|
+| 编排器 | 192.168.2.121 | Bun/Node 运行时 | Windows, 无 GPU |
+| PDF Worker | 192.168.2.11 | MinerU + FastAPI (CPU) | E5-2450, Intel X520 万兆 |
+| LLM Worker | 192.168.2.150 | 推理服务 (预留) | RTX 3050, Python 3.14 |
+
+### 通信协议
+
+所有 Worker 使用统一 REST API：
+
+```
+POST /v1/submit → { task_id, status: "queued" }
+GET  /v1/status/{task_id} → { status, progress, result }
+```
+
+### 后端 API 端点 (280+ 路由)
+
+| 组 | 端点 | 功能 |
+|----|------|------|
+| 工具执行 | POST /api/tools/execute | 统一工具执行协议 |
+| 沙盒 | POST /sandbox/execute | 沙盒命令执行 |
+| 权限 | POST /permissions/check | 高危操作检测 |
+| 流水线 | GET /pipeline/stream | SSE 认知流水线 |
+| 追踪 | GET /traces | Agent 执行追踪 |
+| Token | GET /api/token-details | Token 消耗分析 |
+| 模型 | GET/POST/DELETE /models | 模型管理 |
+| 供应商 | GET /providers | 供应商列表 |
+
