@@ -3,6 +3,7 @@ import { Sparkles, Send, TrendingUp, Cpu, Search as SearchIcon, ArrowRight, Bot,
 import { endpoints, HttpError } from '@/lib/api'
 import { LoadingDots } from '@/components/ui'
 import PipelineIndicator from '@/components/PipelineIndicator'
+import TracePanel from '@/components/TracePanel'
 import type { ChatStreamEvent } from '@/lib/api'
 
 interface ModelOption { id: string; label: string }
@@ -172,6 +173,9 @@ export default function Home() {
           )}
         </div>
       )}
+
+      {/* Agent interaction trace */}
+      <TracePanel active={pipelineActive} />
 
       {/* Input — bottom, auto-expanding textarea */}
       <div className="pb-2 pt-2">

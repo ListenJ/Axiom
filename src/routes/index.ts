@@ -2,7 +2,7 @@
  * Route dispatcher — delegates to route handlers by priority
  */
 import type { RouteContext, RouteHandler } from "./types.js";
-import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
+import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
 import { handleToolExecute } from "./tools.js";
@@ -26,6 +26,7 @@ import {
   handleEvalAssignReport,
 } from "./eval-routes.js";
 import { handleProxies } from "./proxies.js";
+import { handleListModels, handleAddModel, handleDeleteModel, handleListProviders, handleTestProvider } from "./models.js";
 import { handleNativeSearch, handleNativeRouterPerf, handleNativeStats, handleNativeProxy } from "./native-routes.js";
 import { handlePluginRoutes } from "./plugin-adapter.js";
 import {
@@ -53,6 +54,7 @@ import {
   handleListTasks,
   handleModelUsage,
 } from "./memory-api.js";
+import { handleTraceList, handleTraceDetail } from "./traces.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -168,8 +170,20 @@ const handlers: RouteHandler[] = [
   handleAdvisorStatus,
   // Research (KG 增强的深度研究)
   handleResearchRun,
+  // Model & Provider Management
+  handleListModels,
+  handleAddModel,
+  handleDeleteModel,
+  handleListProviders,
+  handleTestProvider,
+  // Permission Control
+  handlePermissionCheck,
+  handlePermissionConfirm,
   // Pipeline SSE
   handlePipelineStream,
+  // Agent interaction traces
+  handleTraceList,
+  handleTraceDetail,
 ];
 
 /**
@@ -340,9 +354,22 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/native/**", handler: handleNativeProxy },
     { method: "POST", path: "/native/**", handler: handleNativeProxy },
 
-    // Tool execution
-    { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
-  ];
+    // Model & Provider Management
+    { method: "GET", path: "/models", handler: handleListModels },
+    { method: "POST", path: "/models", handler: handleAddModel },
+    { method: "DELETE", path: "/models/:id", handler: handleDeleteModel },
+    { method: "GET", path: "/providers", handler: handleListProviders },
+    { method: "POST", path: "/providers/:id/test", handler: handleTestProvider },
+
+  // Permission control
+  { method: "POST", path: "/permissions/check", handler: handlePermissionCheck },
+  { method: "POST", path: "/permissions/confirm", handler: handlePermissionConfirm },
+  // Tool execution
+  { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
+  // Agent interaction traces
+  { method: "GET", path: "/traces", handler: handleTraceList },
+  { method: "GET", path: "/traces/:id", handler: handleTraceDetail },
+];
 
   engine.registerBatch(routes);
 }
@@ -436,6 +463,9 @@ export function defaultResponse(ctx: RouteContext): Response {
       "POST   /research/run              — KG增强深度研究",
       "--- Tool Execution (工具执行) ---",
       "POST   /api/tools/execute         — 标准化工具执行",
+      "--- Agent Interaction Traces ---",
+      "GET    /traces                    — 列出最近的 Agent 交互追踪",
+      "GET    /traces/:id                — 获取指定追踪详情",
     ],
   }, 200, ctx.baseHeaders);
 }

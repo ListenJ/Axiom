@@ -500,6 +500,10 @@ export const endpoints = {
     version: () => api.get('/version'),
     config: () => api.get('/config'),
   },
+  traces: {
+    list: () => api.get('/traces'),
+    detail: (id: string) => api.get(`/traces/${encodeURIComponent(id)}`),
+  },
 }
 
 export { HttpError }

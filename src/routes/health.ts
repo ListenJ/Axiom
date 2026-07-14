@@ -230,3 +230,33 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
   }
   return null;
 }
+
+export async function handlePermissionCheck(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/permissions/check" || ctx.req.method !== "POST") return null
+  try {
+    const body = await ctx.req.json() as { type: "command" | "file"; command?: string; path?: string; operation?: string }
+    if (body.type === "command" && body.command) {
+      const { checkCommandPermission } = await import("../utils/permissions.js")
+      return ctx.jsonResponse(checkCommandPermission(body.command), 200, ctx.baseHeaders)
+    }
+    if (body.type === "file" && body.path && body.operation) {
+      const { checkFilePermission } = await import("../utils/permissions.js")
+      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as any), 200, ctx.baseHeaders)
+    }
+    return ctx.jsonResponse({ error: "Invalid request" }, 400)
+  } catch (e) {
+    return ctx.jsonResponse({ error: String(e) }, 500)
+  }
+}
+
+export async function handlePermissionConfirm(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/permissions/confirm" || ctx.req.method !== "POST") return null
+  try {
+    const body = await ctx.req.json() as { confirmationId: string }
+    const { confirmOperation } = await import("../utils/permissions.js")
+    const result = confirmOperation(body.confirmationId)
+    return ctx.jsonResponse(result, result.approved ? 200 : 403, ctx.baseHeaders)
+  } catch (e) {
+    return ctx.jsonResponse({ error: String(e) }, 500)
+  }
+}

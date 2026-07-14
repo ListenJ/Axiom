@@ -5,6 +5,7 @@ import { RateLimitedSemaphore } from "../../utils/concurrency/rate-limited-semap
 import { PiCodeToolsAdapter } from "../../pi-agent/pi-code-tools.js";
 import { CodegenExecutor } from "./codegen.js";
 import { ContextPreprocessor } from "./search.js";
+import { startTrace, addStep, completeTrace, failTrace } from "../../utils/agent-trace.js";
 import {
   type TaskType,
   type ExecutionStrategy,
@@ -66,6 +67,10 @@ export class OpenCodeToolAgent {
   }): Promise<OpenCodeToolResult> {
     const startTime = Date.now();
     const agentId = options?.agentId ?? "opencode-tool-agent";
+    const taskId = `task:${hashPrompt(prompt).slice(0, 12)}`;
+
+    startTrace(agentId, taskId);
+    addStep(taskId, { type: "thinking", content: prompt.slice(0, 500) });
 
     const bbKey = `task:${hashPrompt(prompt)}`;
     const bb = getGlobalBlackboard();
@@ -74,7 +79,8 @@ export class OpenCodeToolAgent {
     if (bbRead.hit && bbRead.projected) {
       const cached = bbRead.projected as Record<string, unknown>;
       logger.info("[OpenCodeToolAgent] Blackboard hit, returning cached result", { key: bbKey });
-      return {
+      addStep(taskId, { type: "result", content: "Blackboard cache hit" });
+      const result = {
         content: String(cached.content ?? ""),
         model: String(cached.model ?? "blackboard"),
         provider: "blackboard",
@@ -85,6 +91,8 @@ export class OpenCodeToolAgent {
         contextInjected: true,
         toolsUsed: ["blackboard"],
       };
+      completeTrace(taskId, result.content.slice(0, 500));
+      return result;
     }
 
     const assessment = options?.strategy
@@ -98,34 +106,62 @@ export class OpenCodeToolAgent {
       reasons: assessment.reasons,
     });
 
+    addStep(taskId, {
+      type: "thinking",
+      content: `Strategy: ${assessment.recommendedStrategy}, Type: ${assessment.taskType}, Score: ${assessment.score}`,
+      details: { reasons: assessment.reasons },
+    });
+
     const { enhancedPrompt, toolsUsed, tokenSaved: toolTokenSaved } = await this.search.preprocessWithPiTools(
       prompt,
       assessment.taskType,
       options?.injectContext !== false
     );
 
+    addStep(taskId, {
+      type: "tool-call",
+      content: "Context preprocessor (Pi Tools)",
+      details: { toolsUsed },
+    });
+
     let result: OpenCodeToolResult;
 
     switch (assessment.recommendedStrategy) {
       case "opencode-only":
+        addStep(taskId, { type: "tool-call", content: "Executing strategy: opencode-only" });
         result = await this.codegen.runOpenCodeOnly(enhancedPrompt, options);
         break;
       case "parallel":
+        addStep(taskId, { type: "tool-call", content: "Executing strategy: parallel" });
         result = await this.codegen.runParallel(enhancedPrompt, assessment.taskType, options);
         break;
       case "opencode-primary":
+        addStep(taskId, { type: "tool-call", content: "Executing strategy: opencode-primary" });
         result = await this.codegen.runOpenCodePrimary(enhancedPrompt, assessment.taskType, options);
         break;
       case "axiom-only":
+        addStep(taskId, { type: "tool-call", content: "Executing strategy: axiom-only" });
         result = await this.codegen.runAxiomOnly(enhancedPrompt, assessment.taskType, options);
         break;
       default:
+        addStep(taskId, { type: "tool-call", content: "Executing strategy: default (opencode-primary)" });
         result = await this.codegen.runOpenCodePrimary(enhancedPrompt, assessment.taskType, options);
     }
 
     result.tokenSaved += toolTokenSaved;
     result.toolsUsed = [...toolsUsed, ...result.toolsUsed];
     result.latencyMs = Date.now() - startTime;
+
+    addStep(taskId, {
+      type: "result",
+      content: `Model: ${result.model}, Strategy: ${result.strategy}, Latency: ${result.latencyMs}ms`,
+      details: {
+        model: result.model,
+        latencyMs: result.latencyMs,
+        tokenSaved: result.tokenSaved,
+        fallbackUsed: result.fallbackUsed,
+      },
+    });
 
     if (result.content.length > 0 && !result.fallbackUsed) {
       bb.write(bbKey, {
@@ -150,6 +186,7 @@ export class OpenCodeToolAgent {
       fallbackUsed: result.fallbackUsed,
     });
 
+    completeTrace(taskId, result.content.slice(0, 500));
     return result;
   }
 

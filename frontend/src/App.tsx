@@ -18,6 +18,7 @@ import Trends from '@/pages/Trends'
 import OCR from '@/pages/OCR'
 import Research from '@/pages/Research'
 import Proxies from '@/pages/Proxies'
+import Providers from '@/pages/Providers'
 import Perf from '@/pages/Perf'
 import Tokens from '@/pages/Tokens'
 
@@ -88,6 +89,7 @@ function App() {
             <Route path="research" element={<Research />} />
             <Route path="knowledge" element={<Knowledge />} />
             <Route path="proxies" element={<Proxies />} />
+            <Route path="providers" element={<Providers />} />
             <Route path="tokens" element={<Tokens />} />
             <Route path="perf" element={<Perf />} />
             <Route path="settings" element={<Settings />} />
