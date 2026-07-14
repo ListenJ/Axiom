@@ -138,7 +138,7 @@ export default function Settings() {
                   >
                     <span
                       className={`absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                        isOn ? 'translate-x-0.5' : 'translate-x-5'
+                        isOn ? 'translate-x-5' : 'translate-x-0.5'
                       }`}
                     />
                   </button>
