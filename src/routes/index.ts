@@ -6,6 +6,7 @@ import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStat
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
 import { handleToolExecute } from "./tools.js";
+import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
@@ -73,6 +74,8 @@ const handlers: RouteHandler[] = [
   handleConfig,
   handleTokenDetails,
   handleToolExecute,
+  handleSandboxExecute,
+  handleSandboxStatus,
   // Chat (most common API call)
   handleChatHistory,
   handleChat,
@@ -369,7 +372,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
   // Agent interaction traces
   { method: "GET", path: "/traces", handler: handleTraceList },
   { method: "GET", path: "/traces/:id", handler: handleTraceDetail },
-];
+
+    // Sandbox execution
+    { method: "GET", path: "/sandbox/status", handler: handleSandboxStatus },
+    { method: "POST", path: "/sandbox/execute", handler: handleSandboxExecute },
+  ];
 
   engine.registerBatch(routes);
 }
