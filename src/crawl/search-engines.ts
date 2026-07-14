@@ -88,7 +88,7 @@ class DuckDuckGoEngine extends SearchEngine {
       let link = hrefMatch[1];
       const uMatch = link.match(/[?&]u(?:ddg)?=([^&]+)/);
       if (uMatch) {
-        try { link = decodeURIComponent(uMatch[1]); } catch { /* ignore */ }
+        try { link = decodeURIComponent(uMatch[1]); } catch (e) { logger.warn(`[SearchEngines] URL decode failed: ${(e as Error).message}`); }
       }
       if (link.startsWith("//")) link = "https:" + link;
 
@@ -299,7 +299,8 @@ export class SearchAggregator {
         (p) => u.searchParams.delete(p)
       );
       return u.toString().toLowerCase();
-    } catch {
+    } catch (e) {
+      logger.warn(`[SearchEngines] URL normalization failed: ${(e as Error).message}`);
       return url.toLowerCase();
     }
   }

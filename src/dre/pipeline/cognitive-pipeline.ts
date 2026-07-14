@@ -64,11 +64,12 @@ export class CognitivePipeline {
   private toolExecutor: ToolExecutor | null = null;
   private stats = { gapsFilled: 0, gapFallbackCoarse: 0 };
   /**
-   * Per-run reasoning graph — isolated to avoid cross-request pollution.
+   * Per-run reasoning graphs keyed by loop ID — isolated to avoid cross-request pollution.
    * engine.reasoning is a shared singleton; using it directly caused
    * premises/conclusions to accumulate across concurrent CognitivePipeline runs.
    */
-  private currentGraph: ReasoningGraph | null = null;
+  private currentGraph: ReasoningGraph | undefined
+  private pipelineLock = false
 
   constructor(engine: DREngine) {
     this.engine = engine;
@@ -92,6 +93,17 @@ export class CognitivePipeline {
    * 执行完整认知闭环
    */
   async run(input: string): Promise<CognitiveLoopResult> {
+    if (this.pipelineLock) {
+      logger.warn("[CognitivePipeline] Concurrent run detected, queueing")
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (!this.pipelineLock) resolve()
+          else setTimeout(check, 100)
+        }
+        check()
+      })
+    }
+    this.pipelineLock = true
     const t0 = performance.now();
     const trace: CognitiveStep[] = [];
     let stepIndex = 0;
@@ -247,11 +259,13 @@ export class CognitivePipeline {
         result.confidence > 0.5 ? "completed" : "abandoned"
       );
 
+      this.pipelineLock = false
       return result;
 
     } catch (err) {
       logger.warn("[CognitivePipeline] Pipeline error", { input, error: (err as Error).message });
       const totalMs = Math.round(performance.now() - t0);
+      this.pipelineLock = false
       return {
         input,
         trace,

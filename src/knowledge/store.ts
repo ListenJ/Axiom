@@ -164,10 +164,16 @@ export class KnowledgeStore {
   }
 
   searchDictionary(query: string, limit = 10): DictionaryEntry[] {
-    const ftsQuery = query
-      .replace(/[^\w\s]/g, " ")
-      .split(/\s+/)
-      .filter(Boolean)
+    const MAX_TERMS = 10;
+    const MAX_QUERY_LENGTH = 200;
+
+    let sanitized = query.replace(/[^\w\s]/g, " ");
+    if (sanitized.length > MAX_QUERY_LENGTH) sanitized = sanitized.slice(0, MAX_QUERY_LENGTH);
+
+    let words = sanitized.split(/\s+/).filter(Boolean);
+    if (words.length > MAX_TERMS) words = words.slice(0, MAX_TERMS);
+
+    const ftsQuery = words
       .map((w) => `"${w}"*`)
       .join(" OR ");
 

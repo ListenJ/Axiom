@@ -118,7 +118,9 @@ export async function searchDomain(
           searchResults.push({ name: r.title, url: r.link, quality: 0.6, type: "paper" })
         }
       }
-    } catch { /* ignore search failures */ }
+    } catch (e) {
+      logger.warn(`[KnowledgeSearcher] Web search failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   // Add curated sources that weren't already found

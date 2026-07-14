@@ -499,9 +499,20 @@ function setPath(obj: Record<string, unknown>, path: string, value: unknown): vo
   current[parts[parts.length - 1]] = value;
 }
 
+const ALLOWED_ENV_VARS = new Set([
+  "DATABASE_PATH", "OBSIDIAN_VAULT_PATH", "LOG_LEVEL", "NODE_ENV",
+  "KNOWLEDGE_DB_PATH", "BING_API_KEY",
+]);
+
 function resolveEnvVars(obj: unknown): unknown {
   if (typeof obj === "string") {
-    return obj.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? "");
+    return obj.replace(/\$\{([^}]+)\}/g, (_, name) => {
+      if (!ALLOWED_ENV_VARS.has(name)) {
+        logger.warn(`[Config] Blocked access to env var: ${name} (not in whitelist)`);
+        return "";
+      }
+      return process.env[name] ?? "";
+    });
   }
   if (Array.isArray(obj)) return obj.map(resolveEnvVars);
   if (obj && typeof obj === "object") {
