@@ -3,7 +3,8 @@
  */
 import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig } from "./health.js";
-import { handleStats } from "./stats.js";
+import { handleStats, handleTokenDetails } from "./stats.js";
+import { handlePipelineStream } from "./pipeline.js";
 import { handleChat, handleAgentChat, handleChatStream } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
@@ -66,6 +67,7 @@ const handlers: RouteHandler[] = [
   handleMemoryGateStats,
   handleTrends,
   handleConfig,
+  handleTokenDetails,
   // Chat (most common API call)
   handleChat,
   handleChatStream,
@@ -160,6 +162,8 @@ const handlers: RouteHandler[] = [
   handleAdvisorStatus,
   // Research (KG 增强的深度研究)
   handleResearchRun,
+  // Pipeline SSE
+  handlePipelineStream,
 ];
 
 /**
@@ -190,6 +194,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/index.html", handler: handleDashboard },
     { method: "GET", path: "/stats", handler: handleHealthStats },
     { method: "GET", path: "/api/stats", handler: handleStats },
+    { method: "GET", path: "/api/token-details", handler: handleTokenDetails },
     { method: "GET", path: "/cache/stats", handler: handleCacheStats },
     { method: "GET", path: "/engines", handler: handleEngines },
     { method: "GET", path: "/memory-gate/stats", handler: handleMemoryGateStats },
@@ -204,6 +209,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/chat", handler: handleChat },
     { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
+    // Pipeline SSE
+    { method: "GET", path: "/pipeline/stream", handler: handlePipelineStream },
 
     // Search
     { method: "GET", path: "/search", handler: handleVaultSearch },

@@ -362,6 +362,7 @@ api.responseInterceptor((data) => {
 
 export const endpoints = {
   stats: () => api.get('/api/stats'),
+  tokenDetails: (days?: number) => api.get(`/api/token-details${days ? `?days=${days}` : ''}`),
   chat: {
     send: (message: string, options: Record<string, unknown> = {}) =>
       api.post('/chat', { message, ...options }),

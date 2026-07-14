@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'code',      path: '/code',      label: '代码',      shortcut: '4', icon: Code2,        mobilePrimary: true,  visible: true },
   { id: 'vault',     path: '/vault',     label: '知识库',    shortcut: '5', icon: Folder,       mobilePrimary: false, visible: true },
   { id: 'settings',  path: '/settings',  label: '设置',      shortcut: '6', icon: Settings,     mobilePrimary: false, visible: true },
+  { id: 'tokens',    path: '/tokens',    label: 'Tokens',    shortcut: '7', icon: Settings,     mobilePrimary: false, visible: false },
 ]
 
 export const VISIBLE_NAV_ITEMS = NAV_ITEMS.filter((i) => i.visible)

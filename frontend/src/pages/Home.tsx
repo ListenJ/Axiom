@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Sparkles, Send, TrendingUp, Cpu, Search as SearchIcon, ArrowRight, Bot, User, Square, ChevronDown } from 'lucide-react'
 import { endpoints, HttpError } from '@/lib/api'
 import { LoadingDots } from '@/components/ui'
+import PipelineIndicator from '@/components/PipelineIndicator'
 import type { ChatStreamEvent } from '@/lib/api'
 
 interface ModelOption { id: string; label: string }
@@ -34,6 +35,7 @@ export default function Home() {
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [sending, setSending] = useState(false)
+  const [pipelineActive, setPipelineActive] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -72,6 +74,7 @@ export default function Home() {
     append('user', text)
     append('assistant', '', { streaming: true })
     setSending(true)
+    setPipelineActive(true)
     const controller = new AbortController()
     abortRef.current = controller
     try {
@@ -97,6 +100,7 @@ export default function Home() {
       appendError(e instanceof HttpError ? e.message : String((e as Error)?.message ?? e))
     } finally {
       setSending(false)
+      setPipelineActive(false)
       abortRef.current = null
     }
   }
@@ -171,6 +175,7 @@ export default function Home() {
 
       {/* Input — bottom, auto-expanding textarea */}
       <div className="pb-2 pt-2">
+        <PipelineIndicator active={pipelineActive} />
         <form onSubmit={(e) => { e.preventDefault(); send() }}
           className="relative flex items-end gap-1 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] pl-1 pr-2 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]">
           <div className="relative shrink-0 self-center">
