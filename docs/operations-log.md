@@ -13,4 +13,4 @@
   - 新建 `AGENTS.md`（五条 runtime 强约束规则）。
   - 新建 `docs/operations-log.md`（本日志）。
 - **验证**：文件写入后回读确认内容完整。
-- **Commit**：`b93ef74`（已推送 `internal211/main`）。
+- **Commit**：`0283702`（已推送 `internal211/main`；初稿 `b93ef74` 经 amend 补录本条，本条 hash 更正见紧随其后的更正提交）。
