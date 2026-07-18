@@ -542,9 +542,12 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         for (const check of report.checks) {
           if (check.autoFixable && check.fix) {
             try {
-              const { execSync } = await import("child_process");
+              const fs = await import("fs");
+              // fix 串形如 "mkdir -p <dir>"（health-checker 内部生成）。
+              // 不经 shell 直接创建目录，消除命令注入面
               if (check.fix.startsWith("mkdir")) {
-                execSync(check.fix);
+                const dir = check.fix.replace(/^mkdir\s+(?:-p\s+)?/, "").trim();
+                fs.mkdirSync(dir, { recursive: true });
                 fixed.push(check.component);
               }
             } catch {

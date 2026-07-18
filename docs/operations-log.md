@@ -70,3 +70,17 @@
 - **未动**：`frontend/src/lib/api.ts` 两个中危（401 清 token、token 拦截器）——该文件有用户未提交改动；用户已决策：跳过，待其提交 WIP 后再修。
 - **版本化说明**：`.gitignore:114` 声明 `frontend/`（前端未使用），`Research.tsx`、`PipelineIndicator.tsx` 未被跟踪且被忽略，本次前端修复仅落盘未入库（已通过前端 tsc 验证）；是否将前端正式纳入版本控制待用户决定。
 - **Commit**：`9569e51`（amend 补录本条后推送 `internal211/main`；仅后端文件 + 本日志）。
+
+---
+
+## 2026-07-18 14:45 +0800 — 命令注入面消除 + redis-client 潜在 bug + 测试脆弱断言
+
+- **任务**：继续完善——浅层安全补扫与 P3 小项。
+- **工具**：Read、Grep、Edit、Bash(tsc / bun test / git show 补备份)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/cli.ts`（diag --fix）：`execSync(check.fix)` 经 shell 执行命令字符串 → 改为 `fs.mkdirSync(dir, {recursive:true})`（fix 串为 health-checker 内部生成的 `mkdir -p <dir>`），彻底移除 child_process 调用。注：这是仓库中唯一一处 execSync。
+  - `src/utils/redis-client.ts`：**`Bun.connect` 返回 Promise 但未 await**——`this.socket` 实际是 Promise，所有命令 `write` 静默无效（被 4 处 `as any` 掩盖）→ 重构 `_connect()`（await + Promise.race 超时），socket 类型改为 `Socket`，4 处 `as any` 全消除。Redis 为可选组件（REDIS_URL 未配置），故该 bug 从未显现。
+  - `tests/mcp-cognitive-integration.test.ts`：`totalDurationMs` 断言 `>0` 在热路径下必 flaky（performance.now 亚毫秒 + Math.round 可舍入为 0，用户新增测试文件改变 JIT 预热后确定性触发）→ 改断言"已测量且非负"。
+  - 排查确认 `computer-use-agent.ts` 的 `as any` 仅存在于注释；`websocket.ts` 已有 MAX_WS_CLIENTS=100 上限（评审 P3-1/P3-10 均系过时结论）。
+- **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误，未动）；redis 测试 3/3；全量 **1086 pass / 1 fail**（唯一 fail = 用户 WIP 文件 `tests/audit-logger.test.ts` 加载带语法错误的 audit-logger.ts，与本次改动无关）；cognitive_loop 组合/单跑均通过。
+- **Commit**：`92632b6`（amend 补录本条后推送 `internal211/main`）。
