@@ -2,6 +2,8 @@
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
+> 约定：条目随代码同提交入库，Commit 字段先写初稿 hash 并注明 amend，
+> 推送后的最终 hash 以 `git log` 为准（amend 仅补录本行，不再单独更正）。
 
 ---
 
@@ -51,4 +53,4 @@
   - `tests/merge-stress.test.ts`：WorldState 为跨文件单例，`context-engine`/`dre-core-modules` 两文件残留的 "b1" belief 使计数 501≠500 → 测试开头清零 `mental.beliefs/goals` 再计数。
   - `tests/consciousness.test.ts`：Bun 1.3.14 的 `mock.module` 原地改写模块命名空间且多轮 mock/restore 后无法还原，fakeVault 泄漏到后运行的 `e2e-runtime.test.ts`（×3 失败）→ 文件加载时捕获原始导出引用到 `REAL_VAULT_EXPORTS`，`afterAll` 显式重新注册真实导出。（用 .tmp 最小探针复现并验证机理后修复，探针已删。）
 - **验证**：tsc 0 错误（原 4）；架构测试 22/22（原 20）；**全量 bun test 1077 pass / 0 fail / 28 skip**（原 6 失败）； consciousness+e2e 组合 49/49。
-- **Commit**：`0bb9ae4`（amend 补录本条后推送 `internal211/main`）。
+- **Commit**：`b00e98f`（已推送 `internal211/main`；初稿 `0bb9ae4` 经 amend 补录本条）。
