@@ -35,4 +35,4 @@
   - tsc：4 个基线错误，0 新增；`tests/env.test.ts` 12/12 通过；`architecture-integrity` 20/22（2 个失败为基线）。
   - 单元复现：`validateEnv` 在触发警告时 2ms 返回（修复前死循环）。
   - 实机冒烟（HOST=0.0.0.0 + 短 token，同时验证两修复）：伪造 `Host: localhost` 经 LAN IP 无 token → 401（修复前绕过）；正确 token → 200；错误 token → 401；`/health` 公共路径 200；`/traces/x.json` 401；真实静态资源 200；WS 无 token 401；回环 socket 豁免正常（`/vault/stats` 200）。
-- **Commit**：`ee03634`（amend 补录本条后推送 `internal211/main`）。
+- **Commit**：`ad17ea6`（已推送 `internal211/main`；初稿 `ee03634` 经 amend 补录本条）。
