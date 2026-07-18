@@ -54,3 +54,19 @@
   - `tests/consciousness.test.ts`：Bun 1.3.14 的 `mock.module` 原地改写模块命名空间且多轮 mock/restore 后无法还原，fakeVault 泄漏到后运行的 `e2e-runtime.test.ts`（×3 失败）→ 文件加载时捕获原始导出引用到 `REAL_VAULT_EXPORTS`，`afterAll` 显式重新注册真实导出。（用 .tmp 最小探针复现并验证机理后修复，探针已删。）
 - **验证**：tsc 0 错误（原 4）；架构测试 22/22（原 20）；**全量 bun test 1077 pass / 0 fail / 28 skip**（原 6 失败）； consciousness+e2e 组合 49/49。
 - **Commit**：`b00e98f`（已推送 `internal211/main`；初稿 `0bb9ae4` 经 amend 补录本条）。
+
+---
+
+## 2026-07-18 11:30 +0800 — 前端安全/可靠性小修 + 认证逻辑抽取与回归测试（P0-3）
+
+- **任务**：继续完善——处理剩余中低危项，并为 P0 认证修复补自动化回归防线。
+- **工具**：Read、Edit、Bash(tsc / bun test / curl 冒烟)、AskUserQuestion（api.ts 决策，后台待答）。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/pages/Research.tsx`：第三方来源链接 `<a href={s.link}>` 无协议校验（可注入 `javascript:` URL）→ 仅放行 `^https?://`，否则 href 为 undefined（锚点变不可点击）。
+  - `frontend/src/components/PipelineIndicator.tsx`：`es.onerror = () => es.close()` 废掉了 EventSource 自带重连（一次瞬断永久失效）→ 删除该 handler，恢复浏览器自动重连。
+  - `src/utils/auth-check.ts`（新建）：从 `main.ts` 抽出 `isLocalAddress()` + `checkApiKey()` 纯逻辑（apiKey 改为参数传入），main.ts 改为导入调用——行为零变化，可独立单测。
+  - `tests/auth-check.test.ts`（新建，9 项）：回环识别、fail-closed、公共路径、**P0 回归（伪造 Host:localhost 的远程请求必须 401）**、.json/.txt 动态路由不豁免、/ws 精确匹配、x-api-key/Bearer 凭据。
+- **验证**：tsc 后端+前端均 0 错误；全量 bun test **1086 pass / 0 fail**（新增 9 项认证测试）；抽取后实机冒烟 5/5（回环豁免 200、伪造 Host 401、正确 token 200、.json 路由 401、静态资源 200）。
+- **未动**：`frontend/src/lib/api.ts` 两个中危（401 清 token、token 拦截器）——该文件有用户未提交改动，已提问待答复，本轮保持原样。
+- **版本化说明**：`.gitignore:114` 声明 `frontend/`（前端未使用），`Research.tsx`、`PipelineIndicator.tsx` 未被跟踪且被忽略，本次前端修复仅落盘未入库（已通过前端 tsc 验证）；是否将前端正式纳入版本控制待用户决定。
+- **Commit**：`9569e51`（amend 补录本条后推送 `internal211/main`；仅后端文件 + 本日志）。
