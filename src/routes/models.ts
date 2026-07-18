@@ -1,5 +1,6 @@
 import type { RouteContext } from "./types.js";
 import fs from "fs";
+import { readString } from "../utils/env.js";
 
 const CONFIG_PATH = "./data/model-config.json";
 
@@ -45,11 +46,11 @@ function writeConfig(config: ModelConfigFile): void {
 }
 
 const KNOWN_PROVIDERS: ProviderEntry[] = [
-  { id: "siliconflow", name: "SiliconFlow", baseURL: "https://api.siliconflow.cn/v1", apiKeyLast4: process.env.SILICONFLOW_API_KEY?.slice(-4) ?? "", enabled: !!process.env.SILICONFLOW_API_KEY },
-  { id: "zhipu", name: "智谱AI", baseURL: "https://open.bigmodel.cn/api/paas/v4", apiKeyLast4: process.env.ZHIPU_API_KEY?.slice(-4) ?? "", enabled: !!process.env.ZHIPU_API_KEY },
-  { id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.chat/v1", apiKeyLast4: process.env.MINIMAX_API_KEY?.slice(-4) ?? "", enabled: !!process.env.MINIMAX_API_KEY },
-  { id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", apiKeyLast4: process.env.OPENROUTER_API_KEY?.slice(-4) ?? "", enabled: !!process.env.OPENROUTER_API_KEY },
-  { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", apiKeyLast4: process.env.DEEPSEEK_API_KEY?.slice(-4) ?? "", enabled: !!process.env.DEEPSEEK_API_KEY },
+  { id: "siliconflow", name: "SiliconFlow", baseURL: "https://api.siliconflow.cn/v1", apiKeyLast4: readString("SILICONFLOW_API_KEY").slice(-4), enabled: !!readString("SILICONFLOW_API_KEY") },
+  { id: "zhipu", name: "智谱AI", baseURL: "https://open.bigmodel.cn/api/paas/v4", apiKeyLast4: readString("ZHIPU_API_KEY").slice(-4), enabled: !!readString("ZHIPU_API_KEY") },
+  { id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.chat/v1", apiKeyLast4: readString("MINIMAX_API_KEY").slice(-4), enabled: !!readString("MINIMAX_API_KEY") },
+  { id: "openrouter", name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", apiKeyLast4: readString("OPENROUTER_API_KEY").slice(-4), enabled: !!readString("OPENROUTER_API_KEY") },
+  { id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", apiKeyLast4: readString("DEEPSEEK_API_KEY").slice(-4), enabled: !!readString("DEEPSEEK_API_KEY") },
 ];
 
 export async function handleListModels(ctx: RouteContext): Promise<Response | null> {

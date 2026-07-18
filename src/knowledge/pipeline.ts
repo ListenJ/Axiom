@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js"
+import { readString } from "../utils/env.js"
 import { discoverGitHubRepos, formatTrendingTable } from "./sources/github-trending.js"
 import { discoverBooks, getPdfUrl } from "./sources/z-library.js"
 import { getGlobalVault } from "../memory/vault-manager.js"
@@ -36,7 +37,7 @@ interface StructureResult {
 }
 
 async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | null> {
-  const apiKey = process.env.ZHIPU_API_KEY
+  const apiKey = readString("ZHIPU_API_KEY")
   if (!apiKey) {
     logger.warn("[Pipeline] No ZHIPU_API_KEY, skipping GLM content structuring")
     return null

@@ -36,3 +36,19 @@
   - 单元复现：`validateEnv` 在触发警告时 2ms 返回（修复前死循环）。
   - 实机冒烟（HOST=0.0.0.0 + 短 token，同时验证两修复）：伪造 `Host: localhost` 经 LAN IP 无 token → 401（修复前绕过）；正确 token → 200；错误 token → 401；`/health` 公共路径 200；`/traces/x.json` 401；真实静态资源 200；WS 无 token 401；回环 socket 豁免正常（`/vault/stats` 200）。
 - **Commit**：`ad17ea6`（已推送 `internal211/main`；初稿 `ee03634` 经 amend 补录本条）。
+
+---
+
+## 2026-07-18 10:58 +0800 — 清零基线：tsc 4 错误 + 6 个测试失败全部修复
+
+- **任务**：继续完善——修复上一轮记录的既有基线问题（tsc 4 错误、bun test 6 失败）。
+- **工具**：Read、Grep、Edit、Bash(bun test / tsc / node 统计脚本、最小复现探针)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/knowledge/auto-updater.ts`：`logger.error(msg, {error: ...})` 对象字面量误作 Error 参数（TS2353 ×2）→ 改传 `err instanceof Error ? err : new Error(String(err))`。
+  - `tests/stress/boundary-extreme.test.ts`：`atom.metadata`/`payload` 为 unknown 导致的 2 处类型错误 → 加类型断言（仅测试内）。
+  - `src/routes/models.ts`（5 处）、`src/knowledge/pipeline.ts`（1 处）、`src/knowledge/sources/github-trending.ts`（1 处）：`process.env` 直读 → `readString()`（架构约束 Test 2）。
+  - `tests/architecture-integrity.test.ts` Test 16：console.* 违规 225 处全部位于 `cli/commands/*.ts`（CLI 用户可见输出，与白名单内 cli.ts 同一契约）→ 白名单放行 `cli/commands/` 前缀，并将阈值从 ≤200 收紧为 **0**（防回流）。
+  - `tests/merge-stress.test.ts`：WorldState 为跨文件单例，`context-engine`/`dre-core-modules` 两文件残留的 "b1" belief 使计数 501≠500 → 测试开头清零 `mental.beliefs/goals` 再计数。
+  - `tests/consciousness.test.ts`：Bun 1.3.14 的 `mock.module` 原地改写模块命名空间且多轮 mock/restore 后无法还原，fakeVault 泄漏到后运行的 `e2e-runtime.test.ts`（×3 失败）→ 文件加载时捕获原始导出引用到 `REAL_VAULT_EXPORTS`，`afterAll` 显式重新注册真实导出。（用 .tmp 最小探针复现并验证机理后修复，探针已删。）
+- **验证**：tsc 0 错误（原 4）；架构测试 22/22（原 20）；**全量 bun test 1077 pass / 0 fail / 28 skip**（原 6 失败）； consciousness+e2e 组合 49/49。
+- **Commit**：`0bb9ae4`（amend 补录本条后推送 `internal211/main`）。
