@@ -95,4 +95,29 @@
   - `src/memory/codegraph-index.ts`：`runCodegraph` 用 `spawn(bin, args, {shell:true})`，shell 把含空格的查询分词（"Write bubble sort in Python" → 5 个位置参数报错），且查询可来自 LLM/用户输入 → **命令注入面**。修复：`getCodegraphBin` 优先解析 `node_modules/.bin/codegraph.exe`（Windows 免 shell）；`shell` 仅在 `.cmd/.bat` 时启用，且该路径下逐参数加引号。
   - 密钥泄露审计（评审 P2-7）：全量 grep 确认 logger 调用只出现密钥**名称**与"未配置"警告，无任何密钥值插值；`auto-updater.ts:242` 打印的 config 仅含调度参数（无密钥）。结论：无泄露路径，无需引入 redactSecrets。
 - **验证**：多词查询实测 3 条结果无报错（修复前必现 "too many arguments"）；tsc 0 错误（除用户 WIP audit-logger）；全量 **1086 pass / 1 fail**（唯一 fail 仍为用户 WIP），套件中 CodeGraph 警告消失。
-- **Commit**：`bf1ff46`（amend 补录本条后推送 `internal211/main`）。
+- **Commit**：`c8176f3`（amend 补录本条后推送 `internal211/main`）。
+
+---
+
+## 2026-07-18 19:26 +0800 — P2-1 敏感端点二次确认加固
+
+- **任务**：继续完善——为 Vault/Plugin 等敏感端点增加 per-route 防御性二次确认，并升级确认码随机源。
+- **工具**：AgentSwarm（并行侦察敏感路由现状）、Read、Edit、Write、Bash(tsc / bun test)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/utils/permissions.ts`：`requestConfirmation()` 的确认码由 `Math.random().toString(36).slice(2,10)`（8 字符、可猜测）升级为 `crypto.randomUUID()`（128 位熵），`sandbox.ts` 的高危命令确认同步受益。
+  - `src/routes/confirmation.ts`（新建）：把 `requestConfirmation` / `confirmOperation` 封装为 HTTP 层 `requireHttpConfirmation(ctx, operation, body?)`。支持 body.confirmationId（POST/PUT）、`x-confirmation-id` header（无 body 的 POST/DELETE）、query.confirmationId（GET）三种传递方式；缺失时返回 403 + 新 confirmationId，无效/过期返回 403。
+  - `src/routes/vault.ts`：为 6 个高敏感端点入口增加二次确认：
+    - `POST /vault/write` → `vault:write`
+    - `POST /vault/atomic` → `vault:atomic`
+    - `POST /vault/distill` → `vault:distill`
+    - `POST /vault/code-index` → `vault:code-index`
+    - `POST /vault/reload` → `vault:reload`
+    - `POST /codegraph/init` → `codegraph:init`
+    - `GET /bootstrap` → `bootstrap:run`（从 query 取 confirmationId）
+  - `src/routes/plugin-adapter.ts`：为 5 个插件写操作加二次确认（安装/卸载/启用/禁用/配置），通过 `req.clone()` 读取 body 中的 confirmationId 后仍将原 req 传给底层 handler，不改动 `plugin-routes.ts` 接口。
+  - `tests/route-confirmation.test.ts`（新建，9 项）：确认码 UUID 格式、缺失/有效/无效/一次性使用、header/query 传递方式、5 分钟过期。
+- **未动**：`src/routes/api-keys.ts` 的 `POST /api-keys` / `DELETE /api-keys/:provider` / `POST /api-keys/:provider/test` 同样属于高敏感写入，但该文件存在用户未提交 WIP（test endpoint），本轮为避免混入用户 WIP 未修改；`requireHttpConfirmation` 已可使用，待用户提交 WIP 后在该文件 `requireAuth()` 之后直接补齐即可。
+- **中间问题**：首版把 `requireHttpConfirmation` 放在 `src/utils/permissions.ts` 并导入 `RouteContext`，导致 `Architecture Integrity` 测试 4 项失败（utils 为叶子层，不可导入 routes）。已修复：将函数抽到 `src/routes/confirmation.ts`，permissions.ts 保持纯工具层。
+- **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；新增 `route-confirmation.test.ts` 9/9；全量 **1095 pass / 1 fail / 28 skip / 1 error**（唯一 fail 与 error 均来自用户 WIP `audit-logger.ts`，与本次无关）。
+- **备份**：`backups/p2-1-2026-07-18/permissions.ts`、`vault.ts`、`plugin-adapter.ts`（验证后删除）。
+- **Commit**：`待填写`（推送 `internal211/main`）。

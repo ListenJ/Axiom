@@ -4,6 +4,7 @@
  */
 import type { RouteContext } from "./types.js";
 import { getReadOptimizer } from "../utils/read-optimizer.js";
+import { requireHttpConfirmation } from "./confirmation.js";
 
 async function vaultRead(
   ctx: RouteContext,
@@ -91,6 +92,8 @@ export async function handleVaultWrite(ctx: RouteContext): Promise<Response | nu
   if (ctx.url.pathname === "/vault/write" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:write", body);
+    if (confirmErr) return confirmErr;
     const { path: notePath, content, ...opts } = body;
     if (!notePath || !content) return ctx.jsonResponse({ error: "Missing path or content" }, 400, ctx.baseHeaders);
     const written = await ctx.vault.writeNote(notePath, content, opts);
@@ -103,6 +106,8 @@ export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | n
   if (ctx.url.pathname === "/vault/atomic" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:atomic", body);
+    if (confirmErr) return confirmErr;
     const { title, idea, ...opts } = body;
     if (!title || !idea) return ctx.jsonResponse({ error: "Missing title or idea" }, 400, ctx.baseHeaders);
     const path = await ctx.vault.writeAtomicNote(title, idea, opts);
@@ -114,6 +119,8 @@ export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | n
 export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/code-index" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const confirmErr = requireHttpConfirmation(ctx, "vault:code-index");
+    if (confirmErr) return confirmErr;
     const result = await ctx.vault.indexCode();
     return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   }
@@ -123,6 +130,8 @@ export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response 
 export async function handleVaultReload(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/reload" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const confirmErr = requireHttpConfirmation(ctx, "vault:reload");
+    if (confirmErr) return confirmErr;
     ctx.vault.reload();
     return ctx.jsonResponse({ ok: true }, 200, ctx.baseHeaders);
   }
@@ -142,10 +151,12 @@ export async function handleVaultWatchStatus(ctx: RouteContext): Promise<Respons
 export async function handleVaultDistill(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/distill" && ctx.req.method === "POST") {
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:distill", body);
+    if (confirmErr) return confirmErr;
     const { getConfig } = await import("../core/config-center.js");
     const { MemoryDistiller } = await import("../memory/distiller.js");
     const config = getConfig();
-    const body = await ctx.req.json();
     const distiller = new MemoryDistiller(config.memory.vaultPath);
     const created = await distiller.distillManual(body.title, body.content, {
       source: body.source || "manual",
@@ -160,6 +171,8 @@ export async function handleVaultDistill(ctx: RouteContext): Promise<Response | 
 
 export async function handleBootstrap(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/bootstrap" && ctx.req.method === "GET") {
+    const confirmErr = requireHttpConfirmation(ctx, "bootstrap:run");
+    if (confirmErr) return confirmErr;
     const { getConfig } = await import("../core/config-center.js");
     const { AgentBootstrap } = await import("../memory/bootstrap.js");
     const config = getConfig();
@@ -198,6 +211,8 @@ export async function handleCodegraphSearch(ctx: RouteContext): Promise<Response
 
 export async function handleCodegraphInit(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/codegraph/init" && ctx.req.method === "POST") {
+    const confirmErr = requireHttpConfirmation(ctx, "codegraph:init");
+    if (confirmErr) return confirmErr;
     const { initializeCodegraph, getStatus } = await import("../memory/codegraph-index.js");
     await initializeCodegraph();
     const status = await getStatus();
