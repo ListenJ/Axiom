@@ -67,6 +67,6 @@
   - `src/utils/auth-check.ts`（新建）：从 `main.ts` 抽出 `isLocalAddress()` + `checkApiKey()` 纯逻辑（apiKey 改为参数传入），main.ts 改为导入调用——行为零变化，可独立单测。
   - `tests/auth-check.test.ts`（新建，9 项）：回环识别、fail-closed、公共路径、**P0 回归（伪造 Host:localhost 的远程请求必须 401）**、.json/.txt 动态路由不豁免、/ws 精确匹配、x-api-key/Bearer 凭据。
 - **验证**：tsc 后端+前端均 0 错误；全量 bun test **1086 pass / 0 fail**（新增 9 项认证测试）；抽取后实机冒烟 5/5（回环豁免 200、伪造 Host 401、正确 token 200、.json 路由 401、静态资源 200）。
-- **未动**：`frontend/src/lib/api.ts` 两个中危（401 清 token、token 拦截器）——该文件有用户未提交改动，已提问待答复，本轮保持原样。
+- **未动**：`frontend/src/lib/api.ts` 两个中危（401 清 token、token 拦截器）——该文件有用户未提交改动；用户已决策：跳过，待其提交 WIP 后再修。
 - **版本化说明**：`.gitignore:114` 声明 `frontend/`（前端未使用），`Research.tsx`、`PipelineIndicator.tsx` 未被跟踪且被忽略，本次前端修复仅落盘未入库（已通过前端 tsc 验证）；是否将前端正式纳入版本控制待用户决定。
 - **Commit**：`9569e51`（amend 补录本条后推送 `internal211/main`；仅后端文件 + 本日志）。
