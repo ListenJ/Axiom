@@ -406,33 +406,55 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
 
 const API_KEY = readString("AXIOM_AUTH_TOKEN");
 
-function checkApiKey(req: Request): boolean {
+/**
+ * Loopback detection MUST use the socket peer address (server.requestIP).
+ * Never derive it from req.url / the Host header — clients can spoof Host
+ * to impersonate a local request and bypass authentication.
+ */
+function isLocalAddress(address: string | undefined): boolean {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
+
+// Local (loopback) requests skip auth for E2E tests and local development.
+// Set AXIOM_ALLOW_LOCAL_BYPASS=0 when a reverse proxy runs on the same host,
+// otherwise all proxied traffic appears to originate from 127.0.0.1.
+const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
+
+// Auth-exempt static extensions: real SPA asset types only. .json/.txt are
+// deliberately excluded — dynamic API routes can end with them (e.g.
+// /traces/<id>.json), and extension-based exemption would leak them.
+const AUTH_EXEMPT_EXTS = new Set([
+  ".html", ".js", ".mjs", ".css", ".png", ".jpg", ".jpeg", ".gif",
+  ".svg", ".ico", ".webp", ".woff", ".woff2", ".map",
+]);
+
+function checkApiKey(req: Request, isLocal: boolean): boolean {
   // Fail-closed: if no server-side auth token is configured, deny ALL requests.
   // This protects /chat and other endpoints from open access when env is misconfigured.
   const url = new URL(req.url);
   // Allow local requests without auth (for E2E tests and local development)
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return true;
+  if (isLocal) return true;
   logger.debug("checkApiKey called", { path: url.pathname, apiKeyExists: !!API_KEY, apiKeyLength: API_KEY?.length });
   if (!API_KEY) {
     // No auth token configured: allow static assets and public paths, deny API endpoints
     const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
-    if (STATIC_MIME[staticExt]) return true;
+    if (AUTH_EXEMPT_EXTS.has(staticExt)) return true;
     const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
     if (publicPaths.includes(url.pathname)) return true;
-    if (url.pathname.startsWith("/ws")) return true;
+    if (url.pathname === "/ws") return true;
     logger.warn("Auth check failed: AXIOM_AUTH_TOKEN not configured");
     return false;
   }
   const publicPaths = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
   if (publicPaths.includes(url.pathname)) return true;
-  // Allow all static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
+  // Allow real static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
   const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
-  if (STATIC_MIME[staticExt]) {
+  if (AUTH_EXEMPT_EXTS.has(staticExt)) {
     logger.debug("Static asset allowed without auth", { path: url.pathname, ext: staticExt });
     return true;
   }
   // WebSocket: check auth in upgrade handler, not here
-  if (url.pathname.startsWith("/ws")) return true;
+  if (url.pathname === "/ws") return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
   return auth === API_KEY;
 }
@@ -450,14 +472,17 @@ const server = Bun.serve({
 
     if (req.method === "OPTIONS") return new Response(null, { headers: baseHeaders });
 
+    // Loopback detection via socket peer address (spoof-proof, unlike Host header)
+    const remoteAddress = server.requestIP(req)?.address;
+    const isLocal = ALLOW_LOCAL_BYPASS && isLocalAddress(remoteAddress);
+
     // API Key authentication
-    if (!checkApiKey(req)) {
+    if (!checkApiKey(req, isLocal)) {
       return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
     }
 
     // WebSocket �?verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
-      const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
       const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
       if (!isLocal && wsAuth !== API_KEY) {
         return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
@@ -468,8 +493,8 @@ const server = Bun.serve({
       return jsonResponse({ error: "WebSocket upgrade failed" }, 400, baseHeaders);
     }
 
-    // Rate limiting
-    const rl = await rateLimitCheck(req);
+    // Rate limiting (keyed on the socket peer address, not spoofable headers)
+    const rl = await rateLimitCheck(req, remoteAddress);
     if (!rl.allowed) {
       logger.debug("Rate limited", { path: url.pathname });
       return jsonResponse({ error: "Rate limit exceeded" }, 429, rl.headers);

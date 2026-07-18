@@ -284,10 +284,7 @@ export function validateEnv(options?: {
   if (result.appliedDefaults.length > 0) {
     logger.info(`Applied defaults for ${result.appliedDefaults.length} environment variables`);
   }
-  if (result.warnings.length > 0) {
-    for (const warning of result.warnings) result.warnings.push(warning);
-    for (const w of result.warnings) logger.warn(w);
-  }
+  for (const w of result.warnings) logger.warn(w);
   if (!result.valid) {
     if (result.missing.length > 0) {
       logger.error(`Missing required environment variables: ${result.missing.join(", ")}`);

@@ -14,3 +14,25 @@
   - 新建 `docs/operations-log.md`（本日志）。
 - **验证**：文件写入后回读确认内容完整。
 - **Commit**：`0283702`（已推送 `internal211/main`；初稿 `b93ef74` 经 amend 补录本条，本条 hash 更正见紧随其后的更正提交）。
+
+---
+
+## 2026-07-18 10:32 +0800 — 深度分析薄弱点并修复两个 P0
+
+- **任务**：深度分析全项目薄弱点并修复。基于 `docs/REVIEW-2026-07-17.md` + 2 个并行 explore 子代理（认证核实、前端扫描；另 3 个子代理因 API 配额 403 未运行，改由本地工具完成：tsc、全量 bun test、定向 grep）。
+- **工具**：Agent(explore)×2、Read、Grep、Edit、Bash(bun test / tsc / curl 冒烟)。
+- **发现**：
+  - 🔴 P0-1 认证绕过：`main.ts` `isLocal` 判定用 `new URL(req.url).hostname`（即客户端可伪造的 `Host` header），`Host: localhost` 可免认证调用全部 API（HTTP 与 WebSocket 均受影响）。比评审推测的 XFF 向量更直接。
+  - 🔴 P0-2 启动崩溃：`env.ts:288` `for (const warning of result.warnings) result.warnings.push(warning)` 边遍历边追加 → 无限循环；任何启动警告（如 token <32 字符、未知 AXIOM_ 变量）都会使内存膨胀至 ~26GB 后 Bun panic。本机两次复现（相同 panic 地址）。
+  - 🟠 次要：`.json`/`.txt` 后缀免认证可泄露动态路由（如 `/traces/<id>.json`）；`startsWith("/ws")` 前缀过宽；`rate-limiter.ts` 限流键信任可伪造的 `x-real-ip`。
+  - 基线（未修，非本任务引入）：tsc 4 个错误（auto-updater ×2、boundary-extreme.test ×2）；bun test 6 个失败（console.* 超限、process.env 违规 ×2、E2E Vault ×3、WorldState ×1）；前端中危 2 项（401 无统一处理、响应拦截器误存 token）。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/main.ts`：`isLocal` 改用 `server.requestIP(req)` socket 对端地址（新增 `isLocalAddress()`，覆盖 127.0.0.1/::1/::ffff:127.0.0.1）；新增 `AXIOM_ALLOW_LOCAL_BYPASS` 开关（默认开，同主机反代时设 0）；`startsWith("/ws")` → `=== "/ws"`（2 处）；静态豁免改用 `AUTH_EXEMPT_EXTS`（剔除 .json/.txt）；限流传入 socket IP。
+  - `src/utils/rate-limiter.ts`：`RateLimitMiddleware` 增加可选 `ip` 参数，优先使用服务端传入的 socket 地址。
+  - `src/utils/env.ts`：删除 env.ts:288 的伪循环行（无限循环根因）。
+  - `.env.example`：补充 `AXIOM_ALLOW_LOCAL_BYPASS` 部署说明（评审 P0-2 文档项）。
+- **验证**：
+  - tsc：4 个基线错误，0 新增；`tests/env.test.ts` 12/12 通过；`architecture-integrity` 20/22（2 个失败为基线）。
+  - 单元复现：`validateEnv` 在触发警告时 2ms 返回（修复前死循环）。
+  - 实机冒烟（HOST=0.0.0.0 + 短 token，同时验证两修复）：伪造 `Host: localhost` 经 LAN IP 无 token → 401（修复前绕过）；正确 token → 200；错误 token → 401；`/health` 公共路径 200；`/traces/x.json` 401；真实静态资源 200；WS 无 token 401；回环 socket 豁免正常（`/vault/stats` 200）。
+- **Commit**：`ee03634`（amend 补录本条后推送 `internal211/main`）。

@@ -94,18 +94,20 @@ export class RateLimiter {
 /** Rate-limit middleware function type returned by {@link createRateLimitMiddleware}. */
 export type RateLimitMiddleware = (
   req: Request,
+  ip?: string,
 ) => Promise<{ allowed: boolean; headers: Record<string, string> }>;
 
 /** 基于 IP 的限流中间件 */
 export function createRateLimitMiddleware(
   limiter: RateLimiter,
 ): RateLimitMiddleware {
-  return async (req: Request): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
-    // Use x-real-ip from trusted reverse proxy only; fall back to anonymous
+  return async (req: Request, ip?: string): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
+    // Prefer the socket peer address passed by the server (spoof-proof).
+    // x-real-ip is only a fallback for legacy callers — clients can spoof it.
     // Do NOT trust x-forwarded-for from client (easily spoofed)
-    const ip = req.headers.get("x-real-ip") || "anonymous";
+    const key = ip || req.headers.get("x-real-ip") || "anonymous";
     const url = new URL(req.url);
-    const result = limiter.check(ip, url.pathname);
+    const result = limiter.check(key, url.pathname);
     return {
       allowed: result.allowed,
       headers: limiter.getHeaders(result),
