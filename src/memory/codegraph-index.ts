@@ -62,8 +62,11 @@ let codegraphBin: string | null = null;
 
 function getCodegraphBin(): string {
   if (codegraphBin) return codegraphBin;
-  // 尝试在 node_modules 中找到平台特定的二进制文件
+  // 尝试在 node_modules 中找到平台特定的二进制文件。
+  // Windows 上优先 .exe shim —— 无需 shell 即可执行（.cmd 批处理必须要 shell，
+  // 会引入分词与命令注入问题，见 runCodegraph）
   const candidates = [
+    path.resolve("node_modules/.bin/codegraph.exe"),
     path.resolve("node_modules/@colbymchenry/codegraph-win32-x64/bin/codegraph.cmd"),
     path.resolve("node_modules/@colbymchenry/codegraph-darwin-x64/bin/codegraph"),
     path.resolve("node_modules/@colbymchenry/codegraph-darwin-arm64/bin/codegraph"),
@@ -82,10 +85,21 @@ function getCodegraphBin(): string {
   throw new Error("CodeGraph binary not found. Run: npm install -g @colbymchenry/codegraph");
 }
 
+/** cmd/bat 批处理只能经 shell 执行，此时每个参数必须加引号防止 shell 分词 */
+function quoteForShell(arg: string): string {
+  return `"${arg.replace(/"/g, '""')}"`;
+}
+
 function runCodegraph(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     const bin = getCodegraphBin();
-    const proc = spawn(bin, args, { cwd: cwd || process.cwd(), shell: true });
+    // 仅 .cmd/.bat 需要 shell；原生二进制/可执行文件用数组形式免 shell。
+    // 此前 shell:true 会把含空格的查询分词（"Write bubble sort in Python"
+    // 被拆成 5 个位置参数报 "too many arguments"），且查询中的 shell 元字符
+    // 会被解释（命令注入面——查询可来自 LLM/用户输入）。
+    const shell = /\.(cmd|bat)$/i.test(bin);
+    const finalArgs = shell ? args.map(quoteForShell) : args;
+    const proc = spawn(bin, finalArgs, { cwd: cwd || process.cwd(), shell });
     let stdout = "";
     let stderr = "";
     proc.stdout?.on("data", (d) => { stdout += d.toString(); });

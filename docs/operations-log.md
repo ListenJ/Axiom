@@ -84,3 +84,15 @@
   - 排查确认 `computer-use-agent.ts` 的 `as any` 仅存在于注释；`websocket.ts` 已有 MAX_WS_CLIENTS=100 上限（评审 P3-1/P3-10 均系过时结论）。
 - **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误，未动）；redis 测试 3/3；全量 **1086 pass / 1 fail**（唯一 fail = 用户 WIP 文件 `tests/audit-logger.test.ts` 加载带语法错误的 audit-logger.ts，与本次改动无关）；cognitive_loop 组合/单跑均通过。
 - **Commit**：`92632b6`（amend 补录本条后推送 `internal211/main`）。
+
+---
+
+## 2026-07-18 19:00 +0800 — CodeGraph shell 分词/注入修复 + 密钥泄露审计（P2-7 闭环）
+
+- **任务**：继续完善——追查全量测试中的 CodeGraph "too many arguments for 'query'" 报错，补做安全扫描。
+- **工具**：Read、Grep、Edit、Bash(bun -e 实证 / tsc / bun test)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/memory/codegraph-index.ts`：`runCodegraph` 用 `spawn(bin, args, {shell:true})`，shell 把含空格的查询分词（"Write bubble sort in Python" → 5 个位置参数报错），且查询可来自 LLM/用户输入 → **命令注入面**。修复：`getCodegraphBin` 优先解析 `node_modules/.bin/codegraph.exe`（Windows 免 shell）；`shell` 仅在 `.cmd/.bat` 时启用，且该路径下逐参数加引号。
+  - 密钥泄露审计（评审 P2-7）：全量 grep 确认 logger 调用只出现密钥**名称**与"未配置"警告，无任何密钥值插值；`auto-updater.ts:242` 打印的 config 仅含调度参数（无密钥）。结论：无泄露路径，无需引入 redactSecrets。
+- **验证**：多词查询实测 3 条结果无报错（修复前必现 "too many arguments"）；tsc 0 错误（除用户 WIP audit-logger）；全量 **1086 pass / 1 fail**（唯一 fail 仍为用户 WIP），套件中 CodeGraph 警告消失。
+- **Commit**：`bf1ff46`（amend 补录本条后推送 `internal211/main`）。
