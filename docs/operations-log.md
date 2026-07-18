@@ -120,4 +120,4 @@
 - **中间问题**：首版把 `requireHttpConfirmation` 放在 `src/utils/permissions.ts` 并导入 `RouteContext`，导致 `Architecture Integrity` 测试 4 项失败（utils 为叶子层，不可导入 routes）。已修复：将函数抽到 `src/routes/confirmation.ts`，permissions.ts 保持纯工具层。
 - **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；新增 `route-confirmation.test.ts` 9/9；全量 **1095 pass / 1 fail / 28 skip / 1 error**（唯一 fail 与 error 均来自用户 WIP `audit-logger.ts`，与本次无关）。
 - **备份**：`backups/p2-1-2026-07-18/permissions.ts`、`vault.ts`、`plugin-adapter.ts`（验证后删除）。
-- **Commit**：`待填写`（推送 `internal211/main`）。
+- **Commit**：`88e2db2`（推送 `internal211/main`）。
