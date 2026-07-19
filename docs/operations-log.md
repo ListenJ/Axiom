@@ -120,4 +120,23 @@
 - **中间问题**：首版把 `requireHttpConfirmation` 放在 `src/utils/permissions.ts` 并导入 `RouteContext`，导致 `Architecture Integrity` 测试 4 项失败（utils 为叶子层，不可导入 routes）。已修复：将函数抽到 `src/routes/confirmation.ts`，permissions.ts 保持纯工具层。
 - **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；新增 `route-confirmation.test.ts` 9/9；全量 **1095 pass / 1 fail / 28 skip / 1 error**（唯一 fail 与 error 均来自用户 WIP `audit-logger.ts`，与本次无关）。
 - **备份**：`backups/p2-1-2026-07-18/permissions.ts`、`vault.ts`、`plugin-adapter.ts`（验证后删除）。
-- **Commit**：`88e2db2`（推送 `internal211/main`）。
+- **Commit**：`88e2db2`（主提交推送 `internal211/main`）；`2920239` 补录本条 hash。
+
+---
+
+## 2026-07-19 22:13 +0800 — P2-2 性能：CapabilityRegistry.search() 索引化
+
+- **任务**：继续完善——处理评审 P2 性能项，为 `CapabilityRegistry.search()` 增加索引，并核实 `KnowledgeNetwork.getLinksFrom()` 反向索引现状。
+- **工具**：Read、Edit、Bash(tsc / bun test)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `src/dre/runtime/capability-registry.ts`：
+    - 新增 `capabilitiesByContract: Map<CapabilityContract, Set<capabilityId>>` 反向索引；
+    - `registerProvider()` 注册能力时同步写入索引；
+    - `unregisterProvider()` 删除 provider 能力时同步从索引移除空桶；
+    - `reset()` 清空索引；
+    - `search(contract, opts)` 从扫描全部 capabilities（O(n)）改为只扫描该 contract 下的能力（O(k)，k 为命中 contract 的能力数，通常远小于 n）；
+    - `listByContract()` 同样改为索引查找。
+  - `src/dre/runtime/knowledge-network.ts`（核实未改）：`getLinksFrom()` 已实现 `linksBySrc` 反向索引，时间复杂度已为 O(1)；`getLinksTo()` 同理。评审报告中的"待完成"结论为过时的，本次未做改动。
+- **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；用户 WIP 压力测试 `tests/stress/extreme-stress.test.ts` 中 CapabilityRegistry 相关用例 20/20；全量测试：**待填写**。
+- **备份**：`backups/p2-2-2026-07-18/capability-registry.ts`（验证后删除）。
+- **Commit**：`待填写`（推送 `internal211/main`）。
