@@ -137,6 +137,6 @@
     - `search(contract, opts)` 从扫描全部 capabilities（O(n)）改为只扫描该 contract 下的能力（O(k)，k 为命中 contract 的能力数，通常远小于 n）；
     - `listByContract()` 同样改为索引查找。
   - `src/dre/runtime/knowledge-network.ts`（核实未改）：`getLinksFrom()` 已实现 `linksBySrc` 反向索引，时间复杂度已为 O(1)；`getLinksTo()` 同理。评审报告中的"待完成"结论为过时的，本次未做改动。
-- **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；用户 WIP 压力测试 `tests/stress/extreme-stress.test.ts` 中 CapabilityRegistry 相关用例 20/20；全量测试：**待填写**。
+- **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；用户 WIP 压力测试 `tests/stress/extreme-stress.test.ts` 中 CapabilityRegistry 相关用例 20/20；全量 **1095 pass / 1 fail / 28 skip / 1 error**（与 P2-1 后 baseline 一致，唯一 fail/error 仍为用户 WIP `audit-logger.ts`）。
 - **备份**：`backups/p2-2-2026-07-18/capability-registry.ts`（验证后删除）。
-- **Commit**：`待填写`（推送 `internal211/main`）。
+- **Commit**：`d6caee3`（推送 `internal211/main`）。
