@@ -54,6 +54,24 @@
   --bottom-nav-height: 64px;
   --content-max-width: 1440px;
 
+  /* Spacing — 8dp grid (MD3-inspired) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
   /* Motion — refined spring easings */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
@@ -473,6 +491,60 @@ a:focus-visible,
   100% { background-position: 0% 50%, 300% 50%; }
 }
 
+/* ── Ergonomics & Accessibility Utilities ───────────────────── */
+
+/* Minimum touch target: 44×44px */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Minimum list item height: 48px */
+.list-item {
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Readable text measure */
+.prose {
+  max-width: 70ch;
+  line-height: 1.6;
+}
+
+/* Screen-reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus management: skip link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent);
+  color: var(--text);
+  padding: var(--space-2) var(--space-4);
+  z-index: 100;
+  transition: top var(--duration-fast) var(--ease-out);
+}
+.skip-link:focus {
+  top: 0;
+}
+
 /* ── Reduced Motion ──────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -488,4 +560,16 @@ a:focus-visible,
   .pulse-dot { animation: none; }
   .border-glow { animation: none; }
   .stagger > * { animation: none; }
+}
+
+/* ── High Contrast Mode support ──────────────────────────────── */
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: var(--text-secondary);
+    --border-hover: var(--text);
+  }
+  *:focus-visible {
+    outline-width: 3px;
+  }
 }

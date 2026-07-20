@@ -77,9 +77,26 @@ openclaw-memory.db
 openclaw-memory.db-*
 axiom-memory.db
 axiom-memory.db-*
+# WAL / SHM 运行时临时文件
+data/*.db-shm
+data/*.db-wal
 
 # === Lightpanda ===
 lightpanda-linux
+
+# === OCR trained data (large binary, re-downloadable) ===
+*.traineddata
+
+# === Runtime PID / server state ===
+.server-pid.txt
+.tmp-server.log
+
+# === Proxy config (local network specific) ===
+mihomo-config/
+
+# === Scratch / temp directories ===
+tmp/
+.tmp-e2e/
 
 # ============================================
 # 不上传 GitHub 的文件
@@ -96,8 +113,9 @@ docker-compose.yml
 Dockerfile
 Dockerfile.lightpanda
 
-# 前端 (未使用)
-frontend/
+# 前端 — 自 2026-07-20 起纳入版本控制
+# 历史原因：此前误标为“未使用”，实际已有 64+ 文件被跟踪且持续开发。
+# frontend/
 
 # Tauri
 src-tauri/

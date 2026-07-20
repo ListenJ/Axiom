@@ -1,0 +1,1042 @@
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 19032, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Caught up 79 file(s) changed since last run
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 122ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 120ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 122ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 118ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 128ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 127ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 128ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 123ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 117ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 116ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 185ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\agents\\new-agent.md'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 146ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\agents'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 127ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 191ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 122ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 106ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph daemon] Shutting down (idle timeout; clients=0).
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 25820, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 455ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 228ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 235ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 216ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 208ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 227ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 228ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 225ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 231ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 222ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 203ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 225ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 236ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 218ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 218ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 220ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 218ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 213ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 196ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 203ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 176ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 218ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 13976, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Caught up 83 file(s) changed since last run
+[CodeGraph MCP] Auto-synced 1 file(s) in 197ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 253ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 185ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 223ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 242ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 338ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 264ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 598ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 382ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 245ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 193ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 215ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 221ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 351ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 244ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 244ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 645ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 248ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 261ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 245ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 34 file(s) in 1334ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 206ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 200ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 232ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 205ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 449ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 434ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 426ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 428ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 315ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 401ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 341ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 330ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 394ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 388ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 321ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 316ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 3 file(s) in 223ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 24236, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 361ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations\\2026-05-25.md'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 200ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 238ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 219ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 206ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\agents\\test-agent.md'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 123ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 121ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 134ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 164ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\03-Resources'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 366ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 359ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 308ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 323ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 300ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 365ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 375ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 302ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 505ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 385ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 274ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 344ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 390ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 370ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 338ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 303ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 277ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 239ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 339ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 321ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 129ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 137ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 119ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 117ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 123ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 142ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 132ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 116ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 119ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 128ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 106ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 132ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 110ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 109ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 117ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 16664, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 306ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 360ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 318ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 302ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 230ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 264ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 129ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 214ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 235ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations\\2026-05-25.md'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\data\\agent.db-journal'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 181ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\03-Resources'"
+}
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 12704, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 379ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 160ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\SOUL.md'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 232ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 202ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 1156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 302ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 232ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 235ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 279ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 230ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 254ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 314ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 234ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 222ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 229ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 223ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 227ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 218ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 225ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 225ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 132ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 129ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 142ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 129ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 118ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 128ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 126ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 5 file(s) in 132ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 121ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 140ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 247ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 221ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 200ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 208ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 204ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 202ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 196ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 208ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 189ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db-wal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Network\\Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Network\\Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Safe Browsing Network\\Safe Browsing Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Safe Browsing Network\\Safe Browsing Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Sessions\\Session_13425830811003174'"
+}
+[CodeGraph MCP] Auto-synced 14 file(s) in 1166ms
+[CodeGraph MCP] Auto-synced 16 file(s) in 423ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 220ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 184ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 402ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 176ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 220ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 198ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 200ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 189ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 164ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 193ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 13484, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db-wal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Safe Browsing Network\\Safe Browsing Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Safe Browsing Network\\Safe Browsing Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Network\\Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Network\\Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Sessions\\Session_13425893989638128'"
+}
+[CodeGraph MCP] Auto-synced 14 file(s) in 1370ms
+[CodeGraph MCP] Auto-synced 263 file(s) in 3346ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\Sessions\\Tabs_13425894026222290'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile\\Default\\82799043-2e3d-4458-9537-2d2b502fd3b5.tmp'"
+}
+[CodeGraph MCP] Auto-synced 348 file(s) in 4374ms
+[CodeGraph MCP] Auto-synced 263 file(s) in 1862ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 185ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 176ms
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.db-wal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\GPUPersistentCache\\DawnGraphiteCache\\QFRPRRKRKWZNTFMPUJZIPW2HOZ5QE2WL\\cache.journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Network\\Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Network\\Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Safe Browsing Network\\Safe Browsing Cookies'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Safe Browsing Network\\Safe Browsing Cookies-journal'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Sessions\\Session_13425894164968132'"
+}
+[CodeGraph MCP] Auto-synced 14 file(s) in 1011ms
+[CodeGraph] File watcher error {
+  error: "Error: EBUSY: resource busy or locked, watch 'D:\\openclaw-fusion\\scripts\\verify-geom\\chrome-profile2\\Default\\Sessions\\Session_13425904852928695'"
+}
+[CodeGraph MCP] Auto-synced 14 file(s) in 1397ms
+[CodeGraph MCP] Auto-synced 11 file(s) in 467ms
+[CodeGraph MCP] Auto-synced 393 file(s) in 3852ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 283ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 172ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 11 file(s) in 450ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 16256, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 665ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 336ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 315ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 293ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 304ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 297ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 267ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 263ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 222ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 246ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 252ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 296ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 323ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 288ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 294ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 257ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 326ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 306ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 409ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 324ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 351ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 152ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 143ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 158ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 104ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 104ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 104ms
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\agents\\beta'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\agents'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 134ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 161ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 142ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 137ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 211ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 268ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 184ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 172ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 198ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 181ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 243ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 205ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 209ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 25324, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 392ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 184ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 127ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 111ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 143ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 117ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 127ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 143ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 131ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 262ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 146ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 153ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 145ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 142ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 160ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 4 file(s) in 245ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 188ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 152ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 145ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 173ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 151ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 153ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 146ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 158ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 164ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 13696, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 405ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 152ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 160ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 192ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 172ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 184ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 187ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 185ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 276ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 158ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 199ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 224ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 234ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 209ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 220ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 205ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 246ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 191ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 156ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 130ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\SOUL.md'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 341ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 240ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 228ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 249ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 262ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 269ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 377ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 348ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 268ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 278ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 259ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 247ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 204ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 203ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 216ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 212ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 226ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 222ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 225ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 192ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 238ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 206ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 261ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 228ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 240ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 224ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 231ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 215ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 244ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 263ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 199ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 146ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 176ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 11944, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 325ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 164ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 145ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 147ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 152ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 172ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 179ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 201ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 214ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 138ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, stat 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\01-Projects'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, stat 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\03-Resources'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, stat 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 159ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 195ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 231ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 200ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 184ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 181ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 164ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 160ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 201ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 207ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\01-Projects'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EBADF: bad file descriptor, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\01-Projects'"
+}
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\tests\\fixtures\\vault'"
+}
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 12128, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph MCP] Auto-synced 1 file(s) in 433ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 154ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 181ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 177ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 163ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 124ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 137ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 141ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, watch 'D:\\openclaw-fusion\\plugins\\test-plugin\\index.js'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 153ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 145ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 133ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 149ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 137ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 114ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 239ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 209ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 362ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 272ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 232ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 219ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 136ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 140ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 135ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 134ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 129ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 110ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 106ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 132ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 180ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 176ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 219ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 183ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 182ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 174ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 181ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 172ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 251ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 170ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 217ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 192ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 201ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 224ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 222ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 219ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 215ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 252ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 201ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 188ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 196ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 203ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 196ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 211ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 215ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 171ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 158ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 160ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 161ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 167ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 166ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 23596, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 24360, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 465ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 186ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 272ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 301ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 259ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 190ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 198ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 153ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 157ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 191ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 178ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 165ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 217ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 226ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 144ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 150ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 146ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 148ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 139ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 143ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 194ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 205ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 214ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 294ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 219ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 210ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 210ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 206ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 201ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 238ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 234ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 175ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 168ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 223ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 196ms
+[CodeGraph MCP] Auto-synced 2 file(s) in 303ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 2 file(s) in 211ms
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph] File watcher error { error: 'Error: EPERM: operation not permitted, watch' }
+[CodeGraph MCP] Auto-synced 1 file(s) in 301ms
+[CodeGraph] File watcher error {
+  error: "Error: EPERM: operation not permitted, realpath 'D:\\openclaw-fusion\\tests\\fixtures\\vault\\04-Conversations'"
+}
+[CodeGraph MCP] Auto-synced 1 file(s) in 256ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 169ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 162ms
+[CodeGraph MCP] Auto-synced 1 file(s) in 155ms
+[CodeGraph daemon] Shutting down (idle timeout; clients=0).
+[CodeGraph daemon] Listening on \\.\pipe\codegraph-235acf3a2cd95fb8 (pid 35304, v0.9.9). Idle timeout 300000ms.
+[CodeGraph MCP] File watcher active — graph will auto-sync on changes

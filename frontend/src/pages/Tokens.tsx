@@ -1,0 +1,134 @@
+import { useEffect, useState, useCallback } from 'react'
+import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import PageHeader from '@/components/ui/PageHeader'
+import StatCard from '@/components/ui/StatCard'
+import BarChart from '@/components/ui/BarChart'
+
+interface TokenDetail {
+  perModel: Array<{ model: string; calls: number; promptTokens: number; completionTokens: number; avgLatency: number }>
+  hourlyTrend: Array<{ date: string; totalCalls: number; totalTokens: number }>
+  overall: { totalTokens: number; totalCalls: number; promptTokens: number; completionTokens: number; avgLatency: number }
+  recentCalls: Array<{ timestamp: number; model: string; promptTokens: number; completionTokens: number; latencyMs: number; success: boolean }>
+  cacheStats: { totalCalls: number; cacheHits: number; hitRate: number }
+}
+
+export default function Tokens() {
+  const navigate = useNavigate()
+  const [data, setData] = useState<TokenDetail | null>(null)
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/token-details?days=7')
+      const json = await res.json()
+      setData(json)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 10000)
+    return () => clearInterval(interval)
+  }, [fetchData])
+
+  const modelChartData = (data?.perModel ?? []).map(m => ({
+    label: m.model.length > 15 ? m.model.slice(0, 12) + '...' : m.model,
+    value: m.promptTokens + m.completionTokens,
+  }))
+
+  return (
+    <div className="fade-in flex flex-col gap-6 p-6">
+      <div className="flex items-center gap-4">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">
+          <ArrowLeft className="size-4" />
+          <span className="text-sm">返回</span>
+        </button>
+        <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="总 Token" value={data?.overall.totalTokens.toLocaleString() ?? '—'} icon={<Coins className="size-5" />} accent="info" />
+        <StatCard label="总调用" value={data?.overall.totalCalls.toLocaleString() ?? '—'} icon={<Activity className="size-5" />} accent="success" />
+        <StatCard label="输入 Token" value={data?.overall.promptTokens.toLocaleString() ?? '—'} icon={<ArrowUp className="size-5" />} accent="warning" />
+        <StatCard label="输出 Token" value={data?.overall.completionTokens.toLocaleString() ?? '—'} icon={<ArrowDown className="size-5" />} accent="danger" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <StatCard label="平均延迟" value={data ? `${data.overall.avgLatency}ms` : '—'} icon={<Clock className="size-5" />} accent="default" />
+        <StatCard label="缓存命中率" value={data ? `${data.cacheStats.hitRate}%` : '—'} icon={<HardDrive className="size-5" />} accent="success" />
+        <StatCard label="缓存条目" value={data?.cacheStats.cacheHits.toLocaleString() ?? '—'} icon={<Database className="size-5" />} accent="info" />
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+        <h3 className="mb-3 text-sm font-medium text-[var(--text)]">Token 消耗趋势 (7天)</h3>
+        {modelChartData.length > 0 ? (
+          <BarChart data={modelChartData} showLabels />
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">暂无数据</p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+        <h3 className="mb-3 text-sm font-medium text-[var(--text)]">按模型明细</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-[var(--border)] text-left text-[var(--text-muted)]">
+                <th className="pb-2 font-medium">模型</th>
+                <th className="pb-2 font-medium text-right">调用次数</th>
+                <th className="pb-2 font-medium text-right">输入 Token</th>
+                <th className="pb-2 font-medium text-right">输出 Token</th>
+                <th className="pb-2 font-medium text-right">平均延迟</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.perModel ?? []).map((m, i) => (
+                <tr key={i} className="border-b border-[var(--border)] last:border-0">
+                  <td className="py-2 text-[var(--text)]">{m.model}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{m.calls.toLocaleString()}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{m.promptTokens.toLocaleString()}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{m.completionTokens.toLocaleString()}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{m.avgLatency}ms</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+        <h3 className="mb-3 text-sm font-medium text-[var(--text)]">最近调用记录</h3>
+        <div className="max-h-64 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-[var(--border)] text-left text-[var(--text-muted)]">
+                <th className="pb-2 font-medium">时间</th>
+                <th className="pb-2 font-medium">模型</th>
+                <th className="pb-2 font-medium text-right">输入</th>
+                <th className="pb-2 font-medium text-right">输出</th>
+                <th className="pb-2 font-medium text-right">延迟</th>
+                <th className="pb-2 font-medium text-center">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.recentCalls ?? []).map((c, i) => (
+                <tr key={i} className="border-b border-[var(--border)] last:border-0">
+                  <td className="py-1.5 text-[var(--text-muted)]">{new Date(c.timestamp).toLocaleTimeString('zh-CN')}</td>
+                  <td className="py-1.5 text-[var(--text)]">{c.model.length > 20 ? c.model.slice(0, 17) + '...' : c.model}</td>
+                  <td className="py-1.5 text-right text-[var(--text-muted)]">{c.promptTokens.toLocaleString()}</td>
+                  <td className="py-1.5 text-right text-[var(--text-muted)]">{c.completionTokens.toLocaleString()}</td>
+                  <td className="py-1.5 text-right text-[var(--text-muted)]">{c.latencyMs}ms</td>
+                  <td className="py-1.5 text-center">
+                    <span className={c.success ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>
+                      {c.success ? '✓' : '✗'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
