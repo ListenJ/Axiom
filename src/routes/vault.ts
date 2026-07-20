@@ -5,6 +5,7 @@
 import type { RouteContext } from "./types.js";
 import { getReadOptimizer } from "../utils/read-optimizer.js";
 import { requireHttpConfirmation } from "./confirmation.js";
+import { requireAuthToken, auditSuccess } from "./route-auth.js";
 
 async function vaultRead(
   ctx: RouteContext,
@@ -90,6 +91,8 @@ export async function handleVaultNote(ctx: RouteContext): Promise<Response | nul
 
 export async function handleVaultWrite(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/write" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
     const confirmErr = requireHttpConfirmation(ctx, "vault:write", body);
@@ -97,6 +100,7 @@ export async function handleVaultWrite(ctx: RouteContext): Promise<Response | nu
     const { path: notePath, content, ...opts } = body;
     if (!notePath || !content) return ctx.jsonResponse({ error: "Missing path or content" }, 400, ctx.baseHeaders);
     const written = await ctx.vault.writeNote(notePath, content, opts);
+    auditSuccess(ctx, "vault.write", notePath);
     return ctx.jsonResponse({ path: written }, 201, ctx.baseHeaders);
   }
   return null;
@@ -104,6 +108,8 @@ export async function handleVaultWrite(ctx: RouteContext): Promise<Response | nu
 
 export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/atomic" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
     const confirmErr = requireHttpConfirmation(ctx, "vault:atomic", body);
@@ -111,6 +117,7 @@ export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | n
     const { title, idea, ...opts } = body;
     if (!title || !idea) return ctx.jsonResponse({ error: "Missing title or idea" }, 400, ctx.baseHeaders);
     const path = await ctx.vault.writeAtomicNote(title, idea, opts);
+    auditSuccess(ctx, "vault.write", path);
     return ctx.jsonResponse({ path, title }, 201, ctx.baseHeaders);
   }
   return null;
@@ -118,10 +125,13 @@ export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | n
 
 export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/code-index" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const confirmErr = requireHttpConfirmation(ctx, "vault:code-index");
     if (confirmErr) return confirmErr;
     const result = await ctx.vault.indexCode();
+    auditSuccess(ctx, "vault.write", "code-index");
     return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   }
   return null;
@@ -129,10 +139,13 @@ export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response 
 
 export async function handleVaultReload(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/reload" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const confirmErr = requireHttpConfirmation(ctx, "vault:reload");
     if (confirmErr) return confirmErr;
     ctx.vault.reload();
+    auditSuccess(ctx, "vault.write", "reload");
     return ctx.jsonResponse({ ok: true }, 200, ctx.baseHeaders);
   }
   return null;
@@ -150,6 +163,8 @@ export async function handleVaultWatchStatus(ctx: RouteContext): Promise<Respons
 
 export async function handleVaultDistill(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/distill" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
     const confirmErr = requireHttpConfirmation(ctx, "vault:distill", body);
@@ -164,6 +179,7 @@ export async function handleVaultDistill(ctx: RouteContext): Promise<Response | 
       tags: body.tags,
       relatedNotes: body.relatedNotes,
     });
+    auditSuccess(ctx, "vault.write", created);
     return ctx.jsonResponse({ created }, 201, ctx.baseHeaders);
   }
   return null;

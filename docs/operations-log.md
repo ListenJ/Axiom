@@ -140,3 +140,36 @@
 - **验证**：tsc 0 错误（仅用户 WIP `audit-logger.ts:218` 语法错误）；用户 WIP 压力测试 `tests/stress/extreme-stress.test.ts` 中 CapabilityRegistry 相关用例 20/20；全量 **1095 pass / 1 fail / 28 skip / 1 error**（与 P2-1 后 baseline 一致，唯一 fail/error 仍为用户 WIP `audit-logger.ts`）。
 - **备份**：`backups/p2-2-2026-07-18/capability-registry.ts`（验证后删除）。
 - **Commit**：`d6caee3`（推送 `internal211/main`）。
+
+---
+
+## 2026-07-20 02:30 +0800 — Phase 1：审计日志 + Logger 脱敏 + per-route 二次认证（v4 计划 Task 1.2/1.3/1.4）
+
+- **任务**：执行 v4 续接计划 Phase 1 收尾，完成三大安全基础设施：(1) 审计日志模块（修复用户 WIP 语法错误 + 测试）；(2) Logger 密钥脱敏；(3) per-route 二次认证守卫 + 接入 4 个敏感路由文件。
+- **工具**：Read、Edit、Write、DeleteFile、Bash(tsc / bun test / git)。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - **Task 1.2 审计日志模块** `src/utils/audit-logger.ts`（修复用户 WIP）：
+    - 修复 line 218 `export const auditLogger: AuditLogger` → `= new AuditLogger()`（TS1155 未初始化错误）。
+    - 模块加载时立即 `metrics.register({audit_event_total})` + `metrics.register({security_alert_total})`，避免 `increment` 被 warn 丢弃。
+    - 同步 `fs.appendFileSync` 落盘 + 文件轮转（超 maxSize rename + 时间戳，保留 maxFiles 个旧文件）。
+    - `tests/audit-logger.test.ts`（新建，11 项）：JSON Lines 格式、metrics 计数器、文件轮转、单例导出。
+  - **Task 1.3 Logger 密钥脱敏** `src/utils/logger.ts`：
+    - 新增 `import { sanitizeRequestBody } from "./security.js"`。
+    - 新增静态属性 `SECRET_VALUE_RE`（捕获 sk-/Bearer/AKIA/ghp_/glpat-/xoxb- 六类密钥模式）。
+    - 新增私有方法 `redactContext(ctx)`：先按字段名递归脱敏（复用 sanitizeRequestBody），再按值扫描密钥模式替换为 `[REDACTED]`。
+    - `serialize()` 修改：context 走 `redactContext`；error.message/error.stack 走 `SECRET_VALUE_RE` 替换。
+    - `tests/logger-redact.test.ts`（新建，12 项）：key-based 脱敏、value-based 脱敏、嵌套对象、URL 嵌入密钥、error 对象 message/stack、混合场景。
+  - **Task 1.4 per-route 二次认证守卫** `src/routes/route-auth.ts`（新建）+ 接入 4 路由：
+    - `requireAuthToken(ctx)`：未配置 AXIOM_AUTH_TOKEN → 503 + auditLogger.auth.failure；token 不匹配 → 401 + auditLogger.auth.failure；通过 → null（fail-closed）。
+    - `auditSuccess(ctx, event, resource?, metadata?)`：成功事件留痕（10 种 AuditableEvent）。
+    - `src/routes/api-keys.ts`：删除本地 `requireAuth`（20 行）→ 改用 `requireAuthToken`；POST/DELETE 成功后 `auditSuccess`。
+    - `src/routes/vault.ts`：5 个 POST handler 加 `requireAuthToken` 守卫 + `auditSuccess`（write/atomic/code-index/reload/distill）。
+    - `src/routes/sandbox.ts`：`handleSandboxExecute` 加 `requireAuthToken` + `auditSuccess(ctx, "sandbox.execute", command, {exitCode})`。
+    - `src/routes/plugin-adapter.ts`：5 个敏感分支加 `requireAuthToken` + `auditSuccess`（install/uninstall/enable/disable/configure）。
+    - `tests/route-auth.test.ts`（新建，7 项）：未配置 token → 503、错误 token → 401、正确 token (x-api-key) → null、正确 token (Authorization: Bearer) → null、auditSuccess event 字段、metadata 记录、resource 缺省回退。
+  - **架构循环依赖修复**：首版 `route-auth.ts` 放在 `src/utils/`，因 `import type { RouteContext } from "../routes/types.js"` 触发 3 项 architecture-integrity 测试失败（utils 为 leaf layer）。修复：移动到 `src/routes/route-auth.ts`（语义上 route 认证本属于 routes 层），同步更新 4 路由 + 测试文件的 import 路径。
+- **未动**（保持 WIP）：`src/routes/api-keys.ts` 的 `POST /api-keys/:provider/test` 端点 + `src/utils/api-key-store.ts` 的 `testProviderConnection`/`listProvidersByAdapter`/region-adapter 系统。原因：该 WIP 与本任务无强依赖，且 api-key-store.ts 有 277 行无关改动；按 AGENTS Rule 3 只暂存本任务相关文件。已在 api-keys.ts 留 NOTE 注释指引后续恢复。
+- **验证**：tsc 0 错误；Phase 1 安全相关 5 文件 **61/61 pass**（22 architecture-integrity + 11 audit-logger + 9 auth-check + 12 logger-redact + 7 route-auth）；全量 **1178 pass / 104 fail / 11 errors**（所有 fail/errors 均为前端 React 组件测试与 CognitivePipeline/DataPipeline 等历史 baseline，与本任务无关）。
+- **备份**：`.tmp/backups/src/utils/route-auth.ts.bak` 等 10 个备份文件（验证后全部删除）。
+- **Commit**：（待提交，本条 hash 在 push 后补录）。
+

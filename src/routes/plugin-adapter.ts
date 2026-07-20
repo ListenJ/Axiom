@@ -8,6 +8,7 @@ import type { RouteContext } from "./types.js";
 import { createPluginRoutes } from "./plugin-routes.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { requireHttpConfirmation } from "./confirmation.js";
+import { requireAuthToken, auditSuccess } from "./route-auth.js";
 
 let pluginRoutes: ReturnType<typeof createPluginRoutes> | null = null;
 let routeRegistry: ToolRegistry | null = null;
@@ -67,8 +68,11 @@ export async function handlePluginRoutes(ctx: RouteContext): Promise<Response | 
 
   // POST /plugins/install - Install a plugin
   if (path === "/plugins/install" && req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     const confirmErr = await requirePluginConfirmation(ctx, req, "plugins:install");
     if (confirmErr) return confirmErr;
+    auditSuccess(ctx, "plugin.install", "install");
     return pluginRoutes.install(req);
   }
 
@@ -91,29 +95,41 @@ export async function handlePluginRoutes(ctx: RouteContext): Promise<Response | 
     switch (action) {
       case "uninstall":
         if (req.method === "POST") {
+          const authErr = requireAuthToken(ctx);
+          if (authErr) return authErr;
           const confirmErr = await requirePluginConfirmation(ctx, req, "plugins:uninstall");
           if (confirmErr) return confirmErr;
+          auditSuccess(ctx, "plugin.uninstall", id);
           return pluginRoutes.uninstall(req, { id });
         }
         break;
       case "enable":
         if (req.method === "POST") {
+          const authErr = requireAuthToken(ctx);
+          if (authErr) return authErr;
           const confirmErr = await requirePluginConfirmation(ctx, req, "plugins:enable");
           if (confirmErr) return confirmErr;
+          auditSuccess(ctx, "plugin.enable", id);
           return pluginRoutes.enable(req, { id });
         }
         break;
       case "disable":
         if (req.method === "POST") {
+          const authErr = requireAuthToken(ctx);
+          if (authErr) return authErr;
           const confirmErr = await requirePluginConfirmation(ctx, req, "plugins:disable");
           if (confirmErr) return confirmErr;
+          auditSuccess(ctx, "plugin.disable", id);
           return pluginRoutes.disable(req, { id });
         }
         break;
       case "config":
         if (req.method === "POST") {
+          const authErr = requireAuthToken(ctx);
+          if (authErr) return authErr;
           const confirmErr = await requirePluginConfirmation(ctx, req, "plugins:config");
           if (confirmErr) return confirmErr;
+          auditSuccess(ctx, "plugin.configure", id);
           return pluginRoutes.configure(req, { id });
         }
         break;

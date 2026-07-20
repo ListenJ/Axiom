@@ -25,32 +25,11 @@ import {
   saveApiKeyOverride,
   deleteApiKeyOverride,
 } from "../utils/api-key-persistence.js";
-import { readString } from "../utils/env.js";
+import { requireAuthToken, auditSuccess } from "./route-auth.js";
 import { logger } from "../utils/logger.js";
 
 /** Minimum API key length for validation */
 const MIN_API_KEY_LENGTH = 8;
-
-function requireAuth(ctx: RouteContext): Response | null {
-  const token = readString("AXIOM_AUTH_TOKEN");
-  if (!token) {
-    // Fail closed: if the operator hasn't configured a token, refuse all calls.
-    return ctx.jsonResponse(
-      { error: "Server auth not configured (AXIOM_AUTH_TOKEN missing)" },
-      503,
-      ctx.baseHeaders
-    );
-  }
-
-  const provided =
-    ctx.req.headers.get("x-api-key") ||
-    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-
-  if (provided !== token) {
-    return ctx.jsonResponse({ error: "Unauthorized" }, 401, ctx.baseHeaders);
-  }
-  return null;
-}
 
 /** Validate baseURL format if provided */
 function isValidBaseURL(url: string | undefined): boolean {
@@ -67,7 +46,7 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const path = ctx.url.pathname;
 
   // All /api-keys routes require authentication
-  const authErr = requireAuth(ctx);
+  const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
 
   // GET /api-keys — list all
@@ -118,6 +97,7 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
       saveApiKeyOverride(ctx.db, provider, apiKey, baseURL);
       setApiKeyOverride(provider, apiKey, baseURL);
       logger.info(`[api-keys] Set override for ${provider}`);
+      auditSuccess(ctx, "apikey.set", provider);
       return ctx.jsonResponse(
         { success: true, provider, message: `Runtime override set for ${provider}` },
         200,
@@ -155,12 +135,18 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
     // Delete from DB first, then clear memory — ensures consistency
     deleteApiKeyOverride(ctx.db, provider);
     clearApiKeyOverride(provider);
+    auditSuccess(ctx, "apikey.delete", provider);
     return ctx.jsonResponse(
       { success: true, provider, message: `Runtime override cleared for ${provider}` },
       200,
       ctx.baseHeaders
     );
   }
+
+  // POST /api-keys/:provider/test — 测试 API Key 连通性
+  // NOTE: 此端点依赖 api-key-store.ts 的 testProviderConnection（WIP，未提交）。
+  // 待 api-key-store.ts 的 provider 适配/区域系统合并后，在此处恢复端点实现。
+  // 届时同步恢复 auditSuccess(ctx, "apikey.test", provider, { ok: result.ok }) 调用。
 
   return null;
 }

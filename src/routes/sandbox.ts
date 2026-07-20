@@ -1,8 +1,13 @@
 import type { RouteContext } from "./types.js"
 import { checkCommandPermission } from "../utils/permissions.js"
+import { requireAuthToken, auditSuccess } from "./route-auth.js"
 
 export async function handleSandboxExecute(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/sandbox/execute" || ctx.req.method !== "POST") return null
+
+  // 身份层二次认证（防止未授权调用沙箱执行）
+  const authErr = requireAuthToken(ctx)
+  if (authErr) return authErr
 
   try {
     const body = await ctx.req.json() as {
@@ -55,6 +60,7 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
       readOnly: true,
     })
 
+    auditSuccess(ctx, "sandbox.execute", body.command, { exitCode: result.exitCode })
     return ctx.jsonResponse({
       success: result.exitCode === 0,
       exitCode: result.exitCode,
