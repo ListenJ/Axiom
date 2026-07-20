@@ -171,5 +171,5 @@
 - **未动**（保持 WIP）：`src/routes/api-keys.ts` 的 `POST /api-keys/:provider/test` 端点 + `src/utils/api-key-store.ts` 的 `testProviderConnection`/`listProvidersByAdapter`/region-adapter 系统。原因：该 WIP 与本任务无强依赖，且 api-key-store.ts 有 277 行无关改动；按 AGENTS Rule 3 只暂存本任务相关文件。已在 api-keys.ts 留 NOTE 注释指引后续恢复。
 - **验证**：tsc 0 错误；Phase 1 安全相关 5 文件 **61/61 pass**（22 architecture-integrity + 11 audit-logger + 9 auth-check + 12 logger-redact + 7 route-auth）；全量 **1178 pass / 104 fail / 11 errors**（所有 fail/errors 均为前端 React 组件测试与 CognitivePipeline/DataPipeline 等历史 baseline，与本任务无关）。
 - **备份**：`.tmp/backups/src/utils/route-auth.ts.bak` 等 10 个备份文件（验证后全部删除）。
-- **Commit**：（待提交，本条 hash 在 push 后补录）。
+- **Commit**：`083c5b6`（已推送 `internal211/main`）。
 
