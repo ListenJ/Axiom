@@ -195,3 +195,33 @@
 - **备份**：`.tmp/backups/src/crawl/data-pipeline.ts`（验证后删除）。
 - **Commit**：`fdb7350`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-20 23:32 +0800 — 全面检查 + PDCA：前端纳入版本控制 + 设计系统文档
+
+- **任务**：用户要求对项目进行全面检查（设计方案、代码库、Git 状态），并基于 PDCA 制定最小化施工计划；用户决策将前端正式纳入版本控制并调用设计 skill 完善前端框架与人机工效。
+- **工具**：AgentSwarm（4 路并行：架构、TODO、技术债务、Git 状态）、Read/Edit/Write、Bash、Skill(material-3)。
+- **检查结论（结构化报告已在前序消息输出）**：
+  - 当前 HEAD 可自洽构建，但工作区存在大量 WIP；`.gitignore:114` 的 `frontend/` 规则与“已有 64+ 文件被跟踪且持续开发”的事实矛盾。
+  - `main` 分支 upstream 错误地指向 `internal/main`（192.168.0.150），而非 AGENTS.md 指定的 `internal211/main`（192.168.0.11）。
+  - 根目录存在游离备份 `backups_tmp`；SQLite WAL/SHM 临时文件未被忽略。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - `.gitignore`：移除 `frontend/` 全局忽略（前端正式入库）；新增 `data/*.db-shm`、`data/*.db-wal` 忽略。
+  - `frontend/docs/FRONTEND-DESIGN.md`（新建）：前端设计系统文档，涵盖设计原则、Design Tokens、人机工效规范（触摸目标、响应式断点、键盘焦点、reduced-motion、对比度）、组件架构、页面组织、API 契约、与 Material Design 3 的关系。
+  - `frontend/src/styles/index.css`：补充 `--space-*` 间距 token、`--radius-*` 形状 token，新增 `.touch-target`、`.list-item`、`.prose`、`.sr-only`、`.skip-link` 等人机工效 utility，补充 `prefers-contrast: more` 高对比度支持。
+  - 将未跟踪的 frontend 页面/组件/state 文件纳入版本控制（约 25 个文件），不触碰用户 WIP 修改（`Chat.tsx`、`Home.tsx`、`api.ts` 等仍保持未提交）。
+  - `docs/PROJECT-GUIDE.md`、`docs/REVIEW-2026-07-17.md`：纳入版本控制。
+  - `backups_tmp`：按 AGENTS.md 规则 4 归档至 `archive/backups/backups_tmp.js`，新建 `archive/ARCHIVE-LOG.md` 记录归档信息。
+  - Git：修正 `main` 分支 upstream 为 `internal211/main`。
+- **未执行（P1/P2 留待后续迭代）**：
+  - 数据契约不匹配（`/search/code`、`/file-index`、`/api-keys/:provider/test`、`/advisor/health` 等）：多数依赖用户 WIP 文件（`api-key-store.ts`、`pipeline.ts`、`types.ts`），本轮为避免混入 WIP 未修改。
+  - 架构债务（`main.ts` 拆分、单例生命周期、`RouteContext` 瘦身、循环依赖）：属于大重构，超出本轮“最小化施工”范围。
+  - `process.env` 治理、`as any` 清理、`console.*` 收敛：列入下一迭代 P2。
+- **验证**：
+  - `bun run lint`：0 错误。
+  - `cd frontend && npm run lint`：0 错误。
+  - `bun test tests/architecture-integrity.test.ts`：22/22 通过。
+  - `bun test tests/`：**1177 pass / 4 fail / 28 skip / 1 error**；4 个 fail 为 DataPipeline/CognitivePipeline 在并行全量运行时的 flaky timeout，单独重跑对应文件全部通过，与本次改动无关。
+- **备份**：`backups/p0-frontend-vc-2026-07-19/.gitignore`、`index.css.bak`（验证后删除）。
+- **Commit**：`6a09144`（推送 `internal211/main`）。
+
