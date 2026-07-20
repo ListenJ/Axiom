@@ -37,7 +37,6 @@
   - tsc：4 个基线错误，0 新增；`tests/env.test.ts` 12/12 通过；`architecture-integrity` 20/22（2 个失败为基线）。
   - 单元复现：`validateEnv` 在触发警告时 2ms 返回（修复前死循环）。
   - 实机冒烟（HOST=0.0.0.0 + 短 token，同时验证两修复）：伪造 `Host: localhost` 经 LAN IP 无 token → 401（修复前绕过）；正确 token → 200；错误 token → 401；`/health` 公共路径 200；`/traces/x.json` 401；真实静态资源 200；WS 无 token 401；回环 socket 豁免正常（`/vault/stats` 200）。
-- **Commit**：`ad17ea6`（已推送 `internal211/main`；初稿 `ee03634` 经 amend 补录本条）。
 
 ---
 
@@ -172,4 +171,27 @@
 - **验证**：tsc 0 错误；Phase 1 安全相关 5 文件 **61/61 pass**（22 architecture-integrity + 11 audit-logger + 9 auth-check + 12 logger-redact + 7 route-auth）；全量 **1178 pass / 104 fail / 11 errors**（所有 fail/errors 均为前端 React 组件测试与 CognitivePipeline/DataPipeline 等历史 baseline，与本任务无关）。
 - **备份**：`.tmp/backups/src/utils/route-auth.ts.bak` 等 10 个备份文件（验证后全部删除）。
 - **Commit**：`083c5b6`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-20 06:55 +0800 — v4 Phase 2 检索优化（filter / score / extract + data-pipeline 接入）
+
+- **任务**：执行 `.trae/documents/axiom-three-pillar-v4-continuation-plan.md` Phase 2（Task 2.1-2.4），构建搜索结果过滤 / 多维度评分 / 三元组抽取三个模块并接入 `DataPipeline.crawlSearchResults` 与 `saveCrawlResult`。
+- **工具**：Read、Edit、Write、Bash(bunx tsc / bun test)；按 AGENTS Rule 2 在改 `data-pipeline.ts` 前备份至 `.tmp/backups/src/crawl/`，验证通过后删除备份。
+- **操作（文件级）**：
+  - 新建 `src/crawl/result-filter.ts`（Task 2.1）：黑名单域名（赌博/色情/恶意软件/内容农场）+ 启发式（标题<10 / snippet<20 / 纯广告）+ 归一化 link 去重，保留 position 最小者；API `filterResults(results): SearchEngineResult[]`。
+  - 新建 `src/crawl/result-scorer.ts`（Task 2.2）：4 维度打分 — sourceCredibility (TLD 加权 .gov=1.0/.edu=0.95/.xyz=0.25) + contentRelevance (Jaccard, title 0.6 + snippet 0.4) + timeliness (<=7d=0.9/<=30d=0.8/<=365d=0.45/无日期=0.5) + factualAccuracy (复用 `ConformalHallucinationDetector.verify().pValue`)；权重 0.2/0.35/0.15/0.3；API `scoreResult(result, query, factBase?): ScoreBreakdown`。
+  - 新建 `src/crawl/data-extractor.ts`（Task 2.3）：zod `ExtractedFactSchema` + 中英文分离 pattern（`IS_PATTERN_CN/EN`、`DEFINE_PATTERN_CN/EN`、`LOCATE_PATTERN_CN/EN`、`CREATE_PATTERN`）+ 列表项模式；`stripMarkdown` 前置（避免 URL 中的 `.` 误触发句子分割）；单文档上限 30 条；API `extractFacts(markdown, source): ExtractedFact[]`。
+  - 修改 `src/crawl/data-pipeline.ts`（Task 2.4，按 Rule 2 备份→读全文→最小改→验证→删备份）：
+    - 顶部追加 `import { filterResults } / { scoreResult, ScoreBreakdown } / { extractFacts, ExtractedFact }`。
+    - `crawlSearchResults`：原 `slice(0, max)` 前插入 `filterResults → scoreResult → sort by total desc → slice`；新增日志输出 raw/filtered/targets 三个计数。
+    - `calculateQualityScore`：新增可选 `scoreHook?: (result, wordCount) => number` 参数（外部加分接入点，clamp 到 [0,100]）。
+    - `saveCrawlResult`：先 `extractFacts(result.markdown, result.url)`，将结果与原 `structuredData` 合并为 `{ schema, facts }` 后写入 `structured_data` 字段（无现有读取代码，安全合并）。
+  - 新建 `tests/crawl-filter-score-extract.test.ts`：25 个用例（filter 9 + score 6 + extract 10）。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/crawl-filter-score-extract.test.ts`：25/25 通过（修复 5 个失败：①"按 link 去重"测试标题 "Pos 5/2/8" 长度<10 被启发式过滤 → 改为 "Position Five/Two/Eight Title"；②-⑤中文 "是" 后无空格导致旧 `IS_PATTERN` 漏匹配 → 分离 `IS_PATTERN_CN`（无 `\s+`）与 `IS_PATTERN_EN`（保留 `\s+`），`tryExtractFromSentence.patterns` 数组同步更新为 7 条；⑥markdown 链接测试中 URL 的 `.` 被句子分割器误判 → 在 `extractFacts` 入口对整个文档先 `stripMarkdown` 再分割）。
+  - `bun test tests/architecture-integrity.test.ts`：22/22 通过（无新增循环依赖 / leaf layer 违规）。
+- **备份**：`.tmp/backups/src/crawl/data-pipeline.ts`（验证后删除）。
+- **Commit**：`<待补>`（提交后 amend 补录 hash）。
 

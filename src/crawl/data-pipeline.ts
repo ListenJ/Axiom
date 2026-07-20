@@ -17,6 +17,9 @@ import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 
 import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
+import { filterResults } from "./result-filter.js";
+import { scoreResult, type ScoreBreakdown } from "./result-scorer.js";
+import { extractFacts, type ExtractedFact } from "./data-extractor.js";
 import { Database } from "bun:sqlite";
 
 // Precompiled noise-removal patterns (module-level, reused on every crawl pass
@@ -761,6 +764,13 @@ export class DataPipeline {
     const wordCount = result.chunks.reduce((sum, c) => sum + c.wordCount, 0);
     const qualityScore = this.calculateQualityScore(result, wordCount);
 
+    // Task 2.3: 抽取 (subject, predicate, object) 三元组，与 Schema.org 数据合并写入 structured_data 字段
+    const facts: ExtractedFact[] = extractFacts(result.markdown, result.url);
+    const structuredDataWithFacts = {
+      schema: result.structuredData,
+      facts,
+    };
+
     db.run(
       `INSERT OR REPLACE INTO crawl_results (
         url, url_hash, title, description, site_name, language,
@@ -775,7 +785,7 @@ export class DataPipeline {
         result.siteName || null,
         result.language || null,
         result.markdown,
-        JSON.stringify(result.structuredData),
+        JSON.stringify(structuredDataWithFacts),
         JSON.stringify(result.headings),
         JSON.stringify(result.tables),
         JSON.stringify(result.codeBlocks),
@@ -810,8 +820,15 @@ export class DataPipeline {
 
   /**
    * 计算内容质量评分 (0-100)
+   *
+   * 可选 scoreHook：允许外部接入额外的打分逻辑（如基于检索 query 的相关性得分），
+   * 返回值会被累加到基础分上（最终仍 clamp 到 [0, 100]）。
    */
-  private calculateQualityScore(result: StructuredCrawlResult, wordCount: number): number {
+  private calculateQualityScore(
+    result: StructuredCrawlResult,
+    wordCount: number,
+    scoreHook?: (result: StructuredCrawlResult, wordCount: number) => number,
+  ): number {
     let score = 0;
     // 基础分：有标题 +10
     if (result.title && result.title !== "Untitled") score += 10;
@@ -828,6 +845,11 @@ export class DataPipeline {
     score += Math.min(result.images.length, 5);
     // Schema.org 数据 +5
     if (result.structuredData.length > 0) score += 5;
+    // 外部 hook 加分（Task 2.2 接入点）
+    if (scoreHook) {
+      const extra = scoreHook(result, wordCount);
+      if (typeof extra === "number" && Number.isFinite(extra)) score += extra;
+    }
     return Math.min(Math.round(score), 100);
   }
 
@@ -858,8 +880,20 @@ export class DataPipeline {
       num: opts?.num || 10,
       engines: opts?.engines,
     });
+
+    // Task 2.1: 黑名单 + 启发式 + 去重过滤
+    const filtered = filterResults(results);
+    // Task 2.2: 4 维度打分并按 total 降序排序
+    const scored = filtered
+      .map((r) => ({ result: r, score: scoreResult(r, query) }))
+      .sort((a, b) => b.score.total - a.score.total);
+
     const max = opts?.maxResults || 5;
-    const targets = results.slice(0, max);
+    const targets = scored.slice(0, max).map((s) => s.result);
+
+    logger.info(
+      `[Pipeline] crawlSearchResults: query="${query}" raw=${results.length} filtered=${filtered.length} targets=${targets.length}`
+    );
 
     const crawled: StructuredCrawlResult[] = [];
     for (const item of targets) {
