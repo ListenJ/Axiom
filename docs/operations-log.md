@@ -193,5 +193,5 @@
   - `bun test tests/crawl-filter-score-extract.test.ts`：25/25 通过（修复 5 个失败：①"按 link 去重"测试标题 "Pos 5/2/8" 长度<10 被启发式过滤 → 改为 "Position Five/Two/Eight Title"；②-⑤中文 "是" 后无空格导致旧 `IS_PATTERN` 漏匹配 → 分离 `IS_PATTERN_CN`（无 `\s+`）与 `IS_PATTERN_EN`（保留 `\s+`），`tryExtractFromSentence.patterns` 数组同步更新为 7 条；⑥markdown 链接测试中 URL 的 `.` 被句子分割器误判 → 在 `extractFacts` 入口对整个文档先 `stripMarkdown` 再分割）。
   - `bun test tests/architecture-integrity.test.ts`：22/22 通过（无新增循环依赖 / leaf layer 违规）。
 - **备份**：`.tmp/backups/src/crawl/data-pipeline.ts`（验证后删除）。
-- **Commit**：`<待补>`（提交后 amend 补录 hash）。
+- **Commit**：`fdb7350`（已推送 `internal211/main`）。
 
