@@ -482,5 +482,5 @@
   - **追加** `archive/ARCHIVE-LOG.md` 归档记录
 - **验证**：markdown 格式检查通过（无语法错误）
 - **备份**：旧版 AGENTS.md 已按新规则 4 归档至 `archive/openclaw-fusion/AGENTS.md.legacy`
-- **Commit**：（待提交后补录）
+- **Commit**：`f68c235`（已推送 `internal211/main`）。
 
