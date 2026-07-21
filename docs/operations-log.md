@@ -336,3 +336,22 @@
 - **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
 - **Commit**：`0a5e54b`（已推送 `internal211/main`）。
 
+---
+
+## Entry — audit-logger.test.ts 边界覆盖补齐
+
+- **时间**：2026-07-21 08:00 +0800
+- **任务描述**：用户打开 `tests/audit-logger.test.ts` 末尾并指令"继续完善"。对照 `src/utils/audit-logger.ts` 源码梳理未覆盖边界，识别出 3 个有价值的未覆盖分支，追加 3 个测试用例。
+- **工具**：Read（源码与测试对照）、Edit（追加测试用例）、Bash（`bun test` + `bunx tsc --noEmit` 验证）。
+- **执行的操作（文件级）**：
+  - 修改 `tests/audit-logger.test.ts`：在末尾 `});` 前追加 3 个 `it()` 测试用例（11 → 14）：
+    1. `security.alert 缺失 metadata.severity/category 时使用默认值 medium/unknown` — 覆盖源码 line 142-143 的 `?? "medium"` 与 `?? "unknown"` 默认值分支（`entry.metadata?.severity ?? "medium"`）。
+    2. `轮转后 readAll 只返回新文件内容（旧内容已移走）` — 验证 `rotateIfNeeded()` 调用 `fs.renameSync()` 后 `currentSize` 重置 + 新写入只追加到新文件，旧内容不再出现在 `readAll()` 结果中。
+    3. `size 正确反映多字节 UTF-8 内容字节数（非 string.length）` — 验证 `Buffer.byteLength(line, "utf8")` 而非 `line.length`，使用中文（每字符 3 字节）触发多字节路径，断言 `logger.size > content.length`。
+- **验证**：
+  - `bun test tests/audit-logger.test.ts`：14/14 pass（原 11 + 新增 3），33 个 expect() 调用，0 fail，耗时 573ms。
+  - `bunx tsc --noEmit`：0 错误。
+  - 与 `tests/security-hardening-extended.test.ts` Part F（audit-logger 容错路径 7 用例）无重叠：Part F 聚焦容错路径（ensureDir/initCurrentSize/append 失败降级/大量 metadata/readAll 文件不存在/maxFiles 限制），本次新增 3 用例聚焦默认值分支/轮转后状态/多字节字节计数，互为补充。
+- **备份**：`.tmp/backups/tests/audit-logger.test.ts.bak`（已按 Rule 2 步骤 5 删除）。
+- **Commit**：`<待补>`。
+

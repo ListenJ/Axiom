@@ -196,4 +196,67 @@ describe("AuditLogger", () => {
     expect(entry.reason).toBeUndefined();
     expect(entry.resource).toBe("/sandbox/execute");
   });
+
+  it("security.alert 缺失 metadata.severity/category 时使用默认值 medium/unknown", () => {
+    const logger = new AuditLogger({ filePath: logPath });
+    logger.log({
+      event: "security.alert",
+      actor: "system",
+      outcome: "failure",
+      // 故意不传 metadata.severity / metadata.category
+    });
+
+    const json = metrics.getJSON();
+    const alertMetric = json.security_alert_total as { values: Array<{ value: number; labels?: Record<string, string> }> };
+    expect(alertMetric).toBeTruthy();
+
+    // 应命中 ?? "medium" 与 ?? "unknown" 默认分支
+    const defaultLabels = alertMetric.values.filter(
+      (v) => v.labels?.severity === "medium" && v.labels?.category === "unknown"
+    );
+    expect(defaultLabels.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("轮转后 readAll 只返回新文件内容（旧内容已移走）", () => {
+    const logger = new AuditLogger({ filePath: logPath, maxSize: 200, maxFiles: 3 });
+    // 第一阶段：写入足够触发轮转的内容
+    for (let i = 0; i < 4; i++) {
+      logger.log({
+        event: "config.change",
+        actor: `user-${i}`,
+        outcome: "success",
+        metadata: { padding: "x".repeat(50) },
+      });
+    }
+    // 此时旧内容应已轮转到带时间戳的文件，当前文件为轮转后新写入的内容
+    const afterRotation = logger.readAll();
+    // 当前文件不应包含最早的 user-0（已轮转走）
+    expect(afterRotation).not.toContain("user-0");
+
+    // 第二阶段：再写一条，应只出现在当前文件
+    logger.log({ event: "apikey.set", actor: "post-rotation", outcome: "success" });
+    const final = logger.readAll();
+    expect(final).toContain("post-rotation");
+    // 仍不应包含已轮转走的 user-0
+    expect(final).not.toContain("user-0");
+  });
+
+  it("size 正确反映多字节 UTF-8 内容字节数（非 string.length）", () => {
+    const logger = new AuditLogger({ filePath: logPath });
+    // 中文每字符在 UTF-8 下占 3 字节
+    logger.log({
+      event: "vault.write",
+      actor: "测试者",
+      outcome: "success",
+      resource: "/vault/中文路径",
+      metadata: { 备注: "这是一段中文备注" },
+    });
+
+    const content = fs.readFileSync(logPath, "utf8");
+    const expectedBytes = Buffer.byteLength(content, "utf8");
+    // logger.size 应等于文件实际字节数（多字节字符正确计数）
+    expect(logger.size).toBe(expectedBytes);
+    // 且应大于 string.length（验证确实在用 byteLength 而非 length）
+    expect(logger.size).toBeGreaterThan(content.length);
+  });
 });
