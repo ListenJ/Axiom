@@ -225,3 +225,40 @@
 - **备份**：`backups/p0-frontend-vc-2026-07-19/.gitignore`、`index.css.bak`（验证后删除）。
 - **Commit**：`6a09144`（推送 `internal211/main`）。
 
+---
+
+## 2026-07-21 04:00 +0800 — v4 Phase 3 知识整理（zod schema / preprocessor / quality-assessor + pipeline 接入）
+
+- **任务**：执行 `.trae/documents/axiom-three-pillar-v4-continuation-plan.md` Phase 3（Task 3.1-3.4），为知识 pipeline 增加 zod 验证层、预处理、质量评估，并接入 `pipeline.ts` 的 GLM 集成点。
+- **工具**：Read、Edit、Write、Bash(bunx tsc / bun test)；按 AGENTS Rule 2 在改 `types.ts` 与 `pipeline.ts` 前备份至 `.tmp/backups/src/knowledge/`（用户取消删除，保留备份）。
+- **操作（文件级）**：
+  - 修改 `src/knowledge/types.ts`（Task 3.1）：顶部追加 `import { z } from "zod"`；末尾追加 3 个 zod schema：
+    - `KnowledgeSourceSchema` — 验证 KnowledgeSource（含 8 项 domain enum + URL + quality 范围）
+    - `DictionaryEntrySchema` — 验证 DictionaryEntry（definitions 至少 1 项）
+    - `StructuredKnowledgeSchema` — 验证 GLM 返回的 StructureResult（缺失字段填默认值，title 必填）
+    - 导出 `type StructuredKnowledge = z.infer<typeof StructuredKnowledgeSchema>`
+  - 新建 `src/knowledge/preprocessor.ts`（Task 3.2）：API `preprocessKnowledge(rawMarkdown): PreprocessedKnowledge`
+    - 清洗：HTML 标签 + 实体（含数字/十六进制实体）+ 超长行（>2000 字符过滤）
+    - 标准化：`~~~` 代码块 → ` ``` `；3+ 连续空行折叠为 2 行；多顶层 `#` 标题降级为 `##`
+    - metadata 抽取：YAML front-matter → 首个 `#` 标题 → `**Author:**`/`Date:` 元数据行（兼容 markdown 加粗包裹）
+    - tokenCount：粗略 4 字符/token（至少 1）
+    - 降级：异常返回原始输入
+  - 新建 `src/knowledge/quality-assessor.ts`（Task 3.3）：API `assessQuality(structured, factBase?): QualityReport`
+    - accuracy (0.4 权重)：`ConformalHallucinationDetector.verify().pValue` 在 summary + sections 上的均值；无 factBase 时 0.5
+    - completeness (0.3 权重)：5 字段覆盖（title 0.2 / summary 0.2 / keywords 0.2 / sections 0.2 / entities 0.2），summary<50 字符或 keywords<3 项扣 0.1
+    - consistency (0.3 权重)：keywords 在 sections 出现率 + entities 在 sections 出现率 + summary-section Jaccard，三者均值
+    - 返回 issues 数组用于日志
+  - 修改 `src/knowledge/pipeline.ts`（Task 3.4）：顶部追加 3 个 import；GLM 集成点（line 165-172）改造：
+    - `StructuredKnowledgeSchema.safeParse(structured)` 校验 GLM 输出，失败 → `logger.warn` + issues
+    - 通过 → `preprocessKnowledge` + `assessQuality(parsed.data)`
+    - `quality.overall < 0.4` → `logger.warn` + 丢弃
+    - 否则写入 JSONL：`{ ...parsed.data, quality, preprocessed: { tokenCount } }`
+    - logger.warn 第二参数包装为 `{ issues: ... }` 满足 `Record<string, unknown>` 类型签名
+  - 新建 `tests/knowledge-preprocess-quality.test.ts`：31 用例（schema 6 + preprocess 13 + quality 12）
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/knowledge-preprocess-quality.test.ts`：31/31 通过（修复 2 个失败：①"从元数据行抽取 author/date" — `**Author:** Bob` 的 `**` 在冒号后，正则未捕获 → 在 `\s*[:：]\s*` 后增加 `(?:\*\*)?`；②"keywords 出现在 sections 中时 consistency 高" — 默认测试数据中 keywords "programming"/"guide" 未出现在 sections → 修改 section content 包含全部 keywords，consistency 从 0.479 提升到 ≥0.5）。
+  - `bun test tests/architecture-integrity.test.ts`：22/22 通过。
+- **备份**：`.tmp/backups/src/knowledge/types.ts` + `.tmp/backups/src/knowledge/pipeline.ts`（用户取消删除，保留）。
+- **Commit**：`<待补>`（提交后 amend 补录 hash）。
+

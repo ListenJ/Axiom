@@ -4,6 +4,9 @@ import { discoverGitHubRepos, formatTrendingTable } from "./sources/github-trend
 import { discoverBooks, getPdfUrl } from "./sources/z-library.js"
 import { getGlobalVault } from "../memory/vault-manager.js"
 import { getKnowledgeStore } from "./store.js"
+import { StructuredKnowledgeSchema } from "./types.js"
+import { preprocessKnowledge } from "./preprocessor.js"
+import { assessQuality } from "./quality-assessor.js"
 
 const ZHIPU_API_BASE = "https://open.bigmodel.cn/api/paas/v4"
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
@@ -164,12 +167,33 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
                   // GLM content structuring
                   const structured = await structureWithGLM(final.result.markdown)
                   if (structured) {
-                    const { join } = await import("path")
-                    const { mkdirSync, appendFileSync } = await import("fs")
-                    const datasetDir = join("data", "dataset")
-                    mkdirSync(datasetDir, { recursive: true })
-                    const jsonlPath = join(datasetDir, `${safeTopic}.jsonl`)
-                    appendFileSync(jsonlPath, JSON.stringify(structured) + "\n")
+                    // Task 3.1: zod schema 校验 GLM 输出
+                    const parsed = StructuredKnowledgeSchema.safeParse(structured)
+                    if (!parsed.success) {
+                      logger.warn(`[Pipeline] GLM output schema validation failed for ${book.title}:`, { issues: parsed.error.issues })
+                    } else {
+                      // Task 3.2 + 3.3: 预处理 + 质量评估
+                      const preprocessed = preprocessKnowledge(final.result.markdown)
+                      const quality = assessQuality(parsed.data)
+                      if (quality.overall < 0.4) {
+                        logger.warn(`[Pipeline] Quality too low for ${book.title}: overall=${quality.overall}`, { issues: quality.issues })
+                      } else {
+                        const { join } = await import("path")
+                        const { mkdirSync, appendFileSync } = await import("fs")
+                        const datasetDir = join("data", "dataset")
+                        mkdirSync(datasetDir, { recursive: true })
+                        const jsonlPath = join(datasetDir, `${safeTopic}.jsonl`)
+                        // 写入 JSONL：结构化数据 + 质量报告 + 预处理摘要
+                        appendFileSync(
+                          jsonlPath,
+                          JSON.stringify({
+                            ...parsed.data,
+                            quality,
+                            preprocessed: { tokenCount: preprocessed.tokenCount },
+                          }) + "\n",
+                        )
+                      }
+                    }
                   }
                 }
               } catch (err) {
