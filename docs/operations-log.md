@@ -260,5 +260,5 @@
   - `bun test tests/knowledge-preprocess-quality.test.ts`：31/31 通过（修复 2 个失败：①"从元数据行抽取 author/date" — `**Author:** Bob` 的 `**` 在冒号后，正则未捕获 → 在 `\s*[:：]\s*` 后增加 `(?:\*\*)?`；②"keywords 出现在 sections 中时 consistency 高" — 默认测试数据中 keywords "programming"/"guide" 未出现在 sections → 修改 section content 包含全部 keywords，consistency 从 0.479 提升到 ≥0.5）。
   - `bun test tests/architecture-integrity.test.ts`：22/22 通过。
 - **备份**：`.tmp/backups/src/knowledge/types.ts` + `.tmp/backups/src/knowledge/pipeline.ts`（用户取消删除，保留）。
-- **Commit**：`<待补>`（提交后 amend 补录 hash）。
+- **Commit**：`e221468`（已推送 `internal211/main`）。
 
