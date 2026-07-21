@@ -355,3 +355,70 @@
 - **备份**：`.tmp/backups/tests/audit-logger.test.ts.bak`（已按 Rule 2 步骤 5 删除）。
 - **Commit**：`a06f66e`（已推送 `internal211/main`，remote 已更新为 `192.168.0.22`）。
 
+---
+
+## Entry — 跨平台兼容（Windows + Linux，暂不支持 macOS）
+
+- **时间**：2026-07-21 09:00 +0800
+- **任务描述**：用户指令"继续完善当前项目，使其实现跨平台兼容功能，重点支持 Windows 和 Linux 操作系统，暂不考虑 macOS"。通过 search 子代理调研项目平台相关代码，识别出核心运行时（src/sandbox/、src/mcp/tools/、src/utils/）已正确处理跨平台，真正问题在 `package.json` scripts 与 `scripts/start.sh` 的 bash 依赖。本次完成最小化跨平台改造。
+- **工具**：
+  - search 子代理 ×3（并行调研平台相关代码 / process-sandbox 与 filesystem / 测试与构建配置）
+  - Read（读源码与配置确认实际范围）
+  - Write（创建新文件）
+  - Edit（修改 package.json scripts）
+  - Bash（`bunx tsc --noEmit` + `bun test` 验证）
+- **执行的操作（文件级）**：
+  - **新建** `src/utils/platform.ts`（209 行）— 跨平台检测工具模块，统一提供：
+    - 平台常量：`isWindows` / `isLinux` / `isMacos` / `isSupportedPlatform` / `platformName`
+    - Shell 选择：`defaultShell()`（Windows cmd.exe / Linux /bin/sh）+ `shellExecFlag()`
+    - 命令查找：`which()`（Bun.which + PATH 扫描降级）
+    - 路径处理：`escapesBase()`（同时检查 path.isAbsolute + startsWith("..") + realpathSync 解析符号链接）
+    - 可执行文件后缀：`withExecutableExt()`（Windows 自动追加 .exe，已带 .exe/.cmd/.bat 不重复）
+    - 进程管理：`isProcessAlive()`（Windows tasklist / Linux kill -0）+ `killProcess()`（Windows taskkill / Linux SIGTERM/SIGKILL）
+    - 平台支持声明：`unsupportedPlatformReason()`（macOS 返回明确不支持信息）
+  - **新建** `scripts/start.ts`（311 行）— 跨平台启动脚本，等价替换 `scripts/start.sh`：
+    - 9 个模式：dev / prod / daemon / stop / restart / status / logs / setup / health
+    - 平台分支：Windows 用 `Bun.spawn({ detached: true })`，Linux 用 `unref()`
+    - logs 模式：Windows 用 PowerShell `Get-Content -Wait`，Linux 用 `tail -f`
+    - 进程检查通过 `platform.ts` 统一调用 tasklist / kill -0
+    - 前台模式用 `Bun.spawnSync` 同步等待退出，避免异步 exitCode 误用
+  - **新建** `scripts/run-native.ts`（49 行）— 跨平台启动 native 二进制：
+    - Windows 自动追加 .exe 后缀，Linux 原样
+    - 由 `package.json` 的 `native:run:local` / `native:run:cloud` 调用
+  - **新建** `tests/platform.test.ts`（173 行）— 21 个测试用例覆盖 5 个 describe：
+    - 基础常量（4 用例）：四个布尔常量互斥性 + isSupportedPlatform 一致性 + platformName 一致性 + unsupportedPlatformReason 与支持矩阵一致
+    - Shell 选择（2 用例）：defaultShell + shellExecFlag 平台分支
+    - withExecutableExt（3 用例）：Windows 追加 .exe + 已带后缀不重复 + Linux 原样
+    - escapesBase 路径逃逸（5 用例）：相对路径不逃逸 + .. 开头逃逸 + Windows 跨盘符 + Linux 绝对路径外逃 + 等于 base 不逃逸
+    - isProcessAlive / killProcess（5 用例）：当前 PID 存活 + 无效 PID + 超大 PID + killProcess 容错
+    - macOS 限制声明（2 用例）：macOS 返回不支持信息 + Windows/Linux 返回 null
+  - **新建** `docs/CROSS-PLATFORM.md`（274 行）— 跨平台构建与运行指南，8 章节：
+    1. 平台支持范围（Windows/Linux 一等支持，macOS 暂不支持）
+    2. 环境准备（通用 + Windows + Linux）
+    3. 安装与运行（通用流程 + 平台特定命令对照表）
+    4. 跨平台实现细节（platform.ts 模块 + 进程管理 + Shell 调用 + 路径处理 + 资源限制）
+    5. 测试（运行命令 + 覆盖范围 + CI 建议）
+    6. 已知限制（macOS / Windows 资源限制 / shell 内置命令差异）
+    7. 故障排查（Windows / Linux / 通用）
+    8. 相关文档
+  - **修改** `package.json` scripts（7 处）：
+    - `setup:agents`: `bash scripts/setup-agents.sh` → `bun run scripts/setup-agents.ts`（已有 .ts 版本）
+    - `start:daemon` / `start:prod` / `stop` / `restart` / `status` / `logs`（6 处）: `bash scripts/start.sh *` → `bun run scripts/start.ts *`
+    - `native:run:local` / `native:run:cloud`: `./native/target/release/axiom-*` → `bun run scripts/run-native.ts *`（解决 Windows .exe 后缀）
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误
+  - `bun test tests/platform.test.ts`：21/21 pass，28 个 expect() 调用，0 fail，耗时 554ms
+  - 跨平台+安全相关 4 测试文件合集：110/110 pass（21 platform + 14 audit-logger + 36 security-hardening + 39 security-hardening-extended），205 个 expect() 调用，0 fail
+  - `bun run scripts/start.ts status`：输出 "❌ Axiom 未运行"（正确，未启动）
+  - `bun run scripts/start.ts invalidmode`：输出用法说明（正确）
+  - `bun run scripts/start.ts prod`：成功启动 main.ts（NativeBridge 警告二进制不存在属正常，未构建 native）
+  - `bun run scripts/start.ts` 无参数：默认进入 prod 模式（与 start.sh 行为一致）
+- **备份**：
+  - `.tmp/backups/package.json.bak`（已删除）
+  - `.tmp/backups/docs/operations-log.md.bak`（待验证后删除）
+- **平台特定说明**：
+  - macOS 暂不支持的具体表现：`scripts/start.ts` 启动时输出 `⚠️ macOS is not officially supported...` 警告，但不拒绝运行
+  - Windows 资源限制：仅超时与输出截断生效；内存/CPU 限制需 Linux 部署
+  - macOS 文档明确标注限制（CROSS-PLATFORM.md 第 1 章和第 6.1 节）
+- **Commit**：`<待补>`。
+
