@@ -420,5 +420,5 @@
   - macOS 暂不支持的具体表现：`scripts/start.ts` 启动时输出 `⚠️ macOS is not officially supported...` 警告，但不拒绝运行
   - Windows 资源限制：仅超时与输出截断生效；内存/CPU 限制需 Linux 部署
   - macOS 文档明确标注限制（CROSS-PLATFORM.md 第 1 章和第 6.1 节）
-- **Commit**：`<待补>`。
+- **Commit**：`4cf973f`（已推送 `internal211/main`）。
 
