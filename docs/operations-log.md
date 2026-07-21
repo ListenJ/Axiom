@@ -334,5 +334,5 @@
   - 文档内容与源码核对：所有 V4 功能说明、配置项、行为规则均与 `src/utils/api-key-persistence.ts` / `src/utils/rate-limiter.ts` / `src/sandbox/process-sandbox.ts` / `src/utils/security-monitor.ts` / `src/utils/websocket.ts` / `src/routes/route-auth.ts` / `src/utils/auth-check.ts` / `src/utils/audit-logger.ts` / `src/utils/env.ts` / `src/core/health-checker.ts` 实际实现一致。
   - V4 安全相关测试合集 124/124 仍 pass（文档创建不影响测试）。
 - **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
-- **Commit**：`<待补>`。
+- **Commit**：`0a5e54b`（已推送 `internal211/main`）。
 
