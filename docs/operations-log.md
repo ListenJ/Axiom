@@ -316,5 +316,5 @@
   - 全量回归 `bun test`：1306 pass / 107 fail / 28 skip / 11 errors。107 fail + 11 errors 全部为 frontend 组件测试（ShimmerCard/Button/Tabs/Toasts/EmptyState 等）的 pre-existing failures，与本次新增测试无关（用户工作区有未提交的 frontend/* 改动导致）。
   - 测试覆盖增量：本次新增 39 用例，V4 安全相关测试从 36 → 75（security-hardening + security-hardening-extended），加上 audit-logger/route-auth/auth-check/architecture-integrity 共 124 用例。
 - **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
-- **Commit**：`<待补>`。
+- **Commit**：`3d0ab43`（已推送 `internal211/main`）。
 
