@@ -283,5 +283,5 @@
   - `bun test tests/architecture-integrity.test.ts`：22/22 通过（utils/ 为 leaf layer 不可导入 routes/，core → utils 合法）。
   - 全量回归 `bun test`：1212 pass / 5 fail / 28 skip / 1 error（5 fail + 1 error 均为外部网络 timeout，与 Phase 4 改动无关）。
 - **备份**：`.tmp/backups/src/utils/api-key-persistence.ts` + `.tmp/backups/src/utils/rate-limiter.ts` + `.tmp/backups/src/sandbox/process-sandbox.ts` + `.tmp/backups/src/core/health-checker.ts` + `.tmp/backups/src/utils/websocket.ts` + `.tmp/backups/docs/operations-log.md`（用户两次取消删除，保留）。
-- **Commit**：`<待补>`。
+- **Commit**：`a92e2e3`（已推送 `internal211/main`）。
 
