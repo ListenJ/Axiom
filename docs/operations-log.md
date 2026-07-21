@@ -353,5 +353,5 @@
   - `bunx tsc --noEmit`：0 错误。
   - 与 `tests/security-hardening-extended.test.ts` Part F（audit-logger 容错路径 7 用例）无重叠：Part F 聚焦容错路径（ensureDir/initCurrentSize/append 失败降级/大量 metadata/readAll 文件不存在/maxFiles 限制），本次新增 3 用例聚焦默认值分支/轮转后状态/多字节字节计数，互为补充。
 - **备份**：`.tmp/backups/tests/audit-logger.test.ts.bak`（已按 Rule 2 步骤 5 删除）。
-- **Commit**：`a06f66e`（**未推送**：SSH 连接 192.168.0.11:22 超时，待网络恢复后 `git push internal211 main`）。
+- **Commit**：`a06f66e`（已推送 `internal211/main`，remote 已更新为 `192.168.0.22`）。
 
