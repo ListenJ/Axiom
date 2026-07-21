@@ -464,3 +464,23 @@
 - **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）；`.tmp/backups/tests/intent-enhancer.test.ts`（测试重构备份，已删除）
 - **Commit**：`4b1a66f`（已推送 `internal211/main`）。
 
+---
+
+## Entry — AGENTS.md 规则 4 修订
+
+- **时间**：2026-07-22 12:00 +0800
+- **任务描述**：用户指令修改 AGENTS.md 规则 4，明确"删除"操作的实质是"以新替旧"——修改后的新文件进入 git 仓库作为正式版本，旧文件以归档记录的方式存储到 git 服务器的归档文件夹，根据项目不同依次分类。
+- **工具**：Read（读全文）、Edit（修改规则 4）、Bash（归档旧版本 + git 提交推送）
+- **执行的操作（文件级）**：
+  - **修改** `AGENTS.md` 规则 4：
+    - 标题：`删除 = 归档` → `删除 = 新文件入仓库 + 旧文件归档`
+    - 新增"以新替旧"语义说明：新文件入 git 仓库 + 旧文件按项目/模块分类归档到 `archive/`
+    - 执行流程细化为 4 步：新文件入仓库 → 旧文件归档 → 归档记录 → 工作区清理
+    - 归档记录新增"所属项目"字段
+    - 禁止条款强化：`git rm` 必须在归档记录提交之后方可执行
+  - **归档** 旧版 AGENTS.md → `archive/openclaw-fusion/AGENTS.md.legacy`（按项目分类存放）
+  - **追加** `archive/ARCHIVE-LOG.md` 归档记录
+- **验证**：markdown 格式检查通过（无语法错误）
+- **备份**：旧版 AGENTS.md 已按新规则 4 归档至 `archive/openclaw-fusion/AGENTS.md.legacy`
+- **Commit**：（待提交后补录）
+
