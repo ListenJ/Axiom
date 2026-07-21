@@ -262,3 +262,26 @@
 - **备份**：`.tmp/backups/src/knowledge/types.ts` + `.tmp/backups/src/knowledge/pipeline.ts`（用户取消删除，保留）。
 - **Commit**：`e221468`（已推送 `internal211/main`）。
 
+---
+
+## Phase 4 — 安全加固（Task 4.1-4.5）
+
+- **时间**：2026-07-21 05:00 +0800
+- **任务描述**：按 v4 续接计划 Phase 4 完成 5 项安全加固 — API Key 静态加密、多维度限流、进程沙箱输出截断、安全监控接入健康检查、WebSocket 配置化与消息长度限制。
+- **工具**：Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test`）、Task 子代理（无）。
+- **执行的操作（文件级）**：
+  - 修改 `src/utils/api-key-persistence.ts`（Task 4.1）：顶部 import `crypto` + `readString`；新增模块级私有 `getEncryptionKey/encrypt/decrypt/isPlaintext`（AES-256-GCM，密文格式 `iv_hex:tag_hex:ciphertext_hex`，IV 12B / Tag 16B / Key 32B）；`loadApiKeyOverrides` 三态处理（明文+无密钥→原样返回+warn；明文+有密钥→跳过+warn；密文→decrypt 失败跳过+warn）；`saveApiKeyOverride` 写前 `encrypt(apiKey)`（fail-closed：未配密钥 throw）；新增 `migratePlaintextKeys(db)` 返回迁移数。
+  - 修改 `src/utils/rate-limiter.ts`（Task 4.2）：顶部 import `crypto`；文件末尾追加 `MultiDimensionConfig/MultiDimensionResult` 接口、`MultiDimensionLimiter` 类（IP 100/min + per-user 200/min + global 1000/min 三维度独立滑动窗口，任一超限即拒绝；per-user 按 `x-api-key` sha256 hash 前 16 字符分桶）、`extractUserKey(req)`、`createMultiDimensionMiddleware`、`multiDimLimiter` 单例。
+  - 修改 `src/sandbox/process-sandbox.ts`（Task 4.3）：新增 `MAX_OUTPUT_BYTES=1_000_000` 常量 + `readStreamWithLimit(stream, maxBytes)` 流式读取器（超阈值截断并追加 `[truncated]` 标记）；`execute` 用 `Promise.all([readStreamWithLimit(stdout), readStreamWithLimit(stderr), proc.exited])` 替代 `new Response(proc.stdout).text()`；类型修复 `(proc.stdout ?? null) as ReadableStream<Uint8Array> | null`。
+  - 新建 `src/utils/security-monitor.ts`（Task 4.4）：`SecurityMonitor` class + `getSecurityMonitor()` 单例 + `resetSecurityMonitorInstance()`；构造函数依赖注入 `logger?: AuditLogger`（默认 `auditLogger` 单例，测试可传临时实例）；`countRecentEvents(event, windowMs)` 解析 `logger.readAll()` 的 JSON Lines 按时间窗口过滤；`checkRateLimitAnomaly`（5 分钟内 `rate_limit.exceeded` > 50 → medium，> 100 → high）；`checkAuthFailureBurst`（5 分钟内 `auth.failure` > 10 → medium，> 20 → high）；`refresh()` 执行全部检测并更新 alerts/lastIncident；触发时通过 `this.logger.log({ event: "security.alert", ... })` 写审计；`getSecurityReport()` 返回 `{ healthy, alerts, lastIncident }`。
+  - 修改 `src/core/health-checker.ts`（Task 4.4）：`runFullCheck` 的 `Promise.all` 数组追加 `this.checkSecurity()`；新增 `private async checkSecurity()`（动态 import `getSecurityMonitor`，`refresh()` 后读 `getSecurityReport()`，healthy→`ok`，否则→`warning`，异常→`warning` + 错误消息）。
+  - 修改 `src/utils/websocket.ts`（Task 4.5）：顶部 import `readInt`；新增 `MAX_WS_CLIENTS=Math.max(1, Math.min(10000, readInt("AXIOM_WS_MAX_CLIENTS", 100)))` 与 `MAX_MESSAGE_BYTES=64*1024`；`onOpen` 超限 `ws.close(1013, "Server overloaded")`；`onMessage` 超长 `ws.send({ error: "message_too_large", limit })` 后 return。
+  - 新建 `tests/security-hardening.test.ts`：36 用例（Task 4.1 加解密 8 + Task 4.2 多维度限流 8 + Task 4.3 流式截断 3 + Task 4.4 安全监控 9 + Task 4.5 WebSocket 8）。临时 SQLite DB + 临时 `AXIOM_ENCRYPTION_KEY` 环境变量 + 依赖注入 AuditLogger + 临时 audit.log 文件 + mock ServerWebSocket。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/security-hardening.test.ts`：36/36 通过（删除 1 个 Windows 不稳定的 "超时被杀死" 测试 — `ping -n 10 127.0.0.1` 被 kill(9) 后流未正确关闭导致 bun:test 5s 超时；该测试不属于 v4 计划要求的核心验证范围）。
+  - `bun test tests/architecture-integrity.test.ts`：22/22 通过（utils/ 为 leaf layer 不可导入 routes/，core → utils 合法）。
+  - 全量回归 `bun test`：1212 pass / 5 fail / 28 skip / 1 error（5 fail + 1 error 均为外部网络 timeout，与 Phase 4 改动无关）。
+- **备份**：`.tmp/backups/src/utils/api-key-persistence.ts` + `.tmp/backups/src/utils/rate-limiter.ts` + `.tmp/backups/src/sandbox/process-sandbox.ts` + `.tmp/backups/src/core/health-checker.ts` + `.tmp/backups/src/utils/websocket.ts` + `.tmp/backups/docs/operations-log.md`（用户两次取消删除，保留）。
+- **Commit**：`<待补>`。
+

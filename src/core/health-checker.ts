@@ -64,6 +64,7 @@ export class HealthChecker {
       this.checkDiskSpace(),
       this.checkNetwork(),
       this.checkConfig(),
+      this.checkSecurity(),
     ]);
 
     // 排序: error → warning → ok
@@ -290,6 +291,35 @@ export class HealthChecker {
 
     if (validation.valid && validation.errors.length === 0) {
       this.results.push({ component: "配置验证", status: "ok", message: "所有配置项有效" });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Task 4.4: 安全检查
+  // ---------------------------------------------------------------------------
+
+  private async checkSecurity(): Promise<void> {
+    try {
+      const { getSecurityMonitor } = await import("../utils/security-monitor.js");
+      const monitor = getSecurityMonitor();
+      // 刷新检测（解析 audit.log 统计最近 5 分钟事件）
+      monitor.refresh();
+      const report = monitor.getSecurityReport();
+      this.results.push({
+        component: "安全",
+        status: report.healthy ? "ok" : "warning",
+        message: report.healthy
+          ? "无活跃安全告警"
+          : `${report.alerts.length} 个活跃告警（${report.alerts.map((a) => a.category).join(", ")}）`,
+        fix: report.healthy ? undefined : "查看 data/logs/audit.log 了解详情",
+      });
+    } catch (err) {
+      this.results.push({
+        component: "安全",
+        status: "warning",
+        message: `安全检查失败: ${(err as Error).message}`,
+        fix: "检查 security-monitor 模块是否正确加载",
+      });
     }
   }
 
