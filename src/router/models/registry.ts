@@ -593,6 +593,25 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 30000,
   },
 
+  // ─── GLM-4.7-Flash (ZhiPu 官方 API 直连，免费，用于意图增强/prompt 处理) ───
+  // 与 siliconflow 中转相比：直连延迟更低、稳定性更好、无中间层限流
+  // 用途：agent 系统的提示词处理 / 意图分类 / 轻量推理（非主对话）
+  {
+    id: "glm-4.7-flash-zhipu",
+    provider: "zhipu",
+    model: "glm-4.7-flash",
+    roles: ["general-chat", "general-tool", "english", "intent-classifier"],
+    contextWindow: 200000,
+    isFree: true,
+    tags: ["free", "chinese", "fast", "zhipu", "agent-tool"],
+    rpmLimit: 200,
+    concurrentLimit: 16,
+    description: "GLM-4.7-Flash — 智谱官方 API 免费极速模型 (200K ctx)，用于 agent 提示词处理",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 15000,
+  },
+
   // ─── GLM-4-Flash (ZhiPu 官方 API) ───
   {
     id: "glm-4-flash-zhipu",

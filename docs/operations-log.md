@@ -422,3 +422,45 @@
   - macOS 文档明确标注限制（CROSS-PLATFORM.md 第 1 章和第 6.1 节）
 - **Commit**：`4cf973f`（已推送 `internal211/main`）。
 
+---
+
+## Entry — 架构优化 + GLM4.7-flash 集成 + 意图增强
+
+- **时间**：2026-07-22 11:00 +0800
+- **任务描述**：用户指令"继续优化整体架构及模块间的配合程度，在保持合理模块化的同时避免过度解耦，确保系统各组件能够高效协同工作。对核心算法进行优化升级，达到响应迅速、精准理解并实现用户意图的'随心所想'程度。将 GLM4.7-flash 免费模型集成到 agent 系统中，作为增强提示词处理能力的工具组件之一"。完成 3 项优化：架构并行化、GLM4.7-flash 模型注册、意图增强器（双轨意图识别 + prompt 思考框架）。
+- **工具**：
+  - search 子代理 ×3（并行调研：架构与模块依赖 / LLM 客户端与模型注册 / 意图理解与响应链路）
+  - Read（读源码确认集成点）
+  - Write（创建 intent-enhancer.ts + intent-enhancer.test.ts）
+  - Edit（修改 chat.ts / registry.ts / types.ts）
+  - Bash（`bun test` + `bunx tsc --noEmit` 验证）
+- **执行的操作（文件级）**：
+  - **新建** `src/agents/intent-enhancer.ts`（299 行）—— GLM4.7-flash 驱动的语义级意图理解与 prompt 增强：
+    - `shouldEnhanceIntent(baseIntent)`：confidence < 0.5 时返回 true，触发 LLM 增强
+    - `enhanceIntentWithLLM(userInput, baseIntent)`：调用 GLM4.7-flash 做意图分类，超时 5s，失败优雅降级回 baseIntent
+    - `buildEnhancedSystemPrompt(intent, userInput)`：按 6 种意图（code/research/knowledge/write/plan/chat）注入结构化思考框架
+    - `extractInputHint(userInput)`：检测代码块/错误日志/命令行/中文，动态注入 Context signals
+    - `parseClassifierResponse(content)`：容错解析 LLM 返回（剥离 markdown fence / 提取嵌入 JSON）
+  - **新建** `tests/intent-enhancer.test.ts`（338 行）—— 27 测试用例覆盖 5 个 describe：
+    - shouldEnhanceIntent（2 用例）：阈值边界
+    - buildEnhancedSystemPrompt（8 用例）：6 种意图框架内容 + 未知意图降级 + 基调一致性
+    - inputHint 信号提取（8 用例）：代码块/错误/命令行/中文/多信号/无信号
+    - enhanceIntentWithLLM 失败回退（7 用例）：合法 JSON / markdown fence / 嵌入 JSON / 非法意图 / 非 JSON / 异常 / 超长截断（通过 bun:test mock.module 替换 callProvider）
+    - GLM4.7-flash 模型注册（2 用例）：registry 包含 glm-4.7-flash-zhipu + TaskRole 包含 intent-classifier
+    - **Mock 关键设计**：mock.module 必须在 import intent-enhancer 之前注册，路径相对于测试文件解析（`../src/router/provider-caller.js`），使用共享 mock() 实例 + mockImplementation 切换行为
+  - **修改** `src/services/chat.ts` —— 架构优化：
+    - 新增 import intent-enhancer 三函数
+    - 意图增强集成：recognizeIntent 后判断 confidence，低于阈值时异步调用 enhanceIntentWithLLM
+    - system prompt 替换：用 buildEnhancedSystemPrompt 替代原 buildAgentMessages 的简短系统提示
+    - **并行化** retrieveCodeMemory + retrieveKnowledge：原串行 → Promise.all，总延迟从 T(codegraph)+T(knowledge) 降为 max(T(codegraph),T(knowledge))；单个分支失败不影响另一个
+  - **修改** `src/router/models/registry.ts` —— GLM4.7-flash 模型注册：
+    - 新增 `glm-4.7-flash-zhipu` 条目（zhipu provider, model=glm-4.7-flash, free, 200K ctx, roles=[general-chat,general-tool,english,intent-classifier], rpmLimit=200, concurrentLimit=16, priority=2）
+  - **修改** `src/router/models/types.ts` —— TaskRole 类型扩展：
+    - 联合类型末尾追加 `"intent-classifier"`，支持意图分类器角色
+- **验证**：
+  - `bun test tests/intent-enhancer.test.ts`：27/27 pass，62 个 expect() 调用，0 fail，耗时 95ms
+  - 全量合集（intent-enhancer + platform + audit-logger + security-hardening + security-hardening-extended）：137/137 pass，267 个 expect() 调用，0 fail，耗时 3.92s
+  - `bunx tsc --noEmit`：0 错误
+- **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）；`.tmp/backups/tests/intent-enhancer.test.ts`（测试重构备份，已删除）
+- **Commit**：（待提交后补录）
+

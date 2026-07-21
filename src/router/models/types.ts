@@ -34,7 +34,8 @@ export type TaskRole =
   | "math"
   | "review"
   | "main_coding"
-  | "computer-use";
+  | "computer-use"
+  | "intent-classifier";
 
 export interface UnifiedModel {
   id: string;                    // Unique model identifier
