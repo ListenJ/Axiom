@@ -285,3 +285,36 @@
 - **备份**：`.tmp/backups/src/utils/api-key-persistence.ts` + `.tmp/backups/src/utils/rate-limiter.ts` + `.tmp/backups/src/sandbox/process-sandbox.ts` + `.tmp/backups/src/core/health-checker.ts` + `.tmp/backups/src/utils/websocket.ts` + `.tmp/backups/docs/operations-log.md`（用户两次取消删除，保留）。
 - **Commit**：`a92e2e3`（已推送 `internal211/main`）。
 
+---
+
+## V4 测试覆盖补齐 — 安全模块边界与异常路径
+
+- **时间**：2026-07-21 06:40 +0800
+- **任务描述**：在 V4 安全加固（Phase 4）基础上，梳理测试覆盖空缺并补齐未覆盖的边界条件与异常路径。新建 `tests/security-hardening-extended.test.ts`，按 7 个 V4 安全相关源码模块分部分补充 39 个测试用例，覆盖识别出的未覆盖行为。
+- **工具**：Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test`）、Task 子代理（search 用于覆盖空缺识别）。
+- **覆盖空缺识别（V4 安全模块）**：
+  - `src/utils/api-key-persistence.ts` — 密文格式校验、混合记录、UPSERT、删除、迁移边界
+  - `src/utils/rate-limiter.ts`（MultiDimensionLimiter）— setRule/cleanup/getHeaders/extractUserKey 边界
+  - `src/sandbox/process-sandbox.ts` — 命令不存在、cwd 不存在触发 catch、大量输出截断标记
+  - `src/utils/security-monitor.ts` — 损坏 JSON 容错、timestamp 解析失败、单例缓存、多告警并发、不可变性
+  - `src/utils/websocket.ts` — unsubscribe、onClose 广播、excludeClientId、subscriptions 过滤、getStats 统计
+  - `src/utils/audit-logger.ts` — 目录已存在、initCurrentSize、append 失败容错、大量 metadata、多次轮转
+  - `src/core/health-checker.ts` — checkSecurity 在 healthy=true/false 时的状态
+- **执行的操作（文件级）**：
+  - 新建 `tests/security-hardening-extended.test.ts`：7 部分 39 用例
+    - Part A（api-key-persistence 边界，6 用例）：密文格式不匹配跳过 / 密钥长度不正确按未配处理 / 混合记录只加载密文 / UPSERT 覆盖 / deleteApiKeyOverride / migratePlaintextKeys 全密文返回 0
+    - Part B（MultiDimensionLimiter 边界，7 用例）：setRule 应用三维度 / cleanup 不抛异常 / getHeaders 字段 / Retry-After / allowed=true retryAfter=undefined / extractUserKey 处理 Bearer / x-api-key 优先于 authorization
+    - Part C（process-sandbox 边界，4 用例）：命令不存在返回非零 / cwd 不存在触发 catch 返回 exitCode=-1 / 大量 stdout 触发截断标记 / resourceUsage.cpuMs 非负
+    - Part D（security-monitor 边界，7 用例）：损坏 JSON 行容错 / 空 audit.log 返回 0 / timestamp 解析失败容错 / 单例缓存 + 重置 / refresh 无告警时 lastIncident 保持原值 / 同时触发两个告警 / alerts 列表不可变性
+    - Part E（websocket 边界，6 用例）：unsubscribe 动作 / onClose 广播 client_disconnected / broadcast excludeClientId / subscriptions 过滤（订阅其他 type 不收到目标 type）/ getStats 统计 / ping 返回 pong
+    - Part F（audit-logger 容错路径，7 用例）：目录已存在 ensureDir 不抛 / initCurrentSize 文件不存在 size=0 / 文件已存在正确读取 / append 失败降级 / 大量 metadata / readAll 文件不存在 / 多次轮转后 maxFiles 限制
+    - Part G（health-checker 集成，2 用例）：checkSecurity healthy=true 返回 ok / healthy=false 返回 warning（注入 15 条 auth.failure 触发阈值）
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/security-hardening-extended.test.ts`：39/39 通过（修复 2 个测试期望与实际行为不符：①Windows `cmd.exe /c nonexistent` 返回 exitCode=1 而非 -1（catch 分支仅在 Bun.spawn 抛异常时触发）— 拆为两个测试：命令不存在验证 exitCode != 0 + cwd 不存在触发 catch 验证 exitCode=-1；②websocket.ts broadcast 设计为 `subscriptions.size === 0` 表示接收全部（未订阅 = 默认订阅全部）— 修改测试为"订阅了其他 type 但不包含目标 type 的客户端不收到"）。
+  - V4 安全相关测试合集（6 文件）：`security-hardening.test.ts` + `security-hardening-extended.test.ts` + `audit-logger.test.ts` + `architecture-integrity.test.ts` + `route-auth.test.ts` + `auth-check.test.ts` = 124/124 通过。
+  - 全量回归 `bun test`：1306 pass / 107 fail / 28 skip / 11 errors。107 fail + 11 errors 全部为 frontend 组件测试（ShimmerCard/Button/Tabs/Toasts/EmptyState 等）的 pre-existing failures，与本次新增测试无关（用户工作区有未提交的 frontend/* 改动导致）。
+  - 测试覆盖增量：本次新增 39 用例，V4 安全相关测试从 36 → 75（security-hardening + security-hardening-extended），加上 audit-logger/route-auth/auth-check/architecture-integrity 共 124 用例。
+- **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
+- **Commit**：`<待补>`。
+
