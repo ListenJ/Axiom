@@ -318,3 +318,21 @@
 - **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
 - **Commit**：`3d0ab43`（已推送 `internal211/main`）。
 
+---
+
+## V4 后续完善 — 用户操作手册 + 安全措施文档
+
+- **时间**：2026-07-21 07:00 +0800
+- **任务描述**：按用户追加要求"文档更新（用户操作手册 + 安全措施文档）"，创建 V4 新功能说明文档与安全措施文档。先制定开发计划，然后执行 P1（用户操作手册）+ P2（安全措施文档）。
+- **工具**：Read（源码核查）、Write（文档创建）、Edit（operations-log 追加）、Bash（tsc 验证）。
+- **执行的操作（文件级）**：
+  - 新建 `.trae/documents/v4-followup-development-plan.md`：V4 后续完善开发计划。含项目状态盘点（V4 计划 4 阶段 + 测试补齐完成度）+ 待实现任务清单（P1/P2/P3 优先级）+ 技术规范（AGENTS.md 五条规则）+ 时间节点（Stage 1-4 相对阶段）+ 资源分配 + 评估机制。
+  - 新建 `docs/USER-MANUAL.md`：用户操作手册，6 章节。概述 + 快速开始（必备配置 + 启动 + 健康检查）+ V4 新功能模块（7 小节：API Key 静态加密 / 多维度限流 / 进程沙箱输出截断 / 安全监控 / WebSocket 配置化 / per-route 二次认证 / 审计日志）+ 配置参考（V4 新增环境变量）+ 故障排查（启动失败 / 明文迁移 / 限流 / 安全告警 / 日志位置）+ 相关文档。每项说明可追溯到具体源码文件。
+  - 新建 `docs/SECURITY-MEASURES.md`：安全措施文档，8 章节。安全架构总览（六层纵深防护模型 + 设计原则）+ 防护层详情（传输层 CORS/Security Headers/WebSocket 限制、认证层 checkApiKey + per-route 二次认证、访问层多维度限流 + 进程沙箱、加密层 AES-256-GCM、审计层 AuditLogger、监控层 SecurityMonitor）+ 安全策略（密钥管理 / 权限最小化 / fail-closed）+ 操作规范（日志审查频率 / 告警响应流程 / 密钥轮换流程）+ 应急响应（P0-P3 事件分类 / 处置流程 / 恢复策略）+ 合规映射（等保 2.0 三级 + GDPR）+ 测试验证（124 用例覆盖）+ 相关文档。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误（文档不影响类型检查）。
+  - 文档内容与源码核对：所有 V4 功能说明、配置项、行为规则均与 `src/utils/api-key-persistence.ts` / `src/utils/rate-limiter.ts` / `src/sandbox/process-sandbox.ts` / `src/utils/security-monitor.ts` / `src/utils/websocket.ts` / `src/routes/route-auth.ts` / `src/utils/auth-check.ts` / `src/utils/audit-logger.ts` / `src/utils/env.ts` / `src/core/health-checker.ts` 实际实现一致。
+  - V4 安全相关测试合集 124/124 仍 pass（文档创建不影响测试）。
+- **备份**：`.tmp/backups/docs/operations-log.md`（已备份；用户之前两次取消删除，保留）。
+- **Commit**：`<待补>`。
+
