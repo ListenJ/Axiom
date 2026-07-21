@@ -462,5 +462,5 @@
   - 全量合集（intent-enhancer + platform + audit-logger + security-hardening + security-hardening-extended）：137/137 pass，267 个 expect() 调用，0 fail，耗时 3.92s
   - `bunx tsc --noEmit`：0 错误
 - **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）；`.tmp/backups/tests/intent-enhancer.test.ts`（测试重构备份，已删除）
-- **Commit**：（待提交后补录）
+- **Commit**：`4b1a66f`（已推送 `internal211/main`）。
 
