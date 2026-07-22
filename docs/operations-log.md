@@ -633,3 +633,14 @@
 - **验证**：`bunx tsc --noEmit` 退出码 0、0 错误（初遇 2 个 TS2353：`logger.error(msg, ctxObj)` 误将 ctx 作 `Error` 第二参数 → 改传 `err instanceof Error ? err : new Error(String(err))` 作第二参数、ctx 移至第三参数，复验通过）。
 - **Commit**：`b13a7e1`（初稿，经 amend 补录本行；amend 后推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 01:35 +0800 — PCDA 调度器 coordinator 导入指令加固
+
+- **任务描述**：并行开发期间另一 agent 已创建 `src/testing/cluster/coordinator.ts`（未入库），原 `@ts-expect-error` 指令在 coordinator 存在时会触发 TS2578（未使用指令），需切换为两种状态均安全的 `@ts-ignore`，保证 `bunx tsc --noEmit` 在 coordinator 入库前后都为 0 错误。
+- **工具**：Glob（确认 coordinator.ts 已出现）、Read（核对工作区 do() 方法）、Edit（替换指令）、Bash（`bunx tsc --noEmit`、git）。
+- **执行的操作（文件级）**：
+  - **修改** `src/testing/scheduler/pcda-scheduler.ts`：`do()` 内 `// @ts-expect-error — coordinator 可能尚未创建（并行开发期）` → `// @ts-ignore — coordinator 由并行开发的其他 agent 提供，存在性不保证；用 @ts-ignore 而非 @ts-expect-error：后者在 coordinator 已存在时会触发 TS2578，前者两种状态均安全。`（仅此一处，2 行注释 + 既有 import 行不变）。
+- **验证**：`bunx tsc --noEmit` 退出码 0、0 错误（coordinator.ts 已存在于工作区，导入正常解析，`@ts-ignore` 未使用但不报错）。
+- **Commit**：`（提交后经 amend 补录）`（将推送 `internal211/main`）。
+

@@ -242,7 +242,8 @@ export class PCDAScheduler {
    */
   async do(plan: TestPlan): Promise<TestResult[]> {
     try {
-      // @ts-expect-error — coordinator 可能尚未创建（并行开发期）
+      // @ts-ignore — coordinator 由并行开发的其他 agent 提供，存在性不保证；
+      //   用 @ts-ignore 而非 @ts-expect-error：后者在 coordinator 已存在时会触发 TS2578（未使用的指令），前者两种状态均安全。
       const { ClusterCoordinator } = await import("../cluster/coordinator.js");
       const coordinator = new ClusterCoordinator(this.clusterConfig);
       const results = await coordinator.dispatch(plan.tasks);
