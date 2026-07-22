@@ -95,6 +95,67 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
+  stress-test:
+    name: Stress & Performance Gate
+    runs-on: ubuntu-latest
+    needs: test
+    # 性能门禁是合并门禁；extreme-stress 与 baseline 对比仅作报告（避免 CI 抖动误报）
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Restore performance baseline
+        id: restore-baseline
+        uses: actions/cache@v4
+        with:
+          path: reports/stress/baseline.json
+          key: perf-baseline-${{ runner.os }}-${{ github.base_ref || github.ref }}
+          restore-keys: |
+            perf-baseline-${{ runner.os }}-
+
+      - name: Run performance gate (CI blocker)
+        run: bun run test:gate
+        env:
+          NODE_ENV: test
+
+      - name: Run full stress suite with baseline comparison
+        run: bun run stress:compare || true
+        env:
+          NODE_ENV: test
+
+      - name: Generate visualization report
+        run: bun run stress:report
+        if: always()
+
+      - name: Upload stress reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-reports-${{ github.sha }}
+          path: reports/stress/
+          retention-days: 30
+
+      - name: Update baseline (main branch only)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          bun run stress:baseline
+          echo "Baseline updated for ${{ github.ref }}"
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest

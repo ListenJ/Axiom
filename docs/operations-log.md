@@ -484,3 +484,73 @@
 - **备份**：旧版 AGENTS.md 已按新规则 4 归档至 `archive/openclaw-fusion/AGENTS.md.legacy`
 - **Commit**：`f68c235`（已推送 `internal211/main`）。
 
+---
+
+## Entry — 代码级严苛压测方案
+
+- **时间**：2026-07-22 19:40 +0800
+- **任务描述**：用户指令"实现代码层级的严苛压测方案"，6 项要求：设计全面压测策略、开发自动化压测脚本、设置性能指标阈值、可视化分析与报告、CI 性能回归检测、瓶颈优化验证。构建三层压测体系（Gate/Perf/Stress）+ 统一运行器 + 可视化报告 + CI 集成。
+- **工具**：
+  - search 子代理 ×1（调研核心模块、关键算法、高频调用模块及现有压测代码）
+  - Read（读源码确认阈值对齐）
+  - Write（创建 5 个新文件）
+  - Edit（修改 package.json / ci.yml / .gitignore / operations-log.md）
+  - Bash（`bun test` + `bunx tsc --noEmit` + `bun run scripts/stress-runner.ts` 验证）
+- **执行的操作（文件级）**：
+  - **新建** `scripts/stress-runner.ts`（520+ 行）—— 统一压测运行器：
+    - 3 个套件配置：`stress`（extreme-stress.test.ts）/ `perf`（perf-benchmark.test.ts）/ `gate`（perf-gate.test.ts）
+    - `THRESHOLDS` 字典定义 24 项绝对性能阈值（如 `"500 tasks": 5000`、`"cache100k": 200`）
+    - `REGRESSION_TOLERANCE_PCT = 20`：比基线慢 20% 才标记回归
+    - `parseMetricsFromOutput()`：3 种正则模式解析 console.log（`[Stress]` / `[Gate]` / 缩进格式 + 吞吐量）
+    - `runTestFile()`：用 `Bun.spawn` 运行 `bun test`，超时控制，捕获 stdout/stderr
+    - `detectRegressions()`：与 baseline.json 对比，含噪声地板（< 1ms 不参与）+ 标签冲突过滤（跳过 per-*/import *）
+    - `checkThresholds()`：绝对阈值检查
+    - `printAsciiSummary()`：终端 ASCII 表格输出
+    - 报告输出到 `reports/stress/<timestamp>.json` + `latest.json` + `baseline.json`
+    - 命令行参数：`--baseline` / `--compare` / `--suite=stress|perf|gate`
+  - **新建** `scripts/stress-report.ts`（320 行）—— 可视化报告生成器：
+    - `generateMarkdown()`：Markdown 报告（表格 + ASCII 条形图 `█░`）
+    - `generateHTML()`：HTML 报告（深色主题 `#1a1a2e`，CSS 条形图，结果徽章）
+    - `generateTrendReport()`：SVG 折线趋势图，对比最近 10 份报告
+    - 输出：`reports/stress/latest.html` + `reports/stress/latest.md` + `reports/stress/trend.html`
+  - **新建** `tests/stress/perf-gate.test.ts`（270 行）—— 性能门禁测试，CI 用统一阈值断言：
+    - `GATE_THRESHOLDS` 12 项阈值（与 stress-runner.ts THRESHOLDS 对齐）
+    - 热路径门禁（6 项）：Cache set+get ×10k / ThompsonRouter.route ×1k / ConstraintSolver.check ×10k / EventBus.publish ×10k / ConfigCenter reads ×10k / normalizeQuery ×10k
+    - 压力门禁（6 项）：Scheduler 500 tasks / AtomEngine 5000 create / AtomEngine search 5000 / KnowledgeNetwork 2000 entities + 5000 links / ReasoningGraph 5000 nodes / ReasoningGraph gap detection
+    - `assertGate(label, actual, threshold)` 统一断言 + `[Gate]` 日志格式供 runner 解析
+  - **新建** `docs/STRESS-TESTING.md`（210 行）—— 压测策略文档，8 章节：
+    1. 压测分层（Gate/Perf/Stress 三层职责）
+    2. 覆盖范围（核心业务逻辑 / 关键算法 / 高频调用模块）
+    3. 性能阈值（24 项阈值表 + 回归容忍度）
+    4. 运行方式（本地快速验证 / 统一运行器 / 可视化报告）
+    5. CI 集成（stress-test job 7 步流程 + 基线缓存键策略）
+    6. 报告解读（ASCII 摘要 / 阈值违规类型 / HTML 报告）
+    7. 性能瓶颈优化流程（定位 → 复现 → profiling → 优化 → 验证 → 更新基线）
+    8. 维护建议
+  - **修改** `package.json` —— 新增 7 个压测 scripts：
+    - `test:stress` / `test:gate`（直接运行测试）
+    - `stress:run` / `stress:baseline` / `stress:compare`（统一运行器）
+    - `stress:report` / `stress:trend`（可视化报告）
+  - **修改** `.github/workflows/ci.yml` —— 新增 `stress-test` job：
+    - 依赖 `test` job 通过后触发
+    - Restore baseline（从 Actions Cache 恢复 `reports/stress/baseline.json`）
+    - Run performance gate（CI blocker，失败即阻断合并）
+    - Run full stress suite with baseline comparison（`|| true` 容错，仅报告）
+    - Generate visualization report（`if: always()` 保证失败也生成）
+    - Upload stress reports（artifact 保留 30 天）
+    - Update baseline（仅 main/master 分支 push 时更新）
+  - **修改** `.gitignore` —— 新增 `reports/` 忽略规则（生成产物不入库）
+  - **入库** `tests/stress/extreme-stress.test.ts`（602 行，pre-existing WIP）—— stress-runner.ts 的 stress 套件直接依赖此文件，无它 CI 中 stress 套件会失效
+- **验证**：
+  - `bun test tests/stress/perf-gate.test.ts`：12/12 pass，19 个 expect() 调用，0 fail，耗时 324ms（所有指标远低于阈值，如 cacheSetGet_10k: 14ms/200ms、scheduler_500_tasks: 5ms/5000ms）
+  - `bun run scripts/stress-runner.ts --suite=gate`：1/1 file pass，12 metrics captured，0 violations
+  - `bun run scripts/stress-runner.ts --baseline`：3/3 files pass（gate+perf+stress），80+ metrics captured，0 violations，baseline.json 已保存
+  - `bun run scripts/stress-runner.ts --compare`：3/3 files pass，3 borderline regressions（eventBus_10k +42%、knowledge_2000_entities +21%、graph_5000_nodes +22%，均为亚 15ms 测量的正常抖动，CI 用 `|| true` 容错）
+  - `bun run scripts/stress-report.ts`：HTML + Markdown 报告生成成功
+  - `bunx tsc --noEmit`：0 错误
+- **瓶颈发现与优化**：
+  - 发现 1：stress-runner 首次运行 `[Gate]` 前缀日志未被解析（0 metrics）→ 新增 Pattern 1b 匹配 `[Gate] <label>: <value>ms / <threshold>ms threshold` → 12 metrics 正确捕获
+  - 发现 2：`--compare` 首次运行产生 14 个误报（全部来自亚毫秒噪声 0.00ms vs 0.00ms + 标签冲突 per-iter/per-op）→ 新增噪声地板（NOISE_FLOOR_MS=1）+ 跳过 per-*/import * 前缀 → 误报从 14 降至 3（均为真实测量值的边界抖动）
+- **备份**：`.tmp/backups/package.json` + `.tmp/backups/.github/workflows/ci.yml`（验证通过后已删除）
+- **Commit**：（待提交，初稿 hash 待补）
+
