@@ -644,3 +644,34 @@
 - **验证**：`bunx tsc --noEmit` 退出码 0、0 错误（coordinator.ts 已存在于工作区，导入正常解析，`@ts-ignore` 未使用但不报错）。
 - **Commit**：`b7de7d1`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 01:38 +0800 — 测试场景与指标模块（scenarios + metrics）
+
+- **任务描述**：实现分布式测试框架的 5 个模块文件——3 个测试场景（并发负载 / 多用户并发幻觉检测 / 对话串词检测）+ 2 个指标模块（MetricsCollector / DistributedTestReporter），为 PCDA 调度器提供可执行的场景与报告能力。
+- **工具**：Read（cluster/types.ts、scheduler/types.ts、hallucination-detector.ts、llm/client.ts、logger.ts、tsconfig.json、package.json、operations-log.md）、Glob/Grep/LS（确认目录结构与 logger 导出）、Write（创建 5 个新文件）、Bash（`bunx tsc --noEmit` 验证、git 提交）。
+- **执行的操作（文件级）**：
+  - **新建** `src/testing/scenarios/concurrent-load.ts`——并发负载基线场景：
+    - 导出 `calculatePercentiles(values): {p50,p95,p99,avg}`（线性插值，空数组返回零）。
+    - 导出 `runConcurrentLoad(task): Promise<TestResult>`：生成 `concurrency` 个并发 worker，各发 `requestsPerUser` 个请求；支持 `params.mockDelayMs`（默认 5ms）/`params.failureRate`（默认 0）；测量每请求响应时间、总耗时、吞吐量、成功/失败数、errorRate，填充 P50/P95/P99。
+  - **新建** `src/testing/scenarios/hallucination-test.ts`——多用户并发幻觉检测：
+    - 导出 `DEFAULT_TEST_FACTS`（10 条多主题事实）与 `runHallucinationTest(task)`。
+    - 轻量级 Jaccard 相似度幻觉判定（本地 tokenize + jaccardSimilarity + detectHallucination，**不引入** memory 模块的 HallucinationDetector）。
+    - 支持 `params.facts`/`hallucinationRate`(默认0.1)/`similarityThreshold`(默认0.3)/`mockDelayMs`；按概率返回编造响应（FABRICATED_RESPONSES）或接近事实的陈述；metrics 填充 hallucinationCount/hallucinationRate，errors 数组记录每条幻觉。
+  - **新建** `src/testing/scenarios/cross-talk-test.ts`——对话串词（状态泄漏）检测：
+    - 导出 `runCrossTalkTest(task)`：为每个会话生成唯一 `SECRET-<id>-<rand>` token，每会话用独立 `Map` context（无共享状态）；按 `params.crossTalkRate`(默认0.05) 注入其它会话 secret 模拟串词；检测响应中是否含非本会话 secret；metrics 填充 crossTalkCount/crossTalkRate，errors 数组记录每条违规。
+    - 复用 `./concurrent-load.js` 的 `calculatePercentiles`。
+  - **新建** `src/testing/metrics/collector.ts`——`MetricsCollector` 类：
+    - `recordRequest(nodeId, responseTimeMs, success)` / `recordHallucination(nodeId, statement, verdict)` / `recordCrossTalk(nodeId, sessionId, leakedSecret)` / `recordError(nodeId, error)` / `getMetrics()` / `reset()` / `getPerNodeMetrics()`。
+    - 内部按节点存 responseTimes 数组与计数器，按需计算百分位；吞吐量由首末请求时间戳推算；hallucinationRate = 幻觉数/被检测陈述数，crossTalkRate = 串词数/总请求数。
+  - **新建** `src/testing/metrics/reporter.ts`——`DistributedTestReporter` 类：
+    - `generateReport(cycles)`（Markdown）/ `generateJsonReport(cycles)`（JSON）/ `generateHtmlReport(cycles)`（HTML 表格）/ `saveReport(content, filePath)`（递归建目录写文件）。
+    - 报告分 5 节：执行摘要、逐循环结果、分节点指标、问题列表、改进建议（基于 issues 类型/severity 与 cycle 状态生成）。
+    - 导入 `PCDACycle`/`CheckIssue` 自 `../scheduler/types.js`，`TestMetrics` 自 `../cluster/types.js`。
+  - **导入约定**：全部使用 ESM `.js` 后缀；logger 自 `../../utils/logger.js`；类型自 `../cluster/types.js`；中文注释 + 英文变量名。
+- **验证**：
+  - `bunx tsc --noEmit`：退出码 0、**0 错误**（全项目，含 5 个新文件；未触及其它未提交 WIP）。
+  - 5 文件均严格遵循 `TestTask`/`TestResult`/`TestMetrics`/`TestError`/`PCDACycle` 类型契约，strict 模式下无类型错误。
+- **备份**：本次均为新建文件，无既有文件需备份（Rule 2 备份步骤对新增文件不适用）。
+- **Commit**：`（随本次提交入库；推送后最终 hash 以 git log 为准）`
+
