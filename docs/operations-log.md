@@ -675,3 +675,30 @@
 - **备份**：本次均为新建文件，无既有文件需备份（Rule 2 备份步骤对新增文件不适用）。
 - **Commit**：`b4ed46a`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 17:50 +0800 — 分布式测试集群核心 + 测试套件 + Bug 修复
+
+- **任务描述**：完成分布式测试集群框架的收尾工作——提交集群核心模块（types/ssh-executor/node/coordinator）、PCDA 调度器类型、模块入口 index.ts、分布式测试套件（2 个测试文件共 40 用例）、CLI 运行脚本、架构文档；并修复 3 个 Bug（node.ts scenarioMap 文件名错误 + executeTask 调用接口不匹配、pcda-scheduler run() 在 autoEscalate=false 时提前终止）。
+- **工具**：Read（node.ts / pcda-scheduler.ts / types.ts / 测试文件全文）、Grep（ScenarioRunner 引用排查）、Edit（3 处 Bug 修复）、Bash（`bunx tsc --noEmit` + `bun test tests/distributed/`）、DeleteFile（删除备份）、git。
+- **执行的操作（文件级）**：
+  - **新建** `src/testing/cluster/types.ts`（257 行）——集群核心类型：`TestNodeConfig`/`TestTask`/`TestResult`/`TestMetrics`/`TestError`/`ClusterConfig`/`DEFAULT_CLUSTER_CONFIG`（3 节点：local + node-150 data@192.168.0.150 + node-021 git@192.168.0.21）/`ClusterMessage` RPC 协议。
+  - **新建** `src/testing/cluster/ssh-executor.ts`——`SshExecutor` 类（connectTest/exec/execScript）+ `testSshConnectivity` 工厂函数；基于 Node.js `child_process.execFile` 调用系统 `ssh` 命令（`-o StrictHostKeyChecking=no -o ConnectTimeout=10`），无外部 SSH 库依赖。
+  - **新建** `src/testing/cluster/node.ts`——`BaseTestNode` 抽象基类（状态管理 + createResult/beginTask/endTask）、`LocalTestNode`（动态导入场景 runner）、`RemoteTestNode`（SSH 远程执行 bun run）、`createTestNode` 工厂。
+  - **新建** `src/testing/cluster/coordinator.ts`——`ClusterCoordinator` 类：dispatch/dispatchSingle/getNodeStatuses/shutdown；Semaphore 限流 + 最少负载节点选择 + Promise.race 超时保护。
+  - **新建** `src/testing/scheduler/types.ts`（241 行）——PCDA 调度器类型：`PCDAPhase`/`LoadLevel`/`LOAD_LEVELS`（4 级递增 warmup→normal→high→extreme）/`TestPlan`/`CheckResult`/`AggregatedMetrics`/`CheckIssue`/`ActDecision`/`PCDACycle`/`PCDAConfig`/`DEFAULT_PCDA_CONFIG`。
+  - **新建** `src/testing/index.ts`——模块入口，统一导出集群/场景/调度器/指标全部类型与实现。
+  - **新建** `tests/distributed/cluster-test.test.ts`（426 行）——覆盖 calculatePercentiles / runConcurrentLoad / runHallucinationTest / runCrossTalkTest / MetricsCollector / ClusterCoordinator（31 用例）。
+  - **新建** `tests/distributed/pcda-scheduler-test.test.ts`（364 行）——覆盖 Plan/Check/Act 阶段 + 完整 PCDA 循环（9 用例）。
+  - **新建** `scripts/distributed-test-runner.ts`（270 行）——CLI 入口：`--local-only`/`--scenarios`/`--max-cycles`/`--start-level`/`--no-escalate`/`--report`/`--check-ssh`；SSH 连通性检查 → PCDA 调度 → 报告生成。
+  - **新建** `docs/DISTRIBUTED-TESTING.md`（223 行）——架构概览 + 集群节点表 + PCDA 循环说明 + 负载级别表 + 测试场景说明 + 快速开始 + 模块结构 + SSH 配置 + 报告格式。
+  - **修改** `src/testing/cluster/node.ts`——Bug 1 修复：`scenarioMap` 文件名从错误的 `"hallucination-runner"`/`"cross-talk-runner"`/`"concurrent-load-runner"` 改为正确的 `"hallucination-test"`/`"cross-talk-test"`/`"concurrent-load"`，并改为 `{ file: string; fn: string } | null` 格式（stress/custom 返回 null）。
+  - **修改** `src/testing/cluster/node.ts`——Bug 2 修复：`executeTask` 方法从错误的 `runner.run(task)`（依赖不存在的 `ScenarioRunner` 接口）改为 `mod[entry.fn](task)` 动态函数调用，增加 null entry 检查与函数类型校验。
+  - **修改** `src/testing/scheduler/pcda-scheduler.ts`——Bug 3 修复：`run()` 方法在 `decision.action === "pass"` 时无条件 break，导致 `autoEscalate=false` 配置下首次通过即终止（无法达到 maxCycles）。修复为：仅 `autoEscalate=true` 时 break（表示已升级到顶且通过），`autoEscalate=false` 时 continue 进入下一循环（同级重复测试直到 maxCycles）。
+  - **修改** `tests/distributed/pcda-scheduler-test.test.ts`——Act degrade 测试期望修正：`LOAD_LEVELS[2]`（high, level=3）降级应到 `level=2`（normal），原期望 `toBe(1)` 改为 `toBe(2)`。
+- **验证**：
+  - `bunx tsc --noEmit`：退出码 0、**0 错误**。
+  - `bun test tests/distributed/`：**40 pass / 0 fail** / 127 expect() calls（修复前 31 pass / 9 fail）。
+- **备份**：修改 node.ts 前备份至 `.tmp/backups/src/testing/cluster/node.ts`，验证通过后已删除。
+- **Commit**：（待提交后补录）。
+

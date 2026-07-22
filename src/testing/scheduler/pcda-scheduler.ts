@@ -88,11 +88,17 @@ export class PCDAScheduler {
         break;
       }
       if (decision.action === "pass") {
-        logger.info("PCDA run completed: all load levels passed", {
-          cycleId: cycle.cycleId,
-          reason: decision.reason,
-        });
-        break;
+        // autoEscalate=true 时 "pass" 表示已升级到顶且通过，终止运行；
+        // autoEscalate=false 时 "pass" 仅表示本循环通过，应继续下一循环直到 maxCycles
+        if (this.config.autoEscalate) {
+          logger.info("PCDA run completed: all load levels passed", {
+            cycleId: cycle.cycleId,
+            reason: decision.reason,
+          });
+          break;
+        }
+        // autoEscalate=false：本循环通过，继续下一循环（同级重复测试）
+        continue;
       }
 
       // escalate / degrade：切换到下一负载级别
