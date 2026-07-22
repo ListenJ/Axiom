@@ -52,5 +52,10 @@ export { DataUnifier, dataUnifier, type DataItem, type SearchOptions, type Searc
 export { PRESETS, LLM_PRESETS } from "./presets.js";
 export { DREError, DREValidationError, DREResourceError, DREPipelineError, DRELLMError, DREConsistencyError, DRETaskError, wrapDREError } from "./errors.js";
 
+// 端口协议 — 推理引擎与知识库解耦的标准化通信层
+export { type KnowledgePort, BaseKnowledgePort, LocalKnowledgePort, RemoteKnowledgePort, PortException, createLocalPort, createRemotePort } from "./port/index.js";
+export type { PortMethod, PortRequest, PortResponse, PortError, PortErrorCode, WriteParams, WriteResult, ReadParams, SearchParams, DeleteParams, GetRevisionsParams, HealthResult, RetryConfig } from "./port/index.js";
+export { DEFAULT_RETRY_CONFIG, computeBackoff, generateRequestId, okResponse, errorResponse, toPortError } from "./port/index.js";
+
 // 版本
 export const DRE_VERSION = "3.1.0";

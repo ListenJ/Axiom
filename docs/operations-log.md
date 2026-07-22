@@ -554,3 +554,61 @@
 - **备份**：`.tmp/backups/package.json` + `.tmp/backups/.github/workflows/ci.yml`（验证通过后已删除）
 - **Commit**：`ea96876`（已推送 `internal211/main`）。
 
+---
+
+## Entry — 四大架构任务：端口协议 + 知识搜集 + Agent评估 + 通用Runtime
+
+- **时间**：2026-07-23 16:50 +0800
+- **任务描述**：用户指令完成 4 项架构任务：①推理引擎与知识库完全解耦（端口协议）；②知识搜集框架（并发搜索 + HTML→Markdown + 存储评估）；③Agent工具系统评估与优化（评估文档 + 多Agent压测 + 10ms目标）；④通用Runtime环境（标准化接口 + 错误隔离 + 文档示例）。
+- **工具**：
+  - search 子代理 ×4（并行调研：DRE 架构 / 知识搜集模块 / Agent工具系统 / Runtime 架构）
+  - general_purpose_task 子代理 ×3（并行执行任务 2/3/4）
+  - Read（源码核查）、Write（创建文件）、Edit（修改 index.ts / operations-log.md）、Bash（`bunx tsc --noEmit` / `bun test` 验证）
+- **执行的操作（文件级）**：
+  - **任务 1 — 端口协议（推理引擎与知识库解耦）**：
+    - **新建** `src/dre/port/types.ts`（220 行）—— 端口协议类型定义：
+      - `PortMethod` 联合类型（write/read/search/delete/getRevisions/health）
+      - `PortRequest<T>` / `PortResponse<T>` 泛型接口
+      - `PortError` + `PortErrorCode` 枚举（8 种错误码，与 DREError.code 对齐）
+      - `RetryConfig` + `DEFAULT_RETRY_CONFIG`（maxRetries=2, backoffMs=100, multiplier=2, maxBackoffMs=5000, jitter=0.2）
+      - `computeBackoff()` 指数退避 + 抖动函数
+      - `toPortError()` 错误分类（启发式：fetch/connect/timeout → CONNECTION_ERROR retriable）
+      - `generateRequestId()` / `okResponse()` / `errorResponse()` 工具函数
+    - **新建** `src/dre/port/knowledge-port.ts`（515 行）—— 端口协议实现：
+      - `KnowledgePort` 接口：`execute<T>(request): Promise<PortResponse<T>>`
+      - `PortException` 类：携带 PortError 的可抛出错误
+      - `BaseKnowledgePort` 抽象基类：统一重试 + 超时 + 日志（子类只需实现 dispatch()）
+      - `LocalKnowledgePort`：进程内包装 KnowledgeStore（write/read/search/delete/getRevisions/health），delete 需 db 引用（KnowledgeStore 原生无 delete）
+      - `RemoteKnowledgePort`：HTTP POST /api/port，fetch + 超时 + HTTP 状态码→PortErrorCode 映射（5xx/429 retriable）
+      - `createLocalPort()` / `createRemotePort()` 工厂函数
+    - **新建** `src/dre/port/index.ts`—— 模块入口，导出全部类型与实现
+    - **新建** `tests/port-protocol.test.ts`（420 行）—— 41 测试用例 / 211 expect()：
+      - LocalKnowledgePort 全流程（write/read/search/delete/getRevisions/health）
+      - 错误分类（VALIDATION_ERROR/NOT_FOUND/INTERNAL_ERROR）
+      - 重试机制（可重试错误自动重试 / 不可重试立即失败 / maxRetries 上限 / retryOverride 覆盖 / 超时终止）
+      - 请求 ID 保持 + 响应格式
+      - 类型工具函数（generateRequestId/computeBackoff/toPortError）
+      - 接口一致性（Local/Remote 都实现 KnowledgePort）
+    - **修改** `src/dre/index.ts`：追加 3 行导出（KnowledgePort 接口 + 实现 + 类型 + 工具函数）
+  - **任务 2 — 知识搜集框架（子代理完成）**：
+    - **新建** `src/crawl/concurrent-search.ts`（211 行）—— 多线程并发搜索，复用 Semaphore 限流 + Promise.all 保序 + 错误隔离
+    - **新建** `src/crawl/html-to-markdown.ts`（316 行）—— 零外部依赖 HTML→Markdown 转换（正则 + 字符串操作，覆盖表格/代码块/标题/链接/图片/列表等）
+    - **新建** `docs/STORAGE-EVALUATION.md`（190 行）—— 存储方案评估报告（Markdown vs SQLite vs PostgreSQL 对比，推荐分层方案）
+  - **任务 3 — Agent 评估与优化（子代理完成）**：
+    - **新建** `docs/AGENT-TOOLS-ASSESSMENT.md`—— 工具集评估（完整性 B / 功能性 B+ / 易用性 A− / 性能 A / 可扩展性 B+）+ 5 个热路径瓶颈识别 + P1/P2/P3 优化方案
+    - **新建** `tests/stress/multi-agent-stress.test.ts`—— 8 测试 / 222 expect()，10 Agent × 100 任务并行压测（0.0186ms/submit）+ 50 Agent × 100 select（0.0015ms/select），所有关键操作 < 10ms
+  - **任务 4 — 通用 Runtime 环境（子代理完成）**：
+    - **新建** `src/runtime/types.ts`—— AgentAdapter 接口（4 必需方法 + 4 只读属性 + 2 可选方法）+ RuntimeContext/RuntimeTask/RuntimeResult/HealthStatus/AgentState
+    - **新建** `src/runtime/host.ts`—— RuntimeHost 实现（注册/启动/停止/分发任务/健康检查），try-catch 错误隔离 + Promise.race 超时保护 + 按 capabilities 路由
+    - **新建** `src/runtime/index.ts`—— 模块入口
+    - **新建** `docs/RUNTIME-SPEC.md`—— Runtime 规范文档（接口说明 + 字段表 + 状态机 + 错误码 + 最少适配代码 + 集成步骤）
+    - **新建** `examples/external-agent/simple-agent.ts`—— EchoAgent 示例（完整生命周期：注册→初始化→启动→健康检查→任务分发→停止→销毁→注销）
+    - **新建** `examples/external-agent/README.md`—— 示例说明文档
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误
+  - `bun test tests/port-protocol.test.ts`：41/41 pass，211 expect() calls，0 fail，351ms
+  - `bun test tests/port-protocol.test.ts tests/stress/multi-agent-stress.test.ts tests/stress/perf-gate.test.ts`：61/61 pass，452 expect() calls，0 fail，2.53s
+  - `bun run examples/external-agent/simple-agent.ts`：退出码 0（Runtime 完整生命周期验证通过）
+- **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）
+- **Commit**：`49b2986`（已推送 `internal211/main`）。
+
