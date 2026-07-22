@@ -642,5 +642,5 @@
 - **执行的操作（文件级）**：
   - **修改** `src/testing/scheduler/pcda-scheduler.ts`：`do()` 内 `// @ts-expect-error — coordinator 可能尚未创建（并行开发期）` → `// @ts-ignore — coordinator 由并行开发的其他 agent 提供，存在性不保证；用 @ts-ignore 而非 @ts-expect-error：后者在 coordinator 已存在时会触发 TS2578，前者两种状态均安全。`（仅此一处，2 行注释 + 既有 import 行不变）。
 - **验证**：`bunx tsc --noEmit` 退出码 0、0 错误（coordinator.ts 已存在于工作区，导入正常解析，`@ts-ignore` 未使用但不报错）。
-- **Commit**：`（提交后经 amend 补录）`（将推送 `internal211/main`）。
+- **Commit**：`b7de7d1`（已推送 `internal211/main`）。
 
