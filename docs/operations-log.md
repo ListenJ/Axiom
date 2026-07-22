@@ -552,5 +552,5 @@
   - 发现 1：stress-runner 首次运行 `[Gate]` 前缀日志未被解析（0 metrics）→ 新增 Pattern 1b 匹配 `[Gate] <label>: <value>ms / <threshold>ms threshold` → 12 metrics 正确捕获
   - 发现 2：`--compare` 首次运行产生 14 个误报（全部来自亚毫秒噪声 0.00ms vs 0.00ms + 标签冲突 per-iter/per-op）→ 新增噪声地板（NOISE_FLOOR_MS=1）+ 跳过 per-*/import * 前缀 → 误报从 14 降至 3（均为真实测量值的边界抖动）
 - **备份**：`.tmp/backups/package.json` + `.tmp/backups/.github/workflows/ci.yml`（验证通过后已删除）
-- **Commit**：（待提交，初稿 hash 待补）
+- **Commit**：`ea96876`（已推送 `internal211/main`）。
 
