@@ -673,5 +673,5 @@
   - `bunx tsc --noEmit`：退出码 0、**0 错误**（全项目，含 5 个新文件；未触及其它未提交 WIP）。
   - 5 文件均严格遵循 `TestTask`/`TestResult`/`TestMetrics`/`TestError`/`PCDACycle` 类型契约，strict 模式下无类型错误。
 - **备份**：本次均为新建文件，无既有文件需备份（Rule 2 备份步骤对新增文件不适用）。
-- **Commit**：`（随本次提交入库；推送后最终 hash 以 git log 为准）`
+- **Commit**：`b4ed46a`（已推送 `internal211/main`）。
 
