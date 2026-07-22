@@ -700,5 +700,5 @@
   - `bunx tsc --noEmit`：退出码 0、**0 错误**。
   - `bun test tests/distributed/`：**40 pass / 0 fail** / 127 expect() calls（修复前 31 pass / 9 fail）。
 - **备份**：修改 node.ts 前备份至 `.tmp/backups/src/testing/cluster/node.ts`，验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`9252e12`（已推送 `internal211/main`）。
 
