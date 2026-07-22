@@ -612,3 +612,24 @@
 - **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）
 - **Commit**：`88b6ba9`（已推送 `internal211/main`；初稿 `49b2986` 经 amend 补录本行）。
 
+---
+
+## 2026-07-23 01:30 +0800 — PCDA 循环调度器实现
+
+- **任务描述**：实现分布式测试的 PCDA（Plan-Do-Check-Act）循环调度器，编排「场景 × 负载级别 × 节点」测试矩阵的分发、跨节点指标聚合、阈值检测，以及 escalate/retry/degrade/pass/fail/abort 决策。
+- **工具**：Read（cluster/types.ts、scheduler/types.ts、logger.ts、tsconfig.json、operations-log.md）、Grep/Glob/LS（确认 logger 导出与导入路径、确认 coordinator 尚未存在）、Write（新建调度器文件）、Edit（修正 logger.error 调用签名）、Bash（`bunx tsc --noEmit` 验证、git 提交）。
+- **执行的操作（文件级）**：
+  - **新建** `src/testing/scheduler/pcda-scheduler.ts`——`PCDAScheduler` 类：
+    - 构造器：存储 `PCDAConfig` + `ClusterConfig`，`cycleCounter=0`，`loadLevels = config.customLoadLevels ?? LOAD_LEVELS`，按 `initialLoadLevel` 定位当前级别索引。
+    - `run()`：循环运行 PCDA 周期，终止于 maxCycles / 全级别 pass / fail / abort；escalate/degrade 时切换 `currentLoadLevelIndex`，retry 保持当前级别。
+    - `runCycle()`：依次 Plan→Do→Check→Act，维护 `phaseStatus`；try-catch 隔离异常，失败置 `cycle.status=failed`。
+    - `plan(loadLevel)`：为「场景 × 节点」生成 `TestTask` 矩阵；`timeout = globalTimeout / 总任务数`；优先级 hallucination=1 / cross-talk=2 / concurrent-load=3 / stress=4 / custom=5。
+    - `do(plan)`：动态 `import("../cluster/coordinator.js")`（`@ts-expect-error` 规避并行开发期文件缺失）→ `new ClusterCoordinator(clusterConfig).dispatch(tasks)`；失败返回 `[]` 并记 error 日志。
+    - `check(results, loadLevel)`：调用 `aggregateMetrics` 后对照阈值检测 hallucination/cross-talk/error-rate/performance，并检测节点缺失（空结果=critical）/任务 failed/timeout；严重度按 actual/threshold 比值分级（<1.5x low / 1.5–2x medium / 2–5x high / >5x critical；零阈值特判）；`passed = 无问题 或 仅 low`。
+    - `act(checkResult, loadLevel)`：critical→`fail`；high→`degrade`（已在最低级则 `abort`）；medium 且 `cycleCounter>2`→`retry`；low/无问题 → `escalate`（未到顶且 autoEscalate）或 `pass`。
+    - `aggregateMetrics(results)`：总量类求和；avgResponseMs / hallucinationRate / crossTalkRate / errorRate 按 `totalRequests` 加权平均；p95/p99 取各节点最大值；构建 `perNode` 数组。
+    - 辅助方法：`getCurrentLoadLevel` / `getCycles` / `getPreviousLoadLevel` / `getNextLoadLevel` / `getScenarioPriority` / `severityFor`。
+    - 导入约定：`import { logger } from "../../utils/logger.js"`；集群类型 `from "../cluster/types.js"`；PCDA 类型与 `LOAD_LEVELS` `from "./types.js"`（ESM `.js` 后缀）。
+- **验证**：`bunx tsc --noEmit` 退出码 0、0 错误（初遇 2 个 TS2353：`logger.error(msg, ctxObj)` 误将 ctx 作 `Error` 第二参数 → 改传 `err instanceof Error ? err : new Error(String(err))` 作第二参数、ctx 移至第三参数，复验通过）。
+- **Commit**：`b13a7e1`（初稿，经 amend 补录本行；amend 后推送 `internal211/main`）。
+
