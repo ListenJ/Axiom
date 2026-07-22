@@ -610,5 +610,5 @@
   - `bun test tests/port-protocol.test.ts tests/stress/multi-agent-stress.test.ts tests/stress/perf-gate.test.ts`：61/61 pass，452 expect() calls，0 fail，2.53s
   - `bun run examples/external-agent/simple-agent.ts`：退出码 0（Runtime 完整生命周期验证通过）
 - **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）
-- **Commit**：`49b2986`（已推送 `internal211/main`）。
+- **Commit**：`88b6ba9`（已推送 `internal211/main`；初稿 `49b2986` 经 amend 补录本行）。
 
