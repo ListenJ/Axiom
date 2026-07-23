@@ -776,5 +776,5 @@
   - 规则 9 采用行为级约束而非 Claude Code hooks（本仓库不依赖该机制），适配本项目 git 工作流（internal211 remote）。
 - **验证**：Grep 确认 9 条 `## 规则` 标题结构完整（规则 1-9 顺序正确）；回读首尾确认文件结构无破损。
 - **备份**：修改前备份至 `.tmp/backups/AGENTS.md.bak`，验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`6551d85`（已推送 `internal211/main`）。
 
