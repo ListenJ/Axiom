@@ -805,3 +805,23 @@
 - **验证**：tsc 0 错误；dre-retrieval-engine 24 pass / 0 fail / 66 expect()；consciousness 49 pass / 0 fail（无回归）。
 - **Commit**：`94695c2`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 12:40 +0800 — GraphRAG 多跳检索 Layer 1 + 测试
+
+- **任务描述**：扩展确定性检索引擎，实现方向一 GraphRAG — 多跳图遍历 + 证据路径编译。从直接匹配实体出发，BFS 遍历知识图谱（默认 3 跳），将遍历到的实体作为结果返回（提升召回率），每条路径编译为 GraphRAGPath（含完整跳转序列 + 人类可读推理摘要 + 置信度衰减），适用于复杂多步推理问题。
+- **工具**：Read、Edit、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **修改** `src/dre/retrieval/deterministic-retrieval-engine.ts`：
+    - 新增类型：`GraphRAGHop`（单跳）、`GraphRAGPath`（完整证据路径）、`GraphRAGResponse`（含 paths）
+    - 新增配置：`graphRagMaxDepth`(3)、`graphRagMaxPathsPerStart`(10)、`graphRagConfidenceDecay`(0.8)
+    - 新增公开方法 `retrieveWithPaths(query, options)` — 复用 Layer 0 基础检索 + 多跳 BFS 遍历 + 路径编译 + 合并去重
+    - 新增私有方法 `multiHopTraversal()` — BFS 遍历：环检测（visited set）、置信度衰减（0.8^hop）、路径爆炸防护（maxPathsPerStart）
+    - 新增私有方法 `compilePathReasoning()` — 编译人类可读路径摘要（"TypeScript --[supports]--> Debugging --[identifies]--> TypeError"）
+    - 新增私有方法 `mergeWithTraversed()` — 合并基础结果与遍历结果（去重保留较高分）
+  - **修改** `tests/dre-retrieval-engine.test.ts` — 新增 GraphRAG 多跳检索 describe（10 用例）：
+    - 证据路径返回、完整跳转序列与关系、2 跳到达 TypeError、遍历结果加入召回、置信度衰减、环检测防无限循环、maxDepth=1 限制、证据链含完整路径、GraphRAG 召回优于基础、空查询守卫
+- **验证**：tsc 0 错误；dre-retrieval-engine 34 pass / 0 fail / 111 expect()（原 24 + 新增 10）。
+- **备份**：修改前备份至 `.tmp/backups/src/dre/retrieval/`，验证通过后已删除。
+- **Commit**：（待提交后补录）。
+

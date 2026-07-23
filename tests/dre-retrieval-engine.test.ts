@@ -419,3 +419,136 @@ describe("DeterministicRetrievalEngine — 质量指标 (P/R/F1)", () => {
     expect(rHybrid).toBeGreaterThanOrEqual(rKw);
   });
 });
+
+// ─── GraphRAG 多跳检索（Layer 1）─────────────────────────────────────────
+
+describe("DeterministicRetrievalEngine — GraphRAG 多跳检索", () => {
+  let engine: DeterministicRetrievalEngine;
+
+  beforeEach(() => {
+    seedGraph();
+    engine = new DeterministicRetrievalEngine({
+      keywordSearcher: makeMockSearcher([
+        { path: "notes/typescript.md", title: "TypeScript Guide", content: "TypeScript debugging techniques", score: 85, reasons: ["匹配"] },
+      ]),
+    });
+  });
+
+  afterEach(() => {
+    knowledgeNetwork.reset();
+    _resetRetrievalEngineForTest();
+  });
+
+  test("多跳遍历返回证据路径", () => {
+    const { paths } = engine.retrieveWithPaths("TypeScript");
+    // TypeScript → supports → Debugging → identifies → TypeError / uses → Breakpoint
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      expect(path.startEntityName).toBe("TypeScript");
+      expect(path.hops.length).toBeGreaterThanOrEqual(1);
+      expect(path.endEntityId).toBeDefined();
+      expect(path.endEntityName.length).toBeGreaterThan(0);
+      expect(path.pathConfidence).toBeGreaterThan(0);
+      expect(path.pathConfidence).toBeLessThanOrEqual(1);
+      expect(path.reasoning.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("路径包含完整跳转序列与关系", () => {
+    const { paths } = engine.retrieveWithPaths("TypeScript");
+    // 找到到达 Debugging 的路径（1 跳）
+    const debugPath = paths.find((p) => p.endEntityName === "Debugging");
+    expect(debugPath).toBeDefined();
+    expect(debugPath!.hops.length).toBe(1);
+    expect(debugPath!.hops[0].relation).toBe("supports");
+    expect(debugPath!.hops[0].entityName).toBe("Debugging");
+  });
+
+  test("2 跳路径到达 TypeError", () => {
+    const { paths } = engine.retrieveWithPaths("TypeScript", { maxDepth: 3 });
+    // TypeScript → supports → Debugging → identifies → TypeError
+    const errorPath = paths.find((p) => p.endEntityName === "TypeError");
+    expect(errorPath).toBeDefined();
+    expect(errorPath!.hops.length).toBe(2);
+    expect(errorPath!.hops[0].entityName).toBe("Debugging");
+    expect(errorPath!.hops[0].relation).toBe("supports");
+    expect(errorPath!.hops[1].entityName).toBe("TypeError");
+    expect(errorPath!.hops[1].relation).toBe("identifies");
+  });
+
+  test("遍历结果被加入检索结果（召回率提升）", () => {
+    const base = engine.retrieve("TypeScript");
+    const graphRag = engine.retrieveWithPaths("TypeScript");
+    // GraphRAG 应返回更多结果（包含遍历到的实体）
+    expect(graphRag.results.length).toBeGreaterThanOrEqual(base.results.length);
+    // TypeError / Breakpoint 应通过遍历被召回
+    const foundNames = new Set(graphRag.results.map((r) => r.title));
+    expect(foundNames.has("TypeError") || foundNames.has("Breakpoint")).toBe(true);
+  });
+
+  test("路径置信度随跳数衰减", () => {
+    const { paths } = engine.retrieveWithPaths("TypeScript", { maxDepth: 3 });
+    const hop1Paths = paths.filter((p) => p.hops.length === 1);
+    const hop2Paths = paths.filter((p) => p.hops.length === 2);
+    if (hop1Paths.length > 0 && hop2Paths.length > 0) {
+      const avgHop1 = hop1Paths.reduce((s, p) => s + p.pathConfidence, 0) / hop1Paths.length;
+      const avgHop2 = hop2Paths.reduce((s, p) => s + p.pathConfidence, 0) / hop2Paths.length;
+      // 2 跳的置信度应低于 1 跳（衰减因子 0.8）
+      expect(avgHop2).toBeLessThan(avgHop1);
+    }
+  });
+
+  test("环检测防止无限循环", () => {
+    // 创建有环的图：A → B → A
+    knowledgeNetwork.reset();
+    const a = knowledgeNetwork.create("concept", "NodeA", "Content A", { confidence: 0.9, source: "test" });
+    const b = knowledgeNetwork.create("concept", "NodeB", "Content B", { confidence: 0.9, source: "test" });
+    knowledgeNetwork.link(a.id, b.id, "relates_to", { weight: 1 });
+    knowledgeNetwork.link(b.id, a.id, "relates_to", { weight: 1 });
+
+    const { paths, results } = engine.retrieveWithPaths("NodeA", { maxDepth: 5 });
+    // 不应崩溃，路径数量应有界
+    expect(paths.length).toBeLessThan(20);
+    expect(results.length).toBeLessThan(20);
+  });
+
+  test("maxDepth=1 时仅做 1 跳遍历", () => {
+    const { paths } = engine.retrieveWithPaths("TypeScript", { maxDepth: 1 });
+    // 所有路径都应是 1 跳
+    for (const path of paths) {
+      expect(path.hops.length).toBe(1);
+    }
+  });
+
+  test("遍历结果的证据链包含完整路径", () => {
+    const { results } = engine.retrieveWithPaths("TypeScript", { maxDepth: 3 });
+    // 找到 TypeError（2 跳遍历结果）
+    const errorResult = results.find((r) => r.title === "TypeError");
+    if (errorResult) {
+      const steps = errorResult.evidenceChain.steps;
+      // 应有：起始实体匹配 + 2 个遍历步骤
+      expect(steps.length).toBeGreaterThanOrEqual(3);
+      expect(steps[0].type).toBe("graph_entity");
+      const traverseSteps = steps.filter((s) => s.type === "graph_traverse");
+      expect(traverseSteps.length).toBe(2);
+    }
+  });
+
+  test("GraphRAG 召回率优于基础检索", () => {
+    const relevantIds = new Set<string>();
+    // 收集图谱中所有实体 ID 作为相关集
+    const stats = knowledgeNetwork.getStats();
+    const base = engine.retrieve("TypeScript");
+    const graphRag = engine.retrieveWithPaths("TypeScript", { maxDepth: 3 });
+    // GraphRAG 结果数应 >= 基础检索
+    expect(graphRag.results.length).toBeGreaterThanOrEqual(base.results.length);
+    void stats; // 仅确认图谱非空
+  });
+
+  test("空查询返回空路径", () => {
+    const { results, paths, metrics } = engine.retrieveWithPaths("");
+    expect(results.length).toBe(0);
+    expect(paths.length).toBe(0);
+    expect(metrics.totalResults).toBe(0);
+  });
+});

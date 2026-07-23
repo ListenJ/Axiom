@@ -114,6 +114,49 @@ export interface RetrievalResponse {
   metrics: RetrievalMetrics;
 }
 
+// ─── GraphRAG 多跳证据路径（Layer 1）──────────────────────────────────────
+
+/** 图遍历单跳 — 证据路径中的一步 */
+export interface GraphRAGHop {
+  /** 实体 ID */
+  entityId: string;
+  /** 实体名称 */
+  entityName: string;
+  /** 关系类型 */
+  relation: string;
+  /** 本跳置信度（含衰减） */
+  confidence: number;
+}
+
+/** GraphRAG 证据路径 — 从查询起点到终点的完整推理链 */
+export interface GraphRAGPath {
+  /** 原始查询 */
+  query: string;
+  /** 起始实体 ID（直接匹配查询的实体） */
+  startEntityId: string;
+  /** 起始实体名称 */
+  startEntityName: string;
+  /** 中间跳转序列（不含起点，含终点） */
+  hops: GraphRAGHop[];
+  /** 终点实体 ID */
+  endEntityId: string;
+  /** 终点实体名称 */
+  endEntityName: string;
+  /** 终点实体内容摘要 */
+  endEntityContent: string;
+  /** 路径综合置信度（按跳数衰减） */
+  pathConfidence: number;
+  /** 人类可读的推理路径摘要 */
+  reasoning: string;
+}
+
+/** GraphRAG 检索响应 — 包含结果 + 证据路径 */
+export interface GraphRAGResponse {
+  results: RetrievalResult[];
+  paths: GraphRAGPath[];
+  metrics: RetrievalMetrics;
+}
+
 // ─── 关键词检索器接口（依赖注入，遵循规则 8）──────────────────────────────
 
 /**
@@ -162,6 +205,12 @@ export interface DeterministicRetrievalConfig {
   graphBoostWeight: number;
   /** 关键词与图谱实体名称匹配的加分 */
   crossLinkBoost: number;
+  /** GraphRAG 多跳最大深度（Layer 1） */
+  graphRagMaxDepth: number;
+  /** 每个起始实体的最大路径数（防爆炸） */
+  graphRagMaxPathsPerStart: number;
+  /** 每跳置信度衰减因子 */
+  graphRagConfidenceDecay: number;
 }
 
 export const DEFAULT_RETRIEVAL_CONFIG: DeterministicRetrievalConfig = {
@@ -172,6 +221,9 @@ export const DEFAULT_RETRIEVAL_CONFIG: DeterministicRetrievalConfig = {
   defaultGraphDepth: 1,
   graphBoostWeight: 15,
   crossLinkBoost: 20,
+  graphRagMaxDepth: 3,
+  graphRagMaxPathsPerStart: 10,
+  graphRagConfidenceDecay: 0.8,
 };
 
 export class DeterministicRetrievalEngine {
@@ -508,6 +560,221 @@ export class DeterministicRetrievalEngine {
       if (oldest) this.queryCache.delete(oldest);
     }
     this.queryCache.set(key, { results, at: Date.now() });
+  }
+
+  // ─── GraphRAG 多跳检索（Layer 1）──────────────────────────────────────
+
+  /**
+   * GraphRAG 多跳检索 — 返回结果 + 完整证据路径
+   *
+   * 与 retrieve() 的区别：
+   *   - 多跳 BFS 遍历（默认 3 跳），将遍历到的实体也作为结果返回（提升召回率）
+   *   - 每条路径编译为 GraphRAGPath，含完整跳转序列与人类可读推理摘要
+   *   - 适用于复杂多步推理问题（方向一 GraphRAG）
+   *
+   * @param maxDepth 最大遍历深度（默认 config.graphRagMaxDepth=3）
+   */
+  retrieveWithPaths(
+    query: string,
+    options: RetrievalOptions & { maxDepth?: number } = {},
+  ): GraphRAGResponse {
+    const startTime = performance.now();
+    if (!query || query.trim().length === 0) {
+      return {
+        results: [],
+        paths: [],
+        metrics: {
+          latencyMs: 0, cacheHit: false, keywordPhaseMs: 0, graphPhaseMs: 0, mergePhaseMs: 0,
+          keywordResults: 0, graphResults: 0, totalResults: 0,
+        },
+      };
+    }
+
+    const limit = options.limit ?? this.config.keywordLimit;
+    const maxDepth = options.maxDepth ?? this.config.graphRagMaxDepth;
+
+    // Phase 1: 基础检索（复用 Layer 0）
+    const baseResponse = this.retrieve(query, { ...options, enableCache: false });
+    const baseResults = baseResponse.results;
+
+    // Phase 2: 多跳遍历 + 路径编译
+    const phase2Start = performance.now();
+    const queryTokens = tokenize(query);
+
+    // 找到直接匹配的实体（来自图谱结果）
+    const startEntities = baseResults
+      .filter((r) => r.entityId !== undefined)
+      .map((r) => this.graph.get(r.entityId!))
+      .filter((e): e is KnowledgeEntity => e !== undefined);
+
+    const { traversedResults, paths } = this.multiHopTraversal(startEntities, maxDepth, query, queryTokens);
+    const graphPhaseMs = Math.round(performance.now() - phase2Start);
+
+    // Phase 3: 合并基础结果 + 遍历结果（去重）
+    const phase3Start = performance.now();
+    const merged = this.mergeWithTraversed(baseResults, traversedResults, query);
+    const mergePhaseMs = Math.round(performance.now() - phase3Start);
+
+    const results = merged.slice(0, limit);
+
+    const metrics: RetrievalMetrics = {
+      latencyMs: Math.round(performance.now() - startTime),
+      cacheHit: false,
+      keywordPhaseMs: baseResponse.metrics.keywordPhaseMs,
+      graphPhaseMs: graphPhaseMs + baseResponse.metrics.graphPhaseMs,
+      mergePhaseMs,
+      keywordResults: baseResponse.metrics.keywordResults,
+      graphResults: baseResponse.metrics.graphResults + traversedResults.length,
+      totalResults: results.length,
+    };
+
+    logger.debug("[DRE/GraphRAG] 多跳检索完成", {
+      query: query.slice(0, 50),
+      paths: paths.length,
+      ...metrics,
+    });
+
+    return { results, paths, metrics };
+  }
+
+  /**
+   * 多跳 BFS 遍历 — 从起始实体出发，沿关系边遍历，编译证据路径
+   */
+  private multiHopTraversal(
+    startEntities: KnowledgeEntity[],
+    maxDepth: number,
+    query: string,
+    queryTokens: string[],
+  ): { traversedResults: RetrievalResult[]; paths: GraphRAGPath[] } {
+    const traversedResults: RetrievalResult[] = [];
+    const paths: GraphRAGPath[] = [];
+    const directIds = new Set(startEntities.map((e) => e.id));
+
+    for (const start of startEntities) {
+      let pathCount = 0;
+      // BFS 队列：{ entity, hops, visited, confidence }
+      const queue: Array<{
+        entity: KnowledgeEntity;
+        hops: GraphRAGHop[];
+        visited: Set<string>;
+        confidence: number;
+      }> = [{
+        entity: start,
+        hops: [],
+        visited: new Set([start.id]),
+        confidence: start.confidence,
+      }];
+
+      while (queue.length > 0 && pathCount < this.config.graphRagMaxPathsPerStart) {
+        const current = queue.shift()!;
+        if (current.hops.length >= maxDepth) continue;
+
+        const links = this.graph.getLinksFrom(current.entity.id);
+        for (const link of links) {
+          if (current.visited.has(link.dst)) continue; // 环检测
+          const nextEntity = this.graph.get(link.dst);
+          if (!nextEntity) continue;
+
+          const hopConfidence = link.weight * current.confidence * this.config.graphRagConfidenceDecay;
+          const newHops: GraphRAGHop[] = [...current.hops, {
+            entityId: nextEntity.id,
+            entityName: nextEntity.name,
+            relation: link.relation,
+            confidence: hopConfidence,
+          }];
+          const newVisited = new Set(current.visited);
+          newVisited.add(nextEntity.id);
+
+          // 编译路径（仅对非直接匹配的实体）
+          if (!directIds.has(nextEntity.id)) {
+            const path: GraphRAGPath = {
+              query,
+              startEntityId: start.id,
+              startEntityName: start.name,
+              hops: newHops,
+              endEntityId: nextEntity.id,
+              endEntityName: nextEntity.name,
+              endEntityContent: nextEntity.content.slice(0, 200),
+              pathConfidence: hopConfidence,
+              reasoning: this.compilePathReasoning(start.name, newHops),
+            };
+            paths.push(path);
+            pathCount++;
+
+            // 添加为遍历结果（得分按跳数衰减）
+            const decayedScore = hopConfidence * 100;
+            traversedResults.push({
+              id: nextEntity.id,
+              title: nextEntity.name,
+              excerpt: nextEntity.content.slice(0, 200),
+              score: decayedScore,
+              reasons: [`多跳遍历（${newHops.length} 跳）：${path.reasoning}`],
+              evidenceChain: {
+                query,
+                steps: [
+                  {
+                    type: "graph_entity",
+                    source: query,
+                    target: start.id,
+                    confidence: start.confidence,
+                    reasoning: `起始实体匹配：${start.name}`,
+                  },
+                  ...newHops.map((h) => ({
+                    type: "graph_traverse" as const,
+                    source: h.entityId,
+                    target: h.entityId,
+                    relation: h.relation,
+                    confidence: h.confidence,
+                    reasoning: `--${h.relation}--> ${h.entityName}`,
+                  })),
+                ],
+                totalConfidence: hopConfidence,
+              },
+              source: "graph",
+              entityId: nextEntity.id,
+              entityKind: nextEntity.kind,
+            });
+          }
+
+          // 继续扩展
+          queue.push({
+            entity: nextEntity,
+            hops: newHops,
+            visited: newVisited,
+            confidence: hopConfidence,
+          });
+        }
+      }
+    }
+
+    return { traversedResults, paths };
+  }
+
+  /** 编译人类可读的路径推理摘要 */
+  private compilePathReasoning(startName: string, hops: GraphRAGHop[]): string {
+    const parts = [startName];
+    for (const hop of hops) {
+      parts.push(`--[${hop.relation}]-->`);
+      parts.push(hop.entityName);
+    }
+    return parts.join(" ");
+  }
+
+  /** 合并基础结果与遍历结果（去重，保留较高分） */
+  private mergeWithTraversed(
+    baseResults: RetrievalResult[],
+    traversedResults: RetrievalResult[],
+    query: string,
+  ): RetrievalResult[] {
+    const merged = new Map<string, RetrievalResult>();
+    for (const r of baseResults) merged.set(r.id, r);
+    for (const tr of traversedResults) {
+      const existing = merged.get(tr.id);
+      if (!existing || tr.score > existing.score) {
+        merged.set(tr.id, tr);
+      }
+    }
+    return Array.from(merged.values()).sort((a, b) => b.score - a.score);
   }
 
   // ─── 公共 API（统计与维护）────────────────────────────────────────────
