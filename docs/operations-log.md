@@ -848,3 +848,28 @@
 - **验证**：tsc 0 错误；dre-verification-chain 26 pass / 0 fail / 93 expect()；dre-retrieval-engine 34 pass / 0 fail（无回归）。
 - **Commit**：`32008a7`（amend 补录本条后推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 20:30 +0800 — 知识编译 Layer 2（LLM Wiki 确定性实现）+ 测试
+
+- **任务描述**：实现方向二"无向量 RAG"中的 LLM Wiki（知识编译）— 将原始文档"编译"成结构化知识条目，查询时直接读取精炼知识。原始概念使用 LLM 预编译，但本架构强约束"确定性推理"，因此采用确定性规则提取（词频/正则/交叉引用检测），零 LLM 调用，编译过程完全可复现、可追溯。
+- **工具**：Read、Write、Edit、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **新建** `src/dre/retrieval/knowledge-wiki.ts`（~470 行）：
+    - 类型：`WikiEntry`（id/title/summary/keywords/concepts/numericalFacts/relatedTitles/source/compiledAt）、`NumericalFact`、`CompiledDocument`、`WikiStats`
+    - `KnowledgeWiki` 类：`compileDocument()`（单文档编译）、`compileBatch()`（批量编译+二轮交叉引用）、`getEntry()/getByTitle()/searchByKeyword()/searchByConcept()`
+    - 5 项确定性提取：标题（Markdown #/首行/文件名）、摘要（去 Markdown 标记截取）、关键词（词频去停用词 top 10）、概念（PascalCase/camelCase/缩写/连字符复合词正则）、数值事实（数值+±50字符上下文）
+    - 交叉引用检测：两轮编译（第一轮编译所有文档，第二轮基于全部标题重新检测）
+    - 4 索引：titleIndex/sourceIndex/keywordIndex/conceptIndex；同 source 重新编译时自动移除旧条目
+    - 单例 + 测试缝
+  - **新建** `tests/dre-knowledge-wiki.test.ts`（~290 行，29 用例）：
+    - 编译流程（8）：完整条目、标题提取（3 种）、摘要提取、关键词提取、概念提取、数值事实、重新编译覆盖
+    - 批量编译与交叉引用（3）：批量编译、交叉引用检测、不包含自身
+    - 查询功能（8）：getEntry/getByTitle/searchByKeyword（关键词+标题子串）/searchByConcept/无匹配/getStats
+    - 边界条件（6）：空内容/无标题/短内容/特殊字符/limit 截断/clear
+    - 性能基准（2）：100 文档批量编译 < 200ms、100 条目搜索 < 10ms
+    - 单例（2）
+- **修复**：概念正则 `\b[A-Z][a-z]{2,}` 不匹配 PascalCase（"TypeScript" 只提取 "Type"）→ 改为 `\b[A-Z][a-zA-Z]{2,}\b`；重新编译时旧条目未从 entries 主映射删除 → `removeFromIndex` 增加 `this.entries.delete(entry.id)`
+- **验证**：tsc 0 错误；dre-knowledge-wiki 29 pass / 0 fail / 80 expect()；dre 全套 60 pass / 0 fail（无回归）。
+- **Commit**：`f03abce`（amend 补录本条后推送 `internal211/main`）。
+
