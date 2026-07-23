@@ -24,6 +24,7 @@ import { getActivityTracker } from "./activity-tracker.js";
 import { SkillPromoter, DEFAULT_PROMOTER_CONFIG } from "./skill-promoter.js";
 import { MemoryCurator, DEFAULT_CURATOR_CONFIG } from "./memory-curator.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
+import { getGoalTracker } from "./goal-tracker.js";
 import type { ReflectionOutcome, ReflectionTrigger, MentalState, Belief } from "./types.js";
 
 const REFLECTION_TEMPERATURE = 0.3;
@@ -104,6 +105,29 @@ export class ReflectionLoop {
       // ── update self-state ─────────────────────────────────────────────
       const finishedAt = Date.now();
       const extractedMental = this.extractMentalState(summary);
+
+      // 事实核查 + 目标生命周期 + 会话状态追踪（GoalTracker）
+      const tracker = getGoalTracker();
+      const contextText = JSON.stringify(observations);
+      const validation = tracker.validateAgainstContext(
+        extractedMental.goals.map((g) => ({ description: g.description, priority: g.priority })),
+        contextText,
+      );
+      const mergedGoals = tracker.mergeGoals(validation.accepted);
+      tracker.trackHistory(mergedGoals);
+      const drift = tracker.detectDrift();
+      if (drift.drifting) {
+        logger.warn("[Consciousness/ReflectionLoop] 目标漂移检测", { reason: drift.reason });
+      }
+
+      // 将 GoalTracker 管理的目标转换为 stateStore 格式
+      const trackedGoals = tracker.getActiveGoals().map((g) => ({
+        id: g.id,
+        description: g.description,
+        priority: g.priority,
+        status: g.status,
+      }));
+
       stateStore.patch({
         lastReflectionAt: finishedAt,
         tokensSpentThisSession: stateBefore.tokensSpentThisSession + tokensUsed,
@@ -113,7 +137,7 @@ export class ReflectionLoop {
         mental: {
           ...stateBefore.mental,
           currentIntent: extractedMental.intent ?? stateBefore.mental.currentIntent,
-          goals: extractedMental.goals.length > 0 ? extractedMental.goals : stateBefore.mental.goals,
+          goals: trackedGoals.length > 0 ? trackedGoals : stateBefore.mental.goals,
           beliefs: extractedMental.beliefs.length > 0 ? extractedMental.beliefs : stateBefore.mental.beliefs,
           mood: this.extractMood(summary) ?? stateBefore.mental.mood,
         },

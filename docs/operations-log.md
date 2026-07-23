@@ -702,3 +702,37 @@
 - **备份**：修改 node.ts 前备份至 `.tmp/backups/src/testing/cluster/node.ts`，验证通过后已删除。
 - **Commit**：`9252e12`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 06:25 +0800 — consciousness goals 优化（事实核查 + 生命周期 + 会话状态追踪）
+
+- **任务描述**：针对 consciousness 模块的 goals 系统，以超长会话场景下保持极低幻觉率为核心标准进行优化。建立严格的事实核查机制（Jaccard 相似度验证 LLM 提取的目标是否基于可靠信息源）、目标生命周期管理（去重 + 合并 + 淘汰 + 状态转换）、会话状态追踪（跨反思周期历史 + 漂移检测），确保上下文一致性。
+- **工具**：Read（reflection-loop.ts / types.ts / state-store.ts / index.ts / hallucination-detector.ts / consciousness.test.ts 全文）、Grep（goal 相关代码搜索）、Write（goal-tracker.ts + 测试文件）、Edit（reflection-loop.ts + index.ts 集成）、Bash（tsc + bun test）、git。
+- **执行的操作（文件级）**：
+  - **新建** `src/agents/consciousness/goal-tracker.ts`（380 行）——GoalTracker 类 + 单例：
+    - **事实核查**：`validateAgainstContext(rawGoals, contextText)` — 用 Jaccard 相似度验证每个目标与实际观察数据的 token 重叠度，低于 `factCheckThreshold`(0.05) 的目标被判为潜在幻觉并过滤。自带中英文混合分词器（`[a-z0-9]+` + `[\u4e00-\u9fff]` 单字），零外部依赖。
+    - **目标生命周期**：`mergeGoals(newGoals)` — 新目标与已有活跃目标按 `dedupThreshold`(0.65) 去重（Jaccard ≥ 阈值视为同一目标，更新 occurrenceCount + lastSeenAt），超过 `maxActiveGoals`(10) 时淘汰优先级最低且最久未见的目标。`updateGoalStatus(id, status)` 支持活跃/达成/放弃状态转换。
+    - **会话状态追踪**：`trackHistory(goals)` — 每轮反思周期记录目标快照到历史（上限 50 条）；`detectDrift()` — 比较当前活跃目标与之前周期历史目标的平均相似度（排除当前周期），低于 `driftThreshold`(0.20) 判定为漂移并告警。
+  - **修改** `src/agents/consciousness/reflection-loop.ts`——在 `runOnce()` 的状态更新阶段集成 GoalTracker：
+    - 原逻辑：`extractMentalState(summary)` 提取目标后直接整体替换 `stateBefore.mental.goals`（无核查、无去重、无生命周期管理）。
+    - 新逻辑：提取目标 → `validateAgainstContext`（事实核查过滤幻觉）→ `mergeGoals`（去重合并）→ `trackHistory`（历史记录）→ `detectDrift`（漂移检测）→ 将 GoalTracker 管理的目标转换为 stateStore 格式写入。漂移时输出 warn 日志。
+    - 新增 `import { getGoalTracker } from "./goal-tracker.js"`（1 行）。
+  - **修改** `src/agents/consciousness/index.ts`——在 `_resetConsciousnessForTest()` 中增加 `_resetGoalTrackerForTest()` 调用（1 行），确保测试间 GoalTracker 单例正确重置。新增 `import { _resetGoalTrackerForTest } from "./goal-tracker.js"`（1 行）。
+  - **新建** `tests/consciousness-goal-tracker.test.ts`（480 行）——25 个测试用例，覆盖：
+    - 事实核查（6 用例）：高相似度通过、无关目标被拒、混合分流、空输入、空上下文、中文分词。
+    - 目标生命周期（5 用例）：新增、去重、不同目标保留、上限淘汰、状态转换。
+    - 会话状态追踪（5 用例）：周期计数、历史修剪、空状态不漂移、一致不漂移、不一致触发漂移。
+    - 超长会话模拟（3 用例）：20 轮稳定性、幻觉过滤、渐进演化不误判。
+    - 性能基准（3 用例）：50 目标核查 < 5ms、100 目标合并 < 2ms、100 条历史漂移检测 < 2ms。
+    - 单例（2 用例）：getGoalTracker 同实例、reset 后新实例。
+- **设计决策**：
+  - `factCheckThreshold` 设为 0.05 而非 0.15：JSON 格式的观察数据包含大量结构化 token（key 名称等），高阈值会误拒合法目标。0.05 可有效过滤 Jaccard=0 的完全无关目标（幻觉），同时允许有 1-2 个 token 重叠的合法目标通过。
+  - `detectDrift` 排除当前周期历史：`lastCycleHistoryLen` 记录 `trackHistory` 调用前的历史长度，`detectDrift` 只与之前周期的历史比较，避免当前目标与自身快照匹配导致 consistencyScore 恒为 1.0。
+  - 零额外 LLM 调用：全部验证基于 token 相似度计算，不增加反思周期的 LLM 成本。
+- **验证**：
+  - `bunx tsc --noEmit`：退出码 0、**0 错误**。
+  - `bun test tests/consciousness-goal-tracker.test.ts`：**25 pass / 0 fail** / 46 expect() calls。
+  - `bun test tests/consciousness.test.ts`：**18 pass / 0 fail**（既有测试无回归）。
+- **备份**：修改 reflection-loop.ts 前备份至 `.tmp/backups/src/agents/consciousness/reflection-loop.ts`，验证通过后已删除。
+- **Commit**：（待提交后补录）。
+
