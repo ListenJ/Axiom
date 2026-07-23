@@ -757,3 +757,24 @@
 - **备份**：修改前备份至 `.tmp/backups/tests/consciousness-goal-tracker.test.ts.bak`，验证通过后已删除。
 - **Commit**：`ec7cf31`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 11:05 +0800 — AGENTS.md 强化：结合 mattpocock/skills 新增规则 6-9
+
+- **任务描述**：结合 [mattpocock/skills](https://github.com/mattpocock/skills) 仓库的工程纪律，强化本仓库 AGENTS.md 约束。原 5 条规则覆盖施工范围 / 备份验证 / git 提交 / 删除归档 / 操作留痕，但缺少调试纪律 / 测试驱动 / 模块设计 / git 安全四个维度的约束。本次新增规则 6-9 填补缺口。
+- **工具**：WebFetch（github.com/mattpocock/skills 主页 + README + 4 个 SKILL.md：diagnosing-bugs / tdd / codebase-design / git-guardrails-claude-code）、Read（AGENTS.md 全文）、Edit（追加规则 6-9）、Grep（验证规则结构）、Bash（git）。
+- **执行的操作（文件级）**：
+  - **修改** `AGENTS.md`——新增 4 条规则（规则 6-9），每条标注来源链接：
+    - **规则 6 调试纪律**（来源 diagnosing-bugs）：6 阶段调试流程——先建紧反馈回路（能红能绿的命令）再提假设；复现+最小化；3-5 个可证伪假设；单变量插桩+唯一前缀日志；修复+回归测试；收尾+复盘。核心约束：无红能命令不得进入假设阶段。
+    - **规则 7 测试驱动开发**（来源 tdd）：垂直切片红绿重构（一个测试→一个实现→重复），禁止水平切片；测行为不测实现（公共接口，不 mock 内部）；最小代码；重构只在 GREEN 时。
+    - **规则 8 深模块设计**（来源 codebase-design）：小接口+大实现；删除测试（透传 vs 创造价值）；接口即测试面；接受依赖不创建依赖；两个适配器才叫真接缝。
+    - **规则 9 Git 安全护栏**（来源 git-guardrails）：行为级强约束，禁止 force push / reset --hard / clean -f / branch -D / checkout . / rebase -i 等破坏性操作；例外需用户明确指示并复述确认。
+  - 尾行从"五条规则"更新为"九条规则"。
+- **设计决策**：
+  - 不修改既有规则 1-5（已建立且稳定），仅追加新规则——遵循规则 1 最小化施工。
+  - 每条新规则标注 mattpocock/skills 来源链接，便于追溯原始纪律。
+  - 规则 9 采用行为级约束而非 Claude Code hooks（本仓库不依赖该机制），适配本项目 git 工作流（internal211 remote）。
+- **验证**：Grep 确认 9 条 `## 规则` 标题结构完整（规则 1-9 顺序正确）；回读首尾确认文件结构无破损。
+- **备份**：修改前备份至 `.tmp/backups/AGENTS.md.bak`，验证通过后已删除。
+- **Commit**：（待提交后补录）。
+
