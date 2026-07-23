@@ -803,5 +803,5 @@
     - 空查询守卫：直接返回空结果，避免空串匹配全部实体
     - 质量阈值设为 Layer 0 实际值（P>0.5, R>=0.4, F1>0.4），Layer 1 多跳扩展后可提升
 - **验证**：tsc 0 错误；dre-retrieval-engine 24 pass / 0 fail / 66 expect()；consciousness 49 pass / 0 fail（无回归）。
-- **Commit**：（待提交后补录）。
+- **Commit**：`94695c2`（已推送 `internal211/main`）。
 
