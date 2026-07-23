@@ -895,3 +895,34 @@
 - **验证**：tsc 0 错误；dre-hybrid-fusion 21 pass / 0 fail / 50 expect()；dre 全套 110 pass / 0 fail（无回归）。
 - **Commit**：`364b302`（amend 补录本条后推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 21:30 +0800 — 可观测性监测 Layer 5 + 测试（完成全部 5 层架构）
+
+- **任务描述**：实现 Layer 5 可观测性 — 持续性能监测体系 + 质量评估标准。聚合 Layer 0-4 的全层指标，提供系统健康快照（avg/p50/p99 延迟、吞吐量 QPS、缓存命中率、验证率、矛盾率、深度检索触发率）、性能趋势（时间序列数据点，替代 Project_Golem 的 3D 可视化）、层级延迟分解（各阶段占比）、质量评估（P/R/F1 基于标注测试集）。本层完成全部 5 层确定性推理检索架构。
+- **工具**：Read、Write、Edit、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **新建** `src/dre/retrieval/observability.ts`（~420 行）：
+    - 类型：`QueryMetricsRecord`（查询级指标）、`SystemHealthSnapshot`（健康快照含 avg/p50/p99/QPS/缓存命中/验证率/矛盾率/错误率/状态）、`QualityMetrics`（P/R/F1）、`TrendPoint`（趋势点）、`LayerBreakdown`（层级延迟分解）
+    - `ObservabilityMonitor` 类：`recordQuery()`（记录查询指标）、`recordError()`、`getHealthSnapshot()`（健康快照+三态判定 healthy/degraded/unhealthy）、`getPerformanceTrend()`（趋势采样）、`getLayerBreakdown()`（层级占比）、`evaluateQuality()`（P/R/F1 计算）
+    - 健康判定：p99>100ms 或 cacheHitRate<0.3 或 errorRate>0.05 → degraded；p99>500ms 或 errorRate>0.2 → unhealthy
+    - 环形缓冲（默认 1000 条上限）、零侵入（指标作为参数传入）
+    - 单例 + 测试缝
+  - **新建** `tests/dre-observability.test.ts`（~310 行，21 用例）：
+    - 功能测试（6）：recordQuery/getHealthSnapshot/getPerformanceTrend（含采样）/getLayerBreakdown/evaluateQuality
+    - 健康状态判定（4）：healthy/degraded/unhealthy/错误率影响
+    - 边界条件（7）：空记录/单条/溢出/reset/空测试集/完美匹配/零召回
+    - 性能基准（2）：1000 记录健康快照 < 10ms、1000 记录趋势采样 < 10ms
+    - 单例（2）
+- **修复**：空测试集 evaluateQuality 返回 NaN（0/0）→ 增加长度守卫返回 0
+- **验证**：tsc 0 错误；dre-observability 21 pass / 0 fail / 55 expect()；dre 全套 131 pass / 0 fail（无回归）。
+- **架构完成总结**：全部 5 层确定性推理检索架构已完成：
+  - Layer 0 确定性检索引擎（关键词+图谱+证据链+LRU缓存）
+  - Layer 1 GraphRAG 多跳图遍历（BFS+路径编译+环检测+置信度衰减）
+  - Layer 2 知识编译（确定性 Wiki：标题/摘要/关键词/概念/数值/交叉引用）
+  - Layer 3 可验证性（StillMe 证据验证链 + ConfRAG 置信度触发）
+  - Layer 4 混合融合（多源去重+验证加权+交叉来源加成）
+  - Layer 5 可观测性（健康快照+趋势+层级分解+质量评估）
+  - 合计：5 模块 ~1650 行实现 + 5 测试套件 ~1550 行 / 131 测试用例 / 389 断言 / 0 tsc 错误 / 0 失败
+- **Commit**：`773d7f9`（amend 补录本条后推送 `internal211/main`）。
+
