@@ -104,6 +104,18 @@ const SUITES: Record<string, SuiteConfig> = {
     description: "性能门禁 — 统一阈值断言，CI 性能回归检测",
     timeoutMs: 60000,
   },
+  "high-intensity": {
+    name: "high-intensity",
+    testFiles: ["tests/stress/high-intensity-load.test.ts"],
+    description: "高强度渐进式压力测试 — 5层确定性检索架构（数据量/并发/管道/瓶颈定位）",
+    timeoutMs: 120000,
+  },
+  business: {
+    name: "business",
+    testFiles: ["tests/business-scenarios/retrieval-workflows.test.ts"],
+    description: "真实业务场景测试 — 知识研究/多跳推理/大规模知识库/并发检索/混合验证/边界条件",
+    timeoutMs: 60000,
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -137,6 +149,14 @@ const THRESHOLDS: Record<string, number> = {
   "configCenter50k": 100,
   "vault10k-writes": 200,
   "vault10k-search": 500,
+  // high-intensity-load 阈值（构建时间）
+  "build 100 entities": 2000,
+  "build 1k entities": 2000,
+  "build 5k entities": 5000,
+  "build 10k entities": 10000,
+  // business-scenarios 阈值
+  "fuse 1000 multi-source results": 100,
+  "verify 2000 results": 100,
 };
 
 /** 性能回归容忍度：比基线慢 X% 才标记为 regression */

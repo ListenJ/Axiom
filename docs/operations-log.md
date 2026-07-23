@@ -926,3 +926,49 @@
   - 合计：5 模块 ~1650 行实现 + 5 测试套件 ~1550 行 / 131 测试用例 / 389 断言 / 0 tsc 错误 / 0 失败
 - **Commit**：`773d7f9`（amend 补录本条后推送 `internal211/main`）。
 
+---
+
+## 高强度压力测试 + 真实业务场景测试
+
+- **时间**：2026-07-23 22:12 +0800
+- **任务描述**：基于已完成的 5 层确定性检索架构，继续完善并实施更高强度的压力测试方案，对系统所有功能模块进行全面的性能评估。同时基于实际业务场景设计并执行真实测试用例，覆盖各类典型用户操作流程和边界条件。
+- **工具**：Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test` / `bun run scripts/stress-runner.ts` / `bun run scripts/stress-report.ts`）。无子代理。
+- **执行的操作（文件级）**：
+  - 新建 `tests/stress/high-intensity-load.test.ts`：高强度渐进式压力测试，覆盖 3 大测试维度 + 22 个测试用例。
+    - A. 数据量渐进（Data Volume Ramp）：100/1k/5k/10k 实体 + 链接构建，测量构建时间、查询延迟分位数（p50/p90/p99）、内存增量。瓶颈判定：p99 > 200ms 或内存 > 200MB。
+    - B. 并发渐进（Concurrency Ramp）：1/10/50/100/500/1000 并发查询，测量完成时间、吞吐量 QPS、错误率、p99 延迟。瓶颈判定：错误率 > 5% 或 p99 > 500ms。
+    - C. 5 层管道端到端（End-to-End Pipeline）：Layer 0 单独 → Layer 0+1+2 → +3 → +4 → +5 全管道，测量各层延迟占比、缓存命中率、验证率。
+    - D. 持续负载与瓶颈定位：5000 次持续查询 + 2000 结果批量验证 + 1000 多源结果融合。
+  - 新建 `tests/business-scenarios/retrieval-workflows.test.ts`：基于实际业务场景的测试用例，覆盖 6 大场景 + 10 个测试用例（含 5 个边界条件子测试）。
+    - 场景 1：知识研究工作流（compile → search → verify → fuse → observe 端到端）
+    - 场景 2：多跳图推理（GraphRAG 3-hop traversal + 推理链重建）
+    - 场景 3：大规模知识库构建（batch compile + cross-reference 检测）
+    - 场景 4：并行检索 + 缓存命中（100 并发 + 50% 缓存命中率验证）
+    - 场景 5：混合质量结果批量验证（verified/unverified/contradicted 混合 + ConfRAG 触发判断）
+    - 场景 6：边界条件（空查询 / 超大查询 / 全 contradictions / 缓存驱逐 / 缓存命中加速）
+  - 修改 `scripts/stress-runner.ts`（备份→读全文→最小改动→验证→删备份）：
+    - 新增 `high-intensity` 套件（testFiles: `tests/stress/high-intensity-load.test.ts`，timeoutMs: 120000）。
+    - 新增 `business` 套件（testFiles: `tests/business-scenarios/retrieval-workflows.test.ts`，timeoutMs: 60000）。
+    - `THRESHOLDS` 字典补充 6 个新阈值（`build 100/1k/5k/10k entities`、`fuse 1000 multi-source results`、`verify 2000 results`）。
+- **关键性能指标（5 套件总览）**：
+  - **STRESS**（extreme-stress.test.ts）：500 tasks 6ms / 5000 atoms create 6ms / 2000 entities + 5000 links 11ms / 5000 nodes graph 25ms / 1000 caps + 500 selects 124ms — 全部远低于阈值。
+  - **PERF**（perf-benchmark.test.ts）：cache100k 39.5ms / thompson50k 27.9ms / vault10k-search 147.4ms / solver50k 27.9ms / eventBus100k 15.6ms — 热路径平均亚毫秒级。
+  - **GATE**（perf-gate.test.ts）：12 项 CI 门禁指标全部通过，最高 knowledge_2000_entities 11.3ms（阈值 3000ms）。
+  - **HIGH-INTENSITY**（high-intensity-load.test.ts）：10k 实体构建 62ms / 1000 并发查询 9ms（QPS 87k）/ 5 层全管道 p99=0.64ms / 5000 持续查询 p99=1.03ms — 无瓶颈触发。
+  - **BUSINESS**（retrieval-workflows.test.ts）：6 大场景 10 测试全通过，100 并发检索 13ms 缓存命中率 50%，缓存命中加速 93.6x。
+- **错误率与资源利用率**：
+  - 所有并发测试错误率 = 0.000（0 错误 / 1000 请求）。
+  - 最大内存增量 = 20MB（5000 持续查询场景），远低于 200MB 瓶颈阈值。
+  - 10k 实体构建内存增量 = 0MB（V8 GC 在测试窗口内回收）。
+- **功能缺陷与性能问题跟踪**：本轮测试中未发现功能缺陷或性能问题。测试中曾出现 5 个问题（链接去重三元组 / 内存计算字段名错误 / 搜索结果断言过严 / 超大查询无结果 / 100 实体 avg 为 0），均已通过最小修改修复（详见摘要）。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/stress/high-intensity-load.test.ts`：22 pass / 0 fail / 56 expect() calls / 1.28s。
+  - `bun test tests/business-scenarios/retrieval-workflows.test.ts`：10 pass / 0 fail / 305 expect() calls / 128ms。
+  - `bun test tests/stress/perf-gate.test.ts tests/stress/extreme-stress.test.ts tests/stress/multi-agent-stress.test.ts`：40 pass / 0 fail / 2.60s。
+  - `bun test tests/perf-benchmark.test.ts`：32 pass / 0 fail / 3.26s。
+  - `bun run scripts/stress-runner.ts --baseline`：5 套件全部 PASS，0 阈值违规，0 性能回归，总耗时 5.4s。
+  - 报告输出：`reports/stress/latest.json` + `latest.md` + `latest.html` + `baseline.json`（reports/ 在 .gitignore 中，不入库）。
+- **备份**：`.tmp/backups/scripts/stress-runner.ts.bak`（验证通过后已删除）。
+- **Commit**：`0d89a55`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
+
