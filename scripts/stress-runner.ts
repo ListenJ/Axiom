@@ -157,6 +157,10 @@ const THRESHOLDS: Record<string, number> = {
   // business-scenarios 阈值
   "fuse 1000 multi-source results": 100,
   "verify 2000 results": 100,
+  "scenario1-workflow": 500,
+  "scenario3-kb-build": 2000,
+  "scenario4-concurrent": 2000,
+  "scenario5-verify": 100,
 };
 
 /** 性能回归容忍度：比基线慢 X% 才标记为 regression */

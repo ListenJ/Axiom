@@ -219,6 +219,7 @@ describe("场景 1：知识研究工作流（compile → search → verify → f
 
     // ─── 执行步骤 ───
     // 步骤 1: 批量编译文档
+    const wfStart = performance.now();
     const entries = wiki.compileBatch(docs);
 
     // 步骤 2: 执行 5 次研究查询
@@ -260,6 +261,7 @@ describe("场景 1：知识研究工作流（compile → search → verify → f
         returnedIds: allResults.filter((r) => r.id.includes(q.toLowerCase())).map((r) => r.id),
       })),
     );
+    const wfDuration = performance.now() - wfStart;
 
     // ─── 预期结果 ───
     // 1. 文档编译成功，10 篇全部编译
@@ -298,6 +300,9 @@ describe("场景 1：知识研究工作流（compile → search → verify → f
     console.log(
       `[Scenario1] workflow: entries=${entries.length}, queries=${queries.length}, results=${allResults.length}, status=${health.status}, layerSum=${layerSum.toFixed(2)}`,
     );
+    console.log(
+      `[Stress] scenario1-workflow: ${wfDuration.toFixed(0)}ms, entries: ${entries.length}, results: ${allResults.length}`,
+    );
   });
 });
 
@@ -320,7 +325,9 @@ describe("场景 2：多跳图推理（GraphRAG 3-hop traversal）", () => {
 
     // ─── 执行步骤 ───
     // 步骤 1: 从 ResearchAgent 起始查询
+    const grStart = performance.now();
     const resp = engine.retrieveWithPaths("ResearchAgent", { maxDepth: 3 });
+    const grDuration = performance.now() - grStart;
 
     // 步骤 2: 遍历所有路径，找到终点为 ArchitectureDoc 的路径
     const pathsToDoc = resp.paths.filter((p) => p.endEntityName === "ArchitectureDoc");
@@ -354,6 +361,9 @@ describe("场景 2：多跳图推理（GraphRAG 3-hop traversal）", () => {
     );
     console.log(
       `[Scenario2] reasoning: ${longestPath.reasoning}`,
+    );
+    console.log(
+      `[Stress] scenario2-graphrag: ${grDuration.toFixed(0)}ms, paths: ${resp.paths.length}, hops: ${longestPath.hops.length}`,
     );
   });
 });
@@ -419,6 +429,9 @@ describe("场景 3：大规模知识库构建（batch compile + cross-reference�
 
     console.log(
       `[Scenario3] kb-build: entries=${entries.length}, crossRefs=${stats.totalCrossRefs}, withRefs=${entriesWithCrossRefs.length}, duration=${duration.toFixed(0)}ms`,
+    );
+    console.log(
+      `[Stress] scenario3-kb-build: ${duration.toFixed(0)}ms, entries: ${entries.length}, crossRefs: ${stats.totalCrossRefs}`,
     );
   });
 });
@@ -495,6 +508,10 @@ describe("场景 4：高并发查询负载（parallel retrieval + cache hit）",
 
     console.log(
       `[Scenario4] concurrent: queries=100, ok=${okCount}, duration=${duration.toFixed(0)}ms, cacheHitRate=${cacheStats.hitRate.toFixed(2)}, cacheSize=${cacheStats.size}/${cacheStats.maxSize}`,
+    );
+    const sc4Qps = duration > 0 ? Math.round((100 / duration) * 1000) : 0;
+    console.log(
+      `[Stress] scenario4-concurrent: ${duration.toFixed(0)}ms, qps: ${sc4Qps}, cacheHitRate: ${cacheStats.hitRate.toFixed(2)}`,
     );
   });
 });
@@ -624,6 +641,9 @@ describe("场景 5：验证链压力（mixed quality results batch verify）", (
     console.log(
       `[Scenario5] verify-mixed: total=100, verified=${verified}, unverified=${unverified}, contradicted=${contradicted}, duration=${duration.toFixed(0)}ms, confRagTrigger=${confRagResult.trigger}`,
     );
+    console.log(
+      `[Stress] scenario5-verify: ${duration.toFixed(0)}ms, verified: ${verified}, contradicted: ${contradicted}`,
+    );
   });
 });
 
@@ -665,6 +685,7 @@ describe("场景 6：边界条件测试", () => {
     expect(engine.getCacheStats().size).toBe(0);
 
     console.log(`[Scenario6.1] empty-query: results=0, latency=${resp1.metrics.latencyMs}ms`);
+    console.log(`[Stress] scenario6-empty-query: ${resp1.metrics.latencyMs}ms`);
   });
 
   test("边界 6.2：超大查询应正常处理（不截断导致崩溃）", () => {
@@ -693,6 +714,7 @@ describe("场景 6：边界条件测试", () => {
     expect(resp.metrics.latencyMs).toBeLessThan(500);
 
     console.log(`[Scenario6.2] huge-query: results=${resp.results.length}, latency=${resp.metrics.latencyMs}ms`);
+    console.log(`[Stress] scenario6-huge-query: ${resp.metrics.latencyMs}ms`);
   });
 
   test("边界 6.3：全 contradictions 结果应触发深度检索", () => {
@@ -717,8 +739,10 @@ describe("场景 6：边界条件测试", () => {
     }));
 
     // ─── 执行步骤 ───
+    const c3Start = performance.now();
     const verdicts = verifier.verifyBatch(results);
     const confRag = verifier.shouldTriggerDeepRetrieval(results);
+    const c3Duration = performance.now() - c3Start;
 
     // ─── 预期结果 ───
     // 1. 全部 20 条结果应为 contradicted
@@ -730,6 +754,7 @@ describe("场景 6：边界条件测试", () => {
     expect(confRag.verifiedRate).toBe(0);
 
     console.log(`[Scenario6.3] all-contradicted: contradicted=20/20, confRagTrigger=${confRag.trigger}, verifiedRate=${confRag.verifiedRate}`);
+    console.log(`[Stress] scenario6-all-contradicted: ${c3Duration.toFixed(0)}ms, contradicted: ${contradictedCount}`);
   });
 
   test("边界 6.4：缓存击穿 — 大量不同查询不应导致缓存无限增长", () => {
@@ -749,6 +774,7 @@ describe("场景 6：边界条件测试", () => {
 
     // ─── 执行步骤 ───
     // 执行 200 个不同查询（远超缓存上限 50）
+    const c4Start = performance.now();
     for (let i = 0; i < 200; i++) {
       engine.retrieve(`unique-query-${i}`);
     }
@@ -769,8 +795,10 @@ describe("场景 6：边界条件测试", () => {
     engine.retrieve("unique-query-0"); // 应该已被淘汰
     const newStats = engine.getCacheStats();
     expect(newStats.misses).toBe(earlyStats.misses + 1);
+    const c4Duration = performance.now() - c4Start;
 
     console.log(`[Scenario6.4] cache-eviction: size=${cacheStats.size}/${cacheStats.maxSize}, hits=${cacheStats.hits}, misses=${cacheStats.misses}`);
+    console.log(`[Stress] scenario6-cache-eviction: ${c4Duration.toFixed(0)}ms, cacheSize: ${cacheStats.size}`);
   });
 
   test("边界 6.5：缓存命中 — 重复查询应快速返回", () => {
@@ -808,5 +836,6 @@ describe("场景 6：边界条件测试", () => {
     expect(resp1.metrics.cacheHit).toBe(false);
 
     console.log(`[Scenario6.5] cache-hit: missLatency=${missLatency.toFixed(2)}ms, hitLatency=${hitLatency.toFixed(2)}ms, speedup=${(missLatency / Math.max(hitLatency, 0.001)).toFixed(1)}x`);
+    console.log(`[Stress] scenario6-cache-hit: ${hitLatency.toFixed(2)}ms, speedup: ${(missLatency / Math.max(hitLatency, 0.001)).toFixed(1)}`);
   });
 });

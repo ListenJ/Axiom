@@ -972,3 +972,37 @@
 - **备份**：`.tmp/backups/scripts/stress-runner.ts.bak`（验证通过后已删除）。
 - **Commit**：`0d89a55`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
 
+---
+
+## 压测体系完善 — 业务场景指标输出 + 文档更新 + 语义修复
+
+- **时间**：2026-07-23 23:02 +0800
+- **任务描述**：继续完善压测工作，识别并修复 3 个未完成组件：(1) 业务场景测试缺少 `[Stress]` 格式指标输出导致报告显示 "—"；(2) STRESS-TESTING.md 文档仅覆盖 3 个旧套件，未包含 high-intensity 与 business；(3) 两个边界测试的 `[Stress]` 指标语义错误（输出了计数值而非毫秒值）。
+- **工具**：Read、Edit、Bash（`bunx tsc --noEmit` / `bun test` / `bun run scripts/stress-runner.ts`）。无子代理。
+- **执行的操作（文件级）**：
+  - 修改 `tests/business-scenarios/retrieval-workflows.test.ts`（备份→读全文→最小改动→验证→删备份）：
+    - 为全部 10 个测试用例添加 `[Stress]` 格式指标输出（scenario1-workflow ~ scenario6-cache-hit），使 stress-runner 可解析 BUSINESS 套件指标。
+    - 场景 1/2：新增 `performance.now()` 计时（`wfStart`/`grStart`），在已有 `[Scenario]` 日志后追加 `[Stress]` 行。
+    - 场景 3/4/5：复用已有 `duration` 变量，追加 `[Stress]` 行（含 QPS / verified / contradicted 等业务指标）。
+    - 场景 6.1/6.2/6.5：复用已有 `latencyMs`，追加 `[Stress]` 行。
+    - 场景 6.3（all-contradicted）：**语义修复** — 原输出 `${verdicts.length}ms` 实为结果数量（20），改为 `performance.now()` 计算的实际耗时。
+    - 场景 6.4（cache-eviction）：**语义修复** — 原输出 `${cacheStats.misses}ms` 实为未命中次数（200），改为 `performance.now()` 计算的实际耗时。
+  - 修改 `scripts/stress-runner.ts`（备份→读全文→最小改动→验证→删备份）：
+    - `THRESHOLDS` 字典新增 4 个 business 场景阈值（`scenario1-workflow: 500` / `scenario3-kb-build: 2000` / `scenario4-concurrent: 2000` / `scenario5-verify: 100`）。
+  - 修改 `docs/STRESS-TESTING.md`（备份→读全文→最小改动→验证→删备份）：
+    - 第 1 节：压测分层从 3 层扩展为 5 层，新增 High-Intensity 与 Business 两行及设计原则说明。
+    - 第 2 节：新增 2.4 小节"5 层确定性检索架构覆盖范围"，列出 Layer 0-5 各模块、并发渐进、持续负载、业务场景。
+    - 第 3 节：阈值表新增 10 行（4 个 high-intensity + 2 个原有 + 4 个 business 场景）。
+    - 第 4 节：运行方式新增 high-intensity / business 套件命令，套件选项从 3 个扩展为 5 个。
+    - 第 8 节：维护建议新增"新增业务场景"条目。
+    - 新增第 9 节"High-Intensity 测试维度详解"：4 大维度（数据量渐进 / 并发渐进 / 管道端到端 / 持续负载）的规模、测量指标、瓶颈判定标准。
+    - 新增第 10 节"Business 业务场景测试详解"：10 个测试用例的场景列表表（含前置条件与预期结果）+ 指标输出格式说明。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/business-scenarios/retrieval-workflows.test.ts`：10 pass / 0 fail / 305 expect() calls。
+  - `bun test tests/stress/high-intensity-load.test.ts tests/business-scenarios/retrieval-workflows.test.ts`：32 pass / 0 fail / 361 expect() calls / 1.47s。
+  - `bun run scripts/stress-runner.ts`：5 套件全部 PASS，BUSINESS 套件从 0 metrics 提升到 10 metrics，0 阈值违规。
+  - 语义修复验证：scenario6-all-contradicted 从 20ms（计数值）修正为 0ms（实际耗时）；scenario6-cache-eviction 从 200ms（计数值）修正为 8ms（实际耗时）。
+- **备份**：`.tmp/backups/tests/business-scenarios/retrieval-workflows.test.ts.bak` + `.tmp/backups/scripts/stress-runner.ts.bak2` + `.tmp/backups/docs/STRESS-TESTING.md.bak`（验证通过后全部删除）。
+- **Commit**：`3b578dc`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
+
