@@ -755,5 +755,5 @@
   - `bun test tests/consciousness-goal-tracker.test.ts`：**31 pass / 0 fail** / 66 expect() calls（原 25 用例 + 新增 6 用例）。
   - `bun test tests/consciousness.test.ts`：**18 pass / 0 fail**（无回归）。
 - **备份**：修改前备份至 `.tmp/backups/tests/consciousness-goal-tracker.test.ts.bak`，验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`ec7cf31`（已推送 `internal211/main`）。
 
