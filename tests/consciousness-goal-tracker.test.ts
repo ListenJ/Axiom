@@ -464,6 +464,182 @@ describe("GoalTracker — 性能基准", () => {
   });
 });
 
+// ─── 不同长度会话场景下的幻觉率评估 ──────────────────────────────────
+
+describe("GoalTracker — 不同长度会话幻觉率评估", () => {
+  let tracker: GoalTracker;
+
+  beforeEach(() => {
+    tracker = new GoalTracker();
+  });
+
+  afterEach(() => {
+    tracker.reset();
+    _resetGoalTrackerForTest();
+  });
+
+  // 在指定长度的会话中，每轮注入 1 个真实目标 + 1 个幻觉目标，
+  // 测量幻觉目标的误接受率（FAR）与真实目标的接受率（TAR）。
+  // 核心不变量：无论会话多长，FAR 应保持极低（事实核查有效），TAR 应保持较高。
+  function assessHallucinationRate(rounds: number): {
+    far: number;
+    tar: number;
+    hallucinatedInjected: number;
+    hallucinatedAccepted: number;
+    realInjected: number;
+    realAccepted: number;
+  } {
+    const goodCtx = makeContext({ focus: ["debugging", "typescript", "code", "error"] });
+    let hallucinatedInjected = 0;
+    let hallucinatedAccepted = 0;
+    let realInjected = 0;
+    let realAccepted = 0;
+
+    for (let i = 0; i < rounds; i++) {
+      // 真实目标（应通过事实核查）
+      const realResult = tracker.validateAgainstContext([relevantGoal()], goodCtx);
+      realInjected++;
+      realAccepted += realResult.accepted.length;
+      tracker.mergeGoals(realResult.accepted);
+      tracker.trackHistory(tracker.getActiveGoals());
+
+      // 幻觉目标（应被事实核查拒绝）
+      const halluResult = tracker.validateAgainstContext([hallucinatedGoal()], goodCtx);
+      hallucinatedInjected++;
+      hallucinatedAccepted += halluResult.accepted.length;
+      // 即便误接受也合并，以观察生命周期行为
+      tracker.mergeGoals(halluResult.accepted);
+      tracker.trackHistory(tracker.getActiveGoals());
+    }
+
+    const far = hallucinatedInjected > 0 ? hallucinatedAccepted / hallucinatedInjected : 0;
+    const tar = realInjected > 0 ? realAccepted / realInjected : 0;
+    return { far, tar, hallucinatedInjected, hallucinatedAccepted, realInjected, realAccepted };
+  }
+
+  test("短会话（10 轮）应保持极低幻觉误接受率", () => {
+    const r = assessHallucinationRate(10);
+    // 幻觉目标应全部被事实核查拒绝 → FAR = 0
+    expect(r.far).toBeLessThan(0.1);
+    expect(r.hallucinatedAccepted).toBe(0);
+    // 真实目标应被接受（去重后 occurrenceCount 累计，但每轮 validate 仍计数 accepted）
+    expect(r.tar).toBeGreaterThan(0.9);
+  });
+
+  test("中等会话（50 轮）应保持极低幻觉误接受率", () => {
+    const r = assessHallucinationRate(50);
+    expect(r.far).toBeLessThan(0.1);
+    expect(r.hallucinatedAccepted).toBe(0);
+    expect(r.tar).toBeGreaterThan(0.9);
+    // 50 轮后真实目标的 occurrenceCount 应累计到 50
+    const active = tracker.getActiveGoals();
+    expect(active.length).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...active.map((g) => g.occurrenceCount))).toBe(50);
+  });
+
+  test("超长会话（200 轮）应保持极低幻觉误接受率", () => {
+    const r = assessHallucinationRate(200);
+    expect(r.far).toBeLessThan(0.1);
+    expect(r.hallucinatedAccepted).toBe(0);
+    expect(r.tar).toBeGreaterThan(0.9);
+    expect(tracker.getCycleCount()).toBe(400); // 每轮 2 次 trackHistory
+  });
+
+  test("三种长度会话的幻觉率均应低于阈值（横向对比）", () => {
+    const lengths = [10, 50, 200];
+    const rates = lengths.map((L) => {
+      // 用独立 tracker 评估每个长度，互不干扰
+      const t = new GoalTracker();
+      let hallucinatedInjected = 0;
+      let hallucinatedAccepted = 0;
+      const goodCtx = makeContext({ focus: ["debugging", "typescript", "code", "error"] });
+      for (let i = 0; i < L; i++) {
+        const realR = t.validateAgainstContext([relevantGoal()], goodCtx);
+        t.mergeGoals(realR.accepted);
+        t.trackHistory(t.getActiveGoals());
+        const halluR = t.validateAgainstContext([hallucinatedGoal()], goodCtx);
+        hallucinatedInjected++;
+        hallucinatedAccepted += halluR.accepted.length;
+        t.mergeGoals(halluR.accepted);
+        t.trackHistory(t.getActiveGoals());
+      }
+      t.reset();
+      return hallucinatedInjected > 0 ? hallucinatedAccepted / hallucinatedInjected : 0;
+    });
+    // 所有三种子会话的 FAR 都应 < 0.1
+    for (const rate of rates) {
+      expect(rate).toBeLessThan(0.1);
+    }
+  });
+});
+
+// ─── 资源占用监测 ─────────────────────────────────────────────────────
+
+describe("GoalTracker — 资源占用监测", () => {
+  let tracker: GoalTracker;
+
+  beforeEach(() => {
+    tracker = new GoalTracker();
+  });
+
+  afterEach(() => {
+    tracker.reset();
+    _resetGoalTrackerForTest();
+  });
+
+  test("超长会话（200 轮）后堆内存增长应保持有界（无内存泄漏）", () => {
+    if (typeof process === "undefined" || typeof process.memoryUsage !== "function") {
+      // 非 Node/Bun 运行时跳过（无法测量内存）
+      return;
+    }
+    // 强制 GC 前先测量基线（如果可用）
+    if (typeof globalThis.gc === "function") globalThis.gc();
+    const before = process.memoryUsage().heapUsed;
+
+    const ctx = makeContext({ focus: ["debugging", "typescript", "code", "error"] });
+    for (let i = 0; i < 200; i++) {
+      const v = tracker.validateAgainstContext(
+        [
+          relevantGoal(),
+          { description: `Debug typescript error variant ${i}`, priority: 5 },
+          hallucinatedGoal(),
+        ],
+        ctx,
+      );
+      tracker.mergeGoals(v.accepted);
+      tracker.trackHistory(tracker.getActiveGoals());
+    }
+
+    const after = process.memoryUsage().heapUsed;
+    const growthBytes = after - before;
+    const growthMB = growthBytes / (1024 * 1024);
+
+    // 200 轮会话后堆增长应 < 5MB（历史上限 50 条 + 活跃上限 10 条，内存占用应有界）
+    expect(growthMB).toBeLessThan(5);
+    // 历史记录应被修剪到上限，不应无限增长
+    expect(tracker.getHistory().length).toBeLessThanOrEqual(DEFAULT_GOAL_TRACKER_CONFIG.maxHistorySize);
+    // 活跃目标也应受上限约束
+    expect(tracker.getActiveGoals().length).toBeLessThanOrEqual(DEFAULT_GOAL_TRACKER_CONFIG.maxActiveGoals);
+  });
+
+  test("历史记录与活跃目标数量应始终受上限约束（资源占用可控）", () => {
+    const ctx = makeContext({
+      focus: ["debugging", "typescript", "testing", "performance", "code", "review", "fix", "error"],
+    });
+    // 注入大量目标，触发上限管理
+    for (let i = 0; i < 500; i++) {
+      const v = tracker.validateAgainstContext(
+        [{ description: `Debug typescript code testing performance review ${i}`, priority: i % 10 }],
+        ctx,
+      );
+      tracker.mergeGoals(v.accepted);
+      tracker.trackHistory(tracker.getActiveGoals());
+    }
+    expect(tracker.getActiveGoals().length).toBeLessThanOrEqual(DEFAULT_GOAL_TRACKER_CONFIG.maxActiveGoals);
+    expect(tracker.getHistory().length).toBeLessThanOrEqual(DEFAULT_GOAL_TRACKER_CONFIG.maxHistorySize);
+  });
+});
+
 // ─── 单例测试 ─────────────────────────────────────────────────────────
 
 describe("GoalTracker — 单例", () => {

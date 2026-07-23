@@ -736,3 +736,24 @@
 - **备份**：修改 reflection-loop.ts 前备份至 `.tmp/backups/src/agents/consciousness/reflection-loop.ts`，验证通过后已删除。
 - **Commit**：`76cdc4f`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 10:25 +0800 — consciousness goals 补充测试（不同长度会话幻觉率评估 + 资源占用监测）
+
+- **任务描述**：完成审计发现 Req 3（多轮测试验证）存在两处缺口：(1) 未在「不同长度会话场景」下评估幻觉率（原仅 20 轮单长度）；(2) 未监测「资源占用」（原仅响应速度）。本次补充 6 个测试用例填补缺口，确保目标中「不同长度会话场景下的幻觉率评估，以及性能指标（响应速度、资源占用）的监测」明确满足。
+- **工具**：Read（测试全文复核）、Edit（追加 2 个 describe 块）、Bash（tsc + bun test）。
+- **执行的操作（文件级）**：
+  - **修改** `tests/consciousness-goal-tracker.test.ts`——新增 2 个 describe 块共 6 个用例：
+    - **不同长度会话幻觉率评估**（4 用例）：`assessHallucinationRate(rounds)` 每轮注入 1 真实目标 + 1 幻觉目标，测量误接受率（FAR）与真实接受率（TAR）。分别覆盖短会话（10 轮）、中等会话（50 轮）、超长会话（200 轮），断言 FAR < 0.1 且 hallucinatedAccepted=0、TAR > 0.9；第 4 用例横向对比三种长度的 FAR 均低于阈值。
+    - **资源占用监测**（2 用例）：(a) 200 轮超长会话后用 `process.memoryUsage().heapUsed` 测量堆内存增长，断言 < 5MB 且历史/活跃目标受上限约束（无内存泄漏）；(b) 500 轮注入后断言历史 ≤ maxHistorySize、活跃 ≤ maxActiveGoals（资源占用可控）。
+- **设计决策**：
+  - 幻觉率以「误接受率 FAR」度量（被事实核查错误放行的幻觉目标占比），而非简单计数——直接对应「低幻觉率」核心标准。
+  - 资源占用以 `heapUsed` 增量 + 上限约束双维度度量：前者证明无累积内存膨胀，后者证明数据结构有界。
+  - 横向对比用例使用独立 tracker 实例避免跨长度污染。
+- **验证**：
+  - `bunx tsc --noEmit`：退出码 0、**0 错误**。
+  - `bun test tests/consciousness-goal-tracker.test.ts`：**31 pass / 0 fail** / 66 expect() calls（原 25 用例 + 新增 6 用例）。
+  - `bun test tests/consciousness.test.ts`：**18 pass / 0 fail**（无回归）。
+- **备份**：修改前备份至 `.tmp/backups/tests/consciousness-goal-tracker.test.ts.bak`，验证通过后已删除。
+- **Commit**：（待提交后补录）。
+
