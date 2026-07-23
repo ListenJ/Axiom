@@ -734,5 +734,5 @@
   - `bun test tests/consciousness-goal-tracker.test.ts`：**25 pass / 0 fail** / 46 expect() calls。
   - `bun test tests/consciousness.test.ts`：**18 pass / 0 fail**（既有测试无回归）。
 - **备份**：修改 reflection-loop.ts 前备份至 `.tmp/backups/src/agents/consciousness/reflection-loop.ts`，验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`76cdc4f`（已推送 `internal211/main`）。
 
