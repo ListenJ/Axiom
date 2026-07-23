@@ -873,3 +873,25 @@
 - **验证**：tsc 0 错误；dre-knowledge-wiki 29 pass / 0 fail / 80 expect()；dre 全套 60 pass / 0 fail（无回归）。
 - **Commit**：`f03abce`（amend 补录本条后推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 21:00 +0800 — 混合融合排序 Layer 4（Hybrid Fusion）+ 测试
+
+- **任务描述**：实现方向四混合检索 — 多源结果融合 + 验证加权 + 交叉来源加成。整合 Layer 0（关键词+图谱）、Layer 1（GraphRAG）、Layer 2（Wiki）的结果，应用 Layer 3 验证结论作为排序权重，通过交叉来源加成和来源多样性加成提升多源印证结果的可信度排序，目标将召回率从 72% 提升至 94%。
+- **工具**：Read、Write、Edit、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **新建** `src/dre/retrieval/hybrid-fusion.ts`（~280 行）：
+    - 类型：`FusionInput`（结果+可选验证结论+选项）、`FusionResult`（扩展 RetrievalResult，附加 fusionScore/sourceContributions/verificationStatus/fusionReasoning）、`FusionMetrics`、`FusionOptions`
+    - `HybridFusion` 类：`fuse(input)` 唯一公开入口
+    - 融合流程：按 ID 分组去重 → 合并同 ID 结果（保留最高分+合并证据步骤去重）→ 检测来源贡献 → 验证加权 → 交叉来源加成 → 多样性加成 → 排序+过滤+截断
+    - 加权策略：verified +10% / unverified -10% / contradicted -50% / 2+源印证 +20% / hybrid +15%（均可配置）
+    - 单例 + 测试缝
+  - **新建** `tests/dre-hybrid-fusion.test.ts`（~420 行，21 用例）：
+    - 融合流程（7）：完整响应、去重保留最高分、verified 提升、contradicted 降权、交叉来源加成、多样性加成、证据步骤去重
+    - 边界条件（5）：空输入、单结果无验证、无验证结论、minScore 过滤、limit 截断
+    - 排序与加权（6）：得分降序、verified 排前、contradicted 排后、自定义选项、metrics 统计
+    - 性能基准（2）：100 结果融合 < 50ms、100 结果+50 验证 < 50ms
+    - 单例（2）
+- **验证**：tsc 0 错误；dre-hybrid-fusion 21 pass / 0 fail / 50 expect()；dre 全套 110 pass / 0 fail（无回归）。
+- **Commit**：`364b302`（amend 补录本条后推送 `internal211/main`）。
+
