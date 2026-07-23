@@ -823,5 +823,5 @@
     - 证据路径返回、完整跳转序列与关系、2 跳到达 TypeError、遍历结果加入召回、置信度衰减、环检测防无限循环、maxDepth=1 限制、证据链含完整路径、GraphRAG 召回优于基础、空查询守卫
 - **验证**：tsc 0 错误；dre-retrieval-engine 34 pass / 0 fail / 111 expect()（原 24 + 新增 10）。
 - **备份**：修改前备份至 `.tmp/backups/src/dre/retrieval/`，验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`b6a64f1`（已推送 `internal211/main`）。
 
