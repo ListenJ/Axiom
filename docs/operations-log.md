@@ -825,3 +825,26 @@
 - **备份**：修改前备份至 `.tmp/backups/src/dre/retrieval/`，验证通过后已删除。
 - **Commit**：`b6a64f1`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 16:05 +0800 — 证据验证链 Layer 3（StillMe + ConfRAG）+ 测试
+
+- **任务描述**：实现方向三强化可验证性 — 证据验证链（StillMe）+ 置信度触发深度检索（ConfRAG）。对检索结果进行多层确定性验证，构建包含引用存在性、证据重叠、来源多样性、数值一致性 4 项独立检查的验证链，确保每个回答有据可查；并基于验证结论判断是否触发深度检索，目标将幻觉率从 20-40% 降至 5% 以下。零 LLM 调用，纯确定性验证（与 Layer 0/1 一致，消除"黑盒套黑盒"）；4 项独立检查并行评估等价于多智能体"辩论"投票（Debate 的确定性实现）。
+- **工具**：Read、Write、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **新建** `src/dre/retrieval/verification-chain.ts`（432 行）：
+    - 类型：`VerificationCheck`、`VerificationVerdict`（status: verified/unverified/contradicted + overallConfidence + checks[] + reasoning）、`ConfRAGTriggerResult`、`BatchVerificationEntry`
+    - `VerificationChain` 类三方法：`verifyResult()`（单条验证）、`verifyBatch()`（批量验证）、`shouldTriggerDeepRetrieval()`（ConfRAG 触发判断）
+    - 4 项检查（私有纯函数式）：`checkCitation`（引用存在性）、`checkEvidenceOverlap`（证据重叠）、`checkSourceDiversity`（来源多样性）、`checkNumericalConsistency`（数值一致性，score=0 触发 contradicted）
+    - 综合置信度加权：citation 0.3 + overlap 0.25 + diversity 0.25 + numerical 0.2；最终 = 检查得分 0.6 + 原始证据链置信度 0.4
+    - 单例 + 测试缝：`getVerificationChain()` / `_resetVerificationChainForTest()` / `_setVerificationChainForTest()`
+  - **新建** `tests/dre-verification-chain.test.ts`（290 行，26 用例）：
+    - 正常场景（6）：完整验证结论、citation 通过、overlap 多目标通过、diversity hybrid 通过、numerical 无数值默认通过、批量验证保持顺序
+    - 边界条件（6）：空证据步骤、单步骤、无 citation、数值匹配、数值矛盾、禁用数值检查
+    - 状态判定（5）：verified 高置信度、unverified 低置信度、contradicted 数值矛盾、自定义阈值、推理说明完整性
+    - ConfRAG 触发（5）：高置信度不触发、低置信度触发、空结果触发、混合结果触发、自定义阈值放宽
+    - 性能基准（2）：100 结果批量验证 < 50ms、shouldTriggerDeepRetrieval 100 结果 < 50ms
+    - 单例（2）：getVerificationChain 同实例、reset 重置
+- **验证**：tsc 0 错误；dre-verification-chain 26 pass / 0 fail / 93 expect()；dre-retrieval-engine 34 pass / 0 fail（无回归）。
+- **Commit**：`32008a7`（amend 补录本条后推送 `internal211/main`）。
+
