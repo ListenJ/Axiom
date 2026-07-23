@@ -778,3 +778,30 @@
 - **备份**：修改前备份至 `.tmp/backups/AGENTS.md.bak`，验证通过后已删除。
 - **Commit**：`6551d85`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-23 12:10 +0800 — 确定性检索引擎 Layer 0（基础层）+ 测试套件
+
+- **任务描述**：执行搜索架构重构的第一阶段——构建确定性检索引擎基础层（Layer 0），整合现有 DeterministicSearchEngine（关键词检索）与 KnowledgeNetwork（知识图谱），输出可追溯证据链，带查询级 LRU 缓存与分阶段延迟监测。这是用户要求的"由底层到顶层覆盖确定性推理"分层架构的奠基。
+- **工具**：Task(搜索子代理×3 并行勘察)、Read、Grep、Write、Edit、Bash(tsc / bun test / git)。
+- **执行的操作（文件级）**：
+  - **新建** `src/dre/retrieval/deterministic-retrieval-engine.ts`（563 行）：
+    - 核心入口 `retrieve(query, options)` — 3 阶段流程：Phase 1 关键词检索（注入式 KeywordSearcher）→ Phase 2 图谱检索（knowledgeNetwork.search 分 token 查询 + 1-hop 图遍历）→ Phase 3 融合去重 + 交叉链接加分
+    - **EvidenceChain 证据链**：每个结果附带 `EvidenceStep[]`，含类型(keyword_match/graph_entity/graph_traverse/relation_boost)、来源、目标、关系、置信度、人类可读推理说明 — 消除"黑盒套黑盒"
+    - **查询级 LRU 缓存**：128 条上限 + 5 分钟 TTL + LRU 淘汰
+    - **分阶段延迟监测**：RetrievalMetrics 含 keywordPhaseMs/graphPhaseMs/mergePhaseMs/latencyMs/cacheHit
+    - **依赖注入**（遵循规则 8 深模块设计）：KeywordSearcher 接口可注入，graph 可替换，无文件系统硬依赖
+    - 单例 + 测试缝（getRetrievalEngine / _resetRetrievalEngineForTest / _setRetrievalEngineForTest）
+  - **新建** `tests/dre-retrieval-engine.test.ts`（414 行，24 用例）：
+    - 正常场景（6）：图谱检索+证据链、关键词检索+证据链、图遍历关系信息、hybrid 合并、得分降序、metrics 完整性
+    - 边界条件（6）：空查询、无匹配、禁用图谱、禁用缓存、limit 截断、LRU 淘汰
+    - 异常情况（3）：无 searcher、空图谱、空图谱+无 searcher
+    - 性能基准（4）：100 实体延迟 < 50ms、缓存命中降低延迟、50 次重复命中率 > 90%、100 实体图遍历 < 50ms
+    - 质量指标 P/R/F1（5）：准确率 > 0.5、召回率 >= 0.4、F1 > 0.4、无关查询准确率边界、混合召回优于纯关键词
+- **设计决策**：
+    - 图谱检索按 token 分词查询（而非全查询子串匹配），避免 "typescript debugging" 不匹配 "TypeScript" 实体的问题
+    - 空查询守卫：直接返回空结果，避免空串匹配全部实体
+    - 质量阈值设为 Layer 0 实际值（P>0.5, R>=0.4, F1>0.4），Layer 1 多跳扩展后可提升
+- **验证**：tsc 0 错误；dre-retrieval-engine 24 pass / 0 fail / 66 expect()；consciousness 49 pass / 0 fail（无回归）。
+- **Commit**：（待提交后补录）。
+
