@@ -272,8 +272,8 @@ export class LLMClient {
             await this.backoff(attempt);
             continue;
           }
-          // 不可重试的 HTTP 错误 (4xx 除 429)
-          this.recordFailure();
+          // 不可重试的 HTTP 错误 (4xx 除 429) 或重试已耗尽
+          // recordFailure() 由循环后的统一路径调用，此处不再重复计数
           throw err;
         }
 

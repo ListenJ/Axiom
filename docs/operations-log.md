@@ -1005,4 +1005,33 @@
   - 语义修复验证：scenario6-all-contradicted 从 20ms（计数值）修正为 0ms（实际耗时）；scenario6-cache-eviction 从 200ms（计数值）修正为 8ms（实际耗时）。
 - **备份**：`.tmp/backups/tests/business-scenarios/retrieval-workflows.test.ts.bak` + `.tmp/backups/scripts/stress-runner.ts.bak2` + `.tmp/backups/docs/STRESS-TESTING.md.bak`（验证通过后全部删除）。
 - **Commit**：`3b578dc`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
+      
+---
+
+## 2026-07-24 10:30 +0800 — 边缘场景全面压力测试 + 源码 Bug 修复
+
+- **任务**：对所有核心组件执行全面的边缘场景压力测试，覆盖异常输入处理、网络波动模拟、资源竞争条件、长时间运行状态、内存泄漏检测、设备性能差异等 7 大类极端条件。测试过程中记录关键性能指标（响应时间、资源利用率、错误率），验证组件稳定性与恢复能力，生成详细测试报告。
+- **工具**：Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test`）。无子代理。
+- **操作（文件级）**：
+  - **新建** `tests/edge-cases/abnormal-input.test.ts`（23 测试）：覆盖 Cache/KnowledgeNetwork/AtomEngine/Scheduler/EventBus 的空值、特殊字符、超大输入、自引用、不存在的 ID 操作等异常输入。
+  - **新建** `tests/edge-cases/resource-contention.test.ts`（11 测试）：并发 set/get/delete、getOrSet thundering herd 去重、并发 create+delete+link、publish+unsubscribe 竞争。
+  - **新建** `tests/edge-cases/long-running-memory.test.ts`（9 测试）：50k 操作衰减检测、10k create+delete 内存泄漏检测、100 轮 create+destroy heap 增量、TTL 过期清理、reset 后 stats 归零。
+  - **新建** `tests/edge-cases/network-resilience.test.ts`（10 测试）：LLMClient 熔断器状态机（closed→open→half-open→closed）、429/网络错误重试、不可重试错误不重试、错误风暴后自愈。
+  - **新建** `tests/edge-cases/performance-degradation.test.ts`（24 测试）：慢速 handler 降级、短 TTL 高淘汰率、优先级保障、大规模数据查询延迟分位数、CPU 压力下降级、间歇性故障恢复。
+  - **修改** `src/dre/llm/client.ts`（备份→读全文→修改→验证→删备份）：移除 `!response.ok` 路径中的重复 `recordFailure()` 调用。原代码在 HTTP 错误时调用 `recordFailure()` 后 `throw`，catch 块 `break` 后循环外再次调用 `recordFailure()`，导致 `failureCount` 翻倍、熔断器过早触发。
+  - **修改** `src/dre/runtime/atom-engine.ts`（备份→读全文→修改→验证→删备份）：AtomStoreImpl 新增 `reset()` 方法，清空 atoms/byKind/bySource/byParent 索引和 stats 计数器，与 scheduler/knowledgeNetwork 单例的 reset 模式一致。
+  - **新建** `reports/edge-cases/latest.md`：详细测试报告，含覆盖矩阵、21 项性能指标、2 个源码 Bug 记录、5 条优化建议。
+- **关键性能指标**：
+  - **异常输入**：5 组件全部不崩溃，特殊字符/超大输入/自引用安全处理。
+  - **资源竞争**：getOrSet 50 并发去重 factoryCalls≤2；100 并发 set 最终值一致；LRU 并发不超限。
+  - **长时间运行**：Cache 50k 衰减比 2.41x（<3x）；AtomEngine 10k create+delete heapDelta=0MB；EventBus 50k publish 接收率 100%；KnowledgeNetwork 5k 循环 heapDelta=0.0MB。
+  - **内存泄漏**：Cache 100 轮 create+destroy heapDelta=-19.3MB（GC 回收）；TTL 过期无残留。
+  - **网络波动**：熔断器 3 次失败触发 open，冷却后 half-open，成功后 closed；429 重试 2 次成功；401 不重试；EventBus 502 错误后正常 handler 100% 执行。
+  - **性能差异**：1ms TTL 1000 条 100% 过期；critical 在 100 normal 中优先；混合 500 任务前 50 全 critical；5000 实体 1000 次查询 p99=0.21ms（<50ms）；CPU 压力下 p99=0.16ms。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/edge-cases/`：77 pass / 0 fail / 237 expect() calls / 1.12s。
+  - `bun test tests/edge-cases/ tests/distributed/`：117 pass / 0 fail（无回归）。
+- **备份**：`.tmp/backups/tests/edge-cases/*.test.ts` + `.tmp/backups/src/dre/llm/client.ts` + `.tmp/backups/src/dre/runtime/atom-engine.ts`（验证通过后全部删除）。
+- **Commit**：`d40f0b8`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
 
