@@ -1057,5 +1057,5 @@
   - `bun test tests/coverage-gap/`：113 pass / 0 fail / 543ms。
   - `bun test tests/coverage-gap/ tests/knowledge/pipeline.test.ts`：116 pass / 0 fail（无回归）。
 - **备份**：`.tmp/backups/src/knowledge/pipeline.ts` + `.tmp/backups/src/agents/computer-use-agent.ts`（验证通过后已删除）。
-- **Commit**：（待提交后补录）。
+- **Commit**：`33fb44d`（已推送 `internal211/main`）。
 
