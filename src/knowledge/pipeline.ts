@@ -144,7 +144,7 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
           await vault.writeNote(`00-Knowledge/Books/${safeTopic}.md`, content, { overwrite: true })
           const ks = getKnowledgeStore()
           for (const book of books) {
-            try { ks.saveSource({ title: book.title, domain: "books", subdomain: safeTopic, url: book.url, quality: book.quality }) } catch {}
+            try { ks.saveSource({ title: book.title, domain: "books", subdomain: safeTopic, url: book.url, quality: book.quality }) } catch (e) { logger.warn("[Knowledge] saveSource failed", { title: book.title, error: (e as Error).message }); }
           }
           result.booksDiscovered += books.length
           result.notesWritten++

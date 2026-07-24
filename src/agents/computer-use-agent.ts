@@ -212,7 +212,7 @@ export class ComputerUseAgent {
         try {
           const ss = await captureScreenshot(undefined, cdpUrl, { format: "png", timeout: 10000 });
           screenshot = ss.base64;
-        } catch {}
+        } catch (e) { logger.debug("[ComputerUse] screenshot failed", { error: (e as Error).message }); }
       }
 
       return { ...execResult, screenshot };

@@ -1035,3 +1035,27 @@
 - **备份**：`.tmp/backups/tests/edge-cases/*.test.ts` + `.tmp/backups/src/dre/llm/client.ts` + `.tmp/backups/src/dre/runtime/atom-engine.ts`（验证通过后全部删除）。
 - **Commit**：`d40f0b8`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
 
+---
+
+## 2026-07-24 15:30 +0800 — 覆盖率空白补充测试 + 空 catch 块修复
+
+- **任务**：系统性识别项目薄弱点，为 3 个核心未测试模块补充测试，修复代码质量问题。重点验证边界条件、异常流程、高并发、兼容性和真实使用场景。
+- **工具**：Task(search)×3（并行识别代码质量薄弱点 / 测试覆盖空白 / 用户体验一致性）、Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test`）。
+- **操作（文件级）**：
+  - **新建** `tests/coverage-gap/rate-limiter.test.ts`（40 测试）：覆盖 RateLimiter / MultiDimensionLimiter / 中间件工厂。7 大维度：基础功能（默认规则/配额递减/per-path）、边界条件（maxRequests=0/1、windowMs=1ms、窗口边界、cleanup）、异常输入（空 key/超长 key/特殊字符）、高并发（1000 并发/100 用户/10k key cleanup 性能）、多维度限流（IP/user/global 三维度/limitedDimension/未认证请求）、中间件（Request 提取 IP/userKey/socket IP 优先/hash 确定性）、全局单例。
+  - **新建** `tests/coverage-gap/bounded-queue.test.ts`（36 测试）：覆盖环形缓冲区有界队列。6 大维度：基础功能（FIFO/push/shift/peek/drain/inspect/clear/dropOldest）、边界条件（capacity=0/1/负数/指针环绕/100 次交替）、异常输入（null/undefined/对象引用/inspect 抛错）、高并发+大数据量（10k 循环/100k 填充/性能基准）、溢出策略（dropOldest true/false/droppedCount 累加）、类型兼容性（字符串/对象/数组/Buffer）。
+  - **新建** `tests/coverage-gap/memory-gate.test.ts`（37 测试）：覆盖智能记忆门控。7 大维度：基础决策（高/低价值任务/错误响应/引用加分/high-value 阈值）、边界条件（空/null/undefined 响应/minResponseLength/minConfidence 边界）、去重（相同内容跳过/窗口过期/不同内容/recordWrite stats）、频率限制（maxWritesPerHour/窗口滚动/日限制）、配置覆盖（minConfidence/minResponseLength/highValueTasks）、全局单例、真实场景模拟（写代码/闲聊/错误响应/研究报告/重复问题/长会话）。
+  - **修改** `src/knowledge/pipeline.ts:147`（备份→读全文→修改→验证→删备份）：空 catch 块添加 `logger.warn` 记录 saveSource 数据库写入失败的书名和错误信息。
+  - **修改** `src/agents/computer-use-agent.ts:215`（备份→读全文→修改→验证→删备份）：空 catch 块添加 `logger.debug` 记录截图失败原因。
+  - **新建** `reports/coverage-gap/latest.md`：详细测试报告，含测试矩阵、问题分类跟踪（2 项已修复 + 5 项误报排除）、性能指标、7 条优化建议。
+- **调查发现**：
+  - 定时器未清理报告（17+ 处）经逐文件核实**全部为误报**：chat.ts/api-key-store.ts/approval-bridge.ts/terminal.ts/dynamic-model-assigner.ts/consciousness/index.ts/kernel.ts/verification-engine.ts 均已有 stop()/clearTimeout/clearInterval 清理逻辑。
+  - 5 处空 catch 块经评估为**合理设计**（health check 返回 false、JSON 缓存解析降级、代理 URL 跳过、二进制存在性检查），无需修改。
+- **首轮失败与修复**：首轮 6 个测试失败，均为测试预期错误（非源码 bug）：(1) MultiDimensionLimiter setRule 误判 limitedDimension=ip，实际 global 先触发；(2) MemoryGate 空字符串触发 invalid 参数检查而非 "too short"；(3) confidence 计算忽略了 response.length > 500 的 +0.1 加分；(4) 场景1 confidence 0.7 属于 medium-value 而非 high-value。已全部修正测试预期。
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/coverage-gap/`：113 pass / 0 fail / 543ms。
+  - `bun test tests/coverage-gap/ tests/knowledge/pipeline.test.ts`：116 pass / 0 fail（无回归）。
+- **备份**：`.tmp/backups/src/knowledge/pipeline.ts` + `.tmp/backups/src/agents/computer-use-agent.ts`（验证通过后已删除）。
+- **Commit**：（待提交后补录）。
+
