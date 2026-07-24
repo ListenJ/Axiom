@@ -187,7 +187,7 @@ export class Cache<V = unknown> {
   /** 设置缓存值 — L1 + L2 + L3 */
   set(key: string, value: V, ttlMs?: number): void {
     const fullKey = this.key(key);
-    const effectiveTtl = ttlMs ?? this.opts.defaultTtlMs;
+    const effectiveTtl = (typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? ttlMs : this.opts.defaultTtlMs;
     const expiresAt = Date.now() + effectiveTtl;
 
     // L1: 内存

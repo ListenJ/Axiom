@@ -41,7 +41,9 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string): boo
   const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
   if (!apiKey) {
     // No auth token configured: allow static assets and public paths, deny API endpoints
-    if (AUTH_EXEMPT_EXTS.has(staticExt)) return true;
+    // 只对根路径或 /assets/ 下的静态资源豁免扩展名（防止 /vault/write.js 等绕过认证）
+    const isStaticPath = !url.pathname.slice(1).includes("/") || url.pathname.startsWith("/assets/");
+    if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticPath) return true;
     if (PUBLIC_PATHS.includes(url.pathname)) return true;
     if (url.pathname === "/ws") return true;
     logger.warn("Auth check failed: AXIOM_AUTH_TOKEN not configured");
@@ -49,7 +51,9 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string): boo
   }
   if (PUBLIC_PATHS.includes(url.pathname)) return true;
   // Allow real static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
-  if (AUTH_EXEMPT_EXTS.has(staticExt)) {
+  // 只对根路径或 /assets/ 下的静态资源豁免（防止 /api/data.js 等路径绕过认证）
+  const isStaticAsset = !url.pathname.slice(1).includes("/") || url.pathname.startsWith("/assets/");
+  if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticAsset) {
     logger.debug("Static asset allowed without auth", { path: url.pathname, ext: staticExt });
     return true;
   }

@@ -1059,3 +1059,62 @@
 - **备份**：`.tmp/backups/src/knowledge/pipeline.ts` + `.tmp/backups/src/agents/computer-use-agent.ts`（验证通过后已删除）。
 - **Commit**：`33fb44d`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-24 16:45 +0800 — Bug Hunt：深入挖掘并修复 4 个潜在缺陷
+
+- **任务**：通过代码审计和 TDD 流程，深入挖掘权限控制、数据类型转换、安全边界和数据完整性维度的潜在 bug，建立完整 bug 跟踪记录并修复验证。
+- **工具**：Task(search)×2（并行挖掘权限安全 bug / 数据类型与并发 bug）、Read、Edit、Write、Bash（`bunx tsc --noEmit` / `bun test`）。
+- **发现与修复（备份→读全文→修改→验证→删备份）**：
+
+  **BUG-001 (P0) 跨操作重放攻击** — `src/routes/confirmation.ts:52`
+  - **复现**：为低风险操作 A 请求 confirmationId，用该 id 执行高风险操作 B → 通过验证（不检查 operation 匹配）
+  - **根因**：`confirmOperation` 返回 `{ approved, command }`，但 `requireHttpConfirmation` 只检查 `approved`，不验证 `command === operation`
+  - **修复**：添加 `result.command !== operation` 检查，不匹配时返回 403
+  - **验证**：4 个测试用例（跨操作拒绝/正确操作通过/一次性使用/过期拒绝）
+
+  **BUG-002 (P1) Cache NaN TTL 立即过期** — `src/utils/cache.ts:190`
+  - **复现**：`cache.set("key", "value", NaN)` → `effectiveTtl = NaN ?? default = NaN` → `expiresAt = Date.now() + NaN = NaN` → `Date.now() <= NaN` 为 false → 立即过期
+  - **根因**：`??` 运算符不将 NaN 视为 null/undefined，NaN TTL 被直接使用
+  - **修复**：`(typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? ttlMs : defaultTtlMs`
+  - **验证**：5 个测试用例（NaN 回退/负数处理/Infinity 保留/零 TTL/正常过期）
+
+  **BUG-003 (P1) KnowledgeNetwork confidence 无范围验证** — `src/dre/runtime/knowledge-network.ts:177`
+  - **复现**：`create("concept", "name", "content", { confidence: NaN })` → `NaN ?? 0.8 = NaN` → 存储到 entity 中，破坏推理一致性
+  - **根因**：`??` 不处理 NaN，且无 [0,1] 范围 clamp
+  - **修复**：NaN 回退到 0.8，其他值 `Math.max(0, Math.min(1, value))`
+  - **验证**：5 个测试用例（NaN 回退/负数 clamp/超范围 clamp/合法值接受/undefined 默认）
+
+  **BUG-004 (P2) auth-check 扩展名豁免绕过** — `src/utils/auth-check.ts:44,52`
+  - **复现**：`GET /vault/write.js` → staticExt=".js" 在 AUTH_EXEMPT_EXTS 中 → 豁免认证
+  - **根因**：只检查扩展名，不检查路径是否为 API 路径
+  - **修复**：扩展名豁免仅限根路径（`!pathname.slice(1).includes("/")`）或 `/assets/` 前缀
+  - **验证**：8 个测试用例（.js/.css/.html 绕过拒绝/根路径豁免/assets 豁免/无扩展名认证/.json 不豁免）
+
+- **误报排除**：
+  - 定时器未清理（17+ 处）：全部误报，已有 stop()/clearTimeout
+  - scheduler.ts fail() 指数退避：无 NaN 风险（retries 始终为正整数）
+  - cache.ts getOrSet Promise 管理：逻辑正确
+  - 5 处空 catch 块：合理设计（health check/降级/跳过无效配置）
+
+- **TDD 流程**：
+  - RED：编写 22 个测试，8 个失败确认 bug 存在
+  - GREEN：修复 4 个 bug，22/22 通过
+  - 回归：route-confirmation + auth-check + cache-stress + dre-core-modules 共 118/118 通过
+  - 类型：tsc 0 错误
+
+- **操作（文件级）**：
+  - **新建** `tests/bug-hunt/security-and-integrity.test.ts`（22 测试，覆盖 4 个 bug 的复现/修复验证/边界条件）
+  - **修改** `src/routes/confirmation.ts`（1 行，添加 operation 匹配检查）
+  - **修改** `src/utils/cache.ts`（1 行，NaN/负数 TTL 回退）
+  - **修改** `src/dre/runtime/knowledge-network.ts`（3 行，confidence 范围验证）
+  - **修改** `src/utils/auth-check.ts`（6 行，扩展名豁免路径限制）
+  - **新建** `reports/bug-hunt/latest.md`（详细 bug 跟踪报告，含复现步骤/根因/修复/验证）
+
+- **验证**：
+  - `bunx tsc --noEmit`：0 错误。
+  - `bun test tests/bug-hunt/`：22 pass / 0 fail / 228ms。
+  - `bun test tests/route-confirmation.test.ts tests/auth-check.test.ts tests/cache-stress.test.ts tests/dre-core-modules.test.ts`：118 pass / 0 fail（无回归）。
+- **备份**：`.tmp/backups/` 下 4 个文件（confirmation.ts/cache.ts/auth-check.ts/knowledge-network.ts），验证通过后已删除。
+- **Commit**：（待提交后补录）。
+

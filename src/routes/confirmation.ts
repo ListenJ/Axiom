@@ -49,7 +49,7 @@ export function requireHttpConfirmation(
   }
 
   const result = confirmOperation(confirmationId);
-  if (!result.approved) {
+  if (!result.approved || result.command !== operation) {
     return ctx.jsonResponse(
       { error: "Invalid or expired confirmation" },
       403,

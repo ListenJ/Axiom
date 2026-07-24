@@ -174,7 +174,9 @@ class KnowledgeNetworkImpl {
       behaviors: [],
       predictions: [],
       hypotheses: [],
-      confidence: opts?.confidence ?? 0.8,
+      confidence: (typeof opts?.confidence === "number" && !Number.isNaN(opts.confidence))
+        ? Math.max(0, Math.min(1, opts.confidence))
+        : 0.8,
       source: opts?.source ?? "system",
       createdAt: now,
       updatedAt: now,
