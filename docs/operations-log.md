@@ -1118,3 +1118,50 @@
 - **备份**：`.tmp/backups/` 下 4 个文件（confirmation.ts/cache.ts/auth-check.ts/knowledge-network.ts），验证通过后已删除。
 - **Commit**：`b9a0ef9`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-24 21:30 +0800 — Bug Hunt 续：修复 3 个缺陷 + knowledge-store 覆盖率补充
+
+- **任务**：继续完善项目 — 评估 knowledge-network.ts 其他方法的验证问题、实现 API Key 时间安全比较、为 knowledge-store.ts 补充测试覆盖。
+- **工具**：Read、Edit、Write、RunCommand（`bun test` / `npx tsc --noEmit`）。
+- **发现与修复（备份→读全文→修改→验证→删备份）**：
+
+  **BUG-005 (P1) addEvidence NaN/超范围 confidence 污染实体置信度** — `src/dre/runtime/knowledge-network.ts:263`
+  - **复现**：`addEvidence(id, { confidence: NaN })` → `avgConfidence = (0.8 + NaN) / 2 = NaN` → `entity.confidence = NaN`，破坏推理一致性
+  - **根因**：`addEvidence` 直接对 evidence 数组求平均，未过滤无效 confidence（NaN/负数/超范围），与 BUG-003（create 方法）同一类 bug
+  - **修复**：过滤无效 confidence（`typeof === "number" && !isNaN && [0,1]`），仅对有效值求平均并 clamp；全部无效时保留原 confidence
+  - **验证**：6 个 TDD 测试（NaN 不污染/负数不越界/超范围不越界/全无效保留原值/合法值正确计算/混合有效无效）
+
+  **BUG-006 (P2) addBehavior/addPrediction/addHypothesis confidence 未验证** — `src/dre/runtime/knowledge-network.ts:330,360,390`
+  - **发现**：评估 updateState（无 confidence 问题）和 addEvidence 时，发现 addBehavior/addPrediction/addHypothesis 三个方法均未验证子对象的 confidence 字段；虽当前未被其他代码读取，但 NaN 序列化为 JSON 非法且未来读取时可能破坏逻辑
+  - **修复**：新增私有 `sanitizeConfidence(c)` helper（NaN/非数字 → 0.8，其他 clamp 到 [0,1]），三处调用统一使用
+  - **验证**：7 个 TDD 测试（三个方法各覆盖 NaN sanitize + 超范围 clamp + 合法值正常存储）
+
+  **BUG-007 (P2) API Key 比较使用 === 存在时序攻击风险** — `src/utils/auth-check.ts:63`
+  - **发现**：`return auth === apiKey` 使用普通字符串比较，攻击者可通过测量响应时间逐字符猜测 API Key
+  - **修复**：新增 `safeCompare(a, b)` helper，使用 `crypto.timingSafeEqual` 实现常量时间比较；长度不同时直接返回 false（key 长度非机密）
+  - **验证**：8 个回归测试（正确/错误 x-api-key、正确/错误 Bearer、空 auth、不同长度不抛异常、前缀匹配拒绝、大小写差异拒绝）
+
+  **knowledge-store.ts 覆盖率补充** — `tests/coverage-gap/knowledge-store.test.ts`（新建）
+  - 6 大类 43 个测试：CRUD（write/read/revision 递增/扩展字段/contentHash/isVerified）、版本快照（getRevisions/降序/内容不变 diff）、搜索（FTS5/domain/paradigm/minConfidence/limit/空查询/无匹配）、知识图谱边（addEdge/getOutEdges/getInEdges/INSERT OR REPLACE/evidence）、子图检索（BFS/depth/maxNodes/不存在的种子/环形图不无限循环）、边界条件（NaN/负数/超范围 confidence 被 CHECK 拒绝/0 和 1 接受/空内容/长内容/特殊字符/limit clamp）
+  - 发现 `search()` 的 `limit: 0` 因 `Number(0) || 10` falsy 陷阱返回 10 条结果（已记录为已知行为，非本次修复范围）
+
+- **操作（文件级）**：
+  - **修改** `src/dre/runtime/knowledge-network.ts`（addEvidence 过滤无效 confidence + sanitizeConfidence helper + 三处调用）
+  - **修改** `src/utils/auth-check.ts`（import timingSafeEqual + safeCompare helper + 替换 === 比较）
+  - **修改** `tests/bug-hunt/security-and-integrity.test.ts`（新增 BUG-005 6 测试 + BUG-006 7 测试 + BUG-007 8 测试，共 21 个新测试）
+  - **新建** `tests/coverage-gap/knowledge-store.test.ts`（43 测试，覆盖 KnowledgeStore CRUD/版本快照/搜索/图谱边/子图/边界条件）
+
+- **TDD 流程**：
+  - BUG-005：RED（6 测试 4 失败）→ GREEN（修复后 6/6 通过）
+  - BUG-006：RED（7 测试 6 失败）→ GREEN（修复后 7/7 通过）
+  - BUG-007：安全加固，行为不变，8 个回归测试确认无回归
+
+- **验证**：
+  - `npx tsc --noEmit`：0 错误。
+  - `bun test tests/bug-hunt/security-and-integrity.test.ts`：43 pass / 0 fail（原 22 + 新增 21）。
+  - `bun test tests/coverage-gap/knowledge-store.test.ts`：43 pass / 0 fail。
+  - `bun test tests/bug-hunt/ tests/coverage-gap/knowledge-store.test.ts tests/auth-check.test.ts tests/dre-retrieval-engine.test.ts tests/edge-cases/abnormal-input.test.ts`：164 pass / 0 fail（无回归）。
+- **备份**：`.tmp/backups/` 下 3 个文件（knowledge-network.ts×2、auth-check.ts），验证通过后已删除。
+- **Commit**：待提交后补录。
+

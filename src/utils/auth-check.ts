@@ -9,11 +9,25 @@
  *     因为动态 API 路由可能以它们结尾（如 /traces/<id>.json）。
  */
 
+import { timingSafeEqual } from "crypto";
 import { logger } from "./logger.js";
 
 /** 判定 socket 对端地址是否为回环地址 */
 export function isLocalAddress(address: string | undefined): boolean {
   return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
+
+/**
+ * 常量时间字符串比较 —— 防止时序攻击泄露 API Key。
+ * 长度不同时直接返回 false（key 长度非机密信息）。
+ */
+function safeCompare(a: string | undefined, b: string): boolean {
+  if (typeof a !== "string" || a.length === 0) return false;
+  if (typeof b !== "string" || b.length === 0) return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
 }
 
 // 免认证静态扩展名：真实 SPA 资源类型。不含 .json/.txt（见文件头注释）。
@@ -60,5 +74,5 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string): boo
   // WebSocket: check auth in upgrade handler, not here
   if (url.pathname === "/ws") return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
-  return auth === apiKey;
+  return safeCompare(auth, apiKey);
 }

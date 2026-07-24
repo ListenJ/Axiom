@@ -1,14 +1,15 @@
 /**
  * Bug Hunt 测试 — 深入挖掘潜在缺陷
  *
- * 测试目标：验证 4 个通过代码审计发现的真实 bug，并作为回归防线。
+ * 测试目标：验证 5 个通过代码审计发现的真实 bug，并作为回归防线。
  * 测试维度：权限控制 / 数据类型转换 / 安全边界 / 数据完整性
  *
  * 发现的 bug：
  *   BUG-001 (P0): confirmationId 跨操作重放攻击
  *   BUG-002 (P1): Cache NaN TTL 导致缓存永不过期
- *   BUG-003 (P1): KnowledgeNetwork NaN/超范围 confidence 未验证
+ *   BUG-003 (P1): KnowledgeNetwork create() NaN/超范围 confidence 未验证
  *   BUG-004 (P2): auth-check 扩展名豁免可被 API 路径绕过
+ *   BUG-005 (P1): KnowledgeNetwork addEvidence() NaN/超范围 confidence 污染实体置信度
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
@@ -253,6 +254,287 @@ describe("BUG-004 (P2): auth-check 扩展名豁免绕过", () => {
   test("无认证时 .json 路径不应被豁免（已有防护）", () => {
     const req = new Request("https://evil.example.com/traces/data.json");
     // .json 不在 AUTH_EXEMPT_EXTS 中，所以不会被豁免
+    expect(checkApiKey(req, false, apiKey)).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BUG-005 (P1): KnowledgeNetwork addEvidence() NaN/超范围 confidence 污染实体置信度
+// ═══════════════════════════════════════════════════════════════
+
+describe("BUG-005 (P1): addEvidence confidence 验证", () => {
+  beforeEach(() => {
+    knowledgeNetwork.reset();
+  });
+
+  test("NaN 证据 confidence 不应污染实体置信度", () => {
+    const entity = knowledgeNetwork.create("concept", "test-nan-evidence", "content", { confidence: 0.8 });
+    const ok = knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: NaN,
+      timestamp: Date.now(),
+      description: "bad evidence",
+    });
+    expect(ok).toBe(true);
+    // 修复前：avgConfidence = (0.8 + NaN) / 2 = NaN → 实体置信度被污染
+    // 修复后：NaN 证据应被过滤或 clamp，实体置信度必须保持有效数值
+    expect(Number.isNaN(entity.confidence)).toBe(false);
+    expect(entity.confidence).toBeGreaterThanOrEqual(0);
+    expect(entity.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("负数证据 confidence 不应使实体置信度越界", () => {
+    const entity = knowledgeNetwork.create("concept", "test-neg-evidence", "content", { confidence: 0.5 });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: -0.5,
+      timestamp: Date.now(),
+      description: "negative confidence evidence",
+    });
+    // 修复后：实体置信度必须在 [0, 1] 范围内
+    expect(entity.confidence).toBeGreaterThanOrEqual(0);
+    expect(entity.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("超过 1 的证据 confidence 不应使实体置信度越界", () => {
+    const entity = knowledgeNetwork.create("concept", "test-over-evidence", "content", { confidence: 0.5 });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: 1.5,
+      timestamp: Date.now(),
+      description: "over-confident evidence",
+    });
+    expect(entity.confidence).toBeGreaterThanOrEqual(0);
+    expect(entity.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("全部证据 confidence 无效时应保留实体原置信度", () => {
+    const entity = knowledgeNetwork.create("concept", "test-all-invalid", "content", { confidence: 0.7 });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: NaN,
+      timestamp: Date.now(),
+      description: "invalid evidence 1",
+    });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: -1,
+      timestamp: Date.now(),
+      description: "invalid evidence 2",
+    });
+    // 所有证据都无效时，不应让置信度变成 NaN 或越界值
+    expect(Number.isNaN(entity.confidence)).toBe(false);
+    expect(entity.confidence).toBeGreaterThanOrEqual(0);
+    expect(entity.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("合法证据 confidence 应正确更新实体置信度", () => {
+    const entity = knowledgeNetwork.create("concept", "test-valid-evidence", "content", { confidence: 0.8 });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: 0.6,
+      timestamp: Date.now(),
+      description: "valid evidence",
+    });
+    // addEvidence 对 evidence 数组求平均：[0.6] → 0.6
+    expect(entity.confidence).toBeCloseTo(0.6, 5);
+  });
+
+  test("混合有效与无效证据应仅基于有效证据计算", () => {
+    const entity = knowledgeNetwork.create("concept", "test-mixed-evidence", "content", { confidence: 0.9 });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: NaN,
+      timestamp: Date.now(),
+      description: "invalid evidence",
+    });
+    knowledgeNetwork.addEvidence(entity.id, {
+      source: "test",
+      confidence: 0.5,
+      timestamp: Date.now(),
+      description: "valid evidence",
+    });
+    // 修复后：应仅基于有效证据 0.5 计算（或保留原 0.9），但不能是 NaN
+    expect(Number.isNaN(entity.confidence)).toBe(false);
+    expect(entity.confidence).toBeGreaterThanOrEqual(0);
+    expect(entity.confidence).toBeLessThanOrEqual(1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BUG-006 (P2): addBehavior/addPrediction/addHypothesis confidence 未验证
+// 这些子对象的 confidence 字段虽未参与实体置信度计算，但无效值会污染数据
+// （NaN 序列化为 JSON 时非法，且未来读取时可能破坏逻辑）
+// ═══════════════════════════════════════════════════════════════
+
+describe("BUG-006 (P2): 子对象 confidence 验证", () => {
+  beforeEach(() => {
+    knowledgeNetwork.reset();
+  });
+
+  test("addBehavior NaN confidence 应被 sanitize", () => {
+    const entity = knowledgeNetwork.create("concept", "test-beh-nan", "content");
+    knowledgeNetwork.addBehavior(entity.id, {
+      trigger: "heat",
+      action: "expand",
+      effect: "volume increases",
+      confidence: NaN,
+    });
+    const beh = entity.behaviors[0];
+    expect(Number.isNaN(beh.confidence)).toBe(false);
+    expect(beh.confidence).toBeGreaterThanOrEqual(0);
+    expect(beh.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("addBehavior 超范围 confidence 应被 clamp", () => {
+    const entity = knowledgeNetwork.create("concept", "test-beh-clamp", "content");
+    knowledgeNetwork.addBehavior(entity.id, {
+      trigger: "heat",
+      action: "expand",
+      effect: "volume increases",
+      confidence: 1.5,
+    });
+    expect(entity.behaviors[0].confidence).toBe(1);
+  });
+
+  test("addPrediction NaN confidence 应被 sanitize", () => {
+    const entity = knowledgeNetwork.create("concept", "test-pred-nan", "content");
+    knowledgeNetwork.addPrediction(entity.id, {
+      condition: "temp > 100",
+      outcome: "boiling",
+      confidence: NaN,
+      timeHorizon: "1min",
+      basedOn: [],
+    });
+    const pred = entity.predictions[0];
+    expect(Number.isNaN(pred.confidence)).toBe(false);
+    expect(pred.confidence).toBeGreaterThanOrEqual(0);
+    expect(pred.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("addPrediction 超范围 confidence 应被 clamp", () => {
+    const entity = knowledgeNetwork.create("concept", "test-pred-clamp", "content");
+    knowledgeNetwork.addPrediction(entity.id, {
+      condition: "temp > 100",
+      outcome: "boiling",
+      confidence: -0.3,
+      timeHorizon: "1min",
+      basedOn: [],
+    });
+    expect(entity.predictions[0].confidence).toBe(0);
+  });
+
+  test("addHypothesis NaN confidence 应被 sanitize", () => {
+    const entity = knowledgeNetwork.create("concept", "test-hyp-nan", "content");
+    knowledgeNetwork.addHypothesis(entity.id, {
+      statement: "water boils at 100C",
+      evidence: [],
+      counterEvidence: [],
+      confidence: NaN,
+    });
+    const hyp = entity.hypotheses[0];
+    expect(Number.isNaN(hyp.confidence)).toBe(false);
+    expect(hyp.confidence).toBeGreaterThanOrEqual(0);
+    expect(hyp.confidence).toBeLessThanOrEqual(1);
+  });
+
+  test("addHypothesis 超范围 confidence 应被 clamp", () => {
+    const entity = knowledgeNetwork.create("concept", "test-hyp-clamp", "content");
+    knowledgeNetwork.addHypothesis(entity.id, {
+      statement: "water boils at 100C",
+      evidence: [],
+      counterEvidence: [],
+      confidence: 2.0,
+    });
+    expect(entity.hypotheses[0].confidence).toBe(1);
+  });
+
+  test("合法 confidence 应正常存储", () => {
+    const entity = knowledgeNetwork.create("concept", "test-valid-sub", "content");
+    knowledgeNetwork.addBehavior(entity.id, {
+      trigger: "heat", action: "expand", effect: "expands", confidence: 0.9,
+    });
+    knowledgeNetwork.addPrediction(entity.id, {
+      condition: "heat", outcome: "expand", confidence: 0.7, timeHorizon: "1m", basedOn: [],
+    });
+    knowledgeNetwork.addHypothesis(entity.id, {
+      statement: "test", evidence: [], counterEvidence: [], confidence: 0.5,
+    });
+    expect(entity.behaviors[0].confidence).toBe(0.9);
+    expect(entity.predictions[0].confidence).toBe(0.7);
+    expect(entity.hypotheses[0].confidence).toBe(0.5);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BUG-007 (P2): API Key 比较使用 === 存在时序攻击风险
+// 修复：改用 crypto.timingSafeEqual 实现常量时间比较
+// 测试：验证行为正确性（时序安全性通过代码审查验证，非行为测试可覆盖）
+// ═══════════════════════════════════════════════════════════════
+
+describe("BUG-007 (P2): API Key 时间安全比较", () => {
+  const apiKey = "super-secret-key-1234567890";
+
+  test("正确 x-api-key 应通过认证", () => {
+    const req = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": apiKey },
+    });
+    expect(checkApiKey(req, false, apiKey)).toBe(true);
+  });
+
+  test("错误 x-api-key 应被拒绝", () => {
+    const req = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": "wrong-key" },
+    });
+    expect(checkApiKey(req, false, apiKey)).toBe(false);
+  });
+
+  test("正确 Bearer token 应通过认证", () => {
+    const req = new Request("https://example.com/api/data", {
+      headers: { "authorization": `Bearer ${apiKey}` },
+    });
+    expect(checkApiKey(req, false, apiKey)).toBe(true);
+  });
+
+  test("错误 Bearer token 应被拒绝", () => {
+    const req = new Request("https://example.com/api/data", {
+      headers: { "authorization": "Bearer wrong-token" },
+    });
+    expect(checkApiKey(req, false, apiKey)).toBe(false);
+  });
+
+  test("空 auth header 应被拒绝", () => {
+    const req = new Request("https://example.com/api/data");
+    expect(checkApiKey(req, false, apiKey)).toBe(false);
+  });
+
+  test("不同长度的 key 不应抛出异常", () => {
+    // timingSafeEqual 在长度不同时会 throw，实现必须处理此情况
+    const shortReq = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": "a" },
+    });
+    expect(() => checkApiKey(shortReq, false, apiKey)).not.toThrow();
+    expect(checkApiKey(shortReq, false, apiKey)).toBe(false);
+
+    const longReq = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": "a".repeat(1000) },
+    });
+    expect(() => checkApiKey(longReq, false, apiKey)).not.toThrow();
+    expect(checkApiKey(longReq, false, apiKey)).toBe(false);
+  });
+
+  test("前缀匹配的 key 不应通过认证", () => {
+    // 防止前缀截断攻击：key 的前半部分正确但后面不同
+    const partialReq = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": apiKey.slice(0, 10) },
+    });
+    expect(checkApiKey(partialReq, false, apiKey)).toBe(false);
+  });
+
+  test("仅大小写不同的 key 不应通过认证", () => {
+    const req = new Request("https://example.com/api/data", {
+      headers: { "x-api-key": apiKey.toUpperCase() },
+    });
     expect(checkApiKey(req, false, apiKey)).toBe(false);
   });
 });

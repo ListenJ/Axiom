@@ -139,6 +139,16 @@ class KnowledgeNetworkImpl {
   private stats = { created: 0, queried: 0, updated: 0 };
 
   /**
+   * Sanitize a confidence value: NaN/non-number → 0.8 (default), otherwise clamp to [0, 1].
+   * Used by addBehavior/addPrediction/addHypothesis to prevent invalid data entering the network.
+   */
+  private sanitizeConfidence(c: number): number {
+    return (typeof c === "number" && !Number.isNaN(c))
+      ? Math.max(0, Math.min(1, c))
+      : 0.8;
+  }
+
+  /**
    * Create a knowledge entity.
    */
   create(kind: EntityKind, name: string, content: string, opts?: {
@@ -268,9 +278,15 @@ class KnowledgeNetworkImpl {
     entity.updatedAt = Date.now();
     entity.version++;
 
-    // Update confidence based on evidence
-    const avgConfidence = entity.evidence.reduce((sum, e) => sum + e.confidence, 0) / entity.evidence.length;
-    entity.confidence = avgConfidence;
+    // Update confidence based on valid evidence only (filter NaN/out-of-range)
+    const validConfidences = entity.evidence
+      .map((e) => e.confidence)
+      .filter((c): c is number => typeof c === "number" && !Number.isNaN(c) && c >= 0 && c <= 1);
+    if (validConfidences.length > 0) {
+      const avgConfidence = validConfidences.reduce((sum, c) => sum + c, 0) / validConfidences.length;
+      entity.confidence = Math.max(0, Math.min(1, avgConfidence));
+    }
+    // If no valid confidences, keep the existing entity.confidence unchanged.
 
     return true;
   }
@@ -317,6 +333,7 @@ class KnowledgeNetworkImpl {
 
     const newBehavior: Behavior = {
       ...behavior,
+      confidence: this.sanitizeConfidence(behavior.confidence),
       id: `beh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       observedCount: 1,
       lastObserved: Date.now(),
@@ -346,6 +363,7 @@ class KnowledgeNetworkImpl {
 
     const newPrediction: Prediction = {
       ...prediction,
+      confidence: this.sanitizeConfidence(prediction.confidence),
       id: `pred_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       validated: false,
     };
@@ -374,6 +392,7 @@ class KnowledgeNetworkImpl {
 
     const newHypothesis: Hypothesis = {
       ...hypothesis,
+      confidence: this.sanitizeConfidence(hypothesis.confidence),
       id: `hyp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       status: "proposed",
       proposedAt: Date.now(),
