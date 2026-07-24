@@ -1116,5 +1116,5 @@
   - `bun test tests/bug-hunt/`：22 pass / 0 fail / 228ms。
   - `bun test tests/route-confirmation.test.ts tests/auth-check.test.ts tests/cache-stress.test.ts tests/dre-core-modules.test.ts`：118 pass / 0 fail（无回归）。
 - **备份**：`.tmp/backups/` 下 4 个文件（confirmation.ts/cache.ts/auth-check.ts/knowledge-network.ts），验证通过后已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`b9a0ef9`（已推送 `internal211/main`）。
 
