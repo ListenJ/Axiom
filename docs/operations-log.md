@@ -1355,3 +1355,17 @@
   - 新建 `tests/knowledge-edge.test.ts`：19 用例（含真实 SQLite 临时库；Windows 需 close() 释放文件锁才能清理）。
 - **验证**：19 pass + 全量 113 pass；`tsc --noEmit` 无错误；2B 端点实测：结构化/质检/近重复/查询改写达标（摘要生成 2B 不可用，回退路径兜底）。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-25 22:50 +0800 — 边缘小模型层 Phase 5：端到端验证与文档收尾
+
+- **任务**：全链路集成验证 + 回归 + 文档。
+- **工具**：Bash（test:core、服务冒烟、集成调用）、Write。
+- **执行的操作（文件级）**：
+  - `bun run test:core`：136 pass / 0 fail（12 文件，无回归）。
+  - 服务冒烟：`EDGE_LLM_TRANSPORT=completion bun run src/main.ts`，2s 启动，/health 正常响应。
+  - 集成验证：`prepareChatContext` 全链路——关键词 fast path 命中（conf 0.99）时不触发边缘调用；2B 改写不达标被三重闸门拒绝并正确回退原文。（知识检索 web 分支在无密钥环境挂起为预存行为，与本改动无关。）
+  - 新建 `docs/EDGE-LLM.md`：边缘层架构、已验证模型矩阵、env 配置、能力地图、关键设计（三重闸门/双层复核/DI 测试约定）、运维手册。
+- **验证**：上述全部通过；全部 6 个边缘相关测试文件 113 pass。
+- **Commit**：（提交后补上）。
