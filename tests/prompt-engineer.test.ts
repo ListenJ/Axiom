@@ -3,7 +3,10 @@
  */
 
 import { describe, test, expect } from "bun:test";
+import fs from "fs";
+import path from "path";
 import { promptEngineer, PromptEngineer } from "../src/agents/prompt-engineer.js";
+import { DEFAULT_PROMPT_DIR, DEFAULT_SKILL_DIRS } from "../src/skills/types.js";
 
 describe("Prompt Engineer - 零向量提示词引擎", () => {
   test("1. 模板匹配 - 确定性规则", () => {
@@ -145,5 +148,55 @@ describe("Prompt Engineer - 零向量提示词引擎", () => {
     console.log(`     - 无 similarity 方法: ${!hasSimilarity}`);
     console.log(`     - 无 cosine 方法: ${!hasCosine}`);
     console.log(`     - 匹配方式: 确定性关键词计数`);
+  });
+
+  // W3 重构验证：硬编码路径已统一替换为常量
+  test("9. saveTemplateToFile 默认目录来自 DEFAULT_PROMPT_DIR 常量", () => {
+    console.log("\n[测试] 9: 默认目录使用常量");
+
+    // 构造唯一模板避免与真实文件冲突
+    const uniqueId = `test-default-dir-${Date.now()}`;
+    const template = {
+      id: uniqueId,
+      name: "测试默认目录",
+      category: "general",
+      description: "验证 saveTemplateToFile 默认目录",
+      template: "{{query}}",
+      variables: ["query"],
+      tags: ["test"],
+      thinkingIntensity: "low" as const,
+      version: "1.0-test",
+    };
+
+    // 不传 dir 参数 —— 应使用 DEFAULT_PROMPT_DIR
+    const filePath = promptEngineer.saveTemplateToFile(template);
+    console.log(`  [完成] 保存到: ${filePath}`);
+
+    try {
+      // 行为验证：返回路径以 DEFAULT_PROMPT_DIR 开头，文件确实存在
+      const normalizedDefault = path.normalize(DEFAULT_PROMPT_DIR);
+      const normalizedReturned = path.normalize(path.dirname(filePath));
+      expect(normalizedReturned).toBe(normalizedDefault);
+      expect(fs.existsSync(filePath)).toBe(true);
+      expect(filePath.endsWith(`${uniqueId}.json`)).toBe(true);
+      console.log(`  [完成] 默认目录与 DEFAULT_PROMPT_DIR 一致: ${normalizedDefault}`);
+    } finally {
+      // 清理：仅删除本测试创建的文件
+      try { fs.unlinkSync(filePath); } catch {}
+    }
+  });
+
+  test("10. DEFAULT_SKILL_DIRS 与 DEFAULT_PROMPT_DIR 均为非空常量", () => {
+    console.log("\n[测试] 10: 常量定义完整性");
+
+    expect(Array.isArray(DEFAULT_SKILL_DIRS)).toBe(true);
+    expect(DEFAULT_SKILL_DIRS.length).toBeGreaterThan(0);
+    expect(DEFAULT_SKILL_DIRS.every(d => typeof d === "string" && d.length > 0)).toBe(true);
+
+    expect(typeof DEFAULT_PROMPT_DIR).toBe("string");
+    expect(DEFAULT_PROMPT_DIR.length).toBeGreaterThan(0);
+
+    console.log(`  [完成] DEFAULT_SKILL_DIRS: ${DEFAULT_SKILL_DIRS.join(", ")}`);
+    console.log(`  [完成] DEFAULT_PROMPT_DIR: ${DEFAULT_PROMPT_DIR}`);
   });
 });

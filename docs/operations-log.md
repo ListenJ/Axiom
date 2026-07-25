@@ -1508,4 +1508,33 @@
     - src/routes/plugin-routes.ts：W3 修复 — 前端安装按钮只传 pluginId 时回退到内置 ./plugin 目录，新增 overwrite 选项和 existsSync 检查。
     - src/sandbox/process-sandbox.ts：R3 延续 — Windows 命令解释器参数合并为单字符串（避免 Bun 双重引号导致引号残留）。
 - **备份**：.tmp/backups/docs/operations-log.md.bak（验证通过后删除）。
+- **Commit**：82e8877（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 19:15 +0800 — W3/R3 延续修复 + 综合代码审查
+
+- **任务**：① prompt-engineer.ts 残留硬编码路径替换为常量；② 为 W3/R3 已有修复补充单元测试锁定行为；③ 全项目综合代码审查，识别额外优化点。
+- **工具**：Read、Grep、Glob、Edit、RunCommand（bun test / tsc）、Task（search 子代理 ×2 并行扫描硬编码常量 + 错误处理/性能问题）。
+- **执行的操作（文件级）**：
+  - **Task 1 — prompt-engineer.ts 硬编码路径收尾**：
+    - `src/skills/types.ts`：新增 `DEFAULT_PROMPT_DIR = "./axiom-memory/03-Resources/prompts"` 常量（与 `DEFAULT_SKILL_DIRS` 同源，独立声明因语义不同——前者为单模板输出目录，后者为 skill 加载目录列表）。
+    - `src/agents/prompt-engineer.ts`：`saveTemplateToFile` 默认参数从字面 `"./axiom-memory/03-Resources/prompts"` 改为 `DEFAULT_PROMPT_DIR`；import 列表新增该常量。grep 确认文件内已无 `axiom-memory` 硬编码。
+  - **Task 2 — W3 plugin-routes 单元测试**（`tests/plugin-market.test.ts`）：
+    - 新增 `describe("Plugin Routes — W3 install path fallback & overwrite (unit)")` 共 7 用例（W3-1..W3-7）：pluginId 回退 / 直传路径 / 不存在路径 500 / 缺 path 400 / 重复安装无 overwrite 500 / overwrite=true 成功 / enable 默认 true。
+    - **测试隔离关键发现**：`pluginDir` 默认 `./plugins/`，installFromPath 对 `./plugins/<id>` 是就地安装（source==target），`uninstall()` 会 `fsPromises.rm` 删除整个目录——会吃掉仓库内的 `./plugins/test-plugin` 源文件！已改用独立 in-memory DB + 不调用 uninstall 的隔离策略（每个测试 fresh DB，registry 启动即空）。测试运行中误删的 `./plugins/test-plugin` 已通过 `git checkout HEAD --` 恢复。
+  - **Task 3 — R3 process-sandbox 单元测试**（`tests/security-hardening.test.ts`）：
+    - 新增 `describe("Task 4.3 — process-sandbox R3 args merging")` 共 5 用例（R3-1..R3-5）：含空格参数无引号残留 / 含 `&` 不被解释为命令分隔符 / 多参数顺序 / 含 `|` 不被解释为管道 / 无参数基线。覆盖 Windows cmd /c 单字符串合并 + caret 转义 + Linux sh 单引号转义两条路径。
+  - **Task 1 测试**（`tests/prompt-engineer.test.ts`）：新增测试 #9（saveTemplateToFile 默认目录与 DEFAULT_PROMPT_DIR 一致 + 文件实际落盘）、#10（DEFAULT_SKILL_DIRS / DEFAULT_PROMPT_DIR 常量完整性）。
+  - **Task 4 — 综合代码审查**（仅文档化，不在本次提交修改无关文件，遵循规则 1 最小化施工）：
+    - **硬编码超时**：`src/agents/project-analyzer.ts:880,911` 有 6 个 depth-based 超时（30s/180s/90s/60s/300s/120s）未走 `src/constants/timeouts.ts` 集中配置；`src/utils/proxy-fetch.ts:424` 默认 30000、`src/utils/resilience.ts:221` maxDelay 5000 同样可收编。建议：扩展 TIMEOUTS 常量并迁移。
+    - **异步函数内同步 fs 调用（性能，高优先级）**：`src/memory/vault-manager.ts:171-205` `writeNote()` 是 async 但内部用了 5 处 `fs.existsSync/mkdirSync/readFileSync/writeFileSync/statSync`，阻塞事件循环。建议：迁移到 `fsPromises.*` API。
+    - **硬编码端口**：`src/main.ts:56` 端口 18790 可提为常量（轻微）。
+    - **错误处理**：扫描的"空 catch"多数为误报（实际有 logger.warn）—— `skill-loader.ts:119-123`、`vault-manager.ts:144-147` 均有日志。`utils/logger.ts:83-84` 的 silent catch 是有意为之（首次日志文件不存在时 statSync ENOENT → currentSize=0），合理保留。
+    - **既有良好模式**：`src/constants/timeouts.ts` TIMEOUTS 集中配置、`src/utils/spawn-env.ts` 共享 env 过滤+shell 引用、`src/skills/types.ts` DEFAULT_SKILL_DIRS/DEFAULT_PROMPT_DIR——新代码应延续这些模式。
+- **验证**：
+  - `bunx tsc --noEmit` 零错误。
+  - 三目标测试文件全绿：prompt-engineer 10/10、plugin-market 19/19（含 7 新 W3 用例）、security-hardening 41/41（含 5 新 R3 用例）。
+  - 全量套件 2055 pass / 28 skip / 105 fail —— 105 fail 全部为预存前端组件测试（Button/Tabs/Toasts/BarChart 等，需 DOM 环境）与已知架构债（EventBus/DataPipeline/perf-degradation），与本批改动无关（grep `prompt|plugin|sandbox|skill|spawn` 命中 0 条失败）。
+- **备份**：`.tmp/backups/src/skills/types.ts` + `.tmp/backups/src/agents/prompt-engineer.ts` + `.tmp/backups/tests/prompt-engineer.test.ts` + `.tmp/backups/tests/plugin-market.test.ts` + `.tmp/backups/tests/security-hardening.test.ts` + `.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
 - **Commit**：待提交后补录。

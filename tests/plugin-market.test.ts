@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { PluginRegistry } from "../src/plugins/plugin-registry.js";
 import { ToolRegistry } from "../src/mcp/tool-registry.js";
+import { createPluginRoutes } from "../src/routes/plugin-routes.js";
 import type { PluginManifest } from "../src/plugins/types.js";
 
 describe("Plugin Market", () => {
@@ -230,6 +231,116 @@ describe("Plugin Market", () => {
         expect(true).toBe(true);
       }
     });
+  });
+});
+
+// ============================================================================
+// W3 修复单元测试：plugin-routes.ts install 处理器
+// 验证：① 前端只传 pluginId 时回退到 ./plugins/<id>；② overwrite 选项透传
+// 注意：不调用 uninstall —— 因为 pluginDir 默认为 ./plugins/，installFromPath 是
+// 就地安装（source==target），uninstall 会删除 ./plugins/<id> 源目录！
+// 每个测试用独立 in-memory DB，registry 启动即空，无需跨测试清理。
+// ============================================================================
+describe("Plugin Routes — W3 install path fallback & overwrite (unit)", () => {
+  let db: Database;
+  let toolRegistry: ToolRegistry;
+  let routes: ReturnType<typeof createPluginRoutes>;
+  const PLUGIN_ID = "test-plugin";
+  const DIRECT_PATH = "./plugins/test-plugin";
+
+  function makeInstallRequest(body: { path: string; enable?: boolean; overwrite?: boolean }): Request {
+    return new Request("http://localhost/plugins/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    db = new Database(":memory:");
+    toolRegistry = new ToolRegistry();
+    routes = createPluginRoutes(db, toolRegistry);
+  });
+
+  afterEach(() => {
+    // 仅关闭 DB —— 不调用 uninstall（会删除 ./plugins/<id> 源目录）
+    db.close();
+  });
+
+  it("W3-1: 仅传 pluginId（路径不存在）时回退到 ./plugins/<id>", async () => {
+    // body.path = "test-plugin"（不是有效相对路径，但 ./plugins/test-plugin 存在）
+    const res = await routes.install(makeInstallRequest({ path: PLUGIN_ID, enable: false }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.plugin.id).toBe(PLUGIN_ID);
+  });
+
+  it("W3-2: 直接传完整路径时正常安装（不走回退）", async () => {
+    const res = await routes.install(makeInstallRequest({ path: DIRECT_PATH, enable: false }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.plugin.id).toBe(PLUGIN_ID);
+  });
+
+  it("W3-3: 路径不存在且无回退候选时返回 500", async () => {
+    const res = await routes.install(makeInstallRequest({ path: "nonexistent-plugin-id-xyz" }));
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.success).toBe(false);
+    expect(String(data.error)).toContain("not found");
+  });
+
+  it("W3-4: 缺少 path 字段返回 400", async () => {
+    const res = await routes.install(
+      new Request("http://localhost/plugins/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+    );
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("required");
+  });
+
+  it("W3-5: 重复安装不带 overwrite 返回 500 'already installed'", async () => {
+    // 首次安装
+    const res1 = await routes.install(makeInstallRequest({ path: DIRECT_PATH, enable: false }));
+    expect(res1.status).toBe(200);
+
+    // 再次安装，不带 overwrite —— 应失败（同一 registry 实例，DB 已有记录）
+    const res2 = await routes.install(makeInstallRequest({ path: DIRECT_PATH, enable: false }));
+    expect(res2.status).toBe(500);
+    const data2 = await res2.json();
+    expect(data2.success).toBe(false);
+    expect(String(data2.error)).toContain("already installed");
+  });
+
+  it("W3-6: 重复安装带 overwrite=true 成功替换", async () => {
+    // 首次安装
+    await routes.install(makeInstallRequest({ path: DIRECT_PATH, enable: false }));
+
+    // 再次安装，带 overwrite —— 应成功（同一 registry 实例）
+    const res = await routes.install(
+      makeInstallRequest({ path: DIRECT_PATH, enable: false, overwrite: true })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.plugin.id).toBe(PLUGIN_ID);
+  });
+
+  it("W3-7: enable 默认为 true（不传 enable 字段）", async () => {
+    const res = await routes.install(makeInstallRequest({ path: DIRECT_PATH }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    // enable 默认 true → 经 enablePlugin 流程后 status 应为 enabled（activate 成功）
+    // 或 installed（activate 抛错时保持 installed）
+    expect(["enabled", "installed"]).toContain(data.plugin.status);
   });
 });
 

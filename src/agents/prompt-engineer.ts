@@ -17,6 +17,7 @@ import {
   type SkillDefinition,
   type PromptMatchResult,
   DEFAULT_SKILL_DIRS,
+  DEFAULT_PROMPT_DIR,
 } from "../skills/types.js";
 import { loadSkillsFromDirectories } from "../skills/skill-loader.js";
 
@@ -784,7 +785,7 @@ ${triggers.join(", ")}
   /**
    * 保存模板到文件
    */
-  saveTemplateToFile(template: PromptTemplate, dir: string = "./axiom-memory/03-Resources/prompts"): string {
+  saveTemplateToFile(template: PromptTemplate, dir: string = DEFAULT_PROMPT_DIR): string {
     const filePath = path.join(dir, `${template.id}.json`);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(template, null, 2), "utf-8");

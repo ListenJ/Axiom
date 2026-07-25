@@ -75,3 +75,10 @@ export const DEFAULT_SKILL_DIRS = [
   "./axiom-memory/03-Resources/skills",
   "./data/skills",
 ] as const;
+
+/**
+ * 默认 prompt 模板保存目录（2026-07-26 W3 延续：与 DEFAULT_SKILL_DIRS 同源，
+ * 消除 prompt-engineer.ts saveTemplateToFile 中的硬编码路径）。
+ * 仅为单个模板文件的默认输出目录，与 skill 加载目录语义不同，故独立声明。
+ */
+export const DEFAULT_PROMPT_DIR = "./axiom-memory/03-Resources/prompts";

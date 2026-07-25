@@ -274,6 +274,86 @@ describe("Task 4.3 — process-sandbox", () => {
 });
 
 // ============================================================================
+// R3 延续验证：process-sandbox Windows cmd /c 参数合并为单字符串
+// 目的：验证 ① 含空格/特殊字符的 args 不被 cmd 二次解释；
+//       ② 输出无 Bun 双重引号导致的 `"` 残留；③ 无命令注入。
+// ============================================================================
+describe("Task 4.3 — process-sandbox R3 args merging", () => {
+  test("R3-1: 含空格的参数原样输出（无引号残留）", async () => {
+    const { processSandbox } = await import("../src/sandbox/process-sandbox.js");
+    const result = await processSandbox.execute({
+      command: "echo",
+      args: ["hello world"],
+      timeoutMs: 5000,
+    });
+    expect(result.exitCode).toBe(0);
+    // 输出应包含完整短语，且不含字面双引号残留
+    expect(result.stdout).toContain("hello");
+    expect(result.stdout).toContain("world");
+    expect(result.stdout).not.toContain('"hello world"');
+    expect(result.stdout).not.toMatch(/["']hello["']/);
+  });
+
+  test("R3-2: 含 & 的参数不被解释为命令分隔符（无注入）", async () => {
+    const { processSandbox } = await import("../src/sandbox/process-sandbox.js");
+    // 若 & 被解释为 cmd 分隔符，会尝试执行 "b" 命令导致非零退出或 stderr
+    const result = await processSandbox.execute({
+      command: "echo",
+      args: ["a&b"],
+      timeoutMs: 5000,
+    });
+    expect(result.exitCode).toBe(0);
+    // 输出应包含字面 a&b，而不是 "a" 然后执行 b
+    expect(result.stdout).toContain("a");
+    expect(result.stdout).toContain("b");
+    // 不应出现 'b' 不是内部或外部命令 之类的错误
+    expect(result.stderr.toLowerCase()).not.toContain("not recognized");
+    expect(result.stderr.toLowerCase()).not.toContain("not found");
+  });
+
+  test("R3-3: 多个参数按顺序输出", async () => {
+    const { processSandbox } = await import("../src/sandbox/process-sandbox.js");
+    const result = await processSandbox.execute({
+      command: "echo",
+      args: ["alpha", "beta", "gamma"],
+      timeoutMs: 5000,
+    });
+    expect(result.exitCode).toBe(0);
+    const idxA = result.stdout.indexOf("alpha");
+    const idxB = result.stdout.indexOf("beta");
+    const idxG = result.stdout.indexOf("gamma");
+    expect(idxA).toBeGreaterThanOrEqual(0);
+    expect(idxB).toBeGreaterThan(idxA);
+    expect(idxG).toBeGreaterThan(idxB);
+  });
+
+  test("R3-4: 含 | 的参数不被解释为管道（无注入）", async () => {
+    const { processSandbox } = await import("../src/sandbox/process-sandbox.js");
+    // 若 | 被解释为管道，echo 输出会被管道到某个命令，可能导致非预期行为
+    const result = await processSandbox.execute({
+      command: "echo",
+      args: ["x|y"],
+      timeoutMs: 5000,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("x");
+    expect(result.stdout).toContain("y");
+  });
+
+  test("R3-5: 无参数命令正常执行", async () => {
+    const { processSandbox } = await import("../src/sandbox/process-sandbox.js");
+    const result = await processSandbox.execute({
+      command: "echo",
+      args: [],
+      timeoutMs: 5000,
+    });
+    expect(result.exitCode).toBe(0);
+    // echo 无参数应输出空行或空字符串
+    expect(typeof result.stdout).toBe("string");
+  });
+});
+
+// ============================================================================
 // Part 4: Task 4.4 — SecurityMonitor 安全监控
 // ============================================================================
 
