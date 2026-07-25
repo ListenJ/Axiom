@@ -1163,7 +1163,7 @@
   - `bun test tests/coverage-gap/knowledge-store.test.ts`：43 pass / 0 fail。
   - `bun test tests/bug-hunt/ tests/coverage-gap/knowledge-store.test.ts tests/auth-check.test.ts tests/dre-retrieval-engine.test.ts tests/edge-cases/abnormal-input.test.ts`：164 pass / 0 fail（无回归）。
 - **备份**：`.tmp/backups/` 下 3 个文件（knowledge-network.ts×2、auth-check.ts），验证通过后已删除。
-- **Commit**：待提交后补录。
+- **Commit**：`da463c9`（已推送 `internal211/main`）。
 
 
 ---
