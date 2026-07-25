@@ -1245,3 +1245,18 @@
 - **验证**：本批修改已在整理前压测中验证（1873 pass / 5 fail，均为预存问题，未引入回归）。本次提交仅为 git 操作，不涉及代码改动，无需重新测试。
 - **备份**：`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
 - **Commit**：`14c083f`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-25 16:20 +0800 — 边缘小模型层 Phase 0：客户端基础设施
+
+- **任务**：接入 llama.cpp MiniCPM5-1B（http://192.168.0.150:9001），建立边缘小模型客户端基础设施（四大能力共用）。
+- **工具**：Read/Edit/Write/Bash（curl 冒烟、bun test、tsc）。
+- **执行的操作（文件级）**：
+  - 备份 `src/dre/llm/client.ts` 到 `.tmp/backups/src/dre/llm/client.ts`（规则 2，验证通过后已删除）。
+  - `src/dre/llm/client.ts`：`LLMConfig` 新增可选 `chatTemplateKwargs`，`generate()`/`streamGenerate()` 请求体透传 `chat_template_kwargs`（MiniCPM5 为 reasoning 模型，用于关闭思考）。
+  - 新建 `src/local-llm/edge-client.ts`：`getEdgeClient()` 单例（timeout 8s、熔断 3 次/30s、默认关闭思考）、`isEdgeEnabled()` 功能开关、`extractJson()` 容错解析。
+  - 新建 `scripts/edge-health.ts`：真实端点冒烟脚本。
+  - 新建 `tests/local-llm-edge.test.ts`：9 个用例（TDD 先红后绿）。
+- **验证**：`bun test tests/local-llm-edge.test.ts` 9 pass；`bun test tests/dre-core-modules.test.ts` 94 pass 无回归；`tsc --noEmit` 无错误；`scripts/edge-health.ts` 真实端点 94ms 返回 `risk=high`。
+- **Commit**：（提交后补上）。

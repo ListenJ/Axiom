@@ -50,6 +50,7 @@ export interface LLMConfig {
   timeout?: number;         // 默认 120000ms
   retry?: Partial<RetryConfig>;     // 重试配置
   circuitBreaker?: Partial<CircuitBreakerConfig>; // 熔断器配置
+  chatTemplateKwargs?: Record<string, unknown>; // 透传 llama.cpp chat_template_kwargs (如 { enable_thinking: false })
 }
 
 /** LLM 响应 */
@@ -235,6 +236,7 @@ export class LLMClient {
       max_tokens: options?.maxTokens ?? this.config.maxTokens,
       seed: this.config.seed,
       stop: options?.stop,
+      ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
     });
 
     const headers = {
@@ -351,6 +353,7 @@ export class LLMClient {
         max_tokens: options?.maxTokens ?? this.config.maxTokens,
         seed: this.config.seed,
         stream: true,
+        ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
       }),
       signal: AbortSignal.timeout(this.config.timeout!),
     });
