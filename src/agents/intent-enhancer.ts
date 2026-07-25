@@ -21,6 +21,7 @@
 
 import { callProvider } from "../router/provider-caller.js";
 import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
+import type { LLMClient } from "../dre/llm/client.js";
 import { logger } from "../utils/logger.js";
 import type { IntentResult } from "./intent-router.js";
 
@@ -96,28 +97,30 @@ export function shouldEnhanceIntent(baseIntent: IntentResult): boolean {
 }
 
 /**
- * 用 GLM4.7-flash 做语义级意图分类。
+ * 语义级意图分类（双层：边缘小模型 → zhipu GLM4.7-flash）。
  *
  * @param userInput   用户原始输入
  * @param baseIntent  关键词匹配的初步结果（作为 fallback）
+ * @param client      可注入的边缘客户端（测试用；默认边缘单例）
  * @returns 增强后的 IntentResult（可能修正 intent / 提升 confidence）；失败时返回 baseIntent
  */
 export async function enhanceIntentWithLLM(
   userInput: string,
   baseIntent: IntentResult,
+  client?: Pick<LLMClient, "generate">,
 ): Promise<IntentResult> {
   // 截断超长输入（防止恶意消耗 token，GLM4.7-flash 200K ctx 但意图分类不需要全量）
   const truncatedInput = userInput.length > MAX_INPUT_CHARS
     ? userInput.slice(0, MAX_INPUT_CHARS)
     : userInput;
 
-  // ── 第一层：边缘小模型 (MiniCPM5-1B, 本地免费 ~100ms) ──
+  // ── 第一层：边缘小模型（本地免费 ~150ms） ──
   // 失败/非法输出时继续走下方 zhipu 路径，构成双轨回退链
   if (isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")) {
     try {
-      const edgeResp = await getEdgeClient().generate(
+      const edgeResp = await (client ?? getEdgeClient()).generate(
         buildEdgeClassifierPrompt(truncatedInput),
-        { maxTokens: 64 },
+        { maxTokens: 64, answerPrefix: '{"intent":"' },
       );
       const parsed = parseClassifierResponse((edgeResp.content ?? "").trim());
       if (parsed && VALID_INTENTS.has(parsed.intent)) {

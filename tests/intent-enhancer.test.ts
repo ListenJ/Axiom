@@ -37,22 +37,24 @@ mock.module("../src/router/provider-caller.js", () => ({
   callProviderNativeStream: mock(() => Promise.resolve({ content: "" })),
 }));
 
-/** 共享的边缘客户端 generate mock；默认拒绝（回退到 zhipu 路径） */
-const mockEdgeGenerate = mock(
-  (_prompt?: string, _options?: unknown): Promise<unknown> =>
-    Promise.reject(new Error("edge not configured for this test")),
-);
+// 注意：边缘客户端不做全局模块 mock（bun 同进程 mock 会泄漏污染其他测试文件）。
+// 改为：1) 默认在本文件内 EDGE_PROMPT_OPTIMIZER=0 关闭边缘路径（zhipu 路径用例）
+//      2) 边缘用例通过 enhanceIntentWithLLM 第三参数注入 fake client
 
-// 边缘客户端 mock：intent-enhancer 的 LLM 第一层（默认失败 → 走 zhipu 第二层）
-// isEdgeEnabled 保持与真实实现一致的 env 判断（无网络），避免 mock 泄漏影响其他测试文件
-mock.module("../src/local-llm/edge-client.js", () => ({
-  getEdgeClient: () => ({ generate: mockEdgeGenerate }),
-  isEdgeEnabled: (flag: string) => {
-    const v = (process.env[flag] ?? "1").toLowerCase();
-    return v !== "0" && v !== "false";
-  },
-  extractJson: (s: string) => JSON.parse(s),
-}));
+/** 构造 fake 边缘客户端 */
+function fakeEdgeClient(impl: () => { content: string }) {
+  let calls = 0;
+  return {
+    client: {
+      generate: async () => {
+        calls++;
+        const r = impl();
+        return { content: r.content, model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" };
+      },
+    },
+    getCalls: () => calls,
+  };
+}
 
 // 现在 import intent-enhancer —— 它会绑定到上面的 mock callProvider
 const { shouldEnhanceIntent, buildEnhancedSystemPrompt, enhanceIntentWithLLM } =
@@ -73,21 +75,18 @@ function makeIntent(overrides: Partial<IntentResult> = {}): IntentResult {
   };
 }
 
-/** 每个测试前重置 mock 调用记录与默认实现 */
+/** 每个测试前重置 mock 调用记录与默认实现；默认关闭边缘路径（走 zhipu） */
 beforeEach(() => {
   mockCallProvider.mockReset();
   mockCallProvider.mockImplementation(() =>
     Promise.reject(new Error("mock not configured for this test")),
   );
-  mockEdgeGenerate.mockReset();
-  mockEdgeGenerate.mockImplementation(() =>
-    Promise.reject(new Error("edge not configured for this test")),
-  );
+  process.env.EDGE_PROMPT_OPTIMIZER = "0";
 });
 
 afterEach(() => {
   mockCallProvider.mockReset();
-  mockEdgeGenerate.mockReset();
+  delete process.env.EDGE_PROMPT_OPTIMIZER;
 });
 
 // ─────────────────────────────────────────────────────────
@@ -341,14 +340,10 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
 
 describe("intent-enhancer — 边缘小模型优先", () => {
   test("边缘模型返回合法 JSON 时直接使用，不调用 zhipu", async () => {
-    mockEdgeGenerate.mockImplementation(() =>
-      Promise.resolve({
-        content: '{"intent": "code", "confidence": 0.88}',
-        model: "MiniCPM5-1B",
-        usage: { promptTokens: 10, completionTokens: 8 },
-        finishReason: "stop",
-      }),
-    );
+    process.env.EDGE_PROMPT_OPTIMIZER = "1";
+    const { client, getCalls } = fakeEdgeClient(() => ({
+      content: '{"intent": "code", "confidence": 0.88}',
+    }));
     mockCallProvider.mockImplementation(() =>
       Promise.resolve({
         content: '{"intent": "chat", "confidence": 0.99}',
@@ -358,22 +353,16 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("写一个排序算法", makeIntent({ confidence: 0.2 }));
+    const result = await enhanceIntentWithLLM("写一个排序算法", makeIntent({ confidence: 0.2 }), client);
 
     expect(result.intent).toBe("code");
-    expect(mockEdgeGenerate).toHaveBeenCalledTimes(1);
+    expect(getCalls()).toBe(1);
     expect(mockCallProvider).not.toHaveBeenCalled();
   });
 
   test("边缘模型返回垃圾时回退 zhipu 第二层", async () => {
-    mockEdgeGenerate.mockImplementation(() =>
-      Promise.resolve({
-        content: "我无法分类这个输入",
-        model: "MiniCPM5-1B",
-        usage: { promptTokens: 10, completionTokens: 8 },
-        finishReason: "stop",
-      }),
-    );
+    process.env.EDGE_PROMPT_OPTIMIZER = "1";
+    const { client } = fakeEdgeClient(() => ({ content: "我无法分类这个输入" }));
     mockCallProvider.mockImplementation(() =>
       Promise.resolve({
         content: '{"intent": "research", "confidence": 0.9}',
@@ -383,14 +372,17 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("分析行业趋势", makeIntent({ confidence: 0.1 }));
+    const result = await enhanceIntentWithLLM("分析行业趋势", makeIntent({ confidence: 0.1 }), client);
 
     expect(result.intent).toBe("research");
     expect(mockCallProvider).toHaveBeenCalledTimes(1);
   });
 
   test("边缘模型抛异常时回退 zhipu 第二层", async () => {
-    mockEdgeGenerate.mockImplementation(() => Promise.reject(new Error("circuit breaker is OPEN")));
+    process.env.EDGE_PROMPT_OPTIMIZER = "1";
+    const { client } = fakeEdgeClient(() => {
+      throw new Error("circuit breaker is OPEN");
+    });
     mockCallProvider.mockImplementation(() =>
       Promise.resolve({
         content: '{"intent": "write", "confidence": 0.85}',
@@ -400,7 +392,7 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("写一份周报", makeIntent({ confidence: 0.1 }));
+    const result = await enhanceIntentWithLLM("写一份周报", makeIntent({ confidence: 0.1 }), client);
 
     expect(result.intent).toBe("write");
   });

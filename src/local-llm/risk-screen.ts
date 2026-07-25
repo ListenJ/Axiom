@@ -53,7 +53,7 @@ export async function screenPayloadWithEdge(
 
     const resp = await llm.generate(
       `Classify risk of the following ${label}: ${truncated}. Reply JSON {"risk":"low|medium|high","reason":"<=15 words"}`,
-      { maxTokens: 60 },
+      { maxTokens: 60, answerPrefix: '{"risk":"' },
     );
 
     const parsed = extractJson<{ risk?: unknown; reason?: unknown }>(resp.content ?? "");

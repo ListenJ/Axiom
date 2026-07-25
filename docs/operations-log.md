@@ -1303,4 +1303,22 @@
   - `src/agents/execution-mode.ts`：新增 `requestApprovalForced()`（YOLO 不豁免的强制审批，宪法第 4 条安全 > 效率）；`executeWithModeGuard()` 在 canExecute 后接入双层监视。
   - 新建 `tests/risk-monitor.test.ts`：20 用例（提取/初筛降级/双层编排/开关旁路，全 DI fake）。
 - **验证**：20 pass；`tsc --noEmit` 无错误；真实端点初筛 4/4 正确（rm -rf/ssh keys/curl|bash → HIGH，ls → LOW，~1.3-1.6s 带理由）。
+- **Commit**：`9024cc3`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-25 21:30 +0800 — 适配 Qwopus3.5-2B：completion transport + JSON 前缀引导
+
+- **背景**：用户将边缘模型换为 Qwopus3.5-2B-v3-Q5_K_S。实测该模型 chat template 强制思考且 `enable_thinking` 无效，max_tokens=600 也想不完（content 永远为空）；原生 /completion + JSON 前缀引导可正常作答。
+- **工具**：Read/Edit/Write/Bash（curl 探测、bun test、tsc、真实端点验证）。
+- **执行的操作（文件级）**：
+  - 备份 `src/dre/llm/client.ts` 到 `.tmp/backups/`（验证通过后已删除）。
+  - `src/dre/llm/client.ts`：`LLMConfig.transport`（"chat"|"completion"）；completion 模式拍平 prompt + `Answer: ` 引导 + 剥离 think 块；`generate()` 新增 `answerPrefix` 选项（前缀引导+自动拼回）。
+  - `src/local-llm/edge-client.ts`：`EDGE_LLM_TRANSPORT` 环境变量选择 transport。
+  - JSON 类调用点全部加引导前缀：intent-enhancer `'{"intent":"'`、risk-screen `'{"risk":"'`、edge-assist 显著性/标签、prompt-optimizer 忠实度。
+  - `src/agents/intent-enhancer.ts`：`enhanceIntentWithLLM` 增加可选 client 参数（DI）；`tests/intent-enhancer.test.ts` 移除全局模块 mock（修复 bun 同进程 mock 泄漏污染其他测试文件），边缘路径改 DI fake。
+  - `src/agents/prompt-optimizer.ts`：闸门 1 新增"照抄原文=未改写"拒绝（2B echo 行为防护）。
+  - `tests/local-llm-edge.test.ts`：completion transport 用例（think 剥离+前缀拼回）。
+- **2B 模型实测（EDGE_LLM_TRANSPORT=completion）**：意图分类 4/4（~170-190ms，置信度校准）；风险初筛 rm→MEDIUM、curl|bash→HIGH、mkfs→LOW（漏判，由正则硬底线兜底）；改写照抄被闸门拒绝（2B 改写不可用，自动回退原文）；标签可用但偏英文；标题照抄原文。**结论：2B 仅分类任务可用且需 completion 模式；4B（chat 模式）全能力达标，建议边缘层用 4B。**
+- **验证**：188 pass（6 测试文件）；`tsc --noEmit` 无错误。
 - **Commit**：（提交后补上）。

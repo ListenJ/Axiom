@@ -116,10 +116,11 @@ export async function optimizePromptWithEdge(
   }
 }
 
-/** 闸门 1 校验：非空、未退化、未异常膨胀 */
+/** 闸门 1 校验：非空、未退化、未异常膨胀、非原样照抄 */
 function isValidOptimization(optimized: string, original: string): boolean {
   if (optimized.length < 8) return false;
   if (optimized.length > original.length * MAX_OUTPUT_RATIO + 200) return false;
+  if (optimized === original.trim()) return false; // 照抄原文等于没改写
   return true;
 }
 
@@ -145,7 +146,7 @@ async function verifyFidelity(
 ): Promise<boolean> {
   const resp = await llm.generate(
     `判断改写是否忠实于原文（意思一致且语言相同）。原文：【${original}】改写：【${optimized}】只回答JSON {"faithful": true或false}`,
-    { maxTokens: 40 },
+    { maxTokens: 40, answerPrefix: '{"faithful":' },
   );
   const parsed = extractJson<{ faithful?: unknown }>(resp.content ?? "");
   return parsed?.faithful === true;

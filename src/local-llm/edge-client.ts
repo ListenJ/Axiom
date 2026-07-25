@@ -7,8 +7,10 @@
  * 配置 (env):
  * - EDGE_LLM_URL   默认 http://192.168.0.150:9001 (LLMClient 自拼 /v1)
  * - EDGE_LLM_MODEL 默认 MiniCPM5-1B (llama.cpp 忽略 model 字段)
+ * - EDGE_LLM_TRANSPORT 默认 "chat"; 设为 "completion" 走原生 /completion
+ *   (chat template 强制思考且无法关闭的模型需要, 如 Qwopus3.5-2B)
  *
- * MiniCPM5 是 reasoning 模型, 默认携带 chat_template_kwargs
+ * MiniCPM5/Qwopus4B 是 reasoning 模型, chat 模式默认携带 chat_template_kwargs
  * { enable_thinking: false } 关闭思考, 保证分类/改写任务低延迟。
  */
 
@@ -24,6 +26,7 @@ export function getEdgeClient(): LLMClient {
       model: process.env.EDGE_LLM_MODEL || "MiniCPM5-1B",
       timeout: 8000,
       maxTokens: 512,
+      transport: process.env.EDGE_LLM_TRANSPORT === "completion" ? "completion" : "chat",
       chatTemplateKwargs: { enable_thinking: false },
       retry: { maxRetries: 1 },
       circuitBreaker: { failureThreshold: 3, cooldownMs: 30000 },

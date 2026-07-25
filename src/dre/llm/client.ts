@@ -51,6 +51,7 @@ export interface LLMConfig {
   retry?: Partial<RetryConfig>;     // 重试配置
   circuitBreaker?: Partial<CircuitBreakerConfig>; // 熔断器配置
   chatTemplateKwargs?: Record<string, unknown>; // 透传 llama.cpp chat_template_kwargs (如 { enable_thinking: false })
+  transport?: "chat" | "completion"; // 默认 "chat"; "completion" 走 llama.cpp 原生 /completion (绕过 chat template, 用于思考无法关闭的模型)
 }
 
 /** LLM 响应 */
@@ -212,6 +213,7 @@ export class LLMClient {
     maxTokens?: number;
     temperature?: number;
     stop?: string[];
+    answerPrefix?: string;  // completion 模式的前缀引导 (如 '{"risk":"'), 返回内容会自动拼回该前缀
   }): Promise<LLMResponse> {
     // 熔断器检查
     if (!this.canExecute()) {
@@ -222,22 +224,43 @@ export class LLMClient {
     }
 
     this.stats.totalCalls++;
-    const messages = [];
-    if (options?.system) {
-      messages.push({ role: "system", content: options.system });
-    }
-    messages.push({ role: "user", content: prompt });
+    const useRawCompletion = this.config.transport === "completion";
 
-    const body = JSON.stringify({
-      model: this.config.model,
-      messages,
-      temperature: options?.temperature ?? this.config.temperature,
-      top_k: this.config.topK,
-      max_tokens: options?.maxTokens ?? this.config.maxTokens,
-      seed: this.config.seed,
-      stop: options?.stop,
-      ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
-    });
+    let url: string;
+    let body: string;
+    if (useRawCompletion) {
+      // 原生 /completion 模式：system+user 拍平为单段 prompt, "Answer:" 引导直接作答
+      // (用于 chat template 强制思考且无法关闭的模型, 如 Qwopus3.5-2B)
+      const flat = options?.system ? `${options.system}\n\n${prompt}` : prompt;
+      url = `${this.config.baseUrl}/completion`;
+      body = JSON.stringify({
+        prompt: `${flat}\nAnswer: ${options?.answerPrefix ?? ""}`,
+        n_predict: options?.maxTokens ?? this.config.maxTokens,
+        temperature: options?.temperature ?? this.config.temperature,
+        top_k: this.config.topK,
+        seed: this.config.seed,
+        cache_prompt: true,
+        stop: options?.stop ?? ["\n\n"],
+      });
+    } else {
+      const messages = [];
+      if (options?.system) {
+        messages.push({ role: "system", content: options.system });
+      }
+      messages.push({ role: "user", content: prompt });
+
+      url = `${this.config.baseUrl}/v1/chat/completions`;
+      body = JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: options?.temperature ?? this.config.temperature,
+        top_k: this.config.topK,
+        max_tokens: options?.maxTokens ?? this.config.maxTokens,
+        seed: this.config.seed,
+        stop: options?.stop,
+        ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
+      });
+    }
 
     const headers = {
       "Content-Type": "application/json",
@@ -249,7 +272,7 @@ export class LLMClient {
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
+        const response = await fetch(url, {
           method: "POST",
           headers,
           body,
@@ -279,6 +302,29 @@ export class LLMClient {
           throw err;
         }
 
+        this.recordSuccess();
+        if (useRawCompletion) {
+          const raw = await response.json() as {
+            content: string;
+            stop: boolean;
+            model: string;
+            tokens_evaluated?: number;
+            tokens_predicted?: number;
+          };
+          return {
+            // 剥离可能残留的 <think> 块 (2B 类模型在补全模式也会思考);
+            // answerPrefix 引导词拼回 (模型从前缀处续写, 完整输出 = 前缀 + 续写)
+            content: (options?.answerPrefix ?? "") +
+              (raw.content ?? "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim(),
+            model: raw.model ?? this.config.model,
+            usage: {
+              promptTokens: raw.tokens_evaluated ?? 0,
+              completionTokens: raw.tokens_predicted ?? 0,
+            },
+            finishReason: raw.stop ? "stop" : "length",
+          };
+        }
+
         const data = await response.json() as {
           choices: Array<{
             message: { content: string };
@@ -288,7 +334,6 @@ export class LLMClient {
           usage: { prompt_tokens: number; completion_tokens: number };
         };
 
-        this.recordSuccess();
         return {
           content: data.choices[0].message.content,
           model: data.model,

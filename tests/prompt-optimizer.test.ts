@@ -96,6 +96,13 @@ describe("optimizePromptWithEdge", () => {
     expect(result.text).toBe(LONG_INPUT);
   });
 
+  test("照抄原文视为未改写（changed=false）", async () => {
+    const { client } = fakeClient(handlerReturning(LONG_INPUT, true));
+    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+    expect(result.changed).toBe(false);
+    expect(result.text).toBe(LONG_INPUT);
+  });
+
   test("模型调用失败时回退原文", async () => {
     const { client } = fakeClient(() => {
       throw new Error("connection refused");
