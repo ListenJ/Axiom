@@ -393,9 +393,10 @@ if (transport === "stdio") {
   const stdio = new StdioServerTransport();
   mcp.connect(stdio);
 } else {
-  // HTTP 传输：构建 handlers 和 meta
-  const toolHandlers = registry.buildHttpHandlers();
-  const toolsMeta = registry.getToolsMeta();
+  // HTTP 传输：SDK Streamable HTTP（2026-07-26 替换自制 JSON-RPC-over-POST）
+  // 兼容性：Claude Code / Codex CLI / Cursor 等标准 MCP 远程客户端可直接连接；
+  // 自制协议缺失 inputSchema、notifications/initialized、协议协商，已废弃。
+  // 无状态模式：SDK 要求每请求新建 server+transport（注册为纯内存操作，开销可忽略）。
   const port = Number(readString("MCP_PORT", "3001"));
   // 安全（2026-07-26 审查修复）：
   // - 默认仅绑定回环（MCP_HOST=0.0.0.0 才暴露网络，此前 Bun 默认 0.0.0.0 全无认证）
@@ -403,72 +404,27 @@ if (transport === "stdio") {
   const hostname = readString("MCP_HOST", "127.0.0.1");
   const apiKey = readString("AXIOM_AUTH_TOKEN");
 
+  const { WebStandardStreamableHTTPServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+  );
+
   Bun.serve({
     port,
     hostname,
     async fetch(req, server) {
-      if (req.method !== "POST") return Response.json({ error: "Only POST supported" }, { status: 405 });
       const remoteAddr = server.requestIP(req)?.address;
       if (!checkApiKey(req, isLocalAddress(remoteAddr), apiKey)) {
         logger.warn("[MCP] Unauthorized request rejected", { remote: remoteAddr });
         return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
       }
-      try {
-        const body = await req.json();
-        if (body.method === "initialize") {
-          return Response.json({
-            jsonrpc: "2.0", id: body.id,
-            result: {
-              protocolVersion: "2024-11-05",
-              capabilities: { tools: { listChanged: true } },
-              serverInfo: { name: "Axiom Agent MCP Server", version: "4.0.0" },
-            },
-          });
-        }
-        if (body.method === "initialized") {
-          return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
-        }
-        if (body.method === "tools/list") {
-          return Response.json({
-            jsonrpc: "2.0", id: body.id,
-            result: { tools: toolsMeta },
-          });
-        }
-        if (body.method === "tools/call") {
-          const { name, arguments: args } = body.params;
-          const handler = toolHandlers[name];
-          if (!handler) {
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              error: { code: -32602, message: `Tool '${name}' not found` },
-            }, { status: 400 });
-          }
-          try {
-            const result = await withTimeout(
-              withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
-              TIMEOUTS.MCP_TOOL_DEFAULT
-            );
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              result: {
-                content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-              },
-            });
-          } catch (err) {
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              result: {
-                content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
-                isError: true,
-              },
-            });
-          }
-        }
-        return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
-      } catch (err) {
-        return Response.json({ error: (err as Error).message }, { status: 400 });
-      }
+      const reqServer = new McpServer({ name: "Axiom Agent MCP Server", version: "2.9.2" });
+      registry.registerWithMcp(reqServer);
+      const httpTransport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
+      await reqServer.connect(httpTransport);
+      return httpTransport.handleRequest(req);
     },
   });
-  logger.info(`[MCP] Server running on http://${hostname}:${port} (auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);
+  logger.info(`[MCP] Server running on http://${hostname}:${port} (streamable-http, auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);
 }
