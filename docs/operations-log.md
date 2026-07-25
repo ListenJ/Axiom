@@ -1434,4 +1434,4 @@
   - 新建 `tests/security-fixes.test.ts`（16 用例）、`docs/SECURITY-REVIEW.md`（终审报告）。
 - **实测**：Omini 真实 CUDA 代码问答通过；/chat 链路死模型耗时从 ~50s 降到 ~4s；MCP 回环绑定+401 实证；/config 无 token；/models 401+脱敏；SSRF 内网抓取被拒；env 无密钥；fs .env 被拒。
 - **验证**：16 pass + 全量 2000+ 回归零新增失败（5 个预存失败 stash 对比确认）；`tsc --noEmit` 全绿。
-- **Commit**：（提交后补上）。
+- **Commit**：`9ec88b0`（安全批次）+ router 批次见下条（已推送 `internal211/main`）。
