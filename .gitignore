@@ -154,3 +154,9 @@ ai-daily-*.md
 
 # SDD progress
 .superpowers/
+
+# === Local-only tools / sensitive docs (not for repo) ===
+# media-tools/: 本地媒体处理 PowerShell 脚本，与项目无关
+media-tools/
+# docs/services.md: 服务器服务清单（含 SSH 凭据等敏感信息），禁止入库
+docs/services.md

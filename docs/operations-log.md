@@ -1165,3 +1165,56 @@
 - **备份**：`.tmp/backups/` 下 3 个文件（knowledge-network.ts×2、auth-check.ts），验证通过后已删除。
 - **Commit**：待提交后补录。
 
+
+---
+
+## 2026-07-25 10:30 +0800 — 文件树整理前压测验证（保留工作区未提交修改）
+
+- **任务**：按用户要求，在整理仓库文件树前对当前版本完成彻底压测和检查。工作区有 13 个文件、1101 行未提交修改（knowledge CLI、API Key 管理、权限模式路由等功能增强），用户选择保留+不提交直接压测。
+- **工具**：RunCommand（`npx tsc --noEmit` / `bun test`）、Read、Grep、Edit、TodoWrite。
+- **执行的操作（文件级）**：
+  - 备份 `docs/operations-log.md` 到 `.tmp/backups/docs/operations-log.md`（规则 2 备份要求）。
+  - 追加本条压测记录到 `docs/operations-log.md` 末尾。
+- **压测结果**：
+  - **步骤 1 类型检查** `npx tsc --noEmit`：退出码 0，无类型错误。
+  - **步骤 2 架构完整性** `bun test tests/architecture-integrity.test.ts`：**19 pass / 3 fail** / 22 tests / 531ms。3 个失败均为预存架构债：(a) `utils/platform.ts:89,90` 2 处直接读 `process.env` 未走 env.ts；(b) `src/` 中 4 处 `@ts-expect-error/@ts-ignore` 超过限制 1；(c) `runtime/host.ts:53,55,103` 3 处 `console.log/error` 未走 logger。
+  - **步骤 3 核心测试** `bun test tests/cache-stress.test.ts tests/thompson-stress.test.ts tests/vib-compressor.test.ts tests/redis-client.test.ts tests/module-exports.test.ts tests/services-chat.test.ts tests/registry-validation.test.ts tests/property-based.test.ts tests/tools-v3.test.ts tests/review-deep.test.ts tests/dre-memory-deep.test.ts tests/adapt-tool.test.ts`：**136 pass / 0 fail** / 4392 expect() / 1.81s（12 文件）。
+  - **步骤 4 压力测试** `bun test tests/stress/extreme-stress.test.ts tests/stress/perf-gate.test.ts tests/stress/multi-agent-stress.test.ts tests/stress/high-intensity-load.test.ts tests/stress/boundary-extreme.test.ts`：**120 pass / 0 fail** / 1428 expect() / 2.29s（5 文件）。关键性能指标：
+    - Cache set+get ×10k：4.19ms / 200ms 阈值
+    - ThompsonRouter.route ×1k：1.85ms / 100ms
+    - ConstraintSolver.check ×10k：3.12ms / 500ms
+    - EventBus.publish ×10k：4.81ms / 50ms
+    - AtomEngine 5000 create：4.30ms / 2000ms
+    - KnowledgeNetwork 2000 entities + 5000 links：9.58ms / 3000ms
+    - ReasoningGraph 5000 nodes：2.54ms / 3000ms
+    - 1000 并发查询：p99=0.43ms, qps=99069, errRate=0
+    - 5 层管道 1000 次：p99=0.63ms, qps=5602
+    - 持续 5000 次查询：degradation=0.01x（无衰减），p99=1.07ms
+  - **步骤 5 完整测试** `bun test tests/`：**1873 pass / 28 skip / 5 fail** / 122115 expect() / 192.50s（104 文件）。5 个失败分析：
+    1. 3 个为步骤 2 已识别的架构债（process.env / @ts-expect-error / console.log）。
+    2. `DataPipeline > should search and return results` 超时 5002ms，测试代码尝试调用真实搜索 API（duckduckgo + 多个 LLM provider）导致超时，非被测代码 bug。
+    3. `B.3 EventBus 并发竞争 > 并发 subscribe + unsubscribe — 不应泄漏 handler`：单独运行 `bun test tests/edge-cases/resource-contention.test.ts` 全部 12/12 通过。失败原因是 `eventBus` 单例缺少 `reset()` 方法（与 scheduler/knowledgeNetwork/capabilityRegistry/atomStoreImpl 等其他单例不一致），跨测试套件状态泄漏。这是测试隔离问题，非 EventBus 实现 bug。
+- **结论**：当前版本稳定，13 个未提交修改未引入回归。所有失败均为预存问题或测试环境问题。可以继续文件树整理。
+- **验证命令**：上述 5 步全部执行，输出存档于 `.tmp/arch-test.log` / `.tmp/core-test.log` / `.tmp/stress-test.log` / `.tmp/full-test.log`。
+- **备份**：`.tmp/backups/docs/operations-log.md`（验证通过后删除）。
+- **Commit**：本条记录为压测阶段，未产生代码修改，无需独立 commit；将与后续文件树整理（任务 C-F）合并提交。
+
+---
+
+## 2026-07-25 11:00 +0800 — 文件树整理（任务 C-D-E-F）
+
+- **任务**：整理仓库文件树。在整理前已先完成彻底压测和检查（见上一条记录），确认当前版本稳定。
+- **工具**：RunCommand（git 系列）、Read、Edit、LS、Grep、TodoWrite。
+- **执行的操作（文件级）**：
+  - **任务 C**：`git rm -r --cached archive/` — 46 个 archive/ 下文件取消 git 跟踪（磁盘保留）。.gitignore 早已包含 `archive/` 规则。
+  - **任务 D**：`git branch -d merge-review` — 删除已合并到 main 的旧分支（HEAD 19ad41b）。
+  - **任务 E**：修改 `.gitignore`，新增 `media-tools/`（本地 PowerShell 脚本，与项目无关）和 `docs/services.md`（含 SSH 凭据等敏感信息）两条规则。
+  - **任务 F**：修改 `archive/ARCHIVE-LOG.md`，追加 2026-07-25 11:00 的归档记录（任务 A+B 共 27 个文件的归档明细 + 任务 C-F 的执行说明）。
+  - 追加本条记录到 `docs/operations-log.md`。
+- **验证**：
+  - `git status --short | Select-String "media-tools|services.md"`：空输出（.gitignore 生效，两者不再出现在未跟踪列表）。
+  - `git branch`：仅剩 `* main`（merge-review 已删除）。
+  - `git ls-files archive/` 后续应为空（archive/ 不再被跟踪）。
+  - 压测阶段已验证当前版本稳定（1873 pass / 5 fail 均为预存问题），整理操作仅为 git 跟踪状态调整和 .gitignore 规则补充，不涉及源码改动，无需重新运行完整测试套件。
+- **备份**：`.tmp/backups/archive/ARCHIVE-LOG.md.bak`、`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
+- **Commit**：待提交后补录。
