@@ -1383,3 +1383,19 @@
   - `tests/prompt-optimizer.test.ts` 重写：17 用例（DI fake，覆盖闸门/回退/skill 上下文/开关兼容）。
 - **验证**：17 pass + intent-enhancer 30 pass；`tsc --noEmit` 无错误。⚠️ GLM 真实链路未验证：zhipu key 已过期（401）、siliconflow key 缺失，需用户刷新后复验。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-26 15:25 +0800 — agency-zh 201 角色 skill 库接入 + Hermes skill 格式修复
+
+- **任务**：引入 jnMetaCode/agency-agents-zh 角色库与 Hermes 自进化 skills 参与提示词优化。
+- **工具**：Write/Edit/Bash（gitclone 镜像克隆、转换脚本、bun test）。
+- **执行的操作（文件级）**：
+  - 备份 `src/skills/skill-loader.ts`（验证通过后已删除）。
+  - 新建 `scripts/import-agency-skills.ts`：agency-zh 角色 md → SkillFile YAML（frontmatter 解析、人格正文提取 ≤2500 字符、角色名核心词+描述关键词生成 triggers）。镜像 `gitclone.com` 克隆（GitHub 直连不可达）。
+  - 生成 `skills/agency-zh/*.yaml`：17 个部门文件、201 个角色 skill（1.3MB，strategy 等为文档目录正确跳过）。
+  - `src/skills/skill-loader.ts` 两处修复：①递归加载子目录（原仅顶层，`skills/agency-zh/` 不可见）；②兼容 Hermes SkillPromoter 持久化的裸 SkillDefinition JSON（原要求 skills 数组包装，导致自进化 skill 永远加载失败）。
+  - `src/agents/prompt-optimizer.ts` v2 的 matchSkill 即消费本库（命中专家角色作为改写框架）。
+  - 新建 `tests/skills-integration.test.ts`：3 用例（全量加载 201+/matchSkill 命中/裸 skill 兼容）。
+- **验证**：3 pass + 全量 119 pass + test:core 136 pass；`tsc --noEmit` 无错误。
+- **Commit**：（提交后补上）。
