@@ -1450,7 +1450,7 @@
   - **R6（隐私模式）**：`AXIOM_PRIVACY_MODE=1` 禁止一切云端 LLM 调用——`prompt-optimizer.isPrivacyMode()` 导出；意图增强跳过 zhipu 层（仅边缘）；`retrieveKnowledge` 跳过网络检索。
   - `tests/security-fixes.test.ts`：+3 守卫用例（共 19）。
 - **验证**：70 pass（4 测试文件）；`tsc --noEmit` 无错误。
-- **Commit**：（提交后补上）。
+- **Commit**：`36d7721`（W3+W4 批次，已推送 `internal211/main`）。
 
 ---
 
@@ -1459,7 +1459,7 @@
 - **任务**（runtime 兼容性审查 #1）：自制 JSON-RPC-over-POST 不兼容标准 MCP 远程客户端。
 - **执行的操作（文件级）**：备份 `src/mcp/server.ts`（验证后删除）；HTTP 分支整体替换为 SDK `WebStandardStreamableHTTPServerTransport` 无状态模式（每请求新建 server+transport）；保留回环绑定+x-api-key 认证。
 - **验证**：initialize 200（协议协商正确，不再硬编码版本）；notifications/initialized 202；tools/list 全部 166 个 inputSchema；tools/call 正常执行（Omini git log）；灰区 rm -rf 被正则底线拦截。`tsc --noEmit` 无错误。Claude Code/Codex/Cursor 等标准客户端现在可直接连接。
-- **Commit**：（提交后补上）。
+- **Commit**：`d7988f9`（终审批次，已推送 `internal211/main`）。
 
 ---
 
