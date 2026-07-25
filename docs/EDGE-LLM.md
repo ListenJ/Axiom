@@ -26,7 +26,7 @@
 | `EDGE_LLM_MODEL` | `MiniCPM5-1B` | llama.cpp 忽略 model 字段，仅标识 |
 | `EDGE_LLM_TRANSPORT` | `chat` | `completion` = 原生 /completion（思考不可关闭的模型必需） |
 | `EDGE_PROMPT_OPTIMIZER` | `1` | 意图分类增强（边缘第一层） |
-| `EDGE_PROMPT_REWRITE` | `1` | 提示词改写（三重闸门保护） |
+| `PROMPT_REWRITE` | `1` | 提示词改写（GLM 链 + 三重闸门；`EDGE_PROMPT_REWRITE=0` 兼容关闭） |
 | `EDGE_RISK_MONITOR` | `1` | 高危操作双层复核 |
 | `EDGE_MEMORY_ASSIST` | `1` | vault 门控/标题/标签/摘要 |
 | `EDGE_KNOWLEDGE_ASSIST` | `1` | 知识库四能力 |
@@ -36,13 +36,29 @@
 | 能力 | 注入点 | 回退 |
 |---|---|---|
 | 意图分类（边缘第一层） | `agents/intent-enhancer.ts` ← `services/chat.ts` | zhipu glm-4.7-flash → 关键词 |
-| 提示词改写（三重闸门） | `agents/prompt-optimizer.ts` ← `services/chat.ts` | 任一闸门失败 → 原文 |
+| 提示词改写（GLM 链 + Skill 专家 + 三重闸门） | `agents/prompt-optimizer.ts` ← `services/chat.ts` | 任一闸门失败 → 原文 |
 | 高危操作双层复核 | `agents/risk-monitor.ts` + `local-llm/risk-screen.ts` ← `agents/execution-mode.ts` | 初筛降级放行；复核否决放行；确认危险 → 强制 HITL（YOLO 不豁免） |
 | 记忆门控灰区裁决 | `memory/memory-gate.ts` `shouldWriteWithEdge` | 规则结果 |
 | 标题/标签/摘要 | `memory/edge-assist.ts` ← `memory/distiller.ts` | 规则截断/无标签 |
 | 知识结构化 | `knowledge/edge-assist.ts` ← `knowledge/pipeline.ts` | GLM glm-4-flash |
 | 质量灰区/近重复/摘要/标签 | `knowledge/collector.ts` | 规则评分/URL 去重 |
 | 检索查询改写 | `knowledge/edge-assist.ts` ← `services/knowledge.ts` | 原始查询 |
+
+## 提示词增强 v2（2026-07-26 起）
+
+改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标），改由 **GLM-4.7-flash 免费链**：zhipu 直连优先 → siliconflow `GLM-4.7-Flash:free` 兜底。流程：
+
+```
+用户输入 → 跳过规则 → Skill 匹配（agency-zh 201 角色 + Hermes 自进化 + 内置）
+        → GLM 改写（命中专家则以其工作流为框架）
+        → 闸门1 输出校验 → 闸门2 语言一致性 → 闸门3 GLM 忠实度判别 → 外发
+```
+
+- 开关：`PROMPT_REWRITE=0`（兼容旧 `EDGE_PROMPT_REWRITE=0`）
+- Skill 库：`skills/agency-zh/*.yaml`（17 部门 201 角色，转换脚本 `scripts/import-agency-skills.ts`）；Hermes 自进化 skills 持久化于 `axiom-memory/03-Resources/skills`（裸 SkillDefinition 格式已兼容）
+- **缓存友好消息结构**（`services/chat.ts`）：稳定前缀（增强 system，同一 intent byte 级稳定）在前，易变上下文（codegraph → 知识，固定次序）在后，前缀一致性最大化提供商侧 prompt cache 命中
+
+边缘 2B 保留为**工具模型**：意图分类 / 风险初筛 / 记忆辅助 / 知识库整理（分类、结构化、判断类任务）。
 
 ## 关键设计
 

@@ -1382,7 +1382,7 @@
   - `src/services/chat.ts`：优化器调用更新；prepareChatContext 重构为缓存友好结构——稳定前缀（增强 system）在前、易变上下文（codegraph→知识 固定次序）在后、并行分支只写局部变量后确定性组装。修复旧实现两个 bug：codegraph 命中时 enhanced system 被整体丢弃；两个并行分支 read-modify-write 竞态导致消息顺序不确定。
   - `tests/prompt-optimizer.test.ts` 重写：17 用例（DI fake，覆盖闸门/回退/skill 上下文/开关兼容）。
 - **验证**：17 pass + intent-enhancer 30 pass；`tsc --noEmit` 无错误。⚠️ GLM 真实链路未验证：zhipu key 已过期（401）、siliconflow key 缺失，需用户刷新后复验。
-- **Commit**：（提交后补上）。
+- **Commit**：`4e10118`（已推送 `internal211/main`）。
 
 ---
 
@@ -1398,4 +1398,4 @@
   - `src/agents/prompt-optimizer.ts` v2 的 matchSkill 即消费本库（命中专家角色作为改写框架）。
   - 新建 `tests/skills-integration.test.ts`：3 用例（全量加载 201+/matchSkill 命中/裸 skill 兼容）。
 - **验证**：3 pass + 全量 119 pass + test:core 136 pass；`tsc --noEmit` 无错误。
-- **Commit**：（提交后补上）。
+- **Commit**：`08b6740`（已推送 `internal211/main`）。
