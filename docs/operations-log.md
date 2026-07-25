@@ -1399,3 +1399,19 @@
   - 新建 `tests/skills-integration.test.ts`：3 用例（全量加载 201+/matchSkill 命中/裸 skill 兼容）。
 - **验证**：3 pass + 全量 119 pass + test:core 136 pass；`tsc --noEmit` 无错误。
 - **Commit**：`08b6740`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 16:05 +0800 — GLM 链真实 key 验证 + 兜底型号修正
+
+- **任务**：用户提供新 zhipu / siliconflow key，完成 GLM 链真实端到端验证。
+- **工具**：Bash（callProvider 直连测试、optimizePrompt E2E）、Edit。
+- **执行的操作（文件级）**：
+  - key 持久化：`setApiKeyOverride("zhipu" | "siliconflow")` 写入 api-key-store（`main.ts` 启动时 `loadOverrides` 加载，已确认）。**key 不写入任何仓库文件**。
+  - `src/agents/prompt-optimizer.ts`：GLM 兜底型号修正——siliconflow 平台无 `zhipu/GLM-4.7-Flash:free`（实测 400 "Model does not exist"），改用实测可用的 `THUDM/GLM-4-9B-0414`。
+- **实测结论**：
+  - zhipu key 有效但 glm-4.7-flash 当前 429（访问量过大，瞬时）；siliconflow key 有效。
+  - optimizePrompt 真实 E2E：口语输入改写忠实并采用（"请分析当前知识库检索速度慢的原因，并提出可能的优化方法"）；脚本请求改写采用；已清晰的输入正确判为"无需改写"回退原文。延迟 3-17s（zhipu 429 重试抬高，正常应 1-3s）。
+  - 单元测试 17 pass；`tsc --noEmit` 无错误。
+  - 发现（未改，超出范围）：registry 中 `glm-4.7-flash-free`（siliconflow `zhipu/GLM-4.7-Flash:free`）型号在平台上不存在，router 用到该条目时会 400，建议后续修正。
+- **Commit**：（提交后补上）。
