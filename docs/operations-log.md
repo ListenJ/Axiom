@@ -1537,4 +1537,4 @@
   - 三目标测试文件全绿：prompt-engineer 10/10、plugin-market 19/19（含 7 新 W3 用例）、security-hardening 41/41（含 5 新 R3 用例）。
   - 全量套件 2055 pass / 28 skip / 105 fail —— 105 fail 全部为预存前端组件测试（Button/Tabs/Toasts/BarChart 等，需 DOM 环境）与已知架构债（EventBus/DataPipeline/perf-degradation），与本批改动无关（grep `prompt|plugin|sandbox|skill|spawn` 命中 0 条失败）。
 - **备份**：`.tmp/backups/src/skills/types.ts` + `.tmp/backups/src/agents/prompt-engineer.ts` + `.tmp/backups/tests/prompt-engineer.test.ts` + `.tmp/backups/tests/plugin-market.test.ts` + `.tmp/backups/tests/security-hardening.test.ts` + `.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`3f65e39`（已推送 `internal211/main`）。
