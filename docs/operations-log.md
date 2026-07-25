@@ -1244,4 +1244,4 @@
     - `tests/mcp-server.test.ts`（+101）：MCP server 测试补充。
 - **验证**：本批修改已在整理前压测中验证（1873 pass / 5 fail，均为预存问题，未引入回归）。本次提交仅为 git 操作，不涉及代码改动，无需重新测试。
 - **备份**：`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`14c083f`（已推送 `internal211/main`）。
