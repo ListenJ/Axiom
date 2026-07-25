@@ -215,7 +215,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-5.1",
     provider: "siliconflow",
-    model: "zhipu/GLM-5.1",
+    model: "Pro/zai-org/GLM-5.1", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5.1 不存在）
     roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "review"],
     contextWindow: 200000,
     isFree: false,
@@ -232,7 +232,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-5",
     provider: "siliconflow",
-    model: "zhipu/GLM-5",
+    model: "zai-org/GLM-5.2", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5 不存在）
     roles: ["code-generation", "general-chat", "research", "general-tool", "review"],
     contextWindow: 200000,
     isFree: false,
@@ -576,13 +576,14 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 20000,
   },
 
-  // ─── GLM-4.7-Flash (Free) via SiliconFlow ───
+  // ─── GLM-4-9B (Free) via SiliconFlow ───
+  // 2026-07-26 实测修正：siliconflow 无 GLM-4.7-Flash:free，免费 GLM 为 THUDM/GLM-4-9B-0414
   {
     id: "glm-4.7-flash-free",
     provider: "siliconflow",
-    model: "zhipu/GLM-4.7-Flash:free",
-    roles: ["general-chat", "general-tool", "english"],
-    contextWindow: 200000,
+    model: "THUDM/GLM-4-9B-0414",
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research"],
+    contextWindow: 128000,
     isFree: true,
     tags: ["free", "chinese", "fast"],
     rpmLimit: 120,
@@ -600,7 +601,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "glm-4.7-flash-zhipu",
     provider: "zhipu",
     model: "glm-4.7-flash",
-    roles: ["general-chat", "general-tool", "english", "intent-classifier"],
+    roles: ["general-chat", "general-tool", "english", "intent-classifier", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：覆盖无免费模型的角色（付费链失效时的免费兜底）
     contextWindow: 200000,
     isFree: true,
     tags: ["free", "chinese", "fast", "zhipu", "agent-tool"],
@@ -617,9 +618,9 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "glm-4-flash-zhipu",
     provider: "zhipu",
     model: "glm-4-flash",
-    roles: ["general-chat", "general-tool", "english"],
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：glm-4-flash 实为智谱免费模型
     contextWindow: 128000,
-    isFree: false,
+    isFree: true,
     tags: ["chinese", "fast", "zhipu"],
     rpmLimit: 60,
     concurrentLimit: 5,
@@ -771,7 +772,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     model: "BAAI/bge-m3",
     roles: ["embedding"],
     contextWindow: 8192,
-    isFree: false,
+    isFree: true, // 2026-07-26：BAAI/bge-m3 在 siliconflow 免费档
     tags: ["embedding"],
     rpmLimit: 300,
     concurrentLimit: 5,

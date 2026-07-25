@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 多平台模型路由器 v5.0 — 扁平化架构
  *
  * 设计原则:
@@ -152,6 +152,36 @@ const DEFAULT_RETRY_ATTEMPTS = 3;
 // 路由器 v5.0 — 扁平化核心
 // =============================================================================
 
+// ---------------------------------------------------------------------------
+// 永久性失败处理（2026-07-26 生产化修复）
+// 缺 key / 型号不存在 / 未授权等永久性错误：不重试（此前每个死模型每次请求
+// 都白烧 maxRetries 次），并拉黑 5 分钟（避免后续请求重复烧秒）。
+// ---------------------------------------------------------------------------
+const PERMANENT_FAILURE_RE = /Missing API key|Model does not exist|Model disabled|HTTP 40[134]/i;
+const BLACKLIST_TTL_MS = 5 * 60 * 1000;
+const modelBlacklist = new Map<string, number>(); // "provider/model" -> 拉黑截止时刻
+
+/** 判定错误是否永久性（不可重试）—— 导出供单元测试 */
+export function isPermanentFailure(msg: string): boolean {
+  return PERMANENT_FAILURE_RE.test(msg);
+}
+
+/** 记录一次永久性失败（拉黑 TTL）—— 导出供单元测试 */
+export function recordPermanentFailure(provider: string, model: string): void {
+  modelBlacklist.set(`${provider}/${model}`, Date.now() + BLACKLIST_TTL_MS);
+}
+
+/** 查询模型是否在黑名单中（过期自动清除）—— 导出供单元测试 */
+export function isModelBlacklisted(provider: string, model: string): boolean {
+  const until = modelBlacklist.get(`${provider}/${model}`);
+  if (until === undefined) return false;
+  if (Date.now() > until) {
+    modelBlacklist.delete(`${provider}/${model}`);
+    return false;
+  }
+  return true;
+}
+
 export class MultiPlatformRouter {
   // ---------------------------------------------------------------------------
   // 统一执行端口 (Unified Execution Port)
@@ -177,9 +207,10 @@ export class MultiPlatformRouter {
     // executeWithRole passes its `excludeModels` option through; dispatcher
     // accumulates excludeModels as it walks preventDuplicateModels: true.
     const excluded = new Set(input.excludeModels ?? []);
-    const candidates = excluded.size > 0
+    const candidates = (excluded.size > 0
       ? allModels.filter((m) => !excluded.has(m.id) && !excluded.has(m.model))
-      : allModels;
+      : allModels
+    ).filter((m) => !isModelBlacklisted(m.provider, m.model));
     if (candidates.length === 0) {
       logger.warn(`[Router] No candidate models for role ${role} after exclude`, {
         excluded: Array.from(excluded),
@@ -240,6 +271,12 @@ export class MultiPlatformRouter {
             latencyMs: Date.now() - loopStart,
             success: false,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
+          if (PERMANENT_FAILURE_RE.test(msg)) {
+            modelBlacklist.set(`${model.provider}/${model.model}`, Date.now() + BLACKLIST_TTL_MS);
+            logger.warn(`[Router] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
+            break;
+          }
           // Exponential backoff with jitter, capped at 5s
           if (attempt < maxRetries - 1) {
             const delay = calculateBackoffDelay(attempt);
