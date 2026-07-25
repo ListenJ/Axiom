@@ -247,6 +247,29 @@ if (vault) {
   logger.info("VaultFileWatcher started", { watchedDirs: fileWatcher.watchedCount });
 }
 
+// HITL 审批闭环（2026-07-26 前端审查修复 H1）：
+// 执行层强制审批 → ApprovalBridge → WS 广播 approval.requested，
+// 客户端经 POST /approvals/:id/resolve 提交决定（REST 兜底，WS 仅通知）
+try {
+  const { getApprovalBridge } = await import("./utils/approval-bridge.js");
+  getApprovalBridge().onRequest((req) => {
+    wsManager.broadcast({
+      type: "approval.requested",
+      payload: {
+        id: req.id,
+        tool: req.tool,
+        args: req.args as Record<string, unknown>,
+        risk: req.risk,
+        requestedAt: req.requestedAt,
+        timeoutMs: req.timeoutMs,
+      },
+      timestamp: new Date().toISOString(),
+    });
+    logger.info("[ApprovalBridge] broadcast approval.requested", { id: req.id, tool: req.tool });
+  });
+  logger.info("ApprovalBridge subscribed (HITL loop active)");
+} catch (e: unknown) { logger.warn("ApprovalBridge subscribe failed", { error: (e as Error).message }); }
+
 // Cron
 try { await import("./cron/scheduler.js"); logger.info("Cron scheduler started"); }
 catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Error).message }); }
@@ -479,6 +502,19 @@ const server = Bun.serve({
       // 回退到传统路由系�?
       if (!response) {
         response = await dispatch(ctx);
+      }
+
+      // SPA 回退（2026-07-26 前端审查修复 H4）：
+      // 非 API 的 GET 请求且无文件扩展名 → 返回 SPA 入口，
+      // 修复刷新/深链 /chat、/providers 等返回 JSON 端点列表的问题
+      if (!response && req.method === "GET" && !url.pathname.includes(".") && !url.pathname.startsWith("/api")) {
+        const spaIndex = Bun.file(`${STATIC_ROOT}/index.html`);
+        if (await spaIndex.exists()) {
+          response = new Response(spaIndex, {
+            status: 200,
+            headers: { ...securityHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+          });
+        }
       }
 
       if (!response) {

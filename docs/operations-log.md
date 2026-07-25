@@ -1460,3 +1460,19 @@
 - **执行的操作（文件级）**：备份 `src/mcp/server.ts`（验证后删除）；HTTP 分支整体替换为 SDK `WebStandardStreamableHTTPServerTransport` 无状态模式（每请求新建 server+transport）；保留回环绑定+x-api-key 认证。
 - **验证**：initialize 200（协议协商正确，不再硬编码版本）；notifications/initialized 202；tools/list 全部 166 个 inputSchema；tools/call 正常执行（Omini git log）；灰区 rm -rf 被正则底线拦截。`tsc --noEmit` 无错误。Claude Code/Codex/Cursor 等标准客户端现在可直接连接。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-26 19:30 +0800 — 前端快修(H3/H4/H1) + MCP/Skill/插件市场修复 (W3/W4)
+
+- **任务**：前端审查高风险项修复 + 市场弱耦合修复。
+- **执行的操作（文件级）**（关键文件均有 `.tmp/backups/` 备份，验证后删除）：
+  - **H4 SPA 回退**：`src/main.ts` 非 API GET 无扩展名 → `public/index.html`（修复刷新/深链 404-json）。
+  - **H1 HITL 闭环**：`src/utils/websocket.ts` 加 `approval.requested/resolved` 事件类型；`src/main.ts` 订阅 ApprovalBridge.onRequest → WS 广播；新建 `src/routes/approvals.ts`（`POST /approvals/:id/resolve` + `GET /approvals/pending`，requireAuthToken）注册进 `src/routes/index.ts`。
+  - **H3 导航缺失**：`frontend/src/lib/nav.ts` 增加 对话/模型服务/插件 三项（原 20 页仅 5 在导航）；前端重建并同步 `public/`（此前产物过期 5 天）。
+  - **W3 skillDirs 统一**：`src/skills/types.ts` 新增 `DEFAULT_SKILL_DIRS` 常量，替换 prompt-engineer/skill-registry/mcp-server 三处发散列表。
+  - **W3 ToolRegistry.remove()**（插件 disable/MCP 断开前置）。
+  - **W3 插件系统**：`plugin-registry.ts` —— ①entry .js→.ts 回退；②兼容旧版 `activate(PluginContext)` 契约（types.ts 补 PluginContext）；③plugins 表缺列迁移（requiresAxiom 等）；④**同名目录先删后拷自毁 bug 修复**（实测吃掉示例插件源文件，git 恢复）；⑤activeToolNames 记录 activate 增量 + disable 真卸载工具；`plugin-routes.ts` 安装路径 pluginId 回退 + overwrite 透传。
+  - **W3 skill 一键安装**：新建 `scripts/install-skills.ts`（git clone 到 ./skills/<名称>/ + index.json sha256 校验）。
+- **验证**（全部活体实证）：SPA /chat 返回 HTML；approvals pending/404/401 正确；插件 install→enable→active-tools 4 工具可见→disable→卸载 全链路通过（期间发现并修复插件系统自毁 bug）；61+39 单测绿；`tsc --noEmit` 无错误。
+- **Commit**：（提交后补上）。

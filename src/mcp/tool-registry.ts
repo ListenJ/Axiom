@@ -149,6 +149,14 @@ export class ToolRegistry {
     return this.tools.length;
   }
 
+  /** 移除指定名称的工具（2026-07-26 W3：插件 disable / MCP 断开需要）。
+   *  @returns true 表示有工具被移除 */
+  remove(name: string): boolean {
+    const before = this.tools.length;
+    this.tools = this.tools.filter((t) => t.name !== name);
+    return this.tools.length < before;
+  }
+
   /** 按标签过滤工具 */
   getToolsByTags(tags: string[]): ToolDef[] {
     const tagSet = new Set(tags);

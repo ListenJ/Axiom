@@ -17,7 +17,9 @@ export type WsEventType =
   | "model.usage"
   | "health.check"
   | "heartbeat"
-  | "agent.intent";
+  | "agent.intent"
+  | "approval.requested"
+  | "approval.resolved";
 
 export interface WsMessage {
   type: WsEventType;

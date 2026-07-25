@@ -7,6 +7,7 @@ import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
 import { handleToolExecute } from "./tools.js";
 import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
+import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
@@ -76,6 +77,8 @@ const handlers: RouteHandler[] = [
   handleToolExecute,
   handleSandboxExecute,
   handleSandboxStatus,
+  handleApprovalResolve,
+  handleApprovalPending,
   // Chat (most common API call)
   handleChatHistory,
   handleChat,

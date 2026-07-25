@@ -18,6 +18,7 @@ import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
 import { registerSkillTools } from "./server/skill-tools.js";
+import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
 import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
 import { registerKgTools } from "./server/kg-tools.js";
 import { registerCodeAgentTools } from "./server/code-agent-tools.js";
@@ -233,9 +234,10 @@ registerDbTools(registry, db);
 registerLspTools(registry);
 
 // -- Skill 管理工具 (extracted to server/skill-tools.ts) --
+// SKILL_DIR 环境变量可覆盖首目录；其余沿用统一默认列表（W3 修复）
 const skillDirs = [
   readString("SKILL_DIR", "./skills"),
-  "./axiom-memory/03-Resources/skills",
+  ...DEFAULT_SKILL_DIRS.filter((d) => d !== "./skills"),
 ];
 registerSkillTools(registry, skillDirs);
 

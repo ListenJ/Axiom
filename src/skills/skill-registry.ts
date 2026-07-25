@@ -18,7 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { router } from "../router/model-router.js";
-import { type SkillDefinition, type PromptTemplate } from "./types.js";
+import { type SkillDefinition, type PromptTemplate, DEFAULT_SKILL_DIRS } from "./types.js";
 import { loadSkillsFromDirectories, type LoadedSkills } from "./skill-loader.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -258,7 +258,7 @@ export class SkillRegistry {
 
   constructor(options: SkillRegistryOptions = {}) {
     this.options = {
-      skillDirs: ["./skills", "./data/skills"],
+      skillDirs: [...DEFAULT_SKILL_DIRS],
       watch: false,
       matchThreshold: 0.3,
       ...options,

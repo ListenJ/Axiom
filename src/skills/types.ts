@@ -64,3 +64,14 @@ export interface PromptMatchResult {
   reasons: string[];
   filledPrompt?: string;
 }
+
+/**
+ * 默认 skill 加载目录（2026-07-26 W3 修复：统一三处发散的列表）。
+ * 所有 loader/consumer 必须引用本常量，不再各自硬编码。
+ * 目录均可不存在（loader 跳过）；子目录递归加载，可用于来源命名空间隔离。
+ */
+export const DEFAULT_SKILL_DIRS = [
+  "./skills",
+  "./axiom-memory/03-Resources/skills",
+  "./data/skills",
+] as const;
