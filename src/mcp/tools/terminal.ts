@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import * as os from "node:os";
 import { TIMEOUTS } from "../../constants/timeouts.js";
+import { sanitizeSpawnEnv } from "../../utils/spawn-env.js";
 
 export interface CommandResult {
   success: boolean;
@@ -49,26 +50,6 @@ function sanitizeCommand(command: string): { safe: boolean; error?: string } {
     }
   }
   return { safe: true };
-}
-
-/**
- * 生成子进程环境变量（2026-07-26 安全修复）：
- * 剥离密钥类变量（*_KEY / *_TOKEN / *_SECRET / *PASSWORD* / *CREDENTIAL*），
- * 防止 spawn 出去的任意命令用 `env`/`set` 读取 provider API key。
- * options.env 由调用方显式传入，视为有意为之，不过滤。
- */
-function sanitizeSpawnEnv(
-  base: NodeJS.ProcessEnv,
-  extra?: Record<string, string>,
-): Record<string, string> {
-  const SENSITIVE_RE = /(_KEY|_TOKEN|_SECRET|PASSWORD|CREDENTIAL)(_|$)/i;
-  const filtered: Record<string, string> = {};
-  for (const [k, v] of Object.entries(base)) {
-    if (v === undefined) continue;
-    if (SENSITIVE_RE.test(k)) continue;
-    filtered[k] = v;
-  }
-  return { ...filtered, ...(extra ?? {}) };
 }
 
 export async function executeCommand(

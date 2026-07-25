@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js"
+import { sanitizeSpawnEnv, shellQuoteArg } from "../utils/spawn-env.js"
 import type { SandboxProvider, SandboxOptions, SandboxResult } from "./types.js"
 
 /**
@@ -58,7 +59,8 @@ export const processSandbox: SandboxProvider = {
     try {
       const spawnOpts: Record<string, unknown> = {
         cwd: opts.cwd ?? process.cwd(),
-        env: { ...process.env as Record<string, string>, ...opts.env },
+        // R3 修复：与 terminal_exec 一致的密钥类 env 过滤（原子进程 env 可读全部 API key）
+        env: sanitizeSpawnEnv(process.env as Record<string, string>, opts.env),
         stdio: ["pipe", "pipe", "pipe"],
       }
 
@@ -73,7 +75,8 @@ export const processSandbox: SandboxProvider = {
         // Task 4.3: Windows 分支 — cmd.exe 执行 + 流式截断输出
         // Windows 无法像 Linux 那样用 ulimit 限制内存/CPU，依赖 timeout + 输出截断
         cmd = "cmd.exe"
-        args = ["/c", opts.command, ...(opts.args ?? [])]
+        // R3 修复：args 逐个引用，防注入（此前 join(" ") 裸拼接）
+        args = ["/c", opts.command, ...(opts.args ?? []).map((a) => shellQuoteArg(a, "win32"))]
       } else {
         // Linux: use timeout + ulimit for resource limits
         const limits: string[] = []
@@ -90,7 +93,9 @@ export const processSandbox: SandboxProvider = {
         }
 
         cmd = "/bin/sh"
-        args = ["-c", `${limits.join("; ")}; ${opts.command} ${(opts.args ?? []).join(" ")}`]
+        // R3 修复：args 单引号引用，防注入
+        const quotedArgs = (opts.args ?? []).map((a) => shellQuoteArg(a)).join(" ")
+        args = ["-c", `${limits.join("; ")}; ${opts.command} ${quotedArgs}`]
       }
 
       const proc = Bun.spawn([cmd, ...args], spawnOpts)

@@ -21,6 +21,7 @@
 
 import { callProvider } from "../router/provider-caller.js";
 import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
+import { isPrivacyMode } from "./prompt-optimizer.js";
 import type { LLMClient } from "../dre/llm/client.js";
 import { logger } from "../utils/logger.js";
 import type { IntentResult } from "./intent-router.js";
@@ -140,7 +141,10 @@ export async function enhanceIntentWithLLM(
     }
   }
 
-  // ── 第二层：zhipu GLM4.7-flash（云端备用） ──
+  // ── 第二层：zhipu GLM4.7-flash（云端备用；隐私模式禁用） ──
+  if (isPrivacyMode()) {
+    return baseIntent;
+  }
   try {
     const response = await callProvider(
       GLM_FLASH_PROVIDER,

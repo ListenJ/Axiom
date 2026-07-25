@@ -2,6 +2,8 @@ import type { RouteContext } from "./types.js";
 import fs from "fs";
 import { readString } from "../utils/env.js";
 import { requireAuthToken } from "./route-auth.js";
+import { encryptSecret, decryptSecret, isEncryptedSecret } from "../utils/api-key-persistence.js";
+import { logger } from "../utils/logger.js";
 
 const CONFIG_PATH = "./data/model-config.json";
 
@@ -40,7 +42,20 @@ interface ModelConfigFile {
 function readConfig(): ModelConfigFile {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8")) as ModelConfigFile;
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8")) as ModelConfigFile;
+      // R2：读取时透明解密 apiKey（密文格式 → 明文；非密文视为旧明文格式兼容）
+      for (const m of config.models) {
+        if (m.apiKey && isEncryptedSecret(m.apiKey)) {
+          const plain = decryptSecret(m.apiKey);
+          if (plain === null) {
+            logger.warn("[Models] apiKey 解密失败（密钥未配置或密文损坏），已丢弃", { model: m.id });
+            m.apiKey = undefined;
+          } else {
+            m.apiKey = plain;
+          }
+        }
+      }
+      return config;
     }
   } catch { /* ignore */ }
   return { models: [], providers: [] };
@@ -49,8 +64,26 @@ function readConfig(): ModelConfigFile {
 function writeConfig(config: ModelConfigFile): void {
   const dir = CONFIG_PATH.substring(0, CONFIG_PATH.lastIndexOf("/"));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  // R2：写入前加密 apiKey（AXIOM_ENCRYPTION_KEY 未配置时保持明文并告警一次）
+  const toWrite = {
+    ...config,
+    models: config.models.map((m) => {
+      if (!m.apiKey || isEncryptedSecret(m.apiKey)) return m;
+      try {
+        return { ...m, apiKey: encryptSecret(m.apiKey) };
+      } catch {
+        if (!warnedPlaintext) {
+          warnedPlaintext = true;
+          logger.warn("[Models] AXIOM_ENCRYPTION_KEY 未配置，model-config.json 中 apiKey 将以明文落盘（建议配置该密钥）");
+        }
+        return m;
+      }
+    }),
+  };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(toWrite, null, 2), "utf-8");
 }
+
+let warnedPlaintext = false;
 
 const KNOWN_PROVIDERS: ProviderEntry[] = [
   { id: "siliconflow", name: "SiliconFlow", baseURL: "https://api.siliconflow.cn/v1", apiKeyLast4: readString("SILICONFLOW_API_KEY").slice(-4), enabled: !!readString("SILICONFLOW_API_KEY") },

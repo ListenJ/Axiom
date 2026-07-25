@@ -160,6 +160,21 @@ const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
     region: "global",
     displayName: "OFOXAI (Claude 标准)",
   },
+  // 2026-07-26 R5 修复：补齐 router 使用但 api-key-store 缺失的 provider
+  "ofoxai-gemini": {
+    apiKeyEnv: "OFOXAI_GEMINI_API_KEY",
+    baseURL: "https://api.ofoxai.com/gemini",
+    adapter: "gemini",
+    region: "global",
+    displayName: "OFOXAI (Gemini 标准)",
+  },
+  "nvidia-nim": {
+    apiKeyEnv: "NIM_API_KEY",
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    adapter: "openai",
+    region: "global",
+    displayName: "NVIDIA NIM",
+  },
   // ─── OpenCode Go 套餐服务 ────────────────────────────────────────
   opencode: {
     apiKeyEnv: "OPENCODE_API_KEY",

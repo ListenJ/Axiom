@@ -155,3 +155,61 @@ describe("router 永久性失败处理（纯逻辑）", () => {
     expect(isModelBlacklisted("otherprovider", "test-model-xyz")).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// 5. ToolRegistry 安全守卫（R1：审批层接入 MCP 工具执行路径）
+// ─────────────────────────────────────────────────────────
+import { ToolRegistry } from "../src/mcp/tool-registry.js";
+
+describe("ToolRegistry 安全守卫", () => {
+  test("守卫在 handler 之前被调用（携带工具名与参数）", async () => {
+    const seen: Array<[string, Record<string, unknown>]> = [];
+    const registry = new ToolRegistry({
+      guard: async (name, args) => { seen.push([name, args]); },
+    });
+    let handlerRan = false;
+    registry.add({
+      name: "test_tool",
+      description: "t",
+      inputSchema: {},
+      handler: async () => { handlerRan = true; return { ok: true }; },
+    });
+    const handlers = registry.buildHttpHandlers();
+    const result = await handlers.test_tool({ a: 1 }) as { ok: boolean };
+    expect(result.ok).toBe(true);
+    expect(handlerRan).toBe(true);
+    expect(seen).toEqual([["test_tool", { a: 1 }]]);
+  });
+
+  test("守卫抛异常时 handler 不执行（阻止高危操作）", async () => {
+    const registry = new ToolRegistry({
+      guard: async () => { throw new Error("[RiskMonitor] 双层复核判定为高危操作，已阻止执行"); },
+    });
+    let handlerRan = false;
+    registry.add({
+      name: "terminal_exec",
+      description: "t",
+      inputSchema: {},
+      handler: async () => { handlerRan = true; return { ok: true }; },
+    });
+    const handlers = registry.buildHttpHandlers();
+    const result = await handlers.terminal_exec({ command: "rm -rf /" }) as { error?: boolean; message?: string };
+    expect(handlerRan).toBe(false);
+    expect(result.error).toBe(true);
+    expect(result.message).toContain("已阻止执行");
+  });
+
+  test("默认守卫对未监视工具直接放行（无网络调用）", async () => {
+    // 默认守卫 = 双层复核；未在 SCREENED_TOOLS 中的工具 extractPayload=null → pass
+    const registry = new ToolRegistry();
+    registry.add({
+      name: "unrelated_tool",
+      description: "t",
+      inputSchema: {},
+      handler: async () => ({ ok: true }),
+    });
+    const handlers = registry.buildHttpHandlers();
+    const result = await handlers.unrelated_tool({ x: "y" }) as { ok: boolean };
+    expect(result.ok).toBe(true);
+  });
+});

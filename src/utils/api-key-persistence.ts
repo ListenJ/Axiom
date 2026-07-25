@@ -88,6 +88,21 @@ function decrypt(cipherText: string): string | null {
   }
 }
 
+/** 加密任意敏感字段（导出供 model-config 等 at-rest 加密复用）。未配密钥时抛错（fail-closed）。 */
+export function encryptSecret(plain: string): string {
+  return encrypt(plain);
+}
+
+/** 解密 encryptSecret 的密文；非密文/未配密钥/解密失败返回 null（导出）。 */
+export function decryptSecret(cipherText: string): string | null {
+  return decrypt(cipherText);
+}
+
+/** 判断字符串是否为 encryptSecret 密文格式（导出）。 */
+export function isEncryptedSecret(stored: string): boolean {
+  return CIPHER_PATTERN.test(stored);
+}
+
 /** 判断 DB 中的 api_key 字段是否为明文（未加密）。 */
 function isPlaintext(stored: string): boolean {
   return !CIPHER_PATTERN.test(stored);

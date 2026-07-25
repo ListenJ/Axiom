@@ -130,10 +130,17 @@ export async function optimizePrompt(
 // 生产实现：GLM 链 / Skill 匹配
 // ─────────────────────────────────────────────────────────
 
-/** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启） */
+/** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启）；隐私模式整体关闭 */
 function isRewriteEnabled(): boolean {
   const off = (v: string | undefined) => v !== undefined && (v.toLowerCase() === "0" || v.toLowerCase() === "false");
+  if (isPrivacyMode()) return false;
   return !off(process.env.PROMPT_REWRITE) && !off(process.env.EDGE_PROMPT_REWRITE);
+}
+
+/** 隐私模式（R6）：AXIOM_PRIVACY_MODE=1 时禁止一切云端 LLM 调用（仅本地边缘模型） */
+export function isPrivacyMode(): boolean {
+  const v = (process.env.AXIOM_PRIVACY_MODE ?? "0").toLowerCase();
+  return v === "1" || v === "true";
 }
 
 /** GLM 链调用：依次尝试，全部失败返回 null */

@@ -1435,3 +1435,19 @@
 - **实测**：Omini 真实 CUDA 代码问答通过；/chat 链路死模型耗时从 ~50s 降到 ~4s；MCP 回环绑定+401 实证；/config 无 token；/models 401+脱敏；SSRF 内网抓取被拒；env 无密钥；fs .env 被拒。
 - **验证**：16 pass + 全量 2000+ 回归零新增失败（5 个预存失败 stash 对比确认）；`tsc --noEmit` 全绿。
 - **Commit**：`9ec88b0`（安全批次）+ router 批次见下条（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 18:20 +0800 — 残留风险 R1/R2/R3/R5/R6 修复
+
+- **任务**：系统性修复安全审查残留风险（终审报告 R1-R6）。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc）。
+- **执行的操作（文件级）**（备份 `.tmp/backups/`，验证后已删除）：
+  - **R1（审批层死代码）**：`src/mcp/tool-registry.ts` —— 构造注入 `ToolGuard`，`add()` 的 handler 统一包裹双层复核（`monitorToolPayload`）；确认高危走 ApprovalBridge（15s 超时，无订阅 fail-closed）。MCP 全部工具两种传输同时生效。
+  - **R2（model-config 明文落盘）**：`src/utils/api-key-persistence.ts` 导出 `encryptSecret/decryptSecret/isEncryptedSecret`；`src/routes/models.ts` 写入前加密 apiKey、读取时透明解密（旧明文兼容）。
+  - **R3（sandbox args 注入+env 继承）**：新建 `src/utils/spawn-env.ts`（`sanitizeSpawnEnv`+`shellQuoteArg` 共享）；`src/mcp/tools/terminal.ts` 换共享实现；`src/sandbox/process-sandbox.ts` env 过滤 + args 逐个引用。
+  - **R5（provider 注册不匹配）**：`src/utils/api-key-store.ts` 补 `ofoxai-gemini`、`nvidia-nim` 条目（原 "nim" 与 router 的 "nvidia-nim" 不一致导致运行时覆盖永远不生效）。
+  - **R6（隐私模式）**：`AXIOM_PRIVACY_MODE=1` 禁止一切云端 LLM 调用——`prompt-optimizer.isPrivacyMode()` 导出；意图增强跳过 zhipu 层（仅边缘）；`retrieveKnowledge` 跳过网络检索。
+  - `tests/security-fixes.test.ts`：+3 守卫用例（共 19）。
+- **验证**：70 pass（4 测试文件）；`tsc --noEmit` 无错误。
+- **Commit**：（提交后补上）。

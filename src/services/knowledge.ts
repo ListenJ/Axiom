@@ -44,6 +44,13 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
   }
 
+  // 隐私模式（R6）：禁止外发检索（用户查询不离开本机，仅返回已有上下文）
+  const { isPrivacyMode } = await import("../agents/prompt-optimizer.js");
+  if (isPrivacyMode()) {
+    logger.info("[Knowledge] privacy mode: web retrieval skipped");
+    return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
+  }
+
   // 创建工具管道
   const ctx = createToolContext(`knowledge-${Date.now()}`);
 
