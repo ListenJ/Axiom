@@ -1217,4 +1217,4 @@
   - `git ls-files archive/` 后续应为空（archive/ 不再被跟踪）。
   - 压测阶段已验证当前版本稳定（1873 pass / 5 fail 均为预存问题），整理操作仅为 git 跟踪状态调整和 .gitignore 规则补充，不涉及源码改动，无需重新运行完整测试套件。
 - **备份**：`.tmp/backups/archive/ARCHIVE-LOG.md.bak`、`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`a6db741`（已推送 `internal211/main`）。
