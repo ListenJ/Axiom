@@ -1276,7 +1276,7 @@
   - 新建 `tests/prompt-optimizer.test.ts`（10 用例）；`tests/intent-enhancer.test.ts` 增加边缘层 mock 与 3 个双层回退用例。
 - **实测关键决策**：1B 模型自由改写语义漂移（4 例 3 漂移）、few-shot 复读、自验无判别力 → **改写功能默认关闭**（`EDGE_PROMPT_REWRITE=1` 才启用，代码保留待更大模型）；分类类任务保留并启用（用户已确认该取舍）。
 - **验证**：40 pass（两测试文件）；`tsc --noEmit` 无错误；真实端点意图分类 3/3 正确、~140-200ms。`tests/services-chat.test.ts` 4 fail 为**预存问题**（`getFileSymbolsFromCodeGraph` 导出缺失，与本次无关，stash 对比确认）。
-- **Commit**：（提交后补上）。
+- **Commit**：`b2081c8`（已推送 `internal211/main`）。
 
 ---
 
@@ -1288,4 +1288,19 @@
   - `src/agents/prompt-optimizer.ts` 重写为三重闸门设计：输出校验 → 确定性语言一致性（CJK 占比，堵 4B 的 EN→ZH 漂移）→ LLM 忠实度判别（失败按不忠实回退）；默认启用，`EDGE_PROMPT_REWRITE=0` 关闭。
   - `tests/prompt-optimizer.test.ts` 全量重写：13 用例覆盖三道闸门与全部回退路径。
 - **验证**：43 pass（两测试文件）；`tsc --noEmit` 无错误；真实端点端到端：两条中文输入改写采用（2.4-2.6s），英文输入的 EN→ZH 漂移被语言闸门正确拦截回退（1.2s）。
+- **Commit**：`b2081c8`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-25 20:15 +0800 — 边缘小模型层 Phase 2：高危操作双层复核
+
+- **任务**：正则硬底线之外的灰区操作做"边缘初筛 → 主模型复核 → 强制 HITL"双层监视（用户选定双层复核模式）。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc、真实端点验证）。
+- **执行的操作（文件级）**：
+  - 备份 `src/agents/execution-mode.ts` 到 `.tmp/backups/`（验证通过后已删除）。
+  - 新建 `src/local-llm/risk-screen.ts`：`screenPayloadWithEdge()` 初筛（low/medium/high，任何失败降级 low+degraded，fail-open）。
+  - 新建 `src/agents/risk-monitor.ts`：`extractPayload()`（监视 terminal_exec/fs_delete/fs_write/fs_move 的负载内容）+ `monitorToolPayload()` 编排（low 放行；medium/high 经 router decision 主模型复核；复核确认 dangerous 或 复核不可用+初筛 high → require-approval；升级写 auditLogger security.alert）。
+  - `src/agents/execution-mode.ts`：新增 `requestApprovalForced()`（YOLO 不豁免的强制审批，宪法第 4 条安全 > 效率）；`executeWithModeGuard()` 在 canExecute 后接入双层监视。
+  - 新建 `tests/risk-monitor.test.ts`：20 用例（提取/初筛降级/双层编排/开关旁路，全 DI fake）。
+- **验证**：20 pass；`tsc --noEmit` 无错误；真实端点初筛 4/4 正确（rm -rf/ssh keys/curl|bash → HIGH，ls → LOW，~1.3-1.6s 带理由）。
 - **Commit**：（提交后补上）。

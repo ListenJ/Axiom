@@ -19,6 +19,7 @@
 
 import { logger } from "../utils/logger.js";
 import { getApprovalBridge, type ApprovalRisk } from "../utils/approval-bridge.js";
+import { monitorToolPayload } from "./risk-monitor.js";
 
 /** 执行模式 */
 export type ExecutionMode = "plan" | "agent" | "yolo";
@@ -408,6 +409,30 @@ class ExecutionModeManager {
     }
   }
 
+  /**
+   * 强制审批（风险监视升级专用）—— YOLO 模式也不豁免。
+   *
+   * 与 requestApproval 的唯一区别：不检查 yolo 快捷路径。
+   * 当 risk-monitor 双层复核（边缘初筛 + 主模型复核）确认负载危险时，
+   * 即使在 YOLO 模式下也必须经过人工确认（宪法第 4 条：安全模式 > 效率）。
+   */
+  async requestApprovalForced(toolName: string, args: unknown): Promise<boolean> {
+    const classification = TOOL_CLASSIFICATIONS.find((t) => t.name === toolName);
+    const risk: ApprovalRisk = classification?.risk ?? "unknown";
+
+    logger.warn(`[ExecutionMode] FORCED approval (risk-monitor escalation) for ${toolName} (${risk})`, { args });
+
+    try {
+      const approved = await getApprovalBridge().request(toolName, args, { risk });
+      logger.info(`[ExecutionMode] ${toolName} ${approved ? "approved" : "denied"} via bridge (forced)`);
+      return approved;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      logger.warn(`[ExecutionMode] ${toolName} forced approval failed: ${reason}`);
+      return false;
+    }
+  }
+
   /** 获取模式历史 */
   getModeHistory(): ExecutionMode[] {
     return [...this.modeHistory];
@@ -450,6 +475,18 @@ export async function executeWithModeGuard<T>(
   const check = executionMode.canExecute(toolName);
   if (!check.allowed) {
     throw new Error(`[ExecutionMode] Blocked: ${check.reason}`);
+  }
+
+  // ── 高危操作双层复核：边缘初筛 → 主模型复核 → 强制 HITL ──
+  // 监视静态分级表感知不到的负载内容（如 terminal_exec 里的 rm -rf /usr）
+  // 失败语义：初筛降级/复核否决 → 不影响下方原有审批流程
+  const verdict = await monitorToolPayload(toolName, args);
+  if (verdict === "require-approval") {
+    logger.warn(`[ExecutionMode] Risk monitor escalated ${toolName} to mandatory approval`);
+    const approved = await executionMode.requestApprovalForced(toolName, args);
+    if (!approved) {
+      throw new Error(`[ExecutionMode] Risk monitor: approval denied for ${toolName}`);
+    }
   }
 
   if (executionMode.needsApproval(toolName)) {
