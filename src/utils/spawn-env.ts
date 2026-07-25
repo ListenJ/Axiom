@@ -21,11 +21,15 @@ export function sanitizeSpawnEnv(
 /**
  * shell 参数引用（防 args 注入，R3 修复）：
  * POSIX sh 用单引号（内嵌单引号转义为 '\''）；
- * Windows cmd 用双引号（内嵌双引号转义为 ""）。
+ * Windows cmd 用 caret 转义元字符与分隔符（^ 自身优先转义）。
+ * 实测（Bun.spawn + cmd /c）：双引号会被 cmd 保留为字面量，caret 是唯一可靠方案。
  */
 export function shellQuoteArg(arg: string, platform: NodeJS.Platform = process.platform): string {
   if (platform === "win32") {
-    return `"${arg.replace(/"/g, '""')}"`;
+    // ^ 必须最先转义；随后是 cmd 元字符与参数分隔符（空格/tab/逗号/分号/等号）
+    return arg
+      .replace(/\^/g, "^^")
+      .replace(/([&|<>%!" \t,;=%])/g, "^$1");
   }
   return `'${arg.replace(/'/g, `'\\''`)}'`;
 }

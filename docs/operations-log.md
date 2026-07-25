@@ -1476,3 +1476,15 @@
   - **W3 skill 一键安装**：新建 `scripts/install-skills.ts`（git clone 到 ./skills/<名称>/ + index.json sha256 校验）。
 - **验证**（全部活体实证）：SPA /chat 返回 HTML；approvals pending/404/401 正确；插件 install→enable→active-tools 4 工具可见→disable→卸载 全链路通过（期间发现并修复插件系统自毁 bug）；61+39 单测绿；`tsc --noEmit` 无错误。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-26 20:10 +0800 — 终审报告 + 风险登记册 + sandbox Windows 引号修复
+
+- **任务**：综合审查报告交付 + sandbox R3 修复的 Windows 兼容性回归处理。
+- **执行的操作（文件级）**：
+  - `src/utils/spawn-env.ts`：`shellQuoteArg` Windows 分支从双引号改为 **caret 转义**（实测 Bun.spawn+cmd /c 双引号会被 cmd 保留为字面量；`^` 转义元字符/分隔符是唯一可靠方案）——修复 security-hardening 两个回归；实测 `a&b`、`x & dir` 注入均被字面化。
+  - 新建 `docs/RISK-REGISTER.md`：22 条风险登记（状态机+实证要求+评审触发条件），P0 级 5 项全部 CLOSED。
+  - 新建 `docs/ARCHITECTURE-REVIEW.md`：综合审查报告（总评评分/兼容性矩阵/市场弱耦合评估/架构缺陷优先级/前端待办/Top10 建议榜）。
+- **验证**：security-hardening 全绿；全量 2017 测试仅剩预存失败（架构守卫 3、EventBus 1、网络依赖 2、幻觉率偶发 1，stash 对比确认）；`tsc --noEmit` 无错误。
+- **Commit**：（提交后补上）。
