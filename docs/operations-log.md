@@ -1488,3 +1488,24 @@
   - 新建 `docs/ARCHITECTURE-REVIEW.md`：综合审查报告（总评评分/兼容性矩阵/市场弱耦合评估/架构缺陷优先级/前端待办/Top10 建议榜）。
 - **验证**：security-hardening 全绿；全量 2017 测试仅剩预存失败（架构守卫 3、EventBus 1、网络依赖 2、幻觉率偶发 1，stash 对比确认）；`tsc --noEmit` 无错误。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-26 02:30 +0800 — 团队更新同步分析 + 提交另一会话遗留的 3 个优化
+
+- **任务**：检查团队最新推送（20 commit / 81 文件 / +13988 行），分析对优化工作的影响，并提交另一会话遗留的 3 个 unstaged 修改。
+- **工具**：RunCommand（git 系列、bun test）、Task（search 子代理并行分析 EDGE-LLM 架构 + 安全修复）、Read、Grep、Edit。
+- **团队更新分析**：
+  - 团队基于我的 5f4b266 继续提交 20 个 commit（merge-base --is-ancestor 5f4b266 b043f3b 退出 0），我的工作完整保留。
+  - 新增主题：EDGE-LLM 边缘层（local-llm/edge-client + agents/prompt-optimizer + intent-enhancer + risk-monitor + memory/vault-manager + knowledge/edge-assist）、安全修复 6 项（url-safety + spawn-env + process-sandbox + routes/models 脱敏加密）、MCP Streamable HTTP、Router 免费服务化（5min 黑名单）、Skills 201 角色。
+  - 与既有工作关系：EDGE-LLM 全新架构无冲突；安全修复与 BUG-001/004/007 互补；MCP 改造基于我的 tool-registry +47 行增强继续；api-key-store 补了 ofoxai-gemini/nvidia-nim 2 个 provider（延续我的国际化适配）。
+- **测试验证**：完整测试套件 1983 pass / 28 skip / 6 fail / 79.72s（111 文件）。6 个失败：3 个架构债（预存）+ 1 个 DataPipeline 网络超时（预存）+ 1 个 Cache 特殊字符键名（测试隔离，单独运行通过，cache.ts 未被团队修改）+ 1 个 EventBus 并发竞争（测试隔离，预存）。无真实回归。
+- **执行的操作（文件级）**：
+  - 备份 docs/operations-log.md 到 .tmp/backups/docs/operations-log.md.bak（规则 2）。
+  - 追加本条记录到 docs/operations-log.md。
+  - git add 以下 3 个文件（另一会话遗留的合理优化）：
+    - src/agents/prompt-engineer.ts：用 DEFAULT_SKILL_DIRS 常量替换硬编码 skillDirs（重构）。
+    - src/routes/plugin-routes.ts：W3 修复 — 前端安装按钮只传 pluginId 时回退到内置 ./plugin 目录，新增 overwrite 选项和 existsSync 检查。
+    - src/sandbox/process-sandbox.ts：R3 延续 — Windows 命令解释器参数合并为单字符串（避免 Bun 双重引号导致引号残留）。
+- **备份**：.tmp/backups/docs/operations-log.md.bak（验证通过后删除）。
+- **Commit**：待提交后补录。

@@ -75,8 +75,9 @@ export const processSandbox: SandboxProvider = {
         // Task 4.3: Windows 分支 — cmd.exe 执行 + 流式截断输出
         // Windows 无法像 Linux 那样用 ulimit 限制内存/CPU，依赖 timeout + 输出截断
         cmd = "cmd.exe"
-        // R3 修复：args 逐个引用，防注入（此前 join(" ") 裸拼接）
-        args = ["/c", opts.command, ...(opts.args ?? []).map((a) => shellQuoteArg(a, "win32"))]
+        // R3 修复：args 逐个引用防注入，并合并为单个 /c 字符串
+        // （分元素传参会被 Bun 再引号一次，cmd 双引号残留；cmd /c "整串" 时 cmd 仅剥外层）
+        args = ["/c", [opts.command, ...(opts.args ?? []).map((a) => shellQuoteArg(a, "win32"))].join(" ")]
       } else {
         // Linux: use timeout + ulimit for resource limits
         const limits: string[] = []

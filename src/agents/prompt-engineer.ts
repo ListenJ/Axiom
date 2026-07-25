@@ -16,6 +16,7 @@ import {
   type PromptTemplate,
   type SkillDefinition,
   type PromptMatchResult,
+  DEFAULT_SKILL_DIRS,
 } from "../skills/types.js";
 import { loadSkillsFromDirectories } from "../skills/skill-loader.js";
 
@@ -387,10 +388,7 @@ export class PromptEngineer {
    * 从磁盘重新加载动态 skills
    */
   reloadSkillsFromDisk(): void {
-    const skillDirs = [
-      "./skills",
-      "./axiom-memory/03-Resources/skills",
-    ];
+    const skillDirs = [...DEFAULT_SKILL_DIRS];
 
     const loaded = loadSkillsFromDirectories({
       skillDirs,

@@ -14,6 +14,7 @@
 
 import { Database } from "bun:sqlite";
 import { join } from "path";
+import { existsSync } from "fs";
 import { PluginRegistry } from "../plugins/plugin-registry.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { logger } from "../utils/logger.js";
@@ -105,6 +106,7 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
         const body = (await req.json()) as {
           path: string;
           enable?: boolean;
+          overwrite?: boolean;
         };
 
         if (!body.path) {
@@ -114,8 +116,20 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
           );
         }
 
-        const plugin = await registry.installFromPath(body.path, {
+        // 安装路径解析（2026-07-26 W3 修复）：
+        // 前端安装按钮只传 pluginId —— 目录不存在时回退到内置可用目录 ./plugins/<id>
+        let installPath = body.path;
+        if (!existsSync(installPath)) {
+          const candidate = join("./plugins", body.path);
+          if (existsSync(candidate)) {
+            logger.info(`[Plugins] path '${body.path}' resolved to available dir '${candidate}'`);
+            installPath = candidate;
+          }
+        }
+
+        const plugin = await registry.installFromPath(installPath, {
           enable: body.enable ?? true,
+          overwrite: body.overwrite ?? false,
         });
 
         return Response.json({
