@@ -1354,7 +1354,7 @@
   - `src/services/knowledge.ts`：`retrieveKnowledge` 检索前边缘改写查询词（回退原查询）。
   - 新建 `tests/knowledge-edge.test.ts`：19 用例（含真实 SQLite 临时库；Windows 需 close() 释放文件锁才能清理）。
 - **验证**：19 pass + 全量 113 pass；`tsc --noEmit` 无错误；2B 端点实测：结构化/质检/近重复/查询改写达标（摘要生成 2B 不可用，回退路径兜底）。
-- **Commit**：（提交后补上）。
+- **Commit**：`a2e6fe6`（已推送 `internal211/main`）。
 
 ---
 
@@ -1368,4 +1368,4 @@
   - 集成验证：`prepareChatContext` 全链路——关键词 fast path 命中（conf 0.99）时不触发边缘调用；2B 改写不达标被三重闸门拒绝并正确回退原文。（知识检索 web 分支在无密钥环境挂起为预存行为，与本改动无关。）
   - 新建 `docs/EDGE-LLM.md`：边缘层架构、已验证模型矩阵、env 配置、能力地图、关键设计（三重闸门/双层复核/DI 测试约定）、运维手册。
 - **验证**：上述全部通过；全部 6 个边缘相关测试文件 113 pass。
-- **Commit**：（提交后补上）。
+- **Commit**：`175f9ad`（已推送 `internal211/main`）。
