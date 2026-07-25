@@ -1,28 +1,23 @@
 /**
- * 提示词优化器 v1.1 —— 边缘小模型驱动的用户输入改写（三重闸门防漂移）
+ * 提示词优化器 v2.0 —— GLM-4.7-flash 驱动 + Skill 专家增强 + 三重闸门
  *
- * 模型演进（2026-07-25 实测）：
- *   - MiniCPM5-1B：自由改写语义漂移（4 例 3 漂移）、自验无判别力 → 本模块曾默认关闭
- *   - Qwopus3.5-4B-Coder（当前部署）：改写 4/4 忠实、忠实度判别能识别漂移、
- *     意图/风险分类全部正确 → 重新默认启用
+ * 引擎演进（2026-07-25 用户决策）：
+ *   - v1.x 边缘小模型改写：MiniCPM5-1B 漂移、Qwopus3.5-2B 照抄，实测不达标
+ *   - v2.0 起改写/忠实度判别改由 GLM-4.7-flash 承担（zhipu 直连 → siliconflow 免费版兜底）
+ *   - 边缘 2B 保留为工具模型：意图分类 / 风险初筛 / 记忆辅助 / 知识库整理
  *
- * 三重闸门（任一失败即回退原文，绝不外发漂移文本）：
- *   1. 输出校验：非空、未异常膨胀（> 原文*3+200 视为灌水）
- *   2. 语言一致性：确定性 CJK 比例比对（4B 偶发 EN→ZH 漂移，LLM 判别漏检此项）
- *   3. LLM 忠实度判别：原意是否一致；判别失败/垃圾输出一律按不忠实处理（安全方向）
+ * 流程：
+ *   1. 跳过规则（短输入/代码块/命令前缀/开关关闭）
+ *   2. Skill 匹配（agency-zh 专家角色库 + Hermes 自进化 skills，命中则以其工作流为框架）
+ *   3. GLM 改写（保持原意与原语言）
+ *   4. 三重闸门：输出校验 → 语言一致性（确定性）→ GLM 忠实度判别
+ *   任一环节失败即回退原文，绝不外发漂移文本
  *
- * 跳过条件（避免无意义改写与延迟）：
- *   - 输入过短（< 20 字符，如问候语）
- *   - 含代码块（```...```）—— 改写可能破坏代码
- *   - 命令/斜杠指令前缀（$ / > ! # 开头）
- *   - EDGE_PROMPT_REWRITE=0 全局关闭
- *
- * 性能预算：4B 模型 ~0.8-1.4s 改写 + ~0.5-1s 判别 ≈ 2s/条；
- * 超时由 edge-client 熔断器兜底（8s），异常立即回退原文。
+ * 开关：PROMPT_REWRITE=0 关闭（兼容旧开关 EDGE_PROMPT_REWRITE=0）
  */
 
-import { getEdgeClient, isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
-import type { LLMClient } from "../dre/llm/client.js";
+import { callProvider } from "../router/provider-caller.js";
+import { promptEngineer } from "./prompt-engineer.js";
 import { logger } from "../utils/logger.js";
 
 export interface PromptOptimization {
@@ -38,11 +33,27 @@ const MIN_INPUT_CHARS = 20;
 /** 超长输入截断（改写不需要全量上下文，防止恶意消耗） */
 const MAX_INPUT_CHARS = 2000;
 
-/** 输出长度上限系数：超过 输入*3+200 视为异常膨胀（模型灌水） */
+/** 输出长度上限系数：超过 输入*3+200 视为异常膨胀 */
 const MAX_OUTPUT_RATIO = 3;
 
-/** 可注入的最小客户端接口（测试用 fake；生产为边缘单例） */
-type GenerateClient = Pick<LLMClient, "generate">;
+/** GLM 调用超时（改写/判别共用） */
+const GLM_TIMEOUT_MS = 15_000;
+
+/** GLM 免费链：zhipu 直连优先，siliconflow 免费版兜底 */
+const GLM_CHAIN: Array<{ provider: string; model: string }> = [
+  { provider: "zhipu", model: "glm-4.7-flash" },
+  { provider: "siliconflow", model: "zhipu/GLM-4.7-Flash:free" },
+];
+
+/** 可注入依赖（测试用 fake；生产为 GLM 链 + promptEngineer） */
+export interface PromptOptimizerDeps {
+  /** 改写器：(输入, skill 上下文) → 改写文本 | null */
+  rewrite?: (input: string, skillContext: string | null) => Promise<string | null>;
+  /** 忠实度判别：(原文, 改写) → true/false | null */
+  verify?: (original: string, rewritten: string) => Promise<boolean | null>;
+  /** Skill 匹配：输入 → skill 上下文 | null */
+  matchSkill?: (input: string) => string | null;
+}
 
 /**
  * 判断输入是否应跳过优化（导出以便调用方预判与测试）。
@@ -58,32 +69,32 @@ export function shouldSkipOptimization(userInput: string): boolean {
 }
 
 /**
- * 用边缘小模型优化用户输入。
+ * 优化用户输入（GLM 改写 + 三重闸门）。
  *
- * @param userInput 用户原始输入
- * @param client    可注入的 LLM 客户端（测试用；默认边缘单例）
  * @returns 优化结果；任何失败/闸门拒绝都回退为 { text: 原文, changed: false }
  */
-export async function optimizePromptWithEdge(
+export async function optimizePrompt(
   userInput: string,
-  client?: GenerateClient,
+  deps?: PromptOptimizerDeps,
 ): Promise<PromptOptimization> {
-  if (!isEdgeEnabled("EDGE_PROMPT_REWRITE") || shouldSkipOptimization(userInput)) {
+  if (!isRewriteEnabled() || shouldSkipOptimization(userInput)) {
     return { text: userInput, changed: false };
   }
 
   try {
-    const llm = client ?? getEdgeClient();
+    const rewrite = deps?.rewrite ?? glmRewrite;
+    const verify = deps?.verify ?? glmVerifyFidelity;
+    const matchSkill = deps?.matchSkill ?? matchSkillContext;
+
     const truncated = userInput.length > MAX_INPUT_CHARS
       ? userInput.slice(0, MAX_INPUT_CHARS)
       : userInput;
 
-    // ── 改写 ──
-    const resp = await llm.generate(
-      `改写任务：把【】里的口语化输入改写成一条明确的任务指令，保留全部关键信息，保持原语言，只输出指令本身。\n【${truncated}】`,
-      { maxTokens: 512 },
-    );
-    const optimized = (resp.content ?? "").trim();
+    // ── Skill 匹配：命中专家角色则以其工作流为改写框架 ──
+    const skillContext = matchSkill(truncated);
+
+    // ── GLM 改写 ──
+    const optimized = (await rewrite(truncated, skillContext))?.trim() ?? "";
 
     // ── 闸门 1：输出校验 ──
     if (!isValidOptimization(optimized, userInput)) {
@@ -99,22 +110,97 @@ export async function optimizePromptWithEdge(
       return { text: userInput, changed: false };
     }
 
-    // ── 闸门 3：LLM 忠实度判别 ──
-    const faithful = await verifyFidelity(llm, truncated, optimized);
-    if (!faithful) {
+    // ── 闸门 3：忠实度判别（失败按不忠实处理，安全方向） ──
+    const faithful = await verify(userInput, optimized);
+    if (faithful !== true) {
       logger.debug("Prompt optimizer: fidelity check rejected, using original");
       return { text: userInput, changed: false };
     }
 
     return { text: optimized, changed: true };
   } catch (err) {
-    // 网络/超时/熔断 —— 优雅降级
-    logger.debug("Prompt optimizer: edge call failed, using original", {
+    logger.debug("Prompt optimizer: enhancement failed, using original", {
       error: (err as Error).message,
     });
     return { text: userInput, changed: false };
   }
 }
+
+// ─────────────────────────────────────────────────────────
+// 生产实现：GLM 链 / Skill 匹配
+// ─────────────────────────────────────────────────────────
+
+/** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启） */
+function isRewriteEnabled(): boolean {
+  const off = (v: string | undefined) => v !== undefined && (v.toLowerCase() === "0" || v.toLowerCase() === "false");
+  return !off(process.env.PROMPT_REWRITE) && !off(process.env.EDGE_PROMPT_REWRITE);
+}
+
+/** GLM 链调用：依次尝试，全部失败返回 null */
+async function callGlm(system: string, user: string): Promise<string | null> {
+  for (const { provider, model } of GLM_CHAIN) {
+    try {
+      const resp = await callProvider(
+        provider,
+        model,
+        [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        GLM_TIMEOUT_MS,
+        0,
+      );
+      const content = (resp.content ?? "").trim();
+      if (content) return content;
+    } catch (err) {
+      logger.debug(`Prompt optimizer: ${provider}/${model} failed, trying next`, {
+        error: (err as Error).message,
+      });
+    }
+  }
+  return null;
+}
+
+/** 生产改写器：GLM 链 */
+async function glmRewrite(input: string, skillContext: string | null): Promise<string | null> {
+  const skillClause = skillContext
+    ? `\n命中专家角色，请以其工作流程为框架组织改写：\n${skillContext}\n`
+    : "";
+  const system = `你是提示词优化器。将用户输入改写为更清晰、具体、结构化的提示词。${skillClause}
+规则：
+- 严格保持原意与原文语言（中文输入中文输出，英文输入英文输出）
+- 不回答问题，只输出改写后的提示词文本
+- 不添加原文没有的要求，不解释，不加前后缀
+- 输出长度不超过原文 2 倍`;
+  return callGlm(system, input);
+}
+
+/** 生产忠实度判别：GLM 链；明确 true 才通过 */
+async function glmVerifyFidelity(original: string, rewritten: string): Promise<boolean | null> {
+  const content = await callGlm(
+    `你是审核员。判断改写是否忠实于原文（意思一致且语言相同）。只回答 JSON {"faithful": true或false}`,
+    `原文：【${original}】\n改写：【${rewritten}】`,
+  );
+  if (content === null) return null;
+  return /"faithful"\s*:\s*true/.test(content);
+}
+
+/** 生产 Skill 匹配：promptEngineer 角色库（agency-zh + Hermes + 内置） */
+function matchSkillContext(input: string): string | null {
+  try {
+    const skill = promptEngineer.matchSkill(input);
+    if (!skill) return null;
+    // 裁剪人格正文，避免 prompt 过长
+    const persona = skill.promptTemplate.slice(0, 800);
+    return `【${skill.name}】${persona}`;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// 闸门
+// ─────────────────────────────────────────────────────────
 
 /** 闸门 1 校验：非空、未退化、未异常膨胀、非原样照抄 */
 function isValidOptimization(optimized: string, original: string): boolean {
@@ -126,28 +212,10 @@ function isValidOptimization(optimized: string, original: string): boolean {
 
 /**
  * 闸门 2：语言一致性 —— 比较 CJK 字符占比是否同侧。
- * 原文以中文为主则改写也须以中文为主，反之亦然。
  */
 function sameLanguage(original: string, optimized: string): boolean {
   const cjkRatio = (s: string) =>
     (s.match(/[一-龥]/g)?.length ?? 0) / Math.max(s.length, 1);
   const CJK_THRESHOLD = 0.2;
   return (cjkRatio(original) > CJK_THRESHOLD) === (cjkRatio(optimized) > CJK_THRESHOLD);
-}
-
-/**
- * 闸门 3：LLM 忠实度判别。
- * 返回 true 仅当模型明确回答 {"faithful": true}；解析失败按不忠实处理。
- */
-async function verifyFidelity(
-  llm: GenerateClient,
-  original: string,
-  optimized: string,
-): Promise<boolean> {
-  const resp = await llm.generate(
-    `判断改写是否忠实于原文（意思一致且语言相同）。原文：【${original}】改写：【${optimized}】只回答JSON {"faithful": true或false}`,
-    { maxTokens: 40, answerPrefix: '{"faithful":' },
-  );
-  const parsed = extractJson<{ faithful?: unknown }>(resp.content ?? "");
-  return parsed?.faithful === true;
 }

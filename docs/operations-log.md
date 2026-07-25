@@ -1369,3 +1369,17 @@
   - 新建 `docs/EDGE-LLM.md`：边缘层架构、已验证模型矩阵、env 配置、能力地图、关键设计（三重闸门/双层复核/DI 测试约定）、运维手册。
 - **验证**：上述全部通过；全部 6 个边缘相关测试文件 113 pass。
 - **Commit**：`175f9ad`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 15:10 +0800 — 提示词增强 v2：GLM-4.7-flash 引擎 + 缓存友好消息结构
+
+- **任务**（用户架构调整）：2B 退出文本改写（只做工具模型）；GLM-4.7-flash 任提示词增强模型；API 输入优化加强缓存命中。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc）。
+- **执行的操作（文件级）**：
+  - 备份 `src/agents/prompt-optimizer.ts`、`src/services/chat.ts`、`tests/prompt-optimizer.test.ts`（验证通过后已删除）。
+  - `src/agents/prompt-optimizer.ts` 重写为 v2.0：改写/忠实度判别引擎从边缘切换到 GLM 免费链（zhipu glm-4.7-flash 直连 → siliconflow GLM-4.7-Flash:free 兜底）；新增 Skill 专家匹配（命中 agency/Hermes skill 则以其工作流为改写框架）；三重闸门保留（输出校验/语言一致性/忠实度）；DI 依赖注入（rewrite/verify/matchSkill）；开关 PROMPT_REWRITE=0（兼容 EDGE_PROMPT_REWRITE=0）。
+  - `src/services/chat.ts`：优化器调用更新；prepareChatContext 重构为缓存友好结构——稳定前缀（增强 system）在前、易变上下文（codegraph→知识 固定次序）在后、并行分支只写局部变量后确定性组装。修复旧实现两个 bug：codegraph 命中时 enhanced system 被整体丢弃；两个并行分支 read-modify-write 竞态导致消息顺序不确定。
+  - `tests/prompt-optimizer.test.ts` 重写：17 用例（DI fake，覆盖闸门/回退/skill 上下文/开关兼容）。
+- **验证**：17 pass + intent-enhancer 30 pass；`tsc --noEmit` 无错误。⚠️ GLM 真实链路未验证：zhipu key 已过期（401）、siliconflow key 缺失，需用户刷新后复验。
+- **Commit**：（提交后补上）。

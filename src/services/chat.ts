@@ -14,7 +14,7 @@ import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
-import { optimizePromptWithEdge } from "../agents/prompt-optimizer.js";
+import { optimizePrompt } from "../agents/prompt-optimizer.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -53,11 +53,11 @@ export async function prepareChatContext(
         .slice(0, -1)
         .filter((m) => m.role !== "system");
 
-      // ── 提示词优化：边缘小模型 (MiniCPM5-1B) 改写用户输入 ──
-      // 设计：每条输入先经边缘模型改写为更清晰的提示词，再进入 agent 主循环
-      // 失败容错：超时/熔断/异常输出 → 回退原文，不阻塞主流程
+      // ── 提示词优化：GLM-4.7-flash 改写 + Skill 专家增强 + 三重闸门 ──
+      // 设计：每条输入先经 GLM 改写为更清晰的提示词，再进入 agent 主循环
+      // 失败容错：GLM 链失败/闸门拒绝 → 回退原文，不阻塞主流程
       // 原文仍用于意识观察与知识检索；仅外发给主模型的 user 消息使用优化文本
-      const optimization = await optimizePromptWithEdge(lastUserMsg.content);
+      const optimization = await optimizePrompt(lastUserMsg.content);
       if (optimization.changed) {
         logger.debug("Prompt optimized by edge model", {
           original: lastUserMsg.content.slice(0, 80),
@@ -79,11 +79,15 @@ export async function prepareChatContext(
       }
       // 无论是否经过 LLM 增强，都用增强版 system prompt（注入思考框架）
       const enhancedSystem = buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content);
-      chatMessages = agentMessages.map((m, idx) =>
-        idx === 0 && m.role === "system"
-          ? { ...m, content: enhancedSystem }
-          : m
-      );
+      // 缓存友好的消息结构（2026-07-25）：
+      //   稳定前缀在前 —— [增强 system]（同一 intent 文本 byte 级稳定）
+      //   易变内容在后 —— [codegraph 上下文][知识上下文]（固定相对次序）
+      // 并行分支只写局部变量，Promise.all 后确定性组装（此前 prepend 写法
+      // 会丢弃 enhanced system 且分支间存在 read-modify-write 竞态）
+      const enhancedSystemMsg: ChatMessage = { role: "system", content: enhancedSystem };
+      const restMessages = agentMessages.filter((m, idx) => !(idx === 0 && m.role === "system"));
+      let codegraphMsg: ChatMessage | null = null;
+      let knowledgeMsg: ChatMessage | null = null;
       intentInfo = intent;
       getConsciousness().observe(lastUserMsg.content, intent);
 
@@ -111,13 +115,10 @@ export async function prepareChatContext(
                   cgResult.results
                 ) {
                   codegraphContext = cgResult.results.slice(0, 3000);
-                  chatMessages = [
-                    {
-                      role: "system",
-                      content: `[CodeGraph Context]\n${codegraphContext}`,
-                    },
-                    ...chatMessages.filter((m) => m.role !== "system"),
-                  ];
+                  codegraphMsg = {
+                    role: "system",
+                    content: `[CodeGraph Context]\n${codegraphContext}`,
+                  };
                 }
               } catch {
                 /* non-fatal — continue without codegraph context */
@@ -136,10 +137,7 @@ export async function prepareChatContext(
                   confidence: intentInfo.confidence,
                 });
                 if (kr.sources.length > 0) {
-                  chatMessages = [
-                    { role: "system", content: kr.context },
-                    ...chatMessages,
-                  ];
+                  knowledgeMsg = { role: "system", content: kr.context };
                 }
               } catch (err) {
                 logger.debug("Adaptive knowledge retrieval failed", {
@@ -151,6 +149,14 @@ export async function prepareChatContext(
         }
         await Promise.all(parallelTasks);
       }
+
+      // 确定性组装：稳定前缀 → 易变上下文（固定次序）→ 历史与当前输入
+      chatMessages = [
+        enhancedSystemMsg,
+        ...(codegraphMsg ? [codegraphMsg] : []),
+        ...(knowledgeMsg ? [knowledgeMsg] : []),
+        ...restMessages,
+      ];
     }
   }
 

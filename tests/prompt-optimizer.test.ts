@@ -1,46 +1,42 @@
 /**
- * 提示词优化器测试 —— 验证 src/agents/prompt-optimizer.ts
+ * 提示词优化器 v2.0 测试 —— 验证 src/agents/prompt-optimizer.ts
  *
- * 改写默认开启（Qwopus3.5-4B 实测改写忠实），但必须过三重闸门：
- *   输出校验（长度/非空）→ 语言一致性（确定性）→ LLM 忠实度判别
- * 任一闸门失败或模型异常都回退原文。通过注入 fake client 测试, 不访问真实端点。
+ * GLM-4.7-flash 改写 + Skill 专家增强 + 三重闸门：
+ *   输出校验（长度/非空/非照抄）→ 语言一致性（确定性）→ 忠实度判别
+ * 任一闸门失败或依赖不可用都回退原文。通过 DI fake 测试，不访问真实 API。
  */
 import { describe, test, expect } from "bun:test";
-import { optimizePromptWithEdge, shouldSkipOptimization } from "../src/agents/prompt-optimizer.js";
-
-/**
- * 构造 fake LLM client。handler 按 prompt 内容区分改写请求与忠实度判别请求。
- */
-function fakeClient(handler: (prompt: string) => { content: string }) {
-  let calls = 0;
-  return {
-    client: {
-      generate: async (prompt: string) => {
-        calls++;
-        const r = handler(prompt);
-        return {
-          content: r.content,
-          model: "mock",
-          usage: { promptTokens: 0, completionTokens: 0 },
-          finishReason: "stop",
-        };
-      },
-    },
-    getCalls: () => calls,
-  };
-}
+import { optimizePrompt, shouldSkipOptimization, type PromptOptimizerDeps } from "../src/agents/prompt-optimizer.js";
 
 const LONG_INPUT = "帮我分析一下这个项目的知识库检索模块的性能瓶颈在哪里，并给出优化建议";
 const GOOD_REWRITE = "请分析本项目知识库检索模块的性能瓶颈，并给出可执行的优化建议。";
 
-/** handler 快捷构造：改写返回 rewrite，忠实度判别返回 faithful */
-function handlerReturning(rewrite: string, faithful: boolean) {
-  return (prompt: string) => {
-    if (prompt.includes("判断改写是否忠实")) {
-      return { content: JSON.stringify({ faithful }) };
-    }
-    return { content: rewrite };
+/** 构造 DI deps：rewrite 返回 rewriteTo，verify 返回 verifyResult */
+function makeDeps(opts: {
+  rewriteTo?: string | null;
+  verifyResult?: boolean | null;
+  skillContext?: string | null;
+  rewriteThrows?: boolean;
+}) {
+  const calls = { rewrite: 0, verify: 0, matchSkill: 0 };
+  let capturedSkillContext: string | null | undefined;
+  const deps: PromptOptimizerDeps = {
+    rewrite: async (_input: string, skillContext: string | null) => {
+      calls.rewrite++;
+      capturedSkillContext = skillContext;
+      if (opts.rewriteThrows) throw new Error("GLM down");
+      return opts.rewriteTo ?? null;
+    },
+    verify: async () => {
+      calls.verify++;
+      return opts.verifyResult === undefined ? true : opts.verifyResult;
+    },
+    matchSkill: () => {
+      calls.matchSkill++;
+      return opts.skillContext ?? null;
+    },
   };
+  return { deps, calls, getSkillContext: () => capturedSkillContext };
 }
 
 describe("shouldSkipOptimization", () => {
@@ -63,85 +59,115 @@ describe("shouldSkipOptimization", () => {
   });
 });
 
-describe("optimizePromptWithEdge", () => {
-  test("改写忠实时采用（调用改写+判别两次）", async () => {
-    const { client, getCalls } = fakeClient(handlerReturning(GOOD_REWRITE, true));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
-    expect(getCalls()).toBe(2);
+describe("optimizePrompt", () => {
+  test("改写忠实时采用（rewrite+verify 各一次）", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    const result = await optimizePrompt(LONG_INPUT, deps);
+    expect(calls.rewrite).toBe(1);
+    expect(calls.verify).toBe(1);
     expect(result.changed).toBe(true);
     expect(result.text).toContain("性能瓶颈");
   });
 
+  test("命中 skill 时上下文传给改写器", async () => {
+    const { deps, getSkillContext } = makeDeps({
+      rewriteTo: GOOD_REWRITE,
+      verifyResult: true,
+      skillContext: "【后端架构师】资深后端架构师人格...",
+    });
+    const result = await optimizePrompt(LONG_INPUT, deps);
+    expect(result.changed).toBe(true);
+    expect(getSkillContext()).toContain("后端架构师");
+  });
+
   test("忠实度判别拒绝时回退原文", async () => {
-    const { client } = fakeClient(handlerReturning("请提供检索信息以便我帮助你。", false));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+    const { deps } = makeDeps({ rewriteTo: "请提供检索信息以便我帮助你。", verifyResult: false });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("语言漂移被确定性检查拦截（中文输入英文输出）", async () => {
-    const { client } = fakeClient(handlerReturning("Please analyze the performance bottleneck of the knowledge base retrieval module.", true));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+  test("忠实度判别不可用（null）按不忠实回退（安全方向）", async () => {
+    const { deps } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: null });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("忠实度判别返回垃圾时按不忠实处理（安全方向回退）", async () => {
-    const { client } = fakeClient((prompt: string) => {
-      if (prompt.includes("判断改写是否忠实")) return { content: "我无法判断" };
-      return { content: GOOD_REWRITE };
+  test("语言漂移被确定性检查拦截", async () => {
+    const { deps, calls } = makeDeps({
+      rewriteTo: "Please analyze the performance bottleneck of the knowledge base retrieval module.",
+      verifyResult: true,
     });
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+    const result = await optimizePrompt(LONG_INPUT, deps);
+    expect(result.changed).toBe(false);
+    expect(result.text).toBe(LONG_INPUT);
+    expect(calls.verify).toBe(0); // 语言闸门在忠实度判别之前
+  });
+
+  test("照抄原文视为未改写", async () => {
+    const { deps } = makeDeps({ rewriteTo: LONG_INPUT, verifyResult: true });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("照抄原文视为未改写（changed=false）", async () => {
-    const { client } = fakeClient(handlerReturning(LONG_INPUT, true));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+  test("改写器返回 null（GLM 链全失败）回退原文", async () => {
+    const { deps } = makeDeps({ rewriteTo: null });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("模型调用失败时回退原文", async () => {
-    const { client } = fakeClient(() => {
-      throw new Error("connection refused");
-    });
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+  test("改写器抛异常回退原文", async () => {
+    const { deps } = makeDeps({ rewriteThrows: true });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("模型返回空内容时回退原文", async () => {
-    const { client } = fakeClient(handlerReturning("  ", true));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+  test("改写返回空内容回退原文", async () => {
+    const { deps } = makeDeps({ rewriteTo: "  " });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("模型输出异常膨胀时回退原文", async () => {
-    const { client } = fakeClient(handlerReturning("扩".repeat(LONG_INPUT.length * 10), true));
-    const result = await optimizePromptWithEdge(LONG_INPUT, client);
+  test("改写输出异常膨胀回退原文", async () => {
+    const { deps } = makeDeps({ rewriteTo: "扩".repeat(LONG_INPUT.length * 10) });
+    const result = await optimizePrompt(LONG_INPUT, deps);
     expect(result.changed).toBe(false);
     expect(result.text).toBe(LONG_INPUT);
   });
 
-  test("跳过的输入不调用模型", async () => {
-    const { client, getCalls } = fakeClient(handlerReturning("改写结果", true));
-    const result = await optimizePromptWithEdge("你好", client);
-    expect(getCalls()).toBe(0);
+  test("跳过的输入不调用改写器", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: "改写结果" });
+    const result = await optimizePrompt("你好", deps);
+    expect(calls.rewrite).toBe(0);
     expect(result.changed).toBe(false);
     expect(result.text).toBe("你好");
   });
 
-  test("EDGE_PROMPT_REWRITE=0 时不调用模型", async () => {
-    process.env.EDGE_PROMPT_REWRITE = "0";
+  test("PROMPT_REWRITE=0 时不调用改写器", async () => {
+    process.env.PROMPT_REWRITE = "0";
     try {
-      const { client, getCalls } = fakeClient(handlerReturning("改写结果", true));
-      const result = await optimizePromptWithEdge(LONG_INPUT, client);
-      expect(getCalls()).toBe(0);
+      const { deps, calls } = makeDeps({ rewriteTo: "改写结果" });
+      const result = await optimizePrompt(LONG_INPUT, deps);
+      expect(calls.rewrite).toBe(0);
       expect(result.changed).toBe(false);
       expect(result.text).toBe(LONG_INPUT);
+    } finally {
+      delete process.env.PROMPT_REWRITE;
+    }
+  });
+
+  test("旧开关 EDGE_PROMPT_REWRITE=0 同样生效（向后兼容）", async () => {
+    process.env.EDGE_PROMPT_REWRITE = "0";
+    try {
+      const { deps, calls } = makeDeps({ rewriteTo: "改写结果" });
+      const result = await optimizePrompt(LONG_INPUT, deps);
+      expect(calls.rewrite).toBe(0);
+      expect(result.changed).toBe(false);
     } finally {
       delete process.env.EDGE_PROMPT_REWRITE;
     }
