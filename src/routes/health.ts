@@ -198,11 +198,17 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
       freeOnly: m.freeOnly,
       apiKeyMasked: m.apiKey ? `${m.apiKey.slice(0, 8)}...` : "",
     }));
+    // 安全（2026-07-26 审查修复）：绝不序列化任何令牌/密钥字段。
+    // 此前 gateway.auth.token（即 AXIOM_AUTH_TOKEN）、obsidianApiToken、
+    // serpapiKey 均以明文返回，本地任意进程可窃取并用于远程访问。
+    const { auth: _auth, ...safeGateway } = config.gateway as typeof config.gateway & { auth?: unknown };
+    const { obsidianApiToken: _obsToken, ...safeMemory } = config.memory as typeof config.memory & { obsidianApiToken?: unknown };
+    const { serpapiKey: _serpKey, ...safeCrawler } = config.crawler as typeof config.crawler & { serpapiKey?: unknown };
     return ctx.jsonResponse({
-      gateway: config.gateway,
+      gateway: { ...safeGateway, authConfigured: Boolean(config.gateway?.auth?.token) },
       models: safeModels,
-      memory: config.memory,
-      crawler: config.crawler,
+      memory: safeMemory,
+      crawler: safeCrawler,
     }, 200, ctx.baseHeaders);
   }
   if (ctx.url.pathname === "/config" && ctx.req.method === "POST") {

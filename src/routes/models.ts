@@ -1,8 +1,15 @@
 import type { RouteContext } from "./types.js";
 import fs from "fs";
 import { readString } from "../utils/env.js";
+import { requireAuthToken } from "./route-auth.js";
 
 const CONFIG_PATH = "./data/model-config.json";
+
+/** 安全（2026-07-26）：apiKey 绝不回传/落盘明文 —— 仅保留末 4 位 */
+function maskEntry(m: ModelEntry): Omit<ModelEntry, "apiKey"> & { apiKeyLast4?: string } {
+  const { apiKey, ...rest } = m;
+  return { ...rest, apiKeyLast4: apiKey ? apiKey.slice(-4) : undefined };
+}
 
 interface ModelEntry {
   id: string;
@@ -56,11 +63,15 @@ const KNOWN_PROVIDERS: ProviderEntry[] = [
 export async function handleListModels(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/models" || ctx.req.method !== "GET") return null;
   const config = readConfig();
-  return ctx.jsonResponse({ models: config.models }, 200, ctx.baseHeaders);
+  // 安全（2026-07-26）：apiKey 不回传，仅末 4 位
+  return ctx.jsonResponse({ models: config.models.map(maskEntry) }, 200, ctx.baseHeaders);
 }
 
 export async function handleAddModel(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/models" || ctx.req.method !== "POST") return null;
+  // 安全（2026-07-26）：模型写入（含 baseURL 劫持风险）需要二次认证
+  const authErr = requireAuthToken(ctx);
+  if (authErr) return authErr;
   try {
     const body = await ctx.req.json() as Record<string, unknown>;
     if (!body.name || !body.provider || !body.model) {
@@ -81,7 +92,7 @@ export async function handleAddModel(ctx: RouteContext): Promise<Response | null
     };
     config.models.push(entry);
     writeConfig(config);
-    return ctx.jsonResponse({ success: true, model: entry }, 200, ctx.baseHeaders);
+    return ctx.jsonResponse({ success: true, model: maskEntry(entry) }, 200, ctx.baseHeaders);
   } catch (e) {
     return ctx.jsonResponse({ error: String(e) }, 400, ctx.baseHeaders);
   }
@@ -90,6 +101,9 @@ export async function handleAddModel(ctx: RouteContext): Promise<Response | null
 export async function handleDeleteModel(ctx: RouteContext): Promise<Response | null> {
   const match = ctx.url.pathname.match(/^\/models\/(.+)$/);
   if (!match || ctx.req.method !== "DELETE") return null;
+  // 安全（2026-07-26）：删除操作需要二次认证
+  const authErr = requireAuthToken(ctx);
+  if (authErr) return authErr;
   const modelId = decodeURIComponent(match[1]);
   const config = readConfig();
   const idx = config.models.findIndex((m) => m.id === modelId);

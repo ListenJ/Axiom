@@ -14,6 +14,7 @@ import { SerpApiClient } from "../crawl/serpapi-client.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
 import { logger } from "../utils/logger.js";
+import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
 import { registerSkillTools } from "./server/skill-tools.js";
@@ -396,11 +397,22 @@ if (transport === "stdio") {
   const toolHandlers = registry.buildHttpHandlers();
   const toolsMeta = registry.getToolsMeta();
   const port = Number(readString("MCP_PORT", "3001"));
+  // 安全（2026-07-26 审查修复）：
+  // - 默认仅绑定回环（MCP_HOST=0.0.0.0 才暴露网络，此前 Bun 默认 0.0.0.0 全无认证）
+  // - 与网关一致的认证：回环放行，远程必须 x-api-key（AXIOM_AUTH_TOKEN 未配置时 fail-closed）
+  const hostname = readString("MCP_HOST", "127.0.0.1");
+  const apiKey = readString("AXIOM_AUTH_TOKEN");
 
   Bun.serve({
     port,
-    async fetch(req) {
+    hostname,
+    async fetch(req, server) {
       if (req.method !== "POST") return Response.json({ error: "Only POST supported" }, { status: 405 });
+      const remoteAddr = server.requestIP(req)?.address;
+      if (!checkApiKey(req, isLocalAddress(remoteAddr), apiKey)) {
+        logger.warn("[MCP] Unauthorized request rejected", { remote: remoteAddr });
+        return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
+      }
       try {
         const body = await req.json();
         if (body.method === "initialize") {
@@ -458,5 +470,5 @@ if (transport === "stdio") {
       }
     },
   });
-  logger.info(`[MCP] Server running on http://localhost:${port}`);
+  logger.info(`[MCP] Server running on http://${hostname}:${port} (auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);
 }

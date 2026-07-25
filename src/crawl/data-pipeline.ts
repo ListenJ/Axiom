@@ -319,6 +319,8 @@ export class DataPipeline {
               Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
             signal: controller.signal,
+            // SSRF 防护：初始 URL 与每个重定向跳都校验（覆盖 MCP web_fetch / /web-fetch / collector）
+            ssrfGuard: true,
           });
 
           clearTimeout(timer);

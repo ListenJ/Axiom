@@ -2,29 +2,13 @@
  * Search routes: vault search, web search, enhanced search, suggestions, history
  */
 import { logger } from "../utils/logger.js";
+import { isSafeUrl } from "../utils/url-safety.js";
 import type { RouteContext } from "./types.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
 
-// SSRF protection: block internal/private IPs and dangerous protocols
-const BLOCKED_PROTOCOLS = ["file:", "ftp:", "gopher:", "dict:"];
-const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "169.254.169.254", "metadata.google.internal"];
-
-function isSafeUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    if (BLOCKED_PROTOCOLS.some(p => parsed.protocol === p)) return false;
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    const hostname = parsed.hostname.toLowerCase();
-    if (BLOCKED_HOSTS.some(h => hostname === h || hostname.endsWith("." + h))) return false;
-    // Block private IP ranges
-    if (/^10\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^192\.168\./.test(hostname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
+// SSRF 防护已抽至共享模块 utils/url-safety.ts（含重定向逐跳校验，见 proxy-fetch ssrfGuard）
 
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {

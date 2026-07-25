@@ -27,6 +27,7 @@ import net from "node:net";
 import tls from "node:tls";
 import { URL } from "node:url";
 import { logger } from "./logger.js";
+import { isSafeUrl } from "./url-safety.js";
 
 // ========== 类型定义 ==========
 
@@ -44,6 +45,8 @@ export interface ProxyFetchOptions {
   followRedirects?: boolean;
   /** 最大重定向次数 */
   maxRedirects?: number;
+  /** SSRF 防护：为 true 时校验初始 URL 与每个重定向跳（拒绝内网/环回/元数据地址） */
+  ssrfGuard?: boolean;
 }
 
 export interface ProxyFetchResponse {
@@ -404,6 +407,11 @@ async function makeRequest(
   opts: ProxyFetchOptions,
   redirectCount: number = 0,
 ): Promise<ProxyFetchResponse> {
+  // SSRF 防护：初始 URL 与每个重定向跳都过校验（makeRequest 递归即逐跳）
+  if (opts.ssrfGuard && !isSafeUrl(url.href)) {
+    return Promise.reject(new Error(`URL blocked by SSRF guard: ${url.hostname}`));
+  }
+
   const isHttps = url.protocol === "https:";
   const proxy = opts.proxy !== undefined
     ? (opts.proxy ? parseProxyString(opts.proxy) : null)

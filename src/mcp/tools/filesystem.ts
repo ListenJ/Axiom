@@ -57,6 +57,21 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
       };
     }
 
+    // 安全（2026-07-26 审查修复）：沙箱内敏感区域拒绝访问。
+    // fs 工具沙箱根 = 仓库根，.env / 数据库 / git 元数据含密钥与运行状态，
+    // 不得经 agent 工具读取或改写。
+    const DENIED_SEGMENTS: Array<{ pattern: RegExp; label: string }> = [
+      { pattern: /(^|[\\/])\.env([\\/].*)?$|(^|[\\/])\.env\.[^\\/]+$/i, label: ".env 密钥文件" },
+      { pattern: /(^|[\\/])\.git([\\/]|$)/i, label: ".git 元数据" },
+      { pattern: /(^|[\\/])data[\\/][^\\/]*\.db(-\w+)?$/i, label: "运行时数据库" },
+      { pattern: /(^|[\\/])data[\\/]model-config\.json$/i, label: "模型密钥配置" },
+    ];
+    for (const { pattern, label } of DENIED_SEGMENTS) {
+      if (pattern.test(relative)) {
+        return { safe: false, error: `Path '${targetPath}' is in a denied area (${label}).` };
+      }
+    }
+
     // Check 3: resolve symlinks to prevent symlink-based traversal
     // A symlink within cwd could point outside cwd, bypassing the relative check above.
     // Only check if the path exists (writeFile to a new file won't exist yet).

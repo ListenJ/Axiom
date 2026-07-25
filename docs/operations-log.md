@@ -1415,3 +1415,23 @@
   - 单元测试 17 pass；`tsc --noEmit` 无错误。
   - 发现（未改，超出范围）：registry 中 `glm-4.7-flash-free`（siliconflow `zhipu/GLM-4.7-Flash:free`）型号在平台上不存在，router 用到该条目时会 400，建议后续修正。
 - **Commit**：`9631055`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 17:05 +0800 — 生产审查修复：安全 6 项 + router 免费化
+
+- **任务**（用户要求）：全部使用免费服务；用 Omini 真实项目（CUDA 推理引擎，192.168.0.150:/home/listen/Omini）做生产级实测；审查网络安全/端口/信息暴露/流窜防御直至生产就绪。
+- **工具**：双 explore 代理（免费覆盖/安全面）、Bash（服务 E2E、MCP E2E、netstat/curl 实证）、Edit/Write。
+- **执行的操作（文件级）**（全部先备份 `.tmp/backups/`，验证后已删除）：
+  - `src/mcp/server.ts`：HTTP 传输默认绑定 127.0.0.1（MCP_HOST 可改）+ checkApiKey 认证（原 0.0.0.0 零认证，实证全工具面暴露）。
+  - `src/routes/health.ts`：`/config` 剥离 auth.token/obsidianApiToken/serpapiKey（实证明文泄露 AXIOM_AUTH_TOKEN）。
+  - `src/mcp/tools/terminal.ts`：`sanitizeSpawnEnv()` 剥离密钥类环境变量（原子进程 `env` 可读全部 API key）。
+  - 新建 `src/utils/url-safety.ts`（含 IPv6）；`src/utils/proxy-fetch.ts` 新增 `ssrfGuard` 逐跳校验；`src/crawl/data-pipeline.ts` crawlStructured 启用；`src/routes/search.ts` 换共享实现。
+  - `src/routes/models.ts`：apiKey 回显仅末 4 位；POST/DELETE 加 requireAuthToken。
+  - `src/mcp/tools/filesystem.ts`：isPathSafe 敏感区域拒绝（.env*/.git/data/*.db/model-config.json）。
+  - `src/router/models/registry.ts`：GLM-5.1/GLM-5 型号修正（Pro/zai-org、zai-org）、glm-4.7-flash-free→THUDM/GLM-4-9B-0414、isFree 纠正×2、免费角色覆盖扩至 decision/evaluation/research/code-*/architecture。
+  - `src/router/model-router.ts`：永久性失败不重试 + 5 分钟黑名单（导出 3 个函数供纯逻辑测试）。
+  - 新建 `tests/security-fixes.test.ts`（16 用例）、`docs/SECURITY-REVIEW.md`（终审报告）。
+- **实测**：Omini 真实 CUDA 代码问答通过；/chat 链路死模型耗时从 ~50s 降到 ~4s；MCP 回环绑定+401 实证；/config 无 token；/models 401+脱敏；SSRF 内网抓取被拒；env 无密钥；fs .env 被拒。
+- **验证**：16 pass + 全量 2000+ 回归零新增失败（5 个预存失败 stash 对比确认）；`tsc --noEmit` 全绿。
+- **Commit**：（提交后补上）。
