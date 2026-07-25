@@ -170,9 +170,10 @@ export class VaultManager {
    */
   async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}): Promise<string> {
     // Smart gate: skip low-value writes if context provided
+    // 边缘增强版：规则灰区由边缘小模型裁决（失败回退规则结果）
     if (opts.gateContext) {
       const gate = getMemoryGate();
-      const decision = gate.shouldWrite(content, content, opts.gateContext);
+      const decision = await gate.shouldWriteWithEdge(content, content, opts.gateContext);
       if (!decision.shouldWrite) {
         logger.info("[MemoryGate] Write skipped", { path: notePath, reason: decision.reason, category: decision.category });
         return notePath;

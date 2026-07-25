@@ -1322,3 +1322,19 @@
 - **2B 模型实测（EDGE_LLM_TRANSPORT=completion）**：意图分类 4/4（~170-190ms，置信度校准）；风险初筛 rm→MEDIUM、curl|bash→HIGH、mkfs→LOW（漏判，由正则硬底线兜底）；改写照抄被闸门拒绝（2B 改写不可用，自动回退原文）；标签可用但偏英文；标题照抄原文。**结论：2B 仅分类任务可用且需 completion 模式；4B（chat 模式）全能力达标，建议边缘层用 4B。**
 - **验证**：188 pass（6 测试文件）；`tsc --noEmit` 无错误。
 - **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-25 21:45 +0800 — 边缘小模型层 Phase 3：vault 文档/文件树管理增强
+
+- **任务**：记忆门控灰区裁决 + 笔记标题/标签/摘要边缘增强（全部"规则 fast path → 边缘增强 → 失败回退"）。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc、真实端点验证）。
+- **执行的操作（文件级）**：
+  - 备份 `src/memory/memory-gate.ts`、`src/memory/distiller.ts`、`src/memory/vault-manager.ts` 到 `.tmp/backups/`（验证通过后已删除）。
+  - 新建 `src/memory/edge-assist.ts`：`judgeSignificanceWithEdge()`（灰区显著性裁决）、`generateTitleWithEdge()`（语义标题 ≤60 字符）、`generateTagsWithEdge()`（2-5 标签）；全部可空返回，EDGE_MEMORY_ASSIST=0 禁用。
+  - `src/memory/memory-gate.ts`：新增异步 `shouldWriteWithEdge()`——规则通过/远低于阈值直接返回；confidence ∈ [0.35, 0.6) 灰区咨询边缘，值得则升级 medium-value 写入；同步 `shouldWrite` 不变。
+  - `src/memory/vault-manager.ts`：`writeNote` 门控切换为 `shouldWriteWithEdge`。
+  - `src/memory/distiller.ts`：`distillManual` 长内容走边缘摘要（回退截断）+ 边缘标签合并；修复混合行尾导致的重复 import。
+  - 新建 `tests/memory-edge-assist.test.ts`：20 用例（三辅助函数/灰区门控/回退路径，全 DI fake）。
+- **验证**：20 pass；`tsc --noEmit` 无错误；2B 端点实测显著性/标签可用（标题照抄，回退路径兜底）。
+- **Commit**：（提交后补上）。
