@@ -1259,4 +1259,33 @@
   - 新建 `scripts/edge-health.ts`：真实端点冒烟脚本。
   - 新建 `tests/local-llm-edge.test.ts`：9 个用例（TDD 先红后绿）。
 - **验证**：`bun test tests/local-llm-edge.test.ts` 9 pass；`bun test tests/dre-core-modules.test.ts` 94 pass 无回归；`tsc --noEmit` 无错误；`scripts/edge-health.ts` 真实端点 94ms 返回 `risk=high`。
+- **Commit**：`d8963af`（已推送 `internal211/main`）。
+- **备注**：本条记录随下一 Phase 提交补登 hash。
+
+---
+
+## 2026-07-25 17:05 +0800 — 边缘小模型层 Phase 1：提示词优化入口 + 边缘意图分类
+
+- **任务**：每条输入经边缘模型优化（Agent 运行时入口）+ 意图分类切到边缘模型优先。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc、真实端点采样）。
+- **执行的操作（文件级）**：
+  - 备份 `src/services/chat.ts`、`src/agents/intent-enhancer.ts`、`tests/intent-enhancer.test.ts` 到 `.tmp/backups/`（验证通过后已删除）。
+  - 新建 `src/agents/prompt-optimizer.ts`：`optimizePromptWithEdge()` 改写器（DI 客户端、跳过规则、输出校验、失败回退原文）。
+  - `src/services/chat.ts`：`prepareChatContext` 接入优化器，优化文本用于外发 user 消息，原文保留给意识观察/知识检索。
+  - `src/agents/intent-enhancer.ts`：新增边缘第一层（融合式 prompt，有效标签置信度下限 0.6），zhipu glm-4.7-flash 降为第二层；抽出 `buildEnhancedResult()` 共用。
+  - 新建 `tests/prompt-optimizer.test.ts`（10 用例）；`tests/intent-enhancer.test.ts` 增加边缘层 mock 与 3 个双层回退用例。
+- **实测关键决策**：1B 模型自由改写语义漂移（4 例 3 漂移）、few-shot 复读、自验无判别力 → **改写功能默认关闭**（`EDGE_PROMPT_REWRITE=1` 才启用，代码保留待更大模型）；分类类任务保留并启用（用户已确认该取舍）。
+- **验证**：40 pass（两测试文件）；`tsc --noEmit` 无错误；真实端点意图分类 3/3 正确、~140-200ms。`tests/services-chat.test.ts` 4 fail 为**预存问题**（`getFileSymbolsFromCodeGraph` 导出缺失，与本次无关，stash 对比确认）。
+- **Commit**：（提交后补上）。
+
+---
+
+## 2026-07-25 19:40 +0800 — 换用 Qwopus3.5-4B 后重测并重新启用改写（三重闸门）
+
+- **背景**：用户将边缘模型从 MiniCPM5-1B 换为 Qwopus3.5-4B-Coder-MTP-Q3_K_S（同端点 192.168.0.150:9001，-ngl 20），要求重新测试。
+- **实测结论（4B）**：改写 4/4 忠实（0.8-1.4s）；忠实度判别可识别语义漂移（漏检语言漂移）；意图分类 5/5（含校准置信度）；风险分类 4/4（rm/dd/force-push 均 high，ls 为 low）。
+- **执行的操作（文件级）**：
+  - `src/agents/prompt-optimizer.ts` 重写为三重闸门设计：输出校验 → 确定性语言一致性（CJK 占比，堵 4B 的 EN→ZH 漂移）→ LLM 忠实度判别（失败按不忠实回退）；默认启用，`EDGE_PROMPT_REWRITE=0` 关闭。
+  - `tests/prompt-optimizer.test.ts` 全量重写：13 用例覆盖三道闸门与全部回退路径。
+- **验证**：43 pass（两测试文件）；`tsc --noEmit` 无错误；真实端点端到端：两条中文输入改写采用（2.4-2.6s），英文输入的 EN→ZH 漂移被语言闸门正确拦截回退（1.2s）。
 - **Commit**：（提交后补上）。

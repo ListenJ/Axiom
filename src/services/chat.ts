@@ -14,6 +14,7 @@ import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
+import { optimizePromptWithEdge } from "../agents/prompt-optimizer.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -52,8 +53,20 @@ export async function prepareChatContext(
         .slice(0, -1)
         .filter((m) => m.role !== "system");
 
+      // ── 提示词优化：边缘小模型 (MiniCPM5-1B) 改写用户输入 ──
+      // 设计：每条输入先经边缘模型改写为更清晰的提示词，再进入 agent 主循环
+      // 失败容错：超时/熔断/异常输出 → 回退原文，不阻塞主流程
+      // 原文仍用于意识观察与知识检索；仅外发给主模型的 user 消息使用优化文本
+      const optimization = await optimizePromptWithEdge(lastUserMsg.content);
+      if (optimization.changed) {
+        logger.debug("Prompt optimized by edge model", {
+          original: lastUserMsg.content.slice(0, 80),
+          optimized: optimization.text.slice(0, 80),
+        });
+      }
+
       const { intent: rawIntent, messages: agentMessages } = buildAgentMessages(
-        lastUserMsg.content,
+        optimization.text,
         history,
       );
 

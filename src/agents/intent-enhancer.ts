@@ -20,6 +20,7 @@
  */
 
 import { callProvider } from "../router/provider-caller.js";
+import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { logger } from "../utils/logger.js";
 import type { IntentResult } from "./intent-router.js";
 
@@ -68,6 +69,20 @@ const CLASSIFIER_SYSTEM_PROMPT = `你是意图分类器。给定用户输入，�
 
 只输出 JSON，不要任何其他文字。`;
 
+/**
+ * 构建边缘小模型 (1B) 专用的意图分类 prompt。
+ *
+ * 实测结论（2026-07-25，对真实端点采样）：1B 模型无法遵循长 system prompt
+ * 与类别定义列表，会跑题或直接回答问题；唯一稳定的形态是
+ * 「单条 user 消息融合任务+输入+内联 schema」。因此边缘路径不用
+ * CLASSIFIER_SYSTEM_PROMPT，改用本融合式 prompt。
+ *
+ * 模型返回的 confidence 常为 0（无校准能力），调用方需自行设定置信度下限。
+ */
+function buildEdgeClassifierPrompt(input: string): string {
+  return `Classify intent of the input into one of: code, research, knowledge, write, plan, chat. Input: "${input}". Reply JSON {"intent":"...","confidence":0.0-1.0}`;
+}
+
 // ─────────────────────────────────────────────────────────
 // 意图增强主函数
 // ─────────────────────────────────────────────────────────
@@ -96,6 +111,33 @@ export async function enhanceIntentWithLLM(
     ? userInput.slice(0, MAX_INPUT_CHARS)
     : userInput;
 
+  // ── 第一层：边缘小模型 (MiniCPM5-1B, 本地免费 ~100ms) ──
+  // 失败/非法输出时继续走下方 zhipu 路径，构成双轨回退链
+  if (isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")) {
+    try {
+      const edgeResp = await getEdgeClient().generate(
+        buildEdgeClassifierPrompt(truncatedInput),
+        { maxTokens: 64 },
+      );
+      const parsed = parseClassifierResponse((edgeResp.content ?? "").trim());
+      if (parsed && VALID_INTENTS.has(parsed.intent)) {
+        // 1B 模型 confidence 无校准（常为 0），有效枚举标签统一给到 0.6 下限
+        return buildEnhancedResult(
+          { intent: parsed.intent, confidence: Math.max(parsed.confidence, 0.6) },
+          baseIntent,
+        );
+      }
+      logger.debug("Intent enhancer: invalid edge response, falling back to zhipu", {
+        content: (edgeResp.content ?? "").slice(0, 100),
+      });
+    } catch (err) {
+      logger.debug("Intent enhancer: edge call failed, falling back to zhipu", {
+        error: (err as Error).message,
+      });
+    }
+  }
+
+  // ── 第二层：zhipu GLM4.7-flash（云端备用） ──
   try {
     const response = await callProvider(
       GLM_FLASH_PROVIDER,
@@ -112,14 +154,7 @@ export async function enhanceIntentWithLLM(
     const parsed = parseClassifierResponse(content);
 
     if (parsed && VALID_INTENTS.has(parsed.intent)) {
-      return {
-        intent: parsed.intent,
-        agentName: baseIntent.agentName, // 保留原 agentName（与意图解耦）
-        confidence: Math.max(parsed.confidence, baseIntent.confidence),
-        matchedKeywords: baseIntent.matchedKeywords,
-        recommendedRole: baseIntent.recommendedRole,
-        // 隐式约定：增强后的 intent 已被 LLM 校验过，可作为更可信的结果
-      };
+      return buildEnhancedResult(parsed, baseIntent);
     }
 
     // LLM 返回格式错误或意图非法 —— 回退
@@ -134,6 +169,23 @@ export async function enhanceIntentWithLLM(
     });
     return baseIntent;
   }
+}
+
+/**
+ * 用 LLM 分类结果构建增强 IntentResult（边缘层与云端层共用）。
+ */
+function buildEnhancedResult(
+  parsed: { intent: string; confidence: number },
+  baseIntent: IntentResult,
+): IntentResult {
+  return {
+    intent: parsed.intent,
+    agentName: baseIntent.agentName, // 保留原 agentName（与意图解耦）
+    confidence: Math.max(parsed.confidence, baseIntent.confidence),
+    matchedKeywords: baseIntent.matchedKeywords,
+    recommendedRole: baseIntent.recommendedRole,
+    // 隐式约定：增强后的 intent 已被 LLM 校验过，可作为更可信的结果
+  };
 }
 
 /**
