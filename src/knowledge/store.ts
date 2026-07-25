@@ -83,6 +83,14 @@ export class KnowledgeStore {
     return !!row;
   }
 
+  /** 按域/子域查询已采集标题（近重复检测候选，按采集时间倒序） */
+  listTitlesBySubdomain(domain: string, subdomain: string, limit = 5): string[] {
+    const rows = this.db.query(
+      "SELECT title FROM knowledge_sources WHERE domain = ? AND subdomain = ? ORDER BY stored_at DESC LIMIT ?"
+    ).all(domain, subdomain, limit) as Array<{ title: string }>;
+    return rows.map((r) => r.title);
+  }
+
   getSourceByUrl(url: string): KnowledgeSource | null {
     const row = this.db.query(
       "SELECT * FROM knowledge_sources WHERE url = ?"
@@ -210,16 +218,24 @@ export class KnowledgeStore {
       subdomain: string;
       url: string;
       quality: number;
+      /** 边缘生成的补充标签（与默认标签合并） */
+      extraTags?: string[];
+      /** 边缘生成的摘要（前置注入笔记头部，增强 FTS 可检索性） */
+      summary?: string;
     },
   ): Promise<string> {
     const vaultPath = `00-Knowledge/${opts.domain}/${opts.subdomain}/${this.slugify(title).slice(0, 60)}.md`;
 
-    await this.vault.writeNote(vaultPath, content, {
+    const finalContent = opts.summary
+      ? `> **摘要**：${opts.summary}\n\n${content}`
+      : content;
+
+    await this.vault.writeNote(vaultPath, finalContent, {
       title,
       type: "knowledge",
       source: opts.url,
       paraCategory: "resources",
-      tags: ["knowledge", opts.domain, opts.subdomain],
+      tags: ["knowledge", opts.domain, opts.subdomain, ...(opts.extraTags ?? [])],
     });
 
     this.saveSource({

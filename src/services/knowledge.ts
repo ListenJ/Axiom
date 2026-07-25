@@ -12,6 +12,7 @@ import { queryTool } from "../tools/query-tool.js";
 import { readTool } from "../tools/read-tool.js";
 import { createToolContext } from "../tools/types.js";
 import { runPipeline } from "../tools/pipeline.js";
+import { logger } from "../utils/logger.js";
 
 export interface KnowledgeRequest {
   query: string;
@@ -52,10 +53,21 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     ctx.localStore.set("vaultManager", getGlobalVault());
   } catch { /* vault 不可用 */ }
 
+  // 边缘查询改写：自然语言 → 检索关键词（失败回退原始查询）
+  let effectiveQuery = req.query;
+  try {
+    const { rewriteKnowledgeQueryWithEdge } = await import("../knowledge/edge-assist.js");
+    const rewritten = await rewriteKnowledgeQueryWithEdge(req.query);
+    if (rewritten) {
+      logger.debug("Knowledge query rewritten by edge model", { original: req.query.slice(0, 60), rewritten });
+      effectiveQuery = rewritten;
+    }
+  } catch { /* 边缘不可用，用原始查询 */ }
+
   const pipeline = [
     {
       tool: queryTool,
-      input: { query: req.query, scope: "auto" as const, maxResults: 8 },
+      input: { query: effectiveQuery, scope: "auto" as const, maxResults: 8 },
     },
   ];
 

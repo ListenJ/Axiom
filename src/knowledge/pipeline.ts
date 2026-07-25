@@ -7,6 +7,7 @@ import { getKnowledgeStore } from "./store.js"
 import { StructuredKnowledgeSchema } from "./types.js"
 import { preprocessKnowledge } from "./preprocessor.js"
 import { assessQuality } from "./quality-assessor.js"
+import { structureKnowledgeWithEdge } from "./edge-assist.js"
 
 const ZHIPU_API_BASE = "https://open.bigmodel.cn/api/paas/v4"
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
@@ -164,8 +165,9 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
                   result.pdfsConverted++
                   result.notesWritten++
 
-                  // GLM content structuring
-                  const structured = await structureWithGLM(final.result.markdown)
+                  // 内容结构化：边缘小模型优先（本地免费），失败回退 GLM
+                  const structured = await structureKnowledgeWithEdge(final.result.markdown)
+                    ?? await structureWithGLM(final.result.markdown)
                   if (structured) {
                     // Task 3.1: zod schema 校验 GLM 输出
                     const parsed = StructuredKnowledgeSchema.safeParse(structured)

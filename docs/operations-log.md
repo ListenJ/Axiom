@@ -1321,7 +1321,7 @@
   - `tests/local-llm-edge.test.ts`：completion transport 用例（think 剥离+前缀拼回）。
 - **2B 模型实测（EDGE_LLM_TRANSPORT=completion）**：意图分类 4/4（~170-190ms，置信度校准）；风险初筛 rm→MEDIUM、curl|bash→HIGH、mkfs→LOW（漏判，由正则硬底线兜底）；改写照抄被闸门拒绝（2B 改写不可用，自动回退原文）；标签可用但偏英文；标题照抄原文。**结论：2B 仅分类任务可用且需 completion 模式；4B（chat 模式）全能力达标，建议边缘层用 4B。**
 - **验证**：188 pass（6 测试文件）；`tsc --noEmit` 无错误。
-- **Commit**：（提交后补上）。
+- **Commit**：`06671ce`（已推送 `internal211/main`）。
 
 ---
 
@@ -1337,4 +1337,21 @@
   - `src/memory/distiller.ts`：`distillManual` 长内容走边缘摘要（回退截断）+ 边缘标签合并；修复混合行尾导致的重复 import。
   - 新建 `tests/memory-edge-assist.test.ts`：20 用例（三辅助函数/灰区门控/回退路径，全 DI fake）。
 - **验证**：20 pass；`tsc --noEmit` 无错误；2B 端点实测显著性/标签可用（标题照抄，回退路径兜底）。
+- **Commit**：`4ec97c0`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-25 22:20 +0800 — 边缘小模型层 Phase 4：知识库与知识搜集管理
+
+- **任务**：知识库四子能力——结构化、打标签/摘要、检索查询改写、去重与质检（用户全选）。
+- **工具**：Read/Edit/Write/Bash（bun test、tsc、真实端点验证）。
+- **执行的操作（文件级）**：
+  - 备份 `src/knowledge/pipeline.ts`、`src/knowledge/collector.ts`、`src/knowledge/store.ts`、`src/services/knowledge.ts` 到 `.tmp/backups/`（验证通过后已删除）。
+  - 新建 `src/knowledge/edge-assist.ts`：`structureKnowledgeWithEdge()`（title/summary/keywords/quality_score，zod 默认值兜底其余）、`rewriteKnowledgeQueryWithEdge()`（JSON 数组引导）、`judgeKnowledgeQualityWithEdge()`（灰区二次裁决）、`isNearDuplicateWithEdge()`（近重复判断）、`summarizeKnowledgeWithEdge()`；全部可空返回，EDGE_KNOWLEDGE_ASSIST=0 禁用。
+  - `src/knowledge/pipeline.ts`：PDF 结构化改边缘优先、GLM 兜底。
+  - `src/knowledge/collector.ts`：采集流程接入质量灰区二次裁决 + 近重复跳过 + 边缘摘要/标签入库。
+  - `src/knowledge/store.ts`：`listTitlesBySubdomain()`（近重复候选）；`storeAsVaultNote` 支持 extraTags/summary（摘要前置注入笔记头部）。
+  - `src/services/knowledge.ts`：`retrieveKnowledge` 检索前边缘改写查询词（回退原查询）。
+  - 新建 `tests/knowledge-edge.test.ts`：19 用例（含真实 SQLite 临时库；Windows 需 close() 释放文件锁才能清理）。
+- **验证**：19 pass + 全量 113 pass；`tsc --noEmit` 无错误；2B 端点实测：结构化/质检/近重复/查询改写达标（摘要生成 2B 不可用，回退路径兜底）。
 - **Commit**：（提交后补上）。
