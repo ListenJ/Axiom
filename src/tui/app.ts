@@ -358,6 +358,14 @@ chatInput.on("submit", async (text: string) => {
     await handleSkillList();
   } else if (text === "/native") {
     await showNativeStatus();
+  } else if (text === "/tools") {
+    await handleToolsList();
+  } else if (text === "/providers") {
+    await handleProvidersList();
+  } else if (text === "/clear") {
+    chatLog.setContent("");
+    chatLog.log("{gray-fg}[聊天记录已清空]{/gray-fg}");
+    screen.render();
   } else if (text === "/help") {
     showHelp();
   } else {
@@ -368,16 +376,56 @@ chatInput.on("submit", async (text: string) => {
 // ─── Chat Handlers ──────────────────────────────────────────────────────────
 
 async function handleChat(userInput: string) {
+  const startTime = Date.now();
   try {
-    chatLog.log("{cyan-fg}[意图识别] Recognizing intent...{/cyan-fg}");
+    chatLog.log("{cyan-fg}🔍 [意图识别] 分析中...{/cyan-fg}");
     const { intent, messages } = buildAgentMessages(userInput);
-    if (intent) chatLog.log(`{cyan-fg}[意图] ${intent.agentName} (${intent.intent}) — ${(intent.confidence * 100).toFixed(0)}%{/cyan-fg}`);
+    if (intent) {
+      const confBar = "█".repeat(Math.round(intent.confidence * 5)) + "░".repeat(5 - Math.round(intent.confidence * 5));
+      chatLog.log(`{cyan-fg}🎯 [意图] ${intent.agentName} (${intent.intent}) — ${confBar} ${(intent.confidence * 100).toFixed(0)}%{/cyan-fg}`);
+    }
+    chatLog.log("{gray-fg}⏳ [路由] 选择最佳模型...{/gray-fg}");
     const result = await router.routeByIntent(intent?.intent ?? "general-chat", messages);
-    chatLog.log(`{gray-fg}⚡ ${result.provider} / ${result.model} [${result.layer}]{/gray-fg}`);
-    chatLog.log(result.content ?? "(no response)");
+    const latency = Date.now() - startTime;
+
+    // 彩色模型/Provider 标识
+    chatLog.log(`{green-fg}⚡ ${result.provider}{/green-fg} / {yellow-fg}${result.model}{/yellow-fg} {gray-fg}[${result.layer}] ${latency}ms{/gray-fg}`);
+    chatLog.log("{gray-fg}─────────────────────────────────────────────────{/gray-fg}");
+
+    const content = result.content ?? "(no response)";
+    // 尝试解析嵌入的结构化标记
+    const lines = content.split("\n");
+    for (const line of lines) {
+      if (line.startsWith('{"_axon":"thinking"')) {
+        try {
+          const obj = JSON.parse(line);
+          chatLog.log(`{gray-fg}💭 ${obj.content}{/gray-fg}`);
+        } catch { chatLog.log(line); }
+      } else if (line.startsWith('{"_axon":"tool-call"')) {
+        try {
+          const obj = JSON.parse(line);
+          const icon = obj.status === "error" ? "❌" : "✅";
+          const color = obj.status === "error" ? "red-fg" : "green-fg";
+          chatLog.log(`{${color}}🔧 ${icon} ${obj.name}{/${color}}`);
+          if (obj.args) chatLog.log(`  {gray-fg}args: ${obj.args.slice(0, 100)}{/gray-fg}`);
+          if (obj.result) chatLog.log(`  {gray-fg}result: ${obj.result.slice(0, 100)}{/gray-fg}`);
+        } catch { chatLog.log(line); }
+      } else if (line.startsWith('{"_axon":"file-change"')) {
+        try {
+          const obj = JSON.parse(line);
+          const actionIcon = obj.action === "create" ? "✨" : obj.action === "edit" ? "✏️" : "🗑️";
+          const actionColor = obj.action === "create" ? "green-fg" : obj.action === "edit" ? "yellow-fg" : "red-fg";
+          chatLog.log(`{${actionColor}}${actionIcon} ${obj.action.toUpperCase()}: ${obj.path}{/${actionColor}}`);
+        } catch { chatLog.log(line); }
+      } else {
+        chatLog.log(line);
+      }
+    }
+    chatLog.log("{gray-fg}─────────────────────────────────────────────────{/gray-fg}");
     chatLog.log("");
   } catch (e) {
-    chatLog.log(`{red-fg}[错误]: ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+    const latency = Date.now() - startTime;
+    chatLog.log(`{red-fg}❌ [错误] (${latency}ms) ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
   }
   screen.render();
 }
@@ -469,23 +517,117 @@ async function handleHealthCheck() {
   screen.render();
 }
 
+/** /tools — 列出工具池角色与可用工具 */
+async function handleToolsList() {
+  chatLog.log("{cyan-fg}{bold}════════════════ 工具池状态 ════════════════{/bold}{/cyan-fg}");
+  try {
+    const stats = toolPool.getStats() as Record<string, { role?: string; health?: string; rpmThisMinute?: number; rpmLimit?: number }>;
+    const grouped: Record<string, string[]> = {};
+    for (const [id, s] of Object.entries(stats)) {
+      const role = s.role ?? "unknown";
+      if (!grouped[role]) grouped[role] = [];
+      grouped[role].push(id);
+    }
+    let total = 0;
+    for (const [role, ids] of Object.entries(grouped)) {
+      chatLog.log(`  {yellow-fg}{bold}${role}{/bold}{/yellow-fg} (${ids.length})`);
+      for (const id of ids.slice(0, 8)) {
+        chatLog.log(`    {green-fg}🔧 ${id.split("/").pop() ?? id}{/green-fg}`);
+        total++;
+      }
+      if (ids.length > 8) chatLog.log(`    {gray-fg}  ... 还有 ${ids.length - 8} 个{/gray-fg}`);
+    }
+    chatLog.log("");
+    chatLog.log(`{yellow-fg}工具池共 ${total} 个可用工具{/yellow-fg}`);
+    chatLog.log("{gray-fg}提示：MCP 注册的工具有助于扩展能力，需启动 MCP Server{/gray-fg}");
+  } catch (e) {
+    chatLog.log(`{red-fg}[Tools] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  chatLog.log("{cyan-fg}{bold}═══════════════════════════════════════{/bold}{/cyan-fg}");
+  screen.render();
+}
+
+/** /providers — 查看 Provider 配置状态 */
+async function handleProvidersList() {
+  try {
+    const { listProviderStatus } = await import("../utils/api-key-store.js");
+    const providers = listProviderStatus();
+    chatLog.log("{cyan-fg}{bold}════════════════ Provider 状态 ════════════════{/bold}{/cyan-fg}");
+    chatLog.log("");
+
+    const configured = providers.filter((p) => p.configured);
+    const notConfigured = providers.filter((p) => !p.configured);
+
+    if (configured.length > 0) {
+      chatLog.log(`{green-fg}{bold}✅ 已配置 (${configured.length}){/bold}{/green-fg}`);
+      for (const p of configured) {
+        const regionTag = p.region === "domestic" ? "国内" : p.region === "overseas" ? "海外" : "全球";
+        const sourceTag = p.source === "runtime" ? "{yellow-fg}[运行时]{/yellow-fg}" : "{gray-fg}[环境变量]{/gray-fg}";
+        chatLog.log(`  {green-fg}●{/green-fg} ${p.displayName.padEnd(20)} {gray-fg}(${regionTag}){/gray-fg} ${sourceTag} {gray-fg}${p.masked}{/gray-fg}`);
+      }
+      chatLog.log("");
+    }
+
+    if (notConfigured.length > 0) {
+      chatLog.log(`{red-fg}{bold}⚪ 未配置 (${notConfigured.length}){/bold}{/red-fg}`);
+      for (const p of notConfigured.slice(0, 8)) {
+        const regionTag = p.region === "domestic" ? "国内" : p.region === "overseas" ? "海外" : "全球";
+        chatLog.log(`  {gray-fg}○ ${p.displayName.padEnd(20)} (${regionTag}){/gray-fg}`);
+      }
+      if (notConfigured.length > 8) {
+        chatLog.log(`  {gray-fg}  ... 还有 ${notConfigured.length - 8} 个未显示{/gray-fg}`);
+      }
+      chatLog.log("");
+    }
+
+    const adapterCounts: Record<string, number> = {};
+    for (const p of providers) {
+      adapterCounts[p.adapter] = (adapterCounts[p.adapter] ?? 0) + 1;
+    }
+    chatLog.log("{yellow-fg}适配器分布:{/yellow-fg}");
+    for (const [adapter, count] of Object.entries(adapterCounts)) {
+      chatLog.log(`  {gray-fg}${adapter}: ${count} 个 provider{/gray-fg}`);
+    }
+    chatLog.log("");
+    chatLog.log("{cyan-fg}{bold}════════════════════════════════════════════{/bold}{/cyan-fg}");
+  } catch (e) {
+    chatLog.log(`{red-fg}[Providers] ${e instanceof Error ? e.message : String(e)}{/red-fg}`);
+  }
+  screen.render();
+}
+
 function showHelp() {
-  chatLog.log("{bold}Commands:{/bold}");
-  chatLog.log("  /orchestrate <task>  — Task orchestration");
-  chatLog.log("  /codegraph <query>   — CodeGraph search");
-  chatLog.log("  /tool <role>         — Tool pool");
-  chatLog.log("  /skill <query>       — Skill match");
-  chatLog.log("  /skills              — List skills");
-  chatLog.log("  /computer <task>     — Computer Use");
-  chatLog.log("  /health              — Health check");
-  chatLog.log("  /config              — Config panel");
-  chatLog.log("  /perf                — Performance panel");
-  chatLog.log("  /native              — Native core status");
-  chatLog.log("  /help                — This help");
-  chatLog.log("  Ctrl+O               — Toggle orchestrator");
-  chatLog.log("  Ctrl+S               — Refresh perf");
-  chatLog.log("  Tab/F1-F4            — Switch panels");
-  chatLog.log("  Ctrl+C               — Exit");
+  chatLog.log("{cyan-fg}{bold}════════════════ 命令列表 ════════════════{/bold}{/cyan-fg}");
+  chatLog.log("");
+  chatLog.log("{yellow-fg}{bold}💬 对话与编排{/bold}{/yellow-fg}");
+  chatLog.log("  {green-fg}/orchestrate{/green-fg} <task>  — 多模型任务编排");
+  chatLog.log("  {green-fg}/codegraph{/green-fg} <query>   — 代码图谱检索");
+  chatLog.log("  {green-fg}/tool{/green-fg} <role>         — 工具池调用 (coding/english/rl/general-tool)");
+  chatLog.log("  {green-fg}/skill{/green-fg} <query>       — 技能匹配执行");
+  chatLog.log("  {green-fg}/computer{/green-fg} <task>     — Computer Use (需 CDP)");
+  chatLog.log("");
+  chatLog.log("{yellow-fg}{bold}🔧 系统管理{/bold}{/yellow-fg}");
+  chatLog.log("  {green-fg}/tools{/green-fg}              — 列出已注册 MCP 工具");
+  chatLog.log("  {green-fg}/providers{/green-fg}          — 查看 Provider 配置状态");
+  chatLog.log("  {green-fg}/skills{/green-fg}             — 列出已注册技能");
+  chatLog.log("  {green-fg}/health{/green-fg}             — 系统健康检查");
+  chatLog.log("  {green-fg}/config{/green-fg}             — 打开配置面板");
+  chatLog.log("  {green-fg}/perf{/green-fg}               — 打开性能面板");
+  chatLog.log("  {green-fg}/native{/green-fg}             — Native Core 状态");
+  chatLog.log("  {green-fg}/clear{/green-fg}              — 清空聊天记录");
+  chatLog.log("  {green-fg}/help{/green-fg}               — 显示此帮助");
+  chatLog.log("");
+  chatLog.log("{yellow-fg}{bold}⌨️ 快捷键{/bold}{/yellow-fg}");
+  chatLog.log("  {bold}Tab{/bold}       — 切换面板");
+  chatLog.log("  {bold}F1{/bold}        — 诊断面板");
+  chatLog.log("  {bold}F2{/bold}        — 配置面板");
+  chatLog.log("  {bold}F3{/bold}        — 性能面板");
+  chatLog.log("  {bold}F4{/bold}        — Native 状态");
+  chatLog.log("  {bold}Ctrl+O{/bold}    — 切换编排模式");
+  chatLog.log("  {bold}Ctrl+S{/bold}    — 刷新性能数据");
+  chatLog.log("  {bold}Ctrl+C{/bold}    — 退出");
+  chatLog.log("");
+  chatLog.log("{cyan-fg}{bold}═══════════════════════════════════════{/bold}{/cyan-fg}");
   screen.render();
 }
 
@@ -536,9 +678,18 @@ setInterval(async () => {
 
 export async function startTUI(): Promise<void> {
   chatInput.focus();
-  chatLog.log("{center}{bold}Welcome to Axiom AI Agent v3.0 — Unified TUI{/bold}{/center}");
-  chatLog.log("{center}Chat | Config (F2) | Diagnostics (F1) | Performance (F3) | Native (F4){/center}");
-  chatLog.log("{center}Commands: /help | /config | /perf | /native{/center}\n");
+  // ASCII Art 欢迎屏幕
+  chatLog.log("{cyan-fg}{center}{bold}╔══════════════════════════════════════════════╗{/bold}{/center}");
+  chatLog.log("{cyan-fg}{center}{bold}║      Axiom AI Agent v3.0 — Unified TUI       ║{/bold}{/center}");
+  chatLog.log("{cyan-fg}{center}{bold}╚══════════════════════════════════════════════╝{/bold}{/center}");
+  chatLog.log("");
+  chatLog.log("{green-fg}{center}🤖 智能路由 · 🧠 知识管理 · 🔧 工具调用 · ⚡ 实时反馈{/center}{/green-fg}");
+  chatLog.log("");
+  chatLog.log("{yellow-fg}面板导航:{/yellow-fg} {bold}Tab{/bold}切换 | {bold}F1{/bold}诊断 | {bold}F2{/bold}配置 | {bold}F3{/bold}性能 | {bold}F4{/bold}Native");
+  chatLog.log("{yellow-fg}快捷命令:{/yellow-fg} {bold}/help{/bold} | {bold}/tools{/bold} | {bold}/providers{/bold} | {bold}/clear{/bold} | {bold}/config{/bold} | {bold}/perf{/bold}");
+  chatLog.log("");
+  chatLog.log("{gray-fg}输入消息开始对话，或输入 /help 查看完整命令列表{/gray-fg}");
+  chatLog.log("");
   screen.render();
   logger.info("[TUI] Unified TUI started");
   await new Promise(() => {});

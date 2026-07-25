@@ -260,3 +260,45 @@ export async function handlePermissionConfirm(ctx: RouteContext): Promise<Respon
     return ctx.jsonResponse({ error: String(e) }, 500)
   }
 }
+
+/**
+ * GET/POST /permissions/mode — 查询或设置权限自动接收模式。
+ *
+ * 响应（GET）：
+ *   { autoAccept: boolean, highRiskAlwaysConfirmed: true }
+ *
+ * 请求（POST）：{ autoAccept: boolean }
+ * 响应（POST）：{ autoAccept: boolean, highRiskAlwaysConfirmed: true }
+ *
+ * 安全说明：high-risk 操作永远需要手动确认，不受 autoAccept 影响。
+ */
+export async function handlePermissionMode(ctx: RouteContext): Promise<Response | null> {
+  const path = ctx.url.pathname;
+  if (path !== "/permissions/mode") return null;
+
+  const { isAutoAcceptMode, setAutoAcceptMode } = await import("../utils/permissions.js");
+
+  if (ctx.req.method === "GET") {
+    return ctx.jsonResponse(
+      { autoAccept: isAutoAcceptMode(), highRiskAlwaysConfirmed: true },
+      200,
+      ctx.baseHeaders,
+    );
+  }
+
+  if (ctx.req.method === "POST") {
+    try {
+      const body = (await ctx.req.json()) as { autoAccept?: boolean };
+      const next = setAutoAcceptMode(!!body.autoAccept);
+      return ctx.jsonResponse(
+        { autoAccept: next, highRiskAlwaysConfirmed: true },
+        200,
+        ctx.baseHeaders,
+      );
+    } catch (e) {
+      return ctx.jsonResponse({ error: String(e) }, 500, ctx.baseHeaders);
+    }
+  }
+
+  return null;
+}

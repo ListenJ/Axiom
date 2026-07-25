@@ -1218,3 +1218,30 @@
   - 压测阶段已验证当前版本稳定（1873 pass / 5 fail 均为预存问题），整理操作仅为 git 跟踪状态调整和 .gitignore 规则补充，不涉及源码改动，无需重新运行完整测试套件。
 - **备份**：`.tmp/backups/archive/ARCHIVE-LOG.md.bak`、`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
 - **Commit**：`a6db741`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-25 11:30 +0800 — 提交之前保留的 13 个功能性修改
+
+- **任务**：用户指示提交上一阶段保留未提交的 13 个功能性修改（knowledge CLI、API Key 管理、权限模式路由、Chat 页面重构等）。
+- **工具**：RunCommand（git 系列）、Edit、Read。
+- **执行的操作（文件级）**：
+  - 备份 `docs/operations-log.md` 到 `.tmp/backups/docs/operations-log.md.bak`（规则 2）。
+  - 追加本条记录到 `docs/operations-log.md`。
+  - `git add` 以下 13 个文件：
+    - `frontend/src/lib/api.ts`（+19）：API 客户端新增方法。
+    - `frontend/src/pages/Chat.tsx`（+439/-?）：Chat 页面大幅重构。
+    - `frontend/src/pages/Home.tsx`（+6）：Home 页面小调整。
+    - `src/cli/commands/index.ts`（+10）：导出 knowledge 命令。
+    - `src/cli/commands/knowledge.ts`（+110）：新增 knowledge CLI 子命令。
+    - `src/dre/reasoning/graph.ts`（+10）：ReasoningGraph 小调整。
+    - `src/mcp/tool-registry.ts`（+47）：MCP 工具注册增强。
+    - `src/routes/health.ts`（+42）：新增 `/permissions/mode` GET/POST 路由（autoAccept 模式切换，high-risk 仍需手动确认）。
+    - `src/routes/index.ts`（+5）：路由注册。
+    - `src/tui/app.ts`（+199）：TUI 应用功能增强。
+    - `src/utils/api-key-store.ts`（+285）：API Key Store 国际化适配 — 为每个 provider 新增 `adapter`（openai/anthropic/gemini/opencode）和 `region`（domestic/overseas/global）字段，支持 kimi/glm/deepseek/minimax 等国内/海外变体切换。
+    - `src/utils/permission-middleware.ts`（+20）：权限中间件调整。
+    - `tests/mcp-server.test.ts`（+101）：MCP server 测试补充。
+- **验证**：本批修改已在整理前压测中验证（1873 pass / 5 fail，均为预存问题，未引入回归）。本次提交仅为 git 操作，不涉及代码改动，无需重新测试。
+- **备份**：`.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
+- **Commit**：待提交后补录。

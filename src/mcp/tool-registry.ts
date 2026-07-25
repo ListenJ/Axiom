@@ -44,24 +44,51 @@ export class ToolRegistry {
           inputSchema: tool.inputSchema,
         },
         async (args: Record<string, unknown>) => {
-          const result = await tool.handler(args);
-          const text =
-            tool.format === "text"
-              ? String(result)
-              : JSON.stringify(result, null, 2);
-          return {
-            content: [{ type: "text" as const, text }],
-          };
+          try {
+            const result = await tool.handler(args);
+            const text =
+              tool.format === "text"
+                ? String(result)
+                : JSON.stringify(result, null, 2);
+            return {
+              content: [{ type: "text" as const, text }],
+            };
+          } catch (e) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            const errStack = e instanceof Error ? e.stack ?? "" : "";
+            return {
+              content: [{
+                type: "text" as const,
+                text: JSON.stringify({
+                  error: true,
+                  message: `工具 "${tool.name}" 执行失败: ${errMsg}`,
+                  stack: errStack || undefined,
+                }, null, 2),
+              }],
+              isError: true,
+            };
+          }
         }
       );
     }
   }
 
-  /** Build HTTP tool handlers mapping */
+  /** Build HTTP tool handlers mapping (with error wrapping) */
   buildHttpHandlers(): Record<string, ToolHandler> {
     const handlers: Record<string, ToolHandler> = {};
     for (const tool of this.tools) {
-      handlers[tool.name] = tool.handler;
+      const originalHandler = tool.handler;
+      handlers[tool.name] = async (args: Record<string, unknown>) => {
+        try {
+          return await originalHandler(args);
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          return {
+            error: true,
+            message: `工具 "${tool.name}" 执行失败: ${errMsg}`,
+          };
+        }
+      };
     }
     return handlers;
   }

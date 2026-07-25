@@ -2,7 +2,7 @@
  * Route dispatcher — delegates to route handlers by priority
  */
 import type { RouteContext, RouteHandler } from "./types.js";
-import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm } from "./health.js";
+import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm, handlePermissionMode } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
 import { handleToolExecute } from "./tools.js";
@@ -182,6 +182,7 @@ const handlers: RouteHandler[] = [
   // Permission Control
   handlePermissionCheck,
   handlePermissionConfirm,
+  handlePermissionMode,
   // Pipeline SSE
   handlePipelineStream,
   // Agent interaction traces
@@ -367,6 +368,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
   // Permission control
   { method: "POST", path: "/permissions/check", handler: handlePermissionCheck },
   { method: "POST", path: "/permissions/confirm", handler: handlePermissionConfirm },
+  { method: "GET", path: "/permissions/mode", handler: handlePermissionMode },
+  { method: "POST", path: "/permissions/mode", handler: handlePermissionMode },
   // Tool execution
   { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
   // Agent interaction traces

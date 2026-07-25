@@ -116,7 +116,7 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-4">
+    <div className="fade-in mx-auto flex h-full w-full max-w-2xl flex-col px-4">
       {!hasMessages ? (
         <>
           <div className="flex-1" />
@@ -126,7 +126,7 @@ export default function Home() {
             </h1>
             <p className="mt-2 text-base text-[var(--text-secondary)]">知识管理、代码分析、深度研究 — 尽在 Axiom</p>
           </div>
-          <div className="mt-8 grid grid-cols-2 gap-3">
+          <div className="stagger mt-8 grid grid-cols-2 gap-3">
             {suggestions.map((s) => {
               const Icon = s.icon
               return (
@@ -147,7 +147,7 @@ export default function Home() {
           <div className="flex-1" />
         </>
       ) : (
-        <div ref={scroller} className="flex-1 space-y-4 overflow-y-auto py-4">
+        <div ref={scroller} className="stagger flex-1 space-y-4 overflow-y-auto py-4">
           {messages.map((msg) => (
             <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${msg.role === 'user' ? 'bg-[var(--surface-hover)] text-[var(--text-secondary)]' : 'bg-[var(--accent-soft)] text-[var(--accent)]'}`}>

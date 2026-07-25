@@ -504,6 +504,25 @@ export const endpoints = {
     list: () => api.get('/traces'),
     detail: (id: string) => api.get(`/traces/${encodeURIComponent(id)}`),
   },
+  permissions: {
+    check: (body: { type: 'command' | 'file'; command?: string; path?: string; operation?: string }) =>
+      api.post('/permissions/check', body),
+    confirm: (confirmationId: string) =>
+      api.post('/permissions/confirm', { confirmationId }),
+    getMode: () => api.get<{ autoAccept: boolean; highRiskAlwaysConfirmed: boolean }>('/permissions/mode'),
+    setMode: (autoAccept: boolean) =>
+      api.post<{ autoAccept: boolean; highRiskAlwaysConfirmed: boolean }>('/permissions/mode', { autoAccept }),
+  },
+  apiKeys: {
+    list: () => api.get('/api-keys'),
+    set: (body: { provider: string; apiKey: string; baseURL?: string }) =>
+      api.post('/api-keys', body),
+    clear: (provider: string) => api.delete(`/api-keys/${encodeURIComponent(provider)}`),
+    test: (provider: string) =>
+      api.post<{ ok: boolean; latency?: number; modelCount?: number; error?: string }>(
+        `/api-keys/${encodeURIComponent(provider)}/test`,
+      ),
+  },
 }
 
 export { HttpError }
