@@ -1414,4 +1414,4 @@
   - optimizePrompt 真实 E2E：口语输入改写忠实并采用（"请分析当前知识库检索速度慢的原因，并提出可能的优化方法"）；脚本请求改写采用；已清晰的输入正确判为"无需改写"回退原文。延迟 3-17s（zhipu 429 重试抬高，正常应 1-3s）。
   - 单元测试 17 pass；`tsc --noEmit` 无错误。
   - 发现（未改，超出范围）：registry 中 `glm-4.7-flash-free`（siliconflow `zhipu/GLM-4.7-Flash:free`）型号在平台上不存在，router 用到该条目时会 400，建议后续修正。
-- **Commit**：（提交后补上）。
+- **Commit**：`9631055`（已推送 `internal211/main`）。
