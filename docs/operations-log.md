@@ -1832,5 +1832,26 @@
   - `bun test tests/architecture-integrity.test.ts` → 22 pass / 0 fail（之前 21 pass / 1 fail，架构测试全绿）。
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与 baseline 一致；架构测试修复被前端 flaky 测试波动抵消，但架构测试确实从 1 fail → 0 fail）。
 - **备份**：`src/eval/model-eval-service.ts` 备份到 `.tmp/backups/src/eval/`（验证通过后已删除）。
-- **Commit**：`2c74f85`（待推送 `internal211/main`）。
+- **Commit**：`2c74f85`（已推送 `internal211/main`，见下 31191b4 补录）。
+
+---
+
+## 2026-07-27 19:10 +0800 — 修复 MemoryCurator 运行时 bug：sqlite.listByCategory 缺失
+
+- **任务**：全量测试日志显示 `[Consciousness/MemoryCurator] cycle complete` 每次都带 3 条 `errors`：`"sqlite.listByCategory is not a function"`。这是真实代码 bug，非环境问题。
+- **根因**：
+  - `src/agents/consciousness/shims.ts:37` 定义的 `SQLiteMemorySubset = Pick<SQLiteMemory, "upsertNote" | "search" | "close">` 未包含 `listByCategory`。
+  - 但 `src/agents/consciousness/memory-curator.ts:80,109,137` 三处调用 `sqlite.listByCategory("conversations"/"resources", ...)`。
+  - `tests/consciousness.test.ts:139-143` 的 mock 按 `SQLiteMemorySubset` 创建，只有 `upsertNote/search/close`，没有 `listByCategory`。
+  - 运行时 `sqlite.listByCategory` 为 `undefined`，调用抛 TypeError，被 curator 的 try/catch 捕获后写入 `errors` 数组——功能静默失败。
+- **工具**：Read、Grep、Edit、RunCommand（`bunx tsc --noEmit` + `bun test tests/consciousness.test.ts`）、Copy-Item/Remove-Item。
+- **执行的操作**：
+  1. `src/agents/consciousness/shims.ts:37`：`SQLiteMemorySubset` 的 Pick 列表添加 `"listByCategory"`，使接口与 MemoryCurator 的实际使用对齐。
+  2. `tests/consciousness.test.ts:142`：mock 对象添加 `listByCategory: () => []`（返回空数组，模拟"无陈旧记忆"场景）。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志从 `"errors":["phase 1...","phase2...","phase3..."]` 变为 `"errors":[]`。
+  - `bun test`（全量）→ 2052 pass / 108 fail（与 baseline 2053/107 相比 ±1 flaky 波动；curator 功能修复确认）。
+- **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。
 

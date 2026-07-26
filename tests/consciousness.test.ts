@@ -139,6 +139,7 @@ function installShims(): void {
   const sqlite: SQLiteMemorySubset = {
     upsertNote: () => 0,
     search: () => [],
+    listByCategory: () => [],
     close: () => {},
   };
   setSqliteMemoryForTest(sqlite as any);
