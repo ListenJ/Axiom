@@ -1560,7 +1560,7 @@
   - `bunx tsc --noEmit` 零错误；`./plugins/test-plugin` 完好（test-plugin 仅就地安装未删除）。
   - 注：`Chaos Thompson > 1M feedback loop` 为预存超时失败（124s），与本批改动无关。
 - **备份**：`.tmp/backups/tests/torture.slow.ts`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`854f9b2`（已推送 `internal211/main`）。
 
 ---
 
@@ -1587,5 +1587,5 @@
   - `bun test tests/e2e-runtime.test.ts tests/integration-edge.test.ts tests/property-based.test.ts` → 82 pass / 0 fail（ExitCode=0）。
   - `bun test ./tests/torture.slow.ts` → 24 pass / 1 fail（`Chaos Thompson > 1M feedback loop` 预存超时失败，124s > 30s timeout，与本批改动无关）。
 - **备份**：`.tmp/backups/src/memory/vault-manager.ts` + `.tmp/backups/src/core/config-center.ts` + `.tmp/backups/src/router/models/providers.ts`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`854f9b2`（已推送 `internal211/main`）。
 
