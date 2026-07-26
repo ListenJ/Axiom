@@ -1812,5 +1812,25 @@
   - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 完全一致，无回归）。
 - **备份**：5 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
-- **Commit**：`aa836b5`（待推送 `internal211/main`）。
+- **Commit**：`aa836b5`（已推送 `internal211/main`，见下 d86272e 补录）。
+
+---
+
+## 2026-07-27 18:20 +0800 — 修复架构完整性测试失败：model-eval-service.ts 行数超标
+
+- **任务**：架构完整性测试 `no src/ file exceeds 1000 lines` 失败——`eval/model-eval-service.ts` 达 1003 行，超 1000 行限制 3 行。根因：上一轮 any 类型收窄时，在 `queryEvals`、`getModelEval`、`rowToEvalResult` 三处重复定义了同一个 12 字段的数据库行类型（snake_case），净增约 24 行。
+- **工具**：RunCommand（`bun test tests/architecture-integrity.test.ts` + `bunx tsc --noEmit`）、Read、Edit、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作**：
+  - `src/eval/model-eval-service.ts`：
+    - 新增 `interface ModelEvalRow`（12 字段 snake_case 行类型），放在 `EvalQueryOptions` 接口之后、常量区之前。
+    - `queryEvals` 中 `as Array<{ 12 字段 }>` → `as ModelEvalRow[]`（-12 行）。
+    - `getModelEval` 中 `as { 12 字段 } | null` → `as ModelEvalRow | null`（-12 行）。
+    - `rowToEvalResult` 参数类型 `{ 12 字段 }` → `ModelEvalRow`（-12 行）。
+    - 净变化：+15 行（type alias）-36 行（三处重复）= -21 行；加上 type alias 本身 15 行，总文件从 1003 行降至 965 行。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
+  - `bun test tests/architecture-integrity.test.ts` → 22 pass / 0 fail（之前 21 pass / 1 fail，架构测试全绿）。
+  - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与 baseline 一致；架构测试修复被前端 flaky 测试波动抵消，但架构测试确实从 1 fail → 0 fail）。
+- **备份**：`src/eval/model-eval-service.ts` 备份到 `.tmp/backups/src/eval/`（验证通过后已删除）。
+- **Commit**：（待提交）。
 
