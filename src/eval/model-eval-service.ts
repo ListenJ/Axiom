@@ -761,7 +761,19 @@ export class ModelEvalService {
       params.push(opts.limit);
     }
 
-    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      model_id: string;
+      provider: string;
+      evaluated_at: number;
+      capability_score: number;
+      speed_score: number;
+      cost_score: number;
+      safety_score: number;
+      overall_score: number;
+      benchmarks: string;
+      metadata: string;
+      recommendation: string;
+    }>;
     return rows.map(this.rowToEvalResult);
   }
 
@@ -773,7 +785,19 @@ export class ModelEvalService {
       SELECT * FROM model_evaluations
       WHERE model_id = ?
       ORDER BY evaluated_at DESC LIMIT 1
-    `).get(modelId) as Record<string, unknown> | null;
+    `).get(modelId) as {
+      model_id: string;
+      provider: string;
+      evaluated_at: number;
+      capability_score: number;
+      speed_score: number;
+      cost_score: number;
+      safety_score: number;
+      overall_score: number;
+      benchmarks: string;
+      metadata: string;
+      recommendation: string;
+    } | null;
 
     return row ? this.rowToEvalResult(row) : null;
   }
@@ -889,7 +913,19 @@ export class ModelEvalService {
     }
   }
 
-  private rowToEvalResult(row: any): ModelEvalResult {
+  private rowToEvalResult(row: {
+    model_id: string;
+    provider: string;
+    evaluated_at: number;
+    capability_score: number;
+    speed_score: number;
+    cost_score: number;
+    safety_score: number;
+    overall_score: number;
+    benchmarks: string;
+    metadata: string;
+    recommendation: string;
+  }): ModelEvalResult {
     return {
       modelId: row.model_id,
       provider: row.provider,

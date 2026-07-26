@@ -22,7 +22,7 @@ export async function callProvider(
   messages: ChatMessage[],
   timeoutMs: number,
   temperature = 0.7
-): Promise<{ content: string | null; usage?: any }> {
+): Promise<{ content: string | null; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
 

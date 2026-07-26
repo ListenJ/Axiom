@@ -763,8 +763,8 @@ export class MultiPlatformRouter {
     });
 
     if (!res.ok) throw new Error(`Embedding request failed: ${res.status}`);
-    const data = await res.json();
-    return data.data?.map((d: any) => d.embedding) ?? [];
+    const data = await res.json() as { data?: Array<{ embedding?: number[] }> };
+    return data.data?.map((d) => d.embedding ?? []) ?? [];
   }
 
   // ---------------------------------------------------------------------------

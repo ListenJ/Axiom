@@ -178,10 +178,20 @@ export function decomposeQuery(userQuery: string): DecomposedQuery {
 
 /**
  * Stage 2: 搜索知识库
+ *
+ * `vault` 接受任何具备 `search(query, opts)` 方法的对象，返回结构
+ * `{ note: { path, title, content }, score, excerpt? }[]`。使用最小接口
+ * 而非 `any`，调用方仍可传入 VaultManager 等具体实现。
  */
+export interface VaultSearchResult {
+  note: { path: string; title: string; content: string };
+  score: number;
+  excerpt?: string;
+}
+
 export async function searchKnowledgeBase(
   subQueries: SubQuery[],
-  vault: any,
+  vault: { search(query: string, opts?: { limit?: number }): VaultSearchResult[] },
   limit: number = 5
 ): Promise<KnowledgeFragment[]> {
   const allFragments: KnowledgeFragment[] = [];

@@ -306,7 +306,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
       const filterType = args.type as string;
       if (filterType && result.success && result.symbols) {
         result.symbols = result.symbols.filter(
-          (s: any) => s.type === filterType,
+          (s: { type: string }) => s.type === filterType,
         );
       }
       return result;

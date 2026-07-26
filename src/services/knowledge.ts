@@ -89,13 +89,14 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     };
   }
 
-  const queryOutput = result.stepResults[0] as { results: Array<{source: string; title: string; url?: string; snippet: string}>; totalFound: number; scopeUsed: string };
+  type KnowledgeQueryResult = { source: string; title: string; url?: string; snippet: string };
+  const queryOutput = result.stepResults[0] as { results: KnowledgeQueryResult[]; totalFound: number; scopeUsed: string };
   if (!queryOutput?.results?.length) {
     return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
   }
 
   // 格式化为 AI 上下文
-  const sources = queryOutput.results.map((r: any) => ({
+  const sources = queryOutput.results.map((r: KnowledgeQueryResult) => ({
     source: r.source,
     title: r.title,
     url: r.url,

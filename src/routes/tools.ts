@@ -68,7 +68,7 @@ export async function handleToolExecute(ctx: RouteContext): Promise<Response | n
         const vault = ctx.vault;
         if (!vault?.search) throw new Error("Vault search unavailable");
         const local = vault.search(query, { limit: Number(body.params.limit ?? 10) });
-        const results = local.map((item: any) => ({
+        const results = local.map((item: { note: { title?: string; path?: string; content?: string; paraCategory?: string; tags?: string[] }; excerpt?: string }) => ({
           title: item.note.title ?? item.note.path ?? "",
           snippet: (item.note.content ?? item.excerpt ?? "").slice(0, 300),
           path: item.note.path,

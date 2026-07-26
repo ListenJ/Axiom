@@ -508,7 +508,7 @@ async function handleHealthCheck() {
   try {
     chatLog.log("{yellow-fg}[HealthCheck] Running...{/yellow-fg}");
     const report = await runHealthCheck();
-    const icons: any = { ok: "✅", warning: "⚠️", error: "❌", skipped: "⏭️" };
+    const icons: Record<string, string> = { ok: "✅", warning: "⚠️", error: "❌", skipped: "⏭️" };
     for (const check of report.checks.slice(0, 15)) chatLog.log(`  ${icons[check.status]} ${check.component.padEnd(20)} ${check.message.slice(0, 50)}`);
     chatLog.log(`{yellow-fg}Overall: ${report.overall.toUpperCase()}{/yellow-fg}`);
   } catch (e) {
@@ -634,8 +634,14 @@ function showHelp() {
 // ─── Tool Health Refresh ────────────────────────────────────────────────────
 
 function refreshToolHealth() {
-  const stats = toolPool.getStats() as Record<string, any>;
-  const grouped: Record<string, any[]> = {};
+  type ToolStat = {
+    role: string;
+    rpmThisMinute: number;
+    rpmLimit: number;
+    health: string;
+  };
+  const stats = toolPool.getStats() as Record<string, ToolStat>;
+  const grouped: Record<string, Array<ToolStat & { id: string }>> = {};
   for (const [id, s] of Object.entries(stats)) {
     if (!grouped[s.role]) grouped[s.role] = [];
     grouped[s.role].push({ id, ...s });

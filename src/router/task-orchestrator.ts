@@ -344,7 +344,7 @@ class TaskOrchestrator {
     };
   }
 
-  private extractJson(text: string): any {
+  private extractJson(text: string): unknown {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {

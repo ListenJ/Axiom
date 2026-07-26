@@ -247,7 +247,7 @@ export async function handlePermissionCheck(ctx: RouteContext): Promise<Response
     }
     if (body.type === "file" && body.path && body.operation) {
       const { checkFilePermission } = await import("../utils/permissions.js")
-      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as any), 200, ctx.baseHeaders)
+      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as "read" | "write" | "delete" | "execute"), 200, ctx.baseHeaders)
     }
     return ctx.jsonResponse({ error: "Invalid request" }, 400)
   } catch (e) {

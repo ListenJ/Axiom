@@ -1720,3 +1720,39 @@
 - **备份**：11 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
 - **Commit**：`3db0cda`（待推送 `internal211/main`）。
 
+---
+
+## 2026-07-27 11:30 +0800 — 第二批 any 类型收窄（15 文件 19 处）
+
+- **任务**：承接前一轮"`any` 类型 75 处/34 文件"的后续优化项，对剩余 30 处 `any` 中的 19 处可安全收窄项进行类型细化；其余 11 处为合法用途（fetch 标准 API、JSON Schema、注释文本、字符串字面量、stub），保留不动。同时确认非 CLI 模块的 `console.*` 均为合法用途（logger 后端、top-level catch、注释），无需迁移。
+- **工具**：Read、Edit、Grep、RunCommand（`bunx tsc --noEmit` + `bun test`）、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作（文件级）**：
+  - `src/native-bridge.ts`（4 处）：`nativeProcess: any` → `Bun.Subprocess | null`；`Promise<any[]>` → `Promise<unknown[]>`；`nativeRouterPerf(): Promise<any>` → `Promise<unknown>`；新增 `NativeStats` 接口（含 `version?`/`uptime_secs?`/`vault_notes?` 及索引签名），`nativeStats(): Promise<any>` → `Promise<NativeStats | null>`。
+  - `src/agents/query-decomposer.ts`（1 处）：新增 `VaultSearchResult` 接口；`vault: any` → `vault: { search(query: string, opts?: { limit?: number }): VaultSearchResult[] }`（最小接口，调用方仍可传 VaultManager）。
+  - `src/tools/query-tool.ts`（1 处）：`webResults: any[]` → `Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }>`（与上方 searchEngine 类型对齐）。
+  - `src/eval/model-eval-service.ts`（1 处 + 2 处联动）：`rowToEvalResult(row: any)` → 具体行类型（`model_id`/`provider`/`evaluated_at`/`capability_score`/`speed_score`/`cost_score`/`safety_score`/`overall_score`/`benchmarks`/`metadata`/`recommendation`）；同步更新 `queryEvals()` 与 `getModelEval()` 中的 `as Record<string, unknown>` 强转为具体行类型。
+  - `src/services/knowledge.ts`（1 处）：新增局部 `KnowledgeQueryResult` 类型；`(r: any)` → `(r: KnowledgeQueryResult)`；同时修复 `as` 断言中错位的 `}`（原 `{ results: Array<...> }; totalFound: number; ... }` 中 `;` 在 `}` 外，TS 误判为联合类型）。
+  - `src/routes/tools.ts`（1 处）：`(item: any)` → `(item: { note: { title?: string; path?: string; content?: string; paraCategory?: string; tags?: string[] }; excerpt?: string })`。
+  - `src/router/task-orchestrator.ts`（1 处）：`extractJson(text: string): any` → `: unknown`（返回值经 JSON.parse，调用方未直接访问属性）。
+  - `src/router/provider-caller.ts`（1 处）：`usage?: any` → `usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }`（与同文件 `NativeStreamResult["usage"]` 一致）。
+  - `src/router/model-router.ts`（1 处）：`data.data?.map((d: any) => d.embedding)` → `(d) => d.embedding ?? []`，配合 `as { data?: Array<{ embedding?: number[] }> }` 类型断言。
+  - `src/memory/vault-manager.ts`（1 处）：`v.map((item: any) => item.name || item.title || item.query || ...)` → `(item: Record<string, unknown>) => String(item.name ?? item.title ?? item.query ?? ...)`。
+  - `src/routes/ocr-routes.ts`（1 处）：`options?: any` → 具体选项接口（`languages?`/`confidenceThreshold?`/`preserveWhitespace?`/`psm?`/`layoutAnalysis?`/`textCorrection?`/`extractStructure?`/`minConfidence?`）。
+  - `src/routes/health.ts`（1 处）：`body.operation as any` → `as "read" | "write" | "delete" | "execute"`（与 `checkFilePermission` 第二参数字面量联合类型对齐）。
+  - `src/tui/install-wizard.ts`（1 处）：`progress: any` → `progress: ProgressWidget`，其中 `type ProgressWidget = blessed.Widgets.ProgressBarElement & { filled: number }`（blessed 类型未把 `filled` 暴露为可写属性，但运行时确实存在——见 `blessed/lib/widgets/progressbar.js` 第 29 行 `this.filled = options.filled || 0`）；`createLayoutRefs()` 返回值添加 `!` 非空断言（函数逻辑保证 `layoutRefs` 已初始化）；`progress as ProgressWidget` 强转补齐类型。
+  - `src/tui/app.ts`（2 处）：`icons: any` → `Record<string, string>`；`refreshToolHealth()` 中 `Record<string, any>` → `Record<string, ToolStat>`（局部 `type ToolStat = { role: string; rpmThisMinute: number; rpmLimit: number; health: string }`），`any[]` → `Array<ToolStat & { id: string }>`。
+  - `src/mcp/register-external-tools.ts`（1 处）：`(s: any) => s.type === filterType` → `(s: { type: string }) => s.type === filterType`。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
+  - `bun test`（全量）→ 2050 pass / 110 fail / 28 skip（与 `git stash` 后的 baseline 完全一致；110 个失败均为预存在的前端 UI 组件测试——ShimmerCard/Skeleton/StatCard/Tabs/Toasts 等，与本改动无关）。
+  - Grep 确认 `src/**/*.ts` 中 `any` 类型注解从 30 处/24 文件 降至 11 处/9 文件，剩余均为合法用途：
+    - `src/eval/test-cases.ts`（字符串字面量内的 TypeScript 泛型示例）
+    - `src/mcp/tool-registry.ts`（JSON Schema，带 `eslint-disable` 注释）
+    - `src/utils/proxy-fetch.ts` × 2（fetch 标准 API：`json(): Promise<any>` 与 `body?: any`）
+    - `src/tools/pipeline.ts`（`ToolInput<any>` 泛型参数）
+    - `src/tools/types.ts` × 2（缓存接口 `get(key): Promise<any>` / `set(key, value: any)`）
+    - `src/db/pg-client.ts`（stub 函数，永远抛异常不返回）
+    - `src/utils/approval-bridge.ts`、`src/utils/redis-client.ts`、`src/agents/computer-use-agent.ts`（均为注释中的 "any" 文本，非类型注解）
+- **备份**：15 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
+- **Commit**：（待提交）。
+

@@ -35,7 +35,7 @@ let nativeConfig: NativeConfig = {
   enabled: false,
 };
 
-let nativeProcess: any = null;
+let nativeProcess: Bun.Subprocess | null = null;
 let nativeReady = false;
 
 /** 检测当前部署版本 */
@@ -120,7 +120,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
 export async function nativeSearch(
   query: string,
   opts: { limit?: number; tags?: string[]; para?: string } = {}
-): Promise<any[]> {
+): Promise<unknown[]> {
   if (!nativeReady) return [];
 
   try {
@@ -140,7 +140,7 @@ export async function nativeSearch(
 }
 
 /** 获取 Rust 路由性能报告 */
-export async function nativeRouterPerf(): Promise<any> {
+export async function nativeRouterPerf(): Promise<unknown> {
   if (!nativeReady) return null;
   try {
     const res = await fetch(`http://127.0.0.1:${nativeConfig.port}/native/router/perf`, {
@@ -153,8 +153,16 @@ export async function nativeRouterPerf(): Promise<any> {
   }
 }
 
+/** Rust sidecar /stats 端点返回的系统状态 */
+export interface NativeStats {
+  version?: string;
+  uptime_secs?: number;
+  vault_notes?: number;
+  [key: string]: unknown;
+}
+
 /** 获取系统状态 */
-export async function nativeStats(): Promise<any> {
+export async function nativeStats(): Promise<NativeStats | null> {
   if (!nativeReady) return null;
   try {
     const res = await fetch(`http://127.0.0.1:${nativeConfig.port}/stats`, {

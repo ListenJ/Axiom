@@ -432,7 +432,7 @@ ${resultLines}
           if (v.length === 0) return "[]";
           const first = v[0];
           if (typeof first === "object" && first !== null) {
-            const names = v.map((item: any) => item.name || item.title || item.query || JSON.stringify(item).slice(0, 40)).join(", ");
+            const names = v.map((item: Record<string, unknown>) => String(item.name ?? item.title ?? item.query ?? JSON.stringify(item).slice(0, 40))).join(", ");
             return `[${v.length} items] ${names.slice(0, 160)}`;
           }
           return JSON.stringify(v).slice(0, 200);
