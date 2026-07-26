@@ -1812,5 +1812,5 @@
   - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 完全一致，无回归）。
 - **备份**：5 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`aa836b5`（待推送 `internal211/main`）。
 
