@@ -1754,5 +1754,5 @@
     - `src/db/pg-client.ts`（stub 函数，永远抛异常不返回）
     - `src/utils/approval-bridge.ts`、`src/utils/redis-client.ts`、`src/agents/computer-use-agent.ts`（均为注释中的 "any" 文本，非类型注解）
 - **备份**：15 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`3b10ee0`（待推送 `internal211/main`）。
 
