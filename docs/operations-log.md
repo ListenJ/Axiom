@@ -1778,5 +1778,5 @@
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 2050/110 相比，多 3 pass 少 3 fail，差异为前端 UI 组件 flaky 测试波动，与本改动无关）。
   - Grep 确认 `tests/torture.slow.ts` 中 `any` 类型注解从 13 处降至 0 处（仅注释中保留 "any" 文本说明设计意图）。
 - **备份**：`tests/torture.slow.ts` 备份到 `.tmp/backups/tests/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`e9e463f`（待推送 `internal211/main`）。
 
