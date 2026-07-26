@@ -1754,5 +1754,29 @@
     - `src/db/pg-client.ts`（stub 函数，永远抛异常不返回）
     - `src/utils/approval-bridge.ts`、`src/utils/redis-client.ts`、`src/agents/computer-use-agent.ts`（均为注释中的 "any" 文本，非类型注解）
 - **备份**：15 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
-- **Commit**：`3b10ee0`（待推送 `internal211/main`）。
+- **Commit**：`3b10ee0`（已推送 `internal211/main`，见上 cf3073b 补录）。
+
+---
+
+## 2026-07-27 17:10 +0800 — torture.slow.ts 类型收紧与重复消除
+
+- **任务**：用户在 IDE 中打开 `tests/torture.slow.ts` 并要求"继续优化"。该文件存在 13 处 `any`（多为 mock RouteContext 重复构造与构造器选项强转）和 3 处重复的 mock 对象字面量。本次将其收窄为集中化的 `makeMockCtx` 辅助函数与具体类型。
+- **工具**：Read、Edit、Grep、RunCommand（`bunx tsc --noEmit` + `bun test ./tests/torture.slow.ts` + `bun test` 全量）、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作（文件级）**：
+  - `tests/torture.slow.ts`（单文件，13 处 `any` → 0 处类型注解）：
+    - 新增 `import type { RouteContext }`、`import type { ArmStats }`、`import type { PromptMatchResult }` 三个类型导入。
+    - 新增 `makeMockCtx(path: string): RouteContext` 辅助函数，集中处理 `db`/`pipeline`/`healthMonitor` 等 `null` 强转（`as unknown as RouteContext`），并返回合规的 `jsonResponse: (d: unknown) => Response.json(d)`。
+    - 删除 3 处重复的 `const ctx: any = { ... }` 对象字面量（Router 测试 2 处 + Concurrency 测试 1 处），统一替换为 `makeMockCtx(p)` 调用。
+    - 移除 5 处 `as any` 构造器强转：`new Cache({ maxSize: 10, redis: false } as any)` → 去掉 `as any`（CacheOptions 所有字段可选，无需强转）；`new HttpRouter({ cacheMaxSize: ... } as any)` × 3 → 同理移除。
+    - Thompson `find` 回调：`(x: any) => x.id === "g"` → `(x: ArmStats) => x.id === "g"`，并提取为 `gStat`/`bStat` 局部常量提升可读性。
+    - `1000 getOrSet random keys`：`new Cache(...)` 添加泛型参数 `<{ worker: number; ok: boolean }>`，`r.forEach((x: any) => ...)` → `r.forEach((x) => ...)`（类型由泛型推断）。
+    - `Plugin Routes` 竞争测试：`results.map((r: Response) => r.json())` → `r.json() as Promise<{ success: boolean }>`，`(s: any) => s.success` → `(s) => s.success`。
+    - `PromptEngineer Fuzz` 测试：`let result: any = null` → `let result: PromptMatchResult | null = null`；为绕过 TS 闭包赋值窄化限制（result 在 `expect(() => { result = ... })` 闭包内赋值，TS 仍认为它是初始值 null），引入 `const match: PromptMatchResult = result` 局部常量重新绑定。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
+  - `bun test ./tests/torture.slow.ts` → 25 pass / 0 fail / 2603 expect() calls（全部 torture 测试通过，行为无回归）。
+  - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 2050/110 相比，多 3 pass 少 3 fail，差异为前端 UI 组件 flaky 测试波动，与本改动无关）。
+  - Grep 确认 `tests/torture.slow.ts` 中 `any` 类型注解从 13 处降至 0 处（仅注释中保留 "any" 文本说明设计意图）。
+- **备份**：`tests/torture.slow.ts` 备份到 `.tmp/backups/tests/`（验证通过后已删除）。
+- **Commit**：（待提交）。
 

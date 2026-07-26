@@ -2,11 +2,34 @@
  * Chaos torture tests
  */
 import { describe, it, expect } from "bun:test";
+import type { RouteContext } from "../src/routes/types.js";
+import type { ArmStats } from "../src/router/thompson-router.js";
+import type { PromptMatchResult } from "../src/skills/types.js";
 
 function rand(max: number): number { return Math.floor(Math.random() * max); }
 function randStr(len: number): string {
   const c = "abcdefghijklmnopqrstuvwxyz0123456789";
   return Array.from({length: len}, () => c[rand(c.length)]).join("");
+}
+
+/**
+ * 构造最小化的 mock RouteContext，用于 HttpRouter.execute 入参。
+ * 测试中的 handler 通常不消费 ctx，因此 db/pipeline/healthMonitor 等以 null
+ * 强转填充；类型断言集中在此处，避免在每个测试用例里重复 `as any`。
+ */
+function makeMockCtx(path: string): RouteContext {
+  return {
+    url: new URL(`http://h${path}`),
+    req: new Request(`http://h${path}`),
+    vault: null,
+    db: null,
+    pipeline: null,
+    healthMonitor: null,
+    fileWatcher: null,
+    startupTime: 0,
+    baseHeaders: {},
+    jsonResponse: (d: unknown) => Response.json(d),
+  } as unknown as RouteContext;
 }
 
 // 1. Cache
@@ -48,7 +71,7 @@ describe("Chaos Cache", () => {
     await new Promise(r => setTimeout(r, 5));
     expect(c1.getSync("x")).toBeUndefined();
     // 10K key
-    const c2 = new Cache({ maxSize: 10, redis: false } as any);
+    const c2 = new Cache({ maxSize: 10, redis: false });
     c2.set("x".repeat(10000), "long");
     expect(c2.getSync("x".repeat(10000))).toBe("long");
   });
@@ -84,7 +107,7 @@ describe("Chaos Cache", () => {
 describe("Chaos Router", () => {
   it("100K routes + 5K random match", async () => {
     const { HttpRouter } = await import("../src/core/http-router.js");
-    const r = new HttpRouter({ cacheMaxSize: 50000 } as any);
+    const r = new HttpRouter({ cacheMaxSize: 50000 });
     const t0 = performance.now();
     for (let i = 0; i < 100000; i++) {
       r.register({
@@ -97,29 +120,17 @@ describe("Chaos Router", () => {
     const t1 = performance.now();
     for (let i = 0; i < 5000; i++) {
       const p = `/v${rand(10)}/r/${rand(100000)}/${randStr(6)}`;
-      const ctx: any = {
-        url: new URL(`http://h${p}`), req: new Request(`http://h${p}`),
-        vault: null, db: null, pipeline: null, healthMonitor: null,
-        fileWatcher: null, startupTime: 0, baseHeaders: {},
-        jsonResponse: (d: any) => d,
-      };
-      await r.execute(ctx).catch(() => null);
+      await r.execute(makeMockCtx(p)).catch(() => null);
     }
     console.log(`  5K rand match: ${(performance.now() - t1).toFixed(0)}ms`);
   }, 60000);
 
   it("Long path 10K chars", async () => {
     const { HttpRouter } = await import("../src/core/http-router.js");
-    const r = new HttpRouter({ cacheMaxSize: 100 } as any);
+    const r = new HttpRouter({ cacheMaxSize: 100 });
     const p = "/" + "x".repeat(10000);
     r.register({ method: "GET", path: p, handler: async () => new Response("ok") });
-    const ctx: any = {
-      url: new URL(`http://h${p}`), req: new Request(`http://h${p}`),
-      vault: null, db: null, pipeline: null, healthMonitor: null,
-      fileWatcher: null, startupTime: 0, baseHeaders: {},
-      jsonResponse: (d: any) => d,
-    };
-    const res = await r.execute(ctx);
+    const res = await r.execute(makeMockCtx(p));
     expect(res).not.toBeNull();
   }, 10000);
 });
@@ -149,7 +160,9 @@ describe("Chaos Thompson", () => {
     for (let i = 0; i < 100_000; i++) ts.reportFeedback(i % 10 === 0 ? "b" : "g", i % 7 !== 0);
     console.log(`  100K fb: ${(performance.now() - t0).toFixed(0)}ms`);
     const s = ts.getArmStats();
-    expect((s.find((x: any) => x.id === "g")!).mean).toBeGreaterThan((s.find((x: any) => x.id === "b")!).mean);
+    const gStat = s.find((x: ArmStats) => x.id === "g")!;
+    const bStat = s.find((x: ArmStats) => x.id === "b")!;
+    expect(gStat.mean).toBeGreaterThan(bStat.mean);
   }, 30000);
 
   it("decayFactor=0 no crash", async () => {
@@ -207,7 +220,7 @@ describe("Chaos Concurrency", () => {
       arms: Array.from({length:5},(_,i)=>({id:`a${i}`,model:`m${i}`,provider:"p",alpha:10-i,beta:1+i,metadata:{}})),
       minSamples:3, inMemory:true,
     });
-    const hr = new mR.HttpRouter({ cacheMaxSize:100 } as any);
+    const hr = new mR.HttpRouter({ cacheMaxSize:100 });
     for (let i = 0; i < 10; i++) hr.register({ method:"GET", path:`/e/${i}`, handler:async()=>new Response("ok") });
 
     await Promise.all(Array.from({ length: 500 }, async (_, i) => {
@@ -216,12 +229,7 @@ describe("Chaos Concurrency", () => {
         if (choice === 0) { cache.set(`s${i}-${j}`, i); cache.getSync(`s${(i+1)%500}-${j}`); }
         else if (choice === 1) { await ts.route({ taskType:["chat","code","math"][rand(3)], inputLength:rand(10000) }); }
         else {
-          const ctx: any = {
-            url:new URL(`http://h/e/${rand(10)}`), req:new Request(`http://h/e/${rand(10)}`),
-            vault:null, db:null, pipeline:null, healthMonitor:null,
-            fileWatcher:null, startupTime:0, baseHeaders:{}, jsonResponse:(d:any)=>d,
-          };
-          await hr.execute(ctx).catch(() => null);
+          await hr.execute(makeMockCtx(`/e/${rand(10)}`)).catch(() => null);
         }
       }
     }));
@@ -229,7 +237,7 @@ describe("Chaos Concurrency", () => {
 
   it("1000 getOrSet random keys", async () => {
     const { Cache } = await import("../src/utils/cache.js");
-    const c = new Cache({ maxSize:10, defaultTtlMs:60000, redis:false });
+    const c = new Cache<{ worker: number; ok: boolean }>({ maxSize:10, defaultTtlMs:60000, redis:false });
     const r = await Promise.all(Array.from({ length: 1000 }, (_, i) =>
       c.getOrSet(`async-${rand(50)}`, async () => {
         await new Promise(x => setTimeout(x, rand(5)));
@@ -237,7 +245,7 @@ describe("Chaos Concurrency", () => {
       })
     ));
     expect(r.length).toBe(1000);
-    r.forEach((x: any) => expect(x.ok).toBeTrue());
+    r.forEach((x) => expect(x.ok).toBeTrue());
   }, 15000);
 });
 
@@ -257,13 +265,16 @@ describe("Chaos PromptEngineer", () => {
     ];
     for (let i = 0; i < 1000; i++) {
       const desc = i < samples.length ? samples[i] : randStr(rand(50));
-      let result: any = null;
+      let result: PromptMatchResult | null = null;
       expect(() => { result = promptEngineer.matchTemplate(desc); }).not.toThrow();
       if (result !== null) {
-        expect(result).toHaveProperty("template");
-        expect(result).toHaveProperty("score");
-        expect(typeof result.score).toBe("number");
-        expect(result.score).toBeGreaterThanOrEqual(0);
+        // 重新绑定到局部常量，绕过 TS 对闭包赋值的窄化限制（result 在闭包内被赋值，
+        // TS 仍认为它是初始值 null，导致 `if (result !== null)` 后类型变为 never）。
+        const match: PromptMatchResult = result;
+        expect(match).toHaveProperty("template");
+        expect(match).toHaveProperty("score");
+        expect(typeof match.score).toBe("number");
+        expect(match.score).toBeGreaterThanOrEqual(0);
       }
     }
   }, 15000);
@@ -400,8 +411,8 @@ describe("Chaos Plugin Routes (W3)", () => {
         )
       )
     );
-    const statuses = await Promise.all(results.map((r: Response) => r.json()));
-    const successCount = statuses.filter((s: any) => s.success).length;
+    const statuses = await Promise.all(results.map((r: Response) => r.json() as Promise<{ success: boolean }>));
+    const successCount = statuses.filter((s) => s.success).length;
     // 不调用 uninstall —— 就地安装时 uninstall 会删除 ./plugins/test-plugin 源目录!
     db.close();
     // 竞争下至少 1 个成功, 其余因 "already installed" 失败 (或全部成功如果时序完全分离)
