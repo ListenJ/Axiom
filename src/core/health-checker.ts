@@ -370,29 +370,29 @@ export function printHealthReport(report: SystemReport): void {
   const icons = { ok: "✅", warning: "⚠️", error: "❌", skipped: "⏭️" };
   const colors = { ok: "\x1b[32m", warning: "\x1b[33m", error: "\x1b[31m", skipped: "\x1b[90m", reset: "\x1b[0m" };
 
-  console.log("\n╔══════════════════════════════════════════════════════════════╗");
-  console.log(`║  系统健康检查 — ${report.overall === "healthy" ? "🟢 健康" : report.overall === "degraded" ? "🟡 降级" : "🔴 严重"}`.padEnd(63) + "║");
-  console.log("╠══════════════════════════════════════════════════════════════╣");
+  logger.info("╔══════════════════════════════════════════════════════════════╗");
+  logger.info(`║  系统健康检查 — ${report.overall === "healthy" ? "🟢 健康" : report.overall === "degraded" ? "🟡 降级" : "🔴 严重"}`.padEnd(63) + "║");
+  logger.info("╠══════════════════════════════════════════════════════════════╣");
 
   for (const check of report.checks) {
     const icon = icons[check.status];
     const color = colors[check.status];
     const latency = check.latencyMs ? ` (${check.latencyMs}ms)` : "";
     const line = `║  ${icon} ${check.component.padEnd(20)} ${color}${check.status.toUpperCase().padEnd(7)}${colors.reset} ${check.message.slice(0, 30)}${latency}`.slice(0, 62);
-    console.log(line.padEnd(63) + "║");
+    logger.info(line.padEnd(63) + "║");
   }
 
-  console.log("╠══════════════════════════════════════════════════════════════╣");
-  console.log(`║  总计: ✅ ${report.summary.ok}  ⚠️ ${report.summary.warning}  ❌ ${report.summary.error}  ⏭️ ${report.summary.skipped}`.padEnd(63) + "║");
+  logger.info("╠══════════════════════════════════════════════════════════════╣");
+  logger.info(`║  总计: ✅ ${report.summary.ok}  ⚠️ ${report.summary.warning}  ❌ ${report.summary.error}  ⏭️ ${report.summary.skipped}`.padEnd(63) + "║");
 
   if (report.recommendations.length > 0) {
-    console.log("╠══════════════════════════════════════════════════════════════╣");
-    console.log("║  优化建议:".padEnd(63) + "║");
+    logger.info("╠══════════════════════════════════════════════════════════════╣");
+    logger.info("║  优化建议:".padEnd(63) + "║");
     for (const rec of report.recommendations) {
       const line = `║    ${rec.slice(0, 58)}`;
-      console.log(line.padEnd(63) + "║");
+      logger.info(line.padEnd(63) + "║");
     }
   }
 
-  console.log("╚══════════════════════════════════════════════════════════════╝\n");
+  logger.info("╚══════════════════════════════════════════════════════════════╝");
 }

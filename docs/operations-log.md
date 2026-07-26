@@ -1678,3 +1678,20 @@
 - **备份**：`.tmp/backups/tests/perf-benchmark.test.ts` + `.tmp/backups/src/mcp/tools/workspace-snapshot.ts`（验证通过后删除）。
 - **Commit**：`3aa738b`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-27 10:30 +0800 — 核心模块 console.* → logger 迁移（6 文件 43 处）
+
+- **任务**：承接上一轮代码审查的后续优化项（"核心模块中的 `console.*` 可改用 `logger` 但属大规模重构，留作后续优化"），将 6 个核心模块文件中的 `console.*` 调用替换为结构化 `logger` 调用。CLI 文件（cli.ts, cli/*, eval-cli.ts）不在本次范围。
+- **工具**：Read、Edit、Grep、RunCommand（`bun x tsc --noEmit`）、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作（文件级）**：
+  - `src/eval/eval-runner.ts`（21 处 + 新增 import）：新增 `import { logger } from "../utils/logger.js";`；将 20 处 `console.log` 转为 `logger.info`（含 help 文本、运行状态、进度、报告路径、摘要等单参模板字符串）；1 处 `console.error(msg, err.message)` 转为 `logger.error("❌ Fatal error", err instanceof Error ? err : new Error(String(err)))`（遵循 conformal-retriever.ts 既有模式）。`process.stdout.write` 调用保留不动（非 console.*）。
+  - `src/core/health-checker.ts`（10 处，logger 已导入）：`printHealthReport()` 中 10 处 `console.log`（ASCII 边框表格输出）转为 `logger.info`。
+  - `src/launcher.ts`（7 处，logger 已导入）：`statusMode()` 中 6 处 `console.log`（服务状态表）转为 `logger.info`；`showHelp()` 中 1 处多行 `console.log` 转为 `logger.info`。空字符串 `console.log("")` 删除（logger 无空消息意义）。
+  - `src/memory/vib-compressor.ts`（3 处，logger 已导入）：JSDoc 用法示例注释中 3 处 `console.log(result.*)` 转为 `logger.info("...", { ... })`（注释内文档示例，非可执行代码）。
+  - `src/memory/conformal-retriever.ts`（1 处，logger 已导入）：JSDoc 用法示例注释中 1 处 `console.log(result.predictionSet)` 转为 `logger.info("Prediction set", { predictionSet: result.predictionSet })`。
+  - `src/mcp/server/dre-tools.ts`（1 处 + 新增 import）：新增 `import { logger } from "../../utils/logger.js";`；`console.warn("[DRE] Kernel init failed", (err as Error).message)` 转为 `logger.warn("[DRE] Kernel init failed", { error: (err as Error).message })`。
+- **验证**：`bun x tsc --noEmit --pretty false` → ExitCode=0（零错误）；6 文件 grep `console\.(log|warn|error|debug|info)` 零匹配。
+- **备份**：6 文件均备份到 `.tmp/backups/src/...`（验证通过后删除）。
+- **Commit**：`TBD`（初稿，hash 待补录）。
+

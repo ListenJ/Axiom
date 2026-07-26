@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
 import { getResourceBudgetManager } from "../../dre/system-resource.js";
+import { logger } from "../../utils/logger.js";
 
 let kernel: Kernel | null = null;
 
@@ -9,7 +10,7 @@ function getKernel(): Kernel {
   if (!kernel) {
     const config = new ConfigLoader().toKernelConfig();
     kernel = new Kernel({ ...config, tickInterval: 10000, autoTick: true });
-    kernel.init().catch((err) => console.warn("[DRE] Kernel init failed", (err as Error).message));
+    kernel.init().catch((err) => logger.warn("[DRE] Kernel init failed", { error: (err as Error).message }));
   }
   return kernel;
 }

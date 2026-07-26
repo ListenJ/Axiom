@@ -1,4 +1,4 @@
-﻿/**
+/**
  * VIB-Mem: Variational Information Bottleneck Memory Compressor
  * (变分信息瓶颈记忆压缩器)
  *
@@ -80,9 +80,9 @@
  *   });
  *
  *   const result = await compressor.compress(newMemories);
- *   console.log(result.retained);
- *   console.log(result.discarded);
- *   console.log(result.stats);
+ *   logger.info("Retained memories", { count: result.retained.length });
+ *   logger.info("Discarded memories", { count: result.discarded.length });
+ *   logger.info("Compression stats", { stats: result.stats });
  */
 
 import { logger } from "../utils/logger.js";
