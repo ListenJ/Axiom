@@ -1608,3 +1608,30 @@
 - **备份**：`.tmp/backups/tests/torture.slow.ts`（验证通过后删除）。
 - **Commit**：`0714b1a`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-27 00:30 +0800 — 测试文件 ESM 一致性：require() → await import() 全量转换
+
+- **任务**：将测试目录下所有 `require()` 调用统一转换为 ESM 标准的 `await import()`，消除 CJS/ESM 混用模式；同时将冗余的内置模块 `require()` 替换为已有顶层 import。
+- **工具**：Read、Edit（含 `replace_all` 批量替换）、Grep、RunCommand（bun test）、Start-Process（捕获 stderr）、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作（文件级）**：
+  - **第一批 — 6 个文件 41 处 `require()` 转换**：
+    - `tests/dre-hybrid-fusion.test.ts`：2 处 `require()` → `await import()`，2 个 `test()` 改为 `async`。
+    - `tests/dre-knowledge-wiki.test.ts`：同上模式，2 处转换。
+    - `tests/dre-observability.test.ts`：同上模式，2 处转换。
+    - `tests/dre-verification-chain.test.ts`：同上模式，2 处转换。
+    - `tests/e2e-runtime.test.ts`：2 处 `require()` → `await import()`，2 个 `it()` 改为 `async`。
+    - `tests/perf-benchmark.test.ts`：31 处 `require()` → `await import()`（两步 `replace_all`：先转 `= require("` → `= await import("`，再转 `", () => {\n    const {` → `", async () => {\n    const {`），22 个同步 `it()` 改为 `async`。
+  - **第二批 — 6 个文件 14 处 `require()` 转换**：
+    - `tests/performance.test.ts`：1 处 ESM `require()` → `await import()`，`it()` 改为 `async`。
+    - `tests/security-hardening.test.ts`：`beforeEach()` 改为 `async`，2 处 `require()` → `await import()`（含 `bun:sqlite` 内置模块）。
+    - `tests/security-hardening-extended.test.ts`：`beforeEach()` 改为 `async`，3 处转换（含 `bun:sqlite` + `crypto` 内置模块，`crypto` 从内联 `require("crypto").createHash(...)` 改为先 `const { createHash } = await import("crypto")` 再调用）。
+    - `tests/stress/perf-gate.test.ts`：6 处 `require()` → `await import()`（两步 `replace_all`），5 个同步 `test()` 改为 `async`。
+    - `tests/prompt-engineer.test.ts`：`require("fs").unlinkSync(...)` 改为复用顶层 `import fs from "fs"`（消除冗余 `require`）。
+    - `tests/responsive.test.ts`：`require("path").sep` 改为复用顶层 `import { join, sep } from "node:path"`（在原 `import { join }` 中添加 `sep`）。
+- **验证**：
+  - `bun test`（12 个文件一次性）→ **291 pass / 0 fail**，10634 expect() calls，19.16s。
+  - 转换后 `grep require\(\s*["']` 在 `tests/` 目录下 **零匹配**——全部 `require()` 调用已消除。
+- **备份**：12 个文件均备份到 `.tmp/backups/tests/`（验证通过后删除）。
+- **Commit**：待提交后补录。
+

@@ -157,16 +157,16 @@ describe("E2E Runtime (real I/O)", () => {
   // 5. ConfigCenter Real Configuration
   // ══════════════════════════════════════════════════════════════════
   describe("ConfigCenter real config", () => {
-    it("getConfig returns gateway port", () => {
-      const { getConfig, resetConfigCenter } = require("../src/core/config-center.js");
+    it("getConfig returns gateway port", async () => {
+      const { getConfig, resetConfigCenter } = await import("../src/core/config-center.js");
       resetConfigCenter();
       const config = getConfig();
       expect(config.gateway.port).toBeGreaterThan(0);
       expect(config.gateway.bind).toBeString();
     });
 
-    it("set and get config value", () => {
-      const { getConfigCenter, resetConfigCenter } = require("../src/core/config-center.js");
+    it("set and get config value", async () => {
+      const { getConfigCenter, resetConfigCenter } = await import("../src/core/config-center.js");
       resetConfigCenter();
       const cc = getConfigCenter();
       cc.set("gateway.port", 9999, "test", false);

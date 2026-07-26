@@ -304,15 +304,15 @@ describe("ObservabilityMonitor — 单例", () => {
     _resetObservabilityMonitorForTest();
   });
 
-  test("getObservabilityMonitor 返回同一实例", () => {
-    const { getObservabilityMonitor } = require("../src/dre/retrieval/observability.js");
+  test("getObservabilityMonitor 返回同一实例", async () => {
+    const { getObservabilityMonitor } = await import("../src/dre/retrieval/observability.js");
     const a = getObservabilityMonitor();
     const b = getObservabilityMonitor();
     expect(a).toBe(b);
   });
 
-  test("_resetObservabilityMonitorForTest 重置单例", () => {
-    const { getObservabilityMonitor } = require("../src/dre/retrieval/observability.js");
+  test("_resetObservabilityMonitorForTest 重置单例", async () => {
+    const { getObservabilityMonitor } = await import("../src/dre/retrieval/observability.js");
     const a = getObservabilityMonitor();
     _resetObservabilityMonitorForTest();
     const b = getObservabilityMonitor();

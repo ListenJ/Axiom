@@ -493,15 +493,15 @@ describe("VerificationChain — 单例", () => {
     _resetVerificationChainForTest();
   });
 
-  test("getVerificationChain 返回同一实例", () => {
-    const { getVerificationChain } = require("../src/dre/retrieval/verification-chain.js");
+  test("getVerificationChain 返回同一实例", async () => {
+    const { getVerificationChain } = await import("../src/dre/retrieval/verification-chain.js");
     const a = getVerificationChain();
     const b = getVerificationChain();
     expect(a).toBe(b);
   });
 
-  test("_resetVerificationChainForTest 重置单例", () => {
-    const { getVerificationChain } = require("../src/dre/retrieval/verification-chain.js");
+  test("_resetVerificationChainForTest 重置单例", async () => {
+    const { getVerificationChain } = await import("../src/dre/retrieval/verification-chain.js");
     const a = getVerificationChain();
     _resetVerificationChainForTest();
     const b = getVerificationChain();

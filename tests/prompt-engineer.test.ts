@@ -122,7 +122,7 @@ describe("Prompt Engineer - 零向量提示词引擎", () => {
     console.log(`  [完成] 保存到: ${filePath}`);
 
     // 清理
-    try { require("fs").unlinkSync(filePath); } catch {}
+    try { fs.unlinkSync(filePath); } catch {}
   });
 
   test("8. 零向量验证", () => {

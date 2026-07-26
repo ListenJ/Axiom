@@ -421,15 +421,15 @@ describe("HybridFusion — 单例", () => {
     _resetHybridFusionForTest();
   });
 
-  test("getHybridFusion 返回同一实例", () => {
-    const { getHybridFusion } = require("../src/dre/retrieval/hybrid-fusion.js");
+  test("getHybridFusion 返回同一实例", async () => {
+    const { getHybridFusion } = await import("../src/dre/retrieval/hybrid-fusion.js");
     const a = getHybridFusion();
     const b = getHybridFusion();
     expect(a).toBe(b);
   });
 
-  test("_resetHybridFusionForTest 重置单例", () => {
-    const { getHybridFusion } = require("../src/dre/retrieval/hybrid-fusion.js");
+  test("_resetHybridFusionForTest 重置单例", async () => {
+    const { getHybridFusion } = await import("../src/dre/retrieval/hybrid-fusion.js");
     const a = getHybridFusion();
     _resetHybridFusionForTest();
     const b = getHybridFusion();

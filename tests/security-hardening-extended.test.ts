@@ -26,13 +26,13 @@ describe("Task 4.1 补充 — api-key-persistence 边界", () => {
   let tmpDir: string;
   let originalKey: string | undefined;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalKey = process.env.AXIOM_ENCRYPTION_KEY;
     process.env.AXIOM_ENCRYPTION_KEY = ENCRYPTION_KEY;
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "axiom-apikey-ext-"));
-    const { Database } = require("bun:sqlite");
+    const { Database } = await import("bun:sqlite");
     db = new Database(path.join(tmpDir, "test.db"));
-    const { initApiKeyOverridesTable } = require("../src/utils/api-key-persistence.js");
+    const { initApiKeyOverridesTable } = await import("../src/utils/api-key-persistence.js");
     initApiKeyOverridesTable(db);
   });
 
@@ -184,7 +184,8 @@ describe("Task 4.2 补充 — MultiDimensionLimiter 边界", () => {
     });
     const key = extractUserKey(req);
     // 应该是 sk-apikey-priority 的 hash，而不是 sk-bearer-secondary 的
-    const expectedHash = require("crypto").createHash("sha256")
+    const { createHash } = await import("crypto");
+    const expectedHash = createHash("sha256")
       .update("sk-apikey-priority").digest("hex").slice(0, 16);
     expect(key).toBe(expectedHash);
   });

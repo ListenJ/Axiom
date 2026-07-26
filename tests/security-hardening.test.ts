@@ -23,13 +23,13 @@ describe("Task 4.1 — API Key 加密", () => {
   let tmpDir: string;
   let originalKey: string | undefined;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalKey = process.env.AXIOM_ENCRYPTION_KEY;
     process.env.AXIOM_ENCRYPTION_KEY = ENCRYPTION_KEY;
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "axiom-apikey-"));
-    const { Database } = require("bun:sqlite");
+    const { Database } = await import("bun:sqlite");
     db = new Database(path.join(tmpDir, "test.db"));
-    const { initApiKeyOverridesTable } = require("../src/utils/api-key-persistence.js");
+    const { initApiKeyOverridesTable } = await import("../src/utils/api-key-persistence.js");
     initApiKeyOverridesTable(db);
   });
 

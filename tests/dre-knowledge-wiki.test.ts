@@ -381,15 +381,15 @@ describe("KnowledgeWiki — 单例", () => {
     _resetKnowledgeWikiForTest();
   });
 
-  test("getKnowledgeWiki 返回同一实例", () => {
-    const { getKnowledgeWiki } = require("../src/dre/retrieval/knowledge-wiki.js");
+  test("getKnowledgeWiki 返回同一实例", async () => {
+    const { getKnowledgeWiki } = await import("../src/dre/retrieval/knowledge-wiki.js");
     const a = getKnowledgeWiki();
     const b = getKnowledgeWiki();
     expect(a).toBe(b);
   });
 
-  test("_resetKnowledgeWikiForTest 重置单例", () => {
-    const { getKnowledgeWiki } = require("../src/dre/retrieval/knowledge-wiki.js");
+  test("_resetKnowledgeWikiForTest 重置单例", async () => {
+    const { getKnowledgeWiki } = await import("../src/dre/retrieval/knowledge-wiki.js");
     const a = getKnowledgeWiki();
     _resetKnowledgeWikiForTest();
     const b = getKnowledgeWiki();

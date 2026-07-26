@@ -20,8 +20,8 @@ async function benchAsync(name: string, fn: () => Promise<void>, iterations = 10
 }
 
 describe("性能基准", () => {
-  it("[perf] normalizeQuery 性能 1万次", () => {
-    const { normalizeQuery } = require("../src/tools/types.js");
+  it("[perf] normalizeQuery 性能 1万次", async () => {
+    const { normalizeQuery } = await import("../src/tools/types.js");
     const queries = [
       "What is the capital of France?",
       "你好世界，这是一个测试",
@@ -44,8 +44,8 @@ describe("性能基准", () => {
     expect(r1).toBe(r2);
   });
 
-  it("[perf] constrainsSolver 热路径 1万次", () => {
-    const { ConstraintSolver } = require("../src/dre/constraint/solver.js");
+  it("[perf] constrainsSolver 热路径 1万次", async () => {
+    const { ConstraintSolver } = await import("../src/dre/constraint/solver.js");
     const s = new ConstraintSolver();
     s.register({
       id: "m1", dimension: "physical", type: "min_value",
@@ -78,8 +78,8 @@ describe("性能基准", () => {
     console.log(`  constraintSolver.check ×10k: ${avg.toFixed(4)}ms/iter`);
   });
 
-  it("[perf] EventBus publish 1万次", () => {
-    const { eventBus } = require("../src/dre/runtime/event-bus.js");
+  it("[perf] EventBus publish 1万次", async () => {
+    const { eventBus } = await import("../src/dre/runtime/event-bus.js");
     // 注册一些处理器
     const subs: string[] = [];
     for (let i = 0; i < 5; i++) {
@@ -95,8 +95,8 @@ describe("性能基准", () => {
     for (const id of subs) eventBus.unsubscribe(id);
   });
 
-  it("[perf] WorldState get/set 1万次", () => {
-    const { worldState } = require("../src/dre/runtime/world-state.js");
+  it("[perf] WorldState get/set 1万次", async () => {
+    const { worldState } = await import("../src/dre/runtime/world-state.js");
 
     const avgSet = bench("worldState.set", () => {
       for (let i = 0; i < 100; i++) worldState.set(`perf.key.${i}`, { value: i });
@@ -109,8 +109,8 @@ describe("性能基准", () => {
     console.log(`  worldState.get ×100/iter: ${(avgGet / 100).toFixed(4)}ms/op`);
   });
 
-  it("[perf] detectLoop 热路径 (干净缓存)", () => {
-    const { detectLoop } = require("../src/tools/types.js");
+  it("[perf] detectLoop 热路径 (干净缓存)", async () => {
+    const { detectLoop } = await import("../src/tools/types.js");
     let iter = 0;
 
     const avg = bench("detectLoop (no collision)", () => {
@@ -120,8 +120,8 @@ describe("性能基准", () => {
     console.log(`  detectLoop (不同输入) ×100/iter: ${(avg / 100).toFixed(4)}ms/op`);
   });
 
-  it("[perf] VIBCompressor getRetentionScore 1万次", () => {
-    const { VIBCompressor } = require("../src/memory/vib-compressor.js");
+  it("[perf] VIBCompressor getRetentionScore 1万次", async () => {
+    const { VIBCompressor } = await import("../src/memory/vib-compressor.js");
     const vib = new VIBCompressor();
     const mem = { id: "1", content: "test", score: 0.8, timestamp: Date.now(), accessCount: 5, lastAccessed: Date.now(), metadata: {} };
 
@@ -131,8 +131,8 @@ describe("性能基准", () => {
     console.log(`  getRetentionScore ×10k: ${avg.toFixed(4)}ms/iter`);
   });
 
-  it("[perf] MemoryGate shouldWrite 1万次", () => {
-    const { MemoryGate } = require("../src/memory/memory-gate.js");
+  it("[perf] MemoryGate shouldWrite 1万次", async () => {
+    const { MemoryGate } = await import("../src/memory/memory-gate.js");
     const gate = new MemoryGate({
       maxWritesPerHour: 1000,
       similarityThreshold: 0.85,
@@ -152,7 +152,7 @@ describe("性能基准", () => {
   });
 
   it("[perf] Cache.getOrSet 1万次", async () => {
-    const { Cache } = require("../src/utils/cache.js");
+    const { Cache } = await import("../src/utils/cache.js");
     const cache = new Cache({ maxSize: 200, defaultTtlMs: 60000, redis: false, persistent: false });
     for (let i = 0; i < 100; i++) cache.set(`k-${i}`, `v-${i}`);
     let counter = 0;
@@ -165,8 +165,8 @@ describe("性能基准", () => {
     cache.destroy();
   });
 
-  it("[perf] Cache.evictLRU 1000次", () => {
-    const { Cache } = require("../src/utils/cache.js");
+  it("[perf] Cache.evictLRU 1000次", async () => {
+    const { Cache } = await import("../src/utils/cache.js");
     const cache = new Cache({ maxSize: 10, defaultTtlMs: 60000, redis: false, persistent: false });
     for (let i = 0; i < 10; i++) cache.set(`k-${i}`, `v-${i}`);
     let idx = 0;
@@ -178,7 +178,7 @@ describe("性能基准", () => {
   });
 
   it("[perf] ThompsonRouter.route 1万次", async () => {
-    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+    const { ThompsonRouter } = await import("../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [
         { id: "fast", model: "gpt-3.5", provider: "openai", alpha: 10, beta: 2 },
@@ -194,8 +194,8 @@ describe("性能基准", () => {
     console.log(`  thompsonRouter.route ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
   });
 
-  it("[perf] ThompsonRouter.reportFeedback 1万次", () => {
-    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+  it("[perf] ThompsonRouter.reportFeedback 1万次", async () => {
+    const { ThompsonRouter } = await import("../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [
         { id: "fast", model: "gpt-3.5", provider: "openai", alpha: 1, beta: 1 },
@@ -209,8 +209,8 @@ describe("性能基准", () => {
     console.log(`  thompsonRouter.reportFeedback ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
   });
 
-  it("[perf] ConstraintSolver.check (RESOURCE_CONSTRAINTS) 1万次", () => {
-    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = require("../src/dre/constraint/solver.js");
+  it("[perf] ConstraintSolver.check (RESOURCE_CONSTRAINTS) 1万次", async () => {
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
     const s = new ConstraintSolver();
     s.registerAll(RESOURCE_CONSTRAINTS);
     s.registerAll([
@@ -229,8 +229,8 @@ describe("性能基准", () => {
     console.log(`  constraintSolver.check (10约束) ×10k: ${avg.toFixed(4)}ms/iter`);
   });
 
-  it("[perf] MockVaultManager.search 1万次", () => {
-    const { MockVaultManager } = require("./helpers/vault-mock.js");
+  it("[perf] MockVaultManager.search 1万次", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
     const vm = new MockVaultManager();
     for (let i = 0; i < 100; i++) {
       vm.notes.set(`note-${i}.md`, {
@@ -246,8 +246,8 @@ describe("性能基准", () => {
     console.log(`  mockVault.search ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
   });
 
-  it("[perf] MockVaultManager.callCount 1万次", () => {
-    const { MockVaultManager } = require("./helpers/vault-mock.js");
+  it("[perf] MockVaultManager.callCount 1万次", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
     const vm = new MockVaultManager();
     for (let i = 0; i < 20; i++) { vm.search(`q-${i}`); vm.readNote(`note-${i}.md`); }
     const avg = bench("mockVault.callCount", () => {
@@ -256,8 +256,8 @@ describe("性能基准", () => {
     console.log(`  mockVault.callCount ×10k: ${avg.toFixed(4)}ms/iter (${(avg / 100).toFixed(4)}ms/op)`);
   });
 
-  it("[perf] ConfigCenter get/getString/getNumber 混合读取 1万次", () => {
-    const { ConfigCenter } = require("../src/core/config-center.js");
+  it("[perf] ConfigCenter get/getString/getNumber 混合读取 1万次", async () => {
+    const { ConfigCenter } = await import("../src/core/config-center.js");
     const cc = new ConfigCenter(":memory:");
     const avg = bench("configCenter.mixedReads", () => {
       for (let i = 0; i < 100; i++) {
@@ -302,8 +302,8 @@ describe("性能基准", () => {
   // EXTREME benchmarks — 200% uplift (16 new → 32 total)
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("[perf-extreme] Cache 100k set+get < 200ms", () => {
-    const { Cache } = require("../src/utils/cache.js");
+  it("[perf-extreme] Cache 100k set+get < 200ms", async () => {
+    const { Cache } = await import("../src/utils/cache.js");
     const cache = new Cache({ maxSize: 200000, defaultTtlMs: 60000, redis: false, persistent: false });
     const avg = bench("cache100k-set+get", () => {
       cache.set("ek", "ev");
@@ -314,8 +314,8 @@ describe("性能基准", () => {
     expect(avg).toBeLessThan(0.002);
   });
 
-  it("[perf-extreme] Cache LRU thrash 10k evictions < 100ms", () => {
-    const { Cache } = require("../src/utils/cache.js");
+  it("[perf-extreme] Cache LRU thrash 10k evictions < 100ms", async () => {
+    const { Cache } = await import("../src/utils/cache.js");
     const cache = new Cache({ maxSize: 5, defaultTtlMs: 60000, redis: false, persistent: false });
     let idx = 0;
     const avg = bench("cache-lru-thrash", () => {
@@ -327,7 +327,7 @@ describe("性能基准", () => {
   });
 
   it("[perf-extreme] Cache concurrent getOrSet 1000 → factory exactly once", async () => {
-    const { Cache } = require("../src/utils/cache.js");
+    const { Cache } = await import("../src/utils/cache.js");
     const cache = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false, persistent: false });
     let factoryCalls = 0;
     const start = performance.now();
@@ -360,7 +360,7 @@ describe("性能基准", () => {
   }, 20000);
 
   it("[perf-extreme] Thompson 50k routes < 500ms", async () => {
-    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+    const { ThompsonRouter } = await import("../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [
         { id: "a", model: "m1", provider: "p1", alpha: 10, beta: 2 },
@@ -376,8 +376,8 @@ describe("性能基准", () => {
     expect(elapsed).toBeLessThan(500);
   });
 
-  it("[perf-extreme] Thompson convergence: 80% positive → mean diff ≥ 0.2", () => {
-    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+  it("[perf-extreme] Thompson convergence: 80% positive → mean diff ≥ 0.2", async () => {
+    const { ThompsonRouter } = await import("../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [
         { id: "A", model: "mA", provider: "pA", alpha: 1, beta: 1 },
@@ -394,7 +394,7 @@ describe("性能基准", () => {
   });
 
   it("[perf-extreme] Thompson NaN safety: alpha=1e10, beta=1e-10, 10k routes", async () => {
-    const { ThompsonRouter } = require("../src/router/thompson-router.js");
+    const { ThompsonRouter } = await import("../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [{ id: "extreme", model: "m", provider: "p", alpha: 1e10, beta: 1e-10 }],
       minSamples: 1, decayFactor: 1.0, inMemory: true,
@@ -409,7 +409,7 @@ describe("性能基准", () => {
   });
 
   it("[perf-extreme] Vault 10k writes < 200ms", async () => {
-    const { MockVaultManager } = require("./helpers/vault-mock.js");
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
     const vm = new MockVaultManager();
     const start = performance.now();
     for (let i = 0; i < 10000; i++) await vm.writeNote(`n-${i}.md`, `content ${i}`);
@@ -419,8 +419,8 @@ describe("性能基准", () => {
     expect(vm.notes.size).toBe(10000);
   });
 
-  it("[perf-extreme] Vault 10k searches < 600ms", () => {
-    const { MockVaultManager } = require("./helpers/vault-mock.js");
+  it("[perf-extreme] Vault 10k searches < 600ms", async () => {
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
     const vm = new MockVaultManager();
     for (let i = 0; i < 500; i++) {
       vm.notes.set(`note-${i}.md`, {
@@ -440,7 +440,7 @@ describe("性能基准", () => {
   });
 
   it("[perf-extreme] Vault 500 concurrent writes verified", async () => {
-    const { MockVaultManager } = require("./helpers/vault-mock.js");
+    const { MockVaultManager } = await import("./helpers/vault-mock.js");
     const vm = new MockVaultManager();
     await Promise.all(
       Array.from({ length: 500 }, (_, i) => vm.writeNote(`c-${i}.md`, `concurrent content ${i}`)),
@@ -452,8 +452,8 @@ describe("性能基准", () => {
     expect(allPresent).toBe(true);
   });
 
-  it("[perf-extreme] ConfigCenter 50k reads < 100ms", () => {
-    const { ConfigCenter } = require("../src/core/config-center.js");
+  it("[perf-extreme] ConfigCenter 50k reads < 100ms", async () => {
+    const { ConfigCenter } = await import("../src/core/config-center.js");
     const cc = new ConfigCenter(":memory:");
     const avg = bench("configCenter-50k", () => {
       cc.get("gateway.port");
@@ -470,8 +470,8 @@ describe("性能基准", () => {
     expect(totalMs).toBeLessThan(100);
   });
 
-  it("[perf-extreme] ConfigCenter 10k set+get consistency", () => {
-    const { ConfigCenter } = require("../src/core/config-center.js");
+  it("[perf-extreme] ConfigCenter 10k set+get consistency", async () => {
+    const { ConfigCenter } = await import("../src/core/config-center.js");
     const cc = new ConfigCenter(":memory:");
     const keys = [
       "gateway.port", "gateway.bind", "crawler.max_concurrent",
@@ -491,8 +491,8 @@ describe("性能基准", () => {
     expect(mismatches).toBe(0);
   });
 
-  it("[perf-extreme] Solver 50k checks < 500ms", () => {
-    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = require("../src/dre/constraint/solver.js");
+  it("[perf-extreme] Solver 50k checks < 500ms", async () => {
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../src/dre/constraint/solver.js");
     const s = new ConstraintSolver();
     s.registerAll(RESOURCE_CONSTRAINTS);
     s.registerAll([
@@ -513,8 +513,8 @@ describe("性能基准", () => {
     expect(totalMs).toBeLessThan(500);
   });
 
-  it("[perf-extreme] Solver selectBest determinism: 1k identical calls", () => {
-    const { ConstraintSolver } = require("../src/dre/constraint/solver.js");
+  it("[perf-extreme] Solver selectBest determinism: 1k identical calls", async () => {
+    const { ConstraintSolver } = await import("../src/dre/constraint/solver.js");
     const s = new ConstraintSolver();
     s.registerAll([
       { id: "c1", dimension: "physical", type: "min_value", name: "", description: "", subject: "mem", params: { min: 500 }, priority: 1, enabled: true, createdAt: 0 },
@@ -534,8 +534,8 @@ describe("性能基准", () => {
   });
 
   it("[perf-extreme] Pipeline empty 10k runs < 100ms", async () => {
-    const { runPipeline } = require("../src/tools/pipeline.js");
-    const { createToolContext } = require("../src/tools/types.js");
+    const { runPipeline } = await import("../src/tools/pipeline.js");
+    const { createToolContext } = await import("../src/tools/types.js");
     const start = performance.now();
     for (let i = 0; i < 10000; i++) await runPipeline([], createToolContext("perf-extreme"));
     const elapsed = performance.now() - start;
@@ -543,8 +543,8 @@ describe("性能基准", () => {
     expect(elapsed).toBeLessThan(100);
   });
 
-  it("[perf-extreme] EventBus 100k publish (0 subscribers) < 50ms", () => {
-    const { eventBus } = require("../src/dre/runtime/event-bus.js");
+  it("[perf-extreme] EventBus 100k publish (0 subscribers) < 50ms", async () => {
+    const { eventBus } = await import("../src/dre/runtime/event-bus.js");
     const start = performance.now();
     for (let i = 0; i < 100000; i++) {
       eventBus.publish({ type: "perf-extreme.noop", source: "perf", data: {}, priority: "background" });

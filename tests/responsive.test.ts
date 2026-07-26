@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
 const FRONTEND = join(ROOT, "frontend");
@@ -199,7 +199,7 @@ describe("Accessibility", () => {
 
 describe("No dead responsive code paths", () => {
   it("page components exist and are TypeScript", () => {
-    const pageFiles = allTsx.filter((f) => f.includes(`src${require("path").sep}pages`));
+    const pageFiles = allTsx.filter((f) => f.includes(`src${sep}pages`));
     expect(pageFiles.length).toBeGreaterThan(0);
   });
 

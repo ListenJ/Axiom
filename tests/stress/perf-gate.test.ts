@@ -69,8 +69,8 @@ function assertGate(label: string, actualMs: number, thresholdMs: number): void 
 // ═══════════════════════════════════════════════════════════════
 
 describe("性能门禁 — 热路径", () => {
-  test("[gate] Cache set+get ×10k < 200ms", () => {
-    const { Cache } = require("../../src/utils/cache.js");
+  test("[gate] Cache set+get ×10k < 200ms", async () => {
+    const { Cache } = await import("../../src/utils/cache.js");
     const cache = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false, persistent: false });
     const total = benchSync(() => {
       cache.set("gate-k", "gate-v");
@@ -81,7 +81,7 @@ describe("性能门禁 — 热路径", () => {
   });
 
   test("[gate] ThompsonRouter.route ×1k < 100ms", async () => {
-    const { ThompsonRouter } = require("../../src/router/thompson-router.js");
+    const { ThompsonRouter } = await import("../../src/router/thompson-router.js");
     const router = new ThompsonRouter({
       arms: [
         { id: "fast", model: "gpt-3.5", provider: "openai", alpha: 5, beta: 1 },
@@ -96,8 +96,8 @@ describe("性能门禁 — 热路径", () => {
     assertGate("thompsonRoute_1k", total, GATE_THRESHOLDS.thompsonRoute_1k);
   });
 
-  test("[gate] ConstraintSolver.check ×10k < 500ms", () => {
-    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = require("../../src/dre/constraint/solver.js");
+  test("[gate] ConstraintSolver.check ×10k < 500ms", async () => {
+    const { ConstraintSolver, RESOURCE_CONSTRAINTS } = await import("../../src/dre/constraint/solver.js");
     const s = new ConstraintSolver();
     s.registerAll(RESOURCE_CONSTRAINTS);
     s.register({
@@ -111,8 +111,8 @@ describe("性能门禁 — 热路径", () => {
     assertGate("solverCheck_10k", total, GATE_THRESHOLDS.solverCheck_10k);
   });
 
-  test("[gate] EventBus.publish ×10k < 50ms", () => {
-    const { eventBus } = require("../../src/dre/runtime/event-bus.js");
+  test("[gate] EventBus.publish ×10k < 50ms", async () => {
+    const { eventBus } = await import("../../src/dre/runtime/event-bus.js");
     const subs: string[] = [];
     for (let i = 0; i < 5; i++) {
       subs.push(eventBus.subscribe(`gate.test.${i}`, () => { /* noop */ }));
@@ -124,8 +124,8 @@ describe("性能门禁 — 热路径", () => {
     assertGate("eventBus_10k", total, GATE_THRESHOLDS.eventBus_10k);
   });
 
-  test("[gate] ConfigCenter mixed reads ×10k < 100ms", () => {
-    const { ConfigCenter } = require("../../src/core/config-center.js");
+  test("[gate] ConfigCenter mixed reads ×10k < 100ms", async () => {
+    const { ConfigCenter } = await import("../../src/core/config-center.js");
     const cc = new ConfigCenter(":memory:");
     const total = benchSync(() => {
       for (let i = 0; i < 100; i++) {
@@ -137,8 +137,8 @@ describe("性能门禁 — 热路径", () => {
     assertGate("configCenterReads_10k", total, GATE_THRESHOLDS.configCenterReads_10k);
   });
 
-  test("[gate] normalizeQuery ×10k < 100ms", () => {
-    const { normalizeQuery } = require("../../src/tools/types.js");
+  test("[gate] normalizeQuery ×10k < 100ms", async () => {
+    const { normalizeQuery } = await import("../../src/tools/types.js");
     const queries = ["What is the capital of France?", "你好世界", "binary search tree", ""];
     const total = benchSync(() => {
       for (const q of queries) normalizeQuery(q);
