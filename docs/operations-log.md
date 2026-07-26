@@ -1693,5 +1693,5 @@
   - `src/mcp/server/dre-tools.ts`（1 处 + 新增 import）：新增 `import { logger } from "../../utils/logger.js";`；`console.warn("[DRE] Kernel init failed", (err as Error).message)` 转为 `logger.warn("[DRE] Kernel init failed", { error: (err as Error).message })`。
 - **验证**：`bun x tsc --noEmit --pretty false` → ExitCode=0（零错误）；6 文件 grep `console\.(log|warn|error|debug|info)` 零匹配。
 - **备份**：6 文件均备份到 `.tmp/backups/src/...`（验证通过后删除）。
-- **Commit**：`TBD`（初稿，hash 待补录）。
+- **Commit**：`d5aa542`（已推送 `internal211/main`）。
 
