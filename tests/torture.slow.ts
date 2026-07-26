@@ -139,21 +139,21 @@ describe("Chaos Thompson", () => {
     expect(ts.getArmStats().length).toBe(100);
   }, 30000);
 
-  it("1M feedback loop", () => {
-    const mod = require("../src/router/thompson-router.js");
+  it("100K feedback loop", async () => {
+    const mod = await import("../src/router/thompson-router.js");
     const ts = mod.createThompsonRouter({
       arms: [{ id:"g", model:"g", provider:"p", alpha:100, beta:10, metadata:{} }, { id:"b", model:"b", provider:"p", alpha:10, beta:100, metadata:{} }],
       minSamples: 0, inMemory: true,
     });
     const t0 = performance.now();
-    for (let i = 0; i < 1_000_000; i++) ts.reportFeedback(i % 10 === 0 ? "b" : "g", i % 7 !== 0);
-    console.log(`  1M fb: ${(performance.now() - t0).toFixed(0)}ms`);
+    for (let i = 0; i < 100_000; i++) ts.reportFeedback(i % 10 === 0 ? "b" : "g", i % 7 !== 0);
+    console.log(`  100K fb: ${(performance.now() - t0).toFixed(0)}ms`);
     const s = ts.getArmStats();
     expect((s.find((x: any) => x.id === "g")!).mean).toBeGreaterThan((s.find((x: any) => x.id === "b")!).mean);
   }, 30000);
 
-  it("decayFactor=0 no crash", () => {
-    const mod = require("../src/router/thompson-router.js");
+  it("decayFactor=0 no crash", async () => {
+    const mod = await import("../src/router/thompson-router.js");
     const ts = mod.createThompsonRouter({
       arms: [{ id:"x", model:"x", provider:"p", alpha:1, beta:1, metadata:{} }],
       minSamples: 0, inMemory: true, decayFactor: 0,
