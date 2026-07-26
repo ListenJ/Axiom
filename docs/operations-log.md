@@ -1871,5 +1871,5 @@
   - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志 `errors:[]` 保持干净。
   - `bun test`（全量）→ 2053 pass / 107 fail（与原始 baseline 一致，无回归）。
 - **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`46aa5d8`（待推送 `internal211/main`）。
 
