@@ -15,6 +15,7 @@ import fs from "fs";
 import path from "path";
 import YAML from "yaml";
 import { logger } from "../utils/logger.js";
+import { readString, readInt } from "../utils/env.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -593,15 +594,15 @@ export function getConfig(): AppConfig {
     models: (cc.getYamlData()?.models ?? []) as ModelConfig[],
     memory: {
       vaultPath: cc.getString("memory.vault_path"),
-      obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,
-      obsidianApiToken: process.env.OBSIDIAN_API_TOKEN || "",
+      obsidianApiPort: readInt("OBSIDIAN_API_PORT", 27124),
+      obsidianApiToken: readString("OBSIDIAN_API_TOKEN", ""),
       databasePath: cc.getString("memory.database_path"),
     },
     crawler: {
-      searchApi: process.env.CRAWLER_SEARCH_API || "multi-engine",
+      searchApi: readString("CRAWLER_SEARCH_API", "multi-engine"),
       serpapiKey: cc.getString("crawler.serpapi_key"),
       maxConcurrent: cc.getNumber("crawler.max_concurrent") || 3,
-      requestDelay: Number(process.env.CRAWLER_REQUEST_DELAY) || 1000,
+      requestDelay: readInt("CRAWLER_REQUEST_DELAY", 1000),
     },
   };
 }

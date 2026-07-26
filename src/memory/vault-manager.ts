@@ -25,6 +25,7 @@ import { CodeIndexer } from "./code-indexer.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
+import { readString, readInt } from "../utils/env.js";
 
 interface VaultConfig {
   vaultPath: string;
@@ -57,9 +58,9 @@ export class VaultManager {
 
   constructor(config: Partial<VaultConfig> = {}) {
     this.config = {
-      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
-      apiPort: config.apiPort || Number(process.env.OBSIDIAN_API_PORT) || 27124,
-      apiToken: config.apiToken || process.env.OBSIDIAN_API_TOKEN || "",
+      vaultPath: config.vaultPath || readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
+      apiPort: config.apiPort || readInt("OBSIDIAN_API_PORT", 27124),
+      apiToken: config.apiToken || readString("OBSIDIAN_API_TOKEN", ""),
       dbPath: config.dbPath,
     };
     this.baseUrl = `https://127.0.0.1:${this.config.apiPort}`;

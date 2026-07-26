@@ -15,6 +15,7 @@
 
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
+import { readString } from "./env.js";
 
 // ─────────────────────────────────────────────────────────
 // 平台基础判断
@@ -86,8 +87,8 @@ export function which(command: string): string | null {
   } catch {
     // Bun.which 在某些环境可能不可用，降级到 PATH 扫描
   }
-  const pathEnv = process.env.PATH ?? process.env.Path ?? "";
-  const exts = isWindows ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";") : [""];
+  const pathEnv = readString("PATH") || readString("Path");
+  const exts = isWindows ? readString("PATHEXT", ".EXE;.CMD;.BAT").split(";") : [""];
   for (const dir of pathEnv.split(isWindows ? ";" : ":")) {
     if (!dir) continue;
     for (const ext of exts) {

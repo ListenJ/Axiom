@@ -19,6 +19,7 @@
 import { callProvider } from "../router/provider-caller.js";
 import { promptEngineer } from "./prompt-engineer.js";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
 export interface PromptOptimization {
   /** 优化后文本（未优化时为原文） */
@@ -132,14 +133,14 @@ export async function optimizePrompt(
 
 /** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启）；隐私模式整体关闭 */
 function isRewriteEnabled(): boolean {
-  const off = (v: string | undefined) => v !== undefined && (v.toLowerCase() === "0" || v.toLowerCase() === "false");
+  const off = (v: string) => v === "0" || v.toLowerCase() === "false";
   if (isPrivacyMode()) return false;
-  return !off(process.env.PROMPT_REWRITE) && !off(process.env.EDGE_PROMPT_REWRITE);
+  return !off(readString("PROMPT_REWRITE")) && !off(readString("EDGE_PROMPT_REWRITE"));
 }
 
 /** 隐私模式（R6）：AXIOM_PRIVACY_MODE=1 时禁止一切云端 LLM 调用（仅本地边缘模型） */
 export function isPrivacyMode(): boolean {
-  const v = (process.env.AXIOM_PRIVACY_MODE ?? "0").toLowerCase();
+  const v = readString("AXIOM_PRIVACY_MODE", "0").toLowerCase();
   return v === "1" || v === "true";
 }
 

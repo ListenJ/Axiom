@@ -13,6 +13,7 @@
  * (如对接 DRE 的 scheduler / capabilityRegistry / eventBus)。
  */
 
+import { logger } from "../utils/logger.js";
 import type {
   AgentAdapter,
   AgentState,
@@ -47,12 +48,10 @@ export interface RuntimeHostOptions {
 // ─── 默认 Context 工厂 (内存级，零依赖) ─────────────────────────────────────
 
 function createDefaultLogger(): RuntimeContext["logger"] {
-  const fmt = (msg: string, ctx?: Record<string, unknown>): string =>
-    `${msg}${ctx && Object.keys(ctx).length ? " " + JSON.stringify(ctx) : ""}`;
   return {
-    info: (msg, ctx) => console.log(`[INFO] ${fmt(msg, ctx)}`),
-    warn: (msg, ctx) => console.warn(`[WARN] ${fmt(msg, ctx)}`),
-    error: (msg, ctx) => console.error(`[ERROR] ${fmt(msg, ctx)}`),
+    info: (msg, ctx) => logger.info(msg, ctx),
+    warn: (msg, ctx) => logger.warn(msg, ctx),
+    error: (msg, ctx) => logger.error(msg, undefined, ctx),
   };
 }
 
@@ -100,7 +99,7 @@ function createDefaultKnowledge(): RuntimeContext["knowledge"] {
 
 function createDefaultEmit(): (event: string, data: unknown) => void {
   return (event, data) => {
-    console.log(`[emit] ${event}${data !== undefined ? " " + JSON.stringify(data) : ""}`);
+    logger.info(`[emit] ${event}`, data !== undefined ? { data } : undefined);
   };
 }
 

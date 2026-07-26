@@ -3,6 +3,7 @@
  * Split from models.ts (was 1128 lines) for maintainability.
  */
 import type { ModelProvider, ProviderConfig } from "./types.js";
+import { readString } from "../../utils/env.js";
 
 export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
   siliconflow: {
@@ -38,7 +39,7 @@ export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
     apiKeyEnv: "KIMI_API_KEY",
   },
   minimax: {
-    baseURL: process.env.MINIMAX_BASE_URL || "https://api.minimax.chat/v1",
+    baseURL: readString("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),
     apiKeyEnv: "MINIMAX_API_KEY",
   },
   "nvidia-nim": {

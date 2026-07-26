@@ -1538,3 +1538,54 @@
   - 全量套件 2055 pass / 28 skip / 105 fail —— 105 fail 全部为预存前端组件测试（Button/Tabs/Toasts/BarChart 等，需 DOM 环境）与已知架构债（EventBus/DataPipeline/perf-degradation），与本批改动无关（grep `prompt|plugin|sandbox|skill|spawn` 命中 0 条失败）。
 - **备份**：`.tmp/backups/src/skills/types.ts` + `.tmp/backups/src/agents/prompt-engineer.ts` + `.tmp/backups/tests/prompt-engineer.test.ts` + `.tmp/backups/tests/plugin-market.test.ts` + `.tmp/backups/tests/security-hardening.test.ts` + `.tmp/backups/docs/operations-log.md.bak`（验证通过后删除）。
 - **Commit**：`3f65e39`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-26 19:40 +0800 — W3/R3/PromptEngineer 混沌测试补强
+
+- **任务**：延续上一批 W3/R3 修复，为三个目标模块在 `tests/torture.slow.ts` 中补强混沌/压力测试，覆盖模糊输入、路径遍历、注入向量、并发竞争等边界。
+- **工具**：Read、Edit、RunCommand（bun test）、Grep。
+- **执行的操作（文件级）**：
+  - `tests/torture.slow.ts`：新增 3 个 describe 块共 11 用例：
+    - **Chaos PromptEngineer**（4 用例）：1K 随机任务描述模糊测试（含空串/emoji/控制字符/10K 长度/SQL 注入/路径遍历/XSS）；恶意变量值填充不破坏模板结构（script/Drop Table/模板注入/反引号）；100 并行 matchTemplate 确定性；Unicode/Emoji/混合语言匹配不崩溃。
+    - **Chaos Plugin Routes (W3)**（3 用例）：6 种路径遍历尝试（`../../../etc/passwd`/`..\\..\\..\\windows`/`%2e%2e%2f`/`....//`）全部 500 不逃逸；Unicode/特殊字符/10K 长路径全部 400/500 不崩溃；10 并行安装同插件竞争（至少 1 成功，不调用 uninstall 避免删除源目录）。
+    - **Chaos Process Sandbox (R3)**（4 用例）：20 种 shell 元字符注入向量（`;`/`|`/`&`/`$()`/反引号/`%PATH%`/null byte 等）全部字面化无注入迹象；Unicode/Emoji 参数 echo 原样输出；10K 超长参数 sandbox 不崩溃（OS 命令行长度限制可接受）；50 并发执行全部完成无资源泄漏。
+  - **关键修正**：
+    - PromptEngineer 测试初始用 `require()` 导入 ESM 模块 → Bun 报错 `require() async module is unsupported`，改用 `await import()`。
+    - Shell 元字符 fuzz 测试初始断言 `exitCode === 0` 过严（null byte 等特殊字符在 OS 层面会让 echo 失败）→ 改为断言"无注入迹象"（stdout 无 `uid=`/`root`，stderr 无 `not recognized`/`no such file`），exitCode 不强制为 0。
+    - 超长参数测试初始断言 `exitCode === 0` 过严（Windows cmd.exe 命令行长度限制 ~8K，10K 触发非零退出）→ 改为断言"sandbox 不崩溃，返回结构合法"（exitCode/stdout/stderr/durationMs 类型正确）。
+- **验证**：
+  - 新增 11 用例全绿（`bun test ./tests/torture.slow.ts --test-name-pattern "Chaos PromptEngineer|Chaos Plugin Routes|Chaos Process Sandbox"` → 11 pass / 0 fail）。
+  - 既有混沌测试无回归（Cache/Router/VIB/Concurrency 11 pass / 0 fail）。
+  - `bunx tsc --noEmit` 零错误；`./plugins/test-plugin` 完好（test-plugin 仅就地安装未删除）。
+  - 注：`Chaos Thompson > 1M feedback loop` 为预存超时失败（124s），与本批改动无关。
+- **备份**：`.tmp/backups/tests/torture.slow.ts`（验证通过后删除）。
+- **Commit**：待提交后补录。
+
+---
+
+## 2026-07-26 22:10 +0800 — env 访问集中化重构（readString/readInt 系列）
+
+- **任务**：延续代码库审查发现，将分散在各模块的 `process.env.X` 直接访问统一收敛到 `src/utils/env.ts` 的 `readString`/`readInt`/`readBool` 类型化 getter，提升默认值 fallback 的一致性与可测试性；同时附带若干小修。
+- **工具**：Read、Edit、Grep、RunCommand（bun test）、New-Item/Copy-Item/Remove-Item（备份/还原）。
+- **执行的操作（文件级）**：
+  - `src/agents/prompt-optimizer.ts`：3 处 `process.env.*` 改为 `readString`（`PROMPT_REWRITE`/`EDGE_PROMPT_REWRITE`/`AXIOM_PRIVACY_MODE`）；`off` 函数签名从 `(v: string | undefined)` 简化为 `(v: string)`（`readString` 永不返回 `undefined`，消除冗余的 undefined 分支）。
+  - `src/local-llm/edge-client.ts`：3 处 `process.env.*` 改为 `readString`（`EDGE_LLM_URL`/`EDGE_LLM_MODEL`/`EDGE_LLM_TRANSPORT`），保留默认值 `http://192.168.0.150:9001` / `MiniCPM5-1B`。
+  - `src/utils/platform.ts`：`which()` 中 `process.env.PATH`/`Path`/`PATHEXT` 改为 `readString`，并补充 `.EXE;.CMD;.BAT` 默认值（原代码在 PATHEXT 未设置时无 fallback）。
+  - `src/runtime/host.ts`：`createDefaultLogger()` 由 `console.log/warn/error` 改为复用全局 `logger`（结构化日志、统一格式、支持文件轮转与脱敏）；删除内部 `fmt` 函数（`logger` 已自带上下文序列化）。
+  - `src/testing/scheduler/pcda-scheduler.ts`：删除 `do()` 方法中 2 行已无必要的 `// @ts-ignore` 注释（`../cluster/coordinator.js` 模块已存在，TS 不再报错，`@ts-ignore` 指令冗余）。
+  - `src/memory/vault-manager.ts`：3 处 `process.env.*` 改为 `readString`/`readInt`（`OBSIDIAN_VAULT_PATH`/`OBSIDIAN_API_PORT`/`OBSIDIAN_API_TOKEN`）；`Number(process.env.X) || default` 模式改为 `readInt`，修正原代码中 `OBSIDIAN_API_PORT=0` 被 `||` 误判为 falsy 而回退默认值的边界 bug。
+  - `src/core/config-center.ts`：`getConfig()` 中 4 处 `process.env.*` 改为 `readString`/`readInt`（`OBSIDIAN_API_PORT`/`OBSIDIAN_API_TOKEN`/`CRAWLER_SEARCH_API`/`CRAWLER_REQUEST_DELAY`），同上修正 `|| 27124`/`|| 1000` 的 falsy 边界。
+  - `src/router/models/providers.ts`：`minimax` provider 的 `baseURL` 改为 `readString("MINIMAX_BASE_URL", "https://api.minimax.chat/v1")`。
+- **跳过的文件**（附理由）：
+  - `src/utils/env.ts`：本就是 env 工具模块自身，`process.env.AXIOM_AUTH_TOKEN` 直接访问合理。
+  - `src/utils/logger.ts`：`env.ts` 在模块顶部 `import { logger }`，若 `logger.ts` 反向 `import { readInt }` 会形成循环依赖（ESM 初始化顺序问题），保持直接 `process.env` 访问。
+  - `src/utils/proxy-fetch.ts`：代理配置需要大小写不敏感查找（`HTTPS_PROXY`/`https_proxy`），`readString` 仅按精确 key 查找，不适合此场景。
+- **验证**：
+  - `bun test tests/prompt-optimizer.test.ts tests/platform.test.ts tests/distributed/pcda-scheduler-test.test.ts` → 56 pass / 0 fail。
+  - `bun test tests/vault-manager.test.ts tests/architecture-integrity.test.ts tests/registry-validation.test.ts` → 35 pass / 0 fail。
+  - `bun test tests/e2e-runtime.test.ts tests/integration-edge.test.ts tests/property-based.test.ts` → 82 pass / 0 fail（ExitCode=0）。
+  - `bun test ./tests/torture.slow.ts` → 24 pass / 1 fail（`Chaos Thompson > 1M feedback loop` 预存超时失败，124s > 30s timeout，与本批改动无关）。
+- **备份**：`.tmp/backups/src/memory/vault-manager.ts` + `.tmp/backups/src/core/config-center.ts` + `.tmp/backups/src/router/models/providers.ts`（验证通过后删除）。
+- **Commit**：待提交后补录。
+

@@ -15,6 +15,7 @@
  */
 
 import { LLMClient } from "../dre/llm/client.js";
+import { readString } from "../utils/env.js";
 
 let instance: LLMClient | null = null;
 
@@ -22,11 +23,11 @@ let instance: LLMClient | null = null;
 export function getEdgeClient(): LLMClient {
   if (!instance) {
     instance = new LLMClient({
-      baseUrl: process.env.EDGE_LLM_URL || "http://192.168.0.150:9001",
-      model: process.env.EDGE_LLM_MODEL || "MiniCPM5-1B",
+      baseUrl: readString("EDGE_LLM_URL", "http://192.168.0.150:9001"),
+      model: readString("EDGE_LLM_MODEL", "MiniCPM5-1B"),
       timeout: 8000,
       maxTokens: 512,
-      transport: process.env.EDGE_LLM_TRANSPORT === "completion" ? "completion" : "chat",
+      transport: readString("EDGE_LLM_TRANSPORT") === "completion" ? "completion" : "chat",
       chatTemplateKwargs: { enable_thinking: false },
       retry: { maxRetries: 1 },
       circuitBreaker: { failureThreshold: 3, cooldownMs: 30000 },
@@ -40,7 +41,7 @@ export function getEdgeClient(): LLMClient {
  * 用于 EDGE_PROMPT_OPTIMIZER / EDGE_RISK_MONITOR / EDGE_MEMORY_ASSIST / EDGE_KNOWLEDGE_ASSIST
  */
 export function isEdgeEnabled(flag: string): boolean {
-  const v = (process.env[flag] ?? "1").toLowerCase();
+  const v = readString(flag, "1").toLowerCase();
   return v !== "0" && v !== "false";
 }
 
