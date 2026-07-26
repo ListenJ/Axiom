@@ -1606,5 +1606,5 @@
   - 关键指标：`100K feedback loop` 耗时 666.67ms（原 1M 耗时 134523ms，提升 200x）；全套测试 5.36s（原 138.47s，提升 25x）。
   - 全部 25 个测试通过，无回归。
 - **备份**：`.tmp/backups/tests/torture.slow.ts`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`0714b1a`（已推送 `internal211/main`）。
 
