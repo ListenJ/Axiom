@@ -1853,5 +1853,23 @@
   - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志从 `"errors":["phase 1...","phase2...","phase3..."]` 变为 `"errors":[]`。
   - `bun test`（全量）→ 2052 pass / 108 fail（与 baseline 2053/107 相比 ±1 flaky 波动；curator 功能修复确认）。
 - **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：`acfd8ab`（待推送 `internal211/main`）。
+- **Commit**：`acfd8ab`（已推送 `internal211/main`，见下 833efbf 补录）。
+
+---
+
+## 2026-07-27 19:40 +0800 — 修复 MemoryCurator phase 2：deleteNote 缺失
+
+- **任务**：续查 `SQLiteMemorySubset` 是否还有其他方法遗漏。子代理审查发现 `memory-curator.ts:124` 调用 `sqlite.deleteNote(drop.path)`（phase 2 DUPLICATE_ATOMICS 中删除重复原子笔记），但 `SQLiteMemorySubset` 未声明 `deleteNote`——与上一轮 `listByCategory` 相同的静默失败模式。
+- **根因**：phase 2 在合并重复原子笔记时调用 `sqlite.deleteNote()` 删除 SQLite 索引中较低置信度的条目，但测试 mock 不含此方法，运行时 TypeError 被 try/catch 吞入 `errors` 数组。上一轮修复 `listByCategory` 后，phase 1/3 恢复正常，但 phase 2 仍静默失败。
+- **工具**：Task（2 个 search 子代理并行审查 shim subset 覆盖）、Read、Grep、Edit、RunCommand（`bunx tsc --noEmit` + `bun test`）、Copy-Item/Remove-Item。
+- **执行的操作**：
+  1. `src/agents/consciousness/shims.ts:37`：`SQLiteMemorySubset` 的 Pick 列表添加 `"deleteNote"`，使接口与 MemoryCurator phase 2 的实际使用对齐。
+  2. `tests/consciousness.test.ts:143`：mock 对象添加 `deleteNote: () => true`（返回 true 模拟删除成功）。
+- **子代理审查结论**：其他 4 个 subset（MemoryArchiverSubset、MemoryDistillerSubset、PromptEngineerSubset、SkillRegistrySubset）的方法声明与实际调用完全匹配，无缺失。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志 `errors:[]` 保持干净。
+  - `bun test`（全量）→ 2053 pass / 107 fail（与原始 baseline 一致，无回归）。
+- **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。
 

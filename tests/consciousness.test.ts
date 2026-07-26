@@ -140,6 +140,7 @@ function installShims(): void {
     upsertNote: () => 0,
     search: () => [],
     listByCategory: () => [],
+    deleteNote: () => true,
     close: () => {},
   };
   setSqliteMemoryForTest(sqlite as any);

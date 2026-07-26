@@ -34,6 +34,6 @@ export const setSkillRegistryForTest = skillRegistry.setForTest.bind(skillRegist
 
 export type MemoryArchiverSubset = Pick<MemoryArchiver, "archive" | "stats">;
 export type MemoryDistillerSubset = Pick<MemoryDistiller, "distillConversation" | "distillWebClip" | "distillManual">;
-export type SQLiteMemorySubset = Pick<SQLiteMemory, "upsertNote" | "search" | "listByCategory" | "close">;
+export type SQLiteMemorySubset = Pick<SQLiteMemory, "upsertNote" | "search" | "listByCategory" | "deleteNote" | "close">;
 export type PromptEngineerSubset = Pick<PromptEngineer, "generateSkillWithHermes">;
 export type SkillRegistrySubset = Pick<SkillRegistry, "register" | "list" | "match" | "execute" | "reload">;
