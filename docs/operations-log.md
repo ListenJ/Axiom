@@ -1676,5 +1676,5 @@
   - **`console.*`**：653 处 across 15 文件——多数在 CLI 模块（预期行为），核心模块中的 `console.*` 可改用 `logger` 但属大规模重构，留作后续优化。
 
 - **备份**：`.tmp/backups/tests/perf-benchmark.test.ts` + `.tmp/backups/src/mcp/tools/workspace-snapshot.ts`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`3aa738b`（已推送 `internal211/main`）。
 
