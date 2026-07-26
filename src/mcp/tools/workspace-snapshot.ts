@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { logger } from "../../utils/logger.js";
 
@@ -111,8 +111,9 @@ export async function createSnapshot(
 
     try {
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });
-      const result = execSync(
-        `git commit -m "${commitMsg.replace(/"/g, '\\"')}" --allow-empty`,
+      const result = execFileSync(
+        "git",
+        ["commit", "-m", commitMsg, "--allow-empty"],
         { cwd: snapshotDir, encoding: "utf-8", stdio: "pipe" }
       );
       const hashMatch = result.match(/\[.*?([a-f0-9]{7,})/);
@@ -155,7 +156,7 @@ export async function revertSnapshot(
 
     // Validate snapshot exists
     try {
-      execSync(`git cat-file -t ${snapshotId}`, {
+      execFileSync("git", ["cat-file", "-t", snapshotId], {
         cwd: snapshotDir,
         stdio: "pipe",
       });
@@ -167,8 +168,9 @@ export async function revertSnapshot(
     }
 
     // Get list of files at that snapshot
-    const filesOutput = execSync(
-      `git ls-tree -r --name-only ${snapshotId}`,
+    const filesOutput = execFileSync(
+      "git",
+      ["ls-tree", "-r", "--name-only", snapshotId],
       { cwd: snapshotDir, encoding: "utf-8", stdio: "pipe" }
     );
     const files = filesOutput.split("\n").filter((f) => f.trim());
@@ -176,7 +178,7 @@ export async function revertSnapshot(
     // Restore each file
     for (const file of files) {
       try {
-        const content = execSync(`git show ${snapshotId}:${file}`, {
+        const content = execFileSync("git", ["show", `${snapshotId}:${file}`], {
           cwd: snapshotDir,
           encoding: "utf-8",
           stdio: "pipe",
@@ -266,12 +268,12 @@ export async function diffSnapshot(
         }
       }
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });
-      diffOutput = execSync(`git diff --cached ${snapshotId}`, {
+      diffOutput = execFileSync("git", ["diff", "--cached", snapshotId], {
         cwd: snapshotDir,
         encoding: "utf-8",
         stdio: "pipe",
       });
-      statOutput = execSync(`git diff --cached --stat ${snapshotId}`, {
+      statOutput = execFileSync("git", ["diff", "--cached", "--stat", snapshotId], {
         cwd: snapshotDir,
         encoding: "utf-8",
         stdio: "pipe",

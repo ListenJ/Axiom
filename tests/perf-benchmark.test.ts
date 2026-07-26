@@ -123,7 +123,7 @@ describe("性能基准", () => {
   it("[perf] VIBCompressor getRetentionScore 1万次", async () => {
     const { VIBCompressor } = await import("../src/memory/vib-compressor.js");
     const vib = new VIBCompressor();
-    const mem = { id: "1", content: "test", score: 0.8, timestamp: Date.now(), accessCount: 5, lastAccessed: Date.now(), metadata: {} };
+    const mem = { id: "1", content: "test", score: 0.8, timestamp: Date.now(), accessCount: 5, lastAccessed: Date.now(), metadata: {}, source: "test" };
 
     const avg = bench("vibCompressor.getRetentionScore", () => {
       vib.getRetentionScore(mem);
@@ -135,17 +135,14 @@ describe("性能基准", () => {
     const { MemoryGate } = await import("../src/memory/memory-gate.js");
     const gate = new MemoryGate({
       maxWritesPerHour: 1000,
-      similarityThreshold: 0.85,
-      requireHighConfidence: true,
       minResponseLength: 10,
-      maxResponseLength: 50000,
     });
 
     const avg = bench("memoryGate.shouldWrite", () => {
       gate.shouldWrite(
         "Paris is the capital of France.",
         "what is the capital of france",
-        { hasErrors: false, hasCode: false, taskType: "qa", isFirstTurn: false, responseLength: 32, confidence: 0.9, tokenCount: 10 },
+        { hasErrors: false, hasCode: false, taskType: "chat", isFirstTurn: false, responseLength: 32, hasCitations: false, userMessageLength: 26, hasStructuredData: false, hasTechnicalTerms: false },
       );
     }, 10000);
     console.log(`  shouldWrite ×10k: ${avg.toFixed(4)}ms/iter`);

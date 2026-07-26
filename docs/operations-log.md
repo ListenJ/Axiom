@@ -1635,3 +1635,46 @@
 - **备份**：12 个文件均备份到 `.tmp/backups/tests/`（验证通过后删除）。
 - **Commit**：`a4ba3e5`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-27 01:45 +0800 — 综合代码审查：类型修复 + 命令注入修复
+
+- **任务**：对全项目进行综合代码审查，涵盖：TypeScript 类型检查、代码质量扫描（console/any/TODO/空catch）、安全漏洞扫描（命令注入/SQL注入/路径遍历/硬编码密钥）、性能热点识别。根据发现实施修复。
+- **工具**：Read、Edit、Grep、RunCommand（`bun x tsc --noEmit` + `bun test`）、Start-Process（捕获 stderr）、Copy-Item/Remove-Item（备份/清理）。
+- **发现与修复**：
+
+  ### 1. TypeScript 类型错误（3 处，已修复）
+  - `tests/perf-benchmark.test.ts:129`：`MemoryItem` 缺少 `source` 属性 → 添加 `source: "test"`。
+  - `tests/perf-benchmark.test.ts:138`：`MemoryGate` 构造函数传入无效配置项 `similarityThreshold`/`requireHighConfidence`/`maxResponseLength` → 移除这三个无效项（不在 `MemoryGateConfig` 类型中）。
+  - `tests/perf-benchmark.test.ts:148`：`taskType: "qa"` 不在联合类型 `"chat" | "coding" | "research" | "writing" | "planning"` 中 → 改为 `"chat"`；同时补全 `SignificanceContext` 必填字段（`hasCitations`/`userMessageLength`/`hasStructuredData`/`hasTechnicalTerms`），移除不存在的 `confidence`/`tokenCount`。
+  - **验证**：`bun x tsc --noEmit` → ExitCode=0（零错误）；`bun test tests/perf-benchmark.test.ts` → 32 pass / 0 fail。
+
+  ### 2. 命令注入漏洞（6 处，已修复）
+  - `src/mcp/tools/workspace-snapshot.ts`：6 处 `execSync()` 使用模板字符串插值用户输入，存在命令注入风险：
+    - Line 114：`git commit -m "${commitMsg.replace(/"/g, '\\"')}"` — `commitMsg` 来自用户 `message` 参数，仅转义双引号不足以防止注入（backtick/$()/换行可逃逸）。
+    - Line 158：`git cat-file -t ${snapshotId}` — `snapshotId` 直接插值。
+    - Line 171：`git ls-tree -r --name-only ${snapshotId}` — 同上。
+    - Line 179：`git show ${snapshotId}:${file}` — 同上。
+    - Line 269：`git diff --cached ${snapshotId}` — 同上。
+    - Line 274：`git diff --cached --stat ${snapshotId}` — 同上。
+  - **修复方案**：将 6 处 `execSync(command_string)` 改为 `execFileSync(executable, args_array)`，完全绕过 shell 解释器，参数作为独立字符串数组传递，shell 元字符（`;`/`|`/`&`/`$()`/反引号）被字面化处理。添加 `execFileSync` 到 import。
+  - **保留不动的 `execSync`**（3 处，使用 shell 特性且无用户输入）：`git ls-files ... 2>nul || echo ''`（Windows）、`find . ... 2>/dev/null`（Unix）、`git log --pretty=format:"..."`（格式字符串）。
+  - **验证**：`bun x tsc --noEmit` → ExitCode=0；`bun test tests/architecture-integrity.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts` → 102 pass / 0 fail。
+
+  ### 3. SQL 标识符插值（3 处，安全——已确认无用户输入）
+  - `src/cli.ts:184`：`SELECT COUNT(*) as c FROM ${t}` — `t` 来自硬编码 `tables` 数组。
+  - `src/routes/health.ts:56`：`SELECT COUNT(*) as c FROM ${table}` — `table` 为硬编码字面量调用（`s("search_history")` 等）。
+  - `src/dre/storage/sqlite-backend.ts:306`：`ALTER TABLE ${table} ADD COLUMN ${column} ${type}` — 三参数均为硬编码字面量调用（`safeAddColumn("knowledge_node", "behavior", "TEXT")` 等）。
+  - **结论**：3 处均使用硬编码标识符，无用户输入，无需修复。SQL 标识符无法用 `?` 参数化，硬编码是正确做法。
+
+  ### 4. 代码质量扫描（全部通过）
+  - **空 catch 块**：零匹配。所有 catch 块均有注释说明错误隔离原因（如"单个查询失败不影响其他查询"）。
+  - **TODO/FIXME**：零匹配（2 处 grep 命中均在字符串字面量中，非实际注释）。
+  - **`eval()`**：零匹配。
+  - **硬编码密钥**：零匹配（`password/secret/api_key/token = "..."` 模式无命中）。
+  - **`any` 类型**：75 处 across 34 文件——记录但不修复（多数为动态 API 响应的合法使用，批量修复超出最小化施工原则）。
+  - **`console.*`**：653 处 across 15 文件——多数在 CLI 模块（预期行为），核心模块中的 `console.*` 可改用 `logger` 但属大规模重构，留作后续优化。
+
+- **备份**：`.tmp/backups/tests/perf-benchmark.test.ts` + `.tmp/backups/src/mcp/tools/workspace-snapshot.ts`（验证通过后删除）。
+- **Commit**：待提交后补录。
+
