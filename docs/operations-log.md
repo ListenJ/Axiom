@@ -1633,5 +1633,5 @@
   - `bun test`（12 个文件一次性）→ **291 pass / 0 fail**，10634 expect() calls，19.16s。
   - 转换后 `grep require\(\s*["']` 在 `tests/` 目录下 **零匹配**——全部 `require()` 调用已消除。
 - **备份**：12 个文件均备份到 `.tmp/backups/tests/`（验证通过后删除）。
-- **Commit**：待提交后补录。
+- **Commit**：`a4ba3e5`（已推送 `internal211/main`）。
 
