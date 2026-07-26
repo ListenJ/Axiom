@@ -40,7 +40,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
   const recentCalls = tracker.getRecentUsage(50);
   const overall = tracker.getOverallStats();
 
-  const totalCacheHits = dailyTrend.reduce((sum, d) => sum + (((d as unknown as Record<string, unknown>).cacheHits as number) ?? 0), 0);
+  const totalCacheHits = dailyTrend.reduce((sum, d) => sum + (d.cacheHits ?? 0), 0);
   const totalCalls = overall.totalCalls || 1;
 
   return ctx.jsonResponse({

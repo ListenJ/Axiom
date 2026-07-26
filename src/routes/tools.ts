@@ -4,6 +4,7 @@
  * POST /api/tools/execute — Execute a tool by name with parameters
  */
 import type { RouteContext } from "./types.js";
+import { logger } from "../utils/logger.js";
 
 export interface ToolExecuteRequest {
   tool: string;
@@ -53,7 +54,14 @@ export async function handleToolExecute(ctx: RouteContext): Promise<Response | n
             for (const item of webResults) {
               results.push({ source: "web", title: item.title ?? "", snippet: item.snippet ?? "", url: item.link ?? "" });
             }
-          } catch {}
+          } catch (e) {
+            // Web 搜索失败不应阻断整个查询；记录 warning 便于排查，
+            // 用户仍可获得 local 结果（scopeUsed 会标注为 "local"）。
+            logger.warn("[Tools] Web search failed, returning local results only", {
+              query: query.slice(0, 80),
+              error: (e as Error).message,
+            });
+          }
         }
 
         return ctx.jsonResponse({

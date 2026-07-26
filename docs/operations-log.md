@@ -1778,5 +1778,39 @@
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 2050/110 相比，多 3 pass 少 3 fail，差异为前端 UI 组件 flaky 测试波动，与本改动无关）。
   - Grep 确认 `tests/torture.slow.ts` 中 `any` 类型注解从 13 处降至 0 处（仅注释中保留 "any" 文本说明设计意图）。
 - **备份**：`tests/torture.slow.ts` 备份到 `.tmp/backups/tests/`（验证通过后已删除）。
-- **Commit**：`e9e463f`（待推送 `internal211/main`）。
+- **Commit**：`e9e463f`（已推送 `internal211/main`，见下 e3247a3 补录）。
+
+---
+
+## 2026-07-27 17:50 +0800 — 深度架构审查：吞错、类型逃逸与死代码修复（5 文件）
+
+- **任务**：用户要求"深度 review 整体架构和设计以及每个细微的功能模块的实现是否合理"。并行派发 4 个子代理（架构/错误处理/类型安全/并发性能）扫描 src/ 全量，收集 70+ 条发现。经精确 Grep 验证后，筛选出 4 个真实高价值修复项实施。
+- **工具**：Task（4 个 search 子代理并行）、Read、Edit、Grep、RunCommand（`bunx tsc --noEmit` + `bun test`）、Copy-Item/Remove-Item（备份/清理）。
+- **审查发现概要**（已验证为 false positive 的不计）：
+  - **空 catch 块**：67 处，多数为 `proc.kill()`/`reader.cancel()`/`mkdir` 等合理的容错吞错；3 处真正吞掉了业务错误。
+  - **`.catch(() => {})`**：29 处，多数为 fire-and-forget（Redis del、.gitkeep 创建、shutdown stop）——合理。
+  - **`as unknown as` 双重断言**：18 处，多数为 Bun/第三方库类型限制（WebSocket、tesseract.js、Bun.which）；2 处可收窄。
+  - **同步 I/O**：100+ 处，多数在启动时/CLI/批处理中——合理；请求热路径中的同步 I/O 集中在 memory/ 文件读取（Vault 笔记、codegraph 查询），属于确定性记忆引擎的设计取舍，非 bug。
+  - **`model-router.ts` 848 行**：过大文件，但拆分风险高，不在本次范围。
+- **执行的修复（文件级）**：
+  1. `src/router/provider-caller.ts`（SSE 流解析空 catch）：
+     - 问题：流式响应解析 `JSON.parse(payload)` 失败时空 `catch {}` 完全吞错，无法排查上游协议异常。
+     - 修复：添加 `logger.debug("[ProviderCaller] SSE chunk parse skipped", { payload: payload.slice(0, 80), error })`；新增 `import { logger }`。
+     - 注：SSE 流中确实可能有非 JSON 行（keep-alive 注释），跳过是正确的；但 debug 日志便于排查。
+  2. `src/routes/tools.ts`（Web 搜索失败空 catch）：
+     - 问题：`searchAggregator.searchMulti()` 失败时空 `catch {}`，用户看不到任何错误提示，只得到 local 结果。
+     - 修复：添加 `logger.warn("[Tools] Web search failed, returning local results only", { query, error })`；新增 `import { logger }`。
+     - 注：不阻断查询的策略正确（local 结果仍可用），但应记录 warning。
+  3. `src/memory/knowledge-graph-builder.ts`（`as unknown as` 类型逃逸）：
+     - 问题：`upsertEntity` 中 `(entity as unknown as {_embedding: string})._embedding` 双重断言绕过类型检查，因为 `KGEntity` 接口未声明 `_embedding` 字段。
+     - 修复：在 `KGEntity` 接口添加 `_embedding?: string` 字段（附 JSDoc 说明"由构建流程在写入前注入"），将断言简化为直接 `entity._embedding`。
+  4. `src/router/token-tracker.ts` + `src/routes/stats.ts`（死代码 + 类型逃逸）：
+     - 问题：`stats.ts:43` 用 `d as unknown as Record<string, unknown>).cacheHits` 访问 `DailyStats` 上不存在的 `cacheHits` 字段——永远返回 undefined，`?? 0` 兜底为 0，前端永远显示"缓存命中率 0%"。这是未完成的功能遗留。
+     - 修复：在 `DailyStats` 接口添加 `cacheHits: number` 字段（附 JSDoc 说明"当前未持久化 cache_hit 列，恒返回 0；字段保留以匹配前端契约"）；`getDailyStats` map 中显式 `cacheHits: 0`；`stats.ts` 移除 `as unknown as` 断言，改为 `d.cacheHits ?? 0`。
+     - 效果：消除类型逃逸；前端行为不变（仍显示 0%），但接口诚实地反映了"统计尚未实现"的状态，将来在 `token_usage` 表添加 `cache_hit` 列后可直接填充。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零类型错误）。
+  - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与上一次 baseline 完全一致，无回归）。
+- **备份**：5 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
+- **Commit**：（待提交）。
 

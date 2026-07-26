@@ -61,6 +61,13 @@ export interface DailyStats {
   totalTokens: number;
   promptTokens: number;
   completionTokens: number;
+  /**
+   * LLM prompt-cache 命中次数（按日聚合）。
+   * 当前 token_usage 表未持久化 cache_hit 列，故 getDailyStats 恒返回 0；
+   * 字段保留以匹配前端契约并消除 stats 路由的 `as unknown as` 类型逃逸。
+   * 将来在表与 recordUsage 中接入 cache_hit 后可直接填充。
+   */
+  cacheHits: number;
 }
 
 /** 内存缓冲条目 */
@@ -345,6 +352,8 @@ export class TokenTracker {
       totalTokens: r.total_tokens,
       promptTokens: r.prompt_tokens,
       completionTokens: r.completion_tokens,
+      // token_usage 表当前未持久化 cache_hit 列，暂以 0 占位
+      cacheHits: 0,
     }));
   }
 

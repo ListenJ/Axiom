@@ -1,5 +1,6 @@
 import { PROVIDER_CONFIG } from "./models.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
+import { logger } from "../utils/logger.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -200,7 +201,13 @@ export async function callProviderNativeStream(
           if (parsed.usage) {
             usage = parsed.usage;
           }
-        } catch {
+        } catch (e) {
+          // SSE 流中可能包含非 JSON 行（keep-alive 注释、不完整 chunk），
+          // 跳过即可；但记录 debug 日志便于排查上游协议异常。
+          logger.debug("[ProviderCaller] SSE chunk parse skipped", {
+            payload: payload.slice(0, 80),
+            error: (e as Error).message,
+          });
         }
       }
     }

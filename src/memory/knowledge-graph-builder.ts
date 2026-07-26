@@ -44,6 +44,11 @@ export interface KGEntity {
   description?: string;
   properties: Record<string, unknown>;
   source: string;     // codegraph, hermes, manual, web_search
+  /**
+   * 向量嵌入（pgvector 格式字符串），由构建流程在写入前注入。
+   * 声明在此接口上以避免 `as unknown as` 双重断言；未启用 PG 时为 undefined。
+   */
+  _embedding?: string;
 }
 
 export interface KGRelationship {
@@ -284,8 +289,8 @@ function scanProjectFiles(projectPath: string): string[] {
 }
 
 async function upsertEntity(pg: PgClient, entity: KGEntity): Promise<number> {
-  const embeddingStr = (entity as {_embedding?: string})._embedding
-    ? `'${JSON.stringify((entity as unknown as {_embedding: string})._embedding)}'::vector`
+  const embeddingStr = entity._embedding
+    ? `'${JSON.stringify(entity._embedding)}'::vector`
     : "NULL";
 
   const [result] = await pg`
