@@ -1695,3 +1695,28 @@
 - **备份**：6 文件均备份到 `.tmp/backups/src/...`（验证通过后删除）。
 - **Commit**：`d5aa542`（已推送 `internal211/main`）。
 
+---
+
+## 2026-07-27 00:45 +0800 — 11 文件 any 类型安全收窄（52 处）
+
+- **任务**：将 11 个源文件中的 `any` 类型注解收窄为更具体的类型，共 52 处。承接上一轮综合代码审查中"`any` 类型 75 处 across 34 文件——记录但不修复"的后续优化项，本次选取 `any` 密集的 11 个文件先行收窄。运行时行为保持不变。
+- **工具**：Read、Edit、Grep、RunCommand（`bun x tsc --noEmit` + `bun test`）、Copy-Item/Remove-Item（备份/清理）。
+- **执行的操作（文件级）**：
+  - `src/memory/knowledge-graph-builder.ts`（11 处）：定义最小化 `PgClient` 接口（postgres 包 tagged template 用法，含 `unsafe`/`json` 方法）；`pg: any` → `pg: PgClient`；`Record<string, any>` → `Record<string, unknown>`（`KGEntity.properties`、`KGRelationship.properties`、`upsertRelationship` 参数）；`entities.map((e: any) => e.id)` → 具体类型断言；`stats[0]?.files` 通过 `as number | undefined` 断言修复 `unknown || 0` 不合法问题；导出 `KGEntity` 接口供其他模块复用。
+  - `src/db/codegraph-sync.ts`（5 处）：复用 `PgClient` 接口定义；`pg: any` → `pg: PgClient`（`registerFile`、`buildEdgesFromCodeGraph`）；`params: any[]` → `params: (string | number)[]`；`nodeMap.set(n.qualified_name as string, n.id as number)` 修复 `unknown` 类型断言；`stats[0]?.files` 同上处理。
+  - `src/agents/project-analyzer.ts`（6 处）：定义 `PackageJson` 接口（含 `name`/`dependencies`/`devDependencies`/`peerDependencies`/`scripts`/`workspaces` 可选字段）；`pkgJson: any` → `pkgJson: PackageJson | null`；`detectFrameworksFromPkg` 等函数参数类型收窄。
+  - `src/router/model-advisor.ts`（6 处）：定义 `ProviderModelEntry`（含 `id`/`name`/`context_length`/`pricing`）与 `ModelEvalRow` 接口；`model: any` → `model: ProviderModelEntry`；`inferModelTags`、`generateRecommendationReason` 等函数参数类型收窄。
+  - `src/utils/read-optimizer-init.ts`（8 处）：定义 `PiCodeTools` 接口（含 `grep`/`findFiles`/`readFile`/`listDirectory` 方法签名）；`opts?: any` → `opts?: Record<string, unknown>`；`PiCodeToolsAdapter` 构造函数参数类型收窄。
+  - `src/routes/memory-api.ts`（5 处）：`results: any` → `{ knowledge: unknown[]; entities: unknown[]; notes: unknown[] }`；相关参数类型收窄。
+  - `src/routes/knowledge-graph.ts`（4 处）：`params: any[]` → `params: (string | number)[]`；查询结果类型收窄。
+  - `src/mcp/server/kg-tools.ts`（3 处）：`entities.map((e: any) => e.id)` → 具体类型；参数类型收窄。
+  - `src/crawl/search-engines.ts`（4 处）：定义 `ProxyFetchResponse` 类型；`r: any` → `r: ProxyFetchResponse`；相关类型收窄。
+  - `src/routes/eval-routes.ts`（2 处）：`body: any` → `body: Record<string, unknown>`。
+  - `src/agents/consciousness/reflection-loop.ts`（2 处）：`g: any` → `g: string | { description?: string; priority?: number }`；`g.priority ?? 5` 改为 `g.priority || 5` 保持原运行时行为（`??` 对 `unknown` 不合法，`||` 兼容且原值域无 `0` 优先级）。
+- **验证**：
+  - `bun x tsc --noEmit` → ExitCode=0（零类型错误）。
+  - `bun test tests/architecture-integrity.test.ts` → 全绿，无回归。
+  - Grep 确认 11 个目标文件中已无 `any` 类型注解（`: any`、`<any>`、`as any`、`Record<string, any>` 等模式零匹配）。
+- **备份**：11 文件均备份到 `.tmp/backups/src/...`（验证通过后已删除）。
+- **Commit**：`3db0cda`（待推送 `internal211/main`）。
+
