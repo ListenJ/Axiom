@@ -276,18 +276,18 @@ ${args.summary}
         const data = JSON.parse(jsonMatch[1]);
         if (data.intent) result.intent = data.intent;
         if (Array.isArray(data.goals)) {
-          result.goals = data.goals.map((g: any, i: number) => ({
+          result.goals = data.goals.map((g: string | { description?: string; priority?: number }, i: number) => ({
             id: `goal-${Date.now()}-${i}`,
-            description: g.description || String(g),
-            priority: g.priority || 5,
+            description: typeof g === "string" ? g : (g.description || String(g)),
+            priority: typeof g === "object" && g !== null ? (g.priority || 5) : 5,
             status: "active" as const,
           }));
         }
         if (Array.isArray(data.beliefs)) {
-          result.beliefs = data.beliefs.map((b: any, i: number) => ({
+          result.beliefs = data.beliefs.map((b: string | { proposition?: string; confidence?: number }, i: number) => ({
             id: `belief-${Date.now()}-${i}`,
-            proposition: b.proposition || String(b),
-            confidence: b.confidence || 0.5,
+            proposition: typeof b === "string" ? b : (b.proposition || String(b)),
+            confidence: typeof b === "object" && b !== null ? (b.confidence || 0.5) : 0.5,
             supportingEvidence: [],
             contradictingEvidence: [],
             formedAt: Date.now(),

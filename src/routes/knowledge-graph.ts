@@ -77,7 +77,7 @@ export async function handleKGEntities(ctx: RouteContext): Promise<Response | nu
 
     let query = "SELECT id, name, type, description, properties, source, created_at FROM kg_entities";
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (type) {
       params.push(type);
@@ -245,7 +245,7 @@ export async function handleKGGraph(ctx: RouteContext): Promise<Response | null>
     `;
     const entities = [...projects, ...others];
 
-    const nodeIds = entities.map((e: any) => String(e.id));
+    const nodeIds = entities.map((e: { id: number | string }) => String(e.id));
 
     // Fetch edges — only those where both endpoints are in the node set
     const relationships = await pg.unsafe(
@@ -258,14 +258,14 @@ export async function handleKGGraph(ctx: RouteContext): Promise<Response | null>
       [nodeIds]
     );
 
-    const nodes = entities.map((e: any) => ({
+    const nodes = entities.map((e: { id: number | string; name: string; type: string }) => ({
       id: e.id,
       name: e.name,
       type: e.type,
       label: e.name.split("/").pop()?.split(".").pop() || e.name,
     }));
 
-    const edges = relationships.map((r: any) => ({
+    const edges = relationships.map((r: { source_id: number | string; target_id: number | string; relation_type: string }) => ({
       source: r.source_id,
       target: r.target_id,
       type: r.relation_type,

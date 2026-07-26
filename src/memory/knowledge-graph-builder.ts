@@ -27,12 +27,22 @@ import { join, extname, relative } from "path";
 
 // ========== 类型定义 ==========
 
+/**
+ * PostgreSQL 客户端最小契约 (postgres 包的 tagged template 用法)。
+ * 完整客户端类型由 `getPG()` 返回，但 PG 在本项目已禁用，故仅保留调用所需的最小接口。
+ */
+interface PgClient {
+  (strings: TemplateStringsArray, ...values: unknown[]): Promise<Record<string, unknown>[]>;
+  unsafe(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
+  json(obj: unknown): unknown;
+}
+
 export interface KGEntity {
   id?: number;
   name: string;
   type: string;       // person, org, concept, tool, file, api, pattern, project
   description?: string;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   source: string;     // codegraph, hermes, manual, web_search
 }
 
@@ -41,7 +51,7 @@ export interface KGRelationship {
   targetName: string;
   relationType: string;  // uses, depends_on, part_of, mentions, implements, extends
   weight?: number;
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
 }
 
 export interface KGBuildResult {
@@ -273,7 +283,7 @@ function scanProjectFiles(projectPath: string): string[] {
   return files;
 }
 
-async function upsertEntity(pg: any, entity: KGEntity): Promise<number> {
+async function upsertEntity(pg: PgClient, entity: KGEntity): Promise<number> {
   const embeddingStr = (entity as {_embedding?: string})._embedding
     ? `'${JSON.stringify((entity as unknown as {_embedding: string})._embedding)}'::vector`
     : "NULL";
@@ -296,16 +306,16 @@ async function upsertEntity(pg: any, entity: KGEntity): Promise<number> {
       updated_at = NOW()
     RETURNING id
   `;
-  return result.id as number;
+  return result!.id as number;
 }
 
 async function upsertRelationship(
-  pg: any,
+  pg: PgClient,
   sourceId: number,
   targetId: number,
   relationType: string,
   weight: number = 1.0,
-  properties: Record<string, any> = {},
+  properties: Record<string, unknown> = {},
 ): Promise<void> {
   await pg`
     INSERT INTO kg_relationships (source_id, target_id, relation_type, weight, properties)
@@ -331,7 +341,7 @@ function detectLanguage(filePath: string): string {
 }
 
 async function extractPackageDependencies(
-  pg: any,
+  pg: PgClient,
   projectPath: string,
   projectName: string,
   projectEntityId: number,
@@ -376,7 +386,7 @@ async function extractPackageDependencies(
   }
 }
 
-async function generateEntityEmbeddings(pg: any, result: KGBuildResult): Promise<void> {
+async function generateEntityEmbeddings(pg: PgClient, result: KGBuildResult): Promise<void> {
   try {
     const { proxyFetch } = await import("../utils/proxy-fetch.js");
     const apiKey = readString("SILICONFLOW_API_KEY");
@@ -397,7 +407,7 @@ async function generateEntityEmbeddings(pg: any, result: KGBuildResult): Promise
 
     for (const entity of entities) {
       try {
-        const text = `${entity.name}: ${entity.description || ""}`;
+        const text = `${entity.name}: ${(entity.description as string | undefined) || ""}`;
         if (text.length < 5) continue;
 
         const res = await proxyFetch("https://api.siliconflow.cn/v1/embeddings", {
@@ -491,7 +501,7 @@ export async function buildResearchContext(
 
   // 2. 获取这些实体之间的关系
   if (entities.length > 0) {
-    const entityIds = entities.map((e: any) => e.id);
+    const entityIds = entities.map((e: Record<string, unknown>) => e.id as number);
     const rels = await pg.unsafe(`
       SELECT
         se.name AS source,
@@ -526,19 +536,23 @@ export async function buildResearchContext(
 
     return {
       entities: entities as KGEntity[],
-      relationships: (rels || []).map((r: any) => ({
-        source: r.source,
-        target: r.target,
-        type: r.type,
-        weight: r.weight,
+      relationships: (rels || []).map((r: Record<string, unknown>) => ({
+        source: r.source as string,
+        target: r.target as string,
+        type: r.type as string,
+        weight: r.weight as number,
       })),
       codeStructure: {
-        files: stats[0]?.files || 0,
-        functions: stats[0]?.functions || 0,
-        classes: stats[0]?.classes || 0,
-        dependencies: (deps || []).map((d: any) => d.name.replace("npm:", "")),
+        files: (stats[0]?.files as number | undefined) || 0,
+        functions: (stats[0]?.functions as number | undefined) || 0,
+        classes: (stats[0]?.classes as number | undefined) || 0,
+        dependencies: (deps || []).map((d: Record<string, unknown>) => (d.name as string).replace("npm:", "")),
       },
-      summary: generateContextSummary(entities, rels || [], stats[0] || {}),
+      summary: generateContextSummary(
+        entities as Array<{ type: string; name: string }>,
+        (rels || []) as Array<{ source: string; type: string; target: string }>,
+        (stats[0] || {}) as { files?: number; functions?: number; classes?: number },
+      ),
     };
   }
 
@@ -554,9 +568,9 @@ export async function buildResearchContext(
  * 生成上下文摘要文本 (供 Hermes prompt 注入)
  */
 function generateContextSummary(
-  entities: any[],
-  relationships: any[],
-  stats: any,
+  entities: Array<{ type: string; name: string }>,
+  relationships: Array<{ source: string; type: string; target: string }>,
+  stats: { files?: number; functions?: number; classes?: number },
 ): string {
   if (entities.length === 0) return "No matching code entities found.";
 
@@ -581,7 +595,7 @@ function generateContextSummary(
 
   // 关键关系
   if (relationships.length > 0) {
-    const relSummary = relationships.slice(0, 10).map((r: any) =>
+    const relSummary = relationships.slice(0, 10).map((r) =>
       `${r.source} --[${r.type}]--> ${r.target}`
     ).join("; ");
     parts.push(`Key relationships: ${relSummary}`);

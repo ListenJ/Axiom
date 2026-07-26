@@ -20,6 +20,32 @@ import { isPgAvailable, getPG } from "../db/pg-client.js";
 
 // ========== 类型定义 ==========
 
+/** OpenRouter / SiliconFlow 模型列表 API 返回的单条模型条目 (按需访问的字段) */
+interface ProviderModelEntry {
+  id: string;
+  name?: string;
+  context_length?: number;
+  pricing?: { prompt?: string; completion?: string };
+}
+
+/** model_evaluations 表的行 (评估分数) */
+interface ModelEvalRow {
+  model_id: string;
+  capability: number;
+  speed: number;
+  cost: number;
+  safety: number;
+  overall_score: number;
+}
+
+/** 角色权重 (capability/speed/cost/safety) */
+interface RoleWeights {
+  capability: number;
+  speed: number;
+  cost: number;
+  safety: number;
+}
+
 export interface ProviderConfig {
   name: string;
   baseURL: string;
@@ -190,7 +216,7 @@ export async function discoverSiliconFlowModels(): Promise<ModelListing[]> {
     if (!res.ok) return [];
 
     const data = await res.json();
-    return (data.data || []).map((m: any) => ({
+    return (data.data || []).map((m: ProviderModelEntry) => ({
       id: m.id,
       name: m.id,
       contextWindow: 32768,
@@ -204,7 +230,7 @@ export async function discoverSiliconFlowModels(): Promise<ModelListing[]> {
   }
 }
 
-function inferModelTags(model: any): string[] {
+function inferModelTags(model: ProviderModelEntry): string[] {
   const tags: string[] = [];
   const id = (model.id || "").toLowerCase();
   const name = (model.name || "").toLowerCase();
@@ -239,7 +265,7 @@ export async function recommendModels(
   const weights = ROLE_WEIGHTS[role] || ROLE_WEIGHTS["default"];
 
   // 收集所有可用模型
-  const allModels: Array<{ model: ModelListing; provider: string; evalScore?: any }> = [];
+  const allModels: Array<{ model: ModelListing; provider: string; evalScore?: ModelEvalRow }> = [];
 
   // 1. 从已知供应商
   for (const [providerKey, provider] of Object.entries(KNOWN_PROVIDERS)) {
@@ -268,7 +294,7 @@ export async function recommendModels(
       `;
 
       for (const entry of allModels) {
-        const ev = evals.find((e: any) => e.model_id === entry.model.id);
+        const ev = evals.find((e: ModelEvalRow) => e.model_id === entry.model.id);
         if (ev) {
           entry.evalScore = ev;
         }
@@ -353,8 +379,8 @@ function estimateCostPerCall(model: ModelListing, role: string): number {
 
 function generateRecommendationReason(
   model: ModelListing,
-  evalScore: any,
-  weights: any,
+  evalScore: ModelEvalRow | undefined,
+  weights: RoleWeights,
 ): string {
   const parts: string[] = [];
 

@@ -104,12 +104,12 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
   const limit = Math.min(parseInt(ctx.url.searchParams.get("limit") || "20", 10), 100);
 
   try {
-    const results: any = { knowledge: [], entities: [], notes: [] };
+    const results: { knowledge: unknown[]; entities: unknown[]; notes: unknown[] } = { knowledge: [], entities: [], notes: [] };
 
     // Search knowledge table
     if (!type || type === "knowledge") {
       let sql = `SELECT id, tier, topic_key as title, content, confidence, access_count, created_at FROM knowledge WHERE 1=1`;
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       if (query) { sql += ` AND (topic_key LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (tier) { sql += ` AND tier = ?`; params.push(tier); }
       sql += ` ORDER BY confidence DESC, access_count DESC LIMIT ?`;
@@ -120,7 +120,7 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
     // Search entities (knowledge graph)
     if (!type || type === "entity") {
       let sql = `SELECT id, name, type, properties, created_at FROM entities WHERE 1=1`;
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       if (query) { sql += ` AND (name LIKE ? OR properties LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (type && type !== "entity") { sql += ` AND type = ?`; params.push(type); }
       sql += ` ORDER BY name LIMIT ?`;
@@ -134,7 +134,7 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
         const { Database } = await import("bun:sqlite");
         const memDb = new Database("./axiom-memory.db", { readonly: true });
         let sql = `SELECT id, path, title, excerpt, score FROM memory_notes WHERE 1=1`;
-        const params: any[] = [];
+        const params: (string | number)[] = [];
         if (query) { sql += ` AND (title LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
         sql += ` ORDER BY score DESC LIMIT ?`;
         params.push(limit);
@@ -274,7 +274,7 @@ export async function handleListTasks(ctx: RouteContext): Promise<Response | nul
 
   try {
     let sql = `SELECT id, title, status, priority, parent_task_id, context_summary, result_summary, created_at, updated_at FROM tasks WHERE 1=1`;
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     if (status) { sql += ` AND status = ?`; params.push(status); }
     sql += ` ORDER BY priority DESC, updated_at DESC LIMIT ?`;
     params.push(limit);

@@ -315,13 +315,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
         if (await isPgAvailable()) {
           const pg = getPG();
           const entities = await pg`SELECT id, name, type, description FROM kg_entities ORDER BY updated_at DESC LIMIT 500`;
-          const nodeIds = entities.map((e: any) => String(e.id));
+          const nodeIds = entities.map((e: { id: number | string }) => String(e.id));
           const relationships = await pg.unsafe(
             `SELECT r.source_id, r.target_id, r.relation_type FROM kg_relationships r
              WHERE r.source_id = ANY($1::bigint[]) AND r.target_id = ANY($1::bigint[])
              ORDER BY r.weight DESC LIMIT 2000`, [nodeIds]);
-          const nodes = entities.map((e: any) => ({ id: e.id, name: e.name, type: e.type, label: e.name.split("/").pop()?.split(".").pop() || e.name }));
-          const edges = relationships.map((r: any) => ({ source: r.source_id, target: r.target_id, type: r.relation_type }));
+          const nodes = entities.map((e: { id: number | string; name: string; type: string }) => ({ id: e.id, name: e.name, type: e.type, label: e.name.split("/").pop()?.split(".").pop() || e.name }));
+          const edges = relationships.map((r: { source_id: number | string; target_id: number | string; relation_type: string }) => ({ source: r.source_id, target: r.target_id, type: r.relation_type }));
           return { success: true, backend: "postgresql", data: { nodes, edges, stats: { nodeCount: nodes.length, edgeCount: edges.length } } };
         }
       } catch { /* fall through */ }

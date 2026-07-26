@@ -28,6 +28,16 @@ import {
 
 // ========== 类型定义 ==========
 
+/**
+ * PostgreSQL 客户端最小契约 (postgres 包的 tagged template 用法)。
+ * 完整客户端类型由 `getPG()` 返回，但 PG 在本项目已禁用，故仅保留调用所需的最小接口。
+ */
+interface PgClient {
+  (strings: TemplateStringsArray, ...values: unknown[]): Promise<Record<string, unknown>[]>;
+  unsafe(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
+  json(obj: unknown): unknown;
+}
+
 export interface SyncResult {
   filesProcessed: number;
   nodesCreated: number;
@@ -214,7 +224,7 @@ function groupByFile(nodes: CodeGraphNode[]): Record<string, CodeGraphNode[]> {
  * 注册文件记录
  */
 async function registerFile(
-  pg: any,
+  pg: PgClient,
   projectId: number,
   filePath: string,
   language: string,
@@ -233,7 +243,7 @@ async function registerFile(
  * 从 CodeGraph 关系构建 PostgreSQL 边
  */
 async function buildEdgesFromCodeGraph(
-  pg: any,
+  pg: PgClient,
   nodes: CodeGraphNode[],
   projectPath: string,
 ): Promise<number> {
@@ -243,7 +253,7 @@ async function buildEdgesFromCodeGraph(
   const nodeMap = new Map<string, number>();
   const dbNodes = await pg`SELECT id, qualified_name, file_id FROM code_nodes`;
   for (const n of dbNodes) {
-    nodeMap.set(n.qualified_name, n.id);
+    nodeMap.set(n.qualified_name as string, n.id as number);
   }
 
   // 遍历每个节点获取调用关系
@@ -352,7 +362,7 @@ export async function searchCode(
 
   // 文本搜索 (trigram)
   let whereClause = "";
-  const params: any[] = [query, limit];
+  const params: (string | number)[] = [query, limit];
 
   if (kind) {
     whereClause += ` AND cn.kind = $${params.length + 1}`;
@@ -503,11 +513,11 @@ export async function getProjectStats(projectName?: string): Promise<{
   `;
 
   return {
-    totalProjects: projects.count,
-    totalFiles: files.count,
-    totalNodes: nodes.count,
-    totalEdges: edges.count,
-    nodesByKind: Object.fromEntries(kindStats.map((r: any) => [r.kind, r.count])),
-    languages: Object.fromEntries(langStats.map((r: any) => [r.language, r.count])),
+    totalProjects: projects!.count as number,
+    totalFiles: files!.count as number,
+    totalNodes: nodes!.count as number,
+    totalEdges: edges!.count as number,
+    nodesByKind: Object.fromEntries(kindStats.map((r: { kind: string; count: number }) => [r.kind, r.count])) as Record<string, number>,
+    languages: Object.fromEntries(langStats.map((r: { language: string; count: number }) => [r.language, r.count])) as Record<string, number>,
   };
 }

@@ -21,6 +21,16 @@ import { buildContext, getStatus, isCodegraphInitialized } from "../memory/codeg
 
 // ========== 类型定义 ==========
 
+/** package.json 的最小结构 (仅覆盖 project-analyzer 中实际访问的字段) */
+interface PackageJson {
+  name?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+  workspaces?: string[] | { packages?: string[] };
+}
+
 export interface AnalyzeOptions {
   /** 项目根目录路径 */
   projectPath: string;
@@ -279,7 +289,7 @@ export async function scanProjectStructure(projectPath: string): Promise<Project
 
   // Phase 2: 读取 package.json (如果存在)
   const pkgPath = join(absPath, "package.json");
-  let pkgJson: any = null;
+  let pkgJson: PackageJson | null = null;
   if (existsSync(pkgPath)) {
     try {
       pkgJson = JSON.parse(readFileSync(pkgPath, "utf-8"));
@@ -364,7 +374,7 @@ export function detectFrameworks(structure: ProjectStructure): FrameworkInfo[] {
  * 内部: 从多维度检测框架
  */
 function detectFrameworksFromPkg(
-  pkgJson: any,
+  pkgJson: PackageJson | null,
   topLevelFiles: string[],
   topLevelDirs: string[],
   projectPath: string,
@@ -607,7 +617,7 @@ function detectConfigFiles(allFiles: string[]): string[] {
   ).slice(0, 30);
 }
 
-function detectBuildSystem(pkgJson: any, topLevelFiles: string[]): string {
+function detectBuildSystem(pkgJson: PackageJson | null, topLevelFiles: string[]): string {
   if (pkgJson) {
     const scripts = pkgJson.scripts || {};
     if (scripts.build) return `npm/yarn (scripts.build: ${scripts.build.slice(0, 60)})`;
@@ -628,7 +638,7 @@ function detectBuildSystem(pkgJson: any, topLevelFiles: string[]): string {
 }
 
 function detectTestFrameworks(
-  pkgJson: any,
+  pkgJson: PackageJson | null,
   frameworks: FrameworkInfo[],
   topLevelFiles: string[],
   topLevelDirs: string[],
@@ -666,7 +676,7 @@ function detectTestFrameworks(
 }
 
 function detectMonorepo(
-  pkgJson: any,
+  pkgJson: PackageJson | null,
   topLevelFiles: string[],
   topLevelDirs: string[],
   projectPath: string,
@@ -710,7 +720,7 @@ function detectArchitectureHints(
   allFiles: string[],
   topLevelDirs: string[],
   frameworks: FrameworkInfo[],
-  pkgJson: any,
+  pkgJson: PackageJson | null,
 ): string[] {
   const hints: string[] = [];
 

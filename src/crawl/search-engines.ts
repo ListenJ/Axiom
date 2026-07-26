@@ -5,7 +5,7 @@
  * 移除：反指纹、代理管理、Yandex、Google SerpAPI
  */
 
-import { proxyFetch } from "../utils/proxy-fetch.js";
+import { proxyFetch, type ProxyFetchResponse } from "../utils/proxy-fetch.js";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 
@@ -18,7 +18,7 @@ export interface SearchEngineResult {
   date?: string;
   source: string;
   engine: string;
-  richSnippets?: Record<string, any>;
+  richSnippets?: Record<string, unknown>;
 }
 
 export interface SearchOptions {
@@ -36,7 +36,7 @@ abstract class SearchEngine {
   abstract readonly name: string;
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
 
-  protected async fetch(url: string, init: RequestInit = {}): Promise<any> {
+  protected async fetch(url: string, init: RequestInit = {}): Promise<ProxyFetchResponse> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
@@ -146,14 +146,14 @@ class BingEngine extends SearchEngine {
     const data = await res.json();
     const raw = data.webPages?.value || [];
 
-    return raw.map((r: any, i: number) => ({
+    return raw.map((r: { name?: string; url?: string; displayUrl?: string; snippet?: string; dateLastCrawled?: string; deepLinks?: unknown[] }, i: number) => ({
       position: i + 1,
       title: r.name || "",
       link: r.url || "",
       displayedUrl: r.displayUrl || r.url || "",
       snippet: r.snippet || "",
       date: r.dateLastCrawled,
-      source: this.extractDomain(r.url),
+      source: this.extractDomain(r.url || ""),
       engine: this.name,
       richSnippets: r.deepLinks ? { deepLinks: r.deepLinks } : undefined,
     }));
@@ -198,14 +198,14 @@ class SearXngEngine extends SearchEngine {
     const data = await res.json();
     const raw = data.results || [];
 
-    return raw.slice(0, opts.num ?? 10).map((r: any, i: number) => ({
+    return raw.slice(0, opts.num ?? 10).map((r: { title?: string; url?: string; pretty_url?: string; content?: string; publishedDate?: string; engine?: string }, i: number) => ({
       position: i + 1,
       title: r.title || "",
       link: r.url || "",
       displayedUrl: r.pretty_url || r.url || "",
       snippet: r.content || "",
       date: r.publishedDate,
-      source: r.engine || this.extractDomain(r.url),
+      source: r.engine || this.extractDomain(r.url || ""),
       engine: `${this.name}(${r.engine || "unknown"})`,
     }));
   }
