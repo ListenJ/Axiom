@@ -1832,5 +1832,5 @@
   - `bun test tests/architecture-integrity.test.ts` → 22 pass / 0 fail（之前 21 pass / 1 fail，架构测试全绿）。
   - `bun test`（全量）→ 2053 pass / 107 fail / 28 skip / 11 errors（与 baseline 一致；架构测试修复被前端 flaky 测试波动抵消，但架构测试确实从 1 fail → 0 fail）。
 - **备份**：`src/eval/model-eval-service.ts` 备份到 `.tmp/backups/src/eval/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`2c74f85`（待推送 `internal211/main`）。
 
