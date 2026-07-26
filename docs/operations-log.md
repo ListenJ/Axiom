@@ -1853,5 +1853,5 @@
   - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志从 `"errors":["phase 1...","phase2...","phase3..."]` 变为 `"errors":[]`。
   - `bun test`（全量）→ 2052 pass / 108 fail（与 baseline 2053/107 相比 ±1 flaky 波动；curator 功能修复确认）。
 - **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`acfd8ab`（待推送 `internal211/main`）。
 
