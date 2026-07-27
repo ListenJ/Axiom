@@ -24,6 +24,7 @@ import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { isLocalAddress, checkApiKey } from "./utils/auth-check.js";
 import { auditLogger } from "./utils/audit-logger.js";
+import { getTrafficClassifier, type TrafficFeatures } from "./utils/traffic-classifier.js";
 import { metrics } from "./utils/metrics.js";
 import type { RouteContext, WebSocketData } from "./routes/types.js";
 import { dispatch, defaultResponse, registerTrieRoutes } from "./routes/index.js";
@@ -497,6 +498,44 @@ const server = Bun.serve({
       return jsonResponse({ error: "Rate limit exceeded" }, 429, rl.headers);
     }
 
+    // 智能流量分类 — 多维度特征识别，区分合法 agent 流量与攻击流量
+    const trafficClassifier = getTrafficClassifier();
+    const trafficFeatures: TrafficFeatures = {
+      method: req.method,
+      path: url.pathname,
+      userAgent: req.headers.get("user-agent") ?? "",
+      contentType: req.headers.get("content-type") ?? "",
+      payloadSize: parseInt(req.headers.get("content-length") ?? "0", 10),
+      query: url.search,
+      remoteAddress: remoteAddress ?? "unknown",
+    };
+    const trafficResult = trafficClassifier.classify(trafficFeatures);
+    if (trafficResult.classification === "malicious") {
+      auditLogger.log({
+        event: "traffic.malicious",
+        actor: remoteAddress ?? "unknown",
+        outcome: "denied",
+        reason: trafficResult.reasons.join(", "),
+        resource: url.pathname,
+        metadata: { score: trafficResult.score },
+      });
+      return jsonResponse(
+        { error: "Request blocked by traffic classifier", reasons: trafficResult.reasons },
+        403,
+        baseHeaders
+      );
+    }
+    if (trafficResult.classification === "suspicious") {
+      auditLogger.log({
+        event: "traffic.suspicious",
+        actor: remoteAddress ?? "unknown",
+        outcome: "allowed",
+        reason: trafficResult.reasons.join(", "),
+        resource: url.pathname,
+        metadata: { score: trafficResult.score },
+      });
+    }
+
     // Request body size check
     if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
       const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
@@ -506,6 +545,11 @@ const server = Bun.serve({
     }
 
     try {
+      // /traffic/stats — 流量分类统计 dashboard 数据
+      if (url.pathname === "/traffic/stats" && req.method === "GET") {
+        return jsonResponse(getTrafficClassifier().stats(), 200, baseHeaders);
+      }
+
       // Build route context
       const ctx: RouteContext = {
         url, req, vault, db, pipeline, healthMonitor, fileWatcher,

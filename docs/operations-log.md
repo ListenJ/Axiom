@@ -2027,3 +2027,34 @@
   - `bun test tests/audit-logger.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/rate-limiter.test.ts tests/auth-check.test.ts` → 112 pass / 0 fail（audit-logger + security-hardening + security-hardening-extended + rate-limiter 103 + auth-check 9）。
 - **备份**：`src/main.ts` 备份到 `.tmp/backups/src/main.ts.bak`（验证通过后已删除）。
 - **Commit**：`0d57490`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 12:00 +0800 — 智能流量识别与分类引擎（模块 1）
+
+- **任务**：用户要求设计并实现高性能智能流量处理系统，模块 1 为"智能流量识别与区分"——基于多维度特征辨别用户 agent 任务流量与外部攻击流量。经审计发现代码库已有完整安全基础设施（auth-check/rate-limiter/audit-logger/security-monitor/db-guard），但缺少**请求级流量分类器**——无法在请求进入业务逻辑前识别攻击意图。
+- **工具**：Agent(search)×3（5 模块全量审计）、Read、Write、Edit、RunCommand（`bunx tsc --noEmit`、`bun test`）。
+- **执行的操作**：
+  1. **`src/utils/traffic-classifier.ts`**（新建）：`TrafficClassifier` 类——多维度特征流量识别引擎。
+     - **特征提取**：method/path/userAgent/contentType/payloadSize/query/remoteAddress 7 维特征。
+     - **攻击签名库**（6 类 30+ 规则）：路径遍历（`../`、`%2e%2e`、`..%2f`）、SQL 注入（`' OR 1=1`、`UNION SELECT`、`;DROP`）、XSS（`<script>`、`javascript:`、`onerror=`）、命令注入（`;cat`、`|whoami`）、SSRF（`169.254.169.254`、`localhost`）、恶意 UA（sqlmap/nikto/nmap/masscan 等 14 种扫描工具）。
+     - **可疑路径探测**：`.env`/`.git`/`.ssh`/`/etc/passwd`/`/proc/self`/`wp-admin` 等。
+     - **异常载荷检测**：非上传端点 >100KB 标记可疑（上传端点白名单豁免）。
+     - **评分算法**：取所有命中规则的**最高分**（非累加），避免误报叠加。0-0.3 legitimate / 0.3-0.7 suspicious / 0.7-1.0 malicious。
+     - **性能**：正则匹配，1000 次分类 1.68ms（远低于 ≤100ms 要求）。
+     - **统计**：`stats()` 返回 total/legitimate/suspicious/malicious/topAttackTypes/avgLatencyMs，供 dashboard 使用。
+     - **全局单例**：`getTrafficClassifier()`。
+  2. **`tests/traffic-classifier.test.ts`**（新建）：29 个测试——合法流量分类（3）、路径遍历检测（3）、SQL 注入检测（3）、XSS 检测（3）、命令注入检测（2）、SSRF 检测（2）、恶意 UA 检测（3）、可疑路径检测（3）、异常载荷检测（2）、分类性能（2：单次 ≤100ms + 1000 次 ≤500ms）、统计与指标（3）。
+  3. **`src/utils/audit-logger.ts`**（修改）：`AuditEvent` 新增 `"traffic.malicious" | "traffic.suspicious"`；`AuditOutcome` 新增 `"allowed"`。改前备份。
+  4. **`src/main.ts`**（修改）：
+     - 新增 `import { getTrafficClassifier, type TrafficFeatures }`。
+     - **请求管线集成**（L501-537）：在认证通过、限流之后，对每个请求执行流量分类：
+       - `malicious` → `auditLogger.log({ event: "traffic.malicious", outcome: "denied" })` + 返回 403 拒绝。
+       - `suspicious` → `auditLogger.log({ event: "traffic.suspicious", outcome: "allowed" })` + 放行（限流器兜底）。
+     - **新增 `/traffic/stats` 端点**（L548-550）：GET 返回 `TrafficStats` JSON，供可视化 dashboard 实时展示流量分类统计与异常告警。改前备份。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/traffic-classifier.test.ts tests/audit-logger.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/rate-limiter.test.ts tests/auth-check.test.ts` → 132 pass / 0 fail（278 expect() calls）。
+- **备份**：`src/main.ts` + `src/utils/audit-logger.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。

@@ -40,9 +40,10 @@ export type AuditEvent =
   | "vault.write" | "sandbox.execute" | "plugin.install" | "plugin.uninstall"
   | "plugin.enable" | "plugin.disable" | "plugin.configure"
   | "apikey.set" | "apikey.delete" | "apikey.test"
-  | "rate_limit.exceeded" | "config.change" | "ws_flood" | "security.alert";
+  | "rate_limit.exceeded" | "config.change" | "ws_flood" | "security.alert"
+  | "traffic.malicious" | "traffic.suspicious";
 
-export type AuditOutcome = "success" | "failure" | "denied";
+export type AuditOutcome = "success" | "failure" | "denied" | "allowed";
 
 export interface AuditEntry {
   /** ISO 8601 时间戳 */
