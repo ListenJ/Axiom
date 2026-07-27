@@ -1873,3 +1873,27 @@
 - **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`46aa5d8`（待推送 `internal211/main`）。
 
+
+---
+
+## 2026-07-27 10:46 +0800 — 新建 runtime-go：Go 企业级高并发三模块（PCDA / 子代理调度 / 并发搜索）
+
+- **任务**：用户要求用 Go 设计实现三个关键功能模块（PCDA 循环并发执行系统、多子代理任务调度框架、知识库并发搜索系统），目标 100k QPS 设计容量，含数据一致性/原子性、Prometheus 监控、结构化错误处理、AST/DAG 技术优化，并接入 192.168.0.150:9001 模型服务。经 AskUserQuestion 确认：并发目标 100k QPS、代码放 `runtime-go/` 独立 module、分布式锁用接口抽象+Redis 实现、三模块核心全做。计划经 ExitPlanMode 批准后执行。
+- **工具**：Agent(coder)×5（Phase 0 骨架与共享库 ×1、Phase 1 三模块并行 ×3、Phase 2 工具模块 ×1）、AskUserQuestion、EnterPlanMode/ExitPlanMode、Read、Grep、Write、Bash（go build/vet/test -race/bench、三个守护进程 curl 冒烟、模型服务真实端点探针）。
+- **执行的操作**（全部新建，未修改仓库任何既有文件；README 更新前已按规则 2 备份，验证后删备份）：
+  - `runtime-go/go.mod|go.sum|tools.go`：module `runtime-go`，依赖仅 prometheus/client_golang v1.24.1 + redis/go-redis/v9 v9.21.0。
+  - `runtime-go/internal/observability/`：ModuleMetrics（QPS/p50/p95/p99/错误码/资源 gauge）、AppError（错误码+堆栈+上下文）、AlertRule/Alerter、RecoveryPolicy 分级恢复。
+  - `runtime-go/internal/modelclient/`：OpenAI 兼容 Chat 适配层（超时/指数退避重试/轮询 LB/健康检查熔断/fallback 降级/调用指标），默认端点 192.168.0.150:9001，`MODEL_SERVICE_URL` 可覆盖。
+  - `runtime-go/internal/pcda/` + `cmd/pcdad/`：Plan/Do/Check/Act 四阶段并行引擎（各阶段独立 worker pool 运行时扩缩）、2PC 协调器+参与者接口（TCC 注释预留）、优先级 lane 队列+负载控制循环、定时快照+WAL 崩溃恢复、Vyukov MPMC 无锁环+sync.Pool 批处理。
+  - `runtime-go/internal/agent/` + `cmd/agentd/`：任务定义版本化 ConfigStore（自增版本+SHA-256+回滚）、cgroup v2（linux build tag）+记账型 stub、最小负载优先+EMA 预测均衡、三层故障恢复（退避重试/健康重建/主备切换）、扩缩容（cooldown+min/max）。
+  - `runtime-go/internal/search/` + `cmd/searchd/`：分片倒排索引并行构建（中文 bigram）、COW 更新（atomic.Pointer 切换，读无锁，tombstone 删除）、DistLock 接口（MemLock+RedisLock SET NX PX+Lua+watchdog）、查询扇出+Top-K 堆归并、DF 代价优化器（选择性重排+短路）。
+  - `runtime-go/internal/astopt/`：AST 反模式扫描器（循环内堆分配/+=拼接/循环内 Sprintf/非缓冲 channel）。
+  - `runtime-go/internal/dagfs/`：文件树 DAG（目录边+import 依赖边）、Kahn 分层、分层并行 Prefetch（含环检测）。
+  - `runtime-go/README.md`：全文更新为最终交付文档（结构/运行方式/API/性能数据/平台说明）。
+- **验证**：
+  - `go build ./...` / `go vet ./...` / `GOOS=linux go build ./...` 全过；`go test -race -count=1 ./...` 7 个包全 ok。
+  - Benchmark 实测（i5-12500H）：pcda 引擎 161k cycles/sec、2PC 64ns/0alloc；agent 调度 ~53 万 tasks/sec、均衡仿真负载差 0.82%（阈值 10%）；search 构建 26–31 万 docs/sec 近似线性、复杂查询 p95=16.3ms（目标<100ms）、COW 可见 µs 级（目标<1s）；dagfs 预取 ~16.7k files/sec。
+  - 冒烟：pcdad 提交 cycle→completed→kill -9→重启→状态经 WAL 恢复一致；agentd 任务定义 v1/v2/版本列表/提交任务/集群状态全通；searchd 写入 3 文档→AND/字段+NOT/前缀/中文查询全对→tombstone 删除生效；结构化 AppError（含堆栈 JSON）经一次错误请求实证。
+  - 模型适配层对真实 192.168.0.150:9001（Qwopus3.5-4B）go run 探针：Chat 成功、usage 解析正确（该模型为 reasoning 模型，content 空系 max_tokens 被推理耗尽，已在 README 注明）。
+  - astopt 自扫 31 条命中逐条 bench 取证：无安全且有收益的修复项，未硬改（结果已写入 README）。
+- **Commit**：`待补录`（推送 internal211/main 后补录）。
