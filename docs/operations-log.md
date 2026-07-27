@@ -2026,4 +2026,4 @@
   - `bunx tsc --noEmit` → ExitCode=0。
   - `bun test tests/audit-logger.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/rate-limiter.test.ts tests/auth-check.test.ts` → 112 pass / 0 fail（audit-logger + security-hardening + security-hardening-extended + rate-limiter 103 + auth-check 9）。
 - **备份**：`src/main.ts` 备份到 `.tmp/backups/src/main.ts.bak`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`0d57490`（待推送 `internal211/main`）。
