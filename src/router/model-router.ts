@@ -21,6 +21,8 @@ import { metrics } from "../utils/metrics.js";
 import { calculateBackoffDelay } from "../utils/resilience.js";
 import { callProvider, callProviderNativeStream, type ChatMessage, type StreamChunkCallback, type NativeStreamResult } from "./provider-caller.js";
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
+import { getModelOutputStore } from "../utils/model-output-store.js";
+import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -225,13 +227,45 @@ export class MultiPlatformRouter {
     }
     const sortedModels = [...candidates].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
+    let lastError: Error | undefined;
     for (const model of sortedModels) {
       // Per-model retry: honor the model's own maxRetries, falling back to DEFAULT_RETRY_ATTEMPTS.
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
-      let lastError: Error | undefined;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const loopStart = Date.now();
+
+        // LLM cache: only for deterministic calls (temperature === 0).
+        // Cache hit eliminates the API call entirely — max hit-rate savings.
+        if (temperature === 0 && attempt === 0) {
+          const cKey = llmCacheKey({
+            provider: model.provider,
+            model: model.model,
+            messages,
+            temperature: 0,
+          });
+          const cached = await llmCache.get(cKey);
+          if (cached) {
+            const latencyMs = Date.now() - loopStart;
+            metrics.increment("routing_decisions_total", 1, { role, source: "execute-cached", model: model.id });
+            logger.info(`[Router] Execute cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
+            trackCall(model.model, model.provider, messages, {
+              usage: cached.usage,
+              latencyMs,
+              success: true,
+              fallbackUsed: false,
+            }, { role: trackAs ?? role, taskType: trackAs ?? role });
+            return {
+              content: cached.content,
+              model: cached.model,
+              provider: cached.provider,
+              usage: cached.usage,
+              latencyMs,
+              fallbackUsed: false,
+            };
+          }
+        }
+
         try {
           const response = await callProvider(
             model.provider,
@@ -251,6 +285,38 @@ export class MultiPlatformRouter {
           // Record routing decision metric
           metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: model.id });
           metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "execute" });
+
+          // Persist model output to disk (non-blocking, eliminates context dependency)
+          getModelOutputStore().persist({
+            provider: model.provider,
+            model: model.model,
+            prompt: messages[messages.length - 1]?.content ?? "",
+            messages,
+            temperature,
+            latencyMs,
+            success: true,
+            response: {
+              content: response.content,
+              usage: response.usage,
+            },
+          });
+
+          // Cache successful deterministic response for future hits
+          if (temperature === 0) {
+            const cKey = llmCacheKey({
+              provider: model.provider,
+              model: model.model,
+              messages,
+              temperature: 0,
+            });
+            const cached: CachedLLMResponse = {
+              content: response.content,
+              model: model.model,
+              provider: model.provider,
+              usage: response.usage,
+            };
+            llmCache.set(cKey, cached);
+          }
 
           return {
             content: response.content,
@@ -293,6 +359,19 @@ export class MultiPlatformRouter {
 
     logger.error(`[Router] All models exhausted for role: ${role}`);
     metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: "degraded" });
+
+    // Persist degraded response for observability
+    getModelOutputStore().persist({
+      provider: "local",
+      model: "degraded",
+      prompt: messages[messages.length - 1]?.content ?? "",
+      messages,
+      temperature,
+      latencyMs: Date.now() - startTime,
+      success: false,
+      error: lastError ?? new Error(`All models exhausted for role: ${role}`),
+    });
+
     return {
       content: "I'm currently experiencing high load. Please try again in a moment.",
       model: "degraded",

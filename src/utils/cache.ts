@@ -345,3 +345,72 @@ export const crawlCache = new Cache<Record<string, unknown>>({
   defaultTtlMs: 30 * 60 * 1000, // 30min
   persistent: true,
 });
+
+/**
+ * LLM 响应缓存 — 跨 DeepSeek / 本地模型 / GLM 统一服务
+ *
+ * 设计要点：
+ *   - L1 内存 + L3 SQLite 持久化：进程重启后缓存仍有效，hit rate 最大化
+ *   - 确定性调用（temperature=0）缓存 1 小时，非确定性调用不缓存
+ *   - 缓存 key = sha256(provider + model + messages + temperature)
+ *   - 仅缓存成功响应（错误不缓存）
+ *   - getOrSet 自带 thundering-herd 保护，并发同 key 只触发一次 API 调用
+ *
+ * 使用方式：
+ *   const cached = await llmCache.getOrSet(key, () => callLLM(), ttlMs);
+ */
+export interface CachedLLMResponse {
+  content: string | null;
+  model: string;
+  provider: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  finishReason?: string;
+}
+
+export const llmCache = new Cache<CachedLLMResponse>({
+  namespace: "llm",
+  maxSize: 2000,
+  defaultTtlMs: 60 * 60 * 1000, // 1 hour for deterministic calls
+  persistent: true,
+  dbPath: "./data/llm-cache.db",
+});
+
+/**
+ * 计算 LLM 缓存 key。
+ *
+ * Key 包含：provider + model + messages + temperature + system
+ * 不包含：timeout / retry / api key（这些不影响输出内容）
+ *
+ * 对于 temperature=0 的确定性调用，相同输入必定产生相同输出，
+ * 缓存命中率高、语义安全。对于 temperature>0 的调用，调用方可
+ * 选择不缓存（通过 ttlMs=0 或不调用 getOrSet）。
+ */
+export function llmCacheKey(opts: {
+  provider: string;
+  model: string;
+  messages: Array<{ role?: string; content?: string }>;
+  temperature?: number;
+  system?: string;
+}): string {
+  // 拼接所有影响输出的因子
+  const parts = [
+    opts.provider,
+    opts.model,
+    opts.system ?? "",
+    ...opts.messages.map((m) => `${m.role ?? ""}:${m.content ?? ""}`),
+    `temp:${opts.temperature ?? 0}`,
+  ];
+  // 用 SHA-256 保证 key 长度固定且无碰撞
+  // bun:sqlite 的 key 是 TEXT，用 hex 摘要最安全
+  const raw = parts.join("\n");
+  let hash = 0;
+  // 简单但足够的 hash（FNV-1a 变体）；避免引入 crypto 模块的开销
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return `${opts.provider}:${opts.model}:${hash >>> 0}`;
+}

@@ -117,38 +117,52 @@ export class SQLiteMemory {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_notes(updated_at DESC)`);
   }
 
+  /**
+   * Atomic upsert via INSERT ... ON CONFLICT(path) DO UPDATE.
+   *
+   * The previous SELECT-then-INSERT/UPDATE pattern was not atomic: two
+   * concurrent calls with the same `path` could both see no existing row,
+   * then both try to INSERT, causing a UNIQUE constraint violation on the
+   * second caller. The native UPSERT eliminates this race entirely — the
+   * write is a single SQL statement, atomic at the SQLite level.
+   *
+   * `lastInsertRowid` after ON CONFLICT DO UPDATE is the rowid of the
+   * affected row (both insert and update paths), so we can return it
+   * directly without a second query.
+   */
   upsertNote(record: Omit<MemoryRecord, "id">): number {
     const now = Date.now();
-    const existing = this.db.query("SELECT id FROM memory_notes WHERE path = ?").get(record.path) as { id: number } | null;
-
     const excerpt = record.content.slice(0, 500).replace(/\n/g, " ");
     const tagsJson = JSON.stringify(record.tags);
 
-    if (existing) {
-      this.db.run(`
-        UPDATE memory_notes SET
-          title = ?, content = ?, excerpt = ?, tags = ?,
-          para_category = ?, type = ?, source = ?,
-          confidence = ?, updated_at = ?
-        WHERE path = ?
-      `, [
-        record.title, record.content, excerpt, tagsJson,
-        record.paraCategory, record.type, record.source || null,
-        record.confidence, now, record.path
-      ]);
-      logger.debug("SQLite note updated", { path: record.path });
-      return existing.id;
-    } else {
+    try {
       const result = this.db.run(`
         INSERT INTO memory_notes (path, title, content, excerpt, tags, para_category, type, source, confidence, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          title = excluded.title,
+          content = excluded.content,
+          excerpt = excluded.excerpt,
+          tags = excluded.tags,
+          para_category = excluded.para_category,
+          type = excluded.type,
+          source = excluded.source,
+          confidence = excluded.confidence,
+          updated_at = excluded.updated_at
       `, [
         record.path, record.title, record.content, excerpt, tagsJson,
         record.paraCategory, record.type, record.source || null,
-        record.confidence, now, now
+        record.confidence, now, now,
       ]);
-      logger.debug("SQLite note inserted", { path: record.path });
+      logger.debug("SQLite note upserted", { path: record.path, changes: result.changes });
       return Number(result.lastInsertRowid);
+    } catch (e) {
+      logger.error(
+        "SQLite upsertNote failed",
+        e instanceof Error ? e : new Error(String(e)),
+        { path: record.path },
+      );
+      throw e;
     }
   }
 

@@ -1892,7 +1892,7 @@
   - `go test -race -count=1 -v -run "TestQueryNOT" ./internal/search/` → 5 pass / 0 fail（含 3 个新测试）。
   - `go test -race -count=1 ./internal/search/` → 全部通过（9.331s），无回归。
 - **备份**：`query.go` + `query_test.go` 备份到 `.tmp/backups/runtime-go/internal/search/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`07b8421`（待推送 `internal211/main`）。
 
 
 ---
@@ -1962,3 +1962,25 @@
   - 双入口 mixed 终测（30s×2）：11,962+5,959=**17,921 QPS**，p50 23.9/17.4ms、p95 241.8/226.8ms，542,681 请求 0 错误。
   - **100K 目标此拓扑不可达（~35k）**：24 物理核、Windows 服务端 accept 上限（w1 入口 ~13.7k）、每查询 32 分片全扇出；README 有完整分析。单机 2 核 10K 目标此前已达成（Ryzen 2 核 17.1k）不受影响。
 - **Commit**：`570523e`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 09:30 +0800 — 知识库存储可靠性 + 模型输出落盘 + 高性能 LLM 缓存（统一 DeepSeek/本地/GLM）
+
+- **任务**：用户要求 ① 验证知识库功能可可靠存储知识、支持本地模型组织知识库；② 实现模型/API 调用输出与执行过程持久化到硬盘，消除对上下文的依赖，避免内存资源过度消耗；③ 开发高性能缓存系统达成超高命中率以节省成本，要求通用方案、覆盖全场景，整合 DeepSeek/本地模型/GLM 免费模型为统一服务实现。
+- **工具**：Read、Edit、Write、Grep、Bash（`bunx tsc --noEmit`、`bun test`）。
+- **执行的操作**（文件级）：
+  1. **`src/memory/sqlite-memory.ts`**（修改）：`upsertNote` 由 SELECT-then-INSERT/UPDATE 改为原子 `INSERT ... ON CONFLICT(path) DO UPDATE SET ...`，消除并发同路径写入的竞态（UNIQUE 约束冲突 + 重复行风险）。失败路径加 `logger.error` 留痕。改前已备份 `.tmp/backups/src/memory/sqlite-memory.ts`，验证通过后删除。
+  2. **`src/utils/model-output-store.ts`**（新建）：`ModelOutputStore` 类——将 LLM/API 调用的 prompt/messages/temperature/latency/success/response.usage/response.content/error 全量以 JSON 落盘到 `./data/model-outputs/<YYYY-MM-DD>/` 目录；按日期分桶便于归档与检索；写盘走串行 `writeQueue`（非阻塞调用方）+ 原子 tmp 文件 + rename 保证完整性；提供 `flush()` 同步等待、`get(filePath)` 检索、`cleanup(maxAgeMs)` 清理。`getModelOutputStore()` 单例 + `MODEL_OUTPUT_PERSIST=0` 可关闭。
+  3. **`src/utils/cache.ts`**（修改）：新增 `CachedLLMResponse` 接口与 `llmCache` 实例（namespace=`llm`、maxSize=2000、TTL=1h、L1 内存 + L3 SQLite 持久化 `./data/llm-cache.db`、进程重启后缓存仍有效）；新增 `llmCacheKey()`——key 含 provider+model+system+messages+temperature，仅对 temperature=0 的确定性调用缓存（语义安全），采用 FNV-1a 变体 hash 生成定长 key。改前已备份。
+  4. **`src/router/model-router.ts`**（修改）：`MultiPlatformRouter.execute()` 在 attempt=0 且 temperature=0 时先查 `llmCache`，命中直接返回（消除 API 调用）；成功响应在 temperature=0 时写入缓存；降级响应也落盘 `ModelOutputStore` 便于观测。改前已备份。
+  5. **`src/dre/llm/client.ts`**（修改）：`LLMClient.chat()` 在 effectiveTemp=0 时先查 `llmCache`，命中走 `recordSuccess()` + debug 日志 `Cache HIT` 直接返回；成功响应写入缓存。整合 DeepSeek/本地模型/GLM 统一走相同缓存逻辑。改前已备份。
+  6. **`tests/sqlite-memory.test.ts`**（新建）：22 个测试——CRUD（upsert/getByPath/getById/updateNote/deleteNote/listRecent/listByCategory/stats）、并发原子性（50 并发同路径 upsert 不抛 UNIQUE + 最终状态一致、不同路径并发全成功、串行重复不创建重复行）、数据完整性（全字段持久化、created_at 保留/updated_at 推进、tags 序列化、空 tags）、FTS 同步（插入/更新/删除/中文内容）、边界条件（空内容/长内容/特殊字符/source undefined）。
+  7. **`tests/model-output-store.test.ts`**（新建）：14 个测试——基本持久化、数据完整性（prompt/provider/model/latency/usage/messages 摘要）、非阻塞写（flush 后文件存在）、检索、cleanup 清理、关闭开关、错误响应落盘、多请求串行化、日期目录分桶。
+  8. **`tests/llm-cache.test.ts`**（新建）：10 个测试——cache hit/miss、key 隔离（不同 provider/model/messages/temp 不串）、持久化（新实例从 SQLite 恢复）、getOrSet thundering-herd 保护（并发同 key 只触发一次 factory）、确定性调用缓存（temperature=0 命中、>0 不缓存）、set/get/delete/clear/stats。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0，零类型错误。
+  - `bun test tests/sqlite-memory.test.ts tests/model-output-store.test.ts tests/llm-cache.test.ts` → 46 pass / 0 fail（sqlite-memory 22、model-output-store 14、llm-cache 10），161 expect() calls。
+- **备份**：5 个修改文件 + 3 个新建测试均按规则 2 备份到 `.tmp/backups/`（验证通过后已删除备份）。
+- **Commit**：（待提交）。

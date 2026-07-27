@@ -10,6 +10,8 @@
  */
 
 import { logger } from "../../utils/logger.js";
+import { getModelOutputStore } from "../../utils/model-output-store.js";
+import { llmCache, llmCacheKey } from "../../utils/cache.js";
 
 /** 重试配置 */
 export interface RetryConfig {
@@ -224,6 +226,39 @@ export class LLMClient {
     }
 
     this.stats.totalCalls++;
+    const startTime = Date.now();
+
+    // LLM cache: for deterministic calls (temperature === 0, which is the
+    // LLMClient default), check cache before hitting the network. Same prompt
+    // + model + temperature=0 always yields the same output, so caching is
+    // semantically safe and maximizes hit rate.
+    const effectiveTemp = options?.temperature ?? this.config.temperature ?? 0;
+    if (effectiveTemp === 0) {
+      const messages = options?.system
+        ? [{ role: "system", content: options.system }, { role: "user", content: prompt }]
+        : [{ role: "user", content: prompt }];
+      const cKey = llmCacheKey({
+        provider: this.config.baseUrl,
+        model: this.config.model,
+        messages,
+        temperature: 0,
+      });
+      const cached = await llmCache.get(cKey);
+      if (cached) {
+        this.recordSuccess(); // cache hit counts as success for circuit breaker
+        logger.debug("[LLM] Cache HIT", { model: this.config.model });
+        return {
+          content: cached.content ?? "",
+          model: cached.model,
+          usage: {
+            promptTokens: cached.usage?.prompt_tokens ?? 0,
+            completionTokens: cached.usage?.completion_tokens ?? 0,
+          },
+          finishReason: cached.finishReason ?? "stop",
+        };
+      }
+    }
+
     const useRawCompletion = this.config.transport === "completion";
 
     let url: string;
@@ -334,6 +369,50 @@ export class LLMClient {
           usage: { prompt_tokens: number; completion_tokens: number };
         };
 
+        // Persist model output to disk (non-blocking)
+        getModelOutputStore().persist({
+          provider: this.config.baseUrl,
+          model: this.config.model,
+          prompt,
+          system: options?.system,
+          temperature: options?.temperature ?? this.config.temperature,
+          latencyMs: Date.now() - startTime,
+          success: true,
+          response: {
+            content: data.choices[0].message.content,
+            usage: {
+              prompt_tokens: data.usage.prompt_tokens,
+              completion_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+            },
+            finishReason: data.choices[0].finish_reason,
+          },
+        });
+
+        // Cache successful deterministic response
+        if (effectiveTemp === 0) {
+          const messages = options?.system
+            ? [{ role: "system", content: options.system }, { role: "user", content: prompt }]
+            : [{ role: "user", content: prompt }];
+          const cKey = llmCacheKey({
+            provider: this.config.baseUrl,
+            model: this.config.model,
+            messages,
+            temperature: 0,
+          });
+          llmCache.set(cKey, {
+            content: data.choices[0].message.content,
+            model: data.model,
+            provider: this.config.baseUrl,
+            usage: {
+              prompt_tokens: data.usage.prompt_tokens,
+              completion_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+            },
+            finishReason: data.choices[0].finish_reason,
+          });
+        }
+
         return {
           content: data.choices[0].message.content,
           model: data.model,
@@ -365,6 +444,19 @@ export class LLMClient {
     }
 
     this.recordFailure();
+
+    // Persist failed call for observability
+    getModelOutputStore().persist({
+      provider: this.config.baseUrl,
+      model: this.config.model,
+      prompt,
+      system: options?.system,
+      temperature: options?.temperature ?? this.config.temperature,
+      latencyMs: Date.now() - startTime,
+      success: false,
+      error: lastError ?? new Error("LLM generate failed after all retries"),
+    });
+
     throw lastError ?? new Error("LLM generate failed after all retries");
   }
 
