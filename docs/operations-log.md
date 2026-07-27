@@ -2058,3 +2058,22 @@
   - `bun test tests/traffic-classifier.test.ts tests/audit-logger.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/rate-limiter.test.ts tests/auth-check.test.ts` → 132 pass / 0 fail（278 expect() calls）。
 - **备份**：`src/main.ts` + `src/utils/audit-logger.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`406f0a4`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 12:30 +0800 — 前端界面优化：配色对比度 + 排版层级 + 交互反馈
+
+- **任务**：用户要求对项目界面进行全面优化与细节打磨——调整配色方案提升视觉协调性与专业感，优化文本排版/字体大小/行间距/对比度增强可读性，精细化界面元素设计/视觉层次/交互反馈。
+- **工具**：Read、Edit、RunCommand（`npm run build`）。
+- **执行的操作**：
+  1. **`frontend/src/styles/index.css`**（修改）— 设计系统优化：
+     - **配色对比度（WCAG AA 合规）**：暗色主题 `--text-muted` 从 `#6b6b75`→`#82828c`（对比度从 ~4.3:1 提升至 ~5.6:1），`--text-disabled` 从 `#4a4a52`→`#555560`；亮色主题 `--text-muted` 从 `#94a3b8`→`#6b7280`，`--text-secondary` 从 `#475569`→`#3f4754`。
+     - **排版层级**：body `line-height` 从 1.5→1.6，新增 `letter-spacing: -0.006em`；新增 h1-h6 标题层级（Manrope 字体 + 渐进 line-height 1.2-1.4 + letter-spacing -0.02~-0.03em）；小文本 `line-height: 1.5` 优化可读性。
+     - **长文阅读优化**：`.prose` `line-height` 从 1.6→1.7，`max-width` 从 70ch→72ch，新增 `letter-spacing: -0.003em` + 段落间距 + 行内 code 样式（背景+圆角+padding）。
+     - **交互反馈**：为 `a/button/input/select/textarea/[role=button]` 新增统一的 `transition`（color + background + border + box-shadow，150ms ease-out），使所有交互元素的状态切换平滑一致。
+  2. **前端构建**：`npm run build` → 0 错误，CSS 35.80KB / JS 431.29KB。
+  3. **构建产物部署**：`frontend/dist/` → `public/`，旧产物归档到 `archive/frontend/assets/`。
+- **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules transformed in 7.91s。
+- **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。
