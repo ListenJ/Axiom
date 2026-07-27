@@ -1921,4 +1921,4 @@
   - 集群行为：100k 文档双节点精确 50k/50k；跨节点归并一致；杀 n1→partial 降级；agentd failover 无风暴无泄漏；跨机 2PC commit/abort 探针验证。
   - 模型 64K：对生产端点 192.168.0.150:9001 以 max_tokens=4096 实测，content 与 reasoning_content 正常返回。
 - **备份**：改动文件均先备份 `.tmp/backups/runtime-go/`（验证通过后已删除）。
-- **Commit**：待补录。
+- **Commit**：`9bd5889`（已推送 `internal211/main`）。
