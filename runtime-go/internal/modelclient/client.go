@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,6 +26,12 @@ const (
 	DefaultHealthInterval = 10 * time.Second
 	DefaultMaxRetries     = 3
 
+	// DefaultContextWindow is the model context size in tokens (64K).
+	DefaultContextWindow = 65536
+	// DefaultReservedOutputTokens is the output budget kept free when
+	// clamping MaxTokens against the context window.
+	DefaultReservedOutputTokens = 1024
+
 	// Retry backoff: initial 100ms, factor 2, capped at 2s.
 	retryInitialBackoff = 100 * time.Millisecond
 	retryMaxBackoff     = 2 * time.Second
@@ -40,6 +47,7 @@ const (
 	ErrCodeAllUnhealthy     = "MODEL_ALL_ENDPOINTS_UNHEALTHY"
 	ErrCodeInvalidResponse  = "MODEL_INVALID_RESPONSE"
 	ErrCodeNoFallbackResult = "MODEL_FALLBACK_ERROR"
+	ErrCodeContextOverflow  = "MODEL_CONTEXT_OVERFLOW"
 )
 
 // Config configures a Client.
@@ -57,6 +65,13 @@ type Config struct {
 	// request is attempted at most MaxRetries+1 times. Zero uses
 	// DefaultMaxRetries.
 	MaxRetries int
+	// ContextWindow is the model's total context size in tokens. Zero reads
+	// the MODEL_CONTEXT_WINDOW environment variable, then falls back to
+	// DefaultContextWindow.
+	ContextWindow int
+	// ReservedOutputTokens is the output budget reserved when clamping
+	// MaxTokens against ContextWindow. Zero uses DefaultReservedOutputTokens.
+	ReservedOutputTokens int
 }
 
 func (c Config) withDefaults() Config {
@@ -86,6 +101,19 @@ func (c Config) withDefaults() Config {
 	} else if c.MaxRetries == 0 {
 		c.MaxRetries = DefaultMaxRetries
 	}
+	if c.ContextWindow <= 0 {
+		if env := os.Getenv("MODEL_CONTEXT_WINDOW"); env != "" {
+			if n, err := strconv.Atoi(strings.TrimSpace(env)); err == nil && n > 0 {
+				c.ContextWindow = n
+			}
+		}
+		if c.ContextWindow <= 0 {
+			c.ContextWindow = DefaultContextWindow
+		}
+	}
+	if c.ReservedOutputTokens <= 0 {
+		c.ReservedOutputTokens = DefaultReservedOutputTokens
+	}
 	return c
 }
 
@@ -95,6 +123,8 @@ type metrics struct {
 	results        *prometheus.CounterVec
 	inflight       prometheus.Gauge
 	endpointHealth *prometheus.GaugeVec
+	promptTokens   prometheus.Histogram
+	truncations    prometheus.Counter
 }
 
 func newMetrics(reg prometheus.Registerer) *metrics {
@@ -119,6 +149,15 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 			Name: "modelclient_endpoint_healthy",
 			Help: "Endpoint health status (1 healthy, 0 unhealthy).",
 		}, []string{"endpoint"})).(*prometheus.GaugeVec),
+		promptTokens: observability.SafeRegister(reg, prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "modelclient_prompt_tokens",
+			Help:    "Estimated prompt tokens per chat request after fitting to the context window.",
+			Buckets: prometheus.ExponentialBuckets(64, 4, 6), // 64 .. 65536
+		})).(prometheus.Histogram),
+		truncations: observability.SafeRegister(reg, prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "modelclient_truncations_total",
+			Help: "Total number of prompt messages dropped to fit the context window.",
+		})).(prometheus.Counter),
 	}
 }
 
@@ -199,8 +238,15 @@ func (c *Client) HealthyEndpoints() []string {
 }
 
 // Chat performs a chat completion request with retry, load balancing, and
-// failover. The returned error is an *observability.AppError on failure.
+// failover. Before sending, the request is fitted to the configured context
+// window (prompt truncation and MaxTokens clamping). The returned error is an
+// *observability.AppError on failure.
 func (c *Client) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error) {
+	req, err := c.fitRequest(req)
+	if err != nil {
+		c.metric.results.WithLabelValues("failure").Inc()
+		return ChatResponse{}, err
+	}
 	var lastErr error
 	for attempt := 0; attempt <= c.cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -294,13 +340,13 @@ func (c *Client) doChat(ctx context.Context, endpoint string, req ChatRequest) (
 	case httpResp.StatusCode >= 500:
 		c.metric.latency.WithLabelValues(endpoint, "failure").Observe(elapsed)
 		return ChatResponse{}, true, observability.NewAppError(ErrCodeServerError,
-				fmt.Sprintf("endpoint returned %d", httpResp.StatusCode)).
+			fmt.Sprintf("endpoint returned %d", httpResp.StatusCode)).
 			WithContext("endpoint", endpoint).
 			WithContext("status", fmt.Sprint(httpResp.StatusCode))
 	case httpResp.StatusCode >= 400:
 		c.metric.latency.WithLabelValues(endpoint, "failure").Observe(elapsed)
 		return ChatResponse{}, false, observability.NewAppError(ErrCodeClientError,
-				fmt.Sprintf("endpoint returned %d: %s", httpResp.StatusCode, truncate(respBody, 256))).
+			fmt.Sprintf("endpoint returned %d: %s", httpResp.StatusCode, truncate(respBody, 256))).
 			WithContext("endpoint", endpoint).
 			WithContext("status", fmt.Sprint(httpResp.StatusCode))
 	}

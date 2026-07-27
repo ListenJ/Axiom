@@ -15,11 +15,14 @@ type Node interface{ node() }
 
 // Term matches documents containing a token. Field scopes the match to a
 // named field (empty = title+body); Prefix enables prefix-fuzzy matching
-// ("foo*" matches "foo", "foobar", ...).
+// ("foo*" matches "foo", "foobar", ...). toks caches Tokenize(Value) so
+// repeated evaluation across shards and queries skips re-tokenizing; it is
+// nil for Terms built outside ParseQuery and for prefix terms.
 type Term struct {
 	Field  string
 	Value  string
 	Prefix bool
+	toks   []string
 }
 
 // And matches the intersection of its children.
@@ -150,7 +153,12 @@ func parseTermPiece(piece string) (Node, error) {
 	if strings.ContainsRune(piece, '*') {
 		return nil, parseErr("'*' is only allowed as a suffix", piece)
 	}
-	return Term{Field: field, Value: strings.ToLower(piece), Prefix: prefix}, nil
+	value := strings.ToLower(piece)
+	t := Term{Field: field, Value: value, Prefix: prefix}
+	if !prefix {
+		t.toks = Tokenize(value)
+	}
+	return t, nil
 }
 
 func validFieldName(f string) bool {

@@ -274,6 +274,10 @@ func (e *Engine) ScaleStage(stage Stage, workers int) error {
 	return nil
 }
 
+// Store returns the engine's stage-state participant, so the /tx/* endpoints
+// can join cross-machine 2PC over the cycles this engine actually holds.
+func (e *Engine) Store() *MemoryParticipant { return e.store }
+
 // Stats reports current per-stage worker counts, queue depths and batch
 // sizes, plus the number of in-flight cycles.
 func (e *Engine) Stats() Stats {

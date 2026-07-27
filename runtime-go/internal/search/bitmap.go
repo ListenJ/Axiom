@@ -74,6 +74,12 @@ func (b *bitmap) isZero() bool {
 	return true
 }
 
+// has reports whether bit i is set.
+func (b *bitmap) has(i uint32) bool {
+	w := int(i / 64)
+	return w < len(b.w) && b.w[w]&(1<<(i%64)) != 0
+}
+
 // count returns the number of set bits.
 func (b *bitmap) count() int {
 	n := 0
@@ -83,13 +89,44 @@ func (b *bitmap) count() int {
 	return n
 }
 
-// iter calls f for every set bit, in ascending order.
-func (b *bitmap) iter(f func(uint32)) {
-	for i, w := range b.w {
-		for w != 0 {
-			j := bits.TrailingZeros64(w)
-			f(uint32(i*64 + j))
-			w &= w - 1
-		}
+// bitmapArena hands out bitmaps backed by reusable word slices, so query
+// evaluation does not allocate a fresh backing array for every intermediate
+// result. All bitmaps obtained from an arena become invalid on reset; an
+// arena serves a single goroutine at a time.
+type bitmapArena struct {
+	bufs [][]uint64
+	used int
+}
+
+// reset makes every previously handed-out bitmap available for reuse.
+func (a *bitmapArena) reset() { a.used = 0 }
+
+// words returns a zeroed word slice of length n, reusing arena buffers.
+func (a *bitmapArena) words(n int) []uint64 {
+	if a.used < len(a.bufs) && cap(a.bufs[a.used]) >= n {
+		w := a.bufs[a.used][:n]
+		clear(w)
+		a.used++
+		return w
 	}
+	w := make([]uint64, n)
+	if a.used < len(a.bufs) {
+		a.bufs[a.used] = w
+	} else {
+		a.bufs = append(a.bufs, w)
+	}
+	a.used++
+	return w
+}
+
+// new returns a zeroed bitmap able to hold bits [0, n).
+func (a *bitmapArena) new(n int) *bitmap {
+	return &bitmap{w: a.words((n + 63) / 64)}
+}
+
+// cloneOf returns an arena-owned copy of b.
+func (a *bitmapArena) cloneOf(b *bitmap) *bitmap {
+	w := a.words(len(b.w))
+	copy(w, b.w)
+	return &bitmap{w: w}
 }

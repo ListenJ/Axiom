@@ -3,6 +3,8 @@ package search
 import (
 	"hash/fnv"
 	"maps"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -39,6 +41,20 @@ type posting struct {
 	tf  int32
 }
 
+// lessPosting orders postings by (tf desc, doc asc): the strongest, lowest
+// numbered document first. Top-K relies on this order for early exit.
+func lessPosting(a, b posting) bool {
+	if a.tf != b.tf {
+		return a.tf > b.tf
+	}
+	return a.doc < b.doc
+}
+
+// sortPostings sorts a posting list in place by lessPosting.
+func sortPostings(l []posting) {
+	sort.Slice(l, func(i, j int) bool { return lessPosting(l[i], l[j]) })
+}
+
 // storedDoc is the per-document payload kept for result rendering.
 type storedDoc struct {
 	id    string
@@ -48,11 +64,36 @@ type storedDoc struct {
 // shardIndex is one immutable shard of the inverted index. It is never
 // mutated after construction; updates clone it (see Index.apply).
 type shardIndex struct {
-	terms  map[string][]posting // posting lists sorted by doc number
-	docs   map[uint32]storedDoc // doc number -> stored payload
-	tomb   map[uint32]struct{}  // tombstoned (deleted/superseded) doc numbers
-	maxDoc uint32               // exclusive upper bound of doc numbers
-	alive  *bitmap              // non-tombstoned docs; maintained under COW
+	terms    map[string][]posting // posting lists sorted by doc number
+	termsTF  map[string][]posting // same lists, sorted by (tf desc, doc asc)
+	termKeys []string             // sorted keys of terms, for prefix expansion
+	docs     map[uint32]storedDoc // doc number -> stored payload
+	tomb     map[uint32]struct{}  // tombstoned (deleted/superseded) doc numbers
+	maxDoc   uint32               // exclusive upper bound of doc numbers
+	alive    *bitmap              // non-tombstoned docs; maintained under COW
+}
+
+// prefixPostings returns the posting lists of up to max term keys having
+// prefix pre, in ascending key order. When bare is true, field-scoped keys
+// never match (a bare term only sees the title+body term space). The sorted
+// termKeys slice turns expansion into a binary search plus a short scan
+// instead of a full terms-map walk.
+func (s *shardIndex) prefixPostings(pre string, bare bool, max int) [][]posting {
+	var lists [][]posting
+	for i := sort.SearchStrings(s.termKeys, pre); i < len(s.termKeys); i++ {
+		k := s.termKeys[i]
+		if !strings.HasPrefix(k, pre) {
+			break // sorted: the prefix range is contiguous
+		}
+		if bare && strings.Contains(k, fieldSep) {
+			continue
+		}
+		lists = append(lists, s.terms[k])
+		if len(lists) >= max {
+			break
+		}
+	}
+	return lists
 }
 
 // Index is an immutable snapshot of the whole sharded index.
@@ -96,12 +137,15 @@ type numberedDoc struct {
 
 // buildShard builds one shard from its pre-assigned documents. Because doc
 // numbers are assigned in input order before sharding, posting lists come
-// out sorted by doc number regardless of scheduling.
+// out sorted by doc number regardless of scheduling; termsTF holds a second
+// copy of each list sorted by (tf desc, doc asc) for the single-term Top-K
+// early-exit fast path (see topK).
 func buildShard(nds []numberedDoc) *shardIndex {
 	s := &shardIndex{
-		terms: make(map[string][]posting),
-		docs:  make(map[uint32]storedDoc, len(nds)),
-		tomb:  make(map[uint32]struct{}),
+		terms:   make(map[string][]posting),
+		termsTF: make(map[string][]posting),
+		docs:    make(map[uint32]storedDoc, len(nds)),
+		tomb:    make(map[uint32]struct{}),
 	}
 	for _, nd := range nds {
 		s.docs[nd.num] = storedDoc{id: nd.doc.ID, title: nd.doc.Title}
@@ -112,10 +156,20 @@ func buildShard(nds []numberedDoc) *shardIndex {
 			s.terms[term] = append(s.terms[term], posting{doc: nd.num, tf: tf})
 		}
 	}
+	for term, l := range s.terms {
+		c := slices.Clone(l)
+		sortPostings(c)
+		s.termsTF[term] = c
+	}
 	s.alive = newBitmap(int(s.maxDoc))
 	for num := range s.docs {
 		s.alive.set(num)
 	}
+	s.termKeys = make([]string, 0, len(s.terms))
+	for k := range s.terms {
+		s.termKeys = append(s.termKeys, k)
+	}
+	sort.Strings(s.termKeys)
 	return s
 }
 
@@ -180,11 +234,13 @@ func (idx *Index) apply(upserts []Document, deletes []string, nextNum func() uin
 		if c.shards[sh] == idx.shards[sh] {
 			s := idx.shards[sh]
 			c.shards[sh] = &shardIndex{
-				terms:  maps.Clone(s.terms),
-				docs:   maps.Clone(s.docs),
-				tomb:   maps.Clone(s.tomb),
-				maxDoc: s.maxDoc,
-				alive:  s.alive.clone(),
+				terms:    maps.Clone(s.terms),
+				termsTF:  maps.Clone(s.termsTF),
+				termKeys: slices.Clone(s.termKeys),
+				docs:     maps.Clone(s.docs),
+				tomb:     maps.Clone(s.tomb),
+				maxDoc:   s.maxDoc,
+				alive:    s.alive.clone(),
 			}
 		}
 		return c.shards[sh]
@@ -217,9 +273,23 @@ func (idx *Index) apply(upserts []Document, deletes []string, nextNum func() uin
 		sh.alive.set(num)
 		for term, tf := range docTerms(d) {
 			old := sh.terms[term]
+			if old == nil { // new term key: keep termKeys sorted
+				i := sort.SearchStrings(sh.termKeys, term)
+				sh.termKeys = slices.Insert(sh.termKeys, i, term)
+			}
 			np := make([]posting, len(old), len(old)+1)
 			copy(np, old)
 			sh.terms[term] = append(np, posting{doc: num, tf: tf})
+			// Insert into the tf-ordered copy keeping the (tf desc, doc asc)
+			// order the Top-K fast path relies on.
+			oldTF := sh.termsTF[term]
+			np2 := posting{doc: num, tf: tf}
+			pos := sort.Search(len(oldTF), func(i int) bool { return lessPosting(np2, oldTF[i]) })
+			nl := make([]posting, len(oldTF)+1)
+			copy(nl, oldTF[:pos])
+			nl[pos] = np2
+			copy(nl[pos+1:], oldTF[pos:])
+			sh.termsTF[term] = nl
 		}
 	}
 	c.docs = len(c.ids)

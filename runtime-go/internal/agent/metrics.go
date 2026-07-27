@@ -21,6 +21,8 @@ type Metrics struct {
 	AgentUtilization *prometheus.GaugeVec
 	// Retries counts task-level retry attempts.
 	Retries prometheus.Counter
+	// RemoteRuns counts tasks executed on behalf of peer nodes.
+	RemoteRuns prometheus.Counter
 	// AgentRestarts counts agent-level restarts after failed health checks.
 	AgentRestarts prometheus.Counter
 	// Failovers counts node-level failovers.
@@ -60,6 +62,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	m.Failovers = observability.SafeRegister(reg, prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "agentd_failovers_total",
 		Help: "Total node-level failovers.",
+	})).(prometheus.Counter)
+	m.RemoteRuns = observability.SafeRegister(reg, prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "agentd_remote_runs_total",
+		Help: "Total tasks executed on behalf of peer nodes via /internal/run.",
 	})).(prometheus.Counter)
 	m.ScaleEvents = observability.SafeRegister(reg, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "agentd_scale_events_total",

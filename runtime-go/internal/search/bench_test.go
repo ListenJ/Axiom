@@ -82,6 +82,39 @@ func BenchmarkSearchComplex(b *testing.B) {
 	}
 }
 
+// BenchmarkSearchSimpleParallel measures simple-query throughput under
+// concurrent load (b.RunParallel); QPS = 1e9 / ns-per-op across all P.
+func BenchmarkSearchSimpleParallel(b *testing.B) {
+	e := benchEngine(b)
+	ctx := context.Background()
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if _, err := e.Search(ctx, "w0042", 10); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+// BenchmarkSearchComplexParallel measures complex combined query throughput
+// under concurrent load (b.RunParallel).
+func BenchmarkSearchComplexParallel(b *testing.B) {
+	e := benchEngine(b)
+	ctx := context.Background()
+	const q = "w0042 w1999 OR w0007 -w3000 cat:c3 w05*"
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if _, err := e.Search(ctx, q, 10); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 // TestComplexQueryP95 asserts the p95 latency of a complex combined query
 // over a 100k-document corpus stays below 100ms, and logs the achieved
 // single-goroutine QPS.

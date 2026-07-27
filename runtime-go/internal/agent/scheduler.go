@@ -43,15 +43,20 @@ type AgentInfo struct {
 	PredictedDuration float64 `json:"predicted_duration"`
 	// PredictedMemory is the EMA-predicted task memory in bytes.
 	PredictedMemory float64 `json:"predicted_memory"`
+	// Available reports whether the agent currently receives new tasks.
+	// Agents of an unhealthy remote node are marked unavailable instead of
+	// being removed, so they rejoin the pool when the node recovers.
+	Available bool `json:"available"`
 }
 
 // agentState is the mutable per-agent scheduling record.
 type agentState struct {
-	id      string
-	running int
-	load    float64 // outstanding predicted busy-seconds
-	pred    *Predictor
-	quota   ResourceQuota
+	id        string
+	running   int
+	load      float64 // outstanding predicted busy-seconds
+	pred      *Predictor
+	quota     ResourceQuota
+	available bool
 }
 
 // Scheduler assigns tasks to agents with a least-loaded policy: every task
@@ -89,10 +94,36 @@ func (s *Scheduler) AddAgent(id string, quota ResourceQuota) error {
 		return err
 	}
 	s.mu.Lock()
-	s.agents[id] = &agentState{id: id, pred: NewPredictor(s.alpha), quota: quota}
+	s.agents[id] = &agentState{id: id, pred: NewPredictor(s.alpha), quota: quota, available: true}
 	s.mu.Unlock()
 	s.metrics.observeAgent(id, 0, 0)
 	return nil
+}
+
+// SetAvailable marks an agent as eligible (or not) for new placements
+// without removing it from the pool. Re-enabling an agent drains the
+// pending queue, so recovered agents pick up waiting tasks automatically.
+// Unknown IDs are ignored.
+func (s *Scheduler) SetAvailable(id string, available bool) {
+	s.mu.Lock()
+	a, ok := s.agents[id]
+	if !ok || a.available == available {
+		s.mu.Unlock()
+		return
+	}
+	a.available = available
+	var dispatched []dispatchedTask
+	var hook func(string, Task)
+	if available {
+		dispatched = s.drainLocked()
+		hook = s.OnDispatch
+	}
+	s.mu.Unlock()
+	if hook != nil {
+		for _, d := range dispatched {
+			hook(d.agentID, d.task)
+		}
+	}
 }
 
 // RemoveAgent unregisters an agent and removes its quota. Running tasks of
@@ -119,6 +150,52 @@ func (s *Scheduler) Submit(t Task) (agentID string, queued bool, err error) {
 	s.queue = append(s.queue, t)
 	s.metrics.setQueueLength(len(s.queue))
 	return "", true, nil
+}
+
+// SubmitExcluding places t like Submit but skips agents matching exclude;
+// it backs the /internal/run terminal hop, which must not re-enter remote
+// proxies (that would loop the task back over HTTP).
+func (s *Scheduler) SubmitExcluding(t Task, exclude func(id string) bool) (agentID string, queued bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.agents) == 0 {
+		return "", false, ErrNoAgents
+	}
+	if id, ok := s.placeWhereLocked(t, exclude); ok {
+		return id, false, nil
+	}
+	s.queue = append(s.queue, t)
+	s.metrics.setQueueLength(len(s.queue))
+	return "", true, nil
+}
+
+// OnTaskFailed releases the placement of a task whose execution failed:
+// it frees the accounted resources and drains the queue without folding a
+// bogus duration sample into the agent's predictor.
+func (s *Scheduler) OnTaskFailed(agentID string, t Task) {
+	s.mu.Lock()
+	if a, ok := s.agents[agentID]; ok {
+		if a.running > 0 {
+			a.running--
+		}
+		a.load -= s.predictLocked(a, t)
+		if a.load < 0 {
+			a.load = 0
+		}
+		s.limiter.Release(agentID, ResourceUsage{
+			MemoryBytes: t.Resources.MemoryBytes,
+			CPUCores:    t.Resources.CPUCores,
+		})
+		s.observeAgentLocked(a)
+	}
+	dispatched := s.drainLocked()
+	hook := s.OnDispatch
+	s.mu.Unlock()
+	if hook != nil {
+		for _, d := range dispatched {
+			hook(d.agentID, d.task)
+		}
+	}
 }
 
 // OnTaskCompleted records the completion of t on agentID with its observed
@@ -180,9 +257,18 @@ func (s *Scheduler) Agents() []AgentInfo {
 // are tried in ascending predicted-load order; the first whose limiter
 // accepts the task's resources wins.
 func (s *Scheduler) placeLocked(t Task) (string, bool) {
+	return s.placeWhereLocked(t, nil)
+}
+
+// placeWhereLocked is placeLocked with an optional exclusion predicate:
+// agents for which exclude reports true are skipped. The /internal/run
+// terminal hop uses it to stay on local agents and avoid proxy self-loops.
+func (s *Scheduler) placeWhereLocked(t Task, exclude func(id string) bool) (string, bool) {
 	cands := make([]*agentState, 0, len(s.agents))
 	for _, a := range s.agents {
-		cands = append(cands, a)
+		if a.available && (exclude == nil || !exclude(a.id)) {
+			cands = append(cands, a)
+		}
 	}
 	sort.Slice(cands, func(i, j int) bool {
 		li := cands[i].load + s.predictLocked(cands[i], t)
@@ -247,6 +333,7 @@ func (s *Scheduler) infoLocked(a *agentState) AgentInfo {
 		Utilization:       util,
 		PredictedDuration: a.pred.Duration(),
 		PredictedMemory:   a.pred.Memory(),
+		Available:         a.available,
 	}
 }
 

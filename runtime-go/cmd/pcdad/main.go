@@ -4,11 +4,19 @@
 //
 //	POST /cycles       submit a cycle (JSON: id, priority, payload)
 //	GET  /cycles/{id}  query cycle status
+//	POST /tx/prepare   2PC participant endpoint (body: Transition JSON)
+//	POST /tx/commit    2PC participant endpoint
+//	POST /tx/abort     2PC participant endpoint
 //	GET  /healthz      liveness probe
 //	GET  /metrics      Prometheus metrics
 //
+// The /tx/* endpoints let a Coordinator on another node drive two-phase
+// commits against this process's in-memory participant, enabling real
+// cross-machine 2PC in a two-node deployment.
+//
 // The listen address comes from PCDAD_ADDR (default ":9101"); the
-// snapshot/WAL directory from PCDAD_DATA_DIR (default "./pcda-data").
+// snapshot/WAL directory from PCDAD_DATA_DIR (default "./pcda-data");
+// PCDAD_NODE_ID optionally tags log lines with a node identifier.
 // On SIGINT/SIGTERM the daemon shuts down gracefully, writing a final
 // snapshot before exit.
 package main
@@ -59,6 +67,10 @@ func main() {
 	if dataDir == "" {
 		dataDir = "./pcda-data"
 	}
+	nodeID := os.Getenv("PCDAD_NODE_ID")
+	if nodeID == "" {
+		nodeID = "node-1"
+	}
 
 	engine := pcda.NewEngine(pcda.Config{
 		DataDir:           dataDir,
@@ -72,10 +84,14 @@ func main() {
 	}
 
 	s := &server{engine: engine}
+	tx := pcda.NewTxHandler(engine.Store())
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /cycles", s.handleSubmit)
 	mux.HandleFunc("GET /cycles/{id}", s.handleGet)
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.Handle("POST /tx/prepare", tx)
+	mux.Handle("POST /tx/commit", tx)
+	mux.Handle("POST /tx/abort", tx)
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	httpSrv := &http.Server{
@@ -88,7 +104,7 @@ func main() {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Printf("pcdad: listening on %s, data dir %s", addr, dataDir)
+		log.Printf("pcdad[%s]: listening on %s, data dir %s", nodeID, addr, dataDir)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("pcdad: serve: %v", err)
 		}

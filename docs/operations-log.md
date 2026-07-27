@@ -1897,3 +1897,28 @@
   - 模型适配层对真实 192.168.0.150:9001（Qwopus3.5-4B）go run 探针：Chat 成功、usage 解析正确（该模型为 reasoning 模型，content 空系 max_tokens 被推理耗尽，已在 README 注明）。
   - astopt 自扫 31 条命中逐条 bench 取证：无安全且有收益的修复项，未硬改（结果已写入 README）。
 - **Commit**：`d0afbf4`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-28 01:50 +0800 — runtime-go 真分布式双机部署 + 2核/集群 QPS 极限优化与联合压测
+
+- **任务**：用户要求用 192.168.0.150 + 192.168.0.22 联合测试、实现真分布式设计，单机 2 核 2.5GHz 目标 10K QPS、分布式目标 100K QPS，模型 64K token 上下文。192.168.0.11 不可达，经用户确认以 192.168.0.22 替代。
+- **工具**：Agent(coder)×4（modelclient 64K、distrib 原语、searchd 集群化、agentd/pcdad 远程化，并行两轮）、Read、Grep、Edit、Write、Bash（go build/vet/test -race/bench、pprof 生产 profile、交叉编译、scp/ssh 部署、loadgen 压测、git worktree A/B 对比）。
+- **执行的操作**（文件级）：
+  1. `runtime-go/internal/modelclient/`（client.go/types.go + budget.go 新增）：ContextWindow 默认 65536（MODEL_CONTEXT_WINDOW 可覆盖）、EstimateTokens、max_tokens 钳制、prompt 截断、reasoning_content 回退。
+  2. `runtime-go/internal/distrib/`（新增）：Node/Registry 心跳健康、DoJSON/DefaultClient RPC、Metrics。
+  3. `runtime-go/internal/search/`：cluster.go 集群化（32 分片取模映射、/internal/query|docs、partial 降级）；eval.go/index.go/topk.go 查询路径优化（posting 双序存储 doc 序+tf 序、单叶 tf 序早退、多叶 merge-join、高选择性候选二分打分、宽前缀(>16 lists) board 扫描、fillZeroScore 提取）；httpapi.go 手写 JSON（去反射，sync.Pool 缓冲）+ pprof 端点；cluster_test.go searchResponse 移入测试。
+  4. `runtime-go/internal/agent/`：RemoteAgent（/internal/run）、Scheduler.OnTaskFailed（修 running 泄漏）、failover 经 SubmitExcluding 只落本地（修 HTTP 自环风暴 85278）；loop_regression_test.go 等回归测试。
+  5. `runtime-go/internal/pcda/`：/tx/prepare|commit|abort 跨机 2PC（engine.Store() 导出接线）。
+  6. `runtime-go/internal/distrib/rpc.go`：MaxIdleConnsPerHost 16→256、响应体 drain 后复用（消除高扇出下每 RPC 新建连接，connect 系统调用占比 4.6%→0）。
+  7. `runtime-go/cmd/loadgen/main.go`：-qps 0 闭环模式（Windows 定时器粒度 ~1ms 限制定速模式至 ~1-2k QPS）、-mix simple|mixed、语料 5228 词。
+  8. `scripts/runtime-go/deploy.sh`：GP_N1/GP_N2/GOGC 参数化（默认 GOMAXPROCS=2、GOGC=800），幂等维护 n1→n2 SSH 反向隧道（19101-19103/16379）。
+  9. `runtime-go/README.md`：补分布式拓扑/部署/压测方法/实测数据/瓶颈分析/修复记录。
+- **验证**：
+  - `go build ./...` / `go vet` / `go test -race -count=1` 全绿；git worktree A/B 证实本轮改动对 HEAD 无回归（HEAD 基线 simple 527µs vs 现 20µs）。
+  - 生产 pprof 取证迭代三轮：scoreBoard.add 29.75%→消除（merge-join/早退）、connect 4.6%→消除（连接池）、GC ~20%→缓解（GOGC=800）。
+  - 端到端实测（HTTP，10 万文档，错误率 0%）：单机 2 核 Ryzen simple **17,145 QPS**（10K 目标达成）、mixed 6,847（p95 68ms<100ms）；单机 2 核 E5-2450 simple 7,625；双机集群 28 核双入口 simple **41,600 QPS**、mixed 22,500（100K 未达成，瓶颈在 HTTP/TCP 内核路径与每查询全分片扇出，README 有完整分析）。
+  - 集群行为：100k 文档双节点精确 50k/50k；跨节点归并一致；杀 n1→partial 降级；agentd failover 无风暴无泄漏；跨机 2PC commit/abort 探针验证。
+  - 模型 64K：对生产端点 192.168.0.150:9001 以 max_tokens=4096 实测，content 与 reasoning_content 正常返回。
+- **备份**：改动文件均先备份 `.tmp/backups/runtime-go/`（验证通过后已删除）。
+- **Commit**：待补录。

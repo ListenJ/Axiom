@@ -1,7 +1,5 @@
 package search
 
-import "strings"
-
 // DocFreq implements Stats for the cost-based optimizer: it estimates how
 // many documents a term condition matches by summing posting-list lengths
 // across shards. Prefix terms sum all matching expansions; multi-token
@@ -14,13 +12,7 @@ func (idx *Index) DocFreq(field, value string, prefix bool) int {
 			pre = fieldKey(field, value)
 		}
 		for _, sh := range idx.shards {
-			for k, p := range sh.terms {
-				if !strings.HasPrefix(k, pre) {
-					continue
-				}
-				if field == "" && strings.Contains(k, fieldSep) {
-					continue
-				}
+			for _, p := range sh.prefixPostings(pre, field == "", maxPrefixTerms) {
 				total += len(p)
 			}
 		}

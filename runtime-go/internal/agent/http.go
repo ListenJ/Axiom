@@ -16,8 +16,9 @@ import (
 //	GET  /task-defs/{name}/versions     list the full version history
 //	POST /task-defs/{name}/rollback     roll back to a historical version
 //	POST /tasks                         submit a task instance
+//	POST /internal/run                  execute a task posted by a peer node
 //	GET  /agents                        list agent scheduling state
-//	GET  /cluster                       cluster status snapshot
+//	GET  /cluster                       cluster status snapshot (with node health in multi-node mode)
 //	GET  /healthz                       liveness probe
 //	GET  /metrics                       Prometheus metrics
 func NewHandler(c *Cluster) http.Handler {
@@ -28,6 +29,7 @@ func NewHandler(c *Cluster) http.Handler {
 	mux.HandleFunc("GET /task-defs/{name}/versions", c.handleTaskDefVersions)
 	mux.HandleFunc("POST /task-defs/{name}/rollback", c.handleRollbackTaskDef)
 	mux.HandleFunc("POST /tasks", c.handleSubmitTask)
+	mux.HandleFunc("POST /internal/run", c.handleInternalRun)
 	mux.HandleFunc("GET /agents", c.handleAgents)
 	mux.HandleFunc("GET /cluster", c.handleCluster)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -110,6 +112,29 @@ func (c *Cluster) handleSubmitTask(w http.ResponseWriter, r *http.Request) {
 		"queued": queued,
 		"result": res,
 	})
+}
+
+// handleInternalRun executes a task posted by a peer node's RemoteAgent
+// through the local scheduling and execution path. When no local agent has
+// capacity it answers 503 so the peer's retry layer can try again later.
+func (c *Cluster) handleInternalRun(w http.ResponseWriter, r *http.Request) {
+	var t Task
+	if !decodeJSON(w, r, &t) {
+		return
+	}
+	res, queued, err := c.RunTask(r.Context(), t)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if queued {
+		http.Error(w, "no local agent capacity", http.StatusServiceUnavailable)
+		return
+	}
+	if c.Metrics != nil {
+		c.Metrics.RemoteRuns.Inc()
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (c *Cluster) handleAgents(w http.ResponseWriter, _ *http.Request) {

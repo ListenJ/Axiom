@@ -19,13 +19,14 @@ import (
 // deadlock-free under nested or saturated submission.
 type workerPool struct {
 	tasks chan func()
+	n     int
 }
 
 func newWorkerPool(n int) *workerPool {
 	if n < 1 {
 		n = 1
 	}
-	p := &workerPool{tasks: make(chan func(), n*8)}
+	p := &workerPool{tasks: make(chan func(), n*8), n: n}
 	for i := 0; i < n; i++ {
 		go func() {
 			for f := range p.tasks {
@@ -45,6 +46,33 @@ func (p *workerPool) run(f func()) {
 	}
 }
 
+// scratch bundles the per-query buffers a shard evaluation reuses: the
+// scoring board, the bitmap arena for intermediate results and the leaf
+// posting-list collector. Keeping them in an engine-owned channel (instead
+// of sync.Pool) survives GC cycles, so steady-state queries allocate almost
+// nothing. A scratch serves one goroutine at a time.
+type scratch struct {
+	board  scoreBoard
+	arena  bitmapArena
+	leaves []leaf
+}
+
+func (e *Engine) getScratch() *scratch {
+	select {
+	case sc := <-e.scratchCh:
+		return sc
+	default:
+		return &scratch{}
+	}
+}
+
+func (e *Engine) putScratch(sc *scratch) {
+	select {
+	case e.scratchCh <- sc:
+	default:
+	}
+}
+
 // Engine is the concurrent search engine: an immutable index snapshot held
 // in an atomic.Pointer (lock-free reads, copy-on-write updates), an
 // optional distributed lock serializing updates, a worker pool fanning
@@ -57,11 +85,58 @@ type Engine struct {
 	m    *Metrics
 	reg  engineRegistry
 
+	// cluster is non-nil in cluster mode (see WithCluster); updateMu
+	// serializes local copy-on-write swaps so HTTP-routed and
+	// cluster-routed updates cannot interleave a read-modify-write.
+	cluster  *clusterState
+	updateMu sync.Mutex
+
+	// scratchCh recycles per-query scratch buffers (see scratch).
+	scratchCh chan *scratch
+
 	queries     atomic.Uint64
 	latencyNs   atomic.Uint64
 	swaps       atomic.Uint64
 	active      atomic.Int64
 	lastBuildNs atomic.Int64
+
+	// qcache maps query strings to their parsed and optimized condition
+	// trees, so repeated queries skip parsing and cost estimation. Cached
+	// trees are immutable after Optimize; optimization only affects
+	// evaluation order, never results, so entries stay valid across index
+	// swaps. qcacheMu guards the map.
+	qcacheMu sync.Mutex
+	qcache   map[string]Node
+}
+
+// maxQueryCache bounds the compiled-query cache; when full it is cleared
+// wholesale (cache misses just re-parse).
+const maxQueryCache = 1024
+
+// compiledNode returns the parsed and optimized condition tree for query,
+// consulting the cache first. Parse errors are not cached.
+func (e *Engine) compiledNode(query string, idx *Index) (Node, error) {
+	e.qcacheMu.Lock()
+	n, ok := e.qcache[query]
+	e.qcacheMu.Unlock()
+	if ok {
+		return n, nil
+	}
+	node, err := ParseQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	node = Optimize(node, idx)
+	e.qcacheMu.Lock()
+	if e.qcache == nil {
+		e.qcache = make(map[string]Node)
+	}
+	if len(e.qcache) >= maxQueryCache {
+		clear(e.qcache)
+	}
+	e.qcache[query] = node
+	e.qcacheMu.Unlock()
+	return node, nil
 }
 
 // engineRegistry bundles the registerer used for metrics with the gatherer
@@ -101,7 +176,8 @@ func WithWorkers(n int) Option {
 }
 
 // NewEngine creates an empty engine with numShards shards. reg may be nil,
-// in which case the Prometheus default registerer/gatherer is used.
+// in which case the Prometheus default registerer/gatherer is used. In
+// cluster mode (WithCluster) the cluster's global shard count wins.
 func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine {
 	if numShards < 1 {
 		numShards = 1
@@ -113,20 +189,25 @@ func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine
 	if e.pool == nil {
 		e.pool = newWorkerPool(runtime.NumCPU())
 	}
+	if e.cluster != nil {
+		numShards = e.cluster.numShards
+	}
 	e.reg = normalizeRegistry(reg)
 	e.m = newMetrics(e.reg.reg, "searchd")
+	e.scratchCh = make(chan *scratch, e.pool.n+8)
 	e.idx.Store(BuildIndex(nil, numShards, 1))
 	return e
 }
 
 // Build replaces the index with one built from docs in parallel. It is the
-// bulk-load path; incremental changes go through Update.
+// bulk-load path; incremental changes go through Update. In cluster mode
+// only documents owned by the local node are indexed.
 func (e *Engine) Build(ctx context.Context, docs []Document) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	start := time.Now()
-	idx := BuildIndex(docs, len(e.idx.Load().shards), runtime.NumCPU())
+	idx := BuildIndex(e.filterOwned(docs), len(e.idx.Load().shards), runtime.NumCPU())
 	var max uint32
 	for _, n := range idx.ids {
 		if n >= max {
@@ -158,16 +239,40 @@ func (e *Engine) Update(ctx context.Context, upserts []Document, deletes []strin
 		}
 		defer func() { _ = unlock(context.Background()) }()
 	}
-	next := func() uint32 { return e.num.Add(1) - 1 }
-	e.idx.Store(e.idx.Load().apply(upserts, deletes, next))
-	e.swaps.Add(1)
-	e.m.observeSwap()
+	if e.cluster != nil {
+		return e.clusterUpdate(ctx, upserts, deletes)
+	}
+	e.applyLocal(upserts, deletes)
 	return nil
+}
+
+// filterOwned drops documents whose shard belongs to a remote node. In
+// single-node mode it returns docs unchanged.
+func (e *Engine) filterOwned(docs []Document) []Document {
+	if e.cluster == nil {
+		return docs
+	}
+	n := e.numShards()
+	out := make([]Document, 0, len(docs))
+	for _, d := range docs {
+		if e.cluster.owns(shardOfID(d.ID, n)) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // Search parses, optimizes and executes query, returning up to limit hits
 // ordered by descending score (ties broken by ID).
 func (e *Engine) Search(ctx context.Context, query string, limit int) ([]Hit, error) {
+	hits, _, err := e.SearchDetailed(ctx, query, limit)
+	return hits, err
+}
+
+// SearchDetailed is Search plus a partial flag: in cluster mode partial is
+// true when some shards could not be queried (unhealthy peer or failed RPC)
+// and the result is degraded. In single-node mode partial is always false.
+func (e *Engine) SearchDetailed(ctx context.Context, query string, limit int) ([]Hit, bool, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -180,12 +285,16 @@ func (e *Engine) Search(ctx context.Context, query string, limit int) ([]Hit, er
 	}()
 
 	var hits []Hit
+	var partial bool
 	errCode := ""
-	node, err := ParseQuery(query)
+	idx := e.idx.Load()
+	node, err := e.compiledNode(query, idx)
 	if err == nil {
-		idx := e.idx.Load()
-		node = Optimize(node, idx)
-		hits, err = e.searchShards(ctx, idx, node, limit)
+		if e.cluster != nil {
+			hits, partial, err = e.clusterSearch(ctx, idx, node, query, limit)
+		} else {
+			hits, err = e.searchShards(ctx, idx, node, allShardIDs(len(idx.shards)), limit)
+		}
 	}
 	if err != nil {
 		errCode = "SEARCH_ERROR"
@@ -198,37 +307,58 @@ func (e *Engine) Search(ctx context.Context, query string, limit int) ([]Hit, er
 	e.m.ObserveRequest(dur.Seconds(), errCode)
 	e.queries.Add(1)
 	e.latencyNs.Add(uint64(dur))
-	return hits, err
+	return hits, partial, err
 }
 
-// searchShards fans the query out to all shards on the worker pool and
-// merges the per-shard Top-K heaps into a global Top-K.
-func (e *Engine) searchShards(ctx context.Context, idx *Index, node Node, limit int) ([]Hit, error) {
+// allShardIDs returns [0, n) — the full local shard list of a single-node
+// engine.
+func allShardIDs(n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
+
+// searchShards fans the query out to the given local shards on the worker
+// pool and merges the per-shard Top-K heaps into a global Top-K. Shards are
+// processed in GOMAXPROCS-sized batches so dispatch overhead stays
+// proportional to available parallelism rather than shard count.
+func (e *Engine) searchShards(ctx context.Context, idx *Index, node Node, shards []int, limit int) ([]Hit, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	n := len(idx.shards)
-	tops := make([][]scoredDoc, n)
+	tops := make([][]scoredDoc, len(shards))
+	groups := min(len(shards), runtime.GOMAXPROCS(0))
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		sh := idx.shards[i]
+	for g := 0; g < groups; g++ {
+		lo := g * len(shards) / groups
+		hi := (g + 1) * len(shards) / groups
 		wg.Add(1)
 		e.pool.run(func() {
 			defer wg.Done()
-			var leaves [][]posting
-			alive := sh.aliveMask()
-			res := sh.eval(node, alive, false, &leaves)
-			res.and(alive)
-			tops[i] = sh.topK(res, leaves, limit)
+			sc := e.getScratch()
+			defer e.putScratch(sc)
+			for i := lo; i < hi; i++ {
+				sh := idx.shards[shards[i]]
+				sc.arena.reset()
+				sc.leaves = sc.leaves[:0]
+				alive := sh.aliveMask()
+				res := sh.eval(node, alive, false, &sc.leaves, &sc.arena)
+				if len(sh.tomb) > 0 {
+					res.and(alive)
+				}
+				tops[i] = sh.topK(res, sc.leaves, limit, &sc.board)
+			}
 		})
 	}
 	wg.Wait()
 
-	h := docHeap{}
+	h := make([]scoredDoc, 0, min(limit, 64))
 	for i, ts := range tops {
 		for _, sd := range ts {
-			sd.shard = i
-			pushTopK(&h, sd, limit)
+			sd.shard = shards[i]
+			offerTopK(&h, sd, limit)
 		}
 	}
 	hits := make([]Hit, 0, len(h))

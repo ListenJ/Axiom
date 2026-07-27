@@ -15,6 +15,9 @@ import "context"
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// ReasoningContent carries the reasoning trace of reasoning models
+	// (e.g. Qwopus) that emit it in a separate field before the final answer.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 // ChatRequest is an OpenAI /v1/chat/completions request. Only commonly used
@@ -53,11 +56,17 @@ type ChatResponse struct {
 }
 
 // Content returns the content of the first choice, or "" if there is none.
+// Fallback semantics: reasoning models may exhaust their token budget during
+// reasoning (finish_reason=length) and leave content empty; in that case the
+// reasoning_content of the first choice is returned instead of "".
 func (r ChatResponse) Content() string {
 	if len(r.Choices) == 0 {
 		return ""
 	}
-	return r.Choices[0].Message.Content
+	if c := r.Choices[0].Message.Content; c != "" {
+		return c
+	}
+	return r.Choices[0].Message.ReasoningContent
 }
 
 // FallbackFunc handles a request when no endpoint is available.

@@ -19,6 +19,10 @@ type Metrics struct {
 	lockWaitSeconds prometheus.Histogram
 	lockErrors      prometheus.Counter
 	activeQueries   prometheus.Gauge
+
+	partialQueries     prometheus.Counter
+	remoteFanout       *prometheus.CounterVec
+	remoteFanoutErrors *prometheus.CounterVec
 }
 
 // newMetrics registers all collectors on reg, tolerating duplicate
@@ -48,6 +52,18 @@ func newMetrics(reg prometheus.Registerer, module string) *Metrics {
 		Name: prefix + "active_queries",
 		Help: "Number of queries currently executing.",
 	})).(prometheus.Gauge)
+	m.partialQueries = observability.SafeRegister(reg, prometheus.NewCounter(prometheus.CounterOpts{
+		Name: prefix + "partial_queries_total",
+		Help: "Number of cluster queries answered with degraded (partial) results.",
+	})).(prometheus.Counter)
+	m.remoteFanout = observability.SafeRegister(reg, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: prefix + "remote_fanout_total",
+		Help: "Number of RPC fan-outs to peer nodes, labeled by node ID.",
+	}, []string{"node"})).(*prometheus.CounterVec)
+	m.remoteFanoutErrors = observability.SafeRegister(reg, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: prefix + "remote_fanout_errors_total",
+		Help: "Number of failed RPC fan-outs to peer nodes, labeled by node ID.",
+	}, []string{"node"})).(*prometheus.CounterVec)
 	return m
 }
 
@@ -57,3 +73,8 @@ func (m *Metrics) observeLockWait(seconds float64) { m.lockWaitSeconds.Observe(s
 func (m *Metrics) observeLockError()               { m.lockErrors.Inc() }
 func (m *Metrics) activeInc()                      { m.activeQueries.Inc() }
 func (m *Metrics) activeDec()                      { m.activeQueries.Dec() }
+func (m *Metrics) incPartialQueries()              { m.partialQueries.Inc() }
+func (m *Metrics) incRemoteFanout(node string)     { m.remoteFanout.WithLabelValues(node).Inc() }
+func (m *Metrics) incRemoteFanoutError(node string) {
+	m.remoteFanoutErrors.WithLabelValues(node).Inc()
+}

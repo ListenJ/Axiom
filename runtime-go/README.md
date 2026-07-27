@@ -73,12 +73,56 @@ go run ./cmd/searchd   # SEARCHD_ADDR（默认 :9103）、SEARCHD_REDIS_ADDR（�
 | agent | 调度吞吐 | ≈53 万–73 万 tasks/sec（1.4–1.9µs/op，3 allocs/op） |
 | agent | 负载均衡度（8 代理 × 800 任务仿真） | (max−min)/avg = 0.82%，远低于 10% 阈值 |
 | search | 索引构建（10k/20k/40k 文档） | 37.9ms / 68.3ms / 127.3ms ≈ 26–31 万 docs/sec，随数据量近似线性 |
-| search | 简单查询 | 330µs/op（≈3000 QPS 单 goroutine；并发查询经 worker pool 扇出线性提升） |
-| search | 复杂组合查询（AND+OR+NOT+字段+前缀，10 万文档） | p95 实测 16.3ms，远低于 100ms 目标 |
+| search | 简单查询（10 万文档） | 20.8µs/op 单 goroutine、11.2µs/op 并发（GOMAXPROCS=2，≈8.9 万 QPS/双核） |
+| search | 复杂组合查询（AND+OR+NOT+字段+前缀，10 万文档） | 528µs/op 单 goroutine、474µs/op 并发；p95 远低于 100ms 目标 |
 | search | COW 更新可见延迟 | µs 级（<1s 目标） |
 | dagfs | 文件预取 | ≈16,700 files/sec |
 
-说明：100k QPS 为分布式部署的设计容量目标（各模块均支持水平扩展：pcda 阶段独立扩缩、agent 多节点、search 分片+只读副本）；上表为本机单进程实测。崩溃恢复语义为 at-least-once（WAL 重放），阶段 handler 需幂等。
+说明：上表为本机单进程 in-process 实测。崩溃恢复语义为 at-least-once（WAL 重放），阶段 handler 需幂等。端到端（HTTP）实测见下文「分布式部署与联合压测」。
+
+## 分布式部署与联合压测（192.168.0.150 + 192.168.0.22）
+
+### 拓扑
+
+- **n1** `listen@192.168.0.150`（AMD Ryzen 5 5600H，12 核）：searchd/agentd/pcdad（:9103/:9102/:9101）、redis:7（docker，:6379）、模型服务（:9001）。
+- **n2** `data@192.168.0.22`（Intel Xeon E5-2450 @ 2.10GHz，16 核，2012 年 Sandy Bridge，无 AES-NI）：searchd/agentd/pcdad（同端口）。
+- n1 入站有防火墙白名单（仅 22/3000/9001 等开放，无 sudo），因此 **n2 → n1 走 SSH 反向隧道**：n1 上常驻 `ssh -f -N -R 19101..19103:127.0.0.1:9101..9103 -R 16379:127.0.0.1:6379 data@192.168.0.22`，n2 侧以对等端 `127.0.0.1:191xx` 访问 n1（n1 → n2 直连）。各节点只拨对端地址，分片归属只依赖排序后的节点 ID。
+- searchd 集群：32 分片按节点取模静态映射（各持 16 分片）；任意节点都是入口，本地分片本地查、对端分片经 `POST /internal/query` 扇出后归并；对端不可达时降级为 partial（`partial:true`，指标 `searchd_partial_queries_total`）；写入经 `POST /internal/docs` 按分片路由，协调节点持分布式锁（`SEARCHD_REDIS_ADDR`）。
+- agentd 集群：任务按最小负载路由到主节点，主节点不可达时 failover 到本地执行（指标 `agentd_failovers_total`、`agentd_remote_runs_total`）；pcdad 暴露 `/tx/prepare|commit|abort` 支撑跨机 2PC。
+
+### 部署
+
+```bash
+bash scripts/runtime-go/deploy.sh build      # 交叉编译 + 分发 + 起两个节点（默认 GOMAXPROCS=2）
+GP_N1=12 GP_N2=16 bash scripts/runtime-go/deploy.sh   # 全核压测模式；GOGC=800 默认，可用 GOGC 覆盖
+```
+
+脚本幂等维护反向隧道并校验隧道端口；linux 二进制输出在 `scripts/runtime-go/bin/`（不入库）。
+
+### 压测方法
+
+`loadgen`（seed/search 两种模式；`-qps 0` 为闭环全速模式——默认 ticker 定速受 OS 定时器粒度限制，Windows 仅 ~1-2k QPS）。100k 文档灌入集群约 24-52s，双节点精确各持 50k。
+
+### 端到端实测（HTTP，10 万文档，错误率 0%）
+
+| 场景 | 负载 | 实测 QPS | 延迟 |
+|---|---|---|---|
+| 单机 2 核（Ryzen 5600H，参考“2 核 2.5GHz”） | simple（单词） | **17,100** | p50 14.9ms / p95 25.9ms |
+| 单机 2 核（Ryzen 5600H） | mixed（AND/OR/NOT/字段/前缀/CJK） | 6,850 | p50 37ms / p95 68ms |
+| 单机 2 核（E5-2450 老核） | simple / mixed | 7,600 / 2,800 | p95 25ms / 82ms |
+| 双机集群 28 核（双入口并行） | simple | **41,600** | p95 42-49ms |
+| 双机集群 28 核（双入口并行） | mixed | 22,500 | p95 82-107ms |
+
+**单机 2 核 10K QPS 目标：达成**（参考级 2.5GHz 现代核 17.1k；2012 年 E5 老核 7.6k）。
+**分布式 100K QPS 目标：未达成（41.6k）**。瓶颈分析（pprof 取证）：查询计算本身已优化到占比 <6%（单叶 tf 有序早退、多叶 merge-join、高选择性二分打分、宽前缀 board 扫描），当前 90%+ 开销在 HTTP/TCP 内核路径（syscall write/read/connect、软中断 sy 25-30%）与每查询跨节点 JSON RPC 扇出；doc 分片语义决定每次查询必须扇出全部 32 分片。达到 100k 需要：全现代核机型（每核 ~2-3× E5）、RPC 改二进制编码或分片本地化路由、更多节点——本架构均支持水平扩展，加节点即可线性逼近。
+
+### 本轮性能优化与修复记录
+
+- search 查询路径：posting list 双序存储（doc 序 + tf 序），单叶查询 tf 序早退（精确无损）；多叶 merge-join 取代 scoreBoard 全量扫描；高选择性候选二分打分；/search 与 /internal/query 响应手写 JSON（去反射）；简单查询 in-process 49µs→11µs（4.5×），复杂 554µs→360µs。
+- RPC 连接池：`distrib.DefaultClient` 空闲连接 16→256/主机、响应体显式 drain 后复用（高扇出下每 RPC 不再新建连接，connect 系统调用占比 4.6%→消除）。
+- loadgen：`-qps 0` 闭环模式（绕过 OS 定时器粒度上限）；`-mix simple|mixed`；语料 5228 词。
+- agentd 回归修复（均有回归测试 `internal/agent/loop_regression_test.go`）：① failover 重定向经 SubmitExcluding 只落本地代理，消除 HTTP 自环风暴；② 新增 `Scheduler.OnTaskFailed`，执行失败正确释放配额，消除 running 泄漏。
+- modelclient 64K 上下文：`ContextWindow` 默认 65536（`MODEL_CONTEXT_WINDOW` 可覆盖），`max_tokens` 钳制、prompt 截断、`reasoning_content` 回退；已对生产端点（192.168.0.150:9001，Qwopus3.5-4B）以 max_tokens=4096 实测，content/reasoning_content 正常返回。
 
 ## AST 静态分析自体检结果
 
