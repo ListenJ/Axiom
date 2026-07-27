@@ -45,11 +45,11 @@ func (Not) node()  {}
 //
 //	or    := and ( "OR" and )*
 //	and   := unary+              // juxtaposition means AND
-//	unary := "-" unary | term
+//	unary := "-" unary | "NOT" unary | term
 //	term  := [field ":"] value ["*"]
 //
-// "OR" is only an operator in upper case; lowercase "or" is an ordinary
-// term. A trailing "*" marks a prefix-fuzzy term.
+// "OR" and "NOT" are operators only in upper case; lowercase variants are
+// ordinary terms. A trailing "*" marks a prefix-fuzzy term.
 func ParseQuery(q string) (Node, error) {
 	pieces := strings.Fields(q)
 	if len(pieces) == 0 {
@@ -111,6 +111,18 @@ func (p *parser) parseAnd() (Node, error) {
 
 func (p *parser) parseUnary() (Node, error) {
 	piece := p.pieces[p.pos]
+	// "NOT" keyword (uppercase only) is an alias for "-" prefix negation.
+	if piece == "NOT" {
+		p.pos++
+		if p.pos >= len(p.pieces) || p.pieces[p.pos] == "OR" {
+			return nil, parseErr("dangling NOT operator", "NOT")
+		}
+		n, err := p.parseUnary()
+		if err != nil {
+			return nil, err
+		}
+		return Not{Child: n}, nil
+	}
 	if strings.HasPrefix(piece, "-") {
 		p.pos++
 		if rest := piece[1:]; rest != "" {

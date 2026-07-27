@@ -1871,7 +1871,28 @@
   - `bun test tests/consciousness.test.ts` → 18 pass / 0 fail；curator 日志 `errors:[]` 保持干净。
   - `bun test`（全量）→ 2053 pass / 107 fail（与原始 baseline 一致，无回归）。
 - **备份**：`shims.ts` + `consciousness.test.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：`46aa5d8`（待推送 `internal211/main`）。
+- **Commit**：`46aa5d8`（已推送 `internal211/main`，见下 00193f9 补录）。
+
+---
+
+## 2026-07-28 03:15 +0800 — searchd 查询语法支持 NOT 关键字
+
+- **任务**：用户反馈查询语法只支持 `-` 前缀否定，不支持 `NOT` 关键字（`NOT 内存` 被当作普通 term 返回空结果）。需实现最小修改让大写 `NOT` 映射到 `-` 的否定语义。
+- **根因**：`query.go:48` 语法定义 `unary := "-" unary | term`，`parseUnary` 函数只检查 `strings.HasPrefix(piece, "-")`，不识别 `NOT` 关键字。大写 `NOT` 被当作普通 term 查询，导致 AND 语义而非否定语义。
+- **工具**：Read、Edit、RunCommand（`go test -race -count=1` + `go vet`）、Copy-Item/Remove-Item。
+- **执行的操作**：
+  1. `runtime-go/internal/search/query.go:48`：语法注释更新为 `unary := "-" unary | "NOT" unary | term`，文档说明 `"OR" 和 "NOT" 仅大写为操作符`。
+  2. `runtime-go/internal/search/query.go:112-125`：`parseUnary` 函数开头添加 `NOT` 关键字处理——当 piece == "NOT" 时消费该 token，递归解析下一个 unary，返回 `Not{Child: n}`。处理 dangling NOT（`NOT` 在末尾或 `OR` 前）返回错误。
+  3. `runtime-go/internal/search/query_test.go:67-98`：新增 3 个测试用例：
+     - `TestQueryNOTKeyword`：验证 `alpha NOT beta` 等价于 `alpha -beta`
+     - `TestQueryNOTKeywordOnly`：验证 `NOT alpha` 等价于 `-alpha`
+     - `TestQueryNOTKeywordDangling`：验证 `alpha NOT` 末尾 dangling 返回错误
+- **验证**：
+  - `go vet ./internal/search/` → ExitCode=0。
+  - `go test -race -count=1 -v -run "TestQueryNOT" ./internal/search/` → 5 pass / 0 fail（含 3 个新测试）。
+  - `go test -race -count=1 ./internal/search/` → 全部通过（9.331s），无回归。
+- **备份**：`query.go` + `query_test.go` 备份到 `.tmp/backups/runtime-go/internal/search/`（验证通过后已删除）。
+- **Commit**：（待提交）。
 
 
 ---

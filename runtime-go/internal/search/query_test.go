@@ -64,6 +64,39 @@ func TestQueryNOTOnly(t *testing.T) {
 	}
 }
 
+func TestQueryNOTKeyword(t *testing.T) {
+	e := queryTestEngine(t)
+	// "NOT beta" should be equivalent to "-beta"
+	got := hitIDs(mustSearch(t, e, "alpha NOT beta", 10))
+	want := hitIDs(mustSearch(t, e, "alpha -beta", 10))
+	if len(got) != len(want) {
+		t.Fatalf("NOT keyword: got %v, want %v (equivalent to -beta)", got, want)
+	}
+	for id := range want {
+		if !got[id] {
+			t.Fatalf("NOT keyword: missing %s in %v", id, got)
+		}
+	}
+}
+
+func TestQueryNOTKeywordOnly(t *testing.T) {
+	e := queryTestEngine(t)
+	// "NOT alpha" should be equivalent to "-alpha"
+	got := hitIDs(mustSearch(t, e, "NOT alpha", 10))
+	if got["d1"] || got["d2"] {
+		t.Fatalf("NOT-only keyword query returned excluded docs: %v", got)
+	}
+}
+
+func TestQueryNOTKeywordDangling(t *testing.T) {
+	e := queryTestEngine(t)
+	// Trailing "NOT" with no following term should error
+	_, err := e.Search(context.Background(), "alpha NOT", 10)
+	if err == nil {
+		t.Fatal("dangling NOT should return error")
+	}
+}
+
 func TestQueryField(t *testing.T) {
 	e := queryTestEngine(t)
 	got := hitIDs(mustSearch(t, e, "lang:go", 10))
