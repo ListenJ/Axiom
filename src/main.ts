@@ -23,6 +23,7 @@ import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-sh
 import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { isLocalAddress, checkApiKey } from "./utils/auth-check.js";
+import { auditLogger } from "./utils/audit-logger.js";
 import { metrics } from "./utils/metrics.js";
 import type { RouteContext, WebSocketData } from "./routes/types.js";
 import { dispatch, defaultResponse, registerTrieRoutes } from "./routes/index.js";
@@ -454,6 +455,13 @@ const server = Bun.serve({
 
     // API Key authentication
     if (!checkApiKey(req, isLocal, API_KEY)) {
+      auditLogger.log({
+        event: "auth.failure",
+        actor: remoteAddress ?? "unknown",
+        outcome: "denied",
+        reason: "invalid or missing API key",
+        resource: url.pathname,
+      });
       return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
     }
 
@@ -461,6 +469,13 @@ const server = Bun.serve({
     if (url.pathname === "/ws") {
       const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
       if (!isLocal && wsAuth !== API_KEY) {
+        auditLogger.log({
+          event: "auth.failure",
+          actor: remoteAddress ?? "unknown",
+          outcome: "denied",
+          reason: "WebSocket auth token mismatch",
+          resource: "/ws",
+        });
         return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
       }
       const wsData: WebSocketData = { clientId: crypto.randomUUID() };
@@ -472,7 +487,13 @@ const server = Bun.serve({
     // Rate limiting (keyed on the socket peer address, not spoofable headers)
     const rl = await rateLimitCheck(req, remoteAddress);
     if (!rl.allowed) {
-      logger.debug("Rate limited", { path: url.pathname });
+      auditLogger.log({
+        event: "rate_limit.exceeded",
+        actor: remoteAddress ?? "unknown",
+        outcome: "denied",
+        reason: "rate limit exceeded",
+        resource: url.pathname,
+      });
       return jsonResponse({ error: "Rate limit exceeded" }, 429, rl.headers);
     }
 

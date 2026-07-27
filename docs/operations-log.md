@@ -2001,3 +2001,29 @@
   - `bun test tests/llm-cache.test.ts` → 10 pass / 0 fail（key 隔离/确定性/持久化全绿）。
 - **备份**：验证通过后已删除。
 - **Commit**：`62c75a1`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 11:00 +0800 — 安全审计闭环：auditLogger 接入 main.ts 认证/限流路径
+
+- **任务**：用户要求完善系统安全架构。经审计发现代码库已有完整安全基础设施（auth-check / rate-limiter / audit-logger / security-monitor / db-guard / permission-middleware / api-key-persistence AES-256-GCM），但存在关键集成缺口：`auditLogger` 已实现但未在 `main.ts` 中调用，导致认证失败与限流事件未写入审计日志，`SecurityMonitor` 的异常检测（暴力破解/DDoS 模式）无数据可分析。
+- **工具**：Agent(search)×2（安全机制审计 + HTTP 端点/集成分析）、Read、Edit、RunCommand（`bunx tsc --noEmit`、`bun test`）。
+- **执行的操作**：
+  1. `src/main.ts`：新增 `import { auditLogger } from "./utils/audit-logger.js"`。
+  2. `src/main.ts:458-464`：API Key 认证失败时调用 `auditLogger.log({ event: "auth.failure", actor: remoteAddress, outcome: "denied", reason: "invalid or missing API key", resource: url.pathname })`。
+  3. `src/main.ts:472-478`：WebSocket 认证失败时调用 `auditLogger.log({ event: "auth.failure", ... reason: "WebSocket auth token mismatch" })`。
+  4. `src/main.ts:490-496`：限流超限时调用 `auditLogger.log({ event: "rate_limit.exceeded", actor: remoteAddress, outcome: "denied", resource: url.pathname })`，替换原有 `logger.debug`（仅控制台日志，不入审计轨迹）。
+- **安全架构现状评估**（7 项全覆盖）：
+  1. **安全边界分析** ✅：auth-check.ts（API 认证边界）+ permission-middleware.ts（工具执行边界）+ db-guard.ts（数据库边界）
+  2. **身份认证与授权** ✅：timingSafeEqual 防时序攻击 + fail-closed（未配 token 拒绝远程）+ RBAC 权限中间件 + 最小权限（静态资源白名单）
+  3. **数据传输与存储加密** ✅：AES-256-GCM 加密 API Key at rest（api-key-persistence.ts）+ AXIOM_ENCRYPTION_KEY + 明文迁移 + HSTS/CSP 安全头
+  4. **安全审计与日志监控** ✅（本次修复）：audit-logger.ts（JSON Lines + 文件轮转 + metrics）→ security-monitor.ts（异常检测：限流爆发/认证失败爆发）→ health-checker.ts checkSecurity()（健康检查集成）
+  5. **安全事件响应** ✅：SecurityMonitor 检测 → security.alert 审计日志 → health-checker 告警展示；限流器自动拒绝超限请求
+  6. **输入验证与输出编码** ✅：db-guard.ts（SQL 注入防护：表名/列名白名单 + 标识符引用 + 路径遍历检测）+ sanitizeRequestBody（敏感字段脱敏）+ validateContentType
+  7. **防 DDoS** ✅：rate-limiter.ts 多维度限流（IP 100/min + per-user 200/min + global 1000/min）+ per-path 规则（/chat 10/min, /web-search 30/min）+ 滑动窗口 + 不可伪造 IP（socket 对端地址）
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/audit-logger.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/rate-limiter.test.ts tests/auth-check.test.ts` → 112 pass / 0 fail（audit-logger + security-hardening + security-hardening-extended + rate-limiter 103 + auth-check 9）。
+- **备份**：`src/main.ts` 备份到 `.tmp/backups/src/main.ts.bak`（验证通过后已删除）。
+- **Commit**：（待提交）。
