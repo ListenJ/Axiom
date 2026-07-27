@@ -2076,4 +2076,4 @@
   3. **构建产物部署**：`frontend/dist/` → `public/`，旧产物归档到 `archive/frontend/assets/`。
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules transformed in 7.91s。
 - **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`0a0b0ff`（待推送 `internal211/main`）。
