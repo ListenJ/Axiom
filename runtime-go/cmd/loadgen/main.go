@@ -149,6 +149,7 @@ func load(client *http.Client, addr string, qps int, dur time.Duration, workers 
 		errCount  atomic.Int64
 		latMu     sync.Mutex
 		latencies = make([]float64, 0, qps*int(dur.Seconds())+workers)
+		errSample atomic.Int64
 	)
 
 	// qps <= 0: closed-loop mode — issue as fast as workers drain the queue.
@@ -170,6 +171,9 @@ func load(client *http.Client, addr string, qps int, dur time.Duration, workers 
 				start := time.Now()
 				resp, err := client.Get(addr + "/search?q=" + url.QueryEscape(q))
 				if err != nil {
+					if errSample.Add(1) <= 5 {
+						fmt.Fprintf(os.Stderr, "err sample: %v\n", err)
+					}
 					errCount.Add(1)
 					continue
 				}

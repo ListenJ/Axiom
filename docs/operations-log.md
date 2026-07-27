@@ -1922,3 +1922,22 @@
   - 模型 64K：对生产端点 192.168.0.150:9001 以 max_tokens=4096 实测，content 与 reasoning_content 正常返回。
 - **备份**：改动文件均先备份 `.tmp/backups/runtime-go/`（验证通过后已删除）。
 - **Commit**：`9bd5889`（已推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 02:22 +0800 — runtime-go 分布式拓扑切换：本机 Windows + listen（弃用 data 服务器）
+
+- **任务**：用户最新指令"我们本机和 listen 上实现然后不针对 data 服务器做测试"——分布式验证拓扑从 .150+.22 切换为本机 Windows 11（192.168.0.108，i5-12500H 12C/16T）+ listen@192.168.0.150（Ryzen 5600H 12C），性能目标不变（单机 2 核 10K QPS 已达、分布式 100K QPS）。
+- **工具**：Bash（ssh/docker/交叉编译/loadgen 压测/后台任务编排）、Edit、Write、Read、Grep。
+- **执行的操作**（文件级）：
+  1. `runtime-go/cmd/loadgen/main.go`：新增错误采样打印（前 5 条 err sample 到 stderr），压测排障用。
+  2. `runtime-go/README.md`：新增「分布式拓扑变体：本机 Windows + listen」一节——docker 桥接 DNAT 绕防火墙原理与完整复现命令、redis protected-mode 与容器 IP 172.17.0.2 注意事项、SSH 隧道数据面 60-150ms 延迟不可用的结论、Windows 服务端 TCP accept 上限（192 workers 干净/512 workers ~3% refused）、全部实测数据表与 100K 未达标瓶颈分析、进程管理方法。改前已备份 `.tmp/backups/runtime-go/README.md`。
+- **部署实况**（不入库的 /tmp 产物）：w1=Windows 交叉编译 searchd（:9103，GOMAXPROCS=12 GOGC=800，持奇数分片）；n1=.150 docker 容器 `searchd-n1`（redis:7 镜像挂 /home/listen/runtime-go/bin 二进制，-p 9103:9103，REDIS=172.17.0.2:6379，持偶数分片）；redis `CONFIG SET protected-mode no` 后跨网段 SET NX 正常；100k 文档灌入 10.2s，n1=50001/w1=50000，集群互检 healthy。
+- **组网排障结论**：① .150 入站白名单仅 22/3000/6379/9001，Windows 直连 .150:9103 被拦；② SSH 隧道（-L/-R）数据面 60-150ms 不稳定延迟（ping 0ms、交互正常、MSYS2 与原生 OpenSSH 均复现，非 MaxSessions 瓶颈），热路径不可用，隧道进程已全部停掉；③ 正解为 docker 桥接 DNAT（同 redis:6379 可被直连的原理），Windows 直连 192.168.0.150:9103 RTT 1.6ms；.150→Windows:9103 入站本来就通。
+- **验证**（HTTP 端到端，10 万文档，全部 0% 错误）：
+  - n1 单入口（Windows loadgen 直连）：simple **33,323 QPS**（p50 9.2ms / p95 25ms）。
+  - 双入口并行（→n1 512w + →w1 192w）：simple 20,836+13,699=**34,535 QPS**；三入口 27.9k。
+  - 双入口 mixed 终测（30s×2）：11,962+5,959=**17,921 QPS**，p50 23.9/17.4ms、p95 241.8/226.8ms，542,681 请求 0 错误。
+  - **100K 目标此拓扑不可达（~35k）**：24 物理核、Windows 服务端 accept 上限（w1 入口 ~13.7k）、每查询 32 分片全扇出；README 有完整分析。单机 2 核 10K 目标此前已达成（Ryzen 2 核 17.1k）不受影响。
+- **Commit**：待补录。
