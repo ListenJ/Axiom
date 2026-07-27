@@ -6,6 +6,7 @@
  * 无 Redis 时自动回退到 L1 + L3
  */
 import { Database } from "bun:sqlite";
+import { createHash } from "crypto";
 import { getRedisClient, type RedisClient } from "./redis-client.js";
 import { logger } from "./logger.js";
 
@@ -388,6 +389,9 @@ export const llmCache = new Cache<CachedLLMResponse>({
  * 对于 temperature=0 的确定性调用，相同输入必定产生相同输出，
  * 缓存命中率高、语义安全。对于 temperature>0 的调用，调用方可
  * 选择不缓存（通过 ttlMs=0 或不调用 getOrSet）。
+ *
+ * 使用 SHA-256 生成定长 hex 摘要——32-bit hash 在 2000 条目下
+ * 生日碰撞概率约 0.05%，对"返回错误 LLM 响应"零容忍，故用 256-bit。
  */
 export function llmCacheKey(opts: {
   provider: string;
@@ -396,7 +400,6 @@ export function llmCacheKey(opts: {
   temperature?: number;
   system?: string;
 }): string {
-  // 拼接所有影响输出的因子
   const parts = [
     opts.provider,
     opts.model,
@@ -404,13 +407,7 @@ export function llmCacheKey(opts: {
     ...opts.messages.map((m) => `${m.role ?? ""}:${m.content ?? ""}`),
     `temp:${opts.temperature ?? 0}`,
   ];
-  // 用 SHA-256 保证 key 长度固定且无碰撞
-  // bun:sqlite 的 key 是 TEXT，用 hex 摘要最安全
   const raw = parts.join("\n");
-  let hash = 0;
-  // 简单但足够的 hash（FNV-1a 变体）；避免引入 crypto 模块的开销
-  for (let i = 0; i < raw.length; i++) {
-    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
-  }
-  return `${opts.provider}:${opts.model}:${hash >>> 0}`;
+  const digest = createHash("sha256").update(raw).digest("hex");
+  return `${opts.provider}:${opts.model}:${digest}`;
 }

@@ -1984,3 +1984,20 @@
   - `bun test tests/sqlite-memory.test.ts tests/model-output-store.test.ts tests/llm-cache.test.ts` → 46 pass / 0 fail（sqlite-memory 22、model-output-store 14、llm-cache 10），161 expect() calls。
 - **备份**：5 个修改文件 + 3 个新建测试均按规则 2 备份到 `.tmp/backups/`（验证通过后已删除备份）。
 - **Commit**：`00e867a`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 10:15 +0800 — 缓存 key 升级 SHA-256 + .gitignore 补漏 model-outputs
+
+- **任务**：继续优化。发现两个问题：① `llmCacheKey` 使用 32-bit FNV-1a 变体 hash，2000 条目下生日碰撞概率约 0.05%，对"返回错误 LLM 响应"零容忍；② `data/model-outputs/` 目录未被 .gitignore 覆盖（`data/*.json` 不匹配子目录文件），运行时模型输出可能被误提交。
+- **工具**：Read、Edit、RunCommand（`git check-ignore`、`bunx tsc --noEmit`、`bun test`）。
+- **执行的操作**：
+  1. `src/utils/cache.ts`：`llmCacheKey` 由 32-bit FNV-1a 改为 `createHash("sha256").update(raw).digest("hex")`，key 格式从 `provider:model:hash32` 升级为 `provider:model:sha256hex`（256-bit，碰撞概率可忽略）。新增 `import { createHash } from "crypto"`。与 `model-output-store.ts` 已有的 SHA-256 用法保持一致。改前备份 `.tmp/backups/src/utils/cache.ts.bak`。
+  2. `.gitignore`：在 `# === Data ===` 段新增 `data/model-outputs/`，防止运行时模型输出 JSON 被误提交。改前备份 `.tmp/backups/.gitignore.bak`。
+- **验证**：
+  - `git check-ignore -v data/model-outputs/2026-07-28/test.json` → 匹配 `.gitignore:23:data/model-outputs/` ✓。
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/llm-cache.test.ts` → 10 pass / 0 fail（key 隔离/确定性/持久化全绿）。
+- **备份**：验证通过后已删除。
+- **Commit**：（待提交）。
