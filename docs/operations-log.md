@@ -1896,4 +1896,4 @@
   - 冒烟：pcdad 提交 cycle→completed→kill -9→重启→状态经 WAL 恢复一致；agentd 任务定义 v1/v2/版本列表/提交任务/集群状态全通；searchd 写入 3 文档→AND/字段+NOT/前缀/中文查询全对→tombstone 删除生效；结构化 AppError（含堆栈 JSON）经一次错误请求实证。
   - 模型适配层对真实 192.168.0.150:9001（Qwopus3.5-4B）go run 探针：Chat 成功、usage 解析正确（该模型为 reasoning 模型，content 空系 max_tokens 被推理耗尽，已在 README 注明）。
   - astopt 自扫 31 条命中逐条 bench 取证：无安全且有收益的修复项，未硬改（结果已写入 README）。
-- **Commit**：`待补录`（推送 internal211/main 后补录）。
+- **Commit**：`d0afbf4`（已推送 `internal211/main`）。
