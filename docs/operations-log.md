@@ -1983,4 +1983,4 @@
   - `bunx tsc --noEmit` → ExitCode=0，零类型错误。
   - `bun test tests/sqlite-memory.test.ts tests/model-output-store.test.ts tests/llm-cache.test.ts` → 46 pass / 0 fail（sqlite-memory 22、model-output-store 14、llm-cache 10），161 expect() calls。
 - **备份**：5 个修改文件 + 3 个新建测试均按规则 2 备份到 `.tmp/backups/`（验证通过后已删除备份）。
-- **Commit**：（待提交）。
+- **Commit**：`00e867a`（待推送 `internal211/main`）。
