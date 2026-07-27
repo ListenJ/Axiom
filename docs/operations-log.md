@@ -2000,4 +2000,4 @@
   - `bunx tsc --noEmit` → ExitCode=0。
   - `bun test tests/llm-cache.test.ts` → 10 pass / 0 fail（key 隔离/确定性/持久化全绿）。
 - **备份**：验证通过后已删除。
-- **Commit**：（待提交）。
+- **Commit**：`62c75a1`（待推送 `internal211/main`）。
