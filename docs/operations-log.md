@@ -2161,4 +2161,4 @@
      - 动态 API Key：已有机制（`api-key-store.ts` + 前端 Providers 页面）支持运行时设置各厂商 API Key
 - **验证**：`tsc --noEmit` 零错误 + `auth-check` 9/9 测试通过。
 - **备份**：`auth-check.ts` + `main.ts` + `route-table.ts` + `model-router.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`5271048`（待推送 `internal211/main`）。
