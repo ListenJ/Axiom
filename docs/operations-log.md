@@ -2095,4 +2095,4 @@
   3. **构建产物部署**：旧产物 `git rm`，新产物部署到 `public/`。
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 6.49s。
 - **备份**：`frontend/src/pages/Chat.tsx` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`62608fc`（待推送 `internal211/main`）。
