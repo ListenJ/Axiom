@@ -322,8 +322,14 @@ export default function Chat() {
 
       {/* Main Chat Area */}
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {/* Header with three toggle controls */}
-        <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-2">
+        {/* Scroll container — sub-header and input bar are sticky inside for glass overlay effect */}
+        <div
+          ref={scroller}
+          onScroll={handleScroll}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+        {/* Header with three toggle controls — sticky glass */}
+        <div className="sticky top-0 z-20 glass-sm flex items-center gap-2 border-b border-[var(--border)] px-4 py-2">
           {!sidebarOpen && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -383,9 +389,7 @@ export default function Chat() {
 
         {/* Messages */}
         <div
-          ref={scroller}
-          onScroll={handleScroll}
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+          className="flex flex-col gap-3 p-4"
         >
           {messages.length === 0 && (
             <div className="m-auto flex w-full max-w-md flex-col items-center gap-4 text-center">
@@ -519,21 +523,8 @@ export default function Chat() {
           })}
         </div>
 
-        {/* 浮动"回到底部"按钮——用户上滑阅读历史时出现 */}
-        {showJumpToBottom && (
-          <button
-            type="button"
-            onClick={jumpToBottom}
-            aria-label="回到底部"
-            title="回到底部"
-            className="absolute bottom-24 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] shadow-lg transition-all hover:bg-[var(--accent-soft)]"
-          >
-            <ArrowDown size={16} />
-          </button>
-        )}
-
-        {/* Input bar */}
-        <div className="flex gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
+        {/* Input bar — sticky glass, content scrolls underneath */}
+        <div className="sticky bottom-0 z-20 glass-sm flex gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -568,6 +559,20 @@ export default function Chat() {
             </Button>
           )}
         </div>
+        </div>
+
+        {/* 浮动"回到底部"按钮——用户上滑阅读历史时出现 */}
+        {showJumpToBottom && (
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            aria-label="回到底部"
+            title="回到底部"
+            className="absolute bottom-24 left-1/2 z-30 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] shadow-lg transition-all hover:bg-[var(--accent-soft)]"
+          >
+            <ArrowDown size={16} />
+          </button>
+        )}
       </div>
     </div>
   )

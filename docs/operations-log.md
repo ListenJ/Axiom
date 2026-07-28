@@ -2077,3 +2077,22 @@
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules transformed in 7.91s。
 - **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`0a0b0ff`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 13:00 +0800 — Chat 页面半透明毛玻璃效果（聊天框 + 上部提示栏）
+
+- **任务**：用户要求聊天框和上部提示栏趋于半透明，使文字滚动过程中带有提示感（内容在毛玻璃下方滚动时产生视觉层次）。
+- **工具**：Read、Edit、RunCommand（`npm run build`）。
+- **执行的操作**：
+  1. **`frontend/src/pages/Chat.tsx`**（修改）— 结构重构 + 玻璃效果：
+     - **上部提示栏**（Chat 子标题栏）：从普通 flex 子元素改为 `sticky top-0 z-20 glass-sm`，使内容滚动时从毛玻璃下方穿过，产生半透明提示感。
+     - **聊天输入框**（底部输入栏）：从普通 flex 子元素改为 `sticky bottom-0 z-20 glass-sm`，同样实现毛玻璃半透明效果。
+     - **滚动容器重构**：将子标题栏和输入栏移入滚动容器内部，使其成为 sticky 元素。消息内容在两者之间滚动，经过时被 `glass-sm`（`rgba(17,17,20,0.64)` + `backdrop-filter: blur(8px) saturate(1.1)`）半透明覆盖，产生深度提示感。
+     - **"回到底部"按钮**：移到滚动容器外部，z-index 提升到 `z-30`，确保始终可点击且不被毛玻璃遮挡。
+  2. **前端构建**：`npm run build` → 0 错误，CSS 35.85KB / JS 431.40KB。
+  3. **构建产物部署**：旧产物 `git rm`，新产物部署到 `public/`。
+- **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 6.49s。
+- **备份**：`frontend/src/pages/Chat.tsx` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。
