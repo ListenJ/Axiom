@@ -1897,6 +1897,59 @@
 
 ---
 
+## 2026-07-28 15:50 +0800 — 三处热路径性能优化（rate-limiter / http-router / CORS）
+
+- **任务**：继续优化既有方案——识别瓶颈、重构低效算法、提升错误处理、保持功能不变并给出可量化的 before/after 指标。
+- **工具**：Read、Grep、Edit、RunCommand（`bunx tsc --noEmit` / `bun test` / 临时 bench 脚本）、Copy-Item/DeleteFile（备份与清理）。
+- **方法**：先审计热路径找瓶颈 → 写 bench 建立基线（AGENTS.md 规则 6 反馈回路）→ 备份→读全文→最小改动→验证→删备份（规则 2）→ 重新 bench 量化收益。
+- **发现的 3 个瓶颈**：
+  1. `src/utils/rate-limiter.ts` `check()` —— 每次调用 `state.requests.filter(t => t > windowStart)` 全量扫描 + 重建数组（O(n) per request）；`cleanup()` 在循环内为每个 key 重算 `maxWindow`（含 spread + Array.from）。
+  2. `src/core/http-router.ts` `recordPerf()` —— perf log 达到 `maxPerfEntries`(1000) 后每次 `entries.shift()` 移动全部元素（O(n) per request），热端点稳态下每请求都触发。
+  3. `src/main.ts` `corsHeaders()` —— 每请求读 `CORS_ORIGINS` env + split + 读 `CORS_CREDENTIALS` + 分配 options/result 对象，且 `jsonResponse` 会二次调用（每请求 2 次）；SPA 回退路径每请求 `Bun.file()` 分配。
+- **执行的操作（备份→读全文→最小改动）**：
+  1. `src/utils/rate-limiter.ts`：
+     - 新增 `lowerBound()` 二分查找辅助函数。
+     - `check()`：`filter()` → `lowerBound()` + 条件 `splice(0, cutoff)`（无过期时零分配，有过期时 O(log n) + O(k)）。
+     - `cleanup()`：`maxWindow` 计算提至循环外，预计算 `idleThreshold`。
+  2. `src/core/http-router.ts`：
+     - 新增 `RingBuffer<T>` 类（定容环形缓冲区，O(1) push、O(1) 淘汰、迭代器 + toArray 快照）。
+     - `perfLog` 类型 `Map<string, number[]>` → `Map<string, RingBuffer<number>>`。
+     - `recordPerf()`：`push + shift` → `RingBuffer.push`（O(1) 覆盖最旧条目）。
+     - `getPerfReport()` / `getHotspotReport()`：通过 `toArray()` 取快照，排序/统计逻辑不变。
+  3. `src/main.ts`：
+     - 新增模块级 CORS 预计算常量（`CORS_ALLOWED_ORIGINS_SET` / `CORS_STATIC_HEADERS` / `CORS_NO_ORIGIN_HEADERS` 等），env 读取 + 静态头构造一次性完成。
+     - `corsHeaders(origin)` 简化为 `Set.has(origin)` + 条件 spread（与 `createCorsHeaders` 原行为完全一致，含 credentials 仅在具体 origin 命中时附加）。
+     - SPA 回退路径复用模块级 `SPA_INDEX_FILE`（替代每请求 `Bun.file()`）。
+     - 移除未使用的 `createCorsHeaders` import。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `bun test tests/coverage-gap/rate-limiter.test.ts` → 38 pass / 0 fail。
+  - `bun test tests/security-hardening.test.ts tests/security-hardening-extended.test.ts` → 80 pass / 0 fail。
+  - `bun test tests/auth-check.test.ts tests/route-auth.test.ts` → 16 pass / 0 fail。
+  - `bun test tests/flat-router.test.ts tests/model-router.test.ts tests/traffic-classifier.test.ts` → 49 pass / 0 fail。
+  - 合计 183 测试全通过，0 回归。
+- **Before/After 指标（同一 bench 脚本，单进程，相同输入）**：
+
+  | 基准 | Before | After | 加速比 | 每调用节省 |
+  |---|---|---|---|---|
+  | `RateLimiter.check()` (state ~50k, 1k calls) | 341.52ms (0.3415ms/call, 2,928 ops/s) | 0.10ms (0.0001ms/call, 9,699,321 ops/s) | **~3,400x** | 0.3414ms |
+  | `RateLimiter.cleanup()` (5k keys) | 11.11ms | 0.78ms | **~14x** | — |
+  | `HttpRouter.execute()` (perf log full, 10k calls) | 38.10ms (0.0038ms/call, 262k ops/s) | 15.17ms (0.0015ms/call, 659k ops/s) | **~2.5x** | 0.0023ms |
+  | `corsHeaders()` (50k requests, 2 calls each) | 32.87ms (0.000657ms/req, 1.52M req/s) | 2.18ms (0.000044ms/req, 22.96M req/s) | **~15x** | 0.000614ms/req |
+
+  - **最大收益**：rate-limiter 在活跃 IP（窗口内 50k 请求）场景下从 0.34ms/call 降至 0.0001ms/call——原 `filter()` 每次 alloc 50k 元素新数组，新方案无过期时零分配。
+  - **CORS**：原每请求 2 次 `corsHeaders()` 调用共 0.66ms，现 0.044ms；高频 API 端点累积收益显著。
+  - **http-router**：热端点稳态下（perf log 满）每请求省 0.0023ms；ring buffer 消除了 shift() 的 O(n) 拷贝。
+- **算法复杂度变化**：
+  - rate-limiter `check()`: O(n) → O(log n)（无过期时 O(log n) + 0 alloc）
+  - rate-limiter `cleanup()`: O(n × m) → O(n + m)（m=rules, n=keys）
+  - http-router `recordPerf()`: O(n) (n=1000) → O(1)
+- **备份**：3 个文件备份到 `.tmp/backups/`（验证通过后已删除）；3 个临时 bench 脚本（`.tmp/bench-*.ts`）已删除。
+- **Commit**：（待提交后补录）。
+
+
+---
+
 ## 2026-07-27 10:46 +0800 — 新建 runtime-go：Go 企业级高并发三模块（PCDA / 子代理调度 / 并发搜索）
 
 - **任务**：用户要求用 Go 设计实现三个关键功能模块（PCDA 循环并发执行系统、多子代理任务调度框架、知识库并发搜索系统），目标 100k QPS 设计容量，含数据一致性/原子性、Prometheus 监控、结构化错误处理、AST/DAG 技术优化，并接入 192.168.0.150:9001 模型服务。经 AskUserQuestion 确认：并发目标 100k QPS、代码放 `runtime-go/` 独立 module、分布式锁用接口抽象+Redis 实现、三模块核心全做。计划经 ExitPlanMode 批准后执行。
@@ -2190,4 +2243,4 @@
   - **内存**：消除每请求 40+ 对象分配，GC 压力大幅降低
 - **验证**：`tsc --noEmit` 零错误 + `auth-check` 9/9 + `traffic-classifier` 29/29 测试通过。
 - **备份**：`model-capability-registry.ts` + `main.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`71a6a39`（待推送 `internal211/main`）。

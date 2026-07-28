@@ -11,7 +11,22 @@ interface RateLimitRule {
 }
 
 interface RateLimitState {
-  requests: number[]; // 请求时间戳数组
+  requests: number[]; // 请求时间戳数组（单调递增，因 Date.now() 始终 push 在末尾）
+}
+
+/**
+ * 二分查找首个大于 target 的元素下标（lower-bound）。
+ * 用于在单调递增的时间戳数组中定位窗口外过期记录的起点，
+ * 替代 O(n) 的 filter() 全量扫描与数组重建。
+ */
+function lowerBound(arr: number[], target: number): number {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid] <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 export class RateLimiter {
@@ -44,8 +59,11 @@ export class RateLimiter {
       this.store.set(key, state);
     }
 
-    // 清理窗口外的请求记录
-    state.requests = state.requests.filter((t) => t > windowStart);
+    // 清理窗口外的请求记录 — 二分查找定位起点，仅在有过期时 splice（避免每请求 O(n) filter）
+    const cutoff = lowerBound(state.requests, windowStart);
+    if (cutoff > 0) {
+      state.requests.splice(0, cutoff);
+    }
 
     if (state.requests.length >= rule.maxRequests) {
       const resetAt = state.requests[0] + rule.windowMs;
@@ -81,12 +99,14 @@ export class RateLimiter {
   /** 清理长期未使用的状态 */
   cleanup(): void {
     const now = Date.now();
+    // 将 maxWindow 提至循环外——原实现每 key 都重算一次（含 spread + Array.from）
+    let maxWindow = this.defaultRule.windowMs;
+    for (const r of this.rules.values()) {
+      if (r.windowMs > maxWindow) maxWindow = r.windowMs;
+    }
+    const idleThreshold = now - maxWindow * 2;
     for (const [key, state] of this.store) {
-      const maxWindow = Math.max(
-        this.defaultRule.windowMs,
-        ...Array.from(this.rules.values()).map((r) => r.windowMs)
-      );
-      if (state.requests.length === 0 || state.requests[state.requests.length - 1] < now - maxWindow * 2) {
+      if (state.requests.length === 0 || state.requests[state.requests.length - 1] < idleThreshold) {
         this.store.delete(key);
       }
     }

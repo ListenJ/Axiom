@@ -20,7 +20,7 @@ import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { HealthMonitor } from "./utils/resilience.js";
 import { validateEnv, readString, readInt, readBool } from "./utils/env.js";
 import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-shutdown.js";
-import { createSecurityHeaders, createCorsHeaders } from "./utils/security.js";
+import { createSecurityHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { isLocalAddress, checkApiKey } from "./utils/auth-check.js";
 import { auditLogger } from "./utils/audit-logger.js";
@@ -374,15 +374,40 @@ const rateLimitCheck = createRateLimitMiddleware(apiLimiter);
 const MAX_BODY_SIZE = readInt("MAX_BODY_SIZE", 1048576);
 const port = config.gateway.port;
 
+// ═══════════════════════════════════════════════════════════════
+// CORS 预计算 — 原 corsHeaders() 每请求都 readString("CORS_ORIGINS") +
+// split + readBool + 分配 options/result 对象，且 jsonResponse 会二次调用。
+// 现将所有不随请求变化的部分提至模块级，per-request 仅做 Set.has(origin) 判定。
+// ═══════════════════════════════════════════════════════════════
+const CORS_ALLOWED_ORIGINS_STR = readString("CORS_ORIGINS");
+const CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR
+  ? CORS_ALLOWED_ORIGINS_STR.split(",")
+  : [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
+const CORS_ALLOW_CREDENTIALS = readBool("CORS_CREDENTIALS");
+const CORS_ALLOWED_ORIGINS_SET = new Set(CORS_ALLOWED_ORIGINS);
+const CORS_ALLOW_ALL = CORS_ALLOWED_ORIGINS.includes("*");
+
+// 静态 CORS 头（不随 origin 变化）—— credentials 仅在具体 origin 命中时附加，
+// 与 createCorsHeaders 原行为保持一致。
+const CORS_STATIC_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
+  "Access-Control-Max-Age": "86400",
+};
+// 无 origin 或 origin 未匹配时的预计算结果（jsonResponse 路径复用此对象）
+const CORS_NO_ORIGIN_HEADERS: Record<string, string> = CORS_ALLOW_ALL
+  ? { ...CORS_STATIC_HEADERS, "Access-Control-Allow-Origin": "*" }
+  : { ...CORS_STATIC_HEADERS };
+
 function corsHeaders(origin?: string): Record<string, string> {
-  const corsOriginsStr = readString("CORS_ORIGINS");
-  const allowedOrigins = corsOriginsStr ? corsOriginsStr.split(",") : [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
-  return createCorsHeaders(origin, {
-    allowedOrigins,
-    allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
-    allowCredentials: readBool("CORS_CREDENTIALS"),
-  });
+  if (CORS_ALLOW_ALL) return CORS_NO_ORIGIN_HEADERS;
+  const reqOrigin = origin || "";
+  if (reqOrigin && CORS_ALLOWED_ORIGINS_SET.has(reqOrigin)) {
+    return CORS_ALLOW_CREDENTIALS
+      ? { ...CORS_STATIC_HEADERS, "Access-Control-Allow-Origin": reqOrigin, "Access-Control-Allow-Credentials": "true" }
+      : { ...CORS_STATIC_HEADERS, "Access-Control-Allow-Origin": reqOrigin };
+  }
+  return CORS_NO_ORIGIN_HEADERS;
 }
 
 function jsonResponse(data: unknown, status = 200, extraHeaders?: Record<string, string>): Response {
@@ -595,10 +620,10 @@ const server = Bun.serve({
       // SPA 回退（2026-07-26 前端审查修复 H4）：
       // 非 API 的 GET 请求且无文件扩展名 → 返回 SPA 入口，
       // 修复刷新/深链 /chat、/providers 等返回 JSON 端点列表的问题
+      // 复用模块级 SPA_INDEX_FILE（避免每请求 Bun.file 分配）
       if (!response && req.method === "GET" && !url.pathname.includes(".") && !url.pathname.startsWith("/api")) {
-        const spaIndex = Bun.file(`${STATIC_ROOT}/index.html`);
-        if (await spaIndex.exists()) {
-          response = new Response(spaIndex, {
+        if (await SPA_INDEX_FILE.exists()) {
+          response = new Response(SPA_INDEX_FILE, {
             status: 200,
             headers: { ...securityHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
           });
