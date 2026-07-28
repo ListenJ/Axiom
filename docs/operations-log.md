@@ -2373,4 +2373,20 @@
   - `harmonyos/entry/src/ohosTest/.gitkeep` —— 测试目录占位。
   - `harmonyos/README.md` —— 环境要求（DevEco Studio 5.0+）、打开构建步骤、服务器地址配置（资源/代码两种方式）、图标说明、网络权限、签名 HAP 生成流程、WebView 功能表。
 - **验证**：10 个 JSON/JSON5 文件经 node `JSON.parse`（json5 去注释后）全部通过；Index.ets 回读确认所有任务要求点齐全（@Entry/@Component/Web/webController/@State isLoading/onControllerAttached/onPageBegin/onPageEnd/accessBackward/javaScriptAccess/domStorageAccess/全屏 layout）。
-- **Commit**：`4370cb4`（amend 补录本行；最终 hash 以 `git log` 为准）。
+- **Commit**：`48d2c6b`（已推送 `internal211/master`；初稿 `4370cb4` 经 amend 补录本行）。
+
+---
+
+## 2026-07-29 19:15 +0800 — Phase 7 构建矩阵 + skill-loader top-level await 修复
+
+- **任务**：（1）新增统一构建矩阵脚本 `scripts/build/matrix.ts`，覆盖 Bun 三入口点 × 5 平台 + Go 4 服务 × 6 目标 + 前端 + Tauri，统一 `bun run build:*` 命令族；（2）修复 `src/skills/skill-loader.ts` 中的 top-level `await import("yaml")`，该写法在 `bun build --compile` 模式下会阻断编译（Bun 单文件编译不支持 TLA），改为静态 `import * as YAML from "yaml"`。
+- **工具**：Write（新建 matrix.ts）、Edit（package.json / skill-loader.ts）、Read、RunCommand（`bunx tsc --noEmit` / `bun test` / 编译验证）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  - **新建** `scripts/build/matrix.ts`（全部新建，按规则 2 无需备份）：Bun 入口点 `axiom-server`/`axiom-cli`/`axiom-mcp`；平台矩阵 windows-x64 / darwin-x64 / darwin-arm64 / linux-x64 / linux-arm64；Go 服务 `agentd`/`searchd`/`pcdad`/`loadgen` 交叉编译 linux+darwin × amd64+arm64；前端 `frontend/` 内独立构建；Tauri 桌面端走 `tauri build`；CLI 支持 `--target`、`--platform`、`--list`、`--no-tests` 参数，产物按 `dist/<target>/<platform>/<arch>/` 分类。
+  - **修改** `package.json`：在 `build` 与 `mcp` 之间追加 10 个脚本入口（`build:matrix`/`build:list`/`build:server`/`build:cli`/`build:mcp`/`build:frontend`/`build:tauri`/`build:go`/`build:all`/`build:cross`），均委托给 matrix.ts。
+  - **修改** `src/skills/skill-loader.ts`：删除 top-level `try { YAML = await import("yaml") } catch { ... }` 块，改为文件顶部 `import * as YAML from "yaml"`（yaml 已在 package.json dependencies 中）。保留 `if (YAML)` 兼容性判断（静态 import 永远为 truthy，但代码不变更安全）。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `bun test ./tests/skills-integration.test.ts` → 3 pass / 0 fail（含 agency-zh 201 skill 加载 + Hermes 裸 SkillDefinition 兼容）。
+  - skill-loader 静态导入确认：编译后 YAML 解析路径正常工作，YAML/JSON 双格式加载均正常。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。

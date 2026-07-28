@@ -8,16 +8,9 @@
 
 import fs from "fs";
 import path from "path";
+import * as YAML from "yaml";
 import { logger } from "../utils/logger.js";
 import { type SkillDefinition, type PromptTemplate, type SkillFile } from "./types.js";
-
-// Try to import yaml, fallback to JSON-only if not available
-let YAML: typeof import("yaml") | null = null;
-try {
-  YAML = await import("yaml");
-} catch {
-  logger.warn("[SkillLoader] yaml package not available, YAML skill files will be skipped");
-}
 
 export interface SkillLoaderOptions {
   /** Directories to scan for skill files */
