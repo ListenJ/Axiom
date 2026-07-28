@@ -2119,3 +2119,21 @@
 - **验证**：浏览器视觉验证首页——建议卡片边框可见+阴影深度 ✓、查询文字可读 ✓、底部状态栏文字可读 ✓、UI 各处边框更可见 ✓。
 - **备份**：`StatsBar.tsx` + `Home.tsx` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`6479ad3`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 14:00 +0800 — 滚动体验优化：平滑滚动 + 纤细滚动条 + 亮色模式适配
+
+- **任务**：用户要求继续优化。针对滚动体验进行 CSS 级精细化打磨。
+- **工具**：Read、Edit、RunCommand（`npm run build`）。
+- **执行的操作**：
+  1. **`frontend/src/styles/index.css`**（修改）— 三项滚动体验优化：
+     - **平滑滚动**：`html` 新增 `scroll-behavior: smooth`，使"回到底部"按钮等锚点跳转产生平滑动画（reduced-motion 媒体查询已有 `scroll-behavior: auto !important` 覆盖，无障碍兼容）。
+     - **纤细滚动条**：`::-webkit-scrollbar` 宽高从 `10px` → `8px`，圆角从 `5px` → `4px`，更精致。
+     - **滚动条对比度**：thumb 从 `var(--border-hover)`（0.15）改为固定 `rgba(255,255,255,0.12)`，hover 从 `var(--border-strong)`（0.22）改为 `rgba(255,255,255,0.20)`，脱离 CSS 变量绑定使滚动条对比度独立可控。
+     - **亮色模式滚动条**：新增 `[data-theme='light']` 滚动条覆盖——暗色 thumb（`rgba(15,23,42,0.15)`）在亮色背景下可见，Firefox `scrollbar-color` 同步覆盖。
+  2. **前端构建**：`npm run build` → 0 错误，CSS 36.09KB / JS 431.46KB。
+- **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 4.23s。
+- **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。
