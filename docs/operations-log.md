@@ -2348,4 +2348,4 @@
   - 有 query 场景：仍分配合并串，但省去 5 次冗余正则
 - **验证**：`tsc --noEmit` 零错误 + `traffic-classifier` 29/29 + `security-hardening` + `security-hardening-extended` 80/80 测试通过。
 - **备份**：`traffic-classifier.ts` 备份到 `.tmp/backups/src/utils/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`7a19005`（已推送 `internal211/main`）。
