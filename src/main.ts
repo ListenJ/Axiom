@@ -439,6 +439,16 @@ const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
 
 logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
+// SPA route whitelist — module-level Set avoids per-request allocation.
+const SPA_ROUTES = new Set([
+  "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
+  "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
+  "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/settings",
+]);
+
+// Pre-resolve SPA index.html file reference (Bun.file is lazy, no I/O at init)
+const SPA_INDEX_FILE = Bun.file(`${STATIC_ROOT}/index.html`);
+
 const server = Bun.serve({
   port,
   hostname: readString("HOST", "127.0.0.1"),
@@ -458,15 +468,9 @@ const server = Bun.serve({
     // loads even when AXIOM_AUTH_TOKEN is configured. API endpoints (which use
     // multi-segment paths like /agents/status, /chat/stream, /system/state) are
     // NOT in this whitelist and still require auth.
-    const SPA_ROUTES = new Set([
-      "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
-      "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
-      "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/settings",
-    ]);
     if (req.method === "GET" && SPA_ROUTES.has(url.pathname)) {
-      const spaIndex = Bun.file(`${STATIC_ROOT}/index.html`);
-      if (await spaIndex.exists()) {
-        return new Response(spaIndex, {
+      if (await SPA_INDEX_FILE.exists()) {
+        return new Response(SPA_INDEX_FILE, {
           status: 200,
           headers: { ...securityHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
         });

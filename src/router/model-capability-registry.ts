@@ -55,10 +55,50 @@ function toCapability(um: UnifiedModel): ModelCapability {
   };
 }
 
+// ========== 缓存层 ==========
+// getAllCapabilities() 原本在每次 findModelsForRole() 调用时都创建 40+ 个新对象，
+// 现在改为懒初始化缓存，仅在 EXTENSIONS 变化时重建。
+
+let _capabilitiesCache: ModelCapability[] | null = null;
+let _roleIndexCache: Map<TaskRole, ModelCapability[]> | null = null;
+
+function invalidateCache(): void {
+  _capabilitiesCache = null;
+  _roleIndexCache = null;
+}
+
 function getAllCapabilities(): ModelCapability[] {
+  if (_capabilitiesCache) return _capabilitiesCache;
   const base = UNIFIED_REGISTRY.map(toCapability);
   const extended = Array.from(EXTENSIONS.values());
-  return [...base, ...extended];
+  _capabilitiesCache = [...base, ...extended];
+  return _capabilitiesCache;
+}
+
+/** 构建 role → ModelCapability[] 索引，避免每次请求遍历全部模型 */
+function getRoleIndex(): Map<TaskRole, ModelCapability[]> {
+  if (_roleIndexCache) return _roleIndexCache;
+  const index = new Map<TaskRole, ModelCapability[]>();
+  for (const model of getAllCapabilities()) {
+    for (const role of model.roles) {
+      let list = index.get(role);
+      if (!list) {
+        list = [];
+        index.set(role, list);
+      }
+      list.push(model);
+    }
+  }
+  // Sort each role's list by role index (same logic as findModelsForRole)
+  for (const [role, list] of index) {
+    list.sort((a, b) => {
+      const aIdx = a.roles.indexOf(role);
+      const bIdx = b.roles.indexOf(role);
+      return aIdx - bIdx;
+    });
+  }
+  _roleIndexCache = index;
+  return index;
 }
 
 function getCapabilityRegistry(): Map<string, ModelCapability> {
@@ -76,22 +116,19 @@ export function findModelsForRole(role: TaskRole, opts?: {
   excludeAdapters?: boolean;
   excludeModels?: string[];
 }): ModelCapability[] {
-  const results: ModelCapability[] = [];
+  // Use cached role index — O(1) lookup instead of O(n) scan
+  const cached = getRoleIndex().get(role);
+  if (!cached) return [];
+  if (!opts) return cached;
 
-  for (const model of getAllCapabilities()) {
-    if (!model.roles.includes(role)) continue;
-    if (opts?.minContextWindow && model.contextWindow < opts.minContextWindow) continue;
-    if (opts?.excludeAdapters && model.adapter) continue;
-    if (opts?.excludeModels?.includes(model.id)) continue;
+  // Apply optional filters (creates a new array to avoid mutating the cache)
+  const results: ModelCapability[] = [];
+  for (const model of cached) {
+    if (opts.minContextWindow && model.contextWindow < opts.minContextWindow) continue;
+    if (opts.excludeAdapters && model.adapter) continue;
+    if (opts.excludeModels?.includes(model.id)) continue;
     results.push(model);
   }
-
-  results.sort((a, b) => {
-    const aIdx = a.roles.indexOf(role);
-    const bIdx = b.roles.indexOf(role);
-    return aIdx - bIdx;
-  });
-
   return results;
 }
 
@@ -151,6 +188,7 @@ export function getModel(id: string): ModelCapability | undefined {
 
 export function registerModel(capability: ModelCapability): void {
   EXTENSIONS.set(capability.id, capability);
+  invalidateCache();
   logger.info(`[CapabilityRegistry] Registered model: ${capability.id} (${capability.provider})`);
 }
 
