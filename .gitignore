@@ -10,6 +10,8 @@ node_modules/
 # === Build output ===
 dist/
 *.tsbuildinfo
+# Vite hashed build artifacts (regenerated every build, no need to track)
+public/assets/
 
 # === Environment variables ===
 .env
