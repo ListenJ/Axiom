@@ -503,7 +503,7 @@ const server = Bun.serve({
     }
 
     // API Key authentication
-    if (!checkApiKey(req, isLocal, API_KEY)) {
+    if (!checkApiKey(req, isLocal, API_KEY, url.pathname)) {
       auditLogger.log({
         event: "auth.failure",
         actor: remoteAddress ?? "unknown",
@@ -534,7 +534,7 @@ const server = Bun.serve({
     }
 
     // Rate limiting (keyed on the socket peer address, not spoofable headers)
-    const rl = await rateLimitCheck(req, remoteAddress);
+    const rl = await rateLimitCheck(req, remoteAddress, url.pathname);
     if (!rl.allowed) {
       auditLogger.log({
         event: "rate_limit.exceeded",

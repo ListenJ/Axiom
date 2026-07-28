@@ -46,28 +46,21 @@ export function createSecurityHeaders(
   return headers;
 }
 
+/**
+ * 敏感字段名匹配正则 —— 模块级预编译，避免每次调用重建数组 + O(9×N) some/includes 扫描。
+ * 命中 password/token/secret/api_key/apikey/authorization/cookie/credit_card/ssn 的子串（大小写不敏感）。
+ */
+const SENSITIVE_KEY_RE = /password|token|secret|api_?key|authorization|cookie|credit_?card|ssn/i;
+
 export function sanitizeRequestBody(body: unknown): unknown {
   if (typeof body !== "object" || body === null) {
     return body;
   }
 
-  const sensitiveFields = [
-    "password",
-    "token",
-    "secret",
-    "api_key",
-    "apikey",
-    "authorization",
-    "cookie",
-    "credit_card",
-    "ssn",
-  ];
-
   const sanitized = { ...body } as Record<string, unknown>;
 
   for (const key of Object.keys(sanitized)) {
-    const lowerKey = key.toLowerCase();
-    if (sensitiveFields.some((field) => lowerKey.includes(field))) {
+    if (SENSITIVE_KEY_RE.test(key)) {
       sanitized[key] = "[REDACTED]";
     } else if (typeof sanitized[key] === "object" && sanitized[key] !== null) {
       sanitized[key] = sanitizeRequestBody(sanitized[key]);

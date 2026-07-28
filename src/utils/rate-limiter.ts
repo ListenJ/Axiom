@@ -117,19 +117,20 @@ export class RateLimiter {
 export type RateLimitMiddleware = (
   req: Request,
   ip?: string,
+  pathname?: string,
 ) => Promise<{ allowed: boolean; headers: Record<string, string> }>;
 
 /** 基于 IP 的限流中间件 */
 export function createRateLimitMiddleware(
   limiter: RateLimiter,
 ): RateLimitMiddleware {
-  return async (req: Request, ip?: string): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
+  return async (req: Request, ip?: string, pathname?: string): Promise<{ allowed: boolean; headers: Record<string, string> }> => {
     // Prefer the socket peer address passed by the server (spoof-proof).
     // x-real-ip is only a fallback for legacy callers — clients can spoof it.
     // Do NOT trust x-forwarded-for from client (easily spoofed)
     const key = ip || req.headers.get("x-real-ip") || "anonymous";
-    const url = new URL(req.url);
-    const result = limiter.check(key, url.pathname);
+    const path = pathname ?? new URL(req.url).pathname;
+    const result = limiter.check(key, path);
     return {
       allowed: result.allowed,
       headers: limiter.getHeaders(result),

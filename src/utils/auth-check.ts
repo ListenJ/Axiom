@@ -36,43 +36,44 @@ const AUTH_EXEMPT_EXTS = new Set([
   ".svg", ".ico", ".webp", ".woff", ".woff2", ".map",
 ]);
 
-// 免认证公共路径（精确匹配）
-const PUBLIC_PATHS = ["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"];
+// 免认证公共路径（精确匹配）—— Set O(1) 查找，替代数组 includes O(n)
+const PUBLIC_PATHS = new Set(["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"]);
 
 /**
  * API 认证检查。
  * @param req      incoming request（只用其 URL 路径与认证 header，不信任 Host）
  * @param isLocal 是否回环请求——调用方必须用 socket 对端地址判定（见 isLocalAddress）
  * @param apiKey  服务端配置的 AXIOM_AUTH_TOKEN；空串表示未配置（fail-closed）
+ * @param pathname 已解析的 URL pathname（可选，避免调用方已解析后重复 new URL）
  */
-export function checkApiKey(req: Request, isLocal: boolean, apiKey: string): boolean {
+export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, pathname?: string): boolean {
   // Fail-closed: if no server-side auth token is configured, deny ALL requests.
   // This protects /chat and other endpoints from open access when env is misconfigured.
-  const url = new URL(req.url);
+  const path = pathname ?? new URL(req.url).pathname;
   // Allow local requests without auth (for E2E tests and local development)
   if (isLocal) return true;
-  logger.debug("checkApiKey called", { path: url.pathname, apiKeyExists: !!apiKey, apiKeyLength: apiKey?.length });
-  const staticExt = url.pathname.includes(".") ? url.pathname.slice(url.pathname.lastIndexOf(".")) : "";
+  logger.debug("checkApiKey called", { path, apiKeyExists: !!apiKey, apiKeyLength: apiKey?.length });
+  const staticExt = path.includes(".") ? path.slice(path.lastIndexOf(".")) : "";
   if (!apiKey) {
     // No auth token configured: allow static assets and public paths, deny API endpoints
     // 只对根路径或 /assets/ 下的静态资源豁免扩展名（防止 /vault/write.js 等绕过认证）
-    const isStaticPath = !url.pathname.slice(1).includes("/") || url.pathname.startsWith("/assets/");
+    const isStaticPath = !path.slice(1).includes("/") || path.startsWith("/assets/");
     if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticPath) return true;
-    if (PUBLIC_PATHS.includes(url.pathname)) return true;
-    if (url.pathname === "/ws") return true;
+    if (PUBLIC_PATHS.has(path)) return true;
+    if (path === "/ws") return true;
     logger.warn("Auth check failed: AXIOM_AUTH_TOKEN not configured");
     return false;
   }
-  if (PUBLIC_PATHS.includes(url.pathname)) return true;
+  if (PUBLIC_PATHS.has(path)) return true;
   // Allow real static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
   // 只对根路径或 /assets/ 下的静态资源豁免（防止 /api/data.js 等路径绕过认证）
-  const isStaticAsset = !url.pathname.slice(1).includes("/") || url.pathname.startsWith("/assets/");
+  const isStaticAsset = !path.slice(1).includes("/") || path.startsWith("/assets/");
   if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticAsset) {
-    logger.debug("Static asset allowed without auth", { path: url.pathname, ext: staticExt });
+    logger.debug("Static asset allowed without auth", { path, ext: staticExt });
     return true;
   }
   // WebSocket: check auth in upgrade handler, not here
-  if (url.pathname === "/ws") return true;
+  if (path === "/ws") return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
   return safeCompare(auth, apiKey);
 }
