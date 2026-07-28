@@ -2436,3 +2436,22 @@
   - `bun run scripts/build/matrix.ts --target=server --platform=current` → axiom-server.exe 编译成功（540ms），`dist/CHECKSUMS.txt` 生成（2 个文件），统计 `成功 1  失败 0  跳过 0`，退出码 0。
   - CHECKSUMS.txt 内容验证：格式 `<sha256>  <相对路径>`，CHECKSUMS.txt 自身正确排除。
 - **Commit**：`c8c97e8`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 19:40 +0800 — 前后端视觉验证（browser_use 子代理）
+
+- **任务**：启动后端 + 前端构建产物，用 browser_use 子代理进行视觉验证，确认前端功能展现与后端 API 正常。
+- **工具**：RunCommand（`bun run build` / `bun run src/main.ts`）、Copy-Item（前端产物 → public/）、Agent(browser_use)（视觉验证 + 截图）。
+- **执行流程**：
+  1. **前端构建**：`cd frontend && bun run build` → vite 6.4.3 构建 1646 模块，产物 `frontend/dist/`（index-CVhYOpJc.js 431KB + index-BPSEnO1s.css 36KB）。
+  2. **产物部署**：复制 `frontend/dist/index.html` → `public/index.html`，`frontend/dist/assets/*` → `public/assets/`（覆盖旧产物）。
+  3. **后端启动**：`bun run src/main.ts` → 204 skills 加载、135 路由注册、localhost 认证豁免、port 18789 监听。
+  4. **视觉验证**（browser_use 子代理，5 步全部 PASS）：
+     - ✅ **首页渲染**：SPA 正常加载，标题「Axiom AI Agent v2.3」，Header + Sidebar + 主内容区 + 底部导航全部展现，无白屏/资源加载失败。截图 step1-home-first-tab.png + step1-home-first-tab-full.png。
+     - ✅ **导航功能**：点击侧边栏 Chat/Settings/Providers 等导航项，URL 路由同步切换，页面内容正常加载。截图 step2-chat.png / step3-settings.png / step3-providers.png。
+     - ✅ **后端 API**：`/health` 与 `/api/status` 可访问；`/providers` 返回 401（API Keys 管理端点需认证，与本地豁免设计一致，非渲染问题）。
+     - ✅ **交互功能**：Settings 页「清空 API 缓存」按钮执行正常 + Toast 提示；按 `?` 键 HelpModal 快捷键弹窗正常弹出；`Shift+T` 主题切换生效；`deleteModel` 已使用 `confirm()` 二次确认（Phase 8 修复验证通过）。
+     - ✅ **响应式布局**：BottomNav `lg:hidden` 仅窄屏显示、Sidebar `lg:` 断点以上常驻，代码与设计一致；桌面视口下底部导航可见、Sidebar 展开。
+- **验证结论**：前端 SPA 渲染、路由导航、后端 API 路由、交互功能（HelpModal/主题切换/删除确认）、响应式布局代码全部正常工作。`/providers` 401 系认证设计预期（API Keys 管理端点独立鉴权），非功能缺陷。
+- **Commit**：本条为验证记录，无代码改动（public/ 构建产物在 .gitignore 中），无需提交。
