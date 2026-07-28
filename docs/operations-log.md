@@ -2412,4 +2412,4 @@
 - **验证**：
   - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
   - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
-- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
+- **Commit**：`ea509f5`（已推送 `internal211/master`）。
