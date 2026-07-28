@@ -191,7 +191,7 @@ export default function Home() {
             </button>
             {showModelPicker && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} />
+                <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} aria-hidden="true" />
                 <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg">
                   {MODELS.map((m) => (
                     <button key={m.id} type="button" onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }}

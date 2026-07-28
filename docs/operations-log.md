@@ -2390,3 +2390,26 @@
   - `bun test ./tests/skills-integration.test.ts` → 3 pass / 0 fail（含 agency-zh 201 skill 加载 + Hermes 裸 SkillDefinition 兼容）。
   - skill-loader 静态导入确认：编译后 YAML 解析路径正常工作，YAML/JSON 双格式加载均正常。
 - **Commit**：`6815109`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 19:25 +0800 — Phase 8 人机工效审查 + 最小修复
+
+- **任务**：前端响应式 / 可访问性 / 交互体验审计与修复。3 个并行 search 子代理覆盖 a11y / 响应式 / UX 三维度，逐文件验证后剔除误报，仅对真实问题做最小改动。
+- **工具**：Agent(search)×3（a11y / 响应式 / UX 并行审计）、Read、Grep、Edit、RunCommand（`bunx tsc --noEmit` / `bunx vitest run`）、Copy-Item/DeleteFile（备份 / 删备份）。
+- **审计结论（经逐文件验证后剔除误报）**：
+  - ✅ 已合规：`Tabs.tsx` 已有 `role="tablist"` + `aria-orientation="horizontal"` + `aria-selected` + `aria-controls`；`LoadingDots.tsx` / `Skeleton.tsx` 已有 `role="status"` + `aria-label`；`HelpModal.tsx` 已有 `role="dialog"` + `aria-modal` + `aria-label` + 全局 Esc 关闭（`useGlobalHotkeys`）；`Input.tsx` 用 `<label>` 包裹隐式关联；`Button.tsx` 默认 `type="button"` + `disabled||loading`；`Providers.tsx` 错误已内联 `loadError` 卡片展示；`provider-sections.tsx` `handleClear` 已有 `confirm()` 二次确认。
+  - 🔴 P1 真实问题：`Settings.tsx` `deleteModel` 无二次确认 —— 点击"删除"按钮立即调用 `api.delete`，与 `provider-sections.tsx` 的 `handleClear` 模式不一致。
+  - 🟠 P2 真实问题：`Home.tsx` L194 模型选择器背景遮罩 `<div>` 缺 `aria-hidden="true"`，与 `Layout.tsx` L38 同类元素不一致。
+  - ⚪ 不修：HelpModal 焦点陷阱（需新增 hook，超出最小施工）；Sidebar 移动端 `aria-hidden`（需断点条件逻辑，desktop 始终可见）；Button sm/icon 触摸目标 < 44px（设计选择，非 bug）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  - **备份**：`Settings.tsx` / `Home.tsx` → `.tmp/backups/frontend/src/pages/`。
+  - **修改** `frontend/src/pages/Settings.tsx`：
+    - `deleteModel(id: string)` → `deleteModel(id: string, name: string)`，函数首行加 `if (!confirm(\`确认删除模型「${name}」？\\n此操作不可撤销。\`)) { return }`，与 `provider-sections.tsx` L152 模式一致。
+    - 调用点 `<Button ... onClick={() => deleteModel(m.id)}>` → `deleteModel(m.id, m.name)`。
+  - **修改** `frontend/src/pages/Home.tsx` L194：背景遮罩 div 加 `aria-hidden="true"`，与 `Layout.tsx` L38 同类元素一致。
+  - **删备份**：验证通过后删除 `.tmp/backups/frontend/src/pages/{Settings,Home}.tsx`。
+- **验证**：
+  - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。

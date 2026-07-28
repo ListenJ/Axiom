@@ -258,7 +258,10 @@ function ModelManagementSection({ toast }: { toast: (msg: string, type?: 'info' 
     }
   }
 
-  const deleteModel = async (id: string) => {
+  const deleteModel = async (id: string, name: string) => {
+    if (!confirm(`确认删除模型「${name}」？\n此操作不可撤销。`)) {
+      return
+    }
     try {
       await api.delete(`/models/${encodeURIComponent(id)}`)
       toast('模型已删除', 'info')
@@ -356,7 +359,7 @@ function ModelManagementSection({ toast }: { toast: (msg: string, type?: 'info' 
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={() => deleteModel(m.id)}>
+                      <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={() => deleteModel(m.id, m.name)}>
                         删除
                       </Button>
                     </td>
