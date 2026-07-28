@@ -1990,7 +1990,7 @@
   - histogram `getPrometheusFormat()`: O(buckets × values) → O(unique_labels × buckets)
   - gauge `gauge()`: O(n) filter + push → O(1) Map.set
 - **备份**：2 个文件备份到 `.tmp/backups/`（验证通过后已删除）；1 个临时 bench 脚本已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`8a1c08c`（已推送 `internal211/main`）。
 
 
 ---
