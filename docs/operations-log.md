@@ -1945,7 +1945,7 @@
   - rate-limiter `cleanup()`: O(n × m) → O(n + m)（m=rules, n=keys）
   - http-router `recordPerf()`: O(n) (n=1000) → O(1)
 - **备份**：3 个文件备份到 `.tmp/backups/`（验证通过后已删除）；3 个临时 bench 脚本（`.tmp/bench-*.ts`）已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`5cf5a01`（已推送 `internal211/main`）。
 
 
 ---
