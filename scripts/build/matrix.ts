@@ -14,7 +14,8 @@
  * 构建产物输出到 dist/ 目录，按 target/platform/arch 分类。
  */
 
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
 import path from "path";
 
 // ═══════════════════════════════════════════════════════════════
@@ -99,6 +100,9 @@ function currentBunTarget(): string {
 const DIST_DIR = path.resolve("dist");
 const ROOT = path.resolve(".");
 
+/** 构建结果统计（跨子任务累计） */
+const stats = { success: 0, failed: 0, skipped: 0 };
+
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
@@ -112,6 +116,44 @@ async function run(cmd: string[], opts?: { cwd?: string; env?: Record<string, st
   });
   const exitCode = await proc.exited;
   return exitCode === 0;
+}
+
+/** 递归收集目录下所有文件（返回相对 dist/ 的路径） */
+function collectFiles(dir: string, base: string = dir): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectFiles(fullPath, base));
+    } else if (entry.isFile()) {
+      results.push(path.relative(base, fullPath).replace(/\\/g, "/"));
+    }
+  }
+  return results;
+}
+
+/** 扫描 dist/ 目录生成 SHA256 校验和文件（CHECKSUMS.txt） */
+function generateChecksums(): void {
+  if (!existsSync(DIST_DIR)) {
+    console.log("\n[checksums] dist/ 不存在，跳过校验和生成");
+    return;
+  }
+  const files = collectFiles(DIST_DIR).sort();
+  if (files.length === 0) {
+    console.log("\n[checksums] dist/ 为空，跳过校验和生成");
+    return;
+  }
+  const lines: string[] = [`# axiom-agent build checksums`, `# generated: ${new Date().toISOString()}`, ``];
+  let counted = 0;
+  for (const relPath of files) {
+    const fullPath = path.join(DIST_DIR, relPath);
+    const hash = createHash("sha256").update(readFileSync(fullPath)).digest("hex");
+    lines.push(`${hash}  ${relPath}`);
+    counted++;
+  }
+  const checksumFile = path.join(DIST_DIR, "CHECKSUMS.txt");
+  writeFileSync(checksumFile, lines.join("\n") + "\n", "utf-8");
+  console.log(`\n[checksums] 已生成 ${path.relative(ROOT, checksumFile)}（${counted} 个文件）`);
 }
 
 /** 构建 Bun 编译目标 (单文件二进制) */
@@ -142,8 +184,8 @@ async function buildBunTargets(platformFilter: string): Promise<void> {
         ep.entry,
         "--outfile", outFile,
       ]);
-      if (ok) console.log(`  ✓ done`);
-      else console.error(`  ✗ failed`);
+      if (ok) { console.log(`  ✓ done`); stats.success++; }
+      else { console.error(`  ✗ failed`); stats.failed++; }
     }
   }
 }
@@ -152,8 +194,8 @@ async function buildBunTargets(platformFilter: string): Promise<void> {
 async function buildFrontend(): Promise<void> {
   console.log("\n[frontend] Vite build → frontend/dist/");
   const ok = await run(["bun", "run", "build"], { cwd: path.join(ROOT, "frontend") });
-  if (ok) console.log("  ✓ frontend built");
-  else console.error("  ✗ frontend build failed");
+  if (ok) { console.log("  ✓ frontend built"); stats.success++; }
+  else { console.error("  ✗ frontend build failed"); stats.failed++; }
 }
 
 /** 构建 Tauri 桌面端 (当前平台安装包) */
@@ -161,8 +203,8 @@ async function buildTauri(): Promise<void> {
   console.log("\n[tauri] Desktop app build (current platform)");
   console.log("  → Windows: .msi/.exe  macOS: .dmg  Linux: .deb/.AppImage");
   const ok = await run(["bun", "run", "tauri:build"]);
-  if (ok) console.log("  ✓ tauri built");
-  else console.error("  ✗ tauri build failed");
+  if (ok) { console.log("  ✓ tauri built"); stats.success++; }
+  else { console.error("  ✗ tauri build failed"); stats.failed++; }
 }
 
 /** Go 服务交叉编译 */
@@ -197,8 +239,8 @@ async function buildGoServices(platformFilter: string): Promise<void> {
           env: { CGO_ENABLED: "0", GOOS: tgt.os, GOARCH: tgt.arch },
         },
       );
-      if (ok) console.log(`  ✓ ${svc} built`);
-      else console.error(`  ✗ ${svc} failed`);
+      if (ok) { console.log(`  ✓ ${svc} built`); stats.success++; }
+      else { console.error(`  ✗ ${svc} failed`); stats.failed++; }
     }
   }
 }
@@ -208,12 +250,13 @@ async function buildNative(): Promise<void> {
   const nativeDir = path.join(ROOT, "native");
   if (!existsSync(nativeDir)) {
     console.log("\n[native] 跳过: native/ 目录不存在");
+    stats.skipped++;
     return;
   }
   console.log("\n[native] cargo build --release (local crate)");
   const ok = await run(["cargo", "build", "--release", "--features", "local"], { cwd: nativeDir });
-  if (ok) console.log("  ✓ native built");
-  else console.error("  ✗ native build failed");
+  if (ok) { console.log("  ✓ native built"); stats.success++; }
+  else { console.error("  ✗ native build failed"); stats.failed++; }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -327,10 +370,19 @@ async function main(): Promise<void> {
   }
 
   const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+
+  // 生成校验和（仅当有产物时）
+  generateChecksums();
+
   console.log(`\n${"═".repeat(60)}`);
   console.log(`  构建完成 — 耗时 ${elapsed}s`);
+  console.log(`  成功 ${stats.success}  失败 ${stats.failed}  跳过 ${stats.skipped}`);
   console.log(`  产物目录: ${DIST_DIR}`);
+  if (stats.failed > 0) {
+    console.log(`  ⚠ 有 ${stats.failed} 个目标构建失败，请检查上方日志`);
+  }
   console.log(`${"═".repeat(60)}`);
+  if (stats.failed > 0) process.exit(1);
 }
 
 main().catch(err => {

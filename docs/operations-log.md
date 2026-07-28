@@ -2413,3 +2413,26 @@
   - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
   - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
 - **Commit**：`ea509f5`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 19:35 +0800 — 构建矩阵完善：SHA256 校验和 + 统计摘要
+
+- **任务**：完善 `scripts/build/matrix.ts`，补充分发流程缺失的两个关键能力：(1) 构建后自动生成 SHA256 校验和文件 `dist/CHECKSUMS.txt`，用于跨平台分发时验证产物完整性；(2) 构建结果统计摘要（成功/失败/跳过计数），失败时以非零退出码告警。
+- **工具**：Read、Edit、RunCommand（`bunx tsc --noEmit` / `bun run scripts/build/matrix.ts --list` / 实际构建验证）、Copy-Item/DeleteFile（备份 / 删备份）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  - **备份**：`scripts/build/matrix.ts` → `.tmp/backups/scripts/build/`。
+  - **修改** `scripts/build/matrix.ts`：
+    - import 扩展：新增 `readdirSync` / `statSync` / `readFileSync` / `writeFileSync`（from "fs"）+ `createHash`（from "crypto"）。
+    - 新增模块级 `stats = { success, failed, skipped }` 计数器。
+    - 新增 `collectFiles(dir, base)` 递归收集目录下所有文件（返回相对路径，路径分隔符归一化为 `/`）。
+    - 新增 `generateChecksums()`：扫描 `dist/` 下所有文件，逐个计算 SHA256，写入 `dist/CHECKSUMS.txt`（含生成时间戳头），CHECKSUMS.txt 自身正确排除（生成后才写入）。
+    - 各 build 函数（`buildBunTargets` / `buildFrontend` / `buildTauri` / `buildGoServices` / `buildNative`）的成功/失败分支累计 `stats.success++` / `stats.failed++`；`buildNative` 的"目录不存在"分支累计 `stats.skipped++`。
+    - `main()` 结尾：调用 `generateChecksums()` → 输出统计摘要（`成功 N  失败 N  跳过 N`）→ 失败时打印告警 + `process.exit(1)`。
+  - **删备份**：验证通过后删除 `.tmp/backups/scripts/build/matrix.ts`。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `bun run scripts/build/matrix.ts --list` → 全部目标正确列出（Bun 3 入口 × 5 平台 + Go 4 服务 × 5 平台 + 前端 + Tauri + Native + 鸿蒙）。
+  - `bun run scripts/build/matrix.ts --target=server --platform=current` → axiom-server.exe 编译成功（540ms），`dist/CHECKSUMS.txt` 生成（2 个文件），统计 `成功 1  失败 0  跳过 0`，退出码 0。
+  - CHECKSUMS.txt 内容验证：格式 `<sha256>  <相对路径>`，CHECKSUMS.txt 自身正确排除。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
