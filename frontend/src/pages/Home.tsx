@@ -131,13 +131,13 @@ export default function Home() {
               const Icon = s.icon
               return (
                 <button key={s.label} onClick={() => { setInput(s.query); setTimeout(() => textareaRef.current?.focus(), 100) }}
-                  className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left transition-all duration-200 hover:border-[var(--accent-soft)]">
+                  className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-sm)] transition-all duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]">
                   <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform group-hover:scale-110">
                     <Icon className="size-6" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-base font-medium text-[var(--text)]">{s.label}</p>
-                    <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">{s.query}</p>
+                    <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">{s.query}</p>
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100" />
                 </button>

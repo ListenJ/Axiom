@@ -2096,3 +2096,26 @@
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 6.49s。
 - **备份**：`frontend/src/pages/Chat.tsx` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`62608fc`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 13:30 +0800 — 视觉优化：对比度提升 + 边框可见性 + 卡片深度
+
+- **任务**：用户要求使用视觉能力继续优化界面。通过浏览器截图审计发现：首页建议卡片文字偏灰、底部状态栏文字偏暗、边框几乎不可见（6% 不透明度）。
+- **工具**：Agent(browser_use)×2（视觉审计 + 改进验证）、Read、Edit、RunCommand（`npm run build`）。
+- **执行的操作**：
+  1. **`frontend/src/styles/index.css`**（修改）— 暗色主题边框可见度提升：
+     - `--border`：`rgba(255,255,255,0.06)` → `0.09`（从几乎不可见到微可见）
+     - `--border-hover`：`0.12` → `0.15`
+     - `--border-strong`：`0.18` → `0.22`
+  2. **`frontend/src/components/layout/StatsBar.tsx`**（修改）— 底部状态栏文字对比度：
+     - `text-[var(--text-muted)]` → `text-[var(--text-secondary)]`（小字体需要更高对比度才可读）
+  3. **`frontend/src/pages/Home.tsx`**（修改）— 首页建议卡片视觉优化：
+     - 查询文字 `text-[var(--text-muted)]` → `text-[var(--text-secondary)]`（提升可读性）
+     - 卡片新增 `shadow-[var(--shadow-sm)]`（静态状态有微妙阴影深度）
+     - hover 从 `hover:border-[var(--accent-soft)]` 改为 `hover:border-[var(--accent)]` + `hover:shadow-[var(--shadow-md)]`（更明显的交互反馈）
+  4. **前端构建**：`npm run build` → 0 错误，CSS 35.89KB / JS 431.46KB。
+- **验证**：浏览器视觉验证首页——建议卡片边框可见+阴影深度 ✓、查询文字可读 ✓、底部状态栏文字可读 ✓、UI 各处边框更可见 ✓。
+- **备份**：`StatsBar.tsx` + `Home.tsx` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。

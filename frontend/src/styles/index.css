@@ -21,9 +21,9 @@
   --surface-active: #2a2a34;
 
   /* Borders — low at rest, higher on hover, accent on focus */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
-  --border-strong: rgba(255, 255, 255, 0.18);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.22);
 
   /* Text — 4-step hierarchy (WCAG AA compliant on --bg) */
   --text: #f5f5f7;
