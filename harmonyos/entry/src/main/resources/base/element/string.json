@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Axiom Agent 鸿蒙 WebView 壳应用主模块"
+    },
+    {
+      "name": "Index_desc",
+      "value": "Axiom Agent 主页面（WebView）"
+    },
+    {
+      "name": "app_name",
+      "value": "axiom"
+    },
+    {
+      "name": "server_url",
+      "value": "http://192.168.0.22:18789"
+    }
+  ]
+}

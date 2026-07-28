@@ -2349,3 +2349,28 @@
 - **验证**：`tsc --noEmit` 零错误 + `traffic-classifier` 29/29 + `security-hardening` + `security-hardening-extended` 80/80 测试通过。
 - **备份**：`traffic-classifier.ts` 备份到 `.tmp/backups/src/utils/`（验证通过后已删除）。
 - **Commit**：`7a19005`（已推送 `internal211/main`）。
+
+---
+
+## 2026-07-29 03:15 +0800 — 新增 HarmonyOS 鸿蒙 WebView 壳应用
+
+- **任务**：在 `harmonyos/` 目录下创建 HarmonyOS（鸿蒙）ArkTS WebView 壳应用项目，通过 WebView 加载 Axiom Agent Web 前端（默认地址 `http://192.168.0.22:18789`）。
+- **工具**：Write、Read、RunCommand(PowerShell mkdir/node JSON 校验)、Edit。
+- **操作**（全部为新建文件，无既有文件修改，按规则 2 无需备份）：
+  - `harmonyos/entry/src/main/pages/Index.ets` —— ArkTS 主页面：`@Entry @Component struct Index`，Web 组件 + `webview.WebviewController`，`@State isLoading` 加载指示器，`onControllerAttached`/`onPageBegin`/`onPageEnd`/`onErrorReceive` 回调，`onBackPress` 经 `accessBackward()`/`backward()` 处理返回键，`.javaScriptAccess(true)` + `.domStorageAccess(true)` + `.mixedMode(MixedMode.All)`，`aboutToAppear` 从 string 资源读取 `server_url`。
+  - `harmonyos/AppScope/app.json5` —— 应用级配置：`bundleName: ai.axiom.app`，`label: $string:app_name`（"axiom"）。
+  - `harmonyos/AppScope/resources/base/element/string.json` —— 全局 `app_name: axiom`。
+  - `harmonyos/entry/src/main/module.json5` —— 模块配置：entry 类型，mainElement=Index，deviceTypes phone/tablet/2in1，pages=`$profile:main_pages`，ability 含 `entity.system.home`/`action.system.home` 入口技能。
+  - `harmonyos/entry/src/main/resources/base/element/string.json` —— 模块字符串：`app_name`/`module_desc`/`Index_desc`/`server_url`。
+  - `harmonyos/entry/src/main/resources/base/element/color.json` —— `start_window_background: #FFFFFF`。
+  - `harmonyos/entry/src/main/resources/base/profile/main_pages.json` —— 页面路由 `pages/Index`。
+  - `harmonyos/build-profile.json5` —— 项目构建配置：product default，compatibleSdkVersion 5.0.0(12)，buildModeSet debug+release。
+  - `harmonyos/hvigorfile.ts` —— 项目构建脚本（`appTasks`）。
+  - `harmonyos/oh-package.json5` —— 项目包配置：name `axiom-harmony`，devDependencies `@ohos/hypium`。
+  - `harmonyos/entry/build-profile.json5` —— 模块构建配置：stageMode，targets default+ohosTest。
+  - `harmonyos/entry/hvigorfile.ts` —— 模块构建脚本（`hapTasks`）。
+  - `harmonyos/entry/oh-package.json5` —— 模块包配置。
+  - `harmonyos/entry/src/ohosTest/.gitkeep` —— 测试目录占位。
+  - `harmonyos/README.md` —— 环境要求（DevEco Studio 5.0+）、打开构建步骤、服务器地址配置（资源/代码两种方式）、图标说明、网络权限、签名 HAP 生成流程、WebView 功能表。
+- **验证**：10 个 JSON/JSON5 文件经 node `JSON.parse`（json5 去注释后）全部通过；Index.ets 回读确认所有任务要求点齐全（@Entry/@Component/Web/webController/@State isLoading/onControllerAttached/onPageBegin/onPageEnd/accessBackward/javaScriptAccess/domStorageAccess/全屏 layout）。
+- **Commit**：`4370cb4`（amend 补录本行；最终 hash 以 `git log` 为准）。
