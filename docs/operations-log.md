@@ -2137,3 +2137,28 @@
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 4.23s。
 - **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`55ce226`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-28 14:50 +0800 — 认证修复 + 任务类型路由 + main_coding bug 修复
+
+- **任务**：用户要求修复 Unauthorized 错误、实现基于任务类型的服务分配机制。
+- **工具**：Agent(search)×2（认证排查 + 路由机制研究）、Read、Edit、RunCommand。
+- **执行的操作**：
+  1. **`src/main.ts`**（修改）— SPA 路由白名单在 auth check 之前提供 index.html：
+     - 新增 19 个 SPA 路由的白名单集合（`/chat`, `/code`, `/knowledge`, `/settings` 等）
+     - GET 请求匹配白名单 → 直接返回 `index.html`，跳过认证
+     - API 端点（`/agents/status`, `/chat/stream`, `/system/state` 等多段路径）仍需认证
+     - 修复：非本地用户访问 `/chat` 等页面不再返回 `{"error":"Unauthorized"}`
+  2. **`src/router/route-table.ts`**（修改）— 修复 `main_coding` bug：
+     - `engineering`, `game-development`, `integrations` 的 role 从 `main_coding` 改为 `code-generation`
+     - 原因：注册表中无任何模型声明 `main_coding` 角色，导致编码任务返回 "No models configured"
+  3. **`src/router/model-router.ts`**（修改）— 基于任务类型的服务分配：
+     - 新增 `LIGHT_ROUTES` 集合：`general-tool`, `research`, `general-chat`, `code-review`, `english`, `evaluation`
+     - 轻量任务（读取/检查）→ 优先免费模型（`isFree: true` 排在前面），降低成本
+     - 重量任务（代码/决策）→ 按 priority 排序，DeepSeek V4 Pro (priority=1) 优先
+     - 动态 API Key：已有机制（`api-key-store.ts` + 前端 Providers 页面）支持运行时设置各厂商 API Key
+- **验证**：`tsc --noEmit` 零错误 + `auth-check` 9/9 测试通过。
+- **备份**：`auth-check.ts` + `main.ts` + `route-table.ts` + `model-router.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
+- **Commit**：（待提交）。

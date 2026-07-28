@@ -454,6 +454,25 @@ const server = Bun.serve({
     const remoteAddress = server.requestIP(req)?.address;
     const isLocal = ALLOW_LOCAL_BYPASS && isLocalAddress(remoteAddress);
 
+    // SPA navigation routes — serve index.html before auth check so frontend
+    // loads even when AXIOM_AUTH_TOKEN is configured. API endpoints (which use
+    // multi-segment paths like /agents/status, /chat/stream, /system/state) are
+    // NOT in this whitelist and still require auth.
+    const SPA_ROUTES = new Set([
+      "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
+      "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
+      "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/settings",
+    ]);
+    if (req.method === "GET" && SPA_ROUTES.has(url.pathname)) {
+      const spaIndex = Bun.file(`${STATIC_ROOT}/index.html`);
+      if (await spaIndex.exists()) {
+        return new Response(spaIndex, {
+          status: 200,
+          headers: { ...securityHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+        });
+      }
+    }
+
     // API Key authentication
     if (!checkApiKey(req, isLocal, API_KEY)) {
       auditLogger.log({

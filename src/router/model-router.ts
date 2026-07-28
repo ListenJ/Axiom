@@ -225,7 +225,20 @@ export class MultiPlatformRouter {
         fallbackUsed: true,
       };
     }
-    const sortedModels = [...candidates].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    // Task-type-based routing: light roles (read/check) prefer free models,
+    // heavy roles (code/decision) prefer DeepSeek via priority.
+    const LIGHT_ROUTES = new Set<TaskRole>([
+      "general-tool", "research", "general-chat", "code-review", "english", "evaluation",
+    ]);
+    const isLightRoute = LIGHT_ROUTES.has(role);
+    const sortedModels = [...candidates].sort((a, b) => {
+      // Light roles: free models first (cost saving), then by priority
+      if (isLightRoute && a.isFree !== b.isFree) {
+        return a.isFree ? -1 : 1;
+      }
+      // Heavy roles: DeepSeek already has priority 1 in the registry
+      return (a.priority ?? 99) - (b.priority ?? 99);
+    });
 
     let lastError: Error | undefined;
     for (const model of sortedModels) {
