@@ -89,7 +89,9 @@ describe("AuditLogger", () => {
     const setSuccess = metric.values.filter(
       (v) => v.labels?.event === "apikey.set" && v.labels?.outcome === "success"
     );
-    expect(setSuccess.length).toBeGreaterThanOrEqual(2);
+    // 聚合后 2 次 apikey.set+success 合并为 1 个条目 (value=2)，按 value 总和验证
+    const setSuccessTotal = setSuccess.reduce((sum, v) => sum + v.value, 0);
+    expect(setSuccessTotal).toBeGreaterThanOrEqual(2);
 
     const authDenied = metric.values.filter(
       (v) => v.labels?.event === "auth.failure" && v.labels?.outcome === "denied"

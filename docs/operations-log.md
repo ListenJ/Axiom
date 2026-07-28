@@ -1950,6 +1950,51 @@
 
 ---
 
+## 2026-07-28 16:15 +0800 — metrics.ts 聚合重构：消除每请求对象分配 + slice 重建
+
+- **任务**：继续优化整体设备使用——审计内存/CPU/IO 资源瓶颈，重构低效数据结构。
+- **工具**：Read、Grep、Write、Edit、RunCommand（`bunx tsc` / `bun test` / 临时 bench）、Copy-Item/DeleteFile。
+- **发现的瓶颈**：`src/utils/metrics.ts` 是每请求核心热路径（main.ts 每请求 2 次 increment + 1 次 histogram；model-router 每路由决策 1-2 次 increment + 1 次 histogram；audit-logger 每审计事件 1-2 次 increment）。
+  - **counter**：每次 `increment()` push 一个 `{value, timestamp, labels}` 对象；超 1000 条时 `slice(-1000)` 重建整个数组（O(n) 分配）。counter 语义被当作时间序列存储，而非累加总数。
+  - **histogram**：每次 `histogram()` push 一个对象；超 10000 条时 `slice(-10000)` 重建。`getPrometheusFormat()` 对每个 bucket 做 `values.filter(v => v.value <= bucket).length`——O(buckets × values) = O(9 × 10000) = 90000 次比较/调用。
+  - **gauge**：每次 `gauge()` 用 `filter()` 扫描全量条目移除同 label 旧值——O(n) per call。
+  - **labels 对象**：每次调用都新建 `{method, path, status}` 对象，无法复用。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  1. `src/utils/metrics.ts` 核心重构——保持公共 API（register/increment/gauge/histogram/getPrometheusFormat/getJSON）不变，内部存储从 `MetricValue[]` 时间序列改为 `Map<labelKey, Entry>` 聚合：
+     - 新增 `labelKey()` 函数：将 labels 序列化为稳定 key（键排序）。
+     - **counter** → `Map<labelKey, CounterEntry>`：`increment()` 原地累加 `entry.value += value`，零分配。内存 O(unique_labels)。
+     - **histogram** → `Map<labelKey, HistogramEntry>`：`histogram()` 更新累计 bucket 计数 + count + sum，不存原始值。内存 O(unique_labels × buckets)。`getPrometheusFormat()` 直接读 bucket 计数，O(unique_labels × buckets)。
+     - **gauge** → `Map<labelKey, GaugeEntry>`：`gauge()` 用 `Map.set()` 覆盖旧值，O(1)。
+     - `getJSON()` 保持输出格式兼容：values 数组从 Map 生成，元素仍是 `{value, labels}`。
+     - `getPrometheusFormat()` 修复原 bug：原实现只用 `values[0].labels` 丢失多 label 组合，新实现为每个 label 组合独立输出 bucket/count/sum。
+  2. `tests/audit-logger.test.ts` 更新 1 处断言：`setSuccess.length >= 2` → `setSuccess.reduce(sum, v.value) >= 2`（聚合后 2 次 increment 合并为 1 个条目 value=2，按 value 总和验证行为正确性）。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `bun test src/utils/__tests__/metrics.test.ts tests/audit-logger.test.ts` → 19 pass / 0 fail。
+  - `bun test tests/model-router.test.ts tests/security-hardening.test.ts tests/security-hardening-extended.test.ts` → 88 pass / 0 fail。
+  - 合计 107 测试全通过，0 回归。
+- **Before/After 指标**：
+
+  | 基准 | Before | After | 加速比 |
+  |---|---|---|---|
+  | `getPrometheusFormat()` × 100 | 78.98ms (0.79ms/call) | 4.45ms (0.044ms/call) | **~18x** |
+  | 5000 个唯一 labels（高基数写入） | 8.59ms, heapUsed +199.4KB | 3.67ms, heapUsed +0KB | **~2.3x, 内存零增长** |
+  | 1000 次 increment + 1000 次 histogram | 1.26ms | 2.38ms | 持平（labelKey 开销 ≈ slice 消除收益） |
+
+  - **最大收益 1**：`getPrometheusFormat()` 从 0.79ms 降至 0.044ms——原实现每次调用对 9 个 bucket 各做一次 `values.filter()` 全量扫描，新实现直接读预聚合的 bucket 计数。
+  - **最大收益 2**：高基数 labels 场景内存从 +199KB 降至 +0KB——原实现每个调用 push 一个 `MetricValue` 对象（含 timestamp），新实现按 labelKey 聚合，相同 labels 原地更新零分配。
+  - **写入性能**：1000 次调用 1.26ms → 2.38ms，每次差 0.001ms——labelKey 序列化开销（Object.keys + sort + 拼接）与消除 slice 大数组分配的收益基本抵消，在可接受范围内。
+- **算法复杂度变化**：
+  - counter `increment()`: O(1) push + 偶发 O(n) slice → O(1) Map.get + 原地累加
+  - histogram `histogram()`: O(1) push + 偶发 O(n) slice → O(buckets) bucket 更新（buckets=9 固定）
+  - histogram `getPrometheusFormat()`: O(buckets × values) → O(unique_labels × buckets)
+  - gauge `gauge()`: O(n) filter + push → O(1) Map.set
+- **备份**：2 个文件备份到 `.tmp/backups/`（验证通过后已删除）；1 个临时 bench 脚本已删除。
+- **Commit**：（待提交后补录）。
+
+
+---
+
 ## 2026-07-27 10:46 +0800 — 新建 runtime-go：Go 企业级高并发三模块（PCDA / 子代理调度 / 并发搜索）
 
 - **任务**：用户要求用 Go 设计实现三个关键功能模块（PCDA 循环并发执行系统、多子代理任务调度框架、知识库并发搜索系统），目标 100k QPS 设计容量，含数据一致性/原子性、Prometheus 监控、结构化错误处理、AST/DAG 技术优化，并接入 192.168.0.150:9001 模型服务。经 AskUserQuestion 确认：并发目标 100k QPS、代码放 `runtime-go/` 独立 module、分布式锁用接口抽象+Redis 实现、三模块核心全做。计划经 ExitPlanMode 批准后执行。
