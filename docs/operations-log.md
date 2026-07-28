@@ -2389,4 +2389,4 @@
   - `bunx tsc --noEmit` → ExitCode=0（零错误）。
   - `bun test ./tests/skills-integration.test.ts` → 3 pass / 0 fail（含 agency-zh 201 skill 加载 + Hermes 裸 SkillDefinition 兼容）。
   - skill-loader 静态导入确认：编译后 YAML 解析路径正常工作，YAML/JSON 双格式加载均正常。
-- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
+- **Commit**：`6815109`（已推送 `internal211/master`）。
