@@ -118,9 +118,11 @@ export class TrafficClassifier {
     }
 
     // 3. 攻击签名检测 — 检查 path + query
-    const checkStr = `${features.path}?${features.query}`;
+    // checkStr 以 path 为前缀，test(checkStr) 已覆盖 test(path)，无需重复检测
+    // 仅在 query 非空时分配合并串，避免每请求无谓字符串分配
+    const checkStr = features.query ? `${features.path}?${features.query}` : features.path;
     for (const ap of ATTACK_PATTERNS) {
-      if (ap.pattern.test(checkStr) || ap.pattern.test(features.path)) {
+      if (ap.pattern.test(checkStr)) {
         if (!reasons.includes(ap.name)) reasons.push(ap.name);
         maxScore = Math.max(maxScore, ap.score);
       }

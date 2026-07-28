@@ -1995,6 +1995,40 @@
 
 ---
 
+## 2026-07-28 16:45 +0800 — sanitizeRequestBody 正则化 + 消除每请求 3 次 URL 解析
+
+- **任务**：继续优化——审计 logger/security/auth-check 等基础工具的热路径开销。
+- **工具**：Read、Grep、Edit、RunCommand（`bunx tsc` / `bun test` / 临时 bench）、Copy-Item/DeleteFile。
+- **发现的瓶颈**：
+  1. `src/utils/security.ts` `sanitizeRequestBody()`：每次调用重建 `sensitiveFields` 数组（9 元素），对每个 key 做 `sensitiveFields.some(f => lowerKey.includes(f))` = O(9×N) 字符串扫描。该函数被 `logger.redactContext()` 在每条日志输出时调用。
+  2. `src/utils/auth-check.ts` `checkApiKey()`：每请求内部 `new URL(req.url)` 重复解析 URL（main.ts 已解析过一次）。`PUBLIC_PATHS` 用数组 `includes`（O(n)）而非 Set `has`（O(1)）。
+  3. `src/utils/rate-limiter.ts` `createRateLimitMiddleware`：同样每请求 `new URL(req.url)` 重复解析。每请求 3 次 URL 解析（main.ts + checkApiKey + rateLimitCheck）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  1. `src/utils/security.ts`：`sensitiveFields` 数组 → 模块级预编译正则 `SENSITIVE_KEY_RE`（`/password|token|secret|api_?key|authorization|cookie|credit_?card|ssn/i`）。`some(f => lowerKey.includes(f))` → `SENSITIVE_KEY_RE.test(key)`，从 O(9×N) 到 O(N) 正则匹配，零数组分配。
+  2. `src/utils/auth-check.ts`：`PUBLIC_PATHS` 数组 → `Set`；`checkApiKey` 添加可选第 4 参数 `pathname?: string`，传入时跳过 `new URL()`，向后兼容。
+  3. `src/utils/rate-limiter.ts`：`createRateLimitMiddleware` 返回函数及 `RateLimitMiddleware` 类型添加可选 `pathname?: string` 参数。
+  4. `src/main.ts`：`checkApiKey(req, isLocal, API_KEY, url.pathname)` 和 `rateLimitCheck(req, remoteAddress, url.pathname)` 传入已解析的 pathname，消除 2 次重复 URL 解析。
+- **验证**：
+  - `bunx tsc --noEmit` → ExitCode=0。
+  - `bun test tests/auth-check.test.ts tests/coverage-gap/rate-limiter.test.ts tests/security-hardening.test.ts tests/audit-logger.test.ts tests/bug-hunt/security-and-integrity.test.ts` → 145 pass / 0 fail。
+- **Before/After 指标**：
+
+  | 基准 | Before | After | 加速比 |
+  |---|---|---|---|
+  | `sanitizeRequestBody()` × 100k | 107.17ms (1.07µs/call, 933k ops/s) | 28.99ms (0.29µs/call, 3.45M ops/s) | **~3.7x** |
+  | 每请求 URL 解析次数 | 3 次 `new URL()` | 1 次 | **-67%** |
+
+  - `sanitizeRequestBody` 收益最大：每次日志输出从 1.07µs 降至 0.29µs，高频日志场景下累积收益显著（原每次调用分配 9 元素数组 + 9×N 次 `includes`）。
+  - URL 解析：`new URL()` 单次 0.6µs，消除 2 次/请求 = 节省 ~1.2µs/请求。
+- **算法复杂度变化**：
+  - `sanitizeRequestBody`: O(9×N) some/includes → O(N) 正则匹配（+ 零数组分配）
+  - `checkApiKey` PUBLIC_PATHS 查找: O(6) → O(1)
+- **备份**：4 个文件备份到 `.tmp/backups/`（验证通过后已删除）；2 个临时 bench 脚本已删除。
+- **Commit**：（待提交后补录）。
+
+
+---
+
 ## 2026-07-27 10:46 +0800 — 新建 runtime-go：Go 企业级高并发三模块（PCDA / 子代理调度 / 并发搜索）
 
 - **任务**：用户要求用 Go 设计实现三个关键功能模块（PCDA 循环并发执行系统、多子代理任务调度框架、知识库并发搜索系统），目标 100k QPS 设计容量，含数据一致性/原子性、Prometheus 监控、结构化错误处理、AST/DAG 技术优化，并接入 192.168.0.150:9001 模型服务。经 AskUserQuestion 确认：并发目标 100k QPS、代码放 `runtime-go/` 独立 module、分布式锁用接口抽象+Redis 实现、三模块核心全做。计划经 ExitPlanMode 批准后执行。
@@ -2289,3 +2323,29 @@
 - **验证**：`tsc --noEmit` 零错误 + `auth-check` 9/9 + `traffic-classifier` 29/29 测试通过。
 - **备份**：`model-capability-registry.ts` + `main.ts` 备份到 `.tmp/backups/`（验证通过后已删除）。
 - **Commit**：`71a6a39`（待推送 `internal211/main`）。
+
+
+---
+
+## 2026-07-29 16:25 +0800 — 性能优化：流量分类器消除冗余正则测试
+
+- **任务**：用户要求继续优化。审计基础工具层（logger/env/websocket/cache/metrics/audit-logger/traffic-classifier）后，定位到 `traffic-classifier.ts` `classify()` 为每请求热路径且存在两处冗余开销。
+- **工具**：Read、Edit、RunCommand（tsc + tests + benchmark）。
+- **瓶颈分析**（`classify()` 在 `main.ts:560` 每请求调用一次）：
+  1. **冗余正则测试** — `ap.pattern.test(checkStr) || ap.pattern.test(features.path)`：`checkStr = path + "?" + query` 已以 `path` 为前缀，任何在 `path` 中匹配的模式必然在 `checkStr` 中也匹配（5 条攻击签名正则均无 `$` 锚定）。第二个 `test()` 是纯冗余，每请求多执行 5 次正则匹配。
+  2. **无 query 时的无谓字符串分配** — 即使 `features.query` 为空（常见 POST/PUT 及简单 GET），仍执行 `${features.path}?${features.query}` 模板拼接，分配一个新字符串。
+- **执行的操作**：
+  1. **`src/utils/traffic-classifier.ts`**（修改）— `classify()` 攻击签名检测段：
+     - 仅在 `features.query` 非空时才分配合并串 `checkStr`；为空时直接复用 `features.path`
+     - 删除 `|| ap.pattern.test(features.path)` 冗余分支，每请求少 5 次正则 `test()`
+     - 检测语义不变：`checkStr` 仍以 `path` 为前缀，所有 5 条攻击签名（path_traversal / sql_injection / xss / cmd_injection / ssrf）的匹配覆盖范围与原实现一致
+- **性能指标**（benchmark: 100,000 次分类）：
+  | 场景 | 优化前 | 优化后 | 提升 |
+  |------|--------|--------|------|
+  | 无 query | 0.579µs/call (1.73M ops/sec) | 0.436µs/call (2.30M ops/sec) | **↑25%** (1.33x) |
+  | 有 query | 0.615µs/call (1.63M ops/sec) | 0.509µs/call (1.96M ops/sec) | **↑17%** (1.21x) |
+  - 无 query 场景提升更大：同时省去字符串分配 + 5 次冗余正则
+  - 有 query 场景：仍分配合并串，但省去 5 次冗余正则
+- **验证**：`tsc --noEmit` 零错误 + `traffic-classifier` 29/29 + `security-hardening` + `security-hardening-extended` 80/80 测试通过。
+- **备份**：`traffic-classifier.ts` 备份到 `.tmp/backups/src/utils/`（验证通过后已删除）。
+- **Commit**：（待提交）。
