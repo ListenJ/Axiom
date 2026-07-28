@@ -2435,4 +2435,4 @@
   - `bun run scripts/build/matrix.ts --list` → 全部目标正确列出（Bun 3 入口 × 5 平台 + Go 4 服务 × 5 平台 + 前端 + Tauri + Native + 鸿蒙）。
   - `bun run scripts/build/matrix.ts --target=server --platform=current` → axiom-server.exe 编译成功（540ms），`dist/CHECKSUMS.txt` 生成（2 个文件），统计 `成功 1  失败 0  跳过 0`，退出码 0。
   - CHECKSUMS.txt 内容验证：格式 `<sha256>  <相对路径>`，CHECKSUMS.txt 自身正确排除。
-- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
+- **Commit**：`c8c97e8`（已推送 `internal211/master`）。
