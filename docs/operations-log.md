@@ -2136,4 +2136,4 @@
   2. **前端构建**：`npm run build` → 0 错误，CSS 36.09KB / JS 431.46KB。
 - **验证**：`tsc -b && vite build` → ExitCode=0，1646 modules in 4.23s。
 - **备份**：`frontend/src/styles/index.css` 备份到 `.tmp/backups/`（验证通过后已删除）。
-- **Commit**：（待提交）。
+- **Commit**：`55ce226`（待推送 `internal211/main`）。
