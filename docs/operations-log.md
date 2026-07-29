@@ -2545,3 +2545,16 @@
     - ✅ X 关闭按钮 44px 触摸目标，点击正常关闭表单。
     - ✅ 主题切换按钮样式正常。
 - **Commit**：`b2ac073`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 22:00 +0800 — toggle 开关方向修正（恢复标准 iOS 方向）
+
+- **任务**：上一轮将 toggle 方向反转为"开启=左 关闭=右"，用户反馈"移动的方向仍然是反的"，确认应恢复标准 iOS 方向。
+- **工具**：Edit、RunCommand（`bunx tsc --noEmit` / `bunx vitest run` / `bun run build`）、Agent(browser_use)（视觉验证 + 截图）。
+- **修改** `frontend/src/pages/Settings.tsx`：toggle span `translate-x` 恢复原始值——`isOn ? 'translate-x-5' : 'translate-x-0.5'`（开启=右，关闭=左）。保留 focus-visible ring + touch-manipulation 改进。
+- **验证**：
+  - `bunx tsc --noEmit` → 零错误。
+  - `bunx vitest run` → 154/154 通过。
+  - **视觉验证**（browser_use 5/5 PASS）：开启=右、关闭=左，符合标准 iOS 方向。
+- **Commit**：（待提交）。
