@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes, SelectHTMLAttributes } from 'react'
 
 interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
@@ -10,6 +11,8 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
 }
 
 export function Input({ label, hint, error, iconLeft, iconRight, className = '', ...rest }: InputProps) {
+  const hintId = useId()
+  const describedBy = (error || hint) ? hintId : undefined
   return (
     <label className={`block ${className}`}>
       {label && (
@@ -24,6 +27,8 @@ export function Input({ label, hint, error, iconLeft, iconRight, className = '',
           </span>
         )}
         <input
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : undefined}
           className={`
             w-full h-10 rounded-lg border bg-[var(--bg)] px-3 text-sm text-[var(--text)]
             placeholder:text-[var(--text-muted)]
@@ -42,7 +47,7 @@ export function Input({ label, hint, error, iconLeft, iconRight, className = '',
         )}
       </span>
       {(error || hint) && (
-        <span className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
+        <span id={hintId} className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
           {error || hint}
         </span>
       )}
@@ -58,6 +63,8 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export function Textarea({ label, hint, error, className = '', ...rest }: TextareaProps) {
+  const hintId = useId()
+  const describedBy = (error || hint) ? hintId : undefined
   return (
     <label className={`block ${className}`}>
       {label && (
@@ -66,6 +73,8 @@ export function Textarea({ label, hint, error, className = '', ...rest }: Textar
         </span>
       )}
       <textarea
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
         className={`
           w-full rounded-lg border bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]
           placeholder:text-[var(--text-muted)]
@@ -76,7 +85,7 @@ export function Textarea({ label, hint, error, className = '', ...rest }: Textar
         {...rest}
       />
       {(error || hint) && (
-        <span className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
+        <span id={hintId} className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
           {error || hint}
         </span>
       )}
@@ -93,6 +102,8 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export function Select({ label, hint, error, children, className = '', ...rest }: SelectProps) {
+  const hintId = useId()
+  const describedBy = (error || hint) ? hintId : undefined
   return (
     <label className={`block ${className}`}>
       {label && (
@@ -101,6 +112,8 @@ export function Select({ label, hint, error, children, className = '', ...rest }
         </span>
       )}
       <select
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
         className={`
           w-full h-10 rounded-lg border bg-[var(--bg)] px-3 text-sm text-[var(--text)]
           transition-colors duration-200
@@ -112,7 +125,7 @@ export function Select({ label, hint, error, children, className = '', ...rest }
         {children}
       </select>
       {(error || hint) && (
-        <span className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
+        <span id={hintId} className={`mt-1 block text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}>
           {error || hint}
         </span>
       )}

@@ -8,6 +8,7 @@ import {
   MessageSquare,
   KeyRound,
   Puzzle,
+  GitBranch,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -29,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'vault',     path: '/vault',     label: '知识库',    shortcut: '5', icon: Folder,         mobilePrimary: false, visible: true },
   { id: 'providers', path: '/providers', label: '模型服务',  shortcut: '6', icon: KeyRound,       mobilePrimary: false, visible: true },
   { id: 'plugins',   path: '/plugins',   label: '插件',      shortcut: '7', icon: Puzzle,         mobilePrimary: false, visible: true },
+  { id: 'git',       path: '/git',       label: 'Git',       shortcut: 'g', icon: GitBranch,      mobilePrimary: false, visible: true },
   { id: 'settings',  path: '/settings',  label: '设置',      shortcut: '8', icon: Settings,       mobilePrimary: false, visible: true },
   { id: 'tokens',    path: '/tokens',    label: 'Tokens',    shortcut: '9', icon: Settings,       mobilePrimary: false, visible: false },
 ]

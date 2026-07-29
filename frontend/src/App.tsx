@@ -1,4 +1,4 @@
-﻿import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import Home from '@/pages/Home'
@@ -20,6 +20,7 @@ import Research from '@/pages/Research'
 import Proxies from '@/pages/Proxies'
 import Providers from '@/pages/Providers'
 import Perf from '@/pages/Perf'
+import Git from '@/pages/Git'
 import Tokens from '@/pages/Tokens'
 
 interface ErrorBoundaryState {
@@ -92,7 +93,8 @@ function App() {
             <Route path="providers" element={<Providers />} />
             <Route path="tokens" element={<Tokens />} />
             <Route path="perf" element={<Perf />} />
-            <Route path="settings" element={<Settings />} />
+          <Route path="git" element={<Git />} />
+          <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -35,8 +35,14 @@ export function createSecurityHeaders(
   }
 
   if (options?.csp) {
+    // CSP connect-src 可通过 CSP_CONNECT_SRC 环境变量扩展（逗号分隔的外部 API 端点）
+    // 例如: CSP_CONNECT_SRC=https://api.openai.com,https://api.anthropic.com
+    const extraConnectSrc = readString("CSP_CONNECT_SRC");
+    const connectSrc = extraConnectSrc
+      ? `'self' ws: wss: ${extraConnectSrc.split(",").map((s) => s.trim()).join(" ")}`
+      : "'self' ws: wss:";
     headers["Content-Security-Policy"] =
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' ws: wss:; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
+      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src ${connectSrc}; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
   }
 
   if (options?.custom) {

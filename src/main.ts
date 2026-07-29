@@ -468,7 +468,7 @@ logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 const SPA_ROUTES = new Set([
   "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
-  "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/settings",
+  "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings",
 ]);
 
 // Pre-resolve SPA index.html file reference (Bun.file is lazy, no I/O at init)

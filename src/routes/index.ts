@@ -57,6 +57,7 @@ import {
   handleModelUsage,
 } from "./memory-api.js";
 import { handleTraceList, handleTraceDetail } from "./traces.js";
+import { handleGitRoutes } from "./git.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -191,6 +192,8 @@ const handlers: RouteHandler[] = [
   // Agent interaction traces
   handleTraceList,
   handleTraceDetail,
+  // Git service (user git commit/push/status)
+  handleGitRoutes,
 ];
 
 /**
@@ -382,6 +385,14 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     // Sandbox execution
     { method: "GET", path: "/sandbox/status", handler: handleSandboxStatus },
     { method: "POST", path: "/sandbox/execute", handler: handleSandboxExecute },
+
+    // Git service (user git commit/push/status)
+    { method: "GET", path: "/api/git/status", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/diff", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/log", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/branch", handler: handleGitRoutes },
+    { method: "POST", path: "/api/git/commit", handler: handleGitRoutes },
+    { method: "POST", path: "/api/git/push", handler: handleGitRoutes },
   ];
 
   engine.registerBatch(routes);

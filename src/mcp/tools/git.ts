@@ -395,3 +395,165 @@ export async function gitBlame(
 
   return { success: true, lines };
 }
+
+export interface GitCommitResult {
+  success: boolean;
+  hash?: string;
+  shortHash?: string;
+  message?: string;
+  files?: string[];
+  error?: string;
+}
+
+/**
+ * Git commit — stage 指定文件（或全部）并提交。
+ * message 通过 -m 传递，引号转义防止命令注入。
+ */
+export async function gitCommit(
+  repoPath: string = ".",
+  message: string,
+  files?: string[]
+): Promise<GitCommitResult> {
+  if (!message || !message.trim()) {
+    return { success: false, error: "commit message is required" };
+  }
+
+  // Stage files (or all changes if no files specified)
+  if (files && files.length > 0) {
+    const safeFiles = files.map((f) => `"${f.replace(/"/g, '\\"')}"`).join(" ");
+    const addResult = await executeCommand(`git add ${safeFiles}`, {
+      cwd: repoPath,
+      timeout: 10000,
+    });
+    if (!addResult.success) {
+      return {
+        success: false,
+        error: addResult.stderr || addResult.error || "git add failed",
+      };
+    }
+  } else {
+    const addResult = await executeCommand("git add -A", {
+      cwd: repoPath,
+      timeout: 10000,
+    });
+    if (!addResult.success) {
+      return {
+        success: false,
+        error: addResult.stderr || addResult.error || "git add failed",
+      };
+    }
+  }
+
+  // Commit with message (escape quotes to prevent injection)
+  const safeMessage = message.replace(/"/g, '\\"');
+  const commitResult = await executeCommand(
+    `git commit -m "${safeMessage}"`,
+    { cwd: repoPath, timeout: 15000 }
+  );
+
+  if (!commitResult.success) {
+    // "nothing to commit" is not a hard error
+    if (commitResult.stdout?.includes("nothing to commit")) {
+      return {
+        success: true,
+        message: "nothing to commit, working tree clean",
+        files: [],
+      };
+    }
+    return {
+      success: false,
+      error: commitResult.stderr || commitResult.error || "git commit failed",
+    };
+  }
+
+  // Get the commit hash
+  const hashResult = await executeCommand("git rev-parse HEAD", {
+    cwd: repoPath,
+    timeout: 5000,
+  });
+  const hash = hashResult.success ? hashResult.stdout.trim() : undefined;
+  const shortHash = hash ? hash.substring(0, 8) : undefined;
+
+  // Get staged files list
+  const diffResult = await executeCommand(
+    "git diff-tree --no-commit-id --name-only -r HEAD",
+    { cwd: repoPath, timeout: 5000 }
+  );
+  const committedFiles = diffResult.success
+    ? diffResult.stdout.split("\n").filter((l) => l.length > 0)
+    : [];
+
+  return {
+    success: true,
+    hash,
+    shortHash,
+    message,
+    files: committedFiles,
+  };
+}
+
+export interface GitPushResult {
+  success: boolean;
+  remote?: string;
+  branch?: string;
+  pushed?: string[];
+  error?: string;
+}
+
+/**
+ * Git push — 推送当前分支到指定 remote（默认 origin）。
+ */
+export async function gitPush(
+  repoPath: string = ".",
+  options?: { remote?: string; branch?: string; force?: boolean }
+): Promise<GitPushResult> {
+  const remote = options?.remote || "origin";
+
+  // Get current branch if not specified
+  let branch = options?.branch;
+  if (!branch) {
+    const branchResult = await executeCommand(
+      "git rev-parse --abbrev-ref HEAD",
+      { cwd: repoPath, timeout: 5000 }
+    );
+    if (!branchResult.success) {
+      return {
+        success: false,
+        error: branchResult.stderr || "failed to detect current branch",
+      };
+    }
+    branch = branchResult.stdout.trim();
+  }
+
+  // Validate remote and branch names (prevent injection)
+  const safeRemote = remote.replace(/[^a-zA-Z0-9_\-\/\.]/g, "");
+  const safeBranch = branch.replace(/[^a-zA-Z0-9_\-\/\.]/g, "");
+  if (safeRemote !== remote || safeBranch !== branch) {
+    return {
+      success: false,
+      error: "invalid remote or branch name: contains unsafe characters",
+    };
+  }
+
+  const forceFlag = options?.force ? " --force-with-lease" : "";
+  const pushResult = await executeCommand(
+    `git push ${safeRemote} ${safeBranch}${forceFlag}`,
+    { cwd: repoPath, timeout: 30000 }
+  );
+
+  if (!pushResult.success) {
+    return {
+      success: false,
+      remote: safeRemote,
+      branch: safeBranch,
+      error: pushResult.stderr || pushResult.error || "git push failed",
+    };
+  }
+
+  return {
+    success: true,
+    remote: safeRemote,
+    branch: safeBranch,
+    pushed: [`${safeRemote}/${safeBranch}`],
+  };
+}

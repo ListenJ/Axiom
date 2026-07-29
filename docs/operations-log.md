@@ -2476,3 +2476,35 @@
   - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
   - `sr-only` 类已在 `index.css` L568 定义。
 - **Commit**：`4f39f31`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 21:00 +0800 — Git 服务 + 安全配置增强 + UI 组件 a11y 优化
+
+- **任务**：(1) 新增 Git HTTP API 服务，支持用户从前端进行 git status/commit/push；(2) 安全配置 CSP connect-src 可环境变量扩展；(3) Input/Textarea/Select/EmptyState a11y 优化；(4) 新建 Git 前端页面。
+- **工具**：Read、Edit、Write、Grep、RunCommand（`bunx tsc --noEmit` / `bunx vitest run`）、Copy-Item/Remove-Item（备份/删备份）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+
+  ### 1. Git 服务（后端）
+  - **修改** `src/mcp/tools/git.ts`：新增 `gitCommit(repoPath, message, files?)` 和 `gitPush(repoPath, {remote?, branch?, force?})`，含命令注入防护（引号转义 + 字符白名单校验）。
+  - **新建** `src/routes/git.ts`：6 个 HTTP API 端点 — `GET /api/git/status`、`GET /api/git/diff`、`GET /api/git/log`、`GET /api/git/branch`、`POST /api/git/commit`、`POST /api/git/push`。
+  - **修改** `src/routes/index.ts`：导入 `handleGitRoutes`，添加到 handlers 数组 + registerTrieRoutes 注册 6 条 Trie 路由。
+  - **修改** `src/main.ts`：SPA_ROUTES 白名单添加 `/git`。
+
+  ### 2. 安全配置增强
+  - **修改** `src/utils/security.ts`：CSP `connect-src` 支持通过 `CSP_CONNECT_SRC` 环境变量扩展（逗号分隔的外部 API 端点，如 `https://api.openai.com,https://api.anthropic.com`）。未设置时保持默认 `'self' ws: wss:`。
+
+  ### 3. UI 组件 a11y 优化
+  - **修改** `frontend/src/components/ui/Input.tsx`：Input/Textarea/Select 三个组件均添加 `useId()` 生成唯一 hintId，error/hint span 加 `id={hintId}`，input 加 `aria-describedby` + `aria-invalid={error ? true : undefined}`。
+  - **修改** `frontend/src/components/ui/EmptyState.tsx`：添加 `role="status"` + `aria-live="polite"`，空数据状态可被屏幕阅读器感知。
+
+  ### 4. Git 前端页面
+  - **新建** `frontend/src/pages/Git.tsx`：分支状态卡（分支名+ahead/behind+刷新）+ 变更文件列表（modified/added/deleted/untracked 带颜色图标）+ 提交表单（Textarea + Ctrl+Enter 快捷提交 + commit/push 按钮）+ 最近 10 条提交日志。
+  - **修改** `frontend/src/App.tsx`：导入 Git 页面，添加 `<Route path="git" element={<Git />} />`。
+  - **修改** `frontend/src/lib/nav.ts`：导入 GitBranch 图标，添加 `{ id: 'git', path: '/git', label: 'Git', shortcut: 'g', icon: GitBranch }` 导航项。
+
+- **验证**：
+  - 后端 `bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - 前端 `bunx tsc --noEmit` → ExitCode=0（零错误，修复 3 个初始类型错误：@/store→@/state/useApp、variant="elevated"→"accent"、s 参数类型推断）。
+  - 前端 `bunx vitest run` → 22 files / 154 tests passed / 0 failed。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
