@@ -2507,4 +2507,4 @@
   - 后端 `bunx tsc --noEmit` → ExitCode=0（零错误）。
   - 前端 `bunx tsc --noEmit` → ExitCode=0（零错误，修复 3 个初始类型错误：@/store→@/state/useApp、variant="elevated"→"accent"、s 参数类型推断）。
   - 前端 `bunx vitest run` → 22 files / 154 tests passed / 0 failed。
-- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
+- **Commit**：`f6286e8`（已推送 `internal211/master`）。
