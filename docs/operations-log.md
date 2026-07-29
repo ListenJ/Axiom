@@ -2475,4 +2475,4 @@
   - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
   - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
   - `sr-only` 类已在 `index.css` L568 定义。
-- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
+- **Commit**：`4f39f31`（已推送 `internal211/master`）。
