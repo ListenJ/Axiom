@@ -129,7 +129,7 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={() => toggle(t.id)}
-                    className={`press relative h-6 w-11 rounded-full transition-colors ${
+                    className={`press relative h-6 w-11 rounded-full touch-manipulation transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] ${
                       isOn ? 'bg-[var(--accent)]' : 'bg-[var(--bg-tertiary)]'
                     }`}
                     role="switch"
@@ -138,7 +138,7 @@ export default function Settings() {
                   >
                     <span
                       className={`absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                        isOn ? 'translate-x-5' : 'translate-x-0.5'
+                        isOn ? 'translate-x-0.5' : 'translate-x-5'
                       }`}
                     />
                   </button>
@@ -291,9 +291,7 @@ function ModelManagementSection({ toast }: { toast: (msg: string, type?: 'info' 
           <div className="mb-4 rounded-xl border border-[var(--accent-soft)] bg-[var(--bg-secondary)] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-[var(--text-secondary)]">添加新模型</span>
-              <button type="button" onClick={() => setShowForm(false)} className="text-[var(--text-muted)] hover:text-[var(--text)]">
-                <X className="size-4" />
-              </button>
+              <Button variant="ghost" size="icon" icon={<X className="size-4" />} onClick={() => setShowForm(false)} aria-label="关闭表单" />
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input label="名称" placeholder="如：DeepSeek V4" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

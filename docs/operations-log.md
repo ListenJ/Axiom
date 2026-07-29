@@ -2522,3 +2522,26 @@
   - ✅ **提交表单交互**：Textarea 输入 "test commit from frontend" 成功，提交按钮从禁用变可用（未实际提交）。截图 step4-submit-form-interaction.png。
   - ✅ **Settings 回归**：a11y 优化（aria-describedby/aria-invalid）不影响渲染，页面结构完整。截图 step5-settings-page.png。
 - **验证结论**：Git 服务（后端 API + 前端页面）+ 安全配置 + UI a11y 优化全部功能正常。
+
+---
+
+## 2026-07-29 21:30 +0800 — Settings 页面按钮调整（toggle 方向 + 焦点环 + 触摸目标）
+
+- **任务**：调整 Settings 页面按钮——修复 toggle 开关滑动方向、补齐键盘焦点环、增大触摸目标。
+- **工具**：Read、Edit、RunCommand（`bunx tsc --noEmit` / `bunx vitest run` / `bun run build`）、Agent(browser_use)（视觉验证 + 截图）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  - **备份**：`Settings.tsx` → `.tmp/backups/frontend/src/pages/Settings.tsx`。
+  - **修改** `frontend/src/pages/Settings.tsx`：
+    1. **toggle 开关滑动方向修复**：反转 `translate-x` 值——开启时 span 在左边（`translate-x-0.5`），关闭时在右边（`translate-x-5`）。用户明确要求"点按后的方向不对，内部的 span 需要向左滑动或者是将其位置调整到左边"。
+    2. **toggle 开关焦点环**：className 新增 `focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] touch-manipulation`。
+    3. **X 关闭按钮替换为 Button 组件**：原生 `<button>` → `<Button variant="ghost" size="icon" icon={<X />} aria-label="关闭表单" />`，获得 44px 触摸目标 + focus-visible ring + touch-manipulation。
+  - **删备份**：验证通过后删除 `.tmp/backups/frontend/src/pages/Settings.tsx`。
+- **验证**：
+  - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
+  - **视觉验证**（browser_use 子代理，4 步全部 PASS）：
+    - ✅ Settings 页面正常渲染。
+    - ✅ toggle 开关方向正确：开启=左、关闭=右（与用户要求一致）。
+    - ✅ X 关闭按钮 44px 触摸目标，点击正常关闭表单。
+    - ✅ 主题切换按钮样式正常。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。
