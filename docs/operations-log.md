@@ -2508,3 +2508,17 @@
   - 前端 `bunx tsc --noEmit` → ExitCode=0（零错误，修复 3 个初始类型错误：@/store→@/state/useApp、variant="elevated"→"accent"、s 参数类型推断）。
   - 前端 `bunx vitest run` → 22 files / 154 tests passed / 0 failed。
 - **Commit**：`f6286e8`（已推送 `internal211/master`）。
+
+---
+
+## 2026-07-29 21:10 +0800 — Git 页面视觉验证（browser_use 子代理）
+
+- **任务**：视觉验证新增 Git 页面的功能展现和 API 交互。
+- **工具**：RunCommand（前端构建 + 后端启动）、Agent(browser_use)（视觉验证 + 截图）。
+- **验证结果**（5 步全部 PASS）：
+  - ✅ **Git 页面加载**：`/git` 正常渲染，分支状态卡显示 master / 1 个变更，变更文件列表显示 public/index.html，提交表单（Textarea + 提交/推送按钮），最近提交日志多条记录。截图 step1-git-page-load.png。
+  - ✅ **侧边栏导航**：首页侧边栏有 Git 导航项（GitBranch 图标），点击跳转到 /git。截图 step2-sidebar-home.png + step2-sidebar-git-navigation.png。
+  - ✅ **Git API 验证**：分支状态正确（master, 1 变更），变更文件列表正确（public/index.html），提交日志含 Git 服务相关提交。截图 step3-git-api-branch-status.png。
+  - ✅ **提交表单交互**：Textarea 输入 "test commit from frontend" 成功，提交按钮从禁用变可用（未实际提交）。截图 step4-submit-form-interaction.png。
+  - ✅ **Settings 回归**：a11y 优化（aria-describedby/aria-invalid）不影响渲染，页面结构完整。截图 step5-settings-page.png。
+- **验证结论**：Git 服务（后端 API + 前端页面）+ 安全配置 + UI a11y 优化全部功能正常。
