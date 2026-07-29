@@ -2455,3 +2455,24 @@
      - ✅ **响应式布局**：BottomNav `lg:hidden` 仅窄屏显示、Sidebar `lg:` 断点以上常驻，代码与设计一致；桌面视口下底部导航可见、Sidebar 展开。
 - **验证结论**：前端 SPA 渲染、路由导航、后端 API 路由、交互功能（HelpModal/主题切换/删除确认）、响应式布局代码全部正常工作。`/providers` 401 系认证设计预期（API Keys 管理端点独立鉴权），非功能缺陷。
 - **Commit**：本条为验证记录，无代码改动（public/ 构建产物在 .gitignore 中），无需提交。
+
+---
+
+## 2026-07-29 20:00 +0800 — Button 组件优化（a11y + 触摸目标 + 焦点环）
+
+- **任务**：优化 `frontend/src/components/ui/Button.tsx`，提升可访问性与移动端体验。
+- **工具**：Read、Edit、RunCommand（`bunx tsc --noEmit` / `bunx vitest run`）、Copy-Item/DeleteFile（备份 / 删备份）。
+- **执行的操作（备份→读全文→改→验证→删备份）**：
+  - **备份**：`Button.tsx` → `.tmp/backups/frontend/src/components/ui/`。
+  - **修改** `frontend/src/components/ui/Button.tsx`：
+    1. **icon 尺寸触摸目标**：`icon: 'h-10 w-10'`（40px）→ `icon: 'h-11 w-11'`（44px），满足 WCAG 2.5.5 Target Size 推荐。
+    2. **aria-busy**：loading 状态新增 `aria-busy={loading}`，屏幕阅读器可感知加载状态。
+    3. **sr-only 加载文本**：loading spinner 后追加 `<span className="sr-only">加载中</span>`，为屏幕阅读器提供语义文本。
+    4. **touch-manipulation**：className 新增 `touch-manipulation`，消除移动端 300ms 点击延迟。
+    5. **focus-visible ring**：新增 `focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]`，组件级别提供键盘焦点环，不再完全依赖全局 CSS。
+  - **删备份**：验证通过后删除 `.tmp/backups/frontend/src/components/ui/Button.tsx`。
+- **验证**：
+  - `cd frontend && bunx tsc --noEmit` → ExitCode=0（零错误）。
+  - `cd frontend && bunx vitest run` → 22 files / 154 tests passed / 0 failed。
+  - `sr-only` 类已在 `index.css` L568 定义。
+- **Commit**：（待提交，初稿占位 `<pending>`，amend 补录最终 hash）。

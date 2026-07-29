@@ -32,7 +32,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 text-xs gap-1.5',
   md: 'h-10 px-4 text-sm gap-2',
   lg: 'h-12 px-6 text-base gap-2',
-  icon: 'h-10 w-10',
+  icon: 'h-11 w-11',
 }
 
 const ICON_SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -58,19 +58,23 @@ export default function Button({
     <button
       type={type}
       disabled={disabled || loading}
+      aria-busy={loading}
       className={`
         press relative inline-flex items-center justify-center
-        rounded-lg font-medium
+        rounded-lg font-medium touch-manipulation
         ${SIZE_CLASSES[size]}
         ${VARIANT_CLASSES[variant]}
         disabled:cursor-not-allowed disabled:opacity-50
-        focus:outline-none
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]
         ${className}
       `}
       {...rest}
     >
       {loading ? (
-        <span className={`${ICON_SIZE_CLASSES[size]} animate-spin rounded-full border-2 border-current border-t-transparent`} />
+        <>
+          <span className={`${ICON_SIZE_CLASSES[size]} animate-spin rounded-full border-2 border-current border-t-transparent`} />
+          <span className="sr-only">加载中</span>
+        </>
       ) : icon ? (
         <span className={ICON_SIZE_CLASSES[size]}>{icon}</span>
       ) : null}
