@@ -25,7 +25,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { LLMClient } from "../../src/dre/llm/client.js";
 import { scheduler } from "../../src/dre/runtime/scheduler.js";
 import { eventBus } from "../../src/dre/runtime/event-bus.js";
-import { Cache } from "../../src/utils/cache.js";
+import { Cache, llmCache } from "../../src/utils/cache.js";
 
 // ─── fetch mock 工具 ───────────────────────────────────────────
 
@@ -234,6 +234,8 @@ describe("D.1 LLMClient 熔断器状态机", () => {
 
 describe("D.2 LLMClient 重试机制", () => {
   let restoreFetch: () => void;
+  // llmCache 持久化到 data/llm-cache.db，跨运行残留会让请求直接命中缓存（retryCount=0 假失败），每用例前清空
+  beforeEach(() => llmCache.clear());
   afterEach(() => restoreFetch());
 
   test("429 错误应触发重试", async () => {

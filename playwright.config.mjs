@@ -11,9 +11,13 @@ export default defineConfig({
     baseURL: "http://localhost:18789",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    contextOptions: {
-      bypassCSP: true,
-    },
+  },
+  webServer: {
+    command: "npm run dev",
+    cwd: "frontend",
+    url: "http://localhost:18789",
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

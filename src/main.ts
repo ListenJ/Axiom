@@ -324,6 +324,17 @@ initPluginRoutes(db, pluginToolRegistry);
 initSceneRouter(pluginToolRegistry);
 logger.info("Plugin market initialized");
 
+// 外部 MCP server 客户端连接 (R-015)：连接失败仅降级跳过，不影响启动
+try {
+  const { connectExternalMcpServers } = await import("./mcp/client-connector.js");
+  const mcpSummary = await connectExternalMcpServers(pluginToolRegistry);
+  logger.info("External MCP clients initialized", {
+    connected: mcpSummary.connected.length,
+    failed: mcpSummary.failed.length,
+    tools: mcpSummary.toolsRegistered,
+  });
+} catch (e: unknown) { logger.warn("External MCP clients not started", { error: (e as Error).message }); }
+
 import { TIMEOUTS } from "./constants/timeouts.js";
 import { toAxiomError, createErrorResponse } from "./utils/errors.js";
 

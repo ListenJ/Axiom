@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import Home from '@/pages/Home'
 import Chat from '@/pages/Chat'
+import Login from '@/pages/Login'
 import Search from '@/pages/Search'
 import Code from '@/pages/Code'
 import Agents from '@/pages/Agents'
@@ -73,6 +74,8 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
+          {/* 登录页独立于 Layout：仅 401 时由 api 客户端强制跳转（见 lib/api.ts） */}
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="chat" element={<Chat />} />

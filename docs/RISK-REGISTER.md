@@ -18,24 +18,24 @@
 | R-002 | `/config` 泄露 AXIOM_AUTH_TOKEN | P0 | **CLOSED** | 字段剥离（curl 实证，`9ec88b0`） |
 | R-003 | 子进程 env 继承全部 API key | P0 | **CLOSED** | spawn-env 过滤（terminal+sandbox，实测 `54f283b`） |
 | R-004 | SSRF（MCP web_fetch 零校验+重定向跳） | P0 | **CLOSED** | url-safety+ssrfGuard 逐跳（内网抓取实证，`9ec88b0`） |
-| R-005 | terminal_exec 黑名单可绕过+审批死代码 | P0 | **MITIGATED** | ToolRegistry 双层复核守卫已接线（`54f283b`）；sanitizeCommand 仍黑名单制 → 长期换白名单 |
-| R-006 | HITL 端到端断裂（无订阅/无前端） | P0 | **MITIGATED** | WS 广播+REST resolve 闭环（`36d7721`）；前端审批弹窗待做 → P1 |
+| R-005 | terminal_exec 黑名单可绕过+审批死代码 | P0 | **CLOSED** | ToolRegistry 双层复核守卫已接线（`54f283b`）；2026-07-30 防线重构：抗混淆黑名单（去引号/转义、$IFS 还原、eval/base64 管道执行拦截）+ AXIOM_TERMINAL_WHITELIST 白名单模式 + killProcess pid 校验（8 个新用例实证，`tests/security-fixes.test.ts` 30/30 通过） |
+| R-006 | HITL 端到端断裂（无订阅/无前端） | P0 | **CLOSED** | WS 广播+REST resolve 闭环（`36d7721`）；2026-07-30 前端审批弹窗完成（useApprovals store + ApprovalModal，15s 倒计时/超时自动拒绝，14 用例实证）。遗留：远程 WS 鉴权仅放行 localhost，局域网部署需 query token 方案 |
 | R-007 | `/models` key 明文落盘+无二次认证 | P1 | **CLOSED** | 回显脱敏+at-rest 加密+requireAuthToken（`9ec88b0/54f283b`） |
 | R-008 | fs 沙箱可读 .env/数据库 | P1 | **CLOSED** | 敏感区域拒绝（单测+实证，`9ec88b0`） |
 | R-009 | sandbox args 注入 | P1 | **CLOSED** | shellQuoteArg 逐个引用（`54f283b`） |
 | R-010 | 插件同名目录先删后拷自毁 | P0 | **CLOSED** | 同路径就地安装（实测实证，`36d7721`） |
 | R-011 | 确认码自助申领（不防对抗） | P2 | **ACCEPTED** | 定位=防误操作；对抗面由 R-001/R-005 覆盖；长期接 ApprovalBridge |
-| R-012 | 前端 token 存 localStorage + 无登录页/401 处理 | P1 | **OPEN** | 建议 token 输入页 + 401 拦截跳转（报告 F-H2） |
-| R-013 | 流式生命周期 bug（Stop 失效/卡在 streaming） | P1 | **OPEN** | api.stream 改为 reader 完成才 resolve（报告 F-M1） |
-| R-014 | 无 OpenAI 兼容端点（生态工具无法接入） | P2 | **OPEN** | ~100 行 /v1/chat/completions 适配层（报告 C-1） |
-| R-015 | MCP 客户端缺失（mcp-servers.yaml 死配置） | P2 | **OPEN** | ~150 行 client-connector（报告 C-2） |
+| R-012 | 前端 token 存 localStorage + 无登录页/401 处理 | P1 | **CLOSED** | 2026-07-30：401 拦截清 token 跳 /login（带回跳参数防开放重定向），Login 页落成；本地回环豁免不误伤（4 用例实证，frontend 175/175 通过） |
+| R-013 | 流式生命周期 bug（Stop 失效/卡在 streaming） | P1 | **CLOSED** | 2026-07-30：api.stream 重写（AbortController 贯穿 fetch→reader.cancel，done 才 settle，abort 后不再发事件）；后端 /chat/stream cancel 时 streamIter.return() 停上游生成（3 用例实证，frontend 175/175 通过） |
+| R-014 | 无 OpenAI 兼容端点（生态工具无法接入） | P2 | **CLOSED** | 2026-07-30：`src/routes/openai-compat.ts` POST /v1/chat/completions（非流式+SSE，OpenAI 帧格式+[DONE]，复用 prepareChatContext/executeChat）（8 用例实证，`tests/openai-compat.test.ts`） |
+| R-015 | MCP 客户端缺失（mcp-servers.yaml 死配置） | P2 | **CLOSED** | 2026-07-30：`src/mcp/client-connector.ts`（yaml 解析、remote/stdio 连接、mcp_<server>_<tool> 前缀注册、10s 超时失败降级）（7 用例实证，`tests/mcp-client-connector.test.ts`）。遗留：Bun 对 node:child_process 兼容性致 stdio 类 server 真实连通未验证，失败走 warn 降级 |
 | R-016 | 默认数据外发云端（无全链路隐私模式） | P2 | **MITIGATED** | AXIOM_PRIVACY_MODE 已覆盖改写/意图/检索（`54f283b`）；主模型仍云端 → 配本地模型可全本地 |
-| R-017 | defaultResponse 对未知路径返回 200（掩盖 404） | P3 | **OPEN** | 改为 404 JSON（注意 SPA 回退已先行拦截 GET） |
+| R-017 | defaultResponse 对未知路径返回 200（掩盖 404） | P3 | **CLOSED** | 改为 404 JSON（附端点目录辅助排错，SPA GET 回退不受影响）（3 用例实证，`tests/route-404.test.ts`） |
 | R-018 | 无 TLS（公网暴露需反代） | P2 | **ACCEPTED** | 默认回环绑定；公网部署必须 nginx/caddy 终结（已文档化） |
-| R-019 | opencode-ai 为死依赖 | P3 | **OPEN** | package.json 移除或启用 |
+| R-019 | opencode-ai 为死依赖 | P3 | **CLOSED** | 2026-07-30：全仓 Grep 确认无代码引用后从 package.json 移除（bun install lockfile 同步，tsc+13 用例实证） |
 | R-020 | plugins 表旧库缺列 | P1 | **CLOSED** | ensureTables 迁移（实证，`36d7721`） |
 | R-021 | Bing API 付费依赖（免费化要求） | P3 | **ACCEPTED** | 无 key 优雅跳过，免费路径完整 |
-| R-022 | 前端 e2e 全部指向 legacy 前端 | P2 | **OPEN** | React SPA 无 e2e 覆盖；playwright bypassCSP 掩盖问题 |
+| R-022 | 前端 e2e 全部指向 legacy 前端 | P2 | **CLOSED** | 2026-07-30：9 个 spec 全部改打新 React SPA（18789），bypassCSP 移除，webServer 自动起 vite dev（27/27 Playwright 实证通过） |
 
 ## 本轮已闭环风险汇总
 

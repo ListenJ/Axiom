@@ -36,7 +36,7 @@ function read(p: string): string {
   return readFileSync(p, "utf8")
 }
 
-const PAGE_FILES = walk(PAGES)
+const PAGE_FILES = walk(PAGES).filter((f) => !f.endsWith(".test.tsx")) // 只扫描页面，不扫描 colocated 测试
 const COMPONENT_FILES = walk(COMPONENTS)
 
 describe("E2E - All pages use shared UI components", () => {
@@ -64,7 +64,7 @@ describe("E2E - All pages use shared UI components", () => {
 
   it("所有页面都应使用 PageHeader（避免重复 header markup）", () => {
     // 一些页面可能不直接用 PageHeader（如果它们有自定义 header），但应该是例外
-    const exempt = ["Home", "Settings", "Chat"] // Home 有自定义 hero，Settings 有自定义结构，Chat 有 sessions sidebar
+    const exempt = ["Home", "Settings", "Chat", "Login", "Git"] // Home 有自定义 hero，Settings 有自定义结构，Chat 有 sessions sidebar，Login 为全屏独立页，Git 用 ShimmerCard 自定义头部
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (exempt.includes(name)) return

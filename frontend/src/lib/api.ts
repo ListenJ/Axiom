@@ -16,6 +16,7 @@ interface CacheOptions {
 
 type RequestInterceptor = (config: RequestConfig) => RequestConfig | Promise<RequestConfig>
 type ResponseInterceptor = (data: unknown, response: Response) => unknown
+type UnauthorizedHandler = () => void
 
 interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>
@@ -72,6 +73,13 @@ export interface ChatMessage {
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** 构造 name 为 'AbortError' 的错误，与 fetch abort 行为保持一致。 */
+function abortError(): Error {
+  const err = new Error('The operation was aborted.')
+  err.name = 'AbortError'
+  return err
 }
 
 /** Best-effort extraction of the assistant message from a legacy `/chat` JSON response. */
@@ -152,6 +160,7 @@ export class APIClient {
   defaultHeaders: Record<string, string>
   private requestInterceptors: RequestInterceptor[] = []
   private responseInterceptors: ResponseInterceptor[] = []
+  private unauthorizedHandlers: UnauthorizedHandler[] = []
   private cache = new Map<string, { time: number; data: unknown; ttl: number }>()
   cacheEnabled: boolean
 
@@ -170,6 +179,22 @@ export class APIClient {
   responseInterceptor(fn: ResponseInterceptor) {
     this.responseInterceptors.push(fn)
     return this
+  }
+
+  /** 注册 401 处理器：任何请求收到 401 时依次调用（清除 token、跳转登录页等）。 */
+  onUnauthorized(fn: UnauthorizedHandler) {
+    this.unauthorizedHandlers.push(fn)
+    return this
+  }
+
+  private notifyUnauthorized() {
+    for (const fn of this.unauthorizedHandlers) {
+      try {
+        fn()
+      } catch {
+        /* 处理器异常不应掩盖原始 401 错误 */
+      }
+    }
   }
 
   private buildURL(path: string, params?: Record<string, string | number | boolean | undefined>): string {
@@ -228,6 +253,7 @@ export class APIClient {
       let data: unknown = contentType.includes('application/json') ? await response.json() : await response.text()
 
       if (!response.ok) {
+        if (response.status === 401) this.notifyUnauthorized()
         const dataObj = data as Record<string, unknown> | null
         const messageField =
           dataObj && typeof dataObj === 'object' && 'message' in dataObj
@@ -280,13 +306,21 @@ export class APIClient {
   ): Promise<AbortController> {
     const url = this.buildURL(path)
     const controller = new AbortController()
+    // 外部 signal 与内部 controller 联动：fetch 始终挂在内部 signal 上，
+    // 这样调用方 abort 外部 signal 或内部 controller 都能中止请求。
+    const onExternalAbort = () => controller.abort()
+    if (options.signal) {
+      if (options.signal.aborted) controller.abort()
+      else options.signal.addEventListener('abort', onExternalAbort, { once: true })
+    }
     const response = await fetch(url, {
       method: 'POST',
       headers: { ...this.defaultHeaders, ...(options.headers ?? {}), Accept: 'text/event-stream' },
       body: JSON.stringify(body),
-      signal: options.signal ?? controller.signal,
+      signal: controller.signal,
     })
     if (!response.ok || !response.body) {
+      if (response.status === 401) this.notifyUnauthorized()
       throw new HttpError(`HTTP ${response.status}`, response.status, null)
     }
     const contentType = response.headers.get('content-type') || ''
@@ -304,28 +338,49 @@ export class APIClient {
       return controller
     }
     const reader = response.body.getReader()
+    // abort 时主动 cancel reader，让挂起的 read() 立即返回，不再向调用方派发事件
+    const cancelReader = () => {
+      reader.cancel().catch(() => {})
+    }
+    if (controller.signal.aborted) cancelReader()
+    else controller.signal.addEventListener('abort', cancelReader, { once: true })
     const decoder = new TextDecoder()
     let buffer = ''
-    ;(async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''
-          for (const line of lines) {
-            handleSseLine(line, onEvent)
-          }
+    try {
+      while (!controller.signal.aborted) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (controller.signal.aborted) break
+          handleSseLine(line, onEvent)
         }
-        if (buffer.trim()) {
-          handleSseLine(buffer, onEvent)
-        }
-        onEvent({ type: 'done' })
-      } catch {
-        /* aborted */
       }
-    })()
+      if (controller.signal.aborted) {
+        throw abortError()
+      }
+      if (buffer.trim()) {
+        handleSseLine(buffer, onEvent)
+      }
+      onEvent({ type: 'done' })
+    } catch (err) {
+      // abort 期间 reader/read 抛出的任意错误统一归一化为 AbortError，
+      // 让调用方（Chat/Home 的 catch）走“用户主动中止”分支
+      if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+        throw abortError()
+      }
+      throw err
+    } finally {
+      controller.signal.removeEventListener('abort', cancelReader)
+      options.signal?.removeEventListener('abort', onExternalAbort)
+      try {
+        reader.releaseLock()
+      } catch {
+        /* already released */
+      }
+    }
     return controller
   }
 
@@ -358,6 +413,21 @@ api.responseInterceptor((data) => {
     localStorage.setItem('token', String((data as Record<string, unknown>).token))
   }
   return data
+})
+
+// 401 闭环：清除本地 token 并跳转登录页。
+// 注意：api.ts 位于 React 树之外，拿不到 router 实例，这里用 location.assign
+// 做整页跳转（顺带丢弃内存中的过期状态）。只在后端真正返回 401 时触发——
+// 本地回环请求后端豁免鉴权（见 src/utils/auth-check.ts），不会走到这里，
+// 因此不会把本地开发锁死。已在 /login 时跳过，避免重定向循环。
+api.onUnauthorized(() => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('token')
+  }
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    const from = window.location.pathname + window.location.search
+    window.location.assign(`/login?from=${encodeURIComponent(from)}`)
+  }
 })
 
 export const endpoints = {

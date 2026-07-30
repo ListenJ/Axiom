@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Sidebar from './Sidebar'
@@ -6,6 +6,8 @@ import BottomNav from './BottomNav'
 import StatsBar from './StatsBar'
 import HelpModal from '@/components/ui/HelpModal'
 import Toasts from '@/components/ui/Toasts'
+import ApprovalModal from '@/components/ApprovalModal'
+import { useApprovals } from '@/state/useApprovals'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -13,6 +15,12 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   useGlobalHotkeys()
   useTheme()
+
+  // HITL 审批：订阅 /ws 的 approval.requested 事件，卸载时断开
+  useEffect(() => {
+    useApprovals.getState().connect()
+    return () => useApprovals.getState().disconnect()
+  }, [])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-text">
@@ -41,6 +49,7 @@ export default function Layout() {
 
       <HelpModal />
       <Toasts />
+      <ApprovalModal />
     </div>
   )
 }

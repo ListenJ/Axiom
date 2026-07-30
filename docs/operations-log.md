@@ -2558,3 +2558,29 @@
   - `bunx vitest run` → 154/154 通过。
   - **视觉验证**（browser_use 5/5 PASS）：开启=右、关闭=左，符合标准 iOS 方向。
 - **Commit**：（待提交）。
+
+---
+
+## 2026-07-30 01:10 +0800 — Phase 0 生产化收尾：风险登记册全部 OPEN 项闭环
+
+- **任务**：修复 RISK-REGISTER 全部 OPEN 项（R-005/012/013/014/015/017/019/022 + R-006 残留），达到可投产状态。
+- **工具**：AgentSwarm（7 个 coder 子代理并行）、Read/Edit/Grep/Bash、Playwright。
+- **执行的操作（各子任务均按 备份→读全文→改→验证→删备份）**：
+  1. **R-005 CLOSED**：`src/mcp/tools/terminal.ts` 命令注入防线重构——抗混淆黑名单（$IFS 还原、去引号/字母转义）+ 结构性原语拦截（eval、base64|sh 解码管道）+ `AXIOM_TERMINAL_WHITELIST` 白名单模式（逐命令位 token 校验、拒绝命令替换）+ killProcess pid 整数校验。`tests/security-fixes.test.ts` +8 用例（30/30 通过）。
+  2. **R-013 CLOSED**：`frontend/src/lib/api.ts` stream() 重写（AbortController 贯穿 fetch→reader.cancel，done 才 settle，abort 后不发事件）；`src/routes/chat.ts` /chat/stream cancel 时 streamIter.return() 停上游生成。
+  3. **R-012 CLOSED**：api 客户端 401 拦截（清 token 跳 /login?from=）；新建 `frontend/src/pages/Login.tsx`（防开放重定向）；`src/App.tsx` 加 /login 路由。
+  4. **R-017 CLOSED**：`src/routes/index.ts` defaultResponse 改 404 JSON（附端点目录）；新建 `tests/route-404.test.ts`（3 用例）。
+  5. **R-014 CLOSED**：新建 `src/routes/openai-compat.ts`（POST /v1/chat/completions，非流式+SSE [DONE]，复用 prepareChatContext/executeChat）；`src/routes/index.ts` 注册；新建 `tests/openai-compat.test.ts`（8 用例）。
+  6. **R-015 CLOSED**：新建 `src/mcp/client-connector.ts`（yaml 解析、remote/stdio 连接、mcp_* 前缀注册、10s 超时降级）；`src/main.ts` 容忍式接入；新建 `tests/mcp-client-connector.test.ts`（7 用例）。
+  7. **R-019 CLOSED**：`package.json` 移除死依赖 opencode-ai，`bun.lock` 同步。
+  8. **R-006 CLOSED**：新建 `frontend/src/state/useApprovals.ts`（WS 订阅 approval.requested + REST resolve + 指数退避重连）+ `frontend/src/components/ApprovalModal.tsx`（15s 倒计时/超时自动拒绝）；`Layout.tsx` 挂载；14 用例。
+  9. **R-022 CLOSED**：`e2e/` 9 个 spec 全部改打新 React SPA（18789），`playwright.config.mjs` 移除 bypassCSP + 加 webServer 自起 vite dev（27/27 Playwright 通过）。
+  10. **部署一致性**：旧版 `deploy/docker/`（端口 3000）归档至 `archive/deploy-docker-legacy/` 并在 `archive/ARCHIVE-LOG.md` 记录；`deploy/systemd/axiom.service`、`deploy/pm2/ecosystem.config.json` 改跑 dist/main.js；新建 `deploy/reverse-proxy.md`（nginx/caddy TLS + WS + SSE 样例）。
+  11. **预存红灯修复**：架构测试 process.env 直读 2 处改走 env.ts readString（client-connector.ts、model-output-store.ts）；e2e-layout 约定测试排除 *.test.tsx 扫描 + Git/Login 豁免与 fade-in 补齐；services-chat mock 补 getFileSymbolsFromCodeGraph 导出；network-resilience D.2 加 llmCache.clear() 隔离（llm-cache.db 跨运行残留导致 retryCount=0 假失败）。
+- **验证**：
+  - 后端 `bun run lint`（tsc --noEmit）零错误；`bun run test:full` 232/232 通过；`bun run test:gate` 性能门禁 12/12 通过。
+  - 后端 `bun test tests/` 全量 2135 用例：2095+ 通过，残留失败均为环境/预存 flaky（外网 TLS 不可达：DataPipeline×3/github-trending/checkSecurity×2；全量并发下偶发：C.1/C.2/B.3/ClusterCoordinator，单独跑均通过）。
+  - 前端 `bun run test:run` 175/175 通过 + `bun run lint` 零错误；Playwright e2e 27/27 通过。
+  - `docs/RISK-REGISTER.md`：R-005/006/012/013/014/015/017/019/022 全部 CLOSED（附实证），OPEN 项清零。
+- **遗留说明**：MCP stdio 类 server 在 Bun 下真实连通未验证（失败走 warn 降级）；远程 WS 审批订阅仅放行 localhost（REST resolve 不受限）；systemd/pm2 需 Linux 目标机冒烟。
+- **Commit**：（待提交）。

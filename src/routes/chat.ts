@@ -247,6 +247,8 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
   const encoder = new TextEncoder();
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let closed = false;
+  // 上游生成器句柄提到外层作用域：cancel()（客户端断开）时需要它来停止生成
+  let streamIter: AsyncGenerator<ChatStreamEvent> | null = null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -268,7 +270,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
       }, 30000);
 
       try {
-        const streamIter = router.chatStream(roleForStream, chatMessages, {
+        streamIter = router.chatStream(roleForStream, chatMessages, {
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
         });
@@ -362,6 +364,11 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
       if (heartbeat) {
         clearInterval(heartbeat);
         heartbeat = null;
+      }
+      // 客户端断开（abort）：停止上游 LLM 生成，避免请求继续空转
+      if (streamIter) {
+        void streamIter.return(undefined).catch(() => {});
+        streamIter = null;
       }
     },
   });

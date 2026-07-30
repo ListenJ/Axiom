@@ -9,6 +9,7 @@ import { handleToolExecute } from "./tools.js";
 import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
 import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
+import { handleOpenAIChatCompletions } from "./openai-compat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
@@ -85,6 +86,8 @@ const handlers: RouteHandler[] = [
   handleChat,
   handleChatStream,
   handleAgentChat,
+  // OpenAI 兼容端点（/v1/chat/completions）
+  handleOpenAIChatCompletions,
   // Native Bridge (Rust core)
   handleNativeSearch,
   handleNativeRouterPerf,
@@ -240,6 +243,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/chat", handler: handleChat },
     { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
+    // OpenAI 兼容端点
+    { method: "POST", path: "/v1/chat/completions", handler: handleOpenAIChatCompletions },
     // Pipeline SSE
     { method: "GET", path: "/pipeline/stream", handler: handlePipelineStream },
 
@@ -400,7 +405,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
 
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
+  // R-017（2026-07-30）：未知路径返回 404 JSON，不再以 200 掩盖；
+  // 端点目录保留辅助排错，正式文档见 GET /api。
   return ctx.jsonResponse({
+    error: true as const,
+    message: `Not Found: ${ctx.req.method} ${ctx.url.pathname}`,
     name: "Axiom Runtime", version: "4.0.0",
     uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
     endpoints: [
@@ -408,6 +417,7 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET  /health                  — 健康检查",
       "POST /chat                    — 模型聊天（自动意图识别）",
       "POST /chat/stream             — SSE 流式聊天（text/event-stream）",
+      "POST /v1/chat/completions     — OpenAI 兼容聊天端点（支持 stream）",
       "GET  /search?q=               — Vault 确定性记忆搜索",
       "GET  /memory-gate/stats        — 记忆门控统计",
       "GET  /stats/trends?days=7      — 趋势数据",
@@ -491,5 +501,5 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /traces                    — 列出最近的 Agent 交互追踪",
       "GET    /traces/:id                — 获取指定追踪详情",
     ],
-  }, 200, ctx.baseHeaders);
+  }, 404, ctx.baseHeaders);
 }

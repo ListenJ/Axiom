@@ -18,6 +18,8 @@ mock.module(mockRouterMod, () => ({
 const mockCodegraph = path.join(ROOT, "src", "memory", "codegraph-index.js");
 mock.module(mockCodegraph, () => ({
   retrieveCodeMemory: async () => ({ source: "codegraph", results: "code context" }),
+  // code-indexer.ts 也从此模块导入该符号，mock 缺失会导致 SyntaxError
+  getFileSymbolsFromCodeGraph: async () => null,
 }));
 
 const mockQueryDecomp = path.join(ROOT, "src", "agents", "query-decomposer.js");

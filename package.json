@@ -85,7 +85,6 @@
     "@colbymchenry/codegraph": "^0.9.9",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "blessed": "^0.1.81",
-    "opencode-ai": "^1.17.10",
     "postgres": "^3.4.9",
     "tesseract.js": "^7.0.0",
     "yaml": "^2.4.0",

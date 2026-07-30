@@ -8,7 +8,6 @@
         "@colbymchenry/codegraph": "^0.9.9",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "blessed": "^0.1.81",
-        "opencode-ai": "^1.17.10",
         "postgres": "^3.4.9",
         "tesseract.js": "^7.0.0",
         "yaml": "^2.4.0",
@@ -182,32 +181,6 @@
     "on-finished": ["on-finished@2.4.1", "https://registry.npmmirror.com/on-finished/-/on-finished-2.4.1.tgz", { "dependencies": { "ee-first": "1.1.1" } }, "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg=="],
 
     "once": ["once@1.4.0", "https://registry.npmmirror.com/once/-/once-1.4.0.tgz", { "dependencies": { "wrappy": "1" } }, "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="],
-
-    "opencode-ai": ["opencode-ai@1.17.10", "https://registry.npmmirror.com/opencode-ai/-/opencode-ai-1.17.10.tgz", { "optionalDependencies": { "opencode-darwin-arm64": "1.17.10", "opencode-darwin-x64": "1.17.10", "opencode-darwin-x64-baseline": "1.17.10", "opencode-linux-arm64": "1.17.10", "opencode-linux-arm64-musl": "1.17.10", "opencode-linux-x64": "1.17.10", "opencode-linux-x64-baseline": "1.17.10", "opencode-linux-x64-baseline-musl": "1.17.10", "opencode-linux-x64-musl": "1.17.10", "opencode-windows-arm64": "1.17.10", "opencode-windows-x64": "1.17.10", "opencode-windows-x64-baseline": "1.17.10" }, "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ], "bin": { "opencode": "bin/opencode.exe" } }, "sha512-Siqh37h+2iXy98dceM0QDjwrcZB9836Dixb4quVaygyctK9E1yNo9/BGah1imdex8EEnaG4RVxUNvpU/Nre14g=="],
-
-    "opencode-darwin-arm64": ["opencode-darwin-arm64@1.17.10", "https://registry.npmmirror.com/opencode-darwin-arm64/-/opencode-darwin-arm64-1.17.10.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-6IeUVHYcteyDX/Y5AJ7fKwUL76qkX1FleWNYfa0wh8+Fw7wLdo99rfwRwR/UajpSB2+H4SfR6OYkkPOcvZJ4VQ=="],
-
-    "opencode-darwin-x64": ["opencode-darwin-x64@1.17.10", "https://registry.npmmirror.com/opencode-darwin-x64/-/opencode-darwin-x64-1.17.10.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-I1swdi7nVo0ztl0vB/L19UmIyEDgD0inxj7VBAX1hwCFTH3wxn5V+nQIW9Ai07AyCiJOruxAFz5hcukPac4gbg=="],
-
-    "opencode-darwin-x64-baseline": ["opencode-darwin-x64-baseline@1.17.10", "https://registry.npmmirror.com/opencode-darwin-x64-baseline/-/opencode-darwin-x64-baseline-1.17.10.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-VKkpE27fz/bOsCHiXyGziQgIZSUyYr4wAxQzzDV1DX4ui/NYFTVmQWvP8+Lv/6/lBBP8JXF6FSQxwNuLKSrZkQ=="],
-
-    "opencode-linux-arm64": ["opencode-linux-arm64@1.17.10", "https://registry.npmmirror.com/opencode-linux-arm64/-/opencode-linux-arm64-1.17.10.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-zBI5NXjPYvv0nVtDewhL6y3wyZaAuxH5wc2GoDBZZ22Du/I9e6JbLzkSOQvN2uhvKi3V/KW+FaIC0qQNFCeSHw=="],
-
-    "opencode-linux-arm64-musl": ["opencode-linux-arm64-musl@1.17.10", "https://registry.npmmirror.com/opencode-linux-arm64-musl/-/opencode-linux-arm64-musl-1.17.10.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-RnfPZvR2Nr6GwTPFi2yq9Sg21SntYk9vlP3fANnazk2k1QTTGkXALW8krj9/EQZGEG0GNF+Gd3WOfNdVi9xcWw=="],
-
-    "opencode-linux-x64": ["opencode-linux-x64@1.17.10", "https://registry.npmmirror.com/opencode-linux-x64/-/opencode-linux-x64-1.17.10.tgz", { "os": "linux", "cpu": "x64" }, "sha512-jTuTtnGyzq/mappSeVgvxdU8ih9r09F9su9smJ2o9q69zxYZFKmS0JN1qXSa61EeL9W7Pimhccnty2W9VRhCrA=="],
-
-    "opencode-linux-x64-baseline": ["opencode-linux-x64-baseline@1.17.10", "https://registry.npmmirror.com/opencode-linux-x64-baseline/-/opencode-linux-x64-baseline-1.17.10.tgz", { "os": "linux", "cpu": "x64" }, "sha512-wNQERcBBrp1Fc5fZBUEHiX0HtjU8UqKUhgdvPf420+UTe+K+QYl5lpYorAOZq9X9KaW5KT8eoMhu0lYoo+FXxw=="],
-
-    "opencode-linux-x64-baseline-musl": ["opencode-linux-x64-baseline-musl@1.17.10", "https://registry.npmmirror.com/opencode-linux-x64-baseline-musl/-/opencode-linux-x64-baseline-musl-1.17.10.tgz", { "os": "linux", "cpu": "x64" }, "sha512-4rgWNOx7eSbsv0ZfVOKkUJ1Hsyg6zDnjDT01kuqSdMlTTRXuL1zjglirN3KIk2Dooio33ioTbxY6qh5vO2THUg=="],
-
-    "opencode-linux-x64-musl": ["opencode-linux-x64-musl@1.17.10", "https://registry.npmmirror.com/opencode-linux-x64-musl/-/opencode-linux-x64-musl-1.17.10.tgz", { "os": "linux", "cpu": "x64" }, "sha512-izMkyCM06+xcS+EBLNbSDaijIGgwWvOyesRHf+ZQe3Y732htLOigR/J3lTGR/Kjc17q+Q1DbGolvxOfUXdzNJA=="],
-
-    "opencode-windows-arm64": ["opencode-windows-arm64@1.17.10", "https://registry.npmmirror.com/opencode-windows-arm64/-/opencode-windows-arm64-1.17.10.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-v/rUxJ16v06XF17sqdbO7egkgCHGaXopn8k0S2ivpE1R+xmJhQxX7ryZHVAgjgdREwmrYM1eSkTr2EU1G23/EA=="],
-
-    "opencode-windows-x64": ["opencode-windows-x64@1.17.10", "https://registry.npmmirror.com/opencode-windows-x64/-/opencode-windows-x64-1.17.10.tgz", { "os": "win32", "cpu": "x64" }, "sha512-Rfhcjb0BlmzJ3fTEX3BQliiI4AF6YyJcab1NFZn4cel3DHcQdlWRdEnTZy9DM/xDhopjKQFqsVsTCnPql8lx3g=="],
-
-    "opencode-windows-x64-baseline": ["opencode-windows-x64-baseline@1.17.10", "https://registry.npmmirror.com/opencode-windows-x64-baseline/-/opencode-windows-x64-baseline-1.17.10.tgz", { "os": "win32", "cpu": "x64" }, "sha512-/bicCZNLvmx5PH5YHquj5MzikPDIyWwx7s24NU4eWJALspR58oliXSv9kTSj6PZJ9maneqsr6TQ4bp7RQNgR6Q=="],
 
     "opencollective-postinstall": ["opencollective-postinstall@2.0.3", "https://registry.npmmirror.com/opencollective-postinstall/-/opencollective-postinstall-2.0.3.tgz", { "bin": { "opencollective-postinstall": "index.js" } }, "sha512-8AV/sCtuzUeTo8gQK5qDZzARrulB3egtLzFgteqB2tcT4Mw7B8Kt7JcDHmltjz6FOAHsvTevk70gZEbhM4ZS9Q=="],
 

@@ -21,6 +21,7 @@ import fs from "fs";
 import path from "path";
 import { createHash } from "crypto";
 import { logger } from "./logger.js";
+import { readString } from "./env.js";
 
 /** 持久化记录结构 */
 export interface PersistedModelOutput {
@@ -295,7 +296,7 @@ let _instance: ModelOutputStore | null = null;
 export function getModelOutputStore(): ModelOutputStore {
   if (!_instance) {
     _instance = new ModelOutputStore({
-      enabled: process.env.MODEL_OUTPUT_PERSIST !== "0",
+      enabled: readString("MODEL_OUTPUT_PERSIST") !== "0",
     });
   }
   return _instance;
