@@ -2557,8 +2557,7 @@
   - `bunx tsc --noEmit` → 零错误。
   - `bunx vitest run` → 154/154 通过。
   - **视觉验证**（browser_use 5/5 PASS）：开启=右、关闭=左，符合标准 iOS 方向。
-- **Commit**：（待提交）。
-
+- **Commit**：`4cb84bb`（已推送 `internal211/master`）。
 ---
 
 ## 2026-07-30 01:10 +0800 — Phase 0 生产化收尾：风险登记册全部 OPEN 项闭环
