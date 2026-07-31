@@ -2,7 +2,7 @@
    Axiom Design System — Deep Space Console / Ember Dawn
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -215,7 +215,7 @@ body {
 
 /* Heading scale — tighter line-height for visual rhythm */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -233,7 +233,7 @@ small, .text-xs, .text-2xs {
 
 /* Display + heading font */
 .font-display {
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -242,7 +242,7 @@ small, .text-xs, .text-2xs {
 .type-display-l, .type-display-m, .type-display-s,
 .type-headline-l, .type-headline-m, .type-headline-s,
 .type-title-l, .type-title-m, .type-title-s {
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   letter-spacing: -0.02em;
 }
 .type-display-l { font-size: var(--text-display-l); line-height: var(--text-display-l-line); font-weight: 700; }
@@ -595,6 +595,39 @@ a:focus-visible,
   100% { background-position: 0% 50%, 300% 50%; }
 }
 
+/* ── Shimmer Border (流光边框：侧边栏卡片 / 首页卡片) ────────── */
+/* 双色渐变边框 + ::before 高光带 45° 扫过；纯视觉，不影响布局 */
+
+.shimmer-border {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(120deg, var(--border-strong), var(--accent) 50%, var(--border-strong)) border-box;
+}
+
+.shimmer-border::before {
+  content: '';
+  position: absolute;
+  inset: -100% -100%;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    transparent 47%,
+    rgba(245, 158, 11, 0.28) 50%,
+    transparent 53%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 2.5s var(--ease-in-out) infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer-sweep {
+  from { transform: translate3d(-50%, -50%, 0); }
+  to   { transform: translate3d(50%, 50%, 0); }
+}
+
 /* ── Ergonomics & Accessibility Utilities ───────────────────── */
 
 /* Minimum touch target: 44×44px */
@@ -679,6 +712,7 @@ a, button, [role='button'], input, select, textarea {
   .skeleton::after { display: none; }
   .pulse-dot { animation: none; }
   .border-glow { animation: none; }
+  .shimmer-border::before { animation: none; }
   .stagger > * { animation: none; }
 }
 

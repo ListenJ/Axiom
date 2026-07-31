@@ -14,14 +14,16 @@ interface IntroOutlineProps {
   fadeDuration?: number
 }
 
-/** 布局轮廓：侧边栏 / Header / 标题条 / 卡片×2 / 输入框（viewBox 1200×800） */
-const SHAPES: Array<{ x: number; y: number; width: number; height: number; rx: number }> = [
-  { x: 16, y: 16, width: 220, height: 768, rx: 16 },
-  { x: 252, y: 16, width: 932, height: 56, rx: 14 },
-  { x: 420, y: 210, width: 560, height: 44, rx: 10 },
-  { x: 340, y: 320, width: 250, height: 96, rx: 14 },
-  { x: 610, y: 320, width: 250, height: 96, rx: 14 },
-  { x: 340, y: 648, width: 520, height: 56, rx: 16 },
+/** 布局轮廓：侧边栏 / Header / 标题条 / 卡片×4 / 输入框（viewBox 1200×800） */
+const SHAPES: Array<{ x: number; y: number; width: number; height: number; rx: number; glow?: boolean }> = [
+  { x: 16, y: 16, width: 240, height: 768, rx: 16 },
+  { x: 268, y: 16, width: 916, height: 56, rx: 14 },
+  { x: 300, y: 260, width: 600, height: 44, rx: 10, glow: true },
+  { x: 160, y: 340, width: 400, height: 120, rx: 14, glow: true },
+  { x: 620, y: 340, width: 400, height: 120, rx: 14, glow: true },
+  { x: 160, y: 480, width: 400, height: 120, rx: 14, glow: true },
+  { x: 620, y: 480, width: 400, height: 120, rx: 14, glow: true },
+  { x: 340, y: 660, width: 520, height: 56, rx: 16 },
 ]
 
 /**
@@ -100,8 +102,21 @@ export default function IntroOutline({
             strokeWidth={2}
             strokeLinecap="round"
             initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: drawDuration, delay: i * staggerDelay, ease: 'easeInOut' }}
+            animate={s.glow ? { pathLength: 1, opacity: [0.5, 1, 0.5] } : { pathLength: 1 }}
+            transition={
+              s.glow
+                ? {
+                    pathLength: { duration: drawDuration, delay: i * staggerDelay, ease: 'easeInOut' },
+                    opacity: {
+                      duration: 1.6,
+                      delay: i * staggerDelay + drawDuration,
+                      ease: 'easeInOut',
+                      repeat: Infinity,
+                      repeatType: 'mirror',
+                    },
+                  }
+                : { duration: drawDuration, delay: i * staggerDelay, ease: 'easeInOut' }
+            }
             onAnimationComplete={i === SHAPES.length - 1 ? () => setFading(true) : undefined}
           />
         ))}

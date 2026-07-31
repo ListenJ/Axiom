@@ -23,13 +23,12 @@ window.matchMedia = ((query: string) => ({
 })) as unknown as typeof window.matchMedia
 
 describe('IntroOutline', () => {
-  it('渲染全屏 SVG 线框（4-6 个描边元素）', () => {
+  it('渲染全屏 SVG 线框（8 个描边元素：侧边栏/顶栏/标题/卡片×4/输入框）', () => {
     matchesFlag = false
     const { container } = render(<IntroOutline onDone={() => {}} />)
     expect(container.querySelector('svg')).toBeInTheDocument()
     const rects = container.querySelectorAll('rect')
-    expect(rects.length).toBeGreaterThanOrEqual(4)
-    expect(rects.length).toBeLessThanOrEqual(6)
+    expect(rects.length).toBe(8)
   })
 
   it('勾勒 + 淡出编排结束后触发 onDone', async () => {

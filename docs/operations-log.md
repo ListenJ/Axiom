@@ -2677,3 +2677,17 @@
   - `npm run test:e2e` → 9 文件 31 测试全绿（含新增 fisheye 4 + 修复 settings 1）。
   - 实测 hover 展开：6px → 193px，标签 opacity 0→1，离开复位 6px。
 - **Commit**：`ee64a89`。
+
+## 2026-08-01 03:15 +0800 — 开场线框对齐真实布局 + shimmer 流光边框 + 字体统一 + HelpModal 补 g 快捷键
+
+- **任务**：四合一前端小修：(1) IntroOutline 线框 SHAPES 对齐真实首页布局（240px 侧边栏 / 56px 顶栏 / 2x2 四卡片 / 底部输入框）并为标题与卡片加描边发光脉冲；(2) index.css 新增 .shimmer-border 流光边框工具类 + 字体规范统一（移除 Manrope，display/正文统一 Inter，代码保持 JetBrains Mono）；(3) Sidebar 系统在线卡片应用 shimmer-border；(4) HelpModal 补 "g 打开 Git" 快捷键条目（与 useGlobalHotkeys 实现一致）。
+- **工具**：Read、Grep、Edit、Bash(git / bunx tsc / bunx vitest)。
+- **执行的操作（文件级）**：
+  - `frontend/src/components/intro/IntroOutline.tsx`：SHAPES 更新为 8 个形状（侧边栏 x16 y16 240x768；顶栏 x268 y16 916x56；标题 x300 y260 600x44；卡片 2x2：x160/x620 y340/y480 各 400x120；输入框 x340 y660 520x56），类型加 `glow?: boolean`；标题+4 卡片增加 opacity 脉冲发光（repeat: Infinity, mirror，于描边完成后启动），onDone/onSkip/reduced-motion 逻辑不变。
+  - `frontend/src/components/intro/IntroOutline.test.tsx`：断言 4-6 个 rect → 更新为 8 个（随布局变更同步）。
+  - `frontend/src/styles/index.css`：@import 移除 Manrope；h1-h6 / .font-display / .type-* 字体族 Manrope → Inter；新增 .shimmer-border（双色渐变边框 + ::before 高光带 45° 扫过 2.5s 循环，overflow hidden 裁剪，pointer-events none）；reduced-motion 块补 `.shimmer-border::before { animation: none; }`。
+  - `frontend/src/components/layout/Sidebar.tsx`：底部系统在线卡片 `bg-[var(--bg-tertiary)]/50` → `shimmer-border`。
+  - `frontend/src/components/ui/HelpModal.tsx`：shortcuts 数组补 `{ key: 'g', desc: '打开 Git' }`（NAV_ITEMS 中 git 项 shortcut='g'，展示文本 "打开 Git"）。
+  - `docs/operations-log.md`：追加本条。
+- **验证**：前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 35 files / 221 tests 全绿。备份按规则 2 已删（`.tmp/backups/` 已清空）。
+- **Commit**：`<hash>`。

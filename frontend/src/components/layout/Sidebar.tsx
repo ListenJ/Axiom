@@ -94,7 +94,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Footer */}
       <div className="border-t border-[var(--border)] p-3">
-        <div className="rounded-lg bg-[var(--bg-tertiary)]/50 p-2.5">
+        <div className="shimmer-border rounded-lg p-2.5">
           <div className="flex items-center gap-2">
             <div className="pulse-dot size-2 rounded-full bg-[var(--success)]" />
             <span className="text-2xs text-[var(--text-muted)]">系统在线</span>
