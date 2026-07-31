@@ -2659,4 +2659,4 @@
   - 后端 `bunx tsc --noEmit` → 0 错误；相关测试 52 全绿（ws-auth 8 / circuit-breaker 8 / runtime-audit 6 / deterministic-search 15 / mcp-client-connector 15 / mcp-stdio-live 1 真实连通）；`bun run audit:runtime` → 14/14 pass。
   - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 209 tests 全绿。
   - `bash -n` 校验 `scripts/smoke-linux.sh`、`.ci/run.sh` 语法通过。
-- **Commit**：（待提交）。
+- **Commit**：`55699c8`。
