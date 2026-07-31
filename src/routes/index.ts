@@ -59,6 +59,8 @@ import {
 } from "./memory-api.js";
 import { handleTraceList, handleTraceDetail } from "./traces.js";
 import { handleGitRoutes } from "./git.js";
+import { handleSettingsCatalog, handleSettingsSearch } from "./settings.js";
+import { handleAuditDiagnostics } from "./audit.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -67,6 +69,7 @@ const handlers: RouteHandler[] = [
   handleDashboard,
   // Health & system
   handleHealth,
+  handleAuditDiagnostics,
   handleApiDocs,
   handleHealthStats,
   handleCacheStats,
@@ -197,6 +200,9 @@ const handlers: RouteHandler[] = [
   handleTraceDetail,
   // Git service (user git commit/push/status)
   handleGitRoutes,
+  // Settings (设置目录 + 语义搜索)
+  handleSettingsCatalog,
+  handleSettingsSearch,
 ];
 
 /**
@@ -234,6 +240,9 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/stats/trends", handler: handleTrends },
     { method: "GET", path: "/config", handler: handleConfig },
     { method: "POST", path: "/config", handler: handleConfig },
+    { method: "GET", path: "/settings/catalog", handler: handleSettingsCatalog },
+    { method: "POST", path: "/settings/search", handler: handleSettingsSearch },
+    { method: "GET", path: "/api/audit/diagnostics", handler: handleAuditDiagnostics },
     { method: "GET", path: "/consciousness/status", handler: handleConsciousness },
     { method: "POST", path: "/consciousness/reflect", handler: handleConsciousness },
     { method: "GET", path: "/proxies", handler: handleProxies },
@@ -423,6 +432,9 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET  /stats/trends?days=7      — 趋势数据",
       "GET  /config                   — 系统配置（脱敏）",
       "POST /config                   — 更新配置",
+      "GET  /settings/catalog          — 设置目录",
+      "POST /settings/search           — 设置语义搜索（本地模型）",
+      "GET  /api/audit/diagnostics     — 资源审查诊断（缓存/连接/内存）",
       "GET  /consciousness/status      — 意识模块状态",
       "POST /consciousness/reflect     — 手动触发反思",
       "GET  /web-search?q=           — 多引擎搜索",

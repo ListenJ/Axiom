@@ -12,11 +12,11 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, AlertTriangle, Brain, FileEdit, Wrench, AlertCircle, CheckCircle2,
-  ChevronUp, ChevronDown, Clock,
+  ChevronUp, ChevronDown, Clock, User, Bot, Sparkles, Check, Copy, RotateCcw,
 } from 'lucide-react'
-import { InlineEmptyState, Select, Skeleton } from '@/components/ui'
+import { InlineEmptyState, Select, Skeleton, ShimmerCard, Button, LoadingDots } from '@/components/ui'
 import { endpoints } from '@/lib/api'
-import { formatTokens } from './chat-utils'
+import { formatTokens, extractTotalTokens } from './chat-utils'
 
 // ─── 类型定义 ────────────────────────────────────────────────────────────
 
@@ -433,5 +433,134 @@ export function ToolCallsPanel({
         </div>
       )}
     </div>
+  )
+}
+
+
+// ─── 单条消息卡片（自 pages/Chat.tsx 抽出，保持页面 < 600 行）─────────────
+
+interface MessageItemProps {
+  msg: Message
+  showThinking: boolean
+  expandFileChanges: boolean
+  expandToolCalls: boolean
+  copiedId: string | null
+  onCopy: (id: string, content: string) => void
+  onRetry: (id: string) => void
+}
+
+export function MessageItem({
+  msg,
+  showThinking,
+  expandFileChanges,
+  expandToolCalls,
+  copiedId,
+  onCopy,
+  onRetry,
+}: MessageItemProps) {
+  const isUser = msg.role === 'user'
+  const hasThinking = !!msg.thinking && msg.thinking.length > 0
+  const hasFileChanges = !!msg.fileChanges && msg.fileChanges.length > 0
+  const hasToolCalls = !!msg.toolCalls && msg.toolCalls.length > 0
+  return (
+    <ShimmerCard
+      key={msg.id}
+      variant={isUser ? 'default' : 'accent'}
+      className={`group/msg max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+            isUser
+              ? 'bg-[var(--surface-hover)] text-[var(--text-secondary)]'
+              : 'bg-[var(--accent-soft)] text-[var(--accent)]'
+          }`}
+        >
+          {isUser ? <User size={16} /> : <Bot size={16} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-[var(--text-secondary)]">
+              {isUser ? 'You' : 'Axiom'}
+            </p>
+            {msg.meta?.model && (
+              <span className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
+                {msg.meta.model}
+              </span>
+            )}
+            {!isUser && (() => {
+              const total = extractTotalTokens(msg.meta?.usage)
+              return total !== null ? (
+                <span className="flex items-center gap-0.5 text-2xs text-[var(--text-muted)]">
+                  <Sparkles size={9} />
+                  {formatTokens(total)} tok
+                </span>
+              ) : null
+            })()}
+
+            {/* 消息操作按钮组：复制（hover 显示）+ 重试（仅错误消息） */}
+            {!msg.streaming && msg.content.trim() !== '' && (
+              <div className={`ml-auto flex items-center gap-0.5 ${msg.error ? 'opacity-100' : 'opacity-0 transition-opacity group-hover/msg:opacity-100'}`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCopy(msg.id, msg.content)}
+                  aria-label="复制消息"
+                  title="复制消息"
+                  icon={copiedId === msg.id ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
+                />
+                {msg.error && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onRetry(msg.id)}
+                    aria-label="重试"
+                    title="重试此消息"
+                    icon={<RotateCcw size={12} />}
+                  >
+                    重试
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 思考过程（受 showThinking 开关控制） */}
+          {hasThinking && showThinking && (
+            <ThinkingPanel items={msg.thinking!} />
+          )}
+
+          {/* 工具调用明细 */}
+          {hasToolCalls && (
+            <ToolCallsPanel
+              items={msg.toolCalls!}
+              defaultExpanded={expandToolCalls}
+            />
+          )}
+
+          {/* 文件修改明细 */}
+          {hasFileChanges && (
+            <FileChangesPanel
+              items={msg.fileChanges!}
+              defaultExpanded={expandFileChanges}
+            />
+          )}
+
+          {/* 主内容 */}
+          {msg.streaming && msg.content === '' && !hasThinking ? (
+            <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">
+              <LoadingDots size="sm" />
+              <span>
+                {msg.meta?.model ? `${msg.meta.model} 思考中…` : '思考中…'}
+              </span>
+            </div>
+          ) : (
+            <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${msg.error ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
+              {msg.content}
+            </p>
+          )}
+        </div>
+      </div>
+    </ShimmerCard>
   )
 }

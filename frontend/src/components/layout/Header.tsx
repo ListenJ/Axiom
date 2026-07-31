@@ -21,7 +21,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden"
+          className="h-11 w-11 lg:hidden"
           aria-label="打开菜单"
           icon={<Menu size={20} />}
         />
@@ -61,6 +61,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="icon"
           onClick={() => openHelp(true)}
+          className="h-11 w-11"
           aria-label="键盘快捷键"
           icon={<Keyboard size={18} />}
         />
@@ -68,6 +69,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
+          className="h-11 w-11"
           aria-label="切换主题"
           title="切换主题（Shift+T）"
           icon={theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -76,6 +78,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="icon"
           onClick={() => navigate('/settings')}
+          className="h-11 w-11"
           aria-label="设置"
           icon={<Bell size={18} />}
         />

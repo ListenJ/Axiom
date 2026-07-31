@@ -1,23 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
-  Send, Bot, User, MessageSquare,
+  Send, MessageSquare,
   ChevronRight,
   Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
-  ArrowDown, Sparkles, Copy, RotateCcw, Check, Activity,
+  ArrowDown, Sparkles, Activity,
 } from 'lucide-react'
 import {
-  ShimmerCard,
   Button,
   InlineEmptyState,
-  LoadingDots,
   Tabs,
 } from '@/components/ui'
 import {
   ToggleChip,
-  ThinkingPanel,
-  FileChangesPanel,
-  ToolCallsPanel,
+  MessageItem,
   UsageStatsPanel,
   parseTokenContent,
   type Message,
@@ -25,8 +21,6 @@ import {
 import { PageTransition } from '@/components/motion'
 import {
   nextId,
-  formatTokens,
-  extractTotalTokens,
   EXAMPLE_PROMPTS,
   toChatMessages,
   copyToClipboard,
@@ -439,113 +433,18 @@ export default function Chat() {
               </div>
             </div>
           )}
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user'
-            const hasThinking = !!msg.thinking && msg.thinking.length > 0
-            const hasFileChanges = !!msg.fileChanges && msg.fileChanges.length > 0
-            const hasToolCalls = !!msg.toolCalls && msg.toolCalls.length > 0
-            return (
-              <ShimmerCard
-                key={msg.id}
-                variant={isUser ? 'default' : 'accent'}
-                className={`group/msg max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                      isUser
-                        ? 'bg-[var(--surface-hover)] text-[var(--text-secondary)]'
-                        : 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                    }`}
-                  >
-                    {isUser ? <User size={16} /> : <Bot size={16} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-[var(--text-secondary)]">
-                        {isUser ? 'You' : 'Axiom'}
-                      </p>
-                      {msg.meta?.model && (
-                        <span className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
-                          {msg.meta.model}
-                        </span>
-                      )}
-                      {!isUser && (() => {
-                        const total = extractTotalTokens(msg.meta?.usage)
-                        return total !== null ? (
-                          <span className="flex items-center gap-0.5 text-2xs text-[var(--text-muted)]">
-                            <Sparkles size={9} />
-                            {formatTokens(total)} tok
-                          </span>
-                        ) : null
-                      })()}
-
-                      {/* 消息操作按钮组：复制（hover 显示）+ 重试（仅错误消息） */}
-                      {!msg.streaming && msg.content.trim() !== '' && (
-                        <div className={`ml-auto flex items-center gap-0.5 ${msg.error ? 'opacity-100' : 'opacity-0 transition-opacity group-hover/msg:opacity-100'}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void handleCopy(msg.id, msg.content)}
-                            aria-label="复制消息"
-                            title="复制消息"
-                            icon={copiedId === msg.id ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
-                          />
-                          {msg.error && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => retryFromError(msg.id)}
-                              aria-label="重试"
-                              title="重试此消息"
-                              icon={<RotateCcw size={12} />}
-                            >
-                              重试
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 思考过程（受 showThinking 开关控制） */}
-                    {hasThinking && showThinking && (
-                      <ThinkingPanel items={msg.thinking!} />
-                    )}
-
-                    {/* 工具调用明细 */}
-                    {hasToolCalls && (
-                      <ToolCallsPanel
-                        items={msg.toolCalls!}
-                        defaultExpanded={expandToolCalls}
-                      />
-                    )}
-
-                    {/* 文件修改明细 */}
-                    {hasFileChanges && (
-                      <FileChangesPanel
-                        items={msg.fileChanges!}
-                        defaultExpanded={expandFileChanges}
-                      />
-                    )}
-
-                    {/* 主内容 */}
-                    {msg.streaming && msg.content === '' && !hasThinking ? (
-                      <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">
-                        <LoadingDots size="sm" />
-                        <span>
-                          {msg.meta?.model ? `${msg.meta.model} 思考中…` : '思考中…'}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${msg.error ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
-                        {msg.content}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </ShimmerCard>
-            )
-          })}
+          {messages.map((msg) => (
+            <MessageItem
+              key={msg.id}
+              msg={msg}
+              showThinking={showThinking}
+              expandFileChanges={expandFileChanges}
+              expandToolCalls={expandToolCalls}
+              copiedId={copiedId}
+              onCopy={handleCopy}
+              onRetry={retryFromError}
+            />
+          ))}
         </div>
 
         {/* Input bar — sticky glass, content scrolls underneath */}

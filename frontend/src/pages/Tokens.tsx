@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button'
 import PageHeader from '@/components/ui/PageHeader'
 import StatCard from '@/components/ui/StatCard'
 import BarChart from '@/components/ui/BarChart'
+import Collapsible from '@/components/ui/Collapsible'
 
 interface TokenDetail {
   perModel: Array<{ model: string; calls: number; promptTokens: number; completionTokens: number; avgLatency: number }>
@@ -68,8 +69,12 @@ export default function Tokens() {
         )}
       </div>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-        <h3 className="mb-3 text-sm font-medium text-[var(--text)]">按模型明细</h3>
+      <Collapsible
+        title="按模型明细"
+        description="各模型调用次数与 Token 消耗统计"
+        icon={<Database className="size-4" />}
+        className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]"
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -94,10 +99,14 @@ export default function Tokens() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Collapsible>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-        <h3 className="mb-3 text-sm font-medium text-[var(--text)]">最近调用记录</h3>
+      <Collapsible
+        title="最近调用记录"
+        description="近 7 天调用记录与状态"
+        icon={<Clock className="size-4" />}
+        className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]"
+      >
         <div className="max-h-64 overflow-y-auto">
           <table className="w-full text-xs">
             <thead>
@@ -128,7 +137,7 @@ export default function Tokens() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Collapsible>
     </div>
   )
 }

@@ -583,6 +583,11 @@ export const endpoints = {
     setMode: (autoAccept: boolean) =>
       api.post<{ autoAccept: boolean; highRiskAlwaysConfirmed: boolean }>('/permissions/mode', { autoAccept }),
   },
+  settings: {
+    catalog: () => api.get<{ sections: Array<{ id: string; label: string }>; items: Array<{ key: string; section: string; label: string; desc: string; keywords: string[]; type: string; source: string }> }>('/settings/catalog'),
+    search: (q: string, limit?: number) =>
+      api.post<{ query: string; engine: 'semantic' | 'keyword' | 'hybrid'; results: Array<{ key: string; label: string; desc: string; section: string; score: number; matchType: 'semantic' | 'keyword' }> }>('/settings/search', { q, limit }),
+  },
   apiKeys: {
     list: () => api.get('/api-keys'),
     set: (body: { provider: string; apiKey: string; baseURL?: string }) =>

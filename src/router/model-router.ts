@@ -6,7 +6,7 @@
  *   - 扁平路由表: intent → role 直接映射，无嵌套 if/else
  *   - 统一执行端口: 所有调用走统一的 execute() 管线
  *   - 静态配置表 + 简单 fallback
- *   - 无 circuit breaker, 无 protocol 适配层
+ *   - 熔断器: 连续失败阈值打开 + 冷却 (utils/circuit-breaker)
  */
 
 import { logger } from "../utils/logger.js";
@@ -23,6 +23,7 @@ import { callProvider, callProviderNativeStream, type ChatMessage, type StreamCh
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
+import { routerBreaker } from "../utils/circuit-breaker.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -242,6 +243,11 @@ export class MultiPlatformRouter {
 
     let lastError: Error | undefined;
     for (const model of sortedModels) {
+      const breakerKey = `${model.provider}/${model.model}`;
+      if (!routerBreaker.allow(breakerKey)) {
+        logger.warn(`[Router] Circuit open, skip ${breakerKey}`);
+        continue;
+      }
       // Per-model retry: honor the model's own maxRetries, falling back to DEFAULT_RETRY_ATTEMPTS.
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
 
@@ -259,6 +265,7 @@ export class MultiPlatformRouter {
           });
           const cached = await llmCache.get(cKey);
           if (cached) {
+            routerBreaker.recordSuccess(breakerKey);
             const latencyMs = Date.now() - loopStart;
             metrics.increment("routing_decisions_total", 1, { role, source: "execute-cached", model: model.id });
             logger.info(`[Router] Execute cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
@@ -294,6 +301,7 @@ export class MultiPlatformRouter {
             success: true,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
+          routerBreaker.recordSuccess(breakerKey);
 
           // Record routing decision metric
           metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: model.id });
@@ -342,6 +350,7 @@ export class MultiPlatformRouter {
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
+          routerBreaker.recordFailure(breakerKey);
           logger.warn(
             `[Router] Execute failed ${model.provider}/${model.model} (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg }
@@ -463,6 +472,11 @@ export class MultiPlatformRouter {
     let lastError: Error | undefined;
 
     for (const model of sortedModels) {
+      const breakerKey = `${model.provider}/${model.model}`;
+      if (!routerBreaker.allow(breakerKey)) {
+        logger.warn(`[Router/chatStream] Circuit open, skip ${breakerKey}`);
+        continue;
+      }
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -580,6 +594,7 @@ export class MultiPlatformRouter {
               metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
               metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
               logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
+              routerBreaker.recordSuccess(breakerKey);
 
               yield {
                 type: "done",
@@ -605,6 +620,7 @@ export class MultiPlatformRouter {
             }, { role, taskType: "chat-stream" });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
+            routerBreaker.recordSuccess(breakerKey);
 
             if (result.content.length > 0) {
               yield { type: "token", content: result.content };
@@ -623,6 +639,7 @@ export class MultiPlatformRouter {
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
+          routerBreaker.recordFailure(breakerKey);
           logger.warn(
             `[Router/chatStream] ${model.provider}/${model.model} failed (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg },
