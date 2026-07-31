@@ -62,6 +62,16 @@ describe("CircuitBreaker", () => {
     expect(cb.stats().entries).toBe(0);
   });
 
+  it("reset 清空全部条目（测试隔离 / 运维复位）", () => {
+    const cb = new CircuitBreaker({ failureThreshold: 1 });
+    cb.recordFailure("a/x");
+    cb.recordFailure("b/y");
+    expect(cb.stats().entries).toBe(2);
+    expect(cb.reset()).toBe(2);
+    expect(cb.stats().entries).toBe(0);
+    expect(cb.allow("a/x")).toBe(true);
+  });
+
   it("全局单例 routerBreaker 可用", () => {
     expect(typeof routerBreaker.allow).toBe("function");
     expect(routerBreaker.stats().entries).toBeGreaterThanOrEqual(0);

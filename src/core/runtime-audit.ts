@@ -306,6 +306,23 @@ export async function checkResourcesBounds(): Promise<AuditCheck> {
   };
 }
 
+export async function checkMcpClientCleanup(): Promise<AuditCheck> {
+  const connector = readSource("../mcp/client-connector.ts");
+  const main = readSource("../main.ts");
+  const closeFn = connector.includes("closeExternalMcpClients");
+  const registry = connector.includes("activeClients");
+  const hook = main.includes("mcp-clients");
+  const ok = closeFn && registry && hook;
+  return {
+    id: "mcp.cleanup",
+    name: "外部 MCP 客户端关闭路径",
+    status: ok ? "pass" : "fail",
+    detail: ok
+      ? "client-connector 维护 activeClients 注册表 + closeExternalMcpClients，main.ts 注册 mcp-clients 关闭钩子，进程退出时关闭外部 server 子进程/连接。"
+      : `closeExternalMcpClients=${closeFn}、activeClients=${registry}、shutdownHook=${hook}，外部 MCP 客户端缺少关闭路径。`,
+    measured: { closeFn, registry, shutdownHook: hook },
+  };
+}
 export async function checkHeapStress(deps: AuditDeps): Promise<AuditCheck> {
   const store = deps.atomStore ?? atomStore;
   // 先触发一轮 GC 得到稳定基线
@@ -357,6 +374,7 @@ export async function runRuntimeAudit(deps: AuditDeps = {}): Promise<AuditReport
     checkFallbackLlm(),
     checkFallbackEdge(),
     checkResourcesBounds(),
+    checkMcpClientCleanup(),
     checkHeapStress(deps),
   ]);
 

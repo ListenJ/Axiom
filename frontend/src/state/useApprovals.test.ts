@@ -71,4 +71,47 @@ describe('useApprovals', () => {
     await expect(useApprovals.getState().resolve('a1', true)).rejects.toThrow('404')
     expect(useApprovals.getState().queue).toHaveLength(1)
   })
+
+  it('connect 时携带 axiom 协商协议与 token 子协议（R-006 远程鉴权）', () => {
+    const seen: unknown[] = []
+    class FakeWebSocket {
+      constructor(url: string, protocols?: string[]) {
+        seen.push(url, protocols ?? [])
+      }
+      close() {}
+    }
+    const orig = globalThis.WebSocket
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket
+    try {
+      localStorage.setItem('token', 't0k3n')
+      useApprovals.getState().connect()
+      expect(String(seen[0])).toMatch(/^ws:\/\//)
+      expect(String(seen[0])).toMatch(/\/ws$/)
+      expect(seen[1]).toEqual(['axiom', 'axiom.auth.t0k3n'])
+    } finally {
+      localStorage.removeItem('token')
+      globalThis.WebSocket = orig
+      useApprovals.getState().disconnect()
+    }
+  })
+
+  it('无 token 时仅携带协商协议', () => {
+    const seen: unknown[] = []
+    class FakeWebSocket {
+      constructor(url: string, protocols?: string[]) {
+        seen.push(url, protocols ?? [])
+      }
+      close() {}
+    }
+    const orig = globalThis.WebSocket
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket
+    try {
+      localStorage.removeItem('token')
+      useApprovals.getState().connect()
+      expect(seen[1]).toEqual(['axiom'])
+    } finally {
+      globalThis.WebSocket = orig
+      useApprovals.getState().disconnect()
+    }
+  })
 })

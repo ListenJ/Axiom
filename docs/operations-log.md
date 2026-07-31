@@ -2618,3 +2618,45 @@
   - 前端 tsc 0 错误；vitest 33 files / 207 tests 全绿（新增 Collapsible、SettingsSearch 等用例）。
   - 后端全量 2174 项：2138 通过 / 8 失败，全部为已知环境性（外网 TLS：DataPipeline×3、github-trending、checkSecurity×2）与全量并发 flaky（C.1/B.3，单独跑 21/21 通过），无新增回归。
 - **Commit**：`fc44afd`（已推送 `internal211/master`）。
+---
+
+## 2026-07-31 21:10 +0800 — CI 门禁 + Linux 冒烟 + MCP stdio 真实连通 + 远程 WS 鉴权 + 类似短板修复
+
+- **任务**：(1) 将 `bun run audit:runtime` 纳入 CI 门禁（GitHub Actions + .ci/run.sh），新增 Linux 部署冒烟（pm2 + health + diagnostics + 重启）；(2) R-015 遗留闭环：stdio 类 MCP server 在 Bun 下真实连通验证；(3) R-006 遗留闭环：远程 WS 审批鉴权（Sec-WebSocket-Protocol 子协议 + query token + header 三通道，fail-closed）；(4) 系统性排查类似短板并修复 + 设计符合工程实践审查。
+- **工具**：AgentSwarm（ci_smoke / mcp_stdio / ws_auth 三子代理并行，各自备份→读全文→改→验证→删备份）、主代理（审查集成、文档更新、精确替换）、RunCommand（`bunx tsc --noEmit` / `bun test` / `bun run audit:runtime` / `bunx vitest run`）。
+- **执行的操作（文件级）**：
+  - CI：`.github/workflows/ci.yml` 在 unit tests 后新增 audit:runtime 门禁 + `deploy-smoke` job（pm2 启动/health/audit/diagnostics/restart）；`.ci/run.sh` 增加 audit 步骤并纳入退出码；新增 `scripts/smoke-linux.sh`（docker/host/systemd/pm2 四模式：构建→启动→health→runtime-audit→diagnostics→聊天往返→清理）。
+  - MCP stdio（R-015/R-023）：`src/mcp/client-connector.ts` 增加 activeClients 注册表 + `closeExternalMcpClients()`（幂等）+ `getMcpClientStats()` + listTools 失败/超时/注册失败/迟到完成孤儿 client 全部关闭；`src/main.ts` 注册 mcp-clients 关闭钩子；`runtime-audit.ts` 新增第 14 项 mcp.cleanup；新增 `tests/fixtures/mcp-stdio-echo.ts`（真实 SDK McpServer + StdioServerTransport）+ `tests/mcp-stdio-live.test.ts`（真实子进程全链路）→ R-015 真实连通实证；`tests/mcp-client-connector.test.ts` +6 关闭路径用例；`circuit-breaker.ts` 增加 reset()。
+  - WS 鉴权（R-006）：新增 `src/utils/ws-auth.ts`（`checkWsUpgradeAuth` 纯函数：header / query token / Sec-WebSocket-Protocol 子协议三通道，常量时间比较，fail-closed）；`src/utils/auth-check.ts` 抽出共享 `safeStringEqual`；`src/main.ts` /ws 升级改用 checkWsUpgradeAuth 并在子协议鉴权时回显 `axiom`；前端 `useApprovals.ts` 以 `['axiom', 'axiom.auth.<token>']` 携带凭证（token 不进 URL/日志）；新增 `tests/ws-auth.test.ts`（8 用例）+ useApprovals 2 用例。
+  - 类似短板：`src/memory/deterministic-search.ts` tokenizeCache/paraCache 增加 FIFO 上限（200/500，与 contentCache 治理一致）——全仓扫描确认其余无界 Map/定时器/静默吞错点均已规范。
+  - 文档：`docs/RISK-REGISTER.md` R-006/R-015 遗留说明更新 + 新增 R-023 行；`deploy/reverse-proxy.md` 新增远程 WS 订阅鉴权章节（本文件被 gitignore，仅本地产物）；`reports/design-review-2026-07-31.md`（审查报告，同属本地产物）。
+- **验证**：
+  - 后端 `bunx tsc --noEmit` → 0 错误；相关测试 76+1 全绿（ws-auth 8 / circuit-breaker 8 / runtime-audit 6 / resource-audit 13 / settings-search 13 / deterministic-search 15 / mcp-client-connector 14 / mcp-stdio-live 1 真实连通）。
+  - `bun run audit:runtime` → 14/14 pass（overall=pass）。
+  - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 209 tests 全绿。
+  - CI 门禁与 smoke-linux.sh 无法在本机完整执行（需 Linux/CI 环境），脚本经自查；GitHub Actions deploy-smoke job 首次运行后需观察。
+- **Commit**：（待提交）。
+---
+
+## 2026-07-31 21:40 +0800 — 全量改动审查 + 修复 + 前端人机工效分析
+
+- **任务**：(1) 检索项目当前全部最新代码改动（未提交 diff + 近期提交），逐文件审查建立问题清单，实施修复并全面验证；(2) 前端人机工效分析（导航/流程/信息层级/交互反馈/认知模式五维度），结合 M3/Apple HIG/Carbon 新约束输出改进建议报告。
+- **工具**：主代理（git diff 审查、pm2 源码核验 cwd 解析、代码修改、红绿测试）、RunCommand（`bunx tsc --noEmit` / `bun test` / `bun run audit:runtime` / `bunx vitest run` / `bash -n`）、code-review skill。
+- **审查发现的问题清单**：
+  - **A-1 [Critical] CI deploy-smoke 产物不匹配**：`bun run build:server` 经 matrix.ts 产出 `dist/bun/<platform>/<arch>/axiom-server` 编译二进制，而 `deploy/pm2/ecosystem.config.json` 启动 `dist/main.js` → 冒烟必然启动失败。已核实 pm2 源码（Common.js `path.resolve(app.cwd)` 基于调用目录）确认相对路径无碍，根因是构建目标错。
+  - **A-2 [High] smoke-linux.sh pm2 模式应用名不匹配**：`PM2_APP="axiom-runtime"` vs ecosystem 实际 `"axiom-agent"` → 已运行检测与清理失效（重复启动/删除不到）。
+  - **A-3 [High] main.ts 历史编码损坏**：19 处 `�` mojibake（GBK→UTF-8 转换残留），含用户可见的 401 错误串 `"Unauthorized �?..."`（L526）、启动横幅边框/文案（L722-726）、多处中文注释。
+  - **A-4 [Low] main.ts `headerAuth` 冗余**：`(a || b || null) ?? null` 双重兜底冗余。
+  - **A-5 [Medium] client-connector 同名覆盖泄漏**：`activeClients.set(name, …)` 对同名二次连接覆盖旧 client 而不关闭（R-023 防泄漏目标下的漏洞窗口）。
+  - 其余（ws-auth 逻辑、子协议回显语义、`.ci/run.sh` PIPESTATUS 取值、runtime-audit 路径、mcp-stdio-live 用例、前端 useApprovals）审查通过，无缺陷。
+- **执行的操作（文件级）**：
+  - 修复 A：`.github/workflows/ci.yml` deploy-smoke `bun run build:server` → `bun run build`（产出 dist/main.js 与 ecosystem 一致）。
+  - 修复 B：`scripts/smoke-linux.sh` `PM2_APP="axiom-runtime"` → `"axiom-agent"`。
+  - 修复 C：`src/main.ts` 19 处乱码逐一按上下文修复（文件头注释、NativeBridge 日志串、分隔线、401 错误串、启动横幅 ║ 边框、注释）；`headerAuth` 表达式去冗余。
+  - 修复 D：`src/mcp/client-connector.ts` 同名覆盖前先关闭旧 client；`tests/mcp-client-connector.test.ts` +1 回归用例（先以备份旧代码验证变红，再恢复修复验证变绿）。
+  - 文档：`docs/operations-log.md` 追加本条；新增 `reports/ux-ergonomics-2026-07-31.md`（人机工效分析报告：五维度对照 + 8 项改进建议，P1 四项：侧边栏折叠态/消息生长动画/会话鱼眼导航/二级页面入口收敛）。
+- **验证**：
+  - 后端 `bunx tsc --noEmit` → 0 错误；相关测试 52 全绿（ws-auth 8 / circuit-breaker 8 / runtime-audit 6 / deterministic-search 15 / mcp-client-connector 15 / mcp-stdio-live 1 真实连通）；`bun run audit:runtime` → 14/14 pass。
+  - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 209 tests 全绿。
+  - `bash -n` 校验 `scripts/smoke-linux.sh`、`.ci/run.sh` 语法通过。
+- **Commit**：（待提交）。

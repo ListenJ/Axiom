@@ -3,7 +3,10 @@ import { ToolRegistry } from "../src/mcp/tool-registry.js";
 import {
   loadMcpServerConfigs,
   connectExternalMcpServers,
+  closeExternalMcpClients,
+  getMcpClientStats,
   type McpClientLike,
+  type McpClientFactory,
   type McpServerEntry,
 } from "../src/mcp/client-connector.js";
 
@@ -146,6 +149,182 @@ describe("MCP Client Connector (R-015)", () => {
       expect(summary.failed).toEqual([]);
       expect(summary.toolsRegistered).toBe(0);
       expect(registry.size).toBe(0);
+    });
+    it("should close the client when listTools fails", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const closed: string[] = [];
+      const factory: McpClientFactory = async (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        return {
+          listTools: async () => { throw new Error("listTools failed"); },
+          callTool: async () => ({}),
+          close: async () => { closed.push(name); },
+        };
+      };
+
+      const summary = await connectExternalMcpServers(registry, {
+        configPath: fakeYaml,
+        createClient: factory,
+      });
+
+      expect(summary.failed).toHaveLength(3);
+      expect(summary.failed.find((f) => f.name === "alpha")?.error).toContain("listTools failed");
+      expect(closed).toEqual(["alpha"]);
+    });
+
+    it("should close the client when listTools times out", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const closed: string[] = [];
+      const factory: McpClientFactory = async (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        return {
+          listTools: () => new Promise<never>(() => {}), // 永不返回
+          callTool: async () => ({}),
+          close: async () => { closed.push(name); },
+        };
+      };
+
+      const summary = await connectExternalMcpServers(registry, {
+        configPath: fakeYaml,
+        timeoutMs: 150,
+        createClient: factory,
+      });
+
+      expect(summary.failed).toHaveLength(3);
+      expect(summary.failed.some((f) => f.name === "alpha" && f.error.includes("timed out"))).toBe(true);
+      expect(closed).toEqual(["alpha"]);
+    });
+
+    it("should close the client when tool registration fails", async () => {
+      await writeFakeConfig();
+      const closed: string[] = [];
+      const badRegistry = {
+        add: () => { throw new Error("duplicate tool name"); },
+        size: 0,
+      } as unknown as ToolRegistry;
+      const factory: McpClientFactory = async (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        return {
+          listTools: async () => ({
+            tools: [{ name: "search", description: "x", inputSchema: {} }],
+          }),
+          callTool: async () => ({}),
+          close: async () => { closed.push(name); },
+        };
+      };
+
+      const summary = await connectExternalMcpServers(badRegistry, {
+        configPath: fakeYaml,
+        createClient: factory,
+      });
+
+      expect(summary.failed).toHaveLength(3);
+      expect(closed).toEqual(["alpha"]);
+    });
+
+    it("should close an orphaned client when createClient times out then resolves late", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const closed: string[] = [];
+      const createHolder: { resolve: ((c: McpClientLike) => void) | null } = { resolve: null };
+      const factory: McpClientFactory = (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        return new Promise<McpClientLike>((resolve) => { createHolder.resolve = resolve; });
+      };
+
+      const summary = await connectExternalMcpServers(registry, {
+        configPath: fakeYaml,
+        timeoutMs: 150,
+        createClient: factory,
+      });
+
+      expect(summary.failed).toHaveLength(3);
+      expect(closed).toEqual([]); // 超时瞬间尚未创建
+
+      // 迟到完成的连接必须被立即关闭，防止孤儿子进程残留
+      createHolder.resolve?.({
+        listTools: async () => ({ tools: [] }),
+        callTool: async () => ({}),
+        close: async () => { closed.push("alpha"); },
+      });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(closed).toEqual(["alpha"]);
+    });
+
+    it("should close all connected clients and clear the registry via closeExternalMcpClients", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const closed: string[] = [];
+      const factory: McpClientFactory = async (name: string) => {
+        if (name === "broken") throw new Error("spawn failed");
+        return {
+          listTools: async () => ({ tools: [{ name: "search" }] }),
+          callTool: async () => ({}),
+          close: async () => { closed.push(name); },
+        };
+      };
+
+      const summary = await connectExternalMcpServers(registry, {
+        configPath: fakeYaml,
+        createClient: factory,
+      });
+      expect(summary.connected.sort()).toEqual(["alpha", "beta"]);
+      expect(getMcpClientStats().connected).toBe(2);
+
+      const n = await closeExternalMcpClients();
+      expect(n).toBe(2);
+      expect(closed.sort()).toEqual(["alpha", "beta"]);
+      expect(getMcpClientStats().connected).toBe(0);
+
+      // 幂等：再次关闭返回 0
+      expect(await closeExternalMcpClients()).toBe(0);
+    });
+
+    it("should remove a client from the registry when listTools fails", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const factory: McpClientFactory = async (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        return {
+          listTools: async () => { throw new Error("listTools failed"); },
+          callTool: async () => ({}),
+          close: async () => {},
+        };
+      };
+
+      await connectExternalMcpServers(registry, {
+        configPath: fakeYaml,
+        createClient: factory,
+      });
+
+      // alpha 失败即关闭并从注册表移除；beta/broken 在创建阶段失败，从未登记
+      expect(getMcpClientStats().connected).toBe(0);
+    });
+
+    it("should close the previous client when the same server reconnects (no registry leak)", async () => {
+      await writeFakeConfig();
+      const registry = createTestRegistry();
+      const closed: string[] = [];
+      let spawnCount = 0;
+      const factory: McpClientFactory = async (name: string) => {
+        if (name !== "alpha") throw new Error("spawn failed");
+        const mySpawn = ++spawnCount;
+        return {
+          listTools: async () => ({ tools: [{ name: "search" }] }),
+          callTool: async () => ({}),
+          close: async () => { closed.push(`alpha#${mySpawn}`); },
+        };
+      };
+
+      await connectExternalMcpServers(registry, { configPath: fakeYaml, createClient: factory });
+      expect(getMcpClientStats().connected).toBe(1);
+
+      await connectExternalMcpServers(registry, { configPath: fakeYaml, createClient: factory });
+      expect(getMcpClientStats().connected).toBe(1);
+      // 第一次连接的 client 必须在第二次连接（同名覆盖）时被关闭，否则泄漏
+      expect(closed).toEqual(["alpha#1"]);
     });
   });
 });

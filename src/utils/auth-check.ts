@@ -20,8 +20,9 @@ export function isLocalAddress(address: string | undefined): boolean {
 /**
  * 常量时间字符串比较 —— 防止时序攻击泄露 API Key。
  * 长度不同时直接返回 false（key 长度非机密信息）。
+ * 供 REST (checkApiKey) 与 WS 升级鉴权 (ws-auth) 共用，避免重复实现。
  */
-function safeCompare(a: string | undefined, b: string): boolean {
+export function safeStringEqual(a: string | undefined, b: string): boolean {
   if (typeof a !== "string" || a.length === 0) return false;
   if (typeof b !== "string" || b.length === 0) return false;
   const bufA = Buffer.from(a, "utf8");
@@ -75,5 +76,5 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   // WebSocket: check auth in upgrade handler, not here
   if (path === "/ws") return true;
   const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
-  return safeCompare(auth, apiKey);
+  return safeStringEqual(auth, apiKey);
 }

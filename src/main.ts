@@ -1,12 +1,12 @@
 /**
- * Axiom AI Agent �?主入�?v2.2
- * Vault 核心记忆引擎 + 确定性推�?+ Obsidian 共享记忆�?
+ * Axiom AI Agent — 主入口 v2.2
+ * Vault 核心记忆引擎 + 确定性推理 + Obsidian 共享记忆
  *
  * 架构升级:
  *   - O(1) 路由引擎 (Trie + 请求缓存 + 性能分析)
- *   - 统一配置中心 (交互式配置管�?
- *   - 架构自检系统 (启动时自动健康检�?
- *   - 黑板系统 (�?Agent 状态共�?
+ *   - 统一配置中心 (交互式配置管理)
+ *   - 架构自检系统 (启动时自动健康检查)
+ *   - 黑板系统 (多 Agent 状态共享)
  *   - 读取优化管道 (分层缓存 + 字段投影)
  */
 import { Database } from "bun:sqlite";
@@ -16,6 +16,7 @@ import { DataPipeline } from "./crawl/data-pipeline.js";
 import { logger } from "./utils/logger.js";
 import { getConfig, getConfigCenter } from "./core/config-center.js";
 import { wsManager } from "./utils/websocket.js";
+import { checkWsUpgradeAuth, WS_AUTH_SUBPROTOCOL } from "./utils/ws-auth.js";
 import { VaultFileWatcher } from "./memory/file-watcher.js";
 import { HealthMonitor } from "./utils/resilience.js";
 import { validateEnv, readString, readInt, readBool } from "./utils/env.js";
@@ -34,9 +35,9 @@ import {
 } from "./utils/api-key-persistence.js";
 import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store.js";
 
-// ══════════════════════════════════════════════════════════════�?
-// Native Bridge �?Rust 高性能核心 (v2.3)
-// ══════════════════════════════════════════════════════════════�?
+// ════════════════════════════════════════════════════════════════
+// Native Bridge — Rust 高性能核心 (v2.3)
+// ════════════════════════════════════════════════════════════════
 import {
   initNativeBridge,
   stopNativeBridge,
@@ -63,13 +64,13 @@ if (nativeEnabled) {
     enabled: true,
   });
   if (nativeOk) {
-    logger.info("[NativeBridge] Rust core active �?search/routing accelerated");
+    logger.info("[NativeBridge] Rust core active — search/routing accelerated");
   }
 }
 
-// ══════════════════════════════════════════════════════════════�?
+// ════════════════════════════════════════════════════════════════
 // 核心架构组件
-// ══════════════════════════════════════════════════════════════�?
+// ════════════════════════════════════════════════════════════════
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
 import { getHttpRouter } from "./core/http-router.js";
 import { getGlobalBlackboard } from "./memory/blackboard.js";
@@ -87,9 +88,9 @@ import {
 import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 
-// �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
-// ��ѧͻ��ģ�� (Math Breakthroughs)
-// �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+// ════════════════════════════════════════════════════════════════
+// 数学突破模型 (Math Breakthroughs)
+// ════════════════════════════════════════════════════════════════
 import { VIBCompressor } from "./memory/vib-compressor.js";
 import { ConformalRetriever } from "./memory/conformal-retriever.js";
 import { ConformalHallucinationDetector } from "./memory/hallucination-detector.js";
@@ -111,7 +112,7 @@ if (healthReport.overall === "critical") {
   process.exit(1);
 }
 
-// ===== 读取优化管道初始�?=====
+// ===== 读取优化管道初始化 =====
 getReadOptimizer().setBlackboard(getGlobalBlackboard());
 initializeReadOptimizers(process.cwd(), {
   searchSymbols,
@@ -133,7 +134,7 @@ if (!envValidation.valid) {
   });
 }
 
-// ===== 初始�?=====
+// ===== 初始化 =====
 await Bun.write("./data/.gitkeep", "").catch(() => {});
 await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
 
@@ -151,7 +152,7 @@ logger.info("Axiom AI Agent 启动", {
   env: readString("NODE_ENV", "development"),
 });
 
-// 系统状�?
+// 系统状态
 db.run(`CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER DEFAULT (unixepoch()))`);
 db.run(`INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)`, ["last_boot", new Date().toISOString()]);
 
@@ -160,7 +161,7 @@ initApiKeyOverridesTable(db);
 const persistedOverrides = loadApiKeyOverrides(db);
 loadApiKeyStoreOverrides(persistedOverrides);
 
-// Vault �?核心记忆引擎
+// Vault — 核心记忆引擎
 let vault: VaultManager | null = null;
 try {
   vault = new VaultManager({ vaultPath: config.memory.vaultPath });
@@ -343,7 +344,7 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 function startHeartbeat(): void {
   // Phase P1-6: vault?.stats() is replaced with the async-refreshed cache.
-  // The heartbeat must NEVER block the event loop, even briefly �?the
+  // The heartbeat must NEVER block the event loop, even briefly — the
   // cache runs in its own microtask, the heartbeat tick just reads.
   void (async () => {
     const { vaultStatsCache } = await import("./utils/vault-stats-cache.js");
@@ -374,7 +375,7 @@ function stopHeartbeat(): void {
   }
 }
 
-// ===== 注册 Trie 路由 (启动时一次性注�? =====
+// ===== 注册 Trie 路由 (启动时一次性注册) =====
 const httpRouter = getHttpRouter();
 registerTrieRoutes(httpRouter);
 logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes().length });
@@ -456,7 +457,7 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   const safe = pathname.replace(/^\/+/, "");
   if (safe.includes("..") || safe.includes("\\")) return null;
   const ext = safe.includes(".") ? safe.slice(safe.lastIndexOf(".")) : "";
-  if (!STATIC_MIME[ext]) return null; // unknown extension �?not a static asset
+  if (!STATIC_MIME[ext]) return null; // unknown extension — not a static asset
   const filePath = `${STATIC_ROOT}/${safe}`;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
@@ -522,24 +523,36 @@ const server = Bun.serve({
         reason: "invalid or missing API key",
         resource: url.pathname,
       });
-      return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
+      return jsonResponse({ error: "Unauthorized - invalid or missing API key" }, 401, baseHeaders);
     }
 
-    // WebSocket �?verify auth token before upgrade (localhost always allowed for dev)
+    // WebSocket — verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
-      const wsAuth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
-      if (!isLocal && wsAuth !== API_KEY) {
+      const wsAuth = checkWsUpgradeAuth({
+        headerAuth: req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "") || null,
+        protocolHeader: req.headers.get("sec-websocket-protocol") ?? null,
+        queryToken: url.searchParams.get("token") ?? null,
+        isLocal,
+        apiKey: API_KEY,
+      });
+      if (!wsAuth.ok) {
         auditLogger.log({
           event: "auth.failure",
           actor: remoteAddress ?? "unknown",
           outcome: "denied",
-          reason: "WebSocket auth token mismatch",
+          reason: wsAuth.reason,
           resource: "/ws",
         });
-        return jsonResponse({ error: "Unauthorized �?invalid or missing API key" }, 401, baseHeaders);
+        return jsonResponse({ error: "Unauthorized - invalid or missing API key" }, 401, baseHeaders);
       }
       const wsData: WebSocketData = { clientId: crypto.randomUUID() };
-      const success = server.upgrade(req, { data: wsData } as unknown as Parameters<typeof server.upgrade>[1]);
+      // 客户端以 Sec-WebSocket-Protocol 携带凭证时回显 WS_AUTH_SUBPROTOCOL 完成握手；
+      // 未提供子协议（header/query 鉴权）则不要求协商。
+      const offered = (req.headers.get("sec-websocket-protocol") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+      const upgradeOpts = offered.length > 0
+        ? { data: wsData, protocols: [WS_AUTH_SUBPROTOCOL] }
+        : { data: wsData };
+      const success = server.upgrade(req, upgradeOpts as unknown as Parameters<typeof server.upgrade>[1]);
       if (success) return undefined as unknown as Response;
       return jsonResponse({ error: "WebSocket upgrade failed" }, 400, baseHeaders);
     }
@@ -623,7 +636,7 @@ const server = Bun.serve({
         response = await httpRouter.execute(ctx);
       }
 
-      // 回退到传统路由系�?
+      // 回退到传统路由系统
       if (!response) {
         response = await dispatch(ctx);
       }
@@ -680,6 +693,7 @@ registerShutdownHook({ name: "http-server", handler: () => server.stop(), priori
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });
+registerShutdownHook({ name: "mcp-clients", handler: async () => { const { closeExternalMcpClients } = await import("./mcp/client-connector.js"); await closeExternalMcpClients(); }, priority: 65 });
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 
@@ -705,10 +719,10 @@ logger.info(`╔═════════════════════�
 ║ 记忆: Obsidian Vault (确定性推理)                                   ║
 ║ 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
 ║ 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║
-�?                                                                     �?
-�? 本地访问:  ${localUrl.padEnd(58)} �?
-�? 局域网:    ${lanUrl.padEnd(58)} �?
-�? WebSocket: ws://${readString("HOST", "127.0.0.1")}:${port}/ws${"".padEnd(38)} �?
-�? API Key:   ${API_KEY ? "已启�?(x-api-key 鉴权)" : "未设�?(所有请求将被拒�?"}            �?
+║                                                                     ║
+║ 本地访问:  ${localUrl.padEnd(58)} ║
+║ 局域网:    ${lanUrl.padEnd(58)} ║
+║ WebSocket: ws://${readString("HOST", "127.0.0.1")}:${port}/ws${"".padEnd(38)} ║
+║ API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 `);

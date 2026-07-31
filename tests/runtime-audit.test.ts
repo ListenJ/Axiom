@@ -13,9 +13,9 @@ import { Cache } from "../src/utils/cache.js";
 import { readFileSync } from "node:fs";
 
 describe("运行时审查机制", () => {
-  it("默认依赖下返回完整 13 项检查且不抛错", async () => {
+  it("默认依赖下返回完整 14 项检查且不抛错", async () => {
     const report = await runRuntimeAudit();
-    expect(report.checks.length).toBe(13);
+    expect(report.checks.length).toBe(14);
     for (const check of report.checks) {
       expect(typeof check.id).toBe("string");
       expect(check.id.length).toBeGreaterThan(0);

@@ -80,6 +80,13 @@ export class CircuitBreaker {
     }
     return { entries: this.entries.size, open };
   }
+
+  /** 清空全部状态（测试隔离 / 运维复位）；返回清除的条目数 */
+  reset(): number {
+    const n = this.entries.size;
+    this.entries.clear();
+    return n;
+  }
 }
 
 /** 模型路由全局熔断单例（provider/model 维度） */

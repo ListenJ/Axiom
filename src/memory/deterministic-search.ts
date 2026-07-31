@@ -79,6 +79,9 @@ export class DeterministicSearchEngine {
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
   private readonly CONTENT_CACHE_MAX = 50;
+  // Memoization 缓存同样设上限（FIFO 驱逐），防止长运行期 tokenize/para 键无限增长
+  private readonly TOKENIZE_CACHE_MAX = 200;
+  private readonly PARA_CACHE_MAX = 500;
   private cacheHits = 0;
   private cacheMisses = 0;
 
@@ -529,6 +532,10 @@ export class DeterministicSearchEngine {
     else if (parts[0] === "00-Meta") cached = "meta";
     else cached = "uncategorized";
     this.paraCache.set(notePath, cached);
+    if (this.paraCache.size > this.PARA_CACHE_MAX) {
+      const oldest = this.paraCache.keys().next().value;
+      if (oldest) this.paraCache.delete(oldest);
+    }
     return cached;
   }
 
@@ -541,6 +548,10 @@ export class DeterministicSearchEngine {
       .split(/\s+/)
       .filter((w) => w.length >= 2 || /[\u4e00-\u9fa5]/.test(w));
     this.tokenizeCache.set(text, cached);
+    if (this.tokenizeCache.size > this.TOKENIZE_CACHE_MAX) {
+      const oldest = this.tokenizeCache.keys().next().value;
+      if (oldest) this.tokenizeCache.delete(oldest);
+    }
     return cached;
   }
 

@@ -1,8 +1,10 @@
 /**
- * MCP 客户端连接器 (R-015)
+ * MCP 客户端连接器 (R-015 / R-023)
  * 消费 config/mcp-servers.yaml 中注册的外部 MCP server（stdio / remote HTTP），
  * 将远端工具以 `mcp_<server>_<tool>` 前缀注册进 ToolRegistry（防命名冲突）。
  * 连接失败 / 超时优雅降级：warn 日志跳过该 server，不影响主服务启动。
+ * 已连接 client 登记在 activeClients，进程退出经 closeExternalMcpClients 关闭
+ * （main.ts 注册 mcp-clients 关闭钩子），防止子进程/连接泄漏（R-023）。
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -41,6 +43,25 @@ export type McpClientFactory = (name: string, entry: McpServerEntry) => Promise<
 
 const DEFAULT_CONFIG_PATH = "config/mcp-servers.yaml";
 const DEFAULT_TIMEOUT_MS = 10_000;
+const activeClients = new Map<string, McpClientLike>();
+
+/** 关闭全部已连接的外部 MCP client（幂等，失败仅告警）；返回关闭数量 */
+export async function closeExternalMcpClients(): Promise<number> {
+  const names = Array.from(activeClients.keys());
+  await Promise.all(names.map(async (name) => {
+    const client = activeClients.get(name);
+    if (!client) return;
+    activeClients.delete(name);
+    await closeClientQuietly(client, name);
+  }));
+  return names.length;
+}
+
+/** 当前存活的外部 MCP client 数（审计/诊断用） */
+export function getMcpClientStats(): { connected: number } {
+  return { connected: activeClients.size };
+}
+
 
 /** 解析 mcp-servers.yaml；文件缺失 / 格式错误返回空表（优雅降级） */
 export async function loadMcpServerConfigs(configPath: string = DEFAULT_CONFIG_PATH): Promise<Record<string, McpServerEntry>> {
@@ -81,6 +102,15 @@ async function createSdkClient(name: string, entry: McpServerEntry): Promise<Mcp
   return client;
 }
 
+/** 幂等关闭 client；失败仅告警，不阻断连接汇总 */
+async function closeClientQuietly(client: McpClientLike, name: string): Promise<void> {
+  try {
+    await client.close();
+  } catch (closeErr) {
+    logger.warn("[MCP-Client] 关闭 client 失败", { server: name, error: (closeErr as Error).message });
+  }
+}
+
 /**
  * 连接 yaml 中所有外部 MCP server，并将远端工具注册进 registry。
  * 各 server 并行连接，任一失败仅记录 warn 并跳过，不中断启动。
@@ -95,15 +125,25 @@ export async function connectExternalMcpServers(
   const summary: McpConnectSummary = { connected: [], failed: [], toolsRegistered: 0 };
 
   await Promise.all(Object.entries(servers).map(async ([name, entry]) => {
+    let client: McpClientLike | null = null;
+    let clientPromise: Promise<McpClientLike> | null = null;
     try {
-      const client = await withTimeout(createClient(name, entry), timeoutMs);
-      const { tools } = await withTimeout(client.listTools(), timeoutMs);
+      clientPromise = createClient(name, entry);
+      const connected = await withTimeout(clientPromise, timeoutMs);
+      client = connected;
+      const existing = activeClients.get(name);
+      if (existing && existing !== connected) {
+        activeClients.delete(name);
+        await closeClientQuietly(existing, name);
+      }
+      activeClients.set(name, connected);
+      const { tools } = await withTimeout(connected.listTools(), timeoutMs);
       for (const tool of tools) {
         registry.add({
           name: `mcp_${name}_${tool.name}`,
           description: `[${name}] ${tool.description ?? tool.name}`,
           inputSchema: tool.inputSchema ?? {},
-          handler: async (args) => client.callTool({ name: tool.name, arguments: args }),
+          handler: async (args) => connected.callTool({ name: tool.name, arguments: args }),
           tags: ["external-mcp", name],
         });
         summary.toolsRegistered++;
@@ -111,6 +151,13 @@ export async function connectExternalMcpServers(
       summary.connected.push(name);
       logger.info("[MCP-Client] 外部 MCP server 已连接", { server: name, tools: tools.length });
     } catch (e: unknown) {
+      if (client) {
+        if (activeClients.get(name) === client) activeClients.delete(name);
+        await closeClientQuietly(client, name);
+      } else if (clientPromise) {
+        // createClient 失败/超时：若迟到完成，立即关闭连接，防止孤儿子进程残留
+        void clientPromise.then((c) => closeClientQuietly(c, name)).catch(() => {});
+      }
       summary.failed.push({ name, error: (e as Error).message });
       logger.warn("[MCP-Client] 外部 MCP server 连接失败，已跳过", { server: name, error: (e as Error).message });
     }

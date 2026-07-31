@@ -5,8 +5,9 @@
  * → 本 store 入队 → ApprovalModal 逐条展示 → 用户经 REST
  * POST /approvals/:id/resolve 提交决定 → 出队。
  *
- * 注意：浏览器 WebSocket 无法自定义请求头，后端 /ws 升级校验对 localhost
- * 放行（isLocal），同源本地访问无需 x-api-key；远程访问需后端另行支持。
+ * 远程鉴权（R-006）：浏览器 WebSocket 无法自定义请求头，token 经
+ * Sec-WebSocket-Protocol 子协议（axiom.auth.<token>）携带，后端升级时校验并
+ * 回显 "axiom" 完成握手；本地（localhost）后端按对端地址放行。
  */
 import { create } from 'zustand'
 import { api } from '@/lib/api'
@@ -70,13 +71,24 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const BASE_RETRY_DELAY_MS = 1_000
 const MAX_RETRY_DELAY_MS = 15_000
 
+const WS_PROTOCOL = 'axiom'
+const WS_TOKEN_PROTOCOL_PREFIX = 'axiom.auth.'
+
 function wsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}/ws`
 }
 
+/** 浏览器无法自定义 WS 请求头：协议数组携带协商名 + token 子协议（有 token 时）。 */
+function wsProtocols(): string[] {
+  const protocols = [WS_PROTOCOL]
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
+  if (token) protocols.push(`${WS_TOKEN_PROTOCOL_PREFIX}${token}`)
+  return protocols
+}
+
 function openWs(): void {
-  const socket = new WebSocket(wsUrl())
+  const socket = new WebSocket(wsUrl(), wsProtocols())
   ws = socket
   socket.onopen = () => {
     retries = 0
