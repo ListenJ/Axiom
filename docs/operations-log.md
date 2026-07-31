@@ -2690,4 +2690,4 @@
   - `frontend/src/components/ui/HelpModal.tsx`：shortcuts 数组补 `{ key: 'g', desc: '打开 Git' }`（NAV_ITEMS 中 git 项 shortcut='g'，展示文本 "打开 Git"）。
   - `docs/operations-log.md`：追加本条。
 - **验证**：前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 35 files / 221 tests 全绿。备份按规则 2 已删（`.tmp/backups/` 已清空）。
-- **Commit**：`<hash>`。
+- **Commit**：`f9c7443`。
