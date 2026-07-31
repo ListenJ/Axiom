@@ -2612,9 +2612,9 @@
 - **执行的操作（文件级）**：
   - 前端：新增 `ui/Collapsible.tsx` + 测试并导出；`chat-panels.tsx` 抽取 `MessageItem` + 补齐图标导入；`Chat.tsx` 清理未用导入并接入 MessageItem；Tokens/KG/Knowledge/OCR/Research/Trends/Search 折叠化与 `search-panels.tsx` 抽取；`Settings.tsx` 重做（ToggleRow / SettingsSearch 挂载 / Agent 配置参考分区 / models-section 拆分）。
   - 设置搜索：`src/core/settings-catalog.ts`（类型化目录：key/section/label/精确 desc/keywords/source）；`src/core/settings-search.ts`（混合打分：中文 bigram + 同义词 + 余弦）；`src/local-llm/edge-embeddings.ts`（本地 embedding，5s 超时失败回退）；`src/routes/settings.ts`（GET /settings/catalog、POST /settings/search）；前端 `api.ts` endpoints.settings + `components/settings/*`（SettingsSearch 250ms debounce + 语义/关键字标注 + 离线兜底）。
-  - 后端审查：`src/core/runtime-audit.ts`（13 项可注入检查）；`src/utils/resource-registry.ts`（register/collect 深模块）+ `src/routes/audit.ts`（GET /api/audit/diagnostics）；`src/utils/circuit-breaker.ts`（allow/recordFailure/recordSuccess/prune/stats）+ `model-router.ts` 接入（execute 与 chatStream 双路径：打开后跳过该 provider/model，成功复位）；`scripts/runtime-audit.ts` + package.json `audit:runtime` 脚本；`routes/index.ts` 注册两路由并更新 404 端点目录；`tests/audit/resource-audit.test.ts`、`tests/runtime-audit.test.ts`、`tests/circuit-breaker.test.ts`、`tests/settings-search.test.ts`；`docs/reports/audit-2026-07-31.md`。
+  - 后端审查：`src/core/runtime-audit.ts`（13 项可注入检查）；`src/utils/resource-registry.ts`（register/collect 深模块）+ `src/routes/audit.ts`（GET /api/audit/diagnostics）；`src/utils/circuit-breaker.ts`（allow/recordFailure/recordSuccess/prune/stats）+ `model-router.ts` 接入（execute 与 chatStream 双路径：打开后跳过该 provider/model，成功复位）；`scripts/runtime-audit.ts` + package.json `audit:runtime` 脚本；`routes/index.ts` 注册两路由并更新 404 端点目录；`tests/audit/resource-audit.test.ts`、`tests/runtime-audit.test.ts`、`tests/circuit-breaker.test.ts`、`tests/settings-search.test.ts`；`reports/audit-2026-07-31.md`。
 - **验证**：
   - 后端 tsc 0 错误；`bun run audit:runtime` → 13/13 pass（修复前 2 项：streams.cleanup 误报判据修正——chat 用 ReadableStream.cancel() 已实现清理；fallback.llm 真实缺口——模型路由新增熔断器）。新增 39 用例全绿（circuit-breaker 7 / runtime-audit 6 / resource-audit 13 / settings-search 13）。
   - 前端 tsc 0 错误；vitest 33 files / 207 tests 全绿（新增 Collapsible、SettingsSearch 等用例）。
   - 后端全量 2174 项：2138 通过 / 8 失败，全部为已知环境性（外网 TLS：DataPipeline×3、github-trending、checkSecurity×2）与全量并发 flaky（C.1/B.3，单独跑 21/21 通过），无新增回归。
-- **Commit**：（待提交）。
+- **Commit**：`fc44afd`（已推送 `internal211/master`）。
