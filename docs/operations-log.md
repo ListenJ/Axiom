@@ -2602,4 +2602,4 @@
 - **验证**：
   - `cd frontend && bunx tsc --noEmit` → ExitCode=0（修复前 6 个错误）。
   - `cd frontend && bunx vitest run` → 31 files / 196 tests passed / 0 failed（较上版 175 新增 21 个 intro/motion 用例）。
-- **Commit**：（待提交）。
+- **Commit**：`06dccf7`（已推送 `internal211/master`）。
