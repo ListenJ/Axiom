@@ -1,25 +1,28 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   Send, Bot, User, MessageSquare,
   ChevronRight,
   Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
-  ArrowDown, Sparkles, Copy, RotateCcw, Check,
+  ArrowDown, Sparkles, Copy, RotateCcw, Check, Activity,
 } from 'lucide-react'
 import {
   ShimmerCard,
   Button,
   InlineEmptyState,
   LoadingDots,
+  Tabs,
 } from '@/components/ui'
 import {
   ToggleChip,
   ThinkingPanel,
   FileChangesPanel,
   ToolCallsPanel,
+  UsageStatsPanel,
   parseTokenContent,
   type Message,
 } from '@/components/chat-panels'
+import { PageTransition } from '@/components/motion'
 import {
   nextId,
   formatTokens,
@@ -36,6 +39,15 @@ import { useChatPrefs } from '@/state/useChatPrefs'
 export default function Chat() {
   const location = useLocation()
   const initialMessage = (location.state as { initialMessage?: string } | null)?.initialMessage
+  // Hub 页签：对话 / 使用统计（自 Sessions 页并入），通过 ?tab=chat|usage 同步，默认对话
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') === 'usage' ? 'usage' : 'chat'
+  const setActiveTab = (id: string) =>
+    setSearchParams(id === 'chat' ? {} : { tab: id }, { replace: true })
+  const hubTabs = [
+    { id: 'chat' as const, label: '对话', icon: <MessageSquare className="size-3.5" /> },
+    { id: 'usage' as const, label: '使用统计', icon: <Activity className="size-3.5" /> },
+  ]
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -309,7 +321,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-full gap-0 fade-in">
+    <PageTransition className="flex h-full gap-0">
       {/* Sessions Sidebar */}
       <ChatSessionsSidebar
         sessions={sessions}
@@ -328,16 +340,16 @@ export default function Chat() {
           onScroll={handleScroll}
           className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
-        {/* Header with three toggle controls — sticky glass */}
-        <div className="sticky top-0 z-20 glass-sm flex items-center gap-2 border-b border-[var(--border)] px-4 py-2">
+        {/* Header with three toggle controls + hub 页签 — sticky glass */}
+        <div className="sticky top-0 z-20 glass-sm flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-2">
           {!sidebarOpen && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               aria-label="Open sessions"
-            >
-              <ChevronRight size={16} />
-            </button>
+              icon={<ChevronRight size={16} />}
+            />
           )}
           <MessageSquare size={16} className="text-[var(--accent)]" />
           <span className="text-sm font-semibold text-[var(--text)]">Chat</span>
@@ -347,7 +359,16 @@ export default function Chat() {
             </span>
           )}
 
+          {/* Hub 页签：对话 / 使用统计（?tab=chat|usage 同步，默认对话） */}
+          <Tabs
+            tabs={hubTabs}
+            active={activeTab}
+            onChange={setActiveTab}
+            size="sm"
+          />
+
           {/* 三项可配置功能切换 */}
+          {activeTab === 'chat' && (
           <div className="ml-auto flex items-center gap-1.5">
             <ToggleChip
               active={showThinking}
@@ -376,6 +397,7 @@ export default function Chat() {
               variant={autoAcceptPermissions ? 'success' : 'default'}
             />
           </div>
+          )}
         </div>
 
         {/* Permission mode banner (visible when auto-accept is on) */}
@@ -387,6 +409,10 @@ export default function Chat() {
           </div>
         )}
 
+        {activeTab === 'usage' ? (
+          <UsageStatsPanel />
+        ) : (
+          <>
         {/* Messages */}
         <div
           className="flex flex-col gap-3 p-4"
@@ -457,26 +483,25 @@ export default function Chat() {
                       {/* 消息操作按钮组：复制（hover 显示）+ 重试（仅错误消息） */}
                       {!msg.streaming && msg.content.trim() !== '' && (
                         <div className={`ml-auto flex items-center gap-0.5 ${msg.error ? 'opacity-100' : 'opacity-0 transition-opacity group-hover/msg:opacity-100'}`}>
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => void handleCopy(msg.id, msg.content)}
                             aria-label="复制消息"
                             title="复制消息"
-                            className="rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-                          >
-                            {copiedId === msg.id ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
-                          </button>
+                            icon={copiedId === msg.id ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
+                          />
                           {msg.error && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => retryFromError(msg.id)}
                               aria-label="重试"
                               title="重试此消息"
-                              className="flex items-center gap-1 rounded p-1 text-2xs text-[var(--accent)] transition-colors hover:bg-[var(--accent-soft)]"
+                              icon={<RotateCcw size={12} />}
                             >
-                              <RotateCcw size={12} />
-                              <span>重试</span>
-                            </button>
+                              重试
+                            </Button>
                           )}
                         </div>
                       )}
@@ -559,21 +584,23 @@ export default function Chat() {
             </Button>
           )}
         </div>
+          </>
+        )}
         </div>
 
-        {/* 浮动"回到底部"按钮——用户上滑阅读历史时出现 */}
+        {/* 浮动"回到底部"按钮——用户上滑阅读历史时出现（用负边距居中，避免与 framer-motion 的 transform 冲突） */}
         {showJumpToBottom && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="icon"
             onClick={jumpToBottom}
             aria-label="回到底部"
             title="回到底部"
-            className="absolute bottom-24 left-1/2 z-30 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] shadow-lg transition-all hover:bg-[var(--accent-soft)]"
-          >
-            <ArrowDown size={16} />
-          </button>
+            className="absolute bottom-24 left-1/2 z-30 -ml-[22px] rounded-full shadow-lg"
+            icon={<ArrowDown size={16} />}
+          />
         )}
       </div>
-    </div>
+    </PageTransition>
   )
 }

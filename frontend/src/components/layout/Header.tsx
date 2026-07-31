@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Menu, Bell, Sun, Moon, Keyboard, Search } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 
 interface HeaderProps {
@@ -12,21 +13,18 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const toggleTheme = useApp((s) => s.toggleTheme)
   const openHelp = useApp((s) => s.setHelpOpen)
 
-  const iconButton =
-    'press flex h-10 w-10 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none'
-
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] glass-sm px-4">
       {/* Left: Menu + Brand */}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onMenuClick}
-          className={`${iconButton} lg:hidden`}
+          className="lg:hidden"
           aria-label="打开菜单"
-        >
-          <Menu size={20} />
-        </button>
+          icon={<Menu size={20} />}
+        />
 
         <button
           type="button"
@@ -59,31 +57,28 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => openHelp(true)}
-          className={iconButton}
           aria-label="键盘快捷键"
-        >
-          <Keyboard size={18} />
-        </button>
-        <button
-          type="button"
+          icon={<Keyboard size={18} />}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={toggleTheme}
-          className={iconButton}
           aria-label="切换主题"
           title="切换主题（Shift+T）"
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        <button
-          type="button"
+          icon={theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => navigate('/settings')}
-          className={iconButton}
           aria-label="设置"
-        >
-          <Bell size={18} />
-        </button>
+          icon={<Bell size={18} />}
+        />
       </div>
     </header>
   )

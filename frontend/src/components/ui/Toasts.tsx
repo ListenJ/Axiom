@@ -1,4 +1,5 @@
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react'
+import Button from './Button'
 import { useApp } from '@/state/useApp'
 
 const ICONS = {
@@ -40,14 +41,14 @@ export default function Toasts() {
           >
             <Icon className={`mt-0.5 size-4 shrink-0 ${ICON_TONE[t.type]}`} />
             <p className="flex-1 text-sm">{t.message}</p>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => dismiss(t.id)}
-              className="focus-ring -m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+              className="-m-1"
               aria-label="关闭通知"
-            >
-              <X size={14} />
-            </button>
+              icon={<X size={14} />}
+            />
           </div>
         )
       })}

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Moon, Sun, Bell, Shield, Globe, Database, Trash2, Plus, X, Box } from 'lucide-react'
+import { Moon, Sun, Bell, Shield, Globe, Database, Trash2, Plus, X, Box, RotateCcw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { ShimmerCard, PageHeader, Button, Input, Select, InlineEmptyState, Skeleton } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 import { api } from '@/lib/api'
+import { INTRO_STORAGE_KEY } from '@/components/intro/useIntro'
 
 interface ToggleSetting {
   id: string
@@ -33,9 +35,15 @@ export default function Settings() {
   const theme = useApp((s) => s.theme)
   const setTheme = useApp((s) => s.setTheme)
   const toast = useApp((s) => s.toast)
+  const navigate = useNavigate()
   const [values, setValues] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(TOGGLES.map((t) => [t.id, readStored(t.storageKey, true)])),
   )
+
+  const replayIntro = () => {
+    localStorage.removeItem(INTRO_STORAGE_KEY)
+    navigate('/')
+  }
 
   const toggle = (id: string) => {
     const t = TOGGLES.find((x) => x.id === id)!
@@ -97,6 +105,27 @@ export default function Settings() {
                 </Button>
               ))}
             </div>
+          </div>
+        </ShimmerCard>
+        <ShimmerCard padding="md">
+          <div className="flex items-center gap-4">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <RotateCcw className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium text-[var(--text)]">开场动画</h3>
+              <p className="text-xs text-[var(--text-secondary)]">
+                重新播放首页的勾勒入场动画
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={replayIntro}
+              aria-label="重播开场动画"
+            >
+              重播
+            </Button>
           </div>
         </ShimmerCard>
       </section>

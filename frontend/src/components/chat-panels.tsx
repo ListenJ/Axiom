@@ -7,12 +7,16 @@
  *  - parseTokenContent（解析 SSE token 中嵌入的结构化事件）
  *  - ToggleChip（可复用的切换按钮）
  *  - ThinkingPanel / FileChangesPanel / ToolCallsPanel（三个折叠面板）
+ *  - UsageStatsPanel（模型使用统计，自 Sessions 页并入 Chat hub）
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Brain, FileEdit, Wrench, AlertCircle, CheckCircle2,
+  Activity, AlertTriangle, Brain, FileEdit, Wrench, AlertCircle, CheckCircle2,
   ChevronUp, ChevronDown, Clock,
 } from 'lucide-react'
+import { InlineEmptyState, Select, Skeleton } from '@/components/ui'
+import { endpoints } from '@/lib/api'
+import { formatTokens } from './chat-utils'
 
 // ─── 类型定义 ────────────────────────────────────────────────────────────
 
@@ -217,6 +221,123 @@ function formatDuration(ms?: number): string | null {
   if (ms === undefined || ms === null) return null
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(1)}s`
+}
+
+// ─── 使用统计面板（自 Sessions 页并入 Chat hub）────────────────────────────
+
+interface UsageStat {
+  provider: string
+  model_name: string
+  call_count: number
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  avg_latency_ms: number
+  success_count: number
+}
+
+/** 模型使用统计面板——自 Sessions 页"使用统计"页签并入 Chat hub，数据与交互保持一致。 */
+export function UsageStatsPanel() {
+  const [usage, setUsage] = useState<UsageStat[]>([])
+  const [days, setDays] = useState(7)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    endpoints.memory
+      .usage(days)
+      .then((d) => {
+        if (cancelled) return
+        const data = d as { usage: UsageStat[] }
+        setUsage(Array.isArray(data.usage) ? data.usage : [])
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String((e as Error)?.message ?? e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [days])
+
+  return (
+    <div className="mx-auto w-full max-w-2xl p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="type-title-m flex items-center gap-2 text-[var(--text)]">
+          <Activity size={16} className="text-[var(--accent)]" />
+          模型使用统计
+        </h2>
+        <Select
+          label="统计周期"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="sm:w-40"
+        >
+          <option value={7}>近7天</option>
+          <option value={30}>近30天</option>
+          <option value={90}>近90天</option>
+        </Select>
+      </div>
+
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--danger-soft)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]"
+        >
+          <AlertTriangle size={16} className="shrink-0" />
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="grid gap-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+      ) : usage.length === 0 ? (
+        <InlineEmptyState
+          icon={<Activity className="size-5" />}
+          title="暂无使用数据"
+        />
+      ) : (
+        <div className="space-y-3">
+          {usage.map((u, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--text)]">{u.provider}</span>
+                  <span className="text-xs text-[var(--text-muted)]">/ {u.model_name}</span>
+                </div>
+                <span className="text-xs text-[var(--text-secondary)]">
+                  {u.call_count} 次调用
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
+                <span>{formatTokens(u.total_prompt_tokens)}</span>
+                <span>{formatTokens(u.total_completion_tokens)}</span>
+                <span>{Math.round(u.avg_latency_ms)}ms</span>
+                <span>
+                  {u.call_count} 次调用 ·{' '}
+                  {u.call_count > 0
+                    ? Math.round((u.success_count / u.call_count) * 100)
+                    : 0}
+                  %
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ToolCallsPanel({

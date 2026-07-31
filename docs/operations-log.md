@@ -2024,7 +2024,7 @@
   - `sanitizeRequestBody`: O(9×N) some/includes → O(N) 正则匹配（+ 零数组分配）
   - `checkApiKey` PUBLIC_PATHS 查找: O(6) → O(1)
 - **备份**：4 个文件备份到 `.tmp/backups/`（验证通过后已删除）；2 个临时 bench 脚本已删除。
-- **Commit**：（待提交后补录）。
+- **Commit**：`c120c3c`（已推送 `internal211/master`）。
 
 
 ---
@@ -2557,7 +2557,7 @@
   - `bunx tsc --noEmit` → 零错误。
   - `bunx vitest run` → 154/154 通过。
   - **视觉验证**（browser_use 5/5 PASS）：开启=右、关闭=左，符合标准 iOS 方向。
-- **Commit**：`4cb84bb`（已推送 `internal211/master`）。
+- **Commit**：`f6af8e3`（已推送 `internal211/master`）。
 ---
 
 ## 2026-07-30 01:10 +0800 — Phase 0 生产化收尾：风险登记册全部 OPEN 项闭环
@@ -2582,4 +2582,24 @@
   - 前端 `bun run test:run` 175/175 通过 + `bun run lint` 零错误；Playwright e2e 27/27 通过。
   - `docs/RISK-REGISTER.md`：R-005/006/012/013/014/015/017/019/022 全部 CLOSED（附实证），OPEN 项清零。
 - **遗留说明**：MCP stdio 类 server 在 Bun 下真实连通未验证（失败走 warn 降级）；远程 WS 审批订阅仅放行 localhost（REST resolve 不受限）；systemd/pm2 需 Linux 目标机冒烟。
+- **Commit**：`4cb84bb`（已推送 `internal211/master`）。
+---
+
+## 2026-07-31 14:50 +0800 — Phase 1-4 前端 Ember 设计系统落地 + Chat hub 页签接线收尾（含历史 hash 回填修正）
+
+- **任务**：收尾上一轮 agent 遗留的 Phase 1-4 前端改造并一次性提交：
+  1. Phase 1 设计系统：Ember token 体系（`frontend/tailwind.config.js` + `frontend/src/styles/index.css`）、framer-motion 动效基座（`frontend/src/components/motion/` FadeIn/PageTransition/Pressable/Reveal/Stagger + 测试）、Button 体系重做与页面收敛、导航收敛 7 入口（`frontend/src/lib/nav.ts` + `App.tsx` + 各页面 Button 化）；
+  2. Phase 2 落地页勾勒动画（`frontend/src/components/intro/` IntroOutline/useIntro + Home 接入）；
+  3. Phase 3 页面翻新（原 4 批并行子代理失败后由本会话恢复）：providers hub 化（`frontend/src/components/provider-hub-sections.tsx`）、Search/Vault/Code 大改、Knowledge/OCR/Research/Trends 瘦身、chat-panels 拆分、Header/Sidebar/HelpModal/Toasts/useGlobalHotkeys 适配；
+  4. 本轮修复：`frontend/src/pages/Chat.tsx` hub 页签接线——Tabs「对话/使用统计」+ `?tab=chat|usage` URL 同步；usage 页签渲染 UsageStatsPanel（自 Sessions 页并入）；对话页签保留消息流+输入条；toggle 控制组仅对话页签显示；根节点 `fade-in` div 换 PageTransition 页面过渡——修复 tsc 6 个未使用符号错误；
+  5. 修正操作日志历史回填错误：perf 条目补 `c120c3c`；toggle 条目 `4cb84bb`→`f6af8e3`；Phase 0 条目「待提交」→`4cb84bb`。
+- **工具**：上一轮 AgentSwarm（coder 子代理×2 / ×4，Phase 3 批次失败后本会话收尾）、TodoList、Read、Grep；本轮 PowerShell（备份/精确替换/删备份）、RunCommand（`bunx tsc --noEmit` / `bunx vitest run`）。
+- **执行的操作（规则 2 备份→读全文→改→验证→删备份）**：
+  - 备份 `frontend/src/pages/Chat.tsx`、`docs/operations-log.md` 至 `.tmp/backups/`（验证后已删）。
+  - `frontend/src/pages/Chat.tsx`：新增 hubTabs 定义；Header 加 `flex-wrap` 并插入 Tabs；toggle 组条件渲染（仅 chat 页签）；消息+输入条与 UsageStatsPanel 条件切换；根 div→PageTransition；行尾统一 LF。
+  - `docs/operations-log.md`：追加本条目 + 修正 3 处历史 hash。
+  - 提交范围：frontend Phase 1-4 全部改动（28 个已跟踪文件 + `intro/`、`motion/`、`provider-hub-sections.tsx` 新文件 + `package.json`/`bun.lock` 新增 framer-motion）；`public/index.html` 为构建产物哈希变化，不纳入。
+- **验证**：
+  - `cd frontend && bunx tsc --noEmit` → ExitCode=0（修复前 6 个错误）。
+  - `cd frontend && bunx vitest run` → 31 files / 196 tests passed / 0 failed（较上版 175 新增 21 个 intro/motion 用例）。
 - **Commit**：（待提交）。

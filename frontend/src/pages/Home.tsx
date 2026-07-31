@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { Sparkles, Send, TrendingUp, Cpu, Search as SearchIcon, ArrowRight, Bot, User, Square, ChevronDown } from 'lucide-react'
 import { endpoints, HttpError } from '@/lib/api'
-import { LoadingDots } from '@/components/ui'
+import { Button, LoadingDots } from '@/components/ui'
 import PipelineIndicator from '@/components/PipelineIndicator'
 import TracePanel from '@/components/TracePanel'
+import IntroOutline from '@/components/intro/IntroOutline'
+import { useIntro } from '@/components/intro/useIntro'
 import type { ChatStreamEvent } from '@/lib/api'
 
 interface ModelOption { id: string; label: string }
@@ -31,6 +33,7 @@ const MODELS: ModelOption[] = [
 ]
 
 export default function Home() {
+  const { showIntro, finish, skip } = useIntro()
   const [input, setInput] = useState('')
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id)
   const [showModelPicker, setShowModelPicker] = useState(false)
@@ -115,6 +118,12 @@ export default function Home() {
     }
   }
 
+  // 开场动画：首访先勾勒线框，结束后卸载覆盖层、挂载真实内容
+  // （内容挂载时现有的 fade-in / stagger CSS 类即完成依次上浮入场）
+  if (showIntro) {
+    return <IntroOutline onDone={finish} onSkip={skip} />
+  }
+
   return (
     <div className="fade-in mx-auto flex h-full w-full max-w-2xl flex-col px-4">
       {!hasMessages ? (
@@ -166,9 +175,9 @@ export default function Home() {
           ))}
           {sending && (
             <div className="flex justify-center">
-              <button onClick={stop} className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-muted)] transition-colors hover:border-[var(--border-hover)]">
-                <Square size={14} /> 停止生成
-              </button>
+              <Button variant="outline" size="sm" onClick={stop} icon={<Square size={14} />}>
+                停止生成
+              </Button>
             </div>
           )}
         </div>
@@ -183,12 +192,16 @@ export default function Home() {
         <form onSubmit={(e) => { e.preventDefault(); send() }}
           className="relative flex items-end gap-1 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] pl-1 pr-2 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]">
           <div className="relative shrink-0 self-center">
-            <button type="button" onClick={() => setShowModelPicker(!showModelPicker)}
-              className="flex items-center gap-1 rounded-xl px-2 py-2 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]">
-              <Sparkles className="size-4 text-[var(--accent)]" />
-              <span className="hidden sm:inline text-xs">{MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}</span>
-              <ChevronDown className="size-3" />
-            </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              icon={<Sparkles className="size-4 text-[var(--accent)]" />}
+              iconRight={<ChevronDown className="size-3" />}
+            >
+              <span className="hidden sm:inline">{MODELS.find((m) => m.id === selectedModel)?.label ?? selectedModel}</span>
+            </Button>
             {showModelPicker && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} aria-hidden="true" />
@@ -214,11 +227,14 @@ export default function Home() {
             className="min-h-[44px] max-h-[200px] min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-lg text-[var(--text)] outline-none placeholder:text-[var(--text-muted)] overflow-y-auto"
             disabled={sending}
           />
-          <button type="submit" disabled={!input.trim() || sending}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-white transition-all hover:opacity-90 disabled:opacity-30 self-center"
-            aria-label="发送">
-            <Send className="size-5" />
-          </button>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!input.trim() || sending}
+            className="shrink-0 self-center rounded-xl"
+            aria-label="发送"
+            icon={<Send className="size-4" />}
+          />
         </form>
         {!hasMessages && (
           <p className="pt-1 text-center text-sm text-[var(--text-muted)]">Axiom 可能产生不准确的信息，请核实重要信息。</p>

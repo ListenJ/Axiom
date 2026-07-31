@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
+import Button from '@/components/ui/Button'
 import Home from '@/pages/Home'
 import Chat from '@/pages/Chat'
 import Login from '@/pages/Login'
@@ -55,13 +56,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
           <pre className="max-w-md overflow-auto rounded-lg bg-[var(--surface-hover)] p-3 text-left text-xs text-[var(--text-muted)]">
             {this.state.error.message}
           </pre>
-          <button
-            type="button"
-            onClick={this.handleRetry}
-            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
-          >
-            重试
-          </button>
+          <Button onClick={this.handleRetry}>重试</Button>
         </div>
       )
     }

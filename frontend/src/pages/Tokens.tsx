@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import Button from '@/components/ui/Button'
 import PageHeader from '@/components/ui/PageHeader'
 import StatCard from '@/components/ui/StatCard'
 import BarChart from '@/components/ui/BarChart'
@@ -39,10 +40,9 @@ export default function Tokens() {
   return (
     <div className="fade-in flex flex-col gap-6 p-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">
-          <ArrowLeft className="size-4" />
-          <span className="text-sm">返回</span>
-        </button>
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} icon={<ArrowLeft className="size-4" />}>
+          返回
+        </Button>
         <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
       </div>
 

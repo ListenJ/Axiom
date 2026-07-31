@@ -1,9 +1,10 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { motion, useReducedMotion, type HTMLMotionProps } from 'framer-motion'
+import type { ReactNode } from 'react'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline'
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon'
 
-interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'size'> {
+interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'className' | 'size' | 'children'> {
   children?: ReactNode
   variant?: ButtonVariant
   size?: ButtonSize
@@ -15,9 +16,9 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'cla
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] shadow-[var(--shadow-sm)]',
+    'bg-[image:var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow)]',
   secondary:
-    'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-hover)]',
+    'bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]',
   ghost:
     'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
   outline:
@@ -42,6 +43,9 @@ const ICON_SIZE_CLASSES: Record<ButtonSize, string> = {
   icon: 'size-4',
 }
 
+/** 与 --spring-gentle / motion/Pressable 一致的回弹参数 */
+const PRESS_SPRING = { type: 'spring', stiffness: 400, damping: 17 } as const
+
 export default function Button({
   children,
   variant = 'primary',
@@ -54,13 +58,18 @@ export default function Button({
   type = 'button',
   ...rest
 }: ButtonProps) {
+  const reduceMotion = useReducedMotion()
+  const interactive = !disabled && !loading && !reduceMotion
   return (
-    <button
+    <motion.button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading}
+      whileHover={interactive ? { y: -1 } : undefined}
+      whileTap={interactive ? { scale: 0.97 } : undefined}
+      transition={PRESS_SPRING}
       className={`
-        press relative inline-flex items-center justify-center
+        relative inline-flex items-center justify-center
         rounded-lg font-medium touch-manipulation
         ${SIZE_CLASSES[size]}
         ${VARIANT_CLASSES[variant]}
@@ -82,6 +91,6 @@ export default function Button({
       {iconRight && !loading && (
         <span className={ICON_SIZE_CLASSES[size]}>{iconRight}</span>
       )}
-    </button>
+    </motion.button>
   )
 }

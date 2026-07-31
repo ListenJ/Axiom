@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import Button from './Button'
 import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 import { useApp } from '@/state/useApp'
 
@@ -30,14 +31,13 @@ export default function HelpModal() {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">键盘快捷键</h2>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setOpen(false)}
-            className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-surface hover:text-text"
             aria-label="关闭"
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} />}
+          />
         </div>
         <ul className="space-y-2 text-sm">
           {shortcuts.map((s) => (

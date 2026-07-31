@@ -27,8 +27,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <path d="M16 8c-4.4 0-8 3.1-8 7s3.6 7 8 7c2 0 3.8-.7 5.2-1.8l-2.2-2.2c-.8.6-1.9 1-3 1-2.2 0-4-1.6-4-3.6s1.8-3.6 4-3.6 4 1.6 4 3.6v.7h-3.5l4.2 4.2C24.2 18.5 24 13.5 24 15c0-3.9-3.6-7-8-7z" fill="white" />
             <defs>
               <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#818cf8" />
-                <stop offset="1" stopColor="#4f46e5" />
+                <stop stopColor="#f59e0b" />
+                <stop offset="1" stopColor="#fbbf24" />
               </linearGradient>
             </defs>
           </svg>

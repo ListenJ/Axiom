@@ -5,6 +5,7 @@
  * 显示历史会话列表，支持新建会话、选择会话、关闭侧边栏。
  */
 import { Plus, ChevronLeft, MessageSquare, Clock } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { formatTime, formatTokens } from './chat-utils'
 
 export interface ChatSession {
@@ -42,21 +43,21 @@ export function ChatSessionsSidebar({
         <div className="flex items-center justify-between border-b border-[var(--border)] p-3">
           <span className="text-sm font-semibold text-[var(--text)]">Sessions</span>
           <div className="flex gap-1">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onNewChat}
-              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               title="New chat"
               aria-label="New chat"
-            >
-              <Plus size={14} />
-            </button>
-            <button
+              icon={<Plus size={14} />}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               aria-label="Close sidebar"
-            >
-              <ChevronLeft size={14} />
-            </button>
+              icon={<ChevronLeft size={14} />}
+            />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
