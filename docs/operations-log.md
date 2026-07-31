@@ -2676,4 +2676,4 @@
   - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 221 tests 全绿（+12 鱼眼用例）。
   - `npm run test:e2e` → 9 文件 31 测试全绿（含新增 fisheye 4 + 修复 settings 1）。
   - 实测 hover 展开：6px → 193px，标签 opacity 0→1，离开复位 6px。
-- **Commit**：（待提交）。
+- **Commit**：`ee64a89`。
