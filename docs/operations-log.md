@@ -2660,3 +2660,20 @@
   - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 209 tests 全绿。
   - `bash -n` 校验 `scripts/smoke-linux.sh`、`.ci/run.sh` 语法通过。
 - **Commit**：`55699c8`。
+---
+
+## 2026-08-01 00:20 +0800 — 鱼眼会话导航实现 + Playwright 双重验证
+
+- **任务**：按新约束（"内容至上，流畅无感"）实现 Chat 会话鱼眼导航：折叠态 20px 窄条圆点列，hover 按高斯函数展开（中心 200px 卡片 + 标签显现），点击加载会话 + 500ms 高亮；四层性能优化落地；Playwright 实操 + 图像双重验证。
+- **工具**：主代理（TDD 红绿、几何问题定位——容器宽度塌缩致 sticky header 拦截 hover）、RunCommand（`bunx tsc --noEmit` / `bunx vitest run` / Playwright chromium / node 几何调试脚本）。
+- **执行的操作（文件级）**：
+  - 新增 `frontend/src/components/fisheye/fisheye-math.ts`（纯函数：`calcFisheyeWidth` 高斯映射 + 切尾剔除 + `gaussianFactor`）+ `fisheye-math.test.ts`（8 用例：中心最大/对称/单调/切尾/参数化/闭区间）。
+  - 新增 `frontend/src/components/fisheye/FisheyeNav.tsx`：Ref + rAF 直写 DOM（mousemove 只存 ref，rAF 帧批量写 style，不触发 setState）；位置缓存（挂载/会话变更时 offsetTop 缓存一次，每帧仅 1 次容器 getBoundingClientRect 增量修正）；距离 >= 120px 切尾重置；只改 width + will-change:[width] 防回流；标签随展开宽度 >60px 显现；aria-label/aria-current/focus-visible 可达；500ms 点击高亮 ring。+ `FisheyeNav.test.tsx`（4 用例：渲染数/点击回调/aria-current/空列表）。
+  - 集成：`frontend/src/pages/Chat.tsx` 在会话侧栏折叠态（sidebarOpen=false 且有会话）渲染 FisheyeNav，onSelect 复用 loadSession。
+  - e2e（本地产物，e2e/ 目录被 gitignore 不提交）：新增 `e2e/fisheye.spec.ts`（4 用例实操断言：折叠态渲染 4 圆点 / hover 宽度 6→>40px / 移出复位 / 点击加载+aria-current+ring 高亮；mock /memory/sessions、/chat/history、/memory/conversations 隔离后端），截图产物 `e2e/fisheye-hover.png`、`e2e/fisheye-idle.png` 供图像比对；修复既有回归 `e2e/settings.spec.ts`（Collapsible 化后"桌面通知"开关需先展开"对话与行为"面板）。
+- **调试要点**：首轮 e2e 4 失败——根因是鱼眼容器无固定宽度塌缩为 1px（圆点/标签均 absolute 定位，无内容撑开），Chat sticky header 从 x:266 起覆盖圆点拦截 hover；node 几何脚本实测（nav box width=1、sticky box x:266）定位后，容器固定 `w-5`（20px，符合约束）即 4/4 通过。
+- **验证**：
+  - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 33 files / 221 tests 全绿（+12 鱼眼用例）。
+  - `npm run test:e2e` → 9 文件 31 测试全绿（含新增 fisheye 4 + 修复 settings 1）。
+  - 实测 hover 展开：6px → 193px，标签 opacity 0→1，离开复位 6px。
+- **Commit**：（待提交）。

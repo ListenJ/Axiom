@@ -26,6 +26,7 @@ import {
   copyToClipboard,
 } from '@/components/chat-utils'
 import { ChatSessionsSidebar, type ChatSession } from '@/components/chat-sessions-sidebar'
+import { FisheyeNav } from '@/components/fisheye/FisheyeNav'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import { useChatPrefs } from '@/state/useChatPrefs'
@@ -325,6 +326,15 @@ export default function Chat() {
         onNewChat={newChat}
         onClose={() => setSidebarOpen(false)}
       />
+
+      {/* 折叠态鱼眼导航：会话侧栏收起时以窄条圆点呈现（hover 高斯展开，点击加载） */}
+      {!sidebarOpen && sessions.length > 0 && (
+        <FisheyeNav
+          sessions={sessions}
+          activeSession={activeSession}
+          onSelect={(id) => void loadSession(id)}
+        />
+      )}
 
       {/* Main Chat Area */}
       <div className="relative flex min-w-0 flex-1 flex-col">
