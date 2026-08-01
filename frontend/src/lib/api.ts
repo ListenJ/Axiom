@@ -623,6 +623,13 @@ export const endpoints = {
       }>('/sandbox/execute', body),
     status: () => api.get<{ sandbox: string; ready: boolean }>('/sandbox/status'),
   },
+  terminal: {
+    create: () => api.post<{ sessionId: string }>('/terminal/session'),
+    input: (sessionId: string, data: string) =>
+      api.post(`/terminal/session/${encodeURIComponent(sessionId)}/input`, { data }),
+    close: (sessionId: string) => api.delete(`/terminal/session/${encodeURIComponent(sessionId)}`),
+    list: () => api.get<{ sessions: string[]; stats: { sessions: number } }>('/terminal/sessions'),
+  },
   git: {
     status: () => api.get<{
       success: boolean

@@ -1,82 +1,122 @@
 /**
- * TerminalPanel 终端栏组件测试
+ * TerminalPanel 终端栏组件测试（xterm mock）
  *
- * 行为：输入命令回车执行；展示输出（stdout/stderr/退出码）；
- * 执行期间禁用输入；清空按钮；命令历史（↑/↓ 导航）。
+ * 行为：挂载即创建 PTY 会话并打开输出流；输出块写入 xterm；
+ * 键入命令发送 stdin；卸载关闭会话并清理 xterm；清空按钮；创建失败显示错误。
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TerminalPanel } from './TerminalPanel'
+import type { PtyTerminalAdapter } from '@/lib/pty-terminal'
+
+const h = vi.hoisted(() => ({
+  onDataHandlers: [] as Array<(data: string) => void>,
+  open: vi.fn(),
+  loadAddon: vi.fn(),
+  write: vi.fn(),
+  clear: vi.fn(),
+  dispose: vi.fn(),
+  fit: vi.fn(),
+  fitDispose: vi.fn(),
+}))
+
+vi.mock('@xterm/xterm', () => ({
+  Terminal: vi.fn().mockImplementation(function () {
+    return {
+      open: h.open,
+      loadAddon: h.loadAddon,
+      write: h.write,
+      clear: h.clear,
+      dispose: h.dispose,
+      onData: vi.fn((cb: (data: string) => void) => {
+        h.onDataHandlers.push(cb)
+        return { dispose: vi.fn() }
+      }),
+    }
+  }),
+}))
+
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: vi.fn().mockImplementation(function () {
+    return { fit: h.fit, dispose: h.fitDispose }
+  }),
+}))
+
+function fakeAdapter(): PtyTerminalAdapter {
+  return {
+    create: vi.fn().mockResolvedValue({ sessionId: 's1' }),
+    input: vi.fn().mockResolvedValue({ ok: true }),
+    close: vi.fn().mockResolvedValue({ ok: true }),
+    stream: vi.fn().mockResolvedValue(() => {}),
+  }
+}
+
+beforeEach(() => {
+  h.onDataHandlers.length = 0
+  h.open.mockClear()
+  h.loadAddon.mockClear()
+  h.write.mockClear()
+  h.clear.mockClear()
+  h.dispose.mockClear()
+  h.fit.mockClear()
+  h.fitDispose.mockClear()
+})
 
 describe('TerminalPanel', () => {
-  it('输入命令回车后调用 onExecute 并清空输入', () => {
-    const onExecute = vi.fn().mockResolvedValue({ success: true, stdout: 'ok', stderr: '', exitCode: 0 })
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'ls -la' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(onExecute).toHaveBeenCalledWith('ls -la')
-    expect((input as HTMLInputElement).value).toBe('')
+  it('挂载后创建会话并打开输出流', async () => {
+    const adapter = fakeAdapter()
+    render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(adapter.create).toHaveBeenCalledTimes(1))
+    expect(adapter.stream).toHaveBeenCalledWith('s1', expect.any(Function), expect.any(AbortSignal))
+    expect(h.open).toHaveBeenCalledTimes(1)
+    expect(h.fit).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.getByText('交互终端 · 常驻会话')).toBeVisible())
   })
 
-  it('执行成功后展示 stdout', async () => {
-    const onExecute = vi.fn().mockResolvedValue({ success: true, stdout: 'file1\nfile2', stderr: '', exitCode: 0 })
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'ls' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(screen.getByText(/file1/)).toBeVisible())
-    expect(screen.getByText(/file2/)).toBeVisible()
+  it('SSE 输出块写入 xterm', async () => {
+    const adapter = fakeAdapter()
+    let onChunk: ((chunk: string) => void) | undefined
+    adapter.stream = vi.fn().mockImplementation((_id, cb) => {
+      onChunk = cb
+      return Promise.resolve(() => {})
+    })
+    render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(onChunk).toBeDefined())
+    onChunk!('hello\r\n')
+    expect(h.write).toHaveBeenCalledWith('hello\r\n')
   })
 
-  it('执行失败时展示 stderr 与退出码', async () => {
-    const onExecute = vi.fn().mockResolvedValue({ success: false, stdout: '', stderr: 'command not found', exitCode: 127 })
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'nonexistent' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(screen.getByText(/command not found/)).toBeVisible())
-    expect(screen.getByText(/exit 127/)).toBeVisible()
+  it('键入命令发送到会话 stdin', async () => {
+    const adapter = fakeAdapter()
+    render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(h.onDataHandlers.length).toBeGreaterThan(0))
+    h.onDataHandlers[0]!('ls\r')
+    await waitFor(() => expect(adapter.input).toHaveBeenCalledWith('s1', 'ls\r'))
   })
 
-  it('执行期间输入框禁用（防止重复提交）', async () => {
-    let resolve!: (v: unknown) => void
-    const onExecute = vi.fn().mockImplementation(() => new Promise((r) => { resolve = r }))
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'sleep 1' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect((input as HTMLInputElement).disabled).toBe(true)
-    resolve({ success: true, stdout: '', stderr: '', exitCode: 0 })
-    await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false))
+  it('卸载时关闭会话并清理 xterm', async () => {
+    const adapter = fakeAdapter()
+    const { unmount } = render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(adapter.create).toHaveBeenCalledTimes(1))
+    unmount()
+    await waitFor(() => expect(adapter.close).toHaveBeenCalledWith('s1'))
+    expect(h.dispose).toHaveBeenCalledTimes(1)
+    expect(h.fitDispose).toHaveBeenCalledTimes(1)
   })
 
-  it('↑/↓ 键在命令历史中导航', async () => {
-    const onExecute = vi.fn().mockResolvedValue({ success: true, stdout: '', stderr: '', exitCode: 0 })
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'git status' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false))
-    fireEvent.change(input, { target: { value: 'ls' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect((input as HTMLInputElement).disabled).toBe(false))
-    fireEvent.keyDown(input, { key: 'ArrowUp' })
-    expect((input as HTMLInputElement).value).toBe('ls')
-    fireEvent.keyDown(input, { key: 'ArrowUp' })
-    expect((input as HTMLInputElement).value).toBe('git status')
-    fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect((input as HTMLInputElement).value).toBe('ls')
-  })
-
-  it('清空按钮清除输出', async () => {
-    const onExecute = vi.fn().mockResolvedValue({ success: true, stdout: 'hello', stderr: '', exitCode: 0 })
-    render(<TerminalPanel onExecute={onExecute} />)
-    const input = screen.getByRole('textbox', { name: '终端命令' })
-    fireEvent.change(input, { target: { value: 'echo hello' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(screen.getByText('hello', { exact: true })).toBeVisible())
+  it('清空按钮调用 xterm clear', async () => {
+    const adapter = fakeAdapter()
+    render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(h.open).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: '清空终端' }))
-    expect(screen.queryByText('hello', { exact: true })).toBeNull()
+    expect(h.clear).toHaveBeenCalledTimes(1)
+  })
+
+  it('创建失败时显示错误状态并写入提示', async () => {
+    const adapter = fakeAdapter()
+    adapter.create = vi.fn().mockRejectedValue(new Error('session limit'))
+    render(<TerminalPanel adapter={adapter} />)
+    await waitFor(() => expect(screen.getByText('连接失败')).toBeVisible())
+    expect(h.write).toHaveBeenCalledWith(expect.stringContaining('session limit'))
   })
 })

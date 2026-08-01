@@ -11,7 +11,6 @@ import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useApprovals } from '@/state/useApprovals'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
 import { useTheme } from '@/hooks/useTheme'
-import { endpoints } from '@/lib/api'
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -60,24 +59,7 @@ export default function Layout() {
 
       {terminalOpen && (
         <div className="fixed inset-x-0 bottom-0 z-50">
-          <TerminalPanel
-            onExecute={async (command) => {
-              try {
-                const r = await endpoints.sandbox.execute({ command })
-                return {
-                  success: !!r.success,
-                  stdout: r.stdout,
-                  stderr: r.stderr ?? r.error,
-                  exitCode: r.exitCode,
-                  blocked: r.blocked,
-                  reason: r.reason,
-                }
-              } catch (e) {
-                return { success: false, error: String((e as Error)?.message ?? e) }
-              }
-            }}
-            onClose={() => setTerminalOpen(false)}
-          />
+          <TerminalPanel onClose={() => setTerminalOpen(false)} />
         </div>
       )}
 

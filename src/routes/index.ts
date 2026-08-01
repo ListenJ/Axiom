@@ -61,6 +61,7 @@ import { handleTraceList, handleTraceDetail } from "./traces.js";
 import { handleGitRoutes } from "./git.js";
 import { handleSettingsCatalog, handleSettingsSearch } from "./settings.js";
 import { handleAuditDiagnostics } from "./audit.js";
+import { handleTerminalCreate, handleTerminalStream, handleTerminalInput, handleTerminalClose, handleTerminalList } from "./terminal.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -82,6 +83,11 @@ const handlers: RouteHandler[] = [
   handleToolExecute,
   handleSandboxExecute,
   handleSandboxStatus,
+  handleTerminalCreate,
+  handleTerminalStream,
+  handleTerminalInput,
+  handleTerminalClose,
+  handleTerminalList,
   handleApprovalResolve,
   handleApprovalPending,
   // Chat (most common API call)
@@ -400,6 +406,13 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/sandbox/status", handler: handleSandboxStatus },
     { method: "POST", path: "/sandbox/execute", handler: handleSandboxExecute },
 
+    // Interactive terminal (交互终端 PTY 会话)
+    { method: "POST", path: "/terminal/session", handler: handleTerminalCreate },
+    { method: "GET", path: "/terminal/session/:id/stream", handler: handleTerminalStream },
+    { method: "POST", path: "/terminal/session/:id/input", handler: handleTerminalInput },
+    { method: "DELETE", path: "/terminal/session/:id", handler: handleTerminalClose },
+    { method: "GET", path: "/terminal/sessions", handler: handleTerminalList },
+
     // Git service (user git commit/push/status)
     { method: "GET", path: "/api/git/status", handler: handleGitRoutes },
     { method: "GET", path: "/api/git/diff", handler: handleGitRoutes },
@@ -507,6 +520,12 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /advisor/status            — 顾问状态",
       "--- Research (深度研究) ---",
       "POST   /research/run              — KG增强深度研究",
+      "--- Interactive Terminal (交互终端) ---",
+      "POST   /terminal/session             — 创建交互式终端会话",
+      "GET    /terminal/session/:id/stream  — 终端输出流 (SSE)",
+      "POST   /terminal/session/:id/input   — 写入终端 stdin",
+      "DELETE /terminal/session/:id         — 关闭终端会话",
+      "GET    /terminal/sessions            — 终端会话诊断",
       "--- Tool Execution (工具执行) ---",
       "POST   /api/tools/execute         — 标准化工具执行",
       "--- Agent Interaction Traces ---",

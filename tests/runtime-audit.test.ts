@@ -2,7 +2,7 @@
  * 运行时审查机制测试 — runtime-audit
  *
  * 验证：
- *  - 默认依赖下 13 项检查全部可运行、不抛错、字段齐全
+ *  - 默认依赖下 15 项检查全部可运行、不抛错、字段齐全
  *  - 注入"泄漏 fake"时对应检查能抓出 fail（证明机制有效）
  *  - 注入正常 fake 时为 pass
  *  - package.json 暴露 audit:runtime 脚本
@@ -13,9 +13,9 @@ import { Cache } from "../src/utils/cache.js";
 import { readFileSync } from "node:fs";
 
 describe("运行时审查机制", () => {
-  it("默认依赖下返回完整 14 项检查且不抛错", async () => {
+  it("默认依赖下返回完整 15 项检查且不抛错", async () => {
     const report = await runRuntimeAudit();
-    expect(report.checks.length).toBe(14);
+    expect(report.checks.length).toBe(15);
     for (const check of report.checks) {
       expect(typeof check.id).toBe("string");
       expect(check.id.length).toBeGreaterThan(0);

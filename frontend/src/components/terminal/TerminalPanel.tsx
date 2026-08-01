@@ -1,93 +1,93 @@
 /**
- * TerminalPanel — 可开合的终端栏（沙箱命令执行）
+ * TerminalPanel — 交互式终端栏（xterm.js + 常驻 PTY 会话）
  *
- * 通过 onExecute 注入执行器（默认走后端 /sandbox/execute），
- * 展示 stdout / stderr / 退出码；支持命令历史（↑/↓）、清空。
- * 执行中禁用输入防止重复提交。
+ * 挂载时创建后端 /terminal/session，SSE 推送输出到 xterm；
+ * onData 经 /terminal/session/:id/input 写回 stdin。
+ * 卸载/关闭时停止流并关闭会话，避免 shell 子进程残留。
  */
-import { useRef, useState } from 'react'
-import { Terminal, Trash2, X } from 'lucide-react'
-
-export interface TerminalResult {
-  success: boolean
-  stdout?: string
-  stderr?: string
-  exitCode?: number
-  error?: string
-  blocked?: boolean
-  reason?: string
-}
-
-interface TerminalLine {
-  id: number
-  cmd: string
-  result: TerminalResult | null
-}
+import { useEffect, useRef, useState } from 'react'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
+import { Terminal as TerminalIcon, Trash2, X } from 'lucide-react'
+import { defaultPtyTerminalAdapter, PtyTerminal, type PtyTerminalAdapter } from '@/lib/pty-terminal'
 
 interface TerminalPanelProps {
-  /** 命令执行器（注入便于测试与替换后端） */
-  onExecute: (command: string) => Promise<TerminalResult>
   /** 关闭回调（由 Layout 控制开合） */
   onClose?: () => void
+  /** 会话适配器（默认走 /terminal/* REST + SSE；测试注入 fake） */
+  adapter?: PtyTerminalAdapter
 }
 
-let lineSeq = 0
+type ConnState = 'connecting' | 'connected' | 'error'
 
-export function TerminalPanel({ onExecute, onClose }: TerminalPanelProps) {
-  const [lines, setLines] = useState<TerminalLine[]>([])
-  const [input, setInput] = useState('')
-  const [running, setRunning] = useState(false)
-  const historyRef = useRef<string[]>([])
-  const histIdxRef = useRef<number>(-1)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
+export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: TerminalPanelProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const termRef = useRef<Terminal | null>(null)
+  const [state, setState] = useState<ConnState>('connecting')
 
-  const append = (cmd: string, result: TerminalResult | null) => {
-    setLines((prev) => [...prev, { id: ++lineSeq, cmd, result }])
-    requestAnimationFrame(() => {
-      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 12,
+      lineHeight: 1.25,
+      fontFamily: 'JetBrains Mono, Consolas, monospace',
+      theme: {
+        background: 'transparent',
+        foreground: '#d4d4d8',
+        cursor: '#22d3ee',
+      },
     })
-  }
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(container)
+    fit.fit()
+    termRef.current = term
 
-  const run = async (cmd: string) => {
-    const trimmed = cmd.trim()
-    if (!trimmed || running) return
-    setRunning(true)
-    historyRef.current.push(trimmed)
-    histIdxRef.current = -1
-    try {
-      const result = await onExecute(trimmed)
-      append(trimmed, result)
-    } catch (e) {
-      append(trimmed, { success: false, error: String((e as Error)?.message ?? e) })
-    } finally {
-      setRunning(false)
+    const client = new PtyTerminal(adapter)
+    const onData = term.onData((data) => client.send(data))
+    let disposed = false
+
+    const onChunk = (chunk: string) => {
+      if (!disposed) term.write(chunk)
     }
-  }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const cmd = input
-      setInput('')
-      void run(cmd)
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      const hist = historyRef.current
-      if (hist.length === 0) return
-      histIdxRef.current = Math.min(histIdxRef.current + 1, hist.length - 1)
-      setInput(hist[hist.length - 1 - histIdxRef.current] ?? '')
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      const hist = historyRef.current
-      if (histIdxRef.current <= 0) {
-        histIdxRef.current = -1
-        setInput('')
-        return
+    client
+      .start(onChunk)
+      .then(() => {
+        if (!disposed) setState('connected')
+      })
+      .catch((e) => {
+        if (disposed) return
+        setState('error')
+        term.write(`\r\n[terminal] 启动失败: ${String((e as Error)?.message ?? e)}\r\n`)
+      })
+
+    const onResize = () => {
+      try {
+        fit.fit()
+      } catch {
+        /* 容器尚未布局 */
       }
-      histIdxRef.current -= 1
-      setInput(hist[hist.length - 1 - histIdxRef.current] ?? '')
     }
-  }
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      disposed = true
+      window.removeEventListener('resize', onResize)
+      onData.dispose()
+      void client.dispose()
+      fit.dispose()
+      term.dispose()
+      termRef.current = null
+    }
+  }, [adapter])
+
+  const statusLabel =
+    state === 'connecting' ? '正在连接…' : state === 'error' ? '连接失败' : '交互终端 · 常驻会话'
 
   return (
     <div
@@ -95,15 +95,14 @@ export function TerminalPanel({ onExecute, onClose }: TerminalPanelProps) {
       aria-label="终端"
       className="flex h-56 flex-col border-t border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-sm"
     >
-      {/* 头部 */}
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border)] px-3">
-        <Terminal size={14} className="text-[var(--accent)]" />
+        <TerminalIcon size={14} className="text-[var(--accent)]" />
         <span className="text-xs font-medium text-[var(--text)]">终端</span>
-        <span className="text-2xs text-[var(--text-muted)]">沙箱执行 · 只读模式</span>
+        <span className="text-2xs text-[var(--text-muted)]">{statusLabel}</span>
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setLines([])}
+            onClick={() => termRef.current?.clear()}
             aria-label="清空终端"
             className="press flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
           >
@@ -121,61 +120,7 @@ export function TerminalPanel({ onExecute, onClose }: TerminalPanelProps) {
           )}
         </div>
       </div>
-
-      {/* 输出区 */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed">
-        {lines.length === 0 ? (
-          <p className="text-[var(--text-muted)]">输入命令开始执行（如 git status、ls）…</p>
-        ) : (
-          lines.map((l) => (
-            <div key={l.id} className="mb-2">
-              <div className="text-[var(--text)]">
-                <span className="text-[var(--accent)]">$</span> {l.cmd}
-              </div>
-              {l.result && (
-                <>
-                  {l.result.blocked && (
-                    <div className="mt-0.5 whitespace-pre-wrap text-[var(--warning)]">
-                      ⚠ {l.result.reason ?? '高危操作需要确认'}
-                    </div>
-                  )}
-                  {l.result.stdout && (
-                    <div className="whitespace-pre-wrap text-[var(--text-secondary)]">{l.result.stdout}</div>
-                  )}
-                  {l.result.stderr && (
-                    <div className="whitespace-pre-wrap text-[var(--danger)]">{l.result.stderr}</div>
-                  )}
-                  {l.result.error && !l.result.stderr && (
-                    <div className="whitespace-pre-wrap text-[var(--danger)]">{l.result.error}</div>
-                  )}
-                  {typeof l.result.exitCode === 'number' && (
-                    <div className="mt-0.5 text-[var(--text-muted)]">
-                      exit {l.result.exitCode}
-                      {l.result.success ? '' : '（失败）'}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* 输入行 */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] px-3 py-2">
-        <span className="font-mono text-sm text-[var(--accent)]">$</span>
-        <input
-          aria-label="终端命令"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={running}
-          placeholder={running ? '执行中…' : '输入命令，Enter 执行'}
-          className="h-8 min-w-0 flex-1 bg-transparent font-mono text-sm text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </div>
+      <div ref={containerRef} className="min-h-0 flex-1 px-2 py-1" />
     </div>
   )
 }

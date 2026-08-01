@@ -1,4 +1,4 @@
-# 风险登记册（Risk Register）
+﻿# 风险登记册（Risk Register）
 
 > 建立：2026-07-26 ｜ 维护机制：每次安全/架构审查刷新；每条含 状态/严重度/负责人动作
 > 状态机：OPEN（待修）→ MITIGATED（已缓解）→ ACCEPTED（知情接受）→ CLOSED（闭环验证）
@@ -37,6 +37,7 @@
 | R-021 | Bing API 付费依赖（免费化要求） | P3 | **ACCEPTED** | 无 key 优雅跳过，免费路径完整 |
 | R-022 | 前端 e2e 全部指向 legacy 前端 | P2 | **CLOSED** | 2026-07-30：9 个 spec 全部改打新 React SPA（18789），bypassCSP 移除，webServer 自动起 vite dev（27/27 Playwright 实证通过） |
 | R-023 | 外部 MCP client 泄漏（子进程/连接未关闭） | P2 | **CLOSED** | 2026-07-31：client-connector 增加 activeClients 注册表 + closeExternalMcpClients()（幂等）+ main.ts 注册 mcp-clients 关闭钩子；createClient 超时迟到完成立即关闭防孤儿子进程；runtime-audit 新增 mcp.cleanup 检查（14/14 通过） |
+| R-024 | 交互式终端（PTY）命令不受沙箱/HITL 审批链约束 | P2 | **MITIGATED** | 2026-08-01：会话上限 16（超限 503）+ spawn env 过滤（R-003 复用）+ SSE cancel 真正退订 + closeAllSessions 关闭钩子 + pty.cleanup 审计实证（15/15 pass）；命令本身仍不经审批链，属知情缓解，长期接 ApprovalBridge |
 
 ## 本轮已闭环风险汇总
 

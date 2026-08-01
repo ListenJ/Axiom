@@ -694,6 +694,7 @@ registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priori
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });
 registerShutdownHook({ name: "mcp-clients", handler: async () => { const { closeExternalMcpClients } = await import("./mcp/client-connector.js"); await closeExternalMcpClients(); }, priority: 65 });
+registerShutdownHook({ name: "pty-sessions", handler: async () => { const { closeAllSessions } = await import("./terminal/pty-session.js"); await closeAllSessions(); }, priority: 64 });
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 

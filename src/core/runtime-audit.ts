@@ -5,7 +5,7 @@
  *  - health-check：外部依赖可用性（API key / db / vault / network）
  *  - runtime-audit：内部资源有界性、内存泄漏、会话/流清理、冗余兜底
  *
- * 设计（深模块）：13 项检查全部可依赖注入（fake），默认依赖为真实单例，
+ * 设计（深模块）：15 项检查全部可依赖注入（fake），默认依赖为真实单例，
  * 保证 CLI 可跑、测试可注入泄漏 fake 证明"能抓出泄漏"。
  */
 import { readFileSync } from "node:fs";
@@ -323,6 +323,24 @@ export async function checkMcpClientCleanup(): Promise<AuditCheck> {
     measured: { closeFn, registry, shutdownHook: hook },
   };
 }
+export async function checkPtyCleanup(): Promise<AuditCheck> {
+  const session = readSource("../terminal/pty-session.ts");
+  const main = readSource("../main.ts");
+  const registry = session.includes("sessions = new Map");
+  const closeAll = session.includes("closeAllSessions");
+  const cap = session.includes("MAX_PTY_SESSIONS");
+  const hook = main.includes("pty-sessions");
+  const ok = registry && closeAll && cap && hook;
+  return {
+    id: "pty.cleanup",
+    name: "PTY 会话清理与上限",
+    status: ok ? "pass" : "fail",
+    detail: ok
+      ? "pty-session 维护会话注册表 + closeAllSessions + 会话数上限，main.ts 注册 pty-sessions 关闭钩子，进程退出时终止全部 shell 子进程。"
+      : `registry=${registry}、closeAll=${closeAll}、cap=${cap}、shutdownHook=${hook}，PTY 会话缺少关闭路径或上限。`,
+    measured: { registry, closeAll, cap, shutdownHook: hook },
+  };
+}
 export async function checkHeapStress(deps: AuditDeps): Promise<AuditCheck> {
   const store = deps.atomStore ?? atomStore;
   // 先触发一轮 GC 得到稳定基线
@@ -375,6 +393,7 @@ export async function runRuntimeAudit(deps: AuditDeps = {}): Promise<AuditReport
     checkFallbackEdge(),
     checkResourcesBounds(),
     checkMcpClientCleanup(),
+    checkPtyCleanup(),
     checkHeapStress(deps),
   ]);
 

@@ -2723,3 +2723,19 @@
   - 
 pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）。
 - **Commit**：`1561772`。
+
+---
+
+## 2026-08-01 23:30 +0800 — 交互式终端 PTY 会话接线 + xterm 前端重塑 + 生命周期/上限审计
+
+- **任务**：(1) 把工作区遗留的"交互式终端"功能完整接线：后端新增 PTY 常驻会话（create/stream/input/close 五路由）、前端 xterm.js 交互面板替换旧的沙箱执行框；(2) 生命周期与资源安全：会话数上限 16、SSE cancel 真正退订、进程关闭钩子 closeAllSessions、runtime-audit 新增 pty.cleanup 检查；(3) 修复 provider-caller-effort 测试的全局 fetch mock 泄漏（afterEach 恢复），消除对 github-trending 等后续测试文件的跨文件污染。
+- **工具**：主代理（承接上一轮 agent 产物）、PowerShell 精确替换（MSIX 环境 apply_patch 不可用）、RunCommand（`bunx tsc --noEmit` / `bunx vitest run` / `bun test` / `bun run audit:runtime` / `npx playwright test`）。
+- **执行的操作（文件级）**：
+  - 后端：新增 `src/terminal/pty-session.ts`（MAX_PTY_SESSIONS=16 上限、create 拒绝超限、close/closeAllSessions 幂等）+ `src/routes/terminal.ts`（create/stream/input/close/list 路由，create 失败 503，SSE cancel 退订）；`src/routes/index.ts` 注册 5 路由 + 404 端点目录；`src/main.ts` 注册 pty-sessions 关闭钩子（priority 64）；`src/core/runtime-audit.ts` + `scripts/runtime-audit.ts` + `tests/runtime-audit.test.ts` 新增 pty.cleanup 检查（14→15 项）；新增 `tests/pty-session.test.ts`（会话上限 + 往返 + 幂等清理）；`tests/provider-caller-effort.test.ts` 补 afterEach 恢复 globalThis.fetch（消除污染）。
+  - 前端：`frontend/package.json` + bun.lock 引入 @xterm/xterm + @xterm/addon-fit；新增 `frontend/src/lib/pty-terminal.ts`（PtyTerminal 深模块 create→stream→input→close，openTerminalStream 解析 SSE）+ 测试；重写 `frontend/src/components/terminal/TerminalPanel.tsx`（xterm 交互终端，挂载建会话/卸载销毁/清空）+ 测试；`frontend/src/lib/api.ts` 新增 terminal 端点；`frontend/src/components/layout/Layout.tsx` 接入 TerminalPanel；`e2e/terminal-summary.spec.ts` 更新为 xterm 交互断言（输入命令按序拼接校验逐键转发）。
+- **验证**：
+  - 后端 `bunx tsc --noEmit` → 0 错误；`bun test tests/pty-session.test.ts tests/runtime-audit.test.ts tests/route-404.test.ts tests/provider-caller-effort.test.ts` → 17/17 pass；`bun run audit:runtime` → 15/15 pass。
+  - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 39 files / 242 tests 全绿。
+  - e2e `npx playwright test e2e/terminal-summary.spec.ts` → 5/5 pass（输入命令断言修正：xterm onData 逐键转发，按序拼接校验）。
+  - 后端全量 `bun test tests/`：修复 fetch 泄漏后失败从 17 降到 11，剩余均为环境性（外网 TLS/网络受限：DataPipeline×3、health-checker×2、github-trending）与已知 flaky（Accessibility、C.1/B.3/A.1、callProvider 全量模块缓存顺序），单跑各自通过或单跑即失败（预存在），非本轮回归。
+- **Commit**：`（待提交）`。
