@@ -1,4 +1,4 @@
-# 操作日志（Operations Log）
+﻿# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -2738,4 +2738,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 39 files / 242 tests 全绿。
   - e2e `npx playwright test e2e/terminal-summary.spec.ts` → 5/5 pass（输入命令断言修正：xterm onData 逐键转发，按序拼接校验）。
   - 后端全量 `bun test tests/`：修复 fetch 泄漏后失败从 17 降到 11，剩余均为环境性（外网 TLS/网络受限：DataPipeline×3、health-checker×2、github-trending）与已知 flaky（Accessibility、C.1/B.3/A.1、callProvider 全量模块缓存顺序），单跑各自通过或单跑即失败（预存在），非本轮回归。
-- **Commit**：`（待提交）`。
+- **Commit**：`3f67321`（已推送 `internal211/master`）。
