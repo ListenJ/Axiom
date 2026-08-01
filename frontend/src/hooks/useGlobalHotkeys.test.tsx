@@ -80,8 +80,9 @@ describe('useGlobalHotkeys', () => {
 
   it('navigates via number keys based on visible nav items', async () => {
     renderHook('/')
+    // 首页与对话合并后：1 号快捷键跳转 /chat
     press('1')
-    await waitFor(() => expect(screen.getByText('Home')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Chat')).toBeInTheDocument())
   })
 
   it('does not hijack shortcuts inside inputs', async () => {

@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Home,
   Search,
   Code2,
   Folder,
@@ -23,13 +22,12 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'home',      path: '/',          label: '首页',   shortcut: '1', icon: Home,          mobilePrimary: true,  visible: true },
-  { id: 'chat',      path: '/chat',      label: '对话',   shortcut: '2', icon: MessageSquare, mobilePrimary: true,  visible: true },
-  { id: 'search',    path: '/search',    label: '搜索',   shortcut: '3', icon: Search,        mobilePrimary: true,  visible: true },
-  { id: 'code',      path: '/code',      label: '代码',   shortcut: '4', icon: Code2,         mobilePrimary: true,  visible: true },
-  { id: 'vault',     path: '/vault',     label: '知识',   shortcut: '5', icon: Folder,        mobilePrimary: false, visible: true },
-  { id: 'providers', path: '/providers', label: '模型',   shortcut: '6', icon: Boxes,         mobilePrimary: false, visible: true },
-  { id: 'settings',  path: '/settings',  label: '系统',   shortcut: '7', icon: Cog,           mobilePrimary: true,  visible: true },
+  { id: 'chat',      path: '/chat',      label: '对话',   shortcut: '1', icon: MessageSquare, mobilePrimary: true,  visible: true },
+  { id: 'search',    path: '/search',    label: '搜索',   shortcut: '2', icon: Search,        mobilePrimary: true,  visible: true },
+  { id: 'code',      path: '/code',      label: '代码',   shortcut: '3', icon: Code2,         mobilePrimary: true,  visible: true },
+  { id: 'vault',     path: '/vault',     label: '知识',   shortcut: '4', icon: Folder,        mobilePrimary: false, visible: true },
+  { id: 'providers', path: '/providers', label: '模型',   shortcut: '5', icon: Boxes,         mobilePrimary: false, visible: true },
+  { id: 'settings',  path: '/settings',  label: '系统',   shortcut: '6', icon: Cog,           mobilePrimary: true,  visible: true },
   // 已移出一级导航，路由保留（后续并入系统 hub）；git 保留 g 快捷键
   { id: 'git',       path: '/git',       label: 'Git',    shortcut: 'g', icon: GitBranch,     mobilePrimary: false, visible: false },
   { id: 'tokens',    path: '/tokens',    label: 'Tokens', shortcut: '9', icon: Settings,      mobilePrimary: false, visible: false },

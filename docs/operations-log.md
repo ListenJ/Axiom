@@ -2708,3 +2708,18 @@
   - 前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 36 files / 227 tests 全绿（新增 ModelPicker 6）。
   - `npm run test:e2e` → 9 文件 31 测试全绿（含 smoke 首页断言在新欢迎模式下通过）。
 - **Commit**：`9679d23`。
+
+---
+
+## 2026-08-01 02:10 +0800 — 首页/对话彻底合并 + 终端栏 + 右上角摘要与 Git 状态
+
+- **任务**：(1) 首页与对话彻底合并——移除"首页"一级导航入口，/ 重定向 /chat，导航快捷键 1-6 重新映射；(2) 新增可开合终端栏（Header 按钮 + Ctrl+ 快捷键，命令经 /sandbox/execute 执行，stdout/stderr/退出码展示、命令历史 ↑/↓、清空、执行中禁用）；(3) 右上角摘要面板（Git 状态 + 系统统计，30s 轮询）与 Git 状态徽标（分支 + 变更数，点击跳 /git）。
+- **工具**：主代理（TDD：TerminalPanel 6 用例、GitStatusBadge 4 用例）、RunCommand（tsc / vitest / Playwright）。
+- **执行的操作（文件级）**：
+  - rontend/src/lib/nav.ts：移除 home 项，chat 为 1 号入口（1-6 对应 对话/搜索/代码/知识/模型/系统）；rontend/src/App.tsx：/ index 改 Navigate /chat；rontend/src/pages/Header.tsx：新增终端按钮（Ctrl+，展开态高亮）+ 摘要按钮与 SummaryPanel（Git 状态 + 系统统计下拉）+ GitStatusBadge 徽标；新增 components/layout/GitStatusBadge.tsx（30s 轮询 /api/git/status，干净✓/变更数徽标，失败静默隐藏）+ 测试 4 用例；components/layout/Layout.tsx：终端开合状态 + Ctrl+ 全局快捷键 + TerminalPanel 接入（z-50 底部悬浮）；新增 components/terminal/TerminalPanel.tsx（注入式 onExecute 便于测试）+ 测试 6 用例；rontend/src/lib/api.ts：新增 endpoints.sandbox.execute/status 与 endpoints.git.status/branch。
+  - 测试同步：rontend/src/lib/nav.test.ts（home→chat 断言）、rontend/src/hooks/useGlobalHotkeys.test.tsx（1→/chat）、e2e/smoke.spec.ts（导航列表去掉首页）、e2e/keyboard.spec.ts（1-6 新映射）；新增 e2e/terminal-summary.spec.ts（5 用例：按钮开合/Ctrl+/命令执行输出/摘要面板/Git 徽标）。
+- **验证**：
+  - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 37 files / 237 tests 全绿（新增 TerminalPanel 6 + GitStatusBadge 4）。
+  - 
+pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）。
+- **Commit**：（待提交）。

@@ -4,7 +4,8 @@ import { NAV_ITEMS, MOBILE_NAV_ITEMS, VISIBLE_NAV_ITEMS } from './nav'
 describe('NAV_ITEMS', () => {
   it('contains the expected core pages', () => {
     const paths = NAV_ITEMS.map((i) => i.path)
-    expect(paths).toContain('/')
+    // 首页与对话合并：/ 不再是一级导航，由 /chat 承担
+    expect(paths).toContain('/chat')
     expect(paths).toContain('/search')
     expect(paths).toContain('/settings')
     expect(paths).toContain('/vault')
@@ -44,9 +45,9 @@ describe('VISIBLE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/search/code/vault entries', () => {
+  it('contains the chat/search/code/vault entries', () => {
     const ids = VISIBLE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'search', 'code', 'vault']))
+    expect(ids).toEqual(expect.arrayContaining(['chat', 'search', 'code', 'vault']))
   })
 
   it('hides internal/backend-only pages', () => {
@@ -66,8 +67,8 @@ describe('MOBILE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/search/code entries', () => {
+  it('contains the chat/search/code entries', () => {
     const ids = MOBILE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'search', 'code']))
+    expect(ids).toEqual(expect.arrayContaining(['chat', 'search', 'code']))
   })
 })

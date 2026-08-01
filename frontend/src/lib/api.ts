@@ -602,6 +602,43 @@ export const endpoints = {
   models: {
     list: () => api.get<{ models: Array<{ id: string; name: string; provider: string; enabled: boolean }> }>('/models'),
   },
+  sandbox: {
+    execute: (body: {
+      command: string
+      args?: string[]
+      cwd?: string
+      timeoutMs?: number
+      confirmationId?: string
+    }) =>
+      api.post<{
+        success: boolean
+        exitCode?: number
+        stdout?: string
+        stderr?: string
+        durationMs?: number
+        blocked?: boolean
+        confirmationId?: string
+        reason?: string
+        error?: string
+      }>('/sandbox/execute', body),
+    status: () => api.get<{ sandbox: string; ready: boolean }>('/sandbox/status'),
+  },
+  git: {
+    status: () => api.get<{
+      success: boolean
+      branch?: string
+      modified?: string[]
+      added?: string[]
+      deleted?: string[]
+      untracked?: string[]
+      conflicted?: string[]
+      ahead?: number
+      behind?: number
+      clean?: boolean
+      error?: string
+    }>('/api/git/status'),
+    branch: () => api.get<{ success: boolean; current?: string; branches?: string[] }>('/api/git/branch'),
+  },
 }
 
 export { HttpError }

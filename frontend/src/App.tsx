@@ -72,7 +72,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout />}>
             {/* 首页与对话合并："/" 直接进入对话页（无消息时显示欢迎模式） */}
-            <Route index element={<Chat />} />
+            <Route index element={<Navigate to="/chat" replace />} />
             <Route path="chat" element={<Chat />} />
             <Route path="search" element={<Search />} />
             <Route path="code" element={<Code />} />
