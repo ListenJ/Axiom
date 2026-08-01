@@ -2691,3 +2691,21 @@
   - `docs/operations-log.md`：追加本条。
 - **验证**：前端 `bunx tsc --noEmit` → 0 错误；`bunx vitest run` → 35 files / 221 tests 全绿。备份按规则 2 已删（`.tmp/backups/` 已清空）。
 - **Commit**：`f9c7443`。
+
+---
+
+## 2026-08-01 01:30 +0800 — 首页与对话合并 + 输入框模型圆环/思考强度 + API 文档知识库 + 毛玻璃规范
+
+- **任务**：(1) 修复 HTTP 404（后端未运行时 API 404）——前端展示需后端联跑；首页（/）与对话（/chat）合并，无消息时显示欢迎模式（标题 + 建议卡片 + 输入框）；(2) 输入框重构：移除左侧模型切换，改为右下角模型圆环（首字符 + hover 全名）+ 滚轮/触摸板滚动模型弹窗 + 思考强度三档（低/中/高）；(3) 后端思考强度透传：reasoning-effort 深模块按供应商格式映射（OpenAI/DeepSeek/Kimi/MiniMax/SiliconFlow/OpenRouter/Anthropic/Gemini），chat.ts → model-router → provider-caller 全链路；(4) API 格式文档拉取入库 knowledge-base/api-formats/（9 份，子代理 B）；(5) 毛玻璃规范落地：glass 体系透明度/模糊按分层规范（顶栏 0.85/12px、侧栏 0.75/8px、卡片 0.95/6px）+ will-change GPU 提示；(6) IntroOutline 线框对齐真实布局（子代理 A）+ 流光边框 shimmer-border + 字体统一 Inter（子代理 A）+ HelpModal 补 g 快捷键（子代理 A，commit f9c7443）。
+- **工具**：主代理（TDD：reasoning-effort 13 用例 + provider-caller-effort 2 用例、Home 归档、Chat 合并、ModelPicker 6 用例）、子代理 A（动效/字体/流光/HelpModal，f9c7443）、子代理 B（API 文档 9 份）、RunCommand（tsc / vitest / bun test / Playwright）。
+- **执行的操作（文件级）**：
+  - 新增 src/router/reasoning-effort.ts（normalizeEffort + buildReasoningParams 深模块）+ 	ests/reasoning-effort.test.ts（13 用例）+ 	ests/provider-caller-effort.test.ts（2 用例，mock fetch 断言请求体）；src/router/provider-caller.ts callProvider/callProviderNativeStream 增加 reasoningEffort 参数并展开进请求体；src/router/model-router.ts chatStream options 增加 reasoningEffort 透传（缓冲与原生流两路径）；src/routes/chat.ts /chat/stream 读取 body.reasoningEffort。
+  - 前端：rontend/src/components/chat/ModelPicker.tsx（模型圆环 + 滚轮弹窗 + 思考强度 radiogroup，6 用例）+ 测试；rontend/src/pages/Chat.tsx 空状态改欢迎模式（标题 + 2x2 建议卡片）、输入框右侧接入 ModelPicker、send 透传 model/reasoningEffort、textarea 补 id="home-input"（e2e 兼容）；rontend/src/App.tsx index 路由改渲染 Chat（首页=对话合并）；rontend/src/lib/api.ts chat.stream 增加 reasoningEffort、新增 endpoints.models.list；rontend/src/styles/index.css glass 体系按毛玻璃分层规范重写（含 light 模式）。
+  - 归档：rontend/src/pages/Home.tsx → rchive/frontend/pages/Home.tsx（ARCHIVE-LOG 记录；git rm 待提交时执行——本任务以"新替旧"完成，Home.tsx 内容并入 Chat.tsx）。
+  - 文档：knowledge-base/api-formats/（README + openai/anthropic/gemini/deepseek/openrouter/kimi-moonshot/minimax/siliconflow 共 9 份，子代理 B 产出，未提交待本轮一并提交）。
+- **验证**：
+  - 后端 unx tsc --noEmit → 0 错误；reasoning-effort 13 + provider-caller-effort 2 全绿；runtime-audit 相关 19 项通过。
+  - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 36 files / 227 tests 全绿（新增 ModelPicker 6）。
+  - 
+pm run test:e2e → 9 文件 31 测试全绿（含 smoke 首页断言在新欢迎模式下通过）。
+- **Commit**：（待提交）。

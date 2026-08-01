@@ -1,5 +1,6 @@
 import { PROVIDER_CONFIG } from "./models.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
+import { buildReasoningParams } from "./reasoning-effort.js";
 import { logger } from "../utils/logger.js";
 
 export interface ChatMessage {
@@ -22,7 +23,8 @@ export async function callProvider(
   model: string,
   messages: ChatMessage[],
   timeoutMs: number,
-  temperature = 0.7
+  temperature = 0.7,
+  reasoningEffort?: string
 ): Promise<{ content: string | null; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
@@ -65,7 +67,12 @@ export async function callProvider(
     const res = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, temperature }),
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        ...buildReasoningParams(provider, reasoningEffort),
+      }),
       signal: controller.signal,
     });
 
@@ -94,7 +101,8 @@ export async function callProviderNativeStream(
   timeoutMs: number,
   temperature = 0.7,
   onChunk: StreamChunkCallback,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  reasoningEffort?: string
 ): Promise<NativeStreamResult> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
@@ -155,7 +163,13 @@ export async function callProviderNativeStream(
     const res = await fetchFn(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, temperature, stream: true }),
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        stream: true,
+        ...buildReasoningParams(provider, reasoningEffort),
+      }),
       signal: controller.signal,
     });
 

@@ -4,11 +4,10 @@ import {
   Send, MessageSquare,
   ChevronRight,
   Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
-  ArrowDown, Sparkles, Activity,
+  ArrowDown, Sparkles, Activity, TrendingUp, Cpu, Search as SearchIcon,
 } from 'lucide-react'
 import {
   Button,
-  InlineEmptyState,
   Tabs,
 } from '@/components/ui'
 import {
@@ -21,15 +20,29 @@ import {
 import { PageTransition } from '@/components/motion'
 import {
   nextId,
-  EXAMPLE_PROMPTS,
   toChatMessages,
   copyToClipboard,
 } from '@/components/chat-utils'
 import { ChatSessionsSidebar, type ChatSession } from '@/components/chat-sessions-sidebar'
 import { FisheyeNav } from '@/components/fisheye/FisheyeNav'
+import { ModelPicker, type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import { useChatPrefs } from '@/state/useChatPrefs'
+
+/** 首页欢迎建议卡片（与合并后的对话页共用） */
+const suggestions = [
+  { label: '深度研究', icon: TrendingUp, query: '帮我深入研究一个技术主题' },
+  { label: '代码审查', icon: Cpu, query: '审查以下代码是否有问题' },
+  { label: '知识问答', icon: SearchIcon, query: '解释一下什么是确定性记忆引擎' },
+  { label: '创意写作', icon: Sparkles, query: '写一篇关于AI未来的短文' },
+]
+
+/** 模型列表回退（后端 /models 不可用时的本地兜底） */
+const FALLBACK_MODELS: ModelOption[] = [
+  { id: 'glm-4-flash-zhipu', name: 'GLM-4-Flash (智谱)', provider: 'zhipu' },
+  { id: 'glm-4.7-flash-free', name: 'GLM-4.7-Flash (免费)', provider: 'zhipu' },
+]
 
 export default function Chat() {
   const location = useLocation()
@@ -46,9 +59,26 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS)
+  const [selectedModel, setSelectedModel] = useState(FALLBACK_MODELS[0]!.id)
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('medium')
   const scroller = useRef<HTMLDivElement | null>(null)
   const toast = useApp((s) => s.toast)
   const abortRef = useRef<AbortController | null>(null)
+
+  // 模型列表：优先拉取后端 /models（含供应商），失败回退本地列表
+  useEffect(() => {
+    endpoints.models
+      .list()
+      .then((d) => {
+        const list = (d?.models ?? []).filter((m) => m.enabled)
+        if (list.length > 0) {
+          setModels(list)
+          setSelectedModel((cur) => (list.some((m) => m.id === cur) ? cur : list[0]!.id))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // 聊天偏好（持久化到 localStorage）
   const showThinking = useChatPrefs((s) => s.showThinking)
@@ -266,7 +296,7 @@ export default function Chat() {
               break
           }
         },
-        { signal: controller.signal },
+        { signal: controller.signal, model: selectedModel, reasoningEffort },
       )
     } catch (e) {
       // 用户主动中止 — 静默停止流式，保留已接收的部分内容
@@ -422,24 +452,37 @@ export default function Chat() {
           className="flex flex-col gap-3 p-4"
         >
           {messages.length === 0 && (
-            <div className="m-auto flex w-full max-w-md flex-col items-center gap-4 text-center">
-              <InlineEmptyState
-                icon={<MessageSquare className="size-5" />}
-                title="开始对话"
-                description="输入消息开始与 Axiom 交流，或试试以下示例："
-              />
-              <div className="flex w-full flex-col gap-2">
-                {EXAMPLE_PROMPTS.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => void send(prompt)}
-                    className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-                  >
-                    <Sparkles size={14} className="shrink-0 text-[var(--accent)]" />
-                    <span>{prompt}</span>
-                  </button>
-                ))}
+            <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
+              {/* 欢迎标题（首页与对话合并：无消息时即首页） */}
+              <div className="fade-in">
+                <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--text)] sm:text-4xl">
+                  有什么可以帮助你的？
+                </h1>
+                <p className="mt-2 text-base text-[var(--text-secondary)]">
+                  知识管理、代码分析、深度研究 — 尽在 Axiom
+                </p>
+              </div>
+              <div className="stagger grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+                {suggestions.map((s) => {
+                  const Icon = s.icon
+                  return (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => { setInput(s.query); void send(s.query) }}
+                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-sm)] transition-all duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
+                    >
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform group-hover:scale-110">
+                        <Icon className="size-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-medium text-[var(--text)]">{s.label}</p>
+                        <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">{s.query}</p>
+                      </div>
+                      <Sparkles className="size-4 shrink-0 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100" />
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -458,8 +501,9 @@ export default function Chat() {
         </div>
 
         {/* Input bar — sticky glass, content scrolls underneath */}
-        <div className="sticky bottom-0 z-20 glass-sm flex gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
+        <div className="sticky bottom-0 z-20 glass-sm flex items-end gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
           <textarea
+            id="home-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -492,6 +536,16 @@ export default function Chat() {
               <span className="hidden sm:inline">Send</span>
             </Button>
           )}
+          {/* 模型选择圆环（右下角）+ 思考强度弹窗 */}
+          <ModelPicker
+            models={models}
+            selectedModel={selectedModel}
+            effort={reasoningEffort}
+            onSelect={(modelId, effort) => {
+              if (modelId) setSelectedModel(modelId)
+              if (effort) setReasoningEffort(effort)
+            }}
+          />
         </div>
           </>
         )}

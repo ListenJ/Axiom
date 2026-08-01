@@ -443,11 +443,12 @@ export class MultiPlatformRouter {
   async *chatStream(
     taskType: TaskRole | string,
     messages: ChatMessage[],
-    options?: { preferNativeStream?: boolean; intent?: string }
+    options?: { preferNativeStream?: boolean; intent?: string; reasoningEffort?: string }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
     const preferNative = options?.preferNativeStream !== false;
     const intentLabel = options?.intent;
+    const reasoningEffort = options?.reasoningEffort;
     const models = findModelsForRole(role);
     if (models.length === 0) {
       logger.warn(`[Router/chatStream] No models for role: ${role}`);
@@ -489,6 +490,7 @@ export class MultiPlatformRouter {
             messages,
             model.timeout ?? TIMEOUTS.API_DEFAULT,
             0.7,
+            reasoningEffort,
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
@@ -540,6 +542,8 @@ export class MultiPlatformRouter {
               (delta) => {
                 enqueue({ kind: "chunk", content: delta });
               },
+              undefined,
+              reasoningEffort,
             ).then(
               (result) => enqueue({ kind: "done", result }),
               (err: unknown) =>

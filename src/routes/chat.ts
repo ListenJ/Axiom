@@ -198,6 +198,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     messages?: unknown;
     intent?: unknown;
     preferNativeStream?: unknown;
+    reasoningEffort?: unknown;
   };
   try {
     body = (await ctx.req.json()) as typeof body;
@@ -231,6 +232,8 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
   const enableIntent = body.intent !== false; // 默认为 true
   const preferNativeStream: boolean | undefined =
     typeof body.preferNativeStream === "boolean" ? body.preferNativeStream : undefined;
+  const reasoningEffort: string | undefined =
+    typeof body.reasoningEffort === "string" ? body.reasoningEffort : undefined;
 
   // 复用 handleChat 的消息构建逻辑（包含 intent + codegraph + knowledge context）
   const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
@@ -273,6 +276,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
         streamIter = router.chatStream(roleForStream, chatMessages, {
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
+          ...(reasoningEffort ? { reasoningEffort } : {}),
         });
 
         for await (const ev of streamIter) {

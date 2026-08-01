@@ -444,6 +444,7 @@ export const endpoints = {
         preferNativeStream?: boolean
         signal?: AbortSignal
         model?: string
+        reasoningEffort?: 'low' | 'medium' | 'high'
       } = {},
     ) => {
       // Destructure `signal` so it is NEVER serialized into the JSON body.
@@ -597,6 +598,9 @@ export const endpoints = {
       api.post<{ ok: boolean; latency?: number; modelCount?: number; error?: string }>(
         `/api-keys/${encodeURIComponent(provider)}/test`,
       ),
+  },
+  models: {
+    list: () => api.get<{ models: Array<{ id: string; name: string; provider: string; enabled: boolean }> }>('/models'),
   },
 }
 
