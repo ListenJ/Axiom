@@ -2722,4 +2722,4 @@
   - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 37 files / 237 tests 全绿（新增 TerminalPanel 6 + GitStatusBadge 4）。
   - 
 pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）。
-- **Commit**：（待提交）。
+- **Commit**：`1561772`。
