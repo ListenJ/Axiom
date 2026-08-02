@@ -10,7 +10,6 @@ export default function HelpModal() {
 
   const shortcuts: { key: string; desc: string }[] = [
     ...VISIBLE_NAV_ITEMS.map((n) => ({ key: n.shortcut, desc: `打开 ${n.label}` })),
-    { key: 'g', desc: '打开 Git' },
     { key: 'Shift+T', desc: '切换深色 / 浅色主题' },
     { key: '/', desc: '聚焦搜索' },
     { key: 'Ctrl/Cmd+K', desc: '聚焦搜索' },

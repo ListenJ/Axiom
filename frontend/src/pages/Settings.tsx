@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Moon, Sun, Bell, Shield, Globe, Database, RotateCcw, Bot, Brain, FileEdit,
+  Activity, Moon, Sun, Bell, Shield, Globe, Database, RotateCcw, Bot, Brain, FileEdit,
   Wrench, KeyRound, CheckCircle2, Server, Cpu,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -12,6 +12,8 @@ import { api, endpoints } from '@/lib/api'
 import { INTRO_STORAGE_KEY } from '@/components/intro/useIntro'
 import SettingsSearch from '@/components/settings/SettingsSearch'
 import ModelManagementSection from '@/components/settings/models-section'
+import MotionPreview from '@/components/settings/MotionPreview'
+import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
 import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
 
 /* ───────── 通用开关行（图标 + 标题 + 精确说明 + 开关） ───────── */
@@ -198,6 +200,7 @@ export default function Settings() {
               </Button>
             </div>
           </ShimmerCard>
+          <MotionPreview highlight={highlightKey === 'appearance.motion'} />
         </div>
       </Collapsible>
 
@@ -401,6 +404,17 @@ export default function Settings() {
             数值与 config/axiom.yaml 一一对应；改动请通过 config 文件或 /config 接口并重启服务。
           </p>
         </ShimmerCard>
+      </Collapsible>
+
+      {/* 调试与检查 */}
+      <Collapsible
+        icon={<Activity className="size-4" />}
+        title="调试与检查"
+        description="运行环境与核心服务健康检查，可一键复制诊断快照"
+        open={sectionOpen('diagnostics')}
+        onToggle={(o) => toggleSection('diagnostics', o)}
+      >
+        <DiagnosticsSection toast={toast} />
       </Collapsible>
     </div>
   )

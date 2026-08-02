@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Settings catalog — 设置目录（前端设置页与 Agent 配置的 1:1 映射基准）
  *
  * 每一条目对应一个真实可配置项，source 指明落点：
@@ -34,6 +34,7 @@ export const SETTING_SECTIONS: SettingSection[] = [
   { id: "agent", label: "Agent 适配" },
   { id: "gateway", label: "网关" },
   { id: "crawler", label: "抓取" },
+  { id: "diagnostics", label: "调试与检查" },
 ];
 
 export const SETTINGS_CATALOG: SettingItem[] = [
@@ -54,6 +55,15 @@ export const SETTINGS_CATALOG: SettingItem[] = [
     desc: "重新播放首页的勾勒入场动画，用于快速熟悉功能入口布局。",
     keywords: ["动画", "首页", "重播", "引导", "开场", "intro"],
     type: "action",
+    source: "app",
+  },
+  {
+    key: "appearance.motion",
+    section: "appearance",
+    label: "动效强度",
+    desc: "控制界面动画强度：跟随系统、减少动画或完全关闭；影响页面过渡、折叠与按压反馈。",
+    keywords: ["动画", "动效", "过渡", "减少", "关闭", "motion", "reduced"],
+    type: "choice",
     source: "app",
   },
 
@@ -202,6 +212,35 @@ export const SETTINGS_CATALOG: SettingItem[] = [
     keywords: ["并发", "爬取", "搜索", "限流", "压力", "concurrent"],
     type: "number",
     source: "backend",
+  },
+
+  // ── 调试与检查 ──────────────────────────────────────
+  {
+    key: "diagnostics.health",
+    section: "diagnostics",
+    label: "服务健康检查",
+    desc: "检查网关、沙箱、OCR、代码图谱与 Agent 等核心服务的可用状态，帮助定位故障模块。",
+    keywords: ["健康", "检查", "诊断", "服务", "状态", "health"],
+    type: "display",
+    source: "backend",
+  },
+  {
+    key: "diagnostics.runtime",
+    section: "diagnostics",
+    label: "运行环境",
+    desc: "识别 Web / Tauri 桌面 / Android 运行环境与视口、触控等平台信息，用于跨平台排障。",
+    keywords: ["环境", "运行", "平台", "tauri", "android", "web", "跨平台"],
+    type: "display",
+    source: "app",
+  },
+  {
+    key: "diagnostics.snapshot",
+    section: "diagnostics",
+    label: "诊断快照",
+    desc: "一键汇总运行环境与服务检查结果为可复制的文本，便于提交到问题反馈。",
+    keywords: ["快照", "导出", "复制", "反馈", "诊断", "snapshot"],
+    type: "action",
+    source: "app",
   },
 ];
 

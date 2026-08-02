@@ -1,7 +1,9 @@
 import { useCallback, useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface CollapsibleProps {
   /** 稳定 id（不传时自动生成），用于 aria-controls 关联 */
@@ -41,7 +43,7 @@ export default function Collapsible({
 }: CollapsibleProps) {
   const autoId = useId()
   const panelId = id ?? `collapsible-${autoId.replace(/[^a-zA-Z0-9-]/g, '')}`
-  const reduce = useReducedMotion()
+  const { enabled } = useMotion()
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
   const isOpen = open ?? internalOpen
 
@@ -51,9 +53,9 @@ export default function Collapsible({
     onToggle?.(next)
   }, [isOpen, open, onToggle])
 
-  const transition = reduce
-    ? { duration: 0 }
-    : { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const }
+  const transition = enabled
+    ? MOTION_PRESETS.collapse
+    : { duration: 0 }
 
   return (
     <section className={className} data-collapsible>

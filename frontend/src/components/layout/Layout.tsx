@@ -12,6 +12,7 @@ import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useApprovals } from '@/state/useApprovals'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
 import { useTheme } from '@/hooks/useTheme'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -67,7 +68,7 @@ export default function Layout() {
               initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={reduceMotion ? undefined : { y: '100%', opacity: 0 }}
-              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={MOTION_PRESETS.slideUp}
             >
               <TerminalPanel onClose={() => setTerminalOpen(false)} />
             </motion.div>

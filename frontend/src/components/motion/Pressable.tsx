@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface PressableProps {
   children: ReactNode
@@ -11,8 +13,8 @@ interface PressableProps {
  * 供 Button 等可交互元素包裹使用；reduced-motion 时直接静态渲染。
  */
 export default function Pressable({ children, className }: PressableProps) {
-  const reduce = useReducedMotion()
-  if (reduce) {
+  const { enabled } = useMotion()
+  if (!enabled) {
     return <div className={className}>{children}</div>
   }
   return (
@@ -20,7 +22,7 @@ export default function Pressable({ children, className }: PressableProps) {
       className={className}
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+      transition={MOTION_PRESETS.press}
     >
       {children}
     </motion.div>

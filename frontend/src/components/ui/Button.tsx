@@ -1,5 +1,7 @@
-import { motion, useReducedMotion, type HTMLMotionProps } from 'framer-motion'
+import { motion, type HTMLMotionProps } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline'
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon'
@@ -43,8 +45,6 @@ const ICON_SIZE_CLASSES: Record<ButtonSize, string> = {
   icon: 'size-4',
 }
 
-/** 与 --spring-gentle / motion/Pressable 一致的回弹参数 */
-const PRESS_SPRING = { type: 'spring', stiffness: 400, damping: 17 } as const
 
 export default function Button({
   children,
@@ -58,8 +58,8 @@ export default function Button({
   type = 'button',
   ...rest
 }: ButtonProps) {
-  const reduceMotion = useReducedMotion()
-  const interactive = !disabled && !loading && !reduceMotion
+  const { enabled } = useMotion()
+  const interactive = !disabled && !loading && enabled
   return (
     <motion.button
       type={type}
@@ -67,7 +67,7 @@ export default function Button({
       aria-busy={loading}
       whileHover={interactive ? { y: -1 } : undefined}
       whileTap={interactive ? { scale: 0.97 } : undefined}
-      transition={PRESS_SPRING}
+      transition={MOTION_PRESETS.press}
       className={`
         relative inline-flex items-center justify-center
         rounded-lg font-medium touch-manipulation

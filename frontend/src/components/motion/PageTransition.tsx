@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface PageTransitionProps {
   children: ReactNode
@@ -8,8 +10,8 @@ interface PageTransitionProps {
 
 /** 路由级页面入场：淡入 + 微位移；reduced-motion 时直接静态渲染 */
 export default function PageTransition({ children, className }: PageTransitionProps) {
-  const reduce = useReducedMotion()
-  if (reduce) {
+  const { enabled } = useMotion()
+  if (!enabled) {
     return <div className={className}>{children}</div>
   }
   return (
@@ -17,7 +19,7 @@ export default function PageTransition({ children, className }: PageTransitionPr
       className={className}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      transition={MOTION_PRESETS.pageEnter}
     >
       {children}
     </motion.div>

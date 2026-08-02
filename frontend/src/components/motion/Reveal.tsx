@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface RevealProps {
   children: ReactNode
@@ -12,8 +14,8 @@ interface RevealProps {
 
 /** 进入视口时渐显（once）；reduced-motion 时直接静态渲染 */
 export default function Reveal({ children, y = 12, duration = 0.4, className }: RevealProps) {
-  const reduce = useReducedMotion()
-  if (reduce) {
+  const { enabled } = useMotion()
+  if (!enabled) {
     return <div className={className}>{children}</div>
   }
   return (
@@ -22,7 +24,7 @@ export default function Reveal({ children, y = 12, duration = 0.4, className }: 
       initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ ...MOTION_PRESETS.reveal, duration }}
     >
       {children}
     </motion.div>

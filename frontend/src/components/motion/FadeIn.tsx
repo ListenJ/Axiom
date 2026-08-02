@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface FadeInProps {
   children: ReactNode
@@ -20,8 +22,8 @@ export default function FadeIn({
   y = 8,
   className,
 }: FadeInProps) {
-  const reduce = useReducedMotion()
-  if (reduce) {
+  const { enabled } = useMotion()
+  if (!enabled) {
     return <div className={className}>{children}</div>
   }
   return (
@@ -29,7 +31,7 @@ export default function FadeIn({
       className={className}
       initial={{ opacity: 0, y }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration, delay, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ ...MOTION_PRESETS.fadeIn, duration, delay }}
     >
       {children}
     </motion.div>

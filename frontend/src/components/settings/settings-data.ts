@@ -8,7 +8,7 @@
  */
 import type { ComponentType } from 'react'
 import {
-  Palette, Settings2, Database, Box, Bot, Server, Globe,
+  Activity, Palette, Settings2, Database, Box, Bot, Server, Globe,
 } from 'lucide-react'
 
 export interface SettingItem {
@@ -36,11 +36,13 @@ export const SETTING_SECTIONS: SettingSectionMeta[] = [
   { id: 'agent', label: 'Agent 适配', icon: Bot, defaultOpen: false },
   { id: 'gateway', label: '网关', icon: Server, defaultOpen: false },
   { id: 'crawler', label: '抓取', icon: Globe, defaultOpen: false },
+  { id: 'diagnostics', label: '调试与检查', icon: Activity, defaultOpen: false },
 ]
 
 export const SETTINGS_CATALOG: SettingItem[] = [
   { key: 'appearance.theme', section: 'appearance', label: '主题', desc: '切换深色/浅色主题，选择后立即生效并持久化保存。', keywords: ['深色', '浅色', '夜间', '白天', '外观', '亮色', '暗色'], type: 'choice', source: 'app' },
   { key: 'appearance.intro', section: 'appearance', label: '开场动画', desc: '重新播放首页的勾勒入场动画，用于快速熟悉功能入口布局。', keywords: ['动画', '首页', '重播', '引导', '开场', 'intro'], type: 'action', source: 'app' },
+  { key: 'appearance.motion', section: 'appearance', label: '动效强度', desc: '控制界面动画强度：跟随系统、减少动画或完全关闭；影响页面过渡、折叠与按压反馈。', keywords: ['动画', '动效', '过渡', '减少', '关闭', 'motion', 'reduced'], type: 'choice', source: 'app' },
   { key: 'behavior.notifications', section: 'behavior', label: '桌面通知', desc: '启用后，任务完成、审批请求、搜索结果等事件会弹出系统桌面通知。', keywords: ['提醒', '消息', '弹窗', '通知', 'notify'], type: 'toggle', source: 'local' },
   { key: 'privacy.safeMode', section: 'behavior', label: '隐私模式', desc: '本地优先：数据不离开设备。关闭后允许使用云端模型与外部服务。', keywords: ['隐私', '安全', '本地', '脱敏', '私有', '外发'], type: 'toggle', source: 'local' },
   { key: 'chat.showThinking', section: 'behavior', label: '显示思考过程', desc: '在对话中展开显示 Agent 的推理轨迹（reasoning trace），便于理解决策依据；默认关闭。', keywords: ['思考', '推理', 'reasoning', '过程', '轨迹', 'trace'], type: 'toggle', source: 'chat' },
@@ -56,6 +58,9 @@ export const SETTINGS_CATALOG: SettingItem[] = [
   { key: 'gateway.port', section: 'gateway', label: '网关端口', desc: 'HTTP 服务监听端口，默认 18789；修改后需重启服务生效。', keywords: ['端口', '网关', '服务', '监听', 'port'], type: 'number', source: 'backend' },
   { key: 'gateway.bind', section: 'gateway', label: '绑定地址', desc: '默认绑定 127.0.0.1 仅本机可访问；公网部署必须配合反向代理与 TLS。', keywords: ['绑定', '地址', 'IP', '公网', '安全', 'bind'], type: 'text', source: 'backend' },
   { key: 'crawler.maxConcurrent', section: 'crawler', label: '最大并发抓取', desc: '控制搜索/爬取的最大并发数（默认 3），防止对目标站点造成压力。', keywords: ['并发', '爬取', '搜索', '限流', '压力', 'concurrent'], type: 'number', source: 'backend' },
+  { key: 'diagnostics.health', section: 'diagnostics', label: '服务健康检查', desc: '检查网关、沙箱、OCR、代码图谱与 Agent 等核心服务的可用状态，帮助定位故障模块。', keywords: ['健康', '检查', '诊断', '服务', '状态', 'health'], type: 'display', source: 'backend' },
+  { key: 'diagnostics.runtime', section: 'diagnostics', label: '运行环境', desc: '识别 Web / Tauri 桌面 / Android 运行环境与视口、触控等平台信息，用于跨平台排障。', keywords: ['环境', '运行', '平台', 'tauri', 'android', 'web', '跨平台'], type: 'display', source: 'app' },
+  { key: 'diagnostics.snapshot', section: 'diagnostics', label: '诊断快照', desc: '一键汇总运行环境与服务检查结果为可复制的文本，便于提交到问题反馈。', keywords: ['快照', '导出', '复制', '反馈', '诊断', 'snapshot'], type: 'action', source: 'app' },
 ]
 
 export function getSectionMeta(id: string): SettingSectionMeta {

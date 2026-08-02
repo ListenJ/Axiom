@@ -1,13 +1,52 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { X } from 'lucide-react'
-import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { NAV_SECTIONS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { endpoints } from '@/lib/api'
 
 interface SidebarProps {
   open: boolean
   onClose: () => void
 }
 
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds} 秒`
+  const mins = Math.floor(seconds / 60)
+  if (mins < 60) return `${mins} 分钟`
+  const hours = Math.floor(mins / 60)
+  const rest = mins % 60
+  return rest > 0 ? `${hours} 小时 ${rest} 分` : `${hours} 小时`
+}
+
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const [health, setHealth] = useState<{ status?: string; version?: string; uptime?: number } | null>(null)
+  const [healthError, setHealthError] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const r = (await endpoints.system.health()) as { status?: string; version?: string; uptime?: number } | null
+        if (!alive) return
+        setHealth({ status: r?.status, version: r?.version, uptime: r?.uptime })
+        setHealthError(false)
+      } catch {
+        if (alive) setHealthError(true)
+      }
+    }
+    void load()
+    const t = setInterval(load, 30_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [])
+
+  const groups = NAV_SECTIONS
+    .map((section) => ({ ...section, items: VISIBLE_NAV_ITEMS.filter((i) => i.section === section.id) }))
+    .filter((group) => group.items.length > 0)
+  const online = !healthError && health?.status === 'ok'
+
   return (
     <aside
       className={`
@@ -49,58 +88,71 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* Nav items */}
+      {/* Nav items grouped by section */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
-        {VISIBLE_NAV_ITEMS.map((item) => {
-          const Icon = item.icon
-          return (
-            <NavLink
-              key={item.id}
-              to={item.path}
-              end={item.path === '/'}
-              onClick={() => onClose()}
-              className={({ isActive }) =>
-                `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    size={18}
-                    className={`shrink-0 transition-transform group-hover:scale-110 ${
-                      isActive ? 'text-[var(--accent)]' : ''
-                    }`}
-                  />
-                  <span className="flex-1">{item.label}</span>
-                  <kbd
-                    className={`font-mono text-2xs ${
+        {groups.map((group) => (
+          <div key={group.id} className="pt-3 first:pt-0">
+            <p className="px-3 pb-1 text-2xs font-medium text-[var(--text-muted)]">
+              {group.label}
+            </p>
+            {group.items.map((item) => {
+              const Icon = item.icon
+              return (
+                <NavLink
+                  key={item.id}
+                  to={item.path}
+                  end={item.path === '/'}
+                  onClick={() => onClose()}
+                  className={({ isActive }) =>
+                    `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'text-[var(--accent)] opacity-70'
-                        : 'text-[var(--text-muted)]'
-                    }`}
-                  >
-                    {item.shortcut}
-                  </kbd>
-                </>
-              )}
-            </NavLink>
-          )
-        })}
+                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <Icon
+                        size={18}
+                        className={`shrink-0 transition-transform group-hover:scale-110 ${
+                          isActive ? 'text-[var(--accent)]' : ''
+                        }`}
+                      />
+                      <span className="flex-1">{item.label}</span>
+                      <kbd
+                        className={`font-mono text-2xs ${
+                          isActive
+                            ? 'text-[var(--accent)] opacity-70'
+                            : 'text-[var(--text-muted)]'
+                        }`}
+                      >
+                        {item.shortcut}
+                      </kbd>
+                    </>
+                  )}
+                </NavLink>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer: live health */}
       <div className="border-t border-[var(--border)] p-3">
         <div className="shimmer-border rounded-lg p-2.5">
           <div className="flex items-center gap-2">
-            <div className="pulse-dot size-2 rounded-full bg-[var(--success)]" />
-            <span className="text-2xs text-[var(--text-muted)]">系统在线</span>
+            <div className={`pulse-dot size-2 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
+            <span className="text-2xs text-[var(--text-muted)]">
+              {online ? '服务在线' : healthError ? '服务不可达' : '正在检查…'}
+            </span>
           </div>
           <p className="mt-1 text-2xs text-[var(--text-muted)]">
-            全部服务在线
+            {online && health
+              ? `${health.version ?? 'Axiom'} · 运行 ${formatUptime(health.uptime ?? 0)}`
+              : healthError
+                ? '请检查后端服务或打开设置诊断'
+                : '正在读取网关健康状态'}
           </p>
         </div>
       </div>

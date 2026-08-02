@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Bell, Sun, Moon, Keyboard, Search, TerminalSquare, FileText, GitBranch, Activity, X } from 'lucide-react'
+import { Menu, Settings, Sun, Moon, Keyboard, Search, TerminalSquare, FileText, GitBranch, Activity, X } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 import { GitStatusBadge } from './GitStatusBadge'
@@ -225,7 +225,7 @@ export default function Header({ onMenuClick, onTerminalToggle, terminalOpen }: 
           onClick={() => navigate('/settings')}
           className="h-11 w-11"
           aria-label="设置"
-          icon={<Bell size={18} />}
+          icon={<Settings size={18} />}
         />
 
         {/* Git 状态徽标 */}

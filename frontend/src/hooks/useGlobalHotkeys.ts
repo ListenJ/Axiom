@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/state/useApp'
-import { NAV_ITEMS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
 
 /**
  * Global keyboard shortcuts, mirroring the legacy frontend.
- *  - 1..7      : jump to the corresponding nav page
- *  - g         : jump to Git page (route kept, hidden from primary nav)
+ *  - 数字键 / g : jump to the corresponding nav page
  *  - Shift+T   : toggle theme
  *  - / or Ctrl/Cmd+K : focus search page
  *  - ?         : open help modal
@@ -55,12 +54,7 @@ export function useGlobalHotkeys() {
       }
 
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
-        const target =
-          e.key >= '0' && e.key <= '9'
-            ? VISIBLE_NAV_ITEMS.find((i) => i.shortcut === e.key)
-            : e.key === 'g'
-              ? NAV_ITEMS.find((i) => i.shortcut === 'g')
-              : undefined
+        const target = VISIBLE_NAV_ITEMS.find((i) => i.shortcut === e.key)
         if (target) {
           e.preventDefault()
           navigate(target.path)

@@ -1,5 +1,7 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { staggerContainer, staggerItem } from '@/lib/motion-presets'
+import { useMotion } from '@/hooks/useMotion'
 
 interface StaggerProps {
   children: ReactNode
@@ -9,15 +11,12 @@ interface StaggerProps {
 }
 
 /** 子项入场变体 —— 配合 <Stagger> 使用：子元素须为 motion 组件并传 variants={staggerItem} */
-export const staggerItem = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const } },
-}
+export { staggerItem }
 
-/** 子项交错入场容器；reduced-motion 时直接静态渲染 */
+/** 子项交错入场容器；动效关闭时直接静态渲染 */
 export default function Stagger({ children, staggerDelay = 0.05, className }: StaggerProps) {
-  const reduce = useReducedMotion()
-  if (reduce) {
+  const { enabled } = useMotion()
+  if (!enabled) {
     return <div className={className}>{children}</div>
   }
   return (
@@ -25,10 +24,7 @@ export default function Stagger({ children, staggerDelay = 0.05, className }: St
       className={className}
       initial="hidden"
       animate="show"
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: staggerDelay } },
-      }}
+      variants={staggerContainer({ staggerDelay })}
     >
       {children}
     </motion.div>

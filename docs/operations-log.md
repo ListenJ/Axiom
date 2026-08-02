@@ -2776,3 +2776,21 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **执行的操作（文件级）**：rontend/src/components/layout/Layout.tsx 终端 motion.div 从 flex 流内 shrink-0 改为 ixed inset-x-0 bottom-24 z-50 lg:bottom-8（覆盖式 + 底栏让位）。
 - **验证**：桌面（1440×900）main 高度打开终端前后不变（812px，不再被挤压）；终端 y=644-868、StatsBar 868-900 始终可见；移动端（390×844）终端 bottom=748 在 BottomNav(780) 之上。tsc 0 错误；vitest 246 全绿；e2e terminal-summary/responsive/smoke 15/15 通过。
 - **Commit**：`fbde2df`。
+
+---
+
+## 2026-08-03 01:20 +0800 — 前端评审落地：动画流程 + 设置诊断 + 导航重构
+
+- **任务**：按 `docs/FRONTEND-REVIEW-2026-08-03.md` 落地前端改造：(1) 建立统一动画流程；(2) 设置页新增动效强度与调试/检查分区；(3) 导航按栏目分组重构并让 Git/会话/Token 归位；(4) 明确 Web + Tauri（Windows/Linux/Android）跨平台方案，暂不包含 Mac。
+- **工具**：主代理（评审、动画预设、诊断组件、导航重构、验证）、RunCommand（tsc / vitest / bun test）、PowerShell 文件编辑（apply_patch 因沙箱 helper 失败改用精确替换/整文件写入）。
+- **执行的操作（文件级）**：
+  - 新增 `docs/FRONTEND-REVIEW-2026-08-03.md`（前端评审与跨平台技术方案）。
+  - 新增 `frontend/src/lib/motion-presets.ts` + `motion-presets.test.ts`（时长/缓动/变体单一事实来源）。
+  - 新增 `frontend/src/state/useMotionPrefs.ts` + 测试、`frontend/src/hooks/useMotion.ts`（动效三态偏好：跟随系统/减少/关闭）。
+  - 新增 `frontend/src/components/settings/MotionPreview.tsx`、`DiagnosticsSection.tsx`、`diagnostics.ts` + 测试（设置页动效预览、运行环境检测、6 项服务探针、诊断快照）。
+  - 修改 `frontend/src/components/motion/{FadeIn,PageTransition,Pressable,Reveal,Stagger}.tsx`、`frontend/src/components/ui/{Button,Collapsible}.tsx` 消费统一动效预设。
+  - 修改 `frontend/src/components/settings/settings-data.ts`、`src/core/settings-catalog.ts`（新增 appearance.motion 与 diagnostics 分区，保持前后端目录一致）。
+  - 修改 `frontend/src/pages/Settings.tsx`（接入 MotionPreview 与 DiagnosticsSection）。
+  - 重构 `frontend/src/lib/nav.ts` + `nav.test.ts`（新增 NAV_SECTIONS 分组与 sessions 项）；`Sidebar.tsx` 按组分渲染并接入真实 `/health` 状态；`Header.tsx` 设置按钮 Bell 图标改为 Settings；`HelpModal.tsx` 移除重复 Git 快捷键；`useGlobalHotkeys.ts` 统一用 VISIBLE_NAV_ITEMS 查找；`Layout.tsx` 终端动画接入 `MOTION_PRESETS.slideUp`。
+- **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 43 文件 / 263 用例全绿；`bun test tests/settings-search.test.ts` 13 用例全绿（设置目录一致性）。
+- **Commit**：`cae647e`
