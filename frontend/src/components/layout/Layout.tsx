@@ -58,11 +58,12 @@ export default function Layout() {
         <StatsBar />
         <BottomNav />
 
-        {/* 终端栏：作为底部面板升起（slide-up 动画），流式挤压主内容区 */}
+        {/* 终端栏：fixed 底部覆盖式浮层（slide-up 动画），升起在底栏 StatsBar 之上，
+            不挤压主内容；移动端让出 BottomNav 高度 */}
         <AnimatePresence>
           {terminalOpen && (
             <motion.div
-              className="shrink-0"
+              className="fixed inset-x-0 bottom-24 z-50 lg:bottom-8"
               initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={reduceMotion ? undefined : { y: '100%', opacity: 0 }}

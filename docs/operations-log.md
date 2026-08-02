@@ -2766,3 +2766,13 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - TerminalPanel.tsx：Terminal 初始化用 buildTerminalTheme；订阅 useApp theme，主题切换时 term.options.theme 重建；面板容器 bg-secondary + 头部 surface/60 玻璃（与 StatsBar 同款 border-t 层级衔接）。
 - **验证**：前端 tsc 0 错误；vitest 246 全绿（+4）；e2e terminal-summary/theme/smoke 14/14 通过；Playwright 实测 dark 前景 = #f3ede4（--text），面板背景随 dark/light 切换（#171410 ↔ 白），xterm DOM renderer 正常渲染。
 - **Commit**：`b4e4452`。
+
+---
+
+## 2026-08-02 13:50 +0800 — 布局重排：终端改为底部覆盖式浮层（配合底栏）
+
+- **任务**：用户反馈"终端没有覆盖上去、前端布局乱"。根因：终端面板放在主区 flex 流内（shrink-0 挤压 main），且 fixed bottom-0 会盖住底栏 StatsBar。重排：终端改为 fixed 覆盖式浮层（slide-up 动画保留），bottom 让位底栏——桌面 ottom-8（StatsBar 32px 上方），移动端 ottom-24（BottomNav 64 + StatsBar 32 上方）；main 不再被挤压。
+- **工具**：主代理（布局探测：Playwright 逐区块 getBoundingClientRect 校验桌面/移动端打开前后）、RunCommand（tsc / vitest / Playwright）。
+- **执行的操作（文件级）**：rontend/src/components/layout/Layout.tsx 终端 motion.div 从 flex 流内 shrink-0 改为 ixed inset-x-0 bottom-24 z-50 lg:bottom-8（覆盖式 + 底栏让位）。
+- **验证**：桌面（1440×900）main 高度打开终端前后不变（812px，不再被挤压）；终端 y=644-868、StatsBar 868-900 始终可见；移动端（390×844）终端 bottom=748 在 BottomNav(780) 之上。tsc 0 错误；vitest 246 全绿；e2e terminal-summary/responsive/smoke 15/15 通过。
+- **Commit**：（待提交）。
