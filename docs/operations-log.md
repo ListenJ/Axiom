@@ -2765,4 +2765,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 新增 rontend/src/components/terminal/xterm-theme.ts（buildTerminalTheme 纯函数：--text→foreground、--accent→cursor、--on-accent→cursorAccent、accent 35%→selection、语义色→ANSI 红绿黄蓝 + bright 系；cssVarReader 从 getComputedStyle 读取）+ 测试 4 用例。
   - TerminalPanel.tsx：Terminal 初始化用 buildTerminalTheme；订阅 useApp theme，主题切换时 term.options.theme 重建；面板容器 bg-secondary + 头部 surface/60 玻璃（与 StatsBar 同款 border-t 层级衔接）。
 - **验证**：前端 tsc 0 错误；vitest 246 全绿（+4）；e2e terminal-summary/theme/smoke 14/14 通过；Playwright 实测 dark 前景 = #f3ede4（--text），面板背景随 dark/light 切换（#171410 ↔ 白），xterm DOM renderer 正常渲染。
-- **Commit**：（待提交）。
+- **Commit**：`b4e4452`。
