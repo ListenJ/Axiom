@@ -1,4 +1,4 @@
-﻿# 操作日志（Operations Log）
+# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -2753,4 +2753,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 后端 unx tsc --noEmit → 0 错误；pty-session 5 + command-gate 11 等 45 项全绿；un run audit:runtime → 16/16 pass。
   - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 242 全绿。
   - e2e terminal-summary/smoke/responsive 15/15 通过（终端开合/交互会话输入/摘要/Git 徽标）。
-- **Commit**：（待提交，含 3f67321 之后的工作区改动）。
+- **Commit**：`5b002c3`（3f67321 由并行子代理提交）。
