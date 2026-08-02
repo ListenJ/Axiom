@@ -5,7 +5,7 @@
  *  - health-check：外部依赖可用性（API key / db / vault / network）
  *  - runtime-audit：内部资源有界性、内存泄漏、会话/流清理、冗余兜底
  *
- * 设计（深模块）：15 项检查全部可依赖注入（fake），默认依赖为真实单例，
+设计（深模块）：16 项检查全部可依赖注入（fake），默认依赖为真实单例，
  * 保证 CLI 可跑、测试可注入泄漏 fake 证明"能抓出泄漏"。
  */
 import { readFileSync } from "node:fs";
@@ -341,6 +341,25 @@ export async function checkPtyCleanup(): Promise<AuditCheck> {
     measured: { registry, closeAll, cap, shutdownHook: hook },
   };
 }
+export async function checkPtyApproval(sources?: { safety?: string; gate?: string; route?: string }): Promise<AuditCheck> {
+  const safety = sources?.safety ?? readSource("../utils/command-safety.ts");
+  const gate = sources?.gate ?? readSource("../terminal/command-gate.ts");
+  const route = sources?.route ?? readSource("../routes/terminal.ts");
+  const exported = safety.includes("export function sanitizeCommand");
+  const mode = gate.includes("AXIOM_PTY_APPROVAL_MODE");
+  const wired = route.includes("CommandGate") && route.includes("new CommandGate");
+  const ok = exported && mode && wired;
+  return {
+    id: "pty.approval",
+    name: "PTY 输入接入审批链",
+    status: ok ? "pass" : "fail",
+    detail: ok
+      ? "command-safety 导出 sanitizeCommand；command-gate 提供 AXIOM_PTY_APPROVAL_MODE 审批模式；terminal 路由经 CommandGate 接入 ApprovalBridge（拒绝时 Ctrl-C + 提示）。"
+      : `sanitizeCommand=${exported}、approvalMode=${mode}、gateWired=${wired}，交互终端输入未接入审批链。`,
+    measured: { sanitizeExported: exported, approvalMode: mode, gateWired: wired },
+  };
+}
+
 export async function checkHeapStress(deps: AuditDeps): Promise<AuditCheck> {
   const store = deps.atomStore ?? atomStore;
   // 先触发一轮 GC 得到稳定基线
@@ -394,6 +413,7 @@ export async function runRuntimeAudit(deps: AuditDeps = {}): Promise<AuditReport
     checkResourcesBounds(),
     checkMcpClientCleanup(),
     checkPtyCleanup(),
+    checkPtyApproval(),
     checkHeapStress(deps),
   ]);
 

@@ -6,6 +6,20 @@
  */
 import type { RouteContext } from "./types.js";
 import { createPtySession, getSession, listSessions, ptySessionStats } from "../terminal/pty-session.js";
+import { CommandGate } from "../terminal/command-gate.js";
+import type { PtySession } from "../terminal/pty-session.js";
+
+/** 每会话审批门（懒创建）；会话退出/关闭时清理，避免 listener 残留 */
+const gates = new Map<string, CommandGate>();
+
+function gateFor(session: PtySession): CommandGate {
+  let gate = gates.get(session.id);
+  if (!gate) {
+    gate = new CommandGate(session);
+    gates.set(session.id, gate);
+  }
+  return gate;
+}
 
 function sse(data: string): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -16,6 +30,8 @@ export async function handleTerminalCreate(ctx: RouteContext): Promise<Response 
   if (ctx.url.pathname !== "/terminal/session" || ctx.req.method !== "POST") return null;
   try {
     const session = createPtySession();
+    gateFor(session);
+    void session.exited.then(() => gates.delete(session.id));
     return ctx.jsonResponse({ sessionId: session.id }, 200, ctx.baseHeaders);
   } catch (e) {
     return ctx.jsonResponse({ error: (e as Error).message }, 503, ctx.baseHeaders);
@@ -91,7 +107,7 @@ export async function handleTerminalInput(ctx: RouteContext): Promise<Response |
   if (typeof body.data !== "string") {
     return ctx.jsonResponse({ error: "data must be a string" }, 400, ctx.baseHeaders);
   }
-  session.write(body.data);
+  void gateFor(session).write(body.data);
   return ctx.jsonResponse({ ok: true }, 200, ctx.baseHeaders);
 }
 
@@ -103,6 +119,7 @@ export async function handleTerminalClose(ctx: RouteContext): Promise<Response |
   if (!session) {
     return ctx.jsonResponse({ error: "session not found" }, 404, ctx.baseHeaders);
   }
+  gates.delete(match[1]!);
   session.close();
   return ctx.jsonResponse({ ok: true }, 200, ctx.baseHeaders);
 }

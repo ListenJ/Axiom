@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
@@ -17,6 +18,7 @@ export default function Layout() {
   const [terminalOpen, setTerminalOpen] = useState(false)
   useGlobalHotkeys()
   useTheme()
+  const reduceMotion = useReducedMotion()
 
   // 终端栏全局快捷键：Ctrl+` / Ctrl+Shift+` 开合
   useEffect(() => {
@@ -55,13 +57,22 @@ export default function Layout() {
 
         <StatsBar />
         <BottomNav />
-      </div>
 
-      {terminalOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-50">
-          <TerminalPanel onClose={() => setTerminalOpen(false)} />
-        </div>
-      )}
+        {/* 终端栏：作为底部面板升起（slide-up 动画），流式挤压主内容区 */}
+        <AnimatePresence>
+          {terminalOpen && (
+            <motion.div
+              className="shrink-0"
+              initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={reduceMotion ? undefined : { y: '100%', opacity: 0 }}
+              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              <TerminalPanel onClose={() => setTerminalOpen(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {sidebarOpen && (
         <div

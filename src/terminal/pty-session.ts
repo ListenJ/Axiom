@@ -9,7 +9,7 @@
  * 安全边界：
  *   - env 复用 sanitizeSpawnEnv 过滤 API key（与 sandbox/terminal 一致）。
  *   - 会话进程直接运行于服务进程身份；终端面向已通过 API 鉴权的本地管理员，
- *     高危操作由人工把关（未接入沙箱审批链，见 R-024）。
+ *     高危操作由 AXIOM_PTY_APPROVAL_MODE 审批门人工把关（R-024：off/risky/strict）。
  *   - 输出不设截断（真实终端语义），但订阅断开后停止读取推送。
  */
 import { logger } from "../utils/logger.js";
@@ -19,6 +19,8 @@ export interface PtySession {
   id: string;
   /** 写入 stdin（可多次调用；关闭后静默忽略） */
   write(input: string): void;
+  /** 向输出订阅者推送一条本地提示（不经 stdin；用于审批拒绝等场景） */
+  notify(chunk: string): void;
   /** 订阅 stdout/stderr 输出块；返回退订函数 */
   subscribe(listener: (chunk: string) => void): () => void;
   /** 关闭会话（终止子进程，幂等） */
@@ -149,6 +151,11 @@ class PtySessionImpl implements PtySession {
     } catch {
       /* 进程已退出：静默忽略 */
     }
+  }
+
+  notify(chunk: string): void {
+    if (this.closed) return;
+    this.emit(chunk);
   }
 
   subscribe(listener: ChunkListener): () => void {

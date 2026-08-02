@@ -8,14 +8,14 @@
  *  - package.json 暴露 audit:runtime 脚本
  */
 import { describe, it, expect } from "bun:test";
-import { runRuntimeAudit, type AuditDeps } from "../src/core/runtime-audit.js";
+import { runRuntimeAudit, checkPtyApproval, type AuditDeps } from "../src/core/runtime-audit.js";
 import { Cache } from "../src/utils/cache.js";
 import { readFileSync } from "node:fs";
 
 describe("运行时审查机制", () => {
-  it("默认依赖下返回完整 15 项检查且不抛错", async () => {
+  it("默认依赖下返回完整 16 项检查且不抛错", async () => {
     const report = await runRuntimeAudit();
-    expect(report.checks.length).toBe(15);
+    expect(report.checks.length).toBe(16);
     for (const check of report.checks) {
       expect(typeof check.id).toBe("string");
       expect(check.id.length).toBeGreaterThan(0);
@@ -92,6 +92,15 @@ describe("运行时审查机制", () => {
     const measured = bounds!.measured as Record<string, unknown> | undefined;
     expect(measured).toBeDefined();
     expect((measured!.maxBodySize as number) ?? 0).toBeGreaterThan(0);
+  });
+
+  it("注入未接线的源码快照 → pty.approval 为 fail（机制能抓未接线）", async () => {
+    const fail = await checkPtyApproval({ safety: "", gate: "", route: "" });
+    expect(fail.id).toBe("pty.approval");
+    expect(fail.status).toBe("fail");
+    expect(fail.measured).toMatchObject({ sanitizeExported: false, approvalMode: false, gateWired: false });
+    const pass = await checkPtyApproval({});
+    expect(pass.status).toBe("pass");
   });
 
   it("package.json 暴露 audit:runtime 脚本", () => {

@@ -2739,3 +2739,18 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - e2e `npx playwright test e2e/terminal-summary.spec.ts` → 5/5 pass（输入命令断言修正：xterm onData 逐键转发，按序拼接校验）。
   - 后端全量 `bun test tests/`：修复 fetch 泄漏后失败从 17 降到 11，剩余均为环境性（外网 TLS/网络受限：DataPipeline×3、health-checker×2、github-trending）与已知 flaky（Accessibility、C.1/B.3/A.1、callProvider 全量模块缓存顺序），单跑各自通过或单跑即失败（预存在），非本轮回归。
 - **Commit**：`3f67321`（已推送 `internal211/master`）。
+
+---
+
+## 2026-08-02 12:55 +0800 — 交互式终端 PTY + xterm + 审批门 + 底边栏升起动画
+
+- **任务**：(1) 真正系统终端——后端常驻交互 shell 会话（Bun.spawn cmd.exe//bin/bash，stdin 可多次写入、stdout/stderr SSE 推送、会话注册表、关闭钩子），前端 xterm.js 渲染 + FitAddon 自适应，替代一次性占位终端；(2) R-024 PTY 审批门——AXIOM_PTY_APPROVAL_MODE=off|risky|strict，行缓冲/队列/ApprovalBridge 审批（拒绝时 Ctrl-C + notify 提示）、超长部分行透传、审计项 pty.approval（16 项 audit）；(3) 终端栏底部升起动画（framer-motion slide-up + 淡入，reduced-motion 适配，流式挤压主区而非覆盖）。
+- **工具**：主代理（动画/布局/集成验证）、并行子代理（PTY 后端 + xterm 前端 + 审批门，commit 3f67321 已先行提交）、RunCommand（tsc / bun test / audit:runtime / vitest / Playwright）。
+- **执行的操作（文件级）**：
+  - 后端（3f67321 + 工作区）：src/terminal/pty-session.ts（PtySession 深模块：spawn/写/订阅/关闭/closeAll + notify）+ src/routes/terminal.ts（创建/SSE/输入/关闭/列表 5 路由，已注册）；src/utils/command-safety.ts（sanitizeCommand 从 terminal 工具抽取共用）+ src/terminal/command-gate.ts（审批门）+ src/routes/terminal.ts 接入 gate（gates 注册表 + 退出清理）；src/mcp/tools/terminal.ts 改引 command-safety；src/core/runtime-audit.ts checkPtyCleanup + checkPtyApproval（16 项）；src/main.ts pty-sessions 关闭钩子；	ests/pty-session.test.ts（5 用例真实子进程往返）、	ests/command-gate.test.ts（11 用例）。
+  - 前端（3f67321 + 本轮）：rontend/src/lib/pty-terminal.ts（PtyTerminal 适配器：create/SSE 订阅/input/close）+ 测试；components/terminal/TerminalPanel.tsx 重写为 xterm（@xterm/xterm + addon-fit 已安装）+ 测试更新；components/layout/Layout.tsx 终端面板 AnimatePresence slide-up（y:100%→0，0.28s cubic-bezier 标准曲线，流式挤压主区，reduced-motion 直接显示）。
+- **验证**：
+  - 后端 unx tsc --noEmit → 0 错误；pty-session 5 + command-gate 11 等 45 项全绿；un run audit:runtime → 16/16 pass。
+  - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 242 全绿。
+  - e2e terminal-summary/smoke/responsive 15/15 通过（终端开合/交互会话输入/摘要/Git 徽标）。
+- **Commit**：（待提交，含 3f67321 之后的工作区改动）。
