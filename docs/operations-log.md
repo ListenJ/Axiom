@@ -2775,4 +2775,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **工具**：主代理（布局探测：Playwright 逐区块 getBoundingClientRect 校验桌面/移动端打开前后）、RunCommand（tsc / vitest / Playwright）。
 - **执行的操作（文件级）**：rontend/src/components/layout/Layout.tsx 终端 motion.div 从 flex 流内 shrink-0 改为 ixed inset-x-0 bottom-24 z-50 lg:bottom-8（覆盖式 + 底栏让位）。
 - **验证**：桌面（1440×900）main 高度打开终端前后不变（812px，不再被挤压）；终端 y=644-868、StatsBar 868-900 始终可见；移动端（390×844）终端 bottom=748 在 BottomNav(780) 之上。tsc 0 错误；vitest 246 全绿；e2e terminal-summary/responsive/smoke 15/15 通过。
-- **Commit**：（待提交）。
+- **Commit**：`fbde2df`。
