@@ -2793,4 +2793,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 修改 `frontend/src/pages/Settings.tsx`（接入 MotionPreview 与 DiagnosticsSection）。
   - 重构 `frontend/src/lib/nav.ts` + `nav.test.ts`（新增 NAV_SECTIONS 分组与 sessions 项）；`Sidebar.tsx` 按组分渲染并接入真实 `/health` 状态；`Header.tsx` 设置按钮 Bell 图标改为 Settings；`HelpModal.tsx` 移除重复 Git 快捷键；`useGlobalHotkeys.ts` 统一用 VISIBLE_NAV_ITEMS 查找；`Layout.tsx` 终端动画接入 `MOTION_PRESETS.slideUp`。
 - **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 43 文件 / 263 用例全绿；`bun test tests/settings-search.test.ts` 13 用例全绿（设置目录一致性）。
-- **Commit**：`cae647e`
+- **Commit**：`c03cf21`
