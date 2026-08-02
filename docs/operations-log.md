@@ -2754,3 +2754,15 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 242 全绿。
   - e2e terminal-summary/smoke/responsive 15/15 通过（终端开合/交互会话输入/摘要/Git 徽标）。
 - **Commit**：`5b002c3`（3f67321 由并行子代理提交）。
+
+---
+
+## 2026-08-02 13:20 +0800 — 终端主题跟随全局 + 底栏风格统一
+
+- **任务**：xterm 终端配色硬编码（#d4d4d8/#22d3ee）与 Ember 主题不符；面板背景/头部与底栏（StatsBar）不统一。修复：终端前景/光标/ANSI 色板从 CSS 变量实时映射，主题切换联动；面板改底栏同款 bg-secondary + 头部 surface/60 玻璃。
+- **工具**：主代理（TDD：xterm-theme 4 用例）、RunCommand（tsc / vitest / Playwright 视觉验证）。
+- **执行的操作（文件级）**：
+  - 新增 rontend/src/components/terminal/xterm-theme.ts（buildTerminalTheme 纯函数：--text→foreground、--accent→cursor、--on-accent→cursorAccent、accent 35%→selection、语义色→ANSI 红绿黄蓝 + bright 系；cssVarReader 从 getComputedStyle 读取）+ 测试 4 用例。
+  - TerminalPanel.tsx：Terminal 初始化用 buildTerminalTheme；订阅 useApp theme，主题切换时 term.options.theme 重建；面板容器 bg-secondary + 头部 surface/60 玻璃（与 StatsBar 同款 border-t 层级衔接）。
+- **验证**：前端 tsc 0 错误；vitest 246 全绿（+4）；e2e terminal-summary/theme/smoke 14/14 通过；Playwright 实测 dark 前景 = #f3ede4（--text），面板背景随 dark/light 切换（#171410 ↔ 白），xterm DOM renderer 正常渲染。
+- **Commit**：（待提交）。

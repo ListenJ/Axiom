@@ -11,6 +11,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { Terminal as TerminalIcon, Trash2, X } from 'lucide-react'
 import { defaultPtyTerminalAdapter, PtyTerminal, type PtyTerminalAdapter } from '@/lib/pty-terminal'
+import { buildTerminalTheme, cssVarReader } from './xterm-theme'
+import { useApp } from '@/state/useApp'
 
 interface TerminalPanelProps {
   /** 关闭回调（由 Layout 控制开合） */
@@ -25,6 +27,15 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const [state, setState] = useState<ConnState>('connecting')
+  // 跟随全局主题（dark/light）：主题切换时重建 xterm 配色
+  const theme = useApp((s) => s.theme)
+
+  // 从 CSS 变量读取当前主题令牌并应用到 xterm
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.theme = buildTerminalTheme(cssVarReader())
+  }, [theme])
 
   useEffect(() => {
     const container = containerRef.current
@@ -35,11 +46,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
       fontSize: 12,
       lineHeight: 1.25,
       fontFamily: 'JetBrains Mono, Consolas, monospace',
-      theme: {
-        background: 'transparent',
-        foreground: '#d4d4d8',
-        cursor: '#22d3ee',
-      },
+      theme: buildTerminalTheme(cssVarReader()),
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -93,9 +100,9 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     <div
       role="region"
       aria-label="终端"
-      className="flex h-56 flex-col border-t border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-sm"
+      className="flex h-56 flex-col border-t border-[var(--border)] bg-[var(--bg-secondary)] backdrop-blur-sm"
     >
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border)] px-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-3">
         <TerminalIcon size={14} className="text-[var(--accent)]" />
         <span className="text-xs font-medium text-[var(--text)]">终端</span>
         <span className="text-2xs text-[var(--text-muted)]">{statusLabel}</span>
