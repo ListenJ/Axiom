@@ -2794,3 +2794,11 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 重构 `frontend/src/lib/nav.ts` + `nav.test.ts`（新增 NAV_SECTIONS 分组与 sessions 项）；`Sidebar.tsx` 按组分渲染并接入真实 `/health` 状态；`Header.tsx` 设置按钮 Bell 图标改为 Settings；`HelpModal.tsx` 移除重复 Git 快捷键；`useGlobalHotkeys.ts` 统一用 VISIBLE_NAV_ITEMS 查找；`Layout.tsx` 终端动画接入 `MOTION_PRESETS.slideUp`。
 - **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 43 文件 / 263 用例全绿；`bun test tests/settings-search.test.ts` 13 用例全绿（设置目录一致性）。
 - **Commit**：`c03cf21`
+
+## 2026-08-03 15:25 +0800 — 基线修复：workspaceKeyForPath 归一化 '.'
+
+- **任务**：前端评审收口轮次 阶段0——`npm run ci` 基线发现 `workspace-sessions.test.ts` 1 用例红（`groupSessionsForWorkspace` 对路径 `'.'` 生成的键为 `'.'`，测试与调用方期望空键 `''`）。
+- **工具**：主代理（Read/Edit/vitest/git）。
+- **执行的操作（文件级）**：修改 `frontend/src/lib/workspace-sessions.ts`（`workspaceKeyForPath` 归一化后将孤点 `'.'` 映射为 `''`）。
+- **验证**：`vitest run src/lib/workspace-sessions.test.ts` 3 用例全绿。
+- **Commit**：`66007a3`
