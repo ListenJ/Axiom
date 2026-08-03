@@ -6,7 +6,7 @@ import { PageHeader, Button, ShimmerCard } from '@/components/ui'
 export default function OCR() {
   const navigate = useNavigate()
   return (
-    <div className="space-y-5 fade-in">
+    <div className="space-y-5">
       <PageHeader
         icon={<ScanText className="size-5" />}
         title="OCR 文字识别"

@@ -53,7 +53,7 @@ export function RouterSection() {
   const loading = status === null
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Compass className="size-5" />}
         title="模型路由"
@@ -161,7 +161,7 @@ export function TokensSection() {
   }))
 
   return (
-    <div className="fade-in flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -283,7 +283,7 @@ export function ProxiesSection() {
   }, [])
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Globe className="size-5" />}
         title="代理管理"
@@ -401,7 +401,7 @@ export function PerfSection() {
   }, [])
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Activity className="size-5" />}
         title="性能"

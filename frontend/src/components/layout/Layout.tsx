@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Header from './Header'
 import Sidebar from './Sidebar'
@@ -13,6 +13,7 @@ import { useApprovals } from '@/state/useApprovals'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
 import { useTheme } from '@/hooks/useTheme'
 import { useApp } from '@/state/useApp'
+import { useMotion } from '@/hooks/useMotion'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 export default function Layout() {
@@ -23,6 +24,8 @@ export default function Layout() {
   useGlobalHotkeys()
   useTheme()
   const reduceMotion = useReducedMotion()
+  const location = useLocation()
+  const { enabled: pageMotionEnabled } = useMotion()
 
   // HITL 审批：订阅 /ws 的 approval.requested 事件，卸载时断开
   useEffect(() => {
@@ -41,7 +44,24 @@ export default function Layout() {
         <main className="canvas-surface flex min-h-0 flex-1 flex-col">
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="h-full px-4 py-4 md:px-6 md:py-6">
-              <Outlet />
+              {/* 路由级页面过渡：全站唯一入口（mode="wait" 先退场再入场），
+                  消费 MOTION_PRESETS.pageEnter；off/reduced 时静态渲染 */}
+              {pageMotionEnabled ? (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={location.pathname}
+                    className="h-full"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={MOTION_PRESETS.pageEnter}
+                  >
+                    <Outlet />
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                <Outlet />
+              )}
             </div>
           </div>
         </main>

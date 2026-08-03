@@ -6,7 +6,7 @@ import { PageHeader, Button, ShimmerCard } from '@/components/ui'
 export default function Knowledge() {
   const navigate = useNavigate()
   return (
-    <div className="space-y-5 fade-in">
+    <div className="space-y-5">
       <PageHeader
         icon={<BookOpen className="size-5" />}
         title="知识库"

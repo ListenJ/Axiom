@@ -136,7 +136,7 @@ export default function Settings() {
   const sectionOpen = (id: string) => openSections.has(id)
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={theme === 'dark' ? <Moon className="size-5" /> : <Sun className="size-5 text-[var(--warning)]" />}
         title="设置"

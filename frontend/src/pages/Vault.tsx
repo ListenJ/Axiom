@@ -34,7 +34,7 @@ export default function Vault() {
     setSearchParams(id === 'notes' ? {} : { tab: id }, { replace: true })
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 fade-in">
+    <div className="mx-auto max-w-2xl space-y-5">
       <PageHeader
         icon={<Folder className="size-5" />}
         title="知识库"

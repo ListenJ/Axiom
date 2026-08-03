@@ -125,7 +125,7 @@ export default function Git() {
   const behind = status?.behind || 0
 
   return (
-    <div className="fade-in space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <ShimmerCard variant="accent" padding="md">
         <div className="flex items-center justify-between gap-4">

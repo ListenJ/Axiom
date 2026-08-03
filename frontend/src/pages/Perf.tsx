@@ -26,7 +26,7 @@ export default function Perf() {
   }, [])
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Activity className="size-5" />}
         title="性能"

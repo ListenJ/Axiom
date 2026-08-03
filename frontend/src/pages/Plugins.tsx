@@ -339,7 +339,7 @@ export default function Plugins() {
   }
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Puzzle className="size-5" />}
         title="插件市场"

@@ -31,7 +31,7 @@ export default function Code() {
     setSearchParams(id === 'search' ? {} : { tab: id }, { replace: true })
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Code2 className="size-5" />}
         title="代码"

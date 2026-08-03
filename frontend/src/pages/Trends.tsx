@@ -6,7 +6,7 @@ import { PageHeader, Button, ShimmerCard } from '@/components/ui'
 export default function Trends() {
   const navigate = useNavigate()
   return (
-    <div className="stagger space-y-5 fade-in">
+    <div className="stagger space-y-5">
       <PageHeader
         icon={<TrendingUp className="size-5" />}
         title="趋势分析"

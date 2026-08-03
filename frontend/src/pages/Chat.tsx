@@ -18,7 +18,6 @@ import {
   parseTokenContent,
   type Message,
 } from '@/components/chat-panels'
-import { PageTransition } from '@/components/motion'
 import {
   nextId,
   toChatMessages,
@@ -48,7 +47,7 @@ const FALLBACK_MODELS: ModelOption[] = [
 
 /** 画布工具栏图标按钮通用样式（原生 button，避免与 Button size 类冲突） */
 const canvasIconBtn =
-  'press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none'
+  'press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none'
 
 export default function Chat() {
   const location = useLocation()
@@ -397,7 +396,7 @@ export default function Chat() {
   }
 
   return (
-    <PageTransition className="flex h-full gap-0">
+    <div className="flex h-full gap-0">
       {/* Main Chat Area */}
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Scroll container — sub-header and input bar are sticky inside for glass overlay effect */}
@@ -419,7 +418,7 @@ export default function Chat() {
               }}
               aria-label="会话题目"
               title="点击可重命名会话"
-              className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-1.5 text-sm font-semibold text-[var(--text)] outline-none transition-colors hover:bg-[var(--shell-hover)] focus:bg-[var(--surface)] focus:ring-1 focus:ring-[var(--accent)] sm:max-w-72"
+              className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-1.5 text-sm font-semibold text-[var(--text)] outline-none transition-colors hover:bg-[var(--canvas-hover)] focus:bg-[var(--surface)] focus:ring-1 focus:ring-[var(--accent)] sm:max-w-72"
             />
             {activeSession && (
               <span className="hidden shrink-0 text-2xs text-[var(--text-muted)] md:inline">
@@ -435,7 +434,7 @@ export default function Chat() {
                   onClick={() => setOpenMenu(openMenu === 'ide' ? null : 'ide')}
                   aria-label="打开工作区"
                   title="在外部工具中打开工作区"
-                  className="press flex h-8 shrink-0 items-center gap-0.5 rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+                  className="press flex h-8 shrink-0 items-center gap-0.5 rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none"
                 >
                   <Code2 size={16} />
                   <ChevronDown size={12} />
@@ -448,7 +447,7 @@ export default function Chat() {
                     <button
                       type="button"
                       onClick={() => openIn('vscode')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
                     >
                       <Code2 size={14} className="shrink-0 text-[var(--text-muted)]" />
                       VS Code
@@ -456,7 +455,7 @@ export default function Chat() {
                     <button
                       type="button"
                       onClick={() => openIn('cursor')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
                     >
                       <MousePointerClick size={14} className="shrink-0 text-[var(--text-muted)]" />
                       Cursor
@@ -464,7 +463,7 @@ export default function Chat() {
                     <button
                       type="button"
                       onClick={() => openIn('file-manager')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
                     >
                       <FolderOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
                       文件管理器
@@ -565,7 +564,7 @@ export default function Chat() {
           {messages.length === 0 && (
             <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
               {/* 欢迎标题（首页与对话合并：无消息时即首页） */}
-              <div className="fade-in">
+              <div>
                 <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--text)] sm:text-4xl">
                   有什么可以帮助你的？
                 </h1>
@@ -678,6 +677,6 @@ export default function Chat() {
 
       {/* 右侧工具台：仅聊天页挂载，与聊天画布并排同属画布层（移动端抽屉由内部处理） */}
       <RightToolbar />
-    </PageTransition>
+    </div>
   )
 }

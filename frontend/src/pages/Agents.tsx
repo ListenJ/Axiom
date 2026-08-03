@@ -66,7 +66,7 @@ export default function Agents() {
   }
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Bot className="size-5" />}
         title="智能体"

@@ -26,7 +26,7 @@ export default function Search() {
   }
 
   return (
-    <div className="space-y-5 fade-in">
+    <div className="space-y-5">
       <PageHeader
         icon={<SearchIcon className="size-5" />}
         title="搜索"

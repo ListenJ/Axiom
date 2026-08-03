@@ -28,7 +28,7 @@ export default function Login() {
   }
 
   return (
-    <div className="fade-in flex h-screen items-center justify-center bg-[var(--bg)] p-6">
+    <div className="flex h-screen items-center justify-center bg-[var(--bg)] p-6">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-[var(--shadow-md)]">
         <h1 className="text-xl font-semibold text-[var(--text)]">需要身份验证</h1>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">

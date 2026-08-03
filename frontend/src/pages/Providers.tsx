@@ -89,7 +89,7 @@ export default function Providers() {
   }, [providers])
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Globe className="size-5" />}
         title="Provider 管理"

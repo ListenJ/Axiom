@@ -6,7 +6,7 @@ import { PageHeader, Button, ShimmerCard } from '@/components/ui'
 export default function KG() {
   const navigate = useNavigate()
   return (
-    <div className="stagger space-y-5 fade-in">
+    <div className="stagger space-y-5">
       <PageHeader
         icon={<Network className="size-5" />}
         title="知识图谱"

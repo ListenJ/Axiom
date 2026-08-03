@@ -100,7 +100,7 @@ export default function Eval() {
   ]
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
         <PageHeader
           icon={<BarChart3 className="size-5" />}
           title="模型评估"

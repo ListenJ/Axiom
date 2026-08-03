@@ -38,7 +38,7 @@ export default function Router() {
   const loading = status === null
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-6">
       <PageHeader
         icon={<Compass className="size-5" />}
         title="模型路由"
