@@ -49,15 +49,6 @@ export const SETTINGS_CATALOG: SettingItem[] = [
     source: "app",
   },
   {
-    key: "appearance.intro",
-    section: "appearance",
-    label: "开场动画",
-    desc: "重新播放首页的勾勒入场动画，用于快速熟悉功能入口布局。",
-    keywords: ["动画", "首页", "重播", "引导", "开场", "intro"],
-    type: "action",
-    source: "app",
-  },
-  {
     key: "appearance.motion",
     section: "appearance",
     label: "动效强度",

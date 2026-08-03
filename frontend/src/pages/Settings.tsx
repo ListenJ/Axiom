@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Activity, Moon, Sun, Bell, Shield, Globe, Database, RotateCcw, Bot, Brain, FileEdit,
+  Activity, Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
   Wrench, KeyRound, CheckCircle2, Server, Cpu,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 import { useChatPrefs } from '@/state/useChatPrefs'
 import { api, endpoints } from '@/lib/api'
-import { INTRO_STORAGE_KEY } from '@/components/intro/useIntro'
 import SettingsSearch from '@/components/settings/SettingsSearch'
 import ModelManagementSection from '@/components/settings/models-section'
 import MotionPreview from '@/components/settings/MotionPreview'
@@ -69,7 +67,6 @@ export default function Settings() {
   const theme = useApp((s) => s.theme)
   const setTheme = useApp((s) => s.setTheme)
   const toast = useApp((s) => s.toast)
-  const navigate = useNavigate()
   const prefs = useChatPrefs()
 
   const [openSections, setOpenSections] = useState<Set<string>>(
@@ -113,11 +110,6 @@ export default function Settings() {
     setTimeout(() => setHighlightKey(null), 2000)
   }
 
-  const replayIntro = () => {
-    localStorage.removeItem(INTRO_STORAGE_KEY)
-    navigate('/')
-  }
-
   const clearCache = () => {
     api.clearCache()
     toast('API 缓存已清空', 'success')
@@ -149,7 +141,7 @@ export default function Settings() {
       <Collapsible
         icon={<Sun className="size-4" />}
         title="外观"
-        description="主题与开场动画"
+        description="主题与动效"
         open={sectionOpen('appearance')}
         onToggle={(o) => toggleSection('appearance', o)}
       >
@@ -184,20 +176,6 @@ export default function Settings() {
                   </Button>
                 ))}
               </div>
-            </div>
-          </ShimmerCard>
-          <ShimmerCard padding="md" className={highlightKey === 'appearance.intro' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                <RotateCcw className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-[var(--text)]">开场动画</h3>
-                <p className="text-xs text-[var(--text-secondary)]">重新播放首页的勾勒入场动画。</p>
-              </div>
-              <Button size="sm" variant="secondary" onClick={replayIntro} aria-label="重播开场动画">
-                重播
-              </Button>
             </div>
           </ShimmerCard>
           <MotionPreview highlight={highlightKey === 'appearance.motion'} />

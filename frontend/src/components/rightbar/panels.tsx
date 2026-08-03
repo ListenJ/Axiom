@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  TerminalSquare,
 } from 'lucide-react'
 import { Button, Skeleton, Textarea } from '@/components/ui'
 import { endpoints } from '@/lib/api'
@@ -336,6 +337,25 @@ export function ReviewPanel() {
           {result}
         </pre>
       )}
+    </div>
+  )
+}
+
+/** 终端入口：唤起 Layout 全局终端浮层（单实例，与 Ctrl+` 同一路径）。 */
+export function TerminalGuidePanel() {
+  const setTerminalOpen = useApp((s) => s.setTerminalOpen)
+  return (
+    <div className="space-y-4 p-3">
+      <PanelHeader
+        icon={<TerminalSquare className="size-4 text-[var(--accent)]" />}
+        title="终端"
+      />
+      <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
+        终端以底部浮层呈现，全局限一个实例；也可用 Ctrl+` 快捷键开合。
+      </p>
+      <Button onClick={() => setTerminalOpen(true)} className="w-full" icon={<TerminalSquare className="size-3.5" />}>
+        打开终端
+      </Button>
     </div>
   )
 }

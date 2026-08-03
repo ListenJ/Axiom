@@ -1,4 +1,4 @@
-﻿import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   FileText,
   GitBranch,
@@ -13,11 +13,11 @@ import {
   SummaryPanel,
   GitPanel,
   ReviewPanel,
+  TerminalGuidePanel,
   BrowserPanel,
   FilesPanel,
   MiniChatPanel,
 } from './panels'
-import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useApp } from '@/state/useApp'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
 
@@ -96,7 +96,7 @@ export default function RightToolbar() {
               {active === 'summary' && <SummaryPanel />}
               {active === 'git' && <GitPanel />}
               {active === 'review' && <ReviewPanel />}
-              {active === 'terminal' && <TerminalPanel onClose={() => setOpen(false)} />}
+              {active === 'terminal' && <TerminalGuidePanel />}
               {active === 'browser' && <BrowserPanel />}
               {active === 'files' && <FilesPanel />}
               {active === 'mini-chat' && <MiniChatPanel />}
