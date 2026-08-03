@@ -2826,4 +2826,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 修改 `frontend/src/components/ui/HelpModal.tsx`：清单改从注册表生成，补齐 Ctrl+\` 终端缺口（g/数字导航由 nav 派生项覆盖）。
   - 说明：工作区中原有未提交的一批改动（`useApp.ts` 的 terminalOpen/rightbarOpen 状态、`Header.tsx` 菜单化、`useGlobalHotkeys` 终端快捷键、`api.ts`、`BottomNav/Sidebar/StatsBar.tsx`、`index.css`、`src/routes/index.ts` 及对应测试）是本阶段基线前提（HEAD 本身 tsc 不通过：Layout 依赖的 state 仅存在于该批改动中），随本提交一并入库。
 - **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 47 文件 / 291 用例全绿（含新增 13 用例）。
-- **Commit**：`待补`
+- **Commit**：`fe2f8e8`
