@@ -2802,3 +2802,15 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **执行的操作（文件级）**：修改 `frontend/src/lib/workspace-sessions.ts`（`workspaceKeyForPath` 归一化后将孤点 `'.'` 映射为 `''`）。
 - **验证**：`vitest run src/lib/workspace-sessions.test.ts` 3 用例全绿。
 - **Commit**：`66007a3`
+
+
+## 2026-08-03 15:31 +0800 — 右侧工具台收口到聊天页（重构阶段 1）
+
+- **任务**：RightToolbar 从全局 Layout 移到聊天页，使右栏只在 /chat 出现。
+- **工具**：Kimi Code 子代理（Read/Grep/Edit）、Bash（tsc / vitest / git）。
+- **执行的操作（文件级）**：
+  - 修改 `frontend/src/components/layout/Layout.tsx`：移除 `<RightToolbar />` 及 import，`<main>` 恢复单列（保留 overflow/间距结构）。
+  - 修改 `frontend/src/pages/Chat.tsx`：新增 RightToolbar import，在 PageTransition flex 行内、聊天画布之后挂载 `<RightToolbar />`（同属 canvas 配色层，移动端抽屉不变）。
+  - 排查：`openRightTool`/`rightbarOpen` 在 Chat.tsx 与 rightbar/ 之外无页面级调用点（仅 useApp store 与其测试）；e2e 中仅 `terminal-summary.spec.ts` 断言右栏且均在 /chat，无需改动。
+- **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 46 文件 / 278 用例全绿。
+- **Commit**：`cc50db9`
