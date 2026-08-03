@@ -2864,3 +2864,17 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 提交时 `src-tauri/` 命中 .gitignore（历史已跟踪），改用 `git add -f` 暂存该目录 4 个已跟踪文件。
 - **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 45 文件 / 284 用例全绿（open-in.test.ts 7 用例含新增 3）；`bun test tests/tauri-integration.test.ts` 25 用例全绿。`cargo check --manifest-path src-tauri/Cargo.toml` 受环境限制未能完成：`native/Cargo.toml` 预存清单错误（`deadpool-postgres is optional, but workspace dependencies cannot be optional`）导致解析失败，与本改动无关（单独对 `native/crates/route` 跑 cargo metadata 复现同一错误）。
 - **Commit**：`b8d893b`
+
+## 2026-08-03 17:15 +0800 — 统一路由级动画流程 + 修两处视觉债（重构阶段 5）
+
+- **任务**：路由级页面过渡收口到 Layout 单一体系（AnimatePresence 进/退场），各页去 CSS `.fade-in`；Chat 画布工具栏 hover 换 canvas 系 token；`.glass*` 硬编码 slate 色改暖棕设计 token；PageTransition 组件按规则 4 归档。
+- **工具**：Kimi Code 子代理（Read/Edit/Grep/Glob）、Bash（vitest / tsc / vite build / git / mv）。
+- **执行的操作（文件级）**：
+  - 修改 `frontend/src/components/layout/Layout.tsx`：Outlet 层新增 `useLocation` + `AnimatePresence mode="wait"`（key=location.pathname），进入 opacity/y 6→0、退场 opacity 0/y -6，transition 消费 `MOTION_PRESETS.pageEnter`；`useMotion` 三档开关 off/reduced 时静态渲染 Outlet。
+  - 修改 `frontend/src/pages/Chat.tsx`：移除 `PageTransition` 包裹与 import（根节点改为普通 div）；画布工具栏 6 处 `hover:bg-[var(--shell-hover)]` 改 `hover:bg-[var(--canvas-hover)]`；欢迎标题处 `fade-in` 类移除。
+  - 修改 `frontend/src/styles/index.css`：`:root` 与 `[data-theme='light']` 各新增 `--canvas-hover`（暗 #221d15 / 亮 #f3ede3）；`.glass/.glass-sm/.glass-lg` 背景 `rgba(17,24,39,α)` → `rgba(30,26,20,α)`（=--surface 暖棕），亮主题 `rgba(249,250,251,α)` → `rgba(250,247,242,α)`、边框 `rgba(55,65,81,α)` → `rgba(41,33,25,α)`。
+  - 各页移除 `.fade-in` 类用法（Login/KG/Git/Knowledge/Code/Eval/Perf/Proxies/Agents/OCR/Providers/Vault/Sessions/Plugins/Trends/Tokens/Research/Settings/Search/Router 20 页 + `components/provider-hub-sections.tsx` 4 处）。`.fade-in` CSS 块保留：`ShimmerCard` 的 `animate` prop 仍引用（含其测试断言）。
+  - 归档（archive/ 在 .gitignore，记录落本地 archive/ARCHIVE-LOG.md）：`frontend/src/components/motion/PageTransition.tsx`、`PageTransition.test.tsx` → `archive/frontend/motion/`，随后 git rm；`components/motion/index.ts` 移除导出。FadeIn/Stagger/Pressable/Reveal 保留。
+  - `motion-presets.test.ts` / `useMotionPrefs.test.ts` 未受影响（presets 与 prefs 均无改动），无需同步。
+- **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 44 文件 / 282 用例全绿；`npm run build` 成功（dist 971 kB，chunk 体积警告为既有提示）。
+- **Commit**：`8dad563`
