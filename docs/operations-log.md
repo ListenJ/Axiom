@@ -2878,3 +2878,16 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - `motion-presets.test.ts` / `useMotionPrefs.test.ts` 未受影响（presets 与 prefs 均无改动），无需同步。
 - **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 44 文件 / 282 用例全绿；`npm run build` 成功（dist 971 kB，chunk 体积警告为既有提示）。
 - **Commit**：`8dad563`
+
+## 2026-08-03 17:31 +0800 — 终端改单实例 + 归档未挂载死代码（重构阶段 6）
+
+- **任务**：终端双实例收口为单实例——右栏 terminal 工具不再内嵌 TerminalPanel，改引导唤起 Layout 全局浮层；归档 Grep 确认零引用的死代码（TracePanel / PipelineIndicator / GitStatusBadge / intro 开场动画），Settings 同步移除"重播开场动画"入口，前后端 settings 目录同步移除 appearance.intro。
+- **工具**：Kimi Code 子代理（Read/Edit/Grep/Bash）、Bash（tsc / vitest / vite build / bun test / git / mv）。
+- **执行的操作（文件级）**：
+  - 修改 `frontend/src/components/rightbar/panels.tsx`：新增 `TerminalGuidePanel`（PanelHeader + 说明 + "打开终端"按钮，`setTerminalOpen(true)`），lucide 加 `TerminalSquare` 导入。
+  - 修改 `frontend/src/components/rightbar/RightToolbar.tsx`：移除 `TerminalPanel` 导入与内嵌渲染，terminal 面板改渲染 `TerminalGuidePanel`；右栏 7 个工具数量不变。
+  - 修改 `frontend/src/pages/Settings.tsx`：移除"重播开场动画"ShimmerCard、`replayIntro`、`INTRO_STORAGE_KEY`/`useNavigate`/`RotateCcw` 导入与 `navigate`；外观分区描述改"主题与动效"。
+  - 修改 `frontend/src/components/settings/settings-data.ts` 与 `src/core/settings-catalog.ts`：同步移除 `appearance.intro` 目录条目。
+  - 归档（archive/ 在 .gitignore，记录落本地 archive/ARCHIVE-LOG.md）后 git rm：`frontend/src/components/TracePanel.tsx`、`PipelineIndicator.tsx`、`layout/GitStatusBadge.tsx`(+test)、`intro/`（IntroOutline.tsx(+test)、useIntro.ts(+test)）→ `archive/frontend/dead-code/`（intro 整目录在其下）。
+- **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 41 文件 / 268 用例全绿（减少的 3 个测试文件为随组件归档的配套测试）；`npm run build` 成功（dist 970 kB，chunk 体积警告为既有提示）；`bun test tests/settings-search.test.ts` 13 用例全绿。e2e `terminal-summary.spec.ts` 只覆盖 Layout 浮层路径（画布按钮 + Ctrl+`），不受右栏改动影响。
+- **Commit**：`d0d88ad`
