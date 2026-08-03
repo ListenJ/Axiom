@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Header from './Header'
@@ -12,26 +12,17 @@ import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useApprovals } from '@/state/useApprovals'
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys'
 import { useTheme } from '@/hooks/useTheme'
+import { useApp } from '@/state/useApp'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(false)
+  const sidebarOpen = useApp((s) => s.sidebarOpen)
+  const setSidebarOpen = useApp((s) => s.setSidebarOpen)
+  const terminalOpen = useApp((s) => s.terminalOpen)
+  const setTerminalOpen = useApp((s) => s.setTerminalOpen)
   useGlobalHotkeys()
   useTheme()
   const reduceMotion = useReducedMotion()
-
-  // 终端栏全局快捷键：Ctrl+` / Ctrl+Shift+` 开合
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.key === '`' || e.key === 'Backquote') && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault()
-        setTerminalOpen((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   // HITL 审批：订阅 /ws 的 approval.requested 事件，卸载时断开
   useEffect(() => {
@@ -44,15 +35,14 @@ export default function Layout() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header
-          onMenuClick={() => setSidebarOpen(true)}
-          onTerminalToggle={() => setTerminalOpen((v) => !v)}
-          terminalOpen={terminalOpen}
-        />
+        <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6">
-          <div className="min-w-0 flex-1">
-            <Outlet />
+        {/* 画布层：聊天/页面内容（右侧工具台仅挂载于聊天页，见 pages/Chat.tsx） */}
+        <main className="canvas-surface flex min-h-0 flex-1 flex-col">
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            <div className="h-full px-4 py-4 md:px-6 md:py-6">
+              <Outlet />
+            </div>
           </div>
         </main>
 

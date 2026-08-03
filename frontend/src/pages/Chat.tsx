@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   Send, MessageSquare,
-  ChevronRight,
+  ChevronRight, ChevronDown,
   Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
   ArrowDown, Sparkles, Activity, TrendingUp, Cpu, Search as SearchIcon,
+  Code2, FolderOpen, MousePointerClick, PanelRight, TerminalSquare, FileText,
 } from 'lucide-react'
 import {
   Button,
@@ -26,7 +27,10 @@ import {
 import { ChatSessionsSidebar, type ChatSession } from '@/components/chat-sessions-sidebar'
 import { FisheyeNav } from '@/components/fisheye/FisheyeNav'
 import { ModelPicker, type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
+import RightToolbar from '@/components/rightbar/RightToolbar'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
+import { generateChatTitle, loadChatTitle, saveChatTitle } from '@/lib/chat-title'
+import { openWorkspaceIn, type OpenTarget } from '@/lib/open-in'
 import { useApp } from '@/state/useApp'
 import { useChatPrefs } from '@/state/useChatPrefs'
 
@@ -43,6 +47,10 @@ const FALLBACK_MODELS: ModelOption[] = [
   { id: 'glm-4-flash-zhipu', name: 'GLM-4-Flash (智谱)', provider: 'zhipu' },
   { id: 'glm-4.7-flash-free', name: 'GLM-4.7-Flash (免费)', provider: 'zhipu' },
 ]
+
+/** 画布工具栏图标按钮通用样式（原生 button，避免与 Button size 类冲突） */
+const canvasIconBtn =
+  'press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none'
 
 export default function Chat() {
   const location = useLocation()
@@ -64,6 +72,10 @@ export default function Chat() {
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('medium')
   const scroller = useRef<HTMLDivElement | null>(null)
   const toast = useApp((s) => s.toast)
+  const openRightTool = useApp((s) => s.openRightTool)
+  const setTerminalOpen = useApp((s) => s.setTerminalOpen)
+  const rightbarOpen = useApp((s) => s.rightbarOpen)
+  const setRightbarOpen = useApp((s) => s.setRightbarOpen)
   const abortRef = useRef<AbortController | null>(null)
 
   // 模型列表：优先拉取后端 /models（含供应商），失败回退本地列表
@@ -118,6 +130,58 @@ export default function Chat() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSession, setActiveSession] = useState<string | null>(null)
+
+  // 画布工具栏：会话题目（自动生成 + 手动改名，按 session 持久化）
+  const [chatTitle, setChatTitle] = useState('Chat')
+  // 画布工具栏：IDE 打开下拉（VS Code / Cursor / 文件管理器）
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null)
+  const [openMenu, setOpenMenu] = useState<'ide' | null>(null)
+  const ideRef = useRef<HTMLDivElement | null>(null)
+
+  // 会话切换时载入对应标题
+  useEffect(() => {
+    setChatTitle(loadChatTitle(activeSession) ?? 'Chat')
+  }, [activeSession])
+
+  // 读取当前工作区绝对路径（供 IDE/文件管理器协议使用）
+  useEffect(() => {
+    endpoints.workspaces
+      .list()
+      .then((d) => {
+        const ws = (d as { workspaces?: Array<{ path?: string }> } | null)?.workspaces?.[0]
+        if (ws?.path) setWorkspacePath(ws.path)
+      })
+      .catch(() => {})
+  }, [])
+
+  // 点击画布其他区域时收起 IDE 下拉
+  useEffect(() => {
+    if (!openMenu) return
+    const onDown = (e: MouseEvent) => {
+      if (ideRef.current && !ideRef.current.contains(e.target as Node)) setOpenMenu(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [openMenu])
+
+  const commitChatTitle = () => {
+    const t = chatTitle.trim()
+    if (!t) {
+      setChatTitle(loadChatTitle(activeSession) ?? 'Chat')
+      return
+    }
+    setChatTitle(t)
+    saveChatTitle(activeSession, t)
+  }
+
+  const openIn = (target: OpenTarget) => {
+    setOpenMenu(null)
+    if (!workspacePath) {
+      toast('未获取到工作区路径，请稍候重试', 'warning')
+      return
+    }
+    openWorkspaceIn(target, workspacePath)
+  }
 
   const loadSessions = useCallback(() => {
     endpoints.memory
@@ -195,6 +259,15 @@ export default function Chat() {
     setInput('')
   }
 
+  // 左栏工作区会话浮层跳转：/chat?session=<id> 到达后自动加载对应会话
+  useEffect(() => {
+    const sessionId = searchParams.get('session')
+    if (!sessionId) return
+    void loadSession(sessionId)
+    setSearchParams({}, { replace: true })
+    // 仅在 query 变化时触发；setSearchParams 清空后 effect 不会再重复执行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const loadSession = async (sessionId: string) => {
     setActiveSession(sessionId)
     try {
@@ -216,6 +289,12 @@ export default function Chat() {
   const send = async (text?: string) => {
     const msg = (text ?? input).trim()
     if (!msg || sending) return
+    // 首条用户消息自动生成会话题目（已有 session 时同步持久化）
+    if (messages.length === 0) {
+      const title = generateChatTitle(msg)
+      setChatTitle(title)
+      saveChatTitle(activeSession, title)
+    }
     const userMsg: Message = { id: nextId(), role: 'user', content: msg }
     const assistantId = nextId()
     setMessages((m) => [...m, userMsg, { id: assistantId, role: 'assistant', content: '', streaming: true }])
@@ -374,64 +453,154 @@ export default function Chat() {
           onScroll={handleScroll}
           className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
-        {/* Header with three toggle controls + hub 页签 — sticky glass */}
-        <div className="sticky top-0 z-20 glass-sm flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-2">
-          {!sidebarOpen && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open sessions"
-              icon={<ChevronRight size={16} />}
+        {/* 画布工具栏：行1 = 会话题目 + IDE/摘要/终端/工具台，行2 = 页签 + 功能开关 — sticky glass */}
+        <div className="canvas-raised sticky top-0 z-20 flex flex-col gap-2 border-b border-[var(--border)] px-3 py-2 sm:px-4">
+          <div className="flex items-center gap-2">
+            {!sidebarOpen && (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="打开会话列表"
+                title="打开会话列表"
+                className={canvasIconBtn}
+              >
+                <ChevronRight size={16} />
+              </button>
+            )}
+            <MessageSquare size={16} className="shrink-0 text-[var(--accent)]" />
+            <input
+              value={chatTitle}
+              onChange={(e) => setChatTitle(e.target.value)}
+              onBlur={commitChatTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+              }}
+              aria-label="会话题目"
+              title="点击可重命名会话"
+              className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-1.5 text-sm font-semibold text-[var(--text)] outline-none transition-colors hover:bg-[var(--shell-hover)] focus:bg-[var(--surface)] focus:ring-1 focus:ring-[var(--accent)] sm:max-w-72"
             />
-          )}
-          <MessageSquare size={16} className="text-[var(--accent)]" />
-          <span className="text-sm font-semibold text-[var(--text)]">Chat</span>
-          {activeSession && (
-            <span className="text-2xs text-[var(--text-muted)]">
-              ({activeSession.slice(0, 8)})
-            </span>
-          )}
+            {activeSession && (
+              <span className="hidden shrink-0 text-2xs text-[var(--text-muted)] md:inline">
+                ({activeSession.slice(0, 8)})
+              </span>
+            )}
 
-          {/* Hub 页签：对话 / 使用统计（?tab=chat|usage 同步，默认对话） */}
-          <Tabs
-            tabs={hubTabs}
-            active={activeTab}
-            onChange={setActiveTab}
-            size="sm"
-          />
-
-          {/* 三项可配置功能切换 */}
-          {activeTab === 'chat' && (
-          <div className="ml-auto flex items-center gap-1.5">
-            <ToggleChip
-              active={showThinking}
-              onClick={toggleShowThinking}
-              icon={<Brain size={12} />}
-              label="思考"
-              title={showThinking ? '显示思考过程（已开启）' : '隐藏思考过程（已关闭）'}
-            />
-            <ToggleChip
-              active={expandFileChanges}
-              onClick={toggleExpandFileChanges}
-              icon={<FileEdit size={12} />}
-              label="文件变更"
-              title={expandFileChanges ? '默认展开文件修改明细（已开启）' : '默认折叠文件修改明细（已关闭）'}
-            />
-            <ToggleChip
-              active={autoAcceptPermissions}
-              onClick={handlePermissionToggle}
-              icon={autoAcceptPermissions ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
-              label={autoAcceptPermissions ? '自动接收' : '手动确认'}
-              title={
-                autoAcceptPermissions
-                  ? '权限模式：自动接收低风险操作（高风险仍需确认）'
-                  : '权限模式：所有操作手动确认'
-              }
-              variant={autoAcceptPermissions ? 'success' : 'default'}
-            />
+            <div className="ml-auto flex items-center gap-1">
+              {/* 用 IDE / 文件管理器打开当前工作区 */}
+              <div className="relative" ref={ideRef}>
+                <button
+                  type="button"
+                  onClick={() => setOpenMenu(openMenu === 'ide' ? null : 'ide')}
+                  aria-label="打开工作区"
+                  title="在外部工具中打开工作区"
+                  className="press flex h-8 shrink-0 items-center gap-0.5 rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+                >
+                  <Code2 size={16} />
+                  <ChevronDown size={12} />
+                </button>
+                {openMenu === 'ide' && (
+                  <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-lg)]">
+                    <p className="px-2 pb-1 pt-1.5 text-2xs font-medium text-[var(--text-muted)]">
+                      用以下方式打开
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openIn('vscode')}
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                    >
+                      <Code2 size={14} className="shrink-0 text-[var(--text-muted)]" />
+                      VS Code
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openIn('cursor')}
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                    >
+                      <MousePointerClick size={14} className="shrink-0 text-[var(--text-muted)]" />
+                      Cursor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openIn('file-manager')}
+                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                    >
+                      <FolderOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
+                      文件管理器
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => openRightTool('summary')}
+                aria-label="打开摘要"
+                title="工作摘要"
+                className={canvasIconBtn}
+              >
+                <FileText size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTerminalOpen(true)}
+                aria-label="打开终端"
+                title="唤出终端（Ctrl+`）"
+                className={canvasIconBtn}
+              >
+                <TerminalSquare size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightbarOpen(!rightbarOpen)}
+                aria-label="工具台"
+                title={rightbarOpen ? '收起右侧工具台' : '唤出右侧工具台'}
+                className={`${canvasIconBtn} ${rightbarOpen ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : ''}`}
+              >
+                <PanelRight size={16} />
+              </button>
+            </div>
           </div>
-          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Hub 页签：对话 / 使用统计（?tab=chat|usage 同步，默认对话） */}
+            <Tabs
+              tabs={hubTabs}
+              active={activeTab}
+              onChange={setActiveTab}
+              size="sm"
+            />
+
+            {/* 三项可配置功能切换 */}
+            {activeTab === 'chat' && (
+            <div className="ml-auto flex items-center gap-1.5">
+              <ToggleChip
+                active={showThinking}
+                onClick={toggleShowThinking}
+                icon={<Brain size={12} />}
+                label="思考"
+                title={showThinking ? '显示思考过程（已开启）' : '隐藏思考过程（已关闭）'}
+              />
+              <ToggleChip
+                active={expandFileChanges}
+                onClick={toggleExpandFileChanges}
+                icon={<FileEdit size={12} />}
+                label="文件变更"
+                title={expandFileChanges ? '默认展开文件修改明细（已开启）' : '默认折叠文件修改明细（已关闭）'}
+              />
+              <ToggleChip
+                active={autoAcceptPermissions}
+                onClick={handlePermissionToggle}
+                icon={autoAcceptPermissions ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
+                label={autoAcceptPermissions ? '自动接收' : '手动确认'}
+                title={
+                  autoAcceptPermissions
+                    ? '权限模式：自动接收低风险操作（高风险仍需确认）'
+                    : '权限模式：所有操作手动确认'
+                }
+                variant={autoAcceptPermissions ? 'success' : 'default'}
+              />
+            </div>
+            )}
+          </div>
         </div>
 
         {/* Permission mode banner (visible when auto-accept is on) */}
@@ -501,7 +670,7 @@ export default function Chat() {
         </div>
 
         {/* Input bar — sticky glass, content scrolls underneath */}
-        <div className="sticky bottom-0 z-20 glass-sm flex items-end gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
+        <div className="canvas-raised sticky bottom-0 z-20 flex items-end gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
           <textarea
             id="home-input"
             value={input}
@@ -564,6 +733,9 @@ export default function Chat() {
           />
         )}
       </div>
+
+      {/* 右侧工具台：仅聊天页挂载，与聊天画布并排同属画布层（移动端抽屉由内部处理） */}
+      <RightToolbar />
     </PageTransition>
   )
 }
