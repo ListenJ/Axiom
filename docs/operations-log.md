@@ -2848,3 +2848,19 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 说明：计划要求"先提交归档再 git rm"，但 `archive/` 在 .gitignore 中且 a6db741 明确取消跟踪，故归档记录仅落本地 ARCHIVE-LOG.md，时序上归档移动先于 git rm。
 - **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 45 文件 / 281 用例全绿（chat-title.test.ts 7 用例含新增 2）。
 - **Commit**：`204e721`
+
+## 2026-08-03 16:18 +0800 — 「用什么打开」Tauri 走原生 shell 插件（重构阶段 4）
+
+- **任务**：让"用什么打开"（VSCode/Cursor/文件管理器）在 Tauri 桌面端走原生 shell 插件，Web 端保留协议 URL 降级；bundle.targets 收窄排除 macOS。
+- **工具**：Kimi Code 子代理（Read/Write/Edit/Grep）、Bash（vitest / tsc / bun test / cargo / git）。
+- **执行的操作（文件级）**：
+  - 修改 `src-tauri/Cargo.toml`：加 `tauri-plugin-shell = "2"`（与 tauri 2.11 兼容）。
+  - 修改 `src-tauri/src/lib.rs`：builder 上 `.plugin(tauri_plugin_shell::init())`。
+  - 修改 `src-tauri/capabilities/default.json`：permissions 加 `shell:allow-open`。
+  - 修改 `src-tauri/tauri.conf.json`：`bundle.targets` 由 `"all"` 收窄为 `["nsis", "deb", "appimage"]`（Windows + Linux，排除 mac）。
+  - 修改 `frontend/src/lib/open-in.ts`：`isTauri()`（`@tauri-apps/api/core`，已核实 v2 实际导出）检测后走 `@tauri-apps/plugin-shell` 的 `open()` 唤起协议 URL；失败时经 `useApp.getState().toast` 提示"未能唤起 XX，请确认已安装"（warning）；非 Tauri 维持锚点协议方案；更新文件头注释。
+  - 修改 `frontend/src/lib/open-in.test.ts`：vi.mock `@tauri-apps/api/core` / `@tauri-apps/plugin-shell` / `@/state/useApp`，新增 3 用例覆盖 Tauri 唤起、失败 toast、Web 锚点降级（TDD：先 2 红后全绿）。
+  - 修改 `tests/tauri-integration.test.ts`：`bundle.targets` 断言同步为 `["nsis", "deb", "appimage"]`。
+  - 提交时 `src-tauri/` 命中 .gitignore（历史已跟踪），改用 `git add -f` 暂存该目录 4 个已跟踪文件。
+- **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 45 文件 / 284 用例全绿（open-in.test.ts 7 用例含新增 3）；`bun test tests/tauri-integration.test.ts` 25 用例全绿。`cargo check --manifest-path src-tauri/Cargo.toml` 受环境限制未能完成：`native/Cargo.toml` 预存清单错误（`deadpool-postgres is optional, but workspace dependencies cannot be optional`）导致解析失败，与本改动无关（单独对 `native/crates/route` 跑 cargo metadata 复现同一错误）。
+- **Commit**：`b8d893b`
