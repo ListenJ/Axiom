@@ -2898,4 +2898,4 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **工具**：主代理（npm run ci / curl 健康检查 / 文档编辑）。
 - **执行的操作（文件级）**：修改 `docs/FRONTEND-REVIEW-2026-08-03.md`（新增第 6 节、划除已完成的后续建议项）。
 - **验证**：`frontend npm run ci` 全绿（tsc 0 错误 + vitest 268 用例 + build 成功）；e2e 未执行（本机后端 18789 未运行，curl /health 无响应）。
-- **Commit**：待补
+- **Commit**：`6a11e37`
