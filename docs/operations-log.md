@@ -2835,3 +2835,16 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **执行的操作（文件级）**：新增入库 `frontend/src/components/rightbar/`、`frontend/src/lib/chat-title.ts(+test)`、`frontend/src/lib/open-in.ts(+test)`、`frontend/src/lib/workspace-sessions.test.ts`、`src/routes/workspaces.ts`、`tests/workspaces.test.ts`。
 - **验证**：阶段 2 已跑 `tsc --noEmit` 0 错误、`vitest run` 47 文件 291 用例全绿（含本批文件）。
 - **Commit**：`d08aa39`
+
+## 2026-08-03 16:06 +0800 — 合并三套会话入口为一套（重构阶段 3）
+
+- **任务**：外壳 Sidebar 工作区会话浮层作为唯一会话列表入口并渲染自动会话标题；移除 Chat 页内嵌会话侧栏与鱼眼导航两个重复入口；被删文件按规则 4 归档。
+- **工具**：Kimi Code 子代理（Read/Edit/Write/Grep/Glob）、Bash（vitest / tsc / git / mv）。
+- **执行的操作（文件级）**：
+  - 修改 `frontend/src/lib/chat-title.ts`：新增 `sessionListTitle(sessionId)`（列表展示用，优先已保存标题，回退 session_id 前 16 字符）；`chat-title.test.ts` 先加 2 用例（TDD 红→绿）。
+  - 修改 `frontend/src/components/layout/Sidebar.tsx`：会话浮层列表项标题改渲染 `sessionListTitle(s.session_id)`（title 属性保留完整 session_id）。
+  - 修改 `frontend/src/pages/Chat.tsx`：移除 `ChatSessionsSidebar`/`FisheyeNav` 引用与 JSX，精简 `sessions`/`sidebarOpen`/`loadSessions`/`newChat` 状态及"打开会话列表"按钮；保留 `activeSession`、标题编辑 input、画布工具栏、RightToolbar；会话切换统一走外壳侧栏浮层 → `?session=` query。
+  - 归档（git rm 后入库归档记录见 archive/ARCHIVE-LOG.md；archive/ 按 a6db741 约定为本地目录不入 git）：`frontend/src/components/chat-sessions-sidebar.tsx`、`frontend/src/components/fisheye/`（4 文件）、`e2e/fisheye.spec.ts`、`e2e/fisheye-hover.png`、`e2e/fisheye-idle.png` → `archive/frontend/chat-sessions/`。其中 e2e 三个文件本就未被 git 跟踪，直接移动归档。
+  - 说明：计划要求"先提交归档再 git rm"，但 `archive/` 在 .gitignore 中且 a6db741 明确取消跟踪，故归档记录仅落本地 ARCHIVE-LOG.md，时序上归档移动先于 git rm。
+- **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 45 文件 / 281 用例全绿（chat-title.test.ts 7 用例含新增 2）。
+- **Commit**：`204e721`
