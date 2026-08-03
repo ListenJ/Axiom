@@ -2827,3 +2827,11 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 说明：工作区中原有未提交的一批改动（`useApp.ts` 的 terminalOpen/rightbarOpen 状态、`Header.tsx` 菜单化、`useGlobalHotkeys` 终端快捷键、`api.ts`、`BottomNav/Sidebar/StatsBar.tsx`、`index.css`、`src/routes/index.ts` 及对应测试）是本阶段基线前提（HEAD 本身 tsc 不通过：Layout 依赖的 state 仅存在于该批改动中），随本提交一并入库。
 - **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 47 文件 / 291 用例全绿（含新增 13 用例）。
 - **Commit**：`fe2f8e8`
+
+## 2026-08-03 15:40 +0800 — 入库前置重构产物，修复仓库完整性
+
+- **任务**：阶段 2 子代理发现 HEAD 引用了未跟踪文件（rightbar/、chat-title、open-in、workspaces 路由），导致检出的 HEAD 无法通过 tsc；本提交将这些上一评审轮次的产物入库。
+- **工具**：主代理（git status / git grep HEAD 引用核实 / vitest）。
+- **执行的操作（文件级）**：新增入库 `frontend/src/components/rightbar/`、`frontend/src/lib/chat-title.ts(+test)`、`frontend/src/lib/open-in.ts(+test)`、`frontend/src/lib/workspace-sessions.test.ts`、`src/routes/workspaces.ts`、`tests/workspaces.test.ts`。
+- **验证**：阶段 2 已跑 `tsc --noEmit` 0 错误、`vitest run` 47 文件 291 用例全绿（含本批文件）。
+- **Commit**：`d08aa39`
