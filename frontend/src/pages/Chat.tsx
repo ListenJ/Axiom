@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   Send, MessageSquare,
-  ChevronRight, ChevronDown,
+  ChevronDown,
   Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
   ArrowDown, Sparkles, Activity, TrendingUp, Cpu, Search as SearchIcon,
   Code2, FolderOpen, MousePointerClick, PanelRight, TerminalSquare, FileText,
@@ -24,8 +24,6 @@ import {
   toChatMessages,
   copyToClipboard,
 } from '@/components/chat-utils'
-import { ChatSessionsSidebar, type ChatSession } from '@/components/chat-sessions-sidebar'
-import { FisheyeNav } from '@/components/fisheye/FisheyeNav'
 import { ModelPicker, type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
 import RightToolbar from '@/components/rightbar/RightToolbar'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
@@ -126,9 +124,7 @@ export default function Chat() {
       })
   }, [autoAcceptPermissions, toggleAutoAcceptPermissions, toast])
 
-  // Sessions sidebar
-  const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // 当前会话（由外壳侧栏会话浮层经 ?session= 切换，或新对话为 null）
   const [activeSession, setActiveSession] = useState<string | null>(null)
 
   // 画布工具栏：会话题目（自动生成 + 手动改名，按 session 持久化）
@@ -183,18 +179,6 @@ export default function Chat() {
     openWorkspaceIn(target, workspacePath)
   }
 
-  const loadSessions = useCallback(() => {
-    endpoints.memory
-      .sessions()
-      .then((d) => {
-        const data = d as { sessions: ChatSession[] }
-        if (Array.isArray(data.sessions)) {
-          setSessions(data.sessions.sort((a, b) => b.last_active - a.last_active))
-        }
-      })
-      .catch(() => {})
-  }, [])
-
   useEffect(() => {
     endpoints.chat
       .history()
@@ -214,8 +198,7 @@ export default function Chat() {
         }
       })
       .catch(() => {})
-    loadSessions()
-  }, [loadSessions])
+  }, [])
 
   // 智能滚动：仅当用户已在底部附近时自动滚动，避免打断用户阅读历史
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
@@ -247,17 +230,6 @@ export default function Chat() {
       setInput(initialMessage)
     }
   }, [initialMessage])
-
-  // Refresh sessions when messages change
-  useEffect(() => {
-    if (messages.length > 0) loadSessions()
-  }, [messages.length, loadSessions])
-
-  const newChat = () => {
-    setMessages([])
-    setActiveSession(null)
-    setInput('')
-  }
 
   // 左栏工作区会话浮层跳转：/chat?session=<id> 到达后自动加载对应会话
   useEffect(() => {
@@ -426,25 +398,6 @@ export default function Chat() {
 
   return (
     <PageTransition className="flex h-full gap-0">
-      {/* Sessions Sidebar */}
-      <ChatSessionsSidebar
-        sessions={sessions}
-        activeSession={activeSession}
-        sidebarOpen={sidebarOpen}
-        onSelect={(id) => void loadSession(id)}
-        onNewChat={newChat}
-        onClose={() => setSidebarOpen(false)}
-      />
-
-      {/* 折叠态鱼眼导航：会话侧栏收起时以窄条圆点呈现（hover 高斯展开，点击加载） */}
-      {!sidebarOpen && sessions.length > 0 && (
-        <FisheyeNav
-          sessions={sessions}
-          activeSession={activeSession}
-          onSelect={(id) => void loadSession(id)}
-        />
-      )}
-
       {/* Main Chat Area */}
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Scroll container — sub-header and input bar are sticky inside for glass overlay effect */}
@@ -456,17 +409,6 @@ export default function Chat() {
         {/* 画布工具栏：行1 = 会话题目 + IDE/摘要/终端/工具台，行2 = 页签 + 功能开关 — sticky glass */}
         <div className="canvas-raised sticky top-0 z-20 flex flex-col gap-2 border-b border-[var(--border)] px-3 py-2 sm:px-4">
           <div className="flex items-center gap-2">
-            {!sidebarOpen && (
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="打开会话列表"
-                title="打开会话列表"
-                className={canvasIconBtn}
-              >
-                <ChevronRight size={16} />
-              </button>
-            )}
             <MessageSquare size={16} className="shrink-0 text-[var(--accent)]" />
             <input
               value={chatTitle}

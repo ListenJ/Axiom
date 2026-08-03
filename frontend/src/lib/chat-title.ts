@@ -28,3 +28,8 @@ export function saveChatTitle(sessionId: string | null | undefined, title: strin
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(STORAGE_PREFIX + sessionId, title.trim())
 }
+
+/** 列表展示用标题：优先已保存标题，无标题时回退 session id 前 16 字符。 */
+export function sessionListTitle(sessionId: string): string {
+  return loadChatTitle(sessionId) ?? sessionId.slice(0, 16)
+}

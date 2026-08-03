@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { generateChatTitle, loadChatTitle, saveChatTitle } from './chat-title'
+import { generateChatTitle, loadChatTitle, saveChatTitle, sessionListTitle } from './chat-title'
 
 describe('chat-title', () => {
   beforeEach(() => {
@@ -33,5 +33,14 @@ describe('chat-title', () => {
     saveChatTitle(undefined, 'y')
     expect(loadChatTitle('x')).toBeNull()
     expect(loadChatTitle('y')).toBeNull()
+  })
+
+  it('list title returns the saved title when present', () => {
+    saveChatTitle('sess-0001', '深度研究')
+    expect(sessionListTitle('sess-0001')).toBe('深度研究')
+  })
+
+  it('list title falls back to a truncated session id when no title saved', () => {
+    expect(sessionListTitle('abcdefgh1234567890xxxx')).toBe('abcdefgh12345678')
   })
 })

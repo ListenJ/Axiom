@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { X, FolderOpen, MessageSquare, Clock, ChevronRight, Settings, Keyboard } from 'lucide-react'
 import { NAV_SECTIONS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
@@ -6,6 +6,7 @@ import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
 import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
+import { sessionListTitle } from '@/lib/chat-title'
 import { formatTime, formatTokens } from '@/components/chat-utils'
 
 interface SidebarProps {
@@ -184,8 +185,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                           >
                             <MessageSquare size={12} className="shrink-0 text-[var(--text-muted)]" />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-2xs text-[var(--text)]">
-                                {s.session_id.slice(0, 16)}
+                              <span className="block truncate text-2xs text-[var(--text)]" title={s.session_id}>
+                                {sessionListTitle(s.session_id)}
                               </span>
                               <span className="block text-2xs text-[var(--text-muted)]">
                                 {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
