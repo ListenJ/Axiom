@@ -60,6 +60,7 @@ import {
 import { handleTraceList, handleTraceDetail } from "./traces.js";
 import { handleGitRoutes } from "./git.js";
 import { handleSettingsCatalog, handleSettingsSearch } from "./settings.js";
+import { handleWorkspaces } from "./workspaces.js";
 import { handleAuditDiagnostics } from "./audit.js";
 import { handleTerminalCreate, handleTerminalStream, handleTerminalInput, handleTerminalClose, handleTerminalList } from "./terminal.js";
 
@@ -206,6 +207,8 @@ const handlers: RouteHandler[] = [
   handleTraceDetail,
   // Git service (user git commit/push/status)
   handleGitRoutes,
+  // Workspaces (工作区列表)
+  handleWorkspaces,
   // Settings (设置目录 + 语义搜索)
   handleSettingsCatalog,
   handleSettingsSearch,
@@ -413,6 +416,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "DELETE", path: "/terminal/session/:id", handler: handleTerminalClose },
     { method: "GET", path: "/terminal/sessions", handler: handleTerminalList },
 
+    // Workspaces
+    { method: "GET", path: "/api/workspaces", handler: handleWorkspaces },
     // Git service (user git commit/push/status)
     { method: "GET", path: "/api/git/status", handler: handleGitRoutes },
     { method: "GET", path: "/api/git/diff", handler: handleGitRoutes },

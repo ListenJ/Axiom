@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import Button from './Button'
-import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { SHORTCUTS } from '@/lib/shortcuts'
 import { useApp } from '@/state/useApp'
 
 export default function HelpModal() {
@@ -8,14 +8,11 @@ export default function HelpModal() {
   const setOpen = useApp((s) => s.setHelpOpen)
   if (!open) return null
 
-  const shortcuts: { key: string; desc: string }[] = [
-    ...VISIBLE_NAV_ITEMS.map((n) => ({ key: n.shortcut, desc: `打开 ${n.label}` })),
-    { key: 'Shift+T', desc: '切换深色 / 浅色主题' },
-    { key: '/', desc: '聚焦搜索' },
-    { key: 'Ctrl/Cmd+K', desc: '聚焦搜索' },
-    { key: '?', desc: '打开 / 关闭此对话框' },
-    { key: 'Esc', desc: '关闭对话框或失焦' },
-  ]
+  // 清单统一来自 lib/shortcuts.ts 注册表（导航项 + 全局快捷键）
+  const shortcuts: { key: string; desc: string }[] = SHORTCUTS.map((s) => ({
+    key: s.label,
+    desc: s.description,
+  }))
 
   return (
     <div

@@ -62,6 +62,15 @@
   --bottom-nav-height: 64px;
   --content-max-width: 1440px;
 
+  /* App chrome split: 顶栏 + 左右侧栏同一外壳色，中间内容区用画布色 */
+  --shell-bg: #171310;
+  --shell-bg-raised: #201b15;
+  --shell-hover: #201b15;
+  --shell-border: #2a2319;
+  --shell-border-strong: #382f21;
+  --canvas-bg: #0f0d0a;
+  --canvas-bg-raised: #191510;
+
   /* Spacing — 8dp grid (MD3-inspired) */
   --space-1: 4px;
   --space-2: 8px;
@@ -173,6 +182,14 @@
   --shadow: 0 2px 8px rgba(41, 33, 25, 0.08), 0 0 0 1px rgba(41, 33, 25, 0.04);
   --shadow-md: 0 8px 24px rgba(41, 33, 25, 0.1), 0 0 0 1px rgba(41, 33, 25, 0.05);
   --shadow-lg: 0 16px 48px rgba(41, 33, 25, 0.15), 0 0 0 1px rgba(41, 33, 25, 0.06);
+
+  --shell-bg: #f2ecdf;
+  --shell-bg-raised: #ebe4d4;
+  --shell-hover: #eae2d1;
+  --shell-border: #e2d7c2;
+  --shell-border-strong: #d5c7ab;
+  --canvas-bg: #faf7f2;
+  --canvas-bg-raised: #ffffff;
 }
 
 /* ── Base Reset ─────────────────────────────────────────────── */
@@ -443,6 +460,25 @@ a:focus-visible,
 [data-theme='light'] .glass-lg {
   background: rgba(249, 250, 251, 0.90);
   border: 1px solid rgba(55, 65, 81, 0.08);
+}
+
+/* ── Shell / Canvas Surfaces ────────────────────────────────────── */
+/* 外壳 = 顶栏 + 左右侧栏（同一底色，形成整体工具框架）；
+   画布 = 中间聊天/内容区（独立底色，与外壳在视觉上明确分层） */
+.shell-surface {
+  background-color: var(--shell-bg);
+}
+
+.shell-raised {
+  background-color: var(--shell-bg-raised);
+}
+
+.canvas-surface {
+  background-color: var(--canvas-bg);
+}
+
+.canvas-raised {
+  background-color: var(--canvas-bg-raised);
 }
 
 /* ── Elevation 4 (modal/dialog) ──────────────────────────────── */

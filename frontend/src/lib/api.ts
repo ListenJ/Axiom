@@ -71,6 +71,9 @@ export interface ChatMessage {
   content: string
 }
 
+import type { DiffFile, WebFetchResult, LightpandaStatus, WorkspaceSummary } from './workspace-sessions'
+
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
@@ -471,6 +474,8 @@ export const endpoints = {
       api.get('/search', { params: { q: query, ...options } }),
     code: (query: string) => api.get('/search/code', { params: { q: query } }),
     suggest: (query: string) => api.get('/search/suggest', { params: { q: query } }),
+    webFetch: (url: string) => api.get<WebFetchResult>('/web-fetch', { params: { url } }),
+    lightpandaStatus: () => api.get<LightpandaStatus>('/lightpanda/status', { cache: false }),
   },
   codegraph: {
     status: () => api.get('/codegraph/status'),
@@ -630,6 +635,10 @@ export const endpoints = {
     close: (sessionId: string) => api.delete(`/terminal/session/${encodeURIComponent(sessionId)}`),
     list: () => api.get<{ sessions: string[]; stats: { sessions: number } }>('/terminal/sessions'),
   },
+  workspaces: {
+    list: () => api.get<{ workspaces: WorkspaceSummary[] }>('/api/workspaces', { cache: false }),
+  },
+
   git: {
     status: () => api.get<{
       success: boolean
@@ -645,6 +654,10 @@ export const endpoints = {
       error?: string
     }>('/api/git/status'),
     branch: () => api.get<{ success: boolean; current?: string; branches?: string[] }>('/api/git/branch'),
+    diff: () =>
+      api.get<{ success: boolean; files?: DiffFile[]; diff?: string; error?: string }>('/api/git/diff', {
+        cache: false,
+      }),
   },
 }
 

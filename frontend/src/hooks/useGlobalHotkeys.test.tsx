@@ -23,6 +23,9 @@ describe('useGlobalHotkeys', () => {
       theme: 'dark',
       sidebarOpen: false,
       helpOpen: false,
+      terminalOpen: false,
+      rightbarOpen: true,
+      rightbarTool: 'summary',
       toasts: [],
     })
   })
@@ -70,6 +73,15 @@ describe('useGlobalHotkeys', () => {
     renderHook('/')
     press('Escape')
     expect(useApp.getState().helpOpen).toBe(false)
+  })
+
+  it('toggles terminal on Ctrl+Backquote', () => {
+    renderHook('/')
+    expect(useApp.getState().terminalOpen).toBe(false)
+    press('`', { ctrlKey: true })
+    expect(useApp.getState().terminalOpen).toBe(true)
+    press('`', { ctrlKey: true })
+    expect(useApp.getState().terminalOpen).toBe(false)
   })
 
   it('toggles theme on Shift+T', () => {

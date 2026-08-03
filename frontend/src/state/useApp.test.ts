@@ -7,6 +7,9 @@ describe('useApp store', () => {
       theme: 'dark',
       sidebarOpen: false,
       helpOpen: false,
+      terminalOpen: false,
+      rightbarOpen: true,
+      rightbarTool: 'summary',
       toasts: [],
     })
     localStorage.clear()
@@ -47,6 +50,28 @@ describe('useApp store', () => {
       expect(useApp.getState().helpOpen).toBe(true)
       useApp.getState().setHelpOpen(false)
       expect(useApp.getState().helpOpen).toBe(false)
+    })
+  })
+
+  describe('terminal', () => {
+    it('opens and closes', () => {
+      useApp.getState().setTerminalOpen(true)
+      expect(useApp.getState().terminalOpen).toBe(true)
+      useApp.getState().setTerminalOpen(false)
+      expect(useApp.getState().terminalOpen).toBe(false)
+    })
+  })
+
+  describe('rightbar', () => {
+    it('toggles open/close and tracks the active tool', () => {
+      useApp.getState().setRightbarOpen(false)
+      expect(useApp.getState().rightbarOpen).toBe(false)
+      useApp.getState().setRightbarTool('git')
+      expect(useApp.getState().rightbarTool).toBe('git')
+      expect(useApp.getState().rightbarOpen).toBe(false)
+      useApp.getState().openRightTool('terminal')
+      expect(useApp.getState().rightbarTool).toBe('terminal')
+      expect(useApp.getState().rightbarOpen).toBe(true)
     })
   })
 

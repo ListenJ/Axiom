@@ -2814,3 +2814,16 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 排查：`openRightTool`/`rightbarOpen` 在 Chat.tsx 与 rightbar/ 之外无页面级调用点（仅 useApp store 与其测试）；e2e 中仅 `terminal-summary.spec.ts` 断言右栏且均在 /chat，无需改动。
 - **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 46 文件 / 278 用例全绿。
 - **Commit**：`cc50db9`
+
+## 2026-08-03 15:46 +0800 — 快捷键单一注册表（重构阶段 2）
+
+- **任务**：建立 `lib/shortcuts.ts` 声明式注册表作为唯一事实来源，消除 useGlobalHotkeys / Header / HelpModal / nav 四处硬编码。
+- **工具**：Kimi Code 子代理（Read/Write/Edit）、Bash（tsc / vitest / git）。
+- **执行的操作（文件级）**：
+  - 新增 `frontend/src/lib/shortcuts.ts`（注册表：id/label/keys/修饰键语义/描述/分类；nav 项从 `VISIBLE_NAV_ITEMS` 派生；导出 `matchShortcut`/`shortcutLabel`）+ `shortcuts.test.ts`（TDD 先行，13 用例：id 唯一、标签非空、全局规则覆盖、匹配语义）。
+  - 修改 `frontend/src/hooks/useGlobalHotkeys.ts`：匹配分发改为消费注册表，行为与输入框豁免不变。
+  - 修改 `frontend/src/components/layout/Header.tsx`：菜单项快捷键标注改从 `shortcutLabel(id)` 取。
+  - 修改 `frontend/src/components/ui/HelpModal.tsx`：清单改从注册表生成，补齐 Ctrl+\` 终端缺口（g/数字导航由 nav 派生项覆盖）。
+  - 说明：工作区中原有未提交的一批改动（`useApp.ts` 的 terminalOpen/rightbarOpen 状态、`Header.tsx` 菜单化、`useGlobalHotkeys` 终端快捷键、`api.ts`、`BottomNav/Sidebar/StatsBar.tsx`、`index.css`、`src/routes/index.ts` 及对应测试）是本阶段基线前提（HEAD 本身 tsc 不通过：Layout 依赖的 state 仅存在于该批改动中），随本提交一并入库。
+- **验证**：frontend `tsc --noEmit` 0 错误；`vitest run` 47 文件 / 291 用例全绿（含新增 13 用例）。
+- **Commit**：`待补`

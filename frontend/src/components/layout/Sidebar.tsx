@@ -1,26 +1,26 @@
-import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { X } from 'lucide-react'
+﻿import { useEffect, useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { X, FolderOpen, MessageSquare, Clock, ChevronRight, Settings, Keyboard } from 'lucide-react'
 import { NAV_SECTIONS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
 import { endpoints } from '@/lib/api'
+import { useApp } from '@/state/useApp'
+import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
+import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
+import { formatTime, formatTokens } from '@/components/chat-utils'
 
 interface SidebarProps {
   open: boolean
   onClose: () => void
 }
 
-function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${seconds} 秒`
-  const mins = Math.floor(seconds / 60)
-  if (mins < 60) return `${mins} 分钟`
-  const hours = Math.floor(mins / 60)
-  const rest = mins % 60
-  return rest > 0 ? `${hours} 小时 ${rest} 分` : `${hours} 小时`
-}
-
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const navigate = useNavigate()
+  const setHelpOpen = useApp((s) => s.setHelpOpen)
   const [health, setHealth] = useState<{ status?: string; version?: string; uptime?: number } | null>(null)
   const [healthError, setHealthError] = useState(false)
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [workspaceError, setWorkspaceError] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -42,16 +42,50 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const [w, s] = await Promise.allSettled([endpoints.workspaces.list(), endpoints.memory.sessions()])
+        if (!alive) return
+        if (w.status === 'fulfilled' && Array.isArray(w.value?.workspaces)) {
+          setWorkspaces(w.value.workspaces)
+          setWorkspaceError(false)
+        } else {
+          setWorkspaceError(true)
+        }
+        const sSessions = s.status === 'fulfilled' ? (s.value as { sessions?: SessionSummary[] } | null)?.sessions : undefined
+        if (Array.isArray(sSessions)) {
+          setSessions(sSessions)
+        }
+      } catch {
+        if (alive) setWorkspaceError(true)
+      }
+    }
+    void load()
+    const t = setInterval(load, 30_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [])
+
   const groups = NAV_SECTIONS
     .map((section) => ({ ...section, items: VISIBLE_NAV_ITEMS.filter((i) => i.section === section.id) }))
     .filter((group) => group.items.length > 0)
   const online = !healthError && health?.status === 'ok'
+  const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 8)
+
+  const openSession = (sessionId: string) => {
+    navigate(`/chat?session=${encodeURIComponent(sessionId)}`)
+    onClose()
+  }
 
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-[var(--border)]
-        glass-sm
+        fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[var(--shell-border)]
+        shell-surface
         transform transition-transform duration-300 ease-out
         lg:static lg:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
@@ -59,7 +93,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       aria-label="主导航"
     >
       {/* Brand */}
-      <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
         <div className="flex items-center gap-2">
           <svg className="h-8 w-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="8" fill="url(#logo-gradient)" />
@@ -81,11 +115,96 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
+          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
           aria-label="关闭菜单"
         >
           <X size={18} />
         </button>
+      </div>
+
+      {/* Workspaces + sessions */}
+      <div className="shrink-0 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-3 pb-1 pt-3">
+          <p className="px-1 text-2xs font-medium text-[var(--text-muted)]">
+            打开的工作区
+          </p>
+          {workspaces.length > 0 && (
+            <span className="rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
+              {workspaces.length}
+            </span>
+          )}
+        </div>
+        {workspaceError ? (
+          <p className="px-4 pb-3 text-2xs text-[var(--text-muted)]">
+            工作区服务不可用，请打开设置诊断
+          </p>
+        ) : workspaces.length === 0 ? (
+          <p className="px-4 pb-3 text-2xs text-[var(--text-muted)]">
+            暂无工作区
+          </p>
+        ) : (
+          <div className="space-y-0.5 p-2">
+            {workspaces.map((ws) => {
+              const key = ws.path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+              const wsSessions = sessionsByWorkspace.get(key) ?? []
+              return (
+                <div key={ws.id} className="group relative">
+                  <div className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors group-hover:bg-[var(--shell-hover)] group-focus-within:bg-[var(--shell-hover)]">
+                    <FolderOpen size={16} className="shrink-0 text-[var(--accent)]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium text-[var(--text)]" title={ws.name}>
+                        {ws.name}
+                      </span>
+                      <span className="block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
+                        {ws.branch} · {wsSessionCountLabel(ws, wsSessions)}
+                      </span>
+                    </span>
+                    <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
+
+                  {/* 悬停/聚焦浮层：该工作区的会话 */}
+                  <div
+                    className="invisible absolute left-full top-0 z-50 ml-1 hidden w-64 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 opacity-0 shadow-[var(--shadow-lg)] transition-all duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 lg:block"
+                  >
+                    <p className="px-2 pb-1 text-2xs font-medium text-[var(--text-muted)]">
+                      最近会话
+                    </p>
+                    {wsSessions.length === 0 ? (
+                      <p className="px-2 pb-2 text-2xs text-[var(--text-muted)]">
+                        该工作区暂无会话
+                      </p>
+                    ) : (
+                      <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                        {wsSessions.map((s) => (
+                          <button
+                            key={s.session_id}
+                            type="button"
+                            onClick={() => openSession(s.session_id)}
+                            className="press flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                          >
+                            <MessageSquare size={12} className="shrink-0 text-[var(--text-muted)]" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-2xs text-[var(--text)]">
+                                {s.session_id.slice(0, 16)}
+                              </span>
+                              <span className="block text-2xs text-[var(--text-muted)]">
+                                {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
+                              </span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 text-2xs text-[var(--text-muted)]">
+                              <Clock size={10} />
+                              {formatTime(s.last_active)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Nav items grouped by section */}
@@ -107,7 +226,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]'
                     }`
                   }
                 >
@@ -138,24 +257,46 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer: live health */}
-      <div className="border-t border-[var(--border)] p-3">
-        <div className="shimmer-border rounded-lg p-2.5">
-          <div className="flex items-center gap-2">
-            <div className={`pulse-dot size-2 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
-            <span className="text-2xs text-[var(--text-muted)]">
-              {online ? '服务在线' : healthError ? '服务不可达' : '正在检查…'}
+      {/* Footer: account bar */}
+      <div className="border-t border-[var(--border)] p-2">
+        <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              navigate('/settings')
+              onClose()
+            }}
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+            aria-label="打开设置"
+            title="设置"
+          >
+            <Settings size={16} />
+          </button>
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-xs font-medium text-[var(--text)]">
+              本地工作区
             </span>
-          </div>
-          <p className="mt-1 text-2xs text-[var(--text-muted)]">
-            {online && health
-              ? `${health.version ?? 'Axiom'} · 运行 ${formatUptime(health.uptime ?? 0)}`
-              : healthError
-                ? '请检查后端服务或打开设置诊断'
-                : '正在读取网关健康状态'}
-          </p>
+            <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
+              <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
+              {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+            aria-label="键盘快捷键"
+            title="键盘快捷键"
+          >
+            <Keyboard size={16} />
+          </button>
         </div>
       </div>
     </aside>
   )
+}
+
+function wsSessionCountLabel(ws: WorkspaceSummary, sessions: SessionSummary[]): string {
+  if (sessions.length > 0) return `${ws.sessionCount} 个会话 · ${sessions.length} 最近`
+  return `${ws.sessionCount} 个会话`
 }

@@ -49,7 +49,7 @@ export default function StatsBar() {
   }, [fetchStats, fetchTokenDetails])
 
   return (
-    <div className="flex items-center justify-center gap-6 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-2xs text-[var(--text-secondary)]">
+    <div className="shell-surface flex items-center justify-center gap-6 border-t border-[var(--shell-border)] px-4 py-2 text-2xs text-[var(--text-secondary)]">
       <div className="flex items-center gap-1.5">
         <Activity className="size-3 text-[var(--success)]" />
         <span>任务 {stats?.activeTasks ?? '—'}</span>

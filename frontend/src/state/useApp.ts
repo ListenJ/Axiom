@@ -2,15 +2,31 @@ import { create } from 'zustand'
 
 type Theme = 'dark' | 'light'
 
+export type RightbarTool =
+  | 'summary'
+  | 'git'
+  | 'review'
+  | 'terminal'
+  | 'browser'
+  | 'files'
+  | 'mini-chat'
+
 interface AppState {
   theme: Theme
   sidebarOpen: boolean
   helpOpen: boolean
+  terminalOpen: boolean
+  rightbarOpen: boolean
+  rightbarTool: RightbarTool
   toasts: { id: number; type: 'info' | 'success' | 'error' | 'warning'; message: string }[]
   setTheme: (t: Theme) => void
   toggleTheme: () => void
   setSidebarOpen: (open: boolean) => void
   setHelpOpen: (open: boolean) => void
+  setTerminalOpen: (open: boolean) => void
+  setRightbarOpen: (open: boolean) => void
+  setRightbarTool: (tool: RightbarTool) => void
+  openRightTool: (tool: RightbarTool) => void
   toast: (message: string, type?: 'info' | 'success' | 'error' | 'warning') => void
   dismissToast: (id: number) => void
 }
@@ -30,6 +46,9 @@ export const useApp = create<AppState>((set, get) => ({
   theme: readInitialTheme(),
   sidebarOpen: false,
   helpOpen: false,
+  terminalOpen: false,
+  rightbarOpen: true,
+  rightbarTool: 'summary',
   toasts: [],
   setTheme: (t) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_KEY, t)
@@ -41,6 +60,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setHelpOpen: (open) => set({ helpOpen: open }),
+  setTerminalOpen: (open) => set({ terminalOpen: open }),
+  setRightbarOpen: (open) => set({ rightbarOpen: open }),
+  setRightbarTool: (tool) => set({ rightbarTool: tool }),
+  openRightTool: (tool) => set({ rightbarTool: tool, rightbarOpen: true }),
   toast: (message, type = 'info') => {
     const id = ++toastId
     set({ toasts: [...get().toasts, { id, type, message }] })
