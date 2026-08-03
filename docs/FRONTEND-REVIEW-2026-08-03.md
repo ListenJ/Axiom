@@ -74,5 +74,20 @@ React 19 + Vite 6 + TypeScript + Tailwind 3 + Zustand 5 + framer-motion 12
 ## 5. 后续建议（不在本次范围）
 
 - P3 巡检：`StatsBar` 缓存率 emoji（💾）改为 lucide 图标，统一视觉语言。
-- 路由级 `PageTransition` 目前各页面自行包裹，后续可在 Layout `Outlet` 处统一挂载。
+- ~~路由级 `PageTransition` 目前各页面自行包裹，后续可在 Layout `Outlet` 处统一挂载。~~（已于 2026-08-03 收口轮完成，见第 6 节）
 - 设置页分区由硬编码 Collapsible 改为 `SETTING_SECTIONS` 驱动的可配置渲染，减少重复。
+
+## 6. 评审收口轮（2026-08-03 下午，已全部落地并推送）
+
+按"外壳（顶栏系统菜单 + 左栏）/ 画布（聊天区 + 右栏）"分层模型，对评审后残留缺口做收口：
+
+1. **右栏收口聊天页**：`RightToolbar` 从全局 Layout 移入 Chat 页组件树（`cc50db9`），仅聊天区可见，视觉归属画布层。
+2. **快捷键单一注册表**：新增 `frontend/src/lib/shortcuts.ts`（声明式注册表 + `matchShortcut`/`shortcutLabel`），useGlobalHotkeys / Header 菜单 / HelpModal 三处硬编码统一消费，HelpModal 补齐 Ctrl+\`、Shift+T 等缺口（`fe2f8e8`）。
+3. **会话入口三合为一**：外壳侧栏会话浮层为唯一入口，列表渲染 `chat-title.ts` 自动标题（`sessionListTitle` 回退 id 截断）；Chat 内嵌会话侧栏与鱼眼导航归档删除（`204e721`）。
+4. **open-in 走 Tauri 原生**：src-tauri 注册 `tauri-plugin-shell` + `shell:allow-open` 权限，`bundle.targets` 收窄为 nsis/deb/appimage（排除 macOS）；`open-in.ts` 增加 `isTauri()` 分支，Tauri 用 plugin-shell `open()`，Web 保留协议 URL，失败弹 toast 降级（`b8d893b`）。
+5. **动画流程统一**：路由级过渡收口到 Layout（`useLocation` + `AnimatePresence mode="wait"`，消费 `MOTION_PRESETS.pageEnter` 与 `useMotion` 三档），各页 `.fade-in` 与 PageTransition 封装移除；新增 `--canvas-hover` token 修正画布工具栏 hover 用外壳色问题；`.glass*` 硬编码 slate 蓝灰改暖棕 token（`8dad563`）。
+6. **终端单实例 + 死代码归档**：右栏 terminal 面板改为引导打开全局浮层（Ctrl+\` 同一路径），全应用仅 Layout 浮层一份 PTY 实例；TracePanel / PipelineIndicator / GitStatusBadge / intro 开场动画归档删除，Settings"重播开场动画"入口与前后端目录条目同步移除（`d0d88ad`）。
+
+设置页"调试与检查"分区经复核已满足需求（运行环境识别 + 服务探针 + 诊断快照），本轮未新增。
+
+**验证**：`frontend npm run ci`（tsc + 268 vitest 用例 + build）全绿；`bun test tests/tauri-integration.test.ts` 25 用例、`tests/settings-search.test.ts` 13 用例全绿。e2e（playwright）因本机后端 18789 未运行未执行；`cargo check` 受 `native/Cargo.toml` 预存工作区清单错误阻塞（与本轮无关，待单独修复）。

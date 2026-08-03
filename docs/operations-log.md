@@ -2891,3 +2891,11 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 归档（archive/ 在 .gitignore，记录落本地 archive/ARCHIVE-LOG.md）后 git rm：`frontend/src/components/TracePanel.tsx`、`PipelineIndicator.tsx`、`layout/GitStatusBadge.tsx`(+test)、`intro/`（IntroOutline.tsx(+test)、useIntro.ts(+test)）→ `archive/frontend/dead-code/`（intro 整目录在其下）。
 - **验证**：frontend `npm run lint`（tsc --noEmit）0 错误；`npx vitest run` 41 文件 / 268 用例全绿（减少的 3 个测试文件为随组件归档的配套测试）；`npm run build` 成功（dist 970 kB，chunk 体积警告为既有提示）；`bun test tests/settings-search.test.ts` 13 用例全绿。e2e `terminal-summary.spec.ts` 只覆盖 Layout 浮层路径（画布按钮 + Ctrl+`），不受右栏改动影响。
 - **Commit**：`d0d88ad`
+
+## 2026-08-03 18:05 +0800 — 评审收口文档 + 全量终验
+
+- **任务**：阶段 7/8 收尾——设置页"调试与检查"分区复核（已满足需求，未新增）；`docs/FRONTEND-REVIEW-2026-08-03.md` 追加第 6 节"评审收口轮"记录 6 个阶段的结论与 commit；全量终验。
+- **工具**：主代理（npm run ci / curl 健康检查 / 文档编辑）。
+- **执行的操作（文件级）**：修改 `docs/FRONTEND-REVIEW-2026-08-03.md`（新增第 6 节、划除已完成的后续建议项）。
+- **验证**：`frontend npm run ci` 全绿（tsc 0 错误 + vitest 268 用例 + build 成功）；e2e 未执行（本机后端 18789 未运行，curl /health 无响应）。
+- **Commit**：待补
