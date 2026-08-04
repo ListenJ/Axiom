@@ -2899,3 +2899,17 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **执行的操作（文件级）**：修改 `docs/FRONTEND-REVIEW-2026-08-03.md`（新增第 6 节、划除已完成的后续建议项）。
 - **验证**：`frontend npm run ci` 全绿（tsc 0 错误 + vitest 268 用例 + build 成功）；e2e 未执行（本机后端 18789 未运行，curl /health 无响应）。
 - **Commit**：`6a11e37`
+
+## 2026-08-03 13:15 +0800 — mihomo 透明代理修复：环路 + SNAT + 节点选择（服务器运维）
+
+- **任务**：修复 data 服务器 mihomo TUN 透明代理断网问题（Windows 0.108 / listen 0.150 / data 自身均受影响），并固化持久化配置。
+- **工具**：Bash（ssh/scp/curl/ip/iptables/systemctl）、Write（脚本）、Edit（services.md）。
+- **执行的操作（文件级）**：
+  - 根因 1（环路）：mihomo auto-route 的 `9002: from 198.18.0.0/30 iif lo lookup 2022` 规则把 mihomo 自己发出的连接重新导入 TUN → 环路超时。修复：`routing-mark: 2022` + `ip rule add fwmark 2022 lookup main pref 100`（mihomo 连接优先走 main 表，不环路）。
+  - 根因 2（SNAT）：mihomo 连接源地址是 198.18.0.1（TUN IP），出物理口后路由器无法回包。修复：`iptables -t nat -A POSTROUTING -s 198.18.0.0/16 -j MASQUERADE`。
+  - 根因 3（节点假阳性）：PROXY 组 url-test 自动选中 c85s1（TCP 通但 SS 协议握手失败）。修复：PROXY 组改 `select` 类型，手动切到 s801（用户确认的低倍率好节点），mihomo cache 持久化选择。
+  - 持久化：新建 `/usr/local/bin/mihomo-post.sh`（ExecStartPost 执行：fwmark 规则 + MASQUERADE，幂等）、`/usr/local/bin/mihomo-stop.sh`（ExecStopPost 清理）；`/etc/systemd/system/mihomo.service` 改调这两个脚本（systemd 不支持 `||` 内联语法，曾导致启动失败）。
+  - 订阅：机场服务器 `clash-sub-proxy.armhub.cn` 偶发 EOF（curl 与 mihomo 拉取均失败），mihomo 缓存兜底节点不丢。
+  - 修改 `docs/services.md`：补充 mihomo 内部细节（节点、PROXY select、fwmark/MASQUERADE 规则、切换节点 API）。
+- **验证**：data 自身 Google 200（3.6-7.8s）/ Baidu 200（0.06s）连续 3 轮；listen@0.150 透明代理 Google 200 / Baidu 200；7890 端口代理 Google 200；UDP 无错误；`systemctl restart mihomo` 后 fwmark + MASQUERADE 规则自动重建（ExecStartPost），PROXY 仍选中 s801。
+- **Commit**：`待填`
