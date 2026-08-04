@@ -40,6 +40,13 @@ function readInitialTheme(): Theme {
   return 'dark'
 }
 
+/** 右栏工具台默认状态：桌面常驻打开，移动端默认关闭（抽屉由用户唤出）。
+ *  jsdom/无 matchMedia 环境（测试）安全降级为 true。 */
+function readInitialRightbarOpen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+  return window.matchMedia('(min-width: 1024px)').matches
+}
+
 let toastId = 0
 
 export const useApp = create<AppState>((set, get) => ({
@@ -47,7 +54,7 @@ export const useApp = create<AppState>((set, get) => ({
   sidebarOpen: false,
   helpOpen: false,
   terminalOpen: false,
-  rightbarOpen: true,
+  rightbarOpen: readInitialRightbarOpen(),
   rightbarTool: 'summary',
   toasts: [],
   setTheme: (t) => {

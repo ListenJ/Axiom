@@ -2971,3 +2971,17 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
   - 	ests/provider-caller-effort.test.ts：改用 process.env 注入 key + 每个用例内 mock fetch（beforeEach/afterEach 恢复），消除 mock 泄漏；新增 siliconflow 格式用例（enable_thinking/thinking_budget）。
 - **验证**：全量 bun test --run-in-band 从 7 fail → 3 fail（callProvider×3 全部消除）；剩余为环境性（discoverGitHubRepos 外网 TLS、B.3 并发 flaky 单独跑 12/12 通过、perf-extreme 基准抖动）；tsc 0 错误；intent-enhancer 30/30 + provider-caller-effort 3/3。
 - **Commit**：（待提交）。
+
+---
+
+## 2026-08-04 17:50 +0800 — 移动端右栏抽屉默认覆盖修复 + e2e 过时断言同步
+
+- **任务**：前后端布局优化。视觉体检发现：右栏工具台 ightbarOpen 默认 true，移动端以全屏抽屉（fixed inset-0 z-50）默认打开覆盖聊天区；e2e smoke/theme 断言基于旧 Header（独立主题按钮）过时。
+- **工具**：Playwright 逐区块几何探测（桌面/移动端）、Read、Edit、Bash（vitest / Playwright）。
+- **执行的操作（文件级）**：
+  - rontend/src/state/useApp.ts：新增 eadInitialRightbarOpen()——桌面（≥1024px）默认打开、移动端默认关闭；jsdom/无 matchMedia 环境安全降级 true（修复 10 个测试套件因 window.matchMedia 缺失失败）。
+  - e2e/smoke.spec.ts：导航断言改 
+av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断言改验证系统菜单（文件/编辑/视图/帮助）+ 视图菜单含"切换主题"。
+  - e2e/theme.spec.ts：主题切换改经系统菜单"视图 → 切换主题"。
+- **验证**：移动端（390×844）抽屉不再默认覆盖（drawerVisible=false、无横向溢出），桌面端（1440）右栏仍默认打开；前端 vitest 41 files / 268 tests 全绿（修复 10 失败套件）；e2e 9 文件 32 测试全绿。
+- **Commit**：（待提交）。
