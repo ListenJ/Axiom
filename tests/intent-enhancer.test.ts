@@ -16,30 +16,27 @@
  *   - 使用共享的 mock() 实例，每个测试用 mockImplementation 切换行为
  */
 
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import type { IntentResult } from "../src/agents/intent-router.js";
+import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../src/agents/intent-enhancer.js";
 
 // ─────────────────────────────────────────────────────────
-// Mock 注册：必须在 import intent-enhancer 之前
+// 依赖注入：fake callProvider（不 mock.module，避免污染其他测试文件）
 // ─────────────────────────────────────────────────────────
 
-/** 共享的 callProvider mock 实例；测试中用 mockImplementation 切换行为 */
-// 使用宽松返回类型避免 mockImplementation 切换不同返回结构时类型不兼容
-const mockCallProvider = mock(
-  (_provider?: string, _model?: string, _messages?: unknown, _timeout?: number, _temp?: number): Promise<unknown> =>
-    Promise.reject(new Error("mock not configured for this test")),
-);
-
-// 注册 mock 模块（factory 返回的对象会替代真实 provider-caller.js 的导出）
-// 注意：mock.module 路径相对于测试文件解析，需用 ../src/router/ 而非 ../router/
-mock.module("../src/router/provider-caller.js", () => ({
-  callProvider: mockCallProvider,
-  callProviderNativeStream: mock(() => Promise.resolve({ content: "" })),
-}));
-
-// 注意：边缘客户端不做全局模块 mock（bun 同进程 mock 会泄漏污染其他测试文件）。
-// 改为：1) 默认在本文件内 EDGE_PROMPT_OPTIMIZER=0 关闭边缘路径（zhipu 路径用例）
-//      2) 边缘用例通过 enhanceIntentWithLLM 第三参数注入 fake client
+/** 共享的 fake callProvider；测试中通过 setCallProviderImpl 切换行为 */
+type CallProviderLike = (...args: unknown[]) => Promise<unknown>;
+let callProviderImpl: CallProviderLike | null = null;
+let callProviderCalls = 0;
+function fakeCallProvider(): Promise<unknown> {
+  callProviderCalls++;
+  if (!callProviderImpl) return Promise.reject(new Error("mock not configured for this test"));
+  return callProviderImpl();
+}
+function setCallProviderImpl(impl: CallProviderLike): void {
+  callProviderImpl = impl;
+  callProviderCalls = 0;
+}
 
 /** 构造 fake 边缘客户端 */
 function fakeEdgeClient(impl: () => { content: string }) {
@@ -56,14 +53,12 @@ function fakeEdgeClient(impl: () => { content: string }) {
   };
 }
 
-// 现在 import intent-enhancer —— 它会绑定到上面的 mock callProvider
-const { shouldEnhanceIntent, buildEnhancedSystemPrompt, enhanceIntentWithLLM } =
-  await import("../src/agents/intent-enhancer.js");
+/** 调用增强器（注入 fake callProvider） */
+function enhance(input: string, base: IntentResult, client?: Parameters<typeof enhanceIntentWithLLM>[2]) {
+  return enhanceIntentWithLLM(input, base, client, fakeCallProvider as never);
+}
 
-// ─────────────────────────────────────────────────────────
-// 工具函数：构造测试用 IntentResult
-// ─────────────────────────────────────────────────────────
-
+/** 构造测试用 IntentResult */
 function makeIntent(overrides: Partial<IntentResult> = {}): IntentResult {
   return {
     intent: "chat",
@@ -75,17 +70,15 @@ function makeIntent(overrides: Partial<IntentResult> = {}): IntentResult {
   };
 }
 
-/** 每个测试前重置 mock 调用记录与默认实现；默认关闭边缘路径（走 zhipu） */
+/** 每个测试前重置 fake 实现；默认关闭边缘路径（走 zhipu） */
 beforeEach(() => {
-  mockCallProvider.mockReset();
-  mockCallProvider.mockImplementation(() =>
-    Promise.reject(new Error("mock not configured for this test")),
-  );
+  callProviderImpl = null;
   process.env.EDGE_PROMPT_OPTIMIZER = "0";
 });
 
 afterEach(() => {
-  mockCallProvider.mockReset();
+  callProviderImpl = null;
+  callProviderCalls = 0;
   delete process.env.EDGE_PROMPT_OPTIMIZER;
 });
 
@@ -220,7 +213,7 @@ describe("intent-enhancer — inputHint 信号提取", () => {
 
 describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
   test("LLM 返回合法 JSON 时修正意图", async () => {
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '{"intent": "code", "confidence": 0.9, "reason": "编程问题"}',
         model: "glm-4.7-flash",
@@ -230,14 +223,14 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
     );
 
     const baseIntent = makeIntent({ intent: "chat", confidence: 0.2 });
-    const result = await enhanceIntentWithLLM("写一个 Python 函数", baseIntent);
+    const result = await enhance("写一个 Python 函数", baseIntent);
 
     expect(result.intent).toBe("code");
     expect(result.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
   test("LLM 返回带 markdown fence 的 JSON 也能解析", async () => {
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '```json\n{"intent": "research", "confidence": 0.85}\n```',
         model: "glm-4.7-flash",
@@ -247,13 +240,13 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
     );
 
     const baseIntent = makeIntent({ intent: "chat", confidence: 0.1 });
-    const result = await enhanceIntentWithLLM("分析市场趋势", baseIntent);
+    const result = await enhance("分析市场趋势", baseIntent);
 
     expect(result.intent).toBe("research");
   });
 
   test("LLM 返回嵌入文本中的 JSON 也能提取", async () => {
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '分类结果：\n{"intent": "write", "confidence": 0.8, "reason": "撰写"}\n以上是分类。',
         model: "glm-4.7-flash",
@@ -262,13 +255,13 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("写一份报告", makeIntent({ confidence: 0.1 }));
+    const result = await enhance("写一份报告", makeIntent({ confidence: 0.1 }));
 
     expect(result.intent).toBe("write");
   });
 
   test("LLM 返回非法意图时回退到 baseIntent", async () => {
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '{"intent": "invalid-category", "confidence": 0.9}',
         model: "glm-4.7-flash",
@@ -278,7 +271,7 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
     );
 
     const baseIntent = makeIntent({ intent: "chat", confidence: 0.2 });
-    const result = await enhanceIntentWithLLM("test", baseIntent);
+    const result = await enhance("test", baseIntent);
 
     // 非法意图 → 回退
     expect(result.intent).toBe("chat");
@@ -286,7 +279,7 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
   });
 
   test("LLM 返回非 JSON 时回退到 baseIntent", async () => {
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: "I think this is a coding question.",
         model: "glm-4.7-flash",
@@ -296,16 +289,16 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
     );
 
     const baseIntent = makeIntent({ intent: "chat", confidence: 0.1 });
-    const result = await enhanceIntentWithLLM("test", baseIntent);
+    const result = await enhance("test", baseIntent);
 
     expect(result).toBe(baseIntent);
   });
 
   test("callProvider 抛异常时回退到 baseIntent", async () => {
-    mockCallProvider.mockImplementation(() => Promise.reject(new Error("Network timeout")));
+    setCallProviderImpl(() => Promise.reject(new Error("Network timeout")));
 
     const baseIntent = makeIntent({ intent: "chat", confidence: 0.1 });
-    const result = await enhanceIntentWithLLM("test", baseIntent);
+    const result = await enhance("test", baseIntent);
 
     expect(result).toBe(baseIntent);
     expect(result.intent).toBe("chat");
@@ -313,10 +306,9 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
 
   test("超长输入被截断（不传完整内容给 LLM）", async () => {
     let capturedInput = "";
-    mockCallProvider.mockImplementation((_provider, _model, messages) => {
-      const userMsg = (messages as Array<{ role: string; content: string }>).find(
-        (m) => m.role === "user",
-      );
+    setCallProviderImpl((...args: unknown[]) => {
+      const messages = args[2] as Array<{ role: string; content: string }>;
+      const userMsg = messages?.find((m) => m.role === "user");
       if (userMsg) capturedInput = userMsg.content;
       return Promise.resolve({
         content: '{"intent": "chat", "confidence": 0.9}',
@@ -327,7 +319,7 @@ describe("intent-enhancer — enhanceIntentWithLLM 失败回退", () => {
     });
 
     const longInput = "a".repeat(10000);
-    await enhanceIntentWithLLM(longInput, makeIntent({ confidence: 0.1 }));
+    await enhance(longInput, makeIntent({ confidence: 0.1 }));
 
     // 截断阈值为 4000 字符
     expect(capturedInput.length).toBeLessThanOrEqual(4000);
@@ -344,7 +336,7 @@ describe("intent-enhancer — 边缘小模型优先", () => {
     const { client, getCalls } = fakeEdgeClient(() => ({
       content: '{"intent": "code", "confidence": 0.88}',
     }));
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '{"intent": "chat", "confidence": 0.99}',
         model: "glm-4.7-flash",
@@ -353,17 +345,17 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("写一个排序算法", makeIntent({ confidence: 0.2 }), client);
+    const result = await enhance("写一个排序算法", makeIntent({ confidence: 0.2 }), client);
 
     expect(result.intent).toBe("code");
     expect(getCalls()).toBe(1);
-    expect(mockCallProvider).not.toHaveBeenCalled();
+    expect(callProviderCalls).toBe(0); // 边缘成功时不调用 zhipu
   });
 
   test("边缘模型返回垃圾时回退 zhipu 第二层", async () => {
     process.env.EDGE_PROMPT_OPTIMIZER = "1";
     const { client } = fakeEdgeClient(() => ({ content: "我无法分类这个输入" }));
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '{"intent": "research", "confidence": 0.9}',
         model: "glm-4.7-flash",
@@ -372,10 +364,10 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("分析行业趋势", makeIntent({ confidence: 0.1 }), client);
+    const result = await enhance("分析行业趋势", makeIntent({ confidence: 0.1 }), client);
 
     expect(result.intent).toBe("research");
-    expect(mockCallProvider).toHaveBeenCalledTimes(1);
+    expect(callProviderCalls).toBe(1); // 边缘失败时回退 zhipu 一次
   });
 
   test("边缘模型抛异常时回退 zhipu 第二层", async () => {
@@ -383,7 +375,7 @@ describe("intent-enhancer — 边缘小模型优先", () => {
     const { client } = fakeEdgeClient(() => {
       throw new Error("circuit breaker is OPEN");
     });
-    mockCallProvider.mockImplementation(() =>
+    setCallProviderImpl(() =>
       Promise.resolve({
         content: '{"intent": "write", "confidence": 0.85}',
         model: "glm-4.7-flash",
@@ -392,7 +384,7 @@ describe("intent-enhancer — 边缘小模型优先", () => {
       }),
     );
 
-    const result = await enhanceIntentWithLLM("写一份周报", makeIntent({ confidence: 0.1 }), client);
+    const result = await enhance("写一份周报", makeIntent({ confidence: 0.1 }), client);
 
     expect(result.intent).toBe("write");
   });

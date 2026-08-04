@@ -2958,3 +2958,16 @@ pm run test:run 268 tests 全绿。
 pm run lint 0 错误、
 pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局（h1 y=251、输入框 y=788）与 IDE 菜单展开均正常。
 - **Commit**：`43280d3`。
+
+---
+
+## 2026-08-04 16:40 +0800 — 测试污染修复：mock.module 全局泄漏消除（callProvider flaky 根因）
+
+- **任务**：全量 bun test 中 callProvider 思考强度测试偶发失败（单独跑必过）。二分定位根因：	ests/intent-enhancer.test.ts 用 mock.module("../src/router/provider-caller.js") 替换共享模块，intent-enhancer 先于 provider-caller-effort 执行时，后者拿到 mock 版 callProvider（请求体不含 reasoning_effort）。
+- **工具**：二分法（单文件配对扫描全 tests/ 目录）、Read、Edit、Bash（bun test / tsc）。
+- **执行的操作（文件级）**：
+  - src/agents/intent-enhancer.ts：enhanceIntentWithLLM 增加第 4 参数 callProviderFn（依赖注入接缝，默认模块级 callProvider）——深模块原则"依赖作为参数传入"，测试不再需要 mock.module。
+  - 	ests/intent-enhancer.test.ts：移除 mock.module 注册；改为 setCallProviderImpl/akeCallProvider 注入 fake（含调用计数 callProviderCalls），所有用例改经 enhance() helper 传 fake；断言语义修正（边缘成功=0 次 zhipu 调用、边缘失败=1 次）。
+  - 	ests/provider-caller-effort.test.ts：改用 process.env 注入 key + 每个用例内 mock fetch（beforeEach/afterEach 恢复），消除 mock 泄漏；新增 siliconflow 格式用例（enable_thinking/thinking_budget）。
+- **验证**：全量 bun test --run-in-band 从 7 fail → 3 fail（callProvider×3 全部消除）；剩余为环境性（discoverGitHubRepos 外网 TLS、B.3 并发 flaky 单独跑 12/12 通过、perf-extreme 基准抖动）；tsc 0 错误；intent-enhancer 30/30 + provider-caller-effort 3/3。
+- **Commit**：（待提交）。
