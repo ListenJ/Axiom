@@ -2927,3 +2927,18 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 pm run lint（tsc --noEmit）0 错误；
 pm run test:run 41 files / 268 tests 全绿。
 - **Commit**：（待提交）。
+
+---
+
+## 2026-08-04 13:30 +0800 — 欢迎模式空间布局修复（首页/对话合并后垂直居中）
+
+- **任务**：用户反馈"终端进入的空间和当前首页的空间并不好"。几何探测定位：欢迎模式（无消息时即首页）内容整体偏上（h1 y=201、输入框 y=514），下半空间浪费、输入框悬空；终端浮层（224px）与底栏配合需验证。
+- **工具**：Playwright 逐区块几何探测（getBoundingClientRect）、Read、Edit、Bash（lint / vitest）。
+- **执行的操作（文件级）**：rontend/src/pages/Chat.tsx 消息容器空状态加 min-h-full justify-center（m-auto 在 flex 链中需 flex-1 撑开才能垂直居中）。
+- **验证**：
+  - 修复后欢迎模式：h1 y=251、卡片 y=347、输入框 y=788（内容在输入栏上方空间居中，输入框贴底），对比修复前 h1 y=201 / 输入框 y=514（悬空偏上）。
+  - 终端浮层打开：terminal y=644-868 与 StatsBar（y=868-900）零间隙衔接，无重叠无挤压；欢迎内容在终端上方正常显示。
+  - 
+pm run lint 0 错误；
+pm run test:run 268 tests 全绿。
+- **Commit**：（待提交）。
