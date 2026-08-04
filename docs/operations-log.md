@@ -2926,7 +2926,7 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **验证**：
 pm run lint（tsc --noEmit）0 错误；
 pm run test:run 41 files / 268 tests 全绿。
-- **Commit**：（待提交）。
+- **Commit**：`9254f7d`。
 
 ---
 
@@ -2941,4 +2941,4 @@ pm run test:run 41 files / 268 tests 全绿。
   - 
 pm run lint 0 错误；
 pm run test:run 268 tests 全绿。
-- **Commit**：（待提交）。
+- **Commit**：`9254f7d`。
