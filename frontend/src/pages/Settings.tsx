@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Activity, Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
-  Wrench, KeyRound, CheckCircle2, Server, Cpu,
+  Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
+  Wrench, KeyRound, CheckCircle2,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp } from '@/state/useApp'
-import { useChatPrefs } from '@/state/useChatPrefs'
+import { useChatPrefs, type ChatPrefs } from '@/state/useChatPrefs'
 import { api, endpoints } from '@/lib/api'
 import SettingsSearch from '@/components/settings/SettingsSearch'
 import ModelManagementSection from '@/components/settings/models-section'
@@ -61,11 +61,230 @@ function ToggleRow({ icon, label, desc, checked, onChange, highlight }: ToggleRo
   )
 }
 
+/* ───────── 分区内容渲染器 ───────── */
+
+type SectionRenderer = (props: {
+  toast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+  highlightKey: string | null
+  sysConfig: { gateway?: { port?: number; bind?: string }; crawler?: { maxConcurrent?: number } } | null
+  agents: Array<{ name: string; available: boolean }>
+  permMode: boolean | null
+  togglePermissionMode: (next: boolean) => Promise<void>
+  clearCache: () => void
+  prefs: ChatPrefs
+}) => ReactNode
+
+const sectionRenderers: Record<string, SectionRenderer> = {
+  appearance: ({ highlightKey }) => (
+    <div className="stagger space-y-3">
+      <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
+        <div className="flex items-center gap-4">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+            {useApp.getState().theme === 'dark' ? <Moon className="size-5" /> : <Sun className="size-5 text-[var(--warning)]" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              当前：{useApp.getState().theme === 'dark' ? '深色' : '浅色'}；切换后立即生效并持久化。
+            </p>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="主题切换"
+            className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1"
+          >
+            {(['dark', 'light'] as const).map((t) => (
+              <Button
+                key={t}
+                size="sm"
+                variant={useApp.getState().theme === t ? 'primary' : 'ghost'}
+                onClick={() => useApp.getState().setTheme(t)}
+                role="radio"
+                aria-checked={useApp.getState().theme === t}
+                aria-label={t === 'dark' ? '深色主题' : '浅色主题'}
+              >
+                {t === 'dark' ? '深色' : '浅色'}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </ShimmerCard>
+      <MotionPreview highlight={highlightKey === 'appearance.motion'} />
+    </div>
+  ),
+
+  behavior: ({ toast, highlightKey, permMode, togglePermissionMode, prefs }) => (
+    <div className="stagger space-y-3">
+      <ToggleRow
+        icon={<Bell className="size-5" />}
+        label="桌面通知"
+        desc="启用后，任务完成、审批请求、搜索结果等事件会弹出系统桌面通知。"
+        checked={readStored('axiom:notifications', true)}
+        onChange={(v) => { writeStored('axiom:notifications', v); toast(`桌面通知已${v ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'behavior.notifications'}
+      />
+      <ToggleRow
+        icon={<Shield className="size-5" />}
+        label="隐私模式"
+        desc="本地优先：数据不离开设备；关闭后允许使用云端模型与外部服务。"
+        checked={readStored('axiom:safeMode', true)}
+        onChange={(v) => { writeStored('axiom:safeMode', v); toast(`隐私模式已${v ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'privacy.safeMode'}
+      />
+      <ToggleRow
+        icon={<Brain className="size-5" />}
+        label="显示思考过程"
+        desc="在对话中展开显示 Agent 的推理轨迹（reasoning trace）；默认关闭。"
+        checked={prefs.showThinking}
+        onChange={() => { prefs.toggleShowThinking(); toast(`思考过程已${!prefs.showThinking ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'chat.showThinking'}
+      />
+      <ToggleRow
+        icon={<FileEdit className="size-5" />}
+        label="展开文件修改"
+        desc="对话默认展开文件变更明细（新建/编辑/删除及 diff）；默认开启。"
+        checked={prefs.expandFileChanges}
+        onChange={() => { prefs.toggleExpandFileChanges(); toast(`文件修改明细已${!prefs.expandFileChanges ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'chat.expandFileChanges'}
+      />
+      <ToggleRow
+        icon={<Wrench className="size-5" />}
+        label="展开工具调用"
+        desc="对话默认展开每次工具调用的参数与结果细节；默认关闭。"
+        checked={prefs.expandToolCalls}
+        onChange={() => { prefs.toggleExpandToolCalls(); toast(`工具调用明细已${!prefs.expandToolCalls ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'chat.expandToolCalls'}
+      />
+      <ToggleRow
+        icon={<KeyRound className="size-5" />}
+        label="会话内自动接收权限"
+        desc="当前会话 normal 级别权限自动放行；high-risk 始终要求手动确认。"
+        checked={prefs.autoAcceptPermissions}
+        onChange={() => { prefs.toggleAutoAcceptPermissions(); toast(`会话内自动接收已${!prefs.autoAcceptPermissions ? '开启' : '关闭'}`, 'info') }}
+        highlight={highlightKey === 'chat.autoAcceptPermissions'}
+      />
+      <ToggleRow
+        icon={<Shield className="size-5" />}
+        label="全局权限自动接收"
+        desc={
+          permMode === null
+            ? '后端全局权限模式（/permissions/mode），加载中…'
+            : `影响所有会话；high-risk 永远确认，当前：${permMode ? '自动放行' : '手动确认'}。`
+        }
+        checked={permMode === true}
+        onChange={togglePermissionMode}
+        highlight={highlightKey === 'permissions.autoAccept'}
+      />
+    </div>
+  ),
+
+  data: ({ highlightKey, clearCache }) => (
+    <div className="stagger space-y-3">
+      <ShimmerCard padding="md" className={highlightKey === 'data.language' ? 'ring-2 ring-[var(--accent)]' : undefined}>
+        <div className="flex items-center gap-4">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--info-soft)] text-[var(--info)]">
+            <Globe className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-medium text-[var(--text)]">界面语言</h3>
+            <p className="text-xs text-[var(--text-secondary)]">简体中文（随系统区域设置）</p>
+          </div>
+        </div>
+      </ShimmerCard>
+      <ShimmerCard padding="md" className={highlightKey === 'data.storage' ? 'ring-2 ring-[var(--accent)]' : undefined}>
+        <div className="flex items-center gap-4">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+            <Database className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-medium text-[var(--text)]">数据存储</h3>
+            <p className="text-xs text-[var(--text-secondary)]">本地 SQLite + Obsidian Vault（可选远程同步）</p>
+          </div>
+        </div>
+      </ShimmerCard>
+      <ShimmerCard padding="md" className={highlightKey === 'data.cache' ? 'ring-2 ring-[var(--accent)]' : undefined}>
+        <div className="flex items-center gap-4">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+            <Database className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-medium text-[var(--text)]">清空 API 缓存</h3>
+            <p className="text-xs text-[var(--text-secondary)]">清除搜索与模型的临时缓存，释放内存与磁盘空间。</p>
+          </div>
+          <Button size="sm" variant="secondary" onClick={clearCache} aria-label="清空 API 缓存">
+            清空
+          </Button>
+        </div>
+      </ShimmerCard>
+    </div>
+  ),
+
+  models: ({ toast }) => <ModelManagementSection toast={toast} />,
+
+  agent: ({ highlightKey, agents }) => (
+    <ShimmerCard padding="md" className={highlightKey === 'agent.status' ? 'ring-2 ring-[var(--accent)]' : undefined}>
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text)]">
+        <Bot className="size-4 text-[var(--accent)]" />
+        编码 Agent 状态
+      </h3>
+      {agents.length === 0 ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => <Skeleton key={i} height="1.5rem" />)}
+        </div>
+      ) : (
+        <ul className="space-y-1.5">
+          {agents.map((a) => (
+            <li key={a.name} className="flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 text-sm">
+              <span className="font-mono text-xs text-[var(--text-secondary)]">{a.name}</span>
+              <span className={`flex items-center gap-1.5 text-xs ${a.available ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
+                <CheckCircle2 className="size-3.5" />
+                {a.available ? '可用' : '不可用'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-xs text-[var(--text-muted)]">
+        可用状态与 `/agents/status` 一一对应；不可用 Agent 可参考安装指引补齐。
+      </p>
+    </ShimmerCard>
+  ),
+
+  gateway: ({ highlightKey, sysConfig }) => (
+    <ShimmerCard padding="md">
+      <div className="space-y-2 text-sm">
+        <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'gateway.port' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
+          <span className="text-[var(--text)]">网关端口</span>
+          <span className="font-mono text-xs text-[var(--text-secondary)]">
+            {sysConfig?.gateway?.port ?? '—'}
+          </span>
+        </div>
+        <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'gateway.bind' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
+          <span className="text-[var(--text)]">绑定地址</span>
+          <span className="font-mono text-xs text-[var(--text-secondary)]">
+            {sysConfig?.gateway?.bind ?? '—'}
+          </span>
+        </div>
+        <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'crawler.maxConcurrent' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
+          <span className="text-[var(--text)]">最大并发抓取</span>
+          <span className="font-mono text-xs text-[var(--text-secondary)]">
+            {sysConfig?.crawler?.maxConcurrent ?? '—'}
+          </span>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-[var(--text-muted)]">
+        数值与 config/axiom.yaml 一一对应；改动请通过 config 文件或 /config 接口并重启服务。
+      </p>
+    </ShimmerCard>
+  ),
+
+  diagnostics: ({ toast }) => <DiagnosticsSection toast={toast} />,
+}
+
 /* ───────── 设置页 ───────── */
 
 export default function Settings() {
   const theme = useApp((s) => s.theme)
-  const setTheme = useApp((s) => s.setTheme)
   const toast = useApp((s) => s.toast)
   const prefs = useChatPrefs()
 
@@ -137,263 +356,43 @@ export default function Settings() {
 
       <SettingsSearch onSelect={handleSearchSelect} />
 
-      {/* 外观 */}
-      <Collapsible
-        icon={<Sun className="size-4" />}
-        title="外观"
-        description="主题与动效"
-        open={sectionOpen('appearance')}
-        onToggle={(o) => toggleSection('appearance', o)}
-      >
-        <div className="stagger space-y-3">
-          <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                {theme === 'dark' ? <Moon className="size-5" /> : <Sun className="size-5 text-[var(--warning)]" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  当前：{theme === 'dark' ? '深色' : '浅色'}；切换后立即生效并持久化。
-                </p>
-              </div>
-              <div
-                role="radiogroup"
-                aria-label="主题切换"
-                className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1"
-              >
-                {(['dark', 'light'] as const).map((t) => (
-                  <Button
-                    key={t}
-                    size="sm"
-                    variant={theme === t ? 'primary' : 'ghost'}
-                    onClick={() => setTheme(t)}
-                    role="radio"
-                    aria-checked={theme === t}
-                    aria-label={t === 'dark' ? '深色主题' : '浅色主题'}
-                  >
-                    {t === 'dark' ? '深色' : '浅色'}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </ShimmerCard>
-          <MotionPreview highlight={highlightKey === 'appearance.motion'} />
-        </div>
-      </Collapsible>
+      {SETTING_SECTIONS.map((section) => {
+        const Icon = section.icon
+        const renderer = sectionRenderers[section.id]
+        if (!renderer) return null
 
-      {/* 对话与行为 */}
-      <Collapsible
-        icon={<Brain className="size-4" />}
-        title="对话与行为"
-        description="通知、隐私与 Agent 对话偏好（与 Chat 页开关一一对应）"
-        open={sectionOpen('behavior')}
-        onToggle={(o) => toggleSection('behavior', o)}
-      >
-        <div className="stagger space-y-3">
-          <ToggleRow
-            icon={<Bell className="size-5" />}
-            label="桌面通知"
-            desc="启用后，任务完成、审批请求、搜索结果等事件会弹出系统桌面通知。"
-            checked={readStored('axiom:notifications', true)}
-            onChange={(v) => { writeStored('axiom:notifications', v); toast(`桌面通知已${v ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'behavior.notifications'}
-          />
-          <ToggleRow
-            icon={<Shield className="size-5" />}
-            label="隐私模式"
-            desc="本地优先：数据不离开设备；关闭后允许使用云端模型与外部服务。"
-            checked={readStored('axiom:safeMode', true)}
-            onChange={(v) => { writeStored('axiom:safeMode', v); toast(`隐私模式已${v ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'privacy.safeMode'}
-          />
-          <ToggleRow
-            icon={<Brain className="size-5" />}
-            label="显示思考过程"
-            desc="在对话中展开显示 Agent 的推理轨迹（reasoning trace）；默认关闭。"
-            checked={prefs.showThinking}
-            onChange={() => { prefs.toggleShowThinking(); toast(`思考过程已${!prefs.showThinking ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'chat.showThinking'}
-          />
-          <ToggleRow
-            icon={<FileEdit className="size-5" />}
-            label="展开文件修改"
-            desc="对话默认展开文件变更明细（新建/编辑/删除及 diff）；默认开启。"
-            checked={prefs.expandFileChanges}
-            onChange={() => { prefs.toggleExpandFileChanges(); toast(`文件修改明细已${!prefs.expandFileChanges ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'chat.expandFileChanges'}
-          />
-          <ToggleRow
-            icon={<Wrench className="size-5" />}
-            label="展开工具调用"
-            desc="对话默认展开每次工具调用的参数与结果细节；默认关闭。"
-            checked={prefs.expandToolCalls}
-            onChange={() => { prefs.toggleExpandToolCalls(); toast(`工具调用明细已${!prefs.expandToolCalls ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'chat.expandToolCalls'}
-          />
-          <ToggleRow
-            icon={<KeyRound className="size-5" />}
-            label="会话内自动接收权限"
-            desc="当前会话 normal 级别权限自动放行；high-risk 始终要求手动确认。"
-            checked={prefs.autoAcceptPermissions}
-            onChange={() => { prefs.toggleAutoAcceptPermissions(); toast(`会话内自动接收已${!prefs.autoAcceptPermissions ? '开启' : '关闭'}`, 'info') }}
-            highlight={highlightKey === 'chat.autoAcceptPermissions'}
-          />
-          <ToggleRow
-            icon={<Shield className="size-5" />}
-            label="全局权限自动接收"
-            desc={
-              permMode === null
-                ? '后端全局权限模式（/permissions/mode），加载中…'
-                : `影响所有会话；high-risk 永远确认，当前：${permMode ? '自动放行' : '手动确认'}。`
-            }
-            checked={permMode === true}
-            onChange={togglePermissionMode}
-            highlight={highlightKey === 'permissions.autoAccept'}
-          />
-        </div>
-      </Collapsible>
+        const sectionMeta = {
+          appearance: { description: '主题与动效' },
+          behavior: { description: '通知、隐私与 Agent 对话偏好（与 Chat 页开关一一对应）' },
+          data: { description: '语言、存储与缓存' },
+          models: { description: '模型配置管理（提供商 / 模型 ID / 层级）' },
+          agent: { description: '编码 Agent 可用状态与权限行为（与后端配置一一对应）' },
+          gateway: { description: 'HTTP 服务监听配置（读取自 /config，修改需重启生效）' },
+          diagnostics: { description: '运行环境与核心服务健康检查，可一键复制诊断快照' },
+        }[section.id]
 
-      {/* 数据 */}
-      <Collapsible
-        icon={<Database className="size-4" />}
-        title="数据"
-        description="语言、存储与缓存"
-        open={sectionOpen('data')}
-        onToggle={(o) => toggleSection('data', o)}
-      >
-        <div className="stagger space-y-3">
-          <ShimmerCard padding="md" className={highlightKey === 'data.language' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--info-soft)] text-[var(--info)]">
-                <Globe className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-[var(--text)]">界面语言</h3>
-                <p className="text-xs text-[var(--text-secondary)]">简体中文（随系统区域设置）</p>
-              </div>
-            </div>
-          </ShimmerCard>
-          <ShimmerCard padding="md" className={highlightKey === 'data.storage' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
-                <Database className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-[var(--text)]">数据存储</h3>
-                <p className="text-xs text-[var(--text-secondary)]">本地 SQLite + Obsidian Vault（可选远程同步）</p>
-              </div>
-            </div>
-          </ShimmerCard>
-          <ShimmerCard padding="md" className={highlightKey === 'data.cache' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
-                <Database className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-[var(--text)]">清空 API 缓存</h3>
-                <p className="text-xs text-[var(--text-secondary)]">清除搜索与模型的临时缓存，释放内存与磁盘空间。</p>
-              </div>
-              <Button size="sm" variant="secondary" onClick={clearCache} aria-label="清空 API 缓存">
-                清空
-              </Button>
-            </div>
-          </ShimmerCard>
-        </div>
-      </Collapsible>
-
-      {/* 模型 */}
-      <Collapsible
-        icon={<Cpu className="size-4" />}
-        title="模型"
-        description="模型配置管理（提供商 / 模型 ID / 层级）"
-        open={sectionOpen('models')}
-        onToggle={(o) => toggleSection('models', o)}
-      >
-        <ModelManagementSection toast={toast} />
-      </Collapsible>
-
-      {/* Agent 适配 */}
-      <Collapsible
-        icon={<Bot className="size-4" />}
-        title="Agent 适配"
-        description="编码 Agent 可用状态与权限行为（与后端配置一一对应）"
-        open={sectionOpen('agent')}
-        onToggle={(o) => toggleSection('agent', o)}
-      >
-        <ShimmerCard padding="md" className={highlightKey === 'agent.status' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text)]">
-            <Bot className="size-4 text-[var(--accent)]" />
-            编码 Agent 状态
-          </h3>
-          {agents.length === 0 ? (
-            <div className="space-y-2">
-              {[0, 1, 2].map((i) => <Skeleton key={i} height="1.5rem" />)}
-            </div>
-          ) : (
-            <ul className="space-y-1.5">
-              {agents.map((a) => (
-                <li key={a.name} className="flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 text-sm">
-                  <span className="font-mono text-xs text-[var(--text-secondary)]">{a.name}</span>
-                  <span className={`flex items-center gap-1.5 text-xs ${a.available ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
-                    <CheckCircle2 className="size-3.5" />
-                    {a.available ? '可用' : '不可用'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            可用状态与 `/agents/status` 一一对应；不可用 Agent 可参考安装指引补齐。
-          </p>
-        </ShimmerCard>
-      </Collapsible>
-
-      {/* 网关 */}
-      <Collapsible
-        icon={<Server className="size-4" />}
-        title="网关"
-        description="HTTP 服务监听配置（读取自 /config，修改需重启生效）"
-        open={sectionOpen('gateway')}
-        onToggle={(o) => toggleSection('gateway', o)}
-      >
-        <ShimmerCard padding="md">
-          <div className="space-y-2 text-sm">
-            <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'gateway.port' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
-              <span className="text-[var(--text)]">网关端口</span>
-              <span className="font-mono text-xs text-[var(--text-secondary)]">
-                {sysConfig?.gateway?.port ?? '—'}
-              </span>
-            </div>
-            <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'gateway.bind' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
-              <span className="text-[var(--text)]">绑定地址</span>
-              <span className="font-mono text-xs text-[var(--text-secondary)]">
-                {sysConfig?.gateway?.bind ?? '—'}
-              </span>
-            </div>
-            <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'crawler.maxConcurrent' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
-              <span className="text-[var(--text)]">最大并发抓取</span>
-              <span className="font-mono text-xs text-[var(--text-secondary)]">
-                {sysConfig?.crawler?.maxConcurrent ?? '—'}
-              </span>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            数值与 config/axiom.yaml 一一对应；改动请通过 config 文件或 /config 接口并重启服务。
-          </p>
-        </ShimmerCard>
-      </Collapsible>
-
-      {/* 调试与检查 */}
-      <Collapsible
-        icon={<Activity className="size-4" />}
-        title="调试与检查"
-        description="运行环境与核心服务健康检查，可一键复制诊断快照"
-        open={sectionOpen('diagnostics')}
-        onToggle={(o) => toggleSection('diagnostics', o)}
-      >
-        <DiagnosticsSection toast={toast} />
-      </Collapsible>
+        return (
+          <Collapsible
+            key={section.id}
+            icon={<Icon className="size-4" />}
+            title={section.label}
+            description={sectionMeta?.description}
+            open={sectionOpen(section.id)}
+            onToggle={(o) => toggleSection(section.id, o)}
+          >
+            {renderer({
+              toast,
+              highlightKey,
+              sysConfig,
+              agents,
+              permMode,
+              togglePermissionMode,
+              clearCache,
+              prefs,
+            })}
+          </Collapsible>
+        )
+      })}
     </div>
   )
 }

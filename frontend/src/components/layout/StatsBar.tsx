@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Activity, Cpu, Globe, Coins } from 'lucide-react'
+import { Activity, Cpu, Globe, Coins, Database } from 'lucide-react'
 import { endpoints } from '@/lib/api'
 
 interface SystemStats {
@@ -71,7 +71,8 @@ export default function StatsBar() {
       </button>
       {cacheRate !== null && (
         <div className="flex items-center gap-1.5">
-          <span>💾缓存 {cacheRate}%</span>
+          <Database className="size-3 text-[var(--info)]" />
+          <span>缓存 {cacheRate}%</span>
         </div>
       )}
     </div>

@@ -2913,3 +2913,17 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
   - 修改 `docs/services.md`：补充 mihomo 内部细节（节点、PROXY select、fwmark/MASQUERADE 规则、切换节点 API）。
 - **验证**：data 自身 Google 200（3.6-7.8s）/ Baidu 200（0.06s）连续 3 轮；listen@0.150 透明代理 Google 200 / Baidu 200；7890 端口代理 Google 200；UDP 无错误；`systemctl restart mihomo` 后 fwmark + MASQUERADE 规则自动重建（ExecStartPost），PROXY 仍选中 s801。
 - **Commit**：`待填`
+
+---
+
+## 2026-08-04 13:00 +0800 — 前端评审后续项：StatsBar 图标统一 + 设置页 SETTING_SECTIONS 驱动渲染
+
+- **任务**：完成 FRONTEND-REVIEW-2026-08-03 第 5 节剩余建议项：(1) StatsBar 缓存率 emoji（💾）改为 lucide Database 图标，统一视觉语言；(2) 设置页 7 个硬编码 Collapsible 改为 SETTING_SECTIONS 数据驱动渲染（sectionRenderers 映射，图标/标题/描述/展开状态全部来自配置，新增分区只需注册渲染器）。
+- **工具**：Read、Edit、Bash（npm run lint / npm run test:run）。
+- **执行的操作（文件级）**：
+  - rontend/src/components/layout/StatsBar.tsx：💾 emoji → Database lucide 图标（size-3 text-info），与其他指标项风格一致。
+  - rontend/src/pages/Settings.tsx：新增 SectionRenderer 类型 + sectionRenderers 映射（appearance/behavior/data/models/agent/gateway/diagnostics 七区）；return 中 SETTING_SECTIONS.map 渲染 Collapsible（图标取自 section.icon，描述来自 sectionMeta 映射）；移除未使用的 Activity/Server/Cpu 导入与 setTheme 解构；toast 类型补 'warning'；prefs 类型明确为 ChatPrefs。
+- **验证**：
+pm run lint（tsc --noEmit）0 错误；
+pm run test:run 41 files / 268 tests 全绿。
+- **Commit**：（待提交）。
