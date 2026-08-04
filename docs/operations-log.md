@@ -2970,7 +2970,7 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
   - 	ests/intent-enhancer.test.ts：移除 mock.module 注册；改为 setCallProviderImpl/akeCallProvider 注入 fake（含调用计数 callProviderCalls），所有用例改经 enhance() helper 传 fake；断言语义修正（边缘成功=0 次 zhipu 调用、边缘失败=1 次）。
   - 	ests/provider-caller-effort.test.ts：改用 process.env 注入 key + 每个用例内 mock fetch（beforeEach/afterEach 恢复），消除 mock 泄漏；新增 siliconflow 格式用例（enable_thinking/thinking_budget）。
 - **验证**：全量 bun test --run-in-band 从 7 fail → 3 fail（callProvider×3 全部消除）；剩余为环境性（discoverGitHubRepos 外网 TLS、B.3 并发 flaky 单独跑 12/12 通过、perf-extreme 基准抖动）；tsc 0 错误；intent-enhancer 30/30 + provider-caller-effort 3/3。
-- **Commit**：（待提交）。
+- **Commit**：`38bc57c`（e2e spec 属本地产物不入库）。
 
 ---
 
@@ -2984,4 +2984,4 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
 av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断言改验证系统菜单（文件/编辑/视图/帮助）+ 视图菜单含"切换主题"。
   - e2e/theme.spec.ts：主题切换改经系统菜单"视图 → 切换主题"。
 - **验证**：移动端（390×844）抽屉不再默认覆盖（drawerVisible=false、无横向溢出），桌面端（1440）右栏仍默认打开；前端 vitest 41 files / 268 tests 全绿（修复 10 失败套件）；e2e 9 文件 32 测试全绿。
-- **Commit**：（待提交）。
+- **Commit**：`38bc57c`（e2e spec 属本地产物不入库）。
