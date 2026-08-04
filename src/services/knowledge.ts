@@ -60,6 +60,31 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     ctx.localStore.set("vaultManager", getGlobalVault());
   } catch { /* vault 不可用 */ }
 
+  // 注入多引擎网络搜索通道（统一搜索：SearXNG > Bing > DDG + LRU/SQLite 缓存 + 相关性重排）。
+  // 无 key 也可用（SearXNG/DDG 免 key）；失败时 queryTool 回退裸 DDG。
+  try {
+    const { unifiedSearch } = await import("../crawl/unified-search.js");
+    ctx.localStore.set("searchEngine", {
+      async search(
+        query: string,
+        opts?: { limit?: number },
+      ): Promise<Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }>> {
+        const results = await unifiedSearch.search({
+          query,
+          num: opts?.limit ?? 8,
+          cacheTtl: 30,
+        });
+        return results.map((r) => ({
+          title: r.title,
+          snippet: r.snippet,
+          content: r.snippet,
+          url: r.link,
+          link: r.link,
+        }));
+      },
+    });
+  } catch { /* 统一搜索不可用，queryTool 保持裸 DDG 回退 */ }
+
   // 边缘查询改写：自然语言 → 检索关键词（失败回退原始查询）
   let effectiveQuery = req.query;
   try {

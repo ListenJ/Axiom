@@ -4,6 +4,7 @@
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-router.js";
+import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
 
@@ -244,7 +245,11 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
 
   // 选择路由（与 handleChat 保持一致：intent > taskType）
   // taskType 已经在上面规范化过，缺失/非法时默认 'general-chat'
-  const roleForStream: string = intentInfo ? intentInfo.intent : taskType;
+  // intent 值（code/research/knowledge/write/plan/chat）不是合法 TaskRole，
+  // 必须经 INTENT_ROUTE_TABLE 映射为角色，否则 findModelsForRole 返回空
+  const roleForStream: string = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : taskType;
 
   // 心跳定时器：避免长时间 LLM 响应被中间代理超时切断
   const encoder = new TextEncoder();

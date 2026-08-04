@@ -15,6 +15,8 @@ import { router } from "../router/model-router.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
 import { optimizePrompt } from "../agents/prompt-optimizer.js";
+import { injectConstitution } from "../agents/constitution.js";
+import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { logger } from "../utils/logger.js";
 
@@ -78,7 +80,11 @@ export async function prepareChatContext(
         intent = await enhanceIntentWithLLM(lastUserMsg.content, rawIntent);
       }
       // 无论是否经过 LLM 增强，都用增强版 system prompt（注入思考框架）
-      const enhancedSystem = buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content);
+      // 约束词（宪法）前置注入：所有聊天路径（/chat、/chat/stream、/v1/*）统一受宪法约束
+      const enhancedSystem = injectConstitution(
+        buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content),
+        getCurrentMode(),
+      );
       // 缓存友好的消息结构（2026-07-25）：
       //   稳定前缀在前 —— [增强 system]（同一 intent 文本 byte 级稳定）
       //   易变内容在后 —— [codegraph 上下文][知识上下文]（固定相对次序）

@@ -19,6 +19,7 @@ import { logger } from "../utils/logger.js";
 import { toAxiomError } from "../utils/errors.js";
 import { recognizeIntent, type IntentResult } from "./intent-router.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
+import { internalAgent } from "./internal-agent.js";
 
 // ========== 类型定义 ==========
 
@@ -213,7 +214,10 @@ class TaskRouterImpl {
    * 根据意图选择 Agent
    */
   selectAgentByIntent(intent: IntentResult, registry: AgentRegistryImpl): AgentInterface | null {
+    // 与 intent-router.ts CATEGORY_INTENTS 的 role 字段对齐（main_coding/research/coding）
     const roleMapping: Record<string, string> = {
+      "main_coding": "opencode",
+      "coding": "opencode",
       "code-generation": "opencode",
       "research": "hermes",
       "architecture": "hermes",
@@ -581,18 +585,18 @@ export class InternalAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      // 实际实现中应调用模型
-      logger.info("[InternalAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("general-chat", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Internal Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {
@@ -629,17 +633,18 @@ export class CodeAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      logger.info("[CodeAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("code-generation", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Code Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {
@@ -676,17 +681,18 @@ export class ResearchAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      logger.info("[ResearchAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("research", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Research Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {

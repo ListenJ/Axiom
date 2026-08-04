@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-04 — 架构审查落盘 + 意图管线/宪法/搜索通道修复（后端 P0/P1/P2 批次）
+
+- **任务**：四维架构审查（① Agent 耦合内聚 ② 前后端与知识库/搜索 ③ 约束词与 Skill 应用 ④ 意识识别→知识论证→搜索补缺闭环）并落盘；修复审查发现的 P0/P1/P2 缺陷（后端部分，前端批次另行提交）。
+- **工具**：Agent(explore)×4（并行深度审查）、Read、Grep、Edit、Bash(bun lint / bun test)。
+- **审查结论**：搜索全部真实无 stub；但意图管线 5/6 类别路由断裂（仅 research 命中 INTENT_ROUTE_TABLE）、宪法约束词未注入聊天主路径、深研究不含网络搜索、缺口检测纯 LLM 猜补、orchestrator 三内置 agent 为硬编码 stub。详见 `docs/ARCHITECTURE-REVIEW-2026-08-04.md`。
+- **修复（备份→读全文→最小改动→验证→删备份）**：
+  - P0-1：`src/router/route-table.ts` 补 `code/knowledge/write/plan/chat` 五类意图映射（原 6 类仅 research 命中，其余落 general-chat）。
+  - P0-2：`src/routes/chat.ts` 流式路径 `roleForStream` 经 INTENT_ROUTE_TABLE 映射为合法 TaskRole（原直接传 intent 字符串 → "No models configured"）。
+  - P0-3：`src/agents/orchestrator.ts` 三个 stub agent（InternalAgent/CodeAgent/ResearchAgent）由返回 canned 字符串改为 `internalAgent.executeWithRole` 真实模型调用；`selectAgentByIntent` 角色映射对齐 intent-router（补 main_coding/coding）。
+  - P1-1：`src/services/chat.ts` 宪法约束词注入聊天主路径：`injectConstitution(buildEnhancedSystemPrompt(...), getCurrentMode())`（/chat、/chat/stream、/v1/* 统一生效）。
+  - P1-2：`src/services/knowledge.ts` 注入 unifiedSearch 多引擎适配器（SearXNG>Bing>DDG + LRU/SQLite 缓存 + 重排）到 queryTool 上下文，替代裸 DDG 回退。
+  - P2-2：`src/agents/kg-research-agent.ts` KG 证据不足（实体<5）时并行 unifiedSearch 检索，注入 "Web Evidence" prompt 段并指导引用来源。
+  - P2-1（部分）：`frontend/src/lib/api.ts` 死端点改指真实后端（code→/codegraph/search、suggest→/search/suggestions、新增 web→/web-search）；search-panels 其余改动随前端重构批提交。
+- **验证**：`bun lint` 0 错误；定向测试 `bun test tests/{orchestrator,services-chat,model-router,flat-router,intent-enhancer,architecture-integrity,runtime-audit}.test.ts` → **99 pass / 0 fail**（含 orchestrator 接线后 execute 路径与 services-chat 宪法注入回归）。
+- **Commit**：`6c30ebd`（已推送 `internal211/master`）
+
+---
+
 ## 2026-07-18 01:09 +0800 — 建立 runtime 底层规则
 
 - **任务**：将用户制定的五条底层规则（最小化施工 / 备份-验证 / git 提交 / 删除即归档 / 操作留痕）落地为仓库级强约束。

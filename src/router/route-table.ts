@@ -1,6 +1,12 @@
 import type { TaskRole } from "./model-capability-registry.js";
 
 export const INTENT_ROUTE_TABLE: Record<string, { role: TaskRole; useTool: boolean }> = {
+  // intent-router.ts 的 6 大类意图映射（与 src/agents/intent-router.ts CATEGORY_INTENTS 对齐）
+  code:           { role: "code-generation", useTool: true },
+  knowledge:      { role: "research", useTool: false },
+  write:          { role: "general-tool", useTool: true },
+  plan:           { role: "architecture", useTool: false },
+  chat:           { role: "general-chat", useTool: false },
   strategy:     { role: "decision", useTool: false },
   evaluation:   { role: "decision", useTool: false },
   decision:     { role: "decision", useTool: false },
