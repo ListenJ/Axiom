@@ -44,7 +44,7 @@ interface SearchResult {
   path?: string
 }
 
-type SearchSource = 'all' | 'vault' | 'code'
+type SearchSource = 'all' | 'vault' | 'code' | 'web'
 type ViewMode = 'list' | 'compact'
 
 export function SearchPanel() {
@@ -65,6 +65,7 @@ export function SearchPanel() {
       const queries: Promise<SearchResult[]>[] = []
       if (source === 'all' || source === 'vault') queries.push(endpoints.search.vault(q).then(toList).catch(() => []))
       if (source === 'all' || source === 'code') queries.push(endpoints.search.code(q).then(toList).catch(() => []))
+      if (source === 'all' || source === 'web') queries.push(endpoints.search.web(q).then(toList).catch(() => []))
       Promise.allSettled(queries)
         .then((settled) => {
           if (cancelled) return
@@ -105,14 +106,14 @@ export function SearchPanel() {
           <div>
             <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">搜索范围</p>
             <div className="flex gap-2">
-              {(['all', 'vault', 'code'] as const).map((s) => (
+              {(['all', 'vault', 'code', 'web'] as const).map((s) => (
                 <Button
                   key={s}
                   size="sm"
                   variant={source === s ? 'primary' : 'secondary'}
                   onClick={() => setSource(s)}
                 >
-                  {s === 'all' ? '全部' : s === 'vault' ? '笔记' : '代码'}
+                  {s === 'all' ? '全部' : s === 'vault' ? '笔记' : s === 'code' ? '代码' : '全网'}
                 </Button>
               ))}
             </div>
@@ -198,21 +199,47 @@ export function SearchPanel() {
 }
 
 function toList(raw: unknown): SearchResult[] {
+  // 后端返回形态：数组直接使用；对象则取 symbols / results 数组
+  // （vault: {results}, codegraph: {symbols}, web-search: {results}）
+  let arr: unknown[] = []
   if (Array.isArray(raw)) {
-    return raw.map((item) => {
-      if (item && typeof item === 'object') {
-        const o = item as Record<string, unknown>
-        return {
-          title: String(o.title ?? o.name ?? o.path ?? 'Untitled'),
-          type: (o.type === 'code' ? 'code' : 'note') as 'code' | 'note',
-          snippet: typeof o.snippet === 'string' ? o.snippet : undefined,
-          path: typeof o.path === 'string' ? o.path : undefined,
-        }
-      }
-      return { title: String(item), type: 'note' as const }
-    })
+    arr = raw
+  } else if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    if (Array.isArray(obj.symbols)) arr = obj.symbols
+    else if (Array.isArray(obj.results)) arr = obj.results
   }
-  return []
+  return arr.map((item) => {
+    if (item && typeof item === 'object') {
+      const o = item as Record<string, unknown>
+      const node = (o.node && typeof o.node === 'object' ? o.node : null) as Record<string, unknown> | null
+      const note = (o.note && typeof o.note === 'object' ? o.note : null) as Record<string, unknown> | null
+      const title = String(
+        node?.name ?? note?.title ?? o.title ?? o.name ?? o.path ?? o.link ?? 'Untitled',
+      )
+      return {
+        title,
+        type: (o.type === 'code' || o.kind === 'code' || o.kind === 'function' || o.kind === 'class' || o.kind === 'variable' ? 'code' : 'note') as 'code' | 'note',
+        snippet: typeof o.snippet === 'string'
+          ? o.snippet
+          : typeof o.excerpt === 'string'
+            ? o.excerpt
+            : undefined,
+        path: typeof o.path === 'string'
+          ? o.path
+          : typeof node?.filePath === 'string'
+            ? node.filePath
+            : typeof note?.path === 'string'
+              ? note.path
+              : typeof o.link === 'string'
+                ? o.link
+                : typeof o.url === 'string'
+                  ? o.url
+                  : undefined,
+      }
+    }
+    return { title: String(item), type: 'note' as const }
+  })
 }
 
 /* ── 深度研究 ─────────────────────────────────────────────────── */

@@ -15,8 +15,8 @@ interface TokenDetail {
   cacheStats: { totalCalls: number; cacheHits: number; hitRate: number }
 }
 
-export default function Tokens() {
-  const navigate = useNavigate()
+/** Token 用量面板（设置页「调试与检查」嵌入用，不含页头） */
+export function TokensPanel() {
   const [data, setData] = useState<TokenDetail | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -39,14 +39,7 @@ export default function Tokens() {
   }))
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} icon={<ArrowLeft className="size-4" />}>
-          返回
-        </Button>
-        <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
-      </div>
-
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="总 Token" value={data?.overall.totalTokens.toLocaleString() ?? '—'} icon={<Coins className="size-5" />} accent="info" />
         <StatCard label="总调用" value={data?.overall.totalCalls.toLocaleString() ?? '—'} icon={<Activity className="size-5" />} accent="success" />
@@ -138,6 +131,21 @@ export default function Tokens() {
           </table>
         </div>
       </Collapsible>
+    </div>
+  )
+}
+
+export default function Tokens() {
+  const navigate = useNavigate()
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} icon={<ArrowLeft className="size-4" />}>
+          返回
+        </Button>
+        <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
+      </div>
+      <TokensPanel />
     </div>
   )
 }

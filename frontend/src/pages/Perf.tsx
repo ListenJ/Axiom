@@ -4,7 +4,8 @@ import { ShimmerCard, PageHeader, Skeleton } from '@/components/ui'
 import { endpoints } from '@/lib/api'
 import { normalizeMetrics, normalizeNative, type PerfMetrics } from '@/lib/normalize'
 
-export default function Perf() {
+/** 性能面板（设置页「调试与检查」嵌入用，不含页头） */
+export function PerfPanel() {
   const [m, setM] = useState<PerfMetrics | null>(null)
   const [native, setNative] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
@@ -26,13 +27,7 @@ export default function Perf() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={<Activity className="size-5" />}
-        title="性能"
-        description="运行时指标与原生模块统计。"
-      />
-
+    <div className="space-y-4">
       {error && (
         <p
           role="alert"
@@ -101,6 +96,19 @@ export default function Perf() {
           </div>
         )}
       </ShimmerCard>
+    </div>
+  )
+}
+
+export default function Perf() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Activity className="size-5" />}
+        title="性能"
+        description="运行时指标与原生模块统计。"
+      />
+      <PerfPanel />
     </div>
   )
 }

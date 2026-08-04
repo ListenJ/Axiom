@@ -472,8 +472,10 @@ export const endpoints = {
   search: {
     vault: (query: string, options: Record<string, unknown> = {}) =>
       api.get('/search', { params: { q: query, ...options } }),
-    code: (query: string) => api.get('/search/code', { params: { q: query } }),
-    suggest: (query: string) => api.get('/search/suggest', { params: { q: query } }),
+    code: (query: string) => api.get('/codegraph/search', { params: { q: query } }),
+    suggest: (query: string) => api.get('/search/suggestions', { params: { q: query } }),
+    web: (query: string, options: Record<string, unknown> = {}) =>
+      api.get('/web-search', { params: { q: query, ...options } }),
     webFetch: (url: string) => api.get<WebFetchResult>('/web-fetch', { params: { url } }),
     lightpandaStatus: () => api.get<LightpandaStatus>('/lightpanda/status', { cache: false }),
   },

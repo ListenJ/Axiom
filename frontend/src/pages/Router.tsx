@@ -10,7 +10,8 @@ interface RouterStatus {
   tokens?: { used: number; total: number }
 }
 
-export default function Router() {
+/** 模型路由面板（设置页「调试与检查」嵌入用，不含页头） */
+export function RouterPanel() {
   const [status, setStatus] = useState<RouterStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,13 +39,7 @@ export default function Router() {
   const loading = status === null
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={<Compass className="size-5" />}
-        title="模型路由"
-        description="Advisor + Health + Token 使用统计。"
-      />
-
+    <div className="space-y-4">
       {error && (
         <p
           role="alert"
@@ -109,6 +104,19 @@ export default function Router() {
           )}
         </ShimmerCard>
       </div>
+    </div>
+  )
+}
+
+export default function Router() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Compass className="size-5" />}
+        title="模型路由"
+        description="Advisor + Health + Token 使用统计。"
+      />
+      <RouterPanel />
     </div>
   )
 }

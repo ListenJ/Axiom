@@ -7,6 +7,27 @@
 
 ---
 
+## 2026-08-04 — 前端外壳/账号栏/快捷键模态框/调试收敛重构（前端批次）
+
+- **任务**：按用户外壳设计规范重构前端 —— ① 顶栏菜单 + 左栏外壳（已有，保留）② 左栏底部账号栏 [设置图标][头像+用户名+在线状态][快捷键指示图标] ③ 快捷键指示图标 → 分组动画快捷键模态框 ④ 调试/检查功能收敛进设置页「调试与检查」分区 ⑤ 聊天画布与外壳弱对比配色 ⑥ 搜索面板接入全网搜索（P2-1 收尾）。
+- **工具**：Agent(explore)×1（前端全量清单审查）、Read、Edit、Bash(bun run lint / test:run / build)。
+- **审查结论**：外壳（菜单/账号栏/聊天工具栏/弱对比 token/Tauri 跨平台）已基本满足规范；主要缺口 = 快捷键模态框简陋、调试页为孤立路由、搜索页死端点 + 从不调 /web-search、暗色画布对比过强、--sidebar-width 与实宽不符（240 vs 288）。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/components/ui/HelpModal.tsx`：升级为分组（导航/全局/菜单）+ framer-motion scale/fade 入场退场 + kbd 样式增强的快捷键模态框。
+  - `frontend/src/components/ui/HelpModal.test.tsx`：适配多分组 `<ul>` 断言（getAllByRole('list') 聚合统计）。
+  - `frontend/src/components/layout/Sidebar.tsx`：账号栏加头像字母圆标（[设置][头像+用户名+状态][快捷键]）。
+  - `frontend/src/pages/{Perf,Tokens,Router,Proxies,Eval}.tsx`：拆出可嵌入的 `*Panel` 导出，页面保留 deep-link 路由（仅渲染 PageHeader + Panel）。
+  - `frontend/src/components/settings/DebugPanelsSection.tsx`（新建）：5 个调试面板以嵌套 Collapsible 收敛。
+  - `frontend/src/pages/Settings.tsx`：diagnostics 分区渲染 DiagnosticsSection + DebugPanelsSection；分区描述更新。
+  - `frontend/src/components/settings/settings-data.ts`：catalog 新增 perf/tokens/router/proxies/eval 5 条（section=diagnostics，可语义搜索命中）。
+  - `frontend/src/styles/index.css`：暗色画布弱对比提升（canvas #0f0d0a→#14110d 等三档）；`--sidebar-width` 240→288 对齐实宽。
+  - `frontend/src/lib/api.ts`：死端点改指真实后端（code→/codegraph/search、suggest→/search/suggestions）+ 新增 `web→/web-search`。
+  - `frontend/src/components/search-panels.tsx`：搜索源新增「全网」；toList 支持 {symbols|results} 解包与 node/note 嵌套结构（修复 vault/codegraph/web 三类返回形状）。
+- **验证**：`bun run lint` 0 错误；`bun run test:run` 41 文件 268 测试全过；`bun run build`（tsc -b + vite build）成功（chunk 体积告警为既有 P3 项）。
+- **Commit**：`e9ea892`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 架构审查落盘 + 意图管线/宪法/搜索通道修复（后端 P0/P1/P2 批次）
 
 - **任务**：四维架构审查（① Agent 耦合内聚 ② 前后端与知识库/搜索 ③ 约束词与 Skill 应用 ④ 意识识别→知识论证→搜索补缺闭环）并落盘；修复审查发现的 P0/P1/P2 缺陷（后端部分，前端批次另行提交）。

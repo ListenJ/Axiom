@@ -10,7 +10,6 @@ import type { ComponentType } from 'react'
 import {
   Activity, Palette, Settings2, Database, Box, Bot, Server, Globe,
 } from 'lucide-react'
-
 export interface SettingItem {
   key: string
   section: string
@@ -60,6 +59,11 @@ export const SETTINGS_CATALOG: SettingItem[] = [
   { key: 'diagnostics.health', section: 'diagnostics', label: '服务健康检查', desc: '检查网关、沙箱、OCR、代码图谱与 Agent 等核心服务的可用状态，帮助定位故障模块。', keywords: ['健康', '检查', '诊断', '服务', '状态', 'health'], type: 'display', source: 'backend' },
   { key: 'diagnostics.runtime', section: 'diagnostics', label: '运行环境', desc: '识别 Web / Tauri 桌面 / Android 运行环境与视口、触控等平台信息，用于跨平台排障。', keywords: ['环境', '运行', '平台', 'tauri', 'android', 'web', '跨平台'], type: 'display', source: 'app' },
   { key: 'diagnostics.snapshot', section: 'diagnostics', label: '诊断快照', desc: '一键汇总运行环境与服务检查结果为可复制的文本，便于提交到问题反馈。', keywords: ['快照', '导出', '复制', '反馈', '诊断', 'snapshot'], type: 'action', source: 'app' },
+  { key: 'perf.runtime', section: 'diagnostics', label: '性能指标', desc: '运行时 CPU / 内存 / RPS / P95 与原生模块统计，定位性能瓶颈。', keywords: ['性能', 'cpu', '内存', 'rps', '延迟', '指标', 'perf'], type: 'panel', source: 'backend' },
+  { key: 'tokens.usage', section: 'diagnostics', label: 'Token 用量', desc: '近 7 天模型调用、Token 消耗与缓存命中率统计。', keywords: ['token', '用量', '消耗', '缓存', '调用', '统计'], type: 'panel', source: 'backend' },
+  { key: 'router.status', section: 'diagnostics', label: '模型路由', desc: '模型路由健康状态、Token 使用与路由状态检查。', keywords: ['路由', 'router', '健康', '模型', '状态'], type: 'panel', source: 'backend' },
+  { key: 'proxies.status', section: 'diagnostics', label: '代理状态', desc: '出站代理配置与活跃状态（只读），用于爬取通道排障。', keywords: ['代理', 'proxy', '爬取', '出站', '状态'], type: 'panel', source: 'backend' },
+  { key: 'eval.results', section: 'diagnostics', label: '模型评估', desc: '模型评估结果、动态分配与模型清单，可触发快速评估。', keywords: ['评估', 'eval', '模型', '得分', '分配'], type: 'panel', source: 'backend' },
 ]
 
 export function getSectionMeta(id: string): SettingSectionMeta {

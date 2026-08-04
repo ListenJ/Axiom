@@ -258,7 +258,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer: account bar */}
+      {/* Footer: account bar — [设置图标] [头像+用户名+在线状态] [快捷键指示图标] */}
       <div className="border-t border-[var(--border)] p-2">
         <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1.5">
           <button
@@ -273,15 +273,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           >
             <Settings size={16} />
           </button>
-          <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-xs font-medium text-[var(--text)]">
-              本地工作区
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span
+              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
+              aria-hidden="true"
+            >
+              本
             </span>
-            <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
-              <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
-              {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-xs font-medium text-[var(--text)]">
+                本地工作区
+              </span>
+              <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
+                <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
+                {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
+              </span>
             </span>
-          </span>
+          </div>
           <button
             type="button"
             onClick={() => setHelpOpen(true)}

@@ -57,20 +57,21 @@
   --info-soft: rgba(56, 189, 248, 0.12);
 
   /* Layout */
-  --sidebar-width: 240px;
+  --sidebar-width: 288px;
   --header-height: 56px;
   --bottom-nav-height: 64px;
   --content-max-width: 1440px;
 
-  /* App chrome split: 顶栏 + 左右侧栏同一外壳色，中间内容区用画布色 */
+  /* App chrome split: 顶栏 + 左右侧栏同一外壳色，中间内容区用画布色。
+     暗色下画布比外壳略浅（弱对比），保持一致的暖调层级 */
   --shell-bg: #171310;
   --shell-bg-raised: #201b15;
   --shell-hover: #201b15;
   --shell-border: #2a2319;
   --shell-border-strong: #382f21;
-  --canvas-bg: #0f0d0a;
-  --canvas-bg-raised: #191510;
-  --canvas-hover: #221d15;
+  --canvas-bg: #14110d;
+  --canvas-bg-raised: #1c1712;
+  --canvas-hover: #241e15;
 
   /* Spacing — 8dp grid (MD3-inspired) */
   --space-1: 4px;

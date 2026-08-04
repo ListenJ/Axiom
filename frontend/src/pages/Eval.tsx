@@ -27,7 +27,8 @@ interface EvalStats {
   activeAssignments?: number
 }
 
-export default function Eval() {
+/** 模型评估面板（设置页「调试与检查」嵌入用，不含页头；评估/分配动作保留在面板内） */
+export function EvalPanel() {
   const [stats, setStats] = useState<EvalStats | null>(null)
   const [results, setResults] = useState<EvalResult[]>([])
   const [assignments, setAssignments] = useState<EvalAssignment[]>([])
@@ -100,32 +101,59 @@ export default function Eval() {
   ]
 
   return (
-    <div className="space-y-6">
-        <PageHeader
-          icon={<BarChart3 className="size-5" />}
-          title="模型评估"
-          actions={
-          <>
-            <Button
-              size="sm"
-              onClick={() => handleRunEval('quick')}
-              loading={running}
-              icon={running ? <RefreshCw className="size-3.5" /> : <Play className="size-3.5" />}
-            >
-              快速评估
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleAssign}
-              disabled={running}
-              icon={<Settings className="size-3.5" />}
-            >
-              重新分配
-            </Button>
-          </>
-        }
-      />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => handleRunEval('quick')}
+            loading={running}
+            icon={running ? <RefreshCw className="size-3.5" /> : <Play className="size-3.5" />}
+          >
+            快速评估
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleAssign}
+            disabled={running}
+            icon={<Settings className="size-3.5" />}
+          >
+            重新分配
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs
+            tabs={tabs}
+            active={activeTab}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
+          />
+          {activeTab === 'results' && (
+            <>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="w-28"
+              >
+                <option value="overall">综合分</option>
+                <option value="quality">质量</option>
+                <option value="speed">速度</option>
+                <option value="cost">成本</option>
+              </Select>
+              <Select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="w-24"
+              >
+                <option value={1}>1 天</option>
+                <option value={7}>7 天</option>
+                <option value={30}>30 天</option>
+                <option value={90}>90 天</option>
+              </Select>
+            </>
+          )}
+        </div>
+      </div>
 
       {error && (
         <p
@@ -176,38 +204,6 @@ export default function Eval() {
             </p>
           )}
         </ShimmerCard>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Tabs
-          tabs={tabs}
-          active={activeTab}
-          onChange={(id) => setActiveTab(id as typeof activeTab)}
-        />
-        {activeTab === 'results' && (
-          <>
-            <Select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="w-28"
-            >
-              <option value="overall">综合分</option>
-              <option value="quality">质量</option>
-              <option value="speed">速度</option>
-              <option value="cost">成本</option>
-            </Select>
-            <Select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="w-24"
-            >
-              <option value={1}>1 天</option>
-              <option value={7}>7 天</option>
-              <option value={30}>30 天</option>
-              <option value={90}>90 天</option>
-            </Select>
-          </>
-        )}
       </div>
 
       {activeTab === 'results' && (
@@ -348,6 +344,19 @@ export default function Eval() {
           )}
         </ShimmerCard>
       )}
+    </div>
+  )
+}
+
+export default function Eval() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<BarChart3 className="size-5" />}
+        title="模型评估"
+        description="模型评估结果、动态分配与模型清单。"
+      />
+      <EvalPanel />
     </div>
   )
 }

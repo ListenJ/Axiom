@@ -24,7 +24,8 @@ interface Proxy {
   active: boolean
 }
 
-export default function Proxies() {
+/** 代理状态面板（设置页「调试与检查」嵌入用，不含页头） */
+export function ProxiesPanel() {
   const [proxies, setProxies] = useState<Proxy[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,13 +47,7 @@ export default function Proxies() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={<Globe className="size-5" />}
-        title="代理管理"
-        description="系统代理状态 · 隐私保护配置。"
-      />
-
+    <div className="space-y-4">
       {error && (
         <p
           role="alert"
@@ -136,6 +131,19 @@ export default function Proxies() {
       <p className="text-2xs text-[var(--text-muted)]">
         代理仅用于出站爬取请求，不会影响本地 API 访问。
       </p>
+    </div>
+  )
+}
+
+export default function Proxies() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Globe className="size-5" />}
+        title="代理管理"
+        description="系统代理状态 · 隐私保护配置。"
+      />
+      <ProxiesPanel />
     </div>
   )
 }

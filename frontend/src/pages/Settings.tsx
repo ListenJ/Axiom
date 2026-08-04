@@ -12,6 +12,7 @@ import SettingsSearch from '@/components/settings/SettingsSearch'
 import ModelManagementSection from '@/components/settings/models-section'
 import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
+import DebugPanelsSection from '@/components/settings/DebugPanelsSection'
 import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
 
 /* ───────── 通用开关行（图标 + 标题 + 精确说明 + 开关） ───────── */
@@ -278,7 +279,12 @@ const sectionRenderers: Record<string, SectionRenderer> = {
     </ShimmerCard>
   ),
 
-  diagnostics: ({ toast }) => <DiagnosticsSection toast={toast} />,
+  diagnostics: ({ toast }) => (
+    <div className="stagger space-y-3">
+      <DiagnosticsSection toast={toast} />
+      <DebugPanelsSection />
+    </div>
+  ),
 }
 
 /* ───────── 设置页 ───────── */
@@ -368,7 +374,7 @@ export default function Settings() {
           models: { description: '模型配置管理（提供商 / 模型 ID / 层级）' },
           agent: { description: '编码 Agent 可用状态与权限行为（与后端配置一一对应）' },
           gateway: { description: 'HTTP 服务监听配置（读取自 /config，修改需重启生效）' },
-          diagnostics: { description: '运行环境与核心服务健康检查，可一键复制诊断快照' },
+          diagnostics: { description: '运行环境与核心服务健康检查、性能/Token/路由/代理/评估面板，可一键复制诊断快照' },
         }[section.id]
 
         return (
