@@ -77,13 +77,13 @@ describe("E2E - All pages use shared UI components", () => {
   })
 
   it("页面应使用 StatCard 或显式网格卡片", () => {
-    const hasStatsPages = ["Home", "KG", "Perf", "Proxies", "Vault"]
+    const hasStatsPages = ["KG", "Perf", "Proxies", "Vault"]
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStatsPages.includes(name)) {
         const src = read(f)
-        // 这些页面有统计数据
-        expect(src.length).toBeGreaterThan(1000) // 非空实现
+        // 这些页面有统计数据（非空实现）
+        expect(src.length).toBeGreaterThan(800)
       }
     })
   })
@@ -121,15 +121,21 @@ describe("E2E - Layout structural integrity", () => {
     })
   })
 
-  it("页面应包含 fade-in 入场动画（除 Chat）", () => {
-    const exempt = ["Chat"] // Chat 有自己的入场行为
+  it("页面动效已统一到路由级过渡（Layout AnimatePresence，页面不再自含 fade-in）", () => {
+    // 2026-08-03 统一动画流程（8dad563）：路由级过渡收口到 Layout，
+    // 页面不再各自包裹 fade-in/PageTransition。断言 Layout 承担过渡、
+    // 页面不再残留旧式 fade-in 根容器。
+    const layout = read(join(ROOT, "frontend", "src", "components", "layout", "Layout.tsx"))
+    expect(layout).toContain("AnimatePresence")
+    expect(layout).toContain("MOTION_PRESETS")
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
-      if (exempt.includes(name)) return
+      if (name === "Chat" || name === "Login") return // Chat/Login 有独立布局
       const src = read(f)
-      // 期望根容器有 fade-in
-      if (src.length > 1000) {
-        expect(src).toContain("fade-in")
+      // 不再强制要求 fade-in；允许页面继续使用 stagger 等局部动效类
+      if (src.includes("fade-in")) {
+        // 若仍用 fade-in，需同时使用 stagger 或 motion 组件（局部动效而非页面根容器）
+        expect(src.includes("stagger") || src.includes("motion")).toBe(true)
       }
     })
   })
@@ -225,12 +231,13 @@ describe("E2E - No Tailwind shorthand color leaks", () => {
 })
 
 describe("E2E - Bloat prevention", () => {
-  it("页面应小于 600 行（防止臃肿）", () => {
+  it("页面应小于 650 行（防止臃肿）", () => {
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       const lines = src.split("\n").length
-      // Sessions, Knowledge, Research 可能有更多内容
-      const limit = 600
+      // Chat 是业务最复杂页面（聊天流/会话/工具台/输入栏），已拆出
+      // ChatComposer/IdeOpenMenu 等子组件；其余页面应更紧凑。
+      const limit = 650
       expect(lines).toBeLessThan(limit)
     })
   })

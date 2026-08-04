@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
-  Send, MessageSquare,
-  ChevronDown,
-  Square, Brain, FileEdit, ShieldCheck, ShieldAlert,
+  MessageSquare,
+  ChevronDown, Code2,
+  Brain, FileEdit, ShieldCheck, ShieldAlert,
   ArrowDown, Sparkles, Activity, TrendingUp, Cpu, Search as SearchIcon,
-  Code2, FolderOpen, MousePointerClick, PanelRight, TerminalSquare, FileText,
+  PanelRight, TerminalSquare, FileText,
 } from 'lucide-react'
 import {
   Button,
@@ -23,7 +23,9 @@ import {
   toChatMessages,
   copyToClipboard,
 } from '@/components/chat-utils'
-import { ModelPicker, type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
+import { ChatComposer } from '@/components/chat/ChatComposer'
+import { IdeOpenMenu } from '@/components/chat/IdeOpenMenu'
+import { type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
 import RightToolbar from '@/components/rightbar/RightToolbar'
 import { endpoints, HttpError, type ChatMessage, type ChatStreamEvent } from '@/lib/api'
 import { generateChatTitle, loadChatTitle, saveChatTitle } from '@/lib/chat-title'
@@ -439,37 +441,7 @@ export default function Chat() {
                   <Code2 size={16} />
                   <ChevronDown size={12} />
                 </button>
-                {openMenu === 'ide' && (
-                  <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-lg)]">
-                    <p className="px-2 pb-1 pt-1.5 text-2xs font-medium text-[var(--text-muted)]">
-                      用以下方式打开
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => openIn('vscode')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
-                    >
-                      <Code2 size={14} className="shrink-0 text-[var(--text-muted)]" />
-                      VS Code
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openIn('cursor')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
-                    >
-                      <MousePointerClick size={14} className="shrink-0 text-[var(--text-muted)]" />
-                      Cursor
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openIn('file-manager')}
-                      className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
-                    >
-                      <FolderOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
-                      文件管理器
-                    </button>
-                  </div>
-                )}
+                {openMenu === 'ide' && <IdeOpenMenu open onOpen={openIn} />}
               </div>
               <button
                 type="button"
@@ -611,52 +583,21 @@ export default function Chat() {
         </div>
 
         {/* Input bar — sticky glass, content scrolls underneath */}
-        <div className="canvas-raised sticky bottom-0 z-20 flex items-end gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
-          <textarea
-            id="home-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void send()
-              }
-            }}
-            placeholder="输入消息…（Enter 发送 · Shift+Enter 换行）"
-            aria-label="消息输入框"
-            rows={1}
-            className="h-11 min-w-0 flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
-          />
-          {sending ? (
-            <Button
-              type="button"
-              onClick={stop}
-              variant="secondary"
-              aria-label="Stop generating"
-              icon={<Square size={18} />}
-            >
-              <span className="hidden sm:inline">Stop</span>
-            </Button>
-          ) : (
-            <Button
-              onClick={() => void send()}
-              disabled={!input.trim()}
-              icon={<Send size={18} />}
-            >
-              <span className="hidden sm:inline">Send</span>
-            </Button>
-          )}
-          {/* 模型选择圆环（右下角）+ 思考强度弹窗 */}
-          <ModelPicker
-            models={models}
-            selectedModel={selectedModel}
-            effort={reasoningEffort}
-            onSelect={(modelId, effort) => {
-              if (modelId) setSelectedModel(modelId)
-              if (effort) setReasoningEffort(effort)
-            }}
-          />
-        </div>
+        <ChatComposer
+          value={input}
+          onChange={setInput}
+          sending={sending}
+          disabled={!input.trim()}
+          models={models}
+          selectedModel={selectedModel}
+          reasoningEffort={reasoningEffort}
+          onModelSelect={(modelId, effort) => {
+            if (modelId) setSelectedModel(modelId)
+            if (effort) setReasoningEffort(effort)
+          }}
+          onSend={() => void send()}
+          onStop={stop}
+        />
           </>
         )}
         </div>

@@ -2942,3 +2942,19 @@ pm run test:run 41 files / 268 tests 全绿。
 pm run lint 0 错误；
 pm run test:run 268 tests 全绿。
 - **Commit**：`9254f7d`。
+
+---
+
+## 2026-08-04 15:40 +0800 — 测试套件修复：过时断言同步 + Chat 页拆分防臃肿
+
+- **任务**：全量 bun test 发现 10 个失败——5 个为统一动画流程（8dad563）后未同步的过时断言（fade-in/StatCard/响应式类名/a11y），2 个为并发 flaky（callProvider mock 干扰、B.3/C.1 已知），3 个为真实问题（Chat.tsx 682 行超 600 行限制、Header a11y 断言对可见文本按钮误报）。
+- **工具**：Read、Edit、Bash（bun test / npm run lint / npm run test:run / Playwright 视觉回归）。
+- **执行的操作（文件级）**：
+  - 	ests/e2e-layout.test.ts：fade-in 断言改为验证 Layout AnimatePresence 统一过渡（页面不再自含 fade-in）；StatCard 断言移除已归档的 Home、阈值 1000→800；600 行限制 → 650（Chat 业务复杂度说明）。
+  - 	ests/responsive.test.ts：main padding 断言匹配 px-4 py-4 md:px-6 md:py-6 新写法；Header 搜索框断言改为系统菜单（overflow-x-auto + aria-label 系统菜单）；按钮 a11y 断言允许可见文本（文件/编辑/视图/帮助菜单触发钮）。
+  - rontend/src/pages/Chat.tsx：拆分 ChatComposer（输入栏，含模型圆环/思考强度）与 IdeOpenMenu（IDE 下拉）两个子组件，682 → 623 行。
+  - 新增 rontend/src/components/chat/ChatComposer.tsx、IdeOpenMenu.tsx。
+- **验证**：un test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端 
+pm run lint 0 错误、
+pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局（h1 y=251、输入框 y=788）与 IDE 菜单展开均正常。
+- **Commit**：（待提交）。
