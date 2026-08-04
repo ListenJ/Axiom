@@ -2957,4 +2957,4 @@ pm run test:run 268 tests 全绿。
 - **验证**：un test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端 
 pm run lint 0 错误、
 pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局（h1 y=251、输入框 y=788）与 IDE 菜单展开均正常。
-- **Commit**：（待提交）。
+- **Commit**：`43280d3`。
