@@ -79,6 +79,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
   const setRightbarOpen = useApp((s) => s.setRightbarOpen)
   const setHelpOpen = useApp((s) => s.setHelpOpen)
+  const toggleSidebarCollapsed = useApp((s) => s.toggleSidebarCollapsed)
 
   return (
     <header className="shell-surface flex h-14 shrink-0 items-center gap-1 border-b border-[var(--shell-border)] px-3">
@@ -127,6 +128,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
           label="视图"
           items={[
             { label: '切换主题', shortcut: shortcutLabel('theme'), onSelect: () => toggleTheme() },
+            { label: '折叠侧栏', onSelect: () => toggleSidebarCollapsed() },
             { label: '打开终端', shortcut: shortcutLabel('terminal'), onSelect: () => setTerminalOpen(true) },
             { label: '打开工具台', onSelect: () => setRightbarOpen(true) },
             { label: '搜索', shortcut: shortcutLabel('search-slash'), onSelect: () => navigate('/search') },

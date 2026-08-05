@@ -7,6 +7,26 @@
 
 ---
 
+## 2026-08-04 — 前端四项遗留建议落地：Markdown 渲染/会话历史侧栏/侧栏折叠/分包
+
+- **任务**：完成上一轮审查建议的全部遗留项 —— ① 消息 Markdown + 代码高亮 ② 会话历史侧栏常驻（可搜索） ③ 侧栏折叠态 ④ 前端分包。
+- **工具**：Read、Edit、Write、Bash(bun add / lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - 依赖：新增 `marked@18` + `highlight.js@11`（frontend/package.json + bun.lock）。
+  - `frontend/src/components/chat/MarkdownContent.tsx`（新建）：GFM 渲染 + hljs 子集高亮（16 语言）+ 代码复制按钮（事件委托）；安全设计：原始 HTML 转义为文本、`javascript:` 链接拦截渲染为纯文本、https 链接强制 `rel=noopener`；内容 useMemo 缓存适配流式重渲染。
+  - `frontend/src/components/chat/MarkdownContent.test.tsx`（新建，7 用例）：标题/列表/行内码、XSS 剥离、危险协议拦截、https 放行、代码块高亮+复制按钮、GFM 表格、空内容。
+  - `frontend/src/components/chat-panels.tsx`：助手消息主内容改走 MarkdownContent，用户消息保持纯文本。
+  - `frontend/src/styles/index.css`：新增 `.md-*` 样式族（标题/列表/引用/表格/行内码/代码块头部+复制按钮）。
+  - `frontend/src/state/useApp.ts`：新增 `sidebarCollapsed` 状态（localStorage 持久化）。
+  - `frontend/src/components/layout/Sidebar.tsx`：折叠态（lg 下 w-72↔w-16 过渡，导航仅图标+tooltip，账号栏图标化）+ 新增「会话历史」常驻区（搜索过滤、按活跃排序、点击跳转，与工作区浮层并存）。
+  - `frontend/src/components/layout/Header.tsx`：视图菜单新增「折叠侧栏」。
+  - `frontend/src/App.tsx`：Chat/Login 保持 eager，其余 19 个路由全部 React.lazy + Suspense（PageFallback 加载态）。
+  - `frontend/vite.config.ts`：manualChunks 供应商分包（react/motion/xterm/markdown/lucide/other）+ chunkSizeWarningLimit 600。
+- **验证**：`bun run lint` 0 错误；`bun run test:run` 42 文件 275 测试全过（+7 新）；`bun run build` 成功 —— 主 chunk 976KB→**114.88KB**（gzip 33KB），路由级 chunk 3-18KB，无体积告警。
+- **Commit**：`13ba92e`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 前端外壳/账号栏/快捷键模态框/调试收敛重构（前端批次）
 
 - **任务**：按用户外壳设计规范重构前端 —— ① 顶栏菜单 + 左栏外壳（已有，保留）② 左栏底部账号栏 [设置图标][头像+用户名+在线状态][快捷键指示图标] ③ 快捷键指示图标 → 分组动画快捷键模态框 ④ 调试/检查功能收敛进设置页「调试与检查」分区 ⑤ 聊天画布与外壳弱对比配色 ⑥ 搜索面板接入全网搜索（P2-1 收尾）。

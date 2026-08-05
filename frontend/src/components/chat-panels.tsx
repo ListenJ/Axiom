@@ -17,6 +17,7 @@ import {
 import { InlineEmptyState, Select, Skeleton, ShimmerCard, Button, LoadingDots } from '@/components/ui'
 import { endpoints } from '@/lib/api'
 import { formatTokens, extractTotalTokens } from './chat-utils'
+import MarkdownContent from './chat/MarkdownContent'
 
 // ─── 类型定义 ────────────────────────────────────────────────────────────
 
@@ -546,7 +547,7 @@ export function MessageItem({
             />
           )}
 
-          {/* 主内容 */}
+          {/* 主内容：用户消息保持纯文本（零渲染风险）；助手消息走 Markdown（GFM+高亮+复制） */}
           {msg.streaming && msg.content === '' && !hasThinking ? (
             <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">
               <LoadingDots size="sm" />
@@ -554,10 +555,12 @@ export function MessageItem({
                 {msg.meta?.model ? `${msg.meta.model} 思考中…` : '思考中…'}
               </span>
             </div>
-          ) : (
+          ) : isUser ? (
             <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${msg.error ? 'text-[var(--danger)]' : 'text-[var(--text)]'}`}>
               {msg.content}
             </p>
+          ) : (
+            <MarkdownContent content={msg.content} />
           )}
         </div>
       </div>

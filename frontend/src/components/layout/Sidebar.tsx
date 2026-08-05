@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { X, FolderOpen, MessageSquare, Clock, ChevronRight, Settings, Keyboard } from 'lucide-react'
+import {
+  X, FolderOpen, MessageSquare, Clock, ChevronRight, ChevronDown, ChevronUp,
+  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Search,
+} from 'lucide-react'
 import { NAV_SECTIONS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
 import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
@@ -17,11 +20,15 @@ interface SidebarProps {
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const navigate = useNavigate()
   const setHelpOpen = useApp((s) => s.setHelpOpen)
+  const collapsed = useApp((s) => s.sidebarCollapsed)
+  const toggleCollapsed = useApp((s) => s.toggleSidebarCollapsed)
   const [health, setHealth] = useState<{ status?: string; version?: string; uptime?: number } | null>(null)
   const [healthError, setHealthError] = useState(false)
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [workspaceError, setWorkspaceError] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(true)
+  const [historyQuery, setHistoryQuery] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -82,21 +89,29 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     onClose()
   }
 
+  // 会话历史：按标题过滤，按最近活跃排序（上限 50 条展示）
+  const q = historyQuery.trim().toLowerCase()
+  const historySessions = [...sessions]
+    .sort((a, b) => (b.last_active ?? 0) - (a.last_active ?? 0))
+    .filter((s) => !q || sessionListTitle(s.session_id).toLowerCase().includes(q))
+    .slice(0, 50)
+
   return (
     <aside
       className={`
         fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[var(--shell-border)]
         shell-surface
-        transform transition-transform duration-300 ease-out
+        transform transition-[width,transform] duration-300 ease-out
         lg:static lg:translate-x-0
+        ${collapsed ? 'lg:w-16' : 'lg:w-72'}
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}
       aria-label="主导航"
     >
       {/* Brand */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
-        <div className="flex items-center gap-2">
-          <svg className="h-8 w-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <div className="flex min-w-0 items-center gap-2">
+          <svg className="h-8 w-8 shrink-0" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="8" fill="url(#logo-gradient)" />
             <path d="M16 8c-4.4 0-8 3.1-8 7s3.6 7 8 7c2 0 3.8-.7 5.2-1.8l-2.2-2.2c-.8.6-1.9 1-3 1-2.2 0-4-1.6-4-3.6s1.8-3.6 4-3.6 4 1.6 4 3.6v.7h-3.5l4.2 4.2C24.2 18.5 24 13.5 24 15c0-3.9-3.6-7-8-7z" fill="white" />
             <defs>
@@ -106,25 +121,36 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </linearGradient>
             </defs>
           </svg>
-          <div className="flex flex-col leading-tight">
-            <span className="font-display text-sm font-semibold tracking-tight text-[var(--text)]">
+          <div className={`flex min-w-0 flex-col leading-tight ${collapsed ? 'lg:hidden' : ''}`}>
+            <span className="truncate font-display text-sm font-semibold tracking-tight text-[var(--text)]">
               Axiom
             </span>
             <span className="text-2xs text-[var(--text-muted)]">智能工作台</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
-          aria-label="关闭菜单"
-        >
-          <X size={18} />
-        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:flex"
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            title={collapsed ? '展开侧栏' : '折叠侧栏'}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
+            aria-label="关闭菜单"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* Workspaces + sessions */}
-      <div className="shrink-0 border-b border-[var(--border)]">
+      {/* Workspaces + sessions（折叠态隐藏） */}
+      <div className={`shrink-0 border-b border-[var(--border)] ${collapsed ? 'lg:hidden' : ''}`}>
         <div className="flex items-center justify-between px-3 pb-1 pt-3">
           <p className="px-1 text-2xs font-medium text-[var(--text-muted)]">
             打开的工作区
@@ -206,13 +232,75 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             })}
           </div>
         )}
+
+        {/* 会话历史（常驻，可搜索） */}
+        <div className="px-3 pb-1 pt-3">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+            aria-expanded={historyOpen}
+          >
+            <p className="text-2xs font-medium text-[var(--text-muted)]">会话历史</p>
+            <span className="flex items-center gap-1.5">
+              <span className="rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
+                {sessions.length}
+              </span>
+              {historyOpen ? <ChevronUp size={12} className="text-[var(--text-muted)]" /> : <ChevronDown size={12} className="text-[var(--text-muted)]" />}
+            </span>
+          </button>
+        </div>
+        {historyOpen && (
+          <div className="px-2 pb-2">
+            <div className="relative mb-1.5">
+              <Search size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                value={historyQuery}
+                onChange={(e) => setHistoryQuery(e.target.value)}
+                placeholder="搜索会话…"
+                aria-label="搜索会话"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] py-1.5 pl-7 pr-2 text-xs text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
+              />
+            </div>
+            <div className="max-h-40 space-y-0.5 overflow-y-auto">
+              {historySessions.length === 0 ? (
+                <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
+                  {q ? '没有匹配的会话' : '暂无会话'}
+                </p>
+              ) : (
+                historySessions.map((s) => (
+                  <button
+                    key={s.session_id}
+                    type="button"
+                    onClick={() => openSession(s.session_id)}
+                    className="press flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+                  >
+                    <MessageSquare size={12} className="shrink-0 text-[var(--text-muted)]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-2xs text-[var(--text)]" title={s.session_id}>
+                        {sessionListTitle(s.session_id)}
+                      </span>
+                      <span className="block text-2xs text-[var(--text-muted)]">
+                        {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-2xs text-[var(--text-muted)]">
+                      {formatTime(s.last_active)}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Nav items grouped by section */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
         {groups.map((group) => (
           <div key={group.id} className="pt-3 first:pt-0">
-            <p className="px-3 pb-1 text-2xs font-medium text-[var(--text-muted)]">
+            <p className={`px-3 pb-1 text-2xs font-medium text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
               {group.label}
             </p>
             {group.items.map((item) => {
@@ -223,12 +311,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   to={item.path}
                   end={item.path === '/'}
                   onClick={() => onClose()}
+                  title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
                     `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]'
-                    }`
+                    } ${collapsed ? 'lg:justify-center lg:px-0' : ''}`
                   }
                 >
                   {({ isActive }) => (
@@ -239,13 +328,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                           isActive ? 'text-[var(--accent)]' : ''
                         }`}
                       />
-                      <span className="flex-1">{item.label}</span>
+                      <span className={`flex-1 truncate ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
                       <kbd
                         className={`font-mono text-2xs ${
                           isActive
                             ? 'text-[var(--accent)] opacity-70'
                             : 'text-[var(--text-muted)]'
-                        }`}
+                        } ${collapsed ? 'lg:hidden' : ''}`}
                       >
                         {item.shortcut}
                       </kbd>
@@ -260,7 +349,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Footer: account bar — [设置图标] [头像+用户名+在线状态] [快捷键指示图标] */}
       <div className="border-t border-[var(--border)] p-2">
-        <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1.5">
+        <div className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ${collapsed ? 'lg:flex-col lg:gap-2 lg:px-0' : ''}`}>
           <button
             type="button"
             onClick={() => {
@@ -273,7 +362,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           >
             <Settings size={16} />
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className={`flex min-w-0 flex-1 items-center gap-2 ${collapsed ? 'lg:hidden' : ''}`}>
             <span
               className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
               aria-hidden="true"
