@@ -40,8 +40,9 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
   const termRef = useRef<Terminal | null>(null)
   const [state, setState] = useState<ConnState>('connecting')
   const [height, setHeight] = useState(readInitialHeight)
-  // 跟随全局主题（dark/light）：主题切换时重建 xterm 配色
+  // 跟随全局主题（dark/light）与强调色（accent）：变化时重建 xterm 配色
   const theme = useApp((s) => s.theme)
+  const accent = useApp((s) => s.accent)
 
   // 拖拽调整高度：手柄在面板顶部，向上拖拽增高，向下拖拽降低
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
@@ -81,7 +82,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     const term = termRef.current
     if (!term) return
     term.options.theme = buildTerminalTheme(cssVarReader())
-  }, [theme])
+  }, [theme, accent])
 
   useEffect(() => {
     const container = containerRef.current

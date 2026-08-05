@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { generateChatTitle, loadChatTitle, saveChatTitle, sessionListTitle } from './chat-title'
+import { generateChatTitle, loadChatTitle, saveChatTitle, sessionListTitle, clearChatTitle } from './chat-title'
 
 describe('chat-title', () => {
   beforeEach(() => {
@@ -42,5 +42,12 @@ describe('chat-title', () => {
 
   it('list title falls back to a truncated session id when no title saved', () => {
     expect(sessionListTitle('abcdefgh1234567890xxxx')).toBe('abcdefgh12345678')
+  })
+
+  it('clearChatTitle removes the local title cache', () => {
+    saveChatTitle('s-2', '临时标题')
+    expect(loadChatTitle('s-2')).toBe('临时标题')
+    clearChatTitle('s-2')
+    expect(loadChatTitle('s-2')).toBeNull()
   })
 })

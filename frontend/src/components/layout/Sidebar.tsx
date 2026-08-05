@@ -8,7 +8,7 @@ import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
 import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
-import { sessionListTitle, saveChatTitle } from '@/lib/chat-title'
+import { sessionListTitle, saveChatTitle, clearChatTitle } from '@/lib/chat-title'
 import { formatTime, formatTokens } from '@/components/chat-utils'
 
 interface SidebarProps {
@@ -135,6 +135,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         }
       }
       setSessions((prev) => prev.filter((s) => s.session_id !== sessionId))
+      clearChatTitle(sessionId)
       if (currentSession === sessionId) navigate('/chat')
     } catch {
       window.alert('删除会话失败，请重试')
@@ -247,8 +248,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <path d="M16 8c-4.4 0-8 3.1-8 7s3.6 7 8 7c2 0 3.8-.7 5.2-1.8l-2.2-2.2c-.8.6-1.9 1-3 1-2.2 0-4-1.6-4-3.6s1.8-3.6 4-3.6 4 1.6 4 3.6v.7h-3.5l4.2 4.2C24.2 18.5 24 13.5 24 15c0-3.9-3.6-7-8-7z" fill="white" />
             <defs>
               <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#f59e0b" />
-                <stop offset="1" stopColor="#fbbf24" />
+                <stop stopColor="var(--accent)" />
+                <stop offset="1" stopColor="var(--accent-strong)" />
               </linearGradient>
             </defs>
           </svg>

@@ -105,7 +105,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
         className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
         aria-label="返回对话"
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-sm font-bold text-white shadow-[var(--shadow-sm)]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-gradient)] text-sm font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
           OC
         </div>
         <span className="hidden font-display text-base font-semibold tracking-tight sm:inline">

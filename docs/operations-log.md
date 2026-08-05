@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-04 — 消息编辑/重新生成 + 删除清理标题 + 品牌/终端跟随强调色
+
+- **任务**：继续优化 —— ① 消息「编辑并重新发送」（用户消息）+「重新生成」（助手消息）② 删除会话清理 localStorage 标题残留 ③ 品牌 logo 与终端配色跟随强调色 ④ 新建对话按钮语义（「开启新对话」文本）。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/components/chat-panels.tsx`：MessageItem 新增 `onEdit`/`onRegenerate` props；用户消息 hover 出「编辑」（PenLine）→ 内联 textarea 编辑态（Ctrl/⌘+Enter 发送、Esc 取消、保存并发送按钮）；助手消息 hover 出「重新生成」（RotateCcw，错误消息保留「重试」文本按钮）。
+  - `frontend/src/pages/Chat.tsx`：新增 `editAndResend`（截断该用户消息及其后全部内容 → 新文本重发）与 `regenerate`（截断该助手消息及其后 → 重发前一条用户消息）handler，与既有 `retryFromError` 同构；传入 MessageItem。
+  - `frontend/src/lib/chat-title.ts`：新增 `clearChatTitle(sessionId)`；`frontend/src/components/layout/Sidebar.tsx` 删除会话成功后调用（防止同 id 复用显示旧标题）。
+  - `frontend/src/components/layout/Sidebar.tsx` + `Header.tsx`：品牌 logo 渐变改用 `var(--accent)/var(--accent-strong)` 与 `var(--accent-gradient)/var(--on-accent)`，跟随主题色自定义。
+  - `frontend/src/components/terminal/TerminalPanel.tsx`：xterm 主题重建依赖追加 `accent`（强调色切换后终端配色同步刷新）。
+  - `frontend/src/lib/chat-title.test.ts`：+1 用例（clearChatTitle 清理本地缓存）。
+- **验证**：前端 lint 0 错误；`bun run test:run` 42 文件 278 测试全过（+1）；生产构建成功。
+- **Commit**：`acc6064`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 体验优化批次：轮询收敛 / 系统主题跟随 / 抓取分区补全 / 工具台跳转 / 标题默认值
 
 - **任务**：继续优化 —— ① StatsBar 轮询收敛（1s/5s → 10s/60s + 页面隐藏暂停） ② 主题支持「跟随系统」（三态 + matchMedia 实时切换） ③ 设置页「抓取」分区补渲染器（引擎可用状态 + 并发说明，原分区因无 renderer 被跳过） ④ 顶栏「打开工具台」非 chat 页时先导航 /chat（工具台仅挂载于聊天页） ⑤ Chat 画布无标题默认「Chat」→「新对话」。

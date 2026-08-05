@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, AlertTriangle, Brain, FileEdit, Wrench, AlertCircle, CheckCircle2,
-  ChevronUp, ChevronDown, Clock, User, Bot, Sparkles, Check, Copy, RotateCcw,
+  ChevronUp, ChevronDown, Clock, User, Bot, Sparkles, Check, Copy, RotateCcw, PenLine,
 } from 'lucide-react'
 import { InlineEmptyState, Select, Skeleton, ShimmerCard, Button, LoadingDots } from '@/components/ui'
 import { endpoints } from '@/lib/api'
@@ -448,6 +448,10 @@ interface MessageItemProps {
   copiedId: string | null
   onCopy: (id: string, content: string) => void
   onRetry: (id: string) => void
+  /** 编辑用户消息：截断其后消息并用新文本重新发送 */
+  onEdit: (id: string, newText: string) => void
+  /** 重新生成：截断该助手消息及其后，重发其前一条用户消息 */
+  onRegenerate: (id: string) => void
 }
 
 export function MessageItem({
@@ -458,11 +462,15 @@ export function MessageItem({
   copiedId,
   onCopy,
   onRetry,
+  onEdit,
+  onRegenerate,
 }: MessageItemProps) {
   const isUser = msg.role === 'user'
   const hasThinking = !!msg.thinking && msg.thinking.length > 0
   const hasFileChanges = !!msg.fileChanges && msg.fileChanges.length > 0
   const hasToolCalls = !!msg.toolCalls && msg.toolCalls.length > 0
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
   return (
     <ShimmerCard
       key={msg.id}
@@ -499,9 +507,32 @@ export function MessageItem({
               ) : null
             })()}
 
-            {/* 消息操作按钮组：复制（hover 显示）+ 重试（仅错误消息） */}
+            {/* 消息操作按钮组：编辑（用户消息）/ 重新生成（助手消息）/ 复制（hover 显示）+ 重试（仅错误消息） */}
             {!msg.streaming && msg.content.trim() !== '' && (
               <div className={`ml-auto flex items-center gap-0.5 ${msg.error ? 'opacity-100' : 'opacity-0 transition-opacity group-hover/msg:opacity-100'}`}>
+                {isUser && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setDraft(msg.content)
+                      setEditing(true)
+                    }}
+                    aria-label="编辑消息"
+                    title="编辑此消息并重新发送"
+                    icon={<PenLine size={12} />}
+                  />
+                )}
+                {!isUser && !msg.error && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onRegenerate(msg.id)}
+                    aria-label="重新生成"
+                    title="重新生成此回复"
+                    icon={<RotateCcw size={12} />}
+                  />
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -548,7 +579,47 @@ export function MessageItem({
           )}
 
           {/* 主内容：用户消息保持纯文本（零渲染风险）；助手消息走 Markdown（GFM+高亮+复制） */}
-          {msg.streaming && msg.content === '' && !hasThinking ? (
+          {isUser && editing ? (
+            <div className="mt-1">
+              <textarea
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    const t = draft.trim()
+                    if (t) {
+                      onEdit(msg.id, t)
+                      setEditing(false)
+                    }
+                  }
+                  if (e.key === 'Escape') setEditing(false)
+                }}
+                aria-label="编辑消息内容"
+                rows={Math.min(10, Math.max(2, draft.split('\n').length))}
+                className="w-full resize-y rounded-lg border border-[var(--accent)] bg-[var(--bg-tertiary)] px-2.5 py-2 text-sm text-[var(--text)] focus:outline-none"
+              />
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const t = draft.trim()
+                    if (t) {
+                      onEdit(msg.id, t)
+                      setEditing(false)
+                    }
+                  }}
+                >
+                  保存并发送
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                  取消
+                </Button>
+                <span className="ml-auto text-2xs text-[var(--text-muted)]">Ctrl/⌘+Enter 发送 · Esc 取消</span>
+              </div>
+            </div>
+          ) : msg.streaming && msg.content === '' && !hasThinking ? (
             <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-muted)]">
               <LoadingDots size="sm" />
               <span>

@@ -397,6 +397,30 @@ export default function Chat() {
     void send(userText)
   }
 
+  // 编辑用户消息：截断该消息及其后全部内容，用新文本重新发送
+  const editAndResend = (userMsgId: string, newText: string) => {
+    if (sending) return
+    const text = newText.trim()
+    if (!text) return
+    const idx = messages.findIndex((m) => m.id === userMsgId)
+    if (idx < 0) return
+    setMessages((m) => m.slice(0, idx))
+    void send(text)
+  }
+
+  // 重新生成：截断该助手消息及其后全部内容，重发其前一条用户消息
+  const regenerate = (assistantMsgId: string) => {
+    if (sending) return
+    const idx = messages.findIndex((m) => m.id === assistantMsgId)
+    if (idx < 1) return
+    let userIdx = idx - 1
+    while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--
+    if (userIdx < 0) return
+    const userText = messages[userIdx].content
+    setMessages((m) => m.slice(0, userIdx))
+    void send(userText)
+  }
+
   return (
     <div className="flex h-full gap-0">
       {/* Main Chat Area */}
@@ -578,6 +602,8 @@ export default function Chat() {
               copiedId={copiedId}
               onCopy={handleCopy}
               onRetry={retryFromError}
+              onEdit={editAndResend}
+              onRegenerate={regenerate}
             />
           ))}
         </div>

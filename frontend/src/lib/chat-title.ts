@@ -37,6 +37,12 @@ export function saveChatTitle(sessionId: string | null | undefined, title: strin
     .catch(() => {})
 }
 
+/** 清除本地标题缓存（会话删除时调用，防止同 id 复用时显示旧标题）。 */
+export function clearChatTitle(sessionId: string): void {
+  if (typeof localStorage === 'undefined') return
+  localStorage.removeItem(STORAGE_PREFIX + sessionId)
+}
+
 /** 列表展示用标题：优先已保存标题，无标题时回退 session id 前 16 字符。 */
 export function sessionListTitle(sessionId: string, serverTitle?: string | null): string {
   return loadChatTitle(sessionId) ?? (serverTitle || sessionId.slice(0, 16))
