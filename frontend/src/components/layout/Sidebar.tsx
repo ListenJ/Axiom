@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   X, FolderOpen, MessageSquare, Clock, ChevronRight,
   Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
+  GitBranch, RefreshCw, ArrowUpCircle, ArrowDownCircle, CircleDot, Layers, Puzzle, Activity,
 } from 'lucide-react'
 import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
@@ -14,6 +15,11 @@ import { formatTime, formatTokens } from '@/components/chat-utils'
 interface SidebarProps {
   open: boolean
   onClose: () => void
+}
+
+/** 显示截断：项目名 ≤20 字符、会话标题 ≤50 字符（未渲染完全时横向滚动，见 .text-scroll） */
+function limitText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
@@ -31,6 +37,38 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [busyDelete, setBusyDelete] = useState<string | null>(null)
+
+  // ── Git 仓库状态（段 2） ──
+  const [gitStatus, setGitStatus] = useState<{
+    success?: boolean
+    branch?: string
+    modified?: string[]
+    added?: string[]
+    deleted?: string[]
+    ahead?: number
+    behind?: number
+    clean?: boolean
+    error?: string
+  } | null>(null)
+  const [branches, setBranches] = useState<string[]>([])
+  const [gitLoading, setGitLoading] = useState(false)
+
+  // ── MCP · Skill（段 3） ──
+  const [mcpScenes, setMcpScenes] = useState<Array<{ id: string; name: string; description?: string }>>([])
+  const [plugins, setPlugins] = useState<Array<{ id?: string; name?: string }>>([])
+
+  const loadGit = async () => {
+    setGitLoading(true)
+    try {
+      const [s, b] = await Promise.allSettled([endpoints.git.status(), endpoints.git.branch()])
+      if (s.status === 'fulfilled') setGitStatus(s.value)
+      if (b.status === 'fulfilled' && b.value?.branches) setBranches(b.value.branches)
+    } catch {
+      setGitStatus({ error: 'Git 服务不可用' })
+    } finally {
+      setGitLoading(false)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -80,6 +118,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     }
   }, [])
 
+  // Git 状态 + MCP 场景 + 插件列表（进入时与定时刷新）
+  useEffect(() => {
+    void loadGit()
+    const t = setInterval(() => void loadGit(), 60_000)
+    endpoints.mcp.scenes().then((d) => setMcpScenes(d?.scenes ?? [])).catch(() => {})
+    endpoints.plugins
+      .list()
+      .then((d) => {
+        const list = Array.isArray(d)
+          ? d
+          : (d as { plugins?: Array<{ id?: string; name?: string }> })?.plugins ?? []
+        setPlugins(list)
+      })
+      .catch(() => {})
+    return () => clearInterval(t)
+  }, [])
+
   const online = !healthError && health?.status === 'ok'
   const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
   const currentSession = new URLSearchParams(location.search).get('session')
@@ -113,7 +168,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     setEditingId(null)
     if (!title) return
     saveChatTitle(sessionId, title)
-    // 立即刷新列表（后端持久化异步完成，标题本地即时生效）
     setSessions((prev) => prev.map((s) => (s.session_id === sessionId ? { ...s, title } : s)))
   }
 
@@ -145,7 +199,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   }
 
   const renderSessionRow = (s: SessionSummary) => {
-    const title = sessionListTitle(s.session_id, s.title)
+    const title = limitText(sessionListTitle(s.session_id, s.title), 50)
     const isEditing = editingId === s.session_id
     const isActive = currentSession === s.session_id
     return (
@@ -187,8 +241,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             title={collapsed ? title : undefined}
           >
             <MessageSquare size={12} className={`shrink-0 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
+            {/* 会话标题 ≤50 字符：未渲染完全时横向滚动（.text-scroll） */}
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-2xs ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
+              <span className={`text-scroll block text-2xs ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
                 {title}
               </span>
               <span className="block text-2xs text-[var(--text-muted)]">
@@ -228,6 +283,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     )
   }
 
+  const changedCount = (gitStatus?.modified?.length ?? 0) + (gitStatus?.added?.length ?? 0) + (gitStatus?.deleted?.length ?? 0)
+
   return (
     <aside
       className={`
@@ -240,8 +297,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       `}
       aria-label="主导航"
     >
-      {/* Brand */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
+      {/* 段 1：LOGO（全站只出现一次） */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--shell-border)] px-4">
         <div className="flex min-w-0 items-center gap-2">
           <svg className="h-8 w-8 shrink-0" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="8" fill="url(#logo-gradient)" />
@@ -282,11 +339,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* 新建对话 */}
-      <div className="shrink-0 border-b border-[var(--border)] p-2">
+      <div className="shrink-0 border-b border-[var(--shell-border)] p-2">
         <button
           type="button"
           onClick={startNewChat}
-          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
           aria-label="开启新对话"
         >
           <Plus size={16} />
@@ -294,7 +351,114 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* 工作空间与会话条目 */}
+      {/* 段 2：Git 仓库状态 */}
+      <div className={`shrink-0 border-b border-[var(--shell-border)] ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
+          <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
+            <GitBranch size={11} className="text-[var(--accent)]" />
+            Git 仓库状态
+          </p>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => void loadGit()}
+              disabled={gitLoading}
+              aria-label="刷新 Git 状态"
+              title="刷新"
+              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]"
+            >
+              <RefreshCw size={12} className={gitLoading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                navigate('/git')
+                onClose()
+              }}
+              aria-label="打开 Git 面板"
+              title="打开 Git 面板（提交/推送/历史）"
+              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]"
+            >
+              <ArrowUpCircle size={12} />
+            </button>
+          </div>
+        </div>
+        {gitStatus?.error ? (
+          <p className="px-3 pb-2.5 text-2xs text-[var(--text-muted)]">{gitStatus.error}</p>
+        ) : (
+          <>
+            <div className="px-3 pb-1.5">
+              <div className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
+                <span className={`pulse-dot size-1.5 rounded-full ${gitStatus?.clean ? 'bg-[var(--success)]' : 'bg-[var(--warning)]'}`} />
+                <span className="text-scroll max-w-[14rem] font-mono">{gitStatus?.branch ?? '—'}</span>
+                {gitStatus?.ahead ? <span className="flex items-center gap-0.5 text-[var(--success)]"><ArrowUpCircle size={10} />{gitStatus.ahead}</span> : null}
+                {gitStatus?.behind ? <span className="flex items-center gap-0.5 text-[var(--warning)]"><ArrowDownCircle size={10} />{gitStatus.behind}</span> : null}
+                <span className="ml-auto text-[var(--text-muted)]">
+                  {gitStatus?.clean ? '干净' : `${changedCount} 处变更`}
+                </span>
+              </div>
+            </div>
+            {/* 分支列表：横向滚动 */}
+            <div className="text-scroll flex gap-1 px-3 pb-2.5">
+              {branches.length === 0 ? (
+                <span className="text-2xs text-[var(--text-muted)]">无分支信息</span>
+              ) : (
+                branches.map((b) => (
+                  <span
+                    key={b}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${
+                      b === gitStatus?.branch
+                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                    }`}
+                  >
+                    <CircleDot size={8} />
+                    {b}
+                  </span>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 段 3：MCP · Skill */}
+      <div className={`shrink-0 border-b border-[var(--shell-border)] ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className="flex items-center gap-1.5 px-3 pb-1 pt-2.5">
+          <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
+            <Puzzle size={11} className="text-[var(--accent)]" />
+            MCP · Skill
+          </p>
+        </div>
+        <div className="space-y-0.5 px-2 pb-2.5">
+          <p className="px-1 pt-0.5 text-2xs font-medium text-[var(--text-muted)]">MCP 场景</p>
+          {mcpScenes.length === 0 ? (
+            <p className="px-1 text-2xs text-[var(--text-muted)]">暂无场景（配置于 config/mcp-servers.yaml）</p>
+          ) : (
+            mcpScenes.slice(0, 6).map((s) => (
+              <div key={s.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-[var(--shell-hover)]">
+                <Activity size={11} className="shrink-0 text-[var(--text-muted)]" />
+                <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]" title={s.description}>
+                  {s.name}
+                </span>
+              </div>
+            ))
+          )}
+          <p className="px-1 pt-1.5 text-2xs font-medium text-[var(--text-muted)]">插件 / Skill</p>
+          {plugins.length === 0 ? (
+            <p className="px-1 text-2xs text-[var(--text-muted)]">无插件（skills/ 目录自动加载）</p>
+          ) : (
+            plugins.slice(0, 6).map((p) => (
+              <div key={p.id ?? p.name} className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-[var(--shell-hover)]">
+                <Layers size={11} className="shrink-0 text-[var(--text-muted)]" />
+                <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]">{p.name ?? p.id}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 段 4：加载进 Agent 的项目（风琴垂直折叠） */}
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {workspaceError ? (
           <p className="px-3 py-2 text-2xs text-[var(--text-muted)]">
@@ -302,7 +466,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </p>
         ) : workspaces.length === 0 ? (
           <div className="px-3 py-2">
-            <p className="text-2xs text-[var(--text-muted)]">暂无工作区</p>
+            <p className="text-2xs text-[var(--text-muted)]">暂无项目</p>
             <p className="mt-1 text-2xs text-[var(--text-muted)]">
               点击「开启新对话」开始，或打开设置检查工作区服务。
             </p>
@@ -313,19 +477,21 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               const key = ws.path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
               const wsSessions = sessionsByWorkspace.get(key) ?? []
               const isCollapsed = collapsedWs.has(key)
+              const wsName = limitText(ws.name, 20)
               return (
                 <div key={ws.id}>
+                  {/* 风琴头：项目名 ≤20 字符，横向滚动 */}
                   <button
                     type="button"
                     onClick={() => toggleWs(key)}
                     className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
                     aria-expanded={!isCollapsed}
-                    title={collapsed ? ws.name : undefined}
+                    title={collapsed ? wsName : undefined}
                   >
                     <FolderOpen size={16} className="shrink-0 text-[var(--accent)]" />
                     <span className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
-                      <span className="block truncate text-xs font-medium text-[var(--text)]" title={ws.name}>
-                        {ws.name}
+                      <span className="text-scroll block text-xs font-medium text-[var(--text)]" title={ws.name}>
+                        {wsName}
                       </span>
                       <span className="block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
                         {ws.branch} · {ws.sessionCount} 个会话
@@ -336,11 +502,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                       className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${collapsed ? 'lg:hidden' : ''} ${isCollapsed ? '' : 'rotate-90'}`}
                     />
                   </button>
+                  {/* 风琴体：会话条目（垂直折叠展开） */}
                   {!isCollapsed && (
                     <div className="mt-0.5 space-y-0.5 pl-3">
                       {wsSessions.length === 0 ? (
                         <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
-                          该工作区暂无会话
+                          该项目暂无会话
                         </p>
                       ) : (
                         wsSessions.map(renderSessionRow)
@@ -354,8 +521,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         )}
       </div>
 
-      {/* Footer: account bar — [设置图标] [头像+用户名+在线状态] [快捷键指示图标] */}
-      <div className="shrink-0 border-t border-[var(--border)] p-2">
+      {/* 账号栏：设置 / 头像+用户名+在线状态 / 快捷键 */}
+      <div className="shrink-0 border-t border-[var(--shell-border)] p-2">
         <div className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ${collapsed ? 'lg:flex-col lg:gap-2 lg:px-0' : ''}`}>
           <button
             type="button"

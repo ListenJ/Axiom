@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-08-05 — 丝绸毛玻璃视觉体系 + 侧栏三段式重构（Git/MCP·Skill/项目风琴）
+
+- **任务**：① 视觉方向落地 —— 外壳与画布双色分层之上叠加「动画 + 毛玻璃磨砂」主视觉：外壳底层为丝绸纹理背景，外壳元素半透明 + backdrop blur，被遮挡内容（纹理/滚动文字）经磨砂透出衬托层次；② 侧栏三段式重构 —— 段1 LOGO（全站仅一次）、段2 Git 仓库状态（操作/进展/分支摘要）、段3 MCP·Skill（场景与插件列表）、段4 项目风琴组（垂直折叠 + 文字横向滚动 + 项目名 ≤20 字符/会话标题 ≤50 字符截断）；③ 终端从 fixed 覆盖浮层改为布局内嵌（不遮挡工作区），开合高度动画过渡。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/styles/index.css`：`.shell-surface/.shell-raised` 由纯色改为半透明毛玻璃（blur 16/20px + saturate 1.35/1.4，light 变体）；新增 `.silk-bg` 丝绸纹理层（斜向反光带 + 双向细密丝织条纹 + 0.5px 噪点颗粒，深/浅双变体）；新增 `.text-scroll` 横向滚动文字工具类（隐藏滚动条）。
+  - `frontend/src/components/layout/Layout.tsx`：根布局首个子元素挂 `.silk-bg` 底层（fixed z-[-1]）；终端栏从 fixed bottom 浮层改为 main 与 StatsBar 之间的布局内嵌（高度动画 0↔auto，保持拖拽调高能力），工作区不再被遮挡。
+  - `frontend/src/components/layout/Sidebar.tsx`：三段式重构 —— 段2 Git 状态（当前分支/clean 徽标/ahead-behind/变更计数/分支 chips 横向滚动/刷新/打开 /git 面板，60s 轮询）；段3 MCP·Skill（/mcp/scenes 场景列表 + /plugins 插件列表）；段4 项目风琴（项目名 limitText 20、会话标题 limitText 50、`text-scroll` 横向滚动、保留重命名/删除）。
+  - `frontend/src/lib/api.ts`：新增 `mcp.scenes()` 封装。
+- **验证**：前端 lint 0 错误；`bun run test:run` 42 文件 278 测试全过；生产构建成功。
+- **Commit**：`d63dba8`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 消息编辑/重新生成 + 删除清理标题 + 品牌/终端跟随强调色
 
 - **任务**：继续优化 —— ① 消息「编辑并重新发送」（用户消息）+「重新生成」（助手消息）② 删除会话清理 localStorage 标题残留 ③ 品牌 logo 与终端配色跟随强调色 ④ 新建对话按钮语义（「开启新对话」文本）。

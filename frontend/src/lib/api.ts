@@ -668,6 +668,12 @@ export const endpoints = {
         cache: false,
       }),
   },
+  mcp: {
+    scenes: () =>
+      api.get<{ scenes: Array<{ id: string; name: string; description?: string }> }>('/mcp/scenes', {
+        cache: false,
+      }),
+  },
 }
 
 export { HttpError }

@@ -35,6 +35,9 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-text">
+      {/* 丝绸纹理底层：被外壳毛玻璃层磨砂透出（z 序最底） */}
+      <div className="silk-bg" aria-hidden="true" />
+
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -66,24 +69,24 @@ export default function Layout() {
           </div>
         </main>
 
-        <StatsBar />
-        <BottomNav />
-
-        {/* 终端栏：fixed 底部覆盖式浮层（slide-up 动画），升起在底栏 StatsBar 之上，
-            不挤压主内容；移动端让出 BottomNav 高度 */}
+        {/* 终端栏：布局内嵌（main 与 StatsBar 之间占位），不遮挡工作区内容；
+            开合以高度动画过渡，高度可由面板顶部手柄拖拽调整 */}
         <AnimatePresence>
           {terminalOpen && (
             <motion.div
-              className="fixed inset-x-0 bottom-24 z-50 lg:bottom-8"
-              initial={reduceMotion ? false : { y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={reduceMotion ? undefined : { y: '100%', opacity: 0 }}
+              className="shrink-0 overflow-hidden"
+              initial={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
               transition={MOTION_PRESETS.slideUp}
             >
               <TerminalPanel onClose={() => setTerminalOpen(false)} />
             </motion.div>
           )}
         </AnimatePresence>
+
+        <StatsBar />
+        <BottomNav />
       </div>
 
       {sidebarOpen && (
