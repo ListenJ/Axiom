@@ -183,7 +183,12 @@ export async function handleChatHistory(ctx: RouteContext): Promise<Response | n
   if (ctx.url.pathname !== "/chat/history" || ctx.req.method !== "GET") return null;
   const limit = parseInt(ctx.url.searchParams.get("limit") || "50", 10);
   const sessions = ctx.db.query(
-    "SELECT id, title, created_at as createdAt, updated_at as updatedAt FROM conversations ORDER BY updated_at DESC LIMIT ?"
+    `SELECT c.session_id as id, COALESCE(s.title, '') as title,
+            MIN(c.created_at) as createdAt, MAX(c.created_at) as updatedAt
+     FROM conversations c
+     LEFT JOIN chat_sessions s ON s.session_id = c.session_id
+     GROUP BY c.session_id, s.title
+     ORDER BY updatedAt DESC LIMIT ?`
   ).all(limit);
   return ctx.jsonResponse({ sessions, total: sessions.length }, 200, ctx.baseHeaders);
 }

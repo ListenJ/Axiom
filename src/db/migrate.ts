@@ -13,6 +13,17 @@ logger.info("[数据库] Initializing database...");
 
 // ========== 核心表 ==========
 
+// 会话元数据表（会话标题持久化；与 conversations 消息表按 session_id 关联）
+db.run(`
+  CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] chat_sessions");
+
 db.run(`
   CREATE TABLE IF NOT EXISTS conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

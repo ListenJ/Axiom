@@ -73,15 +73,17 @@ export async function handleListSessions(ctx: RouteContext): Promise<Response | 
   try {
     const sessions = ctx.db.query(
       `SELECT 
-         session_id,
+         c.session_id,
+         COALESCE(s.title, '') as title,
          COUNT(*) as message_count,
-         SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) as user_messages,
-         SUM(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as assistant_messages,
-         SUM(tokens_used) as total_tokens,
-         MIN(created_at) as started_at,
-         MAX(created_at) as last_active
-       FROM conversations 
-       GROUP BY session_id 
+         SUM(CASE WHEN c.role = 'user' THEN 1 ELSE 0 END) as user_messages,
+         SUM(CASE WHEN c.role = 'assistant' THEN 1 ELSE 0 END) as assistant_messages,
+         SUM(c.tokens_used) as total_tokens,
+         MIN(c.created_at) as started_at,
+         MAX(c.created_at) as last_active
+       FROM conversations c
+       LEFT JOIN chat_sessions s ON s.session_id = c.session_id
+       GROUP BY c.session_id, s.title
        ORDER BY last_active DESC
        LIMIT 100`
     ).all();
@@ -89,6 +91,69 @@ export async function handleListSessions(ctx: RouteContext): Promise<Response | 
   } catch (err) {
     logger.error("Failed to list sessions", err as Error);
     return ctx.jsonResponse({ error: "Failed to list sessions" }, 500, ctx.baseHeaders);
+  }
+}
+
+/**
+ * PATCH /chat/sessions/:id — 重命名会话（持久化到 chat_sessions 表，upsert）
+ */
+export async function handleRenameSession(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/chat/sessions" && !ctx.url.pathname.startsWith("/chat/sessions/")) return null;
+  if (ctx.req.method !== "PATCH") return null;
+
+  const sessionId = ctx.url.pathname.replace("/chat/sessions/", "");
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+
+  const body = (await ctx.req.json().catch(() => ({}))) as { title?: unknown };
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    return ctx.jsonResponse({ error: "title is required" }, 400, ctx.baseHeaders);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    ctx.db.query(
+      `INSERT INTO chat_sessions (session_id, title, created_at, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (session_id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at`
+    ).run(sessionId, title, now, now);
+    return ctx.jsonResponse({ ok: true, sessionId, title }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to rename session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to rename session" }, 500, ctx.baseHeaders);
+  }
+}
+
+/**
+ * DELETE /chat/sessions/:id — 删除会话（chat_sessions 元数据 + conversations 消息）
+ * 破坏性操作：需一次性确认码（x-confirmation-id header，见 confirmation.ts）
+ */
+export async function handleDeleteSession(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/chat/sessions" && !ctx.url.pathname.startsWith("/chat/sessions/")) return null;
+  if (ctx.req.method !== "DELETE") return null;
+
+  const sessionId = ctx.url.pathname.replace("/chat/sessions/", "");
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+
+  const { requireHttpConfirmation } = await import("./confirmation.js");
+  const confirmErr = requireHttpConfirmation(ctx, "chat:session-delete");
+  if (confirmErr) return confirmErr;
+
+  try {
+    ctx.db.query("DELETE FROM chat_sessions WHERE session_id = ?").run(sessionId);
+    const removed = ctx.db.query("DELETE FROM conversations WHERE session_id = ?").run(sessionId);
+    return ctx.jsonResponse(
+      { ok: true, sessionId, removedMessages: Number(removed.changes) },
+      200,
+      ctx.baseHeaders,
+    );
+  } catch (err) {
+    logger.error("Failed to delete session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to delete session" }, 500, ctx.baseHeaders);
   }
 }
 

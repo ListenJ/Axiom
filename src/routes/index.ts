@@ -51,6 +51,8 @@ import {
   handleSaveConversation,
   handleGetConversations,
   handleListSessions,
+  handleRenameSession,
+  handleDeleteSession,
   handleKnowledgeSearch,
   handleKnowledgePendingReview,
   handleKnowledgeReviewAction,
@@ -96,6 +98,8 @@ const handlers: RouteHandler[] = [
   handleChat,
   handleChatStream,
   handleAgentChat,
+  handleRenameSession,
+  handleDeleteSession,
   // OpenAI 兼容端点（/v1/chat/completions）
   handleOpenAIChatCompletions,
   // Native Bridge (Rust core)
@@ -261,6 +265,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/chat", handler: handleChat },
     { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
+    { method: "PATCH", path: "/chat/sessions/:id", handler: handleRenameSession },
+    { method: "DELETE", path: "/chat/sessions/:id", handler: handleDeleteSession },
     // OpenAI 兼容端点
     { method: "POST", path: "/v1/chat/completions", handler: handleOpenAIChatCompletions },
     // Pipeline SSE
