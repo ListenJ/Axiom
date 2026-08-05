@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AccentId } from '@/lib/accents'
 
 type Theme = 'dark' | 'light'
 
@@ -13,6 +14,7 @@ export type RightbarTool =
 
 interface AppState {
   theme: Theme
+  accent: AccentId
   sidebarOpen: boolean
   sidebarCollapsed: boolean
   helpOpen: boolean
@@ -22,6 +24,7 @@ interface AppState {
   toasts: { id: number; type: 'info' | 'success' | 'error' | 'warning'; message: string }[]
   setTheme: (t: Theme) => void
   toggleTheme: () => void
+  setAccent: (a: AccentId) => void
   setSidebarOpen: (open: boolean) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebarCollapsed: () => void
@@ -36,12 +39,22 @@ interface AppState {
 
 const THEME_KEY = 'axiom:theme'
 const SIDEBAR_COLLAPSED_KEY = 'axiom:sidebar-collapsed'
+const ACCENT_KEY = 'axiom:accent'
 
 function readInitialTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'dark'
   const stored = localStorage.getItem(THEME_KEY)
   if (stored === 'light' || stored === 'dark') return stored
   return 'dark'
+}
+
+function readInitialAccent(): AccentId {
+  if (typeof localStorage === 'undefined') return 'amber'
+  const stored = localStorage.getItem(ACCENT_KEY)
+  if (stored === 'sky' || stored === 'violet' || stored === 'emerald' || stored === 'rose' || stored === 'indigo') {
+    return stored
+  }
+  return 'amber'
 }
 
 function readInitialSidebarCollapsed(): boolean {
@@ -60,6 +73,7 @@ let toastId = 0
 
 export const useApp = create<AppState>((set, get) => ({
   theme: readInitialTheme(),
+  accent: readInitialAccent(),
   sidebarOpen: false,
   sidebarCollapsed: readInitialSidebarCollapsed(),
   helpOpen: false,
@@ -74,6 +88,10 @@ export const useApp = create<AppState>((set, get) => ({
   toggleTheme: () => {
     const next: Theme = get().theme === 'dark' ? 'light' : 'dark'
     get().setTheme(next)
+  },
+  setAccent: (a) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(ACCENT_KEY, a)
+    set({ accent: a })
   },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSidebarCollapsed: (collapsed) => {

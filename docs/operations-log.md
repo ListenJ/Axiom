@@ -7,6 +7,31 @@
 
 ---
 
+## 2026-08-04 — 会话持久化（重命名/删除）+ 终端高度可调 + 主题色自定义 + 侧栏精简
+
+- **任务**：用户四项前端/后端需求 —— ① 会话删除/重命名持久化 ② 终端高度可调 ③ 主题色自定义 ④ 侧栏只保留「开启新对话 + 工作空间会话条目」，功能入口上移顶栏菜单、调试项已在设置页。
+- **工具**：Read、Edit、Write、Bash(bun lint / test / build)。
+- **后端（会话持久化）**：
+  - `src/db/migrate.ts`：新增 `chat_sessions` 表（session_id PK + title + 时间戳）。
+  - `src/routes/memory-api.ts`：`handleListSessions` LEFT JOIN chat_sessions 返回持久化标题；新增 `handleRenameSession`（PATCH /chat/sessions/:id，upsert）与 `handleDeleteSession`（DELETE /chat/sessions/:id，requireHttpConfirmation "chat:session-delete" 一次性确认码，删元数据 + conversations 消息）。
+  - `src/routes/chat.ts`：修复既有 bug —— `/chat/history` 原查询不存在的 title 列（conversations 是消息表），改为 LEFT JOIN chat_sessions 聚合。
+  - `src/routes/index.ts`：注册 PATCH/DELETE /chat/sessions/:id 两路由。
+  - `tests/chat-sessions.test.ts`（新建 5 用例）：重命名 upsert/缺标题 400、sessions JOIN 标题、DELETE 无码 403 + 有码删除元数据与消息（确认码为一次性凭据，403 下发后带 header 重发即可，无需预调 /permissions/confirm —— 该端点用于 WS/插件审批路径）。
+- **前端**：
+  - `frontend/src/lib/chat-title.ts`：`saveChatTitle` 双层持久化（localStorage 即时层 + PATCH 后端异步层）；`sessionListTitle` 支持服务端标题。
+  - `frontend/src/lib/api.ts`：`chat.renameSession` / `chat.deleteSession`（x-confirmation-id header）。
+  - `frontend/src/lib/workspace-sessions.ts`：SessionSummary 加 title。
+  - `frontend/src/components/layout/Sidebar.tsx`：重构为「品牌 + 折叠」/「＋ 开启新对话」/「工作空间 → 会话条目（hover 重命名内联输入 + 删除确认流程，工作区可折叠）」/「账号栏」；移除原导航分组（入口上移顶栏菜单，快捷键 1-9/`?` 全局仍有效）。
+  - `frontend/src/components/layout/Header.tsx`：文件菜单补「代码」，编辑菜单补「Git」。
+  - `frontend/src/components/terminal/TerminalPanel.tsx`：顶部拖拽手柄调整高度（pointer capture + window 级 move/up，128px~60vh，localStorage 持久化）。
+  - `frontend/src/lib/accents.ts`（新建）：6 组强调色预设 × 深/浅双变体（8 个 CSS 变量）；`applyAccent` 应用。
+  - `frontend/src/state/useApp.ts` + `frontend/src/hooks/useTheme.ts`：accent 状态（localStorage）+ 应用逻辑。
+  - `frontend/src/pages/Settings.tsx` + `settings-data.ts`：外观分区新增「强调色」选择器；catalog 加 appearance.accent 可搜索。
+- **验证**：后端 lint 0 错误；`bun test tests/{chat-sessions,route-confirmation,api-integration}.test.ts` 29 pass；前端 lint 0 错误、275 测试全过、生产构建成功。
+- **Commit**：`73709ae`（后端）/ `ed92896`（前端）（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 前端四项遗留建议落地：Markdown 渲染/会话历史侧栏/侧栏折叠/分包
 
 - **任务**：完成上一轮审查建议的全部遗留项 —— ① 消息 Markdown + 代码高亮 ② 会话历史侧栏常驻（可搜索） ③ 侧栏折叠态 ④ 前端分包。

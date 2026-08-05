@@ -113,6 +113,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
           items={[
             { label: '新建对话', shortcut: shortcutLabel('nav-chat'), onSelect: () => navigate('/chat') },
             { label: '搜索', shortcut: shortcutLabel('nav-search'), onSelect: () => navigate('/search') },
+            { label: '代码', shortcut: shortcutLabel('nav-code'), onSelect: () => navigate('/code') },
             { label: '设置', shortcut: shortcutLabel('nav-settings'), onSelect: () => navigate('/settings') },
           ]}
         />
@@ -122,6 +123,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
             { label: '会话', shortcut: shortcutLabel('nav-sessions'), onSelect: () => navigate('/sessions') },
             { label: '知识', shortcut: shortcutLabel('nav-vault'), onSelect: () => navigate('/vault') },
             { label: '模型', shortcut: shortcutLabel('nav-providers'), onSelect: () => navigate('/providers') },
+            { label: 'Git', shortcut: shortcutLabel('nav-git'), onSelect: () => navigate('/git') },
           ]}
         />
         <HeaderMenu

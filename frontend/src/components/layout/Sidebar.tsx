@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  X, FolderOpen, MessageSquare, Clock, ChevronRight, ChevronDown, ChevronUp,
-  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Search,
+  X, FolderOpen, MessageSquare, Clock, ChevronRight,
+  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
 } from 'lucide-react'
-import { NAV_SECTIONS, VISIBLE_NAV_ITEMS } from '@/lib/nav'
 import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
 import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
-import { sessionListTitle } from '@/lib/chat-title'
+import { sessionListTitle, saveChatTitle } from '@/lib/chat-title'
 import { formatTime, formatTokens } from '@/components/chat-utils'
 
 interface SidebarProps {
@@ -19,6 +18,7 @@ interface SidebarProps {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const collapsed = useApp((s) => s.sidebarCollapsed)
   const toggleCollapsed = useApp((s) => s.toggleSidebarCollapsed)
@@ -27,8 +27,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [workspaceError, setWorkspaceError] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(true)
-  const [historyQuery, setHistoryQuery] = useState('')
+  const [collapsedWs, setCollapsedWs] = useState<Set<string>>(new Set())
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [busyDelete, setBusyDelete] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -78,23 +80,152 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     }
   }, [])
 
-  const groups = NAV_SECTIONS
-    .map((section) => ({ ...section, items: VISIBLE_NAV_ITEMS.filter((i) => i.section === section.id) }))
-    .filter((group) => group.items.length > 0)
   const online = !healthError && health?.status === 'ok'
-  const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 8)
+  const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
+  const currentSession = new URLSearchParams(location.search).get('session')
 
   const openSession = (sessionId: string) => {
     navigate(`/chat?session=${encodeURIComponent(sessionId)}`)
     onClose()
   }
 
-  // 会话历史：按标题过滤，按最近活跃排序（上限 50 条展示）
-  const q = historyQuery.trim().toLowerCase()
-  const historySessions = [...sessions]
-    .sort((a, b) => (b.last_active ?? 0) - (a.last_active ?? 0))
-    .filter((s) => !q || sessionListTitle(s.session_id).toLowerCase().includes(q))
-    .slice(0, 50)
+  const startNewChat = () => {
+    navigate('/chat')
+    onClose()
+  }
+
+  const toggleWs = (key: string) => {
+    setCollapsedWs((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const startRename = (sessionId: string, title: string) => {
+    setEditingId(sessionId)
+    setEditValue(title)
+  }
+
+  const commitRename = (sessionId: string) => {
+    const title = editValue.trim()
+    setEditingId(null)
+    if (!title) return
+    saveChatTitle(sessionId, title)
+    // 立即刷新列表（后端持久化异步完成，标题本地即时生效）
+    setSessions((prev) => prev.map((s) => (s.session_id === sessionId ? { ...s, title } : s)))
+  }
+
+  /** 删除会话：403 下发的 confirmationId 即一次性凭据，带 header 重发即可 */
+  const deleteSession = async (sessionId: string) => {
+    if (busyDelete) return
+    const title = sessionListTitle(sessionId, sessions.find((s) => s.session_id === sessionId)?.title)
+    if (!window.confirm(`确认删除会话「${title}」？\n会话消息将不可恢复。`)) return
+    setBusyDelete(sessionId)
+    try {
+      try {
+        await endpoints.chat.deleteSession(sessionId, '')
+      } catch (err) {
+        const e = err as { status?: number; data?: { confirmationId?: string } }
+        if (e?.status === 403 && e.data?.confirmationId) {
+          await endpoints.chat.deleteSession(sessionId, e.data.confirmationId)
+        } else {
+          throw err
+        }
+      }
+      setSessions((prev) => prev.filter((s) => s.session_id !== sessionId))
+      if (currentSession === sessionId) navigate('/chat')
+    } catch {
+      window.alert('删除会话失败，请重试')
+    } finally {
+      setBusyDelete(null)
+    }
+  }
+
+  const renderSessionRow = (s: SessionSummary) => {
+    const title = sessionListTitle(s.session_id, s.title)
+    const isEditing = editingId === s.session_id
+    const isActive = currentSession === s.session_id
+    return (
+      <div
+        key={s.session_id}
+        className={`group/session relative flex items-center gap-1.5 rounded-lg pr-1 transition-colors ${
+          isActive ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--shell-hover)]'
+        }`}
+      >
+        {isEditing ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1 py-1 pl-2">
+            <input
+              autoFocus
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename(s.session_id)
+                if (e.key === 'Escape') setEditingId(null)
+              }}
+              onBlur={() => commitRename(s.session_id)}
+              aria-label="重命名会话"
+              className="min-w-0 flex-1 rounded border border-[var(--accent)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text)] focus:outline-none"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => commitRename(s.session_id)}
+              aria-label="确认重命名"
+              className="press flex size-5 shrink-0 items-center justify-center rounded text-[var(--success)] hover:bg-[var(--surface-hover)]"
+            >
+              <Check size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openSession(s.session_id)}
+            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+            title={collapsed ? title : undefined}
+          >
+            <MessageSquare size={12} className={`shrink-0 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-2xs ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
+                {title}
+              </span>
+              <span className="block text-2xs text-[var(--text-muted)]">
+                {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
+              </span>
+            </span>
+            <span className={`flex shrink-0 items-center gap-1 text-2xs text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
+              <Clock size={10} />
+              {formatTime(s.last_active)}
+            </span>
+          </button>
+        )}
+        {!isEditing && (
+          <div className={`flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/session:opacity-100 group-focus-within/session:opacity-100 ${collapsed ? 'lg:hidden' : ''}`}>
+            <button
+              type="button"
+              onClick={() => startRename(s.session_id, title)}
+              aria-label="重命名会话"
+              title="重命名"
+              className="press flex size-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteSession(s.session_id)}
+              disabled={busyDelete === s.session_id}
+              aria-label="删除会话"
+              title="删除"
+              className="press flex size-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <aside
@@ -149,206 +280,81 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </div>
       </div>
 
-      {/* Workspaces + sessions（折叠态隐藏） */}
-      <div className={`shrink-0 border-b border-[var(--border)] ${collapsed ? 'lg:hidden' : ''}`}>
-        <div className="flex items-center justify-between px-3 pb-1 pt-3">
-          <p className="px-1 text-2xs font-medium text-[var(--text-muted)]">
-            打开的工作区
-          </p>
-          {workspaces.length > 0 && (
-            <span className="rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
-              {workspaces.length}
-            </span>
-          )}
-        </div>
+      {/* 新建对话 */}
+      <div className="shrink-0 border-b border-[var(--border)] p-2">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          aria-label="开启新对话"
+        >
+          <Plus size={16} />
+          <span className={collapsed ? 'lg:hidden' : ''}>开启新对话</span>
+        </button>
+      </div>
+
+      {/* 工作空间与会话条目 */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {workspaceError ? (
-          <p className="px-4 pb-3 text-2xs text-[var(--text-muted)]">
+          <p className="px-3 py-2 text-2xs text-[var(--text-muted)]">
             工作区服务不可用，请打开设置诊断
           </p>
         ) : workspaces.length === 0 ? (
-          <p className="px-4 pb-3 text-2xs text-[var(--text-muted)]">
-            暂无工作区
-          </p>
+          <div className="px-3 py-2">
+            <p className="text-2xs text-[var(--text-muted)]">暂无工作区</p>
+            <p className="mt-1 text-2xs text-[var(--text-muted)]">
+              点击「开启新对话」开始，或打开设置检查工作区服务。
+            </p>
+          </div>
         ) : (
-          <div className="space-y-0.5 p-2">
+          <div className="space-y-1">
             {workspaces.map((ws) => {
               const key = ws.path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
               const wsSessions = sessionsByWorkspace.get(key) ?? []
+              const isCollapsed = collapsedWs.has(key)
               return (
-                <div key={ws.id} className="group relative">
-                  <div className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors group-hover:bg-[var(--shell-hover)] group-focus-within:bg-[var(--shell-hover)]">
+                <div key={ws.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleWs(key)}
+                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+                    aria-expanded={!isCollapsed}
+                    title={collapsed ? ws.name : undefined}
+                  >
                     <FolderOpen size={16} className="shrink-0 text-[var(--accent)]" />
-                    <span className="min-w-0 flex-1">
+                    <span className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
                       <span className="block truncate text-xs font-medium text-[var(--text)]" title={ws.name}>
                         {ws.name}
                       </span>
                       <span className="block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
-                        {ws.branch} · {wsSessionCountLabel(ws, wsSessions)}
+                        {ws.branch} · {ws.sessionCount} 个会话
                       </span>
                     </span>
-                    <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
-                  </div>
-
-                  {/* 悬停/聚焦浮层：该工作区的会话 */}
-                  <div
-                    className="invisible absolute left-full top-0 z-50 ml-1 hidden w-64 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 opacity-0 shadow-[var(--shadow-lg)] transition-all duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 lg:block"
-                  >
-                    <p className="px-2 pb-1 text-2xs font-medium text-[var(--text-muted)]">
-                      最近会话
-                    </p>
-                    {wsSessions.length === 0 ? (
-                      <p className="px-2 pb-2 text-2xs text-[var(--text-muted)]">
-                        该工作区暂无会话
-                      </p>
-                    ) : (
-                      <div className="max-h-64 space-y-0.5 overflow-y-auto">
-                        {wsSessions.map((s) => (
-                          <button
-                            key={s.session_id}
-                            type="button"
-                            onClick={() => openSession(s.session_id)}
-                            className="press flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
-                          >
-                            <MessageSquare size={12} className="shrink-0 text-[var(--text-muted)]" />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-2xs text-[var(--text)]" title={s.session_id}>
-                                {sessionListTitle(s.session_id)}
-                              </span>
-                              <span className="block text-2xs text-[var(--text-muted)]">
-                                {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
-                              </span>
-                            </span>
-                            <span className="flex shrink-0 items-center gap-1 text-2xs text-[var(--text-muted)]">
-                              <Clock size={10} />
-                              {formatTime(s.last_active)}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                    <ChevronRight
+                      size={14}
+                      className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${collapsed ? 'lg:hidden' : ''} ${isCollapsed ? '' : 'rotate-90'}`}
+                    />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="mt-0.5 space-y-0.5 pl-3">
+                      {wsSessions.length === 0 ? (
+                        <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
+                          该工作区暂无会话
+                        </p>
+                      ) : (
+                        wsSessions.map(renderSessionRow)
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         )}
-
-        {/* 会话历史（常驻，可搜索） */}
-        <div className="px-3 pb-1 pt-3">
-          <button
-            type="button"
-            onClick={() => setHistoryOpen((v) => !v)}
-            className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
-            aria-expanded={historyOpen}
-          >
-            <p className="text-2xs font-medium text-[var(--text-muted)]">会话历史</p>
-            <span className="flex items-center gap-1.5">
-              <span className="rounded-full bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text-muted)]">
-                {sessions.length}
-              </span>
-              {historyOpen ? <ChevronUp size={12} className="text-[var(--text-muted)]" /> : <ChevronDown size={12} className="text-[var(--text-muted)]" />}
-            </span>
-          </button>
-        </div>
-        {historyOpen && (
-          <div className="px-2 pb-2">
-            <div className="relative mb-1.5">
-              <Search size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                value={historyQuery}
-                onChange={(e) => setHistoryQuery(e.target.value)}
-                placeholder="搜索会话…"
-                aria-label="搜索会话"
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] py-1.5 pl-7 pr-2 text-xs text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
-              />
-            </div>
-            <div className="max-h-40 space-y-0.5 overflow-y-auto">
-              {historySessions.length === 0 ? (
-                <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
-                  {q ? '没有匹配的会话' : '暂无会话'}
-                </p>
-              ) : (
-                historySessions.map((s) => (
-                  <button
-                    key={s.session_id}
-                    type="button"
-                    onClick={() => openSession(s.session_id)}
-                    className="press flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
-                  >
-                    <MessageSquare size={12} className="shrink-0 text-[var(--text-muted)]" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-2xs text-[var(--text)]" title={s.session_id}>
-                        {sessionListTitle(s.session_id)}
-                      </span>
-                      <span className="block text-2xs text-[var(--text-muted)]">
-                        {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-2xs text-[var(--text-muted)]">
-                      {formatTime(s.last_active)}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Nav items grouped by section */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
-        {groups.map((group) => (
-          <div key={group.id} className="pt-3 first:pt-0">
-            <p className={`px-3 pb-1 text-2xs font-medium text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
-              {group.label}
-            </p>
-            {group.items.map((item) => {
-              const Icon = item.icon
-              return (
-                <NavLink
-                  key={item.id}
-                  to={item.path}
-                  end={item.path === '/'}
-                  onClick={() => onClose()}
-                  title={collapsed ? item.label : undefined}
-                  className={({ isActive }) =>
-                    `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]'
-                    } ${collapsed ? 'lg:justify-center lg:px-0' : ''}`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        size={18}
-                        className={`shrink-0 transition-transform group-hover:scale-110 ${
-                          isActive ? 'text-[var(--accent)]' : ''
-                        }`}
-                      />
-                      <span className={`flex-1 truncate ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-                      <kbd
-                        className={`font-mono text-2xs ${
-                          isActive
-                            ? 'text-[var(--accent)] opacity-70'
-                            : 'text-[var(--text-muted)]'
-                        } ${collapsed ? 'lg:hidden' : ''}`}
-                      >
-                        {item.shortcut}
-                      </kbd>
-                    </>
-                  )}
-                </NavLink>
-              )
-            })}
-          </div>
-        ))}
-      </nav>
-
       {/* Footer: account bar — [设置图标] [头像+用户名+在线状态] [快捷键指示图标] */}
-      <div className="border-t border-[var(--border)] p-2">
+      <div className="shrink-0 border-t border-[var(--border)] p-2">
         <div className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ${collapsed ? 'lg:flex-col lg:gap-2 lg:px-0' : ''}`}>
           <button
             type="button"
@@ -392,9 +398,4 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
     </aside>
   )
-}
-
-function wsSessionCountLabel(ws: WorkspaceSummary, sessions: SessionSummary[]): string {
-  if (sessions.length > 0) return `${ws.sessionCount} 个会话 · ${sessions.length} 最近`
-  return `${ws.sessionCount} 个会话`
 }

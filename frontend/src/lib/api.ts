@@ -468,6 +468,12 @@ export const endpoints = {
       )
     },
     history: () => api.get('/chat/history'),
+    renameSession: (sessionId: string, title: string) =>
+      api.patch(`/chat/sessions/${encodeURIComponent(sessionId)}`, { title }),
+    deleteSession: (sessionId: string, confirmationId: string) =>
+      api.delete(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+        headers: { 'x-confirmation-id': confirmationId },
+      }),
   },
   search: {
     vault: (query: string, options: Record<string, unknown> = {}) =>

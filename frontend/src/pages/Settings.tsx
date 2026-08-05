@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
-  Wrench, KeyRound, CheckCircle2,
+  Wrench, KeyRound, CheckCircle2, Palette,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp } from '@/state/useApp'
@@ -14,6 +14,50 @@ import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
 import DebugPanelsSection from '@/components/settings/DebugPanelsSection'
 import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
+import { ACCENT_PRESETS, type AccentId } from '@/lib/accents'
+
+/* ───────── 强调色选择器（外观分区） ───────── */
+
+function AccentPicker({ highlight }: { highlight: boolean }) {
+  const accent = useApp((s) => s.accent)
+  const setAccent = useApp((s) => s.setAccent)
+  return (
+    <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
+      <div className="flex items-center gap-4">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+          <Palette className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium text-[var(--text)]">强调色</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
+            当前：{ACCENT_PRESETS[accent].label}；选择后立即生效并持久化（深色/浅色各自适配）。
+          </p>
+        </div>
+        <div role="radiogroup" aria-label="强调色" className="flex flex-wrap items-center justify-end gap-2">
+          {(Object.keys(ACCENT_PRESETS) as AccentId[]).map((id) => {
+            const preset = ACCENT_PRESETS[id]
+            const active = accent === id
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={preset.label}
+                title={preset.label}
+                onClick={() => setAccent(id)}
+                className={`press size-7 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                  active ? 'ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--bg)]' : ''
+                }`}
+                style={{ background: preset.dark.accent }}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </ShimmerCard>
+  )
+}
 
 /* ───────── 通用开关行（图标 + 标题 + 精确说明 + 开关） ───────── */
 
@@ -110,6 +154,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
           </div>
         </div>
       </ShimmerCard>
+      <AccentPicker highlight={highlightKey === 'appearance.accent'} />
       <MotionPreview highlight={highlightKey === 'appearance.motion'} />
     </div>
   ),

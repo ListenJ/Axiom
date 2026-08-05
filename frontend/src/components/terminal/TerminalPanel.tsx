@@ -23,12 +23,58 @@ interface TerminalPanelProps {
 
 type ConnState = 'connecting' | 'connected' | 'error'
 
+const TERMINAL_HEIGHT_KEY = 'axiom:terminal-height'
+const DEFAULT_HEIGHT = 224
+const MIN_HEIGHT = 128
+const MAX_HEIGHT_RATIO = 0.6
+
+function readInitialHeight(): number {
+  if (typeof localStorage === 'undefined') return DEFAULT_HEIGHT
+  const v = Number(localStorage.getItem(TERMINAL_HEIGHT_KEY))
+  if (Number.isFinite(v) && v >= MIN_HEIGHT) return v
+  return DEFAULT_HEIGHT
+}
+
 export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const [state, setState] = useState<ConnState>('connecting')
+  const [height, setHeight] = useState(readInitialHeight)
   // 跟随全局主题（dark/light）：主题切换时重建 xterm 配色
   const theme = useApp((s) => s.theme)
+
+  // 拖拽调整高度：手柄在面板顶部，向上拖拽增高，向下拖拽降低
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  const heightRef = useRef(height)
+  heightRef.current = height
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = { startY: e.clientY, startHeight: heightRef.current }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  useEffect(() => {
+    if (!dragRef.current) return
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag) return
+      const maxHeight = Math.max(MIN_HEIGHT, Math.round(window.innerHeight * MAX_HEIGHT_RATIO))
+      const next = Math.min(maxHeight, Math.max(MIN_HEIGHT, drag.startHeight - (e.clientY - drag.startY)))
+      setHeight(next)
+    }
+    const onUp = () => {
+      dragRef.current = null
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(TERMINAL_HEIGHT_KEY, String(heightRef.current))
+      }
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [])
 
   // 从 CSS 变量读取当前主题令牌并应用到 xterm
   useEffect(() => {
@@ -100,8 +146,19 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     <div
       role="region"
       aria-label="终端"
-      className="flex h-56 flex-col border-t border-[var(--border)] bg-[var(--bg-secondary)] backdrop-blur-sm"
+      style={{ height }}
+      className="flex flex-col border-t border-[var(--border)] bg-[var(--bg-secondary)] backdrop-blur-sm"
     >
+      {/* 高度拖拽手柄 */}
+      <div
+        className="group/term cursor-ns-resize select-none touch-none"
+        onPointerDown={onPointerDown}
+        aria-label="调整终端高度"
+        role="separator"
+        aria-orientation="horizontal"
+      >
+        <div className="h-1.5 w-full transition-colors group-hover/term:bg-[var(--accent)]/40 group-active/term:bg-[var(--accent)]" />
+      </div>
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-3">
         <TerminalIcon size={14} className="text-[var(--accent)]" />
         <span className="text-xs font-medium text-[var(--text)]">终端</span>

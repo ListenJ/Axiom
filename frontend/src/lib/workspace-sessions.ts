@@ -16,6 +16,8 @@ export interface WorkspaceSummary {
 
 export interface SessionSummary {
   session_id: string
+  /** 后端持久化标题（chat_sessions 表，可空） */
+  title?: string
   message_count: number
   user_messages?: number
   assistant_messages?: number
