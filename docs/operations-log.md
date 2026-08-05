@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-04 — 体验优化批次：轮询收敛 / 系统主题跟随 / 抓取分区补全 / 工具台跳转 / 标题默认值
+
+- **任务**：继续优化 —— ① StatsBar 轮询收敛（1s/5s → 10s/60s + 页面隐藏暂停） ② 主题支持「跟随系统」（三态 + matchMedia 实时切换） ③ 设置页「抓取」分区补渲染器（引擎可用状态 + 并发说明，原分区因无 renderer 被跳过） ④ 顶栏「打开工具台」非 chat 页时先导航 /chat（工具台仅挂载于聊天页） ⑤ Chat 画布无标题默认「Chat」→「新对话」。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/components/layout/StatsBar.tsx`：STATS_POLL 1000→10000、TOKEN_POLL 5000→60000；`visibilitychange` 隐藏暂停、可见时立即刷新。
+  - `frontend/src/state/useApp.ts`：Theme 三态 `'dark'|'light'|'system'`；`resolveTheme()` 导出（system 按 matchMedia 解析，无 matchMedia 回退 dark）；`toggleTheme`（Shift+T）在 system 下切到当前实际主题的反面；默认值改 system。
+  - `frontend/src/hooks/useTheme.ts`：按 resolved 主题应用 data-theme/meta/accent；system 模式下监听 `prefers-color-scheme` change 实时切换（无需重渲染）。
+  - `frontend/src/pages/Settings.tsx`：外观主题行改三按钮（系统/深色/浅色）；新增 `crawler` renderer（最大并发抓取 + EngineStatusList 引擎可用状态）；移除 gateway 分区内 crawler.maxConcurrent 行及搜索跳转特判；sectionMeta 补 crawler 描述。
+  - `frontend/src/lib/api.ts`：`system.engines()` 端点（GET /engines）。
+  - `frontend/src/components/layout/Header.tsx`：`openToolRail()` —— 非 /chat 页先 navigate('/chat') 再 setRightbarOpen(true)。
+  - `frontend/src/pages/Chat.tsx`：无标题默认值 'Chat' → '新对话'（3 处）。
+  - `frontend/src/hooks/useTheme.test.tsx`：+2 用例（system 无 matchMedia 回退 dark；有 matchMedia 时跟随并响应 change 事件）。
+- **验证**：前端 lint 0 错误；`bun run test:run` 42 文件 277 测试全过（+2）；生产构建成功。
+- **Commit**：`0a06dcf`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-04 — 会话持久化（重命名/删除）+ 终端高度可调 + 主题色自定义 + 侧栏精简
 
 - **任务**：用户四项前端/后端需求 —— ① 会话删除/重命名持久化 ② 终端高度可调 ③ 主题色自定义 ④ 侧栏只保留「开启新对话 + 工作空间会话条目」，功能入口上移顶栏菜单、调试项已在设置页。

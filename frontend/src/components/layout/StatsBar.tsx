@@ -14,8 +14,10 @@ interface TokenDetails {
   cacheStats: { hitRate: number }
 }
 
-const STATS_POLL = 1000
-const TOKEN_POLL = 5000
+// 轮询收敛（2026-08-04）：状态条为低决策价值信息，从 1s/5s 放宽到 10s/60s，
+// 且页面隐藏时暂停轮询（visibilitychange），避免后台空转与无效请求
+const STATS_POLL = 10_000
+const TOKEN_POLL = 60_000
 
 export default function StatsBar() {
   const navigate = useNavigate()
@@ -45,7 +47,19 @@ export default function StatsBar() {
     fetchTokenDetails()
     const si = setInterval(fetchStats, STATS_POLL)
     const ti = setInterval(fetchTokenDetails, TOKEN_POLL)
-    return () => { clearInterval(si); clearInterval(ti) }
+    // 页面隐藏时暂停轮询，回到前台立即刷新一次
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchStats()
+        void fetchTokenDetails()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      clearInterval(si)
+      clearInterval(ti)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [fetchStats, fetchTokenDetails])
 
   return (

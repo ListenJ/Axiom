@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AccentId } from '@/lib/accents'
 
-type Theme = 'dark' | 'light'
+type Theme = 'dark' | 'light' | 'system'
 
 export type RightbarTool =
   | 'summary'
@@ -42,9 +42,18 @@ const SIDEBAR_COLLAPSED_KEY = 'axiom:sidebar-collapsed'
 const ACCENT_KEY = 'axiom:accent'
 
 function readInitialTheme(): Theme {
-  if (typeof localStorage === 'undefined') return 'dark'
+  if (typeof localStorage === 'undefined') return 'system'
   const stored = localStorage.getItem(THEME_KEY)
-  if (stored === 'light' || stored === 'dark') return stored
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  return 'system'
+}
+
+/** 当前实际生效的主题（system 时按系统偏好解析）。 */
+export function resolveTheme(theme: Theme): 'dark' | 'light' {
+  if (theme !== 'system') return theme
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  }
   return 'dark'
 }
 
@@ -86,7 +95,9 @@ export const useApp = create<AppState>((set, get) => ({
     set({ theme: t })
   },
   toggleTheme: () => {
-    const next: Theme = get().theme === 'dark' ? 'light' : 'dark'
+    // system 模式下 Shift+T 切换到当前实际主题的反面（显式锁定）
+    const current = resolveTheme(get().theme)
+    const next: Theme = current === 'dark' ? 'light' : 'dark'
     get().setTheme(next)
   },
   setAccent: (a) => {

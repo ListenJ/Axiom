@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, Menu } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useApp } from '@/state/useApp'
@@ -75,11 +75,18 @@ function HeaderMenu({ label, items }: { label: string; items: MenuItem[] }) {
 
 export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const toggleTheme = useApp((s) => s.toggleTheme)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
   const setRightbarOpen = useApp((s) => s.setRightbarOpen)
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const toggleSidebarCollapsed = useApp((s) => s.toggleSidebarCollapsed)
+
+  // 工具台只挂载于聊天页：从其他页面打开时先导航到 /chat
+  const openToolRail = () => {
+    if (location.pathname !== '/chat') navigate('/chat')
+    setRightbarOpen(true)
+  }
 
   return (
     <header className="shell-surface flex h-14 shrink-0 items-center gap-1 border-b border-[var(--shell-border)] px-3">
@@ -132,7 +139,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
             { label: '切换主题', shortcut: shortcutLabel('theme'), onSelect: () => toggleTheme() },
             { label: '折叠侧栏', onSelect: () => toggleSidebarCollapsed() },
             { label: '打开终端', shortcut: shortcutLabel('terminal'), onSelect: () => setTerminalOpen(true) },
-            { label: '打开工具台', onSelect: () => setRightbarOpen(true) },
+            { label: '打开工具台', onSelect: openToolRail },
             { label: '搜索', shortcut: shortcutLabel('search-slash'), onSelect: () => navigate('/search') },
           ]}
         />

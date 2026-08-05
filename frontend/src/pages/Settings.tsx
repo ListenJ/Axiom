@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
-  Wrench, KeyRound, CheckCircle2, Palette,
+  Wrench, KeyRound, CheckCircle2, Palette, Monitor,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp } from '@/state/useApp'
@@ -16,7 +16,39 @@ import DebugPanelsSection from '@/components/settings/DebugPanelsSection'
 import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
 import { ACCENT_PRESETS, type AccentId } from '@/lib/accents'
 
+/* ───────── 搜索引擎可用状态（抓取分区） ───────── */
+
+function EngineStatusList() {
+  const [engines, setEngines] = useState<Array<{ name: string; available: boolean }> | null>(null)
+  useEffect(() => {
+    endpoints.system
+      .engines()
+      .then((d) => setEngines(d?.engines ?? null))
+      .catch(() => setEngines(null))
+  }, [])
+  if (!engines) {
+    return <p className="text-xs text-[var(--text-muted)]">加载中…</p>
+  }
+  return (
+    <ul className="space-y-1">
+      {engines.map((e) => (
+        <li key={e.name} className="flex items-center justify-between text-xs">
+          <span className="font-mono text-[var(--text-secondary)]">{e.name}</span>
+          <span className={`flex items-center gap-1 ${e.available ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
+            <CheckCircle2 className="size-3" />
+            {e.available ? '可用' : '未配置'}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /* ───────── 强调色选择器（外观分区） ───────── */
+
+function themeLabel(t: 'system' | 'dark' | 'light'): string {
+  return t === 'system' ? '系统' : t === 'dark' ? '深色' : '浅色'
+}
 
 function AccentPicker({ highlight }: { highlight: boolean }) {
   const accent = useApp((s) => s.accent)
@@ -125,12 +157,18 @@ const sectionRenderers: Record<string, SectionRenderer> = {
       <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
         <div className="flex items-center gap-4">
           <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            {useApp.getState().theme === 'dark' ? <Moon className="size-5" /> : <Sun className="size-5 text-[var(--warning)]" />}
+            {useApp.getState().theme === 'system' ? (
+              <Monitor className="size-5" />
+            ) : useApp.getState().theme === 'dark' ? (
+              <Moon className="size-5" />
+            ) : (
+              <Sun className="size-5 text-[var(--warning)]" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
             <p className="text-xs text-[var(--text-secondary)]">
-              当前：{useApp.getState().theme === 'dark' ? '深色' : '浅色'}；切换后立即生效并持久化。
+              当前：{themeLabel(useApp.getState().theme)}；跟随系统时随系统深/浅实时切换。
             </p>
           </div>
           <div
@@ -138,7 +176,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
             aria-label="主题切换"
             className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1"
           >
-            {(['dark', 'light'] as const).map((t) => (
+            {(['system', 'dark', 'light'] as const).map((t) => (
               <Button
                 key={t}
                 size="sm"
@@ -146,9 +184,9 @@ const sectionRenderers: Record<string, SectionRenderer> = {
                 onClick={() => useApp.getState().setTheme(t)}
                 role="radio"
                 aria-checked={useApp.getState().theme === t}
-                aria-label={t === 'dark' ? '深色主题' : '浅色主题'}
+                aria-label={`${themeLabel(t)}主题`}
               >
-                {t === 'dark' ? '深色' : '浅色'}
+                {themeLabel(t)}
               </Button>
             ))}
           </div>
@@ -311,15 +349,29 @@ const sectionRenderers: Record<string, SectionRenderer> = {
             {sysConfig?.gateway?.bind ?? '—'}
           </span>
         </div>
+      </div>
+      <p className="mt-2 text-xs text-[var(--text-muted)]">
+        数值与 config/axiom.yaml 一一对应；改动请通过 config 文件或 /config 接口并重启服务。
+      </p>
+    </ShimmerCard>
+  ),
+
+  crawler: ({ highlightKey, sysConfig }) => (
+    <ShimmerCard padding="md">
+      <div className="space-y-2 text-sm">
         <div className={`flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 ${highlightKey === 'crawler.maxConcurrent' ? 'ring-2 ring-[var(--accent)]' : ''}`}>
           <span className="text-[var(--text)]">最大并发抓取</span>
           <span className="font-mono text-xs text-[var(--text-secondary)]">
             {sysConfig?.crawler?.maxConcurrent ?? '—'}
           </span>
         </div>
+        <div className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2">
+          <p className="mb-1.5 text-[var(--text)]">搜索引擎可用状态</p>
+          <EngineStatusList />
+        </div>
       </div>
       <p className="mt-2 text-xs text-[var(--text-muted)]">
-        数值与 config/axiom.yaml 一一对应；改动请通过 config 文件或 /config 接口并重启服务。
+        DuckDuckGo / SearXNG 免 Key 可用；Bing / SerpAPI 等需在 .env 配置对应 API Key。
       </p>
     </ShimmerCard>
   ),
@@ -373,8 +425,7 @@ export default function Settings() {
   const handleSearchSelect = (key: string) => {
     const item = SETTINGS_CATALOG.find((i) => i.key === key)
     if (item) {
-      const section = item.key === 'crawler.maxConcurrent' ? 'gateway' : item.section
-      setOpenSections((prev) => new Set(prev).add(section))
+      setOpenSections((prev) => new Set(prev).add(item.section))
     }
     setHighlightKey(key)
     setTimeout(() => setHighlightKey(null), 2000)
@@ -419,6 +470,7 @@ export default function Settings() {
           models: { description: '模型配置管理（提供商 / 模型 ID / 层级）' },
           agent: { description: '编码 Agent 可用状态与权限行为（与后端配置一一对应）' },
           gateway: { description: 'HTTP 服务监听配置（读取自 /config，修改需重启生效）' },
+          crawler: { description: '爬取并发上限与搜索引擎可用状态（读取自 /config、/engines）' },
           diagnostics: { description: '运行环境与核心服务健康检查、性能/Token/路由/代理/评估面板，可一键复制诊断快照' },
         }[section.id]
 

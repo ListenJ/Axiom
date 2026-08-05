@@ -129,7 +129,7 @@ export default function Chat() {
   const [activeSession, setActiveSession] = useState<string | null>(null)
 
   // 画布工具栏：会话题目（自动生成 + 手动改名，按 session 持久化）
-  const [chatTitle, setChatTitle] = useState('Chat')
+  const [chatTitle, setChatTitle] = useState('新对话')
   // 画布工具栏：IDE 打开下拉（VS Code / Cursor / 文件管理器）
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const [openMenu, setOpenMenu] = useState<'ide' | null>(null)
@@ -137,7 +137,7 @@ export default function Chat() {
 
   // 会话切换时载入对应标题
   useEffect(() => {
-    setChatTitle(loadChatTitle(activeSession) ?? 'Chat')
+    setChatTitle(loadChatTitle(activeSession) ?? '新对话')
   }, [activeSession])
 
   // 读取当前工作区绝对路径（供 IDE/文件管理器协议使用）
@@ -164,7 +164,7 @@ export default function Chat() {
   const commitChatTitle = () => {
     const t = chatTitle.trim()
     if (!t) {
-      setChatTitle(loadChatTitle(activeSession) ?? 'Chat')
+      setChatTitle(loadChatTitle(activeSession) ?? '新对话')
       return
     }
     setChatTitle(t)

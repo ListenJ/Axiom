@@ -583,6 +583,7 @@ export const endpoints = {
     health: () => api.get('/health'),
     version: () => api.get('/version'),
     config: () => api.get('/config'),
+    engines: () => api.get<{ engines: Array<{ name: string; available: boolean }> }>('/engines'),
   },
   traces: {
     list: () => api.get('/traces'),
