@@ -15,7 +15,7 @@
   - 新建 `docs/ARCHITECTURE-REVIEW-2026-08-06.md`：总评（后端 中 / 前端 良 / 平台基建 中 / 文档 中）+ 6 项 Critical（Docker 镜像不含前端 SPA、CI E2E 必红、native Cargo workspace optional 非法、/api-keys/:provider/test 与 /file-index 死端点、executeWithModeGuard 死代码）+ Warning / Positive / 优先修复清单。
   - 本文件追加本条。
 - **验证**：`bun x tsc --noEmit` 通过（TSC_EXIT=0）；`bun test tests/architecture-integrity.test.ts` 22 pass / 0 fail；阻断级证据人工复核属实（Dockerfile 无 frontend 构建、`git ls-files public` 仅 index.html、`git ls-files e2e` 为空、native/Cargo.toml:32-34 optional=true、api-keys.ts:146-150 WIP、routes 无 /file-index、main.ts:147 v2.3.0 vs :759 v4.0、mcp/server.ts:61/422 v2.9.2）。
-- **Commit**：`（待提交后回填）`
+- **Commit**：`a21f225`（已推送 internal211/master；本条 hash 经回填提交补录）
 
 ---
 
