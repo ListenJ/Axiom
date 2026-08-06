@@ -31,9 +31,10 @@ export function PerfPanel() {
       {error && (
         <p
           role="alert"
+          title={error}
           className="rounded-lg border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]"
         >
-          部分指标暂不可用：{error}
+          部分指标暂不可用，请稍后重试。
         </p>
       )}
 

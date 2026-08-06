@@ -38,7 +38,7 @@ export default function StatCard({
     <ShimmerCard padding="md" className={className}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">
             {label}
           </p>
           {loading ? (

@@ -7,6 +7,33 @@
 
 ---
 
+
+---
+
+
+
+## 2026-08-06 — 前端视觉优化第二轮：SenseNova 复评 + 真实缺陷修复（含前一轮 8 文件）
+
+
+
+- **任务**：继续优化前端，用已接入的 SenseNova sensenova-6.7-flash-lite 视觉模型对修复后页面复评，并把首轮审核结论落地为代码修复。
+
+- **工具**：Bash(bunx tsc --noEmit / bunx vite build / bunx vitest run / bun test)、Node+Playwright（截图脚本 v4-v7、DOM 几何探针 geom-probe / gradient-probe / mobile-text-probe / statsbar-mobile）、SenseNova API（review-v4/v6/v7 脚本）。
+
+- **操作（文件级）**：
+
+  - 前一轮 8 文件（本轮纳入验证与提交）：src/main.ts（/login 入 SPA_ROUTES + isStaticAsset() 静态资源豁免限流）、rontend/src/lib/api.ts（git.branch 数组类型）、Sidebar.tsx（分支按 .name 渲染，修 React #31 崩溃）、Header.tsx（字标 OC→AX、系统菜单 lg 隐藏）、Settings.tsx（外观卡片 flex-wrap）、Perf.tsx（错误横幅友好文案）、Tabs.tsx（whitespace-nowrap）、Perf.test.tsx（断言同步）。
+
+  - 本轮新增 6 文件：Settings.tsx（主题/强调色卡片 min-w-[10rem] sm:min-w-0，修移动端单字竖排 P0）、StatsBar.tsx（text-2xs→text-xs + flex-wrap/gap-4/whitespace-nowrap，修移动端"已完成 68"断行）、components/ui/StatCard.tsx（标签 text-muted→text-secondary，浅色对比度 3.85→5.9:1）、src/utils/security.ts（CSP style-src/font-src 放行 fonts.googleapis.com / fonts.gstatic.com，恢复 Inter/JetBrains Mono）、Header.tsx+Sidebar.tsx（g-[var(--accent-gradient)]→g-[image:var(--accent-gradient)]，修复 AX 徽标与"开启新对话"按钮渐变背景从未渲染——浅色下白字落米色背景近乎不可见）。
+
+  - 定位并解决 /chat 白屏（React #299）：根因是过期服务进程伺服被截断的 index.html（Content-Length 644 < 文件 1228）；按当前代码重启后端后页面正常渲染。
+
+  - public/index.html 随新 bundle 更新（仓库唯一被追踪的 SPA 包装文件，assets 由构建同步且 gitignore）。
+
+- **验证**：前端 tsc ✅、vitest 278/278 ✅、后端 tsc ✅、后端 un test tests/ 2199 pass / 28 skip / 5 fail（5 项均为 HEAD 已存在：Chat.tsx 恰 650 行超限、Sidebar 无 py-2.5、EventBus 并发、GitHub 网络超时；与本轮改动无关）。DOM 探针：渐变背景已渲染、移动端单字竖排消失、StatsBar 单行。SenseNova 复评：移动端设置 5→9.5、浅色 chat 7.5→8.5、tokens 6.5→8、浅色设置 7.8→9、暗色 chat 6.2→7。
+
+- **Commit**：<hash>（推送 internal211/master）
+
 ## 2026-08-06 — 接入 SenseNova 视觉模型 + 全站视觉审核落盘
 
 - **任务**：将 `sensenova-6.7-flash-lite` 接入 Codex 作为视觉模型，并使用 cowork-skills 的 design-system / visual-test-runner 方法对前端完成视觉审核。

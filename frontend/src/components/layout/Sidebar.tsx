@@ -52,7 +52,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     clean?: boolean
     error?: string
   } | null>(null)
-  const [branches, setBranches] = useState<string[]>([])
+  const [branches, setBranches] = useState<Array<{ name: string; current: boolean; remote: boolean }>>([])
   const [gitLoading, setGitLoading] = useState(false)
   const [recentCommits, setRecentCommits] = useState<Array<{ hash: string; message: string }>>([])
 
@@ -347,7 +347,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={startNewChat}
-          className="btn-shimmer press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="btn-shimmer press flex w-full items-center justify-center gap-2 rounded-lg bg-[image:var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
           aria-label="开启新对话"
         >
           <Plus size={16} />
@@ -409,15 +409,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               ) : (
                 branches.map((b) => (
                   <span
-                    key={b}
+                    key={b.name}
                     className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${
-                      b === gitStatus?.branch
+                      b.name === gitStatus?.branch
                         ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                         : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
                     }`}
                   >
                     <CircleDot size={8} />
-                    {b}
+                    {b.name}
                   </span>
                 ))
               )}

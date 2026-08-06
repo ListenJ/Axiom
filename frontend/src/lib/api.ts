@@ -662,7 +662,12 @@ export const endpoints = {
       clean?: boolean
       error?: string
     }>('/api/git/status'),
-    branch: () => api.get<{ success: boolean; current?: string; branches?: string[] }>('/api/git/branch'),
+    branch: () =>
+      api.get<{
+        success: boolean
+        current?: string
+        branches?: Array<{ name: string; current: boolean; remote: boolean }>
+      }>('/api/git/branch'),
     diff: () =>
       api.get<{ success: boolean; files?: DiffFile[]; diff?: string; error?: string }>('/api/git/diff', {
         cache: false,

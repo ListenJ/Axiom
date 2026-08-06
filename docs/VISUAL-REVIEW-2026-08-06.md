@@ -98,3 +98,48 @@
 - 截图：`C:\Users\18336\.codex\visualizations\2026\08\06\019fd6a3-70a6-7600-beb3-9c8e1066f085\vision-review\*.png`（浅色 13 + 暗色 4）
 - 逐页审核原文：同目录 `reviews/*.md`（每页含"总体评分 / 做得好的点 / 问题 / 一句话总结"）
 - 本次仅新增本文档，未改动任何代码；P0/P1 修复建议按 AGENTS.md 规则另开任务执行。
+
+---
+
+# 第二轮：修复落地 + SenseNova 复评（2026-08-06 晚）
+
+> 基线：首轮报告（上）。本轮把首轮 P0/P1 建议落地为代码，重新构建并复评。
+
+## 八、本轮修复（含首轮 8 文件验证 + 本轮 6 文件）
+
+1. **React #31 崩溃**：`Sidebar` git 分支按 `b.name` 渲染（类型改为对象数组）。
+2. **401 → /login 裸 JSON**：`/login` 加入后端 SPA_ROUTES 白名单。
+3. **静态资源 429 白屏**：`src/main.ts` 新增 `isStaticAsset()`，SPA 静态资源豁免 API 限流（连续 150 次静态资源请求全 200，API 路径仍正确 429）。
+4. **`OC` 字标 / 系统菜单移动端**：Header 字标改 AX，系统菜单 `lg:flex hidden` 移动端隐藏。
+5. **移动端设置单字竖排（首轮 P1-3，实测 P0）**：主题/强调色卡片文字容器 `min-w-[10rem] sm:min-w-0`，强制在窄屏换行到独立行；DOM 探针确认竖排元素归零，SenseNova 复评移动端设置 5→9.5。
+6. **AX 徽标与"开启新对话"渐变背景从未渲染（首轮"需人工复核"项，实测 P0）**：`bg-[var(--accent-gradient)]` 把渐变当背景色（无效，computed background-image=none），浅色下 `--on-accent` 近白文字直接落在米色背景上近乎不可见；改为 `bg-[image:var(--accent-gradient)]`（与 Button.tsx 一致）。探针确认渐变已渲染；浅色 chat 复评 7.5→8.5。
+7. **Google Fonts 被 CSP 拦截**：`style-src`/`font-src` 放行 fonts.googleapis.com / fonts.gstatic.com，Inter/JetBrains Mono 恢复加载（控制台无 CSP 错误）。
+8. **StatCard 标签对比度**：`--text-muted`（浅色 3.85:1）→ `--text-secondary`（5.9:1）。
+9. **底部状态栏可读性**：`text-2xs`→`text-xs`；移动端 `flex-wrap`+`gap-4`+`whitespace-nowrap` 修"已完成 68"断行（探针：各 项 h=18 单行）。
+10. **perf 错误文案 / Tabs 不换行 / 外观卡片 flex-wrap**：随首轮修复一并验证。
+
+## 九、复评评分（视口截图，避免全页拼接伪影）
+
+| 页面 | 首轮 | 复评 v6 | 终评 v7 |
+|---|---|---|---|
+| 浅色 chat | 7.5 | 7.2* | 8.5 |
+| 浅色 settings | 7.8 | 9.0 | 8.0 |
+| 浅色 tokens | 6.5 | 6.5 | 8.0 |
+| 浅色 providers | 8.5 | 8.0* | — |
+| 移动端 chat | 6.2 | 8.5 | 8.0 |
+| 移动端 settings | 5.0 | 9.5 | 8.5 |
+| 暗色 chat | 7.5 | — | 7.0 |
+| 暗色 settings | 9.0 | — | — |
+
+*：v6 首跑为全页拼接图，几何探针证实"顶栏重叠/底栏遮挡"均为拼接伪影（brand/H1 相交面积=0、docH=900）；v7 起改为视口截图。
+
+## 十、残留低优先项（本轮未改，供后续）
+
+- 侧栏信息密度（MCP/插件说明行距）、空态引导（tokens 趋势图"暂无数据"仅一行文字）、输入框 placeholder 对比度、底部导航图标抽象度、"检查中…"全角省略号、KPI 多色语义——均为 P2/观感级。
+- 后端测试 5 项 HEAD 已存在失败（Chat.tsx 650 行、Sidebar py-2.5、EventBus 并发、GitHub 网络超时），与本轮无关，另开任务处理。
+
+## 十一、本轮截图与审核原文
+
+- 截图：同目录 `vision-review/v4-*`、`v5-*`、`v6-*`、`v7-*.png`（v4/v5 全页，v6/v7 视口）。
+- 逐页原文：`vision-review/reviews-v4/`、`reviews-v6/`、`reviews-v7/*.md`。
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）。

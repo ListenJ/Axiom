@@ -113,8 +113,8 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
         className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
         aria-label="返回对话"
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-gradient)] text-sm font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
-          OC
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[image:var(--accent-gradient)] text-sm font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
+          AX
         </div>
         <span className="hidden font-display text-base font-semibold tracking-tight sm:inline">
           Axiom
@@ -122,7 +122,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
 
       {/* 外壳系统菜单 */}
-      <nav aria-label="系统菜单" className="ml-1 flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+      <nav aria-label="系统菜单" className="ml-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto lg:flex">
         <HeaderMenu
           label="文件"
           items={[

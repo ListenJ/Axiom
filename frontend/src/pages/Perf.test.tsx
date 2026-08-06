@@ -67,6 +67,9 @@ describe('Perf page integration', () => {
     mocks.metrics.mockRejectedValue(new Error('network down'))
     mocks.native.mockResolvedValue(null)
     renderPage()
-    await waitFor(() => expect(screen.getByText(/network down/i)).toBeInTheDocument())
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent('部分指标暂不可用，请稍后重试。')
+    // 原始错误保留在 title 中供调试，不再直接暴露给普通用户
+    expect(banner).toHaveAttribute('title', 'network down')
   })
 })

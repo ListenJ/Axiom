@@ -42,7 +42,7 @@ export function createSecurityHeaders(
       ? `'self' ws: wss: ${extraConnectSrc.split(",").map((s) => s.trim()).join(" ")}`
       : "'self' ws: wss:";
     headers["Content-Security-Policy"] =
-      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src ${connectSrc}; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
+      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src ${connectSrc}; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
   }
 
   if (options?.custom) {

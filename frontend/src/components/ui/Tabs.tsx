@@ -44,7 +44,7 @@ export default function Tabs({
             aria-controls={`tabpanel-${tab.id}`}
             onClick={() => onChange(tab.id)}
             className={`
-              press relative inline-flex flex-1 ${fullWidth ? 'flex-1' : ''} items-center justify-center gap-1.5
+              press relative inline-flex flex-1 ${fullWidth ? 'flex-1' : ''} items-center justify-center gap-1.5 whitespace-nowrap
               rounded-lg px-3 font-medium
               ${sizeClasses}
               transition-colors duration-200

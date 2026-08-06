@@ -63,28 +63,28 @@ export default function StatsBar() {
   }, [fetchStats, fetchTokenDetails])
 
   return (
-    <div className="shell-surface flex items-center justify-center gap-6 border-t border-[var(--shell-border)] px-4 py-2 text-2xs text-[var(--text-secondary)]">
-      <div className="flex items-center gap-1.5">
+    <div className="shell-surface flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-[var(--shell-border)] px-4 py-2 text-xs text-[var(--text-secondary)]">
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
         <Activity className="size-3 text-[var(--success)]" />
         <span>任务 {stats?.activeTasks ?? '—'}</span>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
         <Cpu className="size-3 text-[var(--accent)]" />
         <span>智能体 {stats?.agents ?? '—'}</span>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
         <Globe className="size-3 text-[var(--info)]" />
         <span>已完成 {stats?.completed ?? '—'}</span>
       </div>
       <button
         onClick={() => navigate('/tokens')}
-        className="flex items-center gap-1.5 transition-colors hover:text-[var(--text)]"
+        className="flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-[var(--text)]"
       >
         <Coins className="size-3 text-[var(--warning)]" />
         <span>Tokens {(stats?.tokensUsed ?? 0).toLocaleString()}</span>
       </button>
       {cacheRate !== null && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
           <Database className="size-3 text-[var(--info)]" />
           <span>缓存 {cacheRate}%</span>
         </div>

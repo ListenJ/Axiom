@@ -507,6 +507,19 @@ async function serveStaticFile(pathname: string, req: Request): Promise<Response
   });
 }
 
+/**
+ * 判断路径是否为 SPA 静态资源（供限流豁免预判使用）。
+ * 与 serveStaticFile 同一判定口径：已知扩展名且文件存在于 STATIC_ROOT 下。
+ */
+async function isStaticAsset(pathname: string): Promise<boolean> {
+  if (pathname === "/" || pathname === "") return false;
+  const safe = pathname.replace(/^\/+/, "");
+  if (safe.includes("..") || safe.includes("\\")) return false;
+  const ext = safe.includes(".") ? safe.slice(safe.lastIndexOf(".")) : "";
+  if (!STATIC_MIME[ext]) return false;
+  return Bun.file(`${STATIC_ROOT}/${safe}`).exists();
+}
+
 const API_KEY = readString("AXIOM_AUTH_TOKEN");
 
 // Local (loopback) requests skip auth for E2E tests and local development.
@@ -520,7 +533,7 @@ logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 const SPA_ROUTES = new Set([
   "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
-  "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings",
+  "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings", "/login",
 ]);
 
 // Pre-resolve SPA index.html file reference (Bun.file is lazy, no I/O at init)
@@ -598,7 +611,12 @@ const server = Bun.serve({
     }
 
     // Rate limiting (keyed on the socket peer address, not spoofable headers)
-    const rl = await rateLimitCheck(req, remoteAddress, url.pathname);
+    // 静态资源（SPA 的 JS/CSS/图片/字体）豁免 API 限流：单页 50+ 资源请求会把
+    // 默认 100 次/min 配额耗尽导致页面白屏（2026-08-06 视觉审核 P0-3）。
+    const isStaticAssetReq = await isStaticAsset(url.pathname);
+    const rl = isStaticAssetReq
+      ? { allowed: true, headers: {} as Record<string, string> }
+      : await rateLimitCheck(req, remoteAddress, url.pathname);
     if (!rl.allowed) {
       auditLogger.log({
         event: "rate_limit.exceeded",

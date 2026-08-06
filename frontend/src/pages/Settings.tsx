@@ -55,11 +55,11 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
   const setAccent = useApp((s) => s.setAccent)
   return (
     <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
           <Palette className="size-5" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[10rem] flex-1 sm:min-w-0">
           <h3 className="text-sm font-medium text-[var(--text)]">强调色</h3>
           <p className="text-xs text-[var(--text-secondary)]">
             当前：{ACCENT_PRESETS[accent].label}；选择后立即生效并持久化（深色/浅色各自适配）。
@@ -155,7 +155,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
   appearance: ({ highlightKey }) => (
     <div className="stagger space-y-3">
       <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
             {useApp.getState().theme === 'system' ? (
               <Monitor className="size-5" />
@@ -165,7 +165,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
               <Sun className="size-5 text-[var(--warning)]" />
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[10rem] flex-1 sm:min-w-0">
             <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
             <p className="text-xs text-[var(--text-secondary)]">
               当前：{themeLabel(useApp.getState().theme)}；跟随系统时随系统深/浅实时切换。
