@@ -209,7 +209,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     return (
       <div
         key={s.session_id}
-        className={`group/session relative flex items-center gap-1.5 rounded-lg pr-1 transition-colors ${
+        className={`cv-auto group/session relative flex items-center gap-1.5 rounded-lg pr-1 transition-colors ${
           isActive ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--shell-hover)]'
         }`}
       >
@@ -347,7 +347,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={startNewChat}
-          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="btn-shimmer press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
           aria-label="开启新对话"
         >
           <Plus size={16} />
@@ -565,7 +565,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </button>
           <div className={`flex min-w-0 flex-1 items-center gap-2 ${collapsed ? 'lg:hidden' : ''}`}>
             <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
+              className="avatar-glow flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
               aria-hidden="true"
             >
               本

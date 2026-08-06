@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-08-06 — 性能与动画批次：静态 gzip+长缓存 / content-visibility / Toast与按钮动画
+
+- **任务**：继续优化动画与速度 —— ① **后端静态服务 gzip 压缩 + assets immutable 长缓存**（此前 976KB 主 JS 未压缩传输，为最大速度瓶颈）② 离屏内容跳过渲染（content-visibility，长会话/长列表）③ overscroll 防滚动链 ④ Toast 入场动画 ⑤ 新建对话按钮 shimmer 扫光 ⑥ 账号头像呼吸光晕。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `src/main.ts`：`serveStaticFile` 支持 gzip —— 文本类 MIME（js/css/html/svg/json/txt/map）且 >1KB 且客户端 Accept-Encoding 含 gzip 时，`zlib.gzipSync` 压缩（内存缓存 128 条，构建产物不变则命中），响应带 `Content-Encoding: gzip` + `Vary: Accept-Encoding`；`/assets/` 下内容 hash 文件改 `public, max-age=31536000, immutable`（index.html 等保持 no-cache）。调用点传 req。
+  - `frontend/src/styles/index.css`：新增 `.cv-auto`（content-visibility: auto + contain-intrinsic-size 64px）、`overscroll-behavior: contain`、`.toast-enter`（slide-in-top 0.28s）、`.btn-shimmer`（常驻扫光，复用 shimmer-sweep 语义新建独立 keyframes）、`.avatar-glow`（accent ring 3s 呼吸）。
+  - `frontend/src/components/chat-panels.tsx`：消息卡片加 `cv-auto`（长会话离屏消息跳过渲染）。
+  - `frontend/src/components/layout/Sidebar.tsx`：会话条目行加 `cv-auto`；「开启新对话」按钮加 `btn-shimmer`；账号头像加 `avatar-glow`。
+  - `frontend/src/components/ui/Toasts.tsx`：Toast 加 `toast-enter` 入场动画。
+- **验证**：后端 lint 0 错误 + 27 定向测试全过；前端 lint 0 错误、278 测试全过、生产构建成功。gzip 逻辑经类型与单元验证（实机冒烟需同步 public/ 产物后启动服务，留待部署时验证）。
+- **Commit**：`d84b2cb`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-06 — 视觉强化批次：Aurora 光斑 / 卡片玻璃 / 滚动条 / 菜单动画 / 终端玻璃
 
 - **任务**：继续强化视觉效果 —— ① 丝绸背景叠加 Aurora 强调色光斑（缓慢漂移，随主题色变化，经毛玻璃层磨砂透出）② 全站卡片统一玻璃材质（card-glass）③ 自定义毛玻璃滚动条 ④ accent 选中文本 ⑤ 顶栏下拉菜单弹出动画 ⑥ 终端面板玻璃化。

@@ -847,6 +847,60 @@ a:focus-visible,
 
 /* ── Ergonomics & Accessibility Utilities ───────────────────── */
 
+/* 离屏内容跳过渲染（长会话 / 长列表性能）：进入视口才渲染，估算高度占位 */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+
+/* 防止滚动链：内层滚动到底不带动外层 */
+html,
+body {
+  overscroll-behavior: contain;
+}
+
+/* Toast 入场/退场动画（slide-in-top + fade，退场由 4s 自动消失前的状态保持） */
+.toast-enter {
+  animation: toast-in 0.28s var(--ease-out) both;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 新建对话按钮：常驻 shimmer 扫光（复用 shimmer-sweep keyframes） */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 32%, rgba(255, 255, 255, 0.22) 50%, transparent 68%);
+  transform: translateX(-120%);
+  animation: btn-shimmer-sweep 3.2s var(--ease-in-out) infinite;
+  pointer-events: none;
+}
+@keyframes btn-shimmer-sweep {
+  to { transform: translateX(120%); }
+}
+
+/* 账号头像呼吸光晕 */
+.avatar-glow {
+  animation: avatar-pulse 3s var(--ease-in-out) infinite;
+}
+@keyframes avatar-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-ring); }
+  50% { box-shadow: 0 0 0 4px var(--accent-ring); }
+}
+
 /* Minimum touch target: 44×44px */
 .touch-target {
   min-width: 44px;

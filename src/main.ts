@@ -447,11 +447,19 @@ const STATIC_MIME: Record<string, string> = {
 };
 const STATIC_ROOT = "./public";
 
+// ── 静态资源压缩与缓存（2026-08-06 性能优化） ──────────────────────────
+// 文本类资源 gzip 传输（内存缓存，构建产物不变则缓存命中），
+// /assets/ 下带内容 hash 的文件给 immutable 长缓存（二次加载零协商）。
+import { gzipSync } from "node:zlib";
+const COMPRESSIBLE_EXT = new Set([".js", ".css", ".html", ".svg", ".json", ".txt", ".map"]);
+const gzipCache = new Map<string, ArrayBuffer>();
+const GZIP_MIN_BYTES = 1024;
+
 /**
  * Serve a static file from ./public/ for the SPA shell.
  * Returns null if the file doesn't exist or path is unsafe (caller falls through to API).
  */
-async function serveStaticFile(pathname: string): Promise<Response | null> {
+async function serveStaticFile(pathname: string, req: Request): Promise<Response | null> {
   if (pathname === "/" || pathname === "") return null; // let handleDashboard serve index.html
   // Path safety: reject traversal attempts
   const safe = pathname.replace(/^\/+/, "");
@@ -461,9 +469,41 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   const filePath = `${STATIC_ROOT}/${safe}`;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
+
+  // /assets/ 为内容 hash 文件名 → immutable 长缓存；其余（index.html 等）每次校验
+  const isHashedAsset = pathname.startsWith("/assets/");
+  const cacheControl = isHashedAsset
+    ? "public, max-age=31536000, immutable"
+    : "no-cache";
+
+  // gzip：仅文本类 + 超过阈值 + 客户端声明支持；压缩结果内存缓存
+  const acceptsGzip = (req.headers.get("accept-encoding") ?? "").includes("gzip");
+  if (acceptsGzip && COMPRESSIBLE_EXT.has(ext)) {
+    const size = file.size;
+    if (size > GZIP_MIN_BYTES) {
+      let gz = gzipCache.get(filePath);
+      if (!gz) {
+        const raw = await file.arrayBuffer();
+        gz = gzipSync(Buffer.from(raw)).buffer as ArrayBuffer;
+        if (gzipCache.size > 128) gzipCache.clear();
+        gzipCache.set(filePath, gz);
+      }
+      return new Response(gz, {
+        status: 200,
+        headers: {
+          ...securityHeaders,
+          "Content-Type": STATIC_MIME[ext],
+          "Content-Encoding": "gzip",
+          "Vary": "Accept-Encoding",
+          "Cache-Control": cacheControl,
+        },
+      });
+    }
+  }
+
   return new Response(file, {
     status: 200,
-    headers: { ...securityHeaders, "Content-Type": STATIC_MIME[ext], "Cache-Control": "no-cache" },
+    headers: { ...securityHeaders, "Content-Type": STATIC_MIME[ext], "Cache-Control": cacheControl },
   });
 }
 
@@ -629,7 +669,7 @@ const server = Bun.serve({
       };
 
       // Try static files first (SPA shell assets)
-      let response = await serveStaticFile(url.pathname);
+      let response = await serveStaticFile(url.pathname, req);
 
       // 使用高性能路由引擎 (O(1) Trie + 请求缓存 + 性能分析)
       if (!response) {

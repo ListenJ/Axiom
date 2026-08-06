@@ -475,7 +475,7 @@ export function MessageItem({
     <ShimmerCard
       key={msg.id}
       variant={isUser ? 'default' : 'accent'}
-      className={`group/msg max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}
+      className={`cv-auto group/msg max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}
     >
       <div className="flex items-start gap-3">
         <div
