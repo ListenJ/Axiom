@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-08-06 — 接入 SenseNova 视觉模型 + 全站视觉审核落盘
+
+- **任务**：将 `sensenova-6.7-flash-lite` 接入 Codex 作为视觉模型，并使用 cowork-skills 的 design-system / visual-test-runner 方法对前端完成视觉审核。
+- **工具**：Web（Codex 官方/MiniMax 配置文档）、Read、Grep、Bash(bun build / node playwright / node 视觉审核脚本)、Invoke-RestMethod(SenseNova API)。
+- **操作（代码未改动；仅 Codex 外部配置 + 文档落盘）**：
+  - Codex 接入：`~/.codex/config.toml` 新增 `[model_providers.sensenova]`（wire_api=chat，Bearer）；`cc-switch-model-catalog.json` 新增 `sensenova-6.7-flash-lite`（input_modalities text+image）；已备份到 `~/.codex/.codex-config-backup-20260806/`。
+  - 安装 cowork-skills 的 `design-system` / `visual-test-runner` 到 `~/.codex/skills/`。
+  - 视觉审核：`bun run build` → 本地代理 4180（规避静态资源限流）→ Playwright 截 17 张（13 浅色 + 4 暗色）→ SenseNova 逐张结构化审核 → 关键声称 DOM/代码/计算对比度复核。
+  - 新建 `docs/VISUAL-REVIEW-2026-08-06.md`（评分表 + 4 项 P0 + P1/P2 + 需人工复核项）。
+  - 本文件追加本条。
+- **验证**：SenseNova 文本/图片输入实测通过；客观对比度（暗色 `--text-muted` 1.05:1）；缺陷复核属实（React #31 git 分支对象、/login 401 裸 JSON、静态资源 429、Header "OC" 字标 + 系统菜单移动端未隐藏）。
+- **Commit**：`（待提交后回填）`
+
+---
+
 ## 2026-08-06 — 全仓整体合理性审查落盘（4 路并行子代理）
 
 - **任务**：检查最新进展并审核全仓整体合理性——后端核心 / 前端+壳 / 平台与基建 / 文档一致性四维并行只读审查，关键证据人工复核后落盘。
