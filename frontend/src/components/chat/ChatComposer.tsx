@@ -48,7 +48,7 @@ export function ChatComposer({
         placeholder="输入消息…（Enter 发送 · Shift+Enter 换行）"
         aria-label="消息输入框"
         rows={1}
-        className="h-11 min-w-0 flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-ring)]"
+        className="h-11 min-w-0 flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-all placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-ring)]"
       />
       {sending ? (
         <Button

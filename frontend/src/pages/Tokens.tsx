@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database } from 'lucide-react'
+import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database, BarChart3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import PageHeader from '@/components/ui/PageHeader'
 import StatCard from '@/components/ui/StatCard'
 import BarChart from '@/components/ui/BarChart'
 import Collapsible from '@/components/ui/Collapsible'
+import InlineEmptyState from '@/components/ui/InlineEmptyState'
 
 interface TokenDetail {
   perModel: Array<{ model: string; calls: number; promptTokens: number; completionTokens: number; avgLatency: number }>
@@ -58,7 +59,11 @@ export function TokensPanel() {
         {modelChartData.length > 0 ? (
           <BarChart data={modelChartData} showLabels />
         ) : (
-          <p className="text-xs text-[var(--text-muted)]">暂无数据</p>
+          <InlineEmptyState
+            icon={<BarChart3 className="size-6" />}
+            title="暂无 Token 消耗数据"
+            description="完成一次模型调用后，这里将展示 7 天消耗趋势。"
+          />
         )}
       </div>
 

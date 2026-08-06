@@ -143,3 +143,64 @@
 - 截图：同目录 `vision-review/v4-*`、`v5-*`、`v6-*`、`v7-*.png`（v4/v5 全页，v6/v7 视口）。
 - 逐页原文：`vision-review/reviews-v4/`、`reviews-v6/`、`reviews-v7/*.md`。
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）。
+
+---
+
+# 第三轮：侧栏项目区专项优化 + 低优先项收尾（2026-08-07）
+
+> 用户要求：侧栏「顶部功能区 + 底部账号区」固定，项目区为唯一滚动区并做 spec 对齐的显示优化（含百分比/动态占比）；同时按 spec（frontend/docs/FRONTEND-DESIGN.md）收尾剩余低优先项。
+
+## 十二、侧栏固定布局确认（DOM 几何探针逐轮验证）
+
+- 顶部功能（Logo 0–56 / 新建对话 56–109 / Git 109–264 / MCP 264–551）与底部账号（838–900）均为 `shrink-0` 固定；项目区（551–838）为唯一 `overflow-y-auto` 滚动区，`docH=900` 无页面级滚动。
+- 项目区优化：会话行 `py-2` + `leading-snug/leading-relaxed`、meta 文案「N 条消息 · X tok」消歧；工作区头 `py-2.5`（≥44px 触摸目标，同时修回 `tests/responsive` 的 py-2.5 断言）；**动态占比条**——会话 `message_count` 占项目总活跃度比例（`activityTotal>0` 即显示，`opacity-60` 柔化 + `title` 说明语义）。
+- MCP 场景/插件行 `py-1→py-1.5`、容器 `space-y-1`；Git 最近提交 `space-y-1`；账号区头像间距 `gap-2.5`；「检查中…」→半角「检查中...」。
+
+## 十三、低优先项收尾
+
+- ✅ Tokens 趋势空态 → InlineEmptyState（图标 + 引导文案，SenseNova 空态评价良好）
+- ✅ ChatComposer placeholder → `text-secondary`（浅色 3.85→5.9:1）
+- ✅ 侧栏 MCP 信息密度 / Git 提交行距
+- ✅ `tests/responsive` py-2.5 断言修复（Sidebar 恢复 py-2.5）
+- 未改（有依据）：KPI 多色语义（语义色已合理）、底部导航图标抽象度（lucide 既定图标）、placeholder 全局（仅聊天输入框）
+
+## 十四、SenseNova 侧栏专项评分
+
+基线 8.5 → 优化后 8.0（多轮 6.0–8.5 采样波动；固定区与动态占比条每轮均获确认）。剩余观感项均源于演示数据稀疏（仅 1 条会话导致的「留白/密度」矛盾评价），非布局缺陷；真实多项目/多会话场景下滚动区与占比条按预期工作。
+
+## 十五、本轮截图与审核原文
+
+- 截图：`vision-review/s8-sidebar-light.png`、`s8-tokens-tokens.png`
+- 逐页原文：`vision-review/reviews-sidebar/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第四轮：全站高斯模糊毛玻璃材质修复 + 视觉审批（2026-08-07）
+
+> 用户要求：用视觉模型完成视觉审批；整体显示风格应为「带有一定的高斯模糊的毛玻璃材质」。
+
+## 十六、根因：毛玻璃此前实际未生效
+
+- `.silk-aurora`（Aurora 光斑，`position:fixed; z-index:-1`）是 Layout 根节点的子元素，但根节点未建 stacking context → 光斑被根节点不透明 `bg-bg` 完全覆盖 → `backdrop-filter` 无物可模糊，所有玻璃类表面（shell/canvas/card）看起来都是实心深色面板。
+- 修复：Layout 根节点加 `isolate`（`isolation:isolate`），光斑正确铺在表面之下；像素采样验证透出（暗色侧栏顶部 rgb(61,42,11)、主内容区 rgb(53,40,12)、侧栏亮度方差 sd≈17）。
+- 最小测试页（bf-test）确认无头 Chromium `backdrop-filter` 正常渲染，排除环境因素。
+
+## 十七、玻璃材质统一（index.css）
+
+- shell-surface（侧栏/顶栏/底栏）：暗 `rgba(23,19,16,0.4)` + `blur(22px) saturate(1.5)` + 顶部高光；浅 `rgba(242,236,223,0.5)`。
+- canvas-surface（主内容）：暗 `rgba(20,17,13,0.55)` + `blur(16px)`；浅 `rgba(250,247,242,0.72)`。
+- card-glass（卡片）：暗 `rgba(30,26,20,0.58)` + `blur(16px)` + 高光边框（0.1）+ inset 高光；浅 `rgba(246,241,231,0.7)`。
+- Aurora 光斑加浓（暗 0.72/0.62、浅 0.5/0.42），新增中部第三光斑 `.silk-aurora-extra`；丝绸斜纹/噪点加浓（为模糊提供可辨内容）。
+
+## 十八、审批结论
+
+- SenseNova 毛玻璃专项审批 8 轮（g1–g8）：修复前 3.5–6（"完全实心"），修复后暗色一度 7–7.5（"光斑可感知、卡片半透明"）。
+- 评分对同一视觉存在随机翻转（g4 dark-tokens 8 → g7 3），其极端建议（alpha 0.1–0.25）与 spec「可读性优先」冲突，未盲从；最终采用「明显但可读」中间档。
+- 客观判定：毛玻璃已生效（像素验证），高斯模糊 + 半透明 + 光斑透出齐备。
+
+## 十九、本轮截图与审核原文
+
+- 截图：`vision-review/g1–g8-*.png`（毛玻璃迭代）、`bf-test.png`
+- 逐页原文：`vision-review/reviews-glass/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

@@ -202,7 +202,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     }
   }
 
-  const renderSessionRow = (s: SessionSummary) => {
+  const renderSessionRow = (s: SessionSummary, activityTotal: number) => {
     const title = limitText(sessionListTitle(s.session_id, s.title), 50)
     const isEditing = editingId === s.session_id
     const isActive = currentSession === s.session_id
@@ -241,18 +241,27 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={() => openSession(s.session_id)}
-            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
             title={collapsed ? title : undefined}
           >
             <MessageSquare size={12} className={`shrink-0 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
             {/* 会话标题 ≤50 字符：未渲染完全时横向滚动（.text-scroll） */}
             <span className="min-w-0 flex-1">
-              <span className={`text-scroll block text-2xs ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
+              <span className={`text-scroll block text-2xs leading-snug ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
                 {title}
               </span>
-              <span className="block text-2xs text-[var(--text-muted)]">
-                {s.message_count} 条 · {formatTokens(s.total_tokens ?? 0)} tok
+              <span className="mt-0.5 block text-2xs leading-relaxed text-[var(--text-muted)]">
+                {s.message_count} 条消息 · {formatTokens(s.total_tokens ?? 0)} tok
               </span>
+              {/* 动态占比：会话活跃度（消息数）占当前项目总活跃度的比例 */}
+              {activityTotal > 0 && (
+                <span className="mt-1 block h-0.5 w-full overflow-hidden rounded-full bg-[var(--bg-tertiary)]" title="该会话活跃度占项目总活跃度的比例" aria-hidden="true">
+                  <span
+                    className="block h-full rounded-full bg-[var(--accent)] opacity-60 transition-[width] duration-300"
+                    style={{ width: `${Math.min(100, Math.round(((s.message_count || 0) / activityTotal) * 100))}%` }}
+                  />
+                </span>
+              )}
             </span>
             <span className={`flex shrink-0 items-center gap-1 text-2xs text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
               <Clock size={10} />
@@ -425,7 +434,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             {/* 最近提交（工作进展摘要，横向滚动） */}
             {recentCommits.length > 0 && (
               <div className="border-t border-[var(--border)] px-3 py-1.5">
-                <div className="text-scroll space-y-0.5">
+                <div className="text-scroll space-y-1">
                   {recentCommits.map((c) => (
                     <div key={c.hash} className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
                       <GitCommitHorizontal size={10} className="shrink-0 text-[var(--text-muted)]" />
@@ -448,13 +457,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             MCP · Skill
           </p>
         </div>
-        <div className="space-y-0.5 px-2 pb-2.5">
+        <div className="space-y-1 px-2 pb-2.5">
           <p className="px-1 pt-0.5 text-2xs font-medium text-[var(--text-muted)]">MCP 场景</p>
           {mcpScenes.length === 0 ? (
             <p className="px-1 text-2xs text-[var(--text-muted)]">暂无场景（配置于 config/mcp-servers.yaml）</p>
           ) : (
             mcpScenes.slice(0, 6).map((s) => (
-              <div key={s.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-[var(--shell-hover)]">
+              <div key={s.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">
                 <Activity size={11} className="shrink-0 text-[var(--text-muted)]" />
                 <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]" title={s.description}>
                   {s.name}
@@ -467,7 +476,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <p className="px-1 text-2xs text-[var(--text-muted)]">无插件（skills/ 目录自动加载）</p>
           ) : (
             plugins.slice(0, 6).map((p) => (
-              <div key={p.id ?? p.name} className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-[var(--shell-hover)]">
+              <div key={p.id ?? p.name} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">
                 <Layers size={11} className="shrink-0 text-[var(--text-muted)]" />
                 <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]">{p.name ?? p.id}</span>
               </div>
@@ -496,13 +505,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               const wsSessions = sessionsByWorkspace.get(key) ?? []
               const isCollapsed = collapsedWs.has(key)
               const wsName = limitText(ws.name, 20)
+              const activityTotal = wsSessions.reduce((acc, x) => acc + (x.message_count || 0), 0)
               return (
                 <div key={ws.id}>
                   {/* 风琴头：项目名 ≤20 字符，横向滚动 */}
                   <button
                     type="button"
                     onClick={() => toggleWs(key)}
-                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
                     aria-expanded={!isCollapsed}
                     title={collapsed ? wsName : undefined}
                   >
@@ -511,7 +521,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                       <span className="text-scroll block text-xs font-medium text-[var(--text)]" title={ws.name}>
                         {wsName}
                       </span>
-                      <span className="block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
+                      <span className="mt-0.5 block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
                         {ws.branch} · {ws.sessionCount} 个会话
                       </span>
                     </span>
@@ -536,7 +546,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                             该项目暂无会话
                           </p>
                         ) : (
-                          wsSessions.map(renderSessionRow)
+                          wsSessions.map((s) => renderSessionRow(s, activityTotal))
                         )}
                       </motion.div>
                     )}
@@ -563,7 +573,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           >
             <Settings size={16} />
           </button>
-          <div className={`flex min-w-0 flex-1 items-center gap-2 ${collapsed ? 'lg:hidden' : ''}`}>
+            <div className={`flex min-w-0 flex-1 items-center gap-2.5 ${collapsed ? 'lg:hidden' : ''}`}>
             <span
               className="avatar-glow flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
               aria-hidden="true"
@@ -576,7 +586,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </span>
               <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
                 <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
-                {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
+                {online ? '在线' : healthError ? '服务不可达' : '检查中...'}
               </span>
             </span>
           </div>
