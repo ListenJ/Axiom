@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Menu } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useApp } from '@/state/useApp'
 import { shortcutLabel } from '@/lib/shortcuts'
+import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 interface MenuItem {
   label: string
@@ -42,33 +44,39 @@ function HeaderMenu({ label, items }: { label: string; items: MenuItem[] }) {
         <ChevronDown size={13} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          aria-label={label}
-          className="shell-raised elevation-4 absolute left-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--shell-border-strong)] p-1.5"
-        >
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false)
-                item.onSelect()
-              }}
-              className="press flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
-            >
-              <span>{item.label}</span>
-              {item.shortcut && (
-                <kbd className="rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-2xs text-[var(--text-muted)]">
-                  {item.shortcut}
-                </kbd>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            aria-label={label}
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={MOTION_PRESETS.fadeIn}
+            className="shell-raised elevation-4 absolute left-0 top-full z-50 mt-1 w-52 origin-top-left rounded-lg border border-[var(--shell-border-strong)] p-1.5"
+          >
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  item.onSelect()
+                }}
+                className="press flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+              >
+                <span>{item.label}</span>
+                {item.shortcut && (
+                  <kbd className="rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-2xs text-[var(--text-muted)]">
+                    {item.shortcut}
+                  </kbd>
+                )}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -35,8 +35,9 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-text">
-      {/* 丝绸纹理底层：被外壳毛玻璃层磨砂透出（z 序最底） */}
+      {/* 丝绸纹理底层 + Aurora 光斑：被外壳/画布毛玻璃层磨砂透出（z 序最底） */}
       <div className="silk-bg" aria-hidden="true" />
+      <div className="silk-aurora" aria-hidden="true" />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

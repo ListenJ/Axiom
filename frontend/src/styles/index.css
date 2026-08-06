@@ -551,6 +551,97 @@ a:focus-visible,
   background-size: auto, auto, auto, auto, 3px 3px, auto;
 }
 
+/* ── Aurora 光斑（丝绸背景上的缓慢漂移强调色光晕，毛玻璃层磨砂透出） ── */
+.silk-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.silk-aurora::before,
+.silk-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.silk-aurora::before {
+  width: 46vw;
+  height: 46vw;
+  left: -12vw;
+  top: -18vh;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 62%);
+  opacity: 0.34;
+  animation: aurora-drift-a 26s var(--ease-in-out) infinite alternate;
+}
+.silk-aurora::after {
+  width: 40vw;
+  height: 40vw;
+  right: -10vw;
+  bottom: -14vh;
+  background: radial-gradient(circle, var(--accent-strong) 0%, transparent 58%);
+  opacity: 0.26;
+  animation: aurora-drift-b 34s var(--ease-in-out) infinite alternate;
+}
+@keyframes aurora-drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(14vw, 12vh) scale(1.18); }
+}
+@keyframes aurora-drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-12vw, -10vh) scale(1.12); }
+}
+[data-theme='light'] .silk-aurora::before { opacity: 0.16; mix-blend-mode: normal; }
+[data-theme='light'] .silk-aurora::after { opacity: 0.12; mix-blend-mode: normal; }
+
+/* ── 卡片玻璃（ShimmerCard 统一材质：半透明 + 磨砂 + 高光边框） ────────── */
+.card-glass {
+  background: rgba(30, 26, 20, 0.72);
+  backdrop-filter: blur(10px) saturate(1.25);
+  -webkit-backdrop-filter: blur(10px) saturate(1.25);
+  border: 1px solid rgba(255, 232, 190, 0.07);
+  will-change: backdrop-filter;
+}
+[data-theme='light'] .card-glass {
+  background: rgba(246, 241, 231, 0.78);
+  border: 1px solid rgba(41, 33, 25, 0.06);
+}
+
+/* 自定义滚动条：薄、圆角、半透明（毛玻璃风格） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border-strong) 70%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 选中文本：accent 磨砂底 + 强调色文字 */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 /* 横向滚动文字（侧栏长文本：项目名/会话标题未渲染完全时滚动展示） */
 .text-scroll {
   overflow-x: auto;

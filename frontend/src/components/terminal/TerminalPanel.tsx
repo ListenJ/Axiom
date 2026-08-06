@@ -148,7 +148,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
       role="region"
       aria-label="终端"
       style={{ height }}
-      className="flex flex-col border-t border-[var(--border)] bg-[var(--bg-secondary)] backdrop-blur-sm"
+      className="glass flex flex-col border-t border-[var(--border)] backdrop-blur-md"
     >
       {/* 高度拖拽手柄 */}
       <div

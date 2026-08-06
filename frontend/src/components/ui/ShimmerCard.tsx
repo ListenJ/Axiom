@@ -22,11 +22,11 @@ interface ShimmerCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'classNa
 
 const VARIANT_CLASSES: Record<CardVariant, string> = {
   default:
-    'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-hover)]',
+    'card-glass hover:border-[var(--border-hover)]',
   accent:
-    'border border-[var(--accent-soft)] bg-[var(--surface)] hover:border-[var(--accent)]',
+    'card-glass hover:border-[var(--accent)]',
   muted:
-    'border border-[var(--border)] bg-[var(--bg-secondary)]',
+    'card-glass',
   outlined:
     'border border-dashed border-[var(--border-hover)] bg-transparent',
 }

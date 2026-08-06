@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-06 — 视觉强化批次：Aurora 光斑 / 卡片玻璃 / 滚动条 / 菜单动画 / 终端玻璃
+
+- **任务**：继续强化视觉效果 —— ① 丝绸背景叠加 Aurora 强调色光斑（缓慢漂移，随主题色变化，经毛玻璃层磨砂透出）② 全站卡片统一玻璃材质（card-glass）③ 自定义毛玻璃滚动条 ④ accent 选中文本 ⑤ 顶栏下拉菜单弹出动画 ⑥ 终端面板玻璃化。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/styles/index.css`：新增 `.silk-aurora`（两层 radial accent 光斑，blur 90px + screen 混合，26s/34s 交替漂移 scale 动画，深/浅双变体）；新增 `.card-glass`（rgba 半透明 + blur 10px saturate 1.25 + 高光边框，深/浅双变体）；自定义滚动条（8px 圆角半透明 thumb，hover 加深，thin scrollbar-width）；`::selection` accent 磨砂底 + 强调色文字。
+  - `frontend/src/components/layout/Layout.tsx`：根布局挂 `.silk-aurora` 光斑层（与 silk-bg 同 z 序底层）。
+  - `frontend/src/components/ui/ShimmerCard.tsx`：default/accent/muted 三 variant 改用 `card-glass` 玻璃材质（hover 边框语义保留）。
+  - `frontend/src/components/layout/Header.tsx`：HeaderMenu 下拉菜单改 `AnimatePresence + motion.div`（fade + y-4 + scale 0.98，origin-top-left，MOTION_PRESETS.fadeIn）。
+  - `frontend/src/components/terminal/TerminalPanel.tsx`：面板根改 `glass` 材质（半透明 + blur，与全局玻璃体系一致）。
+  - `frontend/src/components/ui/ShimmerCard.test.tsx`：accent variant 断言更新（card-glass + hover accent 边框）。
+- **验证**：前端 lint 0 错误；`bun run test:run` 42 文件 278 测试全过；生产构建成功。
+- **Commit**：`bf328d0`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-05 — 动画与毛玻璃强化：画布磨砂 / 消息入场 / 流式光标 / 风琴动画 / Git 进展摘要
 
 - **任务**：继续强化「动画 + 毛玻璃」主视觉 —— ① 画布轻微毛玻璃（blur 6px，与外壳 16px 形成层次）② 消息列表 stagger 入场动画 ③ 流式输出闪烁光标 ④ 项目风琴展开/折叠高度动画 ⑤ Git 段补最近提交（工作进展摘要）⑥ 输入框聚焦光晕。
