@@ -7,6 +7,18 @@
 
 ---
 
+## 2026-08-06 — 全仓整体合理性审查落盘（4 路并行子代理）
+
+- **任务**：检查最新进展并审核全仓整体合理性——后端核心 / 前端+壳 / 平台与基建 / 文档一致性四维并行只读审查，关键证据人工复核后落盘。
+- **工具**：Agent(explore)×4（Boole 后端 / Popper 前端 / Confucius 平台 / Kuhn 文档）、Read、Grep、Bash(bun x tsc / bun test)。
+- **操作（只读审查 + 文档落盘，无代码改动）**：
+  - 新建 `docs/ARCHITECTURE-REVIEW-2026-08-06.md`：总评（后端 中 / 前端 良 / 平台基建 中 / 文档 中）+ 6 项 Critical（Docker 镜像不含前端 SPA、CI E2E 必红、native Cargo workspace optional 非法、/api-keys/:provider/test 与 /file-index 死端点、executeWithModeGuard 死代码）+ Warning / Positive / 优先修复清单。
+  - 本文件追加本条。
+- **验证**：`bun x tsc --noEmit` 通过（TSC_EXIT=0）；`bun test tests/architecture-integrity.test.ts` 22 pass / 0 fail；阻断级证据人工复核属实（Dockerfile 无 frontend 构建、`git ls-files public` 仅 index.html、`git ls-files e2e` 为空、native/Cargo.toml:32-34 optional=true、api-keys.ts:146-150 WIP、routes 无 /file-index、main.ts:147 v2.3.0 vs :759 v4.0、mcp/server.ts:61/422 v2.9.2）。
+- **Commit**：`（待提交后回填）`
+
+---
+
 ## 2026-08-06 — 性能与动画批次：静态 gzip+长缓存 / content-visibility / Toast与按钮动画
 
 - **任务**：继续优化动画与速度 —— ① **后端静态服务 gzip 压缩 + assets immutable 长缓存**（此前 976KB 主 JS 未压缩传输，为最大速度瓶颈）② 离屏内容跳过渲染（content-visibility，长会话/长列表）③ overscroll 防滚动链 ④ Toast 入场动画 ⑤ 新建对话按钮 shimmer 扫光 ⑥ 账号头像呼吸光晕。
