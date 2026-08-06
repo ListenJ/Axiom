@@ -18,7 +18,7 @@
   - 新建 `docs/VISUAL-REVIEW-2026-08-06.md`（评分表 + 4 项 P0 + P1/P2 + 需人工复核项）。
   - 本文件追加本条。
 - **验证**：SenseNova 文本/图片输入实测通过；客观对比度（暗色 `--text-muted` 1.05:1）；缺陷复核属实（React #31 git 分支对象、/login 401 裸 JSON、静态资源 429、Header "OC" 字标 + 系统菜单移动端未隐藏）。
-- **Commit**：`（待提交后回填）`
+- **Commit**：`5eadfa5`（已推送 internal211/master；本条 hash 经回填提交补录）`
 
 ---
 
