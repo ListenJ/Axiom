@@ -555,7 +555,7 @@ export default function Chat() {
           <>
         {/* Messages */}
         <div
-          className={`flex flex-col gap-3 p-4 ${messages.length === 0 ? 'min-h-full justify-center' : ''}`}
+          className={`stagger flex flex-col gap-3 p-4 ${messages.length === 0 ? 'min-h-full justify-center' : ''}`}
         >
           {messages.length === 0 && (
             <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">

@@ -667,6 +667,11 @@ export const endpoints = {
       api.get<{ success: boolean; files?: DiffFile[]; diff?: string; error?: string }>('/api/git/diff', {
         cache: false,
       }),
+    log: (maxCount = 10) =>
+      api.get<{ success: boolean; commits?: Array<{ hash: string; message: string; author?: string; date?: string }>; error?: string }>(
+        `/api/git/log?maxCount=${maxCount}`,
+        { cache: false },
+      ),
   },
   mcp: {
     scenes: () =>

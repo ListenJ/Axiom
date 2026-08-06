@@ -631,7 +631,9 @@ export function MessageItem({
               {msg.content}
             </p>
           ) : (
-            <MarkdownContent content={msg.content} />
+            <div className={msg.streaming ? 'stream-caret' : undefined}>
+              <MarkdownContent content={msg.content} />
+            </div>
           )}
         </div>
       </div>

@@ -485,7 +485,10 @@ a:focus-visible,
 }
 
 .canvas-surface {
-  background-color: var(--canvas-bg);
+  background: rgba(20, 17, 13, 0.90);
+  backdrop-filter: blur(6px) saturate(1.15);
+  -webkit-backdrop-filter: blur(6px) saturate(1.15);
+  will-change: backdrop-filter;
 }
 
 .canvas-raised {
@@ -497,6 +500,25 @@ a:focus-visible,
 }
 [data-theme='light'] .shell-raised {
   background: rgba(235, 228, 212, 0.72);
+}
+[data-theme='light'] .canvas-surface {
+  background: rgba(250, 247, 242, 0.92);
+}
+
+/* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */
+.stream-caret::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: caret-blink 1s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% { opacity: 0; }
 }
 
 /* ── Silk 丝绸纹理背景（外壳底层，被毛玻璃层磨砂透出） ──────────── */

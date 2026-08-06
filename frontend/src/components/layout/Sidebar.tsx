@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   X, FolderOpen, MessageSquare, Clock, ChevronRight,
   Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
-  GitBranch, RefreshCw, ArrowUpCircle, ArrowDownCircle, CircleDot, Layers, Puzzle, Activity,
+  GitBranch, GitCommitHorizontal, RefreshCw, ArrowUpCircle, ArrowDownCircle, CircleDot, Layers, Puzzle, Activity,
 } from 'lucide-react'
 import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
@@ -11,6 +12,7 @@ import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
 import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
 import { sessionListTitle, saveChatTitle, clearChatTitle } from '@/lib/chat-title'
 import { formatTime, formatTokens } from '@/components/chat-utils'
+import { MOTION_EASES } from '@/lib/motion-presets'
 
 interface SidebarProps {
   open: boolean
@@ -52,6 +54,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   } | null>(null)
   const [branches, setBranches] = useState<string[]>([])
   const [gitLoading, setGitLoading] = useState(false)
+  const [recentCommits, setRecentCommits] = useState<Array<{ hash: string; message: string }>>([])
 
   // ── MCP · Skill（段 3） ──
   const [mcpScenes, setMcpScenes] = useState<Array<{ id: string; name: string; description?: string }>>([])
@@ -60,9 +63,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const loadGit = async () => {
     setGitLoading(true)
     try {
-      const [s, b] = await Promise.allSettled([endpoints.git.status(), endpoints.git.branch()])
+      const [s, b, l] = await Promise.allSettled([endpoints.git.status(), endpoints.git.branch(), endpoints.git.log(3)])
       if (s.status === 'fulfilled') setGitStatus(s.value)
       if (b.status === 'fulfilled' && b.value?.branches) setBranches(b.value.branches)
+      if (l.status === 'fulfilled' && l.value?.commits) setRecentCommits(l.value.commits)
     } catch {
       setGitStatus({ error: 'Git 服务不可用' })
     } finally {
@@ -418,6 +422,20 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 ))
               )}
             </div>
+            {/* 最近提交（工作进展摘要，横向滚动） */}
+            {recentCommits.length > 0 && (
+              <div className="border-t border-[var(--border)] px-3 py-1.5">
+                <div className="text-scroll space-y-0.5">
+                  {recentCommits.map((c) => (
+                    <div key={c.hash} className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
+                      <GitCommitHorizontal size={10} className="shrink-0 text-[var(--text-muted)]" />
+                      <span className="shrink-0 font-mono text-[var(--text-muted)]">{c.hash.slice(0, 7)}</span>
+                      <span className="min-w-0 truncate">{c.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -502,18 +520,27 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                       className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${collapsed ? 'lg:hidden' : ''} ${isCollapsed ? '' : 'rotate-90'}`}
                     />
                   </button>
-                  {/* 风琴体：会话条目（垂直折叠展开） */}
-                  {!isCollapsed && (
-                    <div className="mt-0.5 space-y-0.5 pl-3">
-                      {wsSessions.length === 0 ? (
-                        <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
-                          该项目暂无会话
-                        </p>
-                      ) : (
-                        wsSessions.map(renderSessionRow)
-                      )}
-                    </div>
-                  )}
+                  {/* 风琴体：会话条目（垂直折叠展开动画） */}
+                  <AnimatePresence initial={false}>
+                    {!isCollapsed && (
+                      <motion.div
+                        key={`ws-body-${ws.id}`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: MOTION_EASES.out }}
+                        className="mt-0.5 space-y-0.5 overflow-hidden pl-3"
+                      >
+                        {wsSessions.length === 0 ? (
+                          <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
+                            该项目暂无会话
+                          </p>
+                        ) : (
+                          wsSessions.map(renderSessionRow)
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )
             })}

@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-05 — 动画与毛玻璃强化：画布磨砂 / 消息入场 / 流式光标 / 风琴动画 / Git 进展摘要
+
+- **任务**：继续强化「动画 + 毛玻璃」主视觉 —— ① 画布轻微毛玻璃（blur 6px，与外壳 16px 形成层次）② 消息列表 stagger 入场动画 ③ 流式输出闪烁光标 ④ 项目风琴展开/折叠高度动画 ⑤ Git 段补最近提交（工作进展摘要）⑥ 输入框聚焦光晕。
+- **工具**：Read、Edit、Write、Bash(bun lint / test:run / build)。
+- **修改（备份→读全文→最小改动→验证→删备份）**：
+  - `frontend/src/styles/index.css`：`.canvas-surface` 改半透明毛玻璃（rgba(20,17,13,.9) + blur 6px saturate 1.15，light 变体 rgba(250,247,242,.92)）；新增 `.stream-caret::after` 流式光标（2px 竖线 + caret-blink 闪烁动画）。
+  - `frontend/src/pages/Chat.tsx`：消息列表容器加 `stagger` 类（新消息挂载时 fade-in-up 逐条入场，已有消息重渲染不受影响）。
+  - `frontend/src/components/chat-panels.tsx`：助手消息流式且已有内容时外层包裹 `.stream-caret`（内容末尾闪烁光标指示生成中）。
+  - `frontend/src/components/layout/Sidebar.tsx`：项目风琴体改 `AnimatePresence + motion.div`（height 0↔auto + opacity，0.22s MOTION_EASES.out）；Git 段新增「最近提交」摘要（git.log(3)，hash 前 7 位 + message 横向滚动）。
+  - `frontend/src/lib/api.ts`：新增 `git.log(maxCount)` 封装。
+  - `frontend/src/components/chat/ChatComposer.tsx`：输入框聚焦光晕（focus:border-accent + focus:shadow accent-ring 3px，transition-all）。
+- **验证**：前端 lint 0 错误；`bun run test:run` 42 文件 278 测试全过；生产构建成功。
+- **Commit**：`7dfb12f`（已推送 `internal211/master`）
+
+---
+
 ## 2026-08-05 — 丝绸毛玻璃视觉体系 + 侧栏三段式重构（Git/MCP·Skill/项目风琴）
 
 - **任务**：① 视觉方向落地 —— 外壳与画布双色分层之上叠加「动画 + 毛玻璃磨砂」主视觉：外壳底层为丝绸纹理背景，外壳元素半透明 + backdrop blur，被遮挡内容（纹理/滚动文字）经磨砂透出衬托层次；② 侧栏三段式重构 —— 段1 LOGO（全站仅一次）、段2 Git 仓库状态（操作/进展/分支摘要）、段3 MCP·Skill（场景与插件列表）、段4 项目风琴组（垂直折叠 + 文字横向滚动 + 项目名 ≤20 字符/会话标题 ≤50 字符截断）；③ 终端从 fixed 覆盖浮层改为布局内嵌（不遮挡工作区），开合高度动画过渡。
