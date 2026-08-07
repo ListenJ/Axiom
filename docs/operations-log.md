@@ -55,7 +55,7 @@
   - `frontend/docs/FRONTEND-DESIGN.md`：新增「第 12 章 悬浮工具台与输入区增强」。
   - `e2e/animation-layout.spec.ts`：右栏测试改悬浮抽屉断言（动画进出、关闭卸载、不占位、宽度 400）；补鉴权 token 注入（AXIOM_AUTH_TOKEN）。
 - **验证**：tsc ✅ / vite build ✅；几何探针——右栏 (1008,80,400×788) 贴合工作区、输入框 74px（原 56 +31%）、附件 chips 2、权限 radiogroup ✅；像素——角部圆角生效、面板中心暗 19 / 亮 253（半透明）、`box-shadow` 生效（暗 0 16px 48px rgba(0,0,0,.7)）；SenseNova 终审**亮色 8 / 暗色 7**（磨砂同材质✅ 圆角投影✅ 无分割线✅，P2 细节微调）；**e2e 4/4 通过**。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`13dc753`（推送 internal211/master）
 
 ## 2026-08-07 — 亮色彩色流态 + 暗色流态细化（design-taste/impeccable 审美强化）
 
