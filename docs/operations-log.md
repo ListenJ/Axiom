@@ -20,6 +20,18 @@
 
 ---
 
+---
+
+## 2026-08-07 — 壳/工作区色差 + 右栏一体 + 光效覆盖（参考图驱动，视觉审批）
+
+- **任务**：按用户反馈与参考图（浅灰 chrome + 白色工作区 + 右栏一体）优化：①背景光效覆盖不全面 ②侧栏与工作区颜色无差别 ③右栏应与工作区一体。
+- **工具**：SenseNova（6.7-flash-lite 解析参考图 + 审批）、Node+Playwright（chrome-probe 计算样式、像素采样、截图）。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：拉大壳/画布色差——暗色 shell 系 `#0e0e0e→#1a1a1a`（raised #222 / hover #262626 / border #2e2e2e），画布保持 `#0a0a0a`（raised #101010）；浅色 shell 系 `#f5f5f5→#f0f2f5`（raised #e8eaee / hover #e2e5ea），画布纯白；shell-surface 暗 `rgba(26,26,26,.55)`、浅 `rgba(240,242,245,.72)`；`--shell-shadow` 加深（暗 0.7 / 浅 0.26）。光带加宽覆盖（160vw/150vw/120vw + 新增第四光带 extra::after 140vw 右上→左下 + sheen 48vw + light-flow-d 关键帧），浅色同步。
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：右栏 `canvas-raised`（独立实色面板）→ `canvas-surface`（与主工作区同毛玻璃材质，仅保留 border-l 细分隔线），桌面与移动抽屉同步。
+- **验证**：前端 tsc ✅、vitest 278/278 ✅；计算样式确认侧栏 rgba(26,26,26,.55) vs 画布 rgba(10,10,10,.5)、右栏与画布同材质；像素采样侧栏亮度 ~72–76 vs 画布 ~28–43（色差明显）。SenseNova 审批：dark-chat **9/10**（三点全达标、无问题）、light-chat 7（三点达标，仅 P2 外壳文字对比度细节）、dark-settings 7。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 光流丝绸增强：层叠丝绢材质 + 流体光斑（视觉审批）
 
 - **任务**：按用户要求继续优化光流带——加入层叠丝绸材质强化视觉对比，并叠加流体设计动态效果。

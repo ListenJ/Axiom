@@ -112,7 +112,7 @@ export default function RightToolbar() {
       {/* 桌面端常驻右栏（画布层配色） */}
       <aside
         aria-label="右侧工具台"
-        className={`canvas-raised hidden h-full w-80 shrink-0 border-l border-[var(--border)] lg:block ${
+        className={`canvas-surface hidden h-full w-80 shrink-0 border-l border-[var(--border)] lg:block ${
           open ? '' : 'lg:hidden'
         }`}
       >
@@ -127,7 +127,7 @@ export default function RightToolbar() {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div className="canvas-raised absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l border-[var(--border)] shadow-2xl">
+          <div className="canvas-surface absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l border-[var(--border)] shadow-2xl">
             {shell}
           </div>
         </div>

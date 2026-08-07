@@ -65,18 +65,18 @@
 
   /* App chrome split: 顶栏 + 左右侧栏同一外壳色，中间内容区用画布色。
      暗色下画布比外壳略浅（弱对比），保持一致的暖调层级 */
-  --shell-bg: #0e0e0e;
-  --shell-bg-raised: #161616;
-  --shell-hover: #1a1a1a;
-  --shell-border: #222222;
-  --shell-border-strong: #2e2e2e;
+  --shell-bg: #1a1a1a;
+  --shell-bg-raised: #222222;
+  --shell-hover: #262626;
+  --shell-border: #2e2e2e;
+  --shell-border-strong: #3a3a3a;
   --canvas-bg: #0a0a0a;
-  --canvas-bg-raised: #141414;
-  --canvas-hover: #1c1c1c;
+  --canvas-bg-raised: #101010;
+  --canvas-hover: #181818;
 
   /* 外壳与工作区分隔：阴影而非分割线 */
-  --shell-shadow: 8px 0 24px -12px rgba(0, 0, 0, 0.6);
-  --shell-shadow-bottom: 0 4px 16px -8px rgba(0, 0, 0, 0.4);
+  --shell-shadow: 10px 0 28px -14px rgba(0, 0, 0, 0.7);
+  --shell-shadow-bottom: 0 4px 18px -8px rgba(0, 0, 0, 0.5);
 
   /* Spacing — 8dp grid (MD3-inspired) */
   --space-1: 4px;
@@ -190,14 +190,14 @@
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.03);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.04);
 
-  --shell-bg: #f5f5f5;
-  --shell-bg-raised: #ededed;
-  --shell-hover: #e8e8e8;
-  --shell-border: #e2e2e2;
-  --shell-border-strong: #d0d0d0;
+  --shell-bg: #f0f2f5;
+  --shell-bg-raised: #e8eaee;
+  --shell-hover: #e2e5ea;
+  --shell-border: #e0e2e6;
+  --shell-border-strong: #d4d6da;
   --canvas-bg: #ffffff;
   --canvas-bg-raised: #ffffff;
-  --canvas-hover: #f0f0f0;
+  --canvas-hover: #f4f4f4;
 
   /* 外壳与工作区分隔：阴影而非分割线 */
   --shell-shadow: 10px 0 24px -12px rgba(0, 0, 0, 0.26);
@@ -480,7 +480,7 @@ a:focus-visible,
    毛玻璃下被遮挡的内容（丝绸纹理/滚动文字）经 backdrop-filter 磨砂后透出，
    形成"遮挡内容衬托磨砂"的层次感。 */
 .shell-surface {
-  background: rgba(14, 14, 14, 0.45);
+  background: rgba(26, 26, 26, 0.55);
   backdrop-filter: blur(22px) saturate(1.5);
   -webkit-backdrop-filter: blur(22px) saturate(1.5);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -488,7 +488,7 @@ a:focus-visible,
 }
 
 .shell-raised {
-  background: rgba(22, 22, 22, 0.66);
+  background: rgba(34, 34, 34, 0.66);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -507,10 +507,10 @@ a:focus-visible,
 }
 
 [data-theme='light'] .shell-surface {
-  background: rgba(245, 245, 245, 0.55);
+  background: rgba(240, 242, 245, 0.72);
 }
 [data-theme='light'] .shell-raised {
-  background: rgba(235, 235, 235, 0.66);
+  background: rgba(232, 234, 238, 0.72);
 }
 [data-theme='light'] .canvas-surface {
   background: rgba(255, 255, 255, 0.7);
@@ -573,10 +573,10 @@ a:focus-visible,
   will-change: transform;
 }
 .silk-aurora::before {
-  width: 130vw;
-  height: 72vh;
-  left: -22vw;
-  top: -30vh;
+  width: 160vw;
+  height: 80vh;
+  left: -30vw;
+  top: -24vh;
   /* 丝绢折光：窄高光线（specular）+ 宽柔光带双层叠加 */
   background:
     linear-gradient(100deg, transparent 10%, rgba(255, 255, 255, 0.36) 26%, rgba(255, 255, 255, 0.05) 32%, transparent 58%),
@@ -585,10 +585,10 @@ a:focus-visible,
   animation: light-flow-a 22s var(--ease-in-out) infinite alternate;
 }
 .silk-aurora::after {
-  width: 120vw;
-  height: 64vh;
-  right: -18vw;
-  bottom: -28vh;
+  width: 150vw;
+  height: 72vh;
+  right: -26vw;
+  bottom: -22vh;
   background:
     linear-gradient(80deg, transparent 12%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.04) 36%, transparent 62%),
     linear-gradient(80deg, transparent 10%, rgba(255, 255, 255, 0.11) 32%, rgba(255, 255, 255, 0.025) 50%, transparent 72%);
@@ -606,15 +606,30 @@ a:focus-visible,
 .silk-aurora-extra::before {
   content: '';
   position: absolute;
-  width: 100vw;
-  height: 46vh;
-  left: -6vw;
-  top: 30vh;
+  width: 120vw;
+  height: 52vh;
+  left: -10vw;
+  top: 28vh;
   background:
     linear-gradient(95deg, transparent 18%, rgba(255, 255, 255, 0.26) 36%, rgba(255, 255, 255, 0.04) 42%, transparent 64%),
     linear-gradient(95deg, transparent 14%, rgba(255, 255, 255, 0.09) 38%, rgba(255, 255, 255, 0.02) 54%, transparent 74%);
   filter: blur(30px);
   animation: light-flow-c 34s var(--ease-in-out) infinite alternate;
+  will-change: transform;
+}
+/* 第四光带：右上→左下，补足右下与中部覆盖 */
+.silk-aurora-extra::after {
+  content: '';
+  position: absolute;
+  width: 140vw;
+  height: 60vh;
+  right: -32vw;
+  top: 6vh;
+  background:
+    linear-gradient(112deg, transparent 14%, rgba(255, 255, 255, 0.22) 34%, rgba(255, 255, 255, 0.04) 40%, transparent 62%),
+    linear-gradient(112deg, transparent 12%, rgba(255, 255, 255, 0.1) 36%, rgba(255, 255, 255, 0.025) 52%, transparent 72%);
+  filter: blur(30px);
+  animation: light-flow-d 26s var(--ease-in-out) infinite alternate;
   will-change: transform;
 }
 
@@ -629,7 +644,7 @@ a:focus-visible,
 .silk-sheen::before {
   content: '';
   position: absolute;
-  width: 36vw;
+  width: 48vw;
   height: 160vh;
   left: -12vw;
   top: -30vh;
@@ -724,6 +739,11 @@ a:focus-visible,
     linear-gradient(95deg, transparent 18%, rgba(0, 0, 0, 0.23) 36%, rgba(0, 0, 0, 0.04) 42%, transparent 64%),
     linear-gradient(95deg, transparent 14%, rgba(0, 0, 0, 0.08) 38%, rgba(0, 0, 0, 0.018) 54%, transparent 74%);
 }
+[data-theme='light'] .silk-aurora-extra::after {
+  background:
+    linear-gradient(112deg, transparent 14%, rgba(0, 0, 0, 0.2) 34%, rgba(0, 0, 0, 0.04) 40%, transparent 62%),
+    linear-gradient(112deg, transparent 12%, rgba(0, 0, 0, 0.09) 36%, rgba(0, 0, 0, 0.022) 52%, transparent 72%);
+}
 [data-theme='light'] .silk-sheen::before {
   background: linear-gradient(105deg, transparent 28%, rgba(0, 0, 0, 0.11) 40%, rgba(0, 0, 0, 0.28) 46%, rgba(0, 0, 0, 0.05) 52%, transparent 64%);
 }
@@ -749,6 +769,10 @@ a:focus-visible,
 @keyframes light-flow-c {
   from { transform: translateX(-3%); opacity: 0.7; }
   to { transform: translateX(3%); opacity: 1; }
+}
+@keyframes light-flow-d {
+  from { transform: translateX(4%) translateY(-2%); }
+  to { transform: translateX(-4%) translateY(3%); }
 }
 
 /* ── 卡片玻璃（ShimmerCard 统一材质：半透明 + 磨砂 + 高光边框） ────────── */

@@ -256,3 +256,27 @@
 - 截图：`vision-review/y1–y2-*.png`
 - 逐页原文：`vision-review/reviews-silk/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第七轮：壳/工作区色差 + 右栏一体 + 光效覆盖（2026-08-07）
+
+> 用户反馈三点（附参考图：浅灰 chrome + 白色工作区 + 右栏一体）：①背景光效覆盖不全面 ②侧栏与工作区颜色无差别 ③右栏应与工作区一体。参考图经 SenseNova 解析后落地。
+
+## 二十六、实现
+
+- **壳/画布色差拉开**：暗色 shell 系 `#1a1a1a`（shell-surface rgba(26,26,26,.55)）vs 画布 `#0a0a0a`（rgba(10,10,10,.5)）；浅色 shell `#f0f2f5`（rgba(240,242,245,.72)）vs 画布纯白。`--shell-shadow` 加深强化投影分隔。
+- **右栏一体**：`RightToolbar` 由 `canvas-raised`（独立实色面板）改为 `canvas-surface`（与主工作区同毛玻璃材质），仅保留 border-l 细分隔线。
+- **光效覆盖**：三条光带加宽（160vw / 150vw / 120vw）+ 新增第四光带（extra::after，140vw 右上→左下，light-flow-d）+ sheen 加宽至 48vw，覆盖无死角。
+
+## 二十七、审批与验证
+
+- 计算样式：侧栏 rgba(26,26,26,.55) vs 画布 rgba(10,10,10,.5)，右栏与画布同材质；像素：侧栏亮度 ~72–76 vs 画布 ~28–43。
+- SenseNova：**dark-chat 9/10（三点全达标、未发现明显问题）**、light-chat 7（三点达标，仅 P2 外壳文字对比度细节）、dark-settings 7。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 二十八、本轮截图与审核原文
+
+- 截图：`vision-review/z1-*.png`（参考图 ref-clipboard.png）
+- 逐页原文：`vision-review/reviews-chrome/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
