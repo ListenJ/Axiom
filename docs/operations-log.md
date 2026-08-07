@@ -48,7 +48,7 @@
   - `frontend/docs/FRONTEND-DESIGN.md`：新增「第 11 章 No-Block Glass 直接背景设计」（原则/Token/审批）。
   - U1-fast 生成 `vision-review/mockup-light.png` / `mockup-dark.png` 设计图稿，SenseNova 审核（亮色 5/5 达标）。
 - **验证**：黑块探针 chat/tokens 归零（仅设置搜索输入框保留实底）；DOM 验证输入 56px、发送圆角 9999、顶栏 48px、按钮 #333；SenseNova 终审 **亮色 8.5 / 暗色 8**；vitest 278/278 ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`c5dc80b`（推送 internal211/master）
 
 ## 2026-08-07 — 工作区黑色块状样式与背景融合修复（表面 token 半透明化）
 
