@@ -41,7 +41,7 @@
 - **定位**：黑块来自实心表面 token——`--surface`(#161616)、`--bg-tertiary`(#1a1a1a)、`--bg-secondary`(#111)、`--canvas-bg-raised`(#101010) 在 chat 子标题栏/输入栏、功能卡、统计格、Token 大容器等形成纯黑矩形。
 - **修复（frontend/src/styles/index.css）**：暗色表面 token 半透明化——`--bg-secondary`/`--bg-tertiary` rgba 0.45、`--surface` rgba 0.5、`--surface-high/hover` 0.6、`--surface-highest/active` 0.65、`--surface-low(est)` 0.5–0.55、`--canvas-bg-raised` rgba 0.5；`.canvas-raised` 补 `backdrop-filter: blur(12px)`（保持可读性）；card-glass 0.62→0.5。
 - **验证**：探针复扫 chat/tokens 实心黑块归零（仅设置搜索输入框保留实底，属输入控件）；SenseNova 审批 dark-chat **9/10**、dark-tokens **8.5/10**（卡片/输入区/悬浮条融入玻璃背景，背景光流透出，可读性保持）；vitest 278/278 ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`c15c128`（推送 internal211/master）
 
 ## 2026-08-07 — 页面整洁化 + 终端/右栏动态动画 + e2e 动画测试 + 新设置项
 
