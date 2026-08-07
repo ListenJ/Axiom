@@ -305,3 +305,26 @@
 - 逐页原文：`vision-review/reviews-p1/*.md`
 - 原型图：`frontend/docs/prototype.html`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第九轮：全站精细化打磨 — 动态背景 / 层级配色 / 丝绸性能 / 一致性审计（2026-08-07）
+
+## 三十二、实现
+
+- **动态背景**：丝绸光层全部改用 `color-mix(in srgb, var(--accent) X%, transparent)`，背景随 Agent 颜色实时变化（像素验证：Azure 下 rgb(34,60,83) 蓝调 vs 墨色中性灰）。
+- **层级配色**：设置页新增「层级配色」——外壳颜色（标准/深邃/明亮）+ 工作区背景（标准/纯净/柔和），玻璃底色提为 CSS 变量，实时生效并持久化。
+- **丝绸性能**：`prefers-reduced-motion` 暂停全部光流动画；流体 blur 70→56px、光带 30→26px。
+- **一致性审计（Vercel Web Interface Guidelines）**：补 `color-scheme` / `touch-action` / `tap-highlight`；6 处 `transition-all` → 显式属性；Header 菜单项补 `focus-visible`。
+
+## 三十三、审批与验证
+
+- 像素：Azure 动态背景蓝调生效；SenseNova：暗色设置 9 / 浅色设置 9 / 终审暗色设置 7.8 / 暗色 chat 8.5。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 三十四、本轮截图与审核原文
+
+- 截图：`vision-review/q1–q2-*.png`
+- 逐页原文：`vision-review/reviews-q1/`、`reviews-q2/*.md`
+- 审计参考：`vision-review/web-guidelines.md`（Vercel Web Interface Guidelines）
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AccentId } from '@/lib/accents'
+import type { AccentId, ShellToneId, CanvasToneId } from '@/lib/accents'
 
 type Theme = 'dark' | 'light' | 'system'
 
@@ -15,6 +15,8 @@ export type RightbarTool =
 interface AppState {
   theme: Theme
   accent: AccentId
+  shellTone: ShellToneId
+  canvasTone: CanvasToneId
   sidebarOpen: boolean
   sidebarCollapsed: boolean
   helpOpen: boolean
@@ -25,6 +27,8 @@ interface AppState {
   setTheme: (t: Theme) => void
   toggleTheme: () => void
   setAccent: (a: AccentId) => void
+  setShellTone: (t: ShellToneId) => void
+  setCanvasTone: (t: CanvasToneId) => void
   setSidebarOpen: (open: boolean) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebarCollapsed: () => void
@@ -40,6 +44,8 @@ interface AppState {
 const THEME_KEY = 'axiom:theme'
 const SIDEBAR_COLLAPSED_KEY = 'axiom:sidebar-collapsed'
 const ACCENT_KEY = 'axiom:accent'
+const SHELL_TONE_KEY = 'axiom:shell-tone'
+const CANVAS_TONE_KEY = 'axiom:canvas-tone'
 
 function readInitialTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'system'
@@ -66,6 +72,18 @@ function readInitialAccent(): AccentId {
   return 'mono'
 }
 
+function readInitialShellTone(): ShellToneId {
+  if (typeof localStorage === 'undefined') return 'default'
+  const stored = localStorage.getItem(SHELL_TONE_KEY)
+  return stored === 'deeper' || stored === 'brighter' ? stored : 'default'
+}
+
+function readInitialCanvasTone(): CanvasToneId {
+  if (typeof localStorage === 'undefined') return 'default'
+  const stored = localStorage.getItem(CANVAS_TONE_KEY)
+  return stored === 'pure' || stored === 'soft' ? stored : 'default'
+}
+
 function readInitialSidebarCollapsed(): boolean {
   if (typeof localStorage === 'undefined') return false
   return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
@@ -83,6 +101,8 @@ let toastId = 0
 export const useApp = create<AppState>((set, get) => ({
   theme: readInitialTheme(),
   accent: readInitialAccent(),
+  shellTone: readInitialShellTone(),
+  canvasTone: readInitialCanvasTone(),
   sidebarOpen: false,
   sidebarCollapsed: readInitialSidebarCollapsed(),
   helpOpen: false,
@@ -103,6 +123,14 @@ export const useApp = create<AppState>((set, get) => ({
   setAccent: (a) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem(ACCENT_KEY, a)
     set({ accent: a })
+  },
+  setShellTone: (t) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(SHELL_TONE_KEY, t)
+    set({ shellTone: t })
+  },
+  setCanvasTone: (t) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(CANVAS_TONE_KEY, t)
+    set({ canvasTone: t })
   },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSidebarCollapsed: (collapsed) => {

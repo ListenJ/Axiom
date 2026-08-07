@@ -24,6 +24,20 @@
 
 ---
 
+---
+
+## 2026-08-07 — 全站精细化打磨：动态背景/层级配色/丝绸性能/一致性审计
+
+- **任务**：四项要求——①背景随所选颜色方案实时变化 ②不同层级页面专属颜色选择 ③丝绸流体动态效果完成与性能优化 ④全站细节一致性检查与优化。
+- **工具**：design-system / frontend-design / web-design-guidelines（拉取 Vercel Web Interface Guidelines 审计）、SenseNova（审批）、Node+Playwright（像素验证、截图）。
+- **操作（文件级）**：
+  - **动态背景**：`frontend/src/styles/index.css` 丝绸光层（4 光带 + sheen + 肋纹 + 流体）全部由硬编码 rgba 改为 `color-mix(in srgb, var(--accent) X%, transparent)`，移除浅色重复覆盖——背景随 Agent 颜色实时变化（像素验证：Azure 下侧栏 rgb(34,60,83) 蓝调 vs 墨色中性灰）。
+  - **层级配色**：`index.css` 玻璃底色提为变量（`--shell-glass-bg` / `--shell-raised-glass-bg` / `--canvas-glass-bg`）；`lib/accents.ts` 新增 `SHELL_TONES`（标准/深邃/明亮）与 `CANVAS_TONES`（标准/纯净/柔和）+ `applyLayerTones`；`state/useApp.ts` 增加 shellTone/canvasTone 状态与持久化；`hooks/useTheme.ts` 接入；`pages/Settings.tsx` 新增「层级配色」卡片（外壳颜色 / 工作区背景两组单选），并更新 Agent 颜色说明（背景光效同步跟随）。
+  - **丝绸性能**：新增 `@media (prefers-reduced-motion: reduce)` 暂停全部光流动画；流体 blur 70→56px、光带 blur 30→26px。
+  - **一致性审计（Web Interface Guidelines）**：补 `color-scheme: dark/light`（按主题）、`touch-action: manipulation` + `-webkit-tap-highlight-color: transparent`（按钮/表单）；6 处 `transition-all` → 显式属性（ChatComposer/ModelPicker/BarChart/ShimmerCard/Chat×2）；Header 菜单项补 `focus-visible:ring-2`。
+- **验证**：前端 tsc ✅、vitest 278/278 ✅；像素验证动态背景生效；SenseNova 审批：暗色设置 9 / 浅色设置 9 / 终审暗色设置 7.8 / 暗色 chat 8.5（Agent 颜色、层级配色、一致性达标；Azure 动态背景达标）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — Axiom Logo 归位侧栏 + Agent 颜色设置 + 丝绸条纹变体 + 原型图（视觉审批）
 
 - **任务**：按用户要求与三张参考图：①Axiom Logo 移到左侧边栏顶部 ②暗/浅双主题继续优化 ③设置页新增「Agent 颜色」选项 ④设计原型图并完成前端 ⑤丝绸材质做官网条纹变体。

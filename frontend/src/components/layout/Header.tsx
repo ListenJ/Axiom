@@ -64,7 +64,7 @@ function HeaderMenu({ label, items }: { label: string; items: MenuItem[] }) {
                   setOpen(false)
                   item.onSelect()
                 }}
-                className="press flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+                className="press flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 <span>{item.label}</span>
                 {item.shortcut && (

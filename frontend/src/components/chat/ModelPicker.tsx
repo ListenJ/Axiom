@@ -62,7 +62,7 @@ export function ModelPicker({ models, selectedModel, effort = 'medium', onSelect
         aria-label={`模型选择：${label}`}
         title={label}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-sm font-semibold text-[var(--accent)] transition-all duration-150 hover:border-[var(--accent)] hover:shadow-[0_0_0_3px_var(--accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-sm font-semibold text-[var(--accent)] transition-[border-color,box-shadow] duration-150 hover:border-[var(--accent)] hover:shadow-[0_0_0_3px_var(--accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
       >
         {initial}
       </button>

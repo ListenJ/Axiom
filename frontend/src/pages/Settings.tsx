@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp, resolveTheme } from '@/state/useApp'
-import { ACCENT_PRESETS, type AccentId } from '@/lib/accents'
+import { ACCENT_PRESETS, SHELL_TONES, CANVAS_TONES, type AccentId, type ShellToneId, type CanvasToneId } from '@/lib/accents'
 import { useChatPrefs, type ChatPrefs } from '@/state/useChatPrefs'
 import { api, endpoints } from '@/lib/api'
 import SettingsSearch from '@/components/settings/SettingsSearch'
@@ -65,7 +65,7 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
         <div className="min-w-[10rem] flex-1 sm:min-w-0">
           <h3 className="text-sm font-medium text-[var(--text)]">Agent 颜色</h3>
           <p className="text-xs text-[var(--text-secondary)]">
-            自定义 Agent 的强调色；「墨色」随主题自动黑白，其余预设立即生效并持久化。
+            自定义 Agent 的强调色，背景光效同步跟随；「墨色」随主题自动黑白，其余预设立即生效并持久化。
           </p>
           <p className="mt-0.5 font-mono text-xs text-[var(--accent)]">
             {ACCENT_PRESETS[accent].label} · {currentHex}
@@ -91,6 +91,66 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
               />
             )
           })}
+        </div>
+      </div>
+    </ShimmerCard>
+  )
+}
+
+/* ───────── 层级色调：外壳颜色 / 工作区背景（分层配色） ───────── */
+
+function LayerTonePicker({ highlight }: { highlight: boolean }) {
+  const shellTone = useApp((s) => s.shellTone)
+  const setShellTone = useApp((s) => s.setShellTone)
+  const canvasTone = useApp((s) => s.canvasTone)
+  const setCanvasTone = useApp((s) => s.setCanvasTone)
+  return (
+    <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+          <Monitor className="size-5" />
+        </div>
+        <div className="min-w-[10rem] flex-1 sm:min-w-0">
+          <h3 className="text-sm font-medium text-[var(--text)]">层级配色</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
+            为外壳与工作区分层定制背景明暗，实时生效并持久化。
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 shrink-0 text-xs text-[var(--text-secondary)]">外壳颜色</span>
+              <div role="radiogroup" aria-label="外壳颜色" className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1">
+                {(Object.keys(SHELL_TONES) as ShellToneId[]).map((id) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant={shellTone === id ? 'primary' : 'ghost'}
+                    onClick={() => setShellTone(id)}
+                    role="radio"
+                    aria-checked={shellTone === id}
+                  >
+                    {SHELL_TONES[id].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 shrink-0 text-xs text-[var(--text-secondary)]">工作区背景</span>
+              <div role="radiogroup" aria-label="工作区背景" className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1">
+                {(Object.keys(CANVAS_TONES) as CanvasToneId[]).map((id) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant={canvasTone === id ? 'primary' : 'ghost'}
+                    onClick={() => setCanvasTone(id)}
+                    role="radio"
+                    aria-checked={canvasTone === id}
+                  >
+                    {CANVAS_TONES[id].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </ShimmerCard>
@@ -199,6 +259,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
         </div>
       </ShimmerCard>
       <AccentPicker highlight={highlightKey === 'appearance.accent'} />
+      <LayerTonePicker highlight={highlightKey === 'appearance.layer'} />
       <MotionPreview highlight={highlightKey === 'appearance.motion'} />
     </div>
   ),

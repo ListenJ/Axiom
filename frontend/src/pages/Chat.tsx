@@ -576,7 +576,7 @@ export default function Chat() {
                       key={s.label}
                       type="button"
                       onClick={() => { setInput(s.query); void send(s.query) }}
-                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-sm)] transition-all duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
+                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-sm)] transition-[border-color,box-shadow,transform] duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
                     >
                       <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform group-hover:scale-110">
                         <Icon className="size-6" />
@@ -585,7 +585,7 @@ export default function Chat() {
                         <p className="text-base font-medium text-[var(--text)]">{s.label}</p>
                         <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">{s.query}</p>
                       </div>
-                      <Sparkles className="size-4 shrink-0 text-[var(--text-muted)] opacity-0 transition-all group-hover:opacity-100" />
+                      <Sparkles className="size-4 shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
                     </button>
                   )
                 })}
