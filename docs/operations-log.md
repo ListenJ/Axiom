@@ -51,7 +51,7 @@
   - `frontend/src/components/chat/ChatComposer.tsx`：发送按钮加 `shadow`、图标 20px；权限选中态加 `font-medium + shadow-sm`；附件删除按钮 size-6→size-7（触控目标）；输入框 `leading-relaxed`（行距舒适）。
   - `e2e/animation-layout.spec.ts`：右栏退场断言改「点击后立即 rAF 采样中间透明度」消除竞态。
 - **验证**：tsc ✅ / vite build ✅；SenseNova 复审**亮色输入区 8.5 / 亮色右栏 7**（层级/按钮/通透✅，P2：选中态对比、删除按钮、顶部高光——已补强）；**e2e 4/4 通过**。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`57e68f3`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏悬浮抽屉 + 输入框附件/三级权限 + 摘要三区块（视觉模型 + taste/impeccable 审批）
 
