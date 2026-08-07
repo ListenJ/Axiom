@@ -230,3 +230,29 @@
 - 截图：`vision-review/x1–x3-*.png`（黑白迭代）、`w1-*.png`（黑白首版）
 - 逐页原文：`vision-review/reviews-monochrome/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第六轮：光流丝绸增强 — 层叠丝绢材质 + 流体光斑（2026-08-07）
+
+> 用户要求：光流带中加入层叠丝绸材质强化视觉对比，或使用流体设计做动态效果。依据 design-system / frontend-design skills 落地。
+
+## 二十三、实现
+
+- **丝绢折光双层光带**：三条光带各含「窄高光线（specular，暗 0.3–0.36）+ 宽柔光带」双层背景。
+- **`.silk-sheen`**：明亮斜带 16s 周期横扫，模拟光线掠过丝绸。
+- **`.silk-ribs`**：双向 repeating-linear-gradient 丝绢肋纹（22px/34px 周期、blur 6px、60s 平移）——「层叠丝绸材质」基底。
+- **`.silk-fluid`**：两个大尺度流体光斑（30s/36s，border-radius morph + 漂移 + scale），有机动态。
+- 全部提供浅色（黑墨）变体；保持黑白纯净、毛玻璃隔离。
+
+## 二十四、审批与客观验证
+
+- 像素：暗色侧栏顶部 rgb(68,68,68) vs 底部 rgb(18,18,18)，亮度均值 44、方差 sd≈30 → 层叠亮斑客观存在。
+- SenseNova：dark-chat 8 / dark-tokens 7（认可多层明暗对比）；浅色 chat 单帧 3 为「静态帧无法体现动态材质」与单色丝绸纹理感知局限，已记录不追分。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 二十五、本轮截图与审核原文
+
+- 截图：`vision-review/y1–y2-*.png`
+- 逐页原文：`vision-review/reviews-silk/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
