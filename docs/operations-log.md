@@ -55,7 +55,7 @@
   - `.github/workflows/ci.yml`：E2E 步骤去掉 `E2E_SPEC`（跑全套），仍先构建前端并拷贝 `public/`。
   - U1 生成 `vision-review/u1-rightbar-dark.png` / `u1-rightbar-light.png` 设计图。
 - **验证**：`tsc` ✅ / `vite build` ✅；**全套 e2e 10 个文件全部通过**（36 用例：animation-layout 4、chat 2、keyboard 4、perf 1、responsive 5、search 2、settings 4、smoke 5、terminal-summary 5、theme 4）；`/` 连续 15 次返回完整 index.html；150 次连续 API 无 429；SenseNova 复审**暗色右栏 8.5 / 亮色 8.5**（在流内✅ 半透明✅ 高斯模糊✅ 无丝绸衬底✅ 字体锐利✅），U1 图稿**亮色 9 / 暗色 7.5**（规范一致性高）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`0419b2e`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏内容密度/无边框面板 + 高锐度字体 + 丝绸衬底 + e2e 纳入 CI
 
