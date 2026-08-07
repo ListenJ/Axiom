@@ -15,16 +15,16 @@
   color-scheme: dark;
   /* Surfaces — MD3-style 5-step tonal scale (legacy names mapped to levels) */
   --bg: #0a0a0a;
-  --bg-secondary: #111111;
-  --bg-tertiary: #1a1a1a;
-  --surface-lowest: #080808;
-  --surface-low: #111111;
-  --surface: #161616;
-  --surface-high: #1f1f1f;
-  --surface-highest: #2a2a2a;
-  --surface-hover: #1f1f1f;
-  --surface-active: #2a2a2a;
-  --surface-raised: #1f1f1f;
+  --bg-secondary: rgba(17, 17, 17, 0.45);
+  --bg-tertiary: rgba(26, 26, 26, 0.45);
+  --surface-lowest: rgba(8, 8, 8, 0.5);
+  --surface-low: rgba(17, 17, 17, 0.55);
+  --surface: rgba(22, 22, 22, 0.5);
+  --surface-high: rgba(31, 31, 31, 0.6);
+  --surface-highest: rgba(42, 42, 42, 0.65);
+  --surface-hover: rgba(31, 31, 31, 0.6);
+  --surface-active: rgba(42, 42, 42, 0.65);
+  --surface-raised: rgba(31, 31, 31, 0.6);
 
   /* Borders — neutral hairlines */
   --border: #262626;
@@ -74,7 +74,7 @@
   --shell-glass-bg: rgba(26, 26, 26, 0.55);
   --shell-raised-glass-bg: rgba(34, 34, 34, 0.66);
   --canvas-bg: #0a0a0a;
-  --canvas-bg-raised: #101010;
+  --canvas-bg-raised: rgba(16, 16, 16, 0.5);
   --canvas-hover: #181818;
   --canvas-glass-bg: rgba(10, 10, 10, 0.5);
 
@@ -525,6 +525,8 @@ a:focus-visible,
 
 .canvas-raised {
   background-color: var(--canvas-bg-raised);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
 }
 
 [data-theme='light'] .shell-surface {
@@ -866,7 +868,7 @@ a:focus-visible,
 
 /* ── 卡片玻璃（ShimmerCard 统一材质：半透明 + 磨砂 + 高光边框） ────────── */
 .card-glass {
-  background: rgba(22, 22, 22, 0.62);
+  background: rgba(22, 22, 22, 0.5);
   backdrop-filter: blur(12px) saturate(1.35);
   -webkit-backdrop-filter: blur(12px) saturate(1.35);
   border: 1px solid rgba(255, 255, 255, 0.05);

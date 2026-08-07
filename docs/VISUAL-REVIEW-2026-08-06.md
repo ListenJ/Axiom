@@ -400,3 +400,24 @@
 - 逐页原文：`vision-review/reviews-t1/*.md`
 - 测试：`e2e/animation-layout.spec.ts`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十三轮：工作区黑色块状样式与背景融合修复（2026-08-07）
+
+## 四十五、定位与修复
+
+- 探针扫描：chat 子标题栏/输入栏（canvas-raised #101010）、功能卡（#161616）、统计格（#1a1a1a）、Token 大容器（#111）等实心深色矩形是“黑块”来源。
+- 修复：暗色表面 token 半透明化（bg-secondary/bg-tertiary 0.45、surface 0.5、high 0.6、highest 0.65、canvas-bg-raised 0.5）；`.canvas-raised` 补 backdrop-filter blur(12px)；card-glass 0.62→0.5。
+
+## 四十六、审批与验证
+
+- 探针复扫 chat/tokens 实心黑块归零（仅设置搜索输入框保留实底）。
+- SenseNova：**dark-chat 9/10、dark-tokens 8.5/10**（卡片/输入区/悬浮条融入玻璃背景，光流透出，可读性保持）。
+- 测试：vitest 278/278 ✅。
+
+## 四十七、本轮截图与审核原文
+
+- 截图：`vision-review/u1–u2-*.png`、`black-block-probe.cjs`
+- 逐页原文：`vision-review/reviews-u1/`、`reviews-u2/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
