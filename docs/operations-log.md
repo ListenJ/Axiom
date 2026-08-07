@@ -34,7 +34,7 @@
   - `frontend/src/styles/index.css`：丝绸条纹变体——肋纹更细密（96°/82°，16px/28px 周期）+ 加粗（暗 0.28/0.12、浅 0.3/0.12，blur 4px）+ ribs-rotate 120s 缓慢旋转 + sheen 20s；浅色画布/外壳玻璃透明化（canvas rgba(255,255,255,.58)、shell rgba(240,242,245,.62)）以让浅色条纹透出。
   - `frontend/docs/prototype.html`：新增自包含原型图（深/浅切换、侧栏 Logo、光流丝绸背景、Agent 颜色色板 + hex），浏览器直接打开评审。
 - **验证**：前端 tsc ✅、vitest 278/278 ✅；SenseNova 审批：dark-settings 9 / light-settings 8 / light-chat 7（Logo 归位、Agent 颜色、丝绸变体、双主题全部达标；浅色丝绸经玻璃透明化后 3→7）；设置页「未发现明显问题」。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`b58ebb5`（推送 internal211/master）
 
 ## 2026-08-07 — 壳/工作区色差 + 右栏一体 + 光效覆盖（参考图驱动，视觉审批）
 
