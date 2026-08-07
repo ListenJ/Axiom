@@ -36,7 +36,7 @@
   - **丝绸性能**：新增 `@media (prefers-reduced-motion: reduce)` 暂停全部光流动画；流体 blur 70→56px、光带 blur 30→26px。
   - **一致性审计（Web Interface Guidelines）**：补 `color-scheme: dark/light`（按主题）、`touch-action: manipulation` + `-webkit-tap-highlight-color: transparent`（按钮/表单）；6 处 `transition-all` → 显式属性（ChatComposer/ModelPicker/BarChart/ShimmerCard/Chat×2）；Header 菜单项补 `focus-visible:ring-2`。
 - **验证**：前端 tsc ✅、vitest 278/278 ✅；像素验证动态背景生效；SenseNova 审批：暗色设置 9 / 浅色设置 9 / 终审暗色设置 7.8 / 暗色 chat 8.5（Agent 颜色、层级配色、一致性达标；Azure 动态背景达标）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`32d2c12`（推送 internal211/master）
 
 ## 2026-08-07 — Axiom Logo 归位侧栏 + Agent 颜色设置 + 丝绸条纹变体 + 原型图（视觉审批）
 
