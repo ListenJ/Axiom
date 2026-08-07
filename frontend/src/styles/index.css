@@ -710,6 +710,7 @@ a:focus-visible,
   position: absolute;
   inset: -10%;
   background:
+    repeating-linear-gradient(96deg, transparent 0 6px, color-mix(in srgb, var(--accent) 5%, transparent) 6px 6.5px, transparent 6.5px 14px),
     repeating-linear-gradient(96deg, transparent 0 16px, color-mix(in srgb, var(--accent) 28%, transparent) 16px 18px, transparent 18px 40px),
     repeating-linear-gradient(82deg, transparent 0 28px, color-mix(in srgb, var(--accent) 12%, transparent) 28px 30px, transparent 30px 66px);
   filter: blur(4px);
@@ -745,7 +746,10 @@ a:focus-visible,
   height: 34vw;
   left: 10vw;
   top: 14vh;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%);
+  /* 细致化：亮核 + 柔光晕双层，光斑更有深度 */
+  background:
+    radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 32%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%);
   animation: fluid-a 30s var(--ease-in-out) infinite alternate;
 }
 .silk-fluid::after {
@@ -753,7 +757,9 @@ a:focus-visible,
   height: 26vw;
   right: 6vw;
   bottom: 8vh;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%);
+  background:
+    radial-gradient(circle at 40% 36%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 30%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
   animation: fluid-b 36s var(--ease-in-out) infinite alternate;
 }
 @keyframes fluid-a {
@@ -789,7 +795,9 @@ a:focus-visible,
   height: 30vw;
   left: 38vw;
   top: 52vh;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 62%);
+  background:
+    radial-gradient(circle at 36% 32%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 34%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%);
   animation: fluid-c 26s var(--ease-in-out) infinite alternate;
 }
 .silk-fluid-extra::after {
@@ -797,7 +805,9 @@ a:focus-visible,
   height: 18vw;
   right: 30vw;
   bottom: 28vh;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%);
+  background:
+    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 30%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%);
   animation: fluid-d 22s var(--ease-in-out) infinite alternate;
 }
 @keyframes fluid-c {
@@ -836,6 +846,60 @@ a:focus-visible,
 @keyframes swirl-rotate {
   from { transform: rotate(0deg) scale(1); }
   to { transform: rotate(360deg) scale(1.08); }
+}
+
+/* 亮色：彩色流态（柔和粉彩：天蓝/紫/粉/薄荷/琥珀，低透明度保持通透空灵） */
+[data-theme='light'] .silk-aurora::before {
+  background:
+    linear-gradient(100deg, transparent 10%, rgba(147, 197, 253, 0.3) 26%, rgba(196, 181, 253, 0.07) 32%, transparent 58%),
+    linear-gradient(100deg, transparent 6%, rgba(125, 211, 252, 0.16) 30%, rgba(165, 180, 252, 0.04) 48%, transparent 68%);
+}
+[data-theme='light'] .silk-aurora::after {
+  background:
+    linear-gradient(80deg, transparent 12%, rgba(253, 186, 216, 0.26) 30%, rgba(253, 224, 177, 0.06) 36%, transparent 62%),
+    linear-gradient(80deg, transparent 10%, rgba(249, 168, 212, 0.14) 32%, rgba(253, 230, 190, 0.04) 50%, transparent 72%);
+}
+[data-theme='light'] .silk-aurora-extra::before {
+  background:
+    linear-gradient(95deg, transparent 18%, rgba(134, 239, 172, 0.24) 36%, rgba(187, 247, 208, 0.05) 42%, transparent 64%),
+    linear-gradient(95deg, transparent 14%, rgba(110, 231, 183, 0.12) 38%, rgba(167, 243, 208, 0.03) 54%, transparent 74%);
+}
+[data-theme='light'] .silk-aurora-extra::after {
+  background:
+    linear-gradient(112deg, transparent 14%, rgba(253, 186, 116, 0.22) 34%, rgba(254, 215, 170, 0.05) 40%, transparent 62%),
+    linear-gradient(112deg, transparent 12%, rgba(251, 191, 36, 0.1) 36%, rgba(253, 230, 138, 0.03) 52%, transparent 72%);
+}
+[data-theme='light'] .silk-sheen::before {
+  background: linear-gradient(105deg, transparent 28%, rgba(255, 255, 255, 0.5) 40%, rgba(255, 240, 245, 0.28) 46%, rgba(255, 255, 255, 0.1) 52%, transparent 64%);
+}
+[data-theme='light'] .silk-ribs::before {
+  background:
+    repeating-linear-gradient(96deg, transparent 0 6px, rgba(139, 92, 246, 0.07) 6px 6.5px, transparent 6.5px 14px),
+    repeating-linear-gradient(96deg, transparent 0 16px, rgba(147, 197, 253, 0.16) 16px 18px, transparent 18px 40px),
+    repeating-linear-gradient(82deg, transparent 0 28px, rgba(96, 165, 250, 0.08) 28px 30px, transparent 30px 66px);
+}
+[data-theme='light'] .silk-fluid::before {
+  background:
+    radial-gradient(circle at 34% 34%, rgba(96, 165, 250, 0.24), transparent 32%),
+    radial-gradient(circle, rgba(147, 197, 253, 0.1), transparent 62%);
+}
+[data-theme='light'] .silk-fluid::after {
+  background:
+    radial-gradient(circle at 40% 36%, rgba(167, 139, 250, 0.18), transparent 30%),
+    radial-gradient(circle, rgba(196, 181, 253, 0.08), transparent 60%);
+}
+[data-theme='light'] .silk-fluid-extra::before {
+  background:
+    radial-gradient(circle at 36% 32%, rgba(249, 168, 212, 0.22), transparent 34%),
+    radial-gradient(circle, rgba(253, 186, 216, 0.1), transparent 62%);
+}
+[data-theme='light'] .silk-fluid-extra::after {
+  background:
+    radial-gradient(circle at 42% 38%, rgba(110, 231, 183, 0.18), transparent 30%),
+    radial-gradient(circle, rgba(134, 239, 172, 0.08), transparent 60%);
+}
+[data-theme='light'] .silk-swirl::before {
+  background: conic-gradient(from 0deg, transparent 0 40%, rgba(96, 165, 250, 0.14) 46%, rgba(167, 139, 250, 0.12) 50%, rgba(249, 168, 212, 0.12) 54%, transparent 60%, transparent 100%);
 }
 
 /* 性能与无障碍：减少动态时暂停光流动画（GPU 友好 + prefers-reduced-motion） */

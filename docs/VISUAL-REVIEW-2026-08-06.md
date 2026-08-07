@@ -471,3 +471,24 @@
 - 逐页原文：`vision-review/reviews-g1t/`、`reviews-g2t/*.md`
 - skills：`~/.codex/skills/taste-skill`、`~/.codex/skills/impeccable`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十六轮：亮色彩色流态 + 暗色流态细化（2026-08-07）
+
+## 五十四、实现
+
+- **暗色细化**：四个流体光斑改「亮核 + 柔光晕」双层径向（core 18–28% / halo 7–12%）；肋纹新增 6px 微纹理层。
+- **亮色彩色流态**：`[data-theme='light']` 覆盖块——光带用天蓝/粉紫、粉红/琥珀、薄荷、暖橙粉彩；肋纹蓝紫；流体光斑天蓝/紫罗兰/粉/薄荷；漩涡 conic 蓝→紫→粉；扫光白色暖调；低透明度保持通透空灵。
+
+## 五十五、审批与验证
+
+- 像素：亮色出现彩色（蓝 rgb(226,236,248)、粉 rgb(243,231,241)、薄荷 rgb(227,238,239)）；暗色保持单色。
+- SenseNova：**亮色 8.5 / 暗色 8**（彩色流态✅、通透✅、暗色亮核/光晕层次✅）。
+- 测试：vitest 278/278 ✅。
+
+## 五十六、本轮截图与审核原文
+
+- 截图：`vision-review/c1-*.png`
+- 逐页原文：`vision-review/reviews-c1/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
