@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 // 新前端（frontend/，React SPA）首页与 /chat 页均有输入框。
 test("can type in home chat input", async ({ page }) => {

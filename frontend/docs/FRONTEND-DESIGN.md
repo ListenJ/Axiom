@@ -334,14 +334,15 @@ frontend/src/components/
 
 ## 12. 悬浮工具台与输入区增强（2026-08-08 定稿）
 
-### 12.1 右栏 = 按需悬浮抽屉（Overlay Drawer）
+### 12.1 右栏 = 在流内面板（非侵入，2026-08-08 定稿）
 
-- **不再占位**：右栏从常驻窄轨/宽度动画改为 `absolute inset-y-2 right-2 z-30` 的悬浮抽屉，只在需要时弹出，关闭后从 DOM 卸载（AnimatePresence 退场），主内容布局始终不变。
-- **自适应工作区**：宽度 `w-[min(22rem,86vw)] sm:w-[min(25rem,62vw)]`；上下各留 8px + 工作区 padding 形成均匀呼吸边距，垂直长度贴合工作区边缘。
-- **同材质玻璃**：使用 `.overlay-glass`（暗 rgba(22,22,22,.34) / 亮 rgba(255,255,255,.38)，`blur(28px) saturate(1.45)`）——比画布更通透，可透出底层丝绸光效；**阴影分隔**：`box-shadow: var(--shadow-lg)`，无边框。
-- **无分割线**：头部与工具图标轨不画 `border`，区块之间用留白（`space-y-6` + 小标题间距）分区。
-- **动画**：滑入/滑出 `x:110%→0` + opacity + scale(0.98→1)，0.32s `ease [0.16,1,0.3,1]`；`prefers-reduced-motion` 时仅透明度。
-- **入口**：头部「工具台」按钮或「摘要」按钮唤起；抽屉内点击任意工具图标即切换并保持打开；关闭按钮为头部圆形 X。
+- **非侵入**：右栏为在流内面板（framer 宽度动画 400↔0），展开时工作区内容自适应让位，**不遮挡**工具栏按钮与聊天内容；关闭后宽度为 0（不留 DOM 占位）。
+- **宽度**：`w-[min(25rem,62vw)]`，垂直方向填满工作区内容高度（贴合上下边缘）。
+- **材质**：`.overlay-glass`（暗 rgba(22,22,22,.22) / 亮 rgba(255,255,255,.3)，`blur(36px) saturate(1.5)`）——半透明、透出背景光效，靠高斯模糊保证可读性；**无丝绸衬底**；`panel-shadow-left` 左侧阴影分隔（无边框）。
+- **无分割线**：头部与工具图标轨不画 `border`，区块之间用留白（`space-y-6/7` + 小标题间距）分区。
+- **动画**：宽度 0↔400 + 阴影，0.32s `ease [0.16,1,0.3,1]`；`prefers-reduced-motion` 时宽度直接切换。
+- **移动端**：<1024px 时切换为抽屉浮层（fixed + backdrop + x:100%→0），同一时刻仅一个 `complementary`（`isMobile` 按视口监听）。
+- **入口**：头部「工具台」/「摘要」按钮唤起；面板内点击工具图标即切换并保持打开；关闭按钮为头部圆形 X。
 
 ### 12.2 摘要三区块（环境信息 / 子智能体 / 来源）
 
@@ -368,17 +369,19 @@ frontend/src/components/
 - e2e：`e2e/animation-layout.spec.ts` 4/4 通过（摘要迁入、悬浮抽屉动画进出/不占位、终端覆盖、动效 off）。
 - P2 打磨（2026-08-08）：`.overlay-glass` 阴影加强 + 顶部高光；分区标题 `text-xs text-secondary`；「提交并推送」primary；权限选中态 `font-medium + shadow`；附件删除按钮 size-7；输入框 `leading-relaxed`。
 
-## 13. 高锐度字体 + 右栏丝绸衬底 + 无边框面板 + e2e CI（2026-08-08 定稿）
+## 13. 高锐度字体 + 在流内右栏（半透明高斯模糊）+ 无边框面板 + e2e CI（2026-08-08 定稿）
 
 ### 13.1 字体（无衬线高锐度）
 
-- **首选 `Inter Tight`**（400–700，Google Fonts 引入），body / 标题 / `.font-display` / `.type-*` 字体栈统一为 `'Inter Tight','Inter',system-ui,…`——更紧凑的字形与更锐利的笔画，正文保持 `-webkit-font-smoothing: antialiased` + `text-rendering: optimizeLegibility`。
+- **首选 `Inter Tight`**（400–700），body / 标题 / `.font-display` / `.type-*` 字体栈统一为 `'Inter Tight','Inter',system-ui,…`——更紧凑的字形与更锐利的笔画，正文保持 `-webkit-font-smoothing: antialiased` + `text-rendering: optimizeLegibility`。
+- **不通过 Google Fonts `@import` 加载**（@import 阻塞 DOMContentLoaded，离线/CI 下导致白屏）：未安装 Inter Tight/Inter 时回退系统无衬线（Segoe UI Variable 等，同样高锐度）。
 - 等宽仍为 JetBrains Mono（代码/数据）。
 
-### 13.2 右栏材质（加强模糊 + 丝绸衬底）
+### 13.2 右栏材质（半透明 + 高斯模糊，无丝绸衬底）
 
-- `.overlay-glass`：`blur(36px) saturate(1.5)`（原 28px），叠加 `box-shadow: 0 28px 80px rgba(0,0,0,.78)` + 1px 顶部柔光。
-- `::before` 丝绸衬底：细密双向斜纹（105°/75° 重复线性渐变，暗 rgba(255,255,255,.045/.04)、亮 rgba(0,0,0,.035/.03)，opacity .5–.6），圆角 inherit、pointer-events none；子元素 `position:relative; z-index:1`。作用：玻璃下文字更清晰、有织物质感。
+- `.overlay-glass`：`blur(36px) saturate(1.5)`，背景暗 rgba(22,22,22,.22) / 亮 rgba(255,255,255,.3)（半透明、直接透出背景光效）；移动抽屉保留 `box-shadow: 0 28px 80px rgba(0,0,0,.78)` + 顶部柔光。
+- `panel-shadow-left`：桌面在流内面板用左侧阴影分隔（`-12px 0 32px -16px rgba(0,0,0,.7)` + 1px 内高光），无边框。
+- **无丝绸衬底**（`::before` 已移除）——可读性完全由高斯模糊 + 文字阴影承担。
 
 ### 13.3 右栏面板统一无边框
 
@@ -386,15 +389,17 @@ frontend/src/components/
 - `Input` / `Textarea` 新增 `variant="glass"`：`border-0 bg-transparent` + 焦点环（`focus:ring-2 ring-[var(--accent-ring)]`），供玻璃面板内输入复用。
 - 分隔只靠留白与层级（延续“无分割线”约束）。
 
-### 13.4 e2e 纳入仓库 CI
+### 13.4 e2e 纳入仓库 CI（全套 10 个 spec）
 
 - `e2e/` 不再整目录忽略：`*.spec.ts` 与 `playwright.config.mjs` 入库；截图与本地调试脚本仍忽略（`e2e/.gitignore`）。
-- playwright `webServer`：直接启动后端 `bun run src/main.ts`（url=/health、reuseExistingServer、注入 AXIOM_AUTH_TOKEN）——旧配置指向前端 vite dev（无 API 代理）在 CI 必然失败。
-- `scripts/run-e2e.cjs`：按平台取 playwright bin（win32 加 `.exe`）；支持 `E2E_SPEC` 过滤；目录缺失明确报错。
-- CI（`.github/workflows/ci.yml` test job）：先 `frontend bun install + vite build` 并拷贝 `public/`，再 `bun run test:e2e`（`E2E_SPEC=animation-layout`、固定 AXIOM_AUTH_TOKEN）。
+- `helpers.ts`：`injectAuth`（导航前注入 AXIOM_AUTH_TOKEN）+ `AUTH_TOKEN`（CI 取环境变量，本地默认 .env 一致）。
+- 每个 spec `beforeEach` 注入 token；keyboard 等待 React 挂载后再派发快捷键；theme 固定默认暗色并同步 `--bg` 期望。
+- playwright 配置不启动 webServer（避免 EADDRINUSE 抖动）；`scripts/run-e2e.cjs` 负责后端生命周期：健康检查通过则复用，否则自动 `bun run src/main.ts` 拉起并在结束关闭；按平台取 playwright bin；支持 `E2E_SPEC` 本地过滤。
+- CI（`.github/workflows/ci.yml` test job）：先 `frontend bun install + vite build` 并拷贝 `public/`，再 `bun run test:e2e`（**跑全套**、固定 AXIOM_AUTH_TOKEN）。
+- 后端配套：回环地址豁免限流（`src/main.ts`）；`/` 加入 SPA_ROUTES（修复 `/` 二次请求空 body 白屏）。
 
 ### 13.5 审批
 
-- 材质探针：blur(36px)、丝绸 `::before` 存在（暗/亮）；Git 面板边框元素 0。
-- `bun run test:e2e`（E2E_SPEC=animation-layout）4/4 通过。
-- SenseNova 复审：**亮色摘要 8 / 暗色摘要 7.5 / Git 面板 7–8.5**（丝绸衬底✅、密度✅、无边框✅、字体锐利✅）。
+- 材质探针：blur(36px)、无 `::before` 丝绸衬底（暗/亮）；Git 面板边框元素 0；`/` 15/15 完整、150 次 API 无 429。
+- **`bun run test:e2e` 全套 10/10 通过（36 用例）**。
+- SenseNova 复审：**暗色右栏 8.5 / 亮色 8.5**（在流内✅、半透明透光✅、高斯模糊可读✅、无丝绸衬底✅、阴影分隔✅、字体锐利✅）；U1 设计图**亮色 9 / 暗色 7.5**。

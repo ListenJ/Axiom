@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 const sidebar = (page: any) => page.locator('aside[aria-label="主导航"]');
 

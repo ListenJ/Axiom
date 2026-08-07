@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 test("settings page renders", async ({ page }) => {
   await page.goto("/settings", { waitUntil: "domcontentloaded" });

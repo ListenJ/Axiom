@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 function dispatchKey(page: any, key: string, shift = false) {
   return page.evaluate(
@@ -11,8 +16,15 @@ function dispatchKey(page: any, key: string, shift = false) {
   );
 }
 
+/** 等待 React 挂载（快捷键监听器已注册）后再派发按键 */
+async function ready(page: any) {
+  await page.waitForSelector("#home-input", { timeout: 10000 });
+  await page.waitForSelector("[data-theme]", { timeout: 10000 });
+}
+
 test("? opens keyboard help modal", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await ready(page);
   await dispatchKey(page, "?");
   await expect(
     page.getByRole("dialog", { name: "键盘快捷键" })
@@ -21,6 +33,7 @@ test("? opens keyboard help modal", async ({ page }) => {
 
 test("1-6 switches pages (首页与对话合并后)", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await ready(page);
   const map: Record<string, string> = {
     "1": "/chat",
     "2": "/search",
@@ -37,6 +50,7 @@ test("1-6 switches pages (首页与对话合并后)", async ({ page }) => {
 
 test("/ navigates to search page", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await ready(page);
   await dispatchKey(page, "/");
   await expect(page).toHaveURL(/\/search$/);
   await expect(page.getByLabel("搜索关键词")).toBeVisible();
@@ -44,6 +58,7 @@ test("/ navigates to search page", async ({ page }) => {
 
 test("Shift+T toggles theme", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await ready(page);
   const before = await page.evaluate(() =>
     document.documentElement.getAttribute("data-theme")
   );

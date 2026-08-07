@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   FileText,
@@ -39,6 +40,16 @@ export default function RightToolbar() {
   const active = useApp((s) => s.rightbarTool)
   const setActive = useApp((s) => s.setRightbarTool)
   const reduceMotion = useReducedMotion()
+  // 桌面在流内面板 / 移动抽屉：按视口切换，保证同一时刻只有一个 complementary 元素
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const onChange = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   const shell = (
     <div className="flex h-full flex-col">
@@ -113,21 +124,51 @@ export default function RightToolbar() {
   )
 
   return (
-    <AnimatePresence>
-      {open && (
+    <>
+      {/* 桌面端：在流内面板（非侵入），宽度动画展开/收起，工作区自适应不遮挡 */}
+      {!isMobile && (
         <motion.div
-          key="rightbar-overlay"
           aria-label="右侧工具台"
           role="complementary"
-          className="overlay-glass absolute inset-y-2 right-2 z-30 flex w-[min(22rem,86vw)] flex-col overflow-hidden rounded-2xl sm:w-[min(25rem,62vw)]"
-          initial={reduceMotion ? { opacity: 0 } : { x: '110%', opacity: 0, scale: 0.98 }}
-          animate={{ x: 0, opacity: 1, scale: 1 }}
-          exit={reduceMotion ? { opacity: 0 } : { x: '110%', opacity: 0, scale: 0.98 }}
+          className="h-full shrink-0 overflow-hidden"
+          initial={false}
+          animate={{ width: open ? 400 : 0 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
         >
-          {shell}
+          <div className="overlay-glass panel-shadow-left h-full w-[min(25rem,62vw)]">
+            {shell}
+          </div>
         </motion.div>
       )}
-    </AnimatePresence>
+
+      {/* 移动端：抽屉浮层（小屏无空间容纳在流内面板） */}
+      {isMobile && (
+        <AnimatePresence>
+          {open && (
+            <div className="fixed inset-0 z-50">
+              <motion.div
+                className="absolute inset-0 backdrop-glass"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setOpen(false)}
+                aria-hidden="true"
+              />
+              <motion.div
+                role="complementary"
+                aria-label="右侧工具台"
+                className="overlay-glass absolute inset-y-0 right-0 flex w-[min(22rem,86vw)] flex-col elevation-4"
+                initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {shell}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      )}
+    </>
   )
 }

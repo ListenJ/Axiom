@@ -7,6 +7,11 @@
  *   3. 右栏工具轨"Git"面板：/api/git/diff 聚合后的文件数与增删行可见
  */
 import { test, expect, Page } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 async function mockTerminal(page: Page) {
   await page.route("**/terminal/session", (route) =>
@@ -35,6 +40,14 @@ async function mockGit(page: Page, changes: string[]) {
         branch: "master",
         modified: changes,
         clean: changes.length === 0,
+      },
+    })
+  );
+  await page.route("**/api/git/diff", (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        files: changes.map((p) => ({ path: p, status: "modified", additions: 3, deletions: 1 })),
       },
     })
   );
@@ -85,16 +98,17 @@ test("终端浮层：输入命令并发送到交互会话", async ({ page }) => 
   await expect.poll(() => sent.join(""), { timeout: 10000 }).toBe("echo hello\r");
 });
 
-test("右侧工具台：摘要按钮唤出并显示 Git 状态与系统统计", async ({ page }) => {
+test("右侧工具台：摘要按钮唤出并显示环境信息（分支/变更/Token）", async ({ page }) => {
   await mockGit(page, ["src/main.ts"]);
   await page.goto("/chat", { waitUntil: "domcontentloaded" });
   await page.getByLabel("打开摘要").waitFor({ timeout: 10000 });
   await page.getByLabel("打开摘要").click();
   const bar = page.getByRole("complementary", { name: "右侧工具台" });
   await expect(bar).toBeVisible();
-  await expect(bar.getByText("工作摘要")).toBeVisible();
+  await expect(bar.getByText("环境信息")).toBeVisible();
   await expect(bar.getByText("master")).toBeVisible();
-  await expect(bar.getByText("1 个变更")).toBeVisible();
+  await expect(bar.getByText("+3", { exact: true })).toBeVisible();
+  await expect(bar.getByText("-1", { exact: true })).toBeVisible();
   await expect(bar.getByText("123.5K")).toBeVisible(); // formatTokens(123456) → 123.5K
 });
 

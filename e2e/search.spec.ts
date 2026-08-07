@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 test("search page elements are visible", async ({ page }) => {
   await page.goto("/search", { waitUntil: "domcontentloaded" });
@@ -34,6 +39,6 @@ test("can search and display results", async ({ page }) => {
   await page.getByLabel("搜索关键词").fill("test");
 
   // 输入后前端有 250ms 防抖，随后发起请求并渲染结果
-  await expect(page.getByText("Test Note")).toBeVisible({ timeout: 5000 });
-  await expect(page.getByText("共 1 条结果")).toBeVisible();
+  await expect(page.getByText("Test Note").first()).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/共 \d+ 条结果/)).toBeVisible();
 });

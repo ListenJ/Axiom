@@ -40,6 +40,23 @@
 
 ---
 
+## 2026-08-08 — 右栏改在流内（非侵入）+ 全套 e2e 入 CI + 后端稳定性修复 + U1/cowork-skill 设计完善
+
+- **任务**：①右栏从“悬浮覆盖”改为**在流内面板**（非侵入：动画宽度 400↔0，工作区自适应让位，不再遮挡工具栏/内容）；半透明 + 高斯模糊保留可读性、去掉丝绸衬底、透出背景 ②逐个修复 10 个 e2e spec 并放开 CI 门禁（全套运行）③视觉模型 + U1 生成设计图 + cowork-skill 完善设计。
+- **工具**：SenseNova（复审 + U1-fast 出图）、Playwright（全套 e2e + 探针）、cowork-skill（frontend-design / design-system，已装到 ~/.codex/skills/cowork/）、design-taste-frontend / impeccable。
+- **操作（文件级）**：
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面改为**在流内面板**——`motion.div` 宽度动画 0↔400（`w-[min(25rem,62vw)]` + `.panel-shadow-left` 左侧阴影分隔），`isMobile`（<1024px）时保留抽屉浮层，同一时刻只有一个 `complementary` 元素；`overlay-glass` 类移到内层容器。
+  - `frontend/src/styles/index.css`：`.overlay-glass` 去掉丝绸 `::before` 衬底、背景透明度降低（暗 rgba(22,22,22,.22) / 亮 rgba(255,255,255,.3)），blur 36px 保可读；新增 `.panel-shadow-left`（左侧阴影分隔）；**移除 Google Fonts `@import`**（@import 阻塞 DOMContentLoaded，离线/CI 下导致白屏；字体栈保留 Inter Tight/Inter → 系统无衬线兜底）。
+  - `src/main.ts`：①限流豁免回环地址（`isStaticAssetReq || isLocal`，限流只保护对外部署）②`/` 加入 `SPA_ROUTES`（修复路由引擎缓存导致 `/` 二次请求返回空 body → 间歇白屏）。
+  - `e2e/helpers.ts`（新）：`injectAuth` + `AUTH_TOKEN`（CI 取环境变量，本地默认 .env 一致）。
+  - 9 个旧 spec（chat/keyboard/perf/responsive/search/settings/smoke/terminal-summary/theme）：统一 `beforeEach` 注入鉴权 token；keyboard 加“等 React 挂载再派发快捷键”；search 结果数改正则、`Test Note` 用 `.first()`；theme 固定默认暗色 + 更新 `--bg` 期望（#0a0a0a / #ffffff）；smoke 侧栏断言改为当前真实结构（新对话/Git/MCP/设置）；terminal-summary 摘要测试改用环境信息/分支/±变更/Token。
+  - `e2e/animation-layout.spec.ts`：右栏测试改为“在流内宽度动画 + 工作区自适应（收起后输入区变宽 >300px）”。
+  - `playwright.config.mjs`：移除 webServer（EADDRINUSE 抖动源）；`scripts/run-e2e.cjs`：健康检查 + 必要时自动拉起后端（带 token）、Linux bin 修复、`E2E_SPEC` 过滤保留。
+  - `.github/workflows/ci.yml`：E2E 步骤去掉 `E2E_SPEC`（跑全套），仍先构建前端并拷贝 `public/`。
+  - U1 生成 `vision-review/u1-rightbar-dark.png` / `u1-rightbar-light.png` 设计图。
+- **验证**：`tsc` ✅ / `vite build` ✅；**全套 e2e 10 个文件全部通过**（36 用例：animation-layout 4、chat 2、keyboard 4、perf 1、responsive 5、search 2、settings 4、smoke 5、terminal-summary 5、theme 4）；`/` 连续 15 次返回完整 index.html；150 次连续 API 无 429；SenseNova 复审**暗色右栏 8.5 / 亮色 8.5**（在流内✅ 半透明✅ 高斯模糊✅ 无丝绸衬底✅ 字体锐利✅），U1 图稿**亮色 9 / 暗色 7.5**（规范一致性高）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏内容密度/无边框面板 + 高锐度字体 + 丝绸衬底 + e2e 纳入 CI
 
 - **任务**：①暗色右栏内容“略多于留白”（子智能体加活跃任务/已完成统计、来源展示 8 条并按类型配图标）②右栏 Git/文件/浏览器/迷你聊天等面板统一无边框玻璃风格 ③e2e 真正纳入仓库 CI（此前 e2e/ 被 gitignore、webServer 指向前端 dev 而非后端）④字体换高锐度无衬线（Inter Tight 优先）⑤右栏加强高斯模糊（28→36px）+ 内层丝绸纹理衬底。

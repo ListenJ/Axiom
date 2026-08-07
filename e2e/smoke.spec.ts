@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+});
 
 test("page title is correct", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -12,14 +17,14 @@ test("sidebar renders with brand", async ({ page }) => {
   await expect(sidebar.locator("svg").first()).toBeVisible();
 });
 
-test("all nav items are visible", async ({ page }) => {
+test("sidebar sections render (新对话 / Git / MCP / 设置)", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  const nav = page.locator('nav[aria-label="主导航列表"]');
-  await nav.locator("a").first().waitFor({ timeout: 10000 });
-  // 首页与对话已合并：导航不再有独立"首页"入口；按 nav 内链接精确定位
-  for (const label of ["对话", "搜索", "代码", "知识", "模型", "系统"]) {
-    await expect(nav.locator("a", { hasText: label }).first()).toBeVisible();
-  }
+  const sidebar = page.locator('aside[aria-label="主导航"]');
+  await expect(sidebar.getByRole("button", { name: "开启新对话" })).toBeVisible();
+  await expect(sidebar.getByText("Git 仓库状态")).toBeVisible();
+  await expect(sidebar.getByText("MCP · Skill")).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "打开设置" })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "键盘快捷键" })).toBeVisible();
 });
 
 test("header renders with system menu actions", async ({ page }) => {

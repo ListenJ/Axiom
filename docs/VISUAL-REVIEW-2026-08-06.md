@@ -563,3 +563,29 @@
 - 截图：`vision-review/p2-dark-*.png`、`p2-light-*.png`
 - 审核原文：`vision-review/reviews-p2-*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十轮：右栏改在流内（非侵入）+ 半透明高斯模糊 + U1 设计图（2026-08-08）
+
+## 六十六、实现
+
+- **右栏在流内**：桌面从“悬浮覆盖”改为在流内面板（framer 宽度 400↔0 动画，工作区自适应让位，不遮挡工具栏/内容）；移动端保留抽屉浮层（`isMobile` 按视口切换，同一时刻仅一个 `complementary`）。
+- **材质**：`.overlay-glass` 去掉丝绸 `::before` 衬底，透明度降低（暗 .22 / 亮 .30），blur 36px 保可读；新增 `.panel-shadow-left` 左侧阴影分隔（无边框）。
+- **字体**：移除 Google Fonts `@import`（阻塞 DOMContentLoaded，离线/CI 白屏）；字体栈保留 Inter Tight/Inter，回退系统无衬线。
+- **后端**：回环限流豁免；`/` 加入 SPA_ROUTES（修复 `/` 二次请求空 body 白屏）。
+- **e2e**：10 个 spec 全部修复（鉴权注入、快捷键等待挂载、smoke/theme 对齐当前 UI），CI 跑全套。
+
+## 六十七、审批与验证
+
+- **全套 e2e 10/10 通过（36 用例）**；`/` 15/15 完整；150 次 API 无 429。
+- SenseNova 复审：**暗色右栏 8.5 / 亮色 8.5**（在流内✅、半透明透光✅、高斯模糊可读✅、无丝绸衬底✅、阴影分隔✅、字体锐利✅）。
+- U1 设计图：**亮色 9 / 暗色 7.5**——亮色图与实现规范高度一致（在流内半透明毛玻璃 + 光流穿透 + 无分割线）；暗色图提示主内容丝绸纹理宜更克制（实现已用低透明度光流，符合）。
+
+## 六十八、本轮截图与审核原文
+
+- 截图：`vision-review/new-*-rightbar.png`、`p2-*-git.png`
+- 图稿：`vision-review/u1-rightbar-dark.png`、`u1-rightbar-light.png`
+- 审核原文：`vision-review/reviews-flow-*.md`
+- skills：`~/.codex/skills/cowork/cowork-frontend-design`、`cowork-design-system`（cowork-skill 已安装）
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

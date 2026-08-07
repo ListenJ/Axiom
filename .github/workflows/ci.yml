@@ -65,7 +65,6 @@ jobs:
         env:
           NODE_ENV: test
           AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
-          E2E_SPEC: animation-layout
 
   build:
     name: Build Docker Image

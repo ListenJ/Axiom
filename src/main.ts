@@ -531,7 +531,7 @@ logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
 // SPA route whitelist — module-level Set avoids per-request allocation.
 const SPA_ROUTES = new Set([
-  "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
+  "/", "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
   "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings", "/login",
 ]);
@@ -613,8 +613,9 @@ const server = Bun.serve({
     // Rate limiting (keyed on the socket peer address, not spoofable headers)
     // 静态资源（SPA 的 JS/CSS/图片/字体）豁免 API 限流：单页 50+ 资源请求会把
     // 默认 100 次/min 配额耗尽导致页面白屏（2026-08-06 视觉审核 P0-3）。
+    // 回环地址（本机绑定 / e2e / CI）同样豁免——限流只保护对外暴露的部署场景。
     const isStaticAssetReq = await isStaticAsset(url.pathname);
-    const rl = isStaticAssetReq
+    const rl = isStaticAssetReq || isLocal
       ? { allowed: true, headers: {} as Record<string, string> }
       : await rateLimitCheck(req, remoteAddress, url.pathname);
     if (!rl.allowed) {

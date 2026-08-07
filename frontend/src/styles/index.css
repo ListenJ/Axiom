@@ -2,7 +2,8 @@
    Axiom Design System — Deep Space Console / Ember Dawn
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/* 字体：不再通过 Google Fonts @import 加载（@import 阻塞 DOMContentLoaded，离线/CI 下会卡白屏）。
+   字体栈保留 Inter Tight / Inter 优先，未安装时回退系统无衬线（Segoe UI Variable 等，同样高锐度）。 */
 
 @tailwind base;
 @tailwind components;
@@ -550,7 +551,7 @@ a:focus-visible,
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
   position: relative;
-  background: rgba(22, 22, 22, 0.34);
+  background: rgba(22, 22, 22, 0.22);
   backdrop-filter: blur(36px) saturate(1.5);
   -webkit-backdrop-filter: blur(36px) saturate(1.5);
   box-shadow:
@@ -560,22 +561,11 @@ a:focus-visible,
   will-change: backdrop-filter;
 }
 
-/* 丝绸衬底：右栏内层叠加细密丝织纹理，凸显玻璃下可读性（不参与交互） */
-.overlay-glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(105deg, transparent 0 3px, rgba(255, 255, 255, 0.045) 3px 4px),
-    repeating-linear-gradient(75deg, transparent 0 5px, rgba(255, 255, 255, 0.04) 5px 6px);
-  opacity: 0.6;
-}
-.overlay-glass > * {
-  position: relative;
-  z-index: 1;
+/* 在流内右栏的左侧阴影分隔（无边框）：桌面端贴合工作区右侧边缘 */
+.panel-shadow-left {
+  box-shadow:
+    -12px 0 32px -16px rgba(0, 0, 0, 0.7),
+    inset 1px 0 0 rgba(255, 255, 255, 0.04);
 }
 
 [data-theme='light'] .shell-surface {
@@ -588,17 +578,16 @@ a:focus-visible,
   background: var(--canvas-glass-bg);
 }
 [data-theme='light'] .overlay-glass {
-  background: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.3);
   box-shadow:
     0 28px 80px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
-[data-theme='light'] .overlay-glass::before {
-  background:
-    repeating-linear-gradient(105deg, transparent 0 3px, rgba(0, 0, 0, 0.035) 3px 4px),
-    repeating-linear-gradient(75deg, transparent 0 5px, rgba(0, 0, 0, 0.03) 5px 6px);
-  opacity: 0.5;
+[data-theme='light'] .panel-shadow-left {
+  box-shadow:
+    -12px 0 32px -16px rgba(0, 0, 0, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.6);
 }
 
 /* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */

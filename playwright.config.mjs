@@ -12,17 +12,8 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  webServer: {
-    // 直接启动后端（自托管 public/ 静态产物），本地复用已有实例
-    command: "bun run src/main.ts",
-    cwd: ".",
-    url: "http://127.0.0.1:18789/health",
-    reuseExistingServer: true,
-    timeout: 120_000,
-    env: {
-      AXIOM_AUTH_TOKEN: process.env.AXIOM_AUTH_TOKEN || "your-secure-random-token-at-least-16-chars",
-    },
-  },
+  // 后端生命周期由 scripts/run-e2e.cjs 统一管理（健康检查 + 必要时自动拉起），
+  // 避免 Playwright webServer 在端口被复用时的 EADDRINUSE 抖动。
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],

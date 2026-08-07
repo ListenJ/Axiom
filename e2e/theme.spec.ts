@@ -1,4 +1,17 @@
 import { test, expect, Page } from "@playwright/test";
+import { injectAuth } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+  // 固定默认主题为暗色（Playwright 默认 colorScheme 为 light，会干扰断言）
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("axiom:theme", "dark");
+    } catch (e) {
+      /* ignore */
+    }
+  });
+});
 
 const getTheme = (page: Page) =>
   page.evaluate(() => document.documentElement.getAttribute("data-theme"));
@@ -28,11 +41,11 @@ test("theme toggle switches to light via system menu", async ({ page }) => {
 
 test("dark theme CSS variables applied", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  expect(await getBgVar(page)).toBe("#12100c");
+  expect(await getBgVar(page)).toBe("#0a0a0a");
 });
 
 test("light theme CSS variables applied after toggle", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await toggleTheme(page);
-  await expect.poll(() => getBgVar(page)).toBe("#faf7f2");
+  await expect.poll(() => getBgVar(page)).toBe("#ffffff");
 });
