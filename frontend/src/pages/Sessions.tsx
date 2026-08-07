@@ -168,7 +168,7 @@ function ConversationViewer({ messages }: { messages: Message[] }) {
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 msg.role === 'user'
-                  ? 'bg-[var(--accent)] text-white'
+          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
                   : 'border border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
               }`}
             >

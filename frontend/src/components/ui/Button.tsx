@@ -18,7 +18,7 @@ interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'className' | 'siz
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'bg-[image:var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow)]',
+    'bg-[var(--accent)] text-[var(--on-accent)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow)]',
   secondary:
     'bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]',
   ghost:

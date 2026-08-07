@@ -229,3 +229,70 @@ frontend/src/components/
 | P2 | 引入 CSS container queries 替代部分 JS 窗口监听。 |
 | P2 | 建立组件文档/Storybook 或至少 `*.stories.tsx`。 |
 | P3 | 评估是否引入 `@material/web` 部分组件（如 slider、switch）替代自研组件。 |
+
+---
+
+## 10. AXIS Monochrome — 黑白设计系统（2026-08-07 定稿）
+
+> 依据用户约束 + `frontend-design` / `brand-guidelines` / `web-design-guidelines` / `grill-me` skills 确定。
+> 核心：朴素黑白、无静态渐变、无分割线（留白分隔）、外壳/工作区用阴影分隔、单小 Logo、光流丝绸背景（小色差）。
+
+### 10.1 设计原则
+
+- **朴素黑白**：亮/暗模式仅使用黑、白、灰阶；禁用暖色与彩色。语义状态用「亮度阶梯 + 图标 + 文案」表达（刻意取舍）。
+- **无静态渐变**：表面 / 按钮 / Logo 一律纯色；唯一渐变来自动态「光流」丝绸背景（小色差、缓慢漂移）。
+- **无分割线**：侧边栏区块间用留白分隔（`px-3` + `pb-3`）；外壳与工作区用投影分隔，无描边线。
+- **单 Logo**：品牌只出现于顶栏（24px 标记 + Axiom 文字）；侧栏顶部仅保留折叠/关闭工具条。
+
+### 10.2 主题 Token（暗 / 亮）
+
+| Token | Dark | Light | 用途 |
+|---|---|---|---|
+| `--bg` | `#0A0A0A` | `#FFFFFF` | 最底层 / 工作区背景 |
+| `--shell-bg` | `#0E0E0E` | `#F5F5F5` | 外壳（侧栏/顶栏/底栏） |
+| `--surface` | `#161616` | `#F0F0F0` | 卡片 / 输入框 |
+| `--surface-high` | `#1F1F1F` | `#E6E6E6` | 悬浮层 |
+| `--surface-highest` | `#2A2A2A` | `#DADADA` | 弹出层 |
+| `--text` | `#FFFFFF` | `#111111` | 主文本 |
+| `--text-secondary` | `#B5B5B5` | `#555555` | 次要文本 |
+| `--text-muted` | `#8A8A8A` | `#777777` | 辅助 / 禁用提示 |
+| `--border` | `#262626` | `#E0E0E0` | 输入框 / 表格发丝线 |
+| `--accent` | `#FFFFFF` | `#111111` | 强调色（主题反转） |
+| `--on-accent` | `#000000` | `#FFFFFF` | 强调色上文字 |
+| `--accent-soft` | `rgba(255,255,255,.1)` | `rgba(17,17,17,.06)` | 选中态淡底 |
+
+### 10.3 语义色（亮度阶梯，状态靠图标 + 亮度表达）
+
+| Token | Dark | Light |
+|---|---|---|
+| `--danger` | `#FFFFFF`（最亮） | `#111111`（最深） |
+| `--success` | `#D4D4D4` | `#3A3A3A` |
+| `--warning` | `#A8A8A8` | `#5E5E5E` |
+| `--info` | `#7A7A7A` | `#7A7A7A` |
+| `*-soft` | 白 0.06–0.14 | 黑 0.06–0.08 |
+
+### 10.4 按钮状态矩阵（Button State Matrix）
+
+| 变体 | Dark normal→hover→active | Light normal→hover→active | Disabled / Focus |
+|---|---|---|---|
+| **Primary**（每页≤1） | 白底黑字 → `#E6E6E6` → `#D4D4D4` | 黑底白字 → `#333` → `#000` | Dark `#2A2A2A`/`#6E6E6E`；Light `#E0E0E0`/`#9A9A9A`；Focus 2px 主题反转 ring + 2px offset |
+| **Secondary** | 边框 `#3A3A3A` 灰字 → 白 8% → 白 14% | 边框 `#C8C8C8` 深灰 → 黑 5% → 黑 10% | 灰字 + 浅边框 |
+| **Ghost** | 灰字 `#B5B5B5` → 白 8% → 白 14% | 灰字 `#555` → 黑 5% → 黑 10% | `#555` / `#AAA` |
+| **Danger** | 白字 + 白边框 50% → 白 14% → 白 20% | 黑字 + 黑边框 40% → 黑 8% → 黑 12% | 同 Ghost 禁用 |
+
+### 10.5 外壳与工作区（阴影分隔，无描边）
+
+- 暗色：shell `#0E0E0E`（略亮）/ canvas `#0A0A0A`（略暗）；`--shell-shadow`（右 10px）与 `--shell-shadow-bottom`（底 4px）。
+- 浅色：shell `#F5F5F5` / canvas `#FFFFFF`；`--shell-shadow` `rgba(0,0,0,.26)`、bottom `rgba(0,0,0,.18)`。
+- 侧栏区块间仅留白（`px-3` + `pb-3`）；顶栏/侧栏/底栏无 `border-b/t/r`。
+
+### 10.6 光流丝绸背景（silk light flow）
+
+- `.silk-aurora` 三条斜向线性光带（100° / 80° / 95°），暗色峰值 `rgba(255,255,255,.13–.16)`、浅色黑墨 `rgba(0,0,0,.11–.14)`，`blur(30px)`，22s / 28s / 34s 缓慢漂移动画（`light-flow-a/b/c`）。
+- 静态丝绸纹理仅保留双向斜纹 + 微噪点（无径向高光）。
+- 毛玻璃表面（shell / canvas / card）保持 backdrop-filter 磨砂透出光流。
+
+### 10.7 强调色系统
+
+- 唯一「墨色」预设（暗 = 纯白、亮 = 墨黑）；运行时不再用 JS 覆盖 `--accent`（删除彩色预设，`accents.ts` 仅保留 mono）。
+- 设置页强调色卡片改为静态墨色展示。

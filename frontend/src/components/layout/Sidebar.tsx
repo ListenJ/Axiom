@@ -301,7 +301,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[var(--shell-border)]
+        fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-[var(--shell-shadow)]
         shell-surface
         transform transition-[width,transform] duration-300 ease-out
         lg:static lg:translate-x-0
@@ -310,26 +310,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       `}
       aria-label="主导航"
     >
-      {/* 段 1：LOGO（全站只出现一次） */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--shell-border)] px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <svg className="h-8 w-8 shrink-0" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="url(#logo-gradient)" />
-            <path d="M16 8c-4.4 0-8 3.1-8 7s3.6 7 8 7c2 0 3.8-.7 5.2-1.8l-2.2-2.2c-.8.6-1.9 1-3 1-2.2 0-4-1.6-4-3.6s1.8-3.6 4-3.6 4 1.6 4 3.6v.7h-3.5l4.2 4.2C24.2 18.5 24 13.5 24 15c0-3.9-3.6-7-8-7z" fill="white" />
-            <defs>
-              <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop stopColor="var(--accent)" />
-                <stop offset="1" stopColor="var(--accent-strong)" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <div className={`flex min-w-0 flex-col leading-tight ${collapsed ? 'lg:hidden' : ''}`}>
-            <span className="truncate font-display text-sm font-semibold tracking-tight text-[var(--text)]">
-              Axiom
-            </span>
-            <span className="text-2xs text-[var(--text-muted)]">智能工作台</span>
-          </div>
-        </div>
+      {/* 顶部工具条：品牌收敛到顶栏（单 Logo），此处仅保留折叠/关闭；无分割线 */}
+      <div className="flex h-14 shrink-0 items-center justify-end gap-1 px-3">
         <div className="flex items-center">
           <button
             type="button"
@@ -352,11 +334,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* 新建对话 */}
-      <div className="shrink-0 border-b border-[var(--shell-border)] p-2">
+      <div className="shrink-0 px-3 pb-3 pt-1">
         <button
           type="button"
           onClick={startNewChat}
-          className="btn-shimmer press flex w-full items-center justify-center gap-2 rounded-lg bg-[image:var(--accent-gradient)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
           aria-label="开启新对话"
         >
           <Plus size={16} />
@@ -365,7 +347,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* 段 2：Git 仓库状态 */}
-      <div className={`shrink-0 border-b border-[var(--shell-border)] ${collapsed ? 'lg:hidden' : ''}`}>
+      <div className={`shrink-0 px-3 pb-3 ${collapsed ? 'lg:hidden' : ''}`}>
         <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
           <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
             <GitBranch size={11} className="text-[var(--accent)]" />
@@ -433,7 +415,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </div>
             {/* 最近提交（工作进展摘要，横向滚动） */}
             {recentCommits.length > 0 && (
-              <div className="border-t border-[var(--border)] px-3 py-1.5">
+              <div className="px-3 pb-1.5 pt-2">
                 <div className="text-scroll space-y-1">
                   {recentCommits.map((c) => (
                     <div key={c.hash} className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
@@ -450,7 +432,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* 段 3：MCP · Skill */}
-      <div className={`shrink-0 border-b border-[var(--shell-border)] ${collapsed ? 'lg:hidden' : ''}`}>
+      <div className={`shrink-0 px-3 pb-3 ${collapsed ? 'lg:hidden' : ''}`}>
         <div className="flex items-center gap-1.5 px-3 pb-1 pt-2.5">
           <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
             <Puzzle size={11} className="text-[var(--accent)]" />
@@ -559,7 +541,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* 账号栏：设置 / 头像+用户名+在线状态 / 快捷键 */}
-      <div className="shrink-0 border-t border-[var(--shell-border)] p-2">
+      <div className="shrink-0 p-2">
         <div className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ${collapsed ? 'lg:flex-col lg:gap-2 lg:px-0' : ''}`}>
           <button
             type="button"
@@ -575,7 +557,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </button>
             <div className={`flex min-w-0 flex-1 items-center gap-2.5 ${collapsed ? 'lg:hidden' : ''}`}>
             <span
-              className="avatar-glow flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-active)] text-xs font-bold text-white shadow-[var(--shadow-sm)]"
+              className="avatar-glow flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]"
               aria-hidden="true"
             >
               本

@@ -14,7 +14,6 @@ import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
 import DebugPanelsSection from '@/components/settings/DebugPanelsSection'
 import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
-import { ACCENT_PRESETS, type AccentId } from '@/lib/accents'
 
 /* ───────── 搜索引擎可用状态（抓取分区） ───────── */
 
@@ -51,8 +50,6 @@ function themeLabel(t: 'system' | 'dark' | 'light'): string {
 }
 
 function AccentPicker({ highlight }: { highlight: boolean }) {
-  const accent = useApp((s) => s.accent)
-  const setAccent = useApp((s) => s.setAccent)
   return (
     <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
       <div className="flex flex-wrap items-center gap-4">
@@ -62,30 +59,14 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
         <div className="min-w-[10rem] flex-1 sm:min-w-0">
           <h3 className="text-sm font-medium text-[var(--text)]">强调色</h3>
           <p className="text-xs text-[var(--text-secondary)]">
-            当前：{ACCENT_PRESETS[accent].label}；选择后立即生效并持久化（深色/浅色各自适配）。
+            墨色：随主题自动切换（暗色为纯白、浅色为墨黑），与整体黑白风格统一。
           </p>
         </div>
-        <div role="radiogroup" aria-label="强调色" className="flex flex-wrap items-center justify-end gap-2">
-          {(Object.keys(ACCENT_PRESETS) as AccentId[]).map((id) => {
-            const preset = ACCENT_PRESETS[id]
-            const active = accent === id
-            return (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                aria-label={preset.label}
-                title={preset.label}
-                onClick={() => setAccent(id)}
-                className={`press size-7 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
-                  active ? 'ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--bg)]' : ''
-                }`}
-                style={{ background: preset.dark.accent }}
-              />
-            )
-          })}
-        </div>
+        <div
+          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] shadow-[var(--shadow-sm)] ring-1 ring-[var(--border-strong)] ring-offset-2 ring-offset-[var(--bg)]"
+          aria-label="墨色强调色"
+          title="墨色（随主题自动黑/白）"
+        />
       </div>
     </ShimmerCard>
   )

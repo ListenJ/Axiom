@@ -58,12 +58,8 @@ export function resolveTheme(theme: Theme): 'dark' | 'light' {
 }
 
 function readInitialAccent(): AccentId {
-  if (typeof localStorage === 'undefined') return 'amber'
-  const stored = localStorage.getItem(ACCENT_KEY)
-  if (stored === 'sky' || stored === 'violet' || stored === 'emerald' || stored === 'rose' || stored === 'indigo') {
-    return stored
-  }
-  return 'amber'
+  // AXIS Monochrome：唯一墨色预设；旧彩色持久化值不再生效。
+  return 'mono'
 }
 
 function readInitialSidebarCollapsed(): boolean {

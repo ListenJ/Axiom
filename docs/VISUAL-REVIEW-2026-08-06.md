@@ -204,3 +204,29 @@
 - 截图：`vision-review/g1–g8-*.png`（毛玻璃迭代）、`bf-test.png`
 - 逐页原文：`vision-review/reviews-glass/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第五轮：AXIS Monochrome 黑白重构 + 视觉审批（2026-08-07）
+
+> 用户约束：朴素黑白 / 无渐变 / 侧栏无分割线（留白分隔）/ 外壳与工作区阴影分隔 / 顶栏单小 Logo / 光流丝绸背景（小色差）。依据 frontend-design、brand-guidelines、web-design-guidelines、grill-me skills 确定色系后落地。
+
+## 二十、定稿色系（详见 frontend/docs/FRONTEND-DESIGN.md 第 10 章）
+
+- 暗色：bg #0A0A0A / shell #0E0E0E / surface 灰阶 / 文字白系 / accent 纯白；浅色：bg #FFFFFF / shell #F5F5F5 / accent 墨黑。
+- 语义色改黑白亮度阶梯；按钮 Primary/Secondary/Ghost/Danger × normal/hover/active/disabled/focus 全矩阵已定。
+- 侧栏去全部 border-b/t/r，区块用 px-3+pb-3 留白；外壳/工作区分隔只用 `--shell-shadow` 投影。
+- 顶栏品牌 24px 单 Logo（侧栏 LOGO 块删除）；`accents.ts` 唯一墨色预设，修复运行时 `--accent` 被琥珀覆盖的根因（此前的黑白化不生效即由此导致）。
+- 光流：三条斜向线性光带（暗 rgba(255,255,255,.13–.16) / 浅 rgba(0,0,0,.11–.14)，blur 30px，22/28/34s 漂移），删除静态径向高光。
+
+## 二十一、审批结果
+
+- SenseNova：dark-chat 8 / light-chat 7 / dark-tokens 7 / settings 6–6.5（设置页低分含静态截图对动态光流的误读与白/蓝误判）。
+- 客观验证：按钮纯白 rgb(255,255,255)、`--accent:#ffffff`（琥珀覆盖已消除）、光流带可见（侧栏亮度方差 sd≈27）。
+- U1 Fast（sensenova-u1-fast）实测可用：仅图像生成、无图像输入，**不能做视觉审批**；与 6.7-flash-lite 组成「U1 生成 → flash-lite 审核」流水线。
+
+## 二十二、本轮截图与审核原文
+
+- 截图：`vision-review/x1–x3-*.png`（黑白迭代）、`w1-*.png`（黑白首版）
+- 逐页原文：`vision-review/reviews-monochrome/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
