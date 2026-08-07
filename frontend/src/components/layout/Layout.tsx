@@ -42,6 +42,8 @@ export default function Layout() {
       <div className="silk-sheen" aria-hidden="true" />
       <div className="silk-ribs" aria-hidden="true" />
       <div className="silk-fluid" aria-hidden="true" />
+      <div className="silk-fluid-extra" aria-hidden="true" />
+      <div className="silk-swirl" aria-hidden="true" />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

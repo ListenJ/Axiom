@@ -328,3 +328,27 @@
 - 逐页原文：`vision-review/reviews-q1/`、`reviews-q2/*.md`
 - 审计参考：`vision-review/web-guidelines.md`（Vercel Web Interface Guidelines）
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十轮：流体动态增强（2026-08-07）
+
+> 用户要求：流体中添加更多动态效果。
+
+## 三十五、实现
+
+- `fluid-a/b` 升级为 4 段形变（0/33/66/100）+ opacity 呼吸脉动。
+- 新增 `.silk-fluid-extra`：强调色光斑（accent 16%）+ 亮斑（accent 12%），22–26s 多段形变。
+- 新增 `.silk-swirl`：90vw conic 光环缓慢旋转（80s），流体涡流动态，跟随 Agent 颜色。
+- reduced-motion 暂停规则覆盖全部新层。
+
+## 三十六、审批与验证
+
+- SenseNova：暗色 / 浅色 chat 均 **8/10**（背景层次更丰富、黑白纯净、可读性良好）。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 三十七、本轮截图与审核原文
+
+- 截图：`vision-review/r1-*.png`
+- 逐页原文：`vision-review/reviews-r1/*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

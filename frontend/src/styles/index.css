@@ -739,14 +739,85 @@ a:focus-visible,
   animation: fluid-b 36s var(--ease-in-out) infinite alternate;
 }
 @keyframes fluid-a {
-  0% { transform: translate(0, 0) scale(1); border-radius: 42% 58% 55% 45% / 45% 42% 58% 55%; }
-  50% { transform: translate(6vw, 4vh) scale(1.18); border-radius: 58% 42% 45% 55% / 55% 58% 42% 45%; }
-  100% { transform: translate(2vw, 8vh) scale(0.94); border-radius: 48% 52% 60% 40% / 52% 46% 54% 48%; }
+  0%   { transform: translate(0, 0) scale(1); border-radius: 42% 58% 55% 45% / 45% 42% 58% 55%; opacity: 0.7; }
+  33%  { transform: translate(4vw, 3vh) scale(1.12); border-radius: 55% 45% 42% 58% / 52% 55% 45% 48%; opacity: 1; }
+  66%  { transform: translate(-3vw, 6vh) scale(1.2); border-radius: 45% 55% 60% 40% / 55% 42% 58% 45%; opacity: 0.85; }
+  100% { transform: translate(2vw, 8vh) scale(0.94); border-radius: 48% 52% 60% 40% / 52% 46% 54% 48%; opacity: 0.7; }
 }
 @keyframes fluid-b {
-  0% { transform: translate(0, 0) scale(1); border-radius: 55% 45% 40% 60% / 48% 55% 45% 52%; }
-  50% { transform: translate(-5vw, 3vh) scale(1.12); border-radius: 45% 55% 58% 42% / 55% 45% 58% 42%; }
-  100% { transform: translate(-2vw, -5vh) scale(0.96); border-radius: 52% 48% 42% 58% / 45% 55% 48% 52%; }
+  0%   { transform: translate(0, 0) scale(1); border-radius: 55% 45% 40% 60% / 48% 55% 45% 52%; opacity: 0.65; }
+  33%  { transform: translate(-4vw, 2vh) scale(1.14); border-radius: 45% 55% 58% 42% / 55% 45% 58% 42%; opacity: 0.95; }
+  66%  { transform: translate(2vw, -4vh) scale(1.08); border-radius: 58% 42% 45% 55% / 42% 58% 44% 56%; opacity: 0.8; }
+  100% { transform: translate(-2vw, -5vh) scale(0.96); border-radius: 52% 48% 42% 58% / 45% 55% 48% 52%; opacity: 0.65; }
+}
+
+/* 流体扩展层：强调色光斑 + 亮斑（更多动态层次） */
+.silk-fluid-extra {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.silk-fluid-extra::before,
+.silk-fluid-extra::after {
+  content: '';
+  position: absolute;
+  filter: blur(56px);
+  will-change: transform, border-radius;
+}
+.silk-fluid-extra::before {
+  width: 30vw;
+  height: 30vw;
+  left: 38vw;
+  top: 52vh;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 62%);
+  animation: fluid-c 26s var(--ease-in-out) infinite alternate;
+}
+.silk-fluid-extra::after {
+  width: 18vw;
+  height: 18vw;
+  right: 30vw;
+  bottom: 28vh;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%);
+  animation: fluid-d 22s var(--ease-in-out) infinite alternate;
+}
+@keyframes fluid-c {
+  0%   { transform: translate(0, 0) scale(1); border-radius: 48% 52% 55% 45% / 55% 45% 52% 48%; opacity: 0.6; }
+  40%  { transform: translate(3vw, -4vh) scale(1.18); border-radius: 40% 60% 45% 55% / 48% 52% 58% 42%; opacity: 0.95; }
+  70%  { transform: translate(-4vw, 2vh) scale(1.1); border-radius: 58% 42% 55% 45% / 42% 58% 45% 55%; opacity: 0.8; }
+  100% { transform: translate(1vw, 4vh) scale(0.95); border-radius: 52% 48% 42% 58% / 55% 45% 52% 48%; opacity: 0.6; }
+}
+@keyframes fluid-d {
+  0%   { transform: translate(0, 0) scale(1); border-radius: 55% 45% 42% 58% / 45% 55% 48% 52%; opacity: 0.5; }
+  50%  { transform: translate(-3vw, -3vh) scale(1.25); border-radius: 42% 58% 55% 45% / 55% 42% 58% 45%; opacity: 1; }
+  100% { transform: translate(3vw, 2vh) scale(0.9); border-radius: 58% 42% 48% 52% / 42% 58% 45% 55%; opacity: 0.5; }
+}
+
+/* 流体漩涡：大尺度 conic 光环缓慢旋转，营造涡流动态 */
+.silk-swirl {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.silk-swirl::before {
+  content: '';
+  position: absolute;
+  width: 90vw;
+  height: 90vw;
+  left: 5vw;
+  top: 5vh;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 42%, color-mix(in srgb, var(--accent) 9%, transparent) 48%, transparent 56%, transparent 100%);
+  filter: blur(64px);
+  animation: swirl-rotate 80s linear infinite;
+  will-change: transform;
+}
+@keyframes swirl-rotate {
+  from { transform: rotate(0deg) scale(1); }
+  to { transform: rotate(360deg) scale(1.08); }
 }
 
 /* 性能与无障碍：减少动态时暂停光流动画（GPU 友好 + prefers-reduced-motion） */
@@ -758,7 +829,10 @@ a:focus-visible,
   .silk-sheen::before,
   .silk-ribs::before,
   .silk-fluid::before,
-  .silk-fluid::after {
+  .silk-fluid::after,
+  .silk-fluid-extra::before,
+  .silk-fluid-extra::after,
+  .silk-swirl::before {
     animation: none !important;
   }
 }

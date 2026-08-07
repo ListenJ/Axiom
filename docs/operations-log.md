@@ -26,6 +26,18 @@
 
 ---
 
+---
+
+## 2026-08-07 — 流体动态增强：更多形变/呼吸/新光斑/漩涡层（视觉审批）
+
+- **任务**：按用户要求为丝绸流体背景添加更多动态效果。
+- **工具**：SenseNova（审批）、Node+Playwright（像素采样、截图）。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：`fluid-a/b` 关键帧升级为 4 段形变（0/33/66/100）+ opacity 呼吸脉动；新增 `.silk-fluid-extra`（强调色光斑 16% accent + 亮斑 12%，fluid-c 26s / fluid-d 22s 多段形变）；新增 `.silk-swirl`（90vw conic 光环，blur 64px，80s 旋转，跟随 accent）；reduced-motion 暂停规则覆盖全部新增层。
+  - `frontend/src/components/layout/Layout.tsx`：挂载 `.silk-fluid-extra` / `.silk-swirl` 背景层。
+- **验证**：前端 tsc ✅、vitest 278/278 ✅；像素正常（层次更丰富，黑白纯净）；SenseNova 审批暗色/浅色 chat 均 8/10（背景层次更丰富、可读性良好）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 全站精细化打磨：动态背景/层级配色/丝绸性能/一致性审计
 
 - **任务**：四项要求——①背景随所选颜色方案实时变化 ②不同层级页面专属颜色选择 ③丝绸流体动态效果完成与性能优化 ④全站细节一致性检查与优化。
