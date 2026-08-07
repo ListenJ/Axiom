@@ -352,3 +352,28 @@
 - 截图：`vision-review/r1-*.png`
 - 逐页原文：`vision-review/reviews-r1/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十一轮：背景动态性能体检与优化（2026-08-07）
+
+## 三十八、体检结果（Playwright + CDP 实测）
+
+- 主线程 CPU：动画开启 ≈0.0%（transform/opacity 全部走合成器/GPU）；JS 堆 ≈4.9MB。
+- 真实成本在 GPU/VRAM：约 11 个丝绸合成层 + 8 个 backdrop-filter 模糊采样。
+
+## 三十九、优化
+
+- 「动效强度」off/reduced 同步到 `data-motion`，闸门覆盖容器与 `::before/::after`：`animation:none` + `will-change:auto`（回收全部丝绸合成层）。
+- blur 降档：光带 26→18、扫光 20→14、流体 56→40、漩涡 64→48、玻璃 22/20/16/24 → 18/16/12/20。
+
+## 四十、复测
+
+- no-preference：system 15 个运行动画 vs off 仅 3 个核心过渡；CPU 两态 0.0%、堆 4.3–4.9MB。
+- `prefers-reduced-motion: reduce`：0 个动画。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 四十一、本轮截图与审核原文
+
+- 截图：`vision-review/perf1-*.png`、`perf-probe.cjs`（性能探针）
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

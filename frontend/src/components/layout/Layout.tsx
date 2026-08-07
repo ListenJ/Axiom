@@ -25,7 +25,12 @@ export default function Layout() {
   useTheme()
   const reduceMotion = useReducedMotion()
   const location = useLocation()
-  const { enabled: pageMotionEnabled } = useMotion()
+  const { level: motionLevel, enabled: pageMotionEnabled } = useMotion()
+
+  // 动效强度同步到根节点：off/reduced 时停掉丝绸背景动画（回收合成层，省 VRAM/GPU）
+  useEffect(() => {
+    document.documentElement.dataset.motion = motionLevel
+  }, [motionLevel])
 
   // HITL 审批：订阅 /ws 的 approval.requested 事件，卸载时断开
   useEffect(() => {

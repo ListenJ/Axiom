@@ -28,6 +28,20 @@
 
 ---
 
+---
+
+## 2026-08-07 — 背景动态性能体检与优化（CPU/内存/VRAM 审计）
+
+- **任务**：确认背景动态效果是否过度占用 CPU / 内存 / VRAM，并针对性优化。
+- **工具**：Playwright + CDP `Performance.getMetrics` 性能探针（CPU TaskDuration、JS heap、合成层统计）、动效偏好接线。
+- **体检结果（客观指标）**：动画开启时主线程 CPU≈0.0%（动画全部在合成器/GPU 上跑 transform/opacity）、JS 堆≈4.9MB（可忽略）；真实开销在 GPU/VRAM——约 11 个丝绸合成层 + 8 个 backdrop-filter 模糊采样。
+- **优化（文件级）**：
+  - `frontend/src/components/layout/Layout.tsx`：把应用的「动效强度」（system/reduced/off）同步到根节点 `data-motion`。
+  - `frontend/src/styles/index.css`：新增 `[data-motion='off']/[data-motion='reduced']` 闸门——覆盖容器与 `::before/::after` 伪元素，`animation: none !important` + `will-change: auto !important`（彻底回收丝绸合成层）；blur 降档——光带 26→18、扫光 20→14、流体 56→40、漩涡 64→48、玻璃 shell 22→18 / shell-raised 20→16 / canvas+card 16→12 / glass-lg 24→20。
+- **验证**：复测（no-preference 下 system vs off）：system 15 个运行动画 vs off 仅 3 个核心过渡（丝绸全部停止、will-change 释放）；CPU 两态均 0.0%、堆 4.3–4.9MB；`prefers-reduced-motion: reduce` 时 0 个动画。前端 tsc ✅、vitest 278/278 ✅。
+- **结论**：CPU 与内存开销本就极低；VRAM/GPU 通过「动效强度关闭」可完全回收 + blur 降档已减负。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 流体动态增强：更多形变/呼吸/新光斑/漩涡层（视觉审批）
 
 - **任务**：按用户要求为丝绸流体背景添加更多动态效果。
