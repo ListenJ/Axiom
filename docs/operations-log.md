@@ -31,7 +31,7 @@
   - `frontend/src/lib/accents.ts`：删除 6 个彩色预设，唯一「墨色」（暗=白、亮=黑，gradient=纯色）；`frontend/src/state/useApp.ts`：accent 默认 mono（兼容旧持久化）；`frontend/src/pages/Settings.tsx`：强调色卡片改静态墨色展示。
   - `frontend/docs/FRONTEND-DESIGN.md`：新增「第 10 章 AXIS Monochrome 黑白设计系统」（token / 按钮状态矩阵 / shell-work 阴影分隔 / 光流 / 强调色）。
 - **验证**：前端 tsc ✅、vitest 278/278 ✅、responsive 25/25 ✅；像素采样确认按钮纯白 rgb(255,255,255)、运行时琥珀覆盖已消除（`--accent:#ffffff`，此前被 ACCENT_PRESETS 默认琥珀覆盖导致黑白化不生效）、光流带可见（侧栏亮度方差 sd≈27）；SenseNova 审批 dark-chat 8 / light-chat 7 / tokens 7 / settings 6（设置页低分含静态截图对动态光流的误读与白/蓝误判）。U1 Fast 生成接口实测可用（仅生成、不支持图像输入，不能做视觉审批；与 6.7-flash-lite 组成「U1 生成 → flash-lite 审核」流水线）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`5bfa929`（推送 internal211/master）
 
 ## 2026-08-07 — 全站高斯模糊毛玻璃材质修复 + SenseNova 视觉审批
 
