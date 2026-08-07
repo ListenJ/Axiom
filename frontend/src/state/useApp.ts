@@ -58,7 +58,11 @@ export function resolveTheme(theme: Theme): 'dark' | 'light' {
 }
 
 function readInitialAccent(): AccentId {
-  // AXIS Monochrome：唯一墨色预设；旧彩色持久化值不再生效。
+  if (typeof localStorage === 'undefined') return 'mono'
+  const stored = localStorage.getItem(ACCENT_KEY)
+  if (stored === 'mono' || stored === 'azure' || stored === 'amber' || stored === 'emerald' || stored === 'violet') {
+    return stored
+  }
   return 'mono'
 }
 

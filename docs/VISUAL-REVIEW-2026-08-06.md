@@ -280,3 +280,28 @@
 - 截图：`vision-review/z1-*.png`（参考图 ref-clipboard.png）
 - 逐页原文：`vision-review/reviews-chrome/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第八轮：Axiom Logo 归位侧栏 + Agent 颜色设置 + 丝绸条纹变体 + 原型图（2026-08-07）
+
+> 三张参考图经 SenseNova 解析（Settings 外观页样式 / 主题预览 / 官网条纹丝绸效果）后落地。
+
+## 二十九、实现
+
+- **Logo 归位**：侧栏顶部「AX 标记（24px）+ Axiom 文字」，顶栏品牌仅移动端显示（桌面无双 Logo）。
+- **Agent 颜色**：设置页「外观」新增 Agent 颜色卡片——5 预设色块（墨色默认 / 云蓝 #339CFF / 琥珀 / 翡翠 / 紫罗兰）+ 当前 label + hex 显示；选择即时生效并持久化（重新引入 `accents.ts` 多预设，默认仍为黑白墨色）。
+- **丝绸条纹变体**：肋纹细密化（96°/82°，16/28px 周期）+ 加粗 + 120s 缓慢旋转 + 扫光 20s；浅色画布/外壳玻璃透明化让条纹双主题可见。
+- **原型图**：`frontend/docs/prototype.html` 自包含设计稿（深/浅切换、侧栏 Logo、光流丝绸、Agent 颜色色板），浏览器直接打开评审。
+
+## 三十、审批与验证
+
+- SenseNova：**dark-settings 9 / light-settings 8 / light-chat 7**——Logo 归位、Agent 颜色、丝绸变体、双主题全部达标；设置页「未发现明显问题」；浅色丝绸经玻璃透明化后 light-chat 3→7。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 三十一、本轮截图与审核原文
+
+- 截图：`vision-review/p1–p3-*.png`（参考图 ref2-a/b/c.png）
+- 逐页原文：`vision-review/reviews-p1/*.md`
+- 原型图：`frontend/docs/prototype.html`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

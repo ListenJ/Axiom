@@ -22,6 +22,20 @@
 
 ---
 
+---
+
+## 2026-08-07 — Axiom Logo 归位侧栏 + Agent 颜色设置 + 丝绸条纹变体 + 原型图（视觉审批）
+
+- **任务**：按用户要求与三张参考图：①Axiom Logo 移到左侧边栏顶部 ②暗/浅双主题继续优化 ③设置页新增「Agent 颜色」选项 ④设计原型图并完成前端 ⑤丝绸材质做官网条纹变体。
+- **工具**：SenseNova（6.7-flash-lite 解析三张参考图 + 审批）、design-system / frontend-design skills、Node+Playwright（截图）。
+- **操作（文件级）**：
+  - `frontend/src/components/layout/Sidebar.tsx`：顶部工具条改为「AX 标记（24px）+ Axiom 文字」Logo（点击回对话），右侧保留折叠/关闭；`Header.tsx`：品牌按钮改 `lg:hidden`（桌面由侧栏 Logo 承担，避免双 Logo）。
+  - `frontend/src/lib/accents.ts`：恢复多预设（默认「墨色」mono + 云蓝 azure #339cff / 琥珀 amber / 翡翠 emerald / 紫罗兰 violet，含 swatch 与暗/亮两套 AccentVars）；`state/useApp.ts`：readInitialAccent 兼容新 id、默认 mono；`pages/Settings.tsx`：「强调色」卡片改「Agent 颜色」——5 色块 radiogroup + 当前 label + hex 显示（resolveTheme）。
+  - `frontend/src/styles/index.css`：丝绸条纹变体——肋纹更细密（96°/82°，16px/28px 周期）+ 加粗（暗 0.28/0.12、浅 0.3/0.12，blur 4px）+ ribs-rotate 120s 缓慢旋转 + sheen 20s；浅色画布/外壳玻璃透明化（canvas rgba(255,255,255,.58)、shell rgba(240,242,245,.62)）以让浅色条纹透出。
+  - `frontend/docs/prototype.html`：新增自包含原型图（深/浅切换、侧栏 Logo、光流丝绸背景、Agent 颜色色板 + hex），浏览器直接打开评审。
+- **验证**：前端 tsc ✅、vitest 278/278 ✅；SenseNova 审批：dark-settings 9 / light-settings 8 / light-chat 7（Logo 归位、Agent 颜色、丝绸变体、双主题全部达标；浅色丝绸经玻璃透明化后 3→7）；设置页「未发现明显问题」。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 壳/工作区色差 + 右栏一体 + 光效覆盖（参考图驱动，视觉审批）
 
 - **任务**：按用户反馈与参考图（浅灰 chrome + 白色工作区 + 右栏一体）优化：①背景光效覆盖不全面 ②侧栏与工作区颜色无差别 ③右栏应与工作区一体。

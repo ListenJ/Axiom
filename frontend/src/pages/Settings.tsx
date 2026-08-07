@@ -5,7 +5,8 @@ import {
   Wrench, KeyRound, CheckCircle2, Palette, Monitor,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
-import { useApp } from '@/state/useApp'
+import { useApp, resolveTheme } from '@/state/useApp'
+import { ACCENT_PRESETS, type AccentId } from '@/lib/accents'
 import { useChatPrefs, type ChatPrefs } from '@/state/useChatPrefs'
 import { api, endpoints } from '@/lib/api'
 import SettingsSearch from '@/components/settings/SettingsSearch'
@@ -50,6 +51,11 @@ function themeLabel(t: 'system' | 'dark' | 'light'): string {
 }
 
 function AccentPicker({ highlight }: { highlight: boolean }) {
+  const accent = useApp((s) => s.accent)
+  const setAccent = useApp((s) => s.setAccent)
+  const theme = useApp((s) => s.theme)
+  const resolved = resolveTheme(theme)
+  const currentHex = ACCENT_PRESETS[accent][resolved].accent
   return (
     <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
       <div className="flex flex-wrap items-center gap-4">
@@ -57,16 +63,35 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
           <Palette className="size-5" />
         </div>
         <div className="min-w-[10rem] flex-1 sm:min-w-0">
-          <h3 className="text-sm font-medium text-[var(--text)]">强调色</h3>
+          <h3 className="text-sm font-medium text-[var(--text)]">Agent 颜色</h3>
           <p className="text-xs text-[var(--text-secondary)]">
-            墨色：随主题自动切换（暗色为纯白、浅色为墨黑），与整体黑白风格统一。
+            自定义 Agent 的强调色；「墨色」随主题自动黑白，其余预设立即生效并持久化。
+          </p>
+          <p className="mt-0.5 font-mono text-xs text-[var(--accent)]">
+            {ACCENT_PRESETS[accent].label} · {currentHex}
           </p>
         </div>
-        <div
-          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] shadow-[var(--shadow-sm)] ring-1 ring-[var(--border-strong)] ring-offset-2 ring-offset-[var(--bg)]"
-          aria-label="墨色强调色"
-          title="墨色（随主题自动黑/白）"
-        />
+        <div role="radiogroup" aria-label="Agent 颜色" className="flex flex-wrap items-center justify-end gap-2">
+          {(Object.keys(ACCENT_PRESETS) as AccentId[]).map((id) => {
+            const preset = ACCENT_PRESETS[id]
+            const active = accent === id
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={preset.label}
+                title={`${preset.label}（${id === 'mono' ? '随主题' : preset.swatch}）`}
+                onClick={() => setAccent(id)}
+                className={`press size-7 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                  active ? 'ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--bg)]' : ''
+                }`}
+                style={{ background: id === 'mono' ? 'var(--accent)' : preset.swatch }}
+              />
+            )
+          })}
+        </div>
       </div>
     </ShimmerCard>
   )

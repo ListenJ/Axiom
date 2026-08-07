@@ -107,10 +107,11 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
         icon={<Menu size={20} />}
       />
 
+      {/* 桌面端品牌归位侧栏顶部；顶栏仅在移动端保留品牌（避免双 Logo） */}
       <button
         type="button"
         onClick={() => navigate('/chat')}
-        className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+        className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none lg:hidden"
         aria-label="返回对话"
       >
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">

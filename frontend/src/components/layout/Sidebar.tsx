@@ -310,8 +310,22 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       `}
       aria-label="主导航"
     >
-      {/* 顶部工具条：品牌收敛到顶栏（单 Logo），此处仅保留折叠/关闭；无分割线 */}
-      <div className="flex h-14 shrink-0 items-center justify-end gap-1 px-3">
+      {/* 顶部：Axiom Logo（单 Logo，归位侧栏顶部）+ 折叠/关闭 */}
+      <div className="flex h-14 shrink-0 items-center justify-between gap-1 px-3">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="press flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+          aria-label="返回对话"
+          title="Axiom"
+        >
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
+            AX
+          </div>
+          <span className={`truncate font-display text-sm font-semibold tracking-tight text-[var(--text)] ${collapsed ? 'lg:hidden' : ''}`}>
+            Axiom
+          </span>
+        </button>
         <div className="flex items-center">
           <button
             type="button"
