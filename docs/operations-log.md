@@ -48,7 +48,7 @@
   - `frontend/src/components/rightbar/panels.tsx`：系统统计格去掉 `bg-[var(--bg-tertiary)]`（纯文字浮于玻璃背景）。
   - `frontend/src/styles/index.css`：新增 `.text-shadow-readable`（暗：0 1px 3px rgba(0,0,0,.65)+20px 光晕；浅：白 0.6）+ 全局 `::placeholder` 文字阴影（暗/浅）。
 - **验证**：SenseNova 终审**暗色 8 / 亮色 8**（输入框无边框无背景✅、顶部无直角框✅、标题柔和阴影✅、统计格/功能卡透明✅、通透空灵✅）；tsc ✅、vitest 278/278 ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`30b254a`（推送 internal211/master）
 
 ## 2026-08-07 — No-Block Glass：去黑色实心块/直接背景 + 高模糊工作区 + 输入框图标发送 + 顶栏收缩（U1-fast 图稿）
 
