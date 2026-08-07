@@ -311,7 +311,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       aria-label="主导航"
     >
       {/* 顶部：Axiom Logo（单 Logo，归位侧栏顶部）+ 折叠/关闭 */}
-      <div className="flex h-14 shrink-0 items-center justify-between gap-1 px-3">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
         <button
           type="button"
           onClick={startNewChat}
@@ -352,7 +352,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={startNewChat}
-          className="press flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="press flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
           aria-label="开启新对话"
         >
           <Plus size={16} />

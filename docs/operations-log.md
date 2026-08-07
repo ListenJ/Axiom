@@ -34,6 +34,22 @@
 
 ---
 
+---
+
+## 2026-08-07 — No-Block Glass：去黑色实心块/直接背景 + 高模糊工作区 + 输入框图标发送 + 顶栏收缩（U1-fast 图稿）
+
+- **任务**：①直接去掉工作区黑色实心块、直接用背景完成，工作区背景更高模糊 ②亮色缺失，用视觉模型 + U1-fast 生成设计图稿补 spec ③输入框上下拉长（同参考图）、Send 文字取消改图标 ④顶栏垂直收缩让渡空间留白区分 ⑤视觉模型修正前端与 spec。
+- **工具**：SenseNova（解析参考图 + 审核 U1 图稿 + 终审）、**sensenova-u1-fast**（生成亮/暗设计图稿）、design-system/frontend-design skills、Playwright（DOM 验证、截图、黑块探针）。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：暗色表面 token 全部透明化/低透明（bg-secondary .12、bg-tertiary .18、surface .28、high .25、highest .3、canvas-bg-raised transparent）；`.canvas-surface` blur 12→24px、`.canvas-raised` blur 16px；`.card-glass` 背景透明（保留细边框）；浅色表面同步半透明（rgba 白 0.3–0.55）+ 浅色 accent #111→#333（去纯黑块）。
+  - `frontend/src/components/chat/ChatComposer.tsx`：输入框 `h-11→h-14`（圆角 xl、px-4 py-3）；Send/Stop 文字取消 → 40px 圆形图标按钮（aria-label 发送/停止生成）。
+  - `frontend/src/components/layout/Header.tsx` / `Sidebar.tsx`：顶栏与侧栏顶部 `h-14→h-12`；新对话按钮改 `rounded-full` 胶囊。
+  - `frontend/src/lib/accents.ts`：mono.light accent 同步 #333 系。
+  - `frontend/docs/FRONTEND-DESIGN.md`：新增「第 11 章 No-Block Glass 直接背景设计」（原则/Token/审批）。
+  - U1-fast 生成 `vision-review/mockup-light.png` / `mockup-dark.png` 设计图稿，SenseNova 审核（亮色 5/5 达标）。
+- **验证**：黑块探针 chat/tokens 归零（仅设置搜索输入框保留实底）；DOM 验证输入 56px、发送圆角 9999、顶栏 48px、按钮 #333；SenseNova 终审 **亮色 8.5 / 暗色 8**；vitest 278/278 ✅。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 工作区黑色块状样式与背景融合修复（表面 token 半透明化）
 
 - **任务**：按用户反馈处理工作区大量实心黑色块状样式与动态背景不一致的问题。

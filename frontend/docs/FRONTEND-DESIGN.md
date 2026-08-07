@@ -296,3 +296,38 @@ frontend/src/components/
 
 - 唯一「墨色」预设（暗 = 纯白、亮 = 墨黑）；运行时不再用 JS 覆盖 `--accent`（删除彩色预设，`accents.ts` 仅保留 mono）。
 - 设置页强调色卡片改为静态墨色展示。
+
+---
+
+## 11. No-Block Glass — 直接背景设计（2026-08-07 定稿）
+
+> 依据参考图 + `sensenova-u1-fast` 生成亮/暗设计图稿 + SenseNova 审核（`vision-review/mockup-light.png`、`mockup-dark.png`）。
+
+### 11.1 设计原则
+
+- **无卡片实心块**：工作区元素（卡片/容器/统计格）去掉实心色块，直接浮在背景上；背景丝绸光流成为唯一“面”。
+- **工作区高模糊**：画布 `backdrop-filter: blur(24px)`（更高模糊比例），内容在高度磨砂的背景上清晰可读。
+- **输入框加高 + 圆形图标发送**：输入条 `h-14`（单行），发送/停止为 40px 圆形图标按钮（无文字）。
+- **顶栏收缩**：`h-12`（原 h-14），将空间让渡给工作区；侧栏顶部同步 h-12。
+- **亮色去纯黑**：亮色强调色 `#111` → `#333`（深灰，仍 ≥12:1），避免大按钮呈“黑色实心块”；新对话主按钮改胶囊（rounded-full）。
+
+### 11.2 表面 Token（直接背景化）
+
+| Token（暗色） | 值 |
+|---|---|
+| `--bg-secondary` | rgba(17,17,17,.12) |
+| `--bg-tertiary` | rgba(26,26,26,.18) |
+| `--surface` | rgba(22,22,22,.28) |
+| `--surface-high/hover` | rgba(31,31,31,.25) |
+| `--surface-highest/active` | rgba(42,42,42,.3) |
+| `--canvas-bg-raised` | transparent |
+| `.canvas-surface` | blur(24px) |
+| `.canvas-raised` | blur(16px) + 透明底 |
+| `.card-glass` | background: transparent（保留细边框） |
+
+浅色同步半透明（rgba 白 0.3–0.55）。
+
+### 11.3 审批
+
+- U1-fast 图稿审核：亮色 5/5 达标（无卡片块/输入框/圆形发送/薄顶栏/留白）；暗色高质量。
+- 实现终审：**亮色 8.5 / 暗色 8**（SenseNova）；DOM 验证输入 56px、发送圆角 9999、顶栏 48px。

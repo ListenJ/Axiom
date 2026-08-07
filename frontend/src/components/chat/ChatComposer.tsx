@@ -48,26 +48,25 @@ export function ChatComposer({
         placeholder="输入消息…（Enter 发送 · Shift+Enter 换行）"
         aria-label="消息输入框"
         rows={1}
-        className="h-11 min-w-0 flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-ring)]"
+        className="h-14 min-w-0 flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-ring)]"
       />
       {sending ? (
         <Button
           type="button"
           onClick={onStop}
           variant="secondary"
-          aria-label="Stop generating"
+          aria-label="停止生成"
+          className="shrink-0 !size-10 !rounded-full !p-0"
           icon={<Square size={18} />}
-        >
-          <span className="hidden sm:inline">Stop</span>
-        </Button>
+        />
       ) : (
         <Button
           onClick={onSend}
           disabled={disabled}
+          aria-label="发送"
+          className="shrink-0 !size-10 !rounded-full !p-0"
           icon={<Send size={18} />}
-        >
-          <span className="hidden sm:inline">Send</span>
-        </Button>
+        />
       )}
       {/* 模型选择圆环（右下角）+ 思考强度弹窗 */}
       <ModelPicker

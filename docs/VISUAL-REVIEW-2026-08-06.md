@@ -421,3 +421,29 @@
 - 截图：`vision-review/u1–u2-*.png`、`black-block-probe.cjs`
 - 逐页原文：`vision-review/reviews-u1/`、`reviews-u2/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十四轮：No-Block Glass — 直接背景设计 + U1-fast 设计图稿（2026-08-07）
+
+## 四十八、实现
+
+- **去黑色实心块**：暗色表面 token 全透明/低透明（bg-secondary .12、surface .28、canvas-bg-raised transparent），卡片背景透明；工作区直接浮在背景上。
+- **工作区高模糊**：`.canvas-surface` blur 12→24px、`.canvas-raised` 16px。
+- **输入框 + 发送**：输入 `h-14` 加高；Send/Stop 文字 → 40px 圆形图标按钮。
+- **顶栏收缩**：Header/Sidebar 顶部 h-14→h-12；新对话按钮胶囊。
+- **亮色**：accent #111→#333；浅色表面半透明。
+- **U1-fast 图稿**：`vision-review/mockup-light.png` / `mockup-dark.png` 生成并审核（亮色 5/5 达标），写入 spec 第 11 章。
+
+## 四十九、审批与验证
+
+- 黑块探针归零；DOM 验证输入 56px、发送圆角 9999、顶栏 48px、按钮 #333。
+- SenseNova 终审：**亮色 8.5 / 暗色 8**（客观 DOM 与像素为准，单次评审存在误读波动）。
+- 测试：vitest 278/278 ✅。
+
+## 五十、本轮截图与审核原文
+
+- 截图：`vision-review/w3–w5-*.png`、`mockup-light/dark.png`（U1-fast 图稿）
+- 逐页原文：`vision-review/reviews-w3/`、`reviews-w4/`、`reviews-w5/*.md`
+- spec：`frontend/docs/FRONTEND-DESIGN.md` 第 11 章
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

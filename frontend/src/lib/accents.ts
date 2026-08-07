@@ -29,9 +29,9 @@ export const ACCENT_PRESETS: Record<AccentId, { label: string; swatch: string; d
     },
 
     light: {
-      accent: '#111111', accentStrong: '#2a2a2a', accentHover: '#333333', accentActive: '#000000',
-      accentSoft: 'rgba(17, 17, 17, 0.06)', accentRing: 'rgba(17, 17, 17, 0.2)',
-      onAccent: '#ffffff', gradient: '#111111',
+      accent: '#333333', accentStrong: '#4a4a4a', accentHover: '#444444', accentActive: '#1a1a1a',
+      accentSoft: 'rgba(51, 51, 51, 0.08)', accentRing: 'rgba(51, 51, 51, 0.22)',
+      onAccent: '#ffffff', gradient: '#333333',
     },
   },
 
