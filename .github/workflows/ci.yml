@@ -32,6 +32,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build frontend (backend self-hosts public/)
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+          bunx vite build
+          cp -r dist/index.html ../public/index.html
+          rm -rf ../public/assets
+          cp -r dist/assets ../public/assets
+
       - name: Type check (tsc --noEmit)
         run: bun run lint
 
@@ -55,6 +64,8 @@ jobs:
         run: bun run test:e2e
         env:
           NODE_ENV: test
+          AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
+          E2E_SPEC: animation-layout
 
   build:
     name: Build Docker Image

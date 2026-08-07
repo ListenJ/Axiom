@@ -539,3 +539,27 @@
 - 截图：`vision-review/new-*-rightbar.png`、`new-*-composer.png`（本轮重截）
 - 审核原文：`vision-review/reviews-new3-*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十九轮：右栏密度/无边框 + 高锐度字体 + 丝绸衬底 + e2e 入 CI（2026-08-08）
+
+## 六十三、实现
+
+- **内容密度**：摘要子智能体区新增「活跃任务 X · 已完成 Y」真实统计行；来源区展示 5→8 条，按扩展名配图标（代码/文档/JSON/图片），暗色右栏不再“空”。
+- **无边框面板**：Git/文件/浏览器/迷你聊天/终端入口/审阅等右栏面板全部去 border（卡片、行、空态、输入框、气泡、表单）；`Input`/`Textarea` 新增 `variant="glass"`（无边框透明底 + 焦点环）。
+- **字体**：引入 Inter Tight（无衬线高锐度，更紧凑字形）作为 UI/标题首选字体，Inter 兜底；body 保留 antialiased + optimizeLegibility。
+- **右栏材质**：`.overlay-glass` 高斯模糊 28→36px、saturate 1.5；内层新增 `::before` 细密丝绸纹理衬底（暗/亮分别适配），文字在玻璃下更清晰有质感。
+- **e2e 入 CI**：`e2e/` 解除整目录忽略（截图/调试脚本仍忽略）；playwright webServer 改为启动后端（vite dev 无 API 代理，旧配置在 CI 必败）；runner 修 Linux bin 路径 + `E2E_SPEC` 过滤；CI 先构建前端拷入 `public/`，再以固定 token 跑 `animation-layout`。
+
+## 六十四、审批与验证
+
+- 材质探针：`blur(36px) saturate(1.5)`、`::before` 丝绸纹理存在（暗/亮）；Git 面板边框元素 0。
+- **`bun run test:e2e`（E2E_SPEC=animation-layout）4/4 通过**。
+- SenseNova 复审：**亮色摘要 8 / 暗色摘要 7.5 / Git 面板 7–8.5**——丝绸衬底✅、密度与留白平衡✅、无边框统一✅、字体锐利✅；P1/P2 多为“可加细分隔线/图标对比度”等主观偏好（与用户“无分割线”约束冲突，不予采纳），已记录。
+
+## 六十五、本轮截图与审核原文
+
+- 截图：`vision-review/p2-dark-*.png`、`p2-light-*.png`
+- 审核原文：`vision-review/reviews-p2-*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

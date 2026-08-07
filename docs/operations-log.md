@@ -40,6 +40,22 @@
 
 ---
 
+## 2026-08-08 — 右栏内容密度/无边框面板 + 高锐度字体 + 丝绸衬底 + e2e 纳入 CI
+
+- **任务**：①暗色右栏内容“略多于留白”（子智能体加活跃任务/已完成统计、来源展示 8 条并按类型配图标）②右栏 Git/文件/浏览器/迷你聊天等面板统一无边框玻璃风格 ③e2e 真正纳入仓库 CI（此前 e2e/ 被 gitignore、webServer 指向前端 dev 而非后端）④字体换高锐度无衬线（Inter Tight 优先）⑤右栏加强高斯模糊（28→36px）+ 内层丝绸纹理衬底。
+- **工具**：SenseNova（复审）、Playwright（材质/边框探针 + e2e 运行器）、design-taste-frontend / impeccable。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：Google Fonts 引入 `Inter Tight`（400–700），body/标题/.font-display/.type-* 字体栈改为 `'Inter Tight','Inter',…`（更紧凑、更锐利）；`.overlay-glass` blur 28→36px、新增 `::before` 丝绸衬底（细密双向斜纹，暗 0.045/0.04、亮 0.035/0.03，opacity 0.5–0.6），子元素 z-index 上浮。
+  - `frontend/src/components/rightbar/panels.tsx`：摘要子智能体区新增「活跃任务 X · 已完成 Y」统计行；来源展示 5→8 条并按扩展名配图标（FileCode/FileText/FileJson/Image）；GitPanel 文件行/空态、ReviewPanel 结果 pre、TerminalGuidePanel 说明、BrowserPanel 状态/输入/pre、FilesPanel 输入/空态、MiniChatPanel 气泡/输入/表单全部去 border（无边框玻璃）；右栏内输入改用 `border-0 bg-transparent` + 焦点环。
+  - `frontend/src/components/ui/Input.tsx`：`Input`/`Textarea` 新增 `variant?: 'default' | 'glass'`（glass = 无边框透明底 + 焦点环），供玻璃面板内输入复用。
+  - `.gitignore` / `e2e/.gitignore`：取消整目录忽略 `e2e/`，改为仅忽略截图与本地调试脚本；spec/config 入库供 CI 运行。
+  - `playwright.config.mjs`：webServer 改为直接启动后端 `bun run src/main.ts`（url=/health，reuseExistingServer=true，注入 AXIOM_AUTH_TOKEN），替代原先指向前端 vite dev 的配置（vite 无 API 代理，CI 下必然失败）。
+  - `scripts/run-e2e.cjs`：修复 Linux 下 `playwright.exe` 路径（按平台取 bin）；目录缺失时明确报错；支持 `E2E_SPEC` 过滤。
+  - `.github/workflows/ci.yml`：test job 增加「构建前端并拷贝 public/」（后端自托管静态产物）；E2E 步骤注入 `AXIOM_AUTH_TOKEN` + `E2E_SPEC=animation-layout`。
+  - `e2e/animation-layout.spec.ts`：宽度断言改范围（399–401，防亚像素抖动）；token 优先取 `AXIOM_AUTH_TOKEN`。
+- **验证**：tsc ✅ / vite build ✅；材质探针 blur(36px)、丝绸 ::before 存在（暗/亮）；Git 面板边框元素 0；**`bun run test:e2e`（E2E_SPEC=animation-layout）4/4 通过**；SenseNova 复审**亮色摘要 8 / 暗色摘要 7.5 / Git 面板 7–8.5**（丝绸衬底✅、密度✅、无边框✅、字体锐利✅）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏/输入区 P2 打磨（投影分隔、层级、选中态、触控目标）
 
 - **任务**：继续优化——按上一轮视觉审批的 P2 项打磨暗/亮右栏与输入区：投影分隔与顶部高光、分区标题层级、主 CTA 醒目度、发送按钮识别度、权限选中态、附件删除触控目标、输入行距。

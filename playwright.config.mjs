@@ -13,11 +13,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "npm run dev",
-    cwd: "frontend",
-    url: "http://localhost:18789",
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    // 直接启动后端（自托管 public/ 静态产物），本地复用已有实例
+    command: "bun run src/main.ts",
+    cwd: ".",
+    url: "http://127.0.0.1:18789/health",
+    reuseExistingServer: true,
+    timeout: 120_000,
+    env: {
+      AXIOM_AUTH_TOKEN: process.env.AXIOM_AUTH_TOKEN || "your-secure-random-token-at-least-16-chars",
+    },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

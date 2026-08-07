@@ -11,9 +11,12 @@ import {
   ExternalLink,
   FileCode,
   FileEdit,
+  FileJson,
+  FileText,
   GitBranch,
   GitCommitHorizontal,
   Globe,
+  Image as ImageIcon,
   MessageSquare,
   RefreshCw,
   Send,
@@ -170,6 +173,21 @@ export function SummaryPanel() {
     kimiCode: <Cpu className="size-3.5" />,
   }
 
+  /** 按扩展名给来源文件配图标（代码/文档/图片/JSON），提高信息密度与辨识度 */
+  function sourceIcon(name: string): ReactNode {
+    const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')).toLowerCase() : ''
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico'].includes(ext)) {
+      return <ImageIcon className="size-3 shrink-0 text-[var(--text-muted)]" />
+    }
+    if (['.md', '.txt', '.doc', '.docx'].includes(ext)) {
+      return <FileText className="size-3 shrink-0 text-[var(--text-muted)]" />
+    }
+    if (['.json', '.yaml', '.yml', '.toml'].includes(ext)) {
+      return <FileJson className="size-3 shrink-0 text-[var(--text-muted)]" />
+    }
+    return <FileCode className="size-3 shrink-0 text-[var(--text-muted)]" />
+  }
+
   return (
     <div className="space-y-7 p-4 pb-8">
       {error && <ErrorNote message={error} />}
@@ -253,6 +271,12 @@ export function SummaryPanel() {
             <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
               子智能体
             </h2>
+            <div className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
+              <Activity className="size-3" />
+              <span>活跃任务 {stats?.activeTasks ?? 0}</span>
+              <span className="text-[var(--text-disabled)]">·</span>
+              <span>已完成 {stats?.completed ?? 0}</span>
+            </div>
             {!agents || agents.length === 0 ? (
               <p className="text-xs text-[var(--text-secondary)]">暂无子智能体</p>
             ) : (
@@ -295,19 +319,19 @@ export function SummaryPanel() {
               <p className="text-xs text-[var(--text-secondary)]">暂无索引文件</p>
             ) : (
               <ul className="space-y-0.5">
-                {sources.slice(0, 5).map((f) => (
+                {sources.slice(0, 8).map((f) => (
                   <li
                     key={f}
                     title={f}
                     className="flex items-center gap-2 rounded-lg px-2 py-1 font-mono text-2xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)]"
                   >
-                    <FileCode className="size-3 shrink-0 text-[var(--text-muted)]" />
+                    {sourceIcon(f)}
                     <span className="truncate">{f}</span>
                   </li>
                 ))}
               </ul>
             )}
-            {sources.length > 5 && (
+            {sources.length > 8 && (
               <button
                 type="button"
                 onClick={() => openRightTool('files')}
@@ -398,15 +422,15 @@ export function GitPanel() {
               <div>
                 <p className="mb-1.5 text-2xs font-medium text-[var(--text-muted)]">变更文件</p>
                 {!raw.files || raw.files.length === 0 ? (
-                  <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
-                    暂无修改文件
-                  </p>
+              <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
+                暂无修改文件
+              </p>
                 ) : (
                   <ul className="max-h-72 space-y-1 overflow-y-auto">
                     {raw.files.map((f) => (
                       <li
                         key={f.path}
-                        className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5"
+                        className="flex items-center gap-2 rounded-lg bg-[var(--surface)] px-2.5 py-1.5"
                       >
                         <span
                           className={`shrink-0 font-mono text-2xs ${
@@ -482,13 +506,14 @@ export function ReviewPanel() {
         onChange={(e) => setCode(e.target.value)}
         rows={8}
         placeholder="粘贴要审阅的代码…"
+        variant="glass"
         className="font-mono text-xs"
       />
       <Button onClick={() => void run()} loading={running} disabled={!code.trim()} className="w-full">
         {running ? '审阅中…' : '开始审阅'}
       </Button>
       {result && (
-        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[var(--bg)] p-3 text-xs leading-relaxed text-[var(--text-secondary)]">
           {result}
         </pre>
       )}
@@ -505,7 +530,7 @@ export function TerminalGuidePanel() {
         icon={<TerminalSquare className="size-4 text-[var(--accent)]" />}
         title="终端"
       />
-      <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
+      <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
         终端以底部浮层呈现，全局限一个实例；也可用 Ctrl+` 快捷键开合。
       </p>
       <Button onClick={() => setTerminalOpen(true)} className="w-full" icon={<TerminalSquare className="size-3.5" />}>
@@ -559,10 +584,10 @@ export function BrowserPanel() {
       <div
         role="status"
         aria-label={status?.available ? '抓取引擎可用' : '抓取引擎不可用'}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${
           status?.available
-            ? 'border-[var(--success-soft)] bg-[var(--success-soft)] text-[var(--success)]'
-            : 'border-[var(--warning-soft)] bg-[var(--warning-soft)] text-[var(--warning)]'
+            ? 'bg-[var(--success-soft)] text-[var(--success)]'
+            : 'bg-[var(--warning-soft)] text-[var(--warning)]'
         }`}
       >
         {status?.available ? <CheckCircle2 className="size-3.5" /> : <AlertCircle className="size-3.5" />}
@@ -578,7 +603,7 @@ export function BrowserPanel() {
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com"
           aria-label="抓取网址"
-          className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+          className="h-9 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-3 text-xs text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-muted)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
         />
         <Button type="submit" size="sm" loading={fetching} icon={<ExternalLink className="size-3.5" />}>
           抓取
@@ -596,7 +621,7 @@ export function BrowserPanel() {
             <p className="line-clamp-3 text-xs text-[var(--text-secondary)]">{result.description}</p>
           )}
           {result.markdown && (
-            <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-2xs leading-relaxed text-[var(--text-secondary)]">
+            <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[var(--bg)] p-3 text-2xs leading-relaxed text-[var(--text-secondary)]">
               {result.markdown.slice(0, 4000)}
             </pre>
           )}
@@ -659,7 +684,7 @@ export function FilesPanel() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="过滤文件…"
         aria-label="过滤文件"
-        className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+        className="h-9 w-full rounded-lg border-0 bg-transparent px-3 text-xs text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-muted)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
       />
       {loading ? (
         <div className="space-y-2">
@@ -668,7 +693,7 @@ export function FilesPanel() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
+        <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
           {files.length === 0 ? '暂无索引文件，请先运行 CodeGraph 索引' : '没有匹配的文件'}
         </p>
       ) : (
@@ -741,7 +766,7 @@ export function MiniChatPanel() {
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3">
         {messages.length === 0 && (
-          <p className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
+          <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
             快速提问，无需离开当前工作。
           </p>
         )}
@@ -752,8 +777,8 @@ export function MiniChatPanel() {
                 m.role === 'user'
                   ? 'bg-[var(--accent-soft)] text-[var(--text)]'
                   : m.error
-                    ? 'border border-[var(--danger-soft)] bg-[var(--danger-soft)] text-[var(--danger)]'
-                    : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]'
+                    ? 'bg-[var(--danger-soft)] text-[var(--danger)]'
+                    : 'bg-[var(--surface)] text-[var(--text-secondary)]'
               }`}
             >
               {m.content || '…'}
@@ -761,14 +786,14 @@ export function MiniChatPanel() {
           </div>
         ))}
       </div>
-      <form onSubmit={send} className="flex gap-2 border-t border-[var(--border)] p-3">
+      <form onSubmit={send} className="flex gap-2 px-3 pb-3">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="输入消息…"
           aria-label="迷你聊天输入"
-          className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+          className="h-9 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-3 text-xs text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-muted)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
         />
         <Button type="submit" size="icon" disabled={!input.trim() || sending} loading={sending} aria-label="发送">
           <Send className="size-4" />

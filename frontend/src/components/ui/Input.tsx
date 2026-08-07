@@ -7,12 +7,25 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
   error?: string
   iconLeft?: ReactNode
   iconRight?: ReactNode
+  /** glass：无边框透明底（玻璃面板内使用），仅焦点环标识 */
+  variant?: 'default' | 'glass'
   className?: string
 }
 
-export function Input({ label, hint, error, iconLeft, iconRight, className = '', ...rest }: InputProps) {
+export function Input({ label, hint, error, iconLeft, iconRight, variant = 'default', className = '', ...rest }: InputProps) {
   const hintId = useId()
   const describedBy = (error || hint) ? hintId : undefined
+  const inputCls =
+    variant === 'glass'
+      ? `w-full h-10 rounded-lg border-0 bg-transparent px-3 text-sm text-[var(--text)]
+         placeholder:text-[var(--text-muted)]
+         transition-colors duration-200
+         focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)]`
+      : `w-full h-10 rounded-lg border bg-[var(--bg)] px-3 text-sm text-[var(--text)]
+         placeholder:text-[var(--text-muted)]
+         transition-colors duration-200
+         focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]
+         ${error ? 'border-[var(--danger)]' : 'border-[var(--border)] hover:border-[var(--border-hover)]'}`
   return (
     <label className={`block ${className}`}>
       {label && (
@@ -29,15 +42,7 @@ export function Input({ label, hint, error, iconLeft, iconRight, className = '',
         <input
           aria-describedby={describedBy}
           aria-invalid={error ? true : undefined}
-          className={`
-            w-full h-10 rounded-lg border bg-[var(--bg)] px-3 text-sm text-[var(--text)]
-            placeholder:text-[var(--text-muted)]
-            transition-colors duration-200
-            focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]
-            ${error ? 'border-[var(--danger)]' : 'border-[var(--border)] hover:border-[var(--border-hover)]'}
-            ${iconLeft ? 'pl-9' : ''}
-            ${iconRight ? 'pr-9' : ''}
-          `}
+          className={`${inputCls} ${iconLeft ? 'pl-9' : ''} ${iconRight ? 'pr-9' : ''}`}
           {...rest}
         />
         {iconRight && (
@@ -59,12 +64,25 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
   hint?: string
   error?: string
+  /** glass：无边框透明底（玻璃面板内使用），仅焦点环标识 */
+  variant?: 'default' | 'glass'
   className?: string
 }
 
-export function Textarea({ label, hint, error, className = '', ...rest }: TextareaProps) {
+export function Textarea({ label, hint, error, variant = 'default', className = '', ...rest }: TextareaProps) {
   const hintId = useId()
   const describedBy = (error || hint) ? hintId : undefined
+  const areaCls =
+    variant === 'glass'
+      ? `w-full rounded-lg border-0 bg-transparent px-3 py-2 text-sm text-[var(--text)]
+         placeholder:text-[var(--text-muted)]
+         transition-colors duration-200
+         focus:outline-none focus:ring-2 focus:ring-[var(--accent-ring)]`
+      : `w-full rounded-lg border bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]
+         placeholder:text-[var(--text-muted)]
+         transition-colors duration-200
+         focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]
+         ${error ? 'border-[var(--danger)]' : 'border-[var(--border)] hover:border-[var(--border-hover)]'}`
   return (
     <label className={`block ${className}`}>
       {label && (
@@ -75,13 +93,7 @@ export function Textarea({ label, hint, error, className = '', ...rest }: Textar
       <textarea
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
-        className={`
-          w-full rounded-lg border bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]
-          placeholder:text-[var(--text-muted)]
-          transition-colors duration-200
-          focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-ring)]
-          ${error ? 'border-[var(--danger)]' : 'border-[var(--border)] hover:border-[var(--border-hover)]'}
-        `}
+        className={areaCls}
         {...rest}
       />
       {(error || hint) && (

@@ -367,3 +367,34 @@ frontend/src/components/
 - SenseNova 终审：**亮色 8 / 暗色 7**（磨砂同材质✅、圆角投影✅、无分割线✅；P2：暗色投影分隔/内部层级可再加强）。
 - e2e：`e2e/animation-layout.spec.ts` 4/4 通过（摘要迁入、悬浮抽屉动画进出/不占位、终端覆盖、动效 off）。
 - P2 打磨（2026-08-08）：`.overlay-glass` 阴影加强 + 顶部高光；分区标题 `text-xs text-secondary`；「提交并推送」primary；权限选中态 `font-medium + shadow`；附件删除按钮 size-7；输入框 `leading-relaxed`。
+
+## 13. 高锐度字体 + 右栏丝绸衬底 + 无边框面板 + e2e CI（2026-08-08 定稿）
+
+### 13.1 字体（无衬线高锐度）
+
+- **首选 `Inter Tight`**（400–700，Google Fonts 引入），body / 标题 / `.font-display` / `.type-*` 字体栈统一为 `'Inter Tight','Inter',system-ui,…`——更紧凑的字形与更锐利的笔画，正文保持 `-webkit-font-smoothing: antialiased` + `text-rendering: optimizeLegibility`。
+- 等宽仍为 JetBrains Mono（代码/数据）。
+
+### 13.2 右栏材质（加强模糊 + 丝绸衬底）
+
+- `.overlay-glass`：`blur(36px) saturate(1.5)`（原 28px），叠加 `box-shadow: 0 28px 80px rgba(0,0,0,.78)` + 1px 顶部柔光。
+- `::before` 丝绸衬底：细密双向斜纹（105°/75° 重复线性渐变，暗 rgba(255,255,255,.045/.04)、亮 rgba(0,0,0,.035/.03)，opacity .5–.6），圆角 inherit、pointer-events none；子元素 `position:relative; z-index:1`。作用：玻璃下文字更清晰、有织物质感。
+
+### 13.3 右栏面板统一无边框
+
+- Git / 文件 / 浏览器 / 迷你聊天 / 终端入口 / 审阅：卡片、列表行、空态、代码块、气泡、输入框全部去 `border`（保留半透明 `bg-[var(--surface)]` 或透明底）。
+- `Input` / `Textarea` 新增 `variant="glass"`：`border-0 bg-transparent` + 焦点环（`focus:ring-2 ring-[var(--accent-ring)]`），供玻璃面板内输入复用。
+- 分隔只靠留白与层级（延续“无分割线”约束）。
+
+### 13.4 e2e 纳入仓库 CI
+
+- `e2e/` 不再整目录忽略：`*.spec.ts` 与 `playwright.config.mjs` 入库；截图与本地调试脚本仍忽略（`e2e/.gitignore`）。
+- playwright `webServer`：直接启动后端 `bun run src/main.ts`（url=/health、reuseExistingServer、注入 AXIOM_AUTH_TOKEN）——旧配置指向前端 vite dev（无 API 代理）在 CI 必然失败。
+- `scripts/run-e2e.cjs`：按平台取 playwright bin（win32 加 `.exe`）；支持 `E2E_SPEC` 过滤；目录缺失明确报错。
+- CI（`.github/workflows/ci.yml` test job）：先 `frontend bun install + vite build` 并拷贝 `public/`，再 `bun run test:e2e`（`E2E_SPEC=animation-layout`、固定 AXIOM_AUTH_TOKEN）。
+
+### 13.5 审批
+
+- 材质探针：blur(36px)、丝绸 `::before` 存在（暗/亮）；Git 面板边框元素 0。
+- `bun run test:e2e`（E2E_SPEC=animation-layout）4/4 通过。
+- SenseNova 复审：**亮色摘要 8 / 暗色摘要 7.5 / Git 面板 7–8.5**（丝绸衬底✅、密度✅、无边框✅、字体锐利✅）。
