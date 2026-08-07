@@ -36,6 +36,20 @@
 
 ---
 
+---
+
+## 2026-08-07 — 通透空灵主旋律 + taste-skill/impeccable 审美强化（去输入框/顶部直角边框，文字阴影可读性）
+
+- **任务**：使用 taste-skill + impeccable 强化前端审美，回归「通透空灵」主旋律，深挖文字与组件边缘细节；并去掉输入框的实心直角边框、工作区上部的直角边框背景，改用文字阴影强化可读性（类侧栏）。
+- **工具**：skill-installer（安装 Leonxlnx/taste-skill、pbakaus/impeccable 到 ~/.codex/skills，impeccable 因仓库过大手动拉取 skill 目录）、SenseNova（终审）、Playwright（截图/DOM 验证）。
+- **操作（文件级）**：
+  - `frontend/src/pages/Chat.tsx`：工作区上部子标题栏去掉 `canvas-raised` + `border-b`（直接背景）；欢迎标题/副标题加 `.text-shadow-readable`；功能卡 `bg-[var(--surface)]→bg-transparent`（通透）。
+  - `frontend/src/components/chat/ChatComposer.tsx`：输入框去掉 `border` + `bg-[var(--surface)]` → `border-0 bg-transparent` + focus ring（2px accent-ring）；输入框加 `.text-shadow-readable`。
+  - `frontend/src/components/rightbar/panels.tsx`：系统统计格去掉 `bg-[var(--bg-tertiary)]`（纯文字浮于玻璃背景）。
+  - `frontend/src/styles/index.css`：新增 `.text-shadow-readable`（暗：0 1px 3px rgba(0,0,0,.65)+20px 光晕；浅：白 0.6）+ 全局 `::placeholder` 文字阴影（暗/浅）。
+- **验证**：SenseNova 终审**暗色 8 / 亮色 8**（输入框无边框无背景✅、顶部无直角框✅、标题柔和阴影✅、统计格/功能卡透明✅、通透空灵✅）；tsc ✅、vitest 278/278 ✅。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — No-Block Glass：去黑色实心块/直接背景 + 高模糊工作区 + 输入框图标发送 + 顶栏收缩（U1-fast 图稿）
 
 - **任务**：①直接去掉工作区黑色实心块、直接用背景完成，工作区背景更高模糊 ②亮色缺失，用视觉模型 + U1-fast 生成设计图稿补 spec ③输入框上下拉长（同参考图）、Send 文字取消改图标 ④顶栏垂直收缩让渡空间留白区分 ⑤视觉模型修正前端与 spec。

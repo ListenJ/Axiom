@@ -447,3 +447,27 @@
 - 逐页原文：`vision-review/reviews-w3/`、`reviews-w4/`、`reviews-w5/*.md`
 - spec：`frontend/docs/FRONTEND-DESIGN.md` 第 11 章
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十五轮：通透空灵主旋律 + taste-skill / impeccable 审美强化（2026-08-07）
+
+## 五十一、实现
+
+- 安装 `taste-skill`（anti-slop 设计读取/三旋钮）与 `impeccable`（Operate 模式 craft-floor）并应用其原则。
+- 输入框：去掉实心直角边框与背景（`border-0 bg-transparent`）+ 2px 焦点环。
+- 工作区上部子标题栏：去掉 `canvas-raised` + `border-b`（直接背景）。
+- 文字阴影：新增 `.text-shadow-readable`（暗 0.65+20px 光晕 / 浅 白 0.6）+ 全局 placeholder 阴影——通透背景上强化可读性（类侧栏）。
+- 统计格与功能卡：去背景块，纯文字/细边框浮于玻璃背景。
+
+## 五十二、审批与验证
+
+- SenseNova 终审：**暗色 8 / 亮色 8**（输入框✅、顶部✅、标题阴影✅、透明化✅、通透空灵✅）。
+- 测试：tsc ✅ / vitest 278/278 ✅。
+
+## 五十三、本轮截图与审核原文
+
+- 截图：`vision-review/g1t-*`、`g2t-*.png`
+- 逐页原文：`vision-review/reviews-g1t/`、`reviews-g2t/*.md`
+- skills：`~/.codex/skills/taste-skill`、`~/.codex/skills/impeccable`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

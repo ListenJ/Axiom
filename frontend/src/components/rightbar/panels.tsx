@@ -148,25 +148,25 @@ export function SummaryPanel() {
               系统统计
             </div>
             <dl className="grid grid-cols-2 gap-2 text-2xs">
-              <div className="rounded-lg bg-[var(--bg-tertiary)] p-2">
+              <div className="rounded-lg p-2">
                 <dt className="text-[var(--text-muted)]">活跃任务</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.activeTasks ?? 0}</dd>
               </div>
-              <div className="rounded-lg bg-[var(--bg-tertiary)] p-2">
+              <div className="rounded-lg p-2">
                 <dt className="text-[var(--text-muted)]">Agent 数</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.agents ?? 0}</dd>
               </div>
-              <div className="rounded-lg bg-[var(--bg-tertiary)] p-2">
+              <div className="rounded-lg p-2">
                 <dt className="text-[var(--text-muted)]">已完成</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.completed ?? 0}</dd>
               </div>
-              <div className="rounded-lg bg-[var(--bg-tertiary)] p-2">
+              <div className="rounded-lg p-2">
                 <dt className="text-[var(--text-muted)]">Token 用量</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
                   {formatTokens(stats?.tokensUsed ?? 0)}
                 </dd>
               </div>
-              <div className="col-span-2 rounded-lg bg-[var(--bg-tertiary)] p-2">
+              <div className="col-span-2 rounded-lg p-2">
                 <dt className="text-[var(--text-muted)]">缓存命中</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
                   {cacheRate === null ? '—' : `${Math.round(cacheRate * 100)}%`}

@@ -432,7 +432,7 @@ export default function Chat() {
           className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         >
         {/* 画布工具栏：行1 = 会话题目 + IDE/摘要/终端/工具台，行2 = 页签 + 功能开关 — sticky glass */}
-        <div className="canvas-raised sticky top-0 z-20 flex flex-col gap-2 border-b border-[var(--border)] px-3 py-2 sm:px-4">
+        <div className="sticky top-0 z-20 flex flex-col gap-2 px-3 py-2 sm:px-4">
           <div className="flex items-center gap-2">
             <MessageSquare size={16} className="shrink-0 text-[var(--accent)]" />
             <input
@@ -561,10 +561,10 @@ export default function Chat() {
             <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
               {/* 欢迎标题（首页与对话合并：无消息时即首页） */}
               <div>
-                <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--text)] sm:text-4xl">
+                <h1 className="text-shadow-readable font-display text-3xl font-bold tracking-tight text-[var(--text)] sm:text-4xl">
                   有什么可以帮助你的？
                 </h1>
-                <p className="mt-2 text-base text-[var(--text-secondary)]">
+                <p className="text-shadow-readable mt-2 text-base text-[var(--text-secondary)]">
                   知识管理、代码分析、深度研究 — 尽在 Axiom
                 </p>
               </div>
@@ -576,7 +576,7 @@ export default function Chat() {
                       key={s.label}
                       type="button"
                       onClick={() => { setInput(s.query); void send(s.query) }}
-                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-sm)] transition-[border-color,box-shadow,transform] duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
+                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-transparent p-5 text-left shadow-[var(--shadow-sm)] transition-[border-color,box-shadow,transform] duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
                     >
                       <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform group-hover:scale-110">
                         <Icon className="size-6" />

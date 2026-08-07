@@ -34,7 +34,7 @@ export function ChatComposer({
   onStop,
 }: ChatComposerProps) {
   return (
-    <div className="canvas-raised sticky bottom-0 z-20 flex items-end gap-2 border-t border-[var(--border)] p-3 sm:gap-3">
+    <div className="sticky bottom-0 z-20 flex items-end gap-2 p-3 sm:gap-3">
       <textarea
         id="home-input"
         value={value}
@@ -48,7 +48,7 @@ export function ChatComposer({
         placeholder="输入消息…（Enter 发送 · Shift+Enter 换行）"
         aria-label="消息输入框"
         rows={1}
-        className="h-14 min-w-0 flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-ring)]"
+        className="text-shadow-readable h-14 min-w-0 flex-1 resize-none rounded-xl border-0 bg-transparent px-4 py-3 text-sm text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-secondary)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
       />
       {sending ? (
         <Button
