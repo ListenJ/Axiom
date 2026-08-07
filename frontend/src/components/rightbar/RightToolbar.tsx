@@ -8,7 +8,6 @@ import {
   FolderOpen,
   MessageSquare,
   X,
-  PanelRightClose,
 } from 'lucide-react'
 import {
   SummaryPanel,
@@ -32,7 +31,8 @@ const TOOLS = [
   { id: 'mini-chat', label: '迷你聊天', icon: MessageSquare },
 ] as const
 
-/** 右侧工具台：属于画布层（canvas-raised），桌面常驻窄轨，移动端以抽屉浮层呈现。 */
+/** 右侧工具台：按需弹出的悬浮抽屉（与工作区同材质 canvas-surface），
+ *  贴合工作区上下边缘，圆角 + 阴影分隔，进入/退出以动画完成，不占位。 */
 export default function RightToolbar() {
   const open = useApp((s) => s.rightbarOpen)
   const setOpen = useApp((s) => s.setRightbarOpen)
@@ -42,32 +42,24 @@ export default function RightToolbar() {
 
   const shell = (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-3">
-        <span className="text-sm font-semibold text-[var(--text)]">工具台</span>
+      <div className="flex h-12 shrink-0 items-center justify-between px-4 pt-2">
+        <span className="text-sm font-semibold tracking-tight text-[var(--text)]">工具台</span>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:flex"
+          className="press flex size-8 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           aria-label="收起工具台"
           title="收起工具台"
         >
-          <PanelRightClose size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
-          aria-label="关闭工具台"
-        >
-          <X size={18} />
+          <X size={16} />
         </button>
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* 工具图标轨 */}
+        {/* 工具图标轨（无分割线，留白分区） */}
         <nav
           aria-label="右侧工具"
-          className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-[var(--border)] py-2"
+          className="flex w-12 shrink-0 flex-col items-center gap-1 py-2"
         >
           {TOOLS.map((tool) => {
             const Icon = tool.icon
@@ -76,11 +68,14 @@ export default function RightToolbar() {
               <button
                 key={tool.id}
                 type="button"
-                onClick={() => setActive(tool.id)}
+                onClick={() => {
+                  setActive(tool.id)
+                  setOpen(true)
+                }}
                 aria-label={tool.label}
                 aria-current={isActive ? 'true' : undefined}
                 title={tool.label}
-                className={`press flex h-10 w-10 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                className={`press flex size-10 items-center justify-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                   isActive
                     ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                     : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
@@ -118,42 +113,21 @@ export default function RightToolbar() {
   )
 
   return (
-    <>
-      {/* 桌面端常驻右栏（画布层配色） */}
-      <motion.aside
-        aria-label="右侧工具台"
-        className="canvas-surface hidden h-full shrink-0 overflow-hidden border-l border-[var(--border)] lg:block"
-        initial={false}
-        animate={reduceMotion ? { width: open ? 320 : 0 } : { width: open ? 320 : 0 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="h-full w-80">{shell}</div>
-      </motion.aside>
-
-      {/* 移动端抽屉 */}
-      <AnimatePresence>
-        {open && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <motion.div
-              className="absolute inset-0 backdrop-glass"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setOpen(false)}
-              aria-hidden="true"
-            />
-            <motion.div
-              className="canvas-surface absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l border-[var(--border)] shadow-2xl"
-              initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
-              transition={MOTION_PRESETS.slideUp}
-            >
-              {shell}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="rightbar-overlay"
+          aria-label="右侧工具台"
+          role="complementary"
+          className="overlay-glass absolute inset-y-2 right-2 z-30 flex w-[min(22rem,86vw)] flex-col overflow-hidden rounded-2xl sm:w-[min(25rem,62vw)]"
+          initial={reduceMotion ? { opacity: 0 } : { x: '110%', opacity: 0, scale: 0.98 }}
+          animate={{ x: 0, opacity: 1, scale: 1 }}
+          exit={reduceMotion ? { opacity: 0 } : { x: '110%', opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {shell}
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

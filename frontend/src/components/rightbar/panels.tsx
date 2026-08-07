@@ -3,11 +3,16 @@ import type { FormEvent, ReactNode } from 'react'
 import {
   Activity,
   AlertCircle,
+  ArrowUpRight,
+  Bot,
+  Boxes,
   CheckCircle2,
+  Cpu,
   ExternalLink,
   FileCode,
-  FileText,
+  FileEdit,
   GitBranch,
+  GitCommitHorizontal,
   Globe,
   MessageSquare,
   RefreshCw,
@@ -64,43 +69,73 @@ function ErrorNote({ message }: { message: string }) {
   )
 }
 
-/** 工作摘要：Git 状态 + 系统统计快照（30s 轮询）。 */
+/** 工作摘要：环境信息（Git/变更/缓存）+ 子智能体 + 来源（30s 轮询）。 */
 export function SummaryPanel() {
   const [git, setGit] = useState<GitStatus | null>(null)
+  const [diff, setDiff] = useState<{ files: number; additions: number; deletions: number } | null>(null)
   const [stats, setStats] = useState<SystemStats | null>(null)
+  const [agents, setAgents] = useState<Array<{ name: string; available: boolean }> | null>(null)
+  const [sources, setSources] = useState<string[]>([])
   const [cacheRate, setCacheRate] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const toast = useApp((s) => s.toast)
+  const openRightTool = useApp((s) => s.openRightTool)
+
+  const load = async () => {
+    try {
+      // 核心数据（Git/变更/统计/缓存）先就绪即渲染；Agent 与来源异步补充，避免慢接口阻塞面板
+      const [g, d, s, t] = await Promise.allSettled([
+        endpoints.git.status(),
+        endpoints.git.diff(),
+        endpoints.stats(),
+        endpoints.tokenDetails(1),
+      ])
+      if (g.status === 'fulfilled' && g.value?.success) setGit(g.value)
+      if (d.status === 'fulfilled' && d.value?.success) {
+        const files = d.value.files ?? []
+        setDiff({
+          files: files.length,
+          additions: files.reduce((n, f) => n + (f.additions ?? 0), 0),
+          deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+        })
+      }
+      if (s.status === 'fulfilled') setStats(s.value as SystemStats)
+      if (t.status === 'fulfilled') {
+        const d2 = t.value as { cacheStats?: { hitRate: number } }
+        if (typeof d2?.cacheStats?.hitRate === 'number') setCacheRate(d2.cacheStats.hitRate)
+      }
+      // 子智能体与来源：后台补充（失败静默降级为空态）
+      void Promise.allSettled([endpoints.agents.status(), endpoints.codegraph.fileIndex()]).then(
+        ([a, fi]) => {
+          if (a.status === 'fulfilled' && Array.isArray(a.value)) {
+            setAgents(
+              a.value.map((x) => ({
+                name: String((x as { name?: unknown })?.name ?? ''),
+                available: !!(x as { available?: unknown })?.available,
+              })),
+            )
+          }
+          if (fi.status === 'fulfilled') setSources(toFileList(fi.value))
+        },
+      )
+      setError(
+        g.status === 'rejected' && s.status === 'rejected'
+          ? 'Git 与统计服务均不可用'
+          : null,
+      )
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const [g, s, t] = await Promise.allSettled([endpoints.git.status(), endpoints.stats(), endpoints.tokenDetails(1)])
-        if (!alive) return
-        if (g.status === 'fulfilled' && g.value?.success) setGit(g.value)
-        if (s.status === 'fulfilled') setStats(s.value as SystemStats)
-        if (t.status === 'fulfilled') {
-          const d = t.value as { cacheStats?: { hitRate: number } }
-          if (typeof d?.cacheStats?.hitRate === 'number') setCacheRate(d.cacheStats.hitRate)
-        }
-        setError(
-          g.status === 'rejected' && s.status === 'rejected' && t.status === 'rejected'
-            ? 'Git 与统计服务均不可用'
-            : null,
-        )
-      } catch (e) {
-        if (alive) setError(String((e as Error)?.message ?? e))
-      } finally {
-        if (alive) setLoading(false)
-      }
-    }
     void load()
-    const t = setInterval(load, 30_000)
-    return () => {
-      alive = false
-      clearInterval(t)
-    }
+    const timer = setInterval(() => void load(), 30_000)
+    return () => clearInterval(timer)
   }, [])
 
   const changeCount =
@@ -110,69 +145,178 @@ export function SummaryPanel() {
     (git?.untracked?.length ?? 0) +
     (git?.conflicted?.length ?? 0)
 
+  const commitPush = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const c = await endpoints.git.commit(
+        `feat: update from Axiom UI - ${new Date().toISOString().slice(0, 10)}`,
+      )
+      if (!c?.success) throw new Error(c?.error || '提交失败')
+      const p = await endpoints.git.push()
+      if (!p?.success) throw new Error(p?.error || '推送失败')
+      toast('已提交并推送', 'success')
+      await load()
+    } catch (e) {
+      toast('提交推送失败：' + String((e as Error)?.message ?? e), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const AGENT_ICONS: Record<string, ReactNode> = {
+    opencode: <Boxes className="size-3.5" />,
+    hermes: <Sparkles className="size-3.5" />,
+    kimiCode: <Cpu className="size-3.5" />,
+  }
+
   return (
-    <div className="space-y-4 p-3">
-      <PanelHeader
-        icon={<FileText className="size-4 text-[var(--accent)]" />}
-        title="工作摘要"
-      />
+    <div className="space-y-6 p-4">
       {error && <ErrorNote message={error} />}
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <Skeleton height="2.5rem" />
           <Skeleton height="2.5rem" />
           <Skeleton height="2.5rem" />
         </div>
       ) : (
         <>
-          <section aria-label="Git 状态">
-            <div className="mb-2 flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5 font-medium text-[var(--text)]">
-                <GitBranch className="size-3.5 text-[var(--accent)]" />
-                Git 状态
-              </span>
-              <span
-                className={`flex items-center gap-1 ${git?.clean ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}
-              >
-                <CheckCircle2 className="size-3" />
-                {git?.clean ? '工作区干净' : `${changeCount} 个变更`}
-              </span>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-xs text-[var(--text-secondary)]">
-              {git?.branch ?? '未知分支'}
-            </div>
-          </section>
-
-          <section aria-label="系统统计">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text)]">
-              <Activity className="size-3.5 text-[var(--accent)]" />
-              系统统计
-            </div>
-            <dl className="grid grid-cols-2 gap-2 text-2xs">
-              <div className="rounded-lg p-2">
-                <dt className="text-[var(--text-muted)]">活跃任务</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.activeTasks ?? 0}</dd>
+          {/* 环境信息 */}
+          <section aria-label="环境信息" className="space-y-3">
+            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              环境信息
+            </h2>
+            <dl className="space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <GitBranch className="size-3.5 shrink-0 text-[var(--accent)]" />
+                <dt className="text-[var(--text-muted)]">分支</dt>
+                <dd className="ml-auto truncate font-mono text-[var(--text)]">
+                  {git?.branch ?? '未知分支'}
+                </dd>
               </div>
-              <div className="rounded-lg p-2">
-                <dt className="text-[var(--text-muted)]">Agent 数</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.agents ?? 0}</dd>
+              <div className="flex items-center gap-2">
+                <FileEdit className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+                <dt className="text-[var(--text-muted)]">变更</dt>
+                <dd className="ml-auto font-mono text-[var(--text)]">
+                  {diff ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[var(--success)]">+{diff.additions}</span>
+                      <span className="text-[var(--danger)]">-{diff.deletions}</span>
+                      <span className="text-[var(--text-muted)]">({diff.files})</span>
+                    </span>
+                  ) : git?.clean ? (
+                    <span className="text-[var(--success)]">工作区干净</span>
+                  ) : (
+                    `${changeCount} 个变更`
+                  )}
+                </dd>
               </div>
-              <div className="rounded-lg p-2">
-                <dt className="text-[var(--text-muted)]">已完成</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">{stats?.completed ?? 0}</dd>
+              <div className="flex items-center gap-2">
+                <Activity className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+                <dt className="text-[var(--text-muted)]">缓存命中</dt>
+                <dd className="ml-auto font-mono text-[var(--text)]">
+                  {cacheRate === null ? '未统计' : `${Math.round(cacheRate * 100)}%`}
+                </dd>
               </div>
-              <div className="rounded-lg p-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-3.5 shrink-0 text-[var(--text-muted)]" />
                 <dt className="text-[var(--text-muted)]">Token 用量</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
+                <dd className="ml-auto font-mono text-[var(--text)]">
                   {formatTokens(stats?.tokensUsed ?? 0)}
                 </dd>
               </div>
-              <div className="col-span-2 rounded-lg p-2">
-                <dt className="text-[var(--text-muted)]">缓存命中</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
-                  {cacheRate === null ? '—' : `${Math.round(cacheRate * 100)}%`}
-                </dd>
-              </div>
             </dl>
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={busy}
+                disabled={busy || !diff || diff.files === 0}
+                onClick={() => void commitPush()}
+                icon={<GitCommitHorizontal className="size-3.5" />}
+              >
+                提交并推送
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openRightTool('git')}
+                icon={<ArrowUpRight className="size-3.5" />}
+              >
+                查看变更
+              </Button>
+            </div>
+          </section>
+
+          {/* 子智能体 */}
+          <section aria-label="子智能体" className="space-y-3">
+            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              子智能体
+            </h2>
+            {!agents || agents.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">暂无子智能体</p>
+            ) : (
+              <ul className="space-y-1">
+                {agents.map((a) => (
+                  <li
+                    key={a.name}
+                    className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-[var(--surface-hover)]"
+                  >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+                      {AGENT_ICONS[a.name] ?? <Bot className="size-3.5" />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--text)]">
+                      {a.name}
+                    </span>
+                    <span
+                      className={`flex items-center gap-1 text-2xs ${
+                        a.available ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'
+                      }`}
+                    >
+                      <span
+                        className={`size-1.5 rounded-full ${
+                          a.available ? 'bg-[var(--success)] pulse-dot' : 'bg-[var(--text-disabled)]'
+                        }`}
+                      />
+                      {a.available ? '可用' : '未安装'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* 来源 */}
+          <section aria-label="来源" className="space-y-3">
+            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              来源
+            </h2>
+            {sources.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">暂无索引文件</p>
+            ) : (
+              <ul className="space-y-0.5">
+                {sources.slice(0, 5).map((f) => (
+                  <li
+                    key={f}
+                    title={f}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1 font-mono text-2xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)]"
+                  >
+                    <FileCode className="size-3 shrink-0 text-[var(--text-muted)]" />
+                    <span className="truncate">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {sources.length > 5 && (
+              <button
+                type="button"
+                onClick={() => openRightTool('files')}
+                className="flex items-center gap-1 text-2xs text-[var(--accent)] transition-opacity hover:opacity-80"
+              >
+                查看全部 {sources.length} 个
+                <ArrowUpRight className="size-3" />
+              </button>
+            )}
           </section>
         </>
       )}

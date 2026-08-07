@@ -677,6 +677,16 @@ export const endpoints = {
         `/api/git/log?maxCount=${maxCount}`,
         { cache: false },
       ),
+    commit: (message: string, files?: string[]) =>
+      api.post<{ success: boolean; hash?: string; error?: string }>('/api/git/commit', {
+        message,
+        files,
+      }),
+    push: (remote?: string, branch?: string) =>
+      api.post<{ success: boolean; output?: string; error?: string }>('/api/git/push', {
+        remote,
+        branch,
+      }),
   },
   mcp: {
     scenes: () =>

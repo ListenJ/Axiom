@@ -331,3 +331,38 @@ frontend/src/components/
 
 - U1-fast 图稿审核：亮色 5/5 达标（无卡片块/输入框/圆形发送/薄顶栏/留白）；暗色高质量。
 - 实现终审：**亮色 8.5 / 暗色 8**（SenseNova）；DOM 验证输入 56px、发送圆角 9999、顶栏 48px。
+
+## 12. 悬浮工具台与输入区增强（2026-08-08 定稿）
+
+### 12.1 右栏 = 按需悬浮抽屉（Overlay Drawer）
+
+- **不再占位**：右栏从常驻窄轨/宽度动画改为 `absolute inset-y-2 right-2 z-30` 的悬浮抽屉，只在需要时弹出，关闭后从 DOM 卸载（AnimatePresence 退场），主内容布局始终不变。
+- **自适应工作区**：宽度 `w-[min(22rem,86vw)] sm:w-[min(25rem,62vw)]`；上下各留 8px + 工作区 padding 形成均匀呼吸边距，垂直长度贴合工作区边缘。
+- **同材质玻璃**：使用 `.overlay-glass`（暗 rgba(22,22,22,.34) / 亮 rgba(255,255,255,.38)，`blur(28px) saturate(1.45)`）——比画布更通透，可透出底层丝绸光效；**阴影分隔**：`box-shadow: var(--shadow-lg)`，无边框。
+- **无分割线**：头部与工具图标轨不画 `border`，区块之间用留白（`space-y-6` + 小标题间距）分区。
+- **动画**：滑入/滑出 `x:110%→0` + opacity + scale(0.98→1)，0.32s `ease [0.16,1,0.3,1]`；`prefers-reduced-motion` 时仅透明度。
+- **入口**：头部「工具台」按钮或「摘要」按钮唤起；抽屉内点击任意工具图标即切换并保持打开；关闭按钮为头部圆形 X。
+
+### 12.2 摘要三区块（环境信息 / 子智能体 / 来源）
+
+| 区块 | 内容 | 数据源 |
+|---|---|---|
+| 环境信息 | 分支、变更 +N/-N（文件数）、缓存命中、Token 用量；「提交并推送」「查看变更」 | `/api/git/status`、`/api/git/diff`、`/api/stats`、`/api/token-details`、`/api/git/commit`+`/api/git/push` |
+| 子智能体 | opencode / hermes / kimiCode 可用态（脉冲点表示可用） | `/agents/status` |
+| 来源 | file-index 前 5 条 + 「查看全部 N 个」跳转文件面板 | `/file-index` |
+
+- 核心数据（Git/统计/缓存）先就绪即渲染；Agent 与来源后台补充，慢接口不阻塞面板（30s 轮询刷新）。
+
+### 12.3 输入区增强
+
+- **附件**：Paperclip 按钮唤起隐藏 file input（多选），生成 chips（图片/文档图标 + 文件名 + 大小 + 移除）；发送时以 `[附件] 名称` 行并入消息正文。
+- **自适应高度**：输入框 `min-h-[4.6rem]`（原 h-14，+31%），内容增长时向上扩展至 `max-h-[40vh]` 后内部滚动；清空回落。
+- **三级 Agent 权限**：`只读 / 询问 / 自动` radiogroup（ShieldOff / ShieldQuestion / ShieldCheck）；`自动` 同步后端 `autoAccept=true`，`询问/只读` 为 false；失败回滚并 toast。只读为本地语义（不执行写操作），询问为默认。
+- **按钮**：发送/停止为 44px 圆形图标按钮（无文字）。
+
+### 12.4 审批
+
+- 几何探针：右栏贴合工作区（上下留白均匀）、输入框 74px、附件 chips 与权限 radiogroup 存在、关闭后 DOM 卸载。
+- 像素/计算样式：圆角生效、面板中心暗 rgb(19,19,19)（透明化后更接近工作区）、`box-shadow` 生效。
+- SenseNova 终审：**亮色 8 / 暗色 7**（磨砂同材质✅、圆角投影✅、无分割线✅；P2：暗色投影分隔/内部层级可再加强）。
+- e2e：`e2e/animation-layout.spec.ts` 4/4 通过（摘要迁入、悬浮抽屉动画进出/不占位、终端覆盖、动效 off）。

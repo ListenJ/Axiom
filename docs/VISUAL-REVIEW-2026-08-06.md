@@ -492,3 +492,27 @@
 - 截图：`vision-review/c1-*.png`
 - 逐页原文：`vision-review/reviews-c1/*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十七轮：右栏悬浮抽屉 + 输入区增强（2026-08-08）
+
+## 五十七、实现
+
+- **右栏悬浮抽屉**：桌面/移动统一为 `absolute inset-y-2 right-2` 浮层（贴合工作区边缘），`rounded-2xl` + 新 `.overlay-glass` 材质（暗 rgba(22,22,22,.34) / 亮 rgba(255,255,255,.38)，blur 28px，`box-shadow: var(--shadow-lg)` 阴影分隔）；AnimatePresence x:110%→0 滑入/滑出，关闭后从 DOM 卸载不占位；头部与图标轨去 `border-b`/`border-r`，纯留白分区。
+- **摘要三区块**：环境信息（分支、变更 +N/-N、缓存命中、Token 用量、提交并推送）/ 子智能体（opencode、hermes、kimiCode 可用态）/ 来源（file-index 前 5 + 查看全部）。
+- **输入区增强**：附件添加（Paperclip + chips，图片/文档可移除）；输入框 `min-h-[4.6rem]`（+31%）+ 自适应高度（max 40vh 向上扩展）；三级 Agent 权限（只读 / 询问 / 自动，radiogroup，同步后端权限模式）。
+
+## 五十八、审批与验证
+
+- 几何探针：右栏 (1008,80,400×788) 贴合工作区（上下留白各 32px）；输入框 74px（原 56，+31%）；附件 chips 2 个；权限 radiogroup 存在；关闭后 DOM 卸载（约 0.8s 退场）。
+- 像素/计算样式：角部圆角生效（1px 处为背景色、5px 处为面板色）；面板中心暗 rgb(19,19,19)（透明化前 13）更接近工作区 rgb(25,25,25)；`box-shadow` 生效（暗 0 16px 48px rgba(0,0,0,.7)）。
+- SenseNova 终审：**亮色 8 / 暗色 7**——磨砂同材质✅、圆角投影✅、无分割线✅、三分区结构✅；暗色 P2（投影分隔可再强、内部层级对比、底部留白）。
+- 测试：tsc ✅、vite build ✅、**e2e 4/4 通过**（摘要迁入✅、悬浮抽屉动画进出/不占位/宽度 400✅、终端覆盖✅、动效 off✅）。
+
+## 五十九、本轮截图与审核原文
+
+- 截图：`vision-review/new-dark-rightbar.png`、`new-light-rightbar.png`、`new-dark-composer.png`、`new-light-composer.png`（及 `full-*.png` 像素验证）
+- 审核原文：`vision-review/reviews-new-*.md`、`reviews-new2-*.md`
+- skills：`~/.codex/skills/taste-skill`、`~/.codex/skills/impeccable`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

@@ -40,6 +40,23 @@
 
 ---
 
+## 2026-08-08 — 右栏悬浮抽屉 + 输入框附件/三级权限 + 摘要三区块（视觉模型 + taste/impeccable 审批）
+
+- **任务**：①右栏改为按需弹出悬浮抽屉（动画进出、不占位、贴合工作区、与工作区同材质）②摘要按参考图改「环境信息 / 子智能体 / 来源」三区块 ③输入框加附件添加与三级 Agent 权限（只读/询问/自动），文本/图片增多时自适应向上增高，垂直高度再增大 30% ④视觉模型 + skill 审美审批。
+- **工具**：SenseNova（解析参考图 + 材质像素验证 + 两轮审批）、Playwright（几何/像素/计算样式探针 + e2e）、design-taste-frontend / impeccable（polish、craft-floor、layout、animate 章节）。
+- **操作（文件级）**：
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面/移动统一为**悬浮抽屉**——`absolute inset-y-2 right-2 z-30` + `rounded-2xl` + `.overlay-glass`（新材质）；AnimatePresence x:110%→0 滑入/滑出；去掉头部 `border-b` 与图标轨 `border-r`（无分割线，留白分区）；点击工具图标同时打开抽屉；`role="complementary"`。
+  - `frontend/src/components/rightbar/panels.tsx`：SummaryPanel 重写为「环境信息（分支 / 变更 +N/-N / 缓存命中 / Token 用量 + 提交并推送）+ 子智能体（agents.status 可用态）+ 来源（file-index 前 5 + 查看全部）」；核心数据先渲染，Agent/来源后台补充不阻塞；去掉 `border` 容器，纯留白分区。
+  - `frontend/src/components/chat/ChatComposer.tsx`：新增附件按钮（Paperclip + 隐藏 file input，多选）+ 附件 chips（图片/文档图标、大小、可移除）；输入框 `h-14→min-h-[4.6rem]`（+31%）+ 自适应高度（max 40vh，内容增长向上扩展）；新增三级权限选择器（只读/询问/自动，radiogroup）；发送/停止 40→44px。
+  - `frontend/src/pages/Chat.tsx`：接入 attachments 状态与权限等级；发送时附件以 `[附件] 名称` 并入消息；权限切换同步 `/permissions/mode`（自动=true，询问/只读=false，失败回滚）；移除头部「自动接收」ToggleChip（权限迁入输入框）；聊天根容器加 `relative`。
+  - `frontend/src/state/useChatPrefs.ts`：新增 `permissionLevel`（read/ask/auto，持久化），set 时同步 autoAcceptPermissions。
+  - `frontend/src/lib/api.ts`：`endpoints.git` 新增 `commit` / `push`（对接既有 POST /api/git/commit、/api/git/push）。
+  - `frontend/src/styles/index.css`：新增 `.overlay-glass`（暗 rgba(22,22,22,.34) / 亮 rgba(255,255,255,.38)，blur 28px，box-shadow: var(--shadow-lg)）——右栏更通透 + 阴影分隔。
+  - `frontend/docs/FRONTEND-DESIGN.md`：新增「第 12 章 悬浮工具台与输入区增强」。
+  - `e2e/animation-layout.spec.ts`：右栏测试改悬浮抽屉断言（动画进出、关闭卸载、不占位、宽度 400）；补鉴权 token 注入（AXIOM_AUTH_TOKEN）。
+- **验证**：tsc ✅ / vite build ✅；几何探针——右栏 (1008,80,400×788) 贴合工作区、输入框 74px（原 56 +31%）、附件 chips 2、权限 radiogroup ✅；像素——角部圆角生效、面板中心暗 19 / 亮 253（半透明）、`box-shadow` 生效（暗 0 16px 48px rgba(0,0,0,.7)）；SenseNova 终审**亮色 8 / 暗色 7**（磨砂同材质✅ 圆角投影✅ 无分割线✅，P2 细节微调）；**e2e 4/4 通过**。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 亮色彩色流态 + 暗色流态细化（design-taste/impeccable 审美强化）
 
 - **任务**：①亮色背景改用彩色流态动态效果 ②暗色背景流态做得更细致。

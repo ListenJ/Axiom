@@ -545,6 +545,16 @@ a:focus-visible,
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
+/* 悬浮抽屉（右侧工具台/浮层面板）：比画布更通透的磨砂玻璃，
+   阴影做与工作区的分层（无边框、无分割线） */
+.overlay-glass {
+  background: rgba(22, 22, 22, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  box-shadow: var(--shadow-lg);
+  will-change: backdrop-filter;
+}
+
 [data-theme='light'] .shell-surface {
   background: var(--shell-glass-bg);
 }
@@ -553,6 +563,10 @@ a:focus-visible,
 }
 [data-theme='light'] .canvas-surface {
   background: var(--canvas-glass-bg);
+}
+[data-theme='light'] .overlay-glass {
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: var(--shadow-lg);
 }
 
 /* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */

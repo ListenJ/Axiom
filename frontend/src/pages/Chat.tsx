@@ -3,7 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   MessageSquare,
   ChevronDown, Code2,
-  Brain, FileEdit, ShieldCheck, ShieldAlert,
+  Brain, FileEdit, ShieldCheck,
   ArrowDown, Sparkles, Activity, TrendingUp, Cpu, Search as SearchIcon,
   PanelRight, TerminalSquare, FileText,
 } from 'lucide-react'
@@ -23,7 +23,11 @@ import {
   toChatMessages,
   copyToClipboard,
 } from '@/components/chat-utils'
-import { ChatComposer } from '@/components/chat/ChatComposer'
+import {
+  ChatComposer,
+  type ChatAttachment,
+  type PermissionLevel,
+} from '@/components/chat/ChatComposer'
 import { IdeOpenMenu } from '@/components/chat/IdeOpenMenu'
 import { type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
 import RightToolbar from '@/components/rightbar/RightToolbar'
@@ -65,6 +69,7 @@ export default function Chat() {
   ]
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [sending, setSending] = useState(false)
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS)
   const [selectedModel, setSelectedModel] = useState(FALLBACK_MODELS[0]!.id)
@@ -95,10 +100,11 @@ export default function Chat() {
   const showThinking = useChatPrefs((s) => s.showThinking)
   const expandFileChanges = useChatPrefs((s) => s.expandFileChanges)
   const autoAcceptPermissions = useChatPrefs((s) => s.autoAcceptPermissions)
+  const permissionLevel = useChatPrefs((s) => s.permissionLevel)
   const expandToolCalls = useChatPrefs((s) => s.expandToolCalls)
   const toggleShowThinking = useChatPrefs((s) => s.toggleShowThinking)
   const toggleExpandFileChanges = useChatPrefs((s) => s.toggleExpandFileChanges)
-  const toggleAutoAcceptPermissions = useChatPrefs((s) => s.toggleAutoAcceptPermissions)
+  const setPermissionLevel = useChatPrefs((s) => s.setPermissionLevel)
 
   // 权限模式：与后端 /permissions/mode 同步
   const [serverAutoAccept, setServerAutoAccept] = useState(false)
@@ -108,22 +114,32 @@ export default function Chat() {
       .then((d) => setServerAutoAccept(!!(d as { autoAccept?: boolean })?.autoAccept))
       .catch(() => {})
   }, [])
-  // 当本地切换时，同步到后端
-  const handlePermissionToggle = useCallback(() => {
-    const next = !autoAcceptPermissions
-    toggleAutoAcceptPermissions()
-    endpoints.permissions
-      .setMode(next)
-      .then(() => {
-        setServerAutoAccept(next)
-        toast(`权限模式：${next ? '自动接收（低风险）' : '手动确认'}`, 'info')
-      })
-      .catch(() => {
-        // 后端同步失败时回滚本地状态
-        toggleAutoAcceptPermissions()
-        toast('权限模式同步后端失败，已回滚', 'error')
-      })
-  }, [autoAcceptPermissions, toggleAutoAcceptPermissions, toast])
+  // 三级权限切换：自动 => 后端 autoAccept=true；询问/只读 => false。失败回滚
+  const handlePermissionLevel = useCallback(
+    (level: PermissionLevel) => {
+      const nextAuto = level === 'auto'
+      if (nextAuto === autoAcceptPermissions && permissionLevel === level) return
+      const prevLevel = permissionLevel
+      const prevAuto = autoAcceptPermissions
+      setPermissionLevel(level)
+      endpoints.permissions
+        .setMode(nextAuto)
+        .then(() => {
+          setServerAutoAccept(nextAuto)
+          toast(
+            `权限等级：${level === 'auto' ? '自动接收（低风险）' : level === 'ask' ? '手动确认' : '只读（不执行写操作）'}`,
+            'info',
+          )
+        })
+        .catch(() => {
+          // 后端同步失败时回滚本地状态
+          setPermissionLevel(prevLevel)
+          setServerAutoAccept(prevAuto)
+          toast('权限模式同步后端失败，已回滚', 'error')
+        })
+    },
+    [autoAcceptPermissions, permissionLevel, setPermissionLevel, toast],
+  )
 
   // 当前会话（由外壳侧栏会话浮层经 ?session= 切换，或新对话为 null）
   const [activeSession, setActiveSession] = useState<string | null>(null)
@@ -261,17 +277,23 @@ export default function Chat() {
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim()
-    if (!msg || sending) return
+    if ((!msg && attachments.length === 0) || sending) return
+    // 附件以 [附件] 行并入消息正文，作为文本上下文传给后端
+    const attachmentNote = attachments
+      .map((a) => `[附件] ${a.name}`)
+      .join('\n')
+    const payload = [attachmentNote, msg].filter(Boolean).join('\n\n')
     // 首条用户消息自动生成会话题目（已有 session 时同步持久化）
     if (messages.length === 0) {
-      const title = generateChatTitle(msg)
+      const title = generateChatTitle(msg || attachments.map((a) => a.name).join('、'))
       setChatTitle(title)
       saveChatTitle(activeSession, title)
     }
-    const userMsg: Message = { id: nextId(), role: 'user', content: msg }
+    const userMsg: Message = { id: nextId(), role: 'user', content: payload }
     const assistantId = nextId()
     setMessages((m) => [...m, userMsg, { id: assistantId, role: 'assistant', content: '', streaming: true }])
     setInput('')
+    setAttachments([])
     setSending(true)
 
     const appendToken = (chunk: string) => {
@@ -324,7 +346,7 @@ export default function Chat() {
       // 构建完整对话上下文：历史消息 + 当前用户消息（过滤错误/空消息）
       const streamMessages: ChatMessage[] = [
         ...toChatMessages(messages).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        { role: 'user', content: msg },
+        { role: 'user', content: payload },
       ]
       await endpoints.chat.stream(
         streamMessages,
@@ -422,7 +444,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-full gap-0">
+    <div className="relative flex h-full gap-0">
       {/* Main Chat Area */}
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Scroll container — sub-header and input bar are sticky inside for glass overlay effect */}
@@ -506,7 +528,7 @@ export default function Chat() {
               size="sm"
             />
 
-            {/* 三项可配置功能切换 */}
+            {/* 可配置功能切换（权限等级已移入输入框三级选择器） */}
             {activeTab === 'chat' && (
             <div className="ml-auto flex items-center gap-1.5">
               <ToggleChip
@@ -522,18 +544,6 @@ export default function Chat() {
                 icon={<FileEdit size={12} />}
                 label="文件变更"
                 title={expandFileChanges ? '默认展开文件修改明细（已开启）' : '默认折叠文件修改明细（已关闭）'}
-              />
-              <ToggleChip
-                active={autoAcceptPermissions}
-                onClick={handlePermissionToggle}
-                icon={autoAcceptPermissions ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
-                label={autoAcceptPermissions ? '自动接收' : '手动确认'}
-                title={
-                  autoAcceptPermissions
-                    ? '权限模式：自动接收低风险操作（高风险仍需确认）'
-                    : '权限模式：所有操作手动确认'
-                }
-                variant={autoAcceptPermissions ? 'success' : 'default'}
               />
             </div>
             )}
@@ -613,7 +623,7 @@ export default function Chat() {
           value={input}
           onChange={setInput}
           sending={sending}
-          disabled={!input.trim()}
+          disabled={!input.trim() && attachments.length === 0}
           models={models}
           selectedModel={selectedModel}
           reasoningEffort={reasoningEffort}
@@ -623,6 +633,20 @@ export default function Chat() {
           }}
           onSend={() => void send()}
           onStop={stop}
+          attachments={attachments}
+          onAttach={(files) => {
+            const list = Array.from(files)
+            const next = list.map((f) => ({
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              name: f.name,
+              size: f.size,
+              kind: (f.type.startsWith('image/') ? 'image' : 'file') as ChatAttachment['kind'],
+            }))
+            setAttachments((prev) => [...prev, ...next])
+          }}
+          onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
+          permissionLevel={permissionLevel}
+          onPermissionLevelChange={handlePermissionLevel}
         />
           </>
         )}
