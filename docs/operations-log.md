@@ -28,7 +28,7 @@
   - `frontend/src/styles/index.css`：三条光带改为「丝绢折光双层」——窄高光线（specular，暗 0.3–0.36）+ 宽柔光带；新增 `.silk-sheen`（明亮斜带 16s 横扫）、`.silk-ribs`（双向 repeating-linear-gradient 丝绢肋纹 22px/34px 周期，blur 6px，60s 平移）、`.silk-fluid`（两个大尺度流体光斑，30s/36s 形变 + 圆角 morph + 漂移）；全部提供浅色（黑墨）变体。
   - `frontend/src/components/layout/Layout.tsx`：挂载 `.silk-sheen` / `.silk-ribs` / `.silk-fluid` 背景层（z-index:-1，与既有 isolate 玻璃体系兼容）。
 - **验证**：前端 tsc ✅、vitest 278/278 ✅；像素采样：层叠丝绸亮斑显著（暗色侧栏顶部 rgb(68,68,68) vs 底部 rgb(18,18,18)，亮度均值 44、方差 sd≈30）；SenseNova 审批 dark-chat 8 / dark-tokens 7（暗色认可多层明暗对比）；浅色 chat 单帧评 3 为「静态帧无法体现动态材质」+ 评审对单色丝绸纹理的感知局限（像素证明纹理存在），已记录，不再追分。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`0f2c660`（推送 internal211/master）
 
 ## 2026-08-07 — AXIS Monochrome 黑白设计系统重构 + skills 安装 + 视觉审批
 
