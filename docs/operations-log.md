@@ -54,7 +54,7 @@
   - `.github/workflows/ci.yml`：test job 增加「构建前端并拷贝 public/」（后端自托管静态产物）；E2E 步骤注入 `AXIOM_AUTH_TOKEN` + `E2E_SPEC=animation-layout`。
   - `e2e/animation-layout.spec.ts`：宽度断言改范围（399–401，防亚像素抖动）；token 优先取 `AXIOM_AUTH_TOKEN`。
 - **验证**：tsc ✅ / vite build ✅；材质探针 blur(36px)、丝绸 ::before 存在（暗/亮）；Git 面板边框元素 0；**`bun run test:e2e`（E2E_SPEC=animation-layout）4/4 通过**；SenseNova 复审**亮色摘要 8 / 暗色摘要 7.5 / Git 面板 7–8.5**（丝绸衬底✅、密度✅、无边框✅、字体锐利✅）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`e473c2f`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏/输入区 P2 打磨（投影分隔、层级、选中态、触控目标）
 
