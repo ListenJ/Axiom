@@ -8,6 +8,7 @@ import {
   FolderOpen,
   MessageSquare,
   X,
+  PanelRightClose,
 } from 'lucide-react'
 import {
   SummaryPanel,
@@ -43,6 +44,15 @@ export default function RightToolbar() {
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-3">
         <span className="text-sm font-semibold text-[var(--text)]">工具台</span>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:flex"
+          aria-label="收起工具台"
+          title="收起工具台"
+        >
+          <PanelRightClose size={16} />
+        </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -110,28 +120,40 @@ export default function RightToolbar() {
   return (
     <>
       {/* 桌面端常驻右栏（画布层配色） */}
-      <aside
+      <motion.aside
         aria-label="右侧工具台"
-        className={`canvas-surface hidden h-full w-80 shrink-0 border-l border-[var(--border)] lg:block ${
-          open ? '' : 'lg:hidden'
-        }`}
+        className="canvas-surface hidden h-full shrink-0 overflow-hidden border-l border-[var(--border)] lg:block"
+        initial={false}
+        animate={reduceMotion ? { width: open ? 320 : 0 } : { width: open ? 320 : 0 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
-        {shell}
-      </aside>
+        <div className="h-full w-80">{shell}</div>
+      </motion.aside>
 
       {/* 移动端抽屉 */}
-      {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 backdrop-glass"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="canvas-surface absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l border-[var(--border)] shadow-2xl">
-            {shell}
+      <AnimatePresence>
+        {open && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <motion.div
+              className="absolute inset-0 backdrop-glass"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOpen(false)}
+              aria-hidden="true"
+            />
+            <motion.div
+              className="canvas-surface absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l border-[var(--border)] shadow-2xl"
+              initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+              transition={MOTION_PRESETS.slideUp}
+            >
+              {shell}
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   )
 }

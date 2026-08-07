@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
-  Wrench, KeyRound, CheckCircle2, Palette, Monitor,
+  Wrench, KeyRound, CheckCircle2, Palette, Monitor, TerminalSquare,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp, resolveTheme } from '@/state/useApp'
@@ -305,6 +305,18 @@ const sectionRenderers: Record<string, SectionRenderer> = {
         checked={prefs.expandToolCalls}
         onChange={() => { prefs.toggleExpandToolCalls(); toast(`工具调用明细已${!prefs.expandToolCalls ? '开启' : '关闭'}`, 'info') }}
         highlight={highlightKey === 'chat.expandToolCalls'}
+      />
+      <ToggleRow
+        icon={<TerminalSquare className="size-5" />}
+        label="终端覆盖显示"
+        desc="终端以浮层覆盖显示（不占位、不推挤内容）；关闭后内嵌于内容区底部。"
+        checked={useApp.getState().terminalOverlay}
+        onChange={() => {
+          const next = !useApp.getState().terminalOverlay
+          useApp.getState().setTerminalOverlay(next)
+          toast(`终端已切换为${next ? '覆盖' : '内嵌'}显示`, 'info')
+        }}
+        highlight={highlightKey === 'chat.terminalOverlay'}
       />
       <ToggleRow
         icon={<KeyRound className="size-5" />}

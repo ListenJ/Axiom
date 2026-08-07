@@ -4,7 +4,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
-import StatsBar from './StatsBar'
 import HelpModal from '@/components/ui/HelpModal'
 import Toasts from '@/components/ui/Toasts'
 import ApprovalModal from '@/components/ApprovalModal'
@@ -21,6 +20,7 @@ export default function Layout() {
   const setSidebarOpen = useApp((s) => s.setSidebarOpen)
   const terminalOpen = useApp((s) => s.terminalOpen)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
+  const terminalOverlay = useApp((s) => s.terminalOverlay)
   useGlobalHotkeys()
   useTheme()
   const reduceMotion = useReducedMotion()
@@ -81,23 +81,20 @@ export default function Layout() {
           </div>
         </main>
 
-        {/* 终端栏：布局内嵌（main 与 StatsBar 之间占位），不遮挡工作区内容；
-            开合以高度动画过渡，高度可由面板顶部手柄拖拽调整 */}
+        {/* 终端栏：默认覆盖式浮层（不占位、不推挤页面）；设置可切回内嵌式 */}
         <AnimatePresence>
           {terminalOpen && (
             <motion.div
-              className="shrink-0 overflow-hidden"
-              initial={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              className={terminalOverlay ? 'fixed inset-x-0 bottom-0 z-40' : 'shrink-0 overflow-hidden'}
+              initial={reduceMotion ? { opacity: 0 } : terminalOverlay ? { y: '100%', opacity: 0 } : { height: 0, opacity: 0 }}
+              animate={terminalOverlay ? { y: 0, opacity: 1 } : { height: 'auto', opacity: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : terminalOverlay ? { y: '100%', opacity: 0 } : { height: 0, opacity: 0 }}
               transition={MOTION_PRESETS.slideUp}
             >
               <TerminalPanel onClose={() => setTerminalOpen(false)} />
             </motion.div>
           )}
         </AnimatePresence>
-
-        <StatsBar />
         <BottomNav />
       </div>
 

@@ -251,7 +251,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 {title}
               </span>
               <span className="mt-0.5 block text-2xs leading-relaxed text-[var(--text-muted)]">
-                {s.message_count} 条消息 · {formatTokens(s.total_tokens ?? 0)} tok
+                {s.message_count} 条消息 · {formatTokens(s.total_tokens ?? 0)} Token
               </span>
               {/* 动态占比：会话活跃度（消息数）占当前项目总活跃度的比例 */}
               {activityTotal > 0 && (

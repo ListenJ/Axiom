@@ -30,6 +30,21 @@
 
 ---
 
+---
+
+## 2026-08-07 — 页面整洁化 + 终端/右栏动态动画 + e2e 动画测试 + 新设置项
+
+- **任务**：①底部状态栏迁入右栏摘要并移除底部健康展示（整洁化）②右栏/终端改为动态动画进出（不突兀、不占位）③视觉审核 + 编写动画测试脚本并评估新设置项。
+- **工具**：Playwright e2e（@playwright/test）、SenseNova（视觉审核）、design-system/frontend-design skills。
+- **操作（文件级）**：
+  - `frontend/src/components/layout/Layout.tsx`：移除底部 `<StatsBar />`；终端改为**覆盖式浮层**（`fixed inset-x-0 bottom-0 z-40`，AnimatePresence y:100%→0 滑入/滑出，不推挤主内容）；新增 `terminalOverlay` 开关支持内嵌回退。
+  - `frontend/src/components/rightbar/panels.tsx`：SummaryPanel 系统统计补「缓存命中」项（tokenDetails 轮询），并 `col-span-2` 修正栅格；`RightToolbar.tsx`：桌面右栏改 **framer-motion 宽度动画**（320↔0，0.3s，非 Tailwind 过渡——修复运行时切换不可靠）、新增桌面「收起工具台」按钮、移动抽屉 AnimatePresence 滑入；`Sidebar.tsx`：会话 meta「tok」→「Token」。
+  - `frontend/src/state/useApp.ts`：新增 `terminalOverlay` 状态（默认 true，持久化）；`pages/Settings.tsx`：新增「终端覆盖显示」开关（行为区）。
+  - `archive/frontend/components/layout/StatsBar.tsx`：按规则 4 归档旧状态栏（ARCHIVE-LOG 记录）。
+  - `e2e/animation-layout.spec.ts`：新增 4 项测试——①底部无全局状态栏且状态迁入摘要 ②右栏宽度过渡动画（RAF 采样中间值）③终端覆盖式浮层不推挤主内容 ④动效 off 无动画。
+- **验证**：vitest 278/278 ✅、responsive 25/25 ✅、**e2e 4/4 通过**（含右栏 RAF 中间宽度、终端 fixed 祖先、主内容高度不变）；SenseNova 视觉审核 dark-chat 8/10（底部栏移除达标、摘要承载达标、整洁度达标，P2 已修）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-07 — 背景动态性能体检与优化（CPU/内存/VRAM 审计）
 
 - **任务**：确认背景动态效果是否过度占用 CPU / 内存 / VRAM，并针对性优化。

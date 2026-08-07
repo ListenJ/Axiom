@@ -68,6 +68,7 @@ function ErrorNote({ message }: { message: string }) {
 export function SummaryPanel() {
   const [git, setGit] = useState<GitStatus | null>(null)
   const [stats, setStats] = useState<SystemStats | null>(null)
+  const [cacheRate, setCacheRate] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -75,12 +76,16 @@ export function SummaryPanel() {
     let alive = true
     const load = async () => {
       try {
-        const [g, s] = await Promise.allSettled([endpoints.git.status(), endpoints.stats()])
+        const [g, s, t] = await Promise.allSettled([endpoints.git.status(), endpoints.stats(), endpoints.tokenDetails(1)])
         if (!alive) return
         if (g.status === 'fulfilled' && g.value?.success) setGit(g.value)
         if (s.status === 'fulfilled') setStats(s.value as SystemStats)
+        if (t.status === 'fulfilled') {
+          const d = t.value as { cacheStats?: { hitRate: number } }
+          if (typeof d?.cacheStats?.hitRate === 'number') setCacheRate(d.cacheStats.hitRate)
+        }
         setError(
-          g.status === 'rejected' && s.status === 'rejected'
+          g.status === 'rejected' && s.status === 'rejected' && t.status === 'rejected'
             ? 'Git 与统计服务均不可用'
             : null,
         )
@@ -159,6 +164,12 @@ export function SummaryPanel() {
                 <dt className="text-[var(--text-muted)]">Token 用量</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
                   {formatTokens(stats?.tokensUsed ?? 0)}
+                </dd>
+              </div>
+              <div className="col-span-2 rounded-lg bg-[var(--bg-tertiary)] p-2">
+                <dt className="text-[var(--text-muted)]">缓存命中</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-[var(--text)]">
+                  {cacheRate === null ? '—' : `${Math.round(cacheRate * 100)}%`}
                 </dd>
               </div>
             </dl>

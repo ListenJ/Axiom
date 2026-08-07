@@ -377,3 +377,26 @@
 
 - 截图：`vision-review/perf1-*.png`、`perf-probe.cjs`（性能探针）
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十二轮：页面整洁化 + 终端/右栏动态动画 + e2e 动画测试（2026-08-07）
+
+## 四十二、实现
+
+- **底部状态栏移除**：Layout 移除 `<StatsBar />`；系统状态（任务/Agent/已完成/Token/缓存命中）迁入右栏「工作摘要」面板（补缓存命中项 + col-span-2 栅格修正）。StatsBar.tsx 按规则 4 归档。
+- **终端覆盖式动画**：改为 `fixed` 底部浮层，AnimatePresence 滑入/滑出（y:100%→0），不推挤主内容；新增设置「终端覆盖显示」可切回内嵌。
+- **右栏动画**：桌面右栏 framer-motion 宽度动画（320↔0，0.3s），新增「收起工具台」按钮；移动抽屉 AnimatePresence 滑入。
+- **e2e 测试**：`e2e/animation-layout.spec.ts` 4 项（整洁化/右栏过渡/终端覆盖/动效 off）。
+
+## 四十三、审批与验证
+
+- SenseNova：dark-chat **8/10**（底部栏移除✅、摘要承载✅、整洁度✅，P2 已修）。
+- 测试：vitest 278/278 ✅、responsive 25/25 ✅、**e2e 4/4 ✅**。
+
+## 四十四、本轮截图与审核原文
+
+- 截图：`vision-review/t1–t2-*.png`
+- 逐页原文：`vision-review/reviews-t1/*.md`
+- 测试：`e2e/animation-layout.spec.ts`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

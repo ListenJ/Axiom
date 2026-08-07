@@ -21,6 +21,7 @@ interface AppState {
   sidebarCollapsed: boolean
   helpOpen: boolean
   terminalOpen: boolean
+  terminalOverlay: boolean
   rightbarOpen: boolean
   rightbarTool: RightbarTool
   toasts: { id: number; type: 'info' | 'success' | 'error' | 'warning'; message: string }[]
@@ -34,6 +35,7 @@ interface AppState {
   toggleSidebarCollapsed: () => void
   setHelpOpen: (open: boolean) => void
   setTerminalOpen: (open: boolean) => void
+  setTerminalOverlay: (overlay: boolean) => void
   setRightbarOpen: (open: boolean) => void
   setRightbarTool: (tool: RightbarTool) => void
   openRightTool: (tool: RightbarTool) => void
@@ -46,6 +48,7 @@ const SIDEBAR_COLLAPSED_KEY = 'axiom:sidebar-collapsed'
 const ACCENT_KEY = 'axiom:accent'
 const SHELL_TONE_KEY = 'axiom:shell-tone'
 const CANVAS_TONE_KEY = 'axiom:canvas-tone'
+const TERMINAL_OVERLAY_KEY = 'axiom:terminal-overlay'
 
 function readInitialTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'system'
@@ -84,6 +87,12 @@ function readInitialCanvasTone(): CanvasToneId {
   return stored === 'pure' || stored === 'soft' ? stored : 'default'
 }
 
+function readInitialTerminalOverlay(): boolean {
+  if (typeof localStorage === 'undefined') return true
+  const stored = localStorage.getItem(TERMINAL_OVERLAY_KEY)
+  return stored !== 'false'
+}
+
 function readInitialSidebarCollapsed(): boolean {
   if (typeof localStorage === 'undefined') return false
   return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
@@ -107,6 +116,7 @@ export const useApp = create<AppState>((set, get) => ({
   sidebarCollapsed: readInitialSidebarCollapsed(),
   helpOpen: false,
   terminalOpen: false,
+  terminalOverlay: readInitialTerminalOverlay(),
   rightbarOpen: readInitialRightbarOpen(),
   rightbarTool: 'summary',
   toasts: [],
@@ -143,6 +153,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setHelpOpen: (open) => set({ helpOpen: open }),
   setTerminalOpen: (open) => set({ terminalOpen: open }),
+  setTerminalOverlay: (overlay) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(TERMINAL_OVERLAY_KEY, String(overlay))
+    set({ terminalOverlay: overlay })
+  },
   setRightbarOpen: (open) => set({ rightbarOpen: open }),
   setRightbarTool: (tool) => set({ rightbarTool: tool }),
   openRightTool: (tool) => set({ rightbarTool: tool, rightbarOpen: true }),
