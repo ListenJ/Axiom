@@ -108,9 +108,9 @@ export function ChatComposer({
                 onClick={() => onRemoveAttachment(a.id)}
                 aria-label={`移除 ${a.name}`}
                 title="移除附件"
-                className="press flex size-5 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
+                className="press flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
               >
-                <X size={11} />
+                <X size={13} />
               </button>
             </span>
           ))}
@@ -154,7 +154,7 @@ export function ChatComposer({
           placeholder="输入消息…（Enter 发送 · Shift+Enter 换行）"
           aria-label="消息输入框"
           rows={1}
-          className="text-shadow-readable min-h-[4.6rem] max-h-[40vh] min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border-0 bg-transparent px-4 py-3.5 text-sm text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-secondary)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
+          className="text-shadow-readable min-h-[4.6rem] max-h-[40vh] min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border-0 bg-transparent px-4 py-3.5 text-sm leading-relaxed text-[var(--text)] outline-none transition-shadow placeholder:text-[var(--text-secondary)] focus:shadow-[0_0_0_2px_var(--accent-ring)]"
         />
         {sending ? (
           <Button
@@ -170,8 +170,8 @@ export function ChatComposer({
             onClick={onSend}
             disabled={disabled}
             aria-label="发送"
-            className="shrink-0 !size-11 !rounded-full !p-0"
-            icon={<Send size={18} />}
+            className="shrink-0 !size-11 !rounded-full !p-0 !shadow-[var(--shadow)]"
+            icon={<Send size={20} />}
           />
         )}
         {/* 模型选择圆环（右下角）+ 思考强度弹窗 */}
@@ -201,9 +201,9 @@ export function ChatComposer({
                 aria-checked={active}
                 onClick={() => onPermissionLevelChange(p.id)}
                 title={p.title}
-                className={`press flex h-6 items-center gap-1 rounded-full px-2 text-2xs transition-colors focus:outline-none ${
+                className={`press flex h-7 items-center gap-1 rounded-full px-2.5 text-xs transition-colors focus:outline-none ${
                   active
-                    ? 'bg-[var(--accent)] text-[var(--on-accent)]'
+                    ? 'bg-[var(--accent)] font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
@@ -213,7 +213,7 @@ export function ChatComposer({
             )
           })}
         </div>
-        <span className="text-2xs text-[var(--text-muted)]">权限</span>
+        <span className="text-xs text-[var(--text-muted)]">Agent 权限</span>
       </div>
     </div>
   )

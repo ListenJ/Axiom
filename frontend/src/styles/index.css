@@ -551,7 +551,10 @@ a:focus-visible,
   background: rgba(22, 22, 22, 0.34);
   backdrop-filter: blur(28px) saturate(1.45);
   -webkit-backdrop-filter: blur(28px) saturate(1.45);
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.78),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
   will-change: backdrop-filter;
 }
 
@@ -566,7 +569,10 @@ a:focus-visible,
 }
 [data-theme='light'] .overlay-glass {
   background: rgba(255, 255, 255, 0.38);
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 /* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */

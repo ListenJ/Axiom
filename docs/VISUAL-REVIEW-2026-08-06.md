@@ -516,3 +516,26 @@
 - 审核原文：`vision-review/reviews-new-*.md`、`reviews-new2-*.md`
 - skills：`~/.codex/skills/taste-skill`、`~/.codex/skills/impeccable`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第十八轮：右栏/输入区 P2 打磨（2026-08-08）
+
+## 六十、实现
+
+- `.overlay-glass` 阴影加强 + 顶部 inset 高光（暗 .07 / 亮 .75），提升悬浮感与玻璃质感。
+- 右栏头部加高（h-[3.25rem]）、关闭按钮 size-9 且颜色提升为 `text-secondary`。
+- 摘要分区标题 `text-xs text-secondary`（层级更清晰）、`space-y-7 pb-8`（底部留白）、「提交并推送」改 primary 主按钮、空态文字对比提升。
+- 输入区：发送按钮加阴影 + 20px 图标；权限选中态 `font-medium + shadow-sm`；附件删除按钮 size-7（触控目标）；输入框 `leading-relaxed`。
+- e2e 退场断言改「点击后立即 rAF 采样」消除竞态。
+
+## 六十一、审批与验证
+
+- SenseNova 复审：**亮色输入区 8.5 / 亮色右栏 7 / 暗色输入区 7 / 暗色右栏 6**——层级/按钮/通透✅；模型对「底部黑色区域」「分割线」的指认经像素/计算样式核实为半透明面板透出工作区底色（非实心块），已记录为误读；余下 P2（选中态对比、删除按钮、顶部高光）已在本轮补强。
+- 测试：tsc ✅、vite build ✅、**e2e 4/4 通过**。
+
+## 六十二、本轮截图与审核原文
+
+- 截图：`vision-review/new-*-rightbar.png`、`new-*-composer.png`（本轮重截）
+- 审核原文：`vision-review/reviews-new3-*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

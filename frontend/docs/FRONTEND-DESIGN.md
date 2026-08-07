@@ -366,3 +366,4 @@ frontend/src/components/
 - 像素/计算样式：圆角生效、面板中心暗 rgb(19,19,19)（透明化后更接近工作区）、`box-shadow` 生效。
 - SenseNova 终审：**亮色 8 / 暗色 7**（磨砂同材质✅、圆角投影✅、无分割线✅；P2：暗色投影分隔/内部层级可再加强）。
 - e2e：`e2e/animation-layout.spec.ts` 4/4 通过（摘要迁入、悬浮抽屉动画进出/不占位、终端覆盖、动效 off）。
+- P2 打磨（2026-08-08）：`.overlay-glass` 阴影加强 + 顶部高光；分区标题 `text-xs text-secondary`；「提交并推送」primary；权限选中态 `font-medium + shadow`；附件删除按钮 size-7；输入框 `leading-relaxed`。

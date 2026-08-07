@@ -42,12 +42,12 @@ export default function RightToolbar() {
 
   const shell = (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between px-4 pt-2">
+      <div className="flex h-[3.25rem] shrink-0 items-center justify-between px-4 pt-2.5 pb-1">
         <span className="text-sm font-semibold tracking-tight text-[var(--text)]">工具台</span>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="press flex size-8 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          className="press flex size-9 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           aria-label="收起工具台"
           title="收起工具台"
         >

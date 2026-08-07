@@ -40,6 +40,19 @@
 
 ---
 
+## 2026-08-08 — 右栏/输入区 P2 打磨（投影分隔、层级、选中态、触控目标）
+
+- **任务**：继续优化——按上一轮视觉审批的 P2 项打磨暗/亮右栏与输入区：投影分隔与顶部高光、分区标题层级、主 CTA 醒目度、发送按钮识别度、权限选中态、附件删除触控目标、输入行距。
+- **工具**：SenseNova（复审）、Playwright（几何 + e2e）、design-taste-frontend / impeccable。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：`.overlay-glass` 阴影加强（暗 0 28px 80px rgba(0,0,0,.78)、亮 0 28px 80px rgba(0,0,0,.18)）+ 顶部 inset 高光（暗 .07 / 亮 .75），悬浮感与玻璃质感更强。
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：头部 `h-12→h-[3.25rem]`、关闭按钮 size-9、关闭按钮颜色 `text-muted→text-secondary`（可识别性）。
+  - `frontend/src/components/rightbar/panels.tsx`：分区标题 `text-2xs muted → text-xs text-secondary`（层级更清晰）；容器 `space-y-7 pb-8`（底部留白）；「提交并推送」`secondary→primary`（醒目 CTA）；空态文字 `muted→secondary`。
+  - `frontend/src/components/chat/ChatComposer.tsx`：发送按钮加 `shadow`、图标 20px；权限选中态加 `font-medium + shadow-sm`；附件删除按钮 size-6→size-7（触控目标）；输入框 `leading-relaxed`（行距舒适）。
+  - `e2e/animation-layout.spec.ts`：右栏退场断言改「点击后立即 rAF 采样中间透明度」消除竞态。
+- **验证**：tsc ✅ / vite build ✅；SenseNova 复审**亮色输入区 8.5 / 亮色右栏 7**（层级/按钮/通透✅，P2：选中态对比、删除按钮、顶部高光——已补强）；**e2e 4/4 通过**。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏悬浮抽屉 + 输入框附件/三级权限 + 摘要三区块（视觉模型 + taste/impeccable 审批）
 
 - **任务**：①右栏改为按需弹出悬浮抽屉（动画进出、不占位、贴合工作区、与工作区同材质）②摘要按参考图改「环境信息 / 子智能体 / 来源」三区块 ③输入框加附件添加与三级 Agent 权限（只读/询问/自动），文本/图片增多时自适应向上增高，垂直高度再增大 30% ④视觉模型 + skill 审美审批。

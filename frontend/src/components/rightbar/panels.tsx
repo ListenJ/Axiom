@@ -171,7 +171,7 @@ export function SummaryPanel() {
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-7 p-4 pb-8">
       {error && <ErrorNote message={error} />}
       {loading ? (
         <div className="space-y-3">
@@ -183,7 +183,7 @@ export function SummaryPanel() {
         <>
           {/* 环境信息 */}
           <section aria-label="环境信息" className="space-y-3">
-            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
               环境信息
             </h2>
             <dl className="space-y-2 text-xs">
@@ -229,7 +229,7 @@ export function SummaryPanel() {
             <div className="flex items-center gap-1.5 pt-0.5">
               <Button
                 size="sm"
-                variant="secondary"
+                variant="primary"
                 loading={busy}
                 disabled={busy || !diff || diff.files === 0}
                 onClick={() => void commitPush()}
@@ -250,11 +250,11 @@ export function SummaryPanel() {
 
           {/* 子智能体 */}
           <section aria-label="子智能体" className="space-y-3">
-            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
               子智能体
             </h2>
             {!agents || agents.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">暂无子智能体</p>
+              <p className="text-xs text-[var(--text-secondary)]">暂无子智能体</p>
             ) : (
               <ul className="space-y-1">
                 {agents.map((a) => (
@@ -288,11 +288,11 @@ export function SummaryPanel() {
 
           {/* 来源 */}
           <section aria-label="来源" className="space-y-3">
-            <h2 className="text-2xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
               来源
             </h2>
             {sources.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">暂无索引文件</p>
+              <p className="text-xs text-[var(--text-secondary)]">暂无索引文件</p>
             ) : (
               <ul className="space-y-0.5">
                 {sources.slice(0, 5).map((f) => (
