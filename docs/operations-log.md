@@ -43,7 +43,7 @@
   - `archive/frontend/components/layout/StatsBar.tsx`：按规则 4 归档旧状态栏（ARCHIVE-LOG 记录）。
   - `e2e/animation-layout.spec.ts`：新增 4 项测试——①底部无全局状态栏且状态迁入摘要 ②右栏宽度过渡动画（RAF 采样中间值）③终端覆盖式浮层不推挤主内容 ④动效 off 无动画。
 - **验证**：vitest 278/278 ✅、responsive 25/25 ✅、**e2e 4/4 通过**（含右栏 RAF 中间宽度、终端 fixed 祖先、主内容高度不变）；SenseNova 视觉审核 dark-chat 8/10（底部栏移除达标、摘要承载达标、整洁度达标，P2 已修）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`69e1c3b`（推送 internal211/master）
 
 ## 2026-08-07 — 背景动态性能体检与优化（CPU/内存/VRAM 审计）
 
