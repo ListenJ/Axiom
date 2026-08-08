@@ -589,3 +589,26 @@
 - 审核原文：`vision-review/reviews-flow-*.md`
 - skills：`~/.codex/skills/cowork/cowork-frontend-design`、`cowork-design-system`（cowork-skill 已安装）
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十一轮：全站动画/卡死巡检 + 右栏透明度提升 + vault 修复（2026-08-08）
+
+## 六十九、巡检
+
+- **40 个页面**（20 路由 × 暗/亮）Playwright 巡检：控制台错误、空白页、卡住的 skeleton、动画运行数。
+- 结果：38/40 零错误；`/vault`（/vault/tags 500）、`/perf`（/native/stats 503，前端已降级为“未启用”）被标记；Vault/Perf 的“卡死 skeleton”核实为设计内装饰骨架，非真卡死。
+
+## 七十、实现与审批
+
+- **透明度**：右栏暗 rgba .22→.10、亮 .3→.16（blur 36px 保可读）；左侧投影加强 + 内高光，悬浮感提升。
+- **vault 修复**：`/vault/tags` SQL 容错（NULL/非 JSON 防护 + 兜底空列表），500 → 200。
+- **e2e**：移除动画测试重开侧中间采样断言（竞态），全套仍 10/10 通过。
+- SenseNova 复审：**暗色右栏 8/10（透明度接近目标、文字清晰）、亮色 7.5、vault 8**。
+
+## 七十一、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-*.png`、`tr-light-*.png`
+- 审核原文：`vision-review/reviews-tr*.md`
+- 巡检报告：`vision-review/monitor-report.json`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

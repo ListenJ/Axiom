@@ -379,8 +379,8 @@ frontend/src/components/
 
 ### 13.2 右栏材质（半透明 + 高斯模糊，无丝绸衬底）
 
-- `.overlay-glass`：`blur(36px) saturate(1.5)`，背景暗 rgba(22,22,22,.22) / 亮 rgba(255,255,255,.3)（半透明、直接透出背景光效）；移动抽屉保留 `box-shadow: 0 28px 80px rgba(0,0,0,.78)` + 顶部柔光。
-- `panel-shadow-left`：桌面在流内面板用左侧阴影分隔（`-12px 0 32px -16px rgba(0,0,0,.7)` + 1px 内高光），无边框。
+- `.overlay-glass`：`blur(36px) saturate(1.5)`，背景暗 rgba(22,22,22,.10) / 亮 rgba(255,255,255,.16)（高通透、直接透出背景光效）；移动抽屉保留 `box-shadow: 0 28px 80px rgba(0,0,0,.78)` + 顶部柔光。
+- `panel-shadow-left`：桌面在流内面板用左侧阴影分隔（`-12px 0 40px -18px rgba(0,0,0,.75)` + 1px 内高光），无边框。
 - **无丝绸衬底**（`::before` 已移除）——可读性完全由高斯模糊 + 文字阴影承担。
 
 ### 13.3 右栏面板统一无边框

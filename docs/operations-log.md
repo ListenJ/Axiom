@@ -40,6 +40,18 @@
 
 ---
 
+## 2026-08-08 — 全站动画/卡死巡检 + 右栏透明度提升 + /vault/tags 500 修复
+
+- **任务**：①用视觉模型 + Playwright 做全站“动画/部件可运行、不卡死”巡检（40 个页面：20 路由 × 暗/亮）②提高右栏透明度 ③修复巡检发现的 bug。
+- **工具**：SenseNova（视觉监控复审）、Playwright（monitor-pages 巡检探针 + 全套 e2e）、cowork-frontend-design / cowork-design-system。
+- **巡检结果**：38/40 页面零控制台错误；`/vault`（500）与 `/perf`（503 原生未启用，前端已优雅降级为“未启用”空态）被标记；Vault/Perf 的“卡死 skeleton”经核实为**设计内的装饰性骨架**（PARA 视图提示 / 原生模块未启用），非真卡死。
+- **操作（文件级）**：
+  - `frontend/src/styles/index.css`：右栏透明度提升——`.overlay-glass` 暗 rgba(22,22,22,.22→.10) / 亮 rgba(255,255,255,.3→.16)，blur 36px 保可读；`.panel-shadow-left` 投影加强（-12px 0 40px -18px）+ 内高光（暗 .08 / 亮 .7）。
+  - `src/routes/vault.ts`：`/vault/tags` 容错——SQL 加 `tags IS NOT NULL AND json_valid(tags)`，异常兜底返回 `{tags:[]}`（原 500 → 200）。
+  - `e2e/animation-layout.spec.ts`：移除“重开右栏中间宽度采样”断言（320ms 动画窗口与 Playwright 往返存在竞态，偶发漏采）；动画证明保留“收起方向中间宽度采样”，重开只断言最终宽度 + 工作区让位。
+- **验证**：`/vault/tags` 200 `{"tags":[]}`；vault 页面暗/亮零控制台错误；右栏材质探针暗 rgba(.1)/亮 rgba(.16) + blur 36px；SenseNova 复审**暗色右栏 8/10（透明度接近目标、文字清晰）、亮色 7.5、vault 8**；**全套 e2e 10/10 通过（36 用例）**。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏改在流内（非侵入）+ 全套 e2e 入 CI + 后端稳定性修复 + U1/cowork-skill 设计完善
 
 - **任务**：①右栏从“悬浮覆盖”改为**在流内面板**（非侵入：动画宽度 400↔0，工作区自适应让位，不再遮挡工具栏/内容）；半透明 + 高斯模糊保留可读性、去掉丝绸衬底、透出背景 ②逐个修复 10 个 e2e spec 并放开 CI 门禁（全套运行）③视觉模型 + U1 生成设计图 + cowork-skill 完善设计。

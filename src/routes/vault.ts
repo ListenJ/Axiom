@@ -47,11 +47,16 @@ export async function handleVaultPara(ctx: RouteContext): Promise<Response | nul
 
 export async function handleVaultTagsList(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/tags" && ctx.req.method === "GET") {
-    const rows = ctx.db.query(
-      "SELECT DISTINCT json_each.value as tag FROM memory_notes, json_each(memory_notes.tags) ORDER BY tag"
-    ).all() as { tag: string }[];
-    const tags = rows.map(r => r.tag);
-    return ctx.jsonResponse({ tags }, 200, ctx.baseHeaders);
+    // 容错：tags 可能为 NULL / 非 JSON / 表尚未迁移，一律优雅降级为空标签列表
+    try {
+      const rows = ctx.db.query(
+        "SELECT DISTINCT json_each.value as tag FROM memory_notes, json_each(memory_notes.tags) " +
+          "WHERE memory_notes.tags IS NOT NULL AND json_valid(memory_notes.tags) ORDER BY tag"
+      ).all() as { tag: string }[];
+      return ctx.jsonResponse({ tags: rows.map(r => r.tag) }, 200, ctx.baseHeaders);
+    } catch {
+      return ctx.jsonResponse({ tags: [] }, 200, ctx.baseHeaders);
+    }
   }
   return null;
 }

@@ -551,7 +551,7 @@ a:focus-visible,
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
   position: relative;
-  background: rgba(22, 22, 22, 0.22);
+  background: rgba(22, 22, 22, 0.1);
   backdrop-filter: blur(36px) saturate(1.5);
   -webkit-backdrop-filter: blur(36px) saturate(1.5);
   box-shadow:
@@ -564,8 +564,8 @@ a:focus-visible,
 /* 在流内右栏的左侧阴影分隔（无边框）：桌面端贴合工作区右侧边缘 */
 .panel-shadow-left {
   box-shadow:
-    -12px 0 32px -16px rgba(0, 0, 0, 0.7),
-    inset 1px 0 0 rgba(255, 255, 255, 0.04);
+    -12px 0 40px -18px rgba(0, 0, 0, 0.75),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08);
 }
 
 [data-theme='light'] .shell-surface {
@@ -578,7 +578,7 @@ a:focus-visible,
   background: var(--canvas-glass-bg);
 }
 [data-theme='light'] .overlay-glass {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.16);
   box-shadow:
     0 28px 80px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.04),
@@ -586,8 +586,8 @@ a:focus-visible,
 }
 [data-theme='light'] .panel-shadow-left {
   box-shadow:
-    -12px 0 32px -16px rgba(0, 0, 0, 0.22),
-    inset 1px 0 0 rgba(255, 255, 255, 0.6);
+    -12px 0 40px -18px rgba(0, 0, 0, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.7);
 }
 
 /* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */
