@@ -51,7 +51,7 @@
   - `frontend/src/styles/index.css`：亮色玻璃内描边降档（overlay-glass 顶部高光 .75→.45、panel-shadow-left 内高光 .5→.35），弱化“发虚/过亮”边缘。
   - `e2e/animation-layout.spec.ts`：右栏测试追加 **Esc 收起**与**点击外部收起**两条工效断言。
 - **验证**：**全套 e2e 10/10 通过（36 用例，含新增工效断言）**；tsc ✅ / vite build ✅；材质探针暗 rgba(.16)/亮 rgba(.18) + blur 36px；SenseNova 复审存在评审波动（同图多次评分 5–8.5 不等、存在“近乎实心白/分割线”等与计算样式不符的误读），以客观样式 + e2e 为准。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`4eaaf11`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏回退为悬浮浮层（不占空间）+ 流式滑入/滑出
 
