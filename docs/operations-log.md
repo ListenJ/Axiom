@@ -3595,4 +3595,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Prompt/Harness：`prompt-store.ts` code/general 模板与 `prompt-pool.ts` main_coding/general_chat 前缀增强（AGENTS.md、垂直切片、工具优先等）。
   - 文档：新增 `docs/IMPLEMENTATION-GUIDE-2026-08-08.md`、`docs/AGENT-PROMPT-HARNESS.md`，更新 `docs/README.md`。
 - **验证**：前端 vitest 43 files / 282 tests 全绿；视觉巡检 8/8；e2e 全量通过；后端涉及测试 177 pass；`bun run stress:run` 5/5 全绿；tsc 0 错误。data@192.168.0.10 已传源码（54MB），Docker 因用户无 docker 组权限未执行，bun 官方/镜像下载 TLS 失败。
-- **Commit**：`待填`
+- **Commit**：`be79e89`
