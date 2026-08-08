@@ -54,7 +54,7 @@
   - `e2e/settings.spec.ts`：新增「面板透明度滑块持久化 + 应用 CSS 变量」断言。
   - `docs/AUDIT-2026-08-08.md`：三部分审核报告（执行链结论与修复、压力门禁 12/12、知识库接口 200 清单、动画可用性）。
 - **验证**：**全套 e2e 10/10（37 用例，settings 5/5 含滑块）**；**`bun run test:gate` 12/12 全过**（毫秒级）；知识库核心接口（vault/tags/para/pending-review/sessions/usage/codegraph/search）全部 200；`/vault/para` 200 `{"distribution":{...}}`；tsc ✅ / vite build ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`d007713`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏透明度直接调整为 .50 + 动画测试断言简化
 
