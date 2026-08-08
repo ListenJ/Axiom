@@ -3614,4 +3614,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `native/crates/cloud`：修复损坏 UTF-8 字节、clap `env` feature、未使用变量。
   - `native/crates/local`：清理未使用 import/subscriber。
 - **验证**：`cargo check -p axiom-local` / `-p axiom-cloud` 通过；`bun run native:build` release 通过；`build:go` 4/4；`build:server/cli/mcp` 通过；data@192.168.0.10 `docker build -t axiom-agent:2026-08-08` 成功，容器内 stress 40/40。
-- **Commit**：`待填`
+- **Commit**：`016dc97`
