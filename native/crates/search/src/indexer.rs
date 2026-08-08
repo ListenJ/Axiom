@@ -1,7 +1,6 @@
 use dashmap::DashMap;
 use oc_shared::types::LiteNote;
 use parking_lot::RwLock;
-use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -88,14 +87,14 @@ impl VaultIndex {
         let title = frontmatter
             .get("title")
             .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 Path::new(path)
                     .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
-                    .as_ref()
-            })
-            .to_string();
+                    .into_owned()
+            });
         let tags: Vec<String> = frontmatter
             .get("tags")
             .and_then(|v| v.as_array())
@@ -155,13 +154,14 @@ impl VaultIndex {
     fn build_backlinks(&self) {
         // Clear existing backlinks first
         for mut note in self.notes.iter_mut() {
-            note.backlinks.clear();
+            Arc::make_mut(&mut *note).backlinks.clear();
         }
         // Build from wiki_out
         for link_entry in self.wiki_out.iter() {
             let target = link_entry.key();
             for source in link_entry.value().iter() {
-                if let Some(mut note) = self.notes.get_mut(target) {
+                if let Some(mut note_arc) = self.notes.get_mut(target) {
+                    let note = Arc::make_mut(&mut *note_arc);
                     if !note.backlinks.contains(source) {
                         note.backlinks.push(source.clone());
                     }

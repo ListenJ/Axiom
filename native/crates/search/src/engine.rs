@@ -204,7 +204,6 @@ impl DeterministicEngine {
         plan: &QueryPlan,
         _opts: &SearchOptions,
     ) {
-        let token_refs: Vec<&str> = plan.tokens.iter().map(|s| s.as_str()).collect();
 
         candidates.par_iter_mut().for_each(|(note, score, reasons)| {
             let title_tokens = oc_shared::utils::tokenize_unique(&note.title);

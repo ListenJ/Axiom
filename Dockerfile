@@ -49,11 +49,10 @@ COPY config/ ./config/
 COPY public/ ./public/
 COPY --from=frontend-builder /app/frontend/dist/ ./public/
 COPY scripts/ ./scripts/
-COPY axiom-memory/ ./axiom-memory/
 COPY src/db/pg-schema.sql ./src/db/pg-schema.sql
 
-# 创建数据目录
-RUN mkdir -p data && chown -R appuser:appgroup /app
+# 创建数据目录（axiom-memory 由 compose volume 挂载，构建期不存在也允许）
+RUN mkdir -p data axiom-memory && chown -R appuser:appgroup /app
 
 USER appuser
 

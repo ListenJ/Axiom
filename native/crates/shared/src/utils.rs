@@ -1,4 +1,3 @@
-use aho_corasick::AhoCorasick;
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -46,7 +45,7 @@ pub fn extract_excerpt(content: &str, query_tokens: &[String], radius: usize) ->
         })
         .collect();
     ranges.sort_by_key(|r| r.0);
-    let mut merged = vec![];
+    let mut merged: Vec<(usize, usize)> = vec![];
     for (s, e) in ranges {
         if let Some(last) = merged.last_mut() {
             if s <= last.1 {

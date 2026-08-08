@@ -3596,3 +3596,22 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 文档：新增 `docs/IMPLEMENTATION-GUIDE-2026-08-08.md`、`docs/AGENT-PROMPT-HARNESS.md`，更新 `docs/README.md`。
 - **验证**：前端 vitest 43 files / 282 tests 全绿；视觉巡检 8/8；e2e 全量通过；后端涉及测试 177 pass；`bun run stress:run` 5/5 全绿；tsc 0 错误。data@192.168.0.10 已传源码（54MB），Docker 因用户无 docker 组权限未执行，bun 官方/镜像下载 TLS 失败。
 - **Commit**：`be79e89`
+
+---
+
+## 2026-08-08 21:00 +0800 — 构建链审计修复 + data@0.10 Docker 实跑
+
+- **任务**：全面审核代码与构建功能，修复测试/构建失败；使用用户提供的 sudo 密码在 data@192.168.0.10 完成 Docker 构建与容器压测。
+- **工具**：cargo / bun / docker / go / ssh / code-review / performance skill。
+- **执行的操作（文件级）**：
+  - `Dockerfile`：移除构建期 `COPY axiom-memory/`，改为运行时创建空目录，镜像可在无该目录的干净源码上构建。
+  - `native/Cargo.toml`：去除 workspace 依赖中非法的 `optional=true`，移除无效根 `[features]`，改为 virtual workspace。
+  - `package.json`、`scripts/build/matrix.ts`：native 构建改为 `-p axiom-local` / `-p axiom-cloud`。
+  - `native/crates/search/Cargo.toml`：移除不存在的 `search_bench` 声明。
+  - `native/crates/shared`：补 `dashmap` 依赖、修复 `merged` 类型注解。
+  - `native/crates/route`：修复 trie `params` move 与 `normalize_endpoint` borrow。
+  - `native/crates/search`：修复 title 借用、Arc backlinks 可变更新，清理未使用 import。
+  - `native/crates/cloud`：修复损坏 UTF-8 字节、clap `env` feature、未使用变量。
+  - `native/crates/local`：清理未使用 import/subscriber。
+- **验证**：`cargo check -p axiom-local` / `-p axiom-cloud` 通过；`bun run native:build` release 通过；`build:go` 4/4；`build:server/cli/mcp` 通过；data@192.168.0.10 `docker build -t axiom-agent:2026-08-08` 成功，容器内 stress 40/40。
+- **Commit**：`待填`

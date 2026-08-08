@@ -71,7 +71,7 @@ struct HealthResponse {
 async fn main() {
     let args = Args::parse();
 
-    let subscriber = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| format!("Axiom_cloud={},tower_http=warn", args.log_level).into()),
@@ -99,7 +99,7 @@ async fn main() {
             }
         }
     } else {
-        warn!("No DATABASE_URL provided â€?running without PostgreSQL");
+        warn!("No DATABASE_URL provided  -- running without PostgreSQL");
         None
     };
 
@@ -240,7 +240,7 @@ async fn router_perf_handler(State(state): State<Arc<AppState>>) -> Json<serde_j
 }
 
 async fn cache_stats_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let redis_info = if let Some(ref mut redis) = state.redis.as_ref() {
+    let redis_info = if let Some(ref mut _redis) = state.redis.as_ref() {
         // Cannot use &mut on shared ref; skip for now
         serde_json::json!(null)
     } else {

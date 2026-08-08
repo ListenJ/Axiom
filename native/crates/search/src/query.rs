@@ -1,6 +1,4 @@
 use oc_shared::utils::tokenize_unique;
-use rayon::prelude::*;
-use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct QueryPlan {

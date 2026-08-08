@@ -265,7 +265,7 @@ async function buildNative(): Promise<void> {
     return;
   }
   console.log("\n[native] cargo build --release (local crate)");
-  const ok = await run(["cargo", "build", "--release", "--features", "local"], { cwd: nativeDir });
+  const ok = await run(["cargo", "build", "--release", "-p", "axiom-local"], { cwd: nativeDir });
   if (ok) { console.log("  ✓ native built"); stats.success++; }
   else { console.error("  ✗ native build failed"); stats.failed++; }
 }
