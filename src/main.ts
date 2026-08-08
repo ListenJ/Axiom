@@ -87,6 +87,7 @@ import {
 } from "./memory/codegraph-index.js";
 import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
+import { initializeComponentKernel } from "./agents/component-bootstrap.js";
 
 // ════════════════════════════════════════════════════════════════
 // 数学突破模型 (Math Breakthroughs)
@@ -123,6 +124,11 @@ initializeReadOptimizers(process.cwd(), {
   getImpact,
   getStatus,
   PiCodeToolsAdapter,
+});
+
+const componentKernel = await initializeComponentKernel();
+logger.info("[ComponentKernel] Native Day0 components initialized", {
+  components: componentKernel.list().length,
 });
 
 // ===== 环境验证 =====
@@ -749,6 +755,7 @@ registerShutdownHook({ name: "consciousness", handler: () => getConsciousness().
 registerShutdownHook({ name: "vault", handler: () => vault?.close(), priority: 70 });
 registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50 });
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
+registerShutdownHook({ name: "component-kernel", handler: async () => { await componentKernel.dispose(); }, priority: 60 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });

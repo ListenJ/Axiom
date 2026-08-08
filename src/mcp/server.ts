@@ -31,6 +31,8 @@ import { registerModeTools } from "./server/mode-tools.js";
 import { registerArenaTools } from "./server/arena-tools.js";
 import { registerPromptTools } from "./server/prompt-tools.js";
 import { registerOrchestratorTools } from "./server/orchestrator-tools.js";
+import { registerNativeTools } from "./server/native-tools.js";
+import { initializeComponentKernel } from "../agents/component-bootstrap.js";
 import { SceneRouter, DEFAULT_SCENES } from "./scene-router.js";
 import { ToolRegistry } from "./tool-registry.js";
 import {
@@ -303,6 +305,9 @@ registerArenaTools(registry);
 registerPromptTools(registry);
 
 registerOrchestratorTools(registry);
+
+await initializeComponentKernel();
+registerNativeTools(registry);
 
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
 registerDreTools(registry);

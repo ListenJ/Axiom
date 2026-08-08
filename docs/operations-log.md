@@ -3718,4 +3718,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 `src/agents/orchestrator.ts`：roleMapping 与默认注册改为 `native-*`；旧 Agent 类保留兼容导出。
   - 新增/修改 `tests/components/native-agents.test.ts`、`tests/components/day0-boot.test.ts`、`tests/orchestrator.test.ts`。
 - **验证**：native/Orchestrator 23/23 通过；无外部 CLI 依赖的 Day0 启动测试通过。
+- **Commit**：`e711308`
+
+---
+
+## 2026-08-09 19:50 +0800 — Agent 组件系统 Task 3：路由、MCP 与启动接线
+
+- **任务**：新增 `/components`、`/agents/native/status` 状态面，MCP `native_toolchain_status` 工具，并把 Component Kernel 接入主服务与 MCP 启动流程。
+- **工具**：executing-plans / verification-before-completion / apply_patch / bun test / tsc / bun build。
+- **执行的操作（文件级）**：
+  - 新增 `src/routes/components.ts`：组件健康面与 Native Agent 状态路由。
+  - 修改 `src/routes/index.ts`：线性 handler、Trie 路由与默认 API 索引新增两个端点。
+  - 新增 `src/mcp/server/native-tools.ts`：`native_toolchain_status` 与 `native_agent_execute` 工具。
+  - 修改 `src/mcp/server.ts`：启动前初始化 Component Kernel 并注册 Native 工具。
+  - 修改 `src/main.ts`：启动时初始化 Kernel，注册 shutdown hook。
+  - 新增 `tests/components/routes.test.ts`、`tests/components/mcp-native-tools.test.ts`。
+- **验证**：组件/路由/MCP 35/35 通过；架构完整性 22/22；tsc 通过；现有 MCP/API 回归 41/41；`bun run build` 成功（514 modules）。
 - **Commit**：`（待回填）`

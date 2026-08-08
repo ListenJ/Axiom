@@ -13,6 +13,7 @@ import { handleOpenAIChatCompletions } from "./openai-compat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
 import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus, handleCodegraphFileIndex } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
+import { handleComponentsStatus, handleNativeAgentStatus } from "./components.js";
 import { handleApiKeys } from "./api-keys.js";
 import { handleMarketplace } from "./marketplace.js";
 import { handleSceneRoutes } from "./scene-routes.js";
@@ -142,6 +143,8 @@ const handlers: RouteHandler[] = [
   handleCodegraphStatus,
   handleCodegraphFileIndex,
   // Agents
+  handleComponentsStatus,
+  handleNativeAgentStatus,
   handleAgentsStatus,
   handleOpenCodeModels,
   handleOpenCodeOpen,
@@ -309,6 +312,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/file-index", handler: handleCodegraphFileIndex },
 
     // Agents
+    { method: "GET", path: "/components", handler: handleComponentsStatus },
+    { method: "GET", path: "/agents/native/status", handler: handleNativeAgentStatus },
     { method: "GET", path: "/agents/status", handler: handleAgentsStatus },
     { method: "GET", path: "/agents/opencode/models", handler: handleOpenCodeModels },
     { method: "POST", path: "/agents/opencode/open", handler: handleOpenCodeOpen },
@@ -458,6 +463,8 @@ export function defaultResponse(ctx: RouteContext): Response {
     endpoints: [
       "GET  /                        — Dashboard",
       "GET  /health                  — 健康检查",
+      "GET  /components              — 组件健康面",
+      "GET  /agents/native/status    — Native Agent 状态",
       "POST /chat                    — 模型聊天（自动意图识别）",
       "POST /chat/stream             — SSE 流式聊天（text/event-stream）",
       "POST /v1/chat/completions     — OpenAI 兼容聊天端点（支持 stream）",
