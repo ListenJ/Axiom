@@ -3704,4 +3704,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 `src/components/token-budget.ts`：统一估算、单消息裁剪、分层压缩、报告与生命周期。
   - 新增 `tests/components/kernel.test.ts`、`tests/components/token-budget.test.ts`。
 - **验证**：组件测试 8/8 通过；后续全量组件/架构验证见 Task 3。
+- **Commit**：`7960dea`
+
+---
+
+## 2026-08-09 19:40 +0800 — Agent 组件系统 Task 2：Native Agents 与 Day0 默认路径
+
+- **任务**：实现 native-general / native-code / native-research 组件，接入 PromptPool、InternalAgent 与 Pi Code Engine，并将 Orchestrator 默认路由改为 native。
+- **工具**：executing-plans / apply_patch / bun test / tsc。
+- **执行的操作（文件级）**：
+  - 新增 `src/components/native-agents.ts`：NativeExecutor、NativeCodeToolchain、三个 Native Agent 与注册函数。
+  - 新增 `src/agents/component-bootstrap.ts`：把 InternalAgent、PromptPool、PiCodeEngine、TokenBudget 注入组件 Kernel。
+  - 修改 `src/agents/orchestrator.ts`：roleMapping 与默认注册改为 `native-*`；旧 Agent 类保留兼容导出。
+  - 新增/修改 `tests/components/native-agents.test.ts`、`tests/components/day0-boot.test.ts`、`tests/orchestrator.test.ts`。
+- **验证**：native/Orchestrator 23/23 通过；无外部 CLI 依赖的 Day0 启动测试通过。
 - **Commit**：`（待回填）`

@@ -10,40 +10,47 @@ import {
   ResearchAgent,
   type AgentTask,
 } from "../src/agents/orchestrator";
+import {
+  NativeGeneralAgent,
+  NativeCodeAgent,
+  NativeResearchAgent,
+} from "../src/components/native-agents";
+import { createNativeAgentOptions } from "../src/agents/component-bootstrap";
 
 describe("AgentOrchestrator", () => {
   let orchestrator: AgentOrchestrator;
 
   beforeAll(() => {
     orchestrator = new AgentOrchestrator();
-    orchestrator.getRegistry().register(new InternalAgent());
-    orchestrator.getRegistry().register(new CodeAgent());
-    orchestrator.getRegistry().register(new ResearchAgent());
+    const options = createNativeAgentOptions({ includeCodeToolchain: false });
+    orchestrator.getRegistry().register(new NativeGeneralAgent(options));
+    orchestrator.getRegistry().register(new NativeCodeAgent(options));
+    orchestrator.getRegistry().register(new NativeResearchAgent(options));
   });
 
   describe("Agent Registry", () => {
     test("list registered agents", () => {
       const agents = orchestrator.getRegistry().list();
       expect(agents.length).toBe(3);
-      expect(agents.map((a) => a.id)).toContain("internal");
-      expect(agents.map((a) => a.id)).toContain("opencode");
-      expect(agents.map((a) => a.id)).toContain("hermes");
+      expect(agents.map((a) => a.id)).toContain("native-general");
+      expect(agents.map((a) => a.id)).toContain("native-code");
+      expect(agents.map((a) => a.id)).toContain("native-research");
     });
 
     test("get agent by id", () => {
-      const agent = orchestrator.getRegistry().get("internal");
+      const agent = orchestrator.getRegistry().get("native-general");
       expect(agent).toBeDefined();
-      expect(agent?.name).toBe("Internal Agent");
+      expect(agent?.name).toContain("General");
     });
 
     test("find agents by capability", () => {
       const codeAgents = orchestrator.getRegistry().findByCapability("code-generation");
       expect(codeAgents.length).toBeGreaterThanOrEqual(1);
-      expect(codeAgents[0].id).toBe("opencode");
+      expect(codeAgents[0].id).toBe("native-code");
 
       const researchAgents = orchestrator.getRegistry().findByCapability("research");
       expect(researchAgents.length).toBeGreaterThanOrEqual(1);
-      expect(researchAgents[0].id).toBe("hermes");
+      expect(researchAgents[0].id).toBe("native-research");
     });
 
     test("register and unregister agent", () => {
@@ -216,9 +223,9 @@ describe("AgentOrchestrator", () => {
     test("health check all agents", async () => {
       const health = await orchestrator.getRegistry().healthCheckAll();
       expect(health.size).toBe(3);
-      expect(health.get("internal")).toBe(true);
-      expect(health.get("opencode")).toBe(true);
-      expect(health.get("hermes")).toBe(true);
+      expect(health.get("native-general")).toBe(true);
+      expect(health.get("native-code")).toBe(true);
+      expect(health.get("native-research")).toBe(true);
     });
 
     test("get orchestrator status", () => {

@@ -20,6 +20,12 @@ import { toAxiomError } from "../utils/errors.js";
 import { recognizeIntent, type IntentResult } from "./intent-router.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
 import { internalAgent } from "./internal-agent.js";
+import {
+  NativeGeneralAgent,
+  NativeCodeAgent,
+  NativeResearchAgent,
+} from "../components/native-agents.js";
+import { createNativeAgentOptions } from "./component-bootstrap.js";
 
 // ========== 类型定义 ==========
 
@@ -216,17 +222,21 @@ class TaskRouterImpl {
   selectAgentByIntent(intent: IntentResult, registry: AgentRegistryImpl): AgentInterface | null {
     // 与 intent-router.ts CATEGORY_INTENTS 的 role 字段对齐（main_coding/research/coding）
     const roleMapping: Record<string, string> = {
-      "main_coding": "opencode",
-      "coding": "opencode",
-      "code-generation": "opencode",
-      "research": "hermes",
-      "architecture": "hermes",
-      "decision": "hermes",
-      "general-chat": "internal",
-      "general-tool": "internal",
+      "main_coding": "native-code",
+      "coding": "native-code",
+      "code-generation": "native-code",
+      "code-review": "native-code",
+      "refactoring": "native-code",
+      "testing": "native-code",
+      "research": "native-research",
+      "deep-research": "native-research",
+      "architecture": "native-research",
+      "decision": "native-general",
+      "general-chat": "native-general",
+      "general-tool": "native-general",
     };
 
-    const agentId = roleMapping[intent.recommendedRole] || "internal";
+    const agentId = roleMapping[intent.recommendedRole] || "native-general";
     return registry.get(agentId) || null;
   }
 }
@@ -718,10 +728,11 @@ export function getAgentOrchestrator(): AgentOrchestrator {
   if (!_instance) {
     _instance = new AgentOrchestrator();
 
-    // 注册内置 Agent
-    _instance.getRegistry().register(new InternalAgent());
-    _instance.getRegistry().register(new CodeAgent());
-    _instance.getRegistry().register(new ResearchAgent());
+    // Day0: native agents are the default path; external CLIs remain optional adapters.
+    const options = createNativeAgentOptions();
+    _instance.getRegistry().register(new NativeGeneralAgent(options));
+    _instance.getRegistry().register(new NativeCodeAgent(options));
+    _instance.getRegistry().register(new NativeResearchAgent(options));
   }
   return _instance;
 }
