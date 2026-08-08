@@ -49,7 +49,7 @@
   - `frontend/src/styles/index.css`：`.overlay-glass` 移除 `position: relative`（该声明样式顺序晚于 Tailwind `.absolute`，曾导致浮层退回 relative 而占位——**关键修复**）；材质保持暗 .16 / 亮 .18 + blur 36px。
   - `e2e/animation-layout.spec.ts`：右栏测试改为“悬浮浮层”断言——滑出采样中间透明度、收起后输入区宽度**不变**（不占空间）、重开可见。
 - **验证**：几何探针——overlay `position:absolute`、输入区 760px 全宽（修复前被挤到 360px）；真实点击关闭按钮成功（修复前被工具栏拦截超时）；退出动画采样到中间态并滑出（transform 到 440px）；**全套 e2e 10/10 通过（36 用例）**；SenseNova 复审暗色 8.5 / 亮色 8（材料与卡片样式达标；浮层覆盖属设计本意）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`74e6785`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏回退圆角玻璃卡片样式（非侵入）+ 背景流体光斑动态加强
 
