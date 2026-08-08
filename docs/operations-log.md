@@ -3677,4 +3677,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 `docs/BROWSER-AGENT-STRATEGY-2026-08-09.md`：现状核对、Hermes 对比、Token 卸载方案、浏览器扩展架构建议、生态位结论与 MVP 路线。
   - `docs/operations-log.md`：追加本条操作记录。
 - **验证**：仅只读调研与文档变更；工作区无代码改动；`git diff --check` 通过。
-- **Commit**：待回填
+- **Commit**：`8d6b90c`
