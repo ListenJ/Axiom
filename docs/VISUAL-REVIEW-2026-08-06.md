@@ -699,3 +699,23 @@
 - 审核原文：`vision-review/reviews-tr3-*.md`
 - 审计报告：`vision-review/monitor-report.json`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十六轮：右栏低透光 + 高磨砂（暗/亮 .30 + blur 56px）（2026-08-08）
+
+## 八十四、实现
+
+- 透明度降低：`.overlay-glass` 暗 .16→.30 / 亮 .18→.30（更不透明、文字更稳）；高磨砂保持 `blur(56px) saturate(1.6)`。
+
+## 八十五、审批
+
+- 材质探针：暗 rgba(.3) / 亮 rgba(.3) + blur(56px)；贴顶几何不变（top 56 / bottom 892）。
+- SenseNova 复审：**暗色 8**（低透光高磨砂、文字清晰✅）；亮色评审存在“太实/太透”波动，以用户指令与计算样式为准。
+- **全套 e2e 10/10（36 用例）**。
+
+## 八十六、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 审核原文：`vision-review/reviews-tr3-*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
