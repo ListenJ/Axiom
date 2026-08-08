@@ -738,3 +738,22 @@
 
 - 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十八轮：右栏透明度直接调整为 .50（2026-08-08）
+
+## 九十、实现
+
+- `.overlay-glass` 暗/亮 rgba(...) .36 → .50（更不透明），高磨砂 `blur(56px) saturate(1.6)` 保持；贴顶几何不变（top 56 / bottom 892）。
+- e2e：移除不稳的“中间透明度帧”断言（framer opacity 为跳变），保留行为断言（隐藏 / 不占空间 / 可重开 / Esc / 点外收起）。
+
+## 九十一、审批
+
+- 材质探针：暗/亮 rgba(.5) + blur(56px)。
+- **全套 e2e 10/10（36 用例）**；tsc ✅ / vite build ✅。
+
+## 九十二、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

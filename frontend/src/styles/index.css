@@ -551,7 +551,7 @@ a:focus-visible,
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
   /* 低透光 + 高磨砂：面板更稳、文字更清晰，同时保留玻璃感 */
-  background: rgba(22, 22, 22, 0.36);
+  background: rgba(22, 22, 22, 0.5);
   backdrop-filter: blur(56px) saturate(1.6);
   -webkit-backdrop-filter: blur(56px) saturate(1.6);
   box-shadow:
@@ -578,7 +578,7 @@ a:focus-visible,
   background: var(--canvas-glass-bg);
 }
 [data-theme='light'] .overlay-glass {
-  background: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.5);
   box-shadow:
     0 28px 80px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.04),
