@@ -18,6 +18,7 @@ import {
   InlineEmptyState,
 } from '@/components/ui'
 import { endpoints } from '@/lib/api'
+import { formatDate } from '@/lib/format'
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -66,7 +67,7 @@ function formatTime(epoch: number): string {
   if (diffHr < 24) return `${diffHr}小时前`
   const diffDay = Math.floor(diffHr / 24)
   if (diffDay < 7) return `${diffDay}天前`
-  return date.toLocaleDateString('zh-CN')
+  return formatDate(date)
 }
 
 function formatTokens(tokens: number): string {
@@ -77,7 +78,7 @@ function formatTokens(tokens: number): string {
 
 function truncateText(text: string, maxLen: number): string {
   if (!text) return ''
-  return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
+  return text.length > maxLen ? text.slice(0, maxLen) + '…' : text
 }
 
 /* ── Session List Component ────────────────────────────────────────── */
@@ -121,7 +122,7 @@ function SessionList({
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="max-w-[200px] truncate text-sm font-medium text-[var(--text)]">
-              {s.session_id.slice(0, 8)}...
+              {s.session_id.slice(0, 8)}…
             </span>
             <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
               <MessageSquare className="size-3" />

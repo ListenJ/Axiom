@@ -6,6 +6,7 @@ import ShimmerCard from '@/components/ui/ShimmerCard'
 import Button from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import EmptyState from '@/components/ui/EmptyState'
+import { formatDateTime } from '@/lib/format'
 
 interface GitStatus {
   success: boolean
@@ -191,7 +192,7 @@ export default function Git() {
           <div className="space-y-3">
             <Textarea
               label="提交信息"
-              placeholder="输入提交信息..."
+              placeholder="输入提交信息…"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               rows={4}
@@ -247,7 +248,7 @@ export default function Git() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[var(--text)]" title={commit.message}>{commit.message}</p>
                   <p className="text-[var(--text-muted)]">
-                    {commit.author} · {new Date(commit.date).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {commit.author} · {formatDateTime(commit.date)}
                   </p>
                 </div>
               </li>

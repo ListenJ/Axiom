@@ -126,7 +126,7 @@ export function ToggleChip({
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className={`${base} ${styles}`}
+      className={`${base} ${styles} focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]`}
     >
       {icon}
       <span>{label}</span>
@@ -141,7 +141,7 @@ export function ThinkingPanel({ items }: { items: string[] }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)]"
+        className="flex w-full items-center gap-2 rounded-md text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <Brain size={12} className="text-[var(--accent)]" />
         <span>思考过程 ({items.length})</span>
@@ -178,7 +178,7 @@ export function FileChangesPanel({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)]"
+        className="flex w-full items-center gap-2 rounded-md text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <FileEdit size={12} className="text-[var(--warning)]" />
         <span>文件修改明细 ({items.length})</span>
@@ -356,7 +356,7 @@ export function ToolCallsPanel({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)]"
+        className="flex w-full items-center gap-2 rounded-md text-2xs font-medium text-[var(--text-muted)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <Wrench size={12} className="text-[var(--info)]" />
         <span>工具调用 ({items.length})</span>
@@ -598,7 +598,7 @@ export function MessageItem({
                 }}
                 aria-label="编辑消息内容"
                 rows={Math.min(10, Math.max(2, draft.split('\n').length))}
-                className="w-full resize-y rounded-lg border border-[var(--accent)] bg-[var(--bg-tertiary)] px-2.5 py-2 text-sm text-[var(--text)] focus:outline-none"
+                className="w-full resize-y rounded-lg border border-[var(--accent)] bg-[var(--bg-tertiary)] px-2.5 py-2 text-sm text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               />
               <div className="mt-1.5 flex items-center gap-1.5">
                 <Button

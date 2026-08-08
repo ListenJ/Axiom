@@ -84,7 +84,7 @@ export default function RightToolbar() {
         {/* 工具图标轨（无分割线，留白分区） */}
         <nav
           aria-label="右侧工具"
-          className="flex w-12 shrink-0 flex-col items-center gap-1 py-2"
+          className="flex w-16 shrink-0 flex-col items-center gap-1 py-2"
         >
           {TOOLS.map((tool) => {
             const Icon = tool.icon
@@ -100,13 +100,14 @@ export default function RightToolbar() {
                 aria-label={tool.label}
                 aria-current={isActive ? 'true' : undefined}
                 title={tool.label}
-                className={`press flex size-10 items-center justify-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                className={`press flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                   isActive
                     ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                     : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
                 }`}
               >
-                <Icon size={17} />
+                <Icon size={16} />
+                <span className="text-2xs leading-none">{tool.label}</span>
               </button>
             )
           })}
@@ -141,19 +142,28 @@ export default function RightToolbar() {
     <>
       {/* 桌面悬浮浮层（不占布局空间，常驻挂载由 animate 驱动滑入/滑出） */}
       {!isMobile && (
-        <motion.div
-          ref={overlayRef}
-          aria-label="右侧工具台"
-          role="complementary"
-          className="overlay-glass absolute -top-4 -bottom-4 right-2 z-30 flex w-[min(25rem,62vw)] flex-col overflow-hidden rounded-2xl"
-          initial={false}
-          animate={open ? { x: 0, opacity: 1, scale: 1 } : { x: '110%', opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-          inert={open ? undefined : true}
-          aria-hidden={open ? undefined : true}
-        >
-          {shell}
-        </motion.div>
+        <>
+          {open && (
+            <div
+              className="absolute inset-0 z-20 backdrop-glass"
+              onClick={() => setOpen(false)}
+              aria-hidden="true"
+            />
+          )}
+          <motion.div
+            ref={overlayRef}
+            aria-label="右侧工具台"
+            role="complementary"
+            className="overlay-glass absolute -top-4 -bottom-4 right-2 z-30 flex w-[min(22rem,56vw)] flex-col overflow-hidden rounded-2xl"
+            initial={false}
+            animate={open ? { x: 0, opacity: 1, scale: 1 } : { x: '110%', opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            inert={open ? undefined : true}
+            aria-hidden={open ? undefined : true}
+          >
+            {shell}
+          </motion.div>
+        </>
       )}
 
       {/* 移动端抽屉浮层（AnimatePresence + 背景遮罩） */}

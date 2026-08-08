@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   X, FolderOpen, MessageSquare, Clock, ChevronRight,
   Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
@@ -25,6 +25,13 @@ function limitText(text: string, max: number): string {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const asideRef = useRef<HTMLElement | null>(null)
+  const reduceMotion = useReducedMotion()
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   // 移动端抽屉隐藏时暂停轮询（桌面常驻不受影响）
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
@@ -36,6 +43,50 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   const paused = isMobile && !open
+
+  // 移动端抽屉：关闭时 inert，打开时圈定焦点并支持 Esc
+  useEffect(() => {
+    if (!isMobile || !open) return
+    const root = asideRef.current
+    if (!root) return
+    const previous = document.activeElement as HTMLElement | null
+    const focusables = () =>
+      Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+    const first = () => focusables()[0]
+    first()?.focus()
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const items = focusables()
+      if (items.length === 0) return
+      if (e.shiftKey && (document.activeElement === items[0] || !root.contains(document.activeElement))) {
+        e.preventDefault()
+        items[items.length - 1]?.focus()
+      } else if (!e.shiftKey && (document.activeElement === items[items.length - 1] || !root.contains(document.activeElement))) {
+        e.preventDefault()
+        items[0]?.focus()
+      }
+    }
+    const onFocus = (e: FocusEvent) => {
+      if (!root.contains(e.target as Node)) first()?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('focusin', onFocus)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('focusin', onFocus)
+      previous?.focus?.()
+    }
+  }, [isMobile, open])
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -240,7 +291,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               }}
               onBlur={() => commitRename(s.session_id)}
               aria-label="重命名会话"
-              className="min-w-0 flex-1 rounded border border-[var(--accent)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text)] focus:outline-none"
+              className="min-w-0 flex-1 rounded border border-[var(--accent)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             />
             <button
               type="button"
@@ -256,12 +307,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={() => openSession(s.session_id)}
-            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
             title={collapsed ? title : undefined}
           >
             <MessageSquare size={12} className={`shrink-0 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
             {/* 会话标题 ≤50 字符：未渲染完全时横向滚动（.text-scroll） */}
-            <span className="min-w-0 flex-1">
+            <span className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
               <span className={`text-scroll block text-2xs leading-snug ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
                 {title}
               </span>
@@ -315,6 +366,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <aside
+      ref={asideRef}
       className={`
         fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-[var(--shell-shadow)]
         shell-surface
@@ -324,13 +376,17 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}
       aria-label="主导航"
+      role={isMobile && open ? 'dialog' : undefined}
+      aria-modal={isMobile && open ? 'true' : undefined}
+      aria-hidden={isMobile && !open ? true : undefined}
+      inert={isMobile && !open ? true : undefined}
     >
       {/* 顶部：Axiom Logo（单 Logo，归位侧栏顶部）+ 折叠/关闭 */}
       <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
         <button
           type="button"
           onClick={startNewChat}
-          className="press flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--shell-hover)] focus:outline-none"
+          className="press flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           aria-label="返回对话"
           title="Axiom"
         >
@@ -345,7 +401,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={toggleCollapsed}
-            className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:flex"
+            className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:flex"
             aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
             title={collapsed ? '展开侧栏' : '折叠侧栏'}
           >
@@ -354,7 +410,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
+            className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
             aria-label="关闭菜单"
           >
             <X size={18} />
@@ -367,7 +423,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={startNewChat}
-          className="press flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none"
+          className="press flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           aria-label="开启新对话"
         >
           <Plus size={16} />
@@ -499,11 +555,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       {/* 段 4：加载进 Agent 的项目（风琴垂直折叠） */}
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {workspaceError ? (
-          <p className="px-3 py-2 text-2xs text-[var(--text-muted)]">
+          <p className={`px-3 py-2 text-2xs text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
             工作区服务不可用，请打开设置诊断
           </p>
         ) : workspaces.length === 0 ? (
-          <div className="px-3 py-2">
+          <div className={`px-3 py-2 ${collapsed ? 'lg:hidden' : ''}`}>
             <p className="text-2xs text-[var(--text-muted)]">暂无项目</p>
             <p className="mt-1 text-2xs text-[var(--text-muted)]">
               点击「开启新对话」开始，或打开设置检查工作区服务。
@@ -523,7 +579,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   <button
                     type="button"
                     onClick={() => toggleWs(key)}
-                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
                     aria-expanded={!isCollapsed}
                     title={collapsed ? wsName : undefined}
                   >
@@ -549,7 +605,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.22, ease: MOTION_EASES.out }}
+                        transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: MOTION_EASES.out }}
                         className="mt-0.5 space-y-0.5 overflow-hidden pl-3"
                       >
                         {wsSessions.length === 0 ? (
@@ -578,7 +634,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               navigate('/settings')
               onClose()
             }}
-            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             aria-label="打开设置"
             title="设置"
           >
@@ -597,14 +653,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </span>
               <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
                 <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
-                {online ? '在线' : healthError ? '服务不可达' : '检查中...'}
+                {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
               </span>
             </span>
           </div>
           <button
             type="button"
             onClick={() => setHelpOpen(true)}
-            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none"
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             aria-label="键盘快捷键"
             title="键盘快捷键"
           >

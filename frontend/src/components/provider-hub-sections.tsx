@@ -15,6 +15,7 @@ import {
 } from '@/components/ui'
 import { endpoints } from '@/lib/api'
 import { normalizeMetrics, normalizeNative, type PerfMetrics } from '@/lib/normalize'
+import { formatClockTime, formatNumber } from '@/lib/format'
 
 // ─── 路由 ────────────────────────────────────────────────────────────────
 
@@ -101,10 +102,10 @@ export function RouterSection() {
           ) : (
             <>
               <p className="mt-2 text-3xl font-bold text-[var(--text)]">
-                {status?.tokens ? status.tokens.used.toLocaleString() : '—'}
+                {status?.tokens ? formatNumber(status.tokens.used) : '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                / {status?.tokens ? status.tokens.total.toLocaleString() : '—'}
+                / {status?.tokens ? formatNumber(status.tokens.total) : '—'}
               </p>
             </>
           )}
@@ -156,7 +157,7 @@ export function TokensSection() {
   }, [fetchData])
 
   const modelChartData = (data?.perModel ?? []).map(m => ({
-    label: m.model.length > 15 ? m.model.slice(0, 12) + '...' : m.model,
+    label: m.model.length > 15 ? m.model.slice(0, 12) + '…' : m.model,
     value: m.promptTokens + m.completionTokens,
   }))
 
@@ -165,16 +166,16 @@ export function TokensSection() {
       <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="总 Token" value={data?.overall.totalTokens.toLocaleString() ?? '—'} icon={<Coins className="size-5" />} accent="info" />
-        <StatCard label="总调用" value={data?.overall.totalCalls.toLocaleString() ?? '—'} icon={<Activity className="size-5" />} accent="success" />
-        <StatCard label="输入 Token" value={data?.overall.promptTokens.toLocaleString() ?? '—'} icon={<ArrowUp className="size-5" />} accent="warning" />
-        <StatCard label="输出 Token" value={data?.overall.completionTokens.toLocaleString() ?? '—'} icon={<ArrowDown className="size-5" />} accent="danger" />
+        <StatCard label="总 Token" value={data ? formatNumber(data.overall.totalTokens) : '—'} icon={<Coins className="size-5" />} accent="info" />
+        <StatCard label="总调用" value={data ? formatNumber(data.overall.totalCalls) : '—'} icon={<Activity className="size-5" />} accent="success" />
+        <StatCard label="输入 Token" value={data ? formatNumber(data.overall.promptTokens) : '—'} icon={<ArrowUp className="size-5" />} accent="warning" />
+        <StatCard label="输出 Token" value={data ? formatNumber(data.overall.completionTokens) : '—'} icon={<ArrowDown className="size-5" />} accent="danger" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="平均延迟" value={data ? `${data.overall.avgLatency}ms` : '—'} icon={<Clock className="size-5" />} accent="default" />
         <StatCard label="缓存命中率" value={data ? `${data.cacheStats.hitRate}%` : '—'} icon={<HardDrive className="size-5" />} accent="success" />
-        <StatCard label="缓存条目" value={data?.cacheStats.cacheHits.toLocaleString() ?? '—'} icon={<Database className="size-5" />} accent="info" />
+        <StatCard label="缓存条目" value={data ? formatNumber(data.cacheStats.cacheHits) : '—'} icon={<Database className="size-5" />} accent="info" />
       </div>
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
@@ -203,9 +204,9 @@ export function TokensSection() {
               {(data?.perModel ?? []).map((m, i) => (
                 <tr key={i} className="border-b border-[var(--border)] last:border-0">
                   <td className="py-2 text-[var(--text)]">{m.model}</td>
-                  <td className="py-2 text-right text-[var(--text-muted)]">{m.calls.toLocaleString()}</td>
-                  <td className="py-2 text-right text-[var(--text-muted)]">{m.promptTokens.toLocaleString()}</td>
-                  <td className="py-2 text-right text-[var(--text-muted)]">{m.completionTokens.toLocaleString()}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{formatNumber(m.calls)}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{formatNumber(m.promptTokens)}</td>
+                  <td className="py-2 text-right text-[var(--text-muted)]">{formatNumber(m.completionTokens)}</td>
                   <td className="py-2 text-right text-[var(--text-muted)]">{m.avgLatency}ms</td>
                 </tr>
               ))}
@@ -231,10 +232,10 @@ export function TokensSection() {
             <tbody>
               {(data?.recentCalls ?? []).map((c, i) => (
                 <tr key={i} className="border-b border-[var(--border)] last:border-0">
-                  <td className="py-1.5 text-[var(--text-muted)]">{new Date(c.timestamp).toLocaleTimeString('zh-CN')}</td>
-                  <td className="py-1.5 text-[var(--text)]">{c.model.length > 20 ? c.model.slice(0, 17) + '...' : c.model}</td>
-                  <td className="py-1.5 text-right text-[var(--text-muted)]">{c.promptTokens.toLocaleString()}</td>
-                  <td className="py-1.5 text-right text-[var(--text-muted)]">{c.completionTokens.toLocaleString()}</td>
+                  <td className="py-1.5 text-[var(--text-muted)]">{formatClockTime(c.timestamp)}</td>
+                  <td className="py-1.5 text-[var(--text)]">{c.model.length > 20 ? c.model.slice(0, 17) + '…' : c.model}</td>
+                  <td className="py-1.5 text-right text-[var(--text-muted)]">{formatNumber(c.promptTokens)}</td>
+                  <td className="py-1.5 text-right text-[var(--text-muted)]">{formatNumber(c.completionTokens)}</td>
                   <td className="py-1.5 text-right text-[var(--text-muted)]">{c.latencyMs}ms</td>
                   <td className="py-1.5 text-center">
                     <span className={c.success ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>

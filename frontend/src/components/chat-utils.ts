@@ -9,6 +9,7 @@
  *  - copyToClipboard：跨浏览器兼容的复制实现
  */
 import type { Message } from './chat-panels'
+import { formatDate } from '@/lib/format'
 
 /** 生成短随机 ID（用于消息标识）。结合 Math.random 与 Date.now，碰撞概率极低。 */
 export function nextId(): string {
@@ -26,7 +27,7 @@ export function formatTime(epoch: number): string {
   if (diffMin < 60) return `${diffMin}m`
   const diffHr = Math.floor(diffMin / 60)
   if (diffHr < 24) return `${diffHr}h`
-  return date.toLocaleDateString()
+  return formatDate(date)
 }
 
 /** 格式化 token 数为紧凑表示（1.2K / 3.4M）。 */

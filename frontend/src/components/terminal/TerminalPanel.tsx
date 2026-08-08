@@ -28,10 +28,15 @@ const DEFAULT_HEIGHT = 224
 const MIN_HEIGHT = 128
 const MAX_HEIGHT_RATIO = 0.6
 
+function maxTerminalHeight(): number {
+  if (typeof window === 'undefined') return DEFAULT_HEIGHT
+  return Math.max(MIN_HEIGHT, Math.round(window.innerHeight * MAX_HEIGHT_RATIO))
+}
+
 function readInitialHeight(): number {
   if (typeof localStorage === 'undefined') return DEFAULT_HEIGHT
   const v = Number(localStorage.getItem(TERMINAL_HEIGHT_KEY))
-  if (Number.isFinite(v) && v >= MIN_HEIGHT) return v
+  if (Number.isFinite(v) && v >= MIN_HEIGHT) return Math.min(v, maxTerminalHeight())
   return DEFAULT_HEIGHT
 }
 
@@ -77,6 +82,15 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     }
   }, [])
 
+  // 窗口尺寸变化时同步钳制已恢复/已拖拽的高度，避免小视口下终端占比过大
+  useEffect(() => {
+    const clamp = () => {
+      setHeight((current) => Math.min(maxTerminalHeight(), Math.max(MIN_HEIGHT, current)))
+    }
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [])
+
   // 从 CSS 变量读取当前主题令牌并应用到 xterm
   useEffect(() => {
     const term = termRef.current
@@ -99,6 +113,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     term.loadAddon(fit)
     term.open(container)
     fit.fit()
+    term.focus?.()
     termRef.current = term
 
     const client = new PtyTerminal(adapter)
@@ -112,7 +127,10 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     client
       .start(onChunk)
       .then(() => {
-        if (!disposed) setState('connected')
+        if (!disposed) {
+          setState('connected')
+          term.focus?.()
+        }
       })
       .catch((e) => {
         if (disposed) return
@@ -169,7 +187,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
             type="button"
             onClick={() => termRef.current?.clear()}
             aria-label="清空终端"
-            className="press flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
+            className="press flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <Trash2 size={14} />
           </button>
@@ -178,7 +196,7 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
               type="button"
               onClick={onClose}
               aria-label="关闭终端"
-              className="press flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
+              className="press flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
               <X size={14} />
             </button>

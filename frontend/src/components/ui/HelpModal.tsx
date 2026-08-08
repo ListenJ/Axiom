@@ -1,9 +1,11 @@
 import { X, Keyboard, Compass, Globe, CornerDownLeft } from 'lucide-react'
+import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Button from './Button'
 import { SHORTCUTS, type ShortcutCategory } from '@/lib/shortcuts'
 import { useApp } from '@/state/useApp'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 /**
  * 键盘快捷键模态框 — 账号栏快捷键图标 / 帮助菜单 / `?` 快捷键统一入口。
@@ -20,6 +22,9 @@ export default function HelpModal() {
   const open = useApp((s) => s.helpOpen)
   const setOpen = useApp((s) => s.setHelpOpen)
   const reduceMotion = useReducedMotion()
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+
+  useFocusTrap(dialogRef, open, () => setOpen(false))
 
   const groups = (['nav', 'global', 'menu'] as const)
     .map((cat) => ({
@@ -32,6 +37,7 @@ export default function HelpModal() {
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={dialogRef}
           className="fixed inset-0 z-[100] flex items-center justify-center backdrop-glass p-4"
           role="dialog"
           aria-modal="true"

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { useApprovals, type ApprovalRisk } from '@/state/useApprovals'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const COUNTDOWN_MS = 15_000
 const TICK_MS = 100
@@ -30,8 +31,11 @@ export default function ApprovalModal() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const autoRejectedRef = useRef(false)
+  const dialogRef = useRef<HTMLDivElement | null>(null)
 
   const currentId = current?.id
+
+  useFocusTrap(dialogRef, !!current)
 
   // 每条新审批重置 15s 倒计时
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function ApprovalModal() {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[100] flex items-center justify-center backdrop-glass"
       role="dialog"
       aria-modal="true"

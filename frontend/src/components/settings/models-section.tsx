@@ -101,7 +101,7 @@ export default function ModelManagementSection({
               ))}
             </Select>
             <Input label="模型 ID" placeholder="如：deepseek-v4-flash" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
-            <Input label="API Key（可选）" type="password" placeholder="sk-..." value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <Input label="API Key（可选）" type="password" placeholder="sk-…" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
             <Select label="层级" value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value })}>
               <option value="">默认</option>
               <option value="free">免费</option>

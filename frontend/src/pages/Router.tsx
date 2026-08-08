@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Compass, Heart, Coins } from 'lucide-react'
 import { ShimmerCard, PageHeader, Skeleton } from '@/components/ui'
 import { endpoints } from '@/lib/api'
+import { formatNumber } from '@/lib/format'
 
 interface RouterStatus {
   status?: string
@@ -81,10 +82,10 @@ export function RouterPanel() {
           ) : (
             <>
               <p className="mt-2 text-3xl font-bold text-[var(--text)]">
-                {status?.tokens ? status.tokens.used.toLocaleString() : '—'}
+                {status?.tokens ? formatNumber(status.tokens.used) : '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                / {status?.tokens ? status.tokens.total.toLocaleString() : '—'}
+                / {status?.tokens ? formatNumber(status.tokens.total) : '—'}
               </p>
             </>
           )}

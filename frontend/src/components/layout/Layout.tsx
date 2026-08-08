@@ -18,6 +18,7 @@ import { MOTION_PRESETS } from '@/lib/motion-presets'
 export default function Layout() {
   const sidebarOpen = useApp((s) => s.sidebarOpen)
   const setSidebarOpen = useApp((s) => s.setSidebarOpen)
+  const sidebarCollapsed = useApp((s) => s.sidebarCollapsed)
   const panelOpacity = useApp((s) => s.panelOpacity)
   const terminalOpen = useApp((s) => s.terminalOpen)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
@@ -46,6 +47,9 @@ export default function Layout() {
 
   return (
     <div className="isolate flex h-screen w-screen overflow-hidden bg-bg text-text">
+      <a href="#main" className="skip-link">
+        跳到主要内容
+      </a>
       {/* 丝绸纹理底层 + Aurora 光斑：被外壳/画布毛玻璃层磨砂透出（z 序最底） */}
       <div className="silk-bg" aria-hidden="true" />
       <div className="silk-aurora" aria-hidden="true" />
@@ -62,7 +66,7 @@ export default function Layout() {
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
         {/* 画布层：聊天/页面内容（右侧工具台仅挂载于聊天页，见 pages/Chat.tsx） */}
-        <main className="canvas-surface flex min-h-0 flex-1 flex-col">
+        <main id="main" tabIndex={-1} className="canvas-surface flex min-h-0 flex-1 flex-col">
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="h-full px-4 py-4 md:px-6 md:py-6">
               {/* 路由级页面过渡：全站唯一入口（mode="wait" 先退场再入场），
@@ -91,7 +95,11 @@ export default function Layout() {
         <AnimatePresence>
           {terminalOpen && (
             <motion.div
-              className={terminalOverlay ? 'fixed inset-x-0 bottom-0 z-40' : 'shrink-0 overflow-hidden'}
+              className={
+                terminalOverlay
+                  ? `fixed inset-x-0 bottom-0 z-40 ${sidebarCollapsed ? 'lg:left-16' : 'lg:left-72'}`
+                  : 'shrink-0 overflow-hidden'
+              }
               initial={reduceMotion ? { opacity: 0 } : terminalOverlay ? { y: '100%', opacity: 0 } : { height: 0, opacity: 0 }}
               animate={terminalOverlay ? { y: 0, opacity: 1 } : { height: 'auto', opacity: 1 }}
               exit={reduceMotion ? { opacity: 0 } : terminalOverlay ? { y: '100%', opacity: 0 } : { height: 0, opacity: 0 }}

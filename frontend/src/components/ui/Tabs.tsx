@@ -48,7 +48,7 @@ export default function Tabs({
               rounded-lg px-3 font-medium
               ${sizeClasses}
               transition-colors duration-200
-              focus:outline-none
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1
               ${
                 isActive
                   ? 'bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-sm)]'

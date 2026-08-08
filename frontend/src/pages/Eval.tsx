@@ -10,6 +10,7 @@ import {
   InlineEmptyState,
 } from '@/components/ui'
 import { endpoints } from '@/lib/api'
+import { formatDate, formatNumber } from '@/lib/format'
 import {
   normalizeEvalResults,
   normalizeEvalAssignments,
@@ -200,7 +201,7 @@ export function EvalPanel() {
             <Skeleton className="mt-2" width="5rem" height="2rem" rounded="md" />
           ) : (
             <p className="mt-1 text-lg font-bold">
-              {stats?.lastEvalTime ? new Date(stats.lastEvalTime).toLocaleDateString() : '—'}
+              {stats?.lastEvalTime ? formatDate(stats.lastEvalTime) : '—'}
             </p>
           )}
         </ShimmerCard>
@@ -248,7 +249,7 @@ export function EvalPanel() {
                       <td className="py-3">{(r.speed * 100).toFixed(1)}%</td>
                       <td className="py-3">{(r.cost * 100).toFixed(1)}%</td>
                       <td className="py-3 text-[var(--text-muted)]">
-                        {new Date(r.lastEvaluated).toLocaleDateString()}
+                        {formatDate(r.lastEvaluated)}
                       </td>
                     </tr>
                   ))}
@@ -295,7 +296,7 @@ export function EvalPanel() {
                       {(a.score * 100).toFixed(1)}%
                     </p>
                     <p className="text-xs text-[var(--text-muted)]">
-                      {new Date(a.lastAssigned).toLocaleDateString()}
+                      {formatDate(a.lastAssigned)}
                     </p>
                   </div>
                 </div>
@@ -335,7 +336,7 @@ export function EvalPanel() {
                     </div>
                   </div>
                   <div className="flex items-center gap-6 text-sm text-[var(--text-muted)]">
-                    <span>上下文: {m.contextLength.toLocaleString()}</span>
+                    <span>上下文: {formatNumber(m.contextLength)}</span>
                     <span>${(m.pricing.prompt * 1000).toFixed(4)}/1K</span>
                   </div>
                 </div>

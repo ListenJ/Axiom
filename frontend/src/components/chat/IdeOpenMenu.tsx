@@ -21,7 +21,7 @@ export function IdeOpenMenu({ open, onOpen }: IdeOpenMenuProps) {
       <button
         type="button"
         onClick={() => onOpen('vscode')}
-        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
+        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <Code2 size={14} className="shrink-0 text-[var(--text-muted)]" />
         VS Code
@@ -29,7 +29,7 @@ export function IdeOpenMenu({ open, onOpen }: IdeOpenMenuProps) {
       <button
         type="button"
         onClick={() => onOpen('cursor')}
-        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
+        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <MousePointerClick size={14} className="shrink-0 text-[var(--text-muted)]" />
         Cursor
@@ -37,7 +37,7 @@ export function IdeOpenMenu({ open, onOpen }: IdeOpenMenuProps) {
       <button
         type="button"
         onClick={() => onOpen('file-manager')}
-        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none"
+        className="press flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-[var(--text)] transition-colors hover:bg-[var(--canvas-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <FolderOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
         文件管理器

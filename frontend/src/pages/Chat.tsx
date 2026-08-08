@@ -46,7 +46,7 @@ const FALLBACK_MODELS: ModelOption[] = [
 
 /** 画布工具栏图标按钮通用样式（原生 button，避免与 Button size 类冲突） */
 const canvasIconBtn =
-  'press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none'
+  'press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]'
 
 export default function Chat() {
   const location = useLocation()
@@ -475,7 +475,7 @@ export default function Chat() {
                   onClick={() => setOpenMenu(openMenu === 'ide' ? null : 'ide')}
                   aria-label="打开工作区"
                   title="在外部工具中打开工作区"
-                  className="press flex h-8 shrink-0 items-center gap-0.5 rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none"
+                  className="press flex h-8 shrink-0 items-center gap-0.5 rounded-lg px-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--canvas-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
                   <Code2 size={16} />
                   <ChevronDown size={12} />

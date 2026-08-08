@@ -111,7 +111,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
       <button
         type="button"
         onClick={() => navigate('/chat')}
-        className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none lg:hidden"
+        className="press flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-[var(--text)] transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
         aria-label="返回对话"
       >
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">

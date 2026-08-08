@@ -3650,3 +3650,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `docs/operations-log.md`：追加本条操作记录。
 - **验证**：前端 43 files / 282 tests 通过；`npm run build` 通过；`/marketplace` 返回 200；沙箱内 EPERM 经提权后消失。
 - **Commit**：`8f5ad51`
+
+---
+
+## 2026-08-09 16:30 +0800 — 前端方案 C 实施与 SenseNova 复评
+
+- **任务**：按用户选择的方案 C 完成 P1-P3 前端修复，并用用户提供的 SenseNova Key 做真实视觉复评。
+- **工具**：design-taste-frontend / web-design-guidelines / useFocusTrap / Playwright / vitest / vite / SenseNova `sensenova-6.7-flash-lite`。
+- **执行的操作（文件级）**：
+  - 新增 `frontend/src/hooks/useFocusTrap.ts`、`frontend/src/lib/format.ts`。
+  - P1：Tabs、Chat、IdeOpenMenu、ChatComposer、Sidebar、TerminalPanel、chat-panels、SlashCommandMenu、Header 补焦点环；终端高度钳制；移动侧栏 inert/dialog/焦点圈定。
+  - P2：工作区手风琴 reduced motion；省略号与日期/数字本地化统一；斜杠菜单 listbox/option 语义。
+  - P3：Skip Link、Help/Approval 焦点管理、Header 移动端焦点。
+  - 视觉追加：终端浮层避开侧栏、右栏遮罩与图标标签、侧栏折叠态长文本隐藏、市场页空态。
+  - `public/index.html`：同步最新前端构建。
+- **验证**：`tsc --noEmit` 通过；43 files / 282 tests 通过；`bun run build:frontend` 成功；Playwright 8/8 通过；SenseNova 终评 8 张截图 9-10 分。
+- **Commit**：待回填

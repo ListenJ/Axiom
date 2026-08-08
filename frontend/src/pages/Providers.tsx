@@ -159,7 +159,7 @@ export default function Providers() {
           {/* 搜索过滤 */}
           <ShimmerCard>
             <Input
-              placeholder="搜索 provider（名称 / 端点 / 环境变量名）..."
+              placeholder="搜索 provider（名称 / 端点 / 环境变量名）…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               iconLeft={<Search className="size-3.5" />}

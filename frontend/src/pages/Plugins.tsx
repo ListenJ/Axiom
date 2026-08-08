@@ -393,105 +393,129 @@ export default function Plugins() {
         <section aria-label="Skill 广场">
           <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">Skill 广场</h3>
           <div className="stagger space-y-3">
-            {marketplace.skills.map((skill) => (
-              <div
-                key={skill.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] p-4 transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-medium text-[var(--text)]">{skill.name}</h4>
-                    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-2xs text-[var(--text-muted)]">
-                      {skill.category}
-                    </span>
+            {marketplace.skills.length === 0 ? (
+              <InlineEmptyState
+                icon={<Puzzle className="size-5" />}
+                title="暂无 Skill"
+                description="接入更多 Skill 广场后，可在这里一键安装。"
+              />
+            ) : (
+              marketplace.skills.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] p-4 transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-medium text-[var(--text)]">{skill.name}</h4>
+                      <span className="rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-2xs text-[var(--text-muted)]">
+                        {skill.category}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">{skill.description}</p>
+                    <p className="mt-1 font-mono text-2xs text-[var(--text-secondary)]">
+                      {skill.source}
+                      {skill.package ? `@${skill.package}` : ''}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">{skill.description}</p>
-                  <p className="mt-1 font-mono text-2xs text-[var(--text-secondary)]">
-                    {skill.source}
-                    {skill.package ? `@${skill.package}` : ''}
-                  </p>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => void handleMarketInstall('skill', skill.id)}
+                      loading={installingMarket === skill.id}
+                      icon={<Download className="size-3.5" />}
+                    >
+                      安装
+                    </Button>
+                    <a
+                      href={skill.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-2xs text-[var(--accent)] hover:underline"
+                    >
+                      详情
+                    </a>
+                  </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <Button
-                    size="sm"
-                    onClick={() => void handleMarketInstall('skill', skill.id)}
-                    loading={installingMarket === skill.id}
-                    icon={<Download className="size-3.5" />}
-                  >
-                    安装
-                  </Button>
-                  <a
-                    href={skill.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-2xs text-[var(--accent)] hover:underline"
-                  >
-                    详情
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
 
         <section aria-label="MCP 广场">
           <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">MCP 服务器</h3>
           <div className="stagger space-y-3">
-            {marketplace.mcpServers.map((server) => (
-              <div
-                key={server.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] p-4 transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-medium text-[var(--text)]">{server.name}</h4>
-                    <span className="rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-2xs text-[var(--text-muted)]">
-                      {server.type}
-                    </span>
+            {marketplace.mcpServers.length === 0 ? (
+              <InlineEmptyState
+                icon={<Globe className="size-5" />}
+                title="暂无 MCP 服务器"
+                description="配置 MCP 广场后，可在这里快速安装服务器。"
+              />
+            ) : (
+              marketplace.mcpServers.map((server) => (
+                <div
+                  key={server.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] p-4 transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-medium text-[var(--text)]">{server.name}</h4>
+                      <span className="rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-0.5 text-2xs text-[var(--text-muted)]">
+                        {server.type}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">{server.description}</p>
+                    <p className="mt-1 truncate font-mono text-2xs text-[var(--text-secondary)]">
+                      {server.endpoint ?? `${server.type}`}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">{server.description}</p>
-                  <p className="mt-1 truncate font-mono text-2xs text-[var(--text-secondary)]">
-                    {server.endpoint ?? `${server.type}`}
-                  </p>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => void handleMarketInstall('mcp', server.id)}
+                      loading={installingMarket === server.id}
+                      icon={<Download className="size-3.5" />}
+                    >
+                      安装
+                    </Button>
+                    <a
+                      href={server.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-2xs text-[var(--accent)] hover:underline"
+                    >
+                      详情
+                    </a>
+                  </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <Button
-                    size="sm"
-                    onClick={() => void handleMarketInstall('mcp', server.id)}
-                    loading={installingMarket === server.id}
-                    icon={<Download className="size-3.5" />}
-                  >
-                    安装
-                  </Button>
-                  <a
-                    href={server.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-2xs text-[var(--accent)] hover:underline"
-                  >
-                    详情
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
 
         <section aria-label="目录索引">
           <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">目录索引</h3>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {marketplace.registries.map((r) => (
-              <a
-                key={r.id}
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border border-[var(--border)] px-3 py-2.5 transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-hover)]"
-              >
-                <span className="block text-sm font-medium text-[var(--text)]">{r.name}</span>
-                <span className="mt-0.5 block text-2xs text-[var(--text-muted)]">{r.description}</span>
-              </a>
-            ))}
+            {marketplace.registries.length === 0 ? (
+              <InlineEmptyState
+                icon={<Globe className="size-5" />}
+                title="暂无目录索引"
+                description="添加 Skill/MCP 目录源后，会在这里展示。"
+              />
+            ) : (
+              marketplace.registries.map((r) => (
+                <a
+                  key={r.id}
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-[var(--border)] px-3 py-2.5 transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-hover)]"
+                >
+                  <span className="block text-sm font-medium text-[var(--text)]">{r.name}</span>
+                  <span className="mt-0.5 block text-2xs text-[var(--text-muted)]">{r.description}</span>
+                </a>
+              ))
+            )}
           </div>
         </section>
       </div>

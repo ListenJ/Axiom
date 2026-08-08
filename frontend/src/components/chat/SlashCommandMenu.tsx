@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { X } from 'lucide-react'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 export interface SlashCommand {
@@ -28,12 +29,15 @@ export default function SlashCommandMenu({
   onPick,
   onClose,
 }: SlashCommandMenuProps) {
+  const activeId = commands[selectedIndex] ? `slash-option-${commands[selectedIndex].id}` : undefined
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           role="listbox"
           aria-label="命令面板"
+          aria-activedescendant={activeId}
           className="absolute bottom-full left-3 z-30 mb-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
           initial={{ opacity: 0, y: 6, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -46,9 +50,9 @@ export default function SlashCommandMenu({
               type="button"
               onClick={onClose}
               aria-label="关闭命令面板"
-              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
-              ×
+              <X size={12} />
             </button>
           </div>
           <div className="max-h-72 overflow-y-auto p-1.5">
@@ -57,29 +61,33 @@ export default function SlashCommandMenu({
                 没有匹配“/{query}”的命令
               </p>
             ) : (
-              commands.map((cmd, idx) => {
-                const active = idx === selectedIndex
-                return (
-                  <button
-                    key={cmd.id}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    onClick={() => onPick(cmd)}
-                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      active ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
-                    }`}
-                  >
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
-                      {cmd.icon}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-mono text-xs font-medium">{cmd.label}</span>
-                      <span className="block truncate text-2xs text-[var(--text-muted)]">{cmd.description}</span>
-                    </span>
-                  </button>
-                )
-              })
+              <ul role="presentation" className="space-y-0.5">
+                {commands.map((cmd, idx) => {
+                  const active = idx === selectedIndex
+                  return (
+                    <li key={cmd.id} role="presentation">
+                      <button
+                        id={`slash-option-${cmd.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        onClick={() => onPick(cmd)}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                          active ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
+                        }`}
+                      >
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+                          {cmd.icon}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-mono text-xs font-medium">{cmd.label}</span>
+                          <span className="block truncate text-2xs text-[var(--text-muted)]">{cmd.description}</span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </div>
         </motion.div>

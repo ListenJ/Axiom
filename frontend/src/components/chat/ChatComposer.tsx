@@ -166,7 +166,7 @@ export function ChatComposer({
                 onClick={() => onRemoveAttachment(a.id)}
                 aria-label={`移除 ${a.name}`}
                 title="移除附件"
-                className="press flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
+                className="press flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 <X size={13} />
               </button>
@@ -193,7 +193,7 @@ export function ChatComposer({
           onClick={() => fileRef.current?.click()}
           aria-label="添加附件"
           title="添加附件（图片 / 文档）"
-          className="press flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none"
+          className="press flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           <Paperclip size={17} />
         </button>
@@ -286,7 +286,7 @@ export function ChatComposer({
                 aria-checked={active}
                 onClick={() => onPermissionLevelChange(p.id)}
                 title={p.title}
-                className={`press flex h-7 items-center gap-1 rounded-full px-2.5 text-xs transition-colors focus:outline-none ${
+                className={`press flex h-7 items-center gap-1 rounded-full px-2.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                   active
                     ? 'bg-[var(--accent)] font-medium text-[var(--on-accent)] shadow-[var(--shadow-sm)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text)]'

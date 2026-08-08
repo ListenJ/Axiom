@@ -1,8 +1,8 @@
-# 前端视觉与交互审核报告（方案 C：先报告，修复前确认）— 2026-08-09
+# 前端视觉与交互审核及方案 C 实施报告 — 2026-08-09
 
 > 日期：2026-08-09 ｜ 基线 commit：`ee065ad`（master）
 > 方法：taste-skill / design-taste-frontend 的 audit-first 预检 + Vercel Web Interface Guidelines + 代码/DOM 证据复核；本项目是产品工作台而非落地页，因此只借用其审计清单和反模板原则，未按 landing-page 库重构页面。
-> 状态：本报告只新增文档，不改任何业务代码；修复范围待用户确认后另开实现任务。
+> 状态：方案 C 已完成实施并通过 SenseNova 复评；本节报告先记录基线，文末补充实施结果。
 
 ## 摘要
 
@@ -121,3 +121,54 @@
 3. 方案 C：B + P3，即 Skip Link、弹窗焦点管理、Header 移动端焦点。
 
 在用户确认范围前，本报告不包含任何业务代码修改。
+
+---
+
+# 方案 C 实施完成（2026-08-09）
+
+## 八、已落地修改
+
+### P1
+
+- 键盘焦点：Tabs、Chat 图标按钮、IdeOpenMenu、ChatComposer、Sidebar、TerminalPanel、chat-panels、SlashCommandMenu、Header 等控件补齐 `focus-visible:ring`。
+- 终端高度：恢复高度时按当前视口 `60%` 上限钳制，窗口 resize 时同步重钳制；终端挂载/连接后自动聚焦。
+- 移动侧栏：关闭态加 `inert` + `aria-hidden`，打开态补 `role="dialog"`/`aria-modal`，支持焦点圈定与 Esc 关闭。
+
+### P2
+
+- 工作区手风琴动画接入 `useReducedMotion`。
+- 可见省略号统一为 `…`；新增 `frontend/src/lib/format.ts`，统一日期、时间、数字格式化。
+- 斜杠命令菜单改为标准 `listbox`/`option` 结构，关闭按钮改为图标并补焦点环。
+
+### P3
+
+- 新增 Skip Link 与 `main#main` 焦点目标。
+- HelpModal/ApprovalModal 接入 `useFocusTrap`，打开时聚焦、关闭后恢复焦点。
+
+### SenseNova 复评后追加
+
+- 终端浮层在桌面端避开侧栏，不再遮挡左侧导航底部。
+- 右侧工具台收窄到 `22rem`，增加画布内遮罩、图标文字标签。
+- 侧栏折叠态隐藏工作区错误/空态长文本，避免竖排单字。
+- 市场页 Skill/MCP/目录为空时显示空态引导。
+
+## 九、SenseNova 终评
+
+| 截图 | 评分 |
+|---|---|
+| 聊天主页 | 9.0 |
+| 终端打开 | 9.0 |
+| 右侧工具台 | 9.0 |
+| 桌面侧栏折叠 | 9.0 |
+| 移动侧栏抽屉 | 9.0 |
+| 斜杠命令菜单 | 10.0 |
+| 设置折叠框 | 10.0 |
+| Skill/MCP 市场 | 9.0 |
+
+## 十、验证
+
+- `frontend npm run lint` 通过。
+- `frontend npm run test:run`：43 files / 282 tests 通过。
+- `frontend npm run build` 通过，`bun run build:frontend` 已同步 `public/`。
+- Playwright 交互回归：8/8 通过，覆盖 19 条路由、终端、侧栏、右栏、折叠框、斜杠菜单、市场页。
+- SenseNova 视觉复评结果存于 `.tmp/sensenova-review-2026-08-09.md`（不入库）。
