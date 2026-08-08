@@ -50,7 +50,7 @@
   - `src/routes/vault.ts`：`/vault/tags` 容错——SQL 加 `tags IS NOT NULL AND json_valid(tags)`，异常兜底返回 `{tags:[]}`（原 500 → 200）。
   - `e2e/animation-layout.spec.ts`：移除“重开右栏中间宽度采样”断言（320ms 动画窗口与 Playwright 往返存在竞态，偶发漏采）；动画证明保留“收起方向中间宽度采样”，重开只断言最终宽度 + 工作区让位。
 - **验证**：`/vault/tags` 200 `{"tags":[]}`；vault 页面暗/亮零控制台错误；右栏材质探针暗 rgba(.1)/亮 rgba(.16) + blur 36px；SenseNova 复审**暗色右栏 8/10（透明度接近目标、文字清晰）、亮色 7.5、vault 8**；**全套 e2e 10/10 通过（36 用例）**。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`065c15c`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏改在流内（非侵入）+ 全套 e2e 入 CI + 后端稳定性修复 + U1/cowork-skill 设计完善
 
