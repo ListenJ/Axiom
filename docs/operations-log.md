@@ -3627,3 +3627,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `docs/services.md`：含真实 SSH 密码、1Panel 凭据、机场订阅 token，已移出仓库到 `C:\Users\18336\.axiom\axiom-secrets\services.credentials`（原文件未被 git 跟踪）。
 - **验证**：`git grep` 高熵密钥扫描命中仅测试夹具/占位符；AGENTS.md 本身无真实密钥。
 - **Commit**：`d51cc32`
+
+---
+
+## 2026-08-08 22:00 +0800 — AGENTS.md 工程逻辑与歧义复核
+
+- **任务**：按工程逻辑/工程实践复核 AGENTS.md，消除规则冲突、歧义、事实错误与错别字。
+- **工具**：Read / rg / apply_patch。
+- **执行的操作（文件级）**：
+  - `AGENTS.md`：规则 2 增加敏感内容备份约束；规则 3 目标仓库地址改为实际 SSH 地址；规则 4 明确 `archive/` 被 gitignore、如需入 git 使用独立归档分支；规则 5 明确 hash 占位与回填不递归；规则 6 补充“能红能绿”定义；规则 9 明确 main/master force push 始终禁止；规则 10 增加适用范围边界；规则 11 增加 Linux/macOS 凭据路径。
+- **验证**：全文重读，无新增错别字；规则间冲突已消除。
+- **Commit**：`待填`
