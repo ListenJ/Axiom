@@ -48,7 +48,7 @@
   - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面在流内面板内层改为**圆角悬浮卡片**——`overlay-glass panel-shadow-left m-2 h-[calc(100%-1rem)] rounded-2xl`（四周留 8px、圆角 16px，视觉上“悬浮卡片”而非贴边面板）；移动抽屉补 `rounded-l-2xl`。
   - `frontend/src/styles/index.css`：透明度——`.overlay-glass` 暗 rgba(22,22,22,.16) / 亮 rgba(255,255,255,.18)（略高于背景毛玻璃 canvas .5/.4）；`panel-shadow-left` 投影加强（-14px 0 48px -20px rgba(0,0,0,.85/.28)）+ 内高光柔化（亮 .5）；**流体光斑加强**——暗色四个光斑核心 24/18/28/20% → 46/40/50/42%、光晕 10/7/12/9% → 20/16/22/18%，尺寸 34/26/30/18vw → 38/30/34/22vw，blur 40→36px；亮色天蓝/紫/粉/薄荷核心 0.24–0.32 → 0.36–0.42（光斑更明显）。
 - **验证**：材质探针暗 rgba(.16)/亮 rgba(.18) + blur 36px + 阴影生效；SenseNova 复审**暗色 8.5 / 亮色 8**（圆角悬浮卡片✅、透明度高于背景✅、高斯模糊可读✅、光斑可见✅、无分割线✅）；**全套 e2e 10/10 通过（36 用例）**。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`51d873c`（推送 internal211/master）
 
 ## 2026-08-08 — 全站动画/卡死巡检 + 右栏透明度提升 + /vault/tags 500 修复
 
