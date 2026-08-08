@@ -634,3 +634,24 @@
 - 审核原文：`vision-review/reviews-tr3-*.md`
 - 参考图描述：`vision-review/ref-f6c40fda...md`、`ref-c472f9a3...md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十三轮：右栏回退悬浮浮层（不占空间）+ 流式滑入/滑出（2026-08-08）
+
+## 七十五、实现
+
+- **悬浮浮层**：桌面右栏改为 `absolute right-2 bottom-2 top-[6.75rem] z-10` 浮层（**不参与布局、不推挤工作区**），顶部下移到工具栏之下（避免遮挡顶部操作与关闭按钮）；常驻挂载 + `framer animate` 驱动 `x:110%→0` 流式滑入/滑出（关闭时 `inert + aria-hidden`）。
+- **关键修复**：`.overlay-glass` 移除 `position:relative`（曾覆盖 Tailwind `.absolute` 导致浮层占位）；关闭按钮此前被工具栏（z-20）盖住、真实点击不到——已通过下移浮层解决。
+
+## 七十六、审批
+
+- 探针：overlay `position:absolute`、输入区全宽 760px（修复前 360px）、真实点击关闭成功、退出动画滑出 440px。
+- **全套 e2e 10/10 通过（36 用例）**。
+- SenseNova 复审：暗色 8.5 / 亮色 8（圆角玻璃卡、透明度、高斯模糊达标；浮层覆盖背景属“不占空间”设计本意）。
+
+## 七十七、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 审核原文：`vision-review/reviews-tr3-*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

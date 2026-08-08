@@ -550,7 +550,6 @@ a:focus-visible,
 /* 悬浮抽屉（右侧工具台/浮层面板）：比画布更通透的磨砂玻璃，
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
-  position: relative;
   background: rgba(22, 22, 22, 0.16);
   backdrop-filter: blur(36px) saturate(1.5);
   -webkit-backdrop-filter: blur(36px) saturate(1.5);

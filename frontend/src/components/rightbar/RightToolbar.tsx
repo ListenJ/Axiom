@@ -32,8 +32,8 @@ const TOOLS = [
   { id: 'mini-chat', label: '迷你聊天', icon: MessageSquare },
 ] as const
 
-/** 右侧工具台：按需弹出的悬浮抽屉（与工作区同材质 canvas-surface），
- *  贴合工作区上下边缘，圆角 + 阴影分隔，进入/退出以动画完成，不占位。 */
+/** 右侧工具台：悬浮浮层（不占用工作区布局空间），圆角玻璃卡 + 阴影分隔，
+ *  右侧滑入/滑出（流式显示输出）；z 序位于画布工具栏之下，避免遮挡顶部操作。 */
 export default function RightToolbar() {
   const open = useApp((s) => s.rightbarOpen)
   const setOpen = useApp((s) => s.setRightbarOpen)
@@ -125,23 +125,23 @@ export default function RightToolbar() {
 
   return (
     <>
-      {/* 桌面端：在流内面板（非侵入），宽度动画展开/收起，工作区自适应不遮挡 */}
+      {/* 桌面悬浮浮层（不占布局空间，常驻挂载由 animate 驱动滑入/滑出） */}
       {!isMobile && (
         <motion.div
           aria-label="右侧工具台"
           role="complementary"
-          className="h-full shrink-0 overflow-hidden"
+          className="overlay-glass absolute right-2 bottom-2 top-[6.75rem] z-10 flex w-[min(25rem,62vw)] flex-col overflow-hidden rounded-2xl"
           initial={false}
-          animate={{ width: open ? 400 : 0 }}
+          animate={open ? { x: 0, opacity: 1, scale: 1 } : { x: '110%', opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+          inert={open ? undefined : true}
+          aria-hidden={open ? undefined : true}
         >
-          <div className="overlay-glass panel-shadow-left m-2 h-[calc(100%-1rem)] rounded-2xl">
-            {shell}
-          </div>
+          {shell}
         </motion.div>
       )}
 
-      {/* 移动端：抽屉浮层（小屏无空间容纳在流内面板） */}
+      {/* 移动端抽屉浮层（AnimatePresence + 背景遮罩） */}
       {isMobile && (
         <AnimatePresence>
           {open && (

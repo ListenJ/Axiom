@@ -40,6 +40,17 @@
 
 ---
 
+## 2026-08-08 — 右栏回退为悬浮浮层（不占空间）+ 流式滑入/滑出
+
+- **任务**：用户反馈“在流内右栏仍侵占工作区空间”——回退为**悬浮浮层**（absolute，不参与布局、不推挤内容），并以**流式滑入/滑出动画**显示；顺带修复“关闭按钮被顶部工具栏遮挡导致点不到”的恶性 bug。
+- **工具**：Playwright（几何/点击/动画探针 + 全套 e2e）、SenseNova（复审）。
+- **操作（文件级）**：
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面改为**常驻挂载的悬浮浮层**——`absolute right-2 bottom-2 top-[6.75rem] z-10`（顶部下移到工具栏之下，避免遮挡工具栏按钮与关闭按钮），`framer animate` 驱动 `x:110%→0` + opacity + scale（**流式滑入/滑出**，比 AnimatePresence 退场更可靠）；关闭时 `inert + aria-hidden`（不挡交互、不参与可访问性树）；移动端保留 AnimatePresence 抽屉。
+  - `frontend/src/styles/index.css`：`.overlay-glass` 移除 `position: relative`（该声明样式顺序晚于 Tailwind `.absolute`，曾导致浮层退回 relative 而占位——**关键修复**）；材质保持暗 .16 / 亮 .18 + blur 36px。
+  - `e2e/animation-layout.spec.ts`：右栏测试改为“悬浮浮层”断言——滑出采样中间透明度、收起后输入区宽度**不变**（不占空间）、重开可见。
+- **验证**：几何探针——overlay `position:absolute`、输入区 760px 全宽（修复前被挤到 360px）；真实点击关闭按钮成功（修复前被工具栏拦截超时）；退出动画采样到中间态并滑出（transform 到 440px）；**全套 e2e 10/10 通过（36 用例）**；SenseNova 复审暗色 8.5 / 亮色 8（材料与卡片样式达标；浮层覆盖属设计本意）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏回退圆角玻璃卡片样式（非侵入）+ 背景流体光斑动态加强
 
 - **任务**：按两张参考图（SenseNova 描述：右侧栏 ≈20–30% 宽圆角玻璃卡、约 75% 透明度、阴影分隔、无分割线；背景 3–5 个大型柔和流体光斑）调整——右栏保持**非侵入（在流内）+ 高斯模糊**、透明度略高于背景毛玻璃；整体背景流体光斑**加强为更明显的动态效果**。

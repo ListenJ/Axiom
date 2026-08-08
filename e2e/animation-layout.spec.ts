@@ -40,7 +40,7 @@ test.describe('页面整洁化与动画', () => {
     await expect(input).toBeVisible()
   })
 
-  test('右栏为在流内面板：宽度动画进出、工作区自适应（不遮挡内容）', async ({ page }) => {
+  test('右栏为悬浮浮层：滑入/滑出动画、不占用工作区空间', async ({ page }) => {
     await page.goto('/chat')
     const aside = page.getByRole('complementary', { name: '右侧工具台' })
     await expect(aside).toBeVisible()
@@ -49,7 +49,7 @@ test.describe('页面整洁化与动画', () => {
     const inputWidth = () =>
       page.locator('#home-input').evaluate((el) => el.getBoundingClientRect().width)
 
-    // 默认展开：宽度 400，工作区让位（在流内，不遮挡工具栏按钮）
+    // 默认展开：宽度 400（悬浮浮层）
     await page.waitForFunction(() => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
       return el && el.getBoundingClientRect().width >= 399
@@ -58,37 +58,40 @@ test.describe('页面整洁化与动画', () => {
     expect(await widthOf()).toBeLessThan(401)
     const inputOpen = await inputWidth()
 
-    // 收起：宽度 400 → 0 的动画过渡（采样到中间宽度，非瞬间）
+    // 收起：滑出动画（采样中间透明度），最终隐藏；工作区宽度不变（不占空间）
     await aside.getByLabel('收起工具台').click()
-    const closeSamples = await page.evaluate(async () => {
-      const out: number[] = []
-      for (let i = 0; i < 24; i++) {
+    const exitSeen = await page.evaluate(async () => {
+      let seen = false
+      for (let i = 0; i < 30; i++) {
         const el = document.querySelector('[aria-label="右侧工具台"]')
-        if (!el) { out.push(-1); break }
-        out.push(el.getBoundingClientRect().width)
+        if (!el) break
+        const o = parseFloat(getComputedStyle(el).opacity)
+        if (!Number.isNaN(o) && o > 0 && o < 1) seen = true
         await new Promise((r) => requestAnimationFrame(r))
       }
-      return out
+      return seen
     })
-    expect(closeSamples.some((w) => w > 0 && w < 400)).toBe(true)
+    expect(exitSeen).toBe(true)
     await page.waitForFunction(() => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
-      return el && el.getBoundingClientRect().width < 1
+      return el && parseFloat(getComputedStyle(el).opacity) < 0.05
     })
-    // 工作区自适应：收起后输入区明显变宽（右栏不遮挡内容）
-    expect(await inputWidth()).toBeGreaterThan(inputOpen + 300)
+    expect(Math.abs((await inputWidth()) - inputOpen)).toBeLessThan(4)
 
-    // 重新展开：视图 → 打开工具台 → 宽度动画回升，工作区让位
+    // 重新展开：视图 → 打开工具台 → 滑入浮层，工作区宽度仍不变
     await page.getByRole('button', { name: '视图' }).click()
     await page.getByRole('menuitem', { name: '打开工具台' }).click()
-    // （宽度动画已在“收起”方向采样验证；此处验证展开后的最终宽度与工作区让位）
     await page.waitForFunction(() => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
-      return el && el.getBoundingClientRect().width >= 399
+      return (
+        el &&
+        el.getBoundingClientRect().width >= 399 &&
+        parseFloat(getComputedStyle(el).opacity) > 0.95
+      )
     })
     expect(await widthOf()).toBeGreaterThan(399)
     expect(await widthOf()).toBeLessThan(401)
-    expect(await inputWidth()).toBeLessThan(inputOpen + 4)
+    expect(Math.abs((await inputWidth()) - inputOpen)).toBeLessThan(4)
   })
 
   test('终端为覆盖式浮层动画，不推挤主内容', async ({ page }) => {
