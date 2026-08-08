@@ -4,13 +4,17 @@
  * 结构：附件行 + 输入行（附件/输入框/发送/模型选择圆环）+ 三级 Agent 权限。
  * 受控组件：value/onChange/sending 由父级传入，send/stop 由父级实现。
  */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Send, Square, Paperclip, Image as ImageIcon, FileText, X,
   ShieldOff, ShieldQuestion, ShieldCheck,
+  Search, Code2, GitBranch, Clock, Puzzle, Cog, TerminalSquare, PanelRight, Keyboard, Moon,
 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { ModelPicker, type ModelOption, type ReasoningEffort } from '@/components/chat/ModelPicker'
+import SlashCommandMenu, { type SlashCommand } from '@/components/chat/SlashCommandMenu'
+import { useApp } from '@/state/useApp'
 
 export type PermissionLevel = 'read' | 'ask' | 'auto'
 
@@ -75,6 +79,52 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const taRef = useRef<HTMLTextAreaElement | null>(null)
+  const slashRef = useRef<HTMLDivElement | null>(null)
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const navigate = useNavigate()
+  const setTerminalOpen = useApp((s) => s.setTerminalOpen)
+  const openRightTool = useApp((s) => s.openRightTool)
+  const setHelpOpen = useApp((s) => s.setHelpOpen)
+  const toggleTheme = useApp((s) => s.toggleTheme)
+
+  const slashCommands: SlashCommand[] = [
+    { id: 'search', label: '/search', description: '搜索知识库与代码', icon: <Search size={14} />, run: () => navigate('/search') },
+    { id: 'code', label: '/code', description: '代码索引与检索', icon: <Code2 size={14} />, run: () => navigate('/code') },
+    { id: 'git', label: '/git', description: 'Git 状态与提交', icon: <GitBranch size={14} />, run: () => navigate('/git') },
+    { id: 'sessions', label: '/sessions', description: '历史会话', icon: <Clock size={14} />, run: () => navigate('/sessions') },
+    { id: 'plugins', label: '/plugins', description: 'Skill / MCP 市场', icon: <Puzzle size={14} />, run: () => navigate('/plugins') },
+    { id: 'settings', label: '/settings', description: '系统设置', icon: <Cog size={14} />, run: () => navigate('/settings') },
+    { id: 'terminal', label: '/terminal', description: '打开终端', icon: <TerminalSquare size={14} />, run: () => setTerminalOpen(true) },
+    { id: 'tools', label: '/tools', description: '打开右侧工具台', icon: <PanelRight size={14} />, run: () => openRightTool('summary') },
+    { id: 'help', label: '/help', description: '键盘快捷键', icon: <Keyboard size={14} />, run: () => setHelpOpen(true) },
+    { id: 'theme', label: '/theme', description: '切换深色 / 浅色主题', icon: <Moon size={14} />, run: () => toggleTheme() },
+  ]
+
+  const slashToken = value.startsWith('/') ? value.split(/\s+/)[0] ?? '' : ''
+  const slashOpen = !sending && !slashDismissed && slashToken.length > 0
+  const slashQuery = slashToken.slice(1).toLowerCase()
+  const visibleCommands = slashOpen ? slashCommands.filter((c) => c.label.slice(1).toLowerCase().includes(slashQuery)) : []
+  const activeIndex = Math.min(slashIndex, Math.max(0, visibleCommands.length - 1))
+
+  const runCommand = (cmd: SlashCommand) => {
+    setSlashIndex(0)
+    setSlashDismissed(true)
+    onChange('')
+    cmd.run()
+  }
+
+  // 点击面板外部收起命令菜单（输入继续保留，供用户继续编辑）
+  useEffect(() => {
+    if (!slashOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
+        setSlashDismissed(true)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [slashOpen])
 
   // 自适应高度：内容增长时向上扩展（最高 40vh），清空后回落到基准高度
   const autosize = useCallback(() => {
@@ -87,7 +137,15 @@ export function ChatComposer({
   useEffect(autosize, [value, autosize])
 
   return (
-    <div className="sticky bottom-0 z-20 flex flex-col gap-2 p-3 sm:gap-2.5">
+    <div ref={slashRef} className="relative sticky bottom-0 z-20 flex flex-col gap-2 p-3 sm:gap-2.5">
+      <SlashCommandMenu
+        open={slashOpen}
+        query={slashQuery}
+        commands={visibleCommands}
+        selectedIndex={activeIndex}
+        onPick={runCommand}
+        onClose={() => setSlashDismissed(true)}
+      />
       {/* 附件 chips：图片/文档预览（可移除） */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-1">
@@ -144,8 +202,35 @@ export function ChatComposer({
           ref={taRef}
           id="home-input"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setSlashDismissed(false)
+            setSlashIndex(0)
+          }}
           onKeyDown={(e) => {
+            if (slashOpen && visibleCommands.length > 0) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSlashIndex((i) => (i + 1) % visibleCommands.length)
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSlashIndex((i) => (i - 1 + visibleCommands.length) % visibleCommands.length)
+                return
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                runCommand(visibleCommands[activeIndex] ?? visibleCommands[0]!)
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                setSlashDismissed(true)
+                return
+              }
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               onSend()

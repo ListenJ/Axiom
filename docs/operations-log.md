@@ -3582,3 +3582,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - e2e/theme.spec.ts：主题切换改经系统菜单"视图 → 切换主题"。
 - **验证**：移动端（390×844）抽屉不再默认覆盖（drawerVisible=false、无横向溢出），桌面端（1440）右栏仍默认打开；前端 vitest 41 files / 268 tests 全绿（修复 10 失败套件）；e2e 9 文件 32 测试全绿。
 - **Commit**：`38bc57c`（e2e spec 属本地产物不入库）。
+
+---
+
+## 2026-08-08 20:30 +0800 — 全站审核/前端视觉/后端修复/广场/文档/压测
+
+- **任务**：六项综合任务：前端页面与动画进出审核；后端通信/效率/耦合审计与修复；并发资源/Docker/打包/压测；文档重写与归档；`/` 命令面板 + Skill/MCP 广场；Agent Prompt/Harness 优化。
+- **工具**：code-review / frontend-design / performance / find-skills / web-search / git-workflow skill；Playwright 视觉巡检；bun test / vitest / stress-runner；SSH（data@192.168.0.10）。
+- **执行的操作（文件级）**：
+  - 前端：新增 `/` 命令面板（ChatComposer + SlashCommandMenu + WelcomePanel），插件页新增「广场」Tab，Header 触摸高度 h-14，Chat 页拆出 WelcomePanel 至 650 行内。
+  - 后端：修复 `/file-index`、`/api-keys/:provider/test` 死端点；新增 `/marketplace` + Skill/MCP 安装 API；EventBus 增加 `getHandlerCount`；native/stats 测试契约同步 200 空态；Dockerfile 增加前端构建阶段；build matrix 同步 `frontend/dist → public/`。
+  - Prompt/Harness：`prompt-store.ts` code/general 模板与 `prompt-pool.ts` main_coding/general_chat 前缀增强（AGENTS.md、垂直切片、工具优先等）。
+  - 文档：新增 `docs/IMPLEMENTATION-GUIDE-2026-08-08.md`、`docs/AGENT-PROMPT-HARNESS.md`，更新 `docs/README.md`。
+- **验证**：前端 vitest 43 files / 282 tests 全绿；视觉巡检 8/8；e2e 全量通过；后端涉及测试 177 pass；`bun run stress:run` 5/5 全绿；tsc 0 错误。data@192.168.0.10 已传源码（54MB），Docker 因用户无 docker 组权限未执行，bun 官方/镜像下载 TLS 失败。
+- **Commit**：`待填`

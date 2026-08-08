@@ -40,6 +40,7 @@ export type AuditEvent =
   | "vault.write" | "sandbox.execute" | "plugin.install" | "plugin.uninstall"
   | "plugin.enable" | "plugin.disable" | "plugin.configure"
   | "apikey.set" | "apikey.delete" | "apikey.test"
+  | "skill.install" | "mcp.install"
   | "rate_limit.exceeded" | "config.change" | "ws_flood" | "security.alert"
   | "traffic.malicious" | "traffic.suspicious";
 

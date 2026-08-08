@@ -97,7 +97,7 @@ export default function Header({ onMenuClick }: { onMenuClick: () => void }) {
   }
 
   return (
-    <header className="shell-surface flex h-12 shrink-0 items-center gap-1 px-3 shadow-[var(--shell-shadow-bottom)]">
+    <header className="shell-surface flex h-14 shrink-0 items-center gap-1 px-3 shadow-[var(--shell-shadow-bottom)]">
       <Button
         variant="ghost"
         size="icon"

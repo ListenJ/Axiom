@@ -196,8 +196,9 @@ describe("B.3 EventBus 并发竞争", () => {
 
     const stats = eventBus.getStats();
     // 该事件类型不应有残留 handler
-    // subscriberCount 是全局的，验证我们的 handler 已全部清除
-    expect(stats.subscriberCount).toBeLessThanOrEqual(0);
+    // subscriberCount 是全局的，跨文件测试会叠加；按事件类型精确断言本次清理。
+    expect(stats.subscriberCount).toBeGreaterThanOrEqual(0);
+    expect(eventBus.getHandlerCount("sub-unsub-test")).toBe(0);
   });
 
   test("publish + unsubscribe 同时进行 — 不应崩溃", async () => {

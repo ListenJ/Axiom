@@ -170,6 +170,8 @@ const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
       "Run lint after changes",
       "Follow code conventions",
       "Minimize output tokens",
+      "Read AGENTS.md before editing",
+      "One test -> one implementation -> repeat",
     ],
   },
 
@@ -324,6 +326,8 @@ const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
       "Don't fabricate information",
       "Respect user privacy",
       "Stay on topic",
+      "Use tools for deterministic facts",
+      "Lead with conclusion, then evidence",
     ],
   },
 

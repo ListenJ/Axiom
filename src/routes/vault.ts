@@ -259,3 +259,15 @@ export async function handleCodegraphStatus(ctx: RouteContext): Promise<Response
   }
   return null;
 }
+
+export async function handleCodegraphFileIndex(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/file-index" && ctx.req.method === "GET") {
+    const { searchFiles, isCodegraphInitialized } = await import("../memory/codegraph-index.js");
+    if (!(await isCodegraphInitialized())) {
+      return ctx.jsonResponse({ files: [] }, 200, ctx.baseHeaders);
+    }
+    const files = await searchFiles("*", { limit: 5000 });
+    return ctx.jsonResponse({ files: files.map((f) => f.path) }, 200, ctx.baseHeaders);
+  }
+  return null;
+}

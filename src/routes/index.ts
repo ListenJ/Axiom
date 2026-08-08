@@ -11,9 +11,10 @@ import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
 import { handleOpenAIChatCompletions } from "./openai-compat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
-import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
+import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus, handleCodegraphFileIndex } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
 import { handleApiKeys } from "./api-keys.js";
+import { handleMarketplace } from "./marketplace.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
 import { handleConsciousness } from "./consciousness.js";
@@ -139,6 +140,7 @@ const handlers: RouteHandler[] = [
   handleCodegraphSearch,
   handleCodegraphInit,
   handleCodegraphStatus,
+  handleCodegraphFileIndex,
   // Agents
   handleAgentsStatus,
   handleOpenCodeModels,
@@ -154,6 +156,7 @@ const handlers: RouteHandler[] = [
   handleHermesTask,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
+  handleMarketplace,
   // Plugin Market (插件市场)
   handlePluginRoutes,
   // Scene Router (MCP 场景驱动工具调用)
@@ -303,6 +306,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/codegraph/search", handler: handleCodegraphSearch },
     { method: "POST", path: "/codegraph/init", handler: handleCodegraphInit },
     { method: "GET", path: "/codegraph/status", handler: handleCodegraphStatus },
+    { method: "GET", path: "/file-index", handler: handleCodegraphFileIndex },
 
     // Agents
     { method: "GET", path: "/agents/status", handler: handleAgentsStatus },
@@ -364,6 +368,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/api-keys", handler: handleApiKeys },
     { method: "GET", path: "/api-keys/**", handler: handleApiKeys },
     { method: "DELETE", path: "/api-keys/**", handler: handleApiKeys },
+
+    // Skill / MCP Marketplace (广场)
+    { method: "GET", path: "/marketplace", handler: handleMarketplace },
+    { method: "POST", path: "/marketplace/skills/install", handler: handleMarketplace },
+    { method: "POST", path: "/marketplace/mcp/install", handler: handleMarketplace },
 
     // Plugins (通配 fallback — 内部做多路径匹配)
     { method: "GET", path: "/plugins", handler: handlePluginRoutes },

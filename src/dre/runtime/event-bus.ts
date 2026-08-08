@@ -139,6 +139,11 @@ class EventBusImpl extends EventEmitter {
     for (const handlers of this.handlers.values()) subscriberCount += handlers.length;
     return { ...this.stats, subscriberCount };
   }
+
+  /** 指定事件类型的当前 handler 数（供诊断与测试隔离）。 */
+  getHandlerCount(eventType: string): number {
+    return this.handlers.get(eventType)?.length ?? 0;
+  }
 }
 
 export const eventBus = new EventBusImpl();

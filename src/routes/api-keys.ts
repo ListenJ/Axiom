@@ -20,6 +20,9 @@ import {
   setApiKeyOverride,
   clearApiKeyOverride,
   isKnownProvider,
+  getEffectiveApiKey,
+  getEffectiveBaseURL,
+  testProviderConnection,
 } from "../utils/api-key-store.js";
 import {
   saveApiKeyOverride,
@@ -48,6 +51,36 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   // All /api-keys routes require authentication
   const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
+
+  // POST /api-keys/:provider/test — 测试 provider API Key 连通性
+  const testMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)\/test$/);
+  if (testMatch && ctx.req.method === "POST") {
+    const provider = testMatch[1];
+    if (!isKnownProvider(provider)) {
+      return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
+    }
+    const status = listProviderStatus().find((p) => p.provider === provider);
+    if (!status) {
+      return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
+    }
+    const apiKey = getEffectiveApiKey(provider, status.apiKeyEnv);
+    if (!apiKey) {
+      return ctx.jsonResponse(
+        { ok: false, error: `未配置 ${status.apiKeyEnv}` },
+        400,
+        ctx.baseHeaders
+      );
+    }
+    const result = await testProviderConnection(
+      apiKey,
+      getEffectiveBaseURL(provider, status.apiKeyEnv, status.baseURL),
+      status.adapter
+    );
+    if (result.ok) {
+      auditSuccess(ctx, "apikey.test", provider, { ok: true });
+    }
+    return ctx.jsonResponse(result, result.ok ? 200 : 502, ctx.baseHeaders);
+  }
 
   // GET /api-keys — list all
   if (path === "/api-keys" && ctx.req.method === "GET") {

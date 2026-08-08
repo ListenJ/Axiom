@@ -21,6 +21,15 @@ COPY src/ ./src/
 # Bundle to single file (faster cold start, smaller runtime)
 RUN bun build src/main.ts --outdir ./dist --target bun --minify
 
+# ========== Frontend stage: build SPA into dist/ ==========
+FROM oven/bun:1.3-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY frontend/ ./
+RUN bun run build
+
 # ========== Stage 3: Production ==========
 FROM oven/bun:1.3-alpine AS runner
 
@@ -38,6 +47,7 @@ COPY --from=builder /app/dist ./dist
 COPY package.json ./
 COPY config/ ./config/
 COPY public/ ./public/
+COPY --from=frontend-builder /app/frontend/dist/ ./public/
 COPY scripts/ ./scripts/
 COPY axiom-memory/ ./axiom-memory/
 COPY src/db/pg-schema.sql ./src/db/pg-schema.sql

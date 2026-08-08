@@ -694,6 +694,18 @@ export const endpoints = {
         cache: false,
       }),
   },
+  marketplace: {
+    list: () =>
+      api.get<{
+        skills: Array<{ id: string; name: string; description: string; category: string; url: string; source?: string; package?: string }>
+        mcpServers: Array<{ id: string; name: string; description: string; category: string; url: string; type: string; endpoint?: string }>
+        registries: Array<{ id: string; name: string; description: string; url: string }>
+      }>('/marketplace'),
+    installSkill: (id: string) =>
+      api.post<{ success: boolean; id: string; name: string; message?: string; output?: string; error?: string }>('/marketplace/skills/install', { id }),
+    installMcp: (id: string) =>
+      api.post<{ success: boolean; id: string; name: string; message?: string; error?: string }>('/marketplace/mcp/install', { id }),
+  },
 }
 
 export { HttpError }

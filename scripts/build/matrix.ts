@@ -14,7 +14,7 @@
  * 构建产物输出到 dist/ 目录，按 target/platform/arch 分类。
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, cpSync, rmSync } from "fs";
 import { createHash } from "crypto";
 import path from "path";
 
@@ -194,8 +194,19 @@ async function buildBunTargets(platformFilter: string): Promise<void> {
 async function buildFrontend(): Promise<void> {
   console.log("\n[frontend] Vite build → frontend/dist/");
   const ok = await run(["bun", "run", "build"], { cwd: path.join(ROOT, "frontend") });
-  if (ok) { console.log("  ✓ frontend built"); stats.success++; }
-  else { console.error("  ✗ frontend build failed"); stats.failed++; }
+  if (ok) {
+    console.log("  ✓ frontend built");
+    // 同步到 public/，保证 Bun 后端静态根始终服务最新 SPA（assets 为生成物）
+    const src = path.join(ROOT, "frontend", "dist");
+    const dest = path.join(ROOT, "public");
+    rmSync(path.join(dest, "assets"), { recursive: true, force: true });
+    cpSync(src, dest, { recursive: true });
+    console.log("  ✓ synced frontend/dist → public/");
+    stats.success++;
+  } else {
+    console.error("  ✗ frontend build failed");
+    stats.failed++;
+  }
 }
 
 /** 构建 Tauri 桌面端 (当前平台安装包) */

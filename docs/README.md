@@ -5,8 +5,12 @@
 ## 入口与指南
 - [USER-MANUAL.md](USER-MANUAL.md) — 用户手册
 - [PROJECT-GUIDE.md](PROJECT-GUIDE.md) — 项目总览
+- [IMPLEMENTATION-GUIDE-2026-08-08.md](IMPLEMENTATION-GUIDE-2026-08-08.md) — 按当前实现重写的实施指南
 - [COMPREHENSIVE-GUIDE.md](COMPREHENSIVE-GUIDE.md) — 综合指南
 - [DEVELOPER-ONBOARDING.md](DEVELOPER-ONBOARDING.md) — 开发者上手
+
+## Prompt / Harness
+- [AGENT-PROMPT-HARNESS.md](AGENT-PROMPT-HARNESS.md) — Agent 系统提示与 Harness 优化
 
 ## 架构与运行时
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 系统架构

@@ -26,7 +26,9 @@ export type AuditableEvent =
   | "plugin.configure"
   | "apikey.set"
   | "apikey.delete"
-  | "apikey.test";
+  | "apikey.test"
+  | "skill.install"
+  | "mcp.install";
 
 /**
  * 敏感端点二次认证守卫。
