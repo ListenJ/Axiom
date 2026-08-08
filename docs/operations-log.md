@@ -50,7 +50,7 @@
   - `frontend/src/styles/index.css`：`.overlay-glass` 高磨砂 `blur(56px) saturate(1.6)`（原 36px），透明度保持不变。
   - `e2e/animation-layout.spec.ts`：测试改为先唤起右栏（摘要按钮 / 视图菜单）再断言；`e2e/terminal-summary.spec.ts`：Git 面板用例先点「打开摘要」唤起。
 - **验证**：几何探针——浮层 top 56 / bottom 892（工作区 48–900，上下仅留 8px）；材质 blur(56px) + 暗 .16 / 亮 .18；**全套 e2e 10/10（36 用例）**；**全站 40 页审计 38/40 零控制台错误**（vault 装饰骨架 / perf 原生未启用为已知良性）；SenseNova 复审**暗色 7 / 亮色 7**（圆角玻璃卡✅、透明度与模糊协同✅、文字锐利✅；P2：按钮底/图标对比微调）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`c1d7273`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏工效完善：状态/操作分离 + Esc/点外收起 + 亮色边缘降档（方案 A 落地）
 
