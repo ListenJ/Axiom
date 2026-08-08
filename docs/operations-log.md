@@ -50,7 +50,7 @@
   - `docs/README.md`（新）：文档索引（入口指南 / 架构 / 前端设计 / 审计评审 / 运维归档）。
   - 本地整理：e2e 调试截图 21 张 → `archive/frontend/e2e-shots/`（ARCHIVE-LOG 追加记录）；`.tmp` 旧运行日志清理（保留最近 10 个）；删除 `.tmp/cowork-src` 克隆残留。
 - **验证**：`/native/stats` 200 `{"available":false}`；**全套 e2e 10/10（37 用例）**；tsc ✅ / vite build ✅；`/perf` 页面不再产生 503 控制台噪声（perf.spec 仍通过）。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`380192b`（推送 internal211/master）
 
 ## 2026-08-08 — 设置→外观新增透明度调整 + 三件事全面审核（执行链/架构压力/知识库与动画）
 
