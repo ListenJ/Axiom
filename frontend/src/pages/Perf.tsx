@@ -84,7 +84,7 @@ export function PerfPanel() {
           <Cpu className="size-4 text-[var(--accent)]" />
           原生模块
         </h2>
-        {native ? (
+        {native && (native as { available?: boolean })?.available !== false ? (
           <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs text-[var(--text-secondary)]">
             {JSON.stringify(native, null, 2)}
           </pre>

@@ -40,6 +40,18 @@
 
 ---
 
+## 2026-08-08 — 继续优化（native 200 空态 / 侧栏轮询暂停）+ 文档与本地文件整理
+
+- **任务**：①完成上轮审核遗留低优先项——`/native/stats` 未就绪改 200 空态（消除控制台 503 噪声）、移动端侧栏隐藏时暂停轮询 ②整理文档（新增 docs/README.md 索引）与本地文件（e2e 调试截图归档、.tmp 旧日志清理）。
+- **操作（文件级）**：
+  - `src/routes/native-routes.ts`：`/native/stats` 未就绪返回 `200 {"available":false}`（原 503）。
+  - `frontend/src/pages/Perf.tsx`：`available === false` 时显示「原生模块未启用」空态（而非 JSON 预览）。
+  - `frontend/src/components/layout/Sidebar.tsx`：移动端抽屉隐藏时暂停 3 个轮询（health 30s / workspaces+sessions 30s / git 60s），打开抽屉时恢复并刷新。
+  - `docs/README.md`（新）：文档索引（入口指南 / 架构 / 前端设计 / 审计评审 / 运维归档）。
+  - 本地整理：e2e 调试截图 21 张 → `archive/frontend/e2e-shots/`（ARCHIVE-LOG 追加记录）；`.tmp` 旧运行日志清理（保留最近 10 个）；删除 `.tmp/cowork-src` 克隆残留。
+- **验证**：`/native/stats` 200 `{"available":false}`；**全套 e2e 10/10（37 用例）**；tsc ✅ / vite build ✅；`/perf` 页面不再产生 503 控制台噪声（perf.spec 仍通过）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 设置→外观新增透明度调整 + 三件事全面审核（执行链/架构压力/知识库与动画）
 
 - **任务**：①设置→外观新增「透明度调整」滑块（持久化并驱动悬浮面板玻璃透明度）②全面审核前端部件↔后端执行链 ③审核架构冗余并压力测试 ④审核知识库等核心部件与前端动画/动态背景可用性。

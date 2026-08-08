@@ -25,6 +25,18 @@ function limitText(text: string, max: number): string {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  // 移动端抽屉隐藏时暂停轮询（桌面常驻不受影响）
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const onChange = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const paused = isMobile && !open
+
   const navigate = useNavigate()
   const location = useLocation()
   const setHelpOpen = useApp((s) => s.setHelpOpen)
@@ -75,6 +87,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   }
 
   useEffect(() => {
+    if (paused) return
     let alive = true
     const load = async () => {
       try {
@@ -92,9 +105,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       alive = false
       clearInterval(t)
     }
-  }, [])
+  }, [paused])
 
   useEffect(() => {
+    if (paused) return
     let alive = true
     const load = async () => {
       try {
@@ -120,10 +134,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       alive = false
       clearInterval(t)
     }
-  }, [])
+  }, [paused])
 
   // Git 状态 + MCP 场景 + 插件列表（进入时与定时刷新）
   useEffect(() => {
+    if (paused) return
     void loadGit()
     const t = setInterval(() => void loadGit(), 60_000)
     endpoints.mcp.scenes().then((d) => setMcpScenes(d?.scenes ?? [])).catch(() => {})
@@ -137,7 +152,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       })
       .catch(() => {})
     return () => clearInterval(t)
-  }, [])
+  }, [paused])
 
   const online = !healthError && health?.status === 'ok'
   const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
