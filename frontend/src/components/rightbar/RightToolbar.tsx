@@ -33,7 +33,7 @@ const TOOLS = [
 ] as const
 
 /** 右侧工具台：悬浮浮层（不占用工作区布局空间），圆角玻璃卡 + 阴影分隔，
- *  右侧滑入/滑出（流式显示输出）；z 序位于画布工具栏之下，避免遮挡顶部操作。 */
+ *  右侧滑入/滑出（流式显示输出）；贴齐工作区上下边界，按需唤起（默认收起）。 */
 export default function RightToolbar() {
   const open = useApp((s) => s.rightbarOpen)
   const setOpen = useApp((s) => s.setRightbarOpen)
@@ -145,7 +145,7 @@ export default function RightToolbar() {
           ref={overlayRef}
           aria-label="右侧工具台"
           role="complementary"
-          className="overlay-glass absolute right-2 bottom-2 top-[6.75rem] z-10 flex w-[min(25rem,62vw)] flex-col overflow-hidden rounded-2xl"
+          className="overlay-glass absolute -top-4 -bottom-4 right-2 z-30 flex w-[min(25rem,62vw)] flex-col overflow-hidden rounded-2xl"
           initial={false}
           animate={open ? { x: 0, opacity: 1, scale: 1 } : { x: '110%', opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}

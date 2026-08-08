@@ -122,6 +122,8 @@ test("右侧工具台：Git 面板显示修改统计与增删行", async ({ page
     })
   );
   await page.goto("/chat", { waitUntil: "domcontentloaded" });
+  // 右栏默认收起：先经「打开摘要」唤起（与其它用例一致）
+  await page.getByLabel("打开摘要").click();
   const bar = page.getByRole("complementary", { name: "右侧工具台" });
   await bar.waitFor({ timeout: 10000 });
   await bar.getByLabel("Git", { exact: true }).click();

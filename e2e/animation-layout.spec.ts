@@ -23,6 +23,8 @@ test.describe('页面整洁化与动画', () => {
 
   test('底部无全局状态栏，系统状态迁入右栏摘要（环境信息/子智能体/来源）', async ({ page }) => {
     await page.goto('/chat')
+    // 右栏默认收起（按需唤起），先点工具栏「打开摘要」
+    await page.getByLabel('打开摘要').click()
     await page.waitForSelector('#rightbar-panel')
 
     const aside = page.getByRole('complementary', { name: '右侧工具台' })
@@ -43,6 +45,9 @@ test.describe('页面整洁化与动画', () => {
   test('右栏为悬浮浮层：滑入/滑出动画、不占用工作区空间', async ({ page }) => {
     await page.goto('/chat')
     const aside = page.getByRole('complementary', { name: '右侧工具台' })
+    // 默认收起 → 通过系统菜单「视图 → 打开工具台」唤起
+    await page.getByRole('button', { name: '视图' }).click()
+    await page.getByRole('menuitem', { name: '打开工具台' }).click()
     await expect(aside).toBeVisible()
 
     const widthOf = () => aside.evaluate((el) => el.getBoundingClientRect().width)

@@ -40,6 +40,18 @@
 
 ---
 
+## 2026-08-08 — 右栏贴齐工作区 + 高磨砂（blur 56px）+ 默认收起按需唤起 + 全站重审
+
+- **任务**：①右栏顶部不再“差一截”，长度贴合工作区右侧（上下各留 8px）②透明度保持（暗 .16 / 亮 .18）但**高磨砂**（blur 36→56px）保可读（此前太透）③“重新审计前端”。
+- **工具**：Playwright（几何/材质探针 + 全套 e2e + 全站 40 页审计）、SenseNova（复审）、cowork-frontend-design / impeccable。
+- **操作（文件级）**：
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面浮层 `absolute -top-4 -bottom-4 right-2 z-30`（负偏移突破主内容 padding，贴合工作区上边界 56px / 下边界 892px；z-30 盖过工具栏，打开时顶部操作区让位给浮层）。
+  - `frontend/src/state/useApp.ts`：右栏**默认收起**（`readInitialRightbarOpen → false`）——贴顶后打开会覆盖工具栏右侧按钮，改为按需唤起（更符合“动态按需弹出”）。
+  - `frontend/src/styles/index.css`：`.overlay-glass` 高磨砂 `blur(56px) saturate(1.6)`（原 36px），透明度保持不变。
+  - `e2e/animation-layout.spec.ts`：测试改为先唤起右栏（摘要按钮 / 视图菜单）再断言；`e2e/terminal-summary.spec.ts`：Git 面板用例先点「打开摘要」唤起。
+- **验证**：几何探针——浮层 top 56 / bottom 892（工作区 48–900，上下仅留 8px）；材质 blur(56px) + 暗 .16 / 亮 .18；**全套 e2e 10/10（36 用例）**；**全站 40 页审计 38/40 零控制台错误**（vault 装饰骨架 / perf 原生未启用为已知良性）；SenseNova 复审**暗色 7 / 亮色 7**（圆角玻璃卡✅、透明度与模糊协同✅、文字锐利✅；P2：按钮底/图标对比微调）。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏工效完善：状态/操作分离 + Esc/点外收起 + 亮色边缘降档（方案 A 落地）
 
 - **任务**：按上轮“右栏设计讨论”推荐的方案 A 落地——状态与操作分离、增加收起逃生通道（Esc / 点击外部）、亮色玻璃边缘降档，基于人机工效完善。

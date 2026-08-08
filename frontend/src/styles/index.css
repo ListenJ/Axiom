@@ -551,8 +551,9 @@ a:focus-visible,
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
   background: rgba(22, 22, 22, 0.16);
-  backdrop-filter: blur(36px) saturate(1.5);
-  -webkit-backdrop-filter: blur(36px) saturate(1.5);
+  /* 高磨砂：强模糊保证透明显卡下文字可读 */
+  backdrop-filter: blur(56px) saturate(1.6);
+  -webkit-backdrop-filter: blur(56px) saturate(1.6);
   box-shadow:
     0 28px 80px rgba(0, 0, 0, 0.78),
     0 0 0 1px rgba(255, 255, 255, 0.05),

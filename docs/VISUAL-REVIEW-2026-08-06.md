@@ -676,3 +676,26 @@
 - 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
 - 讨论评审：`vision-review/reviews-discuss-*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十五轮：右栏贴齐工作区 + 高磨砂 + 默认收起 + 全站重审（2026-08-08）
+
+## 八十一、实现
+
+- **贴齐工作区**：桌面浮层 `absolute -top-4 -bottom-4 right-2 z-30`（负偏移突破主内容 padding），实测 top 56 / bottom 892（工作区 48–900，上下仅留 8px），不再“差一截”。
+- **高磨砂**：blur 36→56px（saturate 1.6），透明度保持（暗 .16 / 亮 .18），可读性由高磨砂承担。
+- **默认收起**：贴顶后浮层打开会覆盖工具栏右侧，改为按需唤起（摘要按钮 / 视图菜单 / 工具台按钮）。
+
+## 八十二、审批
+
+- 几何/材质探针：top 56 / bottom 892 + blur(56px)。
+- **全套 e2e 10/10（36 用例）**；**全站 40 页审计 38/40 零控制台错误**（vault/perf 为已知良性）。
+- SenseNova 复审：**暗色 7 / 亮色 7**（圆角玻璃卡✅、透明度与模糊协同✅、文字锐利✅；P2 细节微调）。
+
+## 八十三、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 审核原文：`vision-review/reviews-tr3-*.md`
+- 审计报告：`vision-review/monitor-report.json`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

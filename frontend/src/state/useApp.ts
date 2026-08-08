@@ -98,11 +98,10 @@ function readInitialSidebarCollapsed(): boolean {
   return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
 }
 
-/** 右栏工具台默认状态：桌面常驻打开，移动端默认关闭（抽屉由用户唤出）。
- *  jsdom/无 matchMedia 环境（测试）安全降级为 true。 */
+/** 右栏工具台默认收起（按需唤起）：展开时覆盖工具栏右侧，避免默认遮挡；
+ *  桌面/移动端统一默认关闭。jsdom/无 matchMedia 环境（测试）安全降级为 false。 */
 function readInitialRightbarOpen(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
-  return window.matchMedia('(min-width: 1024px)').matches
+  return false
 }
 
 let toastId = 0
