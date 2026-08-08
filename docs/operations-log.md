@@ -3690,3 +3690,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `docs/operations-log.md`：追加本条操作记录。
 - **验证**：规格自检通过，无 TBD/TODO 占位，范围聚焦组件化与 Day0；尚未实施代码。
 - **Commit**：`3e12f98`
+
+---
+
+## 2026-08-09 19:30 +0800 — Agent 组件系统 Task 1：契约、Kernel、TokenBudget
+
+- **任务**：按 Day0 设计规格实施 `src/components/` 组件层的第一阶段：统一契约、生命周期 Kernel 与智能 TokenBudget。
+- **工具**：writing-plans / executing-plans / verification-before-completion / apply_patch / bun test / tsc / bun build。
+- **执行的操作（文件级）**：
+  - 新增 `docs/plans/2026-08-09-agent-components-day0.md`：三阶段实施计划与验收清单。
+  - 新增 `src/components/contracts.ts`：组件生命周期、Agent/Tool/TokenBudget 契约。
+  - 新增 `src/components/kernel.ts`：注册、依赖排序初始化、健康聚合、dispose 与全局单例。
+  - 新增 `src/components/token-budget.ts`：统一估算、单消息裁剪、分层压缩、报告与生命周期。
+  - 新增 `tests/components/kernel.test.ts`、`tests/components/token-budget.test.ts`。
+- **验证**：组件测试 8/8 通过；后续全量组件/架构验证见 Task 3。
+- **Commit**：`（待回填）`
