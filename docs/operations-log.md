@@ -47,7 +47,7 @@
   - `frontend/src/styles/index.css`：`.overlay-glass` 暗/亮 rgba(...) .36 → .50，高磨砂 `blur(56px) saturate(1.6)` 保持，贴顶几何不变。
   - `e2e/animation-layout.spec.ts`：移除“中间透明度帧”断言（framer 对 opacity 为跳变而非插值，中值采样不稳）；保留“最终隐藏 + 工作区宽度不变 + 可重开/Esc/点外收起”的行为断言；动画本身由探针与视觉复审保障。
 - **验证**：材质探针暗/亮 rgba(.5) + blur(56px)，贴顶 top 56 / bottom 892；**全套 e2e 10/10（36 用例）**；tsc ✅ / vite build ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`7d1fa48`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏透明度再降 20%（暗/亮 .30→.36）+ 动画测试中值采样加固
 
