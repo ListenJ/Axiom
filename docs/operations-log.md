@@ -47,7 +47,7 @@
   - `frontend/src/styles/index.css`：`.overlay-glass` 暗/亮 rgba(...) .30 → .36（透光再降 20%），高磨砂 `blur(56px) saturate(1.6)` 保持。
   - `e2e/animation-layout.spec.ts`：右栏“滑出动画”断言从固定 30 帧 rAF 循环改为 `waitForFunction` 轮询“中间透明度帧”（timeout 4s），消除 320ms 动画窗口与采样错位的偶发竞态。
 - **验证**：材质探针暗/亮 rgba(.36) + blur(56px)，贴顶几何不变（top 56 / bottom 892）；**全套 e2e 10/10（36 用例）**；tsc ✅ / vite build ✅。
-- **Commit**：`<hash>`（推送 internal211/master）
+- **Commit**：`1e5c136`（推送 internal211/master）
 
 ## 2026-08-08 — 右栏低透光 + 高磨砂（暗/亮 .30 + blur 56px）
 
