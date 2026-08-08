@@ -3666,3 +3666,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `public/index.html`：同步最新前端构建。
 - **验证**：`tsc --noEmit` 通过；43 files / 282 tests 通过；`bun run build:frontend` 成功；Playwright 8/8 通过；SenseNova 终评 8 张截图 9-10 分。
 - **Commit**：`589e024`
+
+---
+
+## 2026-08-09 17:30 +0800 — Agent 浏览器控制与生态位策略分析
+
+- **任务**：审核浏览器自动化/WebSocket 现状，对比 Hermes，评估 Token 卸载与浏览器插件路线，给出生态位建议。
+- **工具**：architecture / web-search / search / open_page / rg / Get-Content。
+- **执行的操作（文件级）**：
+  - 新增 `docs/BROWSER-AGENT-STRATEGY-2026-08-09.md`：现状核对、Hermes 对比、Token 卸载方案、浏览器扩展架构建议、生态位结论与 MVP 路线。
+  - `docs/operations-log.md`：追加本条操作记录。
+- **验证**：仅只读调研与文档变更；工作区无代码改动；`git diff --check` 通过。
+- **Commit**：待回填
