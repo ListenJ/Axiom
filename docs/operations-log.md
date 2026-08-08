@@ -3615,3 +3615,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `native/crates/local`：清理未使用 import/subscriber。
 - **验证**：`cargo check -p axiom-local` / `-p axiom-cloud` 通过；`bun run native:build` release 通过；`build:go` 4/4；`build:server/cli/mcp` 通过；data@192.168.0.10 `docker build -t axiom-agent:2026-08-08` 成功，容器内 stress 40/40。
 - **Commit**：`016dc97`
+
+---
+
+## 2026-08-08 21:30 +0800 — Agent 独立判断治理规则 + 敏感资产本地化
+
+- **任务**：将用户提出的独立分析/约束审查/事实分离/直接异议/工程偏差规则总结进 AGENTS.md；审计 AGENTS.md 与仓库敏感资产。
+- **工具**：Read / git grep / rg / apply_patch。
+- **执行的操作（文件级）**：
+  - `AGENTS.md`：新增规则 10（独立分析与工程判断）、规则 11（敏感资产本地化）；修正 `internal211` 地址 `192.168.0.11` → `192.168.0.22`（与 `git remote -v` 一致）。
+  - `docs/services.md`：含真实 SSH 密码、1Panel 凭据、机场订阅 token，已移出仓库到 `C:\Users\18336\.axiom\axiom-secrets\services.credentials`（原文件未被 git 跟踪）。
+- **验证**：`git grep` 高熵密钥扫描命中仅测试夹具/占位符；AGENTS.md 本身无真实密钥。
+- **Commit**：`待填`
