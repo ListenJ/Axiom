@@ -40,3 +40,18 @@ test("toggling a behavior switch shows toast", async ({ page }) => {
     timeout: 3000,
   });
 });
+
+test("appearance panel opacity slider persists and applies CSS var", async ({ page }) => {
+  await page.goto("/settings", { waitUntil: "domcontentloaded" });
+  const slider = page.getByRole("slider", { name: "面板透明度" });
+  await slider.fill("0.3");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("axiom:panel-opacity")),
+    )
+    .toBe("0.3");
+  const cssVar = await page.evaluate(() =>
+    document.documentElement.style.getPropertyValue("--panel-alpha"),
+  );
+  expect(cssVar).toBe("0.3");
+});

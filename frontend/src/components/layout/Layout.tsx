@@ -18,6 +18,7 @@ import { MOTION_PRESETS } from '@/lib/motion-presets'
 export default function Layout() {
   const sidebarOpen = useApp((s) => s.sidebarOpen)
   const setSidebarOpen = useApp((s) => s.setSidebarOpen)
+  const panelOpacity = useApp((s) => s.panelOpacity)
   const terminalOpen = useApp((s) => s.terminalOpen)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
   const terminalOverlay = useApp((s) => s.terminalOverlay)
@@ -31,6 +32,11 @@ export default function Layout() {
   useEffect(() => {
     document.documentElement.dataset.motion = motionLevel
   }, [motionLevel])
+
+  // 悬浮面板透明度 → CSS 变量（overlay-glass 等消费），实时生效
+  useEffect(() => {
+    document.documentElement.style.setProperty('--panel-alpha', String(panelOpacity))
+  }, [panelOpacity])
 
   // HITL 审批：订阅 /ws 的 approval.requested 事件，卸载时断开
   useEffect(() => {

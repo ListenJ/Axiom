@@ -40,6 +40,22 @@
 
 ---
 
+## 2026-08-08 — 设置→外观新增透明度调整 + 三件事全面审核（执行链/架构压力/知识库与动画）
+
+- **任务**：①设置→外观新增「透明度调整」滑块（持久化并驱动悬浮面板玻璃透明度）②全面审核前端部件↔后端执行链 ③审核架构冗余并压力测试 ④审核知识库等核心部件与前端动画/动态背景可用性。
+- **工具**：find-skills（检索 review/performance/architecture skill，候选安装量低、无官方来源，按指引回退使用已装 Anthropic code-review/performance/architecture + impeccable audit/optimize）、bun run test:gate、Playwright 探针 + 全套 e2e、SenseNova。
+- **操作（文件级）**：
+  - `frontend/src/state/useApp.ts`：新增 `panelOpacity`（0.2–0.8，默认 0.5，localStorage `axiom:panel-opacity`）+ `setPanelOpacity`。
+  - `frontend/src/components/layout/Layout.tsx`：`--panel-alpha` CSS 变量随 panelOpacity 实时写入。
+  - `frontend/src/pages/Settings.tsx`：外观分区新增 `PanelOpacityPicker`（滑块 + 当前百分比 + 高亮联动）。
+  - `frontend/src/styles/index.css`：`.overlay-glass` 背景改用 `rgb(22 22 22 / var(--panel-alpha, .5))` / 亮 `rgb(255 255 255 / var(--panel-alpha, .5))`。
+  - `frontend/src/components/rightbar/panels.tsx` / `RightToolbar.tsx`：SummaryPanel 支持 `paused={!open}`——右栏隐藏时暂停 30s 轮询（修复空转拉取 6 接口）。
+  - `src/routes/vault.ts` / `index.ts`：注册 `GET /vault/para`（返回 PARA 分布），闭环前端 `endpoints.vault.para()` 契约（此前命中 SPA fallback 返回 HTML）。
+  - `e2e/settings.spec.ts`：新增「面板透明度滑块持久化 + 应用 CSS 变量」断言。
+  - `docs/AUDIT-2026-08-08.md`：三部分审核报告（执行链结论与修复、压力门禁 12/12、知识库接口 200 清单、动画可用性）。
+- **验证**：**全套 e2e 10/10（37 用例，settings 5/5 含滑块）**；**`bun run test:gate` 12/12 全过**（毫秒级）；知识库核心接口（vault/tags/para/pending-review/sessions/usage/codegraph/search）全部 200；`/vault/para` 200 `{"distribution":{...}}`；tsc ✅ / vite build ✅。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏透明度直接调整为 .50 + 动画测试断言简化
 
 - **任务**：按用户要求把右栏透明度直接调为 .50（更不透明），高磨砂保持。

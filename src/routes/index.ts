@@ -287,6 +287,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
 
     // Vault
     { method: "GET", path: "/vault/stats", handler: handleVaultStats },
+    { method: "GET", path: "/vault/para", handler: handleVaultPara },
     { method: "GET", path: "/vault/para/:category", handler: handleVaultPara },
     { method: "GET", path: "/vault/tags", handler: handleVaultTagsList },
     { method: "GET", path: "/vault/tags/:tag", handler: handleVaultTags },

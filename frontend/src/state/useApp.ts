@@ -17,6 +17,8 @@ interface AppState {
   accent: AccentId
   shellTone: ShellToneId
   canvasTone: CanvasToneId
+  /** 悬浮面板（右栏/浮层玻璃）透明度 alpha，0.2–0.8，默认 0.5 */
+  panelOpacity: number
   sidebarOpen: boolean
   sidebarCollapsed: boolean
   helpOpen: boolean
@@ -30,6 +32,7 @@ interface AppState {
   setAccent: (a: AccentId) => void
   setShellTone: (t: ShellToneId) => void
   setCanvasTone: (t: CanvasToneId) => void
+  setPanelOpacity: (v: number) => void
   setSidebarOpen: (open: boolean) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebarCollapsed: () => void
@@ -49,6 +52,7 @@ const ACCENT_KEY = 'axiom:accent'
 const SHELL_TONE_KEY = 'axiom:shell-tone'
 const CANVAS_TONE_KEY = 'axiom:canvas-tone'
 const TERMINAL_OVERLAY_KEY = 'axiom:terminal-overlay'
+const PANEL_OPACITY_KEY = 'axiom:panel-opacity'
 
 function readInitialTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'system'
@@ -87,6 +91,13 @@ function readInitialCanvasTone(): CanvasToneId {
   return stored === 'pure' || stored === 'soft' ? stored : 'default'
 }
 
+function readInitialPanelOpacity(): number {
+  if (typeof localStorage === 'undefined') return 0.5
+  const v = Number(localStorage.getItem(PANEL_OPACITY_KEY))
+  if (!Number.isFinite(v)) return 0.5
+  return Math.min(0.8, Math.max(0.2, v))
+}
+
 function readInitialTerminalOverlay(): boolean {
   if (typeof localStorage === 'undefined') return true
   const stored = localStorage.getItem(TERMINAL_OVERLAY_KEY)
@@ -111,6 +122,7 @@ export const useApp = create<AppState>((set, get) => ({
   accent: readInitialAccent(),
   shellTone: readInitialShellTone(),
   canvasTone: readInitialCanvasTone(),
+  panelOpacity: readInitialPanelOpacity(),
   sidebarOpen: false,
   sidebarCollapsed: readInitialSidebarCollapsed(),
   helpOpen: false,
@@ -140,6 +152,11 @@ export const useApp = create<AppState>((set, get) => ({
   setCanvasTone: (t) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem(CANVAS_TONE_KEY, t)
     set({ canvasTone: t })
+  },
+  setPanelOpacity: (v) => {
+    const clamped = Math.min(0.8, Math.max(0.2, v))
+    if (typeof localStorage !== 'undefined') localStorage.setItem(PANEL_OPACITY_KEY, String(clamped))
+    set({ panelOpacity: clamped })
   },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSidebarCollapsed: (collapsed) => {

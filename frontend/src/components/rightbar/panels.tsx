@@ -72,8 +72,9 @@ function ErrorNote({ message }: { message: string }) {
   )
 }
 
-/** 工作摘要：环境信息（Git/变更/缓存）+ 子智能体 + 来源（30s 轮询）。 */
-export function SummaryPanel() {
+/** 工作摘要：环境信息（Git/变更/缓存）+ 子智能体 + 来源（30s 轮询）。
+ *  paused：右栏隐藏时暂停轮询（避免后端空转），打开时立即刷新一次。 */
+export function SummaryPanel({ paused = false }: { paused?: boolean }) {
   const [git, setGit] = useState<GitStatus | null>(null)
   const [diff, setDiff] = useState<{ files: number; additions: number; deletions: number } | null>(null)
   const [stats, setStats] = useState<SystemStats | null>(null)
@@ -136,10 +137,11 @@ export function SummaryPanel() {
   }
 
   useEffect(() => {
+    if (paused) return
     void load()
     const timer = setInterval(() => void load(), 30_000)
     return () => clearInterval(timer)
-  }, [])
+  }, [paused])
 
   const changeCount =
     (git?.modified?.length ?? 0) +

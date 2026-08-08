@@ -123,7 +123,7 @@ export default function RightToolbar() {
               exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
               transition={MOTION_PRESETS.fadeIn}
             >
-              {active === 'summary' && <SummaryPanel />}
+              {active === 'summary' && <SummaryPanel paused={!open} />}
               {active === 'git' && <GitPanel />}
               {active === 'review' && <ReviewPanel />}
               {active === 'terminal' && <TerminalGuidePanel />}

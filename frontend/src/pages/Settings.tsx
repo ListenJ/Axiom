@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import {
   Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
   Wrench, KeyRound, CheckCircle2, Palette, Monitor, TerminalSquare,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp, resolveTheme } from '@/state/useApp'
@@ -204,6 +205,38 @@ function ToggleRow({ icon, label, desc, checked, onChange, highlight }: ToggleRo
   )
 }
 
+/* ───────── 悬浮面板透明度（外观分区） ───────── */
+
+function PanelOpacityPicker({ highlight }: { highlight: boolean }) {
+  const panelOpacity = useApp((s) => s.panelOpacity)
+  const setPanelOpacity = useApp((s) => s.setPanelOpacity)
+  return (
+    <ShimmerCard padding="md" className={highlight ? 'ring-2 ring-[var(--accent)]' : undefined}>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+          <SlidersHorizontal className="size-5" />
+        </div>
+        <div className="min-w-[10rem] flex-1 sm:min-w-0">
+          <h3 className="text-sm font-medium text-[var(--text)]">透明度调整</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
+            控制悬浮面板（右侧工具台 / 浮层玻璃）的不透明度，数值越大越不透明。当前 {Math.round(panelOpacity * 100)}%。
+          </p>
+        </div>
+        <input
+          type="range"
+          min={0.2}
+          max={0.8}
+          step={0.05}
+          value={panelOpacity}
+          onChange={(e) => setPanelOpacity(Number(e.target.value))}
+          aria-label="面板透明度"
+          className="w-40 accent-[var(--accent)]"
+        />
+      </div>
+    </ShimmerCard>
+  )
+}
+
 /* ───────── 分区内容渲染器 ───────── */
 
 type SectionRenderer = (props: {
@@ -260,6 +293,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
       </ShimmerCard>
       <AccentPicker highlight={highlightKey === 'appearance.accent'} />
       <LayerTonePicker highlight={highlightKey === 'appearance.layer'} />
+      <PanelOpacityPicker highlight={highlightKey === 'appearance.panelOpacity'} />
       <MotionPreview highlight={highlightKey === 'appearance.motion'} />
     </div>
   ),

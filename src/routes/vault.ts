@@ -36,6 +36,15 @@ export async function handleVaultStats(ctx: RouteContext): Promise<Response | nu
 }
 
 export async function handleVaultPara(ctx: RouteContext): Promise<Response | null> {
+  // GET /vault/para — PARA 分类分布概览（前端 endpoints.vault.para 契约闭环）
+  if (ctx.url.pathname === "/vault/para" && ctx.req.method === "GET") {
+    const { vaultStatsCache } = await import("../utils/vault-stats-cache.js");
+    return ctx.jsonResponse(
+      { distribution: vaultStatsCache.read()?.paraDistribution ?? {} },
+      200,
+      ctx.baseHeaders
+    );
+  }
   if (ctx.url.pathname.startsWith("/vault/para/") && ctx.req.method === "GET") {
     const category = ctx.url.pathname.slice("/vault/para/".length);
     const data = await vaultRead(ctx, "browsePara", { category });
