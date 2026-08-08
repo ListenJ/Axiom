@@ -3649,4 +3649,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 `docs/FRONTEND-VISUAL-AUDIT-2026-08-09.md`：P1/P2/P3 审核结论、已验证的进入退出机制、SenseNova 复评缺口、建议修复范围。
   - `docs/operations-log.md`：追加本条操作记录。
 - **验证**：前端 43 files / 282 tests 通过；`npm run build` 通过；`/marketplace` 返回 200；沙箱内 EPERM 经提权后消失。
-- **Commit**：待回填
+- **Commit**：`8f5ad51`
