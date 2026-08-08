@@ -3678,3 +3678,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `docs/operations-log.md`：追加本条操作记录。
 - **验证**：仅只读调研与文档变更；工作区无代码改动；`git diff --check` 通过。
 - **Commit**：`8d6b90c`
+
+---
+
+## 2026-08-09 18:30 +0800 — Agent 组件化与 Day0 设计规格
+
+- **任务**：按用户确认的方向，从底层设计完整可复用的 Agent 组件系统，明确 Day0 支持边界，并暂停品牌叙事。
+- **工具**：architecture / brainstorming / performance / rg / Get-Content。
+- **执行的操作（文件级）**：
+  - 新增 `docs/superpowers/specs/2026-08-09-agent-components-day0-design.md`：现状盘点、组件契约、生命周期、Day0 启动序列、统一执行管线、TokenBudget、Native Agent、适配器迁移、落地阶段与测试策略。
+  - `docs/operations-log.md`：追加本条操作记录。
+- **验证**：规格自检通过，无 TBD/TODO 占位，范围聚焦组件化与 Day0；尚未实施代码。
+- **Commit**：待回填
