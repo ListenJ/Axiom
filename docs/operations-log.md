@@ -3605,4 +3605,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - **工具**：git branch / tar / apply_patch。
 - **执行的操作（文件级）**：`.archive-experiments-2026-08-08/experiment-records-2026-08-08.tgz` + `ARCHIVE-MANIFEST.md`。
 - **验证**：归档包 170KB，清单完整；分支推送 internal211。
-- **Commit**：`待填`
+- **Commit**：`bb3516c`
