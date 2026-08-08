@@ -3638,3 +3638,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - `AGENTS.md`：规则 2 增加敏感内容备份约束；规则 3 目标仓库地址改为实际 SSH 地址；规则 4 明确 `archive/` 被 gitignore、如需入 git 使用独立归档分支；规则 5 明确 hash 占位与回填不递归；规则 6 补充“能红能绿”定义；规则 9 明确 main/master force push 始终禁止；规则 10 增加适用范围边界；规则 11 增加 Linux/macOS 凭据路径。
 - **验证**：全文重读，无新增错别字；规则间冲突已消除。
 - **Commit**：`8906d4f`
+
+---
+
+## 2026-08-09 15:00 +0800 — 前端视觉与交互审核报告（方案 C）
+
+- **任务**：按方案 C 先产出前端视觉/交互只读审核报告，修复前等待用户确认；覆盖终端、右栏、侧栏、折叠框、斜杠命令的进入退出，并记录测试/构建基线。
+- **工具**：brainstorming / using-superpowers / design-taste-frontend / rg / PowerShell / vitest / vite。
+- **执行的操作（文件级）**：
+  - 新增 `docs/FRONTEND-VISUAL-AUDIT-2026-08-09.md`：P1/P2/P3 审核结论、已验证的进入退出机制、SenseNova 复评缺口、建议修复范围。
+  - `docs/operations-log.md`：追加本条操作记录。
+- **验证**：前端 43 files / 282 tests 通过；`npm run build` 通过；`/marketplace` 返回 200；沙箱内 EPERM 经提权后消失。
+- **Commit**：待回填
