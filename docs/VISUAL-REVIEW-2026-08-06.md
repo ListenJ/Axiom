@@ -655,3 +655,24 @@
 - 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
 - 审核原文：`vision-review/reviews-tr3-*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十四轮：右栏工效完善（状态/操作分离 + Esc/点外收起 + 亮色边缘降档）（2026-08-08）
+
+## 七十八、实现
+
+- **状态与操作分离**：摘要状态区（环境信息/子智能体/来源）在上可滚动，操作条（查看变更 ← 提交并推送 →）固定贴底——参考讨论中“状态聚合、功能下移”的结论。
+- **收起逃生通道**：桌面浮层 Esc 收起（帮助 → 右栏 → 失焦的优先级）+ 点击浮层外部收起（工具台/摘要按钮自身语义保留）。
+- **亮色边缘降档**：玻璃内描边/顶部高光调低（.75→.45 / .5→.35），弱化“发虚”边缘。
+
+## 七十九、审批
+
+- **全套 e2e 10/10 通过（36 用例，含 Esc/点外收起断言）**；tsc ✅ / vite build ✅。
+- SenseNova 复审存在评分波动（5–8.5 不等）与误读（“近乎实心白”“分割线”与计算样式 rgba(.18)、无边框不符）——以客观样式 + e2e 为准；材质保持暗 .16 / 亮 .18 + blur 36px。
+
+## 八十、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 讨论评审：`vision-review/reviews-discuss-*.md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

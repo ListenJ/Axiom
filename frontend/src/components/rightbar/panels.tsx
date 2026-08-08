@@ -189,7 +189,8 @@ export function SummaryPanel() {
   }
 
   return (
-    <div className="space-y-7 p-4 pb-8">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
       {error && <ErrorNote message={error} />}
       {loading ? (
         <div className="space-y-3">
@@ -244,26 +245,6 @@ export function SummaryPanel() {
                 </dd>
               </div>
             </dl>
-            <div className="flex items-center gap-1.5 pt-0.5">
-              <Button
-                size="sm"
-                variant="primary"
-                loading={busy}
-                disabled={busy || !diff || diff.files === 0}
-                onClick={() => void commitPush()}
-                icon={<GitCommitHorizontal className="size-3.5" />}
-              >
-                提交并推送
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => openRightTool('git')}
-                icon={<ArrowUpRight className="size-3.5" />}
-              >
-                查看变更
-              </Button>
-            </div>
           </section>
 
           {/* 子智能体 */}
@@ -343,6 +324,30 @@ export function SummaryPanel() {
             )}
           </section>
         </>
+      )}
+      </div>
+      {/* 底部操作区：状态与操作分离（次级操作左、主操作右下） */}
+      {!loading && (
+        <div className="flex shrink-0 items-center justify-between gap-1.5 px-4 pb-4 pt-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => openRightTool('git')}
+            icon={<ArrowUpRight className="size-3.5" />}
+          >
+            查看变更
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            loading={busy}
+            disabled={busy || !diff || diff.files === 0}
+            onClick={() => void commitPush()}
+            icon={<GitCommitHorizontal className="size-3.5" />}
+          >
+            提交并推送
+          </Button>
+        </div>
       )}
     </div>
   )

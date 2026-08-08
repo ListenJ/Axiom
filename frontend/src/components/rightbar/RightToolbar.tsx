@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   FileText,
@@ -40,6 +40,7 @@ export default function RightToolbar() {
   const active = useApp((s) => s.rightbarTool)
   const setActive = useApp((s) => s.setRightbarTool)
   const reduceMotion = useReducedMotion()
+  const overlayRef = useRef<HTMLDivElement | null>(null)
   // 桌面在流内面板 / 移动抽屉：按视口切换，保证同一时刻只有一个 complementary 元素
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
@@ -50,6 +51,19 @@ export default function RightToolbar() {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  // 人机工效：桌面浮层展开时，点击外部收起（保留工具台/摘要按钮自身的开合语义）
+  useEffect(() => {
+    if (!open || isMobile) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t) return
+      if (t.closest('button[aria-label="工具台"], button[aria-label="打开摘要"]')) return
+      if (overlayRef.current && !overlayRef.current.contains(t)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [open, isMobile, setOpen])
 
   const shell = (
     <div className="flex h-full flex-col">
@@ -128,6 +142,7 @@ export default function RightToolbar() {
       {/* 桌面悬浮浮层（不占布局空间，常驻挂载由 animate 驱动滑入/滑出） */}
       {!isMobile && (
         <motion.div
+          ref={overlayRef}
           aria-label="右侧工具台"
           role="complementary"
           className="overlay-glass absolute right-2 bottom-2 top-[6.75rem] z-10 flex w-[min(25rem,62vw)] flex-col overflow-hidden rounded-2xl"

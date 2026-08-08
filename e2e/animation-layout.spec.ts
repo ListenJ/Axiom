@@ -92,6 +92,27 @@ test.describe('页面整洁化与动画', () => {
     expect(await widthOf()).toBeGreaterThan(399)
     expect(await widthOf()).toBeLessThan(401)
     expect(Math.abs((await inputWidth()) - inputOpen)).toBeLessThan(4)
+
+    // 人机工效：Esc 收起
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[aria-label="右侧工具台"]')
+      return el && parseFloat(getComputedStyle(el).opacity) < 0.05
+    })
+    expect(Math.abs((await inputWidth()) - inputOpen)).toBeLessThan(4)
+
+    // 人机工效：点击浮层外部收起
+    await page.getByRole('button', { name: '视图' }).click()
+    await page.getByRole('menuitem', { name: '打开工具台' }).click()
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[aria-label="右侧工具台"]')
+      return el && parseFloat(getComputedStyle(el).opacity) > 0.95
+    })
+    await page.locator('#home-input').click({ position: { x: 4, y: 4 } })
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[aria-label="右侧工具台"]')
+      return el && parseFloat(getComputedStyle(el).opacity) < 0.05
+    })
   })
 
   test('终端为覆盖式浮层动画，不推挤主内容', async ({ page }) => {

@@ -20,6 +20,9 @@ export function useGlobalHotkeys() {
   const toggleTheme = useApp((s) => s.toggleTheme)
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const setSidebarOpen = useApp((s) => s.setSidebarOpen)
+  const helpOpen = useApp((s) => s.helpOpen)
+  const rightbarOpen = useApp((s) => s.rightbarOpen)
+  const setRightbarOpen = useApp((s) => s.setRightbarOpen)
   const terminalOpen = useApp((s) => s.terminalOpen)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
 
@@ -39,7 +42,15 @@ export function useGlobalHotkeys() {
       }
 
       if (matchShortcut(byId.escape, e)) {
-        setHelpOpen(false)
+        // 人机工效：Esc 按优先级关闭 帮助 → 右侧工具台 → 失焦
+        if (helpOpen) {
+          setHelpOpen(false)
+          return
+        }
+        if (rightbarOpen) {
+          setRightbarOpen(false)
+          return
+        }
         if (target && target !== document.body && typeof (target as HTMLElement).blur === 'function') {
           ;(target as HTMLElement).blur()
         }
@@ -77,5 +88,5 @@ export function useGlobalHotkeys() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [navigate, toggleTheme, setHelpOpen, setSidebarOpen, terminalOpen, setTerminalOpen])
+  }, [navigate, toggleTheme, setHelpOpen, setSidebarOpen, terminalOpen, setTerminalOpen, helpOpen, rightbarOpen, setRightbarOpen])
 }

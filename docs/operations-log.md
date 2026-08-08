@@ -40,6 +40,19 @@
 
 ---
 
+## 2026-08-08 — 右栏工效完善：状态/操作分离 + Esc/点外收起 + 亮色边缘降档（方案 A 落地）
+
+- **任务**：按上轮“右栏设计讨论”推荐的方案 A 落地——状态与操作分离、增加收起逃生通道（Esc / 点击外部）、亮色玻璃边缘降档，基于人机工效完善。
+- **工具**：SenseNova（讨论评审 + 复审）、Playwright（全套 e2e + 探针）、cowork-frontend-design / cowork-design-system / impeccable（Operate 模式、对比度、邻近性）。
+- **操作（文件级）**：
+  - `frontend/src/components/rightbar/panels.tsx`：SummaryPanel 重构为 `flex h-full flex-col`——状态区（环境信息/子智能体/来源）在上并可滚动，**操作条固定贴底**（次级「查看变更」左、主操作「提交并推送」右下），实现“状态聚合、功能下移”。
+  - `frontend/src/components/rightbar/RightToolbar.tsx`：桌面浮层加 `overlayRef` + **点击外部收起**（排除工具台/摘要按钮自身，避免与开合语义冲突）。
+  - `frontend/src/hooks/useGlobalHotkeys.ts`：**Esc 按优先级收起**——帮助 → 右侧工具台 → 失焦。
+  - `frontend/src/styles/index.css`：亮色玻璃内描边降档（overlay-glass 顶部高光 .75→.45、panel-shadow-left 内高光 .5→.35），弱化“发虚/过亮”边缘。
+  - `e2e/animation-layout.spec.ts`：右栏测试追加 **Esc 收起**与**点击外部收起**两条工效断言。
+- **验证**：**全套 e2e 10/10 通过（36 用例，含新增工效断言）**；tsc ✅ / vite build ✅；材质探针暗 rgba(.16)/亮 rgba(.18) + blur 36px；SenseNova 复审存在评审波动（同图多次评分 5–8.5 不等、存在“近乎实心白/分割线”等与计算样式不符的误读），以客观样式 + e2e 为准。
+- **Commit**：`<hash>`（推送 internal211/master）
+
 ## 2026-08-08 — 右栏回退为悬浮浮层（不占空间）+ 流式滑入/滑出
 
 - **任务**：用户反馈“在流内右栏仍侵占工作区空间”——回退为**悬浮浮层**（absolute，不参与布局、不推挤内容），并以**流式滑入/滑出动画**显示；顺带修复“关闭按钮被顶部工具栏遮挡导致点不到”的恶性 bug。
