@@ -3637,4 +3637,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - **执行的操作（文件级）**：
   - `AGENTS.md`：规则 2 增加敏感内容备份约束；规则 3 目标仓库地址改为实际 SSH 地址；规则 4 明确 `archive/` 被 gitignore、如需入 git 使用独立归档分支；规则 5 明确 hash 占位与回填不递归；规则 6 补充“能红能绿”定义；规则 9 明确 main/master force push 始终禁止；规则 10 增加适用范围边界；规则 11 增加 Linux/macOS 凭据路径。
 - **验证**：全文重读，无新增错别字；规则间冲突已消除。
-- **Commit**：`待填`
+- **Commit**：`8906d4f`
