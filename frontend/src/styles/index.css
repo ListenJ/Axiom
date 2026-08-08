@@ -551,7 +551,7 @@ a:focus-visible,
    阴影做与工作区的分层（无边框、无分割线） */
 .overlay-glass {
   position: relative;
-  background: rgba(22, 22, 22, 0.1);
+  background: rgba(22, 22, 22, 0.16);
   backdrop-filter: blur(36px) saturate(1.5);
   -webkit-backdrop-filter: blur(36px) saturate(1.5);
   box-shadow:
@@ -564,7 +564,7 @@ a:focus-visible,
 /* 在流内右栏的左侧阴影分隔（无边框）：桌面端贴合工作区右侧边缘 */
 .panel-shadow-left {
   box-shadow:
-    -12px 0 40px -18px rgba(0, 0, 0, 0.75),
+    -14px 0 48px -20px rgba(0, 0, 0, 0.85),
     inset 1px 0 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -578,7 +578,7 @@ a:focus-visible,
   background: var(--canvas-glass-bg);
 }
 [data-theme='light'] .overlay-glass {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
   box-shadow:
     0 28px 80px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.04),
@@ -586,8 +586,8 @@ a:focus-visible,
 }
 [data-theme='light'] .panel-shadow-left {
   box-shadow:
-    -12px 0 40px -18px rgba(0, 0, 0, 0.24),
-    inset 1px 0 0 rgba(255, 255, 255, 0.7);
+    -14px 0 48px -20px rgba(0, 0, 0, 0.28),
+    inset 1px 0 0 rgba(255, 255, 255, 0.5);
 }
 
 /* 流式输出光标：助手消息流式生成时内容末尾的闪烁竖线 */
@@ -773,28 +773,28 @@ a:focus-visible,
 .silk-fluid::after {
   content: '';
   position: absolute;
-  filter: blur(40px);
+  filter: blur(36px);
   will-change: transform, border-radius;
 }
 .silk-fluid::before {
-  width: 34vw;
-  height: 34vw;
+  width: 38vw;
+  height: 38vw;
   left: 10vw;
   top: 14vh;
   /* 细致化：亮核 + 柔光晕双层，光斑更有深度 */
   background:
-    radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 32%),
-    radial-gradient(circle, color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%);
+    radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--accent) 46%, transparent), transparent 32%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 20%, transparent), transparent 62%);
   animation: fluid-a 30s var(--ease-in-out) infinite alternate;
 }
 .silk-fluid::after {
-  width: 26vw;
-  height: 26vw;
+  width: 30vw;
+  height: 30vw;
   right: 6vw;
   bottom: 8vh;
   background:
-    radial-gradient(circle at 40% 36%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 30%),
-    radial-gradient(circle, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
+    radial-gradient(circle at 40% 36%, color-mix(in srgb, var(--accent) 40%, transparent), transparent 30%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%);
   animation: fluid-b 36s var(--ease-in-out) infinite alternate;
 }
 @keyframes fluid-a {
@@ -822,27 +822,27 @@ a:focus-visible,
 .silk-fluid-extra::after {
   content: '';
   position: absolute;
-  filter: blur(40px);
+  filter: blur(36px);
   will-change: transform, border-radius;
 }
 .silk-fluid-extra::before {
-  width: 30vw;
-  height: 30vw;
+  width: 34vw;
+  height: 34vw;
   left: 38vw;
   top: 52vh;
   background:
-    radial-gradient(circle at 36% 32%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 34%),
-    radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%);
+    radial-gradient(circle at 36% 32%, color-mix(in srgb, var(--accent) 50%, transparent), transparent 34%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%);
   animation: fluid-c 26s var(--ease-in-out) infinite alternate;
 }
 .silk-fluid-extra::after {
-  width: 18vw;
-  height: 18vw;
+  width: 22vw;
+  height: 22vw;
   right: 30vw;
   bottom: 28vh;
   background:
-    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 30%),
-    radial-gradient(circle, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%);
+    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 30%),
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%);
   animation: fluid-d 22s var(--ease-in-out) infinite alternate;
 }
 @keyframes fluid-c {
@@ -915,23 +915,23 @@ a:focus-visible,
 }
 [data-theme='light'] .silk-fluid::before {
   background:
-    radial-gradient(circle at 34% 34%, rgba(96, 165, 250, 0.24), transparent 32%),
-    radial-gradient(circle, rgba(147, 197, 253, 0.1), transparent 62%);
+    radial-gradient(circle at 34% 34%, rgba(96, 165, 250, 0.42), transparent 32%),
+    radial-gradient(circle, rgba(147, 197, 253, 0.2), transparent 62%);
 }
 [data-theme='light'] .silk-fluid::after {
   background:
-    radial-gradient(circle at 40% 36%, rgba(167, 139, 250, 0.18), transparent 30%),
-    radial-gradient(circle, rgba(196, 181, 253, 0.08), transparent 60%);
+    radial-gradient(circle at 40% 36%, rgba(167, 139, 250, 0.36), transparent 30%),
+    radial-gradient(circle, rgba(196, 181, 253, 0.17), transparent 60%);
 }
 [data-theme='light'] .silk-fluid-extra::before {
   background:
-    radial-gradient(circle at 36% 32%, rgba(249, 168, 212, 0.22), transparent 34%),
-    radial-gradient(circle, rgba(253, 186, 216, 0.1), transparent 62%);
+    radial-gradient(circle at 36% 32%, rgba(249, 168, 212, 0.4), transparent 34%),
+    radial-gradient(circle, rgba(253, 186, 216, 0.19), transparent 62%);
 }
 [data-theme='light'] .silk-fluid-extra::after {
   background:
-    radial-gradient(circle at 42% 38%, rgba(110, 231, 183, 0.18), transparent 30%),
-    radial-gradient(circle, rgba(134, 239, 172, 0.08), transparent 60%);
+    radial-gradient(circle at 42% 38%, rgba(110, 231, 183, 0.36), transparent 30%),
+    radial-gradient(circle, rgba(134, 239, 172, 0.17), transparent 60%);
 }
 [data-theme='light'] .silk-swirl::before {
   background: conic-gradient(from 0deg, transparent 0 40%, rgba(96, 165, 250, 0.14) 46%, rgba(167, 139, 250, 0.12) 50%, rgba(249, 168, 212, 0.12) 54%, transparent 60%, transparent 100%);

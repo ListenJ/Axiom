@@ -612,3 +612,25 @@
 - 审核原文：`vision-review/reviews-tr*.md`
 - 巡检报告：`vision-review/monitor-report.json`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十二轮：右栏圆角玻璃卡片（非侵入）+ 流体光斑动态加强（2026-08-08）
+
+## 七十二、实现
+
+- **右栏**：桌面在流内面板内层改为**圆角悬浮卡片**（`m-2 rounded-2xl` + 左侧深投影 + 内高光），仍非侵入（工作区让位不遮挡）、高斯模糊 36px；透明度暗 rgba(.16) / 亮 rgba(.18)，略高于背景毛玻璃。
+- **背景流体光斑**：暗色四光斑核心亮度提升至 40–50%（原 18–28%）、尺寸加大、blur 40→36px；亮色天蓝/紫/粉/薄荷核心提升至 0.36–0.42——动态流动感更明显。
+
+## 七十三、审批
+
+- 材质探针：暗 rgba(.16)/亮 rgba(.18) + blur 36px + `-14px 0 48px` 阴影。
+- SenseNova 复审：**暗色 8.5 / 亮色 8**（圆角悬浮卡片✅、透明度高于背景✅、高斯模糊可读✅、光斑可见✅、无分割线✅）。
+- **全套 e2e 10/10 通过（36 用例）**。
+
+## 七十四、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 审核原文：`vision-review/reviews-tr3-*.md`
+- 参考图描述：`vision-review/ref-f6c40fda...md`、`ref-c472f9a3...md`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

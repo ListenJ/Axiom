@@ -135,7 +135,7 @@ export default function RightToolbar() {
           animate={{ width: open ? 400 : 0 }}
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="overlay-glass panel-shadow-left h-full w-[min(25rem,62vw)]">
+          <div className="overlay-glass panel-shadow-left m-2 h-[calc(100%-1rem)] rounded-2xl">
             {shell}
           </div>
         </motion.div>
@@ -157,7 +157,7 @@ export default function RightToolbar() {
               <motion.div
                 role="complementary"
                 aria-label="右侧工具台"
-                className="overlay-glass absolute inset-y-0 right-0 flex w-[min(22rem,86vw)] flex-col elevation-4"
+                className="overlay-glass absolute inset-y-0 right-0 flex w-[min(22rem,86vw)] flex-col rounded-l-2xl elevation-4"
                 initial={reduceMotion ? { opacity: 0 } : { x: '100%' }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
