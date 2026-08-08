@@ -3734,4 +3734,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 `src/main.ts`：启动时初始化 Kernel，注册 shutdown hook。
   - 新增 `tests/components/routes.test.ts`、`tests/components/mcp-native-tools.test.ts`。
 - **验证**：组件/路由/MCP 35/35 通过；架构完整性 22/22；tsc 通过；现有 MCP/API 回归 41/41；`bun run build` 成功（514 modules）。
-- **Commit**：`（待回填）`
+- **Commit**：`c304bc9`
