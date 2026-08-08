@@ -3735,3 +3735,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 `tests/components/routes.test.ts`、`tests/components/mcp-native-tools.test.ts`。
 - **验证**：组件/路由/MCP 35/35 通过；架构完整性 22/22；tsc 通过；现有 MCP/API 回归 41/41；`bun run build` 成功（514 modules）。
 - **Commit**：`c304bc9`
+
+---
+
+## 2026-08-09 20:00 +0800 — Pi 工具链可用性守卫
+
+- **任务**：当 Pi vendor 未安装时，Native Code Agent 快速回退到内部模型路径，避免进入 PiCodeEngine 慢速检索与模型重试链路。
+- **工具**：performance / verification-before-completion / apply_patch / bun test / tsc。
+- **执行的操作（文件级）**：
+  - 修改 `src/agents/component-bootstrap.ts`：`codeToolchain.available()` 改为检测 `vendor/pi-agent/.../index.js` 是否存在。
+- **验证**：`tsc --noEmit` 通过；native/Orchestrator 23/23 通过。
+- **Commit**：`（待回填）`

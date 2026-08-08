@@ -12,6 +12,9 @@ import { internalAgent } from "./internal-agent.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
 import { piCodeEngine } from "../pi-agent/pi-code-engine.js";
 import type { TaskRole } from "../services/index.js";
+import { existsSync } from "node:fs";
+
+const PI_TOOLCHAIN_ENTRY = `${process.cwd()}/vendor/pi-agent/packages/coding-agent/src/core/tools/index.js`;
 
 const PROMPT_ROLES: Record<string, AgentRole> = {
   "general-chat": "general_chat",
@@ -44,7 +47,7 @@ const executor: NativeExecutor = async (role, messages, options) => {
 };
 
 const codeToolchain: NativeCodeToolchain = {
-  available: async () => true,
+  available: async () => existsSync(PI_TOOLCHAIN_ENTRY),
   run: async (type, input) => {
     try {
       const asToolData = (data: unknown): Record<string, unknown> =>
