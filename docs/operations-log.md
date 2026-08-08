@@ -3665,4 +3665,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 视觉追加：终端浮层避开侧栏、右栏遮罩与图标标签、侧栏折叠态长文本隐藏、市场页空态。
   - `public/index.html`：同步最新前端构建。
 - **验证**：`tsc --noEmit` 通过；43 files / 282 tests 通过；`bun run build:frontend` 成功；Playwright 8/8 通过；SenseNova 终评 8 张截图 9-10 分。
-- **Commit**：待回填
+- **Commit**：`589e024`
