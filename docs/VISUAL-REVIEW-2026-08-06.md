@@ -719,3 +719,22 @@
 - 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
 - 审核原文：`vision-review/reviews-tr3-*.md`
 - 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）
+
+---
+
+# 第二十七轮：右栏透明度再降 20%（暗/亮 .30→.36）（2026-08-08）
+
+## 八十七、实现
+
+- `.overlay-glass` 暗/亮 rgba(...) .30 → .36（透光再降 20%，更不透明），高磨砂 `blur(56px) saturate(1.6)` 保持；贴顶几何不变。
+- e2e 动画中值采样从固定 rAF 循环改为 `waitForFunction` 轮询，消除窗口竞态。
+
+## 八十八、审批
+
+- 材质探针：暗/亮 rgba(.36) + blur(56px)；贴顶 top 56 / bottom 892。
+- **全套 e2e 10/10（36 用例）**；tsc ✅ / vite build ✅。
+
+## 八十九、本轮截图与审核原文
+
+- 截图：`vision-review/tr-dark-chat-rightbar.png`、`tr-light-chat-rightbar.png`
+- 本轮提交：见 `docs/operations-log.md` 最新条目（含 Commit hash）

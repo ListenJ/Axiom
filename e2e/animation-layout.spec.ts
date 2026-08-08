@@ -65,18 +65,17 @@ test.describe('页面整洁化与动画', () => {
 
     // 收起：滑出动画（采样中间透明度），最终隐藏；工作区宽度不变（不占空间）
     await aside.getByLabel('收起工具台').click()
-    const exitSeen = await page.evaluate(async () => {
-      let seen = false
-      for (let i = 0; i < 30; i++) {
+    // 等待“中间透明度”帧出现（动画真实播放），避免固定帧循环漏采
+    await page.waitForFunction(
+      () => {
         const el = document.querySelector('[aria-label="右侧工具台"]')
-        if (!el) break
+        if (!el) return false
         const o = parseFloat(getComputedStyle(el).opacity)
-        if (!Number.isNaN(o) && o > 0 && o < 1) seen = true
-        await new Promise((r) => requestAnimationFrame(r))
-      }
-      return seen
-    })
-    expect(exitSeen).toBe(true)
+        return !Number.isNaN(o) && o > 0.01 && o < 0.99
+      },
+      undefined,
+      { timeout: 4000 },
+    )
     await page.waitForFunction(() => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
       return el && parseFloat(getComputedStyle(el).opacity) < 0.05
