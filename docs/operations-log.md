@@ -3596,3 +3596,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 文档：新增 `docs/IMPLEMENTATION-GUIDE-2026-08-08.md`、`docs/AGENT-PROMPT-HARNESS.md`，更新 `docs/README.md`。
 - **验证**：前端 vitest 43 files / 282 tests 全绿；视觉巡检 8/8；e2e 全量通过；后端涉及测试 177 pass；`bun run stress:run` 5/5 全绿；tsc 0 错误。data@192.168.0.10 已传源码（54MB），Docker 因用户无 docker 组权限未执行，bun 官方/镜像下载 TLS 失败。
 - **Commit**：`be79e89`
+
+---
+
+## 2026-08-08 20:35 +0800 — 旧试验记录归档到独立分支
+
+- **任务**：将 ai-daily、.trae、.workbuddy、.superpowers/sdd、docs/archive 压缩归档到 `codex/archive-experiments-2026-08-08` 分支，不进入 main/master。
+- **工具**：git branch / tar / apply_patch。
+- **执行的操作（文件级）**：`.archive-experiments-2026-08-08/experiment-records-2026-08-08.tgz` + `ARCHIVE-MANIFEST.md`。
+- **验证**：归档包 170KB，清单完整；分支推送 internal211。
+- **Commit**：`待填`
