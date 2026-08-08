@@ -3745,4 +3745,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - **执行的操作（文件级）**：
   - 修改 `src/agents/component-bootstrap.ts`：`codeToolchain.available()` 改为检测 `vendor/pi-agent/.../index.js` 是否存在。
 - **验证**：`tsc --noEmit` 通过；native/Orchestrator 23/23 通过。
-- **Commit**：`（待回填）`
+- **Commit**：`76cb0c5`
