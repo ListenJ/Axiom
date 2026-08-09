@@ -3885,4 +3885,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - Added `docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md`.
 - Verification: `opencode mcp list` shows axiom connected; `kimi doctor` passes; Kimi prompt blocked by account 403 quota; Axiom SDK stdio smoke test 2/2 pass.
-- Commit: PENDING
+- Commit: 4d31116
