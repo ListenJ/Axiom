@@ -3824,3 +3824,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/superpowers/specs/2026-08-09-external-agents-optimization-eval.md`.
 - Verification: no code changed; official docs cited; third-party numbers marked as unverified.
 - Commit: 2309a51
+---
+
+## 2026-08-09 22:40 +0800 - External Component Landscape and Branch Setup
+
+- Task: Align with latest MCP/A2A/Skills/Hermes/OpenCode/Kimi/Pi R&D paths; archive current project to branch; open external-component-runtime branch; write component design.
+- Tools: web-search / open_page / rg / git / bun.
+- Files:
+  - Added `docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md`.
+  - Added `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
+- Verification: no code changed; official protocol docs cited; third-party numbers marked as unverified.
+- Commit: (placeholder)
