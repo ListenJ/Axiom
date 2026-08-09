@@ -40,6 +40,7 @@ const PROBES: Array<{ tool: string; args?: Record<string, unknown> }> = [
   { tool: "token_stats", args: {} },
   { tool: "memory_search", args: { query: "axiom", limit: 3 } },
   { tool: "kal_query", args: { query: "axiom", limit: 3 } },
+  { tool: "recoverable_output_stats", args: {} },
 ];
 
 function gitCommit(): string {
@@ -140,7 +141,7 @@ async function main(): Promise<void> {
     notes: [
       "No provider calls in this baseline.",
       "Tool surface bytes/tokens estimate the stable prefix sent to every session.",
-      "Probe output tokens estimate inline result cost before RecoverableToolOutput.",
+      "Probe output tokens estimate inline result cost after RecoverableToolOutput wrapping.",
     ],
   };
 

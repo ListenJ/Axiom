@@ -3899,3 +3899,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `package.json`.
 - Verification: `bun test tests/components/cache-baseline.test.ts` 3/3 pass; `bun run lint` clean; `bun run scripts/cache-baseline.ts` produced `reports/cache/latest.json` with toolSurface 7 tools / 947 bytes / 224 tokens; `skill_list` output 135280 bytes / 31961 tokens; `memory_search` output 2674 bytes / 667 tokens.
 - Commit: 4fcdf35
+
+
+## 2026-08-10 01:54 +0800 - RecoverableToolOutput
+
+- Task: Add recoverable external tool output so large results are stored and returned as a placeholder with on-demand `read_tool_result`.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/components/recoverable-output.ts`.
+  - Added `src/mcp/server/recoverable-output-tools.ts`.
+  - Added `tests/components/recoverable-output.test.ts`.
+  - Modified `src/mcp/server.ts`.
+  - Modified `tests/mcp/external-mcp-stdio.test.ts`.
+  - Modified `mcp/external/SKILL.md`.
+  - Modified `scripts/cache-baseline.ts`.
+- Verification: 10 related tests pass; `bun run lint` clean; cache baseline shows `skill_list` placeholder 337 bytes / 85 tokens while stored payload is 96468 bytes / 22258 tokens; `recoverable_output_stats` reports the stored entries.
+- Commit: PENDING

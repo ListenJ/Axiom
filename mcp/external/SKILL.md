@@ -47,6 +47,14 @@ Clients connect to `http://127.0.0.1:3001` with `x-api-key: your-token`.
 - `skill_list` - list loaded skills
 - `token_stats` - token usage statistics
 - `kal_query` - unified knowledge graph / vault query
+- `read_tool_result` - read an externalized large tool result by `toolId`
+- `recoverable_output_stats` - externalized output storage statistics
+
+## Configuration
+
+- `AXIOM_EXTERNAL_RECOVERABLE_THRESHOLD` - outputs above this byte size are stored and returned as a placeholder (default `8192`).
+- `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES` - maximum stored outputs (default `1000`).
+- `AXIOM_EXTERNAL_RECOVERABLE_TTL_MS` - stored output lifetime in milliseconds (default `3600000`).
 
 ## Security
 

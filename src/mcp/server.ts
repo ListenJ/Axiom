@@ -50,6 +50,8 @@ import { adaptTools } from "./adapt-tool.js";
 import { readTool } from "../tools/read-tool.js";
 import { writeTool } from "../tools/write-tool.js";
 import { queryTool } from "../tools/query-tool.js";
+import { RecoverableOutputStore, wrapWithRecoverableOutput } from "../components/recoverable-output.js";
+import { registerRecoverableOutputTools } from "./server/recoverable-output-tools.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
@@ -66,6 +68,11 @@ const mcp = new McpServer({
 // ===== 工具定义（单一事实来源） =====
 
 const registry = new ToolRegistry();
+const recoverableOutputStore = new RecoverableOutputStore({
+  maxEntries: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES", "1000")) || 1000,
+  ttlMs: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_TTL_MS", String(60 * 60 * 1000))) || 60 * 60 * 1000,
+});
+registerRecoverableOutputTools(registry, recoverableOutputStore);
 
 // Register self-contained external tools (MiniMax / fs / terminal / git / code-analysis).
 // Moved to mcp/register-external-tools.ts to reduce this file from ~3500 to ~3200 lines.
@@ -394,8 +401,11 @@ process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
 
 const transport = process.argv.includes("--stdio") ? "stdio" : "http";
 const externalMode = process.argv.includes("--external");
+const recoverableThresholdBytes = Number(readString("AXIOM_EXTERNAL_RECOVERABLE_THRESHOLD", "8192")) || 8192;
 const externalTools = externalMode
-  ? registry.filterByExposure(["external", "safe-external"])
+  ? registry.filterByExposure(["external", "safe-external"]).map((tool) =>
+      wrapWithRecoverableOutput(tool, recoverableOutputStore, recoverableThresholdBytes)
+    )
   : undefined;
 
 if (transport === "stdio") {
