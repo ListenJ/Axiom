@@ -3959,3 +3959,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `frontend/src/lib/api.ts`.
 - Verification: `bun test tests/db/tool-invocations.test.ts tests/components/routes.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean.
 - Commit: 828404d
+
+
+## 2026-08-10 07:28 +0800 - Native ESM Refactor
+
+- Task: Remove runtime require() compatibility writes from consciousness shims, cache router, codegraph index, db guard and lazy singleton docs; use native ESM static imports.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/agents/consciousness/shims.ts`.
+  - Modified `src/services/cache-router.ts`.
+  - Modified `src/memory/codegraph-index.ts`.
+  - Modified `src/utils/db-guard.ts`.
+  - Modified `src/utils/lazy-singleton.ts`.
+- Verification: 33 related tests pass; root `bun run lint` clean; `rg "require\\(" src -g "*.ts"` returns no runtime matches.
+- Commit: PENDING

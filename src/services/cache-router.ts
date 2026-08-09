@@ -4,6 +4,7 @@
  */
 import { normalizeQuery, recordCacheHit, recordCacheMiss, getCacheStats } from "../tools/types.js";
 import { logger } from "../utils/logger.js";
+import { searchCache } from "../utils/cache.js";
 
 export interface RouterConfig {
   semanticTtlMs: number;
@@ -24,13 +25,13 @@ export async function cacheFirstRoute(
   const normalized = normalizeQuery(query);
 
   // 1. 语义缓存 (基于 Cache 层，非 model token)
-  const { searchCache } = await import("../utils/cache.js");
+
   const cacheKey = `semantic:${normalized}:${intent}`;
   const cached = searchCache.getSync(cacheKey);
-  if (cached !== undefined) {
+  if (cached !== undefined && cached[0] !== undefined) {
     recordCacheHit();
     logger.debug(`[CacheFirst] Hit: ${cacheKey}`);
-    return { answer: String(cached), source: "cache", fromCache: true };
+    return { answer: String(cached[0]), source: "cache", fromCache: true };
   }
   recordCacheMiss();
 
@@ -40,10 +41,10 @@ export async function cacheFirstRoute(
 /** 将 LLM 结果写入缓存 (用于后续相同语义查询直接命中) */
 export function writeCache(query: string, intent: string, answer: string): void {
   try {
-    const { searchCache } = require("../utils/cache.js");
+
     const normalized = normalizeQuery(query);
     const cacheKey = `semantic:${normalized}:${intent}`;
-    searchCache.set(cacheKey, answer, 5 * 60 * 1000);
+    searchCache.set(cacheKey, [answer], 5 * 60 * 1000);
   } catch { /* non-fatal */ }
 }
 

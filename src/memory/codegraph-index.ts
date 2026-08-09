@@ -14,6 +14,7 @@
  */
 import { spawn } from "child_process";
 import path from "path";
+import { readFileSync, statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { Cache } from "../utils/cache.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
@@ -76,7 +77,6 @@ function getCodegraphBin(): string {
   ];
   for (const c of candidates) {
     try {
-      const { statSync } = require("fs");
       statSync(c);
       codegraphBin = c;
       return c;
@@ -182,7 +182,7 @@ export async function searchFiles(
 export async function isCodegraphInitialized(projectPath?: string): Promise<boolean> {
   const cwd = projectPath || process.cwd();
   try {
-    const { statSync } = require("fs");
+
     statSync(path.join(cwd, ".codegraph", "codegraph.db"));
     return true;
   } catch {
@@ -400,7 +400,6 @@ export async function buildStructuredContext(
       let code: string | undefined;
       if (opts?.includeCode !== false && s.node.filePath) {
         try {
-          const { readFileSync } = require("fs");
           const content = readFileSync(s.node.filePath, "utf-8");
           const lines = content.split("\n");
           const start = Math.max(0, s.node.startLine - 1);

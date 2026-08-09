@@ -2,13 +2,11 @@
  * 泛型延迟加载单例工具 — 消除 consciousness shim 文件的重复模式
  *
  * 使用示例:
+ *   import { MemoryArchiver } from "../../memory/archiver.js";
  *   import { createLazySingleton } from "../utils/lazy-singleton.js";
- *   import type { MemoryArchiver } from "../../memory/archiver.js";
  *
  *   export const { get: getGlobalMemoryArchiver, setForTest: setMemoryArchiverForTest } =
- *     createLazySingleton<MemoryArchiver>(
- *       () => new (require("../../memory/archiver.js").MemoryArchiver)()
- *     );
+ *     createLazySingleton<MemoryArchiver>(() => new MemoryArchiver());
  */
 
 import { readString } from "./env.js";
