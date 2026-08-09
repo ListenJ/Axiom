@@ -3812,3 +3812,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `tests/services-chat.test.ts`.
 - Verification: ContextAssembler-related 23/23 pass; architecture 22/22; tsc clean.
 - Commit: cf97308
+
+---
+
+## 2026-08-09 22:10 +0800 - External Agents Optimization Evaluation
+
+- Task: Evaluate Hermes / OpenCode / Kimi Code model I/O, cache and toolchain optimization; decide whether Axiom can build a better runtime instead of wrapping CLIs.
+- Tools: web-search / open_page / rg / git / bun.
+- Files:
+  - Added `docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md`.
+  - Added `docs/superpowers/specs/2026-08-09-external-agents-optimization-eval.md`.
+- Verification: no code changed; official docs cited; third-party numbers marked as unverified.
+- Commit: (placeholder)
