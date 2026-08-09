@@ -3834,4 +3834,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md`.
   - Added `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
 - Verification: no code changed; official protocol docs cited; third-party numbers marked as unverified.
-- Commit: (placeholder)
+- Commit: 1dbe45b
