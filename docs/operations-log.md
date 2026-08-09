@@ -3914,4 +3914,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `mcp/external/SKILL.md`.
   - Modified `scripts/cache-baseline.ts`.
 - Verification: 10 related tests pass; `bun run lint` clean; cache baseline shows `skill_list` placeholder 337 bytes / 85 tokens while stored payload is 96468 bytes / 22258 tokens; `recoverable_output_stats` reports the stored entries.
-- Commit: PENDING
+- Commit: cb4fd0e
