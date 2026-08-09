@@ -3811,4 +3811,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `tests/components/routes.test.ts`.
   - Modified `tests/services-chat.test.ts`.
 - Verification: ContextAssembler-related 23/23 pass; architecture 22/22; tsc clean.
-- Commit: (placeholder)
+- Commit: cf97308
