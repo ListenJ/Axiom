@@ -3886,3 +3886,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md`.
 - Verification: `opencode mcp list` shows axiom connected; `kimi doctor` passes; Kimi prompt blocked by account 403 quota; Axiom SDK stdio smoke test 2/2 pass.
 - Commit: 4d31116
+
+
+## 2026-08-10 01:24 +0800 - External MCP Cache Baseline
+
+- Task: Add a repeatable cache/token baseline for the external MCP tool surface and deterministic read-only probes.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/components/cache-baseline.ts`.
+  - Added `tests/components/cache-baseline.test.ts`.
+  - Added `scripts/cache-baseline.ts`.
+  - Modified `package.json`.
+- Verification: `bun test tests/components/cache-baseline.test.ts` 3/3 pass; `bun run lint` clean; `bun run scripts/cache-baseline.ts` produced `reports/cache/latest.json` with toolSurface 7 tools / 947 bytes / 224 tokens; `skill_list` output 135280 bytes / 31961 tokens; `memory_search` output 2674 bytes / 667 tokens.
+- Commit: PENDING
