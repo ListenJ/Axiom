@@ -3852,3 +3852,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `tests/mcp/tool-registry-external.test.ts`.
 - Verification: bun test 21/21 pass; tsc --noEmit clean.
 - Commit: 4a3cdd0
+---
+
+## 2026-08-10 00:05 +0800 - Nextgen Agent State Document
+
+- Task: Feed all collected research and slice 1 results into the next development path; define next-generation Agent target state and milestones.
+- Tools: web-search / open_page / rg / git / bun.
+- Files:
+  - Added `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
+  - Modified `docs/ROADMAP.md`.
+- Verification: no code changed; document links existing specs.
+- Commit: (placeholder)
