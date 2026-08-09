@@ -3863,3 +3863,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/ROADMAP.md`.
 - Verification: no code changed; document links existing specs.
 - Commit: a71f46b
+
+## 2026-08-10 00:20 +0800 - External Component Slice 2: Publish Surface
+
+- Task: Add the external MCP publish surface for the reusable component runtime: registry manifest, setup snippets, package script, and a real stdio smoke test.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `mcp/external/server.json`.
+  - Added `mcp/external/SKILL.md`.
+  - Added `scripts/setup-external-mcp.ts`.
+  - Added `tests/mcp/external-mcp-stdio.test.ts`.
+  - Modified `package.json`.
+- Verification: `bun test tests/mcp/external-mcp-stdio.test.ts` 2/2 pass; `bun run lint` clean.
+- Commit: PENDING
