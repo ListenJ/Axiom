@@ -3851,4 +3851,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `package.json`.
   - Added `tests/mcp/tool-registry-external.test.ts`.
 - Verification: bun test 21/21 pass; tsc --noEmit clean.
-- Commit: (placeholder)
+- Commit: 4a3cdd0
