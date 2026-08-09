@@ -3823,4 +3823,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md`.
   - Added `docs/superpowers/specs/2026-08-09-external-agents-optimization-eval.md`.
 - Verification: no code changed; official docs cited; third-party numbers marked as unverified.
-- Commit: (placeholder)
+- Commit: 2309a51
