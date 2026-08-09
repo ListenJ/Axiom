@@ -41,6 +41,26 @@ db.run(`
 logger.info("[完成] conversations");
 
 db.run(`
+  CREATE TABLE IF NOT EXISTS tool_invocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    args_hash TEXT NOT NULL,
+    result_hash TEXT,
+    args_preview TEXT,
+    result_ref TEXT,
+    status TEXT NOT NULL,
+    latency_ms INTEGER,
+    output_bytes INTEGER,
+    created_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] tool_invocations");
+
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_session ON tool_invocations(session_id, created_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_tool ON tool_invocations(tool, created_at DESC)`);
+
+db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_key TEXT UNIQUE NOT NULL,

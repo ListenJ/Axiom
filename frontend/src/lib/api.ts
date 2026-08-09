@@ -640,6 +640,10 @@ export const endpoints = {
       }>('/sandbox/execute', body),
     status: () => api.get<{ sandbox: string; ready: boolean }>('/sandbox/status'),
   },
+  tools: {
+    invocations: (sessionId?: string, limit = 50) =>
+      api.get('/api/tools/invocations', { params: { session: sessionId, limit } }),
+  },
   terminal: {
     create: () => api.post<{ sessionId: string }>('/terminal/session'),
     input: (sessionId: string, data: string) =>

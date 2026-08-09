@@ -5,10 +5,12 @@
  */
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
+import { listToolInvocations, recordToolInvocation } from "../db/tool-invocations.js";
 
 export interface ToolExecuteRequest {
   tool: string;
   params: Record<string, unknown>;
+  sessionId?: string;
 }
 
 export interface ToolExecuteResponse {
@@ -21,9 +23,25 @@ export interface ToolExecuteResponse {
 export async function handleToolExecute(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/api/tools/execute" || ctx.req.method !== "POST") return null;
 
+  let start = 0;
   try {
     const body = (await ctx.req.json()) as ToolExecuteRequest;
-    const start = Date.now();
+    start = Date.now();
+    const finish = (payload: ToolExecuteResponse, status: number): Response => {
+      try {
+        recordToolInvocation(ctx.db, {
+          sessionId: body.sessionId,
+          tool: body.tool,
+          args: body.params,
+          result: payload,
+          status: payload.success ? "success" : "error",
+          latencyMs: Date.now() - start,
+        });
+      } catch (err) {
+        logger.warn("[Tools] Failed to record tool invocation", { tool: body.tool, error: (err as Error).message });
+      }
+      return ctx.jsonResponse(payload, status, ctx.baseHeaders);
+    };
 
     switch (body.tool) {
       case "query": {
@@ -64,11 +82,11 @@ export async function handleToolExecute(ctx: RouteContext): Promise<Response | n
           }
         }
 
-        return ctx.jsonResponse({
+        return finish({
           success: true,
           data: { results: results.slice(0, maxResults), totalFound: results.length, scopeUsed: needWeb ? "web" : "local" },
           durationMs: Date.now() - start,
-        } satisfies ToolExecuteResponse, 200, ctx.baseHeaders);
+        }, 200);
       }
 
       case "knowledge:search": {
@@ -84,37 +102,60 @@ export async function handleToolExecute(ctx: RouteContext): Promise<Response | n
           tags: item.note.tags ?? [],
         }));
 
-        return ctx.jsonResponse({
+        return finish({
           success: true,
           data: { results, totalFound: results.length },
           durationMs: Date.now() - start,
-        } satisfies ToolExecuteResponse, 200, ctx.baseHeaders);
+        }, 200);
       }
 
       case "knowledge:stats": {
         const vault = ctx.vault;
         const vStats = vault?.stats();
-        return ctx.jsonResponse({
+        return finish({
           success: true,
           data: { notes: vStats?.totalNotes ?? 0, words: vStats?.totalWords ?? 0, tags: vStats?.totalTags ?? 0 },
           durationMs: Date.now() - start,
-        } satisfies ToolExecuteResponse, 200, ctx.baseHeaders);
+        }, 200);
       }
 
       default:
-        return ctx.jsonResponse({
+        return finish({
           success: false,
           data: null,
           error: `Unknown tool: ${body.tool}`,
           durationMs: Date.now() - start,
-        } satisfies ToolExecuteResponse, 404, ctx.baseHeaders);
+        }, 404);
     }
   } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    try {
+      const body = await ctx.req.json().catch(() => ({})) as ToolExecuteRequest;
+      recordToolInvocation(ctx.db, {
+        sessionId: body.sessionId,
+        tool: body.tool ?? "unknown",
+        args: body.params,
+        result: { success: false, error },
+        status: "error",
+        latencyMs: Date.now() - start,
+      });
+    } catch {
+      // audit failure must not mask the original error
+    }
     return ctx.jsonResponse({
       success: false,
       data: null,
-      error: err instanceof Error ? err.message : String(err),
+      error,
       durationMs: 0,
-    } satisfies ToolExecuteResponse, 500, ctx.baseHeaders);
+    }, 500, ctx.baseHeaders);
   }
+}
+
+export async function handleListToolInvocations(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/api/tools/invocations" || ctx.req.method !== "GET") return null;
+
+  const sessionId = ctx.url.searchParams.get("session");
+  const limit = Math.min(parseInt(ctx.url.searchParams.get("limit") || "50", 10), 200);
+  const invocations = listToolInvocations(ctx.db, sessionId, limit);
+  return ctx.jsonResponse({ invocations, count: invocations.length }, 200, ctx.baseHeaders);
 }

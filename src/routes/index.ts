@@ -5,7 +5,7 @@ import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm, handlePermissionMode } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
-import { handleToolExecute } from "./tools.js";
+import { handleListToolInvocations, handleToolExecute } from "./tools.js";
 import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
 import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
@@ -86,6 +86,7 @@ const handlers: RouteHandler[] = [
   handleConfig,
   handleTokenDetails,
   handleToolExecute,
+  handleListToolInvocations,
   handleSandboxExecute,
   handleSandboxStatus,
   handleTerminalCreate,
@@ -422,6 +423,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
   { method: "POST", path: "/permissions/mode", handler: handlePermissionMode },
   // Tool execution
   { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
+  { method: "GET", path: "/api/tools/invocations", handler: handleListToolInvocations },
   // Agent interaction traces
   { method: "GET", path: "/traces", handler: handleTraceList },
   { method: "GET", path: "/traces/:id", handler: handleTraceDetail },
@@ -556,6 +558,7 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /terminal/sessions            — 终端会话诊断",
       "--- Tool Execution (工具执行) ---",
       "POST   /api/tools/execute         — 标准化工具执行",
+      "GET    /api/tools/invocations     — 查询工具调用台账",
       "--- Agent Interaction Traces ---",
       "GET    /traces                    — 列出最近的 Agent 交互追踪",
       "GET    /traces/:id                — 获取指定追踪详情",

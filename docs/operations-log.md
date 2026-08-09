@@ -3944,3 +3944,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `tests/memory/archive-index.test.ts`.
 - Verification: `bun test tests/memory/archive-index.test.ts tests/consciousness.test.ts tests/dre-memory-deep.test.ts` 37/37 pass; `bun run lint` clean.
 - Commit: f1c611a
+
+
+## 2026-08-10 03:26 +0800 - Native Tool Invocation Ledger
+
+- Task: Add a native SQLite tool invocation ledger that stores hashes, previews and result references instead of full payloads; expose query API for audit.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/db/tool-invocations.ts`.
+  - Added `tests/db/tool-invocations.test.ts`.
+  - Modified `src/db/migrate.ts`.
+  - Modified `src/routes/tools.ts`.
+  - Modified `src/routes/index.ts`.
+  - Modified `frontend/src/lib/api.ts`.
+- Verification: `bun test tests/db/tool-invocations.test.ts tests/components/routes.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean.
+- Commit: PENDING
