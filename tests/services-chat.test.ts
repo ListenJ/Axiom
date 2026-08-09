@@ -22,6 +22,17 @@ mock.module(mockCodegraph, () => ({
   getFileSymbolsFromCodeGraph: async () => null,
 }));
 
+const mockIntentEnhancer = path.join(ROOT, "src", "agents", "intent-enhancer.js");
+mock.module(mockIntentEnhancer, () => ({
+  shouldEnhanceIntent: () => false,
+  enhanceIntentWithLLM: async (_input, intent) => intent,
+  buildEnhancedSystemPrompt: (intent: string) => `Enhanced ${intent}`,
+}));
+
+const mockPromptOptimizer = path.join(ROOT, "src", "agents", "prompt-optimizer.js");
+mock.module(mockPromptOptimizer, () => ({
+  optimizePrompt: async (text: string) => ({ changed: false, text }),
+}));
 const mockQueryDecomp = path.join(ROOT, "src", "agents", "query-decomposer.js");
 mock.module(mockQueryDecomp, () => ({
   decomposeQuery: () => ({ subQueries: ["q1"] }),
@@ -60,5 +71,17 @@ describe("ChatService", () => {
       [{ role: "user", content: "test" }], null, "general-chat",
     );
     expect(result.content).toBe("general chat");
+  });
+
+  it("prepareChatContext applies token budget", async () => {
+    const { prepareChatContext } = await import("../src/services/chat.js");
+    const result = await prepareChatContext(
+      [{ role: "user", content: "x".repeat(500) }],
+      false,
+      null,
+      { budget: 64 },
+    );
+    expect(result.tokenBudgetReport).toBeDefined();
+    expect(result.chatMessages.length).toBeGreaterThan(0);
   });
 });

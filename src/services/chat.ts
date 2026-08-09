@@ -19,6 +19,10 @@ import { injectConstitution } from "../agents/constitution.js";
 import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { logger } from "../utils/logger.js";
+import { contextAssembler } from "../components/context-assembler.js";
+import type { ComponentBudget, TokenBudgetReport } from "../components/contracts.js";
+import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
+import { isReadOptimizerInitialized } from "../utils/read-optimizer-init.js";
 
 export interface PreparedContext {
   chatMessages: ChatMessage[];
@@ -28,6 +32,8 @@ export interface PreparedContext {
     confidence: number;
   } | null;
   codegraphContext: string;
+  tokenBudgetReport?: TokenBudgetReport | null;
+  readStats?: ReadResponse | null;
 }
 
 /**
@@ -38,6 +44,7 @@ export async function prepareChatContext(
   messages: Array<{ role: string; content: string }>,
   enableIntent: boolean,
   vault: unknown,
+  options: { budget?: number | ComponentBudget } = {},
 ): Promise<PreparedContext> {
   let chatMessages: ChatMessage[] = messages.map((m) => ({
     role: m.role as ChatMessage["role"],
@@ -45,6 +52,8 @@ export async function prepareChatContext(
   }));
   let intentInfo: PreparedContext["intentInfo"] = null;
   let codegraphContext = "";
+  let tokenBudgetReport: TokenBudgetReport | null = null;
+  let readStats: ReadResponse | null = null;
 
   if (enableIntent !== false && messages.length > 0) {
     const lastUserMsg = [...messages]
@@ -111,23 +120,46 @@ export async function prepareChatContext(
           parallelTasks.push(
             (async () => {
               try {
-                const { retrieveCodeMemory } = await import(
-                  "../memory/codegraph-index.js"
-                );
-                const cgResult = await retrieveCodeMemory(lastUserMsg.content);
-                if (
-                  cgResult &&
-                  cgResult.source === "codegraph" &&
-                  cgResult.results
-                ) {
-                  codegraphContext = cgResult.results.slice(0, 3000);
-                  codegraphMsg = {
-                    role: "system",
-                    content: `[CodeGraph Context]\n${codegraphContext}`,
-                  };
+                const useOptimizer = isReadOptimizerInitialized();
+                if (useOptimizer) {
+                  const rr = await getReadOptimizer().read({
+                    resource: "codegraph",
+                    action: "buildContext",
+                    params: { task: lastUserMsg.content, projectPath: process.cwd() },
+                    fields: ["results"],
+                    agentId: "context-assembler",
+                  });
+                  readStats = rr;
+                  const content =
+                    typeof rr.data === "string"
+                      ? rr.data
+                      : JSON.stringify(rr.data ?? "");
+                  if (content && content !== "null") {
+                    codegraphContext = content.slice(0, 3000);
+                    codegraphMsg = {
+                      role: "system",
+                      content: "[CodeGraph Context]\n" + codegraphContext,
+                    };
+                  }
+                } else {
+                  const { retrieveCodeMemory } = await import(
+                    "../memory/codegraph-index.js"
+                  );
+                  const cgResult = await retrieveCodeMemory(lastUserMsg.content);
+                  if (
+                    cgResult &&
+                    cgResult.source === "codegraph" &&
+                    cgResult.results
+                  ) {
+                    codegraphContext = cgResult.results.slice(0, 3000);
+                    codegraphMsg = {
+                      role: "system",
+                      content: "[CodeGraph Context]\n" + codegraphContext,
+                    };
+                  }
                 }
               } catch {
-                /* non-fatal — continue without codegraph context */
+                /* non-fatal */
               }
             })(),
           );
@@ -166,7 +198,21 @@ export async function prepareChatContext(
     }
   }
 
-  return { chatMessages, intentInfo, codegraphContext };
+  const assembled = await contextAssembler.assemble({
+    messages: chatMessages,
+    role: intentInfo?.intent ?? "chat",
+    budget: options.budget,
+  });
+  chatMessages = assembled.messages;
+  tokenBudgetReport = assembled.tokenBudgetReport;
+
+  return {
+    chatMessages,
+    intentInfo,
+    codegraphContext,
+    tokenBudgetReport,
+    readStats,
+  };
 }
 
 /** 需要自适应搜索的意图类别 */

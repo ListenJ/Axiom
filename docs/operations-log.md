@@ -3771,4 +3771,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/components/token-budget.ts`.
   - Added `tests/context/token-estimator.test.ts` and `tests/components/context-assembler.test.ts`.
 - Verification: token estimator / ContextAssembler / TokenBudget 9/9 pass.
+- Commit: bacbeb7
+
+---
+
+## 2026-08-09 21:00 +0800 - ContextAssembler Task 2
+
+- Task: Wire ContextAssembler into prepareChatContext and expose tokenBudgetReport.
+- Tools: writing-plans / executing-plans / bun test / bun script.
+- Files:
+  - Modified `src/services/chat.ts`.
+  - Modified `tests/services-chat.test.ts`.
+- Verification: services-chat 5/5 pass.
 - Commit: (placeholder)
