@@ -3862,4 +3862,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
   - Modified `docs/ROADMAP.md`.
 - Verification: no code changed; document links existing specs.
-- Commit: (placeholder)
+- Commit: a71f46b
