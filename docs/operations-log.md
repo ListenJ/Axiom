@@ -3875,4 +3875,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `tests/mcp/external-mcp-stdio.test.ts`.
   - Modified `package.json`.
 - Verification: `bun test tests/mcp/external-mcp-stdio.test.ts` 2/2 pass; `bun run lint` clean.
-- Commit: PENDING
+- Commit: 4539cc4
