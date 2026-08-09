@@ -3783,4 +3783,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/services/chat.ts`.
   - Modified `tests/services-chat.test.ts`.
 - Verification: services-chat 5/5 pass.
+- Commit: 2e70abf
+
+---
+
+## 2026-08-09 21:10 +0800 - ContextAssembler Task 3
+
+- Task: Add optional budget compression to internalAgent chat/executeWithRole/stream paths.
+- Tools: writing-plans / executing-plans / bun test / bun script.
+- Files:
+  - Modified `src/agents/internal-agent.ts`.
+  - Added `tests/internal-agent-budget.test.ts`.
+- Verification: internalAgent budget 4/4 pass.
 - Commit: (placeholder)
