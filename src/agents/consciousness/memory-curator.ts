@@ -119,12 +119,20 @@ export class MemoryCurator {
           // Keep the higher-confidence one; archive the other via SQLite delete + write.
           const keep = r.confidence >= existing.confidence ? r : { path: existing.path, confidence: existing.confidence, updatedAt: existing.updatedAt };
           const drop = r.confidence >= existing.confidence ? existing : { path: r.path, confidence: r.confidence, updatedAt: r.updatedAt };
-          // We don't physically move — just delete from SQLite index. The actual
-          // .md file remains on disk for the user to inspect.
-          sqlite.deleteNote(drop.path);
+          try {
+            const moved = await archiver.archiveNote(drop.path);
+            if (moved) {
+              out.duplicateMerges++;
+              logger.info("[Consciousness/MemoryCurator] duplicate atomic archived", { keep: keep.path, drop: drop.path });
+            } else {
+              sqlite.deleteNote(drop.path);
+              out.duplicateMerges++;
+              logger.info("[Consciousness/MemoryCurator] duplicate atomic index row removed", { keep: keep.path, drop: drop.path });
+            }
+          } catch (e) {
+            out.errors.push(`duplicate-archive(${drop.path}): ${(e as Error).message}`);
+          }
           seen.set(slug, keep);
-          out.duplicateMerges++;
-          logger.info("[Consciousness/MemoryCurator] duplicate atomic collapsed", { keep: keep.path, drop: drop.path });
         }
       } catch (e) {
         out.errors.push(`phase2 duplicateAtomics: ${(e as Error).message}`);

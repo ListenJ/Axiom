@@ -3929,3 +3929,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `frontend/src/pages/Chat.tsx`.
 - Verification: `bun test tests/db/session-store.test.ts` 2/2 pass; root `bun run lint` clean; frontend `bun run lint` clean.
 - Commit: 72ad992
+
+
+## 2026-08-10 02:55 +0800 - Native Archive Index Sync
+
+- Task: Fix memory archiving divergence by syncing SQLite FTS paths natively and changing duplicate atomic cleanup from index-only deletion to physical archive.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/memory/sqlite-memory.ts`.
+  - Modified `src/memory/archiver.ts`.
+  - Modified `src/agents/consciousness/memory-curator.ts`.
+  - Modified `src/agents/consciousness/shims.ts`.
+  - Modified `tests/consciousness.test.ts`.
+  - Added `tests/memory/archive-index.test.ts`.
+- Verification: `bun test tests/memory/archive-index.test.ts tests/consciousness.test.ts tests/dre-memory-deep.test.ts` 37/37 pass; `bun run lint` clean.
+- Commit: PENDING

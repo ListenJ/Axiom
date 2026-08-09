@@ -132,6 +132,7 @@ function installShims(): void {
 
   const archiver: MemoryArchiverSubset = {
     archive: async () => ({ archived: [], skipped: [], errors: [] }),
+    archiveNote: async () => true,
     stats: () => ({ archivedCount: 0, byCategory: {} }),
   };
   setMemoryArchiverForTest(archiver as any);

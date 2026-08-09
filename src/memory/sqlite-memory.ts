@@ -390,6 +390,14 @@ export class SQLiteMemory {
     return result.changes > 0;
   }
 
+  archiveNotePath(notePath: string, archivePath: string): boolean {
+    const result = this.db.run(
+      "UPDATE memory_notes SET path = ?, para_category = 'archives', updated_at = ? WHERE path = ?",
+      [archivePath, Date.now(), notePath],
+    );
+    return result.changes > 0;
+  }
+
   stats(): {
     totalNotes: number;
     byCategory: Record<string, number>;

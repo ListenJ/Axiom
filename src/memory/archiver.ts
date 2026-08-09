@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { getSqliteMemory } from "./sqlite-memory.js";
 
 interface ArchiveRule {
   name: string;
@@ -174,6 +175,14 @@ export class MemoryArchiver {
     }
   }
 
+  async archiveNote(fileRel: string): Promise<boolean> {
+    const fullPath = path.join(this.vaultPath, fileRel);
+    if (!fs.existsSync(fullPath)) return false;
+    const frontmatter = this.parseFrontmatterSafe(fullPath);
+    await this.moveToArchive(fileRel, frontmatter);
+    return true;
+  }
+
   private async moveToArchive(fileRel: string, frontmatter: Record<string, unknown>): Promise<void> {
     const sourcePath = path.join(this.vaultPath, fileRel);
     const now = new Date().toISOString();
@@ -210,6 +219,16 @@ export class MemoryArchiver {
 
     const newContent = fmLines.join("\n") + "\n\n" + body;
     fs.writeFileSync(archiveFullPath, newContent, "utf-8");
+    try {
+      const indexedArchivePath = path.relative(this.vaultPath, archiveFullPath).replace(/\\/g, "/");
+      getSqliteMemory().archiveNotePath(fileRel, indexedArchivePath);
+    } catch (err) {
+      logger.warn("[MemoryArchiver] SQLite archive index sync failed", {
+        from: fileRel,
+        to: archiveRel,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     fs.unlinkSync(sourcePath);
 
     logger.info("Archived note", { from: fileRel, to: archiveRel });

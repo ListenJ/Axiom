@@ -32,7 +32,7 @@ export const setPromptEngineerForTest = promptEngineer.setForTest.bind(promptEng
 export const getSkillRegistry = skillRegistry.get.bind(skillRegistry);
 export const setSkillRegistryForTest = skillRegistry.setForTest.bind(skillRegistry);
 
-export type MemoryArchiverSubset = Pick<MemoryArchiver, "archive" | "stats">;
+export type MemoryArchiverSubset = Pick<MemoryArchiver, "archive" | "archiveNote" | "stats">;
 export type MemoryDistillerSubset = Pick<MemoryDistiller, "distillConversation" | "distillWebClip" | "distillManual">;
 export type SQLiteMemorySubset = Pick<SQLiteMemory, "upsertNote" | "search" | "listByCategory" | "deleteNote" | "close">;
 export type PromptEngineerSubset = Pick<PromptEngineer, "generateSkillWithHermes">;
