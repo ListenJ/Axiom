@@ -3835,3 +3835,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
 - Verification: no code changed; official protocol docs cited; third-party numbers marked as unverified.
 - Commit: 1dbe45b
+---
+
+## 2026-08-09 23:30 +0800 - External Component Slice 1: ToolSurface
+
+- Task: Add ToolExposure tags, filterByExposure, external MCP mode, and tests for the external component first vertical slice.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/mcp/tool-registry.ts`.
+  - Modified `src/mcp/server.ts`.
+  - Modified `src/mcp/server/vault-tools.ts`.
+  - Modified `src/mcp/server/skill-tools.ts`.
+  - Modified `src/mcp/server/token-tools.ts`.
+  - Modified `src/mcp/server/kg-tools.ts`.
+  - Modified `package.json`.
+  - Added `tests/mcp/tool-registry-external.test.ts`.
+- Verification: bun test 21/21 pass; tsc --noEmit clean.
+- Commit: (placeholder)

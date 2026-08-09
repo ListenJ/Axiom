@@ -8,6 +8,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
   registry.add({
     name: "memory_search",
     description: "确定性搜索 Vault 中的记忆笔记（关键词 + PARA + 标签 + 关系推导）",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       query: z.string().describe("搜索关键词"),
       limit: z.number().optional().default(10).describe("返回结果数量"),
@@ -32,6 +33,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
   registry.add({
     name: "memory_read",
     description: "读取指定路径的 Vault 笔记",
+    exposure: ["external", "safe-external"],
     inputSchema: { path: z.string().describe("笔记路径，如 '00-Meta/SOUL.md'") },
     handler: async (args) => {
       const note = vault.readNote(args.path as string);
@@ -147,6 +149,7 @@ export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline)
   registry.add({
     name: "web_search",
     description: "多引擎搜索（结果自动写入 Vault）",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       query: z.string().describe("搜索关键词"),
       engines: z.array(z.string()).optional().describe("引擎列表"),
@@ -160,6 +163,7 @@ export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline)
   registry.add({
     name: "search_engines_list",
     description: "列出可用搜索引擎",
+    exposure: ["external", "safe-external"],
     inputSchema: {},
     handler: async () => searchAggregator.listEngines(),
   });

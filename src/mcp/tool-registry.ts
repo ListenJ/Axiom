@@ -10,6 +10,9 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+/** 工具可见性：internal 仅内部 Agent，external 可被外部 MCP 使用 */
+export type ToolExposure = "internal" | "external" | "safe-external";
+
 /** Raw handler: receives parsed args, returns raw result */
 export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -50,6 +53,8 @@ export interface ToolDef {
   format?: "json" | "text";
   /** 工具分组标签 (用于懒加载) */
   tags?: string[];
+  /** 工具可见性标签；缺省为 internal */
+  exposure?: ToolExposure[];
 }
 
 /** Tool registry that manages dual transport registration */
@@ -64,8 +69,10 @@ export class ToolRegistry {
   /** Add a tool definition（handler 自动包裹安全守卫：先复核后执行） */
   add(tool: ToolDef): this {
     const guard = this.guard;
+    const exposures: ToolExposure[] = tool.exposure?.length ? [...tool.exposure] : ["internal"];
     const wrapped: ToolDef = {
       ...tool,
+      exposure: exposures,
       handler: async (args: Record<string, unknown>) => {
         await guard(tool.name, args);
         return tool.handler(args);
@@ -76,8 +83,9 @@ export class ToolRegistry {
   }
 
   /** Register all tools with MCP stdio server */
-  registerWithMcp(mcp: McpServer): void {
-    for (const tool of this.tools) {
+  registerWithMcp(mcp: McpServer, tools?: readonly ToolDef[]): void {
+    const selected = tools ?? this.tools;
+    for (const tool of selected) {
       mcp.registerTool(
         tool.name,
         {
@@ -115,9 +123,10 @@ export class ToolRegistry {
   }
 
   /** Build HTTP tool handlers mapping (with error wrapping) */
-  buildHttpHandlers(): Record<string, ToolHandler> {
+  buildHttpHandlers(tools?: readonly ToolDef[]): Record<string, ToolHandler> {
     const handlers: Record<string, ToolHandler> = {};
-    for (const tool of this.tools) {
+    const selected = tools ?? this.tools;
+    for (const tool of selected) {
       const originalHandler = tool.handler;
       handlers[tool.name] = async (args: Record<string, unknown>) => {
         try {
@@ -155,6 +164,12 @@ export class ToolRegistry {
     const before = this.tools.length;
     this.tools = this.tools.filter((t) => t.name !== name);
     return this.tools.length < before;
+  }
+
+  /** 按可见性过滤工具（外部 MCP 使用） */
+  filterByExposure(allow: ToolExposure[]): ToolDef[] {
+    const allowSet = new Set(allow);
+    return this.tools.filter((t) => t.exposure?.some((e) => allowSet.has(e)));
   }
 
   /** 按标签过滤工具 */

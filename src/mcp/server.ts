@@ -393,10 +393,14 @@ process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
 // ===== 启动服务器 =====
 
 const transport = process.argv.includes("--stdio") ? "stdio" : "http";
+const externalMode = process.argv.includes("--external");
+const externalTools = externalMode
+  ? registry.filterByExposure(["external", "safe-external"])
+  : undefined;
 
 if (transport === "stdio") {
-  // stdio 传输：注册所有工具
-  registry.registerWithMcp(mcp);
+  // stdio 传输：外部模式仅注册 exposure 工具
+  registry.registerWithMcp(mcp, externalTools);
   const stdio = new StdioServerTransport();
   mcp.connect(stdio);
 } else {
@@ -425,7 +429,7 @@ if (transport === "stdio") {
         return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
       }
       const reqServer = new McpServer({ name: "Axiom Agent MCP Server", version: "2.9.2" });
-      registry.registerWithMcp(reqServer);
+      registry.registerWithMcp(reqServer, externalTools);
       const httpTransport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });

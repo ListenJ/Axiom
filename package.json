@@ -19,6 +19,7 @@
     "build:all": "bun run scripts/build/matrix.ts --target=all --platform=current",
     "build:cross": "bun run scripts/build/matrix.ts --target=all --platform=all",
     "mcp": "bun run src/mcp/server.ts",
+    "mcp:external": "bun run src/mcp/server.ts --external",
     "cli": "bun run src/cli.ts",
     "health": "bun run scripts/health-check.ts",
     "audit:runtime": "bun run scripts/runtime-audit.ts",

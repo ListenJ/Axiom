@@ -31,6 +31,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
   registry.add({
     name: "kal_query",
     description: "统一知识查询 (跨 Vault/KG/DRE 一次查询，自动 fan-out + 结果合并)",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       query: z.string().describe("搜索关键词或自然语言查询"),
       store: z.enum(["vault", "kg", "dre"]).optional().describe("指定存储 (不指定则查询全部)"),

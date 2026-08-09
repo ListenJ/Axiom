@@ -11,6 +11,7 @@ export function registerSkillTools(registry: ToolRegistry, skillDirs: string[]):
   registry.add({
     name: "skill_list",
     description: "列出所有已加载的 skills 和 prompt templates",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       includeBuiltin: z.boolean().optional().default(true).describe("是否包含内置 skills"),
       includeFile: z.boolean().optional().default(true).describe("是否包含从文件加载的 skills"),

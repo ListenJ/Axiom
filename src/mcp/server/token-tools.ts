@@ -6,6 +6,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
   registry.add({
     name: "token_stats",
     description: "获取总体 token 使用统计（调用次数、token 消耗、成功率、延迟）",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       since: z.number().optional().describe("起始时间戳（毫秒）"),
       until: z.number().optional().describe("结束时间戳（毫秒）"),
