@@ -3972,4 +3972,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/utils/db-guard.ts`.
   - Modified `src/utils/lazy-singleton.ts`.
 - Verification: 33 related tests pass; root `bun run lint` clean; `rg "require\\(" src -g "*.ts"` returns no runtime matches.
-- Commit: PENDING
+- Commit: f9634c1
