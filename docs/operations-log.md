@@ -3898,4 +3898,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `scripts/cache-baseline.ts`.
   - Modified `package.json`.
 - Verification: `bun test tests/components/cache-baseline.test.ts` 3/3 pass; `bun run lint` clean; `bun run scripts/cache-baseline.ts` produced `reports/cache/latest.json` with toolSurface 7 tools / 947 bytes / 224 tokens; `skill_list` output 135280 bytes / 31961 tokens; `memory_search` output 2674 bytes / 667 tokens.
-- Commit: PENDING
+- Commit: 4fcdf35
