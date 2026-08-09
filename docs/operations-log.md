@@ -3928,4 +3928,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `frontend/src/lib/api.ts`.
   - Modified `frontend/src/pages/Chat.tsx`.
 - Verification: `bun test tests/db/session-store.test.ts` 2/2 pass; root `bun run lint` clean; frontend `bun run lint` clean.
-- Commit: PENDING
+- Commit: 72ad992
