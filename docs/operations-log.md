@@ -3958,4 +3958,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/routes/index.ts`.
   - Modified `frontend/src/lib/api.ts`.
 - Verification: `bun test tests/db/tool-invocations.test.ts tests/components/routes.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean.
-- Commit: PENDING
+- Commit: 828404d
