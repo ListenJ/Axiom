@@ -3943,4 +3943,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `tests/consciousness.test.ts`.
   - Added `tests/memory/archive-index.test.ts`.
 - Verification: `bun test tests/memory/archive-index.test.ts tests/consciousness.test.ts tests/dre-memory-deep.test.ts` 37/37 pass; `bun run lint` clean.
-- Commit: PENDING
+- Commit: f1c611a
