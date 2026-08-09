@@ -3876,3 +3876,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `package.json`.
 - Verification: `bun test tests/mcp/external-mcp-stdio.test.ts` 2/2 pass; `bun run lint` clean.
 - Commit: 4539cc4
+
+
+## 2026-08-10 01:05 +0800 - External Component Host Validation
+
+- Task: Validate the external MCP runtime against real hosts and record OpenCode / Kimi Code configuration formats and current blockers.
+- Tools: opencode / kimi / bun / web-search / open_page / git.
+- Files:
+  - Added `docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md`.
+- Verification: `opencode mcp list` shows axiom connected; `kimi doctor` passes; Kimi prompt blocked by account 403 quota; Axiom SDK stdio smoke test 2/2 pass.
+- Commit: PENDING
