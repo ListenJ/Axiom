@@ -96,6 +96,7 @@ export interface CompressedMessages {
   itemCount: number;
   dropped: number;
   truncated: number;
+  preservedRecent: number;
 }
 
 export interface TokenBudgetContract {

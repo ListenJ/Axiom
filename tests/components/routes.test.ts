@@ -38,11 +38,12 @@ describe("Component routes", () => {
       ready: number;
       components: Array<{ id: string; ready: boolean }>;
     };
-    expect(body.total).toBeGreaterThanOrEqual(4);
+    expect(body.total).toBeGreaterThanOrEqual(5);
     expect(body.ready).toBe(body.total);
     expect(body.components.map((component) => component.id)).toEqual(
       expect.arrayContaining([
         "token-budget",
+        "context-assembler",
         "native-general",
         "native-code",
         "native-research",

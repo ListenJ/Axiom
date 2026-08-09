@@ -25,7 +25,7 @@ mock.module(mockCodegraph, () => ({
 const mockIntentEnhancer = path.join(ROOT, "src", "agents", "intent-enhancer.js");
 mock.module(mockIntentEnhancer, () => ({
   shouldEnhanceIntent: () => false,
-  enhanceIntentWithLLM: async (_input, intent) => intent,
+  enhanceIntentWithLLM: async (_input: string, intent: { intent: string }) => intent,
   buildEnhancedSystemPrompt: (intent: string) => `Enhanced ${intent}`,
 }));
 

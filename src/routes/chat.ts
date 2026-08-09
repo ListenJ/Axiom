@@ -12,18 +12,20 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
   const body = await ctx.req.json();
-  const { taskType, messages = [], intent: enableIntent = true } = body;
+  const { taskType, messages = [], intent: enableIntent = true, budget } = body;
 
-  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+  const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
+    { budget },
   );
   const result = await executeChat(chatMessages, intentInfo, taskType);
 
   const response = ctx.jsonResponse({
     ...result,
     codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
+    tokenBudget: tokenBudgetReport ?? null,
     intent: intentInfo
       ? {
           name: intentInfo.agentName,
@@ -53,21 +55,23 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
   if (ctx.url.pathname !== "/agent-chat" || ctx.req.method !== "POST") return null;
 
   const body = await ctx.req.json();
-  const { message, history = [], taskType } = body;
+  const { message, history = [], taskType, budget } = body;
   const messages: Array<{ role: string; content: string }> = [
     ...(history as Array<{ role: string; content: string }>),
     { role: "user", content: message },
   ];
 
-  const { chatMessages, intentInfo } = await prepareChatContext(
+  const { chatMessages, intentInfo, tokenBudgetReport } = await prepareChatContext(
     messages,
     true,
     ctx.vault,
+    { budget },
   );
   const result = await executeChat(chatMessages, intentInfo, taskType);
 
   const response = ctx.jsonResponse({
     ...result,
+    tokenBudget: tokenBudgetReport ?? null,
     intent: intentInfo
       ? {
           name: intentInfo.agentName,
@@ -205,6 +209,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     intent?: unknown;
     preferNativeStream?: unknown;
     reasoningEffort?: unknown;
+    budget?: unknown;
   };
   try {
     body = (await ctx.req.json()) as typeof body;
@@ -240,12 +245,15 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     typeof body.preferNativeStream === "boolean" ? body.preferNativeStream : undefined;
   const reasoningEffort: string | undefined =
     typeof body.reasoningEffort === "string" ? body.reasoningEffort : undefined;
+  const budget: number | undefined =
+    typeof body.budget === "number" ? body.budget : undefined;
 
   // 复用 handleChat 的消息构建逻辑（包含 intent + codegraph + knowledge context）
-  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+  const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
+    { budget },
   );
 
   // 选择路由（与 handleChat 保持一致：intent > taskType）
@@ -301,6 +309,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 layer: ev.layer,
                 intent: ev.intent,
                 codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
+                tokenBudget: tokenBudgetReport ?? null,
                 intentInfo: intentInfo
                   ? {
                       name: intentInfo.agentName,

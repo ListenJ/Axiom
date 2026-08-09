@@ -177,6 +177,7 @@ export abstract class BaseNativeAgent implements AgentComponent {
         itemCount: messages.length,
         dropped: 0,
         truncated: 0,
+        preservedRecent: 0,
       };
     }
     return this.options.tokenBudget.compress(messages, task.budget ?? 64000);

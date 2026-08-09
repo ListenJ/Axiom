@@ -7,6 +7,7 @@ import {
   type NativePromptProvider,
 } from "../components/native-agents.js";
 import { tokenBudget } from "../components/token-budget.js";
+import { contextAssembler } from "../components/context-assembler.js";
 import type { AgentTask } from "../components/contracts.js";
 import { internalAgent } from "./internal-agent.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
@@ -121,6 +122,7 @@ export function createNativeAgentOptions(
 export async function initializeComponentKernel(): Promise<ComponentKernel> {
   const kernel = getComponentKernel();
   if (!kernel.get("token-budget")) kernel.register(tokenBudget);
+  if (!kernel.get("context-assembler")) kernel.register(contextAssembler);
   if (!kernel.get("native-general")) {
     registerNativeAgents(kernel, createNativeAgentOptions());
   }

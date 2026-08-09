@@ -3795,4 +3795,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/agents/internal-agent.ts`.
   - Added `tests/internal-agent-budget.test.ts`.
 - Verification: internalAgent budget 4/4 pass.
+- Commit: 83647b5
+
+---
+
+## 2026-08-09 21:20 +0800 - ContextAssembler Task 4
+
+- Task: Expose tokenBudget in chat routes and register context-assembler in the component kernel.
+- Tools: writing-plans / executing-plans / bun test / bun script / tsc.
+- Files:
+  - Modified `src/routes/chat.ts`.
+  - Modified `src/agents/component-bootstrap.ts`.
+  - Modified `src/components/contracts.ts`.
+  - Modified `src/components/native-agents.ts`.
+  - Modified `tests/components/routes.test.ts`.
+  - Modified `tests/services-chat.test.ts`.
+- Verification: ContextAssembler-related 23/23 pass; architecture 22/22; tsc clean.
 - Commit: (placeholder)
