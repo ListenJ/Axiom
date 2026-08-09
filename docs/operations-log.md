@@ -3746,3 +3746,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 `src/agents/component-bootstrap.ts`：`codeToolchain.available()` 改为检测 `vendor/pi-agent/.../index.js` 是否存在。
 - **验证**：`tsc --noEmit` 通过；native/Orchestrator 23/23 通过。
 - **Commit**：`76cb0c5`
+
+---
+
+## 2026-08-09 20:30 +0800 - ContextAssembler spec
+
+- Task: Write approved ContextAssembler design spec for unified token budget and context assembly.
+- Tools: brainstorming / writing-plans / git apply.
+- Files:
+  - Added `docs/superpowers/specs/2026-08-09-context-assembler-day0-design.md`.
+- Verification: ASCII spec self-review complete; no placeholders or contradictions.
+- Commit: (placeholder)
