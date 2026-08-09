@@ -7,12 +7,13 @@ import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
+import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
   const body = await ctx.req.json();
-  const { taskType, messages = [], intent: enableIntent = true, budget } = body;
+  const { taskType, messages = [], intent: enableIntent = true, budget, sessionId } = body;
 
   const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
@@ -22,8 +23,24 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   );
   const result = await executeChat(chatMessages, intentInfo, taskType);
 
+  const normalizedSessionId = normalizeSessionId(sessionId);
+  const messageList = Array.isArray(messages) ? messages as Array<{ role: string; content: string }> : [];
+  const lastUser = [...messageList].reverse().find((m) => m.role === "user");
+  if (lastUser) {
+    persistChatMessage(ctx.db, { sessionId: normalizedSessionId, role: "user", content: lastUser.content });
+  }
+  if (result.content) {
+    persistChatMessage(ctx.db, {
+      sessionId: normalizedSessionId,
+      role: "assistant",
+      content: result.content,
+      tokensUsed: result.usage?.total_tokens ?? 0,
+    });
+  }
+
   const response = ctx.jsonResponse({
     ...result,
+    sessionId: normalizedSessionId,
     codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
     tokenBudget: tokenBudgetReport ?? null,
     intent: intentInfo
@@ -210,6 +227,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     preferNativeStream?: unknown;
     reasoningEffort?: unknown;
     budget?: unknown;
+    sessionId?: unknown;
   };
   try {
     body = (await ctx.req.json()) as typeof body;
@@ -233,6 +251,12 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     );
   }
   const messages = body.messages as Array<{ role: string; content: string }>;
+  const sessionId = normalizeSessionId(body.sessionId);
+  const streamStartedAt = Date.now();
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (lastUser) {
+    persistChatMessage(ctx.db, { sessionId, role: "user", content: lastUser.content });
+  }
 
   // taskType 缺失或非法时回退到 'general-chat'
   let taskType: string = "general-chat";
@@ -303,6 +327,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
             case "start":
               safeEnqueue(sseEvent("start", {
                 type: "start",
+                sessionId,
                 model: ev.model,
                 provider: ev.provider,
                 role: ev.role,
@@ -323,6 +348,15 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
               safeEnqueue(sseEvent("token", { type: "token", content: ev.content }));
               break;
             case "done":
+              if (ev.content) {
+                persistChatMessage(ctx.db, {
+                  sessionId,
+                  role: "assistant",
+                  content: ev.content,
+                  tokensUsed: ev.usage?.total_tokens ?? 0,
+                  latencyMs: Date.now() - streamStartedAt,
+                });
+              }
               safeEnqueue(sseEvent("done", {
                 type: "done",
                 content: ev.content,

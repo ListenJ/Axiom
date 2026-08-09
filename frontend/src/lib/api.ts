@@ -54,6 +54,7 @@ interface ChatStreamMeta {
   model?: string
   provider?: string
   role?: string
+  sessionId?: string
   usage?: Record<string, unknown>
 }
 
@@ -103,6 +104,7 @@ function pickMeta(parsed: Record<string, unknown>): ChatStreamMeta {
   if (typeof parsed.model === 'string') meta.model = parsed.model
   if (typeof parsed.provider === 'string') meta.provider = parsed.provider
   if (typeof parsed.role === 'string') meta.role = parsed.role
+  if (typeof parsed.sessionId === 'string') meta.sessionId = parsed.sessionId
   if (isPlainObject(parsed.usage)) meta.usage = parsed.usage
   return meta
 }
@@ -448,11 +450,12 @@ export const endpoints = {
         signal?: AbortSignal
         model?: string
         reasoningEffort?: 'low' | 'medium' | 'high'
+        sessionId?: string
       } = {},
     ) => {
       // Destructure `signal` so it is NEVER serialized into the JSON body.
       // The signal belongs on the fetch init, not in the request payload.
-      const { signal, ...bodyOptions } = options
+      const { signal, sessionId, ...bodyOptions } = options
       // Defensive: if a caller ever passes a `signal`-shaped key inside the
       // body options (e.g. via a loose `Record<string, unknown>`), strip it
       // so it cannot leak into `JSON.stringify` and corrupt the request.
@@ -462,7 +465,7 @@ export const endpoints = {
       }
       return api.stream(
         '/chat/stream',
-        { messages, taskType: 'general-chat', ...safeBodyOptions },
+        { messages, taskType: 'general-chat', sessionId, ...safeBodyOptions },
         onEvent,
         signal !== undefined ? { signal } : {},
       )

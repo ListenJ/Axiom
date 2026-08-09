@@ -3915,3 +3915,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `scripts/cache-baseline.ts`.
 - Verification: 10 related tests pass; `bun run lint` clean; cache baseline shows `skill_list` placeholder 337 bytes / 85 tokens while stored payload is 96468 bytes / 22258 tokens; `recoverable_output_stats` reports the stored entries.
 - Commit: cb4fd0e
+
+
+## 2026-08-10 02:20 +0800 - Native Session Persistence
+
+- Task: Persist chat sessions natively with Bun SQLite and return/reuse sessionId in the frontend stream path; no compatibility or orchestration layer.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/db/session-store.ts`.
+  - Added `tests/db/session-store.test.ts`.
+  - Modified `src/routes/chat.ts`.
+  - Modified `frontend/src/lib/api.ts`.
+  - Modified `frontend/src/pages/Chat.tsx`.
+- Verification: `bun test tests/db/session-store.test.ts` 2/2 pass; root `bun run lint` clean; frontend `bun run lint` clean.
+- Commit: PENDING

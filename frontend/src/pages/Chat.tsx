@@ -277,10 +277,12 @@ export default function Chat() {
       .join('\n')
     const payload = [attachmentNote, msg].filter(Boolean).join('\n\n')
     // 首条用户消息自动生成会话题目（已有 session 时同步持久化）
-    if (messages.length === 0) {
-      const title = generateChatTitle(msg || attachments.map((a) => a.name).join('、'))
-      setChatTitle(title)
-      saveChatTitle(activeSession, title)
+    const firstTurnTitle = messages.length === 0
+      ? generateChatTitle(msg || attachments.map((a) => a.name).join('、'))
+      : null
+    if (firstTurnTitle) {
+      setChatTitle(firstTurnTitle)
+      saveChatTitle(activeSession, firstTurnTitle)
     }
     const userMsg: Message = { id: nextId(), role: 'user', content: payload }
     const assistantId = nextId()
@@ -347,6 +349,10 @@ export default function Chat() {
           switch (event.type) {
             case 'start':
               updateMeta({ model: event.model, provider: event.provider })
+              if (event.sessionId) {
+                setActiveSession(event.sessionId)
+                if (firstTurnTitle) saveChatTitle(event.sessionId, firstTurnTitle)
+              }
               break
             case 'token':
               appendToken(event.content)
@@ -363,7 +369,7 @@ export default function Chat() {
               break
           }
         },
-        { signal: controller.signal, model: selectedModel, reasoningEffort },
+        { signal: controller.signal, model: selectedModel, reasoningEffort, sessionId: activeSession ?? undefined },
       )
     } catch (e) {
       // 用户主动中止 — 静默停止流式，保留已接收的部分内容
