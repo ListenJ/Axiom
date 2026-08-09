@@ -3756,4 +3756,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - Added `docs/superpowers/specs/2026-08-09-context-assembler-day0-design.md`.
 - Verification: ASCII spec self-review complete; no placeholders or contradictions.
+- Commit: `4fc3d39`
+
+---
+
+## 2026-08-09 20:45 +0800 - ContextAssembler Task 1
+
+- Task: Add token estimator and ContextAssembler component.
+- Tools: writing-plans / executing-plans / git apply / bun test.
+- Files:
+  - Added `docs/plans/2026-08-09-context-assembler-day0.md`.
+  - Added `src/context/token-estimator.ts`.
+  - Added `src/components/context-assembler.ts`.
+  - Modified `src/components/token-budget.ts`.
+  - Added `tests/context/token-estimator.test.ts` and `tests/components/context-assembler.test.ts`.
+- Verification: token estimator / ContextAssembler / TokenBudget 9/9 pass.
 - Commit: (placeholder)

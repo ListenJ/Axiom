@@ -2,6 +2,7 @@ import {
   RateDistortionCompressor,
   type ContextItem,
 } from "../context/rate-distortion-compressor.js";
+import { estimateTokens as defaultEstimateTokens } from "../context/token-estimator.js";
 import type {
   ComponentBudget,
   ComponentHealth,
@@ -44,7 +45,7 @@ export class TokenBudget implements TokenBudgetContract, ComponentLifecycle {
   };
 
   constructor(options: TokenBudgetOptions = {}) {
-    this.estimator = options.estimator ?? this.estimateDefault;
+    this.estimator = options.estimator ?? defaultEstimateTokens;
     this.defaultMaxTokens = options.defaultMaxTokens ?? 128_000;
     this.defaultPreserveRecent = options.preserveRecent ?? 4;
   }
@@ -208,13 +209,6 @@ export class TokenBudget implements TokenBudgetContract, ComponentLifecycle {
   }
 
   async dispose(): Promise<void> {}
-
-  private estimateDefault(text: string): number {
-    const chineseChars =
-      (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) ?? []).length;
-    const otherChars = Math.max(0, text.length - chineseChars);
-    return Math.ceil(chineseChars / 1.5 + otherChars / 4);
-  }
 
   private fitContent(text: string, maxTokens: number): string {
     let low = 0;
