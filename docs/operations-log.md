@@ -4010,3 +4010,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/agents/consciousness/memory-curator.ts`.
 - Verification: `bun test tests/memory/distillation-priority.test.ts tests/consciousness.test.ts tests/chat-sessions.test.ts tests/components/context-cache-discipline.test.ts` 29/29 pass; `bun run lint` clean.
 - Commit: ed479a3
+
+
+## 2026-08-10 21:30 +0800 - ToolSurface Stable Order + AdaptiveCompaction
+
+- Task: Implement ToolSurface stable ordering and AdaptiveCompaction dual-threshold planning according to the external component runtime spec; update spec status.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/mcp/tool-registry.ts`.
+  - Modified `tests/mcp/tool-registry-external.test.ts`.
+  - Added `src/components/adaptive-compaction.ts`.
+  - Added `tests/components/adaptive-compaction.test.ts`.
+  - Modified `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
+  - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
+- Verification: `bun test tests/mcp/tool-registry-external.test.ts tests/mcp/external-mcp-stdio.test.ts tests/components/adaptive-compaction.test.ts` 14/14 pass; `bun run lint` clean.
+- Commit: PENDING

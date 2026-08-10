@@ -1,6 +1,6 @@
 # Axiom External Component Runtime 设计（知识库 + 网络搜索 + 全套机制外挂组件）
 
-> 状态：方向确认，等待实施
+> 状态：实施中，MVP 已落地，PR #1 开放评审
 > 分支：codex/external-component-runtime
 > 关联：docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md
 
@@ -99,13 +99,13 @@ Axiom Runtime (existing)
 
 ## 7. 实施切片（新分支验证顺序）
 
-1. ToolSurface exposure 标签 + filtered registry。
-2. External MCP server 入口（stdio + HTTP）。
-3. server.json + SKILL.md 模板 + 安装命令。
-4. ContextCacheDiscipline 与命中率采集。
-5. RecoverableToolOutput。
-6. AdaptiveCompaction 双阈值。
-7. A2A Agent Card（可选）。
+1. [x] ToolSurface exposure 标签 + filtered registry。
+2. [x] External MCP server 入口（stdio + HTTP）。
+3. [x] server.json + SKILL.md 模板 + 安装命令。
+4. [x] ContextCacheDiscipline 与命中率采集。
+5. [x] RecoverableToolOutput。
+6. [~] AdaptiveCompaction 双阈值（模块与测试已落地，待运行时接入）。
+7. [ ] A2A Agent Card（可选）。
 
 ## 8. 风险
 

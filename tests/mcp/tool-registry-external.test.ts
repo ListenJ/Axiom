@@ -59,4 +59,13 @@ describe("ToolRegistry external exposure", () => {
     expect(external).toHaveLength(1);
     expect(external[0].exposure).toEqual(["internal", "external"]);
   });
+
+  it("filterByExposure returns stable sorted order", () => {
+    const registry = new ToolRegistry();
+    registry.add(makeTool("z_tool", ["external"]));
+    registry.add(makeTool("a_tool", ["external"]));
+    registry.add(makeTool("m_tool", ["safe-external"]));
+    const names = registry.filterByExposure(["external", "safe-external"]).map((t) => t.name);
+    expect(names).toEqual(["a_tool", "m_tool", "z_tool"]);
+  });
 });

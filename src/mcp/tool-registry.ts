@@ -169,7 +169,9 @@ export class ToolRegistry {
   /** 按可见性过滤工具（外部 MCP 使用） */
   filterByExposure(allow: ToolExposure[]): ToolDef[] {
     const allowSet = new Set(allow);
-    return this.tools.filter((t) => t.exposure?.some((e) => allowSet.has(e)));
+    return this.tools
+      .filter((t) => t.exposure?.some((e) => allowSet.has(e)))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /** 按标签过滤工具 */

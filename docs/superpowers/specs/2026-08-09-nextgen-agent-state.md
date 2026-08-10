@@ -71,11 +71,12 @@ OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
 - 设计 External Component Runtime。
 - 切片 1：ToolExposure + filterByExposure + 外部 MCP 模式 + 测试。
 
-进行中：
+已完成：
 - 切片 2：server.json + SKILL.md + 安装命令。
 - 切片 3：ContextCacheDiscipline 与缓存命中率采集。
 - 切片 4：RecoverableToolOutput。
-- 切片 5：AdaptiveCompaction 双阈值。
+进行中：
+- 切片 5：AdaptiveCompaction（模块与测试已落地，待运行时接入）。
 - 切片 6：A2A Agent Card。
 
 ## 5. 下一代开发路径
