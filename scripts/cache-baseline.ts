@@ -20,6 +20,7 @@ import {
   connectExternalMcpServers,
   getMcpClientStats,
 } from "../src/mcp/client-connector.js";
+import { buildCacheDiscipline } from "../src/components/context-cache-discipline.js";
 import { ToolRegistry } from "../src/mcp/tool-registry.js";
 
 const ROUNDS = Number(process.argv.find((arg) => arg.startsWith("--rounds="))?.split("=")[1] ?? 3);
@@ -136,6 +137,11 @@ async function main(): Promise<void> {
     connected: summary.connected,
     rounds: ROUNDS,
     toolSurface: surface,
+    cacheDiscipline: buildCacheDiscipline({
+      identity: "axiom-external-mcp",
+      toolSurface: registry.getToolsMeta(),
+      skillIds: [],
+    }),
     probes,
     clientStats: getMcpClientStats(),
     notes: [

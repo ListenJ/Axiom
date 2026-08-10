@@ -3986,3 +3986,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `tests/chat-sessions.test.ts`.
 - Verification: `bun test tests/chat-sessions.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean; Gitea/internal/internal211 branch heads all at fc8d8ea; MetricAtom master aligned to origin/master 69796c2 with backup branch backup/local-old-master.
 - Commit: 42072b8
+
+
+## 2026-08-10 19:09 +0800 - ContextCacheDiscipline
+
+- Task: Add native stable-prefix cache discipline module and integrate it into the external MCP cache baseline.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/components/context-cache-discipline.ts`.
+  - Added `tests/components/context-cache-discipline.test.ts`.
+  - Modified `scripts/cache-baseline.ts`.
+- Verification: `bun test tests/components/context-cache-discipline.test.ts` 2/2 pass; root `bun run lint` clean; cache baseline reports stablePrefix 1260 bytes / 301 tokens / sha256 797af44b.
+- Commit: PENDING
