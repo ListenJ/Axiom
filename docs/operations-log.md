@@ -4009,4 +4009,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `tests/memory/distillation-priority.test.ts`.
   - Modified `src/agents/consciousness/memory-curator.ts`.
 - Verification: `bun test tests/memory/distillation-priority.test.ts tests/consciousness.test.ts tests/chat-sessions.test.ts tests/components/context-cache-discipline.test.ts` 29/29 pass; `bun run lint` clean.
-- Commit: PENDING
+- Commit: ed479a3
