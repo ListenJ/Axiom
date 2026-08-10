@@ -26,6 +26,7 @@ import { logger } from "../../utils/logger.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
 import { getGlobalMemoryDistiller, getGlobalMemoryArchiver, getSqliteMemory } from "./shims.js";
 import type { MemoryRecord } from "../../memory/sqlite-memory.js";
+import { selectDistillationCandidates } from "../../memory/distillation-priority.js";
 
 export interface CuratorConfig {
   /** Max notes touched per phase per cycle (safety bound). */
@@ -78,16 +79,24 @@ export class MemoryCurator {
         const now = Date.now();
         const cutoff = now - this.config.conversationStaleDays * 24 * 60 * 60 * 1000;
         const recent = sqlite.listByCategory("conversations", this.config.maxPerPhase * 4);
-        const stale = recent.filter((r: MemoryRecord) => r.updatedAt < cutoff);
-        for (const r of stale.slice(0, this.config.maxPerPhase)) {
+        const candidates = recent
+          .filter((r: MemoryRecord) => r.updatedAt < cutoff)
+          .map((r: MemoryRecord) => ({
+            id: r.path,
+            ageDays: (Date.now() - r.updatedAt) / 86_400_000,
+            confidence: r.confidence,
+            contentLength: r.content.length,
+          }));
+        const selected = selectDistillationCandidates(candidates, this.config.maxPerPhase);
+        for (const { id: path } of selected) {
           try {
-            const atomicPaths = await distiller.distillConversation(r.path);
+            const atomicPaths = await distiller.distillConversation(path);
             out.distilled.push(...atomicPaths);
             // MemoryArchiver.archive() will move any 04-Conversations file
             // older than 30d to 05-Archives (its own rule). We invoke it
             // once per run; pass `now` not relevant — its own threshold applies.
           } catch (e) {
-            out.errors.push(`distillConversation(${r.path}): ${(e as Error).message}`);
+            out.errors.push(`distillConversation(${path}): ${(e as Error).message}`);
           }
         }
       } catch (e) {

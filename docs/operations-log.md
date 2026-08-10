@@ -3998,3 +3998,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `scripts/cache-baseline.ts`.
 - Verification: `bun test tests/components/context-cache-discipline.test.ts` 2/2 pass; root `bun run lint` clean; cache baseline reports stablePrefix 1260 bytes / 301 tokens / sha256 797af44b.
 - Commit: be43c03
+
+
+## 2026-08-10 19:39 +0800 - Distillation Priority Scoring
+
+- Task: Add weight and time-factor based distillation priority so MemoryCurator selects high-value stale conversations first.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/memory/distillation-priority.ts`.
+  - Added `tests/memory/distillation-priority.test.ts`.
+  - Modified `src/agents/consciousness/memory-curator.ts`.
+- Verification: `bun test tests/memory/distillation-priority.test.ts tests/consciousness.test.ts tests/chat-sessions.test.ts tests/components/context-cache-discipline.test.ts` 29/29 pass; `bun run lint` clean.
+- Commit: PENDING
