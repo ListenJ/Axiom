@@ -4079,4 +4079,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/tools/types.ts`.
   - Modified `docs/ENGINEERING-REVIEW-2026-08-11.md`.
 - Verification: `bun run lint` clean; architecture + tools tests 30/30 pass; `: any` count reduced from 4 to 2.
-- Commit: PENDING
+- Commit: 4b07be6
