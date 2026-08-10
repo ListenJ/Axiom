@@ -477,6 +477,8 @@ export const endpoints = {
       api.delete(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
         headers: { 'x-confirmation-id': confirmationId },
       }),
+    archiveSession: (sessionId: string) =>
+      api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/archive`),
   },
   search: {
     vault: (query: string, options: Record<string, unknown> = {}) =>

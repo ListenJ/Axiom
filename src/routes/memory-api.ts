@@ -7,6 +7,7 @@
 import type { RouteContext, RouteHandler } from "./types.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { getSessionMessages } from "../db/session-store.js";
 
 // ===== Conversation History (Server-side persistence) =====
 
@@ -376,5 +377,34 @@ export async function handleModelUsage(ctx: RouteContext): Promise<Response | nu
   } catch (err) {
     logger.error("Failed to get usage stats", err as Error);
     return ctx.jsonResponse({ error: "Failed to get usage stats" }, 500, ctx.baseHeaders);
+  }
+}
+
+/** POST /chat/sessions/:id/archive — 将会话消息原生写入 Vault 日志 */
+export async function handleArchiveSession(ctx: RouteContext): Promise<Response | null> {
+  const prefix = "/chat/sessions/";
+  const suffix = "/archive";
+  if (!ctx.url.pathname.startsWith(prefix) || !ctx.url.pathname.endsWith(suffix) || ctx.req.method !== "POST") return null;
+  const sessionId = decodeURIComponent(ctx.url.pathname.slice(prefix.length, -suffix.length));
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+  if (!ctx.vault) {
+    return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+  }
+  try {
+    const rows = getSessionMessages(ctx.db, sessionId, 1000, 0);
+    const vaultPath = await ctx.vault.writeConversationLog(
+      sessionId,
+      rows.map((r) => ({
+        role: r.role,
+        content: r.content,
+        timestamp: new Date(r.created_at * 1000).toISOString(),
+      })),
+    );
+    return ctx.jsonResponse({ ok: true, sessionId, vaultPath, archivedMessages: rows.length }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to archive session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to archive session" }, 500, ctx.baseHeaders);
   }
 }

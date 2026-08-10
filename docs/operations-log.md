@@ -3973,3 +3973,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/utils/lazy-singleton.ts`.
 - Verification: 33 related tests pass; root `bun run lint` clean; `rg "require\\(" src -g "*.ts"` returns no runtime matches.
 - Commit: f9634c1
+
+
+## 2026-08-10 18:41 +0800 - Native Session Archive + Workspace Alignment
+
+- Task: Add a native session archive endpoint that writes conversation history into Vault logs; audit and align openclaw-fusion / Omini / MetricAtom branches and workspaces.
+- Tools: bun / tsc / git / gitea token.
+- Files:
+  - Modified `src/routes/memory-api.ts`.
+  - Modified `src/routes/index.ts`.
+  - Modified `frontend/src/lib/api.ts`.
+  - Modified `tests/chat-sessions.test.ts`.
+- Verification: `bun test tests/chat-sessions.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean; Gitea/internal/internal211 branch heads all at fc8d8ea; MetricAtom master aligned to origin/master 69796c2 with backup branch backup/local-old-master.
+- Commit: PENDING

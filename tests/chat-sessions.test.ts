@@ -9,9 +9,13 @@ import { Database } from "bun:sqlite";
 import {
   handleRenameSession,
   handleDeleteSession,
+  handleArchiveSession,
   handleListSessions,
 } from "../src/routes/memory-api.js";
 import type { RouteContext } from "../src/routes/types.js";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "fs";
+import path from "path";
+import { VaultManager } from "../src/memory/vault-manager.js";
 import { requestConfirmation } from "../src/utils/permissions.js";
 
 const db = new Database(":memory:");
@@ -132,5 +136,29 @@ describe("会话持久化路由", () => {
     expect(convCount.c).toBe(0);
     const metaCount = db.query("SELECT COUNT(*) as c FROM chat_sessions WHERE session_id = 'sess-2'").get() as { c: number };
     expect(metaCount.c).toBe(0);
+  });
+
+  it("POST /chat/sessions/:id/archive 写入 Vault 会话日志", async () => {
+    const tmp = `.tmp/test-vault-${Date.now()}`;
+    mkdirSync(tmp, { recursive: true });
+    const vault = new VaultManager({ vaultPath: tmp, dbPath: ":memory:", apiPort: 0, apiToken: "" });
+    const ctx: RouteContext = {
+      ...fakeCtx("POST", "/chat/sessions/sess-1/archive"),
+      vault,
+    } as unknown as RouteContext;
+    try {
+      const res = await handleArchiveSession(ctx);
+      expect(res!.status).toBe(200);
+      const data = (await bodyOf(res!)) as { vaultPath: string; archivedMessages: number };
+      expect(data.archivedMessages).toBe(2);
+      expect(data.vaultPath).toContain("04-Conversations");
+      const full = path.join(tmp, data.vaultPath);
+      expect(existsSync(full)).toBe(true);
+      const content = readFileSync(full, "utf-8");
+      expect(content).toContain("你好");
+    } finally {
+      vault.close();
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
