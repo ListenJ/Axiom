@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { refreshSessionLineage } from "./session-lineage.js";
 
 export interface PersistedChatMessage {
   sessionId: string;
@@ -59,6 +60,7 @@ export function persistChatMessage(db: Database, message: PersistedChatMessage):
       now,
     ],
   );
+  refreshSessionLineage(db, message.sessionId);
 }
 
 export function getSessionMessages(

@@ -61,6 +61,24 @@ db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_session ON tool_invocations(sess
 db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_tool ON tool_invocations(tool, created_at DESC)`);
 
 db.run(`
+  CREATE TABLE IF NOT EXISTS session_lineage (
+    session_id TEXT PRIMARY KEY,
+    parent_session_id TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    message_count INTEGER NOT NULL DEFAULT 0,
+    token_estimate INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS session_lineage_fts USING fts5(session_id UNINDEXED, title, summary, tokenize = 'unicode61')`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_updated ON session_lineage(updated_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_parent ON session_lineage(parent_session_id)`);
+logger.info("[完成] session_lineage");
+
+db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_key TEXT UNIQUE NOT NULL,

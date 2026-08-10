@@ -4038,3 +4038,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
 - Verification: ContextAssembler / AdaptiveCompaction / ContextCacheDiscipline / TokenBudget related tests 17/17 pass; `bun run lint` clean.
 - Commit: 59b12e1
+
+
+## 2026-08-10 23:15 +0800 - Session Lineage and Context-Aware Session Search
+
+- Task: Implement P2 Session lineage / session_search with compact summaries and token estimates instead of loading full conversations.
+- Tools: bun / tsc / git.
+- Files:
+  - Added `src/db/session-lineage.ts`.
+  - Added `tests/db/session-lineage.test.ts`.
+  - Modified `src/db/session-store.ts`.
+  - Modified `src/db/migrate.ts`.
+  - Modified `src/routes/memory-api.ts`.
+  - Modified `src/routes/index.ts`.
+  - Modified `frontend/src/lib/api.ts`.
+  - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
+- Verification: Session Lineage / Session Store / Chat Sessions / Routes related tests 13/13 pass; root and frontend `bun run lint` clean.
+- Commit: PENDING

@@ -96,7 +96,7 @@ OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
 
 ### P2：扩大生态位
 
-8. Session lineage / session_search。
+8. [x] Session lineage / session_search。
 9. LSP + CodeGraph 混合语义读取。
 10. A2A Agent Card。
 11. MCP Registry 发布 + Docker + npm package。

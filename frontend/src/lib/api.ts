@@ -479,6 +479,8 @@ export const endpoints = {
       }),
     archiveSession: (sessionId: string) =>
       api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/archive`),
+    sessionLineage: (sessionId: string) =>
+      api.get(`/chat/sessions/${encodeURIComponent(sessionId)}/lineage`),
   },
   search: {
     vault: (query: string, options: Record<string, unknown> = {}) =>
@@ -556,6 +558,8 @@ export const endpoints = {
     sessions: () => api.get('/memory/sessions'),
     conversations: (sessionId: string, options?: Record<string, string | number | boolean | undefined>) =>
       api.get('/memory/conversations', { params: { session: sessionId, ...options } }),
+    sessionSearch: (query: string, limit = 20) =>
+      api.get('/memory/session-search', { params: { q: query, limit } }),
     knowledge: (query: string, options?: Record<string, string | number | boolean | undefined>) =>
       api.get('/memory/knowledge', { params: { q: query, ...options } }),
     tasks: (params?: Record<string, string | number | boolean | undefined>) =>

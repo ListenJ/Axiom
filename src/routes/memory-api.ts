@@ -8,6 +8,7 @@ import type { RouteContext, RouteHandler } from "./types.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import { getSessionMessages } from "../db/session-store.js";
+import { getSessionLineage, searchSessionLineage } from "../db/session-lineage.js";
 
 // ===== Conversation History (Server-side persistence) =====
 
@@ -407,4 +408,26 @@ export async function handleArchiveSession(ctx: RouteContext): Promise<Response 
     logger.error("Failed to archive session", err as Error);
     return ctx.jsonResponse({ error: "Failed to archive session" }, 500, ctx.baseHeaders);
   }
+}
+
+/** GET /memory/session-search?q=X — 轻量搜索会话摘要与 lineage 元数据 */
+export async function handleSessionSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/memory/session-search" || ctx.req.method !== "GET") return null;
+  const query = ctx.url.searchParams.get("q") ?? "";
+  const limit = parseInt(ctx.url.searchParams.get("limit") || "20", 10);
+  const results = searchSessionLineage(ctx.db, query, limit);
+  return ctx.jsonResponse({ results, count: results.length }, 200, ctx.baseHeaders);
+}
+
+/** GET /chat/sessions/:id/lineage — 返回祖先/后代会话谱系 */
+export async function handleSessionLineage(ctx: RouteContext): Promise<Response | null> {
+  const prefix = "/chat/sessions/";
+  const suffix = "/lineage";
+  if (!ctx.url.pathname.startsWith(prefix) || !ctx.url.pathname.endsWith(suffix) || ctx.req.method !== "GET") return null;
+  const sessionId = decodeURIComponent(ctx.url.pathname.slice(prefix.length, -suffix.length));
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+  const lineage = getSessionLineage(ctx.db, sessionId);
+  return ctx.jsonResponse({ sessionId, lineage }, 200, ctx.baseHeaders);
 }

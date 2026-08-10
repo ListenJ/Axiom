@@ -55,6 +55,8 @@ import {
   handleListSessions,
   handleRenameSession,
   handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
   handleDeleteSession,
   handleKnowledgeSearch,
   handleKnowledgePendingReview,
@@ -104,6 +106,8 @@ const handlers: RouteHandler[] = [
   handleAgentChat,
   handleRenameSession,
   handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
   handleDeleteSession,
   // OpenAI 兼容端点（/v1/chat/completions）
   handleOpenAIChatCompletions,
@@ -184,6 +188,8 @@ const handlers: RouteHandler[] = [
   handleGetConversations,
   handleListSessions,
   handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
   handleKnowledgeSearch,
   handleKnowledgePendingReview,
   handleKnowledgeReviewAction,
@@ -278,6 +284,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "PATCH", path: "/chat/sessions/:id", handler: handleRenameSession },
     { method: "DELETE", path: "/chat/sessions/:id", handler: handleDeleteSession },
     { method: "POST", path: "/chat/sessions/:id/archive", handler: handleArchiveSession },
+    { method: "GET", path: "/memory/session-search", handler: handleSessionSearch },
+    { method: "GET", path: "/chat/sessions/:id/lineage", handler: handleSessionLineage },
     // OpenAI 兼容端点
     { method: "POST", path: "/v1/chat/completions", handler: handleOpenAIChatCompletions },
     // Pipeline SSE
