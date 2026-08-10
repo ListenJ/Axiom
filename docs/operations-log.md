@@ -4037,4 +4037,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
   - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
 - Verification: ContextAssembler / AdaptiveCompaction / ContextCacheDiscipline / TokenBudget related tests 17/17 pass; `bun run lint` clean.
-- Commit: PENDING
+- Commit: 59b12e1
