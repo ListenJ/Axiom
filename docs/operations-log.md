@@ -4093,3 +4093,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Verification: frontend vitest 43 文件 284/284 通过（含新增回归）；bunx tsc --noEmit 干净；vite build 成功；沙箱浏览器通道被环境锁定，真实渲染验证改为测试+类型+构建+静态核验。
 - Commit: afd484e
 
+
+## 2026-08-11 - 自我进化 Agent（OpenRSI/RISE 调研 + 简约落地）
+
+- Task: 调研清华系 OpenRSI（Frontis.AI × 清华，arXiv 2607.28568）与 RISE（arXiv 2407.18219）自我递归进化思想，沉淀知识文件；以"提示词级算子 + 确定性评估"落地测试时自我进化模块（无训练、无额外基础设施）。
+- Tools: web 调研 / bun test / bunx tsc --noEmit / git / PowerShell。
+- Files:
+  - 新增 docs/self-evolving-agent-openrsi-2026-08-11.md（来源、关键结论、三需求对照、算子映射、远期增强边界）
+  - 新增 src/self-evolve/types.ts、src/self-evolve/engine.ts（SelfEvolveEngine：selfThink / selfImprove / selfInduce / estimateConfidence，Draft/Improve/Debug/Crossover 提示词级算子 + 教训写回知识库）、src/self-evolve/index.ts（默认工厂：router + vault，无硬编码模型/密钥）
+  - 新增 tests/self-evolve/self-evolve.test.ts（10 用例：结构化思考/降级兜底/证据排序/置信度单调与封顶/Improve 写教训/Debug 不写教训/Crossover 教训注入/归纳阈值）
+- Verification: `bun test tests/self-evolve/self-evolve.test.ts tests/module-exports.test.ts tests/architecture-integrity.test.ts` 37/37 通过；`bunx tsc --noEmit` 干净；`bun -e` 冒烟验证默认工厂可实例化。
+- Commit: 3e5eaf7
