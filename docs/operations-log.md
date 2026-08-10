@@ -4067,4 +4067,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `src/components/recoverable-output.ts`.
   - Added `docs/ENGINEERING-REVIEW-2026-08-11.md`.
 - Verification: `bun run lint` clean; architecture + perf gate 34/34 pass; RecoverableToolOutput + external MCP + architecture 29/29 pass; CodeGraph search verified.
-- Commit: PENDING
+- Commit: 46a0461
