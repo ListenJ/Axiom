@@ -4054,4 +4054,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `frontend/src/lib/api.ts`.
   - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
 - Verification: Session Lineage / Session Store / Chat Sessions / Routes related tests 13/13 pass; root and frontend `bun run lint` clean.
-- Commit: PENDING
+- Commit: baf2579
