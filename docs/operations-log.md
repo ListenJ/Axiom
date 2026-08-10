@@ -3985,4 +3985,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `frontend/src/lib/api.ts`.
   - Modified `tests/chat-sessions.test.ts`.
 - Verification: `bun test tests/chat-sessions.test.ts` 6/6 pass; root `bun run lint` clean; frontend `bun run lint` clean; Gitea/internal/internal211 branch heads all at fc8d8ea; MetricAtom master aligned to origin/master 69796c2 with backup branch backup/local-old-master.
-- Commit: PENDING
+- Commit: 42072b8
