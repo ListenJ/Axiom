@@ -26,7 +26,7 @@ export function RouterPanel() {
       const hVal = h.status === 'fulfilled' ? h.value : null
       const tVal = t.status === 'fulfilled' ? t.value : null
       const merged: RouterStatus = {
-        status: sVal?.status ?? hVal?.status ?? 'ok',
+        status: sVal?.status ?? hVal?.status ?? '未知',
         models: sVal?.models,
         healthy: hVal?.healthy,
         tokens: tVal?.tokens,

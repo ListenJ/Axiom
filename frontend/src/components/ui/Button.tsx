@@ -26,9 +26,9 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   outline:
     'border border-[var(--border-hover)] text-[var(--text)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-strong)]',
   danger:
-    'bg-[var(--danger-soft)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white',
+    'bg-[var(--danger-soft)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-[var(--on-accent)]',
   success:
-    'bg-[var(--success-soft)] text-[var(--success)] hover:bg-[var(--success)] hover:text-white',
+    'bg-[var(--success-soft)] text-[var(--success)] hover:bg-[var(--success)] hover:text-[var(--on-accent)]',
 }
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {

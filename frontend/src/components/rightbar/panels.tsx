@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   Activity,
@@ -733,7 +733,7 @@ export function MiniChatPanel() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const toast = useApp((s) => s.toast)
-  const nextIdRef = { current: 1 }
+  const nextIdRef = useRef(1)
 
   const send = async (e: FormEvent) => {
     e.preventDefault()

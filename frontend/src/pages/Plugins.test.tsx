@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   enable: vi.fn(),
   disable: vi.fn(),
   config: vi.fn(),
+  marketplaceList: vi.fn(),
+  marketplaceInstallSkill: vi.fn(),
+  marketplaceInstallMcp: vi.fn(),
 }))
 
 vi.mock('@/lib/api', async () => {
@@ -30,6 +33,11 @@ vi.mock('@/lib/api', async () => {
         enable: mocks.enable,
         disable: mocks.disable,
         config: mocks.config,
+      },
+      marketplace: {
+        list: mocks.marketplaceList,
+        installSkill: mocks.marketplaceInstallSkill,
+        installMcp: mocks.marketplaceInstallMcp,
       },
     },
   }
@@ -57,6 +65,7 @@ describe('Plugins page integration', () => {
     mocks.activeTools.mockResolvedValue([
       { name: 'alpha-tool', description: 'Alpha tool', pluginId: 'plugin-1' },
     ])
+    mocks.marketplaceList.mockResolvedValue({ skills: [], mcpServers: [], registries: [] })
   })
 
   afterEach(() => {
@@ -74,6 +83,13 @@ describe('Plugins page integration', () => {
   }
 
   it('renders installed plugins tab by default', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Alpha Plugin')).toBeInTheDocument())
+    expect(screen.getByText('已启用')).toBeInTheDocument()
+  })
+
+  it('does not crash when marketplace returns a non-object (backend down)', async () => {
+    mocks.marketplaceList.mockResolvedValue('<html>spa fallback index</html>')
     renderPage()
     await waitFor(() => expect(screen.getByText('Alpha Plugin')).toBeInTheDocument())
     expect(screen.getByText('已启用')).toBeInTheDocument()

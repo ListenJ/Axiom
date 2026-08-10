@@ -4080,3 +4080,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/ENGINEERING-REVIEW-2026-08-11.md`.
 - Verification: `bun run lint` clean; architecture + tools tests 30/30 pass; `: any` count reduced from 4 to 2.
 - Commit: 4b07be6
+
+
+## 2026-08-11 03:50 +0800 - 前端审美修复 Phase 1（协议研究 + 文档沉淀 + 前端 P0 批）
+
+- Task: 拉取各大 AI 供应商文档梳理协议兼容覆盖（结论：OpenAI 兼容 REST + MCP = 最大覆盖）；沉淀审计/协议/spec/plan/skill 四类文档；修复前端 P0 批（默认主题、Plugins 崩溃、Button 语义色、BottomNav 定位、迷你聊天 key、Router/Code 状态真实性）。
+- Tools: 子代理 Darwin/Curie/Locke/Laplace/Erdos/Harvey；SenseNova 6.7 Flash-Lite（40 页视觉审核）；sensenova-u1-fast（3 张原型图）；vitest / tsc / vite build；PowerShell。
+- Files:
+  - 新增 docs/AUDIT-2026-08-11.md、docs/PROTOCOL-COMPATIBILITY-2026-08-11.md、docs/superpowers/specs/2026-08-11-frontend-aesthetic-repair.md、docs/plans/2026-08-11-frontend-aesthetic-repair.md、skills/axiom-frontend-ui-repair/SKILL.md
+  - 修改 frontend/src/state/useApp.ts（默认 dark + 导出 readInitialTheme）、frontend/index.html（首帧主题预置脚本）、frontend/src/pages/Plugins.tsx（marketplace 形状守卫 + badge 防御）、frontend/src/components/ui/Button.tsx（danger/success hover 用 on-accent）、frontend/src/components/layout/BottomNav.tsx（relative 定位）、frontend/src/components/rightbar/panels.tsx（useRef nextId）、frontend/src/pages/Router.tsx（全挂显示未知）、frontend/src/pages/Code.tsx（状态卡按状态映射 accent）
+  - 修改测试 frontend/src/state/useApp.test.ts、frontend/src/pages/Plugins.test.tsx（新增回归用例）
+- Verification: frontend vitest 43 文件 284/284 通过（含新增回归）；bunx tsc --noEmit 干净；vite build 成功；沙箱浏览器通道被环境锁定，真实渲染验证改为测试+类型+构建+静态核验。
+- Commit: PENDING
+

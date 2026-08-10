@@ -54,11 +54,11 @@ const CANVAS_TONE_KEY = 'axiom:canvas-tone'
 const TERMINAL_OVERLAY_KEY = 'axiom:terminal-overlay'
 const PANEL_OPACITY_KEY = 'axiom:panel-opacity'
 
-function readInitialTheme(): Theme {
-  if (typeof localStorage === 'undefined') return 'system'
+export function readInitialTheme(): Theme {
+  if (typeof localStorage === 'undefined') return 'dark'
   const stored = localStorage.getItem(THEME_KEY)
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
-  return 'system'
+  return 'dark'
 }
 
 /** 当前实际生效的主题（system 时按系统偏好解析）。 */

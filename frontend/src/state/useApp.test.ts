@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { useApp } from './useApp'
+import { useApp, readInitialTheme } from './useApp'
 
 describe('useApp store', () => {
   beforeEach(() => {
@@ -18,6 +18,15 @@ describe('useApp store', () => {
   describe('theme', () => {
     it('defaults to dark when no localStorage entry', () => {
       expect(useApp.getState().theme).toBe('dark')
+    })
+
+    it('readInitialTheme returns dark when nothing stored and keeps explicit light', () => {
+      localStorage.removeItem('axiom:theme')
+      expect(readInitialTheme()).toBe('dark')
+      localStorage.setItem('axiom:theme', 'light')
+      expect(readInitialTheme()).toBe('light')
+      localStorage.setItem('axiom:theme', 'system')
+      expect(readInitialTheme()).toBe('system')
     })
 
     it('setTheme updates state and persists to localStorage', () => {

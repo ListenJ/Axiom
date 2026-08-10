@@ -51,7 +51,7 @@ export default function Plugins() {
     { id: 'installed' as const, label: '已安装', icon: <Puzzle className="size-3.5" />, badge: installed.length },
     { id: 'available' as const, label: '可用插件', icon: <Download className="size-3.5" />, badge: available.length },
     { id: 'tools' as const, label: '活跃工具', icon: <Settings className="size-3.5" />, badge: activeTools.length },
-    { id: 'marketplace' as const, label: '广场', icon: <Globe className="size-3.5" />, badge: marketplace.skills.length + marketplace.mcpServers.length },
+    { id: 'marketplace' as const, label: '广场', icon: <Globe className="size-3.5" />, badge: (marketplace.skills?.length ?? 0) + (marketplace.mcpServers?.length ?? 0) },
   ]
 
   useEffect(() => {
@@ -64,7 +64,14 @@ export default function Plugins() {
       setInstalled(i.status === 'fulfilled' ? i.value : [])
       setAvailable(a.status === 'fulfilled' ? a.value : [])
       setActiveTools(t.status === 'fulfilled' ? t.value : [])
-      if (m.status === 'fulfilled') setMarketplace(m.value)
+      if (m.status === 'fulfilled' && m.value && typeof m.value === 'object' && !Array.isArray(m.value)) {
+        const mv = m.value as Record<string, unknown>
+        setMarketplace({
+          skills: Array.isArray(mv.skills) ? (mv.skills as typeof marketplace.skills) : [],
+          mcpServers: Array.isArray(mv.mcpServers) ? (mv.mcpServers as typeof marketplace.mcpServers) : [],
+          registries: Array.isArray(mv.registries) ? (mv.registries as typeof marketplace.registries) : [],
+        })
+      }
       setMarketLoading(false)
       const failed = [i, a, t].find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined
       if (failed) setError(String(failed.reason?.message ?? failed.reason))

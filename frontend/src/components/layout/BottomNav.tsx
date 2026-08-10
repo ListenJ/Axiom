@@ -15,7 +15,7 @@ export default function BottomNav() {
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `press group flex min-w-[4.5rem] flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
+              `press group relative flex min-w-[4.5rem] flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
                 isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] active:text-[var(--accent)]'
               }`
             }

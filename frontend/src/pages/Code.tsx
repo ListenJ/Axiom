@@ -24,6 +24,14 @@ import { endpoints } from '@/lib/api'
 
 type CodeTab = 'search' | 'graph'
 
+function statusAccent(status?: string): 'success' | 'warning' | 'danger' | 'default' {
+  const s = status?.toLowerCase() ?? ''
+  if (s === 'ok' || s === 'ready' || s === 'healthy' || s === 'active') return 'success'
+  if (s === 'error' || s === 'failed' || s === 'unavailable') return 'danger'
+  if (s === 'building' || s === 'indexing' || s === 'unknown') return 'warning'
+  return 'default'
+}
+
 export default function Code() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: CodeTab = searchParams.get('tab') === 'graph' ? 'graph' : 'search'
@@ -111,7 +119,7 @@ function SearchTab() {
 
       <section className="stagger grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading && !status}>
         <StatCard label="已索引文件" value={status?.indexed ?? '—'} icon={<FileCode className="size-4" />} accent="default" loading={loading && !status} />
-        <StatCard label="状态" value={status?.status ?? '未知'} icon={<Code2 className="size-4" />} accent="success" loading={loading && !status} />
+        <StatCard label="状态" value={status?.status ?? '未知'} icon={<Code2 className="size-4" />} accent={statusAccent(status?.status)} loading={loading && !status} />
         <StatCard label="最近构建" value={status?.last_build ?? '—'} icon={<RefreshCw className="size-4" />} accent="info" loading={loading && !status} />
       </section>
 
