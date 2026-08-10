@@ -1,4 +1,4 @@
-# 操作日志（Operations Log）
+﻿# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -4091,5 +4091,5 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/state/useApp.ts（默认 dark + 导出 readInitialTheme）、frontend/index.html（首帧主题预置脚本）、frontend/src/pages/Plugins.tsx（marketplace 形状守卫 + badge 防御）、frontend/src/components/ui/Button.tsx（danger/success hover 用 on-accent）、frontend/src/components/layout/BottomNav.tsx（relative 定位）、frontend/src/components/rightbar/panels.tsx（useRef nextId）、frontend/src/pages/Router.tsx（全挂显示未知）、frontend/src/pages/Code.tsx（状态卡按状态映射 accent）
   - 修改测试 frontend/src/state/useApp.test.ts、frontend/src/pages/Plugins.test.tsx（新增回归用例）
 - Verification: frontend vitest 43 文件 284/284 通过（含新增回归）；bunx tsc --noEmit 干净；vite build 成功；沙箱浏览器通道被环境锁定，真实渲染验证改为测试+类型+构建+静态核验。
-- Commit: PENDING
+- Commit: afd484e
 
