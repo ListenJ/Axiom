@@ -3997,4 +3997,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `tests/components/context-cache-discipline.test.ts`.
   - Modified `scripts/cache-baseline.ts`.
 - Verification: `bun test tests/components/context-cache-discipline.test.ts` 2/2 pass; root `bun run lint` clean; cache baseline reports stablePrefix 1260 bytes / 301 tokens / sha256 797af44b.
-- Commit: PENDING
+- Commit: be43c03
