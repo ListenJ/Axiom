@@ -9,6 +9,7 @@
  * 修复 executeWithModeGuard/checkToolPermission 无调用方的死代码问题。
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 
 /** 工具可见性：internal 仅内部 Agent，external 可被外部 MCP 使用 */
 export type ToolExposure = "internal" | "external" | "safe-external";
@@ -41,16 +42,7 @@ async function defaultToolGuard(toolName: string, args: Record<string, unknown>)
 }
 
 /** Tool definition */
-export interface ToolDef {
-  name: string;
-  description: string;
-  /** Zod schema or plain object schema */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  inputSchema: any;
-  /** Handler that produces raw result */
-  handler: ToolHandler;
-  /** Output format for stdio transport */
-  format?: "json" | "text";
+export interface ToolDef extends ToolSurfaceLike {
   /** 工具分组标签 (用于懒加载) */
   tags?: string[];
   /** 工具可见性标签；缺省为 internal */
@@ -90,7 +82,7 @@ export class ToolRegistry {
         tool.name,
         {
           description: tool.description,
-          inputSchema: tool.inputSchema,
+          inputSchema: tool.inputSchema as any,
         },
         async (args: Record<string, unknown>) => {
           try {

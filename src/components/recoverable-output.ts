@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { estimateTokens } from "../context/token-estimator.js";
-import type { ToolDef } from "../mcp/tool-registry.js";
+import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 
 export interface RecoverableOutputMeta {
   tool: string;
@@ -109,10 +109,10 @@ export interface RecoverableOutputPlaceholder {
 }
 
 export function wrapWithRecoverableOutput(
-  tool: ToolDef,
+  tool: ToolSurfaceLike,
   store: RecoverableOutputStore,
   thresholdBytes: number,
-): ToolDef {
+): ToolSurfaceLike {
   if (tool.name === "read_tool_result" || tool.name === "recoverable_output_stats") {
     return tool;
   }

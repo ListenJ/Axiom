@@ -4055,3 +4055,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
 - Verification: Session Lineage / Session Store / Chat Sessions / Routes related tests 13/13 pass; root and frontend `bun run lint` clean.
 - Commit: baf2579
+
+
+## 2026-08-11 00:07 +0800 - Engineering Review and Architecture Fix
+
+- Task: Use superpowers/code-review/performance/architecture skills and CodeGraph to audit codebase; fix components<->mcp circular dependency; document capability map and engineering metrics.
+- Tools: code-review / performance / architecture / CodeGraph / bun / tsc / git.
+- Files:
+  - Added `src/utils/tool-surface.ts`.
+  - Modified `src/mcp/tool-registry.ts`.
+  - Modified `src/components/recoverable-output.ts`.
+  - Added `docs/ENGINEERING-REVIEW-2026-08-11.md`.
+- Verification: `bun run lint` clean; architecture + perf gate 34/34 pass; RecoverableToolOutput + external MCP + architecture 29/29 pass; CodeGraph search verified.
+- Commit: PENDING
