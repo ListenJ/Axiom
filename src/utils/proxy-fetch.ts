@@ -774,9 +774,9 @@ export async function proxyFetch(
 /**
  * 便捷方法: 发送 JSON 请求
  */
-export async function proxyFetchJson<T = any>(
+export async function proxyFetchJson<T = unknown>(
   url: string | URL,
-  opts: ProxyFetchOptions & { body?: any } = {},
+  opts: ProxyFetchOptions & { body?: unknown } = {},
 ): Promise<T> {
   const headers = { ...opts.headers };
   let body: string | undefined;

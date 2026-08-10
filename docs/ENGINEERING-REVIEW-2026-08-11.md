@@ -22,7 +22,7 @@
 - 源码规模：`347` 个 `src/**/*.ts`，`151` 个测试文件，约 `85,624` 行源码。
 - 大型文件 Top 5：`cli.ts` 1232、`project-analyzer.ts` 1039、`models/registry.ts` 982、`arena-collector.ts` 913、`model-router.ts` 868。
 - 类型纪律：
-  - `: any` 注解：4 处（低于 90 上限）
+  - `: any` 注解：2 处（低于 90 上限）
   - `as any`：3 处（低于 25 上限）
   - `@ts-ignore / @ts-expect-error`：1 处（等于上限）
 - 运行纪律：

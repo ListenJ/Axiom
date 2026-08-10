@@ -4068,3 +4068,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Added `docs/ENGINEERING-REVIEW-2026-08-11.md`.
 - Verification: `bun run lint` clean; architecture + perf gate 34/34 pass; RecoverableToolOutput + external MCP + architecture 29/29 pass; CodeGraph search verified.
 - Commit: 46a0461
+
+
+## 2026-08-11 00:58 +0800 - Type Discipline Optimization
+
+- Task: Narrow remaining any usages in proxyFetchJson and ToolContext.cache to unknown; update engineering review metrics.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/utils/proxy-fetch.ts`.
+  - Modified `src/tools/types.ts`.
+  - Modified `docs/ENGINEERING-REVIEW-2026-08-11.md`.
+- Verification: `bun run lint` clean; architecture + tools tests 30/30 pass; `: any` count reduced from 4 to 2.
+- Commit: PENDING
