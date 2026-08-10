@@ -7,6 +7,7 @@ import type {
   TokenBudgetContract,
   TokenBudgetReport,
 } from "./contracts.js";
+import { planAdaptiveCompaction } from "./adaptive-compaction.js";
 import { tokenBudget as defaultTokenBudget } from "./token-budget.js";
 
 export interface ContextAssemblyRequest {
@@ -73,13 +74,38 @@ export class ContextAssembler
       Math.max(256, Math.floor(Number(rawBudget) || 128_000)),
     );
     try {
+      const plan = planAdaptiveCompaction(
+        request.messages.map((m) => ({ ...m })),
+        {
+          maxContextTokens: safeBudget,
+          headTokens: Math.min(2000, safeBudget),
+          tailMessages: 6,
+        },
+      );
+      const messagesForCompress =
+        plan.level === "none"
+          ? request.messages
+          : plan.active as ComponentMessage[];
       const compressed = await this.tokenBudget.compress(
-        request.messages,
+        messagesForCompress,
         safeBudget,
       );
+      const report =
+        plan.level !== "none" && plan.archivedTokens > 0
+          ? {
+              ...compressed,
+              mode: "compress" as const,
+              originalTokens: plan.originalTokens,
+              compressedTokens: compressed.compressedTokens,
+              rate: plan.originalTokens > 0
+                ? compressed.compressedTokens / plan.originalTokens
+                : 0,
+              dropped: (compressed.dropped ?? 0) + plan.archived.length,
+            }
+          : compressed;
       return {
         messages: compressed.messages,
-        tokenBudgetReport: compressed,
+        tokenBudgetReport: report,
       };
     } catch {
       return {

@@ -104,7 +104,7 @@ Axiom Runtime (existing)
 3. [x] server.json + SKILL.md 模板 + 安装命令。
 4. [x] ContextCacheDiscipline 与命中率采集。
 5. [x] RecoverableToolOutput。
-6. [~] AdaptiveCompaction 双阈值（模块与测试已落地，待运行时接入）。
+6. [x] AdaptiveCompaction 双阈值（模块已接入 ContextAssembler）。
 7. [ ] A2A Agent Card（可选）。
 
 ## 8. 风险

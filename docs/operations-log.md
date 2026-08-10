@@ -4025,3 +4025,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
 - Verification: `bun test tests/mcp/tool-registry-external.test.ts tests/mcp/external-mcp-stdio.test.ts tests/components/adaptive-compaction.test.ts` 14/14 pass; `bun run lint` clean.
 - Commit: c90f179
+
+
+## 2026-08-10 22:04 +0800 - AdaptiveCompaction Runtime Integration
+
+- Task: Wire AdaptiveCompaction into ContextAssembler so real context assembly applies 50%/85% dual-threshold compaction before token budget compression.
+- Tools: bun / tsc / git.
+- Files:
+  - Modified `src/components/context-assembler.ts`.
+  - Modified `tests/components/context-assembler.test.ts`.
+  - Modified `docs/superpowers/specs/2026-08-09-external-component-runtime.md`.
+  - Modified `docs/superpowers/specs/2026-08-09-nextgen-agent-state.md`.
+- Verification: ContextAssembler / AdaptiveCompaction / ContextCacheDiscipline / TokenBudget related tests 17/17 pass; `bun run lint` clean.
+- Commit: PENDING

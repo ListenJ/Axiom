@@ -74,4 +74,43 @@ describe("ContextAssembler", () => {
     const health = await assembler.health();
     expect(health.ready).toBe(true);
   });
+
+  it("uses adaptive compaction before token budget", async () => {
+    let received: ComponentMessage[] = [];
+    const fakeBudget: TokenBudgetContract = {
+      estimate: () => 0,
+      estimateMessages: () => 0,
+      trimMessage: (message) => message,
+      compress: async (messages) => {
+        received = messages;
+        return {
+          messages,
+          mode: "none",
+          originalTokens: 0,
+          compressedTokens: 0,
+          rate: 0,
+          itemCount: messages.length,
+          dropped: 0,
+          truncated: 0,
+          preservedRecent: 0,
+        };
+      },
+      report: () => ({
+        originalTokens: 0,
+        compressedTokens: 0,
+        rate: 0,
+        mode: "none",
+        itemCount: 0,
+        dropped: 0,
+        truncated: 0,
+        preservedRecent: 0,
+      }),
+    };
+    const assembler = new ContextAssembler(fakeBudget);
+    const messages: ComponentMessage[] = Array.from({ length: 30 }, (_, i) => ({ role: "user", content: `m`.repeat(100) + i }));
+    const result = await assembler.assemble({ messages, role: "general-chat", budget: 50 });
+    expect(result.messages.length).toBeLessThan(messages.length);
+    expect(received.length).toBeLessThan(messages.length);
+    expect(result.tokenBudgetReport.mode).toBe("compress");
+  });
 });

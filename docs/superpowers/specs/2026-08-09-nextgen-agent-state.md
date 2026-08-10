@@ -76,7 +76,7 @@ OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
 - 切片 3：ContextCacheDiscipline 与缓存命中率采集。
 - 切片 4：RecoverableToolOutput。
 进行中：
-- 切片 5：AdaptiveCompaction（模块与测试已落地，待运行时接入）。
+- 切片 5：AdaptiveCompaction（模块与测试已落地，已接入 ContextAssembler）。
 - 切片 6：A2A Agent Card。
 
 ## 5. 下一代开发路径
