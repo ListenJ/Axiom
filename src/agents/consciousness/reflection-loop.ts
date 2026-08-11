@@ -27,6 +27,7 @@ import { getGlobalVault } from "../../memory/vault-manager.js";
 import { getGoalTracker } from "./goal-tracker.js";
 import type { ReflectionOutcome, ReflectionTrigger, MentalState, Belief } from "./types.js";
 import { getDefaultSelfEvolve } from "../../self-evolve/index.js";
+import { promoteInductionsToSkills } from "../../self-evolve/skill-promotion.js";
 import type { Induction, TaskTrace } from "../../self-evolve/types.js";
 
 const REFLECTION_TEMPERATURE = 0.3;
@@ -41,6 +42,7 @@ export class ReflectionLoop {
   constructor(
     private readonly options: {
       selfEvolve?: { selfInduce(traces?: TaskTrace[]): Induction[] };
+      promoteInductions?: (inductions: Induction[]) => string[];
     } = {},
   ) {}
 
@@ -101,6 +103,14 @@ export class ReflectionLoop {
       try {
         const inductions = this.selfEvolveForInduction().selfInduce();
         if (inductions.length > 0) {
+          const promoted = this.options.promoteInductions
+            ? this.options.promoteInductions(inductions)
+            : promoteInductionsToSkills(inductions);
+          if (promoted.length > 0) {
+            logger.info("[Consciousness/ReflectionLoop] promoted induced skills", {
+              count: promoted.length,
+            });
+          }
           const inductionPath = await this.writeInductionNote(inductions);
           curatorNotePaths.push(inductionPath);
           logger.info("[Consciousness/ReflectionLoop] induced patterns", {

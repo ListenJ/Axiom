@@ -186,6 +186,7 @@ describe("ReflectionLoop self-induce integration", () => {
 
   test("writes induction note when patterns are induced", async () => {
     let induceCalled = false;
+    let promotedPatterns: string[] | null = null;
     const fakeSelfEvolve: { selfInduce: (traces?: TaskTrace[]) => Induction[] } = {
       selfInduce: () => {
         induceCalled = true;
@@ -198,13 +199,20 @@ describe("ReflectionLoop self-induce integration", () => {
         fakeRouterResponse(REFLECT_REPLY),
       );
       try {
-        const loop = new ReflectionLoop({ selfEvolve: fakeSelfEvolve });
+        const loop = new ReflectionLoop({
+        selfEvolve: fakeSelfEvolve,
+        promoteInductions: (ind) => {
+          promotedPatterns = ind.map((i) => i.pattern);
+          return ["auto-induce-mcp"];
+        },
+      });
         const outcome = await loop.runOnce({ kind: "manual", reason: "test" });
 
         expect(induceCalled).toBe(true);
         const inductionPath = writeCalls.find((p) => p.includes("inductions"));
         expect(inductionPath).toBeDefined();
         expect(outcome.curatorNotePaths.some((p) => p.includes("inductions"))).toBe(true);
+        expect(promotedPatterns).toEqual(["mcp"]);
       } finally {
         executeSpy.mockRestore();
       }
@@ -217,10 +225,18 @@ describe("ReflectionLoop self-induce integration", () => {
         fakeRouterResponse(REFLECT_REPLY),
       );
       try {
-        const loop = new ReflectionLoop({ selfEvolve: { selfInduce: () => [] } });
+        let promoteCalls = 0;
+        const loop = new ReflectionLoop({
+          selfEvolve: { selfInduce: () => [] },
+          promoteInductions: () => {
+            promoteCalls++;
+            return [];
+          },
+        });
         const outcome = await loop.runOnce({ kind: "manual", reason: "test" });
 
         expect(writeCalls.some((p) => p.includes("inductions"))).toBe(false);
+        expect(promoteCalls).toBe(0);
         expect(writeCalls.length).toBeGreaterThanOrEqual(1);
         expect(outcome.summary).toBeTruthy();
       } finally {

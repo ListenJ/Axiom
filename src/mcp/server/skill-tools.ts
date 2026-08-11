@@ -84,4 +84,33 @@ export function registerSkillTools(registry: ToolRegistry, skillDirs: string[]):
       return { success: true, filePath: args.filePath, boilerplate };
     },
   });
+
+  registry.add({
+    name: "skill_run",
+    description:
+      "按需执行指定 skill（模型可直接调用）：给出 skillId 与模板参数，返回执行结果。skillId 可用 skill_list 查询。",
+    exposure: ["internal", "external"],
+    inputSchema: {
+      skillId: z.string().describe("目标 skill id"),
+      params: z.record(z.string()).optional().describe("模板变量（如 input）"),
+    },
+    handler: async (args) => {
+      const { getSkillRegistry } = await import("../../skills/skill-registry.js");
+      const result = await getSkillRegistry().executeById(
+        String(args.skillId),
+        (args.params as Record<string, string> | undefined) ?? {},
+      );
+      if (!result) {
+        throw new Error(`Skill not found: ${args.skillId}`);
+      }
+      return {
+        content: result.content,
+        skillId: result.skillId,
+        model: result.model,
+        provider: result.provider,
+        latencyMs: result.latencyMs,
+        toolCalls: result.toolCalls ?? [],
+      };
+    },
+  });
 }

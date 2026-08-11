@@ -481,6 +481,20 @@ export class SkillRegistry {
     return this.execute(match, context);
   }
 
+  /**
+   * 按 id 执行 skill（模型/工具按需调用入口，MCP skill_run 使用）。
+   * 返回 null 表示 skill 不存在；执行失败返回 content 含错误信息（与 execute 一致）。
+   */
+  async executeById(
+    skillId: string,
+    params: Record<string, string> = {},
+    context?: Record<string, unknown>,
+  ): Promise<SkillExecuteResult | null> {
+    const skill = this.skills.get(skillId);
+    if (!skill) return null;
+    return this.execute({ skill, score: 1, confidence: "high", params }, context);
+  }
+
   // ---------------------------------------------------------------------------
   // 管理
   // ---------------------------------------------------------------------------
