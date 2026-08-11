@@ -4212,3 +4212,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/model-output-purge.test.ts（2）；扩展 tests/self-evolve/skill-promotion.test.ts（幂等 1）
 - Verification: P1 相关回归 81/81 通过；前端 vitest 284/284 通过；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。SenseNova 复检仍指出侧边栏 10px 小字与背景光晕——因本会话无图像输入，逐组件视觉微调留待专门视觉迭代（不盲改）。
 - Commit: 47467aa
+
+## 2026-08-12 - 收敛双份 PROVIDER_CONFIG（api-key-store 为唯一事实源）
+
+- Task: 消除 router/models/providers.ts 与 utils/api-key-store.ts 双份 provider 表漂移（master-audit P0-2）。
+- Tools: bun test --parallel / bunx tsc --noEmit / bun run build / git。
+- Files:
+  - 修改 src/utils/api-key-store.ts（导出 getProviderConfig(provider) → {baseURL, apiKeyEnv}）
+  - 重写 src/router/models/providers.ts（静态表 → 启动时从 api-key-store 派生的薄兼容层；ALL_MODEL_PROVIDERS 保持静态 ModelProvider 集合；缺失条目启动即抛错防漂移）
+  - 修改 src/router/dynamic-model-assigner.ts（移除未使用的 PROVIDER_CONFIG import）
+  - 新增 tests/utils/provider-config-convergence.test.ts（3：全 provider 一致性 / listConfiguredProviders / isProviderConfigured）
+- Verification: 收敛护栏 3/3 通过；相关回归 66/66 通过（含架构完整性）；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。行为等价：getEffectiveBaseURL 仍支持 *_BASE_URL env（如 MINIMAX_BASE_URL）。
+- Commit: d49980f
