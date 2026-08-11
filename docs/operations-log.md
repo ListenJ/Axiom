@@ -4224,3 +4224,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/utils/provider-config-convergence.test.ts（3：全 provider 一致性 / listConfiguredProviders / isProviderConfigured）
 - Verification: 收敛护栏 3/3 通过；相关回归 66/66 通过（含架构完整性）；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。行为等价：getEffectiveBaseURL 仍支持 *_BASE_URL env（如 MINIMAX_BASE_URL）。
 - Commit: d49980f
+
+## 2026-08-12 - SenseNova 6.8 视觉审批通道 + 侧边栏可读性视觉迭代（4 轮闭环）
+
+- Task: 用户要求直接用 curl 验证 sensenova-6.8-flash-lite 视觉模型审批；打通后对前端截图做"改→截图→审批"循环，收敛侧边栏可读性 P0。
+- Tools: curl.exe（--data @file 解决 Windows 引号问题）/ Chrome Headless CLI 截图 / sensenova-6.8-flash-lite（4 轮视觉审批）/ vitest / tsc / build / git。
+- Files:
+  - 修改 frontend/src/components/layout/Sidebar.tsx（新对话按钮：纯白实心 → 暗色 outline；空态文字 muted→secondary；git 错误行提亮）
+  - 修改 frontend/tailwind.config.js（text-2xs 10px→11px，小字可读性）
+  - 修改 frontend/src/styles/index.css（dark --text-muted #9c9c9c→#a6a6a6）
+- Verification: 4 轮审批轨迹：round1 按钮 too-bright + 侧边栏不可读 → round2 按钮 balanced、侧边栏 no → round3 11px 后 partial → round4 模型确认"侧边栏文字清晰可读"，剩余 partial 为运行时数据空态（截图环境后端未连接）而非样式。前端 vitest 284/284；bunx tsc --noEmit 干净；bun run build（528 模块）成功。key 仅存内存/env，未落盘。
+- Commit: 0a1a51f
