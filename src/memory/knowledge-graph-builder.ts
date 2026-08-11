@@ -415,14 +415,14 @@ async function generateEntityEmbeddings(pg: PgClient, result: KGBuildResult): Pr
         const text = `${entity.name}: ${(entity.description as string | undefined) || ""}`;
         if (text.length < 5) continue;
 
-        const res = await proxyFetch("https://api.siliconflow.cn/v1/embeddings", {
+        const res = await proxyFetch(readString("EMBEDDINGS_BASE_URL", "https://api.siliconflow.cn/v1/embeddings"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: "BAAI/bge-m3",
+            model: readString("EMBEDDINGS_MODEL", "BAAI/bge-m3"),
             input: text.slice(0, 2000),
           }),
           timeout: 10000,

@@ -31,19 +31,20 @@ export async function callProvider(
   timeoutMs: number,
   temperature = 0.7,
   reasoningEffort?: string,
-  tools?: ToolCallDef[]
+  tools?: ToolCallDef[],
+  override?: { baseURL?: string; apiKey?: string }
 ): Promise<{
   content: string | null;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   toolCalls?: ToolCall[];
 }> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) throw new Error(`Unknown provider: ${provider}`);
+  if (!config && !override?.apiKey) throw new Error(`Unknown provider: ${provider}`);
 
-  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
-  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
+  const apiKey = override?.apiKey ?? (config ? getEffectiveApiKey(provider, config.apiKeyEnv) : undefined);
+  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config?.apiKeyEnv ?? "override"}`);
 
-  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
+  const baseURL = override?.baseURL ?? getEffectiveBaseURL(provider, config?.apiKeyEnv ?? "", config?.baseURL ?? "");
 
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error("messages must be a non-empty array");
@@ -116,15 +117,16 @@ export async function callProviderNativeStream(
   onChunk: StreamChunkCallback,
   signal?: AbortSignal,
   reasoningEffort?: string,
-  tools?: ToolCallDef[]
+  tools?: ToolCallDef[],
+  override?: { baseURL?: string; apiKey?: string }
 ): Promise<NativeStreamResult> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) throw new Error(`Unknown provider: ${provider}`);
+  if (!config && !override?.apiKey) throw new Error(`Unknown provider: ${provider}`);
 
-  const apiKey = getEffectiveApiKey(provider, config.apiKeyEnv);
-  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config.apiKeyEnv}`);
+  const apiKey = override?.apiKey ?? (config ? getEffectiveApiKey(provider, config.apiKeyEnv) : undefined);
+  if (!apiKey) throw new Error(`Missing API key for ${provider}: ${config?.apiKeyEnv ?? "override"}`);
 
-  const baseURL = getEffectiveBaseURL(provider, config.apiKeyEnv, config.baseURL);
+  const baseURL = override?.baseURL ?? getEffectiveBaseURL(provider, config?.apiKeyEnv ?? "", config?.baseURL ?? "");
 
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error("messages must be a non-empty array");

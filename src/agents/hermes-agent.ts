@@ -230,7 +230,7 @@ export async function codeReview(
     return {
       success: false,
       review: "SILICONFLOW_API_KEY 未设置，无法使用 GLM-5.1 进行代码审查。",
-      model: "THUDM/GLM-5.1",
+      model: readString("REVIEW_MODEL", "THUDM/GLM-5.1"),
     };
   }
 

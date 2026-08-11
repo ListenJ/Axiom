@@ -24,6 +24,7 @@ import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { isPrivacyMode } from "./prompt-optimizer.js";
 import type { LLMClient } from "../dre/llm/client.js";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import type { IntentResult } from "./intent-router.js";
 
 // ─────────────────────────────────────────────────────────
@@ -40,8 +41,8 @@ const ENHANCE_TIMEOUT_MS = 5000;
 const MAX_INPUT_CHARS = 4000;
 
 /** GLM4.7-flash 模型配置（zhipu 官方免费 API） */
-const GLM_FLASH_MODEL = "glm-4.7-flash";
-const GLM_FLASH_PROVIDER = "zhipu";
+const GLM_FLASH_MODEL = readString("GLM_FLASH_MODEL", "glm-4.7-flash");
+const GLM_FLASH_PROVIDER = readString("GLM_FLASH_PROVIDER", "zhipu");
 
 /** 合法意图集合（与 intent-router.ts CATEGORY_INTENTS 一致） */
 const VALID_INTENTS = new Set(["code", "research", "knowledge", "write", "plan", "chat"]);

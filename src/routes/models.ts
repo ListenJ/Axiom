@@ -4,6 +4,7 @@ import { readString } from "../utils/env.js";
 import { requireAuthToken } from "./route-auth.js";
 import { encryptSecret, decryptSecret, isEncryptedSecret } from "../utils/api-key-persistence.js";
 import { logger } from "../utils/logger.js";
+import { loadUserModels } from "../router/user-config-loader.js";
 
 const CONFIG_PATH = "./data/model-config.json";
 
@@ -23,6 +24,8 @@ interface ModelEntry {
   tier?: string;
   purpose?: string;
   freeOnly?: boolean;
+  /** 可选：该模型可服务的 TaskRole（缺省 general-chat） */
+  roles?: string[];
   enabled: boolean;
 }
 
@@ -121,10 +124,12 @@ export async function handleAddModel(ctx: RouteContext): Promise<Response | null
       tier: body.tier ? String(body.tier) : undefined,
       purpose: body.purpose ? String(body.purpose) : undefined,
       freeOnly: !!body.freeOnly,
+      roles: Array.isArray(body.roles) ? body.roles.map(String) : undefined,
       enabled: body.enabled !== false,
     };
     config.models.push(entry);
     writeConfig(config);
+    loadUserModels();
     return ctx.jsonResponse({ success: true, model: maskEntry(entry) }, 200, ctx.baseHeaders);
   } catch (e) {
     return ctx.jsonResponse({ error: String(e) }, 400, ctx.baseHeaders);
@@ -145,6 +150,7 @@ export async function handleDeleteModel(ctx: RouteContext): Promise<Response | n
   }
   config.models.splice(idx, 1);
   writeConfig(config);
+  loadUserModels();
   return ctx.jsonResponse({ success: true, message: `模型 ${modelId} 已删除` }, 200, ctx.baseHeaders);
 }
 

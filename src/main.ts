@@ -73,6 +73,7 @@ if (nativeEnabled) {
 // ════════════════════════════════════════════════════════════════
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
 import { getHttpRouter } from "./core/http-router.js";
+import { loadUserModels } from "./router/user-config-loader.js";
 import { getGlobalBlackboard } from "./memory/blackboard.js";
 import { getReadOptimizer } from "./utils/read-optimizer.js";
 import { initializeReadOptimizers } from "./utils/read-optimizer-init.js";
@@ -102,6 +103,16 @@ import { MathEnhancedMemory } from "./memory/math-enhanced-memory.js";
 
 // ===== 统一配置中心 =====
 const configCenter = getConfigCenter();
+try {
+  const userModels = loadUserModels();
+  logger.info("[UserConfigLoader] Startup load complete", {
+    registered: userModels.registered,
+    skipped: userModels.skipped,
+    errors: userModels.errors.length,
+  });
+} catch (e) {
+  logger.warn("[UserConfigLoader] Startup load failed", { error: (e as Error).message });
+}
 logger.info("[ConfigCenter] Initialized", { keys: configCenter.getAll().length });
 
 // ===== 架构自检 =====

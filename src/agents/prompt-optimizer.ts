@@ -42,8 +42,8 @@ const GLM_TIMEOUT_MS = 15_000;
 
 /** GLM 免费链：zhipu 直连优先，siliconflow 免费版兜底（2026-07-26 实测修正：siliconflow 无 4.7-Flash，用 THUDM/GLM-4-9B） */
 const GLM_CHAIN: Array<{ provider: string; model: string }> = [
-  { provider: "zhipu", model: "glm-4.7-flash" },
-  { provider: "siliconflow", model: "THUDM/GLM-4-9B-0414" },
+  { provider: readString("PROMPT_OPTIMIZER_PROVIDER", "zhipu"), model: readString("PROMPT_OPTIMIZER_MODEL", "glm-4.7-flash") },
+  { provider: readString("PROMPT_OPTIMIZER_FALLBACK_PROVIDER", "siliconflow"), model: readString("PROMPT_OPTIMIZER_FALLBACK_MODEL", "THUDM/GLM-4-9B-0414") },
 ];
 
 /** 可注入依赖（测试用 fake；生产为 GLM 链 + promptEngineer） */

@@ -11,7 +11,7 @@
  */
 import { readString } from "../utils/env.js";
 
-const DEFAULT_EMBED_BASE = "http://192.168.0.150:9001";
+const DEFAULT_EMBED_BASE = "http://127.0.0.1:9001";
 const DEFAULT_EMBED_MODEL = "BAAI/bge-m3";
 const TIMEOUT_MS = 5000;
 

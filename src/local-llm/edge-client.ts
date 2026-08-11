@@ -23,7 +23,7 @@ let instance: LLMClient | null = null;
 export function getEdgeClient(): LLMClient {
   if (!instance) {
     instance = new LLMClient({
-      baseUrl: readString("EDGE_LLM_URL", "http://192.168.0.150:9001"),
+      baseUrl: readString("EDGE_LLM_URL", "http://127.0.0.1:9001"),
       model: readString("EDGE_LLM_MODEL", "MiniCPM5-1B"),
       timeout: 8000,
       maxTokens: 512,

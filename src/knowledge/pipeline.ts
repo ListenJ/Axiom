@@ -9,7 +9,7 @@ import { preprocessKnowledge } from "./preprocessor.js"
 import { assessQuality } from "./quality-assessor.js"
 import { structureKnowledgeWithEdge } from "./edge-assist.js"
 
-const ZHIPU_API_BASE = "https://open.bigmodel.cn/api/paas/v4"
+const ZHIPU_API_BASE = readString("KNOWLEDGE_LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
 {
   "title": "文档标题",
@@ -51,7 +51,7 @@ async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | 
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "glm-4-flash",
+        model: readString("KNOWLEDGE_LLM_MODEL", "glm-4-flash"),
         messages: [
           { role: "system", content: STRUCTURE_SYSTEM_PROMPT },
           { role: "user", content: rawMarkdown.slice(0, 16_000) },

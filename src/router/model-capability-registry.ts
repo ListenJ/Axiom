@@ -27,6 +27,10 @@ export interface ModelCapability {
   timeout?: number;
   maxRetries?: number;
   isFree?: boolean;
+  /** 用户自定义 API baseURL（callProvider override 优先） */
+  baseURL?: string;
+  /** 用户自定义 API key（callProvider override 优先，不进仓库） */
+  apiKey?: string;
 }
 
 export interface AssignmentResult {
@@ -190,6 +194,13 @@ export function registerModel(capability: ModelCapability): void {
   EXTENSIONS.set(capability.id, capability);
   invalidateCache();
   logger.info(`[CapabilityRegistry] Registered model: ${capability.id} (${capability.provider})`);
+}
+
+/** 移除动态注册的模型扩展（user-config-loader 重载用）。 */
+export function unregisterModel(id: string): boolean {
+  const existed = EXTENSIONS.delete(id);
+  if (existed) invalidateCache();
+  return existed;
 }
 
 export function listAllRoles(): TaskRole[] {

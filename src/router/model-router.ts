@@ -303,7 +303,8 @@ export class MultiPlatformRouter {
             model.timeout ?? timeout,
             temperature,
             undefined,
-            tools
+            tools,
+            { baseURL: model.baseURL, apiKey: model.apiKey }
           );
           const latencyMs = Date.now() - loopStart;
           trackCall(model.model, model.provider, messages, {
@@ -520,6 +521,7 @@ export class MultiPlatformRouter {
             0.7,
             reasoningEffort,
             tools,
+            { baseURL: model.baseURL, apiKey: model.apiKey },
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
@@ -574,6 +576,7 @@ export class MultiPlatformRouter {
               undefined,
               reasoningEffort,
               tools,
+              { baseURL: model.baseURL, apiKey: model.apiKey },
             ).then(
               (result) => enqueue({ kind: "done", result }),
               (err: unknown) =>
