@@ -30,10 +30,16 @@ const REFLECTION_TEMPERATURE = 0.3;
 
 function createDefaultStore(): SelfEvolveDeps["store"] {
   const lessons = new Map<string, string>();
+  const MAX_LESSONS = 200;
   return {
     write: async (lesson: string): Promise<void> => {
       const hash = stableHash(lesson);
       lessons.set(hash, lesson);
+      // 内存索引有上限：超出时淘汰最早插入（LRU 近似），vault 持久化不受影响
+      if (lessons.size > MAX_LESSONS) {
+        const oldest = lessons.keys().next().value;
+        if (oldest !== undefined) lessons.delete(oldest);
+      }
       try {
         const { getGlobalVault } = await import("../memory/vault-manager.js");
         const date = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");

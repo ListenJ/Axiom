@@ -653,8 +653,8 @@ a:focus-visible,
   top: -24vh;
   /* 丝绢折光：窄高光线（specular）+ 宽柔光带双层叠加 */
   background:
-    linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--accent) 36%, transparent) 26%, color-mix(in srgb, var(--accent) 5%, transparent) 32%, transparent 58%),
-    linear-gradient(100deg, transparent 6%, color-mix(in srgb, var(--accent) 14%, transparent) 30%, color-mix(in srgb, var(--accent) 3%, transparent) 48%, transparent 68%);
+    linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--accent) 22%, transparent) 26%, color-mix(in srgb, var(--accent) 4%, transparent) 32%, transparent 58%),
+    linear-gradient(100deg, transparent 6%, color-mix(in srgb, var(--accent) 8%, transparent) 30%, color-mix(in srgb, var(--accent) 2%, transparent) 48%, transparent 68%);
   transform: rotate(-10deg);
   animation: light-flow-a 22s var(--ease-in-out) infinite alternate;
 }
