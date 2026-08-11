@@ -71,12 +71,12 @@ export function resolveTheme(theme: Theme): 'dark' | 'light' {
 }
 
 function readInitialAccent(): AccentId {
-  if (typeof localStorage === 'undefined') return 'mono'
+  if (typeof localStorage === 'undefined') return 'indigo'
   const stored = localStorage.getItem(ACCENT_KEY)
-  if (stored === 'mono' || stored === 'azure' || stored === 'amber' || stored === 'emerald' || stored === 'violet') {
+  if (stored === 'mono' || stored === 'indigo' || stored === 'azure' || stored === 'amber' || stored === 'emerald' || stored === 'violet') {
     return stored
   }
-  return 'mono'
+  return 'indigo'
 }
 
 function readInitialShellTone(): ShellToneId {

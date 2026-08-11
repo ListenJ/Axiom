@@ -4,7 +4,7 @@
  * 选择后通过 applyAccent 覆盖 --accent 系列 CSS 变量（useTheme 应用，localStorage 持久化）。
  */
 
-export type AccentId = 'mono' | 'azure' | 'amber' | 'emerald' | 'violet'
+export type AccentId = 'mono' | 'indigo' | 'azure' | 'amber' | 'emerald' | 'violet'
 
 export interface AccentVars {
   accent: string
@@ -32,6 +32,23 @@ export const ACCENT_PRESETS: Record<AccentId, { label: string; swatch: string; d
       accent: '#333333', accentStrong: '#4a4a4a', accentHover: '#444444', accentActive: '#1a1a1a',
       accentSoft: 'rgba(51, 51, 51, 0.08)', accentRing: 'rgba(51, 51, 51, 0.22)',
       onAccent: '#ffffff', gradient: '#333333',
+    },
+  },
+
+  indigo: {
+    label: '靛蓝',
+    swatch: '#6366f1',
+
+    dark: {
+      accent: '#6366f1', accentStrong: '#818cf8', accentHover: '#818cf8', accentActive: '#4f46e5',
+      accentSoft: 'rgba(99, 102, 241, 0.22)', accentRing: 'rgba(99, 102, 241, 0.4)',
+      onAccent: '#ffffff', gradient: '#6366f1',
+    },
+
+    light: {
+      accent: '#4f46e5', accentStrong: '#6366f1', accentHover: '#4338ca', accentActive: '#3730a3',
+      accentSoft: 'rgba(79, 70, 229, 0.12)', accentRing: 'rgba(79, 70, 229, 0.3)',
+      onAccent: '#ffffff', gradient: '#4f46e5',
     },
   },
 

@@ -18,7 +18,7 @@ export default function InlineEmptyState({
 }: InlineEmptyStateProps) {
   return (
     <div className={`flex flex-col items-center justify-center py-12 text-[var(--text-muted)] ${className}`}>
-      <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+      <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
         {icon}
       </div>
       <p className="text-sm font-medium text-[var(--text-secondary)]">{title}</p>

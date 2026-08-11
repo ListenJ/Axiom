@@ -38,15 +38,15 @@
   --text-muted: #a6a6a6;
   --text-disabled: #6e6e6e;
 
-  /* Accent — plain white (Agent console: light on dark) */
-  --accent: #ffffff;
-  --accent-strong: #f2f2f2;
-  --accent-hover: #e6e6e6;
-  --accent-active: #d4d4d4;
-  --accent-soft: rgba(255, 255, 255, 0.1);
-  --accent-ring: rgba(255, 255, 255, 0.3);
-  --on-accent: #000000;
-  --accent-gradient: var(--accent);
+  /* Accent — brand indigo/violet (SenseNova brand-color iteration) */
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
+  --accent-hover: #818cf8;
+  --accent-active: #4f46e5;
+  --accent-soft: rgba(99, 102, 241, 0.22);
+  --accent-ring: rgba(99, 102, 241, 0.4);
+  --on-accent: #ffffff;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
 
   /* Semantic */
   /* 语义色：黑白亮度阶梯（状态靠图标 + 亮度表达） */
@@ -173,14 +173,14 @@
   --text-muted: #6e6e6e;
   --text-disabled: #9c9c9c;
 
-  --accent: #333333;
-  --accent-strong: #4a4a4a;
-  --accent-hover: #444444;
-  --accent-active: #1a1a1a;
-  --accent-soft: rgba(17, 17, 17, 0.06);
-  --accent-ring: rgba(17, 17, 17, 0.2);
+  --accent: #4f46e5;
+  --accent-strong: #6366f1;
+  --accent-hover: #4338ca;
+  --accent-active: #3730a3;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent-ring: rgba(79, 70, 229, 0.3);
   --on-accent: #ffffff;
-  --accent-gradient: var(--accent);
+  --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
 
   --danger: #111111;
   --danger-soft: rgba(17, 17, 17, 0.08);

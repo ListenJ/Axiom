@@ -24,7 +24,7 @@ export default function EmptyState({
       aria-live="polite"
       className={`flex flex-col items-center justify-center text-center ${className}`}
     >
-      <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+      <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
         {icon}
       </div>
       <h3 className="text-sm font-semibold text-[var(--text)]">{title}</h3>

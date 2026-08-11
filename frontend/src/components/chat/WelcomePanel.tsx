@@ -29,7 +29,7 @@ export default function WelcomePanel({ onSuggestion }: { onSuggestion: (query: s
               onClick={() => onSuggestion(s.query)}
               className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-transparent p-5 text-left shadow-[var(--shadow-sm)] transition-[border-color,box-shadow,transform] duration-200 hover:border-[var(--accent)] hover:shadow-[var(--shadow-md)]"
             >
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] transition-transform group-hover:scale-110">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--on-accent)] shadow-[var(--shadow-sm)] transition-transform group-hover:scale-110">
                 <Icon className="size-6" />
               </div>
               <div className="min-w-0 flex-1">
