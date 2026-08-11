@@ -4271,3 +4271,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/reviews/2026-08-12-resource-audit.md（懒加载后实测）
 - Verification: 实测（bun 1.3.14）services 层 RSS +84.5MB → +11.8MB（-86%）；核心加载（router+services+memory+agents）最终 RSS 166MB → 85.1MB、heapTotal 32.9MB → 3.6MB、heapUsed 3.5MB——远低于 600MB 约束。功能回归 80/80（prompt-engineer/prompt-optimizer/consciousness/skills/self-evolve）；前端 vitest 284/284（零前端改动，质量保持）；bunx tsc --noEmit 干净；bun run build（528 模块）成功。备份已删除。
 - Commit: a6bd35f
+
+## 2026-08-12 - 运行时收尾：cache timer unref + blackboard 停机 hook
+
+- Task: 完成内核/后台压缩收尾：缓存清理定时器不阻塞进程退出；blackboard 纳入优雅停机；确认 llmCache 上限；skills 瘦身结论。
+- Tools: bunx tsc / bun test --parallel / bun run build / bun 进程退出验证 / git。
+- Files:
+  - 修改 src/utils/cache.ts（cleanup setInterval 加 unref——后台缓存清理不再阻止进程自然退出；验证：import 完整 services+routes+blackboard 后 ~3s 自然退出，此前挂起）
+  - 修改 src/main.ts（注册 blackboard destroy 停机 hook：清 interval + redis）
+- 结论（判断）：llmCache 已有界（maxSize 2000 + 1h TTL + L3 清理），无需改；skills/ 1.24MB agency-zh 库已懒加载，归档风险>收益，不做（记录）。
+- Verification: cache/llm-cache/model-router/redis 27/27；bunx tsc --noEmit 干净；bun run build（528 模块）成功；进程自然退出验证通过；备份已删除。
+- Commit: a4b594c
