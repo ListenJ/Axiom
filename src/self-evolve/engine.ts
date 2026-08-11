@@ -77,6 +77,10 @@ function extractJson<T>(text: string): T | null {
 }
 
 export class SelfEvolveEngine {
+  private static readonly MAX_TRACES = 500;
+  private readonly traces: TaskTrace[] = [];
+  private traceSeq = 0;
+
   constructor(private readonly deps: SelfEvolveDeps) {}
 
   /** 针对性自我思考：检索强背书资料 → LLM 结构化思考 → 确定性置信度精算。 */
@@ -152,6 +156,13 @@ export class SelfEvolveEngine {
       }
     }
 
+    this.recordTrace({
+      id: `trace-${this.traceSeq++}`,
+      task: req.task,
+      plan: revisedPlan,
+      success: req.feedback.success,
+    });
+
     return { revisedPlan, lesson, success: req.feedback.success };
   }
 
@@ -159,9 +170,10 @@ export class SelfEvolveEngine {
    * 自推理归纳：统计历史轨迹中术语共现与成功率，
    * 仅输出支持度 >= 2 且成功率 >= 0.6 的可复用模式（确定性，无 LLM）。
    */
-  selfInduce(traces: TaskTrace[], topN = 10): Induction[] {
+  selfInduce(traces?: TaskTrace[], topN = 10): Induction[] {
+    const source = traces ?? this.traces;
     const counts = new Map<string, { support: number; success: number }>();
-    for (const trace of traces) {
+    for (const trace of source) {
       const terms = new Set([
         ...tokenize(trace.task),
         ...(trace.plan ?? []).flatMap((step) => tokenize(step)),
@@ -191,6 +203,19 @@ export class SelfEvolveEngine {
     return result
       .sort((a, b) => b.successRate - a.successRate || b.support - a.support)
       .slice(0, topN);
+  }
+
+  /** 记录一条执行轨迹（供 selfInduce 归纳；selfImprove 自动调用，亦可手动喂入）。 */
+  recordTrace(trace: TaskTrace): void {
+    this.traces.push(trace);
+    if (this.traces.length > SelfEvolveEngine.MAX_TRACES) {
+      this.traces.splice(0, this.traces.length - SelfEvolveEngine.MAX_TRACES);
+    }
+  }
+
+  /** 读取已记录的执行轨迹（只读快照）。 */
+  listTraces(): TaskTrace[] {
+    return [...this.traces];
   }
 
   /**
