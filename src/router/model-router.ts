@@ -41,6 +41,7 @@ import { routerBreaker } from "../utils/circuit-breaker.js";
 export type ChatStreamEvent =
   | { type: "start"; model: string; provider: string; role: TaskRole; layer?: "decision" | "architecture" | "tool" | "evaluation" | "general"; intent?: string }
   | { type: "token"; content: string }
+  | { type: "tool"; name: string; args: string }
   | { type: "done"; content: string; usage?: ChatResponse["usage"]; model: string; provider: string; fallbackUsed: boolean }
   | { type: "error"; message: string };
 
@@ -454,7 +455,14 @@ export class MultiPlatformRouter {
   async *chatStream(
     taskType: TaskRole | string,
     messages: ChatMessage[],
-    options?: { preferNativeStream?: boolean; intent?: string; reasoningEffort?: string }
+    options?: {
+      preferNativeStream?: boolean;
+      intent?: string;
+      reasoningEffort?: string;
+      tools?: ToolCallDef[];
+      executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+      maxToolIterations?: number;
+    }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
     const preferNative = options?.preferNativeStream !== false;
@@ -468,6 +476,14 @@ export class MultiPlatformRouter {
     }
 
     const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+
+    // 流式工具循环：tools + executeTool 存在时，模型可发起 tool_calls，
+    // 服务端执行后追加 assistant(tool_calls)+tool 消息并继续下一轮（有界）。
+    const tools = options?.tools;
+    const executeTool = options?.executeTool;
+    const maxToolIterations = options?.maxToolIterations ?? (tools?.length ? 4 : 1);
+    const working: ChatMessage[] = [...messages];
+    let toolRounds = 0;
 
     // 流事件先一次性给出 routing metadata，让前端可在首字节前就显示 provider 信息
     const firstModel = sortedModels[0]!;
@@ -483,6 +499,7 @@ export class MultiPlatformRouter {
     const startTime = Date.now();
     let lastError: Error | undefined;
 
+    toolLoop: while (toolRounds < maxToolIterations) {
     for (const model of sortedModels) {
       const breakerKey = `${model.provider}/${model.model}`;
       if (!routerBreaker.allow(breakerKey)) {
@@ -498,14 +515,15 @@ export class MultiPlatformRouter {
           const response = await callProvider(
             model.provider,
             model.model,
-            messages,
+            working,
             model.timeout ?? TIMEOUTS.API_DEFAULT,
             0.7,
             reasoningEffort,
+            tools,
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
-          return { content: text, usage: response.usage };
+          return { content: text, usage: response.usage, toolCalls: response.toolCalls };
         };
 
         try {
@@ -547,7 +565,7 @@ export class MultiPlatformRouter {
             const streamPromise = callProviderNativeStream(
               model.provider,
               model.model,
-              messages,
+              working,
               model.timeout ?? TIMEOUTS.API_STREAMING,
               0.7,
               (delta) => {
@@ -555,6 +573,7 @@ export class MultiPlatformRouter {
               },
               undefined,
               reasoningEffort,
+              tools,
             ).then(
               (result) => enqueue({ kind: "done", result }),
               (err: unknown) =>
@@ -598,6 +617,22 @@ export class MultiPlatformRouter {
               });
             }
 
+            if (nativeResult?.toolCalls?.length && executeTool) {
+              working.push({ role: "assistant", content: nativeResult.content ?? "", tool_calls: nativeResult.toolCalls });
+              for (const call of nativeResult.toolCalls) {
+                yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
+                let output: unknown;
+                try {
+                  output = await executeTool(call.function.name, parseToolArgs(call.function.arguments));
+                } catch (err) {
+                  output = { error: err instanceof Error ? err.message : String(err) };
+                }
+                working.push({ role: "tool", tool_call_id: call.id, content: typeof output === "string" ? output : JSON.stringify(output) });
+              }
+              toolRounds++;
+              continue toolLoop;
+            }
+
             if (nativeResult) {
               const latencyMs = Date.now() - loopStart;
               trackCall(model.model, model.provider, messages, {
@@ -626,6 +661,23 @@ export class MultiPlatformRouter {
           if (!nativeOk) {
             // 缓冲路径：整段内容作为单个 token 事件推送（模拟流式）
             const result = await fallbackBufferedStream();
+
+            if (result.toolCalls?.length && executeTool) {
+              working.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
+              for (const call of result.toolCalls) {
+                yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
+                let output: unknown;
+                try {
+                  output = await executeTool(call.function.name, parseToolArgs(call.function.arguments));
+                } catch (err) {
+                  output = { error: err instanceof Error ? err.message : String(err) };
+                }
+                working.push({ role: "tool", tool_call_id: call.id, content: typeof output === "string" ? output : JSON.stringify(output) });
+              }
+              toolRounds++;
+              continue toolLoop;
+            }
+
             const latencyMs = Date.now() - loopStart;
             trackCall(model.model, model.provider, messages, {
               usage: result.usage,
@@ -676,12 +728,19 @@ export class MultiPlatformRouter {
       });
     }
 
-    // 所有 model 都失败
-    logger.error(`[Router/chatStream] All models exhausted for role: ${role}`);
-    metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: "degraded" });
+      // 当前 tool round 内所有 model 都失败
+      logger.error(`[Router/chatStream] All models exhausted for role: ${role}`);
+      metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: "degraded" });
+      yield {
+        type: "error",
+        message: lastError?.message ?? `All models for role "${role}" are unavailable.`,
+      };
+      return;
+    } // toolLoop
+
     yield {
       type: "error",
-      message: lastError?.message ?? `All models for role "${role}" are unavailable.`,
+      message: "[Tool loop] exceeded max tool iterations without a final answer.",
     };
   }
 
@@ -965,6 +1024,16 @@ export class MultiPlatformRouter {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}
+
+/** 解析模型返回的工具调用参数（非法 JSON 降级为空对象） */
+function parseToolArgs(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
   }
 }
 

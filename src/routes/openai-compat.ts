@@ -92,7 +92,13 @@ const defaultDeps: OpenAICompatDeps = {
       executeTool: runSkillTool,
     });
   },
-  chatStream: (role, messages, opts) => router.chatStream(role, messages, opts),
+  chatStream: (role, messages, opts) =>
+    router.chatStream(role, messages, {
+      ...opts,
+      tools: NATIVE_SKILL_TOOLS,
+      executeTool: runSkillTool,
+      maxToolIterations: 4,
+    }),
 };
 
 export function createOpenAICompatHandler(deps: OpenAICompatDeps = defaultDeps) {

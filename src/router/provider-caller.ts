@@ -21,6 +21,7 @@ const MAX_CONTEXT_CHARS = 600_000;
 export interface NativeStreamResult {
   content: string;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  toolCalls?: ToolCall[];
 }
 
 export async function callProvider(
@@ -114,7 +115,8 @@ export async function callProviderNativeStream(
   temperature = 0.7,
   onChunk: StreamChunkCallback,
   signal?: AbortSignal,
-  reasoningEffort?: string
+  reasoningEffort?: string,
+  tools?: ToolCallDef[]
 ): Promise<NativeStreamResult> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
@@ -181,6 +183,7 @@ export async function callProviderNativeStream(
         temperature,
         stream: true,
         ...buildReasoningParams(provider, reasoningEffort),
+        ...(tools && tools.length > 0 ? { tools } : {}),
       }),
       signal: controller.signal,
     });
@@ -200,6 +203,7 @@ export async function callProviderNativeStream(
     let buffer = "";
     let fullContent = "";
     let usage: NativeStreamResult["usage"];
+    const toolCallAcc = new Map<number, ToolCall>();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -216,13 +220,38 @@ export async function callProviderNativeStream(
         if (payload === "[DONE]") continue;
         try {
           const parsed = JSON.parse(payload) as {
-            choices?: Array<{ delta?: { content?: unknown } }>;
+            choices?: Array<{
+              delta?: {
+                content?: unknown;
+                tool_calls?: Array<{
+                  index?: number;
+                  id?: string;
+                  type?: string;
+                  function?: { name?: string; arguments?: string };
+                }>;
+              };
+            }>;
             usage?: NativeStreamResult["usage"];
           };
           const delta = parsed.choices?.[0]?.delta?.content;
           if (typeof delta === "string" && delta.length > 0) {
             fullContent += delta;
             onChunk(delta);
+          }
+          const rawCalls = parsed.choices?.[0]?.delta?.tool_calls;
+          if (Array.isArray(rawCalls)) {
+            for (const rc of rawCalls) {
+              const idx = rc.index ?? 0;
+              const existing = toolCallAcc.get(idx) ?? {
+                id: rc.id ?? "",
+                type: "function" as const,
+                function: { name: "", arguments: "" },
+              };
+              if (rc.id) existing.id = rc.id;
+              if (rc.function?.name) existing.function.name += rc.function.name;
+              if (rc.function?.arguments) existing.function.arguments += rc.function.arguments;
+              toolCallAcc.set(idx, existing);
+            }
           }
           if (parsed.usage) {
             usage = parsed.usage;
@@ -238,7 +267,11 @@ export async function callProviderNativeStream(
       }
     }
 
-    return { content: fullContent, usage };
+    return {
+      content: fullContent,
+      usage,
+      toolCalls: toolCallAcc.size > 0 ? Array.from(toolCallAcc.values()) : undefined,
+    };
   } finally {
     clearTimeout(timer);
     if (signal) {

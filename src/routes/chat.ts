@@ -347,6 +347,9 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
           ...(reasoningEffort ? { reasoningEffort } : {}),
+          tools: NATIVE_SKILL_TOOLS,
+          executeTool: runSkillTool,
+          maxToolIterations: 4,
         });
 
         for await (const ev of streamIter) {
