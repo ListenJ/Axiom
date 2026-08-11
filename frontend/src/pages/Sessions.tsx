@@ -144,12 +144,12 @@ function SessionList({
 
 /* ── Conversation Viewer Component ─────────────────────────────────── */
 
-function ConversationViewer({ messages }: { messages: Message[] }) {
+function ConversationViewer({ messages, hasSessions }: { messages: Message[]; hasSessions?: boolean }) {
   if (messages.length === 0) {
     return (
       <InlineEmptyState
         icon={<MessageSquare className="size-5" />}
-        title="选择一个会话"
+        title={hasSessions === false ? '暂无会话可查看' : '选择一个会话'}
       />
     )
   }
@@ -370,7 +370,7 @@ export default function Sessions() {
                   <ChevronRight className="size-4 text-[var(--success)]" />
                   对话记录
                 </h2>
-                <ConversationViewer messages={messages} />
+                <ConversationViewer messages={messages} hasSessions={sessions.length > 0} />
               </div>
             </div>
           )}
