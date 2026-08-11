@@ -4282,3 +4282,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 结论（判断）：llmCache 已有界（maxSize 2000 + 1h TTL + L3 清理），无需改；skills/ 1.24MB agency-zh 库已懒加载，归档风险>收益，不做（记录）。
 - Verification: cache/llm-cache/model-router/redis 27/27；bunx tsc --noEmit 干净；bun run build（528 模块）成功；进程自然退出验证通过；备份已删除。
 - Commit: a4b594c
+
+## 2026-08-12 - 前端完善至生产可用（providers 95/100 + 空态引导 + models 表单 roles）
+
+- Task: 继续完善至"完美可用"：修复 SenseNova 指出的 providers 页 P1/P2、侧边栏空态缺引导、models 添加表单缺 baseURL/roles（配置闭环前端侧补全）。
+- Tools: sensenova-6.8-flash-lite 审批 / Chrome Headless CLI / vitest / npm run build / git。
+- Files:
+  - 修改 frontend/src/components/ui/StatCard.tsx（图标垂直居中，与数值重心平衡）
+  - 修改 frontend/src/pages/Providers.tsx（底部说明 text-xs+secondary+加粗标题；空态加"去配置 API Key"CTA→/settings）
+  - 修改 frontend/src/components/layout/Sidebar.tsx（MCP/插件空态加"去配置"/"去安装"行内引导）
+  - 修改 frontend/src/components/settings/models-section.tsx（添加模型表单支持 Base URL + Roles（逗号分隔→数组），闭合用户配置 UI 链路；修复重复 baseURL 字段）
+- Verification: SenseNova 复批 providers 82→95/100（statCards=good、bottomText=good、emptyStateCta=yes）；前端 vitest 284/284；npm run build 成功。备份说明：本轮 4 个前端文件改动前未逐文件备份（改动小、经 vitest+build+视觉审批三重验证）。
+- Commit: 88a1f15
