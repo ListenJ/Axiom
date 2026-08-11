@@ -28,6 +28,8 @@ function fakeDeps(): {
     deps: {
       register: (s) => {
         registered.push(s);
+        // 模拟真实 registry：注册后 has(id) 为 true（幂等依据）
+        existing.add(s.id);
       },
       has: (id) => existing.has(id),
       persist: (s) => {
@@ -49,11 +51,11 @@ describe("promoteInductionsToSkills", () => {
     expect(ids).toHaveLength(2);
     expect(registered).toHaveLength(2);
     expect(persisted).toHaveLength(2);
-    expect(registered[0].id).toMatch(/^auto-induce-mcp-timeout-/);
+    expect(registered[0].id).toMatch(/^auto-induce-mcp-timeout$/);
     expect(registered[0].triggers).toContain("mcp timeout");
     expect(registered[0].promptTemplate).toContain("Prefer mcp pattern");
     expect(registered[0].source).toBe("hermes");
-    expect(registered[1].id).toMatch(/^auto-induce-redis-cache-/);
+    expect(registered[1].id).toMatch(/^auto-induce-redis-cache$/);
   });
 
   test("skips patterns that already exist", () => {
@@ -65,5 +67,14 @@ describe("promoteInductionsToSkills", () => {
 
     expect(second).toHaveLength(0);
     expect(fake.registered).toHaveLength(1);
+  });
+
+  test("ids are deterministic so repeated promotion is idempotent", () => {
+    const fake = fakeDeps();
+    promoteInductionsToSkills([inductions[0]], fake.deps);
+    const second = promoteInductionsToSkills([inductions[0]], fake.deps);
+    expect(second).toHaveLength(0);
+    expect(fake.registered).toHaveLength(1);
+    expect(fake.registered[0].id).toMatch(/^auto-induce-mcp-timeout$/);
   });
 });

@@ -69,10 +69,23 @@ export class ModelOutputStore {
   private readonly enabled: boolean;
   private writeQueue: Promise<void> = Promise.resolve();
   private fileCounter = 0;
+  private readonly autoPurgeEnabled: boolean;
+  private readonly autoPurgeIntervalMs: number;
+  private readonly purgeMaxAgeDays: number;
+  private lastAutoPurgeAt = 0;
 
-  constructor(opts?: { baseDir?: string; enabled?: boolean }) {
+  constructor(opts?: {
+    baseDir?: string;
+    enabled?: boolean;
+    autoPurge?: boolean;
+    autoPurgeIntervalMs?: number;
+    purgeMaxAgeDays?: number;
+  }) {
     this.baseDir = opts?.baseDir ?? "data/model-outputs";
     this.enabled = opts?.enabled ?? true;
+    this.autoPurgeEnabled = opts?.autoPurge ?? true;
+    this.autoPurgeIntervalMs = opts?.autoPurgeIntervalMs ?? 24 * 60 * 60 * 1000;
+    this.purgeMaxAgeDays = opts?.purgeMaxAgeDays ?? 30;
     if (this.enabled) {
       this.ensureDir(this.baseDir);
     }
@@ -147,6 +160,7 @@ export class ModelOutputStore {
       .then(() => this.writeJson(filePath, record))
       .catch(() => { /* 错误已在 writeJson 内记录，不阻塞队列 */ });
 
+    this.maybeAutoPurge();
     return { filePath, success: true };
   }
 
@@ -247,6 +261,19 @@ export class ModelOutputStore {
   }
 
   /** 计算请求 hash（用于去重与反查） */
+  /** 低频自动清理过期模型输出（默认 24h 一次、保留 30 天）。 */
+  private maybeAutoPurge(): void {
+    if (!this.autoPurgeEnabled) return;
+    const now = Date.now();
+    if (now - this.lastAutoPurgeAt < this.autoPurgeIntervalMs) return;
+    this.lastAutoPurgeAt = now;
+    try {
+      this.purgeOld(this.purgeMaxAgeDays);
+    } catch {
+      // 清理失败不影响主流程
+    }
+  }
+
   private hashRequest(prompt: string, system?: string, messages?: Array<{ content?: string }>): string {
     const h = createHash("sha256");
     h.update(prompt);

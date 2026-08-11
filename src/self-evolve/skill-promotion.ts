@@ -52,8 +52,8 @@ export function promoteInductionsToSkills(
 ): string[] {
   const created: string[] = [];
   for (const induction of inductions) {
-    const base = `auto-induce-${slugify(induction.pattern)}`;
-    const id = `${base}-${Date.now().toString(36).slice(-4)}`;
+    // 确定性 id：同 pattern 幂等（重复反思不会无限累积）
+    const id = `auto-induce-${slugify(induction.pattern)}`;
     if (deps.has(id)) continue;
 
     const skill: SkillDefinition = {

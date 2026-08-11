@@ -986,13 +986,19 @@ export class MultiPlatformRouter {
         : {}),
       ...(options?.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
     });
-    const assignment = this.assign(role, { excludeModels: options?.excludeModels });
-    const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
+    let endpoint = "";
+    try {
+      const assignment = this.assign(role, { excludeModels: options?.excludeModels });
+      const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
+      endpoint = config?.baseURL ?? "";
+    } catch {
+      // 无可用模型时降级（endpoint 留空），不抛错——与 execute 的降级语义一致
+    }
     return {
       role,
       model: out.model,
       provider: out.provider,
-      endpoint: config?.baseURL ?? "",
+      endpoint,
       content: out.content,
       usage: out.usage,
       latency_ms: out.latencyMs,

@@ -34,9 +34,9 @@
 
   /* Text — monochrome hierarchy (WCAG AA compliant on --bg) */
   --text: #ffffff;
-  --text-secondary: #b5b5b5;
-  --text-muted: #8a8a8a;
-  --text-disabled: #555555;
+  --text-secondary: #c2c2c2;
+  --text-muted: #9c9c9c;
+  --text-disabled: #6e6e6e;
 
   /* Accent — plain white (Agent console: light on dark) */
   --accent: #ffffff;
@@ -169,9 +169,9 @@
   --border-strong: #c8c8c8;
 
   --text: #111111;
-  --text-secondary: #555555;
-  --text-muted: #777777;
-  --text-disabled: #aaaaaa;
+  --text-secondary: #4d4d4d;
+  --text-muted: #6e6e6e;
+  --text-disabled: #9c9c9c;
 
   --accent: #333333;
   --accent-strong: #4a4a4a;
