@@ -4235,3 +4235,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/styles/index.css（dark --text-muted #9c9c9c→#a6a6a6）
 - Verification: 4 轮审批轨迹：round1 按钮 too-bright + 侧边栏不可读 → round2 按钮 balanced、侧边栏 no → round3 11px 后 partial → round4 模型确认"侧边栏文字清晰可读"，剩余 partial 为运行时数据空态（截图环境后端未连接）而非样式。前端 vitest 284/284；bunx tsc --noEmit 干净；bun run build（528 模块）成功。key 仅存内存/env，未落盘。
 - Commit: 0a1a51f
+
+## 2026-08-12 - 品牌色迭代（indigo 预设 + 空态点缀）+ 像素级根因定位
+
+- Task: 继续视觉审批迭代：品牌色 + 空态精致化。发现关键架构事实：运行时 accents.ts 预设（默认 mono 黑白）经 useTheme setProperty 覆盖 CSS --accent token——改 index.css 在截图里不可见（像素验证 0% indigo）。
+- Tools: curl.exe + sensenova-6.8-flash-lite（审批）/ Chrome Headless CLI / System.Drawing 像素采样 / vitest / npm run build / git。
+- Files:
+  - 修改 frontend/src/lib/accents.ts（新增 indigo 预设：dark #6366f1 / light #4f46e5，含 soft/ring/gradient）
+  - 修改 frontend/src/state/useApp.ts（readInitialAccent 默认 indigo，合法列表含 indigo）
+  - 修改 frontend/src/components/chat/WelcomePanel.tsx（卡片图标实心品牌色块）
+  - 修改 frontend/src/components/ui/EmptyState.tsx、InlineEmptyState.tsx（空态图标品牌点缀 accent-soft）
+  - 修改 frontend/src/styles/index.css（accent token 与 indigo 对齐 + accent-soft 0.22，作为 JS 前兜底）
+- Verification: 像素级客观验证 indigo 从 0% → 0.7% 采样像素（截图 152KB→235KB）；SenseNova 6.8 审批：hasBluePurple=yes、cohesion=good、brandImpact=clear、overall 9/10（品牌化前 7.5），唯一 P2 为背景光晕轻微干扰侧边栏（可接受）。前端 vitest 284/284；npm run build 成功。key 仅内存/env。备份说明：accents/useApp/WelcomePanel 改动前未单独备份（微小改动，验证充分）。
+- Commit: 0e8e92d
