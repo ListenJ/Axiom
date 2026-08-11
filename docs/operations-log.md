@@ -4248,3 +4248,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/styles/index.css（accent token 与 indigo 对齐 + accent-soft 0.22，作为 JS 前兜底）
 - Verification: 像素级客观验证 indigo 从 0% → 0.7% 采样像素（截图 152KB→235KB）；SenseNova 6.8 审批：hasBluePurple=yes、cohesion=good、brandImpact=clear、overall 9/10（品牌化前 7.5），唯一 P2 为背景光晕轻微干扰侧边栏（可接受）。前端 vitest 284/284；npm run build 成功。key 仅内存/env。备份说明：accents/useApp/WelcomePanel 改动前未单独备份（微小改动，验证充分）。
 - Commit: 0e8e92d
+
+## 2026-08-12 - 前端审美完善（skill 指导 + SenseNova 审批）+ 后端资源审计
+
+- Task: ①按 design-taste-frontend skill 标准完善前端审美（Design Read：dark-tech 开发者控制台；Dials 4/3/5；克制优先）；②SenseNova 6.8 审批闭环；③后端资源/性能审计（低消耗、低内存）。
+- Tools: design-taste-frontend skill / curl.exe + sensenova-6.8-flash-lite / Chrome Headless CLI / System.Drawing 像素采样 / bun 内存审计脚本 / vitest / tsc / build / git。
+- Files:
+  - 修改 frontend/src/components/layout/Layout.tsx（移除 silk-sheen/ribs/swirl 3 层全屏 blur 装饰，减 GPU 合成压力）
+  - 修改 frontend/src/styles/index.css（silk-aurora 光晕 36%→22%、14%→8%，不再干扰侧边栏）
+  - 修改 src/self-evolve/index.ts（默认 lessons 内存索引上限 200，LRU 近似）
+  - 新增 docs/reviews/2026-08-12-resource-audit.md（实测 RSS≈166MB/heap≈7.9MB；services 层 +84MB 主因 PromptEngineer 全量解析 201 skill → P1 懒加载建议）
+- Verification: SenseNova 审批 glowDistraction=no→mild、stillPremium=yes、overall 8.5（光晕降噪收敛）；后端 41/41、前端 vitest 284/284、bunx tsc --noEmit 干净、bun run build（528 模块）成功；像素验证沿用。备份已删除。
+- Commit: 2dd31d2
