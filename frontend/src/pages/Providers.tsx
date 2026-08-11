@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Globe, Server, CheckCircle2, XCircle, Key, Shield, Search, X } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Input, Skeleton, InlineEmptyState, StatCard } from '@/components/ui'
 import { endpoints } from '@/lib/api'
@@ -12,6 +13,7 @@ import {
 } from '@/components/provider-sections'
 
 export default function Providers() {
+  const navigate = useNavigate()
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -148,6 +150,11 @@ export default function Providers() {
               icon={<Globe className="size-5" />}
               title="无 Provider 配置"
               description="可通过环境变量或上方表单配置 API Key 来启用提供商"
+              action={
+                <Button size="sm" onClick={() => navigate('/settings')}>
+                  去配置 API Key
+                </Button>
+              }
             />
           </ShimmerCard>
         </>
@@ -208,9 +215,9 @@ export default function Providers() {
             <Shield className="size-4 text-[var(--accent)]" />
             使用说明与安全提示
           </h3>
-          <ul className="space-y-1.5 text-2xs text-[var(--text-muted)]">
+          <ul className="space-y-2 text-xs text-[var(--text-secondary)]">
             <li>
-              <strong className="text-[var(--text-secondary)]">单密钥启用</strong>
+              <strong className="text-[var(--text)]">单密钥启用</strong>
               ：每个 provider 仅需一个 API Key 即可使用对应模型服务，无需额外配置。
             </li>
             <li>

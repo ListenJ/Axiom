@@ -527,7 +527,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <div className="space-y-1 px-2 pb-2.5">
           <p className="px-1 pt-0.5 text-2xs font-medium text-[var(--text-muted)]">MCP 场景</p>
           {mcpScenes.length === 0 ? (
-            <p className="px-1 text-2xs text-[var(--text-secondary)]">暂无场景（配置于 config/mcp-servers.yaml）</p>
+            <p className="px-1 text-2xs text-[var(--text-secondary)]">
+              暂无场景
+              <button type="button" onClick={() => navigate('/settings')} className="ml-1 text-[var(--accent)] hover:underline" aria-label="去配置 MCP 场景">
+                去配置
+              </button>
+            </p>
           ) : (
             mcpScenes.slice(0, 6).map((s) => (
               <div key={s.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">
@@ -540,7 +545,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           )}
           <p className="px-1 pt-1.5 text-2xs font-medium text-[var(--text-muted)]">插件 / Skill</p>
           {plugins.length === 0 ? (
-            <p className="px-1 text-2xs text-[var(--text-secondary)]">无插件（skills/ 目录自动加载）</p>
+            <p className="px-1 text-2xs text-[var(--text-secondary)]">
+              无插件
+              <button type="button" onClick={() => navigate('/plugins')} className="ml-1 text-[var(--accent)] hover:underline" aria-label="去插件市场安装">
+                去安装
+              </button>
+            </p>
           ) : (
             plugins.slice(0, 6).map((p) => (
               <div key={p.id ?? p.name} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">

@@ -14,6 +14,7 @@ interface ModelItem {
   tier?: string
   purpose?: string
   freeOnly?: boolean
+  roles?: string[]
   enabled: boolean
 }
 
@@ -34,7 +35,7 @@ export default function ModelManagementSection({
   const [models, setModels] = useState<ModelItem[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', provider: 'siliconflow', model: '', apiKey: '', tier: '', purpose: '' })
+  const [form, setForm] = useState({ name: '', provider: 'siliconflow', model: '', apiKey: '', tier: '', purpose: '', baseURL: '', roles: '' })
 
   const fetchModels = () => {
     setLoading(true)
@@ -52,10 +53,13 @@ export default function ModelManagementSection({
       return
     }
     try {
-      await api.post('/models', form)
+      await api.post('/models', {
+        ...form,
+        roles: form.roles.split(',').map((s) => s.trim()).filter(Boolean),
+      })
       toast('模型已添加', 'success')
       setShowForm(false)
-      setForm({ name: '', provider: 'siliconflow', model: '', apiKey: '', tier: '', purpose: '' })
+      setForm({ name: '', provider: 'siliconflow', model: '', apiKey: '', tier: '', purpose: '', baseURL: '', roles: '' })
       fetchModels()
     } catch {
       toast('添加失败', 'error')
@@ -109,6 +113,8 @@ export default function ModelManagementSection({
               <option value="premium">高级</option>
             </Select>
             <Input label="用途（可选）" placeholder="如：chat, code" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+            <Input label="Base URL（可选）" placeholder="https://api.example.com/v1" value={form.baseURL} onChange={(e) => setForm({ ...form, baseURL: e.target.value })} />
+            <Input label="角色（可选，逗号分隔）" placeholder="general-chat, code-generation" value={form.roles} onChange={(e) => setForm({ ...form, roles: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
