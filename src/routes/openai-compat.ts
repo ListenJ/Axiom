@@ -14,6 +14,9 @@ import { logger } from "../utils/logger.js";
 import { router } from "../router/model-router.js";
 import { prepareChatContext, executeChat } from "../services/chat.js";
 import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
+import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
+import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
+import { toOpenAITools } from "../utils/tool-surface.js";
 
 interface OpenAIChatMessage {
   role: string;
@@ -54,6 +57,11 @@ function sseData(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
+/** 原生 function-calling 暴露给 v1/* 非流式调用的 skill 工具 */
+const NATIVE_SKILL_TOOLS = toOpenAITools(
+  buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list"),
+);
+
 /** 内部 chat 管线依赖（测试注入 fake 的接缝；生产默认真实实现） */
 export interface OpenAICompatDeps {
   prepareChatContext: typeof prepareChatContext;
@@ -74,7 +82,16 @@ const defaultDeps: OpenAICompatDeps = {
     }
     return prepared;
   },
-  executeChat,
+  executeChat: async (messages, intentInfo, taskType) => {
+    const role = intentInfo
+      ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+      : (taskType ?? DEFAULT_ROLE);
+    return executeChat(messages, intentInfo, taskType, {
+      role,
+      tools: NATIVE_SKILL_TOOLS,
+      executeTool: runSkillTool,
+    });
+  },
   chatStream: (role, messages, opts) => router.chatStream(role, messages, opts),
 };
 

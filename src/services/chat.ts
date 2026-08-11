@@ -12,6 +12,8 @@
  */
 import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
+import { runToolLoop } from "./tool-loop.js";
+import type { ToolCallDef } from "../utils/tool-surface.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
 import { optimizePrompt } from "../agents/prompt-optimizer.js";
@@ -20,7 +22,7 @@ import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { logger } from "../utils/logger.js";
 import { contextAssembler } from "../components/context-assembler.js";
-import type { ComponentBudget, TokenBudgetReport } from "../components/contracts.js";
+import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
 import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
 import { isReadOptimizerInitialized } from "../utils/read-optimizer-init.js";
 
@@ -199,7 +201,7 @@ export async function prepareChatContext(
   }
 
   const assembled = await contextAssembler.assemble({
-    messages: chatMessages,
+    messages: chatMessages as unknown as ComponentMessage[],
     role: intentInfo?.intent ?? "chat",
     budget: options.budget,
   });
@@ -224,14 +226,35 @@ function shouldSearch(intent: string): boolean {
   ].includes(intent);
 }
 
+/** executeChat 的扩展选项（原生 function-calling） */
+export interface ExecuteChatOptions {
+  /** 工具循环使用的 TaskRole（由路由层计算） */
+  role?: string;
+  /** OpenAI 兼容 tools 定义 */
+  tools?: ToolCallDef[];
+  /** 工具执行器（按名称分发） */
+  executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  /** 工具循环最大轮数 */
+  maxToolIterations?: number;
+}
+
 /**
  * Execute a blocking (non-streaming) chat call through the model router.
+ * 传入 tools + executeTool 时走原生 function-calling 工具循环（按需调用工具）。
  */
 export async function executeChat(
   messages: ChatMessage[],
   intentInfo: PreparedContext["intentInfo"],
   taskType: string | undefined,
+  options: ExecuteChatOptions = {},
 ) {
+  if (options.tools?.length && options.role && options.executeTool) {
+    return runToolLoop(options.role, messages, {
+      tools: options.tools,
+      executeTool: options.executeTool,
+      maxIterations: options.maxToolIterations,
+    });
+  }
   if (intentInfo) {
     return router.routeByIntent(intentInfo.intent, messages);
   }

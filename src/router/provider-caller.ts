@@ -1,11 +1,16 @@
 import { PROVIDER_CONFIG } from "./models.js";
+import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { buildReasoningParams } from "./reasoning-effort.js";
 import { logger } from "../utils/logger.js";
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  /** assistant 消息附带的工具调用（function calling） */
+  tool_calls?: ToolCall[];
+  /** tool 消息回填的调用 id */
+  tool_call_id?: string;
 }
 
 export type StreamChunkCallback = (chunk: string) => void;
@@ -24,8 +29,13 @@ export async function callProvider(
   messages: ChatMessage[],
   timeoutMs: number,
   temperature = 0.7,
-  reasoningEffort?: string
-): Promise<{ content: string | null; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }> {
+  reasoningEffort?: string,
+  tools?: ToolCallDef[]
+): Promise<{
+  content: string | null;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  toolCalls?: ToolCall[];
+}> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config) throw new Error(`Unknown provider: ${provider}`);
 
@@ -72,6 +82,7 @@ export async function callProvider(
         messages,
         temperature,
         ...buildReasoningParams(provider, reasoningEffort),
+        ...(tools && tools.length > 0 ? { tools } : {}),
       }),
       signal: controller.signal,
     });
@@ -87,6 +98,7 @@ export async function callProvider(
     return {
       content: data.choices?.[0]?.message?.content ?? null,
       usage: data.usage,
+      toolCalls: data.choices?.[0]?.message?.tool_calls ?? undefined,
     };
   } catch (e) {
     clearTimeout(timer);

@@ -84,7 +84,7 @@ export interface Induction {
 
 /** 最小消息形状（与 router ChatMessage 结构兼容） */
 export interface Message {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
 }
 

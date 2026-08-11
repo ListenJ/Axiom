@@ -7,7 +7,7 @@
  */
 import { describe, test, expect, beforeEach, spyOn } from "bun:test";
 import { ToolRegistry, type ToolDef } from "../../src/mcp/tool-registry.js";
-import { registerSkillTools } from "../../src/mcp/server/skill-tools.js";
+import { buildSkillToolSurfaces, registerSkillTools, runSkillTool } from "../../src/mcp/server/skill-tools.js";
 import { resetSkillRegistry } from "../../src/skills/skill-registry.js";
 import { router, type SmartAssignmentResponse } from "../../src/router/model-router.js";
 
@@ -62,5 +62,29 @@ describe("skill_run MCP tool", () => {
 
   test("rejects when the skill does not exist", async () => {
     await expect(skillRun.handler({ skillId: "nope" })).rejects.toThrow("Skill not found: nope");
+  });
+});
+
+describe("skill tool surfaces + dispatcher", () => {
+  test("buildSkillToolSurfaces exposes skill_run", () => {
+    const surfaces = buildSkillToolSurfaces();
+    expect(surfaces.map((t) => t.name)).toContain("skill_run");
+    expect(surfaces.map((t) => t.name)).toContain("skill_list");
+  });
+
+  test("runSkillTool dispatches skill_run by name", async () => {
+    const executeSpy = spyOn(router, "executeWithRole").mockImplementation(async () =>
+      fakeResponse("tool output"),
+    );
+    try {
+      const result = await runSkillTool("skill_run", { skillId: "code-generate", params: { input: "x" } });
+      expect((result as { content: string }).content).toBe("tool output");
+    } finally {
+      executeSpy.mockRestore();
+    }
+  });
+
+  test("runSkillTool throws for unknown tool name", async () => {
+    await expect(runSkillTool("nope", {})).rejects.toThrow("Unknown skill tool: nope");
   });
 });

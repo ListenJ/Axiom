@@ -8,6 +8,8 @@ import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
 import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
+import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
+import { toOpenAITools } from "../utils/tool-surface.js";
 import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
@@ -27,7 +29,14 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : ""),
     getDefaultSelfEvolve(),
   );
-  const result = await executeChat(chatMessages, intentInfo, taskType);
+  const roleForTools = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const result = await executeChat(chatMessages, intentInfo, taskType, {
+    role: roleForTools,
+    tools: NATIVE_SKILL_TOOLS,
+    executeTool: runSkillTool,
+  });
 
   const normalizedSessionId = normalizeSessionId(sessionId);
   const messageList = Array.isArray(messages) ? messages as Array<{ role: string; content: string }> : [];
@@ -91,7 +100,14 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     { budget },
   );
   const chatMessages = await applySelfThought(preparedMessages, String(message ?? ""), getDefaultSelfEvolve());
-  const result = await executeChat(chatMessages, intentInfo, taskType);
+  const roleForTools = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const result = await executeChat(chatMessages, intentInfo, taskType, {
+    role: roleForTools,
+    tools: NATIVE_SKILL_TOOLS,
+    executeTool: runSkillTool,
+  });
 
   const response = ctx.jsonResponse({
     ...result,
@@ -180,6 +196,11 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
   "main_coding",
   "computer-use",
 ]);
+
+/** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
+const NATIVE_SKILL_TOOLS = toOpenAITools(
+  buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list"),
+);
 
 function isValidChatMessage(m: unknown): m is { role: string; content: string } {
   if (m === null || typeof m !== "object") return false;

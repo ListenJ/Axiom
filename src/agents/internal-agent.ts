@@ -48,7 +48,7 @@ import {
 } from "../services/index.js";
 import type { TaskRole } from "../services/index.js";
 import { tokenBudget } from "../components/token-budget.js";
-import type { ComponentBudget } from "../components/contracts.js";
+import type { ComponentBudget, ComponentMessage } from "../components/contracts.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -88,7 +88,7 @@ async function compressMessages(
   budget?: number | ComponentBudget,
 ): Promise<ChatMessage[]> {
   if (budget === undefined) return messages;
-  const result = await tokenBudget.compress(messages, budget);
+  const result = await tokenBudget.compress(messages as unknown as ComponentMessage[], budget);
   return result.messages;
 }
 

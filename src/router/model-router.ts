@@ -20,6 +20,7 @@ import { TIMEOUTS } from "../constants/timeouts.js";
 import { metrics } from "../utils/metrics.js";
 import { calculateBackoffDelay } from "../utils/resilience.js";
 import { callProvider, callProviderNativeStream, type ChatMessage, type StreamChunkCallback, type NativeStreamResult } from "./provider-caller.js";
+import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
@@ -71,6 +72,10 @@ export interface SmartAssignmentResponse {
   };
   latency_ms?: number;
   fallback_used?: boolean;
+  /** 模型发起的工具调用（function calling） */
+  toolCalls?: ToolCall[];
+  /** 任务分层（与 ChatResponse.layer 对齐，便于路由层透传） */
+  layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
 }
 
 /** 批量任务输入 */
@@ -101,6 +106,8 @@ export interface ExecuteInput {
    * to avoid re-trying models that already failed for this call.
    */
   excludeModels?: string[];
+  /** OpenAI 兼容 tools 定义（function calling） */
+  tools?: ToolCallDef[];
 }
 
 /** 统一执行端口输出 */
@@ -112,6 +119,7 @@ export interface ExecuteOutput {
   latencyMs: number;
   fallbackUsed: boolean;
   routingMeta?: RoutingMeta;
+  toolCalls?: ToolCall[];
 }
 
 // =============================================================================
@@ -191,7 +199,7 @@ export class MultiPlatformRouter {
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
-    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs } = input;
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs, tools } = input;
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -292,7 +300,9 @@ export class MultiPlatformRouter {
             model.model,
             messages,
             model.timeout ?? timeout,
-            temperature
+            temperature,
+            undefined,
+            tools
           );
           const latencyMs = Date.now() - loopStart;
           trackCall(model.model, model.provider, messages, {
@@ -346,6 +356,7 @@ export class MultiPlatformRouter {
             usage: response.usage,
             latencyMs,
             fallbackUsed: false,
+            toolCalls: response.toolCalls,
           };
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
@@ -902,7 +913,7 @@ export class MultiPlatformRouter {
    * fallback), which matches what `chat()` and `chatStream()` already
    * returned.
    */
-  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[] }): Promise<SmartAssignmentResponse> {
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[] }): Promise<SmartAssignmentResponse> {
     const out = await this.execute({
       role,
       messages,
@@ -911,6 +922,7 @@ export class MultiPlatformRouter {
       ...(options?.excludeModels && options.excludeModels.length > 0
         ? { excludeModels: options.excludeModels }
         : {}),
+      ...(options?.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
     });
     const assignment = this.assign(role, { excludeModels: options?.excludeModels });
     const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
@@ -923,6 +935,7 @@ export class MultiPlatformRouter {
       usage: out.usage,
       latency_ms: out.latencyMs,
       fallback_used: out.fallbackUsed,
+      toolCalls: out.toolCalls,
     };
   }
 
