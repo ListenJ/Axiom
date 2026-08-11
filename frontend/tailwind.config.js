@@ -71,7 +71,8 @@ export default {
         ],
       },
       fontSize: {
-        '2xs': '0.625rem',
+        // 10px 在暗色侧边栏中可读性不足（SenseNova 视觉审批 P0），统一放大到 11px
+        '2xs': '0.6875rem',
       },
       spacing: {
         '18': '4.5rem',

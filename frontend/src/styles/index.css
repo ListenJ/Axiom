@@ -35,7 +35,7 @@
   /* Text — monochrome hierarchy (WCAG AA compliant on --bg) */
   --text: #ffffff;
   --text-secondary: #c2c2c2;
-  --text-muted: #9c9c9c;
+  --text-muted: #a6a6a6;
   --text-disabled: #6e6e6e;
 
   /* Accent — plain white (Agent console: light on dark) */
