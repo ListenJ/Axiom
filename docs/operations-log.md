@@ -4183,3 +4183,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 .github/workflows/ci.yml（缓存键 bun.lockb→bun.lock；BUN_VERSION 1.3→1.3.14）
 - Verification: bun test --parallel 污染组合（internal-agent-budget/services-chat/model-router/流式工具）21/21 通过（此前 mock.module 泄漏导致同进程失败）；报告与修复已提交 5c4ce01。配置断链/user-config-loader 等 P0 修复留待下一轮（见 master-audit 行动清单）。
 - Commit: 5c4ce01
+
+## 2026-08-11 - 配置断链闭环（user-config-loader + 业务模块 env 模板化）
+
+- Task: 实施 master-audit P0-1~P0-4：让用户在前端 /models 添加的模型/链接真正生效；收敛业务模块硬编码；edge 默认地址不再指向个人内网 IP。
+- Tools: bun test --parallel / bunx tsc --noEmit / bun run build / git。
+- Files:
+  - 新增 src/router/user-config-loader.ts（读 data/model-config.json + config/model-router.yaml → ModelCapability → registerModel 注入 EXTENSIONS；重载幂等）
+  - 修改 src/router/model-capability-registry.ts（ModelCapability 加 baseURL/apiKey；新增 unregisterModel）
+  - 修改 src/router/provider-caller.ts（callProvider/callProviderNativeStream 加 override {baseURL,apiKey}，自定义 provider 可用）
+  - 修改 src/router/model-router.ts（execute/buffered/native stream 透传 capability override）
+  - 修改 src/routes/models.ts（ModelEntry.roles 支持；增删模型后立即 loadUserModels 重载）
+  - 修改 src/main.ts（启动加载用户模型，非阻断）
+  - env 模板化：src/agents/prompt-optimizer.ts、src/agents/intent-enhancer.ts、src/knowledge/pipeline.ts、src/memory/knowledge-graph-builder.ts、src/agents/hermes-agent.ts（readString 默认值：GLM_FLASH_*/PROMPT_OPTIMIZER*/KNOWLEDGE_LLM_*/EMBEDDINGS_*/REVIEW_MODEL）；src/local-llm/edge-client.ts、edge-embeddings.ts（192.168.0.150 → 127.0.0.1）
+  - 新增 tests/router/user-config-loader.test.ts（5）、tests/router/provider-call-override.test.ts（2）
+- Verification: 配置闭环回归 166/166 通过；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。遗留：双份 PROVIDER_CONFIG 收敛（P0-2）留待下一轮，api-key-store 与 router providers 仍各维护一份。
+- Commit: 0119f81
