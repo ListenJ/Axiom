@@ -4260,3 +4260,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/reviews/2026-08-12-resource-audit.md（实测 RSS≈166MB/heap≈7.9MB；services 层 +84MB 主因 PromptEngineer 全量解析 201 skill → P1 懒加载建议）
 - Verification: SenseNova 审批 glowDistraction=no→mild、stillPremium=yes、overall 8.5（光晕降噪收敛）；后端 41/41、前端 vitest 284/284、bunx tsc --noEmit 干净、bun run build（528 模块）成功；像素验证沿用。备份已删除。
 - Commit: 2dd31d2
+
+## 2026-08-12 - PromptEngineer 懒加载（后端内存 -86%）+ 600MB 约束达成
+
+- Task: 用户要求：①后端尽可能压缩（懒加载）；②前端效果不受影响（保持高质量）；③整体内存压制 ≤600MB。
+- Tools: bun 内存审计脚本 / bunx tsc / bun test --parallel / bun run build / npm run test:run / git。
+- Files:
+  - 修改 src/agents/prompt-engineer.ts（顶层 new PromptEngineer() → getPromptEngineer() 懒加载单例 + 测试重置缝）
+  - 适配调用点：src/agents/consciousness/shims.ts（alias import）、src/agents/prompt-optimizer.ts、src/cli.ts（8 处动态 import）、tests/prompt-engineer.test.ts、tests/skills-integration.test.ts、tests/torture.slow.ts（4 处）
+  - 更新 docs/reviews/2026-08-12-resource-audit.md（懒加载后实测）
+- Verification: 实测（bun 1.3.14）services 层 RSS +84.5MB → +11.8MB（-86%）；核心加载（router+services+memory+agents）最终 RSS 166MB → 85.1MB、heapTotal 32.9MB → 3.6MB、heapUsed 3.5MB——远低于 600MB 约束。功能回归 80/80（prompt-engineer/prompt-optimizer/consciousness/skills/self-evolve）；前端 vitest 284/284（零前端改动，质量保持）；bunx tsc --noEmit 干净；bun run build（528 模块）成功。备份已删除。
+- Commit: a6bd35f
