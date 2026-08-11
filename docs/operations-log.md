@@ -4142,3 +4142,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/skills/skill-execute-by-id.test.ts（3）、tests/mcp/skill-run-tool.test.ts（3）、tests/self-evolve/skill-promotion.test.ts（2）；修改 tests/self-evolve/reflection-induce.test.ts（promote 钩子断言 2）
 - Verification: 新测试 14/14 通过；干净回归（skills/mcp/self-evolve/module-exports/openai-compat）45/45 通过；consciousness/architecture/orchestrator 56/56 通过；bunx tsc --noEmit 干净；bun run build（524 模块）成功；备份已删除。注：services-chat 的 mock.module 会污染同进程 router（既有问题），已分进程验证。
 - Commit: bbea748
+
+## 2026-08-11 - 原生 function-calling：内部聊天模型按需调用 skill（工具循环）
+
+- Task: 打通内部聊天模型的原生工具调用链：provider 层透传 tools + 解析 tool_calls；services 层有界工具循环；/chat、/agent-chat、/v1/chat/completions（非流式）默认暴露 skill_run/skill_list 供模型自主调用。
+- Tools: bun test / bunx tsc --noEmit / bun run build / git / PowerShell。
+- Files:
+  - 修改 src/utils/tool-surface.ts（ToolCallDef/ToolCall 类型；zodToJsonSchema（适配 zod 3.25 shape() 函数化）；toOpenAITools）
+  - 修改 src/router/provider-caller.ts（ChatMessage 支持 tool 角色/tool_calls/tool_call_id；callProvider 接收 tools 并解析 tool_calls）
+  - 修改 src/router/model-router.ts（ExecuteInput/ExecuteOutput/SmartAssignmentResponse 贯通 tools/toolCalls/layer；executeWithRole 透传）
+  - 新增 src/services/tool-loop.ts（runToolLoop：执行工具 → 追加 assistant(tool_calls)+tool 消息 → 有界循环，默认 4 轮，工具错误作为结果）
+  - 修改 src/services/chat.ts（executeChat 增加 tools/role/executeTool 选项）
+  - 修改 src/mcp/server/skill-tools.ts（提取 buildSkillToolSurfaces + runSkillTool 分发器，MCP 与原生共用）
+  - 修改 src/routes/chat.ts、src/routes/openai-compat.ts（非流式默认暴露 skill_run/skill_list）
+  - 兼容性小改：src/agents/internal-agent.ts、src/self-evolve/types.ts（Message 角色加 tool）
+  - 新增 tests/utils/tool-schema.test.ts（2）、tests/services/tool-loop.test.ts（4）；扩展 tests/mcp/skill-run-tool.test.ts（3）
+- Verification: 新测试 12/12 通过；回归 54/54（skills/self-evolve/mcp/module-exports/openai-compat）+ 65/65（consciousness/architecture/orchestrator/internal-agent/services-chat）；bunx tsc --noEmit 干净；bun run build（527 模块）成功；备份已删除。
+- Commit: 98ec636
