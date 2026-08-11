@@ -4104,3 +4104,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/self-evolve/self-evolve.test.ts（10 用例：结构化思考/降级兜底/证据排序/置信度单调与封顶/Improve 写教训/Debug 不写教训/Crossover 教训注入/归纳阈值）
 - Verification: `bun test tests/self-evolve/self-evolve.test.ts tests/module-exports.test.ts tests/architecture-integrity.test.ts` 37/37 通过；`bunx tsc --noEmit` 干净；`bun -e` 冒烟验证默认工厂可实例化。
 - Commit: 3e5eaf7
+
+## 2026-08-11 - 自我进化 Agent 接入（self-thought 注入聊天 + self-improve 反馈回路）
+
+- Task: 将 src/self-evolve 接入运行时主链路：①聊天路由（/chat、/agent-chat、/chat/stream、/v1/chat/completions）在 prepareChatContext 后注入 [Self-Thought] 针对性自我思考；②AgentOrchestrator 任务完成后把成功/失败执行反馈回流 selfImprove（Improve/Debug 算子），默认单例启用。
+- Tools: bun test / bunx tsc --noEmit / bun run build / git / PowerShell。
+- Files:
+  - 修改 src/self-evolve/engine.ts（新增 formatSelfThought + applySelfThought 小接口）
+  - 修改 src/self-evolve/index.ts（导出 + getDefaultSelfEvolve 惰性单例 + 测试重置缝）
+  - 修改 src/routes/chat.ts（3 个 handler 注入自我思考）
+  - 修改 src/routes/openai-compat.ts（defaultDeps 包装 prepareChatContext 注入，覆盖 v1/*）
+  - 修改 src/agents/orchestrator.ts（constructor 可选 selfEvolve + recordEvolution 反馈回流 + 单例接线）
+  - 新增 tests/self-evolve/apply-self-thought.test.ts（4 用例）、tests/self-evolve/orchestrator-evolve.test.ts（4 用例）
+- Verification: self-evolve/openai-compat/services-chat 31/31 通过；orchestrator+architecture 38/38 通过；bunx tsc --noEmit 干净；bun run build（523 模块）成功；备份已删除。注：services-chat 的 mock.module 与 orchestrator 同进程存在既有 mock 泄漏，已分进程验证。
+- Commit: 957b590
