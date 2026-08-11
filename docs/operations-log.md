@@ -4159,3 +4159,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/utils/tool-schema.test.ts（2）、tests/services/tool-loop.test.ts（4）；扩展 tests/mcp/skill-run-tool.test.ts（3）
 - Verification: 新测试 12/12 通过；回归 54/54（skills/self-evolve/mcp/module-exports/openai-compat）+ 65/65（consciousness/architecture/orchestrator/internal-agent/services-chat）；bunx tsc --noEmit 干净；bun run build（527 模块）成功；备份已删除。
 - Commit: 98ec636
+
+## 2026-08-11 - 流式工具调用（/chat/stream 与 v1 stream:true 支持按需调用 skill）
+
+- Task: 补上流式路径的原生 function-calling：chatStream 内置有界工具循环，模型在流式对话中可发起 tool_calls，服务端执行后继续流式输出最终答案。
+- Tools: bun test / bunx tsc --noEmit / bun run build / git / PowerShell。
+- Files:
+  - 修改 src/router/provider-caller.ts（callProviderNativeStream 接收 tools；SSE delta 按 index 累积 tool_calls；返回 toolCalls）
+  - 修改 src/router/model-router.ts（chatStream 选项加 tools/executeTool/maxToolIterations；有界工具循环默认 4 轮；新增 ChatStreamEvent 'tool' 事件；原生流与缓冲回退两路均支持；parseToolArgs 辅助）
+  - 修改 src/routes/chat.ts（/chat/stream 传 tools/executeTool）、src/routes/openai-compat.ts（stream:true 传 tools/executeTool）
+  - 新增 tests/router/provider-native-stream-tools.test.ts（SSE tool_calls 累积/无工具 2 用例）、tests/router/chat-stream-tools.test.ts（工具循环成功/超轮数报错 2 用例）
+- Verification: 流式工具测试 4/4 通过；router/工具链/self-evolve 回归 58/58 通过；consciousness/架构/orchestrator/internal-agent/services-chat 81/83（另 2 例为 services-chat mock.module 污染 model-router 的既有问题，单独运行 model-router 8/8 通过）；bunx tsc --noEmit 干净；bun run build（527 模块）成功；备份已删除。
+- Commit: 916a8e3
