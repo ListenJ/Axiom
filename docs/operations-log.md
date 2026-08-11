@@ -4294,3 +4294,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/components/settings/models-section.tsx（添加模型表单支持 Base URL + Roles（逗号分隔→数组），闭合用户配置 UI 链路；修复重复 baseURL 字段）
 - Verification: SenseNova 复批 providers 82→95/100（statCards=good、bottomText=good、emptyStateCta=yes）；前端 vitest 284/284；npm run build 成功。备份说明：本轮 4 个前端文件改动前未逐文件备份（改动小、经 vitest+build+视觉审批三重验证）。
 - Commit: 88a1f15
+
+## 2026-08-12 - 逐页优化（code 5→9）+ 真实服务内存基线 + 配置闭环真实验证
+
+- Task: 继续完善：后端真实服务启动内存基线；settings/sessions/code/plugins/knowledge 五页 SenseNova 批量审批；修复 code 页引导与术语统一。
+- Tools: bun run src/main.ts（真实服务）/ Get-Process 采样 / Chrome Headless / sensenova-6.8-flash-lite / vitest / npm run build / git。
+- Files:
+  - 修改 frontend/src/pages/Code.tsx（文件列表空态加"开始索引"CTA：调 codegraph.init + 自动刷新；状态"未知"不再无路可走）
+  - 修改 frontend/src/lib/accents.ts（层级配色术语统一：深调/亮调/纯调/柔调）
+  - 修改 docs/reviews/2026-08-12-resource-audit.md（真实服务运行中 WorkingSet ≈ 175MB；配置闭环实测：model-router.yaml user_yaml_* 启动自动注册）
+- Verification: code 页 SenseNova 复批 5→9/10（hasIndexCta=yes、clearGuidance=yes）；五页审批轨迹：settings 7、sessions 6、plugins 3（运行时后端未启动所致，前端已有错误提示）、knowledge 4（设计决策保留兼容页）；前端 vitest 284/284；npm run build 成功。服务真实启动验证：164 路由、MCP 173 工具、配置闭环生效。
+- Commit: a95d9d0
