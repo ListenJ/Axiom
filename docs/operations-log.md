@@ -4199,3 +4199,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/router/user-config-loader.test.ts（5）、tests/router/provider-call-override.test.ts（2）
 - Verification: 配置闭环回归 166/166 通过；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。遗留：双份 PROVIDER_CONFIG 收敛（P0-2）留待下一轮，api-key-store 与 router providers 仍各维护一份。
 - Commit: 0119f81
+
+## 2026-08-11 - 后端 P1 加固 + 前端对比度优化（master-audit 行动清单第二批）
+
+- Task: 按 master-audit 清单实施 P1：auto-induce skill 幂等、model-output 自动清理、executeWithRole 降级；前端文本对比度 token 提升（SenseNova 视觉 P1）。
+- Tools: bun test --parallel / bunx tsc --noEmit / npm run test:run / bun run build / git。
+- Files:
+  - 修改 src/self-evolve/skill-promotion.ts（确定性 id auto-induce-<pattern>，重复反思不再累积）
+  - 修改 src/utils/model-output-store.ts（persist 低频 autoPurge：默认 24h 一次/保留 30 天，可配置关闭）
+  - 修改 src/router/model-router.ts（executeWithRole 无可用模型时返回降级响应而非 throw）
+  - 修改 frontend/src/styles/index.css（dark：secondary #b5b5b5→#c2c2c2、muted #8a8a8a→#9c9c9c、disabled #555→#6e6e6e；light 同步微调）
+  - 新增 tests/model-output-purge.test.ts（2）；扩展 tests/self-evolve/skill-promotion.test.ts（幂等 1）
+- Verification: P1 相关回归 81/81 通过；前端 vitest 284/284 通过；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。SenseNova 复检仍指出侧边栏 10px 小字与背景光晕——因本会话无图像输入，逐组件视觉微调留待专门视觉迭代（不盲改）。
+- Commit: 47467aa
