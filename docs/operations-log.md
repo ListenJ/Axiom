@@ -4118,3 +4118,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/self-evolve/apply-self-thought.test.ts（4 用例）、tests/self-evolve/orchestrator-evolve.test.ts（4 用例）
 - Verification: self-evolve/openai-compat/services-chat 31/31 通过；orchestrator+architecture 38/38 通过；bunx tsc --noEmit 干净；bun run build（523 模块）成功；备份已删除。注：services-chat 的 mock.module 与 orchestrator 同进程存在既有 mock 泄漏，已分进程验证。
 - Commit: 957b590
+
+## 2026-08-11 - 自我进化归纳接入（Consciousness 定时反射周期性归纳执行轨迹）
+
+- Task: 完成 self-evolve 第三环"自推理归纳"：selfImprove 自动记录执行轨迹，Consciousness 定时反射时调用 selfInduce() 归纳高支持度/高成功率模式并写入 vault 归纳笔记。
+- Tools: bun test / bunx tsc --noEmit / bun run build / git / PowerShell。
+- Files:
+  - 修改 src/self-evolve/engine.ts（轨迹缓冲上限 500；recordTrace/listTraces 公开；selfImprove 自动记录；selfInduce 可选参数默认读缓冲）
+  - 修改 src/agents/consciousness/reflection-loop.ts（构造函数可注入 selfEvolve（默认 getDefaultSelfEvolve）；每个反射周期 selfInduce，有模式时写 00-Meta/self-evolve/inductions/ 笔记并计入 curatorNotePaths）
+  - 新增 tests/self-evolve/reflection-induce.test.ts（4 引擎用例 + 2 反射集成用例）
+- Verification: self-evolve/openai-compat/services-chat 37/37 通过；consciousness/architecture/orchestrator 56/56 通过；bunx tsc --noEmit 干净；bun run build（523 模块）成功；备份已删除。
+- Commit: d902266
