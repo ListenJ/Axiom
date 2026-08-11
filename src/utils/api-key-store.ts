@@ -351,6 +351,16 @@ export function isKnownProvider(provider: string): provider is ModelProvider {
 }
 
 /**
+ * 只读 provider 的 baseURL/apiKeyEnv —— router 兼容层（router/models/providers.ts）
+ * 的唯一数据源。全量字段（adapter/region/displayName）见 listProviderStatus。
+ */
+export function getProviderConfig(provider: string): { baseURL: string; apiKeyEnv: string } | undefined {
+  const entry = PROVIDER_CONFIG[provider];
+  if (!entry) return undefined;
+  return { baseURL: entry.baseURL, apiKeyEnv: entry.apiKeyEnv };
+}
+
+/**
  * Bulk-load overrides from DB into the in-memory store.
  * Called once at startup after api_key_overrides table is initialized.
  */
