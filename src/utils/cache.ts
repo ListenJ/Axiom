@@ -322,6 +322,7 @@ export class Cache<V = unknown> {
 
   private scheduleCleanup() {
     // 每 5 分钟清理过期条目
+    // unref：后台清理定时器不阻止进程自然退出（测试/脚本不会挂起）
     this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, entry] of this.store) {
@@ -329,6 +330,7 @@ export class Cache<V = unknown> {
       }
       this.db?.run("DELETE FROM cache_store WHERE expires_at < unixepoch()");
     }, 5 * 60 * 1000);
+    this.cleanupTimer.unref?.();
   }
 }
 

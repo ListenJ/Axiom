@@ -768,6 +768,7 @@ registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "component-kernel", handler: async () => { await componentKernel.dispose(); }, priority: 60 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
+registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().destroy(), priority: 35 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });
 registerShutdownHook({ name: "mcp-clients", handler: async () => { const { closeExternalMcpClients } = await import("./mcp/client-connector.js"); await closeExternalMcpClients(); }, priority: 65 });
