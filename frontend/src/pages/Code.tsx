@@ -91,6 +91,21 @@ function SearchTab() {
     }
   }
 
+  const [indexing, setIndexing] = useState(false)
+
+  const startIndex = async () => {
+    setIndexing(true)
+    setError(null)
+    try {
+      await endpoints.codegraph.init()
+      await refresh()
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e))
+    } finally {
+      setIndexing(false)
+    }
+  }
+
   useEffect(() => {
     refresh()
   }, [])
@@ -136,6 +151,11 @@ function SearchTab() {
             icon={<FileCode className="size-5" />}
             title="暂无文件"
             description="请先运行 CodeGraph 索引。"
+            action={
+              <Button size="sm" onClick={startIndex} loading={indexing}>
+                开始索引
+              </Button>
+            }
           />
         ) : (
           <ul className="max-h-80 space-y-1 overflow-y-auto font-mono text-xs text-[var(--text-secondary)]">

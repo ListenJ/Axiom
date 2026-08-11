@@ -23,6 +23,7 @@ tags: [backend, resource-audit, performance, memory]
 | **最终** | RSS 166.4MB | heapUsed 7.9MB | — |
 
 其他基线：构建产物 main.js ≈ 2.27MB（528 模块）；全量 bun test --parallel ≈ 126s（Raman 此前实测，含环境性失败）。
+真实服务运行中（main.ts 完整启动，含 MCP 客户端/文件 watcher/cron/意识轮询/vault/sqlite）：**WorkingSet ≈ 175MB**（bun 进程物理常驻；PrivateMemory ~527MB 为 Bun 保留虚拟地址空间，非常驻）。配置闭环实测：model-router.yaml 的 user_yaml_* 模型启动自动注册。
 
 ## 热点与已修复
 

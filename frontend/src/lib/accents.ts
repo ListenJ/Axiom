@@ -159,12 +159,12 @@ export const SHELL_TONES: Record<ShellToneId, { label: string; dark: LayerToneVa
     light: { shellBg: '#f0f2f5', shellGlass: 'rgba(240, 242, 245, 0.62)', shellRaisedGlass: 'rgba(232, 234, 238, 0.72)', shellHover: '#e2e5ea', canvasBg: '#ffffff', canvasGlass: 'rgba(255, 255, 255, 0.58)', canvasHover: '#f4f4f4' },
   },
   deeper: {
-    label: '深邃',
+    label: '深调',
     dark: { shellBg: '#101010', shellGlass: 'rgba(16, 16, 16, 0.52)', shellRaisedGlass: 'rgba(24, 24, 24, 0.62)', shellHover: '#1c1c1c', canvasBg: '#050505', canvasGlass: 'rgba(5, 5, 5, 0.5)', canvasHover: '#131313' },
     light: { shellBg: '#e4e7eb', shellGlass: 'rgba(228, 231, 235, 0.6)', shellRaisedGlass: 'rgba(220, 224, 229, 0.7)', shellHover: '#d9dde3', canvasBg: '#fafafa', canvasGlass: 'rgba(250, 250, 250, 0.6)', canvasHover: '#f0f0f0' },
   },
   brighter: {
-    label: '明亮',
+    label: '亮调',
     dark: { shellBg: '#242424', shellGlass: 'rgba(36, 36, 36, 0.6)', shellRaisedGlass: 'rgba(46, 46, 46, 0.7)', shellHover: '#303030', canvasBg: '#101010', canvasGlass: 'rgba(16, 16, 16, 0.5)', canvasHover: '#1e1e1e' },
     light: { shellBg: '#ffffff', shellGlass: 'rgba(255, 255, 255, 0.66)', shellRaisedGlass: 'rgba(248, 248, 248, 0.74)', shellHover: '#f2f2f2', canvasBg: '#ffffff', canvasGlass: 'rgba(255, 255, 255, 0.6)', canvasHover: '#f6f6f6' },
   },
@@ -177,12 +177,12 @@ export const CANVAS_TONES: Record<CanvasToneId, { label: string; dark: LayerTone
     light: SHELL_TONES.default.light,
   },
   pure: {
-    label: '纯净',
+    label: '纯调',
     dark: { shellBg: '#1a1a1a', shellGlass: 'rgba(26, 26, 26, 0.55)', shellRaisedGlass: 'rgba(34, 34, 34, 0.66)', shellHover: '#262626', canvasBg: '#000000', canvasGlass: 'rgba(0, 0, 0, 0.5)', canvasHover: '#0f0f0f' },
     light: { shellBg: '#f0f2f5', shellGlass: 'rgba(240, 242, 245, 0.62)', shellRaisedGlass: 'rgba(232, 234, 238, 0.72)', shellHover: '#e2e5ea', canvasBg: '#ffffff', canvasGlass: 'rgba(255, 255, 255, 0.62)', canvasHover: '#f4f4f4' },
   },
   soft: {
-    label: '柔和',
+    label: '柔调',
     dark: { shellBg: '#1a1a1a', shellGlass: 'rgba(26, 26, 26, 0.55)', shellRaisedGlass: 'rgba(34, 34, 34, 0.66)', shellHover: '#262626', canvasBg: '#141414', canvasGlass: 'rgba(20, 20, 20, 0.5)', canvasHover: '#202020' },
     light: { shellBg: '#f0f2f5', shellGlass: 'rgba(240, 242, 245, 0.62)', shellRaisedGlass: 'rgba(232, 234, 238, 0.72)', shellHover: '#e2e5ea', canvasBg: '#f7f8fa', canvasGlass: 'rgba(247, 248, 250, 0.6)', canvasHover: '#eff1f4' },
   },
