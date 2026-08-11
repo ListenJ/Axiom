@@ -4171,3 +4171,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/router/provider-native-stream-tools.test.ts（SSE tool_calls 累积/无工具 2 用例）、tests/router/chat-stream-tools.test.ts（工具循环成功/超轮数报错 2 用例）
 - Verification: 流式工具测试 4/4 通过；router/工具链/self-evolve 回归 58/58 通过；consciousness/架构/orchestrator/internal-agent/services-chat 81/83（另 2 例为 services-chat mock.module 污染 model-router 的既有问题，单独运行 model-router 8/8 通过）；bunx tsc --noEmit 干净；bun run build（527 模块）成功；备份已删除。
 - Commit: 916a8e3
+
+## 2026-08-11 - 全面审核（前端视觉/后端架构/内核配置/工具链）+ 工具链稳定化
+
+- Task: 并行子代理 + SenseNova 视觉模型全面审核；沉淀 5 份报告；完成工具链 P0 修复。子代理上游 provider 反复 400 失败（5 次 spawn 中 4 次），最终后端/配置/工具链 3 份成功，前端子代理失败后按用户要求改用 SenseNova 6.7 Flash-Lite 视觉审核（10 页截图，key 仅存内存未落盘）。
+- Tools: 子代理 Schrodinger/Ptolemy/Raman；SenseNova 6.7 Flash-Lite（10 张视觉审核）；Chrome Headless CLI 截图；bun test --parallel；git。
+- Files:
+  - 新增 docs/reviews/2026-08-11-frontend-visual-sensanova-review.md（10 页平均 6.8/10，P0×7/P1×20/P2×20）
+  - 新增 docs/reviews/2026-08-11-backend-architecture-review.md、2026-08-11-config-hardcode-review.md、2026-08-11-toolchain-review.md、2026-08-11-master-audit.md
+  - 修改 package.json（test → bun test --parallel tests/；packageManager bun@1.3.14）
+  - 修改 .github/workflows/ci.yml（缓存键 bun.lockb→bun.lock；BUN_VERSION 1.3→1.3.14）
+- Verification: bun test --parallel 污染组合（internal-agent-budget/services-chat/model-router/流式工具）21/21 通过（此前 mock.module 泄漏导致同进程失败）；报告与修复已提交 5c4ce01。配置断链/user-config-loader 等 P0 修复留待下一轮（见 master-audit 行动清单）。
+- Commit: 5c4ce01
