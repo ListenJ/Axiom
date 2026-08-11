@@ -4129,3 +4129,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/self-evolve/reflection-induce.test.ts（4 引擎用例 + 2 反射集成用例）
 - Verification: self-evolve/openai-compat/services-chat 37/37 通过；consciousness/architecture/orchestrator 56/56 通过；bunx tsc --noEmit 干净；bun run build（523 模块）成功；备份已删除。
 - Commit: d902266
+
+## 2026-08-11 - Skill 按需调用（模型可直接调用的模块）
+
+- Task: 解决"skill 只是被动文本、模型无法自己调用"的缺口：新增按 id 执行入口 executeById、MCP skill_run 工具（模型/外部 Agent 可按需调用 skill），并把归纳模式自动提升为 auto-induce-* 可调用 skill。
+- Tools: bun test / bunx tsc --noEmit / bun run build / git / PowerShell。
+- Files:
+  - 修改 src/skills/skill-registry.ts（新增 executeById：不存在返回 null，失败返回 content 不抛错）
+  - 修改 src/mcp/server/skill-tools.ts（注册 skill_run 工具：skillId + params → executeById；exposure internal/external）
+  - 新增 src/self-evolve/skill-promotion.ts（promoteInductionsToSkills：Induction → auto-induce-* SkillDefinition，注册 + 持久化到 axiom-memory/03-Resources/skills，依赖可注入）
+  - 修改 src/agents/consciousness/reflection-loop.ts（induce 后经可注入 promoteInductions 钩子提升为 skill，默认 promoteInductionsToSkills，非阻断）
+  - 新增 tests/skills/skill-execute-by-id.test.ts（3）、tests/mcp/skill-run-tool.test.ts（3）、tests/self-evolve/skill-promotion.test.ts（2）；修改 tests/self-evolve/reflection-induce.test.ts（promote 钩子断言 2）
+- Verification: 新测试 14/14 通过；干净回归（skills/mcp/self-evolve/module-exports/openai-compat）45/45 通过；consciousness/architecture/orchestrator 56/56 通过；bunx tsc --noEmit 干净；bun run build（524 模块）成功；备份已删除。注：services-chat 的 mock.module 会污染同进程 router（既有问题），已分进程验证。
+- Commit: bbea748
