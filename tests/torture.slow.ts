@@ -252,7 +252,8 @@ describe("Chaos Concurrency", () => {
 // 6. PromptEngineer (W3 重构验证: 零向量匹配 + 模板填充鲁棒性)
 describe("Chaos PromptEngineer", () => {
   it("Fuzz: 1K 随机任务描述不崩溃 + 返回结构合法", async () => {
-    const { promptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const promptEngineer = getPromptEngineer();
     const samples = [
       "", " ", "a", "你好", "🔍 emoji test",
       "code review this function for bugs",
@@ -280,7 +281,8 @@ describe("Chaos PromptEngineer", () => {
   }, 15000);
 
   it("Fill template: 恶意变量值不破坏模板结构", async () => {
-    const { promptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const promptEngineer = getPromptEngineer();
     const template = promptEngineer.listTemplates()[0];
     const maliciousValues: Record<string, string> = {};
     for (const v of template.variables) {
@@ -302,7 +304,8 @@ describe("Chaos PromptEngineer", () => {
   });
 
   it("并发 matchTemplate 确定性: 100 并行同输入返回同结果", async () => {
-    const { promptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const promptEngineer = getPromptEngineer();
     const desc = "帮我审查这段代码的安全性";
     const results = await Promise.all(
       Array.from({ length: 100 }, () =>
@@ -317,7 +320,8 @@ describe("Chaos PromptEngineer", () => {
   });
 
   it("Unicode/Emoji/混合语言匹配不崩溃", async () => {
-    const { promptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const promptEngineer = getPromptEngineer();
     const descs = [
       "🚀 帮我生成一个 React 组件",
       "コードをレビューしてください",

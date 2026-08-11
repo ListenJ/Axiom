@@ -5,7 +5,9 @@
 import { describe, test, expect } from "bun:test";
 import fs from "fs";
 import path from "path";
-import { promptEngineer, PromptEngineer } from "../src/agents/prompt-engineer.js";
+import { getPromptEngineer, PromptEngineer } from "../src/agents/prompt-engineer.js";
+
+const promptEngineer = getPromptEngineer();
 import { DEFAULT_PROMPT_DIR, DEFAULT_SKILL_DIRS } from "../src/skills/types.js";
 
 describe("Prompt Engineer - 零向量提示词引擎", () => {

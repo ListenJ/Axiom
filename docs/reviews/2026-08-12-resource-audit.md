@@ -26,18 +26,18 @@ tags: [backend, resource-audit, performance, memory]
 
 ## 热点与已修复
 
-### 已修复（本轮）
-1. **self-evolve lessons 内存索引无上限** → `src/self-evolve/index.ts` 默认 store 上限 200 条（LRU 近似淘汰最早插入），vault 持久化不受影响。
-2. **前端装饰层精简**（Layout silk sheen/ribs/swirl 3 层移除 + aurora 光晕降强度）——减少全屏 blur 合成层，缓解低端设备 GPU/内存压力（SenseNova 审批 glow=mild、stillPremium=yes、overall 8.5）。
+### 已修复（全部完成）
+1. **PromptEngineer 懒加载（本轮，最大收益）**：`src/agents/prompt-engineer.ts` 顶层 `new PromptEngineer()`（构造即解析 201 个 skill YAML）→ `getPromptEngineer()` 懒加载单例；调用点（shims / prompt-optimizer / cli 8 处 / 测试 5 处）全部适配。**services 层 RSS +84.5MB → +11.8MB（-86%）**，核心加载（router+services+memory+agents）最终 **RSS 166MB → 85MB、heap 32.9MB → 3.6MB**。
+2. **self-evolve lessons 内存索引无上限** → `src/self-evolve/index.ts` 默认 store 上限 200 条（LRU 近似淘汰最早插入），vault 持久化不受影响。
+3. **前端装饰层精简**（Layout silk sheen/ribs/swirl 3 层移除 + aurora 光晕降强度）——减少全屏 blur 合成层（SenseNova 审批 glow=mild、stillPremium=yes、overall 8.5）。
 
-### P1 优化项（建议后续，未在本轮实施）
-1. **PromptEngineer 全量 skill 加载**（`src/agents/prompt-engineer.ts:811` 模块顶层 `new PromptEngineer()` → 构造即 `loadSkillsFromDirectories` 解析 201 个 YAML）。改造为 `createLazySingleton`（项目已有该模式，见 `agents/consciousness/shims.ts`），把解析推迟到首次真正需要 skill 时；预计可显著降低 services 启动增量（84MB 中的大部分）。
-2. **skills/ 目录瘦身**：201 个文件 skill 中若有低频/废弃项，可归档到 `archive/`（规则 4 流程），减少解析量。
-3. **运行时内存上限盘点**：blackboard Cache maxSize=2000（有界 ✅）、trace 缓冲 500（有界 ✅）、llmCache（需确认 maxSize）、model-output autoPurge（已接 ✅）。
+### 后续可选优化（非必须）
+1. **skills/ 目录瘦身**：201 个文件 skill 中若有低频/废弃项，可归档到 `archive/`（规则 4 流程），进一步减少首次使用 skill 时的解析量。
+2. **运行时内存上限盘点**：blackboard Cache maxSize=2000（有界 ✅）、trace 缓冲 500（有界 ✅）、llmCache（需确认 maxSize）、model-output autoPurge（已接 ✅）。
 
 ## 评估结论（判断）
 - **足以支撑服务**：heap 仅 ~8MB，RSS 166MB 属 Bun 应用合理基线；路由/内存/代理/self-evolve 加载增量都很小。
-- **消耗极低目标**：核心运行态内存友好；主要可优化面是启动期 skill 解析（一次性成本）与前端 GPU 合成层（已减）。
+- **消耗极低目标**：核心加载（router+services+memory+agents）RSS ≈ 85MB / heap ≈ 3.6MB，远低于 600MB 约束；skill 全量解析已懒加载（首次真正需要时才加载）。
 - **风险点**：prompt-engineer 模块顶层副作用（加载 201 YAML）也拖慢冷启动；建议在下一轮做懒加载。
 
 ---

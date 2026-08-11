@@ -1,14 +1,14 @@
 import { MemoryArchiver } from "../../memory/archiver.js";
 import { MemoryDistiller } from "../../memory/distiller.js";
 import { getSqliteMemory as createSqliteMemory, type SQLiteMemory } from "../../memory/sqlite-memory.js";
-import { promptEngineer, type PromptEngineer } from "../../agents/prompt-engineer.js";
+import { getPromptEngineer as getPromptEngineerImpl, type PromptEngineer } from "../../agents/prompt-engineer.js";
 import { getSkillRegistry as createSkillRegistry, type SkillRegistry } from "../../skills/skill-registry.js";
 import { createLazySingleton } from "../../utils/lazy-singleton.js";
 
 const archiver = createLazySingleton<MemoryArchiver>(() => new MemoryArchiver());
 const distiller = createLazySingleton<MemoryDistiller>(() => new MemoryDistiller());
 const sqlite = createLazySingleton<SQLiteMemory>(() => createSqliteMemory());
-const engineer = createLazySingleton<PromptEngineer>(() => promptEngineer);
+const engineer = createLazySingleton<PromptEngineer>(() => getPromptEngineerImpl());
 const registry = createLazySingleton<SkillRegistry>(() => createSkillRegistry());
 
 export const getGlobalMemoryArchiver = archiver.get.bind(archiver);

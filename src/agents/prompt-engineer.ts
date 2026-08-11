@@ -807,5 +807,15 @@ ${triggers.join(", ")}
   }
 }
 
-// 全局实例
-export const promptEngineer = new PromptEngineer();
+// 懒加载单例：首次调用才解析全部 skill 文件（显著降低冷启动内存/耗时）
+let _promptEngineer: PromptEngineer | null = null;
+
+export function getPromptEngineer(): PromptEngineer {
+  if (!_promptEngineer) _promptEngineer = new PromptEngineer();
+  return _promptEngineer;
+}
+
+/** Test seam：重置单例。 */
+export function _resetPromptEngineerForTest(): void {
+  _promptEngineer = null;
+}

@@ -29,8 +29,8 @@ describe("agency-zh skill 库加载", () => {
   });
 
   test("matchSkill 命中后端架构师", async () => {
-    const { promptEngineer } = await import("../src/agents/prompt-engineer.js");
-    const hit = promptEngineer.matchSkill("帮我设计一个高并发的后端 API 架构");
+    const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");
+    const hit = getPromptEngineer().matchSkill("帮我设计一个高并发的后端 API 架构");
     expect(hit).not.toBeNull();
     expect(hit!.id).toContain("agency-");
   });

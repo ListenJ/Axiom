@@ -17,7 +17,7 @@
  */
 
 import { callProvider } from "../router/provider-caller.js";
-import { promptEngineer } from "./prompt-engineer.js";
+import { getPromptEngineer } from "./prompt-engineer.js";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 
@@ -196,7 +196,7 @@ async function glmVerifyFidelity(original: string, rewritten: string): Promise<b
 /** 生产 Skill 匹配：promptEngineer 角色库（agency-zh + Hermes + 内置） */
 function matchSkillContext(input: string): string | null {
   try {
-    const skill = promptEngineer.matchSkill(input);
+    const skill = getPromptEngineer().matchSkill(input);
     if (!skill) return null;
     // 裁剪人格正文，避免 prompt 过长
     const persona = skill.promptTemplate.slice(0, 800);
