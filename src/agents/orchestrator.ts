@@ -26,6 +26,8 @@ import {
   NativeResearchAgent,
 } from "../components/native-agents.js";
 import { createNativeAgentOptions } from "./component-bootstrap.js";
+import { getDefaultSelfEvolve } from "../self-evolve/index.js";
+import type { SelfEvolveEngine } from "../self-evolve/engine.js";
 
 // ========== 类型定义 ==========
 
@@ -345,7 +347,7 @@ export class AgentOrchestrator {
   private router: TaskRouterImpl;
   private decomposer: TaskDecomposerImpl;
 
-  constructor() {
+  constructor(private readonly options: { selfEvolve?: Pick<SelfEvolveEngine, "selfImprove"> } = {}) {
     this.registry = new AgentRegistryImpl();
     this.router = new TaskRouterImpl();
     this.decomposer = new TaskDecomposerImpl();
@@ -386,6 +388,8 @@ export class AgentOrchestrator {
 
       const result = await agent.execute(task);
 
+      await this.recordEvolution(task, result);
+
       logger.info("[Orchestrator] Task completed", {
         taskId: task.id,
         agentId: agent.id,
@@ -398,13 +402,36 @@ export class AgentOrchestrator {
       const error = toAxiomError(err, "Task execution failed");
       logger.error(`[Orchestrator] Task ${task.id} failed`, error);
 
-      return {
+      const failed: AgentResult = {
         taskId: task.id,
         agentId: "unknown",
         success: false,
         error: error.message,
         duration: Date.now() - startTime,
       };
+      await this.recordEvolution(task, failed);
+      return failed;
+    }
+  }
+
+  /**
+   * 执行反馈回流自我进化：成功 → Improve（写教训）；失败 → Debug（修订计划）。
+   * 非阻断：engine 缺失或抛错均不影响任务结果。
+   */
+  private async recordEvolution(task: AgentTask, result: AgentResult): Promise<void> {
+    if (!this.options.selfEvolve) return;
+    try {
+      await this.options.selfEvolve.selfImprove({
+        task: task.description,
+        feedback: {
+          action: task.description || task.type,
+          outcome: result.success ? "completed" : `failed: ${(result.error ?? "").slice(0, 300)}`,
+          success: result.success,
+          error: result.error,
+        },
+      });
+    } catch (err) {
+      logger.debug("[Orchestrator] self-improve skipped", { error: (err as Error).message });
     }
   }
 
@@ -726,7 +753,7 @@ let _instance: AgentOrchestrator | null = null;
 
 export function getAgentOrchestrator(): AgentOrchestrator {
   if (!_instance) {
-    _instance = new AgentOrchestrator();
+    _instance = new AgentOrchestrator({ selfEvolve: getDefaultSelfEvolve() });
 
     // Day0: native agents are the default path; external CLIs remain optional adapters.
     const options = createNativeAgentOptions();

@@ -13,6 +13,7 @@ import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
 import { router } from "../router/model-router.js";
 import { prepareChatContext, executeChat } from "../services/chat.js";
+import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 
 interface OpenAIChatMessage {
   role: string;
@@ -61,7 +62,18 @@ export interface OpenAICompatDeps {
 }
 
 const defaultDeps: OpenAICompatDeps = {
-  prepareChatContext,
+  prepareChatContext: async (messages, enableIntent, vault, options) => {
+    const prepared = await prepareChatContext(messages, enableIntent, vault, options);
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUser?.content) {
+      prepared.chatMessages = await applySelfThought(
+        prepared.chatMessages,
+        lastUser.content,
+        getDefaultSelfEvolve(),
+      );
+    }
+    return prepared;
+  },
   executeChat,
   chatStream: (role, messages, opts) => router.chatStream(role, messages, opts),
 };

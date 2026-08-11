@@ -11,7 +11,7 @@ import { router } from "../services/router.js";
 import { SelfEvolveEngine, stableHash } from "./engine.js";
 import type { SelfEvolveDeps } from "./types.js";
 
-export { SelfEvolveEngine, tokenize, stableHash } from "./engine.js";
+export { SelfEvolveEngine, applySelfThought, formatSelfThought, tokenize, stableHash } from "./engine.js";
 export type {
   EvidenceSource,
   Improvement,
@@ -80,4 +80,17 @@ export function createDefaultSelfEvolve(): SelfEvolveEngine {
     },
     store: createDefaultStore(),
   });
+}
+
+let _defaultEngine: SelfEvolveEngine | null = null;
+
+/** 默认引擎单例（chat 路由 / orchestrator 接入点共用，惰性创建）。 */
+export function getDefaultSelfEvolve(): SelfEvolveEngine {
+  if (!_defaultEngine) _defaultEngine = createDefaultSelfEvolve();
+  return _defaultEngine;
+}
+
+/** Test seam：重置单例。 */
+export function _resetDefaultSelfEvolveForTest(): void {
+  _defaultEngine = null;
 }

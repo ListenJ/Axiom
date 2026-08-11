@@ -271,3 +271,44 @@ function buildImprovePrompt(req: ImproveRequest, prior: string[]): string {
     `请输出 JSON：{"revisedPlan":["..."],"lesson":"..."}`,
   ].join("\n\n");
 }
+
+/**
+ * 把自我思考格式化为紧凑的 system 提示文本（供聊天上下文注入）。
+ */
+export function formatSelfThought(thought: SelfThought): string {
+  const lines = [
+    `Goal: ${thought.goal.slice(0, 200)}`,
+    `Plan: ${thought.plan.slice(0, 3).map((s) => s.slice(0, 120)).join(" → ")}`,
+  ];
+  if (thought.assumptions.length > 0) {
+    lines.push(`Assumptions: ${thought.assumptions.slice(0, 2).map((a) => a.slice(0, 80)).join("; ")}`);
+  }
+  if (thought.risks.length > 0) {
+    lines.push(`Risks: ${thought.risks.slice(0, 2).map((r) => r.slice(0, 80)).join("; ")}`);
+  }
+  lines.push(`Confidence: ${(thought.confidence * 100).toFixed(0)}%`);
+  if (thought.evidence.length > 0) {
+    lines.push(
+      `Evidence: ${thought.evidence.slice(0, 2).map((e) => `${e.title} (${e.provenance}, ${(e.score * 100).toFixed(0)}%)`).join("; ")}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/**
+ * 把针对性自我思考注入消息末尾（路由层接入点，小接口：只需要 selfThink）。
+ * 失败 / 未提供 engine / 空输入 → 原样返回，不抛错、不阻断主流程。
+ */
+export async function applySelfThought(
+  messages: Message[],
+  input: string,
+  engine?: { selfThink(input: SelfThinkRequest): Promise<SelfThought> },
+): Promise<Message[]> {
+  if (!engine || !input.trim()) return messages;
+  try {
+    const thought = await engine.selfThink({ input, project: process.cwd() });
+    return [...messages, { role: "system", content: "[Self-Thought]\n" + formatSelfThought(thought) }];
+  } catch {
+    return messages;
+  }
+}

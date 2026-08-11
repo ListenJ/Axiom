@@ -7,6 +7,7 @@ import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
+import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
@@ -15,11 +16,16 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   const body = await ctx.req.json();
   const { taskType, messages = [], intent: enableIntent = true, budget, sessionId } = body;
 
-  const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
+  const { chatMessages: preparedMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
     { budget },
+  );
+  const chatMessages = await applySelfThought(
+    preparedMessages,
+    String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : ""),
+    getDefaultSelfEvolve(),
   );
   const result = await executeChat(chatMessages, intentInfo, taskType);
 
@@ -78,12 +84,13 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     { role: "user", content: message },
   ];
 
-  const { chatMessages, intentInfo, tokenBudgetReport } = await prepareChatContext(
+  const { chatMessages: preparedMessages, intentInfo, tokenBudgetReport } = await prepareChatContext(
     messages,
     true,
     ctx.vault,
     { budget },
   );
+  const chatMessages = await applySelfThought(preparedMessages, String(message ?? ""), getDefaultSelfEvolve());
   const result = await executeChat(chatMessages, intentInfo, taskType);
 
   const response = ctx.jsonResponse({
