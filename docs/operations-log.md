@@ -4305,3 +4305,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 docs/reviews/2026-08-12-resource-audit.md（真实服务运行中 WorkingSet ≈ 175MB；配置闭环实测：model-router.yaml user_yaml_* 启动自动注册）
 - Verification: code 页 SenseNova 复批 5→9/10（hasIndexCta=yes、clearGuidance=yes）；五页审批轨迹：settings 7、sessions 6、plugins 3（运行时后端未启动所致，前端已有错误提示）、knowledge 4（设计决策保留兼容页）；前端 vitest 284/284；npm run build 成功。服务真实启动验证：164 路由、MCP 173 工具、配置闭环生效。
 - Commit: a95d9d0
+
+## 2026-08-12 - 内部 GLM 免费视觉模型能力 + sessions 空态优化
+
+- Task: 按用户意图"内部应有 GLM 免费模型作为基础视觉模型完成任务"：落地内部视觉审核工具（模型/链接全部走配置模板，不写死）；继续迭代 sessions 空态。
+- Tools: bun run / curl.exe / vitest / npm run build / git。
+- Files:
+  - 新增 scripts/visual-audit.ts（内部视觉审核：默认 glm-4v-flash 免费模型；ZHIPU_API_KEY + GLM_VISION_MODEL/BASE_URL 全部 .env 模板化；用法 --image [--prompt]；输出模型审核文本）
+  - 修改 .env.example（追加 GLM_VISION_MODEL/GLM_VISION_BASE_URL 模板）
+  - 修改 frontend/src/pages/Sessions.tsx（右栏空态：左侧无会话时显示"暂无会话可查看"而非误导性"选择一个会话"）
+- Verification: 工具链路实测（读取图片→调用智谱 API→401 明确报错，证明链路正确，仅本地 ZHIPU key 过期；用户更新 .env 后即用内部 GLM 免费视觉模型）；前端 vitest 284/284；npm run build 成功。备份已删除。
+- Commit: cbc3e2a
