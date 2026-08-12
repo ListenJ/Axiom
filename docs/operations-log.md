@@ -4352,3 +4352,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/knowledge/vision.test.ts（6：媒体引用解析/代码块跳过/请求形状/API 失败降级/markdown 富化/无 ffmpeg 视频跳过）
 - Verification: vision+pipeline 9/9 通过（pipeline 单独 3/3）；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。注：4 文件组合时 pipeline 空 options 偶发失败为既有 vault/db 资源竞争（vision+pipeline 组合与单独均通过）。
 - Commit: 9f4c887
+
+## 2026-08-12 - 视频多帧采样 + 内部 GLM 完整复批 + CCF 课题筛选
+
+- Task: ① 视频分支接入多帧采样（2x2 网格，单次视觉调用理解关键画面）；② 用内部 GLM 免费视觉模型（glm-4.6v-flash）对前端页面完整复批；③ 筛选 2027.03 前可完成的 CCF 论文课题。
+- Tools: bun test / bunx tsc / scripts/visual-audit.ts（glm-4.6v-flash）/ Chrome Headless 截图 / web 检索 / git。
+- Files:
+  - 修改 src/knowledge/vision.ts（extractVideoFrames：ffmpeg fps=1/2 多帧采样 + scale=320:-1 + tile=2x2 网格，失败回退首帧，mkdtemp 临时目录并调用后清理；understandImageFile 增加 429/1305 退避重试 3 次 2s/4s/8s；describeMediaInMarkdown 视频分支专用"视频关键帧"prompt）
+  - 新增 docs/research/CCF-agent-topics-2026-08-12.md（3 个候选课题：A 自进化评估偏差与跨域泛化（首选）/ B 工具循环运行时幻觉拦截框架 / C 媒体记忆；目标会议 IJCAI 2027 ≈2027-01、ACL 2027 ≈2026-12；时间线 2026-08→2027-01）
+- Verification: tests/knowledge/vision.test.ts 6/6 通过；bunx tsc --noEmit 干净；glm-4.6v-flash 完整复批 3 张（code-v3/providers-v2/brand-chat-strong）成功，429 退避生效；备份已删除。
+- Commit: f666a66
