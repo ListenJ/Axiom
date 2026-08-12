@@ -14,8 +14,10 @@ const family = flag("family") as TaskFamily | undefined;
 const split = flag("split") as TaskSplit | undefined;
 const json = args.includes("--json");
 const dryRun = args.includes("--dry-run");
-const concurrency = Number(flag("concurrency") ?? "2");
+const concurrency = Number(flag("concurrency") ?? "1");
 const modelHint = flag("model");
+const provider = flag("provider");
+const directModel = flag("model") ?? flag("direct-model");
 
 function showHelp() {
   logger.info(`
@@ -26,6 +28,7 @@ Options:
   --split=<s>       只跑指定划分 (train|held-out)
   --concurrency=N   并发数 (默认 2)
   --model=<id>      指定模型（默认走 model-router general-chat 角色）
+  --provider=<p>    直连 provider（如 zhipu），配合 --model 使用，绕过 model-router
   --json            输出 JSON
   --dry-run         预览任务清单
   --help            帮助
@@ -54,7 +57,7 @@ if (tasks.length === 0) {
 }
 
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
-const results = await runTasks(tasks, { family, split, concurrency, modelHint });
+const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel });
 const summary = summarize(results);
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);

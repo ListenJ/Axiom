@@ -70,6 +70,14 @@ export function hasJSONKeys(text: string, keys: string[]): VerifyResult {
   return pass();
 }
 
+/** 多组同义词验证：每一组至少命中一个（组内任一子串命中即可，大小写不敏感）。 */
+export function containsAllAny(text: string, groups: string[][]): VerifyResult {
+  const lower = text.toLowerCase();
+  const missed = groups.filter((g) => !g.some((n) => lower.includes(n.toLowerCase())));
+  if (missed.length > 0) return fail(`缺少任一概念: ${missed.map((g) => g.join("/")).join("; ")}`);
+  return pass();
+}
+
 /** 响应长度下限（避免空答/敷衍）。 */
 export function minLength(text: string, min: number): VerifyResult {
   if (text.trim().length < min) return fail(`响应过短（${text.trim().length} < ${min}）`);

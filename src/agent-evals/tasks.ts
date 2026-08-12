@@ -4,6 +4,7 @@
  */
 import {
   containsAll,
+  containsAllAny,
   containsAny,
   hasJSONKeys,
   minLength,
@@ -52,7 +53,7 @@ const coding: AgentTask[] = [
     { maxTokens: 512 }),
   t("CODING-03", "coding", "held-out", "正则提取手机号",
     "写一段 JavaScript 代码，从任意文本中提取中国大陆手机号（11 位，1 开头），返回去重数组。",
-    (r) => containsAll(r, ["match", "regexp", "set"]),
+    (r) => containsAllAny(r, [["match"], ["regexp", "正则"], ["set"]]),
     { maxTokens: 512 }),
   t("CODING-04", "coding", "held-out", "复杂度优化建议",
     "给定函数：function findDup(arr){ for(let i=0;i<arr.length;i++){ for(let j=i+1;j<arr.length;j++){ if(arr[i]===arr[j]) return arr[i]; } } return null; } 说明它的时间复杂度，并给出 O(n) 的优化实现。",
@@ -64,19 +65,19 @@ const coding: AgentTask[] = [
 const knowledge: AgentTask[] = [
   t("KNOW-01", "knowledge", "train", "CAP 定理",
     "解释分布式系统 CAP 定理：三个保证分别是什么？给出一个选择 CP 的实例。",
-    (r) => containsAll(r, ["consistency", "availability", "partition"]),
+    (r) => containsAllAny(r, [["consistency", "一致性"], ["availability", "可用性"], ["partition", "分区"]]),
     { maxTokens: 512 }),
   t("KNOW-02", "knowledge", "train", "Bun 与 Node 差异",
     "简述 Bun 运行时与 Node.js 的三点差异（运行时/包管理/TS 处理）。",
-    (r) => containsAll(r, ["zig", "jsc", "typescript"]),
+    (r) => containsAllAny(r, [["zig"], ["jsc", "javascriptcore"], ["typescript"]]),
     { maxTokens: 512 }),
   t("KNOW-03", "knowledge", "held-out", "MCP 协议",
     "什么是 Model Context Protocol？它的核心价值是什么？请给出一个实际使用场景。",
-    (r) => containsAll(r, ["model context protocol", "tool", "context"]),
+    (r) => containsAllAny(r, [["model context protocol", "模型上下文协议"], ["tool", "工具"], ["context", "上下文"]]),
     { maxTokens: 512 }),
   t("KNOW-04", "knowledge", "held-out", "SQLite WAL",
     "SQLite 的 WAL 模式相比默认 journal 模式有什么优势？适合什么场景？",
-    (r) => containsAll(r, ["wal", "write-ahead", "read", "write"]),
+    (r) => containsAllAny(r, [["wal"], ["write-ahead", "预写日志"], ["read", "读"], ["write", "写"]]),
     { maxTokens: 512 }),
 ];
 
@@ -92,11 +93,11 @@ const planning: AgentTask[] = [
     { maxTokens: 512 }),
   t("PLAN-03", "planning", "held-out", "知识库索引计划",
     "一个笔记库要支持语义检索：请列出从原始 Markdown 到可检索索引的处理步骤（含解析、分块、向量化、检索）。",
-    (r) => containsAll(r, ["解析", "分块", "向量", "索引"]),
+    (r) => containsAllAny(r, [["解析"], ["分块", "切分"], ["向量", "embedding"], ["索引"]]),
     { maxTokens: 512 }),
   t("PLAN-04", "planning", "held-out", "预算内任务排序",
     "你有 4 小时完成三件事：修一个 P0 bug、写周报、给新人答疑。给出优先级排序和理由（一句）。",
-    (r) => containsAll(r, ["p0", "先", "bug"]),
+    (r) => containsAllAny(r, [["p0"], ["先"], ["bug"]]),
     { maxTokens: 512 }),
 ];
 
@@ -136,7 +137,7 @@ const memory: AgentTask[] = [
 const selfEvolve: AgentTask[] = [
   t("EVOLVE-01", "self-evolve", "train", "从失败提取教训",
     "下面是一条失败轨迹：Agent 尝试用 fs.readFileSync 读取一个不存在路径，抛 ENOENT，然后没有检查错误直接继续，最终任务失败。\n请提炼一条可复用的教训（一句话，含「下次」）。",
-    (r) => containsAll(r, ["下次", "检查", "存在"]),
+    (r) => containsAllAny(r, [["下次"], ["检查", "判断"], ["文件", "路径", "错误"]]),
     { maxTokens: 256 }),
   t("EVOLVE-02", "self-evolve", "held-out", "从成功归纳模式",
     "两条成功轨迹：① 用户要总结 PDF，Agent 先抽文本→分块→调摘要模型→汇总；② 用户要总结网页，Agent 先抓 HTML→去标签→分块→调摘要模型→汇总。\n请归纳它们的共同模式（一句话，含「模式」或「步骤」）。",

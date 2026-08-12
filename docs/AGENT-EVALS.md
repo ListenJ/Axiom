@@ -64,6 +64,9 @@ tests/agent-evals/
   metrics.test.ts  // 指标计算与 held-out 泛化率
 ```
 
+- 直连模式示例（绕过 model-router，使用 .env 中对应 provider 的 key）：
+  `bun run src/agent-evals/run.ts --provider=zhipu --model=glm-4.7-flash`
+
 ## 与方向乙联动
 
 - self-evolve 任务族验证：给定一段失败轨迹 → Agent 应产生"教训/改进建议"；
