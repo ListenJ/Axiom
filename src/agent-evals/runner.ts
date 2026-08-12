@@ -2,8 +2,13 @@
  * Agent 评测执行器 — 通过 internalAgent 调用用户配置的模型执行任务，
  * 收集通过/失败、延迟、输出长度（不依赖任何硬编码模型/密钥）。
  */
+import { spawnSync } from "bun";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { internalAgent } from "../agents/internal-agent.js";
 import { getProviderConfig } from "../utils/api-key-store.js";
+import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import type { AgentTask } from "./tasks.js";
@@ -77,34 +82,95 @@ async function callProviderDirect(
     ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
     { role: "user" as const, content: task.prompt },
   ];
+  const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
   for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(`${cfg.baseURL.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: task.maxTokens ?? 512,
-        temperature: 0.2,
-        // GLM 推理模型默认强制思考（content 为空），评测场景禁用思考以获得直接答案
-        ...(provider === "zhipu" ? { thinking: { type: "disabled" } } : {}),
-      }),
-      signal: AbortSignal.timeout(90_000),
-    });
-    if (res.status === 429 || res.status >= 500) {
+    const { status, body } = useCurl
+      ? await callWithCurl(cfg.baseURL, apiKey, model, task)
+      : await callWithProxy(cfg.baseURL, apiKey, provider, model, task);
+    if (status === 429 || status >= 500) {
       const delayMs = 3000 * Math.pow(2, attempt);
-      logger.warn(`[AgentEval] ${label} rate-limited (${res.status}), retry in ${delayMs}ms`);
+      logger.warn(`[AgentEval] ${label} rate-limited (${status}), retry in ${delayMs}ms`);
       await new Promise((r) => setTimeout(r, delayMs));
       continue;
     }
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "unknown");
-      throw new Error(`${provider} returned ${res.status}: ${errText.slice(0, 200)}`);
+    if (status >= 400) {
+      throw new Error(`${provider} returned ${status}: ${body.slice(0, 200)}`);
     }
-    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const data = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
     return data.choices?.[0]?.message?.content ?? "";
   }
-  throw new Error(`${provider} rate-limited after 3 retries`);
+  throw new Error(`${provider} rate-limited after retries`);
+}
+
+
+/** proxyFetch 路径（zhipu 等可达 provider），返回 status + body。 */
+async function callWithProxy(
+  baseURL: string,
+  apiKey: string,
+  provider: string,
+  model: string,
+  task: AgentTask,
+): Promise<{ status: number; body: string }> {
+  const res = await proxyFetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+        { role: "user" as const, content: task.prompt },
+      ],
+      max_tokens: task.maxTokens ?? 512,
+      temperature: 0.2,
+      // GLM 推理模型默认强制思考（content 为空），评测场景禁用思考以获得直接答案
+      ...(provider === "zhipu" ? { thinking: { type: "disabled" } } : {}),
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  return { status: res.status, body: await res.text().catch(() => "") };
+}
+
+/** curl 路径（opencode.ai 仅 curl 可达）：返回 status + body。 */
+async function callWithCurl(
+  baseURL: string,
+  apiKey: string,
+  model: string,
+  task: AgentTask,
+): Promise<{ status: number; body: string }> {
+  const messages = [
+    ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+    { role: "user" as const, content: task.prompt },
+  ];
+  const payload = JSON.stringify({
+    model,
+    messages,
+    max_tokens: task.maxTokens ?? 512,
+    temperature: 0.2,
+    thinking: { type: "disabled" }, // deepseek-v4-flash 推理模型：禁用思考以获得直接回答
+  });
+  const tmpFile = path.join(os.tmpdir(), `agent-eval-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(tmpFile, payload, "utf8");
+  try {
+    const proc = spawnSync(
+      ["curl.exe", "-sS", "-m", "120", "-X", "POST",
+        `${baseURL.replace(/\/$/, "")}/chat/completions`,
+        "-H", "Content-Type: application/json",
+        "-H", `Authorization: Bearer ${apiKey}`,
+        "--data", `@${tmpFile}`,
+        "-w", "\n%{http_code}"],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const stdout = new TextDecoder().decode(proc.stdout);
+    const stderr = new TextDecoder().decode(proc.stderr);
+    if (proc.exitCode !== 0) {
+      throw new Error(`curl failed (${proc.exitCode}): ${stderr.slice(0, 200)}`);
+    }
+    const parts = stdout.trimEnd().split("\n");
+    const status = Number(parts.pop());
+    return { status: Number.isFinite(status) ? status : 0, body: parts.join("\n") };
+  } finally {
+    try { fs.rmSync(tmpFile, { force: true }); } catch { /* ignore */ }
+  }
 }
 
 export async function runTasks(tasks: AgentTask[], options: RunOptions = {}): Promise<TaskResult[]> {
