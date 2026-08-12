@@ -10,6 +10,7 @@ import { internalAgent } from "../agents/internal-agent.js";
 import { getProviderConfig } from "../utils/api-key-store.js";
 import { loadSkillsFromDirectories, clearSkillCache } from "../skills/skill-loader.js";
 import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
+import { getDefaultQualityTracker } from "../self-evolve/skill-quality.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
@@ -191,9 +192,12 @@ function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): string | un
   try {
     clearSkillCache();
     const loaded = loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true);
+    const quality = getDefaultQualityTracker();
     const skills = [...loaded.skills.values()].filter((s) => {
       if (s.id.startsWith("auto-fix-")) return s.id.startsWith(`auto-fix-${task.family}-`);
-      return s.id.startsWith("auto-induce-");
+      if (!s.id.startsWith("auto-induce-")) return false;
+      // 质量门控：已被质量反馈标记 deprecated 的技能不再注入（避免有害经验扩散）
+      return !quality.getSkillQuality(s.id)?.deprecated;
     });
     if (skills.length === 0) return base;
     const lines = skills.map((s) => `- ${s.name}：${s.description.split("\n")[0]}`);
