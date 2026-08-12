@@ -6,7 +6,7 @@
  *
  * 配置（.env / 环境变量，不写死）:
  *   ZHIPU_API_KEY         智谱 API Key（glm-4v-flash 免费视觉模型需要）
- *   GLM_VISION_MODEL      视觉模型名（默认 glm-4v-flash，免费）
+ *   GLM_VISION_MODEL      视觉模型名（默认 glm-4.6v-flash，免费）
  *   GLM_VISION_BASE_URL   视觉端点（默认 https://open.bigmodel.cn/api/paas/v4）
  *
  * 输出：模型返回的审核文本（建议 prompt 要求输出 JSON 便于程序化处理）。
@@ -36,7 +36,7 @@ const prompt =
     ? args[promptIdx + 1]
     : '请审核这张截图：整体审美（视觉层次/排版/布局/暗色质量/组件/现代感）、可读性、空态引导。只输出 JSON：{"scores":{"hierarchy":0,"typography":0,"layout":0,"darkTheme":0,"components":0,"modernity":0},"problems":[{"severity":"P0|P1|P2","issue":"...","where":"..."}],"overall":0,"summary":"..."}';
 
-const model = readString("GLM_VISION_MODEL", "glm-4v-flash");
+const model = readString("GLM_VISION_MODEL", "glm-4.6v-flash");
 const base = readString("GLM_VISION_BASE_URL", "https://open.bigmodel.cn/api/paas/v4");
 const apiKey = readString("ZHIPU_API_KEY");
 if (!apiKey) {

@@ -174,7 +174,9 @@ async function glmRewrite(input: string, skillContext: string | null): Promise<s
   const skillClause = skillContext
     ? `\n命中专家角色，请以其工作流程为框架组织改写：\n${skillContext}\n`
     : "";
-  const system = `你是提示词优化器。将用户输入改写为更清晰、具体、结构化的提示词。${skillClause}
+  // 项目上下文（来自 CodeGraph/工作区提示，默认项目路径；可用 PROMPT_PROJECT_CONTEXT 覆盖）
+  const projectClause = `\n项目上下文（优化时请结合该项目背景让改写更精准）：\n${readString("PROMPT_PROJECT_CONTEXT", process.cwd()).slice(0, 800)}\n`;
+  const system = `你是提示词优化器。将用户输入改写为更清晰、具体、结构化的提示词。${skillClause}${projectClause}
 规则：
 - 严格保持原意与原文语言（中文输入中文输出，英文输入英文输出）
 - 不回答问题，只输出改写后的提示词文本

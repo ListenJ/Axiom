@@ -57,6 +57,7 @@
     "status": "bun run scripts/start.ts status",
     "logs": "bun run scripts/start.ts logs",
     "install:wizard": "bun run src/tui/install-wizard.ts",
+    "postinstall": "bun run scripts/ensure-env.ts",
     "help": "bun run src/cli.ts help --all",
     "tools": "bun run scripts/tools.ts",
     "menu": "bun run scripts/tools.ts",
