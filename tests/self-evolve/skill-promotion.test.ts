@@ -78,3 +78,52 @@ describe("promoteInductionsToSkills", () => {
     expect(fake.registered[0].id).toMatch(/^auto-induce-mcp-timeout$/);
   });
 });
+
+describe("promoteInductionsToSkills quality feedback", () => {
+  test("skips patterns whose skill is already deprecated", () => {
+    const fake = fakeDeps();
+    const ids = promoteInductionsToSkills(inductions, {
+      ...fake.deps,
+      quality: {
+        getSkillQuality: (id) =>
+          id === "auto-induce-mcp-timeout"
+            ? { skillId: id, calls: 3, successes: 1, lastUsedAt: 1, deprecated: true }
+            : undefined,
+      },
+    });
+
+    expect(ids).toEqual(["auto-induce-redis-cache"]);
+    expect(fake.registered.map((s) => s.id)).toEqual(["auto-induce-redis-cache"]);
+  });
+
+  test("writes quality stats into promoted skill description", () => {
+    const fake = fakeDeps();
+    const ids = promoteInductionsToSkills(inductions, {
+      ...fake.deps,
+      quality: {
+        getSkillQuality: (id) =>
+          id === "auto-induce-mcp-timeout"
+            ? { skillId: id, calls: 4, successes: 1, lastUsedAt: 1, deprecated: true }
+            : { skillId: id, calls: 2, successes: 2, lastUsedAt: 1, deprecated: false },
+      },
+    });
+
+    expect(ids).toEqual(["auto-induce-redis-cache"]);
+    const description = fake.registered[0].description;
+    expect(description).toContain("quality: calls=2 success=2");
+    expect(description).not.toContain("deprecated");
+  });
+
+  test("marks description deprecated for deprecated quality records", () => {
+    const fake = fakeDeps();
+    const ids = promoteInductionsToSkills([inductions[0]], {
+      ...fake.deps,
+      quality: {
+        getSkillQuality: () => ({ skillId: "auto-induce-mcp-timeout", calls: 3, successes: 1, lastUsedAt: 1, deprecated: true }),
+      },
+    });
+
+    expect(ids).toEqual([]);
+    expect(fake.registered).toHaveLength(0);
+  });
+});

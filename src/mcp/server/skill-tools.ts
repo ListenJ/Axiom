@@ -7,6 +7,7 @@ import {
   createSkillFileBoilerplate,
   clearSkillCache,
 } from "../../skills/skill-loader.js";
+import { getDefaultQualityTracker } from "../../self-evolve/skill-quality.js";
 
 /**
  * 构建 skill 工具面（skill_list / skill_reload / skill_create / skill_run）。
@@ -100,21 +101,33 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
       },
       handler: async (args) => {
         const { getSkillRegistry } = await import("../../skills/skill-registry.js");
-        const result = await getSkillRegistry().executeById(
-          String(args.skillId),
-          (args.params as Record<string, string> | undefined) ?? {},
-        );
-        if (!result) {
-          throw new Error(`Skill not found: ${args.skillId}`);
+        const skillId = String(args.skillId);
+        try {
+          const result = await getSkillRegistry().executeById(
+            skillId,
+            (args.params as Record<string, string> | undefined) ?? {},
+          );
+          if (!result) {
+            throw new Error(`Skill not found: ${skillId}`);
+          }
+          // 自进化技能（auto-induce-*）质量反馈：成功/失败计入质量记录
+          if (skillId.startsWith("auto-induce-")) {
+            getDefaultQualityTracker().recordSkillOutcome(skillId, true);
+          }
+          return {
+            content: result.content,
+            skillId: result.skillId,
+            model: result.model,
+            provider: result.provider,
+            latencyMs: result.latencyMs,
+            toolCalls: result.toolCalls ?? [],
+          };
+        } catch (err) {
+          if (skillId.startsWith("auto-induce-")) {
+            getDefaultQualityTracker().recordSkillOutcome(skillId, false);
+          }
+          throw err;
         }
-        return {
-          content: result.content,
-          skillId: result.skillId,
-          model: result.model,
-          provider: result.provider,
-          latencyMs: result.latencyMs,
-          toolCalls: result.toolCalls ?? [],
-        };
       },
     },
   ];
