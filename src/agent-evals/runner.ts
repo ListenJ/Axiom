@@ -8,6 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { internalAgent } from "../agents/internal-agent.js";
 import { getProviderConfig } from "../utils/api-key-store.js";
+import { loadSkillsFromDirectories, clearSkillCache } from "../skills/skill-loader.js";
+import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
@@ -23,22 +25,25 @@ export interface RunOptions {
   provider?: string;
   /** 直连模型 id（如 glm-4.7-flash），需配合 provider 使用 */
   model?: string;
+  /** 注入已归纳的 auto-induce-* 技能到 systemPrompt（评测→进化闭环验证） */
+  injectSkills?: boolean;
 }
 
 async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult> {
   const t0 = performance.now();
   let content = "";
   let model = options.modelHint ?? options.model ?? "router-default";
+  const systemPrompt = buildSystemPrompt(task, options.injectSkills);
   try {
     if (options.provider) {
       // 免费模型限流友好：任务间最小间隔
       await new Promise((r) => setTimeout(r, 1000));
-      content = await callProviderDirect(options.provider, options.model ?? "", task, model);
+      content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
     } else {
       const result = await internalAgent.executeWithRole(
         "general-chat",
         [
-          ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+          ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
           { role: "user" as const, content: task.prompt },
         ],
         {
@@ -74,19 +79,20 @@ async function callProviderDirect(
   model: string,
   task: AgentTask,
   label: string,
+  systemPrompt?: string,
 ): Promise<string> {
   const cfg = getProviderConfig(provider);
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   const apiKey = readString(cfg.apiKeyEnv);
   const messages = [
-    ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+    ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
     { role: "user" as const, content: task.prompt },
   ];
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
   for (let attempt = 0; attempt < 4; attempt++) {
     const { status, body } = useCurl
-      ? await callWithCurl(cfg.baseURL, apiKey, model, task)
-      : await callWithProxy(cfg.baseURL, apiKey, provider, model, task);
+      ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
+      : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
     if (status === 429 || status >= 500) {
       const delayMs = 3000 * Math.pow(2, attempt);
       logger.warn(`[AgentEval] ${label} rate-limited (${status}), retry in ${delayMs}ms`);
@@ -110,6 +116,7 @@ async function callWithProxy(
   provider: string,
   model: string,
   task: AgentTask,
+  systemPrompt?: string,
 ): Promise<{ status: number; body: string }> {
   const res = await proxyFetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
@@ -117,7 +124,7 @@ async function callWithProxy(
     body: JSON.stringify({
       model,
       messages: [
-        ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+        ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
         { role: "user" as const, content: task.prompt },
       ],
       max_tokens: task.maxTokens ?? 512,
@@ -136,9 +143,10 @@ async function callWithCurl(
   apiKey: string,
   model: string,
   task: AgentTask,
+  systemPrompt?: string,
 ): Promise<{ status: number; body: string }> {
   const messages = [
-    ...(task.systemPrompt ? [{ role: "system" as const, content: task.systemPrompt }] : []),
+    ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
     { role: "user" as const, content: task.prompt },
   ];
   const payload = JSON.stringify({
@@ -170,6 +178,23 @@ async function callWithCurl(
     return { status: Number.isFinite(status) ? status : 0, body: parts.join("\n") };
   } finally {
     try { fs.rmSync(tmpFile, { force: true }); } catch { /* ignore */ }
+  }
+}
+
+
+/** 注入已归纳的 auto-induce-* 技能到 systemPrompt（无技能时保持原样）。 */
+function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): string | undefined {
+  const base = task.systemPrompt;
+  if (!injectSkills) return base;
+  try {
+    clearSkillCache();
+    const loaded = loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true);
+    const skills = [...loaded.skills.values()].filter((s) => s.id.startsWith("auto-induce-"));
+    if (skills.length === 0) return base;
+    const lines = skills.map((s) => `- ${s.name}：${s.description}`);
+    return [base, "可参考以下已归纳的经验模式（技能）：", ...lines].filter(Boolean).join("\n\n");
+  } catch {
+    return base;
   }
 }
 

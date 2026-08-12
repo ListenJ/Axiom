@@ -14,6 +14,8 @@ const family = flag("family") as TaskFamily | undefined;
 const split = flag("split") as TaskSplit | undefined;
 const json = args.includes("--json");
 const dryRun = args.includes("--dry-run");
+const evolve = args.includes("--evolve");
+const injectSkills = args.includes("--inject-skills");
 const concurrency = Number(flag("concurrency") ?? "1");
 const modelHint = flag("model");
 const provider = flag("provider");
@@ -31,6 +33,8 @@ Options:
   --provider=<p>    直连 provider（如 zhipu），配合 --model 使用，绕过 model-router
   --json            输出 JSON
   --dry-run         预览任务清单
+  --evolve          评测→进化闭环：train → held-out baseline → 归纳注册技能 → held-out(注入技能) 对比
+  --inject-skills   评测时注入已归纳的 auto-induce-* 技能
   --help            帮助
 `);
   process.exit(0);
@@ -56,8 +60,32 @@ if (tasks.length === 0) {
   process.exit(1);
 }
 
+if (evolve) {
+  const trainTasks = getTasksByFamily(family, "train");
+  const heldOutTasks = getTasksByFamily(family, "held-out");
+  logger.info(`[Evolve] 阶段1/3: train ${trainTasks.length} 任务（无技能）...`);
+  const trainResults = await runTasks(trainTasks, { family, split: "train", concurrency, modelHint, provider, model: directModel });
+  logger.info(`[Evolve] 阶段2/3: held-out baseline ${heldOutTasks.length} 任务（无技能）...`);
+  const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel });
+  const { evolveFromResults } = await import("./evolve.js");
+  const evolved = evolveFromResults(trainResults, ALL_AGENT_TASKS, family);
+  logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 注册 ${evolved.created.length} 个技能: ${evolved.created.join(", ") || "(无)"}`);
+  logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
+  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true });
+
+  const baseSummary = summarize(baselineResults);
+  const evolSummary = summarize(evolvedResults);
+  const header = `# 评测→进化闭环对比（held-out）\n\n| 阶段 | 通过率 | 通过/总数 |\n| --- | --- | --- |\n| baseline（无技能） | ${baseSummary.passRate}% | ${baseSummary.passed}/${baseSummary.total} |\n| evolved（注入技能） | ${evolSummary.passRate}% | ${evolSummary.passed}/${evolSummary.total} |\n`;
+  console.log(header);
+  console.log("## baseline held-out 明细");
+  console.log(toMarkdown(baseSummary, baselineResults));
+  console.log("## evolved held-out 明细");
+  console.log(toMarkdown(evolSummary, evolvedResults));
+  process.exit(evolvedResults.some((r) => !r.passed) ? 1 : 0);
+}
+
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
-const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel });
+const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills });
 const summary = summarize(results);
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);

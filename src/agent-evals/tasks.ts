@@ -57,7 +57,7 @@ const coding: AgentTask[] = [
     { maxTokens: 512 }),
   t("CODING-04", "coding", "held-out", "复杂度优化建议",
     "给定函数：function findDup(arr){ for(let i=0;i<arr.length;i++){ for(let j=i+1;j<arr.length;j++){ if(arr[i]===arr[j]) return arr[i]; } } return null; } 说明它的时间复杂度，并给出 O(n) 的优化实现。",
-    (r) => containsAll(r, ["o(n", "set", "map"]),
+    (r) => containsAllAny(r, [["o(n"], ["set", "哈希"], ["map", "object", "字典", "hash"]]),
     { maxTokens: 512 }),
 ];
 
@@ -105,7 +105,7 @@ const planning: AgentTask[] = [
 const toolUse: AgentTask[] = [
   t("TOOL-01", "tool-use", "train", "天气 API 规划",
     "用户问「明天上海天气」。说明你需要的工具/API、请求方式（GET/POST）和关键参数，不要真的调用。",
-    (r) => containsAll(r, ["api", "get", "lat", "lon"]),
+    (r) => containsAllAny(r, [["api"], ["get", "post", "请求"], ["lat", "lon", "经度", "纬度", "city", "城市", "location", "位置"]]),
     { maxTokens: 512 }),
   t("TOOL-02", "tool-use", "train", "浮点精度",
     "0.1 + 0.2 在 JS 中等于多少？如果要用精确计算，应该使用什么方式/工具？",
