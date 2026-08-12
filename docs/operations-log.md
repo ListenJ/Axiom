@@ -4482,3 +4482,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：无门控注入有害、按族门控+质量门控后不再有害且小幅增益，与 RSEA keep-better 门结论一致；下一步可增加"只注入已验证增益技能"的持久化反馈（当前 deprecated 门控已闭环）。
 - Verification: tests/agent-evals 18/18；bunx tsc --noEmit 干净；闭环实验完成；备份已删除。
 - Commit: 1e40de6
+
+## 2026-08-13 - 网络稳定性检查 + 有增益技能注入（skill-gain）+ 安装方法论 skill 到本地 Codex
+
+- Task: ① 检查 opencode 网络稳定性；② 实现"只注入经验证有增益的技能"（增益反馈闭环）；③ 把方法论 skill 安装到本地 Codex 并按任务场景自动触发。
+- Tools: curl 探测（15 次最小请求）/ bun test / tsc / git / 文件安装到 C:\Users\18336\.codex\skills。
+- Files:
+  - 新增 src/agent-evals/skill-gain.ts（SkillGainTracker：按任务族记录无注入基线通过率 + 按技能记录注入通过率；shouldInject：无记录→试用、负增益(< -10pp)→禁止；gainOf/listGain；持久化 data/skill-gain.json）
+  - 修改 src/agent-evals/runner.ts（buildSystemPrompt 增加增益门控 + 返回实际注入技能 id 列表；TaskResult 带 injectedSkills）
+  - 修改 src/agent-evals/metrics.ts（TaskResult 增加 injectedSkills 可选字段）
+  - 修改 src/agent-evals/run.ts（--evolve 流程记录 baseline/injection 增益反馈 + 输出增益概览）
+  - 新增 tests/agent-evals/skill-gain.test.ts（4：未知技能试用/负增益阻止/非负增益放行/持久化）
+  - 安装到 C:\Users\18336\.codex\skills\：methodology-ascetic-breaker/SKILL.md、methodology-source-fidelity/SKILL.md（SKILL.md frontmatter description 含触发场景，Codex 模型按需自动使用）
+- 网络检查（事实）：opencode /models 9/10 稳定（~1s）；chat 5 次仅 2 次成功（40%），连续请求前 3 次 30s 超时后恢复——网络不稳定，评测需更长超时/间隔（已部分具备）。
+- 判断（规则10）：chat 不稳定符合此前评测 121s 噪声观察；增益门控为"试用→反馈→过滤"渐进闭环（首轮全试用，后续只注入有增益技能）。
+- Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；Codex skills 目录安装成功；备份已删除。
+- Commit: b2b44ee
