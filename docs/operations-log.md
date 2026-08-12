@@ -4453,3 +4453,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：符合文献结论（SEAGym/RSEA：无 artifact 普适赢家；held-out 门控保证安全不退化）；下一步应把失败教训/验证器反馈纳入归纳，而非纯术语共现。
 - Verification: bunx tsc --noEmit 干净；tests/agent-evals 13/13；闭环实验 30 次调用完成；备份已删除。
 - Commit: b5ca6f2
+
+## 2026-08-13 - 技能深化（自检+溯源+路径规划）+ 两个外部 skill 合并（ascetic-breaker + Master-skill）
+
+- Task: ① 把失败自检、官方文档溯源、任务路径规划的方法论深化到 self-evolve 技能生成；② 整理合并 Square-Q/ascetic-breaker 与 xr843/Master-skill 两个 skill，深入实际代码开发与日常对话。
+- Tools: git clone（.tmp 临时目录）/ skill-loader 验证 / bun test / tsc / git。
+- Files:
+  - 新增 src/agent-evals/skill-craft.ts（FailureAnalysis：verify 失败原因→缺口分类（API/版本/语法/数据/领域）；craftFailureSkill：生成含自检清单+溯源铁律+任务路径规划+破执三层/二阶段审查的方法论技能，id auto-fix-<family>-<taskId> 幂等；craftFailureSkills 批量注册）
+  - 修改 src/agent-evals/evolve.ts（闭环集成：train 失败任务 → craftFailureSkills 注册+磁盘持久化；EvolveResult 增加 craftedCount）
+  - 修改 src/agent-evals/runner.ts（注入门控：auto-fix-<family>-* 只注入同族任务；auto-induce-* 只取一句话描述，降低上下文噪声）
+  - 修改 src/agent-evals/run.ts（evolve 日志输出方法论技能数）
+  - 新增 skills/methodology/methodology.yaml（合并 skill 2 个：methodology-ascetic-breaker 破执溯源（缺口检测/资源路由/不编造/破执三层）+ methodology-source-fidelity 来源保真（HARD-GATE 溯源铁律/二阶段审查/保真度自检/渐进式披露），模型可按需 skill_run 调用）
+  - 新增 tests/agent-evals/skill-craft.test.ts（5：缺口分类/跳过成功/兜底/技能内容幂等/批量幂等）
+  - 新增 eval-results/agent-evals-2026-08-13-skill-craft-loop.md（gitignored 实验文档）
+- 实验结果（事实）：闭环实验 baseline 80% → evolved（无门控全量注入）60% —— 无门控注入有害（KNOW-04/PLAN-03 被干扰、CODING-04 有增益、MEM-02 网络噪声）；已实施按族门控注入。
+- 判断（规则10）：与 RSEA/PACE 文献结论一致（无 held-out 门控的上下文演化有风险）；技能深化机制完整跑通（失败任务→方法论技能→注册→注入→影响评测），后续需质量门控（只保留有增益技能）。
+- Verification: tests/agent-evals 18/18；bunx tsc --noEmit 干净；skill-loader 加载 methodology.yaml 2 个技能无错误；闭环实验 30 次调用完成；备份已删除。
+- Commit: d27dd54
