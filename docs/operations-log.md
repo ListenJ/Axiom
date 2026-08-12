@@ -4384,3 +4384,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 docs/research/CCF-agent-topics-2026-08-12.md（追加"CCF-A 可行性评估"：事实录用率 IJCAI 17.6-19.3% / AAAI 23.4% / ACL 20.3% / EMNLP 22.2%；差距表 6 维；结论：原型不能直接进 A 类，课题 A 有真实 A 类路径，建议双轨）
 - Verification: 文档内容核对；备份已删除。
 - Commit: 26cead6
+
+## 2026-08-12 - 论文定位与投稿策略综合调研（3 并行子代理 + 一手文献）
+
+- Task: 独立调研「全部投入冲 CCF-A、被拒转投是否合理」与「当前工作是工程论文还是研究论文」，读取 12+ 篇核心文献与 5 份官方投稿政策。
+- Tools: 3 并行子代理（Dalton=投稿策略 / Newton=文献图谱 / Turing=评估空白）+ search/open_page 一手资料（IJCAI-ECAI 2026 FAQ、Frontis-MA1/OpenRSI、SEAGym、RSEA、RISE）+ git。
+- Files:
+  - 新增 docs/research/paper-positioning-and-venue-strategy-2026-08-12.md（综合评估：投稿规则事实/冲A转投判断/12篇文献表/机制对照/评估空白复核/方向甲与方向乙/策略建议）
+  - 修改 docs/research/CCF-agent-topics-2026-08-12.md（修正「held-out 采用率 <30%」失真数据→正确口径 12%；标注 SEAGym/RSEA 竞争工作已部分抢占课题 A 空白）
+- 关键结论：① 冲 A 被拒转投合法但有前提（顺序投递/实质修改/时间充裕/novelty 足够），IJCAI 要求 12 个月拒稿重投声明；② 当前系统=工程原型，属 68% scaffold 路线，三个工程特征（统计门控归纳/幂等技能注册/MCP 可调用）有潜在新意但缺验证；③ 课题 A 空白被 SEAGym/RSEA 大幅抢占，差异化收窄为「评估偏差归因+跨任务族 held-out+污染量化」；建议先跑 3 个月可行性实验 + demo 保底，不立即决定全部投入 A。
+- Verification: 文档内容核对；备份已删除。
+- Commit: d91e984
