@@ -4426,3 +4426,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 关键事实（规则10）：glm-4.7-flash 默认强制思考（reasoning_content 非空、content 空），官方支持 thinking:{type:"disabled"}；免费模型 RPM 极低导致评测 45% 为保守基线（修正限流假阴性后上限约 70%）。
 - Verification: bunx tsc --noEmit 干净；tests/agent-evals 13/13；真实评测 20 任务 45%（train 50% / held-out 40% / 泛化率 0.8）；备份已删除。
 - Commit: 4b83550
+
+## 2026-08-12 - OpenCode deepseek-v4-flash 稳定基线（80%）+ opencode 端点修复
+
+- Task: 用户提供 OpenCode key（sk-UU0...，仅存本地 .env 的 OPENCODE_API_KEY，不入库），用 deepseek-v4-flash 作为验证模型跑稳定基线。
+- Tools: curl / 官方文档（docs.docker.com opencode-go、opencode.ai 模型列表）/ bun test / tsc / git。
+- Files:
+  - 修改 src/utils/api-key-store.ts（opencode baseURL 修复：api.opencode.ai 网关返回 Not Found → 官方 zen/v1；zen/go 对该 key 500）
+  - 修改 src/agent-evals/runner.ts（opencode 直连改用 curl.exe 子进程——Bun fetch 与 proxyFetch 均无法连通 opencode.ai，curl 1.5s 可达；curl 返回 status+body，复用 429/5xx 退避；deepseek-v4-flash 加 thinking disabled）
+  - 新增 eval-results/agent-evals-2026-08-12-deepseek-v4-flash.md（gitignored 结果：80%，train 70% / held-out 90%，泛化率 1.286）
+- 关键事实（规则10）：OpenCode Go 官方 OpenAI 兼容端点为 https://opencode.ai/zen/go/v1（Docker 文档），但该 key 上 zen/go chat 500、zen/v1 正常——以实测为准；deepseek-v4-flash 为推理模型需 thinking disabled；curl 走 Windows 系统网络栈，bun fetch 超时。
+- Verification: bunx tsc --noEmit 干净；memory 族链路验证通过；全量 20 任务 80%（16/20）；备份已删除。
+- Commit: 7266d18
