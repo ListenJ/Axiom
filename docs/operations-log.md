@@ -4411,3 +4411,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 现状判断（规则10）：现成 Agent 基准（AgentBench/GAIA/tau-bench 等）依赖外部环境、静态饱和；项目 src/eval 是模型级问答测试——故自建 Agent 级评测集（20 任务/6 族/含 held-out）。
 - Verification: tests/agent-evals 13/13；self-evolve 43/43；组合 62/62；skill-run-tool 通过；bunx tsc --noEmit 干净；dry-run 预览 20 任务正常；备份已删除。
 - Commit: 11d71a8
+
+## 2026-08-12 - Agent 能力边界真实基线首跑（glm-4.7-flash 45%）+ 评测修复
+
+- Task: 启动第 1 步真实基线评测；修复评测链路（GLM 推理模型 content 为空、免费模型限流、验证器语言过严）。
+- Tools: bun run src/agent-evals/run.ts（zhipu 直连）/ 智谱 API 调试 / 官方文档（docs.bigmodel.cn thinking）/ git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（新增 provider 直连模式：api-key-store 单一数据源 + .env key；zhipu 自动 thinking.disabled（GLM 推理模型 content 为空问题）；429/5xx 退避 4 次 3s/6s/12s/24s；任务间 1s 间隔）
+  - 修改 src/agent-evals/run.ts（--provider/--model 参数；默认并发 1 免费模型友好）
+  - 修改 src/agent-evals/verify.ts（新增 containsAllAny 多组同义词匹配）
+  - 修改 src/agent-evals/tasks.ts（8 个过严验证器放宽：中英文同义词/大小写/语义等价）
+  - 修改 docs/AGENT-EVALS.md（直连模式示例）
+  - 新增 eval-results/agent-evals-2026-08-12-glm47flash.md（gitignored 运行产物：基线 45%，限流噪声 5 任务、验证器过严 5 任务、真实缺失 2 任务）
+- 关键事实（规则10）：glm-4.7-flash 默认强制思考（reasoning_content 非空、content 空），官方支持 thinking:{type:"disabled"}；免费模型 RPM 极低导致评测 45% 为保守基线（修正限流假阴性后上限约 70%）。
+- Verification: bunx tsc --noEmit 干净；tests/agent-evals 13/13；真实评测 20 任务 45%（train 50% / held-out 40% / 泛化率 0.8）；备份已删除。
+- Commit: 4b83550
