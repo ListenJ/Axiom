@@ -4362,3 +4362,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/research/CCF-agent-topics-2026-08-12.md（3 个候选课题：A 自进化评估偏差与跨域泛化（首选）/ B 工具循环运行时幻觉拦截框架 / C 媒体记忆；目标会议 IJCAI 2027 ≈2027-01、ACL 2027 ≈2026-12；时间线 2026-08→2027-01）
 - Verification: tests/knowledge/vision.test.ts 6/6 通过；bunx tsc --noEmit 干净；glm-4.6v-flash 完整复批 3 张（code-v3/providers-v2/brand-chat-strong）成功，429 退避生效；备份已删除。
 - Commit: f666a66
+
+## 2026-08-12 - 前端微调（内部 GLM 完整复批反馈落地）
+
+- Task: 把 glm-4.6v-flash 页面复批反馈中的高置信度项落地为最小 CSS 微调：空态文字-按钮间距、统计卡片数值对比度、快速上手步骤断行、侧边栏条目间距。
+- Tools: scripts/visual-audit.ts（glm-4.6v-flash）/ vitest / bunx tsc / git。
+- Files:
+  - 修改 frontend/src/components/ui/InlineEmptyState.tsx（action 间距 mt-4 → mt-5，回应 code/providers 空态 P1）
+  - 修改 frontend/src/components/ui/StatCard.tsx（default 数值色 --accent → --accent-strong，暗色下对比度 4.6:1 → 6.7:1，回应 providers 数据卡片 P1）
+  - 修改 frontend/src/components/provider-sections.tsx（QuickstartBanner 步骤描述加 leading-relaxed，回应快速上手断行 P2）
+  - 修改 frontend/src/components/layout/Sidebar.tsx（工作区条目间距 space-y-1 → space-y-1.5，回应侧边栏按钮间距 P1）
+- 判断（规则10）：标题突出性/状态图标对齐/导航箭头间距等反馈与现结构无明确可复现问题或属设计一致性权衡，未盲改；侧边栏对比度反馈基于旧图（已优化过）。
+- Verification: 前端 vitest 43 文件 284/284 通过；frontend tsc -b 干净；备份已删除。
+- Commit: 16c5e3a
