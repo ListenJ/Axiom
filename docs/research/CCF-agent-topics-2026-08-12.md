@@ -66,3 +66,25 @@ tags: [research, ccf, paper, agent, topic-selection]
 
 ---
 *研究完成：2026-08-12。事实以来源为准；推荐为判断。*
+
+## CCF-A 可行性评估（2026-08-12 诚实判断）
+
+### 事实（已核实）
+- CCF-A 相关会议：AAAI / IJCAI / NeurIPS / ICML / ICLR / ACL / EMNLP（AI·NLP），CVPR / ICCV（CV），ACM MM（多媒体唯一 A 类）。
+- 近年主会录用率：IJCAI 2025 17.6%–19.3%；AAAI 2025 23.4%；ACL 2025 20.3%；EMNLP 2025 Main 22.2%（EMNLP demo 赛道 38%，不计正刊分量）。
+
+### 差距分析（当前工程原型 vs A 类门槛）
+| 维度 | 现状 | A 类要求 | 差距 |
+| --- | --- | --- | --- |
+| 方法新颖性 | self-evolve 为 OpenRSI/Reflexion 思想的工程化实现 | 明确可命名的新方法/协议/基准 | 需提炼研究贡献 |
+| 评估 | 内部冒烟/单元测试 | 公开基准（GAIA / SWE-bench / MLE-Bench / AgentBench 等）+ 多基线 | 缺失，工作量最大 |
+| 基线对比 | 无 | 至少复现 ReAct / Reflexion / OpenRSI | 缺失 |
+| 泛化 | 无 held-out 协议 | held-out 任务族/跨域 + 显著性 | 课题 A 核心 |
+| 模型覆盖 | GLM 免费为主 | 3–5 模型（成本约束下可部分覆盖） | 需补 |
+| 论文写作 | 无 | 完整投稿（图表/相关工作/限制） | 缺失 |
+
+### 结论（判断）
+1. 当前工程原型**不能直接进 CCF-A 主会**；它是 CCF-B/C、workshop、demo 或工业轨道的素材。
+2. 但存在**真实可行的 A 类路径**：以课题 A（held-out 演进评估协议）为主线做 7 个月严格研究，录用率约 17–23%（事实），有希望但非保证。
+3. 建议**双轨策略**：① 1–2 个月把当前系统沉淀为 demo/system 论文（EMNLP/ACL demo 或 CCF-B 期刊）保底；② 同步跑课题 A 三个月可行性实验，数据支持则冲 IJCAI 2027 / AAAI 2027，不支持则降级投 B 类或转课题 B。
+4. 风险：A 类竞争激烈、需算力与多模型 key、审稿周期长；B 类稳妥但分量低。
