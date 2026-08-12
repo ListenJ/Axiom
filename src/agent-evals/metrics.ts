@@ -12,6 +12,8 @@ export interface TaskResult {
   latencyMs: number;
   outputLength: number;
   model?: string;
+  /** 本次任务实际注入的 auto-* 技能 id 列表（无注入为空） */
+  injectedSkills?: string[];
 }
 
 export interface FamilyMetrics {

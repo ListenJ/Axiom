@@ -73,6 +73,18 @@ if (evolve) {
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
   const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true });
 
+  // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果
+  const { getDefaultGainTracker } = await import("./skill-gain.js");
+  const gain = getDefaultGainTracker();
+  for (const r of baselineResults) gain.recordBaseline(r.family, r.passed);
+  for (const r of evolvedResults) {
+    for (const skillId of r.injectedSkills ?? []) gain.recordInjection(skillId, r.passed);
+  }
+  const gainSummary = gain.listGain(family ?? "coding");
+  if (gainSummary.length > 0) {
+    logger.info(`[Evolve] 增益概览: ${gainSummary.map((g) => `${g.skillId}=+(${g.gain ?? "?"}pp/${g.samples}次)`).join(", ")}`);
+  }
+
   const baseSummary = summarize(baselineResults);
   const evolSummary = summarize(evolvedResults);
   const header = `# 评测→进化闭环对比（held-out）\n\n| 阶段 | 通过率 | 通过/总数 |\n| --- | --- | --- |\n| baseline（无技能） | ${baseSummary.passRate}% | ${baseSummary.passed}/${baseSummary.total} |\n| evolved（注入技能） | ${evolSummary.passRate}% | ${evolSummary.passed}/${evolSummary.total} |\n`;
