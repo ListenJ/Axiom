@@ -4316,3 +4316,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/pages/Sessions.tsx（右栏空态：左侧无会话时显示"暂无会话可查看"而非误导性"选择一个会话"）
 - Verification: 工具链路实测（读取图片→调用智谱 API→401 明确报错，证明链路正确，仅本地 ZHIPU key 过期；用户更新 .env 后即用内部 GLM 免费视觉模型）；前端 vitest 284/284；npm run build 成功。备份已删除。
 - Commit: cbc3e2a
+
+## 2026-08-12 - settings accent 选中反馈 + knowledge 迁移双入口
+
+- Task: 继续逐页优化：settings 的 Agent 颜色选中态（SenseNova P2）与 knowledge 迁移页体验（P1）。
+- Tools: sensenova-6.8-flash-lite / Chrome Headless / vitest / npm run build / git。
+- Files:
+  - 修改 frontend/src/pages/Settings.tsx（颜色选择器：选中态改用品牌 accent ring；新增"当前：靛蓝"标签，视觉反馈更直观）
+  - 修改 frontend/src/pages/Knowledge.tsx（迁移文案明确"已迁移"；双 CTA：待审核 / 全部笔记）
+- 判断（规则10）：SenseNova 复批称"透明度滑块 20% 但滑块在最右"——核对代码 `min=0.2 max=0.8 value=panelOpacity`，0.2 应渲染在最左，判定为模型对滑块 thumb 位置误判，不盲改（无真实复现）。侧边栏"工作区服务不可用"为运行时状态（截图环境后端未连），非样式。
+- Verification: 前端 vitest 284/284；npm run build 成功；备份已删除。
+- Commit: 2e404c7
