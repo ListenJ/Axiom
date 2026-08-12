@@ -8,6 +8,7 @@ import { StructuredKnowledgeSchema } from "./types.js"
 import { preprocessKnowledge } from "./preprocessor.js"
 import { assessQuality } from "./quality-assessor.js"
 import { structureKnowledgeWithEdge } from "./edge-assist.js"
+import { describeMediaInMarkdown } from "./vision.js"
 
 const ZHIPU_API_BASE = readString("KNOWLEDGE_LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
@@ -41,6 +42,23 @@ interface StructureResult {
 }
 
 async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | null> {
+  // 图/视频自动理解分支：先让 glm-4.6v-flash 理解媒体内容，再把视觉描述并入结构化输入
+  try {
+    const enriched = await describeMediaInMarkdown(
+      rawMarkdown,
+      readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
+    );
+    if (enriched.described > 0) {
+      rawMarkdown = enriched.markdown;
+      logger.info("[Pipeline] Media vision enrichment applied", {
+        mediaCount: enriched.mediaCount,
+        described: enriched.described,
+      });
+    }
+  } catch (err) {
+    logger.warn(`[Pipeline] Media vision enrichment failed: ${(err as Error).message}`);
+  }
+
   const apiKey = readString("ZHIPU_API_KEY")
   if (!apiKey) {
     logger.warn("[Pipeline] No ZHIPU_API_KEY, skipping GLM content structuring")
