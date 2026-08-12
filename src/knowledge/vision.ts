@@ -101,53 +101,83 @@ export async function understandImageFile(
   const ext = extOf(filePath);
   const mime = MIME[ext] ?? "image/png";
 
-  try {
-    const b64 = fs.readFileSync(filePath).toString("base64");
-    const res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        temperature: 0.2,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
-            ],
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) {
-      logger.warn(`[KnowledgeVision] GLM vision returned ${res.status}`);
+  const b64 = fs.readFileSync(filePath).toString("base64");
+  const buildRequest = () => ({
+    method: "POST" as const,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
+          ],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  // 免费模型限流（429/1305）常态：退避重试 3 次（2s/4s/8s）
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${base}/chat/completions`, buildRequest());
+      if (res.status === 429 || res.status === 1305) {
+        const delayMs = 2000 * Math.pow(2, attempt);
+        logger.warn(`[KnowledgeVision] GLM vision rate-limited (${res.status}), retry in ${delayMs}ms`);
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      if (!res.ok) {
+        logger.warn(`[KnowledgeVision] GLM vision returned ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = data?.choices?.[0]?.message?.content?.trim();
+      return content && content.length > 0 ? content : null;
+    } catch (err) {
+      logger.warn(`[KnowledgeVision] GLM vision failed: ${(err as Error).message}`);
       return null;
     }
-    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = data?.choices?.[0]?.message?.content?.trim();
-    return content && content.length > 0 ? content : null;
-  } catch (err) {
-    logger.warn(`[KnowledgeVision] GLM vision failed: ${(err as Error).message}`);
-    return null;
   }
+  logger.warn("[KnowledgeVision] GLM vision rate-limited after 3 retries");
+  return null;
 }
 
-/** 尽力用 ffmpeg 抽取视频首帧为临时图片；无 ffmpeg/失败返回 null。 */
-async function extractVideoFrame(videoPath: string): Promise<string | null> {
-  const framePath = path.join(os.tmpdir(), `vis-frame-${Date.now()}-${Math.random().toString(36).slice(2)}.png`);
+/**
+ * 尽力用 ffmpeg 对视频做多帧采样并拼成 2x2 网格（每 2 秒一帧），
+ * 单次视觉调用即可理解视频关键画面（省配额）；网格失败时回退首帧。
+ * 无 ffmpeg/失败返回 null。返回的临时文件由调用方清理。
+ */
+async function extractVideoFrames(videoPath: string): Promise<string | null> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vis-vframes-"));
+  const grid = path.join(dir, "grid.png");
   try {
     const proc = Bun.spawn(
-      ["ffmpeg", "-y", "-i", videoPath, "-vframes", "1", "-f", "image2", framePath],
+      ["ffmpeg", "-y", "-i", videoPath, "-vf", "fps=1/2,scale=320:-1,tile=2x2", "-frames:v", "1", grid],
       { stdout: "ignore", stderr: "ignore" },
     );
     const code = await proc.exited;
-    if (code !== 0 || !fs.existsSync(framePath)) return null;
-    return framePath;
+    if (code === 0 && fs.existsSync(grid)) return grid;
   } catch {
-    return null;
+    /* fall through to single frame */
   }
+  // 回退：单首帧
+  const single = path.join(dir, "frame.png");
+  try {
+    const p2 = Bun.spawn(
+      ["ffmpeg", "-y", "-i", videoPath, "-vframes", "1", "-f", "image2", single],
+      { stdout: "ignore", stderr: "ignore" },
+    );
+    const c2 = await p2.exited;
+    if (c2 === 0 && fs.existsSync(single)) return single;
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 function resolveMediaPath(ref: string, baseDir?: string): string | null {
@@ -196,14 +226,28 @@ export async function describeMediaInMarkdown(
     if (!filePath) continue;
     let imagePath: string | null = null;
 
-    if (ref.kind === "image") {
-      imagePath = filePath;
+    const fromVideo = ref.kind === "video";
+    if (fromVideo) {
+      imagePath = await extractVideoFrames(filePath);
     } else {
-      imagePath = await extractVideoFrame(filePath);
+      imagePath = filePath;
     }
 
     if (!imagePath) continue;
-    const desc = await understandImageFile(imagePath, "请描述这张图片（或视频首帧）的内容与要点，200 字以内。");
+    const desc = await understandImageFile(
+      imagePath,
+      fromVideo
+        ? "请描述这组视频关键帧（2x2 网格，时间顺序）的内容与要点，200 字以内。"
+        : "请描述这张图片的内容与要点，200 字以内。",
+    );
+    // 清理视频抽帧产生的临时文件
+    if (fromVideo && imagePath.startsWith(os.tmpdir())) {
+      try {
+        fs.rmSync(path.dirname(imagePath), { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
     if (!desc) continue;
 
     descriptions.push(`- ${ref.ref} → ${desc}`);
