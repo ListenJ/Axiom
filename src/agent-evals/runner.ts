@@ -182,16 +182,21 @@ async function callWithCurl(
 }
 
 
-/** 注入已归纳的 auto-induce-* 技能到 systemPrompt（无技能时保持原样）。 */
+/** 注入已归纳的技能到 systemPrompt（无技能时保持原样）。
+ * 门控：auto-fix-<family>-* 只注入给同任务族（避免跨族误导）；
+ * auto-induce-* 全量注入但仅取一句话描述（避免上下文噪声）。 */
 function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): string | undefined {
   const base = task.systemPrompt;
   if (!injectSkills) return base;
   try {
     clearSkillCache();
     const loaded = loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true);
-    const skills = [...loaded.skills.values()].filter((s) => s.id.startsWith("auto-induce-"));
+    const skills = [...loaded.skills.values()].filter((s) => {
+      if (s.id.startsWith("auto-fix-")) return s.id.startsWith(`auto-fix-${task.family}-`);
+      return s.id.startsWith("auto-induce-");
+    });
     if (skills.length === 0) return base;
-    const lines = skills.map((s) => `- ${s.name}：${s.description}`);
+    const lines = skills.map((s) => `- ${s.name}：${s.description.split("\n")[0]}`);
     return [base, "可参考以下已归纳的经验模式（技能）：", ...lines].filter(Boolean).join("\n\n");
   } catch {
     return base;

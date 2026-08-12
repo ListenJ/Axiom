@@ -69,7 +69,7 @@ if (evolve) {
   const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel });
   const { evolveFromResults } = await import("./evolve.js");
   const evolved = evolveFromResults(trainResults, ALL_AGENT_TASKS, family);
-  logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 注册 ${evolved.created.length} 个技能: ${evolved.created.join(", ") || "(无)"}`);
+  logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 方法论技能 ${evolved.craftedCount} 个 / 注册 ${evolved.created.length} 个技能`);
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
   const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true });
 
