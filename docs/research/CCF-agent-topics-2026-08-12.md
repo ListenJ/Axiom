@@ -15,7 +15,7 @@ tags: [research, ccf, paper, agent, topic-selection]
 | 来源 | 关键结论 |
 | --- | --- |
 | Self-Evolving Agents 综述（Stanford/Scale, 2026-01） | 自我进化按 what/when/how 三维组织，含 intra-/inter-test-time 维度；是系统化首篇综述 |
-| 239-paper 自进化调查（2026-07） | **68% 的自进化方法走 scaffold 更新而非重训练**；**评估质量担忧：held-out benchmark 采用率 <30%**——泛化/污染是明显空白 |
+| 239-paper 自进化调查（2026-07） | **68% 的自进化方法走 scaffold 更新而非重训练**；**评估质量担忧：仅约 12% 的自进化方法采用 held-out 基准评估（30% 系 2026-07 二手报道失真，正确口径 12%，见 paper-positioning 文档）**——泛化/污染是明显空白 |
 | "I Don't Know Filter"（2026-07） | 函数调用可靠性：显式"不知道"过滤可提升 agentic reliability——工具循环的可靠性仍是开放问题 |
 | Auditing Tool-Using Agents（2026-08） | 运行时拦截（runtime interception）在所有被测模型上降低幻觉（最高 -23pp）——**拦截策略的系统化比较是空白** |
 | Memory for Autonomous LLM Agents 综述（2026-03） | 开放挑战：**continual consolidation、causally grounded retrieval、trustworthy reflection、learned forgetting、multimodal embodied memory**；瓶颈是检索质量而非存储 |
@@ -32,7 +32,7 @@ tags: [research, ccf, paper, agent, topic-selection]
 ## 候选课题（结合本项目积累）
 
 ### 课题 A：自进化 Agent 的评估偏差与跨域泛化（推荐 ★★★★★）
-- **空白**：239-paper 调查指出 scaffold 自进化普遍在"分布内基准"上评估，held-out 泛化采用率 <30%——污染/过拟合风险未被系统性量化。
+- **空白**：239-paper 调查指出 scaffold 自进化普遍在"分布内基准"上评估，仅约 12% 采用 held-out 评估（30% 系二手报道失真，正确口径 12%，见 paper-positioning 文档）——污染/过拟合风险未被系统性量化。（注：2026-06 已出现 SEAGym/RSEA 等竞争工作，空白被部分抢占，见 paper-positioning 文档）
 - **我们已有**：`src/self-evolve`（轨迹→教训→skill 提升）、eval 体系、MLE-Bench 类评测入口。
 - **研究问题**：scaffold 自进化在 held-out 任务族上的泛化如何？演进轨迹是否过拟合种子分布？提出"held-out 演进评估协议"（种子任务训练演进 → 未见过任务测试）。
 - **工作量**：中（需多任务族 × 多轮演进实验；~4-5 个月实验 + 2 个月写作）。目标：IJCAI 2027 / AAAI（若赶上）或 ACL Findings。
