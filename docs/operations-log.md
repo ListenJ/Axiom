@@ -4327,3 +4327,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：SenseNova 复批称"透明度滑块 20% 但滑块在最右"——核对代码 `min=0.2 max=0.8 value=panelOpacity`，0.2 应渲染在最左，判定为模型对滑块 thumb 位置误判，不盲改（无真实复现）。侧边栏"工作区服务不可用"为运行时状态（截图环境后端未连），非样式。
 - Verification: 前端 vitest 284/284；npm run build 成功；备份已删除。
 - Commit: 2e404c7
+
+## 2026-08-12 - 内部 GLM 免费模型集成（提示优化/知识库/视觉）+ env 自动初始化 + Agent 架构文档
+
+- Task: 用户提供新智谱 key，接入两个免费模型：glm-4.7-flash（提示词优化 + 知识库管理）、glm-4.6v-flash（视觉）；完善 .env.example 登记并让安装自动生成 .env；梳理 Agent 基础要素。
+- Tools: curl.exe / bun run / bunx tsc / bun test --parallel / bun run build / git。
+- Files:
+  - 修改 src/agents/prompt-optimizer.ts（glmRewrite 注入项目上下文：PROMPT_PROJECT_CONTEXT，默认 cwd，优化更精准）
+  - 修改 scripts/visual-audit.ts（默认视觉模型 glm-4.6v-flash）
+  - 新增 scripts/ensure-env.ts + package.json postinstall（首次安装 .env.example → .env，不覆盖已有；.env.example 保留为备份/模板）
+  - 完善 .env.example（ZHIPU_API_KEY 登记 + PROMPT_OPTIMIZER_MODEL/GLM_VISION_MODEL/KNOWLEDGE_LLM_MODEL/GLM_VISION_BASE_URL/PROMPT_PROJECT_CONTEXT 模板）
+  - 新增 docs/AGENT-ARCHITECTURE.md（Agent 基础要素/工具链/自我更新/读写工具链/幻觉自审/沙箱，全部标注代码位置）
+  - 本地 .env 更新 ZHIPU_API_KEY（gitignored，不入库）
+- Verification: glm-4.6v-flash 视觉实测成功（识别截图"开始索引"按钮）；glm-4.7-flash 限流 1305（免费模型瞬时限流，工具链路正确）；后端回归 79/79；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。
+- Commit: a4d0694
