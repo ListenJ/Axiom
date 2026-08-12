@@ -4341,3 +4341,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 本地 .env 更新 ZHIPU_API_KEY（gitignored，不入库）
 - Verification: glm-4.6v-flash 视觉实测成功（识别截图"开始索引"按钮）；glm-4.7-flash 限流 1305（免费模型瞬时限流，工具链路正确）；后端回归 79/79；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。
 - Commit: a4d0694
+
+## 2026-08-12 - knowledge pipeline 图/视频自动理解分支（glm-4.6v-flash）
+
+- Task: 补齐架构文档第八节缺口：把 glm-4.6v-flash 接入 knowledge pipeline，知识条目含图片/视频时自动视觉理解并注入结构化。
+- Tools: bun test --parallel / bunx tsc / bun run build / git。
+- Files:
+  - 新增 src/knowledge/vision.ts（深模块：extractMediaReferences 单遍保序解析 ![]() 与 ![[ ]];understandImageFile 读图→base64→glm-4.6v-flash（配置全走 .env）；describeMediaInMarkdown 解析本地路径+Obsidian 嵌入查找、图片直审、视频 ffmpeg 尽力抽帧、失败/限流全降级）
+  - 修改 src/knowledge/pipeline.ts（structureWithGLM 结构化前调用 describeMediaInMarkdown（vault 为 baseDir），视觉描述并入 GLM 结构化输入）
+  - 新增 tests/knowledge/vision.test.ts（6：媒体引用解析/代码块跳过/请求形状/API 失败降级/markdown 富化/无 ffmpeg 视频跳过）
+- Verification: vision+pipeline 9/9 通过（pipeline 单独 3/3）；bunx tsc --noEmit 干净；bun run build（528 模块）成功；备份已删除。注：4 文件组合时 pipeline 空 options 偶发失败为既有 vault/db 资源竞争（vision+pipeline 组合与单独均通过）。
+- Commit: 9f4c887
