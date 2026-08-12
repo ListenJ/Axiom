@@ -4395,3 +4395,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 关键结论：① 冲 A 被拒转投合法但有前提（顺序投递/实质修改/时间充裕/novelty 足够），IJCAI 要求 12 个月拒稿重投声明；② 当前系统=工程原型，属 68% scaffold 路线，三个工程特征（统计门控归纳/幂等技能注册/MCP 可调用）有潜在新意但缺验证；③ 课题 A 空白被 SEAGym/RSEA 大幅抢占，差异化收窄为「评估偏差归因+跨任务族 held-out+污染量化」；建议先跑 3 个月可行性实验 + demo 保底，不立即决定全部投入 A。
 - Verification: 文档内容核对；备份已删除。
 - Commit: d91e984
+
+## 2026-08-12 - 开源工程定位落地：Agent 能力边界测试集（方向甲）+ 技能质量反馈回路（方向乙）
+
+- Task: 按用户决定：① 论文路线搁置、转为开源工程定位；② 方向甲（自建通用 Agent 能力测试集）+ 方向乙（self-evolve 质量反馈回路）并行开工；③ 检查现成 Agent 测试集后确定自建。
+- Tools: 1 并行子代理（Ptolemy=方向乙实现）+ bun test / bunx tsc / git。
+- Files:
+  - 新增 docs/AGENT-EVALS.md（定位决定 + 评测集设计：6 任务族 × train/held-out 划分 + 指标）
+  - 新增 src/agent-evals/（verify.ts 确定性验证器 / tasks.ts 20 任务 6 族 / metrics.ts 含 held-out 泛化率 / runner.ts internalAgent 执行 / report.ts / run.ts CLI）
+  - 新增 tests/agent-evals/（3 文件 13 测试：任务定义合法性/验证器/指标含泛化率）
+  - 新增 src/self-evolve/skill-quality.ts（SkillQualityTracker：记录 outcome/查询/降权门控 calls≥3 且 <0.5 → deprecated/文件持久化 data/skill-quality.json + getDefaultQualityTracker 单例）
+  - 修改 src/self-evolve/skill-promotion.ts（defaultDeps 注入质量查询；deprecated 技能跳过提升；描述写入质量状态）
+  - 修改 src/mcp/server/skill-tools.ts（skill_run 对 auto-induce-* 记录成功/失败 outcome，真实场景闭环）
+  - 修改/新增 tests/self-evolve/（skill-quality 13 测试 + skill-promotion 3 集成测试；修复子代理遗留重复 import）
+- 现状判断（规则10）：现成 Agent 基准（AgentBench/GAIA/tau-bench 等）依赖外部环境、静态饱和；项目 src/eval 是模型级问答测试——故自建 Agent 级评测集（20 任务/6 族/含 held-out）。
+- Verification: tests/agent-evals 13/13；self-evolve 43/43；组合 62/62；skill-run-tool 通过；bunx tsc --noEmit 干净；dry-run 预览 20 任务正常；备份已删除。
+- Commit: 11d71a8
