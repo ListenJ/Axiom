@@ -4375,3 +4375,12 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：标题突出性/状态图标对齐/导航箭头间距等反馈与现结构无明确可复现问题或属设计一致性权衡，未盲改；侧边栏对比度反馈基于旧图（已优化过）。
 - Verification: 前端 vitest 43 文件 284/284 通过；frontend tsc -b 干净；备份已删除。
 - Commit: 16c5e3a
+
+## 2026-08-12 - CCF-A 可行性评估（诚实判断）
+
+- Task: 回答"当前工作能否进 CCF-A"：核实 CCF-A 会议名单与近年录用率，评估当前工程原型与 A 类门槛的差距，沉淀为研究文档章节。
+- Tools: web 检索（CCF 目录 / IJCAI-ACL-EMNLP 录用率）/ git。
+- Files:
+  - 修改 docs/research/CCF-agent-topics-2026-08-12.md（追加"CCF-A 可行性评估"：事实录用率 IJCAI 17.6-19.3% / AAAI 23.4% / ACL 20.3% / EMNLP 22.2%；差距表 6 维；结论：原型不能直接进 A 类，课题 A 有真实 A 类路径，建议双轨）
+- Verification: 文档内容核对；备份已删除。
+- Commit: 26cead6
