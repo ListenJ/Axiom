@@ -17,7 +17,7 @@ interface StatCardProps {
 }
 
 const ACCENT_CLASSES = {
-  default: { text: 'text-[var(--accent)]', bg: 'bg-[var(--accent-soft)]' },
+  default: { text: 'text-[var(--accent-strong)]', bg: 'bg-[var(--accent-soft)]' },
   success: { text: 'text-[var(--success)]', bg: 'bg-[var(--success-soft)]' },
   warning: { text: 'text-[var(--warning)]', bg: 'bg-[var(--warning-soft)]' },
   danger: { text: 'text-[var(--danger)]', bg: 'bg-[var(--danger-soft)]' },

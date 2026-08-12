@@ -576,7 +576,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {workspaces.map((ws) => {
               const key = ws.path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
               const wsSessions = sessionsByWorkspace.get(key) ?? []

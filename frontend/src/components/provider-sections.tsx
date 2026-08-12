@@ -524,7 +524,7 @@ export function QuickstartBanner() {
             </span>
             <div>
               <p className="text-xs font-medium text-[var(--text)]">{s.title}</p>
-              <p className="mt-0.5 text-2xs text-[var(--text-muted)]">{s.desc}</p>
+              <p className="mt-0.5 text-2xs leading-relaxed text-[var(--text-muted)]">{s.desc}</p>
             </div>
           </li>
         ))}

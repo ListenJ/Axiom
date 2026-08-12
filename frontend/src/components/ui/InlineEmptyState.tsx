@@ -23,7 +23,7 @@ export default function InlineEmptyState({
       </div>
       <p className="text-sm font-medium text-[var(--text-secondary)]">{title}</p>
       {description && <p className="mt-1 text-xs text-[var(--text-muted)]">{description}</p>}
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   )
 }
