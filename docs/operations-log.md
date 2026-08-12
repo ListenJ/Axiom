@@ -4470,3 +4470,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：与 RSEA/PACE 文献结论一致（无 held-out 门控的上下文演化有风险）；技能深化机制完整跑通（失败任务→方法论技能→注册→注入→影响评测），后续需质量门控（只保留有增益技能）。
 - Verification: tests/agent-evals 18/18；bunx tsc --noEmit 干净；skill-loader 加载 methodology.yaml 2 个技能无错误；闭环实验 30 次调用完成；备份已删除。
 - Commit: d27dd54
+
+## 2026-08-13 - 门控验证 + 注入侧质量门控（闭环 60%→70%）
+
+- Task: ① 重跑 --evolve 闭环验证按族门控注入效果；② 注入侧接入 skill-quality（deprecated 技能不再注入），形成完整质量闭环。
+- Tools: bun run --evolve（opencode deepseek-v4-flash，30 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（buildSystemPrompt 注入前查询 SkillQualityTracker，deprecated 的 auto-induce-* 跳过——与 promote 侧/skill_run 侧组成质量闭环）
+  - 新增 eval-results/agent-evals-2026-08-13-gated-loop.md（gitignored 实验文档）
+- 实验结果（事实）：门控注入 evolved 70%（7/10）> baseline 60%（6/10），消除上次无门控的干扰性下降（KNOW-04/PLAN-03 保持 ✅）；本次 baseline 60% 含 2 个 121s 网络噪声假阴性，单次波动大但门控方向性结论可靠。
+- 判断（规则10）：无门控注入有害、按族门控+质量门控后不再有害且小幅增益，与 RSEA keep-better 门结论一致；下一步可增加"只注入已验证增益技能"的持久化反馈（当前 deprecated 门控已闭环）。
+- Verification: tests/agent-evals 18/18；bunx tsc --noEmit 干净；闭环实验完成；备份已删除。
+- Commit: 1e40de6
