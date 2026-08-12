@@ -14,16 +14,17 @@ export default function Knowledge() {
       />
       <ShimmerCard>
         <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-          知识库的笔记浏览、待审核笔记（pending review）与审核操作已并入「知识」Hub 的待审核页签，
-          支持 approve / reject 操作。本页保留仅为兼容旧链接。
+          知识库的笔记浏览、待审核笔记（pending review）与审核操作已迁移至「知识」Hub：
+          待审核页签支持 approve / reject，笔记浏览支持全文检索。本页保留仅为兼容旧链接，会自动带您前往新入口。
         </p>
-        <Button
-          className="mt-4"
-          icon={<ArrowRight className="size-4" />}
-          onClick={() => navigate('/vault?tab=review')}
-        >
-          前往知识 Hub · 待审核
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button icon={<ArrowRight className="size-4" />} onClick={() => navigate('/vault?tab=review')}>
+            前往知识 Hub · 待审核
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/vault')}>
+            前往知识 Hub · 全部笔记
+          </Button>
+        </div>
       </ShimmerCard>
     </div>
   )

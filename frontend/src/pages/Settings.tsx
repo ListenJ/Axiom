@@ -72,7 +72,9 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
             {ACCENT_PRESETS[accent].label} · {currentHex}
           </p>
         </div>
-        <div role="radiogroup" aria-label="Agent 颜色" className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <span className="text-xs text-[var(--text-secondary)]">当前：{ACCENT_PRESETS[accent].label}</span>
+          <div role="radiogroup" aria-label="Agent 颜色" className="flex flex-wrap items-center gap-2">
           {(Object.keys(ACCENT_PRESETS) as AccentId[]).map((id) => {
             const preset = ACCENT_PRESETS[id]
             const active = accent === id
@@ -86,12 +88,13 @@ function AccentPicker({ highlight }: { highlight: boolean }) {
                 title={`${preset.label}（${id === 'mono' ? '随主题' : preset.swatch}）`}
                 onClick={() => setAccent(id)}
                 className={`press size-7 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
-                  active ? 'ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--bg)]' : ''
+                  active ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg)]' : ''
                 }`}
                 style={{ background: id === 'mono' ? 'var(--accent)' : preset.swatch }}
               />
             )
           })}
+          </div>
         </div>
       </div>
     </ShimmerCard>
