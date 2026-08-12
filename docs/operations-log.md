@@ -4438,3 +4438,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 关键事实（规则10）：OpenCode Go 官方 OpenAI 兼容端点为 https://opencode.ai/zen/go/v1（Docker 文档），但该 key 上 zen/go chat 500、zen/v1 正常——以实测为准；deepseek-v4-flash 为推理模型需 thinking disabled；curl 走 Windows 系统网络栈，bun fetch 超时。
 - Verification: bunx tsc --noEmit 干净；memory 族链路验证通过；全量 20 任务 80%（16/20）；备份已删除。
 - Commit: 7266d18
+
+## 2026-08-12 - 评测→进化闭环实验 + 验证器收尾（deepseek-v4-flash）
+
+- Task: ① 收尾 2 个偏严验证器（CODING-04/TOOL-01 语言等价）；② 方向乙最终验证：评测→进化闭环（train 归纳技能 → held-out 对比）。
+- Tools: bun run --evolve（opencode deepseek-v4-flash）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（CODING-04 map→object/字典/hash、TOOL-01 lat/lon→经度/纬度/city 等语言等价放宽）
+  - 新增 src/agent-evals/evolve.ts（评测结果→TaskTrace（train 分片）→ selfInduce 确定性归纳 → promoteInductionsToSkills 注册，无 LLM 纯逻辑）
+  - 修改 src/agent-evals/runner.ts（injectSkills 选项：加载 auto-induce-* 技能注入 systemPrompt；systemPrompt 贯穿直连/代理路径）
+  - 修改 src/agent-evals/run.ts（--evolve 三阶段流程：train → held-out baseline → 归纳注册 → held-out evolved 对比；--inject-skills）
+  - 新增 eval-results/agent-evals-2026-08-12-evolve-loop.md（gitignored 实验文档）
+- 实验结果（事实）：held-out baseline 80% → evolved 80%（保持不退化，无净增益）；注册技能仅 auto-induce-js（术语共现归纳出高频词"js"，非可操作模式）——机制链路全通，瓶颈在技能生成质量。
+- 判断（规则10）：符合文献结论（SEAGym/RSEA：无 artifact 普适赢家；held-out 门控保证安全不退化）；下一步应把失败教训/验证器反馈纳入归纳，而非纯术语共现。
+- Verification: bunx tsc --noEmit 干净；tests/agent-evals 13/13；闭环实验 30 次调用完成；备份已删除。
+- Commit: b5ca6f2
