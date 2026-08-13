@@ -4510,3 +4510,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：网络优化是消除基线波动的关键（此前 60-80% 波动主要为网络假阴性）；每族 2 任务样本太小，需多轮积累后负增益自动过滤才具统计意义。
 - 验证：Codex skill 已在当前会话 skills 列表生效（methodology-ascetic-breaker / methodology-source-fidelity）；tsc 干净；备份已删除。
 - Commit: 57d034b
+
+## 2026-08-13 - 评测集扩充至 36 任务 + 新基线 97.2%（held-out 100%）
+
+- Task: 采纳建议扩大评测集（每族 2-4 → 6 个，train/held-out 各 3），提升 held-out 统计稳定性，为增益门控积累更多样本。
+- Tools: bun run 全量评测（opencode deepseek-v4-flash，36 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（新增 16 任务：CODING-05/06、KNOW-05/06、PLAN-05/06、TOOL-05/06、MEM-03/04/05/06、EVOLVE-03/04/05/06，全部真实场景 + 中英文等价验证器；修复 PLAN-02 验证器英文关键词 → 中英同义词）
+  - 新增 eval-results/agent-evals-2026-08-13-expanded-36.md（gitignored 结果文档）
+- 实验结果（事实）：36 任务基线 **97.2%（35/36）**；train 94.4%（17/18）、held-out **100%（18/18）**、泛化率 1.059；平均延迟 7.3s 零网络噪声；唯一失败 PLAN-02 为验证器语言不等价（模型用中文"部署/回滚"，已修复）。
+- 判断（规则10）：held-out 100% 且泛化率 >1 说明 train/held-out 划分合理、无过拟合；deepseek-v4-flash 在当前评测面表现强（glm-4.7-flash 45%）；36 任务集为后续 --evolve 增益积累提供更充分样本。
+- Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；dry-run 36 任务清单正常；备份已删除。
+- Commit: 3764abf
