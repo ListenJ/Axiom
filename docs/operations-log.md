@@ -4572,3 +4572,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：Go 端点稳定性优于 zen（用户指定正确）；方法论技能增益有限且不稳定（+16.7pp 回落到 +2.4pp），严格正增益门控方向正确；持续短板 CODING-04/PLAN-03 为真实能力表述问题。
 - Verification: bunx tsc --noEmit 干净；tests 不受影响（本轮仅配置/数据）；备份已删除。
 - Commit: be33299（端点切换，已推送）
+
+## 2026-08-13 - 第 5 轮：复杂度标定 + 弱干扰注入（evolved 与 baseline 持平，技能修复复杂度短板）
+
+- Task: 再跑一轮闭环，并按要求：① 提示词不干扰（注入弱引导）；② 任务按场景/状态/任务精确约束（coding 要求标定实现目标+时间/空间复杂度）；③ 方法论模板加入实现标定。
+- Tools: bun run --evolve（Go 端点，66 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（CODING-04/05/06 prompt 要求标定实现目标+时间复杂度+空间复杂度；验证器新增复杂度组检查）
+  - 修改 src/agent-evals/skill-craft.ts（方法论模板新增「实现标定」块：目标/时间/空间复杂度+权衡）
+  - 修改 src/agent-evals/runner.ts（注入引导语弱化：「仅当适用时参考，不要改变回答结构与风格」）
+  - 新增 eval-results/agent-evals-2026-08-13-42loop-round5.md（gitignored 实验文档）
+- 实验结果（事实）：evolved 83.3%（20/24）= baseline 83.3%（20/24，持平）；复杂度标定使 baseline 从 91.7% 降至 83.3%（CODING-06 模型不主动标空间复杂度）；技能修复 CODING-06/PLAN-04；EVOLVE-07 被 auto-induce 微弱正增益（+1.6pp/52 样本）跨族注入干扰；增益更新：auto-fix-memory +10.2pp 新正、auto-fix-self-evolve -27.3pp 持续负。
+- 判断（规则10）：复杂度标定有效提升严格度且技能确实修复短板；持平=安全不退化；建议 auto-induce 注入阈值提高（增益≥5pp 且样本≥10）以减少跨族噪声。
+- Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；备份已删除。
+- Commit: cdf2109
