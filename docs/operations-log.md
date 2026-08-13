@@ -4754,3 +4754,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/agent-evals/runner-gate.test.ts（3：关闭注入/同族匹配/开发族限定）
 - Verification: runner-gate+applySelfThought 7/7；agent-evals+self-evolve 139/139；前端 vitest 284/284；tsc（后端+前端）干净。
 - Commit: 81f9fec（已推 GitHub）
+
+## 2026-08-13 - P2 批次 1-3 完成（安全与契约优先，按用户顺序）
+
+- Task: 按 1→3 顺序继续 P2：① skill-registry（reload 保留运行时技能 + execute 超时/信号透传）；② skill-loader（bare 默认值 + watch debounce/异常）；③ 前端契约（快捷键/统计字段/effect 清理）。
+- Tools: bun test / vitest / bunx tsc / git。
+- Files:
+  - 修改 src/skills/skill-registry.ts（reload 保留 source=hermes 运行时技能，避免 reload 清空自进化成果；execute/executeById 支持 maxTokens/timeout/signal 透传 router）
+  - 修改 src/skills/skill-loader.ts（bare SkillDefinition 分支补齐 triggers/requiredTools/outputFormat/version 默认值；watch 保存 debounce timer 清理 + fs.watch try/catch）
+  - 新增 tests/skills/skill-registry-p2.test.ts（2：reload 保留/options 透传）
+  - 修改 frontend/src/hooks/useGlobalHotkeys.ts（状态 ref 化，keydown 监听只挂一次——避免开关切换反复重挂）
+  - 修改 frontend/src/pages/Router.tsx（{success,data} unwrap + 字段合并）
+  - 修改 frontend/src/pages/Eval.tsx（normalizeEvalStats：totalEvaluations/modelsEvaluated/lastEvalAt/topModels 映射）
+  - 修改 frontend/src/pages/Sessions.tsx（fetchAll cancelled 标志，卸载后不再 setState）
+  - 修改 frontend/src/pages/Eval.test.tsx（mock 更新为后端真实字段——审计指出的自造夹具问题）
+- Verification: skill 相关 20/20；前端 vitest 284/284；tsc（后端+前端）干净。
+- Commit: 5804b4b（批次1+2）+ 3020da7（批次3）
