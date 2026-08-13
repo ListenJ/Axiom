@@ -4546,3 +4546,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：自进化闭环达到「安全不退化 + 小幅净正」目标（对应 RSEA keep-better 门结论）；网络仍不稳定（opencode 服务端波动，2.5s 间隔不够完全消除），后续可加大间隔或换通道。
 - Verification: 本轮无代码改动（仅评测运行与数据）；tsc/测试不受影响；工作区干净。
 - Commit: （本轮无代码提交，日志随下轮代码提交）
+
+## 2026-08-13 - 网络三级优化 + 注入门控收紧（第三轮发现驱动）
+
+- Task: ① 网络再优化：任务间隔 4s、curl 超时 180s、重试 5 次指数退避 5s/10s/20s/40s/80s；② 验证轮暴露方法论技能对问答类任务有害 → 收紧注入门控。
+- Tools: bun run --evolve（opencode，66 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（间隔 2.5s→4s；curl -m 120→180；重试 4→5 次；退避 3s→5s 基数；auto-fix 方法论技能仅注入 coding/planning/tool-use 开发族）
+  - 修改 src/agent-evals/skill-gain.ts（shouldInject 收紧：样本<3 仅 auto-fix 试用；样本≥3 要求严格正增益 injectedRate > baselineRate）
+  - 修改 tests/agent-evals/skill-gain.test.ts（更新 3 个断言：未知 auto-induce 不试用 / 中性增益不注入）
+  - 新增 eval-results/agent-evals-2026-08-13-42loop-round3.md（gitignored 实验文档）
+- 实验结果（事实）：baseline 87.5%（21/24，2 个 184s 噪声）；evolved 70.8%（17/24，2 个 184s 噪声）；扣除噪声后真实 evolved ≈77.3% vs baseline ≈95.5%——方法论技能对 KNOW/PLAN 问答类任务真实干扰（KNOW-04 缺 WAL、PLAN-06/07 缺恢复/网关），中性 auto-induce 高频词技能注入是上下文噪声。
+- 判断（规则10）：网络层已到客户端极限（opencode 服务端持续超时）；核心教训是方法论技能按任务类型分流（开发类受益、问答/反思类被干扰），门控收紧为「严格正增益 + 开发族限定」。
+- Verification: tests/agent-evals 22/22（62 expect）；bunx tsc --noEmit 干净；备份已删除。
+- Commit: ddf0797
