@@ -36,6 +36,7 @@ interface ModelPickerProps {
 export function ModelPicker({ models, selectedModel, effort = 'medium', onSelect }: ModelPickerProps) {
   const [open, setOpen] = useState(false)
   const popRef = useRef<HTMLDivElement | null>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const current = models.find((m) => m.id === selectedModel)
   const label = current?.name ?? selectedModel ?? '?'
@@ -62,6 +63,28 @@ export function ModelPicker({ models, selectedModel, effort = 'medium', onSelect
         aria-label={`模型选择：${label}`}
         title={label}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          // combobox 键盘：打开/移动/环绕/关闭（web-design-guidelines）
+          if (!open) {
+            if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+              e.preventDefault()
+              setOpen(true)
+              const idx = models.findIndex((m) => m.id === selectedModel)
+              requestAnimationFrame(() => { optionRefs.current[Math.max(0, idx)]?.focus() })
+            }
+            return
+          }
+          if (e.key === 'Escape') { e.preventDefault(); setOpen(false); return }
+          if (e.key === 'Home') { e.preventDefault(); optionRefs.current[0]?.focus(); return }
+          if (e.key === 'End') { e.preventDefault(); optionRefs.current[models.length - 1]?.focus(); return }
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            const cur = optionRefs.current.findIndex((r) => r === document.activeElement)
+            const base = cur >= 0 ? cur : models.findIndex((m) => m.id === selectedModel)
+            const next = e.key === 'ArrowDown' ? Math.min(models.length - 1, base + 1) : Math.max(0, base - 1)
+            optionRefs.current[next]?.focus()
+          }
+        }}
         className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-sm font-semibold text-[var(--accent)] transition-[border-color,box-shadow] duration-150 hover:border-[var(--accent)] hover:shadow-[0_0_0_3px_var(--accent-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
       >
         {initial}
@@ -107,11 +130,12 @@ export function ModelPicker({ models, selectedModel, effort = 'medium', onSelect
             {models.length === 0 ? (
               <p className="p-3 text-center text-2xs text-[var(--text-muted)]">暂无可用模型</p>
             ) : (
-              models.map((m) => (
+              models.map((m, index) => (
                 <button
                   key={m.id}
                   type="button"
                   role="option"
+                  ref={(el) => { optionRefs.current[index] = el }}
                   aria-selected={m.id === selectedModel}
                   onClick={() => {
                     onSelect(m.id)

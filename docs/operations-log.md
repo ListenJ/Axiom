@@ -4785,3 +4785,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 工程规范检查（事实）：修复过程中发现并处理了 3 处测试/代码转义笔误（split/join 换行、useState 导入、受控组件）；ESLint 完整接入（eslint-plugin-react-hooks）未纳入本轮（依赖安装+全量告警收敛成本高，记录为后续待办）。
 - Verification: 前端 vitest 45 文件/287 测试全部通过；tsc（后端+前端）干净。
 - Commit: 9315ff9
+
+## 2026-08-14 - P2 ModelPicker combobox 键盘可访问性（Arrow/Home/End/Esc）
+
+- Task: ModelPicker combobox 键盘完整支持（ArrowDown/Up 打开+移动、Home/End 跳转、Escape 关闭）+ 键盘测试。
+- Tools: vitest / bunx tsc / git。
+- Files:
+  - 修改 frontend/src/components/chat/ModelPicker.tsx（optionRefs 引用数组；trigger onKeyDown 键盘协议；option 按钮 ref 注册）
+  - 新增 frontend/src/components/chat/ModelPicker.keyboard.test.tsx（2 测试：打开+聚焦+Esc 关闭；Arrow/Home/End 移动）
+- Verification: 前端 vitest 46 文件/289 测试全部通过；前端 tsc 干净。
+- Commit: <PENDING>
