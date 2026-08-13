@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
+import { getProviderConfig } from "../utils/api-key-store.js";
 
 export type MediaKind = "image" | "video";
 
@@ -92,9 +93,9 @@ export async function understandImageFile(
   filePath: string,
   prompt = "请描述这张图片的内容与要点，200 字以内。",
 ): Promise<string | null> {
+  if (!fs.existsSync(filePath)) return null;
   const apiKey = readString("ZHIPU_API_KEY");
   if (!apiKey) return null;
-  if (!fs.existsSync(filePath)) return null;
 
   const model = readString("GLM_VISION_MODEL", "glm-4.6v-flash");
   const base = readString("GLM_VISION_BASE_URL", "https://open.bigmodel.cn/api/paas/v4");
@@ -151,7 +152,90 @@ export async function understandImageFile(
       return null;
     }
   }
+  // GLM 失败/限流后自动回退 opencode go 套餐视觉（订阅套餐内调用，用户无需手动切换）
+  const ocResult = await tryOpenCodeVision(filePath, prompt);
+  if (ocResult) return ocResult;
   logger.warn("[KnowledgeVision] GLM vision rate-limited after 3 retries");
+  return null;
+}
+
+/**
+ * opencode go 套餐视觉路由：curl 直连 zen/go/v1（Bun fetch 无法连通 opencode.ai），
+ * 默认 kimi-k2.6（已实测支持图像输入）；OPENCODE_VISION_MODEL 可覆盖。
+ * 返回描述文本；未配置 key / 非 200 / 无内容返回 null（由调用方回退 GLM）。
+ */
+async function tryOpenCodeVision(filePath: string, prompt: string): Promise<string | null> {
+  const apiKey = readString("OPENCODE_API_KEY");
+  if (!apiKey) return null;
+  const cfg = getProviderConfig("opencode");
+  if (!cfg) return null;
+  const model = readString("OPENCODE_VISION_MODEL", "kimi-k2.6");
+  const ext = extOf(filePath);
+  const mime = MIME[ext] ?? "image/png";
+  let b64 = "";
+  try {
+    b64 = fs.readFileSync(filePath).toString("base64");
+  } catch {
+    return null;
+  }
+  const payload = JSON.stringify({
+    model,
+    temperature: 0.2,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
+        ],
+      },
+    ],
+  });
+  const tmpFile = path.join(os.tmpdir(), `oc-vision-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(tmpFile, payload, "utf8");
+  // 套餐网络偶发抖动：3 次退避重试（2s/4s/8s）
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const proc = Bun.spawn(
+        ["curl.exe", "-sS", "-m", "60", "-X", "POST",
+          `${cfg.baseURL.replace(/\/$/, "")}/chat/completions`,
+          "-H", "Content-Type: application/json",
+          "-H", `Authorization: Bearer ${apiKey}`,
+          "--data", `@${tmpFile}`,
+          "-w", "\n%{http_code}"],
+        { stdout: "pipe", stderr: "ignore" },
+      );
+      const reader = proc.stdout.getReader();
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+      await proc.exited;
+      const out = Buffer.concat(chunks).toString("utf8").trimEnd();
+      const parts = out.split("\n");
+      const status = Number(parts.pop());
+      if (!Number.isFinite(status) || status !== 200) {
+        logger.warn(`[KnowledgeVision] OpenCode vision returned ${status}`);
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+          continue;
+        }
+        return null;
+      }
+      const data = JSON.parse(parts.join("\n")) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = data?.choices?.[0]?.message?.content?.trim();
+      return content && content.length > 0 ? content : null;
+    } catch (err) {
+      logger.warn(`[KnowledgeVision] OpenCode vision failed: ${(err as Error).message}`);
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+        continue;
+      }
+      return null;
+    }
+  }
   return null;
 }
 
