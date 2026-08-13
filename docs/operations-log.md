@@ -4729,3 +4729,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   5. 服务已停止。
 - 判断（规则10）：P1 修复（confirmation 封装）端到端确认；token 权限不足需用户处理；模型链路验证受当前 key 配置限制。
 - Commit: 无代码改动（日志随下轮）
+
+## 2026-08-13 - CJK bigram 分词（P2-9）+ 新 token 诊断
+
+- Task: 继续下一项任务（P2 高价值）：修复 self-evolve 中文归纳失效（CJK 整段 token，跨样本无法共现）；同时诊断新 GitHub token 的仓库改名权限。
+- Tools: bun test / bunx tsc / curl GitHub API / git。
+- Files:
+  - 修改 src/self-evolve/engine.ts（tokenize：CJK 段 bigram 切分——"如何优化"→如何/何优/优化，单字 CJK 折叠进 bigram；中文术语可跨样本共现归纳）
+  - 新增 tests/self-evolve/cjk-tokenize.test.ts（3：中文 bigram/单字折叠/相似中文轨迹共享 bigram 可触发归纳）
+- 验证（事实）：self-evolve 92/92（含新 3 个）；bunx tsc --noEmit 干净。
+- token 诊断（事实）：新 token login=ListenJ 但 /user/repos 仍空、/repos/ListenJ/openclaw-fusion → Not Found——fine-grained token 的 Repository access 仍未包含该仓库；改名需用户在 GitHub 网页 Settings→Developer settings 确认授权或直接网页 Rename。
+- Commit: （随推送）
