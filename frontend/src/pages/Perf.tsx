@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Activity, Cpu } from 'lucide-react'
 import { ShimmerCard, PageHeader, Skeleton } from '@/components/ui'
 import { endpoints } from '@/lib/api'
-import { normalizeMetrics, normalizeNative, type PerfMetrics } from '@/lib/normalize'
+import { normalizeMetrics, normalizeNative, normalizePromMetrics, type PerfMetrics } from '@/lib/normalize'
 
 /** 性能面板（设置页「调试与检查」嵌入用，不含页头） */
 export function PerfPanel() {
@@ -13,7 +13,7 @@ export function PerfPanel() {
 
   useEffect(() => {
     Promise.allSettled([
-      endpoints.perf.metrics().then(normalizeMetrics),
+      endpoints.perf.metrics().then((d) => (typeof d === 'string' ? normalizePromMetrics(d) : normalizeMetrics(d))),
       endpoints.perf.native().then(normalizeNative).catch(() => null),
     ]).then(([metrics, nat]) => {
       if (metrics.status === 'fulfilled') {

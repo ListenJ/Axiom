@@ -29,6 +29,14 @@ export default function Tabs({
     <div
       role="tablist"
       aria-orientation="horizontal"
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        const idx = tabs.findIndex((t) => t.id === active)
+        if (idx < 0) return
+        const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length
+        e.preventDefault()
+        onChange(tabs[next].id)
+      }}
       className={`inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-1 ${
         fullWidth ? 'w-full' : ''
       } ${className}`}

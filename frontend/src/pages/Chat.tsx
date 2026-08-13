@@ -275,13 +275,19 @@ export default function Chat() {
     setSending(true)
 
     const appendToken = (chunk: string) => {
-      setMessages((m) =>
-        m.map((item) => {
+      setMessages((m) => {
+        // 热点优化（performance skill）：目标通常是最后一条 assistant 消息——O(1) 更新
+        const last = m[m.length - 1]
+        if (last && last.id === assistantId) {
+          const { text, msg: updated } = parseTokenContent(chunk, last)
+          return [...m.slice(0, -1), { ...updated, content: last.content + text }]
+        }
+        return m.map((item) => {
           if (item.id !== assistantId) return item
           const { text, msg: updated } = parseTokenContent(chunk, item)
           return { ...updated, content: item.content + text }
-        }),
-      )
+        })
+      })
     }
     const updateMeta = (meta: { model?: string; provider?: string; usage?: Record<string, unknown> }) => {
       setMessages((m) =>

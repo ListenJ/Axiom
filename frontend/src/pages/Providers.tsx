@@ -20,25 +20,33 @@ export default function Providers() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const fetchProviders = async (silent = false) => {
+  const fetchProviders = async (silent = false, cancelled = false) => {
     if (!silent) setRefreshing(true)
     try {
       const data = await endpoints.apiKeys.list()
       const list = ((data as { providers?: ProviderStatus[] })?.providers) ?? []
-      setProviders(list)
-      setLoadError(null)
+      if (!cancelled) {
+        setProviders(list)
+        setLoadError(null)
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setLoadError(msg)
-      if (!silent) setProviders([])
+      if (!cancelled) {
+        setLoadError(msg)
+        if (!silent) setProviders([])
+      }
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (!cancelled) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }
 
   useEffect(() => {
-    fetchProviders()
+    let cancelled = false
+    void fetchProviders(false, cancelled)
+    return () => { cancelled = true }
   }, [])
 
   // 按适配器分组（OpenCode 单独走套餐专区），并应用搜索过滤

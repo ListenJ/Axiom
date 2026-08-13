@@ -26,9 +26,11 @@ export default function Agents() {
   const toast = useApp((s) => s.toast)
 
   useEffect(() => {
+    let cancelled = false
     endpoints.agents
       .status()
       .then((d) => {
+        if (cancelled) return
         if (Array.isArray(d)) {
           setAgents(d as AgentStatus[])
         } else if (d && typeof d === 'object' && Array.isArray((d as { agents?: unknown }).agents)) {
@@ -37,7 +39,8 @@ export default function Agents() {
           setAgents([])
         }
       })
-      .catch((e) => setError(String((e as Error)?.message ?? e)))
+      .catch((e) => { if (!cancelled) setError(String((e as Error)?.message ?? e)) })
+    return () => { cancelled = true }
   }, [])
 
   const run = async (action: 'review' | 'test' | 'refactor') => {

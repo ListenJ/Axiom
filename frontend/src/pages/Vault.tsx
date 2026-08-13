@@ -70,15 +70,18 @@ function NotesTab() {
   const loading = stats === null
 
   useEffect(() => {
+    let cancelled = false
     Promise.allSettled([
       endpoints.vault.stats().then((d) => d as VaultStats).catch(() => null),
       endpoints.vault.tags().then((d) => toTags(d)).catch(() => []),
     ]).then(([s, t]) => {
+      if (cancelled) return
       setStats(s.status === 'fulfilled' ? s.value : null)
       setTags(t.status === 'fulfilled' ? t.value : [])
       const failed = [s, t].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
       if (failed) setError(String(failed.reason?.message ?? failed.reason))
     })
+    return () => { cancelled = true }
   }, [])
 
   return (
@@ -144,20 +147,25 @@ function ReviewTab() {
   const [processing, setProcessing] = useState<string | null>(null)
   const toast = useApp((s) => s.toast)
 
-  const load = () => {
+  const load = (cancelled = false) => {
     setLoading(true)
     setError(null)
     endpoints.knowledge
       .pendingReview()
       .then((d) => {
+        if (cancelled) return
         const data = d as { notes?: PendingNote[] }
         setNotes(data.notes ?? [])
       })
-      .catch((e) => setError(String((e as Error)?.message ?? e)))
-      .finally(() => setLoading(false))
+      .catch((e) => { if (!cancelled) setError(String((e as Error)?.message ?? e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    let cancelled = false
+    void load(cancelled)
+    return () => { cancelled = true }
+  }, [])
 
   const act = async (file: string, action: 'approve' | 'reject') => {
     setProcessing(file)
@@ -177,7 +185,7 @@ function ReviewTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]">审批或驳回待审核的原子笔记。</p>
         <Button
-          onClick={load}
+          onClick={() => void load()}
           loading={loading}
           variant="secondary"
           size="sm"
