@@ -120,6 +120,8 @@ export async function chat(
     messages: effectiveMessages,
     timeout: options.timeout,
     temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    signal: options.signal,
     trackAs: options.trackAs ?? role,
   });
 
@@ -146,6 +148,9 @@ export async function executeWithRole(
     temperature: options.temperature,
     maxTokens: options.maxTokens,
     excludeModels: options.excludeModels,
+    timeout: options.timeout,
+    signal: options.signal,
+    trackAs: options.trackAs,
   });
 }
 

@@ -100,6 +100,9 @@ export interface ExecuteInput {
   messages: ChatMessage[];
   timeout?: number;
   temperature?: number;
+  maxTokens?: number;
+  /** 外部中止信号（透传给 provider 调用） */
+  signal?: AbortSignal;
   trackAs?: string;
   /**
    * Models to skip during fallback iteration. Used by `executeWithRole`
@@ -200,7 +203,7 @@ export class MultiPlatformRouter {
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
-    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs, tools } = input;
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools } = input;
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -304,7 +307,9 @@ export class MultiPlatformRouter {
             temperature,
             undefined,
             tools,
-            { baseURL: model.baseURL, apiKey: model.apiKey }
+            { baseURL: model.baseURL, apiKey: model.apiKey },
+            maxTokens,
+            signal
           );
           const latencyMs = Date.now() - loopStart;
           trackCall(model.model, model.provider, messages, {
@@ -975,12 +980,15 @@ export class MultiPlatformRouter {
    * fallback), which matches what `chat()` and `chatStream()` already
    * returned.
    */
-  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[] }): Promise<SmartAssignmentResponse> {
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string }): Promise<SmartAssignmentResponse> {
     const out = await this.execute({
       role,
       messages,
       ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
-      trackAs: role,
+      ...(options?.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+      ...(options?.timeout !== undefined ? { timeout: options.timeout } : {}),
+      ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+      trackAs: options?.trackAs ?? role,
       ...(options?.excludeModels && options.excludeModels.length > 0
         ? { excludeModels: options.excludeModels }
         : {}),

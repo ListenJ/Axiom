@@ -32,7 +32,9 @@ export async function callProvider(
   temperature = 0.7,
   reasoningEffort?: string,
   tools?: ToolCallDef[],
-  override?: { baseURL?: string; apiKey?: string }
+  override?: { baseURL?: string; apiKey?: string },
+  maxTokens?: number,
+  signal?: AbortSignal
 ): Promise<{
   content: string | null;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
@@ -64,6 +66,11 @@ export async function callProvider(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", onExternalAbort, { once: true });
+  }
 
   try {
     const headers: Record<string, string> = {
@@ -83,6 +90,7 @@ export async function callProvider(
         model,
         messages,
         temperature,
+        ...(maxTokens ? { max_tokens: maxTokens } : {}),
         ...buildReasoningParams(provider, reasoningEffort),
         ...(tools && tools.length > 0 ? { tools } : {}),
       }),
@@ -90,6 +98,7 @@ export async function callProvider(
     });
 
     clearTimeout(timer);
+    signal?.removeEventListener("abort", onExternalAbort);
 
     if (!res.ok) {
       const errText = await res.text();
@@ -104,6 +113,7 @@ export async function callProvider(
     };
   } catch (e) {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", onExternalAbort);
     throw e;
   }
 }
