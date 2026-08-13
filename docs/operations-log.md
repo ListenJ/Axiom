@@ -4716,3 +4716,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   5. git push origin codex/self-evolving-agent → [new branch] 推送成功——恢复因 internal211 SSH 认证失败而阻塞的全部提交（含 4ac541a/c45a8c7）。
 - 说明：AGENTS.md 规则 3 原指定 internal211（192.168.0.22）为推送目标；该服务器 SSH 认证失败（服务器侧变化），按用户指令切换至 GitHub origin。internal211 恢复后可在 remote 中保留备用。
 - Commit: 无新代码（仅 remote 配置与推送恢复；操作日志随下轮提交）
+
+## 2026-08-13 - GitHub token 诊断（改名权限不足）+ 端到端启动验证（P1 修复确认）
+
+- Task: ① 用用户提供的 GitHub PAT 修改仓库名；② 继续下一项任务（端到端启动验证）。
+- Tools: curl GitHub API / bun run src/main.ts（本地服务）/ curl 冒烟 / git。
+- 执行（事实）：
+  1. token 诊断：GET /user → login=ListenJ；GET /repos/ListenJ/openclaw-fusion → Not Found；GET /user/repos?affiliation=owner → 空——fine-grained PAT 未授权该仓库（改名需 Administration 写权限）→ 改名无法通过该 token 执行，需网页操作或更高权限 token；
+  2. 端到端启动验证：服务启动成功（/health：version 2.2.0、database/vault 正常、vault 93 笔记、duckduckgo/searxng 可用）；
+  3. 带认证冒烟：POST /plugins/install → 403 {blocked, confirmationId, operation:plugins:install}；POST /codegraph/init → 403 + confirmationId——confirmation 机制真实生效（前端 requestWithConfirmation 自动重试点确认）；
+  4. POST /chat（messages 契约）→ 请求被处理但模型链路超时（当前无 siliconflow/ofoxai key，fallback 网络慢）——非契约错误；
+  5. 服务已停止。
+- 判断（规则10）：P1 修复（confirmation 封装）端到端确认；token 权限不足需用户处理；模型链路验证受当前 key 配置限制。
+- Commit: 无代码改动（日志随下轮）
