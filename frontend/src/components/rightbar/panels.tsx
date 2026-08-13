@@ -236,7 +236,7 @@ export function SummaryPanel({ paused = false }: { paused?: boolean }) {
                 <Activity className="size-3.5 shrink-0 text-[var(--text-muted)]" />
                 <dt className="text-[var(--text-muted)]">缓存命中</dt>
                 <dd className="ml-auto font-mono text-[var(--text)]">
-                  {cacheRate === null ? '未统计' : `${Math.round(cacheRate * 100)}%`}
+                  {cacheRate === null ? '未统计' : `${Math.round(cacheRate)}%`}
                 </dd>
               </div>
               <div className="flex items-center gap-2">

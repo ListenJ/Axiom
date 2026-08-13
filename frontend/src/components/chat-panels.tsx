@@ -401,7 +401,7 @@ export function ToolCallsPanel({
                     </span>
                   )}
                   {isError && (
-                    <span className="rounded bg-[var(--danger)] px-1 py-0.5 text-2xs font-bold text-white">
+                    <span className="rounded bg-[var(--danger-soft)] px-1 py-0.5 text-2xs font-bold text-[var(--danger)]">
                       失败
                     </span>
                   )}

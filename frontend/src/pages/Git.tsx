@@ -100,9 +100,9 @@ export default function Git() {
   const handlePush = async () => {
     setPushing(true)
     try {
-      const res = await api.post<{ success: boolean; remote?: string; branch?: string; error?: string }>('/api/git/push', {})
+      const res = await api.post<{ success: boolean; output?: string; error?: string }>('/api/git/push', {})
       if (res.success) {
-        toast(`已推送到 ${res.remote}/${res.branch}`, 'success')
+        toast(res.output?.trim() ? `已推送：${res.output.trim().slice(0, 80)}` : '推送成功', 'success')
         refresh()
       } else {
         toast(res.error || '推送失败', 'error')

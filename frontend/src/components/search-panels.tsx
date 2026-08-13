@@ -279,7 +279,8 @@ export function ResearchPanel() {
     setResult(null)
     try {
       const res = await endpoints.research.run({ query: q, depth, maxSources })
-      const r = res as Partial<ResearchResult>
+      const body = res as { success?: boolean; data?: Partial<ResearchResult> } | Partial<ResearchResult>
+      const r = ((body as { data?: Partial<ResearchResult> }).data ?? body) as Partial<ResearchResult>
       setResult({
         query: q,
         summary: r.summary,
@@ -633,9 +634,9 @@ export function OcrPanel() {
     endpoints.ocr
       .status()
       .then((d) => {
-        const s = d as Partial<OcrStatus>
-        setStatus({ ready: Boolean(s.ready), languages: s.languages ?? ['eng'] })
-        if (s.languages?.length) setLanguages(s.languages)
+        const s = d as Partial<OcrStatus> & { status?: string; supportedLanguages?: string[] }
+        setStatus({ ready: s.status === 'ready', languages: s.supportedLanguages ?? ['eng'] })
+        if (s.supportedLanguages?.length) setLanguages(s.supportedLanguages)
       })
       .catch((e) => setError(String((e as Error)?.message ?? e)))
   }, [])

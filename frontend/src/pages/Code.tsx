@@ -183,7 +183,15 @@ function GraphTab() {
   const loading = stats === null
 
   useEffect(() => {
-    endpoints.kg.stats().then((d) => setStats(d as KgStats)).catch((e) => setError(String((e as Error)?.message ?? e)))
+    endpoints.kg.stats().then((d) => {
+      const raw = d as { success?: boolean; data?: { totalNodes?: number; totalEdges?: number; nodesByKind?: Record<string, number> } }
+      const data = raw?.data
+      setStats({
+        entities: typeof data?.totalNodes === 'number' ? data.totalNodes : undefined,
+        relations: typeof data?.totalEdges === 'number' ? data.totalEdges : undefined,
+        communities: data?.nodesByKind ? Object.keys(data.nodesByKind).length : undefined,
+      })
+    }).catch((e) => setError(String((e as Error)?.message ?? e)))
   }, [])
 
   return (

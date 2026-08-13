@@ -440,7 +440,7 @@ export const endpoints = {
   tokenDetails: (days?: number) => api.get(`/api/token-details${days ? `?days=${days}` : ''}`),
   chat: {
     send: (message: string, options: Record<string, unknown> = {}) =>
-      api.post('/chat', { message, ...options }),
+      api.post('/chat', { messages: [{ role: 'user', content: message }], taskType: 'general-chat', ...options }),
     stream: (
       messages: ChatMessage[],
       onEvent: ChatStreamHandler,
