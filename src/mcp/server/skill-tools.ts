@@ -1,4 +1,5 @@
-﻿import { z } from "zod";
+﻿import path from "node:path";
+import { z } from "zod";
 import type { ToolDef, ToolRegistry } from "../tool-registry.js";
 import { DEFAULT_SKILL_DIRS } from "../../skills/types.js";
 import {
@@ -86,7 +87,7 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
           description: args.description as string,
           author: args.author as string | undefined,
         });
-        saveSkillFile(args.filePath as string, boilerplate);
+        saveSkillFile(resolveSkillPath(String(args.filePath), dirs), boilerplate);
         return { success: true, filePath: args.filePath, boilerplate };
       },
     },
@@ -111,8 +112,8 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
             throw new Error(`Skill not found: ${skillId}`);
           }
           // 自进化技能（auto-induce-*）质量反馈：成功/失败计入质量记录
-          if (skillId.startsWith("auto-induce-")) {
-            getDefaultQualityTracker().recordSkillOutcome(skillId, true);
+          if (skillId.startsWith("auto-")) {
+            getDefaultQualityTracker().recordSkillOutcome(skillId, !result.content.startsWith("[Skill execution failed]"));
           }
           return {
             content: result.content,
@@ -134,6 +135,17 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
 }
 
 /** 按名称执行 skill 工具（原生 function-calling 与 MCP 共用的分发入口） */
+/** 把用户提供的 skill 文件路径约束到 skillDirs 白名单内（拒绝绝对路径与 .. 逃逸）。 */
+function resolveSkillPath(filePath: string, skillDirs: string[]): string {
+  const root = path.resolve(skillDirs[0] ?? "./skills");
+  const resolved = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(root, filePath);
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`Invalid skill file path (must stay within skill dirs): ${filePath}`);
+  }
+  return resolved;
+}
+
 export async function runSkillTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   const tool = buildSkillToolSurfaces().find((t) => t.name === name);
   if (!tool) throw new Error(`Unknown skill tool: ${name}`);

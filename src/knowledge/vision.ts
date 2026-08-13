@@ -101,6 +101,14 @@ export async function understandImageFile(
   const ext = extOf(filePath);
   const mime = MIME[ext] ?? "image/png";
 
+  try {
+    if (fs.statSync(filePath).size > 10 * 1024 * 1024) {
+      logger.warn("[KnowledgeVision] image too large (>10MB), skip");
+      return null;
+    }
+  } catch {
+    return null;
+  }
   const b64 = fs.readFileSync(filePath).toString("base64");
   const buildRequest = () => ({
     method: "POST" as const,
@@ -182,21 +190,33 @@ async function extractVideoFrames(videoPath: string): Promise<string | null> {
 
 function resolveMediaPath(ref: string, baseDir?: string): string | null {
   if (/^https?:\/\//.test(ref)) return null; // 远程 URL：不下载，跳过
-  if (path.isAbsolute(ref)) return fs.existsSync(ref) ? ref : null;
-  const base = baseDir ?? process.cwd();
-  const joined = path.join(base, ref);
-  if (fs.existsSync(joined)) return joined;
-  // Obsidian 嵌入可能不带子路径：在 baseDir 下递归查找同名文件（限制深度 3）
+  const base = path.resolve(baseDir ?? process.cwd());
+  const resolveInBase = (candidate: string): string | null => {
+    const resolved = path.resolve(base, candidate);
+    const rel = path.relative(base, resolved);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) return null; // 绝对路径/.. 逃逸拒绝
+    try {
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) return null;
+    } catch {
+      return null;
+    }
+    return resolved;
+  };
+  const direct = resolveInBase(ref);
+  if (direct) return direct;
+  // Obsidian 嵌入可能不带子路径：在 baseDir 内递归查找同名文件（限制深度 3，不逃逸 baseDir）
   const name = path.basename(ref);
   const walk = (dir: string, depth: number): string | null => {
     if (depth > 3) return null;
     try {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const child = path.join(dir, e.name);
+        if (path.relative(base, child).startsWith("..")) continue; // 不逃逸 baseDir
         if (e.isDirectory()) {
-          const found = walk(path.join(dir, e.name), depth + 1);
+          const found = walk(child, depth + 1);
           if (found) return found;
         } else if (e.name === name) {
-          return path.join(dir, e.name);
+          return child;
         }
       }
     } catch {
