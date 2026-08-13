@@ -1,4 +1,4 @@
-﻿# 操作日志（Operations Log）
+# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -4794,4 +4794,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/components/chat/ModelPicker.tsx（optionRefs 引用数组；trigger onKeyDown 键盘协议；option 按钮 ref 注册）
   - 新增 frontend/src/components/chat/ModelPicker.keyboard.test.tsx（2 测试：打开+聚焦+Esc 关闭；Arrow/Home/End 移动）
 - Verification: 前端 vitest 46 文件/289 测试全部通过；前端 tsc 干净。
-- Commit: <PENDING>
+- Commit: 54f0847
