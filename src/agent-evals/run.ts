@@ -16,6 +16,7 @@ const json = args.includes("--json");
 const dryRun = args.includes("--dry-run");
 const evolve = args.includes("--evolve");
 const injectSkills = args.includes("--inject-skills");
+const constraints = args.includes("--constraints");
 const concurrency = Number(flag("concurrency") ?? "1");
 const modelHint = flag("model");
 const provider = flag("provider");
@@ -35,6 +36,7 @@ Options:
   --dry-run         预览任务清单
   --evolve          评测→进化闭环：train → held-out baseline → 归纳注册技能 → held-out(注入技能) 对比
   --inject-skills   评测时注入已归纳的 auto-induce-* 技能
+  --constraints     附加通用回答约束（完整性/直接性/复杂度标定）
   --help            帮助
 `);
   process.exit(0);
@@ -71,7 +73,7 @@ if (evolve) {
   const evolved = evolveFromResults(trainResults, ALL_AGENT_TASKS, family);
   logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 方法论技能 ${evolved.craftedCount} 个 / 注册 ${evolved.created.length} 个技能`);
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
-  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true });
+  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints });
 
   // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果
   const { getDefaultGainTracker } = await import("./skill-gain.js");
@@ -97,7 +99,7 @@ if (evolve) {
 }
 
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
-const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills });
+const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints });
 const summary = summarize(results);
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);

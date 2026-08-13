@@ -29,13 +29,17 @@ export interface RunOptions {
   model?: string;
   /** 注入已归纳的 auto-induce-* 技能到 systemPrompt（评测→进化闭环验证） */
   injectSkills?: boolean;
+  /** 附加通用回答约束（完整性/直接性/复杂度标定）——集成化实验：整体补齐短板 */
+  constraints?: boolean;
 }
 
 async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult> {
   const t0 = performance.now();
   let content = "";
   let model = options.modelHint ?? options.model ?? "router-default";
-  const { prompt: systemPrompt, injectedSkillIds } = buildSystemPrompt(task, options.injectSkills);
+  const built = buildSystemPrompt(task, options.injectSkills);
+  const systemPrompt = options.constraints ? appendConstraints(built.prompt) : built.prompt;
+  const injectedSkillIds = built.injectedSkillIds;
   try {
     if (options.provider) {
       // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 4s（实测连续请求会触发超时）
@@ -225,6 +229,20 @@ function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): { prompt: s
   } catch {
     return { prompt: base, injectedSkillIds: [] };
   }
+}
+
+
+/** 通用回答约束（中性、不引入方法论框架，避免干扰问答类任务） */
+const GENERIC_CONSTRAINTS = [
+  "回答要求（通用）：",
+  "1. 完整覆盖任务要求的所有要点，逐项给出明确内容，不省略关键概念；",
+  "2. 直接给出答案/实现/步骤；涉及实现时明确标定实现目标、时间复杂度与空间复杂度；",
+  "3. 任务要求多步时，按顺序完整列出，不跳过任何一步；",
+  "4. 不确定的信息明确标注，不编造。",
+].join("\n");
+
+function appendConstraints(prompt: string | undefined): string {
+  return [prompt, GENERIC_CONSTRAINTS].filter(Boolean).join("\n\n");
 }
 
 export async function runTasks(tasks: AgentTask[], options: RunOptions = {}): Promise<TaskResult[]> {

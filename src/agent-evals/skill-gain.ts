@@ -103,14 +103,21 @@ export class SkillGainTracker {
 
   /**
    * 是否允许注入（收紧版）：
-   *  - 样本不足（<3）：仅 auto-fix 方法论技能允许试用；auto-induce 高频词技能不注入（上下文噪声）；
-   *  - 样本充足：要求严格正增益（注入通过率 > 基线通过率），中性/负增益均不注入。
+   *  - auto-induce 高频词技能：要求严格正增益且 ≥5pp 且样本 ≥10，否则不注入（跨族上下文噪声）；
+   *  - auto-fix 方法论技能：样本 <3 允许试用；样本 ≥3 要求严格正增益。
    */
   shouldInject(skillId: string, family: TaskFamily): boolean {
     const inj = this.injection.get(skillId);
     const base = this.baseline.get(family);
+    if (skillId.startsWith("auto-induce-")) {
+      // 高频词技能（术语共现产物，非方法论）：要求极强正增益（>=10pp）且样本 >=20 才注入
+      if (!inj || inj.count < 20) return false;
+      const injectedRate = inj.pass / inj.count;
+      const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;
+      return injectedRate - baselineRate >= 0.1;
+    }
     if (!inj || inj.count < 3) {
-      return skillId.startsWith("auto-fix-");
+      return true; // auto-fix 方法论技能允许试用
     }
     const injectedRate = inj.pass / inj.count;
     const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;

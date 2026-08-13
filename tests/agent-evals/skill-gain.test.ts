@@ -40,6 +40,17 @@ describe("skill-gain (only inject skills with positive gain)", () => {
     expect(t2.shouldInject("auto-fix-coding-coding-02", "coding")).toBe(false);
   });
 
+  it("requires auto-induce very strong gain >=10pp and >=20 samples", () => {
+    const t = makeTracker();
+    for (let i = 0; i < 52; i++) t.recordBaseline("coding", i < 26); // 50%
+    for (let i = 0; i < 52; i++) t.recordInjection("auto-induce-js", i < 32); // 61.5% -> +11.5pp
+    expect(t.shouldInject("auto-induce-js", "coding")).toBe(true);
+    const t2 = makeTracker();
+    for (let i = 0; i < 52; i++) t2.recordBaseline("knowledge", i < 26); // 50%
+    for (let i = 0; i < 52; i++) t2.recordInjection("auto-induce-api", i < 27); // 51.9% -> +1.9pp
+    expect(t2.shouldInject("auto-induce-api", "knowledge")).toBe(false);
+  });
+
   it("persists across instances via file store", () => {
     const file = path.join(os.tmpdir(), `skill-gain-persist-${Date.now()}.json`);
     const a = new SkillGainTracker({ store: createFileGainStore(file) });
