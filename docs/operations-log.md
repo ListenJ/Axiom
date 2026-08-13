@@ -4806,3 +4806,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修复 hooks/lint 告警：App.tsx（移除无效 no-console disable）、provider-hub-sections.tsx / Tokens.tsx（空 catch）、Git.tsx（未用 caught error）、Plugins.tsx（setMarketplace 函数式更新）、Providers.tsx（useMemo 补 searchQuery 依赖）、Sessions.tsx（fetchAll useCallback + 依赖）、Chat.tsx（initialMessage effect 补依赖 + once 语义用 ref 保持）
 - Verification: npx eslint src 0 问题；bunx tsc -b 干净；vitest 46 文件/289 测试全绿；npm run lint 通过。
 - Commit: 6af512f
+
+## 2026-08-14 - 前端核心页测试补全（覆盖率 34.9% → 44.2%）
+
+- Task: 覆盖率提升——核心页补测试（Chat 发送/流式/错误/重试/会话加载；Providers 分组/搜索/空态）。
+- Tools: vitest / bunx tsc / eslint / git。
+- Files:
+  - 新增 frontend/src/pages/Chat.test.tsx（5 测试：欢迎空态、发送+流式回复、流错误、错误重试、?session= 会话加载；含 window.matchMedia polyfill）
+  - 新增 frontend/src/pages/Providers.test.tsx（3 测试：分组+统计、搜索过滤、空态）
+- Verification: vitest 48 文件/297 测试全绿；tsc 干净；eslint 0 问题；覆盖率 Lines 34.92% → 44.19%，Pages 13.79% → 33.44%（Chat 62.24%、Providers 73.01%）。
+- Commit: <PENDING>
