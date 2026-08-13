@@ -178,9 +178,8 @@ const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
   // ─── OpenCode Go 套餐服务 ────────────────────────────────────────
   opencode: {
     apiKeyEnv: "OPENCODE_API_KEY",
-    // OpenCode Zen/Go 官方 OpenAI 兼容端点（api.opencode.ai 网关返回 Not Found；
-    // zen/go 对部分 key 返回 500，zen/v1 实测可用）
-    baseURL: "https://opencode.ai/zen/v1",
+    // OpenCode Go 官方 OpenAI 兼容端点（用户套餐为 Go；api.opencode.ai 网关返回 Not Found）
+    baseURL: "https://opencode.ai/zen/go/v1",
     adapter: "opencode",
     region: "global",
     displayName: "OpenCode Go 套餐",
