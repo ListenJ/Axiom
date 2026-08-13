@@ -196,6 +196,7 @@ export default function Chat() {
   // 智能滚动：仅当用户已在底部附近时自动滚动，避免打断用户阅读历史
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
   const isNearBottomRef = useRef(true)
+  const initialHandledRef = useRef(false)
   const handleScroll = useCallback(() => {
     const el = scroller.current
     if (!el) return
@@ -219,10 +220,11 @@ export default function Chat() {
   }, [messages])
 
   useEffect(() => {
-    if (initialMessage && !sending && messages.length === 0) {
+    if (initialMessage && !sending && messages.length === 0 && !initialHandledRef.current) {
       setInput(initialMessage)
+      initialHandledRef.current = true
     }
-  }, [initialMessage])
+  }, [initialMessage, sending, messages.length])
 
   // 左栏工作区会话浮层跳转：/chat?session=<id> 到达后自动加载对应会话
   useEffect(() => {

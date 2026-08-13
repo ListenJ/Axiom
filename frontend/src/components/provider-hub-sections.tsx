@@ -147,7 +147,7 @@ export function TokensSection() {
       const res = await fetch('/api/token-details?days=7')
       const json = await res.json()
       setData(json)
-    } catch {}
+    } catch { /* 轮询失败静默，下一轮重试 */ }
   }, [])
 
   useEffect(() => {

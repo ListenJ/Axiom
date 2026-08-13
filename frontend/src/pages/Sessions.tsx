@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   MessageSquare,
   Clock,
@@ -248,7 +248,7 @@ export default function Sessions() {
   const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(7)
 
-  const fetchAll = async (cancelled = false) => {
+  const fetchAll = useCallback(async (cancelled = false) => {
     setLoading(true)
     setError(null)
     try {
@@ -280,7 +280,7 @@ export default function Sessions() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [days])
 
   const fetchMessages = async (sessionId: string) => {
     setSelectedSession(sessionId)
@@ -298,7 +298,7 @@ export default function Sessions() {
     let cancelled = false
     void fetchAll(cancelled)
     return () => { cancelled = true }
-  }, [days])
+  }, [days, fetchAll])
 
   const tabs = [
     {

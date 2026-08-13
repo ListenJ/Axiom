@@ -89,7 +89,7 @@ export default function Providers() {
     groups.gemini.sort(sortFn)
     opencode.sort(sortFn)
     return { groups, opencode }
-  }, [providers])
+  }, [providers, searchQuery])
 
   const stats = useMemo(() => {
     const total = providers.length

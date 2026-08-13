@@ -64,7 +64,7 @@ export default function Git() {
       ])
       setStatus(statusRes)
       setLog(logRes)
-    } catch (e) {
+    } catch {
       toast('加载 Git 状态失败', 'error')
     } finally {
       setLoading(false)

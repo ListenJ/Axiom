@@ -66,11 +66,11 @@ export default function Plugins() {
       setActiveTools(t.status === 'fulfilled' ? t.value : [])
       if (m.status === 'fulfilled' && m.value && typeof m.value === 'object' && !Array.isArray(m.value)) {
         const mv = m.value as Record<string, unknown>
-        setMarketplace({
-          skills: Array.isArray(mv.skills) ? (mv.skills as typeof marketplace.skills) : [],
-          mcpServers: Array.isArray(mv.mcpServers) ? (mv.mcpServers as typeof marketplace.mcpServers) : [],
-          registries: Array.isArray(mv.registries) ? (mv.registries as typeof marketplace.registries) : [],
-        })
+        setMarketplace((_prev) => ({
+          skills: Array.isArray(mv.skills) ? (mv.skills as typeof _prev.skills) : [],
+          mcpServers: Array.isArray(mv.mcpServers) ? (mv.mcpServers as typeof _prev.mcpServers) : [],
+          registries: Array.isArray(mv.registries) ? (mv.registries as typeof _prev.registries) : [],
+        }))
       }
       setMarketLoading(false)
       const failed = [i, a, t].find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined

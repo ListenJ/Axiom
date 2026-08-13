@@ -4795,3 +4795,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 frontend/src/components/chat/ModelPicker.keyboard.test.tsx（2 测试：打开+聚焦+Esc 关闭；Arrow/Home/End 移动）
 - Verification: 前端 vitest 46 文件/289 测试全部通过；前端 tsc 干净。
 - Commit: 54f0847
+
+## 2026-08-14 - ESLint 完整接入（eslint-plugin-react-hooks）+ 前端 hooks 规则修复
+
+- Task: 前端 ESLint 完整接入：flat config + react-hooks 插件（rules-of-hooks/exhaustive-deps 为 error），lint 脚本并入 tsc。
+- Tools: npm（bun registry 解析失败后按用户既定策略切换）/ eslint / vitest / git。
+- Files:
+  - 新增 frontend/eslint.config.js（@eslint/js + typescript-eslint + globals + eslint-plugin-react-hooks；no-unused-vars warn 且忽略 _ 前缀）
+  - 修改 frontend/package.json（lint 脚本 = tsc --noEmit && eslint src；新增 lint:eslint / lint:fix）+ package-lock.json（eslint 依赖）
+  - 修复 hooks/lint 告警：App.tsx（移除无效 no-console disable）、provider-hub-sections.tsx / Tokens.tsx（空 catch）、Git.tsx（未用 caught error）、Plugins.tsx（setMarketplace 函数式更新）、Providers.tsx（useMemo 补 searchQuery 依赖）、Sessions.tsx（fetchAll useCallback + 依赖）、Chat.tsx（initialMessage effect 补依赖 + once 语义用 ref 保持）
+- Verification: npx eslint src 0 问题；bunx tsc -b 干净；vitest 46 文件/289 测试全绿；npm run lint 通过。
+- Commit: <PENDING>
