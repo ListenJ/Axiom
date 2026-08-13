@@ -4498,3 +4498,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：chat 不稳定符合此前评测 121s 噪声观察；增益门控为"试用→反馈→过滤"渐进闭环（首轮全试用，后续只注入有增益技能）。
 - Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；Codex skills 目录安装成功；备份已删除。
 - Commit: b2b44ee
+
+## 2026-08-13 - 网络间隔优化（2.5s）+ 增益反馈闭环首轮数据积累
+
+- Task: 采纳建议完善：① 网络优化（opencode 连续请求超时 → 任务间隔 1s→2.5s）；② 跑带增益反馈的 --evolve 积累真实增益数据；③ 确认 Codex skill 已生效。
+- Tools: bun run --evolve（opencode deepseek-v4-flash）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（直连任务间隔 1000ms → 2500ms，缓解 opencode 连续请求 30s 超时）
+  - 新增 eval-results/agent-evals-2026-08-13-net-gain-loop.md（gitignored 实验文档）
+- 实验结果（事实）：间隔 2.5s 后**零 121s 超时噪声**（全部请求 4-12s），baseline 90%（9/10）；evolved 80%（8/10，1 任务小样本波动）；增益数据持久化 data/skill-gain.json：auto-induce-js +30pp（10 样本）、auto-fix-knowledge/planning 各 +50pp（2 样本）、auto-fix-tool-use +0pp——当前全部 ≥0，均继续注入。
+- 判断（规则10）：网络优化是消除基线波动的关键（此前 60-80% 波动主要为网络假阴性）；每族 2 任务样本太小，需多轮积累后负增益自动过滤才具统计意义。
+- 验证：Codex skill 已在当前会话 skills 列表生效（methodology-ascetic-breaker / methodology-source-fidelity）；tsc 干净；备份已删除。
+- Commit: 57d034b
