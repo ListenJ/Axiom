@@ -4616,3 +4616,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 审计要点（事实）：无真实密钥入库（规则 11 通过）；4 个后端 P1（vision 穿越/skill_create 任意写/参数透传丢失/skill_run 失败记成功）+ 配置 4 P1（config-center 索引错位/env 白名单失效/env.example 缺失/searxng secret）+ 前端 8 P1（前后端契约漂移为主）。
 - Verification: 安全修复后 bunx tsc --noEmit 干净；vision+skill-tools 12/12 测试通过；审计报告已入库。
 - Commit: 4e057d7（安全修复 + 审计报告）
+
+## 2026-08-13 - 修复 P1-2：参数透传（maxTokens/timeout/signal 全链路生效）+ 回归测试
+
+- Task: 修复审计 P1-2——internal-agent/router 静默丢弃 maxTokens/timeout/signal，评测超时与 token 上限失效。
+- Tools: bun test / bunx tsc / git。
+- Files:
+  - 修改 src/router/provider-caller.ts（callProvider 签名追加 maxTokens/signal；body 加 max_tokens；外部 signal 监听/清理）
+  - 修改 src/router/model-router.ts（ExecuteInput 加 maxTokens/signal；execute() 解构并透传给 callProvider；executeWithRole options 加 timeout/signal/trackAs 并透传 execute）
+  - 修改 src/agents/internal-agent.ts（chat() 透传 maxTokens/signal；executeWithRole() 透传 timeout/signal/trackAs）
+  - 新增 tests/internal-agent-options.test.ts（3 项回归：chat→execute 透传 / executeWithRole→router 透传 / router.executeWithRole→execute 透传；spyOn 真实 router 单例不触网络）
+  - 修改 docs/AUDIT-2026-08-13.md（P1-2 状态 → 已修复）
+- 验证：tests/internal-agent-options 3/3；相关模块回归 90/90（self-evolve/agent-evals/mcp/vision）；bunx tsc --noEmit 干净；备份已删除。
+- 说明：mock.module 在 Bun 1.3.14 下未能拦截 services/index.js（改用 spyOn 真实单例方案，更稳）。
+- Commit: 5eb658b
