@@ -4815,4 +4815,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 frontend/src/pages/Chat.test.tsx（5 测试：欢迎空态、发送+流式回复、流错误、错误重试、?session= 会话加载；含 window.matchMedia polyfill）
   - 新增 frontend/src/pages/Providers.test.tsx（3 测试：分组+统计、搜索过滤、空态）
 - Verification: vitest 48 文件/297 测试全绿；tsc 干净；eslint 0 问题；覆盖率 Lines 34.92% → 44.19%，Pages 13.79% → 33.44%（Chat 62.24%、Providers 73.01%）。
-- Commit: <PENDING>
+- Commit: 888edf2
