@@ -67,6 +67,10 @@ const coding: AgentTask[] = [
     "写一段 JavaScript/TypeScript：并发请求两个 URL（fetch），用 Promise.all 等待，返回两个响应文本的拼接。",
     (r) => containsAllAny(r, [["promise.all"], ["fetch"], ["async", "await"]]),
     { maxTokens: 512 }),
+  t("CODING-07", "coding", "held-out", "内存泄漏排查（难）",
+    "一个 Node 服务在生产环境内存持续上涨。给出完整排查路径：按顺序列出用什么工具/命令、每步看什么指标（如 heap 快照、--inspect、profiler、GC 日志），直到定位并修复。",
+    (r) => containsAllAny(r, [["heap", "快照"], ["inspect", "profiler", "gc"], ["定位", "排查", "分析"]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== knowledge =====
@@ -95,6 +99,10 @@ const knowledge: AgentTask[] = [
     "简述 OAuth2 授权码模式（authorization code）的核心步骤（至少 3 步，含重定向与令牌交换）。",
     (r) => containsAllAny(r, [["授权码", "authorization code"], ["token", "令牌"], ["重定向", "redirect"]]),
     { maxTokens: 512 }),
+  t("KNOW-07", "knowledge", "held-out", "分布式事务方案对比（难）",
+    "对比 2PC / Saga / 本地消息表 / 事务发件箱（outbox）四种分布式事务方案的适用场景与权衡（各一句）。",
+    (r) => containsAllAny(r, [["2pc", "两阶段"], ["saga"], ["发件箱", "outbox"], ["最终一致", "一致性"]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== planning =====
@@ -123,6 +131,10 @@ const planning: AgentTask[] = [
     "服务在生产环境宕机：列出恢复步骤（含止血、定位、修复、验证、复盘），每步一句话。",
     (r) => containsAllAny(r, [["恢复", "止血", "定位"], ["修复"], ["验证", "复盘"]]),
     { maxTokens: 512 }),
+  t("PLAN-07", "planning", "held-out", "零停机架构迁移（难）",
+    "一个高流量单体服务要拆分为微服务并零停机上线：列出关键计划步骤（含网关/灰度/兼容层/回滚/验证）。",
+    (r) => containsAllAny(r, [["网关", "gateway"], ["灰度", "渐进"], ["回滚", "rollback"], ["兼容", "兼容层"]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== tool-use =====
@@ -151,6 +163,10 @@ const toolUse: AgentTask[] = [
     "给出解决 Git 合并冲突的完整步骤（含查看冲突、手动修改、标记解决、提交）。",
     (r) => containsAllAny(r, [["git"], ["冲突", "conflict"], ["merge", "合并"]]),
     { maxTokens: 512 }),
+  t("TOOL-07", "tool-use", "held-out", "CI 全链路设计（难）",
+    "设计一条完整 CI 流水线：按顺序列出阶段（lint → 单测 → 集成测试 → 构建 → 安全扫描 → 部署 → 冒烟验证），每个阶段给一个代表命令或工具。",
+    (r) => containsAllAny(r, [["lint"], ["测试", "test"], ["构建", "build"], ["部署", "deploy"], ["冒烟", "smoke"]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== memory =====
@@ -178,6 +194,10 @@ const memory: AgentTask[] = [
   t("MEM-06", "memory", "held-out", "版本约束保持",
     "约束：所有代码必须兼容 Node 18（无顶层 await、无 node: 前缀导入）。\n写一段读取环境变量并打印的代码，说明它符合哪些约束。",
     (r) => containsAllAny(r, [["node 18", "node18", "兼容"], ["process.env", "环境变量"]]),
+    { maxTokens: 512 }),
+  t("MEM-07", "memory", "held-out", "长因果链推理（难）",
+    "日志序列：① API 超时 10s ② DB 连接池耗尽 ③ 慢查询积压 ④ 索引缺失 ⑤ 新版本发布删了索引。\n推断完整因果链：从触发动作到最终故障，按顺序列出每一环。",
+    (r) => containsAllAny(r, [["索引"], ["连接池", "连接"], ["因果", "链", "导致"], ["发布", "版本"]]),
     { maxTokens: 512 }),
 ];
 
@@ -207,6 +227,10 @@ const selfEvolve: AgentTask[] = [
     "Agent 用 rm -rf 删除文件前应检查什么？给出 3 条自检项。",
     (r) => containsAllAny(r, [["路径", "path"], ["确认", "检查"], ["备份", "backup"]]),
     { maxTokens: 256 }),
+  t("EVOLVE-07", "self-evolve", "held-out", "多因失败复盘（难）",
+    "一次线上事故由三个原因叠加（配置错误 + 缺乏监控 + 没有回滚预案）。给出结构化复盘：What / Why / How / 预防措施（各一句）。",
+    (r) => containsAllAny(r, [["复盘", "what", "why"], ["根因", "原因", "cause", "root"], ["预防", "改进", "prevent", "avoid"]]),
+    { maxTokens: 512 }),
 ];
 
 export const ALL_AGENT_TASKS: AgentTask[] = [
