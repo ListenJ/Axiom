@@ -4740,3 +4740,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 验证（事实）：self-evolve 92/92（含新 3 个）；bunx tsc --noEmit 干净。
 - token 诊断（事实）：新 token login=ListenJ 但 /user/repos 仍空、/repos/ListenJ/openclaw-fusion → Not Found——fine-grained token 的 Repository access 仍未包含该仓库；改名需用户在 GitHub 网页 Settings→Developer settings 确认授权或直接网页 Rename。
 - Commit: （随推送）
+
+## 2026-08-13 - P2 批次修复（runner 门控测试/applySelfThought 头部/卸载 abort/token 限端点）
+
+- Task: 继续 P2 高价值项：① runner 门控测试覆盖（后端最大测试缺口）；② applySelfThought system 位置（P2-10）；③ 前端流式卸载 abort（P2-15）；④ responseInterceptor token 写入限登录端点（P2-24）。
+- Tools: bun test / vitest / bunx tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（buildSystemPrompt 导出 + overrides 注入门控（gain/quality）——深模块可测）
+  - 修改 src/self-evolve/engine.ts（applySelfThought 的 [Self-Thought] system 插入消息头部——OpenAI 兼容 API 要求 system 在前）
+  - 修改 tests/self-evolve/apply-self-thought.test.ts（断言改为头部）
+  - 修改 frontend/src/pages/Chat.tsx（组件卸载时 abortRef.abort()——避免泄漏流式连接与卸载后 setState）
+  - 修改 frontend/src/lib/api.ts（responseInterceptor 仅 /auth 或 /login 响应写 token——防业务端点 token 字段污染鉴权）
+  - 新增 tests/agent-evals/runner-gate.test.ts（3：关闭注入/同族匹配/开发族限定）
+- Verification: runner-gate+applySelfThought 7/7；agent-evals+self-evolve 139/139；前端 vitest 284/284；tsc（后端+前端）干净。
+- Commit: 81f9fec（已推 GitHub）
