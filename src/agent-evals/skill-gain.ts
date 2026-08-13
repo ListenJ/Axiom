@@ -101,11 +101,20 @@ export class SkillGainTracker {
     return Math.round((injectedRate - baselineRate) * 1000) / 10;
   }
 
-  /** 是否允许注入：无记录 → 试用；负增益（< -10pp）→ 禁止 */
+  /**
+   * 是否允许注入（收紧版）：
+   *  - 样本不足（<3）：仅 auto-fix 方法论技能允许试用；auto-induce 高频词技能不注入（上下文噪声）；
+   *  - 样本充足：要求严格正增益（注入通过率 > 基线通过率），中性/负增益均不注入。
+   */
   shouldInject(skillId: string, family: TaskFamily): boolean {
-    const gain = this.gainOf(skillId, family);
-    if (gain === null) return true;
-    return gain >= -10;
+    const inj = this.injection.get(skillId);
+    const base = this.baseline.get(family);
+    if (!inj || inj.count < 3) {
+      return skillId.startsWith("auto-fix-");
+    }
+    const injectedRate = inj.pass / inj.count;
+    const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;
+    return injectedRate > baselineRate;
   }
 
   listGain(family: TaskFamily): GainSummary[] {

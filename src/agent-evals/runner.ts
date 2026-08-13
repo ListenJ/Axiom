@@ -38,8 +38,8 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
   const { prompt: systemPrompt, injectedSkillIds } = buildSystemPrompt(task, options.injectSkills);
   try {
     if (options.provider) {
-      // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 2.5s（实测连续请求会触发超时）
-      await new Promise((r) => setTimeout(r, 2500));
+      // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 4s（实测连续请求会触发超时）
+      await new Promise((r) => setTimeout(r, 4000));
       content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
     } else {
       const result = await internalAgent.executeWithRole(
@@ -92,12 +92,12 @@ async function callProviderDirect(
     { role: "user" as const, content: task.prompt },
   ];
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const { status, body } = useCurl
       ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
       : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
     if (status === 429 || status >= 500) {
-      const delayMs = 3000 * Math.pow(2, attempt);
+      const delayMs = 5000 * Math.pow(2, attempt);
       logger.warn(`[AgentEval] ${label} rate-limited (${status}), retry in ${delayMs}ms`);
       await new Promise((r) => setTimeout(r, delayMs));
       continue;
@@ -163,7 +163,7 @@ async function callWithCurl(
   fs.writeFileSync(tmpFile, payload, "utf8");
   try {
     const proc = spawnSync(
-      ["curl.exe", "-sS", "-m", "120", "-X", "POST",
+      ["curl.exe", "-sS", "-m", "180", "-X", "POST",
         `${baseURL.replace(/\/$/, "")}/chat/completions`,
         "-H", "Content-Type: application/json",
         "-H", `Authorization: Bearer ${apiKey}`,
@@ -199,13 +199,16 @@ function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): { prompt: s
     const gain = getDefaultGainTracker();
     const skills = [...loaded.skills.values()].filter((s) => {
       if (s.id.startsWith("auto-fix-")) {
+        // 方法论技能只注入开发类任务族（coding/planning/tool-use）；
+        // 知识问答/记忆/反思类直接回答更优，方法论框架反而干扰（实测 KNOW/PLAN 失败）
+        if (!["coding", "planning", "tool-use"].includes(task.family)) return false;
         if (!s.id.startsWith(`auto-fix-${task.family}-`)) return false;
       } else if (!s.id.startsWith("auto-induce-")) {
         return false;
       }
       // 质量门控：deprecated 技能不再注入
       if (quality.getSkillQuality(s.id)?.deprecated) return false;
-      // 增益门控：负增益技能不再注入
+      // 增益门控：仅严格正增益（样本≥3）注入
       if (!gain.shouldInject(s.id, task.family)) return false;
       return true;
     });

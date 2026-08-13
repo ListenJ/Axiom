@@ -9,9 +9,10 @@ function makeTracker(): SkillGainTracker {
 }
 
 describe("skill-gain (only inject skills with positive gain)", () => {
-  it("allows unknown skills for trial", () => {
+  it("allows unknown auto-fix skills for trial, blocks unknown auto-induce", () => {
     const t = makeTracker();
     expect(t.shouldInject("auto-fix-coding-coding-02", "coding")).toBe(true);
+    expect(t.shouldInject("auto-induce-js", "coding")).toBe(false);
     expect(t.gainOf("auto-fix-coding-coding-02", "coding")).toBeNull();
   });
 
@@ -27,11 +28,16 @@ describe("skill-gain (only inject skills with positive gain)", () => {
     expect(t.shouldInject("auto-fix-coding-coding-02", "coding")).toBe(false);
   });
 
-  it("allows skills with non-negative gain", () => {
+  it("allows skills with strict positive gain, blocks neutral gain", () => {
     const t = makeTracker();
     for (let i = 0; i < 10; i++) t.recordBaseline("knowledge", i < 5); // 50%
-    for (let i = 0; i < 5; i++) t.recordInjection("auto-fix-knowledge-know-02", i < 4); // 80%
+    for (let i = 0; i < 5; i++) t.recordInjection("auto-fix-knowledge-know-02", i < 4); // 80% > 50%
     expect(t.shouldInject("auto-fix-knowledge-know-02", "knowledge")).toBe(true);
+    // neutral: 80% vs 80% → not strictly positive
+    const t2 = makeTracker();
+    for (let i = 0; i < 10; i++) t2.recordBaseline("coding", i < 8); // 80%
+    for (let i = 0; i < 5; i++) t2.recordInjection("auto-fix-coding-coding-02", i < 4); // 80%
+    expect(t2.shouldInject("auto-fix-coding-coding-02", "coding")).toBe(false);
   });
 
   it("persists across instances via file store", () => {
