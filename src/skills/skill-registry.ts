@@ -302,15 +302,20 @@ export class SkillRegistry {
     }
   }
 
-  /** 重新加载所有 skill */
+  /** 重新加载所有 skill（保留运行时注册的 hermes 自进化技能，避免 reload 清空进化成果） */
   reload(): void {
+    const runtime = new Map<string, SkillDefinition>();
+    for (const [id, skill] of this.skills) {
+      if (skill.source === "hermes") runtime.set(id, skill);
+    }
     this.skills.clear();
     this.templates.clear();
     for (const skill of BUILTIN_SKILLS) {
       this.skills.set(skill.id, skill);
     }
     this.loadFileSkills();
-    logger.info("[SkillRegistry] Reloaded");
+    for (const [id, skill] of runtime) this.skills.set(id, skill);
+    logger.info("[SkillRegistry] Reloaded", { runtimePreserved: runtime.size });
   }
 
   // ---------------------------------------------------------------------------
@@ -431,7 +436,11 @@ export class SkillRegistry {
    *   2. 路由到合适的模型
    *   3. 执行（如果 skill 需要工具，通过 MCP 调用）
    */
-  async execute(match: SkillMatch, context?: Record<string, unknown>): Promise<SkillExecuteResult> {
+  async execute(
+    match: SkillMatch,
+    context?: Record<string, unknown>,
+    options: { maxTokens?: number; timeout?: number; signal?: AbortSignal } = {},
+  ): Promise<SkillExecuteResult> {
     const startTime = Date.now();
     const skill = match.skill;
 
@@ -449,7 +458,11 @@ export class SkillRegistry {
     ];
 
     try {
-      const result = await router.executeWithRole(role, messages);
+      const result = await router.executeWithRole(role, messages, {
+        ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+        ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+        ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      });
       const latencyMs = Date.now() - startTime;
 
       return {
@@ -489,10 +502,11 @@ export class SkillRegistry {
     skillId: string,
     params: Record<string, string> = {},
     context?: Record<string, unknown>,
+    options: { maxTokens?: number; timeout?: number; signal?: AbortSignal } = {},
   ): Promise<SkillExecuteResult | null> {
     const skill = this.skills.get(skillId);
     if (!skill) return null;
-    return this.execute({ skill, score: 1, confidence: "high", params }, context);
+    return this.execute({ skill, score: 1, confidence: "high", params }, context, options);
   }
 
   // ---------------------------------------------------------------------------

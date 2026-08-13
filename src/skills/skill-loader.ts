@@ -153,9 +153,15 @@ export function loadSkillFile(filePath: string): SkillFile {
   // 兼容裸 SkillDefinition（Hermes SkillPromoter 持久化的单 skill JSON，无 skills 数组包装）
   const bare = data as Partial<SkillDefinition>;
   if (!("skills" in data) && typeof bare.id === "string" && typeof bare.promptTemplate === "string") {
+    const skill = bare as SkillDefinition;
+    // 补齐默认值（与 skills 数组分支一致，避免 outputFormat/triggers 等 undefined 穿透）
+    skill.triggers ??= [];
+    skill.requiredTools ??= [];
+    skill.outputFormat ??= "text";
+    skill.version ??= "1.0";
     return {
       version: bare.version ?? "1.0",
-      skills: [bare as SkillDefinition],
+      skills: [skill],
       templates: [],
     } satisfies SkillFile;
   }
@@ -256,29 +262,38 @@ export function watchSkillDirectories(
   if (!opts.watch) return () => {};
 
   const watchers: fs.FSWatcher[] = [];
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   for (const dir of opts.skillDirs) {
     if (!fs.existsSync(dir)) continue;
 
-    const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
-      if (!filename) return;
-      const ext = path.extname(filename).slice(1).toLowerCase();
-      if (!opts.extensions?.includes(ext)) return;
+    let watcher: fs.FSWatcher;
+    try {
+      watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        const ext = path.extname(filename).slice(1).toLowerCase();
+        if (!opts.extensions?.includes(ext)) return;
 
-      logger.info("[SkillLoader] Skill file changed, reloading", { event: eventType, file: filename });
+        logger.info("[SkillLoader] Skill file changed, reloading", { event: eventType, file: filename });
 
-      // Debounce reload
-      setTimeout(() => {
-        const loaded = loadSkillsFromDirectories(opts);
-        onChange(loaded);
-      }, 100);
-    });
+        // Debounce reload：事件风暴时只保留最后一个 timer
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const loaded = loadSkillsFromDirectories(opts);
+          onChange(loaded);
+        }, 100);
+      });
+    } catch (err) {
+      logger.warn("[SkillLoader] watch failed", { dir, error: (err as Error).message });
+      continue;
+    }
 
     watchers.push(watcher);
   }
 
   // Return cleanup function
   return () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
     for (const watcher of watchers) {
       watcher.close();
     }
