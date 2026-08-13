@@ -78,6 +78,8 @@ export interface ReadResult {
 
 export class SharedBlackboard {
   private entries = new Map<string, BlackboardEntry>();
+  /** 会话事件广播订阅表：topic -> 回调集合 */
+  private listeners = new Map<string, Set<(payload: unknown) => void>>();
   private tagIndex = new Map<string, Set<string>>();
   private sourceIndex = new Map<string, Set<string>>();
   private cache: Cache<BlackboardEntry>;
@@ -221,6 +223,11 @@ export class SharedBlackboard {
       sourceId,
     });
 
+    // 会话事件广播：高置信度新事实写入时通知订阅方（如其他会话/工作空间监听者）
+    this.publish(`blackboard:write:${key}`, {
+      key, value, sourceId, status: entry.status,
+      confidence: entry.confidence, updatedAt: entry.updatedAt,
+    });
     return entry;
   }
 
@@ -442,6 +449,30 @@ export class SharedBlackboard {
   // ---------------------------------------------------------------------------
   // 私有方法
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // 会话事件广播 (跨会话感知)
+  // ---------------------------------------------------------------------------
+
+  /** 向订阅者广播事件（同步、失败不阻断）。 */
+  publish(topic: string, payload: unknown): void {
+    const set = this.listeners.get(topic);
+    if (!set) return;
+    for (const cb of set) {
+      try { cb(payload); } catch { /* 订阅者异常不阻断广播 */ }
+    }
+  }
+
+  /** 订阅主题事件，返回取消订阅函数。 */
+  subscribe(topic: string, cb: (payload: unknown) => void): () => void {
+    const set = this.listeners.get(topic) ?? new Set();
+    set.add(cb);
+    this.listeners.set(topic, set);
+    return () => {
+      set.delete(cb);
+      if (set.size === 0) this.listeners.delete(topic);
+    };
+  }
 
   private storeEntry(key: string, entry: BlackboardEntry): void {
     this.entries.set(key, entry);

@@ -85,13 +85,28 @@ export class SelfEvolveEngine {
 
   /** 针对性自我思考：检索强背书资料 → LLM 结构化思考 → 确定性置信度精算。 */
   async selfThink(req: SelfThinkRequest): Promise<SelfThought> {
-    const evidence = await this.retrieveEvidence(req.input);
+    // 第一轮检索：知识库/教训/外部证据
+    let evidence = await this.retrieveEvidence(req.input);
+    let confidence = this.estimateConfidence(evidence);
+    // 信息不足自动升级检索（显式闭环）：置信度 < 0.6 且证据 < 3 条 → 基于已有证据定向补充检索一轮
+    if (confidence < 0.6 && evidence.length < 3) {
+      const escalationQuery = buildEscalationQuery(req.input, evidence);
+      if (escalationQuery && escalationQuery.trim() !== req.input.trim()) {
+        const extra = await this.retrieveEvidence(escalationQuery);
+        const seen = new Set(evidence.map((e) => e.url || e.title));
+        for (const e of extra) {
+          const key = e.url || e.title;
+          if (!seen.has(key)) { evidence.push(e); seen.add(key); }
+        }
+        confidence = this.estimateConfidence(evidence);
+      }
+    }
     const fallback: SelfThought = {
       goal: req.input.slice(0, 200),
       assumptions: [],
       plan: [req.input],
       risks: [],
-      confidence: this.estimateConfidence(evidence),
+      confidence,
       evidence,
     };
 
@@ -112,7 +127,7 @@ export class SelfEvolveEngine {
       assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions.map(String) : [],
       plan: Array.isArray(parsed.plan) && parsed.plan.length > 0 ? parsed.plan.map(String) : fallback.plan,
       risks: Array.isArray(parsed.risks) ? parsed.risks.map(String) : [],
-      confidence: this.estimateConfidence(evidence),
+      confidence,
       evidence,
     };
   }
@@ -265,6 +280,17 @@ export class SelfEvolveEngine {
 
     return sources.sort((a, b) => b.score - a.score).slice(0, 8);
   }
+}
+
+/** 升级检索查询：输入 + 已有证据标题中的关键词（确定性，可测试）。 */
+export function buildEscalationQuery(input: string, evidence: EvidenceSource[]): string {
+  const keywords = evidence
+    .slice(0, 3)
+    .map((e) => e.title)
+    .filter(Boolean)
+    .map((t) => t.replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(/\s+/).slice(0, 4).join(" "))
+    .filter(Boolean);
+  return [input.trim(), ...keywords].filter(Boolean).join(" ");
 }
 
 function buildThinkPrompt(req: SelfThinkRequest, evidence: EvidenceSource[]): string {
