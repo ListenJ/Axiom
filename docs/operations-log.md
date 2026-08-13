@@ -4630,3 +4630,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 验证：tests/internal-agent-options 3/3；相关模块回归 90/90（self-evolve/agent-evals/mcp/vision）；bunx tsc --noEmit 干净；备份已删除。
 - 说明：mock.module 在 Bun 1.3.14 下未能拦截 services/index.js（改用 spyOn 真实单例方案，更稳）。
 - Commit: 5eb658b
+
+## 2026-08-13 - 配置 P1（config-center）+ 前端 7 项契约 P1 修复
+
+- Task: 继续修复剩余 P1：配置 1/2（config-center）+ 前端契约漂移。
+- Tools: bun test / bunx tsc / vitest / git。
+- Files:
+  - 修改 src/core/config-center.ts（① model.*_key 按 provider 名匹配 models 数组（findModelApiKeyByProvider），修复数组下标漂移；② ALLOWED_ENV_VARS 放行 CONFIG_SCHEMA 全部 envVar + OPENCODE/OBSIDIAN_API_TOKEN/OPENROUTER_HTTP_PROXY；③ resolveEnvVars 支持 ${VAR:-default} 默认值语法）
+  - 修改 frontend/src/lib/api.ts（chat.send 契约 {messages}+taskType，修复迷你聊天请求体）
+  - 修改 frontend/src/components/rightbar/panels.tsx（缓存命中率去掉 ×100）
+  - 修改 frontend/src/components/search-panels.tsx（OCR 读 status/supportedLanguages；深度研究解析 res.data）
+  - 修改 frontend/src/pages/Code.tsx（KG stats 解析 data.totalNodes/totalEdges/nodesByKind）
+  - 修改 frontend/src/components/chat-panels.tsx（失败徽标 bg-danger-soft + text-danger，修复暗色白字白底）
+  - 修改 frontend/src/pages/Git.tsx（push 返回 output 契约）
+  - 修改 docs/AUDIT-2026-08-13.md（配置 P1 + 前端 7 项状态 → 已修复）
+- 验证（事实）：config-center 行为验证（假 env：siliconflow/ofoxai 按 provider 正确取 key、auth token env 注入、YAML 默认值 baseUrl 保留）；前端 tsc -b 干净；vitest 284/284；后端 tsc 干净。
+- 判断（规则10）：config-center 索引错位根因是 schema 与 YAML 顺序耦合，改按 provider 名匹配符合"api-key-store 唯一事实源"方向；前端契约漂移为系统性"自造夹具"问题，本轮修 7 项高价值，剩余 4 项（模型选择/编辑上下文/历史加载/403 confirmation）需后端配合，留待下轮。
+- Commit: db5e80a（代码）+ c2706d2（审计状态）
