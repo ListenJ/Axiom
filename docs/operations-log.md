@@ -4560,3 +4560,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：网络层已到客户端极限（opencode 服务端持续超时）；核心教训是方法论技能按任务类型分流（开发类受益、问答/反思类被干扰），门控收紧为「严格正增益 + 开发族限定」。
 - Verification: tests/agent-evals 22/22（62 expect）；bunx tsc --noEmit 干净；备份已删除。
 - Commit: ddf0797
+
+## 2026-08-13 - Go 端点切换验证（round4）：零网络噪声 + evolved 稳定净正
+
+- Task: 用户确认套餐为 OpenCode Go，端点改为 zen/go/v1；用 Go 端点 + 收紧门控跑全量闭环验证。
+- Tools: bun run --evolve（opencode zen/go/v1，66 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/utils/api-key-store.ts（opencode baseURL zen/v1 → zen/go/v1，用户确认 Go 套餐；此前 500 为暂时故障，实测 200 可用）
+  - 新增 eval-results/agent-evals-2026-08-13-42loop-round4-go.md（gitignored 实验文档）
+- 实验结果（事实）：Go 端点**零 184s 超时**（平均 12s）；baseline 87.5%（21/24）；evolved **91.7%（22/24，+4.2pp）**——收紧门控后首次无噪声净正；技能帮助 PLAN-07/TOOL-06/EVOLVE-06，干扰 CODING-04/PLAN-03；增益数据新增多个负增益（auto-fix-* -8.3pp、auto-induce-* -2.1pp、auto-fix-self-evolve -33.3pp）下轮自动过滤。
+- 判断（规则10）：Go 端点稳定性优于 zen（用户指定正确）；方法论技能增益有限且不稳定（+16.7pp 回落到 +2.4pp），严格正增益门控方向正确；持续短板 CODING-04/PLAN-03 为真实能力表述问题。
+- Verification: bunx tsc --noEmit 干净；tests 不受影响（本轮仅配置/数据）；备份已删除。
+- Commit: be33299（端点切换，已推送）
