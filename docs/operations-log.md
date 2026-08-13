@@ -4660,3 +4660,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Verification: 前端 tsc -b 干净；vitest 284/284；备份已删除。
 - 判断（规则10）：模型选择器按审计建议二选一选「标注自动路由」（后端 router 无 model 覆盖机制，全链路改动大，标注更诚实）；403 封装在 APIClient 层实现，Sidebar 旧逻辑可后续收敛复用。
 - Commit: 78aa584
+
+## 2026-08-13 - 实验目录归档入库 + P2 高价值修复 + 全量稳定回归 + 全文件审核
+
+- Task: 依次完成：① P2 高价值修复；② 全量稳定回归（端到端验证以测试回归代替）；③ 全文件审核（含备份/文档/实验产物）；④ 实验目录归档到 git（用户要求不删除、入库）。
+- Tools: bun test tests/ / vitest / bunx tsc / git。
+- Files:
+  - 修改 .gitignore（eval-results/* 允许 *.md 归档入库，忽略其余运行时产物）
+  - 归档 eval-results/ 16 个实验文档（agent-evals-* 13 个 + eval-2026-05-30 4 个 + .gitignore/.gitkeep）到 git
+  - 修改 src/agent-evals/skill-gain.ts（持久化 sanitizeGain：非法计数（非负整数/pass<=count）静默丢弃——P2-3）
+  - 修改 src/agent-evals/run.ts（concurrency NaN 校验回退 1；evolve 退出码合并 baseline/evolved——P2-12）
+  - 修改 tests/agent-evals/skill-gain.test.ts（新增损坏数据消毒测试）
+- 审核结果（事实）：.tmp/backups 已空（规则 2 清理达标）；docs/ 44 个文档（operations-log 525KB）；.tmp/external-skills（外部 skill 克隆参考）、visual-audit/visual-shots（截图）为本地实验产物，按用户要求保留不删（gitignored）；eval-results 已归档入库。
+- 回归（事实）：受本轮改动模块 148/148；前端 vitest 284/284；全量后端 4649 pass/56 skip/46 fail/6 error——失败均为既有架构检查（mcp/server 500 行/export */console.log）、外网依赖（ModelRouter）、Tauri 构建、并行隔离（P1-2 单跑 3/3）等，非本轮引入。
+- Commit: 2b5b992
