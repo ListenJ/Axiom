@@ -4674,3 +4674,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 审核结果（事实）：.tmp/backups 已空（规则 2 清理达标）；docs/ 44 个文档（operations-log 525KB）；.tmp/external-skills（外部 skill 克隆参考）、visual-audit/visual-shots（截图）为本地实验产物，按用户要求保留不删（gitignored）；eval-results 已归档入库。
 - 回归（事实）：受本轮改动模块 148/148；前端 vitest 284/284；全量后端 4649 pass/56 skip/46 fail/6 error——失败均为既有架构检查（mcp/server 500 行/export */console.log）、外网依赖（ModelRouter）、Tauri 构建、并行隔离（P1-2 单跑 3/3）等，非本轮引入。
 - Commit: 2b5b992
+
+## 2026-08-13 - 视觉自动路由：GLM 限流自动回退 OpenCode Go 套餐（kimi-k2.6，实测端到端）
+
+- Task: 用户需求④——无需手动切换模型，从 opencode go 套餐自动检测/调用视觉模型完成视觉任务，路由自由调用。
+- Tools: curl 实测（zen/go/v1 视觉能力检测）/ bun test / tsc / git。
+- Files:
+  - 修改 src/knowledge/vision.ts（新增 tryOpenCodeVision：curl 直连 zen/go/v1 + OPENCODE_VISION_MODEL（默认 kimi-k2.6，已实测支持图像输入），3 次退避重试 2s/4s/8s；understandImageFile 顺序：GLM 免费视觉优先 → 失败/限流自动回退套餐视觉 → null）
+  - 修改 .env.example（OPENCODE_VISION_MODEL 模板说明）
+- 实测事实：kimi-k2.6 正确识别图片颜色（黑色）；mimo-v2-omni 已废弃（404）；glm-5.2 默认思考 content 空；GLM 429 限流时自动回退套餐视觉成功（真实端到端 RESULT: 黑色）。
+- 判断（规则10）：套餐视觉优先于"手动配置 GLM"实现用户无需切换；顺序 GLM 优先（免费先走）+ 套餐回退保证测试稳定与成本最优。
+- Verification: tests/knowledge/vision.test.ts 6/6；bunx tsc --noEmit 干净；真实验证通过；备份已删除。
+- Commit: b2b1288
