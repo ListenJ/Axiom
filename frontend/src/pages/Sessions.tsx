@@ -248,7 +248,7 @@ export default function Sessions() {
   const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(7)
 
-  const fetchAll = async () => {
+  const fetchAll = async (cancelled = false) => {
     setLoading(true)
     setError(null)
     try {
@@ -257,11 +257,13 @@ export default function Sessions() {
         endpoints.memory.usage(days),
       ])
 
+      if (cancelled) return
       if (sessionsRes.status === 'fulfilled') {
         const data = sessionsRes.value as { sessions: Session[] }
         setSessions(data.sessions || [])
       }
 
+      if (cancelled) return
       if (usageRes.status === 'fulfilled') {
         const data = usageRes.value as { usage: UsageStat[] }
         setUsage(data.usage || [])
@@ -293,7 +295,9 @@ export default function Sessions() {
   }
 
   useEffect(() => {
-    fetchAll()
+    let cancelled = false
+    void fetchAll(cancelled)
+    return () => { cancelled = true }
   }, [days])
 
   const tabs = [
@@ -319,7 +323,7 @@ export default function Sessions() {
         actions={
           <Button
             variant="secondary"
-            onClick={fetchAll}
+            onClick={() => void fetchAll()}
             loading={loading}
             icon={<RefreshCw className="size-4" />}
           >

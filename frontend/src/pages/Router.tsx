@@ -18,16 +18,16 @@ export function RouterPanel() {
 
   useEffect(() => {
     Promise.allSettled([
-      endpoints.router.status().then((d) => d as RouterStatus).catch(() => null),
-      endpoints.router.health().then((d) => d as RouterStatus).catch(() => null),
-      endpoints.router.tokenStats().then((d) => d as RouterStatus).catch(() => null),
+      endpoints.router.status().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
+      endpoints.router.health().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
+      endpoints.router.tokenStats().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
     ]).then(([s, h, t]) => {
       const sVal = s.status === 'fulfilled' ? s.value : null
       const hVal = h.status === 'fulfilled' ? h.value : null
       const tVal = t.status === 'fulfilled' ? t.value : null
       const merged: RouterStatus = {
         status: sVal?.status ?? hVal?.status ?? '未知',
-        models: sVal?.models,
+        models: sVal?.models ?? hVal?.models,
         healthy: hVal?.healthy,
         tokens: tVal?.tokens,
       }
@@ -107,6 +107,12 @@ export function RouterPanel() {
       </div>
     </div>
   )
+}
+
+/** 兼容后端 { success, data } 响应包裹（unwrap 取 data）。 */
+function unwrapData(d: unknown): unknown {
+  const obj = d as { data?: unknown }
+  return obj && typeof obj === 'object' && 'data' in obj ? obj.data : d
 }
 
 export default function Router() {

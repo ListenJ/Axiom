@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/state/useApp'
 import { NAV_SHORTCUTS, SHORTCUTS, matchShortcut } from '@/lib/shortcuts'
@@ -26,6 +26,10 @@ export function useGlobalHotkeys() {
   const terminalOpen = useApp((s) => s.terminalOpen)
   const setTerminalOpen = useApp((s) => s.setTerminalOpen)
 
+  // 把会变化的 UI 状态放入 ref，避免 effect 依赖它们导致 keydown 监听反复重挂
+  const stateRef = useRef({ terminalOpen, helpOpen, rightbarOpen })
+  stateRef.current = { terminalOpen, helpOpen, rightbarOpen }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null
@@ -43,11 +47,11 @@ export function useGlobalHotkeys() {
 
       if (matchShortcut(byId.escape, e)) {
         // 人机工效：Esc 按优先级关闭 帮助 → 右侧工具台 → 失焦
-        if (helpOpen) {
+        if (stateRef.current.helpOpen) {
           setHelpOpen(false)
           return
         }
-        if (rightbarOpen) {
+        if (stateRef.current.rightbarOpen) {
           setRightbarOpen(false)
           return
         }
@@ -60,7 +64,7 @@ export function useGlobalHotkeys() {
       // 终端栏全局快捷键：Ctrl+` / Ctrl+Shift+` 开合
       if (matchShortcut(byId.terminal, e)) {
         e.preventDefault()
-        setTerminalOpen(!terminalOpen)
+        setTerminalOpen(!stateRef.current.terminalOpen)
         return
       }
 
@@ -88,5 +92,5 @@ export function useGlobalHotkeys() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [navigate, toggleTheme, setHelpOpen, setSidebarOpen, terminalOpen, setTerminalOpen, helpOpen, rightbarOpen, setRightbarOpen])
+  }, [navigate, toggleTheme, setHelpOpen, setSidebarOpen, setTerminalOpen, setRightbarOpen])
 }

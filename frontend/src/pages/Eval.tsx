@@ -29,6 +29,19 @@ interface EvalStats {
 }
 
 /** 模型评估面板（设置页「调试与检查」嵌入用，不含页头；评估/分配动作保留在面板内） */
+/** 后端 model-eval-service getStats 字段映射（totalEvaluations/modelsEvaluated/lastEvalAt/topModels）。 */
+function normalizeEvalStats(d: unknown): EvalStats | null {
+  if (!d || typeof d !== 'object') return null
+  const raw = d as { totalEvaluations?: number; modelsEvaluated?: number; lastEvalAt?: string; topModels?: Array<{ overall?: number }> }
+  const top = Array.isArray(raw.topModels) ? raw.topModels : []
+  return {
+    totalModels: typeof raw.totalEvaluations === 'number' ? raw.totalEvaluations : undefined,
+    evaluatedModels: typeof raw.modelsEvaluated === 'number' ? raw.modelsEvaluated : undefined,
+    avgScore: top.length > 0 ? Math.round((top.reduce((a, b) => a + (b.overall ?? 0), 0) / top.length) * 10) / 10 : undefined,
+    lastEvalTime: typeof raw.lastEvalAt === 'string' ? raw.lastEvalAt : undefined,
+  }
+}
+
 export function EvalPanel() {
   const [stats, setStats] = useState<EvalStats | null>(null)
   const [results, setResults] = useState<EvalResult[]>([])
@@ -47,7 +60,7 @@ export function EvalPanel() {
       endpoints.eval.assignments().then((d) => normalizeEvalAssignments(d)).catch(() => []),
       endpoints.eval.models({ limit: 50 }).then((d) => normalizeEvalModels(d)).catch(() => []),
     ]).then(([s, r, a, m]) => {
-      setStats(s.status === 'fulfilled' ? s.value : null)
+      setStats(s.status === 'fulfilled' ? normalizeEvalStats(s.value) : null)
       setResults(r.status === 'fulfilled' ? r.value : [])
       setAssignments(a.status === 'fulfilled' ? a.value : [])
       setModels(m.status === 'fulfilled' ? m.value : [])
