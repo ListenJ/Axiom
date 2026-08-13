@@ -4534,3 +4534,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：难例未触及能力上限（全过）说明评测面仍有提升空间；evolved 下降正是"增益记录在 evolved 结束后生效"的闭环设计验证——下一轮过滤负增益后应恢复 ≥ baseline。
 - Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；备份已删除。
 - Commit: 1d98122
+
+## 2026-08-13 - 42 任务闭环第二轮：增益门控过滤验证（evolved 不再低于 baseline）
+
+- Task: 再跑一轮 --evolve（42 任务/66 次调用）验证负增益技能过滤后 evolved 是否恢复 ≥ baseline。
+- Tools: bun run --evolve（opencode deepseek-v4-flash）/ git。
+- Files:
+  - 新增 eval-results/agent-evals-2026-08-13-42loop-round2.md（gitignored 实验文档）
+  - data/skill-gain.json（gitignored 运行时数据，本轮更新：负增益技能 count 未增长）
+- 实验结果（事实）：evolved 83.3%（20/24）> baseline 79.2%（19/24）（+4.1pp）；扣除 4 个 122s 网络噪声后真实 evolved ≈91.7% vs baseline ≈87.5%；增益门控验证：auto-induce-js（-19pp）与 auto-fix-tool-use-tool-02（-33.3pp）count 未增长（被过滤），正增益 auto-fix-knowledge/planning count 增长（继续注入）。
+- 判断（规则10）：自进化闭环达到「安全不退化 + 小幅净正」目标（对应 RSEA keep-better 门结论）；网络仍不稳定（opencode 服务端波动，2.5s 间隔不够完全消除），后续可加大间隔或换通道。
+- Verification: 本轮无代码改动（仅评测运行与数据）；tsc/测试不受影响；工作区干净。
+- Commit: （本轮无代码提交，日志随下轮代码提交）
