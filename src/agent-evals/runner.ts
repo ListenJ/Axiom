@@ -38,8 +38,8 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
   const { prompt: systemPrompt, injectedSkillIds } = buildSystemPrompt(task, options.injectSkills);
   try {
     if (options.provider) {
-      // 免费模型限流友好：任务间最小间隔
-      await new Promise((r) => setTimeout(r, 1000));
+      // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 2.5s（实测连续请求会触发超时）
+      await new Promise((r) => setTimeout(r, 2500));
       content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
     } else {
       const result = await internalAgent.executeWithRole(
