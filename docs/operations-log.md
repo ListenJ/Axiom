@@ -4601,3 +4601,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：EVOLVE-07 类干扰根因是微弱正增益高频词技能跨族注入；按「通用方法论」方向淘汰高频词技能（仅保留 auto-fix 方法论），通用约束（完整性/直接性）对补齐漏点有真实帮助。
 - Verification: tests/agent-evals 23/23（新增 auto-induce 严格测试）；bunx tsc --noEmit 干净；备份已删除。
 - Commit: 3866142
+
+## 2026-08-13 - 第 7 轮闭环（纯方法论+通用约束净正）+ 全工作区审计 + 安全 P1 修复
+
+- Task: ① 跑 --evolve --constraints 验证 auto-induce 严格门槛后效果；② 3 并行子代理全面审核工作区（后端/配置安全/前端）；③ 修复安全 P1。
+- Tools: bun run --evolve --constraints（Go 端点，66 次调用）/ 3 审核子代理（Helmholtz 后端 / Carson 配置 / Leibniz 前端）/ bun test / tsc / git。
+- Files:
+  - 修改 src/knowledge/vision.ts（resolveMediaPath 白名单：拒绝绝对路径/.. 逃逸、仅常规文件；10MB 大小上限——修复任意文件读取外发）
+  - 修改 src/mcp/server/skill-tools.ts（skill_create 路径约束 resolveSkillPath；skill_run 检测 [Skill execution failed] 前缀记录失败——修复反馈闭环失真）
+  - 修改 config/searxng/settings.yml（bind 127.0.0.1 + 移除确定性 secret）
+  - 修改 .env.example（补齐 KIMI/OPENCODE/MINIMAX/NIM/海外变体/OfoxAI 扩展共 10+ key 占位符）
+  - 新增 docs/AUDIT-2026-08-13.md（完整审计报告：后端 4 P1/15 P2、配置 4 P1、前端 8 P1/16 P2，标注已修/待修）
+- 第 7 轮实验结果（事实）：evolved 87.5%（21/24）> baseline 83.3%（20/24），+4.2pp——纯方法论 + 通用约束 + auto-induce 严格门槛（≥10pp/20 样本）后恢复净正；EVOLVE-07 保持 ✅。
+- 审计要点（事实）：无真实密钥入库（规则 11 通过）；4 个后端 P1（vision 穿越/skill_create 任意写/参数透传丢失/skill_run 失败记成功）+ 配置 4 P1（config-center 索引错位/env 白名单失效/env.example 缺失/searxng secret）+ 前端 8 P1（前后端契约漂移为主）。
+- Verification: 安全修复后 bunx tsc --noEmit 干净；vision+skill-tools 12/12 测试通过；审计报告已入库。
+- Commit: 4e057d7（安全修复 + 审计报告）
