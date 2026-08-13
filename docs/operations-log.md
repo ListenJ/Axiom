@@ -4647,3 +4647,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 验证（事实）：config-center 行为验证（假 env：siliconflow/ofoxai 按 provider 正确取 key、auth token env 注入、YAML 默认值 baseUrl 保留）；前端 tsc -b 干净；vitest 284/284；后端 tsc 干净。
 - 判断（规则10）：config-center 索引错位根因是 schema 与 YAML 顺序耦合，改按 provider 名匹配符合"api-key-store 唯一事实源"方向；前端契约漂移为系统性"自造夹具"问题，本轮修 7 项高价值，剩余 4 项（模型选择/编辑上下文/历史加载/403 confirmation）需后端配合，留待下轮。
 - Commit: db5e80a（代码）+ c2706d2（审计状态）
+
+## 2026-08-13 - 前端剩余 4 项 P1 修复（403 封装/编辑上下文/模型路由/历史加载）——审计 P1 全部清零
+
+- Task: 完成审计最后 4 项前端 P1。
+- Tools: bunx tsc -b / vitest / git。
+- Files:
+  - 修改 frontend/src/lib/api.ts（APIClient 新增 requestWithConfirmation：403 下发 confirmationId 自动带 body 重试一次；plugins install/uninstall/enable/disable/config 与 codegraph.init 全部改用——修复插件写操作/开始索引必然 403 失败）
+  - 修改 frontend/src/pages/Chat.tsx（① 编辑/重试/重新生成修复过期上下文：messagesRef 同步 + send 接受 contextMessages 显式截断数组；② 删除错误的 history 填充 effect——后端 /chat/history 仅返回会话元数据，?session= 已有 /memory/conversations 专用加载；③ 移除无效 model 透传（自动路由））
+  - 修改 frontend/src/components/chat/ModelPicker.tsx（弹出层顶部标注「模型由智能路由自动选择，此处仅作示意」）
+  - 修改 docs/AUDIT-2026-08-13.md（前端 P1 8/8 全部标记已修复）
+- Verification: 前端 tsc -b 干净；vitest 284/284；备份已删除。
+- 判断（规则10）：模型选择器按审计建议二选一选「标注自动路由」（后端 router 无 model 覆盖机制，全链路改动大，标注更诚实）；403 封装在 APIClient 层实现，Sidebar 旧逻辑可后续收敛复用。
+- Commit: 78aa584
