@@ -215,7 +215,11 @@ function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): { prompt: s
     if (skills.length === 0) return { prompt: base, injectedSkillIds: [] };
     const lines = skills.map((s) => `- ${s.name}：${s.description.split("\n")[0]}`);
     return {
-      prompt: [base, "可参考以下已归纳的经验模式（技能）：", ...lines].filter(Boolean).join("\n\n"),
+      prompt: [
+        base,
+        "（以下为可能与当前任务相关的经验要点；仅当适用时参考，不要改变回答结构与风格。）",
+        ...lines,
+      ].filter(Boolean).join("\n\n"),
       injectedSkillIds: skills.map((s) => s.id),
     };
   } catch {
