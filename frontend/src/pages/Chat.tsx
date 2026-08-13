@@ -61,6 +61,8 @@ export default function Chat() {
     { id: 'usage' as const, label: '使用统计', icon: <Activity className="size-3.5" /> },
   ]
   const [messages, setMessages] = useState<Message[]>([])
+  const messagesRef = useRef<Message[]>([])
+  useEffect(() => { messagesRef.current = messages }, [messages])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [sending, setSending] = useState(false)
@@ -189,26 +191,7 @@ export default function Chat() {
     openWorkspaceIn(target, workspacePath)
   }
 
-  useEffect(() => {
-    endpoints.chat
-      .history()
-      .then((d) => {
-        if (Array.isArray(d)) {
-          setMessages(
-            d
-              .filter((m): m is { role: string; content: string } =>
-                typeof m === 'object' && m !== null && 'role' in m && 'content' in m,
-              )
-              .map((m) => ({
-                id: nextId(),
-                role: m.role === 'user' ? 'user' : 'assistant',
-                content: String(m.content ?? ''),
-              })),
-          )
-        }
-      })
-      .catch(() => {})
-  }, [])
+
 
   // 智能滚动：仅当用户已在底部附近时自动滚动，避免打断用户阅读历史
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
@@ -268,7 +251,7 @@ export default function Chat() {
     }
   }
 
-  const send = async (text?: string) => {
+  const send = async (text?: string, contextMessages?: Message[]) => {
     const msg = (text ?? input).trim()
     if ((!msg && attachments.length === 0) || sending) return
     // 附件以 [附件] 行并入消息正文，作为文本上下文传给后端
@@ -340,7 +323,7 @@ export default function Chat() {
       abortRef.current = controller
       // 构建完整对话上下文：历史消息 + 当前用户消息（过滤错误/空消息）
       const streamMessages: ChatMessage[] = [
-        ...toChatMessages(messages).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        ...toChatMessages(contextMessages ?? messagesRef.current).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user', content: payload },
       ]
       await endpoints.chat.stream(
@@ -369,7 +352,7 @@ export default function Chat() {
               break
           }
         },
-        { signal: controller.signal, model: selectedModel, reasoningEffort, sessionId: activeSession ?? undefined },
+        { signal: controller.signal, reasoningEffort, sessionId: activeSession ?? undefined },
       )
     } catch (e) {
       // 用户主动中止 — 静默停止流式，保留已接收的部分内容
@@ -414,8 +397,9 @@ export default function Chat() {
     while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--
     if (userIdx < 0) return
     const userText = messages[userIdx].content
-    setMessages((m) => m.slice(0, userIdx))
-    void send(userText)
+    const truncated = messages.slice(0, userIdx)
+    setMessages(truncated)
+    void send(userText, truncated)
   }
 
   // 编辑用户消息：截断该消息及其后全部内容，用新文本重新发送
@@ -425,8 +409,9 @@ export default function Chat() {
     if (!text) return
     const idx = messages.findIndex((m) => m.id === userMsgId)
     if (idx < 0) return
-    setMessages((m) => m.slice(0, idx))
-    void send(text)
+    const truncated = messages.slice(0, idx)
+    setMessages(truncated)
+    void send(text, truncated)
   }
 
   // 重新生成：截断该助手消息及其后全部内容，重发其前一条用户消息
@@ -438,8 +423,9 @@ export default function Chat() {
     while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--
     if (userIdx < 0) return
     const userText = messages[userIdx].content
-    setMessages((m) => m.slice(0, userIdx))
-    void send(userText)
+    const truncated = messages.slice(0, userIdx)
+    setMessages(truncated)
+    void send(userText, truncated)
   }
 
   return (

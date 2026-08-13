@@ -389,6 +389,19 @@ export class APIClient {
     return controller
   }
 
+  /** 写操作二次确认：403 下发 confirmationId 后自动带 body.confirmationId 重试一次 */
+  async requestWithConfirmation<T = unknown>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+    try {
+      return await this.request<T>(method, path, { body })
+    } catch (err) {
+      const e = err as { status?: number; data?: { confirmationId?: string } }
+      if (e?.status === 403 && e?.data?.confirmationId) {
+        return await this.request<T>(method, path, { body: { ...body, confirmationId: e.data.confirmationId } })
+      }
+      throw err
+    }
+  }
+
   clearCache(pattern?: string) {
     if (!pattern) {
       this.cache.clear()
@@ -496,7 +509,7 @@ export const endpoints = {
     status: () => api.get('/codegraph/status'),
     search: (query: string, options: Record<string, unknown> = {}) =>
       api.get('/codegraph/search', { params: { q: query, ...options } }),
-    init: () => api.post('/codegraph/init'),
+    init: () => api.requestWithConfirmation('POST', '/codegraph/init'),
     fileIndex: () => api.get('/file-index'),
   },
   agents: {
@@ -546,12 +559,12 @@ export const endpoints = {
     list: () => api.get('/plugins'),
     available: () => api.get('/plugins/available'),
     detail: (id: string) => api.get(`/plugins/${encodeURIComponent(id)}`),
-    install: (path: string, enable = true) => api.post('/plugins/install', { path, enable }),
-    uninstall: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/uninstall`),
-    enable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/enable`),
-    disable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/disable`),
+    install: (path: string, enable = true) => api.requestWithConfirmation('POST', '/plugins/install', { path, enable }),
+    uninstall: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/uninstall`),
+    enable: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/enable`),
+    disable: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/disable`),
     config: (id: string, config: Record<string, unknown>) =>
-      api.post(`/plugins/${encodeURIComponent(id)}/config`, config),
+      api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/config`, config),
     activeTools: () => api.get('/plugins/active-tools'),
   },
   memory: {

@@ -73,6 +73,10 @@ export function ModelPicker({ models, selectedModel, effort = 'medium', onSelect
           aria-label="模型列表"
           className="absolute bottom-full right-0 z-50 mb-2 w-64 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
         >
+          {/* 自动路由说明 */}
+          <div className="border-b border-[var(--border)] px-3 py-1.5 text-2xs text-[var(--text-muted)]">
+            模型由智能路由自动选择，此处仅作示意
+          </div>
           {/* 思考强度 */}
           <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2">
             <Gauge size={14} className="shrink-0 text-[var(--text-muted)]" />
