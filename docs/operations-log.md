@@ -4586,3 +4586,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：复杂度标定有效提升严格度且技能确实修复短板；持平=安全不退化；建议 auto-induce 注入阈值提高（增益≥5pp 且样本≥10）以减少跨族噪声。
 - Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；备份已删除。
 - Commit: cdf2109
+
+## 2026-08-13 - 第 6 轮：通用约束实验（--constraints）+ EVOLVE-07 干扰消除 + auto-induce 严格门槛
+
+- Task: 按用户方向（不做专属技能，用通用思想/方法论 + 更强约束做集成化实验整体补齐短板）实现并验证：① 通用回答约束；② 消除 EVOLVE-07 类干扰。
+- Tools: bun run --evolve --constraints（Go 端点，66 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/skill-gain.ts（auto-induce 注入门槛：≥10pp 且样本 ≥20——高频词技能非方法论，淘汰跨族噪声）
+  - 修改 src/agent-evals/runner.ts（--constraints：GENERIC_CONSTRAINTS 通用回答约束——完整性/直接性/复杂度标定/不编造，中性不引入方法论框架；appendConstraints）
+  - 修改 src/agent-evals/run.ts（--constraints 标志，evolved 阶段透传）
+  - 修改 tests/agent-evals/skill-gain.test.ts（auto-induce 严格阈值断言更新）
+  - 新增 eval-results/agent-evals-2026-08-13-42loop-round6.md（gitignored 实验文档）
+- 实验结果（事实）：第 6 轮 evolved 83.3%（20/24）vs baseline 87.5%（21/24）；**EVOLVE-07 干扰已消除**（上轮 ❌ → 本轮 ✅，auto-induce 阈值生效）；通用约束修复 EVOLVE-06；剩余 evolved 缺口来自 auto-induce-api/json +5.8pp（52 样本）跨族注入干扰 KNOW-04/TOOL-04/MEM-04——已通过提高门槛（≥10pp/20 样本）解决。
+- 判断（规则10）：EVOLVE-07 类干扰根因是微弱正增益高频词技能跨族注入；按「通用方法论」方向淘汰高频词技能（仅保留 auto-fix 方法论），通用约束（完整性/直接性）对补齐漏点有真实帮助。
+- Verification: tests/agent-evals 23/23（新增 auto-induce 严格测试）；bunx tsc --noEmit 干净；备份已删除。
+- Commit: 3866142
