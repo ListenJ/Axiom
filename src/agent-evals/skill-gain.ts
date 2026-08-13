@@ -35,11 +35,7 @@ export function createFileGainStore(filePath = "data/skill-gain.json"): SkillGai
     load() {
       try {
         const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
-        if (typeof raw !== "object" || raw === null) return null;
-        return {
-          baseline: raw.baseline ?? {},
-          injection: raw.injection ?? {},
-        } as Persisted;
+        return sanitizeGain(raw);
       } catch {
         return null;
       }
@@ -55,6 +51,31 @@ let defaultTracker: SkillGainTracker | undefined;
 /** 进程级默认增益跟踪器（评测流程共用，懒加载）。 */
 export function getDefaultGainTracker(): SkillGainTracker {
   return (defaultTracker ??= new SkillGainTracker({ store: createFileGainStore() }));
+}
+
+/** 消毒持久化数据：丢弃非法计数（非负整数、pass<=count），损坏字段静默忽略。 */
+function sanitizeGain(raw: unknown): Persisted {
+  const out: Persisted = { baseline: {}, injection: {} };
+  if (typeof raw !== "object" || raw === null) return out;
+  const r = raw as Record<string, unknown>;
+  const clean = (obj: unknown): Record<string, { count: number; pass: number }> => {
+    const res: Record<string, { count: number; pass: number }> = {};
+    if (typeof obj !== "object" || obj === null) return res;
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v !== "object" || v === null) continue;
+      const { count, pass } = v as Record<string, unknown>;
+      if (
+        typeof count === "number" && Number.isInteger(count) && count >= 0 &&
+        typeof pass === "number" && Number.isInteger(pass) && pass >= 0 && pass <= count
+      ) {
+        res[k] = { count, pass };
+      }
+    }
+    return res;
+  };
+  out.baseline = clean(r.baseline);
+  out.injection = clean(r.injection);
+  return out;
 }
 
 export class SkillGainTracker {

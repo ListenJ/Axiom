@@ -51,6 +51,18 @@ describe("skill-gain (only inject skills with positive gain)", () => {
     expect(t2.shouldInject("auto-induce-api", "knowledge")).toBe(false);
   });
 
+  it("sanitizes corrupted persisted data", () => {
+    const file = path.join(os.tmpdir(), `skill-gain-corrupt-${Date.now()}.json`);
+    require("node:fs").writeFileSync(file, JSON.stringify({
+      baseline: { coding: { count: "5", pass: 3 } },
+      injection: { "auto-induce-js": { count: 2, pass: 9 } },
+    }), "utf8");
+    const t = new SkillGainTracker({ store: createFileGainStore(file) });
+    expect(t.gainOf("auto-induce-js", "coding")).toBeNull();
+    t.recordBaseline("coding", true);
+    expect(t.gainOf("auto-induce-js", "coding")).toBeNull();
+  });
+
   it("persists across instances via file store", () => {
     const file = path.join(os.tmpdir(), `skill-gain-persist-${Date.now()}.json`);
     const a = new SkillGainTracker({ store: createFileGainStore(file) });

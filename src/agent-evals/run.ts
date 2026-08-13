@@ -17,7 +17,8 @@ const dryRun = args.includes("--dry-run");
 const evolve = args.includes("--evolve");
 const injectSkills = args.includes("--inject-skills");
 const constraints = args.includes("--constraints");
-const concurrency = Number(flag("concurrency") ?? "1");
+const rawConcurrency = Number(flag("concurrency") ?? "1");
+const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
 const modelHint = flag("model");
 const provider = flag("provider");
 const directModel = flag("model") ?? flag("direct-model");
@@ -95,7 +96,7 @@ if (evolve) {
   console.log(toMarkdown(baseSummary, baselineResults));
   console.log("## evolved held-out 明细");
   console.log(toMarkdown(evolSummary, evolvedResults));
-  process.exit(evolvedResults.some((r) => !r.passed) ? 1 : 0);
+  process.exit([...baselineResults, ...evolvedResults].some((r) => !r.passed) ? 1 : 0);
 }
 
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
