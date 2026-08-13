@@ -4522,3 +4522,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：held-out 100% 且泛化率 >1 说明 train/held-out 划分合理、无过拟合；deepseek-v4-flash 在当前评测面表现强（glm-4.7-flash 45%）；36 任务集为后续 --evolve 增益积累提供更充分样本。
 - Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；dry-run 36 任务清单正常；备份已删除。
 - Commit: 3764abf
+
+## 2026-08-13 - 难例升级（42 任务）+ 增益门控首轮负增益检测
+
+- Task: ① 在 36 任务集上加 6 个高难度 held-out 任务（多步工具链/真实场景排查/复杂规划）；② 42 任务集跑 --evolve 积累难例基线 + 增益数据；③ 前端不添加评测（按用户指示）。
+- Tools: bun run --evolve（opencode deepseek-v4-flash，66 次调用）/ bun test / tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（新增 6 难例：CODING-07 内存泄漏排查 / KNOW-07 分布式事务 / PLAN-07 零停机迁移 / TOOL-07 CI 全链路 / MEM-07 长因果链 / EVOLVE-07 多因复盘，均 held-out；修复 EVOLVE-07 验证器英文 cause/root/prevent/avoid 同义词）
+  - 新增 eval-results/agent-evals-2026-08-13-42loop.md（gitignored 实验文档）
+- 实验结果（事实）：42 任务 held-out baseline **95.8%（23/24，难例 6/6 全过）**；evolved 83.3%（20/24，本轮仍注入负增益技能所致）；增益门控首轮检测到负增益：auto-induce-js -19pp（14 样本）、auto-fix-tool-use-tool-02 -33.3pp（2 样本）——下轮 shouldInject 自动过滤；正增益 auto-fix-knowledge/planning +16.7pp。
+- 判断（规则10）：难例未触及能力上限（全过）说明评测面仍有提升空间；evolved 下降正是"增益记录在 evolved 结束后生效"的闭环设计验证——下一轮过滤负增益后应恢复 ≥ baseline。
+- Verification: tests/agent-evals 22/22；bunx tsc --noEmit 干净；备份已删除。
+- Commit: 1d98122
