@@ -4686,3 +4686,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 判断（规则10）：套餐视觉优先于"手动配置 GLM"实现用户无需切换；顺序 GLM 优先（免费先走）+ 套餐回退保证测试稳定与成本最优。
 - Verification: tests/knowledge/vision.test.ts 6/6；bunx tsc --noEmit 干净；真实验证通过；备份已删除。
 - Commit: b2b1288
+
+## 2026-08-13 - 检索升级 + 黑板事件广播 + 低成本路由 + 测试任务（9/9）【push 阻塞：SSH 认证】
+
+- Task: 用户要求：低成本路由强化（research 免费池 + 信息不足自动升级检索）、知识库自管理（去重/遗忘验证）、跨会话主动沟通（blackboard 事件广播）、设计测试任务验证具体场景自动调用、检查提示词优化与 API 缓存完善度。
+- Tools: bun test / bunx tsc / git。
+- Files:
+  - 修改 src/self-evolve/engine.ts（selfThink 低置信度(<0.6)且证据<3 → buildEscalationQuery 定向补充检索一轮 → 证据合并 + 置信度重算；buildEscalationQuery 导出可测）
+  - 修改 src/memory/blackboard.ts（publish/subscribe 事件广播；write 成功自动 publish blackboard:write:<key>——跨会话感知新知识）
+  - 修改 config/model-router.yaml（research 角色：openrouter free 优先 + GLM-5.1 兜底——低成本路由）
+  - 新增 tests/self-evolve/escalate-retrieval.test.ts（3：升级查询构建/低置信度触发第二轮/高置信度不升级）
+  - 新增 tests/memory/blackboard-events.test.ts（3：pub/sub/异常隔离/write 自动广播）
+  - 新增 tests/memory/forget-archive.test.ts（1：90 天 web-clips 自动归档，新笔记保留）
+  - 新增 tests/router-cost-routing.test.ts（2：意图映射 research/write/review/decision；research 免费优先+强兜底+无密钥）
+- 审核结论（事实）：prompt-optimizer 已完善（GLM 改写+Skill 匹配+三重闸门+跳过规则+可注入 deps，已有 prompt-optimizer.test）；API 缓存已完善（Cache 有界 maxSize+TTL+in-flight 防击穿+L1/L2/L3，已有 llm-cache/cache-stress 测试）——无需新增。
+- Verification: 新测试 9/9；相关模块回归 153/153；bunx tsc --noEmit 干净。
+- 阻塞（事实）：git push internal211 失败——SSH data@192.168.0.22 Permission denied (publickey,password)，此前推送正常，服务器侧认证变化；本地提交 4ac541a 已保存，待用户修复密钥后重试。
+- Commit: 4ac541a（本地，push 待恢复）
