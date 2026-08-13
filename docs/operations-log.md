@@ -4703,3 +4703,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Verification: 新测试 9/9；相关模块回归 153/153；bunx tsc --noEmit 干净。
 - 阻塞（事实）：git push internal211 失败——SSH data@192.168.0.22 Permission denied (publickey,password)，此前推送正常，服务器侧认证变化；本地提交 4ac541a 已保存，待用户修复密钥后重试。
 - Commit: 4ac541a（本地，push 待恢复）
+
+## 2026-08-13 - 重新授权：GitHub SSH 认证恢复 + origin 切换 + 推送恢复
+
+- Task: 用户提供 SSH 公钥（与本机 id_ed25519.pub 一致），要求重新授权并更新 GitHub 仓库连接。
+- Tools: ssh -T（GitHub 认证）/ git remote / git push / git。
+- 执行（事实）：
+  1. 对比确认本机公钥 = 用户提供公钥；
+  2. ssh -T git@github.com（accept-new）→ Hi ListenJ! 认证成功——本机密钥已在 GitHub 授权；
+  3. git ls-remote 确认仓库 ListenJ/openclaw-fusion 存在（main/master/多分支）；
+  4. origin 从 https://github.com/ListenJ/openclaw-fusion.git 更新为 git@github.com:ListenJ/openclaw-fusion.git（SSH）；
+  5. git push origin codex/self-evolving-agent → [new branch] 推送成功——恢复因 internal211 SSH 认证失败而阻塞的全部提交（含 4ac541a/c45a8c7）。
+- 说明：AGENTS.md 规则 3 原指定 internal211（192.168.0.22）为推送目标；该服务器 SSH 认证失败（服务器侧变化），按用户指令切换至 GitHub origin。internal211 恢复后可在 remote 中保留备用。
+- Commit: 无新代码（仅 remote 配置与推送恢复；操作日志随下轮提交）
