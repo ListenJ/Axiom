@@ -65,7 +65,11 @@ frontend/coverage/
 reports/
 
 # === Evaluation results ===
-eval-results/
+# 实验记录文档归档入库（忽略其余运行时产物）
+eval-results/*
+!eval-results/*.md
+!eval-results/.gitkeep
+!eval-results/.gitignore
 
 # === E2E 截图（脚本产物不入库；spec/config 需入库供 CI 运行） ===
 e2e/*.png
