@@ -372,7 +372,8 @@ export async function applySelfThought(
   if (!engine || !input.trim()) return messages;
   try {
     const thought = await engine.selfThink({ input, project: process.cwd() });
-    return [...messages, { role: "system", content: "[Self-Thought]\n" + formatSelfThought(thought) }];
+    // system 消息插入头部（OpenAI 兼容 API 通常要求 system 在前）
+    return [{ role: "system", content: "[Self-Thought]\n" + formatSelfThought(thought) }, ...messages];
   } catch {
     return messages;
   }

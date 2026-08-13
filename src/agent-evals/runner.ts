@@ -15,7 +15,7 @@ import { getDefaultGainTracker } from "./skill-gain.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
-import type { AgentTask } from "./tasks.js";
+import type { AgentTask, TaskFamily } from "./tasks.js";
 import type { TaskResult } from "./metrics.js";
 
 export interface RunOptions {
@@ -189,18 +189,25 @@ async function callWithCurl(
 }
 
 
-/** 注入已归纳的技能到 systemPrompt（无技能时保持原样）。
+/** 注入已归纳的技能到 systemPrompt（无技能时保持原样；overrides 供测试注入门控）。
  * 门控：auto-fix-<family>-* 只注入给同任务族；auto-induce-* 全量；
  * 质量门控：deprecated 技能不注入；增益门控：经验证负增益的技能不注入。
  * 返回注入的技能 id 列表（供增益反馈记录）。 */
-function buildSystemPrompt(task: AgentTask, injectSkills?: boolean): { prompt: string | undefined; injectedSkillIds: string[] } {
+export function buildSystemPrompt(
+  task: AgentTask,
+  injectSkills?: boolean,
+  overrides?: {
+    gain?: { shouldInject(skillId: string, family: TaskFamily): boolean };
+    quality?: { getSkillQuality(skillId: string): { deprecated?: boolean } | undefined };
+  },
+): { prompt: string | undefined; injectedSkillIds: string[] } {
   const base = task.systemPrompt;
   if (!injectSkills) return { prompt: base, injectedSkillIds: [] };
   try {
     clearSkillCache();
     const loaded = loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true);
-    const quality = getDefaultQualityTracker();
-    const gain = getDefaultGainTracker();
+    const quality = overrides?.quality ?? getDefaultQualityTracker();
+    const gain = overrides?.gain ?? getDefaultGainTracker();
     const skills = [...loaded.skills.values()].filter((s) => {
       if (s.id.startsWith("auto-fix-")) {
         // 方法论技能只注入开发类任务族（coding/planning/tool-use）；

@@ -29,7 +29,7 @@ describe("applySelfThought", () => {
     const out = await applySelfThought(baseMessages, "Fix MCP timeout", engine);
 
     expect(out.length).toBe(baseMessages.length + 1);
-    const added = out[out.length - 1];
+    const added = out[0]; // system 位于头部
     expect(added.role).toBe("system");
     expect(added.content).toContain("[Self-Thought]");
     expect(added.content).toContain("Fix MCP timeout");

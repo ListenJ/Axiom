@@ -373,6 +373,9 @@ export default function Chat() {
     abortRef.current?.abort()
   }
 
+  // 组件卸载时中止未完成的流式请求（避免泄漏连接与 setState）
+  useEffect(() => () => abortRef.current?.abort(), [])
+
   // 复制消息内容到剪贴板（带 2s 的"已复制"反馈）
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const handleCopy = async (messageId: string, content: string) => {

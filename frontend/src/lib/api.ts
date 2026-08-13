@@ -426,8 +426,11 @@ api.requestInterceptor((config) => {
   return config
 })
 
-api.responseInterceptor((data) => {
-  if (typeof localStorage !== 'undefined' && data && typeof data === 'object' && 'token' in (data as Record<string, unknown>)) {
+api.responseInterceptor((data, response) => {
+  // 仅登录/认证端点返回的 token 才写入 localStorage（避免业务端点 token 字段污染鉴权）
+  const url = response?.url ?? ''
+  const isAuth = url.includes('/auth') || url.includes('/login')
+  if (isAuth && typeof localStorage !== 'undefined' && data && typeof data === 'object' && 'token' in (data as Record<string, unknown>)) {
     localStorage.setItem('token', String((data as Record<string, unknown>).token))
   }
   return data
