@@ -47,10 +47,24 @@ const STOPWORDS = new Set([
 
 /** 简易分词：拉丁词按非字母数字切分并过滤停用词；CJK 短语保持整段。 */
 export function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((t) => t.length >= 2 && !STOPWORDS.has(t));
+  const tokens: string[] = [];
+  for (const seg of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    if (!seg) continue;
+    // CJK 段：bigram 切分（"如何优化" -> 如何/何优/优化），使中文术语可跨样本共现归纳
+    if (/[\u4e00-\u9fff]/.test(seg)) {
+      if (seg.length >= 2) {
+        for (let i = 0; i < seg.length - 1; i++) {
+          const bigram = seg.slice(i, i + 2);
+          if (!STOPWORDS.has(bigram)) tokens.push(bigram);
+        }
+      } else if (!STOPWORDS.has(seg)) {
+        tokens.push(seg); // 单字 CJK（如"先"）保留
+      }
+    } else if (seg.length >= 2 && !STOPWORDS.has(seg)) {
+      tokens.push(seg);
+    }
+  }
+  return tokens;
 }
 
 /** 稳定短哈希（djb2），用于教训去重与内存键。 */
