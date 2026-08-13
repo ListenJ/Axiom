@@ -59,6 +59,14 @@ const coding: AgentTask[] = [
     "给定函数：function findDup(arr){ for(let i=0;i<arr.length;i++){ for(let j=i+1;j<arr.length;j++){ if(arr[i]===arr[j]) return arr[i]; } } return null; } 说明它的时间复杂度，并给出 O(n) 的优化实现。",
     (r) => containsAllAny(r, [["o(n"], ["set", "哈希"], ["map", "object", "字典", "hash"]]),
     { maxTokens: 512 }),
+  t("CODING-05", "coding", "train", "JSON 容错解析",
+    "写一个 TypeScript 函数 safeParse(json: string)：解析 JSON，无效输入返回 null 而不是抛异常。",
+    (r) => containsAllAny(r, [["json.parse"], ["try", "catch"], ["null"]]),
+    { maxTokens: 512 }),
+  t("CODING-06", "coding", "held-out", "并发请求合并",
+    "写一段 JavaScript/TypeScript：并发请求两个 URL（fetch），用 Promise.all 等待，返回两个响应文本的拼接。",
+    (r) => containsAllAny(r, [["promise.all"], ["fetch"], ["async", "await"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== knowledge =====
@@ -79,6 +87,14 @@ const knowledge: AgentTask[] = [
     "SQLite 的 WAL 模式相比默认 journal 模式有什么优势？适合什么场景？",
     (r) => containsAllAny(r, [["wal"], ["write-ahead", "预写日志"], ["read", "读"], ["write", "写"]]),
     { maxTokens: 512 }),
+  t("KNOW-05", "knowledge", "train", "容器 vs 虚拟机",
+    "简述容器与虚拟机的三点核心区别（隔离粒度/资源开销/启动速度各一句）。",
+    (r) => containsAllAny(r, [["共享内核", "宿主机内核"], ["隔离", "namespace", "cgroup"], ["镜像", "image"]]),
+    { maxTokens: 512 }),
+  t("KNOW-06", "knowledge", "held-out", "OAuth2 授权码流程",
+    "简述 OAuth2 授权码模式（authorization code）的核心步骤（至少 3 步，含重定向与令牌交换）。",
+    (r) => containsAllAny(r, [["授权码", "authorization code"], ["token", "令牌"], ["重定向", "redirect"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== planning =====
@@ -89,7 +105,7 @@ const planning: AgentTask[] = [
     { maxTokens: 512 }),
   t("PLAN-02", "planning", "train", "发布计划",
     "一个 Node 服务要发布到生产：列出从合并到上线的完整步骤（含测试、构建、回滚预案）。",
-    (r) => containsAll(r, ["test", "build", "deploy", "rollback"]),
+    (r) => containsAllAny(r, [["test", "测试"], ["build", "构建"], ["deploy", "部署"], ["rollback", "回滚"]]),
     { maxTokens: 512 }),
   t("PLAN-03", "planning", "held-out", "知识库索引计划",
     "一个笔记库要支持语义检索：请列出从原始 Markdown 到可检索索引的处理步骤（含解析、分块、向量化、检索）。",
@@ -98,6 +114,14 @@ const planning: AgentTask[] = [
   t("PLAN-04", "planning", "held-out", "预算内任务排序",
     "你有 4 小时完成三件事：修一个 P0 bug、写周报、给新人答疑。给出优先级排序和理由（一句）。",
     (r) => containsAllAny(r, [["p0"], ["先"], ["bug"]]),
+    { maxTokens: 512 }),
+  t("PLAN-05", "planning", "train", "数据库迁移计划",
+    "把一个 MySQL 库迁移到 PostgreSQL：列出关键步骤（含 schema 转换、数据迁移、验证、回滚预案）。",
+    (r) => containsAllAny(r, [["schema", "结构"], ["迁移", "导出", "导入"], ["回滚", "rollback"]]),
+    { maxTokens: 512 }),
+  t("PLAN-06", "planning", "held-out", "生产故障恢复",
+    "服务在生产环境宕机：列出恢复步骤（含止血、定位、修复、验证、复盘），每步一句话。",
+    (r) => containsAllAny(r, [["恢复", "止血", "定位"], ["修复"], ["验证", "复盘"]]),
     { maxTokens: 512 }),
 ];
 
@@ -119,6 +143,14 @@ const toolUse: AgentTask[] = [
     "要在一个大目录里找所有含「ERROR」的 .log 文件，你会用什么命令或工具？给出精确命令。",
     (r) => containsAll(r, ["grep", "log"]),
     { maxTokens: 512 }),
+  t("TOOL-05", "tool-use", "train", "数据库备份命令",
+    "给出对 MySQL 做逻辑备份并压缩的命令（用 mysqldump），并说明恢复时怎么用。",
+    (r) => containsAllAny(r, [["mysqldump"], ["备份", "dump"], ["恢复", "导入"]]),
+    { maxTokens: 512 }),
+  t("TOOL-06", "tool-use", "held-out", "Git 冲突解决",
+    "给出解决 Git 合并冲突的完整步骤（含查看冲突、手动修改、标记解决、提交）。",
+    (r) => containsAllAny(r, [["git"], ["冲突", "conflict"], ["merge", "合并"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== memory =====
@@ -131,6 +163,22 @@ const memory: AgentTask[] = [
     "约束：所有函数必须用 TypeScript 且返回 Promise。\n请写一个读取文件并返回行数的函数，并说明它符合哪些约束。",
     (r) => containsAll(r, ["typescript", "promise"]),
     { maxTokens: 512 }),
+  t("MEM-03", "memory", "train", "配置参数保持",
+    "先读信息：测试环境的 Redis 端口是 6380，超时阈值 300ms，重试次数 3 次。\n现在回答：重试次数是多少？超时阈值呢？",
+    (r) => containsAllAny(r, [["3"], ["300"]]),
+    { maxTokens: 256 }),
+  t("MEM-04", "memory", "held-out", "日志根因定位",
+    "读一段日志：'ERROR connect ECONNREFUSED 127.0.0.1:5432 at TCPConnectWrap... Retry 2/3 failed'。\n回答：最可能的根因是什么？",
+    (r) => containsAllAny(r, [["连接", "拒绝", "端口"], ["5432", "database", "数据库"]]),
+    { maxTokens: 256 }),
+  t("MEM-05", "memory", "train", "约束保持（多条件）",
+    "约束：输出必须用 JSON，且包含 name 与 port 两个字段。\n请描述一个 PostgreSQL 服务实例。",
+    (r) => hasJSONKeys(r, ["name", "port"]),
+    { maxTokens: 512 }),
+  t("MEM-06", "memory", "held-out", "版本约束保持",
+    "约束：所有代码必须兼容 Node 18（无顶层 await、无 node: 前缀导入）。\n写一段读取环境变量并打印的代码，说明它符合哪些约束。",
+    (r) => containsAllAny(r, [["node 18", "node18", "兼容"], ["process.env", "环境变量"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== self-evolve =====
@@ -142,6 +190,22 @@ const selfEvolve: AgentTask[] = [
   t("EVOLVE-02", "self-evolve", "held-out", "从成功归纳模式",
     "两条成功轨迹：① 用户要总结 PDF，Agent 先抽文本→分块→调摘要模型→汇总；② 用户要总结网页，Agent 先抓 HTML→去标签→分块→调摘要模型→汇总。\n请归纳它们的共同模式（一句话，含「模式」或「步骤」）。",
     (r) => containsAny(r, ["模式", "步骤", "先", "共同"]),
+    { maxTokens: 256 }),
+  t("EVOLVE-03", "self-evolve", "train", "成功轨迹提炼步骤",
+    "一条成功轨迹：用户要生成周报，Agent 先收集 commits → 按项目分组 → 用模板生成 → 让用户确认。\n请提炼为可复用的步骤序列（含「先」「然后」「最后」）。",
+    (r) => containsAllAny(r, [["先"], ["然后"], ["最后"]]),
+    { maxTokens: 256 }),
+  t("EVOLVE-04", "self-evolve", "held-out", "失败轨迹归纳共同教训",
+    "两条失败轨迹：① 调用第三方 API 未处理 429 导致任务失败；② 调用第三方 API 未处理超时导致任务失败。\n归纳共同教训（一句话，含「限流」或「重试」）。",
+    (r) => containsAny(r, ["限流", "重试", "429", "超时"]),
+    { maxTokens: 256 }),
+  t("EVOLVE-05", "self-evolve", "train", "限流处理策略",
+    "调用 API 遇到 429 限流：给出处理策略（含退避、重试次数、降级）。",
+    (r) => containsAllAny(r, [["退避", "backoff"], ["重试"], ["降级", "排队"]]),
+    { maxTokens: 256 }),
+  t("EVOLVE-06", "self-evolve", "held-out", "工具误用自检清单",
+    "Agent 用 rm -rf 删除文件前应检查什么？给出 3 条自检项。",
+    (r) => containsAllAny(r, [["路径", "path"], ["确认", "检查"], ["备份", "backup"]]),
     { maxTokens: 256 }),
 ];
 
