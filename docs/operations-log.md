@@ -4770,3 +4770,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/pages/Eval.test.tsx（mock 更新为后端真实字段——审计指出的自造夹具问题）
 - Verification: skill 相关 20/20；前端 vitest 284/284；tsc（后端+前端）干净。
 - Commit: 5804b4b（批次1+2）+ 3020da7（批次3）
+
+## 2026-08-14 - P2 剩余批次完成（性能/a11y/effect 清理）+ 工程规范检查
+
+- Task: 按优先级完成剩余 P2 并检查工程规范（参考 performance / web-design-guidelines / tdd skill 原则）。
+- Tools: vitest / bunx tsc / git。
+- Files:
+  - 修改 frontend/src/lib/normalize.ts（normalizePromMetrics：解析 /metrics Prometheus 文本——契约修复，Perf 面板指标不再恒空）
+  - 修改 frontend/src/pages/Perf.tsx（文本响应走 normalizePromMetrics）
+  - 修改 frontend/src/pages/Chat.tsx（appendToken 热点优化：目标为最后一条 assistant 消息时 O(1)，避免每 token 全量 map——performance skill 原则）
+  - 修改 frontend/src/components/ui/Tabs.tsx（tablist 方向键 ←/→ 切换——web-design-guidelines 可访问性）
+  - 修改 frontend/src/pages/Vault.tsx / Agents.tsx / Providers.tsx（数据加载 effect cancelled 标志，卸载后不再 setState）
+  - 新增 frontend/src/lib/normalize-prom.test.ts（Prometheus 解析 2 测试）+ frontend/src/components/ui/Tabs.keyboard.test.tsx（方向键/环绕 1 测试）
+- 工程规范检查（事实）：修复过程中发现并处理了 3 处测试/代码转义笔误（split/join 换行、useState 导入、受控组件）；ESLint 完整接入（eslint-plugin-react-hooks）未纳入本轮（依赖安装+全量告警收敛成本高，记录为后续待办）。
+- Verification: 前端 vitest 45 文件/287 测试全部通过；tsc（后端+前端）干净。
+- Commit: 9315ff9
