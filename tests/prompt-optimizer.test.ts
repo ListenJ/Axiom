@@ -5,8 +5,20 @@
  *   输出校验（长度/非空/非照抄）→ 语言一致性（确定性）→ 忠实度判别
  * 任一闸门失败或依赖不可用都回退原文。通过 DI fake 测试，不访问真实 API。
  */
-import { describe, test, expect } from "bun:test";
-import { optimizePrompt, shouldSkipOptimization, type PromptOptimizerDeps } from "../src/agents/prompt-optimizer.js";
+import { beforeEach, describe, test, expect } from "bun:test";
+import {
+  optimizePrompt,
+  shouldSkipOptimization,
+  detectOptimizationStrategy,
+  resetPromptOptimizerCache,
+  getPromptOptimizerMetrics,
+  type PromptOptimizerDeps,
+} from "../src/agents/prompt-optimizer.js";
+
+// 优化结果缓存为进程内共享状态：每个用例前清空缓存与指标，保证用例相互独立
+beforeEach(() => {
+  resetPromptOptimizerCache();
+});
 
 const LONG_INPUT = "帮我分析一下这个项目的知识库检索模块的性能瓶颈在哪里，并给出优化建议";
 const GOOD_REWRITE = "请分析本项目知识库检索模块的性能瓶颈，并给出可执行的优化建议。";
@@ -171,5 +183,130 @@ describe("optimizePrompt", () => {
     } finally {
       delete process.env.EDGE_PROMPT_REWRITE;
     }
+  });
+});
+
+describe("detectOptimizationStrategy", () => {
+  test("代码块 → code", () => {
+    expect(detectOptimizationStrategy("帮我看看这段代码 ```js\nconsole.log(1)\n``` 有什么问题")).toBe("code");
+  });
+
+  test("分析/评估/对比/总结 → analysis", () => {
+    expect(detectOptimizationStrategy("帮我分析一下这个项目的性能瓶颈")).toBe("analysis");
+    expect(detectOptimizationStrategy("评估两个方案的优劣")).toBe("analysis");
+    expect(detectOptimizationStrategy("对比一下这两篇文章")).toBe("analysis");
+    expect(detectOptimizationStrategy("总结一下这次会议纪要")).toBe("analysis");
+  });
+
+  test("翻译 → translation", () => {
+    expect(detectOptimizationStrategy("把这段话翻译成英文")).toBe("translation");
+  });
+
+  test("写作意图 → writing", () => {
+    expect(detectOptimizationStrategy("帮我撰写一篇产品发布文案")).toBe("writing");
+    expect(detectOptimizationStrategy("润色一下这段自我介绍")).toBe("writing");
+  });
+
+  test("其余 → general", () => {
+    expect(detectOptimizationStrategy("你好，今天天气怎么样")).toBe("general");
+  });
+});
+
+describe("优化结果去重缓存", () => {
+  test("相同输入第二次调用命中缓存：rewrite/verify 不再被调用", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    const first = await optimizePrompt(LONG_INPUT, deps);
+    expect(first.changed).toBe(true);
+    expect(calls.rewrite).toBe(1);
+    expect(calls.verify).toBe(1);
+
+    const second = await optimizePrompt(LONG_INPUT, deps);
+    expect(second.changed).toBe(true);
+    expect(second.text).toBe(GOOD_REWRITE);
+    expect(calls.rewrite).toBe(1); // 缓存命中，未再调用改写
+    expect(calls.verify).toBe(1);  // 缓存命中，未再调用判别
+  });
+
+  test("归一化（空白/大小写）后命中同一缓存条目", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    const inputA = "请帮我分析这个项目 知识库检索模块的性能瓶颈在哪里";
+    const inputB = "请帮我分析这个项目  知识库检索模块的性能瓶颈在哪里";
+    await optimizePrompt(inputA, deps);
+    await optimizePrompt(inputB, deps);
+    expect(calls.rewrite).toBe(1); // 连续空白被归并，命中同一缓存
+  });
+
+  test("缓存只在成功时写入：verify=false 第二次仍走 rewrite", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: false });
+    const first = await optimizePrompt(LONG_INPUT, deps);
+    expect(first.changed).toBe(false);
+    expect(calls.rewrite).toBe(1);
+
+    const second = await optimizePrompt(LONG_INPUT, deps);
+    expect(calls.rewrite).toBe(2); // 失败结果未写缓存，仍走改写
+    expect(second.changed).toBe(false);
+  });
+
+  test("resetPromptOptimizerCache() 后缓存清空，重新改写", async () => {
+    const { deps, calls } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    await optimizePrompt(LONG_INPUT, deps);
+    expect(calls.rewrite).toBe(1);
+
+    resetPromptOptimizerCache();
+    await optimizePrompt(LONG_INPUT, deps);
+    expect(calls.rewrite).toBe(2);
+  });
+});
+
+describe("getPromptOptimizerMetrics", () => {
+  test("成功路径：cacheMisses/rewritten 累计，缓存命中不重复计 rewritten", async () => {
+    const { deps } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    await optimizePrompt(LONG_INPUT, deps);
+    let m = getPromptOptimizerMetrics();
+    expect(m.calls).toBe(1);
+    expect(m.skipped).toBe(0);
+    expect(m.cacheHits).toBe(0);
+    expect(m.cacheMisses).toBe(1);
+    expect(m.rewritten).toBe(1);
+
+    await optimizePrompt(LONG_INPUT, deps);
+    m = getPromptOptimizerMetrics();
+    expect(m.calls).toBe(2);
+    expect(m.cacheHits).toBe(1);
+    expect(m.cacheMisses).toBe(1);
+    expect(m.rewritten).toBe(1); // 命中不新增 rewritten
+  });
+
+  test("跳过路径计入 skipped", async () => {
+    const { deps } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: true });
+    await optimizePrompt("你好", deps);
+    const m = getPromptOptimizerMetrics();
+    expect(m.skipped).toBe(1);
+    expect(m.cacheMisses).toBe(0);
+    expect(m.rewritten).toBe(0);
+  });
+
+  test("三重闸门失败分别计入 gateFailures", async () => {
+    // 闸门 1：输出过短
+    const { deps: depsOut } = makeDeps({ rewriteTo: "短", verifyResult: true });
+    await optimizePrompt(LONG_INPUT, depsOut);
+
+    // 闸门 2：语言漂移
+    const { deps: depsLang } = makeDeps({
+      rewriteTo: "Please analyze the performance bottleneck of the knowledge base retrieval module.",
+      verifyResult: true,
+    });
+    await optimizePrompt(LONG_INPUT, depsLang);
+
+    // 闸门 3：忠实度拒绝
+    const { deps: depsFid } = makeDeps({ rewriteTo: GOOD_REWRITE, verifyResult: false });
+    await optimizePrompt(LONG_INPUT, depsFid);
+
+    const m = getPromptOptimizerMetrics();
+    expect(m.calls).toBe(3);
+    expect(m.gateFailures.output).toBe(1);
+    expect(m.gateFailures.language).toBe(1);
+    expect(m.gateFailures.fidelity).toBe(1);
+    expect(m.rewritten).toBe(0);
   });
 });

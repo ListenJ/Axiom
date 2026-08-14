@@ -53,3 +53,23 @@ Axiom 的架构哲学已由 ADR 定义：Runtime 优先、LLM 仅是认知加速
   tests/router/chat-stream-*（思考模式/工具回传）。
 - 前端成本双币（USD/CNY）在 Chat 用量页签、右栏「用量」、Perf 页一致展示。
 - 后续：把 P1/P2 候选逐步迁移为 skill 插件包，并补充"插件健康检查/版本升级"契约。
+## 五、外部宿主插件：Axiom 作为 DeepSeek Harness 插件（2026-08-14）
+
+内核/工具收敛后，Axiom 自身也可作为**整体打包的插件**运行在外部 agent harness 中：
+
+- `plugins/dsh/`（npm 包 `axiom-dsh`，`dsh.bundle.patch` → `cordis.patch.yml`）把 Axiom 装进
+  DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom
+  HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）、`/axiom` 代理、`axiom_status` 诊断。
+- 桥接实现只用 dsh 稳定接缝（`ctx.tools.register` / `ctx.effect` / `ctx.inject` / `ctx.get`），
+  结构性类型解耦 `@deepseek-ai/*`，随 dsh developer preview 演进不易漂移。
+- 契约与取证详见 `docs/research/deepseek-harness-plugin-2026-08-14.md`。
+
+## 六、缓存/提示词优化强化（2026-08-14）
+
+- 提示词优化器（src/agents/prompt-optimizer.ts）：进程内结果去重缓存（相同输入跳过 GLM）、
+  意图感知策略（code/analysis/writing/translation/general，纯函数）、JSON 输出格式保留、
+  累计指标（getPromptOptimizerMetrics）+ Env 可调（PROMPT_OPTIMIZER_MAX_INPUT_CHARS / _CACHE_TTL_MS）。
+- token-tracker：prompt-cache 落库（cache_hit_tokens / cache_miss_tokens / cache_hit 列 + 迁移），
+  getDailyStats 填实 cacheHits（原为占位 0）；model-router 在 llmCache 命中时标记 cacheHit 并透传
+  DeepSeek prompt_cache_hit/miss_tokens。
+- 新增 MCP 工具 `cache_stats`：LLM/搜索/爬虫缓存命中率 + 提示词优化器指标 + 按日 prompt-cache 聚合。

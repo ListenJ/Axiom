@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { getTokenTracker } from "../../router/token-tracker.js";
+import { llmCache, searchCache, crawlCache } from "../../utils/cache.js";
+import { getPromptOptimizerMetrics } from "../../agents/prompt-optimizer.js";
 import {
   isDeepSeekPeak,
   deepSeekRateTier,
@@ -104,4 +106,24 @@ export function registerTokenTools(registry: ToolRegistry): void {
       };
     },
   });
+
+  registry.add({
+    name: "cache_stats",
+    description: "缓存优化全景：LLM 响应缓存 / 语义搜索 / 爬虫缓存命中率与规模，提示词优化器命中与闸门指标，以及按日的 prompt-cache token 命中（DeepSeek prompt_cache_hit_tokens）",
+    inputSchema: {
+      days: z.number().optional().default(7).describe("最近多少天的 prompt-cache 聚合"),
+    },
+    handler: async (args) => {
+      const days = args.days as number | undefined;
+      const daily = getTokenTracker().getDailyStats(days ?? 7);
+      return {
+        llmCache: llmCache.stats(),
+        searchCache: searchCache.stats(),
+        crawlCache: crawlCache.stats(),
+        promptOptimizer: getPromptOptimizerMetrics(),
+        promptCacheDaily: daily,
+      };
+    },
+  });
 }
+

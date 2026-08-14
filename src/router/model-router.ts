@@ -143,10 +143,20 @@ function trackCall(
   provider: string,
   messages: ChatMessage[],
   result: {
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      /** DeepSeek prompt-cache 命中 token */
+      prompt_cache_hit_tokens?: number;
+      /** DeepSeek prompt-cache 未命中 token */
+      prompt_cache_miss_tokens?: number;
+    };
     latencyMs: number;
     success: boolean;
     fallbackUsed?: boolean;
+    /** 该次调用整体命中本地 llmCache（未发起 API 调用） */
+    cacheHit?: boolean;
   },
   meta?: { role?: string; taskType?: string }
 ) {
@@ -166,6 +176,9 @@ function trackCall(
     contentLength: messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0),
     success: result.success,
     fallbackUsed: result.fallbackUsed ?? false,
+    cacheHitTokens: usage.prompt_cache_hit_tokens ?? 0,
+    cacheMissTokens: usage.prompt_cache_miss_tokens ?? 0,
+    cacheHit: result.cacheHit ?? false,
   });
 }
 
@@ -299,6 +312,7 @@ export class MultiPlatformRouter {
               latencyMs,
               success: true,
               fallbackUsed: false,
+              cacheHit: true,
             }, { role: trackAs ?? role, taskType: trackAs ?? role });
             return {
               content: cached.content,
@@ -1096,3 +1110,4 @@ export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
 export type { TaskRole } from "./model-capability-registry.js";
 export type { ChatMessage, StreamChunkCallback } from "./provider-caller.js";
+

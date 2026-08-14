@@ -8,10 +8,12 @@
  *
  * 流程：
  *   1. 跳过规则（短输入/代码块/命令前缀/开关关闭）
- *   2. Skill 匹配（agency-zh 专家角色库 + Hermes 自进化 skills，命中则以其工作流为框架）
- *   3. GLM 改写（保持原意与原语言）
- *   4. 三重闸门：输出校验 → 语言一致性（确定性）→ GLM 忠实度判别
- *   任一环节失败即回退原文，绝不外发漂移文本
+ *   2. 结果缓存查询（相同输入命中直接复用，跳过 GLM 改写与判别）
+ *   3. 意图策略识别（纯函数：code/analysis/writing/translation/general）
+ *   4. Skill 匹配（agency-zh 专家角色库 + Hermes 自进化 skills，命中则以其工作流为框架）
+ *   5. GLM 改写（保持原意与原语言，按策略追加针对性规则）
+ *   6. 三重闸门：输出校验 → 语言一致性（确定性）→ GLM 忠实度判别
+ *   任一环节失败即回退原文，绝不外发漂移文本；全通过结果才写入缓存
  *
  * 开关：PROMPT_REWRITE=0 关闭（兼容旧开关 EDGE_PROMPT_REWRITE=0）
  */
@@ -19,7 +21,9 @@
 import { callProvider } from "../router/provider-caller.js";
 import { getPromptEngineer } from "./prompt-engineer.js";
 import { logger } from "../utils/logger.js";
-import { readString } from "../utils/env.js";
+import { readInt, readString } from "../utils/env.js";
+import { Cache } from "../utils/cache.js";
+import { createHash } from "crypto";
 
 export interface PromptOptimization {
   /** 优化后文本（未优化时为原文） */
@@ -28,11 +32,32 @@ export interface PromptOptimization {
   changed: boolean;
 }
 
+/** 优化器累计指标（进程内，供观测与测试） */
+export interface PromptOptimizerMetrics {
+  calls: number;
+  skipped: number;
+  cacheHits: number;
+  cacheMisses: number;
+  rewritten: number;
+  gateFailures: {
+    output: number;
+    language: number;
+    fidelity: number;
+  };
+}
+
+/** 意图策略名 */
+export type OptimizationStrategy = "code" | "analysis" | "writing" | "translation" | "general";
+
 /** 低于此长度不做优化（短输入没有优化空间） */
 const MIN_INPUT_CHARS = 20;
 
-/** 超长输入截断（改写不需要全量上下文，防止恶意消耗） */
-const MAX_INPUT_CHARS = 2000;
+/** 超长输入截断（改写不需要全量上下文，防止恶意消耗）；可用 PROMPT_OPTIMIZER_MAX_INPUT_CHARS 覆盖 */
+const MAX_INPUT_CHARS = (() => {
+  const raw = readString("PROMPT_OPTIMIZER_MAX_INPUT_CHARS", "2000");
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 2000;
+})();
 
 /** 输出长度上限系数：超过 输入*3+200 视为异常膨胀 */
 const MAX_OUTPUT_RATIO = 3;
@@ -46,14 +71,35 @@ const GLM_CHAIN: Array<{ provider: string; model: string }> = [
   { provider: readString("PROMPT_OPTIMIZER_FALLBACK_PROVIDER", "siliconflow"), model: readString("PROMPT_OPTIMIZER_FALLBACK_MODEL", "THUDM/GLM-4-9B-0414") },
 ];
 
+/** 进程内 LRU 缓存：仅三重闸门全通过的结果写入；TTL 可用 PROMPT_OPTIMIZER_CACHE_TTL_MS 覆盖 */
+const optimizerCache = new Cache<string>({
+  namespace: "prompt-opt",
+  maxSize: 200,
+  defaultTtlMs: readInt("PROMPT_OPTIMIZER_CACHE_TTL_MS", 3600_000),
+  redis: false,
+  persistent: false,
+});
+
+/** 累计指标 */
+const metrics: PromptOptimizerMetrics = {
+  calls: 0,
+  skipped: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  rewritten: 0,
+  gateFailures: { output: 0, language: 0, fidelity: 0 },
+};
+
 /** 可注入依赖（测试用 fake；生产为 GLM 链 + promptEngineer） */
 export interface PromptOptimizerDeps {
-  /** 改写器：(输入, skill 上下文) → 改写文本 | null */
-  rewrite?: (input: string, skillContext: string | null) => Promise<string | null>;
+  /** 改写器：(输入, skill 上下文, 策略) → 改写文本 | null；策略为可选第三参，向后兼容 */
+  rewrite?: (input: string, skillContext: string | null, strategy?: string) => Promise<string | null>;
   /** 忠实度判别：(原文, 改写) → true/false | null */
   verify?: (original: string, rewritten: string) => Promise<boolean | null>;
   /** Skill 匹配：输入 → skill 上下文 | null */
   matchSkill?: (input: string) => string | null;
+  /** 意图策略识别：输入 → 策略名（默认 detectOptimizationStrategy 纯函数） */
+  strategy?: (input: string) => string;
 }
 
 /**
@@ -70,7 +116,30 @@ export function shouldSkipOptimization(userInput: string): boolean {
 }
 
 /**
- * 优化用户输入（GLM 改写 + 三重闸门）。
+ * 意图感知策略识别（纯函数，不调 LLM）。
+ *
+ * 启发式（按优先级）：代码块 → code；分析/评估/对比/总结 → analysis；
+ * 翻译 → translation；写作/撰写/文案/文章/润色 → writing；其余 → general。
+ */
+export function detectOptimizationStrategy(input: string): OptimizationStrategy {
+  if (/```[\s\S]*```/.test(input)) return "code";
+  if (/分析|评估|对比|总结/.test(input)) return "analysis";
+  if (/翻译/.test(input)) return "translation";
+  if (/写作|撰写|文案|文章|润色/.test(input)) return "writing";
+  return "general";
+}
+
+/** 缓存 key：sha256(规范化输入)，规范化 = trim + 小写 + 连续空白归并，不过度处理 */
+function cacheKeyFor(input: string): string {
+  const normalized = input.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+/**
+ * 优化用户输入（GLM 改写 + 三重闸门 + 结果去重缓存）。
+ *
+ * 流程：跳过规则 → 缓存查询（命中直接返回 { text: 缓存结果, changed: true }）
+ *   → 意图策略 + Skill 匹配 → GLM 改写 → 三重闸门 → 全通过写缓存。
  *
  * @returns 优化结果；任何失败/闸门拒绝都回退为 { text: 原文, changed: false }
  */
@@ -78,7 +147,9 @@ export async function optimizePrompt(
   userInput: string,
   deps?: PromptOptimizerDeps,
 ): Promise<PromptOptimization> {
+  metrics.calls++;
   if (!isRewriteEnabled() || shouldSkipOptimization(userInput)) {
+    metrics.skipped++;
     return { text: userInput, changed: false };
   }
 
@@ -86,19 +157,33 @@ export async function optimizePrompt(
     const rewrite = deps?.rewrite ?? glmRewrite;
     const verify = deps?.verify ?? glmVerifyFidelity;
     const matchSkill = deps?.matchSkill ?? matchSkillContext;
+    const detectStrategy = deps?.strategy ?? detectOptimizationStrategy;
+
+    // ── 缓存：相同输入（归一化）命中则直接复用上次全通过的结果 ──
+    const cacheKey = cacheKeyFor(userInput);
+    const cached = await optimizerCache.get(cacheKey);
+    if (cached !== undefined) {
+      metrics.cacheHits++;
+      return { text: cached, changed: true };
+    }
+    metrics.cacheMisses++;
 
     const truncated = userInput.length > MAX_INPUT_CHARS
       ? userInput.slice(0, MAX_INPUT_CHARS)
       : userInput;
 
+    // ── 意图策略：改写器据此追加针对性规则 ──
+    const strategy = detectStrategy(truncated);
+
     // ── Skill 匹配：命中专家角色则以其工作流为改写框架 ──
     const skillContext = matchSkill(truncated);
 
-    // ── GLM 改写 ──
-    const optimized = (await rewrite(truncated, skillContext))?.trim() ?? "";
+    // ── GLM 改写（策略作为可选第三参传入，兼容两参 fake） ──
+    const optimized = (await rewrite(truncated, skillContext, strategy))?.trim() ?? "";
 
     // ── 闸门 1：输出校验 ──
     if (!isValidOptimization(optimized, userInput)) {
+      metrics.gateFailures.output++;
       logger.debug("Prompt optimizer: invalid output, using original", {
         outputLen: optimized.length,
       });
@@ -107,6 +192,7 @@ export async function optimizePrompt(
 
     // ── 闸门 2：语言一致性（确定性） ──
     if (!sameLanguage(userInput, optimized)) {
+      metrics.gateFailures.language++;
       logger.debug("Prompt optimizer: language drift detected, using original");
       return { text: userInput, changed: false };
     }
@@ -114,10 +200,20 @@ export async function optimizePrompt(
     // ── 闸门 3：忠实度判别（失败按不忠实处理，安全方向） ──
     const faithful = await verify(userInput, optimized);
     if (faithful !== true) {
+      metrics.gateFailures.fidelity++;
       logger.debug("Prompt optimizer: fidelity check rejected, using original");
       return { text: userInput, changed: false };
     }
 
+    // ── 三重闸门全通过：写入缓存（写失败不阻塞成功返回） ──
+    try {
+      optimizerCache.set(cacheKey, optimized);
+    } catch (err) {
+      logger.debug("Prompt optimizer: cache write failed", {
+        error: (err as Error).message,
+      });
+    }
+    metrics.rewritten++;
     return { text: optimized, changed: true };
   } catch (err) {
     logger.debug("Prompt optimizer: enhancement failed, using original", {
@@ -125,6 +221,24 @@ export async function optimizePrompt(
     });
     return { text: userInput, changed: false };
   }
+}
+
+/** 清空优化缓存并归零指标（测试/运维用） */
+export function resetPromptOptimizerCache(): void {
+  optimizerCache.clear();
+  metrics.calls = 0;
+  metrics.skipped = 0;
+  metrics.cacheHits = 0;
+  metrics.cacheMisses = 0;
+  metrics.rewritten = 0;
+  metrics.gateFailures.output = 0;
+  metrics.gateFailures.language = 0;
+  metrics.gateFailures.fidelity = 0;
+}
+
+/** 读取优化器累计指标（返回快照，避免外部改动污染内部计数） */
+export function getPromptOptimizerMetrics(): PromptOptimizerMetrics {
+  return { ...metrics, gateFailures: { ...metrics.gateFailures } };
 }
 
 // ─────────────────────────────────────────────────────────
@@ -169,19 +283,33 @@ async function callGlm(system: string, user: string): Promise<string | null> {
   return null;
 }
 
-/** 生产改写器：GLM 链 */
-async function glmRewrite(input: string, skillContext: string | null): Promise<string | null> {
+/** 各策略对应的改写规则（追加进 system prompt；writing/general 无额外规则） */
+const STRATEGY_RULES: Record<string, string> = {
+  code: "- 保留代码/命令原文，只优化自然语言部分",
+  translation: "- 保持原文的翻译意图，不做内容改写，直接输出优化后的翻译指令",
+  analysis: "- 强化结构化输出（结论先行、分点）",
+};
+
+/** 输入末尾 60 字符内出现 json（大小写不敏感）时，强制保留 JSON 格式要求 */
+function requiresJsonOutput(input: string): boolean {
+  return /json/i.test(input.slice(-60));
+}
+
+/** 生产改写器：GLM 链（按意图策略追加针对性规则） */
+async function glmRewrite(input: string, skillContext: string | null, strategy?: string): Promise<string | null> {
   const skillClause = skillContext
     ? `\n命中专家角色，请以其工作流程为框架组织改写：\n${skillContext}\n`
     : "";
   // 项目上下文（来自 CodeGraph/工作区提示，默认项目路径；可用 PROMPT_PROJECT_CONTEXT 覆盖）
   const projectClause = `\n项目上下文（优化时请结合该项目背景让改写更精准）：\n${readString("PROMPT_PROJECT_CONTEXT", process.cwd()).slice(0, 800)}\n`;
+  const strategyRule = STRATEGY_RULES[strategy ?? "general"] ?? "";
+  const jsonRule = requiresJsonOutput(input) ? "\n- 输出必须保持 JSON 格式要求" : "";
   const system = `你是提示词优化器。将用户输入改写为更清晰、具体、结构化的提示词。${skillClause}${projectClause}
 规则：
 - 严格保持原意与原文语言（中文输入中文输出，英文输入英文输出）
 - 不回答问题，只输出改写后的提示词文本
 - 不添加原文没有的要求，不解释，不加前后缀
-- 输出长度不超过原文 2 倍`;
+- 输出长度不超过原文 2 倍${strategyRule}${jsonRule}`;
   return callGlm(system, input);
 }
 

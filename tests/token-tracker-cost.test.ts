@@ -136,3 +136,76 @@ describe("TokenTracker 多供应商直连价", () => {
     }
   });
 });
+
+describe("TokenTracker prompt-cache 落库", () => {
+  it("记录 cacheHitTokens/cacheMissTokens/cacheHit 并可在 recent usage 读回", async () => {
+    const tracker = new TokenTracker(DB_RECORD);
+    try {
+      tracker.record({
+        timestamp: Date.now(),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+        promptTokens: 1000,
+        completionTokens: 200,
+        totalTokens: 1200,
+        latencyMs: 10,
+        contentLength: 5,
+        success: true,
+        fallbackUsed: false,
+        cacheHitTokens: 800,
+        cacheMissTokens: 200,
+        cacheHit: true,
+      });
+      await tracker.flush();
+      const recent = tracker.getRecentUsage(1)[0];
+      expect(recent?.cacheHitTokens).toBe(800);
+      expect(recent?.cacheMissTokens).toBe(200);
+      expect(recent?.cacheHit).toBe(true);
+    } finally {
+      await tracker.close();
+    }
+  });
+
+  it("getDailyStats 聚合 cacheHits/cacheHitTokens/cacheMissTokens", async () => {
+    const tracker = new TokenTracker(DB_RECORD);
+    try {
+      const ts = Date.now();
+      tracker.record({
+        timestamp: ts,
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+        promptTokens: 1000,
+        completionTokens: 100,
+        totalTokens: 1100,
+        latencyMs: 5,
+        contentLength: 3,
+        success: true,
+        fallbackUsed: false,
+        cacheHitTokens: 700,
+        cacheMissTokens: 300,
+        cacheHit: true,
+      });
+      tracker.record({
+        timestamp: ts,
+        model: "glm-4.7-flash",
+        provider: "zhipu",
+        promptTokens: 500,
+        completionTokens: 50,
+        totalTokens: 550,
+        latencyMs: 5,
+        contentLength: 3,
+        success: true,
+        fallbackUsed: false,
+      });
+      await tracker.flush();
+      const daily = tracker.getDailyStats(1);
+      expect(daily.length).toBeGreaterThan(0);
+      const today = daily[0];
+      expect(today?.cacheHits).toBe(1); // 仅 cacheHit=true 的那条计 1
+      expect(today?.cacheHitTokens).toBe(700);
+      expect(today?.cacheMissTokens).toBe(300);
+    } finally {
+      await tracker.close();
+    }
+  });
+});

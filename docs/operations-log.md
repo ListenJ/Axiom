@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-14 — Axiom 打包为 DeepSeek Harness 插件 + 提示词/缓存内核强化
+
+- **任务**：①把 Axiom 作为「整体打包的完整插件」运行在 deepseek-harness（dsh）中（非 skill 文本）②强化本体提示词优化与缓存优化。
+- **工具**：主线程（插件/缓存/成本）；子代理 Gauss（提示词优化器，src/agents/prompt-optimizer.ts + tests，29 通过）；dsh 官方仓库浅克隆取证（.tmp/dsh-official，read-only）。
+- **操作（文件级）**：
+  - `plugins/dsh/`（新，npm 包 `axiom-dsh`）：bundle（cordis.patch.yml）+ host 插件（src/index.ts、config.ts、mcp-bridge.ts、server.ts、types.ts）+ README + tests（含真实 MCP stdio 冒烟）。
+  - `src/agents/prompt-optimizer.ts` + `tests/prompt-optimizer.test.ts`：结果去重缓存（PROMPT_OPTIMIZER_CACHE_TTL_MS）、意图策略（code/analysis/writing/translation/general）、JSON 格式保留、指标 getPromptOptimizerMetrics/resetPromptOptimizerCache、PROMPT_OPTIMIZER_MAX_INPUT_CHARS。
+  - `src/router/token-tracker.ts` + `tests/token-tracker-cost.test.ts`：prompt-cache 落库（cache_hit_tokens/cache_miss_tokens/cache_hit 列 + ALTER 迁移），getDailyStats 填实 cacheHits/cacheHitTokens/cacheMissTokens，getRecentUsage 透出。
+  - `src/router/model-router.ts`：trackCall 透传 prompt_cache_hit/miss_tokens；llmCache 命中时标记 cacheHit=true。
+  - `src/utils/cache.ts`：CachedLLMResponse.usage 增加 prompt_cache_hit/miss_tokens 透传字段。
+  - `src/mcp/server/token-tools.ts` + `tests/cache-stats-tool.test.ts`（新）：新增 `cache_stats` MCP 工具（LLM/搜索/爬虫缓存命中率 + 提示词优化器指标 + 按日 prompt-cache 聚合）。
+  - `docs/research/deepseek-harness-plugin-2026-08-14.md`（新）：dsh 插件契约取证（来源/关键结论/落地）。
+  - `docs/ARCHITECTURE-MINIMAL-PLUGIN.md`：追加「外部宿主插件」「缓存/提示词优化强化」两节。
+- **验证**：插件 23 用例全过（含真实 stdio 冒烟 ~5s 桥接 20+ 工具）；prompt-optimizer 29 用例全过；token-tracker/cache-stats/llm-cache 全过；仓库 tsc --noEmit 0 错误；插件 tsc 0 错误。
+- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+
 
 ---
 
@@ -3573,10 +3589,12 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
 
 ## 2026-08-04 17:50 +0800 — 移动端右栏抽屉默认覆盖修复 + e2e 过时断言同步
 
-- **任务**：前后端布局优化。视觉体检发现：右栏工具台 ightbarOpen 默认 true，移动端以全屏抽屉（fixed inset-0 z-50）默认打开覆盖聊天区；e2e smoke/theme 断言基于旧 Header（独立主题按钮）过时。
+- **任务**：前后端布局优化。视觉体检发现：右栏工具台 
+ightbarOpen 默认 true，移动端以全屏抽屉（fixed inset-0 z-50）默认打开覆盖聊天区；e2e smoke/theme 断言基于旧 Header（独立主题按钮）过时。
 - **工具**：Playwright 逐区块几何探测（桌面/移动端）、Read、Edit、Bash（vitest / Playwright）。
 - **执行的操作（文件级）**：
-  - rontend/src/state/useApp.ts：新增 eadInitialRightbarOpen()——桌面（≥1024px）默认打开、移动端默认关闭；jsdom/无 matchMedia 环境安全降级 true（修复 10 个测试套件因 window.matchMedia 缺失失败）。
+  - rontend/src/state/useApp.ts：新增 
+eadInitialRightbarOpen()——桌面（≥1024px）默认打开、移动端默认关闭；jsdom/无 matchMedia 环境安全降级 true（修复 10 个测试套件因 window.matchMedia 缺失失败）。
   - e2e/smoke.spec.ts：导航断言改 
 av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断言改验证系统菜单（文件/编辑/视图/帮助）+ 视图菜单含"切换主题"。
   - e2e/theme.spec.ts：主题切换改经系统菜单"视图 → 切换主题"。
