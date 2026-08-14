@@ -21,7 +21,7 @@
   - `docs/research/deepseek-harness-plugin-2026-08-14.md`（新）：dsh 插件契约取证（来源/关键结论/落地）。
   - `docs/ARCHITECTURE-MINIMAL-PLUGIN.md`：追加「外部宿主插件」「缓存/提示词优化强化」两节。
 - **验证**：插件 23 用例全过（含真实 stdio 冒烟 ~5s 桥接 20+ 工具）；prompt-optimizer 29 用例全过；token-tracker/cache-stats/llm-cache 全过；仓库 tsc --noEmit 0 错误；插件 tsc 0 错误。
-- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+- **Commit**：`92cb0cb`（推送 origin/codex/self-evolving-agent）
 
 
 ---
@@ -4923,3 +4923,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
 - Commit: ccbd6f5
+
