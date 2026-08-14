@@ -5034,4 +5034,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - frontend/src/pages/Code.test.tsx（2：codegraph 状态+文件索引；图谱 tab KG 统计）
   - frontend/src/pages/Git.test.tsx（2：分支/工作区/最近提交渲染；提交流程）
 - Verification: frontend 64 文件 / 328 测试全绿（原 55/314）；npm run lint（tsc+eslint）exit 0。
-- Commit: <hash>
+- Commit: 426cd8c
