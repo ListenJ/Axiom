@@ -4889,4 +4889,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 扩展 tests/router/rate-tier-pricing.test.ts（+4）、tests/token-tracker-cost.test.ts（+1）
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（五轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 66/66 全绿 + tsc exit 0。
-- Commit: <PENDING>
+- Commit: b578fc9
