@@ -5008,3 +5008,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 package.json（test → bun test --parallel=8 ./tests，规避 dist/ 陈旧测试误匹配 + bun 并行加载竞态）
 - Verification: bun test --parallel=8 ./tests 连续 2 次 2475 pass / 28 skip / 0 fail；frontend 49 文件 299 测试全绿；bunx tsc --noEmit exit 0。
 - Commit: 119dcb1
+
+## 2026-08-15 - 前端核心页面场景化工程测试（6 页新增 15 用例）
+
+- Task: 需求 1 前端场景化工程测试——为缺失测试的侧边栏核心页面补真实使用场景测试（组件渲染 + API mock + 用户交互），替代原有“模拟逻辑”的假 E2E。
+- Tools: vitest + @testing-library/react + user-event / tsc / eslint / git。
+- Files（均新增，前端 vitest 套件）:
+  - frontend/src/pages/Sessions.test.tsx（3：会话列表→点击加载消息；空态；使用统计 tab）
+  - frontend/src/pages/Vault.test.tsx（3：统计卡+标签；待审核批准流程；空态）
+  - frontend/src/pages/Router.test.tsx（2：健康/Token/状态渲染；单端点失败优雅降级）
+  - frontend/src/pages/Search.test.tsx（3：vault/code/web 组合搜索；深度研究 tab 切换；无结果提示）
+  - frontend/src/pages/Agents.test.tsx（2：智能体列表；代码审查执行）
+  - frontend/src/pages/Tokens.test.tsx（2：/api/token-details 统计卡+图表；无数据空态）
+- Verification: frontend 55 文件 / 314 测试全绿（原 49/299）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
+- Commit: <hash>
