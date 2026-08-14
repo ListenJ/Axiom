@@ -5022,3 +5022,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - frontend/src/pages/Tokens.test.tsx（2：/api/token-details 统计卡+图表；无数据空态）
 - Verification: frontend 55 文件 / 314 测试全绿（原 49/299）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
 - Commit: 0da9df3
+
+## 2026-08-15 - 前端页面场景测试（第二批 9 页：重定向/登录/代理/代码/Git）
+
+- Task: 需求 1 继续——为剩余页面补真实场景测试：5 个旧路由重定向页（Knowledge/OCR/Research/Trends/KG）、登录鉴权（含开放式重定向防护）、代理管理、代码 Hub（codegraph+图谱）、Git 工作区。
+- Tools: vitest + @testing-library/react + user-event / tsc / eslint / git。
+- Files（均新增）:
+  - frontend/src/pages/Knowledge.test.tsx / OCR.test.tsx / Research.test.tsx / Trends.test.tsx / KG.test.tsx（各 1：旧书签→新 Hub 重定向）
+  - frontend/src/pages/Login.test.tsx（3：空令牌校验；token 存储+按 ?from= 回跳；拦截外部重定向 //evil）
+  - frontend/src/pages/Proxies.test.tsx（2：代理列表+活跃状态；空态）
+  - frontend/src/pages/Code.test.tsx（2：codegraph 状态+文件索引；图谱 tab KG 统计）
+  - frontend/src/pages/Git.test.tsx（2：分支/工作区/最近提交渲染；提交流程）
+- Verification: frontend 64 文件 / 328 测试全绿（原 55/314）；npm run lint（tsc+eslint）exit 0。
+- Commit: <hash>
