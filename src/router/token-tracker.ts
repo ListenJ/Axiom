@@ -19,7 +19,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
-import { estimateDeepSeekCostUsd } from "./rate-tier.js";
+import { estimateModelCostUsd } from "./rate-tier.js";
 
 export interface TokenUsageRecord {
   timestamp: number;
@@ -180,20 +180,20 @@ export class TokenTracker {
   }
 
   /**
-   * 峰谷回算历史成本：对 provider=deepseek 且 cost_usd=0 的历史行，
-   * 按该行 timestamp 所处峰/谷时段（01-04 / 06-10 UTC）用官方 V4 价格回填。
-   * 幂等：非 DeepSeek V4 模型跳过；回填后 cost_usd>0 不再重复处理。
+   * 回算历史成本：对 cost_usd=0 的历史行按行 timestamp 计价（DeepSeek V4 峰谷；
+   * GLM/Kimi/MiniMax 直连价表；未收录跳过）。幂等：回填后 cost_usd>0 不再重复处理。
    */
   private backfillCostUsd(): void {
     try {
       const rows = this.db.query(`
-        SELECT id, timestamp, model, prompt_tokens, completion_tokens
+        SELECT id, timestamp, model, provider, prompt_tokens, completion_tokens
         FROM token_usage
-        WHERE provider = 'deepseek' AND cost_usd = 0
+        WHERE cost_usd = 0
       `).all() as Array<{
         id: number;
         timestamp: number;
         model: string;
+        provider: string;
         prompt_tokens: number;
         completion_tokens: number;
       }>;
@@ -202,7 +202,8 @@ export class TokenTracker {
       let filled = 0;
       this.db.transaction(() => {
         for (const r of rows) {
-          const cost = estimateDeepSeekCostUsd(
+          const cost = estimateModelCostUsd(
+            r.provider,
             r.model,
             r.prompt_tokens,
             r.completion_tokens,
@@ -214,7 +215,7 @@ export class TokenTracker {
           }
         }
       })();
-      if (filled > 0) logger.info(`[TokenTracker] Backfilled cost_usd for ${filled} DeepSeek rows (peak/off-peak)`);
+      if (filled > 0) logger.info(`[TokenTracker] Backfilled cost_usd for ${filled} rows (rate-tier)`);
     } catch (e) {
       logger.warn("[TokenTracker] cost_usd backfill skipped", { error: e instanceof Error ? e.message : String(e) });
     }
@@ -228,10 +229,11 @@ export class TokenTracker {
 
   /** 记录一次 token 使用 */
   record(record: TokenUsageRecord) {
-    // DeepSeek V4 按调用时刻峰谷计价；其余模型 0（后续可扩展价格表）
+    // DeepSeek V4 按峰谷计价；其余按直连价表（GLM/Kimi/MiniMax）；未收录记 0
     const costUsd =
       record.costUsd ??
-      estimateDeepSeekCostUsd(
+      estimateModelCostUsd(
+        record.provider,
         record.model,
         record.promptTokens,
         record.completionTokens,

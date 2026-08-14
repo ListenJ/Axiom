@@ -8,6 +8,7 @@ import {
   deepSeekInputPrice,
   deepSeekOutputPrice,
   estimateDeepSeekCostUsd,
+  estimateModelCostUsd,
   isRateTierSchedulingEnabled,
 } from "../../src/router/rate-tier.js";
 
@@ -65,5 +66,25 @@ describe("DEEPSEEK_PEAK_SCHEDULING env 开关", () => {
     expect(effectivePriorityForRateTier({ provider: "deepseek", model: "deepseek-v4-pro", priority: 1 }, utc(2))).toBe(1);
     process.env.DEEPSEEK_PEAK_SCHEDULING = "1";
     expect(effectivePriorityForRateTier({ provider: "deepseek", model: "deepseek-v4-pro", priority: 1 }, utc(2))).toBe(9);
+  });
+});
+
+describe("estimateModelCostUsd 多供应商直连价", () => {
+  it("Kimi K2.6 按 CNY→USD 估算（1M+1M）", () => {
+    expect(estimateModelCostUsd("kimi", "kimi-k2.6", 1_000_000, 1_000_000)).toBeCloseTo((6.5 + 27) / 7.2, 4);
+  });
+
+  it("MiniMax M3 五折后标准价", () => {
+    expect(estimateModelCostUsd("minimax", "MiniMax-M3", 1_000_000, 1_000_000)).toBeCloseTo((2.1 + 8.4) / 7.2, 4);
+    expect(estimateModelCostUsd("minimax", "MiniMax-M2.7", 1_000_000, 1_000_000)).toBeCloseTo((2.1 + 8.4) / 7.2, 4);
+  });
+
+  it("智谱免费模型成本为 0", () => {
+    expect(estimateModelCostUsd("zhipu", "glm-4.7-flash", 1_000_000, 1_000_000)).toBe(0);
+  });
+
+  it("未收录模型返回 undefined", () => {
+    expect(estimateModelCostUsd("zhipu", "glm-5.2", 100, 100)).toBeUndefined();
+    expect(estimateModelCostUsd("kimi", "kimi-latest", 100, 100)).toBeUndefined();
   });
 });

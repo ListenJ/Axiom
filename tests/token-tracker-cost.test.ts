@@ -112,3 +112,27 @@ describe("TokenTracker cost_usd", () => {
     }
   });
 });
+
+describe("TokenTracker 多供应商直连价", () => {
+  it("Kimi K2.6 记录按直连价计算 costUsd", async () => {
+    const tracker = new TokenTracker(DB_RECORD);
+    try {
+      tracker.record({
+        timestamp: peakMs(2),
+        model: "kimi-k2.6",
+        provider: "kimi",
+        promptTokens: 1_000_000,
+        completionTokens: 1_000_000,
+        totalTokens: 2_000_000,
+        latencyMs: 100,
+        contentLength: 10,
+        success: true,
+        fallbackUsed: false,
+      });
+      await tracker.flush();
+      expect(tracker.getOverallStats().costUsd).toBeCloseTo((6.5 + 27) / 7.2, 4);
+    } finally {
+      await tracker.close();
+    }
+  });
+});

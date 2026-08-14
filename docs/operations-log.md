@@ -4876,3 +4876,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（四轮更新）
 - Verification: 前端 49 文件/298 测试全绿 + tsc 干净 + eslint 0；后端 61/61 全绿 + tsc exit 0。
 - Commit: 073c373
+
+## 2026-08-14 - Perf 成本卡片 + 多供应商直连价表 + /memory/usage 改接 token-tracker
+
+- Task: ①Perf 页加成本卡片；②token-tracker 扩展 GLM/Kimi/MiniMax 直连价；③/memory/usage 死表端点改接 token-tracker。
+- Tools: curl（官方定价抓取）/ bun test / bunx tsc / npx eslint / git。
+- Files:
+  - 修改 src/router/rate-tier.ts（MODEL_PRICING + CNY_PER_USD + estimateModelCostUsd；Kimi K2.6/K2.5/K3、MiniMax M3/M2.7/M2.5、智谱免费 flash）
+  - 修改 src/router/token-tracker.ts（record/backfill 改用 estimateModelCostUsd，历史行统一回算）
+  - 修改 src/routes/memory-api.ts（/memory/usage 改接 getStatsByModel，兼容返回形状 + cost_usd）
+  - 修改 frontend/src/pages/Perf.tsx（近 7 天模型成本卡片）+ Perf.test.tsx（成本卡片断言）
+  - 扩展 tests/router/rate-tier-pricing.test.ts（+4）、tests/token-tracker-cost.test.ts（+1）
+  - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（五轮更新）
+- Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 66/66 全绿 + tsc exit 0。
+- Commit: <PENDING>

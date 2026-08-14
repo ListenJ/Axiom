@@ -97,3 +97,59 @@ export function isRateTierSchedulingEnabled(): boolean {
   const n = v.toLowerCase();
   return n === "1" || n === "true" || n === "yes";
 }
+
+// ═════════════════════════════════════════════════════════════════
+// 多供应商直连价（USD/1M tokens）——成本估算
+// 来源（2026-08-14 官方文档抓取，见 docs/deepseek-api-v4-optimization-2026-08-14.md）：
+//   - Kimi：platform.kimi.com/docs/pricing/chat-k26.md / chat-k25.md / chat-k3.md（CNY）
+//   - MiniMax：platform.minimaxi.com/docs/guides/pricing-paygo.md（CNY，M3 五折后标准价 ≤512k）
+//   - 智谱：docs.bigmodel.cn 免费模型 glm-4.7-flash / glm-4-flash（0 元）
+// CNY→USD 用估算汇率（假设，非官方），用于统一成本面板展示。
+// ═════════════════════════════════════════════════════════════════
+
+/** CNY→USD 估算汇率（成本估算用，非官方；2026-08-14 假设值） */
+export const CNY_PER_USD = 7.2;
+
+interface StaticModelPricing {
+  inputUsd: number;
+  outputUsd: number;
+}
+
+function cnyToUsd(v: number): number {
+  return v / CNY_PER_USD;
+}
+
+/** 直连价表，键 = provider/model（与注册表 model 字段一致） */
+export const MODEL_PRICING: Record<string, StaticModelPricing> = {
+  // Kimi（直连价，¥/1M → USD）
+  "kimi/kimi-k2.6": { inputUsd: cnyToUsd(6.5), outputUsd: cnyToUsd(27) },
+  "kimi/kimi-k2.5": { inputUsd: cnyToUsd(4), outputUsd: cnyToUsd(21) },
+  "kimi/kimi-k3": { inputUsd: cnyToUsd(20), outputUsd: cnyToUsd(100) },
+  // MiniMax（直连价，M3 五折后标准价）
+  "minimax/MiniMax-M3": { inputUsd: cnyToUsd(2.1), outputUsd: cnyToUsd(8.4) },
+  "minimax/MiniMax-M2.7": { inputUsd: cnyToUsd(2.1), outputUsd: cnyToUsd(8.4) },
+  "minimax/MiniMax-M2.5": { inputUsd: cnyToUsd(2.1), outputUsd: cnyToUsd(8.4) },
+  // 智谱（免费模型）
+  "zhipu/glm-4.7-flash": { inputUsd: 0, outputUsd: 0 },
+  "zhipu/glm-4-flash": { inputUsd: 0, outputUsd: 0 },
+};
+
+/**
+ * 估算一次调用的成本（USD）：
+ *   1. DeepSeek V4 优先走峰谷计价（model 名匹配）；
+ *   2. 其余走 MODEL_PRICING 直连价表（provider/model 匹配）；
+ *   3. 未收录返回 undefined（成本记为 0，可后续扩展）。
+ */
+export function estimateModelCostUsd(
+  provider: string,
+  model: string,
+  promptTokens: number,
+  completionTokens: number,
+  date: Date = new Date(),
+): number | undefined {
+  const ds = estimateDeepSeekCostUsd(model, promptTokens, completionTokens, date);
+  if (ds !== undefined) return ds;
+  const p = MODEL_PRICING[`${provider}/${model}`];
+  if (!p) return undefined;
+  return (promptTokens * p.inputUsd + completionTokens * p.outputUsd) / 1_000_000;
+}

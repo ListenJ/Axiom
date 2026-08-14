@@ -9,6 +9,7 @@ import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import { getSessionMessages } from "../db/session-store.js";
 import { getSessionLineage, searchSessionLineage } from "../db/session-lineage.js";
+import { getTokenTracker } from "../router/token-tracker.js";
 
 // ===== Conversation History (Server-side persistence) =====
 
@@ -355,25 +356,28 @@ export async function handleListTasks(ctx: RouteContext): Promise<Response | nul
 
 // ===== Model Usage Stats =====
 
-/** GET /memory/usage — Model usage statistics */
+/**
+ * GET /memory/usage — Model usage statistics
+ * 改接 token-tracker（实时 token_usage 库，含 cost_usd 峰谷/直连价成本）；
+ * 旧 model_usage 死表不再读取。返回形状保持前端兼容。
+ */
 export async function handleModelUsage(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/memory/usage" || ctx.req.method !== "GET") return null;
 
   const days = parseInt(ctx.url.searchParams.get("days") || "7", 10);
   try {
-    const sinceEpoch = Math.floor(Date.now() / 1000) - (days * 86400);
-    const usage = ctx.db.query(
-      `SELECT provider, model_name, 
-              COUNT(*) as call_count,
-              SUM(tokens_input) as total_prompt_tokens,
-              SUM(tokens_output) as total_completion_tokens,
-              AVG(latency_ms) as avg_latency_ms,
-              SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count
-       FROM model_usage 
-       WHERE created_at > ?
-       GROUP BY provider, model_name
-       ORDER BY call_count DESC`
-    ).all(sinceEpoch);
+    const since = Date.now() - days * 86400 * 1000;
+    const stats = getTokenTracker().getStatsByModel({ since });
+    const usage = stats.map((m) => ({
+      provider: m.provider,
+      model_name: m.model,
+      call_count: m.totalCalls,
+      total_prompt_tokens: m.totalPromptTokens,
+      total_completion_tokens: m.totalCompletionTokens,
+      avg_latency_ms: Math.round(m.avgLatencyMs),
+      success_count: Math.round((m.successRate / 100) * m.totalCalls),
+      cost_usd: m.costUsd ?? 0,
+    }));
     return ctx.jsonResponse({ usage, days }, 200, ctx.baseHeaders);
   } catch (err) {
     logger.error("Failed to get usage stats", err as Error);

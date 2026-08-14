@@ -86,3 +86,18 @@
 - **左栏精简**：Sidebar 移除 Git 仓库状态（段2）与 MCP·Skill（段3）——重叠内容并入右栏（GitPanel/SummaryPanel/用量），左栏只保留工作区 + 会话管理（含顶部 Logo/新建对话/账号栏）。
 - 新增测试：tests/token-tracker-cost.test.ts（3：峰时计价聚合/非 DeepSeek 0/历史回算幂等）；frontend/src/components/chat-panels-usage.test.tsx（1：成本展示）。
 - 验证：前端 49 文件/298 测试全绿 + tsc 干净；后端 router/provider/token-tracker 61/61 全绿 + tsc exit 0；前端 eslint 0 问题。
+
+## 更新（2026-08-14 五轮）：Perf 成本卡片 + 多供应商直连价表 + /memory/usage 改接
+
+- **Perf 页成本卡片**：PerfPanel 新增「近 7 天模型成本」卡片（token-tracker 实时库，含 DeepSeek 峰谷计价标注）；Perf.test 新增断言（mock tokenDetails）。
+- **多供应商直连价表**（rate-tier.ts）：
+  - 新增 `MODEL_PRICING`（键 provider/model）+ `estimateModelCostUsd`（DeepSeek 峰谷优先，其次直连价，未收录 undefined）。
+  - Kimi（官方 platform.kimi.com 定价，¥/1M）：kimi-k2.6 6.5/27、kimi-k2.5 4/21、kimi-k3 20/100。
+  - MiniMax（官方 pricing-paygo，¥/1M，M3 五折后标准价）：MiniMax-M3/M2.7/M2.5 2.1/8.4。
+  - 智谱免费：glm-4.7-flash / glm-4-flash 0/0。
+  - CNY→USD 用估算汇率 `CNY_PER_USD=7.2`（假设，非官方，知识文件已注明）。
+  - token-tracker `record()` 与 `backfillCostUsd()` 改用 `estimateModelCostUsd`（历史行按 timestamp 统一回算，幂等）。
+- **/memory/usage 改接 token-tracker**：handleModelUsage 不再读死表 model_usage，改走 getTokenTracker().getStatsByModel（返回形状兼容前端，含 cost_usd）。
+- 修复：String.replace `$` 特殊模式导致 Perf.tsx 文本损坏（改用函数式替换；Perf.tsx 尾部残留截断）。
+- 新增/扩展测试：rate-tier-pricing（+4：Kimi/MiniMax/智谱/未收录）、token-tracker-cost（+1：Kimi 落库）、Perf.test（+1：成本卡片）。
+- 验证：前端 49 文件/299 测试全绿 + eslint 0 + tsc 干净；后端 66/66 全绿 + tsc exit 0。
