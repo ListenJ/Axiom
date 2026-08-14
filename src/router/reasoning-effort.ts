@@ -27,6 +27,25 @@ export function normalizeEffort(effort: string | undefined | null): ReasoningEff
   return "medium";
 }
 
+/**
+ * 默认关闭思考模式的轻任务（DeepSeek 降延迟；调用方显式传 thinking 时以显式值为准）。
+ * general-tool 工具调用用非思考模式更稳（无需回传 reasoning_content）。
+ */
+const DEFAULT_NON_THINKING_ROLES: ReadonlySet<string> = new Set([
+  "general-tool",
+  "review",
+  "general-chat",
+  "english",
+  "intent-classifier",
+  "memory",
+  "embedding",
+]);
+
+/** 按角色给出默认 thinking 开关：轻任务返回 false，其余返回 undefined（= 默认开启） */
+export function defaultThinkingForRole(role: string): boolean | undefined {
+  return DEFAULT_NON_THINKING_ROLES.has(role) ? false : undefined;
+}
+
 /** 各档位对应的预算/档位数值（按文档取值） */
 const BUDGETS: Record<ReasoningEffort, number> = {
   low: 1024,

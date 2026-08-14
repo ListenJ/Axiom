@@ -41,9 +41,59 @@ export function effectivePriorityForRateTier(
   date: Date = new Date(),
 ): number {
   const base = model.priority ?? 99;
+  if (!isRateTierSchedulingEnabled()) return base;
   if (!isDeepSeekPeak(date)) return base;
   if (model.provider === "deepseek" && model.model === "deepseek-v4-pro") {
     return base + DEEPSEEK_PEAK_PENALTY;
   }
   return base;
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+// DeepSeek V4 峰谷价格表（$/1M tokens，2026-08-16 起官方峰谷计费）
+// 峰价：flash $0.44 入 / $1.32 出；pro $1.32 入 / $3.96 出。谷价 = 峰价一半。
+// ═════════════════════════════════════════════════════════════════
+
+export const DEEPSEEK_PEAK_PRICING: Record<string, { input: number; output: number }> = {
+  "deepseek-v4-flash": { input: 0.44, output: 1.32 },
+  "deepseek-v4-pro": { input: 1.32, output: 3.96 },
+};
+
+/** 当前时段 DeepSeek 输入价格（$/1M tokens）；非 V4 模型返回 undefined */
+export function deepSeekInputPrice(model: string, date: Date = new Date()): number | undefined {
+  const p = DEEPSEEK_PEAK_PRICING[model];
+  if (!p) return undefined;
+  return isDeepSeekPeak(date) ? p.input : p.input / 2;
+}
+
+/** 当前时段 DeepSeek 输出价格（$/1M tokens）；非 V4 模型返回 undefined */
+export function deepSeekOutputPrice(model: string, date: Date = new Date()): number | undefined {
+  const p = DEEPSEEK_PEAK_PRICING[model];
+  if (!p) return undefined;
+  return isDeepSeekPeak(date) ? p.output : p.output / 2;
+}
+
+/** 估算一次 DeepSeek 调用的成本（USD），按调用时刻峰/谷计价 */
+export function estimateDeepSeekCostUsd(
+  model: string,
+  promptTokens: number,
+  completionTokens: number,
+  date: Date = new Date(),
+): number | undefined {
+  const input = deepSeekInputPrice(model, date);
+  const output = deepSeekOutputPrice(model, date);
+  if (input === undefined || output === undefined) return undefined;
+  return (promptTokens * input + completionTokens * output) / 1_000_000;
+}
+
+/**
+ * 峰谷调度开关（.env: DEEPSEEK_PEAK_SCHEDULING）
+ * 默认开启；设为 0/false/no 时关闭（优先级恒用注册表原值）。
+ */
+export function isRateTierSchedulingEnabled(): boolean {
+  const v = process.env.DEEPSEEK_PEAK_SCHEDULING;
+  if (v === undefined || v === "") return true;
+  const n = v.toLowerCase();
+  return n === "1" || n === "true" || n === "yes";
 }

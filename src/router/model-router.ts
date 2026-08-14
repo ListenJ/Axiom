@@ -26,6 +26,7 @@ import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
 import { routerBreaker } from "../utils/circuit-breaker.js";
 import { effectivePriorityForRateTier } from "./rate-tier.js";
+import { defaultThinkingForRole } from "./reasoning-effort.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -211,6 +212,8 @@ export class MultiPlatformRouter {
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
     const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools, thinking } = input;
+    // 轻任务默认非思考模式（显式 thinking 优先）
+    const effectiveThinking = thinking ?? defaultThinkingForRole(role);
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -317,7 +320,7 @@ export class MultiPlatformRouter {
             temperature,
             undefined,
             tools,
-            { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
+            { baseURL: model.baseURL, apiKey: model.apiKey, ...(effectiveThinking !== undefined ? { thinking: effectiveThinking } : {}) },
             maxTokens,
             signal
           );
@@ -487,7 +490,7 @@ export class MultiPlatformRouter {
     const preferNative = options?.preferNativeStream !== false;
     const intentLabel = options?.intent;
     const reasoningEffort = options?.reasoningEffort;
-    const thinking = options?.thinking;
+    const thinking = options?.thinking ?? defaultThinkingForRole(role);
     const models = findModelsForRole(role);
     if (models.length === 0) {
       logger.warn(`[Router/chatStream] No models for role: ${role}`);

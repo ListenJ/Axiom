@@ -4845,3 +4845,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/router/rate-tier.test.ts（5）、tests/provider-caller-thinking.test.ts（4）、tests/router/chat-stream-thinking-tools.test.ts（2）、tests/tool-loop-reasoning.test.ts（1）
 - Verification: router/provider 相关 47/47 全绿（含新 12 测试）；后端 tsc 干净（exit 0）。
 - Commit: 11cd10d
+
+## 2026-08-14 - 轻任务非思考 + 峰谷成本核算 + env 全供应商模板
+
+- Task: ①轻任务默认非思考（降延迟）；②DeepSeek V4 峰谷成本核算接入 model-advisor；③峰谷调度 env 可配置；④.env.example 覆盖市面上全部供应商。
+- Tools: bun test / bunx tsc / git。
+- Files:
+  - 修改 src/router/rate-tier.ts（DEEPSEEK_PEAK_PRICING + deepSeekInputPrice/OutputPrice/estimateDeepSeekCostUsd + isRateTierSchedulingEnabled）
+  - 修改 src/router/reasoning-effort.ts（defaultThinkingForRole 轻任务集合）
+  - 修改 src/router/model-router.ts（execute/chatStream 以 thinking ?? defaultThinkingForRole(role) 生效）
+  - 修改 src/router/model-advisor.ts（DeepSeek 表更新 V4 两档；estimateCostPerCall 峰谷计价）
+  - 重写 .env.example（128 行，全供应商 + 变体 + *_BASE_URL + 峰谷开关 + GLM 免费模型 + 网关/记忆/日志）
+  - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（三轮更新）
+  - 新增 tests/router/rate-tier-pricing.test.ts（5）、tests/reasoning-default-thinking.test.ts（3）、tests/router/light-role-thinking.test.ts（2）
+- Verification: router/provider 相关 58/58 全绿；后端 tsc exit 0。
+- Commit: <PENDING>

@@ -15,6 +15,7 @@
  */
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
+import { deepSeekInputPrice, deepSeekOutputPrice } from "./rate-tier.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { isPgAvailable, getPG } from "../db/pg-client.js";
 
@@ -104,8 +105,8 @@ const KNOWN_PROVIDERS: Record<string, ProviderConfig> = {
     baseURL: "https://api.deepseek.com/v1",
     apiKeyEnv: "DEEPSEEK_API_KEY",
     models: [
-      { id: "deepseek-chat", name: "DeepSeek V3", contextWindow: 65536, inputPrice: 0.27, outputPrice: 1.10, isFree: false, tags: ["coding", "general"] },
-      { id: "deepseek-reasoner", name: "DeepSeek R1", contextWindow: 65536, inputPrice: 0.55, outputPrice: 2.19, isFree: false, tags: ["research", "reasoning"] },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", contextWindow: 1000000, inputPrice: 0.44, outputPrice: 1.32, isFree: false, tags: ["coding", "general", "fast"] },
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextWindow: 1000000, inputPrice: 1.32, outputPrice: 3.96, isFree: false, tags: ["research", "reasoning", "coding"] },
     ],
     pricing: { freeQuota: 5_000_000, overagePrice: 0 },
   },
@@ -374,6 +375,12 @@ function estimateCostPerCall(model: ModelListing, role: string): number {
   // 估算: 平均 2000 input tokens + 1000 output tokens
   const inputTokens = role === "research" ? 5000 : 2000;
   const outputTokens = role === "research" ? 2000 : 1000;
+  // DeepSeek V4 直连价格按调用时刻峰/谷计费（2026-08-16 起官方峰谷）
+  const peakInput = deepSeekInputPrice(model.id);
+  const peakOutput = deepSeekOutputPrice(model.id);
+  if (peakInput !== undefined && peakOutput !== undefined) {
+    return (inputTokens * peakInput + outputTokens * peakOutput) / 1_000_000;
+  }
   return (inputTokens * model.inputPrice + outputTokens * model.outputPrice) / 1_000_000;
 }
 

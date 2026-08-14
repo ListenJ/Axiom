@@ -67,3 +67,12 @@
   - `model-router.execute` 与 `chatStream` 排序改用 `effectivePriorityForRateTier`：高峰时 flash/免费/其他供应商优先，谷时恢复 pro 优先。
 - 新增测试：`tests/router/rate-tier.test.ts`（5）、`tests/provider-caller-thinking.test.ts`（4）、`tests/router/chat-stream-thinking-tools.test.ts`（2）、`tests/tool-loop-reasoning.test.ts`（1）。
 - 验证：router/provider 相关 47/47 全绿，后端 tsc 干净。
+
+## 更新（2026-08-14 三轮）：轻任务非思考 + 峰谷成本核算 + env 全供应商模板
+
+- **轻任务默认非思考**：`reasoning-effort.ts` 新增 `defaultThinkingForRole`（general-tool/review/general-chat/english/intent-classifier/memory/embedding → false）；`model-router.execute` 与 `chatStream` 以 `thinking ?? defaultThinkingForRole(role)` 生效（显式传入优先）。
+- **峰谷成本核算**：`rate-tier.ts` 新增 `DEEPSEEK_PEAK_PRICING`（V4 峰价）+ `deepSeekInputPrice/OutputPrice/estimateDeepSeekCostUsd`（谷价=峰价一半）；`model-advisor` 的 DeepSeek 表更新为 V4 两档（移除 deepseek-chat/reasoner 旧条目），`estimateCostPerCall` 对 V4 按调用时刻峰谷计价。
+- **峰谷调度可配置**：`DEEPSEEK_PEAK_SCHEDULING` env（默认 1；0/false/no 关闭，优先级恒用注册表原值），`rate-tier.isRateTierSchedulingEnabled` 接入 `effectivePriorityForRateTier`。
+- **env 全供应商模板**：重写 `.env.example`（128 行）——覆盖 api-key-store 全部供应商（DeepSeek/SiliconFlow/OfoxAI/OpenRouter/智谱/Kimi/MiniMax/NVIDIA NIM/OpenCode/OfoxAI-Anthropic/OfoxAI-Gemini/OpenAI 后备）与国内/海外变体，每个供应商可配 `<前缀>_BASE_URL` 覆盖端点；含峰谷开关、GLM 免费模型、网关/记忆/日志配置说明。
+- 新增测试：tests/router/rate-tier-pricing.test.ts（5）、tests/reasoning-default-thinking.test.ts（3）、tests/router/light-role-thinking.test.ts（2）。
+- 验证：router/provider 相关 58/58 全绿；后端 tsc exit 0。
