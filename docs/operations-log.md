@@ -5044,3 +5044,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 frontend/src/pages/Settings.test.tsx（3：页头+默认展开外观分区；主题切换 radio；对话与行为分区全局权限开关→setMode）
 - Verification: frontend 65 文件 / 331 测试全绿（原 64/328）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
 - Commit: febbc66
+
+## 2026-08-15 - 神经突触心智模块（Synapse Mind Module）+ MCP 工具
+
+- Task: 需求 2 心智模块——大脑神经突触效果：带权关联 + Hebbian 激活 + 全局衰减 + 扩散激活（联想）+ 场景/目标确定性建议；强约束可校验（链式哈希验证链，篡改即暴露、可追溯）；本地模型仅可选增强，默认纯确定性。
+- Tools: bun test / bunx tsc / node 补丁脚本 / git。
+- Files:
+  - 新增 src/dre/synapse/{types,store,engine,index}.ts（SynapseStore SQLite WAL+busy_timeout；verifyHash + 链式 SynapseTrace；SynapseEngine create/activate/spread/suggest/verify/trace；createLocalModelAssist 可选）
+  - 新增 src/mcp/server/mind-tools.ts（mind_synapse_create/activate/spread/suggest/verify/trace，微内核插件化暴露）
+  - 修改 src/mcp/server.ts（注册 mind 工具）、src/dre/index.ts（导出 synapse 模块）、.env.example（AXIOM_SYNAPSE_DB）
+  - 新增 tests/dre-synapse.test.ts（8 用例：确定性 id/篡改暴露/激活衰减/扩散跳数/建议排序/本地模型注入/WAL 持久化）
+  - 新增 docs/MIND-SYNAPSE.md（设计、操作、配置、追溯示例）
+- Verification: bun test --parallel=8 ./tests 2483 pass / 28 skip / 0 fail（原 2475，+8）；bunx tsc --noEmit exit 0。
+- Commit: <hash>
