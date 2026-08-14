@@ -457,8 +457,14 @@ export class SkillRegistry {
       { role: "user" as const, content: filledPrompt },
     ];
 
+    // 需求 4：LLM 调用前自动注入 DRE 实践手册约束词（命中关键词时）
+    const { autoInjectDreConstraints } = await import("../dre/constraint-injection.js");
+    const injection = autoInjectDreConstraints(messages, filledPrompt);
+    const llmMessages = injection.changed ? injection.messages : messages;
+    if (injection.changed) logger.info("[SkillRegistry] DRE constraints injected", { injected: injection.injected });
+
     try {
-      const result = await router.executeWithRole(role, messages, {
+      const result = await router.executeWithRole(role, llmMessages, {
         ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
         ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
         ...(options.signal !== undefined ? { signal: options.signal } : {}),

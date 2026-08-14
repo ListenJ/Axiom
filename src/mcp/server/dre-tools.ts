@@ -49,6 +49,27 @@ export function getKernelInstance(): Kernel | null {
 
 export function registerDreTools(registry: ToolRegistry): void {
   registry.add({
+    name: "dre_constraint_inject",
+    description: "需求4：扫描文本命中实践手册错误记录 → 返回可插入 LLM 输入的 DRE 约束词（可追溯来源 id）；也可直接返回注入后的消息",
+    inputSchema: {
+      text: z.string().describe("用户/任务文本（LLM 将收到的输入）"),
+      asMessages: z.boolean().optional().default(false).describe("true 时返回注入后的 system+user 消息"),
+    },
+    handler: async (args: Record<string, unknown>) => {
+      const { constraintWordsFor, injectConstraints, buildMessagesWithConstraints } = await import("../../dre/constraint-injection.js");
+      const text = args.text as string;
+      const { words, entries } = constraintWordsFor(text);
+      const injected = entries.map((e) => e.id);
+      if (args.asMessages) {
+        const built = buildMessagesWithConstraints(text);
+        return { injected, words, messages: built.messages };
+      }
+      return { injected, words, matched: entries.map((e) => ({ id: e.id, title: e.title })) };
+    },
+  });
+
+
+  registry.add({
     name: "dre_write_knowledge",
     description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理，需要本地 LLM 服务)",
     inputSchema: {

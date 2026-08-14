@@ -52,6 +52,10 @@ export { DataUnifier, dataUnifier, type DataItem, type SearchOptions, type Searc
 export { PRESETS, LLM_PRESETS } from "./presets.js";
 export { DREError, DREValidationError, DREResourceError, DREPipelineError, DRELLMError, DREConsistencyError, DRETaskError, wrapDREError } from "./errors.js";
 
+// 约束自动注入 — 实践手册错误记录 → LLM 输入约束词
+export { PRACTICE_ENTRIES, findPracticeEntries, type PracticeEntry } from "./practice-manual.js";
+export { buildConstraintWords, constraintWordsFor, injectConstraints, autoInjectDreConstraints, buildMessagesWithConstraints, practiceManualStats, type ConstraintInjectionResult } from "./constraint-injection.js";
+
 // 神经突触心智模块 — 确定性心智网络（创建/激活/扩散/建议/校验/追溯）
 export { SynapseStore, SynapseEngine, createSynapseEngine, createLocalModelAssist, tokenize, synapseId, synapseHash, makeSynapse, GENESIS_HASH } from "./synapse/index.js";
 export type { Synapse, SynapseTrace, SynapseSuggestion, SynapseStats, SynapseNodeType, SynapseOperation, SpreadResult } from "./synapse/index.js";

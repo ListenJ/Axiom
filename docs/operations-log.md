@@ -5073,3 +5073,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/BROWSER-VISION-ADAPTATION-2026-08-15.md
 - Verification: bun test --parallel=8 ./tests 2498 pass / 28 skip / 0 fail（原 2483，+15）；bunx tsc --noEmit exit 0。
 - Commit: 9692544
+
+## 2026-08-15 - DRE 约束自动注入 + 实践手册知识库（需求 4 核心）
+
+- Task: 需求 4——把本会话修复过的错误（SQLITE_BUSY/网络测试/随机 flake/bun dist 误匹配/并行竞态/Win-Linux 平台命令/无视觉模型）沉淀为实践手册条目，LLM 遇到同类问题时自动调用确定性引擎取约束词插入输入。
+- Tools: bun test / bunx tsc / node 补丁脚本 / git。
+- Files:
+  - 新增 src/dre/practice-manual.ts（7 条 PracticeEntry：id/keywords/constraint/fix/effect）
+  - 新增 src/dre/constraint-injection.ts（constraintWordsFor/buildConstraintWords/injectConstraints/autoInjectDreConstraints/buildMessagesWithConstraints/practiceManualStats）
+  - 修改 src/skills/skill-registry.ts（LLM 调用前自动注入 DRE 约束词，幂等）
+  - 修改 src/mcp/server/dre-tools.ts（dre_constraint_inject 工具）
+  - 修改 src/dre/index.ts（导出约束注入与实践手册）
+  - 新增 knowledge-base/practice-manual/entries.md（人类可读镜像）
+  - 新增 tests/dre-constraint-injection.test.ts（7 用例：命中/约束块/注入位置/幂等/未命中）
+- Verification: bun test --parallel=8 ./tests 2505 pass / 28 skip / 0 fail（原 2498，+7）；bunx tsc --noEmit exit 0。
+- Commit: <hash>
