@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { getTokenTracker } from "../../router/token-tracker.js";
-import { llmCache, searchCache, crawlCache } from "../../utils/cache.js";
+import { llmCache, searchCache, crawlCache, semanticAnswerCache } from "../../utils/cache.js";
 import { getPromptOptimizerMetrics } from "../../agents/prompt-optimizer.js";
 import {
   isDeepSeekPeak,
@@ -120,10 +120,12 @@ export function registerTokenTools(registry: ToolRegistry): void {
         llmCache: llmCache.stats(),
         searchCache: searchCache.stats(),
         crawlCache: crawlCache.stats(),
+        semanticAnswerCache: semanticAnswerCache.stats(),
         promptOptimizer: getPromptOptimizerMetrics(),
         promptCacheDaily: daily,
       };
     },
   });
 }
+
 

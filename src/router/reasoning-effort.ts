@@ -45,6 +45,22 @@ const DEFAULT_NON_THINKING_ROLES: ReadonlySet<string> = new Set([
 export function defaultThinkingForRole(role: string): boolean | undefined {
   return DEFAULT_NON_THINKING_ROLES.has(role) ? false : undefined;
 }
+/**
+ * 默认确定性角色：这些角色输出确定性强、重复调用多 → 默认 temperature=0，
+ * 从而激活确定性响应缓存（llmCache / 语义答案缓存只在 temperature===0 生效），
+ * 降低延迟与成本。调用方显式传 temperature 时以显式值为准。
+ */
+const DEFAULT_DETERMINISTIC_ROLES: ReadonlySet<string> = new Set([
+  "english",
+  "translation",
+  "localization",
+  "evaluation",
+]);
+
+/** 按角色给出默认温度：确定性角色 0，其余 undefined（= provider 默认 0.7） */
+export function defaultTemperatureForRole(role: string): number | undefined {
+  return DEFAULT_DETERMINISTIC_ROLES.has(role) ? 0 : undefined;
+}
 
 /** 各档位对应的预算/档位数值（按文档取值） */
 const BUDGETS: Record<ReasoningEffort, number> = {
@@ -91,3 +107,4 @@ export function buildReasoningParams(
       return { reasoning_effort: level };
   }
 }
+

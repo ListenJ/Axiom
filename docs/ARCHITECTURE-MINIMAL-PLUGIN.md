@@ -73,3 +73,11 @@ Axiom 的架构哲学已由 ADR 定义：Runtime 优先、LLM 仅是认知加速
   getDailyStats 填实 cacheHits（原为占位 0）；model-router 在 llmCache 命中时标记 cacheHit 并透传
   DeepSeek prompt_cache_hit/miss_tokens。
 - 新增 MCP 工具 `cache_stats`：LLM/搜索/爬虫缓存命中率 + 提示词优化器指标 + 按日 prompt-cache 聚合。
+- 语义答案缓存（src/utils/cache.ts `semanticAnswerCache` + src/services/cache-router.ts）：归一化查询级
+  确定性缓存（english/translation/localization/evaluation 等 temperature=0 任务），接入 router.execute()
+  确定性分支（查→命中直接返回；成功→回写），`SEMANTIC_CACHE_ENABLED` 总开关；`cache_stats` 输出该缓存命中率。
+- 确定性角色默认温度：reasoning-effort.ts `defaultTemperatureForRole`（english/translation/localization/
+  evaluation → 0），显式传值优先；激活 llmCache + 语义缓存。
+- 配置模板完整性：`.env.example` 补齐全部 src/config-center 读取的 env 变量；新增
+  `tests/env-example-completeness.test.ts` 防止模板与代码读取漂移。
+

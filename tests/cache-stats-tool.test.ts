@@ -17,6 +17,7 @@ describe("cache_stats 工具", () => {
     expect(result).toHaveProperty("llmCache");
     expect(result).toHaveProperty("searchCache");
     expect(result).toHaveProperty("crawlCache");
+    expect(result).toHaveProperty("semanticAnswerCache");
     expect(result).toHaveProperty("promptOptimizer");
     expect(result).toHaveProperty("promptCacheDaily");
     const llm = result.llmCache as Record<string, unknown>;
@@ -30,3 +31,4 @@ describe("cache_stats 工具", () => {
     }
   });
 });
+

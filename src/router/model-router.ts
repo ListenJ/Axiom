@@ -24,9 +24,10 @@ import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
+import { cacheFirstRoute, writeCache, isSemanticCacheEnabled } from "../services/cache-router.js";
 import { routerBreaker } from "../utils/circuit-breaker.js";
 import { effectivePriorityForRateTier } from "./rate-tier.js";
-import { defaultThinkingForRole } from "./reasoning-effort.js";
+import { defaultThinkingForRole, defaultTemperatureForRole } from "./reasoning-effort.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -227,6 +228,8 @@ export class MultiPlatformRouter {
     const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools, thinking } = input;
     // 轻任务默认非思考模式（显式 thinking 优先）
     const effectiveThinking = thinking ?? defaultThinkingForRole(role);
+    // 确定性角色默认 temperature=0（english/translation/localization/evaluation），激活确定性响应缓存
+    const effectiveTemperature = temperature ?? defaultTemperatureForRole(role);
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -292,9 +295,37 @@ export class MultiPlatformRouter {
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const loopStart = Date.now();
 
+        // 语义答案缓存：归一化查询级命中（temperature=0 的确定性轻任务，无工具调用时）
+        // 与 llmCache（字节级精确 key）互补：相同语义不同措辞也能命中。
+        if (effectiveTemperature === 0 && attempt === 0 && !tools?.length) {
+          const lastUser = [...messages].reverse().find((m) => m.role === "user");
+          if (lastUser?.content && isSemanticCacheEnabled()) {
+            const semanticHit = await cacheFirstRoute(lastUser.content, role);
+            if (semanticHit) {
+              routerBreaker.recordSuccess(breakerKey);
+              const latencyMs = Date.now() - loopStart;
+              metrics.increment("routing_decisions_total", 1, { role, source: "semantic-cache", model: model.id });
+              logger.info(`[Router] Semantic cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
+              trackCall(model.model, model.provider, messages, {
+                latencyMs,
+                success: true,
+                fallbackUsed: false,
+                cacheHit: true,
+              }, { role: trackAs ?? role, taskType: trackAs ?? role });
+              return {
+                content: semanticHit.answer,
+                model: "cache",
+                provider: "cache",
+                latencyMs,
+                fallbackUsed: false,
+              };
+            }
+          }
+        }
+
         // LLM cache: only for deterministic calls (temperature === 0).
         // Cache hit eliminates the API call entirely — max hit-rate savings.
-        if (temperature === 0 && attempt === 0) {
+        if (effectiveTemperature === 0 && attempt === 0) {
           const cKey = llmCacheKey({
             provider: model.provider,
             model: model.model,
@@ -331,7 +362,7 @@ export class MultiPlatformRouter {
             model.model,
             messages,
             model.timeout ?? timeout,
-            temperature,
+            effectiveTemperature,
             undefined,
             tools,
             { baseURL: model.baseURL, apiKey: model.apiKey, ...(effectiveThinking !== undefined ? { thinking: effectiveThinking } : {}) },
@@ -367,7 +398,7 @@ export class MultiPlatformRouter {
           });
 
           // Cache successful deterministic response for future hits
-          if (temperature === 0) {
+          if (effectiveTemperature === 0) {
             const cKey = llmCacheKey({
               provider: model.provider,
               model: model.model,
@@ -381,6 +412,13 @@ export class MultiPlatformRouter {
               usage: response.usage,
             };
             llmCache.set(cKey, cached);
+            // 语义答案缓存回写（无工具调用的确定性响应）
+            if (response.content && !tools?.length) {
+              const lastUser = [...messages].reverse().find((m) => m.role === "user");
+              if (lastUser?.content) {
+                writeCache(lastUser.content, role, response.content);
+              }
+            }
           }
 
           return {
@@ -1110,4 +1148,5 @@ export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
 export type { TaskRole } from "./model-capability-registry.js";
 export type { ChatMessage, StreamChunkCallback } from "./provider-caller.js";
+
 

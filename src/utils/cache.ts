@@ -383,6 +383,23 @@ export const llmCache = new Cache<CachedLLMResponse>({
 });
 
 /**
+ * 语义答案缓存 — 归一化查询级确定性答案（temperature=0 的轻任务）。
+ *
+ * 与 llmCache 的区别：
+ *   - llmCache 是字节级精确 key（sha256(messages)），命中要求消息逐字相同；
+ *   - semanticAnswerCache 是归一化 key（normalizeQuery：去停用词 + 排序），
+ *     相同语义的不同措辞也能命中，适合 english/translation/evaluation 等重复性高的确定性任务。
+ * 仅缓存成功、无工具调用的确定性响应；TTL 5 分钟，进程内（不落盘，避免陈旧答案跨重启存活）。
+ */
+export const semanticAnswerCache = new Cache<string>({
+  namespace: "semantic-answer",
+  maxSize: 500,
+  defaultTtlMs: 5 * 60 * 1000,
+  redis: true,
+  persistent: false,
+});
+
+/**
  * 计算 LLM 缓存 key。
  *
  * Key 包含：provider + model + messages + temperature + system
@@ -413,4 +430,5 @@ export function llmCacheKey(opts: {
   const digest = createHash("sha256").update(raw).digest("hex");
   return `${opts.provider}:${opts.model}:${digest}`;
 }
+
 

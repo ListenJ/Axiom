@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-14 — 项目本体优化：语义答案缓存 + 确定性温度 + env 模板完整化
+
+- **任务**：插件工作暂缓，回归项目本体优化——缓存优化落地到真实链路、配置模板完整化（不写死、可配置）。
+- **工具**：主线程（审计 + 实现）；只读审计 env 读取 vs .env.example、chat 主链路温度/缓存现状。
+- **操作（文件级）**：
+  - `src/router/reasoning-effort.ts`：新增 `defaultTemperatureForRole`（english/translation/localization/evaluation → 0）。
+  - `src/router/model-router.ts`：execute() 应用 `effectiveTemperature`（显式优先）；确定性分支接入语义缓存（查命中返回 / 成功回写，无工具调用时）；`SEMANTIC_CACHE_ENABLED` 门控。
+  - `src/utils/cache.ts`：新增 `semanticAnswerCache`（归一化查询级确定性缓存，TTL 5min，进程内）。
+  - `src/services/cache-router.ts`：`cacheFirstRoute`/`writeCache` 改接专用 `semanticAnswerCache`；新增 `isSemanticCacheEnabled`/`semanticCacheKey`。
+  - `src/mcp/server/token-tools.ts`：`cache_stats` 输出增加 `semanticAnswerCache`。
+  - `.env.example`：补齐审计出的全部缺失 env 变量（提示词/缓存/网关/原生/外部服务/记忆/爬虫/嵌入/模型默认/代理，约 60 项）。
+  - `tests/env-example-completeness.test.ts`（新）：src 读取的每个 env 变量必须在 .env.example 登记（防漂移）。
+  - `tests/semantic-cache.test.ts`（新）：默认温度 / 归一化 key / 缓存命中与关闭门控。
+  - `tests/cache-stats-tool.test.ts`：断言 semanticAnswerCache 字段。
+  - `docs/ARCHITECTURE-MINIMAL-PLUGIN.md`：追加语义缓存/确定性温度/模板完整性说明。
+- **验证**：语义缓存/缓存统计/env 模板/tools-v3 17 用例全过；回归 8 文件 64 用例全过；仓库 tsc --noEmit 0 错误。
+- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+
 ## 2026-08-14 — Axiom 打包为 DeepSeek Harness 插件 + 提示词/缓存内核强化
 
 - **任务**：①把 Axiom 作为「整体打包的完整插件」运行在 deepseek-harness（dsh）中（非 skill 文本）②强化本体提示词优化与缓存优化。
