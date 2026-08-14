@@ -54,13 +54,13 @@ test.describe('页面整洁化与动画', () => {
     const inputWidth = () =>
       page.locator('#home-input').evaluate((el) => el.getBoundingClientRect().width)
 
-    // 默认展开：宽度 400（悬浮浮层）
+    // 默认展开：宽度 352px（悬浮浮层 w-[min(22rem,56vw)]）
     await page.waitForFunction(() => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
-      return el && el.getBoundingClientRect().width >= 399
+      return el && el.getBoundingClientRect().width >= 351
     })
-    expect(await widthOf()).toBeGreaterThan(399)
-    expect(await widthOf()).toBeLessThan(401)
+    expect(await widthOf()).toBeGreaterThan(350)
+    expect(await widthOf()).toBeLessThan(355)
     const inputOpen = await inputWidth()
 
     // 收起：滑出动画（采样中间透明度），最终隐藏；工作区宽度不变（不占空间）
@@ -80,12 +80,12 @@ test.describe('页面整洁化与动画', () => {
       const el = document.querySelector('[aria-label="右侧工具台"]')
       return (
         el &&
-        el.getBoundingClientRect().width >= 399 &&
+        el.getBoundingClientRect().width >= 351 &&
         parseFloat(getComputedStyle(el).opacity) > 0.95
       )
     })
-    expect(await widthOf()).toBeGreaterThan(399)
-    expect(await widthOf()).toBeLessThan(401)
+    expect(await widthOf()).toBeGreaterThan(350)
+    expect(await widthOf()).toBeLessThan(355)
     expect(Math.abs((await inputWidth()) - inputOpen)).toBeLessThan(4)
 
     // 人机工效：Esc 收起

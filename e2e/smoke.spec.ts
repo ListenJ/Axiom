@@ -17,12 +17,11 @@ test("sidebar renders with brand", async ({ page }) => {
   await expect(sidebar.locator("svg").first()).toBeVisible();
 });
 
-test("sidebar sections render (新对话 / Git / MCP / 设置)", async ({ page }) => {
+test("sidebar sections render (新对话 / 设置 / 快捷键)", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  // 当前设计：侧栏只留工作区+会话（Git/MCP 段已按 2026-08-14 收敛移除）
   const sidebar = page.locator('aside[aria-label="主导航"]');
   await expect(sidebar.getByRole("button", { name: "开启新对话" })).toBeVisible();
-  await expect(sidebar.getByText("Git 仓库状态")).toBeVisible();
-  await expect(sidebar.getByText("MCP · Skill")).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "打开设置" })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "键盘快捷键" })).toBeVisible();
 });

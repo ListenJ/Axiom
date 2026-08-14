@@ -149,7 +149,7 @@ export default function RightToolbar() {
         <>
           {open && (
             <div
-              className="absolute inset-0 z-20 backdrop-glass"
+              className="pointer-events-none absolute inset-0 z-20 backdrop-glass"
               onClick={() => setOpen(false)}
               aria-hidden="true"
             />

@@ -5122,3 +5122,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/data-pipeline.test.ts（mock 全局 fetch，消除 example.com/DDG 真实网络超时）
 - Verification: bun test --parallel=8 ./tests 连续 2 次 2538 tests / 0 fail；bunx tsc --noEmit exit 0。
 - Commit: 728b30a
+
+## 2026-08-15 - 真实浏览器 E2E 全绿 + 右栏浮层交互 UX 修复
+
+- Task: 需求 1 终极验证（真实浏览器）——修复陈旧 E2E 断言（右栏宽度 400→352、侧栏 Git/MCP 段已收敛移除）与真实 UX bug（右栏悬浮浮层全屏 backdrop 拦截页面交互），并同步 public/ 构建产物；全套 E2E 通过。
+- Tools: playwright / npm run test:e2e / bun / node / git。
+- Files:
+  - 修改 e2e/animation-layout.spec.ts（右栏宽度断言 399-401 → 351-355，对齐 w-[min(22rem,56vw)]=352px 设计）
+  - 修改 e2e/smoke.spec.ts（侧栏断言改为 开启新对话/打开设置/键盘快捷键；Git/MCP 段已按 2026-08-14 收敛移除）
+  - 修改 frontend/src/components/rightbar/RightToolbar.tsx（桌面浮层 backdrop 改 pointer-events-none：不再拦截工作区交互；点击外部收起仍由 document pointerdown 处理）——真实 UX bug
+  - 修改 public/index.html（同步当前前端构建产物，后端 STATIC_ROOT=./public）
+- Verification: npm run test:e2e 全绿（All E2E tests passed，40 用例：chat/smoke/search/settings/theme/keyboard/perf/responsive/terminal/animation）；frontend 65 文件 331 测试全绿；lint exit 0。
+- Commit: <hash>
