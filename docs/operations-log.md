@@ -4829,4 +4829,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/deepseek-api-v4-optimization-2026-08-14.md（官方文档要点 + 适配决策 + 待办风险登记，规则10.3）
   - 新增 tests/provider-caller-reasoning.test.ts（3 测试）+ tests/router/chat-stream-reasoning.test.ts（1 测试）
 - Verification: 21/21 相关测试全绿（含 registry 唯一性）；后端 tsc 干净。
-- Commit: <PENDING>
+- Commit: 9a2b398
