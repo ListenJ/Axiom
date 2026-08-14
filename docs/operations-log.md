@@ -5133,4 +5133,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/src/components/rightbar/RightToolbar.tsx（桌面浮层 backdrop 改 pointer-events-none：不再拦截工作区交互；点击外部收起仍由 document pointerdown 处理）——真实 UX bug
   - 修改 public/index.html（同步当前前端构建产物，后端 STATIC_ROOT=./public）
 - Verification: npm run test:e2e 全绿（All E2E tests passed，40 用例：chat/smoke/search/settings/theme/keyboard/perf/responsive/terminal/animation）；frontend 65 文件 331 测试全绿；lint exit 0。
-- Commit: <hash>
+- Commit: f0540b2
