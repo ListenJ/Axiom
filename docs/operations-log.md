@@ -5056,4 +5056,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/dre-synapse.test.ts（8 用例：确定性 id/篡改暴露/激活衰减/扩散跳数/建议排序/本地模型注入/WAL 持久化）
   - 新增 docs/MIND-SYNAPSE.md（设计、操作、配置、追溯示例）
 - Verification: bun test --parallel=8 ./tests 2483 pass / 28 skip / 0 fail（原 2475，+8）；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 9f572aa
