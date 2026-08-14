@@ -21,7 +21,7 @@
   - P3 `docs/AXIOM-ARCHITECTURE.md`：§六 测试数 93→244；§5.1 补 DRE_LLM_API_KEY/DRE_DISCRIMIN_API_KEY/AXIOM_DRE_ENABLED，修正云模型默认；§5.2 追加 P2 集成说明。
   - 测试：`tests/dre-host-integration.test.ts`（新，ConfigLoader apiKey + initDreKernel + /dre/run 200/503）、`tests/constitution-safety.test.ts`（新，权限映射 + 安全章节断言）。
 - **验证**：tsc --noEmit 0 错误；DRE 全量 + 宿主集成 + 宪法安全 + env 模板 + 路由 266 用例全过；真实 /dre/run 冒烟返回 200 且 6 阶段确定性管道跑通；单模型接入（deepseek 兜底全角色）、SearXNG 免 key 本地搜索默认启用、DRE 确定性 0 token 均已确认。
-- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+- **Commit**：`8c0053f`（推送 origin/codex/self-evolving-agent）
 
 ## 2026-08-14 — 项目本体优化：语义答案缓存 + 确定性温度 + env 模板完整化
 
@@ -4957,5 +4957,6 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
 - Commit: ccbd6f5
+
 
 
