@@ -5035,3 +5035,12 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - frontend/src/pages/Git.test.tsx（2：分支/工作区/最近提交渲染；提交流程）
 - Verification: frontend 64 文件 / 328 测试全绿（原 55/314）；npm run lint（tsc+eslint）exit 0。
 - Commit: 426cd8c
+
+## 2026-08-15 - 前端页面场景测试（第三批：Settings）+ 全页面覆盖达成
+
+- Task: 需求 1 收尾——为最大的 Settings 页补场景测试；至此 22 个页面组件全部有真实场景测试。
+- Tools: vitest + @testing-library/react + user-event / tsc / eslint / git。
+- Files:
+  - 新增 frontend/src/pages/Settings.test.tsx（3：页头+默认展开外观分区；主题切换 radio；对话与行为分区全局权限开关→setMode）
+- Verification: frontend 65 文件 / 331 测试全绿（原 64/328）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
+- Commit: <hash>
