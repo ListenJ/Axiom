@@ -5099,4 +5099,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/mcp/server/mind-tools.ts（mind_suggest 工具）
   - 新增 tests/self-evolve-mind-suggest.test.ts（4 用例：归纳→建议命中/教训突触/lessonsProvider/空态）
 - Verification: bun test --parallel=8 ./tests 2509 pass / 28 skip / 0 fail（原 2505，+4）；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 6cd69d0
