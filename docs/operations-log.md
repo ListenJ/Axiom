@@ -4844,4 +4844,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（待办 #1/#2 已实施）
   - 新增 tests/router/rate-tier.test.ts（5）、tests/provider-caller-thinking.test.ts（4）、tests/router/chat-stream-thinking-tools.test.ts（2）、tests/tool-loop-reasoning.test.ts（1）
 - Verification: router/provider 相关 47/47 全绿（含新 12 测试）；后端 tsc 干净（exit 0）。
-- Commit: <PENDING>
+- Commit: 11cd10d
