@@ -5043,4 +5043,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 新增 frontend/src/pages/Settings.test.tsx（3：页头+默认展开外观分区；主题切换 radio；对话与行为分区全局权限开关→setMode）
 - Verification: frontend 65 文件 / 331 测试全绿（原 64/328）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
-- Commit: <hash>
+- Commit: febbc66
