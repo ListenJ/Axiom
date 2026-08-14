@@ -5100,3 +5100,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/self-evolve-mind-suggest.test.ts（4 用例：归纳→建议命中/教训突触/lessonsProvider/空态）
 - Verification: bun test --parallel=8 ./tests 2509 pass / 28 skip / 0 fail（原 2505，+4）；bunx tsc --noEmit exit 0。
 - Commit: 6cd69d0
+
+## 2026-08-15 - 工程化审查：假 E2E 替换为覆盖清单 + 能力文档汇总（需求 5）
+
+- Task: 需求 5——把 tests/e2e-pages.test.ts 的"模拟逻辑假 E2E"替换为真实的前端页面场景测试覆盖清单校验（防新增页面漏测）；新增能力文档汇总。
+- Tools: bun test / bunx tsc / node / git。
+- Files:
+  - 修改 tests/e2e-pages.test.ts（98 行假 E2E → 2 个覆盖清单断言：每页必有 colocated 测试、覆盖 ≥20 页）
+  - 新增 docs/CAPABILITIES-2026-08-15.md（工程基线/页面测试/心智模块/视觉适配/约束注入/质量门禁汇总）
+- Verification: bun test --parallel=8 ./tests 2503 pass / 28 skip / 0 fail；bunx tsc --noEmit exit 0。
+- Commit: <hash>
