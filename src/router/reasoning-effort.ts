@@ -3,7 +3,7 @@
  *
  * 依据 knowledge-base/api-formats/*.md 文档（2026-08-01 拉取）整理：
  *   - OpenAI 兼容（opencode/zhipu/ofoxai 等）：reasoning_effort (low/medium/high)
- *   - DeepSeek：thinking.type=enabled + reasoning_effort（新版），思考经 reasoning_content 返回
+ *   - DeepSeek：thinking.type=enabled + reasoning_effort（新版，官方映射 low→low/medium→high/high→high/xhigh→high/max→max），思考经 reasoning_content 返回
  *   - Kimi (Moonshot)：K2.x 用 thinking.type，K3 用 reasoning_effort（默认 max）
  *   - MiniMax：M3 用 thinking.type=adaptive（无强度档位）
  *   - SiliconFlow：enable_thinking + thinking_budget（128~32768）

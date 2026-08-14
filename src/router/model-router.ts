@@ -530,7 +530,7 @@ export class MultiPlatformRouter {
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
-          return { content: text, usage: response.usage, toolCalls: response.toolCalls };
+          return { content: text, usage: response.usage, toolCalls: response.toolCalls, thinking: response.thinking };
         };
 
         try {
@@ -697,6 +697,11 @@ export class MultiPlatformRouter {
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
             routerBreaker.recordSuccess(breakerKey);
 
+            if (result.thinking?.length) {
+              for (const t of result.thinking) {
+                yield { type: "token", content: JSON.stringify({ _axon: "thinking", content: t }) };
+              }
+            }
             if (result.content.length > 0) {
               yield { type: "token", content: result.content };
             }

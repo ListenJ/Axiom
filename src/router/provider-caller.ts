@@ -22,6 +22,8 @@ export interface NativeStreamResult {
   content: string;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   toolCalls?: ToolCall[];
+  /** DeepSeek/GLM 等思考模型经 reasoning_content 返回的思维链片段 */
+  thinking?: string[];
 }
 
 export async function callProvider(
@@ -39,6 +41,7 @@ export async function callProvider(
   content: string | null;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   toolCalls?: ToolCall[];
+  thinking?: string[];
 }> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config && !override?.apiKey) throw new Error(`Unknown provider: ${provider}`);
@@ -106,10 +109,15 @@ export async function callProvider(
     }
 
     const data = await res.json();
+    const msg = data.choices?.[0]?.message;
     return {
-      content: data.choices?.[0]?.message?.content ?? null,
+      content: msg?.content ?? null,
       usage: data.usage,
-      toolCalls: data.choices?.[0]?.message?.tool_calls ?? undefined,
+      toolCalls: msg?.tool_calls ?? undefined,
+      thinking:
+        typeof msg?.reasoning_content === "string" && msg.reasoning_content.length > 0
+          ? [msg.reasoning_content]
+          : undefined,
     };
   } catch (e) {
     clearTimeout(timer);
@@ -215,6 +223,7 @@ export async function callProviderNativeStream(
     let buffer = "";
     let fullContent = "";
     let usage: NativeStreamResult["usage"];
+    const thinkingChunks: string[] = [];
     const toolCallAcc = new Map<number, ToolCall>();
 
     while (true) {
@@ -235,6 +244,7 @@ export async function callProviderNativeStream(
             choices?: Array<{
               delta?: {
                 content?: unknown;
+                reasoning_content?: unknown;
                 tool_calls?: Array<{
                   index?: number;
                   id?: string;
@@ -249,6 +259,13 @@ export async function callProviderNativeStream(
           if (typeof delta === "string" && delta.length > 0) {
             fullContent += delta;
             onChunk(delta);
+          }
+          // DeepSeek 思考模式：思维链经 delta.reasoning_content 流式返回。
+          // 封装为 _axon thinking 事件透传给前端（ThinkingPanel 渲染），避免 CoT 被丢弃。
+          const reasoningDelta = parsed.choices?.[0]?.delta?.reasoning_content;
+          if (typeof reasoningDelta === "string" && reasoningDelta.length > 0) {
+            thinkingChunks.push(reasoningDelta);
+            onChunk(JSON.stringify({ _axon: "thinking", content: reasoningDelta }));
           }
           const rawCalls = parsed.choices?.[0]?.delta?.tool_calls;
           if (Array.isArray(rawCalls)) {
@@ -283,6 +300,7 @@ export async function callProviderNativeStream(
       content: fullContent,
       usage,
       toolCalls: toolCallAcc.size > 0 ? Array.from(toolCallAcc.values()) : undefined,
+      thinking: thinkingChunks.length > 0 ? thinkingChunks : undefined,
     };
   } finally {
     clearTimeout(timer);

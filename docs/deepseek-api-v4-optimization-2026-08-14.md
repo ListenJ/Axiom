@@ -1,0 +1,56 @@
+# DeepSeek V4 API 针对性优化 — 2026-08-14
+
+## 摘要
+
+本文件沉淀 2026-08-14 拉取的 DeepSeek 官方 API 文档要点，并记录 Axiom 项目针对 DeepSeek V4 模型所做的适配：
+流式透传 `reasoning_content`（思考链）、移除已弃用的 R1/reasoner 条目、注册表价格与上下文参数更新、思考强度映射说明。
+核心结论：DeepSeek 当前正式模型为 `deepseek-v4-flash` 与 `deepseek-v4-pro`（OpenAI 兼容）；旧模型名 `deepseek-chat`/`deepseek-reasoner` 已于 2026-07-24 弃用（早于本文档日期，项目必须迁移）；思考模式默认开启且不支持 temperature/top_p/presence_penalty/frequency_penalty（静默忽略）；工具调用场景必须回传 `reasoning_content`，否则 400。
+
+## 来源（官方文档，2026-08-14 抓取）
+
+- 首次调用：https://api-docs.deepseek.com/
+- 模型与价格：https://api-docs.deepseek.com/quick_start/pricing/
+- 思考模式：https://api-docs.deepseek.com/guides/thinking_mode/
+- 工具调用：https://api-docs.deepseek.com/guides/tool_calls/
+- 错误码：https://api-docs.deepseek.com/quick_start/error_codes/
+
+## 关键结论（事实 / 推测 / 判断）
+
+### 事实：模型与端点
+- OpenAI 格式 base_url：`https://api.deepseek.com`；Anthropic 格式：`https://api.deepseek.com/anthropic`；项目内 `/v1` 后缀与官方 `https://api.deepseek.com` 兼容（历史兼容端点）。
+- 正式模型：`deepseek-v4-flash`（DeepSeek-V4-Flash-0731）、`deepseek-v4-pro`（DeepSeek-V4-Pro-0813）。
+- `deepseek-chat` / `deepseek-reasoner` 将于 **2026-07-24 弃用**，兼容映射：`deepseek-chat` ↔ `deepseek-v4-flash` 非思考模式，`deepseek-reasoner` ↔ `deepseek-v4-flash` 思考模式。
+- 上下文长度 **1M**，最大输出 **384K**。
+- 功能：JSON Output ✓、Tool Calls ✓、Responses API ✓、Anthropic API ✓、Chat Prefix Completion (Beta) ✓、FIM Completion (Beta，仅非思考模式)。
+- 当前直连价格（每 1M tokens）：flash 输入 $0.14（缓存未命中）/ $0.0028（命中）、输出 $0.28；pro 输入 $0.435 / $0.003625、输出 $0.87。
+- **2026-08-16 16:00 UTC 起改为峰谷计费**：flash 谷 $0.22 入 / $0.66 出，峰 $0.44 / $1.32；pro 谷 $0.66 / $1.98，峰 $1.32 / $3.96。高峰时段 01:00-04:00 与 06:00-10:00 UTC。
+- 并发限制：flash 2500，pro 500。
+
+### 事实：思考模式参数
+- 默认思考开启、默认 effort=high。
+- 切换：OpenAI 格式 `extra_body.thinking = {"type":"enabled|disabled"}`；`reasoning_effort` 取值与映射：low→low、medium→high、high→high、xhigh→high、max→max。
+- 思考模式**不支持** `temperature`、`top_p`、`presence_penalty`、`frequency_penalty`（设置不报错但无效）。
+- 思考链经 `reasoning_content` 返回（与 `content` 同级）；流式时经 `delta.reasoning_content` 返回。
+- 多轮：两次 user 消息之间若无工具调用，中间的 assistant `reasoning_content` 无需回传（传了也会被忽略）；若有工具调用，`reasoning_content` 必须随后续请求回传，否则 **400**。
+
+### 事实：工具调用与错误码
+- 工具调用走 OpenAI 兼容 `tools` 协议；strict 模式（Beta）需 base_url `https://api.deepseek.com/beta` 且所有 function 设置 `strict: true`。
+- 错误码：400 请求体格式、401 鉴权失败、402 余额不足、422 参数无效、429 限流、500 服务端错误、503 过载（建议退避重试）。
+
+### 判断：项目适配决策
+- 项目 registry 移除 `deepseek-r1`（旧 R1 已停用），DeepSeek 只保留 V4 两档：`deepseek-v4-flash`（快/便宜，通用）与 `deepseek-v4-pro`（强推理，承接原 R1 的 deep_research/math/evaluation 角色）。
+- `buildReasoningParams` 对 DeepSeek 恒定注入 `thinking.type=enabled` + `reasoning_effort`（符合默认思考开启；若需非思考模式，后续可依据模型档位下发 `type=disabled`）。
+- `provider-caller` 原生流式把 `delta.reasoning_content` 封装为 `{"_axon":"thinking",...}` 事件透传前端（ThinkingPanel 渲染），缓冲回退路径同样先发 thinking 再发正文——避免 CoT 被丢弃。
+- 工具循环（chatStream toolLoop）在追加 assistant 消息时暂未回传 `reasoning_content`；若 DeepSeek 思考模式下启用工具调用，需要补上 assistant `reasoning_content` 字段回传（当前未启用 DeepSeek 思考模式工具调用，属后续待办，风险已记录）。
+
+## 已实施变更
+- `src/router/provider-caller.ts`：NativeStreamResult/callProvider 返回 `thinking?: string[]`；流式解析 `delta.reasoning_content` 并输出 `_axon` thinking 事件；非流式读取 `message.reasoning_content`。
+- `src/router/model-router.ts`：缓冲回退路径先 yield thinking（`_axon`）再 yield 正文。
+- `src/router/models/registry.ts`：删除 `deepseek-r1`；`deepseek-v4-pro` roles 增加 deep_research/math/evaluation；V4 描述更新为直连价格与 384K 最大输出。
+- `src/router/reasoning-effort.ts`：注释补充 DeepSeek effort 官方映射。
+- 测试：`tests/provider-caller-reasoning.test.ts`（3）、`tests/router/chat-stream-reasoning.test.ts`（1），全绿。
+
+## 后续待办（风险登记）
+1. DeepSeek 思考模式 + 工具调用：多轮工具循环需回传 `reasoning_content`（官方 400 约束），当前未启用该组合。
+2. 峰谷计费生效（2026-08-16）后，成本统计/路由可考虑错峰调度（属可选优化）。
+3. 非思考模式（`thinking.type=disabled`）目前无显式开关，若 flash 用于纯检索/改写可考虑按任务下发。

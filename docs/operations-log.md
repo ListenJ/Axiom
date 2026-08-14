@@ -4816,3 +4816,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 frontend/src/pages/Providers.test.tsx（3 测试：分组+统计、搜索过滤、空态）
 - Verification: vitest 48 文件/297 测试全绿；tsc 干净；eslint 0 问题；覆盖率 Lines 34.92% → 44.19%，Pages 13.79% → 33.44%（Chat 62.24%、Providers 73.01%）。
 - Commit: 888edf2
+
+## 2026-08-14 - GitHub 仓库改名 Axiom + DeepSeek V4 针对性优化
+
+- Task: ① GitHub 仓库 openclaw-fusion → Axiom（gh CLI admin 凭据，origin remote 已更新）；② 拉取 DeepSeek 官方 API 文档并做 V4 模型针对性优化。
+- Tools: gh api / git remote / curl（抓官方文档）/ bun test / bunx tsc。
+- Files:
+  - 修改 src/router/provider-caller.ts（流式解析 delta.reasoning_content → _axon thinking 事件；非流式返回 thinking[]）
+  - 修改 src/router/model-router.ts（缓冲回退路径先 yield thinking 再 yield 正文）
+  - 修改 src/router/models/registry.ts（移除已弃用 deepseek-r1/deepseek-reasoner；deepseek-v4-pro 承接 deep_research/math/evaluation；V4 价格/384K 输出更新）
+  - 修改 src/router/reasoning-effort.ts（注释补充 DeepSeek effort 官方映射）
+  - 新增 docs/deepseek-api-v4-optimization-2026-08-14.md（官方文档要点 + 适配决策 + 待办风险登记，规则10.3）
+  - 新增 tests/provider-caller-reasoning.test.ts（3 测试）+ tests/router/chat-stream-reasoning.test.ts（1 测试）
+- Verification: 21/21 相关测试全绿（含 registry 唯一性）；后端 tsc 干净。
+- Commit: <PENDING>
