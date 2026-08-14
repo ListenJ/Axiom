@@ -8,6 +8,7 @@
 import { logger } from "../../utils/logger.js";
 import type { TestTask, TestResult, TestError } from "../cluster/types.js";
 import { calculatePercentiles } from "./concurrent-load.js";
+import { createSeededRng } from "./random.js";
 
 /** 测试用事实条目（轻量结构，不依赖 memory 模块） */
 interface TestFact {
@@ -98,6 +99,11 @@ export async function runHallucinationTest(task: TestTask): Promise<TestResult> 
       : 0.3;
   const mockDelayMs =
     typeof task.params.mockDelayMs === "number" ? task.params.mockDelayMs : 5;
+  // 确定性随机源：传 params.seed 时用 seeded PRNG（可复现），否则 Math.random
+  const rand =
+    typeof task.params.seed === "number"
+      ? createSeededRng(task.params.seed)
+      : Math.random;
 
   logger.info(
     `[hallucination] task=${task.id} concurrency=${task.concurrency} ` +
@@ -114,12 +120,12 @@ export async function runHallucinationTest(task: TestTask): Promise<TestResult> 
   const user = async (userId: number): Promise<void> => {
     for (let i = 0; i < task.requestsPerUser; i++) {
       const reqStart = Date.now();
-      const fact = facts[Math.floor(Math.random() * facts.length)];
-      const isHallucinated = Math.random() < hallucinationRate;
+      const fact = facts[Math.floor(rand() * facts.length)];
+      const isHallucinated = rand() < hallucinationRate;
       // 模拟 LLM 响应：幻觉→编造语句；否则返回接近事实的陈述
       const response = isHallucinated
         ? FABRICATED_RESPONSES[
-            Math.floor(Math.random() * FABRICATED_RESPONSES.length)
+            Math.floor(rand() * FABRICATED_RESPONSES.length)
           ]
         : `According to verified records, ${fact.text}`;
       await new Promise((resolve) => setTimeout(resolve, mockDelayMs));

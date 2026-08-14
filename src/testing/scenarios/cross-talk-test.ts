@@ -9,6 +9,7 @@
 import { logger } from "../../utils/logger.js";
 import type { TestTask, TestResult, TestError } from "../cluster/types.js";
 import { calculatePercentiles } from "./concurrent-load.js";
+import { createSeededRng } from "./random.js";
 
 /**
  * 运行对话串词检测测试。
@@ -24,6 +25,11 @@ export async function runCrossTalkTest(task: TestTask): Promise<TestResult> {
       : 0.05;
   const mockDelayMs =
     typeof task.params.mockDelayMs === "number" ? task.params.mockDelayMs : 5;
+  // 确定性随机源：传 params.seed 时用 seeded PRNG（可复现），否则 Math.random
+  const rand =
+    typeof task.params.seed === "number"
+      ? createSeededRng(task.params.seed)
+      : Math.random;
 
   logger.info(
     `[cross-talk] task=${task.id} sessions=${task.concurrency} ` +
@@ -33,8 +39,8 @@ export async function runCrossTalkTest(task: TestTask): Promise<TestResult> {
   // 为每个会话生成唯一 secret token
   const secrets: string[] = [];
   for (let s = 0; s < task.concurrency; s++) {
-    const rand = Math.random().toString(36).slice(2, 10);
-    secrets.push(`SECRET-${s}-${rand}`);
+    const randSuffix = rand().toString(36).slice(2, 10);
+    secrets.push(`SECRET-${s}-${randSuffix}`);
   }
 
   const startTime = Date.now();
@@ -57,8 +63,8 @@ export async function runCrossTalkTest(task: TestTask): Promise<TestResult> {
       let response = `Acknowledged: ${message}`;
 
       // 模拟串词：注入其它会话 secret
-      if (Math.random() < crossTalkRate && task.concurrency > 1) {
-        const offset = 1 + Math.floor(Math.random() * (task.concurrency - 1));
+      if (rand() < crossTalkRate && task.concurrency > 1) {
+        const offset = 1 + Math.floor(rand() * (task.concurrency - 1));
         const otherId = (sessionId + offset) % task.concurrency;
         response += ` [leaked: ${secrets[otherId]}]`;
       }

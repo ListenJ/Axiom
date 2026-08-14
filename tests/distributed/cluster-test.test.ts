@@ -397,7 +397,7 @@ describe("ClusterCoordinator (local only)", () => {
       scenario: "hallucination",
       concurrency: 2,
       requestsPerUser: 5,
-      params: { hallucinationRate: 0.5, mockDelayMs: 0 },
+      params: { hallucinationRate: 0.5, mockDelayMs: 0, seed: 42 },
     });
 
     const result = await coordinator.dispatchSingle(task);
@@ -413,7 +413,7 @@ describe("ClusterCoordinator (local only)", () => {
       scenario: "cross-talk",
       concurrency: 3,
       requestsPerUser: 3,
-      params: { crossTalkRate: 0.3, mockDelayMs: 0 },
+      params: { crossTalkRate: 0.3, mockDelayMs: 0, seed: 42 },
     });
 
     const result = await coordinator.dispatchSingle(task);

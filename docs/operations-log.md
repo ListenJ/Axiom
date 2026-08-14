@@ -4991,3 +4991,20 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 
 
 
+
+## 2026-08-15 - 测试基线修复：全套件 2475 绿 + 网络/随机测试确定性化 + SQLite 并发加固
+
+- Task: 目标 R4/R5 工程化测试基线——修复全套件失败（含 dist/ 陈旧编译测试被 bun test 误匹配）、消除网络依赖与随机 flake、SQLite 并行写入加固、测试命令确定性化。
+- Tools: bun test（--parallel=8 ./tests）/ bunx tsc / node 补丁脚本 / git。
+- Files:
+  - 修改 src/router/rate-tier.ts（process.env 读取改走 utils/env.ts，通过架构完整性检查）
+  - 修改 tests/architecture-integrity.test.ts（CONSOLE_WHITELIST 增加 agent-evals/run.ts CLI 入口）
+  - 新增 src/testing/scenarios/random.ts（mulberry32 seeded PRNG）
+  - 修改 src/testing/scenarios/cross-talk-test.ts / hallucination-test.ts（支持 params.seed，随机场景可复现）
+  - 修改 tests/distributed/cluster-test.test.ts（串词/幻觉场景传 seed=42，断言确定性）
+  - 修改 src/utils/cache.ts（SQLite PRAGMA busy_timeout=5000 + WAL，消除并行 worker SQLITE_BUSY）
+  - 修改 tests/orchestrator.test.ts（注入 fake executor + spyOn router.executeWithRole，不再打真实 zhipu API）
+  - 修改 tests/knowledge/pipeline.test.ts / tests/knowledge/sources/github-trending.test.ts（mock global fetch，消除 github.com 网络超时）
+  - 修改 package.json（test → bun test --parallel=8 ./tests，规避 dist/ 陈旧测试误匹配 + bun 并行加载竞态）
+- Verification: bun test --parallel=8 ./tests 连续 2 次 2475 pass / 28 skip / 0 fail；frontend 49 文件 299 测试全绿；bunx tsc --noEmit exit 0。
+- Commit: <hash>

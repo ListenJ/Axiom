@@ -43,7 +43,7 @@
     "advisor:evolve": "bun run src/cli.ts advisor:evolve",
     "research": "bun run src/cli.ts research",
     "db:init": "bun run src/db/pg-init.ts",
-    "test": "bun test --parallel tests/",
+    "test": "bun test --parallel=8 ./tests",
     "test:e2e": "node scripts/run-e2e.cjs",
     "lint": "tsc --noEmit",
     "code:open": "bun run src/cli.ts code:open",

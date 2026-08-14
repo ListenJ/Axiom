@@ -102,6 +102,7 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     "eval/eval-runner.ts",
     "core/health-checker.ts",
     "launcher.ts",
+    "agent-evals/run.ts",
   ]);
 
 function getTsFiles(dir: string): string[] {

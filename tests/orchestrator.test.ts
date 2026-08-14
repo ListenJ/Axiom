@@ -2,7 +2,7 @@
  * 多 Agent 编排器测试
  */
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, spyOn } from "bun:test";
 import {
   AgentOrchestrator,
   InternalAgent,
@@ -14,6 +14,7 @@ import {
   NativeGeneralAgent,
   NativeCodeAgent,
   NativeResearchAgent,
+  type NativeExecutor,
 } from "../src/components/native-agents";
 import { createNativeAgentOptions } from "../src/agents/component-bootstrap";
 
@@ -23,6 +24,16 @@ describe("AgentOrchestrator", () => {
   beforeAll(() => {
     orchestrator = new AgentOrchestrator();
     const options = createNativeAgentOptions({ includeCodeToolchain: false });
+    // Deterministic tests: replace the real model executor so no live LLM/API
+    // calls are made (orchestrator logic is what is under test, not the model).
+    const fakeExecutor: NativeExecutor = async (role, messages) => ({
+      content: `mock(${role}): ${messages.length} messages`,
+      model: "mock-model",
+      provider: "mock-provider",
+      latencyMs: 1,
+      fallbackUsed: false,
+    });
+    options.executor = fakeExecutor;
     orchestrator.getRegistry().register(new NativeGeneralAgent(options));
     orchestrator.getRegistry().register(new NativeCodeAgent(options));
     orchestrator.getRegistry().register(new NativeResearchAgent(options));
@@ -264,16 +275,31 @@ describe("Built-in Agents", () => {
   });
 
   test("agent execute task", async () => {
-    const agent = new InternalAgent();
-    const task: AgentTask = {
-      id: "test-task",
-      type: "general",
-      description: "Test",
-      input: {},
-    };
+    // Deterministic: mock the router so no live LLM call is made.
+    const { router } = await import("../src/router/model-router.js");
+    const executeSpy = spyOn(router, "executeWithRole").mockImplementation(async () => ({
+      content: "mock reply",
+      model: "mock-model",
+      provider: "mock-provider",
+      latencyMs: 1,
+      fallbackUsed: false,
+      role: "general-chat",
+      layer: "general",
+    } as never));
+    try {
+      const agent = new InternalAgent();
+      const task: AgentTask = {
+        id: "test-task",
+        type: "general",
+        description: "Test",
+        input: {},
+      };
 
-    const result = await agent.execute(task);
-    expect(result.success).toBe(true);
-    expect(result.agentId).toBe("internal");
+      const result = await agent.execute(task);
+      expect(result.success).toBe(true);
+      expect(result.agentId).toBe("internal");
+    } finally {
+      executeSpy.mockRestore();
+    }
   });
 });

@@ -60,6 +60,12 @@ export class Cache<V = unknown> {
 
     if (this.opts.persistent) {
       this.db = new Database(this.opts.dbPath);
+      // Concurrency hardening: WAL allows concurrent readers + a single writer,
+      // and busy_timeout makes writers wait instead of failing with SQLITE_BUSY
+      // when another process (e.g. a parallel test worker or runtime daemon)
+      // holds the write lock.
+      this.db.exec("PRAGMA busy_timeout = 5000");
+      this.db.exec("PRAGMA journal_mode = WAL");
       this.db.run(`
         CREATE TABLE IF NOT EXISTS cache_store (
           namespace TEXT NOT NULL,

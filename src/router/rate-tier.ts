@@ -9,6 +9,8 @@
  * 策略：高峰时将 deepseek-v4-pro 的有效优先级调低（+8），让 flash/免费/其他供应商优先；
  * 谷时恢复原优先级。纯函数、可测试；由 model-router 的 execute/chatStream 排序接入。
  */
+import { readString } from "../utils/env.js";
+
 export type RateTier = "peak" | "off-peak";
 
 export const DEEPSEEK_PEAK_WINDOWS: ReadonlyArray<{ start: number; end: number }> = [
@@ -92,8 +94,7 @@ export function estimateDeepSeekCostUsd(
  * 默认开启；设为 0/false/no 时关闭（优先级恒用注册表原值）。
  */
 export function isRateTierSchedulingEnabled(): boolean {
-  const v = process.env.DEEPSEEK_PEAK_SCHEDULING;
-  if (v === undefined || v === "") return true;
+  const v = readString("DEEPSEEK_PEAK_SCHEDULING", "1");
   const n = v.toLowerCase();
   return n === "1" || n === "true" || n === "yes";
 }
@@ -112,8 +113,8 @@ export function isRateTierSchedulingEnabled(): boolean {
  * 启动时读取一次（MODEL_PRICING 静态构建用）。
  */
 export function getCnyPerUsd(): number {
-  const v = process.env.COST_CNY_PER_USD;
-  if (v === undefined || v === "") return 7.2;
+  const v = readString("COST_CNY_PER_USD", "");
+  if (v === "") return 7.2;
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : 7.2;
 }
