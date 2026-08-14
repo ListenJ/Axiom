@@ -28,6 +28,7 @@ import { ActorSystem } from "./actor/system.js";
 import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
 import { worldState } from "./runtime/world-state.js";
+import { DRE_DECISION_SYSTEM, isDreDecision } from "./constraints.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
@@ -152,17 +153,18 @@ export class DREngine {
     this.consciousness = new ConsciousnessStream({
       workingMemoryCapacity: config.workingMemoryCapacity ?? 16,
       episodicTTL: config.episodicTTL ?? 3600000,
-      // 决策钩子：用 mainLLM 做 JSON 决策（失败抛出 → consciousnessStep 降级链真正生效）
+      // 决策钩子：向 mainLLM 发出精确约束（JSON schema + 枚举 + 数值边界）
+      // 网络失败/输出不合 schema → 抛出 → consciousnessStep 降级链真正生效
       decide: async (observation: string) => {
         const resp = await this.mainLLM.generate(observation, {
-          system: "你是确定性推理引擎的意识流处理器。根据观察输出 JSON: {action: observe|reflect|act, content, confidence 0.0-1.0}",
+          system: DRE_DECISION_SYSTEM,
           maxTokens: 256,
         });
-        try {
-          return JSON.parse(resp.content);
-        } catch {
-          return { action: "observe", content: resp.content, confidence: 0.5 };
+        const parsed = JSON.parse(resp.content);
+        if (!isDreDecision(parsed)) {
+          throw new Error("[DRE] LLM decision 不符合约束 schema");
         }
+        return parsed;
       },
     });
 
@@ -721,11 +723,7 @@ export class DREngine {
     }
     const { callProvider } = await import("../router/provider-caller.js");
 
-    const systemPrompt = `你是一个确定性推理引擎的意识流处理器。
-当前工作记忆中的观察内容如下。
-请根据观察内容做出决策，输出JSON格式:
-{"action": "observe|reflect|act", "content": "...", "confidence": 0.0-1.0}`;
-
+    const systemPrompt = DRE_DECISION_SYSTEM;
     const result = await callProvider(
       "deepseek",
       fb.model ?? "deepseek-v4-flash",
@@ -742,10 +740,12 @@ export class DREngine {
 
     let decision: unknown;
     try {
-      decision = JSON.parse(result.content || '{"action":"observe","content":"fallback"}');
+      const parsed = JSON.parse(result.content || '{"action":"observe","content":"fallback"}');
+      // 精确约束校验：不符合 schema 视为无效，降级为 observe（不入库、不扩散）
+      decision = isDreDecision(parsed) ? parsed : { action: "observe", content: result.content || input.observation, confidence: 0.5 };
     } catch (err) {
       logger.debug("[DRE] Cloud API response not JSON, using raw content", { error: (err as Error).message });
-      decision = { action: "observe", content: result.content || input.observation };
+      decision = { action: "observe", content: result.content || input.observation, confidence: 0.5 };
     }
 
     return {
@@ -804,5 +804,6 @@ export class DREngine {
     return { decision, shouldReflect, reflection };
   }
 }
+
 
 

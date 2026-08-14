@@ -137,6 +137,34 @@ describe("TokenTracker 多供应商直连价", () => {
   });
 });
 
+describe("TokenTracker 缓存命中零 token 落库", () => {
+  it("cacheHit=true 且 0 token 的记录仍落库（供缓存命中观测）", async () => {
+    const tracker = new TokenTracker(DB_RECORD);
+    try {
+      tracker.record({
+        timestamp: Date.now(),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+        role: "english",
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        latencyMs: 3,
+        contentLength: 10,
+        success: true,
+        fallbackUsed: false,
+        cacheHit: true,
+      });
+      await tracker.flush();
+      const recent = tracker.getRecentUsage(1)[0];
+      expect(recent?.cacheHit).toBe(true);
+      expect(recent?.totalTokens).toBe(0);
+    } finally {
+      await tracker.close();
+    }
+  });
+});
+
 describe("TokenTracker prompt-cache 落库", () => {
   it("记录 cacheHitTokens/cacheMissTokens/cacheHit 并可在 recent usage 读回", async () => {
     const tracker = new TokenTracker(DB_RECORD);
@@ -209,3 +237,4 @@ describe("TokenTracker prompt-cache 落库", () => {
     }
   });
 });
+

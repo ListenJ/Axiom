@@ -161,8 +161,9 @@ function trackCall(
   },
   meta?: { role?: string; taskType?: string }
 ) {
-  const usage = result.usage;
-  if (!usage || !usage.total_tokens) return;
+  // 缓存命中（cacheHit=true）即使 0 token 也要落库（观测 prompt-cache/语义缓存命中）
+  const usage = result.usage ?? {};
+  if (!result.cacheHit && !usage.total_tokens) return;
 
   getTokenTracker().record({
     timestamp: Date.now(),
@@ -1148,5 +1149,6 @@ export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
 export type { TaskRole } from "./model-capability-registry.js";
 export type { ChatMessage, StreamChunkCallback } from "./provider-caller.js";
+
 
 

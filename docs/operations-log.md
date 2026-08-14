@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-08-15 — Bug 排查 + DRE 精确约束 + 核心功能 DSH 插件覆盖核查
+
+- **任务**：①排查代码逻辑遗留 bug ②DRE 提示词优化：向 LLM 发出精确约束完成调用 ③核查核心功能能否作为插件进入 DSH。
+- **工具**：code-review 复核；隔离回归分类。
+- **Bug 修复**：
+  - `src/router/model-router.ts` trackCall：缓存命中（cacheHit=true）即使 0 token 也落库（原实现 `!usage.total_tokens` 直接 return，语义/llm 缓存命中永远不进 token-tracker）。
+  - `src/dre/engine.ts`：decide/cloud 路径此前用自由文本 JSON 提示 + 手工 JSON.parse（无枚举/数值边界校验）→ 改为共享约束模块。
+- **DRE 精确约束（新增 `src/dre/constraints.ts`）**：
+  - `DRE_DECISION_SCHEMA`（action 枚举 observe|reflect|act / content 必填 / confidence 0..1）+ `DRE_DECISION_SYSTEM`（严格 JSON 提示词）+ `isDreDecision`（确定性校验，无 LLM）。
+  - decide 钩子：向 mainLLM 发精确约束提示词，输出不合 schema → 抛出 → 降级链（cloud/rule）真正生效。
+  - cloudConsciousnessStep：systemPrompt 换约束提示词，输出经 isDreDecision 校验，无效降级 observe。
+- **DSH 插件覆盖核查**：确认 MCP 服务器注册 DRE/cache/token/prompt-pool/vault/kg 全部核心工具；`plugins/dsh` 冒烟测试改为断言 7 个代表工具（dre_status/cache_stats/token_stats/rate_tier_status/prompt_pool_status/vault_search/kg_search）均桥接为 `axiom__*`；README 补核心功能映射表。
+- **验证**：tsc 0 错误；205 用例 / 16 文件隔离回归全绿（含新约束测试 4 例、零 token 缓存命中落库测试、插件冒烟）。
+- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+
 ## 2026-08-14 — 全量测试 + 深层场景测试 + 代码质量审核修复
 
 - **任务**：全量测试（基线 4748 过/58 败/6 错）；编写更深使用场景测试；用 code-review skill 审核并修复质量缺陷。

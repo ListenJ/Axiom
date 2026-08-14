@@ -58,6 +58,18 @@ npx -p @deepseek-ai/dsh dsh web --profile web
 
 ## 桥接出的能力（默认）
 
+核心功能覆盖（`axiom__<tool>`，由 Axiom MCP 服务器注册、插件统一桥接）：
+
+| 核心能力 | 代表工具 |
+|---|---|
+| DRE 确定性推理 | `axiom__dre_status` / `axiom__dre_write_knowledge` / `axiom__cognitive_pipeline_run` / `axiom__task_graph_execute` |
+| 缓存优化 | `axiom__cache_stats`（llm/搜索/爬虫/语义答案缓存命中率 + 提示词优化器指标 + prompt-cache 日聚合） |
+| 成本/峰谷 | `axiom__token_stats` / `axiom__token_daily_stats` / `axiom__rate_tier_status` |
+| 提示词优化 | `axiom__prompt_pool_acquire` / `axiom__prompt_pool_status` / `axiom__prompt_pool_metrics` |
+| 知识库 | `axiom__vault_search` / `axiom__kg_search` / `axiom__knowledge_*` |
+
+冒烟测试 `tests/smoke-mcp.test.ts` 断言上述 7 个代表工具均已桥接。
+
 - **工具**：Axiom MCP 服务器全部工具以 `axiom__<name>` 暴露，例如
   `axiom__vault_search`、`axiom__token_stats`、`axiom__token_daily_stats`、
   `axiom__rate_tier_status`、`axiom__prompt_pool_acquire`、`axiom__kg_search` 等。
@@ -91,3 +103,4 @@ node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
   `ctx.get` 这几个稳定接缝，并以结构性类型解耦 `@deepseek-ai/*`，避免随版本漂移。
 - `/axiom` 代理仅覆盖 HTTP；WebSocket 升级不代理。
 - 插件本身不携带任何模型密钥；Axiom 的 `.env`（含密钥）留在仓库根，不入 git。
+

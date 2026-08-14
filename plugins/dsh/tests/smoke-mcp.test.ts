@@ -46,3 +46,4 @@ describe('smoke: Axiom MCP server bridge', () => {
     { timeout: 120_000 },
   )
 })
+
