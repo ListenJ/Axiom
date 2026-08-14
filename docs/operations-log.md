@@ -4875,4 +4875,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/token-tracker-cost.test.ts（3）+ frontend/src/components/chat-panels-usage.test.tsx（1）
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（四轮更新）
 - Verification: 前端 49 文件/298 测试全绿 + tsc 干净 + eslint 0；后端 61/61 全绿 + tsc exit 0。
-- Commit: <PENDING>
+- Commit: 073c373
