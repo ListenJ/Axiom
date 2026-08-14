@@ -20,7 +20,7 @@
   - cloudConsciousnessStep：systemPrompt 换约束提示词，输出经 isDreDecision 校验，无效降级 observe。
 - **DSH 插件覆盖核查**：确认 MCP 服务器注册 DRE/cache/token/prompt-pool/vault/kg 全部核心工具；`plugins/dsh` 冒烟测试改为断言 7 个代表工具（dre_status/cache_stats/token_stats/rate_tier_status/prompt_pool_status/vault_search/kg_search）均桥接为 `axiom__*`；README 补核心功能映射表。
 - **验证**：tsc 0 错误；205 用例 / 16 文件隔离回归全绿（含新约束测试 4 例、零 token 缓存命中落库测试、插件冒烟）。
-- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+- **Commit**：`f009e61`（推送 origin/codex/self-evolving-agent）
 
 ## 2026-08-14 — 全量测试 + 深层场景测试 + 代码质量审核修复
 
@@ -4986,6 +4986,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
 - Commit: ccbd6f5
+
 
 
 
