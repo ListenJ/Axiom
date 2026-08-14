@@ -1389,19 +1389,22 @@ MCP tool: cognitive_state
 |------|--------|------|
 | `DRE_DB_PATH` | `"./data/dre.db"` | SQLite 数据库路径 |
 | `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | 本地 LLM API 地址 |
-| `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型 |
+| `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型（OpenAI 兼容端点可填云端模型） |
+| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向云端端点时必填；本地 llama.cpp 可省略） |
 | `DRE_LLM_TEMPERATURE` | `0` | 推理温度 |
 | `DRE_LLM_TOP_K` | `1` | Top-K 采样 |
 | `DRE_LLM_SEED` | `42` | 随机种子 (确定性) |
 | `DRE_DISCRIMIN_URL` | — | 甄别模型 API 地址 (可选) |
 | `DRE_DISCRIMIN_MODEL` | `"qwen3-0.6b-instruct"` | 甄别模型 |
+| `DRE_DISCRIMIN_API_KEY` | — | 甄别模型 API Key（可选） |
 | `DRE_TICK_INTERVAL` | `10000` | Kernel tick 间隔 (ms) |
 | `DRE_AUTO_TICK` | `true` | 是否自动启动 tick 循环 |
 | `DRE_WORKING_MEMORY_CAPACITY` | `16` | 工作记忆容量 |
 | `DRE_EPISODIC_TTL` | `3600000` | 情景记忆 TTL (ms) |
 | `DEEPSEEK_API_KEY` | — | 云降级 API Key |
-| `DEEPSEEK_MODEL` | `"deepseek-chat"` | 云模型 |
-| `DEEPSEEK_BASE_URL` | `"https://api.deepseek.com"` | 云 API 地址 |
+| `DEEPSEEK_MODEL` | `"deepseek-v4-flash"` | 云降级模型（cloudFallback 真实生效，非布尔开关） |
+| `DEEPSEEK_BASE_URL` | `"https://api.deepseek.com/v1"` | 云降级端点 |
+| `AXIOM_DRE_ENABLED` | `1` | 主服务宿主集成开关（0 关闭 /dre/run 与 /pipeline/stream 观测） |
 
 ### 5.2 启动配置
 
@@ -1421,15 +1424,21 @@ const kernel = new Kernel({
 await kernel.init();
 ```
 
+> **P2 主服务集成（2026-08-14）**：`src/main.ts` 启动时经 `src/dre/host.ts` 初始化 Kernel
+> （`AXIOM_DRE_ENABLED=0` 关闭；失败不阻断主服务）。新增 `POST /dre/run`（纯确定性
+> `CognitivePipeline.run`，零 LLM），与 `GET /pipeline/stream` SSE 同进程共享同一 eventBus
+> 单例，观测链路天然打通。MCP 侧 `dre-*` 工具统一走 `getKernelAsync()`（等待 init、
+> 失败返回明确错误）。
+
 ---
 
 ## 六、测试覆盖
 
-**测试文件:** `tests/dre-core-modules.test.ts` — 93 个测试, 全部通过。
+**测试文件:** `tests/dre-*.test.ts` + `tests/dre-host-integration.test.ts` — **244 个测试, 全部通过**（其中 dre-core-modules 93 个）。
 
 | 度量 | 值 |
 |------|-----|
-| 测试总数 | 93 |
+| 测试总数 | 244 |
 | 失败 | 0 |
 | 跳过 | 0 |
 | describe 组 | 22 |
@@ -1542,3 +1551,4 @@ await kernel.init();
 | CognitivePipeline 工具执行器 | `cognitive-pipeline.ts` | `setToolExecutor()` — 透传到 TaskGraph |
 | MCP server 集成 | `server.ts` | CognitivePipeline 创建时自动注入 `registry.buildHttpHandlers()` 作为工具执行器 |
 | 共享 TaskGraph 工厂 | `cognitive-pipeline.ts` | `executeTaskGraph()` — 消除 48 行全等代码 |
+

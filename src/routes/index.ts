@@ -5,6 +5,7 @@ import type { RouteContext, RouteHandler } from "./types.js";
 import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm, handlePermissionMode } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
+import { handleDreRun } from "./dre.js";
 import { handleListToolInvocations, handleToolExecute } from "./tools.js";
 import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
 import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
@@ -222,6 +223,8 @@ const handlers: RouteHandler[] = [
   handlePermissionMode,
   // Pipeline SSE
   handlePipelineStream,
+  // DRE deterministic reasoning (POST /dre/run)
+  handleDreRun,
   // Agent interaction traces
   handleTraceList,
   handleTraceDetail,
@@ -290,6 +293,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/v1/chat/completions", handler: handleOpenAIChatCompletions },
     // Pipeline SSE
     { method: "GET", path: "/pipeline/stream", handler: handlePipelineStream },
+    // DRE deterministic reasoning
+    { method: "POST", path: "/dre/run", handler: handleDreRun },
 
     // Search
     { method: "GET", path: "/search", handler: handleVaultSearch },
@@ -577,3 +582,4 @@ export function defaultResponse(ctx: RouteContext): Response {
     ],
   }, 404, ctx.baseHeaders);
 }
+

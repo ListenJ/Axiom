@@ -89,6 +89,7 @@ import {
 import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 import { initializeComponentKernel } from "./agents/component-bootstrap.js";
+import { initDreKernel, shutdownDreKernel } from "./dre/host.js";
 
 // ════════════════════════════════════════════════════════════════
 // 数学突破模型 (Math Breakthroughs)
@@ -141,6 +142,18 @@ const componentKernel = await initializeComponentKernel();
 logger.info("[ComponentKernel] Native Day0 components initialized", {
   components: componentKernel.list().length,
 });
+
+// ════════════════════════════════════════════════════════════════
+// DRE 确定性推理引擎 — 主服务宿主集成 (P2)
+// 单进程内初始化 Kernel，与 /pipeline/stream、/dre/run 共享同一 eventBus，
+// 观测链路天然打通。失败不阻断主服务（DRE 是增强能力，非核心依赖）；
+// AXIOM_DRE_ENABLED=0 关闭。
+// ════════════════════════════════════════════════════════════════
+const dreKernel = await initDreKernel().catch((err) => {
+  logger.error("[DRE] Host integration init failed (continuing without DRE)", err as Error);
+  return null;
+});
+logger.info("[DRE] Host integration state", { ready: dreKernel !== null });
 
 // ===== 环境验证 =====
 const envValidation = validateEnv({ strict: false, exitOnError: false });
@@ -767,6 +780,7 @@ registerShutdownHook({ name: "vault", handler: () => vault?.close(), priority: 7
 registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50 });
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "component-kernel", handler: async () => { await componentKernel.dispose(); }, priority: 60 });
+registerShutdownHook({ name: "dre-kernel", handler: async () => { await shutdownDreKernel(); }, priority: 55 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().destroy(), priority: 35 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
@@ -805,3 +819,5 @@ logger.info(`╔═════════════════════�
 ║ API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
+
+

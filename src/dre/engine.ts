@@ -689,7 +689,11 @@ export class DREngine {
   }
 
   /**
-   * 云 API 降级: 通过 router.chat 调用云模型
+   * 云 API 降级: 直接使用 cloudFallback.baseUrl/model/apiKey 调用 OpenAI 兼容端点。
+   *
+   * 设计说明：cloudFallback 的三个字段（baseUrl/model/apiKey）是真实请求参数，
+   * 而非仅当布尔开关——若只靠主路由，DRE 就失去了自包含性，也无法在
+   * 主路由未配置对应 provider 时独立工作。调用方显式传入这些值，绕过模型路由。
    */
   private async cloudConsciousnessStep(input: {
     observation: string;
@@ -699,17 +703,30 @@ export class DREngine {
     shouldReflect: boolean;
     reflection?: ReflectionResult;
   }> {
-    const { router } = await import("../router/model-router.js");
+    const fb = this.config.cloudFallback;
+    if (!fb?.apiKey) {
+      throw new Error("[DRE] cloudFallback 未配置 apiKey，无法执行云端降级");
+    }
+    const { callProvider } = await import("../router/provider-caller.js");
 
     const systemPrompt = `你是一个确定性推理引擎的意识流处理器。
 当前工作记忆中的观察内容如下。
 请根据观察内容做出决策，输出JSON格式:
 {"action": "observe|reflect|act", "content": "...", "confidence": 0.0-1.0}`;
 
-    const result = await router.chat("general-chat", [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: input.observation },
-    ]);
+    const result = await callProvider(
+      "deepseek",
+      fb.model ?? "deepseek-v4-flash",
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: input.observation },
+      ],
+      30000,
+      0,
+      undefined,
+      undefined,
+      { baseURL: fb.baseUrl, apiKey: fb.apiKey },
+    );
 
     let decision: unknown;
     try {
@@ -775,3 +792,4 @@ export class DREngine {
     return { decision, shouldReflect, reflection };
   }
 }
+

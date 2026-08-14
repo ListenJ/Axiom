@@ -44,6 +44,15 @@ function envKeysReadInSource(): Set<string> {
       if (key) keys.add(key);
     }
   }
+  // ConfigLoader 用变量间接 readString(envKey)，字面量在 ENV_MAP 对象键里，需单独扫描
+  const envMapRe = /^\s*([A-Z_][A-Z_0-9]*):\s*"/gm;
+  for (const file of walk(path.join(ROOT, "src/dre"))) {
+    const text = fs.readFileSync(file, "utf8");
+    let m: RegExpExecArray | null;
+    while ((m = envMapRe.exec(text)) !== null) {
+      keys.add(m[1]);
+    }
+  }
   return keys;
 }
 
@@ -83,3 +92,4 @@ describe("env 模板完整性", () => {
     }
   });
 });
+

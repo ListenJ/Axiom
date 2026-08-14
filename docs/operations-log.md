@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-14 — DRE 开箱即用（P0-P3）+ Agent 执行安全提示词 + 单模型/省 token 确认
+
+- **任务**：把 DRE 从"可用但未出厂"提升为"开箱即用"：修复配置缺口（apiKey/云降级死结/env 模板）、运行时稳定性（Kernel 竞态）、主服务集成（/dre/run + eventBus 共享）；并按用户要求写入 Agent 底层执行提示词（权限分级 + 沙箱验证优先 + 毁灭性操作终止）；确认单模型接入/本地搜索+DRE 省 token/跨会话记忆。
+- **工具**：主线程实现 + 真实冒烟（Kernel init + /dre/run 端到端）。
+- **操作（文件级）**：
+  - P0 `src/dre/config.ts`：ConfigLoader 新增 DRE_LLM_API_KEY/DRE_DISCRIMIN_API_KEY 注入 mainLLM/discriminLLM；云默认模型 deepseek-chat→deepseek-v4-flash、端点补 /v1；远程端点缺 key 启动告警。
+  - P0 `src/dre/engine.ts`：cloudConsciousnessStep 改用 cloudFallback.baseUrl/model/apiKey 直连（callProvider override），不再仅当布尔开关。
+  - P0 `.env.example`：新增「十六、DRE 配置」段（DRE_* + AXIOM_DRE_ENABLED）+ AXIOM_AGENT_PERMISSION；`tests/env-example-completeness.test.ts` 扩展扫描 ConfigLoader ENV_MAP。
+  - P1 `src/mcp/server/dre-tools.ts`：getKernel()→getKernelAsync()，init 被 await、失败抛 "DRE Engine is not ready or failed to initialize"、不吞错、可重试。
+  - P2 `src/dre/host.ts`（新）+ `src/routes/dre.ts`（新）+ `src/routes/index.ts` + `src/main.ts`：主服务启动初始化 Kernel（AXIOM_DRE_ENABLED=0 关闭，失败不阻断主服务）；POST /dre/run（纯确定性 CognitivePipeline.run）；与 /pipeline/stream 同进程共享 eventBus；shutdown hook priority 55。
+  - 第 1 点 `src/agents/constitution.ts`：新增「执行安全与权限」章节（权限档位 readonly/readwrite/full，env AXIOM_AGENT_PERMISSION；沙箱验证优先；rm -rf/无备份删除/reset --hard/force push 等毁灭性操作直接终止）。
+  - P3 `docs/AXIOM-ARCHITECTURE.md`：§六 测试数 93→244；§5.1 补 DRE_LLM_API_KEY/DRE_DISCRIMIN_API_KEY/AXIOM_DRE_ENABLED，修正云模型默认；§5.2 追加 P2 集成说明。
+  - 测试：`tests/dre-host-integration.test.ts`（新，ConfigLoader apiKey + initDreKernel + /dre/run 200/503）、`tests/constitution-safety.test.ts`（新，权限映射 + 安全章节断言）。
+- **验证**：tsc --noEmit 0 错误；DRE 全量 + 宿主集成 + 宪法安全 + env 模板 + 路由 266 用例全过；真实 /dre/run 冒烟返回 200 且 6 阶段确定性管道跑通；单模型接入（deepseek 兜底全角色）、SearXNG 免 key 本地搜索默认启用、DRE 确定性 0 token 均已确认。
+- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+
 ## 2026-08-14 — 项目本体优化：语义答案缓存 + 确定性温度 + env 模板完整化
 
 - **任务**：插件工作暂缓，回归项目本体优化——缓存优化落地到真实链路、配置模板完整化（不写死、可配置）。
