@@ -4904,4 +4904,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 .env.example（COST_CNY_PER_USD）+ 扩展 rate-tier-pricing / chat-panels-usage / Perf.test
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
-- Commit: <PENDING>
+- Commit: ccbd6f5
