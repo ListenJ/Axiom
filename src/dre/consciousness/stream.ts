@@ -382,12 +382,17 @@ export class ConsciousnessStream extends EventEmitter {
   private lastReflectionAt: number = 0;
   private reflectionCount: number = 0;
 
+  private readonly decideFn?: (observation: string) => Promise<unknown>;
+
   constructor(options?: {
     workingMemoryCapacity?: number;
     episodicTTL?: number;
     maxTraceLength?: number;
+    /** 决策钩子：由宿主注入真实 LLM 调用（失败需抛出以便降级链生效）；缺省返回基础 observe */
+    decide?: (observation: string) => Promise<unknown>;
   }) {
     super();
+    this.decideFn = options?.decide;
 
     this.workingMemory = new WorkingMemory(options?.workingMemoryCapacity ?? 16);
     this.episodicMemory = new EpisodicMemory(options?.episodicTTL ?? 3600000);
@@ -467,7 +472,10 @@ export class ConsciousnessStream extends EventEmitter {
    * 决策 (可由外部 Agent 覆盖)
    */
   protected async decide(observation: string): Promise<unknown> {
-    // 默认实现：返回观察内容
+    // 注入的钩子优先；缺省返回观察内容（保持原行为）
+    if (this.decideFn) {
+      return this.decideFn(observation);
+    }
     return { action: "observe", content: observation };
   }
 
@@ -570,3 +578,4 @@ export class ConsciousnessStream extends EventEmitter {
     return hash.toString(16);
   }
 }
+

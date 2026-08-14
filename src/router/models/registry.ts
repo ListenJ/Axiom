@@ -165,7 +165,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "deepseek-v4-pro",
     provider: "deepseek",
     model: "deepseek-v4-pro",
-    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "deep_research", "math", "evaluation"],
+    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "deep_research", "math", "evaluation", "main_coding"],
     contextWindow: 1000000,
     isFree: false,
     tags: ["main", "reasoning", "coding", "chinese"],
@@ -182,7 +182,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "deepseek-v4-flash",
     provider: "deepseek",
     model: "deepseek-v4-flash",
-    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
     contextWindow: 1000000,
     isFree: false,
     tags: ["fast", "coding", "chinese"],
@@ -906,7 +906,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "nim-deepseek-v4-flash",
     provider: "nvidia-nim",
     model: "deepseek-ai/deepseek-v4-flash",
-    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
     contextWindow: 163840,
     isFree: false,
     tags: ["fast", "coding", "nim"],
@@ -1026,6 +1026,7 @@ export function listAllRoles(): TaskRole[] {
   }
   return Array.from(roles);
 }
+
 
 
 

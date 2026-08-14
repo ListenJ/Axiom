@@ -4,7 +4,7 @@ import path from 'node:path'
 import { buildServerEnv, probeHealth, stopChild, spawnAxiomServer, type AxiomServerHandle } from '../src/server.js'
 import { normalizeConfig } from '../src/config.js'
 
-const REPO = path.resolve(process.cwd(), '..', '..')
+const REPO = path.resolve(import.meta.dir, '..', '..', '..')
 const config = normalizeConfig({ axiomHome: REPO }, 'file:///C:/repo/plugins/dsh/src/index.ts')
 
 describe('buildServerEnv', () => {

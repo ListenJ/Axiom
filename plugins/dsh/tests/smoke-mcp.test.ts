@@ -8,7 +8,7 @@ import { describe, test, expect } from 'bun:test'
 import path from 'node:path'
 import { createMcpBridge } from '../src/mcp-bridge.js'
 
-const REPO = path.resolve(process.cwd(), '..', '..')
+const REPO = path.resolve(import.meta.dir, '..', '..', '..')
 
 function makeCtx() {
   const registered: Array<{ name: string }> = []
@@ -46,4 +46,3 @@ describe('smoke: Axiom MCP server bridge', () => {
     { timeout: 120_000 },
   )
 })
-

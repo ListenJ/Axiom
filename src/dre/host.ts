@@ -35,7 +35,12 @@ export async function initDreKernel(): Promise<Kernel | null> {
       kernel = k;
       logger.info("[DRE] Kernel ready (host integration)", { state: k.getStatus().state });
       return k;
-    })();
+    })().catch((err) => {
+      // 启动失败：复位 promise 与 kernel，允许下次调用重试（而非永久复用失败 promise）
+      startPromise = null;
+      kernel = null;
+      throw err;
+    });
   }
   return startPromise;
 }
@@ -53,4 +58,5 @@ export async function shutdownDreKernel(): Promise<void> {
   }
   startPromise = null;
 }
+
 

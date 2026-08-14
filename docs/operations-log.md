@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-08-14 — 全量测试 + 深层场景测试 + 代码质量审核修复
+
+- **任务**：全量测试（基线 4748 过/58 败/6 错）；编写更深使用场景测试；用 code-review skill 审核并修复质量缺陷。
+- **工具**：code-review skill（正确性/安全/性能/可维护性/测试 五维）；全量 + 隔离复跑分类。
+- **发现与修复**：
+  - **插件测试 cwd 脆弱**（真实回归）：plugins/dsh/tests 用 process.cwd() 定位仓库根，全量从根跑时失效 → 改为 import.meta.dir（23/23 全过，含真实 MCP 冒烟）。
+  - **单模型接入缺口**（深层测试抓出）：english/coding/main_coding/rl/memory/intent-classifier 无 deepseek 候选（main_coding 等甚至 0 候选）→ 注册表给 deepseek-v4-flash 补这些角色、v4-pro 补 main_coding；vision(computer-use)/embedding 按设计例外。单模型 deepseek key 现可激活全部可操作角色。
+  - **DRE 降级链形同虚设**（code-review + 场景测试抓出）：ConsciousnessStream.decide() 默认实现不调 LLM（返回 trivial observe）→ consciousnessStep 的"L1 本地 LLM"从不使用 mainLLM，三级降级永远停在 local。修复：构造器加 decide 钩子，DREngine 用 mainLLM 接线（失败抛出 → 降级链真正生效），并顺手把 workingMemoryCapacity/episodicTTL 从硬编码改为取 config。
+  - **host.ts 启动失败 promise 未复位**（code-review）：失败后永久复用失败 promise → 改为失败复位可重试。
+- **新增深层场景测试**：`tests/dre-scenarios.test.ts`（宿主开关、知识写入闭环、LLM 降级链、跨会话 blackboard 记忆）、`tests/single-model-activation.test.ts`（全角色 deepseek 兜底、仅 DEEPSEEK key 的 provider 集）。
+- **全量分类**：第二次全量 4752 过/54 败/6 错；剩余 54 项隔离全过、全量必现 → 并行资源/共享 SQLite（data/llm-cache.db 等）干扰，属既有基础设施问题（本轮改动全部通过隔离回归）。
+- **验证**：tsc 0 错误；339 用例 / 29 文件隔离回归全绿（DRE 全量 + router/skill/tool-loop/单模型/宪法/语义缓存/插件）。
+- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+
 ## 2026-08-14 — DRE 开箱即用（P0-P3）+ Agent 执行安全提示词 + 单模型/省 token 确认
 
 - **任务**：把 DRE 从"可用但未出厂"提升为"开箱即用"：修复配置缺口（apiKey/云降级死结/env 模板）、运行时稳定性（Kernel 竞态）、主服务集成（/dre/run + eventBus 共享）；并按用户要求写入 Agent 底层执行提示词（权限分级 + 沙箱验证优先 + 毁灭性操作终止）；确认单模型接入/本地搜索+DRE 省 token/跨会话记忆。

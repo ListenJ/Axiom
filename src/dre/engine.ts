@@ -152,6 +152,18 @@ export class DREngine {
     this.consciousness = new ConsciousnessStream({
       workingMemoryCapacity: config.workingMemoryCapacity ?? 16,
       episodicTTL: config.episodicTTL ?? 3600000,
+      // 决策钩子：用 mainLLM 做 JSON 决策（失败抛出 → consciousnessStep 降级链真正生效）
+      decide: async (observation: string) => {
+        const resp = await this.mainLLM.generate(observation, {
+          system: "你是确定性推理引擎的意识流处理器。根据观察输出 JSON: {action: observe|reflect|act, content, confidence 0.0-1.0}",
+          maxTokens: 256,
+        });
+        try {
+          return JSON.parse(resp.content);
+        } catch {
+          return { action: "observe", content: resp.content, confidence: 0.5 };
+        }
+      },
     });
 
     // 注册反思事件
@@ -792,4 +804,5 @@ export class DREngine {
     return { decision, shouldReflect, reflection };
   }
 }
+
 

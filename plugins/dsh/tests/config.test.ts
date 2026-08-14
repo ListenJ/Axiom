@@ -2,7 +2,7 @@ import path from 'node:path'
 import { describe, test, expect } from 'bun:test'
 import { normalizeConfig, resolveAxiomHome, normalizeProxyPath, checkAxiomHome, configSummary } from '../src/config.js'
 
-const REPO = path.resolve(process.cwd(), '..', '..')
+const REPO = path.resolve(import.meta.dir, '..', '..', '..')
 const HERE = 'file:///C:/repo/plugins/dsh/src/index.ts'
 
 describe('resolveAxiomHome', () => {
