@@ -5057,3 +5057,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/MIND-SYNAPSE.md（设计、操作、配置、追溯示例）
 - Verification: bun test --parallel=8 ./tests 2483 pass / 28 skip / 0 fail（原 2475，+8）；bunx tsc --noEmit exit 0。
 - Commit: 9f572aa
+
+## 2026-08-15 - 前端视觉场景适配（文本引导 + 无头定位 + 启动用户浏览器）
+
+- Task: 需求 3——无视觉模型时文本引导（基于 CDP 可交互元素精确坐标）、无头浏览器精确定位、启动用户默认浏览器（Win/Linux/macOS），并给 ComputerUseAgent 增加视觉→文本引导自动降级。
+- Tools: bun test / bunx tsc / node 补丁脚本 / git。
+- Files:
+  - 新增 src/computer-use/text-guide.ts（buildTextGuide/elementsToMarkdown/suggestActions，纯函数）
+  - 新增 src/computer-use/locate.ts（filterElementsByQuery 纯函数 + locateOnPage CDP 定位）
+  - 新增 src/computer-use/browser-launch.ts（resolveOpenCommand 纯函数：win32 cmd start / linux xdg-open / darwin open + launchUserBrowser Bun.spawn）
+  - 新增 src/mcp/server/browser-tools.ts（browser_guide / browser_locate / browser_locate_local / browser_launch）
+  - 修改 src/agents/computer-use-agent.ts（analyzeWithFallback：无视觉模型→文本引导不抛错；analyzeScreenshotWithFallback 导出）
+  - 修改 src/mcp/server.ts（注册 browser 工具）
+  - 新增 tests/computer-use/{text-guide,locate,browser-launch,agent-fallback}.test.ts（15 用例）
+  - 新增 docs/BROWSER-VISION-ADAPTATION-2026-08-15.md
+- Verification: bun test --parallel=8 ./tests 2498 pass / 28 skip / 0 fail（原 2483，+15）；bunx tsc --noEmit exit 0。
+- Commit: <hash>

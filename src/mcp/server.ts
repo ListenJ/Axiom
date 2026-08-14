@@ -53,6 +53,7 @@ import { queryTool } from "../tools/query-tool.js";
 import { RecoverableOutputStore, wrapWithRecoverableOutput } from "../components/recoverable-output.js";
 import { registerRecoverableOutputTools } from "./server/recoverable-output-tools.js";
 import { registerMindTools } from "./server/mind-tools.js";
+import { registerBrowserTools } from "./server/browser-tools.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
@@ -320,6 +321,7 @@ registerNativeTools(registry);
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
 registerDreTools(registry);
 registerMindTools(registry);
+registerBrowserTools(registry);
 
 // ===== KG / DIP / KAL 工具 (extracted to server/kg-tools.ts) =====
 registerKgTools(registry, db);
