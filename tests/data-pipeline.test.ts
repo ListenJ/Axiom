@@ -1,7 +1,19 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, spyOn } from "bun:test";
 import { DataPipeline } from "../src/crawl/data-pipeline.js";
 
 describe("DataPipeline", () => {
+  // 确定性：mock 网络，避免对 example.com / DDG 的真实请求（离线/慢网下超时）
+  let fetchSpy: ReturnType<typeof spyOn>;
+
+  beforeAll(() => {
+    fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+      (async () => new Response("<html><head><title>Example</title></head><body><h1>Example Domain</h1><p>hello</p></body></html>", { status: 200, headers: { "content-type": "text/html" } })) as unknown as typeof fetch
+    );
+  });
+
+  afterAll(() => {
+    fetchSpy.mockRestore();
+  });
   let pipeline: DataPipeline;
 
   beforeEach(() => {

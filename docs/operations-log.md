@@ -5110,3 +5110,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/CAPABILITIES-2026-08-15.md（工程基线/页面测试/心智模块/视觉适配/约束注入/质量门禁汇总）
 - Verification: bun test --parallel=8 ./tests 2503 pass / 28 skip / 0 fail；bunx tsc --noEmit exit 0。
 - Commit: 6711518
+
+## 2026-08-15 - 插件兼容契约测试 + 并发测试 + Cache ttl=0 真 bug 修复
+
+- Task: 需求 2 余项（插件 hooks/tools/skill/MCP 兼容契约）+ 需求 4（并发效果测试）；工程测试发现的 Cache ttl=0 语义真 bug 修复 + data-pipeline 网络测试确定性化。
+- Tools: bun test / bunx tsc / node / git。
+- Files:
+  - 新增 tests/plugin-compatibility.test.ts（4）+ tests/fixtures/{hook-plugin,legacy-plugin}/index.js：现代契约（tools+hooks onEnable/onDisable 验证、enable 注册/disable 卸载）、旧版 activate(ctx) 契约、插件工具与 skill 工具共存、registerWithMcp 双传输注册
+  - 新增 tests/dre-synapse-concurrency.test.ts（3）：50 并发激活精确累计 + 验证链完整、并发扩散多种子、并发 suggest 幂等
+  - 修改 src/utils/cache.ts（真 bug：ttl=0 原为"立即过期"，改为"永不过期"（NO_EXPIRY sentinel）+ Redis TTL 上限保护）——由 network-resilience LRU 风暴用例在负载下暴露
+  - 修改 tests/data-pipeline.test.ts（mock 全局 fetch，消除 example.com/DDG 真实网络超时）
+- Verification: bun test --parallel=8 ./tests 连续 2 次 2538 tests / 0 fail；bunx tsc --noEmit exit 0。
+- Commit: <hash>

@@ -10,6 +10,9 @@ import { createHash } from "crypto";
 import { getRedisClient, type RedisClient } from "./redis-client.js";
 import { logger } from "./logger.js";
 
+/** ttl=0 语义：永不过期（L1 内存保留；LRU 仍按 maxSize 淘汰） */
+const NO_EXPIRY_MS = Number.MAX_SAFE_INTEGER;
+
 interface CacheEntry<V> {
   value: V;
   expiresAt: number;
@@ -45,7 +48,7 @@ export class Cache<V = unknown> {
   constructor(opts: CacheOptions = {}) {
     this.opts = {
       maxSize: opts.maxSize ?? 1000,
-      defaultTtlMs: opts.defaultTtlMs ?? 5 * 60 * 1000,
+      defaultTtlMs: (opts.defaultTtlMs ?? 5 * 60 * 1000) === 0 ? NO_EXPIRY_MS : (opts.defaultTtlMs ?? 5 * 60 * 1000),
       persistent: opts.persistent ?? false,
       dbPath: opts.dbPath ?? "./data/agent.db",
       namespace: opts.namespace ?? "default",
@@ -194,7 +197,7 @@ export class Cache<V = unknown> {
   /** 设置缓存值 — L1 + L2 + L3 */
   set(key: string, value: V, ttlMs?: number): void {
     const fullKey = this.key(key);
-    const effectiveTtl = (typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? ttlMs : this.opts.defaultTtlMs;
+    const effectiveTtl = (typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? (ttlMs === 0 ? NO_EXPIRY_MS : ttlMs) : this.opts.defaultTtlMs;
     const expiresAt = Date.now() + effectiveTtl;
 
     // L1: 内存
@@ -215,7 +218,7 @@ export class Cache<V = unknown> {
     // L2: Redis (异步，不阻塞)
     if (this.redisReady && this.redis) {
       const redisKey = `${this.opts.namespace}:${key}`;
-      const redisTtl = Math.floor((this.opts.redisTtlMs ?? effectiveTtl) / 1000);
+      const redisTtl = Math.min(Math.floor((this.opts.redisTtlMs ?? effectiveTtl) / 1000), 2147483647);
       this.redis.set(redisKey, JSON.stringify(value), redisTtl).catch((err) => {
         logger.debug("[Cache] Redis write failed", { error: (err as Error).message });
       });
