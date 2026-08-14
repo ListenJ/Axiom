@@ -15,7 +15,7 @@ describe("MindAdvisor", () => {
   });
 
   it("recordInduction 把场景关键词写成突触，后续同场景可被建议", async () => {
-    const induction: Induction = { pattern: "遇到 SQLite 锁先设 busy_timeout", support: 3, successRate: 1 };
+    const induction: Induction = { pattern: "遇到 SQLite 锁先设 busy_timeout", support: 3, successRate: 1, recommendation: "加 busy_timeout" };
     const n = advisor.recordInduction(induction, "sqlite database lock busy timeout 修复");
     expect(n).toBeGreaterThan(0);
 
@@ -38,7 +38,7 @@ describe("MindAdvisor", () => {
       synapse,
       lessonsProvider: async () => ["教训：测试并行度限制为 8"],
     });
-    adv.recordInduction({ pattern: "限并行度", support: 2, successRate: 1 }, "parallel worker 并行 测试");
+    adv.recordInduction({ pattern: "限并行度", support: 2, successRate: 1, recommendation: "限并行度" }, "parallel worker 并行 测试");
     const result = await adv.suggest("高并行 worker 跑测试", "稳定全绿", { limit: 5 });
     expect(result.lessons.length).toBe(1);
     expect(result.suggestions.length).toBeGreaterThanOrEqual(1);
