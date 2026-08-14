@@ -19,7 +19,7 @@
 - **新增深层场景测试**：`tests/dre-scenarios.test.ts`（宿主开关、知识写入闭环、LLM 降级链、跨会话 blackboard 记忆）、`tests/single-model-activation.test.ts`（全角色 deepseek 兜底、仅 DEEPSEEK key 的 provider 集）。
 - **全量分类**：第二次全量 4752 过/54 败/6 错；剩余 54 项隔离全过、全量必现 → 并行资源/共享 SQLite（data/llm-cache.db 等）干扰，属既有基础设施问题（本轮改动全部通过隔离回归）。
 - **验证**：tsc 0 错误；339 用例 / 29 文件隔离回归全绿（DRE 全量 + router/skill/tool-loop/单模型/宪法/语义缓存/插件）。
-- **Commit**：`<待回填>`（推送 origin/codex/self-evolving-agent）
+- **Commit**：`87ccf6f`（推送 origin/codex/self-evolving-agent）
 
 ## 2026-08-14 — DRE 开箱即用（P0-P3）+ Agent 执行安全提示词 + 单模型/省 token 确认
 
@@ -4971,6 +4971,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
 - Commit: ccbd6f5
+
 
 
 
