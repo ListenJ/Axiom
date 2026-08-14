@@ -5087,4 +5087,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 knowledge-base/practice-manual/entries.md（人类可读镜像）
   - 新增 tests/dre-constraint-injection.test.ts（7 用例：命中/约束块/注入位置/幂等/未命中）
 - Verification: bun test --parallel=8 ./tests 2505 pass / 28 skip / 0 fail（原 2498，+7）；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 5b15800
