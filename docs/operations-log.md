@@ -5021,4 +5021,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - frontend/src/pages/Agents.test.tsx（2：智能体列表；代码审查执行）
   - frontend/src/pages/Tokens.test.tsx（2：/api/token-details 统计卡+图表；无数据空态）
 - Verification: frontend 55 文件 / 314 测试全绿（原 49/299）；npm run lint（tsc+eslint）exit 0；npm run build 成功。
-- Commit: <hash>
+- Commit: 0da9df3
