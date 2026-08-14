@@ -38,12 +38,18 @@ const BUDGETS: Record<ReasoningEffort, number> = {
  * 生成指定供应商的思考强度请求参数（追加到请求体）。
  * 无对应参数规范的供应商返回空对象，调用方可安全展开。
  */
-export function buildReasoningParams(provider: string, effort: string | undefined | null): Record<string, unknown> {
+export function buildReasoningParams(
+  provider: string,
+  effort: string | undefined | null,
+  opts?: { thinking?: boolean },
+): Record<string, unknown> {
   const level = normalizeEffort(effort);
+  // DeepSeek 思考模式默认开启；opts.thinking === false 时下发 disabled（非思考模式）
+  const thinkingEnabled = opts?.thinking !== false;
 
   switch (provider) {
     case "deepseek":
-      return { thinking: { type: "enabled" }, reasoning_effort: level };
+      return { thinking: { type: thinkingEnabled ? "enabled" : "disabled" }, reasoning_effort: level };
     case "kimi":
       // K2.x 兼容：thinking.type 开启 + reasoning_effort 透传（K3 亦接受）
       return { thinking: { type: "enabled" }, reasoning_effort: level };

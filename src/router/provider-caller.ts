@@ -11,12 +11,27 @@ export interface ChatMessage {
   tool_calls?: ToolCall[];
   /** tool 消息回填的调用 id */
   tool_call_id?: string;
+  /** DeepSeek 思考模式：工具轮次必须回传的思维链（官方 400 约束） */
+  reasoning_content?: string;
 }
 
 export type StreamChunkCallback = (chunk: string) => void;
 
 const MAX_REQUEST_BYTES = 1 * 1024 * 1024;
 const MAX_CONTEXT_CHARS = 600_000;
+
+/**
+ * 仅 DeepSeek 识别 reasoning_content 扩展字段；发送给其他 OpenAI 兼容供应商前剥离，
+ * 避免未知字段被上游拒绝/污染上下文。
+ */
+function sanitizeMessages(provider: string, messages: ChatMessage[]): ChatMessage[] {
+  if (provider === "deepseek") return messages;
+  return messages.map((m) => {
+    if (!m.reasoning_content) return m;
+    const { reasoning_content: _drop, ...rest } = m;
+    return rest;
+  });
+}
 
 export interface NativeStreamResult {
   content: string;
@@ -34,7 +49,7 @@ export async function callProvider(
   temperature = 0.7,
   reasoningEffort?: string,
   tools?: ToolCallDef[],
-  override?: { baseURL?: string; apiKey?: string },
+  override?: { baseURL?: string; apiKey?: string; thinking?: boolean },
   maxTokens?: number,
   signal?: AbortSignal
 ): Promise<{
@@ -91,10 +106,10 @@ export async function callProvider(
       headers,
       body: JSON.stringify({
         model,
-        messages,
+        messages: sanitizeMessages(provider, messages),
         temperature,
         ...(maxTokens ? { max_tokens: maxTokens } : {}),
-        ...buildReasoningParams(provider, reasoningEffort),
+        ...buildReasoningParams(provider, reasoningEffort, { thinking: override?.thinking }),
         ...(tools && tools.length > 0 ? { tools } : {}),
       }),
       signal: controller.signal,
@@ -136,7 +151,7 @@ export async function callProviderNativeStream(
   signal?: AbortSignal,
   reasoningEffort?: string,
   tools?: ToolCallDef[],
-  override?: { baseURL?: string; apiKey?: string }
+  override?: { baseURL?: string; apiKey?: string; thinking?: boolean }
 ): Promise<NativeStreamResult> {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
   if (!config && !override?.apiKey) throw new Error(`Unknown provider: ${provider}`);
@@ -199,10 +214,10 @@ export async function callProviderNativeStream(
       headers,
       body: JSON.stringify({
         model,
-        messages,
+        messages: sanitizeMessages(provider, messages),
         temperature,
         stream: true,
-        ...buildReasoningParams(provider, reasoningEffort),
+        ...buildReasoningParams(provider, reasoningEffort, { thinking: override?.thinking }),
         ...(tools && tools.length > 0 ? { tools } : {}),
       }),
       signal: controller.signal,

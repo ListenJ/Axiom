@@ -4830,3 +4830,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/provider-caller-reasoning.test.ts（3 测试）+ tests/router/chat-stream-reasoning.test.ts（1 测试）
 - Verification: 21/21 相关测试全绿（含 registry 唯一性）；后端 tsc 干净。
 - Commit: 9a2b398
+
+## 2026-08-14 - DeepSeek 思考模式适配 + 工具回传 + 峰谷路由调度
+
+- Task: ①思考模式适配（非思考开关 + reasoning_content 净化/透传）；②工具循环 reasoning_content 回传（官方 400 约束）；③DeepSeek 峰谷计费（2026-08-16 起）路由调度。
+- Tools: bun test / bunx tsc / git。
+- Files:
+  - 新增 src/router/rate-tier.ts（isDeepSeekPeak / deepSeekRateTier / effectivePriorityForRateTier，高峰 pro +8）
+  - 修改 src/router/provider-caller.ts（ChatMessage.reasoning_content；sanitizeMessages 非 DeepSeek 剥离；override.thinking 透传）
+  - 修改 src/router/reasoning-effort.ts（buildReasoningParams 支持 thinking:false → disabled）
+  - 修改 src/router/model-router.ts（ExecuteInput/Output/chatStream/executeWithRole 透传 thinking；execute+chatStream 排序接入峰谷；工具循环原生/缓冲两处回传 reasoning_content）
+  - 修改 src/services/tool-loop.ts（/chat 非流式工具循环回传 reasoning_content）
+  - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（待办 #1/#2 已实施）
+  - 新增 tests/router/rate-tier.test.ts（5）、tests/provider-caller-thinking.test.ts（4）、tests/router/chat-stream-thinking-tools.test.ts（2）、tests/tool-loop-reasoning.test.ts（1）
+- Verification: router/provider 相关 47/47 全绿（含新 12 测试）；后端 tsc 干净（exit 0）。
+- Commit: <PENDING>

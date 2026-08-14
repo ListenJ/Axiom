@@ -54,3 +54,16 @@
 1. DeepSeek 思考模式 + 工具调用：多轮工具循环需回传 `reasoning_content`（官方 400 约束），当前未启用该组合。
 2. 峰谷计费生效（2026-08-16）后，成本统计/路由可考虑错峰调度（属可选优化）。
 3. 非思考模式（`thinking.type=disabled`）目前无显式开关，若 flash 用于纯检索/改写可考虑按任务下发。
+## 更新（2026-08-14 二轮）：待办 #1/#2 已实施
+
+- **思考模式适配**：
+  - `buildReasoningParams(provider, effort, { thinking })` 支持 DeepSeek 非思考模式（`thinking.type=disabled`），默认仍 enabled。
+  - `provider-caller` 对非 DeepSeek 供应商发送前剥离 `reasoning_content`（sanitizeMessages），DeepSeek 保留。
+  - `ExecuteInput`/`chatStream`/`executeWithRole` 新增 `thinking?: boolean` 透传。
+- **工具 + 思考模式（待办 #1 已解决）**：
+  - `model-router.chatStream` 原生/缓冲两条工具循环路径，以及 `services/tool-loop.ts`（/chat 非流式），在 assistant 工具消息上回传 `reasoning_content`（拼接 thinking 片段），满足官方 400 约束。
+- **峰谷调度（待办 #2 已解决）**：
+  - 新增 `src/router/rate-tier.ts`：`isDeepSeekPeak`（01-04 / 06-10 UTC）、`deepSeekRateTier`、`effectivePriorityForRateTier`（高峰 deepseek-v4-pro 优先级 +8）。
+  - `model-router.execute` 与 `chatStream` 排序改用 `effectivePriorityForRateTier`：高峰时 flash/免费/其他供应商优先，谷时恢复 pro 优先。
+- 新增测试：`tests/router/rate-tier.test.ts`（5）、`tests/provider-caller-thinking.test.ts`（4）、`tests/router/chat-stream-thinking-tools.test.ts`（2）、`tests/tool-loop-reasoning.test.ts`（1）。
+- 验证：router/provider 相关 47/47 全绿，后端 tsc 干净。

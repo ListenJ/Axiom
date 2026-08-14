@@ -53,10 +53,13 @@ export async function runToolLoop(
       return { ...response, layer: "general" };
     }
 
+    // DeepSeek 思考模式：工具轮次必须回传 reasoning_content（官方 400 约束）
+    const reasoning = (response.thinking ?? []).join("");
     current.push({
       role: "assistant",
       content: response.content ?? "",
       tool_calls: response.toolCalls,
+      ...(reasoning ? { reasoning_content: reasoning } : {}),
     });
 
     for (const call of response.toolCalls) {

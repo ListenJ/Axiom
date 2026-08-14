@@ -25,6 +25,7 @@ import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
 import { routerBreaker } from "../utils/circuit-breaker.js";
+import { effectivePriorityForRateTier } from "./rate-tier.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -75,6 +76,8 @@ export interface SmartAssignmentResponse {
   fallback_used?: boolean;
   /** 模型发起的工具调用（function calling） */
   toolCalls?: ToolCall[];
+  /** 思考链片段（reasoning_content），供工具循环回传 */
+  thinking?: string[];
   /** 任务分层（与 ChatResponse.layer 对齐，便于路由层透传） */
   layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
 }
@@ -112,6 +115,8 @@ export interface ExecuteInput {
   excludeModels?: string[];
   /** OpenAI 兼容 tools 定义（function calling） */
   tools?: ToolCallDef[];
+  /** DeepSeek 思考模式开关（默认开启；false = 非思考模式） */
+  thinking?: boolean;
 }
 
 /** 统一执行端口输出 */
@@ -124,6 +129,8 @@ export interface ExecuteOutput {
   fallbackUsed: boolean;
   routingMeta?: RoutingMeta;
   toolCalls?: ToolCall[];
+  /** 思考链片段（reasoning_content），供工具循环回传 */
+  thinking?: string[];
 }
 
 // =============================================================================
@@ -203,7 +210,7 @@ export class MultiPlatformRouter {
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
-    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools } = input;
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools, thinking } = input;
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -245,12 +252,15 @@ export class MultiPlatformRouter {
     ]);
     const isLightRoute = LIGHT_ROUTES.has(role);
     const sortedModels = [...candidates].sort((a, b) => {
+      // 峰谷费率：DeepSeek 高峰时 pro 有效优先级 +8（便宜/免费模型优先）
+      const pa = effectivePriorityForRateTier(a, new Date());
+      const pb = effectivePriorityForRateTier(b, new Date());
       // Light roles: free models first (cost saving), then by priority
       if (isLightRoute && a.isFree !== b.isFree) {
         return a.isFree ? -1 : 1;
       }
       // Heavy roles: DeepSeek already has priority 1 in the registry
-      return (a.priority ?? 99) - (b.priority ?? 99);
+      return pa - pb;
     });
 
     let lastError: Error | undefined;
@@ -307,7 +317,7 @@ export class MultiPlatformRouter {
             temperature,
             undefined,
             tools,
-            { baseURL: model.baseURL, apiKey: model.apiKey },
+            { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
             maxTokens,
             signal
           );
@@ -364,6 +374,7 @@ export class MultiPlatformRouter {
             latencyMs,
             fallbackUsed: false,
             toolCalls: response.toolCalls,
+            thinking: response.thinking,
           };
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
@@ -468,12 +479,15 @@ export class MultiPlatformRouter {
       tools?: ToolCallDef[];
       executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
       maxToolIterations?: number;
+      /** DeepSeek 思考模式开关（默认开启；false = 非思考模式） */
+      thinking?: boolean;
     }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
     const preferNative = options?.preferNativeStream !== false;
     const intentLabel = options?.intent;
     const reasoningEffort = options?.reasoningEffort;
+    const thinking = options?.thinking;
     const models = findModelsForRole(role);
     if (models.length === 0) {
       logger.warn(`[Router/chatStream] No models for role: ${role}`);
@@ -481,7 +495,9 @@ export class MultiPlatformRouter {
       return;
     }
 
-    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    const sortedModels = [...models].sort(
+      (a, b) => effectivePriorityForRateTier(a, new Date()) - effectivePriorityForRateTier(b, new Date()),
+    );
 
     // 流式工具循环：tools + executeTool 存在时，模型可发起 tool_calls，
     // 服务端执行后追加 assistant(tool_calls)+tool 消息并继续下一轮（有界）。
@@ -526,7 +542,7 @@ export class MultiPlatformRouter {
             0.7,
             reasoningEffort,
             tools,
-            { baseURL: model.baseURL, apiKey: model.apiKey },
+            { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
@@ -581,7 +597,7 @@ export class MultiPlatformRouter {
               undefined,
               reasoningEffort,
               tools,
-              { baseURL: model.baseURL, apiKey: model.apiKey },
+              { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
             ).then(
               (result) => enqueue({ kind: "done", result }),
               (err: unknown) =>
@@ -626,7 +642,13 @@ export class MultiPlatformRouter {
             }
 
             if (nativeResult?.toolCalls?.length && executeTool) {
-              working.push({ role: "assistant", content: nativeResult.content ?? "", tool_calls: nativeResult.toolCalls });
+              const nativeReasoning = (nativeResult.thinking ?? []).join("");
+              working.push({
+                role: "assistant",
+                content: nativeResult.content ?? "",
+                tool_calls: nativeResult.toolCalls,
+                ...(nativeReasoning ? { reasoning_content: nativeReasoning } : {}),
+              });
               for (const call of nativeResult.toolCalls) {
                 yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
                 let output: unknown;
@@ -671,7 +693,13 @@ export class MultiPlatformRouter {
             const result = await fallbackBufferedStream();
 
             if (result.toolCalls?.length && executeTool) {
-              working.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
+              const resultReasoning = (result.thinking ?? []).join("");
+              working.push({
+                role: "assistant",
+                content: result.content,
+                tool_calls: result.toolCalls,
+                ...(resultReasoning ? { reasoning_content: resultReasoning } : {}),
+              });
               for (const call of result.toolCalls) {
                 yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
                 let output: unknown;
@@ -985,7 +1013,7 @@ export class MultiPlatformRouter {
    * fallback), which matches what `chat()` and `chatStream()` already
    * returned.
    */
-  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string }): Promise<SmartAssignmentResponse> {
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string; thinking?: boolean }): Promise<SmartAssignmentResponse> {
     const out = await this.execute({
       role,
       messages,
@@ -998,6 +1026,7 @@ export class MultiPlatformRouter {
         ? { excludeModels: options.excludeModels }
         : {}),
       ...(options?.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
+      ...(options?.thinking !== undefined ? { thinking: options.thinking } : {}),
     });
     let endpoint = "";
     try {
@@ -1017,6 +1046,7 @@ export class MultiPlatformRouter {
       latency_ms: out.latencyMs,
       fallback_used: out.fallbackUsed,
       toolCalls: out.toolCalls,
+      thinking: out.thinking,
     };
   }
 
