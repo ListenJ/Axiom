@@ -5007,4 +5007,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/knowledge/pipeline.test.ts / tests/knowledge/sources/github-trending.test.ts（mock global fetch，消除 github.com 网络超时）
   - 修改 package.json（test → bun test --parallel=8 ./tests，规避 dist/ 陈旧测试误匹配 + bun 并行加载竞态）
 - Verification: bun test --parallel=8 ./tests 连续 2 次 2475 pass / 28 skip / 0 fail；frontend 49 文件 299 测试全绿；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 119dcb1
