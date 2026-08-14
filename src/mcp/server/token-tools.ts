@@ -1,6 +1,14 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { getTokenTracker } from "../../router/token-tracker.js";
+import {
+  isDeepSeekPeak,
+  deepSeekRateTier,
+  deepSeekInputPrice,
+  deepSeekOutputPrice,
+  isRateTierSchedulingEnabled,
+  getCnyPerUsd,
+} from "../../router/rate-tier.js";
 
 export function registerTokenTools(registry: ToolRegistry): void {
   registry.add({
@@ -65,6 +73,35 @@ export function registerTokenTools(registry: ToolRegistry): void {
       const tracker = getTokenTracker();
       const stats = tracker.getDailyStats(args.days as number | undefined);
       return stats;
+    },
+  });
+
+  registry.add({
+    name: "rate_tier_status",
+    description: "DeepSeek 峰谷调度状态：当前峰/谷、高峰窗口、V4 实时单价（USD）与 CNY 汇率（成本优化决策用）",
+    inputSchema: {},
+    handler: async () => {
+      const now = new Date();
+      return {
+        tier: deepSeekRateTier(now),
+        isPeak: isDeepSeekPeak(now),
+        schedulingEnabled: isRateTierSchedulingEnabled(),
+        cnyPerUsd: getCnyPerUsd(),
+        peakWindowsUtc: [
+          { start: 1, end: 4 },
+          { start: 6, end: 10 },
+        ],
+        deepSeekV4Prices: {
+          "deepseek-v4-flash": {
+            inputUsd: deepSeekInputPrice("deepseek-v4-flash", now),
+            outputUsd: deepSeekOutputPrice("deepseek-v4-flash", now),
+          },
+          "deepseek-v4-pro": {
+            inputUsd: deepSeekInputPrice("deepseek-v4-pro", now),
+            outputUsd: deepSeekOutputPrice("deepseek-v4-pro", now),
+          },
+        },
+      };
     },
   });
 }

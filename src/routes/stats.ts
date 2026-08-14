@@ -1,6 +1,7 @@
 import type { RouteContext } from "./types.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { getTokenTracker } from "../router/token-tracker.js";
+import { costUsdToCny } from "../router/rate-tier.js";
 
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/api/stats" || ctx.req.method !== "GET") return null;
@@ -53,6 +54,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       totalTokens: m.totalTokens,
       avgLatency: Math.round(m.avgLatencyMs),
       costUsd: m.costUsd ?? 0,
+      costCny: costUsdToCny(m.costUsd ?? 0),
     })),
     hourlyTrend: dailyTrend.map((d) => ({
       date: d.date,
@@ -69,6 +71,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       completionTokens: overall.totalCompletionTokens,
       avgLatency: Math.round(overall.avgLatencyMs),
       costUsd: overall.costUsd ?? 0,
+      costCny: costUsdToCny(overall.costUsd ?? 0),
     },
     recentCalls: recentCalls.map((c) => ({
       timestamp: c.timestamp,

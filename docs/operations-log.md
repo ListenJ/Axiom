@@ -4890,3 +4890,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（五轮更新）
 - Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 66/66 全绿 + tsc exit 0。
 - Commit: b578fc9
+
+## 2026-08-14 - 极简内核收敛文档 + 双币成本 + 峰谷策略工具化
+
+- Task: ①架构极简化（除内核外皆插件）收敛文档；②CNY 汇率 env 可配置；③成本 USD/CNY 双币展示；④峰谷调度策略暴露为 MCP 工具。
+- Tools: bun test / bunx tsc / npx eslint / git。
+- Files:
+  - 新增 docs/ARCHITECTURE-MINIMAL-PLUGIN.md（内核边界 + 非内核插件化清单 P1/P2 + 收敛原则）
+  - 修改 src/router/rate-tier.ts（getCnyPerUsd + costUsdToCny，COST_CNY_PER_USD）
+  - 修改 src/routes/stats.ts（/api/token-details overall/perModel 增加 costCny）
+  - 修改 src/mcp/server/token-tools.ts（新增 rate_tier_status 工具）
+  - 修改 frontend/src/components/chat-panels.tsx + src/pages/Perf.tsx（$x · ¥y 双币展示）
+  - 修改 .env.example（COST_CNY_PER_USD）+ 扩展 rate-tier-pricing / chat-panels-usage / Perf.test
+  - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（六轮更新）
+- Verification: 前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
+- Commit: <PENDING>

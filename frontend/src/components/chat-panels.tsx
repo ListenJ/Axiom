@@ -236,6 +236,11 @@ interface TokenDetailRow {
   totalTokens: number
   avgLatency: number
   costUsd?: number
+  costCny?: number
+}
+
+function formatCny(value: number): string {
+  return `¥${value.toFixed(2)}`
 }
 
 function formatUsd(value: number): string {
@@ -251,6 +256,7 @@ export function UsageStatsPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalCost, setTotalCost] = useState(0)
+  const [totalCny, setTotalCny] = useState(0)
   const [totalTokens, setTotalTokens] = useState(0)
 
   useEffect(() => {
@@ -262,10 +268,11 @@ export function UsageStatsPanel() {
         if (cancelled) return
         const data = d as {
           perModel?: TokenDetailRow[]
-          overall?: { totalTokens?: number; costUsd?: number }
+          overall?: { totalTokens?: number; costUsd?: number; costCny?: number }
         }
         setRows(Array.isArray(data.perModel) ? data.perModel : [])
         setTotalCost(Number(data.overall?.costUsd ?? 0))
+        setTotalCny(Number(data.overall?.costCny ?? 0))
         setTotalTokens(Number(data.overall?.totalTokens ?? 0))
       })
       .catch((e) => {
@@ -321,7 +328,9 @@ export function UsageStatsPanel() {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-[var(--text)]">总消耗</span>
-              <span className="text-sm font-semibold text-[var(--text)]">{formatUsd(totalCost)}</span>
+              <span className="text-sm font-semibold text-[var(--text)]">
+                {formatUsd(totalCost)} · {formatCny(totalCny)}
+              </span>
             </div>
             <div className="mt-1 text-xs text-[var(--text-muted)]">
               {formatTokens(totalTokens)} tokens · 含 DeepSeek 峰谷计价
@@ -340,7 +349,9 @@ export function UsageStatsPanel() {
                 <span>{formatTokens(u.promptTokens)}</span>
                 <span>{formatTokens(u.completionTokens)}</span>
                 <span>{Math.round(u.avgLatency)}ms</span>
-                <span className="text-[var(--text-secondary)]">成本 {formatUsd(u.costUsd ?? 0)}</span>
+                <span className="text-[var(--text-secondary)]">
+                  成本 {formatUsd(u.costUsd ?? 0)} · {formatCny(u.costCny ?? 0)}
+                </span>
               </div>
             </div>
           ))}

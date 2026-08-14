@@ -31,12 +31,13 @@ describe('UsageStatsPanel cost display', () => {
           costUsd: 1.76,
         },
       ],
-      overall: { totalTokens: 2000000, costUsd: 1.76 },
+      overall: { totalTokens: 2000000, costUsd: 1.76, costCny: 12.672 },
     })
     render(<UsageStatsPanel />)
     expect(await screen.findByText('总消耗')).toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByText('$1.760')).toBeInTheDocument()
+      expect(screen.getAllByText(/\$1\.760/).length).toBeGreaterThan(0)
+      expect(screen.getByText(/¥12\.67/)).toBeInTheDocument()
       expect(screen.getByText('deepseek')).toBeInTheDocument()
       expect(screen.getByText(/deepseek-v4-flash/)).toBeInTheDocument()
       expect(screen.getByText(/成本 \$1\.760/)).toBeInTheDocument()

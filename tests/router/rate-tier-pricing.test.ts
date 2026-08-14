@@ -10,6 +10,8 @@ import {
   estimateDeepSeekCostUsd,
   estimateModelCostUsd,
   isRateTierSchedulingEnabled,
+  getCnyPerUsd,
+  costUsdToCny,
 } from "../../src/router/rate-tier.js";
 
 function utc(hour: number): Date {
@@ -46,6 +48,24 @@ describe("DeepSeek V4 峰谷价格", () => {
     // 谷价 = 0.22 + 0.66 = 0.88 USD
     expect(estimateDeepSeekCostUsd("deepseek-v4-flash", 1_000_000, 1_000_000, utc(12))).toBeCloseTo(0.88, 5);
     expect(estimateDeepSeekCostUsd("deepseek-v3", 100, 100, utc(2))).toBeUndefined();
+  });
+});
+
+describe("COST_CNY_PER_USD 汇率可配置", () => {
+  it("getCnyPerUsd 默认 7.2，env 覆盖生效，非法值回退", () => {
+    delete process.env.COST_CNY_PER_USD;
+    expect(getCnyPerUsd()).toBe(7.2);
+    process.env.COST_CNY_PER_USD = "7.5";
+    expect(getCnyPerUsd()).toBe(7.5);
+    process.env.COST_CNY_PER_USD = "abc";
+    expect(getCnyPerUsd()).toBe(7.2);
+    process.env.COST_CNY_PER_USD = "0";
+    expect(getCnyPerUsd()).toBe(7.2);
+  });
+
+  it("costUsdToCny 按当前汇率换算", () => {
+    process.env.COST_CNY_PER_USD = "7.5";
+    expect(costUsdToCny(2)).toBe(15);
   });
 });
 

@@ -107,8 +107,24 @@ export function isRateTierSchedulingEnabled(): boolean {
 // CNY→USD 用估算汇率（假设，非官方），用于统一成本面板展示。
 // ═════════════════════════════════════════════════════════════════
 
-/** CNY→USD 估算汇率（成本估算用，非官方；2026-08-14 假设值） */
-export const CNY_PER_USD = 7.2;
+/**
+ * CNY→USD 估算汇率（成本估算用，非官方；默认 7.2，可用 COST_CNY_PER_USD 覆盖）。
+ * 启动时读取一次（MODEL_PRICING 静态构建用）。
+ */
+export function getCnyPerUsd(): number {
+  const v = process.env.COST_CNY_PER_USD;
+  if (v === undefined || v === "") return 7.2;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 7.2;
+}
+
+/** 启动时快照的汇率（MODEL_PRICING 构建用；运行时双币换算请用 getCnyPerUsd()） */
+export const CNY_PER_USD = getCnyPerUsd();
+
+/** 成本 USD → CNY 换算（展示用） */
+export function costUsdToCny(usd: number): number {
+  return usd * getCnyPerUsd();
+}
 
 interface StaticModelPricing {
   inputUsd: number;

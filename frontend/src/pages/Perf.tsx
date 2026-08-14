@@ -8,7 +8,7 @@ import { normalizeMetrics, normalizeNative, normalizePromMetrics, type PerfMetri
 export function PerfPanel() {
   const [m, setM] = useState<PerfMetrics | null>(null)
   const [native, setNative] = useState<unknown>(null)
-  const [cost, setCost] = useState<{ totalUsd: number; totalTokens: number } | null>(null)
+  const [cost, setCost] = useState<{ totalUsd: number; totalCny: number; totalTokens: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -19,8 +19,14 @@ export function PerfPanel() {
       endpoints
         .tokenDetails(7)
         .then((d) => {
-          const overall = (d as { overall?: { costUsd?: number; totalTokens?: number } })?.overall
-          return overall ? { totalUsd: Number(overall.costUsd ?? 0), totalTokens: Number(overall.totalTokens ?? 0) } : null
+          const overall = (d as { overall?: { costUsd?: number; costCny?: number; totalTokens?: number } })?.overall
+          return overall
+            ? {
+                totalUsd: Number(overall.costUsd ?? 0),
+                totalCny: Number(overall.costCny ?? 0),
+                totalTokens: Number(overall.totalTokens ?? 0),
+              }
+            : null
         })
         .catch(() => null),
     ]).then(([metrics, nat, costData]) => {
@@ -99,6 +105,7 @@ export function PerfPanel() {
         ) : (
           <p className="mt-1 text-3xl font-bold text-[var(--text)]">
             {cost.totalUsd > 0 ? '$' + cost.totalUsd.toFixed(3) : '$0'}
+            {cost.totalCny > 0 ? ` · ¥${cost.totalCny.toFixed(2)}` : ''}
           </p>
         )}
         {cost && (

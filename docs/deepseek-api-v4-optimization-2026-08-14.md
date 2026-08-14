@@ -101,3 +101,12 @@
 - 修复：String.replace `$` 特殊模式导致 Perf.tsx 文本损坏（改用函数式替换；Perf.tsx 尾部残留截断）。
 - 新增/扩展测试：rate-tier-pricing（+4：Kimi/MiniMax/智谱/未收录）、token-tracker-cost（+1：Kimi 落库）、Perf.test（+1：成本卡片）。
 - 验证：前端 49 文件/299 测试全绿 + eslint 0 + tsc 干净；后端 66/66 全绿 + tsc exit 0。
+
+## 更新（2026-08-14 六轮）：极简内核收敛 + 双币成本 + 峰谷策略工具化
+
+- **架构收敛**：新增 docs/ARCHITECTURE-MINIMAL-PLUGIN.md——定义内核边界（网关/配置/模型路由内核/插件装载/会话工作区/安全）与非内核→插件化清单（P1/P2 优先级），明确"除内核外皆插件、工具层薄、配置不写死、按需加载"原则。
+- **CNY 汇率可配置**：rate-tier 新增 getCnyPerUsd()（默认 7.2，env COST_CNY_PER_USD 覆盖，非法值回退）+ costUsdToCny()；.env.example 补充说明。
+- **成本双币展示**：/api/token-details 的 overall/perModel 增加 costCny；前端 Chat 用量面板、右栏「用量」、Perf 成本卡片统一显示 `$x · ¥y`。
+- **峰谷策略工具化**：MCP 新增 `rate_tier_status` 工具（当前峰/谷、高峰窗口、DeepSeek V4 实时单价 USD、CNY 汇率、调度开关），供 skill/外部 agent 做成本优化决策。
+- 新增/扩展测试：rate-tier-pricing（+2：getCnyPerUsd/costUsdToCny）、chat-panels-usage（双币断言）、Perf.test（双币断言）。
+- 验证：前端 49/299 全绿 + eslint 0 + tsc；后端 68/68 全绿 + tsc exit 0。
