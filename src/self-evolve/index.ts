@@ -12,6 +12,7 @@ import { SelfEvolveEngine, stableHash } from "./engine.js";
 import type { SelfEvolveDeps } from "./types.js";
 
 export { SelfEvolveEngine, applySelfThought, formatSelfThought, tokenize, stableHash } from "./engine.js";
+export { MindAdvisor, createMindAdvisor, type MindAdvisorOptions, type MindSuggestResult } from "./mind-suggest.js";
 export type {
   EvidenceSource,
   Improvement,

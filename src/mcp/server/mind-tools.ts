@@ -108,5 +108,29 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
+  registry.add({
+    name: "mind_suggest",
+    description: "心智模块×自进化：基于场景+目标给出下一步建议（突触扩散激活，可追溯 via 路径），支持把场景/目标写入突触后建议",
+    inputSchema: {
+      scene: z.string().describe("当前场景描述"),
+      goal: z.string().describe("任务目标描述"),
+      limit: z.number().int().min(1).max(20).optional().default(5).describe("返回条数"),
+      recordScene: z.boolean().optional().default(false).describe("true 时把场景关键词写入突触（用于后续自我进化）"),
+    },
+    handler: async (args: Record<string, unknown>) => {
+      const { createMindAdvisor } = await import("../../self-evolve/mind-suggest.js");
+      const eng = getEngine();
+      if (args.recordScene) {
+        const { tokenize } = await import("../../self-evolve/engine.js");
+        for (const t of tokenize(args.scene as string).slice(0, 8)) {
+          if (t.length >= 2) eng.createSynapse("scene:" + t, "scene:current", { sourceType: "scene", targetType: "scene", weight: 0.5 });
+        }
+      }
+      const advisor = createMindAdvisor({ synapse: eng });
+      const result = await advisor.suggest(args.scene as string, args.goal as string, { limit: args.limit as number | undefined });
+      return { suggestions: result.suggestions, lessons: result.lessons };
+    },
+  });
+
   logger.info("[MindTools] registered mind_synapse_* tools (db=" + SYNAPSE_DB + ")");
 }

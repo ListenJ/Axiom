@@ -5088,3 +5088,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/dre-constraint-injection.test.ts（7 用例：命中/约束块/注入位置/幂等/未命中）
 - Verification: bun test --parallel=8 ./tests 2505 pass / 28 skip / 0 fail（原 2498，+7）；bunx tsc --noEmit exit 0。
 - Commit: 5b15800
+
+## 2026-08-15 - 心智模块 × 自进化闭环（MindAdvisor + mind_suggest）
+
+- Task: 需求 2 闭环——self-evolve 归纳/教训写入神经突触（场景→能力/教训），未来同场景/目标由突触扩散激活给出可追溯建议；MCP mind_suggest 暴露。
+- Tools: bun test / bunx tsc / node 补丁脚本 / git。
+- Files:
+  - 新增 src/self-evolve/mind-suggest.ts（MindAdvisor：recordInduction/recordImprovement/suggest；依赖注入 SynapseEngine + lessonsProvider）
+  - 修改 src/self-evolve/index.ts（导出 MindAdvisor）
+  - 修改 src/mcp/server/mind-tools.ts（mind_suggest 工具）
+  - 新增 tests/self-evolve-mind-suggest.test.ts（4 用例：归纳→建议命中/教训突触/lessonsProvider/空态）
+- Verification: bun test --parallel=8 ./tests 2509 pass / 28 skip / 0 fail（原 2505，+4）；bunx tsc --noEmit exit 0。
+- Commit: <hash>
