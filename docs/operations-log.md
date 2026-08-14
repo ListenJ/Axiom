@@ -5072,4 +5072,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/computer-use/{text-guide,locate,browser-launch,agent-fallback}.test.ts（15 用例）
   - 新增 docs/BROWSER-VISION-ADAPTATION-2026-08-15.md
 - Verification: bun test --parallel=8 ./tests 2498 pass / 28 skip / 0 fail（原 2483，+15）；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 9692544
