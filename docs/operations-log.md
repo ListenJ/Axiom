@@ -4860,3 +4860,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/router/rate-tier-pricing.test.ts（5）、tests/reasoning-default-thinking.test.ts（3）、tests/router/light-role-thinking.test.ts（2）
 - Verification: router/provider 相关 58/58 全绿；后端 tsc exit 0。
 - Commit: f2a83fe
+
+## 2026-08-14 - token-tracker cost_usd 落库/峰谷回算 + 前端用量面板 + 右栏集成/左栏精简
+
+- Task: ①token-tracker 落库 cost_usd 并按峰谷回算历史成本；②前端用量面板展示 DeepSeek 峰谷成本并集成到右边栏；③左右栏重叠内容合并到右栏，左栏只做工作区+会话管理。
+- Tools: bun test / bunx tsc / npx eslint / git。
+- Files:
+  - 修改 src/router/token-tracker.ts（cost_usd 列 + ALTER 迁移 + backfillCostUsd 峰谷回算 + record/flush 写入 + 五类聚合 costUsd）
+  - 修改 src/routes/stats.ts（/api/token-details 透出 perModel/hourlyTrend/overall/recentCalls costUsd）
+  - 修改 frontend/src/components/chat-panels.tsx（UsageStatsPanel 改走 tokenDetails + 总成本/每模型成本展示）
+  - 修改 frontend/src/components/rightbar/RightToolbar.tsx（新增「用量」工具 + UsageStatsPanel）
+  - 修改 frontend/src/state/useApp.ts（RightbarTool 增加 'usage'）
+  - 修改 frontend/src/components/layout/Sidebar.tsx（移除 Git/MCP·Skill 两段与相关状态/函数，只留工作区+会话）
+  - 新增 tests/token-tracker-cost.test.ts（3）+ frontend/src/components/chat-panels-usage.test.tsx（1）
+  - 更新 docs/deepseek-api-v4-optimization-2026-08-14.md（四轮更新）
+- Verification: 前端 49 文件/298 测试全绿 + tsc 干净 + eslint 0；后端 61/61 全绿 + tsc exit 0。
+- Commit: <PENDING>

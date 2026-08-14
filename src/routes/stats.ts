@@ -52,6 +52,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       completionTokens: m.totalCompletionTokens,
       totalTokens: m.totalTokens,
       avgLatency: Math.round(m.avgLatencyMs),
+      costUsd: m.costUsd ?? 0,
     })),
     hourlyTrend: dailyTrend.map((d) => ({
       date: d.date,
@@ -59,6 +60,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       totalTokens: d.totalTokens,
       promptTokens: d.promptTokens,
       completionTokens: d.completionTokens,
+      costUsd: d.costUsd ?? 0,
     })),
     overall: {
       totalTokens: overall.totalTokens,
@@ -66,6 +68,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       promptTokens: overall.totalPromptTokens,
       completionTokens: overall.totalCompletionTokens,
       avgLatency: Math.round(overall.avgLatencyMs),
+      costUsd: overall.costUsd ?? 0,
     },
     recentCalls: recentCalls.map((c) => ({
       timestamp: c.timestamp,
@@ -74,6 +77,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       completionTokens: c.completionTokens,
       latencyMs: Math.round(c.latencyMs),
       success: c.success,
+      costUsd: c.costUsd ?? 0,
     })),
     cacheStats: {
       totalCalls,

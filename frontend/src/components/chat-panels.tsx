@@ -226,33 +226,47 @@ function formatDuration(ms?: number): string | null {
 
 // ─── 使用统计面板（自 Sessions 页并入 Chat hub）────────────────────────────
 
-interface UsageStat {
+/** 模型使用统计面板——数据源 /api/token-details（token-tracker 实时库，含 DeepSeek 峰谷成本）。 */
+interface TokenDetailRow {
+  model: string
   provider: string
-  model_name: string
-  call_count: number
-  total_prompt_tokens: number
-  total_completion_tokens: number
-  avg_latency_ms: number
-  success_count: number
+  calls: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  avgLatency: number
+  costUsd?: number
 }
 
-/** 模型使用统计面板——自 Sessions 页"使用统计"页签并入 Chat hub，数据与交互保持一致。 */
+function formatUsd(value: number): string {
+  if (value <= 0) return '$0'
+  if (value >= 1) return `$${value.toFixed(3)}`
+  if (value >= 0.001) return `$${value.toFixed(4)}`
+  return `$${value.toFixed(6)}`
+}
+
 export function UsageStatsPanel() {
-  const [usage, setUsage] = useState<UsageStat[]>([])
+  const [rows, setRows] = useState<TokenDetailRow[]>([])
   const [days, setDays] = useState(7)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [totalCost, setTotalCost] = useState(0)
+  const [totalTokens, setTotalTokens] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    endpoints.memory
-      .usage(days)
+    endpoints.tokenDetails(days)
       .then((d) => {
         if (cancelled) return
-        const data = d as { usage: UsageStat[] }
-        setUsage(Array.isArray(data.usage) ? data.usage : [])
+        const data = d as {
+          perModel?: TokenDetailRow[]
+          overall?: { totalTokens?: number; costUsd?: number }
+        }
+        setRows(Array.isArray(data.perModel) ? data.perModel : [])
+        setTotalCost(Number(data.overall?.costUsd ?? 0))
+        setTotalTokens(Number(data.overall?.totalTokens ?? 0))
       })
       .catch((e) => {
         if (!cancelled) setError(String((e as Error)?.message ?? e))
@@ -300,38 +314,33 @@ export function UsageStatsPanel() {
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
-      ) : usage.length === 0 ? (
-        <InlineEmptyState
-          icon={<Activity className="size-5" />}
-          title="暂无使用数据"
-        />
+      ) : rows.length === 0 ? (
+        <InlineEmptyState icon={<Activity className="size-5" />} title="暂无使用数据" />
       ) : (
         <div className="space-y-3">
-          {usage.map((u, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3"
-            >
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[var(--text)]">总消耗</span>
+              <span className="text-sm font-semibold text-[var(--text)]">{formatUsd(totalCost)}</span>
+            </div>
+            <div className="mt-1 text-xs text-[var(--text-muted)]">
+              {formatTokens(totalTokens)} tokens · 含 DeepSeek 峰谷计价
+            </div>
+          </div>
+          {rows.map((u, i) => (
+            <div key={i} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-[var(--text)]">{u.provider}</span>
-                  <span className="text-xs text-[var(--text-muted)]">/ {u.model_name}</span>
+                  <span className="text-xs text-[var(--text-muted)]">/ {u.model}</span>
                 </div>
-                <span className="text-xs text-[var(--text-secondary)]">
-                  {u.call_count} 次调用
-                </span>
+                <span className="text-xs text-[var(--text-secondary)]">{u.calls} 次调用</span>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
-                <span>{formatTokens(u.total_prompt_tokens)}</span>
-                <span>{formatTokens(u.total_completion_tokens)}</span>
-                <span>{Math.round(u.avg_latency_ms)}ms</span>
-                <span>
-                  {u.call_count} 次调用 ·{' '}
-                  {u.call_count > 0
-                    ? Math.round((u.success_count / u.call_count) * 100)
-                    : 0}
-                  %
-                </span>
+                <span>{formatTokens(u.promptTokens)}</span>
+                <span>{formatTokens(u.completionTokens)}</span>
+                <span>{Math.round(u.avgLatency)}ms</span>
+                <span className="text-[var(--text-secondary)]">成本 {formatUsd(u.costUsd ?? 0)}</span>
               </div>
             </div>
           ))}
@@ -340,7 +349,6 @@ export function UsageStatsPanel() {
     </div>
   )
 }
-
 export function ToolCallsPanel({
   items,
   defaultExpanded,

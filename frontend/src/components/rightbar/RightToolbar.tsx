@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
+  Activity,
   FileText,
   GitBranch,
   ScanSearch,
@@ -20,10 +21,12 @@ import {
   MiniChatPanel,
 } from './panels'
 import { useApp } from '@/state/useApp'
+import { UsageStatsPanel } from '@/components/chat-panels'
 import { MOTION_PRESETS } from '@/lib/motion-presets'
 
 const TOOLS = [
   { id: 'summary', label: '摘要', icon: FileText },
+  { id: 'usage', label: '用量', icon: Activity },
   { id: 'git', label: 'Git', icon: GitBranch },
   { id: 'review', label: '审阅', icon: ScanSearch },
   { id: 'terminal', label: '终端', icon: TerminalSquare },
@@ -125,6 +128,7 @@ export default function RightToolbar() {
               transition={MOTION_PRESETS.fadeIn}
             >
               {active === 'summary' && <SummaryPanel paused={!open} />}
+              {active === 'usage' && <UsageStatsPanel />}
               {active === 'git' && <GitPanel />}
               {active === 'review' && <ReviewPanel />}
               {active === 'terminal' && <TerminalGuidePanel />}

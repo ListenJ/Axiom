@@ -5,6 +5,7 @@ type Theme = 'dark' | 'light' | 'system'
 
 export type RightbarTool =
   | 'summary'
+  | 'usage'
   | 'git'
   | 'review'
   | 'terminal'

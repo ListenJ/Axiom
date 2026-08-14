@@ -76,3 +76,13 @@
 - **env 全供应商模板**：重写 `.env.example`（128 行）——覆盖 api-key-store 全部供应商（DeepSeek/SiliconFlow/OfoxAI/OpenRouter/智谱/Kimi/MiniMax/NVIDIA NIM/OpenCode/OfoxAI-Anthropic/OfoxAI-Gemini/OpenAI 后备）与国内/海外变体，每个供应商可配 `<前缀>_BASE_URL` 覆盖端点；含峰谷开关、GLM 免费模型、网关/记忆/日志配置说明。
 - 新增测试：tests/router/rate-tier-pricing.test.ts（5）、tests/reasoning-default-thinking.test.ts（3）、tests/router/light-role-thinking.test.ts（2）。
 - 验证：router/provider 相关 58/58 全绿；后端 tsc exit 0。
+
+## 更新（2026-08-14 四轮）：token-tracker 落库成本 + 峰谷回算 + 前端用量/右栏集成 + 左栏精简
+
+- **后端成本落库**：token_usage 表新增 `cost_usd REAL DEFAULT 0`（CREATE TABLE 更新 + 老库 ALTER 迁移）；`record()` 对 DeepSeek V4 按调用时刻峰谷计价（其余模型 0）；flush 写入 cost_usd；启动时 `backfillCostUsd()` 按历史行 timestamp 峰/谷回算（幂等）。
+- **聚合透出**：getOverallStats/getStatsByModel/getStatsByRole/getDailyStats/getRecentUsage 均返回 costUsd；`/api/token-details` 的 perModel/hourlyTrend/overall/recentCalls 透出 costUsd。
+- **前端用量面板**：UsageStatsPanel 改走实时 `/api/token-details`（替代空表 /memory/usage），展示总成本 + 每模型成本（DeepSeek 峰谷计价标注），复用 Chat hub 用量页签。
+- **右栏集成**：RightToolbar 新增「用量」工具（RightbarTool 增加 'usage'），渲染 UsageStatsPanel。
+- **左栏精简**：Sidebar 移除 Git 仓库状态（段2）与 MCP·Skill（段3）——重叠内容并入右栏（GitPanel/SummaryPanel/用量），左栏只保留工作区 + 会话管理（含顶部 Logo/新建对话/账号栏）。
+- 新增测试：tests/token-tracker-cost.test.ts（3：峰时计价聚合/非 DeepSeek 0/历史回算幂等）；frontend/src/components/chat-panels-usage.test.tsx（1：成本展示）。
+- 验证：前端 49 文件/298 测试全绿 + tsc 干净；后端 router/provider/token-tracker 61/61 全绿 + tsc exit 0；前端 eslint 0 问题。

@@ -4,7 +4,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   X, FolderOpen, MessageSquare, Clock, ChevronRight,
   Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
-  GitBranch, GitCommitHorizontal, RefreshCw, ArrowUpCircle, ArrowDownCircle, CircleDot, Layers, Puzzle, Activity,
 } from 'lucide-react'
 import { endpoints } from '@/lib/api'
 import { useApp } from '@/state/useApp'
@@ -103,39 +102,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [editValue, setEditValue] = useState('')
   const [busyDelete, setBusyDelete] = useState<string | null>(null)
 
-  // ── Git 仓库状态（段 2） ──
-  const [gitStatus, setGitStatus] = useState<{
-    success?: boolean
-    branch?: string
-    modified?: string[]
-    added?: string[]
-    deleted?: string[]
-    ahead?: number
-    behind?: number
-    clean?: boolean
-    error?: string
-  } | null>(null)
-  const [branches, setBranches] = useState<Array<{ name: string; current: boolean; remote: boolean }>>([])
-  const [gitLoading, setGitLoading] = useState(false)
-  const [recentCommits, setRecentCommits] = useState<Array<{ hash: string; message: string }>>([])
-
-  // ── MCP · Skill（段 3） ──
-  const [mcpScenes, setMcpScenes] = useState<Array<{ id: string; name: string; description?: string }>>([])
-  const [plugins, setPlugins] = useState<Array<{ id?: string; name?: string }>>([])
-
-  const loadGit = async () => {
-    setGitLoading(true)
-    try {
-      const [s, b, l] = await Promise.allSettled([endpoints.git.status(), endpoints.git.branch(), endpoints.git.log(3)])
-      if (s.status === 'fulfilled') setGitStatus(s.value)
-      if (b.status === 'fulfilled' && b.value?.branches) setBranches(b.value.branches)
-      if (l.status === 'fulfilled' && l.value?.commits) setRecentCommits(l.value.commits)
-    } catch {
-      setGitStatus({ error: 'Git 服务不可用' })
-    } finally {
-      setGitLoading(false)
-    }
-  }
 
   useEffect(() => {
     if (paused) return
@@ -187,23 +153,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     }
   }, [paused])
 
-  // Git 状态 + MCP 场景 + 插件列表（进入时与定时刷新）
-  useEffect(() => {
-    if (paused) return
-    void loadGit()
-    const t = setInterval(() => void loadGit(), 60_000)
-    endpoints.mcp.scenes().then((d) => setMcpScenes(d?.scenes ?? [])).catch(() => {})
-    endpoints.plugins
-      .list()
-      .then((d) => {
-        const list = Array.isArray(d)
-          ? d
-          : (d as { plugins?: Array<{ id?: string; name?: string }> })?.plugins ?? []
-        setPlugins(list)
-      })
-      .catch(() => {})
-    return () => clearInterval(t)
-  }, [paused])
 
   const online = !healthError && health?.status === 'ok'
   const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
@@ -362,7 +311,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     )
   }
 
-  const changedCount = (gitStatus?.modified?.length ?? 0) + (gitStatus?.added?.length ?? 0) + (gitStatus?.deleted?.length ?? 0)
 
   return (
     <aside
@@ -429,137 +377,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <Plus size={16} />
           <span className={collapsed ? 'lg:hidden' : ''}>开启新对话</span>
         </button>
-      </div>
-
-      {/* 段 2：Git 仓库状态 */}
-      <div className={`shrink-0 px-3 pb-3 ${collapsed ? 'lg:hidden' : ''}`}>
-        <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
-          <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
-            <GitBranch size={11} className="text-[var(--accent)]" />
-            Git 仓库状态
-          </p>
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => void loadGit()}
-              disabled={gitLoading}
-              aria-label="刷新 Git 状态"
-              title="刷新"
-              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]"
-            >
-              <RefreshCw size={12} className={gitLoading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                navigate('/git')
-                onClose()
-              }}
-              aria-label="打开 Git 面板"
-              title="打开 Git 面板（提交/推送/历史）"
-              className="press flex size-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--text)]"
-            >
-              <ArrowUpCircle size={12} />
-            </button>
-          </div>
-        </div>
-        {gitStatus?.error ? (
-          <p className="px-3 pb-2.5 text-2xs text-[var(--text-secondary)]">{gitStatus.error}</p>
-        ) : (
-          <>
-            <div className="px-3 pb-1.5">
-              <div className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
-                <span className={`pulse-dot size-1.5 rounded-full ${gitStatus?.clean ? 'bg-[var(--success)]' : 'bg-[var(--warning)]'}`} />
-                <span className="text-scroll max-w-[14rem] font-mono">{gitStatus?.branch ?? '—'}</span>
-                {gitStatus?.ahead ? <span className="flex items-center gap-0.5 text-[var(--success)]"><ArrowUpCircle size={10} />{gitStatus.ahead}</span> : null}
-                {gitStatus?.behind ? <span className="flex items-center gap-0.5 text-[var(--warning)]"><ArrowDownCircle size={10} />{gitStatus.behind}</span> : null}
-                <span className="ml-auto text-[var(--text-muted)]">
-                  {gitStatus?.clean ? '干净' : `${changedCount} 处变更`}
-                </span>
-              </div>
-            </div>
-            {/* 分支列表：横向滚动 */}
-            <div className="text-scroll flex gap-1 px-3 pb-2.5">
-              {branches.length === 0 ? (
-                <span className="text-2xs text-[var(--text-secondary)]">无分支信息</span>
-              ) : (
-                branches.map((b) => (
-                  <span
-                    key={b.name}
-                    className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${
-                      b.name === gitStatus?.branch
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                    }`}
-                  >
-                    <CircleDot size={8} />
-                    {b.name}
-                  </span>
-                ))
-              )}
-            </div>
-            {/* 最近提交（工作进展摘要，横向滚动） */}
-            {recentCommits.length > 0 && (
-              <div className="px-3 pb-1.5 pt-2">
-                <div className="text-scroll space-y-1">
-                  {recentCommits.map((c) => (
-                    <div key={c.hash} className="flex items-center gap-1.5 text-2xs text-[var(--text-secondary)]">
-                      <GitCommitHorizontal size={10} className="shrink-0 text-[var(--text-muted)]" />
-                      <span className="shrink-0 font-mono text-[var(--text-muted)]">{c.hash.slice(0, 7)}</span>
-                      <span className="min-w-0 truncate">{c.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* 段 3：MCP · Skill */}
-      <div className={`shrink-0 px-3 pb-3 ${collapsed ? 'lg:hidden' : ''}`}>
-        <div className="flex items-center gap-1.5 px-3 pb-1 pt-2.5">
-          <p className="flex items-center gap-1.5 text-2xs font-medium text-[var(--text-muted)]">
-            <Puzzle size={11} className="text-[var(--accent)]" />
-            MCP · Skill
-          </p>
-        </div>
-        <div className="space-y-1 px-2 pb-2.5">
-          <p className="px-1 pt-0.5 text-2xs font-medium text-[var(--text-muted)]">MCP 场景</p>
-          {mcpScenes.length === 0 ? (
-            <p className="px-1 text-2xs text-[var(--text-secondary)]">
-              暂无场景
-              <button type="button" onClick={() => navigate('/settings')} className="ml-1 text-[var(--accent)] hover:underline" aria-label="去配置 MCP 场景">
-                去配置
-              </button>
-            </p>
-          ) : (
-            mcpScenes.slice(0, 6).map((s) => (
-              <div key={s.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">
-                <Activity size={11} className="shrink-0 text-[var(--text-muted)]" />
-                <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]" title={s.description}>
-                  {s.name}
-                </span>
-              </div>
-            ))
-          )}
-          <p className="px-1 pt-1.5 text-2xs font-medium text-[var(--text-muted)]">插件 / Skill</p>
-          {plugins.length === 0 ? (
-            <p className="px-1 text-2xs text-[var(--text-secondary)]">
-              无插件
-              <button type="button" onClick={() => navigate('/plugins')} className="ml-1 text-[var(--accent)] hover:underline" aria-label="去插件市场安装">
-                去安装
-              </button>
-            </p>
-          ) : (
-            plugins.slice(0, 6).map((p) => (
-              <div key={p.id ?? p.name} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--shell-hover)]">
-                <Layers size={11} className="shrink-0 text-[var(--text-muted)]" />
-                <span className="text-scroll min-w-0 flex-1 text-2xs text-[var(--text)]">{p.name ?? p.id}</span>
-              </div>
-            ))
-          )}
-        </div>
       </div>
 
       {/* 段 4：加载进 Agent 的项目（风琴垂直折叠） */}
