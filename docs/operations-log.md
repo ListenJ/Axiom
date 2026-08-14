@@ -5121,4 +5121,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/utils/cache.ts（真 bug：ttl=0 原为"立即过期"，改为"永不过期"（NO_EXPIRY sentinel）+ Redis TTL 上限保护）——由 network-resilience LRU 风暴用例在负载下暴露
   - 修改 tests/data-pipeline.test.ts（mock 全局 fetch，消除 example.com/DDG 真实网络超时）
 - Verification: bun test --parallel=8 ./tests 连续 2 次 2538 tests / 0 fail；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 728b30a
