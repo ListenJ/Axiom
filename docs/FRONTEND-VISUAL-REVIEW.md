@@ -35,3 +35,23 @@ import { reviewFrontendScreenshot } from "src/computer-use/frontend-review.js";
 - `tests/frontend-review.test.ts`（5）：多模态请求体、JSON/```json 解析、pass 空 findings、无 Key 抛错、key 解析
 - 实时（真实模型）：审核诗歌截图 → `verdict=pass`，总结准确（文字清晰/对比度高/阶梯缩进），~14.5s
 - root 套件 **2593 tests / 0 fail**
+
+## 页面级审核流水线（2026-08-16 追加）
+
+### 能力
+`frontend_audit`：对一组前端页面**逐页截图 → SenseNova 视觉审核 → 汇总报告**（Markdown）。
+
+- `src/computer-use/frontend-audit.ts`：`auditFrontendPages(baseUrl, pages, deps)` → `FrontendAuditReport`
+  - 默认 9 个可见页（/chat /search /code /vault /providers /git /sessions /tokens /settings）
+  - 截图默认走 **Playwright CLI**（Node 子进程）——**关键坑**：Playwright 在 Bun 运行时内 launch 会卡死（进程/管道握手差异），必须经 Node 子进程
+  - `--wait-for-timeout=1500` 稳定等待（**关键坑**：无等待时慢页面会截成黑屏误报——实测 /settings 6KB→220KB）
+  - 审核调用 `reviewFrontendScreenshot`（SenseNova），聚合 verdict/findings/severity 统计
+- `scripts/frontend-audit.ts` CLI：`bun run audit:frontend --base-url=... [--pages=/chat,/x] [--concurrency=2] [--knowledge]`
+  - 报告写入 `reports/frontend-audit-<ts>.md`；`--knowledge` 把 issues 写入知识库（domain=frontend-audit）
+  - critical/major>0 时 exit 1（可作 CI 门禁）
+- MCP 工具 `frontend_audit`
+
+### 验证
+- `tests/frontend-audit.test.ts`（5）：聚合统计/severity/单页失败容错/Markdown/默认页面清单（mock 截图+审核，零浏览器零网络）
+- 实时（真实后端 + Playwright + SenseNova）：2 页 10s 完成；修复时机问题后 /chat、/settings 均 pass
+- root 套件 **2598 tests / 0 fail**

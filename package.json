@@ -25,6 +25,7 @@
     "cli": "bun run src/cli.ts",
     "health": "bun run scripts/health-check.ts",
     "audit:runtime": "bun run scripts/runtime-audit.ts",
+    "audit:frontend": "bun run scripts/frontend-audit.ts",
     "discover": "bun run scripts/discover-free-models.ts",
     "migrate": "bun run src/db/migrate.ts",
     "demo": "bun run scripts/demo-crawl.ts",

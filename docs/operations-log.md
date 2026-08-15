@@ -5194,3 +5194,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - 密钥处置：真实 key 存入 C:\Users\18336\.axiom\axiom-secrets\sensenova.credentials（规则 11），仓库仅占位符；提交前扫描确认无 sk- 泄漏。
 - Verification: bun test --parallel=8 ./tests 2593 tests / 0 fail（原 2588，+5）；bunx tsc --noEmit exit 0；实时审核真实模型 verdict=pass（~14.5s）。
 - Commit: 3d2733f
+
+## 2026-08-16 - 前端页面审核流水线（frontend_audit）+ 两个截图大坑修复
+
+- Task: 把 frontend_visual_review 接入页面级审核流水线：逐页 Playwright 截图 → SenseNova 审核 → 汇总 Markdown 报告 + 可选入库 + CI 门禁（critical/major exit 1）。修复两个大坑：Playwright 在 Bun 运行时 launch 卡死（改 Node CLI 子进程）、无稳定等待导致慢页黑屏误报（--wait-for-timeout=1500）。
+- Tools: bun / npx playwright（Node 子进程）/ bun test / bunx tsc / git。
+- Files:
+  - 新增 src/computer-use/frontend-audit.ts（auditFrontendPages/playwrightScreenshot/renderAuditReportMarkdown/DEFAULT_AUDIT_PAGES）
+  - 新增 scripts/frontend-audit.ts（CLI：报告 reports/、--knowledge 入库、critical/major 门禁）
+  - 修改 src/mcp/server/browser-tools.ts（frontend_audit 工具）
+  - 修改 package.json（audit:frontend 脚本）
+  - 新增 tests/frontend-audit.test.ts（5）
+  - 更新 docs/FRONTEND-VISUAL-REVIEW.md（页面级流水线章节）
+- Verification: bun test --parallel=8 ./tests 2598 tests / 0 fail（原 2593，+5）；bunx tsc --noEmit exit 0；实时 2 页 10s 全 pass（修复后）；/settings 截图 6KB→220KB（黑屏误报消除）。
+- Commit: <hash>
