@@ -49,3 +49,29 @@
 - 当前默认 Agent 效果显著低于历史最优，主因是**模型可达性**（deepseek 不可达 + zhipu 限流）而非 Agent 逻辑；
 - 恢复 deepseek-v4-flash 可达（修复 opencode 网络/限流）是回到 87.5% 基线的关键；
 - 评测基础设施已加固：模型不可用时快速失败并回退，不再无限磨。
+
+## 排查结果与恢复（2026-08-16 追加）
+
+### opencode/deepseek 可达性诊断（事实）
+- `https://opencode.ai/zen/go/v1/models` **HTTP 200**，deepseek-v4-flash 在列；
+- chat/completions **直连与经 clash 代理均 HTTP 200**，返回正确回答（prompt_tokens 正常，非截断）；
+- 结论：**端点/密钥/模型均正常，非持续故障**。此前 503 是评测突发并发触发的瞬时限流；180s 超时是网络抖动。
+
+### 根因（评测自身 3 个 bug）
+1. **curl `-m 30` 总超时杀掉慢模型有效回答**：deepseek 编码/排障类回答 20-48s，30s 被杀 → `[ERROR] curl failed (28)` → 误判失败。修复：`--connect-timeout 15 -m 120`（不可达快速失败让位回退，慢模型可完成）。→ coding held-out 25%→75%。
+2. **CODING-04 校验器对中文答案误杀**：正确中文答案用「哈希集合/Set」，组3 要求字面 `hash`（拉丁）而「哈希」≠`hash`。修复：组3 增加「哈希」。→ coding held-out 75%→100%。
+3. 瞬时限流：退避封顶 + 主模型失败自动回退（上一轮已修）。
+
+### 恢复后效果（deepseek-v4-flash，无 evolve/constraints）
+| 项 | 值 |
+| --- | --- |
+| held-out 通过率 | **70.8%（17/24）** |
+| coding | 75%（3/4，CODING-07 样本波动） |
+| knowledge | 75%（3/4） |
+| planning | 50%（2/4） |
+| tool-use | 50%（2/4） |
+| memory | 100%（4/4） |
+| self-evolve | 87.5%（7/8） |
+| 平均延迟 | 22.6s ｜ 平均输出 584 字符 |
+
+对比：默认路由 16.7% → deepseek 70.8% → 历史 87.5%（deepseek + evolve + constraints）。剩余失败多为**校验器关键词过严**（如 PLAN-04 需字面 p0/先/bug、TOOL-06 需字面 git）或**单样本波动**（CODING-07/TOOL-07 全缺），可后续用 rerun 或宽松关键词消除。

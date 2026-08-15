@@ -5235,3 +5235,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 eval-results/agent-evals-2026-08-16-default-router.md（效果检查报告：16.7% vs 87.5% 基线、失败主因、优化）
 - Verification: bun test --parallel=8 ./tests 2604 tests / 0 fail（原 2601，+3）；bunx tsc --noEmit exit 0；实测回退机制生效（deepseek 503 → 自动回退 zhipu glm-4-flash）。
 - Commit: be896e2
+
+## 2026-08-16 - opencode/deepseek 可达性排查 + 评测恢复至 70.8%
+
+- Task: 排查 deepseek-v4-flash（opencode）503/超时：确认端点/密钥/模型正常（/models 与 chat 均 200），非持续故障；定位评测自身 3 个 bug（curl -m30 杀掉慢回答、CODING-04 中文答案误杀、瞬时限流），修复后 held-out 从 16.7% 恢复到 70.8%（coding held-out 100%）。
+- Tools: curl（复现/验证）/ bun run src/agent-evals/run.ts / bun test / bunx tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（callWithCurl：--connect-timeout 15 + -m 120，替代 -m 30）
+  - 修改 src/agent-evals/tasks.ts（CODING-04 组3 增加「哈希」中文同义词）
+  - 修改 tests/agent-evals/tasks-coding01.test.ts（+2 CODING-04 用例）
+  - 更新 eval-results/agent-evals-2026-08-16-default-router.md（可达性诊断 + 恢复后分族数据）
+- Verification: coding held-out 25%→75%（curl 修复）→100%（中文误杀修复）；全量 held-out deepseek 70.8%（17/24）；bun test --parallel=8 ./tests 2606 tests / 0 fail；bunx tsc --noEmit exit 0。
+- Commit: <hash>

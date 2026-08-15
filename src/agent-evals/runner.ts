@@ -184,7 +184,7 @@ async function callWithCurl(
   fs.writeFileSync(tmpFile, payload, "utf8");
   try {
     const proc = spawnSync(
-      ["curl.exe", "-sS", "-m", "30", "-X", "POST",
+      ["curl.exe", "-sS", "--connect-timeout", "15", "-m", "120", "-X", "POST",
         `${baseURL.replace(/\/$/, "")}/chat/completions`,
         "-H", "Content-Type: application/json",
         "-H", `Authorization: Bearer ${apiKey}`,

@@ -39,3 +39,28 @@ describe("CODING-01 防抖校验器", () => {
     expect(task.verify(ans).passed).toBe(false);
   });
 });
+
+describe("CODING-04 复杂度校验器（中文答案不被误杀）", () => {
+  const task = ALL_AGENT_TASKS.find((x) => x.id === "CODING-04")!;
+  expect(task).toBeDefined();
+
+  it("中文『哈希集合/Set』O(n) 答案通过（哈希≠hash 的字面误杀已修复）", () => {
+    const ans = `原函数是双重循环，时间复杂度为 O(n²)。
+优化实现：
+function findDup(arr) {
+  const seen = new Set();
+  for (let i = 0; i < arr.length; i++) {
+    if (seen.has(arr[i])) return arr[i];
+    seen.add(arr[i]);
+  }
+  return null;
+}
+用哈希集合记录已见元素，时间复杂度 O(n)，空间复杂度 O(n)。`;
+    expect(task.verify(ans).passed).toBe(true);
+  });
+
+  it("缺复杂度说明仍失败", () => {
+    const ans = "function findDup(arr) { return null; }";
+    expect(task.verify(ans).passed).toBe(false);
+  });
+});
