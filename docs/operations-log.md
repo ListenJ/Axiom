@@ -5193,4 +5193,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/FRONTEND-VISUAL-REVIEW.md
 - 密钥处置：真实 key 存入 C:\Users\18336\.axiom\axiom-secrets\sensenova.credentials（规则 11），仓库仅占位符；提交前扫描确认无 sk- 泄漏。
 - Verification: bun test --parallel=8 ./tests 2593 tests / 0 fail（原 2588，+5）；bunx tsc --noEmit exit 0；实时审核真实模型 verdict=pass（~14.5s）。
-- Commit: <hash>
+- Commit: 3d2733f
