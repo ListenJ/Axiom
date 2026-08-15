@@ -115,5 +115,22 @@ export function registerBrowserTools(registry: ToolRegistry): void {
     },
   });
 
+  registry.add({
+    name: "frontend_visual_review",
+    description: "前端视觉审核：对 URL 截图（CDP）或直接图片，用 SenseNova 视觉模型输出结构化审核（布局/对比度/交互/一致性/渲染）",
+    exposure: ["external", "safe-external"],
+    inputSchema: {
+      url: z.string().optional().describe("要审核的前端 URL（与 imageBase64 二选一；需 CDP 端点）"),
+      imageBase64: z.string().optional().describe("图片 base64（与 url 二选一）"),
+      cdpUrl: z.string().optional().default("http://127.0.0.1:9222").describe("CDP 端点（url 模式）"),
+    },
+    handler: async (args: Record<string, unknown>) => {
+      const { reviewFrontendScreenshot, reviewFrontendUrl } = await import("../../computer-use/frontend-review.js");
+      if (args.imageBase64) return reviewFrontendScreenshot(args.imageBase64 as string);
+      if (args.url) return reviewFrontendUrl(args.url as string, { cdpUrl: (args.cdpUrl as string | undefined) ?? "http://127.0.0.1:9222" });
+      throw new Error("frontend_visual_review requires url or imageBase64");
+    },
+  });
+
   logger.info("[BrowserTools] registered browser_* tools");
 }

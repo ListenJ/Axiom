@@ -5179,3 +5179,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/DOCUMENT-INGEST.md（轻量化升级章节）
 - Verification: bun test --parallel=8 ./tests 2588 tests / 0 fail（原 2571，+17）；bunx tsc --noEmit exit 0；真实端到端：sample.pdf→pdf-local+AST、llama.cpp README→9 headings/1 code/1 table。
 - Commit: 4767378
+
+## 2026-08-15 - SenseNova 视觉模型接入：前端视觉审核
+
+- Task: 用户提供 SenseNova 端点与密钥，要求作为前端审核视觉模型。已验证端点/视觉能力（读图准确），按规则 11 密钥存本地凭据目录（不入库），注册 provider+视觉模型，构建前端视觉审核（截图→结构化审核 JSON）+ MCP 工具。
+- Tools: curl（端点/视觉验证）/ bun test / bunx tsc / node / git。
+- Files:
+  - 新增 src/computer-use/frontend-review.ts（reviewFrontendScreenshot / reviewFrontendUrl / resolveSensenovaKey；OpenAI 多模态；fetchImpl 注入）
+  - 修改 src/mcp/server/browser-tools.ts（frontend_visual_review 工具）
+  - 修改 src/utils/api-key-store.ts + src/router/models/{types,providers,registry}.ts（provider sensenova + 6.8/6.7-flash-lite 视觉模型，tags 含 frontend-review）
+  - 修改 .env.example（SENSENOVA_API_KEY/BASE_URL/VISION_MODEL 占位）
+  - 新增 tests/frontend-review.test.ts（5）
+  - 新增 docs/FRONTEND-VISUAL-REVIEW.md
+- 密钥处置：真实 key 存入 C:\Users\18336\.axiom\axiom-secrets\sensenova.credentials（规则 11），仓库仅占位符；提交前扫描确认无 sk- 泄漏。
+- Verification: bun test --parallel=8 ./tests 2593 tests / 0 fail（原 2588，+5）；bunx tsc --noEmit exit 0；实时审核真实模型 verdict=pass（~14.5s）。
+- Commit: <hash>

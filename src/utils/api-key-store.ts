@@ -60,6 +60,13 @@ interface ProviderEntry {
  */
 const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
   // ─── OpenAI 标准协议 ──────────────────────────────────────────────
+  sensenova: {
+    apiKeyEnv: "SENSENOVA_API_KEY",
+    baseURL: "https://token.sensenova.cn/v1",
+    adapter: "openai",
+    region: "domestic",
+    displayName: "SenseNova",
+  },
   siliconflow: {
     apiKeyEnv: "SILICONFLOW_API_KEY",
     baseURL: "https://api.siliconflow.cn/v1",

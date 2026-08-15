@@ -20,6 +20,7 @@ const ALL_MODEL_PROVIDERS: ModelProvider[] = [
   "minimax",
   "nvidia-nim",
   "zhipu",
+  "sensenova",
 ];
 
 function buildProviderConfig(): Record<ModelProvider, ProviderConfig> {

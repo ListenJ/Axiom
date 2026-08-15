@@ -14,7 +14,8 @@ export type ModelProvider =
   | "kimi"
   | "minimax"
   | "nvidia-nim"
-  | "zhipu";
+  | "zhipu"
+  | "sensenova";
 
 export type TaskRole =
   | "decision"

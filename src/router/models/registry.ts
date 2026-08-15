@@ -403,6 +403,40 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 30000,
   },
 
+  // ─── SenseNova 6.8 Flash-Lite (Vision — 前端审核/多模态) ───
+  {
+    id: "sensenova-6.8-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.8-flash-lite",
+    roles: ["computer-use", "general-chat", "english", "research"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use", "frontend-review"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.8 Flash-Lite — 轻量多模态模型，支持图像输入理解，用于前端视觉审核 (262K ctx)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── SenseNova 6.7 Flash-Lite (Vision — 备选) ───
+  {
+    id: "sensenova-6.7-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.7-flash-lite",
+    roles: ["computer-use", "general-chat", "english"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.7 Flash-Lite — 轻量多模态备选 (262K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
   // ─── Qwen2.5-VL-72B-Instruct (Vision — 旗舰) ───
   {
     id: "qwen2.5-vl-72b",
