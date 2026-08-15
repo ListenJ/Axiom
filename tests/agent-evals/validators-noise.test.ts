@@ -72,6 +72,16 @@ describe("校验器降噪：中文同义词不再误杀（KNOW-03）", () => {
   });
 });
 
+describe("校验器降噪：Set 即为哈希去重（CODING-04）", () => {
+  const task = find("CODING-04");
+  it("仅用 Set 去重的完整答案通过（无需字面 哈希/map/字典）", () => {
+    expect(task.verify("原函数双重循环是 O(n²)。优化：用 Set 记录已见元素，遍历一次 O(n)，空间 O(n)。").passed).toBe(true);
+  });
+  it("无任何数据结构仍失败", () => {
+    expect(task.verify("把循环优化成 O(n)，时间复杂度 O(n)。").passed).toBe(false);
+  });
+});
+
 describe("校验器降噪：中文同义词不再误杀（CODING-07）", () => {
   const task = find("CODING-07");
   it("『堆快照/内存分析/排查定位』中文答案通过", () => {

@@ -57,7 +57,7 @@ const coding: AgentTask[] = [
     { maxTokens: 512 }),
   t("CODING-04", "coding", "held-out", "复杂度优化建议",
     "给定函数：function findDup(arr){ for(let i=0;i<arr.length;i++){ for(let j=i+1;j<arr.length;j++){ if(arr[i]===arr[j]) return arr[i]; } } return null; } 请完成：① 说明原函数的时间复杂度；② 给出 O(n) 的优化实现；③ 标定实现目标、优化后的时间复杂度和空间复杂度。",
-    (r) => containsAllAny(r, [["o(n"], ["set", "哈希"], ["map", "object", "字典", "hash", "哈希"], ["时间复杂度", "o("], ["空间复杂度", "空间"]]),
+    (r) => containsAllAny(r, [["o(n"], ["set", "哈希"], ["map", "object", "字典", "hash", "哈希", "set"], ["时间复杂度", "o("], ["空间复杂度", "空间"]]),
     { maxTokens: 512 }),
   t("CODING-05", "coding", "train", "JSON 容错解析",
     "写一个 TypeScript 函数 safeParse(json: string)：解析 JSON，无效输入返回 null 而不是抛异常。请标定实现目标（输入/输出/约束）与时间复杂度、空间复杂度。",

@@ -5259,3 +5259,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/run.ts（--rerun-each=N 参数 + 4 处 runTasks 透传 + help）
 - Verification: bun test tests/agent-evals/ 69 tests / 0 fail（原 55，+14）；bun test --parallel=8 ./tests 2592 pass / 28 skip / 0 fail（总 2620 tests = 原 2606 + 14 新增）；bunx tsc --noEmit exit 0；--dry-run 正常。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-16 - CODING-04 校验器降噪（Set 即为哈希去重）
+
+- Task: evolve 评测首跑 baseline 95.8%（23/24）已超历史 87.5% 基线；唯一失败 CODING-04 为校验器噪声：模型给出完整 Set 去重 O(n) 答案（含时间/空间复杂度）但未写「哈希/map/字典」，组3 误杀。Set 即 JS 中哈希去重的规范实现，组3 增加 set 同义词。
+- Tools: bun test / bun x tsc --noEmit / node 字符串补丁。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（CODING-04 组3 增加 set）
+  - 修改 tests/agent-evals/validators-noise.test.ts（+2 用例：仅 Set 答案通过、无数据结构失败）
+- Verification: bun test tests/agent-evals/ 71 tests / 0 fail（原 69，+2）；bunx tsc --noEmit exit 0。
+- Commit: [PLACEHOLDER]
