@@ -5208,3 +5208,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/FRONTEND-VISUAL-REVIEW.md（页面级流水线章节）
 - Verification: bun test --parallel=8 ./tests 2598 tests / 0 fail（原 2593，+5）；bunx tsc --noEmit exit 0；实时 2 页 10s 全 pass（修复后）；/settings 截图 6KB→220KB（黑屏误报消除）。
 - Commit: fdee20f
+
+## 2026-08-16 - 前端审核挂入 CI（视觉回归门禁）+ 门禁阈值抗噪
+
+- Task: 把 frontend_audit 接入 CI：新增 .github/workflows/frontend-audit.yml（前端改动触发）+ .ci/frontend-audit.sh（构建→起后端→等健康→9 页审核→归档→门禁）；修复门禁噪音问题（LLM 对次要对比度过度标记，深色主题 muted 实为 7.6:1 达标）→ CLI 加 --block-on（默认 critical 只拦渲染级故障，major/minor 进报告）。
+- Tools: bun / npx playwright / bun test / bunx tsc / git。
+- Files:
+  - 新增 .github/workflows/frontend-audit.yml（paths: frontend/**、public/**；secret SENSENOVA_API_KEY；报告 artifact）
+  - 新增 .ci/frontend-audit.sh（后端生命周期 + 审核 + 归档 + 门禁）
+  - 修改 scripts/frontend-audit.ts（--block-on 阈值；computeBlockingSeverity）
+  - 修改 src/computer-use/frontend-audit.ts（computeBlockingSeverity 导出）
+  - 修改 tests/frontend-audit.test.ts（+3 阈值用例）
+  - 更新 docs/FRONTEND-VISUAL-REVIEW.md（CI 门禁章节）
+- Verification: bun test --parallel=8 ./tests 2601 tests / 0 fail（原 2598，+3）；bunx tsc --noEmit exit 0；实时全 9 页审核：--block-on=critical exit 0（0 critical，门禁绿），--block-on=major exit 1（对比度噪音）。
+- Commit: <hash>

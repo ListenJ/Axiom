@@ -2,7 +2,7 @@
  * 前端页面审核流水线测试 — mock 截图 + mock 审核（零浏览器零网络）
  */
 import { describe, it, expect } from "bun:test";
-import { auditFrontendPages, renderAuditReportMarkdown, DEFAULT_AUDIT_PAGES } from "../src/computer-use/frontend-audit.js";
+import { auditFrontendPages, renderAuditReportMarkdown, DEFAULT_AUDIT_PAGES, computeBlockingSeverity } from "../src/computer-use/frontend-audit.js";
 
 function mockReview(verdict: "pass" | "issues", findings: Array<{ severity: string; area: string; description: string; suggestion?: string }>) {
   return async () => ({ verdict, findings: findings as never, summary: "mock summary", model: "m" });
@@ -78,5 +78,19 @@ describe("renderAuditReportMarkdown", () => {
     expect(paths).toContain("/settings");
     expect(paths).toContain("/vault");
     expect(paths.length).toBeGreaterThanOrEqual(9);
+  });
+});
+
+describe("computeBlockingSeverity — 门禁阈值", () => {
+  const totals = { pages: 3, pass: 0, issues: 3, critical: 1, major: 2, minor: 4, info: 1 };
+
+  it("critical 阈值只拦 critical（默认，抗 LLM 对比度过度标记）", () => {
+    expect(computeBlockingSeverity(totals, "critical")).toBe(1);
+  });
+  it("major 阈值拦 critical+major", () => {
+    expect(computeBlockingSeverity(totals, "major")).toBe(3);
+  });
+  it("minor 阈值全拦（含 minor）", () => {
+    expect(computeBlockingSeverity(totals, "minor")).toBe(7);
   });
 });

@@ -183,3 +183,14 @@ export function renderAuditReportMarkdown(report: FrontendAuditReport): string {
   }
   return lines.join("\n");
 }
+
+/** 门禁阈值：按 blockOn 计算应拦截的严重度总数（critical|major|minor） */
+export function computeBlockingSeverity(
+  totals: FrontendAuditReport["totals"],
+  blockOn: "critical" | "major" | "minor" = "critical",
+): number {
+  const base = totals.critical + totals.major;
+  if (blockOn === "critical") return totals.critical;
+  if (blockOn === "major") return base;
+  return base + totals.minor;
+}

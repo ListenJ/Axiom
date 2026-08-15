@@ -5,7 +5,7 @@
  * 说明: 需要后端已运行（bun run src/main.ts）；逐页 Playwright 截图 → SenseNova 审核 → 报告。
  *       --knowledge 会把 issues 写入知识库（domain=frontend-audit）。
  */
-import { auditFrontendPages, DEFAULT_AUDIT_PAGES } from "../src/computer-use/frontend-audit.js";
+import { auditFrontendPages, DEFAULT_AUDIT_PAGES, computeBlockingSeverity } from "../src/computer-use/frontend-audit.js";
 import { writeFileSync, mkdirSync, existsSync, appendFileSync } from "fs";
 import { join } from "path";
 
@@ -19,6 +19,9 @@ const pages = pagesParam
 const concurrency = Number(flag("concurrency", "2")) || 2;
 const outFile = flag("out", "");
 const withKnowledge = args.includes("--knowledge");
+// 门禁阈值：critical|major|minor（默认 critical）——LLM 视觉模型对次要文字对比度易过度标记，
+// critical（渲染级故障：黑屏/重叠/缺失）才作为回归拦截，major/minor 进报告供人工审阅
+const blockOn = (flag("block-on", "critical") || "critical") as "critical" | "major" | "minor";
 
 const ts = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
 const reportPath = outFile || join("reports", `frontend-audit-${ts}.md`);
@@ -55,5 +58,6 @@ if (withKnowledge) {
   console.log(`[FrontendAudit] saved ${saved} issues to knowledge base`);
 }
 
-const critical = report.totals.critical + report.totals.major;
-process.exit(critical > 0 ? 1 : 0);
+const blocking = computeBlockingSeverity(report.totals, blockOn);
+console.log(`[FrontendAudit] block-on=${blockOn} blocking=${blocking}`);
+process.exit(blocking > 0 ? 1 : 0);

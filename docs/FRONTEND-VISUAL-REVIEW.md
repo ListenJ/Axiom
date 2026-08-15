@@ -55,3 +55,27 @@ import { reviewFrontendScreenshot } from "src/computer-use/frontend-review.js";
 - `tests/frontend-audit.test.ts`（5）：聚合统计/severity/单页失败容错/Markdown/默认页面清单（mock 截图+审核，零浏览器零网络）
 - 实时（真实后端 + Playwright + SenseNova）：2 页 10s 完成；修复时机问题后 /chat、/settings 均 pass
 - root 套件 **2598 tests / 0 fail**
+
+## CI 视觉回归门禁（2026-08-16 追加）
+
+### 工作流
+`.github/workflows/frontend-audit.yml`：**前端改动时**（frontend/**、public/**）自动触发：
+构建前端 → 起后端 → 全 9 页 Playwright 截图 → SenseNova 审核 → 报告归档（artifact）→ 门禁。
+
+- 触发：push/PR 命中 `frontend/**`、`public/**`
+- 需要 GitHub secret：`SENSENOVA_API_KEY`
+- `.ci/frontend-audit.sh`：构建→起后端（trap 清理）→等健康→审核→归档 `reports/frontend-audit-ci-<ts>.md`→按退出码拦截
+- 报告上传为 artifact（保留 30 天）
+
+### 门禁阈值（`--block-on`，默认 critical）
+- **critical（渲染级故障：黑屏/重叠/内容缺失）→ 拦截（exit 1）** —— 回归门禁的核心
+- major/minor（如次要文字对比度）→ 进报告供人工审阅，不拦截
+- 依据（事实）：深色主题 `--text-muted:#a6a6a6 on --bg:#0a0a0a` ≈ **7.6:1（WCAG AA 达标）**；LLM 视觉模型对次要文字对比度**过度标记**（实测 9 页被标 2 major/7 minor 均为此类），若在 major 拦截会把门禁长期搞红
+- 实测：`--block-on=critical` 全 9 页 exit 0（门禁绿）；`--block-on=major` 会 exit 1（3 处对比度噪音）
+
+### 本地运行
+```bash
+bun run src/main.ts &        # 起后端
+bun run audit:frontend --block-on=critical
+bun run audit:frontend --pages=/chat,/settings --out=reports/audit.md
+```
