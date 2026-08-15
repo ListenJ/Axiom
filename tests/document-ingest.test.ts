@@ -110,7 +110,8 @@ describe("DocumentIngest — pdf", () => {
     const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
     const doc = await ingestDocument({ url: "https://example.com/doc.pdf" }, { fetchImpl: mockFetch(200, pdfBytes, "application/pdf") });
     expect(doc.kind).toBe("pdf");
-    expect(doc.error).toContain("pdf-worker");
+    // 本地 unpdf 对无效字节失败 → 无 worker 时优雅降级（带原因）
+    expect(doc.error).toBeTruthy();
     expect(doc.markdown).toBe("");
   });
 

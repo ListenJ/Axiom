@@ -5165,3 +5165,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/DOCUMENT-INGEST.md
 - Verification: bun test --parallel=8 ./tests 2571 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0；真实端到端：ingestDocument(样例图) → image/ocr-layout、8 sections、layout{columns:1,blocks:8,avgConfidence:93}；真实网页 example.com → markdown。
 - Commit: fb4f244
+
+## 2026-08-15 - 轻量化文档框架：本地 PDF/DOCX 读取 + 自研文档 AST 整理
+
+- Task: 用户要求更轻量高效方案并部署轻量化框架：本地 PDF（unpdf）毫秒级提取替代外部服务/OCR；DOCX（mammoth）保留标题结构；自研文档 AST 算法做内容整理（标题大纲树/章节/表格/代码/统计）；接入 ingestDocument（docx 类型 + PDF 本地优先 + ast 输出）。
+- Tools: bun add unpdf / mammoth；bun test / bunx tsc / node / git。
+- Files:
+  - package.json（+unpdf@1.8.1、mammoth@1.12.1）
+  - 新增 src/knowledge/doc-ast.ts（parseMarkdownAst/buildAst/buildOutline/nodesToMarkdown/organizeDocument）
+  - 新增 src/knowledge/document-reader.ts（readDocument：pdf/docx/md/html/txt，惰性依赖）
+  - 修改 src/knowledge/document-ingest.ts（IngestKind+docx、detect .docx/PK 魔数、PDF 本地优先→worker→OCR 降级、web/text/docx 走 AST、ast 字段）
+  - 新增 tests/doc-ast.test.ts（11）+ tests/document-reader.test.ts（6，含自建最小 PDF/DOCX 夹具）
+  - 更新 docs/DOCUMENT-INGEST.md（轻量化升级章节）
+- Verification: bun test --parallel=8 ./tests 2588 tests / 0 fail（原 2571，+17）；bunx tsc --noEmit exit 0；真实端到端：sample.pdf→pdf-local+AST、llama.cpp README→9 headings/1 code/1 table。
+- Commit: <hash>

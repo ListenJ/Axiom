@@ -16,13 +16,14 @@
 
 import type { OCRResult } from "../ocr/engine.js";
 import { postProcessOCR, type StructuredDocument } from "../ocr/post-processor.js";
-import { htmlToMarkdown } from "../crawl/html-to-markdown.js";
+import { readDocument } from "./document-reader.js";
+import { organizeDocument, type DocAst } from "./doc-ast.js";
 import { logger } from "../utils/logger.js";
 
 export type DocumentSource = { url: string } | { file: string } | { buffer: Uint8Array; name?: string };
 
-export type IngestKind = "web" | "pdf" | "image" | "text" | "unknown";
-export type IngestVia = "web-markdown" | "pdf-worker" | "ocr-layout" | "text-decode";
+export type IngestKind = "web" | "pdf" | "docx" | "image" | "text" | "unknown";
+export type IngestVia = "web-markdown" | "pdf-local" | "pdf-worker" | "docx-mammoth" | "doc-ast" | "ocr-layout" | "text-decode";
 
 export interface IngestedDocument {
   source: string;
@@ -31,6 +32,8 @@ export interface IngestedDocument {
   markdown: string;
   /** OCR 排版框架输出（image 来源时提供） */
   structured?: StructuredDocument;
+  /** 文档 AST（md/txt/docx/pdf 来源时提供）：标题大纲/章节/表格/代码块/统计 */
+  ast?: DocAst;
   /** 布局信息（image 来源时提供） */
   layout?: { columns: number; blocks: number; avgConfidence: number };
   metadata: {
@@ -66,6 +69,7 @@ function detectContentType(name: string | undefined, header?: string | null, hea
   if (header && header.length > 0 && !header.startsWith("text/plain")) return header.toLowerCase();
   const lower = (name ?? "").toLowerCase();
   if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   if (lower.endsWith(".png")) return "image/png";
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
   if (lower.endsWith(".webp")) return "image/webp";
@@ -76,6 +80,7 @@ function detectContentType(name: string | undefined, header?: string | null, hea
   if (head && head.length >= 5) {
     const sig = String.fromCharCode(...Array.from(head.slice(0, 5)));
     if (sig.startsWith("%PDF")) return "application/pdf";
+    if (head[0] === 0x50 && head[1] === 0x4b && name?.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return "image/png";
     if (head[0] === 0xff && head[1] === 0xd8) return "image/jpeg";
   }
@@ -85,6 +90,7 @@ function detectContentType(name: string | undefined, header?: string | null, hea
 function kindFor(mime: string): IngestKind {
   if (mime.includes("html") || mime.includes("xhtml")) return "web";
   if (mime.includes("pdf")) return "pdf";
+  if (mime.includes("officedocument") || mime.includes("wordprocessingml")) return "docx";
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("text/") || mime.includes("json") || mime.includes("markdown")) return "text";
   return "unknown";
@@ -118,15 +124,22 @@ export async function ingestDocument(source: DocumentSource, opts: DocumentInges
     const kind = kindFor(mime);
     const sourceLabel = http ?? name ?? "buffer";
 
-    if (kind === "web") {
-      const html = new TextDecoder().decode(bytes);
-      const markdown = htmlToMarkdown(html);
-      return { source: sourceLabel, kind, markdown, metadata: { contentType: mime, title: name, fetchedAt, via: "web-markdown", bytes: bytes.length } };
-    }
-
-    if (kind === "text") {
-      const markdown = new TextDecoder().decode(bytes);
-      return { source: sourceLabel, kind, markdown, metadata: { contentType: mime, title: name, fetchedAt, via: "text-decode", bytes: bytes.length } };
+    if (kind === "web" || kind === "text" || kind === "docx") {
+      const format = kind === "web" ? "html" : kind === "docx" ? "docx" : "text";
+      const read = await readDocument(bytes, format);
+      if (read.error) {
+        return { source: sourceLabel, kind, markdown: "", metadata: { contentType: mime, title: name, fetchedAt, via: "doc-ast", bytes: bytes.length }, error: read.error };
+      }
+      // 自研 AST 整理：标题大纲/章节/表格/代码块/统计 → 归一化 Markdown
+      const ast = organizeDocument(read.text);
+      const via: IngestVia = kind === "docx" ? "docx-mammoth" : kind === "web" ? "web-markdown" : "doc-ast";
+      return {
+        source: sourceLabel,
+        kind,
+        markdown: ast.markdown,
+        ast,
+        metadata: { contentType: mime, title: name ?? ast.title, fetchedAt, via, bytes: bytes.length },
+      };
     }
 
     if (kind === "pdf") {
@@ -147,23 +160,34 @@ export async function ingestDocument(source: DocumentSource, opts: DocumentInges
 
 /** PDF：优先外部 pdf-worker；未配置则优雅降级（返回原因 + 空 markdown） */
 async function ingestPdf(source: DocumentSource, bytes: Uint8Array, mime: string, sourceLabel: string, fetchedAt: number, opts: DocumentIngestOptions): Promise<IngestedDocument> {
-  const base = { source: sourceLabel, kind: "pdf" as const, markdown: "", metadata: { contentType: mime, title: sourceLabel.split("/").pop(), fetchedAt, via: "pdf-worker" as const, bytes: bytes.length } };
-  if (!opts.pdfWorkerUrl && !opts.pdfWorker) {
-    return { ...base, error: "PDF 处理需要外部 pdf-worker（未配置 pdfWorkerUrl）；可用 OCR 对扫描页另行处理" };
+  const base = { source: sourceLabel, kind: "pdf" as const, markdown: "", metadata: { contentType: mime, title: sourceLabel.split("/").pop(), fetchedAt, via: "pdf-local" as IngestVia, bytes: bytes.length } };
+
+  // 1) 本地轻量提取（unpdf，纯 JS 框架，毫秒级）——文字型 PDF 无需外部服务/OCR
+  const local = await readDocument(bytes, "pdf");
+  if (!local.error && local.text.trim().length > 0) {
+    const ast = organizeDocument(local.text);
+    return { ...base, markdown: ast.markdown, ast, metadata: { ...base.metadata, via: "pdf-local", title: base.metadata.title ?? ast.title } };
   }
-  try {
-    const worker = opts.pdfWorker ?? (await createPdfWorkerClientProxy(opts.pdfWorkerUrl!));
-    const task =
-      "url" in source
-        ? { task_type: "pdf:convert", payload: { url: source.url } }
-        : { task_type: "pdf:convert", payload: { name: sourceLabel, data: Array.from(bytes.slice(0, 64)) } };
-    const resp = (await worker.submit(task)) as { result?: { markdown?: string }; error?: string };
-    if (resp.error) return { ...base, error: resp.error };
-    const markdown = resp.result?.markdown ?? "";
-    return { ...base, markdown, metadata: { ...base.metadata, via: "pdf-worker" } };
-  } catch (err) {
-    return { ...base, error: `pdf-worker failed: ${err instanceof Error ? err.message : String(err)}` };
+
+  // 2) 无文本层（扫描型 PDF）→ 外部 pdf-worker（若配置）
+  if (opts.pdfWorkerUrl || opts.pdfWorker) {
+    try {
+      const worker = opts.pdfWorker ?? (await createPdfWorkerClientProxy(opts.pdfWorkerUrl!));
+      const task =
+        "url" in source
+          ? { task_type: "pdf:convert", payload: { url: source.url } }
+          : { task_type: "pdf:convert", payload: { name: sourceLabel, data: Array.from(bytes.slice(0, 64)) } };
+      const resp = (await worker.submit(task)) as { result?: { markdown?: string }; error?: string };
+      if (resp.error) return { ...base, error: resp.error };
+      const markdown = resp.result?.markdown ?? "";
+      return { ...base, markdown, metadata: { ...base.metadata, via: "pdf-worker" } };
+    } catch (err) {
+      return { ...base, error: "pdf-worker failed: " + (err instanceof Error ? err.message : String(err)) };
+    }
   }
+
+  // 3) 降级说明
+  return { ...base, error: local.error ?? "PDF 无文本层（扫描型）；可配置 pdf-worker 或对页面走 OCR" };
 }
 
 /** 图片：OCR → 文档识别排版框架（布局分析 → 结构化 Markdown） */

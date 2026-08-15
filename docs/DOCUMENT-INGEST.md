@@ -51,3 +51,33 @@ DRE 获取**文档和网页内容**并处理的统一入口：按类型路由到
 - `tests/ocr-v7.test.ts`（2）：blocks 请求 + v7 分层提取 + 旧版兼容
 - 真实端到端（手动验证）：`ingestDocument({file: 样例图})` → `kind=image, via=ocr-layout`，
   8 sections、layout{columns:1,blocks:8,avgConfidence:93}，Markdown 完整
+
+## 轻量化升级（2026-08-15 追加）— 本地 PDF/DOCX 读取 + 自研文档 AST 整理
+
+### 轻量化框架部署
+| 格式 | 框架 | 说明 |
+|------|------|------|
+| PDF | **unpdf@1.8.1**（基于 pdf.js 的轻量 ESM 封装） | 文字型 PDF **本地毫秒级提取**，无需外部 pdf-worker 服务 / 重型 OCR |
+| DOCX | **mammoth@1.12.1**（纯 JS） | convertToHtml 保留 h1-h6 → htmlToMarkdown → AST |
+| Markdown/TXT | 自研解码 | 直通解码 |
+| HTML | 既有 htmlToMarkdown | 零依赖正则 |
+
+PDF 摄取策略（`ingestPdf`）：**本地 unpdf 优先**（via=pdf-local）→ 无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR。
+
+### 自研文档 AST 算法（`src/knowledge/doc-ast.ts`）
+- 行级确定性解析：heading/paragraph/list/code/table/quote/hr
+- **大纲整理** `buildOutline`：标题层级树 + 章节路径 + 正文归属
+- 独立提取：表格（headers+rows）、代码块（lang+content）、统计（chars/words/paragraphs/headings…）
+- 归一化 Markdown 回写（供 DRE 入库/检索）
+- 纯函数、零依赖、完全可测试
+
+### 文件
+- `src/knowledge/doc-ast.ts`（AST 算法）、`src/knowledge/document-reader.ts`（统一读取）
+- `src/knowledge/document-ingest.ts`（接入：docx 类型 + PDF 本地优先 + AST 输出 `ast` 字段）
+- `package.json`（unpdf、mammoth）
+
+### 验证
+- `tests/doc-ast.test.ts`（11）：节点解析/大纲树/表格/代码/统计/归一化/空输入/CRLF
+- `tests/document-reader.test.ts`（6）：自建最小 PDF + 最小 DOCX ZIP（真实 unpdf/mammoth 提取，离线）
+- 真实端到端：sample.pdf → pdf-local（unpdf）+ AST；llama.cpp README → 9 headings / 1 code / 1 table
+- root 套件 **2588 tests / 0 fail**
