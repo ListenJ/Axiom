@@ -5178,4 +5178,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/doc-ast.test.ts（11）+ tests/document-reader.test.ts（6，含自建最小 PDF/DOCX 夹具）
   - 更新 docs/DOCUMENT-INGEST.md（轻量化升级章节）
 - Verification: bun test --parallel=8 ./tests 2588 tests / 0 fail（原 2571，+17）；bunx tsc --noEmit exit 0；真实端到端：sample.pdf→pdf-local+AST、llama.cpp README→9 headings/1 code/1 table。
-- Commit: <hash>
+- Commit: 4767378
