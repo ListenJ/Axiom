@@ -5246,4 +5246,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/agent-evals/tasks-coding01.test.ts（+2 CODING-04 用例）
   - 更新 eval-results/agent-evals-2026-08-16-default-router.md（可达性诊断 + 恢复后分族数据）
 - Verification: coding held-out 25%→75%（curl 修复）→100%（中文误杀修复）；全量 held-out deepseek 70.8%（17/24）；bun test --parallel=8 ./tests 2606 tests / 0 fail；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: cbdab92
