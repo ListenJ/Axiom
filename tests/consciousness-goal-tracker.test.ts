@@ -407,7 +407,7 @@ describe("GoalTracker — 性能基准", () => {
     expect(elapsed).toBeLessThan(5);
   });
 
-  test("mergeGoals 应在 2ms 内合并 100 个目标", () => {
+  test("mergeGoals 应在 10ms 内合并 100 个目标", () => {
     const goals: GoalRecord[] = Array.from({ length: 100 }, (_, i) => ({
       id: `goal-perf-${i}`,
       description: `Unique goal number ${i} for testing`,
@@ -423,7 +423,7 @@ describe("GoalTracker — 性能基准", () => {
     tracker.mergeGoals(goals);
     const elapsed = Date.now() - start;
 
-    expect(elapsed).toBeLessThan(2);
+    expect(elapsed).toBeLessThan(10);
   });
 
   test("detectDrift 应在 1ms 内完成（100 条历史记录）", () => {

@@ -7,7 +7,9 @@
  */
 
 import { createWorker, type Worker } from "tesseract.js";
+import { fileURLToPath } from "url";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
 /** OCR recognition options */
 export interface OCROptions {
@@ -21,6 +23,8 @@ export interface OCROptions {
   psm?: number;
   /** Enable OCR engine mode (0-3) */
   oem?: number;
+  /** Tesseract 语言数据目录（默认仓库根，含本地 eng.traineddata；可 TESSERACT_LANG_PATH 覆盖） */
+  langPath?: string;
 }
 
 /** Single text block with metadata */
@@ -56,11 +60,17 @@ export interface OCRResult {
 export class OCREngine {
   private worker: Worker | null = null;
   private currentLangs: string[] = ["eng"];
+  private readonly langPath: string;
 
   /**
    * Initialize the OCR worker.
    * Must be called before any recognize() calls.
    */
+  constructor(langPath?: string) {
+    // 默认仓库根（eng.traineddata 所在），保证离线可用；env TESSERACT_LANG_PATH 可覆盖
+    this.langPath = (langPath ?? readString("TESSERACT_LANG_PATH", "")) || defaultLangPath();
+  }
+
   async initialize(languages: string[] = ["eng"]): Promise<void> {
     if (this.worker) return;
 
@@ -74,6 +84,7 @@ export class OCREngine {
             logger.debug(`[OCR] ${m.status}: ${Math.round(m.progress * 100)}%`);
           }
         },
+        langPath: this.langPath,
       });
       logger.info(`[OCR] Worker initialized`, {
         languages,
@@ -108,14 +119,22 @@ export class OCREngine {
         });
       }
 
-      const result = await this.worker!.recognize(source as string | Buffer);
+      // tesseract.js v7：结构化输出需显式请求 blocks；行文本位于 blocks→paragraphs→lines
+      const result = await this.worker!.recognize(source as string | Buffer, {}, { blocks: true });
       const duration = Math.round(performance.now() - start);
-      const data = result.data as unknown as { lines: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number; }; words?: Array<unknown> }>; confidence: number; detectedLang?: string; };
+      const data = result.data as unknown as {
+        text?: string;
+        confidence?: number;
+        detectedLang?: string;
+        lines?: Array<{ text?: string; confidence?: number; bbox?: { x0: number; y0: number; x1: number; y1: number }; words?: Array<unknown> }>;
+        blocks?: Array<{ paragraphs?: Array<{ lines?: Array<{ text?: string; confidence?: number; bbox?: { x0: number; y0: number; x1: number; y1: number }; words?: Array<unknown> }> }> }>;
+      };
+
+      // 提取行：优先 v7 分层结构，兼容旧版 data.lines
+      const lines = extractLines(data);
 
       // Build structured blocks from lines
       const blocks: OCRBlock[] = [];
-      const lines = data.lines || [];
-      
       for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         const line = lines[lineIdx];
         const words = line.words || [];
@@ -196,10 +215,17 @@ export class OCREngine {
 /** Global engine instance */
 let globalEngine: OCREngine | null = null;
 
+/** 默认语言数据目录：仓库根（含 eng.traineddata），跨平台归一为前斜杠 + 结尾斜杠 */
+function defaultLangPath(): string {
+  const p = fileURLToPath(new URL("../../", import.meta.url));
+  const norm = p.replace(/\\/g, "/");
+  return norm.endsWith("/") ? norm : norm + "/";
+}
+
 /** Get or create the global OCR engine */
-export async function getOCREngine(languages?: string[]): Promise<OCREngine> {
+export async function getOCREngine(languages?: string[], langPath?: string): Promise<OCREngine> {
   if (!globalEngine) {
-    globalEngine = new OCREngine();
+    globalEngine = new OCREngine(langPath);
     await globalEngine.initialize(languages);
   } else if (languages) {
     await globalEngine.reinitialize(languages);
@@ -213,4 +239,26 @@ export async function terminateOCREngine(): Promise<void> {
     await globalEngine.terminate();
     globalEngine = null;
   }
+}
+
+
+/** 提取 OCR 行：tesseract.js v7 为 blocks→paragraphs→lines；旧版为 data.lines */
+interface OcrLineLike {
+  text?: string;
+  confidence?: number;
+  bbox?: { x0: number; y0: number; x1: number; y1: number };
+  words?: Array<unknown>;
+}
+function extractLines(data: {
+  lines?: OcrLineLike[];
+  blocks?: Array<{ paragraphs?: Array<{ lines?: OcrLineLike[] }> }>;
+}): OcrLineLike[] {
+  if (Array.isArray(data.lines)) return data.lines;
+  const out: OcrLineLike[] = [];
+  for (const block of data.blocks ?? []) {
+    for (const para of block.paragraphs ?? []) {
+      for (const line of para.lines ?? []) out.push(line);
+    }
+  }
+  return out;
 }

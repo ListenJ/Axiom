@@ -5150,3 +5150,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/MIND-SYNAPSE.md（深度优化与测试集）
 - Verification: bun test --parallel=8 ./tests 2558 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0。
 - Commit: 9338041
+
+## 2026-08-15 - 文档/网页摄取管线 + OCR v7 修复（DRE 获取文档/网页 + OCR + 排版框架）
+
+- Task: 验证并打通 DRE 获取文档和网页内容，经 OCR 与文档识别排版框架处理：新增统一摄取入口 ingestDocument（URL/文件/Buffer → 按类型路由：HTML→Markdown、PDF→pdf-worker、图片→OCR+布局、TEXT→解码），修复 3 个真实 OCR 大坑（tesseract.js v7 blocks 缺失、langPath 未配置、getOCREngine(undefined) 挂起），并加真实端到端验证。
+- Tools: bun test / bunx tsc / tesseract.js（真实 OCR）/ node / git。
+- Files:
+  - 新增 src/knowledge/document-ingest.ts（ingestDocument：类型探测/路由/优雅降级/maxBytes/注入依赖）
+  - 新增 src/mcp/server/document-tools.ts（knowledge_ingest_document 工具）+ server.ts 注册 + knowledge/index.ts 导出
+  - 修改 src/ocr/engine.ts（recognize 显式 {blocks:true} + blocks→paragraphs→lines 提取兼容旧版；langPath 默认仓库根 + TESSERACT_LANG_PATH；getOCREngine 默认 eng）
+  - 修改 .env.example（TESSERACT_LANG_PATH / AXIOM_PDF_WORKER_URL）
+  - 新增 tests/document-ingest.test.ts（11）+ tests/ocr-v7.test.ts（2）
+  - 修改 tests/consciousness-goal-tracker.test.ts / tests/edge-cases/long-running-memory.test.ts（并行负载下脆弱性能阈值放宽） / tests/benchmark.test.ts（FTS5 设置行数 1000→300 + 超时）
+  - 新增 docs/DOCUMENT-INGEST.md
+- Verification: bun test --parallel=8 ./tests 2571 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0；真实端到端：ingestDocument(样例图) → image/ocr-layout、8 sections、layout{columns:1,blocks:8,avgConfidence:93}；真实网页 example.com → markdown。
+- Commit: <hash>

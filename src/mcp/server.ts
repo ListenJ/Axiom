@@ -54,6 +54,7 @@ import { RecoverableOutputStore, wrapWithRecoverableOutput } from "../components
 import { registerRecoverableOutputTools } from "./server/recoverable-output-tools.js";
 import { registerMindTools } from "./server/mind-tools.js";
 import { registerBrowserTools } from "./server/browser-tools.js";
+import { registerDocumentTools } from "./server/document-tools.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
@@ -322,6 +323,7 @@ registerNativeTools(registry);
 registerDreTools(registry);
 registerMindTools(registry);
 registerBrowserTools(registry);
+registerDocumentTools(registry);
 
 // ===== KG / DIP / KAL 工具 (extracted to server/kg-tools.ts) =====
 registerKgTools(registry, db);
