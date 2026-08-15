@@ -5149,4 +5149,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/mcp-stdio-live.test.ts / tests/mcp/external-mcp-stdio.test.ts / tests/benchmark.test.ts（并行负载下显式超时）
   - 更新 docs/MIND-SYNAPSE.md（深度优化与测试集）
 - Verification: bun test --parallel=8 ./tests 2558 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0。
-- Commit: <hash>
+- Commit: 9338041
