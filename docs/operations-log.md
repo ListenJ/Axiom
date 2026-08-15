@@ -5222,3 +5222,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/FRONTEND-VISUAL-REVIEW.md（CI 门禁章节）
 - Verification: bun test --parallel=8 ./tests 2601 tests / 0 fail（原 2598，+3）；bunx tsc --noEmit exit 0；实时全 9 页审核：--block-on=critical exit 0（0 critical，门禁绿），--block-on=major exit 1（对比度噪音）。
 - Commit: f17439d
+
+## 2026-08-16 - Agent 效果检查 + 评测基础设施加固
+
+- Task: 检查当前 Agent 效果（跑 Agent 能力评测）：默认路由 held-out 16.7%（4/24），远低于历史最优基线 87.5%（deepseek-v4-flash+evolve，该模型当前 503/不可达）；主因 zhipu glm-4.7-flash 429 限流 + glm-4-flash 回退答案过短。据此加固评测基础设施并修复校验器误杀。
+- Tools: bun run src/agent-evals/run.ts / bun test / bunx tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（CODING-01 防抖校验器接受箭头函数/展开符写法，修复假阴性）
+  - 修改 src/agent-evals/runner.ts（限流退避封顶 5/10/10s×3；主模型失败自动回退 --fallback-provider/--fallback-model；opencode curl 超时 180s→30s）
+  - 修改 src/agent-evals/run.ts（--fallback-provider/--fallback-model 参数透传）
+  - 新增 tests/agent-evals/tasks-coding01.test.ts（3：函数式/箭头式通过、缺 setTimeout 失败）
+  - 新增 eval-results/agent-evals-2026-08-16-default-router.md（效果检查报告：16.7% vs 87.5% 基线、失败主因、优化）
+- Verification: bun test --parallel=8 ./tests 2604 tests / 0 fail（原 2601，+3）；bunx tsc --noEmit exit 0；实测回退机制生效（deepseek 503 → 自动回退 zhipu glm-4-flash）。
+- Commit: <hash>

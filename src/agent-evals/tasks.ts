@@ -45,7 +45,7 @@ const t = (
 const coding: AgentTask[] = [
   t("CODING-01", "coding", "train", "TS 防抖函数",
     "写一个 TypeScript 函数 debounce(fn, delay)，要求：返回带 this 绑定的新函数、用 setTimeout/clearTimeout、支持立即执行一次（immediate 可选参数）。不要用任何库。",
-    (r) => containsAll(r, ["function debounce", "setTimeout", "clearTimeout", "apply"]),
+    (r) => containsAllAny(r, [["function debounce", "debounce =", "const debounce", "debounce("], ["setTimeout"], ["clearTimeout"], ["apply", "...args", "call("]]),
     { maxTokens: 512 }),
   t("CODING-02", "coding", "train", "SQL 聚合查询",
     "表 orders(id, user_id, amount, created_at)。写一条 SQL：统计每个用户的总金额与订单数，只返回金额大于 100 的用户，按金额降序。",

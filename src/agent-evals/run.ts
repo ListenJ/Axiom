@@ -22,6 +22,8 @@ const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Mat
 const modelHint = flag("model");
 const provider = flag("provider");
 const directModel = flag("model") ?? flag("direct-model");
+const fallbackProvider = flag("fallback-provider");
+const fallbackModel = flag("fallback-model");
 
 function showHelp() {
   logger.info(`
@@ -33,6 +35,8 @@ Options:
   --concurrency=N   并发数 (默认 2)
   --model=<id>      指定模型（默认走 model-router general-chat 角色）
   --provider=<p>    直连 provider（如 zhipu），配合 --model 使用，绕过 model-router
+  --fallback-provider=<p>  主 provider 限流/失败时的备用 provider（配合 --fallback-model）
+  --fallback-model=<m>     备用模型
   --json            输出 JSON
   --dry-run         预览任务清单
   --evolve          评测→进化闭环：train → held-out baseline → 归纳注册技能 → held-out(注入技能) 对比
@@ -67,14 +71,14 @@ if (evolve) {
   const trainTasks = getTasksByFamily(family, "train");
   const heldOutTasks = getTasksByFamily(family, "held-out");
   logger.info(`[Evolve] 阶段1/3: train ${trainTasks.length} 任务（无技能）...`);
-  const trainResults = await runTasks(trainTasks, { family, split: "train", concurrency, modelHint, provider, model: directModel });
+  const trainResults = await runTasks(trainTasks, { family, split: "train", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel });
   logger.info(`[Evolve] 阶段2/3: held-out baseline ${heldOutTasks.length} 任务（无技能）...`);
-  const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel });
+  const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel });
   const { evolveFromResults } = await import("./evolve.js");
   const evolved = evolveFromResults(trainResults, ALL_AGENT_TASKS, family);
   logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 方法论技能 ${evolved.craftedCount} 个 / 注册 ${evolved.created.length} 个技能`);
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
-  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints });
+  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints, fallbackProvider, fallbackModel });
 
   // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果
   const { getDefaultGainTracker } = await import("./skill-gain.js");
@@ -100,7 +104,7 @@ if (evolve) {
 }
 
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
-const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints });
+const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel });
 const summary = summarize(results);
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);

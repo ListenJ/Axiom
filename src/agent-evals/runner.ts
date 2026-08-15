@@ -27,6 +27,10 @@ export interface RunOptions {
   provider?: string;
   /** 直连模型 id（如 glm-4.7-flash），需配合 provider 使用 */
   model?: string;
+  /** 主 provider 限流/失败时的备用 provider（配合 fallbackModel） */
+  fallbackProvider?: string;
+  /** 备用模型（配合 fallbackProvider） */
+  fallbackModel?: string;
   /** 注入已归纳的 auto-induce-* 技能到 systemPrompt（评测→进化闭环验证） */
   injectSkills?: boolean;
   /** 附加通用回答约束（完整性/直接性/复杂度标定）——集成化实验：整体补齐短板 */
@@ -44,7 +48,19 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
     if (options.provider) {
       // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 4s（实测连续请求会触发超时）
       await new Promise((r) => setTimeout(r, 4000));
-      content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
+      try {
+        content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
+      } catch (primaryErr) {
+        if (options.fallbackProvider) {
+          const fbModel = options.fallbackModel ?? options.modelHint ?? options.model ?? "";
+          logger.warn(`[AgentEval] primary ${options.provider} failed, fallback to ${options.fallbackProvider}/${fbModel}: ${(primaryErr as Error).message.slice(0, 120)}`);
+          await new Promise((res) => setTimeout(res, 2000));
+          content = await callProviderDirect(options.fallbackProvider, fbModel, task, fbModel, systemPrompt);
+          model = fbModel;
+        } else {
+          throw primaryErr;
+        }
+      }
     } else {
       const result = await internalAgent.executeWithRole(
         "general-chat",
@@ -96,12 +112,13 @@ async function callProviderDirect(
     { role: "user" as const, content: task.prompt },
   ];
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // 限流退避封顶：5s/10s/10s × 3 次（原 5/10/20/40/80s 会让评测无限磨）；有 fallback 时快速失败让位
+  for (let attempt = 0; attempt < 3; attempt++) {
     const { status, body } = useCurl
       ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
       : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
     if (status === 429 || status >= 500) {
-      const delayMs = 5000 * Math.pow(2, attempt);
+      const delayMs = Math.min(5000 * Math.pow(2, attempt), 10000);
       logger.warn(`[AgentEval] ${label} rate-limited (${status}), retry in ${delayMs}ms`);
       await new Promise((r) => setTimeout(r, delayMs));
       continue;
@@ -167,7 +184,7 @@ async function callWithCurl(
   fs.writeFileSync(tmpFile, payload, "utf8");
   try {
     const proc = spawnSync(
-      ["curl.exe", "-sS", "-m", "180", "-X", "POST",
+      ["curl.exe", "-sS", "-m", "30", "-X", "POST",
         `${baseURL.replace(/\/$/, "")}/chat/completions`,
         "-H", "Content-Type: application/json",
         "-H", `Authorization: Bearer ${apiKey}`,
