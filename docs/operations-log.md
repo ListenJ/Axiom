@@ -5164,4 +5164,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/consciousness-goal-tracker.test.ts / tests/edge-cases/long-running-memory.test.ts（并行负载下脆弱性能阈值放宽） / tests/benchmark.test.ts（FTS5 设置行数 1000→300 + 超时）
   - 新增 docs/DOCUMENT-INGEST.md
 - Verification: bun test --parallel=8 ./tests 2571 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0；真实端到端：ingestDocument(样例图) → image/ocr-layout、8 sections、layout{columns:1,blocks:8,avgConfidence:93}；真实网页 example.com → markdown。
-- Commit: <hash>
+- Commit: fb4f244
