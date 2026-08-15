@@ -5278,4 +5278,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 eval-results/agent-evals-2026-08-16-evolve-constraints.md（两轮分族数据、恢复+突破结论、残余噪声分析）
   - 回填 docs/operations-log.md 两处 Commit 占位（e28ea56 / a6c3636）
 - Verification: 第 1 轮 23 分钟、第 2 轮 29 分钟跑通；baseline/evolved 分族数据见报告；零网络错误（无 curl 超时/限流）。
-- Commit: [PLACEHOLDER]
+- Commit: 6287da8
