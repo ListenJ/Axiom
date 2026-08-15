@@ -5207,4 +5207,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/frontend-audit.test.ts（5）
   - 更新 docs/FRONTEND-VISUAL-REVIEW.md（页面级流水线章节）
 - Verification: bun test --parallel=8 ./tests 2598 tests / 0 fail（原 2593，+5）；bunx tsc --noEmit exit 0；实时 2 页 10s 全 pass（修复后）；/settings 截图 6KB→220KB（黑屏误报消除）。
-- Commit: <hash>
+- Commit: fdee20f
