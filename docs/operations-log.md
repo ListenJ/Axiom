@@ -5134,3 +5134,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 public/index.html（同步当前前端构建产物，后端 STATIC_ROOT=./public）
 - Verification: npm run test:e2e 全绿（All E2E tests passed，40 用例：chat/smoke/search/settings/theme/keyboard/perf/responsive/terminal/animation）；frontend 65 文件 331 测试全绿；lint exit 0。
 - Commit: f0540b2
+
+## 2026-08-15 - 心智模型深度优化 + 专项测试集 + 遗留大坑审计
+
+- Task: 继续完善心智模型：性能优化（验证链 seq O(n²)→O(1)、BFS 索引队列）、语义修复（无操作激活不遗忘、衰减/suggest trace 记在正确突触、中文 bigram 命中、学习性激活 decay:false）、实践手册关键词收紧（消除误触发），并新增心智模型专项测试集；顺带修复 3 个并行负载下超时的集成/基准用例。
+- Tools: bun test / bunx tsc / node / git。
+- Files:
+  - 修改 src/dre/synapse/store.ts（nextSeq 单条 MAX(seq) 查询）
+  - 修改 src/dre/synapse/engine.ts（索引 BFS 队列、decay 门控+记在首个衰减突触、suggest trace 记贡献突触、tokenize CJK bigram、activate decay:false 选项）
+  - 修改 src/dre/practice-manual.ts（7 条关键词收紧为具体短语）
+  - 修改 src/self-evolve/mind-suggest.ts（recordInduction 用 decay:false）
+  - 新增 tests/mind-model.test.ts（15）+ tests/mind-model-perf.test.ts（2）
+  - 修改 tests/dre-synapse.test.ts / tests/dre-constraint-injection.test.ts（+误触发防护 7 用例）/ tests/self-evolve-mind-suggest.test.ts（+1）
+  - 修改 tests/mcp-stdio-live.test.ts / tests/mcp/external-mcp-stdio.test.ts / tests/benchmark.test.ts（并行负载下显式超时）
+  - 更新 docs/MIND-SYNAPSE.md（深度优化与测试集）
+- Verification: bun test --parallel=8 ./tests 2558 tests / 0 fail（连续多轮）；bunx tsc --noEmit exit 0。
+- Commit: <hash>

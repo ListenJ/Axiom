@@ -72,9 +72,34 @@ describe("constraint-injection", () => {
   });
 
   it("buildMessagesWithConstraints 返回注入后的消息", () => {
-    const { messages, injected } = buildMessagesWithConstraints("linux 上怎么启动浏览器");
+    const { messages, injected } = buildMessagesWithConstraints("linux 上怎么用 xdg-open 打开浏览器");
     expect(injected).toContain("practice/platform-command");
     expect(messages[0].role).toBe("system");
     expect(messages[0].content).toContain("xdg-open");
+  });
+});
+
+describe("constraint-injection — 误触发防护（关键词收紧）", () => {
+  it("普通业务文本不注入无关约束", () => {
+    const cases = [
+      "帮我用 API 写一个登录接口",
+      "用 LLM 总结这段对话",
+      "在 Windows 上安装软件",
+      "把代码部署到 Linux 服务器",
+      "这个模型延迟有点高",
+      "帮我截个图看看",
+      "网络请求超时了，请重试",
+    ];
+    for (const text of cases) {
+      const r = autoInjectDreConstraints([{ role: "user", content: text }]);
+      expect(r.changed).toBe(false);
+      expect(r.injected).toEqual([]);
+    }
+  });
+
+  it("真正的实践手册场景仍命中", () => {
+    const r = autoInjectDreConstraints([{ role: "user", content: "单元测试访问 github.com 超时" }]);
+    expect(r.changed).toBe(true);
+    expect(r.injected).toContain("practice/network-test-timeout");
   });
 });

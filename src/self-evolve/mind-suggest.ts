@@ -57,7 +57,7 @@ export class MindAdvisor {
       });
       // 支持度越高，激活次数预置越高（突触更"强"）
       if (s.activationCount < induction.support) {
-        this.synapse.activate(`scene:${t}`, "recordInduction", { delta: 0.05 });
+        this.synapse.activate(`scene:${t}`, "recordInduction", { delta: 0.05, decay: false });
       }
       created++;
     }

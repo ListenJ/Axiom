@@ -75,3 +75,32 @@ mind_synapse_trace(synapseId) →
 ]
 ```
 每条记录 `hash = sha256(synapseId|seq|op|activation|event|timestamp|prevHash)`，全链可验。
+
+## 深度优化与测试集（2026-08-15 追加）
+
+### 性能优化
+| 项 | 修复前 | 修复后 |
+|----|--------|--------|
+| 验证链 seq 计算 | `appendTrace` 每次全量加载 traces（O(n)），n 次激活 = O(n²) | `SynapseStore.nextSeq` 单条 `MAX(seq)` 查询（索引）→ O(1) |
+| BFS 队列 | `queue.shift()`（O(n) 移位） | 索引指针 `queue[head++]` → O(n) |
+| 1000 次激活实测 | —（回归护栏） | ~30ms，验证链完整 |
+
+### 语义修复（审计发现的坑）
+| 坑 | 修复 |
+|----|------|
+| 无操作激活触发全局遗忘：`activate(未知源)` 会衰减整个网络 | 仅当本次激活确实增强了出边时才发生全局衰减 |
+| 衰减汇总 trace 记在「被增强」突触上（未如实反映衰减） | 改记在**首个实际衰减**的突触上 |
+| suggest trace 记在「任意同目标」突触上（追溯不准） | 记录**贡献该建议**的突触 id，trace 记在其上 |
+| 中文场景无法命中（整段 token，如「数据库锁问题」≠「数据库锁」） | `tokenize` 改为 CJK bigram（数据/据库/库锁），与 self-evolve 对齐 |
+| 学习性激活触发全局衰减：`recordInduction` 每 token 一次 `activate` 都衰减全网 | `activate` 新增 `decay:false` 选项；MindAdvisor 传 `decay:false` |
+| 约束注入过宽误触发：「api/llm/network/model/windows/linux」等单词命中普通文本 | 实践手册 7 条关键词全部收紧为具体短语，加误触发防护测试 |
+
+### 测试集（心智模型专项，+22 用例）
+- `tests/mind-model.test.ts`（15）：tokenize 中英/bigram/边界、创建幂等/权重钳制、激活（未知源无操作、衰减下限、decay:false）、扩散（maxHops=1、空种子）、建议（中文命中、贡献突触追溯、limit、空态）、nextSeq 连续性
+- `tests/mind-model-perf.test.ts`（2）：1000 次激活 O(n²)→O(1) 护栏、5000 节点 BFS
+- `tests/dre-constraint-injection.test.ts`（+7）：普通业务文本不触发（误触发防护）、真实场景命中
+- `tests/self-evolve-mind-suggest.test.ts`（+1）：recordInduction 不衰减无关突触
+- 并修复 3 个并行负载下超时的集成/基准用例（MCP stdio ×2、FTS5 基准）显式超时
+
+### 验证
+- root 套件：**2558 tests / 0 fail**（连续多轮）；`tsc` 干净

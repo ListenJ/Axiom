@@ -321,7 +321,7 @@ describe("FTS5 search performance", () => {
       likeAvg: `${avgLIKE.toFixed(2)}ms`,
       speedup: `${(avgLIKE / (avgFTS5 || 0.001)).toFixed(1)}x`,
     });
-  });
+  }, 30000);
 });
 
 // ========== ConstraintSolver ==========

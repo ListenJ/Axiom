@@ -50,3 +50,15 @@ describe("MindAdvisor", () => {
     expect(result.lessons).toEqual([]);
   });
 });
+
+describe("MindAdvisor — recordInduction 不触发全局衰减", () => {
+  it("学习性激活不衰减无关突触（decay:false）", async () => {
+    const synapse = createSynapseEngine(":memory:");
+    synapse.createSynapse("scene:keep", "skill:keep", { sourceType: "scene", targetType: "skill", weight: 0.9 });
+    const adv = createMindAdvisor({ synapse });
+    const before = synapse.storeSnapshot().find((s) => s.targetId === "skill:keep")!.weight;
+    adv.recordInduction({ pattern: "p", support: 3, successRate: 1, recommendation: "r" }, "sqlite lock 并发写");
+    const after = synapse.storeSnapshot().find((s) => s.targetId === "skill:keep")!.weight;
+    expect(after).toBe(before); // 未衰减
+  });
+});

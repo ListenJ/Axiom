@@ -149,6 +149,12 @@ export class SynapseStore {
     );
   }
 
+  /** 下一条 trace 序号（单条 MAX(seq) 查询；避免全量加载造成 O(n²)） */
+  nextSeq(synapseId: string): number {
+    const row = this.db.query("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM synapse_traces WHERE synapse_id = ?").get(synapseId) as { n: number };
+    return Number(row.n);
+  }
+
   /** 某条突触的最后一条 trace 的 hash（没有则 genesis） */
   lastTraceHash(synapseId: string): string {
     const row = this.db.query("SELECT hash FROM synapse_traces WHERE synapse_id = ? ORDER BY seq DESC LIMIT 1").get(synapseId) as { hash?: string } | null;

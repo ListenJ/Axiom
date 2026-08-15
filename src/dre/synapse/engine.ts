@@ -73,7 +73,7 @@ export class SynapseEngine {
    * 激活一条突触：强度 +delta、激活次数 +1，其余突触全局轻微衰减。
    * 返回被增强的突触（可能多条 sourceId 出边同时增强）。
    */
-  activate(sourceId: string, event: string, opts: { delta?: number } = {}): Synapse[] {
+  activate(sourceId: string, event: string, opts: { delta?: number; decay?: boolean } = {}): Synapse[] {
     const delta = clamp01(opts.delta ?? 0.15);
     const now = Date.now();
     const direct = this.store.listBySource(sourceId);
@@ -89,10 +89,12 @@ export class SynapseEngine {
         this.appendTrace(next, "activate", delta, event, now);
       }
     }
-    // 全局轻微衰减（遗忘），不逐条记 trace，避免链爆炸；记一条汇总衰减 trace 于首个衰减项
-    if (this.opts.decayPerActivation > 0) {
+    // 全局轻微衰减（遗忘）：仅当本次激活确实增强了出边时发生——无操作激活不应触发全局遗忘。
+    // 不逐条记 trace（避免链爆炸），汇总衰减 trace 记在首个实际衰减的突触上。
+    if (enhanced.length > 0 && this.opts.decayPerActivation > 0 && opts.decay !== false) {
       const others = this.store.listAll().filter((s) => !direct.some((d) => d.id === s.id));
       let decayed = 0;
+      let firstDecayedId: string | null = null;
       for (const s of others) {
         const w = Math.max(this.opts.minWeight, s.weight - this.opts.decayPerActivation);
         if (w !== s.weight) {
@@ -102,10 +104,13 @@ export class SynapseEngine {
             lastActivatedAt: s.lastActivatedAt,
           });
           decayed += this.opts.decayPerActivation;
+          if (!firstDecayedId) firstDecayedId = s.id;
         }
       }
-      if (decayed > 0 && enhanced.length > 0) {
-        this.appendTrace(enhanced[0], "decay", -this.opts.decayPerActivation, `global decay (${others.length} synapses)`, now);
+      // 衰减汇总 trace 记在首个实际衰减的突触上（其验证链如实反映本次全局衰减）
+      if (decayed > 0 && firstDecayedId) {
+        const firstDecayed = this.store.get(firstDecayedId);
+        if (firstDecayed) this.appendTrace(firstDecayed, "decay", -this.opts.decayPerActivation, `global decay (${others.length} synapses)`, now);
       }
     }
     return enhanced;
@@ -122,8 +127,9 @@ export class SynapseEngine {
     const queue: Array<{ nodeId: string; hops: number; activation: number }> = seedIds.map((n) => ({ nodeId: n, hops: 0, activation: 1 }));
     const seenNodes = new Set<string>(seedIds);
 
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++]!;
       if (cur.hops >= maxHops) continue;
       for (const s of this.store.listBySource(cur.nodeId)) {
         const activation = cur.activation * this.opts.spreadDecay;
@@ -169,6 +175,7 @@ export class SynapseEngine {
     const all = this.store.listAll();
 
     const candidates = new Map<string, SynapseSuggestion>();
+    const candidateSource = new Map<string, string>(); // targetId -> 贡献该建议的 synapseId
     const add = (s: Synapse, match: string) => {
       const existing = candidates.get(s.targetId);
       if (existing) return; // 取第一条 via（更直接）
@@ -176,6 +183,7 @@ export class SynapseEngine {
       const fresh = s.lastActivatedAt > 0 ? clamp01((now - s.lastActivatedAt) / (24 * 3600 * 1000)) : 0;
       const freshness = (1 - fresh) * 0.1;
       const score = clamp01(s.weight + activationBonus + freshness);
+      candidateSource.set(s.targetId, s.id);
       candidates.set(s.targetId, {
         targetId: s.targetId,
         targetType: s.targetType,
@@ -201,11 +209,11 @@ export class SynapseEngine {
     }
 
     const ranked = Array.from(candidates.values()).sort((a, b) => b.score - a.score).slice(0, limit);
-    // 记录 suggest trace（在 rank 最高的突触上）
+    // 记录 suggest trace（记在贡献该建议的突触上，保证追溯准确）
     if (ranked.length > 0) {
-      const firstId = synapseIdFromSuggestion(ranked[0], all);
-      const first = firstId ? this.store.get(firstId) : null;
-      if (first) this.appendTrace(first, "suggest", ranked[0].score, `scene=${truncate(scene, 40)} goal=${truncate(goal, 40)}`, now);
+      const contributingId = candidateSource.get(ranked[0].targetId);
+      const contributing = contributingId ? this.store.get(contributingId) : null;
+      if (contributing) this.appendTrace(contributing, "suggest", ranked[0].score, `scene=${truncate(scene, 40)} goal=${truncate(goal, 40)}`, now);
     }
     if (this.opts.localModelAssist) {
       try {
@@ -240,7 +248,7 @@ export class SynapseEngine {
 
   private appendTrace(s: Synapse, operation: SynapseTrace["operation"], activation: number, sourceEvent: string, timestamp: number): void {
     const prevHash = this.store.lastTraceHash(s.id);
-    const seq = this.store.tracesFor(s.id).length + 1;
+    const seq = this.store.nextSeq(s.id);
     // 记录 id 即记录哈希（确定性、防篡改）
     const hash = computeTraceHash({ synapseId: s.id, seq, operation, activation, sourceEvent, timestamp, prevHash });
     this.store.appendTrace({
@@ -257,16 +265,24 @@ export class SynapseEngine {
   }
 }
 
-function synapseIdFromSuggestion(sug: SynapseSuggestion, all: Synapse[]): string | null {
-  const s = all.find((x) => x.targetId === sug.targetId);
-  return s?.id ?? null;
-}
 
 /** 归一化 token：小写字母数字 + 下划线，按非字母数字切分 */
 export function tokenize(text: string): string[] {
+  const out: string[] = [];
   const lower = (text ?? "").toLowerCase();
-  const matches = lower.match(/[a-z0-9_\u4e00-\u9fa5]+/g);
-  return matches ? Array.from(new Set(matches)) : [];
+  const segments = lower.match(/[a-z0-9_]+|[\u4e00-\u9fa5]+/g) ?? [];
+  for (const seg of segments) {
+    if (/[\u4e00-\u9fa5]/.test(seg)) {
+      if (seg.length >= 2) {
+        for (let i = 0; i < seg.length - 1; i++) out.push(seg.slice(i, i + 2));
+      } else {
+        out.push(seg);
+      }
+    } else if (seg.length >= 1) {
+      out.push(seg);
+    }
+  }
+  return Array.from(new Set(out));
 }
 
 function clamp01(v: number): number {

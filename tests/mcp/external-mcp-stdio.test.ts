@@ -58,7 +58,7 @@ describe("Axiom external MCP stdio", () => {
 
     const closed = await closeExternalMcpClients();
     expect(closed).toBe(1);
-  });
+  }, 30000);
 
   it("can call a safe external tool", async () => {
     await closeExternalMcpClients();
@@ -72,7 +72,7 @@ describe("Axiom external MCP stdio", () => {
     };
     const text = result.content?.[0]?.text ?? "";
     expect(text.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it("externalizes large output and reads it back", async () => {
     await closeExternalMcpClients();
@@ -97,7 +97,7 @@ describe("Axiom external MCP stdio", () => {
     }) as { content?: Array<{ type: string; text: string }> };
     const readText = readResult.content?.[0]?.text ?? "";
     expect(readText).toContain("duckduckgo");
-  });
+  }, 30000);
 
   afterAll(async () => {
     await closeExternalMcpClients().catch(() => {});

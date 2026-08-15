@@ -61,10 +61,11 @@ describe("SynapseEngine — 激活/扩散/建议/追溯", () => {
     // 非激活路径轻微衰减
     const cAfter = engine.storeSnapshot().find((s) => s.id === c.id)!;
     expect(cAfter.weight).toBeLessThan(c.weight);
-    // 验证链完整：create → activate → (decay 汇总)
-    const ops = engine.trace(a.id).map((x) => x.operation);
-    expect(ops).toEqual(["create", "activate", "decay"]);
+    // 验证链完整：a = create → activate；c（实际衰减者）= create → decay 汇总
+    expect(engine.trace(a.id).map((x) => x.operation)).toEqual(["create", "activate"]);
+    expect(engine.trace(c.id).map((x) => x.operation)).toEqual(["create", "decay"]);
     expect(engine.verify(a.id).valid).toBe(true);
+    expect(engine.verify(c.id).valid).toBe(true);
   });
 
   test("spreadActivation：沿突触扩散，跳数越远激活越弱", () => {

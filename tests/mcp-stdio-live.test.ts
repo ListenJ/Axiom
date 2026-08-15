@@ -50,7 +50,7 @@ describe("MCP stdio 真实连通 (R-015)", () => {
     const n = await closeExternalMcpClients();
     expect(n).toBe(1);
     expect(getMcpClientStats().connected).toBe(0);
-  });
+  }, 20000);
 
   afterAll(async () => {
     await closeExternalMcpClients().catch(() => {});
