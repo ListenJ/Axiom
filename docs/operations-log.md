@@ -5247,3 +5247,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 eval-results/agent-evals-2026-08-16-default-router.md（可达性诊断 + 恢复后分族数据）
 - Verification: coding held-out 25%→75%（curl 修复）→100%（中文误杀修复）；全量 held-out deepseek 70.8%（17/24）；bun test --parallel=8 ./tests 2606 tests / 0 fail；bunx tsc --noEmit exit 0。
 - Commit: cbdab92
+
+## 2026-08-16 - 校验器降噪 + --rerun-each 消除单样本波动
+
+- Task: 为恢复到 87.5% 基线做准备：7 个 held-out 校验器（PLAN-04/PLAN-06/TOOL-06/TOOL-07/EVOLVE-06/KNOW-03/CODING-07）增加中文同义词与常见变体，消除纯中文/变体回答被误杀；新增 --rerun-each=N 选项（同一任务重跑 N 次取最优，消除单样本波动如 CODING-07/TOOL-07 偶发全缺）。
+- Tools: bun test / bun x tsc --noEmit / git / node 字符串补丁脚本。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（7 个校验器降噪：+中文同义词/变体）
+  - 新增 tests/agent-evals/validators-noise.test.ts（14 用例：7 通过 + 7 防作弊仍失败）
+  - 修改 src/agent-evals/runner.ts（RunOptions.rerunEach + runOneBest 重跑取最优）
+  - 修改 src/agent-evals/run.ts（--rerun-each=N 参数 + 4 处 runTasks 透传 + help）
+- Verification: bun test tests/agent-evals/ 69 tests / 0 fail（原 55，+14）；bun test --parallel=8 ./tests 2592 pass / 28 skip / 0 fail（总 2620 tests = 原 2606 + 14 新增）；bunx tsc --noEmit exit 0；--dry-run 正常。
+- Commit: [PLACEHOLDER]

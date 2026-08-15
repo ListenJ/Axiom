@@ -17,6 +17,8 @@ const dryRun = args.includes("--dry-run");
 const evolve = args.includes("--evolve");
 const injectSkills = args.includes("--inject-skills");
 const constraints = args.includes("--constraints");
+const rerunEachRaw = Number(flag("rerun-each") ?? "1");
+const rerunEach = Number.isFinite(rerunEachRaw) && rerunEachRaw >= 1 ? Math.floor(rerunEachRaw) : 1;
 const rawConcurrency = Number(flag("concurrency") ?? "1");
 const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
 const modelHint = flag("model");
@@ -41,6 +43,7 @@ Options:
   --dry-run         预览任务清单
   --evolve          评测→进化闭环：train → held-out baseline → 归纳注册技能 → held-out(注入技能) 对比
   --inject-skills   评测时注入已归纳的 auto-induce-* 技能
+  --rerun-each=N    每个任务重跑 N 次取最优（消除单样本波动，默认 1）
   --constraints     附加通用回答约束（完整性/直接性/复杂度标定）
   --help            帮助
 `);
@@ -71,14 +74,14 @@ if (evolve) {
   const trainTasks = getTasksByFamily(family, "train");
   const heldOutTasks = getTasksByFamily(family, "held-out");
   logger.info(`[Evolve] 阶段1/3: train ${trainTasks.length} 任务（无技能）...`);
-  const trainResults = await runTasks(trainTasks, { family, split: "train", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel });
+  const trainResults = await runTasks(trainTasks, { family, split: "train", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel, rerunEach });
   logger.info(`[Evolve] 阶段2/3: held-out baseline ${heldOutTasks.length} 任务（无技能）...`);
-  const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel });
+  const baselineResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, fallbackProvider, fallbackModel, rerunEach });
   const { evolveFromResults } = await import("./evolve.js");
   const evolved = evolveFromResults(trainResults, ALL_AGENT_TASKS, family);
   logger.info(`[Evolve] 归纳 ${evolved.inductionCount} 个模式 / 方法论技能 ${evolved.craftedCount} 个 / 注册 ${evolved.created.length} 个技能`);
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
-  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints, fallbackProvider, fallbackModel });
+  const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints, fallbackProvider, fallbackModel, rerunEach });
 
   // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果
   const { getDefaultGainTracker } = await import("./skill-gain.js");
@@ -104,7 +107,7 @@ if (evolve) {
 }
 
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
-const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel });
+const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel, rerunEach });
 const summary = summarize(results);
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);

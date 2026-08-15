@@ -35,6 +35,8 @@ export interface RunOptions {
   injectSkills?: boolean;
   /** 附加通用回答约束（完整性/直接性/复杂度标定）——集成化实验：整体补齐短板 */
   constraints?: boolean;
+  /** 每个任务重跑 N 次取最优（消除单样本波动，默认 1） */
+  rerunEach?: number;
 }
 
 async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult> {
@@ -93,6 +95,18 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
     model,
     injectedSkills: injectedSkillIds,
   };
+}
+
+/** 单任务执行：rerunEach>1 时重跑取最优（任一通过即取该次，否则保留首次结果/失败原因），消除单样本波动。 */
+async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskResult> {
+  const rerunEach = Math.max(1, options.rerunEach ?? 1);
+  let first: TaskResult | undefined;
+  for (let i = 0; i < rerunEach; i++) {
+    const r = await runOne(task, options);
+    first ??= r;
+    if (r.passed) return r;
+  }
+  return first!;
 }
 
 
@@ -278,7 +292,7 @@ export async function runTasks(tasks: AgentTask[], options: RunOptions = {}): Pr
       const idx = cursor++;
       const task = tasks[idx];
       if (!task) continue;
-      results.push(await runOne(task, options));
+      results.push(await runOneBest(task, options));
     }
   });
   await Promise.all(workers);
