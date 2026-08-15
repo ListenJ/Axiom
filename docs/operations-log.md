@@ -5221,4 +5221,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/frontend-audit.test.ts（+3 阈值用例）
   - 更新 docs/FRONTEND-VISUAL-REVIEW.md（CI 门禁章节）
 - Verification: bun test --parallel=8 ./tests 2601 tests / 0 fail（原 2598，+3）；bunx tsc --noEmit exit 0；实时全 9 页审核：--block-on=critical exit 0（0 critical，门禁绿），--block-on=major exit 1（对比度噪音）。
-- Commit: <hash>
+- Commit: f17439d
