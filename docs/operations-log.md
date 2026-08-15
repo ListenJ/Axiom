@@ -5258,7 +5258,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/runner.ts（RunOptions.rerunEach + runOneBest 重跑取最优）
   - 修改 src/agent-evals/run.ts（--rerun-each=N 参数 + 4 处 runTasks 透传 + help）
 - Verification: bun test tests/agent-evals/ 69 tests / 0 fail（原 55，+14）；bun test --parallel=8 ./tests 2592 pass / 28 skip / 0 fail（总 2620 tests = 原 2606 + 14 新增）；bunx tsc --noEmit exit 0；--dry-run 正常。
-- Commit: [PLACEHOLDER]
+- Commit: e28ea56
 
 ## 2026-08-16 - CODING-04 校验器降噪（Set 即为哈希去重）
 
@@ -5268,4 +5268,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/tasks.ts（CODING-04 组3 增加 set）
   - 修改 tests/agent-evals/validators-noise.test.ts（+2 用例：仅 Set 答案通过、无数据结构失败）
 - Verification: bun test tests/agent-evals/ 71 tests / 0 fail（原 69，+2）；bunx tsc --noEmit exit 0。
+- Commit: a6c3636
+
+## 2026-08-16 - evolve+constraints 恢复 87.5% 基线并突破（两轮评测）
+
+- Task: 用户要求恢复到 87.5% 基线（--evolve --constraints）并尝试突破、消除噪声。两轮全量 evolve：第 1 轮单样本 baseline 95.8%（23/24）突破历史基线，evolved 83.3%；第 2 轮 --rerun-each=2 baseline 87.5%（21/24）精确恢复历史基线，evolved 91.7%（22/24）突破并超 baseline（+4.2pp）。
+- Tools: bun run src/agent-evals/run.ts --provider=opencode --model=deepseek-v4-flash --evolve --constraints --concurrency=2 [--rerun-each=2] / bun test / bun x tsc / git。
+- Files:
+  - 新增 eval-results/agent-evals-2026-08-16-evolve-constraints.md（两轮分族数据、恢复+突破结论、残余噪声分析）
+  - 回填 docs/operations-log.md 两处 Commit 占位（e28ea56 / a6c3636）
+- Verification: 第 1 轮 23 分钟、第 2 轮 29 分钟跑通；baseline/evolved 分族数据见报告；零网络错误（无 curl 超时/限流）。
 - Commit: [PLACEHOLDER]
