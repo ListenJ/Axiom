@@ -5234,4 +5234,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/agent-evals/tasks-coding01.test.ts（3：函数式/箭头式通过、缺 setTimeout 失败）
   - 新增 eval-results/agent-evals-2026-08-16-default-router.md（效果检查报告：16.7% vs 87.5% 基线、失败主因、优化）
 - Verification: bun test --parallel=8 ./tests 2604 tests / 0 fail（原 2601，+3）；bunx tsc --noEmit exit 0；实测回退机制生效（deepseek 503 → 自动回退 zhipu glm-4-flash）。
-- Commit: <hash>
+- Commit: be896e2
