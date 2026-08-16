@@ -5384,7 +5384,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 修改 frontend/bun.lock（重新生成，补齐 package.json 已声明依赖）
 - Verification: cd frontend && bun install 成功（34 packages）；构建期 docker compose build 待服务器重跑确认。
-- Commit: [PLACEHOLDER]
+- Commit: 8232314
 
 ## 2026-08-17 - Docker 构建修复：postinstall ensure-env 需 scripts/，改用 --ignore-scripts
 
