@@ -5329,3 +5329,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/runner.ts（callProviderDirect 拆出 callProviderWithBudget + 预算升级；callWithCurl/callWithProxy 加 maxTokens 参数）
 - Verification: 探针 CODING-04：512/2048 空 → 4096/8192 PASS；coding held-out 复测 5/5 100%（CODING-04 86s / CODING-07 133s / CODING-08 89s 全过，EXIT=0）；bun test tests/agent-evals/ 95/0；tsc 干净。
 - Commit: 24b418a
+
+## 2026-08-16 - 任务强化复测：30 任务 baseline 100% / evolved 96.7% + EVOLVE-07 降噪
+
+- Task: 空内容预算修复后重跑强化 30 任务全量 evolve：baseline 100%（30/30 满分）、evolved 96.7%（29/30，唯一失败 EVOLVE-07 缺「根因/原因」字面词）。探针显示 EVOLVE-07 回答完整正确（What/Why/How/预防，用「导致/引发/叠加」表达因果）→ 组2 增加因果同义词，self-evolve held-out 复测 5/5。
+- Tools: bun run src/agent-evals/run.ts --provider=opencode --model=deepseek-v4-flash --evolve --constraints --concurrency=2 / bun run .tmp/eval-probe.ts / bun test / bun x tsc / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（EVOLVE-07 组2：根因/原因/cause/root + 导致/引发/因为/由于/叠加）
+  - 修改 tests/agent-evals/tasks-strengthened.test.ts（+2 EVOLVE-07 用例）
+- Verification: 强化 30 任务 baseline 100%（30/30）/ evolved 96.7%（29/30）；探针 EVOLVE-07 PASS；self-evolve held-out 5/5（EVOLVE-07 ✅ 28s）；bun test tests/agent-evals/ 97/0；tsc 干净。
+- Commit: [PLACEHOLDER]

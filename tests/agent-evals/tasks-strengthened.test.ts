@@ -80,6 +80,17 @@ describe("新增硬任务：EVOLVE-08 跨案例抽象", () => {
   });
 });
 
+describe("校验器降噪：EVOLVE-07 因果表述（无需字面 根因/原因）", () => {
+  const task = find("EVOLVE-07");
+  it("完整复盘用「导致/引发/叠加」表述通过", () => {
+    const ans = "What：配置错误被发布，叠加无监控与无回滚预案，导致故障扩大。Why：配置错误直接引发异常，缺乏监控使异常未被发现。How：人工定位并修复。预防措施：审核+灰度+监控+回滚预案。";
+    expect(task.verify(ans).passed).toBe(true);
+  });
+  it("无因果分析仍失败", () => {
+    expect(task.verify("What：故障。How：修复。预防措施：监控。").passed).toBe(false);
+  });
+});
+
 describe("加固校验器：TOOL-03 需完整输出", () => {
   const task = find("TOOL-03");
   it("fetch+打印+状态码 的完整答案通过", () => {

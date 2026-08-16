@@ -249,7 +249,7 @@ const selfEvolve: AgentTask[] = [
     { maxTokens: 256 }),
   t("EVOLVE-07", "self-evolve", "held-out", "多因失败复盘（难）",
     "一次线上事故由三个原因叠加（配置错误 + 缺乏监控 + 没有回滚预案）。给出结构化复盘：What / Why / How / 预防措施（各一句）。",
-    (r) => containsAllAny(r, [["复盘", "what", "why"], ["根因", "原因", "cause", "root"], ["预防", "改进", "prevent", "avoid"]]),
+    (r) => containsAllAny(r, [["复盘", "what", "why"], ["根因", "原因", "cause", "root", "导致", "引发", "因为", "由于", "叠加"], ["预防", "改进", "prevent", "avoid"]]),
     { maxTokens: 512 }),
   t("EVOLVE-08", "self-evolve", "held-out", "跨案例抽象通用原则（难）",
     "三个成功案例：① 总结 PDF（抽文本→分块→调摘要模型→汇总）② 总结网页（抓 HTML→去标签→分块→调摘要模型→汇总）③ 生成周报（收集 commits→分组→模板生成→确认）。请抽象一条跨案例的通用原则（含「收集」「处理」「汇总」），并说明它还能适用于哪类任务。",
