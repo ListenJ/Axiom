@@ -5361,4 +5361,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - .env 增加 SENSENOVA_API_KEY（git-ignored，来自本地 secrets）
 - Verification: 后端启动/health ok；/chat 路由选中 sensenova deepseek-v4-flash；DRE 六阶段管线跑通；OCR 中文实测 success（1.8s）；sensenova 直连 chat OK（content+reasoning 分离）；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
 - 环境缺口（非代码 bug，需配置）：DATABASE_URL/VAULT_PATH 缺失 → /kg/stats PostgreSQL 不可用；外部 MCP（sqlite/free-search/filesystem/freeweb/obsidian）连不上；duckduckgo 搜索超时 + searxng 未启动 → web_search 返回空结果；health 平台检查未含 sensenova。
-- Commit: [PLACEHOLDER]
+- Commit: 6966526
