@@ -36,3 +36,17 @@
 - 外部 MCP 依赖缺失/不可达（npmmirror 404、obsidian 超时）。
 - web 搜索需可用引擎：duckduckgo 当前网络超时；可启动本地 searxng（config/searxng/settings.yml 已存在）或配置 bing key。
 - /health 平台检查未覆盖 sensenova —— 建议后续把 sensenova 加入健康检查清单。
+
+## 2026-08-17 更新 — PostgreSQL + 网络搜索落地
+
+补充到《后端/核心/功能全量检查》：
+
+### PostgreSQL（已完成 ✅）
+- data 服务器原生 postgres 需 sudo（不可用）→ 改用 **pgvector/pgvector:pg16 docker 容器**（5433，含 vector 扩展），凭据在本地 secrets + .env（git-ignored）。
+- 恢复被移除的真实 `src/db/pg-client.ts`（DATABASE_URL 连接池 / isPgAvailable / initPgSchema / pgQuery / pgBulkInsert / pgVectorSearch）。
+- 实测：schema 初始化成功；`/kg/stats` 21268 节点 15316 边；`/kg/entities`、`/kg/search`（语义）全通。
+
+### 网络搜索（已完成 ✅，代理方案替代 CDN/浏览器）
+- 根因链：duckduckgo 直连超时 → data 服务器 mihomo 代理 192.168.0.10:7890 可达海外（curl 验证 200）→ app 的 proxyFetch HTTPS 在 Bun 的 `tls.connect({socket})` 隧道挂起（CONNECT 200 后 TLS 升级不兼容）→ **搜索引擎 fetch() 配代理时改用 curl.exe**。
+- 实测：`/web-search` 返回 10 条真实结果；chat 内 `web_search`/`web_fetch` 工具真实调用并获取「Node.js 2026 起每年一个主版本、Node 27 起全 LTS」。
+- 说明：SEARCH_PROXY 仅作用于搜索，避免 Bun 隧道影响其他 HTTPS 调用；searxng docker 因服务器 8080 被 1Panel openresty 劫持 + 容器上游 TUN 不通而弃用；浏览器/插件搜索方案暂不需要（Playwright 仍在依赖中作备选）。

@@ -5362,3 +5362,18 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Verification: 后端启动/health ok；/chat 路由选中 sensenova deepseek-v4-flash；DRE 六阶段管线跑通；OCR 中文实测 success（1.8s）；sensenova 直连 chat OK（content+reasoning 分离）；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
 - 环境缺口（非代码 bug，需配置）：DATABASE_URL/VAULT_PATH 缺失 → /kg/stats PostgreSQL 不可用；外部 MCP（sqlite/free-search/filesystem/freeweb/obsidian）连不上；duckduckgo 搜索超时 + searxng 未启动 → web_search 返回空结果；health 平台检查未含 sensenova。
 - Commit: 6966526
+
+## 2026-08-17 - PostgreSQL 接入（data 服务器容器）+ 网络搜索打通（mihomo 代理）
+
+- Task: 用户要求用 data 服务器上的 postgresql 完成任务 + 解决 duckduckgo 不可达的搜索替代方案。
+- PostgreSQL：data 服务器（192.168.0.10）原生 postgres 18 仅 127.0.0.1 且需 sudo（无权限）；data 用户在 docker 组 → 用 pgvector/pgvector:pg16 容器（5433，凭据入本地 secrets + .env DATABASE_URL，git-ignored）；恢复 git 历史 68fa288~1 被移除的真实 pg-client.ts（getPG 返回 any 以匹配现有调用方）；schema 初始化成功 → /kg/stats /kg/entities /kg/search 全通（21268 节点）。
+- 网络搜索：duckduckgo 直连超时；发现 data 服务器 mihomo 代理 192.168.0.10:7890 可达海外（curl 验证 google/duckduckgo 200）。但 app 的 proxyFetch HTTPS 走 Bun tls.connect({socket}) 隧道挂起（CONNECT 200 后 TLS 升级不兼容 Bun）→ 搜索引擎 fetch() 在配置 SEARCH_PROXY 时改用 curl.exe（原生代理支持），实测 /web-search 返回 10 条真实结果；chat 内 web_search/web_fetch 工具端到端可用。
+- Tools: ssh（data@192.168.0.10）/ docker / psql / curl / bun / git。
+- Files:
+  - 修改 src/db/pg-client.ts（恢复真实 PG 实现：DATABASE_URL 连接池 + isPgAvailable + initPgSchema + pgQuery/pgBulkInsert/pgVectorSearch + recheck）
+  - 修改 src/crawl/search-engines.ts（fetch() 代理 HTTPS 走 curl.exe；优先 SEARCH_PROXY）
+  - 修改 .env.example（+SEARCH_PROXY/ALL_PROXY/PROXY_URL/PG_* 登记）
+  - .env 增加 DATABASE_URL + SEARCH_PROXY（git-ignored）
+- Verification: isPgAvailable=true + schema init OK；/kg/stats 21268 节点 / /kg/search 语义检索正常；/web-search 10 条真实结果；chat 工具循环真实调用 web_search+web_fetch；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
+- 说明：searxng docker 方案因服务器 8080 被 1Panel openresty 劫持 + 容器上游 TUN 不通而放弃；浏览器/插件搜索方案（Part C）暂不需要（代理路径已通，Playwright 仍在依赖中可作备选）。
+- Commit: [PLACEHOLDER]

@@ -37,6 +37,13 @@ abstract class SearchEngine {
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
 
   protected async fetch(url: string, init: RequestInit = {}): Promise<ProxyFetchResponse> {
+    // 代理 HTTPS 走 curl.exe：Bun 的 tls.connect({socket}) 隧道不稳定（CONNECT 后 TLS 升级挂起），
+    // curl 原生支持 HTTP(S) 代理，实测可靠（mihomo 等 HTTP 代理）
+    const proxyUrl =
+      readString("SEARCH_PROXY") || readString("PROXY_URL") || readString("HTTPS_PROXY") || readString("HTTP_PROXY") || readString("ALL_PROXY");
+    if (proxyUrl && url.startsWith("https://")) {
+      return curlFetch(url, init, proxyUrl);
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
@@ -53,6 +60,31 @@ abstract class SearchEngine {
       throw e;
     }
   }
+}
+
+/** curl 传输（代理 HTTPS）：用 curl.exe 避免 Bun TLS 隧道挂起，返回 ProxyFetchResponse 兼容对象。 */
+async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Promise<ProxyFetchResponse> {
+  const { spawnSync } = await import("bun");
+  const headers = (init.headers ?? {}) as Record<string, string>;
+  const args = ["-sS", "-L", "-m", "30", "-x", proxyUrl, "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"];
+  for (const [k, v] of Object.entries(headers)) args.push("-H", `${k}: ${v}`);
+  if (init.method && init.method !== "GET") args.push("-X", init.method);
+  if (init.body) args.push("--data-binary", init.body as string);
+  args.push(url);
+  const proc = spawnSync(["curl.exe", ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
+  const body = new TextDecoder().decode(proc.stdout);
+  const ok = proc.exitCode === 0;
+  return {
+    ok,
+    status: ok ? 200 : 502,
+    statusText: ok ? "OK" : `curl exit ${proc.exitCode}: ${new TextDecoder().decode(proc.stderr).slice(0, 120)}`,
+    headers: {},
+    url,
+    text: async () => body,
+    json: async () => JSON.parse(body),
+    buffer: async () => Buffer.from(body),
+    arrayBuffer: async () => Buffer.from(body).buffer,
+  };
 }
 
 // ========== DuckDuckGo（无需 API Key）==========
