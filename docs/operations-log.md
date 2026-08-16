@@ -5377,3 +5377,11 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Verification: isPgAvailable=true + schema init OK；/kg/stats 21268 节点 / /kg/search 语义检索正常；/web-search 10 条真实结果；chat 工具循环真实调用 web_search+web_fetch；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
 - 说明：searxng docker 方案因服务器 8080 被 1Panel openresty 劫持 + 容器上游 TUN 不通而放弃；浏览器/插件搜索方案（Part C）暂不需要（代理路径已通，Playwright 仍在依赖中可作备选）。
 - Commit: ac12672
+
+## 2026-08-17 - Docker 部署：frontend bun.lock 漂移修复
+
+- Task: docker compose build 失败（frontend-builder 阶段 bun install --frozen-lockfile 报 lockfile 变更）——frontend/package.json（8/14 增依赖）比 bun.lock（5/8）新，锁文件漂移导致镜像无法构建。重新生成 frontend bun.lock（+171 行纯新增：vitest/coverage/jest-dom/highlight.js 等）。
+- Files:
+  - 修改 frontend/bun.lock（重新生成，补齐 package.json 已声明依赖）
+- Verification: cd frontend && bun install 成功（34 packages）；构建期 docker compose build 待服务器重跑确认。
+- Commit: [PLACEHOLDER]
