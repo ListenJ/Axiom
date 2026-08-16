@@ -5289,4 +5289,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/run.ts（缺省 rerunEach=DEFAULT_RERUN_EACH；help 标注默认 2）
   - 新增 tests/agent-evals/runner-rerun.test.ts（4 用例：默认 2、pickBest 取首个通过、全败保留首次、空列表防御）
 - Verification: bun test tests/agent-evals/ 75 tests / 0 fail（原 71，+4）；bun test --parallel=8 ./tests 2598 pass / 28 skip / 0 fail（2626 tests，含本轮 +6）；bunx tsc --noEmit exit 0；--help 显示默认 2。
-- Commit: [PLACEHOLDER]
+- Commit: 4ff5b42
