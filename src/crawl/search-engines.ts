@@ -6,6 +6,7 @@
  */
 
 import { proxyFetch, type ProxyFetchResponse } from "../utils/proxy-fetch.js";
+import { spawnSync } from "bun"; // 静态导入：bun 打包器不支持动态 await import("bun")（bundle 中报 awaitPromise is not defined）
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 
@@ -64,14 +65,14 @@ abstract class SearchEngine {
 
 /** curl 传输（代理 HTTPS）：用 curl.exe 避免 Bun TLS 隧道挂起，返回 ProxyFetchResponse 兼容对象。 */
 async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Promise<ProxyFetchResponse> {
-  const { spawnSync } = await import("bun");
   const headers = (init.headers ?? {}) as Record<string, string>;
   const args = ["-sS", "-L", "-m", "30", "-x", proxyUrl, "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"];
   for (const [k, v] of Object.entries(headers)) args.push("-H", `${k}: ${v}`);
   if (init.method && init.method !== "GET") args.push("-X", init.method);
   if (init.body) args.push("--data-binary", init.body as string);
   args.push(url);
-  const proc = spawnSync(["curl.exe", ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
+  const curlBin = process.platform === "win32" ? "curl.exe" : "curl"; // Linux 容器（docker）无 curl.exe
+  const proc = spawnSync([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
   const body = new TextDecoder().decode(proc.stdout);
   const ok = proc.exitCode === 0;
   return {

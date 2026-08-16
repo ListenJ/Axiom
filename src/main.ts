@@ -171,6 +171,8 @@ await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
 const config = getConfig();
 const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
+// 启动时执行幂等迁移（建 conversations/search_history/notes_fts 等核心表；首次运行必需，docker 空数据目录也适用）
+await import("./db/migrate.js");
 const startupTime = Date.now();
 
 logger.info("Axiom AI Agent 启动", {

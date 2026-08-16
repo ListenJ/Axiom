@@ -5392,3 +5392,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 修改 Dockerfile（deps/builder/frontend 三处 install 加 --ignore-scripts）
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - Docker 部署落地：镜像构建 + 容器运行 + 3 个部署修复
+
+- Task: 用户要求用 docker 容器模式完成（账户在 docker 模式）。在 data 服务器（192.168.0.10，docker 组免 sudo）从 Windows 打包源码 → scp → docker compose build/up 部署 axiom-agent（端口 18789，挂载 data/axiom-memory/config/plugins，user 1000:1000 兼容宿主卷）。修复 3 个部署问题：
+  1) main.ts 启动时执行幂等迁移（docker 空 data 目录缺 search_history 等核心表 → /web-search 报 no such table）
+  2) search-engines.ts curl 传输：动态 await import("bun") 在 bun 打包产物中报 awaitPromise is not defined（容器搜索空结果）→ 改静态 import { spawnSync } from "bun"；curl 二进制跨平台（Linux 容器无 curl.exe）
+  3) docker-compose.yml：user 1000:1000（镜像 appuser=100 与宿主 data=1000 权限不匹配）+ plugins 卷挂载（read_only rootfs 下 /app/plugins 需可写）
+- Files:
+  - 修改 src/main.ts（启动执行 migrate）
+  - 修改 src/crawl/search-engines.ts（静态 spawnSync 导入 + curl 跨平台）
+  - 修改 docker-compose.yml（user + plugins 卷）
+- Verification: docker 容器 Up healthy；/kg/stats（PG 经容器）21268 节点；/web-search（容器内经 SEARCH_PROXY→mihomo→duckduckgo）10 条真实结果；AXIOM_AUTH_TOKEN 远程鉴权（本地 secrets + 服务器 .env）；bun test 2648/0；tsc 干净。
+- Commit: [PLACEHOLDER]
