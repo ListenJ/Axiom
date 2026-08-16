@@ -82,6 +82,16 @@ describe("校验器降噪：Set 即为哈希去重（CODING-04）", () => {
   });
 });
 
+describe("校验器降噪：WAL 机制同义词（KNOW-04）", () => {
+  const task = find("KNOW-04");
+  it("完整 WAL 答案用「追加写入」表述通过（无需字面 预写日志）", () => {
+    expect(task.verify("WAL 模式把写操作追加写入 WAL 文件，读操作直接读数据库快照，读写可并行；崩溃时重放 WAL 恢复，适合读多写少的场景。").passed).toBe(true);
+  });
+  it("未解释 WAL 机制仍失败", () => {
+    expect(task.verify("WAL 模式性能更好，适合高并发。").passed).toBe(false);
+  });
+});
+
 describe("校验器降噪：中文同义词不再误杀（CODING-07）", () => {
   const task = find("CODING-07");
   it("『堆快照/内存分析/排查定位』中文答案通过", () => {

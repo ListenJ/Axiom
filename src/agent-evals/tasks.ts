@@ -89,7 +89,7 @@ const knowledge: AgentTask[] = [
     { maxTokens: 512 }),
   t("KNOW-04", "knowledge", "held-out", "SQLite WAL",
     "SQLite 的 WAL 模式相比默认 journal 模式有什么优势？适合什么场景？",
-    (r) => containsAllAny(r, [["wal"], ["write-ahead", "预写日志"], ["read", "读"], ["write", "写"]]),
+    (r) => containsAllAny(r, [["wal"], ["write-ahead", "预写日志", "日志先行", "先写日志", "追加写入"], ["read", "读"], ["write", "写"]]),
     { maxTokens: 512 }),
   t("KNOW-05", "knowledge", "train", "容器 vs 虚拟机",
     "简述容器与虚拟机的三点核心区别（隔离粒度/资源开销/启动速度各一句）。",

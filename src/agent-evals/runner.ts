@@ -132,9 +132,21 @@ async function callProviderDirect(
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
   // 限流退避封顶：5s/10s/10s × 3 次（原 5/10/20/40/80s 会让评测无限磨）；有 fallback 时快速失败让位
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { status, body } = useCurl
-      ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
-      : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
+    let status: number;
+    let body: string;
+    try {
+      const res = useCurl
+        ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
+        : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
+      status = res.status;
+      body = res.body;
+    } catch (err) {
+      // 传输层错误（连接重置/超时/解析失败）与 5xx 同等重试：否则 curl 断连直接变成 [ERROR] 内容
+      const delayMs = Math.min(5000 * Math.pow(2, attempt), 10000);
+      logger.warn(`[AgentEval] ${label} transport error (${(err as Error).message.slice(0, 120)}), retry in ${delayMs}ms`);
+      await new Promise((r) => setTimeout(r, delayMs));
+      continue;
+    }
     if (status === 429 || status >= 500) {
       const delayMs = Math.min(5000 * Math.pow(2, attempt), 10000);
       logger.warn(`[AgentEval] ${label} rate-limited (${status}), retry in ${delayMs}ms`);
@@ -147,7 +159,7 @@ async function callProviderDirect(
     const data = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
     return data.choices?.[0]?.message?.content ?? "";
   }
-  throw new Error(`${provider} rate-limited after retries`);
+  throw new Error(`${provider} failed after retries`);
 }
 
 

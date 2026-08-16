@@ -5290,3 +5290,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/agent-evals/runner-rerun.test.ts（4 用例：默认 2、pickBest 取首个通过、全败保留首次、空列表防御）
 - Verification: bun test tests/agent-evals/ 75 tests / 0 fail（原 71，+4）；bun test --parallel=8 ./tests 2598 pass / 28 skip / 0 fail（2626 tests，含本轮 +6）；bunx tsc --noEmit exit 0；--help 显示默认 2。
 - Commit: 4ff5b42
+
+## 2026-08-16 - KNOW-04 校验器降噪 + 传输层重试（EVOLVE-06 根因修复）
+
+- Task: 探针复现揭示两个真实失败源：① KNOW-04 模型给出完整正确的 WAL 详解（覆盖 WAL/读/写，用「追加写入 WAL 文件」表述）但缺「预写日志」字面词被误杀 → 组2 增加机制同义词；② EVOLVE-06 多次失败为 opencode 传输层故障（curl exit 56 Connection reset / -m120 超时），而 callProviderDirect 只对 HTTP 429/5xx 重试，传输异常直接变成 [ERROR] 内容全组缺失 → 增加传输层异常重试（5s/10s/10s，与 5xx 同等）。
+- Tools: bun run .tmp/eval-probe.ts（探针复现）/ bun test / bun x tsc / node 字符串补丁 / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（KNOW-04 组2：write-ahead/预写日志/日志先行/先写日志/追加写入）
+  - 修改 src/agent-evals/runner.ts（callProviderDirect try/catch 包裹，传输异常与 5xx 同等退避重试 3 次）
+  - 修改 tests/agent-evals/validators-noise.test.ts（+2 KNOW-04 用例：追加写入通过、无机制失败）
+- Verification: 探针复现 KNOW-04 FAIL（完整答案缺预写日志）→ 修复后 PASS；EVOLVE-06 探针首抽 Connection reset、重试后 PASS（完整 3 条自检清单）；bun test tests/agent-evals/ 77 tests / 0 fail（原 75，+2）；bun test --parallel=8 ./tests 2628 tests / 0 fail；bunx tsc --noEmit exit 0。
+- Commit: [PLACEHOLDER]
