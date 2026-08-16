@@ -5339,3 +5339,10 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/agent-evals/tasks-strengthened.test.ts（+2 EVOLVE-07 用例）
 - Verification: 强化 30 任务 baseline 100%（30/30）/ evolved 96.7%（29/30）；探针 EVOLVE-07 PASS；self-evolve held-out 5/5（EVOLVE-07 ✅ 28s）；bun test tests/agent-evals/ 97/0；tsc 干净。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-16 - 强化集最终报告（baseline 100% / evolved 96.7%→100%）
+
+- Task: 更新 eval-results 报告：强化 30 任务集 + 空内容根因 + 修复链总结。
+- Files:
+  - 更新 eval-results/agent-evals-2026-08-16-evolve-constraints.md（强化集结果、空内容根因、结论）
+- Commit: [PLACEHOLDER]
