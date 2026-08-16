@@ -5376,4 +5376,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - .env 增加 DATABASE_URL + SEARCH_PROXY（git-ignored）
 - Verification: isPgAvailable=true + schema init OK；/kg/stats 21268 节点 / /kg/search 语义检索正常；/web-search 10 条真实结果；chat 工具循环真实调用 web_search+web_fetch；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
 - 说明：searxng docker 方案因服务器 8080 被 1Panel openresty 劫持 + 容器上游 TUN 不通而放弃；浏览器/插件搜索方案（Part C）暂不需要（代理路径已通，Playwright 仍在依赖中可作备选）。
-- Commit: [PLACEHOLDER]
+- Commit: ac12672
