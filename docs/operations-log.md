@@ -5310,3 +5310,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 eval-results/agent-evals-2026-08-16-evolve-constraints.md（追加第 3 轮 + 三轮汇总）
 - Verification: evolved 100% / baseline 95.8%；本轮记录 10+ 次传输错误（curl 28/56）均重试成功；无静默 [ERROR] 失败。
 - Commit: c9fff0f
+
+## 2026-08-16 - 任务强化：+6 硬任务 & 加固 3 校验器（held-out 24→30）
+
+- Task: 继续优化并强化任务集：每族新增 1 个 held-out 硬任务（CODING-08 带退避重试异步请求 / KNOW-08 混合检索 / PLAN-08 DR 演练 / TOOL-08 Docker 排障 / MEM-08 多轮状态整合 / EVOLVE-08 跨案例抽象），覆盖安全/容器/检索/状态整合等缺口；加固 3 个单关键词即可过的 held-out 校验器（TOOL-03 需 fetch+打印+状态码、EVOLVE-02 需模式+分块/摘要内容、EVOLVE-04 需限流/重试+处理/降级）。
+- Tools: bun test / bun x tsc / node 字符串补丁 / git。
+- Files:
+  - 修改 src/agent-evals/tasks.ts（+6 held-out 任务；加固 TOOL-03/EVOLVE-02/EVOLVE-04 校验器）
+  - 新增 tests/agent-evals/tasks-strengthened.test.ts（18 用例：6 新任务 × 通过+失败 + 3 加固 × 通过+失败）
+- Verification: bun test tests/agent-evals/ 95 tests / 0 fail（原 77，+18）；bun test --parallel=8 ./tests 2646 tests / 0 fail；bunx tsc --noEmit exit 0；--dry-run held-out 30 任务（24+6）。
+- Commit: [PLACEHOLDER]

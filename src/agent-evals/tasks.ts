@@ -71,6 +71,10 @@ const coding: AgentTask[] = [
     "一个 Node 服务在生产环境内存持续上涨。给出完整排查路径：按顺序列出用什么工具/命令、每步看什么指标（如 heap 快照、--inspect、profiler、GC 日志），直到定位并修复。",
     (r) => containsAllAny(r, [["heap", "快照", "堆"], ["inspect", "profiler", "gc", "--inspect", "内存分析"], ["定位", "排查", "分析", "诊断"]]),
     { maxTokens: 768 }),
+  t("CODING-08", "coding", "held-out", "带退避重试的异步请求（难）",
+    "写一个 TypeScript 函数 fetchWithRetry(url, options?)：请求失败时指数退避重试，最多 3 次（重试前等待 2^n × 100ms）。标定实现目标与时间复杂度、空间复杂度。",
+    (r) => containsAllAny(r, [["fetch", "请求", "http"], ["重试", "retry"], ["退避", "backoff", "延迟", "等待", "settimeout", "sleep"], ["复杂度", "o("]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== knowledge =====
@@ -103,6 +107,10 @@ const knowledge: AgentTask[] = [
     "对比 2PC / Saga / 本地消息表 / 事务发件箱（outbox）四种分布式事务方案的适用场景与权衡（各一句）。",
     (r) => containsAllAny(r, [["2pc", "两阶段"], ["saga"], ["发件箱", "outbox"], ["最终一致", "一致性"]]),
     { maxTokens: 768 }),
+  t("KNOW-08", "knowledge", "held-out", "混合检索 Hybrid Search（难）",
+    "解释混合检索（关键词 BM25 + 向量检索）相比纯向量检索的优势，并给出融合排序的一个实现要点（如 RRF 或加权）。",
+    (r) => containsAllAny(r, [["bm25", "关键词", "稀疏"], ["向量", "embedding", "dense"], ["混合", "融合", "rrf", "加权"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== planning =====
@@ -135,6 +143,10 @@ const planning: AgentTask[] = [
     "一个高流量单体服务要拆分为微服务并零停机上线：列出关键计划步骤（含网关/灰度/兼容层/回滚/验证）。",
     (r) => containsAllAny(r, [["网关", "gateway"], ["灰度", "渐进"], ["回滚", "rollback"], ["兼容", "兼容层"]]),
     { maxTokens: 768 }),
+  t("PLAN-08", "planning", "held-out", "数据库灾难恢复演练（难）",
+    "设计一次数据库灾难恢复（DR）演练计划：目标、前置准备、执行步骤（备份验证/故障注入/恢复/RTO-RPO 测量/复盘）各一句。",
+    (r) => containsAllAny(r, [["备份"], ["恢复", "还原"], ["rto", "rpo", "指标", "时间"], ["演练", "复盘", "验证", "注入"]]),
+    { maxTokens: 768 }),
 ];
 
 // ===== tool-use =====
@@ -149,7 +161,7 @@ const toolUse: AgentTask[] = [
     { maxTokens: 512 }),
   t("TOOL-03", "tool-use", "held-out", "HTTP 请求工具",
     "写一个 Node 环境发起 GET 请求并打印状态码与响应体前 200 字符的最小示例，允许使用 fetch 或 curl。",
-    (r) => containsAny(r, ["fetch", "curl", "http"]),
+    (r) => containsAllAny(r, [["fetch", "curl", "http"], ["打印", "console", "输出"], ["状态码", "status", "响应"]]),
     { maxTokens: 512 }),
   t("TOOL-04", "tool-use", "held-out", "日志检索",
     "要在一个大目录里找所有含「ERROR」的 .log 文件，你会用什么命令或工具？给出精确命令。",
@@ -166,6 +178,10 @@ const toolUse: AgentTask[] = [
   t("TOOL-07", "tool-use", "held-out", "CI 全链路设计（难）",
     "设计一条完整 CI 流水线：按顺序列出阶段（lint → 单测 → 集成测试 → 构建 → 安全扫描 → 部署 → 冒烟验证），每个阶段给一个代表命令或工具。",
     (r) => containsAllAny(r, [["lint", "静态检查", "代码检查"], ["测试", "test", "单测", "单元测试"], ["构建", "build", "编译"], ["部署", "deploy", "发布"], ["冒烟", "smoke", "验证"]]),
+    { maxTokens: 768 }),
+  t("TOOL-08", "tool-use", "held-out", "Docker 容器排障（难）",
+    "一个容器启动后立即退出（exit code 非 0）。列出完整排查步骤（含 docker ps -a / docker logs / docker inspect / docker exec，逐项看什么），直到定位根因。",
+    (r) => containsAllAny(r, [["docker"], ["logs", "日志"], ["inspect", "exec", "ps"], ["退出", "exit", "崩溃", "根因", "原因"]]),
     { maxTokens: 768 }),
 ];
 
@@ -199,6 +215,10 @@ const memory: AgentTask[] = [
     "日志序列：① API 超时 10s ② DB 连接池耗尽 ③ 慢查询积压 ④ 索引缺失 ⑤ 新版本发布删了索引。\n推断完整因果链：从触发动作到最终故障，按顺序列出每一环。",
     (r) => containsAllAny(r, [["索引"], ["连接池", "连接"], ["因果", "链", "导致"], ["发布", "版本"]]),
     { maxTokens: 512 }),
+  t("MEM-08", "memory", "held-out", "多轮状态整合（难）",
+    "多轮对话上下文：① 数据库是 MySQL，端口 3306 ② 连接超时 5 秒 ③ 连接池上限 20。请写一条 MySQL 连接配置（DSN 或 JSON），必须同时包含上述三个值，并逐项标注来源轮次。",
+    (r) => containsAllAny(r, [["3306"], ["20"], ["5", "5s", "5 秒"], ["mysql", "配置", "dsn", "json"]]),
+    { maxTokens: 512 }),
 ];
 
 // ===== self-evolve =====
@@ -209,7 +229,7 @@ const selfEvolve: AgentTask[] = [
     { maxTokens: 256 }),
   t("EVOLVE-02", "self-evolve", "held-out", "从成功归纳模式",
     "两条成功轨迹：① 用户要总结 PDF，Agent 先抽文本→分块→调摘要模型→汇总；② 用户要总结网页，Agent 先抓 HTML→去标签→分块→调摘要模型→汇总。\n请归纳它们的共同模式（一句话，含「模式」或「步骤」）。",
-    (r) => containsAny(r, ["模式", "步骤", "先", "共同"]),
+    (r) => containsAllAny(r, [["模式", "步骤", "共同"], ["分块", "摘要", "总结", "汇总"]]),
     { maxTokens: 256 }),
   t("EVOLVE-03", "self-evolve", "train", "成功轨迹提炼步骤",
     "一条成功轨迹：用户要生成周报，Agent 先收集 commits → 按项目分组 → 用模板生成 → 让用户确认。\n请提炼为可复用的步骤序列（含「先」「然后」「最后」）。",
@@ -217,7 +237,7 @@ const selfEvolve: AgentTask[] = [
     { maxTokens: 256 }),
   t("EVOLVE-04", "self-evolve", "held-out", "失败轨迹归纳共同教训",
     "两条失败轨迹：① 调用第三方 API 未处理 429 导致任务失败；② 调用第三方 API 未处理超时导致任务失败。\n归纳共同教训（一句话，含「限流」或「重试」）。",
-    (r) => containsAny(r, ["限流", "重试", "429", "超时"]),
+    (r) => containsAllAny(r, [["限流", "重试", "429", "超时"], ["处理", "检查", "捕获", "防护", "降级"]]),
     { maxTokens: 256 }),
   t("EVOLVE-05", "self-evolve", "train", "限流处理策略",
     "调用 API 遇到 429 限流：给出处理策略（含退避、重试次数、降级）。",
@@ -230,6 +250,10 @@ const selfEvolve: AgentTask[] = [
   t("EVOLVE-07", "self-evolve", "held-out", "多因失败复盘（难）",
     "一次线上事故由三个原因叠加（配置错误 + 缺乏监控 + 没有回滚预案）。给出结构化复盘：What / Why / How / 预防措施（各一句）。",
     (r) => containsAllAny(r, [["复盘", "what", "why"], ["根因", "原因", "cause", "root"], ["预防", "改进", "prevent", "avoid"]]),
+    { maxTokens: 512 }),
+  t("EVOLVE-08", "self-evolve", "held-out", "跨案例抽象通用原则（难）",
+    "三个成功案例：① 总结 PDF（抽文本→分块→调摘要模型→汇总）② 总结网页（抓 HTML→去标签→分块→调摘要模型→汇总）③ 生成周报（收集 commits→分组→模板生成→确认）。请抽象一条跨案例的通用原则（含「收集」「处理」「汇总」），并说明它还能适用于哪类任务。",
+    (r) => containsAllAny(r, [["收集", "获取", "采集"], ["处理", "分块", "解析", "整理"], ["汇总", "总结", "生成"], ["适用", "通用", "复用", "其他"]]),
     { maxTokens: 512 }),
 ];
 
