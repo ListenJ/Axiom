@@ -5412,7 +5412,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 修改 src/main.ts（VaultManager 传 dbPath）
 - Verification: docker VaultManager initialized notes:149（52 论文 + 8 模块 + 清单）；/vault/stats 149 notes / 472K words；容器 healthy；tsc 干净。
-- Commit: [PLACEHOLDER]
+- Commit: fd491cd
 
 ## 2026-08-17 - 全面部署 + 真实任务场景 Agent 评测
 
