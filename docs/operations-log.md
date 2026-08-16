@@ -5309,4 +5309,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 更新 eval-results/agent-evals-2026-08-16-evolve-constraints.md（追加第 3 轮 + 三轮汇总）
 - Verification: evolved 100% / baseline 95.8%；本轮记录 10+ 次传输错误（curl 28/56）均重试成功；无静默 [ERROR] 失败。
-- Commit: [PLACEHOLDER]
+- Commit: c9fff0f
