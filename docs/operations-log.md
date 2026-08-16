@@ -5301,3 +5301,12 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/agent-evals/validators-noise.test.ts（+2 KNOW-04 用例：追加写入通过、无机制失败）
 - Verification: 探针复现 KNOW-04 FAIL（完整答案缺预写日志）→ 修复后 PASS；EVOLVE-06 探针首抽 Connection reset、重试后 PASS（完整 3 条自检清单）；bun test tests/agent-evals/ 77 tests / 0 fail（原 75，+2）；bun test --parallel=8 ./tests 2628 tests / 0 fail；bunx tsc --noEmit exit 0。
 - Commit: 9175ed6
+
+## 2026-08-16 - 优化后重测：evolved 满分 100%（24/24）
+
+- Task: KNOW-04 降噪 + 传输层重试修复后，重跑全量 evolve（默认 --rerun-each=2）：baseline 95.8%（23/24，唯一失败 EVOLVE-06 缺「备份」第 3 项）、evolved 100%（24/24 六族全过，历史首次满分）。
+- Tools: bun run src/agent-evals/run.ts --provider=opencode --model=deepseek-v4-flash --evolve --constraints --concurrency=2 / git。
+- Files:
+  - 更新 eval-results/agent-evals-2026-08-16-evolve-constraints.md（追加第 3 轮 + 三轮汇总）
+- Verification: evolved 100% / baseline 95.8%；本轮记录 10+ 次传输错误（curl 28/56）均重试成功；无静默 [ERROR] 失败。
+- Commit: [PLACEHOLDER]
