@@ -79,6 +79,41 @@ export class VaultManager {
     });
   }
 
+  // ===== FTS 索引重建 =====
+
+  /**
+   * 从 vault 文件系统重建 SQLite FTS 索引（外部同步/直接落盘的新笔记未走 writeNote 时调用，
+   * 否则 memory_notes_fts 为空，chat 自适应检索/全文搜索捞不到 KB 笔记）。
+   * @returns 重建的笔记数
+   */
+  reindexAll(): number {
+    let count = 0;
+    const now = Date.now();
+    for (const relPath of this.engine.listNotePaths()) {
+      try {
+        const note = this.engine.getNote(relPath);
+        if (!note) continue;
+        this.sqliteMemory.upsertNote({
+          path: note.path,
+          title: note.title || path.basename(note.path, ".md"),
+          content: note.content,
+          excerpt: note.content.slice(0, 500).replace(/\n/g, " "),
+          tags: note.tags ?? [],
+          paraCategory: (note.frontmatter?.paraCategory as string) ?? "uncategorized",
+          type: (note.frontmatter?.type as string) ?? "note",
+          source: "vault-reindex",
+          confidence: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+        count++;
+      } catch {
+        // 单个笔记读取失败不阻断整体重建
+      }
+    }
+    return count;
+  }
+
   // ===== 确定性检索 =====
 
   /** 全文搜索 — SQLite FTS5 为主，确定性引擎为 fallback */

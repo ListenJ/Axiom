@@ -685,6 +685,11 @@ export class DeterministicSearchEngine {
   }
 
   /** 重新加载索引 */
+  /** 列出所有笔记相对路径（供 SQLite FTS 重建） */
+  listNotePaths(): string[] {
+    return [...this.notes.keys()];
+  }
+
   reload(vaultPath: string) {
     this.notes.clear();
     this.wikiLinkIndex.clear();

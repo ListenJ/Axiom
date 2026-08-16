@@ -98,11 +98,18 @@ class DuckDuckGoEngine extends SearchEngine {
     url.searchParams.set("q", opts.query);
     if (opts.site) url.searchParams.set("sites", opts.site);
 
-    const res = await this.fetch(url.toString());
-    if (!res.ok) throw new Error(`DuckDuckGo HTTP ${res.status}`);
-
-    const html = await res.text();
-    return this.parseHtml(html, opts.num ?? 10);
+    // duckduckgo 反爬间歇性（202 挑战页）导致空结果：仅代理场景重试 2 次（无代理直连失败应快速返回，避免拖慢）
+    const hasProxy = !!readString("SEARCH_PROXY");
+    const attempts = hasProxy ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const res = await this.fetch(url.toString());
+      if (!res.ok) throw new Error(`DuckDuckGo HTTP ${res.status}`);
+      const html = await res.text();
+      const parsed = this.parseHtml(html, opts.num ?? 10);
+      if (parsed.length > 0) return parsed;
+      if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
+    return [];
   }
 
   private parseHtml(html: string, limit: number): SearchEngineResult[] {
@@ -248,6 +255,65 @@ class SearXngEngine extends SearchEngine {
   }
 }
 
+// ========== Bing HTML（无 key，网页搜索；duckduckgo 反爬挑战时的可靠回退）==========
+
+class BingHtmlEngine extends SearchEngine {
+  readonly name = "bing-html";
+
+  async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
+    const url = new URL("https://www.bing.com/search");
+    url.searchParams.set("q", opts.query);
+    if (opts.lang) url.searchParams.set("setlang", opts.lang);
+    const headers = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" };
+    // Bing 对共享代理 IP 间歇 502/空页：仅代理场景重试 2 次
+    const attempts = readString("SEARCH_PROXY") ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const res = await this.fetch(url.toString(), { headers });
+        if (!res.ok) throw new Error(`Bing HTML HTTP ${res.status}`);
+        const parsed = this.parseHtml(await res.text(), opts.num ?? 10);
+        if (parsed.length > 0) return parsed;
+      } catch (e) {
+        if (attempt === 2) throw e;
+      }
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+    return [];
+  }
+
+  private parseHtml(html: string, limit: number): SearchEngineResult[] {
+    const results: SearchEngineResult[] = [];
+    const blockRe = /<li class="b_algo"[^>]*>([\s\S]*?)(?=<li class="b_algo"|<\/ol>|$)/gi;
+    for (const m of html.matchAll(blockRe)) {
+      const block = m[1];
+      const hrefM = block.match(/<h2[^>]*><a[^>]*href="([^"]+)"/);
+      const titleM = block.match(/<h2[^>]*><a[^>]*>([\s\S]*?)<\/a><\/h2>/);
+      if (!hrefM || !titleM) continue;
+      const snippetM = block.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+      const citeM = block.match(/<cite[^>]*>([\s\S]*?)<\/cite>/);
+      results.push({
+        position: results.length + 1,
+        title: this.strip(titleM[1]),
+        link: hrefM[1],
+        displayedUrl: citeM ? this.strip(citeM[1]) : this.extractDomain(hrefM[1]),
+        snippet: snippetM ? this.strip(snippetM[1]) : "",
+        source: this.extractDomain(hrefM[1]),
+        engine: this.name,
+      });
+      if (results.length >= limit) break;
+    }
+    return results;
+  }
+
+  private strip(html: string): string {
+    return html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").trim();
+  }
+
+  private extractDomain(url: string): string {
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+  }
+}
+
 // ========== 搜索聚合器 ==========
 
 export class SearchAggregator {
@@ -256,13 +322,16 @@ export class SearchAggregator {
   constructor() {
     this.engines.set("duckduckgo", new DuckDuckGoEngine());
     this.engines.set("bing", new BingEngine());
+    this.engines.set("bing-html", new BingHtmlEngine());
     this.engines.set("searxng", new SearXngEngine());
   }
 
   async searchMulti(
     opts: SearchOptions,
-    engines: string[] = ["searxng", "duckduckgo"]
+    engines: string[] = ["duckduckgo", "bing-html", "searxng"]
   ): Promise<SearchEngineResult[]> {
+    // bing-html 作为无 key 可靠回退：显式指定引擎时也追加（duckduckgo 反爬挑战/空结果场景兜底）
+    if (!engines.includes("bing-html")) engines = [...engines, "bing-html"];
     const tasks = engines
       .map((name) => {
         const engine = this.engines.get(name);

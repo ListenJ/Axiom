@@ -30,7 +30,20 @@ export function zodToJsonSchema(schema: unknown): Record<string, unknown> {
   const def = (schema as { _def?: unknown })._def as
     | { typeName?: string; innerType?: unknown; shape?: Record<string, unknown> | (() => Record<string, unknown>); description?: string; default?: unknown; type?: unknown }
     | undefined;
-  if (!def) return { type: "string" };
+  if (!def) {
+    // 纯对象形式：{ key: zodSchema }（ToolDef.inputSchema 常用）→ 转为 object properties；
+    // 已是成形 JSON Schema（type/properties/items/enum 等键）→ 原样透传
+    const keys = Object.keys(schema as Record<string, unknown>);
+    const jsonSchemaKeys = ["type", "properties", "items", "anyOf", "allOf", "oneOf", "enum", "const"];
+    if (keys.some((k) => jsonSchemaKeys.includes(k))) return schema as Record<string, unknown>;
+    const properties: Record<string, unknown> = {};
+    const required: string[] = [];
+    for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+      properties[key] = zodToJsonSchema(value);
+      if (!isOptionalZod(value)) required.push(key);
+    }
+    return { type: "object", properties, ...(required.length > 0 ? { required } : {}) };
+  }
 
   const withDesc = (out: Record<string, unknown>): Record<string, unknown> =>
     def.description ? { ...out, description: def.description } : out;

@@ -197,7 +197,8 @@ loadApiKeyStoreOverrides(persistedOverrides);
 let vault: VaultManager | null = null;
 try {
   vault = new VaultManager({ vaultPath: config.memory.vaultPath, dbPath: config.memory.databasePath }); // dbPath 必须传：默认 ./axiom-memory.db 在 docker 只读根目录打不开
-  logger.info("VaultManager initialized", { notes: vault.stats().totalNotes });
+  const reindexed = vault.reindexAll();
+  logger.info("VaultManager initialized", { notes: vault.stats().totalNotes, ftsReindexed: reindexed });
 } catch (e: unknown) {
   logger.warn("VaultManager init failed", { error: (e as Error).message });
 }

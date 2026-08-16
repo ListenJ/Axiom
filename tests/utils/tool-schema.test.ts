@@ -34,3 +34,31 @@ describe("toOpenAITools", () => {
     expect((defs[0].function.parameters as { required?: string[] }).required).toEqual(["skillId"]);
   });
 });
+
+describe("zodToJsonSchema 纯对象（ToolDef.inputSchema 格式）", () => {
+  test("web_search 纯对象 schema 转为 object properties + required", () => {
+    const schema = zodToJsonSchema({
+      query: z.string().describe("搜索关键词"),
+      engines: z.array(z.string()).optional(),
+      num: z.number().optional().default(10),
+    });
+    expect(schema.type).toBe("object");
+    expect((schema.required as string[])).toEqual(["query"]);
+    const props = schema.properties as Record<string, { type: string; description?: string }>;
+    expect(props.query.type).toBe("string");
+    expect(props.query.description).toBe("搜索关键词");
+    expect(props.engines.type).toBe("array");
+    expect(props.num.type).toBe("number");
+  });
+
+  test("空对象 schema（无参数工具）返回空 properties", () => {
+    const schema = zodToJsonSchema({});
+    expect(schema.type).toBe("object");
+    expect(schema.properties).toEqual({});
+  });
+
+  test("已成形 JSON Schema 原样透传", () => {
+    const schema = zodToJsonSchema({ type: "string" });
+    expect(schema).toEqual({ type: "string" });
+  });
+});
