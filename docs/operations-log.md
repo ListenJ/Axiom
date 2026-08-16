@@ -5319,4 +5319,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/tasks.ts（+6 held-out 任务；加固 TOOL-03/EVOLVE-02/EVOLVE-04 校验器）
   - 新增 tests/agent-evals/tasks-strengthened.test.ts（18 用例：6 新任务 × 通过+失败 + 3 加固 × 通过+失败）
 - Verification: bun test tests/agent-evals/ 95 tests / 0 fail（原 77，+18）；bun test --parallel=8 ./tests 2646 tests / 0 fail；bunx tsc --noEmit exit 0；--dry-run held-out 30 任务（24+6）。
-- Commit: [PLACEHOLDER]
+- Commit: 089e5f8
