@@ -7,14 +7,14 @@ FROM oven/bun:1.3-alpine AS deps
 
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --ignore-scripts  # postinstall(ensure-env.ts) 仅生成本地 .env，镜像构建不需要
 
 # ========== Stage 2: Build (optional bundling) ==========
 FROM oven/bun:1.3-alpine AS builder
 
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts  # postinstall(ensure-env.ts) 仅生成本地 .env，镜像构建不需要
 COPY tsconfig.json ./
 COPY src/ ./src/
 
@@ -26,7 +26,7 @@ FROM oven/bun:1.3-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts  # postinstall(ensure-env.ts) 仅生成本地 .env，镜像构建不需要
 COPY frontend/ ./
 RUN bun run build
 

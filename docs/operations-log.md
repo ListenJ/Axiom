@@ -5385,3 +5385,10 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 frontend/bun.lock（重新生成，补齐 package.json 已声明依赖）
 - Verification: cd frontend && bun install 成功（34 packages）；构建期 docker compose build 待服务器重跑确认。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - Docker 构建修复：postinstall ensure-env 需 scripts/，改用 --ignore-scripts
+
+- Task: docker build 在 bun install 阶段失败（postinstall `bun run scripts/ensure-env.ts` 在 deps/builder 阶段找不到 scripts/，因该阶段只 COPY package.json/bun.lock）。ensure-env.ts 仅为本机生成 .env，镜像构建不需要 → 三个 bun install 加 --ignore-scripts。
+- Files:
+  - 修改 Dockerfile（deps/builder/frontend 三处 install 加 --ignore-scripts）
+- Commit: [PLACEHOLDER]
