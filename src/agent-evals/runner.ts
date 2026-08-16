@@ -114,7 +114,9 @@ async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskRes
 }
 
 
-/** 直连 provider 调用（OpenAI 兼容协议），429/5xx 退避重试 3 次（2s/4s/8s）。 */
+/** 直连 provider 调用（OpenAI 兼容协议）：
+ * 传输层/429/5xx 退避重试 3 次（5s/10s/10s 封顶）；200 但 content 为空时升级 max_tokens 再试一次
+ * （deepseek-v4-flash 隐藏推理会吃光小预算导致空回答，实测 4096 可完成推理并输出内容）。 */
 async function callProviderDirect(
   provider: string,
   model: string,
@@ -125,10 +127,30 @@ async function callProviderDirect(
   const cfg = getProviderConfig(provider);
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   const apiKey = readString(cfg.apiKeyEnv);
-  const messages = [
-    ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
-    { role: "user" as const, content: task.prompt },
-  ];
+  // deepseek-v4-flash 隐藏推理会吃光小预算导致空回答（finish_reason=length + content=""）：
+  // 预算下限提到 4096（简单任务仍会提前 stop，不影响速度）；仍空则升级 8192 兜底
+  const baseBudget = Math.max(task.maxTokens ?? 512, 4096);
+  const budgets = [baseBudget, 8192];
+  for (const maxTokens of budgets) {
+    const content = await callProviderWithBudget(provider, cfg, apiKey, model, task, label, systemPrompt, maxTokens);
+    if (content.trim().length > 0) return content;
+    if (maxTokens === budgets[budgets.length - 1]) break;
+    logger.warn(`[AgentEval] ${label} empty content (hidden reasoning likely consumed budget), retry with max_tokens=${maxTokens} -> ${budgets[budgets.length - 1]}`);
+  }
+  throw new Error(`${provider} empty content after retries`);
+}
+
+/** 单预算下的 provider 调用：429/5xx/传输层退避重试 3 次，返回 content（可能为空）。 */
+async function callProviderWithBudget(
+  provider: string,
+  cfg: { baseURL: string; apiKeyEnv: string },
+  apiKey: string,
+  model: string,
+  task: AgentTask,
+  label: string,
+  systemPrompt: string | undefined,
+  maxTokens: number,
+): Promise<string> {
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
   // 限流退避封顶：5s/10s/10s × 3 次（原 5/10/20/40/80s 会让评测无限磨）；有 fallback 时快速失败让位
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -136,8 +158,8 @@ async function callProviderDirect(
     let body: string;
     try {
       const res = useCurl
-        ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt)
-        : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt);
+        ? await callWithCurl(cfg.baseURL, apiKey, model, task, systemPrompt, maxTokens)
+        : await callWithProxy(cfg.baseURL, apiKey, provider, model, task, systemPrompt, maxTokens);
       status = res.status;
       body = res.body;
     } catch (err) {
@@ -171,6 +193,7 @@ async function callWithProxy(
   model: string,
   task: AgentTask,
   systemPrompt?: string,
+  maxTokens = task.maxTokens ?? 512,
 ): Promise<{ status: number; body: string }> {
   const res = await proxyFetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
@@ -181,7 +204,7 @@ async function callWithProxy(
         ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
         { role: "user" as const, content: task.prompt },
       ],
-      max_tokens: task.maxTokens ?? 512,
+      max_tokens: maxTokens,
       temperature: 0.2,
       // GLM 推理模型默认强制思考（content 为空），评测场景禁用思考以获得直接答案
       ...(provider === "zhipu" ? { thinking: { type: "disabled" } } : {}),
@@ -198,6 +221,7 @@ async function callWithCurl(
   model: string,
   task: AgentTask,
   systemPrompt?: string,
+  maxTokens = task.maxTokens ?? 512,
 ): Promise<{ status: number; body: string }> {
   const messages = [
     ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
@@ -206,7 +230,7 @@ async function callWithCurl(
   const payload = JSON.stringify({
     model,
     messages,
-    max_tokens: task.maxTokens ?? 512,
+    max_tokens: maxTokens,
     temperature: 0.2,
     thinking: { type: "disabled" }, // deepseek-v4-flash 推理模型：禁用思考以获得直接回答
   });

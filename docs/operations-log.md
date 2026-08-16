@@ -5320,3 +5320,12 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/agent-evals/tasks-strengthened.test.ts（18 用例：6 新任务 × 通过+失败 + 3 加固 × 通过+失败）
 - Verification: bun test tests/agent-evals/ 95 tests / 0 fail（原 77，+18）；bun test --parallel=8 ./tests 2646 tests / 0 fail；bunx tsc --noEmit exit 0；--dry-run held-out 30 任务（24+6）。
 - Commit: 089e5f8
+
+## 2026-08-16 - 空内容根因修复：隐藏推理吃光预算 → 预算下限 4096
+
+- Task: 强化后 evolved 73.3%（8 失败集中在 coding/ops，多数「全组缺失」）。探针定位根因：deepseek-v4-flash 是推理模型，即使 thinking:disabled 仍先生成隐藏推理（reasoning 字段可见），把 max_tokens 预算吃光（finish_reason=length + content=""）→ 空回答全组缺失。实测 4096 预算可完成推理并输出内容（512/2048 均空）。修复：callProviderDirect 预算下限提到 max(task.maxTokens, 4096)，仍空则升级 8192 兜底；callWithCurl/callWithProxy 增加 maxTokens 参数。
+- Tools: bun run .tmp/eval-probe.ts（PROBE_RAW/PROBE_MAXTOKENS 复现 finish_reason=length+content=""）/ bun test / bun x tsc / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（callProviderDirect 拆出 callProviderWithBudget + 预算升级；callWithCurl/callWithProxy 加 maxTokens 参数）
+- Verification: 探针 CODING-04：512/2048 空 → 4096/8192 PASS；coding held-out 复测 5/5 100%（CODING-04 86s / CODING-07 133s / CODING-08 89s 全过，EXIT=0）；bun test tests/agent-evals/ 95/0；tsc 干净。
+- Commit: [PLACEHOLDER]
