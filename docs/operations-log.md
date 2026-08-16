@@ -5300,4 +5300,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/agent-evals/runner.ts（callProviderDirect try/catch 包裹，传输异常与 5xx 同等退避重试 3 次）
   - 修改 tests/agent-evals/validators-noise.test.ts（+2 KNOW-04 用例：追加写入通过、无机制失败）
 - Verification: 探针复现 KNOW-04 FAIL（完整答案缺预写日志）→ 修复后 PASS；EVOLVE-06 探针首抽 Connection reset、重试后 PASS（完整 3 条自检清单）；bun test tests/agent-evals/ 77 tests / 0 fail（原 75，+2）；bun test --parallel=8 ./tests 2628 tests / 0 fail；bunx tsc --noEmit exit 0。
-- Commit: [PLACEHOLDER]
+- Commit: 9175ed6
