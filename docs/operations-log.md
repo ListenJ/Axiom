@@ -5413,3 +5413,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/main.ts（VaultManager 传 dbPath）
 - Verification: docker VaultManager initialized notes:149（52 论文 + 8 模块 + 清单）；/vault/stats 149 notes / 472K words；容器 healthy；tsc 干净。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - 全面部署 + 真实任务场景 Agent 评测
+
+- Task: 用户要求全面部署后在真实任务场景完成 Agent 评测。部署已完成（docker 容器 healthy + PG + 搜索 + Vault 149 笔记 + 鉴权）。真实场景评测（docker API 驱动）：
+  场景1 联网研究 ✅（web_search/web_fetch 正确参数 + 真实 2026 RAG 文章 + 多步规划）；
+  场景2 知识库检索 ⚠️（KB 构建 + FTS 重建后 vault.search 直接命中 FlashInfer，但 chat 自适应检索上下文未注入——shouldSearch 门控 + /search 路由服务器分发返 SPA，handler 直接调用正常）；
+  场景3 代码审查 ⚠️（Agent 遵循宪法拒绝编造，但 chat 工具面无本地文件读取工具）。
+  评测暴露并修复：工具 schema 退化（纯对象 inputSchema → object properties）、duckduckgo 反爬 → bing-html 无 key 回退、KB 笔记未进 FTS → VaultManager.reindexAll 启动重建。
+- Files:
+  - 新增 docs/agent-eval-real-scenarios-2026-08-17.md（评测报告）
+- Verification: docker VaultManager notes:149 ftsReindexed:149；vault.search("FlashInfer") 直接命中；web_search schema 正确；全套件 2651 tests（DataPipeline 网络测试受本地 adaptive-proxy 扫描影响，环境性 flaky）。
+- Commit: [PLACEHOLDER]
