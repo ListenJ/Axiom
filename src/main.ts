@@ -196,7 +196,7 @@ loadApiKeyStoreOverrides(persistedOverrides);
 // Vault — 核心记忆引擎
 let vault: VaultManager | null = null;
 try {
-  vault = new VaultManager({ vaultPath: config.memory.vaultPath });
+  vault = new VaultManager({ vaultPath: config.memory.vaultPath, dbPath: config.memory.databasePath }); // dbPath 必须传：默认 ./axiom-memory.db 在 docker 只读根目录打不开
   logger.info("VaultManager initialized", { notes: vault.stats().totalNotes });
 } catch (e: unknown) {
   logger.warn("VaultManager init failed", { error: (e as Error).message });

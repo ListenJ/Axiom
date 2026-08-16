@@ -5405,3 +5405,11 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 docker-compose.yml（user + plugins 卷）
 - Verification: docker 容器 Up healthy；/kg/stats（PG 经容器）21268 节点；/web-search（容器内经 SEARCH_PROXY→mihomo→duckduckgo）10 条真实结果；AXIOM_AUTH_TOKEN 远程鉴权（本地 secrets + 服务器 .env）；bun test 2648/0；tsc 干净。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - Docker Vault 修复：VaultManager 缺 dbPath（默认落在只读 /app）
+
+- Task: docker 容器 VaultManager init failed "unable to open database file"——main.ts 构造 VaultManager 只传 vaultPath 不传 dbPath，SQLiteMemory 默认 ./axiom-memory.db 落在 docker 只读根目录 /app 打不开。修复：传 config.memory.databasePath（./data/agent.db，挂载可写）。另修复服务器 .env DATABASE_PATH 误为目录（./data → ./data/agent.db）。
+- Files:
+  - 修改 src/main.ts（VaultManager 传 dbPath）
+- Verification: docker VaultManager initialized notes:149（52 论文 + 8 模块 + 清单）；/vault/stats 149 notes / 472K words；容器 healthy；tsc 干净。
+- Commit: [PLACEHOLDER]
