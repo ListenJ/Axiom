@@ -5328,4 +5328,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 修改 src/agent-evals/runner.ts（callProviderDirect 拆出 callProviderWithBudget + 预算升级；callWithCurl/callWithProxy 加 maxTokens 参数）
 - Verification: 探针 CODING-04：512/2048 空 → 4096/8192 PASS；coding held-out 复测 5/5 100%（CODING-04 86s / CODING-07 133s / CODING-08 89s 全过，EXIT=0）；bun test tests/agent-evals/ 95/0；tsc 干净。
-- Commit: [PLACEHOLDER]
+- Commit: 24b418a
