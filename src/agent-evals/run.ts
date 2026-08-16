@@ -3,7 +3,7 @@
  * 用法: bun run src/agent-evals/run.ts [--family=coding] [--split=train|held-out] [--json] [--dry-run]
  */
 import { ALL_AGENT_TASKS, getTasksByFamily, validateTasks, type TaskFamily, type TaskSplit } from "./tasks.js";
-import { runTasks } from "./runner.js";
+import { runTasks, DEFAULT_RERUN_EACH } from "./runner.js";
 import { summarize } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
 import { logger } from "../utils/logger.js";
@@ -17,8 +17,8 @@ const dryRun = args.includes("--dry-run");
 const evolve = args.includes("--evolve");
 const injectSkills = args.includes("--inject-skills");
 const constraints = args.includes("--constraints");
-const rerunEachRaw = Number(flag("rerun-each") ?? "1");
-const rerunEach = Number.isFinite(rerunEachRaw) && rerunEachRaw >= 1 ? Math.floor(rerunEachRaw) : 1;
+const rerunEachRaw = Number(flag("rerun-each") ?? String(DEFAULT_RERUN_EACH));
+const rerunEach = Number.isFinite(rerunEachRaw) && rerunEachRaw >= 1 ? Math.floor(rerunEachRaw) : DEFAULT_RERUN_EACH;
 const rawConcurrency = Number(flag("concurrency") ?? "1");
 const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
 const modelHint = flag("model");
@@ -43,7 +43,7 @@ Options:
   --dry-run         预览任务清单
   --evolve          评测→进化闭环：train → held-out baseline → 归纳注册技能 → held-out(注入技能) 对比
   --inject-skills   评测时注入已归纳的 auto-induce-* 技能
-  --rerun-each=N    每个任务重跑 N 次取最优（消除单样本波动，默认 1）
+  --rerun-each=N    每个任务重跑 N 次取最优（消除单样本波动，默认 2）
   --constraints     附加通用回答约束（完整性/直接性/复杂度标定）
   --help            帮助
 `);

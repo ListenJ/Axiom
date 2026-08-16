@@ -5279,3 +5279,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 回填 docs/operations-log.md 两处 Commit 占位（e28ea56 / a6c3636）
 - Verification: 第 1 轮 23 分钟、第 2 轮 29 分钟跑通；baseline/evolved 分族数据见报告；零网络错误（无 curl 超时/限流）。
 - Commit: 6287da8
+
+## 2026-08-16 - 评测统一默认 --rerun-each=2（分数口径稳定可比）
+
+- Task: 用户要求以后评测统一带 --rerun-each=2，将默认值固化为 2：run.ts/runner.ts 缺省即 2（显式 --rerun-each=1 仍可单样本快测）；新增可测试的纯函数 pickBest（取最优）与常量 DEFAULT_RERUN_EACH。
+- Tools: bun test / bun x tsc --noEmit / node 字符串补丁 / git。
+- Files:
+  - 修改 src/agent-evals/runner.ts（export DEFAULT_RERUN_EACH=2 + pickBest；runOneBest 重跑默认 2）
+  - 修改 src/agent-evals/run.ts（缺省 rerunEach=DEFAULT_RERUN_EACH；help 标注默认 2）
+  - 新增 tests/agent-evals/runner-rerun.test.ts（4 用例：默认 2、pickBest 取首个通过、全败保留首次、空列表防御）
+- Verification: bun test tests/agent-evals/ 75 tests / 0 fail（原 71，+4）；bun test --parallel=8 ./tests 2598 pass / 28 skip / 0 fail（2626 tests，含本轮 +6）；bunx tsc --noEmit exit 0；--help 显示默认 2。
+- Commit: [PLACEHOLDER]

@@ -97,16 +97,20 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
   };
 }
 
-/** 单任务执行：rerunEach>1 时重跑取最优（任一通过即取该次，否则保留首次结果/失败原因），消除单样本波动。 */
+/** 评测统一口径：默认每个任务重跑 2 次取最优，消除单样本波动（分数口径稳定可比）。 */
+export const DEFAULT_RERUN_EACH = 2;
+
+/** 从多次尝试中取最优：任一通过取首个通过；全失败保留首次（含失败原因）。 */
+export function pickBest(attempts: TaskResult[]): TaskResult {
+  return attempts.find((a) => a.passed) ?? attempts[0];
+}
+
+/** 单任务执行：按 rerunEach 重跑取最优（默认 DEFAULT_RERUN_EACH=2）。 */
 async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskResult> {
-  const rerunEach = Math.max(1, options.rerunEach ?? 1);
-  let first: TaskResult | undefined;
-  for (let i = 0; i < rerunEach; i++) {
-    const r = await runOne(task, options);
-    first ??= r;
-    if (r.passed) return r;
-  }
-  return first!;
+  const rerunEach = Math.max(1, options.rerunEach ?? DEFAULT_RERUN_EACH);
+  const attempts: TaskResult[] = [];
+  for (let i = 0; i < rerunEach; i++) attempts.push(await runOne(task, options));
+  return pickBest(attempts);
 }
 
 
