@@ -5346,3 +5346,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 更新 eval-results/agent-evals-2026-08-16-evolve-constraints.md（强化集结果、空内容根因、结论）
 - Commit: dfbc889
+
+## 2026-08-16 - 后端/核心/功能全量检查（sensenova deepseek-v4-flash）+ 3 处修复
+
+- Task: 用户要求改用 sensenova deepseek-v4-flash 并检查后端/核心/全部功能工具是否完美工作（提示词松紧不是关键，是否符合场景效果是关键）。实测发现并修复：
+  1) OCR 中文（chi_sim）语言包缺失时 tesseract worker 未捕获异常直接崩掉整个后端（ENOENT chi_sim.traineddata.gz）→ engine.ts 增加 assertLangsAvailable 预校验（缺失给清晰错误+可用语言列表）；本地放入 chi_sim.traineddata（git-ignored，可重新下载）后中文 OCR 实测通过（成功识别中文界面文案，结构化输出）。
+  2) chat 工具面只有 skill_run/skill_list，模型无法联网 → chat.ts 接入 web_fetch/web_search/search_engines_list（复用 DataPipeline，结果写 Vault），统一 executeTool 调度；实测模型能发现并调用 search_engines_list。
+  3) 注册表新增 deepseek-v4-flash-sensenova（provider=sensenova, model=deepseek-v4-flash, 1M ctx, 免费国内端点）→ /chat 路由实测自动选中 sensenova deepseek-v4-flash（fallback_used=false, 2.9s）。
+- Tools: bun run src/main.ts（起后端）/ curl（/health /api /stats /chat /dre/run /ocr/scan /web-search）/ bun run .tmp/eval-probe.ts / bun test / bun x tsc / git。
+- Files:
+  - 修改 src/ocr/engine.ts（语言预校验，防 worker 崩溃）
+  - 修改 src/routes/chat.ts（chat/agent-chat/chatStream 三处接入联网工具）
+  - 修改 src/router/models/registry.ts（+deepseek-v4-flash-sensenova）
+  - .env 增加 SENSENOVA_API_KEY（git-ignored，来自本地 secrets）
+- Verification: 后端启动/health ok；/chat 路由选中 sensenova deepseek-v4-flash；DRE 六阶段管线跑通；OCR 中文实测 success（1.8s）；sensenova 直连 chat OK（content+reasoning 分离）；bun test --parallel=8 ./tests 2648 tests / 0 fail；tsc 干净。
+- 环境缺口（非代码 bug，需配置）：DATABASE_URL/VAULT_PATH 缺失 → /kg/stats PostgreSQL 不可用；外部 MCP（sqlite/free-search/filesystem/freeweb/obsidian）连不上；duckduckgo 搜索超时 + searxng 未启动 → web_search 返回空结果；health 平台检查未含 sensenova。
+- Commit: [PLACEHOLDER]

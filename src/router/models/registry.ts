@@ -437,6 +437,23 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 60000,
   },
 
+  // ─── SenseNova DeepSeek V4 Flash (文本 — 国内免费端点) ───
+  {
+    id: "deepseek-v4-flash-sensenova",
+    provider: "sensenova",
+    model: "deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
+    contextWindow: 1000000,
+    isFree: true,
+    tags: ["fast", "coding", "chinese", "domestic"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "SenseNova DeepSeek V4 Flash — 1M ctx, 免费国内端点 (token.sensenova.cn)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
   // ─── Qwen2.5-VL-72B-Instruct (Vision — 旗舰) ───
   {
     id: "qwen2.5-vl-72b",

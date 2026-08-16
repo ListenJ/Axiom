@@ -7,6 +7,8 @@
  */
 
 import { createWorker, type Worker } from "tesseract.js";
+import fs from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "url";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
@@ -71,11 +73,33 @@ export class OCREngine {
     this.langPath = (langPath ?? readString("TESSERACT_LANG_PATH", "")) || defaultLangPath();
   }
 
+  /**
+   * 校验语言包存在于 langPath（纯文本或 .gz 均可）。
+   * 缺失时抛出清晰错误（含可用语言列表），避免 tesseract worker 未捕获异常直接崩掉进程。
+   */
+  private assertLangsAvailable(languages: string[]): void {
+    const missing = languages.filter((lang) => {
+      const plain = path.join(this.langPath, `${lang}.traineddata`);
+      return !fs.existsSync(plain) && !fs.existsSync(`${plain}.gz`);
+    });
+    if (missing.length === 0) return;
+    const available = fs
+      .readdirSync(this.langPath)
+      .filter((f) => f.endsWith(".traineddata") || f.endsWith(".traineddata.gz"))
+      .map((f) => f.replace(/.traineddata(.gz)?$/, ""))
+      .filter((l) => l.length > 0);
+    throw new Error(
+      `OCR 语言包缺失: ${missing.join(", ")}（langPath=${this.langPath}；可用: ${available.join(", ") || "无"}）。` +
+        `可通过 TESSERACT_LANG_PATH 指向语言包目录，或下载 @tesseract.js-data/<lang> 的 traineddata 放入 langPath。`,
+    );
+  }
+
   async initialize(languages: string[] = ["eng"]): Promise<void> {
     if (this.worker) return;
 
     const start = performance.now();
     this.currentLangs = languages;
+    this.assertLangsAvailable(languages);
 
     try {
       this.worker = await createWorker(languages, 1, {

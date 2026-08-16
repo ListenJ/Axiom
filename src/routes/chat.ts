@@ -10,6 +10,9 @@ import { prepareChatContext, executeChat } from "../services/index.js";
 import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
 import { toOpenAITools } from "../utils/tool-surface.js";
+import { z } from "zod";
+import type { ToolDef } from "../mcp/tool-registry.js";
+import type { DataPipeline } from "../crawl/data-pipeline.js";
 import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
@@ -32,10 +35,11 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   const roleForTools = intentInfo
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
-    tools: NATIVE_SKILL_TOOLS,
-    executeTool: runSkillTool,
+    tools,
+    executeTool,
   });
 
   const normalizedSessionId = normalizeSessionId(sessionId);
@@ -103,10 +107,11 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
   const roleForTools = intentInfo
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
-    tools: NATIVE_SKILL_TOOLS,
-    executeTool: runSkillTool,
+    tools,
+    executeTool,
   });
 
   const response = ctx.jsonResponse({
@@ -198,9 +203,63 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
-const NATIVE_SKILL_TOOLS = toOpenAITools(
-  buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list"),
-);
+/** 联网工具面：web_fetch / web_search / search_engines_list（复用 DataPipeline，结果自动写入 Vault） */
+function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
+  return [
+    {
+      name: "web_fetch",
+      description: "抓取网页并提取结构化数据（自动写入 Vault 记忆库）",
+      inputSchema: { url: z.string().url().describe("目标 URL") },
+      handler: async (args) => {
+        const result = await pipeline.crawlStructured(args.url as string);
+        if (!result) return { error: "Failed to fetch URL" };
+        return {
+          url: result.url, title: result.title, description: result.description,
+          headings: result.headings.length, tables: result.tables.length,
+          codeBlocks: result.codeBlocks.length, images: result.images.length, savedToVault: true,
+        };
+      },
+    },
+    {
+      name: "web_search",
+      description: "多引擎联网搜索（结果自动写入 Vault）",
+      inputSchema: {
+        query: z.string().describe("搜索关键词"),
+        engines: z.array(z.string()).optional().describe("引擎列表"),
+        num: z.number().optional().default(10).describe("每个引擎数量"),
+      },
+      handler: async (args) => pipeline.searchMulti(args.query as string, {
+        engines: args.engines as string[], num: args.num as number,
+      }),
+    },
+    {
+      name: "search_engines_list",
+      description: "列出可用搜索引擎",
+      inputSchema: {},
+      handler: async () => {
+        const { searchAggregator } = await import("../crawl/search-engines.js");
+        return searchAggregator.listEngines();
+      },
+    },
+  ];
+}
+
+/** Chat 工具配置：skill_run/skill_list + 联网工具（web_fetch/web_search/search_engines_list），统一调度。 */
+function buildChatToolConfig(pipeline: DataPipeline): {
+  tools: ReturnType<typeof toOpenAITools>;
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+} {
+  const skillTools = buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list");
+  const webTools = buildWebToolSurfaces(pipeline);
+  return {
+    tools: toOpenAITools([...skillTools, ...webTools]),
+    executeTool: async (name, args) => {
+      const web = webTools.find((t) => t.name === name);
+      if (web) return web.handler(args);
+      return runSkillTool(name, args);
+    },
+  };
+}
 
 function isValidChatMessage(m: unknown): m is { role: string; content: string } {
   if (m === null || typeof m !== "object") return false;
@@ -343,12 +402,13 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
       }, 30000);
 
       try {
+        const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
         streamIter = router.chatStream(roleForStream, chatMessages, {
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
           ...(reasoningEffort ? { reasoningEffort } : {}),
-          tools: NATIVE_SKILL_TOOLS,
-          executeTool: runSkillTool,
+          tools,
+          executeTool,
           maxToolIterations: 4,
         });
 
