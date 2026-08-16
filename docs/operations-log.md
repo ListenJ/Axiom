@@ -5391,7 +5391,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Task: docker build 在 bun install 阶段失败（postinstall `bun run scripts/ensure-env.ts` 在 deps/builder 阶段找不到 scripts/，因该阶段只 COPY package.json/bun.lock）。ensure-env.ts 仅为本机生成 .env，镜像构建不需要 → 三个 bun install 加 --ignore-scripts。
 - Files:
   - 修改 Dockerfile（deps/builder/frontend 三处 install 加 --ignore-scripts）
-- Commit: [PLACEHOLDER]
+- Commit: 3529fb0
 
 ## 2026-08-17 - Docker 部署落地：镜像构建 + 容器运行 + 3 个部署修复
 
