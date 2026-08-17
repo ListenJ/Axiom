@@ -33,11 +33,21 @@ export interface SearchOptions {
 }
 
 /** 搜索引擎基类 */
+/** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
+export type SearchFetch = (url: string, init: RequestInit) => Promise<ProxyFetchResponse>;
+
 abstract class SearchEngine {
   abstract readonly name: string;
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
+  /** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
+  protected fetchImpl?: SearchFetch;
+
+  constructor(fetchImpl?: SearchFetch) {
+    this.fetchImpl = fetchImpl;
+  }
 
   protected async fetch(url: string, init: RequestInit = {}): Promise<ProxyFetchResponse> {
+    if (this.fetchImpl) return this.fetchImpl(url, init);
     // 代理 HTTPS 走 curl.exe：Bun 的 tls.connect({socket}) 隧道不稳定（CONNECT 后 TLS 升级挂起），
     // curl 原生支持 HTTP(S) 代理，实测可靠（mihomo 等 HTTP 代理）
     const proxyUrl =
@@ -93,13 +103,16 @@ async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Prom
 export class DuckDuckGoEngine extends SearchEngine {
   readonly name = "duckduckgo";
 
+  constructor(fetchImpl?: SearchFetch) { super(fetchImpl); }
+
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
     const url = new URL("https://html.duckduckgo.com/html/");
     url.searchParams.set("q", opts.query);
     if (opts.site) url.searchParams.set("sites", opts.site);
 
     // duckduckgo 反爬间歇性（202 挑战页）导致空结果：仅代理场景重试 2 次（无代理直连失败应快速返回，避免拖慢）
-    const hasProxy = !!readString("SEARCH_PROXY");
+    // 注入 fetchImpl（测试确定性）时不重试；重试仅针对真实网络的反爬间歇
+    const hasProxy = !!readString("SEARCH_PROXY") && !this.fetchImpl;
     const attempts = hasProxy ? 3 : 1;
     for (let attempt = 0; attempt < attempts; attempt++) {
       const res = await this.fetch(url.toString());
@@ -162,6 +175,8 @@ export class DuckDuckGoEngine extends SearchEngine {
 class BingEngine extends SearchEngine {
   readonly name = "bing";
 
+  constructor(fetchImpl?: SearchFetch) { super(fetchImpl); }
+
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
     const apiKey = readString("BING_API_KEY");
     if (!apiKey) {
@@ -219,8 +234,8 @@ class SearXngEngine extends SearchEngine {
   readonly name = "searxng";
   private instance: string;
 
-  constructor(instance?: string) {
-    super();
+  constructor(instance?: string, fetchImpl?: SearchFetch) {
+    super(fetchImpl);
     this.instance = instance || readString("SEARXNG_INSTANCE", "https://search.sapti.me");
   }
 
@@ -260,13 +275,15 @@ class SearXngEngine extends SearchEngine {
 export class BingHtmlEngine extends SearchEngine {
   readonly name = "bing-html";
 
+  constructor(fetchImpl?: SearchFetch) { super(fetchImpl); }
+
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
     const url = new URL("https://www.bing.com/search");
     url.searchParams.set("q", opts.query);
     if (opts.lang) url.searchParams.set("setlang", opts.lang);
     const headers = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" };
     // Bing 对共享代理 IP 间歇 502/空页：仅代理场景重试 2 次
-    const attempts = readString("SEARCH_PROXY") ? 3 : 1;
+    const attempts = (readString("SEARCH_PROXY") && !this.fetchImpl) ? 3 : 1;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const res = await this.fetch(url.toString(), { headers });
@@ -319,11 +336,11 @@ export class BingHtmlEngine extends SearchEngine {
 export class SearchAggregator {
   private engines = new Map<string, SearchEngine>();
 
-  constructor() {
-    this.engines.set("duckduckgo", new DuckDuckGoEngine());
-    this.engines.set("bing", new BingEngine());
-    this.engines.set("bing-html", new BingHtmlEngine());
-    this.engines.set("searxng", new SearXngEngine());
+  constructor(fetchImpl?: SearchFetch) {
+    this.engines.set("duckduckgo", new DuckDuckGoEngine(fetchImpl));
+    this.engines.set("bing", new BingEngine(fetchImpl));
+    this.engines.set("bing-html", new BingHtmlEngine(fetchImpl));
+    this.engines.set("searxng", new SearXngEngine(undefined, fetchImpl));
   }
 
   async searchMulti(

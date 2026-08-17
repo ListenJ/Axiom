@@ -5476,3 +5476,15 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/crawl/search-engines.ts / src/routes/chat.ts / src/db/pg-client.ts（导出 seam）
 - Verification: 新测试 23/23 过；全套件 2674（+23，仅 DataPipeline 环境性 flaky）；tsc 干净。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - CI 门禁挂新测试 + 搜索回退集成测试（mock fetch 注入）
+
+- Task:
+  1) CI 门禁：test:full（ci.yml 运行）加入 7 个新测试文件（search-engines-deep/search-fallback/search-route/chat-tools/vault-reindex/ocr-langs/pg-client）
+  2) 搜索回退集成测试：SearchEngine 基类新增 fetchImpl 注入缝（测试用，最高优先绕过真实网络），引擎/聚合器透传；重试仅针对真实网络（注入 fetchImpl 时禁用，避免测试慢）
+- Files:
+  - 修改 src/crawl/search-engines.ts（fetchImpl 注入缝 + 引擎/聚合器构造器透传 + 重试门控）
+  - 新增 tests/crawl/search-fallback.test.ts（4 用例：duckduckgo 挑战→回退 bing-html、显式引擎也追加兜底、全失败空数组、默认引擎含 bing-html）
+  - 修改 package.json（test:full 追加 7 个新测试文件）
+- Verification: bun run test:full 260/0（含新测试门禁）；全套件 2678（+4 回退，仅 DataPipeline 环境性 flaky）；tsc 干净；回退测试 10s→1.1s（重试门控）。
+- Commit: [PLACEHOLDER]
