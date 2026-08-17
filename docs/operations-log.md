@@ -5488,3 +5488,13 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 package.json（test:full 追加 7 个新测试文件）
 - Verification: bun run test:full 260/0（含新测试门禁）；全套件 2678（+4 回退，仅 DataPipeline 环境性 flaky）；tsc 干净；回退测试 10s→1.1s（重试门控）。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - curlFetch 传输层单测（mock spawn 注入）+ 挂门禁
+
+- Task: 补搜索传输层单测：curlFetch 增加可注入 spawn（CurlSpawn 类型 + spawnImpl 参数，默认仍用 bun spawnSync），测试绕过真实子进程。
+- Files:
+  - 修改 src/crawl/search-engines.ts（curlFetch 注入缝 + 导出）
+  - 新增 tests/crawl/curl-fetch.test.ts（3 用例：exit0→200/body、非零→502/statusText、参数透传 -x/-A/-H/-X/--data-binary/URL）
+  - 修改 package.json（test:full 追加 curl-fetch.test.ts）
+- Verification: curl-fetch 3/3 过；bun run test:full 263/0（门禁含新测试）；全套件 2681（+3，失败均为环境性 flaky：RateLimiter 时序/process-sandbox 网络/DataPipeline 代理扫描）；tsc 干净。
+- Commit: [PLACEHOLDER]

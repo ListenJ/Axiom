@@ -73,8 +73,18 @@ abstract class SearchEngine {
   }
 }
 
+/** curl spawn 签名（测试可注入 fake，避免真实子进程） */
+export type CurlSpawn = (args: string[], opts: { stdout: string; stderr: string; maxBuffer: number }) => {
+  exitCode: number | null; stdout: Uint8Array; stderr: Uint8Array;
+};
+
 /** curl 传输（代理 HTTPS）：用 curl.exe 避免 Bun TLS 隧道挂起，返回 ProxyFetchResponse 兼容对象。 */
-async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Promise<ProxyFetchResponse> {
+export async function curlFetch(
+  url: string,
+  init: RequestInit,
+  proxyUrl: string,
+  spawnImpl?: CurlSpawn,
+): Promise<ProxyFetchResponse> {
   const headers = (init.headers ?? {}) as Record<string, string>;
   const args = ["-sS", "-L", "-m", "30", "-x", proxyUrl, "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"];
   for (const [k, v] of Object.entries(headers)) args.push("-H", `${k}: ${v}`);
@@ -82,7 +92,8 @@ async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Prom
   if (init.body) args.push("--data-binary", init.body as string);
   args.push(url);
   const curlBin = process.platform === "win32" ? "curl.exe" : "curl"; // Linux 容器（docker）无 curl.exe
-  const proc = spawnSync([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
+  const spawn = spawnImpl ?? ((a: string[], o) => spawnSync(a, o as any));
+  const proc = spawn([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
   const body = new TextDecoder().decode(proc.stdout);
   const ok = proc.exitCode === 0;
   return {
