@@ -370,6 +370,8 @@ export class SearchAggregator {
         return true;
       case "bing":
         return !!readString("BING_API_KEY");
+      case "bing-html":
+        return true;
       default:
         return false;
     }

@@ -93,6 +93,8 @@ export class VaultManager {
       try {
         const note = this.engine.getNote(relPath);
         if (!note) continue;
+        let mtime = now;
+        try { mtime = fs.statSync(path.join(this.config.vaultPath, relPath)).mtimeMs; } catch { /* 保留 now */ }
         this.sqliteMemory.upsertNote({
           path: note.path,
           title: note.title || path.basename(note.path, ".md"),
@@ -103,8 +105,8 @@ export class VaultManager {
           type: (note.frontmatter?.type as string) ?? "note",
           source: "vault-reindex",
           confidence: 1,
-          createdAt: now,
-          updatedAt: now,
+          createdAt: mtime,
+          updatedAt: mtime,
         });
         count++;
       } catch {

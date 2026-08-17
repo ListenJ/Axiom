@@ -5446,3 +5446,17 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 更新 docs/agent-eval-real-scenarios-2026-08-17.md（场景 2 ⚠️→✅）
 - Verification: docker 三端点全通（/search JSON + chat KB 检索 + /web-search 真实结果）；容器 healthy。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - 代码审核修复（2 Critical + 1 Warning）
+
+- Task: 审核本会话代码发现并修复：
+  1) [Critical] chat.ts web_fetch 只返回元数据不返回正文 → 返回 result.markdown（截断 8000 字符）供模型阅读
+  2) [Critical] search-engines.ts isEngineAvailable 缺 bing-html → listEngines 误报不可用 → 补 true
+  3) [Warning] vault-manager.ts reindexAll 覆盖 updated_at → 读文件 mtime 保留真实时间戳
+- Files:
+  - 修改 src/routes/chat.ts（web_fetch 返回 content）
+  - 修改 src/crawl/search-engines.ts（bing-html 可用）
+  - 修改 src/memory/vault-manager.ts（reindexAll 保留 mtime）
+  - 新增 docs/code-review-2026-08-17.md（完整审核报告）
+- Verification: tsc 干净；全套件 2651（仅 DataPipeline 环境性 flaky）；本地 docker 待部署验证。
+- Commit: [PLACEHOLDER]

@@ -215,6 +215,7 @@ function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
         if (!result) return { error: "Failed to fetch URL" };
         return {
           url: result.url, title: result.title, description: result.description,
+          content: (result.markdown ?? "").slice(0, 8000), // 供模型阅读页面正文
           headings: result.headings.length, tables: result.tables.length,
           codeBlocks: result.codeBlocks.length, images: result.images.length, savedToVault: true,
         };
