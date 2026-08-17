@@ -5445,7 +5445,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 更新 docs/agent-eval-real-scenarios-2026-08-17.md（场景 2 ⚠️→✅）
 - Verification: docker 三端点全通（/search JSON + chat KB 检索 + /web-search 真实结果）；容器 healthy。
-- Commit: [PLACEHOLDER]
+- Commit: 2ee7ac5
 
 ## 2026-08-17 - 代码审核修复（2 Critical + 1 Warning）
 
