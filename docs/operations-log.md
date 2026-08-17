@@ -5459,7 +5459,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/memory/vault-manager.ts（reindexAll 保留 mtime）
   - 新增 docs/code-review-2026-08-17.md（完整审核报告）
 - Verification: tsc 干净；全套件 2651（仅 DataPipeline 环境性 flaky）；本地 docker 待部署验证。
-- Commit: [PLACEHOLDER]
+- Commit: 914f9d2
 
 ## 2026-08-17 - 深度测试套件（+23 用例，覆盖本会话核心改动）
 
