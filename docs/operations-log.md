@@ -7,6 +7,18 @@
 
 ---
 
+## 2026-08-18 — 停用并剥离 axiom-dsh 桥（dsh 服务不再加载 Axiom MCP 桥）
+
+- **任务**：按用户要求，axiom-dsh 桥暂不加载进 dsh 服务，停用并从 web profile 剥离。
+- **工具**：dsh CLI（plugin remove / dump-config / web boot）、pnpm。
+- **操作**：
+  - `dsh plugin --profile web remove axiom-dsh`：移除 `axiom-dsh link:D:/openclaw-fusion/plugins/dsh` 依赖并自动从 `dsh.profile.bundles` 剔除（treg-dsh 等并行改动原样保留）。
+  - pnpm-workspace.yaml 补 `dshmarket@1.11.3` 到 minimumReleaseAgeExclude（并行升级触发的供应链策略拦截；同时修复了插入位置误伤文件头的问题）。
+  - profile cordis.patch.yml persona 移除 axiom__* 工具指引，改为 dsh 原生 fs 工具；会话全文检索（session-query-sqlite first-search）保留。
+- **验证**：dump-config 无 `# == axiom-dsh` 层、无任何 axiom 行；dsh web 冷启动 HTTP 200 且不再 spawn `bun run src/mcp/server.ts --stdio`；退出无孤儿进程。
+- **备注**：仓库 `plugins/dsh` 源码与已提交的 lossless-JSON 修复保留，后续需要时重新 `dsh plugin --profile web add D:/openclaw-fusion/plugins/dsh` 即可恢复。
+- **Commit**：`2e86b17（amend，最终 hash 以 git log 为准）`
+
 ## 2026-08-18 — dsh 使用报错分析 + axiom-dsh 桥 lossless-JSON 修复 + modlens BOM + Windows 适配
 
 - **任务**：分析并修复 dsh web 使用中的一批报错：axiom__* 工具 "value is not lossless JSON"、modlens 配置解析失败、str_replace_editor 相对路径拒绝、bash 在 win32 的 terminal inspection 不支持。
