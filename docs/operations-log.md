@@ -5497,7 +5497,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/crawl/curl-fetch.test.ts（3 用例：exit0→200/body、非零→502/statusText、参数透传 -x/-A/-H/-X/--data-binary/URL）
   - 修改 package.json（test:full 追加 curl-fetch.test.ts）
 - Verification: curl-fetch 3/3 过；bun run test:full 263/0（门禁含新测试）；全套件 2681（+3，失败均为环境性 flaky：RateLimiter 时序/process-sandbox 网络/DataPipeline 代理扫描）；tsc 干净。
-- Commit: [PLACEHOLDER]
+- Commit: c25be65
 
 ## 2026-08-17 - DataPipeline 网络测试 mock 注入（消除 CI 噪音）
 
