@@ -16,7 +16,7 @@
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 
-import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
+import { SearchAggregator, searchAggregator, type SearchEngineResult, type SearchOptions, type SearchFetch } from "./search-engines.js";
 import { filterResults } from "./result-filter.js";
 import { scoreResult, type ScoreBreakdown } from "./result-scorer.js";
 import { extractFacts, type ExtractedFact } from "./data-extractor.js";
@@ -49,6 +49,10 @@ interface CrawlOptions {
   maxDepth?: number;
   retries?: number;
   userAgent?: string;
+  /** 可注入 fetch（测试用，绕过 proxyFetch 真实网络） */
+  fetchImpl?: (url: string, init: RequestInit & { ssrfGuard?: boolean; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
+  /** 可注入搜索 fetch（测试用，传给 SearchAggregator） */
+  searchFetchImpl?: SearchFetch;
 }
 
 /** 结构化爬取结果 */
@@ -236,8 +240,10 @@ const SITE_RULES: SiteExtractRule[] = [
 // ========== 主类 ==========
 
 export class DataPipeline {
-  private options: Required<CrawlOptions>;
+  private options: Required<Omit<CrawlOptions, "fetchImpl" | "searchFetchImpl">>;
   private visited = new Set<string>();
+  private readonly fetchImpl?: CrawlOptions["fetchImpl"];
+  private readonly searchAgg: SearchAggregator;
 
   constructor(options: CrawlOptions = {}) {
     this.options = {
@@ -247,6 +253,9 @@ export class DataPipeline {
       retries: options.retries || 3,
       userAgent: options.userAgent || "Axiom/1.0 (Research Bot; +https://axiom-runtime.ai)",
     };
+    this.fetchImpl = options.fetchImpl;
+    // searchFetchImpl 注入时构造隔离聚合器（测试确定性）；否则用模块单例
+    this.searchAgg = options.searchFetchImpl ? new SearchAggregator(options.searchFetchImpl) : searchAggregator;
   }
 
   // ===== 搜索层：多引擎聚合 =====
@@ -269,7 +278,7 @@ export class DataPipeline {
     };
 
     logger.info(`[Pipeline] Multi-engine search: "${query}" via [${engines.join(", ")}]`);
-    return searchAggregator.searchMulti(searchOpts, engines);
+    return this.searchAgg.searchMulti(searchOpts, engines);
   }
 
   /**
@@ -281,7 +290,7 @@ export class DataPipeline {
     opts?: { num?: number; lang?: string; site?: string; safe?: boolean }
   ): Promise<SearchEngineResult[]> {
     logger.info(`[Pipeline] Search via ${engine}: "${query}"`);
-    return searchAggregator.search(engine, {
+    return this.searchAgg.search(engine, {
       query,
       num: opts?.num ?? 10,
       lang: opts?.lang,
@@ -313,7 +322,8 @@ export class DataPipeline {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
 
-          const res = await proxyFetch(url, {
+          const fetcher = this.fetchImpl ?? ((u: string, i: any) => proxyFetch(u, i));
+          const res = await fetcher(url, {
             headers: {
               "User-Agent": this.options.userAgent,
               Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

@@ -14,6 +14,20 @@ describe("DataPipeline", () => {
   afterAll(() => {
     fetchSpy.mockRestore();
   });
+
+  // 搜索 mock：duckduckgo 返一个真实结果块（确定性，无网络）
+  const DDG_HTML = `<div class="result results_links results_links_deep web-result">
+    <h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fresult&amp;rut=x">Mock Result Title</a></h2>
+    <a class="result__snippet" href="x">mock snippet</a>
+    <a class="result__url" href="x">example.com/result</a>
+  </div></div>`;
+  const searchFetchImpl = async () => ({
+    ok: true, status: 200, statusText: "OK", headers: {}, url: "",
+    text: async () => DDG_HTML,
+    json: async () => ({}),
+    buffer: async () => Buffer.from(DDG_HTML),
+    arrayBuffer: async () => Buffer.from(DDG_HTML).buffer,
+  });
   let pipeline: DataPipeline;
 
   beforeEach(() => {
@@ -22,6 +36,8 @@ describe("DataPipeline", () => {
       requestDelay: 100,
       maxDepth: 1,
       retries: 1,
+      fetchImpl: globalThis.fetch as never, // 用 spy 的 fetch（确定性）
+      searchFetchImpl,
     });
   });
 
@@ -37,16 +53,13 @@ describe("DataPipeline", () => {
     expect(engines[0]).toHaveProperty("available");
   });
 
-  it("should search and return results", async () => {
+  it("should search and return results（mock 注入，确定性）", async () => {
     const results = await pipeline.searchStructured("Axiom AI agent", "duckduckgo", { num: 3 });
     expect(Array.isArray(results)).toBe(true);
-    expect(results.length).toBeGreaterThanOrEqual(0);
-    
-    if (results.length > 0) {
-      expect(results[0]).toHaveProperty("title");
-      expect(results[0]).toHaveProperty("link");
-      expect(results[0]).toHaveProperty("snippet");
-    }
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].title).toBe("Mock Result Title");
+    expect(results[0].link).toBe("https://example.com/result");
+    expect(results[0]).toHaveProperty("snippet");
   });
 
   it("should crawl and structure a webpage", async () => {

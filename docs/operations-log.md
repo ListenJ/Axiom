@@ -5498,3 +5498,14 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 package.json（test:full 追加 curl-fetch.test.ts）
 - Verification: curl-fetch 3/3 过；bun run test:full 263/0（门禁含新测试）；全套件 2681（+3，失败均为环境性 flaky：RateLimiter 时序/process-sandbox 网络/DataPipeline 代理扫描）；tsc 干净。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - DataPipeline 网络测试 mock 注入（消除 CI 噪音）
+
+- Task: DataPipeline 的 search/crawl 测试此前 mock globalThis.fetch 但 crawl 走 proxyFetch（不经 global fetch）→ 真实网络 + 本地 adaptive-proxy 扫描挂起（5-10s 超时 flaky）。新增注入缝：
+  - CrawlOptions.fetchImpl（crawlStructured 替换 proxyFetch；默认仍 proxyFetch）
+  - CrawlOptions.searchFetchImpl（构造隔离 SearchAggregator；默认模块单例）
+- Files:
+  - 修改 src/crawl/data-pipeline.ts（fetchImpl/searchFetchImpl 注入 + searchAgg 隔离聚合器 + SearchFetch 导入）
+  - 修改 tests/data-pipeline.test.ts（注入确定性 mock：DDG 结果块断言 title/link；fetchImpl 用 spy）
+- Verification: data-pipeline 5/5 过且 10s+ → 0.4s；全套件 2681（DataPipeline 网络 flaky 消除，剩 ContextEngine/EventBus 性能阈值类并行 flaky，单独跑 51/0）；bun run test:full 263/0；tsc 干净。
+- Commit: [PLACEHOLDER]
