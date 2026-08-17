@@ -5438,3 +5438,11 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - src/routes/api-keys.ts：仅 /api-keys 前缀路由要求二次认证；非该前缀返回 null 放行（消除无条件 401）
 - Verification: 本地三路径全对——/search?q=FlashInfer → 200 JSON 命中 KB 笔记；/search(Accept html) → 200 SPA；/search(无 q 无 Accept) → 400 JSON；tsc 干净；全套件 2651（仅环境性 RateLimiter flaky 1 fail）。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - /search 路由修复部署后：场景 2（KB 检索）通过
+
+- Task: 路由修复部署到 docker 后重测真实场景 2（知识库检索）：docker /search?q=FlashInfer → 200 JSON；chat 检索上下文注入成功（Agent 准确回答 FlashInfer 论文内容）。
+- Files:
+  - 更新 docs/agent-eval-real-scenarios-2026-08-17.md（场景 2 ⚠️→✅）
+- Verification: docker 三端点全通（/search JSON + chat KB 检索 + /web-search 真实结果）；容器 healthy。
+- Commit: [PLACEHOLDER]

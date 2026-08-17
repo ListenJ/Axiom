@@ -40,3 +40,11 @@
 - 全面部署完成且容器内核心功能全通；真实场景评测确认 Agent 具备**真实联网多步研究**能力（工具调用正确、遵循宪法不编造）。
 - 评测有效暴露 3 类真实问题并修复其 2（工具 schema、搜索可靠性、FTS 索引）；剩余 2 个明确待办：**chat 检索上下文注入** 与 **chat 本地文件工具**。
 - 下一步建议：① 修 /search 路由 + 让 chat 检索无条件注入 KB 命中；② 把 MCP filesystem/code-analysis 挂进 chat 工具面；③ 搜索继续加质量回退。
+
+## 2026-08-17 更新 — /search 路由修复后重测：场景 2 通过 ✅
+
+- 路由修复（SPA_ROUTES 劫持 + handleApiKeys 无条件 401 + handleVaultSearch 导航回退）部署到 docker 后，重跑场景 2：
+  - docker `/search?q=FlashInfer` → 200 JSON 命中 KB 论文笔记；
+  - chat「根据知识库回答 FlashInfer」→ **检索上下文注入**（[自适应检索] 含本地 FlashInfer 笔记），Agent 准确回答（LLM 推理加速库：自定义注意力算子 + KV 缓存管理，解决内存带宽/缓存未命中/高延迟）；
+  - docker `/web-search` 仍正常（pgvector 真实结果）。
+- 场景 2 从 ⚠️ 部分 → ✅ 通过。剩余：场景 3 代码审查仍受限（chat 工具面无本地文件工具，独立待办）。
