@@ -5424,7 +5424,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 - Files:
   - 新增 docs/agent-eval-real-scenarios-2026-08-17.md（评测报告）
 - Verification: docker VaultManager notes:149 ftsReindexed:149；vault.search("FlashInfer") 直接命中；web_search schema 正确；全套件 2651 tests（DataPipeline 网络测试受本地 adaptive-proxy 扫描影响，环境性 flaky）。
-- Commit: [PLACEHOLDER]
+- Commit: 8f97651
 
 ## 2026-08-17 - 修复 /search 路由（SPA_ROUTES 劫持 + handleApiKeys 无条件 401）
 
