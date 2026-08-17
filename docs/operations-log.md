@@ -5487,7 +5487,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/crawl/search-fallback.test.ts（4 用例：duckduckgo 挑战→回退 bing-html、显式引擎也追加兜底、全失败空数组、默认引擎含 bing-html）
   - 修改 package.json（test:full 追加 7 个新测试文件）
 - Verification: bun run test:full 260/0（含新测试门禁）；全套件 2678（+4 回退，仅 DataPipeline 环境性 flaky）；tsc 干净；回退测试 10s→1.1s（重试门控）。
-- Commit: [PLACEHOLDER]
+- Commit: efd363f
 
 ## 2026-08-17 - curlFetch 传输层单测（mock spawn 注入）+ 挂门禁
 
