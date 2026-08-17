@@ -13,7 +13,12 @@ import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
     const query = ctx.url.searchParams.get("q");
-    if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+    // /search 同时是前端页面路由：无 q 且浏览器导航（Accept: text/html）→ 返回 null 让 SPA 回退；API 无 q → 400
+    if (!query) {
+      const accept = ctx.req.headers.get("accept") ?? "";
+      if (accept.includes("text/html")) return null;
+      return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+    }
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
 
     const types = ctx.url.searchParams.get("types")?.split(",").filter(Boolean);

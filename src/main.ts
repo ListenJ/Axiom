@@ -564,7 +564,7 @@ logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
 // SPA route whitelist — module-level Set avoids per-request allocation.
 const SPA_ROUTES = new Set([
-  "/", "/chat", "/search", "/code", "/agents", "/router", "/vault", "/kg",
+  "/", "/chat", "/code", "/agents", "/router", "/vault", "/kg", // /search 是后端 API（vault 搜索），不加入 SPA 白名单避免劫持
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
   "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings", "/login",
 ]);

@@ -5425,3 +5425,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/agent-eval-real-scenarios-2026-08-17.md（评测报告）
 - Verification: docker VaultManager notes:149 ftsReindexed:149；vault.search("FlashInfer") 直接命中；web_search schema 正确；全套件 2651 tests（DataPipeline 网络测试受本地 adaptive-proxy 扫描影响，环境性 flaky）。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - 修复 /search 路由（SPA_ROUTES 劫持 + handleApiKeys 无条件 401）
+
+- Task: /search 既是前端页面路由（Search.tsx）又是后端 vault 搜索 API。真实场景评测发现 GET /search 恒返 SPA。根因链（逐层 debug 定位）：
+  1) main.ts SPA_ROUTES 白名单含 "/search" → auth/路由前把所有 GET /search 劫持成 index.html；
+  2) 移除后导航请求（无 q + Accept:text/html）在 handleVaultSearch 返 null 走 SPA 回退；
+  3) 但 handleApiKeys 在路径判断前无条件调用 requireAuthToken → 任何未匹配请求（无 token）到达即 401。
+- 修复：
+  - src/main.ts：SPA_ROUTES 移除 "/search"（/search 是后端 API，不加入 SPA 白名单）
+  - src/routes/search.ts：handleVaultSearch 无 q 且 Accept:text/html（浏览器导航）→ 返回 null 让 SPA 回退；API 无 q → 400
+  - src/routes/api-keys.ts：仅 /api-keys 前缀路由要求二次认证；非该前缀返回 null 放行（消除无条件 401）
+- Verification: 本地三路径全对——/search?q=FlashInfer → 200 JSON 命中 KB 笔记；/search(Accept html) → 200 SPA；/search(无 q 无 Accept) → 400 JSON；tsc 干净；全套件 2651（仅环境性 RateLimiter flaky 1 fail）。
+- Commit: [PLACEHOLDER]

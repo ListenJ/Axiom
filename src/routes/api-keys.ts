@@ -48,6 +48,9 @@ function isValidBaseURL(url: string | undefined): boolean {
 export async function handleApiKeys(ctx: RouteContext): Promise<Response | null> {
   const path = ctx.url.pathname;
 
+  // 仅 /api-keys 路由需要二次认证；非该前缀的请求直接放行（原实现无条件 auth，导致任何未匹配路径（如 /search 导航）到达这里都 401）
+  if (!path.startsWith("/api-keys")) return null;
+
   // All /api-keys routes require authentication
   const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
