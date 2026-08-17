@@ -64,3 +64,38 @@ describe('createMcpBridge', () => {
   })
 })
 
+
+describe('toToolDefinition execute — lossless JSON 输出（修复 axiom__* 的 "not lossless JSON" 报错）', () => {
+  test('无 structuredContent 时省略该键，输出保持 lossless JSON', async () => {
+    const tool: McpToolMeta = { name: 'fs_list', description: '列出目录', inputSchema: { type: 'object' } }
+    const fakeClient = {
+      request: async () => ({ content: [{ type: 'text', text: '{"ok":true}' }] }),
+    }
+    const def = toToolDefinition(tool, OPTS, () => fakeClient as never)
+    const value = await def.execute!({ path: '.' }, {})
+    // dsh 的 lossless-JSON 校验：JSON 往返后应深度相等（无 undefined/NaN/Date 等有损值）
+    expect(JSON.parse(JSON.stringify(value))).toEqual(value)
+    expect(value).toEqual({ content: [{ type: 'text', text: '{"ok":true}' }] })
+    expect(def.output!.render!({}, value)[0].text).toBe('{"ok":true}')
+  })
+
+  test('有 structuredContent 时保留，整体仍为 lossless JSON', async () => {
+    const tool: McpToolMeta = { name: 'scene_list', description: '场景列表', inputSchema: {} }
+    const fakeClient = {
+      request: async () => ({ content: [{ type: 'text', text: '[]' }], structuredContent: { scenes: [] } }),
+    }
+    const def = toToolDefinition(tool, OPTS, () => fakeClient as never)
+    const value = await def.execute!({}, {})
+    expect(JSON.parse(JSON.stringify(value))).toEqual(value)
+    expect(value).toEqual({ content: [{ type: 'text', text: '[]' }], structuredContent: { scenes: [] } })
+  })
+
+  test('MCP isError 帧转为真实工具错误（不再当作成功文本）', async () => {
+    const tool: McpToolMeta = { name: 'fs_delete', description: '删除', inputSchema: {} }
+    const fakeClient = {
+      request: async () => ({ content: [{ type: 'text', text: 'denied' }], isError: true }),
+    }
+    const def = toToolDefinition(tool, OPTS, () => fakeClient as never)
+    await expect(def.execute!({ path: 'x' }, {})).rejects.toThrow('denied')
+  })
+})

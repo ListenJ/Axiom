@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-08-18 — dsh 使用报错分析 + axiom-dsh 桥 lossless-JSON 修复 + modlens BOM + Windows 适配
+
+- **任务**：分析并修复 dsh web 使用中的一批报错：axiom__* 工具 "value is not lossless JSON"、modlens 配置解析失败、str_replace_editor 相对路径拒绝、bash 在 win32 的 terminal inspection 不支持。
+- **工具**：dsh CLI（dump-config / web boot）、bun test、node、modlens doctor。
+- **根因与修复**：
+  - axiom__* 全量 "not lossless JSON"：Axiom MCP 服务器只返回 `{content:[...]}`，而 axiom-dsh 桥无条件附加 `structuredContent: undefined` → dsh 的 lossless-JSON 校验拒绝。修复 `plugins/dsh/src/mcp-bridge.ts`：无 structuredContent 时省略该键；并新增 isError 帧转真实工具错误。
+  - modlens "Failed to parse config.json"：`C:\Users\18336\.modlens\config.json` 带 UTF-8 BOM → 去除 BOM（系统级文件，不入库）。
+  - str_replace_editor 路径拒绝：Windows 下必须传 `C:/...` 绝对路径（工具用 node:path.isAbsolute，相对路径 `.` 必拒）→ 通过 profile `cordis.patch.yml` 覆盖 persona 给出 Windows 约束。
+  - bash terminal inspection unsupported on win32：当前标准预设本就按平台门控（win32 关 bash、开 pwsh）；此报错来自旧会话。persona 补丁进一步引导 agent 用 pwsh。
+- **插件优化（profile cordis.patch.yml，不入库）**：persona 增加 Windows 绝对路径/pwsh 指引；`session-query-sqlite` 从 `openAt: never` 改为 `first-search` + 持久化索引。
+- **测试**：mcp-bridge 单元测试 +3（lossless JSON ×2、isError ×1）；smoke 冒烟新增真实调用 `axiom__fs_list` 断言 lossless JSON。插件全量 28/28 通过；tsc typecheck 干净。
+- **验证**：modlens doctor [ok] openai provider（baseUrl/apiKey/model 均读自文件）；dsh web 冷启动 HTTP 200 + 自动拉起 Axiom MCP；--dump-config 确认 persona 与 session-query-sqlite 覆盖生效。
+- **Commit**：`e2ecc59（amend，最终 hash 以 git log 为准）`
+
 ## 2026-08-18 — Windows 系统级安装 DeepSeek Harness（dsh）+ 插件栈 + Axiom 桥接插件
 
 - **任务**：在 Windows 上系统级安装 deepseek harness（dsh CLI），并安装用户指定的插件栈到 dsh web profile；同时将仓库 plugins/dsh（axiom-dsh）构建并挂入该 profile。

@@ -96,15 +96,21 @@ export function toToolDefinition(tool: McpToolMeta, opts: McpBridgeOptions, getC
     execute: async (args, exec) => {
       const client = getClient()
       if (!client) throw new Error(`[axiom-dsh] MCP client not connected for tool ${rawName}`)
-      const result = await client.request(
+      const result = (await client.request(
         { method: 'tools/call', params: { name: rawName, arguments: args } },
         CallToolResultSchema,
         { signal: exec?.signal, timeout: opts.toolCallTimeoutMs },
-      )
-      return {
-        content: (result as { content?: unknown }).content ?? [],
-        structuredContent: (result as { structuredContent?: unknown }).structuredContent,
+      )) as { content?: unknown; structuredContent?: unknown; isError?: unknown }
+      // MCP error frames surface as a real tool failure, not a successful text result.
+      if (result.isError === true) {
+        throw new Error(`[axiom:${rawName}] ${extractText(result.content, rawName)}`)
       }
+      // dsh requires tool output to be lossless JSON: an explicit
+      // `structuredContent: undefined` property fails that check (Axiom's server
+      // returns only `content`), so omit the key unless it is actually present.
+      const value: Record<string, unknown> = { content: result.content ?? [] }
+      if (result.structuredContent !== undefined) value.structuredContent = result.structuredContent
+      return value
     },
   }
 }

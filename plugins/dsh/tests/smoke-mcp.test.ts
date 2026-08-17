@@ -7,14 +7,15 @@
 import { describe, test, expect } from 'bun:test'
 import path from 'node:path'
 import { createMcpBridge } from '../src/mcp-bridge.js'
+import type { DshToolDefinition } from '../src/types.js'
 
 const REPO = path.resolve(import.meta.dir, '..', '..', '..')
 
 function makeCtx() {
-  const registered: Array<{ name: string }> = []
+  const registered: DshToolDefinition[] = []
   const ctx = {
     logger: { info() {}, warn() {}, error() {}, debug() {} },
-    tools: { register: (d: { name: string }) => { registered.push(d); return () => {} } },
+    tools: { register: (d: DshToolDefinition) => { registered.push(d); return () => {} } },
     effect() {},
     inject() {},
     get: () => undefined,
@@ -39,6 +40,12 @@ describe('smoke: Axiom MCP server bridge', () => {
         expect(bridge.status().connected).toBe(true)
         expect(bridge.toolCount()).toBeGreaterThan(10)
         expect(registered.some((t) => t.name === 'axiom__vault_search' || t.name === 'axiom__token_stats')).toBe(true)
+        // 回归：真实调用桥接工具，输出必须是 lossless JSON（修复
+        // axiom__* 全量 "value is not lossless JSON" 报错）。
+        const fsList = registered.find((t) => t.name === 'axiom__fs_list')
+        expect(fsList).toBeDefined()
+        const value = await fsList!.execute({ path: 'D:/openclaw-fusion' }, {})
+        expect(JSON.parse(JSON.stringify(value))).toEqual(value)
       } finally {
         bridge.dispose()
       }
