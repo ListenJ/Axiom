@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-18 — Windows 系统级安装 DeepSeek Harness（dsh）+ 插件栈 + Axiom 桥接插件
+
+- **任务**：在 Windows 上系统级安装 deepseek harness（dsh CLI），并安装用户指定的插件栈到 dsh web profile；同时将仓库 plugins/dsh（axiom-dsh）构建并挂入该 profile。
+- **工具**：npm（全局 CLI / 插件构建）、pnpm（profile 依赖）、dsh CLI、bun（Axiom MCP 冒烟）。
+- **系统级安装**：
+  - `npm i -g @deepseek-ai/dsh@0.1.0-rc.7 --force`，dsh 命令进入 PATH。
+  - 全局 allow-scripts 放行 5 个原生/脚本包（node-pty、koffi、@deepseek-ai/dsh-subprocess-local、protobufjs、@google/genai），`npm rebuild -g @deepseek-ai/dsh` 完成 node-pty（conpty.dll/OpenConsole.exe）等构建。
+  - DSH_HOME 用户级环境变量 = C:\Users\18336\.dsh。
+- **Profile web 插件栈**（C:\Users\18336\.dsh\profiles\web\package.json）：
+  - 修正两个 latest 陷阱：@deepseek-ai/dsh-base 与 @deepseek-ai/dsh-web-app 的 npm latest tag 均错误指向 0.0.1-rc.1（依赖树含 404 子包）→ 固定 0.1.0-rc.7。
+  - 其余依赖保持用户给定范围；pnpm-workspace.yaml 放行 node-pty/koffi/dsh-subprocess-local/protobufjs/@google/genai 构建（sqlite 保持拒绝）；pnpm install 509 包全绿。
+  - `dsh plugin --profile web add D:/openclaw-fusion/plugins/dsh`：axiom-dsh 以 link 依赖安装并自动加入 dsh.profile.bundles。
+- **Axiom 桥接插件**：plugins/dsh 先 npm install + npm run build（tsc 产出 lib/，已被 .gitignore 覆盖）；挂载后 8 个 bundle 层。
+- **验证**：dsh --version = 0.1.0-rc.7；--dump-config 134 条配置 / 8 bundle 层；dsh web --port 18790 HTTP 200、前端 DeepSeek Harness、客户端插件全部注入；插件自动拉起 bun run src/mcp/server.ts --stdio；bun test tests/smoke-mcp.test.ts 1 pass（MCP 桥接 7 个 axiom__* 代表工具）；退出后无孤儿进程。
+- **Commit**：`957a8d8（amend，最终 hash 以 git log 为准）`
+
 ## 2026-08-15 — Bug 排查 + DRE 精确约束 + 核心功能 DSH 插件覆盖核查
 
 - **任务**：①排查代码逻辑遗留 bug ②DRE 提示词优化：向 LLM 发出精确约束完成调用 ③核查核心功能能否作为插件进入 DSH。
