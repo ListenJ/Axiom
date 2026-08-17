@@ -5460,3 +5460,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 docs/code-review-2026-08-17.md（完整审核报告）
 - Verification: tsc 干净；全套件 2651（仅 DataPipeline 环境性 flaky）；本地 docker 待部署验证。
 - Commit: [PLACEHOLDER]
+
+## 2026-08-17 - 深度测试套件（+23 用例，覆盖本会话核心改动）
+
+- Task: 基于代码走向编写深度、广泛测试，覆盖本会话新增/修复的核心逻辑：
+  - tests/crawl/search-engines-deep.test.ts（8）：DDG/Bing 真实 HTML 解析、limit 截断、mergeAndDeduplicate 去重/摘要合并/引擎拼接、bing-html 可用性
+  - tests/routes/search-route.test.ts（6）：/search 双角色（导航→SPA null、API 400/200 命中）、handleApiKeys 守卫（非 api-keys 放行、api-keys 无 token 拒绝）、web-search 400
+  - tests/memory/vault-reindex.test.ts（1）：reindexAll 后 FTS 可检索外部落盘笔记
+  - tests/ocr/langs-available.test.ts（1）：缺失语言包抛友好错误（防 tesseract 崩溃）
+  - tests/routes/chat-tools.test.ts（5）：web_fetch 返回正文 content、web_search 调用、工具面组装、executeTool 派发
+  - tests/db/pg-client.test.ts（3）：DATABASE_URL 优先、PG_* 拼接、非 postgres 回退
+- 可测性改造（行为不变）：search-engines 导出引擎类 + parseHtml/mergeAndDeduplicate 转 public；chat 导出 buildWebToolSurfaces/buildChatToolConfig；pg 导出 getConnectionConfig。
+- Files:
+  - 新增 6 个测试文件（+23 用例）
+  - 修改 src/crawl/search-engines.ts / src/routes/chat.ts / src/db/pg-client.ts（导出 seam）
+- Verification: 新测试 23/23 过；全套件 2674（+23，仅 DataPipeline 环境性 flaky）；tsc 干净。
+- Commit: [PLACEHOLDER]

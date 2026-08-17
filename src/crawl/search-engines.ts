@@ -90,7 +90,7 @@ async function curlFetch(url: string, init: RequestInit, proxyUrl: string): Prom
 
 // ========== DuckDuckGo（无需 API Key）==========
 
-class DuckDuckGoEngine extends SearchEngine {
+export class DuckDuckGoEngine extends SearchEngine {
   readonly name = "duckduckgo";
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
@@ -112,7 +112,7 @@ class DuckDuckGoEngine extends SearchEngine {
     return [];
   }
 
-  private parseHtml(html: string, limit: number): SearchEngineResult[] {
+  parseHtml(html: string, limit: number): SearchEngineResult[] {
     const results: SearchEngineResult[] = [];
     const itemRe = /<div class="result results_links[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
 
@@ -257,7 +257,7 @@ class SearXngEngine extends SearchEngine {
 
 // ========== Bing HTML（无 key，网页搜索；duckduckgo 反爬挑战时的可靠回退）==========
 
-class BingHtmlEngine extends SearchEngine {
+export class BingHtmlEngine extends SearchEngine {
   readonly name = "bing-html";
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
@@ -281,7 +281,7 @@ class BingHtmlEngine extends SearchEngine {
     return [];
   }
 
-  private parseHtml(html: string, limit: number): SearchEngineResult[] {
+  parseHtml(html: string, limit: number): SearchEngineResult[] {
     const results: SearchEngineResult[] = [];
     const blockRe = /<li class="b_algo"[^>]*>([\s\S]*?)(?=<li class="b_algo"|<\/ol>|$)/gi;
     for (const m of html.matchAll(blockRe)) {
@@ -377,7 +377,7 @@ export class SearchAggregator {
     }
   }
 
-  private mergeAndDeduplicate(results: SearchEngineResult[]): SearchEngineResult[] {
+  mergeAndDeduplicate(results: SearchEngineResult[]): SearchEngineResult[] {
     const seen = new Map<string, SearchEngineResult>();
 
     for (const r of results) {

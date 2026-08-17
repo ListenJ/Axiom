@@ -204,7 +204,7 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
 
 /** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
 /** 联网工具面：web_fetch / web_search / search_engines_list（复用 DataPipeline，结果自动写入 Vault） */
-function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
+export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
   return [
     {
       name: "web_fetch",
@@ -246,7 +246,7 @@ function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
 }
 
 /** Chat 工具配置：skill_run/skill_list + 联网工具（web_fetch/web_search/search_engines_list），统一调度。 */
-function buildChatToolConfig(pipeline: DataPipeline): {
+export function buildChatToolConfig(pipeline: DataPipeline): {
   tools: ReturnType<typeof toOpenAITools>;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 } {
