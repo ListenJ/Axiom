@@ -5475,7 +5475,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 6 个测试文件（+23 用例）
   - 修改 src/crawl/search-engines.ts / src/routes/chat.ts / src/db/pg-client.ts（导出 seam）
 - Verification: 新测试 23/23 过；全套件 2674（+23，仅 DataPipeline 环境性 flaky）；tsc 干净。
-- Commit: [PLACEHOLDER]
+- Commit: ae92577
 
 ## 2026-08-17 - CI 门禁挂新测试 + 搜索回退集成测试（mock fetch 注入）
 
