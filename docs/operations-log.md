@@ -14,7 +14,7 @@
 - **工具**：bun test/tsc、ssh/scp、远端 DSH CLI（dsh plugin add/rm、--dump-config）、真实 MCP 工具深度调用（constraint_check/cognitive_loop/dre_write_knowledge/dre_search_knowledge）。
 - **操作**（文件级）：修改 `plugins/dre-dsh/tests/config.test.ts`、`plugins/dre-dsh/package.json`（test 脚本）、`plugins/dre-dsh/README.md`；本日志回填主提交 hash `30f19d0` 与远端实测结果。
 - **验证**：本地 25/25；远端 25/25（真实 MCP）；热插拔闭环 add→rm→再 add 通过；真实 DSH 启动拉起 MCP、卸载后不再拉起；4 个真实 DRE 工具深度调用输出结构正确（含 LLM 不可用降级链）。
-- **Commit**：待回填
+- **Commit**：`edd2955`
 
 ## 2026-08-19 — DRE-DSH 插件：确定性推理引擎封装为独立 DSH 插件（热插拔 + 深度测试）
 
