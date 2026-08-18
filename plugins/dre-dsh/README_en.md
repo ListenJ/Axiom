@@ -1,8 +1,8 @@
 # axiom-dre-dsh
 
-> Axiom Deterministic Reasoning Engine (DRE) as a standalone [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) plugin.
+> Axiom Deterministic Reasoning Engine (DRE) as a [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) plugin.
 
-This plugin is **standalone and independent** of any host project: it is published on its own and installed into dsh via the dsh plugin manager. It ships no application code of its own — it is an MCP bridge that connects an external Axiom DRE MCP server and exposes a curated subset of its tools to dsh under the `dre__` prefix.
+This plugin is an MCP bridge: it spawns an Axiom DRE MCP server (run under Bun) and exposes a curated subset of its tools to dsh under the `dre__` prefix — knowledge verification, deterministic cognition, constraint solving, mental models and synapse memory.
 
 - License: MIT
 - Hot-pluggable: `dsh plugin add/rm`

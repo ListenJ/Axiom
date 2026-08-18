@@ -8,6 +8,17 @@
 ---
 
 
+## 2026-08-19 — README 去掉「独立于宿主项目」表述，直接描述插件本身
+
+- **任务**：按用户要求，文档不再说明插件独立于宿主项目，改为直接描述插件本身。
+- **工具**：文本编辑、git、gh（同步开源镜像）。
+- **操作**（文件级）：
+  - `README_en.md`：删除 standalone / independent of any host project / published on its own / ships no application code 表述；开头改为直接描述：插件是 MCP 桥，拉起 Axiom DRE MCP 服务器并以 dre__ 前缀暴露精选工具。
+  - `README_zh.md`：删除「独立发布」表述（保留可热插拔）。
+  - 同步开源镜像并推送 GitHub（b39b80c）。
+- **验证**：主仓库与 GitHub 均无 standalone / host project / 独立发布 表述。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE 架构文档 + awesome-dsh-plugin 上架 PR
 
 - **任务**：① 产出清晰的 DRE 架构文档（分层/模块/数据流/插件映射）；② 按 DSH 插件市场机制提交上架 PR（awesome-dsh-plugin registry），提升插件知名度。

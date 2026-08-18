@@ -1,6 +1,6 @@
 # axiom-dre-dsh
 
-> Axiom 确定性推理引擎（DRE）的 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) 插件，独立发布、可热插拔。
+> Axiom 确定性推理引擎（DRE）的 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) 插件，可热插拔。
 
 - 许可证：MIT
 - 热插拔：`dsh plugin add/rm`
