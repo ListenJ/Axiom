@@ -8,6 +8,14 @@
 ---
 
 
+## 2026-08-19 — DRE-DSH 插件远端实测修复：平台无关测试 + 慢环境超时 + README 构建说明
+
+- **任务**：远端 listen@192.168.0.150 实测暴露 3 处问题并修复：(1) `resolveAxiomHome` 测试硬编码 Windows 路径 `C:/repo` → 改平台无关（用 fileURLToPath 相对上溯断言）；(2) bun test 默认单测超时 5000ms，远端 MCP 冷启动约 3-4s 导致冒烟超时 → test 脚本加 `--timeout 60000`；(3) DSH 加载的是构建产物 `lib/`（gitignore），源码安装需先 `bun run build` → README 安装段补「先构建后 add」说明，并补远端实测记录表。
+- **工具**：bun test/tsc、ssh/scp、远端 DSH CLI（dsh plugin add/rm、--dump-config）、真实 MCP 工具深度调用（constraint_check/cognitive_loop/dre_write_knowledge/dre_search_knowledge）。
+- **操作**（文件级）：修改 `plugins/dre-dsh/tests/config.test.ts`、`plugins/dre-dsh/package.json`（test 脚本）、`plugins/dre-dsh/README.md`；本日志回填主提交 hash `30f19d0` 与远端实测结果。
+- **验证**：本地 25/25；远端 25/25（真实 MCP）；热插拔闭环 add→rm→再 add 通过；真实 DSH 启动拉起 MCP、卸载后不再拉起；4 个真实 DRE 工具深度调用输出结构正确（含 LLM 不可用降级链）。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE-DSH 插件：确定性推理引擎封装为独立 DSH 插件（热插拔 + 深度测试）
 
 - **任务**：按功能拆分 DSH 插件的第一步——把 Axiom 确定性推理引擎（DRE）封装为独立插件 `axiom-dre-dsh`（`plugins/dre-dsh/`），以 `dre__<tool>` 前缀暴露「知识验证（三段甄别）/确定性认知闭环/推理图/约束求解/心智模型/突触记忆」，强化 DSH 信息确定能力；严格遵循 DSH/Cordis 架构（`cordis.patch.yml` 配置层、`ctx.effect` 生命周期、`dsh plugin add/rm` 热插拔）；本地 + 远端 `listen@192.168.0.150` 深度测试。
@@ -16,8 +24,8 @@
   - 新建 `plugins/dre-dsh/`：`package.json`（axiom-dre-dsh）、`tsconfig.json`/build、`cordis.patch.yml`（行 id `dre`）、`.gitignore`、`README.md`、`src/types.ts`、`src/config.ts`、`src/mcp-bridge.ts`（白名单过滤 `DEFAULT_DRE_FILTER` + `matchTool` + `applySynapseGate` + `dre__` 前缀）、`src/index.ts`（apply + `dre_plugin_status` + `ctx.effect` 清理）、`tests/`（config 8 / mcp-bridge 11 / smoke-mcp 2）。
   - 依赖收敛：移除未使用的 `@deepseek-ai/cordis`/`@deepseek-ai/dsh-tools` devDeps 与 peerDeps（结构类型无需运行时依赖；避免 `dsh-type-meta` 404 解析链）。
   - 文档：`docs/superpowers/specs/2026-08-19-dre-dsh-plugin-design.md`、`docs/plans/2026-08-19-dre-dsh-plugin.md`。
-- **验证**：插件 25/25 单测+冒烟通过（真实拉起 Axiom MCP，仅 `dre__*` 工具注册、`dre__dre_status` 可调用返回 lossless JSON、`dre_plugin_status` 可用）；`tsc --noEmit` + `tsc -p tsconfig.build.json` 通过；仓库 `bun run lint` 0 错误。远端 listen@192.168.0.150 热插拔与真实工具验证结果见远端测试记录（本节后补充）。
-- **Commit**：待回填
+- **验证**：插件 25/25 单测+冒烟通过（真实拉起 Axiom MCP，仅 `dre__*` 工具注册、`dre__dre_status` 可调用返回 lossless JSON、`dre_plugin_status` 可用）；`tsc --noEmit` + `tsc -p tsconfig.build.json` 通过；仓库 `bun run lint` 0 错误。远端 listen@192.168.0.150 深度验证：插件单测+冒烟 25/25（仅 dre__* 注册，共 33 个 DRE 工具）；热插拔 add→rm→再 add 闭环通过（bundles/依赖/补丁正确增删）；真实 DSH 启动拉起 Axiom MCP 服务器（卸载后不再拉起）；真实工具实测：dre__constraint_check 返回结构化约束判定、dre__cognitive_loop 零 LLM 完整 trace（LLM 不可用自动降级）、dre__dre_write_knowledge 三段甄别 accepted:true 且随后 dre__dre_search_knowledge 检索命中（写读闭环）。
+- **Commit**：`30f19d0`（主提交）；后续修复提交见下条
 
 ## 2026-08-19 — 未提交改动审核 + 实验验证 + 修复 + 深度测试与 CI/CD
 

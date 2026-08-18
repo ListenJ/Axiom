@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
 import { normalizeConfig, resolveAxiomHome, checkAxiomHome, configSummary } from '../src/config.js'
 
@@ -19,9 +20,10 @@ describe('resolveAxiomHome', () => {
       else process.env.AXIOM_HOME = old
     }
   })
-  test('相对插件文件上溯 3 层（源码布局）', () => {
+  test('相对插件文件上溯 3 层（源码布局，平台无关）', () => {
     const home = resolveAxiomHome('', HERE)
-    expect(home.replace(/\\/g, '/')).toBe('C:/repo')
+    const expected = path.resolve(path.dirname(fileURLToPath(HERE)), '..', '..', '..')
+    expect(home).toBe(expected)
   })
 })
 

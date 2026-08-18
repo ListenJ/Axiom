@@ -6,8 +6,15 @@
 
 ## 安装（热插拔）
 
+> 源码安装前先构建：DSH 加载的是构建产物 `lib/index.js`（`main` 指向），
+> 而 `lib/` 在 .gitignore 中。**先 `bun run build`，再 add**；改代码后需重新构建。
+
 ```powershell
-# 安装到 profile（走 pnpm 链接，可反复执行）
+cd plugins/dre-dsh
+bun install
+bun run build      # 生成 lib/（DSH 加载产物）
+
+# 安装到 profile（走 pnpm 链接，可反复执行 add/rm = 热插拔）
 dsh plugin --profile web add D:/openclaw-fusion/plugins/dre-dsh
 
 # 启动 web profile
@@ -61,3 +68,18 @@ bun test tests/       # 单测 + 真实 MCP 冒烟
 - `axiom-dre-dsh`（本插件）：只暴露 DRE 能力面（`dre__*`）。
 - 规划：按功能继续拆分（记忆/知识库、联网检索、模型路由、工具类等）；当出现第 3 个功能插件时，
   将 MCP 桥抽为 `plugins/shared/mcp-bridge` 公共包（两个消费者即真接缝）。
+
+
+## 远端实测（listen@192.168.0.150，2026-08-19）
+
+| 验证项 | 结果 |
+| --- | --- |
+| 插件单测 + 真实 MCP 冒烟 | 25/25 通过（仅 `dre__*` 注册，共 33 个 DRE 工具） |
+| 热插拔 add → 卸载 rm → 再 add | 通过（bundles/依赖/补丁正确增删，`--dump-config` 验证） |
+| 真实 DSH 启动加载插件 | 通过（启动即拉起 Axiom MCP 服务器；卸载后不再拉起） |
+| `dre__constraint_check` | 返回结构化约束判定（satisfied + violations + 满足约束列表） |
+| `dre__cognitive_loop` | 零 LLM 确定性认知闭环完整 trace（LLM 不可用时自动降级） |
+| `dre__dre_write_knowledge` → `dre__dre_search_knowledge` | 三段甄别写入 accepted:true，随后检索命中（写读闭环） |
+
+> 注：远端测试环境为最小 profile（`@deepseek-ai/dsh-base` + 本插件）；完整 web 前端加载需
+> 另配 `dsh-web-app` 等 bundles。
