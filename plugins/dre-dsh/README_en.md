@@ -30,9 +30,23 @@ The plugin launches an Axiom DRE MCP server over stdio, filters its tools by a D
 
 A diagnostic tool reporting MCP bridge state (connected, tool count, server name), Axiom engine status, and the effective config summary.
 
+## Architecture
+
+This plugin is a **thin MCP bridge** — it does **not** bundle the DRE engine itself. The DRE engine (Kernel, three-stage knowledge-verification pipeline, cognitive loop, constraint solver, synapse memory, …) runs **inside the Axiom MCP server process** that the plugin spawns over stdio:
+
+```
+dsh (Node) ── axiom-dre-dsh (bridge) ──stdio──▶ Axiom MCP server (Bun) ──▶ DRE engine
+    │                    │                                  │
+ tool calls      spawn + filter + register          Kernel / Pipeline / …
+```
+
+- The plugin contains **no DRE engine code** — it only spawns the server, filters its tools by the DRE allow-list, and registers them as `dre__<tool>`.
+- The engine lives in the **Axiom repo** (`src/mcp/server.ts` → `src/dre/`), run under **Bun**.
+- A bridge is required because the engine depends on Bun-specific APIs (e.g. `bun:sqlite`), while dsh plugins run under Node — the engine cannot be embedded in the plugin.
+
 ## Prerequisites
 
-This plugin is an MCP bridge. It spawns and bridges an Axiom DRE MCP server (run under Bun). Point it at the server's repo root via `axiomHome` (or the `AXIOM_HOME` env var); when left empty it is inferred by walking up 3 levels from the plugin's own files.
+This plugin requires a runnable Axiom repo (the DRE MCP server) to connect to. Point it at the repo root via `axiomHome` (or the `AXIOM_HOME` env var); when left empty it is inferred by walking up 3 levels from the plugin's own files.
 
 ## Configuration
 

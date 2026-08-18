@@ -28,9 +28,23 @@ dsh plugin --profile web rm axiom-dre-dsh
 
 诊断工具：报告 MCP 桥接状态（连接/工具数/服务名）、Axiom 引擎状态与生效配置摘要。
 
+## 架构
+
+本插件是一个**薄 MCP 桥**——**自身不含 DRE 引擎代码**。DRE 引擎（Kernel、三段甄别知识验证流水线、认知闭环、约束求解、突触记忆等）运行在**插件通过 stdio 拉起的 Axiom MCP 服务器进程内**：
+
+```
+dsh (Node) ── axiom-dre-dsh（桥）──stdio──▶ Axiom MCP 服务器 (Bun) ──▶ DRE 引擎
+    │                   │                                 │
+ 工具调用          拉起 + 白名单过滤 + 注册           Kernel / Pipeline / …
+```
+
+- 插件**不含 DRE 引擎代码**：只负责拉起服务器、按 DRE 白名单过滤工具、以 `dre__<tool>` 注册。
+- 引擎位于 **Axiom 仓库**（`src/mcp/server.ts` → `src/dre/`），运行于 **Bun**。
+- 采用桥接是因为引擎依赖 Bun 专属 API（如 `bun:sqlite`），而 dsh 插件运行在 Node 环境，引擎无法内嵌。
+
 ## 前置依赖
 
-本插件是 MCP 桥：拉起并桥接一个 Axiom DRE MCP 服务器（运行于 Bun）。通过 `axiomHome`（或环境变量 `AXIOM_HOME`）指向该服务器所在仓库根；留空时按插件文件位置上溯 3 层推断。
+需要一个可运行的 Axiom 仓库（DRE MCP 服务器）供插件连接。通过 `axiomHome`（或环境变量 `AXIOM_HOME`）指向该仓库根；留空时按插件文件位置上溯 3 层推断。
 
 ## 配置
 

@@ -8,6 +8,18 @@
 ---
 
 
+## 2026-08-19 — 澄清插件架构边界：纯 MCP 桥（不含 DRE 引擎）
+
+- **任务**：按用户要求仔细核实并说明插件与 DRE 引擎的边界——插件是 MCP 桥还是包含引擎本身。基于代码事实核实后，在文档中明确：插件是纯 MCP 桥，DRE 引擎运行在被拉起的 Axiom 后端进程内。
+- **工具**：代码核实（rg import 面 + dre-tools.ts Kernel 实例化）、文本编辑、git、gh（同步开源镜像）。
+- **操作**（文件级）：
+  - 事实核实：插件 src 仅依赖 @modelcontextprotocol/sdk 与 node 内置模块，零 DRE 代码；`src/mcp/server/dre-tools.ts` 经 `getKernelAsync() → new Kernel()` 实例化完整 DRE 引擎。
+  - `README_en.md` / `README_zh.md`：新增「Architecture / 架构」小节（ASCII 图 + 三点说明：插件不含引擎代码、引擎位于 Axiom 仓库运行于 Bun、桥接是因 Bun vs Node 运行时约束）；前置依赖段改为「需要一个可运行的 Axiom 仓库」。
+  - `docs/DRE-ARCHITECTURE.md`：第五节补「边界（事实）」与「为什么是桥」说明。
+  - 同步开源镜像并推送 GitHub（e625a49）。
+- **验证**：主仓库与 GitHub README 均含清晰架构边界说明。
+- **Commit**：待回填
+
 ## 2026-08-19 — README 去掉「独立于宿主项目」表述，直接描述插件本身
 
 - **任务**：按用户要求，文档不再说明插件独立于宿主项目，改为直接描述插件本身。
