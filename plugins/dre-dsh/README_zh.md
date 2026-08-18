@@ -2,8 +2,6 @@
 
 > Axiom 确定性推理引擎（DRE）的 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) 插件，独立发布、可热插拔。
 
-本插件**独立于任何宿主项目**、自包含发布：经 dsh 插件管理器安装后独立运行，自身不含业务代码，仅作为 MCP 桥接层，把外部 Axiom DRE MCP 服务器的精选工具以 `dre__` 前缀暴露给 dsh。
-
 - 许可证：MIT
 - 热插拔：`dsh plugin add/rm`
 - 运行时：依赖 [Bun](https://bun.sh)（用于拉起 Axiom MCP 服务器）
