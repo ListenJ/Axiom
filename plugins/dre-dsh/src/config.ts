@@ -38,19 +38,24 @@ export interface NormalizedConfig extends AxiomDreConfig {
 
 const DEFAULT_MCP_TOOL_TIMEOUT_MS = 60_000
 
+/** 字符串归一化：非空字符串取 trim，否则用默认值。 */
 function str(v: unknown, d: string): string {
   return typeof v === 'string' && v.trim().length > 0 ? v.trim() : d
 }
+/** 布尔归一化：仅接受真实布尔值，否则用默认值。 */
 function bool(v: unknown, d: boolean): boolean {
   return typeof v === 'boolean' ? v : d
 }
+/** 数值归一化：仅接受正有限数（向下取整），否则用默认值。 */
 function num(v: unknown, d: number): number {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : d
 }
+/** 字符串数组归一化：仅接受非空纯字符串数组，否则用默认值。 */
 function strArr(v: unknown, d: string[]): string[] {
   return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string') ? (v as string[]) : d
 }
+/** 字符串字典归一化：仅保留字符串值，过滤其余类型，否则用默认值。 */
 function strDict(v: unknown, d: Record<string, string>): Record<string, string> {
   if (v && typeof v === 'object') {
     const out: Record<string, string> = {}

@@ -154,6 +154,7 @@ interface BridgeState {
 /** 创建 MCP 桥（惰性连接；按 toolFilter 白名单过滤）。 */
 export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
   const state: BridgeState = { client: null, transport: null, disposers: [], count: 0 }
+  // 子进程环境 = 继承当前进程环境 + 显式覆盖（opts.env 优先，便于注入 AXIOM_AUTH_TOKEN 等）
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) env[k] = v
@@ -161,6 +162,7 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
   for (const [k, v] of Object.entries(opts.env ?? {})) env[k] = v
 
   async function connect(ctx: DshContext): Promise<void> {
+    // 幂等：已连接则直接返回，避免重复拉起 MCP 子进程
     if (state.client) return
     const client = new Client({ name: 'axiom-dre-dsh', version: '0.1.0' }, { capabilities: {} })
     const transport = new StdioClientTransport({
@@ -169,15 +171,18 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
       cwd: opts.cwd.length > 0 ? opts.cwd : undefined,
       env,
     })
+    // 先 MCP 握手（initialize），再拉取工具清单
     await client.connect(transport)
     state.client = client
     state.transport = transport
 
     const resp = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
     const tools = (resp.tools ?? []) as McpToolMeta[]
+    // 白名单过滤：只注册 DRE 能力面工具，避免把 memory_*/web_*/github_* 等带入 dsh
     const selected = tools.filter((t) => matchTool(t.name, opts.toolFilter))
     const disposers: Array<() => void> = []
     for (const tool of selected) {
+      // 每个注册返回一个卸载函数，dispose 时逐个调用以完整回滚
       disposers.push(ctx.tools.register(toToolDefinition(tool, opts, () => state.client)))
     }
     state.disposers = disposers
@@ -188,6 +193,7 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
   }
 
   function dispose(): void {
+    // 清理顺序：先卸载已注册工具（dsh 侧立即感知），再关闭子进程 transport，最后清空状态
     for (const d of state.disposers) {
       try {
         d()

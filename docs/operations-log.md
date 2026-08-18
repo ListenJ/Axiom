@@ -8,6 +8,18 @@
 ---
 
 
+## 2026-08-19 — DRE 插件 README 精简与脱敏 + 代码注释补充（同步开源镜像）
+
+- **任务**：按用户要求清理 README——删除测试内容（远端实测节）与暴露整体项目的信息（与单块插件 axiom-dsh 关系、monorepo 路径、内部规划），补充清晰的安装/卸载命令（github: 源），整体精简；并为 src/ 代码补充关键注释（行为不变）。
+- **工具**：git/gh、bun（build/test/typecheck）、Node 补丁脚本。
+- **操作**（文件级）：
+  - `README.md`：重写为 37 行精简版——保留标题/简介/安装/卸载/前置依赖/配置表/工具表/License；删除「远端实测」「与单块插件 axiom-dsh 的关系」「本地验证」及 monorepo 路径；安装用真实命令 `dsh plugin --profile web add github:ListenJ/axiom-dre-dsh`。
+  - `src/config.ts`：为 str/bool/num/strArr/strDict 归一化辅助函数补 JSDoc。
+  - `src/mcp-bridge.ts`：为 createMcpBridge 的环境继承、幂等连接、白名单过滤、注册/清理顺序补 WHY 注释。
+  - 同步开源镜像 `.tmp/axiom-dre-dsh-oss` → 推送 GitHub（含远端已有的 README 清理提交 4b0f0c2，rebase 合并）。
+- **验证**：typecheck/build/25 测试全绿（行为零变化）；GitHub README 扫描确认无 listen@192/axiom-dsh/monorepo/实测 字样，含 ## 安装/## 卸载。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE 插件开源到 GitHub（ListenJ/axiom-dre-dsh，PUBLIC）
 
 - **任务**：把 axiom-dre-dsh 作为独立公开插件仓库发布到 GitHub，验证可公开拉取。
