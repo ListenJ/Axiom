@@ -19,7 +19,7 @@
   - `src/crawl/search-engines.ts`：Bing/DDG 的 site 限定由无效参数（`site:` / `sites`）改为在查询中拼接 `site:` 运算符（与正常工作的 SearXNG 一致）；并导出 `BingEngine` 以支撑测试。
   - 新增回归测试：`tests/dre-pipeline-conflict.test.ts`、`tests/knowledge-store-predict.test.ts`、`tests/crawl-site-param.test.ts`。
 - **验证**：新增回归测试全部通过（FIX A 1/1、FIX C 1/1、FIX E 2/2）；既有回归套件无回退（pipeline/crawl 20/20、knowledge-store 43/43、dre-core-modules 94/94、synapse 11/11）；bun build 全图 587 模块通过。
-- **Commit**：`[PLACEHOLDER]`
+- **Commit**：`629110c`
 
 ---
 
