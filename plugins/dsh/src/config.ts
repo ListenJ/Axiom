@@ -33,6 +33,8 @@ export interface AxiomPluginConfig {
   serverEnv: Record<string, string>
   proxyEnabled: boolean
   proxyPath: string
+  /** 是否启用磨砂玻璃主题（透明度分层 + backdrop-filter 磨砂效果）。 */
+  frostedGlass: boolean
 }
 
 export interface NormalizedConfig extends AxiomPluginConfig {
@@ -116,6 +118,7 @@ export function normalizeConfig(raw: unknown, importMetaUrl: string): Normalized
     serverEnv: strDict(cfg.serverEnv, {}),
     proxyEnabled: bool(cfg.proxyEnabled, true),
     proxyPath: normalizeProxyPath(cfg.proxyPath),
+    frostedGlass: bool(cfg.frostedGlass, true),
     homeCheck: checkAxiomHome(axiomHome),
   }
 }
@@ -132,6 +135,7 @@ export function configSummary(config: NormalizedConfig): Record<string, unknown>
     serverPort: config.serverPort,
     proxyEnabled: config.proxyEnabled,
     proxyPath: config.proxyPath,
+    frostedGlass: config.frostedGlass,
   }
 }
 

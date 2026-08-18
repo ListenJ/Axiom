@@ -170,3 +170,6 @@ ai-daily-*.md
 media-tools/
 # docs/services.md: 服务器服务清单（含 SSH 凭据等敏感信息），禁止入库
 docs/services.md
+
+# === DSH plugin generated preview screenshots ===
+plugins/dsh/preview/screenshots/

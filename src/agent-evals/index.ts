@@ -6,6 +6,8 @@ export type { AgentTask, TaskContext, TaskFamily, TaskSplit } from "./tasks.js";
 export { containsAll, containsAny, matchesAll, notContains, hasJSONKeys, minLength, extractJSON } from "./verify.js";
 export type { VerifyResult } from "./verify.js";
 export { runTasks } from "./runner.js";
+export { loadExternalTasks, extractPythonCode } from "./external.js";
+export type { ExternalKind, ExternalLoadOptions } from "./external.js";
 export type { RunOptions } from "./runner.js";
 export { summarize } from "./metrics.js";
 export type { FamilyMetrics, MetricsSummary, TaskResult } from "./metrics.js";

@@ -7,6 +7,36 @@
 
 ---
 
+
+## 2026-08-19 — 未提交改动审核 + 实验验证 + 修复 + 深度测试与 CI/CD
+
+- **任务**：检查工作区与仓库最新改动并审查其合理性；编写实验文档；制定并审阅执行计划；执行修复、深度测试与 CI/CD 门禁；按规则 3/5 提交推送 internal211。
+- **工具**：git（diff/status/log）、静态代码审阅、bun test（定向 + 全套件）、tsc --noEmit、audit:runtime、test:gate/test:arch、plugins/dsh verify.ps1（修复后）、Node 补丁脚本（.tmp/ 下临时工具，不入库）。
+- **操作**（文件级）：
+  - `src/dre/llm/client.ts`：`selectMode` 缩进规范化（仅格式）。
+  - `src/agent-evals/external.ts`：`pythonCmd` 支持 `string | string[]` 注入缝，便于确定性测试。
+  - 新增 `tests/agent-evals/external-benchmarks.test.ts`（10 用例：解析稳定性 / 假解释器 verify pass-fail / extractPythonCode）与 `tests/agent-evals/fixtures/fake-python-{pass,fail}.mjs`。
+  - `package.json`：`test:full` 挂载 external-benchmarks.test.ts。
+  - `tests/agent-evals/{validators-noise,tasks-strengthened,tasks-coding01}.test.ts`：`verify` 联合类型回归修复（回调 async + `(await task.verify(...))`，43 处）。
+  - `tests/dre-pipeline-conflict.test.ts`：`ks.write` 补 `isVerified: false`（HEAD 既有类型错误）。
+  - `plugins/dsh/scripts/verify.ps1`：修复根路径计算、`bun.cmd`→`bun`、补 `param([switch]$SkipInstall)`。
+  - `.gitignore`：忽略 `plugins/dsh/preview/screenshots/`。
+  - 文档：新增 `docs/experiment-2026-08-19-external-benchmarks-and-diagnostics.md`、`docs/plans/2026-08-19-verify-commit-cicd.md`；补录 8-17/8-18 审计计划与审核文档（此前未提交）。
+- **验证**：external-benchmarks 10/10；dre-core+chaos 95/0；ocr langs-available 1/1；plugins/dsh 28/0（构建+typecheck 通过）；`bun run lint` 0 错误；`bun run test:full` 273/0（含新测试）；`bun run test:gate` 12/0；`bun run test:arch` 22/0；`audit:runtime` 16/16；全套件 2668 pass / 28 skip / 2 并行超时（benchmark.test.ts 与 e2e-runtime.test.ts 5s 超时，串行复跑 41/0 全绿，属环境性）。验证过程中 verify.ps1 曾误将插件装入 DSH web profile，已恢复为无 axiom-dsh 原状（package.json + pnpm install 同步）。
+- **Commit**：待回填
+
+
+## 2026-08-18 — 功能内核落地核查 + 低风险可诊断性优化（OCR / LLM 约束 / DRE JSON）
+
+- **任务**：核查各功能模块是否真正落地可用；修复 3 个低风险可诊断性问题。
+- **工具**：静态代码审阅、str_replace_editor。
+- **操作**：
+  - `src/ocr/engine.ts`：`assertLangsAvailable` 增加 langPath 目录不存在时的友好错误，避免 `readdirSync` ENOENT 崩溃。
+  - `src/dre/llm/client.ts`：`generateConstrained` 区分 `llm_unavailable` 与 `schema_validation_failed`；`selectMode` 在候选分歧时附加 `modeAmbiguous` 标记。
+  - `src/dre/engine.ts`：`decide` 钩子 JSON.parse 增加 try/catch，抛出可诊断错误并保持降级链。
+- **验证**：未运行测试（当前环境无终端）；需在可用终端执行 `bun test tests/ocr/langs-available.test.ts tests/dre-*.test.ts` 验证。
+- **Commit**：待提交
+
 ## 2026-08-18 — 核心模块代码优化与缺陷修复（DRE + 本地搜索）
 
 - **任务**：审查并优化当前核心模块（src/dre/ 三段甄别流水线、synapse 记忆引擎、knowledge-store；src/crawl/ 本地搜索）。识别并修复真实缺陷、性能与冗余问题，维持原有业务逻辑不变。

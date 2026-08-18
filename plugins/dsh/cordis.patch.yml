@@ -9,6 +9,7 @@
 #   - autoStartServer=false：默认不拉起 Axiom HTTP 主服务（dsh 自带 agent loop）；
 #     需要 Axiom 的 OpenAI-compat 路由/成本/统计时改为 true，并确保端口可用。
 #   - axiomHome 留空时解析顺序：config.axiomHome → $AXIOM_HOME → 插件文件上溯 3 层。
+#   - frostedGlass=true：启用磨砂玻璃主题（透明度分层 + backdrop-filter 效果）。
 - insert:
     - id: axiom
       name: 'axiom-dsh'
@@ -34,4 +35,5 @@
         serverApiKey: ''
         proxyEnabled: true
         proxyPath: '/axiom'
+        frostedGlass: true
 

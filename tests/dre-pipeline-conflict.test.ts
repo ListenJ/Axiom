@@ -37,6 +37,7 @@ test("阶段1 仅将内容真正不同的相似节点判为冲突（哈希算法
     paradigm: "fact" as const,
     confidence: 0.8,
     sourceType: "web" as const,
+    isVerified: false,
   });
   ks.write({
     nodeId: "node-B",
@@ -47,6 +48,7 @@ test("阶段1 仅将内容真正不同的相似节点判为冲突（哈希算法
     paradigm: "fact" as const,
     confidence: 0.8,
     sourceType: "web" as const,
+    isVerified: false,
   });
 
   const pipeline = new Pipeline(ks, fakeLLM as any, { webVerifyEnabled: false });

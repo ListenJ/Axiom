@@ -78,6 +78,13 @@ export class OCREngine {
    * 缺失时抛出清晰错误（含可用语言列表），避免 tesseract worker 未捕获异常直接崩掉进程。
    */
   private assertLangsAvailable(languages: string[]): void {
+    // langPath 本身不存在时给出可操作的错误，而不是 readdirSync 抛 ENOENT
+    if (!fs.existsSync(this.langPath)) {
+      throw new Error(
+        `OCR 语言数据目录不存在: ${this.langPath}。请创建该目录并放入 ${languages.map((l) => `${l}.traineddata`).join(", ")}，` +
+          `或通过 TESSERACT_LANG_PATH 指向正确的语言包目录。`,
+      );
+    }
     const missing = languages.filter((lang) => {
       const plain = path.join(this.langPath, `${lang}.traineddata`);
       return !fs.existsSync(plain) && !fs.existsSync(`${plain}.gz`);

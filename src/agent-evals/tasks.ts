@@ -26,7 +26,7 @@ export interface AgentTask {
   title: string;
   prompt: string;
   systemPrompt?: string;
-  verify: (response: string, ctx?: TaskContext) => VerifyResult;
+  verify: (response: string, ctx?: TaskContext) => VerifyResult | Promise<VerifyResult>;
   expectedBehavior?: string;
   maxTokens?: number;
 }

@@ -83,7 +83,7 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
     content = `[ERROR] ${(err as Error).message}`;
   }
   const latencyMs = Math.round(performance.now() - t0);
-  const verdict = task.verify(content);
+  const verdict = await task.verify(content);
   return {
     taskId: task.id,
     family: task.family,

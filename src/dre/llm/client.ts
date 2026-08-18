@@ -551,6 +551,7 @@ export class LLMClient {
   ): Promise<Record<string, unknown>> {
     const n = options?.n ?? 3;
     const candidates: Array<Record<string, unknown>> = [];
+    let hasCallError = false;
 
     for (let i = 0; i < n; i++) {
       try {
@@ -566,7 +567,10 @@ export class LLMClient {
           candidates.push(parsed);
         }
       } catch (err) {
-        logger.debug("[LLM] Constrained generation parse error, retrying", { error: (err as Error).message });
+        // 区分“LLM 调用/解析失败”与“返回内容不符合 schema”：调用失败应让上游可感知，
+        // 而不是把服务不可用误判成“真实 reject”。
+        hasCallError = true;
+        logger.debug("[LLM] Constrained generation attempt failed", { error: (err as Error).message });
         continue;
       }
     }
@@ -577,7 +581,7 @@ export class LLMClient {
         confidence: 0,
         chain: [],
         evidence_refs: [],
-        reason: "schema_validation_failed",
+        reason: hasCallError ? "llm_unavailable" : "schema_validation_failed",
       };
     }
 
@@ -671,7 +675,11 @@ export class LLMClient {
       }
     }
 
-    // 返回第一个
-    return maxGroup[0];
+    // 返回第一个；若候选存在分歧（每组只出现一次），附加 modeAmbiguous 标记
+    const chosen = maxGroup[0];
+    if (maxCount === 1 && candidates.length > 1) {
+      return { ...chosen, modeAmbiguous: true };
+    }
+    return chosen;
   }
 }

@@ -97,6 +97,24 @@ node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
 
 真实冒烟用例会以 stdio 拉起 `src/mcp/server.ts --stdio` 并断言工具成功桥接。
 
+## 磨砂玻璃主题（Frosted Glass）
+
+插件默认启用磨砂玻璃主题，通过 CSS 注入为 DSH 添加：
+
+- **透明度分层**：背景从底到顶递增透明度（base → layer-1 → layer-2 → layer-3）
+- **backdrop-filter 磨砂**：侧边栏、弹出层、输入区等使用 `blur()` + `saturate()` 实现毛玻璃效果
+- **渐变分割线**：用渐变透明度替代硬线条，区域边界更柔和
+- **微光效果**：卡片顶部添加渐变高光，增强层次感
+
+配置关闭：
+```yaml
+- insert:
+    - id: axiom
+      name: 'axiom-dsh'
+      config:
+        frostedGlass: false  # 关闭磨砂主题
+```
+
 ## 已知边界
 
 - dsh 处于 developer preview：本插件只依赖 `ctx.tools.register` / `ctx.effect` / `ctx.inject` /

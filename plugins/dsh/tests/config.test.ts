@@ -20,7 +20,6 @@ describe('resolveAxiomHome', () => {
     }
   })
   test('相对插件文件上溯 3 层（源码布局）', () => {
-    // <repo>/plugins/dsh/src/index.ts → <repo>
     const home = resolveAxiomHome('', HERE)
     expect(home.replace(/\\/g, '/')).toBe('C:/repo')
   })
@@ -42,6 +41,7 @@ describe('normalizeConfig', () => {
     expect(c.serverPort).toBe(18789)
     expect(c.proxyPath).toBe('/axiom')
     expect(c.mcpToolCallTimeoutMs).toBe(60_000)
+    expect(c.frostedGlass).toBe(true)
     expect(Array.isArray(c.mcpArgs)).toBe(true)
   })
   test('数值/布尔非法时回退默认', () => {
@@ -54,6 +54,17 @@ describe('normalizeConfig', () => {
     const c = normalizeConfig({ serverApiKey: 'sk-secret' }, HERE)
     const summary = JSON.stringify(configSummary(c))
     expect(summary).not.toContain('sk-secret')
+  })
+  test('frostedGlass 默认开启且可关闭', () => {
+    const c1 = normalizeConfig({}, HERE)
+    expect(c1.frostedGlass).toBe(true)
+    const c2 = normalizeConfig({ frostedGlass: false }, HERE)
+    expect(c2.frostedGlass).toBe(false)
+  })
+  test('configSummary 包含 frostedGlass', () => {
+    const c = normalizeConfig({}, HERE)
+    const summary = configSummary(c)
+    expect(summary.frostedGlass).toBe(true)
   })
 })
 

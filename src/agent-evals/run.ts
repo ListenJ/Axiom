@@ -3,6 +3,7 @@
  * 用法: bun run src/agent-evals/run.ts [--family=coding] [--split=train|held-out] [--json] [--dry-run]
  */
 import { ALL_AGENT_TASKS, getTasksByFamily, validateTasks, type TaskFamily, type TaskSplit } from "./tasks.js";
+import { loadExternalTasks, type ExternalKind } from "./external.js";
 import { runTasks, DEFAULT_RERUN_EACH } from "./runner.js";
 import { summarize } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
@@ -19,6 +20,9 @@ const injectSkills = args.includes("--inject-skills");
 const constraints = args.includes("--constraints");
 const rerunEachRaw = Number(flag("rerun-each") ?? String(DEFAULT_RERUN_EACH));
 const rerunEach = Number.isFinite(rerunEachRaw) && rerunEachRaw >= 1 ? Math.floor(rerunEachRaw) : DEFAULT_RERUN_EACH;
+const externalKind = flag("external") as ExternalKind | undefined;
+const externalLimitRaw = Number(flag("limit") ?? "0");
+const externalLimit = Number.isFinite(externalLimitRaw) && externalLimitRaw >= 1 ? Math.floor(externalLimitRaw) : undefined;
 const rawConcurrency = Number(flag("concurrency") ?? "1");
 const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
 const modelHint = flag("model");
@@ -34,6 +38,8 @@ Agent 能力边界评测 CLI
 Options:
   --family=<f>      只跑指定任务族 (coding|knowledge|planning|tool-use|memory|self-evolve)
   --split=<s>       只跑指定划分 (train|held-out)
+  --external=<k>    运行外部基准 (human-eval|mbpp)，与自建任务集并存
+  --limit=N         外部基准只加载前 N 条（默认全部）
   --concurrency=N   并发数 (默认 2)
   --model=<id>      指定模型（默认走 model-router general-chat 角色）
   --provider=<p>    直连 provider（如 zhipu），配合 --model 使用，绕过 model-router
@@ -52,14 +58,18 @@ Options:
 
 if (args.includes("--help") || args.includes("-h")) showHelp();
 
-const errors = validateTasks();
-if (errors.length > 0) {
-  logger.error(`任务定义不合法:
+if (!externalKind) {
+  const errors = validateTasks();
+  if (errors.length > 0) {
+    logger.error(`任务定义不合法:
 ${errors.join("\n")}`);
-  process.exit(1);
+    process.exit(1);
+  }
 }
 
-const tasks = getTasksByFamily(family, split);
+const tasks = externalKind
+  ? loadExternalTasks(externalKind, { limit: externalLimit })
+  : getTasksByFamily(family, split);
 if (dryRun) {
   logger.info(`任务清单（${tasks.length}）:`);
   for (const task of tasks) logger.info(`  [${task.split}] ${task.id} ${task.family} - ${task.title}`);
@@ -70,7 +80,7 @@ if (tasks.length === 0) {
   process.exit(1);
 }
 
-if (evolve) {
+if (evolve && !externalKind) {
   const trainTasks = getTasksByFamily(family, "train");
   const heldOutTasks = getTasksByFamily(family, "held-out");
   logger.info(`[Evolve] 阶段1/3: train ${trainTasks.length} 任务（无技能）...`);

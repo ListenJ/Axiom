@@ -160,7 +160,7 @@ export class DREngine {
           system: DRE_DECISION_SYSTEM,
           maxTokens: 256,
         });
-        const parsed = JSON.parse(resp.content);
+        let parsed: unknown; try { parsed = JSON.parse(resp.content); } catch (e) { throw new Error(`[DRE] LLM decision JSON 解析失败: ${(e as Error).message}`); }
         if (!isDreDecision(parsed)) {
           throw new Error("[DRE] LLM decision 不符合约束 schema");
         }
