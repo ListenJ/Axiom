@@ -18,7 +18,7 @@
   - `src/mcp-bridge.ts`：为 createMcpBridge 的环境继承、幂等连接、白名单过滤、注册/清理顺序补 WHY 注释。
   - 同步开源镜像 `.tmp/axiom-dre-dsh-oss` → 推送 GitHub（含远端已有的 README 清理提交 4b0f0c2，rebase 合并）。
 - **验证**：typecheck/build/25 测试全绿（行为零变化）；GitHub README 扫描确认无 listen@192/axiom-dsh/monorepo/实测 字样，含 ## 安装/## 卸载。
-- **Commit**：待回填
+- **Commit**：`0e7274e`
 
 ## 2026-08-19 — DRE 插件开源到 GitHub（ListenJ/axiom-dre-dsh，PUBLIC）
 
@@ -27,7 +27,7 @@
 - **操作**：创建独立镜像仓库（.tmp/axiom-dre-dsh-oss，含 src/tests/README/LICENSE/package.json/cordis.patch.yml/bun.lock，不含 lib/node_modules）→ git init main → 初始提交 → `gh repo create ListenJ/axiom-dre-dsh --public --source <镜像> --push`。
 - **验证**：仓库 visibility=PUBLIC（gh repo view）；`git ls-remote https://github.com/ListenJ/axiom-dre-dsh` 可拉取（main=9d0c3bc）；内容清单含 LICENSE/README/src/tests/package.json。
 - **说明**：主仓库（internal211）保持 monorepo 形态，GitHub 为插件独立发布镜像；后续更新插件可再次推送镜像同步。
-- **Commit**：待回填
+- **Commit**：`0e7274e`
 
 ## 2026-08-19 — 本地 Agent 完整可用 + DRE 插件开源准备（LICENSE/元数据/开源 README）
 
