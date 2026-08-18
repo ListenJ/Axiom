@@ -16,7 +16,7 @@
   - 新增 `docs/DRE-ARCHITECTURE.md`：设计原则（确定性/可追溯/可回放/防幻觉）、7 层架构（内核/存储/推理验证/认知记忆/编排执行/运行时基础/人格约束）、15+ 模块职责、3 条关键数据流（三段甄别/认知闭环/意识流）、dre__* 工具 ↔ DRE 模块映射。
   - 上架 PR：fork awesome-dsh-plugin → 新增 `data/plugins/ListenJ__axiom-dre-dsh.yml`（category: tools，en/zh 双语描述）→ `node scripts/generate-readme.mjs` 重新生成 README.md/README.zh.md（1464 条目）→ 提交推送 → PR #1797（https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1797）。
 - **验证**：README 重新生成后条目出现在 Tools & Capabilities 分类（en+zh）；PR 已创建（state=OPEN）。
-- **Commit**：待回填
+- **Commit**：`f960489`
 
 ## 2026-08-19 — DRE 插件 README 精简与脱敏 + 代码注释补充（同步开源镜像）
 
