@@ -19,7 +19,7 @@
   - `tests/mcp-bridge.test.ts`：OPTS 补 `toolFilter`（必填化连锁）。
   - 新增审核文档 `docs/review-2026-08-19-dre-plugin-lightweight.md`（结论 + 改动清单 + 验证方案）。
 - **验证**：src 342→326 行（净减 16，约 4.7%）；typecheck + build 通过；插件 25/25 测试全绿（含真实 MCP 冒烟）；仓库 `bun run lint` 0 错误。功能面不变（白名单/dre 前缀/热插拔/诊断工具保持）。
-- **Commit**：待回填
+- **Commit**：`16d752c`
 
 ## 2026-08-19 — DRE-DSH 插件远端实测修复：平台无关测试 + 慢环境超时 + README 构建说明
 
