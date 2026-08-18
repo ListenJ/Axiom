@@ -21,7 +21,7 @@ export interface Synapse {
   targetId: string;
   sourceType: SynapseNodeType;
   targetType: SynapseNodeType;
-  /** 基础强度 0-1 */
+  /** 基础强度 0-1（存储值；实际强度 = weight - decayPerActivation × (globalEpoch - decayEpoch)） */
   weight: number;
   /** 激活次数（Hebbian 累积） */
   activationCount: number;
@@ -29,6 +29,8 @@ export interface Synapse {
   lastActivatedAt: number;
   /** 创建时间（epoch ms） */
   createdAt: number;
+  /** 该突触上次结算衰减时的全局 epoch（增量衰减锚点；写时结算，读时惰性；缺省视为 0） */
+  decayEpoch?: number;
   /** 校验哈希：sha256 覆盖全部规范字段，篡改即失配（可校验路径） */
   verifyHash: string;
 }

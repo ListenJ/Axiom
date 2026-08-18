@@ -72,17 +72,30 @@ export class SynapseEngine {
   /**
    * 激活一条突触：强度 +delta、激活次数 +1，其余突触全局轻微衰减。
    * 返回被增强的突触（可能多条 sourceId 出边同时增强）。
+   *
+   * 全局衰减采用 epoch 增量（写时结算 + 读时惰性）：
+   *   - 仅当本次确实增强出边且未禁用衰减时，全局 epoch 才 +1；
+   *   - direct 出边豁免本次衰减（decayEpoch 对齐到新 epoch）；
+   *   - 非激活突触的衰减通过「effectiveWeight = weight - decay × (epoch - decayEpoch)」惰性表达，
+   *     读取时才结算，避免每次激活全表遍历（原实现 O(n) DB 写放大）。
    */
   activate(sourceId: string, event: string, opts: { delta?: number; decay?: boolean } = {}): Synapse[] {
     const delta = clamp01(opts.delta ?? 0.15);
     const now = Date.now();
     const direct = this.store.listBySource(sourceId);
     const enhanced: Synapse[] = [];
+    const oldEpoch = this.store.getGlobalEpoch();
+    const willDecay = this.opts.decayPerActivation > 0 && opts.decay !== false;
+    // 有出边增强且需衰减时推进 epoch；否则 epoch 不变（不触发无谓的全局遗忘）
+    const newEpoch = (direct.length > 0 && willDecay) ? this.store.incrementGlobalEpoch() : oldEpoch;
+
     for (const s of direct) {
       const next = this.store.updateActivation(s.id, {
-        weight: clamp01(s.weight + delta),
+        // 按旧 epoch 结算历史衰减（direct 出边不因本次衰减而减），再增强
+        weight: clamp01(this.effectiveWeight(s, oldEpoch) + delta),
         activationCount: s.activationCount + 1,
         lastActivatedAt: now,
+        decayEpoch: newEpoch,
       });
       if (next) {
         enhanced.push(next);
@@ -90,30 +103,23 @@ export class SynapseEngine {
       }
     }
     // 全局轻微衰减（遗忘）：仅当本次激活确实增强了出边时发生——无操作激活不应触发全局遗忘。
-    // 不逐条记 trace（避免链爆炸），汇总衰减 trace 记在首个实际衰减的突触上。
-    if (enhanced.length > 0 && this.opts.decayPerActivation > 0 && opts.decay !== false) {
-      const others = this.store.listAll().filter((s) => !direct.some((d) => d.id === s.id));
-      let decayed = 0;
-      let firstDecayedId: string | null = null;
-      for (const s of others) {
-        const w = Math.max(this.opts.minWeight, s.weight - this.opts.decayPerActivation);
-        if (w !== s.weight) {
-          this.store.updateActivation(s.id, {
-            weight: w,
-            activationCount: s.activationCount,
-            lastActivatedAt: s.lastActivatedAt,
-          });
-          decayed += this.opts.decayPerActivation;
-          if (!firstDecayedId) firstDecayedId = s.id;
-        }
-      }
-      // 衰减汇总 trace 记在首个实际衰减的突触上（其验证链如实反映本次全局衰减）
-      if (decayed > 0 && firstDecayedId) {
-        const firstDecayed = this.store.get(firstDecayedId);
-        if (firstDecayed) this.appendTrace(firstDecayed, "decay", -this.opts.decayPerActivation, `global decay (${others.length} synapses)`, now);
+    // 增量衰减：不逐条写库；仅记录汇总衰减 trace 在首个非激活突触上（O(1) 索引查询，非全表遍历）。
+    if (enhanced.length > 0 && willDecay) {
+      const firstOther = this.store.listFirstNotBySource(sourceId);
+      if (firstOther) {
+        this.appendTrace(firstOther, "decay", -this.opts.decayPerActivation, `global decay (epoch=${newEpoch})`, now);
       }
     }
     return enhanced;
+  }
+
+  /**
+   * 计算某突触的「有效强度」：存储 weight 扣除自上次结算以来的累计衰减。
+   * 纯读，不改库；写路径（updateActivation）会先结算再写。
+   */
+  private effectiveWeight(s: Synapse, epoch = this.store.getGlobalEpoch()): number {
+    const decayed = s.weight - this.opts.decayPerActivation * Math.max(0, epoch - (s.decayEpoch ?? 0));
+    return Math.max(this.opts.minWeight, decayed);
   }
 
   /**
@@ -136,9 +142,9 @@ export class SynapseEngine {
         const existing = visited.get(s.id);
         if (!existing || activation > existing.activation) {
           visited.set(s.id, { activation, hops: cur.hops + 1 });
-          // Hebbian 增强
+          // Hebbian 增强（基于有效强度结算）
           const next = this.store.updateActivation(s.id, {
-            weight: clamp01(s.weight + 0.05),
+            weight: clamp01(this.effectiveWeight(s) + 0.05),
             activationCount: s.activationCount + 1,
             lastActivatedAt: now,
           });
@@ -179,16 +185,17 @@ export class SynapseEngine {
     const add = (s: Synapse, match: string) => {
       const existing = candidates.get(s.targetId);
       if (existing) return; // 取第一条 via（更直接）
+      const effWeight = this.effectiveWeight(s);
       const activationBonus = Math.min(s.activationCount, 10) / 10 * 0.3;
       const fresh = s.lastActivatedAt > 0 ? clamp01((now - s.lastActivatedAt) / (24 * 3600 * 1000)) : 0;
       const freshness = (1 - fresh) * 0.1;
-      const score = clamp01(s.weight + activationBonus + freshness);
+      const score = clamp01(effWeight + activationBonus + freshness);
       candidateSource.set(s.targetId, s.id);
       candidates.set(s.targetId, {
         targetId: s.targetId,
         targetType: s.targetType,
         score,
-        reason: `via ${s.sourceId} -> ${s.targetId} (weight=${s.weight.toFixed(2)}, activations=${s.activationCount}, match=${match})`,
+        reason: `via ${s.sourceId} -> ${s.targetId} (weight=${effWeight.toFixed(2)}, activations=${s.activationCount}, match=${match})`,
         via: [s.sourceId, s.targetId],
       });
     };
@@ -240,8 +247,9 @@ export class SynapseEngine {
     return this.store.stats();
   }
 
-  storeSnapshot() {
-    return this.store.listAll();
+  storeSnapshot(): Synapse[] {
+    // 返回「有效强度」视图（存储 weight 经惰性衰减折算），供调用方/测试观察真实强度。
+    return this.store.listAll().map((s) => ({ ...s, weight: this.effectiveWeight(s) }));
   }
 
   // ── 内部 ──────────────────────────────────────────────────────────

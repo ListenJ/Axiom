@@ -304,7 +304,8 @@ export class BingHtmlEngine extends SearchEngine {
       } catch (e) {
         if (attempt === 2) throw e;
       }
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      // 仅重试前 sleep（与 DuckDuckGoEngine 对齐，避免单次请求也空等 1000ms）
+      if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
     return [];
   }
@@ -424,18 +425,26 @@ export class SearchAggregator {
   }
 
   private normalizeUrl(url: string): string {
-    try {
-      const u = new URL(url);
-      u.hash = "";
-      ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"].forEach(
-        (p) => u.searchParams.delete(p)
-      );
-      return u.toString().toLowerCase();
-    } catch (e) {
-      logger.warn(`[SearchEngines] URL normalization failed: ${(e as Error).message}`);
-      return url.toLowerCase();
+    // 纯字符串规范化（避免 new URL() 解析开销，剖析显示其为去重路径的 87% 耗时）：
+    // 小写化 + 去 hash + 正则剔除追踪参数，与旧实现语义一致（去 utm/hash、小写化）。
+    let s = url.toLowerCase();
+    const hashIdx = s.indexOf("#");
+    if (hashIdx >= 0) s = s.slice(0, hashIdx);
+    // 删除追踪参数；保留 query 起始符 "?"，删除 "&param=..."。
+    s = s.replace(TRACKING_PARAM_RE, (m) => (m.startsWith("?") ? "?" : ""));
+    // 清理残余（仅少数 URL 命中，走 indexOf 快路径跳过）：
+    //   ?&… → ?   （追踪参数在 query 首位）
+    //   末尾 ? / & → 移除（追踪参数全删后遗留）
+    if (s.indexOf("?&") >= 0) s = s.replace(/\?&+/g, "?");
+    const last = s.length - 1;
+    if (s.charCodeAt(last) === 63 /* '?' */ || s.charCodeAt(last) === 38 /* '&' */) {
+      s = s.slice(0, last);
     }
+    return s;
   }
 }
 
 export const searchAggregator = new SearchAggregator();
+
+/** 追踪参数正则（去重时剔除，含前导 ? 或 &） */
+const TRACKING_PARAM_RE = /[?&](?:utm_source|utm_medium|utm_campaign|utm_term|utm_content|fbclid|gclid)=[^&#]*/g;

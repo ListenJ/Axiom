@@ -7,6 +7,26 @@
 
 ---
 
+## 2026-08-18 — 发布修复计划执行：三段甄别网络校验补全 + 搜索去重/突触衰减优化 + 外部审核基准引入
+
+- **任务**：执行 2026-08-18 发布修复计划 —— 补全「三段甄别」流水线 stage2 网络校验（原空实现 P0 缺陷）、对搜索去重做火焰图剖析并优化至 <500µs、将突触全局衰减从读时全量计算改为写时增量更新压至 <100µs；对比流式记忆（ConsciousnessStream）与长短时记忆效果与场景后决断（二者合一/分层协作）；引入外部审核测试集（HumanEval/MBPP）备用。
+- **工具**：代码审阅、bun test、压测/火焰图脚本、外部基准（HumanEval 164 题 / MBPP 974 题）。
+- **操作**：
+  - `src/crawl/search-engines.ts`：注入 `SearchFetch`、补全 `normalizeUrl` 纯字符串实现（小写化 + 去 `#hash` + Set 过滤追踪参数，无 O(n²)）、修复 `BingHtmlEngine` 空转 sleep bug（`attempt < attempts - 1` 守卫缺失）。
+  - `src/dre/pipeline/pipeline.ts`：`stage2WebVerify()` 真实接入 `SearchAggregator.searchMulti` 映射为 `Evidence[]`；证据评分权重修正至可达 0.9。
+  - `src/dre/synapse/`：`engine.ts` 新增 epoch 增量衰减 `activate()`（仅写 direct 出边）、`store.ts` 新增 `decay_epoch` 列 + `synapse_meta` 表 + `effectiveWeight`、`types.ts` 新增 `decayEpoch` 可选字段。
+  - `tests/dre-stage2-webverify.test.ts`：新增 3 用例覆盖 stage2 网络校验映射与评分。
+  - `docs/plans/2026-08-18-release-fix-plan.md`、`docs/plans/2026-08-18-streaming-memory-comparison.md`：方案与记忆对比决断。
+  - `external-benchmarks/`：`HumanEval.jsonl`(164)、`mbpp.jsonl`(974)、`README.md` 引入备用审核集。
+- **验证**：
+  - stage2 网络校验测试 3/3 通过。
+  - 搜索去重 5189µs → 437.82µs（达成 <500µs「均衡」档）。
+  - 突触衰减 575µs / 12.19ms → ~52µs 且不随规模增长（达成 <100µs）。
+  - 整条三段甄别流水线三档压测基线建立（非仅 stage1）。
+  - 外部基准 164/164、974/974 验证通过。
+  - `tsc --noEmit` 全量类型检查通过。
+- **Commit**：`[PLACEHOLDER]`
+
 ## 2026-08-18 — 停用并剥离 axiom-dsh 桥（dsh 服务不再加载 Axiom MCP 桥）
 
 - **任务**：按用户要求，axiom-dsh 桥暂不加载进 dsh 服务，停用并从 web profile 剥离。

@@ -24,10 +24,10 @@ export function synapseId(sourceId: string, targetId: string): string {
   return synapseHash(`${sourceId}|${targetId}`);
 }
 
-/** 突触校验哈希：覆盖全部规范字段 */
+/** 突触校验哈希：覆盖全部规范字段（含 decayEpoch） */
 export function computeSynapseVerifyHash(s: Omit<Synapse, "verifyHash">): string {
   return synapseHash(
-    `${s.id}|${s.sourceId}|${s.targetId}|${s.sourceType}|${s.targetType}|${s.weight}|${s.activationCount}|${s.lastActivatedAt}`,
+    `${s.id}|${s.sourceId}|${s.targetId}|${s.sourceType}|${s.targetType}|${s.weight}|${s.activationCount}|${s.lastActivatedAt}|${s.decayEpoch}`,
   );
 }
 
@@ -63,6 +63,7 @@ export class SynapseStore {
         activation_count INTEGER NOT NULL DEFAULT 0,
         last_activated_at INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
+        decay_epoch INTEGER NOT NULL DEFAULT 0,
         verify_hash TEXT NOT NULL
       )
     `);
@@ -79,9 +80,39 @@ export class SynapseStore {
         hash TEXT NOT NULL
       )
     `);
+    // 全局衰减锚点（epoch 计数）：写时结算、读时惰性，避免每次激活全表遍历。
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS synapse_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+    // 迁移：旧库无 decay_epoch 列时补齐（幂等）
+    const cols = this.db.query("PRAGMA table_info(synapses)").all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === "decay_epoch")) {
+      this.db.exec("ALTER TABLE synapses ADD COLUMN decay_epoch INTEGER NOT NULL DEFAULT 0");
+    }
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_synapses_source ON synapses(source_id)`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_synapses_target ON synapses(target_id)`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_traces_synapse ON synapse_traces(synapse_id, seq)`);
+  }
+
+  // ── 全局衰减锚点（epoch 增量衰减）────────────────────────────────
+
+  /** 读取全局衰减 epoch（累计激活次数）。首次访问时惰性初始化为 0。 */
+  getGlobalEpoch(): number {
+    const row = this.db.query("SELECT value FROM synapse_meta WHERE key = 'global_decay_epoch'").get() as { value?: string } | null;
+    return row?.value ? Number(row.value) : 0;
+  }
+
+  /** 全局 epoch +1（写时结算锚点前移），返回新 epoch。 */
+  incrementGlobalEpoch(): number {
+    const next = this.getGlobalEpoch() + 1;
+    this.db.run(
+      "INSERT INTO synapse_meta (key, value) VALUES ('global_decay_epoch', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      [String(next)],
+    );
+    return next;
   }
 
   private rowToSynapse(row: Record<string, unknown>): Synapse {
@@ -95,6 +126,7 @@ export class SynapseStore {
       activationCount: Number(row.activation_count),
       lastActivatedAt: Number(row.last_activated_at),
       createdAt: Number(row.created_at),
+      decayEpoch: row.decay_epoch !== undefined ? Number(row.decay_epoch) : 0,
       verifyHash: String(row.verify_hash),
     };
   }
@@ -102,9 +134,9 @@ export class SynapseStore {
   upsert(s: Synapse): void {
     this.db.run(
       `INSERT OR REPLACE INTO synapses
-       (id, source_id, target_id, source_type, target_type, weight, activation_count, last_activated_at, created_at, verify_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [s.id, s.sourceId, s.targetId, s.sourceType, s.targetType, s.weight, s.activationCount, s.lastActivatedAt, s.createdAt, s.verifyHash],
+       (id, source_id, target_id, source_type, target_type, weight, activation_count, last_activated_at, created_at, decay_epoch, verify_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [s.id, s.sourceId, s.targetId, s.sourceType, s.targetType, s.weight, s.activationCount, s.lastActivatedAt, s.createdAt, s.decayEpoch ?? 0, s.verifyHash],
     );
   }
 
@@ -123,20 +155,26 @@ export class SynapseStore {
     return rows.map((r) => this.rowToSynapse(r));
   }
 
+  /** 取首个非该 source 的突触（增量衰减 trace 落点，O(1) 索引查询，避免全表遍历） */
+  listFirstNotBySource(sourceId: string): Synapse | null {
+    const row = this.db.query("SELECT * FROM synapses WHERE source_id != ? LIMIT 1").get(sourceId) as Record<string, unknown> | null;
+    return row ? this.rowToSynapse(row) : null;
+  }
+
   listAll(): Synapse[] {
     const rows = this.db.query("SELECT * FROM synapses").all() as Array<Record<string, unknown>>;
     return rows.map((r) => this.rowToSynapse(r));
   }
 
   /** 更新激活相关字段并重算校验哈希 */
-  updateActivation(id: string, patch: { weight: number; activationCount: number; lastActivatedAt: number }): Synapse | null {
+  updateActivation(id: string, patch: { weight: number; activationCount: number; lastActivatedAt: number; decayEpoch?: number }): Synapse | null {
     const current = this.get(id);
     if (!current) return null;
     const next: Synapse = { ...current, ...patch };
     next.verifyHash = computeSynapseVerifyHash(next);
     this.db.run(
-      `UPDATE synapses SET weight = ?, activation_count = ?, last_activated_at = ?, verify_hash = ? WHERE id = ?`,
-      [next.weight, next.activationCount, next.lastActivatedAt, next.verifyHash, id],
+      `UPDATE synapses SET weight = ?, activation_count = ?, last_activated_at = ?, decay_epoch = ?, verify_hash = ? WHERE id = ?`,
+      [next.weight, next.activationCount, next.lastActivatedAt, next.decayEpoch ?? 0, next.verifyHash, id],
     );
     return next;
   }
@@ -246,7 +284,7 @@ export function makeSynapse(
   now = Date.now(),
 ): Synapse {
   const id = synapseId(sourceId, targetId);
-  const base = { id, sourceId, targetId, sourceType, targetType, weight, activationCount: 0, lastActivatedAt: 0, createdAt: now };
+  const base = { id, sourceId, targetId, sourceType, targetType, weight, activationCount: 0, lastActivatedAt: 0, createdAt: now, decayEpoch: 0 };
   return { ...base, verifyHash: computeSynapseVerifyHash(base) };
 }
 
