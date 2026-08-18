@@ -8,6 +8,16 @@
 ---
 
 
+## 2026-08-19 — DRE 架构文档 + awesome-dsh-plugin 上架 PR
+
+- **任务**：① 产出清晰的 DRE 架构文档（分层/模块/数据流/插件映射）；② 按 DSH 插件市场机制提交上架 PR（awesome-dsh-plugin registry），提升插件知名度。
+- **工具**：源码审阅（src/dre/ 全部子模块头部）、gh（fork/pr create）、git、node（generate-readme.mjs）。
+- **操作**（文件级）：
+  - 新增 `docs/DRE-ARCHITECTURE.md`：设计原则（确定性/可追溯/可回放/防幻觉）、7 层架构（内核/存储/推理验证/认知记忆/编排执行/运行时基础/人格约束）、15+ 模块职责、3 条关键数据流（三段甄别/认知闭环/意识流）、dre__* 工具 ↔ DRE 模块映射。
+  - 上架 PR：fork awesome-dsh-plugin → 新增 `data/plugins/ListenJ__axiom-dre-dsh.yml`（category: tools，en/zh 双语描述）→ `node scripts/generate-readme.mjs` 重新生成 README.md/README.zh.md（1464 条目）→ 提交推送 → PR #1797（https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1797）。
+- **验证**：README 重新生成后条目出现在 Tools & Capabilities 分类（en+zh）；PR 已创建（state=OPEN）。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE 插件 README 精简与脱敏 + 代码注释补充（同步开源镜像）
 
 - **任务**：按用户要求清理 README——删除测试内容（远端实测节）与暴露整体项目的信息（与单块插件 axiom-dsh 关系、monorepo 路径、内部规划），补充清晰的安装/卸载命令（github: 源），整体精简；并为 src/ 代码补充关键注释（行为不变）。
