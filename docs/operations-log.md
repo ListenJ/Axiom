@@ -8,6 +8,15 @@
 ---
 
 
+## 2026-08-19 — DRE 插件开源到 GitHub（ListenJ/axiom-dre-dsh，PUBLIC）
+
+- **任务**：把 axiom-dre-dsh 作为独立公开插件仓库发布到 GitHub，验证可公开拉取。
+- **工具**：gh CLI（repo create --public --source --push）、git。
+- **操作**：创建独立镜像仓库（.tmp/axiom-dre-dsh-oss，含 src/tests/README/LICENSE/package.json/cordis.patch.yml/bun.lock，不含 lib/node_modules）→ git init main → 初始提交 → `gh repo create ListenJ/axiom-dre-dsh --public --source <镜像> --push`。
+- **验证**：仓库 visibility=PUBLIC（gh repo view）；`git ls-remote https://github.com/ListenJ/axiom-dre-dsh` 可拉取（main=9d0c3bc）；内容清单含 LICENSE/README/src/tests/package.json。
+- **说明**：主仓库（internal211）保持 monorepo 形态，GitHub 为插件独立发布镜像；后续更新插件可再次推送镜像同步。
+- **Commit**：待回填
+
 ## 2026-08-19 — 本地 Agent 完整可用 + DRE 插件开源准备（LICENSE/元数据/开源 README）
 
 - **任务**：把 axiom-dre-dsh 在本地 Agent（DSH web profile）安装为完整可用状态；为开源到 GitHub 做代码打磨（MIT LICENSE、package.json 元数据、开源 README、前置依赖说明）。
@@ -16,7 +25,7 @@
   - 本地安装：`dsh plugin --profile web add D:/openclaw-fusion/plugins/dre-dsh`（deps+bundles 写入，`--dump-config` 确认 `id: dre` 补丁合成）；`dsh web` 启动验证：web 服务监听 3080，插件 apply() 拉起 `bun run src/mcp/server.ts --stdio`（MCP 桥全链路可用）。
   - 开源打磨：新增 `plugins/dre-dsh/LICENSE`（MIT）；`package.json` 补 repository/homepage/bugs/keywords；`README.md` 加开源仓库链接、热插拔徽标说明、前置依赖段（需可运行 Axiom 仓库，axiomHome 指向）、安装段路径通用化。
 - **验证**：插件 25/25 测试全绿；build/typecheck 通过；本地 web profile 启动正常且 MCP 拉起。
-- **Commit**：待回填
+- **Commit**：`40b4dde`
 
 ## 2026-08-19 — DRE-DSH 插件全面审核与轻量化优化（code review + 死代码清理）
 
