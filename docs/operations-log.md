@@ -18,7 +18,7 @@
   - `docs/DRE-ARCHITECTURE.md`：第五节补「边界（事实）」与「为什么是桥」说明。
   - 同步开源镜像并推送 GitHub（e625a49）。
 - **验证**：主仓库与 GitHub README 均含清晰架构边界说明。
-- **Commit**：待回填
+- **Commit**：`d4f1ff1`
 
 ## 2026-08-19 — README 去掉「独立于宿主项目」表述，直接描述插件本身
 
