@@ -507,17 +507,17 @@
 
 - **操作（文件级）**：
 
-  - 前一轮 8 文件（本轮纳入验证与提交）：src/main.ts（/login 入 SPA_ROUTES + isStaticAsset() 静态资源豁免限流）、rontend/src/lib/api.ts（git.branch 数组类型）、Sidebar.tsx（分支按 .name 渲染，修 React #31 崩溃）、Header.tsx（字标 OC→AX、系统菜单 lg 隐藏）、Settings.tsx（外观卡片 flex-wrap）、Perf.tsx（错误横幅友好文案）、Tabs.tsx（whitespace-nowrap）、Perf.test.tsx（断言同步）。
+  - 前一轮 8 文件（本轮纳入验证与提交）：src/main.ts（/login 入 SPA_ROUTES + isStaticAsset() 静态资源豁免限流）、frontend/src/lib/api.ts（git.branch 数组类型）、Sidebar.tsx（分支按 b.name 渲染，修 React #31 崩溃）、Header.tsx（字标 OC→AX、系统菜单 lg 隐藏）、Settings.tsx（外观卡片 flex-wrap）、Perf.tsx（错误横幅友好文案）、Tabs.tsx（whitespace-nowrap）、Perf.test.tsx（断言同步）。
 
-  - 本轮新增 6 文件：Settings.tsx（主题/强调色卡片 min-w-[10rem] sm:min-w-0，修移动端单字竖排 P0）、StatsBar.tsx（text-2xs→text-xs + flex-wrap/gap-4/whitespace-nowrap，修移动端"已完成 68"断行）、components/ui/StatCard.tsx（标签 text-muted→text-secondary，浅色对比度 3.85→5.9:1）、src/utils/security.ts（CSP style-src/font-src 放行 fonts.googleapis.com / fonts.gstatic.com，恢复 Inter/JetBrains Mono）、Header.tsx+Sidebar.tsx（g-[var(--accent-gradient)]→g-[image:var(--accent-gradient)]，修复 AX 徽标与"开启新对话"按钮渐变背景从未渲染——浅色下白字落米色背景近乎不可见）。
+  - 本轮新增 6 文件：Settings.tsx（主题/强调色卡片 min-w-[10rem] sm:min-w-0，修移动端单字竖排 P0）、StatsBar.tsx（text-2xs→text-xs + flex-wrap/gap-4/whitespace-nowrap，修移动端"已完成 68"断行）、components/ui/StatCard.tsx（标签 text-muted→text-secondary，浅色对比度 3.85→5.9:1）、src/utils/security.ts（CSP style-src/font-src 放行 fonts.googleapis.com / fonts.gstatic.com，恢复 Inter/JetBrains Mono）、Header.tsx+Sidebar.tsx（bg-[var(--accent-gradient)]→bg-[image:var(--accent-gradient)]，修复 AX 徽标与"开启新对话"按钮渐变背景从未渲染——浅色下白字落米色背景近乎不可见）。
 
   - 定位并解决 /chat 白屏（React #299）：根因是过期服务进程伺服被截断的 index.html（Content-Length 644 < 文件 1228）；按当前代码重启后端后页面正常渲染。
 
   - public/index.html 随新 bundle 更新（仓库唯一被追踪的 SPA 包装文件，assets 由构建同步且 gitignore）。
 
-- **验证**：前端 tsc ✅、vitest 278/278 ✅、后端 tsc ✅、后端 un test tests/ 2199 pass / 28 skip / 5 fail（5 项均为 HEAD 已存在：Chat.tsx 恰 650 行超限、Sidebar 无 py-2.5、EventBus 并发、GitHub 网络超时；与本轮改动无关）。DOM 探针：渐变背景已渲染、移动端单字竖排消失、StatsBar 单行。SenseNova 复评：移动端设置 5→9.5、浅色 chat 7.5→8.5、tokens 6.5→8、浅色设置 7.8→9、暗色 chat 6.2→7。
+- **验证**：前端 tsc ✅、vitest 278/278 ✅、后端 tsc ✅、后端 bun test tests/ 2199 pass / 28 skip / 5 fail（5 项均为 HEAD 已存在：Chat.tsx 恰 650 行超限、Sidebar 无 py-2.5、EventBus 并发、GitHub 网络超时；与本轮改动无关）。DOM 探针：渐变背景已渲染、移动端单字竖排消失、StatsBar 单行。SenseNova 复评：移动端设置 5→9.5、浅色 chat 7.5→8.5、tokens 6.5→8、浅色设置 7.8→9、暗色 chat 6.2→7。
 
-- **Commit**： b61d4c（已推送 internal211/master）
+- **Commit**：0b61d4c（已推送 internal211/master）
 
 ## 2026-08-06 — 接入 SenseNova 视觉模型 + 全站视觉审核落盘
 
@@ -3434,10 +3434,10 @@
 - **任务**：(1) 首页与对话彻底合并——移除"首页"一级导航入口，/ 重定向 /chat，导航快捷键 1-6 重新映射；(2) 新增可开合终端栏（Header 按钮 + Ctrl+ 快捷键，命令经 /sandbox/execute 执行，stdout/stderr/退出码展示、命令历史 ↑/↓、清空、执行中禁用）；(3) 右上角摘要面板（Git 状态 + 系统统计，30s 轮询）与 Git 状态徽标（分支 + 变更数，点击跳 /git）。
 - **工具**：主代理（TDD：TerminalPanel 6 用例、GitStatusBadge 4 用例）、RunCommand（tsc / vitest / Playwright）。
 - **执行的操作（文件级）**：
-  - rontend/src/lib/nav.ts：移除 home 项，chat 为 1 号入口（1-6 对应 对话/搜索/代码/知识/模型/系统）；rontend/src/App.tsx：/ index 改 Navigate /chat；rontend/src/pages/Header.tsx：新增终端按钮（Ctrl+，展开态高亮）+ 摘要按钮与 SummaryPanel（Git 状态 + 系统统计下拉）+ GitStatusBadge 徽标；新增 components/layout/GitStatusBadge.tsx（30s 轮询 /api/git/status，干净✓/变更数徽标，失败静默隐藏）+ 测试 4 用例；components/layout/Layout.tsx：终端开合状态 + Ctrl+ 全局快捷键 + TerminalPanel 接入（z-50 底部悬浮）；新增 components/terminal/TerminalPanel.tsx（注入式 onExecute 便于测试）+ 测试 6 用例；rontend/src/lib/api.ts：新增 endpoints.sandbox.execute/status 与 endpoints.git.status/branch。
-  - 测试同步：rontend/src/lib/nav.test.ts（home→chat 断言）、rontend/src/hooks/useGlobalHotkeys.test.tsx（1→/chat）、e2e/smoke.spec.ts（导航列表去掉首页）、e2e/keyboard.spec.ts（1-6 新映射）；新增 e2e/terminal-summary.spec.ts（5 用例：按钮开合/Ctrl+/命令执行输出/摘要面板/Git 徽标）。
+  - frontend/src/lib/nav.ts：移除 home 项，chat 为 1 号入口（1-6 对应 对话/搜索/代码/知识/模型/系统）；frontend/src/App.tsx：/ index 改 Navigate /chat；frontend/src/pages/Header.tsx：新增终端按钮（Ctrl+，展开态高亮）+ 摘要按钮与 SummaryPanel（Git 状态 + 系统统计下拉）+ GitStatusBadge 徽标；新增 components/layout/GitStatusBadge.tsx（30s 轮询 /api/git/status，干净✓/变更数徽标，失败静默隐藏）+ 测试 4 用例；components/layout/Layout.tsx：终端开合状态 + Ctrl+ 全局快捷键 + TerminalPanel 接入（z-50 底部悬浮）；新增 components/terminal/TerminalPanel.tsx（注入式 onExecute 便于测试）+ 测试 6 用例；frontend/src/lib/api.ts：新增 endpoints.sandbox.execute/status 与 endpoints.git.status/branch。
+  - 测试同步：frontend/src/lib/nav.test.ts（home→chat 断言）、frontend/src/hooks/useGlobalHotkeys.test.tsx（1→/chat）、e2e/smoke.spec.ts（导航列表去掉首页）、e2e/keyboard.spec.ts（1-6 新映射）；新增 e2e/terminal-summary.spec.ts（5 用例：按钮开合/Ctrl+/命令执行输出/摘要面板/Git 徽标）。
 - **验证**：
-  - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 37 files / 237 tests 全绿（新增 TerminalPanel 6 + GitStatusBadge 4）。
+  - 前端 bunx tsc --noEmit → 0 错误；bunx vitest run → 37 files / 237 tests 全绿（新增 TerminalPanel 6 + GitStatusBadge 4）。
   - 
 pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）。
 - **Commit**：`1561772`。
@@ -3466,10 +3466,10 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **工具**：主代理（动画/布局/集成验证）、并行子代理（PTY 后端 + xterm 前端 + 审批门，commit 3f67321 已先行提交）、RunCommand（tsc / bun test / audit:runtime / vitest / Playwright）。
 - **执行的操作（文件级）**：
   - 后端（3f67321 + 工作区）：src/terminal/pty-session.ts（PtySession 深模块：spawn/写/订阅/关闭/closeAll + notify）+ src/routes/terminal.ts（创建/SSE/输入/关闭/列表 5 路由，已注册）；src/utils/command-safety.ts（sanitizeCommand 从 terminal 工具抽取共用）+ src/terminal/command-gate.ts（审批门）+ src/routes/terminal.ts 接入 gate（gates 注册表 + 退出清理）；src/mcp/tools/terminal.ts 改引 command-safety；src/core/runtime-audit.ts checkPtyCleanup + checkPtyApproval（16 项）；src/main.ts pty-sessions 关闭钩子；	ests/pty-session.test.ts（5 用例真实子进程往返）、	ests/command-gate.test.ts（11 用例）。
-  - 前端（3f67321 + 本轮）：rontend/src/lib/pty-terminal.ts（PtyTerminal 适配器：create/SSE 订阅/input/close）+ 测试；components/terminal/TerminalPanel.tsx 重写为 xterm（@xterm/xterm + addon-fit 已安装）+ 测试更新；components/layout/Layout.tsx 终端面板 AnimatePresence slide-up（y:100%→0，0.28s cubic-bezier 标准曲线，流式挤压主区，reduced-motion 直接显示）。
+  - 前端（3f67321 + 本轮）：frontend/src/lib/pty-terminal.ts（PtyTerminal 适配器：create/SSE 订阅/input/close）+ 测试；components/terminal/TerminalPanel.tsx 重写为 xterm（@xterm/xterm + addon-fit 已安装）+ 测试更新；components/layout/Layout.tsx 终端面板 AnimatePresence slide-up（y:100%→0，0.28s cubic-bezier 标准曲线，流式挤压主区，reduced-motion 直接显示）。
 - **验证**：
-  - 后端 unx tsc --noEmit → 0 错误；pty-session 5 + command-gate 11 等 45 项全绿；un run audit:runtime → 16/16 pass。
-  - 前端 unx tsc --noEmit → 0 错误；unx vitest run → 242 全绿。
+  - 后端 bunx tsc --noEmit → 0 错误；pty-session 5 + command-gate 11 等 45 项全绿；bun run audit:runtime → 16/16 pass。
+  - 前端 bunx tsc --noEmit → 0 错误；bunx vitest run → 242 全绿。
   - e2e terminal-summary/smoke/responsive 15/15 通过（终端开合/交互会话输入/摘要/Git 徽标）。
 - **Commit**：`5b002c3`（3f67321 由并行子代理提交）。
 
@@ -3480,7 +3480,7 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **任务**：xterm 终端配色硬编码（#d4d4d8/#22d3ee）与 Ember 主题不符；面板背景/头部与底栏（StatsBar）不统一。修复：终端前景/光标/ANSI 色板从 CSS 变量实时映射，主题切换联动；面板改底栏同款 bg-secondary + 头部 surface/60 玻璃。
 - **工具**：主代理（TDD：xterm-theme 4 用例）、RunCommand（tsc / vitest / Playwright 视觉验证）。
 - **执行的操作（文件级）**：
-  - 新增 rontend/src/components/terminal/xterm-theme.ts（buildTerminalTheme 纯函数：--text→foreground、--accent→cursor、--on-accent→cursorAccent、accent 35%→selection、语义色→ANSI 红绿黄蓝 + bright 系；cssVarReader 从 getComputedStyle 读取）+ 测试 4 用例。
+  - 新增 frontend/src/components/terminal/xterm-theme.ts（buildTerminalTheme 纯函数：--text→foreground、--accent→cursor、--on-accent→cursorAccent、accent 35%→selection、语义色→ANSI 红绿黄蓝 + bright 系；cssVarReader 从 getComputedStyle 读取）+ 测试 4 用例。
   - TerminalPanel.tsx：Terminal 初始化用 buildTerminalTheme；订阅 useApp theme，主题切换时 term.options.theme 重建；面板容器 bg-secondary + 头部 surface/60 玻璃（与 StatsBar 同款 border-t 层级衔接）。
 - **验证**：前端 tsc 0 错误；vitest 246 全绿（+4）；e2e terminal-summary/theme/smoke 14/14 通过；Playwright 实测 dark 前景 = #f3ede4（--text），面板背景随 dark/light 切换（#171410 ↔ 白），xterm DOM renderer 正常渲染。
 - **Commit**：`b4e4452`。
@@ -3489,9 +3489,9 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 
 ## 2026-08-02 13:50 +0800 — 布局重排：终端改为底部覆盖式浮层（配合底栏）
 
-- **任务**：用户反馈"终端没有覆盖上去、前端布局乱"。根因：终端面板放在主区 flex 流内（shrink-0 挤压 main），且 fixed bottom-0 会盖住底栏 StatsBar。重排：终端改为 fixed 覆盖式浮层（slide-up 动画保留），bottom 让位底栏——桌面 ottom-8（StatsBar 32px 上方），移动端 ottom-24（BottomNav 64 + StatsBar 32 上方）；main 不再被挤压。
+- **任务**：用户反馈"终端没有覆盖上去、前端布局乱"。根因：终端面板放在主区 flex 流内（shrink-0 挤压 main），且 fixed bottom-0 会盖住底栏 StatsBar。重排：终端改为 fixed 覆盖式浮层（slide-up 动画保留），bottom 让位底栏——桌面 bottom-8（StatsBar 32px 上方），移动端 bottom-24（BottomNav 64 + StatsBar 32 上方）；main 不再被挤压。
 - **工具**：主代理（布局探测：Playwright 逐区块 getBoundingClientRect 校验桌面/移动端打开前后）、RunCommand（tsc / vitest / Playwright）。
-- **执行的操作（文件级）**：rontend/src/components/layout/Layout.tsx 终端 motion.div 从 flex 流内 shrink-0 改为 ixed inset-x-0 bottom-24 z-50 lg:bottom-8（覆盖式 + 底栏让位）。
+- **执行的操作（文件级）**：frontend/src/components/layout/Layout.tsx 终端 motion.div 从 flex 流内 shrink-0 改为 fixed inset-x-0 bottom-24 z-50 lg:bottom-8（覆盖式 + 底栏让位）。
 - **验证**：桌面（1440×900）main 高度打开终端前后不变（812px，不再被挤压）；终端 y=644-868、StatsBar 868-900 始终可见；移动端（390×844）终端 bottom=748 在 BottomNav(780) 之上。tsc 0 错误；vitest 246 全绿；e2e terminal-summary/responsive/smoke 15/15 通过。
 - **Commit**：`fbde2df`。
 
@@ -3639,8 +3639,8 @@ pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）�
 - **任务**：完成 FRONTEND-REVIEW-2026-08-03 第 5 节剩余建议项：(1) StatsBar 缓存率 emoji（💾）改为 lucide Database 图标，统一视觉语言；(2) 设置页 7 个硬编码 Collapsible 改为 SETTING_SECTIONS 数据驱动渲染（sectionRenderers 映射，图标/标题/描述/展开状态全部来自配置，新增分区只需注册渲染器）。
 - **工具**：Read、Edit、Bash（npm run lint / npm run test:run）。
 - **执行的操作（文件级）**：
-  - rontend/src/components/layout/StatsBar.tsx：💾 emoji → Database lucide 图标（size-3 text-info），与其他指标项风格一致。
-  - rontend/src/pages/Settings.tsx：新增 SectionRenderer 类型 + sectionRenderers 映射（appearance/behavior/data/models/agent/gateway/diagnostics 七区）；return 中 SETTING_SECTIONS.map 渲染 Collapsible（图标取自 section.icon，描述来自 sectionMeta 映射）；移除未使用的 Activity/Server/Cpu 导入与 setTheme 解构；toast 类型补 'warning'；prefs 类型明确为 ChatPrefs。
+  - frontend/src/components/layout/StatsBar.tsx：💾 emoji → Database lucide 图标（size-3 text-info），与其他指标项风格一致。
+  - frontend/src/pages/Settings.tsx：新增 SectionRenderer 类型 + sectionRenderers 映射（appearance/behavior/data/models/agent/gateway/diagnostics 七区）；return 中 SETTING_SECTIONS.map 渲染 Collapsible（图标取自 section.icon，描述来自 sectionMeta 映射）；移除未使用的 Activity/Server/Cpu 导入与 setTheme 解构；toast 类型补 'warning'；prefs 类型明确为 ChatPrefs。
 - **验证**：
 pm run lint（tsc --noEmit）0 错误；
 pm run test:run 41 files / 268 tests 全绿。
@@ -3652,7 +3652,7 @@ pm run test:run 41 files / 268 tests 全绿。
 
 - **任务**：用户反馈"终端进入的空间和当前首页的空间并不好"。几何探测定位：欢迎模式（无消息时即首页）内容整体偏上（h1 y=201、输入框 y=514），下半空间浪费、输入框悬空；终端浮层（224px）与底栏配合需验证。
 - **工具**：Playwright 逐区块几何探测（getBoundingClientRect）、Read、Edit、Bash（lint / vitest）。
-- **执行的操作（文件级）**：rontend/src/pages/Chat.tsx 消息容器空状态加 min-h-full justify-center（m-auto 在 flex 链中需 flex-1 撑开才能垂直居中）。
+- **执行的操作（文件级）**：frontend/src/pages/Chat.tsx 消息容器空状态加 min-h-full justify-center（m-auto 在 flex 链中需 flex-1 撑开才能垂直居中）。
 - **验证**：
   - 修复后欢迎模式：h1 y=251、卡片 y=347、输入框 y=788（内容在输入栏上方空间居中，输入框贴底），对比修复前 h1 y=201 / 输入框 y=514（悬空偏上）。
   - 终端浮层打开：terminal y=644-868 与 StatsBar（y=868-900）零间隙衔接，无重叠无挤压；欢迎内容在终端上方正常显示。
@@ -3670,9 +3670,9 @@ pm run test:run 268 tests 全绿。
 - **执行的操作（文件级）**：
   - 	ests/e2e-layout.test.ts：fade-in 断言改为验证 Layout AnimatePresence 统一过渡（页面不再自含 fade-in）；StatCard 断言移除已归档的 Home、阈值 1000→800；600 行限制 → 650（Chat 业务复杂度说明）。
   - 	ests/responsive.test.ts：main padding 断言匹配 px-4 py-4 md:px-6 md:py-6 新写法；Header 搜索框断言改为系统菜单（overflow-x-auto + aria-label 系统菜单）；按钮 a11y 断言允许可见文本（文件/编辑/视图/帮助菜单触发钮）。
-  - rontend/src/pages/Chat.tsx：拆分 ChatComposer（输入栏，含模型圆环/思考强度）与 IdeOpenMenu（IDE 下拉）两个子组件，682 → 623 行。
-  - 新增 rontend/src/components/chat/ChatComposer.tsx、IdeOpenMenu.tsx。
-- **验证**：un test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端 
+  - frontend/src/pages/Chat.tsx：拆分 ChatComposer（输入栏，含模型圆环/思考强度）与 IdeOpenMenu（IDE 下拉）两个子组件，682 → 623 行。
+  - 新增 frontend/src/components/chat/ChatComposer.tsx、IdeOpenMenu.tsx。
+- **验证**：bun test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端 
 pm run lint 0 错误、
 pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局（h1 y=251、输入框 y=788）与 IDE 菜单展开均正常。
 - **Commit**：`43280d3`。
@@ -3685,7 +3685,7 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
 - **工具**：二分法（单文件配对扫描全 tests/ 目录）、Read、Edit、Bash（bun test / tsc）。
 - **执行的操作（文件级）**：
   - src/agents/intent-enhancer.ts：enhanceIntentWithLLM 增加第 4 参数 callProviderFn（依赖注入接缝，默认模块级 callProvider）——深模块原则"依赖作为参数传入"，测试不再需要 mock.module。
-  - 	ests/intent-enhancer.test.ts：移除 mock.module 注册；改为 setCallProviderImpl/akeCallProvider 注入 fake（含调用计数 callProviderCalls），所有用例改经 enhance() helper 传 fake；断言语义修正（边缘成功=0 次 zhipu 调用、边缘失败=1 次）。
+  - 	ests/intent-enhancer.test.ts：移除 mock.module 注册；改为 setCallProviderImpl/fakeCallProvider 注入 fake（含调用计数 callProviderCalls），所有用例改经 enhance() helper 传 fake；断言语义修正（边缘成功=0 次 zhipu 调用、边缘失败=1 次）。
   - 	ests/provider-caller-effort.test.ts：改用 process.env 注入 key + 每个用例内 mock fetch（beforeEach/afterEach 恢复），消除 mock 泄漏；新增 siliconflow 格式用例（enable_thinking/thinking_budget）。
 - **验证**：全量 bun test --run-in-band 从 7 fail → 3 fail（callProvider×3 全部消除）；剩余为环境性（discoverGitHubRepos 外网 TLS、B.3 并发 flaky 单独跑 12/12 通过、perf-extreme 基准抖动）；tsc 0 错误；intent-enhancer 30/30 + provider-caller-effort 3/3。
 - **Commit**：`38bc57c`（e2e spec 属本地产物不入库）。
@@ -3698,7 +3698,7 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
 ightbarOpen 默认 true，移动端以全屏抽屉（fixed inset-0 z-50）默认打开覆盖聊天区；e2e smoke/theme 断言基于旧 Header（独立主题按钮）过时。
 - **工具**：Playwright 逐区块几何探测（桌面/移动端）、Read、Edit、Bash（vitest / Playwright）。
 - **执行的操作（文件级）**：
-  - rontend/src/state/useApp.ts：新增 
+  - frontend/src/state/useApp.ts：新增 
 eadInitialRightbarOpen()——桌面（≥1024px）默认打开、移动端默认关闭；jsdom/无 matchMedia 环境安全降级 true（修复 10 个测试套件因 window.matchMedia 缺失失败）。
   - e2e/smoke.spec.ts：导航断言改 
 av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断言改验证系统菜单（文件/编辑/视图/帮助）+ 视图菜单含"切换主题"。
@@ -5529,7 +5529,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/crawl/search-fallback.test.ts（4 用例：duckduckgo 挑战→回退 bing-html、显式引擎也追加兜底、全失败空数组、默认引擎含 bing-html）
   - 修改 package.json（test:full 追加 7 个新测试文件）
 - Verification: bun run test:full 260/0（含新测试门禁）；全套件 2678（+4 回退，仅 DataPipeline 环境性 flaky）；tsc 干净；回退测试 10s→1.1s（重试门控）。
-- Commit: efd363f
+- Commit: ae92577
 
 ## 2026-08-17 - curlFetch 传输层单测（mock spawn 注入）+ 挂门禁
 
@@ -5539,7 +5539,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 新增 tests/crawl/curl-fetch.test.ts（3 用例：exit0→200/body、非零→502/statusText、参数透传 -x/-A/-H/-X/--data-binary/URL）
   - 修改 package.json（test:full 追加 curl-fetch.test.ts）
 - Verification: curl-fetch 3/3 过；bun run test:full 263/0（门禁含新测试）；全套件 2681（+3，失败均为环境性 flaky：RateLimiter 时序/process-sandbox 网络/DataPipeline 代理扫描）；tsc 干净。
-- Commit: c25be65
+- Commit: efd363f
 
 ## 2026-08-17 - DataPipeline 网络测试 mock 注入（消除 CI 噪音）
 
@@ -5550,4 +5550,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 src/crawl/data-pipeline.ts（fetchImpl/searchFetchImpl 注入 + searchAgg 隔离聚合器 + SearchFetch 导入）
   - 修改 tests/data-pipeline.test.ts（注入确定性 mock：DDG 结果块断言 title/link；fetchImpl 用 spy）
 - Verification: data-pipeline 5/5 过且 10s+ → 0.4s；全套件 2681（DataPipeline 网络 flaky 消除，剩 ContextEngine/EventBus 性能阈值类并行 flaky，单独跑 51/0）；bun run test:full 263/0；tsc 干净。
-- Commit: [PLACEHOLDER]
+- Commit: c25be65
