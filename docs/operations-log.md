@@ -8,6 +8,16 @@
 ---
 
 
+## 2026-08-19 — 本地 Agent 完整可用 + DRE 插件开源准备（LICENSE/元数据/开源 README）
+
+- **任务**：把 axiom-dre-dsh 在本地 Agent（DSH web profile）安装为完整可用状态；为开源到 GitHub 做代码打磨（MIT LICENSE、package.json 元数据、开源 README、前置依赖说明）。
+- **工具**：dsh CLI（plugin add / --dump-config / web）、bun（build/test）、Node 补丁脚本、gh（后续开源步骤）。
+- **操作**（文件级）：
+  - 本地安装：`dsh plugin --profile web add D:/openclaw-fusion/plugins/dre-dsh`（deps+bundles 写入，`--dump-config` 确认 `id: dre` 补丁合成）；`dsh web` 启动验证：web 服务监听 3080，插件 apply() 拉起 `bun run src/mcp/server.ts --stdio`（MCP 桥全链路可用）。
+  - 开源打磨：新增 `plugins/dre-dsh/LICENSE`（MIT）；`package.json` 补 repository/homepage/bugs/keywords；`README.md` 加开源仓库链接、热插拔徽标说明、前置依赖段（需可运行 Axiom 仓库，axiomHome 指向）、安装段路径通用化。
+- **验证**：插件 25/25 测试全绿；build/typecheck 通过；本地 web profile 启动正常且 MCP 拉起。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE-DSH 插件全面审核与轻量化优化（code review + 死代码清理）
 
 - **任务**：对 plugins/dre-dsh 做全面代码审核（code-review 技能清单：正确性/安全/性能/可维护性/测试），以「轻量极简」为目标清理冗余，行为零变化。审核结论：无 Critical（无密钥/无注入面/无崩溃路径），5 处 Warning 级冗余。

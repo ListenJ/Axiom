@@ -1,24 +1,34 @@
 # axiom-dre-dsh — Axiom 确定性推理引擎（DRE）DSH 插件
+> 开源仓库：https://github.com/ListenJ/axiom-dre-dsh ｜ MIT License
+>
+> 支持热插拔（`dsh plugin add/rm`）。
+
 
 把 Axiom 的确定性推理引擎以独立插件形式接入 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh)，
 以 `dre__<tool>` 前缀暴露「知识验证（三段甄别）/ 确定性认知闭环 / 推理图 / 约束求解 / 心智模型 / 突触记忆」，
 用于强化 dsh 的**信息确定能力**。
+
+## 前置依赖
+
+本插件是一个 **MCP 桥**：它拉起并桥接 Axiom 的 MCP 服务器（`src/mcp/server.ts`）。使用前需要：
+1. 一个**可运行的 Axiom 仓库**（含 `src/main.ts` 与 `src/mcp/server.ts`，运行于 Bun）。
+2. 在插件配置 `axiomHome` 指向该仓库（或设置 `AXIOM_HOME`；留空时按插件文件上溯 3 层推断）。
 
 ## 安装（热插拔）
 
 > 源码安装前先构建：DSH 加载的是构建产物 `lib/index.js`（`main` 指向），
 > 而 `lib/` 在 .gitignore 中。**先 `bun run build`，再 add**；改代码后需重新构建。
 
-```powershell
-cd plugins/dre-dsh
+```bash
+# 在插件目录（独立仓库根，或 monorepo 的 plugins/dre-dsh）内：
 bun install
 bun run build      # 生成 lib/（DSH 加载产物）
 
 # 安装到 profile（走 pnpm 链接，可反复执行 add/rm = 热插拔）
-dsh plugin --profile web add D:/openclaw-fusion/plugins/dre-dsh
+dsh plugin --profile web add <plugin-dir>
 
 # 启动 web profile
-dsh web --profile web
+dsh web
 
 # 卸载（工具与子进程随 fiber 清理）
 dsh plugin --profile web rm axiom-dre-dsh

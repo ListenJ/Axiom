@@ -35,5 +35,23 @@
     "@types/node": "^24.0.0",
     "typescript": "^5.6.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ListenJ/axiom-dre-dsh.git",
+    "directory": "plugins/dre-dsh"
+  },
+  "homepage": "https://github.com/ListenJ/axiom-dre-dsh#readme",
+  "bugs": {
+    "url": "https://github.com/ListenJ/axiom-dre-dsh/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "dre",
+    "deterministic-reasoning",
+    "mcp"
+  ]
 }
