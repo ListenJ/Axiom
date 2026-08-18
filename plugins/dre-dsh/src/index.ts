@@ -41,10 +41,8 @@ function makeStatusTool(getState: () => Record<string, unknown>): DshToolDefinit
 
 export function apply(ctx: DshContext, rawConfig: unknown): Promise<void> | void {
   const config = normalizeConfig(rawConfig, import.meta.url)
-  const disposers: Array<() => void> = []
   let bridge: McpBridge | null = null
   const toolFilter = resolveToolFilter(config)
-  const log = (...args: unknown[]) => ctx.logger?.info?.(...args)
 
   // ── 1) DRE 工具桥（默认开启） ──
   if (config.mcpEnabled) {
@@ -61,7 +59,7 @@ export function apply(ctx: DshContext, rawConfig: unknown): Promise<void> | void
     if (config.mcpFailOnStartupError) {
       // 初始连接失败即让 fiber 失败（严格模式）
       return connectPromise.then(
-        () => registerStatusAndEffect(ctx, config, disposers, () => bridge, toolFilter),
+        () => registerStatusAndEffect(ctx, config, () => bridge, toolFilter),
         (err) => {
           ctx.logger?.error?.('[axiom-dre-dsh] mcpFailOnStartupError=true, bridge failed', err)
           throw err
@@ -73,15 +71,14 @@ export function apply(ctx: DshContext, rawConfig: unknown): Promise<void> | void
     })
   }
 
-  registerStatusAndEffect(ctx, config, disposers, () => bridge, toolFilter)
-  log(`[axiom-dre-dsh] DRE filter: ${toolFilter.join(', ') || '(none)'}`)
+  registerStatusAndEffect(ctx, config, () => bridge, toolFilter)
+  ctx.logger?.info?.(`[axiom-dre-dsh] DRE filter: ${toolFilter.join(', ') || '(none)'}`)
 }
 
 /** 注册诊断工具 + 生命周期清理。 */
 function registerStatusAndEffect(
   ctx: DshContext,
   config: NormalizedConfig,
-  disposers: Array<() => void>,
   getBridge: () => McpBridge | null,
   toolFilter: string[],
 ): void {
@@ -94,14 +91,6 @@ function registerStatusAndEffect(
   )
   ctx.effect(() => {
     return () => {
-      for (const d of disposers) {
-        try {
-          d()
-        } catch {
-          /* 清理失败不阻塞 */
-        }
-      }
-      disposers.length = 0
       getBridge()?.dispose()
     }
   })

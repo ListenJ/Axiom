@@ -61,15 +61,14 @@ export interface McpBridgeOptions {
   env?: Record<string, string>
   serverName: string
   toolCallTimeoutMs: number
-  /** 白名单：前缀/全名数组；缺省不过滤（桥全部工具）。 */
-  toolFilter?: string[]
+  /** 白名单：前缀（以 _ 结尾）或全名数组。 */
+  toolFilter: string[]
 }
 
 export interface McpToolMeta {
   name: string
   description?: string
   inputSchema?: unknown
-  outputSchema?: unknown
 }
 
 export interface McpBridge {
@@ -176,8 +175,7 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
 
     const resp = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
     const tools = (resp.tools ?? []) as McpToolMeta[]
-    const filter = opts.toolFilter
-    const selected = filter && filter.length > 0 ? tools.filter((t) => matchTool(t.name, filter)) : tools
+    const selected = tools.filter((t) => matchTool(t.name, opts.toolFilter))
     const disposers: Array<() => void> = []
     for (const tool of selected) {
       disposers.push(ctx.tools.register(toToolDefinition(tool, opts, () => state.client)))

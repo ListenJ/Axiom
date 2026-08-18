@@ -8,6 +8,19 @@
 ---
 
 
+## 2026-08-19 — DRE-DSH 插件全面审核与轻量化优化（code review + 死代码清理）
+
+- **任务**：对 plugins/dre-dsh 做全面代码审核（code-review 技能清单：正确性/安全/性能/可维护性/测试），以「轻量极简」为目标清理冗余，行为零变化。审核结论：无 Critical（无密钥/无注入面/无崩溃路径），5 处 Warning 级冗余。
+- **工具**：code-review 技能、tsc/bun test/bun run build、bun run lint（仓库级）、Node 补丁脚本（.tmp/）。
+- **操作**（文件级）：
+  - `src/index.ts`：删除从未填充的死代码 `disposers` 数组与空清理循环（-8 行）；内联仅用一次的 `log` 包装器。
+  - `src/types.ts`：删除未使用的 `DshContext.inject`/`get` 成员（-5 行）并修正头部注释（本插件只用 tools/effect 接缝）。
+  - `src/mcp-bridge.ts`：删除未读取的 `McpToolMeta.outputSchema`；`McpBridgeOptions.toolFilter` 由可选改必填并删除从未使用的「不过滤桥全部」分支。
+  - `tests/mcp-bridge.test.ts`：OPTS 补 `toolFilter`（必填化连锁）。
+  - 新增审核文档 `docs/review-2026-08-19-dre-plugin-lightweight.md`（结论 + 改动清单 + 验证方案）。
+- **验证**：src 342→326 行（净减 16，约 4.7%）；typecheck + build 通过；插件 25/25 测试全绿（含真实 MCP 冒烟）；仓库 `bun run lint` 0 错误。功能面不变（白名单/dre 前缀/热插拔/诊断工具保持）。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE-DSH 插件远端实测修复：平台无关测试 + 慢环境超时 + README 构建说明
 
 - **任务**：远端 listen@192.168.0.150 实测暴露 3 处问题并修复：(1) `resolveAxiomHome` 测试硬编码 Windows 路径 `C:/repo` → 改平台无关（用 fileURLToPath 相对上溯断言）；(2) bun test 默认单测超时 5000ms，远端 MCP 冷启动约 3-4s 导致冒烟超时 → test 脚本加 `--timeout 60000`；(3) DSH 加载的是构建产物 `lib/`（gitignore），源码安装需先 `bun run build` → README 安装段补「先构建后 add」说明，并补远端实测记录表。

@@ -15,6 +15,7 @@ const OPTS = {
   cwd: process.cwd(),
   serverName: 'dre',
   toolCallTimeoutMs: 5000,
+  toolFilter: DEFAULT_DRE_FILTER,
 }
 
 describe('publicToolName（dre 前缀）', () => {
