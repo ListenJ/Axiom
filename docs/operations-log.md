@@ -27,7 +27,7 @@
 - **操作**：创建独立镜像仓库（.tmp/axiom-dre-dsh-oss，含 src/tests/README/LICENSE/package.json/cordis.patch.yml/bun.lock，不含 lib/node_modules）→ git init main → 初始提交 → `gh repo create ListenJ/axiom-dre-dsh --public --source <镜像> --push`。
 - **验证**：仓库 visibility=PUBLIC（gh repo view）；`git ls-remote https://github.com/ListenJ/axiom-dre-dsh` 可拉取（main=9d0c3bc）；内容清单含 LICENSE/README/src/tests/package.json。
 - **说明**：主仓库（internal211）保持 monorepo 形态，GitHub 为插件独立发布镜像；后续更新插件可再次推送镜像同步。
-- **Commit**：`0e7274e`
+- **Commit**：`125f6f2`
 
 ## 2026-08-19 — 本地 Agent 完整可用 + DRE 插件开源准备（LICENSE/元数据/开源 README）
 
@@ -5692,4 +5692,4 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 通过 
 px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个文档写作/润色技能（documentation-patterns 因超时未安装）。
 - **验证**：三份 README 内容无审查报告/测试说明/本地实现细节；超链接路径正确；git status 确认仅 README 三件相关文件入暂存。
-- **Commit**：待回填
+- **Commit**：`0e7274e`
