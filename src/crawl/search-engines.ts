@@ -118,8 +118,8 @@ export class DuckDuckGoEngine extends SearchEngine {
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
     const url = new URL("https://html.duckduckgo.com/html/");
-    url.searchParams.set("q", opts.query);
-    if (opts.site) url.searchParams.set("sites", opts.site);
+    const q = opts.site ? `${opts.query} site:${opts.site}` : opts.query;
+    url.searchParams.set("q", q);
 
     // duckduckgo 反爬间歇性（202 挑战页）导致空结果：仅代理场景重试 2 次（无代理直连失败应快速返回，避免拖慢）
     // 注入 fetchImpl（测试确定性）时不重试；重试仅针对真实网络的反爬间歇
@@ -183,7 +183,7 @@ export class DuckDuckGoEngine extends SearchEngine {
 
 // ========== Bing（Web Search API）==========
 
-class BingEngine extends SearchEngine {
+export class BingEngine extends SearchEngine {
   readonly name = "bing";
 
   constructor(fetchImpl?: SearchFetch) { super(fetchImpl); }
@@ -196,12 +196,12 @@ class BingEngine extends SearchEngine {
     }
 
     const url = new URL("https://api.bing.microsoft.com/v7.0/search");
-    url.searchParams.set("q", opts.query);
+    const q = opts.site ? `${opts.query} site:${opts.site}` : opts.query;
+    url.searchParams.set("q", q);
     url.searchParams.set("count", String(Math.min(opts.num ?? 10, 50)));
     url.searchParams.set("offset", "0");
     url.searchParams.set("mkt", opts.lang ? this.mapLocale(opts.lang) : "zh-CN");
     url.searchParams.set("safeSearch", opts.safe ? "Strict" : "Off");
-    if (opts.site) url.searchParams.set("site:", opts.site);
 
     const res = await this.fetch(url.toString(), {
       headers: { "Ocp-Apim-Subscription-Key": apiKey },

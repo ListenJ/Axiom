@@ -471,8 +471,8 @@ export class BehaviorKnowledge {
         return { predicted: false, probability: 0 };
       }
     }
-    // 返回最高概率的结果
-    const best = behavior.outcomes.sort((a, b) => b.probability - a.probability)[0];
+    // 返回最高概率的结果（复制后排序，避免就地修改共享的 outcomes 数组）
+    const best = [...behavior.outcomes].sort((a, b) => b.probability - a.probability)[0];
     return {
       predicted: true,
       outcome: best?.result,

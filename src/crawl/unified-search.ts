@@ -151,7 +151,7 @@ export class UnifiedSearch {
     const query = optimizeQuery ? this.optimizeQuery(rawQuery) : rawQuery;
 
     // Cache check
-    const cacheKey = this.buildCacheKey(query, engines);
+    const cacheKey = this.buildCacheKey(query, engines, opts.num ?? 10, relevanceThreshold);
     if (useCache) {
       const cached = this.getFromCache(cacheKey, cacheTtl);
       if (cached) return cached;
@@ -280,8 +280,10 @@ export class UnifiedSearch {
 
   // ========== 缓存管理 ==========
 
-  private buildCacheKey(query: string, engines: string[]): string {
-    const key = `${query}|${engines.join(",")}`;
+  private buildCacheKey(query: string, engines: string[], num: number, threshold: number): string {
+    // 纳入 num 与 relevanceThreshold：quickSearch(num=10) 与 deepSearch(num=20) 须命中不同缓存键，
+    // 否则会因缓存返回错误条数/过滤结果。
+    const key = `${query}|${engines.join(",")}|n${num}|t${threshold}`;
     let hash = 0;
     for (let i = 0; i < key.length; i++) {
       hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;

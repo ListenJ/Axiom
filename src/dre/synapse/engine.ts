@@ -129,6 +129,7 @@ export class SynapseEngine {
   spreadActivation(seedIds: string[], event: string, opts: { maxHops?: number } = {}): SpreadResult {
     const maxHops = Math.max(1, opts.maxHops ?? 3);
     const now = Date.now();
+    const epoch = this.store.getGlobalEpoch();
     const visited = new Map<string, { activation: number; hops: number }>(); // synapseId -> act
     const queue: Array<{ nodeId: string; hops: number; activation: number }> = seedIds.map((n) => ({ nodeId: n, hops: 0, activation: 1 }));
     const seenNodes = new Set<string>(seedIds);
@@ -144,7 +145,7 @@ export class SynapseEngine {
           visited.set(s.id, { activation, hops: cur.hops + 1 });
           // Hebbian 增强（基于有效强度结算）
           const next = this.store.updateActivation(s.id, {
-            weight: clamp01(this.effectiveWeight(s) + 0.05),
+            weight: clamp01(this.effectiveWeight(s, epoch) + 0.05),
             activationCount: s.activationCount + 1,
             lastActivatedAt: now,
           });
@@ -176,6 +177,7 @@ export class SynapseEngine {
   async suggestNextSteps(scene: string, goal: string, opts: { limit?: number } = {}): Promise<SynapseSuggestion[]> {
     const limit = opts.limit ?? this.opts.suggestTopK;
     const now = Date.now();
+    const epoch = this.store.getGlobalEpoch();
     const sceneTokens = tokenize(scene);
     const goalTokens = tokenize(goal);
     const all = this.store.listAll();
@@ -185,7 +187,7 @@ export class SynapseEngine {
     const add = (s: Synapse, match: string) => {
       const existing = candidates.get(s.targetId);
       if (existing) return; // 取第一条 via（更直接）
-      const effWeight = this.effectiveWeight(s);
+      const effWeight = this.effectiveWeight(s, epoch);
       const activationBonus = Math.min(s.activationCount, 10) / 10 * 0.3;
       const fresh = s.lastActivatedAt > 0 ? clamp01((now - s.lastActivatedAt) / (24 * 3600 * 1000)) : 0;
       const freshness = (1 - fresh) * 0.1;
@@ -249,7 +251,8 @@ export class SynapseEngine {
 
   storeSnapshot(): Synapse[] {
     // 返回「有效强度」视图（存储 weight 经惰性衰减折算），供调用方/测试观察真实强度。
-    return this.store.listAll().map((s) => ({ ...s, weight: this.effectiveWeight(s) }));
+    const epoch = this.store.getGlobalEpoch();
+    return this.store.listAll().map((s) => ({ ...s, weight: this.effectiveWeight(s, epoch) }));
   }
 
   // ── 内部 ──────────────────────────────────────────────────────────

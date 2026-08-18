@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-18 — 核心模块代码优化与缺陷修复（DRE + 本地搜索）
+
+- **任务**：审查并优化当前核心模块（src/dre/ 三段甄别流水线、synapse 记忆引擎、knowledge-store；src/crawl/ 本地搜索）。识别并修复真实缺陷、性能与冗余问题，维持原有业务逻辑不变。
+- **工具**：子代理并行代码审阅（Explore）、bun test（新增 4 个回归测试）、bun build 全图验证、git 提交。
+- **操作**：
+  - `src/dre/pipeline/pipeline.ts`：将 `hashContent()` 由 djb2 改为 SHA-256，与存储层 `contentHash`（SHA-256）一致，修复「相似知识节点永远被判为冲突、riskScore 虚高、错误升级阶段 2/3」的缺陷。
+  - `src/dre/synapse/engine.ts`：将 `effectiveWeight()` 中每次调用的 `getGlobalEpoch()`（SQLite SELECT）提到循环外一次性取值，消除 spreadActivation/suggestNextSteps/storeSnapshot 中的 O(n) 重复查询（行为中性）。
+  - `src/dre/storage/knowledge-store.ts`：`BehaviorKnowledge.predict` 对 `outcomes` 改为副本排序，避免就地修改可能共享的数组。
+  - `src/crawl/unified-search.ts`：`buildCacheKey` 纳入 `num` 与 `relevanceThreshold`，修复 quickSearch(num=10) 与 deepSearch(num=20) 命中同一缓存键返回错误条数。
+  - `src/crawl/search-engines.ts`：Bing/DDG 的 site 限定由无效参数（`site:` / `sites`）改为在查询中拼接 `site:` 运算符（与正常工作的 SearXNG 一致）；并导出 `BingEngine` 以支撑测试。
+  - 新增回归测试：`tests/dre-pipeline-conflict.test.ts`、`tests/knowledge-store-predict.test.ts`、`tests/crawl-site-param.test.ts`。
+- **验证**：新增回归测试全部通过（FIX A 1/1、FIX C 1/1、FIX E 2/2）；既有回归套件无回退（pipeline/crawl 20/20、knowledge-store 43/43、dre-core-modules 94/94、synapse 11/11）；bun build 全图 587 模块通过。
+- **Commit**：`[PLACEHOLDER]`
+
+---
+
 ## 2026-08-18 — 发布修复计划执行：三段甄别网络校验补全 + 搜索去重/突触衰减优化 + 外部审核基准引入
 
 - **任务**：执行 2026-08-18 发布修复计划 —— 补全「三段甄别」流水线 stage2 网络校验（原空实现 P0 缺陷）、对搜索去重做火焰图剖析并优化至 <500µs、将突触全局衰减从读时全量计算改为写时增量更新压至 <100µs；对比流式记忆（ConsciousnessStream）与长短时记忆效果与场景后决断（二者合一/分层协作）；引入外部审核测试集（HumanEval/MBPP）备用。

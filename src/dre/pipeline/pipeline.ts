@@ -14,6 +14,7 @@
 import type { KnowledgeStore } from "../storage/knowledge-store.js";
 import type { LLMClient } from "../llm/client.js";
 import { SearchAggregator, searchAggregator, type SearchEngineResult, type SearchFetch } from "../../crawl/search-engines.js";
+import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 
 /** 知识条目输入 */
@@ -308,17 +309,12 @@ export class Pipeline {
   }
 
   /**
-   * 计算内容哈希
+   * 计算内容哈希（须与 KnowledgeStore 写入的 contentHash 算法一致，均为 SHA-256）。
+   * 早期实现为 djb2 变体，与存储层的 SHA-256 contentHash 永远不等，导致相似知识节点
+   * 被误判为冲突、riskScore 虚高、错误升级到阶段 2/3。此处统一为 SHA-256。
    */
   private hashContent(content: string): string {
-    // 简化实现
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash.toString(16);
+    return createHash("sha256").update(content).digest("hex");
   }
 
   /**
