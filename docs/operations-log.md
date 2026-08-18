@@ -8,6 +8,17 @@
 ---
 
 
+## 2026-08-19 — DRE-DSH 插件：确定性推理引擎封装为独立 DSH 插件（热插拔 + 深度测试）
+
+- **任务**：按功能拆分 DSH 插件的第一步——把 Axiom 确定性推理引擎（DRE）封装为独立插件 `axiom-dre-dsh`（`plugins/dre-dsh/`），以 `dre__<tool>` 前缀暴露「知识验证（三段甄别）/确定性认知闭环/推理图/约束求解/心智模型/突触记忆」，强化 DSH 信息确定能力；严格遵循 DSH/Cordis 架构（`cordis.patch.yml` 配置层、`ctx.effect` 生命周期、`dsh plugin add/rm` 热插拔）；本地 + 远端 `listen@192.168.0.150` 深度测试。
+- **工具**：bun（install/test/build/typecheck）、tsc、DSH CLI、ssh/scp、Node 补丁脚本（.tmp/）。
+- **操作**（文件级）：
+  - 新建 `plugins/dre-dsh/`：`package.json`（axiom-dre-dsh）、`tsconfig.json`/build、`cordis.patch.yml`（行 id `dre`）、`.gitignore`、`README.md`、`src/types.ts`、`src/config.ts`、`src/mcp-bridge.ts`（白名单过滤 `DEFAULT_DRE_FILTER` + `matchTool` + `applySynapseGate` + `dre__` 前缀）、`src/index.ts`（apply + `dre_plugin_status` + `ctx.effect` 清理）、`tests/`（config 8 / mcp-bridge 11 / smoke-mcp 2）。
+  - 依赖收敛：移除未使用的 `@deepseek-ai/cordis`/`@deepseek-ai/dsh-tools` devDeps 与 peerDeps（结构类型无需运行时依赖；避免 `dsh-type-meta` 404 解析链）。
+  - 文档：`docs/superpowers/specs/2026-08-19-dre-dsh-plugin-design.md`、`docs/plans/2026-08-19-dre-dsh-plugin.md`。
+- **验证**：插件 25/25 单测+冒烟通过（真实拉起 Axiom MCP，仅 `dre__*` 工具注册、`dre__dre_status` 可调用返回 lossless JSON、`dre_plugin_status` 可用）；`tsc --noEmit` + `tsc -p tsconfig.build.json` 通过；仓库 `bun run lint` 0 错误。远端 listen@192.168.0.150 热插拔与真实工具验证结果见远端测试记录（本节后补充）。
+- **Commit**：待回填
+
 ## 2026-08-19 — 未提交改动审核 + 实验验证 + 修复 + 深度测试与 CI/CD
 
 - **任务**：检查工作区与仓库最新改动并审查其合理性；编写实验文档；制定并审阅执行计划；执行修复、深度测试与 CI/CD 门禁；按规则 3/5 提交推送 internal211。
