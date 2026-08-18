@@ -17,7 +17,7 @@
   - `README_zh.md`：删除「独立发布」表述（保留可热插拔）。
   - 同步开源镜像并推送 GitHub（b39b80c）。
 - **验证**：主仓库与 GitHub 均无 standalone / host project / 独立发布 表述。
-- **Commit**：待回填
+- **Commit**：`7ff6343`
 
 ## 2026-08-19 — DRE 架构文档 + awesome-dsh-plugin 上架 PR
 
