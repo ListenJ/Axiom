@@ -5680,3 +5680,16 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - 修改 tests/data-pipeline.test.ts（注入确定性 mock：DDG 结果块断言 title/link；fetchImpl 用 spy）
 - Verification: data-pipeline 5/5 过且 10s+ → 0.4s；全套件 2681（DataPipeline 网络 flaky 消除，剩 ContextEngine/EventBus 性能阈值类并行 flaky，单独跑 51/0）；bun run test:full 263/0；tsc 干净。
 - Commit: c25be65
+
+## 2026-08-19 — DRE 插件 README 改为中英双语分文档 + GitHub 展示页超链接
+
+- **任务**：按用户要求将 README 改为中英双语分文档（README_en.md / README_zh.md），主 README.md 作为 GitHub 展示页提供超链接跳转；去除审查报告、测试说明、本地仓库/本地实现效果等无关内容。
+- **工具**：npx skills（find-skills）、git。
+- **操作**（文件级）：
+  - README.md：重写为精简 landing page，包含插件简介、Documentation 超链接节（指向 README_en.md / README_zh.md）、快速开始、License。
+  - README_en.md：新增完整英文文档（overview / install / uninstall / what it does / prerequisites / config / tools / license）。
+  - README_zh.md：新增完整中文文档，结构与英文版镜像对应。
+  - 通过 
+px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个文档写作/润色技能（documentation-patterns 因超时未安装）。
+- **验证**：三份 README 内容无审查报告/测试说明/本地实现细节；超链接路径正确；git status 确认仅 README 三件相关文件入暂存。
+- **Commit**：待回填
