@@ -23,7 +23,7 @@
   - `.gitignore`：忽略 `plugins/dsh/preview/screenshots/`。
   - 文档：新增 `docs/experiment-2026-08-19-external-benchmarks-and-diagnostics.md`、`docs/plans/2026-08-19-verify-commit-cicd.md`；补录 8-17/8-18 审计计划与审核文档（此前未提交）。
 - **验证**：external-benchmarks 10/10；dre-core+chaos 95/0；ocr langs-available 1/1；plugins/dsh 28/0（构建+typecheck 通过）；`bun run lint` 0 错误；`bun run test:full` 273/0（含新测试）；`bun run test:gate` 12/0；`bun run test:arch` 22/0；`audit:runtime` 16/16；全套件 2668 pass / 28 skip / 2 并行超时（benchmark.test.ts 与 e2e-runtime.test.ts 5s 超时，串行复跑 41/0 全绿，属环境性）。验证过程中 verify.ps1 曾误将插件装入 DSH web profile，已恢复为无 axiom-dsh 原状（package.json + pnpm install 同步）。
-- **Commit**：待回填
+- **Commit**：`19d3730`
 
 
 ## 2026-08-18 — 功能内核落地核查 + 低风险可诊断性优化（OCR / LLM 约束 / DRE JSON）
@@ -35,7 +35,7 @@
   - `src/dre/llm/client.ts`：`generateConstrained` 区分 `llm_unavailable` 与 `schema_validation_failed`；`selectMode` 在候选分歧时附加 `modeAmbiguous` 标记。
   - `src/dre/engine.ts`：`decide` 钩子 JSON.parse 增加 try/catch，抛出可诊断错误并保持降级链。
 - **验证**：未运行测试（当前环境无终端）；需在可用终端执行 `bun test tests/ocr/langs-available.test.ts tests/dre-*.test.ts` 验证。
-- **Commit**：待提交
+- **Commit**：`19d3730`
 
 ## 2026-08-18 — 核心模块代码优化与缺陷修复（DRE + 本地搜索）
 
