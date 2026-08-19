@@ -40,8 +40,8 @@ const EXCLUDE_DIRS = new Set([
 ]);
 
 function dbPath(): string {
-  const base = readString("DATABASE_PATH", "./data/agent.db");
-  return path.join(path.dirname(path.resolve(base)), "code-index.db");
+  // 单一知识库：代码索引直接并入主库（DATABASE_PATH），不再使用独立 code-index.db
+  return path.resolve(readString("DATABASE_PATH", "./data/agent.db"));
 }
 
 export function getCodeIndexDb(): Database {

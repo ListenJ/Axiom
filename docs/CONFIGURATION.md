@@ -49,7 +49,27 @@ POST /config {"gateway":{"bind":"127.0.0.1"}}
 # 1) .env 写入 2) .env.example 登记 3) 代码 readString("KEY", default)
 ```
 
-## 5. 校验门禁
+## 5. 数据库（单一知识库）
+
+知识层统一为**单一 SQLite 主库**（`DATABASE_PATH`，默认 `./data/agent.db`）：
+
+- 记忆：memory_notes / FTS（SQLiteMemory、KAL）
+- 知识图谱：knowledge / entities / relationships
+- 专有代码索引：code_symbols / code_calls / code_index_meta
+- DRE 确定性推理引擎：knowledge_node / kg_edge / kv / atom / reasoning_trace 等
+- 知识采集：knowledge_sources / dictionary
+
+旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档
+（archive/knowledge-db-merge-2026-08-20/），迁移工具：
+`bun run scripts/merge-knowledge-dbs.ts`（幂等，可重复执行）。
+
+显式覆盖（设置后优先生效）：`DRE_DB_PATH`（DRE 单独落盘）、`KNOWLEDGE_DB_PATH`（知识采集单独落盘）。
+
+工具性缓存库（llm-cache / search-cache / model-eval / token-usage）**不属于知识层**，
+保持独立文件，避免缓存抖动与主库写竞争。
+
+
+## 6. 校验门禁
 
 - `tests/env-example-completeness.test.ts`：src 读取的每个 env 键必须在 `.env.example` 登记。
 - `git diff` 密钥扫描：`sk-* / AKIA* / ghp_* / -----BEGIN PRIVATE KEY-----`。

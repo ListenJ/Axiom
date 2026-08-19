@@ -51,7 +51,8 @@ const ENV_MAP: Record<string, keyof ConfigSource> = {
 };
 
 const DEFAULTS: Required<ConfigSource> = {
-  dbPath: "./data/dre.db",
+  // 单一知识库：DRE 并入主库（DATABASE_PATH）；显式设置 DRE_DB_PATH 仍优先生效
+  dbPath: readString("DATABASE_PATH", "./data/agent.db"),
   llmUrl: "http://127.0.0.1:8080",
   llmModel: "qwen3-1.7b-instruct",
   llmApiKey: "",

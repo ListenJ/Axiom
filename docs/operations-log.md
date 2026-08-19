@@ -5980,3 +5980,19 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
 px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个文档写作/润色技能（documentation-patterns 因超时未安装）。
 - **验证**：三份 README 内容无审查报告/测试说明/本地实现细节；超链接路径正确；git status 确认仅 README 三件相关文件入暂存。
 - **Commit**：`0e7274e`
+
+## 2026-08-20 12:10 +0800 — 单一知识库：code-index/DRE/知识采集并入主库 agent.db
+
+- **任务**：用户要求"直接进入一个知识库而不是多个库"。盘点 data/ 下 8 个 db + 根目录 axiom-memory.db 后，将知识层（代码索引、DRE 引擎、知识源/词典、历史记忆）统一并入单一主库 DATABASE_PATH（默认 ./data/agent.db）；工具性缓存库（llm-cache/search-cache/model-eval/token-usage）保持独立（非知识层、避免写竞争）。
+- **工具**：bun（sqlite 检查/迁移/冒烟）、node（精确补丁）、git。
+- **操作**（文件级）：
+  - src/codeindex/local-index.ts：dbPath 由独立 code-index.db 改为直连主库 DATABASE_PATH（上轮遗留改动，本轮验证通过）。
+  - src/dre/config.ts：DEFAULTS.dbPath 默认改为 readString("DATABASE_PATH", "./data/agent.db")；显式 DRE_DB_PATH 仍优先生效。
+  - src/knowledge/store.ts：默认库由 knowledge.db 改为 KNOWLEDGE_DB_PATH 覆盖 + DATABASE_PATH 回退。
+  - src/routes/memory-api.ts：vault notes 搜索由只读 ./axiom-memory.db 改为读主库；修复原查询引用不存在列 score（被 catch 吞掉恒空）→ 改用 confidence。
+  - scripts/merge-knowledge-dbs.ts：新增幂等迁移工具（ATTACH + DDL 复制 + INSERT OR IGNORE + FTS 校验/重建）。
+  - docs/CONFIGURATION.md：新增"5. 数据库（单一知识库）"章节。
+  - 数据迁移：code-index.db（code_symbols 14996/code_calls 41608/code_index_meta 9）、dre.db（0 行，表结构并入）、knowledge.db（knowledge_sources 280/dictionary 30 + FTS）→ agent.db（63 表）。
+  - 旧库归档：data/code-index.db、data/dre.db、data/knowledge.db、axiom-memory.db → archive/knowledge-db-merge-2026-08-20/（archive/ 已 gitignore，仅本地留底；ARCHIVE-LOG.md 已登记）。
+- **验证**：bun run lint（tsc 干净）；冒烟（同一主库同时开 SQLiteMemory/code-index/KnowledgeStore/DRE Kernel 无 schema 冲突、memory-api 查询可用）；bun test 全量 2674 pass / 28 skip / 0 fail（2702 tests）。
+- **Commit**：`PLACEHOLDER`

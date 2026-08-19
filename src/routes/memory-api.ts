@@ -196,15 +196,15 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
       results.entities = ctx.db.query(sql).all(...params);
     }
 
-    // Search vault notes (cross-database: axiom-memory.db)
+    // Search vault notes（单一知识库：直接读主库 memory_notes）
     if (!type || type === "note") {
       try {
         const { Database } = await import("bun:sqlite");
-        const memDb = new Database("./axiom-memory.db", { readonly: true });
-        let sql = `SELECT id, path, title, excerpt, score FROM memory_notes WHERE 1=1`;
+        const memDb = new Database(readString("DATABASE_PATH", "./data/agent.db"), { readonly: true });
+        let sql = `SELECT id, path, title, excerpt, confidence FROM memory_notes WHERE 1=1`;
         const params: (string | number)[] = [];
         if (query) { sql += ` AND (title LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
-        sql += ` ORDER BY score DESC LIMIT ?`;
+        sql += ` ORDER BY confidence DESC LIMIT ?`;
         params.push(limit);
         results.notes = memDb.query(sql).all(...params);
         memDb.close();

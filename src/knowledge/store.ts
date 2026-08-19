@@ -11,7 +11,7 @@ export class KnowledgeStore {
   private vault = getGlobalVault();
 
   constructor(dbPath?: string) {
-    const resolvedPath = dbPath || readString("KNOWLEDGE_DB_PATH", "./data/knowledge.db");
+    const resolvedPath = dbPath || readString("KNOWLEDGE_DB_PATH") || readString("DATABASE_PATH", "./data/agent.db");
     this.db = new Database(resolvedPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
