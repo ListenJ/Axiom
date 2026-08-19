@@ -23,7 +23,7 @@
   - 新建 `.tmp/axiom-kb-dsh-oss/`：KB 插件独立仓库镜像（lib/backend/src/tests/CI，build 仅 tsc + @types/bun），本地全绿，待确认后发布 GitHub。
   - `docs/REMINDERS.md`：知识库插件待办勾除；补充「联网检索不入插件队列（个人使用）」与 KB 开源待办。
 - **验证**：本地插件 20/20 全绿（真实 MCP 冒烟：memory 写读闭环、kg_add_node、kal_query、apply() 插件入口）；主仓库 `bun run lint` 0 错误；DRE 插件重建后端后 25/25 全绿（bun build 确定性 hash 一致）。远端 listen@192.168.0.150：插件 20/20 全绿；`dsh plugin --profile web add/rm/re-add` 热插拔闭环通过（dependencies/bundles/配置树正确增删，`--dump-config` 确认行 id `kb` 合并）；真实数据落盘（data/axiom-memory/*.md + data/data/kg.db）；dsh web 启动在当前环境挂起（04:48 起即有停滞进程，与 KB 插件无关）。CI：OSS DRE 镜像修复后 CI 重跑中；KB 镜像本地全绿。
-- **Commit**：`<待回填>`
+- **Commit**：`0572112`
 ## 2026-08-19 — 设置 PR gate 提醒 + 开源仓库 CI 徽章
 
 - **任务**：为 awesome-dsh-plugin PR #1797 的 submission gate（仓库满 24h 后重跑）设置提醒；继续优化开源仓库（CI 徽章）。
