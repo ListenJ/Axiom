@@ -17,7 +17,7 @@
   - 重新构建 `plugins/dre-dsh/backend/server.js`（0.70MB，-44%）。
   - PR #1797 状态确认：`Submission gate` 失败原因为**仓库 age < 1 天**（ListenJ/axiom-dre-dsh 创建于 2026-08-18T21:33Z，commits=10 已达标）；需仓库满 24h（约北京 2026-08-20 05:33 后）触发 gate 重跑。
 - **验证**：25/25 测试全绿（minify 产物冒烟）；同步校验 hash 一致（1AD815ED…）；本地 dsh web 拉起 minify 后端（bun ...\backend\server.js --stdio），端口 3080 正常。
-- **Commit**：待回填
+- **Commit**：`03837e5`
 
 ## 2026-08-19 — DRE 插件后端构建纳入 CI（同步校验 + 自包含测试）
 
