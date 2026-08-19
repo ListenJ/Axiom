@@ -19,7 +19,7 @@
   - data 服务器 `~/.ssh/config` 新增别名 `win` → `HostName 192.168.0.100, User 18336, IdentityFile ~/.ssh/id_ed25519_win`。
 - **验证**：`ssh win` → `SSH-OK / dandelion\18336`；`BatchMode=yes` 通过（纯密钥认证，非密码）；复测 SECOND-OK；可远程执行 Windows PowerShell。临时脚本/标记已清理，无残留计划任务。
 - **安全说明**：密码认证已关闭，仅密钥可登录；authorized_keys 文件 ACL 仅 SYSTEM/Administrators 可读。私钥仅在 data 服务器，未入库。
-- **Commit**：`<待回填>`
+- **Commit**：`83737c4`
 ## 2026-08-19 — 开源插件接入 npm：npm 构建 + npm 发布 GitHub Actions（真实 dry-run 验证）
 
 - **任务**：按用户要求为两个开源插件（axiom-dre-dsh / axiom-kb-dsh）接入 npm 生态——GitHub Actions 中「npm 构建 NodeJS 项目」「将 Node.js 包发布到 npm」；webpack/Deno 不适用（桥接层为 tsc 多文件 ESM，后端为 Bun 单文件打包，运行时为 Bun/Node），已在结论说明。
