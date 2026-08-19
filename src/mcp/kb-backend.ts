@@ -12,11 +12,11 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Database } from "bun:sqlite";
-import { registerVaultTools } from "../../mcp/server/vault-tools.js";
-import { registerKgTools } from "../../mcp/server/kg-tools.js";
-import { ToolRegistry } from "../../mcp/tool-registry.js";
-import { getGlobalVault } from "../../memory/vault-manager.js";
-import { readString } from "../../utils/env.js";
+import { registerVaultTools } from "./server/vault-tools.js";
+import { registerKgTools } from "./server/kg-tools.js";
+import { ToolRegistry } from "./tool-registry.js";
+import { getGlobalVault } from "../memory/vault-manager.js";
+import { readString, readInt } from "../utils/env.js";
 
 const mcp = new McpServer({ name: "Axiom KB MCP Server", version: "0.1.0" });
 const registry = new ToolRegistry();
@@ -43,8 +43,8 @@ if (useStdio) {
   await mcp.connect(stdio);
 } else {
   // HTTP 模式（远程调试用；默认仅回环）
-  const port = Number(process.env.KB_MCP_PORT ?? "3002");
-  const hostname = process.env.KB_MCP_HOST ?? "127.0.0.1";
+  const port = readInt("KB_MCP_PORT", 3002);
+  const hostname = readString("KB_MCP_HOST", "127.0.0.1");
   const { WebStandardStreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
   );

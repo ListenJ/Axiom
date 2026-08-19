@@ -8,6 +8,19 @@
 ---
 
 
+## 2026-08-19 — 主项目全量验证修复 + axiom-kb-dsh 开源 GitHub
+
+- **任务**：应要求将 axiom-kb-dsh 开源到 GitHub，并对主项目做「真实效果 + 完美运行」全量确认；发现并修复 3 处此前未被 CI 捕获的架构/配置问题。
+- **工具**：bun（test/test:full/audit:runtime/build）、tsc、node（MCP 真实效果探针）、git/gh、ssh/scp、远端 DSH CLI。
+- **操作**（文件级）：
+  - 架构修复（消除 `dre <-> mcp` 循环依赖 + process.env 直读）：`git mv src/dre/backend/mcp-server.ts → src/mcp/dre-backend.ts`、`src/kb/backend/mcp-server.ts → src/mcp/kb-backend.ts`（后端入口属 MCP 胶水层，不应位于 dre/kb 层）；两文件 import 改为相对 mcp 层；`process.env.*` 直读改 `readString/readInt`（`DRE_MCP_PORT/HOST`、`KB_MCP_PORT/HOST`）；移除 DRE 后端冗余的 `process.env.DRE_DB_PATH` 写入（ConfigLoader 缺省即 ./data/dre.db）。
+  - `plugins/{dre,kb}-dsh/package.json` build:backend 指向新路径；`.github/workflows/ci.yml` 两处同步校验路径更新；`docs/DRE-ARCHITECTURE.md` 路径更新。
+  - `.env.example`：补 `DRE_MCP_PORT/DRE_MCP_HOST/KB_MCP_PORT/KB_MCP_HOST/KB_DB_PATH` 5 个变量登记（env-example-completeness 门禁）。
+  - 重建两个内置后端产物（dre 0.70MB / kb 0.62MB），同步 OSS 镜像并推送 GitHub。
+  - 开源：创建公开仓库 `https://github.com/ListenJ/axiom-kb-dsh`（默认分支 main，README 中英 + CI 徽章），推送 OSS 镜像（.tmp/axiom-kb-dsh-oss）；DRE OSS 镜像同步新产物（e5ab27d）。
+  - `docs/REMINDERS.md`：KB 开源待办勾除，补 awesome-dsh-plugin 上架待办。
+- **验证**：主项目 `bun run lint` 0 错误；`test:full` 273/273；全套件 `bun test ./tests` 2670 pass / 28 skip / 0 fail（2698 用例）；`audit:runtime` 16/16 通过；architecture-integrity 22/22（process.env 0 违规、循环 0 对）。真实效果：主 MCP server（src/mcp/server.ts --stdio）真实拉起 188 工具（memory 7/kg 17/web 2/dre 7/kal/dip 均在，web 仍在主面）；memory_write→memory_search 写读闭环命中、kg_add_node→kg_stats 真实写入。插件：DRE 25/25、KB 20/20（本地 + 远端 listen@192.168.0.150 新产物 20/20）。开源 CI：ListenJ/axiom-kb-dsh 与 ListenJ/axiom-dre-dsh 均 success。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 知识库插件（axiom-kb-dsh）自包含化：Vault 记忆 + 知识图谱，联网检索不入插件队列
 
 - **任务**：按功能拆分 DSH 插件的第二步——把 Axiom 知识库（Vault 记忆 + 知识图谱）封装为独立自包含插件 `axiom-kb-dsh`（`plugins/kb-dsh/`），以 `kb__<tool>` 前缀暴露 memory_*/kg_*/kal_*/dip_* 工具；联网检索（web_fetch/web_search/search_engines_list）不进插件队列，仅保留宿主 Agent 个人使用；本地 + 远端 listen@192.168.0.150 深度测试；CI/CD 与文档更新。

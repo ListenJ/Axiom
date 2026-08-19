@@ -6,9 +6,10 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { registerDreTools, shutdownKernel } from "../../mcp/server/dre-tools.js";
-import { registerMindTools } from "../../mcp/server/mind-tools.js";
-import { ToolRegistry } from "../../mcp/tool-registry.js";
+import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
+import { registerMindTools } from "./server/mind-tools.js";
+import { ToolRegistry } from "./tool-registry.js";
+import { readString, readInt } from "../utils/env.js";
 
 const mcp = new McpServer({ name: "Axiom DRE MCP Server", version: "0.1.0" });
 const registry = new ToolRegistry();
@@ -17,10 +18,8 @@ registerDreTools(registry);
 registerMindTools(registry);
 registry.registerWithMcp(mcp);
 
-// 数据目录：默认当前工作目录（插件会以可写 data 目录作为 cwd 启动）
-if (!process.env.DRE_DB_PATH) {
-  process.env.DRE_DB_PATH = "./data/dre.db";
-}
+// 数据目录：默认当前工作目录（插件会以可写 data 目录作为 cwd 启动）；
+// DRE_DB_PATH 由 ConfigLoader（src/dre/config.ts）经 readString 读取，缺省即 ./data/dre.db，无需在此写入。
 
 const useStdio = process.argv.includes("--stdio");
 if (useStdio) {
@@ -28,8 +27,8 @@ if (useStdio) {
   await mcp.connect(stdio);
 } else {
   // HTTP 模式（远程调试用；默认仅回环）
-  const port = Number(process.env.DRE_MCP_PORT ?? "3001");
-  const hostname = process.env.DRE_MCP_HOST ?? "127.0.0.1";
+  const port = readInt("DRE_MCP_PORT", 3001);
+  const hostname = readString("DRE_MCP_HOST", "127.0.0.1");
   const { WebStandardStreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
   );

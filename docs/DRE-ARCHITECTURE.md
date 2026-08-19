@@ -132,7 +132,7 @@ observe → decide(LLM 或规则降级) → 记录 trace → 反思检查
 
 > **边界（事实，2026-08-19 自包含化后）**：插件（axiom-dre-dsh）现在**内置 DRE 引擎与后端**——
 > 构建产物 `backend/server.js`（bun build 单文件，约 1.25MB）包含 src/dre/ 全部引擎代码与仅含 DRE 能力的
-> MCP 后端（src/dre/backend/mcp-server.ts 入口，注册 dre-tools + mind-tools 共 42 个工具）。
+> MCP 后端（src/mcp/dre-backend.ts 入口，注册 dre-tools + mind-tools 共 42 个工具）。
 > 插件经 stdio 拉起 `bun backend/server.js --stdio`（cwd=可写 data/ 目录），按白名单过滤后以 `dre__<tool>` 注册进 dsh，
 > 无需外部 Axiom 仓库即可直接给 LLM 调用。
 >
