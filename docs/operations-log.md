@@ -17,7 +17,7 @@
   - `.github/workflows/ci.yml`（两仓库）：新增 `npm-build` job——npm install + npm run build + npm pack --dry-run，常驻验证 npm 安装/构建路径。
   - 已推送：DRE `b9c63dc`、KB `e2b91e7`。
 - **验证**：干净 clone 实测 npm 路径——`npm install`（98 包）→ `npm run build`（tsc）→ `npm pack`：KB 17 文件 195.9kB（lib/backend/README/patch 齐全）、DRE 17 文件 214.8kB；CI（含 npm-build job）绿；`npm-publish` 工作流 `publish=false` dry-run 两仓库均 success（16s）。实际发布需在仓库 Settings→Secrets 添加 `NPM_TOKEN`（npm 账号 ListenJ 的 access token），随后 `git tag v0.1.0 && push` 或手动触发 publish=true。
-- **Commit**：`<待回填>`
+- **Commit**：`870e157`
 ## 2026-08-19 — DRE 轻量化 + 测试加深 + GitHub 安装路径修复 + 后端孤儿进程根治
 
 - **任务**：继续优化插件——DRE 插件去除外部 Axiom 仓库模式（对齐 KB 的轻量极简）；KB 冒烟测试加深（kg 边/子图/节点搜索、memory_atomic、dip 文档管道）；修复开源仓库 `github:` 安装路径（缺 lib/）与后端孤儿进程（autoTick 定时器使进程在父进程退出后不退出、锁死 SQLite）。
