@@ -28,7 +28,7 @@
     "build": "tsc -p tsconfig.build.json && bun run build:backend",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test --timeout 60000 tests/",
-    "build:backend": "bun build ../../src/dre/backend/mcp-server.ts --target=bun --outfile backend/server.js"
+    "build:backend": "bun build ../../src/dre/backend/mcp-server.ts --target=bun --outfile backend/server.js --minify"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"

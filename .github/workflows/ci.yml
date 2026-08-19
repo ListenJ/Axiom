@@ -93,7 +93,7 @@ jobs:
         # 重新构建内置后端并对比已提交产物；不一致说明产物过期，需运行 bun run build:backend
         run: |
           cd plugins/dre-dsh
-          bun build ../../src/dre/backend/mcp-server.ts --target=bun --outfile /tmp/backend-check.js
+          bun build ../../src/dre/backend/mcp-server.ts --target=bun --outfile /tmp/backend-check.js --minify
           if ! cmp -s /tmp/backend-check.js backend/server.js; then
             echo "::error::plugins/dre-dsh/backend/server.js is out of sync with src/dre. Run: cd plugins/dre-dsh && bun run build:backend, then commit the regenerated file."
             exit 1
