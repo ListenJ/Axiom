@@ -2,6 +2,11 @@
  * Agent status and tool routes
  */
 import type { RouteContext } from "./types.js";
+
+/** 依赖不可用（CDP/浏览器）→ 503，其余内部错误 → 500。 */
+function toAgentErrorStatus(msg: string): number {
+  return /cdp target|CDP|browser|chrome/i.test(msg) ? 503 : 500;
+}
 import { readString } from "../utils/env.js";
 
 export async function handleAgentsStatus(ctx: RouteContext): Promise<Response | null> {
@@ -88,7 +93,7 @@ export async function handleKimiChat(ctx: RouteContext): Promise<Response | null
       return ctx.jsonResponse({ ...result, model: KIMI_CODE_MODEL }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -140,7 +145,7 @@ export async function handleOpenCodeGenerate(ctx: RouteContext): Promise<Respons
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -159,7 +164,7 @@ export async function handleOpenCodeRefactor(ctx: RouteContext): Promise<Respons
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -178,7 +183,7 @@ export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response 
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -205,7 +210,7 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -229,7 +234,7 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -242,7 +247,7 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
       return ctx.jsonResponse({ elements: result, count: result.length }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -255,7 +260,7 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -273,7 +278,7 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
       return ctx.jsonResponse({ steps: result, totalSteps: result.length }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -293,7 +298,7 @@ export async function handleOpenCodeTest(ctx: RouteContext): Promise<Response | 
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;

@@ -343,6 +343,8 @@ ${messageLines}
       type: "conversation-log",
       paraCategory: "conversations",
       tags: ["conversation", sessionId.slice(0, 8)],
+      // 幂等：同日同会话重复归档时覆盖重建（消息始终从 db 全量读取，不丢失）
+      overwrite: true,
     });
   }
 

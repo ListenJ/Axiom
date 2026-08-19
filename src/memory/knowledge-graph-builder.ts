@@ -251,7 +251,7 @@ export async function buildKnowledgeGraph(
  */
 function scanProjectFiles(projectPath: string): string[] {
   const excludeDirs = new Set([
-    "node_modules", ".git", ".next", "dist", "build", "out",
+    "node_modules", ".git", ".next", "dist", "build", "out", ".tmp", ".tmp-build", ".tmp-e2e",
     ".venv", "__pycache__", ".cache", "target", ".codegraph",
   ]);
   const includeExts = new Set([

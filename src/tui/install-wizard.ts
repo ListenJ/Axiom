@@ -34,7 +34,7 @@ let screen: blessed.Widgets.Screen;
 let currentStep = 0;
 let config: InstallConfig = {
   edition: "local",
-  port: 18789,
+  port: 18790,
   bind: "127.0.0.1",
   vaultPath: "./axiom-memory",
   dbPath: "./data/agent.db",

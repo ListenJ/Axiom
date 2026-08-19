@@ -4,6 +4,7 @@
 import { logger } from "../utils/logger.js";
 import { isSafeUrl } from "../utils/url-safety.js";
 import type { RouteContext } from "./types.js";
+import { withTimeout } from "../utils/resilience.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
@@ -174,8 +175,13 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
 export async function handleLightpandaStatus(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/lightpanda/status" || ctx.req.method !== "GET") return null;
   const { getLightpandaStatus } = await import("../crawl/lightpanda-client.js");
-  const status = await getLightpandaStatus();
-  return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+  try {
+    // 有界超时：状态检查不允许无限等待底层二进制/端口探测
+    const status = await withTimeout(getLightpandaStatus(), 3000);
+    return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+  } catch (e) {
+    return ctx.jsonResponse({ available: false, error: e instanceof Error ? e.message : String(e) }, 200, ctx.baseHeaders);
+  }
 }
 
 /** GET /direct-search?q=X&engines=google,bing -- Direct search without API keys */

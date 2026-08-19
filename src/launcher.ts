@@ -5,7 +5,7 @@
  *   bun run src/launcher.ts [mode] [options]
  *   
  * Modes:
- *   serve    - Start HTTP server (web mode, port 18789)
+ *   serve    - Start HTTP server (web mode, port 18790)
  *   tui      - Start TUI (native terminal mode)
  *   agent    - Start agent mode with preloaded hooks
  *   full     - Start all services (HTTP + MCP + optional TUI)

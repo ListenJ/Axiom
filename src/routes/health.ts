@@ -214,19 +214,22 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
   if (ctx.url.pathname === "/config" && ctx.req.method === "POST") {
     try {
       const body = await ctx.req.json();
-      const { getConfig, reloadConfig } = await import("../core/config-center.js");
-      const current = getConfig();
+      const { reloadConfig } = await import("../core/config-center.js");
       // 只支持更新 gateway 和 crawler 配置
-      const updated = {
-        ...current,
-        gateway: { ...current.gateway, ...body.gateway },
-        crawler: { ...current.crawler, ...body.crawler },
-      };
-      // 写回 YAML（简单实现：直接覆盖）
       const fs = await import("fs");
       const YAML = await import("yaml");
-      const yamlStr = YAML.stringify(updated);
-      fs.writeFileSync("./config/axiom.yaml", yamlStr, "utf-8");
+      // 安全回写：以原始文件为基（parseDocument 保留注释与 ${VAR} 占位符），
+      // 仅应用请求中的增量——绝不把运行时解析后的真实 token/apiKey 序列化回跟踪文件。
+      const raw = fs.readFileSync("./config/axiom.yaml", "utf-8");
+      const doc = YAML.parseDocument(raw);
+      for (const section of ["gateway", "crawler"]) {
+        if (body[section] && typeof body[section] === "object") {
+          for (const [k, v] of Object.entries(body[section])) {
+            doc.setIn([section, k], v);
+          }
+        }
+      }
+      fs.writeFileSync("./config/axiom.yaml", doc.toString(), "utf-8");
       reloadConfig();
       return ctx.jsonResponse({ success: true, message: "Config updated" }, 200, ctx.baseHeaders);
     } catch (e) {

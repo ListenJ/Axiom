@@ -8,6 +8,25 @@
 ---
 
 
+## 2026-08-20 — 内部项目严苛压力测试 + 全端点真实测试 + 修复进程
+
+- **任务**：暂停 dsh 插件，强化内部后端——更严苛压力测试 + 前后端全部端点真实使用测试，进入修复。
+- **工具**：bun（test/test:full/test:gate/test:stress/test:perf/stress:run/build:frontend）、curl、node（端点探测）、Playwright E2E。
+- **测试结果**：
+  - lint/audit:runtime(16/16)/test:full(273/273)/architecture(22)/env(2)/perf-gate(12)/extreme-stress(20)/perf(32)/stress:run(整体 PASS 无阈值违规) 全绿。
+  - 全套件首次 3 fail+1 error：均为并行负载超时 flaky（单独跑全过）→ `package.json` test 脚本加 `--timeout 15000` 后 **2670 pass / 0 fail / 0 error**。
+  - 真实网关（18790）全 165 端点探测：修复前 500×4/503×4/超时×11；修复后 500×1（缺 key 环境）/503×6（外部服务缺失）/超时×3（外部 LLM/全仓 KG 构建），200 从 95→103。
+  - 前端 vite build 9.17s 成功；E2E 修复后 10 个 spec 全过（此前 E2E 永远失败）。
+- **修复清单（文件级）**：
+  1. `src/memory/vault-manager.ts`：`writeConversationLog` 加 `overwrite: true`——会话归档幂等（重复归档不再 500）。
+  2. `src/routes/consciousness.ts`：reflect 加 30s 有界超时（withTimeout），不再无限挂起。
+  3. `src/routes/search.ts`：lightpanda/status 加 3s 超时，超时返回 `available:false`。
+  4. `src/routes/agents.ts`：CDP/浏览器不可用错误映射 503（新增 `toAgentErrorStatus`，10 处 catch 统一）。
+  5. `src/memory/knowledge-graph-builder.ts`：扫描排除 `.tmp`/`.tmp-build`/`.tmp-e2e`（全仓 KG 构建提速；20221 文件解析本身仍需数分钟，属规模问题已记录）。
+  6. `src/routes/health.ts`：**安全修复** `POST /config` 回写——原先 `YAML.stringify(运行时已解析配置)` 直接覆盖跟踪文件，把 `${VAR}` 占位符替换成真实 token/apiKey 明文并剥掉注释（实测注入测试 token）；改为 `parseDocument` 基座 + `setIn` 只应用 gateway/crawler 增量，保留注释与占位符，杜绝敏感值落盘。
+  7. 端口统一 18789→18790（权威值来自 config/axiom.yaml）：`scripts/run-e2e.cjs`（**E2E 阻塞根因**——harness 轮询 18789 而服务器绑 18790）、`playwright.config.mjs`、`scripts/start.ts`、`scripts/frontend-audit.ts`、`src/mcp/server/browser-tools.ts`、`src/launcher.ts`、`src/tui/install-wizard.ts`、`.env.example`；本地 `e2e/test-server.cjs`/`verify.cjs/js` 同步修（gitignored 不入库）。
+- **验证**：修复后 lint 0 错、test:full 273/273、全套件 2670/0、E2E 10/10、端点探测 500 4→1 且剩余均为环境依赖（缺 key/外部 agent/无浏览器/原生二进制）；`POST /config` 实测保留注释与 `${AXIOM_AUTH_TOKEN}` 占位符、无 token 注入。
+- **Commit**：`<待回填>`
 ## 2026-08-20 — axiom-kb-dsh 上架 awesome-dsh-plugin（PR #2020）+ 开源仓库补提交达标
 
 - **任务**：推进待办——为 axiom-kb-dsh 提交 awesome-dsh-plugin 上架 PR；补齐 KB 仓库提交数（gate 要求 ≥10）；顺带修复两包 `types` 字段指向不存在文件的问题。
