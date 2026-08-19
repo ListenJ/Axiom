@@ -8,6 +8,13 @@
 ---
 
 
+## 2026-08-19 — dsh web 接入 systemd 单元（开机自启 + 崩溃自动重启）
+
+- **任务**：把 data 服务器上 npm 安装的 dsh web（此前 nohup 启动）接入 systemd，确保重启后自动拉起。
+- **工具**：ssh、systemctl、scp。
+- **操作**：新建 `/etc/systemd/system/dsh-web.service`（Type=simple，User=data，WorkingDirectory=/home/data，`ExecStart=/usr/bin/node /home/data/.npm-global/bin/dsh --profile web --trusted-host 192.168.0.22:8080`，Restart=on-failure，RestartSec=3，WantedBy=multi-user.target）；停掉原 nohup 进程（3440920）；`systemctl enable --now dsh-web`。
+- **验证**：unit enabled + active（PID 3447212，监听 127.0.0.1:3080）；`systemctl restart dsh-web` 后自动恢复（新 PID 3447330）且 nginx 反代 `http://192.168.0.22:8080` 仍 200。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 彻底删除 mihomo + VF 网卡整理结论 + data 上 dsh web 的 nginx 内网反代
 
 - **任务**：①彻底删除 data 服务器 mihomo；②整理 VF 网卡（清理不再使用的）；③data 服务器（npm 安装的 dsh web，127.0.0.1:3080）用 nginx 反代到内网（仅内网，不暴露公网）。
