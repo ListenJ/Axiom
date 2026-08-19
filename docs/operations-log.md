@@ -8,6 +8,21 @@
 ---
 
 
+## 2026-08-19 — nginx 反代 dsh 深度验证（修复 Host 头导致 /api 403）+ 明文密钥审计整改
+
+- **任务**：①用真实浏览器验证 nginx 反代 dsh（data 服务器）作为内网服务的完整可用性；②审计并整改明文密钥/密码（含视觉插件配置的模型与密钥）。
+- **工具**：Playwright（headless Chromium）、curl、ssh、icacls、chmod、grep。
+- **操作**：
+  - **反代验证与修复**：Playwright 加载 `http://192.168.0.22:8080/` 发现 UI 加载成功但 `/api` 全 403、无 WebSocket——根因是 nginx `proxy_set_header Host $host` 去掉端口，后端 Host 变 `192.168.0.22` 与 `--trusted-host 192.168.0.22:8080` 不匹配（dsh browser-trust fence 按 Host 精确匹配 host:port）。改为 `Host $http_host` 后：UI 正常、/api 通过、仅剩 `modlens/config` 403（该插件路由设计为仅回环应答，属插件自身安全限制，非代理问题）。
+  - **密钥审计**：
+    - data：`~/.modlens/config.json`（视觉插件）明文存 `sensenova` API Key（sk-56oY…）与模型 `sensenova-6.8-flash-lite`——`chmod 700 ~/.modlens`（原 775）+ 文件保持 600；modlens 第三方插件设计上密钥必须驻留其 config（不支持 openai provider 的 model 走环境变量），已用权限收紧缓解。
+    - data dsh 配置/存储/`~/.config`：无明文密钥（已审计）。
+    - 本地：`D:\openclaw-fusion\.env`（ZHIPU/AXIOM/SENSENOVA/OPENCODE 等密钥，含 `SENSENOVA_VISION_MODEL`）原 ACL 为 `Authenticated Users:(M)` + `Users:(RX)`——已 `icacls /inheritance:r /grant:r 18336:F SYSTEM:F` 收紧为仅本人+SYSTEM；`.env` 本就在 .gitignore（git 未跟踪）。
+    - 本地 `~/.dsh/.credentials.yaml`（DEEPSEEK/OCG/OPENCODE key）与 `~/.dsh`、`~/.axiom/axiom-secrets`：ACL 本就仅 SYSTEM/Administrators/本人，无需改动。
+    - src 硬编码密钥扫描：干净。
+- **验证**：Playwright 真实浏览器——HTTP 200、标题 DeepSeek Harness、界面渲染、/api 通过（错误 7→1）、WebSocket 空闲不建连属正常；`modlens/config` 403 为插件回环限制；dsh-web systemd active、3080 正常、代理 200；ACL 复查确认收紧。
+- **建议**：`~/.modlens/config.json` 中的 sensenova key 曾以明文存在且本次审计中可见，建议在 sensenova 控制台**轮换该密钥**；如要求配置零明文，可后续改造 modlens（fork 支持 openai model 环境变量）或接入密钥管理。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — dsh web 接入 systemd 单元（开机自启 + 崩溃自动重启）
 
 - **任务**：把 data 服务器上 npm 安装的 dsh web（此前 nohup 启动）接入 systemd，确保重启后自动拉起。
