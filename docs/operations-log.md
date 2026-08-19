@@ -8,6 +8,16 @@
 ---
 
 
+## 2026-08-19 — 开源插件接入 npm：npm 构建 + npm 发布 GitHub Actions（真实 dry-run 验证）
+
+- **任务**：按用户要求为两个开源插件（axiom-dre-dsh / axiom-kb-dsh）接入 npm 生态——GitHub Actions 中「npm 构建 NodeJS 项目」「将 Node.js 包发布到 npm」；webpack/Deno 不适用（桥接层为 tsc 多文件 ESM，后端为 Bun 单文件打包，运行时为 Bun/Node），已在结论说明。
+- **工具**：npm（install/build/pack）、gh（workflow run/watch）、git。
+- **操作**（文件级，均在 OSS 镜像仓库）：
+  - `.github/workflows/npm-publish.yml`（两仓库）：`workflow_dispatch`（publish 布尔输入）+ `push` tag `v*` 触发；setup-node（npmjs registry）→ `npm install` → `npm run build`（tsc）→ `npm pack --dry-run` → `npm publish --access public`（`secrets.NPM_TOKEN`，仅 tag 推送或手动 publish=true 时执行）。
+  - `.github/workflows/ci.yml`（两仓库）：新增 `npm-build` job——npm install + npm run build + npm pack --dry-run，常驻验证 npm 安装/构建路径。
+  - 已推送：DRE `b9c63dc`、KB `e2b91e7`。
+- **验证**：干净 clone 实测 npm 路径——`npm install`（98 包）→ `npm run build`（tsc）→ `npm pack`：KB 17 文件 195.9kB（lib/backend/README/patch 齐全）、DRE 17 文件 214.8kB；CI（含 npm-build job）绿；`npm-publish` 工作流 `publish=false` dry-run 两仓库均 success（16s）。实际发布需在仓库 Settings→Secrets 添加 `NPM_TOKEN`（npm 账号 ListenJ 的 access token），随后 `git tag v0.1.0 && push` 或手动触发 publish=true。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — DRE 轻量化 + 测试加深 + GitHub 安装路径修复 + 后端孤儿进程根治
 
 - **任务**：继续优化插件——DRE 插件去除外部 Axiom 仓库模式（对齐 KB 的轻量极简）；KB 冒烟测试加深（kg 边/子图/节点搜索、memory_atomic、dip 文档管道）；修复开源仓库 `github:` 安装路径（缺 lib/）与后端孤儿进程（autoTick 定时器使进程在父进程退出后不退出、锁死 SQLite）。
