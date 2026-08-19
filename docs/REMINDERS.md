@@ -15,15 +15,15 @@
 - **验证**：`gh pr checks 1797 --repo awesome-dsh-plugin/awesome-dsh-plugin` → Submission gate 应为 pass。
 - **状态**：⏳ 待 2026-08-20 05:33 后执行
 
-## 🔔 2026-08-20 10:35（北京时间）后 — 重跑 awesome-dsh-plugin PR #2020 submission gate
+## 🔔 2026-08-20 10:35（北京时间）后 — 重跑 awesome-dsh-plugin PR #2024 submission gate
 
-- **背景**：PR https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/2020（axiom-kb-dsh 上架）。
+- **背景**：PR https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/2024（axiom-kb-dsh 上架）。
   ListenJ/axiom-kb-dsh 创建于 2026-08-19T02:35Z（=08-19 10:35 北京），满 24h 为 08-20 10:35 北京；
   commits=11 已达标（≥10）；dsh.bundle 已声明；CI 绿。
 - **触发方式**：满 24h 后向 fork 分支 push 空提交（或 amend / close+reopen）触发 gate 重跑：
   `ash
-  git -C .tmp/awesome-dsh-plugin push origin add-axiom-kb-dsh --force-with-lease 2>/dev/null; # 或直接 push 空提交到该分支
-  ``n  （参考 DRE：gh pr checks 2020 --repo awesome-dsh-plugin/awesome-dsh-plugin 应 pass）
+  git -C .tmp/awesome-dsh-plugin push origin add-axiom-kb-dsh-v2 --force-with-lease 2>/dev/null; # 或直接 push 空提交到该分支
+  ``n  （参考 DRE：gh pr checks 2024 --repo awesome-dsh-plugin/awesome-dsh-plugin 应 pass）
 - **状态**：⏳ 待 2026-08-20 10:35 后执行
 
 ## 其他待办（长期）

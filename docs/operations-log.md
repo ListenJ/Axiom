@@ -14,7 +14,7 @@
 - **工具**：gh、git、bun、node。
 - **操作**：
   - **KB 仓库补 6 个真实提交（5→11）**：`.gitattributes`（行尾规范）、`SECURITY.md`（密钥处理策略：不存明文、环境变量/600 权限、轮换）、`CHANGELOG.md`（v0.1.0）、`fix(pkg)` types 字段 `lib/types/index.d.ts`→`lib/types.d.ts`（此前 npm 类型解析会失败；DRE 仓库同步修复并推送 5f83f1a）、`tests/package.test.ts`（包元数据与发布产物完整性，4 用例）、README 中英快速使用示例。
-  - **awesome-dsh-plugin 上架**：从 fork main 独立分支 `add-axiom-kb-dsh`（`git revert` DRE 提交保持 PR 仅含 KB 改动，避免混入 DRE PR #1797）；新增 `data/plugins/ListenJ__axiom-kb-dsh.yml`（category: tools，中英描述）+ README.md/zh 插入条目；推送并开 PR https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/2020。
+  - **awesome-dsh-plugin 上架**：从 fork main 独立分支 `add-axiom-kb-dsh`（`git revert` DRE 提交保持 PR 仅含 KB 改动，避免混入 DRE PR #1797）；新增 `data/plugins/ListenJ__axiom-kb-dsh.yml`（category: tools，中英描述）+ README.md/zh 插入条目；推送并开 PR（初版 #2020 因基于过期 fork main 导致 diff 过大已关闭；重建干净分支 `add-axiom-kb-dsh-v2` 后开 PR #2024，diff 仅 3 文件 8 行）。
   - `docs/REMINDERS.md`：新增 KB gate 重跑提醒（2026-08-20 10:35 北京，满 24h；commits 已达标）。
 - **验证**：KB 镜像 typecheck + 24 测试全绿（含新包测试）；KB/DRE 开源仓库 CI 均绿（最新提交 17s/20s success）；PR #2020 已创建 OPEN，gate 尚未触发（异步，预计按 age 失败后于 10:35 重跑）。
 - **Commit**：`baf715c`
