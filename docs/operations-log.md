@@ -26,7 +26,7 @@
   6. `src/routes/health.ts`：**安全修复** `POST /config` 回写——原先 `YAML.stringify(运行时已解析配置)` 直接覆盖跟踪文件，把 `${VAR}` 占位符替换成真实 token/apiKey 明文并剥掉注释（实测注入测试 token）；改为 `parseDocument` 基座 + `setIn` 只应用 gateway/crawler 增量，保留注释与占位符，杜绝敏感值落盘。
   7. 端口统一 18789→18790（权威值来自 config/axiom.yaml）：`scripts/run-e2e.cjs`（**E2E 阻塞根因**——harness 轮询 18789 而服务器绑 18790）、`playwright.config.mjs`、`scripts/start.ts`、`scripts/frontend-audit.ts`、`src/mcp/server/browser-tools.ts`、`src/launcher.ts`、`src/tui/install-wizard.ts`、`.env.example`；本地 `e2e/test-server.cjs`/`verify.cjs/js` 同步修（gitignored 不入库）。
 - **验证**：修复后 lint 0 错、test:full 273/273、全套件 2670/0、E2E 10/10、端点探测 500 4→1 且剩余均为环境依赖（缺 key/外部 agent/无浏览器/原生二进制）；`POST /config` 实测保留注释与 `${AXIOM_AUTH_TOKEN}` 占位符、无 token 注入。
-- **Commit**：`<待回填>`
+- **Commit**：`f063409`
 ## 2026-08-20 — axiom-kb-dsh 上架 awesome-dsh-plugin（PR #2020）+ 开源仓库补提交达标
 
 - **任务**：推进待办——为 axiom-kb-dsh 提交 awesome-dsh-plugin 上架 PR；补齐 KB 仓库提交数（gate 要求 ≥10）；顺带修复两包 `types` 字段指向不存在文件的问题。
