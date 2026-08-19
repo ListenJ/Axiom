@@ -8,6 +8,22 @@
 ---
 
 
+## 2026-08-19 — 停用 mihomo 透明代理 + 清理 data/listen 代理设置（网关统一指向路由器 192.168.0.1）
+
+- **任务**：按用户要求停用 data 服务器（192.168.0.22）的 mihomo 代理服务且不再使用，并清理 data 与 listen（192.168.0.150）两台的代理设置；两台的网关/静态路由统一改为路由器 192.168.0.1。
+- **工具**：ssh、sudo -S、systemctl、ip/iptables、netplan/resolvectl/systemd-resolved、sed。
+- **操作**：
+  - **data**：
+    - `systemctl stop mihomo` + `disable mihomo`；TUN 接口 `Meta`（198.18.0.1/30）自动消失；手动清理残留策略路由（`ip rule del pref 999`、flush table 2022）；确认无 MASQUERADE 残留。
+    - 默认网关本就经 enp6s0 DHCP 指向 192.168.0.1（无需改）；netplan 静态接口（enp3s0f1v0-3 = .20-.23）无网关配置，正常。
+    - 清理：git 全局代理（`http.proxy/https.proxy = 127.0.0.1:7890`）已移除；`/etc/mihomo/config.yaml` 改名 `config.yaml.disabled`（服务已禁用）；`net-ensure.sh` 移除 mihomo 专属的 `198.18.0.0/16 MASQUERADE`（保留 8080/8443→fnos VM 的 DNAT）；`net-ensure.service`/`vf-ensure.service` 移除 `Before=mihomo.service` 与描述中的 mihomo 字样并 daemon-reload；确认 crontab/rc.local/netfilter-persistent 无 mihomo 引用。
+  - **listen**：
+    - netplan `eno1` 路由由「default via 192.168.0.10 (metric 10, 透明代理) + via 192.168.0.1 (metric 100)」改为**仅 `default via 192.168.0.1`**；nameservers 由 `192.168.0.10` 改为 `[192.168.0.1, 114.114.114.114]`；`netplan apply`。
+    - `/etc/systemd/resolved.conf` 全局 `DNS=192.168.0.10 114.114.114.114` → `DNS=192.168.0.1 114.114.114.114`，重启 systemd-resolved；resolv.conf 不再含 192.168.0.10。
+    - 确认无本地代理配置（env/apt/docker/git 均为空）。
+- **验证**：data —— mihomo inactive/disabled、`ip rule` 仅默认 3 条、默认路由 via 192.168.0.1、`curl --noproxy '*'` baidu=200（直连 0.3s）、git HTTPS ls-remote 正常、LAN ping .150 通。listen —— 默认路由仅 via 192.168.0.1、baidu=200、DNS 解析正常（192.168.0.1+114）。全程 SSH 未中断。
+- **安全说明**：未在仓库记录任何服务器密码；mihomo 二进制保留未删（服务已禁用），如需彻底移除可后续执行。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 配置 Windows OpenSSH 反向接入：data 服务器（192.168.0.22）可 SSH 到本机
 
 - **任务**：配置本地 Windows 的 SSH 服务端，使 Ubuntu data 服务器（data@192.168.0.22）能用密钥免密 SSH 登录本机（dandelion\18336）。
