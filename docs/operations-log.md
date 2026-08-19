@@ -8,6 +8,22 @@
 ---
 
 
+## 2026-08-19 — 知识库插件（axiom-kb-dsh）自包含化：Vault 记忆 + 知识图谱，联网检索不入插件队列
+
+- **任务**：按功能拆分 DSH 插件的第二步——把 Axiom 知识库（Vault 记忆 + 知识图谱）封装为独立自包含插件 `axiom-kb-dsh`（`plugins/kb-dsh/`），以 `kb__<tool>` 前缀暴露 memory_*/kg_*/kal_*/dip_* 工具；联网检索（web_fetch/web_search/search_engines_list）不进插件队列，仅保留宿主 Agent 个人使用；本地 + 远端 listen@192.168.0.150 深度测试；CI/CD 与文档更新。
+- **工具**：bun（install/test/build/typecheck）、tsc、git、ssh/scp、远端 DSH CLI（dsh plugin add/rm/ls、--dump-config）、gh。
+- **操作**（文件级）：
+  - `src/mcp/server/vault-tools.ts`：拆出 `registerWebTools`（web_fetch/web_search/search_engines_list）至新文件 `src/mcp/server/web-tools.ts`，移除 `searchAggregator`/`DataPipeline` 导入——Vault 记忆工具链不再随插件打包带入联网检索代码。
+  - `src/mcp/server.ts`：web 工具导入改指 `web-tools.js`（行为不变，12 个相关测试全绿）。
+  - 新建 `src/kb/backend/mcp-server.ts`：KB 自包含后端入口（Vault 记忆 memory_*+code_index 与知识图谱 kg_*/kal_*/dip_*，零 web 依赖；Vault/SQLite 目录自动创建）。
+  - `src/dre/backend/mcp-server.ts`：修复 HTTP 分支 `handleRequest(req, server)` → `handleRequest(req)`（Bun Server 不满足 HandleRequestOptions，lint 报 TS2559，此前未被 CI 捕获）；同步重建 `plugins/dre-dsh/backend/server.js`。
+  - 新建 `plugins/kb-dsh/`：package.json（axiom-kb-dsh）、tsconfig/build、cordis.patch.yml（行 id `kb`）、.gitignore、LICENSE、README.md/en/zh（仅描述插件本身 + 安装/卸载 + 内置后端说明，无测试内容、无宿主项目独立说明）、src/{types,config,mcp-bridge,index}.ts（DEFAULT_KB_FILTER = memory_/code_index/kg_/kal_/dip_，kb__ 前缀，kb_plugin_status 诊断工具，ctx.effect 热卸载）、backend/server.js（bun build 0.62MB / 274 模块，无 web 检索代码）、tests/（config 8 / mcp-bridge 11 / smoke 2，共 20 用例）。
+  - `.github/workflows/ci.yml`：新增 `kb-plugin` job（src/kb 或 plugins/kb-dsh 变更时触发；后端产物同步校验 + typecheck + build + 20 测试）。
+  - `.tmp/axiom-dre-dsh-oss/`（GitHub ListenJ/axiom-dre-dsh）：修复公开 CI——build 仅 tsc（移除指向 monorepo 源码的 build:backend）+ devDeps 补 `@types/bun`（此前 CI 全红：TS2688 bun-types 缺失）；已推送 1723a7e。
+  - 新建 `.tmp/axiom-kb-dsh-oss/`：KB 插件独立仓库镜像（lib/backend/src/tests/CI，build 仅 tsc + @types/bun），本地全绿，待确认后发布 GitHub。
+  - `docs/REMINDERS.md`：知识库插件待办勾除；补充「联网检索不入插件队列（个人使用）」与 KB 开源待办。
+- **验证**：本地插件 20/20 全绿（真实 MCP 冒烟：memory 写读闭环、kg_add_node、kal_query、apply() 插件入口）；主仓库 `bun run lint` 0 错误；DRE 插件重建后端后 25/25 全绿（bun build 确定性 hash 一致）。远端 listen@192.168.0.150：插件 20/20 全绿；`dsh plugin --profile web add/rm/re-add` 热插拔闭环通过（dependencies/bundles/配置树正确增删，`--dump-config` 确认行 id `kb` 合并）；真实数据落盘（data/axiom-memory/*.md + data/data/kg.db）；dsh web 启动在当前环境挂起（04:48 起即有停滞进程，与 KB 插件无关）。CI：OSS DRE 镜像修复后 CI 重跑中；KB 镜像本地全绿。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 设置 PR gate 提醒 + 开源仓库 CI 徽章
 
 - **任务**：为 awesome-dsh-plugin PR #1797 的 submission gate（仓库满 24h 后重跑）设置提醒；继续优化开源仓库（CI 徽章）。

@@ -41,7 +41,7 @@ if (useStdio) {
       registry.registerWithMcp(reqServer);
       const httpTransport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await reqServer.connect(httpTransport);
-      return httpTransport.handleRequest(req, server);
+      return httpTransport.handleRequest(req);
     },
   });
 }

@@ -17,5 +17,7 @@
 
 ## 其他待办（长期）
 
-- [ ] 其余功能插件按自包含模式拆分（记忆/知识库、联网检索、模型路由等）
+- [x] 知识库插件（axiom-kb-dsh，plugins/kb-dsh/）已按自包含模式拆分：Vault 记忆 + 知识图谱后端内置；联网检索工具不入插件队列，仅个人使用。
+- [ ] 其余功能插件按自包含模式拆分（联网检索、模型路由等）
+- [ ] axiom-kb-dsh 开源到 GitHub（OSS 镜像已就绪 .tmp/axiom-kb-dsh-oss/，待确认后创建仓库 + awesome-dsh-plugin 上架）
 - [ ] PR #1797 合并后确认 dshmarket / awesome-dsh-plugin.com 展示

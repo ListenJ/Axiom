@@ -116,6 +116,58 @@ jobs:
           bun test --timeout 60000 tests/
         env:
           NODE_ENV: test
+
+  kb-plugin:
+    name: KB Plugin (built-in backend sync + tests)
+    runs-on: ubuntu-latest
+    # 仅当知识库引擎/后端或插件代码变化时运行
+    if: >-
+      ${{ github.event_name == 'push' &&
+          (contains(github.event.head_commit.modified, 'src/kb/') ||
+           contains(github.event.head_commit.modified, 'plugins/kb-dsh/') ||
+           contains(github.event.head_commit.added, 'src/kb/') ||
+           contains(github.event.head_commit.added, 'plugins/kb-dsh/')) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install plugin deps
+        run: |
+          cd plugins/kb-dsh
+          bun install --frozen-lockfile
+
+      - name: Check backend/server.js is in sync with src/kb
+        # 重新构建内置后端并对比已提交产物；不一致说明产物过期，需运行 bun run build:backend
+        run: |
+          cd plugins/kb-dsh
+          bun build ../../src/kb/backend/mcp-server.ts --target=bun --outfile /tmp/kb-backend-check.js --minify
+          if ! cmp -s /tmp/kb-backend-check.js backend/server.js; then
+            echo "::error::plugins/kb-dsh/backend/server.js is out of sync with src/kb. Run: cd plugins/kb-dsh && bun run build:backend, then commit the regenerated file."
+            exit 1
+          fi
+          echo "backend/server.js is in sync with src/kb"
+
+      - name: Typecheck
+        run: |
+          cd plugins/kb-dsh
+          bun run typecheck
+
+      - name: Build (bridge + backend)
+        run: |
+          cd plugins/kb-dsh
+          bun run build
+
+      - name: Plugin tests (self-contained, real MCP smoke)
+        run: |
+          cd plugins/kb-dsh
+          bun test --timeout 60000 tests/
+        env:
+          NODE_ENV: test
+
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
