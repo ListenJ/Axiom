@@ -17,7 +17,7 @@
   - PR #1797 留说明评论（https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1797#issuecomment-5336084906）：gate 失败因仓库 age<1 天，commits=10 已达标，满 24h 后重跑。
   - `README_en.md` / 镜像 `README.md`：加 CI 徽章（GitHub Actions badge）。
 - **验证**：PR 评论已发布；镜像推送 511216e。
-- **Commit**：待回填
+- **Commit**：`99dfce9`
 
 ## 2026-08-19 — 后端产物 minify 优化（1.25MB→0.70MB）+ awesome-dsh-plugin PR 状态确认
 
