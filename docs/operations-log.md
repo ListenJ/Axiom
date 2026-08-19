@@ -20,7 +20,7 @@
   - 开源：创建公开仓库 `https://github.com/ListenJ/axiom-kb-dsh`（默认分支 main，README 中英 + CI 徽章），推送 OSS 镜像（.tmp/axiom-kb-dsh-oss）；DRE OSS 镜像同步新产物（e5ab27d）。
   - `docs/REMINDERS.md`：KB 开源待办勾除，补 awesome-dsh-plugin 上架待办。
 - **验证**：主项目 `bun run lint` 0 错误；`test:full` 273/273；全套件 `bun test ./tests` 2670 pass / 28 skip / 0 fail（2698 用例）；`audit:runtime` 16/16 通过；architecture-integrity 22/22（process.env 0 违规、循环 0 对）。真实效果：主 MCP server（src/mcp/server.ts --stdio）真实拉起 188 工具（memory 7/kg 17/web 2/dre 7/kal/dip 均在，web 仍在主面）；memory_write→memory_search 写读闭环命中、kg_add_node→kg_stats 真实写入。插件：DRE 25/25、KB 20/20（本地 + 远端 listen@192.168.0.150 新产物 20/20）。开源 CI：ListenJ/axiom-kb-dsh 与 ListenJ/axiom-dre-dsh 均 success。
-- **Commit**：`<待回填>`
+- **Commit**：`f61d83f`
 ## 2026-08-19 — 知识库插件（axiom-kb-dsh）自包含化：Vault 记忆 + 知识图谱，联网检索不入插件队列
 
 - **任务**：按功能拆分 DSH 插件的第二步——把 Axiom 知识库（Vault 记忆 + 知识图谱）封装为独立自包含插件 `axiom-kb-dsh`（`plugins/kb-dsh/`），以 `kb__<tool>` 前缀暴露 memory_*/kg_*/kal_*/dip_* 工具；联网检索（web_fetch/web_search/search_engines_list）不进插件队列，仅保留宿主 Agent 个人使用；本地 + 远端 listen@192.168.0.150 深度测试；CI/CD 与文档更新。
