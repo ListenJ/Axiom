@@ -49,7 +49,7 @@ describe('专有代码索引（AST→SQLite）', () => {
   test('indexProject 提取符号/调用并写入 SQLite（排除 node_modules）', () => {
     const r = indexProject(fixture, PROJ)
     expect(r.files).toBe(2)
-    expect(r.symbols).toBeGreaterThanOrEqual(6) // add/multiply/Calculator/total/addTo/run
+    expect(r.symbols).toBeGreaterThanOrEqual(5) // add/multiply/Calculator/addTo/run（variable 已按轻量化跳过）
     expect(r.calls).toBeGreaterThanOrEqual(2)   // run→Calculator / addTo→add
     expect(isProjectIndexed(PROJ)).toBe(true)
 

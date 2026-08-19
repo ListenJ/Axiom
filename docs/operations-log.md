@@ -8,6 +8,20 @@
 ---
 
 
+## 2026-08-20 — 配置与密钥统一管理 + 代码索引轻量化与超高压力测试（性能边界）
+
+- **任务**：①将配置与密钥管理统一到单一入口防止错乱；②审查自研代码索引 × DRE × 知识库配合的合理性，完成轻量化设计与超高压力测试摸清性能边界。
+- **工具**：bun（lint/test/test:full）、node（压测/EXPLAIN）、SQLite、git。
+- **操作**：
+  - **配置统一**：`config/axiom.yaml` 顶部新增「配置地图」头注释（登记全部 config/*.yaml 职责与消费模块 + 密钥规范：仓库内零真实密钥、仅 ${VAR} 占位符、真实密钥只存 .env / ~/.axiom/axiom-secrets/、优先级 Runtime>ENV>YAML>Default）；新增 `docs/CONFIGURATION.md` 统一规范（配置层次、文件地图、密钥规则、常用操作、校验门禁）。已提交 94a3a9e。
+  - **代码索引轻量化**（`src/codeindex/local-index.ts`）：去掉 variable 符号（噪音，-73% 符号量）；新增 `idx_symbols_project_name`/`idx_symbols_project_qual` 索引；预编译语句缓存（避免 bun:sqlite 每查询重复 prepare）；getCallers/getCallees 拆 name/qualified 两次索引查询（避免 OR 全表扫）；单值 `=` / 多值 `IN` 分支 + `INDEXED BY` 强制正确索引（SQLite 对 IN(单值) 会误选 caller 索引导致全表扫）。
+  - **超高压力测试（性能边界）**：
+    - 全仓索引：1012 TS/JS 文件 → **4.2s / 14444 符号 / 46184 调用**（src/dre 371ms / 2115 / 1582）。
+    - 查询吞吐：单次 getCallers **0.11ms**、search 0.12ms；1000 并发读 **9346 ops/s**（优化前 62 ops/s，**150 倍**）。
+    - 并发索引：4 个 indexProject 并行 535ms 全部成功（SQLite 事务串行化正常）；混合 1 索引+200 读 130ms。
+  - **配合审查结论**：本地代码索引（SQLite 符号/调用）为 KG 提供实体/关系来源、KG（PG）作图谱与跨存储（KAL fan-out）、DRE 为独立验证层——职责清晰合理；**薄弱点**：KG 构建强依赖远程 PG（无 PG 直接不可用）且实体/关系逐条网络写入（~3700 次）慢——已列入 REMINDERS 待办（支持 SQLite 后端 + 批量 upsert）。
+- **验证**：lint 0 错；codeindex 单测 4/4；test:full 277/277；全套件 2674/0；压测量化边界如上。
+- **Commit**：`<待回填>`
 ## 2026-08-20 — 专有代码索引（AST→SQLite 突破 codegraph）+ 网络搜索压测与防泄露严审
 
 - **任务**：①突破外部 codegraph CLI 限制，实现专有代码索引机制（数据库化）；②网络搜索能力/速度优化 + 压测 + 防数据泄露严审。

@@ -51,6 +51,18 @@ export function getCodeIndexDb(): Database {
   return _db;
 }
 
+
+/** 预编译语句缓存：避免每查询重复 prepare（bun:sqlite db.query 会重新编译）。 */
+const stmtCache = new Map<string, ReturnType<Database["query"]>>();
+function q(db: Database, sql: string): ReturnType<Database["query"]> {
+  let s = stmtCache.get(sql);
+  if (!s) {
+    s = db.query(sql);
+    stmtCache.set(sql, s);
+  }
+  return s;
+}
+
 function ensureSchema(db: Database): void {
   db.run(`
     CREATE TABLE IF NOT EXISTS code_symbols (
@@ -69,6 +81,8 @@ function ensureSchema(db: Database): void {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_symbols_project_kind ON code_symbols(project, kind)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_symbols_name ON code_symbols(name)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_symbols_project_name ON code_symbols(project, name)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_symbols_project_qual ON code_symbols(project, qualified_name)`);
   db.run(`
     CREATE TABLE IF NOT EXISTS code_calls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,8 +235,10 @@ function indexFile(file: string, project: string): FileIndexResult {
       return;
     }
     if (ts.isVariableDeclaration(node) && node.name && ts.isIdentifier(node.name)) {
-      const isFn = node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer));
-      pushSymbol(node, node.name.text, isFn ? "function" : "variable");
+      // 仅函数/箭头函数初始化的变量作为 function 符号；普通变量是噪音（数量大且无查询价值）
+      if (node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+        pushSymbol(node, node.name.text, "function");
+      }
     }
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
@@ -326,8 +342,8 @@ export function searchSymbolsLocal(
   const limit = opts?.limit ?? 100;
   const like = `%${query}%`;
   const rows = opts?.kind
-    ? db.query(`SELECT * FROM code_symbols WHERE project = ? AND kind = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, opts.kind, like, like, limit)
-    : db.query(`SELECT * FROM code_symbols WHERE project = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, like, like, limit);
+    ? q(db, `SELECT * FROM code_symbols WHERE project = ? AND kind = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, opts.kind, like, like, limit)
+    : q(db, `SELECT * FROM code_symbols WHERE project = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, like, like, limit);
   return (rows as CodeSymbol[]).map((s) => ({ node: s, score: 1 }));
 }
 
@@ -338,14 +354,22 @@ export function getCallersLocal(
 ): LocalSearchResult[] {
   const db = getCodeIndexDb();
   const limit = opts?.limit ?? 100;
-  const rows = db.query(`
-    SELECT s.* FROM code_calls c
-    JOIN code_symbols callee ON callee.id = c.callee_id
-    JOIN code_symbols s ON s.id = c.caller_id
-    WHERE c.project = ? AND (callee.name = ? OR callee.qualified_name = ?)
-    GROUP BY s.id LIMIT ?
-  `).all(projectName, symbolName, symbolName, limit);
-  return (rows as CodeSymbol[]).map((s) => ({ node: s, score: 1 }));
+  // 三步查询：先定位 callee id（name/qualified 各走索引，避免 OR 全表扫）→ caller ids → 详情
+  const byName = q(db, `SELECT id FROM code_symbols WHERE project = ? AND name = ? LIMIT 50`).all(projectName, symbolName) as Array<{ id: number }>;
+  const byQual = q(db, `SELECT id FROM code_symbols WHERE project = ? AND qualified_name = ? LIMIT 50`).all(projectName, symbolName) as Array<{ id: number }>;
+  const seen = new Set<number>();
+  const calleeRows = [...byName, ...byQual].filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  if (calleeRows.length === 0) return [];
+  const ids = calleeRows.map((r) => r.id);
+  // 单值用 =（避免 SQLite 对 IN(单值) 选错索引导致全表扫）；多值用 IN
+  const callerRows = ids.length === 1
+    ? q(db, `SELECT DISTINCT caller_id FROM code_calls INDEXED BY idx_calls_callee WHERE project = ? AND callee_id = ? LIMIT ?`).all(projectName, ids[0], limit) as Array<{ caller_id: number }>
+    : q(db, `SELECT DISTINCT caller_id FROM code_calls INDEXED BY idx_calls_callee WHERE project = ? AND callee_id IN (${ids.map(() => "?").join(",")}) LIMIT ?`).all(projectName, ...ids, limit) as Array<{ caller_id: number }>;
+  if (callerRows.length === 0) return [];
+  const callerIds = callerRows.map((r) => r.caller_id);
+  const ph2 = callerIds.map(() => "?").join(",");
+  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...callerIds) as CodeSymbol[];
+  return rows.map((s) => ({ node: s, score: 1 }));
 }
 
 export function getCalleesLocal(
@@ -355,12 +379,18 @@ export function getCalleesLocal(
 ): LocalSearchResult[] {
   const db = getCodeIndexDb();
   const limit = opts?.limit ?? 100;
-  const rows = db.query(`
-    SELECT s.* FROM code_calls c
-    JOIN code_symbols caller ON caller.id = c.caller_id
-    JOIN code_symbols s ON s.id = c.callee_id
-    WHERE c.project = ? AND (caller.name = ? OR caller.qualified_name = ?)
-    GROUP BY s.id LIMIT ?
-  `).all(projectName, symbolName, symbolName, limit);
-  return (rows as CodeSymbol[]).map((s) => ({ node: s, score: 1 }));
+  const byName = q(db, `SELECT id FROM code_symbols WHERE project = ? AND name = ? LIMIT 50`).all(projectName, symbolName) as Array<{ id: number }>;
+  const byQual = q(db, `SELECT id FROM code_symbols WHERE project = ? AND qualified_name = ? LIMIT 50`).all(projectName, symbolName) as Array<{ id: number }>;
+  const seen = new Set<number>();
+  const callerRows = [...byName, ...byQual].filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  if (callerRows.length === 0) return [];
+  const ids = callerRows.map((r) => r.id);
+  const calleeRows = ids.length === 1
+    ? q(db, `SELECT DISTINCT callee_id FROM code_calls INDEXED BY idx_calls_caller WHERE project = ? AND caller_id = ? LIMIT ?`).all(projectName, ids[0], limit) as Array<{ callee_id: number }>
+    : q(db, `SELECT DISTINCT callee_id FROM code_calls INDEXED BY idx_calls_caller WHERE project = ? AND caller_id IN (${ids.map(() => "?").join(",")}) LIMIT ?`).all(projectName, ...ids, limit) as Array<{ callee_id: number }>;
+  if (calleeRows.length === 0) return [];
+  const calleeIds = calleeRows.map((r) => r.callee_id);
+  const ph2 = calleeIds.map(() => "?").join(",");
+  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...calleeIds) as CodeSymbol[];
+  return rows.map((s) => ({ node: s, score: 1 }));
 }
