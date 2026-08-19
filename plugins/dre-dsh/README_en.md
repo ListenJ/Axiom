@@ -1,5 +1,7 @@
 # axiom-dre-dsh
 
+[![CI](https://github.com/ListenJ/axiom-dre-dsh/actions/workflows/ci.yml/badge.svg)](https://github.com/ListenJ/axiom-dre-dsh/actions)
+
 > Axiom Deterministic Reasoning Engine (DRE) as a [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) plugin.
 
 A **self-contained** plugin: it bundles the DRE engine and its MCP backend, and exposes the engine's tools to dsh under the `dre__` prefix — knowledge verification (three-stage discrimination), deterministic cognition loops, constraint solving, mental models and synapse memory.
