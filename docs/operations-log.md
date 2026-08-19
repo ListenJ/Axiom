@@ -8,6 +8,18 @@
 ---
 
 
+## 2026-08-19 — 配置 Windows OpenSSH 反向接入：data 服务器（192.168.0.22）可 SSH 到本机
+
+- **任务**：配置本地 Windows 的 SSH 服务端，使 Ubuntu data 服务器（data@192.168.0.22）能用密钥免密 SSH 登录本机（dandelion\18336）。
+- **工具**：ssh、ssh-keygen、PowerShell（Start-Process -Verb RunAs 提权）、icacls、scp。
+- **操作**：
+  - 确认现状：OpenSSH Server（sshd）已在运行并监听 0.0.0.0:22，防火墙已放行；18336 为 Administrators 组成员（当前令牌被 UAC 过滤）。
+  - data 服务器生成专用密钥 `~/.ssh/id_ed25519_win`（ed25519，私钥仅存 data 服务器）。
+  - 本机以 `Start-Process -Verb RunAs`（UAC 提权）执行安装脚本：公钥写入 `C:\ProgramData\ssh\administrators_authorized_keys`（管理员用户专用授权文件），`icacls` 按官方要求收紧 ACL（仅 SYSTEM + Administrators，关闭继承）；`sshd_config` 设 `PasswordAuthentication no`（仅密钥登录）；重启 sshd。
+  - data 服务器 `~/.ssh/config` 新增别名 `win` → `HostName 192.168.0.100, User 18336, IdentityFile ~/.ssh/id_ed25519_win`。
+- **验证**：`ssh win` → `SSH-OK / dandelion\18336`；`BatchMode=yes` 通过（纯密钥认证，非密码）；复测 SECOND-OK；可远程执行 Windows PowerShell。临时脚本/标记已清理，无残留计划任务。
+- **安全说明**：密码认证已关闭，仅密钥可登录；authorized_keys 文件 ACL 仅 SYSTEM/Administrators 可读。私钥仅在 data 服务器，未入库。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 开源插件接入 npm：npm 构建 + npm 发布 GitHub Actions（真实 dry-run 验证）
 
 - **任务**：按用户要求为两个开源插件（axiom-dre-dsh / axiom-kb-dsh）接入 npm 生态——GitHub Actions 中「npm 构建 NodeJS 项目」「将 Node.js 包发布到 npm」；webpack/Deno 不适用（桥接层为 tsc 多文件 ESM，后端为 Bun 单文件打包，运行时为 Bun/Node），已在结论说明。
