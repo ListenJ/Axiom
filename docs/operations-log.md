@@ -5995,4 +5995,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 数据迁移：code-index.db（code_symbols 14996/code_calls 41608/code_index_meta 9）、dre.db（0 行，表结构并入）、knowledge.db（knowledge_sources 280/dictionary 30 + FTS）→ agent.db（63 表）。
   - 旧库归档：data/code-index.db、data/dre.db、data/knowledge.db、axiom-memory.db → archive/knowledge-db-merge-2026-08-20/（archive/ 已 gitignore，仅本地留底；ARCHIVE-LOG.md 已登记）。
 - **验证**：bun run lint（tsc 干净）；冒烟（同一主库同时开 SQLiteMemory/code-index/KnowledgeStore/DRE Kernel 无 schema 冲突、memory-api 查询可用）；bun test 全量 2674 pass / 28 skip / 0 fail（2702 tests）。
-- **Commit**：`PLACEHOLDER`
+- **Commit**：`0132dcd`
