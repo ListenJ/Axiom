@@ -22,7 +22,7 @@
     1. `net-ensure.sh`/iptables 有 `PREROUTING/OUTPUT dport 8080 → DNAT 192.168.122.162:80`（fnos 虚拟机），劫持 8080 导致反代 302——已移除 8080 的 DNAT 规则与脚本行（保留 8443→fnos:443）。
     2. `sites-enabled/dsh`（listen 80）与 1Panel openresty 抢占 80，导致 system nginx reload 持续 `[emerg] bind 80 failed`、配置不生效——已删除该旧配置，`systemctl restart nginx` 干净生效（仅监听 192.168.0.22:8080）。
 - **验证**：nginx active、`192.168.0.22:8080` 仅绑定内网 IP；Windows 与 listen(.150) 访问均 200，前端静态资源（index.js 443KB/vendor.js 745KB/manifest）全 200；`/api` 对非浏览器连接返回 403（fence 预期行为，浏览器带 Origin 会放行）；SSH/Git（:22）正常；fnos 虚拟机运行、8443 转发正常；mihomo 无残留。dsh web 当前以 nohup 运行（重启后需手动拉起，建议后续加 systemd 单元）。
-- **Commit**：`<待回填>`
+- **Commit**：`1a89ec9`
 ## 2026-08-19 — 停用 mihomo 透明代理 + 清理 data/listen 代理设置（网关统一指向路由器 192.168.0.1）
 
 - **任务**：按用户要求停用 data 服务器（192.168.0.22）的 mihomo 代理服务且不再使用，并清理 data 与 listen（192.168.0.150）两台的代理设置；两台的网关/静态路由统一改为路由器 192.168.0.1。
