@@ -21,7 +21,7 @@
 - **文件**：`src/memory/sqlite-memory.ts`（默认库统一）、`src/kal/knowledge-access-layer.ts`（ORDER BY rank）。
 - **验证**：lint 0 错；test:full 277/277；全套件 2674/0（复跑；一次 1 fail 为并行 RateLimiter/EventBus 时序 flaky）。
 - **建议**：搜索/抓取内容目前入库为 Vault 笔记（文本知识库）；如需进一步 KG 化（图谱实体/关系），可经 DIP（dip_ingest_document）管道灌入知识图谱——留作后续增强。
-- **Commit**：`<待回填>`
+- **Commit**：`2d14c8e`
 ## 2026-08-20 — 配置与密钥统一管理 + 代码索引轻量化与超高压力测试（性能边界）
 
 - **任务**：①将配置与密钥管理统一到单一入口防止错乱；②审查自研代码索引 × DRE × 知识库配合的合理性，完成轻量化设计与超高压力测试摸清性能边界。
