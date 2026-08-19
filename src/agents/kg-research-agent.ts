@@ -83,7 +83,7 @@ export async function runKnowledgeGraphResearch(
     timeout = 120000,
   } = task;
 
-  logger.info("[KGResearch] Starting research", { query, depth, model });
+  logger.info("[KGResearch] Starting research", { queryLen: query.length, depth, model });
 
   // Step 1: 从知识图谱获取上下文
   const kgContext = await buildResearchContext(query, {

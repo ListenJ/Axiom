@@ -8,6 +8,23 @@
 ---
 
 
+## 2026-08-20 — 专有代码索引（AST→SQLite 突破 codegraph）+ 网络搜索压测与防泄露严审
+
+- **任务**：①突破外部 codegraph CLI 限制，实现专有代码索引机制（数据库化）；②网络搜索能力/速度优化 + 压测 + 防数据泄露严审。
+- **工具**：bun（lint/test/test:full）、node（压测/调试）、TypeScript Compiler API、SQLite、curl。
+- **操作**（文件级）：
+  1. **新增 `src/codeindex/local-index.ts`（360 行）**：专有代码索引——TypeScript Compiler API 解析 TS/JS/TSX/JSX（排除 node_modules/.git/dist/.tmp 等），提取符号（function/class/interface/enum/type/method/variable）与调用关系（CallExpression + NewExpression，方法内调用归属限定方法 Class.method），写入本地 SQLite `code-index.db`（code_symbols/code_calls/code_index_meta + 索引）；提供 `indexProject/searchSymbolsLocal/getCallersLocal/getCalleesLocal/isProjectIndexed`。
+  2. `src/memory/codegraph-index.ts`：`searchSymbols/getCallers/getCallees` **本地优先**（tryLocal + 结果映射为 codegraph 兼容形状，id 转 string），新增 `ensureLocalCodeIndex`；非 TS/JS 或未索引时回退外部 codegraph。
+  3. `src/memory/knowledge-graph-builder.ts`：Phase 3 前调用 `ensureLocalCodeIndex(projectPath)`——实体与调用查询走本地，不再逐实体 spawn codegraph。
+  4. **搜索泄露审查与修复**：`src/crawl/data-pipeline.ts` 两处 + `src/agents/kg-research-agent.ts` 一处将查询明文写入 INFO 日志（日志采集即泄露敏感查询）——改为 `sanitizeQueryForLog`（长度+8 位哈希），查询不再明文进日志；`search_history`/`searchCache` 明文查询仅落本地 SQLite（可接受，已确认 gitignore）。
+  5. `package.json`：`test:full` 挂载 `tests/codeindex/local-index.test.ts`。
+  6. 新增 `tests/codeindex/local-index.test.ts`（4 用例：索引/排除 node_modules、kind 查询、调用者/被调用者、幂等）。
+- **验证**：
+  - 本地索引：`src/dre` **371ms 完成**（50 文件 → 2115 符号 / 1582 调用）；查询正确（writeKnowledge 调用者 = DREngine.handleReflection；callees = syncToKG/Pipeline.process 等）；单测 4/4；test:full 277/277；全套件 2674/0。
+  - KG 构建：异步 job 提交即返回；本地索引后实体/调用查询不再挂死（剩余耗时在远程 PG 逐条 upsert，约 2115+1582 次网络写入，属既有架构）。
+  - 搜索压测：冷缓存 ~1927ms/请求（3 引擎并行，最慢引擎 ~2s）、热缓存 **32ms**（缓存 10min TTL 高效）；80 并发单 key 全 200（localhost 限流豁免为设计，限流按 IP 防伪造，`/web-search` 30 次/min）；日志验证脱敏生效（`len=16 h=b8a895b4`）。
+- **说明**：KG 构建的远程 PG 写入可后续做批量 upsert 优化；本地索引目前覆盖 TS/JS 系，非 TS 语言回退 codegraph。
+- **Commit**：`<待回填>`
 ## 2026-08-20 — KG 构建异步化 + 无密钥网络搜索可用化 + codegraph 挂起修复
 
 - **任务**：按用户要求——`/kg/build` 改为「指定 projectPath + 异步任务轮询」；网络搜索无密钥可用；完善 Agent 真实可用性。

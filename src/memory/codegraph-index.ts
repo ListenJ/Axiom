@@ -17,6 +17,7 @@ import path from "path";
 import { readFileSync, statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { Cache } from "../utils/cache.js";
+import { tryLocal, searchSymbolsLocal, getCallersLocal, getCalleesLocal, isProjectIndexed, indexProject, type LocalSearchResult } from "../codeindex/local-index.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -59,7 +60,35 @@ export function invalidateCodegraphCache(): void {
   logger.info("[CodeGraph] Cache invalidated after reindex");
 }
 
+
+/** 本地结果 → codegraph 兼容形状（id 转字符串）。 */
+function toCodeGraphResult(local: LocalSearchResult[]): CodeGraphSearchResult[] {
+  return local.map(({ node, score }) => ({
+    node: {
+      id: String(node.id), kind: node.kind, name: node.name, qualifiedName: node.qualifiedName,
+      filePath: node.filePath, language: node.language, startLine: node.startLine, endLine: node.endLine,
+      signature: node.signature,
+    },
+    score,
+  }));
+}
 let codegraphBin: string | null = null;
+
+/**
+ * 确保本地代码索引可用（TS/JS 系）。KG 构建前调用；未索引时执行一次全量 AST 索引。
+ * 本地索引建立后，searchSymbols/getCallers/getCallees 自动本地优先。
+ */
+export function ensureLocalCodeIndex(projectPath: string): boolean {
+  const name = path.basename(projectPath);
+  if (isProjectIndexed(name)) return true;
+  try {
+    indexProject(projectPath, name);
+    return true;
+  } catch (e) {
+    logger.warn("[CodeGraph] Local code index failed, using codegraph fallback", { error: (e as Error).message });
+    return false;
+  }
+}
 
 function getCodegraphBin(): string {
   if (codegraphBin) return codegraphBin;
@@ -230,6 +259,12 @@ export async function searchSymbols(
   opts?: { kind?: string; limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("searchSymbols", { query, ...opts }, async () => {
+    // 本地优先：TS/JS 项目已索引时直接查 SQLite，避免 spawn codegraph
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        searchSymbolsLocal(query, path.basename(opts.projectPath!), { kind: opts?.kind, limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["query", query, "--json"];
     if (opts?.kind) args.push("--kind", opts.kind);
     if (opts?.limit) args.push("--limit", String(opts.limit));
@@ -254,6 +289,12 @@ export async function getCallers(
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("getCallers", { symbolName, ...opts }, async () => {
+    // 本地优先
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        getCallersLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["callers", symbolName, "--json"];
     if (opts?.limit) args.push("--limit", String(opts.limit));
 
@@ -269,6 +310,12 @@ export async function getCallees(
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("getCallees", { symbolName, ...opts }, async () => {
+    // 本地优先
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        getCalleesLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["callees", symbolName, "--json"];
     if (opts?.limit) args.push("--limit", String(opts.limit));
 

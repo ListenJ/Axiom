@@ -146,6 +146,13 @@ export async function buildKnowledgeGraph(
       }
     }
 
+    // Phase 3 前置：确保本地代码索引可用（TS/JS 系 AST→SQLite），
+    // 实体与调用查询走本地优先，避免逐实体 spawn codegraph（慢且脆弱）。
+    try {
+      const { ensureLocalCodeIndex } = await import("./codegraph-index.js");
+      ensureLocalCodeIndex(projectPath);
+    } catch { /* 本地索引失败则回退 codegraph */ }
+
     // Phase 3: 提取代码节点实体 (函数、类、接口等)
     const nodeKinds = ["function", "class", "interface", "method", "variable", "enum", "struct", "module", "type"];
     const nodeEntities = new Map<string, number>();

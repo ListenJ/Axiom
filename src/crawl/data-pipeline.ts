@@ -41,6 +41,14 @@ import { VaultManager, getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
 import { readString } from "../utils/env.js";
 
+/** 日志脱敏：查询不落明文日志（防敏感查询经日志采集泄露），返回长度+前 8 位哈希。 */
+function sanitizeQueryForLog(query: string): string {
+  let h = 0;
+  for (let i = 0; i < query.length; i++) h = ((h << 5) - h + query.charCodeAt(i)) | 0;
+  return `len=${query.length} h=${(h >>> 0).toString(16).slice(0, 8)}`;
+}
+
+
 // ========== 类型定义 ==========
 
 interface CrawlOptions {
@@ -277,7 +285,7 @@ export class DataPipeline {
       timeRange: opts?.timeRange,
     };
 
-    logger.info(`[Pipeline] Multi-engine search: "${query}" via [${engines.join(", ")}]`);
+    logger.info(`[Pipeline] Multi-engine search: ${sanitizeQueryForLog(query)} via [${engines.join(", ")}]`);
     return this.searchAgg.searchMulti(searchOpts, engines);
   }
 
@@ -289,7 +297,7 @@ export class DataPipeline {
     engine: string = "duckduckgo",
     opts?: { num?: number; lang?: string; site?: string; safe?: boolean }
   ): Promise<SearchEngineResult[]> {
-    logger.info(`[Pipeline] Search via ${engine}: "${query}"`);
+    logger.info(`[Pipeline] Search via ${engine}: ${sanitizeQueryForLog(query)}`);
     return this.searchAgg.search(engine, {
       query,
       num: opts?.num ?? 10,
