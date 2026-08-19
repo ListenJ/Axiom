@@ -21,7 +21,7 @@
   - `tests/smoke-mcp.test.ts`：改为内置后端冒烟（自包含，无外部仓库依赖）。
   - `README_en.md` / `README_zh.md`：重写为自包含架构（安装无需额外步骤、架构图、配置表加 dataDir/内置默认、可选外部模式）。`docs/DRE-ARCHITECTURE.md`：第五节更新为自包含边界。
 - **验证**：插件 25/25 测试全绿（内置后端冒烟）；typecheck/build 通过；真实调用：cognitive_loop 完整 trace、write→search 写读闭环、schema 校验正常；本地 dsh web 重启后拉起 `bun ...\backend\server.js --stdio`（内置后端），端口 3080 正常。
-- **Commit**：待回填
+- **Commit**：`50552f9`
 
 ## 2026-08-19 — 澄清插件架构边界：纯 MCP 桥（不含 DRE 引擎）
 
