@@ -22,7 +22,7 @@
     - src 硬编码密钥扫描：干净。
 - **验证**：Playwright 真实浏览器——HTTP 200、标题 DeepSeek Harness、界面渲染、/api 通过（错误 7→1）、WebSocket 空闲不建连属正常；`modlens/config` 403 为插件回环限制；dsh-web systemd active、3080 正常、代理 200；ACL 复查确认收紧。
 - **建议**：`~/.modlens/config.json` 中的 sensenova key 曾以明文存在且本次审计中可见，建议在 sensenova 控制台**轮换该密钥**；如要求配置零明文，可后续改造 modlens（fork 支持 openai model 环境变量）或接入密钥管理。
-- **Commit**：`<待回填>`
+- **Commit**：`959c9c8`
 ## 2026-08-19 — dsh web 接入 systemd 单元（开机自启 + 崩溃自动重启）
 
 - **任务**：把 data 服务器上 npm 安装的 dsh web（此前 nohup 启动）接入 systemd，确保重启后自动拉起。
