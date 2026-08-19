@@ -147,6 +147,7 @@ export class KnowledgeAccessLayer {
         FROM memory_notes_fts fts
         JOIN memory_notes mn ON mn.id = fts.rowid
         WHERE memory_notes_fts MATCH ?
+        ORDER BY rank
         LIMIT ?
       `;
       const limit = intent.limit || 10;

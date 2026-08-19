@@ -8,6 +8,20 @@
 ---
 
 
+## 2026-08-20 — 网络搜索内容入库闭环验证与修复（搜索 → Vault → memory_search/KAL 命中）
+
+- **任务**：确认网络搜索内容能否被知识库入口消化入库、成为知识库可检索的一部分，并修复发现的缺口。
+- **工具**：bun（lint/test/test:full）、node（FTS/KAL 对比探针）、curl、真实网关。
+- **结论与验证**：
+  - 链路已存在：`/web-search`（searchMulti）与 `/web-fetch`（crawlStructured）都会把结果写入 Vault（`03-Resources/search-results/*.md`、`00-Knowledge/**/search-*.md`，type: search-result）；`memory_search` 可命中（真实闭环验证通过）。
+  - **发现并修复两个缺口**：
+    1. **记忆 FTS 双库分裂隐患**：`SQLiteMemory` 默认 `./axiom-memory.db`，而网关/主库用 `DATABASE_PATH`（agent.db）——VaultManager 未显式传 dbPath 时记忆索引会落到第二个库，与 KAL（查主库）分裂。修复：SQLiteMemory 默认跟随 `DATABASE_PATH`（`dbPath || SQLITE_MEMORY_DB || DATABASE_PATH || ./data/agent.db`），消除分裂；历史 `axiom-memory.db` 数据保留不迁移。
+    2. **KAL vault store 查询语义不一致**：`kal_query` 的 vault store SQL 缺 `ORDER BY rank`，FTS OR 前缀查询命中 100+ 条时目标被 LIMIT 10 挤出（搜索笔记查不到），而 `memory_search` 按 rank 排序可命中。修复：queryVault 加 `ORDER BY rank`（与 memory_search 同一语义）。
+- **修复后闭环（全真实验证）**：真实搜索 → Vault 笔记生成 → `memory_search` 命中 ✓ → KAL `kal_query` 命中 ✓（"axiom knowledge base plugin"/"axiom-kb-dsh"/"knowledge base" 三查询均命中搜索笔记）。
+- **文件**：`src/memory/sqlite-memory.ts`（默认库统一）、`src/kal/knowledge-access-layer.ts`（ORDER BY rank）。
+- **验证**：lint 0 错；test:full 277/277；全套件 2674/0（复跑；一次 1 fail 为并行 RateLimiter/EventBus 时序 flaky）。
+- **建议**：搜索/抓取内容目前入库为 Vault 笔记（文本知识库）；如需进一步 KG 化（图谱实体/关系），可经 DIP（dip_ingest_document）管道灌入知识图谱——留作后续增强。
+- **Commit**：`<待回填>`
 ## 2026-08-20 — 配置与密钥统一管理 + 代码索引轻量化与超高压力测试（性能边界）
 
 - **任务**：①将配置与密钥管理统一到单一入口防止错乱；②审查自研代码索引 × DRE × 知识库配合的合理性，完成轻量化设计与超高压力测试摸清性能边界。

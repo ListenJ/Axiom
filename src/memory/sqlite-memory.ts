@@ -53,7 +53,7 @@ export class SQLiteMemory {
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || readString("SQLITE_MEMORY_DB", "./axiom-memory.db");
+    this.dbPath = dbPath || readString("SQLITE_MEMORY_DB") || readString("DATABASE_PATH", "./data/agent.db");
     this.db = new Database(this.dbPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
