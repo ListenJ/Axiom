@@ -2,13 +2,15 @@
 
 > Axiom Deterministic Reasoning Engine (DRE) as a [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) plugin.
 
-This plugin is an MCP bridge: it spawns an Axiom DRE MCP server (run under Bun) and exposes a curated subset of its tools to dsh under the `dre__` prefix — knowledge verification, deterministic cognition, constraint solving, mental models and synapse memory.
+A **self-contained** plugin: it bundles the DRE engine and its MCP backend, and exposes the engine's tools to dsh under the `dre__` prefix — knowledge verification (three-stage discrimination), deterministic cognition loops, constraint solving, mental models and synapse memory.
 
 - License: MIT
 - Hot-pluggable: `dsh plugin add/rm`
-- Runtime: requires [Bun](https://bun.sh) (used to spawn the Axiom MCP server)
+- Runtime: requires [Bun](https://bun.sh)
 
 ## Install
+
+No extra setup — the plugin carries its own backend:
 
 ```bash
 dsh plugin --profile web add github:ListenJ/axiom-dre-dsh
@@ -22,31 +24,23 @@ Restart dsh (`dsh web`). The tool list then includes the `dre__*` tools and the 
 dsh plugin --profile web rm axiom-dre-dsh
 ```
 
-## What it does
+## Architecture
 
-The plugin launches an Axiom DRE MCP server over stdio, filters its tools by a DRE allow-list, and registers them into dsh as `dre__<tool>`. It does not implement reasoning logic itself — all capability comes from the bridged Axiom server.
+The plugin is self-contained: it bundles the DRE engine and a DRE-only MCP backend (`backend/server.js`, a single-file Bun build) and spawns it over stdio:
+
+```
+dsh (Node) ── axiom-dre-dsh ──stdio──▶ built-in backend (Bun) ──▶ DRE engine
+                 │                              │
+          filter + register               Kernel / Pipeline / …
+```
+
+- **No external Axiom repo is required** — the DRE engine (Kernel, three-stage verification pipeline, cognitive loop, constraint solver, synapse memory) is bundled inside the plugin.
+- The plugin spawns `bun backend/server.js --stdio` with a writable `data/` directory (created automatically).
+- **Optional external backend**: set `axiomHome` to a repo with `src/mcp/server.ts` and override `mcpArgs` (e.g. `run src/mcp/server.ts --stdio`) if you prefer to run your own server.
 
 ### `dre_plugin_status` (always available)
 
-A diagnostic tool reporting MCP bridge state (connected, tool count, server name), Axiom engine status, and the effective config summary.
-
-## Architecture
-
-This plugin is a **thin MCP bridge** — it does **not** bundle the DRE engine itself. The DRE engine (Kernel, three-stage knowledge-verification pipeline, cognitive loop, constraint solver, synapse memory, …) runs **inside the Axiom MCP server process** that the plugin spawns over stdio:
-
-```
-dsh (Node) ── axiom-dre-dsh (bridge) ──stdio──▶ Axiom MCP server (Bun) ──▶ DRE engine
-    │                    │                                  │
- tool calls      spawn + filter + register          Kernel / Pipeline / …
-```
-
-- The plugin contains **no DRE engine code** — it only spawns the server, filters its tools by the DRE allow-list, and registers them as `dre__<tool>`.
-- The engine lives in the **Axiom repo** (`src/mcp/server.ts` → `src/dre/`), run under **Bun**.
-- A bridge is required because the engine depends on Bun-specific APIs (e.g. `bun:sqlite`), while dsh plugins run under Node — the engine cannot be embedded in the plugin.
-
-## Prerequisites
-
-This plugin requires a runnable Axiom repo (the DRE MCP server) to connect to. Point it at the repo root via `axiomHome` (or the `AXIOM_HOME` env var); when left empty it is inferred by walking up 3 levels from the plugin's own files.
+A diagnostic tool reporting MCP bridge state (connected, tool count, server name), DRE engine status, and the effective config summary.
 
 ## Configuration
 
@@ -54,9 +48,10 @@ Overridden via `cordis.patch.yml` under line id `dre` (overriding the whole sect
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `axiomHome` | `""` | Axiom DRE MCP server repo root. Resolve order: config → `$AXIOM_HOME` → up 3 levels. |
-| `mcpEnabled` | `true` | Launch and bridge the MCP server. |
-| `mcpCommand` / `mcpArgs` | `bun` / `run src/mcp/server.ts --stdio` | MCP launch command. |
+| `axiomHome` | `""` | Optional external Axiom repo root (with `src/mcp/server.ts`). Empty = built-in backend. |
+| `dataDir` | `<plugin>/data` | Backend data directory (SQLite / memory). Created automatically. |
+| `mcpEnabled` | `true` | Launch and bridge the backend. |
+| `mcpCommand` / `mcpArgs` | `bun` / `<plugin>/backend/server.js --stdio` | Backend launch command. |
 | `mcpServerName` | `dre` | Public tool prefix (`<serverName>__<tool>`). |
 | `mcpToolCallTimeoutMs` | `60000` | Per-tool call timeout (ms). |
 | `mcpFailOnStartupError` | `false` | `false` = tolerate startup failure (warn only); `true` = fail the fiber on initial connect error. |

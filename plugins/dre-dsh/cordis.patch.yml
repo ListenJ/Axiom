@@ -5,7 +5,9 @@
 # 行 id `dre` 是配置树中的稳定身份；覆盖时整段替换 config，需重述全部所需键。
 #
 # 默认值说明：
-#   - mcpEnabled=true：以 stdio 拉起 Axiom MCP 服务器，仅桥接 DRE 白名单工具，以 dre__<tool> 暴露。
+#   - mcpEnabled=true：以 stdio 拉起插件内置后端（DRE 引擎 + MCP 服务器，backend/server.js），
+#     仅桥接 DRE 白名单工具，以 dre__<tool> 暴露；无需外部 Axiom 仓库即可直接给 LLM 调用。
+#     如需使用外部后端：配置 axiomHome 指向含 src/mcp/server.ts 的仓库，并覆盖 mcpArgs 为 run src/mcp/server.ts --stdio。
 #   - toolFilter=[]：空数组 = 使用内置 DRE 白名单（dre_/cognitive_/reasoning_/constraint_/actor_/
 #     mental_model_/mind_synapse_ 前缀 + task_graph_execute/mind_suggest 全名）；
 #     显式提供数组时完全替换默认白名单（支持前缀（以 _ 结尾）或全名）。
@@ -19,11 +21,8 @@
       config:
         axiomHome: ''
         mcpEnabled: true
-        mcpCommand: 'bun'
-        mcpArgs:
-          - 'run'
-          - 'src/mcp/server.ts'
-          - '--stdio'
+        # mcpCommand/mcpArgs 缺省=内置后端（<插件>/backend/server.js --stdio）；
+        # 外部后端时覆盖为 run src/mcp/server.ts --stdio（配合 axiomHome）
         mcpServerName: 'dre'
         mcpToolCallTimeoutMs: 60000
         mcpFailOnStartupError: false

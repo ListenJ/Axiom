@@ -1,12 +1,16 @@
 # axiom-dre-dsh
 
-> Axiom 确定性推理引擎（DRE）的 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) 插件，可热插拔。
+> Axiom 确定性推理引擎（DRE）的 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/dsh) 插件。
+
+**自包含**插件：内置 DRE 引擎与其 MCP 后端，以 `dre__` 前缀向 dsh 暴露引擎工具——知识验证（三段甄别）、确定性认知闭环、约束求解、心智模型与突触记忆。
 
 - 许可证：MIT
 - 热插拔：`dsh plugin add/rm`
-- 运行时：依赖 [Bun](https://bun.sh)（用于拉起 Axiom MCP 服务器）
+- 运行时：依赖 [Bun](https://bun.sh)
 
 ## 安装
+
+无需额外配置——插件自带后端：
 
 ```bash
 dsh plugin --profile web add github:ListenJ/axiom-dre-dsh
@@ -20,31 +24,23 @@ dsh plugin --profile web add github:ListenJ/axiom-dre-dsh
 dsh plugin --profile web rm axiom-dre-dsh
 ```
 
-## 功能定位
+## 架构
 
-该插件以 stdio 拉起 Axiom DRE MCP 服务器，按 DRE 白名单筛选工具，并以 `dre__<tool>` 注册进 dsh。插件本身不实现推理逻辑，全部能力来自被桥接的 Axiom 服务器。
+插件**自包含**：内置 DRE 引擎与仅含 DRE 能力的 MCP 后端（`backend/server.js`，Bun 单文件构建），经 stdio 拉起：
+
+```
+dsh (Node) ── axiom-dre-dsh ──stdio──▶ 内置后端 (Bun) ──▶ DRE 引擎
+                 │                           │
+          过滤 + 注册                  Kernel / Pipeline / …
+```
+
+- **无需外部 Axiom 仓库**——DRE 引擎（Kernel、三段甄别流水线、认知闭环、约束求解、突触记忆）已打包进插件。
+- 插件以 `bun backend/server.js --stdio` 启动，数据目录 `data/` 自动创建。
+- **可选外部后端**：如需运行自建服务器，配置 `axiomHome` 指向含 `src/mcp/server.ts` 的仓库，并覆盖 `mcpArgs`（如 `run src/mcp/server.ts --stdio`）。
 
 ### `dre_plugin_status`（始终可用）
 
-诊断工具：报告 MCP 桥接状态（连接/工具数/服务名）、Axiom 引擎状态与生效配置摘要。
-
-## 架构
-
-本插件是一个**薄 MCP 桥**——**自身不含 DRE 引擎代码**。DRE 引擎（Kernel、三段甄别知识验证流水线、认知闭环、约束求解、突触记忆等）运行在**插件通过 stdio 拉起的 Axiom MCP 服务器进程内**：
-
-```
-dsh (Node) ── axiom-dre-dsh（桥）──stdio──▶ Axiom MCP 服务器 (Bun) ──▶ DRE 引擎
-    │                   │                                 │
- 工具调用          拉起 + 白名单过滤 + 注册           Kernel / Pipeline / …
-```
-
-- 插件**不含 DRE 引擎代码**：只负责拉起服务器、按 DRE 白名单过滤工具、以 `dre__<tool>` 注册。
-- 引擎位于 **Axiom 仓库**（`src/mcp/server.ts` → `src/dre/`），运行于 **Bun**。
-- 采用桥接是因为引擎依赖 Bun 专属 API（如 `bun:sqlite`），而 dsh 插件运行在 Node 环境，引擎无法内嵌。
-
-## 前置依赖
-
-需要一个可运行的 Axiom 仓库（DRE MCP 服务器）供插件连接。通过 `axiomHome`（或环境变量 `AXIOM_HOME`）指向该仓库根；留空时按插件文件位置上溯 3 层推断。
+诊断工具：报告 MCP 桥接状态（连接/工具数/服务名）、DRE 引擎状态与生效配置摘要。
 
 ## 配置
 
@@ -52,9 +48,10 @@ dsh (Node) ── axiom-dre-dsh（桥）──stdio──▶ Axiom MCP 服务器
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
-| `axiomHome` | `""` | Axiom DRE 服务器仓库根；解析顺序：config → `$AXIOM_HOME` → 上溯 3 层。 |
-| `mcpEnabled` | `true` | 拉起 MCP 服务器并桥接。 |
-| `mcpCommand` / `mcpArgs` | `bun` / `run src/mcp/server.ts --stdio` | MCP 启动命令。 |
+| `axiomHome` | `""` | 可选外部 Axiom 仓库根（含 `src/mcp/server.ts`）；空=内置后端。 |
+| `dataDir` | `<插件>/data` | 后端数据目录（SQLite/记忆），自动创建。 |
+| `mcpEnabled` | `true` | 拉起后端并桥接。 |
+| `mcpCommand` / `mcpArgs` | `bun` / `<插件>/backend/server.js --stdio` | 后端启动命令。 |
 | `mcpServerName` | `dre` | 工具公开前缀（`<serverName>__<tool>`）。 |
 | `mcpToolCallTimeoutMs` | `60000` | 单次工具调用超时（毫秒）。 |
 | `mcpFailOnStartupError` | `false` | `false`=启动失败仅告警；`true`=初始连接失败即报错。 |

@@ -1,17 +1,19 @@
 /**
- * 真实冒烟：以 stdio 拉起 Axiom MCP 服务器，验证 axiom-dre-dsh 只桥接 DRE 白名单
- * 工具（dre__* 前缀），且 dre__dre_status 可真实调用返回 lossless JSON。
- *
- * 需要仓库根可运行 bun + Axiom src/mcp/server.ts（本仓库即满足）。
- * 若环境不允许（无 bun / MCP 启动失败），测试跳过而非失败。
+ * 真实冒烟：以 stdio 拉起插件内置后端（backend/server.js，DRE 引擎 + MCP 服务器），
+ * 验证 axiom-dre-dsh 只桥接 DRE 白名单工具（dre__* 前缀），且 dre__dre_status
+ * 可真实调用返回 lossless JSON。自包含模式无需外部 Axiom 仓库。
  */
 import { describe, test, expect } from 'bun:test'
 import path from 'node:path'
+import { mkdirSync } from 'node:fs'
 import { apply } from '../src/index.js'
 import { createMcpBridge, DEFAULT_DRE_FILTER, matchTool, type McpBridge } from '../src/mcp-bridge.js'
 import type { DshToolDefinition } from '../src/types.js'
 
-const REPO = path.resolve(import.meta.dir, '..', '..', '..')
+const PLUGIN = path.resolve(import.meta.dir, '..')
+// 内置后端：插件 bun build 产物（DRE 引擎 + MCP 服务器），自包含
+const BUILTIN_BACKEND = path.join(PLUGIN, 'backend', 'server.js')
+const DATA_DIR = path.join(PLUGIN, 'data')
 
 function makeCtx() {
   const registered: DshToolDefinition[] = []
@@ -36,10 +38,11 @@ async function waitFor(cond: () => boolean, timeoutMs: number, label: string): P
 describe('smoke: 桥对真实 Axiom MCP 服务器的 DRE 白名单过滤', () => {
   test('只注册 dre__* 工具，且 dre__dre_status 可调用', async () => {
     const { ctx, registered } = makeCtx()
+    mkdirSync(DATA_DIR, { recursive: true })
     const bridge: McpBridge = createMcpBridge({
       command: 'bun',
-      args: ['run', 'src/mcp/server.ts', '--stdio'],
-      cwd: REPO,
+      args: [BUILTIN_BACKEND, '--stdio'],
+      cwd: DATA_DIR,
       serverName: 'dre',
       toolCallTimeoutMs: 30_000,
       toolFilter: DEFAULT_DRE_FILTER,
@@ -84,7 +87,8 @@ describe('smoke: 桥对真实 Axiom MCP 服务器的 DRE 白名单过滤', () =>
 describe('smoke: apply() 插件入口（容忍模式）', () => {
   test('注册 dre_plugin_status 诊断工具 + dre__* 桥接工具', async () => {
     const { ctx, registered } = makeCtx()
-    apply(ctx, { axiomHome: REPO, mcpToolCallTimeoutMs: 30_000, mcpFailOnStartupError: false })
+    // 自包含：不配 axiomHome，插件默认拉起内置后端
+    apply(ctx, { mcpToolCallTimeoutMs: 30_000, mcpFailOnStartupError: false })
     // dre_plugin_status 同步注册
     expect(registered.some((d) => d.name === 'dre_plugin_status')).toBe(true)
     // 桥接异步完成

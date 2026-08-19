@@ -11,6 +11,7 @@
  * 配置经 cordis.patch.yml 行 id `dre` 覆盖；Axiom 仓库根见 config.ts。
  * 与单块插件 axiom-dsh 的区别：本插件只暴露 DRE 能力面，前缀为 dre__。
  */
+import { mkdirSync } from 'node:fs'
 import { normalizeConfig, configSummary, type NormalizedConfig } from './config.js'
 import { createMcpBridge, DEFAULT_DRE_FILTER, applySynapseGate, type McpBridge } from './mcp-bridge.js'
 import type { DshContext, DshToolDefinition } from './types.js'
@@ -46,10 +47,19 @@ export function apply(ctx: DshContext, rawConfig: unknown): Promise<void> | void
 
   // ── 1) DRE 工具桥（默认开启） ──
   if (config.mcpEnabled) {
+    // 后端选择：axiomHome 指向有效 Axiom 仓库 → 外部后端（cwd=axiomHome）；
+    // 否则 → 插件内置后端（bun build 产物 backend/server.js，cwd=dataDir，自动创建）。
+    const backendCwd = config.homeCheck.ok ? config.axiomHome : config.dataDir
+    if (!config.homeCheck.ok) {
+      mkdirSync(config.dataDir, { recursive: true })
+    }
+    ctx.logger?.info?.(
+      '[axiom-dre-dsh] backend: ' + (config.homeCheck.ok ? 'external (' + config.axiomHome + ')' : 'built-in (' + config.mcpArgs[0] + ')'),
+    )
     bridge = createMcpBridge({
       command: config.mcpCommand,
       args: config.mcpArgs,
-      cwd: config.axiomHome,
+      cwd: backendCwd,
       env: config.mcpEnv,
       serverName: config.mcpServerName,
       toolCallTimeoutMs: config.mcpToolCallTimeoutMs,

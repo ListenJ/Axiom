@@ -8,6 +8,21 @@
 ---
 
 
+## 2026-08-19 — DRE 插件自包含化：内置 DRE 引擎与后端（无需外部 Axiom 仓库）
+
+- **任务**：按用户要求将 DRE 引擎与后端打包进插件，可直接给 LLM 调用；安装方式文档更新；修复自包含模式下的后端选择逻辑。
+- **工具**：bun build（单文件打包）、真实环境验证（本地 dsh web）、Node 补丁脚本。
+- **操作**（文件级）：
+  - 新增 `src/dre/backend/mcp-server.ts`：DRE 自包含 MCP 后端入口（只注册 dre-tools + mind-tools，42 工具，stdio/http 双模式）。
+  - 新增 `plugins/dre-dsh/backend/server.js`：bun build 产物（294 模块，1.25MB，含 DRE 引擎，自包含）。
+  - `plugins/dre-dsh/src/config.ts`：新增 `dataDir`、`resolvePluginRoot`（上溯 1 层）；默认 mcpArgs=内置后端；axiomHome 为空=自包含（不自动上溯解析，避免 monorepo 误判外部仓库）。
+  - `plugins/dre-dsh/src/index.ts`：后端选择（内置 backend/server.js + cwd=dataDir 自动创建 / 外部 axiomHome 可选）；日志标注后端来源。
+  - `package.json`：build 串接 build:backend；files 加 backend。`cordis.patch.yml`：移除 mcpArgs 覆盖（走内置默认），补说明。`.gitignore`：忽略 data/。
+  - `tests/smoke-mcp.test.ts`：改为内置后端冒烟（自包含，无外部仓库依赖）。
+  - `README_en.md` / `README_zh.md`：重写为自包含架构（安装无需额外步骤、架构图、配置表加 dataDir/内置默认、可选外部模式）。`docs/DRE-ARCHITECTURE.md`：第五节更新为自包含边界。
+- **验证**：插件 25/25 测试全绿（内置后端冒烟）；typecheck/build 通过；真实调用：cognitive_loop 完整 trace、write→search 写读闭环、schema 校验正常；本地 dsh web 重启后拉起 `bun ...\backend\server.js --stdio`（内置后端），端口 3080 正常。
+- **Commit**：待回填
+
 ## 2026-08-19 — 澄清插件架构边界：纯 MCP 桥（不含 DRE 引擎）
 
 - **任务**：按用户要求仔细核实并说明插件与 DRE 引擎的边界——插件是 MCP 桥还是包含引擎本身。基于代码事实核实后，在文档中明确：插件是纯 MCP 桥，DRE 引擎运行在被拉起的 Axiom 后端进程内。

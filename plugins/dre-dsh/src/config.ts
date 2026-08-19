@@ -10,8 +10,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export interface AxiomDreConfig {
-  /** Axiom 仓库根目录（含 src/main.ts 与 src/mcp/server.ts）。 */
+  /** Axiom 仓库根目录（含 src/main.ts 与 src/mcp/server.ts）；留空=使用插件内置后端。 */
   axiomHome: string
+  /** 后端数据目录（SQLite/记忆落盘）；默认 <pluginRoot>/data。 */
+  dataDir: string
   /** 是否拉起 Axiom MCP 服务器（stdio）并桥接 DRE 白名单工具。 */
   mcpEnabled: boolean
   mcpCommand: string
@@ -78,6 +80,12 @@ export function resolveAxiomHome(explicit: unknown, importMetaUrl: string): stri
   return path.resolve(path.dirname(here), '..', '..', '..')
 }
 
+/** 解析插件根目录：源码布局 plugins/dre-dsh/src、产物布局 plugins/dre-dsh/lib → 上溯 1 层。 */
+export function resolvePluginRoot(importMetaUrl: string): string {
+  const here = fileURLToPath(importMetaUrl)
+  return path.resolve(path.dirname(here), '..')
+}
+
 /** 校验 Axiom 仓库根是否包含必需入口文件。 */
 export function checkAxiomHome(home: string): { ok: boolean; missing: string[] } {
   const required = ['src/main.ts', 'src/mcp/server.ts']
@@ -89,11 +97,15 @@ export function checkAxiomHome(home: string): { ok: boolean; missing: string[] }
 export function normalizeConfig(raw: unknown, importMetaUrl: string): NormalizedConfig {
   const cfg = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const axiomHome = resolveAxiomHome(cfg.axiomHome, importMetaUrl)
+  const pluginRoot = resolvePluginRoot(importMetaUrl)
+  const dataDir = str(cfg.dataDir, path.join(pluginRoot, 'data'))
   return {
     axiomHome,
+    dataDir,
     mcpEnabled: bool(cfg.mcpEnabled, true),
     mcpCommand: str(cfg.mcpCommand, 'bun'),
-    mcpArgs: strArr(cfg.mcpArgs, ['run', 'src/mcp/server.ts', '--stdio']),
+    // 默认拉起插件内置后端（DRE 引擎 + MCP 服务器，bun build 产物）；配置 axiomHome 时可在外部覆盖
+    mcpArgs: strArr(cfg.mcpArgs, [path.join(pluginRoot, 'backend', 'server.js'), '--stdio']),
     mcpEnv: strDict(cfg.mcpEnv, {}),
     mcpServerName: str(cfg.mcpServerName, 'dre'),
     mcpToolCallTimeoutMs: num(cfg.mcpToolCallTimeoutMs, DEFAULT_MCP_TOOL_TIMEOUT_MS),
@@ -102,7 +114,8 @@ export function normalizeConfig(raw: unknown, importMetaUrl: string): Normalized
       ? (cfg.toolFilter as string[])
       : [],
     synapseEnabled: bool(cfg.synapseEnabled, true),
-    homeCheck: checkAxiomHome(axiomHome),
+    // axiomHome 为空 = 自包含内置后端（不自动上溯解析，避免 monorepo 误判为外部仓库）
+    homeCheck: axiomHome ? checkAxiomHome(axiomHome) : { ok: false, missing: [] },
   }
 }
 
@@ -110,6 +123,7 @@ export function normalizeConfig(raw: unknown, importMetaUrl: string): Normalized
 export function configSummary(config: NormalizedConfig): Record<string, unknown> {
   return {
     axiomHome: config.axiomHome,
+    dataDir: config.dataDir,
     homeOk: config.homeCheck.ok,
     homeMissing: config.homeCheck.missing,
     mcpEnabled: config.mcpEnabled,

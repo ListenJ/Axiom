@@ -130,14 +130,15 @@ observe → decide(LLM 或规则降级) → 记录 trace → 反思检查
 | `dre_constraint_inject` | constraint-injection（实践手册 → 约束词） |
 | `dre_consciousness_step` | ConsciousnessStream |
 
-> **边界（事实）**：插件（axiom-dre-dsh）是**纯 MCP 桥**，代码中**不包含 DRE 引擎**——
-> 其 src 仅依赖 @modelcontextprotocol/sdk 与 node 内置模块。它通过 stdio 拉起 Axiom MCP 服务器
-> （`src/mcp/server.ts`，Bun 运行时），该服务器内部经 `getKernelAsync() → new Kernel()` 实例化**完整 DRE 引擎**，
-> 并按白名单过滤 `dre_*/cognitive_*/reasoning_*/constraint_*/actor_*/mental_model_*/mind_synapse_*` 工具，
-> 以 `dre__<tool>` 注册进 dsh。
+> **边界（事实，2026-08-19 自包含化后）**：插件（axiom-dre-dsh）现在**内置 DRE 引擎与后端**——
+> 构建产物 `backend/server.js`（bun build 单文件，约 1.25MB）包含 src/dre/ 全部引擎代码与仅含 DRE 能力的
+> MCP 后端（src/dre/backend/mcp-server.ts 入口，注册 dre-tools + mind-tools 共 42 个工具）。
+> 插件经 stdio 拉起 `bun backend/server.js --stdio`（cwd=可写 data/ 目录），按白名单过滤后以 `dre__<tool>` 注册进 dsh，
+> 无需外部 Axiom 仓库即可直接给 LLM 调用。
 >
-> **为什么是桥**：DRE 引擎依赖 Bun 专属 API（如 `bun:sqlite`），而 DSH 插件运行于 Node 22，引擎无法内嵌插件；
-> 因此引擎必然运行在被拉起的 Axiom 后端进程内，插件只做「进程拉起 + 工具过滤 + 注册 + 生命周期管理」。
+> **可选外部模式**：配置 `axiomHome` 指向含 `src/mcp/server.ts` 的仓库并覆盖 `mcpArgs`，可改用外部后端。
+> **为什么默认内置**：DRE 引擎依赖 Bun 专属 API（如 `bun:sqlite`），DSH 插件运行于 Node —— 引擎必须跑在 Bun 进程内，
+> 因此以「内置 Bun 后端进程」方式打包，而非内嵌插件进程。
 
 ## 六、来源与依据
 
