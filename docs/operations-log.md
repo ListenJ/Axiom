@@ -17,7 +17,7 @@
   - **awesome-dsh-plugin 上架**：从 fork main 独立分支 `add-axiom-kb-dsh`（`git revert` DRE 提交保持 PR 仅含 KB 改动，避免混入 DRE PR #1797）；新增 `data/plugins/ListenJ__axiom-kb-dsh.yml`（category: tools，中英描述）+ README.md/zh 插入条目；推送并开 PR https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/2020。
   - `docs/REMINDERS.md`：新增 KB gate 重跑提醒（2026-08-20 10:35 北京，满 24h；commits 已达标）。
 - **验证**：KB 镜像 typecheck + 24 测试全绿（含新包测试）；KB/DRE 开源仓库 CI 均绿（最新提交 17s/20s success）；PR #2020 已创建 OPEN，gate 尚未触发（异步，预计按 age 失败后于 10:35 重跑）。
-- **Commit**：`<待回填>`
+- **Commit**：`baf715c`
 ## 2026-08-19 — nginx 反代 dsh 深度验证（修复 Host 头导致 /api 403）+ 明文密钥审计整改
 
 - **任务**：①用真实浏览器验证 nginx 反代 dsh（data 服务器）作为内网服务的完整可用性；②审计并整改明文密钥/密码（含视觉插件配置的模型与密钥）。
