@@ -19,7 +19,7 @@
   - 开源仓库修复：两个镜像提交 `lib/`（dsh 加载 lib/index.js，此前 `github:` 安装后无 lib 无法加载；`link:` 路径未暴露）+ CI 加「lib 与 src 同步」校验；README/配置同步精简。
   - 重建两个后端产物并同步 OSS 镜像（DRE 94e83ae、KB 238b9d4）与远端 Agent。
 - **验证**：本地 lint 0 错、architecture 22/22、env 门禁 2/2、test:full 273/273；DRE 插件 23/23、KB 20/20（156 断言）。远端 listen@192.168.0.150：DRE 23/23（479ms）、KB 20/20（156 断言），**两次连续运行孤儿进程 0 残留**（修复前每次运行累积 1-4 个）；`dsh --dump-config` 确认两个插件配置树正确合并（DRE 已无 axiomHome）。GitHub 安装路径验证：clone 公开仓库 → lib/index.js + backend/server.js 齐全 → bun test 20/20。开源 CI：两仓库均绿。
-- **Commit**：`<待回填>`
+- **Commit**：`8f0916b`
 ## 2026-08-19 — 主项目全量验证修复 + axiom-kb-dsh 开源 GitHub
 
 - **任务**：应要求将 axiom-kb-dsh 开源到 GitHub，并对主项目做「真实效果 + 完美运行」全量确认；发现并修复 3 处此前未被 CI 捕获的架构/配置问题。
