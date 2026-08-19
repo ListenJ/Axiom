@@ -8,6 +8,23 @@
 ---
 
 
+## 2026-08-20 — KG 构建异步化 + 无密钥网络搜索可用化 + codegraph 挂起修复
+
+- **任务**：按用户要求——`/kg/build` 改为「指定 projectPath + 异步任务轮询」；网络搜索无密钥可用；完善 Agent 真实可用性。
+- **工具**：bun（lint/test/test:full）、curl、node、ssh。
+- **操作**（文件级）：
+  1. `src/routes/knowledge-graph.ts`：`/kg/build` 异步化——新增模块级 job 存储（Map，单任务队列，最多保留 20 个）；POST 立即返回 202 + jobId（校验 projectPath 存在，不存在 400；已有任务 409）；后台执行 `buildKnowledgeGraph`；新增 `GET /kg/jobs/:id`（轮询状态/结果/错误）与 `GET /kg/jobs`（列表）。
+  2. `src/routes/index.ts`：注册 `/kg/jobs/:id` 与 `/kg/jobs` 路由。
+  3. `src/memory/codegraph-index.ts`：**`runCodegraph` 加 15s 超时 + spawn error/失败处理**——此前无超时且不处理 spawn error，codegraph 查询（可能触发全仓重索引）会让 KG 构建永久挂起。
+  4. `src/memory/knowledge-graph-builder.ts`：关系抽取由「逐实体串行 spawn codegraph」改为 **8 路并发查询 + 内存聚合 + 串行去重落库**（避免 SQLite 写冲突）。
+  5. `src/crawl/search-engines.ts`：**代理可用性兜底**——代理连接失败或 5xx 网关错误时自动回退直连（残留/失效 SEARCH_PROXY 不再让搜索整体不可用）。
+  6. 本地 `.env`：移除残留 `SEARCH_PROXY=http://192.168.0.10`（指向已拆除的 mihomo 代理，导致全部免费引擎 502）——gitignored 不入库；data/listen 已确认无此类残留。
+- **验证**：
+  - 无 key 搜索真实可用：移除 SEARCH_PROXY 后 DDG 5 条/Bing 3 条/SearXNG 3 条；`/web-search` 真实返回结果；设置死代理（127.0.0.1:9）后 DDG/Bing 仍各 3 条（回退生效）。
+  - `/kg/build` 异步：POST 202 立即返回 jobId；GET /kg/jobs/:id 轮询 running→（构建中后台推进）；构建期间 `/health` 4ms 响应（事件循环不阻塞）；并发提交 409、未知 job 404、列表正常。
+  - 回归：lint 0 错、codegraph 测试 18/18、KG/业务测试 10/10、搜索测试 15/15、test:full 273/273、全套件 2670/0（停网关后确认：并行运行时网关后台 CodeGraph 重索引会抢资源导致 RateLimiter/EventBus 时序 flaky）。
+- **说明**：KG 构建耗时仍受 codegraph 逐实体查询制约（src/dre 50 文件仍需数分钟），异步化已消除 HTTP 阻塞；进一步优化（批量查询/实体上限）留待后续。
+- **Commit**：`<待回填>`
 ## 2026-08-20 — 内部项目严苛压力测试 + 全端点真实测试 + 修复进程
 
 - **任务**：暂停 dsh 插件，强化内部后端——更严苛压力测试 + 前后端全部端点真实使用测试，进入修复。

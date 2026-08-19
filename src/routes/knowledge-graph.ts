@@ -182,24 +182,122 @@ export async function handleKGTraverse(ctx: RouteContext): Promise<Response | nu
   }
 }
 
+/** KG 构建任务状态（异步 job）。 */
+interface KGBuildJob {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  createdAt: number;
+  startedAt?: number;
+  finishedAt?: number;
+  projectPath: string;
+  projectName: string;
+  generateEmbeddings: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+const kgBuildJobs = new Map<string, KGBuildJob>();
+const KG_JOB_MAX = 20;
+/** 单任务队列：同一时刻只允许一个构建（buildKnowledgeGraph 写同一 SQLite）。 */
+let activeKgBuildId: string | null = null;
+
+function pruneKgJobs(): void {
+  while (kgBuildJobs.size > KG_JOB_MAX) {
+    const oldest = [...kgBuildJobs.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt)[0];
+    if (oldest) kgBuildJobs.delete(oldest[0]);
+  }
+}
+
+async function runKgBuild(job: KGBuildJob): Promise<void> {
+  job.status = "running";
+  job.startedAt = Date.now();
+  try {
+    const { buildKnowledgeGraph } = await import("../memory/knowledge-graph-builder.js");
+    job.result = await buildKnowledgeGraph({
+      projectPath: job.projectPath,
+      projectName: job.projectName,
+      generateEmbeddings: job.generateEmbeddings,
+    });
+    job.status = "completed";
+  } catch (err) {
+    job.status = "failed";
+    job.error = err instanceof Error ? err.message : String(err);
+  } finally {
+    job.finishedAt = Date.now();
+    activeKgBuildId = null;
+  }
+}
+
+/** POST /kg/build — 提交异步构建任务，立即返回 jobId；GET /kg/jobs/:id 轮询。 */
 export async function handleKGBuild(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/kg/build" || ctx.req.method !== "POST") return null;
 
   try {
-    const { buildKnowledgeGraph } = await import("../memory/knowledge-graph-builder.js");
     const body = await ctx.req.json().catch(() => ({}));
-
-    const result = await buildKnowledgeGraph({
-      projectPath: body.projectPath || process.cwd(),
-      projectName: body.projectName || "current",
-      generateEmbeddings: body.generateEmbeddings ?? false,
-    });
-
-    return ctx.jsonResponse({ success: true, data: result }, 200, ctx.baseHeaders);
+    const projectPath = typeof body.projectPath === "string" && body.projectPath.trim()
+      ? body.projectPath.trim()
+      : process.cwd();
+    const { existsSync } = await import("node:fs");
+    if (!existsSync(projectPath)) {
+      return ctx.jsonResponse({ success: false, error: `projectPath not found: ${projectPath}` }, 400, ctx.baseHeaders);
+    }
+    if (activeKgBuildId) {
+      const active = kgBuildJobs.get(activeKgBuildId);
+      return ctx.jsonResponse(
+        { success: false, error: "A KG build is already running", jobId: activeKgBuildId, jobStatus: active?.status },
+        409,
+        ctx.baseHeaders,
+      );
+    }
+    const id = `kg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const job: KGBuildJob = {
+      id,
+      status: "queued",
+      createdAt: Date.now(),
+      projectPath,
+      projectName: typeof body.projectName === "string" && body.projectName.trim() ? body.projectName.trim() : "current",
+      generateEmbeddings: body.generateEmbeddings === true,
+    };
+    kgBuildJobs.set(id, job);
+    activeKgBuildId = id;
+    pruneKgJobs();
+    // 后台执行，不阻塞请求（构建可能持续数分钟）
+    void runKgBuild(job);
+    return ctx.jsonResponse({ success: true, jobId: id, status: job.status, projectPath }, 202, ctx.baseHeaders);
   } catch (err) {
-    logger.error("[KGRoute] Build failed", err as Error);
+    logger.error("[KGRoute] Build submit failed", err as Error);
     return ctx.jsonResponse({ success: false, error: (err as Error).message }, 500, ctx.baseHeaders);
   }
+}
+
+/** GET /kg/jobs/:id — 查询构建任务状态/结果。 */
+export async function handleKGJobStatus(ctx: RouteContext): Promise<Response | null> {
+  const prefix = "/kg/jobs/";
+  if (!ctx.url.pathname.startsWith(prefix) || ctx.req.method !== "GET") return null;
+  const id = decodeURIComponent(ctx.url.pathname.slice(prefix.length));
+  if (!id) return ctx.jsonResponse({ error: "job id required" }, 400, ctx.baseHeaders);
+  const job = kgBuildJobs.get(id);
+  if (!job) return ctx.jsonResponse({ error: "job not found", jobId: id }, 404, ctx.baseHeaders);
+  return ctx.jsonResponse({
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    projectPath: job.projectPath,
+    projectName: job.projectName,
+    result: job.result ?? undefined,
+    error: job.error,
+  }, 200, ctx.baseHeaders);
+}
+
+/** GET /kg/jobs — 列出最近构建任务（概要）。 */
+export async function handleKGJobsList(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/kg/jobs" || ctx.req.method !== "GET") return null;
+  const jobs = [...kgBuildJobs.values()]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((j) => ({ jobId: j.id, status: j.status, createdAt: j.createdAt, projectPath: j.projectPath, projectName: j.projectName }));
+  return ctx.jsonResponse({ jobs, count: jobs.length }, 200, ctx.baseHeaders);
 }
 
 export async function handleKGSearch(ctx: RouteContext): Promise<Response | null> {

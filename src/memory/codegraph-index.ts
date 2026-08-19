@@ -94,17 +94,40 @@ function runCodegraph(args: string[], cwd?: string): Promise<{ stdout: string; s
   return new Promise((resolve) => {
     const bin = getCodegraphBin();
     // 仅 .cmd/.bat 需要 shell；原生二进制/可执行文件用数组形式免 shell。
-    // 此前 shell:true 会把含空格的查询分词（"Write bubble sort in Python"
-    // 被拆成 5 个位置参数报 "too many arguments"），且查询中的 shell 元字符
-    // 会被解释（命令注入面——查询可来自 LLM/用户输入）。
     const shell = /\.(cmd|bat)$/i.test(bin);
     const finalArgs = shell ? args.map(quoteForShell) : args;
-    const proc = spawn(bin, finalArgs, { cwd: cwd || process.cwd(), shell });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (result: { stdout: string; stderr: string; exitCode: number }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    let proc: ReturnType<typeof spawn> | undefined;
+    // 有界超时：codegraph 查询可能触发全仓重索引而长时间挂起，
+    // 不允许让 KG 构建等死——15s 未返回即截断并报告超时。
+    const timer = setTimeout(() => {
+      try { proc?.kill(); } catch { /* 已退出 */ }
+      finish({ stdout, stderr: stderr + "\n[codegraph] timed out after 15000ms", exitCode: 124 });
+    }, 15000);
+    try {
+      proc = spawn(bin, finalArgs, { cwd: cwd || process.cwd(), shell });
+    } catch (e) {
+      clearTimeout(timer);
+      finish({ stdout: "", stderr: "[codegraph] spawn failed: " + (e as Error).message, exitCode: 127 });
+      return;
+    }
+    proc.on("error", (e) => {
+      clearTimeout(timer);
+      finish({ stdout, stderr: "[codegraph] spawn error: " + e.message, exitCode: 127 });
+    });
     proc.stdout?.on("data", (d) => { stdout += d.toString(); });
     proc.stderr?.on("data", (d) => { stderr += d.toString(); });
-    proc.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      finish({ stdout, stderr, exitCode: code ?? 0 });
+    });
   });
 }
 

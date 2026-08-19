@@ -194,32 +194,42 @@ export async function buildKnowledgeGraph(
       }
     }
 
-    // Phase 4: 提取调用关系
+    // Phase 4: 提取调用关系（并发查询 + 串行去重落库）
+    // 原实现逐实体串行 spawn codegraph（每个查询还可能触发全仓重索引），
+    // 大仓库会阻塞数分钟；改为 8 路并发查询，内存聚合后串行写库避免 SQLite 写冲突。
     logger.info("[KGBuild] Extracting call relationships...");
-    for (const [qualifiedName, sourceId] of nodeEntities) {
-      try {
-        // 调用者
-        const callers = await getCallers(qualifiedName, { projectPath });
-        for (const caller of callers) {
-          const targetId = nodeEntities.get(caller.node.qualifiedName || caller.node.name);
-          if (targetId && targetId !== sourceId) {
-            await upsertRelationship(pg, targetId, sourceId, "calls");
-            result.relationshipsCreated++;
+    const relationshipPairs: Array<{ source: number; target: number }> = [];
+    const entries = [...nodeEntities.entries()];
+    const CONCURRENCY = 8;
+    let nextIdx = 0;
+    async function relationWorker(): Promise<void> {
+      while (nextIdx < entries.length) {
+        const i = nextIdx++;
+        const [qualifiedName, sourceId] = entries[i];
+        try {
+          const callers = await getCallers(qualifiedName, { projectPath });
+          for (const caller of callers) {
+            const targetId = nodeEntities.get(caller.node.qualifiedName || caller.node.name);
+            if (targetId && targetId !== sourceId) relationshipPairs.push({ source: targetId, target: sourceId });
           }
-        }
-
-        // 被调用者
-        const callees = await getCallees(qualifiedName, { projectPath });
-        for (const callee of callees) {
-          const targetId = nodeEntities.get(callee.node.qualifiedName || callee.node.name);
-          if (targetId && targetId !== sourceId) {
-            await upsertRelationship(pg, sourceId, targetId, "calls");
-            result.relationshipsCreated++;
+          const callees = await getCallees(qualifiedName, { projectPath });
+          for (const callee of callees) {
+            const targetId = nodeEntities.get(callee.node.qualifiedName || callee.node.name);
+            if (targetId && targetId !== sourceId) relationshipPairs.push({ source: sourceId, target: targetId });
           }
+        } catch {
+          // Skip on error
         }
-      } catch {
-        // Skip on error
       }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(entries.length, 1)) }, () => relationWorker()));
+    const seenRel = new Set<string>();
+    for (const pair of relationshipPairs) {
+      const key = pair.source + "\u0000" + pair.target;
+      if (seenRel.has(key)) continue;
+      seenRel.add(key);
+      await upsertRelationship(pg, pair.source, pair.target, "calls");
+      result.relationshipsCreated++;
     }
 
     // Phase 5: 从 package.json 提取依赖关系
