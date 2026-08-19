@@ -47,19 +47,13 @@ export function apply(ctx: DshContext, rawConfig: unknown): Promise<void> | void
 
   // ── 1) DRE 工具桥（默认开启） ──
   if (config.mcpEnabled) {
-    // 后端选择：axiomHome 指向有效 Axiom 仓库 → 外部后端（cwd=axiomHome）；
-    // 否则 → 插件内置后端（bun build 产物 backend/server.js，cwd=dataDir，自动创建）。
-    const backendCwd = config.homeCheck.ok ? config.axiomHome : config.dataDir
-    if (!config.homeCheck.ok) {
-      mkdirSync(config.dataDir, { recursive: true })
-    }
-    ctx.logger?.info?.(
-      '[axiom-dre-dsh] backend: ' + (config.homeCheck.ok ? 'external (' + config.axiomHome + ')' : 'built-in (' + config.mcpArgs[0] + ')'),
-    )
+    // 始终使用插件内置后端（DRE 引擎 + MCP 服务器，cwd=dataDir，自动创建）
+    mkdirSync(config.dataDir, { recursive: true })
+    ctx.logger?.info?.('[axiom-dre-dsh] backend: built-in (' + config.mcpArgs[0] + ')')
     bridge = createMcpBridge({
       command: config.mcpCommand,
       args: config.mcpArgs,
-      cwd: backendCwd,
+      cwd: config.dataDir,
       env: config.mcpEnv,
       serverName: config.mcpServerName,
       toolCallTimeoutMs: config.mcpToolCallTimeoutMs,

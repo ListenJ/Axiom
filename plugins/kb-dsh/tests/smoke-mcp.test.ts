@@ -45,7 +45,7 @@ async function callText(def: DshToolDefinition, args: Record<string, unknown>): 
 }
 
 describe('smoke: 桥对内置知识库后端的 KB 白名单过滤与真实调用', () => {
-  test('只注册 kb__* 工具；memory 写读闭环 + kg 写入 + kal 查询', async () => {
+  test('只注册 kb__* 工具；memory 写读闭环 + kg 节点/边/子图/搜索 + atomic/dip/kal 真实调用', async () => {
     const { ctx, registered } = makeCtx()
     mkdirSync(DATA_DIR, { recursive: true })
     const bridge: McpBridge = createMcpBridge({
@@ -114,6 +114,42 @@ describe('smoke: 桥对内置知识库后端的 KB 白名单过滤与真实调�
       expect(kalDef, 'kb__kal_query 存在').toBeDefined()
       const kalText = await callText(kalDef!, { query: token, limit: 10 })
       expect(kalText.length).toBeGreaterThan(0)
+
+      // 7) 知识图谱深度闭环：双节点 + 边 + 子图 + 节点搜索
+      const aJson = JSON.parse(aText)
+      const addBText = await callText(addDef!, { type: 'concept', name: `node-b-${token}`, description: 'KB smoke node B' })
+      const bJson = JSON.parse(addBText)
+      const edgeDef = registered.find((d) => d.name === 'kb__kg_add_edge')
+      expect(edgeDef, 'kb__kg_add_edge 存在').toBeDefined()
+      const eText = await callText(edgeDef!, { source: aJson.nodeId, target: bJson.nodeId, type: 'related-to', description: 'smoke edge' })
+      expect(eText).toContain('edgeId')
+      const subDef = registered.find((d) => d.name === 'kb__kg_subgraph')
+      expect(subDef, 'kb__kg_subgraph 存在').toBeDefined()
+      const sub = JSON.parse(await callText(subDef!, { nodeId: aJson.nodeId, depth: 2, maxNodes: 50 })) as { nodes: Array<{ id: string }>; edges: Array<{ id: string }> }
+      expect(sub.edges.length).toBeGreaterThanOrEqual(1)
+      expect(sub.nodes.some((n) => n.id === bJson.nodeId), '子图含目标节点').toBe(true)
+      const searchNodesDef = registered.find((d) => d.name === 'kb__kg_search_nodes')
+      expect(searchNodesDef, 'kb__kg_search_nodes 存在').toBeDefined()
+      const found = JSON.parse(await callText(searchNodesDef!, { query: token, limit: 20 }))
+      expect(Array.isArray(found) && found.length > 0, 'kg_search_nodes 命中').toBe(true)
+
+      // 8) memory_atomic → memory_search 闭环（新写笔记经 SQLite FTS 立即可检索）
+      const atomicDef = registered.find((d) => d.name === 'kb__memory_atomic')
+      expect(atomicDef, 'kb__memory_atomic 存在').toBeDefined()
+      const atomic = JSON.parse(await callText(atomicDef!, { title: `atomic-${token}`, idea: `原子笔记 ${token}`, tags: ['smoke-atomic'] }))
+      expect(atomic.notePath).toContain('atomic-notes')
+      const atomicSearch = await callText(searchDef!, { query: `atomic-${token}`, limit: 5 })
+      expect(atomicSearch).toContain(`atomic-${token}`)
+
+      // 9) dip_ingest_document → 文档→KG 管道（零 LLM）
+      const dipDef = registered.find((d) => d.name === 'kb__dip_ingest_document')
+      expect(dipDef, 'kb__dip_ingest_document 存在').toBeDefined()
+      const dip = JSON.parse(await callText(dipDef!, {
+        markdown: '# Demo\n\n```ts\nfunction smokeFn_' + token.slice(-6) + '(): void {}\n```\n',
+        title: `dip-${token}`,
+      }))
+      expect(dip.success).toBe(true)
+      expect(dip.document).toBe(`dip-${token}`)
     } finally {
       bridge.dispose()
     }

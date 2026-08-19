@@ -1,29 +1,15 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
-import { normalizeConfig, resolveAxiomHome, checkAxiomHome, configSummary } from '../src/config.js'
+import { normalizeConfig, resolvePluginRoot, configSummary } from '../src/config.js'
 
-const REPO = path.resolve(import.meta.dir, '..', '..', '..')
 const HERE = 'file:///C:/repo/plugins/dre-dsh/src/index.ts'
 
-describe('resolveAxiomHome', () => {
-  test('explicit config 优先', () => {
-    expect(resolveAxiomHome('D:/axiom', HERE)).toBe('D:/axiom')
-  })
-  test('env AXIOM_HOME 其次', () => {
-    const old = process.env.AXIOM_HOME
-    process.env.AXIOM_HOME = 'C:/axiom-home'
-    try {
-      expect(resolveAxiomHome('', HERE)).toBe('C:/axiom-home')
-    } finally {
-      if (old === undefined) delete process.env.AXIOM_HOME
-      else process.env.AXIOM_HOME = old
-    }
-  })
-  test('相对插件文件上溯 3 层（源码布局，平台无关）', () => {
-    const home = resolveAxiomHome('', HERE)
-    const expected = path.resolve(path.dirname(fileURLToPath(HERE)), '..', '..', '..')
-    expect(home).toBe(expected)
+describe('resolvePluginRoot', () => {
+  test('源码布局 plugins/dre-dsh/src → 上溯 1 层（平台无关）', () => {
+    const root = resolvePluginRoot(HERE)
+    const expected = path.resolve(path.dirname(fileURLToPath(HERE)), '..')
+    expect(root).toBe(expected)
   })
 })
 
@@ -37,7 +23,13 @@ describe('normalizeConfig', () => {
     expect(c.mcpFailOnStartupError).toBe(false)
     expect(c.synapseEnabled).toBe(true)
     expect(c.toolFilter).toEqual([])
-    expect(Array.isArray(c.mcpArgs)).toBe(true)
+    expect(c.mcpArgs.length).toBe(2)
+    expect(c.mcpArgs[1]).toBe('--stdio')
+  })
+  test('dataDir 默认指向 <插件根>/data', () => {
+    const c = normalizeConfig({}, HERE)
+    const pluginRoot = path.resolve(path.dirname(fileURLToPath(HERE)), '..')
+    expect(c.dataDir).toBe(path.join(pluginRoot, 'data'))
   })
   test('数值/布尔非法时回退默认', () => {
     const c = normalizeConfig({ mcpToolCallTimeoutMs: 'abc', mcpEnabled: 'yes', mcpServerName: '' }, HERE)
@@ -57,6 +49,10 @@ describe('normalizeConfig', () => {
     expect(normalizeConfig({}, HERE).synapseEnabled).toBe(true)
     expect(normalizeConfig({ synapseEnabled: false }, HERE).synapseEnabled).toBe(false)
   })
+  test('mcpEnv 保留字符串值并过滤非字符串', () => {
+    const c = normalizeConfig({ mcpEnv: { DRE_LLM_API_KEY: 'D:/key', BAD: 42 } }, HERE)
+    expect(c.mcpEnv).toEqual({ DRE_LLM_API_KEY: 'D:/key' })
+  })
   test('configSummary 不含密钥类字段', () => {
     const c = normalizeConfig({ mcpEnv: { AXIOM_AUTH_TOKEN: 'sk-secret' }, serverApiKey: 'sk-secret' }, HERE)
     const summary = JSON.stringify(configSummary(c))
@@ -68,18 +64,6 @@ describe('normalizeConfig', () => {
     expect(summary.synapseEnabled).toBe(false)
     expect(summary.toolFilter).toEqual(['dre_'])
     expect(summary.mcpServerName).toBe('dre')
-  })
-})
-
-describe('checkAxiomHome', () => {
-  test('当前仓库根有效', () => {
-    const r = checkAxiomHome(REPO)
-    expect(r.ok).toBe(true)
-    expect(r.missing).toEqual([])
-  })
-  test('无效目录报告缺失', () => {
-    const r = checkAxiomHome('C:/no-such-axiom-repo')
-    expect(r.ok).toBe(false)
-    expect(r.missing.length).toBeGreaterThan(0)
+    expect(summary.dataDir).toBe(c.dataDir)
   })
 })

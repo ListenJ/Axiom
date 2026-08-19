@@ -18,6 +18,7 @@
 ## 其他待办（长期）
 
 - [x] 知识库插件（axiom-kb-dsh，plugins/kb-dsh/）已按自包含模式拆分：Vault 记忆 + 知识图谱后端内置；联网检索工具不入插件队列，仅个人使用。
+- [x] 开源仓库 github: 安装路径已修复并验证（lib/ 随仓库发布，clone 后即可加载）。
 - [ ] 其余功能插件按自包含模式拆分（联网检索、模型路由等）
 - [x] axiom-kb-dsh 已开源到 GitHub（https://github.com/ListenJ/axiom-kb-dsh，CI 绿）；待办：awesome-dsh-plugin 上架条目（参考 DRE PR #1797 流程，待该 PR 合并后）
 - [ ] PR #1797 合并后确认 dshmarket / awesome-dsh-plugin.com 展示

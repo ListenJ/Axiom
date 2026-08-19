@@ -87,7 +87,7 @@ describe('smoke: 桥对真实 Axiom MCP 服务器的 DRE 白名单过滤', () =>
 describe('smoke: apply() 插件入口（容忍模式）', () => {
   test('注册 dre_plugin_status 诊断工具 + dre__* 桥接工具', async () => {
     const { ctx, registered } = makeCtx()
-    // 自包含：不配 axiomHome，插件默认拉起内置后端
+    // 自包含：插件默认拉起内置后端（DRE 引擎 + MCP 服务器）
     apply(ctx, { mcpToolCallTimeoutMs: 30_000, mcpFailOnStartupError: false })
     // dre_plugin_status 同步注册
     expect(registered.some((d) => d.name === 'dre_plugin_status')).toBe(true)

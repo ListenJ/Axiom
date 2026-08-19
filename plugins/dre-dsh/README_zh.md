@@ -34,9 +34,7 @@ dsh (Node) ── axiom-dre-dsh ──stdio──▶ 内置后端 (Bun) ──�
           过滤 + 注册                  Kernel / Pipeline / …
 ```
 
-- **无需外部 Axiom 仓库**——DRE 引擎（Kernel、三段甄别流水线、认知闭环、约束求解、突触记忆）已打包进插件。
-- 插件以 `bun backend/server.js --stdio` 启动，数据目录 `data/` 自动创建。
-- **可选外部后端**：如需运行自建服务器，配置 `axiomHome` 指向含 `src/mcp/server.ts` 的仓库，并覆盖 `mcpArgs`（如 `run src/mcp/server.ts --stdio`）。
+- 插件内置 DRE 引擎（Kernel、三段甄别流水线、认知闭环、约束求解、突触记忆），以 `bun backend/server.js --stdio` 启动，数据目录 `data/` 自动创建。
 
 ### `dre_plugin_status`（始终可用）
 
@@ -48,7 +46,6 @@ dsh (Node) ── axiom-dre-dsh ──stdio──▶ 内置后端 (Bun) ──�
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
-| `axiomHome` | `""` | 可选外部 Axiom 仓库根（含 `src/mcp/server.ts`）；空=内置后端。 |
 | `dataDir` | `<插件>/data` | 后端数据目录（SQLite/记忆），自动创建。 |
 | `mcpEnabled` | `true` | 拉起后端并桥接。 |
 | `mcpCommand` / `mcpArgs` | `bun` / `<插件>/backend/server.js --stdio` | 后端启动命令。 |

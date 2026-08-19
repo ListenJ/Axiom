@@ -36,9 +36,7 @@ dsh (Node) ── axiom-dre-dsh ──stdio──▶ built-in backend (Bun) ─�
           filter + register               Kernel / Pipeline / …
 ```
 
-- **No external Axiom repo is required** — the DRE engine (Kernel, three-stage verification pipeline, cognitive loop, constraint solver, synapse memory) is bundled inside the plugin.
-- The plugin spawns `bun backend/server.js --stdio` with a writable `data/` directory (created automatically).
-- **Optional external backend**: set `axiomHome` to a repo with `src/mcp/server.ts` and override `mcpArgs` (e.g. `run src/mcp/server.ts --stdio`) if you prefer to run your own server.
+- The plugin bundles the DRE engine (Kernel, three-stage verification pipeline, cognitive loop, constraint solver, synapse memory) and spawns it with `bun backend/server.js --stdio`; a writable `data/` directory is created automatically.
 
 ### `dre_plugin_status` (always available)
 
@@ -50,7 +48,6 @@ Overridden via `cordis.patch.yml` under line id `dre` (overriding the whole sect
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `axiomHome` | `""` | Optional external Axiom repo root (with `src/mcp/server.ts`). Empty = built-in backend. |
 | `dataDir` | `<plugin>/data` | Backend data directory (SQLite / memory). Created automatically. |
 | `mcpEnabled` | `true` | Launch and bridge the backend. |
 | `mcpCommand` / `mcpArgs` | `bun` / `<plugin>/backend/server.js --stdio` | Backend launch command. |

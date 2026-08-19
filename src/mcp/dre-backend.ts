@@ -25,6 +25,9 @@ const useStdio = process.argv.includes("--stdio");
 if (useStdio) {
   const stdio = new StdioServerTransport();
   await mcp.connect(stdio);
+  // stdio 通道关闭（dsh/父进程退出或断开）→ 有界关停退出；
+  // 避免 autoTick 定时器使孤儿进程持续占用 SQLite（锁死后续实例）。
+  stdio.onclose = () => void shutdownAndExit();
 } else {
   // HTTP 模式（远程调试用；默认仅回环）
   const port = readInt("DRE_MCP_PORT", 3001);
@@ -45,5 +48,13 @@ if (useStdio) {
   });
 }
 
-process.on("SIGINT", () => { void shutdownKernel().then(() => process.exit(0)); });
-process.on("SIGTERM", () => { void shutdownKernel().then(() => process.exit(0)); });
+/** 有界关停：停内核 → 退出；2s 未完成则强制退出（防 shutdown 挂起）。 */
+function shutdownAndExit(): void {
+  const timer = setTimeout(() => process.exit(0), 2000);
+  void shutdownKernel().finally(() => process.exit(0));
+}
+process.on("SIGINT", shutdownAndExit);
+process.on("SIGTERM", shutdownAndExit);
+// 兜底：stdin EOF（父进程死亡/管道关闭）也触发退出
+process.stdin.on("end", shutdownAndExit);
+process.stdin.on("close", shutdownAndExit);

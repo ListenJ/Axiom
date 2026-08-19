@@ -8,6 +8,18 @@
 ---
 
 
+## 2026-08-19 — DRE 轻量化 + 测试加深 + GitHub 安装路径修复 + 后端孤儿进程根治
+
+- **任务**：继续优化插件——DRE 插件去除外部 Axiom 仓库模式（对齐 KB 的轻量极简）；KB 冒烟测试加深（kg 边/子图/节点搜索、memory_atomic、dip 文档管道）；修复开源仓库 `github:` 安装路径（缺 lib/）与后端孤儿进程（autoTick 定时器使进程在父进程退出后不退出、锁死 SQLite）。
+- **工具**：bun（test/typecheck/build）、tsc、git/gh、ssh/scp、node（MCP 复现探针）。
+- **操作**（文件级）：
+  - `plugins/dre-dsh/src/config.ts`：移除 `axiomHome/homeCheck/resolveAxiomHome/checkAxiomHome`（135→104 行）；`src/index.ts` 移除后端选择分支，始终内置后端；`cordis.patch.yml`/`README*.md` 移除 axiomHome 配置与「可选外部后端」说明；`tests/config.test.ts` 重写为环境无关（9 用例）。
+  - `plugins/kb-dsh/tests/smoke-mcp.test.ts`：加深冒烟（kg_add_edge→kg_subgraph 断言双节点+边、kg_search_nodes 命中、memory_atomic→memory_search、dip_ingest_document 零 LLM 管道），断言 81→94（全套件 156）。
+  - `src/mcp/dre-backend.ts` / `src/mcp/kb-backend.ts`：**孤儿进程根治**——stdio 通道 `onclose` + stdin `end/close` + SIGINT/SIGTERM 全部走有界关停（停内核/关库→2s 兜底强退）。此前 DRE 后端 `autoTick` 定时器使进程在父进程（dsh/测试）退出后不退出，持续写库锁死后续实例；远端实测多次累积孤儿。
+  - 开源仓库修复：两个镜像提交 `lib/`（dsh 加载 lib/index.js，此前 `github:` 安装后无 lib 无法加载；`link:` 路径未暴露）+ CI 加「lib 与 src 同步」校验；README/配置同步精简。
+  - 重建两个后端产物并同步 OSS 镜像（DRE 94e83ae、KB 238b9d4）与远端 Agent。
+- **验证**：本地 lint 0 错、architecture 22/22、env 门禁 2/2、test:full 273/273；DRE 插件 23/23、KB 20/20（156 断言）。远端 listen@192.168.0.150：DRE 23/23（479ms）、KB 20/20（156 断言），**两次连续运行孤儿进程 0 残留**（修复前每次运行累积 1-4 个）；`dsh --dump-config` 确认两个插件配置树正确合并（DRE 已无 axiomHome）。GitHub 安装路径验证：clone 公开仓库 → lib/index.js + backend/server.js 齐全 → bun test 20/20。开源 CI：两仓库均绿。
+- **Commit**：`<待回填>`
 ## 2026-08-19 — 主项目全量验证修复 + axiom-kb-dsh 开源 GitHub
 
 - **任务**：应要求将 axiom-kb-dsh 开源到 GitHub，并对主项目做「真实效果 + 完美运行」全量确认；发现并修复 3 处此前未被 CI 捕获的架构/配置问题。
