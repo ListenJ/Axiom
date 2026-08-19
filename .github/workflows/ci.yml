@@ -66,6 +66,56 @@ jobs:
           NODE_ENV: test
           AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
 
+  dre-plugin:
+    name: DRE Plugin (built-in backend sync + tests)
+    runs-on: ubuntu-latest
+    # 仅当 DRE 引擎/后端或插件代码变化时运行
+    if: >-
+      ${{ github.event_name == 'push' &&
+          (contains(github.event.head_commit.modified, 'src/dre/') ||
+           contains(github.event.head_commit.modified, 'plugins/dre-dsh/') ||
+           contains(github.event.head_commit.added, 'src/dre/') ||
+           contains(github.event.head_commit.added, 'plugins/dre-dsh/')) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install plugin deps
+        run: |
+          cd plugins/dre-dsh
+          bun install --frozen-lockfile
+
+      - name: Check backend/server.js is in sync with src/dre
+        # 重新构建内置后端并对比已提交产物；不一致说明产物过期，需运行 bun run build:backend
+        run: |
+          cd plugins/dre-dsh
+          bun build ../../src/dre/backend/mcp-server.ts --target=bun --outfile /tmp/backend-check.js
+          if ! cmp -s /tmp/backend-check.js backend/server.js; then
+            echo "::error::plugins/dre-dsh/backend/server.js is out of sync with src/dre. Run: cd plugins/dre-dsh && bun run build:backend, then commit the regenerated file."
+            exit 1
+          fi
+          echo "backend/server.js is in sync with src/dre"
+
+      - name: Typecheck
+        run: |
+          cd plugins/dre-dsh
+          bun run typecheck
+
+      - name: Build (bridge + backend)
+        run: |
+          cd plugins/dre-dsh
+          bun run build
+
+      - name: Plugin tests (self-contained, real MCP smoke)
+        run: |
+          cd plugins/dre-dsh
+          bun test --timeout 60000 tests/
+        env:
+          NODE_ENV: test
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest

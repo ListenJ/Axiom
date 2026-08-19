@@ -8,6 +8,16 @@
 ---
 
 
+## 2026-08-19 — DRE 插件后端构建纳入 CI（同步校验 + 自包含测试）
+
+- **任务**：将后端构建纳入 CI，保证 plugins/dre-dsh/backend/server.js 与 src/dre 同步；开源镜像加独立 CI 验证自包含产物可用。
+- **工具**：GitHub Actions（ci.yml）、bun build、本地模拟 CI 命令。
+- **操作**（文件级）：
+  - `.github/workflows/ci.yml`：新增 `dre-plugin` job——在 src/dre 或 plugins/dre-dsh 变更时运行：重新构建后端到 /tmp 并与已提交 backend/server.js `cmp`（不一致即报错提示重跑 build:backend）；typecheck + build + 25 测试（自包含真实 MCP 冒烟）。
+  - 开源镜像 `.tmp/axiom-dre-dsh-oss`：`package.json` build 改为仅 tsc（独立仓库无 src/dre，后端产物已提交）；新增 `.github/workflows/ci.yml`（typecheck + build + 后端产物可运行检查 + 自包含测试）。
+- **验证**：本地模拟——重构建后端 hash 与已提交产物完全一致（7A68F180…，确定性构建）；镜像 bun install/typecheck/build/25 测试全过（冒烟 spawn 内置后端，验证自包含产物干净环境可用）。
+- **Commit**：待回填
+
 ## 2026-08-19 — DRE 插件自包含化：内置 DRE 引擎与后端（无需外部 Axiom 仓库）
 
 - **任务**：按用户要求将 DRE 引擎与后端打包进插件，可直接给 LLM 调用；安装方式文档更新；修复自包含模式下的后端选择逻辑。
