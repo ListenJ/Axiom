@@ -23,7 +23,7 @@
     - 确认无本地代理配置（env/apt/docker/git 均为空）。
 - **验证**：data —— mihomo inactive/disabled、`ip rule` 仅默认 3 条、默认路由 via 192.168.0.1、`curl --noproxy '*'` baidu=200（直连 0.3s）、git HTTPS ls-remote 正常、LAN ping .150 通。listen —— 默认路由仅 via 192.168.0.1、baidu=200、DNS 解析正常（192.168.0.1+114）。全程 SSH 未中断。
 - **安全说明**：未在仓库记录任何服务器密码；mihomo 二进制保留未删（服务已禁用），如需彻底移除可后续执行。
-- **Commit**：`<待回填>`
+- **Commit**：`e36630e`
 ## 2026-08-19 — 配置 Windows OpenSSH 反向接入：data 服务器（192.168.0.22）可 SSH 到本机
 
 - **任务**：配置本地 Windows 的 SSH 服务端，使 Ubuntu data 服务器（data@192.168.0.22）能用密钥免密 SSH 登录本机（dandelion\18336）。
