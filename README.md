@@ -2,11 +2,11 @@
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
-> **93 tests | 0 fail | 22 module groups | 133 MCP tools | 8 Persona modes**
+> **93 tests | 0 fail | 22 module groups | 172 MCP tools | 8 Persona modes**
 
 > 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >
-> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/133 MCP 工具/配置/测试覆盖
+> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/172 MCP 工具/配置/测试覆盖
 >
 > 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
 
@@ -21,7 +21,7 @@
 ├─────────────┴─────────────┴─────────────┴───────────────────┤
 │  场景路由层 (SceneRouter, 21场景) │ 智能路由层 (Model Router) │
 ├─────────────────────────────────────────────────────────────┤
-│                    150 MCP Tools                             │
+│                    172 MCP Tools                             │
 ├─────────────────────────────────────────────────────────────┤
 │                     引擎层                                    │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
@@ -168,7 +168,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 **测试覆盖**: 55 认知模块测试 / 13 场景路由测试 / 538 total pass
 
-### 🔍 确定性记忆引擎（无向量）
+### 🔍 确定性记忆引擎（手写余弦 + PG vector 可选）
 
 四阶段漏斗检索，每个结果都有明确的得分来源：
 
@@ -178,6 +178,8 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 关键词 | 标题(3x) > 标签(2.5x) > 内容(1x) > 路径(0.5x) | - |
 | 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
 | PARA 语义 | 同分类笔记提升(+5) | - |
+
+> 底层：手写 `cosineSimilarity`（`src/dre/consciousness/stream.ts`）为默认检索，PG vector（`pgvector`）为可选历史能力 H-M1-03，默认 SQLite FTS5，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
 
 ```bash
 # 搜索记忆
@@ -245,7 +247,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 150 个工具，兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。
+暴露 172 个去重工具（权威计数 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts`），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。手写余弦为默认，PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**:
 

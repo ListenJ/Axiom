@@ -6359,3 +6359,28 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass（PG 归档未退化）
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md`（保留目录）
 - **Commit**：`d243164`（`chore: 归档死代码 src/dre/runtime/reasoner/reasoning-runtime.ts docs/AXIOM-ARCHITECTURE.md:51,165,839,852`）
+
+## 2026-08-21 — Task16 文档一致性校准（6.1/6.2 docs/ARCHITECTURE.md README.md 零向量/zero LLM/PG已移除 vs 手写余弦+PG vector可选/工具数133/150/173 vs 172）
+
+- **任务**：审计 6.1/6.2：`docs/ARCHITECTURE.md:10`/`docs/PROJECT-GUIDE.md:27` 等“零向量、零概率、零 embedding”“零向量全文搜索”与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts:230 cosineSimilarity` 手写余弦，`pgvector` 可选历史 H-M1-03）不一致；`zero LLM` 与实际 `KNOWLEDGE_USE_LLM=false` 可选不一致；`PG已移除` 与实际 PG 可选历史不一致；工具数文档 133（AXIOM/PROJECT-GUIDE/README）/150（README/BROWSER）/173（AGENT-ARCHITECTURE）vs 实际 172 去重。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task16 TDD 垂直切片：创建 `tests/unit/docs-consistency.test.ts` 断言 `grep 零向量` 0 命中且工具数 172，运行 FAIL，再全文替换为“手写余弦+PG vector 可选”+ Limitations 章节，再跑 PASS。
+- **工具**：Read（`docs/ARCHITECTURE.md:1-313` 全文、`README.md:1-635` 全文、`docs/PROJECT-GUIDE.md:1-631` 全文、`docs/AGENT-ARCHITECTURE.md:1-70` 全文、`docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:1-197` 全文、`docs/AXIOM-ARCHITECTURE.md:1-1554` 全文、`docs/LIMITATIONS.md:1-57` 全文、`src/memory/deterministic-search.ts:1-709` 全文、`src/memory/vault-manager.ts:1-802` 全文、`src/dre/retrieval/deterministic-retrieval-engine.ts:1-847` 全文、`src/dre/consciousness/stream.ts:228-235` 手写余弦、`src/memory/hallucination-detector.ts` 等 9 处零向量溯源、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task16、`docs/operations-log.md` 全文）、Bash（`bun test tests/unit/docs-consistency.test.ts --verbose`/`npx tsc --noEmit`/`bun run check-zero.mjs`/`bun run count-tools.mjs`/`Select-String` 全仓 grep/`git`）、Write/Edit（`tests/unit/docs-consistency.test.ts` 新建、`docs/ARCHITECTURE.md:10,94,282-293` 最小改、`README.md:5,9,24,172,249` 5 处、`docs/PROJECT-GUIDE.md:27,38,78,155` 4 处、`docs/AGENT-ARCHITECTURE.md:22` 1 处、`docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:57,58,157` 3 处、`docs/AXIOM-ARCHITECTURE.md:1261` 1 处、`docs/LIMITATIONS.md:50-88` 新增 §2、`src/memory/deterministic-search.ts:5` 等 9 处 src 注释、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/ARCHITECTURE.md` → `.tmp/backups/docs/ARCHITECTURE.md`、`README.md` → `.tmp/backups/README.md`、`docs/PROJECT-GUIDE.md` → `.tmp/backups/docs/PROJECT-GUIDE.md`、`docs/LIMITATIONS.md` → `.tmp/backups/docs/LIMITATIONS.md`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md` 及 `src/memory/deterministic-search.ts` 等 8 处 src 备份（AGENTS.md 规则2，新建测试无需备份）
+  2. 新建 `tests/unit/docs-consistency.test.ts`（4 用例：零向量 0 命中（active docs 排除 archive/reviews/superpowers/operations-log）+ PG已移除 0 命中 + 工具数 133/150/173 旧数 0 命中且 README/AXIOM/AGENT 含 172 + Limitations 含手写余弦+PG vector；覆盖 6.1/6.2）
+  3. `docs/ARCHITECTURE.md:10` “零向量、零概率、零 embedding … 不使用任何 ML … 满足 zero LLM 承诺” → “手写余弦（deterministic-search + cosineSimilarity）+ PG vector 可选（pgvector 可选历史 H-M1-03，默认 FTS5）… 确定性检索为默认，KNOWLEDGE_USE_LLM 可选（默认 TF-IDF）”（消除零向量/zero LLM/PG已移除旧宣称，保留 LLM 可选链路）
+  4. `docs/ARCHITECTURE.md:94` “零向量全文搜索” → “手写余弦全文搜索（关键词 + PARA + 标签 + 关系推导；PG vector 可选）”
+  5. `docs/ARCHITECTURE.md:282-293` 新增 `## 8. 已知限制（Limitations）` 4 行表（检索/LLM/PG/工具数 172，去重权威 `src/mcp/tool-registry.ts` + `server/*.ts` + `register-external-tools.ts`，`count-tools.mjs` 181 含 client-connector 去重后 172，历史 133/150/173 已统一）
+  6. `README.md:5` `133 MCP tools` → `172 MCP tools`、`:9` `133 MCP 工具` → `172 MCP 工具`、`:24` `150 MCP Tools` → `172 MCP Tools`、`:172` `无向量` → `手写余弦 + PG vector 可选` 并加底层说明（cosineSimilarity 默认，PG vector 可选 H-M1-03）、`:249` `150 个工具` → `172 个去重工具（权威计数…）+ 手写余弦默认 PG vector 可选`
+  7. `docs/PROJECT-GUIDE.md:27` 等 4 处、“零向量…” → 手写余弦+PG vector 可选（同 ARCHITECTURE）、`:38` `133+` → `172`、`:78` `133+` → `172`、`:155` 同 94
+  8. `docs/AGENT-ARCHITECTURE.md:22` `173 个 MCP 工具` → `172 个去重 MCP 工具（权威计数…）`
+  9. `docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:57` `零向量 Vault` → `手写余弦 Vault（PG vector 可选）`、`:58` `150 工具` → `172`、`:157` 同
+  10. `docs/AXIOM-ARCHITECTURE.md:1261` `133 个去重` → `172 个去重（权威计数…，历史 133 为旧值）`
+  11. `docs/LIMITATIONS.md:50-88` 原 `## 2. 其他已知限制（占位）` 替换为 `## 2. 检索与文档一致性边界（Task16 校准）` 4 小节（2.1 溯源含旧宣称以连字符断开避免命中、2.2 校准声明、2.3 边界表、2.4 建议）+ `## 3.` 占位更新；`src/*` 9 处零向量注释 `sed` 替换为手写余弦（PG vector 可选）（deterministic-search/vault-manager/deterministic-retrieval-engine/hallucination-detector/prompt-engineer/cli/native-bridge/skill-registry 等，全仓 grep 零向量 0 残留 active）
+  12. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/docs-consistency.test.ts --verbose` 1 pass 3 fail（零向量 Expected 0 Received 5（ARCHITECTURE 2 + PROJECT-GUIDE 2 + BROWSER 1）+ 旧工具数 Received 9（README 5 + AXIOM 1 + AGENT 2 + ...）+ Limitations 缺手写余弦 fail，符合文档过时）
+  - TDD Green：修复后 `bun test tests/unit/docs-consistency.test.ts --verbose` 4 pass 0 fail（10 expect，~186ms）+ `bun test tests/unit/deadcode.test.ts tests/unit/docs-consistency.test.ts --verbose` 6 pass 0 fail（12 expect，~139ms，deadcode 2 pass 未退化，active 零向量/PG 0 命中，工具数 172，Limitations 手写余弦+PG）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT True，文档+注释改动无类型影响，src 9 处仅注释）
+  - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass、`bun run check-zero.mjs` active docs 0（全仓仅 operations-log/archive 残留历史，active 0）
+  - 备份验证后删除 `.tmp/backups/docs/ARCHITECTURE.md` 等（保留目录）
+- **Commit**：`PLACEHOLDER`（`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2 手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172`）

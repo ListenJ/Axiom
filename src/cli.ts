@@ -805,7 +805,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log(`\n  Prompt Engineer:`);
       console.log(`    模板数: ${templates.length}`);
       console.log(`    Skill数: ${skills.length}`);
-      console.log(`    匹配模式: 零向量 (确定性关键词计数)`);
+      console.log(`    匹配模式: 手写余弦（PG vector 可选） (确定性关键词计数)`);
     },
   },
 

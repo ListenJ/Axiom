@@ -18,7 +18,7 @@
  *   - 小接口：retrieve(query) 是唯一公开入口
  *   - 接受依赖不创建依赖：keywordSearcher 与 graph 通过构造注入
  *   - 接口即测试面：全部可通过 retrieve() 验证
- *   - 零向量零 embedding：纯确定性 token + 图遍历
+ *   - 手写余弦（token + 图遍历）+ PG vector 可选（默认确定性，需 PG 时启用）
  */
 
 import { logger } from "../../utils/logger.js";

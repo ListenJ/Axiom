@@ -1258,7 +1258,7 @@ class LLMClient {
 
 ## 三、MCP 工具完整清单
 
-> 本系统共注册 133 个去重 MCP 工具。88 个零配置可用, 33 个需 API Key, 12 个需安装外部服务。
+> 本系统共注册 172 个去重 MCP 工具（权威计数 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts`；`bun run count-tools.mjs` 去重 172，含 88 零配置/33 需 API Key/12 需安装外部服务等分层，历史 133 为旧值）。
 
 ### 3.0 全工具总览
 

@@ -24,7 +24,7 @@
 
 ### 1.1 定位
 
-Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"零向量、零概率、零 embedding"**。所有检索、推理、记忆操作均基于确定性算法（关键词匹配、规则引擎、确定性图遍历），不使用任何 ML 模型进行搜索或聚类。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
+Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"手写余弦（`src/memory/deterministic-search.ts` + `src/dre/consciousness/stream.ts:cosineSimilarity`）+ PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts:186` 默认 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
 
 ### 1.2 关键指标
 
@@ -35,7 +35,7 @@ Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"
 | 代码行数 | ~70,000 |
 | 测试文件 | 68 个 |
 | 测试总数 | ~1,170 (后端 1042 + 前端 154) |
-| MCP 工具 | 133+ 个（15 个领域文件） |
+| MCP 工具 | 172 个（15+ 领域文件，去重计数以 `src/mcp/tool-registry.ts` 为准） |
 | HTTP 路由 | 280+ 个端点 |
 | `as any` 总数 | 6（上限 25）|
 | `@ts-expect-error` | ≤ 1 |
@@ -75,7 +75,7 @@ Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"
 │  场景路由 (21 场景) │ 模型路由 (Thompson + Capability)    │
 ├──────────────────────────────────────────────────────────┤
 │              工具层 (Tools)                               │
-│              133+ MCP Tools (15 领域)                     │
+│              172 MCP Tools (15+ 领域，去重)                │
 ├──────────────────────────────────────────────────────────┤
 │              引擎层 (Engines)                             │
 │  Vault │ DRE │ KG │ Arena │ Cognitive Pipeline           │
@@ -152,7 +152,7 @@ db     ↔ memory                   (通过 services 断环)
 | 组件 | 行数 | 职责 |
 |------|------|------|
 | `vault-manager.ts` | 761 | 核心记忆管理 (read/write/search/browse)，单例 |
-| `deterministic-search.ts` | ~603 | 零向量全文搜索 (关键词 + PARA + 标签) |
+| `deterministic-search.ts` | ~603 | 手写余弦全文搜索（关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
 | `sqlite-memory.ts` | ~492 | SQLite FTS5 索引持久化 |
 | `codegraph-index.ts` | ~509 | 代码符号索引 |
 | `archiver.ts` / `distiller.ts` | — | 记忆归档 / 蒸馏 |

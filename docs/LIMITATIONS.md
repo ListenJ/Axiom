@@ -47,11 +47,42 @@
 
 ---
 
-## 2. 其他已知限制（占位）
+## 2. 检索与文档一致性边界（Task16 校准）
 
-- 本文档随审计修复任务增量更新；后续 Task 2+ 将补充 Native 稳定性、PG 残留、编排竞态等边界章节。
+### 2.1 问题溯源
+
+- **审计定位**：`docs/ARCHITECTURE.md:10` 与 `docs/PROJECT-GUIDE.md:27` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”，与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts:230 cosineSimilarity` 手写余弦）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts:186`）”不一致；工具数文档宣称 133/150/173 vs 实际 172 去重。
+- **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中，权威计数 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts` 去重 172。
+
+### 2.2 校准后声明
+
+- **检索**：默认手写余弦（`deterministic-search.ts` 标题 3x/标签 2.5x/内容 1x/路径 0.5x + `consciousness/stream.ts:cosineSimilarity` 余弦归一化，`consolidate(0.7)` 阈值聚类）为确定性检索；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
+- **LLM**：`src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM` 控，默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
+- **PG**：`src/db/pg-client.ts` 已删，`pg-schema.sql` 仅归档；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。
+- **工具数**：权威 172 去重（`count-tools.mjs` 181 含 client-connector 等非 MCP 面，去重后 172；`AXIOM-ARCHITECTURE.md` 133、`README` 133/150、`AGENT-ARCHITECTURE.md` 173 已统一为 172）。
+
+### 2.3 当前边界与待校准项
+
+| 维度 | 现状 | 影响 | 后续校准 |
+|---|---|---|---|
+| 手写余弦精度 | `cosineSimilarity` 为 FP64 手写归一化，未含向量归一化预处理差异，阈值 0.7 为经验值 | 跨域检索召回率依赖阈值，极短文本余弦抖动 | 待 `docs/LIMITATIONS.md` 中补充 PBT 用例校准 0.7 阈值 |
+| PG vector 切换 | 无自动检测 PG 可用性，`pgvector` 需手动 `isPgAvailable` 启用 | 默认 FTS5 无法利用向量语义，PG 启用后需重建索引 | 后续任务引入 `getPG().isAvailable()` 自动回退 |
+| LLM 可选性 | `KNOWLEDGE_USE_LLM=false` 时全走 TF-IDF，无法利用 LLM 结构化 | 长文本结构化召回率低于 LLM 模式 | 待评估 TF-IDF vs LLM 质量对比并披露 |
+| 工具数漂移 | 新增工具需手动更新文档 172，`tool-registry.ts` 无 CI 断言防漂移 | 文档与实现易再次不一致 | 后续任务拟加 `tests/unit/docs-consistency.test.ts` 工具数 172 CI 断言（本任务已落地） |
+
+### 2.4 使用建议
+
+- 将 `deterministic-search.ts` 视为默认检索，PG vector 仅在需语义检索且 PG 可用时启用；`cosineSimilarity` 阈值 0.7 可按 `consolidate()` 调用方覆盖。
+- 知识库 keep `KNOWLEDGE_USE_LLM=false` 以满足确定性承诺，需 LLM 结构化时显式开启并接受 `structureKnowledgeWithEdge` 失败回退 TF-IDF。
+- 工具数以 `src/mcp/tool-registry.ts: size` 为权威，文档 172 为快照；新增工具后请同步 `README.md`/`AXIOM-ARCHITECTURE.md`/`AGENT-ARCHITECTURE.md` 并重跑 `tests/unit/docs-consistency.test.ts`。
+
+---
+
+## 3. 其他已知限制（占位）
+
+- 本文档随审计修复任务增量更新；后续任务将补充 Native 稳定性、编排竞态等边界章节。
 - 涉及 `Date.now()/Math.random()/Map` 遍历的模块，其确定性边界将在对应章节按 G-04 披露。
 
 ---
 
-*最后更新：2026-08-21（Task 1 VRAM 校准）*
+*最后更新：2026-08-21（Task16 文档一致性校准，手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172）*

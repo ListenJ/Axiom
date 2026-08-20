@@ -131,7 +131,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
   }
 }
 
-/** 调用 Rust 搜索（零向量确定性搜索） */
+/** 调用 Rust 搜索（手写余弦（PG vector 可选）确定性搜索） */
 export async function nativeSearch(
   query: string,
   opts: { limit?: number; tags?: string[]; para?: string } = {}

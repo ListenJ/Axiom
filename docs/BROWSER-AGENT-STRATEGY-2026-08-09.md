@@ -54,8 +54,8 @@ Axiom 的差异化资产是“控制面”而非“另一个学习体”：
 | 维度 | Hermes | Axiom |
 |------|--------|-------|
 | 核心 | 自进化学习闭环 | 确定性认知运行时 + 控制平面 |
-| 记忆 | FTS5 + LLM 摘要 + Honcho | 零向量 Vault + SQLite FTS5 + KG + DRE |
-| 技能 | agentskills.io / 自创建技能 | Skill 加载器 + MCP 工具注册（150 工具） |
+| 记忆 | FTS5 + LLM 摘要 + Honcho | 手写余弦 Vault（PG vector 可选）+ SQLite FTS5 + KG + DRE |
+| 技能 | agentskills.io / 自创建技能 | Skill 加载器 + MCP 工具注册（172 工具） |
 | 界面 | CLI/消息网关 | Web Dashboard + WebSocket + 审批 + CLI/TUI |
 | 浏览器 | 通过工具调用 | 目前仅抓取；需补实时标签控制 |
 | 部署 | 面向个人 VPS | 面向个人/团队运行时 + 远程 Worker |
@@ -154,7 +154,7 @@ Axiom 的差异化资产是“控制面”而非“另一个学习体”：
 我们已有控制面需要的核心件：
 
 - Web Dashboard + WebSocket + HITL 审批；
-- 150 个 MCP 工具、Skill 加载器、插件市场；
+- 172 个去重 MCP 工具、Skill 加载器、插件市场；
 - 多 Agent 编排（OpenCode/Hermes/InternalAgent）；
 - 模型路由、Vault、DRE、KG；
 - 远程 Worker 与 Docker 部署。
