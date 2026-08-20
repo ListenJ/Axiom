@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-21 — Task 13 lightpanda 集成测试补齐（High src/crawl/lightpanda-client.ts + lightpanda-search 1095行零测试）
+
+- **任务**：审计 High：`src/crawl/lightpanda-client.ts` + `lightpanda-search` 1095行零测试且 SSRF。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 13 垂直切片 TDD 补齐集成测试（已修复 SSRF，本任务只补测试 + 最小可测性改造）。要求 `tests/integration/lightpanda.test.ts` 至少10用例覆盖基本渲染/超时降级/错误处理/URL校验。
+- **工具**：Read（`src/crawl/lightpanda-client.ts:1-894` 全文、`src/utils/url-safety.ts:1-131` 全文、`src/utils/proxy-fetch.ts:1-827` 关联、`tests/integration/native-bridge.test.ts:1-170` 参照、`tests/unit/url-safety.test.ts:1-68` SSRF 基准、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 13、`docs/operations-log.md` 全文）、Bash（`bun test ./tests/integration/lightpanda.test.ts`/`npx tsc --noEmit`/`git`）、Write/Edit（`tests/integration/lightpanda.test.ts` 新建、`src/crawl/lightpanda-client.ts:399-420` 加 `__resetLightpandaCache`、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/crawl/lightpanda-client.ts` → `.tmp/backups/src/crawl/lightpanda-client.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2，新建测试无需备份）
+  2. `src/crawl/lightpanda-client.ts:399-420` 新增 `__resetLightpandaCache()`（清除 `lightpandaInfo` 缓存，便于单测隔离；最小暴露，无业务逻辑变更）
+  3. 新建 `tests/integration/lightpanda.test.ts`（28 用例：SSRF 10（`renderWithCLI` 127.0.0.1/127.0.0.2/2130706433/0x7f.0.0.1 + `renderWithDockerCLI` 192.168.1.1 + `renderWithCDP` 10.0.0.1 + `smartRender` file:// + `fetchPageContent` 169.254.169.254 + `captureScreenshot` 127.0.0.1 + 公网放行）+ 启发式 4（空app/ React / >50词不判 / 静态）+ 基本渲染 5（CLI/Docker 成功+失败 + CDP target 失败）+ 智能降级 6（不可用fallback / binary命中cli / docker命中 / CLI失败fallback / 超时fallback / getStatus）+ 内容提取 3（fallback 剥离script/style/nav/footer + Docker markdown >200 + Docker短回退 fallback），均 spyOn + Bun.spawn mock 无真实网络，beforeEach/afterEach 调用 `__resetLightpandaCache` 隔离）
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test ./tests/integration/lightpanda.test.ts` 执行前无文件 → `Test filter had no matches`（0 用例 FAIL，符合 Task 13 Step2 预期）
+  - TDD Green：`bun test ./tests/integration/lightpanda.test.ts` 28 pass 0 fail（54 expect，89ms，覆盖 SSRF/渲染/超时降级/错误/启发式/内容提取核心）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 回归 `bun test ./tests/unit/url-safety.test.ts` 12 pass 0 fail（SSRF 基准未退化）
+  - 备份验证后删除 `.tmp/backups/src/crawl/lightpanda-client.ts`（保留目录）
+- **Commit**：`<pending>`（`test(lightpanda): 增加 28 用例 tests/integration/lightpanda.test.ts High`）
+
 ## 2026-08-21 — Task 14 高优先级页面 e2e 补课（H-3 e2e/pages.spec.ts:1 前端 21页仅8有e2e）
 
 - **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-3：前端 21页中仅8有 e2e。需补高优先级页面（设置、知识库、会话等）e2e。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 14 垂直切片 TDD 落地。

@@ -411,6 +411,11 @@ export async function getLightpandaStatus(): Promise<{
   };
 }
 
+/** @internal test-only: 清除 detectLightpanda 缓存，便于单测隔离 */
+export function __resetLightpandaCache(): void {
+  lightpandaInfo = null;
+}
+
 /** 启动 Lightpanda Docker 容器 */
 export async function startLightpandaDocker(): Promise<boolean> {
   try {
