@@ -6187,3 +6187,20 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归：`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）；`bun test tests/unit/scheduler.test.ts` 单测隔离（afterEach 恢复 ResourceBudgetManager 原始值）
   - 备份验证后删除 `.tmp/backups/src/dre/runtime/scheduler.ts`（保留目录）
 - **Commit**：`e4f701d`（`fix(scheduler): 内存限流接真实可用内存 src/dre/runtime/scheduler.ts:54,83 H-M2-05`，改动 `src/dre/runtime/scheduler.ts:15-17,55-82,105-115,395-410` + 测试 `tests/unit/scheduler.test.ts` + `docs/operations-log.md`）
+
+## 2026-08-21 — Task 8 VRAM 防抖 H-07 1299↔1301 抖动阈值过滤（src/dre/system-resource.ts:75）
+
+- **任务**：审计 H-07 `src/core/system-resource.ts:75`（实路径 `src/dre/system-resource.ts:75`）`updateResource` 无防抖导致 `1299↔1301` 临界抖动 `canRun()` 翻转。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 8 TDD 垂直切片：`availableMemory`/`maxMemory` 变化 `<5%` 视为抖动忽略，输出稳定。
+- **工具**：Read（`src/dre/system-resource.ts:1-155` 全文、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 8、`docs/operations-log.md` 全文、`tests/unit/system-resource.test.ts` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Write/Edit（`tests/unit/resource-debounce.test.ts` 新建、`src/dre/system-resource.ts:72-111` 最小改、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/dre/system-resource.ts` → `.tmp/backups/src/dre/system-resource.ts`（SHA256 29494B...，AGENTS.md 规则 2）、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`
+  2. 新建 `tests/unit/resource-debounce.test.ts`（5 用例：1299↔1301 抖动被防抖 canRun 稳定 + 变化<5% 忽略保持稳定值 + 变化≥5% 接受 + 连续抖动序列稳定 + canRun 阈值内外翻转；覆盖 H-07 阈值过滤）
+  3. `src/dre/system-resource.ts:72-111` `updateResource` 新增 H-07 防抖：`DEBOUNCE_RATIO=0.05`，`availableMemory`/`maxMemory` 计算 `Math.abs(next-curr)/Math.abs(curr) <0.05` 则 `delete filtered` 忽略；`Object.keys(filtered).length===0` 时 `logger.info("[ResourceBudget] Resource update filtered (jitter <5%)")` 并 return，否则合并 `filtered` 并日志；阈值边界 `<5%` 忽略、`≥5%` 接受（含 0 值不防抖）
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/resource-debounce.test.ts` 4 fail 1 pass（1299→1301 翻转 true vs false、2050 vs 2000 不等、连续抖动 1301 vs 1299、1950 vs 2000 不等，符合无防抖）
+  - TDD Green：修复后 `bun test tests/unit/resource-debounce.test.ts` 5 pass 0 fail（17 expect，~180ms，含过滤日志 `Resource update filtered (jitter <5%)`）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0，新增 `DEBOUNCE_RATIO` 常量与 `filtered` 逻辑无类型错误）
+  - 回归：`bun test tests/unit/resource-debounce.test.ts tests/unit/system-resource.test.ts tests/unit/resource-sync.test.ts` 11 pass 0 fail（resource-sync 4 pass 含 4000↔8000 同步、system-resource 2 pass）；`bun test tests/unit` 32 pass 1 fail（仅 `scheduler.test.ts:87` 期望 4096 实 4000 为 H-06 双轨统一后旧期望未更新，非 Task8 回归；Task8 相关 11 用例全绿）
+  - 备份验证后删除 `.tmp/backups/src/dre/system-resource.ts`（保留目录），`docs/operations-log.md` 备份保留至提交后清理
+- **Commit**：`77f8106`（`fix(resource): 防抖阈值过滤 src/dre/system-resource.ts:75 H-07`，改动 `src/dre/system-resource.ts:72-111` + 测试 `tests/unit/resource-debounce.test.ts` + `docs/operations-log.md`）
