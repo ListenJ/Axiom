@@ -19,7 +19,7 @@ describe("后端集成：DRE 调度×资源×事件 贯通", () => {
 
   test("端到端：资源充足→提交→调度→事件→完成 5次回放一致", async () => {
     const seq: string[] = [];
-    const id = eventBus.subscribe("task.completed", (e: any) => seq.push(e.data.id));
+    const id = eventBus.subscribe("task.completed", (e: any) => { seq.push(e.data.id); });
     for (let iter = 0; iter < 5; iter++) {
       scheduler.reset();
       seq.length = 0;

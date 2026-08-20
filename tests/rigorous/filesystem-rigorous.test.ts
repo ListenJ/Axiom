@@ -13,7 +13,7 @@ describe("严苛：文件系统 沙箱与边界", () => {
   test("路径穿越：../ 应被拦截", async () => {
     const r = await writeFile("../outside.txt", "x");
     expect(r.success).toBe(false);
-    expect(r.error).toContain("outside");
+    expect(r.error!).toContain("outside");
   });
 
   test("跨盘穿越（Windows）：C:\\ 应被拦截", async () => {
@@ -25,7 +25,7 @@ describe("严苛：文件系统 沙箱与边界", () => {
   test("敏感区域：.env 应被拦截", async () => {
     const r = await writeFile(".env", "x");
     expect(r.success).toBe(false);
-    expect(r.error).toContain(".env");
+    expect(r.error!).toContain(".env");
   });
 
   test("敏感区域：.git 应被拦截", async () => {
@@ -59,7 +59,7 @@ describe("严苛：文件系统 沙箱与边界", () => {
     await fs.writeFile(full, "x".repeat(11 * 1024 * 1024));
     const r = await readFile(p);
     expect(r.success).toBe(false);
-    expect(r.error).toContain("too large");
+    expect(r.error!).toContain("too large");
     await deleteFile(p).catch(() => {});
     await fs.unlink(full).catch(() => {});
   });
@@ -71,7 +71,7 @@ describe("严苛：文件系统 沙箱与边界", () => {
     expect(results.every(r => r.success)).toBe(true);
     const r = await readFile(p);
     expect(r.success).toBe(true);
-    expect(payloads).toContain(r.content);
+    expect(payloads).toContain(r.content!);
     await deleteFile(p);
   });
 

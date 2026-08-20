@@ -79,7 +79,7 @@ describe("严苛：ActorSystem 邮箱与背压", () => {
         return { ok: true };
       },
     } as any);
-    const sends = Array.from({ length: 100 }, (_, i) => sys.send("tester", "rigorous-actor", "test", "msg", { n: i }));
+    const sends = Array.from({ length: 100 }, (_, i) => sys.send("tester", "rigorous-actor", "request", "msg", { n: i }));
     await Promise.all(sends);
     // 等待处理完（串行无延迟，200ms 足够）
     await new Promise(r => setTimeout(r, 500));
@@ -98,7 +98,7 @@ describe("严苛：ActorSystem 邮箱与背压", () => {
       handle: async () => { processed++; return {}; },
     } as any);
     // 快速发 10 条，若未 await，会丢或重入
-    for (let i = 0; i < 10; i++) sys.send("t", "a1", "test", "x", {} as any);
+    for (let i = 0; i < 10; i++) sys.send("t", "a1", "request", "x", {} as any);
     await new Promise(r => setTimeout(r, 300));
     expect(processed).toBe(10);
     await sys.shutdown();
@@ -107,7 +107,7 @@ describe("严苛：ActorSystem 邮箱与背压", () => {
   test("unknown target 不崩且返回可观测", async () => {
     const sys = new ActorSystem();
     // send 返回 Promise<void>，对未知 target 仅 warn 不抛，resolve 为 undefined
-    await expect(sys.send("t", "no-such", "test", "x", {} as any)).resolves.toBeUndefined();
+    await expect(sys.send("t", "no-such", "request", "x", {} as any)).resolves.toBeUndefined();
     await sys.shutdown();
   });
 });

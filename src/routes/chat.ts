@@ -84,6 +84,23 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     });
   }
 
+  // Real Usage 采集（非阻塞，深模块：仅追加一行 JSONL，不影响主流程延迟）
+  try {
+    const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
+    const success = Boolean(result.content && !result.content.includes("error") && result.content.trim().length > 0);
+    // 异步但尽力等待 200ms 内完成（Bun 异步 I/O，失败仅日志）
+    const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+    void captureRealUsageTrace({
+      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      task: lastPrompt || "chat",
+      success,
+      model: String(result.model ?? result.provider ?? ""),
+      latencyMs: Date.now() - Date.now(), // 占位，stream 侧有真实 latency
+      source: "chat",
+      feedback: success ? "auto-success" : "auto-fail",
+    }).catch(() => {});
+  } catch {}
+
   return response;
 }
 

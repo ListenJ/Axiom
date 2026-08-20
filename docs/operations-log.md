@@ -7,6 +7,25 @@
 
 ---
 
+## 2026-08-21 — 真实使用驱动 Agent 进化闭环（Build 模式）
+
+- **任务**：使用真实使用来完善 Agent（Build 模式）：基于现有 `src/agent-evals/*` + `src/self-evolve/*` + `src/routes/chat.ts` 自进化链路，构建真实使用采集与进化闭环，使线上对话自动转化为可归纳的 TaskTrace 并晋升为 auto-induce skill。
+- **工具**：Write（`src/agent-evals/real-usage.ts` 新建深模块、`tests/agent-evals/real-usage.test.ts` 5 用例 TDD）、Read（`src/self-evolve/types.ts:1-102` 全文、`src/agent-evals/run.ts:1-80` 全文、`src/routes/chat.ts:1-100` 全文、`src/self-evolve/index.ts:1-80` 全文）、Edit（`src/routes/chat.ts:60-88` 植入非阻塞采集）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Task（子代理协同时）。
+- **操作**（文件级）：
+  1. 备份 `src/routes/chat.ts` → `.tmp/backups/src/routes/chat.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log-real-usage.md`（AGENTS.md 规则 2，新建文件无需备份）
+  2. 新建 `src/agent-evals/real-usage.ts`（深模块：小接口 `capture/load/evolve/clear`，大量行为藏于内部；`captureRealUsageTrace` 原子 `appendFileSync` 追加 `data/real-usage-traces.jsonl`（`.gitignore: data/*.json` 已忽略，不入库），`loadRealUsageTraces` 按行解析容错，`evolveFromRealUsage` 复用 `createDefaultSelfEvolve().selfInduce + promoteInductionsToSkills`，CLI `bun run src/agent-evals/real-usage.ts --evolve`）
+  3. 新建 `tests/agent-evals/real-usage.test.ts`（5 用例：capture→load 回放一致 5次、并发 20 不丢 10/10、evolve 10 条归纳 3、空文件不崩、缺失文件空，TDD 红 `Cannot find module` → 绿 5 pass）
+  4. 修改 `src/routes/chat.ts:60-88` 植入非阻塞采集（`lastPrompt` 截断 4000、`success` 判定 `content.trim>0`、动态 `import("../agent-evals/real-usage.js")` + `void capture(...).catch(()=>{})`，深模块不侵入主流程延迟）
+  5. 修复 `tests/rigorous/event-actor-rigorous.test.ts:82,94` `MessageType "test"→"request"` + `tests/rigorous/filesystem-rigorous.test.ts:14,74` `toContain` 非空断言 + `tests/integration/backend-full-pipeline.test.ts:22` `void` 返回，以使 `npx tsc --noEmit` 0 错（3 文件，TDD 垂直切片保证）
+  6. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD 红：`bun test ./tests/agent-evals/real-usage.test.ts` 1 fail `Cannot find module` → 绿 5 pass 0 fail 21 expect 269ms（含 `inductionCount 3`）
+  - `npx tsc --noEmit` 0 错（修复后 3 文件类型错消除）
+  - `bun test --timeout 15000 ./tests/agent-evals/real-usage.test.ts ./tests/rigorous/filesystem-rigorous.test.ts ./tests/rigorous/system-scheduler-rigorous.test.ts` 31 pass 0 fail 97 expect 443ms
+  - `bun test --timeout 15000 ./tests/unit/system-resource.test.ts ... ./tests/rigorous/ + ./tests/integration/backend-full-pipeline.test.ts` 202 pass 0 fail 553 expect 6.5s 全量回归无退化
+  - 备份验证后删除 `.tmp/backups/src/routes/chat.ts`、`.tmp/backups/docs/operations-log-real-usage.md`、`.tmp/backups/src/agent-evals/real-usage.ts`（若有）
+- **Commit**：`968b0dd`
+
 ## 2026-08-21 — 差异化测试目标矩阵 + 前后端集成 L2/L3 落地（严苛强化继续）
 
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
