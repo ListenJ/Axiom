@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger.js"
-import { readString } from "../utils/env.js"
+import { readBool, readString } from "../utils/env.js"
 import { discoverGitHubRepos, formatTrendingTable } from "./sources/github-trending.js"
 import { discoverBooks, getPdfUrl } from "./sources/z-library.js"
 import { getGlobalVault } from "../memory/vault-manager.js"
@@ -39,6 +39,80 @@ interface StructureResult {
   sections: Array<{ heading: string; content: string }>
   entities: Array<{ name: string; type: string }>
   structured_data: unknown | null
+}
+
+/**
+ * 确定性 TF-IDF 回退（zero LLM 承诺）
+ * KNOWLEDGE_USE_LLM=false（默认）时使用，无需任何 LLM 调用。
+ * 关键词按词频（TF）提取，标题/摘要/章节均由规则生成，完全可复现。
+ */
+export function fallbackTFIDF(rawMarkdown: string): StructureResult {
+  const cleaned = rawMarkdown.replace(/\r\n/g, "\n").trim().slice(0, 16_000)
+  // Title: first markdown heading or first line
+  const titleMatch = cleaned.match(/^#\s+(.+?)\s*$/m)
+  const firstLine = cleaned.split("\n").find((l) => l.trim().length > 0)?.trim() ?? ""
+  const title = (titleMatch ? titleMatch[1].trim() : firstLine).slice(0, 80) || "Untitled"
+  // Summary: plain text first 200 chars
+  const plain = cleaned.replace(/^#+\s+/gm, "").replace(/[*_`\[\]()]/g, " ").replace(/\n+/g, " ").trim()
+  const summary = plain.slice(0, 200)
+  // Keywords: simple TF (term frequency) with stopwords filtering
+  const stopWords = new Set([
+    "the","is","a","an","and","or","of","to","in","on","for","with","as","by","at","from","this","that","it","are","was","were","be","been","has","have","had","will","would","can","could","should","may","might","must","shall","do","does","did","not","no","yes","if","else","when","while","about","into","through","during","before","after","above","below","up","down","out","over","under","again","further","then","once","here","there","where","why","how","all","any","both","each","few","more","most","other","some","such","only","own","same","so","than","too","very","just","now","into","than","via","using","used",
+  ])
+  const words = plain.toLowerCase().match(/\b[a-z]{2,}\b/g) ?? []
+  const chineseWords = plain.match(/[\u4e00-\u9fa5]{2,}/g) ?? []
+  const allTokens = [...words, ...chineseWords]
+  const freq = new Map<string, number>()
+  for (const w of allTokens) {
+    if (stopWords.has(w.toLowerCase())) continue
+    if (w.length < 2) continue
+    freq.set(w, (freq.get(w) ?? 0) + 1)
+  }
+  let keywords: string[] = []
+  if (freq.size > 0) {
+    keywords = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k]) => k)
+  } else {
+    keywords = plain.split(/\s+/).filter((w) => w.length >= 2).slice(0, 10)
+  }
+  // Sections: split by headings
+  const headings: Array<{ heading: string; content: string }> = []
+  let currentHeading = "正文"
+  let currentContent: string[] = []
+  const lines = cleaned.split("\n")
+  for (const line of lines) {
+    const h = line.match(/^#{1,3}\s+(.+)/)
+    if (h) {
+      if (currentContent.join(" ").trim().length > 0 || headings.length === 0) {
+        if (headings.length > 0 || currentContent.length > 0) {
+          headings.push({ heading: currentHeading, content: currentContent.join(" ").slice(0, 100) })
+        }
+      }
+      currentHeading = h[1].trim().slice(0, 60)
+      currentContent = []
+    } else {
+      currentContent.push(line)
+    }
+  }
+  if (currentContent.length > 0) {
+    headings.push({ heading: currentHeading, content: currentContent.join(" ").slice(0, 100).trim() || plain.slice(0, 100) })
+  }
+  if (headings.length === 0) {
+    headings.push({ heading: "正文", content: plain.slice(0, 100) })
+  }
+  const sections = headings.slice(0, 5).map((s) => ({ heading: s.heading.slice(0, 60), content: s.content.slice(0, 100) }))
+  // Entities: capitalized words
+  const entityCandidates = plain.match(/\b[A-Z][a-z]{2,}\b/g) ?? []
+  const entities = [...new Set(entityCandidates)].slice(0, 5).map((name) => ({ name, type: "concept" as const }))
+  const quality_score = Math.min(0.95, Math.max(0.45, 0.5 + Math.min(0.3, plain.length / 2000) + Math.min(0.15, keywords.length * 0.02)))
+  return {
+    title: title.slice(0, 80) || "Untitled",
+    summary,
+    keywords,
+    quality_score: Math.round(quality_score * 1000) / 1000,
+    sections,
+    entities,
+    structured_data: null,
+  }
 }
 
 async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | null> {
@@ -183,9 +257,11 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
                   result.pdfsConverted++
                   result.notesWritten++
 
-                  // 内容结构化：边缘小模型优先（本地免费），失败回退 GLM
-                  const structured = await structureKnowledgeWithEdge(final.result.markdown)
-                    ?? await structureWithGLM(final.result.markdown)
+                  // 内容结构化：KNOWLEDGE_USE_LLM=false 时走确定性 TF-IDF 回退（zero LLM 承诺，默认），为 true 时边缘小模型优先，失败回退 GLM，再失败回退 TF-IDF
+                  const useLLM = readBool("KNOWLEDGE_USE_LLM", false)
+                  const structured = useLLM
+                    ? (await structureKnowledgeWithEdge(final.result.markdown) ?? await structureWithGLM(final.result.markdown) ?? fallbackTFIDF(final.result.markdown))
+                    : fallbackTFIDF(final.result.markdown)
                   if (structured) {
                     // Task 3.1: zod schema 校验 GLM 输出
                     const parsed = StructuredKnowledgeSchema.safeParse(structured)

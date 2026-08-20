@@ -7,7 +7,7 @@
 
 ## 1. 项目概览
 
-Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、零概率、零 embedding**。所有检索、推理、记忆操作均基于确定性算法（关键词匹配、规则引擎、确定性图遍历），不使用任何 ML 模型进行搜索或聚类。
+Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、零概率、零 embedding**。所有检索、推理、记忆操作均基于确定性算法（关键词匹配、规则引擎、确定性图遍历），不使用任何 ML 模型进行搜索或聚类。**知识库结构化（`src/knowledge/pipeline.ts:186`）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭，满足 zero LLM 承诺）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
 
 | 属性 | 值 |
 |------|-----|

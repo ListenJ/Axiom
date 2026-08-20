@@ -6153,3 +6153,20 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0，publish 改 async 未影响现有 `eventBus.publish` 同步调用方：sync handler 仍在 map 阶段同步执行，dre-core-modules 94 pass 0 fail 兼容）
   - 备份验证后删除 `.tmp/backups/src/dre/kernel.ts`、`.tmp/backups/src/dre/runtime/event-bus.ts`、`.tmp/backups/src/dre/actor/system.ts`（保留目录）
 - **Commit**：`48de707`（`fix(dre): 消除 tick/event/actor 竞态 src/dre/kernel.ts:138 src/dre/runtime/event-bus.ts:71 src/dre/actor/system.ts:103 C-M2-01/02 H-M2-03`，改动 3 源文件 + 2 测试 `tests/unit/event-bus.test.ts tests/unit/actor.test.ts` + `docs/operations-log.md`）
+## 2026-08-21 — Task 5 知识管道 zero LLM 条件化（src/knowledge/pipeline.ts:186 docs/ARCHITECTURE.md）
+
+- **任务**：审计 Critical：`src/knowledge/pipeline.ts:186` 无条件调用 LLM（`structureKnowledgeWithEdge` + `structureWithGLM`）违反 zero LLM 承诺。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 5 TDD 垂直切片：新增配置开关 `KNOWLEDGE_USE_LLM` 默认 false + 确定性 TF-IDF 回退 `fallbackTFIDF`，启用时才走 LLM 链路。
+- **工具**：Read（`src/knowledge/pipeline.ts:1-238` 全文、`src/utils/env.ts:1-320` 全文、`src/knowledge/types.ts:1-101` 全文、`src/knowledge/preprocessor.ts:1-187` 全文、`src/knowledge/edge-assist.ts:1-188` 全文、`docs/ARCHITECTURE.md:1-313` 全文、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 5、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Write/Edit（`tests/unit/knowledge-pipeline.test.ts` 新建、`src/knowledge/pipeline.ts:1-2,44-120,186-189` 最小改、`docs/ARCHITECTURE.md:10` 更新、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/knowledge/pipeline.ts` → `.tmp/backups/src/knowledge/pipeline.ts`、`docs/ARCHITECTURE.md` → `.tmp/backups/docs/ARCHITECTURE.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/knowledge-pipeline.test.ts`（5 用例：KNOWLEDGE_USE_LLM 默认 false + false 仍可 saveSource（临时 DB `data/test-knowledge-*.db`）+ fallbackTFIDF 存在且返回合法 StructuredKnowledge（zod 校验）+ false 时不调用 fetch（spyOn）+ 中英文混合 keywords 确定性；覆盖 zero LLM 开关与回退）
+  3. `src/knowledge/pipeline.ts:2` `import { readString }` → `import { readBool, readString }`；`:44-120` 新增导出 `fallbackTFIDF(rawMarkdown)`（确定性 TF-IDF：标题取首个 `# `、摘要取纯文本 200 字符、关键词 TF 词频过滤停用词取 Top10 含中英文、章节按 `#{1,3}` 切分取 5 段、实体取大写词、quality_score 0.45-0.95 确定性计算，`StructuredKnowledgeSchema` 兼容）；`:186-189` `const structured = await structureKnowledgeWithEdge(...) ?? await structureWithGLM(...)` → `const useLLM = readBool("KNOWLEDGE_USE_LLM", false); const structured = useLLM ? (await structureKnowledgeWithEdge(...) ?? await structureWithGLM(...) ?? fallbackTFIDF(...)) : fallbackTFIDF(...)`（默认关闭 LLM，开启时仍回退 TF-IDF 保证可用性）
+  4. `docs/ARCHITECTURE.md:10` 项目概览补充“知识库结构化（`src/knowledge/pipeline.ts:186`）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭，满足 zero LLM 承诺）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型与云端 GLM，再失败仍回退 TF-IDF。”
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/knowledge-pipeline.test.ts` 2 pass 3 fail（fallbackTFIDF undefined 三用例 fail，符合 LLM 条件化未实现）
+  - TDD Green：修复后 `bun test tests/unit/knowledge-pipeline.test.ts` 5 pass 0 fail（24 expect，~551ms，含临时 DB saveSource）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0，修复 `@ts-expect-error` 未使用与 fetch 泛型 mock 报错）
+  - 回归：`bun test tests/knowledge/pipeline.test.ts` 3 pass 0 fail（原 pipeline 空跑/GH/book 仍绿）；`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）
+  - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts` 与 `.tmp/backups/docs/ARCHITECTURE.md`（保留目录）
+- **Commit**：`PLACEHOLDER`（`fix(knowledge): zero LLM 条件化 src/knowledge/pipeline.ts:186 docs/ARCHITECTURE.md`，改动 `src/knowledge/pipeline.ts:2,44-120,186-189` + 测试 `tests/unit/knowledge-pipeline.test.ts` + `docs/ARCHITECTURE.md:10` + `docs/operations-log.md`）
