@@ -6383,4 +6383,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT True，文档+注释改动无类型影响，src 9 处仅注释）
   - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass、`bun run check-zero.mjs` active docs 0（全仓仅 operations-log/archive 残留历史，active 0）
   - 备份验证后删除 `.tmp/backups/docs/ARCHITECTURE.md` 等（保留目录）
-- **Commit**：`PLACEHOLDER`（`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2 手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172`）
+- **Commit**：`283f692`（`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2 手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172`）
