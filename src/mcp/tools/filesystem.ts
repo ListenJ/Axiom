@@ -154,7 +154,15 @@ export async function writeFile(
 
   try {
     const dir = path.dirname(resolved);
-    await fs.mkdir(dir, { recursive: true });
+    // 原子 mkdir -p + 捕获 EEXIST/竞态（H-03 TOCTOU 修复）
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch {}
+    // TOCTOU 重校验：mkdir 后再次解析真实路径，防止 check→mkdir 窗口的 symlink 抢占
+    const postSafety = isPathSafe(resolved);
+    if (!postSafety.safe) {
+      return { success: false, error: postSafety.error, path: filePath };
+    }
     if (options?.append) {
       await fs.appendFile(resolved, content, "utf-8");
     } else {
@@ -376,7 +384,18 @@ export async function moveFile(
 
   try {
     const dir = path.dirname(dstResolved);
-    await fs.mkdir(dir, { recursive: true });
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch {}
+    const postDstSafety = isPathSafe(dstResolved);
+    if (!postDstSafety.safe) {
+      return { success: false, error: postDstSafety.error, path: destination };
+    }
+    // 源在重命名前再次校验，防止源在 check 后被替换为外链
+    const postSrcSafety = isPathSafe(srcResolved);
+    if (!postSrcSafety.safe) {
+      return { success: false, error: postSrcSafety.error, path: source };
+    }
     await fs.rename(srcResolved, dstResolved);
     return { success: true, path: destination };
   } catch (err: unknown) {

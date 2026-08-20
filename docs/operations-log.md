@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-21 — Task 11 文件系统 TOCTOU 原子化（H-03 filesystem:88）
+
+- **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-03：`src/mcp/tools/filesystem.ts:88` 父目录不存在时放行（`Parent doesn't exist → allow`）导致 check→mkdir 窗口 symlink 抢占越界；`writeFile`/`moveFile` 的 `mkdir` 非原子且无重校验。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 11 垂直切片 TDD 修复。
+- **工具**：Read（`src/mcp/tools/filesystem.ts:1-405` 全文、`src/utils/url-safety.ts`/`src/utils/proxy-fetch.ts` 关联、`docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-03、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 11、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`bun -e` symlink 越界探针/`git`）、Write/Edit（`tests/unit/filesystem.test.ts` 新建、`src/mcp/tools/filesystem.ts:155-171,377-389` 原子化、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/mcp/tools/filesystem.ts` → `.tmp/backups/src/mcp/tools/filesystem.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/filesystem.test.ts`（4 用例：并发 mkdir 均成功、并发同文件不炸、TOCTOU symlink 抢占应拦截、moveFile 同样拦截；后 2 用例用 spyOn 注入 junction 竞态）
+  3. `src/mcp/tools/filesystem.ts:155-171` `writeFile` 与 `:377-389` `moveFile`：`mkdir` 改 `try{await mkdir({recursive:true})}catch{}` 原子捕获 + `mkdir` 后 `isPathSafe(resolved)` 重校验（阻断 check→mkdir 窗口的外链越界，跨盘 `C:\Windows\Temp` 场景已验证）
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/filesystem.test.ts` 2 fail（TOCTOU 2 用例 expect false but got true，直通越界）+ 2 pass
+  - TDD Green：修复后 `bun test tests/unit/filesystem.test.ts` 4 pass 0 fail（12 expect，含并发 2 用例）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 回归 `bun test tests/security-fixes.test.ts` filesystem 沙箱 7 用例仍 pass（.env/.git/数据库拒绝不破坏）
+  - 备份验证后删除 `.tmp/backups/src/mcp/tools/filesystem.ts`
+- **Commit**：待回填（`fix(security): TOCTOU 原子化 src/mcp/tools/filesystem.ts:88 H-03`）
+
 ## 2026-08-21 — Task 10 命令白名单防绕过（H-02 command-safety:16）
 
 - **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-02：`src/utils/command-safety.ts:16` 黑名单可被 `cmd /c` 及 Windows 原生危险命令绕过（`rd /s`/`del /f`/`shutdown`/`Remove-Item`），需白名单校验 + 去混淆双重匹配兜底。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 10 垂直切片 TDD 修复。
