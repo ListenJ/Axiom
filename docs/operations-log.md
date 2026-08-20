@@ -6132,4 +6132,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 架构门禁：`bun test tests/architecture-integrity.test.ts` 22 pass 0 fail（修复 `cli/commands/kg.ts:32` `process.env.KG_DB_PATH` 直读 → `readString("KB_DB_PATH")`，修复 `env-example-completeness` KG_DB_PATH→KB_DB_PATH 不一致）
   - 回归：`bun test --parallel=8 --timeout 15000 ./tests` 2682 pass 28 skip 0 fail（270? 4l tests；修复前 2 fail：arch 1 + process-sandbox 超时 1，修复后全绿；env 门禁由 KG_DB_PATH 未登记 1 fail → 0）
   - 备份验证后删除 `.tmp/backups/src/db/pg-client.ts` 等 12 备份（保留目录）
-- **Commit**：`待回填`（`chore(db): 移除 PG 残留 H-M1-03 src/db/pg-client.ts:1 docs/ARCHITECTURE.md:58`，改动 8 源文件 + `docs/ARCHITECTURE.md` + `package.json` + 测试 `tests/unit/pg-client-removal.test.ts` + 删除 3 文件 + `docs/operations-log.md`）
+- **Commit**：`38966d1`（`chore(db): 移除 PG 残留 H-M1-03 src/db/pg-client.ts:1 docs/ARCHITECTURE.md:58`，改动 8 源文件 + `docs/ARCHITECTURE.md` + `package.json` + 测试 `tests/unit/pg-client-removal.test.ts` + 删除 3 文件 + `docs/operations-log.md`）
