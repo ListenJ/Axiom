@@ -6169,4 +6169,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0，修复 `@ts-expect-error` 未使用与 fetch 泛型 mock 报错）
   - 回归：`bun test tests/knowledge/pipeline.test.ts` 3 pass 0 fail（原 pipeline 空跑/GH/book 仍绿）；`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）
   - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts` 与 `.tmp/backups/docs/ARCHITECTURE.md`（保留目录）
-- **Commit**：`PLACEHOLDER`（`fix(knowledge): zero LLM 条件化 src/knowledge/pipeline.ts:186 docs/ARCHITECTURE.md`，改动 `src/knowledge/pipeline.ts:2,44-120,186-189` + 测试 `tests/unit/knowledge-pipeline.test.ts` + `docs/ARCHITECTURE.md:10` + `docs/operations-log.md`）
+- **Commit**：`200303f`（`fix(knowledge): zero LLM 条件化 src/knowledge/pipeline.ts:186 docs/ARCHITECTURE.md`，改动 `src/knowledge/pipeline.ts:2,44-120,186-189` + 测试 `tests/unit/knowledge-pipeline.test.ts` + `docs/ARCHITECTURE.md:10` + `docs/operations-log.md`）
