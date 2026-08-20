@@ -23,6 +23,13 @@ const DANGEROUS_PATTERNS = [
   /curl\s+.*\|\s*(ba)?sh/i,
   /wget\s+.*\|\s*(ba)?sh/i,
   /:\(\)\s*\{\s*:\|:\u0026\s*\};/,
+  // Windows 危险：cmd /c 包装可绕过 Unix 前缀检测，需在原始串与去混淆串上双重拦截（H-02）
+  /(?:^|\s|;|&&|\|\||\()\s*rd\s+\/s/i,
+  /(?:^|\s|;|&&|\|\||\()\s*rmdir\s+\/s/i,
+  /(?:^|\s|;|&&|\|\||\()\s*del\s+.*\/f/i,
+  /(?:^|\s)shutdown\s+.*\/[sr]/i,
+  /\bRemove-Item\b/i,
+  /\b(?:powershell|pwsh)(?:\.exe)?\b.*(?:Remove-Item|EncodedCommand|Invoke-Expression)/i,
 ];
 
 // 结构性原语：间接执行与解码-管道-执行，黑名单模式下无条件拦截

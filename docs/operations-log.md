@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-21 — Task 10 命令白名单防绕过（H-02 command-safety:16）
+
+- **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-02：`src/utils/command-safety.ts:16` 黑名单可被 `cmd /c` 及 Windows 原生危险命令绕过（`rd /s`/`del /f`/`shutdown`/`Remove-Item`），需白名单校验 + 去混淆双重匹配兜底。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 10 垂直切片 TDD 修复。
+- **工具**：Read（`src/utils/command-safety.ts:1-96` 全文、`src/mcp/tools/terminal.ts:1-266` 全文、`tests/security-fixes.test.ts:219-306` 全文、`docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-02、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 10、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`bun -e` 去混淆验证/`git`）、Write/Edit（`tests/unit/command-safety.test.ts` 新建、`src/utils/command-safety.ts:16-33` 扩展、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/command-safety.ts` → `.tmp/backups/src/utils/command-safety.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/command-safety.test.ts`（8 用例：cmd /c rd /s、cmd /c del、powershell Remove-Item、直接 rd、白名单管道拦截、清单内放行、回归 rm -rf/curl|sh、安全 echo）
+  3. `src/utils/command-safety.ts:16` 扩展：`DANGEROUS_PATTERNS` 新增 6 条 Windows 危险（`rd /s`/`rmdir /s`/`del .*\/f`/`shutdown .*\/[sr]`/`Remove-Item`/`powershell.*Remove-Item|EncodedCommand`），原始串+去混淆串双重匹配已覆盖 `cmd /c` 包装绕过
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/command-safety.test.ts` 4 fail（rd/del/powershell 3 类 + cmd 包装 1）+ 4 pass
+  - TDD Green：修复后 `bun test tests/unit/command-safety.test.ts` 8 pass 0 fail（10 expect）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 回归 `bun test tests/security-fixes.test.ts` 30 pass（R-005 防线全绿，含引号/反斜杠混淆、白名单管道、命令替换）
+  - 备份验证后删除 `.tmp/backups/src/utils/command-safety.ts`
+- **Commit**：待回填（`fix(security): 白名单校验 src/utils/command-safety.ts:16 H-02`）
+
 ## 2026-08-21 — Task 9 权限中间件 RBAC 补齐（C-01 permission-middleware:15）
 
 - **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` C-01：`src/utils/permission-middleware.ts:15` 仅 3 工具名导致 `terminal_exec` 高危命令直通“总是 true”；`src/mcp/tool-registry.ts:29` 仅 `risk-monitor` 且 `EDGE=0` 时 fail-open 的硬底线缺口。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 9 垂直切片 TDD 修复。
