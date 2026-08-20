@@ -22,7 +22,7 @@
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 回归 `bun test tests/security-fixes.test.ts` filesystem 沙箱 7 用例仍 pass（.env/.git/数据库拒绝不破坏）
   - 备份验证后删除 `.tmp/backups/src/mcp/tools/filesystem.ts`
-- **Commit**：待回填（`fix(security): TOCTOU 原子化 src/mcp/tools/filesystem.ts:88 H-03`）
+- **Commit**：`6a61607`（`fix(security): TOCTOU 原子化 src/mcp/tools/filesystem.ts:88 H-03`）
 
 ## 2026-08-21 — Task 10 命令白名单防绕过（H-02 command-safety:16）
 
