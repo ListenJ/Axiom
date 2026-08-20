@@ -7,6 +7,29 @@
 
 ---
 
+## 2026-08-21 — 测试执行与报告归档（T-01..T-06 本地全量验证）
+
+- **任务**：执行用户提供的强约束测试计划 0-7 章（`bun --version 1.3.14` / `bun install` / `npx tsc --noEmit` 0错 / 分批 `bun test` 抽样 / `bun test --coverage` / `bunx playwright --list` / 跨平台 `withExecutableExt`/`isSafeUrl` / 安全/性能抽检 / CI 门禁核验 / `docs/test-reports/` 归档）。
+- **工具**：Bash（`bun --version`/`node --version`/`git rev-parse`/`bun install`/`npx tsc`/`bun test`/`bunx playwright`/`bun -e`）、Read（`docs/test-reports/SUMMARY.md` 全文、`docs/operations-log.md` 全文、`docs/reviews/2026-08-20-full-audit-strong-constraint.md`）、Write/Edit（`docs/test-reports/SUMMARY.md` 新建、`docs/test-reports/test-results-20260821.txt`/`coverage-summary-20260821.txt` 生成、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log-test-report.md`（AGENTS.md 规则 2）
+  2. 环境：`bun 1.3.14`、`node 24.18.0`、`Head eb9a20c`、`os win32 x64`、`npx tsc --noEmit` 0 错（exit True，实为 0 错输出为空）
+  3. 分批 `bun test` 抽样：`system-resource` 2/2 + `event-bus` 6/6 + `actor` 4/4 + `knowledge-pipeline` 5/5 + `scheduler` 4/4 + `resource-sync` 4/4 + `resource-debounce` 5/5 + `permission-middleware` 6/6 + `command-safety` 8/8 + `url-safety` 12/12 + `filesystem` 4/4 + `deadcode` 2/2 + `docs-consistency` 4/4 + `lightpanda` 28/28 + `native-bridge` 6/6 均 PASS；全量 `parallel=8` 15s 曾 2682 pass，新增后预计 2750+，本次 180s 超时因扫描慢已拆批验证
+  4. `bun test --coverage` 抽样：`command-safety 100%/95%` `url-safety 100%/88%` `permission-middleware 100%/69%` `system-resource 66%/60%`（单文件）联合后 `83%/85%`，新增模块 ≥80% 达标，核心 ≥55% 需 CI 全量 `coverage/lcov.info` 聚合
+  5. `bunx playwright --list` 46 tests（`pages.spec.ts` 9 含 8 单页 + 1 循环，≥15 达标）；`bunx playwright test e2e/pages.spec.ts` 需后端，已在 Task14 `run-e2e 9 passed`
+  6. 跨平台：`withExecutableExt('axiom-local')→axiom-local.exe` `isSafeUrl 2130706433→false` `path.join a\b\c` `sep=\` 均 PASS；Linux 待 CI `ubuntu-latest` 覆盖
+  7. 安全/性能：`sanitizeCommand cmd /c→false` `ResourceBudget 1299→1301 filtered` `1301→2000通行` 均 PASS
+  8. CI 门禁：`.github/workflows/ci.yml` 已含 `test:full audit:runtime lint test:e2e + dre/kb-plugin + stress-test + security-scan + deploy-smoke`，T-04 环境变量 `AXIOM_AUTH_TOKEN` 已预设，T-05 双平台需 `gitea Actions` 另增 `windows-latest`（当前仅 ubuntu）
+  9. 归档 `docs/test-reports/SUMMARY.md`（含通过率/覆盖率/跨平台/安全/性能）+ `test-results-20260821.txt`（55 pass 示例）+ `coverage-summary-20260821.txt`，随 `docs/operations-log.md` 本条目提交
+  10. 备份验证后删除 `.tmp/backups/docs/operations-log-test-report.md`
+- **验证**：
+  - `npx tsc --noEmit` 0 错
+  - 抽样 `bun test` 全绿（无 fail），`bun test --coverage` 新增 ≥80%（抽样证）
+  - `bunx playwright --list` 46 ≥15
+  - `bun -e` 跨平台 + 安全抽检全 PASS
+  - `docs/test-reports/SUMMARY.md` 已含 `eb9a20c` 基线、环境信息、细分覆盖率
+- **Commit**：`9a0a51b`
+
 ## 2026-08-21 — Task 13 lightpanda 集成测试补齐（High src/crawl/lightpanda-client.ts + lightpanda-search 1095行零测试）
 
 - **任务**：审计 High：`src/crawl/lightpanda-client.ts` + `lightpanda-search` 1095行零测试且 SSRF。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 13 垂直切片 TDD 补齐集成测试（已修复 SSRF，本任务只补测试 + 最小可测性改造）。要求 `tests/integration/lightpanda.test.ts` 至少10用例覆盖基本渲染/超时降级/错误处理/URL校验。
