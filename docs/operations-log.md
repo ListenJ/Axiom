@@ -36,7 +36,7 @@
   - TDD Red：`bunx playwright test e2e/pages.spec.ts --project=chromium` 9 fail（`net::ERR_CONNECTION_REFUSED` at 18789，无后端时符合预期，直观复现 404/不可达）
   - TDD Green：`E2E_SPEC=pages node scripts/run-e2e.cjs` 9 pass 0 fail（17.9s，chromium，`[server] Server started 18789` 后 `Running 9 tests using 1 worker → 9 passed`）；`npx tsc --noEmit` 0 错（TSC_EXIT 0，e2e 不纳入根 tsconfig）
   - 备份验证后删除 `.tmp/backups/docs/operations-log.md` 保留目录
-- **Commit**：`<pending>`（`test(e2e): 补充8高优先级页 e2e/pages.spec.ts H-3`）
+- **Commit**：`3975ce5`（`test(e2e): 补充8高优先级页 e2e/pages.spec.ts H-3`）
 
 ## 2026-08-21 — Task 12 SSRF 整数IP + 二阶校验（H-1 url-safety:20 lightpanda-client:111 search:188）
 
