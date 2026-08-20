@@ -140,22 +140,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
   });
 
-  // ===== 知识图谱工具 (PostgreSQL + SQLite 统一降级) =====
+  // ===== 知识图谱工具 (SQLite 唯一后端 H-M1-03) =====
 
   registry.add({
     name: "kg_stats",
-    description: "获取知识图谱统计信息 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱统计信息 (SQLite)",
     inputSchema: {},
     handler: async () => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const [entityCount] = await pg`SELECT COUNT(*)::int as count FROM kg_entities`;
-          const [relCount] = await pg`SELECT COUNT(*)::int as count FROM kg_relationships`;
-          return { success: true, backend: "postgresql", totalNodes: entityCount?.count || 0, totalEdges: relCount?.count || 0 };
-        }
-      } catch { /* PG not available, fall through to SQLite */ }
       const kg = getKGEnhancedInstance(db);
       return { success: true, backend: "sqlite", ...kg.getStats() };
     },
@@ -163,32 +154,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entities",
-    description: "查询知识图谱实体 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "查询知识图谱实体 (SQLite)",
     inputSchema: {
       type: z.string().optional().describe("实体类型过滤"),
       query: z.string().optional().describe("搜索关键词"),
       limit: z.number().optional().default(50).describe("返回数量"),
     },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const type = args.type as string;
-          const search = args.query as string;
-          const limit = (args.limit as number) || 50;
-          let query = "SELECT id, name, type, description FROM kg_entities";
-          const conditions: string[] = [];
-          const params: (string | number)[] = [];
-          if (type) { params.push(type); conditions.push(`type = $${params.length}`); }
-          if (search) { params.push(`%${search}%`); conditions.push(`(name ILIKE $${params.length} OR description ILIKE $${params.length})`); }
-          if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
-          query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
-          params.push(limit);
-          const entities = await pg.unsafe(query, params);
-          return { success: true, backend: "postgresql", data: entities, count: entities.length };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes((args.query as string) || "", {
         type: args.type as KGNodeType | undefined,
@@ -200,29 +172,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entity_detail",
-    description: "获取知识图谱实体详情及关系 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱实体详情及关系 (SQLite)",
     inputSchema: { name: z.string().describe("实体名称") },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entityName = args.name as string;
-          const [entity] = await pg`SELECT * FROM kg_entities WHERE name = ${entityName}`;
-          if (!entity) return { success: false, error: "Entity not found" };
-          const relationships = await pg`
-            SELECT r.relation_type, r.weight,
-              CASE WHEN r.source_id = ${entity.id} THEN 'outgoing' ELSE 'incoming' END AS direction,
-              CASE WHEN r.source_id = ${entity.id} THEN te.name ELSE se.name END AS other_entity,
-              CASE WHEN r.source_id = ${entity.id} THEN te.type ELSE se.type END AS other_type
-            FROM kg_relationships r
-            JOIN kg_entities se ON se.id = r.source_id
-            JOIN kg_entities te ON te.id = r.target_id
-            WHERE r.source_id = ${entity.id} OR r.target_id = ${entity.id}
-            ORDER BY r.weight DESC`;
-          return { success: true, backend: "postgresql", data: { entity, relationships } };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes(args.name as string, { limit: 1 });
       if (nodes.length === 0) return { success: false, error: "Entity not found" };
@@ -234,24 +186,12 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_traverse",
-    description: "知识图谱遍历 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "知识图谱遍历 (SQLite)",
     inputSchema: {
       entityName: z.string().describe("起始实体名称"),
       depth: z.number().optional().default(2).describe("遍历深度"),
     },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entityName = args.entityName as string;
-          const depth = (args.depth as number) || 2;
-          const [entity] = await pg`SELECT id FROM kg_entities WHERE name = ${entityName}`;
-          if (!entity) return { success: false, error: "Entity not found" };
-          const results = await pg`SELECT * FROM kg_traverse(${entity.id}, ${depth})`;
-          return { success: true, backend: "postgresql", data: results, depth, startEntity: entityName };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes(args.entityName as string, { limit: 1 });
       if (nodes.length === 0) return { success: false, error: "Entity not found" };
@@ -308,24 +248,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_graph",
-    description: "获取知识图谱可视化数据 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱可视化数据 (SQLite)",
     inputSchema: {},
     handler: async () => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entities = await pg`SELECT id, name, type, description FROM kg_entities ORDER BY updated_at DESC LIMIT 500`;
-          const nodeIds = entities.map((e: { id: number | string }) => String(e.id));
-          const relationships = await pg.unsafe(
-            `SELECT r.source_id, r.target_id, r.relation_type FROM kg_relationships r
-             WHERE r.source_id = ANY($1::bigint[]) AND r.target_id = ANY($1::bigint[])
-             ORDER BY r.weight DESC LIMIT 2000`, [nodeIds]);
-          const nodes = entities.map((e: { id: number | string; name: string; type: string }) => ({ id: e.id, name: e.name, type: e.type, label: e.name.split("/").pop()?.split(".").pop() || e.name }));
-          const edges = relationships.map((r: { source_id: number | string; target_id: number | string; relation_type: string }) => ({ source: r.source_id, target: r.target_id, type: r.relation_type }));
-          return { success: true, backend: "postgresql", data: { nodes, edges, stats: { nodeCount: nodes.length, edgeCount: edges.length } } };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       return { success: true, backend: "sqlite", data: kg.toEChartsData({ maxNodes: 200, includeEdges: true }) };
     },

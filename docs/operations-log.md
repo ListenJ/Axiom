@@ -6105,3 +6105,31 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归：`bun test tests/native-bridge.test.ts` 9 pass 0 fail（Binary not found 路径现为 `axiom-local.exe` 含 .exe，Win32 正确）；`bun test tests/unit/system-resource.test.ts` 2 pass 0 fail（Task1 无回归）
   - 备份验证后删除 `.tmp/backups/src/native-bridge.ts` 与 `.tmp/backups/docs/operations-log.md`（保留目录）
 - **Commit**：`461c94a`（`fix(native): Win32 .exe + pipe排空 + 失败kill src/native-bridge.ts:61,83,94 Native C-01/02 H-01`，改动 `src/native-bridge.ts:15,62,84-87,112-131` + 测试 `tests/integration/native-bridge.test.ts` + `docs/operations-log.md`）
+
+## 2026-08-21 — Task 3 PG 残留移除 H-M1-03 全链路清理（src/db/pg-client.ts:1 docs/ARCHITECTURE.md:58）
+
+- **任务**：审计 H-M1-03 `docs/ARCHITECTURE.md:58` 声称 PG 已移除但 `src/db/pg-client.ts` 全链存续（8 文件 16 处 `pg-client` 引用）；按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 3 TDD 垂直切片：`tests/unit/pg-client-removal.test.ts` 失败断言 grep 命中=0 → 检查引用 → 删除或重构为 sqlite → 文档更新 → 全绿回填。
+- **工具**：Read（`src/db/pg-client.ts:1-232` 全文、`docs/ARCHITECTURE.md:55-60`、`docs/STORAGE-EVALUATION.md`、`package.json:46,88`、`src/db/pg-init.ts:1-9`、`src/db/codegraph-sync.ts:1-523` 全文、`src/memory/knowledge-graph-builder.ts:1-672` 全文、`src/agents/kg-research-agent.ts:1-409` 全文、`src/router/model-advisor.ts:1-482` 全文、`src/routes/knowledge-graph.ts:1-483` 全文、`src/mcp/server/kg-tools.ts:1-525` 全文、`src/cli/commands/kg.ts:1-88` 全文、`docs/operations-log.md` 全文、`tests/architecture-integrity.test.ts`）、Bash（`rg -n "pg-client" src --no-heading`、`bun test`/`npx tsc --noEmit`/`git rm -f`/`git status`/`Test-Path`）、Write/Edit（`tests/unit/pg-client-removal.test.ts` 新建、`src/db/codegraph-sync.ts` 重构、`src/memory/knowledge-graph-builder.ts` 重构、`src/agents/kg-research-agent.ts:20,317` 最小改、`src/router/model-advisor.ts:20,286,435` 最小改、`src/routes/knowledge-graph.ts` 重构为 SQLite、`src/mcp/server/kg-tools.ts:145-332` 重构、`src/cli/commands/kg.ts` 重构、`docs/ARCHITECTURE.md:58` 更新、`package.json:46,88` 更新、`archive/ARCHIVE-LOG.md` 追加、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 12 文件 → `.tmp/backups/` 保留相对路径（`src/db/pg-client.ts`、`src/db/pg-init.ts`、`src/db/codegraph-sync.ts`、`src/memory/knowledge-graph-builder.ts`、`src/agents/kg-research-agent.ts`、`src/router/model-advisor.ts`、`src/routes/knowledge-graph.ts`、`src/mcp/server/kg-tools.ts`、`src/cli/commands/kg.ts`、`docs/ARCHITECTURE.md`、`package.json`、`tests/db/pg-client.test.ts`、`docs/operations-log.md`）（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/pg-client-removal.test.ts`（3 用例：grep `pg-client` src/ 命中应为 0 + `src/db/pg-client.ts` 应已删除 + `docs/ARCHITECTURE.md:58` 文档一致性；Windows 兼容 `rg+find /c` 与 `grep|wc -l` 双回退）
+  3. `src/db/codegraph-sync.ts` — 移除 `import { isPgAvailable,getPG } from "./pg-client.js"` 及 `PgClient` 接口，`registerProject`/`syncCodeGraphToPG`/`searchCode`/`getCodeGraph`/`getProjectStats` 重构为 SQLite no-op（logger.warn H-M1-03 + 返回空/零），保留 `collectAllNodes`/`groupByFile`/`generateNodeEmbedding` 供本地索引
+  4. `src/memory/knowledge-graph-builder.ts` — 移除 PG 导入及 `PgClient`，`buildKnowledgeGraph`/`buildResearchContext`/`incrementalUpdate` 降级为 SQLite KnowledgeGraphEnhanced no-op（返回空结果 + H-M1-03 提示），保留 `scanProjectFiles`/`detectLanguage`/`generateContextSummary` 辅助
+  5. `src/agents/kg-research-agent.ts:20` 移除 `isPgAvailable,getPG` 导入；`:317` `writeFindingsToKG` 移除 PG `INSERT INTO kg_entities`，改为 no-op 日志提示迁移至 `kg/enhanced.ts`
+  6. `src/router/model-advisor.ts:20` 移除 PG 导入；`:286-303` 移除 `SELECT DISTINCT ON (model_id) FROM model_evaluations` PG 读取（3 评估分数）；`:435-454` 移除 `INSERT INTO model_evaluations` PG 写入（进化历史），均标注 H-M1-03 已废弃
+  7. `src/routes/knowledge-graph.ts` — 5 路由 `isPgAvailable/getPG` 动态导入移除，重构为 SQLite 单一后端：`handleKGStats`/`handleKGEntities`/`handleKGEntityDetail`/`handleKGTraverse`/`handleKGGraph` 改 `KnowledgeGraphEnhanced(ctx.db)`；`handleKGGraph` 原 PG `kg_traverse` 递归 CTE 改 `kg.subgraph`/`toEChartsData`
+  8. `src/mcp/server/kg-tools.ts:145-332` — 5 工具 `kg_stats/kg_entities/kg_entity_detail/kg_traverse/kg_graph` 的 PG 优先 try/catch 块移除，保留 SQLite 单一后端（`getKGEnhancedInstance(db)`），描述由 “PostgreSQL 优先” 改 “SQLite”
+  9. `src/cli/commands/kg.ts` — `handleKgStats` 由 PG `isPgAvailable/getPG` 改 SQLite `KnowledgeGraphEnhanced`（`KB_DB_PATH` via `readString`，`process.env` 直读已修正为 `readString` 以过 arch 门禁）
+  10. `docs/ARCHITECTURE.md:58` — “PostgreSQL 已完全移除, SQLite 是唯一数据库。” → “SQLite 为唯一运行时数据库；PostgreSQL 已迁移为可选历史能力 (H-M1-03)。`src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。”
+  11. `package.json:46` `db:init` 由 `bun run src/db/pg-init.ts` 改 `echo "PostgreSQL 已移除 (H-M1-03) — SQLite 为唯一数据库；pg-schema.sql 已归档" && exit 0`；`:88` `test:full` 移除 `tests/db/pg-client.test.ts` 门禁
+  12. 归档旧文件：`src/db/pg-client.ts` (232 行)、`src/db/pg-init.ts` (9 行)、`tests/db/pg-client.test.ts` (36 行) → `archive/openclaw-fusion/db/` + `archive/tests/db/`（本地，`archive/ARCHIVE-LOG.md` 追加 H-M1-03 条目，archive 在 .gitignore 仅本地留底）
+  13. `git rm -f src/db/pg-client.ts src/db/pg-init.ts tests/db/pg-client.test.ts` 暂存删除（D）
+  14. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/pg-client-removal.test.ts` 2 fail（grep 16 命中>0、`src/db/pg-client.ts` exists true）+ 1 pass（文档），符合 H-M1-03 未修复
+  - TDD Green：重构后 `bun test tests/unit/pg-client-removal.test.ts` 3 pass 0 fail（grep 0 + 文件不存在 + 文档含“可选/迁移/SQLite”）；`rg -n "pg-client" src --no-heading` 0 行（仅 pg-client.ts 自身已删）
+  - `npx tsc --noEmit` 0 错（修复 `knowledge-graph.ts:39-43` duplicate totalNodes/totalEdges spread 报错，修正为显式构造）
+  - 架构门禁：`bun test tests/architecture-integrity.test.ts` 22 pass 0 fail（修复 `cli/commands/kg.ts:32` `process.env.KG_DB_PATH` 直读 → `readString("KB_DB_PATH")`，修复 `env-example-completeness` KG_DB_PATH→KB_DB_PATH 不一致）
+  - 回归：`bun test --parallel=8 --timeout 15000 ./tests` 2682 pass 28 skip 0 fail（270? 4l tests；修复前 2 fail：arch 1 + process-sandbox 超时 1，修复后全绿；env 门禁由 KG_DB_PATH 未登记 1 fail → 0）
+  - 备份验证后删除 `.tmp/backups/src/db/pg-client.ts` 等 12 备份（保留目录）
+- **Commit**：`待回填`（`chore(db): 移除 PG 残留 H-M1-03 src/db/pg-client.ts:1 docs/ARCHITECTURE.md:58`，改动 8 源文件 + `docs/ARCHITECTURE.md` + `package.json` + 测试 `tests/unit/pg-client-removal.test.ts` + 删除 3 文件 + `docs/operations-log.md`）

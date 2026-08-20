@@ -1,42 +1,22 @@
 /**
- * CodeGraph → PostgreSQL 同步管道
+ * CodeGraph → PostgreSQL 同步管道 — 已迁移至 SQLite (H-M1-03)
  *
- * 将 CodeGraph 的 SQLite 输出同步到 PostgreSQL + pgvector，
- * 为 Hermes Agent 提供确定性代码分析依据。
+ * 原实现将 CodeGraph 索引同步到 PostgreSQL + pgvector (code_nodes / code_edges)。
+ * 现 PostgreSQL 已移除，SQLite (code-index.db + KnowledgeGraphEnhanced) 为唯一持久化。
+ * 本文件保留历史接口签名以兼容调用方，实际为 no-op/降级，日志提示迁移。
  *
- * 流程:
- *   1. 读取 CodeGraph 索引结果 (通过 codegraph-index.ts CLI)
- *   2. 提取代码节点和关系
- *   3. 生成语义向量 (通过 embedding API)
- *   4. 写入 PostgreSQL code_nodes / code_edges 表
- *
- * 同时支持:
- *   - 从 CodeGraph SQLite 导入 (兼容现有索引)
- *   - 从文件系统直接扫描 (tree-sitter 风格的简易解析)
+ * 迁移说明见 docs/ARCHITECTURE.md:58 及 docs/STORAGE-EVALUATION.md
  */
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
-import { isPgAvailable, getPG } from "./pg-client.js";
 import {
   searchSymbols,
   getCallers,
   getCallees,
   type CodeGraphNode,
-  type CodeGraphSearchResult,
-  type CodeGraphContextResult,
 } from "../memory/codegraph-index.js";
 
 // ========== 类型定义 ==========
-
-/**
- * PostgreSQL 客户端最小契约 (postgres 包的 tagged template 用法)。
- * 完整客户端类型由 `getPG()` 返回，但 PG 在本项目已禁用，故仅保留调用所需的最小接口。
- */
-interface PgClient {
-  (strings: TemplateStringsArray, ...values: unknown[]): Promise<Record<string, unknown>[]>;
-  unsafe(sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
-  json(obj: unknown): unknown;
-}
 
 export interface SyncResult {
   filesProcessed: number;
@@ -59,7 +39,7 @@ export interface CodeSearchResult {
 // ========== 项目注册 ==========
 
 /**
- * 注册或更新项目元数据
+ * 注册或更新项目元数据 — PG 已移除，降级为 no-op
  */
 export async function registerProject(
   name: string,
@@ -67,26 +47,14 @@ export async function registerProject(
   language?: string,
   description?: string,
 ): Promise<number> {
-  const pg = getPG();
-
-  const [result] = await pg`
-    INSERT INTO code_projects (name, root_path, language, description, indexed_at)
-    VALUES (${name}, ${rootPath}, ${language || null}, ${description || null}, NOW())
-    ON CONFLICT (name, root_path)
-    DO UPDATE SET
-      language = COALESCE(EXCLUDED.language, code_projects.language),
-      description = COALESCE(EXCLUDED.description, code_projects.description),
-      indexed_at = NOW()
-    RETURNING id
-  `;
-
-  return result.id as number;
+  logger.warn("[CodeGraphSync] PostgreSQL 已移除 (H-M1-03)，registerProject 降级为 no-op，SQLite 为唯一存储", { name, rootPath });
+  return 0;
 }
 
 // ========== CodeGraph 同步 ==========
 
 /**
- * 从 CodeGraph CLI 输出同步到 PostgreSQL
+ * 从 CodeGraph CLI 输出同步到 PostgreSQL — 已迁移，no-op
  *
  * @param projectPath 项目根目录
  * @param projectName 项目名称
@@ -101,83 +69,14 @@ export async function syncCodeGraphToPG(
     batchSize?: number;
   } = {},
 ): Promise<SyncResult> {
-  const result: SyncResult = {
+  logger.warn("[CodeGraphSync] PostgreSQL 已移除 (H-M1-03)，syncCodeGraphToPG 已迁移至 SQLite 本地索引，跳过 PG 同步", { projectPath, projectName });
+  return {
     filesProcessed: 0,
     nodesCreated: 0,
     edgesCreated: 0,
     embeddingsGenerated: 0,
-    errors: [],
+    errors: ["PostgreSQL 已移除，已迁移至 SQLite (H-M1-03)"],
   };
-
-  if (!(await isPgAvailable())) {
-    result.errors.push("PostgreSQL not available");
-    return result;
-  }
-
-  const pg = getPG();
-  const { generateEmbeddings = false, batchSize = 100 } = options;
-
-  logger.info("[CodeGraphSync] Starting sync", { projectPath, projectName });
-
-  try {
-    // Step 1: 注册项目
-    const projectId = await registerProject(projectName, projectPath);
-
-    // Step 2: 从 CodeGraph 搜索所有节点
-    const allNodes = await collectAllNodes(projectPath);
-    logger.info(`[CodeGraphSync] Found ${allNodes.length} nodes`);
-
-    // Step 3: 按文件分组处理
-    const fileGroups = groupByFile(allNodes);
-
-    for (const [filePath, nodes] of Object.entries(fileGroups)) {
-      try {
-        // 注册文件
-        const fileId = await registerFile(pg, projectId, filePath, nodes[0]?.language || "unknown");
-        result.filesProcessed++;
-
-        // 批量插入节点
-        for (const node of nodes) {
-          const embedding = generateEmbeddings
-            ? await generateNodeEmbedding(node)
-            : null;
-
-          await pg`
-            INSERT INTO code_nodes (file_id, kind, name, qualified_name, signature,
-              start_line, end_line, docstring, code_body, metadata, embedding)
-            VALUES (
-              ${fileId}, ${node.kind}, ${node.name}, ${node.qualifiedName},
-              ${node.signature || null}, ${node.startLine}, ${node.endLine},
-              ${null}, ${null},
-              ${pg.json({})},
-              ${embedding ? pg.unsafe(`'${JSON.stringify(embedding)}'::vector`) : null}
-            )
-            ON CONFLICT DO NOTHING
-          `;
-          result.nodesCreated++;
-          if (embedding) result.embeddingsGenerated++;
-        }
-      } catch (err) {
-        result.errors.push(`File ${filePath}: ${(err as Error).message}`);
-      }
-    }
-
-    // Step 4: 构建关系边
-    const edgesBuilt = await buildEdgesFromCodeGraph(pg, allNodes, projectPath);
-    result.edgesCreated = edgesBuilt;
-
-    logger.info("[CodeGraphSync] Sync complete", {
-      filesProcessed: result.filesProcessed,
-      nodesCreated: result.nodesCreated,
-      edgesCreated: result.edgesCreated,
-      embeddingsGenerated: result.embeddingsGenerated,
-    });
-  } catch (err) {
-    result.errors.push(`Sync failed: ${(err as Error).message}`);
-    logger.error("[CodeGraphSync] Sync failed", err as Error);
-  }
-
-  return result;
 }
 
 /**
@@ -218,84 +117,6 @@ function groupByFile(nodes: CodeGraphNode[]): Record<string, CodeGraphNode[]> {
     groups[node.filePath].push(node);
   }
   return groups;
-}
-
-/**
- * 注册文件记录
- */
-async function registerFile(
-  pg: PgClient,
-  projectId: number,
-  filePath: string,
-  language: string,
-): Promise<number> {
-  const [result] = await pg`
-    INSERT INTO code_files (project_id, file_path, language, indexed_at)
-    VALUES (${projectId}, ${filePath}, ${language}, NOW())
-    ON CONFLICT (project_id, file_path)
-    DO UPDATE SET indexed_at = NOW()
-    RETURNING id
-  `;
-  return result.id as number;
-}
-
-/**
- * 从 CodeGraph 关系构建 PostgreSQL 边
- */
-async function buildEdgesFromCodeGraph(
-  pg: PgClient,
-  nodes: CodeGraphNode[],
-  projectPath: string,
-): Promise<number> {
-  let edgesCreated = 0;
-
-  // 建立 name → id 映射
-  const nodeMap = new Map<string, number>();
-  const dbNodes = await pg`SELECT id, qualified_name, file_id FROM code_nodes`;
-  for (const n of dbNodes) {
-    nodeMap.set(n.qualified_name as string, n.id as number);
-  }
-
-  // 遍历每个节点获取调用关系
-  for (const node of nodes) {
-    try {
-      const callers = await getCallers(node.qualifiedName, { projectPath });
-      for (const caller of callers) {
-        const callerNode = caller.node;
-        if (!callerNode) continue;
-        const sourceId = nodeMap.get(callerNode.qualifiedName || callerNode.name);
-        const targetId = nodeMap.get(node.qualifiedName);
-        if (sourceId && targetId) {
-          await pg`
-            INSERT INTO code_edges (source_id, target_id, edge_type)
-            VALUES (${sourceId}, ${targetId}, 'calls')
-            ON CONFLICT (source_id, target_id, edge_type) DO NOTHING
-          `;
-          edgesCreated++;
-        }
-      }
-
-      const callees = await getCallees(node.qualifiedName, { projectPath });
-      for (const callee of callees) {
-        const calleeNode = callee.node;
-        if (!calleeNode) continue;
-        const sourceId = nodeMap.get(node.qualifiedName);
-        const targetId = nodeMap.get(calleeNode.qualifiedName || calleeNode.name);
-        if (sourceId && targetId) {
-          await pg`
-            INSERT INTO code_edges (source_id, target_id, edge_type)
-            VALUES (${sourceId}, ${targetId}, 'calls')
-            ON CONFLICT (source_id, target_id, edge_type) DO NOTHING
-          `;
-          edgesCreated++;
-        }
-      }
-    } catch {
-      // Skip nodes with errors
-    }
-  }
-
-  return edgesCreated;
 }
 
 /**
@@ -344,7 +165,7 @@ async function generateNodeEmbedding(node: CodeGraphNode): Promise<number[] | nu
 // ========== 查询接口 ==========
 
 /**
- * 语义代码搜索 (向量 + 文本混合)
+ * 语义代码搜索 (向量 + 文本混合) — PG 已移除，返回空
  */
 export async function searchCode(
   query: string,
@@ -355,51 +176,12 @@ export async function searchCode(
     useVector?: boolean;
   } = {},
 ): Promise<CodeSearchResult[]> {
-  if (!(await isPgAvailable())) return [];
-
-  const pg = getPG();
-  const { kind, project, limit = 10, useVector = false } = options;
-
-  // 文本搜索 (trigram)
-  let whereClause = "";
-  const params: (string | number)[] = [query, limit];
-
-  if (kind) {
-    whereClause += ` AND cn.kind = $${params.length + 1}`;
-    params.push(kind);
-  }
-
-  if (project) {
-    whereClause += ` AND cp.name = $${params.length + 1}`;
-    params.push(project);
-  }
-
-  const results = await pg.unsafe(`
-    SELECT
-      cn.id, cn.name, cn.qualified_name, cn.kind,
-      cf.file_path, cf.language,
-      similarity(cn.name, $1) AS similarity
-    FROM code_nodes cn
-    JOIN code_files cf ON cf.id = cn.file_id
-    LEFT JOIN code_projects cp ON cp.id = cf.project_id
-    WHERE cn.name % $1 ${whereClause}
-    ORDER BY similarity DESC
-    LIMIT $2
-  `, params);
-
-  return (results as Record<string, unknown>[]).map((r) => ({
-    id: r.id as number,
-    name: r.name as string,
-    qualifiedName: r.qualified_name as string,
-    kind: r.kind as string,
-    filePath: r.file_path as string,
-    language: r.language as string,
-    similarity: r.similarity as number,
-  }));
+  logger.warn("[CodeGraphSync] searchCode PG 已移除，返回空 (H-M1-03)，请使用本地 code-index / KnowledgeGraphEnhanced");
+  return [];
 }
 
 /**
- * 获取代码实体的关系链 (调用图)
+ * 获取代码实体的关系链 (调用图) — PG 已移除，返回空
  */
 export async function getCodeGraph(
   entityName: string,
@@ -410,75 +192,12 @@ export async function getCodeGraph(
   callees: Array<{ name: string; qualified_name: string; kind: string; depth: number }>;
   impactRadius: Array<{ name: string; qualified_name: string; kind: string; depth: number }>;
 }> {
-  if (!(await isPgAvailable())) {
-    return { entity: null, callers: [], callees: [], impactRadius: [] };
-  }
-
-  const pg = getPG();
-
-  // 查找实体
-  const [entity] = await pg`
-    SELECT cn.*, cf.file_path, cf.language
-    FROM code_nodes cn
-    JOIN code_files cf ON cf.id = cn.file_id
-    WHERE cn.name = ${entityName} OR cn.qualified_name = ${entityName}
-    LIMIT 1
-  `;
-
-  if (!entity) return { entity: null, callers: [], callees: [], impactRadius: [] };
-
-  // 递归查询调用者
-  const callers = await pg.unsafe(`
-    WITH RECURSIVE call_chain AS (
-      SELECT ce.source_id, ce.target_id, 1 AS depth,
-             ARRAY[cn.name] AS path
-      FROM code_edges ce
-      JOIN code_nodes cn ON cn.id = ce.source_id
-      WHERE ce.target_id = $1 AND ce.edge_type = 'calls'
-      UNION ALL
-      SELECT ce.source_id, ce.target_id, cc.depth + 1,
-             cc.path || cn2.name
-      FROM code_edges ce
-      JOIN code_nodes cn2 ON cn2.id = ce.source_id
-      JOIN call_chain cc ON cc.source_id = ce.target_id
-      WHERE ce.edge_type = 'calls' AND cc.depth < $2
-    )
-    SELECT DISTINCT cn.name, cn.qualified_name, cn.kind, cc.depth
-    FROM call_chain cc
-    JOIN code_nodes cn ON cn.id = cc.source_id
-    ORDER BY cc.depth
-  `, [entity.id, depth]);
-
-  // 递归查询被调用者
-  const callees = await pg.unsafe(`
-    WITH RECURSIVE call_chain AS (
-      SELECT ce.source_id, ce.target_id, 1 AS depth
-      FROM code_edges ce
-      JOIN code_nodes cn ON cn.id = ce.target_id
-      WHERE ce.source_id = $1 AND ce.edge_type = 'calls'
-      UNION ALL
-      SELECT ce.source_id, ce.target_id, cc.depth + 1
-      FROM code_edges ce
-      JOIN code_nodes cn2 ON cn2.id = ce.target_id
-      JOIN call_chain cc ON cc.target_id = ce.source_id
-      WHERE ce.edge_type = 'calls' AND cc.depth < $2
-    )
-    SELECT DISTINCT cn.name, cn.qualified_name, cn.kind, cc.depth
-    FROM call_chain cc
-    JOIN code_nodes cn ON cn.id = cc.target_id
-    ORDER BY cc.depth
-  `, [entity.id, depth]);
-
-  return {
-    entity,
-    callers: callers as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
-    callees: callees as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
-    impactRadius: callers as Array<{ name: string; qualified_name: string; kind: string; depth: number }>,
-  };
+  logger.warn("[CodeGraphSync] getCodeGraph PG 已移除，返回空 (H-M1-03)");
+  return { entity: null, callers: [], callees: [], impactRadius: [] };
 }
 
 /**
- * 获取项目统计信息
+ * 获取项目统计信息 — PG 已移除，返回零
  */
 export async function getProjectStats(projectName?: string): Promise<{
   totalProjects: number;
@@ -488,36 +207,9 @@ export async function getProjectStats(projectName?: string): Promise<{
   nodesByKind: Record<string, number>;
   languages: Record<string, number>;
 }> {
-  if (!(await isPgAvailable())) {
-    return {
-      totalProjects: 0, totalFiles: 0, totalNodes: 0, totalEdges: 0,
-      nodesByKind: {}, languages: {},
-    };
-  }
-
-  const pg = getPG();
-
-  const [projects] = await pg`SELECT COUNT(*)::int AS count FROM code_projects`;
-  const [files] = await pg`SELECT COUNT(*)::int AS count FROM code_files`;
-  const [nodes] = await pg`SELECT COUNT(*)::int AS count FROM code_nodes`;
-  const [edges] = await pg`SELECT COUNT(*)::int AS count FROM code_edges`;
-
-  const kindStats = await pg`
-    SELECT kind, COUNT(*)::int AS count
-    FROM code_nodes GROUP BY kind ORDER BY count DESC
-  `;
-
-  const langStats = await pg`
-    SELECT language, COUNT(*)::int AS count
-    FROM code_files GROUP BY language ORDER BY count DESC
-  `;
-
+  logger.warn("[CodeGraphSync] getProjectStats PG 已移除，返回零 (H-M1-03)");
   return {
-    totalProjects: projects!.count as number,
-    totalFiles: files!.count as number,
-    totalNodes: nodes!.count as number,
-    totalEdges: edges!.count as number,
-    nodesByKind: Object.fromEntries(kindStats.map((r: { kind: string; count: number }) => [r.kind, r.count])) as Record<string, number>,
-    languages: Object.fromEntries(langStats.map((r: { language: string; count: number }) => [r.language, r.count])) as Record<string, number>,
+    totalProjects: 0, totalFiles: 0, totalNodes: 0, totalEdges: 0,
+    nodesByKind: {}, languages: {},
   };
 }

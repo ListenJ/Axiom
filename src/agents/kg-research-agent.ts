@@ -17,7 +17,6 @@
  */
 import { logger } from "../utils/logger.js";
 import { internalAgent } from "./internal-agent.js";
-import { isPgAvailable, getPG } from "../db/pg-client.js";
 import {
   buildResearchContext,
   type KGEntity,
@@ -316,21 +315,10 @@ function extractNewFindings(
 }
 
 async function writeFindingsToKG(findings: ResearchResult["newFindings"]): Promise<void> {
-  if (!(await isPgAvailable())) return;
-  const pg = getPG();
-
-  for (const entity of findings.entities) {
-    try {
-      await pg`
-        INSERT INTO kg_entities (name, type, description, properties, source)
-        VALUES (${entity.name}, ${entity.type}, ${entity.description || null}, ${pg.json(entity.properties)}, ${entity.source})
-        ON CONFLICT (name) DO NOTHING
-      `;
-    } catch { /* ignore */ }
-  }
-
-  // 关系需要 entity id，这里简化处理
-  // 实际使用时需要先查找 name → id 映射
+  // PG 已移除 (H-M1-03): 已迁移至 SQLite KnowledgeGraphEnhanced，当前 no-op
+  // 新发现可通过 kg/enhanced.ts 的 addNode/addEdge 写入 SQLite
+  logger.info("[KGResearch] writeFindingsToKG PG 已移除，跳过 PG 写入 (H-M1-03)", { entities: findings.entities.length });
+  return;
 }
 
 // ========== 置信度评估 ==========

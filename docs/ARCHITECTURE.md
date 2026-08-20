@@ -55,7 +55,7 @@ src/
 ├── workers/         — 远程 Worker 客户端 (pdf-worker, llm-worker)
 ```
 
-**数据库:** PostgreSQL 已完全移除, SQLite 是唯一数据库。所有持久化通过 `sqlite-memory.ts` (FTS5) 和 `codegraph-sync.ts` 完成。
+**数据库:** SQLite 为唯一运行时数据库；PostgreSQL 已迁移为可选历史能力 (H-M1-03)。`src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。
 
 ### 2.1 分层规则
 

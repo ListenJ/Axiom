@@ -17,7 +17,6 @@ import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 import { deepSeekInputPrice, deepSeekOutputPrice } from "./rate-tier.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
-import { isPgAvailable, getPG } from "../db/pg-client.js";
 
 // ========== 类型定义 ==========
 
@@ -283,25 +282,8 @@ export async function recommendModels(
     allModels.push({ model, provider: "openrouter" });
   }
 
-  // 3. 从 PostgreSQL 获取评估分数 (如果有)
-  if (await isPgAvailable()) {
-    const pg = getPG();
-    try {
-      const evals = await pg`
-        SELECT DISTINCT ON (model_id) model_id, capability, speed, cost, safety, overall_score
-        FROM model_evaluations
-        WHERE created_at > NOW() - INTERVAL '7 days'
-        ORDER BY model_id, created_at DESC
-      `;
-
-      for (const entry of allModels) {
-        const ev = evals.find((e: ModelEvalRow) => e.model_id === entry.model.id);
-        if (ev) {
-          entry.evalScore = ev;
-        }
-      }
-    } catch { /* ignore */ }
-  }
+  // 3. [H-M1-03] PostgreSQL 已移除，评估分数从 PG 读取已废弃，改走本地/内存评分
+  // 原 PG 查询 `SELECT DISTINCT ON (model_id) ... FROM model_evaluations` 已移除，SQLite 无此表
 
   // 4. 计算综合分数
   const scored = allModels.map(({ model, provider, evalScore }) => {
@@ -449,27 +431,7 @@ export async function runEvolutionCycle(): Promise<EvolutionCycle> {
     logger.info("[ModelEvolution] New candidates discovered", { count: cycle.newCandidates.length });
   }
 
-  // 3. 记录进化历史
-  if (await isPgAvailable()) {
-    try {
-      const pg = getPG();
-      await pg`
-        INSERT INTO model_evaluations (model_id, provider, capability, speed, cost, safety, overall_score, eval_type)
-        SELECT
-          ${cycle.promoted[0]?.modelId || 'unknown'},
-          ${cycle.promoted[0]?.provider || 'unknown'},
-          0, 0, 0, 0,
-          ${cycle.promoted[0]?.score || 0},
-          'evolution'
-        WHERE NOT EXISTS (
-          SELECT 1 FROM model_evaluations
-          WHERE model_id = ${cycle.promoted[0]?.modelId || 'unknown'}
-            AND eval_type = 'evolution'
-            AND created_at > NOW() - INTERVAL '1 hour'
-        )
-      `;
-    } catch { /* ignore */ }
-  }
+  // 3. [H-M1-03] 记录进化历史 PG 已移除，原 INSERT INTO model_evaluations 已废弃，SQLite 无此表
 
   logger.info("[ModelEvolution] Cycle complete", {
     evaluated: cycle.evaluated,
