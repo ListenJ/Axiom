@@ -21,7 +21,7 @@
   - TDD Green：修复后 `bun test tests/unit/permission-middleware.test.ts` 6 pass 0 fail（7 expect，含 warn 3 条）
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 备份验证后删除 `.tmp/backups/src/utils/permission-middleware.ts`（保留目录）
-- **Commit**：待回填（`fix(security): 权限校验 src/utils/permission-middleware.ts:15 C-01`）
+- **Commit**：`cde69b8`（`fix(security): 权限校验 src/utils/permission-middleware.ts:15 C-01`）
 
 ## 2026-08-21 — Task 1 VRAM bytesPerToken 校准 114688倍误差修复（Critical 05）
 
