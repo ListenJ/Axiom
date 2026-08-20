@@ -6339,3 +6339,23 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归：`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail
   - 备份验证后删除 `.tmp/backups/tests/unit/scheduler.test.ts`（保留目录）
 - **Commit**：`PLACEHOLDER`（`fix(scheduler): 同步测试期望至 ResourceBudgetManager 同源 H-06 tests/unit/scheduler.test.ts:84`）
+
+## 2026-08-21 — Task15 死代码归档（C-M1-01 docs/AXIOM-ARCHITECTURE.md:51,165,839,852 reasoning-runtime.ts）
+
+- **任务**：审计 Critical C-M1-01：`src/dre/runtime/reasoner/reasoning-runtime.ts` 不存在（`Test-Path` MISSING）但被 `docs/AXIOM-ARCHITECTURE.md:51,165,839,852` 误引为现存 431 行模块；按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task15 TDD 垂直切片：创建 `tests/unit/deadcode.test.ts` 断言 `grep reasoning-runtime docs/`（排除 reviews/superpowers/archive 历史）命中为0，运行 FAIL，再删除引用/更新文档，再跑 PASS。
+- **工具**：Read（`docs/AXIOM-ARCHITECTURE.md:1-1554` 全文、`src/dre/runtime/` 目录 10 文件清单、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task15、`docs/operations-log.md` 全文、`tests/unit/pg-client-removal.test.ts:1-58` 参照）、Bash（`bun test tests/unit/deadcode.test.ts --verbose`/`npx tsc --noEmit`/`git`/`Select-String` 全仓 grep）、Write/Edit（`tests/unit/deadcode.test.ts` 新建、`docs/AXIOM-ARCHITECTURE.md:51,165,839,852` 4 处最小改、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/AXIOM-ARCHITECTURE.md` → `.tmp/backups/docs/AXIOM-ARCHITECTURE.md`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则2，新建 `tests/unit/deadcode.test.ts` 无需备份）
+  2. 新建 `tests/unit/deadcode.test.ts`（2 用例：`countReasoningRuntimeInDocs()` 遍历 `docs/`（排除 `archive/reviews/superpowers`）统计含 `reasoning-runtime` 行数断言0 + `existsSync("src/dre/runtime/reasoner/reasoning-runtime.ts")` 为false；覆盖死代码归档；排除历史审计与计划文档避免误改历史）
+  3. `docs/AXIOM-ARCHITECTURE.md:51` 表格 `cognitive-pipeline.ts + reasoning-runtime.ts` → `cognitive-pipeline.ts`（移除死路径，Table 保留单一权威 pipeline）
+  4. `docs/AXIOM-ARCHITECTURE.md:165` `reasoning-runtime.ts: Stage 8` → `verification-engine.ts: Stage 8（经 cognitive-pipeline.ts）`（Stage 8 实际由 verification-engine 承担）
+  5. `docs/AXIOM-ARCHITECTURE.md:839` `// reasoning-runtime.ts — Stage 8` → `// verification-engine.ts — Stage 8 (集成于 cognitive-pipeline.ts)` 与标题 `集成到 ReasoningRuntime` → `集成到 VerificationEngine Stage 8（经 CognitivePipeline）`
+  6. `docs/AXIOM-ARCHITECTURE.md:852` `**文件:** src/dre/runtime/reasoner/reasoning-runtime.ts (431 行)` → `**文件:** 已归档（历史 431 行实现已移除，现由 src/dre/pipeline/cognitive-pipeline.ts + src/dre/runtime/verification-engine.ts 承担）` + 标题追加 `（已归档）` 与事件驱动追加 `（历史）`/`现由 CognitivePipeline 统一调度`（完全消除 `reasoning-runtime` 字面，`Select-String` 全仓仅 residual 于 `archive/reviews/plans` 历史）
+  7. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/deadcode.test.ts --verbose` 1 pass 1 fail（`Expected: 0 Received: 4`，hits 为 `docs/AXIOM-ARCHITECTURE.md:51,165,839,852` 4 行，符合死引用存在）
+  - TDD Green：修复后 `bun test tests/unit/deadcode.test.ts --verbose` 2 pass 0 fail（2 expect，~109ms，`Get-ChildItem -Recurse docs` 再 grep 仅 residual 于 `archive/reviews/plans` 8 行，active 0）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT True，`docs/AXIOM-ARCHITECTURE.md` 纯文档改动无类型影响）
+  - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass（PG 归档未退化）
+  - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md`（保留目录）
+- **Commit**：`4a9f1e8`（`chore: 归档死代码 src/dre/runtime/reasoner/reasoning-runtime.ts docs/AXIOM-ARCHITECTURE.md:51,165,839,852`）

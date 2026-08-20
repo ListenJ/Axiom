@@ -48,7 +48,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 |------|------|----------|
 | **Runtime Kernel** | 事件, 调度, 生命周期, Actor, 状态管理 | kernel.ts + event-bus.ts + world-state.ts |
 | **Knowledge Representation** | 事实/行为/过程/约束/证据/预测的统一表示 | data-unifier.ts + atom-engine.ts |
-| **Deterministic Cognitive Pipeline** | Observation → State → Reasoning → Planning → Verification | cognitive-pipeline.ts + reasoning-runtime.ts |
+| **Deterministic Cognitive Pipeline** | Observation → State → Reasoning → Planning → Verification | cognitive-pipeline.ts |
 | **LLM Adapter** | 所有模型统一抽象为认知增强器 | llm/client.ts |
 
 ### 设计原则 (排序)
@@ -162,8 +162,8 @@ verification-engine.ts: verifyResult()
     → needsLLM = true (让 LLM 自我修正)
     → 修正 Prompt 包含: "你违反了 [Constraint: No External Libs]"
 
-reasoning-runtime.ts: Stage 8 (verification)
-  → 集成 verificationEngine
+verification-engine.ts: Stage 8 (verification)
+  → 集成 verificationEngine（经 cognitive-pipeline.ts）
   → 失败时发布 pipeline.verification 事件
 ```
 
@@ -834,9 +834,9 @@ verifyResult(executionId, result, opts?): VerificationReport {
 }
 ```
 
-**集成到 ReasoningRuntime Stage 8:**
+**集成到 VerificationEngine Stage 8（经 CognitivePipeline）:**
 ```typescript
-// reasoning-runtime.ts — Stage 8
+// verification-engine.ts — Stage 8 (集成于 cognitive-pipeline.ts)
 this.registerStage("verification", async (ctx) => {
   if (ctx.result && !ctx.needsLLM) {
     const report = verificationEngine.verifyResult(`pipeline_${Date.now()}`, JSON.stringify(ctx.result));
@@ -847,11 +847,11 @@ this.registerStage("verification", async (ctx) => {
 
 ---
 
-### 2.8 ReasoningRuntime — 8 阶推理引擎
+### 2.8 ReasoningRuntime — 8 阶推理引擎（已归档）
 
-**文件:** `src/dre/runtime/reasoner/reasoning-runtime.ts` (431 行)
+**文件:** 已归档（历史 431 行实现已移除，现由 `src/dre/pipeline/cognitive-pipeline.ts` + `src/dre/runtime/verification-engine.ts` 承担）
 
-**事件驱动:** 订阅 `reasoning.request` → 执行 8 阶管道 → 发布 `reasoning.result`
+**事件驱动（历史）:** 订阅 `reasoning.request` → 执行 8 阶管道 → 发布 `reasoning.result`（现由 CognitivePipeline 统一调度）
 
 ```typescript
 class ReasoningRuntime {
