@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-21 — Task 9 权限中间件 RBAC 补齐（C-01 permission-middleware:15）
+
+- **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` C-01：`src/utils/permission-middleware.ts:15` 仅 3 工具名导致 `terminal_exec` 高危命令直通“总是 true”；`src/mcp/tool-registry.ts:29` 仅 `risk-monitor` 且 `EDGE=0` 时 fail-open 的硬底线缺口。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 9 垂直切片 TDD 修复。
+- **工具**：Read（`src/utils/permission-middleware.ts:1-47` 全文、`src/utils/permissions.ts:1-141` 全文、`src/mcp/tool-registry.ts:1-188` 全文、`docs/reviews/2026-08-20-full-audit-strong-constraint.md` C-01、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 9、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Write/Edit（`tests/unit/permission-middleware.test.ts` 新建、`src/utils/permission-middleware.ts:15-46` 扩展、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/permission-middleware.ts` → `.tmp/backups/src/utils/permission-middleware.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/permission-middleware.test.ts`（6 用例：terminal_exec rm -rf via command/cmd/script 应拒绝 + delete_file /etc/passwd 拒绝 + 普通命令放行 + 非受控工具放行边界）
+  3. `src/utils/permission-middleware.ts:15` 扩展：`COMMAND_TOOLS` 新增 `terminal_exec`/`pty_terminal_input` 并支持 `cmd`/`code`/`args` 多键；`DELETE_TOOLS` 新增 `fs_delete`；新增 `WRITE_TOOLS`（`fs_write`/`fs_move`）敏感路径校验；补 RBAC 边界注释“非受控只读工具默认放行，当前监控+硬底线模式”（与 `docs/ARCHITECTURE.md §5.4` 一致）
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/permission-middleware.test.ts` 3 fail（terminal_exec 3 变体直通 true）+ 3 pass
+  - TDD Green：修复后 `bun test tests/unit/permission-middleware.test.ts` 6 pass 0 fail（7 expect，含 warn 3 条）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 备份验证后删除 `.tmp/backups/src/utils/permission-middleware.ts`（保留目录）
+- **Commit**：待回填（`fix(security): 权限校验 src/utils/permission-middleware.ts:15 C-01`）
+
 ## 2026-08-21 — Task 1 VRAM bytesPerToken 校准 114688倍误差修复（Critical 05）
 
 - **任务**：审计报告 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` Critical 05：`src/core/system-resource.ts:106`（实际路径 `src/dre/system-resource.ts:106`）`bytesPerToken=2` 导致 114688 倍误差，2200MB→112万 tokens（capped 4096）实仅 9；按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 1 垂直切片 TDD 修复，并更新 `docs/LIMITATIONS.md` 披露估算边界。
