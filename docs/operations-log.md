@@ -22,7 +22,7 @@
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 回归 `bun test tests/security-fixes.test.ts` 30 pass（R-005 防线全绿，含引号/反斜杠混淆、白名单管道、命令替换）
   - 备份验证后删除 `.tmp/backups/src/utils/command-safety.ts`
-- **Commit**：待回填（`fix(security): 白名单校验 src/utils/command-safety.ts:16 H-02`）
+- **Commit**：`e1ace4f`（`fix(security): 白名单校验 src/utils/command-safety.ts:16 H-02`）
 
 ## 2026-08-21 — Task 9 权限中间件 RBAC 补齐（C-01 permission-middleware:15）
 
