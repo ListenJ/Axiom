@@ -23,7 +23,7 @@
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 物理溯源：`bun -e` 默认 `getStatus().recommendedMaxTokens=9`（4000→2900→min2200→9.8→9）、`3300 avail→9`、`229376` 推导一致；旧值 2 时为 4096（capped）
   - 备份验证后删除 `.tmp/backups/src/dre/system-resource.ts`（保留目录）
-- **Commit**：待填（`fix(core): 校准 bytesPerToken 114688倍误差 src/core/system-resource.ts:106`，实际改动 `src/dre/system-resource.ts:53,68,106-109` + 测试 + LIMITATIONS）
+- **Commit**：`141608c`（`fix(core): 校准 bytesPerToken 114688倍误差 src/core/system-resource.ts:106`，实际改动 `src/dre/system-resource.ts:53,68,106-109` + 测试 `tests/unit/system-resource.test.ts` + `docs/LIMITATIONS.md`）
 
 ## 2026-08-20 — 全量强约束审核文档落盘并提交 gitea（覆盖率 100%）
 
