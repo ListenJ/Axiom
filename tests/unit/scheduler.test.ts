@@ -81,14 +81,16 @@ describe("scheduler memory throttling H-M2-05", () => {
     expect(status.budget.currentMemoryMB).toBeGreaterThan(0);
   });
 
-  test("maxMemoryMB 默认 4096 且可配置", () => {
+  test("maxMemoryMB 默认与 ResourceBudgetManager 同源且可配置", () => {
+    const mgr = getResourceBudgetManager();
+    const expectedDefault = mgr.getResource().maxMemory;
     scheduler.reset();
     const statusBefore = scheduler.getStatus();
-    expect(statusBefore.budget.maxMemoryMB).toBe(4096);
+    expect(statusBefore.budget.maxMemoryMB).toBe(expectedDefault);
     scheduler.setBudget({ maxMemoryMB: 8192 });
     const statusAfter = scheduler.getStatus();
     expect(statusAfter.budget.maxMemoryMB).toBe(8192);
-    // 恢复
-    scheduler.setBudget({ maxMemoryMB: 4096 });
+    // 恢复由 afterEach 统一处理（原始值回写），此处仅确保 scheduler 与 manager 同步
+    expect(getResourceBudgetManager().getResource().maxMemory).toBe(8192);
   });
 });
