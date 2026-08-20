@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-08-21 — Task 14 高优先级页面 e2e 补课（H-3 e2e/pages.spec.ts:1 前端 21页仅8有e2e）
+
+- **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-3：前端 21页中仅8有 e2e。需补高优先级页面（设置、知识库、会话等）e2e。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 14 垂直切片 TDD 落地。
+- **工具**：Read（`frontend/src/App.tsx:1-116` 全文、`frontend/src/pages/Agents.tsx|Eval.tsx|KG.tsx|Login.tsx|Plugins.tsx|Router.tsx|Sessions.tsx|Tokens.tsx` 全文、`playwright.config.mjs:1-20`、`e2e/helpers.ts:1-19`、`e2e/smoke.spec.ts:1-47`、`docs/operations-log.md` 全文）、Bash（`bunx playwright test e2e/pages.spec.ts --project=chromium`/`node scripts/run-e2e.cjs`/`npx tsc --noEmit`/`git`）、Write/Edit（`e2e/pages.spec.ts` 新建、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2，新建 `e2e/pages.spec.ts` 无需备份）
+  2. 新建 `e2e/pages.spec.ts`（9 用例：8 单页可达 `agents/eval/kg/login/plugins/router/sessions/tokens` 各 1 用例 verify heading+URL+200 ok + 1 循环整合用例，全部基于 `frontend/src/App.tsx:90-105` 与 `src/main.ts:566-569` SPA_ROUTES 白名单；使用 `e2e/helpers.ts:8 injectAuth` 注入鉴权）
+  3. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bunx playwright test e2e/pages.spec.ts --project=chromium` 9 fail（`net::ERR_CONNECTION_REFUSED` at 18789，无后端时符合预期，直观复现 404/不可达）
+  - TDD Green：`E2E_SPEC=pages node scripts/run-e2e.cjs` 9 pass 0 fail（17.9s，chromium，`[server] Server started 18789` 后 `Running 9 tests using 1 worker → 9 passed`）；`npx tsc --noEmit` 0 错（TSC_EXIT 0，e2e 不纳入根 tsconfig）
+  - 备份验证后删除 `.tmp/backups/docs/operations-log.md` 保留目录
+- **Commit**：`<pending>`（`test(e2e): 补充8高优先级页 e2e/pages.spec.ts H-3`）
+
 ## 2026-08-21 — Task 12 SSRF 整数IP + 二阶校验（H-1 url-safety:20 lightpanda-client:111 search:188）
 
 - **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-1：`src/utils/url-safety.ts:20` 未覆盖整数/八/十六进制IP及 127/8 全段、`src/crawl/lightpanda-client.ts:111` 零校验二阶 SSRF、`src/routes/search.ts:188` direct-search 0 校验。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 12 垂直切片 TDD 修复。
