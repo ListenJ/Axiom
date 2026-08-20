@@ -22,7 +22,7 @@
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 回归 `bun test ./tests/unit/url-safety.test.ts` 12 pass 0 fail（SSRF 基准未退化）
   - 备份验证后删除 `.tmp/backups/src/crawl/lightpanda-client.ts`（保留目录）
-- **Commit**：`<pending>`（`test(lightpanda): 增加 28 用例 tests/integration/lightpanda.test.ts High`）
+- **Commit**：`6ef1d7f`（`test(lightpanda): 增加 28 用例 tests/integration/lightpanda.test.ts High`）
 
 ## 2026-08-21 — Task 14 高优先级页面 e2e 补课（H-3 e2e/pages.spec.ts:1 前端 21页仅8有e2e）
 
