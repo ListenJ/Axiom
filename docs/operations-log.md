@@ -339,6 +339,15 @@
 - **验证**：src 342→326 行（净减 16，约 4.7%）；typecheck + build 通过；插件 25/25 测试全绿（含真实 MCP 冒烟）；仓库 `bun run lint` 0 错误。功能面不变（白名单/dre 前缀/热插拔/诊断工具保持）。
 - **Commit**：`16d752c`
 
+## 2026-08-20 — P0 紧急修复：网络搜索代理死代码导致 SEARCH_PROXY 形同虚设
+
+- **任务**：按优先级修复 —— P0 网络搜索代理死代码（`src/crawl/search-engines.ts:53-63` 代理成功响应被丢弃、永远回退直连，在需代理的外网受限环境搜索整体不可用）。
+- **工具**：bun（lint/test）、Read（全文）、Edit（最小改动）、Node 探针（curlFetch 回归）。
+- **操作**（文件级）：
+  1. `src/crawl/search-engines.ts:53-63`：代理分支由“总是 warn+回退”改为“`if (proxied.ok) return proxied;` 成功直接返回，仅失败时 warn 并回退；catch 分支补 `proxy fetch failed` warn（原空 catch 吞错）”。`.tmp/backups/src/crawl/search-engines.ts` 备份验证后已删。
+- **验证**：lint 0 错；`curlFetch` 探针 ok=200/502 分支正确；`bun test ./tests/crawl/search-engines-deep.test.ts ./tests/crawl/search-fallback.test.ts` 12/12；`FIX VERIFIED`（`if (proxied.ok) return proxied` 存在）。
+- **Commit**：`2e27521`
+
 ## 2026-08-19 — DRE-DSH 插件远端实测修复：平台无关测试 + 慢环境超时 + README 构建说明
 
 - **任务**：远端 listen@192.168.0.150 实测暴露 3 处问题并修复：(1) `resolveAxiomHome` 测试硬编码 Windows 路径 `C:/repo` → 改平台无关（用 fileURLToPath 相对上溯断言）；(2) bun test 默认单测超时 5000ms，远端 MCP 冷启动约 3-4s 导致冒烟超时 → test 脚本加 `--timeout 60000`；(3) DSH 加载的是构建产物 `lib/`（gitignore），源码安装需先 `bun run build` → README 安装段补「先构建后 add」说明，并补远端实测记录表。

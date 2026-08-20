@@ -54,11 +54,13 @@ abstract class SearchEngine {
       readString("SEARCH_PROXY") || readString("PROXY_URL") || readString("HTTPS_PROXY") || readString("HTTP_PROXY") || readString("ALL_PROXY");
     if (proxyUrl && url.startsWith("https://")) {
       // 代理可用性兜底：残留/失效代理配置不应让搜索整体不可用——
-      // 连接失败或 5xx 网关错误时回退直连。
+      // 仅当代理失败（非 ok 或抛错）时回退直连，成功则直接返回。
       try {
         const proxied = await curlFetch(url, init, proxyUrl);
+        if (proxied.ok) return proxied;
         logger.warn(`[SearchEngine] proxy returned ${proxied.status}, falling back to direct`, { url: url.slice(0, 80) });
       } catch (e) {
+        logger.warn(`[SearchEngine] proxy fetch failed, falling back to direct`, { url: url.slice(0, 80), error: (e as Error).message });
       }
     }
     const controller = new AbortController();
