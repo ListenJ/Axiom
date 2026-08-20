@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-08-20 — P1 去跟踪大二进制：eng.traineddata 4.96MB（*.traineddata 误跟踪）
+
+- **任务**：按优先级修复 —— P1 跟踪大文件 `eng.traineddata` 4.96MB 早于 `.gitignore:101` `*.traineddata` 被跟踪，需去跟踪（`git rm --cached`），保留本地物理文件（OCR 运行期 `TESSERACT_LANG_PATH=./` 仍可用），备份于 `.tmp/backups/eng.traineddata`。
+- **工具**：Read（全文）、bash（`git rm --cached --dry-run`/`git check-ignore`）、Edit（`archive/ARCHIVE-LOG.md` + `docs/operations-log.md`）、git。
+- **操作**（文件级）：
+  1. `eng.traineddata`：`git rm --cached eng.traineddata`（index 删除，工作区保留 5199098 bytes；`.gitignore` `*.traineddata` 命中 `git check-ignore --no-index`）
+  2. `archive/ARCHIVE-LOG.md`：追加 2026-08-20 22:55 条目（原位置/归档位置/验证）
+  3. `docs/operations-log.md`：本条目
+- **验证**：`git ls-files eng.traineddata` 为空；`git check-ignore --no-index eng.traineddata` → `eng.traineddata`；物理文件存在；lint 0 错
+- **Commit**：`bb9ef83`
+
 ## 2026-08-20 — P1 端口契约统一：网关 18789 / 侧车 18790 权威值校正（8 文件）
 
 - **任务**：按优先级修复 —— P1 端口契约不一致（`config/axiom.yaml:15` 网关 18789 为权威，但 `scripts/run-e2e.cjs:7` / `scripts/start.ts:214` / `scripts/frontend-audit.ts:3,14` / `playwright.config.mjs:11` / `.env.example:152` / `src/launcher.ts:8` / `src/mcp/server/browser-tools.ts:140,149` / `src/tui/install-wizard.ts:37` 误用 18790 导致 E2E 阻塞；原生侧车 18790 保持）。
