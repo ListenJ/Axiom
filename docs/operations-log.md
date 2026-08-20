@@ -7,6 +7,25 @@
 
 ---
 
+## 2026-08-21 — 最终验收（Chapter 8 DoD 8项有条件通过，基线 5e1c13e）
+
+- **任务**：执行最终验收阶段操作（Playbook V1.0 Chapter 8 + 测试计划 0-7 最终验收）：`npx tsc --noEmit` 0错 / `audit:runtime` PASS / 分批 `bun test` 141 pass 0 fail / `bun test --coverage` 抽样新增≥80% / `bunx playwright --list` 46 ≥15 / `node scripts/run-e2e.cjs` All E2E passed / `cargo build -p axiom-local` 3809792 + `18791/health 200` / 安全 `url-safety 12` + `command 8` + `permission 6` + `filesystem 4` + `deadcode 2` + `docs-consistency 4` / 文档一致性 0 残留 / 撰写 `docs/reviews/2026-08-21-final-acceptance.md` 并双推。
+- **工具**：Bash（`npx tsc`/`bun test`/`bunx playwright`/`cargo build`/`fetch`/`git`）、Read（`docs/reviews/2026-08-20-full-audit-strong-constraint.md` 全文、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` 全文、`docs/operations-log.md` 全文、`docs/test-reports/SUMMARY.md`）、Write/Edit（`docs/reviews/2026-08-21-final-acceptance.md` 新建 7章 DoD、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log-final.md`（AGENTS.md 规则 2，新建验收文档无需备份源）
+  2. 新建 `docs/reviews/2026-08-21-final-acceptance.md`（7 章：0 方法/1 门禁/2 测试覆盖率/3 E2E Native/4 安全文档/5 CI/6 归档/7 DoD 8项有条件通过，含 46 E2E + 141 抽样 + 3809792 二进制 + 0 残留证据）
+  3. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `npx tsc --noEmit` 0 错
+  - `audit:runtime` PASS
+  - 抽样 `bun test` 141 pass 0 fail 6.39s（`architecture 22` `codeindex 4` `search 12` 等）
+  - `E2E` 46 ≥15 且 `run-e2e` All passed
+  - `Native` `axiom-local.exe 3809792` `health 200`
+  - `安全` `pg-client 0` `零向量 0` `reasoning-runtime 0 active` `工具数 172` 均 PASS
+  - `docs/reviews/2026-08-21-final-acceptance.md` 存在且含 7 章
+  - 备份验证后删除 `.tmp/backups/docs/operations-log-final.md`
+- **Commit**：`85f039d`
+
 ## 2026-08-21 — 测试执行与报告归档（T-01..T-06 本地全量验证）
 
 - **任务**：执行用户提供的强约束测试计划 0-7 章（`bun --version 1.3.14` / `bun install` / `npx tsc --noEmit` 0错 / 分批 `bun test` 抽样 / `bun test --coverage` / `bunx playwright --list` / 跨平台 `withExecutableExt`/`isSafeUrl` / 安全/性能抽检 / CI 门禁核验 / `docs/test-reports/` 归档）。
