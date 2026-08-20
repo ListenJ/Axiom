@@ -6088,3 +6088,20 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
 - **验证**：插件测试 23/23；生产容器 healthy；日志 [DRE] Kernel ready（主库 agent.db）；生产 agent.db 51 表（memory_notes 151、DRE 表已建、code/knowledge 表按需懒创建）；带鉴权 GET /memory/knowledge 返回主库笔记（memory-api 修复真实生效）；nginx 192.168.0.22:8080 与 Windows 均 200。
 - **备注**：旧镜像 openclaw-fusion-axiom-agent:latest 保留可回滚；容器内 MCP 外部 server（sqlite/obsidian/opencode/filesystem/free-search/context7）连接失败与 VAULT_PATH 缺失为存量问题，非本次改动引入。
 - **Commit**：`b7a3a91`
+
+## 2026-08-21 — Task 2 Native Bridge Win32 降级 + pipe 死锁 + 僵尸泄漏修复（Native C-01/02 H-01）
+
+- **任务**：审计报告 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` Native C-01/02 H-01：`src/native-bridge.ts:61` 未用 `withExecutableExt` 导致 Win32 `existsSync "./.../axiom-local"` 恒 false 永远降级；`src/native-bridge.ts:83` `stdout:"pipe" stderr:"pipe"` 无消费死锁；`src/native-bridge.ts:94-112` 健康检查失败不 `kill` 泄漏僵尸。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 2 垂直切片 TDD 修复。
+- **工具**：Read（`src/native-bridge.ts:1-195` 全文、`src/utils/platform.ts:1-209` 全文、`docs/reviews/2026-08-20-full-audit-strong-constraint.md`、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task2、`docs/operations-log.md` 全文、`tests/native-bridge.test.ts:1-85` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`/`Test-Path`）、Write/Edit（`tests/integration/native-bridge.test.ts` 新建、`src/native-bridge.ts:15,61,84,112` 最小改、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/native-bridge.ts` → `.tmp/backups/src/native-bridge.ts`（AGENTS.md 规则 2）、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`
+  2. 新建 `tests/integration/native-bridge.test.ts`（6 用例：withExecutableExt 自身正确 + binaryPath 必须含 withExecutableExt + Win32 后缀 + pipe→inherit 源码断言 + mock 健康失败 kill + 源码失败分支 kill 严检；覆盖 C-01/02 H-01 三缺陷）
+  3. `src/native-bridge.ts:15` 新增 `import { withExecutableExt } from "./utils/platform.js"`；`:62` `binaryPath` 由 `` `./native/target/release/${binaryName}` `` 改为 `` `./native/target/release/${withExecutableExt(binaryName)}` ``；`:84-87` `stdout:"pipe" stderr:"pipe"` → `stdout:"inherit" stderr:"inherit"` 消除无消费死锁；`:112-131` 健康检查超时分支新增 `if(nativeProcess){try{nativeProcess.kill()}catch{} nativeProcess=null} nativeReady=false` + catch 分支同等 kill 清理，杜绝僵尸泄漏
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/integration/native-bridge.test.ts` 4 fail（`withExecutableExt` 缺失、`inherit` 缺失、`pipe`→`inherit` 行为、`kill` 未调用 + 源码 kill 缺失）+ 2 pass（withExecutableExt 自身 + Win32 后缀构造），符合 C-01/02 H-01 三缺陷未修复
+  - TDD Green：修复后 `bun test tests/integration/native-bridge.test.ts` 6 pass 0 fail（24 expect，~3.4s 含 30*100ms 健康轮询 mock）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 回归：`bun test tests/native-bridge.test.ts` 9 pass 0 fail（Binary not found 路径现为 `axiom-local.exe` 含 .exe，Win32 正确）；`bun test tests/unit/system-resource.test.ts` 2 pass 0 fail（Task1 无回归）
+  - 备份验证后删除 `.tmp/backups/src/native-bridge.ts` 与 `.tmp/backups/docs/operations-log.md`（保留目录）
+- **Commit**：`待回填`（`fix(native): Win32 .exe + pipe排空 + 失败kill src/native-bridge.ts:61,83,94 Native C-01/02 H-01`，改动 `src/native-bridge.ts:15,62,84-87,112-131` + 测试 `tests/integration/native-bridge.test.ts` + `docs/operations-log.md`）

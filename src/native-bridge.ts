@@ -14,6 +14,7 @@
 
 import { readString } from "./utils/env.js";
 import { logger } from "./utils/logger.js";
+import { withExecutableExt } from "./utils/platform.js";
 
 export type NativeEdition = "local" | "cloud";
 
@@ -58,7 +59,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
   }
 
   const binaryName = nativeConfig.edition === "cloud" ? "axiom-cloud" : "axiom-local";
-  const binaryPath = `./native/target/release/${binaryName}`;
+  const binaryPath = `./native/target/release/${withExecutableExt(binaryName)}`;
 
   try {
     const { existsSync } = await import("fs");
@@ -82,8 +83,8 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
 
     nativeProcess = Bun.spawn({
       cmd: [binaryPath, ...args],
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "inherit",
+      stderr: "inherit",
       onExit: (_proc, exitCode) => {
         logger.warn(`[NativeBridge] Sidecar exited with code ${exitCode}`);
         nativeReady = false;
@@ -109,8 +110,22 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
     }
 
     logger.warn("[NativeBridge] Rust core failed to start within timeout");
+    if (nativeProcess) {
+      try {
+        nativeProcess.kill();
+      } catch {}
+      nativeProcess = null;
+    }
+    nativeReady = false;
     return false;
   } catch (e) {
+    if (nativeProcess) {
+      try {
+        nativeProcess.kill();
+      } catch {}
+      nativeProcess = null;
+    }
+    nativeReady = false;
     logger.error("[NativeBridge] Init failed", e as Error);
     return false;
   }
