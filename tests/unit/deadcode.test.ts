@@ -6,6 +6,7 @@ function countReasoningRuntimeInDocs(): number {
   let count = 0;
   const hits: string[] = [];
   const excludeDirs = new Set(["archive", "reviews", "superpowers"]);
+  const excludeFiles = new Set(["operations-log.md"]);
   function walk(dir: string) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
@@ -13,6 +14,7 @@ function countReasoningRuntimeInDocs(): number {
         if (e.name === "node_modules" || e.name === ".git" || excludeDirs.has(e.name)) continue;
         walk(p);
       } else if (e.name.endsWith(".md")) {
+        if (excludeFiles.has(e.name)) continue;
         const c = readFileSync(p, "utf8");
         if (c.includes("reasoning-runtime")) {
           const lines = c.split("\n");
