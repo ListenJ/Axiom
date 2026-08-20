@@ -7,6 +7,18 @@
 
 ---
 
+## 2026-08-20 — P2 工作区沉积清理：data/raw 过期 + .tmp 大临时产物（本地归档，.gitignore）
+
+- **任务**：按优先级修复 —— P2 工作区沉积（`.tmp 143MB/441` + `data/raw 24.6MB/29` + `tests-full-output.log 5.44MB`），按 Rule 4 本地归档后清理。
+- **工具**：bash（node 批量归档/删除）、Read/Edit（archive/ARCHIVE-LOG.md + docs/operations-log.md）、git。
+- **操作**（文件级）：
+  1. `data/raw/*.json` 22 文件（>30d，23.74MB）→ `archive/crawl-raw-2026-08-20/`（本地，剩余 7 文件 0.88MB 热数据）
+  2. `.tmp/kb-sync.tar.gz 99.6MB` / `repo-src.tar.gz 17.7MB` / `chi_sim.traineddata.gz 1.6MB` → `archive/tmp-large-2026-08-20/`（124.42MB，可重生成）
+  3. `.tmp/*.log` 10 文件（>7d）直接删除，剩余 39；`tests-full-output.log 5.44MB` 归档后删除
+  4. `archive/ARCHIVE-LOG.md` 追加 23:00 条目；`openclaw-memory 41 跟踪文件` 经核实为种子知识，保持跟踪（与 .gitignore 冲突属历史有意，后续白名单化）
+- **验证**：`data/raw` 29→7 (0.88MB)，`.tmp` 441→428，回收 ~148MB；`archive/` 为 .gitignore 本地参考，未入 git；lint 0 错
+- **Commit**：`e579be0`
+
 ## 2026-08-20 — P1 去跟踪大二进制：eng.traineddata 4.96MB（*.traineddata 误跟踪）
 
 - **任务**：按优先级修复 —— P1 跟踪大文件 `eng.traineddata` 4.96MB 早于 `.gitignore:101` `*.traineddata` 被跟踪，需去跟踪（`git rm --cached`），保留本地物理文件（OCR 运行期 `TESSERACT_LANG_PATH=./` 仍可用），备份于 `.tmp/backups/eng.traineddata`。
