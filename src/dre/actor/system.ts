@@ -100,10 +100,10 @@ class ActorInstance extends EventEmitter {
   /**
    * 接收消息
    */
-  receive(message: ActorMessage): void {
+  async receive(message: ActorMessage): Promise<void> {
     this.mailbox.push(message);
     this.emit("message", message);
-    this.processNext();
+    await this.processNext();
   }
 
   /**
@@ -139,7 +139,7 @@ class ActorInstance extends EventEmitter {
     } finally {
       this.processing = false;
       if (this.mailbox.length > 0) {
-        this.processNext();
+        await this.processNext();
       }
     }
   }

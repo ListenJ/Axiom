@@ -47,7 +47,7 @@ class EventBusImpl extends EventEmitter {
   private stats = { published: 0, handled: 0, errors: 0 };
   private eidCounter = 0;
 
-  publish(event: Omit<RuntimeEvent, "id" | "timestamp">): RuntimeEvent {
+  async publish(event: Omit<RuntimeEvent, "id" | "timestamp">): Promise<RuntimeEvent> {
     const now = Date.now();
     const fullEvent: RuntimeEvent = {
       type: event.type,
@@ -71,20 +71,26 @@ class EventBusImpl extends EventEmitter {
     const handlers = this.handlers.get(event.type);
     if (handlers !== undefined && handlers.length > 0) {
       const sorted = [...handlers].sort((a, b) => b.priority - a.priority);
+      // 立即移除 once 订阅，防止并发 publish 重复触发（原同步循环在 handler 后立即移除，async 需提前）
       for (const h of sorted) {
+        if (h.once) this.unsubscribe(h.id);
+      }
+      const promises = sorted.map((h) => {
         try {
-          const result = h.handler(fullEvent);
-          if (result instanceof Promise) {
-            result.catch((err) => {
-              this.stats.errors++;
-              logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
-            });
-          }
-          this.stats.handled++;
-          if (h.once) this.unsubscribe(h.id);
+          const r = h.handler(fullEvent);
+          return r instanceof Promise ? r : Promise.resolve(r);
         } catch (err) {
+          return Promise.reject(err);
+        }
+      });
+      const results = await Promise.allSettled(promises);
+      for (let i = 0; i < results.length; i++) {
+        const res = results[i];
+        const h = sorted[i];
+        this.stats.handled++;
+        if (res.status === "rejected") {
           this.stats.errors++;
-          logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, err instanceof Error ? err : new Error(String(err)));
+          logger.error(`[EventBus] Handler ${h.id} failed for ${event.type}`, res.reason instanceof Error ? res.reason : new Error(String(res.reason)));
         }
       }
     }

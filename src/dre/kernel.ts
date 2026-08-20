@@ -34,7 +34,8 @@ export class Kernel {
   private _tickCount = 0;
   private _lastTickTime = 0;
   private _startTime = 0;
-  private _tickTimer: ReturnType<typeof setInterval> | null = null;
+  private _tickTimer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null = null;
+  private _running = false;
 
   constructor(config: KernelConfig) {
     this.config = config;
@@ -136,15 +137,27 @@ export class Kernel {
   }
 
   startTickLoop(): void {
-    if (this._tickTimer) return;
+    if (this._running) return;
+    this._running = true;
     const interval = this.config.tickInterval ?? 5000;
-    this._tickTimer = setInterval(() => this.tick("auto"), interval);
+    // 占位 timer，保持 _tickTimer 非空以兼容旧的 stop 逻辑；真实驱动为 while 循环
+    this._tickTimer = setInterval(() => {}, 1 << 30) as unknown as ReturnType<typeof setInterval>;
+    const loop = async () => {
+      while (this._running) {
+        await this.tick("auto");
+        if (!this._running) break;
+        await new Promise<void>((resolve) => setTimeout(resolve, interval));
+      }
+    };
+    loop().catch((err) => logger.error("[Kernel] Tick loop error", err as Error));
     logger.info("[Kernel] Tick loop started", { interval });
   }
 
   stopTickLoop(): void {
+    this._running = false;
     if (this._tickTimer) {
-      clearInterval(this._tickTimer);
+      clearInterval(this._tickTimer as unknown as NodeJS.Timeout);
+      clearTimeout(this._tickTimer as unknown as NodeJS.Timeout);
       this._tickTimer = null;
     }
   }

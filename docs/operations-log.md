@@ -6133,3 +6133,23 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归：`bun test --parallel=8 --timeout 15000 ./tests` 2682 pass 28 skip 0 fail（270? 4l tests；修复前 2 fail：arch 1 + process-sandbox 超时 1，修复后全绿；env 门禁由 KG_DB_PATH 未登记 1 fail → 0）
   - 备份验证后删除 `.tmp/backups/src/db/pg-client.ts` 等 12 备份（保留目录）
 - **Commit**：`38966d1`（`chore(db): 移除 PG 残留 H-M1-03 src/db/pg-client.ts:1 docs/ARCHITECTURE.md:58`，改动 8 源文件 + `docs/ARCHITECTURE.md` + `package.json` + 测试 `tests/unit/pg-client-removal.test.ts` + 删除 3 文件 + `docs/operations-log.md`）
+
+## 2026-08-21 — Task 4 编排竞态修复 C-M2-01/02 H-M2-03（src/dre/kernel.ts:138 src/dre/runtime/event-bus.ts:71 src/dre/actor/system.ts:103）
+
+- **任务**：审计 C-M2-01/02 H-M2-03：`kernel.ts:138 setInterval` 不等待 `tick` 完成致 `currentTasks` 双算与重入；`event-bus.ts:71 publish` 不 await 致 handler 未完成即返回、错误丢失、`once` 重复；`actor/system.ts:103 receive→processNext` 未 await 致乱序。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 4 TDD 垂直切片：先写失败测试 → 改实现 → 全绿回填。
+- **工具**：Read（`src/dre/kernel.ts:1-174` 全文、`src/dre/runtime/event-bus.ts:1-149` 全文、`src/dre/actor/system.ts:1-499` 全文、`src/dre/runtime/scheduler.ts` 全文、`src/dre/engine.ts` 全文、`docs/operations-log.md` 全文、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 4）、Bash（`bun test`/`npx tsc --noEmit`/`bun -e` 并发溯源/`git`）、Write/Edit（`tests/unit/event-bus.test.ts` 新建、`tests/unit/actor.test.ts` 新建、`src/dre/kernel.ts:37-43,138-166`、`src/dre/runtime/event-bus.ts:50-99`、`src/dre/actor/system.ts:103-144`、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 3 源文件 → `.tmp/backups/` 保留相对路径（`src/dre/kernel.ts`、`src/dre/runtime/event-bus.ts`、`src/dre/actor/system.ts`，AGENTS.md 规则 2）+ `docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`
+  2. 新建 `tests/unit/event-bus.test.ts`（6 用例：event-bus await 全量 handler 含 allSettled 错误隔离 + once await 移除 + publish Promise 可等待 + kernel tick 串行无重叠 + stop 停机；覆盖 C-M2-01/02 H-M2-03）
+  3. 新建 `tests/unit/actor.test.ts`（4 用例：receive 返回 Promise 并等待 handler + 顺序保持（30ms/10ms/5ms 变延迟仍 1-2-3）+ 并发串行 maxConcurrent=1 + processNext await 串行日志）
+  4. `src/dre/kernel.ts:37` `_tickTimer` 类型扩展 `ReturnType<typeof setTimeout>`，新增 `_running` 标志；`:138-150` `setInterval(() => tick)` → `while(_running){ await tick(); await sleep(interval) }` 串行循环（占位 interval 仅兼容旧 stop 检查，真实驱动为 loop，stop 时清 interval/timeout 并置 _running false），消除重入双算
+  5. `src/dre/runtime/event-bus.ts:50` `publish` → `async publish(...): Promise<RuntimeEvent>`；`:71-92` for 循环 + 同步 catch → `sorted.map` 收集 `Promise.resolve` 包装 + `await Promise.allSettled` 汇总后统一计 `handled`/`errors` 并立即移除 `once`（防并发重复），`emit` 保持兼容
+  6. `src/dre/actor/system.ts:103` `receive` → `async receive(...): Promise<void>` + `await this.processNext()`；`:140-143` `finally` 中 `this.processNext()` → `await this.processNext()`，消除 fire-and-forget 乱序
+  7. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/event-bus.test.ts` 5 fail 1 pass（await 全量 handler length 0 vs 2、错误隔离 false、once 0 vs 1、Promise false、kernel maxConcurrent 3 vs 1）+ `bun test tests/unit/actor.test.ts` 1 fail 3 pass（receive Promise false）
+  - TDD Green：修复后 `bun test tests/unit/event-bus.test.ts` 6 pass 0 fail（26ms/14ms 含 async 10-20ms 延迟，kernel 串行 1/≥2 且 <6）；`bun test tests/unit/actor.test.ts` 4 pass 0 fail（receive await 后 handled true、顺序 1-2-3、maxConcurrent 1、日志 start-1/end-1/start-2/end-2 无交错）
+  - 联合：`bun test tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 10 pass 0 fail（21 expect，1345ms，无 flaky 复跑 2 次均 10 pass）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0，publish 改 async 未影响现有 `eventBus.publish` 同步调用方：sync handler 仍在 map 阶段同步执行，dre-core-modules 94 pass 0 fail 兼容）
+  - 备份验证后删除 `.tmp/backups/src/dre/kernel.ts`、`.tmp/backups/src/dre/runtime/event-bus.ts`、`.tmp/backups/src/dre/actor/system.ts`（保留目录）
+- **Commit**：`PENDING`（`fix(dre): 消除 tick/event/actor 竞态 src/dre/kernel.ts:138 src/dre/runtime/event-bus.ts:71 src/dre/actor/system.ts:103 C-M2-01/02 H-M2-03`，改动 3 源文件 + 2 测试 `tests/unit/event-bus.test.ts tests/unit/actor.test.ts` + `docs/operations-log.md`）
