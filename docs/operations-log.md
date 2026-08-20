@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-20 — P1 端口契约统一：网关 18789 / 侧车 18790 权威值校正（8 文件）
+
+- **任务**：按优先级修复 —— P1 端口契约不一致（`config/axiom.yaml:15` 网关 18789 为权威，但 `scripts/run-e2e.cjs:7` / `scripts/start.ts:214` / `scripts/frontend-audit.ts:3,14` / `playwright.config.mjs:11` / `.env.example:152` / `src/launcher.ts:8` / `src/mcp/server/browser-tools.ts:140,149` / `src/tui/install-wizard.ts:37` 误用 18790 导致 E2E 阻塞；原生侧车 18790 保持）。
+- **工具**：Read（全文）、Edit（最小改动）、bun（lint/architecture-integrity）、git。
+- **操作**（文件级）：
+  1. `scripts/run-e2e.cjs:7` `BACKEND_URL` 18790→18789
+  2. `scripts/start.ts:214` `PORT` fallback 18790→18789
+  3. `scripts/frontend-audit.ts:3,14` 默认 base-url 18790→18789
+  4. `playwright.config.mjs:11` baseURL 18790→18789
+  5. `.env.example:152,154` 注释 AXIOM_GATEWAY_PORT 默认 18790→18789
+  6. `src/launcher.ts:8` 注释 serve port 18790→18789（CONFIG.ports.http 已为 18789）
+  7. `src/mcp/server/browser-tools.ts:140,149` frontend_audit 默认 baseUrl 18790→18789
+  8. `src/tui/install-wizard.ts:37` 默认 port 18790→18789（与 `config/axiom.yaml` 及 `src/core/config-center.ts:18789` 一致；saveBtn fallback 已为 18789）
+  - 侧车保持 18790：`src/main.ts:59` `nativeBridge.port`、`src/native-bridge.ts`、`src/routes/native-routes.ts:NATIVE_PORT`、`native/crates/*` 不动。
+- **验证**：lint 0 错；`bun test ./tests/architecture-integrity.test.ts` 22/22；`src/core/config-center.ts` 默认 18789 与 `config/axiom.yaml:24` 一致。
+- **Commit**：`d01fe2f`
+
 
 ## 2026-08-20 — 网络搜索内容入库闭环验证与修复（搜索 → Vault → memory_search/KAL 命中）
 

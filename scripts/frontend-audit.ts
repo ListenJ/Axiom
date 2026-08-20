@@ -1,6 +1,6 @@
 /**
  * 前端视觉审核 CLI
- * 用法: bun run scripts/frontend-audit.ts [--base-url=http://127.0.0.1:18790]
+ * 用法: bun run scripts/frontend-audit.ts [--base-url=http://127.0.0.1:18789]
  *        [--pages=/chat,/search] [--concurrency=2] [--out=reports/frontend-audit-<ts>.md] [--knowledge]
  * 说明: 需要后端已运行（bun run src/main.ts）；逐页 Playwright 截图 → SenseNova 审核 → 报告。
  *       --knowledge 会把 issues 写入知识库（domain=frontend-audit）。
@@ -11,7 +11,7 @@ import { join } from "path";
 
 const args = Bun.argv.slice(2);
 const flag = (name: string, fallback = "") => args.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=") ?? fallback;
-const baseUrl = flag("base-url", "http://127.0.0.1:18790").replace(/\/$/, "");
+const baseUrl = flag("base-url", "http://127.0.0.1:18789").replace(/\/$/, "");
 const pagesParam = flag("pages", "");
 const pages = pagesParam
   ? pagesParam.split(",").map((p) => p.trim()).filter(Boolean).map((p) => ({ path: p, label: p }))

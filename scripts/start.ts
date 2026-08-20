@@ -211,7 +211,7 @@ function modeStatus(): void {
     return;
   }
   if (isProcessAlive(pid)) {
-    const port = process.env.PORT ?? "18790";
+    const port = process.env.PORT ?? "18789";
     console.log(`✅ Axiom 运行中 (PID: ${pid})`);
     console.log(`📋 日志: ${LOG_FILE}`);
     console.log(`🌐 端口: ${port}`);

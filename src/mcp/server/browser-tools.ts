@@ -137,7 +137,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
     description: "前端页面审核流水线：对一组页面逐页截图（Playwright 无头）→ SenseNova 视觉审核 → 汇总报告（verdict/问题/统计）",
     exposure: ["external", "safe-external"],
     inputSchema: {
-      baseUrl: z.string().optional().default("http://127.0.0.1:18790").describe("前端基准地址"),
+      baseUrl: z.string().optional().default("http://127.0.0.1:18789").describe("前端基准地址"),
       pages: z.array(z.string()).optional().describe("页面路径列表（默认全部可见页）"),
       concurrency: z.number().int().min(1).max(8).optional().default(2).describe("并发数"),
     },
@@ -146,7 +146,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
       const pages = Array.isArray(args.pages) && (args.pages as string[]).length > 0
         ? (args.pages as string[]).map((p) => ({ path: p, label: p }))
         : DEFAULT_AUDIT_PAGES;
-      const report = await auditFrontendPages((args.baseUrl as string | undefined) ?? "http://127.0.0.1:18790", pages, { concurrency: args.concurrency as number | undefined });
+      const report = await auditFrontendPages((args.baseUrl as string | undefined) ?? "http://127.0.0.1:18789", pages, { concurrency: args.concurrency as number | undefined });
       return { baseUrl: report.baseUrl, auditedAt: report.auditedAt, totals: report.totals, pages: report.pages, markdown: report.markdown };
     },
   });

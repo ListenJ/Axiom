@@ -4,7 +4,7 @@ const http = require('http');
 const path = require('path');
 
 const e2eDir = path.join(__dirname, '..', 'e2e');
-const BACKEND_URL = process.env.AXIOM_BACKEND_URL || 'http://127.0.0.1:18790';
+const BACKEND_URL = process.env.AXIOM_BACKEND_URL || 'http://127.0.0.1:18789';
 const AUTH_TOKEN = process.env.AXIOM_AUTH_TOKEN || 'your-secure-random-token-at-least-16-chars';
 
 function healthOk() {
