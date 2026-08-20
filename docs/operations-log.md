@@ -7,6 +7,27 @@
 
 ---
 
+## 2026-08-21 — 差异化测试目标矩阵 + 前后端集成 L2/L3 落地（严苛强化继续）
+
+- **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
+- **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log-diff-matrix.md`（AGENTS.md 规则 2，新建文件无需备份源）
+  2. 新建 `docs/TEST-STRATEGY-2026-08-21.md`（1 效能画像 P0/P1/P2/P3、2 难度 H/M/L、3 目标矩阵 12 行覆盖率目标 + 严苛度 + 类型、4 前后端集成目标、5 执行门禁、6 本次落地）
+  3. 新建 `tests/integration/backend-full-pipeline.test.ts`（6 用例：DRE 资源→调度→事件 5次回放/阻塞恢复/100混合/依赖 + TF-IDF→Vault 5次回放/并发20/质量阈值，L2 后端贯通）
+  4. 新建 `e2e/frontend-backend-integration.spec.ts`（5 用例：Search Hub 四tab数据流、Vault 写→读回放、Settings 持久化、Sessions 会话保持、Providers/Proxies/Router 配置一致，L3 前后端贯通）
+  5. 新建 `frontend/src/pages/integration.test.tsx`（3 用例：Search Hub 切换、Settings 主题、Vault 统计联动，L2 前端集成）+ 修复 mock `vault.tags/para` 缺失致 `TypeError`（`performance 1→66 passed`）
+  6. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `bun test --timeout 15000 ./tests/integration/backend-full-pipeline.test.ts` 6 pass 0 fail 75 expect 386ms
+  - `bun --cwd frontend test:run` 66 passed (66) 335 passed (fix 前 65/334, fix 后 66/335) 22.42s
+  - `bunx playwright --list` 52 tests（原 46 + 前后端集成 5 + 后端贯通 1），`e2e/frontend-backend-integration.spec.ts` 5 存在
+  - `bun test --timeout 15000 ./tests/rigorous/` 99 pass（5 文件）+ 前后端集成后 105 pass（6 文件），全量 `tests/unit+integration+rigorous` 202→208 pass（新增后端6）
+  - `npx tsc --noEmit` 0 错（新增 L2/L3 测试仅依赖已修复实现）
+  - 矩阵动态原则：P0×H 必须5次回放+并发，P1×M 必须模糊20+，P3×L 仅快照，已在 `docs/TEST-STRATEGY-2026-08-21.md` 落盘
+  - 备份验证后删除 `.tmp/backups/docs/operations-log-diff-matrix.md` + `.tmp/backups/docs/TEST-STRATEGY-2026-08-21.md`
+- **Commit**：`928a76f`
+
 ## 2026-08-21 — 严苛补充：文件系统沙箱与 202 全量回归（Build 模式继续）
 
 - **任务**：继续“更为严苛的测试强化”（Build 模式），在 87 用例基础上补充文件系统沙箱严苛套件并执行 202 全量回归，深化对 `src/mcp/tools/filesystem.ts:43 isPathSafe` / `writeFile:144` / `moveFile:370` 沙箱的边界理解。
