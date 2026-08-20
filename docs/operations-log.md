@@ -6358,4 +6358,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT True，`docs/AXIOM-ARCHITECTURE.md` 纯文档改动无类型影响）
   - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass（PG 归档未退化）
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md`（保留目录）
-- **Commit**：`4a9f1e8`（`chore: 归档死代码 src/dre/runtime/reasoner/reasoning-runtime.ts docs/AXIOM-ARCHITECTURE.md:51,165,839,852`）
+- **Commit**：`d243164`（`chore: 归档死代码 src/dre/runtime/reasoner/reasoning-runtime.ts docs/AXIOM-ARCHITECTURE.md:51,165,839,852`）
