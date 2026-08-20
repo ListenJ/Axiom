@@ -5996,3 +5996,18 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 旧库归档：data/code-index.db、data/dre.db、data/knowledge.db、axiom-memory.db → archive/knowledge-db-merge-2026-08-20/（archive/ 已 gitignore，仅本地留底；ARCHIVE-LOG.md 已登记）。
 - **验证**：bun run lint（tsc 干净）；冒烟（同一主库同时开 SQLiteMemory/code-index/KnowledgeStore/DRE Kernel 无 schema 冲突、memory-api 查询可用）；bun test 全量 2674 pass / 28 skip / 0 fail（2702 tests）。
 - **Commit**：`0132dcd`
+
+## 2026-08-20 08:20 +0800 — 插件后端重建 + data 服务器真实环境单库回归 + nginx 反代审计
+
+- **任务**：
+  1) 重建 DRE 插件后端（plugins/dre-dsh/backend/server.js）——DRE 并入主库（DATABASE_PATH 默认，弃用 dre.db）
+  2) 在 data 服务器（192.168.0.22）真实环境跑单库回归：备份 → clone bare 仓库最新分支 → 迁移 dre.db → 重建镜像 → 切换容器 → 端到端验证
+  3) 审计 nginx 反向代理 dsh web（192.168.0.22:8080 → 127.0.0.1:3080）
+- **工具**：bun（构建/迁移/验证）、ssh/scp（data@192.168.0.22）、docker/compose（镜像与容器）、git。
+- **操作**（文件级/服务器级）：
+  - 本地：bun run build（plugins/dre-dsh）→ backend/server.js 重建（0.70MB，含 DATABASE_PATH 默认、无 dre.db 引用）；插件测试 23/23 过；提交 fd3c2f6。
+  - 服务器：备份 data/agent.db*、dre.db* → /home/data/openclaw-fusion-backup-single-db-2026-08-20/；git clone bare 仓库 → /home/data/openclaw-fusion-deploy-2026-08-20（HEAD fd3c2f6）；停旧容器 → DATABASE_PATH=生产 agent.db 执行 scripts/merge-knowledge-dbs.ts 并入 dre.db（表结构全部落主库）→ docker build axiom-agent:single-db-2026-08-20 → docker-compose.prod.yml（绝对路径卷 + 生产 .env）切换容器。
+  - nginx 审计：反代功能正常（LAN/Windows 200、Header 齐全、300s 超时）；发现 SSE 缓冲未关、Connection 头无条件 upgrade、注释乱码、无 client_max_body_size、server_tokens 暴露版本——推荐配置已上传 /home/data/dsh-routing-suite/dsh.conf.recommended（需 root 应用，当前账号无 sudo）。
+- **验证**：插件测试 23/23；生产容器 healthy；日志 [DRE] Kernel ready（主库 agent.db）；生产 agent.db 51 表（memory_notes 151、DRE 表已建、code/knowledge 表按需懒创建）；带鉴权 GET /memory/knowledge 返回主库笔记（memory-api 修复真实生效）；nginx 192.168.0.22:8080 与 Windows 均 200。
+- **备注**：旧镜像 openclaw-fusion-axiom-agent:latest 保留可回滚；容器内 MCP 外部 server（sqlite/obsidian/opencode/filesystem/free-search/context7）连接失败与 VAULT_PATH 缺失为存量问题，非本次改动引入。
+- **Commit**：`PLACEHOLDER`
