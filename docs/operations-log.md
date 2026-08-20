@@ -6104,4 +6104,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 回归：`bun test tests/native-bridge.test.ts` 9 pass 0 fail（Binary not found 路径现为 `axiom-local.exe` 含 .exe，Win32 正确）；`bun test tests/unit/system-resource.test.ts` 2 pass 0 fail（Task1 无回归）
   - 备份验证后删除 `.tmp/backups/src/native-bridge.ts` 与 `.tmp/backups/docs/operations-log.md`（保留目录）
-- **Commit**：`待回填`（`fix(native): Win32 .exe + pipe排空 + 失败kill src/native-bridge.ts:61,83,94 Native C-01/02 H-01`，改动 `src/native-bridge.ts:15,62,84-87,112-131` + 测试 `tests/integration/native-bridge.test.ts` + `docs/operations-log.md`）
+- **Commit**：`461c94a`（`fix(native): Win32 .exe + pipe排空 + 失败kill src/native-bridge.ts:61,83,94 Native C-01/02 H-01`，改动 `src/native-bridge.ts:15,62,84-87,112-131` + 测试 `tests/integration/native-bridge.test.ts` + `docs/operations-log.md`）
