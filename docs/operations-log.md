@@ -6010,4 +6010,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - nginx 审计：反代功能正常（LAN/Windows 200、Header 齐全、300s 超时）；发现 SSE 缓冲未关、Connection 头无条件 upgrade、注释乱码、无 client_max_body_size、server_tokens 暴露版本——推荐配置已上传 /home/data/dsh-routing-suite/dsh.conf.recommended（需 root 应用，当前账号无 sudo）。
 - **验证**：插件测试 23/23；生产容器 healthy；日志 [DRE] Kernel ready（主库 agent.db）；生产 agent.db 51 表（memory_notes 151、DRE 表已建、code/knowledge 表按需懒创建）；带鉴权 GET /memory/knowledge 返回主库笔记（memory-api 修复真实生效）；nginx 192.168.0.22:8080 与 Windows 均 200。
 - **备注**：旧镜像 openclaw-fusion-axiom-agent:latest 保留可回滚；容器内 MCP 外部 server（sqlite/obsidian/opencode/filesystem/free-search/context7）连接失败与 VAULT_PATH 缺失为存量问题，非本次改动引入。
-- **Commit**：`PLACEHOLDER`
+- **Commit**：`b7a3a91`
