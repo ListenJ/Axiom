@@ -14,6 +14,7 @@
 
 import { eventBus } from "./event-bus.js";
 import { logger } from "../../utils/logger.js";
+import { getResourceBudgetManager } from "../system-resource.js";
 
 // ─── Task Types ────────────────────────────────────────────────────────────
 
@@ -51,11 +52,32 @@ interface ResourceBudget {
   currentMemoryMB: number
 }
 
+function getEffectiveMemoryUsageMB(): number {
+  try {
+    const mgr = getResourceBudgetManager();
+    const res = mgr.getResource();
+    const used = res.maxMemory - res.availableMemory;
+    if (Number.isFinite(used) && used >= 0) return Math.round(used);
+  } catch {}
+  try {
+    return Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+  } catch {
+    return 0;
+  }
+}
+
 function hasResources(budget: ResourceBudget): boolean {
+  const effectiveCurrent = getEffectiveMemoryUsageMB();
+  budget.currentMemoryMB = effectiveCurrent;
+  try {
+    const mgr = getResourceBudgetManager();
+    const check = mgr.canRun();
+    if (!check.canRun) return false;
+  } catch {}
   return (
     budget.currentTasks < budget.maxConcurrentTasks &&
     budget.currentTokensPerMinute < budget.maxTokensPerMinute &&
-    budget.currentMemoryMB < budget.maxMemoryMB
+    effectiveCurrent < budget.maxMemoryMB
   );
 }
 
@@ -83,7 +105,7 @@ class SchedulerImpl {
   private budget: ResourceBudget = {
     maxConcurrentTasks: 5,
     maxTokensPerMinute: 100000,
-    maxMemoryMB: 4096,
+    maxMemoryMB: getResourceBudgetManager().getResource().maxMemory,
     currentTasks: 0,
     currentTokensPerMinute: 0,
     currentMemoryMB: 0,
@@ -119,6 +141,10 @@ class SchedulerImpl {
    * Skips expired tasks (deadline passed) and tasks whose retry backoff hasn't elapsed.
    */
   getNext(): ScheduledTask | null {
+    // H-06 同源同步：每次调度前刷新 maxMemoryMB 以与 ResourceBudgetManager 保持一致
+    try {
+      this.budget.maxMemoryMB = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     // Auto-fail expired pending tasks
     this.expirePendingTasks();
 
@@ -348,11 +374,16 @@ class SchedulerImpl {
     budget: ResourceBudget
     tasks: ScheduledTask[]
   } {
+    // 同源同步：maxMemoryMB 始终以 ResourceBudgetManager 为权威源（H-06 双轨统一）
+    let liveMax = this.budget.maxMemoryMB;
+    try {
+      liveMax = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     return {
       queued: this.queue.length,
       running: this.running.size,
       completed: this.completed.length,
-      budget: { ...this.budget },
+      budget: { ...this.budget, maxMemoryMB: liveMax },
       tasks: [...this.queue, ...Array.from(this.running.values())],
     };
   }
@@ -361,6 +392,20 @@ class SchedulerImpl {
    * Update resource budget.
    */
   setBudget(budget: Partial<ResourceBudget>): void {
+    // H-06 双轨统一：若设置 maxMemoryMB 则同步至权威源 ResourceBudgetManager
+    if (budget.maxMemoryMB !== undefined) {
+      try {
+        getResourceBudgetManager().updateResource({ maxMemory: budget.maxMemoryMB });
+      } catch {}
+      const { maxMemoryMB, ...rest } = budget;
+      Object.assign(this.budget, rest);
+      try {
+        this.budget.maxMemoryMB = getResourceBudgetManager().getResource().maxMemory;
+      } catch {
+        this.budget.maxMemoryMB = maxMemoryMB;
+      }
+      return;
+    }
     Object.assign(this.budget, budget);
   }
 
@@ -371,10 +416,14 @@ class SchedulerImpl {
     this.queue = [];
     this.running.clear();
     this.completed = [];
+    let liveMax = 4096;
+    try {
+      liveMax = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     this.budget = {
       maxConcurrentTasks: 5,
       maxTokensPerMinute: 100000,
-      maxMemoryMB: 4096,
+      maxMemoryMB: liveMax,
       currentTasks: 0,
       currentTokensPerMinute: 0,
       currentMemoryMB: 0,

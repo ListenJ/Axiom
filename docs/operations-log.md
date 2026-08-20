@@ -6170,3 +6170,20 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归：`bun test tests/knowledge/pipeline.test.ts` 3 pass 0 fail（原 pipeline 空跑/GH/book 仍绿）；`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）
   - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts` 与 `.tmp/backups/docs/ARCHITECTURE.md`（保留目录）
 - **Commit**：`200303f`（`fix(knowledge): zero LLM 条件化 src/knowledge/pipeline.ts:186 docs/ARCHITECTURE.md`，改动 `src/knowledge/pipeline.ts:2,44-120,186-189` + 测试 `tests/unit/knowledge-pipeline.test.ts` + `docs/ARCHITECTURE.md:10` + `docs/operations-log.md`）
+
+## 2026-08-21 — Task 6 调度器内存限流修复 H-M2-05（src/dre/runtime/scheduler.ts:54,83）
+
+- **任务**：审计 H-M2-05 `src/dre/runtime/scheduler.ts:54 hasResources` 中 `memoryMB` 永远为0 导致限流形同虚设。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 6 TDD 垂直切片：从 `src/dre/system-resource.ts` 导入真实可用内存（`getResourceBudgetManager().getResource()` + `process.memoryUsage()` 兜底），同步 `currentMemoryMB` 并以 `canRun()` 判定限流，可配置默认 4096（`SCHEDULER_MAX_MEMORY_MB` 环境变量及 `setBudget`）。
+- **工具**：Read（`src/dre/runtime/scheduler.ts:1-391` 全文、`src/dre/system-resource.ts:1-155` 全文、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 6、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Write/Edit（`tests/unit/scheduler.test.ts` 新建、`src/dre/runtime/scheduler.ts:15-17,55-82,105-115,395-410` 最小改、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/dre/runtime/scheduler.ts` → `.tmp/backups/src/dre/runtime/scheduler.ts`（AGENTS.md 规则 2）、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`
+  2. 新建 `tests/unit/scheduler.test.ts`（4 用例：memoryMB 超限应阻塞 getNext（available 100）+ 充足放行（4000）+ currentMemoryMB 同步非0 + maxMemoryMB 默认4096可配置；覆盖 H-M2-05）
+  3. `src/dre/runtime/scheduler.ts:17` 新增 `import { getResourceBudgetManager } from "../system-resource.js"`；`:55-82` 新增 `getEffectiveMemoryUsageMB()`（`max-available` 已用内存，兜底 `process.memoryUsage().heapUsed`）并重构 `hasResources` 同步 `budget.currentMemoryMB`、先查 `mgr.canRun()` 再比 `effectiveCurrent < budget.maxMemoryMB`；`:105-115` `budget.maxMemoryMB` 初始化由 `4096` → 环境变量 `SCHEDULER_MAX_MEMORY_MB` 可配置默认4096；`:395-410` `reset()` 同步可配置
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/scheduler.test.ts` 2 pass 2 fail（超限阻塞 Received task 而非 null、currentMemoryMB 0 而非 >0，符合限流虚设）
+  - TDD Green：修复后 `bun test tests/unit/scheduler.test.ts` 4 pass 0 fail（6 expect，~174ms，含 available 100/500/4000 切换与 reset 默认 4096）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0，新增 import 路径 `../system-resource.js` 解析正常）
+  - 回归：`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）；`bun test tests/unit/scheduler.test.ts` 单测隔离（afterEach 恢复 ResourceBudgetManager 原始值）
+  - 备份验证后删除 `.tmp/backups/src/dre/runtime/scheduler.ts`（保留目录）
+- **Commit**：`PLACEHOLDER`（`fix(scheduler): 内存限流接真实可用内存 src/dre/runtime/scheduler.ts:54,83 H-M2-05`，改动 `src/dre/runtime/scheduler.ts:15-17,55-82,105-115,395-410` + 测试 `tests/unit/scheduler.test.ts` + `docs/operations-log.md`）
