@@ -6222,4 +6222,20 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0，`getResourceBudgetManager` 路径 `../system-resource.js` 解析正常，ResourceBudget 与 SystemResource 类型兼容 `maxMemory`→`maxMemoryMB`）
   - 回归：`bun test tests/unit/system-resource.test.ts` 2 pass（bytesPerToken 229376）、`bun test tests/unit/resource-debounce.test.ts` 5 pass（jitter <5% 过滤）；全量 `tests/unit` 本次 15 用例全绿，原 32 pass 1 fail 已收敛
   - 备份验证后删除 `.tmp/backups/tests/unit/scheduler.test.ts`（保留目录），`src/dre/runtime/scheduler.ts` 备份已随 Task6 删除（保留目录）
-- **Commit**：`<pending>`（`fix(resource): 双轨统一 src/dre/runtime/scheduler.ts:83 src/dre/system-resource.ts:38 H-06`，改动 `tests/unit/resource-sync.test.ts` 新建 + `tests/unit/scheduler.test.ts:84-93` 同源修正 + `docs/operations-log.md`）
+- **Commit**：`1b53447`（`fix(resource): 双轨统一 src/dre/runtime/scheduler.ts:83 src/dre/system-resource.ts:38 H-06`，改动 `tests/unit/resource-sync.test.ts` 新建 + `tests/unit/scheduler.test.ts:84-93` 同源修正 + `docs/operations-log.md`）
+
+## 2026-08-21 — Task6 补修：测试同步 H-06 双轨统一（tests/unit/scheduler.test.ts:84-95）
+
+- **任务**：Task6 调度器内存限流修复后，H-06 双轨统一（`src/dre/runtime/scheduler.ts:108,146,377,395` 以 `ResourceBudgetManager` 为权威源）使 `maxMemoryMB` 默认由 `4096` 变为 `4000`，原测试 `tests/unit/scheduler.test.ts:87` 仍断言 `4096` 导致 1 fail。按 AGENTS.md 最小施工同步测试期望至权威源。
+- **工具**：Read（`src/dre/runtime/scheduler.ts:1-419` 全文、`src/dre/system-resource.ts:1-155` 全文、`tests/unit/scheduler.test.ts:1-96` 全文、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`git`）、Edit（`tests/unit/scheduler.test.ts:84-95` 最小改、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `tests/unit/scheduler.test.ts` → `.tmp/backups/tests/unit/scheduler.test.ts`（AGENTS.md 规则 2）、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md.testfix`
+  2. `tests/unit/scheduler.test.ts:84-95` `maxMemoryMB 默认 4096 且可配置` → `maxMemoryMB 默认与 ResourceBudgetManager 同源且可配置`：`expectedDefault = mgr.getResource().maxMemory`，`expect(statusBefore.budget.maxMemoryMB).toBe(expectedDefault)`，`setBudget(8192)` 后同时断言 `manager.maxMemory==8192`，兼容 4000/4096 双轨
+  3. 本条目 `docs/operations-log.md`
+- **验证**：
+  - 修复前：`bun test tests/unit/scheduler.test.ts` 3 pass 1 fail（`Expected: 4096 Received: 4000`，H-06 后旧期望未更新）
+  - 修复后：`bun test tests/unit/scheduler.test.ts` 4 pass 0 fail（7 expect，~274ms，含 available 100/500/4000 切换与 8192 同步）
+  - `npx tsc --noEmit` 0 错
+  - 回归：`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail
+  - 备份验证后删除 `.tmp/backups/tests/unit/scheduler.test.ts`（保留目录）
+- **Commit**：`PLACEHOLDER`（`fix(scheduler): 同步测试期望至 ResourceBudgetManager 同源 H-06 tests/unit/scheduler.test.ts:84`）
