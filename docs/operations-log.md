@@ -24,7 +24,7 @@
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
   - 回归 `bun test tests/security-fixes.test.ts` 5 项 url-safety 仍 pass（环回/私网/IPv6 ULA）
   - 备份验证后删除 `.tmp/backups/src/utils/url-safety.ts` 等
-- **Commit**：待回填（`fix(security): SSRF 整数IP+lightpanda 校验 src/utils/url-safety.ts:20 src/crawl/lightpanda-client.ts:111 H-1`）
+- **Commit**：`6728975`（`fix(security): SSRF 整数IP+lightpanda 校验 src/utils/url-safety.ts:20 src/crawl/lightpanda-client.ts:111 H-1`）
 
 ## 2026-08-21 — Task 11 文件系统 TOCTOU 原子化（H-03 filesystem:88）
 
