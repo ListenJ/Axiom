@@ -189,6 +189,10 @@ export async function handleDirectSearch(ctx: RouteContext): Promise<Response | 
   if (ctx.url.pathname !== "/direct-search" || ctx.req.method !== "GET") return null;
   const query = ctx.url.searchParams.get("q");
   if (!query) return ctx.jsonResponse({ error: "Missing q parameter" }, 400, ctx.baseHeaders);
+  // SSRF 防护：若查询本身是 URL（如用户直接传 URL），需校验私网/整数IP
+  if (/^https?:\/\//i.test(query) && !isSafeUrl(query)) {
+    return ctx.jsonResponse({ error: "URL blocked by security policy" }, 403, ctx.baseHeaders);
+  }
   const engines = ctx.url.searchParams.get("engines")?.split(",") || ["google", "bing"];
   const num = parseInt(ctx.url.searchParams.get("num") || "10", 10);
   const { directMultiSearch } = await import("../crawl/lightpanda-search.js");

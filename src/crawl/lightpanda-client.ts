@@ -16,6 +16,7 @@
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
+import { isSafeUrl } from "../utils/url-safety.js";
 
 export interface LightpandaConfig {
   /** Lightpanda 二进制路径 */
@@ -102,6 +103,7 @@ export async function renderWithCLI(
   url: string,
   timeout: number = 15000,
 ): Promise<RenderResult> {
+  if (!isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const startTime = Date.now();
 
   const controller = new AbortController();
@@ -159,6 +161,7 @@ export async function renderWithDockerCLI(
   timeout: number = 20000,
   options: { dumpFormat?: "html" | "markdown" | "text"; stripMode?: string } = {},
 ): Promise<RenderResult> {
+  if (!isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const { dumpFormat = "html", stripMode } = options;
   const startTime = Date.now();
 
@@ -218,6 +221,7 @@ export async function renderWithCDP(
   timeout: number = 15000,
   jsWaitTime: number = 2000,
 ): Promise<RenderResult> {
+  if (!isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const startTime = Date.now();
 
   // 1. 获取 CDP WebSocket URL
@@ -319,6 +323,7 @@ export async function smartRender(
     jsWaitTime?: number;
   } = {},
 ): Promise<RenderResult> {
+  if (!isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const { preferBrowser: _preferBrowser = false, timeout = 15000, jsWaitTime = 2000 } = options;
 
   // 检测 Lightpanda 可用性 (缓存结果)
@@ -465,6 +470,7 @@ export async function captureScreenshot(
   cdpUrl: string = "http://127.0.0.1:9222",
   options: { format?: "png" | "jpeg"; quality?: number; fullPage?: boolean; timeout?: number } = {}
 ): Promise<ScreenshotResult> {
+  if (url && !isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const startTime = Date.now();
   const { format = "png", quality = 90, fullPage = false, timeout = 15000 } = options;
 
@@ -809,6 +815,7 @@ export async function fetchPageContent(
   url: string,
   options: { timeout?: number; containerName?: string } = {},
 ): Promise<PageContent> {
+  if (!isSafeUrl(url)) throw new Error(`URL blocked by SSRF guard: ${url}`);
   const { timeout = 20000, containerName } = options;
   const startTime = Date.now();
 

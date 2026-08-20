@@ -7,6 +7,25 @@
 
 ---
 
+## 2026-08-21 — Task 12 SSRF 整数IP + 二阶校验（H-1 url-safety:20 lightpanda-client:111 search:188）
+
+- **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-1：`src/utils/url-safety.ts:20` 未覆盖整数/八/十六进制IP及 127/8 全段、`src/crawl/lightpanda-client.ts:111` 零校验二阶 SSRF、`src/routes/search.ts:188` direct-search 0 校验。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 12 垂直切片 TDD 修复。
+- **工具**：Read（`src/utils/url-safety.ts:1-40` 全文、`src/crawl/lightpanda-client.ts:1-887` 全文、`src/routes/search.ts:1-217` 全文、`src/utils/proxy-fetch.ts:1-827` 关联、`docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-1、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 12、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`bun -e` 127/::ffff 探针/`git`）、Write/Edit（`tests/unit/url-safety.test.ts` 新建、`src/utils/url-safety.ts:20-95` 重构、`src/crawl/lightpanda-client.ts:16,101-115,158-172,218-230,318-326,813-817` 加 guard、`src/routes/search.ts:188-196` 加 direct-search URL 校验、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/url-safety.ts` → `.tmp/backups/src/utils/url-safety.ts`、`src/crawl/lightpanda-client.ts` → `.tmp/backups/src/crawl/lightpanda-client.ts`、`src/routes/search.ts` → `.tmp/backups/src/routes/search.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/url-safety.test.ts`（12 用例：整数 2130706433、十六 0x7f、八 0177、127/8 全段、::ffff 映射 3 变体、公网/私网放行/拦截、lightpanda 4 SSRF 抛）
+  3. `src/utils/url-safety.ts:20` 重构：抽 `isPrivateIPv4`/`integerToIPv4`，预检原始 URL 的整数/混合进制 host，新增 `127/8` 与 `0/8` 拦截、`::ffff:` 私网 hex 解码与兜底拦截、整数 host 二次校验
+  4. `src/crawl/lightpanda-client.ts:16` 引入 `isSafeUrl`，`:101,158,218,318,813` 5 处入口（`renderWithCLI`/`renderWithDockerCLI`/`renderWithCDP`/`smartRender`/`fetchPageContent` + `captureScreenshot`）前置 `if(!isSafeUrl(url)) throw`
+  5. `src/routes/search.ts:188` `handleDirectSearch` 新增 `if(/^https?:\/\//.test(query) && !isSafeUrl(query)) return 403`
+  6. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/url-safety.test.ts` 6 fail（127.0.0.2、::ffff 2 用例及 lightpanda 4 SSRF 因未校验直通）+ 6 pass
+  - TDD Green：修复后 `bun test tests/unit/url-safety.test.ts` 12 pass 0 fail（21 expect，含 127/8、::ffff:127.0.0.1/192.168.1.1、lightpanda SSRF 4）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 回归 `bun test tests/security-fixes.test.ts` 5 项 url-safety 仍 pass（环回/私网/IPv6 ULA）
+  - 备份验证后删除 `.tmp/backups/src/utils/url-safety.ts` 等
+- **Commit**：待回填（`fix(security): SSRF 整数IP+lightpanda 校验 src/utils/url-safety.ts:20 src/crawl/lightpanda-client.ts:111 H-1`）
+
 ## 2026-08-21 — Task 11 文件系统 TOCTOU 原子化（H-03 filesystem:88）
 
 - **任务**：审计 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` H-03：`src/mcp/tools/filesystem.ts:88` 父目录不存在时放行（`Parent doesn't exist → allow`）导致 check→mkdir 窗口 symlink 抢占越界；`writeFile`/`moveFile` 的 `mkdir` 非原子且无重校验。按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 11 垂直切片 TDD 修复。

@@ -17,22 +17,113 @@ const BLOCKED_HOSTS = [
   "169.254.169.254", "metadata.google.internal",
 ];
 
+function isPrivateIPv4(host: string): boolean {
+  if (/^10\./.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  if (/^192\.168\./.test(host)) return true;
+  if (/^169\.254\./.test(host)) return true;
+  if (/^127\./.test(host)) return true;
+  if (/^0\./.test(host)) return true;
+  return false;
+}
+
+function integerToIPv4(numStr: string): string | null {
+  try {
+    // 支持十进制、八进制(0前缀)、十六进制(0x) 的整数形式
+    let n: number;
+    if (/^0x[0-9a-f]+$/i.test(numStr)) n = parseInt(numStr, 16);
+    else if (/^0[0-7]+$/.test(numStr) && numStr !== "0") n = parseInt(numStr, 8);
+    else if (/^\d+$/.test(numStr)) n = parseInt(numStr, 10);
+    else return null;
+    if (Number.isNaN(n) || n < 0 || n > 0xffffffff) return null;
+    return `${(n >>> 24) & 255}.${(n >>> 16) & 255}.${(n >>> 8) & 255}.${n & 255}`;
+  } catch {
+    return null;
+  }
+}
+
 export function isSafeUrl(urlStr: string): boolean {
   try {
+    // 预检整数/八进制/十六进制 IP（在 URL 解析前，避免某些环境不规范化）
+    try {
+      const m = urlStr.match(/^https?:\/\/([^\/?#:]+)(?::\d+)?(?:\/|$)/i);
+      if (m) {
+        const rawHost = m[1].toLowerCase();
+        // 纯整数形式如 http://2130706433/
+        const intIp = integerToIPv4(rawHost);
+        if (intIp && isPrivateIPv4(intIp)) return false;
+        // 混合点分但含八/十六进制段如 0x7f.0.0.1、0177.0.0.1
+        if (/^(?:0x[0-9a-f]+\.?|0[0-7]+\.?|\d+\.?)+$/i.test(rawHost) && rawHost.includes(".")) {
+          const parts = rawHost.split(".");
+          let normalized = "";
+          for (const p of parts) {
+            if (/^0x/i.test(p)) normalized += parseInt(p, 16) + ".";
+            else if (/^0[0-7]+$/.test(p) && p !== "0") normalized += parseInt(p, 8) + ".";
+            else if (/^\d+$/.test(p)) normalized += parseInt(p, 10) + ".";
+            else { normalized = ""; break; }
+          }
+          if (normalized) {
+            normalized = normalized.slice(0, -1);
+            if (isPrivateIPv4(normalized)) return false;
+            // 规范化后若为 127/10 等也已拦截
+            // 若仍为私有段，直接拦截
+            if (/^10\./.test(normalized) || /^192\.168\./.test(normalized)) return false;
+          }
+        }
+      }
+    } catch {}
+
     const parsed = new URL(urlStr);
     if (BLOCKED_PROTOCOLS.some((p) => parsed.protocol === p)) return false;
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
     const hostname = parsed.hostname.toLowerCase();
     if (BLOCKED_HOSTS.some((h) => hostname === h || hostname.endsWith("." + h))) return false;
-    // IPv4 私网/链路本地
-    if (/^10\./.test(hostname)) return false;
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return false;
-    if (/^192\.168\./.test(hostname)) return false;
-    if (/^169\.254\./.test(hostname)) return false;
-    // IPv6 ULA(fc00::/7 → fc/fd 前缀) / link-local(fe80::/10 → fe8-fe9-fea-feb 前缀)
-    const v6 = hostname.replace(/^\[|\]$/g, "");
-    if (/^f[cd]/i.test(v6)) return false;
-    if (/^fe[89ab]/i.test(v6)) return false;
+    // IPv4 私网/环回/链路本地（含 127/8、0/8）
+    if (isPrivateIPv4(hostname)) return false;
+    // 兼容 Node 已规范化的整数 IP：若原始 host 为整数但 parsed 已转为点分，isPrivateIPv4 已覆盖
+    // 额外显式检查整数形式的 hostname（防御某些 URL 实现不规范化）
+    const intFromHost = integerToIPv4(hostname);
+    if (intFromHost && isPrivateIPv4(intFromHost)) return false;
+
+    // IPv6
+    const v6 = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    if (v6.includes(":")) {
+      // loopback
+      if (v6 === "::1") return false;
+      // ULA(fc00::/7 → fc/fd 前缀) / link-local(fe80::/10 → fe8-fe9-fea-feb 前缀)
+      if (/^f[cd]/i.test(v6)) return false;
+      if (/^fe[89ab]/i.test(v6)) return false;
+      // IPv4-mapped 地址 ::ffff:x.x.x.x 或 ::ffff:hex
+      if (v6.includes("::ffff:")) {
+        const after = v6.split("::ffff:")[1] || "";
+        if (after) {
+          if (after.includes(".")) {
+            if (isPrivateIPv4(after)) return false;
+            // 任何 ::ffff: 的点分私网都拦截，否则保守拦截所有映射（SSRF 面向私网）
+            return false;
+          } else {
+            // hex 形式如 ::ffff:7f00:1 -> 127.0.0.1
+            const hexParts = after.split(":");
+            let ip = "";
+            if (hexParts.length === 2) {
+              const h1 = hexParts[0].padStart(4, "0");
+              const h2 = hexParts[1].padStart(4, "0");
+              const b1 = parseInt(h1.slice(0, 2), 16);
+              const b2 = parseInt(h1.slice(2), 16);
+              const b3 = parseInt(h2.slice(0, 2), 16);
+              const b4 = parseInt(h2.slice(2), 16);
+              if ([b1, b2, b3, b4].every((n) => !Number.isNaN(n))) ip = `${b1}.${b2}.${b3}.${b4}`;
+            }
+            if (ip && isPrivateIPv4(ip)) return false;
+            // 保守：任何 ::ffff: 映射均视为可疑，拦截
+            return false;
+          }
+        }
+        return false;
+      }
+      // 0:0:0:0:0:ffff:127.0.0.1 规范化为 ::ffff:7f00:1，已在上分支处理；兜底拦截含 ffff 的 v6
+      if (v6.includes("ffff")) return false;
+    }
     return true;
   } catch {
     return false;
