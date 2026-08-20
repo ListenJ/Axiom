@@ -6152,4 +6152,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 联合：`bun test tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 10 pass 0 fail（21 expect，1345ms，无 flaky 复跑 2 次均 10 pass）
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0，publish 改 async 未影响现有 `eventBus.publish` 同步调用方：sync handler 仍在 map 阶段同步执行，dre-core-modules 94 pass 0 fail 兼容）
   - 备份验证后删除 `.tmp/backups/src/dre/kernel.ts`、`.tmp/backups/src/dre/runtime/event-bus.ts`、`.tmp/backups/src/dre/actor/system.ts`（保留目录）
-- **Commit**：`PENDING`（`fix(dre): 消除 tick/event/actor 竞态 src/dre/kernel.ts:138 src/dre/runtime/event-bus.ts:71 src/dre/actor/system.ts:103 C-M2-01/02 H-M2-03`，改动 3 源文件 + 2 测试 `tests/unit/event-bus.test.ts tests/unit/actor.test.ts` + `docs/operations-log.md`）
+- **Commit**：`48de707`（`fix(dre): 消除 tick/event/actor 竞态 src/dre/kernel.ts:138 src/dre/runtime/event-bus.ts:71 src/dre/actor/system.ts:103 C-M2-01/02 H-M2-03`，改动 3 源文件 + 2 测试 `tests/unit/event-bus.test.ts tests/unit/actor.test.ts` + `docs/operations-log.md`）
