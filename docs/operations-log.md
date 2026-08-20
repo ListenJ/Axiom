@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-21 — 严苛补充：文件系统沙箱与 202 全量回归（Build 模式继续）
+
+- **任务**：继续“更为严苛的测试强化”（Build 模式），在 87 用例基础上补充文件系统沙箱严苛套件并执行 202 全量回归，深化对 `src/mcp/tools/filesystem.ts:43 isPathSafe` / `writeFile:144` / `moveFile:370` 沙箱的边界理解。
+- **工具**：Write（`tests/rigorous/filesystem-rigorous.test.ts` 12 用例）、Bash（`bun test` 分批及 `bun -e` 探针）、Read（`src/mcp/tools/filesystem.ts:1-424` 全文、`tests/rigorous/` 已有 4 文件）、Edit（`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log-rigorous2.md`（AGENTS.md 规则 2，新建严苛测试无需备份源文件）
+  2. 新建 `tests/rigorous/filesystem-rigorous.test.ts`（12 用例：路径穿越 ../ 拦截、跨盘 C:\\ 拦截、.env/.git/data/*.db 敏感拦截、5次回放一致、大文件 >10MB 拒绝、并发 50 同文件、并发 mkdir 100、moveFile 原子创建、不存在/非法路径不崩）
+  3. 期中无失败（12 pass 35 expect 245ms），严苛 87→99 pass（5 文件），全量 190→202 pass（21 文件 553 expect 6.5s）
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `bun test --timeout 15000 ./tests/rigorous/filesystem-rigorous.test.ts` 12 pass 0 fail 245ms
+  - `bun test --timeout 15000 ./tests/rigorous/` 99 pass 0 fail 331 expect 1.32s
+  - `bun test --timeout 15000 ./tests/unit/* ./tests/integration/* ./tests/rigorous/` 202 pass 0 fail 553 expect 6.5s（21 文件，16 核心 + 5 严苛）
+  - `npx tsc --noEmit` 0 错（严苛测试仅依赖已修复实现）
+  - 架构理解：`isPathSafe` 对 `../`/`C:\\`/`DENIED_SEGMENTS` 均严格拦截，`writeFile` 原子 `mkdir -p + 重校验` 在 50 并发下一致，`moveFile` 自动创建父目录，大文件阈值 10MB 正确，符合沙箱深模块设计
+  - 备份验证后删除 `.tmp/backups/docs/operations-log-rigorous2.md`
+- **Commit**：`ca78a21`
+
 ## 2026-08-21 — 严苛测试强化（87 用例 4 文件，190 全量 pass）
 
 - **任务**：按用户要求“更为严苛的测试强化和理解当前架构”（Build 模式），基于已修复 16 Tasks 基线 `5e1c13e`，新增 4 严苛套件：VRAM/调度/事件/Actor 确定性与并发（22 用例）、安全边界模糊（53 用例）、知识管线 TF-IDF 确定性回放（12 用例），覆盖 `system-resource:53` / `scheduler:54` / `event-bus:71` / `actor:103` / `url-safety:20` / `command-safety:16` / `knowledge/pipeline:49` 等核心。
