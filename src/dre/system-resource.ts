@@ -50,7 +50,7 @@ export class ResourceBudgetManager {
   private modelMemoryMB: number;
   private safetyMarginMB: number;
   private kvCacheMaxMB: number;
-  private bytesPerToken: number;     // KV cache 每 token 字节数 (FP16=2)
+  private bytesPerToken: number; // KV cache 每 token 字节数：Qwen3-1.7B 28层×2048隐×2(K/V)×2B(FP16)≈229KB/token (229376 bytes)，见 tests/unit/system-resource.test.ts 推导
   private maxTokensCap: number;      // token 上限
 
   constructor(opts?: {
@@ -65,7 +65,7 @@ export class ResourceBudgetManager {
     this.modelMemoryMB = opts?.modelMemoryMB ?? 1100;
     this.safetyMarginMB = opts?.safetyMarginMB ?? 200;
     this.kvCacheMaxMB = opts?.kvCacheMaxMB ?? 2200;
-    this.bytesPerToken = opts?.bytesPerToken ?? 2;
+    this.bytesPerToken = opts?.bytesPerToken ?? 28 * 2048 * 2 * 2; // 229376 bytes ≈224KB (1024) / 229KB (1000)，校准自 Qwen3-1.7B 28*2048*2*2，替代旧值 2 导致的 114688 倍误差
     this.maxTokensCap = opts?.maxTokensCap ?? 4096;
   }
 

@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-21 — Task 1 VRAM bytesPerToken 校准 114688倍误差修复（Critical 05）
+
+- **任务**：审计报告 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` Critical 05：`src/core/system-resource.ts:106`（实际路径 `src/dre/system-resource.ts:106`）`bytesPerToken=2` 导致 114688 倍误差，2200MB→112万 tokens（capped 4096）实仅 9；按 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md` Task 1 垂直切片 TDD 修复，并更新 `docs/LIMITATIONS.md` 披露估算边界。
+- **工具**：Read（`src/dre/system-resource.ts:1-155` 全文、`docs/reviews/2026-08-20-full-audit-strong-constraint.md`、`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md`、`docs/operations-log.md` 全文）、Bash（`bun test`/`npx tsc --noEmit`/`bun -e` 溯源验证/`git`）、Write/Edit（`tests/unit/system-resource.test.ts` 新建、`src/dre/system-resource.ts:53,68` 校准、`docs/LIMITATIONS.md` 新建、`docs/operations-log.md` 本条目）。
+- **操作**（文件级）：
+  1. 备份 `src/dre/system-resource.ts` → `.tmp/backups/src/dre/system-resource.ts`（hash A7E84...），`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/unit/system-resource.test.ts`（2 用例：2200MB 预算应得≈9 tokens 而非 112万 + 推导溯源 28*2048*2*2=229376），导入路径 `src/dre/system-resource`（审计写作 `src/core/...` 实为 `src/dre/...`）
+  3. `src/dre/system-resource.ts:53` 注释由 `FP16=2` 改为 `Qwen3-1.7B 28层×2048隐×2(K/V)×2B(FP16)≈229KB/token (229376 bytes)` 并溯源测试；`:68` 默认值 `2` → `28*2048*2*2`（229376）并标注 114688 倍误差修复
+  4. 新建 `docs/LIMITATIONS.md` 增加 §1 VRAM/KV-Cache 估算边界：推导公式、当前 `*1024` 保守估算 vs `*1024*1024` 物理值、静态 4000 默认、无 nvidia-smi 偏差 <20% 待校准、无防抖（H-07）等 4 行边界表
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD Red：`bun test tests/unit/system-resource.test.ts` 1 fail（4096>20，符合 2→112万/capped）+ 1 pass（推导）
+  - TDD Green：校准后 `bun test tests/unit/system-resource.test.ts` 2 pass 0 fail（4 expect）
+  - `npx tsc --noEmit` 0 错（TSC_EXIT 0）
+  - 物理溯源：`bun -e` 默认 `getStatus().recommendedMaxTokens=9`（4000→2900→min2200→9.8→9）、`3300 avail→9`、`229376` 推导一致；旧值 2 时为 4096（capped）
+  - 备份验证后删除 `.tmp/backups/src/dre/system-resource.ts`（保留目录）
+- **Commit**：待填（`fix(core): 校准 bytesPerToken 114688倍误差 src/core/system-resource.ts:106`，实际改动 `src/dre/system-resource.ts:53,68,106-109` + 测试 + LIMITATIONS）
+
 ## 2026-08-20 — 全量强约束审核文档落盘并提交 gitea（覆盖率 100%）
 
 - **任务**：结合此前全部审查数据（P0 代理`9e5e370`/P1 端口`8349ede`/P1 eng`dc49def`/P2 清理`96248a0` + 5 任务 13 模块初审 + 5 任务无成本二次复核6项未验证），按用户强约束提示词要求编写全量审核文档并提交 gitea。
