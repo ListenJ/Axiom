@@ -1,4 +1,4 @@
-# 操作日志（Operations Log）
+﻿# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -6186,4 +6186,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - `npx tsc --noEmit` 0 错（TSC_EXIT 0，新增 import 路径 `../system-resource.js` 解析正常）
   - 回归：`bun test tests/unit/system-resource.test.ts tests/unit/event-bus.test.ts tests/unit/actor.test.ts` 12 pass 0 fail（Task1/4 无回归）；`bun test tests/unit/scheduler.test.ts` 单测隔离（afterEach 恢复 ResourceBudgetManager 原始值）
   - 备份验证后删除 `.tmp/backups/src/dre/runtime/scheduler.ts`（保留目录）
-- **Commit**：`PLACEHOLDER`（`fix(scheduler): 内存限流接真实可用内存 src/dre/runtime/scheduler.ts:54,83 H-M2-05`，改动 `src/dre/runtime/scheduler.ts:15-17,55-82,105-115,395-410` + 测试 `tests/unit/scheduler.test.ts` + `docs/operations-log.md`）
+- **Commit**：`e4f701d`（`fix(scheduler): 内存限流接真实可用内存 src/dre/runtime/scheduler.ts:54,83 H-M2-05`，改动 `src/dre/runtime/scheduler.ts:15-17,55-82,105-115,395-410` + 测试 `tests/unit/scheduler.test.ts` + `docs/operations-log.md`）

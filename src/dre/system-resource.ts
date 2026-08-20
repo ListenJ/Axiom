@@ -71,6 +71,7 @@ export class ResourceBudgetManager {
 
   /**
    * 更新资源预算 (由外部插件/用户注入)
+   * H-07 防抖：变化 <5% 视为抖动忽略，保持输出稳定（1299↔1301 不翻转）
    */
   updateResource(resource: Partial<SystemResource>): void {
     if (resource.availableMemory !== undefined && (resource.availableMemory < 0 || isNaN(resource.availableMemory))) {
@@ -79,7 +80,30 @@ export class ResourceBudgetManager {
     if (resource.maxMemory !== undefined && (resource.maxMemory <= 0 || isNaN(resource.maxMemory))) {
       throw new Error("Invalid maxMemory: " + resource.maxMemory);
     }
-    this.resource = { ...this.resource, ...resource };
+    const DEBOUNCE_RATIO = 0.05;
+    const filtered: Partial<SystemResource> = { ...resource };
+    if (resource.availableMemory !== undefined) {
+      const curr = this.resource.availableMemory;
+      const next = resource.availableMemory;
+      if (curr !== 0 && Math.abs(next - curr) / Math.abs(curr) < DEBOUNCE_RATIO) {
+        delete (filtered as any).availableMemory;
+      }
+    }
+    if (resource.maxMemory !== undefined) {
+      const curr = this.resource.maxMemory;
+      const next = resource.maxMemory;
+      if (curr !== 0 && Math.abs(next - curr) / Math.abs(curr) < DEBOUNCE_RATIO) {
+        delete (filtered as any).maxMemory;
+      }
+    }
+    if (Object.keys(filtered).length === 0) {
+      logger.info("[ResourceBudget] Resource update filtered (jitter <5%)", {
+        current: this.resource,
+        attempted: resource,
+      });
+      return;
+    }
+    this.resource = { ...this.resource, ...filtered };
     logger.info("[ResourceBudget] Resource updated", {
       maxMemory: this.resource.maxMemory,
       availableMemory: this.resource.availableMemory,
