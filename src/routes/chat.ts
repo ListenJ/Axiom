@@ -18,6 +18,7 @@ import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
+  const chatStartedAt = Date.now();
   const body = await ctx.req.json();
   const { taskType, messages = [], intent: enableIntent = true, budget, sessionId } = body;
 
@@ -88,17 +89,23 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   try {
     const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
     const success = Boolean(result.content && !result.content.includes("error") && result.content.trim().length > 0);
-    // 异步但尽力等待 200ms 内完成（Bun 异步 I/O，失败仅日志）
+    const latencyMs = Date.now() - chatStartedAt;
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({
       id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       task: lastPrompt || "chat",
       success,
       model: String(result.model ?? result.provider ?? ""),
-      latencyMs: Date.now() - Date.now(), // 占位，stream 侧有真实 latency
+      latencyMs,
       source: "chat",
       feedback: success ? "auto-success" : "auto-fail",
     }).catch(() => {});
+    // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
+    try {
+      const { getResourceBudgetManager } = await import("../dre/system-resource.js");
+      // 不直接改 availableMemory，仅记录 latency 供未来自适应（预留）
+      logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
+    } catch {}
   } catch {}
 
   return response;
@@ -107,6 +114,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
 export async function handleAgentChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/agent-chat" || ctx.req.method !== "POST") return null;
 
+  const agentChatStartedAt = Date.now();
   const body = await ctx.req.json();
   const { message, history = [], taskType, budget } = body;
   const messages: Array<{ role: string; content: string }> = [
@@ -148,6 +156,21 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     payload: { intent: intentInfo?.agentName || "general", confidence: intentInfo?.confidence || 0, layer: result.layer },
     timestamp: new Date().toISOString(),
   });
+
+  // Real Usage 采集（agent-chat）
+  try {
+    const success = Boolean(result.content && result.content.trim().length > 0);
+    const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+    void captureRealUsageTrace({
+      id: `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      task: String(message ?? "").slice(0, 4000),
+      success,
+      model: String(result.model ?? result.provider ?? ""),
+      latencyMs: Date.now() - agentChatStartedAt,
+      source: "agent-chat",
+      feedback: success ? "auto-success" : "auto-fail",
+    }).catch(() => {});
+  } catch {}
 
   return response;
 }
@@ -474,6 +497,22 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 usage: ev.usage,
                 fallbackUsed: ev.fallbackUsed,
               }));
+
+              // Real Usage 采集（stream done）
+              try {
+                const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
+                const success = Boolean(ev.content && ev.content.trim().length > 0);
+                const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+                void captureRealUsageTrace({
+                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  task: lastPrompt || "chat-stream",
+                  success,
+                  model: String(ev.model ?? ev.provider ?? ""),
+                  latencyMs: Date.now() - streamStartedAt,
+                  source: "chat-stream",
+                  feedback: success ? "auto-success" : "auto-fail",
+                }).catch(() => {});
+              } catch {}
 
               // 完成后广播一次 usage 给 WebSocket 订阅者
               try {

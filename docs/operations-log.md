@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-21 — 持续优化：chat 真实延迟与全链路指标采集（Build 模式）
+
+- **任务**：继续优化（Build 模式）：修复 `src/routes/chat.ts:98` 占位 `Date.now()-Date.now()=0` 导致真实延迟丢失，补全 `handleChat`/`handleAgentChat`/`handleChatStream` 三链路真实 `latencyMs` 与 `model/provider/intent` 指标，使 `data/real-usage-traces.jsonl` 可用于后续自适应调度与 VRAM 预算校准。
+- **工具**：Read（`src/routes/chat.ts:1-546` 全文）、Edit（`src/routes/chat.ts:18` 新增 `chatStartedAt`、`98` `latencyMs: Date.now()-chatStartedAt`、`108` `agentChatStartedAt`、`134` 植入 `agent-chat` 采集、`482` 植入 `chat-stream` 采集）、Bash（`npx tsc --noEmit`/`bun test`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/routes/chat.ts` → `.tmp/backups/src/routes/chat2.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log-chat-latency.md`（AGENTS.md 规则 2）
+  2. 修改 `src/routes/chat.ts:18` `handleChat` 首行新增 `const chatStartedAt = Date.now()`，`:98` 由 `Date.now()-Date.now()` 改为 `Date.now()-chatStartedAt`，并追加 `logger.debug` 预留自适应（真实延迟已采集）
+  3. 修改 `src/routes/chat.ts:108` `handleAgentChat` 首行新增 `agentChatStartedAt`，`:134` 新增非阻塞 `captureRealUsageTrace`（`agent-chat` 源，`latencyMs: Date.now()-agentChatStartedAt`）
+  4. 修改 `src/routes/chat.ts:482` `handleChatStream` `case "done"` 追加 `captureRealUsageTrace`（`chat-stream` 源，`latencyMs: Date.now()-streamStartedAt`，复用已有 `streamStartedAt`）
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `npx tsc --noEmit` 0 错（修复后）
+  - `bun test --timeout 15000 ./tests/agent-evals/real-usage.test.ts ./tests/rigorous/filesystem-rigorous.test.ts` 17 pass 0 fail 56 expect 588ms（全量回归 202 pass 未退化）
+  - 真实延迟：`chat` `agent-chat` `chat-stream` 三链路均 `Date.now() - startedAt`，`model/provider/intent` 已透传，`feedback auto-success/auto-fail` 保留，批处理队列保证 100 并发不丢
+  - 备份验证后删除 `.tmp/backups/src/routes/chat2.ts`、`.tmp/backups/docs/operations-log-chat-latency.md`
+- **Commit**：`167c57d`
+
 ## 2026-08-21 — 持续优化：real-usage 批量异步化（高并发 100 批处理 50ms / 10 条刷新）
 
 - **任务**：继续优化（Build 模式）：在真实使用闭环 `d4cf77d` 基础上，将 `src/agent-evals/real-usage.ts:41` 同步 `appendFileSync` 批量异步化，消除高并发下事件循环阻塞，支撑 100 并发采集不丢且低延迟。
