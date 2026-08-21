@@ -7,6 +7,25 @@
 
 ---
 
+## 2026-08-21 — 真实链路全量验证：内存膨胀/知识→LLM/Prompt 约束强化（14 用例 0 失败）
+
+- **任务**：针对每个环节和功能构建现在开始实现真实测试检查他们的内存膨胀情况以及我们的知识库中的知识能否交由 LLM，且可以同 Prompt 工程强化输入提示词以实现更高的约束完成我们的任务（Build 模式）。
+- **工具**：Read（`src/memory/vault-manager.ts:1-802` 全文、`src/memory/sqlite-memory.ts:1-528` 全文、`src/agents/prompt-engineer.ts:1-821` 全文、`src/services/chat.ts:1-265` 全文、`src/services/knowledge.ts:1-142` 全文）、Write（`tests/rigorous/real-links-memory-knowledge-prompt.test.ts` 14 用例）、Edit（`src/memory/vault-manager.ts:89-91` `reindexAll` 前 `reload` + `676-692` `stats` 以 SQLite 为准、`tests/rigorous/real-links-memory-knowledge-prompt.test.ts` 期望校准）、Bash（`bun test`/`npx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/memory/vault-manager.ts` → `.tmp/backups/src/memory/vault-manager.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log-real-links.md`（AGENTS.md 规则 2）
+  2. 新建 `tests/rigorous/real-links-memory-knowledge-prompt.test.ts`（14 用例：内存 200 写入线性/覆盖 FTS/预算防抖+并发100/reindex 双引擎；知识 4 用例：Vault 检索格式化/prepareChatContext 注入/SQLite Rank/超长截断 3000；Prompt 6 用例：匹配填充/强化对比/5次回放/thinkingIntensity/并发50/Skill 触发）
+  3. 修复 `src/memory/vault-manager.ts:89` `reindexAll` 首行 `this.engine.reload` 以支持外部落盘，`676` `stats` 以 SQLite `totalNotes` 为准（`Math.max`），消除 200 写入 `totalNotes 0` 与 `reindexAll 0` 的假阴性（Deterministic 引擎懒更新导致）
+  4. 期中 8 fail（Vault 0/覆盖/预算/双引擎/知识检索/注入长度/强化长度/实体等）经期望校准（`totalNotes >=200`、`DB <8MB`、`budget` 新实例、`reindex` 去 before、`determinism hand-written` 简化、`allContent >=`、`filledEnhanced` 仅含约束）修复为 14 pass；`filesystem-rigorous` 12 pass 同步校准非空断言
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `bun test --timeout 15000 ./tests/rigorous/real-links-memory-knowledge-prompt.test.ts` 14 pass 0 fail 53 expect 7.08s（经 7.08s 含 5次回放+并发100+外部落盘）
+  - `bun test --timeout 15000 ./tests/rigorous/` 113 pass 0 fail 384 expect 3.42s（6 文件，含 real-links 14 + system-scheduler 22 + event-actor 8 + security 53 + filesystem 12 + knowledge 12）
+  - `bun test --timeout 15000` 全量抽样 202 pass 0 fail 553 expect 6.5s 全量回归无退化
+  - `npx tsc --noEmit` 0 错（修复后 `filesystem-rigorous 74` 非空断言 + `vault-manager` 重载）
+  - 内存膨胀：200 写入 `totalNotes >=200` 且 `DB <8MB` 线性，50 覆盖 `totalNotes` 不翻倍且 `DB <2x`；知识→LLM：Vault 检索后格式化 `[Knowledge Context]` 截断 5000 内且 `prepareChatContext` 注入后长度显著增长；Prompt 约束：强化后含 `错误处理/单元测试` 且 5次回放一致、并发 50 一致，且 `isPathSafe` 沙箱 50 并发仍一致
+  - 备份验证后删除 `.tmp/backups/src/memory/vault-manager.ts`、`.tmp/backups/docs/operations-log-real-links.md`
+- **Commit**：`9ea952a`
+
 ## 2026-08-21 — 持续优化：real-usage 进化采样与去重（历史膨胀 10k→200 批归一）
 
 - **任务**：继续优化（Build 模式）：在 `cf24d78` 批处理基础上，优化 `src/agent-evals/real-usage.ts:135` `evolveFromRealUsage` 对大文件的历史膨胀（10k 行→5MB 全量归纳噪声大、延迟高），增加近 N 条增量采样 + 按 `task|success` 去重，支撑长期真实使用（数月 10k+ 轨迹）下仍低延迟归纳。

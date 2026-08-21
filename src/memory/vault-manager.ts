@@ -87,6 +87,8 @@ export class VaultManager {
    * @returns 重建的笔记数
    */
   reindexAll(): number {
+    // 确保 Deterministic 引擎先与文件系统同步（外部落盘场景），再以最新列表重建 FTS
+    try { this.engine.reload(this.config.vaultPath); } catch {}
     let count = 0;
     const now = Date.now();
     for (const relPath of this.engine.listNotePaths()) {
@@ -672,9 +674,19 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
     return notePath;
   }
 
-  /** 获取 Vault 统计 */
+  /** 获取 Vault 统计（以 SQLite 为准，避免 Deterministic 引擎懒更新导致的 0） */
   stats() {
-    return this.engine.stats();
+    try {
+      const sqliteStats = this.sqliteMemory.stats();
+      const engineStats = this.engine.stats() as any;
+      // 取较大者，兼顾外部落盘与 writeNote 场景；保留引擎的其他字段
+      if (sqliteStats.totalNotes > (engineStats.totalNotes ?? 0)) {
+        return { ...engineStats, totalNotes: sqliteStats.totalNotes, totalWords: sqliteStats.totalWords };
+      }
+      return engineStats;
+    } catch {
+      return this.engine.stats();
+    }
   }
 
   /** 获取搜索引擎实例（用于外部同步，如文件监视器） */
