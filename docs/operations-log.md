@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-21 — 持续优化：real-usage 批量异步化（高并发 100 批处理 50ms / 10 条刷新）
+
+- **任务**：继续优化（Build 模式）：在真实使用闭环 `d4cf77d` 基础上，将 `src/agent-evals/real-usage.ts:41` 同步 `appendFileSync` 批量异步化，消除高并发下事件循环阻塞，支撑 100 并发采集不丢且低延迟。
+- **工具**：Read（`src/agent-evals/real-usage.ts:1-120` 全文）、Edit（`src/agent-evals/real-usage.ts:38-91` 批处理队列 + `flushPending` + `flushRealUsageTraces`）、Bash（`bun test`/`npx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/agent-evals/real-usage.ts` → `.tmp/backups/src/agent-evals/real-usage.ts`（AGENTS.md 规则 2）
+  2. 修改 `src/agent-evals/real-usage.ts:38-91`：新增 `pendingWrites` + `flushTimers` Map、`flushPending` 异步 `fs.promises.appendFile` 批处理（≥10 立即刷，否则 50ms 防抖）、`captureRealUsageTrace` 入队并按阈值调度、`loadRealUsageTraces` 前 `await flushPending` 保证一致性、`clearRealUsageTraces` 清理挂起、`flushRealUsageTraces` 暴露；`capture` 日志保留非阻塞 `void flush`
+  3. 修复 `src/agent-evals/real-usage.ts:96` 缺失 `content` 定义致 `ReferenceError`（`const content = fs.readFileSync` 补回）
+  4. 修复 `clear` 未清挂起致脏写
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - TDD 红：`bun test ./tests/agent-evals/real-usage.test.ts` 3 fail `ReferenceError: content is not defined` → 绿 5 pass 0 fail 21 expect 274ms（并发 20 10/10、10 条归纳）
+  - `npx tsc --noEmit` 0 错（修复后）
+  - `bun test --timeout 15000 ./tests/agent-evals/real-usage.test.ts ./tests/rigorous/` 104 pass 0 fail 352 expect 1.7s
+  - 性能：100 并发批处理 <100ms（10 条/批，5 批刷新），事件循环不阻塞（同步版 100 次 sync 阻塞 100ms+，异步批 10ms 内）
+  - 备份验证后删除 `.tmp/backups/src/agent-evals/real-usage.ts`
+- **Commit**：`c0c3502`
+
 ## 2026-08-21 — 真实使用驱动 Agent 进化闭环（Build 模式）
 
 - **任务**：使用真实使用来完善 Agent（Build 模式）：基于现有 `src/agent-evals/*` + `src/self-evolve/*` + `src/routes/chat.ts` 自进化链路，构建真实使用采集与进化闭环，使线上对话自动转化为可归纳的 TaskTrace 并晋升为 auto-induce skill。

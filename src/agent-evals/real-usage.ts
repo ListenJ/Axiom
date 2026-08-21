@@ -35,8 +35,30 @@ function ensureDir(filePath: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// 批处理队列：高并发下聚合 10 条或 50ms 刷新，减少同步 I/O 阻塞（优化）
+const pendingWrites = new Map<string, string[]>();
+const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+async function flushPending(target: string): Promise<void> {
+  const batch = pendingWrites.get(target);
+  if (!batch || batch.length === 0) return;
+  pendingWrites.set(target, []);
+  const timer = flushTimers.get(target);
+  if (timer) {
+    clearTimeout(timer);
+    flushTimers.delete(target);
+  }
+  const payload = batch.join("");
+  // 异步追加，不阻塞事件循环；失败仅日志
+  try {
+    await fs.promises.appendFile(target, payload, "utf8");
+  } catch (e) {
+    logger.warn("[RealUsage] flush failed", { error: (e as Error).message });
+  }
+}
+
 /**
- * 采集一条真实使用轨迹（原子追加）
+ * 采集一条真实使用轨迹（批处理异步追加，保序且高并发友好）
  */
 export async function captureRealUsageTrace(trace: RealUsageTrace, filePath?: string): Promise<void> {
   const target = resolvePath(filePath);
@@ -47,16 +69,33 @@ export async function captureRealUsageTrace(trace: RealUsageTrace, filePath?: st
     source: trace.source ?? "chat",
   };
   const line = JSON.stringify(enriched) + "\n";
-  // 原子追加，同步以避免并发交错（小 payload <1KB，同步开销可接受）
-  fs.appendFileSync(target, line, "utf8");
+  const queue = pendingWrites.get(target) ?? [];
+  queue.push(line);
+  pendingWrites.set(target, queue);
   logger.info("[RealUsage] captured", { id: enriched.id, success: enriched.success });
+  // 批大小≥10 立即刷新，否则 50ms 防抖
+  if (queue.length >= 10) {
+    await flushPending(target);
+  } else if (!flushTimers.has(target)) {
+    const t = setTimeout(() => { void flushPending(target); }, 50);
+    flushTimers.set(target, t as unknown as ReturnType<typeof setTimeout>);
+  }
 }
 
 /**
- * 加载全部真实轨迹
+ * 强制刷新指定路径的挂起写入（供 load/evolve 前调用以保证一致性）
+ */
+export async function flushRealUsageTraces(filePath?: string): Promise<void> {
+  const target = resolvePath(filePath);
+  await flushPending(target);
+}
+
+/**
+ * 加载全部真实轨迹（先刷新挂起批次以保证读一致性）
  */
 export async function loadRealUsageTraces(filePath?: string): Promise<RealUsageTrace[]> {
   const target = resolvePath(filePath);
+  await flushPending(target);
   if (!fs.existsSync(target)) return [];
   const content = fs.readFileSync(target, "utf8");
   const lines = content.split("\n").filter(l => l.trim().length > 0);
@@ -79,6 +118,13 @@ export async function loadRealUsageTraces(filePath?: string): Promise<RealUsageT
  */
 export async function clearRealUsageTraces(filePath?: string): Promise<void> {
   const target = resolvePath(filePath);
+  // 清理挂起批次避免脏写
+  pendingWrites.delete(target);
+  const t = flushTimers.get(target);
+  if (t) {
+    clearTimeout(t);
+    flushTimers.delete(target);
+  }
   if (fs.existsSync(target)) fs.writeFileSync(target, "", "utf8");
 }
 
