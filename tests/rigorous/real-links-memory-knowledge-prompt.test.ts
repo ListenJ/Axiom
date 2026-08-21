@@ -180,6 +180,23 @@ describe("真实链路：Prompt 工程强化约束完成度", () => {
     expect(filled).toContain("SELECT");
   });
 
+  test("enhanceWithConstraints 应注入约束并 5 次回放一致（确定性）", async () => {
+    const engine = getPromptEngineer();
+    const task = "请帮我审查代码安全性";
+    const constraints = ["必须检查SQL注入", "必须输出JSON"];
+    const results = Array.from({ length: 5 }, () => engine.enhanceWithConstraints(task, constraints, { addOutputFormat: true }));
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i].enhanced).toBe(results[0].enhanced);
+      expect(results[i].templateId).toBe(results[0].templateId);
+    }
+    expect(results[0].enhanced).toContain("必须检查SQL注入");
+    expect(results[0].enhanced).toContain("必须输出JSON");
+    expect(results[0].enhanced).toContain("约束条件");
+    expect(results[0].enhanced).toContain("输出要求");
+    // 约束应提升完成度：增强后应包含原任务
+    expect(results[0].enhanced).toContain("审查");
+  });
+
   test("Prompt 工程强化：原始输入 vs 强化后，强化版应包含输出格式约束", async () => {
     const engine = getPromptEngineer();
     const enhancedTask = "请根据需求生成高质量代码，要求包含错误处理和单元测试";

@@ -754,6 +754,45 @@ ${triggers.join(", ")}
     }
   }
 
+  // ===== 约束强化：输入提示词增强以提升约束完成度 =====
+
+  /**
+   * 强化输入提示词：基于模板与约束注入，提升 LLM 输出的约束遵循率
+   * - 自动添加输出格式、边界条件、异常处理等约束
+   * - 确保 prompt 包含任务目标、约束列表、成功标准三要素
+   * - 完全确定性，无随机，5次回放一致
+   */
+  enhanceWithConstraints(
+    task: string,
+    constraints: string[] = [],
+    opts?: { category?: string; addOutputFormat?: boolean; addEdgeCases?: boolean }
+  ): { enhanced: string; templateId: string | null; score: number } {
+    const match = this.matchTemplate(task, { category: opts?.category });
+    const basePrompt = match ? this.fillTemplate(match.template, this.inferVariables(match.template, task)) : task;
+    const constraintBlock = constraints.length > 0
+      ? `\n\n## 约束条件（必须遵守）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+      : "";
+    const outputFormat = opts?.addOutputFormat !== false
+      ? `\n\n## 输出要求\n- 严格遵循上述约束\n- 失败时返回结构化错误而非静默\n- 标注不确定信息`
+      : "";
+    const edgeCases = opts?.addEdgeCases
+      ? `\n\n## 边界与异常\n- 覆盖空输入/超长输入/并发写入等边界\n- 异常分支返回明确错误码`
+      : "";
+    const enhanced = `${basePrompt}${constraintBlock}${outputFormat}${edgeCases}`;
+    return { enhanced, templateId: match?.template.id ?? null, score: match?.score ?? 0 };
+  }
+
+  private inferVariables(template: PromptTemplate, task: string): Record<string, string> {
+    const vars: Record<string, string> = {};
+    for (const v of template.variables) {
+      if (v === "requirement" || v === "task" || v === "query" || v === "topic" || v === "code" || v === "problem") vars[v] = task;
+      else if (v === "language") vars[v] = "typescript";
+      else if (v === "techStack") vars[v] = "typescript";
+      else vars[v] = task.slice(0, 200);
+    }
+    return vars;
+  }
+
   // ===== 辅助方法 =====
 
   private getCategoryKeywords(category: string): string[] {

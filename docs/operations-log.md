@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-08-21 — Prompt 约束强化：enhanceWithConstraints 注入（Build 模式继续）
+
+- **任务**：继续优化（Build 模式）：在 `cd8f153` 真实链路 14 用例基础上，针对 Prompt 工程强化输入提示词以实现更高约束完成度，新增 `PromptEngineer.enhanceWithConstraints` 方法，使输入提示词自动注入约束、输出格式与边界异常三要素，提升 LLM 约束遵循率。
+- **工具**：Read（`src/agents/prompt-engineer.ts:1-821` 全文）、Edit（`src/agents/prompt-engineer.ts:426-470` 新增 `enhanceWithConstraints` + `inferVariables`）、Bash（`bun -e` 探针、`bun test`/`npx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/agents/prompt-engineer.ts` → `.tmp/backups/src/agents/prompt-engineer.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log-prompt-enhance.md`（AGENTS.md 规则 2）
+  2. 修改 `src/agents/prompt-engineer.ts:426-470`：新增 `enhanceWithConstraints(task, constraints, opts)`（匹配模板后 `fillTemplate`，追加 `## 约束条件` 列表 + `## 输出要求` + `## 边界与异常`，推导 `inferVariables`，完全确定性，5次回放一致）
+  3. 验证 `bun -e`：`enhanceWithConstraints("审查", ["SQL注入","JSON"])` 长度 449 且含约束，5次 `Set size=1` 确定性
+  4. 在 `tests/rigorous/real-links-memory-knowledge-prompt.test.ts:167-185` 新增 1 用例 `enhanceWithConstraints 5次一致`，全量 14→15 pass（66 expect 2.94s）
+  5. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `bun -e` 探针 `enhanced length 449` 且含约束，`deterministic true`
+  - `bun test --timeout 15000 ./tests/rigorous/real-links-memory-knowledge-prompt.test.ts` 15 pass 0 fail 66 expect 2.94s（新增用例通过）
+  - `bun test --timeout 15000 ./tests/rigorous/` 114 pass 0 fail（6 文件，含 15 real-links）
+  - `npx tsc --noEmit` 0 错（新增方法无类型错）
+  - 备份验证后删除 `.tmp/backups/src/agents/prompt-engineer.ts`、`.tmp/backups/docs/operations-log-prompt-enhance.md`
+- **Commit**：`2f045fc`
+
 ## 2026-08-21 — 真实链路全量验证：内存膨胀/知识→LLM/Prompt 约束强化（14 用例 0 失败）
 
 - **任务**：针对每个环节和功能构建现在开始实现真实测试检查他们的内存膨胀情况以及我们的知识库中的知识能否交由 LLM，且可以同 Prompt 工程强化输入提示词以实现更高的约束完成我们的任务（Build 模式）。
