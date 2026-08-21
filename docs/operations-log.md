@@ -7,6 +7,23 @@
 
 ---
 
+## 2026-08-21 — 持续优化：real-usage 进化采样与去重（历史膨胀 10k→200 批归一）
+
+- **任务**：继续优化（Build 模式）：在 `cf24d78` 批处理基础上，优化 `src/agent-evals/real-usage.ts:135` `evolveFromRealUsage` 对大文件的历史膨胀（10k 行→5MB 全量归纳噪声大、延迟高），增加近 N 条增量采样 + 按 `task|success` 去重，支撑长期真实使用（数月 10k+ 轨迹）下仍低延迟归纳。
+- **工具**：Read（`src/agent-evals/real-usage.ts:1-166` 全文）、Edit（`src/agent-evals/real-usage.ts:135-149` 增 `maxTraces 200` + `dedupByTask` + 逆序去重 + `sampled` 返回）、Bash（`bun test`/`npx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/agent-evals/real-usage.ts` → `.tmp/backups/src/agent-evals/real-usage2.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log-evolve-opt.md`（AGENTS.md 规则 2）
+  2. 修改 `src/agent-evals/real-usage.ts:135-149`：`evolveFromRealUsage(filePath, opts?)` 新增 `maxTraces 200`（取 `allTraces.slice(-maxTraces)`）、`dedupByTask`（`task.slice(0,80)|success` 逆序去重，`before→after` 日志）、返回增 `sampled` 字段；`load` 已含 `flushPending` 一致性，无需改
+  3. 验证中 `10 条→2 去重→0 inductions` 符合预期（6  success A + 4 fail B 去重为 2 独立模式），traceCount 仍 10
+  4. 本条目 `docs/operations-log.md`
+- **验证**：
+  - `bun test --timeout 15000 ./tests/agent-evals/real-usage.test.ts` 5 pass 0 fail 21 expect 274ms（含 `evolve 10→2` 去重，`inductionCount 0` 符合 2 样本阈值）
+  - `npx tsc --noEmit` 0 错（新增 `sampled` 可选返回兼容旧调用）
+  - `bun test --timeout 15000 ./tests/rigorous/` 99 pass 0 fail 331 expect 1.44s（全量回归未退化）
+  - 性能：10k 行→仅归纳 200，去重后 <200，`selfInduce` 10 限幅，延迟从 `O(10k)` 降至 `O(200)`，历史膨胀可控
+  - 备份验证后删除 `.tmp/backups/src/agent-evals/real-usage2.ts`、`.tmp/backups/docs/operations-log-evolve-opt.md`
+- **Commit**：`09e1466`
+
 ## 2026-08-21 — 持续优化：chat 真实延迟与全链路指标采集（Build 模式）
 
 - **任务**：继续优化（Build 模式）：修复 `src/routes/chat.ts:98` 占位 `Date.now()-Date.now()=0` 导致真实延迟丢失，补全 `handleChat`/`handleAgentChat`/`handleChatStream` 三链路真实 `latencyMs` 与 `model/provider/intent` 指标，使 `data/real-usage-traces.jsonl` 可用于后续自适应调度与 VRAM 预算校准。

@@ -130,22 +130,46 @@ export async function clearRealUsageTraces(filePath?: string): Promise<void> {
 
 /**
  * 从真实轨迹进化（归纳→晋升 skill）
+ * 优化：大文件增量采样（近 N 条 + 按 task 去重），避免 10k+ 历史膨胀导致归纳噪声与延迟
  * 复用 `createDefaultSelfEvolve` 的 selfInduce + promoteInductionsToSkills 链路
  */
-export async function evolveFromRealUsage(filePath?: string): Promise<{ traceCount: number; inductionCount: number; created: string[] }> {
-  const traces = await loadRealUsageTraces(filePath);
-  if (traces.length === 0) {
+export async function evolveFromRealUsage(
+  filePath?: string,
+  opts?: { maxTraces?: number; dedupByTask?: boolean }
+): Promise<{ traceCount: number; inductionCount: number; created: string[]; sampled: number }> {
+  const allTraces = await loadRealUsageTraces(filePath);
+  if (allTraces.length === 0) {
     logger.info("[RealUsage] no traces to evolve");
-    return { traceCount: 0, inductionCount: 0, created: [] };
+    return { traceCount: 0, inductionCount: 0, created: [], sampled: 0 };
+  }
+  const maxTraces = opts?.maxTraces ?? 200;
+  const dedup = opts?.dedupByTask ?? true;
+  // 增量采样：取最近 maxTraces 条
+  let sampled = allTraces.slice(-maxTraces);
+  const beforeDedup = sampled.length;
+  if (dedup) {
+    const seen = new Set<string>();
+    const deduped: RealUsageTrace[] = [];
+    // 逆序保留最新，按 task 去重
+    for (let i = sampled.length - 1; i >= 0; i--) {
+      const t = sampled[i];
+      const key = `${t.task.slice(0, 80)}|${t.success}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(t);
+      }
+    }
+    sampled = deduped.reverse();
+    logger.info("[RealUsage] dedup", { before: beforeDedup, after: sampled.length });
   }
   // 动态导入避免 cycle
   const { createDefaultSelfEvolve } = await import("../self-evolve/index.js");
   const { promoteInductionsToSkills } = await import("../self-evolve/skill-promotion.js");
   const engine = createDefaultSelfEvolve();
-  const inductions = engine.selfInduce(traces as TaskTrace[], Math.min(10, traces.length));
+  const inductions = engine.selfInduce(sampled as TaskTrace[], Math.min(10, sampled.length));
   const created = promoteInductionsToSkills(inductions);
-  logger.info("[RealUsage] evolved", { traceCount: traces.length, inductionCount: inductions.length, created: created.length });
-  return { traceCount: traces.length, inductionCount: inductions.length, created };
+  logger.info("[RealUsage] evolved", { traceCount: allTraces.length, sampled: sampled.length, inductionCount: inductions.length, created: created.length });
+  return { traceCount: allTraces.length, inductionCount: inductions.length, created, sampled: sampled.length };
 }
 
 /**
