@@ -3,7 +3,7 @@
  *
  * 需求 3：Agent 可以"启动用户的浏览器"做真实页面核对/操控。
  * 平台感知（需求 4 的 Win/Linux 适配）：
- *   - Windows: cmd /c start "" <url>（start 会复用默认浏览器）
+ *   - Windows: explorer <url>（H4 审计修复：不再经 cmd /c start，避免元字符注入）
  *   - Linux:   xdg-open <url>
  *   - macOS:   open <url>
  *
@@ -22,13 +22,31 @@ export function detectPlatform(platform: NodeJS.Platform = process.platform): Op
   return "unknown";
 }
 
+/** H4 审计修复：仅允许 http/https，返回规范化后的 href（拒绝 file:/自定义协议/畸形输入） */
+function assertSafeHttpUrl(input: string): string {
+  const raw = String(input ?? "").trim();
+  if (!raw) throw new Error("browser_launch requires a non-empty url");
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(`browser_launch invalid url: ${input}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`browser_launch only http/https urls are allowed, got: ${parsed.protocol}`);
+  }
+  if (!parsed.hostname) throw new Error(`browser_launch invalid url host: ${input}`);
+  return parsed.href;
+}
+
 /** 解析打开命令（纯函数、可测试） */
 export function resolveOpenCommand(url: string, platform: OpenPlatform): string[] {
-  const safe = String(url ?? "").trim();
-  if (!safe) throw new Error("browser_launch requires a non-empty url");
+  // H4 审计修复：先过协议白名单；win32 改用 explorer 直启（argv 不经 cmd 解析器，
+  // 消除 & | %VAR% 元字符注入面），explorer 对 http(s) 同样复用默认浏览器。
+  const safe = assertSafeHttpUrl(url);
   switch (platform) {
     case "win32":
-      return ["cmd", "/c", "start", "", safe];
+      return ["explorer", safe];
     case "linux":
       return ["xdg-open", safe];
     case "darwin":

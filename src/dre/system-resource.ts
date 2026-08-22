@@ -128,8 +128,9 @@ export class ResourceBudgetManager {
     }
 
     const availableForKV = resource.availableMemory - this.modelMemoryMB;
+    // H2 审计修复：MB → 字节需 ×1024×1024（旧式 ×1024 仅到 KB，结果偏小 1024 倍）
     const recommendedMaxTokens = Math.floor(
-      Math.min(availableForKV, this.kvCacheMaxMB) * 1024 / this.bytesPerToken
+      Math.min(availableForKV, this.kvCacheMaxMB) * 1024 * 1024 / this.bytesPerToken
     );
 
     return {

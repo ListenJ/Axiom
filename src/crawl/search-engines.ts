@@ -22,13 +22,31 @@ export interface SearchEngineResult {
   richSnippets?: Record<string, unknown>;
 }
 
+/** M6 审计修复：搜索结果进入 LLM 上下文前的确定性清洗预算 */
+export const SEARCH_RESULT_SNIPPET_MAX = 300;
+export const SEARCH_RESULT_TITLE_MAX = 200;
+export const SEARCH_RESULT_MAX_ITEMS = 30;
+
+/**
+ * M6 审计修复：单条 snippet/title 截断 + 总条数上限。
+ * 模型可控的 engines×num 叠加不受控长度会击穿上下文预算（费用/注入攻击面）。
+ */
+export function sanitizeSearchResultsForContext<T extends { title?: string; snippet?: string }>(
+  results: T[],
+): T[] {
+  return results.slice(0, SEARCH_RESULT_MAX_ITEMS).map((r) => ({
+    ...r,
+    title: (r.title ?? "").slice(0, SEARCH_RESULT_TITLE_MAX),
+    snippet: (r.snippet ?? "").slice(0, SEARCH_RESULT_SNIPPET_MAX),
+  }));
+}
+
 export interface SearchOptions {
   query: string;
   num?: number;
   lang?: string;
   site?: string;
-  safe?: boolean;
-  region?: string;
+  safe?: boolean;  region?: string;
   timeRange?: "d" | "w" | "m" | "y";
 }
 

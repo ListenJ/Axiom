@@ -5,9 +5,8 @@
  * 未知类型、体积上限、本地文件、Buffer 魔数探测。
  */
 import { describe, it, expect } from "bun:test";
-import { writeFileSync, rmSync, existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { writeFileSync, rmSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { ingestDocument } from "../src/knowledge/document-ingest.js";
 import type { OCRResult } from "../src/ocr/engine.js";
 
@@ -44,7 +43,9 @@ describe("DocumentIngest — web", () => {
   });
 
   it("本地 HTML 文件 → Markdown", async () => {
-    const p = join(tmpdir(), `ingest-${Date.now()}.html`);
+    // C2 审计修复后 file 来源仅允许工作目录/Vault 内：夹具改放工作目录 .tmp 下（意图不变，验证转换本身）
+    const p = join(process.cwd(), ".tmp", `ingest-${Date.now()}.html`);
+    mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, "<html><body><h2>Local</h2><p>content</p></body></html>");
     try {
       const doc = await ingestDocument({ file: p });

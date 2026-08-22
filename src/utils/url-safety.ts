@@ -129,3 +129,36 @@ export function isSafeUrl(urlStr: string): boolean {
     return false;
   }
 }
+
+/** M7 审计修复：未提供 cdpUrl 时的默认回环端点 */
+export const DEFAULT_CDP_URL = "http://127.0.0.1:9222";
+
+function isLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "::1" || h === "localhost") return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
+/**
+ * M7 审计修复：CDP 端点守卫。
+ * CDP 本质是本机/内网调试服务 —— 默认仅放行回环地址，远程端点必须显式
+ * { allowRemote: true }（调用方接 AXIOM_ALLOW_REMOTE_CDP=1），阻断客户端可控
+ * cdpUrl 对任意内网地址的探测面。返回规范化 URL 字符串。
+ */
+export function assertSafeCdpUrl(raw: unknown, opts?: { allowRemote?: boolean }): string {
+  const rawStr = typeof raw === "string" ? raw.trim() : "";
+  if (!rawStr) return DEFAULT_CDP_URL;
+  let parsed: URL;
+  try {
+    parsed = new URL(rawStr);
+  } catch {
+    throw new Error(`invalid cdpUrl: ${rawStr}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`cdpUrl protocol not allowed: ${parsed.protocol}`);
+  }
+  if (!isLoopbackHost(parsed.hostname) && opts?.allowRemote !== true) {
+    throw new Error(`remote cdpUrl blocked (set AXIOM_ALLOW_REMOTE_CDP=1 to allow): ${parsed.hostname}`);
+  }
+  return parsed.href;
+}

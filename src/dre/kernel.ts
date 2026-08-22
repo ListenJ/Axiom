@@ -15,6 +15,8 @@ import { logger } from "../utils/logger.js";
 export interface KernelConfig extends DREConfig {
   tickInterval?: number;
   autoTick?: boolean;
+  /** H1：任务派发给 Actor 的 ask 超时（ms），超时视为失败进入重试 */
+  actorAskTimeoutMs?: number;
 }
 
 export interface KernelStatus {
@@ -105,18 +107,25 @@ export class Kernel {
       const nextTask = scheduler.getNext();
       if (nextTask) {
         try {
-          // 将任务派发给 Actor 系统 — must await so the task is only marked
-          // complete after the actor has accepted (and processed) the message.
-          // Without await, scheduler.complete() runs before dispatch resolves,
-          // masking actor failures as successes.
-          await this.engine.actors.send(
+          // H1 编排闭环修复：request/response 式派发 —— 依据 Actor 的真实响应
+          // （response / 结构化 NACK / 超时）判定任务成败，失败进入 scheduler.fail()
+          // 的指数退避重试，不再无条件标记成功。
+          const reply = await this.engine.actors.ask(
             "kernel",
             nextTask.assignedTo || "knowledge",
             "request",
             "execute",
-            nextTask
+            nextTask,
+            this.config.actorAskTimeoutMs ?? 5000,
           );
-          scheduler.complete(nextTask.id, { dispatched: true });
+          if (reply.type === "error") {
+            const errMsg =
+              (reply.payload as { error?: string } | null)?.error ?? `actor ${reply.from} returned error`;
+            logger.warn("[Kernel] Task rejected by actor", { taskId: nextTask.id, error: errMsg });
+            scheduler.fail(nextTask.id, errMsg);
+          } else {
+            scheduler.complete(nextTask.id, reply.payload);
+          }
         } catch (err) {
           scheduler.fail(nextTask.id, (err as Error).message);
         }

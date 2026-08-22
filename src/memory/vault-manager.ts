@@ -715,7 +715,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
     const resolved = path.resolve(this.config.vaultPath, notePath);
     const base = path.resolve(this.config.vaultPath);
     const relative = path.relative(base, resolved);
-    if (relative.startsWith("..") || relative === "..") {
+    // isAbsolute 拦截 Windows 跨盘符/UNC 目标：path.relative 对其返回盘符开头字符串，不以 ".." 起始
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new Error(`Path traversal blocked: ${notePath}`);
     }
     return resolved;

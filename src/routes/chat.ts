@@ -242,6 +242,8 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
   "computer-use",
 ]);
 
+import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
+
 /** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
 /** 联网工具面：web_fetch / web_search / search_engines_list（复用 DataPipeline，结果自动写入 Vault） */
 export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
@@ -269,9 +271,13 @@ export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
         engines: z.array(z.string()).optional().describe("引擎列表"),
         num: z.number().optional().default(10).describe("每个引擎数量"),
       },
-      handler: async (args) => pipeline.searchMulti(args.query as string, {
-        engines: args.engines as string[], num: args.num as number,
-      }),
+      handler: async (args) => {
+        // M6 审计修复：结果进入上下文前钳制条数与单条长度
+        const results = await pipeline.searchMulti(args.query as string, {
+          engines: args.engines as string[], num: args.num as number,
+        });
+        return sanitizeSearchResultsForContext(results);
+      },
     },
     {
       name: "search_engines_list",

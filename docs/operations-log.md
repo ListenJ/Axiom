@@ -6609,3 +6609,22 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 回归 `bun test tests/unit/pg-client-removal.test.ts` 3 pass、`bun run check-zero.mjs` active docs 0（全仓仅 operations-log/archive 残留历史，active 0）
   - 备份验证后删除 `.tmp/backups/docs/ARCHITECTURE.md` 等（保留目录）
 - **Commit**：`283f692`（`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2 手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172`）
+
+## 2026-08-22 — 审计修复批次：C1/C2/H1-H4/M6/M7 + 超强压测套件（外部全量审计后的整改）
+
+- **任务**：基于 2026-08-22 独立审计报告修复发布阻塞项并强化 Agent 能力：C1 vault 跨盘路径绕过、C2 document-ingest 任意文件读取+SSRF、H1 编排链路静默丢弃（Agent 能力强化核心）、H2 VRAM token 预算 1024 倍量纲错配、H3 插件产物携带旧 bytesPerToken=2、H4 browser_launch cmd 元字符注入面、M6 web_search 结果无截断击穿上下文、M7 cdpUrl 客户端可控内网探测；并新建超越既有基线（9d942a2：500 写/1000 并发/1000 调度/2000 事件）的压测套件。
+- **工具**：Read（全部目标文件通读）、Bash（bun test/tsc/git）、Edit（最小改动）、Write（新测试）。
+- **操作**（文件级，全程 TDD 红绿垂直切片，改前备份至 .tmp/backups/*，验证后已删除）：
+  1. C1 src/memory/vault-manager.ts:718 增加 path.isAbsolute(relative) 拦截跨盘符/UNC；新建 	ests/unit/vault-path-safety.test.ts（4 用例）
+  2. C2 src/knowledge/document-ingest.ts 新增 ssertReadableFile（cwd+vault 双根围栏 + .env/.git 敏感段拒绝 + symlink 逃逸检查）与 URL 先过 isSafeUrl SSRF 守卫（含注入 fetchImpl 场景）；新建 	ests/unit/document-ingest-path-safety.test.ts（6 用例）；	ests/document-ingest.test.ts 本地文件夹具迁入工作目录（意图不变）
+  3. H2 src/dre/system-resource.ts:131 公式 *1024 → *1024*1024（MB→字节）；重写 	ests/unit/system-resource.test.ts（5 用例锁定 2200MB→10057/cap 4096）；同步 docs/LIMITATIONS.md §1.2/1.3/1.4 及防抖现状行
+  4. H4 src/computer-use/browser-launch.ts 新增 ssertSafeHttpUrl（仅 http/https），win32 由 cmd /c start 改为 explorer 直启；新建 	ests/unit/browser-launch-safety.test.ts（8 用例）；更新 	ests/computer-use/browser-launch.test.ts 契约
+  5. H1 src/dre/actor/system.ts 新增 sk()（pendingReplies 回复配对+超时+shutdown 清理）、系统级 NACK 兜底（request/query 无响应时返回结构化 error，unsupportedTopicNack 导出）；src/dre/kernel.ts:104 派发改用 ask 判定成败，失败走 scheduler.fail() 指数退避重试（KernelConfig.actorAskTimeoutMs）；新建 	ests/unit/orchestration-closure.test.ts（6 用例）
+  6. H3 plugins/dre-dsh/backend/server.js 经官方 un run build:backend 重建，产物校验含 ytesPerToken??229376 与 *1024*1024/this.bytesPerToken
+  7. M6 src/crawl/search-engines.ts 导出 sanitizeSearchResultsForContext（snippet≤300/title≤200/总≤30）；src/routes/chat.ts 与 src/mcp/server/web-tools.ts 两工具面接线；新建 	ests/unit/web-search-truncation.test.ts（3 用例含行为级）
+  8. M7 src/utils/url-safety.ts 新增 ssertSafeCdpUrl（默认仅回环，远程需 AXIOM_ALLOW_REMOTE_CDP=1）；src/routes/agents.ts 5 处 cdpUrl 接线；新建 	ests/unit/cdp-url-guard.test.ts（5 用例）
+  9. 压测 	ests/stress/audit-regression-stress.test.ts 新建 8 用例：S1 800 写(>500)+1200 并发检索(>1000)、S2 固定语料 60 轮确定性×并发写扰动、S3 调度 2500 任务不变量(>1000)+历史裁剪、S4 EventBus 5000 事件×20 订阅者慢处理器隔离(>2000)、S5 Actor ask/NACK/超时风暴 800 并发、S6 ingest fuzz 300 发×2 轮确定性（mock OCR）、S7 清洗预算钳制
+- **验证**：
+  - 各切片 TDD Red→Green 全记录于过程；最终门禁：	sc --noEmit 0 错误；回归矩阵 29 文件 **323 pass / 0 fail**；新压测 **8 pass / 0 fail**（92.8s）
+  - 已知非阻塞观察：S1 平均单查 ~64ms 受磁盘读主导（内容按需读取 LRU-50），回归目标为容量与正确性
+- **Commit**：见本条目对应提交（占位：audit-fixes-batch-2026-08-22）

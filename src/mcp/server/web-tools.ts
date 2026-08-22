@@ -8,7 +8,7 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import type { DataPipeline } from "../../crawl/data-pipeline.js";
-import { searchAggregator } from "../../crawl/search-engines.js";
+import { searchAggregator, sanitizeSearchResultsForContext } from "../../crawl/search-engines.js";
 
 export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline): void {
   registry.add({
@@ -35,9 +35,13 @@ export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline)
       engines: z.array(z.string()).optional().describe("引擎列表"),
       num: z.number().optional().default(10).describe("每个引擎数量"),
     },
-    handler: async (args) => pipeline.searchMulti(args.query as string, {
-      engines: args.engines as string[], num: args.num as number,
-    }),
+    handler: async (args) => {
+      // M6 审计修复：结果进入上下文前钳制条数与单条长度
+      const results = await pipeline.searchMulti(args.query as string, {
+        engines: args.engines as string[], num: args.num as number,
+      });
+      return sanitizeSearchResultsForContext(results);
+    },
   });
 
   registry.add({

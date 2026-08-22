@@ -14,11 +14,15 @@
  * 依赖全部注入（规则 8）：fetchImpl / ocrEngine / pdfWorker 可替换，测试零网络零真实 OCR。
  */
 
+import fs from "fs";
+import path from "path";
 import type { OCRResult } from "../ocr/engine.js";
 import { postProcessOCR, type StructuredDocument } from "../ocr/post-processor.js";
 import { readDocument } from "./document-reader.js";
 import { organizeDocument, type DocAst } from "./doc-ast.js";
 import { logger } from "../utils/logger.js";
+import { isSafeUrl } from "../utils/url-safety.js";
+import { readString } from "../utils/env.js";
 
 export type DocumentSource = { url: string } | { file: string } | { buffer: Uint8Array; name?: string };
 
@@ -64,6 +68,38 @@ export interface DocumentIngestOptions {
 
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024;
 
+/** C2 审计修复：本地文件敏感段拒绝（.env/.git），与 fs 工具沙箱策略对齐 */
+const INGEST_DENIED_SEGMENTS: RegExp[] = [/(^|[\\/])\.env(\.[^\\/]*)?([\\/]|$)/i, /(^|[\\/])\.git([\\/]|$)/i];
+
+function isWithinAnyRoot(resolved: string, roots: string[]): boolean {
+  return roots.some((root) => {
+    const rel = path.relative(root, resolved);
+    // isAbsolute 拦截 Windows 跨盘符/UNC 目标
+    return !(rel.startsWith("..") || path.isAbsolute(rel));
+  });
+}
+
+/** C2 审计修复：file 来源仅允许工作目录/Vault 根之内，拒绝敏感段与符号链接逃逸 */
+function assertReadableFile(filePath: string): void {
+  const resolved = path.resolve(filePath);
+  const roots = [process.cwd(), path.resolve(readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"))];
+  if (!isWithinAnyRoot(resolved, roots)) {
+    throw new Error(`File path not allowed: ${filePath} (only workspace/vault files are readable)`);
+  }
+  if (INGEST_DENIED_SEGMENTS.some((re) => re.test(resolved))) {
+    throw new Error(`File path not allowed: ${filePath} (denied sensitive segment)`);
+  }
+  try {
+    const real = fs.realpathSync(resolved);
+    if (!isWithinAnyRoot(real, roots)) {
+      throw new Error(`File path not allowed: ${filePath} (symlink escape)`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("not allowed")) throw e;
+    // 文件尚不存在 → 交由 readFileSync 抛 ENOENT
+  }
+}
+
 /** 探测 MIME：优先响应头，其次扩展名，其次魔数 */
 function detectContentType(name: string | undefined, header?: string | null, head?: Uint8Array): string {
   if (header && header.length > 0 && !header.startsWith("text/plain")) return header.toLowerCase();
@@ -100,9 +136,14 @@ function kindFor(mime: string): IngestKind {
 async function readSource(source: DocumentSource, opts: DocumentIngestOptions, maxBytes: number): Promise<{ bytes: Uint8Array; name?: string; contentType?: string; http?: string }> {
   if ("buffer" in source) return { bytes: source.buffer, name: source.name };
   if ("file" in source) {
+    assertReadableFile(source.file);
     const f = await import("fs");
     const buf = f.readFileSync(source.file);
     return { bytes: new Uint8Array(buf), name: source.file.split(/[\\/]/).pop() };
+  }
+  // C2 审计修复：URL 先过 SSRF 守卫（含注入 fetchImpl 的场景），回环/内网/非 http(s) 一律拦截
+  if (!isSafeUrl(source.url)) {
+    throw new Error(`URL blocked by SSRF guard: ${source.url}`);
   }
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const res = await fetchImpl(source.url, { redirect: "follow", signal: AbortSignal.timeout(15000) });

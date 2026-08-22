@@ -25,25 +25,26 @@
 - **推荐 token 公式**：
   ```ts
   availableForKV = availableMemory - modelMemoryMB; // MB
-  recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 / bytesPerToken )
+  recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 * 1024 / bytesPerToken )
   // 上限：min(..., maxTokensCap=4096)
   ```
-  示例：默认 `availableMemory=4000, modelMemoryMB=1100, kvCacheMaxMB=2200` → `min(2900,2200)*1024/229376 ≈ 9.8 → 9` tokens。
+  示例：默认 `availableMemory=4000, modelMemoryMB=1100, kvCacheMaxMB=2200` → `min(2900,2200)*1048576/229376 ≈ 10057` tokens（受 cap 截断为 4096）。
+  （H2 审计修复：旧式 `*1024` 为 MB→KB 错配，结果偏小 1024 倍，已于本次修正并同步测试。）
 
 ### 1.3 当前边界与待校准项
 
 | 维度 | 现状 | 影响 | 后续校准 |
 |---|---|---|---|
-| **单位换算** | 公式用 `*1024`（MB→KB）而非 `*1024*1024`（MB→B），`bytesPerToken` 按 bytes 参与 KB 级除法，结果为 KB/token 量级的**范围估算**，非精确字节级推导 | 若改用 `*1024*1024` 则 2200MB 对应 ~9830 tokens；当前 9 tokens 为审计一致的保守估算 | 待 `nvidia-smi` / `torch.cuda.memory` 实测校准后，可切换为 `*1024*1024` 并同步更新测试阈值 |
+| **单位换算** | ~~公式用 `*1024`（MB→KB）~~ 已修复：现为 `*1024*1024`（MB→B），2200MB 对应 ≈10057 tokens（cap 后 4096），物理量纲正确 | 估算仍为理论推导，未含注意力/量化开销 | 待 `nvidia-smi` / `torch.cuda.memory` 实测校准收敛偏差 <20% |
 | **静态默认值** | `maxMemory=4000, availableMemory=4000` 为纯 CPU 保守默认值，无 `nvidia-smi` 动态探测；`modelMemoryMB=1100, safetyMarginMB=200, kvCacheMaxMB=2200` 均为静态配置 | 在无插件注入真实显存时，推荐值仅为**估算值**，偏差 <20% 未经实机验证 | 引入硬件插件后 `ResourceBudgetManager.updateResource()` 注入真实可用显存，偏差待实测收敛 |
 | **精度声明** | 当前 `bytesPerToken=229376` 为基于 Qwen3-1.7B 架构的理论公式推导，未含注意力实现、量化方式、序列并行等开销 | 跨模型（非 Qwen3-1.7B）或 INT8/INT4 量化场景误差更大 | 标注为**估算值**，待接 `nvidia-smi` 后做回归校准，目标偏差 <20% |
-| **无防抖** | `availableMemory` 阈值判断无滞回（hysteresis），`1299↔1301 MB` 临界抖动可能导致 `canRun()` 翻转（审计 H-07） | 高频更新时本地推理启停抖动 | 后续任务 H-07 引入 5% 防抖 |
+| **防抖已落地/无滞回** | 5% 防抖已实现（`updateResource`，tests/unit/resource-debounce.test.ts 锁定 1299↔1301 不翻转）；`canRun()` 仍为单阈值，无恢复滞回 | 持续性缓变（单步 <5%）会被永久过滤；阈值附近无回差 | 后续引入双阈值滞回（如 <1300 降级 / >1800 恢复） |
 
 ### 1.4 使用建议
 
 - 将 `getResourceBudgetManager().getStatus().recommendedMaxTokens` 视为**上限建议**，非硬性保证；生产侧应结合 `canRunLocal` 与前端流控。
 - 如需精确调度，请通过 `updateResource({ availableMemory, maxMemory, source: "plugin" })` 注入 `nvidia-smi` 实测值。
-- 测试覆盖：`tests/unit/system-resource.test.ts` 已锁定 2200MB→~9 tokens 与 229376 推导；`npx tsc --noEmit` 与 `bun test` 为回归门禁。
+- 测试覆盖：`tests/unit/system-resource.test.ts` 已锁定 2200MB→10057 tokens（cap 4096）与 229376 推导；`npx tsc --noEmit` 与 `bun test` 为回归门禁。
 
 ---
 
