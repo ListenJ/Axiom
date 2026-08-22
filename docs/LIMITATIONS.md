@@ -38,7 +38,7 @@
 | **单位换算** | ~~公式用 `*1024`（MB→KB）~~ 已修复：现为 `*1024*1024`（MB→B），2200MB 对应 ≈10057 tokens（cap 后 4096），物理量纲正确 | 估算仍为理论推导，未含注意力/量化开销 | 待 `nvidia-smi` / `torch.cuda.memory` 实测校准收敛偏差 <20% |
 | **静态默认值** | `maxMemory=4000, availableMemory=4000` 为纯 CPU 保守默认值，无 `nvidia-smi` 动态探测；`modelMemoryMB=1100, safetyMarginMB=200, kvCacheMaxMB=2200` 均为静态配置 | 在无插件注入真实显存时，推荐值仅为**估算值**，偏差 <20% 未经实机验证 | 引入硬件插件后 `ResourceBudgetManager.updateResource()` 注入真实可用显存，偏差待实测收敛 |
 | **精度声明** | 当前 `bytesPerToken=229376` 为基于 Qwen3-1.7B 架构的理论公式推导，未含注意力实现、量化方式、序列并行等开销 | 跨模型（非 Qwen3-1.7B）或 INT8/INT4 量化场景误差更大 | 标注为**估算值**，待接 `nvidia-smi` 后做回归校准，目标偏差 <20% |
-| **防抖已落地/无滞回** | 5% 防抖已实现（`updateResource`，tests/unit/resource-debounce.test.ts 锁定 1299↔1301 不翻转）；`canRun()` 仍为单阈值，无恢复滞回 | 持续性缓变（单步 <5%）会被永久过滤；阈值附近无回差 | 后续引入双阈值滞回（如 <1300 降级 / >1800 恢复） |
+| **防抖+滞回已落地** | 5% 方向感知防抖（同向缓变 ≥3 次强制逃逸，修复永久漂移失明；交替抖动持续过滤，tests/unit/resource-debounce.test.ts + tests/unit/resource-hysteresis.test.ts 锁定）；`canRun()` 双阈值滞回：跌破 1300MB 降级后需回升 ≥1800MB 才恢复 | 恢复带内（1300-1800）保持降级为设计行为 | 如需不同恢复裕度调整 `RECOVERY_MARGIN_MB` |
 
 ### 1.4 使用建议
 
@@ -53,7 +53,7 @@
 ### 2.1 问题溯源
 
 - **审计定位**：`docs/ARCHITECTURE.md:10` 与 `docs/PROJECT-GUIDE.md:27` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”，与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts:230 cosineSimilarity` 手写余弦）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts:186`）”不一致；工具数文档宣称 133/150/173 vs 实际 172 去重。
-- **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中，权威计数 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts` 去重 172。
+- **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：`src/testing/tool-count.ts` 实测 **188**（server/**+server.ts 内联+register-external-tools+3 adaptTool，零重复；历史口径 172 为旧值，tests/unit/docs-consistency.test.ts 动态锁定）。
 
 ### 2.2 校准后声明
 

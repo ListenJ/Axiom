@@ -19,7 +19,7 @@ tags: [agent, architecture, toolchain, self-evolve, sandbox]
 | 记忆 | `src/memory/`（vault 原子笔记 / blackboard 共享黑板 / sqlite-memory / conformal-retriever） | 确定性检索 + 置信度 |
 | 知识库 | `src/knowledge/`（pipeline/store/searcher + GLM 免费模型管理） | 知识采集/结构化/检索 |
 | Skill 系统 | `src/skills/`（registry/loader + MCP skill_list/skill_run/skill_create/skill_reload） | 提示词模板 + 触发器 + 可执行工具 |
-| 工具层 | `src/tools/` + `src/mcp/tool-registry.ts`（172 个去重 MCP 工具，含 vault/web/dre/skill；权威计数 `src/mcp/server/*.ts` + `register-external-tools.ts`） | 统一工具面 + 安全守卫 |
+| 工具层 | `src/tools/` + `src/mcp/tool-registry.ts`（188 个去重 MCP 工具，含 vault/web/dre/skill；权威计数 `src/mcp/server/*.ts` + `register-external-tools.ts`） | 统一工具面 + 安全守卫 |
 | 安全/审批 | `src/utils/approval-bridge.ts` + `src/agents/risk-monitor.ts` + `src/routes/sandbox.ts` | 危险操作双层复核 + 人工确认 + 沙箱隔离 |
 
 ## 二、工具链（Agent 可调用的工具）

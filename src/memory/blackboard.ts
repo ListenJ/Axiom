@@ -121,7 +121,8 @@ export class SharedBlackboard {
           try {
             const payload = JSON.parse(message) as { key: string; entry: BlackboardEntry; source: string };
             if (payload.source === process.pid?.toString()) return; // 忽略自己发的
-            this.storeEntry(payload.key, payload.entry);
+            // M1 审计修复：远程更新必须过与 write() 相同的仲裁，不再 storeEntry 直写
+            this.applyRemoteUpdate(payload.key, payload.entry);
             logger.debug("[Blackboard] Received remote update via Redis", { key: payload.key, source: payload.source });
           } catch {
             // ignore invalid message
@@ -164,21 +165,8 @@ export class SharedBlackboard {
     if (existing && existing.value !== value) {
       const confDiff = Math.abs(existing.confidence - confidence);
       if (confDiff < 0.15 && existing.status === "verified") {
-        // 标记为冲突，不覆盖
-        const conflictEntry: BlackboardEntry = {
-          ...existing,
-          status: "conflict",
-          updatedAt: now,
-          metadata: {
-            ...existing.metadata,
-            conflict_with: value,
-            conflict_source: sourceId,
-            conflict_at: now,
-          },
-        };
-        this.storeEntry(key, conflictEntry);
-        logger.warn("[Blackboard] Conflict detected", { key, existing: existing.value, incoming: value });
-        return conflictEntry;
+        // 标记为冲突，不覆盖（M1: 与远程路径共用 markConflict）
+        return this.markConflict(key, existing, value, sourceId);
       }
 
       // 低置信度不能覆盖高置信度 (差值 > 0.2)
@@ -239,6 +227,51 @@ export class SharedBlackboard {
     sourceId: string
   ): BlackboardEntry[] {
     return items.map((item) => this.write(item.key, item.value, sourceId, item.options));
+  }
+
+  /**
+   * M1 审计修复：跨进程远程更新入口（Redis 订阅路径）。
+   * 与本地 write() 同规则裁决：
+   *   1. 远程 version ≤ 本地 → 忽略（陈旧/重复投递）
+   *   2. 本地 verified 且远程置信度显著更低（>0.2 差） → 拒绝覆盖
+   *   3. 相近置信度但值不同 → 本地转 conflict（保留本地值，记录冲突来源）
+   *   4. 其余（新 key / 更高版本且置信度相当）→ 采用远程条目
+   */
+  applyRemoteUpdate(key: string, remote: BlackboardEntry): void {
+    if (!remote || typeof remote !== "object") return;
+    const existing = this.entries.get(key);
+
+    if (!existing) {
+      this.storeEntry(key, { ...remote, key });
+      return;
+    }
+
+    const remoteConf = typeof remote.confidence === "number" ? remote.confidence : 0;
+
+    // 版本仲裁：陈旧投递直接忽略
+    if ((remote.version ?? 0) <= existing.version) return;
+
+    // 置信度保护：与 write() 同阈值
+    if (existing.status === "verified" && remoteConf < existing.confidence - 0.2) {
+      logger.info("[Blackboard] Rejected low-confidence remote update", {
+        key,
+        existingConfidence: existing.confidence,
+        remoteConfidence: remoteConf,
+      });
+      return;
+    }
+
+    // 冲突检测：相近置信度、值不同、本地已 verified —— 与 write() 对齐转 conflict
+    if (
+      existing.value !== remote.value &&
+      existing.status === "verified" &&
+      Math.abs(existing.confidence - remoteConf) < 0.15
+    ) {
+      this.markConflict(key, existing, remote.value, `remote:${remote.sourceId}`);
+      return;
+    }
+
+    this.storeEntry(key, { ...remote, key });
   }
 
   // ---------------------------------------------------------------------------
@@ -488,6 +521,25 @@ export class SharedBlackboard {
       this.sourceIndex.set(entry.sourceId, new Set());
     }
     this.sourceIndex.get(entry.sourceId)!.add(key);
+  }
+
+  /** 冲突标记（本地 write 与远程 applyRemoteUpdate 共用，M1） */
+  private markConflict(key: string, existing: BlackboardEntry, incomingValue: unknown, sourceId: string): BlackboardEntry {
+    const now = Date.now();
+    const conflictEntry: BlackboardEntry = {
+      ...existing,
+      status: "conflict",
+      updatedAt: now,
+      metadata: {
+        ...existing.metadata,
+        conflict_with: incomingValue,
+        conflict_source: sourceId,
+        conflict_at: now,
+      },
+    };
+    this.storeEntry(key, conflictEntry);
+    logger.warn("[Blackboard] Conflict detected", { key, existing: existing.value, incoming: incomingValue });
+    return conflictEntry;
   }
 
   private cleanup(): void {

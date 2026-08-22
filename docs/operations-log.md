@@ -6628,3 +6628,17 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   - 各切片 TDD Red→Green 全记录于过程；最终门禁：	sc --noEmit 0 错误；回归矩阵 29 文件 **323 pass / 0 fail**；新压测 **8 pass / 0 fail**（92.8s）
   - 已知非阻塞观察：S1 平均单查 ~64ms 受磁盘读主导（内容按需读取 LRU-50），回归目标为容量与正确性
 - **Commit**：见本条目对应提交（c86f179）
+
+## 2026-08-22 — 审计修复批次 2：M1/M2/M5/M11/M12 + 工具计数真相化（188）
+
+- **任务**：继续消化 2026-08-22 审计报告 Medium 项与 High 文档失真项。
+- **工具**：Read（blackboard/engine/scheduler/terminal 全文）、Bash（bun test/tsc/git）、Edit、Write（新测试与新模块）。
+- **操作**（文件级，TDD 红绿垂直切片，备份于 .tmp/backups/* 后验证删除）：
+  1. M11 src/dre/constraints.ts 新增 parseCloudDecisionOrThrow+CloudDecisionInvalidError；src/dre/engine.ts cloudConsciousnessStep 改为坏输出抛错走 L3，不再静默合成 observe(0.5)；新建 	ests/unit/cloud-decision-guard.test.ts（4 用例）
+  2. M12 src/dre/system-resource.ts 双阈值滞回（跌破1300降级，需≥1800恢复）+ 方向感知防抖逃逸（同向小幅连续≥3次强制接受；交替抖动持续过滤）；新建 	ests/unit/resource-hysteresis.test.ts（6 用例）；LIMITATIONS 同步
+  3. M2 src/dre/runtime/scheduler.ts 新增 expireRunningTasks() 看门狗（getNext 触发）：超期 running 强制 failed 并释放并发槽位；新建 	ests/unit/scheduler-watchdog.test.ts（2 用例）
+  4. M1 src/memory/blackboard.ts 新增 pplyRemoteUpdate()（Redis 订阅路径改走与 write() 同规则仲裁：版本/置信度/冲突三闸），抽取共用 markConflict()；新建 	ests/unit/blackboard-remote-arbitration.test.ts（5 用例）
+  5. M5 src/mcp/tools/terminal.ts executeCommand 增加 cwd 工作目录围栏（isAbsolute 跨盘拦截+存在性预检）；新建 	ests/unit/terminal-cwd-guard.test.ts（4 用例）
+  6. H5-doc 新建 src/testing/tool-count.ts 动态权威计数（实测 **188**，零重复；server/**+server.ts 内联+register-external-tools+3 adaptTool）；	ests/unit/docs-consistency.test.ts 改为动态断言并封禁历史旧数 133/150/172/173；	ests/rigorous/knowledge-rigorous.test.ts 同义反复测试替换为真实计数回放；README/AXIOM/AGENT/PROJECT-GUIDE/BROWSER/ARCHITECTURE 六文档工具数校准 172→188，README 徽标行移除失真"93 tests"，分层表标注历史快照口径
+- **验证**：批次回归矩阵 **37 文件 372 pass / 0 fail**；	sc --noEmit 0 错误；docs-consistency+rigorous 16 pass；既有脏文件 dre-constraints.test.ts 兼容性复验 4 pass
+- **Commit**：（占位 batch2）

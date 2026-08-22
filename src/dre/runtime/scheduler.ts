@@ -147,6 +147,8 @@ class SchedulerImpl {
     } catch {}
     // Auto-fail expired pending tasks
     this.expirePendingTasks();
+    // M2 看门狗：超期 running 任务终结并释放并发槽位（旧实现只巡检排队队列）
+    this.expireRunningTasks();
 
     if (!hasResources(this.budget)) {
       // Try preemption if a critical task is waiting and low-priority tasks are running
@@ -233,8 +235,7 @@ class SchedulerImpl {
   /**
    * Mark pending tasks whose deadline has passed as failed.
    */
-  private expirePendingTasks(): void {
-    const now = Date.now();
+  private expirePendingTasks(): void {    const now = Date.now();
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const task = this.queue[i];
       if (task.status !== "pending") continue;
@@ -254,6 +255,33 @@ class SchedulerImpl {
       }
     }
     this.trimCompleted();
+  }
+
+  /**
+   * M2 审计修复：终结已超期的 running 任务并释放并发槽位。
+   * 看门狗强制终态 failed（不重试）—— 挂死的执行体重试大概率再次挂死，
+   * 重试留给可快速失败的显式错误路径。
+   */
+  private expireRunningTasks(): void {
+    const now = Date.now();
+    for (const [id, task] of this.running) {
+      if (!task.deadline || now <= task.deadline) continue;
+      this.running.delete(id);
+      this.budget.currentTasks--;
+      task.status = "failed";
+      task.error = `Deadline exceeded while running (deadline=${task.deadline})`;
+      task.completedAt = now;
+      this.completed.push(task);
+      this.trimCompleted();
+
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error: task.error, reason: "running_deadline_exceeded" },
+        priority: "high",
+      });
+      logger.warn("[Scheduler] Running task exceeded deadline — force failed", { id });
+    }
   }
 
   /**

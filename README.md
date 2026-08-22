@@ -2,11 +2,11 @@
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
-> **93 tests | 0 fail | 22 module groups | 172 MCP tools | 8 Persona modes**
+> **Deterministic Cognitive Runtime · 188 MCP tools · 8 Persona modes**
 
 > 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >
-> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/172 MCP 工具/配置/测试覆盖
+> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/188 MCP 工具/配置/测试覆盖
 >
 > 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
 
@@ -21,7 +21,7 @@
 ├─────────────┴─────────────┴─────────────┴───────────────────┤
 │  场景路由层 (SceneRouter, 21场景) │ 智能路由层 (Model Router) │
 ├─────────────────────────────────────────────────────────────┤
-│                    172 MCP Tools                             │
+│                    188 MCP Tools                             │
 ├─────────────────────────────────────────────────────────────┤
 │                     引擎层                                    │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
@@ -247,15 +247,15 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 172 个去重工具（权威计数 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts`），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。手写余弦为默认，PG vector 为可选历史能力（H-M1-03）。
+暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。手写余弦为默认，PG vector 为可选历史能力（H-M1-03）。
 
-**工具分层**:
+**工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
-| 层级 | 数量 | 状态 | 说明 |
-|------|------|------|------|
-| 核心工具 | 88 | ✅ 始终可用 | 零配置，安装 Bun 即可用 |
-| 配置工具 | 33 | ⚙️ 配置后可用 | 需要 API Key |
-| 外部服务 | 12 | 🔧 需安装服务 | PostgreSQL/llama.cpp 等 |
+| 层级 | 状态 | 说明 |
+|------|------|------|
+| 核心工具 | ✅ 始终可用 | 零配置，安装 Bun 即可用 |
+| 配置工具 | ⚙️ 配置后可用 | 需要 API Key |
+| 外部服务 | 🔧 需安装服务 | llama.cpp 等（PostgreSQL 已归档 H-M1-03） |
 
 **基本功能保证** (零配置即可使用):
 

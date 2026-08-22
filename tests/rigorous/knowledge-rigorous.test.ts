@@ -102,11 +102,10 @@ OpenClaw 是一个确定性系统，确定性很重要。Deterministic determini
 });
 
 describe("严苛：文档一致性 5次回放", () => {
-  test("工具数统计 5次一致为 172", async () => {
-    const { countTools } = await import("../../scripts/count-tools.mjs" as any).catch(() => ({ countTools: null }));
-    // 若脚本不存在，改用静态 grep 模拟：直接断言 172
-    const expected = 172;
-    const results = Array.from({ length: 5 }, () => expected);
+  test("工具数统计 5次一致且为实测非零值（动态 countMcpTools）", async () => {
+    const { countMcpTools } = await import("../../src/testing/tool-count.js");
+    const results = Array.from({ length: 5 }, () => countMcpTools().total);
     expect(new Set(results).size).toBe(1);
+    expect(results[0]).toBeGreaterThanOrEqual(180);
   });
 });

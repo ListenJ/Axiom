@@ -1,4 +1,4 @@
-# Agent 浏览器控制与生态位策略（2026-08-09）
+﻿# Agent 浏览器控制与生态位策略（2026-08-09）
 
 ## 摘要
 
@@ -154,7 +154,7 @@ Axiom 的差异化资产是“控制面”而非“另一个学习体”：
 我们已有控制面需要的核心件：
 
 - Web Dashboard + WebSocket + HITL 审批；
-- 172 个去重 MCP 工具、Skill 加载器、插件市场；
+- 188 个去重 MCP 工具、Skill 加载器、插件市场；
 - 多 Agent 编排（OpenCode/Hermes/InternalAgent）；
 - 模型路由、Vault、DRE、KG；
 - 远程 Worker 与 Docker 部署。

@@ -52,6 +52,12 @@ export class ResourceBudgetManager {
   private kvCacheMaxMB: number;
   private bytesPerToken: number; // KV cache 每 token 字节数：Qwen3-1.7B 28层×2048隐×2(K/V)×2B(FP16)≈229KB/token (229376 bytes)，见 tests/unit/system-resource.test.ts 推导
   private maxTokensCap: number;      // token 上限
+  /** M12：滞回降级锁存 —— 跌破阈值后置位，需回升 required+RECOVERY_MARGIN_MB 才恢复 */
+  private degraded = false;
+  /** M12：availableMemory 连续被抖动过滤的同向次数（缓变逃逸用） */
+  private availRejectStreak = 0;
+  /** M12：上一次 attempted 小幅更新的方向（+1 上 / -1 下 / 0 无） */
+  private lastAttemptedAvailDir = 0;
 
   constructor(opts?: {
     resource?: Partial<SystemResource>;
@@ -85,8 +91,20 @@ export class ResourceBudgetManager {
     if (resource.availableMemory !== undefined) {
       const curr = this.resource.availableMemory;
       const next = resource.availableMemory;
-      if (curr !== 0 && Math.abs(next - curr) / Math.abs(curr) < DEBOUNCE_RATIO) {
-        delete (filtered as any).availableMemory;
+      if (curr === 0 || Math.abs(next - curr) / Math.abs(curr) >= DEBOUNCE_RATIO) {
+        // 大幅更新：直接接受并重置同向计数
+        this.availRejectStreak = 0;
+        this.lastAttemptedAvailDir = 0;
+      } else {
+        // M12 缓变逃逸：仅当"同向小幅更新连续 ≥3 次"才接受，修复永久缓变失明；
+        // 方向交替时计数归位 1 —— 平台期抖动（1299↔1301）永不过滤。
+        const dir = Math.sign(next - curr);
+        this.availRejectStreak = dir !== 0 && dir === this.lastAttemptedAvailDir ? this.availRejectStreak + 1 : 1;
+        this.lastAttemptedAvailDir = dir;
+        if (this.availRejectStreak < 3) {
+          delete (filtered as any).availableMemory;
+        }
+        // streak>=3：不删除 → 接受本次及后续同向缓变，直至方向翻转或大幅更新重置
       }
     }
     if (resource.maxMemory !== undefined) {
@@ -119,12 +137,28 @@ export class ResourceBudgetManager {
     const { resource } = this;
     const requiredMB = this.modelMemoryMB + this.safetyMarginMB;
 
-    if (resource.availableMemory < requiredMB) {
-      return {
-        canRun: false,
-        reason: `Insufficient memory: ${resource.availableMemory}MB available, need ${requiredMB}MB (model=${this.modelMemoryMB}MB + safety=${this.safetyMarginMB}MB)`,
-        resource,
-      };
+    // M12 双阈值滞回：恢复阈值 = required + 500MB，消除临界抖动翻转
+    const RECOVERY_MARGIN_MB = 500;
+
+    if (!this.degraded) {
+      if (resource.availableMemory < requiredMB) {
+        this.degraded = true;
+        return {
+          canRun: false,
+          reason: `Insufficient memory: ${resource.availableMemory}MB available, need ${requiredMB}MB (model=${this.modelMemoryMB}MB + safety=${this.safetyMarginMB}MB)`,
+          resource,
+        };
+      }
+    } else {
+      const recoverAt = requiredMB + RECOVERY_MARGIN_MB;
+      if (resource.availableMemory < recoverAt) {
+        return {
+          canRun: false,
+          reason: `Insufficient memory (hysteresis): ${resource.availableMemory}MB available, need >= ${recoverAt}MB to recover`,
+          resource,
+        };
+      }
+      this.degraded = false; // 恢复
     }
 
     const availableForKV = resource.availableMemory - this.modelMemoryMB;

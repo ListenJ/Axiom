@@ -32,3 +32,31 @@ export function isDreDecision(value: unknown): value is {
   if (typeof obj.confidence !== "number" || obj.confidence < 0 || obj.confidence > 1) return false;
   return true;
 }
+
+/** M11 审计修复：云端输出无效的错误类型（engine 据此继续走 L3 规则降级） */
+export class CloudDecisionInvalidError extends Error {
+  constructor(reason: string) {
+    super(`[DRE] cloud decision invalid: ${reason}`);
+    this.name = "CloudDecisionInvalidError";
+  }
+}
+
+/**
+ * M11 审计修复：云端输出与本地同级严格校验。
+ * 非 JSON / 不符合 schema / 空内容一律抛错 —— 由降级链继续走 L3 规则推理，
+ * 杜绝旧实现静默合成 observe(confidence=0.5) 的假成功。
+ */
+export function parseCloudDecisionOrThrow(rawContent: string | null | undefined): {
+  action: "observe" | "reflect" | "act";
+  content: string;
+  confidence: number;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawContent ?? "");
+  } catch {
+    throw new CloudDecisionInvalidError("output is not JSON");
+  }
+  if (!isDreDecision(parsed)) throw new CloudDecisionInvalidError("output failed decision schema");
+  return parsed;
+}

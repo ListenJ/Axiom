@@ -1,8 +1,17 @@
 import { spawn } from "node:child_process";
 import * as os from "node:os";
+import * as path from "node:path";
+import { existsSync } from "node:fs";
 import { TIMEOUTS } from "../../constants/timeouts.js";
 import { sanitizeSpawnEnv } from "../../utils/spawn-env.js";
 import { sanitizeCommand } from "../../utils/command-safety.js";
+
+/** M5 审计修复：cwd 仅允许工作目录之内（含跨盘符/UNC 的 isAbsolute 检查） */
+function isCwdWithinWorkspace(target: string): boolean {
+  const resolved = path.resolve(target);
+  const rel = path.relative(process.cwd(), resolved);
+  return !(rel.startsWith("..") || path.isAbsolute(rel));
+}
 
 export interface CommandResult {
   success: boolean;
@@ -51,6 +60,20 @@ export async function executeCommand(
       error: safety.error,
       command,
     };
+  }
+
+  // M5 审计修复：cwd 围栏 —— 与 fs 工具沙箱同策略，阻断任意目录落点
+  if (options?.cwd) {
+    const target = path.resolve(options.cwd);
+    if (!isCwdWithinWorkspace(target)) {
+      const err = `cwd '${options.cwd}' escapes working directory — only paths within the project are allowed`;
+      return { success: false, stdout: "", stderr: err, exitCode: -1, error: "cwd outside working directory", command };
+    }
+    // 目录不存在时提前给出可读错误（避免 spawn 抛 ENOENT 难排查）
+    if (!existsSync(target)) {
+      const err = `cwd does not exist: ${target}`;
+      return { success: false, stdout: "", stderr: err, exitCode: -1, error: "cwd not found", command };
+    }
   }
 
   return new Promise((resolve) => {

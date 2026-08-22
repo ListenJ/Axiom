@@ -46,22 +46,22 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     expect(hits.length).toBe(0);
   });
 
-  test("工具数与 registry 172 一致 — README/docs 权威声明应为 172 且不含 133/150/173 旧数", () => {
+  test("工具数与 registry 实测一致 — 动态 countMcpTools，无历史旧数(133/150/172/173)", () => {
     const readme = readFileSync("README.md", "utf8");
     const axiom = readFileSync("docs/AXIOM-ARCHITECTURE.md", "utf8");
     const agentArch = existsSync("docs/AGENT-ARCHITECTURE.md") ? readFileSync("docs/AGENT-ARCHITECTURE.md", "utf8") : "";
     const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");
 
-    // 旧数不应出现于工具上下文（允许行号/端口等无关数字，但工具声明处不应含 133/150/173）
     const checkOld = (content: string, label: string) => {
       const oldHits: string[] = [];
       const lines = content.split("\n");
       lines.forEach((line, idx) => {
-        if (/133\s*MCP/.test(line) || /150\s*MCP/.test(line) || /173\s*个/.test(line) || /133\s*个/.test(line) || /\b133\b.*工具/.test(line) || /\b150\b.*工具/.test(line) || /\b173\b.*工具/.test(line)) {
-          oldHits.push(`${label}:${idx + 1}:${line.trim()}`);
+        if (!/(MCP|工具)/.test(line)) return;
+        // 历史错误口径：133 / 150 / 172 / 173
+        for (const n of [133, 150, 172, 173]) {
+          const re = new RegExp(`\\b${n}\\s*(个|MCP|tools|Tools)`, "");
+          if (re.test(line)) oldHits.push(`${label}:${idx + 1}:${line.trim()}`);
         }
-        // also direct check for README header pattern "133 MCP tools"
-        if (line.includes("133 MCP tools") || line.includes("150 MCP Tools") || line.includes("173 个 MCP")) oldHits.push(`${label}:${idx + 1}:${line.trim()}`);
       });
       return oldHits;
     };
@@ -70,20 +70,20 @@ describe("docs-consistency Task16 — 文档一致性", () => {
       ...checkOld(readme, "README.md"),
       ...checkOld(axiom, "AXIOM-ARCHITECTURE.md"),
       ...checkOld(agentArch, "AGENT-ARCHITECTURE.md"),
+      ...checkOld(arch, "ARCHITECTURE.md"),
     ];
     if (oldHits.length > 0) console.log("[docs-consistency] 旧工具数 hits:\n" + oldHits.join("\n"));
     expect(oldHits.length).toBe(0);
 
-    // 新数 172 应至少出现于 README 与 AXIOM
-    expect(readme.includes("172")).toBe(true);
-    expect(axiom.includes("172")).toBe(true);
-    // AGENT-ARCHITECTURE 若存在也应为 172
-    if (agentArch) expect(agentArch.includes("172")).toBe(true);
-    // ARCHITECTURE.md 若提及工具数也应为 172（若无工具数声明则跳过）
-    if (arch.includes("MCP")) {
-      // ensure no old numbers in arch
-      expect(checkOld(arch, "ARCHITECTURE.md").length).toBe(0);
-    }
+    // 动态权威数必须出现在 README 与 AXIOM（工具/MCP 语境）
+    const { countMcpTools } = require("../../src/testing/tool-count.js") as typeof import("../../src/testing/tool-count.js");
+    const { total, duplicates } = countMcpTools();
+    expect(duplicates).toEqual([]);
+    expect(total).toBeGreaterThanOrEqual(180);
+    const totalRe = new RegExp(`\\b${total}\\s*(个|MCP|tools|Tools)|\\b${total}\\b[^\\n]{0,40}(MCP 工具|MCP tools)`);
+    if (!totalRe.test(readme)) console.log(`[docs-consistency] README 缺少实测工具数 ${total}`);
+    expect(totalRe.test(readme)).toBe(true);
+    expect(totalRe.test(axiom)).toBe(true);
   });
 
   test("Limitations 章节应披露手写余弦+PG vector 可选与可选 LLM", () => {

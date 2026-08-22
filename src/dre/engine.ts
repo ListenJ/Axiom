@@ -28,7 +28,7 @@ import { ActorSystem } from "./actor/system.js";
 import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
 import { worldState } from "./runtime/world-state.js";
-import { DRE_DECISION_SYSTEM, isDreDecision } from "./constraints.js";
+import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from "./constraints.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
@@ -738,15 +738,9 @@ export class DREngine {
       { baseURL: fb.baseUrl, apiKey: fb.apiKey },
     );
 
-    let decision: unknown;
-    try {
-      const parsed = JSON.parse(result.content || '{"action":"observe","content":"fallback"}');
-      // 精确约束校验：不符合 schema 视为无效，降级为 observe（不入库、不扩散）
-      decision = isDreDecision(parsed) ? parsed : { action: "observe", content: result.content || input.observation, confidence: 0.5 };
-    } catch (err) {
-      logger.debug("[DRE] Cloud API response not JSON, using raw content", { error: (err as Error).message });
-      decision = { action: "observe", content: result.content || input.observation, confidence: 0.5 };
-    }
+    // M11 审计修复：云端坏输出与本地同级 —— 抛错由降级链继续走 L3 规则，
+    // 不再静默合成 observe(0.5) 掩盖输出质量问题。
+    const decision = parseCloudDecisionOrThrow(result.content);
 
     return {
       decision,
