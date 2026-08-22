@@ -6641,4 +6641,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   5. M5 src/mcp/tools/terminal.ts executeCommand 增加 cwd 工作目录围栏（isAbsolute 跨盘拦截+存在性预检）；新建 	ests/unit/terminal-cwd-guard.test.ts（4 用例）
   6. H5-doc 新建 src/testing/tool-count.ts 动态权威计数（实测 **188**，零重复；server/**+server.ts 内联+register-external-tools+3 adaptTool）；	ests/unit/docs-consistency.test.ts 改为动态断言并封禁历史旧数 133/150/172/173；	ests/rigorous/knowledge-rigorous.test.ts 同义反复测试替换为真实计数回放；README/AXIOM/AGENT/PROJECT-GUIDE/BROWSER/ARCHITECTURE 六文档工具数校准 172→188，README 徽标行移除失真"93 tests"，分层表标注历史快照口径
 - **验证**：批次回归矩阵 **37 文件 372 pass / 0 fail**；	sc --noEmit 0 错误；docs-consistency+rigorous 16 pass；既有脏文件 dre-constraints.test.ts 兼容性复验 4 pass
-- **Commit**：（占位 batch2）
+- **Commit**：2b2dda9
