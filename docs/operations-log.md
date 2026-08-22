@@ -6655,4 +6655,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   5. L10 register-external-tools fs_delete 描述对齐实现（仅单文件 unlink）
   6. L8 移除 postgres 死依赖（package.json + bun.lock 刷新，全仓零 import）
 - **验证**：全量矩阵 **40 文件 428 pass / 0 fail**（含 go 门禁与 pg-client-removal/module-exports 回归）；tsc 0 错误
-- **Commit**：（占位 batch3）
+- **Commit**：见本次提交
