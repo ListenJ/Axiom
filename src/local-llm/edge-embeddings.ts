@@ -1,8 +1,8 @@
-/**
+﻿/**
  * 边缘 embedding 客户端 —— 本地模型向量化（设置语义搜索用）
  *
  * 配置 (env)：
- * - EDGE_EMBED_URL    默认回落 EDGE_LLM_URL → http://192.168.0.150:9001
+ * - EDGE_EMBED_URL    默认回落 EDGE_LLM_URL → http://127.0.0.1:9001
  * - EDGE_EMBED_MODEL  默认回落 EDGE_LLM_MODEL → BAAI/bge-m3
  * - EDGE_SETTINGS_SEARCH=0  禁用设置语义搜索（强制关键词兜底）
  *

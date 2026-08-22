@@ -1,11 +1,11 @@
-/**
+﻿/**
  * 边缘小模型客户端 —— llama.cpp 部署的 MiniCPM5-1B
  *
  * 用途: 提示词优化 / 高危操作初筛 / vault 文档管理 / 知识库管理
  * 的轻量分类·改写·打标任务, 全部遵循 "边缘增强, 失败回退" 模式。
  *
  * 配置 (env):
- * - EDGE_LLM_URL   默认 http://192.168.0.150:9001 (LLMClient 自拼 /v1)
+ * - EDGE_LLM_URL   默认 http://127.0.0.1:9001 (LLMClient 自拼 /v1；内网部署示例 192.168.0.150)
  * - EDGE_LLM_MODEL 默认 MiniCPM5-1B (llama.cpp 忽略 model 字段)
  * - EDGE_LLM_TRANSPORT 默认 "chat"; 设为 "completion" 走原生 /completion
  *   (chat template 强制思考且无法关闭的模型需要, 如 Qwopus3.5-2B)

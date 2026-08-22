@@ -22,6 +22,7 @@
 
 import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import { screenPayloadWithEdge, type EdgeRiskResult, type PayloadKind } from "../local-llm/risk-screen.js";
+import { TOOL_CLASSIFICATIONS } from "./tool-classifications.js";
 import { auditLogger } from "../utils/audit-logger.js";
 import { logger } from "../utils/logger.js";
 
@@ -40,13 +41,32 @@ export interface RiskMonitorDeps {
   review?: (payload: string, kind: PayloadKind) => Promise<ReviewResult | null>;
 }
 
-/** 被监视的工具 → 负载类型映射（负载缺失时跳过） */
-const SCREENED_TOOLS: Record<string, { kind: PayloadKind; fields: string[] }> = {
-  terminal_exec: { kind: "command", fields: ["command", "script"] },
-  fs_delete: { kind: "path", fields: ["path", "file"] },
-  fs_write: { kind: "path", fields: ["path", "file"] },
-  fs_move: { kind: "path", fields: ["path", "file"] },
+/** 类别 → 负载形态映射（仅收录可识别 command/path 形态的类别） */
+const CATEGORY_SPEC: Partial<Record<string, { kind: PayloadKind; fields: string[] }>> = {
+  terminal: { kind: "command", fields: ["command", "script"] },
+  filesystem: { kind: "path", fields: ["path", "file", "target", "destination", "from", "to"] },
+  snapshot: { kind: "path", fields: ["path", "name", "target"] },
 };
+
+/**
+ * M4 审计修复：审查清单由 TOOL_CLASSIFICATIONS 单一数据源动态派生，
+ * 并显式补齐注册表遗漏的高危工具（browser_launch / knowledge_ingest_document）。
+ */
+const SCREENED_TOOLS: Record<string, { kind: PayloadKind; fields: string[] }> = (() => {
+  const map: Record<string, { kind: PayloadKind; fields: string[] }> = {};
+  for (const t of TOOL_CLASSIFICATIONS) {
+    if (t.risk === "safe") continue;
+    const spec = CATEGORY_SPEC[t.category];
+    if (spec) map[t.name] = spec;
+  }
+  // 漏网高危补齐（审计 P6）：负载形态特殊，无法由类别推导
+  map["browser_launch"] = { kind: "url", fields: ["url"] };
+  map["knowledge_ingest_document"] = { kind: "path", fields: ["file"] };
+  return map;
+})();
+
+/** 当前被双层复核监视的工具名集合（供测试与可观测性使用） */
+export const SCREENED_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(SCREENED_TOOLS));
 
 /**
  * 从工具参数中提取被监视负载。无需监视的工具/无有效负载返回 null。
@@ -156,7 +176,7 @@ async function reviewWithDecisionModel(
 ): Promise<ReviewResult | null> {
   try {
     const { router } = await import("../router/model-router.js");
-    const label = kind === "command" ? "shell 命令" : "文件路径操作";
+    const label = kind === "command" ? "shell 命令" : kind === "url" ? "浏览器打开的 URL" : "文件路径操作";
     const resp = await router.execute({
       role: "decision",
       messages: [

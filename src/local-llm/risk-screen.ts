@@ -14,8 +14,8 @@ import { getEdgeClient, extractJson } from "./edge-client.js";
 import type { LLMClient } from "../dre/llm/client.js";
 import { logger } from "../utils/logger.js";
 
-/** 被筛查的负载类型 */
-export type PayloadKind = "command" | "path";
+/** 被筛查的负载类型（M4：新增 url —— browser_launch 等外开地址） */
+export type PayloadKind = "command" | "path" | "url";
 
 /** 边缘风险等级 */
 export type EdgeRisk = "low" | "medium" | "high";
@@ -48,11 +48,12 @@ export async function screenPayloadWithEdge(
 ): Promise<EdgeRiskResult> {
   try {
     const llm = client ?? getEdgeClient();
-    const label = kind === "command" ? "shell command" : "file operation on path";
+    const kindLabel =
+      kind === "command" ? "shell command" : kind === "url" ? "URL to open in browser" : "file operation on path";
     const truncated = payload.length > 500 ? payload.slice(0, 500) : payload;
 
     const resp = await llm.generate(
-      `Classify risk of the following ${label}: ${truncated}. Reply JSON {"risk":"low|medium|high","reason":"<=15 words"}`,
+      `Classify risk of the following ${kindLabel}: ${truncated}. Reply JSON {"risk":"low|medium|high","reason":"<=15 words"}`,
       { maxTokens: 60, answerPrefix: '{"risk":"' },
     );
 

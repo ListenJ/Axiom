@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -145,9 +146,14 @@ func NewCluster(cfg ClusterConfig) (*Cluster, error) {
 	}
 	c.Autoscaler = NewAutoscaler(cfg.Autoscale, func(delta int) {
 		if delta > 0 {
-			_ = c.AddAgent()
+			// M13 审计修复：扩缩容失败不再静默，记录告警便于运维定位
+			if err := c.AddAgent(); err != nil {
+				slog.Warn("autoscale: add agent failed", "err", err)
+			}
 		} else {
-			_ = c.RemoveAgent()
+			if err := c.RemoveAgent(); err != nil {
+				slog.Warn("autoscale: remove agent failed", "err", err)
+			}
 		}
 	}, metrics)
 
@@ -199,7 +205,10 @@ func (c *Cluster) RemoveAgent() error {
 	proc := c.Health.Agent(id)
 	c.Health.Remove(id)
 	if proc != nil {
-		_ = proc.Stop(context.Background())
+		// M13 审计修复：Stop 失败记录告警（进程可能残留）
+		if err := proc.Stop(context.Background()); err != nil {
+			slog.Warn("remove agent: process stop failed", "agent", id, "err", err)
+		}
 	}
 	return c.Scheduler.RemoveAgent(id)
 }

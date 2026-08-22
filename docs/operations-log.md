@@ -6642,3 +6642,17 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   6. H5-doc 新建 src/testing/tool-count.ts 动态权威计数（实测 **188**，零重复；server/**+server.ts 内联+register-external-tools+3 adaptTool）；	ests/unit/docs-consistency.test.ts 改为动态断言并封禁历史旧数 133/150/172/173；	ests/rigorous/knowledge-rigorous.test.ts 同义反复测试替换为真实计数回放；README/AXIOM/AGENT/PROJECT-GUIDE/BROWSER/ARCHITECTURE 六文档工具数校准 172→188，README 徽标行移除失真"93 tests"，分层表标注历史快照口径
 - **验证**：批次回归矩阵 **37 文件 372 pass / 0 fail**；	sc --noEmit 0 错误；docs-consistency+rigorous 16 pass；既有脏文件 dre-constraints.test.ts 兼容性复验 4 pass
 - **Commit**：2b2dda9
+
+## 2026-08-22 — 审计修复批次 3：M4/M13 + L7/L8/L10（M14 核实为已修复）
+
+- **任务**：消化审计剩余 Medium 与可安全落地的 Low 项。
+- **工具**：Read、Bash（bun/go build/go vet/git）、Edit、Write。
+- **操作**（TDD 红绿切片，备份 .tmp/backups/* 验证后删）：
+  1. M4 新建叶子数据模块 src/agents/tool-classifications.ts（TOOL_CLASSIFICATIONS 自 execution-mode 抽出，消除 execution-mode↔risk-monitor 循环依赖，browser_launch 入册 caution/computer-use）；isk-monitor.ts 审查面改为注册表动态派生（filesystem/snapshot→path、terminal→command）并显式补齐 browser_launch(kind=url)/knowledge_ingest_document；isk-screen.ts PayloadKind 扩展 url 及双处标签；新建 	ests/unit/risk-monitor-coverage.test.ts（6 用例）
+  2. M13 untime-go/internal/agent/cluster.go 三处 _ = 静默失败（autoscale 扩容/缩容/proc.Stop）改 slog.Warn；go build ./... && go vet ./internal/agent/ 干净
+  3. M14 核实：当前 CORS 已默认无 ACAO（仅 CORS_ORIGINS=* 显式全开，main.ts:427-456），审计该项对现状失效，无需改动
+  4. L7 edge-client/edge-embeddings 头注释与 docs/EDGE-LLM.md 默认端点同步为 127.0.0.1（内网地址降级为示例）
+  5. L10 register-external-tools fs_delete 描述对齐实现（仅单文件 unlink）
+  6. L8 移除 postgres 死依赖（package.json + bun.lock 刷新，全仓零 import）
+- **验证**：全量矩阵 **40 文件 428 pass / 0 fail**（含 go 门禁与 pg-client-removal/module-exports 回归）；tsc 0 错误
+- **Commit**：（占位 batch3）
