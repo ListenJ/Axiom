@@ -6627,4 +6627,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
 - **验证**：
   - 各切片 TDD Red→Green 全记录于过程；最终门禁：	sc --noEmit 0 错误；回归矩阵 29 文件 **323 pass / 0 fail**；新压测 **8 pass / 0 fail**（92.8s）
   - 已知非阻塞观察：S1 平均单查 ~64ms 受磁盘读主导（内容按需读取 LRU-50），回归目标为容量与正确性
-- **Commit**：见本条目对应提交（占位：audit-fixes-batch-2026-08-22）
+- **Commit**：见本条目对应提交（c86f179）
