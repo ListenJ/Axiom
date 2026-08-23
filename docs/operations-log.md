@@ -6667,4 +6667,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   4. L14 \src/crawl/lightpanda-client.ts\ 导出纯函数 assertNavigableUrl 并接入 navigate 分支（纵深防御，与渲染入口同策略）
   5. L9 新建 \src/utils/math.ts\ 共享 cosineSimilarity（零向量→0 语义），收敛 stream.ts / context-manager.ts / settings-search.ts 三处重复实现
 - **验证**：全量矩阵 **42 文件 446 pass / 0 fail**；tsc 0 错误；受影响面补充回归 settings-search+resource-audit 26 pass
-- **Commit**：（占位 batch4）
+- **Commit**：e3e4a5a 之后紧邻的本次提交
