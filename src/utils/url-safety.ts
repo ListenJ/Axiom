@@ -1,4 +1,4 @@
-/**
+﻿/**
  * URL 安全检查（SSRF 防护）—— 共享实现
  *
  * 此前 routes/search.ts 私有实现仅校验初始 URL，且 MCP web_fetch 完全没有校验。
@@ -10,6 +10,8 @@
  *   - RFC1918 私网（10/8、172.16/12、192.168/16）
  *   - IPv6 loopback(::1) / ULA(fc00::/7) / link-local(fe80::/10)
  */
+
+import { promises as dnsPromises } from "dns";
 
 const BLOCKED_PROTOCOLS = ["file:", "ftp:", "gopher:", "dict:"];
 const BLOCKED_HOSTS = [
@@ -161,4 +163,31 @@ export function assertSafeCdpUrl(raw: unknown, opts?: { allowRemote?: boolean })
     throw new Error(`remote cdpUrl blocked (set AXIOM_ALLOW_REMOTE_CDP=1 to allow): ${parsed.hostname}`);
   }
   return parsed.href;
+}
+
+/** L13：解析后二次校验（缓解 DNS-rebinding 到私网）；解析失败不拦截，交由连接层报错。
+ *  TOCTOU 残窗（校验后连接前再变）为已知局限，在 LIMITATIONS 披露。 */
+export async function assertResolvedHostSafe(
+  hostname: string,
+  resolve: (h: string) => Promise<string[]> = async (h) =>
+    (await dnsPromises.lookup(h, { all: true })).map((a) => a.address),
+): Promise<void> {
+  try {
+    const addrs = await resolve(hostname);
+    for (const ip of addrs) {
+      if (ip.includes(".") && isPrivateIPv4(ip)) {
+        throw new Error(`resolved private address blocked: ${hostname} -> ${ip}`);
+      }
+      const bare = ip.replace(/^\[|\]$/g, "").toLowerCase();
+      if (
+        bare.includes(":") &&
+        (bare === "::1" || /^f[cd]/.test(bare) || /^fe[89ab]/.test(bare))
+      ) {
+        throw new Error(`resolved private ipv6 blocked: ${hostname} -> ${ip}`);
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("blocked")) throw err;
+    // ENOTFOUND 等解析异常不在此拦截
+  }
 }

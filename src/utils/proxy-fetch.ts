@@ -27,7 +27,7 @@ import net from "node:net";
 import tls from "node:tls";
 import { URL } from "node:url";
 import { logger } from "./logger.js";
-import { isSafeUrl } from "./url-safety.js";
+import { isSafeUrl, assertResolvedHostSafe } from "./url-safety.js";
 
 // ========== 类型定义 ==========
 
@@ -410,6 +410,10 @@ async function makeRequest(
   // SSRF 防护：初始 URL 与每个重定向跳都过校验（makeRequest 递归即逐跳）
   if (opts.ssrfGuard && !isSafeUrl(url.href)) {
     return Promise.reject(new Error(`URL blocked by SSRF guard: ${url.hostname}`));
+  }
+  // L13：DNS 解析后二次校验（rebinding 缓解；TOCTOU 残窗已在 LIMITATIONS 披露）
+  if (opts.ssrfGuard) {
+    await assertResolvedHostSafe(url.hostname);
   }
 
   const isHttps = url.protocol === "https:";
