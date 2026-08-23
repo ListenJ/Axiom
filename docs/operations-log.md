@@ -6678,4 +6678,4 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   3. docs/AXIOM-ARCHITECTURE.md 行数漂移修正（kernel 196/engine 803/event-bus 155/world-state 151/config 170）+ EventBus 同步伪代码改为 async allSettled 实况 + setGoal 单键 Map 实现说明
   4. 新建 \docs/reviews/2026-08-22-full-audit-and-remediation.md\：覆盖率/核心承诺判定/18 行声明终态表/分模块问题↔提交映射/门禁结果/无法验证边界
 - **验证**：docs-consistency+rigorous **17 pass**；全量矩阵 **42 文件 447 pass / 0 fail**；tsc 0 错误
-- **Commit**：（占位 batch5）
+- **Commit**：见本次提交
