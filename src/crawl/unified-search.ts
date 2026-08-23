@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 统一搜索接口
  * 合并 SearchAggregator + EnhancedSearchAggregator 为单一入口
  *
@@ -11,6 +11,15 @@ import {
   type SearchOptions,
 } from "./search-engines.js";
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
+
+/** L12a：SHA-256 强缓存键（替代 32 位弱 hash，消除串缓存碰撞面） */
+export function strongCacheKey(
+  ...parts: Array<string | number | readonly (string | number)[]>
+): string {
+  const flat = parts.flatMap((p) => (Array.isArray(p) ? p.map(String) : [String(p)]));
+  return "cache_" + createHash("sha256").update(flat.join("|")).digest("hex").slice(0, 32);
+}
 
 // ========== 类型定义 ==========
 
@@ -283,12 +292,7 @@ export class UnifiedSearch {
   private buildCacheKey(query: string, engines: string[], num: number, threshold: number): string {
     // 纳入 num 与 relevanceThreshold：quickSearch(num=10) 与 deepSearch(num=20) 须命中不同缓存键，
     // 否则会因缓存返回错误条数/过滤结果。
-    const key = `${query}|${engines.join(",")}|n${num}|t${threshold}`;
-    let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-      hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-    }
-    return `cache_${hash}`;
+    return strongCacheKey(query, engines.join(","), num, threshold);
   }
 
   private getFromCache(key: string, ttlMinutes: number): UnifiedSearchResult[] | null {
