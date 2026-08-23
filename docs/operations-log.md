@@ -6679,3 +6679,13 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   4. 新建 \docs/reviews/2026-08-22-full-audit-and-remediation.md\：覆盖率/核心承诺判定/18 行声明终态表/分模块问题↔提交映射/门禁结果/无法验证边界
 - **验证**：docs-consistency+rigorous **17 pass**；全量矩阵 **42 文件 447 pass / 0 fail**；tsc 0 错误
 - **Commit**：见本次提交
+
+## 2026-08-22 — 二期计划落库 + Phase A 执行（M9 Rust 确定性 / L12a 缓存键）
+
+- **任务**：按 docs/superpowers/plans/2026-08-22-remediation-phase2.md 执行 Phase A。
+- **操作**：
+  1. M9 \
+ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯函数 compute_score（now 注入可测）+ recency 显式开关（SearchOptions.include_recency serde default false，local/cloud 字面量补齐）+ 同分 path 升序稳定排序；新增确定性测试 3 个
+  2. L12a \src/crawl/unified-search.ts\：导出 strongCacheKey（SHA-256→32hex，支持数组片段），buildCacheKey 委托；新增 2 用例
+- **验证**：cargo test -p oc-search **9 pass**；workspace build 通过；TS 目标回归 **18 pass**；tsc 0 错误
+- **Commit**：M9=6a30c7b；L12a=见本次相邻提交
