@@ -97,4 +97,24 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     // LLM 可选
     expect(combined.includes("KNOWLEDGE_USE_LLM") || combined.includes("可选") ).toBe(true);
   });
+
+  test("批次5 — README 模块表/审批协议/导航数与实现一致", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    // vram-budget.ts 不存在（实为 system-resource.ts，纯数字预算、无 nvidia-smi 硬件依赖）
+    expect(readme.includes("vram-budget.ts")).toBe(false);
+    expect(readme.includes("system-resource.ts")).toBe(true);
+    expect(readme.includes("RTX 3050")).toBe(false);
+
+    // 审批决议走 REST，而非 WS action；后端默认 60s 自动拒绝保留
+    expect(readme.includes("approval.resolve")).toBe(false);
+    expect(readme.includes("/approvals/")).toBe(true);
+
+    // 导航数量：以 frontend NAV_ITEMS 实际条目数为准（含 path:'/' 的条目）
+    const nav = readFileSync("frontend/src/lib/nav.ts", "utf8");
+    const navCount = (nav.match(/path:\s*'\//g) || []).length;
+    expect(navCount).toBe(9);
+    expect(readme).not.toMatch(/18 个页面/);
+    expect(readme).toContain(`${navCount} 个核心入口`);
+  });
 });

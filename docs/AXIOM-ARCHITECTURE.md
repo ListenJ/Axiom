@@ -279,7 +279,7 @@ consciousness/stream.ts:
 
 ### 2.1 Kernel — 极薄启动器
 
-**文件:** `src/dre/kernel.ts` (174 行)
+**文件:** `src/dre/kernel.ts` (196 行，2026-08-22 快照)
 
 **设计理念:** Kernel 不做任何业务逻辑。它只做三件事: (1) 通过 `init()` 启动所有子系统, (2) 通过 `tick()` 驱动循环, (3) 通过 `shutdown()` 优雅关闭。
 
@@ -363,7 +363,7 @@ async shutdown(): Promise<void> {
 
 ### 2.2 DREngine — 引擎主入口
 
-**文件:** `src/dre/engine.ts` (700 行)
+**文件:** `src/dre/engine.ts` (803 行，2026-08-22 快照)
 
 **职责:** 整合所有子系统。构造函数同步初始化 12 个模块, 对外提供统一 API。
 
@@ -1058,7 +1058,7 @@ class TaskGraph {
 
 ### 2.12 EventBus — 发布订阅事件总线
 
-**文件:** `src/dre/runtime/event-bus.ts` (121 行)
+**文件:** `src/dre/runtime/event-bus.ts` (155 行，2026-08-22 快照)
 
 ```typescript
 class EventBusImpl extends EventEmitter {
@@ -1072,9 +1072,9 @@ class EventBusImpl extends EventEmitter {
 
     const handlers = this.handlers.get(event.type) ?? [];
     handlers.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
-    for (const h of handlers) {
-      try { h.handler(event); } catch (err) { /* 记录错误, 不中断 */ }
-    }
+    // 实现为 async 并等待全部 handler 完成（allSettled 吸收异常）：
+    // 慢 handler 会阻塞发布方 —— 订阅侧务必保持轻量/非阻塞。
+    await Promise.allSettled(handlers.map((h) => h.handler(event)));
     return event;
   }
 
@@ -1104,7 +1104,7 @@ interface RuntimeEvent {
 
 ### 2.13 WorldState — 全局状态树
 
-**文件:** `src/dre/runtime/world-state.ts` (148 行)
+**文件:** `src/dre/runtime/world-state.ts` (151 行，2026-08-22 快照)
 
 ```typescript
 class WorldStateImpl {
@@ -1123,7 +1123,11 @@ class WorldStateImpl {
   // 认知维度
   setIntent(intent: string, confidence: number): void { this.set("mental.intent", { intent, confidence, timestamp }); }
   setGoal(goalId: string, description: string, status: "active"|"completed"|"abandoned"): void {
-    this.set(`mental.goals.${goalId}`, { description, status, timestamp });
+    // 实现：单键 "mental.goals" 下维护整张 Map 快照（非逐 goal 子键），
+    // watch("mental.goals") 可观察整体变化；查询走 getGoals()。
+    const goals = this.get<Map<string, unknown>>("mental.goals") ?? new Map();
+    goals.set(goalId, { description, status, timestamp: Date.now() });
+    this.set("mental.goals", goals);
   }
   setBelief(beliefId: string, statement: string, confidence: number): void { ... }
   setHypothesis(id: string, statement: string, status: string): void { ... }
@@ -1140,7 +1144,7 @@ class WorldStateImpl {
 
 ### 2.14 ConfigLoader — 配置加载器 ★ v3.1
 
-**文件:** `src/dre/config.ts` (142 行)
+**文件:** `src/dre/config.ts` (170 行，2026-08-22 快照)
 
 ```typescript
 class ConfigLoader {

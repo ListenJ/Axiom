@@ -6668,3 +6668,14 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   5. L9 新建 \src/utils/math.ts\ 共享 cosineSimilarity（零向量→0 语义），收敛 stream.ts / context-manager.ts / settings-search.ts 三处重复实现
 - **验证**：全量矩阵 **42 文件 446 pass / 0 fail**；tsc 0 错误；受影响面补充回归 settings-search+resource-audit 26 pass
 - **Commit**：e3e4a5a 之后紧邻的本次提交
+
+## 2026-08-22 — 审计修复批次 5：声明校准收尾 + 审计报告落库
+
+- **任务**：收敛审计总表剩余文档失真项（#8/#14/#15/#16），并将审计与四批次整改报告落库。
+- **操作**：
+  1. \	ests/unit/docs-consistency.test.ts\ 新增批次5断言（RED）：禁 vram-budget.ts/RTX 3050 引用、必须含 system-resource.ts、审批协议须为 REST /approvals/ 且禁 WS approval.resolve、导航数动态取 NAV_ITEMS(=9) 且禁"18 个页面"
+  2. README 校准（GREEN）：前端路由节重写为 9 入口×4 分区真实表；审批段改为 WS 通知+REST 决议+后端60s/前端15s 双层超时；模块表全行刷新为实测行数快照（knowledge-store 776/pool 563/graph 497/solver 649/system 583/system-resource 179 硬件无关/engine 803）并加注"2026-08-22 快照"
+  3. docs/AXIOM-ARCHITECTURE.md 行数漂移修正（kernel 196/engine 803/event-bus 155/world-state 151/config 170）+ EventBus 同步伪代码改为 async allSettled 实况 + setGoal 单键 Map 实现说明
+  4. 新建 \docs/reviews/2026-08-22-full-audit-and-remediation.md\：覆盖率/核心承诺判定/18 行声明终态表/分模块问题↔提交映射/门禁结果/无法验证边界
+- **验证**：docs-consistency+rigorous **17 pass**；全量矩阵 **42 文件 447 pass / 0 fail**；tsc 0 错误
+- **Commit**：（占位 batch5）

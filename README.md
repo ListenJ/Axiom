@@ -84,25 +84,16 @@ curl http://localhost:18789/engines
 
 ## 前端路由
 
-Dashboard 前端提供 18 个页面，核心页面默认显示在侧边栏：
+Dashboard 侧边栏默认展示 **9 个核心入口**（`frontend/src/lib/nav.ts` 的 NAV_ITEMS，按 4 个分区组织）：
 
-- **Home** / — 系统概览 Dashboard
-- **Chat** /chat — AI 对话 (自动意图路由到 8 核心角色)
-- **Search** /search — 多引擎搜索
-- **Code** /code — 代码任务 (OpenCode Agent)
-- **Agents** /agents — 智能体管理
-- **Router** /router — 模型路由状态
-- **Vault** /vault — 记忆库浏览
-- **KG** /kg — 知识图谱可视化
-- **Sessions** /sessions — 会话历史
-- **Eval** /eval — 模型评估
-- **Plugins** /plugins — 插件市场
-- **OCR** /ocr — 文档识别
-- **Research** /research — 深度研究
-- **Review** /knowledge — 知识库审核
-- **Settings** /settings — 系统配置
+| 分区 | 入口 |
+|------|------|
+| 工作区 | **对话** /chat · **搜索** /search · **代码** /code |
+| 知识与模型 | **知识** /vault（记忆库）· **模型** /providers |
+| 开发 | **Git** /git |
+| 系统 | **会话** /sessions · **Tokens** /tokens · **系统** /settings |
 
-快捷键：数字 1-9 导航前 9 个页面，Shift+T 切换主题，/ 或 Ctrl+K 搜索，? 帮助。
+快捷键：对话/搜索/代码/知识/模型/系统对应数字 1-6，Git 为 `g`，会话 `7`，Tokens `9`；Shift+T 切换主题，/ 或 Ctrl+K 搜索，? 帮助。
 
 ## 快速开始
 
@@ -145,7 +136,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 切模式：`bun run cli mode <plan|agent|yolo>`
 
-审批通过 WebSocket 推送 `approval.requested` 事件给所有连接的客户端；任一客户端发送 `{ "action": "approval.resolve", "id": "<uuid>", "approved": true }` 即完成。默认 60 秒超时自动拒绝，详见 `src/utils/approval-bridge.ts`。
+审批请求通过 WebSocket 推送 `approval.requested` 事件给所有连接的客户端；决议通过 REST 完成：`POST /approvals/:id/resolve`（body: `{ "approved": true|false }`）。后端默认 **60 秒**超时自动拒绝（`src/utils/approval-bridge.ts`，上限 5 分钟）；前端 ApprovalModal 另有 15 秒 UI 倒计时兜底。
 
 ## 核心特性
 
@@ -153,20 +144,20 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 10 项架构改进 + 7 项核心缺陷修复，从碎片化多智能体系统升级为统一认知运行时：
 
-| 模块 | 文件 | 行数 | 功能 |
+| 模块 | 文件 | 行数¹ | 功能 |
 |------|------|------|------|
-| 知识存储 | `knowledge-store.ts` | 746 | 7 种知识范式 + 版本快照 + 实体关系图谱 |
+| 知识存储 | `src/dre/storage/knowledge-store.ts` | 776 | 7 种知识范式 + 版本快照 + 实体关系图谱 |
 | 行为知识 | `knowledge-store.ts` | — | `IF-THEN` 规则解析 → Behavior 模式 |
 | 过程知识 | `knowledge-store.ts` | — | 步骤解析 + 条件分支 + `&&`/`||` 评估 |
 | 假设管理 | `knowledge-store.ts` | — | 5 状态生命周期 + 证据积累 → 自动判定 |
-| 心智模型池 | `pool.ts` | 332 | 概念图 + 状态转换 + BFS 路径 + 关系扩展匹配 |
-| 推理图 | `graph.ts` | 477 | 缺口检测 + LLM 精确填充 + 链式置信度 |
-| 约束求解 | `solver.ts` | 586 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
-| Actor 系统 | `system.ts` | 473 | 消息邮箱 + 4 预注册 Actor + 竞态保护 |
-| VRAM 预算 | `vram-budget.ts` | 179 | nvidia-smi 检测 + RTX 3050 Ti 适配 |
-| 降级链 | `engine.ts` | 525 | 本地 LLM → 云 API → 规则引擎 |
+| 心智模型池 | `src/dre/mental-model/pool.ts` | 563 | 概念图 + 状态转换 + BFS 路径 + 关系扩展匹配 |
+| 推理图 | `src/dre/reasoning/graph.ts` | 497 | 缺口检测 + LLM 精确填充 + 链式置信度 |
+| 约束求解 | `src/dre/constraint/solver.ts` | 649 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
+| Actor 系统 | `src/dre/actor/system.ts` | 583 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
+| 资源预算 | `src/dre/system-resource.ts` | 179 | 纯数字预算（硬件无关，双阈值滞回；nvidia-smi 已按设计移除） |
+| 降级链 | `src/dre/engine.ts` | 803 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
 
-**测试覆盖**: 55 认知模块测试 / 13 场景路由测试 / 538 total pass
+> ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
 
 ### 🔍 确定性记忆引擎（手写余弦 + PG vector 可选）
 
