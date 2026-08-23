@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 多搜索引擎抽象层 v2.0 (简化版)
  *
  * 支持：DuckDuckGo / Bing / SearXNG
@@ -402,7 +402,10 @@ export class SearchAggregator {
       .filter(Boolean) as Promise<SearchEngineResult[]>[];
 
     const results = await Promise.all(tasks);
-    return this.mergeAndDeduplicate(results.flat());
+    const merged = this.mergeAndDeduplicate(results.flat());
+    // L12b：域名多样性上限（防单域垄断结果页；默认 3/域，SEARCH_MAX_PER_DOMAIN 可配）
+    const maxPerDomain = Number(readString("SEARCH_MAX_PER_DOMAIN", "3")) || 3;
+    return enforceDomainDiversity(merged, maxPerDomain);
   }
 
   async search(engine: string, opts: SearchOptions): Promise<SearchEngineResult[]> {
@@ -450,6 +453,7 @@ export class SearchAggregator {
     return Array.from(seen.values()).sort((a, b) => a.position - b.position);
   }
 
+
   private normalizeUrl(url: string): string {
     // 纯字符串规范化（避免 new URL() 解析开销，剖析显示其为去重路径的 87% 耗时）：
     // 小写化 + 去 hash + 正则剔除追踪参数，与旧实现语义一致（去 utm/hash、小写化）。
@@ -474,3 +478,25 @@ export const searchAggregator = new SearchAggregator();
 
 /** 追踪参数正则（去重时剔除，含前导 ? 或 &） */
 const TRACKING_PARAM_RE = /[?&](?:utm_source|utm_medium|utm_campaign|utm_term|utm_content|fbclid|gclid)=[^&#]*/g;
+
+/** L12b：域名多样性 —— 每 host 至多保留 maxPerDomain 条，防单域垄断结果页 */
+export function enforceDomainDiversity<T extends { link: string }>(
+  results: T[],
+  maxPerDomain: number,
+): T[] {
+  if (maxPerDomain <= 0 || results.length === 0) return results;
+  const counts = new Map<string, number>();
+  const out: T[] = [];
+  for (const r of results) {
+    let host = "";
+    try {
+      host = new URL(r.link).hostname.toLowerCase();
+    } catch {
+      /* 解析失败计入 "" 独立桶，不误伤 */
+    }
+    const c = (counts.get(host) ?? 0) + 1;
+    counts.set(host, c);
+    if (c <= maxPerDomain) out.push(r);
+  }
+  return out;
+}
