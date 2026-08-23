@@ -18,6 +18,16 @@ import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { isSafeUrl } from "../utils/url-safety.js";
 
+/**
+ * L14 纵深防御：CDP navigate URL 守卫（与其余渲染入口同策略）。
+ * 导出为可测纯函数；executeCDPAction 的 navigate 分支内部调用。
+ */
+export function assertNavigableUrl(url: string): void {
+  if (!isSafeUrl(url)) {
+    throw new Error(`navigate blocked by SSRF guard: ${url}`);
+  }
+}
+
 export interface LightpandaConfig {
   /** Lightpanda 二进制路径 */
   binaryPath?: string;
@@ -771,6 +781,8 @@ export async function executeCDPAction(
         }
         case "navigate": {
           if (action.url) {
+            // L14 纵深防御：navigate 分支与其余渲染入口同样过 SSRF 守卫
+            assertNavigableUrl(action.url);
             ws.send(JSON.stringify({ id: messageId++, method: "Page.navigate", params: { url: action.url } }));
           }
           done = true;

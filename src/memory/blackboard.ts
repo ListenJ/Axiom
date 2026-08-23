@@ -411,10 +411,16 @@ export class SharedBlackboard {
 
   /** 删除条目 */
   delete(key: string): boolean {
-    const existed = this.entries.has(key);
+    const existed = this.entries.get(key);
+    if (!existed) {
+      this.cache.delete(key);
+      return false;
+    }
+    // L2 审计修复：同步回收双索引，Set 不再只增不减
+    this.removeFromIndexes(key, existed);
     this.entries.delete(key);
     this.cache.delete(key);
-    return existed;
+    return true;
   }
 
   /** 标记过期 */
@@ -542,6 +548,21 @@ export class SharedBlackboard {
     return conflictEntry;
   }
 
+  /** L2 审计修复：从 tagIndex/sourceIndex 回收指定条目（Set 空时移除键） */
+  private removeFromIndexes(key: string, entry: BlackboardEntry): void {
+    for (const tag of entry.tags) {
+      const set = this.tagIndex.get(tag);
+      if (!set) continue;
+      set.delete(key);
+      if (set.size === 0) this.tagIndex.delete(tag);
+    }
+    const src = this.sourceIndex.get(entry.sourceId);
+    if (src) {
+      src.delete(key);
+      if (src.size === 0) this.sourceIndex.delete(entry.sourceId);
+    }
+  }
+
   private cleanup(): void {
     const now = Date.now();
     let cleaned = 0;
@@ -549,6 +570,8 @@ export class SharedBlackboard {
     for (const [key, entry] of this.entries) {
       if (entry.expireTime > 0 && now > entry.expireTime + 5 * 60 * 1000) {
         // 过期超过 5 分钟才清理
+        // L2 审计修复：清扫同步回收双索引
+        this.removeFromIndexes(key, entry);
         this.entries.delete(key);
         cleaned++;
       }

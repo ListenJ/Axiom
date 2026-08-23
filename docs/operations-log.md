@@ -6656,3 +6656,15 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   6. L8 移除 postgres 死依赖（package.json + bun.lock 刷新，全仓零 import）
 - **验证**：全量矩阵 **40 文件 428 pass / 0 fail**（含 go 门禁与 pg-client-removal/module-exports 回归）；tsc 0 错误
 - **Commit**：见本次提交
+
+## 2026-08-22 — 审计修复批次 4：L2/L4/L6/L9/L14 低危收尾
+
+- **任务**：消化审计 Low 项中可安全落地者。
+- **操作**（TDD，备份 .tmp/backups/*）：
+  1. L2 \src/memory/blackboard.ts\ delete/cleanup 同步回收 tagIndex/sourceIndex（新增 removeFromIndexes，Set 空时移除键）
+  2. L4 \src/dre/runtime/scheduler.ts\ 移除恒真 token 死检查（字段保留为预留位并注释）
+  3. L6 \src/dre/runtime/world-state.ts\ set() 的 publish 加 void+catch 防御未处理 rejection
+  4. L14 \src/crawl/lightpanda-client.ts\ 导出纯函数 assertNavigableUrl 并接入 navigate 分支（纵深防御，与渲染入口同策略）
+  5. L9 新建 \src/utils/math.ts\ 共享 cosineSimilarity（零向量→0 语义），收敛 stream.ts / context-manager.ts / settings-search.ts 三处重复实现
+- **验证**：全量矩阵 **42 文件 446 pass / 0 fail**；tsc 0 错误；受影响面补充回归 settings-search+resource-audit 26 pass
+- **Commit**：（占位 batch4）

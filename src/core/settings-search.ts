@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Settings semantic/keyword search — 设置项语义检索
  *
  * 设计（边缘增强·失败回退）：
@@ -7,6 +7,7 @@
  *  3. 纯关键词兜底（中文二元组 + 英文 token + 同义词表）
  * 任何一级失败都自动降级，绝不抛错；embedder 可注入以便测试。
  */
+import { cosineSimilarity } from "../utils/math.js";
 import { SETTINGS_CATALOG, getSectionLabel, type SettingItem } from "./settings-catalog.js";
 import { getEdgeEmbeddings } from "../local-llm/edge-embeddings.js";
 import { router as modelRouter } from "../router/model-router.js";
@@ -114,19 +115,7 @@ export function keywordScore(item: SettingItem, query: string): number {
   return score;
 }
 
-function cosine(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0;
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-  if (na === 0 || nb === 0) return 0;
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
+// L9：余弦实现收敛至 src/utils/math.ts
 
 /** 默认 embedding 链：本地边缘 → 模型路由 → null（关键词兜底） */
 export async function defaultEmbedder(texts: string[]): Promise<number[][] | null> {
@@ -174,7 +163,7 @@ export async function searchSettings(query: string, opts: SearchOptions = {}): P
       if (vectors && vectors.length === texts.length) {
         const qv = vectors[0];
         for (let i = 0; i < catalog.length; i++) {
-          const s = cosine(qv, vectors[i + 1]);
+          const s = cosineSimilarity(qv, vectors[i + 1]);
           if (s >= SEMANTIC_THRESHOLD) {
             semanticScores.set(catalog[i].key, s);
             semanticUsed = true;

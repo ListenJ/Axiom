@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 上下文管理器 (Context Manager)
  *
  * 管理 Agent 对话上下文的生命周期:
@@ -12,6 +12,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { cosineSimilarity as sharedCosineSimilarity } from "../utils/math.js";
 import { router, type ChatMessage } from "../router/model-router.js";
 import { findModelsForRole, type TaskRole, type ModelCapability } from "../router/model-capability-registry.js";
 import { getTokenTracker } from "../router/token-tracker.js";
@@ -529,22 +530,8 @@ export class ContextManager {
     return Math.min(score, 1.0);
   }
 
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    if (normA === 0 || normB === 0) return 0;
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
+  // L9：余弦实现收敛至 src/utils/math.ts（共享单份）
+  private readonly cosineSimilarity = sharedCosineSimilarity;
 }
 
 export const contextManager = new ContextManager();

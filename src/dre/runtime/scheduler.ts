@@ -48,6 +48,7 @@ interface ResourceBudget {
   maxTokensPerMinute: number
   maxMemoryMB: number
   currentTasks: number
+  /** L4：预留字段 —— 当前无累加点，不参与准入判断 */
   currentTokensPerMinute: number
   currentMemoryMB: number
 }
@@ -76,9 +77,10 @@ function hasResources(budget: ResourceBudget): boolean {
   } catch {}
   return (
     budget.currentTasks < budget.maxConcurrentTasks &&
-    budget.currentTokensPerMinute < budget.maxTokensPerMinute &&
     effectiveCurrent < budget.maxMemoryMB
   );
+  // L4 审计修复：移除恒真的 currentTokensPerMinute 死检查（该字段无累加点）。
+  // 字段保留为未来接入真实 token 计量的预留位。
 }
 
 // ─── Priority Queue ────────────────────────────────────────────────────────
