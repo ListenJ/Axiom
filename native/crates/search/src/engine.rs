@@ -202,51 +202,24 @@ impl DeterministicEngine {
         &self,
         candidates: &mut [(Arc<LiteNote>, f64, Vec<String>)],
         plan: &QueryPlan,
-        _opts: &SearchOptions,
+        opts: &SearchOptions,
     ) {
-
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         candidates.par_iter_mut().for_each(|(note, score, reasons)| {
-            let title_tokens = oc_shared::utils::tokenize_unique(&note.title);
-            let title_score = oc_shared::utils::score_tokens(
-                &plan.tokens,
-                &title_tokens,
-            );
+            // M9：title/tag/para/recency 评分收敛到纯函数（recency 由显式开关控制）
+            let mut s = compute_score(note, &plan.tokens, opts.include_recency, now);
 
-            let mut s = title_score * 30.0; // title weight
-
-            // Tag match
-            let tag_matches = plan
-                .tokens
-                .iter()
-                .filter(|t| note.tags.iter().any(|tag| tag == *t))
-                .count();
-            s += tag_matches as f64 * 25.0;
-
-            // Wiki-link relevance
+            // Wiki-link/backlink 相关性保留在纯函数外
             let link_matches = note
                 .wiki_links
                 .iter()
                 .filter(|l| plan.tokens.iter().any(|t| l.to_lowercase().contains(t)))
                 .count();
             s += link_matches as f64 * 10.0;
-
-            // Backlink boost
             s += note.backlinks.len() as f64 * 4.0;
-
-            // PARA semantic boost
-            if let Some(para) = oc_shared::utils::slugify(&note.path).split('/').next() {
-                if plan.tokens.iter().any(|t| para.contains(t)) {
-                    s += 5.0;
-                }
-            }
-
-            // Recency
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let age_days = (now.saturating_sub(note.modified_at)) / 86400;
-            s += (30.0 / (1.0 + age_days as f64)).min(5.0);
 
             *score = s;
 
@@ -254,7 +227,12 @@ impl DeterministicEngine {
             reasons.push(format!("score={:.1}", s));
         });
 
-        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        // M9：同分按 path 升序稳定输出（消除 HashSet 迭代序不确定性）
+        candidates.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap()
+                .then_with(|| a.0.path.cmp(&b.0.path))
+        });
     }
 
     fn read_content(&self, path: &str) -> String {
@@ -288,4 +266,106 @@ impl DeterministicEngine {
     pub fn rebuild(&self) -> oc_shared::Result<usize> {
         self.index.rebuild()
     }
+}
+
+#[cfg(test)]
+mod det_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn note_with(path: &str, title: &str, age_secs: u64) -> LiteNote {
+        LiteNote {
+            path: path.into(),
+            title: title.into(),
+            frontmatter: HashMap::new(),
+            tags: vec![],
+            wiki_links: vec![],
+            backlinks: vec![],
+            word_count: 1,
+            modified_at: std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                - age_secs,
+        }
+    }
+
+    #[test]
+    fn recency_off_by_default_and_on_when_flagged() {
+        let n_old = note_with("01-projects/old.md", "KW old", 86_400 * 365);
+        let tokens = vec!["kw".to_string()];
+        let s_off = compute_score(&n_old, &tokens, false, 0);
+        // 开启 recency：now=文件时刻(新) vs now=两年后(旧)。上限 5 分，
+        // 故旧样本必须取远超上限衰减区间的年龄才能体现差异。
+        let s_on_now = compute_score(&n_old, &tokens, true, n_old.modified_at);
+        let s_on_two_years_later =
+            compute_score(&n_old, &tokens, true, n_old.modified_at + 86_400 * 365 * 2);
+        assert_eq!(
+            s_off,
+            compute_score(&note_with("x.md", "KW x", 0), &tokens, false, 0),
+            "关闭 recency 时年龄不得影响得分"
+        );
+        assert!(
+            s_on_now > s_on_two_years_later,
+            "开启 recency 时越新得分越高 (now={s_on_now}, old={s_on_two_years_later})"
+        );
+    }
+
+    #[test]
+    fn ties_sorted_by_path_ascending() {
+        let dir = std::env::temp_dir().join(format!("oc-tie-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("03-resources")).unwrap();
+        for name in ["c.md", "a.md", "b.md"] {
+            std::fs::write(
+                dir.join("03-resources").join(name),
+                format!("---\ntitle: KW {name}\n---\nbody {name}\n"),
+            )
+            .unwrap();
+        }
+        let eng = DeterministicEngine::new(dir.to_string_lossy().into_owned());
+        let opts = SearchOptions {
+            limit: 10,
+            types: None,
+            tags: None,
+            para_category: None,
+            date_range: None,
+            include_reasons: false,
+            include_recency: false,
+        };
+        let r1: Vec<String> = eng.search("kw", &opts).iter().map(|r| r.note.path.clone()).collect();
+        let r2: Vec<String> = eng.search("kw", &opts).iter().map(|r| r.note.path.clone()).collect();
+        assert_eq!(r1, r2, "两次调用顺序必须一致");
+        let mut sorted = r1.clone();
+        sorted.sort();
+        assert_eq!(r1, sorted, "同分必须按路径升序稳定输出");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+/// M9：确定性评分纯函数（recency 显式开关，now 由调用方注入以便测试）
+pub(crate) fn compute_score(
+    note: &LiteNote,
+    tokens: &[String],
+    include_recency: bool,
+    now_secs: u64,
+) -> f64 {
+    use oc_shared::utils::{slugify, tokenize_unique};
+    let title_tokens = tokenize_unique(&note.title);
+    let title_score = oc_shared::utils::score_tokens(tokens, &title_tokens);
+    let mut s = title_score * 30.0;
+    let tag_matches = tokens
+        .iter()
+        .filter(|t| note.tags.iter().any(|tag| tag == *t))
+        .count();
+    s += tag_matches as f64 * 25.0;
+    if let Some(para) = slugify(&note.path).split('/').next() {
+        if tokens.iter().any(|t| para.contains(t)) {
+            s += 5.0;
+        }
+    }
+    if include_recency {
+        let age_days = now_secs.saturating_sub(note.modified_at) / 86_400;
+        s += (30.0 / (1.0 + age_days as f64)).min(5.0);
+    }
+    s
 }

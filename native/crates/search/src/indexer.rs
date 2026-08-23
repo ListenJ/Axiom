@@ -106,10 +106,13 @@ impl VaultIndex {
             .unwrap_or_default();
         let wiki_links = extract_wiki_links(body);
         let word_count = body.split_whitespace().count();
-        let modified_at = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // M9：modified_at 必须取文件真实 mtime，而非索引时刻（否则每次重建都视为"刚修改"）
+        let modified_at = std::fs::metadata(self.vault_path.join(path))
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
 
         let note = Arc::new(LiteNote {
             path: path.to_string(),
@@ -306,5 +309,29 @@ mod tests {
     #[test]
     fn test_slugify() {
         assert_eq!(oc_shared::utils::slugify("Hello World"), "hello-world");
+    }
+
+    #[test]
+    fn modified_at_uses_file_mtime_not_index_time() {
+        let dir = std::env::temp_dir().join(format!("oc-mtime-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("a.md");
+        std::fs::write(&p, "---\ntitle: A\n---\nbody\n").unwrap();
+        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        set_mtime(&p, older);
+
+        let idx = VaultIndex::new(&dir);
+        let note = idx.get("a.md").unwrap();
+        let want = older
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert_eq!(note.modified_at, want, "modified_at 必须等于文件 mtime");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn set_mtime(p: &std::path::Path, t: std::time::SystemTime) {
+        let f = std::fs::OpenOptions::new().append(true).open(p).unwrap();
+        f.set_times(std::fs::FileTimes::new().set_modified(t)).unwrap();
     }
 }

@@ -1,4 +1,4 @@
-use axum::{
+﻿use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::Json,
@@ -126,6 +126,7 @@ async fn search_handler(
         para_category: params.para,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
 
     let results = state.search.search(&params.q, &opts);
@@ -169,6 +170,7 @@ async fn native_search_handler(
         para_category: None,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
     let results = state.search.search(&req.query, &opts);
     Ok(Json(serde_json::json!({
