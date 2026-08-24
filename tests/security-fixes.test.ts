@@ -333,3 +333,40 @@ describe("git_diff revision 注入防线（C-1）", () => {
     expect(r.success).toBe(true);
   }, 20000);
 });
+
+// ─────────────────────────────────────────────────────────
+// 8. docker 沙箱环境变量泄漏防线（审计 J-3 / 2026-08-24 R2）
+// ─────────────────────────────────────────────────────────
+import { spyOn } from "bun:test";
+import { dockerSandbox } from "../src/sandbox/docker-sandbox.js";
+
+describe("docker-sandbox env 泄漏防线（J-3）", () => {
+  test("传给容器的 env 剥离密钥类变量，显式传入的 extra 保留", async () => {
+    const fakeProc = {
+      stdout: new Response(""),
+      stderr: new Response(""),
+      exited: Promise.resolve(0),
+      kill: () => {},
+    };
+    const spawnSpy = spyOn(Bun, "spawn").mockImplementation((() => fakeProc) as any);
+    try {
+      (process.env as Record<string, string>).OPENAI_API_KEY = "sk-test-leak";
+      process.env.TEST_SECRET_A = "super-secret";
+      const res = await dockerSandbox.execute({
+        command: "echo hi",
+        networkAccess: false,
+        env: { EXPLICIT_OK: "1" },
+      });
+      expect(res.exitCode).toBe(0);
+      const call = spawnSpy.mock.calls[0] as unknown as [string[], { env?: Record<string, string> }];
+      const env = call[1]?.env ?? {};
+      expect(env.OPENAI_API_KEY).toBeUndefined();
+      expect(env.TEST_SECRET_A).toBeUndefined();
+      expect(env.EXPLICIT_OK).toBe("1");
+    } finally {
+      delete (process.env as Record<string, unknown>).OPENAI_API_KEY;
+      delete process.env.TEST_SECRET_A;
+      spawnSpy.mockRestore();
+    }
+  }, 15000);
+});
