@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-T1：deterministic-search Stage-2 内容打分有界化
+
+- **任务**：内容关键词打分对全部低分候选逐条读盘（冷查询 O(N) IO），改为内存分降序截断至 `CONTENT_SCAN_MAX=200` 后有界扫描。
+- **操作**：`src/memory/deterministic-search.ts` 主循环移出内容段→候选收集+排序+截断后统一读盘；修复回退迭代器单次消费缺陷（物化为数组，两段共用）；新增护栏测试「纯内容词『嵌入式』仍可召回」。→ Commit `f56ac7c`
+- **验证**：54 pass / tsc 干净。语义裁剪仅超限零分长尾不再补内容分（如实登记）。
+---
+
 ## 2026-08-25 — 优化 P0-5：SQLiteMemory 标签精确匹配 + tags 按行兜底（TDD）
 
 - **任务**：① `listByTag`/`search` 的 `LIKE '%"tag"%'` 存在通配符注入——标签含 `%`/`_` 时改变匹配语义产生假阳性（实证：tag `"100%"` 同时命中 `"100x done"`）；② 五处 `JSON.parse(row.tags)` 无兜底，损坏行抛错，且 `search` 的 catch-all 会因单条损坏行吞掉全部命中；③ `kg/enhanced.ts rowToNode` 的 tags/metadata 解析同样无兜底。

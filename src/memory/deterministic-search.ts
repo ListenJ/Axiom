@@ -81,6 +81,8 @@ export class DeterministicSearchEngine {
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
   private readonly CONTENT_CACHE_MAX = 50;
+  // 单次查询内容读盘的候选上限（P1-T1）：内存分降序截断，裁剪长尾零分候选的无效 IO
+  private readonly CONTENT_SCAN_MAX = 200;
   // Memoization 缓存同样设上限（FIFO 驱逐），防止长运行期 tokenize/para 键无限增长
   private readonly TOKENIZE_CACHE_MAX = 200;
   private readonly PARA_CACHE_MAX = 500;
@@ -275,8 +277,9 @@ export class DeterministicSearchEngine {
         for (const p of indexedPaths) candidatePaths.add(p);
       }
     }
-    // titleIndex 无命中时回退到全量扫描（冷启动或罕见词）
-    const pathsToScan = candidatePaths.size > 0 ? candidatePaths : this.notes.keys();
+    // titleIndex 无命中时回退到全量扫描（冷启动或罕见词）；物化为数组，
+    // 供主打分循环与内容有界扫描两段共用（迭代器只能消费一次）
+    const pathsToScan = candidatePaths.size > 0 ? [...candidatePaths] : [...this.notes.keys()];
 
     // 确保候选路径在 scores 中有条目，让关系推导能正确处理
     for (const path of candidatePaths) {
@@ -311,18 +314,29 @@ export class DeterministicSearchEngine {
       }
       if (tagMatches > 0) addScore(path, Math.min(tagMatches * 12, 50), `标签匹配 x${tagMatches}`);
 
-      // Content keywords — lazy disk read only when needed
-      if (existingScore < 80) {
-        const contentLower = this.readContent(path).toLowerCase();
-        let contentMatches = 0;
-        for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
-        if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
-      }
+      // Content keywords — lazy disk read only when needed（P1-T1:移出主循环，见下方有界扫描）
 
       const pathLower = note.path.toLowerCase();
       let pathMatches = 0;
       for (const qw of queryWords) { if (pathLower.includes(qw)) pathMatches++; }
       if (pathMatches > 0) addScore(path, pathMatches * 5, `路径匹配 x${pathMatches}`);
+    }
+
+    // Content keywords — 有界磁盘扫描（P1-T1）：
+    // 先内存打分，仅对 <80 分候选按"内存分降序"截断至 CONTENT_SCAN_MAX 后读盘，
+    // 裁剪长尾冷查询的无效 IO；语义变化仅为超限零分长尾不再补内容分。
+    const contentCandidates = [...pathsToScan]
+      .filter((p) => {
+        const n = this.notes.get(p);
+        return n && passesFilter(n) && (scores.get(p)?.s ?? 0) < 80;
+      })
+      .sort((a, b) => (scores.get(b)?.s ?? 0) - (scores.get(a)?.s ?? 0))
+      .slice(0, this.CONTENT_SCAN_MAX);
+    for (const path of contentCandidates) {
+      const contentLower = this.readContent(path).toLowerCase();
+      let contentMatches = 0;
+      for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
+      if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
     }
 
     // Stage 3: Relation boosting
