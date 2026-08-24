@@ -1,4 +1,4 @@
-﻿# Axiom 系统权威架构文档 v3.1
+# Axiom 系统权威架构文档 v3.1
 
 > 唯一权威参考 — 覆盖全系统所有模块的架构设计、核心代码模式、数据流、配置与测试
 
@@ -279,7 +279,7 @@ consciousness/stream.ts:
 
 ### 2.1 Kernel — 极薄启动器
 
-**文件:** `src/dre/kernel.ts` (196 行，2026-08-22 快照)
+**文件:** `src/dre/kernel.ts`
 
 **设计理念:** Kernel 不做任何业务逻辑。它只做三件事: (1) 通过 `init()` 启动所有子系统, (2) 通过 `tick()` 驱动循环, (3) 通过 `shutdown()` 优雅关闭。
 
@@ -363,7 +363,7 @@ async shutdown(): Promise<void> {
 
 ### 2.2 DREngine — 引擎主入口
 
-**文件:** `src/dre/engine.ts` (803 行，2026-08-22 快照)
+**文件:** `src/dre/engine.ts`
 
 **职责:** 整合所有子系统。构造函数同步初始化 12 个模块, 对外提供统一 API。
 
@@ -492,7 +492,7 @@ catch { return ruleBasedConsciousnessStep(input); }
 
 ### 2.3 DataUnifier — 统一数据入口 ★ v3.1
 
-**文件:** `src/dre/runtime/data-unifier.ts` (167 行)
+**文件:** `src/dre/runtime/data-unifier.ts`
 
 **设计:** 替代 VFS + KnowledgeStore + AtomEngine 三个独立入口。所有读写经过这里。
 
@@ -541,7 +541,7 @@ load(db): number {
 
 ### 2.4 CognitivePipeline — 认知管道
 
-**文件:** `src/dre/pipeline/cognitive-pipeline.ts` (564 行)
+**文件:** `src/dre/pipeline/cognitive-pipeline.ts`
 
 **6 步确定性闭环 + 4 级 LLM 降级 + TaskGraph 执行:**
 
@@ -621,7 +621,7 @@ private classify(input: string) {
 
 ### 2.5 PersonaLoader — 角色加载器 ★ v3.0
 
-**文件:** `src/dre/persona/loader.ts` (431 行)
+**文件:** `src/dre/persona/loader.ts`
 
 **设计:** Persona ≠ Agent。Persona = Constraints + MentalModels + Capabilities + PromptTemplate。
 
@@ -722,7 +722,7 @@ render(id: string, variables: TemplateVariables = {}): string {
 
 ### 2.6 ConsciousnessStream — 意识流
 
-**文件:** `src/dre/consciousness/stream.ts` (557 行)
+**文件:** `src/dre/consciousness/stream.ts`
 
 **3 层记忆 + 反思 + 记忆整合:**
 
@@ -802,7 +802,7 @@ class ReflectionQueue {
 
 ### 2.7 VerificationEngine — 验证引擎 ★ v3.0
 
-**文件:** `src/dre/runtime/verification-engine.ts` (247 行)
+**文件:** `src/dre/runtime/verification-engine.ts`
 
 ```typescript
 // 4 层验证 + LLM fallback 决策
@@ -849,7 +849,7 @@ this.registerStage("verification", async (ctx) => {
 
 ### 2.8 ReasoningRuntime — 8 阶推理引擎（已归档）
 
-**文件:** 已归档（历史 431 行实现已移除，现由 `src/dre/pipeline/cognitive-pipeline.ts` + `src/dre/runtime/verification-engine.ts` 承担）
+**文件:** 已归档（历史实现已移除，现由 `src/dre/pipeline/cognitive-pipeline.ts` + `src/dre/runtime/verification-engine.ts` 承担）
 
 **事件驱动（历史）:** 订阅 `reasoning.request` → 执行 8 阶管道 → 发布 `reasoning.result`（现由 CognitivePipeline 统一调度）
 
@@ -891,7 +891,7 @@ class ReasoningRuntime {
 
 ### 2.9 ConstraintSolver — 多维约束求解器
 
-**文件:** `src/dre/constraint/solver.ts` (656 行)
+**文件:** `src/dre/constraint/solver.ts`
 
 ```typescript
 class ConstraintSolver {
@@ -936,7 +936,7 @@ class ConstraintSolver {
 
 ### 2.10 MentalModelPool — 心智模型池
 
-**文件:** `src/dre/mental-model/pool.ts` (572 行)
+**文件:** `src/dre/mental-model/pool.ts`
 
 **设计:** 有限状态机 + 概念图 + 规则 + 模拟 + 技能生成
 
@@ -984,7 +984,7 @@ class MentalModelPool {
 
 ### 2.11 TaskGraph — DAG 任务执行 + MCP 工具调用 ★ v3.1
 
-**文件:** `src/dre/pipeline/task-graph.ts` (397 行)
+**文件:** `src/dre/pipeline/task-graph.ts`
 
 **设计:** DAG 执行 + 回滚 + 检查点/恢复 + **MCP 工具直接调用**。
 
@@ -1058,7 +1058,7 @@ class TaskGraph {
 
 ### 2.12 EventBus — 发布订阅事件总线
 
-**文件:** `src/dre/runtime/event-bus.ts` (155 行，2026-08-22 快照)
+**文件:** `src/dre/runtime/event-bus.ts`
 
 ```typescript
 class EventBusImpl extends EventEmitter {
@@ -1104,7 +1104,7 @@ interface RuntimeEvent {
 
 ### 2.13 WorldState — 全局状态树
 
-**文件:** `src/dre/runtime/world-state.ts` (151 行，2026-08-22 快照)
+**文件:** `src/dre/runtime/world-state.ts`
 
 ```typescript
 class WorldStateImpl {
@@ -1144,7 +1144,7 @@ class WorldStateImpl {
 
 ### 2.14 ConfigLoader — 配置加载器 ★ v3.1
 
-**文件:** `src/dre/config.ts` (170 行，2026-08-22 快照)
+**文件:** `src/dre/config.ts`
 
 ```typescript
 class ConfigLoader {
@@ -1183,7 +1183,7 @@ class ConfigLoader {
 
 ### 2.15 ResourceBudgetManager — 资源预算 ★ v3.0
 
-**文件:** `src/dre/system-resource.ts` (149 行)
+**文件:** `src/dre/system-resource.ts`
 
 ```typescript
 // 硬件无关 — 纯数字比较
@@ -1207,7 +1207,7 @@ class ResourceBudgetManager {
 
 ### 2.16 LLMClient — LLM 客户端
 
-**文件:** `src/dre/llm/client.ts` (325 行)
+**文件:** `src/dre/llm/client.ts`
 
 ```typescript
 class LLMClient {
