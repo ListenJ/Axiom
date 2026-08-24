@@ -7,6 +7,7 @@
  */
 import {
   searchAggregator,
+  sanitizeSearchResultsForContext,
   type SearchEngineResult,
   type SearchOptions,
 } from "./search-engines.js";
@@ -210,16 +211,22 @@ export class UnifiedSearch {
     // Sort by relevance (stable, only if reranked)
     if (rerank) results.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
+    // 审计 D-1（2026-08-24）：此前 sanitize 仅存在于 web_search/chat 两个工具
+    // 边界，本方法与 concurrentSearch 的返回路径无任何条数/长度钳制——消费方
+    // 直连上下文时超长网页内容可击穿预算。现于唯一出口统一收口（缓存写入
+    // 的也是钳制后的结果）。
+    const sanitized = sanitizeSearchResultsForContext(results);
+
     // Cache
-    if (useCache) this.putToCache(cacheKey, results);
+    if (useCache) this.putToCache(cacheKey, sanitized);
 
     // History
     if (recordHistory) {
       const latency = Math.round(performance.now() - startTime);
-      this.recordHistory(query, engines, results.length, latency);
+      this.recordHistory(query, engines, sanitized.length, latency);
     }
 
-    return results;
+    return sanitized;
   }
 
   // ========== 便捷方法 ==========
