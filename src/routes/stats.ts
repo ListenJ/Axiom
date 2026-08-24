@@ -2,6 +2,7 @@ import type { RouteContext } from "./types.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { getTokenTracker } from "../router/token-tracker.js";
 import { costUsdToCny } from "../router/rate-tier.js";
+import { scheduler } from "../dre/runtime/scheduler.js";
 
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/api/stats" || ctx.req.method !== "GET") return null;
@@ -12,7 +13,8 @@ export async function handleStats(ctx: RouteContext): Promise<Response | null> {
     const tokenTracker = getTokenTracker();
 
     const stats = {
-      activeTasks: Math.floor(Math.random() * 5) + 1,
+      // 审计 K-3（2026-08-24）：此前为 Math.random 伪造值；现接调度器真实运行数
+      activeTasks: scheduler.getStatus().running,
       agents: 4,
       completed: vaultStats.totalNotes,
       tokensUsed: tokenTracker.getOverallStats().totalTokens,
