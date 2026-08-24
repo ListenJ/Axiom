@@ -42,6 +42,7 @@ export type AuditEvent =
   | "apikey.set" | "apikey.delete" | "apikey.test"
   | "skill.install" | "mcp.install"
   | "rate_limit.exceeded" | "config.change" | "ws_flood" | "security.alert"
+  | "security.degraded_bypass"
   | "traffic.malicious" | "traffic.suspicious";
 
 export type AuditOutcome = "success" | "failure" | "denied" | "allowed";

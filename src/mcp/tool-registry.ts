@@ -27,6 +27,31 @@ export type ToolGuard = (toolName: string, args: Record<string, unknown>) => Pro
  * 懒加载 import 避免 registry 在启动早期拉入 router 依赖链。
  */
 async function defaultToolGuard(toolName: string, args: Record<string, unknown>): Promise<void> {
+  // ── ① 权限硬底线（审计 C-3，2026-08-24）──
+  // permissions.ts 的 HIGH_RISK_PATTERNS / 敏感路径规则此前是零调用方的死代码。
+  // 现在所有 MCP 工具执行前统一过闸：高危命令/敏感路径操作直接拒绝，
+  // 不进入任何 fail-open 旁路（硬底线不可被 autoAcceptMode 或降级绕过）。
+  const { checkCommandPermission, checkFilePermission } = await import("../utils/permissions.js");
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value !== "string" || !value.trim()) continue;
+    if (/command|script|cmd/i.test(key)) {
+      const c = checkCommandPermission(value);
+      if (!c.allowed) {
+        throw new Error(`[HardFloor] ${c.reason ?? "high-risk command"} (tool=${toolName}, field=${key})`);
+      }
+    }
+    if (/^(path|file|target|destination|from|to)$/i.test(key)) {
+      const op = /delete|remove/i.test(toolName) ? ("delete" as const)
+        : /write|create|move/i.test(toolName) ? ("write" as const)
+        : ("read" as const);
+      const f = checkFilePermission(value, op);
+      if (!f.allowed) {
+        throw new Error(`[HardFloor] ${f.reason ?? "sensitive path"} (tool=${toolName}, field=${key})`);
+      }
+    }
+  }
+
+  // ── ② 双层风险复核（原有）──
   const { monitorToolPayload } = await import("../agents/risk-monitor.js");
   const verdict = await monitorToolPayload(toolName, args);
   if (verdict === "require-approval") {

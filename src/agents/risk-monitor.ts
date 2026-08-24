@@ -24,10 +24,28 @@ import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import { screenPayloadWithEdge, type EdgeRiskResult, type PayloadKind } from "../local-llm/risk-screen.js";
 import { TOOL_CLASSIFICATIONS } from "./tool-classifications.js";
 import { auditLogger } from "../utils/audit-logger.js";
+import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 /** 监视结论 */
 export type RiskVerdict = "pass" | "require-approval";
+
+/**
+ * 审计 C-4（2026-08-24）：初筛降级/失败导致的旁路此前完全不可观测。
+ * 计数器 + 审计事件让"本次判定来自降级"可见；EDGE_RISK_FAIL_CLOSED=1
+ * 时升级为强制审批（默认保持 fail-open 以不阻断离线环境）。
+ */
+let degradedBypassCount = 0;
+export function getDegradedBypassCount(): number {
+  return degradedBypassCount;
+}
+export function resetDegradedBypassCount(): void {
+  degradedBypassCount = 0;
+}
+
+function isFailClosedEnabled(): boolean {
+  return readString("EDGE_RISK_FAIL_CLOSED", "0") === "1";
+}
 
 /** 复核结果（null = 复核不可用） */
 export interface ReviewResult {
@@ -114,10 +132,43 @@ export async function monitorToolPayload(
   } catch (err) {
     // 初筛实现本身应自降级；此处兜底防 DI 实现抛异常
     logger.debug("[RiskMonitor] screen threw, fail-open", { error: (err as Error).message });
+    degradedBypassCount++;
+    auditLogger.log({
+      event: "security.degraded_bypass",
+      actor: "risk-monitor",
+      resource: `${toolName}(${kind})`,
+      outcome: "allowed",
+      reason: `screen threw: ${(err as Error).message}`,
+    });
+    if (isFailClosedEnabled()) {
+      escalate(toolName, kind, payload, "screen unavailable (EDGE_RISK_FAIL_CLOSED=1)");
+      return "require-approval";
+    }
     return "pass";
   }
 
-  if (edge.risk === "low") return "pass";
+  if (edge.risk === "low") {
+    if ((edge as { degraded?: boolean }).degraded === true) {
+      degradedBypassCount++;
+      logger.warn("[RiskMonitor] edge screening degraded; bypass recorded", {
+        toolName,
+        payload: payload.slice(0, 120),
+        failClosed: isFailClosedEnabled(),
+      });
+      auditLogger.log({
+        event: "security.degraded_bypass",
+        actor: "risk-monitor",
+        resource: `${toolName}(${kind})`,
+        outcome: "allowed",
+        reason: "edge screening degraded",
+      });
+      if (isFailClosedEnabled()) {
+        escalate(toolName, kind, payload, "edge degraded (EDGE_RISK_FAIL_CLOSED=1)");
+        return "require-approval";
+      }
+    }
+    return "pass";
+  }
 
   logger.warn(`[RiskMonitor] edge flagged ${edge.risk} risk: ${toolName}`, {
     payload: payload.slice(0, 120),
