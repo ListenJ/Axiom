@@ -15,7 +15,7 @@
 
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
-import { createNodeId, type StorePrefix } from "./node-id.js";
+import { createNodeId, parseNodeId, type StorePrefix } from "./node-id.js";
 
 // ========== 统一知识单元 ==========
 
@@ -270,38 +270,43 @@ export class KnowledgeAccessLayer {
    * 获取跨存储引用 (通过 node_id 查找关联)
    */
   async getReferences(nodeId: string): Promise<KnowledgeUnit[]> {
-    const parsed = parseNodeIdLocal(nodeId);
+    const parsed = parseNodeId(nodeId);
     if (!parsed) return [];
 
-    // 在所有存储中查找引用该 nodeId 的条目
+    // 跨存储引用：KG 出入边 UNION
+    // 以该 nodeId 为源或目标的边，另一端即其引用方/被引用方。
+    // （Vault wiki-link 图由 DeterministicSearchEngine 在文件层内存构建，
+    //  不在本 SQLite 之内，故此处仅覆盖可在 db 中可靠验证的 KG 边。）
     const results: KnowledgeUnit[] = [];
 
-    // KG 中查找 metadata 包含该 nodeId 的边
     try {
       const edges = this.db
-        .query(`SELECT * FROM kg_edges WHERE evidence LIKE ? LIMIT 10`)
-        .all(`%${nodeId}%`) as Array<{ source: string; target: string }>;
+        .query(
+          `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
+        )
+        .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
 
       for (const edge of edges) {
         const otherId = edge.source === nodeId ? edge.target : edge.source;
         const node = this.db
-          .query(`SELECT * FROM kg_nodes WHERE id = ?`)
+          .query(`SELECT id, type, name, description FROM kg_nodes WHERE id = ?`)
           .get(otherId) as { id: string; type: string; name: string; description: string } | undefined;
 
         if (node) {
           results.push({
-            nodeId: createNodeId("kg", node.type, node.id),
+            // kg_nodes.id 已是完整 node_id，切勿二次前缀（避免 kg:type:kg:type:x）
+            nodeId: node.id,
             store: "kg",
             type: node.type,
             title: node.name,
             snippet: (node.description || "").slice(0, 300),
             relevance: 0.6,
             tags: [],
-            metadata: { referencedBy: nodeId },
+            metadata: { referencedBy: nodeId, edgeType: edge.type },
           });
         }
       }
-    } catch { /* ignore */ }
+    } catch { /* kg 表可能不存在 */ }
 
     return results;
   }
@@ -327,10 +332,4 @@ export class KnowledgeAccessLayer {
       .join(" OR ");
     return cleaned;
   }
-}
-
-function parseNodeIdLocal(nodeId: string): { store: string; type: string; identifier: string } | null {
-  const parts = nodeId.split(":");
-  if (parts.length < 3) return null;
-  return { store: parts[0], type: parts[1], identifier: parts.slice(2).join(":") };
 }
