@@ -7,6 +7,26 @@
 
 ---
 
+## 2026-08-24 — 审计整改 Phase R2：P0 安全线修复（10 任务全绿）
+
+- **任务**：执行整改计划 Phase R2（docs/superpowers/plans/2026-08-24-audit-remediation-plan.md），逐任务 TDD（先 RED 后 GREEN）修复审计高危项。流程偏差说明：本阶段为提速采用逐任务提交、日志合并补记（下述 hash 全量可溯），后续阶段恢复"一提交一记录"。
+- **工具**：Edit/Write、Bash（bun test / cargo test / npx tsc --noEmit / bun build / git）、Read 通读全部目标文件。
+- **操作与验证**（文件级，含 commit hash）：
+  1. **C-1** `src/mcp/tools/git.ts` git_diff.since 字符白名单拒绝注入 + `tests/security-fixes.test.ts` 回归 3 例 → `6f544f2`
+  2. **A-4** `.github/workflows/ci.yml` kb 守卫路径改 `src/mcp/kb-backend.ts`；重建 `plugins/kb-dsh/backend/server.js`（hash 比对 sync=true）→ `d607731`
+  3. **J-3** `src/sandbox/docker-sandbox.ts` 复用 sanitizeSpawnEnv 剥离密钥 env（spyOn Bun.spawn 验证）→ `32f549e`
+  4. **J-1** `src/routes/sandbox.ts` 确认码与原命令强绑定，换令牌攻击 403 → `6ec102a`
+  5. **J-4** sandbox 降级诚实化：新增 `executeInSandboxDetailed`（真实 provider/degraded），process 分支显式拒绝 readOnly，路由透出 warnings；不再谎报 docker → `937fe07`
+  6. **M-1** harmonyos 补 `ohos.permission.INTERNET` + 双目录占位 app_icon.png + README 校正 → `6f35f74`
+  7. **B-1** 编排死路：KnowledgeActor 兜底 execute 派发；unsupportedTopicNack 带 code=UNSUPPORTED_TOPIC；scheduler.fail 支持 terminal 终态不重试；kernel 识别该码。新增 tests/unit/kernel-dispatch.test.ts 4 例；dre-host/task-graph/cognitive/resource/stress 回归 54 pass → `70b1ddf`
+  8. **C-3/C-4** tool-registry 默认守卫接入 permissions 硬底线（高危命令/敏感路径直接拒）；risk-monitor 降级旁路计数器 getDegradedBypassCount + security.degraded_bypass 审计事件 + EDGE_RISK_FAIL_CLOSED=1 可选 fail-closed。新增 tests/unit/risk-monitor-degraded.test.ts 6 例；security-fixes/mcp-server/scene-router 回归 73 pass → `5d96f77`
+  9. **J-2** auth-check 本机免认证通道写方法 CSRF Origin 同源校验（跨站 Origin 拒绝/无 Origin 放行/读方法不受影响）。新增 tests/unit/csrf-origin.test.ts 5 例 → `e5a1da0`
+  10. **K-2** Rust extract_excerpt 改字符索引取窗，根治中文多字节边界 panic；新增 3 个 #[cfg(test)]（CJK/混合/无命中），cargo test -p oc-shared 3 passed → `c00cf73`
+- **验证汇总**：每任务先确认 RED 再实现；TS 侧每步 `npx tsc --noEmit` 干净；受影响回归套件全绿。
+- **遗留**：R2 全部完成；R3（功能死路）/R4（文档收口）待后续会话。
+
+---
+
 ## 2026-08-24 — 审计整改 Phase R1：测试诚信清理（假测试清剿）
 
 - **任务**：基于 2026-08-24 全量审计（1396 文件 / 96 项发现）执行整改计划 Phase R1（docs/superpowers/plans/2026-08-24-audit-remediation-plan.md）：清除"catch{expect(true)} 恒绿 / 恒真双分支断言 / 自字面量断言 / 空壳文件"四类假测试，使后续安全修复可红绿验证。审计发现编号 L-1/L-2。
