@@ -399,14 +399,14 @@ let s = content.char_indices()
 - **Task 3.7** B-2 spawnSync → 异步 execFile（curlFetch），并发搜索路径全链去同步阻塞。
 - **Task 3.8** ◆stats API 真实数据：routes/stats.ts activeTasks 接 scheduler.runningCount()。
 
-## Phase R4 —— 文档与声明收口（最后）
+## Phase R4 —— 文档与声明收口（最后）✅ 6/6 完成 @2026-08-25
 
-- **Task 4.1** 工具数单一事实源：恢复 scripts/count-tools.mjs（以 src/testing/tool-count.ts 为准生成 docs 片段），AXIOM:1265/ARCHITECTURE:291/MCP_TOOLS_GUIDE 全部引用之；docs-consistency 测试改精确相等断言。
-- **Task 4.2** 行数快照治理：删除 AXIOM-ARCHITECTURE 全部 14 处行数注记（改为模块职责描述），杜绝再次漂移。
-- **Task 4.3** 测试口径统一：README 测试章节改“以 CI 最近一次 green run 为准”+ 徽章链接，移除静态数字。
-- **Task 4.4** 三处“手写余弦”注释更正为“FTS5 + 关键词打分（余弦仅 settings-search 可选语义层）”。
-- **Task 4.5** 内网信息脱敏：≥9 文档 + runtime-go/modelclient 默认端点改 `${LAN_MODEL_SERVICE}` 占位符，拓扑细节迁 `.axiom/axiom-secrets/`（规则 11）。
-- **Task 4.6** README/LIMITATIONS 双向同步本轮审计结论摘要。
+- **Task 4.1** ✅ 已完成 `9344ef0`：scripts/count-tools.mjs 恢复，AXIOM:1265/ARCHITECTURE:291/MCP_TOOLS_GUIDE 全部引用 src/testing/tool-count.ts（总计 188），docs-consistency 改为精确相等断言。
+- **Task 4.2** ✅ 已完成 `554e919`：删除 AXIOM-ARCHITECTURE 全部 15 处行数注记（注：未补"模块职责描述"，遵循最小化施工，避免投机内容）。
+- **Task 4.3** ✅ 已完成 `8d2e231`：README 测试章节改为"以 CI 最近一次 green run 为准" + 相对链接（未用外部徽章图片，避免伪造 GitHub 地址）。
+- **Task 4.4** ✅ 已完成 `2090214`：deterministic-search.ts / vault-manager.ts / deterministic-retrieval-engine.ts 三处注释更正为"FTS5 + 关键词打分（余弦仅 settings-search 可选语义层）"。
+- **Task 4.5** ✅ 已完成 `d4db6ff`：modelclient DefaultEndpoint → `${LAN_MODEL_SERVICE}` 占位符（go test 通过）；runtime-go/README.md + 11 文档/UI 内网拓扑脱敏；真实拓扑归档 `~/.axiom/axiom-secrets/`。AGENTS.md / ops-log / deploy.sh / SSRF 测试夹具保留内网地址（如实登记）。
+- **Task 4.6** ✅ 已完成 `fcaea71`：README 新增「审计与整改状态」章节，新建 LIMITATIONS.md，双向同步审计摘要与已知局限。
 
 ## 执行顺序与依赖
 
