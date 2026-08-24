@@ -16,6 +16,7 @@ import { registerVaultTools } from "./server/vault-tools.js";
 import { registerKgTools } from "./server/kg-tools.js";
 import { ToolRegistry } from "./tool-registry.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
+import { resolveSqliteMemoryDbPath } from "../memory/sqlite-memory.js";
 import { readString, readInt } from "../utils/env.js";
 
 const mcp = new McpServer({ name: "Axiom KB MCP Server", version: "0.1.0" });
@@ -25,7 +26,9 @@ const registry = new ToolRegistry();
 // Vault 目录必须存在（DeterministicSearchEngine 构造时 readdirSync 扫描），先建目录再初始化；
 // SQLite（KG/KAL）目录同理。
 const vaultPath = readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
-const dbPath = readString("KB_DB_PATH", "./data/kg.db");
+// 审计 E-1（2026-08-24）：默认必须与 vault 工具同库（resolveSqliteMemoryDbPath），
+// 否则 KAL 的 memory_notes 腿 split-brain 恒空。KB_DB_PATH 仅作显式隔离覆盖。
+const dbPath = readString("KB_DB_PATH") || resolveSqliteMemoryDbPath();
 mkdirSync(vaultPath, { recursive: true });
 mkdirSync(path.dirname(dbPath), { recursive: true });
 

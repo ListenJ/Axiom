@@ -19,6 +19,17 @@ import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
+/**
+ * SQLite 记忆库 DB 路径的唯一解析源（审计 E-1 / R3 Task 3.2）。
+ * 此前 kb-backend.ts 自行默认 ./data/kg.db，与 vault 工具的 ./data/agent.db
+ * 分裂（split-brain）：KAL 在 kg.db 里查不存在的 memory_notes 表且被静默吞掉，
+ * 插件部署下 vault 腿恒为空。KAL/vault/KG 必须同库；KB_DB_PATH 仅作为
+ * 显式覆盖出口保留在 kb-backend 侧。
+ */
+export function resolveSqliteMemoryDbPath(): string {
+  return readString("SQLITE_MEMORY_DB") || readString("DATABASE_PATH", "./data/agent.db");
+}
+
 export interface MemoryRecord {
   id?: number;
   path: string;
@@ -53,7 +64,7 @@ export class SQLiteMemory {
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || readString("SQLITE_MEMORY_DB") || readString("DATABASE_PATH", "./data/agent.db");
+    this.dbPath = dbPath || resolveSqliteMemoryDbPath();
     this.db = new Database(this.dbPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
