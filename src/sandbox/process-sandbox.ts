@@ -56,6 +56,20 @@ export const processSandbox: SandboxProvider = {
   async execute(opts: SandboxOptions): Promise<SandboxResult> {
     const start = Date.now()
 
+    // 审计 J-4（2026-08-24）：process 沙箱（无论平台）都无法强制只读文件系统。
+    // 此前 readOnly 被静默忽略、路由层却谎报 docker+readOnly。现显式拒绝，
+    // 强制只读必须使用 Docker 沙箱。
+    if (opts.readOnly) {
+      return {
+        exitCode: -1,
+        stdout: "",
+        stderr: "",
+        durationMs: Date.now() - start,
+        error:
+          "process sandbox cannot enforce a read-only filesystem; readOnly requires the Docker sandbox",
+      }
+    }
+
     try {
       const spawnOpts: Record<string, unknown> = {
         cwd: opts.cwd ?? process.cwd(),

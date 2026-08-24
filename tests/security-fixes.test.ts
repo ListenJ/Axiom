@@ -380,6 +380,11 @@ import { requestConfirmation } from "../src/utils/permissions.js";
 
 bunMock.module("../src/sandbox/index.js", () => ({
   executeInSandbox: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 1 }),
+  executeInSandboxDetailed: async () => ({
+    result: { exitCode: 0, stdout: "", stderr: "", durationMs: 1 },
+    sandboxName: "process",
+    degraded: true,
+  }),
 }));
 
 function makeSandboxCtx(body: unknown): any {
@@ -407,6 +412,39 @@ describe("沙箱确认码绑定原命令（J-1）", () => {
         makeSandboxCtx({ command: "echo pwned-B", confirmationId: id }),
       )) as Response;
       expect(res.status).toBe(403);
+    } finally {
+      if (prev === undefined) delete process.env.AXIOM_AUTH_TOKEN;
+      else process.env.AXIOM_AUTH_TOKEN = prev;
+    }
+  }, 20000);
+});
+
+// ─────────────────────────────────────────────────────────
+// 10. 沙箱降级诚实化（审计 J-4 / 2026-08-24 R2）
+// ─────────────────────────────────────────────────────────
+import { processSandbox } from "../src/sandbox/process-sandbox.js";
+
+describe("process 沙箱 readOnly 显式拒绝（J-4a）", () => {
+  test("readOnly=true 不再被静默忽略，而是返回明确错误", async () => {
+    const r = await processSandbox.execute({ command: "echo hi", readOnly: true });
+    expect(r.exitCode).toBe(-1);
+    expect(String(r.error)).toContain("readOnly");
+  });
+});
+
+describe("/sandbox/execute 响应诚实化（J-4b）", () => {
+  test("降级时如实标注 sandbox=process + degraded=true + warnings", async () => {
+    const prev = process.env.AXIOM_AUTH_TOKEN;
+    process.env.AXIOM_AUTH_TOKEN = "test-token-r2";
+    try {
+      const res = (await handleSandboxExecute(
+        makeSandboxCtx({ command: "echo hi" }),
+      )) as Response;
+      const data = await res.json();
+      expect(data.sandbox).toBe("process");
+      expect(data.degraded).toBe(true);
+      expect(Array.isArray(data.warnings)).toBe(true);
+      expect(data.warnings.length).toBeGreaterThan(0);
     } finally {
       if (prev === undefined) delete process.env.AXIOM_AUTH_TOKEN;
       else process.env.AXIOM_AUTH_TOKEN = prev;

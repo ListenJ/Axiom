@@ -18,6 +18,7 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
       maxMemoryMb?: number
       maxCpu?: number
       networkAccess?: boolean
+      readOnly?: boolean
       confirmationId?: string
     }
 
@@ -51,8 +52,8 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
     }
 
     // 3. Execute in sandbox
-    const { executeInSandbox } = await import("../sandbox/index.js")
-    const result = await executeInSandbox({
+    const { executeInSandboxDetailed } = await import("../sandbox/index.js")
+    const { result, sandboxName, degraded } = await executeInSandboxDetailed({
       command: body.command,
       args: body.args,
       cwd: body.cwd,
@@ -60,17 +61,34 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
       maxMemoryMb: body.maxMemoryMb ?? 512,
       maxCpu: body.maxCpu ?? 1,
       networkAccess: body.networkAccess ?? false,
-      readOnly: true,
+      readOnly: body.readOnly ?? false,
     })
 
-    auditSuccess(ctx, "sandbox.execute", body.command, { exitCode: result.exitCode })
+    if (result.error) {
+      return ctx.jsonResponse({ error: result.error }, 500, ctx.baseHeaders)
+    }
+
+    auditSuccess(ctx, "sandbox.execute", body.command, {
+      exitCode: result.exitCode,
+      sandbox: sandboxName,
+      degraded,
+    })
     return ctx.jsonResponse({
       success: result.exitCode === 0,
       exitCode: result.exitCode,
       stdout: result.stdout.slice(0, 10000),
       stderr: result.stderr.slice(0, 5000),
       durationMs: result.durationMs,
-      sandbox: "docker",
+      // 审计 J-4：如实标注实际执行的沙箱与降级状态，不再硬编码 "docker"
+      sandbox: sandboxName,
+      degraded,
+      ...(degraded
+        ? {
+            warnings: [
+              "Docker 沙箱不可用，已降级为 process 沙箱（无文件系统/网络隔离；Windows 下亦不强制内存/CPU 限制）",
+            ],
+          }
+        : {}),
     }, 200, ctx.baseHeaders)
   } catch (err) {
     return ctx.jsonResponse({
