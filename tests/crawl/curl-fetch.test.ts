@@ -37,3 +37,30 @@ describe("curlFetch 传输层（mock spawn 注入，绕过真实子进程）", (
     expect(cmd).toContain("https://example.com");
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// 审计 B-2 / R3 Task 3.7 —— 默认传输改异步 Bun.spawn（不再 spawnSync 阻塞事件循环）
+// ─────────────────────────────────────────────────────────
+import { spyOn, test, expect as expectJest } from "bun:test";
+
+describe("curlFetch 默认异步传输（B-2）", () => {
+  test("未注入 spawnImpl 时走 Bun.spawn 且响应可解析", async () => {
+    const enc = new TextEncoder();
+    const payload = JSON.stringify({ ok: 1 });
+    const fakeProc = {
+      stdout: new Response(enc.encode(payload)).body!,
+      stderr: new Response(enc.encode("")).body!,
+      exited: Promise.resolve(0),
+    };
+    const spy = spyOn(Bun, "spawn").mockImplementation((() => fakeProc) as any);
+    try {
+      const res = await curlFetch("https://example.com/api", { headers: { "A": "b" } }, "http://proxy:8080");
+      expect(res.ok).toBe(true);
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ ok: 1 });
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

@@ -6,7 +6,6 @@
  */
 
 import { proxyFetch, type ProxyFetchResponse } from "../utils/proxy-fetch.js";
-import { spawnSync } from "bun"; // 静态导入：bun 打包器不支持动态 await import("bun")（bundle 中报 awaitPromise is not defined）
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 
@@ -99,10 +98,13 @@ abstract class SearchEngine {
   }
 }
 
-/** curl spawn 签名（测试可注入 fake，避免真实子进程） */
-export type CurlSpawn = (args: string[], opts: { stdout: string; stderr: string; maxBuffer: number }) => {
-  exitCode: number | null; stdout: Uint8Array; stderr: Uint8Array;
-};
+/** curl spawn 签名（测试可注入 fake，避免真实子进程）；允许同步或异步返回 */
+export type CurlSpawn = (
+  args: string[],
+  opts: { stdout: string; stderr: string; maxBuffer: number },
+) =>
+  | { exitCode: number | null; stdout: Uint8Array; stderr: Uint8Array }
+  | Promise<{ exitCode: number | null; stdout: Uint8Array; stderr: Uint8Array }>;
 
 /** curl 传输（代理 HTTPS）：用 curl.exe 避免 Bun TLS 隧道挂起，返回 ProxyFetchResponse 兼容对象。 */
 export async function curlFetch(
@@ -118,8 +120,25 @@ export async function curlFetch(
   if (init.body) args.push("--data-binary", init.body as string);
   args.push(url);
   const curlBin = process.platform === "win32" ? "curl.exe" : "curl"; // Linux 容器（docker）无 curl.exe
-  const spawn = spawnImpl ?? ((a: string[], o) => spawnSync(a, o as any));
-  const proc = spawn([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
+  // 审计 B-2（2026-08-24）：默认实现此前为 spawnSync，代理 HTTPS 搜索期间
+  // （curl -m 30）整个事件循环被冻结，HTTP server / actor tick / kernel loop
+  // 全部停摆。现改为异步 Bun.spawn；测试注入的同步 fake 经 await 统一兼容。
+  const spawn: CurlSpawn =
+    spawnImpl ??
+    (async (a) => {
+      const proc = Bun.spawn(a, { stdout: "pipe", stderr: "pipe" });
+      const [stdoutBuf, stderrBuf, exitCode] = await Promise.all([
+        new Response(proc.stdout).arrayBuffer(),
+        new Response(proc.stderr).arrayBuffer(),
+        proc.exited,
+      ]);
+      return {
+        exitCode,
+        stdout: new Uint8Array(stdoutBuf),
+        stderr: new Uint8Array(stderrBuf),
+      };
+    });
+  const proc = await spawn([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
   const body = new TextDecoder().decode(proc.stdout);
   const ok = proc.exitCode === 0;
   return {
