@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-08-25 — 审计整改 Task 4.6：README/LIMITATIONS 同步审计摘要
+
+- **任务**：落实整改计划 Phase R4 Task 4.6——README 与 LIMITATIONS 双向同步本轮审计结论摘要。
+- **工具**：Edit/Write、Read 通读 README 结构与计划 R4 章节。
+- **操作与验证**（文件级，含 commit hash）：
+  - `README.md` 新增「审计与整改状态（2026-08-25）」章节（置于许可证之前）：三阶段 R2/R3/R4 完成度 + 3 条已知局限（wiki-link 跨存储未闭环、内网已脱敏、工具数 188 单一事实源）+ 指向 operations-log 与计划文档。
+  - 新建 `LIMITATIONS.md`：与 README 摘要双向同步，含整改完成情况、已知局限、明确排除项（AGENTS.md remote / ops-log / deploy.sh / SSRF 测试夹具保留内网地址，真实值已归档 secrets 目录）。
+- **验证汇总**：`bunx tsc --noEmit` 干净（仅文档/新增 md，无源码类型影响）；markdown 内容经人工通读。
+
+---
+
 ## 2026-08-25 — 审计整改 Task 4.5：内网信息脱敏（规则 11）
 
 - **任务**：落实整改计划 Phase R4 Task 4.5——内网信息脱敏：runtime-go/modelclient 默认端点改 `${LAN_MODEL_SERVICE}` 占位符；≥9 文档内网拓扑迁占位符，真实拓扑细节迁本地 `~/.axiom/axiom-secrets/`。

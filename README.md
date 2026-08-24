@@ -624,6 +624,22 @@ bun test tests/cognitive-modules.test.ts
 bun test tests/scene-router.test.ts
 ```
 
+## 审计与整改状态（2026-08-25）
+
+本轮对仓库做了为期三阶段的安全与正确性整改，结论如下：
+
+- **Phase R2（P0 安全线）**：10/10 任务全绿（git 注入白名单、kb 守卫路径、沙箱密钥剥离、SSRF/URL 守卫、密钥 env 隔离等）。
+- **Phase R3（功能死路 / 数据正确性）**：8/8 任务完成（搜索结果钳制、stats 真实数据、kg-writer 内容寻址 edgeId + CJK 节点归一化、pdf-worker 摄取终态、kb 同库单一解析源、curlFetch 异步化、maxTokens 预算钳制、kal_references KG 出入边 UNION）。
+- **Phase R4（文档与声明收口）**：6/6 任务完成（工具数单一事实源、行数快照治理、测试口径统一、检索注释更正、内网信息脱敏、本摘要同步）。
+
+**已知局限（如实登记）**：
+
+1. `kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 跨存储引用因本仓库 SQLite **未持久化 wiki_links 表**（wiki-link 图在内存中由 `DeterministicSearchEngine` 从 Markdown 构建），暂未闭环，需后续引入持久化 wiki_links 表或注入 vault 引擎。
+2. 内网拓扑已脱敏为占位符（`${LAN_NODE_N1}` 等），真实地址/账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库不含真实内网信息（见 AGENTS.md 规则 11）。
+3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **188**（CI 与文档均引用此值，不再硬编码静态数字）。
+
+> 详细操作留痕见 `docs/operations-log.md`；任务计划与逐项结论见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。
+
 ## 许可证
 
 MIT
