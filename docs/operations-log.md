@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-08-25 — 优化 P0-4：假设状态机 refuted 可达 + 损坏 JSON 按行兜底（TDD）
+
+- **任务**：`HypothesisManager.addEvidence` 状态转换要求 `supporting===0` 才能 refuted——一旦有过任何支持证据，驳斥证据再多也永久卡在 testing，被反驳的信念持续传播；且 `addEvidence`/`getUntested` 对 `hypothesis` 列 `JSON.parse` 无兜底，单条损坏行拖垮整批处理（getUntested 的 `json_extract` 在 SQL 层即抛错）。
+- **工具**：Write/Edit、Bash（bun test / bunx tsc --noEmit）、Read 通读 knowledge-store.ts 全文。
+- **操作与验证**（文件级，含 commit hash）：
+  - 新增 `tests/dre/hypothesis-state.test.ts`（4 例，经公共接口 HypothesisManager）：混合证据驳斥可达 / 纯净 confirm 保持 / addEvidence 损坏行不抛错 / getUntested 按行跳过损坏行。先跑 RED（3 fail / 1 pass）→ Commit `470d252`
+  - `src/dre/storage/knowledge-store.ts`：状态机改净证据占优判定（s≥3 且 s>c → confirmed；c≥3 且 c>s → refuted；否则有证据 → testing）；`addEvidence` parse 加 try/catch 跳过损坏行；`getUntested` 移除 SQL 层 json_extract 过滤、改为按行解析+跳过损坏行
+- **验证汇总**：RED→GREEN（4 pass）；相关回归套件 coverage-gap/knowledge-store + knowledge-store-predict + dre-core-modules 共 138 pass / 0 fail；tsc 干净。
+
+---
+
 ## 2026-08-25 — 优化 P0-3：runtime-go 集群路由 sortedNodes 每分片/每文档重复排序消除
 
 - **任务**：`clusterState.sortedNodes()`（append+sort）在热路径被重复调用——`clusterSearch` 32 分片循环每分片一次、`clusterUpdate` route 每文档一次、`filterOwned` 每文档一次，~41.6k QPS 下即百万级/秒无谓排序+分配。
