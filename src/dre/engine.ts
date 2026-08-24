@@ -57,6 +57,8 @@ export interface DREConfig {
     apiKey?: string;
     model: string;
   };
+  /** L1 端口：云端降级调用器（组合根注入；未装配时云级不可用） */
+  cloudCaller?: import("./ports/cloud-caller.js").DreCloudCaller;
 }
 
 /**
@@ -155,6 +157,7 @@ export class DREngine {
       episodicTTL: config.episodicTTL ?? 3600000,
       // 决策钩子：向 mainLLM 发出精确约束（JSON schema + 枚举 + 数值边界）
       // 网络失败/输出不合 schema → 抛出 → consciousnessStep 降级链真正生效
+      // （maxTokens 由 LLMClient.generate 统一经资源预算钳制，审计 H-3）
       decide: async (observation: string) => {
         const resp = await this.mainLLM.generate(observation, {
           system: DRE_DECISION_SYSTEM,
@@ -721,22 +724,18 @@ export class DREngine {
     if (!fb?.apiKey) {
       throw new Error("[DRE] cloudFallback 未配置 apiKey，无法执行云端降级");
     }
-    const { callProvider } = await import("../router/provider-caller.js");
+    // L1 端口倒置：核心不再动态 import 上层 router，调用器由组合根注入
+    const caller = this.config.cloudCaller;
+    if (!caller) {
+      throw new Error("[DRE] cloudCaller 未装配（组合根未注入适配器），无法执行云端降级");
+    }
 
-    const systemPrompt = DRE_DECISION_SYSTEM;
-    const result = await callProvider(
-      "deepseek",
-      fb.model ?? "deepseek-v4-flash",
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: input.observation },
-      ],
-      30000,
-      0,
-      undefined,
-      undefined,
-      { baseURL: fb.baseUrl, apiKey: fb.apiKey },
-    );
+    const result = await caller.call({
+      system: DRE_DECISION_SYSTEM,
+      user: input.observation,
+      timeoutMs: 30000,
+      temperature: 0,
+    });
 
     // M11 审计修复：云端坏输出与本地同级 —— 抛错由降级链继续走 L3 规则，
     // 不再静默合成 observe(0.5) 掩盖输出质量问题。

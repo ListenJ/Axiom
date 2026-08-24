@@ -11,6 +11,20 @@
 
 import { logger } from "../utils/logger.js";
 
+/**
+ * 审计 H-3（2026-08-24）：maxTokens 预算钳制纯函数。
+ *
+ * 此前 recommendedMaxTokens 仅写入日志，各调用方自传硬编码 maxTokens，
+ * 请求可超 llama.cpp --ctx-size，行为取决于外部截断策略。现在所有 LLM
+ * 调用点的 maxTokens 统一经此钳制：
+ *   - recommended 有效（>0）→ min(requested, recommended)，下限 1
+ *   - recommended 缺失/非法 → 原样返回（不臆造上限）
+ */
+export function clampMaxTokens(requested: number, recommended?: number): number {
+  if (!recommended || recommended <= 0) return requested;
+  return Math.max(1, Math.min(requested, Math.floor(recommended)));
+}
+
 export interface SystemResource {
   /** 总资源预算 (统一单位, 如 MB 表示内存, 任意数表示算力) */
   maxMemory: number;

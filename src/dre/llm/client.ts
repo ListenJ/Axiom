@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DRE LLM 客户端
  *
  * 特性:
@@ -12,6 +12,7 @@
 import { logger } from "../../utils/logger.js";
 import { getModelOutputStore } from "../../utils/model-output-store.js";
 import { llmCache, llmCacheKey } from "../../utils/cache.js";
+import { clampMaxTokens, getResourceBudgetManager } from "../system-resource.js";
 
 /** 重试配置 */
 export interface RetryConfig {
@@ -153,6 +154,21 @@ export class LLMClient {
     return this.getCircuitState() !== "open";
   }
 
+  /**
+   * 审计 H-3（2026-08-24）：所有 LLM 调用的 maxTokens 唯一钳制点。
+   * 此前 recommendedMaxTokens 只写日志、各调用方硬编码 maxTokens，
+   * 请求可超 llama.cpp --ctx-size。预算不可用时原样放行（不臆造上限）。
+   */
+  private effectiveMaxTokens(requested: number | undefined): number {
+    const req = requested ?? this.config.maxTokens ?? 1024;
+    try {
+      const rec = getResourceBudgetManager().getStatus().recommendedMaxTokens;
+      return clampMaxTokens(req, rec > 0 ? rec : undefined);
+    } catch {
+      return req;
+    }
+  }
+
   /** 记录成功 */
   private recordSuccess(): void {
     this.stats.successCount++;
@@ -270,7 +286,7 @@ export class LLMClient {
       url = `${this.config.baseUrl}/completion`;
       body = JSON.stringify({
         prompt: `${flat}\nAnswer: ${options?.answerPrefix ?? ""}`,
-        n_predict: options?.maxTokens ?? this.config.maxTokens,
+        n_predict: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
         temperature: options?.temperature ?? this.config.temperature,
         top_k: this.config.topK,
         seed: this.config.seed,
@@ -290,7 +306,7 @@ export class LLMClient {
         messages,
         temperature: options?.temperature ?? this.config.temperature,
         top_k: this.config.topK,
-        max_tokens: options?.maxTokens ?? this.config.maxTokens,
+        max_tokens: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
         seed: this.config.seed,
         stop: options?.stop,
         ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
@@ -487,7 +503,7 @@ export class LLMClient {
         messages,
         temperature: options?.temperature ?? this.config.temperature,
         top_k: this.config.topK,
-        max_tokens: options?.maxTokens ?? this.config.maxTokens,
+        max_tokens: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
         seed: this.config.seed,
         stream: true,
         ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
