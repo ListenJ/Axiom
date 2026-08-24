@@ -388,7 +388,7 @@ let s = content.char_indices()
 
 ---
 
-## Phase R3 —— 功能性死路与数据正确（R2 后）
+## Phase R3 —— 功能性死路与数据正确（✅ 7/8 完成 @2026-08-24：3.1/3.2/3.4+3.5bonus/3.5/3.6/3.7/3.8 落地；Task 3.3 kal_references 跨存储重写顺延——体量最大，需独立会话 TDD 单独落地）
 
 - **Task 3.1** F-1/F-2 pdf-worker：submit 后调用既有 `waitForCompletion`（workers/pdf-worker.ts:44-57），本地文件改传 base64 全量 payload；超时上限 120s。
 - **Task 3.2** E-1 KAL split-brain：kb-backend.ts 统一 DB 路径解析函数（与 sqlite-memory.ts:56 同源），vault 腿 catch 改为 warn+显式 error 结果。

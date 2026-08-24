@@ -7,6 +7,22 @@
 
 ---
 
+## 2026-08-24 — 审计整改 Phase R3：功能死路与数据正确性（7/8 任务，3.3 顺延）
+
+- **任务**：执行整改计划 Phase R3。每任务 TDD（RED→GREEN）+ 独立提交。
+- **操作与验证**（含 commit hash）：
+  1. **D-1** `src/crawl/unified-search.ts` 唯一出口统一 `sanitizeSearchResultsForContext` 钳制（条数≤30/标题≤200/摘要≤300），缓存写入钳制后结果；concurrentSearch 经同一出口继承。新增 tests/crawl/sanitize-exit.test.ts → `e4703a3`
+  2. **K-3** `/api/stats` activeTasks 接 `scheduler.getStatus().running`，移除 Math.random 伪造；新增 tests/routes/stats.test.ts 双断言（一致性+无随机性）→ `4191d65`
+  3. **F-3+F-5**（合并修复）`kg-writer.addEdge` edgeId 改 sha1(source|target|type) 内容寻址根治前 20 字符碰撞丢边；测试过程暴露更深层缺陷——`createNodeId` 归一化把纯 CJK 折叠为 "_" 致不同中文标题节点互相合并，追加原文 sha1 短哈希后缀根治；重建 kb-dsh/dre-dsh bundle 同步。新增 tests/crawl/kg-writer-edgeid.test.ts(2) 与 tests/unit/node-id-cjk.test.ts(4) → `e333b89`(含失败中间态，随后修正) / `091043e`
+  4. **F-1/F-2** pdf-worker 摄取链路：submit 后必须 `waitForCompletion` 轮询终态（120s 超时）；本地文件以 data_base64 全量内联上传；Python app.py 支持 url/data_base64 二选一，metadata 改 src_meta；完成无 markdown → 显式 error。新增 tests/knowledge/pdf-ingest-worker.test.ts(4)，存量 document-ingest.test.ts 同步新契约(共 15 pass)。Python 本机无解释器，语法经结构化编辑保证、部署侧待验（如实登记）→ `2ce49dd`
+  5. **E-1** 新增 `resolveSqliteMemoryDbPath()` 单一解析源（SQLITE_MEMORY_DB||DATABASE_PATH||agent.db），kb-backend 默认同库消除 split-brain，KB_DB_PATH 仅作显式隔离覆盖。新增 tests/unit/kb-db-path.test.ts(3) → `c8d395d`
+  6. **B-2** curlFetch 默认传输 spawnSync→异步 Bun.spawn（Promise.all 收集 stdout/stderr/exitCode），代理 HTTPS 搜索不再冻结事件循环最长 30s；CurlSpawn 类型允许同步 fake 注入向后兼容。curl-fetch.test.ts 追加默认路径用例 → `039b0ab`
+  7. **H-3** maxTokens 预算钳制：新增纯函数 `clampMaxTokens(requested, recommended?)`；在 `LLMClient.generate` 唯一咽喉点 `effectiveMaxTokens()` 统一钳制（completion/chat/stream 三处 payload），预算不可用原样放行；engine.ts 决策钩子注释指明钳制位置。新增 tests/unit/clamp-max-tokens.test.ts(4)；resource 全套回归 → `7408ade`
+- **验证汇总**：全部任务 tsc --noEmit 干净；受影响套件（crawl/routes/knowledge/unit/dre）逐项全绿。
+- **遗留**：Task 3.3 kal_references 跨存储重写（涉及 wiki-link 表查询 UNION KG 边表 + nodeId 归一化对齐）体量最大，顺延至下一会话单独执行；其余 R3 全部落地。
+
+---
+
 ## 2026-08-24 — 审计整改 Phase R2：P0 安全线修复（10 任务全绿）
 
 - **任务**：执行整改计划 Phase R2（docs/superpowers/plans/2026-08-24-audit-remediation-plan.md），逐任务 TDD（先 RED 后 GREEN）修复审计高危项。流程偏差说明：本阶段为提速采用逐任务提交、日志合并补记（下述 hash 全量可溯），后续阶段恢复"一提交一记录"。
