@@ -74,24 +74,18 @@ const DEFAULT_SERVER_URL: string = 'http://你的服务器地址:端口';
 
 ## 图标说明
 
-`module.json5` 与 `AppScope/app.json5` 引用了 `$media:app_icon`。请将应用图标文件放置到以下目录（至少一处）：
+`module.json5` 与 `AppScope/app.json5` 引用了 `$media:app_icon`。仓库已内置 1×1 占位图标（保证可构建）：
 
-- `AppScope/resources/base/media/app_icon.png`（应用级图标，推荐）
+- `AppScope/resources/base/media/app_icon.png`（应用级图标）
 - `entry/src/main/resources/base/media/app_icon.png`（模块级图标）
 
-图标建议尺寸：1024×1024 PNG，DevEco Studio 会自动生成多分辨率适配文件。
+发布前请替换为正式图标。建议尺寸：1024×1024 PNG，DevEco Studio 会自动生成多分辨率适配文件。
 
 ## 网络权限
 
-WebView 加载 HTTP 资源需要在 `module.json5` 的 `module` 中添加网络权限（默认已通过 `mixedMode` 放行混合内容）。如遇网络请求被拦截，请在 `module.json5` 中补充：
+**`ohos.permission.INTERNET` 已在 `module.json5` 中声明（2026-08-24 审计整改 M-1）——联网类应用的必填项，缺失时真机 WebView 必然加载失败。**
 
-```json5
-"requestPermissions": [
-  {
-    "name": "ohos.permission.INTERNET"
-  }
-]
-```
+WebView 加载 HTTP 资源默认通过 `mixedMode` 放行混合内容：
 
 ## 生成签名 HAP 包
 
