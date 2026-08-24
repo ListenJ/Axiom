@@ -126,6 +126,14 @@ export async function gitDiff(
     since?: string;
   }
 ): Promise<GitDiffResult> {
+  // 审计 C-1（2026-08-24）：since 由客户端可控且此前未过滤即拼入 shell 命令，
+  // 构成命令注入。与 gitShow 的 ref 白名单策略对齐：字符集校验，不合法直接拒绝。
+  if (options?.since !== undefined && !/^[A-Za-z0-9._\-\/]+$/.test(options.since)) {
+    return {
+      success: false,
+      error: "Invalid revision: contains unsafe characters",
+    };
+  }
   let cmd = "git diff";
   if (options?.staged) {
     cmd += " --staged";

@@ -304,3 +304,32 @@ describe("terminal_exec 命令注入防线（R-005）", () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// 7. git_diff since 参数注入防线（审计 C-1 / 2026-08-24 R2）
+// ─────────────────────────────────────────────────────────
+import { gitDiff } from "../src/mcp/tools/git.js";
+
+describe("git_diff revision 注入防线（C-1）", () => {
+  test("命令替换 payload 被拒绝且不触达 shell", async () => {
+    const r = await gitDiff(".", { since: "a$(calc)b" });
+    expect(r.success).toBe(false);
+    expect(String(r.error)).toContain("Invalid revision");
+  });
+
+  test("分号/管道拼接 payload 被拒绝", async () => {
+    const r1 = await gitDiff(".", { since: "x; rm -rf /" });
+    expect(r1.success).toBe(false);
+    expect(String(r1.error)).toContain("Invalid revision");
+
+    const r2 = await gitDiff(".", { since: "main | echo pwned" });
+    expect(r2.success).toBe(false);
+    expect(String(r2.error)).toContain("Invalid revision");
+  });
+
+  test("合法 ref 正常工作（正例控制）", async () => {
+    const r = await gitDiff(".", { since: "HEAD" });
+    expect(r.error).toBeUndefined();
+    expect(r.success).toBe(true);
+  }, 20000);
+});
