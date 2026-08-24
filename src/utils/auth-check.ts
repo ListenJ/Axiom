@@ -52,7 +52,33 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   // This protects /chat and other endpoints from open access when env is misconfigured.
   const path = pathname ?? new URL(req.url).pathname;
   // Allow local requests without auth (for E2E tests and local development)
-  if (isLocal) return true;
+  if (isLocal) {
+    // 审计 J-2（2026-08-24）：本机免认证通道此前对任意写方法放行，
+    // 恶意网页可用 no-cors POST 打 /terminal/session、/sandbox/execute、
+    // /vault/write 等。浏览器跨站请求必带与目标不同源的 Origin；
+    // 本地工具（curl/CLI）不带 Origin；Dashboard 自身为同源。
+    const method = req.method.toUpperCase();
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      const origin = req.headers.get("origin");
+      if (origin) {
+        try {
+          const originHost = new URL(origin).host;
+          const targetHost = new URL(req.url).host;
+          if (originHost !== targetHost) {
+            logger.warn("[Auth] local write blocked by CSRF origin check", {
+              path,
+              origin: originHost,
+              target: targetHost,
+            });
+            return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
   logger.debug("checkApiKey called", { path, apiKeyExists: !!apiKey, apiKeyLength: apiKey?.length });
   const staticExt = path.includes(".") ? path.slice(path.lastIndexOf(".")) : "";
   if (!apiKey) {
