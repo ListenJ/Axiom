@@ -370,3 +370,46 @@ describe("docker-sandbox env 泄漏防线（J-3）", () => {
     }
   }, 15000);
 });
+
+// ─────────────────────────────────────────────────────────
+// 9. 沙箱确认码绑定原命令（审计 J-1 / 2026-08-24 R2）
+// ─────────────────────────────────────────────────────────
+import { mock as bunMock } from "bun:test";
+import { handleSandboxExecute } from "../src/routes/sandbox.js";
+import { requestConfirmation } from "../src/utils/permissions.js";
+
+bunMock.module("../src/sandbox/index.js", () => ({
+  executeInSandbox: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 1 }),
+}));
+
+function makeSandboxCtx(body: unknown): any {
+  const req = new Request("http://127.0.0.1/sandbox/execute", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": "test-token-r2" },
+    body: JSON.stringify(body),
+  });
+  return {
+    url: new URL("http://127.0.0.1/sandbox/execute"),
+    req, vault: null, db: null, pipeline: null, healthMonitor: null, fileWatcher: null,
+    startupTime: Date.now(), baseHeaders: {},
+    jsonResponse: (d: unknown, s = 200) =>
+      new Response(JSON.stringify(d), { status: s, headers: { "Content-Type": "application/json" } }),
+  };
+}
+
+describe("沙箱确认码绑定原命令（J-1）", () => {
+  test("命令 A 的确认码不得放行命令 B（换令牌攻击）", async () => {
+    const prev = process.env.AXIOM_AUTH_TOKEN;
+    process.env.AXIOM_AUTH_TOKEN = "test-token-r2";
+    try {
+      const id = requestConfirmation("echo confirm-A");
+      const res = (await handleSandboxExecute(
+        makeSandboxCtx({ command: "echo pwned-B", confirmationId: id }),
+      )) as Response;
+      expect(res.status).toBe(403);
+    } finally {
+      if (prev === undefined) delete process.env.AXIOM_AUTH_TOKEN;
+      else process.env.AXIOM_AUTH_TOKEN = prev;
+    }
+  }, 20000);
+});

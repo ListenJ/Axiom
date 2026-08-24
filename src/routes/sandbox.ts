@@ -42,8 +42,11 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
     if (body.confirmationId) {
       const { confirmOperation } = await import("../utils/permissions.js")
       const result = confirmOperation(body.confirmationId)
-      if (!result.approved) {
-        return ctx.jsonResponse({ error: "确认已过期或无效" }, 403, ctx.baseHeaders)
+      // 审计 J-1（2026-08-24）：confirmOperation 返回被批准的原命令，
+      // 此前未与 body.command 比对——持有效确认码可放行任意其他命令。
+      // 对齐 confirmation.ts:52 的标准实现。
+      if (!result.approved || result.command !== body.command) {
+        return ctx.jsonResponse({ error: "确认已过期、无效或不匹配原操作" }, 403, ctx.baseHeaders)
       }
     }
 
