@@ -194,41 +194,34 @@ describe("Plugin Market", () => {
     });
   });
 
+  // 审计整改 R1：原用例以 catch{expect(true)} 在无守护进程时恒绿。
+  // 现由 AXIOM_LIVE_SERVER=1 门控；启用后断言真实生效（不再吞错）。
   describe("Plugin Routes", () => {
-    it("should return empty plugin list or 401", async () => {
+    const itLive = process.env.AXIOM_LIVE_SERVER ? it : it.skip;
+
+    itLive("should return empty plugin list or 401", async () => {
       const apiKey = process.env.AXIOM_AUTH_TOKEN || "test-key";
-      try {
-        const res = await fetch("http://localhost:18789/plugins", {
-          headers: { "X-API-Key": apiKey },
-        });
-        // Server may not be running
-        expect([200, 401]).toContain(res.status);
-        if (res.status === 200) {
-          const data = await res.json();
-          expect(data.success).toBe(true);
-          expect(data.plugins).toBeArray();
-        }
-      } catch {
-        // Server not running - skip
-        expect(true).toBe(true);
+      const res = await fetch("http://localhost:18789/plugins", {
+        headers: { "X-API-Key": apiKey },
+      });
+      expect([200, 401]).toContain(res.status);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data.success).toBe(true);
+        expect(data.plugins).toBeArray();
       }
     });
 
-    it("should return available plugins or 401", async () => {
+    itLive("should return available plugins or 401", async () => {
       const apiKey = process.env.AXIOM_AUTH_TOKEN || "test-key";
-      try {
-        const res = await fetch("http://localhost:18789/plugins/available", {
-          headers: { "X-API-Key": apiKey },
-        });
-        expect([200, 401]).toContain(res.status);
-        if (res.status === 200) {
-          const data = await res.json();
-          expect(data.success).toBe(true);
-          expect(data.plugins).toBeArray();
-        }
-      } catch {
-        // Server not running - skip
-        expect(true).toBe(true);
+      const res = await fetch("http://localhost:18789/plugins/available", {
+        headers: { "X-API-Key": apiKey },
+      });
+      expect([200, 401]).toContain(res.status);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data.success).toBe(true);
+        expect(data.plugins).toBeArray();
       }
     });
   });

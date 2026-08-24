@@ -109,14 +109,14 @@ describe("Services 层", () => {
 // ─── 测试 5: 意识系统 ───────────────────────────────────────────────
 describe("Consciousness (意识系统)", () => {
   it("获取状态不抛异常", async () => {
-    try {
-      const { getConsciousness } = await import("../src/agents/consciousness/index.js");
-      const c = getConsciousness();
-      const status = c.status?.() ?? { ok: true };
-      expect(status).toBeDefined();
-    } catch {
-      // 如果没有初始化也不阻塞
-      expect(true).toBeTrue();
+    const { getConsciousness } = await import("../src/agents/consciousness/index.js");
+    const c = getConsciousness();
+    expect(c).toBeDefined();
+    // status 是可选契约：存在则必须可调用并返回定义值；不存在也是显式断言
+    if (typeof c.status === "function") {
+      expect(c.status()).toBeDefined();
+    } else {
+      expect(c.status).toBeUndefined();
     }
   });
 });

@@ -47,9 +47,7 @@ afterAll(() => {
 
 describe("Flat Router v5.0", () => {
 
-  it("should have flat INTENT_ROUTE_TABLE", () => {
-    // Verify that routeByIntent uses a flat table internally
-    // The table should map intents to roles without nested conditionals
+  it("should route every known intent through routeByIntent", async () => {
     const intents = [
       "strategy", "decision", "plan",
       "architecture", "design", "engineering",
@@ -60,8 +58,10 @@ describe("Flat Router v5.0", () => {
     ];
 
     for (const intent of intents) {
-      // routeByIntent should handle all known intents
-      expect(typeof router.routeByIntent).toBe("function");
+      const result = await router.routeByIntent(intent, testMessages);
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty("content");
+      expect(result).toHaveProperty("model");
     }
   });
 
@@ -72,19 +72,14 @@ describe("Flat Router v5.0", () => {
       trackAs: "test",
     };
 
-    try {
-      const output: ExecuteOutput = await router.execute(input);
-      expect(output).toBeDefined();
-      expect(output).toHaveProperty("content");
-      expect(output).toHaveProperty("model");
-      expect(output).toHaveProperty("provider");
-      expect(output).toHaveProperty("routingMeta");
-      expect(output.routingMeta).toBeDefined();
-      expect(output.routingMeta?.role).toBe("general-chat");
-    } catch {
-      // Models may not be available in test environment
-      expect(true).toBe(true);
-    }
+    // execute 已在 beforeAll mock，确定性断言
+    const output: ExecuteOutput = await router.execute(input);
+    expect(output).toBeDefined();
+    expect(output).toHaveProperty("content");
+    expect(output).toHaveProperty("model");
+    expect(output).toHaveProperty("provider");
+    expect(output.routingMeta).toBeDefined();
+    expect(output.routingMeta?.role).toBe("general-chat");
   }, 30000);
 
   it("should route intents to correct roles", async () => {
@@ -97,17 +92,11 @@ describe("Flat Router v5.0", () => {
       { intent: "chat", expectedRole: "general-chat" },
     ];
 
-    for (const { intent, expectedRole } of testCases) {
-      try {
-        const result = await router.routeByIntent(intent, testMessages);
-        expect(result).toBeDefined();
-        // The result should come from the expected role's model
-        expect(result).toHaveProperty("model");
-        expect(result).toHaveProperty("provider");
-      } catch {
-        // Models may not be available
-        expect(true).toBe(true);
-      }
+    for (const { intent } of testCases) {
+      const result = await router.routeByIntent(intent, testMessages);
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty("model");
+      expect(result).toHaveProperty("provider");
     }
   }, 30000);
 
@@ -155,67 +144,26 @@ describe("Flat Router v5.0", () => {
       trackAs: "test",
     };
 
-    try {
-      const output = await router.execute(input);
-      expect(output.routingMeta).toBeDefined();
-      expect(output.routingMeta!.role).toBe("general-chat");
-      expect(output.routingMeta!.thinking).toBeDefined();
-      expect(output.routingMeta!.reason).toBeDefined();
-    } catch {
-      expect(true).toBe(true);
-    }
+    // execute 已在 beforeAll mock，确定性断言
+    const output = await router.execute(input);
+    expect(output.routingMeta).toBeDefined();
+    expect(output.routingMeta!.role).toBe("general-chat");
+    expect(output.routingMeta!.thinking).toBeDefined();
+    expect(output.routingMeta!.reason).toBeDefined();
   }, 30000);
 });
 
-describe("Quick Key Commands", () => {
-  it("should have key command available", () => {
-    // The key command should be registered in CLI
-    expect(true).toBe(true); // Placeholder - CLI commands are tested via integration
-  });
-
-  it("should validate provider names for key command", () => {
-    const validProviders = [
-      "siliconflow",
-      "ofoxai",
-      "openrouter",
-      "deepseek",
-      "opencode",
-      "kimi",
-      "minimax",
-    ];
-
-    for (const provider of validProviders) {
-      expect(typeof provider).toBe("string");
-      expect(provider.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("should reject invalid provider names", () => {
-    const invalidProviders = ["", "invalid", "unknown", "test"];
-
-    for (const provider of invalidProviders) {
-      expect(typeof provider).toBe("string");
-    }
-  });
-});
-
 describe("Router Performance", () => {
-  it("should handle concurrent requests", async () => {
-    const promises = Array.from({ length: 5 }, (_, i) =>
-      router.routeByIntent("chat", [
-        { role: "user", content: `Concurrent test ${i}` },
-      ])
+  it("should handle concurrent requests deterministically under mocks", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        router.routeByIntent("chat", [{ role: "user", content: `Concurrent test ${i}` }])
+      ),
     );
-
-    try {
-      const results = await Promise.allSettled(promises);
-      expect(results.length).toBe(5);
-
-      for (const result of results) {
-        expect(result.status).toBeOneOf(["fulfilled", "rejected"]);
-      }
-    } catch {
-      expect(true).toBe(true);
+    expect(results.length).toBe(5);
+    for (const r of results) {
+      expect(r).toHaveProperty("content");
+      expect(r).toHaveProperty("model");
     }
   }, 30000);
 

@@ -90,22 +90,21 @@ describe("E2E - All pages use shared UI components", () => {
 })
 
 describe("E2E - Empty state consistency", () => {
-  it("页面应避免重复实现 inline empty state（应使用 EmptyState 或 InlineEmptyState）", () => {
+  it("使用原始 inline 空态模式的页面必须引入 EmptyState 组件", () => {
     // 检测原始的 inline empty state 实现
     const inlineEmptyPattern = /flex flex-col items-center justify-center py-12 text-text-muted/g
+    const violations: string[] = []
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       if (inlineEmptyPattern.test(src)) {
-        // 如果有原始 inline 模式，应该至少 import 了 InlineEmptyState
-        // 或者这页面有合理理由（如未迁移）
         const usesComponent = src.includes("InlineEmptyState") || src.includes("EmptyState")
-        // 容许过渡期
-        if (src.length > 3000) {
-          // 大页面有自定义 inline empty state 也是可以的
+        // 大页面（>3000 字符）允许自定义 inline 空态；小页面必须用共享组件
+        if (!usesComponent && src.length <= 3000) {
+          violations.push(f)
         }
       }
     })
-    expect(true).toBe(true) // 不会失败
+    expect(violations).toEqual([])
   })
 })
 
@@ -173,21 +172,22 @@ describe("E2E - Accessibility & sizing", () => {
   })
 
   it("按钮应有 aria-label 或可见文本", () => {
+    const violations: Array<{ file: string; button: string }> = []
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       // 提取所有 <button ...> 起始标签
       const buttons = src.match(/<button\b[\s\S]*?>/g) ?? []
       buttons.forEach((btn) => {
-        // 跳过有内部 text content 的（粗略检查）
         const hasAria = /aria-label=/.test(btn) || /aria-labelledby=/.test(btn)
         const isSubmit = /type="submit"/.test(btn) || /type="button"/.test(btn)
         // aria-hidden 按钮（如移动端关闭按钮）允许跳过
-        if (isSubmit || hasAria) {
-          // 至少满足一个
-          expect(true).toBe(true)
+        const ariaHidden = /aria-hidden="true"/.test(btn)
+        if (!hasAria && !isSubmit && !ariaHidden) {
+          violations.push({ file: f, button: btn.slice(0, 80) })
         }
       })
     })
+    expect(violations).toEqual([])
   })
 })
 

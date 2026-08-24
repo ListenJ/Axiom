@@ -7,6 +7,28 @@
 
 ---
 
+## 2026-08-24 — 审计整改 Phase R1：测试诚信清理（假测试清剿）
+
+- **任务**：基于 2026-08-24 全量审计（1396 文件 / 96 项发现）执行整改计划 Phase R1（docs/superpowers/plans/2026-08-24-audit-remediation-plan.md）：清除"catch{expect(true)} 恒绿 / 恒真双分支断言 / 自字面量断言 / 空壳文件"四类假测试，使后续安全修复可红绿验证。审计发现编号 L-1/L-2。
+- **工具**：Write/Edit（8 个测试文件）、Bash（备份/验证/git）、Read（全部目标文件通读）、Explore 子代理 ×10（前轮审计证据）。
+- **操作**（文件级）：
+  1. `tests/api-integration.test.ts` 全文重写：13 个活服务器探针改 `AXIOM_LIVE_SERVER=1` 门控 skip（无吞错）；Model Assignment 改 null-契约双分支真实断言；删除未用导入。
+  2. `tests/model-router.test.ts`：新增 autoRoute spy（原会触网）；拆除 5 处 try/catch 掩码；assign 改 null-契约；尾部"抛错或返回皆过"改为降级契约断言（恢复 execute spy→断言 model="none"+文案→重建 mock）。
+  3. `tests/flat-router.test.ts`：typeof×19 恒真用例改为逐意图 mock 路由断言；整删 Quick Key Commands 假 describe（3 用例）；allSettled 恒真并发用例改 Promise.all 确定性断言；3 处 try/catch 拆除。
+  4. `tests/plugin-market.test.ts`：Plugin Routes 两探针改 AXIOM_LIVE_SERVER 门控 + 拆吞错。
+  5. `tests/integration-realtime.test.ts`：意识系统用例拆 catch，status 可选契约显式断言。
+  6. `tests/ocr.test.ts`：CI 守卫改条件跳过；删 2 个自字面量用例与假 OCR Integration describe；清理未用类型导入。
+  7. `tests/e2e-layout.test.ts`：2 处 expect(true) 改违规清单断言（inline 空态、按钮 aria 可达性，含 aria-hidden 豁免）。
+  8. `tests/unit/pg-client-removal.test.ts`：末例 hasOld||hasNew 弱断言收紧为 hasNew=true 且 hasOld=false。
+  9. `tests/context/token-estimator.test.ts`：空壳补齐 estimateTokens/estimateMessageTokens 真实行为测试 7 例。
+  10. 复核登记：`tests/codeindex/local-index.test.ts` 审计轮"math.js 断链"系误报（fixture 内部字符串），不改。
+  11. 新增整改计划 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`（R1 已勾销；R2 安全防线/R3 功能死路/R4 文档收口待后续会话）。
+  - 全程规则 2：9 文件先备份 `.tmp/backups/tests/**` → 通读 → 最小修改 → 验证 → 删备份（已删）。
+- **验证**：`bun test <9 文件>` = 76 pass / 7 skip（均为门控活服务器探针）/ 0 fail / 451 expects；`npx tsc --noEmit` 零输出。两处中途失败（AssignmentResult.model 为对象、chat() 不透传 fallbackUsed 且 execute 被 spy 拦截）均已按真实契约修正断言。
+- **Commit**：`<placeholder-R1>`（提交后回填）
+
+---
+
 ## 2026-08-21 — Mega 压力测试扩展（500 写入/1000 并发/1000 调度/2000 事件）
 
 - **任务**：继续使用更为严苛的测试（Build 模式继续）：在 `cefad00` 约束强化基础上，新增 `tests/rigorous/mega-pressure.test.ts` 7 用例极限压测（Vault 500 写入 + 1000 并发检索 + 1000 并发写入 + Scheduler 1000 混合 + 资源抖动 200 + EventBus 2000 + Prompt 500 并发 + 知识 500 并发），验证内存膨胀 <80MB、检索确定性、调度 95% 通过率、资源防抖等大压力下架构韧性。

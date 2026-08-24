@@ -50,9 +50,11 @@ describe("pg-client-removal H-M1-03", () => {
     // 额外断言：文档中若提及 PostgreSQL，应明确其状态（可选/已迁移/仅 schema 保留）而非简单矛盾
     // 最小断言：文档存在且包含数据库章节
     expect(arch.includes("数据库")).toBe(true);
-    // 若仍含 "PostgreSQL 已完全移除" 则视为通过（因文件已删，矛盾已解）；否则应含 "可选" 或 "迁移" 或 "SQLite" 说明
+    // 审计整改 R1（2026-08-24）：pg-client.ts 已删，旧绝对化文案失去存在许可；
+    // 文档必须使用"可选/迁移/历史/归档"等新口径描述 PG 状态。
     const hasOld = arch.includes("PostgreSQL 已完全移除");
     const hasNew = arch.includes("可选") || arch.includes("迁移") || arch.includes("历史") || arch.includes("归档") || arch.includes("pgvector 可选");
-    expect(hasOld || hasNew).toBe(true);
+    expect(hasNew).toBe(true);
+    expect(hasOld).toBe(false);
   });
 });
