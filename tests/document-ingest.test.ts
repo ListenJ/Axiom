@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 文档摄取测试 — DRE 获取文档/网页 + OCR + 排版框架处理
  *
  * 覆盖：web(html→markdown)、text、image(OCR→布局排版→结构化)、pdf(worker/降级)、
@@ -100,7 +100,7 @@ describe("DocumentIngest — pdf", () => {
     const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]); // %PDF-1.4
     const doc = await ingestDocument({ url: "https://example.com/doc.pdf" }, {
       fetchImpl: mockFetch(200, pdfBytes, "application/pdf"),
-      pdfWorker: { submit: async () => ({ result: { markdown: "# PDF content\n\nfrom worker" } }) },
+      pdfWorker: { submit: async () => ({ task_id: "t", status: "queued" }), waitForCompletion: async () => ({ status: "completed", result: { markdown: "# PDF content\n\nfrom worker" } }) },
     });
     expect(doc.kind).toBe("pdf");
     expect(doc.metadata.via).toBe("pdf-worker");
@@ -118,7 +118,7 @@ describe("DocumentIngest — pdf", () => {
 
   it("Buffer 魔数探测 → pdf", async () => {
     const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x20]);
-    const doc = await ingestDocument({ buffer: pdfBytes, name: "x" }, { pdfWorker: { submit: async () => ({ result: { markdown: "ok" } }) } });
+    const doc = await ingestDocument({ buffer: pdfBytes, name: "x" }, { pdfWorker: { submit: async () => ({ task_id: "t", status: "queued" }), waitForCompletion: async () => ({ status: "completed", result: { markdown: "ok" } }) } });
     expect(doc.kind).toBe("pdf");
     expect(doc.markdown).toBe("ok");
   });

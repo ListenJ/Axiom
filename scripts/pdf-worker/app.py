@@ -1,4 +1,4 @@
-"""PDF Worker — FastAPI service for MinerU PDF→Markdown conversion"""
+﻿"""PDF Worker — FastAPI service for MinerU PDF→Markdown conversion"""
 import asyncio
 import json
 import os
@@ -64,17 +64,28 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                 }
 
             elif task_type == "pdf:convert" or task_type == "pdf:text":
-                url = payload["url"]
                 proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
                 dest_dir = CACHE_DIR / task_id
                 dest_dir.mkdir(parents=True, exist_ok=True)
 
                 pdf_path = dest_dir / "input.pdf"
                 tasks[task_id]["progress"] = 0.1
-                async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
-                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-                    resp.raise_for_status()
-                    pdf_path.write_bytes(resp.content)
+                # 审计 F-2（2026-08-24）：支持 data_base64 内联上传（本地文件场景），
+                # 与 url 二选一；此前无条件读 payload["url"] 使本地文件任务必失败。
+                data_b64 = payload.get("data_base64")
+                url = payload.get("url")
+                if data_b64:
+                    import base64 as _base64
+                    pdf_path.write_bytes(_base64.b64decode(data_b64))
+                    src_meta = {"source": payload.get("name", "inline")}
+                elif url:
+                    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
+                        resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                        resp.raise_for_status()
+                        pdf_path.write_bytes(resp.content)
+                    src_meta = {"url": url}
+                else:
+                    raise KeyError("payload requires 'url' or 'data_base64'")
                 tasks[task_id]["progress"] = 0.3
 
                 markdown = ""
@@ -91,7 +102,7 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                     tasks[task_id]["progress"] = 0.7
                     tasks[task_id]["result"] = {
                         "markdown": markdown,
-                        "metadata": {"url": url, "pages": len(pages)},
+                        "metadata": {**src_meta, "pages": len(pages)},
                         "file_path": str(pdf_path),
                     }
                 except ImportError:
@@ -110,7 +121,7 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         markdown = mf.read_text(encoding="utf-8")
                     tasks[task_id]["result"] = {
                         "markdown": markdown,
-                        "metadata": {"url": url, "pages": len(md_files)},
+                        "metadata": {**src_meta, "pages": len(md_files)},
                         "file_path": str(output_dir),
                     }
 

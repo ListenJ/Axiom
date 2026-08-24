@@ -62,8 +62,16 @@ export interface DocumentIngestOptions {
   fetchImpl?: typeof fetch;
   /** 可注入 OCR 引擎（测试用；默认惰性加载全局引擎） */
   ocrEngine?: { recognize(src: string | Buffer, opts?: unknown): Promise<OCRResult> };
-  /** 可注入 PDF worker 客户端（测试用） */
-  pdfWorker?: { submit(task: { task_type: string; payload: Record<string, unknown> }): Promise<unknown> };
+  /** 可注入 PDF worker 客户端（测试用）；submit 后必须 waitForCompletion 轮询终态 */
+  pdfWorker?: {
+    submit(task: { task_type: string; payload: Record<string, unknown> }): Promise<{ task_id: string; status?: string }>;
+    waitForCompletion(
+      taskId: string,
+      opts?: { intervalMs?: number; timeoutMs?: number },
+    ): Promise<{ status?: string; result?: { markdown?: string }; error?: string }>;
+  };
+  /** pdf-worker 终态轮询超时（默认 120s） */
+  pdfWorkerTimeoutMs?: number;
 }
 
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024;
@@ -214,13 +222,30 @@ async function ingestPdf(source: DocumentSource, bytes: Uint8Array, mime: string
   if (opts.pdfWorkerUrl || opts.pdfWorker) {
     try {
       const worker = opts.pdfWorker ?? (await createPdfWorkerClientProxy(opts.pdfWorkerUrl!));
+      // 审计 F-2（2026-08-24）：本地文件此前仅上传前 64 字节且缺 url 字段，
+      // Python 端 KeyError 必失败。现以 data_base64 全量内联上传。
       const task =
         "url" in source
           ? { task_type: "pdf:convert", payload: { url: source.url } }
-          : { task_type: "pdf:convert", payload: { name: sourceLabel, data: Array.from(bytes.slice(0, 64)) } };
-      const resp = (await worker.submit(task)) as { result?: { markdown?: string }; error?: string };
+          : {
+              task_type: "pdf:convert",
+              payload: {
+                name: sourceLabel,
+                data_base64: Buffer.from(bytes).toString("base64"),
+              },
+            };
+      // 审计 F-1（2026-08-24）：submit 仅返回 {task_id,status:"queued"}，
+      // 此前被当作终态导致 markdown 恒为空串且无 error。必须轮询至终态。
+      const ack = await worker.submit(task);
+      const resp = await worker.waitForCompletion(ack.task_id, {
+        intervalMs: 2000,
+        timeoutMs: opts.pdfWorkerTimeoutMs ?? 120_000,
+      });
       if (resp.error) return { ...base, error: resp.error };
       const markdown = resp.result?.markdown ?? "";
+      if (!markdown) {
+        return { ...base, error: "pdf-worker completed without markdown output" };
+      }
       return { ...base, markdown, metadata: { ...base.metadata, via: "pdf-worker" } };
     } catch (err) {
       return { ...base, error: "pdf-worker failed: " + (err instanceof Error ? err.message : String(err)) };
@@ -265,9 +290,18 @@ function detectColumnCount(sections: StructuredDocument["sections"]): number {
   return 1;
 }
 
-/** 最小 pdf-worker 客户端代理（惰性 import，ESM 兼容） */
-async function createPdfWorkerClientProxy(baseUrl: string): Promise<{ submit(task: { task_type: string; payload: Record<string, unknown> }): Promise<unknown> }> {
+/** 最小 pdf-worker 客户端代理（惰性 import，ESM 兼容）；含终态轮询 */
+async function createPdfWorkerClientProxy(baseUrl: string): Promise<{
+  submit(task: { task_type: string; payload: Record<string, unknown> }): Promise<{ task_id: string; status?: string }>;
+  waitForCompletion(
+    taskId: string,
+    opts?: { intervalMs?: number; timeoutMs?: number },
+  ): Promise<{ status?: string; result?: { markdown?: string }; error?: string }>;
+}> {
   const { createPdfWorkerClient } = await import("../workers/pdf-worker.js");
   const client = createPdfWorkerClient(baseUrl);
-  return { submit: (task) => client.submit(task as never) };
+  return {
+    submit: (task) => client.submit(task as never),
+    waitForCompletion: (taskId, o) => client.waitForCompletion(taskId, o),
+  };
 }
