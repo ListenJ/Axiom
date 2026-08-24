@@ -412,7 +412,11 @@ export function unsupportedTopicNack(actorId: string, message: ActorMessage): Ac
     from: actorId,
     to: message.from,
     topic: message.topic,
-    payload: { error: `Unsupported topic "${message.topic}" for actor ${actorId}` },
+    payload: {
+      error: `Unsupported topic "${message.topic}" for actor ${actorId}`,
+      // 审计 B-1（2026-08-24）：结构化错误码，供 kernel 判定终态失败（不重试）
+      code: "UNSUPPORTED_TOPIC",
+    },
     timestamp: Date.now(),
     replyTo: message.id,
   };
@@ -450,6 +454,29 @@ export class KnowledgeActorBehavior implements ActorBehavior {
           timestamp: Date.now(),
           replyTo: message.id,
         };
+
+      case "execute": {
+        // 审计 B-1（2026-08-24）：kernel 以 topic="execute" 派发调度任务，
+        // 此前无任何 Actor 处理该主题 → 全部 NACK → 重试耗尽即 failed。
+        // Knowledge 作为默认执行者，返回结构化执行回执（payload 原样回传，
+        // 由上层按任务语义消费；不在此伪造业务结果）。
+        const task = (message.payload ?? {}) as { id?: string; name?: string };
+        return {
+          id: `resp-${Date.now()}`,
+          type: "response",
+          from: this.id,
+          to: message.from,
+          topic: "execute.result",
+          payload: {
+            taskId: task.id,
+            taskName: task.name,
+            handledBy: this.id,
+            acceptedAt: Date.now(),
+          },
+          timestamp: Date.now(),
+          replyTo: message.id,
+        };
+      }
 
       default:
         return null; // 系统层 processNext 兜底 NACK（H1）

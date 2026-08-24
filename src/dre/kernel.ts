@@ -119,10 +119,17 @@ export class Kernel {
             this.config.actorAskTimeoutMs ?? 5000,
           );
           if (reply.type === "error") {
-            const errMsg =
-              (reply.payload as { error?: string } | null)?.error ?? `actor ${reply.from} returned error`;
-            logger.warn("[Kernel] Task rejected by actor", { taskId: nextTask.id, error: errMsg });
-            scheduler.fail(nextTask.id, errMsg);
+            const payload = (reply.payload as { error?: string; code?: string } | null) ?? {};
+            const errMsg = payload.error ?? `actor ${reply.from} returned error`;
+            // 审计 B-1（2026-08-24）：不支持的主题属于确定性拒绝，重试必然
+            // 再次 NACK——终态失败，不进入指数退避重试。
+            const terminal = payload.code === "UNSUPPORTED_TOPIC";
+            logger.warn("[Kernel] Task rejected by actor", {
+              taskId: nextTask.id,
+              error: errMsg,
+              terminal,
+            });
+            scheduler.fail(nextTask.id, errMsg, { terminal });
           } else {
             scheduler.complete(nextTask.id, reply.payload);
           }

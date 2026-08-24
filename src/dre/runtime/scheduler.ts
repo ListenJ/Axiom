@@ -315,9 +315,32 @@ class SchedulerImpl {
    * `maxRetries` semantics match LLMClient: N = number of retries allowed (excluding
    * the initial attempt). So maxRetries=0 = 1 attempt, maxRetries=2 = 3 attempts.
    */
-  fail(taskId: string, error: string): void {
+  /**
+   * 标记任务失败。
+   * 审计 B-1（2026-08-24）：新增 opts.terminal —— 确定性拒绝（如不支持的主题）
+   * 重试必然复现，直接终态失败，不回队、不退避。
+   */
+  fail(taskId: string, error: string, opts?: { terminal?: boolean }): void {
     const task = this.running.get(taskId);
     if (!task) return;
+
+    if (opts?.terminal) {
+      task.retries = task.maxRetries + 1;
+      task.status = "failed";
+      task.error = error;
+      task.completedAt = Date.now();
+      this.running.delete(taskId);
+      this.budget.currentTasks--;
+      this.completed.push(task);
+      this.trimCompleted();
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error, terminal: true },
+        priority: "normal",
+      });
+      return;
+    }
 
     task.retries++;
     this.running.delete(taskId);
