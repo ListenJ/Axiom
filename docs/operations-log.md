@@ -25,7 +25,7 @@
   11. 新增整改计划 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`（R1 已勾销；R2 安全防线/R3 功能死路/R4 文档收口待后续会话）。
   - 全程规则 2：9 文件先备份 `.tmp/backups/tests/**` → 通读 → 最小修改 → 验证 → 删备份（已删）。
 - **验证**：`bun test <9 文件>` = 76 pass / 7 skip（均为门控活服务器探针）/ 0 fail / 451 expects；`npx tsc --noEmit` 零输出。两处中途失败（AssignmentResult.model 为对象、chat() 不透传 fallbackUsed 且 execute 被 spy 拦截）均已按真实契约修正断言。
-- **Commit**：`<placeholder-R1>`（提交后回填）
+- **Commit**：`7cdbca2`（提交后回填）
 
 ---
 
