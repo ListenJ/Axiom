@@ -10,7 +10,7 @@
 
 ## 部署
 
-- 端点：`http://127.0.0.1:9001`（默认本机 llama.cpp `llama-server`，OpenAI 兼容；内网部署可指向如 `192.168.0.150:9001`）
+- 端点：`http://127.0.0.1:9001`（默认本机 llama.cpp `llama-server`，OpenAI 兼容；内网部署可指向如 `${LAN_NODE_N1}:9001`）
 - 已验证模型：
   | 模型 | transport | 结论 |
   |---|---|---|
@@ -22,7 +22,7 @@
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `EDGE_LLM_URL` | `http://127.0.0.1:9001`（默认本机；内网部署示例 `http://192.168.0.150:9001`） | llama.cpp 地址 |
+| `EDGE_LLM_URL` | `http://127.0.0.1:9001`（默认本机；内网部署示例 `http://${LAN_NODE_N1}:9001`） | llama.cpp 地址 |
 | `EDGE_LLM_MODEL` | `MiniCPM5-1B` | llama.cpp 忽略 model 字段，仅标识 |
 | `EDGE_LLM_TRANSPORT` | `chat` | `completion` = 原生 /completion（思考不可关闭的模型必需） |
 | `EDGE_PROMPT_OPTIMIZER` | `1` | 意图分类增强（边缘第一层） |

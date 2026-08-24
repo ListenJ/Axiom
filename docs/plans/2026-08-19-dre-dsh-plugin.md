@@ -1,6 +1,6 @@
 # DRE-DSH 插件实现计划（2026-08-19）
 
-**Goal:** 创建独立 DSH 插件 `axiom-dre-dsh`（`plugins/dre-dsh/`），把 Axiom 确定性推理引擎（DRE）以 `dre__*` 工具暴露给 DSH，支持热插拔与快装快卸，并在本地 + `listen@192.168.0.150` 完成深度测试。
+**Goal:** 创建独立 DSH 插件 `axiom-dre-dsh`（`plugins/dre-dsh/`），把 Axiom 确定性推理引擎（DRE）以 `dre__*` 工具暴露给 DSH，支持热插拔与快装快卸，并在本地 + `listen@${LAN_NODE_N1}` 完成深度测试。
 
 **Architecture:** Cordis 插件经 `cordis.patch.yml`（id `dre`）注入配置；`apply()` 拉起 Axiom MCP 服务器（stdio），`mcp-bridge` 按 DRE 白名单过滤并注册 `dre__<tool>`；`ctx.effect` 管理生命周期实现热卸载；自带 `dre_plugin_status` 诊断工具。复用现有 `plugins/dsh` 的桥模式（自包含拷贝 + 白名单扩展，不重构单块插件）。
 
@@ -68,7 +68,7 @@ Run:
 - 仓库级 `bun run lint`（tsc 全仓）
 - `bun test tests/agent-evals/external-benchmarks.test.ts` 等已挂门禁复跑（确认无回归）
 
-## Task 7: 远端深度测试（listen@192.168.0.150）
+## Task 7: 远端深度测试（listen@${LAN_NODE_N1}）
 
 Run（远端）:
 1. `export HOME=/home/listen`；`curl -fsSL https://bun.sh/install | bash` → `~/.bun/bin`

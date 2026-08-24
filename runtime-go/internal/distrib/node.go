@@ -22,7 +22,7 @@ const (
 )
 
 // Node describes a single cluster member. Addr is a base URL such as
-// "http://192.168.0.150:9103". Role is free-form text (e.g. "primary",
+// "http://${LAN_NODE_N1}:9103". Role is free-form text (e.g. "primary",
 // "replica") and may be empty.
 type Node struct {
 	ID   string `json:"id"`

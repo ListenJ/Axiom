@@ -80,13 +80,15 @@ go run ./cmd/searchd   # SEARCHD_ADDR（默认 :9103）、SEARCHD_REDIS_ADDR（�
 
 说明：上表为本机单进程 in-process 实测。崩溃恢复语义为 at-least-once（WAL 重放），阶段 handler 需幂等。端到端（HTTP）实测见下文「分布式部署与联合压测」。
 
-## 分布式部署与联合压测（192.168.0.150 + 192.168.0.22）
+## 分布式部署与联合压测（多节点 LAN）
+
+> 具体内网地址、主机账号与硬件型号见本地 `~/.axiom/axiom-secrets/runtime-go-topology.md`（规则 11，不入库）。下文以 `${LAN_NODE_N1}`/`${LAN_NODE_N2}`/`${LAN_NODE_W1}` 占位。
 
 ### 拓扑
 
-- **n1** `listen@192.168.0.150`（AMD Ryzen 5 5600H，12 核）：searchd/agentd/pcdad（:9103/:9102/:9101）、redis:7（docker，:6379）、模型服务（:9001）。
-- **n2** `data@192.168.0.22`（Intel Xeon E5-2450 @ 2.10GHz，16 核，2012 年 Sandy Bridge，无 AES-NI）：searchd/agentd/pcdad（同端口）。
-- n1 入站有防火墙白名单（仅 22/3000/9001 等开放，无 sudo），因此 **n2 → n1 走 SSH 反向隧道**：n1 上常驻 `ssh -f -N -R 19101..19103:127.0.0.1:9101..9103 -R 16379:127.0.0.1:6379 data@192.168.0.22`，n2 侧以对等端 `127.0.0.1:191xx` 访问 n1（n1 → n2 直连）。各节点只拨对端地址，分片归属只依赖排序后的节点 ID。
+- **n1** 节点 N1（`${LAN_NODE_N1}`，x86_64，12 核）：searchd/agentd/pcdad（:9103/:9102/:9101）、redis:7（docker，:6379）、模型服务（:9001）。
+- **n2** 节点 N2（`${LAN_NODE_N2}`，x86_64，16 核）：searchd/agentd/pcdad（同端口）。
+- n1 入站有防火墙白名单（仅 22/3000/9001 等开放，无 sudo），因此 **n2 → n1 走 SSH 反向隧道**：n1 上常驻 `ssh -f -N -R 19101..19103:127.0.0.1:9101..9103 -R 16379:127.0.0.1:6379 ${LAN_NODE_N2}`，n2 侧以对等端 `127.0.0.1:191xx` 访问 n1（n1 → n2 直连）。各节点只拨对端地址，分片归属只依赖排序后的节点 ID。
 - searchd 集群：32 分片按节点取模静态映射（各持 16 分片）；任意节点都是入口，本地分片本地查、对端分片经 `POST /internal/query` 扇出后归并；对端不可达时降级为 partial（`partial:true`，指标 `searchd_partial_queries_total`）；写入经 `POST /internal/docs` 按分片路由，协调节点持分布式锁（`SEARCHD_REDIS_ADDR`）。
 - agentd 集群：任务按最小负载路由到主节点，主节点不可达时 failover 到本地执行（指标 `agentd_failovers_total`、`agentd_remote_runs_total`）；pcdad 暴露 `/tx/prepare|commit|abort` 支撑跨机 2PC。
 
@@ -122,31 +124,31 @@ GP_N1=12 GP_N2=16 bash scripts/runtime-go/deploy.sh   # 全核压测模式；GOG
 - RPC 连接池：`distrib.DefaultClient` 空闲连接 16→256/主机、响应体显式 drain 后复用（高扇出下每 RPC 不再新建连接，connect 系统调用占比 4.6%→消除）。
 - loadgen：`-qps 0` 闭环模式（绕过 OS 定时器粒度上限）；`-mix simple|mixed`；语料 5228 词。
 - agentd 回归修复（均有回归测试 `internal/agent/loop_regression_test.go`）：① failover 重定向经 SubmitExcluding 只落本地代理，消除 HTTP 自环风暴；② 新增 `Scheduler.OnTaskFailed`，执行失败正确释放配额，消除 running 泄漏。
-- modelclient 64K 上下文：`ContextWindow` 默认 65536（`MODEL_CONTEXT_WINDOW` 可覆盖），`max_tokens` 钳制、prompt 截断、`reasoning_content` 回退；已对生产端点（192.168.0.150:9001，Qwopus3.5-4B）以 max_tokens=4096 实测，content/reasoning_content 正常返回。
+- modelclient 64K 上下文：`ContextWindow` 默认 65536（`MODEL_CONTEXT_WINDOW` 可覆盖），`max_tokens` 钳制、prompt 截断、`reasoning_content` 回退；已对生产端点（${LAN_MODEL_SERVICE}:9001，Qwopus3.5-4B）以 max_tokens=4096 实测，content/reasoning_content 正常返回。
 
-## 分布式拓扑变体：本机 Windows + listen（192.168.0.108 + 192.168.0.150）
+## 分布式拓扑变体：本机 Windows + 节点 N1（LAN）
 
-按用户最新要求，分布式验证拓扑从 .150+.22 切换为**本机 Windows + .150**，不再针对 data 服务器测试。
+按用户最新要求，分布式验证拓扑从 ${LAN_NODE_N1}+${LAN_NODE_N2} 切换为**本机 Windows + ${LAN_NODE_N1}**，不再针对 ${LAN_NODE_N2} 服务器测试。
 
 ### 拓扑与组网要点（踩坑记录）
 
-- **w1** 本机 Windows 11（i5-12500H 12C/16T，192.168.0.108）：交叉编译的 windows/amd64 searchd，`SEARCHD_ADDR=:9103 SEARCHD_NODE_ID=w1 GOMAXPROCS=12 GOGC=800`，持奇数分片。
-- **n1** .150：searchd 跑在 **docker 容器**中（见下），持偶数分片；redis 复用既有 openclaw-redis 容器。
-- **组网**：.150 入站白名单仅 22/3000/6379/9001，Windows 无法直连 .150:9103。**SSH 隧道（-L/-R 端口转发）实测在数据面引入 60-150ms 不稳定延迟**（ping 0ms、交互式 ssh 正常、仅转发通道慢，MSYS2 与原生 OpenSSH 均复现，已排除 MaxSessions 瓶颈）——热路径不可用，结论：不要再用隧道做压测转发。
+- **w1** 本机 Windows 11（x86_64 12C/16T，${LAN_NODE_W1}）：交叉编译的 windows/amd64 searchd，`SEARCHD_ADDR=:9103 SEARCHD_NODE_ID=w1 GOMAXPROCS=12 GOGC=800`，持奇数分片。
+- **n1** ${LAN_NODE_N1}：searchd 跑在 **docker 容器**中（见下），持偶数分片；redis 复用既有 openclaw-redis 容器。
+- **组网**：${LAN_NODE_N1} 入站白名单仅 22/3000/6379/9001，Windows 无法直连 ${LAN_NODE_N1}:9103。**SSH 隧道（-L/-R 端口转发）实测在数据面引入 60-150ms 不稳定延迟**（ping 0ms、交互式 ssh 正常、仅转发通道慢，MSYS2 与原生 OpenSSH 均复现，已排除 MaxSessions 瓶颈）——热路径不可用，结论：不要再用隧道做压测转发。
 - **正解：docker 桥接 DNAT 绕过主机防火墙**（同机 redis:6379 能被 Windows 直连即为此原理）：
 
   ```bash
-  # .150 上（复用本地 redis:7 镜像挂二进制，免 pull 免 build）
+  # ${LAN_NODE_N1} 上（复用本地 redis:7 镜像挂二进制，免 pull 免 build）
   docker run -d --name searchd-n1 --restart unless-stopped \
     -v /home/listen/runtime-go/bin:/opt:ro -p 9103:9103 \
     -e SEARCHD_ADDR=:9103 -e SEARCHD_NODE_ID=n1 -e SEARCHD_NUM_SHARDS=32 \
-    -e 'SEARCHD_NODES=[{"id":"n1","addr":"http://192.168.0.150:9103","role":"primary"},{"id":"w1","addr":"http://192.168.0.108:9103","role":"standby"}]' \
-    -e SEARCHD_REDIS_ADDR=172.17.0.2:6379 -e GOMAXPROCS=12 -e GOGC=800 \
+    -e 'SEARCHD_NODES=[{"id":"n1","addr":"http://${LAN_NODE_N1}:9103","role":"primary"},{"id":"w1","addr":"http://${LAN_NODE_W1}:9103","role":"standby"}]' \
+    -e SEARCHD_REDIS_ADDR=${DOCKER_BRIDGE_REDIS_ADDR}:6379 -e GOMAXPROCS=12 -e GOGC=800 \
     redis:7 /opt/searchd
   ```
 
-  注意：① redis 需先 `docker exec openclaw-redis redis-cli CONFIG SET protected-mode no`（否则非回环来源的 SET NX 被拒）；② 容器内访问同 bridge 的 redis 必须用**容器 IP 172.17.0.2:6379**（172.17.0.1 网关与宿主发布端口从容器内均不可达）。
-- Windows→.150:9103 经 docker 发布端口直连 RTT 1.6ms；.150→Windows:9103 入站本来就通（专用网络配置，无需改防火墙）。
+  注意：① redis 需先 `docker exec openclaw-redis redis-cli CONFIG SET protected-mode no`（否则非回环来源的 SET NX 被拒）；② 容器内访问同 bridge 的 redis 必须用**容器 IP ${DOCKER_BRIDGE_REDIS_ADDR}:6379**（${DOCKER_BRIDGE_GW} 网关与宿主发布端口从容器内均不可达）。
+- Windows→${LAN_NODE_N1}:9103 经 docker 发布端口直连 RTT 1.6ms；${LAN_NODE_N1}→Windows:9103 入站本来就通（专用网络配置，无需改防火墙）。
 - **Windows 作为服务端的 TCP accept 上限**：512 并发 workers 打 w1 入口出现 ~3% `connectex: actively refused`（accept backlog 满），192 workers 干净；w1 入口容量约 13.7k QPS（192w、0 错误）。
 
 ### 实测（HTTP，10 万文档灌入 10.2s，n1=50001 / w1=50000，错误率 0%）
@@ -155,14 +157,14 @@ GP_N1=12 GP_N2=16 bash scripts/runtime-go/deploy.sh   # 全核压测模式；GOG
 |---|---|---|---|
 | n1 单入口（Windows loadgen 直连） | simple | **33,323** | p50 9.2ms / p95 25ms |
 | 双入口并行（→n1 512w + →w1 192w） | simple | 20,836 + 13,699 = **34,535** | — |
-| 三入口并行（再加 .150 本地→n1） | simple | 27,900 | — |
+| 三入口并行（再加 ${LAN_NODE_N1} 本地→n1） | simple | 27,900 | — |
 | 双入口并行终测（30s×2） | mixed | 11,962 + 5,959 = **17,921** | p50 23.9/17.4ms、p95 241.8/226.8ms（542,681 请求 0 错误） |
 
-**100K QPS 在此拓扑不可达（~35k simple / ~18k mixed）**。除上一节已分析的 HTTP/TCP 内核开销与每查询 32 分片全扇出外，本拓扑新增约束：① Windows 服务端 accept 上限把 w1 入口限制在 ~13.7k；② 物理总核数 24（.150 12 + Windows 12），且 Windows 侧调度/网络栈开销显著高于 Linux；③ 双入口并行时 n1 同时承载扇出归并与自身查询（单入口 33k → 双入口合计 34.5k，扩展已趋近平台极限）。逼近 100K 需要更多 Linux 节点分担入口与分片。
+**100K QPS 在此拓扑不可达（~35k simple / ~18k mixed）**。除上一节已分析的 HTTP/TCP 内核开销与每查询 32 分片全扇出外，本拓扑新增约束：① Windows 服务端 accept 上限把 w1 入口限制在 ~13.7k；② 物理总核数 24（${LAN_NODE_N1} 12 + Windows 12），且 Windows 侧调度/网络栈开销显著高于 Linux；③ 双入口并行时 n1 同时承载扇出归并与自身查询（单入口 33k → 双入口合计 34.5k，扩展已趋近平台极限）。逼近 100K 需要更多 Linux 节点分担入口与分片。
 
 ### 进程管理
 
-- 停止：.150 上 `docker stop searchd-n1`；Windows 侧结束 searchd 进程。重启：`docker start searchd-n1`，w1 以相同 env 重启即可。
+- 停止：${LAN_NODE_N1} 上 `docker stop searchd-n1`；Windows 侧结束 searchd 进程。重启：`docker start searchd-n1`，w1 以相同 env 重启即可。
 - loadgen 本轮改动：错误采样打印（前 5 条 err sample 输出到 stderr），便于压测排障。
 
 ## AST 静态分析自体检结果
@@ -174,8 +176,8 @@ GP_N1=12 GP_N2=16 bash scripts/runtime-go/deploy.sh   # 全核压测模式；GOG
 模型服务为 llama.cpp 的 OpenAI 兼容端点：
 
 - 环境变量 `MODEL_SERVICE_URL`：单个或多个（逗号分隔）端点，如
-  `MODEL_SERVICE_URL=http://192.168.0.150:9001,http://192.168.0.150:9002`
-- 未设置时默认 `http://192.168.0.150:9001`
+  `MODEL_SERVICE_URL=http://${LAN_MODEL_SERVICE}:9001,http://${LAN_MODEL_SERVICE}:9002`
+- 未设置时默认 `${LAN_MODEL_SERVICE}`
 - 行为：每次调用默认 30s 超时（`Config.Timeout` 可配）；指数退避重试（初始 100ms、倍率 2、上限 2s、最多 3 次），仅网络错误与 5xx 重试，4xx 不重试；多端点轮询负载均衡；后台每 10s（`Config.HealthInterval` 可配）探测 `/health`，不健康熔断、恢复后半开回归；全部不健康返回 `MODEL_ALL_ENDPOINTS_UNHEALTHY` 或走注入的 fallback。
 - 已对生产端点（Qwopus3.5-4B）实测连通：Chat 调用成功、usage 解析正确。注意该模型为 reasoning 模型，思考内容在 `reasoning_content` 字段，`max_tokens` 过小会被推理耗尽导致 `content` 为空（`finish_reason=length`），调用方应给足 token 预算。
 

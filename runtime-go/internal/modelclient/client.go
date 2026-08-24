@@ -21,7 +21,10 @@ import (
 
 // Default configuration values.
 const (
-	DefaultEndpoint       = "http://192.168.0.150:9001"
+	// DefaultEndpoint is a placeholder. The real LAN model service URL must be
+	// supplied via the MODEL_SERVICE_URL environment variable; no internal
+	// network address is hard-coded here (see rule 11).
+	DefaultEndpoint       = "${LAN_MODEL_SERVICE}"
 	DefaultTimeout        = 30 * time.Second
 	DefaultHealthInterval = 10 * time.Second
 	DefaultMaxRetries     = 3

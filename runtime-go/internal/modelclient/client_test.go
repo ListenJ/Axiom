@@ -337,8 +337,11 @@ func TestDefaultEndpoint(t *testing.T) {
 	if len(cfg.Endpoints) != 1 || cfg.Endpoints[0] != DefaultEndpoint {
 		t.Fatalf("endpoints = %v", cfg.Endpoints)
 	}
-	if !strings.HasPrefix(cfg.Endpoints[0], "http://192.168.0.150") {
-		t.Fatalf("default = %s", cfg.Endpoints[0])
+	if cfg.Endpoints[0] != DefaultEndpoint {
+		t.Fatalf("default = %s, want placeholder %s", cfg.Endpoints[0], DefaultEndpoint)
+	}
+	if strings.Contains(cfg.Endpoints[0], "192.168") {
+		t.Fatalf("default endpoint must not contain a hard-coded internal IP: %s", cfg.Endpoints[0])
 	}
 }
 

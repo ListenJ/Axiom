@@ -1,4 +1,4 @@
-﻿# 内核与配置模板化审核报告（硬编码审计）
+# 内核与配置模板化审核报告（硬编码审计）
 
 - **日期**：2026-08-11
 - **性质**：只读审核；本报告为唯一写产物
@@ -17,7 +17,7 @@
    - `config/axiom.yaml` 的 `models:` 数组仅被 config-center 按索引（`models.0.apiKey`…）映射 API Key，**模型条目本身 router 不消费**。
    - 真实路由数据源是 `src/router/models/registry.ts` 的 `UNIFIED_REGISTRY`——**约 50+ 条模型全部硬编码在代码里**，用户无法配置模型与链接。
 
-2. **业务模块绕过 router 直连**：`prompt-optimizer.ts`、`intent-enhancer.ts`、`knowledge/pipeline.ts`、`db/codegraph-sync.ts`、`memory/knowledge-graph-builder.ts`、`hermes-agent.ts`、`edge-client.ts` 等 7+ 处**硬编码模型名/provider/baseURL**，其中 `192.168.0.150:9001` 是个人内网 IP 硬编码默认值。
+2. **业务模块绕过 router 直连**：`prompt-optimizer.ts`、`intent-enhancer.ts`、`knowledge/pipeline.ts`、`db/codegraph-sync.ts`、`memory/knowledge-graph-builder.ts`、`hermes-agent.ts`、`edge-client.ts` 等 7+ 处**硬编码模型名/provider/baseURL**，其中 `${LAN_NODE_N1}:9001` 是个人内网 IP 硬编码默认值。
 
 3. **凭据安全总体合格**：git 跟踪文件未发现真实密钥（命中仅为测试夹具）；`.env` 已 gitignore；`data/*.json` 已 gitignore。风险点是 `routes/models.ts` 无 `AXIOM_ENCRYPTION_KEY` 时明文落盘、`POST /config` 整文件覆写 YAML 的既有问题。
 
@@ -52,9 +52,9 @@
 
 | 位置 | 硬编码 | 类型 | 建议 |
 |---|---|---|---|
-| `src/local-llm/edge-client.ts:26` | 默认 `http://192.168.0.150:9001`（个人内网 IP）+ `MiniCPM5-1B` | IP+模型 | **P0**：`EDGE_LLM_URL` 无默认或默认 `http://127.0.0.1:9001`；这是别人环境必然失效的地址 |
-| `src/local-llm/edge-embeddings.ts:14-15` | `http://192.168.0.150:9001` + `BAAI/bge-m3` | IP+模型 | P0：同上 |
-| `src/testing/cluster/types.ts:190-203` | `192.168.0.150` / `192.168.0.21` | IP | P1：测试集群样本，改从 env/argv 读取 |
+| `src/local-llm/edge-client.ts:26` | 默认 `http://${LAN_NODE_N1}:9001`（个人内网 IP）+ `MiniCPM5-1B` | IP+模型 | **P0**：`EDGE_LLM_URL` 无默认或默认 `http://127.0.0.1:9001`；这是别人环境必然失效的地址 |
+| `src/local-llm/edge-embeddings.ts:14-15` | `http://${LAN_NODE_N1}:9001` + `BAAI/bge-m3` | IP+模型 | P0：同上 |
+| `src/testing/cluster/types.ts:190-203` | `${LAN_NODE_N1}` / `192.168.0.21` | IP | P1：测试集群样本，改从 env/argv 读取 |
 | `src/crawl/lightpanda-client.ts:86,217,…`、`src/routes/agents.ts:226…`、`src/tui/app.ts:500` | `http://127.0.0.1:9222` | 本地 CDP 端点 | P2：本机回环可接受；如需远程改为 `LIGHTPANDA_CDP_URL` env |
 | `src/core/health-checker.ts:103-105`、`src/cron/scheduler.ts:21-24`、`src/cli.ts:278-282`、`src/router/model-advisor.ts:97-130`、`src/utils/adaptive-proxy.ts:59-61` | provider `/models` 探测 URL 硬编码 | baseURL | P1：统一改走 `PROVIDER_CONFIG`（router/models/providers.ts）+ env baseURL 覆盖 |
 | `src/agents/computer-use-agent.ts:392` | `HTTP-Referer: https://axiom-runtime.ai` | 域名 | P2：改 env `OPENROUTER_REFERER`（OpenRouter 要求，默认保留） |
@@ -181,4 +181,4 @@
 
 - 扫描方式：PowerShell `Select-String` 对 `src/`、`frontend/src`、`scripts/`、`config/` 全量正则扫描（模型名 / https 端点 / IP / 密钥模式），并交叉核对 git ls-files 与 .gitignore。
 - 关键代码路径已通读：`router/models/{registry,providers}.ts`、`router/model-capability-registry.ts`、`router/provider-caller.ts`、`utils/{env,api-key-store,api-key-persistence}.ts`、`core/config-center.ts`、`routes/{models,api-keys,health}.ts`、`cli/setup.ts`、7 处业务直连模块、`local-llm/*`。
-- 事实标注：`config/model-router.yaml` 无引用、`data/model-config.json` 无 router 读取、双份 PROVIDER_CONFIG、`192.168.0.150` 内网 IP 均为**事实**（代码扫描可复现）。
+- 事实标注：`config/model-router.yaml` 无引用、`data/model-config.json` 无 router 读取、双份 PROVIDER_CONFIG、`${LAN_NODE_N1}` 内网 IP 均为**事实**（代码扫描可复现）。

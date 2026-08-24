@@ -4,7 +4,7 @@
  *
  * 集群节点：
  *   1. Local Dev Machine (本机)
- *   2. Server 192.168.0.150 (SSH: data@192.168.0.150)
+ *   2. Server ${LAN_NODE_N1} (SSH: data@${LAN_NODE_N1})
  *   3. Remote Node 192.168.0.21 (SSH: git@192.168.0.21)
  *
  * 用法：
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
 
   console.log("╔══════════════════════════════════════════════════════════╗");
   console.log("║     分布式测试运行器 — PCDA 自动化测试框架               ║");
-  console.log("║     三节点集群: Local + 192.168.0.150 + 192.168.0.21    ║");
+  console.log("║     三节点集群: Local + ${LAN_NODE_N1} + 192.168.0.21    ║");
   console.log("╚══════════════════════════════════════════════════════════╝\n");
 
   const clusterConfig = buildClusterConfig(args.localOnly);

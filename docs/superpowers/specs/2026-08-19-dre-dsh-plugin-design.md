@@ -1,6 +1,6 @@
 # DRE-DSH 插件设计（2026-08-19）
 
-> 摘要：将 Axiom 的确定性推理引擎（DRE）封装为独立的 DeepSeek Harness（DSH）插件 `axiom-dre-dsh`，以 `dre__<tool>` 前缀向 DSH 暴露「知识验证（三段甄别）/确定性认知闭环/约束求解/突触记忆」工具，用于强化 DSH 的信息确定能力。插件严格遵循 DSH/Cordis 架构：`cordis.patch.yml` 配置层、`ctx.effect` 生命周期、`dsh plugin add/rm` 热插拔。测试分两层：本地单测/冒烟（离线确定性），远端 `listen@192.168.0.150` 真实 DSH 环境安装-卸载-再安装全流程。
+> 摘要：将 Axiom 的确定性推理引擎（DRE）封装为独立的 DeepSeek Harness（DSH）插件 `axiom-dre-dsh`，以 `dre__<tool>` 前缀向 DSH 暴露「知识验证（三段甄别）/确定性认知闭环/约束求解/突触记忆」工具，用于强化 DSH 的信息确定能力。插件严格遵循 DSH/Cordis 架构：`cordis.patch.yml` 配置层、`ctx.effect` 生命周期、`dsh plugin add/rm` 热插拔。测试分两层：本地单测/冒烟（离线确定性），远端 `listen@${LAN_NODE_N1}` 真实 DSH 环境安装-卸载-再安装全流程。
 
 ---
 
@@ -71,7 +71,7 @@ DSH (Node 22)                          Axiom 侧 (Bun)
 3. **smoke-mcp.test.ts**：真实拉起 `bun run src/mcp/server.ts --stdio`，断言注册工具全部 `dre__*` 且数量=白名单交集；调用 `dre__status` 返回可解析 JSON；`dre_plugin_status` 可用。
 4. 门禁：`bun run lint`（仓库级）、插件 `tsc -p tsconfig.build.json` + `bun test tests/` + typecheck。
 
-### 远端 `listen@192.168.0.150`（真实 DSH 环境，深度验证）
+### 远端 `listen@${LAN_NODE_N1}`（真实 DSH 环境，深度验证）
 1. 装 bun（`~/.bun`，注意远端 `$HOME` 异常 → 显式 `export HOME=/home/listen`）。
 2. 装 DSH：`npm install -g @deepseek-ai/dsh`（npm prefix `~/.npm-global`）。
 3. 同步仓库源码（`git archive HEAD` 打包 → scp → 解压 → `bun install`）。
@@ -106,4 +106,4 @@ DSH (Node 22)                          Axiom 侧 (Bun)
 - `plugins/dsh/`（现有桥实现、cordis.patch.yml、tsconfig、tests）
 - `src/mcp/server/dre-tools.ts` + `src/mcp/server/*`（工具清单）
 - `dsh --help` / `dsh plugin --profile web --help`（热插拔命令语义）
-- 用户约束：dre 前缀、DSH 架构符合（热插拔/快装快卸）、远端 `listen@192.168.0.150` 深度测试
+- 用户约束：dre 前缀、DSH 架构符合（热插拔/快装快卸）、远端 `listen@${LAN_NODE_N1}` 深度测试

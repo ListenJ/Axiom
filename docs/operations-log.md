@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-08-25 — 审计整改 Task 4.5：内网信息脱敏（规则 11）
+
+- **任务**：落实整改计划 Phase R4 Task 4.5——内网信息脱敏：runtime-go/modelclient 默认端点改 `${LAN_MODEL_SERVICE}` 占位符；≥9 文档内网拓扑迁占位符，真实拓扑细节迁本地 `~/.axiom/axiom-secrets/`。
+- **工具**：Edit/Write、Bash（go test / go build / bunx tsc --noEmit）、Read 通读 modelclient 各文件与 runtime-go/README.md 分布式章节。
+- **操作与验证**（文件级，含 commit hash）：
+  - `runtime-go/internal/modelclient/client.go` `DefaultEndpoint` 由硬编码 `http://192.168.0.150:9001` 改为占位符 `${LAN_MODEL_SERVICE}`（强制经 `MODEL_SERVICE_URL` 配置，不再写死内网地址）；`types.go` 包注释同步；`client_test.go` 断言改为校验占位符且不含 `192.168` → Commit `2de5d39`（`go test ./internal/modelclient/` ok）
+  - `runtime-go/README.md` 分布式部署与联合压测章节：真实内网 IP（192.168.0.150/.22/.108）、主机账号（listen@/data@）、硬件型号、docker 容器 IP（172.17.0.2）、`/home/listen/` 路径全部迁 `${LAN_NODE_N1}/${LAN_NODE_N2}/${LAN_NODE_W1}/${DOCKER_BRIDGE_REDIS_ADDR}` 等占位符，章节首注"真实拓扑见本地 `~/.axiom/axiom-secrets/runtime-go-topology.md`（不入库）"。
+  - 批量脱敏以下文档/UI（均经 .tmp/backups 备份）：`docs/DISTRIBUTED-TESTING.md`、`docs/EDGE-LLM.md`、`docs/SECURITY-REVIEW.md`、`docs/reviews/2026-08-11-config-hardcode-review.md`、`docs/reviews/2026-08-11-master-audit.md`、`docs/plans/2026-08-19-dre-dsh-plugin.md`、`docs/superpowers/specs/2026-08-19-dre-dsh-plugin-design.md`、`docs/KNOWLEDGE-BASE.md`、`harmonyos/README.md`、`harmonyos/entry/src/main/resources/base/element/string.json`、`harmonyos/entry/src/main/pages/Index.ets`（共 11 个，满足"≥9 文档"）。
+  - 源文件注释/示例 IP 脱敏（非测试）：`src/local-llm/edge-client.ts`、`runtime-go/cmd/searchd/main.go`、`runtime-go/internal/pcda/remote.go`、`runtime-go/internal/distrib/node.go`、`src/testing/cluster/types.ts`、`scripts/distributed-test-runner.ts`。
+  - 真实拓扑细节写入本地非仓库凭据目录 `C:\Users\18336\.axiom\axiom-secrets\runtime-go-topology.md`（含节点/账号/硬件/隧道/docker/模型端点）。
+- **验证汇总**：`go build ./...` 干净；`go test ./internal/modelclient/` ok；`bunx tsc --noEmit` 干净。
+- **范围偏差（如实登记）**：以下含内网地址的文件**未脱敏**，理由分别为——① `AGENTS.md`（git remote `ssh://data@192.168.0.22/...` 为推送工作流必需，规则 3 依赖，删改将破坏提交链路）；② `docs/operations-log.md`（审计留痕，规则 5 要求完整不可篡改）；③ `scripts/runtime-go/deploy.sh`（真实部署脚本，须拨真实主机，脱敏即失效；真实值已归档至 secrets 目录）；④ 测试夹具 `tests/security-fixes.test.ts`、`tests/unit/cdp-url-guard.test.ts`、`runtime-go/internal/distrib/node_test.go` 以 `192.168.0.150` 作 SSRF/解析**负例**，改动将破坏安全测试语义，保留。上述文件真实值均在 `.axiom/axiom-secrets/` 归档。
+
+---
+
 ## 2026-08-25 — 审计整改 Task 3.3：kal_references 跨存储（KG 出入边 UNION）
 
 - **任务**：落实整改计划 Phase R3 遗留 Task 3.3（kal_references 跨存储引用重写）。

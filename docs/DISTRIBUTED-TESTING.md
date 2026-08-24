@@ -33,7 +33,7 @@
 | 节点 ID    | 名称                      | 类型   | 地址             | SSH 用户 | 最大并发 |
 |-----------|--------------------------|--------|-----------------|---------|---------|
 | local     | Local Dev Machine        | 本地   | -               | -       | 8       |
-| node-150  | Server 192.168.0.150     | 远程   | 192.168.0.150   | data    | 16      |
+| node-150  | Server ${LAN_NODE_N1}     | 远程   | ${LAN_NODE_N1}   | data    | 16      |
 | node-021  | Remote Node 192.168.0.21 | 远程   | 192.168.0.21    | git     | 12      |
 
 ## PCDA 循环
@@ -170,11 +170,11 @@ scripts/
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
 
 # 复制公钥到远程节点
-ssh-copy-id data@192.168.0.150
+ssh-copy-id data@${LAN_NODE_N1}
 ssh-copy-id git@192.168.0.21
 
 # 验证连接
-ssh data@192.168.0.150 echo ok
+ssh data@${LAN_NODE_N1} echo ok
 ssh git@192.168.0.21 echo ok
 ```
 

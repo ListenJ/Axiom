@@ -32,7 +32,7 @@
 
 ## 二、Omini 真实项目实测
 
-Omini（`192.168.0.150:/home/listen/Omini`，CUDA 推理引擎，克隆于 `.tmp-e2e/omini`）：
+Omini（`${LAN_NODE_N1}:/home/listen/Omini`，CUDA 推理引擎，克隆于 `.tmp-e2e/omini`）：
 
 - 真实 kernel 代码问答（gate_params 扩展、decode 8 tok/s 瓶颈分析）：主模型给出专业可用答案，意图增强的"思考框架"结构真实生效
 - 提示词优化（GLM 链）+ 意图分类（边缘 2B）在生产路径实测通过

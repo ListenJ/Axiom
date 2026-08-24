@@ -5,7 +5,7 @@ import webview from '@ohos.web.webview';
 import { common } from '@ohos.app.ability.UIAbility';
 
 // 默认服务器地址占位符：实际值从 string.json 资源读取（便于构建期切换环境）
-const DEFAULT_SERVER_URL: string = 'http://192.168.0.22:18789';
+const DEFAULT_SERVER_URL: string = 'http://${LAN_NODE_N2}:18789';
 
 @Entry
 @Component

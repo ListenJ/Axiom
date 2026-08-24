@@ -187,9 +187,9 @@ export const DEFAULT_CLUSTER_CONFIG: ClusterConfig = {
     },
     {
       id: "node-150",
-      name: "Server 192.168.0.150",
+      name: "Server ${LAN_NODE_N1}",
       type: "remote",
-      host: "192.168.0.150",
+      host: "${LAN_NODE_N1}",
       sshUser: "data",
       sshPort: 22,
       remoteWorkDir: "/tmp/openclaw-test",

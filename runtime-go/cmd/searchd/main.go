@@ -7,7 +7,7 @@
 //	                    serialized through a Redis distributed lock instead
 //	                    of the in-process lock
 //	SEARCHD_NODES       optional JSON array of cluster nodes, e.g.
-//	                    [{"id":"n1","addr":"http://192.168.0.150:9103"},...];
+//	                    [{"id":"n1","addr":"http://${LAN_NODE_N1}:9103"},...];
 //	                    when set, searchd runs in cluster mode and only holds
 //	                    the shards it owns
 //	SEARCHD_NODE_ID     this node's ID within SEARCHD_NODES (required in

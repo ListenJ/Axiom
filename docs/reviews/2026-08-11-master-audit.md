@@ -1,4 +1,4 @@
-﻿---
+---
 type: review
 created: 2026-08-11
 tags: [audit, master, frontend, backend, config, toolchain]
@@ -28,7 +28,7 @@ tags: [audit, master, frontend, backend, config, toolchain]
 4. 新增 `user-config-loader` 深模块：`data/model-config.json` + `model-router.yaml` 经 `registerModel()` 注入 registry EXTENSIONS，让前端 `/models` 配置真正生效
 5. 收敛双份 PROVIDER_CONFIG（`router/models/providers.ts` 与 `utils/api-key-store.ts`），以 api-key-store 为唯一事实源
 6. 业务模块（prompt-optimizer/intent-enhancer/knowledge-pipeline/codegraph-sync/hermes-agent）一律走 `router.executeWithRole`，显式指定时读 `XXX_MODEL/XXX_BASE_URL` env
-7. edge-client/edge-embeddings 默认地址 `192.168.0.150` → `127.0.0.1`
+7. edge-client/edge-embeddings 默认地址 `${LAN_NODE_N1}` → `127.0.0.1`
 
 ### P1（后端/前端，下一轮）
 8. `model-output-store.purgeOld` 接入定时清理（磁盘无限增长）

@@ -14,7 +14,7 @@
     },
     {
       "name": "server_url",
-      "value": "http://192.168.0.22:18789"
+      "value": "http://${LAN_NODE_N2}:18789"
     }
   ]
 }

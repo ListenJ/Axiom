@@ -23,7 +23,7 @@ type RemoteParticipant struct {
 }
 
 // NewRemoteParticipant creates a remote participant proxy targeting the
-// pcdad instance at addr (a base URL such as "http://192.168.0.150:9101").
+// pcdad instance at addr (a base URL such as "http://${LAN_NODE_N1}:9101").
 // A timeout <= 0 uses DefaultRemoteParticipantTimeout.
 func NewRemoteParticipant(addr string, timeout time.Duration) *RemoteParticipant {
 	if timeout <= 0 {

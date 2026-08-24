@@ -6,7 +6,7 @@
 //
 // Endpoints are configured via Config.Endpoints, or the MODEL_SERVICE_URL
 // environment variable (comma-separated for multiple endpoints), defaulting
-// to http://192.168.0.150:9001.
+// to the ${LAN_MODEL_SERVICE} placeholder (no internal address hard-coded).
 package modelclient
 
 import "context"
