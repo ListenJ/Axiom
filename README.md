@@ -609,17 +609,19 @@ Hermes 安装后可通过 MCP 连接 Axiom 共享记忆库。
 
 ## 测试
 
+> **测试口径**：以 CI 最近一次 green run 为准（见 [CI/CD 工作流](.github/workflows/ci.yml) 与仓库 Actions 运行记录）。本地 `bun test` 结果会因环境/网络波动而漂移，此处不硬编码数字，权威数字以 CI 运行记录为准。
+
+[CI 状态 · CI/CD 工作流](.github/workflows/ci.yml)
+
 ```bash
-# 运行全部测试 (560 tests across 39 files)
+# 运行全部测试
 bun test
 
-# 认知模块测试 (55 tests)
+# 认知模块测试
 bun test tests/cognitive-modules.test.ts
 
-# 场景路由测试 (13 tests)
+# 场景路由测试
 bun test tests/scene-router.test.ts
-
-# 当前状态: 538 pass / 21 skip / 1 fail (pre-existing tesseract.js)
 ```
 
 ## 许可证
