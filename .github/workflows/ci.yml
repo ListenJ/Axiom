@@ -1,4 +1,4 @@
-name: CI/CD
+﻿name: CI/CD
 
 on:
   push:
@@ -123,9 +123,9 @@ jobs:
     # 仅当知识库引擎/后端或插件代码变化时运行
     if: >-
       ${{ github.event_name == 'push' &&
-          (contains(github.event.head_commit.modified, 'src/kb/') ||
+          (contains(github.event.head_commit.modified, 'src/mcp/kb-backend.ts') ||
            contains(github.event.head_commit.modified, 'plugins/kb-dsh/') ||
-           contains(github.event.head_commit.added, 'src/kb/') ||
+           contains(github.event.head_commit.added, 'src/mcp/kb-backend.ts') ||
            contains(github.event.head_commit.added, 'plugins/kb-dsh/')) }}
     steps:
       - uses: actions/checkout@v4
