@@ -46,11 +46,12 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     expect(hits.length).toBe(0);
   });
 
-  test("工具数与 registry 实测一致 — 动态 countMcpTools，无历史旧数(133/150/172/173)", () => {
+  test("工具数与 registry 实测一致 — 单一事实源精确相等断言", () => {
     const readme = readFileSync("README.md", "utf8");
     const axiom = readFileSync("docs/AXIOM-ARCHITECTURE.md", "utf8");
     const agentArch = existsSync("docs/AGENT-ARCHITECTURE.md") ? readFileSync("docs/AGENT-ARCHITECTURE.md", "utf8") : "";
     const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");
+    const mcpGuide = readFileSync("docs/MCP_TOOLS_GUIDE.md", "utf8");
 
     const checkOld = (content: string, label: string) => {
       const oldHits: string[] = [];
@@ -71,19 +72,30 @@ describe("docs-consistency Task16 — 文档一致性", () => {
       ...checkOld(axiom, "AXIOM-ARCHITECTURE.md"),
       ...checkOld(agentArch, "AGENT-ARCHITECTURE.md"),
       ...checkOld(arch, "ARCHITECTURE.md"),
+      ...checkOld(mcpGuide, "MCP_TOOLS_GUIDE.md"),
     ];
     if (oldHits.length > 0) console.log("[docs-consistency] 旧工具数 hits:\n" + oldHits.join("\n"));
     expect(oldHits.length).toBe(0);
 
-    // 动态权威数必须出现在 README 与 AXIOM（工具/MCP 语境）
+    // 动态权威数（单一事实源 src/testing/tool-count.ts）
     const { countMcpTools } = require("../../src/testing/tool-count.js") as typeof import("../../src/testing/tool-count.js");
     const { total, duplicates } = countMcpTools();
     expect(duplicates).toEqual([]);
-    expect(total).toBeGreaterThanOrEqual(180);
-    const totalRe = new RegExp(`\\b${total}\\s*(个|MCP|tools|Tools)|\\b${total}\\b[^\\n]{0,40}(MCP 工具|MCP tools)`);
-    if (!totalRe.test(readme)) console.log(`[docs-consistency] README 缺少实测工具数 ${total}`);
-    expect(totalRe.test(readme)).toBe(true);
-    expect(totalRe.test(axiom)).toBe(true);
+    expect(total).toBeGreaterThan(0);
+
+    // 精确相等：各文档声明的 MCP 工具数必须等于实测 total（不接受漂移/旧数）
+    const docsToCheck: Array<[string, string]> = [
+      ["README.md", readme],
+      ["AXIOM-ARCHITECTURE.md", axiom],
+      ["ARCHITECTURE.md", arch],
+      ["MCP_TOOLS_GUIDE.md", mcpGuide],
+    ];
+    const countRe = /(\d+)\s*\*{0,2}\s*(?:个\s*)?(?:去重\s*MCP\s*工具|去重\s*工具|MCP\s*工具|MCP\s*Tools|MCP\s*tools)/;
+    for (const [label, content] of docsToCheck) {
+      const m = content.match(countRe);
+      expect(m, `${label} 应声明 MCP 工具数`).not.toBeNull();
+      if (m) expect(Number(m[1]), `${label} 声明的工具数应与实测 ${total} 精确相等`).toBe(total);
+    }
   });
 
   test("Limitations 章节应披露手写余弦+PG vector 可选与可选 LLM", () => {

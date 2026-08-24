@@ -288,9 +288,9 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 | 检索 | 手写余弦（`deterministic-search.ts` 关键词权重 + `consciousness/stream.ts:cosineSimilarity`）为默认；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用 | 非历史宣称，而是“确定性为主、向量可选” |
 | LLM | `src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
 | 历史 PG | `src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力为可选历史，非“已移除”即不可用 | 按需启用 |
-| MCP 工具数 | 权威计数以 `src/mcp/tool-registry.ts` + `src/mcp/server/*.ts` + `register-external-tools.ts` 为准，当前 **172** 个去重工具（`bun run count-tools.mjs` 统计 181 含 client-connector 等非 MCP 面，权威去重后 172） | 文档中 133/150/173 为历史值，已统一为 172 |
+| MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **188** 个去重工具，零重复 | 文档中 133/150/172/173 为历史值，已统一为 188 |
 
-*更新：2026-08-21 Task16 文档一致性校准（手写余弦+PG vector 可选、可选 LLM、PG 可选历史、工具数 172）。*
+*更新：2026-08-21 Task16 文档一致性校准（手写余弦+PG vector 可选、可选 LLM、PG 可选历史）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，已统一为 188（以 `src/testing/tool-count.ts` 为准）。*
 
 ---
 
