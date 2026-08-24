@@ -75,6 +75,8 @@ export class DeterministicSearchEngine {
   // Memoization caches
   private tokenizeCache = new Map<string, string[]>();
   private paraCache = new Map<string, string>();
+  /** 链接目标（文件名/归一化标题）→ 路径 映射缓存；仅在索引重建时失效 */
+  private linkToPathCache: Map<string, string> | null = null;
 
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
@@ -164,13 +166,7 @@ export class DeterministicSearchEngine {
   }
 
   private buildBacklinks() {
-    // 建立链接目标到路径的映射（按文件名和标题）
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     for (const [sourcePath, note] of this.notes) {
       for (const link of note.wikiLinks) {
@@ -359,13 +355,7 @@ export class DeterministicSearchEngine {
   // ===== 关系推导 =====
 
   private boostByRelations(scores: Map<string, { s: number; r: string[] }>, queryWords: string[]) {
-    // 建立链接目标（文件名/标题）到路径的映射
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     const mentionedPaths = new Set<string>();
     for (const [path, note] of this.notes) {
@@ -452,6 +442,20 @@ export class DeterministicSearchEngine {
   }
 
   // ===== 辅助方法 =====
+
+  /** 链接目标（文件名/归一化标题）→ 路径 映射；懒构建并缓存，索引重建时置空 */
+  private getLinkToPath(): Map<string, string> {
+    if (!this.linkToPathCache) {
+      const map = new Map<string, string>();
+      for (const [path, note] of this.notes) {
+        const baseName = nodePath.basename(path, ".md").toLowerCase();
+        map.set(baseName, path);
+        map.set(this.normalizeLink(note.title), path);
+      }
+      this.linkToPathCache = map;
+    }
+    return this.linkToPathCache;
+  }
 
   private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
     const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -612,13 +616,7 @@ export class DeterministicSearchEngine {
 
   /** 获取笔记的关联网络 */
   getNetwork(notePath: string, depth = 1): { notes: VaultNote[]; relationships: Array<{ from: string; to: string; type: string }> } {
-    // 建立链接目标（文件名/标题）到路径的映射
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     const visited = new Set<string>();
     const queue: Array<{ path: string; d: number }> = [{ path: notePath, d: 0 }];
@@ -699,6 +697,7 @@ export class DeterministicSearchEngine {
     this.tokenizeCache.clear();
     this.paraCache.clear();
     this.contentCache.clear();
+    this.linkToPathCache = null;
     this.cacheHits = 0;
     this.cacheMisses = 0;
     this.vaultPath = vaultPath;

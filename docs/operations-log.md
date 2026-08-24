@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-08-25 — 优化 P0-2：检索热路径 linkToPath 映射缓存化
+
+- **任务**：`DeterministicSearchEngine` 的 `linkToPath` Map（链接目标→路径）在 `buildBacklinks`/`boostByRelations`（每次 `search()` 调用）/`getNetwork` 三处各自全量重建，O(N) 分配+遍历落在检索热路径上。
+- **工具**：Edit、Bash（bun test / bunx tsc --noEmit）、Read 通读 deterministic-search.ts 全文。
+- **操作与验证**（文件级，含 commit hash）：
+  - `src/memory/deterministic-search.ts`：新增私有字段 `linkToPathCache` 与懒构建方法 `getLinkToPath()`，三处本地重建全部替换为缓存读取；`reload()` 中置空失效（notes 仅在 buildIndex 期间变更，缓存安全性由此保证）→ Commit `1d4b962`
+- **验证汇总**：重构前先确认 GREEN 基线（tests/deterministic-search.test.ts 15 pass）；重构后三套相关套件（deterministic-search / kal-references / dre-retrieval-engine）共 53 pass / 0 fail；`bunx tsc --noEmit` 干净。测试经公共接口（search 关系推导、getNetwork）覆盖全部三个使用点。
+
+---
+
 ## 2026-08-25 — 优化 P0-1：消除「手写余弦」叙事矛盾（文档+防回归断言对齐实现）
 
 - **任务**：README/ARCHITECTURE/LIMITATIONS 仍称默认检索为"手写余弦"，但实现已收敛为共享 `cosineSimilarity`（`src/utils/math.ts:7`，L9 审计收敛三处重复实现），且 `tests/unit/docs-consistency.test.ts:101-107` 反而**断言"手写余弦"必须出现**，把错误叙事固化为必须通过的状态。
