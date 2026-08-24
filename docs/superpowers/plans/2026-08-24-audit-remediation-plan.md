@@ -388,11 +388,11 @@ let s = content.char_indices()
 
 ---
 
-## Phase R3 —— 功能性死路与数据正确（✅ 7/8 完成 @2026-08-24：3.1/3.2/3.4+3.5bonus/3.5/3.6/3.7/3.8 落地；Task 3.3 kal_references 跨存储重写顺延——体量最大，需独立会话 TDD 单独落地）
+## Phase R3 —— 功能性死路与数据正确（✅ 8/8 完成 @2026-08-25：3.1/3.2/3.3/3.4+3.5bonus/3.5/3.6/3.7/3.8 全部落地）
 
 - **Task 3.1** F-1/F-2 pdf-worker：submit 后调用既有 `waitForCompletion`（workers/pdf-worker.ts:44-57），本地文件改传 base64 全量 payload；超时上限 120s。
 - **Task 3.2** E-1 KAL split-brain：kb-backend.ts 统一 DB 路径解析函数（与 sqlite-memory.ts:56 同源），vault 腿 catch 改为 warn+显式 error 结果。
-- **Task 3.3** E-2 kal_references：改查 wiki_links 表 + KG 出入边 UNION，nodeId 归一化复用 node-id.ts；补最小单测。
+- **Task 3.3** E-2 kal_references（✅ @2026-08-25 `992434e`）：KG 出入边 UNION（`kg_edges WHERE source=? OR target=?`），复用 `node-id.ts` `parseNodeId` 并根治 `nodeId` 二次前缀；新增 tests/kal-references.test.ts(4)。**偏差**：计划中"改查 wiki_links 表"经勘察在本仓库 SQLite 不存在该表（Vault wiki-link 图在内存中构建），仅实现可在 db 验证的 KG 边 UNION 部分，wiki-link 跨存储闭环留待后续。
 - **Task 3.4** F-3 edgeId 截断：`slice(0,20)` → `createHash("sha1").update(source+target+type).digest("hex").slice(0,16)`，迁移语句兼容旧行。
 - **Task 3.5** H-3 maxTokens 钳制：generate 入口统一 `maxTokens = min(requested, budget.recommendedMaxTokens)`。
 - **Task 3.6** D-1 搜索清洗收口：unifiedSearch.search/concurrentSearch 出口统一过 sanitizeSearchResultsForContext。

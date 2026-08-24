@@ -7,6 +7,18 @@
 
 ---
 
+## 2026-08-25 — 审计整改 Task 3.3：kal_references 跨存储（KG 出入边 UNION）
+
+- **任务**：落实整改计划 Phase R3 遗留 Task 3.3（kal_references 跨存储引用重写）。
+- **工具**：Edit/Write、Bash（bun test / bunx tsc --noEmit）、Read 通读 knowledge-access-layer.ts / kg-writer.ts / node-id.ts / deterministic-search.ts。
+- **操作与验证**（文件级，含 commit hash）：
+  - `src/kal/knowledge-access-layer.ts` `getReferences` 重写：原 `evidence LIKE '%nodeId%'` 为功能死路（KG 边引用关系存于 source/target，evidence 几乎不命中）→ 改为 `kg_edges WHERE source = ? OR target = ?` 出入边 UNION；返回 `nodeId` 直接用 `kg_nodes.id`（已是完整 node_id），根治 `createNodeId("kg", type, id)` 二次前缀 bug；删除文件内重复 `parseNodeIdLocal`，改复用 `node-id.ts` 的 `parseNodeId`（规则 10：单一事实源）。
+  - **计划偏差（如实登记）**：计划要求"改查 wiki_links 表 + KG 出入边 UNION"，但经勘察确认本仓库 SQLite **不存在 wiki_links 表**——Vault wiki-link 图由 `DeterministicSearchEngine` 在内存中从 .md 文件构建，不在 KAL 的 `this.db` 之内；DRE 亦无跨引用表。故本任务仅实现可在 db 中可靠验证的 KG 出入边 UNION 部分，wiki-link 跨存储闭环需后续引入持久化 wiki_links 表或注入 vault 引擎。
+  - 新增 `tests/kal-references.test.ts`（4 例：出边 / 入边 / 出入边 UNION / 非法 node_id）→ `992434e`
+- **验证汇总**：`bun test tests/kal-references.test.ts` 4 pass / 0 fail；`bunx tsc --noEmit` 干净。
+
+---
+
 ## 2026-08-24 — 审计整改 Phase R3：功能死路与数据正确性（7/8 任务，3.3 顺延）
 
 - **任务**：执行整改计划 Phase R3。每任务 TDD（RED→GREEN）+ 独立提交。
@@ -19,7 +31,7 @@
   6. **B-2** curlFetch 默认传输 spawnSync→异步 Bun.spawn（Promise.all 收集 stdout/stderr/exitCode），代理 HTTPS 搜索不再冻结事件循环最长 30s；CurlSpawn 类型允许同步 fake 注入向后兼容。curl-fetch.test.ts 追加默认路径用例 → `039b0ab`
   7. **H-3** maxTokens 预算钳制：新增纯函数 `clampMaxTokens(requested, recommended?)`；在 `LLMClient.generate` 唯一咽喉点 `effectiveMaxTokens()` 统一钳制（completion/chat/stream 三处 payload），预算不可用原样放行；engine.ts 决策钩子注释指明钳制位置。新增 tests/unit/clamp-max-tokens.test.ts(4)；resource 全套回归 → `7408ade`
 - **验证汇总**：全部任务 tsc --noEmit 干净；受影响套件（crawl/routes/knowledge/unit/dre）逐项全绿。
-- **遗留**：Task 3.3 kal_references 跨存储重写（涉及 wiki-link 表查询 UNION KG 边表 + nodeId 归一化对齐）体量最大，顺延至下一会话单独执行；其余 R3 全部落地。
+- **遗留（已消解）**：Task 3.3 kal_references 跨存储重写已于 2026-08-25 落地（见下方独立条目）；经代码勘察确认本仓库 SQLite 不存在 wiki_links 表（Vault wiki-link 图在内存中构建），故仅实现可在 db 验证的 KG 出入边 UNION 部分，wiki-link 跨存储缺口已如实登记。R3 至此全部完成（8/8）。
 
 ---
 
