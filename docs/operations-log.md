@@ -7,6 +7,19 @@
 
 ---
 
+## 2026-08-25 — 优化 P0-5：SQLiteMemory 标签精确匹配 + tags 按行兜底（TDD）
+
+- **任务**：① `listByTag`/`search` 的 `LIKE '%"tag"%'` 存在通配符注入——标签含 `%`/`_` 时改变匹配语义产生假阳性（实证：tag `"100%"` 同时命中 `"100x done"`）；② 五处 `JSON.parse(row.tags)` 无兜底，损坏行抛错，且 `search` 的 catch-all 会因单条损坏行吞掉全部命中；③ `kg/enhanced.ts rowToNode` 的 tags/metadata 解析同样无兜底。
+- **调研修正（规则 10，如实登记）**：子代理所举 `"golang"` 被 `%"go"%` 误召的例子**不成立**（尾引号保护，bun 实证 0 命中），未为其立测试；真实缺陷以上述 ①②③ 为准。
+- **工具**：Write/Edit、Bash（bun test / bunx tsc --noEmit / bun 实证脚本）、Read 通读 sqlite-memory.ts 全文与 enhanced.ts 相关段。
+- **操作与验证**（文件级，含 commit hash）：
+  - 新增 `tests/memory/sqlite-memory-tags.test.ts`（4 例 RED→GREEN）：通配符精确匹配 / getByPath 损坏行降级空数组 / listRecent 跳过损坏行 / search 不因损坏行吞掉全部命中 → Commit `47c7663`
+  - `src/memory/sqlite-memory.ts`：新增模块级 `parseTags`（按行兜底）与 `escapeLike`；`search` 标签过滤移出 SQL、改为取回后按行精确校验（消除 catch-all 吞错面）；`listByTag` 改为转义 LIKE 预筛 + 应用层精确过滤 + 过滤后施加 LIMIT；五处映射全部改用 parseTags
+  - `src/kg/enhanced.ts`：`rowToNode` 的 tags/metadata 改经 `safeJsonParse`（带 Array/Object guard）兜底降级
+- **验证汇总**：新测试 4 pass；相关套件 sqlite-memory + archive-index 共 27 pass / 0 fail；kg-enhanced 13 pass / 0 fail；tsc 干净。
+
+---
+
 ## 2026-08-25 — 优化 P0-4：假设状态机 refuted 可达 + 损坏 JSON 按行兜底（TDD）
 
 - **任务**：`HypothesisManager.addEvidence` 状态转换要求 `supporting===0` 才能 refuted——一旦有过任何支持证据，驳斥证据再多也永久卡在 testing，被反驳的信念持续传播；且 `addEvidence`/`getUntested` 对 `hypothesis` 列 `JSON.parse` 无兜底，单条损坏行拖垮整批处理（getUntested 的 `json_extract` 在 SQL 层即抛错）。

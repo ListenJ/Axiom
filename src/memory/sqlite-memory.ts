@@ -59,6 +59,21 @@ export interface SearchResult {
   excerpt: string;
 }
 
+/** 按行兜底的 tags 解析：损坏行降级为空数组，不抛错、不拖垮调用方（P0-5） */
+function parseTags(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** LIKE 通配符转义（%/_/\），配合 ESCAPE '\' 使用，防用户输入改变匹配语义（P0-5） */
+function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, "\\$&");
+}
+
 export class SQLiteMemory {
   private db: Database;
   private dbPath: string;
@@ -209,12 +224,8 @@ export class SQLiteMemory {
       sql += ` AND mn.confidence >= ?`;
       params.push(String(opts.minConfidence));
     }
-    if (opts.tags && opts.tags.length > 0) {
-      for (const tag of opts.tags) {
-        sql += ` AND mn.tags LIKE ?`;
-        params.push(`%"${tag}"%`);
-      }
-    }
+    // 标签过滤不在 SQL 层做 LIKE（通配符注入 + 子串语义），改为取回后按行精确校验
+    const tagFilter = opts.tags && opts.tags.length > 0 ? opts.tags : null;
 
     sql += ` ORDER BY fts.rank LIMIT ?`;
     params.push(String(limit));
@@ -236,24 +247,30 @@ export class SQLiteMemory {
         rank: number;
       }>;
 
-      return rows.map(row => ({
-        record: {
-          id: row.id,
-          path: row.path,
-          title: row.title,
-          content: row.content,
+      return rows
+        .filter(row => {
+          if (!tagFilter) return true;
+          const noteTags = parseTags(row.tags);
+          return tagFilter.every(t => noteTags.includes(t));
+        })
+        .map(row => ({
+          record: {
+            id: row.id,
+            path: row.path,
+            title: row.title,
+            content: row.content,
+            excerpt: row.excerpt,
+            tags: parseTags(row.tags),
+            paraCategory: row.para_category,
+            type: row.type,
+            source: row.source || undefined,
+            confidence: row.confidence,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          },
+          score: -row.rank,
           excerpt: row.excerpt,
-          tags: JSON.parse(row.tags),
-          paraCategory: row.para_category,
-          type: row.type,
-          source: row.source || undefined,
-          confidence: row.confidence,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-        score: -row.rank,
-        excerpt: row.excerpt,
-      }));
+        }));
     } catch (e) {
       logger.warn("SQLite FTS search failed", { query, error: e instanceof Error ? e.message : String(e) });
       return [];
@@ -284,7 +301,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,
@@ -318,7 +335,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,
@@ -329,9 +346,11 @@ export class SQLiteMemory {
   }
 
   listByTag(tag: string, limit = 20): MemoryRecord[] {
+    // LIKE 仅作预筛（通配符已转义），精确匹配在应用层按解析后的数组判定；
+    // LIMIT 在精确过滤后施加，避免预筛假阳性挤掉真命中。
     const rows = this.db.query(
-      `SELECT * FROM memory_notes WHERE tags LIKE ? ORDER BY updated_at DESC LIMIT ?`
-    ).all(`%"${tag}"%`, limit) as Array<{
+      `SELECT * FROM memory_notes WHERE tags LIKE ? ESCAPE '\\' ORDER BY updated_at DESC`
+    ).all(`%"${escapeLike(tag)}"%`) as Array<{
       id: number;
       path: string;
       title: string;
@@ -346,20 +365,23 @@ export class SQLiteMemory {
       updated_at: number;
     }>;
 
-    return rows.map(row => ({
-      id: row.id,
-      path: row.path,
-      title: row.title,
-      content: row.content,
-      excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
-      paraCategory: row.para_category,
-      type: row.type,
-      source: row.source || undefined,
-      confidence: row.confidence,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return rows
+      .filter(row => parseTags(row.tags).includes(tag))
+      .slice(0, limit)
+      .map(row => ({
+        id: row.id,
+        path: row.path,
+        title: row.title,
+        content: row.content,
+        excerpt: row.excerpt,
+        tags: parseTags(row.tags),
+        paraCategory: row.para_category,
+        type: row.type,
+        source: row.source || undefined,
+        confidence: row.confidence,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
   }
 
   listRecent(limit = 20): MemoryRecord[] {
@@ -386,7 +408,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,

@@ -826,10 +826,29 @@ export class KnowledgeGraphEnhanced {
       lineNumber: row.line_number as number | undefined,
       signature: row.signature as string | undefined,
       semantic: row.semantic as string | undefined,
-      tags: JSON.parse((row.tags as string) || "[]"),
-      metadata: JSON.parse((row.metadata as string) || "{}"),
+      tags: safeJsonParse(row.tags, [], isArrayGuard),
+      metadata: safeJsonParse(row.metadata, {}, isObjectGuard),
       community: row.community as number | undefined,
       importance: row.importance as number | undefined,
     };
   }
+}
+
+/** 按行兜底的 JSON 解析：损坏列降级为 fallback，不拖垮整批查询（P0-5） */
+function safeJsonParse<T>(raw: unknown, fallback: T, guard: (v: unknown) => boolean): T {
+  if (typeof raw !== "string" || raw.length === 0) return fallback;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return guard(parsed) ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function isArrayGuard(v: unknown): boolean {
+  return Array.isArray(v);
+}
+
+function isObjectGuard(v: unknown): boolean {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
