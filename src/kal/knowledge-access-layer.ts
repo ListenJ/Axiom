@@ -69,9 +69,12 @@ export interface QueryResult {
 
 export class KnowledgeAccessLayer {
   private db: Database;
+  /** 可选 vault 引擎适配器（P1-T2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边 */
+  private vault?: { getBacklinks(notePath: string): Array<{ path: string; title: string }> };
 
-  constructor(db: Database) {
+  constructor(db: Database, vault?: { getBacklinks(notePath: string): Array<{ path: string; title: string }> }) {
     this.db = db;
+    this.vault = vault;
   }
 
   /**
@@ -307,6 +310,24 @@ export class KnowledgeAccessLayer {
         }
       }
     } catch { /* kg 表可能不存在 */ }
+
+    // Vault wiki-link 入链（P1-T2）：vault 节点经注入的引擎适配器补齐引用腿
+    if (parsed.store === "vault" && this.vault) {
+      try {
+        for (const src of this.vault.getBacklinks(parsed.identifier)) {
+          results.push({
+            nodeId: createNodeId("vault", "note", src.path),
+            store: "vault",
+            type: "note",
+            title: src.title || src.path,
+            snippet: "",
+            relevance: 0.55,
+            tags: [],
+            metadata: { referencedBy: nodeId, sourcePath: src.path },
+          });
+        }
+      } catch { /* 引擎不可用，静默降级 */ }
+    }
 
     return results;
   }

@@ -83,4 +83,23 @@ describe("KnowledgeAccessLayer.getReferences", () => {
     expect(await kal.getReferences("not-a-node-id")).toEqual([]);
     expect(await kal.getReferences("")).toEqual([]);
   });
+
+  test("P1-T2: vault 节点入链——注入适配器后返回引用方", async () => {
+    const db = makeDb();
+    const kal = new KnowledgeAccessLayer(db, {
+      getBacklinks: (p) => (p === "a.md" ? [{ path: "b.md", title: "B" }] : []),
+    });
+    const refs = await kal.getReferences("vault:note:a.md");
+    const hit = refs.find((r) => r.store === "vault");
+    // createNodeId 归一化会把 "." 折叠为 "_"（与 queryVault 同一约定），故断言 sourcePath
+    expect(hit?.metadata.sourcePath).toBe("b.md");
+    expect(hit?.title).toBe("B");
+    expect(hit?.metadata.referencedBy).toBe("vault:note:a.md");
+  });
+
+  test("P1-T2: 未注入 vault 适配器时保持旧行为(仅 KG 边)", async () => {
+    const db = makeDb();
+    const kal = new KnowledgeAccessLayer(db);
+    expect(await kal.getReferences("vault:note:a.md")).toEqual([]);
+  });
 });

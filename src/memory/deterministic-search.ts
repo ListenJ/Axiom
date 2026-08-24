@@ -628,6 +628,16 @@ export class DeterministicSearchEngine {
       .sort((a, b) => b.modifiedAt - a.modifiedAt);
   }
 
+  /** wiki-link 入链（来源路径+标题），供 KAL 跨存储引用查询（P1-T2） */
+  getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> {
+    const lite = this.notes.get(notePath);
+    if (!lite) return [];
+    return lite.backlinks
+      .map((p) => this.notes.get(p))
+      .filter((b): b is LiteNote => Boolean(b))
+      .map((b) => ({ path: b.path, title: b.title }));
+  }
+
   /** 获取笔记的关联网络 */
   getNetwork(notePath: string, depth = 1): { notes: VaultNote[]; relationships: Array<{ from: string; to: string; type: string }> } {
     const linkToPath = this.getLinkToPath();

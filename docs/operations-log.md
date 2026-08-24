@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-T2：wiki_links 跨存储闭环（KAL vault 入链腿）
+
+- **任务**：LIMITATIONS 已登记缺口——getReferences 对 vault 节点恒为空。经注入接口闭合：`DeterministicSearchEngine.getWikiBacklinks(path)`（公共方法）+ KAL 构造器可选第二参 `vault?: { getBacklinks(path): Array<{path,title}> }`，vault 前缀节点 UNION 引擎入链；未注入保持旧行为。
+- **操作**：deterministic-search.ts / knowledge-access-layer.ts / kal-references.test.ts（新增 2 例：注入返回引用方、未注入旧行为）。→ Commit `e8c0baa`
+- **验证**：6 pass / tsc 干净。已知边界：createNodeId 归一化折叠非 ASCII/点号（与 queryVault 同约定，两端一致）；生产接线由调用方按需传入引擎适配器。
+---
+
 ## 2026-08-25 — 优化 P1-T1：deterministic-search Stage-2 内容打分有界化
 
 - **任务**：内容关键词打分对全部低分候选逐条读盘（冷查询 O(N) IO），改为内存分降序截断至 `CONTENT_SCAN_MAX=200` 后有界扫描。
