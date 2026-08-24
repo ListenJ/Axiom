@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-08-25 — 优化 P0-3：runtime-go 集群路由 sortedNodes 每分片/每文档重复排序消除
+
+- **任务**：`clusterState.sortedNodes()`（append+sort）在热路径被重复调用——`clusterSearch` 32 分片循环每分片一次、`clusterUpdate` route 每文档一次、`filterOwned` 每文档一次，~41.6k QPS 下即百万级/秒无谓排序+分配。
+- **工具**：Edit、Bash（go build / go test）、Read 通读 cluster.go 全文与 engine.go 相关段。
+- **操作与验证**（文件级，含 commit hash）：
+  - `runtime-go/internal/search/cluster.go`：新增包级 `ownerOf(sorted, shard)` 与 `ownsNode(sorted, shard)`（接受已排序视图）；`shardOwner` 改为薄封装保持既有测试 API；`ownedShards`/`clusterUpdate`/`clusterSearch` 三处循环前 `sortedNodes()` 提升为单次 → Commit `7ef34a6`
+  - `runtime-go/internal/search/engine.go` `filterOwned`：同样提升为循环前单次排序
+- **验证汇总**：重构前基线 `go test ./internal/search/` ok；重构后 `go build ./...` 干净 + `go test ./internal/search/ ./internal/agent/` ok。语义不变：成员视图仍刻意稳定（不因 peer 不健康收缩）。
+
+---
+
 ## 2026-08-25 — 优化 P0-2：检索热路径 linkToPath 映射缓存化
 
 - **任务**：`DeterministicSearchEngine` 的 `linkToPath` Map（链接目标→路径）在 `buildBacklinks`/`boostByRelations`（每次 `search()` 调用）/`getNetwork` 三处各自全量重建，O(N) 分配+遍历落在检索热路径上。

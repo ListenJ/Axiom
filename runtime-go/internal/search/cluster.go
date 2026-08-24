@@ -55,7 +55,14 @@ func (c *clusterState) sortedNodes() []distrib.Node {
 // indexed by shard % len(nodes). The same view drives both query fan-out
 // and write routing, so a document is always looked up where it was written.
 func (c *clusterState) shardOwner(shard int) distrib.Node {
-	nodes := c.sortedNodes()
+	return ownerOf(c.sortedNodes(), shard)
+}
+
+// ownerOf maps a shard onto a member of an already-sorted node view. Callers
+// on hot paths (per-shard query fan-out, per-document write routing) should
+// sort once via sortedNodes and reuse the slice instead of paying a sort per
+// shard/document.
+func ownerOf(nodes []distrib.Node, shard int) distrib.Node {
 	return nodes[shard%len(nodes)]
 }
 
@@ -64,12 +71,18 @@ func (c *clusterState) owns(shard int) bool {
 	return c.shardOwner(shard).ID == c.reg.Self().ID
 }
 
+// ownsNode is owns() against a pre-sorted node view (see ownerOf).
+func (c *clusterState) ownsNode(sorted []distrib.Node, shard int) bool {
+	return ownerOf(sorted, shard).ID == c.reg.Self().ID
+}
+
 // ownedShards returns the indices of the shards the local node owns out of
 // numShards, in ascending order.
 func (c *clusterState) ownedShards(numShards int) []int {
+	sorted := c.sortedNodes()
 	out := make([]int, 0, numShards)
 	for i := 0; i < numShards; i++ {
-		if c.owns(i) {
+		if c.ownsNode(sorted, i) {
 			out = append(out, i)
 		}
 	}
@@ -101,6 +114,7 @@ func (e *Engine) clusterUpdate(ctx context.Context, upserts []Document, deletes 
 	c := e.cluster
 	self := c.reg.Self().ID
 	n := e.numShards()
+	sorted := c.sortedNodes()
 
 	var localUp []Document
 	var localDel []string
@@ -109,7 +123,7 @@ func (e *Engine) clusterUpdate(ctx context.Context, upserts []Document, deletes 
 	nodes := make(map[string]distrib.Node)
 
 	route := func(id string) (string, bool) {
-		owner := c.shardOwner(shardOfID(id, n))
+		owner := ownerOf(sorted, shardOfID(id, n))
 		if owner.ID == self {
 			return "", true
 		}
@@ -179,8 +193,9 @@ func (e *Engine) clusterSearch(ctx context.Context, idx *Index, node Node, query
 	local := make([]int, 0, len(idx.shards))
 	remoteShards := make(map[string][]int)
 	nodes := make(map[string]distrib.Node)
+	sorted := c.sortedNodes()
 	for i := range idx.shards {
-		owner := c.shardOwner(i)
+		owner := ownerOf(sorted, i)
 		if owner.ID == self {
 			local = append(local, i)
 		} else {

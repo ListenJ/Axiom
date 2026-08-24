@@ -253,9 +253,10 @@ func (e *Engine) filterOwned(docs []Document) []Document {
 		return docs
 	}
 	n := e.numShards()
+	sorted := e.cluster.sortedNodes()
 	out := make([]Document, 0, len(docs))
 	for _, d := range docs {
-		if e.cluster.owns(shardOfID(d.ID, n)) {
+		if e.cluster.ownsNode(sorted, shardOfID(d.ID, n)) {
 			out = append(out, d)
 		}
 	}
