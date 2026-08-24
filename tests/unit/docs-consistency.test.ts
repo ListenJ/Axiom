@@ -98,13 +98,14 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     }
   });
 
-  test("Limitations 章节应披露手写余弦+PG vector 可选与可选 LLM", () => {
+  test("Limitations 章节应披露确定性检索口径（FTS5+关键词，余弦仅可选语义层与可选 LLM）", () => {
     const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");
     const limitations = existsSync("docs/LIMITATIONS.md") ? readFileSync("docs/LIMITATIONS.md", "utf8") : "";
     const readme = readFileSync("README.md", "utf8");
-    // At least one of ARCHITECTURE or LIMITATIONS or README should mention 手写余弦 and PG vector 可选
+    // 「手写余弦」叙事已废弃：实现为共享 cosineSimilarity（src/utils/math.ts），默认检索为 FTS5+关键词
     const combined = arch + "\n" + limitations + "\n" + readme;
-    expect(combined.includes("手写余弦")).toBe(true);
+    expect(combined.includes("手写余弦")).toBe(false);
+    expect(combined.includes("FTS5")).toBe(true);
     expect(combined.includes("PG vector") || combined.includes("pgvector") || combined.includes("PG")).toBe(true);
     // LLM 可选
     expect(combined.includes("KNOWLEDGE_USE_LLM") || combined.includes("可选") ).toBe(true);

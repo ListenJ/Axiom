@@ -1,9 +1,22 @@
-﻿# 操作日志（Operations Log）
+# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
 > 约定：条目随代码同提交入库，Commit 字段先写初稿 hash 并注明 amend，
 > 推送后的最终 hash 以 `git log` 为准（amend 仅补录本行，不再单独更正）。
+
+---
+
+## 2026-08-25 — 优化 P0-1：消除「手写余弦」叙事矛盾（文档+防回归断言对齐实现）
+
+- **任务**：README/ARCHITECTURE/LIMITATIONS 仍称默认检索为"手写余弦"，但实现已收敛为共享 `cosineSimilarity`（`src/utils/math.ts:7`，L9 审计收敛三处重复实现），且 `tests/unit/docs-consistency.test.ts:101-107` 反而**断言"手写余弦"必须出现**，把错误叙事固化为必须通过的状态。
+- **工具**：Edit、Bash（rg 残留扫描 / bun test）、Read 通读四个目标文件相关段落。
+- **操作与验证**（文件级，含 commit hash）：
+  - `README.md` 3 处（162 标题/174 底层声明/241 MCP 章节）改为"FTS5 + 关键词打分为默认，余弦仅可选语义层，共享 cosineSimilarity（utils/math.ts）"→ Commit `ce1f8ad`
+  - `docs/ARCHITECTURE.md` 4 处（10 理念/94 模块表/288 检索行/293 更新注）同步更正
+  - `docs/LIMITATIONS.md` 4 处（55 审计定位引用/60 检索口径/69 余弦阈值表/89 页脚，页脚工具数旧值 172 一并更正为 188 口径）
+  - `tests/unit/docs-consistency.test.ts` 断言翻转：`includes("手写余弦") === false` + `includes("FTS5") === true`，防止错误叙事回潮
+- **验证汇总**：`bun test tests/unit/docs-consistency.test.ts` 5 pass / 0 fail；rg 确认三个文档零残留。事实依据：`stream.ts:229` 为 `sharedCosineSimilarity` 引用而非手写；AXIOM-ARCHITECTURE.md 无该措辞（未改）。源码内 5 处残留注释属清单 P2 清理项，本任务不动。
 
 ---
 

@@ -159,7 +159,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 > ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
 
-### 🔍 确定性记忆引擎（手写余弦 + PG vector 可选）
+### 🔍 确定性记忆引擎（FTS5 + 关键词打分，余弦仅可选语义层）
 
 四阶段漏斗检索，每个结果都有明确的得分来源：
 
@@ -170,7 +170,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
 | PARA 语义 | 同分类笔记提升(+5) | - |
 
-> 底层：手写 `cosineSimilarity`（`src/dre/consciousness/stream.ts`）为默认检索，PG vector（`pgvector`）为可选历史能力 H-M1-03，默认 SQLite FTS5，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
+> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（如 `src/dre/consciousness/stream.ts`）使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
 
 ```bash
 # 搜索记忆
@@ -238,7 +238,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。手写余弦为默认，PG vector 为可选历史能力（H-M1-03）。
+暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
