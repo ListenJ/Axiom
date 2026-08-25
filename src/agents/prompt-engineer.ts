@@ -1,5 +1,5 @@
 /**
- * Prompt Engineer — 提示词工程引擎 (手写余弦（PG vector 可选）、纯规则驱动)
+ * Prompt Engineer — 提示词工程引擎 (确定性规则驱动，共享 cosineSimilarity 仅可选语义层)
  *
  * 设计原则:
  * - 禁止任何 embedding/向量操作
@@ -423,7 +423,7 @@ export class PromptEngineer {
     });
   }
 
-  // ===== 模板匹配 (确定性规则, 手写余弦（PG vector 可选）) =====
+  // ===== 模板匹配 (确定性关键词计数规则) =====
 
   /**
    * 根据任务描述匹配最佳提示词模板

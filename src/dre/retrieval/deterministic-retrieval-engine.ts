@@ -18,7 +18,7 @@
  *   - 小接口：retrieve(query) 是唯一公开入口
  *   - 接受依赖不创建依赖：keywordSearcher 与 graph 通过构造注入
  *   - 接口即测试面：全部可通过 retrieve() 验证
- *   - 检索以 FTS5 + 关键词打分为主（手写余弦仅 settings-search 可选语义层，需 embedding 时启用），PG vector 为可选历史能力
+ *   - 检索以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层，需 embedding 时启用），PG vector 为可选历史能力
  */
 
 import { logger } from "../../utils/logger.js";

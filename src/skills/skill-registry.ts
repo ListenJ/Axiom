@@ -3,7 +3,7 @@
  *
  * 功能:
  *   - 管理所有 Skill（内置 + 文件加载 + Hermes 生成）
- *   - 基于 trigger 关键词的确定性匹配（手写余弦（PG vector 可选））
+ *   - 基于 trigger 关键词的确定性匹配（纯规则，无余弦）
  *   - Skill 模板填充（变量替换）
  *   - Skill 执行（路由到模型 + 工具调用）
  *   - 与 MCP ToolRegistry 桥接

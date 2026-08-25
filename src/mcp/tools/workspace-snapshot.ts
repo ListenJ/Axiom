@@ -4,6 +4,13 @@ import { execSync, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { logger } from "../../utils/logger.js";
 
+/** snapshotId 白名单校验（P1-T5）：仅 HEAD 或 6-64 位十六进制，防 git 选项/引用注入 */
+export function assertValidSnapshotId(id: string): void {
+  if (!/^(HEAD|[0-9a-fA-F]{6,64})$/.test(id)) {
+    throw new Error(`Invalid snapshotId: ${id.slice(0, 32)}`);
+  }
+}
+
 export interface SnapshotResult {
   success: boolean;
   snapshotId?: string;
@@ -153,6 +160,7 @@ export async function revertSnapshot(
   try {
     const snapshotDir = getSnapshotDir();
     const cwd = process.cwd();
+    assertValidSnapshotId(snapshotId);
 
     // Validate snapshot exists
     try {
@@ -268,6 +276,7 @@ export async function diffSnapshot(
         }
       }
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });
+      if (snapshotId) assertValidSnapshotId(snapshotId);
       diffOutput = execFileSync("git", ["diff", "--cached", snapshotId], {
         cwd: snapshotDir,
         encoding: "utf-8",

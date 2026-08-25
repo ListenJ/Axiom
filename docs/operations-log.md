@@ -7,6 +7,15 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-T5：清理批次（snapshotId 白名单 + 注释口径 + 空目录）
+
+- **操作**：
+  - `workspace-snapshot.ts` 新增导出 `assertValidSnapshotId`（仅 HEAD/6-64 位十六进制），revertSnapshot 与 diff 路径 git 调用前校验；新增 `tests/unit/workspace-snapshot-guard.test.ts`（RED→GREEN，8 断言）。
+  - 9 处源码注释「手写余弦」措辞按实现事实更正（cli/native-bridge/prompt-engineer×2/hallucination-detector/skill-registry + deterministic-search/vault-manager/dre-retrieval 的 legacy 措辞）；保留 math.ts:2 的 L9 审计历史记录（准确描述，非漂移）。
+  - 移除空孤儿目录 `src/kb`（仅含空 backend/ 子目录，git 未跟踪、全仓零引用，无需归档记录）。
+- **验证**：guard 测试 2 pass；deterministic-search+kg-enhanced 回归 31 pass；tsc 干净；rg 确认 src 内零残留。→ Commit `f37e44b`
+---
+
 ## 2026-08-25 — 优化 P1-T4：cache L3 写入去抖批量落盘
 
 - **任务**：`Cache.set` 每次同步 INSERT SQLite（高频写阻塞事件循环）。改为缓冲 + 单例 `setTimeout(0)` + 单事务批量冲刷；新增公共 `flushPendingWrites()`；destroy 先冲刷防悬挂定时器写已关闭库。
