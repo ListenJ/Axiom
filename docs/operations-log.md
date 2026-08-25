@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-25 — 修复：deploy.sh 隧道守卫自匹配 + ship 批量 scp 加固
+
+- **修复 1（核心）**：`ensure_tunnel` 原 `pgrep -f 'ssh -f -N.*19103'` 守卫经 ssh bash -c 执行时自匹配恒真 → 隧道从不建立、集群视图 n1 恒 unhealthy。改为以 **N2 侧 :19103 端口存活**为唯一事实源：不通→清理陈旧隧道（`pkill -f '[s]sh'` 方括号防自匹配）→重建→复验，仍不通则报错退出。节点启动前调用亦成立（只验转发不验后端）。
+- **修复 2**：`ship()` 的 `scp {pcdad,agentd,searchd,loadgen}` 批量展开在 Windows Git-Bash 下偶发 "dest open Failure"（本次实测复现），改逐文件循环单发。
+- **端到端验证**：先杀隧道置 RED（n2 端口 0 监听）→ 重跑 deploy.sh EXIT=0 → tunnel ports 上行、6 个 healthz 全 200、集群视图 `n1 healthy=true`（实时复核）。附带说明：tunnel 计数显示 8/4 为 IPv4+IPv6 双栈各计一条（信息性输出，未改动）。
+→ Commit `4b57f5a`
+---
+
 ## 2026-08-25 — 效果验证 II：Linux 节点对照 + 双机集群端到端（二进制协议）
 
 - **多 acceptor 对照（n1 单机，12C，100k 文档，192w 闭环）**：acceptors=1 → 11,544 QPS / p95=37.0；acceptors=12 → 11,466 / p95=36.3。**无增益**——闭环 keep-alive 持久连接下 accept 频率极低，单队列未饱和。REUSEPORT 适用场景修正为高连接 churn 负载（如实登记，P2-12b 结论收窄）。

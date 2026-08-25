@@ -43,7 +43,11 @@ fi
 ship() {
   local host="$1"
   ssh "$host" "mkdir -p $REMOTE_DIR/bin $REMOTE_DIR/data $REMOTE_DIR/logs; for p in pcdad agentd searchd; do [ -f $REMOTE_DIR/logs/\$p.pid ] && kill \$(cat $REMOTE_DIR/logs/\$p.pid) 2>/dev/null || true; done; sleep 1"
-  scp -q "$BIN"/{pcdad,agentd,searchd,loadgen} "$host:$REMOTE_DIR/bin/"
+  # 逐文件传输：Windows Git-Bash 的 scp 对 {a,b,c} 批量展开偶发
+  # "dest open Failure"（2026-08-25 实测），循环单发稳定。
+  for b in pcdad agentd searchd loadgen; do
+    scp -q "$BIN/$b" "$host:$REMOTE_DIR/bin/$b"
+  done
   ssh "$host" "chmod +x $REMOTE_DIR/bin/*"
 }
 
@@ -79,7 +83,20 @@ EOF
 
 ensure_tunnel() {
   # Persistent reverse tunnel on n1 exposing its services to n2 (see header).
-  ssh "$N1" "pgrep -f 'ssh -f -N.*19103' >/dev/null || ssh -f -N -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -R 19101:127.0.0.1:9101 -R 19102:127.0.0.1:9102 -R 19103:127.0.0.1:9103 -R 16379:127.0.0.1:6379 data@192.168.0.22"
+  #
+  # 修复（2026-08-25）：原 `pgrep -f 'ssh -f -N.*19103'` 守卫经 ssh bash -c
+  # 执行时会匹配到自身命令行（自匹配），守卫恒真 → 隧道从不建立。
+  # 改为以 N2 侧端口存活为唯一事实源：不通则清理陈旧隧道（[s]sh 防 pgrep
+  # 自匹配）后重建并复验；在节点启动前调用也成立（只验转发，不验后端）。
+  if ssh "$N2" "ss -tln 2>/dev/null | grep -q ':19103'"; then
+    return 0
+  fi
+  ssh "$N1" "pkill -f '[s]sh -f -N' 2>/dev/null || true"
+  ssh "$N1" "ssh -f -N -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -R 19101:127.0.0.1:9101 -R 19102:127.0.0.1:9102 -R 19103:127.0.0.1:9103 -R 16379:127.0.0.1:6379 data@192.168.0.22"
+  if ! ssh "$N2" "ss -tln 2>/dev/null | grep -q ':19103'"; then
+    echo "ERROR: tunnel established but 19103 not listening on n2" >&2
+    exit 1
+  fi
   # Verify the forwarded ports LISTEN on n2 (backend may still be down here).
   ssh "$N2" "ss -tln | grep -c -E '1910[123]|16379' | xargs -I{} echo 'tunnel listening ports: {}/4'"
 }
