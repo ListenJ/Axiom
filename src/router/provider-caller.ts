@@ -1,4 +1,4 @@
-import { PROVIDER_CONFIG } from "./models.js";
+﻿import { PROVIDER_CONFIG } from "./models.js";
 import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { buildReasoningParams } from "./reasoning-effort.js";
@@ -323,4 +323,36 @@ export async function callProviderNativeStream(
       signal.removeEventListener("abort", onExternalAbort);
     }
   }
+}
+
+import type { DreCloudCaller } from "../dre/ports/cloud-caller.js";
+
+/**
+ * L1 适配器：DRE 云端口 → 具体 provider 调用。
+ * provider 语义内聚于此（baseUrl 存在时按自定义 OpenAI 兼容端点处理，
+ * 消除旧实现硬编码 "deepseek" 的语义错位 —— 审计 M10）。
+ */
+export function createDreCloudAdapter(fb: {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+}): DreCloudCaller {
+  return {
+    async call(input) {
+      const result = await callProvider(
+        fb.baseUrl ? "custom-openai" : "deepseek",
+        fb.model ?? "deepseek-v4-flash",
+        [
+          { role: "system", content: input.system },
+          { role: "user", content: input.user },
+        ],
+        input.timeoutMs,
+        input.temperature,
+        undefined,
+        undefined,
+        { baseURL: fb.baseUrl, apiKey: fb.apiKey },
+      );
+      return { content: result.content ?? "" };
+    },
+  };
 }

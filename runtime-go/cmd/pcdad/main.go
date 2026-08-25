@@ -38,10 +38,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"runtime-go/internal/httpauth"
 	"runtime-go/internal/netutil"
 	"runtime-go/internal/observability"
 	"runtime-go/internal/pcda"
 )
+
+// isWriteRequest reports whether the request mutates state; only GET and
+// HEAD are considered reads by the auth guard.
+func isWriteRequest(r *http.Request) bool {
+	return r.Method != http.MethodGet && r.Method != http.MethodHead
+}
 
 // submitRequest is the POST /cycles wire shape.
 type submitRequest struct {
@@ -98,7 +105,7 @@ func main() {
 
 	httpSrv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           httpauth.WriteGuard("PCDAD_AUTH_TOKEN", isWriteRequest)(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -116,7 +123,6 @@ func main() {
 		log.Fatalf("pcdad: serve: %v", err)
 	}
 
-	<-sig
 	log.Println("pcdad: shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

@@ -13,6 +13,7 @@ import { logger } from "../../utils/logger.js";
 import { getModelOutputStore } from "../../utils/model-output-store.js";
 import { llmCache, llmCacheKey } from "../../utils/cache.js";
 import { clampMaxTokens, getResourceBudgetManager } from "../system-resource.js";
+import { DRELLMError } from "../errors.js";
 
 /** 重试配置 */
 export interface RetryConfig {
@@ -224,6 +225,30 @@ export class LLMClient {
   }
 
   /**
+   * 审计整改 D1（2026-08-25）：资源预算不可用时禁止直发本地 llama.cpp。
+   * canRunLocal=false 时抛 LLM_ERROR(retriable=false)，避免对本地推理服务
+   * 的无效请求；预算管理器自身异常时放行（与 effectiveMaxTokens 容错一致）。
+   */
+  private assertBudgetAvailable(): void {
+    try {
+      const status = getResourceBudgetManager().getStatus();
+      if (!status.canRunLocal) {
+        throw new DRELLMError(
+          `insufficient resources for local inference: ${status.resource.availableMemory}MB available, ` +
+            `need ${status.modelMemoryMB + status.safetyMarginMB}MB (model=${status.modelMemoryMB}MB + safety=${status.safetyMarginMB}MB)`,
+          false,
+          {
+            availableMemoryMB: status.resource.availableMemory,
+            requiredMB: status.modelMemoryMB + status.safetyMarginMB,
+          }
+        );
+      }
+    } catch (err) {
+      if (err instanceof DRELLMError) throw err;
+    }
+  }
+
+  /**
    * 标准生成 (带重试 + 熔断)
    */
   async generate(prompt: string, options?: {
@@ -233,6 +258,9 @@ export class LLMClient {
     stop?: string[];
     answerPrefix?: string;  // completion 模式的前缀引导 (如 '{"risk":"'), 返回内容会自动拼回该前缀
   }): Promise<LLMResponse> {
+    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
+    this.assertBudgetAvailable();
+
     // 熔断器检查
     if (!this.canExecute()) {
       throw new Error(
@@ -484,6 +512,9 @@ export class LLMClient {
     maxTokens?: number;
     temperature?: number;
   }): AsyncGenerator<string> {
+    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
+    this.assertBudgetAvailable();
+
     const messages = [];
 
     if (options?.system) {

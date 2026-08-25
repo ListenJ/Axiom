@@ -21,8 +21,13 @@ import (
 
 	"runtime-go/internal/agent"
 	"runtime-go/internal/distrib"
+	"runtime-go/internal/httpauth"
 	"runtime-go/internal/netutil"
 )
+
+func isWriteRequest(r *http.Request) bool {
+	return r.Method != http.MethodGet && r.Method != http.MethodHead
+}
 
 func main() {
 	addr := os.Getenv("AGENTD_ADDR")
@@ -92,7 +97,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           agent.NewHandler(cluster),
+		Handler:           httpauth.WriteGuard("AGENTD_AUTH_TOKEN", isWriteRequest)(agent.NewHandler(cluster)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	// P2-12b：多 acceptor 并发监听（AGENTD_LISTENERS，Linux SO_REUSEPORT）

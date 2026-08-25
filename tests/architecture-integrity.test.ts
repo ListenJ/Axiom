@@ -546,3 +546,22 @@ describe("Architecture Integrity", () => {
     expect(elapsed).toBeLessThan(100);
   });
 });
+
+describe("L1 依赖方向（批次5 Phase C）", () => {
+  it("src/dre 不得引用上层 router/", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (p.endsWith(".ts") && !p.endsWith(".test.ts")) {
+          const c = fs.readFileSync(p, "utf8");
+          if (/from\s+"(\.\.?\/)*router\//.test(c) || /import\("[^"]*\/router\//.test(c)) hits.push(p);
+        }
+      }
+    };
+    walk("src/dre");
+    if (hits.length) console.log("[L1] dre→router 引用:\n" + hits.join("\n"));
+    expect(hits).toEqual([]);
+  });
+});

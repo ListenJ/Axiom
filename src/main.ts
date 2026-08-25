@@ -148,7 +148,19 @@ logger.info("[ComponentKernel] Native Day0 components initialized", {
 // 单进程内初始化 Kernel，与 /pipeline/stream、/dre/run 共享同一 eventBus，
 // 观测链路天然打通。失败不阻断主服务（DRE 是增强能力，非核心依赖）；
 // AXIOM_DRE_ENABLED=0 关闭。
+// L1 组合根装配：云降级调用器在此注入（src/dre 不 import 上层 router）。
 // ════════════════════════════════════════════════════════════════
+if (readString("DEEPSEEK_API_KEY", "")) {
+  const { setDreHostOverrides } = await import("./dre/host.js");
+  const { createDreCloudAdapter } = await import("./router/provider-caller.js");
+  setDreHostOverrides({
+    cloudCaller: createDreCloudAdapter({
+      baseUrl: readString("DEEPSEEK_BASE_URL", ""),
+      apiKey: readString("DEEPSEEK_API_KEY", ""),
+      model: readString("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+    }),
+  });
+}
 const dreKernel = await initDreKernel().catch((err) => {
   logger.error("[DRE] Host integration init failed (continuing without DRE)", err as Error);
   return null;

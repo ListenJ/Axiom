@@ -28,9 +28,14 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"runtime-go/internal/distrib"
+	"runtime-go/internal/httpauth"
 	"runtime-go/internal/netutil"
 	"runtime-go/internal/search"
 )
+
+func isWriteRequest(r *http.Request) bool {
+	return r.Method != http.MethodGet && r.Method != http.MethodHead
+}
 
 func main() {
 	addr := os.Getenv("SEARCHD_ADDR")
@@ -73,7 +78,7 @@ func main() {
 	engine := search.NewEngine(nil, numShards, opts...)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           engine.HTTPHandler(),
+		Handler:           httpauth.WriteGuard("SEARCHD_AUTH_TOKEN", isWriteRequest)(engine.HTTPHandler()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

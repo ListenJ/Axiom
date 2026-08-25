@@ -177,3 +177,52 @@ describe("Logger redactContext", () => {
     expect(meta.session).toBe("abc");
   });
 });
+
+describe("Logger text 路径脱敏（整改 D4）", () => {
+  it("text 格式 console 输出：context 中的密钥值替换为 [REDACTED]", () => {
+    const origLog = console.log;
+    let captured = "";
+    console.log = (msg?: unknown) => {
+      captured += String(msg);
+    };
+    try {
+      const textLogger = new Logger({
+        minLevel: "debug",
+        outputs: [{ type: "console" }],
+        format: "text",
+        enableColors: false,
+      });
+      textLogger.info("text-path", {
+        note: "the key is sk-abcd1234efgh5678 please rotate",
+        api_key: "sk-zzzz9999aaaa8888",
+      });
+    } finally {
+      console.log = origLog;
+    }
+    expect(captured).toContain("[REDACTED]");
+    expect(captured).not.toContain("sk-abcd1234efgh5678");
+    expect(captured).not.toContain("sk-zzzz9999aaaa8888");
+  });
+
+  it("text 格式无敏感字段时输出保持原样", () => {
+    const origLog = console.log;
+    let captured = "";
+    console.log = (msg?: unknown) => {
+      captured += String(msg);
+    };
+    try {
+      const textLogger = new Logger({
+        minLevel: "debug",
+        outputs: [{ type: "console" }],
+        format: "text",
+        enableColors: false,
+      });
+      textLogger.info("plain-text-path", { userId: 42, action: "ping" });
+    } finally {
+      console.log = origLog;
+    }
+    expect(captured).toContain("plain-text-path");
+    expect(captured).toContain("42");
+    expect(captured).not.toContain("[REDACTED]");
+  });
+});

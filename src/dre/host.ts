@@ -11,6 +11,13 @@ import { logger } from "../utils/logger.js";
 
 let kernel: Kernel | null = null;
 let startPromise: Promise<Kernel | null> | null = null;
+/** L1 组合根注入项（如 cloudCaller 适配器），initDreKernel 时合并进 config */
+let hostOverrides: Partial<KernelConfig> | null = null;
+
+/** 组合根注入配置覆盖（必须在 initDreKernel 首次调用前设置） */
+export function setDreHostOverrides(overrides: Partial<KernelConfig>): void {
+  hostOverrides = overrides;
+}
 
 /** 主服务是否启用 DRE 宿主集成（AXIOM_DRE_ENABLED，默认 1） */
 export function isDreHostEnabled(): boolean {
@@ -26,10 +33,12 @@ export async function initDreKernel(): Promise<Kernel | null> {
     logger.info("[DRE] Host integration disabled (AXIOM_DRE_ENABLED=0)");
     return null;
   }
-  if (kernel) return kernel;
-  if (!startPromise) {
+  if (kernel) return kernel;  if (!startPromise) {
     startPromise = (async () => {
       const config = new ConfigLoader().toKernelConfig() as KernelConfig;
+      // L1：组合根注入项（cloudCaller 等）由 main.ts 通过 overrides 传入，
+      // src/dre 包内不 import 上层 router。
+      if (hostOverrides) Object.assign(config, hostOverrides);
       const k = new Kernel(config);
       await k.init();
       kernel = k;

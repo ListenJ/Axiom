@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -285,7 +286,9 @@ func (e *Engine) snapshotLoop(interval time.Duration) {
 		case <-e.ctx.Done():
 			return
 		case <-t.C:
-			_ = e.Snapshot()
+			if err := e.Snapshot(); err != nil {
+				log.Printf("pcda.persist.snapshot_failed: %v", err)
+			}
 		}
 	}
 }
@@ -300,7 +303,9 @@ func (e *Engine) walSyncLoop() {
 		case <-e.ctx.Done():
 			return
 		case <-t.C:
-			_ = e.wal.Sync()
+			if err := e.wal.Sync(); err != nil {
+				log.Printf("pcda.persist.wal_sync_failed: %v", err)
+			}
 		}
 	}
 }

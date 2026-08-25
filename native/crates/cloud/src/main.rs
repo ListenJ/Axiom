@@ -1,6 +1,6 @@
 ﻿use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -65,6 +65,27 @@ struct HealthResponse {
     version: &'static str,
     distributed: bool,
     cache_backend: String,
+}
+
+fn build_cors_layer() -> tower_http::cors::CorsLayer {
+    let raw = std::env::var("AXIOM_CLOUD_CORS")
+        .unwrap_or_else(|_| "http://localhost:18789,http://127.0.0.1:18789".to_string());
+    let origins: Vec<HeaderValue> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| match HeaderValue::from_str(s) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warn!("Ignoring invalid AXIOM_CLOUD_CORS origin {:?}: {}", s, e);
+                None
+            }
+        })
+        .collect();
+    tower_http::cors::CorsLayer::new()
+        .allow_origin(tower_http::cors::AllowOrigin::list(origins))
+        .allow_methods(tower_http::cors::AllowMethods::any())
+        .allow_headers(tower_http::cors::AllowHeaders::any())
 }
 
 #[tokio::main]
@@ -142,7 +163,7 @@ async fn main() {
         .route("/native/cache/stats", get(cache_stats_handler))
         .route("/native/cluster/status", get(cluster_status_handler))
         .with_state(state)
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .layer(build_cors_layer())
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(tower::limit::ConcurrencyLimitLayer::new(args.workers * 1000));

@@ -206,3 +206,18 @@ volumes:
 - 本 module 纯 Go 实现，Windows / Linux 均可构建运行。
 - cgroup v2 资源限额**仅 Linux 生效**（`internal/agent/cgroup_linux.go` 写 `/sys/fs/cgroup` 的 `memory.max`/`cpu.max`）；其他平台自动降级为记账型 limiter（配额记账 + 超限拒绝），功能可测试但不强制内核级隔离。网络 IO 带宽限速为接口预留，未实装。
 - agentd 在 Linux 上默认使用 cgroup limiter（需要 cgroup v2 写权限）；无权限时可通过 `ClusterConfig.Limiter` 注入 `AccountingLimiter`。
+
+## 鉴权与调试
+
+三个守护进程的**写端点**（非 GET/HEAD 请求）由 token 中间件保护，各自读取独立的环境变量：
+
+| 服务 | 环境变量 |
+|---|---|
+| pcdad | `PCDAD_AUTH_TOKEN` |
+| agentd | `AGENTD_AUTH_TOKEN` |
+| searchd | `SEARCHD_AUTH_TOKEN` |
+
+- **未配置**该环境变量时：所有写请求返回 `403 {"error":"write endpoint disabled: set <环境变量名>"}`；读请求（GET/HEAD）不受影响。
+- **已配置**时：写请求必须携带请求头 `X-Axiom-Token: <token 值>`（常量时间比较），不匹配或缺失返回 403。
+- **集群部署须为各节点配置对应 TOKEN**：searchd 节点间写入 RPC（`POST /internal/docs`）同样经过该中间件，所有节点应使用相同的 TOKEN 值，否则跨节点分片路由会被拒绝。
+- **DEBUG_PPROF**：searchd 的 `/debug/pprof/*` 性能分析端点默认关闭，仅当以 `DEBUG_PPROF=1` 启动时挂载（只读端点，生产环境按需临时开启）。

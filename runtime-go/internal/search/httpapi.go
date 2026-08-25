@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -40,12 +41,15 @@ func (e *Engine) HTTPHandler() http.Handler {
 	mux.HandleFunc("POST /internal/query", e.handleInternalQuery)
 	mux.HandleFunc("POST /internal/docs", e.handleInternalDocs)
 	mux.Handle("GET /metrics", promhttp.HandlerFor(e.reg.gat, promhttp.HandlerOpts{}))
-	// pprof for production profiling (CPU/heap/goroutine) — read-only.
-	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	// pprof for production profiling (CPU/heap/goroutine) — read-only,
+	// mounted only when DEBUG_PPROF=1 so it is off by default.
+	if os.Getenv("DEBUG_PPROF") == "1" {
+		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	}
 	return mux
 }
 

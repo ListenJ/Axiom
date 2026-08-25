@@ -66,3 +66,60 @@ describe("checkWsUpgradeAuth (R-006 远程 WS 鉴权)", () => {
     expect(res).toEqual({ ok: false, reason: "AXIOM_AUTH_TOKEN not configured" });
   });
 });
+
+describe("checkWsUpgradeAuth CSWSH 本地四态（S2）", () => {
+  it("本地 + 无 Origin 头 → 放行（curl/wscat 等非浏览器客户端）", () => {
+    expect(checkWsUpgradeAuth(base({ isLocal: true }))).toEqual({ ok: true });
+    expect(checkWsUpgradeAuth(base({ isLocal: true, origin: null }))).toEqual({ ok: true });
+  });
+
+  it("本地 + 同源 Origin（origin 的 host:port == 请求 host:port）→ 放行", () => {
+    const res = checkWsUpgradeAuth(base({
+      isLocal: true,
+      origin: "http://127.0.0.1:18789",
+      host: "127.0.0.1:18789",
+    }));
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("本地 + 跨源 Origin + 无 token → 拒绝", () => {
+    const res = checkWsUpgradeAuth(base({
+      isLocal: true,
+      origin: "http://evil.example",
+      host: "127.0.0.1:18789",
+    }));
+    expect(res.ok).toBe(false);
+  });
+
+  it("本地 + 跨源 Origin + 合法 token 子协议 → 放行", () => {
+    const res = checkWsUpgradeAuth(base({
+      isLocal: true,
+      origin: "http://evil.example",
+      host: "127.0.0.1:18789",
+      protocolHeader: `${WS_AUTH_TOKEN_PROTOCOL_PREFIX}${KEY}`,
+    }));
+    expect(res).toEqual({ ok: true });
+  });
+
+  it("本地 + 跨源 Origin + 错误 token → 拒绝；Origin 解析失败 → 一律拒绝", () => {
+    const wrongToken = checkWsUpgradeAuth(base({
+      isLocal: true,
+      origin: "http://evil.example",
+      host: "127.0.0.1:18789",
+      headerAuth: "wrong-token",
+    }));
+    expect(wrongToken.ok).toBe(false);
+
+    const unparseableOrigin = checkWsUpgradeAuth(base({
+      isLocal: true,
+      origin: "not-a-valid-url",
+      host: "127.0.0.1:18789",
+    }));
+    expect(unparseableOrigin.ok).toBe(false);
+  });
+
+  it("远程路径行为不变：不传 origin/host 时维持原有判定与 reason 文案", () => {
+    expect(checkWsUpgradeAuth(base({}))).toEqual({ ok: false, reason: "invalid or missing API key" });
+    expect(checkWsUpgradeAuth(base({ headerAuth: KEY }))).toEqual({ ok: true });
+  });
+});
