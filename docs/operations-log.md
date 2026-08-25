@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-T4：cache L3 写入去抖批量落盘
+
+- **任务**：`Cache.set` 每次同步 INSERT SQLite（高频写阻塞事件循环）。改为缓冲 + 单例 `setTimeout(0)` + 单事务批量冲刷；新增公共 `flushPendingWrites()`；destroy 先冲刷防悬挂定时器写已关闭库。
+- **TDD 修正（如实登记）**：初版测试断言"destroy 落盘剩余"，与既有语义冲突——`clear()` 本就设计为 DELETE 整个命名空间（destroy=清空性销毁）。遵循规则 1 不改既有语义，调整断言为批量多 key 落盘 + destroy 安全不抛错。→ Commit `fc6f8cf`
+- **验证**：cache-l3-batch + cache-stress 共 7 pass；tsc 干净。
+---
+
 ## 2026-08-25 — 优化 P1-T3：runtime-go 集群合并有界 Top-K
 
 - **任务**：`clusterSearch` 合并段原为全量 append + SliceStable 整体排序 + 截断（O(n log n)）；改为按全序（得分降序/ID 升序）经 `sort.Search` 有界插入，len 恒 ≤limit。

@@ -224,13 +224,41 @@ export class Cache<V = unknown> {
       });
     }
 
-    // L3: SQLite
+    // L3: SQLite（P1-T4 去抖：缓冲 + 单例定时器批量事务落盘，消除高频 set 的同步阻塞）
     if (this.db) {
-      this.db.run(
-        `INSERT OR REPLACE INTO cache_store (namespace, key, value, expires_at)
-         VALUES (?, ?, ?, ?)`,
-        [this.opts.namespace, key, JSON.stringify(value), Math.floor(expiresAt / 1000)]
-      );
+      this.pendingL3.set(key, { value, expiresAt });
+      if (!this.l3Timer) {
+        this.l3Timer = setTimeout(() => this.flushPendingWrites(), 0);
+      }
+    }
+  }
+
+  /** 缓冲的 L3 待落盘写入（key → value/expiresAt） */
+  private pendingL3 = new Map<string, { value: V; expiresAt: number }>();
+  private l3Timer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 将缓冲的 L3 写入事务性落盘（去抖批处理；destroy 前自动调用） */
+  flushPendingWrites(): void {
+    if (this.l3Timer) {
+      clearTimeout(this.l3Timer);
+      this.l3Timer = null;
+    }
+    if (!this.db || this.pendingL3.size === 0) return;
+    const entries = [...this.pendingL3.entries()];
+    this.pendingL3.clear();
+    try {
+      const txn = this.db.transaction(() => {
+        for (const [k, { value, expiresAt }] of entries) {
+          this.db!.run(
+            `INSERT OR REPLACE INTO cache_store (namespace, key, value, expires_at)
+             VALUES (?, ?, ?, ?)`,
+            [this.opts.namespace, k, JSON.stringify(value), Math.floor(expiresAt / 1000)]
+          );
+        }
+      });
+      txn();
+    } catch (err) {
+      logger.debug("[Cache] L3 flush failed", { error: (err as Error).message });
     }
   }
 
@@ -288,6 +316,8 @@ export class Cache<V = unknown> {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+    // 先冲刷缓冲（防止 close 后去抖定时器写入已关闭的 db），再按既有语义清空
+    this.flushPendingWrites();
     this.clear();
     this.db?.close();
   }
