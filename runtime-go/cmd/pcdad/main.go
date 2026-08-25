@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"errors"
 	"log"
 	"net/http"
@@ -37,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"runtime-go/internal/netutil"
 	"runtime-go/internal/observability"
 	"runtime-go/internal/pcda"
 )
@@ -103,12 +105,16 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
+	// P2-12b：多 acceptor 并发监听（PCDAD_LISTENERS，Linux SO_REUSEPORT）
+	pcdCtx, pcdStop := context.WithCancel(context.Background())
 	go func() {
-		log.Printf("pcdad[%s]: listening on %s, data dir %s", nodeID, addr, dataDir)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("pcdad: serve: %v", err)
-		}
+		<-sig
+		pcdStop()
 	}()
+	log.Printf("pcdad[%s]: listening on %s, data dir %s", nodeID, addr, dataDir)
+	if err := netutil.ServeAll(pcdCtx, httpSrv, addr, "PCDAD_LISTENERS", fmt.Sprintf("pcdad[%s]", nodeID)); err != nil && !errors.Is(err, context.Canceled) {
+		log.Fatalf("pcdad: serve: %v", err)
+	}
 
 	<-sig
 	log.Println("pcdad: shutting down")

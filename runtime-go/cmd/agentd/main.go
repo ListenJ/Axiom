@@ -21,6 +21,7 @@ import (
 
 	"runtime-go/internal/agent"
 	"runtime-go/internal/distrib"
+	"runtime-go/internal/netutil"
 )
 
 func main() {
@@ -94,15 +95,8 @@ func main() {
 		Handler:           agent.NewHandler(cluster),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-
-	log.Printf("agentd: listening on %s", addr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	// P2-12b：多 acceptor 并发监听（AGENTD_LISTENERS，Linux SO_REUSEPORT）
+	if err := netutil.ServeAll(ctx, srv, addr, "AGENTD_LISTENERS", "agentd"); err != nil {
 		log.Fatalf("agentd: serve: %v", err)
 	}
 }

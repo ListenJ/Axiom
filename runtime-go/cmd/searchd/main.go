@@ -17,7 +17,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -29,6 +28,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"runtime-go/internal/distrib"
+	"runtime-go/internal/netutil"
 	"runtime-go/internal/search"
 )
 
@@ -85,15 +85,8 @@ func main() {
 		defer reg.Stop()
 	}
 
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-
-	log.Printf("searchd: listening on %s", addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	// P2-12b：多 acceptor 并发监听（SEARCHD_LISTENERS，Linux SO_REUSEPORT）
+	if err := netutil.ServeAll(ctx, srv, addr, "SEARCHD_LISTENERS", "searchd"); err != nil {
 		log.Fatal(err)
 	}
 }

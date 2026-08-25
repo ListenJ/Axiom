@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P2-12b：单机并发强化——多 acceptor 监听（联合三大守护进程）
+
+- **任务**：单机入口瓶颈在单一 accept 队列（实测 Windows ~13.7k entry QPS 出现 connectex actively refused）。新增 `internal/netutil`：Linux 经 SO_REUSEPORT 打开同端口多内核 accept 队列（内核多核均衡新连接），非 Linux 平台安全回退单监听；数量经 `SEARCHD_LISTENERS`/`AGENTD_LISTENERS`/`PCDAD_LISTENERS` 控制，缺省 GOMAXPROCS、钳制 [1,16]。
+- **操作**：netutil/listen.go（ParseListenerCount/OpenListeners/ServeAll 优雅停机）+ reuseport_linux.go / reuseport_stub.go 构建标签分平台；searchd/agentd/pcdad 三个 main 统一接入 ServeAll（替换各自 ListenAndServe+手写停机 goroutine）。查询执行路径已有 worker pool+scratch arena（engine.go searchShards），本任务不动。
+- **验证**：go build/vet 干净；netutil 单测 2 pass（计数钳制矩阵 + 取消停机）；全仓 go test ./... 八包全 ok。x/sys 由 indirect 提升为直接依赖（SO_REUSEPORT 常量）。→ Commit `3280add`
+---
+
 ## 2026-08-25 — 优化 P2-12：内部查询 RPC 二进制协议（热路径，目标上调不再以 100K 为限）
 
 - **任务**：用户上调目标——多机 100K QPS 本身偏低。README 自证瓶颈为每查询跨节点 JSON 全扇出（90%+ 开销在内核路径与序列化，查询计算 <6%）。本任务落地第一杠杆：`/internal/query` 热路径二进制化（Content-Type `application/x-search-query-bin`），JSON 完整兼容（客户端按响应 Content-Type 嗅探回退；服务端仅二进制进→二进制出）。
