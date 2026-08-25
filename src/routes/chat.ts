@@ -99,7 +99,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       latencyMs,
       source: "chat",
       feedback: success ? "auto-success" : "auto-fail",
-    }).catch(() => {});
+    }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
     // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
     try {
       const { getResourceBudgetManager } = await import("../dre/system-resource.js");
@@ -169,7 +169,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
       latencyMs: Date.now() - agentChatStartedAt,
       source: "agent-chat",
       feedback: success ? "auto-success" : "auto-fail",
-    }).catch(() => {});
+    }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
   } catch {}
 
   return response;
@@ -517,7 +517,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   latencyMs: Date.now() - streamStartedAt,
                   source: "chat-stream",
                   feedback: success ? "auto-success" : "auto-fail",
-                }).catch(() => {});
+                }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
               } catch {}
 
               // 完成后广播一次 usage 给 WebSocket 订阅者

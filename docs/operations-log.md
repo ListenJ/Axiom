@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-25 — 优化 P2-C：用量采集 fire-and-forget 吞错可观测化
+
+- **任务**：`routes/chat.ts` 三处 `captureRealUsageTrace(...).catch(() => {})` 静默吞错——磁盘满/权限等真实故障致用量轨迹丢失且无从排查。
+- **操作**：三处改为 `.catch((err) => logger.warn("[chat] usage-trace capture failed", {...}))`（非阻塞语义保留，仅补可观测）。其余良性 best-effort 静默点（.gitkeep/mkdir/redis del 等）按规则 1 不动。→ Commit `8b5c3b5`
+- **过程修正**：PowerShell 批量替换转义损坏一处引号致 tsc 报 Unterminated literal，Edit 工具修复后干净。
+- **验证**：tsc 干净；routes+chat 套件 12 pass。
+---
+
 ## 2026-08-25 — 优化 P2-B：wiki-link 标题归一化碰撞可观测化
 
 - **任务**：`linkToPath` 归一化键（大小写/空白折叠）碰撞时静默首见优先，误解析不可见。
