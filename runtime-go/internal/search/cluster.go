@@ -1,7 +1,9 @@
 package search
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -235,14 +237,22 @@ func (e *Engine) clusterSearch(ctx context.Context, idx *Index, node Node, query
 	ch := make(chan peerResult, len(healthy))
 	for _, id := range healthy {
 		node := nodes[id]
-		req := internalQueryRequest{Shards: remoteShards[id], Query: query, Limit: limit}
 		go func() {
 			e.m.incRemoteFanout(node.ID)
 			qctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
+			// P2-12：二进制热路径；老对端回 JSON 时按 Content-Type 回退解码
+			binReq := appendQueryBinReq(nil, query, remoteShards[id], limit)
+			raw, hdr, err := distrib.DoRaw(qctx, c.client, http.MethodPost,
+				node.Addr+"/internal/query", queryBinContentType, binReq)
 			var out internalQueryResponse
-			err := distrib.DoJSON(qctx, c.client, http.MethodPost,
-				node.Addr+"/internal/query", req, &out)
+			if err == nil {
+				if sniffBinaryResponse(hdr) {
+					out.Hits, err = decodeQueryBinResp(bytes.NewReader(raw))
+				} else if jerr := json.Unmarshal(raw, &out); jerr != nil {
+					err = jerr
+				}
+			}
 			ch <- peerResult{node: node.ID, hits: out.Hits, err: err}
 		}()
 	}

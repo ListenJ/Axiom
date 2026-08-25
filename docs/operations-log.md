@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-25 — 优化 P2-12：内部查询 RPC 二进制协议（热路径，目标上调不再以 100K 为限）
+
+- **任务**：用户上调目标——多机 100K QPS 本身偏低。README 自证瓶颈为每查询跨节点 JSON 全扇出（90%+ 开销在内核路径与序列化，查询计算 <6%）。本任务落地第一杠杆：`/internal/query` 热路径二进制化（Content-Type `application/x-search-query-bin`），JSON 完整兼容（客户端按响应 Content-Type 嗅探回退；服务端仅二进制进→二进制出）。
+- **操作**：新增 `internal/search/querybin.go`（编解码 v1：magic+uvarint+LE f64）与 `querybin_test.go`（往返/unicode/空值/嗅探 + 基准）；新增 `internal/distrib/raw.go` `DoRaw`（镜像 DoJSON 语义：非 2xx→AppError、drain 后 close 复用连接）；`httpapi.go` handler 二进制分支；`cluster.go` 扇出发送改二进制。
+- **基准证据**（1000 hits 编码+解码）：JSON 1.08ms/op vs 二进制 184µs/op = **5.9×**；载荷 73,051B vs 35,895B = **省 51%**。
+- **验证**：go build/vet 干净；全仓 go test ./... 八包全部 ok（含集群集成测试——现全程走二进制路径端到端）。→ Commit `3481b7e`
+---
+
 ## 2026-08-25 — 优化 P2-13：MCP 风险复核判定缓存
 
 - **任务**：agent 工具循环中同一负载反复触发边缘初筛 LLM 调用。新增 `(kind,payload)`→verdict 缓存（TTL 默认 5min 可经 `RISK_VERDICT_CACHE_TTL_MS` 调整/置 0 关闭；上限 256 FIFO）。

@@ -158,6 +158,23 @@ type internalQueryResponse struct {
 // handleInternalQuery answers a peer's shard-scoped query against the local
 // index only. It never fans out, which keeps cluster queries cycle-free.
 func (e *Engine) handleInternalQuery(w http.ResponseWriter, r *http.Request) {
+	// P2-12：二进制热路径——仅在收到二进制请求时回二进制（老客户端 JSON 不变）
+	if r.Header.Get("Content-Type") == queryBinContentType {
+		req, err := decodeQueryBinReq(r.Body)
+		if err != nil {
+			writeError(w, observability.WrapError(ErrCodeBadRequest, "invalid binary body", err), http.StatusBadRequest)
+			return
+		}
+		hits, err := e.searchLocalShards(r.Context(), req.Query, req.Shards, req.Limit)
+		if err != nil {
+			writeError(w, err, statusForError(err))
+			return
+		}
+		w.Header().Set("Content-Type", queryBinContentType)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(appendQueryBinResp(nil, hits))
+		return
+	}
 	var req internalQueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, observability.WrapError(ErrCodeBadRequest, "invalid JSON body", err), http.StatusBadRequest)
