@@ -246,6 +246,30 @@ func (e *Engine) clusterSearch(ctx context.Context, idx *Index, node Node, query
 			ch <- peerResult{node: node.ID, hits: out.Hits, err: err}
 		}()
 	}
+	// 有界有序合并（P1-T3）：全序为得分降序、ID 升序，逐条插入保序且 len<=limit，
+	// 取代"全量 append + 整体排序 + 截断"的 O(n log n) 合并。
+	insertHit := func(hits []Hit, h Hit) []Hit {
+		i := sort.Search(len(hits), func(i int) bool {
+			if hits[i].Score != h.Score {
+				return hits[i].Score < h.Score
+			}
+			return hits[i].ID > h.ID
+		})
+		if i >= limit {
+			return hits
+		}
+		hits = append(hits, Hit{})
+		copy(hits[i+1:], hits[i:])
+		hits[i] = h
+		if len(hits) > limit {
+			hits = hits[:limit]
+		}
+		return hits
+	}
+	merged := make([]Hit, 0, limit)
+	for _, h := range hits {
+		merged = insertHit(merged, h)
+	}
 	for range healthy {
 		res := <-ch
 		if res.err != nil {
@@ -253,18 +277,11 @@ func (e *Engine) clusterSearch(ctx context.Context, idx *Index, node Node, query
 			partial = true
 			continue
 		}
-		hits = append(hits, res.hits...)
-	}
-
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].Score != hits[j].Score {
-			return hits[i].Score > hits[j].Score
+		for _, h := range res.hits {
+			merged = insertHit(merged, h)
 		}
-		return hits[i].ID < hits[j].ID
-	})
-	if len(hits) > limit {
-		hits = hits[:limit]
 	}
+	hits = merged
 	if partial {
 		e.m.incPartialQueries()
 	}

@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-T3：runtime-go 集群合并有界 Top-K
+
+- **任务**：`clusterSearch` 合并段原为全量 append + SliceStable 整体排序 + 截断（O(n log n)）；改为按全序（得分降序/ID 升序）经 `sort.Search` 有界插入，len 恒 ≤limit。
+- **操作**：runtime-go/internal/search/cluster.go 合并段重写。TDD 过程：首版谓词方向写反（sort.Search 需假前缀布局），TestClusterQueryMerge 红→修正→绿。→ Commit `e611950`
+- **验证**：go build ./... 干净；go test ./internal/search/ ./internal/agent/ ok。
+---
+
 ## 2026-08-25 — 优化 P1-T2：wiki_links 跨存储闭环（KAL vault 入链腿）
 
 - **任务**：LIMITATIONS 已登记缺口——getReferences 对 vault 节点恒为空。经注入接口闭合：`DeterministicSearchEngine.getWikiBacklinks(path)`（公共方法）+ KAL 构造器可选第二参 `vault?: { getBacklinks(path): Array<{path,title}> }`，vault 前缀节点 UNION 引擎入链；未注入保持旧行为。
