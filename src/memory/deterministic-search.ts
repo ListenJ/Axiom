@@ -77,6 +77,8 @@ export class DeterministicSearchEngine {
   private paraCache = new Map<string, string>();
   /** 链接目标（文件名/归一化标题）→ 路径 映射缓存；仅在索引重建时失效 */
   private linkToPathCache: Map<string, string> | null = null;
+  /** 标题/文件名归一化键冲突计数（首见优先解析保持不变，碰撞可观测） */
+  private linkCollisions = 0;
 
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
@@ -463,6 +465,10 @@ export class DeterministicSearchEngine {
       const map = new Map<string, string>();
       for (const [path, note] of this.notes) {
         const baseName = nodePath.basename(path, ".md").toLowerCase();
+        if ((map.has(baseName) && map.get(baseName) !== path) ||
+            (map.has(this.normalizeLink(note.title)) && map.get(this.normalizeLink(note.title)) !== path)) {
+          this.linkCollisions++;
+        }
         map.set(baseName, path);
         map.set(this.normalizeLink(note.title), path);
       }
@@ -679,7 +685,7 @@ export class DeterministicSearchEngine {
   }
 
   /** 索引统计 */
-  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number>; cacheHitRate: number } {
+  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number>; cacheHitRate: number; titleCollisions: number } {
     const paraDistribution: Record<string, number> = {};
     let totalWords = 0;
     let totalTags = 0;
@@ -703,6 +709,7 @@ export class DeterministicSearchEngine {
       totalLinks,
       paraDistribution,
       cacheHitRate,
+      titleCollisions: this.linkCollisions,
     };
   }
 
@@ -722,6 +729,7 @@ export class DeterministicSearchEngine {
     this.paraCache.clear();
     this.contentCache.clear();
     this.linkToPathCache = null;
+    this.linkCollisions = 0;
     this.cacheHits = 0;
     this.cacheMisses = 0;
     this.vaultPath = vaultPath;

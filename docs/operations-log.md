@@ -7,6 +7,13 @@
 
 ---
 
+## 2026-08-25 — 优化 P2-B：wiki-link 标题归一化碰撞可观测化
+
+- **任务**：`linkToPath` 归一化键（大小写/空白折叠）碰撞时静默首见优先，误解析不可见。
+- **操作**：`deterministic-search.ts` `getLinkToPath()` 构建时计数冲突至 `linkCollisions`，经 `stats().titleCollisions` 暴露；`reload` 归零。解析语义不变（确定性首见优先）。新增 `tests/memory/link-collision.test.ts`（RED→GREEN）。→ Commit `3f9064e`
+- **验证**：tsc 干净；deterministic-search+collision 共 17 pass。
+---
+
 ## 2026-08-25 — 优化 P1-9：ConformalHallucinationDetector 专项回归测试
 
 - **任务**：调研清单顺延项——567 行安全关键模块（FDR/共形预测）此前无针对性测试（仅被 math-breakthroughs 间接覆盖）。
