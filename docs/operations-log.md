@@ -7,6 +7,12 @@
 
 ---
 
+## 2026-08-25 — 优化 P1-9：ConformalHallucinationDetector 专项回归测试
+
+- **任务**：调研清单顺延项——567 行安全关键模块（FDR/共形预测）此前无针对性测试（仅被 math-breakthroughs 间接覆盖）。
+- **操作**：新增 `tests/memory/hallucination-detector.test.ts`（6 例，经公共接口）：空陈述保守放行 / 未校准恒非幻觉（computePValue n=0→1.0）/ 共形判定场景（40 事实+单离群校准集下，新离群 pValue<α 判幻觉、事实保持放行）/ addFact 增量证据 / 校准质量分布有序性与 reset 归零 / alpha 越界拒绝。首跑即 6/6 绿——行为规格与实现一致，作为防回归护栏入库。→ Commit `b88b3a2`
+---
+
 ## 2026-08-25 — 优化 P1-T5：清理批次（snapshotId 白名单 + 注释口径 + 空目录）
 
 - **操作**：
