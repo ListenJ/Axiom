@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-25 — 优化 P2-13：MCP 风险复核判定缓存
+
+- **任务**：agent 工具循环中同一负载反复触发边缘初筛 LLM 调用。新增 `(kind,payload)`→verdict 缓存（TTL 默认 5min 可经 `RISK_VERDICT_CACHE_TTL_MS` 调整/置 0 关闭；上限 256 FIFO）。
+- **安全语义保留**：仅缓存确定性终态（干净 low 放行 / 复核后放行 / dangerous 或 high+不可用 → approval）；degraded 旁路与 medium fail-open **不缓存**；approval 命中复放仍走 escalate 保审计链；缓存仅在**生产路径**启用（注入 deps 的 DI 测试不受影响）。计划：docs/superpowers/plans/2026-08-25-mcp-review-cache.md。
+- **测试演进（如实登记）**：初版经 deps 注入测试与"生产路径才启用"设计冲突，改用 `mock.module`(router) + `spyOn`(risk-screen) 驱动真实实现，4 例 RED→GREEN。
+- **验证**：新套件 4 pass；既有 risk-monitor 三套件 33 pass / 0 fail；tsc 干净。→ Commit `7e9004d`
+---
+
 ## 2026-08-25 — 优化 P2-C：用量采集 fire-and-forget 吞错可观测化
 
 - **任务**：`routes/chat.ts` 三处 `captureRealUsageTrace(...).catch(() => {})` 静默吞错——磁盘满/权限等真实故障致用量轨迹丢失且无从排查。

@@ -47,6 +47,53 @@ function isFailClosedEnabled(): boolean {
   return readString("EDGE_RISK_FAIL_CLOSED", "0") === "1";
 }
 
+// ── P2-13：判定缓存 ─────────────────────────────────────────
+// 同一 (kind,payload) 的确定性终态短期复用，跳过双层 LLM。仅缓存不依赖
+// 可用性状态的结论；degraded 旁路与"复核不可用 fail-open"一律不缓存。
+interface VerdictCacheEntry {
+  verdict: RiskVerdict;
+  expiresAt: number;
+}
+const verdictCache = new Map<string, VerdictCacheEntry>();
+const VERDICT_CACHE_TTL_MS = (() => {
+  const n = parseInt(readString("RISK_VERDICT_CACHE_TTL_MS", "300000"), 10);
+  return Number.isFinite(n) && n >= 0 ? n : 300000;
+})();
+const VERDICT_CACHE_MAX = 256;
+
+function verdictCacheKey(kind: PayloadKind, payload: string): string {
+  return kind + "\u0000" + payload;
+}
+
+/** 清空判定缓存（测试/运维用；TTL=0 时缓存本身关闭） */
+export function resetRiskVerdictCache(): void {
+  verdictCache.clear();
+}
+
+function getCachedVerdict(kind: PayloadKind, payload: string): RiskVerdict | null {
+  if (VERDICT_CACHE_TTL_MS === 0) return null;
+  const key = verdictCacheKey(kind, payload);
+  const entry = verdictCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    verdictCache.delete(key);
+    return null;
+  }
+  return entry.verdict;
+}
+
+function cacheVerdict(kind: PayloadKind, payload: string, verdict: RiskVerdict): void {
+  if (VERDICT_CACHE_TTL_MS === 0) return;
+  if (verdictCache.size >= VERDICT_CACHE_MAX && !verdictCache.has(verdictCacheKey(kind, payload))) {
+    const oldest = verdictCache.keys().next().value;
+    if (oldest !== undefined) verdictCache.delete(oldest);
+  }
+  verdictCache.set(verdictCacheKey(kind, payload), {
+    verdict,
+    expiresAt: Date.now() + VERDICT_CACHE_TTL_MS,
+  });
+}
+
 /** 复核结果（null = 复核不可用） */
 export interface ReviewResult {
   dangerous: boolean;
@@ -122,8 +169,21 @@ export async function monitorToolPayload(
   if (!extracted) return "pass";
 
   const { kind, payload } = extracted;
+
+  // ── 判定缓存命中（P2-13）：仅生产路径（无注入 deps）启用，DI 测试不受影响；
+  // approval 结论复放仍走 escalate 保审计链 ──
+  const cached = !deps ? getCachedVerdict(kind, payload) : null;
+  if (cached) {
+    logger.debug("[RiskMonitor] verdict cache hit", { toolName, kind });
+    if (cached === "require-approval") {
+      escalate(toolName, kind, payload, "cached verdict: require-approval");
+    }
+    return cached;
+  }
+
   const screen = deps?.screen ?? screenPayloadWithEdge;
   const review = deps?.review ?? reviewWithDecisionModel;
+  const cacheEnabled = !deps;
 
   // ── 第一层：边缘初筛 ──
   let edge: EdgeRiskResult;
@@ -167,6 +227,10 @@ export async function monitorToolPayload(
         return "require-approval";
       }
     }
+    // 干净 low 放行（非降级）为确定性结论，可缓存
+    if (cacheEnabled && (edge as { degraded?: boolean }).degraded !== true) {
+      cacheVerdict(kind, payload, "pass");
+    }
     return "pass";
   }
 
@@ -188,12 +252,14 @@ export async function monitorToolPayload(
 
   if (reviewResult?.dangerous === true) {
     escalate(toolName, kind, payload, `edge=${edge.risk}, review=dangerous: ${reviewResult.reason ?? ""}`);
+    if (cacheEnabled) cacheVerdict(kind, payload, "require-approval");
     return "require-approval";
   }
 
   if (reviewResult === null && edge.risk === "high") {
     // 复核不可用 + 初筛 high → fail-closed
     escalate(toolName, kind, payload, "edge=high, review=unavailable (fail-closed)");
+    if (cacheEnabled) cacheVerdict(kind, payload, "require-approval");
     return "require-approval";
   }
 
@@ -201,6 +267,10 @@ export async function monitorToolPayload(
     edgeRisk: edge.risk,
     review: reviewResult === null ? "unavailable" : "not-dangerous",
   });
+  // 仅"复核真实发生且放行"为确定性结论；null(fail-open)依赖可用性，不缓存
+  if (cacheEnabled && reviewResult !== null) {
+    cacheVerdict(kind, payload, "pass");
+  }
   return "pass";
 }
 
