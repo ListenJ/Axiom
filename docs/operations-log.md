@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-25 — 效果验证：单机真实基准（Windows 开发机，单节点）
+
+- **环境**：本机 Windows，searchd 单节点 + loadgen 闭环全速（`-qps 0`），10k 文档。
+- **结果**：**29,960 QPS / 0 错误 / p50=5.2ms p95=16.1ms p99=24.5ms**（192 并发 20s，600,556 请求）。灌库吞吐 16k docs/s。
+- **发现**：512 并发时 loadgen 客户端自身拨号风暴（栈转储），本机有效客户端并发上限约 300 区间；服务端未复现拒连。多 acceptor 对照需 Linux（SO_REUSEPORT），新增 `scripts/runtime-go/bench-single.sh` 一键对照脚本（1 vs nproc acceptor）待 Linux 节点执行。
+- 新增基准脚本入库 → Commit `f8573b9`
+---
+
 ## 2026-08-25 — 优化 P2-12b：单机并发强化——多 acceptor 监听（联合三大守护进程）
 
 - **任务**：单机入口瓶颈在单一 accept 队列（实测 Windows ~13.7k entry QPS 出现 connectex actively refused）。新增 `internal/netutil`：Linux 经 SO_REUSEPORT 打开同端口多内核 accept 队列（内核多核均衡新连接），非 Linux 平台安全回退单监听；数量经 `SEARCHD_LISTENERS`/`AGENTD_LISTENERS`/`PCDAD_LISTENERS` 控制，缺省 GOMAXPROCS、钳制 [1,16]。
