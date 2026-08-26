@@ -14,6 +14,7 @@
 import type { RouteContext } from "./types.js";
 import { readString } from "../utils/env.js";
 import { auditLogger } from "../utils/audit-logger.js";
+import { safeStringEqual } from "../utils/auth-check.js";
 
 /** 审计事件类型（与 AuditEvent 中需审计的成功事件对齐） */
 export type AuditableEvent =
@@ -57,7 +58,7 @@ export function requireAuthToken(ctx: RouteContext): Response | null {
     ctx.req.headers.get("x-api-key") ||
     ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 
-  if (provided !== token) {
+  if (!safeStringEqual(provided, token)) {
     auditLogger.log({
       event: "auth.failure",
       actor,

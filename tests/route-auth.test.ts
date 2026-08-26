@@ -216,12 +216,12 @@ describe("S1 高危端点二因素 token（AXIOM_SECOND_FACTOR_TOKEN，未配置
     else process.env.AXIOM_SECOND_FACTOR_TOKEN = savedSecondFactor;
   });
 
-  it("POST /terminal/session：配置二层 token 且请求未携带 → 403（守卫先于会话创建）", async () => {
+  it("POST /terminal/session：配置二层 token 且请求未携带 → 401（先验 AXIOM_AUTH_TOKEN，再验二层）", async () => {
     process.env.AXIOM_SECOND_FACTOR_TOKEN = SECOND_TOKEN;
     const res = await handleTerminalCreate(makeRouteCtx("/terminal/session", "POST"));
-    expect(res?.status).toBe(403);
+    expect(res?.status).toBe(401);
     const body = (await res!.json()) as { error: string };
-    expect(body.error).toContain("second factor");
+    expect(body.error).toContain("Unauthorized");
   });
 
   it("POST /api/git/push：配置二层 token 且未携带 → 403（守卫先于任何 git 执行）", async () => {

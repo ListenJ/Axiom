@@ -424,6 +424,24 @@
   - 备份验证后删除 `.tmp/backups/src/utils/ws-auth.ts`、`.tmp/backups/src/routes/terminal.ts`、`.tmp/backups/src/utils/auth-check.ts`、`.tmp/backups/src/main.ts`（验证后）。
 - **Commit**：`3152ee7` `fix(auth): WS同源白名单化与terminal强制二层认证，消除与sandbox二层不一致`（含 `ws-auth.ts` + `terminal.ts` + `auth-check.ts` + `main.ts` + `ws-rebinding.test.ts` + `operations-log.md`，`internal211` 3152ee7f46b96b403cce99162b6cee54c7c2d87c）
 
+## 2026-08-27 — Slice1 Task3 Fix：WS 多通道任一有效放行 + terminal 时序安全 + 终端双闸固定器（Important review）
+
+- **任务**：落实 Task3 review 3 项 Important + 1 项 Minor：① `src/utils/ws-auth.ts:59-60 credentialGate` 由"首非空短路"改为"任一通道有效即放行"（`headerValid || queryValid || subprotocolValid`，均经 `safeStringEqual`），闭环"header 错但 query 对仍被拒"旁路；② `src/routes/route-auth.ts:60` 由 `!==` 改 `safeStringEqual` 时序安全，与 `terminal.ts:27` 二层 `safeStringEqual` 一致；③ 补 `tests/unit/terminal-auth-fix.test.ts` 9 用例，证明 `POST /terminal/session` 无论 `isLocal` 均需 `AXIOM_AUTH_TOKEN`（无凭据 401/503，带凭据 200，Bearer 大小写/多空格容忍，未配 503），并覆盖 WS 多通道与 `host` 去信任；④ `ws-auth.ts:37-40` `host` 字段标记 `@deprecated 已去信任`。
+- **工具**：Read（`src/utils/ws-auth.ts:1-104` 全文、`src/routes/route-auth.ts:1-95` 全文、`src/routes/terminal.ts:1-166` 全文、`tests/unit/ws-rebinding.test.ts`/`auth-rebinding.test.ts`/`csrf-origin.test.ts`/`route-auth.test.ts:219-270`）、Edit（`ws-auth.ts` `credentialGate` + `host` 注释、`route-auth.ts` `safeStringEqual`、`tests/route-auth.test.ts:219` 期望 403→401）、Write（`tests/unit/terminal-auth-fix.test.ts` 9 用例）、Bash（`bun test` `bunx tsc --noEmit` `git`）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/ws-auth.ts` → `.tmp/backups/src/utils/ws-auth.ts`；`src/routes/route-auth.ts` → `.tmp/backups/src/routes/route-auth.ts`；`tests/route-auth.test.ts` → `.tmp/backups/tests/route-auth.test.ts`；`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（规则2，先通读全文）。
+  2. 修改 `src/utils/ws-auth.ts:37-40`：`host` 注释由"与 origin 比对判定同源"改为 `@deprecated 已去信任，保留仅兼容，不参与鉴权`；`59-71`：`credentialGate` 由 `presented = header||query||subprotocol; if(safeEqual(presented))` 改为 `if (apiKey && ((headerAuth && safeEqual(header,apiKey)) || (queryToken && safeEqual(query,apiKey)) || (subprotocol && safeEqual(sub,apiKey)))) return ok`（任一有效即放行，避免首通道无效短路）。
+  3. 修改 `src/routes/route-auth.ts:17,61`：新增 `import { safeStringEqual }`；`if (provided !== token)` → `if (!safeStringEqual(provided, token))`（时序安全，与 `terminal.ts` 二层一致；`provided` 为 `undefined` 时安全返回 `false`）。
+  4. 修正 `tests/route-auth.test.ts:219`：`POST /terminal/session` 配置二层且无携带的期望由 `403` 改 `401`（`handleTerminalCreate` 先验 `requireAuthToken` 再验 `requireSecondFactor`，无凭据先因一层 `AXIOM_AUTH_TOKEN` 而 401；原期望 403 与双闸顺序矛盾，已与 `terminal-auth-fix:1` 的 401/503 语义对齐）。
+  5. 新建 `tests/unit/terminal-auth-fix.test.ts`（9 用例，`bun:test`，详见定版报告）：terminal 双闸 5 例（无凭据 401/503、x-api-key 放行 200、Bearer 放行、大小写/多空格容忍、未配 503）+ WS 多通道 4 例（header 错 query 对仍放行、header 错 subprotocol 对仍放行、三通道全错拒绝、host 去信任）。
+  6. 本条目 `docs/operations-log.md`；撰写 `.superpowers/sdd/task-3-fix-report.md`（含 TDD 证据与 23 pass 表格）。
+- **验证**：
+  - `bun test tests/unit/ws-rebinding.test.ts tests/unit/auth-rebinding.test.ts tests/unit/csrf-origin.test.ts tests/unit/terminal-auth-fix.test.ts` = **23 pass / 0 fail**（ws 3 + auth 6 + csrf 5 + terminal-fix 9，含 `localhost:18789` 白名单、`r.evil` 拒/带凭证放行、`header错query对`放行、`host` 去信任、terminal 401→200 切换、`bearer`变体）；`bun test tests/route-auth.test.ts` = **13 pass / 0 fail**（原 12 pass/1 fail → 13 pass，`terminal无凭据` 403→401 修正后全绿）。
+  - `bunx tsc --noEmit` **0 错误**（`safeStringEqual` 跨模块导入与 `@deprecated host` 类型干净）。
+  - 边界 `ws-auth` 多通道（`header wrong + query correct` → `ok:true`）与 `host` 去信任（`origin 127.0.0.1:18789 + host r.evil.com` → `ok:true`）经 `terminal-auth-fix` 4 例固定。
+  - 备份验证后删除 `.tmp/backups/src/utils/ws-auth.ts`、`.tmp/backups/src/routes/route-auth.ts`、`.tmp/backups/tests/route-auth.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
+- **Commit**：`PENDING` `fix(auth): WS credentialGate 任一通道放行 + route-auth 时序安全 + terminal 双闸固定器`（含 `ws-auth.ts` + `route-auth.ts` + `terminal-auth-fix.test.ts` + `route-auth.test.ts` + `operations-log.md`，`internal211` 待回填）
+
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
 - **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
 - **操作**（文件级）：

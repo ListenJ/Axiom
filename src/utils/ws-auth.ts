@@ -34,7 +34,10 @@ export interface WsAuthInput {
   apiKey: string;
   /** 请求 Origin 头（浏览器 WS 必带且不可伪造；curl/ws 客户端一般没有）；无则为 null */
   origin?: string | null;
-  /** 请求 Host 头（host:port）；与 origin 的 host:port 比对判定同源 */
+  /**
+   * 请求 Host 头（host:port）
+   * @deprecated 已去信任（DNS 重绑定防线），保留仅为兼容旧调用方，不参与鉴权判定，仅作日志/审计参考
+   */
   host?: string;
 }
 
@@ -53,11 +56,17 @@ export function extractSubprotocolToken(protocolHeader: string | null): string |
   return null;
 }
 
-/** 凭证闸门：header / query / 子协议任一通道提供且与 apiKey 相等才放行 */
+/** 凭证闸门：header / query / 子协议任一通道提供且与 apiKey 相等才放行（任一有效即放行，避免首通道无效时短路） */
 function credentialGate(input: WsAuthInput, denyReason: string): WsAuthResult {
   const subprotocolToken = extractSubprotocolToken(input.protocolHeader);
-  const presented = input.headerAuth || input.queryToken || subprotocolToken;
-  if (presented && input.apiKey && safeStringEqual(presented, input.apiKey)) return { ok: true };
+  if (
+    input.apiKey &&
+    ((input.headerAuth && safeStringEqual(input.headerAuth, input.apiKey)) ||
+      (input.queryToken && safeStringEqual(input.queryToken, input.apiKey)) ||
+      (subprotocolToken && safeStringEqual(subprotocolToken, input.apiKey)))
+  ) {
+    return { ok: true };
+  }
   return { ok: false, reason: denyReason };
 }
 
