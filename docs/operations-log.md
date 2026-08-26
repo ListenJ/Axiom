@@ -406,7 +406,7 @@
 - **验证**：
   - TDD RED→GREEN：`bun test tests/unit/auth-rebinding.test.ts` = 4 pass/2 fail（P2b/P6 `true→false`）→ 6 pass/0 fail；合测 `auth-rebinding + csrf-origin` = 11 pass/0 fail；`auth-check.test.ts` 9 pass 回归；`bunx tsc --noEmit` 0 错误；`bun -e` 12 边界（裸 host/带凭证跨站/无效 Origin/GET 旁路）全绿。
   - 备份验证后删除 `.tmp/backups/src/utils/auth-check.ts`、`.tmp/backups/tests/unit/csrf-origin.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
-- **Commit**：`<pending> fix(auth): Origin白名单化闭环DNS重绑定，Host去信任，P2 r.evil.com 同域由200→401`（含 `auth-check.ts` + `csrf-origin.test.ts` + `operations-log.md` + `task-2-report.md`，`internal211`）
+- **Commit**：`7c935bc` `fix(auth): Origin白名单化闭环DNS重绑定，Host去信任，P2 r.evil.com 同域由200→401`1`（含 `auth-check.ts` + `csrf-origin.test.ts` + `operations-log.md` + `task-2-report.md`，`internal211`）
 
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
 - **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
