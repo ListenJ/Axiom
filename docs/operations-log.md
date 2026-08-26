@@ -6965,5 +6965,5 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/auth-check.test.ts tests/ws-auth.test.ts → 23 pass 0 fail
   - bunx tsc --noEmit → 0 错误
 - **判断**（规则10）：当前 isLocal 分支以 Origin.host == URL.host 为同源判定，Host 头非信任锚（符合注释），但白名单缺失导致任意外域经 DNS 重绑定后可构造 host:port 一致而绕过；修复需改为 LOCAL_ORIGIN_WHITELIST（含 localhost/127.0.0.1/::1/::ffff:127.0.0.1 及 HOST:PORT），由 Task2 落地。无端口的 r.evil.com 已拦截为偶然而非白名单，端口匹配向量仍可利用。
-- **Commit**：`d10d851`（`test(harness): DNS重绑定 P1-P3/P6 探针与单测（先红，证实 r.evil.com:18789 同域可绕过）`）
+- **Commit**：`f31cdb7`（`test(harness): DNS重绑定 P1-P3/P6 探针与单测（先红，证实 r.evil.com:18789 同域可绕过）`）
 
