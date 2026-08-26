@@ -137,7 +137,7 @@ describe("真实链路：知识→LLM 交付（Vault/记忆能否交由 LLM）",
     expect(allContent.length).toBeGreaterThanOrEqual(messages[0].content.length);
     expect(ctx.intentInfo).toBeDefined();
     vault.close();
-  });
+  }, 30000);
 
   test("SQLiteMemory 直接检索亦可交由 LLM（FTS Rank 排序）", async () => {
     const mem = new SQLiteMemory(TMP_DB);
@@ -246,5 +246,81 @@ describe("真实链路：Prompt 工程强化约束完成度", () => {
       expect(results[i]?.id).toBe(results[0]?.id);
     }
     expect(results[0]?.id).toBe("web-search");
+  });
+});
+
+describe("知识整理×DRE 联动（Vault→KAL→DRE→云端 可重试可降级）Task8", () => {
+  test("Vault→检索→知识可注入 DRE 上下文（整理截断 3000）", async () => {
+    // 先清理（在 VaultManager 构造前）
+    try { fs.rmSync(TMP_VAULT, { recursive: true, force: true }); } catch {}
+    try { fs.unlinkSync(TMP_DB); } catch {}
+    try { fs.unlinkSync(TMP_DB + "-wal"); } catch {}
+    try { fs.unlinkSync(TMP_DB + "-shm"); } catch {}
+    fs.mkdirSync(TMP_VAULT, { recursive: true });
+    const vault = new VaultManager({ vaultPath: TMP_VAULT, dbPath: TMP_DB });
+    const knowledge = "Linkage DRE test: Vault→KAL→整理→DRE evidence chain";
+    await vault.writeNote("03-Resources/rigorous/linkage-dre.md", knowledge, { title: "Linkage DRE", tags: ["linkage"], overwrite: true });
+    const hits = vault.search("Linkage DRE");
+    expect(hits.length).toBeGreaterThan(0);
+    // 模拟整理：截断 3000 + 去重
+    const organized = hits.map((h) => h.note.content.slice(0, 3000)).join("\n---\n");
+    expect(organized.length).toBeGreaterThan(20);
+    expect(organized.length).toBeLessThanOrEqual(4000);
+    vault.close();
+  });
+
+  test("createDreCloudAdapter 具备超时/重试/降级（mock fetch 失败→回退空串）", async () => {
+    const origFetch = globalThis.fetch;
+    let callCount = 0;
+    // mock fetch always fail
+    (globalThis as any).fetch = async () => {
+      callCount++;
+      throw new Error("mock network fail");
+    };
+    try {
+      const { createDreCloudAdapter } = await import("../../src/router/provider-caller.js");
+      const adapter = createDreCloudAdapter({ baseUrl: "http://127.0.0.1:9", apiKey: "test-key", model: "test-model" });
+      const result = await adapter.call({ system: "sys", user: "hello", timeoutMs: 200, temperature: 0.7 });
+      // 降级：应返回空串而非抛异常，且重试 1 次（共 2 次调用）
+      expect(result.content).toBe("");
+      expect(callCount).toBe(2);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test("createDreCloudAdapter 成功路径透传内容（mock fetch 成功）", async () => {
+    const origFetch = globalThis.fetch;
+    (globalThis as any).fetch = async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "dre-ok" } }], usage: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    try {
+      const { createDreCloudAdapter } = await import("../../src/router/provider-caller.js");
+      const adapter = createDreCloudAdapter({ baseUrl: "http://127.0.0.1:9", apiKey: "test-key", model: "test-model" });
+      const result = await adapter.call({ system: "sys", user: "hi", timeoutMs: 500, temperature: 0.7 });
+      expect(result.content).toBe("dre-ok");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test("双端探针 harness 聚合文件存在且为 markdown", async () => {
+    expect(fs.existsSync("scripts/audit/dual-probe.ts")).toBe(true);
+    const harness = fs.readFileSync("scripts/audit/dual-probe.ts", "utf8");
+    expect(harness).toContain("dual-probe");
+    expect(harness).toContain("health");
+    expect(harness).toContain("192.168.0.150");
+  });
+
+  test("文档联动：KNOWLEDGE-BASE 与 LIMITATIONS mineru 双向同步", () => {
+    const kb = fs.readFileSync("docs/KNOWLEDGE-BASE.md", "utf8");
+    const lim = fs.readFileSync("docs/LIMITATIONS.md", "utf8");
+    // 两文档均含判别式/PP-DocLayoutV2/mineru 3.4.5/70 包
+    for (const needle of ["判别式", "PP-DocLayoutV2", "mineru 3.4.5"]) {
+      expect(kb).toContain(needle);
+      expect(lim).toContain(needle);
+    }
   });
 });

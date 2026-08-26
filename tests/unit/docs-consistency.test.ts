@@ -131,3 +131,34 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     expect(readme).toContain(`${navCount} 个核心入口`);
   });
 });
+
+describe("docs mineru Task8 — MinerU 零LLM 口径澄清", () => {
+  test("KNOWLEDGE-BASE clarifies zero-LLM boundary", () => {
+    const md = readFileSync("docs/KNOWLEDGE-BASE.md", "utf8");
+    expect(md).toContain("判别式");
+    expect(md).toContain("PP-DocLayoutV2");
+    expect(md).toContain("Unimernet");
+    expect(md).toContain("零LLM");
+    expect(md).toContain("mineru 3.4.5");
+    expect(md).toContain("70");
+  });
+  test("LIMITATIONS lists mineru deps", () => {
+    const md = readFileSync("docs/LIMITATIONS.md", "utf8");
+    expect(md).toContain("mineru 3.4.5");
+    expect(md).toContain("判别式");
+    expect(md).toContain("PP-DocLayoutV2");
+  });
+  test("dual-probe harness exists and documents aggregation", () => {
+    expect(existsSync("scripts/audit/dual-probe.ts")).toBe(true);
+    const harness = readFileSync("scripts/audit/dual-probe.ts", "utf8");
+    expect(harness).toContain("dual-probe");
+    expect(harness).toContain("health");
+  });
+  test("provider-caller has timeout/retry/fallback", () => {
+    const src = readFileSync("src/router/provider-caller.ts", "utf8");
+    expect(src).toContain("createDreCloudAdapter");
+    expect(src).toContain("AbortController");
+    expect(src.toLowerCase()).toContain("retry");
+    expect(src.toLowerCase()).toContain("fallback");
+  });
+});

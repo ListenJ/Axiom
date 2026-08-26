@@ -86,4 +86,22 @@
 
 ---
 
-*最后更新：2026-08-25（检索口径校准：FTS5+关键词为默认、共享 cosineSimilarity 仅可选语义层；可选 LLM、PG 可选历史不变；工具数以 `src/testing/tool-count.ts`=188 为准）*
+## 4. MinerU 零LLM 边界澄清（Task8）
+
+### 4.1 口径定义
+
+- **零LLM = 零生成式LLM**：无 Chat/Completion 调用；检索/整理/DRE 默认不依赖生成式模型（`KNOWLEDGE_USE_LLM=false` 走 TF-IDF）。
+- **MinerU 本地判别式网络属于允许范围**：PP-DocLayoutV2 布局检测、Unimernet 公式识别、印章 OCR，均 via `from_pretrained` + HF/ModelScope `snapshot_download` 加载本地权重，依赖 70 包，wheel 3.4.5。此类为判别式神经网络，非生成式 LLM，已显式声明为允许。
+- **边界**：若“零LLM”指“一切神经推理（含判别式）”则本路径不满足；本仓库将 MinerU 归为非生成式判别式，已文档化。
+
+### 4.2 已知与待校准
+
+| 维度 | 现状 | 影响 | 后续校准 |
+|---|---|---|---|
+| 权重来源 | `from_pretrained` 本地权重（HF/ModelScope snapshot_download），非远程生成 | 离线可用，需显式声明为判别式 | 按需披露权重版本 |
+| 依赖体积 | mineru 3.4.5，依赖 70 包（含 PP-DocLayoutV2 / Unimernet / 印章 OCR 模型） | 安装体积较大 | 待按需裁剪仅保留判别式子集 |
+| 口径一致性 | KNOWLEDGE-BASE 与本节双向同步，零LLM 口径为“零生成式” | 若需“零一切神经网络”口径则不满足，需显式声明 | 已同步 |
+
+---
+
+*最后更新：2026-08-27（Task8: 澄清 mineru 零LLM 边界：判别式 PP-DocLayoutV2/Unimernet/印章 OCR，依赖 70 包 wheel 3.4.5，零生成式 vs 零神经推理双口径；检索口径 FTS5+关键词为默认、共享 cosineSimilarity 仅可选语义层；工具数以 `src/testing/tool-count.ts`=188 为准）*

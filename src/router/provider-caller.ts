@@ -331,6 +331,10 @@ import type { DreCloudCaller } from "../dre/ports/cloud-caller.js";
  * L1 适配器：DRE 云端口 → 具体 provider 调用。
  * provider 语义内聚于此（baseUrl 存在时按自定义 OpenAI 兼容端点处理，
  * 消除旧实现硬编码 "deepseek" 的语义错位 —— 审计 M10）。
+ * 超时由入参 timeoutMs 经 callProvider 内 AbortController 控（默认 5s）；
+ * 本适配器补重试 1 次与降级 fallback：瞬时网络/5xx 后重试一次，仍失败则
+ * 返回空串由调用方判定走本地 deterministic fallback（vault.search +
+ * hallucinationDetector 保守放行），不抛异常中断 DRE 管线。
  */
 export function createDreCloudAdapter(fb: {
   baseUrl?: string;
@@ -339,20 +343,40 @@ export function createDreCloudAdapter(fb: {
 }): DreCloudCaller {
   return {
     async call(input) {
-      const result = await callProvider(
-        fb.baseUrl ? "custom-openai" : "deepseek",
-        fb.model ?? "deepseek-v4-flash",
-        [
-          { role: "system", content: input.system },
-          { role: "user", content: input.user },
-        ],
-        input.timeoutMs,
-        input.temperature,
-        undefined,
-        undefined,
-        { baseURL: fb.baseUrl, apiKey: fb.apiKey },
-      );
-      return { content: result.content ?? "" };
+      const doCall = () =>
+        callProvider(
+          fb.baseUrl ? "custom-openai" : "deepseek",
+          fb.model ?? "deepseek-v4-flash",
+          [
+            { role: "system", content: input.system },
+            { role: "user", content: input.user },
+          ],
+          input.timeoutMs,
+          input.temperature,
+          undefined,
+          undefined,
+          { baseURL: fb.baseUrl, apiKey: fb.apiKey },
+        );
+      try {
+        const result = await doCall();
+        return { content: result.content ?? "" };
+      } catch (e) {
+        logger.warn("[DRE] cloud adapter retry after first failure", {
+          error: e instanceof Error ? e.message : String(e),
+          baseUrl: fb.baseUrl ?? "(default)",
+        });
+        try {
+          const retryResult = await doCall();
+          return { content: retryResult.content ?? "" };
+        } catch (e2) {
+          logger.warn("[DRE] cloud adapter fallback to local deterministic", {
+            error: e2 instanceof Error ? e2.message : String(e2),
+            baseUrl: fb.baseUrl ?? "(default)",
+          });
+          // fallback: return empty string, caller判定空串 → 本地 vault.search + conservative
+          return { content: "" };
+        }
+      }
     },
   };
 }

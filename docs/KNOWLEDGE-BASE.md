@@ -40,3 +40,9 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 - DRE `/dre/run`（认知管线：classify→knowledge→reasoning→constraint→action→reflection）
 - 知识图谱 `/kg/search`（pgvector 语义检索）
 - Chat 内 `web_search`/`web_fetch` 工具（可继续拉取新资料入库）
+
+## MinerU 与 零LLM 口径（Task8 澄清）
+
+- **零LLM = 零生成式LLM**（无 Chat/Completion 调用）：检索/整理/DRE 证据链默认不调用生成式模型，`KNOWLEDGE_USE_LLM=false` 时走 TF-IDF 回退。
+- **MinerU 本地判别式网络属于允许范围**：PP-DocLayoutV2 布局检测、Unimernet 公式识别、印章 OCR（`from_pretrained` + HF/ModelScope `snapshot_download`，依赖 70 包，wheel 3.4.5）。此类为本地判别式推理，非生成式 LLM。
+- **边界声明**：若“零LLM”指“一切神经推理（含判别式）”则本路径不满足，已显式声明；若指“零生成式 LLM”则满足。mineru 3.4.5 依赖已在 `docs/LIMITATIONS.md` 同步披露。
