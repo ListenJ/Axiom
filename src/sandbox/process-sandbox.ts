@@ -70,6 +70,20 @@ export const processSandbox: SandboxProvider = {
       }
     }
 
+    // Task5 Low 缺口闭合：args 前置拒绝（2026-08-27），与 shellQuoteArg 转义形成二层纵深
+    // POSIX 侧 shellQuoteArg 已对 \n 抛错；此处对 win32/POSIX 统一前置拒，保持 sandbox 侧确定性失败
+    for (const a of opts.args ?? []) {
+      if (/[\n\r`$]/.test(a) || a.includes("$(")) {
+        return {
+          exitCode: -1,
+          stdout: "",
+          stderr: "",
+          durationMs: Date.now() - start,
+          error: "argument contains forbidden characters",
+        }
+      }
+    }
+
     try {
       const spawnOpts: Record<string, unknown> = {
         cwd: opts.cwd ?? process.cwd(),

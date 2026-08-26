@@ -26,10 +26,18 @@ export function sanitizeSpawnEnv(
  */
 export function shellQuoteArg(arg: string, platform: NodeJS.Platform = process.platform): string {
   if (platform === "win32") {
-    // ^ 必须最先转义；随后是 cmd 元字符与参数分隔符（空格/tab/逗号/分号/等号）
+    // ^ 必须最先转义；随后追加 \n/\r/`/$/()/ 转义（2026-08-27 Task5 Low 缺口闭合），最后是 cmd 元字符与参数分隔符
     return arg
       .replace(/\^/g, "^^")
+      .replace(/\r/g, "^\r")
+      .replace(/\n/g, "^\n")
+      .replace(/`/g, "^`")
+      .replace(/\$/g, "^$")
+      .replace(/\(/g, "^(")
+      .replace(/\)/g, "^)")
       .replace(/([&|<>%!" \t,;=%])/g, "^$1");
   }
+  // POSIX: 拒绝换行（2026-08-27 Task5，sh 单引号不可包裹裸换行）
+  if (/[\n\r]/.test(arg)) throw new Error("argument contains newline");
   return `'${arg.replace(/'/g, `'\\''`)}'`;
 }
