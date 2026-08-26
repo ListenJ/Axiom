@@ -6948,3 +6948,22 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   2. L12a \src/crawl/unified-search.ts\：导出 strongCacheKey（SHA-256→32hex，支持数组片段），buildCacheKey 委托；新增 2 用例
 - **验证**：cargo test -p oc-search **9 pass**；workspace build 通过；TS 目标回归 **18 pass**；tsc 0 错误
 - **Commit**：M9=6a30c7b；L12a=见本次相邻提交
+
+## 2026-08-27 — Slice1 Task1: DNS重绑定探针与复现harness（紧反馈回路，TDD RED）
+
+- **任务**：第二轮动态验证 High-RCE 紧反馈回路：落地可复现的 DNS 重绑定探针与单测 harness，证实 r.evil.com:18789 同域可绕过 AXIOM_AUTH_TOKEN（isLocal=true 分支仅比对 Origin.host == targetHost），为 Task2/3 的白名单化修复提供 RED→GREEN 判定。
+- **工具**：Read（src/utils/auth-check.ts 全文、src/utils/ws-auth.ts 全文、src/main.ts:587-660、tests/unit/csrf-origin.test.ts 全文）/ Write（tests/unit/auth-rebinding.test.ts、scripts/audit/dns-rebinding-probe.ts）/ Bun（bun test / bunx tsc --noEmit / bun run probe）/ git。
+- **操作**（文件级）：
+  1. 备份 src/utils/auth-check.ts、src/utils/ws-auth.ts → .tmp/backups/src/utils/（规则2）；通读上述 4 文件全文
+  2. 新建 tests/unit/auth-rebinding.test.ts（6 用例，TDD RED）：P1 无 Origin 放行（设计内）/ P2 无端口 Origin 已拦截 / P2b 带端口同域 Origin（真实 RCE 向量，RED→true vs expect false）/ P3 跨站 Origin 拒绝 / P6 terminal input 路径同向量 / 合法本地同源放行。P2b/P6 在修复前故意 failing，证实漏洞。
+  3. 新建 scripts/audit/dns-rebinding-probe.ts（7 探针表格，纯函数 harness，无需启动服务）：P1 200 / P2 401 / P2-no-port 401 / P3 401 / P6 401 / P-LOCAL-OK 200 / WS-P2 401，打印 curl 复现指南与 RED/GREEN 判定，VULN 时 exit 1 便于 CI 门控。
+  4. 本条目 docs/operations-log.md
+- **验证**（事实）：
+  - bun test tests/unit/auth-rebinding.test.ts → 4 pass / 2 fail（P2b/P6 expect false Received true，RED 符合预期；P2 无端口已因 host 不等而拦截，事实与 brief 模板“当前 bug true”存在端口差异，已在用例注释中如实登记）
+  - bun run scripts/audit/dns-rebinding-probe.ts → 4 PASS / 3 VULN（P2/P6/WS-P2 为 VULN，RED），表格与 curl 指南正常输出；退出码 1（RED 门控）
+  - bun test tests/unit/csrf-origin.test.ts → 5 pass 0 fail（J-2 防线无回归）
+  - bun test tests/auth-check.test.ts tests/ws-auth.test.ts → 23 pass 0 fail
+  - bunx tsc --noEmit → 0 错误
+- **判断**（规则10）：当前 isLocal 分支以 Origin.host == URL.host 为同源判定，Host 头非信任锚（符合注释），但白名单缺失导致任意外域经 DNS 重绑定后可构造 host:port 一致而绕过；修复需改为 LOCAL_ORIGIN_WHITELIST（含 localhost/127.0.0.1/::1/::ffff:127.0.0.1 及 HOST:PORT），由 Task2 落地。无端口的 r.evil.com 已拦截为偶然而非白名单，端口匹配向量仍可利用。
+- **Commit**：`d10d851`（`test(harness): DNS重绑定 P1-P3/P6 探针与单测（先红，证实 r.evil.com:18789 同域可绕过）`）
+
