@@ -185,7 +185,12 @@ export async function connectExternalMcpServers(
         void clientPromise.then((c) => closeClientQuietly(c, name)).catch(() => {});
       }
       summary.failed.push({ name, error: (e as Error).message });
-      logger.warn("[MCP-Client] 外部 MCP server 连接失败，已跳过", { server: name, error: (e as Error).message });
+      // M2：optional=true 的 server 失败仅 info（预期可降级），非 optional 仍 warn
+      if (entry.optional) {
+        logger.info("[MCP-Client] optional MCP server failed (degraded)", { server: name, error: (e as Error).message });
+      } else {
+        logger.warn("[MCP-Client] 外部 MCP server 连接失败，已跳过", { server: name, error: (e as Error).message });
+      }
     }
   }));
 

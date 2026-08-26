@@ -102,12 +102,22 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   const path = pathname ?? new URL(req.url).pathname;
   // Allow local requests without auth (for E2E tests and local development)
   if (isLocal) {
-    // 审计 J-2（2026-08-24）+ Task2（DNS重绑定）：
+    // 审计 J-2（2026-08-24）+ Task2（DNS重绑定）+ I5（GET旁路）：
     // 本机免认证通道此前对任意写方法放行或仅以 originHost===targetHost 判定同源，
     // Host 可被 DNS 重绑定伪造（r.evil.com:18789 与 Origin 同域即可绕过）。
     // 现 Host 去信任：仅 Origin 白名单放行，跨站且无有效凭证一律走 credentialGate。
+    // I5 扩展：敏感 GET（/terminal/*, /vault/*, /kg/*, /search）同样需白名单或 token，
+    // 否则 GET /vault/search, /terminal/sessions 等可经 DNS 重绑定无凭证读取（200 泄露）。
     const method = req.method.toUpperCase();
-    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    const isWriteMethod = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+    const isSensitiveGet =
+      (method === "GET" || method === "HEAD") &&
+      (path.startsWith("/terminal") ||
+        path.startsWith("/vault") ||
+        path.startsWith("/kg") ||
+        path === "/search" ||
+        path.startsWith("/search/"));
+    if (isWriteMethod || isSensitiveGet) {
       const origin = req.headers.get("origin");
       if (origin) {
         try {

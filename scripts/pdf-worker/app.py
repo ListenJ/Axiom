@@ -138,11 +138,17 @@ async def run_task(task_id: str, task_type: str, payload: dict):
 
             if tasks[task_id].get("status") != "failed":
                 tasks[task_id]["status"] = "completed"
-            tasks[task_id]["progress"] = 1.0
+                tasks[task_id]["progress"] = 1.0
+            else:
+                # M8: keep 0.7 on failed to avoid misleading 1.0 progress
+                if tasks[task_id].get("progress", 0) < 0.7:
+                    tasks[task_id]["progress"] = 0.7
 
         except Exception as e:
             tasks[task_id]["status"] = "failed"
             tasks[task_id]["error"] = str(e)
+            # M8: keep 0.7 on failed (not 1.0)
+            tasks[task_id]["progress"] = 0.7
 
 
 @app.post("/v1/submit")

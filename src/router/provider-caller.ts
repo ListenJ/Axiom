@@ -327,6 +327,16 @@ export async function callProviderNativeStream(
 
 import type { DreCloudCaller } from "../dre/ports/cloud-caller.js";
 
+/** M6 脱敏：日志中仅保留 hostname，避免 baseUrl 路径/查询泄露 */
+function sanitizeBaseUrlForLog(url?: string): string {
+  if (!url) return "(default)";
+  try {
+    return new URL(url).hostname || "[invalid-baseUrl]";
+  } catch {
+    return "[invalid-baseUrl]";
+  }
+}
+
 /**
  * L1 适配器：DRE 云端口 → 具体 provider 调用。
  * provider 语义内聚于此（baseUrl 存在时按自定义 OpenAI 兼容端点处理，
@@ -363,7 +373,7 @@ export function createDreCloudAdapter(fb: {
       } catch (e) {
         logger.warn("[DRE] cloud adapter retry after first failure", {
           error: e instanceof Error ? e.message : String(e),
-          baseUrl: fb.baseUrl ?? "(default)",
+          baseUrl: sanitizeBaseUrlForLog(fb.baseUrl),
         });
         try {
           const retryResult = await doCall();
@@ -371,7 +381,7 @@ export function createDreCloudAdapter(fb: {
         } catch (e2) {
           logger.warn("[DRE] cloud adapter fallback to local deterministic", {
             error: e2 instanceof Error ? e2.message : String(e2),
-            baseUrl: fb.baseUrl ?? "(default)",
+            baseUrl: sanitizeBaseUrlForLog(fb.baseUrl),
           });
           // fallback: return empty string, caller判定空串 → 本地 vault.search + conservative
           return { content: "" };

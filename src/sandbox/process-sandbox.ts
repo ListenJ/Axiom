@@ -70,10 +70,11 @@ export const processSandbox: SandboxProvider = {
       }
     }
 
-    // Task5 Low 缺口闭合：args 前置拒绝（2026-08-27），与 shellQuoteArg 转义形成二层纵深
+    // Task5 Low 缺口闭合（2026-08-27）+ M1 收敛（2026-08-27）：args 前置拒绝，与 shellQuoteArg 转义形成二层纵深
     // POSIX 侧 shellQuoteArg 已对 \n 抛错；此处对 win32/POSIX 统一前置拒，保持 sandbox 侧确定性失败
+    // M1 修正：不再对裸 $ 误杀（如 $5），仅拒 ` + $( + ${（真实注入向量），保留 ` 但放行裸 $。
     for (const a of opts.args ?? []) {
-      if (/[\n\r`$]/.test(a) || a.includes("$(")) {
+      if (/[\n\r`]/.test(a) || a.includes("$(") || a.includes("${")) {
         return {
           exitCode: -1,
           stdout: "",

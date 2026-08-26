@@ -78,8 +78,21 @@ describe("processSandbox args pre-check (Task5 second layer)", () => {
     expect(r.error).toMatch(/forbidden/);
   });
 
-  test("rejects arg containing $ standalone", async () => {
-    const r = await processSandbox.execute({ command: "echo", args: ["a$b"] });
+  test("allows bare $ (M1: bare $ not rejected, only $()/${)", async () => {
+    const r = await processSandbox.execute({ command: "echo", args: ["$5"] });
+    if (r.exitCode === -1 && r.error?.includes("forbidden")) {
+      throw new Error("bare $ incorrectly rejected after M1 fix");
+    }
+    expect(r.exitCode).not.toBe(-1);
+    const r2 = await processSandbox.execute({ command: "echo", args: ["a$b"] });
+    if (r2.exitCode === -1 && r2.error?.includes("forbidden")) {
+      throw new Error("bare $ a$b incorrectly rejected after M1");
+    }
+    expect(r2.exitCode).not.toBe(-1);
+  });
+
+  test("rejects arg containing ${", async () => {
+    const r = await processSandbox.execute({ command: "echo", args: ["${HOME}"] });
     expect(r.exitCode).toBe(-1);
     expect(r.error).toMatch(/forbidden/);
   });
