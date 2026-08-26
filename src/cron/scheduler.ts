@@ -123,8 +123,12 @@ if (typeof Bun !== "undefined" && Bun.cron) {
   logger.warn("[警告] Bun.cron not available. Run with Bun 1.1+");
 }
 
-process.on("unhandledRejection", (r) => logger.error("[Cron] unhandledRejection", r as Error));
-process.on("uncaughtException", (e) => logger.error("[Cron] uncaughtException", e));
+if (process.listenerCount("unhandledRejection") === 0) {
+  process.on("unhandledRejection", (r) => logger.error("[Cron] unhandledRejection", r as Error));
+}
+if (process.listenerCount("uncaughtException") === 0) {
+  process.on("uncaughtException", (e) => logger.error("[Cron] uncaughtException", e));
+}
 
 // 立即执行一次
 healthCheckTask().catch((e) => logger.warn("[Cron] initial healthCheck failed", { error: e instanceof Error ? e.message : String(e) }));

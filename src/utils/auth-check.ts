@@ -75,7 +75,33 @@ function buildLocalWhitelist(): Set<string> {
   return s;
 }
 
+function computeWhitelistEnvHash(): string {
+  return [
+    readString("AXIOM_GATEWAY_PORT"),
+    readString("GATEWAY_PORT"),
+    readString("PORT"),
+    readString("HOST"),
+    readString("CORS_ORIGINS"),
+  ].join("|");
+}
+
 export const LOCAL_ORIGIN_WHITELIST = buildLocalWhitelist();
+let _whitelistEnvHash: string | null = computeWhitelistEnvHash();
+
+export function getLocalWhitelist(): Set<string> {
+  const h = computeWhitelistEnvHash();
+  if (_whitelistEnvHash === h) return LOCAL_ORIGIN_WHITELIST;
+  const next = buildLocalWhitelist();
+  LOCAL_ORIGIN_WHITELIST.clear();
+  for (const v of next) LOCAL_ORIGIN_WHITELIST.add(v);
+  _whitelistEnvHash = h;
+  return LOCAL_ORIGIN_WHITELIST;
+}
+
+export function rebuildWhitelistForTest(): void {
+  _whitelistEnvHash = null;
+  getLocalWhitelist();
+}
 
 /** 供 ws-auth 复用与测试注入 */
 export function isWhitelistedLocalOrigin(origin: string): boolean {
@@ -83,7 +109,8 @@ export function isWhitelistedLocalOrigin(origin: string): boolean {
     const u = new URL(origin);
     const host = u.host;
     const hostname = u.hostname;
-    return LOCAL_ORIGIN_WHITELIST.has(host) || LOCAL_ORIGIN_WHITELIST.has(hostname);
+    const wl = getLocalWhitelist();
+    return wl.has(host) || wl.has(hostname);
   } catch {
     return false;
   }
@@ -123,8 +150,8 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
         try {
           const originHost = new URL(origin).host;
           const originHostname = new URL(origin).hostname;
-          const whitelisted =
-            LOCAL_ORIGIN_WHITELIST.has(originHost) || LOCAL_ORIGIN_WHITELIST.has(originHostname);
+          const wl = getLocalWhitelist();
+          const whitelisted = wl.has(originHost) || wl.has(originHostname);
           if (!whitelisted) {
             const auth =
               req.headers.get("x-api-key") ||
