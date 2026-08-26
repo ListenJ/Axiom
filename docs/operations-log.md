@@ -6957,8 +6957,11 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
 - **任务**：消化审计剩余 Medium 与可安全落地的 Low 项。
 - **工具**：Read、Bash（bun/go build/go vet/git）、Edit、Write。
 - **操作**（TDD 红绿切片，备份 .tmp/backups/* 验证后删）：
-  1. M4 新建叶子数据模块 src/agents/tool-classifications.ts（TOOL_CLASSIFICATIONS 自 execution-mode 抽出，消除 execution-mode↔risk-monitor 循环依赖，browser_launch 入册 caution/computer-use）；isk-monitor.ts 审查面改为注册表动态派生（filesystem/snapshot→path、terminal→command）并显式补齐 browser_launch(kind=url)/knowledge_ingest_document；isk-screen.ts PayloadKind 扩展 url 及双处标签；新建 	ests/unit/risk-monitor-coverage.test.ts（6 用例）
-  2. M13 untime-go/internal/agent/cluster.go 三处 _ = 静默失败（autoscale 扩容/缩容/proc.Stop）改 slog.Warn；go build ./... && go vet ./internal/agent/ 干净
+  1. M4 新建叶子数据模块 src/agents/tool-classifications.ts（TOOL_CLASSIFICATIONS 自 execution-mode 抽出，消除 execution-mode↔risk-monitor 循环依赖，browser_launch 入册 caution/computer-use）；
+isk-monitor.ts 审查面改为注册表动态派生（filesystem/snapshot→path、terminal→command）并显式补齐 browser_launch(kind=url)/knowledge_ingest_document；
+isk-screen.ts PayloadKind 扩展 url 及双处标签；新建 	ests/unit/risk-monitor-coverage.test.ts（6 用例）
+  2. M13 
+untime-go/internal/agent/cluster.go 三处 _ = 静默失败（autoscale 扩容/缩容/proc.Stop）改 slog.Warn；go build ./... && go vet ./internal/agent/ 干净
   3. M14 核实：当前 CORS 已默认无 ACAO（仅 CORS_ORIGINS=* 显式全开，main.ts:427-456），审计该项对现状失效，无需改动
   4. L7 edge-client/edge-embeddings 头注释与 docs/EDGE-LLM.md 默认端点同步为 127.0.0.1（内网地址降级为示例）
   5. L10 register-external-tools fs_delete 描述对齐实现（仅单文件 unlink）
@@ -7096,5 +7099,5 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. `docs/operations-log.md`：本修复条 + 上条 Commit 注记回退。
   5. `.superpowers/sdd/task-7-report.md`：更正文件统计为 `app.py +14/-7`（最小集，strip+continue 3 + failed 7 + guard 2，含 doc.close 重排；精确 +13/-3 口径下亦符合最小），并追加 C1/C2 回退说明；`.superpowers/sdd/task-7-fix-report.md` 新建。
 - **验证**：`bun test tests/knowledge/pdf-ingest-worker.test.ts` **6 pass / 0 fail**；`python3 -m py_compile scripts/pdf-worker/app.py` **0 错**；`bunx tsc --noEmit` **0 错误**；`git diff bc3e01c -- scripts/pdf-worker/app.py --numstat` = **14 + / 7 -**（最小集）。
-- **Commit**：`fix(pdf-worker): 回退Task7非最小硬化，保留空页strip+continue与全空failed守卫`（含 `scripts/pdf-worker/app.py` + `docs/operations-log.md` + `.superpowers/sdd/task-7-report.md`，`internal211` 待回填）
+- **Commit**：`fix(pdf-worker): 回退Task7非最小硬化，保留空页strip+continue与全空failed守卫`（含 `scripts/pdf-worker/app.py` + `docs/operations-log.md` + `.superpowers/sdd/task-7-report.md`，`internal211` 12a1bc9）
 

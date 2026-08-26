@@ -97,7 +97,7 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         page = doc[page_num]
                         text = page.get_text().strip()
                         if not text:
-                            continue
+                            continue  # 跳过空页，避免噪声页头
                         pages.append(f"## Page {page_num + 1}\n\n{text}")
                     markdown = "\n\n".join(pages)
                     if not markdown.strip():
@@ -109,6 +109,8 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         "metadata": {**src_meta, "pages": len(pages)},
                         "file_path": str(pdf_path),
                     }
+                    doc.close()
+                    tasks[task_id]["progress"] = 0.7
                 except ImportError:
                     output_dir = dest_dir / "mineru_output"
                     output_dir.mkdir(exist_ok=True)
