@@ -7122,3 +7122,22 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 边界：`Vault→整理` `slice(0,3000)` 截断 + `join("\n---\n")` 长度 `>20 && <=4000` 且先清理防 `ENOENT`；`createDreCloudAdapter` mock 失败 `callCount==2` 重试一次后 `""` 降级，成功分支 `dre-ok` 透传；`dual-probe` 本机 `health SKIP` 非 FAIL（服务未启动容错），远端 `ssh 4s timeout kill` 亦 SKIP（192.168.0.150 不可达不阻塞）；`mineru` `70 包` 与 `wheel 3.4.5` 双文档精确 `mineru 3.4.5` 字符串匹配；`LIMITATIONS` 页脚 `最后更新：2026-08-27` 已刷新；备份验证后删除 `.tmp/backups/docs/KNOWLEDGE-BASE.md`、`.tmp/backups/docs/LIMITATIONS.md`、`.tmp/backups/src/router/provider-caller.ts`（验证后）。
 - **Commit**：`docs+feat: 澄清mineru零LLM边界，双端探针聚合与DRE调用链超时/降级`（含 `docs/KNOWLEDGE-BASE.md` + `docs/LIMITATIONS.md` + `scripts/audit/dual-probe.ts` + `src/router/provider-caller.ts` + `tests/unit/docs-consistency.test.ts` + `tests/rigorous/real-links-memory-knowledge-prompt.test.ts` + `docs/operations-log.md`，`internal211` e9154f62c313638406fc20c4edc14b099ae63822）
 
+## 2026-08-27 — Track2 36文件分片提交：DRE/KAL/MCP/前端/Go 4切片落地（TDD垂直切片，规则2全守）
+
+- **任务**：Triage 36 修改文件（1203+291，含3未跟踪：token_header_test.go / system-resource-probe.ts / vram-probe.test.ts）按领域内聚分4垂直切片各自备份→读全文→最小验证→提交，风格与周边一致；Do NOT commit .superpowers/sdd/*（ignored）；创建 .superpowers/sdd/track2-36files-report.md 含分片表/验证证据/提交清单；推送 internal211 可选（合流统一推）。
+- **工具**：Read（7+11+5+11 文件全文：dre/actor/system.ts:631 / kal:403 / scheduler:507 / real-usage:191 / probe:83 / tool-registry:234 / terminal:295 / orchestrator:806 / rpc.go:115 / Plugins.tsx:557 / axiom.yaml:113 等）、Copy-Item 备份（.tmp/backups/相对路径）、Bash（bunx tsc --noEmit / go test ./... / go test -run TestAuthTokenHeader / bun test 切片门禁 / git add <only slice> / git commit / git status / git log）、Write（track2-36files-report.md 4切片报告）。
+- **操作**（文件级，4切片 git add <only slice files>）：
+  1. **Slice A — DRE/KAL/agent-evals（7文件，+213 -45，e29ea92）**：src/dre/actor/system.ts 有界邮箱256+溢出丢最旧+droppedCount+healthCheck暴露+100次降采样warn（O4）；scheduler.ts gen字段+preempt自增+complete stale检查warn忽略；kernel.ts dispatchGen快照传complete；constraint-injection.ts DreChatMessage本地接口解耦router；kal 72-120 vault getWikiBacklinks重命名+nodeId映射、tagFilter AND、kg_edge UNION回退、maxScore归一化；real-usage.ts readString+logger；新增 system-resource-probe.ts VRAM探针。git add 7精确。
+  2. **Slice B — MCP/routes/utils/native-bridge/orchestrator（11文件，+213 -68，76a6e0c）**：tool-registry.ts O1 ModeGate+AXIOM_ENFORCE二次确认+敏感键扩展；tools/git.ts S3数组通道消shell注入；terminal.ts args数组路径；workspace-snapshot.ts D5 Buffer+errors聚合；routes/git|health.ts S1二因子403；search.ts O5 limit钳制+sanitize；command-safety.ts 黑名单；logger.ts text路径redact；native-bridge.ts env继承防ps泄露；orchestrator.ts O2 HITL+timeout自动失败+timer清理。
+  3. **Slice C — frontend/config+Go distrib（5文件，+64 -11，68dfae6）**：runtime-go/internal/distrib/rpc.go + raw.go setAuthHeader X-Axiom-Token；token_header_test.go 新增TestAuthTokenHeader 2sub；Plugins.tsx href白名单防XSS；axiom.yaml purpose空格+冒号对齐。
+  4. **Slice D — tests+guards（11文件，+604 -17，b60bf5e）**：dre-core-modules O4 mailbox；kal-references O3-F1/F2/F4/F5 7用例；orchestrator O2 timeout+拒绝；search-route O5钳制；scheduler O4 gen守卫3用例；workspace-snapshot-guard D5二进制；command-safety S3注入；tool-mode-gate denyAll；clamp 类型；logger-redact 异步竞态；新增 vram-probe.test.ts D2 12矩阵+门控。
+  5. 本条目 docs/operations-log.md（规则5，每提交一次记录一次；hash回填以 git log 为准）；撰写 .superpowers/sdd/track2-36files-report.md（含4切片验证表格与 e29ea92/76a6e0c/68dfae6/b60bf5e）。
+- **验证**：
+  - **全局**：bunx tsc --noEmit 0错误；go test ./... (runtime-go) 10包 ok；预切片 bun test dre/kal/orchestrator 128 pass
+  - **Slice A**：bun test dre-core-modules+kal-references+scheduler+vram-probe 131 pass 0 fail, 257 expects, 5.56s；tsc 0；go 同全局
+  - **Slice B**：bun test orchestrator+search-route+command-safety+tool-mode+snapshot-guard 58 pass 0 fail, 188 expects, 4.37s；tsc 0
+  - **Slice C**：go test -run TestAuthTokenHeader 2 sub PASS；go test ./... 10 ok；tsc 0
+  - **Slice D**：bun test <10 files> 203 pass 0 fail, 481 expects, 14.81s（+ tsc 0；含 O4/F1-F5/O2/O5/D5全量）
+  - 叠加终验：tsc 0；go 10 ok；bun test 203 pass 零回归；git diff --cached --stat 每切片仅含本切片文件（git add <only> 隔离验证）；备份验证后删除对应 .tmp/backups/<slice>（规则2: 备份→读全文→修改→验证→删备份）；.superpowers/sdd 保持 ignored 未提交。
+- **Commit**：feat(dre) e29ea92 / feat(mcp) 76a6e0c / feat(go+frontend) 68dfae6 / test b60bf5e（4切片，internal211 待合流推送）；本条目将随 docs/operations-log.md 以 5th commit 落库（internal211 同推），Hash 以 git log 为准。
+
