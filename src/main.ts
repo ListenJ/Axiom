@@ -627,11 +627,14 @@ const server = Bun.serve({
     // WebSocket — verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
       const wsAuth = checkWsUpgradeAuth({
-        headerAuth: req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "") || null,
+        headerAuth: req.headers.get("x-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || null,
         protocolHeader: req.headers.get("sec-websocket-protocol") ?? null,
         queryToken: url.searchParams.get("token") ?? null,
         isLocal,
         apiKey: API_KEY,
+        // S2 CSWSH 修复：透传 Origin/Host 供本地同源判定
+        origin: req.headers.get("origin"),
+        host: req.headers.get("host") ?? undefined,
       });
       if (!wsAuth.ok) {
         auditLogger.log({

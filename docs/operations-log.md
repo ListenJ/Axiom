@@ -408,6 +408,22 @@
   - 备份验证后删除 `.tmp/backups/src/utils/auth-check.ts`、`.tmp/backups/tests/unit/csrf-origin.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
 - **Commit**：`7c935bc` `fix(auth): Origin白名单化闭环DNS重绑定，Host去信任，P2 r.evil.com 同域由200→401`1`（含 `auth-check.ts` + `csrf-origin.test.ts` + `operations-log.md` + `task-2-report.md`，`internal211`）
 
+## 2026-08-27 — Slice1 Task3：WS 鉴权一致化与 terminal 二层强制认证（白名单+Bearer 统一）
+
+- **任务**：闭环 Task1 harness 实锤的 WS-P2 VULN（`isLocal` 无条件放行，`r.evil.com` Origin 可劫持本地 WS）与 `terminal`/`sandbox` 二层不一致（`terminal` 创建/输入/关闭未做 `requireAuthToken` 二次校验，`isLocal` 时可直通）。WS 侧与 HTTP 侧 `LOCAL_ORIGIN_WHITELIST` 同源白名单化；`terminal` 三写操作一律 `requireAuthToken`（未配 503/未带 401）再 `requireSecondFactor`（fail-open）；并修正 `auth-check.ts:160`/`main.ts:630` 的 `Bearer ` 字面量与 `auth-check.ts:121`/`terminal.ts:24` 的 `/^Bearer\s+/i` 不一致。
+- **工具**：Read（`src/utils/ws-auth.ts:1-91` 全文、`src/routes/terminal.ts:1-155` 全文、`src/routes/route-auth.ts:37`、`src/utils/auth-check.ts:44-162`、`src/main.ts:628-638`、`tests/unit/auth-rebinding.test.ts`/`csrf-origin.test.ts`）、Edit（`ws-auth.ts`/`terminal.ts`/`auth-check.ts`/`main.ts`）、Write（`tests/unit/ws-rebinding.test.ts`）、Bash（`bun test`/`bun -e` `bunx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/ws-auth.ts` → `.tmp/backups/src/utils/ws-auth.ts`；`src/routes/terminal.ts` → `.tmp/backups/src/routes/terminal.ts`；`src/utils/auth-check.ts` → `.tmp/backups/src/utils/auth-check.ts`；`src/main.ts` → `.tmp/backups/src/main.ts`（规则2，通读全文后最小改动）。
+  2. 新建 `tests/unit/ws-rebinding.test.ts`（3 用例，`bun:test`）：`local + evil Origin without cred → deny` / `local + evil Origin with valid cred → allow` / `local no Origin → allow`（TDD harness，首跑 1 fail/2 pass，确证 `true→false`）。
+  3. 修改 `src/utils/ws-auth.ts:17,64-91`：`import { LOCAL_ORIGIN_WHITELIST }`；新增 `origin/host` 可选字段；抽 `credentialGate`；重写 `isLocal` 分支为白名单判定（`new URL(origin).host/hostname ∈ LOCAL_ORIGIN_WHITELIST` 则放行，否则 `credentialGate` 拒 `cross-origin WebSocket upgrade requires a valid API key`；`invalid Origin → false`；`Host` 去信任仅作注释保留），注释更新为 `2026-08-27 Task3 白名单化`。
+  4. 修改 `src/routes/terminal.ts:7-32,51-54,118-124,138-144`：新增 `import { requireAuthToken }` + `requireSecondFactorToken`（`AXIOM_SECOND_FACTOR_TOKEN` fail-open，与 `sandbox.ts:9` 二层语义一致）；`handleTerminalCreate:51`/`handleTerminalInput:118`/`handleTerminalClose:138` 顶部均插入 `requireAuthToken`→`requireSecondFactorToken` 双闸（`isLocal` 亦强制，闭环与 `sandbox.execute` 一致）。
+  5. 修正 `src/utils/auth-check.ts:160` 与 `src/main.ts:630`：`replace("Bearer ", "")` → `replace(/^Bearer\s+/i, "")`（大小写/多空格统一，去 BOM 后 `terminal.ts` 无 BOM）。
+  6. 本条目 `docs/operations-log.md`；撰写 `.superpowers/sdd/task-3-report.md`（含 RED→GREEN 表格与 14 断言边界探针）。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/unit/ws-rebinding.test.ts` 首跑 1 fail（`expected false Received true` at `local+evil without cred`）→ 3 pass/0 fail；合测 `ws-rebinding + auth-rebinding + csrf-origin` = 14 pass/0 fail（ws 3 + auth 6 + csrf 5，含 `localhost/127.0.0.1` 白名单放行与 `invalid Origin`/`bearer` 变体）；`bunx tsc --noEmit` 0 错误；`bun -e` 10 边界（`localhost`/`localhost:18789`/`127.0.0.1:18789` 白名单/`r.evil.com` 拒/`subprotocol`/`queryToken` 凭证放行/`invalid Origin` 拒/远程无凭据拒/有凭据放行/terminal 无 token 401/有 token 200/`bearer` 小写/多空格）全绿；`handleTerminal*` 5 断言（401→200）全绿。
+  - 备份验证后删除 `.tmp/backups/src/utils/ws-auth.ts`、`.tmp/backups/src/routes/terminal.ts`、`.tmp/backups/src/utils/auth-check.ts`、`.tmp/backups/src/main.ts`（验证后）。
+- **Commit**：`<pending>` `fix(auth): WS同源白名单化与terminal强制二层认证，消除与sandbox二层不一致`（含 `ws-auth.ts` + `terminal.ts` + `auth-check.ts` + `main.ts` + `ws-rebinding.test.ts` + `operations-log.md` + `task-3-report.md`，`internal211`）
+
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
 - **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
 - **操作**（文件级）：

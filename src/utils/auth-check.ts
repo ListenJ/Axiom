@@ -157,6 +157,6 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   }
   // WebSocket: check auth in upgrade handler, not here
   if (path === "/ws") return true;
-  const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
+  const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   return safeStringEqual(auth, apiKey);
 }

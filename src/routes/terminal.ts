@@ -5,9 +5,32 @@
  * 前置鉴权：主入口 checkApiKey 已覆盖（非 PUBLIC_PATHS 路径全部要求 token）。
  */
 import type { RouteContext } from "./types.js";
+import { readString } from "../utils/env.js";
 import { createPtySession, getSession, listSessions, ptySessionStats } from "../terminal/pty-session.js";
 import { CommandGate } from "../terminal/command-gate.js";
 import type { PtySession } from "../terminal/pty-session.js";
+import { safeStringEqual } from "../utils/auth-check.js";
+import { requireAuthToken } from "./route-auth.js";
+
+/**
+ * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
+ * 放行（fail-open，与 sandbox.ts requireAuthToken 调用语义一致）；
+ * 配置后不匹配 → 403。
+ */
+function requireSecondFactorToken(ctx: RouteContext): Response | null {
+  const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
+  if (!expected) return null;
+  const provided =
+    ctx.req.headers.get("x-api-key") ||
+    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+  if (safeStringEqual(provided, expected)) return null;
+  return ctx.jsonResponse(
+    { error: "Unauthorized - second factor token required" },
+    403,
+    ctx.baseHeaders,
+  );
+}
 
 /** 每会话审批门（懒创建）；会话退出/关闭时清理，避免 listener 残留 */
 const gates = new Map<string, CommandGate>();
@@ -28,6 +51,10 @@ function sse(data: string): string {
 /** POST /terminal/session — 创建交互式终端会话 */
 export async function handleTerminalCreate(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/terminal/session" || ctx.req.method !== "POST") return null;
+  const authErr0 = requireAuthToken(ctx);
+  if (authErr0) return authErr0;
+  const secondErr = requireSecondFactorToken(ctx);
+  if (secondErr) return secondErr;
   try {
     const session = createPtySession();
     gateFor(session);
@@ -94,6 +121,10 @@ export async function handleTerminalStream(ctx: RouteContext): Promise<Response 
 export async function handleTerminalInput(ctx: RouteContext): Promise<Response | null> {
   const match = ctx.url.pathname.match(/^\/terminal\/session\/([^/]+)\/input$/);
   if (!match || ctx.req.method !== "POST") return null;
+  const authErr0 = requireAuthToken(ctx);
+  if (authErr0) return authErr0;
+  const secondErr = requireSecondFactorToken(ctx);
+  if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
     return ctx.jsonResponse({ error: "session not found" }, 404, ctx.baseHeaders);
@@ -115,6 +146,10 @@ export async function handleTerminalInput(ctx: RouteContext): Promise<Response |
 export async function handleTerminalClose(ctx: RouteContext): Promise<Response | null> {
   const match = ctx.url.pathname.match(/^\/terminal\/session\/([^/]+)$/);
   if (!match || ctx.req.method !== "DELETE") return null;
+  const authErr0 = requireAuthToken(ctx);
+  if (authErr0) return authErr0;
+  const secondErr = requireSecondFactorToken(ctx);
+  if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
     return ctx.jsonResponse({ error: "session not found" }, 404, ctx.baseHeaders);
