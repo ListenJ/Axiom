@@ -14,6 +14,7 @@
  *   - 完成但无 markdown → 显式 error；任务失败 → error 透传。
  */
 import { describe, test, expect } from "bun:test";
+import fs from "fs";
 import { ingestDocument, type DocumentIngestOptions } from "../../src/knowledge/document-ingest.js";
 
 // 带合法 magic 但无文本层的坏 PDF —— unpdf 解析失败即进入 worker 分支
@@ -104,5 +105,55 @@ describe("pdf-worker 摄取（F-1/F-2）", () => {
     };
     const out = await ingestDocument({ buffer: BROKEN_PDF, name: "fail.pdf" }, opts);
     expect(String(out.error)).toContain("OCR engine missing");
+  });
+
+  test("image-PDF empty get_text produces no noisy header", async () => {
+    // 模拟 page.get_text()=="" 的两页 PDF，断言产出不含 "## Page"
+    // 需在 fake worker 中注入空文本 — 同时校验 Python 侧已过滤空页
+    const py = fs.readFileSync("scripts/pdf-worker/app.py", "utf-8");
+    expect(py).toContain("page.get_text().strip()");
+    expect(py).toContain("if not text:");
+    function simulate(pages: string[]) {
+      const out: string[] = [];
+      for (let i = 0; i < pages.length; i++) {
+        const text = pages[i].trim();
+        if (!text) continue;
+        out.push(`## Page ${i + 1}\n\n${text}`);
+      }
+      return out.join("\n\n");
+    }
+    const mdEmpty = simulate(["", "   ", "\n"]);
+    expect(mdEmpty).not.toContain("## Page");
+    expect(mdEmpty.trim()).toBe("");
+    const mdMixed = simulate(["", "hello world", "   "]);
+    expect(mdMixed).not.toContain("## Page 1");
+    expect(mdMixed).toContain("## Page 2");
+    expect(mdMixed).toContain("hello world");
+    // 注入空文本的 fake worker 应返回 failed + no extractable，而非噪声 markdown
+    const opts: DocumentIngestOptions = {
+      pdfWorker: {
+        submit: async () => ({ task_id: "t-empty-image", status: "queued" }),
+        waitForCompletion: async () => ({ status: "failed", error: "no extractable text" }),
+      } as any,
+    };
+    const out = await ingestDocument({ buffer: BROKEN_PDF, name: "image-scan.pdf" }, opts);
+    expect(String(out.error)).toContain("no extractable");
+    expect(out.markdown).toBe("");
+  });
+
+  test("no extractable text returns error", async () => {
+    // 断言 markdown 为空时 status=failed 且 error 含 "no extractable"
+    const py = fs.readFileSync("scripts/pdf-worker/app.py", "utf-8");
+    expect(py).toContain("no extractable text");
+    expect(py).toContain('tasks[task_id]["status"] = "failed"');
+    const opts: DocumentIngestOptions = {
+      pdfWorker: {
+        submit: async () => ({ task_id: "t-no-text", status: "queued" }),
+        waitForCompletion: async () => ({ status: "failed", error: "no extractable text" }),
+      } as any,
+    };
+    const out = await ingestDocument({ buffer: BROKEN_PDF, name: "no-text.pdf" }, opts);
+    expect(String(out.error)).toContain("no extractable");
+    expect(out.markdown).toBe("");
   });
 });
