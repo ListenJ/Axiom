@@ -71,6 +71,7 @@ describe("O1b: Agent/YOLO 审批门控（AXIOM_ENFORCE_MODE_APPROVAL=1）", () =
         requests.push({ id: "fake", tool, args, risk: (opts as { risk?: ApprovalRequest["risk"] })?.risk ?? "unknown", requestedAt: Date.now(), timeoutMs: 0 });
         return false;
       },
+      denyAll: () => 0,
     };
     setApprovalBridge(fake as unknown as ApprovalBridge);
   }

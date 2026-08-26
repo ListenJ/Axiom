@@ -32,8 +32,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   logger.close();
+  // writeStream.end() 是异步落盘；给一拍时间避免 unlink/rmdir 与在途写入竞态
+  await new Promise((resolve) => setTimeout(resolve, 30));
   try {
     const entries = fs.readdirSync(tmpDir);
     for (const e of entries) fs.unlinkSync(path.join(tmpDir, e));

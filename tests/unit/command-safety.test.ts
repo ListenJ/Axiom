@@ -2,8 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, beforeAll, afterAll } fr
 import { sanitizeCommand } from "../../src/utils/command-safety";
 import { executeCommand } from "../../src/mcp/tools/terminal";
 import { gitCommit, gitLog, gitBlame, gitDiff } from "../../src/mcp/tools/git";
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
@@ -109,7 +108,10 @@ describe("git.ts 数组通道迁移（S3 注入中和，临时真实仓库）", 
   let repoDir = "";
 
   beforeAll(() => {
-    repoDir = mkdtempSync(join(tmpdir(), "s3-git-"));
+    // 固定仓库放在工作区 .tmp/ 下：executeCommand 的 cwd 围栏（M5）只放行项目内目录
+    const base = join(process.cwd(), ".tmp");
+    mkdirSync(base, { recursive: true });
+    repoDir = mkdtempSync(join(base, "s3-git-"));
     execFileSync("git", ["init"], { cwd: repoDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: repoDir });
     execFileSync("git", ["config", "user.name", "tester"], { cwd: repoDir });

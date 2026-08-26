@@ -55,7 +55,7 @@ describe("D1：canRun=false 时禁止直发本地 LLM（2026-08-25 整改）", (
     globalThis.fetch = (async () => {
       fetchCalls++;
       return new Response("{}", { status: 200 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const client = new LLMClient({ baseUrl: "http://127.0.0.1:1", model: "test" });
     const err: Error & { code?: string; retriable?: boolean } | null = await client
@@ -80,7 +80,7 @@ describe("D1：canRun=false 时禁止直发本地 LLM（2026-08-25 整改）", (
     globalThis.fetch = (async () => {
       fetchCalls++;
       return new Response("{}", { status: 200 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const client = new LLMClient({ baseUrl: "http://127.0.0.1:1", model: "test" });
     let caught: unknown = null;

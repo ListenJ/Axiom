@@ -246,6 +246,72 @@ describe("AgentOrchestrator", () => {
   });
 });
 
+describe("Orchestrator 超时与确认闭环（审计整改 O2）", () => {
+  test("task.timeout 到期 → failed 且 error 含 timeout", async () => {
+    const orch = new AgentOrchestrator();
+    orch.getRegistry().register({
+      id: "hang-agent",
+      name: "Hang Agent",
+      description: "",
+      capabilities: ["hang"],
+      execute: () => new Promise(() => {}), // 永挂
+      healthCheck: async () => true,
+    });
+
+    const result = await orch.executeTask({
+      id: "t-timeout",
+      type: "hang",
+      description: "never finishes",
+      input: {},
+      timeout: 50,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("timeout");
+  });
+
+  test("requireConfirmation=true 且审批被拒 → 任务不执行", async () => {
+    const { ApprovalBridge, setApprovalBridge } = await import("../src/utils/approval-bridge.js");
+    const orch = new AgentOrchestrator();
+    let executed = false;
+    orch.getRegistry().register({
+      id: "conf-agent",
+      name: "Conf Agent",
+      description: "",
+      capabilities: ["conf"],
+      execute: async () => {
+        executed = true;
+        return { taskId: "t-conf", agentId: "conf-agent", success: true, duration: 1 };
+      },
+      healthCheck: async () => true,
+    });
+
+    const requests: Array<{ tool: string }> = [];
+    const fakeBridge = {
+      request: async (tool: string) => {
+        requests.push({ tool });
+        return false; // 用户拒绝
+      },
+      denyAll: () => 0,
+    };
+    setApprovalBridge(fakeBridge as never);
+    try {
+      const result = await orch.executeTask({
+        id: "t-conf",
+        type: "conf",
+        description: "needs human confirmation",
+        input: {},
+        requireConfirmation: true,
+      });
+      expect(result.success).toBe(false);
+      expect(executed).toBe(false);
+      expect(requests.length).toBe(1);
+    } finally {
+      setApprovalBridge(new ApprovalBridge());
+    }
+  });
+});
+
 describe("Built-in Agents", () => {
   test("InternalAgent capabilities", () => {
     const agent = new InternalAgent();
