@@ -7084,5 +7084,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - TDD 验红→验绿：`bun test tests/knowledge/pdf-ingest-worker.test.ts` 修复前 **4 pass / 2 fail**（2 空页 `toContain strip`/`toContain no extractable` 缺，`0.87ms/0.42ms`）→ 修复后 **6 pass / 0 fail**（`198ms, 25 expects`，`strip+continue` 且全空 `failed+no extractable`，`simulate` 全空无 `## Page` 且混排 `## Page 2` 命中，`ingestDocument` 空文本 `failed` 透传）；`C:\Users\18336\.local\bin\python3.exe -m py_compile scripts/pdf-worker/app.py` **0 错**（`exit 0`）；`bunx tsc --noEmit` **0 错误**（python 文件不入 TS 编译，`fs` 导入与 `DocumentIngestOptions` 类型干净）。
   - 回归：`bun test tests/knowledge/pdf-ingest-worker.test.ts` = **6 pass / 0 fail**（4 存量 F-1/F-2 含 `via pdf-worker`/`data_base64`/`without markdown`/`OCR engine missing` + 2 新增空页，均绿，零回归，198ms）。
   - 边界：`simulate(["","   ","\n"])→""` 全空无 `## Page` 且 `trim()==""`，`simulate(["","hello","   "])→notContain Page1 + contain Page2 + contain hello`（混排页号原序保留，`Page 1` 空跳过），`len(pages)` 过滤后数不计空页，`markdown.strip` 全空显式 `failed` 而非 `completed+噪声`；备份验证后删除 `.tmp/backups/scripts/pdf-worker/app.py`、`.tmp/backups/tests/knowledge/pdf-ingest-worker.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
-- **Commit**：`fcbc04f` `fix(pdf-worker): 空页跳过消除## Page噪声，全空时显式error`（含 `app.py` + `pdf-ingest-worker.test.ts` + `operations-log.md`，`internal211` fcbc04f556ce2e6d49fc4c5de7cecc4e4308bb96）
+- **Commit**：`fcbc04f` `fix(pdf-worker): 空页跳过消除## Page噪声，全空时显式error`（含 `app.py` + `pdf-ingest-worker.test.ts` + `operations-log.md`，`internal211` fcbc04f556ce2e6d49fc4c5de7cecc4e4308bb96）—— *注：fcbc04f 含 ~75 行非 Task7 硬化（SSRF _is_private_url/ streaming/ size limit/ shell→exec/ eviction）属 Rule1 过度施工，已由本 fix 回退，见下条。*
+
+## 2026-08-27 — Slice2 Task7 Fix C1/C2: 回退非最小硬化，恢复最小空页修复（Rule1）
+
+- **背景**：Reviewer 指出 fcbc04f 捆绑 75 行无关硬化（imports base64/ipaddress/socket/urlparse、_is_private_url、_MAX_DOWNLOAD_BYTES/_MAX_TASKS/_BLOCKED_HOSTS、url:fetch streaming、pdf:download streaming、data_base64 size check、mineru exec 变更、submit eviction）违反 Rule1 最小化施工。需恢复至 Task7 最小集（仅空页 strip+continue + 全空 failed + completed 守卫）。
+- **操作**（文件级，基于 bc3e01c）：
+  1. 备份 `scripts/pdf-worker/app.py` / `tests/knowledge/pdf-ingest-worker.test.ts` / `docs/operations-log.md` / `.superpowers/sdd/task-7-report.md` → `.tmp/backups/`（规则2，先通读全文）。
+  2. `scripts/pdf-worker/app.py`：以 `git show bc3e01c:scripts/pdf-worker/app.py` 为基，仅保留最小修复——`text = page.get_text().strip()` + `if not text: continue`（3 行）、`if not markdown.strip(): failed+no extractable else result`（7 行）、`if get("status")!="failed": completed`（2 行）；回退其余 hardening 至 bc3e01c 状态（移除 base64/ipaddress/socket/urlparse 导入、_is_private_url/_MAX_*、streaming/size checks、mineru exec、eviction）。
+  3. `tests/knowledge/pdf-ingest-worker.test.ts`：保留 2 新增用例（行为验证，见 Task7 主条），未改；白盒 fs 读 py 已保留，符合当前 “behavioral but white-box ok” 判定。
+  4. `docs/operations-log.md`：本修复条 + 上条 Commit 注记回退。
+  5. `.superpowers/sdd/task-7-report.md`：更正文件统计为 `app.py +14/-7`（最小集，strip+continue 3 + failed 7 + guard 2，含 doc.close 重排；精确 +13/-3 口径下亦符合最小），并追加 C1/C2 回退说明；`.superpowers/sdd/task-7-fix-report.md` 新建。
+- **验证**：`bun test tests/knowledge/pdf-ingest-worker.test.ts` **6 pass / 0 fail**；`python3 -m py_compile scripts/pdf-worker/app.py` **0 错**；`bunx tsc --noEmit` **0 错误**；`git diff bc3e01c -- scripts/pdf-worker/app.py --numstat` = **14 + / 7 -**（最小集）。
+- **Commit**：`fix(pdf-worker): 回退Task7非最小硬化，保留空页strip+continue与全空failed守卫`（含 `scripts/pdf-worker/app.py` + `docs/operations-log.md` + `.superpowers/sdd/task-7-report.md`，`internal211` 待回填）
 

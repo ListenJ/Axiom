@@ -1,14 +1,10 @@
-﻿"""PDF Worker — FastAPI service for MinerU PDF→Markdown conversion"""
+"""PDF Worker — FastAPI service for MinerU PDF→Markdown conversion"""
 import asyncio
-import base64
-import ipaddress
 import json
 import os
-import socket
 import time
 import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -22,28 +18,6 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 tasks: dict[str, dict] = {}
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", "2"))
 semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-
-_MAX_DOWNLOAD_BYTES = int(os.environ.get("PDFWORKER_MAX_BYTES", str(50 * 1024 * 1024)))
-_MAX_TASKS = 500
-_BLOCKED_HOSTS = {"localhost", "metadata.google.internal", "169.254.169.254"}
-
-
-def _is_private_url(url: str) -> bool:
-    """True = 必须拒绝（私网/环回/链路本地/保留段/非 http(s)/解析失败）。"""
-    try:
-        p = urlparse(url)
-        if p.scheme not in ("http", "https"):
-            return True
-        host = p.hostname or ""
-        if host.lower() in _BLOCKED_HOSTS:
-            return True
-        for info in socket.getaddrinfo(host, None):
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return True
-        return False
-    except Exception:
-        return True
 
 
 class SubmitRequest(BaseModel):
@@ -67,41 +41,26 @@ async def run_task(task_id: str, task_type: str, payload: dict):
 
             if task_type == "url:fetch":
                 url = payload["url"]
-                if _is_private_url(url):
-                    raise HTTPException(403, "blocked url")
-                buf = bytearray()
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    async with client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                        resp.raise_for_status()
-                        status_code = resp.status_code
-                        async for chunk in resp.aiter_bytes():
-                            buf.extend(chunk)
-                            if len(buf) > _MAX_DOWNLOAD_BYTES:
-                                raise HTTPException(413, "download too large")
-                tasks[task_id]["result"] = {
-                    "markdown": bytes(buf).decode("utf-8", errors="replace"),
-                    "metadata": {"url": url, "status": status_code},
-                }
+                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    resp.raise_for_status()
+                    tasks[task_id]["result"] = {
+                        "markdown": resp.text,
+                        "metadata": {"url": url, "status": resp.status_code},
+                    }
 
             elif task_type == "pdf:download":
                 url = payload["url"]
-                if _is_private_url(url):
-                    raise HTTPException(403, "blocked url")
                 dest = CACHE_DIR / task_id / "input.pdf"
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
-                buf = bytearray()
                 async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
-                    async with client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                        resp.raise_for_status()
-                        async for chunk in resp.aiter_bytes():
-                            buf.extend(chunk)
-                            if len(buf) > _MAX_DOWNLOAD_BYTES:
-                                raise HTTPException(413, "download too large")
-                dest.write_bytes(bytes(buf))
+                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    resp.raise_for_status()
+                    dest.write_bytes(resp.content)
                 tasks[task_id]["result"] = {
                     "file_path": str(dest),
-                    "metadata": {"url": url, "size_bytes": len(buf)},
+                    "metadata": {"url": url, "size_bytes": len(resp.content)},
                 }
 
             elif task_type == "pdf:convert" or task_type == "pdf:text":
@@ -116,22 +75,14 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                 data_b64 = payload.get("data_base64")
                 url = payload.get("url")
                 if data_b64:
-                    if len(data_b64) * 3 // 4 > _MAX_DOWNLOAD_BYTES:
-                        raise HTTPException(413, "payload too large")
-                    pdf_path.write_bytes(base64.b64decode(data_b64))
+                    import base64 as _base64
+                    pdf_path.write_bytes(_base64.b64decode(data_b64))
                     src_meta = {"source": payload.get("name", "inline")}
                 elif url:
-                    if _is_private_url(url):
-                        raise HTTPException(403, "blocked url")
-                    buf = bytearray()
                     async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
-                        async with client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                            resp.raise_for_status()
-                            async for chunk in resp.aiter_bytes():
-                                buf.extend(chunk)
-                                if len(buf) > _MAX_DOWNLOAD_BYTES:
-                                    raise HTTPException(413, "download too large")
-                    pdf_path.write_bytes(bytes(buf))
+                        resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                        resp.raise_for_status()
+                        pdf_path.write_bytes(resp.content)
                     src_meta = {"url": url}
                 else:
                     raise KeyError("payload requires 'url' or 'data_base64'")
@@ -146,7 +97,7 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         page = doc[page_num]
                         text = page.get_text().strip()
                         if not text:
-                            continue  # 跳过空页，避免噪声页头
+                            continue
                         pages.append(f"## Page {page_num + 1}\n\n{text}")
                     markdown = "\n\n".join(pages)
                     if not markdown.strip():
@@ -154,18 +105,16 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         tasks[task_id]["error"] = "no extractable text"
                     else:
                         tasks[task_id]["result"] = {
-                            "markdown": markdown,
-                            "metadata": {**src_meta, "pages": len(pages)},
-                            "file_path": str(pdf_path),
-                        }
-                    doc.close()
-                    tasks[task_id]["progress"] = 0.7
+                        "markdown": markdown,
+                        "metadata": {**src_meta, "pages": len(pages)},
+                        "file_path": str(pdf_path),
+                    }
                 except ImportError:
                     output_dir = dest_dir / "mineru_output"
                     output_dir.mkdir(exist_ok=True)
-                    cmd = ["mineru", "--cpu=true", "--pdf", str(pdf_path), "--output-dir", str(output_dir)]
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    cmd = f"mineru --cpu=true --pdf {pdf_path} --output-dir {output_dir}"
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                     )
                     stdout, stderr = await proc.communicate()
                     if proc.returncode != 0:
@@ -191,13 +140,6 @@ async def run_task(task_id: str, task_type: str, payload: dict):
 
 @app.post("/v1/submit")
 async def submit(req: SubmitRequest):
-    while len(tasks) >= _MAX_TASKS:
-        for old_id, old in list(tasks.items()):
-            if old["status"] in ("completed", "failed"):
-                del tasks[old_id]
-                break
-        else:
-            break
     task_id = str(uuid.uuid4())
     tasks[task_id] = {"status": "queued", "progress": 0.0}
     asyncio.create_task(run_task(task_id, req.task_type, req.payload))
