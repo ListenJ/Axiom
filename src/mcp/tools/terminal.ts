@@ -48,6 +48,8 @@ export async function executeCommand(
     timeout?: number;
     env?: Record<string, string>;
     shell?: boolean;
+    /** S3 审计修复：显式参数数组——提供时走非 shell 数组执行路径，command 仅作可执行文件名 */
+    args?: string[];
   }
 ): Promise<CommandResult> {
   const safety = sanitizeCommand(command);
@@ -83,7 +85,11 @@ export async function executeCommand(
 
     let args: string[];
     let cmd: string;
-    if (shell) {
+    if (options?.args) {
+      // S3 数组通道：参数逐项传给可执行文件，不经任何 shell 解释（注入面消除）
+      cmd = command;
+      args = options.args;
+    } else if (shell) {
       cmd = isWin ? "cmd" : "sh";
       args = isWin ? ["/c", command] : ["-c", command];
     } else {

@@ -74,15 +74,15 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
       "--vault-path", nativeConfig.vaultPath,
       "--log-level", readString("LOG_LEVEL", "info"),
     ];
-    if (nativeConfig.edition === "cloud") {
-      if (nativeConfig.databaseUrl) args.push("--database-url", nativeConfig.databaseUrl);
-      if (nativeConfig.redisUrl) args.push("--redis-url", nativeConfig.redisUrl);
-    } else {
-      if (nativeConfig.dbPath) args.push("--db-path", nativeConfig.dbPath);
+    // Credentials (DATABASE_URL / REDIS_URL) are never passed via argv — they are
+    // inherited through process.env and read by clap's `env` attributes.
+    if (nativeConfig.edition !== "cloud" && nativeConfig.dbPath) {
+      args.push("--db-path", nativeConfig.dbPath);
     }
 
     nativeProcess = Bun.spawn({
       cmd: [binaryPath, ...args],
+      env: { ...process.env },
       stdout: "inherit",
       stderr: "inherit",
       onExit: (_proc, exitCode) => {

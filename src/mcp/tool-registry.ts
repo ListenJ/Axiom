@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unified MCP Tool Registry
  * 
  * Eliminates duplication between stdio and HTTP transport registrations.
@@ -10,6 +10,7 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
+import { readString } from "../utils/env.js";
 
 /** 工具可见性：internal 仅内部 Agent，external 可被外部 MCP 使用 */
 export type ToolExposure = "internal" | "external" | "safe-external";
@@ -27,6 +28,26 @@ export type ToolGuard = (toolName: string, args: Record<string, unknown>) => Pro
  * 懒加载 import 避免 registry 在启动早期拉入 router 依赖链。
  */
 async function defaultToolGuard(toolName: string, args: Record<string, unknown>): Promise<void> {
+  // ── ⓪ 执行模式门控（审计 O1，2026-08-25）──
+  // Plan 封禁无条件生效（blockedTools/破坏性/未分类工具直接拒绝）；
+  // YOLO 直通；Agent 默认保持现行为不强制审批，
+  // 强制审批仅在 AXIOM_ENFORCE_MODE_APPROVAL=1 时经 approval-bridge 启用。
+  const { executionMode } = await import("../agents/execution-mode.js");
+  const modeCheck = executionMode.canExecute(toolName);
+  if (!modeCheck.allowed) {
+    throw new Error(`[ModeGate] ${modeCheck.reason ?? `tool "${toolName}" blocked in ${executionMode.getMode()} mode`}`);
+  }
+  if (
+    executionMode.getMode() !== "yolo" &&
+    readString("AXIOM_ENFORCE_MODE_APPROVAL") === "1" &&
+    executionMode.needsApproval(toolName)
+  ) {
+    const approved = await executionMode.requestApproval(toolName, args);
+    if (!approved) {
+      throw new Error(`[ModeGate] approval denied for ${toolName}`);
+    }
+  }
+
   // ── ① 权限硬底线（审计 C-3，2026-08-24）──
   // permissions.ts 的 HIGH_RISK_PATTERNS / 敏感路径规则此前是零调用方的死代码。
   // 现在所有 MCP 工具执行前统一过闸：高危命令/敏感路径操作直接拒绝，
@@ -40,7 +61,7 @@ async function defaultToolGuard(toolName: string, args: Record<string, unknown>)
         throw new Error(`[HardFloor] ${c.reason ?? "high-risk command"} (tool=${toolName}, field=${key})`);
       }
     }
-    if (/^(path|file|target|destination|from|to)$/i.test(key)) {
+    if (/^(path|file|filePath|target|destination|source|from|to|repoPath|cwd|dir)$/i.test(key)) {
       const op = /delete|remove/i.test(toolName) ? ("delete" as const)
         : /write|create|move/i.test(toolName) ? ("write" as const)
         : ("read" as const);

@@ -190,8 +190,13 @@ class Logger {
 
     const color = this.opts.enableColors ? LEVEL_COLORS[entry.level] : "";
     const reset = this.opts.enableColors ? RESET : "";
-    const ctxStr = Object.keys(entry.context || {}).length
-      ? " " + JSON.stringify(entry.context)
+    // 整改 D4（2026-08-25）：text 路径与 json 路径同样过 redactContext，
+    // 防止 context 中密钥值经 console 明文输出。
+    const safeCtx = entry.context && Object.keys(entry.context).length
+      ? this.redactContext(entry.context)
+      : entry.context;
+    const ctxStr = safeCtx && Object.keys(safeCtx).length
+      ? " " + JSON.stringify(safeCtx)
       : "";
     const errStr = entry.error ? `\n${entry.error.stack || entry.error.message}` : "";
 

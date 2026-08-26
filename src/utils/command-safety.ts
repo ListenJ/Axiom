@@ -30,6 +30,11 @@ const DANGEROUS_PATTERNS = [
   /(?:^|\s)shutdown\s+.*\/[sr]/i,
   /\bRemove-Item\b/i,
   /\b(?:powershell|pwsh)(?:\.exe)?\b.*(?:Remove-Item|EncodedCommand|Invoke-Expression)/i,
+  // S3 审计加固（2026-08-25）：$()/反引号命令替换与 %VAR% 扩展在双引号内仍然生效，
+  // 引号转义无法中和 → 黑名单字符串通道无条件拒绝（args 数组通道不经 shell，不受影响）。
+  /\$\(/,
+  /`/,
+  /%[A-Za-z_]\w*%/,
 ];
 
 // 结构性原语：间接执行与解码-管道-执行，黑名单模式下无条件拦截

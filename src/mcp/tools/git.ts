@@ -126,28 +126,27 @@ export async function gitDiff(
     since?: string;
   }
 ): Promise<GitDiffResult> {
-  // 审计 C-1（2026-08-24）：since 由客户端可控且此前未过滤即拼入 shell 命令，
-  // 构成命令注入。与 gitShow 的 ref 白名单策略对齐：字符集校验，不合法直接拒绝。
+  // S3 审计修复（2026-08-25）：file/since 等客户端可控参数改走数组通道，
+  // 不经 shell 解释，注入面消除（since 字符集校验保留作纵深防御）。
   if (options?.since !== undefined && !/^[A-Za-z0-9._\-\/]+$/.test(options.since)) {
     return {
       success: false,
       error: "Invalid revision: contains unsafe characters",
     };
   }
-  let cmd = "git diff";
+  const diffArgs = ["diff"];
   if (options?.staged) {
-    cmd += " --staged";
+    diffArgs.push("--staged");
   }
   if (options?.since) {
-    cmd += ` ${options.since}..HEAD`;
+    diffArgs.push(`${options.since}..HEAD`);
   }
   if (options?.file) {
-    const safeFile = options.file.replace(/"/g, '\\"');
-    cmd += ` -- "${safeFile}"`;
+    diffArgs.push("--", options.file);
   }
-  cmd += " --stat";
+  diffArgs.push("--stat");
 
-  const result = await executeCommand(cmd, { cwd: repoPath, timeout: 15000 });
+  const result = await executeCommand("git", { args: diffArgs, cwd: repoPath, timeout: 15000 });
 
   if (!result.success) {
     return {
@@ -181,11 +180,16 @@ export async function gitDiff(
   // Also get full diff if a specific file was requested
   let fullDiff: string | undefined;
   if (options?.file) {
-    const safeFile = options.file.replace(/"/g, '\\"');
-    const diffResult = await executeCommand(
-      `git diff${options.staged ? " --staged" : ""} -- "${safeFile}"`,
-      { cwd: repoPath, timeout: 15000 }
-    );
+    const fullDiffArgs = ["diff"];
+    if (options.staged) {
+      fullDiffArgs.push("--staged");
+    }
+    fullDiffArgs.push("--", options.file);
+    const diffResult = await executeCommand("git", {
+      args: fullDiffArgs,
+      cwd: repoPath,
+      timeout: 15000,
+    });
     if (diffResult.success) {
       fullDiff = diffResult.stdout;
     }
@@ -204,30 +208,28 @@ export async function gitLog(
     grep?: string;
   }
 ): Promise<GitLogResult> {
-  let cmd = 'git log --pretty=format:"%H|%h|%s|%an|%ai|%D"';
-  if (options?.maxCount) {
-    cmd += ` -n ${options.maxCount}`;
-  } else {
-    cmd += " -n 20";
-  }
+  // S3 审计修复（2026-08-25）：author/since/grep/file 客户端可控参数全走数组通道，
+  // 不经 shell 解释（原引号转义在 cmd /c 下不可靠）。
+  const logArgs = [
+    "log",
+    "--pretty=format:%H|%h|%s|%an|%ai|%D",
+    "-n",
+    String(options?.maxCount || 20),
+  ];
   if (options?.file) {
-    const safeFile = options.file.replace(/"/g, '\\"');
-    cmd += ` -- "${safeFile}"`;
+    logArgs.push("--", options.file);
   }
   if (options?.author) {
-    const safeAuthor = options.author.replace(/"/g, '\\"');
-    cmd += ` --author="${safeAuthor}"`;
+    logArgs.push(`--author=${options.author}`);
   }
   if (options?.since) {
-    const safeSince = options.since.replace(/"/g, '\\"');
-    cmd += ` --since="${safeSince}"`;
+    logArgs.push(`--since=${options.since}`);
   }
   if (options?.grep) {
-    const safeGrep = options.grep.replace(/"/g, '\\"');
-    cmd += ` --grep="${safeGrep}"`;
+    logArgs.push(`--grep=${options.grep}`);
   }
 
-  const result = await executeCommand(cmd, { cwd: repoPath, timeout: 15000 });
+  const result = await executeCommand("git", { args: logArgs, cwd: repoPath, timeout: 15000 });
 
   if (!result.success) {
     return {
@@ -349,14 +351,14 @@ export async function gitBlame(
   }>;
   error?: string;
 }> {
-  // Escape quotes in filename to prevent command injection
-  const safeFile = file.replace(/"/g, '\\"');
-  let cmd = `git blame --porcelain "${safeFile}"`;
+  // S3 审计修复（2026-08-25）：file 客户端可控，改走数组通道不经 shell 解释
+  const blameArgs = ["blame", "--porcelain"];
   if (line) {
-    cmd += ` -L ${line},${line + 20}`;
+    blameArgs.push("-L", `${line},${line + 20}`);
   }
+  blameArgs.push("--", file);
 
-  const result = await executeCommand(cmd, { cwd: repoPath, timeout: 15000 });
+  const result = await executeCommand("git", { args: blameArgs, cwd: repoPath, timeout: 15000 });
 
   if (!result.success) {
     return {
@@ -415,7 +417,9 @@ export interface GitCommitResult {
 
 /**
  * Git commit — stage 指定文件（或全部）并提交。
- * message 通过 -m 传递，引号转义防止命令注入。
+ * S3 审计修复（2026-08-25）：message 与 files 客户端全可控，原引号转义在
+ * cmd /c 下不可靠（%VAR%/命令替换在双引号内仍生效）→ 全部改走数组通道，
+ * 参数逐项传递不经 shell，注入面消除。
  */
 export async function gitCommit(
   repoPath: string = ".",
@@ -428,8 +432,8 @@ export async function gitCommit(
 
   // Stage files (or all changes if no files specified)
   if (files && files.length > 0) {
-    const safeFiles = files.map((f) => `"${f.replace(/"/g, '\\"')}"`).join(" ");
-    const addResult = await executeCommand(`git add ${safeFiles}`, {
+    const addResult = await executeCommand("git", {
+      args: ["add", "--", ...files],
       cwd: repoPath,
       timeout: 10000,
     });
@@ -452,12 +456,12 @@ export async function gitCommit(
     }
   }
 
-  // Commit with message (escape quotes to prevent injection)
-  const safeMessage = message.replace(/"/g, '\\"');
-  const commitResult = await executeCommand(
-    `git commit -m "${safeMessage}"`,
-    { cwd: repoPath, timeout: 15000 }
-  );
+  // Commit with message (array channel — message passed verbatim, no shell interpretation)
+  const commitResult = await executeCommand("git", {
+    args: ["commit", "-m", message],
+    cwd: repoPath,
+    timeout: 15000,
+  });
 
   if (!commitResult.success) {
     // "nothing to commit" is not a hard error

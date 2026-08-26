@@ -16,6 +16,8 @@ export interface SnapshotResult {
   snapshotId?: string;
   message?: string;
   error?: string;
+  /** 整改 D5（2026-08-25）：部分文件恢复失败时的失败路径列表（success=false 时提供） */
+  errors?: string[];
   timestamp?: string;
 }
 
@@ -184,25 +186,29 @@ export async function revertSnapshot(
     const files = filesOutput.split("\n").filter((f) => f.trim());
 
     // Restore each file
+    // 整改 D5（2026-08-25）：execFileSync 不带 encoding 得 Buffer 原样写盘，
+    // 保证二进制文件逐字节保真；单文件失败不再静默吞掉，聚合进 errors。
+    const failures: string[] = [];
     for (const file of files) {
       try {
         const content = execFileSync("git", ["show", `${snapshotId}:${file}`], {
           cwd: snapshotDir,
-          encoding: "utf-8",
           stdio: "pipe",
         });
         const dst = path.join(cwd, file);
         await fs.mkdir(path.dirname(dst), { recursive: true });
-        await fs.writeFile(dst, content, "utf-8");
+        await fs.writeFile(dst, content);
       } catch (e) {
         logger.warn(`Failed to restore ${file}: ` + e);
+        failures.push(file);
       }
     }
 
     return {
-      success: true,
+      success: failures.length === 0,
       snapshotId,
       message: `Reverted to snapshot ${snapshotId}`,
+      ...(failures.length > 0 ? { errors: failures } : {}),
     };
   } catch (error) {
     logger.error("Failed to revert snapshot: " + error);

@@ -379,14 +379,56 @@ export class AgentOrchestrator {
         };
       }
 
-      // 2. 执行任务
+      // 2. 人工确认闭环（审计整改 O2）：requireConfirmation 任务先经
+      // approval-bridge 走 HITL 确认，拒绝/超时 → failed result 且不执行。
+      if (task.requireConfirmation) {
+        const { getApprovalBridge } = await import("../utils/approval-bridge.js");
+        let approved = false;
+        try {
+          approved = await getApprovalBridge().request(
+            `orchestrator_task:${task.type}`,
+            { taskId: task.id, description: task.description, input: task.input },
+            { risk: "caution" },
+          );
+        } catch (err) {
+          logger.warn("[Orchestrator] Confirmation request failed (treated as denied)", {
+            taskId: task.id,
+            error: (err as Error).message,
+          });
+        }
+        if (!approved) {
+          const denied: AgentResult = {
+            taskId: task.id,
+            agentId: agent.id,
+            success: false,
+            error: "Task requires confirmation but approval was denied or timed out",
+            duration: Date.now() - startTime,
+          };
+          await this.recordEvolution(task, denied);
+          return denied;
+        }
+      }
+
+      // 3. 执行任务（审计整改 O2：task.timeout 到期强制失败，timer 必须清理）
       logger.info("[Orchestrator] Executing task", {
         taskId: task.id,
         agentId: agent.id,
         type: task.type,
       });
 
-      const result = await agent.execute(task);
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      const result = await (task.timeout
+        ? Promise.race([
+            agent.execute(task),
+            new Promise<never>((_, reject) => {
+              timeoutTimer = setTimeout(
+                () => reject(new Error(`Task ${task.id} timeout after ${task.timeout}ms`)),
+                task.timeout,
+              );
+            }),
+          ])
+        : agent.execute(task));
+      clearTimeout(timeoutTimer);
 
       await this.recordEvolution(task, result);
 
@@ -577,12 +619,11 @@ export class AgentOrchestrator {
    * 执行单个步骤
    */
   private async executeStep(step: OrchestrationStep): Promise<AgentResult> {
-    // 人工确认检查
-    if (step.requireConfirmation) {
-      logger.info("[Orchestrator] Step requires confirmation", { stepId: step.id });
-      // 实际实现中应等待用户确认
+    // 人工确认闭环（审计整改 O2）：step.requireConfirmation 与
+    // task.requireConfirmation 任一为真都先经 approval-bridge 确认。
+    if (step.requireConfirmation && !step.task.requireConfirmation) {
+      return this.executeTask({ ...step.task, requireConfirmation: true });
     }
-
     return this.executeTask(step.task);
   }
 

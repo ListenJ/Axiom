@@ -5,6 +5,7 @@ import { logger } from "../utils/logger.js";
 import { isSafeUrl } from "../utils/url-safety.js";
 import type { RouteContext } from "./types.js";
 import { withTimeout } from "../utils/resilience.js";
+import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
@@ -25,7 +26,8 @@ export async function handleVaultSearch(ctx: RouteContext): Promise<Response | n
     const types = ctx.url.searchParams.get("types")?.split(",").filter(Boolean);
     const tags = ctx.url.searchParams.get("tags")?.split(",").filter(Boolean);
     const para = ctx.url.searchParams.get("para") || undefined;
-    const limit = Number(ctx.url.searchParams.get("limit")) || 20;
+    // O5：limit 钳制 ≤100，防止超大 limit 拖垮 vault 检索
+    const limit = Math.min(Number(ctx.url.searchParams.get("limit")) || 20, 100);
     const results = ctx.vault.search(query, { types, tags, paraCategory: para, limit });
     return ctx.jsonResponse({ query, strategy: "deterministic", results }, 200, ctx.baseHeaders);
   }
@@ -41,11 +43,14 @@ export async function handleWebSearch(ctx: RouteContext): Promise<Response | nul
     const { wsManager } = await import("../utils/websocket.js");
 
     const engines = ctx.url.searchParams.get("engines")?.split(",") || undefined;
-    const num = Number(ctx.url.searchParams.get("num")) || 10;
+    // O5：num 钳制 ≤30，防止模型可控的 engines×num 叠加击穿上下文预算
+    const num = Math.min(Number(ctx.url.searchParams.get("num")) || 10, 30);
     const cacheKey = `${query}::${engines?.join(",") || "default"}::${num}`;
-    const results = await searchCache.getOrSet(cacheKey, async () => {
+    const rawResults = await searchCache.getOrSet(cacheKey, async () => {
       return ctx.pipeline.searchMulti(query, { engines, num });
     }, 10 * 60 * 1000) as SearchEngineResult[];
+    // O5：结果过确定性消毒（截断 title/snippet + 总条数上限）
+    const results = sanitizeSearchResultsForContext(rawResults);
 
     ctx.db.run(`INSERT INTO search_history (query, query_hash, engines, results_count, created_at) VALUES (?, ?, ?, ?, ?)`,
       [query, String(Bun.hash(query)), engines?.join(",") || "", results.length, Date.now()]);
