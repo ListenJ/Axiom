@@ -371,13 +371,23 @@ initSceneRouter(pluginToolRegistry);
 logger.info("Plugin market initialized");
 
 // 外部 MCP server 客户端连接 (R-015)：连接失败仅降级跳过，不影响启动
+// 可观测补强：失败仅 warn（含 failed 详情与耗时），不中断启动；超时经 MCP_CONNECT_TIMEOUT_MS 可配
+const mcpStartMs = Date.now();
 try {
   const { connectExternalMcpServers } = await import("./mcp/client-connector.js");
   const mcpSummary = await connectExternalMcpServers(pluginToolRegistry);
+  if (mcpSummary.failed.length > 0) {
+    logger.warn("[MCP] External MCP degraded — some servers failed", {
+      failed: mcpSummary.failed,
+      connected: mcpSummary.connected,
+    });
+  }
   logger.info("External MCP clients initialized", {
     connected: mcpSummary.connected.length,
     failed: mcpSummary.failed.length,
     tools: mcpSummary.toolsRegistered,
+    failedNames: mcpSummary.failed.map((f) => f.name),
+    durationMs: Date.now() - mcpStartMs,
   });
 } catch (e: unknown) { logger.warn("External MCP clients not started", { error: (e as Error).message }); }
 

@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import YAML from "yaml";
 import { logger } from "../utils/logger.js";
 import { withTimeout } from "../utils/resilience.js";
-import { readString } from "../utils/env.js";
+import { readInt, readString } from "../utils/env.js";
 import type { ToolRegistry } from "./tool-registry.js";
 
 /** mcp-servers.yaml 中单个 server 的配置（type: "remote" 为远程 HTTP，含 command 为 stdio） */
@@ -22,6 +22,8 @@ export interface McpServerEntry {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  optional?: boolean;
+  timeoutMs?: number | string;
 }
 
 /** 连接结果汇总 */
@@ -115,21 +117,45 @@ async function closeClientQuietly(client: McpClientLike, name: string): Promise<
  * 连接 yaml 中所有外部 MCP server，并将远端工具注册进 registry。
  * 各 server 并行连接，任一失败仅记录 warn 并跳过，不中断启动。
  */
+function resolveEntryTimeout(value?: number | string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  const str = String(value).trim();
+  const envWithDefault = str.match(/^\$\{(\w+):-(\d+)\}$/);
+  if (envWithDefault) {
+    const [, varName, def] = envWithDefault;
+    return readInt(varName, Number(def));
+  }
+  const envOnly = str.match(/^\$\{(\w+)\}$/);
+  if (envOnly) {
+    const [, varName] = envOnly;
+    const v = process.env[varName];
+    if (v !== undefined) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    }
+    return undefined;
+  }
+  const n = Number(str);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export async function connectExternalMcpServers(
   registry: ToolRegistry,
   opts?: { configPath?: string; timeoutMs?: number; createClient?: McpClientFactory }
 ): Promise<McpConnectSummary> {
   const servers = await loadMcpServerConfigs(opts?.configPath);
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const globalTimeoutMs = opts?.timeoutMs ?? readInt("MCP_CONNECT_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
   const createClient = opts?.createClient ?? createSdkClient;
   const summary: McpConnectSummary = { connected: [], failed: [], toolsRegistered: 0 };
 
   await Promise.all(Object.entries(servers).map(async ([name, entry]) => {
+    const serverTimeoutMs = resolveEntryTimeout(entry.timeoutMs) ?? globalTimeoutMs;
     let client: McpClientLike | null = null;
     let clientPromise: Promise<McpClientLike> | null = null;
     try {
       clientPromise = createClient(name, entry);
-      const connected = await withTimeout(clientPromise, timeoutMs);
+      const connected = await withTimeout(clientPromise, serverTimeoutMs);
       client = connected;
       const existing = activeClients.get(name);
       if (existing && existing !== connected) {
@@ -137,7 +163,7 @@ export async function connectExternalMcpServers(
         await closeClientQuietly(existing, name);
       }
       activeClients.set(name, connected);
-      const { tools } = await withTimeout(connected.listTools(), timeoutMs);
+      const { tools } = await withTimeout(connected.listTools(), serverTimeoutMs);
       for (const tool of tools) {
         registry.add({
           name: `mcp_${name}_${tool.name}`,

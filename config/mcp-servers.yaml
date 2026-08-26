@@ -13,6 +13,7 @@ servers:
   free-search:
     command: "bunx"
     args: ["-y", "free-search-mcp"]
+    optional: true
 
   # freeweb — 网页浏览和内容提取（7层回退，无需 API Key）
   # 支持 Playwright 浏览器自动化
@@ -23,17 +24,15 @@ servers:
   # 文件系统访问
   filesystem:
     command: "bunx"
-    args: ["-y", "@anthropic-ai/mcp-server-filesystem", "."]
-
-  # SQLite数据库
-  sqlite:
-    command: "bun"
-    args: ["run", "src/mcp/sqlite-server.ts"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    optional: true
 
   # Obsidian Vault操作
   obsidian:
     command: "bun"
     args: ["run", "src/mcp/server.ts"]
+    env: {}
+    timeoutMs: "${MCP_CONNECT_TIMEOUT_MS:-10000}"
 
   # OpenCode 编码 Agent（通过 stdio 暴露编码工具）
   opencode:
