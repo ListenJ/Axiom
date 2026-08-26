@@ -2850,7 +2850,7 @@
   - 语义修复验证：scenario6-all-contradicted 从 20ms（计数值）修正为 0ms（实际耗时）；scenario6-cache-eviction 从 200ms（计数值）修正为 8ms（实际耗时）。
 - **备份**：`.tmp/backups/tests/business-scenarios/retrieval-workflows.test.ts.bak` + `.tmp/backups/scripts/stress-runner.ts.bak2` + `.tmp/backups/docs/STRESS-TESTING.md.bak`（验证通过后全部删除）。
 - **Commit**：`3b578dc`（amend 补录本条 hash 后推送 `internal211/main`；最终 hash 以 `git log` 为准）。
-      
+
 ---
 
 ## 2026-07-24 10:30 +0800 — 边缘场景全面压力测试 + 源码 Bug 修复
@@ -4565,7 +4565,7 @@
   - 测试同步：frontend/src/lib/nav.test.ts（home→chat 断言）、frontend/src/hooks/useGlobalHotkeys.test.tsx（1→/chat）、e2e/smoke.spec.ts（导航列表去掉首页）、e2e/keyboard.spec.ts（1-6 新映射）；新增 e2e/terminal-summary.spec.ts（5 用例：按钮开合/Ctrl+/命令执行输出/摘要面板/Git 徽标）。
 - **验证**：
   - 前端 bunx tsc --noEmit → 0 错误；bunx vitest run → 37 files / 237 tests 全绿（新增 TerminalPanel 6 + GitStatusBadge 4）。
-  - 
+  -
 pm run test:e2e → 10 文件 36 测试全绿（含新增 terminal-summary 5）。
 - **Commit**：`1561772`。
 
@@ -4783,7 +4783,7 @@ pm run test:run 41 files / 268 tests 全绿。
 - **验证**：
   - 修复后欢迎模式：h1 y=251、卡片 y=347、输入框 y=788（内容在输入栏上方空间居中，输入框贴底），对比修复前 h1 y=201 / 输入框 y=514（悬空偏上）。
   - 终端浮层打开：terminal y=644-868 与 StatsBar（y=868-900）零间隙衔接，无重叠无挤压；欢迎内容在终端上方正常显示。
-  - 
+  -
 pm run lint 0 错误；
 pm run test:run 268 tests 全绿。
 - **Commit**：`9254f7d`。
@@ -4799,7 +4799,7 @@ pm run test:run 268 tests 全绿。
   - 	ests/responsive.test.ts：main padding 断言匹配 px-4 py-4 md:px-6 md:py-6 新写法；Header 搜索框断言改为系统菜单（overflow-x-auto + aria-label 系统菜单）；按钮 a11y 断言允许可见文本（文件/编辑/视图/帮助菜单触发钮）。
   - frontend/src/pages/Chat.tsx：拆分 ChatComposer（输入栏，含模型圆环/思考强度）与 IdeOpenMenu（IDE 下拉）两个子组件，682 → 623 行。
   - 新增 frontend/src/components/chat/ChatComposer.tsx、IdeOpenMenu.tsx。
-- **验证**：bun test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端 
+- **验证**：bun test tests/e2e-layout.test.ts tests/responsive.test.ts 38 pass / 0 fail（修复前 5 fail）；前端
 pm run lint 0 错误、
 pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局（h1 y=251、输入框 y=788）与 IDE 菜单展开均正常。
 - **Commit**：`43280d3`。
@@ -4821,13 +4821,13 @@ pm run test:run 268 tests 全绿；Playwright 视觉回归：欢迎模式布局�
 
 ## 2026-08-04 17:50 +0800 — 移动端右栏抽屉默认覆盖修复 + e2e 过时断言同步
 
-- **任务**：前后端布局优化。视觉体检发现：右栏工具台 
+- **任务**：前后端布局优化。视觉体检发现：右栏工具台
 ightbarOpen 默认 true，移动端以全屏抽屉（fixed inset-0 z-50）默认打开覆盖聊天区；e2e smoke/theme 断言基于旧 Header（独立主题按钮）过时。
 - **工具**：Playwright 逐区块几何探测（桌面/移动端）、Read、Edit、Bash（vitest / Playwright）。
 - **执行的操作（文件级）**：
-  - frontend/src/state/useApp.ts：新增 
+  - frontend/src/state/useApp.ts：新增
 eadInitialRightbarOpen()——桌面（≥1024px）默认打开、移动端默认关闭；jsdom/无 matchMedia 环境安全降级 true（修复 10 个测试套件因 window.matchMedia 缺失失败）。
-  - e2e/smoke.spec.ts：导航断言改 
+  - e2e/smoke.spec.ts：导航断言改
 av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断言改验证系统菜单（文件/编辑/视图/帮助）+ 视图菜单含"切换主题"。
   - e2e/theme.spec.ts：主题切换改经系统菜单"视图 → 切换主题"。
 - **验证**：移动端（390×844）抽屉不再默认覆盖（drawerVisible=false、无横向溢出），桌面端（1440）右栏仍默认打开；前端 vitest 41 files / 268 tests 全绿（修复 10 失败套件）；e2e 9 文件 32 测试全绿。
@@ -6687,7 +6687,7 @@ av.locator("a", {hasText})（避免"系统"文本 strict 冲突）；Header 断�
   - README.md：重写为精简 landing page，包含插件简介、Documentation 超链接节（指向 README_en.md / README_zh.md）、快速开始、License。
   - README_en.md：新增完整英文文档（overview / install / uninstall / what it does / prerequisites / config / tools / license）。
   - README_zh.md：新增完整中文文档，结构与英文版镜像对应。
-  - 通过 
+  - 通过
 px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个文档写作/润色技能（documentation-patterns 因超时未安装）。
 - **验证**：三份 README 内容无审查报告/测试说明/本地实现细节；超链接路径正确；git status 确认仅 README 三件相关文件入暂存。
 - **Commit**：`0e7274e`
@@ -6960,7 +6960,7 @@ px skills find 搜索并安装 ccelint-readme-writer、write-good-docs 两个�
   1. M4 新建叶子数据模块 src/agents/tool-classifications.ts（TOOL_CLASSIFICATIONS 自 execution-mode 抽出，消除 execution-mode↔risk-monitor 循环依赖，browser_launch 入册 caution/computer-use）；
 isk-monitor.ts 审查面改为注册表动态派生（filesystem/snapshot→path、terminal→command）并显式补齐 browser_launch(kind=url)/knowledge_ingest_document；
 isk-screen.ts PayloadKind 扩展 url 及双处标签；新建 	ests/unit/risk-monitor-coverage.test.ts（6 用例）
-  2. M13 
+  2. M13
 untime-go/internal/agent/cluster.go 三处 _ = 静默失败（autoscale 扩容/缩容/proc.Stop）改 slog.Warn；go build ./... && go vet ./internal/agent/ 干净
   3. M14 核实：当前 CORS 已默认无 ACAO（仅 CORS_ORIGINS=* 显式全开，main.ts:427-456），审计该项对现状失效，无需改动
   4. L7 edge-client/edge-embeddings 头注释与 docs/EDGE-LLM.md 默认端点同步为 127.0.0.1（内网地址降级为示例）
