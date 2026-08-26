@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import type { TaskTrace } from "../self-evolve/types.js";
 
 export interface RealUsageTrace extends TaskTrace {
@@ -24,10 +25,10 @@ export interface RealUsageTrace extends TaskTrace {
   feedback?: string;
 }
 
-export const REAL_USAGE_PATH = process.env.REAL_USAGE_PATH ?? path.join(process.cwd(), "data", "real-usage-traces.jsonl");
+export const REAL_USAGE_PATH = readString("REAL_USAGE_PATH", path.join(process.cwd(), "data", "real-usage-traces.jsonl"));
 
 function resolvePath(p?: string): string {
-  return p ?? process.env.REAL_USAGE_PATH ?? REAL_USAGE_PATH;
+  return p ?? (readString("REAL_USAGE_PATH") || REAL_USAGE_PATH);
 }
 
 function ensureDir(filePath: string): void {
@@ -181,10 +182,10 @@ if (import.meta.main) {
   const pathArg = args.find(a => a.startsWith("--path="))?.split("=")[1];
   if (wantsEvolve) {
     const result = await evolveFromRealUsage(pathArg);
-    console.log(JSON.stringify(result, null, 2));
+    logger.info(JSON.stringify(result, null, 2));
   } else {
     const traces = await loadRealUsageTraces(pathArg);
-    console.log(`Real usage traces: ${traces.length}`);
-    for (const t of traces.slice(-10)) console.log(`- [${t.success ? "OK" : "FAIL"}] ${t.id}: ${t.task.slice(0, 60)}`);
+    logger.info(`Real usage traces: ${traces.length}`);
+    for (const t of traces.slice(-10)) logger.info(`- [${t.success ? "OK" : "FAIL"}] ${t.id}: ${t.task.slice(0, 60)}`);
   }
 }

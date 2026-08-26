@@ -69,10 +69,12 @@ export interface QueryResult {
 
 export class KnowledgeAccessLayer {
   private db: Database;
-  /** 可选 vault 引擎适配器（P1-T2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边 */
-  private vault?: { getBacklinks(notePath: string): Array<{ path: string; title: string }> };
+  /** 可选 vault 引擎适配器（P1-T2/O3-F2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边 */
+  private vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> };
+  /** O3-F2：queryVault 结果的 nodeId -> 原始路径映射（归一化不可逆，反查靠它） */
+  private vaultNodeIdToPath = new Map<string, string>();
 
-  constructor(db: Database, vault?: { getBacklinks(notePath: string): Array<{ path: string; title: string }> }) {
+  constructor(db: Database, vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> }) {
     this.db = db;
     this.vault = vault;
   }
@@ -104,6 +106,17 @@ export class KnowledgeAccessLayer {
     const storeResults = await Promise.all(promises);
     for (const storeResult of storeResults) {
       results.push(...storeResult);
+    }
+
+    // O3-F5：merge 后按 store 分组求 maxScore，归一化再排序——
+    // 避免 vault 恒 0.8 等分数尺度差异导致某库被无条件压制。
+    const maxByStore = new Map<StorePrefix, number>();
+    for (const r of results) {
+      maxByStore.set(r.store, Math.max(maxByStore.get(r.store) ?? 0, r.relevance));
+    }
+    for (const r of results) {
+      const max = maxByStore.get(r.store);
+      if (max && max > 0) r.relevance = r.relevance / max;
     }
 
     // 按相关性排序
@@ -163,16 +176,29 @@ export class KnowledgeAccessLayer {
         tags: string;
       }>;
 
-      return rows.map((row) => ({
-        nodeId: createNodeId("vault", "note", row.path),
-        store: "vault" as StorePrefix,
-        type: "note",
-        title: row.title || row.path,
-        snippet: (row.content || "").slice(0, 300),
-        relevance: 0.8,
-        tags: this.safeParseTags(row.tags),
-        metadata: { path: row.path },
-      }));
+      // O3-F1：tagFilter 按 parseTags 后包含判定过滤（对齐 sqlite-memory.ts 的 AND 语义）
+      const filtered = intent.tagFilter?.length
+        ? rows.filter((row) => {
+            const noteTags = this.safeParseTags(row.tags);
+            return intent.tagFilter!.every((t) => noteTags.includes(t));
+          })
+        : rows;
+
+      return filtered.map((row) => {
+        const nodeId = createNodeId("vault", "note", row.path);
+        // O3-F2：归一化不可逆（"." 折叠 "_"），记录 nodeId -> 原始路径供 getReferences 反查
+        this.vaultNodeIdToPath.set(nodeId, row.path);
+        return {
+          nodeId,
+          store: "vault" as StorePrefix,
+          type: "note",
+          title: row.title || row.path,
+          snippet: (row.content || "").slice(0, 300),
+          relevance: 0.8,
+          tags: this.safeParseTags(row.tags),
+          metadata: { path: row.path },
+        };
+      });
     } catch {
       // FTS5 表可能不存在，静默降级
       return [];
@@ -283,11 +309,28 @@ export class KnowledgeAccessLayer {
     const results: KnowledgeUnit[] = [];
 
     try {
-      const edges = this.db
-        .query(
-          `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
-        )
-        .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
+      // O3-F4：复数表 kg_edges 与历史单数表 kg_edge 的出入边 UNION；
+      // 单数表不存在时整体 UNION 失败 → 回退仅复数腿（该腿吞掉并 debug 日志）。
+      let edges: Array<{ source: string; target: string; type: string }>;
+      try {
+        edges = this.db
+          .query(
+            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ?
+             UNION ALL
+             SELECT src_node, dst_node, relation FROM kg_edge WHERE src_node = ? OR dst_node = ?
+             LIMIT 50`,
+          )
+          .all(nodeId, nodeId, nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
+      } catch (err) {
+        logger.debug("[KAL] kg_edge singular-table leg unavailable; falling back to kg_edges only", {
+          error: (err as Error).message,
+        });
+        edges = this.db
+          .query(
+            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
+          )
+          .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
+      }
 
       for (const edge of edges) {
         const otherId = edge.source === nodeId ? edge.target : edge.source;
@@ -311,20 +354,24 @@ export class KnowledgeAccessLayer {
       }
     } catch { /* kg 表可能不存在 */ }
 
-    // Vault wiki-link 入链（P1-T2）：vault 节点经注入的引擎适配器补齐引用腿
-    if (parsed.store === "vault" && this.vault) {
+    // Vault wiki-link 入链（P1-T2 / O3-F2）：经 queryVault 建立的映射反查
+    // 原始路径，再调适配器补齐引用腿。无映射时保守降级（归一化不可逆，不猜测）。
+    if (parsed.store === "vault") {
       try {
-        for (const src of this.vault.getBacklinks(parsed.identifier)) {
-          results.push({
-            nodeId: createNodeId("vault", "note", src.path),
-            store: "vault",
-            type: "note",
-            title: src.title || src.path,
-            snippet: "",
-            relevance: 0.55,
-            tags: [],
-            metadata: { referencedBy: nodeId, sourcePath: src.path },
-          });
+        const rawPath = this.vaultNodeIdToPath.get(nodeId);
+        if (rawPath && this.vault) {
+          for (const src of this.vault.getWikiBacklinks(rawPath)) {
+            results.push({
+              nodeId: createNodeId("vault", "note", src.path),
+              store: "vault",
+              type: "note",
+              title: src.title || src.path,
+              snippet: "",
+              relevance: 0.55,
+              tags: [],
+              metadata: { referencedBy: nodeId, sourcePath: src.path },
+            });
+          }
         }
       } catch { /* 引擎不可用，静默降级 */ }
     }

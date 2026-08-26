@@ -86,21 +86,41 @@ class ActorInstance extends EventEmitter {
   readonly id: string;
   readonly behavior: ActorBehavior;
   private mailbox: ActorMessage[] = [];
+  /** O4 有界邮箱容量：溢出丢最旧，防慢消费者内存无界增长 */
+  private readonly mailboxCapacity: number;
+  private droppedCount = 0;
   private state: unknown = null;
   private processing = false;
   private system: ActorSystem;
 
-  constructor(behavior: ActorBehavior, system: ActorSystem) {
+  constructor(behavior: ActorBehavior, system: ActorSystem, mailboxCapacity: number = 256) {
     super();
     this.id = behavior.id;
     this.behavior = behavior;
     this.system = system;
+    this.mailboxCapacity = mailboxCapacity;
+  }
+
+  /** O4：已丢弃消息总数（观测面） */
+  get dropped(): number {
+    return this.droppedCount;
   }
 
   /**
    * 接收消息
    */
   async receive(message: ActorMessage): Promise<void> {
+    // O4 有界邮箱：溢出丢最旧；每 100 次丢弃降采样告警一次
+    if (this.mailbox.length >= this.mailboxCapacity) {
+      this.mailbox.shift();
+      this.droppedCount++;
+      if (this.droppedCount % 100 === 0) {
+        logger.warn(`[Actor:${this.id}] Mailbox overflow — dropped oldest message`, {
+          capacity: this.mailboxCapacity,
+          droppedTotal: this.droppedCount,
+        });
+      }
+    }
     this.mailbox.push(message);
     this.emit("message", message);
     await this.processNext();
@@ -391,13 +411,14 @@ export class ActorSystem {
   }
 
   /**
-   * 健康检查 — 返回所有 Actor 状态
+   * 健康检查 — 返回所有 Actor 状态（含 O4 邮箱丢弃计数）
    */
-  healthCheck(): Array<{ id: string; type: string; status: "alive" | "stopped" }> {
+  healthCheck(): Array<{ id: string; type: string; status: "alive" | "stopped"; droppedCount: number }> {
     return Array.from(this.actors.values()).map((a) => ({
       id: a.id,
       type: a.behavior.type,
       status: this.stopped ? ("stopped" as const) : ("alive" as const),
+      droppedCount: a.dropped,
     }));
   }
 }

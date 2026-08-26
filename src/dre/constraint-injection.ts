@@ -48,14 +48,14 @@ export function constraintWordsFor(text: string): { words: string; entries: Prac
 }
 
 /** 把约束词注入消息：优先追加到现有 system 消息，否则新建 system 消息 */
-export function injectConstraints<T extends DreChatMessage>(messages: T[], words: string): T[] {
+export function injectConstraints(messages: DreChatMessage[], words: string): DreChatMessage[] {
   if (!words) return messages;
   const next = messages.map((m) => ({ ...m }));
   const sysIdx = next.findIndex((m) => m.role === "system");
   if (sysIdx >= 0) {
     next[sysIdx] = { ...next[sysIdx], content: `${next[sysIdx].content}\n${words}` };
   } else {
-    next.unshift({ role: "system", content: words.trim() } as T);
+    next.unshift({ role: "system", content: words.trim() });
   }
   return next;
 }
@@ -75,7 +75,7 @@ export function autoInjectDreConstraints<T extends DreChatMessage>(
   }
   const { words, entries } = constraintWordsFor(text);
   if (!words) return { messages, injected: [], changed: false };
-  const next = injectConstraints(messages, words);
+  const next = injectConstraints(messages, words) as T[];
   const injected = entries.map((e) => e.id);
   logger.info("[DRE] constraint injection", { injected, source: "practice-manual" });
   return { messages: next, injected, changed: true };

@@ -106,6 +106,8 @@ export class Kernel {
       // 驱动调度器: 尝试执行下一个待办任务
       const nextTask = scheduler.getNext();
       if (nextTask) {
+        // O4 代数守卫：dispatch 时快照代数，complete 回传以检测抢占后的陈旧完成
+        const dispatchGen = nextTask.gen ?? 0;
         try {
           // H1 编排闭环修复：request/response 式派发 —— 依据 Actor 的真实响应
           // （response / 结构化 NACK / 超时）判定任务成败，失败进入 scheduler.fail()
@@ -131,7 +133,7 @@ export class Kernel {
             });
             scheduler.fail(nextTask.id, errMsg, { terminal });
           } else {
-            scheduler.complete(nextTask.id, reply.payload);
+            scheduler.complete(nextTask.id, reply.payload, dispatchGen);
           }
         } catch (err) {
           scheduler.fail(nextTask.id, (err as Error).message);

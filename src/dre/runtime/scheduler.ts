@@ -39,6 +39,8 @@ export interface ScheduledTask {
   error?: string
   /** Earliest time this task can be re-attempted (set on retry backoff). */
   notBefore?: number
+  /** O4 代数守卫：抢占重派时自增；complete 回传 dispatch 快照以检测陈旧完成 */
+  gen?: number
 }
 
 // ─── Resource Manager ──────────────────────────────────────────────────────
@@ -123,6 +125,7 @@ class SchedulerImpl {
       status: "pending",
       createdAt: Date.now(),
       retries: 0,
+      gen: task.gen ?? 0,
     };
 
     this.queue.push(fullTask);
@@ -203,6 +206,8 @@ class SchedulerImpl {
 
       // Re-queue for later execution — preemption is pause, not cancellation
       task.status = "pending";
+      // O4 代数守卫：重派前递增代数，使旧执行体的迟到 complete 可被识别并丢弃
+      task.gen = (task.gen ?? 0) + 1;
       task.error = `Preempted by critical task at ${new Date().toISOString()}`;
       this.queue.push(task);
       this.queue.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
@@ -288,10 +293,19 @@ class SchedulerImpl {
 
   /**
    * Complete a task.
+   * O4 代数守卫：gen 与 dispatch 时不匹配（或任务已不在 running）→
+   * 视为陈旧完成，warn 并忽略，不产生入队/重执行副作用。
    */
-  complete(taskId: string, result: unknown): void {
+  complete(taskId: string, result: unknown, gen?: number): void {
     const task = this.running.get(taskId);
-    if (!task) return;
+    if (!task || (gen !== undefined && (task.gen ?? 0) !== gen)) {
+      logger.warn("[Scheduler] stale complete ignored", {
+        taskId,
+        expectedGen: task?.gen,
+        gotGen: gen,
+      });
+      return;
+    }
 
     task.status = "completed";
     task.completedAt = Date.now();
