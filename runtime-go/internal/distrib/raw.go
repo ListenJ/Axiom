@@ -24,6 +24,7 @@ func DoRaw(ctx context.Context, client *http.Client, method, url, contentType st
 	}
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", contentType+", application/json")
+	setAuthHeader(req.Header)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, observability.WrapError(ErrCodeRPC, "request failed", err).

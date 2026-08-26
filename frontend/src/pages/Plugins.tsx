@@ -435,7 +435,7 @@ export default function Plugins() {
                       安装
                     </Button>
                     <a
-                      href={skill.url}
+                      href={/^https?:\/\//i.test(skill.url) ? skill.url : undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-2xs text-[var(--accent)] hover:underline"
@@ -486,7 +486,7 @@ export default function Plugins() {
                       安装
                     </Button>
                     <a
-                      href={server.url}
+                      href={/^https?:\/\//i.test(server.url) ? server.url : undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-2xs text-[var(--accent)] hover:underline"
@@ -513,7 +513,7 @@ export default function Plugins() {
               marketplace.registries.map((r) => (
                 <a
                   key={r.id}
-                  href={r.url}
+                  href={/^https?:\/\//i.test(r.url) ? r.url : undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-xl border border-[var(--border)] px-3 py-2.5 transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-hover)]"

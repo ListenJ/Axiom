@@ -36,7 +36,7 @@ models:
     baseUrl: "https://api.ofox.ai/v1"
     apiKey: "${OFOXAI_API_KEY}"
     tier: 1
-    purpose: ["general-chat", "code-generation", "complex-reasoning"]
+    purpose: [ "general-chat", "code-generation", "complex-reasoning" ]
     priority: 10
     freeOnly: true
 
@@ -47,7 +47,7 @@ models:
     baseUrl: "https://api.opencode.ai/v1"
     apiKey: "${OPENCODE_API_KEY}"
     tier: 1
-    purpose: ["code-generation", "coding"]
+    purpose: [ "code-generation", "coding" ]
     priority: 10
     freeOnly: true
 
@@ -58,7 +58,7 @@ models:
     baseUrl: "https://api.siliconflow.cn/v1"
     apiKey: "${SILICONFLOW_API_KEY}"
     tier: 1
-    purpose: ["tool_call", "classification", "embedding"]
+    purpose: [ "tool_call", "classification", "embedding" ]
     priority: 9
 
   # Tier 2: 付费主力模型
@@ -68,7 +68,7 @@ models:
     baseUrl: "https://api.deepseek.com/v1"
     apiKey: "${DEEPSEEK_API_KEY}"
     tier: 2
-    purpose: ["reasoning", "coding", "research"]
+    purpose: [ "reasoning", "coding", "research" ]
     priority: 8
 
   # Tier 2: DeepSeek Flash（低成本编码）
@@ -78,7 +78,7 @@ models:
     baseUrl: "https://api.deepseek.com/v1"
     apiKey: "${DEEPSEEK_API_KEY}"
     tier: 2
-    purpose: ["code-generation", "coding"]
+    purpose: [ "code-generation", "coding" ]
     priority: 7
 
   # Tier 3: OpenRouter 兜底
@@ -89,14 +89,14 @@ models:
     apiKey: "${OPENROUTER_API_KEY}"
     httpProxy: "${OPENROUTER_HTTP_PROXY}"
     tier: 3
-    purpose: ["fallback"]
+    purpose: [ "fallback" ]
     priority: 1
 
 # OfoxAI 多网关配置（可选，用于直接访问 Anthropic/Gemini 协议）
 ofoxai_gateways:
-  openai:    "${OFOXAI_BASE_URL:-https://api.ofox.ai/v1}"
+  openai: "${OFOXAI_BASE_URL:-https://api.ofox.ai/v1}"
   anthropic: "${OFOXAI_ANTHROPIC_BASE_URL:-https://api.ofox.ai/anthropic}"
-  gemini:    "${OFOXAI_GEMINI_BASE_URL:-https://api.ofox.ai/gemini}"
+  gemini: "${OFOXAI_GEMINI_BASE_URL:-https://api.ofox.ai/gemini}"
 
 # 记忆管理
 memory:

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"runtime-go/internal/observability"
@@ -16,6 +17,15 @@ import (
 // maxErrorBody caps how much of a non-2xx response body is read into the
 // error, so a misbehaving peer cannot exhaust memory.
 const maxErrorBody = 64 << 10
+
+// setAuthHeader attaches X-Axiom-Token to an outbound request when
+// SEARCHD_AUTH_TOKEN is configured, so peers with write auth enabled accept
+// cluster RPCs instead of rejecting them with 403.
+func setAuthHeader(h http.Header) {
+	if tok := os.Getenv("SEARCHD_AUTH_TOKEN"); tok != "" {
+		h.Set("X-Axiom-Token", tok)
+	}
+}
 
 // DoJSON performs one JSON RPC: it marshals in (a nil in sends no body),
 // issues the request with the given client, and decodes a 2xx response body
@@ -50,6 +60,7 @@ func DoJSON(ctx context.Context, client *http.Client, method, url string, in, ou
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+	setAuthHeader(req.Header)
 
 	resp, err := client.Do(req)
 	if err != nil {
