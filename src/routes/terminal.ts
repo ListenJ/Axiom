@@ -13,14 +13,17 @@ import { safeStringEqual } from "../utils/auth-check.js";
 import { requireAuthToken } from "./route-auth.js";
 
 /**
- * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
+ * 二因素写保护（审计 S1，2026-08-25；I3 2026-08-27）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
  * 放行（fail-open，与 sandbox.ts requireAuthToken 调用语义一致）；
  * 配置后不匹配 → 403。
+ * 读取优先级：x-second-factor / x-axiom-second-factor（专用头，推荐）→ x-api-key / Authorization（回退兼容，允许复用主 token 作为第二因子）。
  */
 function requireSecondFactorToken(ctx: RouteContext): Response | null {
   const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
   if (!expected) return null;
   const provided =
+    ctx.req.headers.get("x-second-factor") ||
+    ctx.req.headers.get("x-axiom-second-factor") ||
     ctx.req.headers.get("x-api-key") ||
     ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
     "";
@@ -69,6 +72,10 @@ export async function handleTerminalCreate(ctx: RouteContext): Promise<Response 
 export async function handleTerminalStream(ctx: RouteContext): Promise<Response | null> {
   const match = ctx.url.pathname.match(/^\/terminal\/session\/([^/]+)\/stream$/);
   if (!match || ctx.req.method !== "GET") return null;
+  const authErr = requireAuthToken(ctx);
+  if (authErr) return authErr;
+  const secondErr = requireSecondFactorToken(ctx);
+  if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
     return ctx.jsonResponse({ error: "session not found" }, 404, ctx.baseHeaders);
@@ -162,5 +169,9 @@ export async function handleTerminalClose(ctx: RouteContext): Promise<Response |
 /** GET /terminal/sessions — 会话列表（诊断） */
 export async function handleTerminalList(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/terminal/sessions" || ctx.req.method !== "GET") return null;
+  const authErr = requireAuthToken(ctx);
+  if (authErr) return authErr;
+  const secondErr = requireSecondFactorToken(ctx);
+  if (secondErr) return secondErr;
   return ctx.jsonResponse({ sessions: listSessions(), stats: ptySessionStats() }, 200, ctx.baseHeaders);
 }

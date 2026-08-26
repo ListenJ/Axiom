@@ -11,6 +11,7 @@ import { readString } from "../utils/env.js";
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
+try { db.run("PRAGMA journal_mode=WAL"); db.run("PRAGMA busy_timeout=5000"); } catch {}
 
 logger.info("⏰ Cron scheduler starting...\n");
 

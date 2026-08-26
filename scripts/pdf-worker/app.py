@@ -92,24 +92,29 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                 try:
                     import fitz
                     doc = fitz.open(pdf_path)
-                    pages = []
-                    for page_num in range(len(doc)):
-                        page = doc[page_num]
-                        text = page.get_text().strip()
-                        if not text:
-                            continue  # 跳过空页，避免噪声页头
-                        pages.append(f"## Page {page_num + 1}\n\n{text}")
-                    markdown = "\n\n".join(pages)
-                    if not markdown.strip():
-                        tasks[task_id]["status"] = "failed"
-                        tasks[task_id]["error"] = "no extractable text"
-                    else:
-                        tasks[task_id]["result"] = {
-                        "markdown": markdown,
-                        "metadata": {**src_meta, "pages": len(pages)},
-                        "file_path": str(pdf_path),
-                    }
-                    doc.close()
+                    try:
+                        pages = []
+                        for page_num in range(len(doc)):
+                            page = doc[page_num]
+                            text = page.get_text().strip()
+                            if not text:
+                                continue  # 跳过空页，避免噪声页头
+                            pages.append(f"## Page {page_num + 1}\n\n{text}")
+                        markdown = "\n\n".join(pages)
+                        if not markdown.strip():
+                            tasks[task_id]["status"] = "failed"
+                            tasks[task_id]["error"] = "no extractable text"
+                        else:
+                            tasks[task_id]["result"] = {
+                            "markdown": markdown,
+                            "metadata": {**src_meta, "pages": len(pages)},
+                            "file_path": str(pdf_path),
+                        }
+                    finally:
+                        try:
+                            doc.close()
+                        except:
+                            pass
                     tasks[task_id]["progress"] = 0.7
                 except ImportError:
                     output_dir = dest_dir / "mineru_output"
