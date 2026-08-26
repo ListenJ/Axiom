@@ -69,7 +69,12 @@ POST /config {"gateway":{"bind":"127.0.0.1"}}
 保持独立文件，避免缓存抖动与主库写竞争。
 
 
-## 6. 校验门禁
+## 6. 双端探针环境变量
+
+- `LISTEN_SSH_TARGET`：`scripts/audit/dual-probe.ts` 远端 SSH 目标，默认 `data@192.168.0.150`（`process.env.LISTEN_SSH_TARGET ?? "data@192.168.0.150"`）。
+- `LISTEN_HEALTH_URL`：健康检查 URL，默认 `http://127.0.0.1:18789/health`（`process.env.LISTEN_HEALTH_URL ?? "http://127.0.0.1:18789/health"`），本地与远端复用。
+
+## 7. 校验门禁
 
 - `tests/env-example-completeness.test.ts`：src 读取的每个 env 键必须在 `.env.example` 登记。
 - `git diff` 密钥扫描：`sk-* / AKIA* / ghp_* / -----BEGIN PRIVATE KEY-----`。

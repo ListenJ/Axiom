@@ -4,12 +4,15 @@
  *
  * 聚合检查：
  *  - 本机 health / cron DB锁 / MCP / 重绑定
- *  - listen 侧同款（ssh data@192.168.0.150 curl）
+ *  - listen 侧同款（ssh LISTEN_SSH_TARGET curl LISTEN_HEALTH_URL）
  * 输出 markdown 表格到 .tmp/dual-probe-report.md
  *
  * 运行：
  *   bun run scripts/audit/dual-probe.ts
  *   # 本机探针始终可执行；listen 侧若 SSH 不可达则标记 SKIP
+ * 环境变量：
+ *   LISTEN_SSH_TARGET  远端 SSH 目标，默认 data@192.168.0.150
+ *   LISTEN_HEALTH_URL  健康检查 URL，默认 http://127.0.0.1:18789/health
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -26,6 +29,9 @@ type ProbeResult = {
 
 const API_KEY = "secret-token-123";
 
+const LISTEN_SSH_TARGET = process.env.LISTEN_SSH_TARGET ?? "data@192.168.0.150";
+const LISTEN_HEALTH_URL = process.env.LISTEN_HEALTH_URL ?? "http://127.0.0.1:18789/health";
+
 function req(url: string, method: string, origin?: string): Request {
   const headers: Record<string, string> = {};
   if (origin) headers["origin"] = origin;
@@ -38,13 +44,14 @@ async function probeLocalHealth(): Promise<ProbeResult> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2000);
-    const res = await fetch("http://127.0.0.1:18789/health", { signal: ctrl.signal }).catch(() => null);
+    const res = await fetch(LISTEN_HEALTH_URL, { signal: ctrl.signal }).catch(() => null);
     clearTimeout(t);
     if (res && res.ok) {
       return { id, desc, local: "PASS", remote: "SKIP", detail: `HTTP ${res.status}` };
     }
     // also try /api/health or root
-    const res2 = await fetch("http://127.0.0.1:18789/api/health", { signal: AbortSignal.timeout(1500) }).catch(() => null);
+    const apiHealthUrl = LISTEN_HEALTH_URL.replace(/\/health$/, "/api/health");
+    const res2 = await fetch(apiHealthUrl, { signal: AbortSignal.timeout(1500) }).catch(() => null);
     if (res2 && res2.ok) {
       return { id, desc, local: "PASS", remote: "SKIP", detail: `HTTP ${res2.status} via /api/health` };
     }
@@ -157,10 +164,11 @@ function probeDreAdapter(): ProbeResult {
 
 async function probeRemoteViaSsh(): Promise<Record<string, ProbeResult>> {
   const remoteResults: Record<string, ProbeResult> = {};
-  // 若无 ssh 或 192.168.0.150 不可达，全部 SKIP
-  const host = "data@192.168.0.150";
+  // 若无 ssh 或远端不可达，全部 SKIP（目标由 LISTEN_SSH_TARGET 配置）
+  const host = process.env.LISTEN_SSH_TARGET ?? "data@192.168.0.150";
+  const healthUrl = process.env.LISTEN_HEALTH_URL ?? "http://127.0.0.1:18789/health";
   const cmds: Array<{ id: string; desc: string; cmd: string }> = [
-    { id: "health", desc: "远端 health", cmd: "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18789/health || curl -s http://127.0.0.1:18789/health | head -c 200" },
+    { id: "health", desc: "远端 health", cmd: `curl -s -o /dev/null -w '%{http_code}' ${healthUrl} || curl -s ${healthUrl} | head -c 200` },
     { id: "rebinding", desc: "远端重绑定探针同款（本地逻辑复用）", cmd: "echo skip-remote-rebinding-logic-local-only" },
   ];
   for (const c of cmds) {
@@ -255,7 +263,7 @@ ${localProbes.map((p) => `| ${p.id} | ${p.desc} | ${p.local} | ${p.remote} | ${p
 ## 汇总
 
 - 本机：${pass} PASS / ${fail} FAIL / ${skip} SKIP
-- 远端（192.168.0.150）：${Object.values(remoteMap).filter((r) => r.remote === "PASS").length} PASS / ${Object.values(remoteMap).filter((r) => r.remote === "FAIL").length} FAIL / ${Object.values(remoteMap).filter((r) => r.remote === "SKIP").length} SKIP
+- 远端（${LISTEN_SSH_TARGET}）：${Object.values(remoteMap).filter((r) => r.remote === "PASS").length} PASS / ${Object.values(remoteMap).filter((r) => r.remote === "FAIL").length} FAIL / ${Object.values(remoteMap).filter((r) => r.remote === "SKIP").length} SKIP
 - 结论：${fail === 0 ? "GREEN" : "RED"}
 
 ## 复现命令
