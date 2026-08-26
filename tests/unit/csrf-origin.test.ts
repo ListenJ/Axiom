@@ -5,8 +5,9 @@
  * 打本机 /terminal/session、/sandbox/execute、/vault/write 等写端点。
  *
  * 修复后契约（仅作用于本机免认证通道）：
- *   - 写方法（非 GET/HEAD/OPTIONS）携带 Origin 且 host 与目标不一致 → 拒绝
- *   - 无 Origin（curl/本地工具）或同源（Dashboard 自身）→ 放行
+ *   - Task2 DNS重绑定修复：Host 去信任，仅 Origin 白名单放行（本地回环）
+ *   - 写方法（非 GET/HEAD/OPTIONS）携带 Origin 且不在白名单 → 需有效凭证否则拒绝
+ *   - 无 Origin（curl/本地工具）或白名单内 Origin（127.0.0.1/localhost/::1 含端口/裸 host）→ 放行
  */
 import { describe, test, expect } from "bun:test";
 import { checkApiKey } from "../../src/utils/auth-check.js";
@@ -28,7 +29,8 @@ describe("本机写请求 CSRF Origin 校验（J-2）", () => {
 
   test("同源 Origin（Dashboard 自身）放行", () => {
     expect(checkApiKey(makeReq("POST", LOCAL_URL, "http://127.0.0.1:18789"), true, TOKEN)).toBe(true);
-    expect(checkApiKey(makeReq("POST", LOCAL_URL, "http://localhost:18789"), true, TOKEN)).toBe(false);
+    // Task2 白名单化：localhost 与 127.0.0.1 均属本地，Host 去信任后同放行
+    expect(checkApiKey(makeReq("POST", LOCAL_URL, "http://localhost:18789"), true, TOKEN)).toBe(true);
   });
 
   test("无 Origin 的本地工具调用放行（curl / CLI）", () => {

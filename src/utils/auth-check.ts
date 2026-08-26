@@ -11,6 +11,7 @@
 
 import { timingSafeEqual } from "crypto";
 import { logger } from "./logger.js";
+import { readString } from "./env.js";
 
 /** 判定 socket 对端地址是否为回环地址 */
 export function isLocalAddress(address: string | undefined): boolean {
@@ -40,6 +41,54 @@ const AUTH_EXEMPT_EXTS = new Set([
 // 免认证公共路径（精确匹配）—— Set O(1) 查找，替代数组 includes O(n)
 const PUBLIC_PATHS = new Set(["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"]);
 
+// —— DNS 重绑定白名单（Task2）：Host 不可信，仅 Origin 白名单放行 ——
+// 本地回环集合（裸 host 与 host:port 均入白名单，兼容浏览器 Origin 可能不带端口）
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+function buildLocalWhitelist(): Set<string> {
+  const port =
+    readString("AXIOM_GATEWAY_PORT") ||
+    readString("GATEWAY_PORT") ||
+    readString("PORT") ||
+    "18789";
+  const host = readString("HOST", "127.0.0.1");
+  const s = new Set<string>();
+  for (const h of LOCAL_HOSTS) {
+    s.add(h);
+    if (!h.includes(":")) s.add(`${h}:${port}`);
+  }
+  s.add(`${host}:${port}`);
+  s.add(host);
+  s.add(`127.0.0.1:${port}`);
+  s.add(`localhost:${port}`);
+  const corsRaw = readString("CORS_ORIGINS");
+  if (corsRaw) {
+    for (const raw of corsRaw.split(",")) {
+      const o = raw.trim();
+      if (!o || o === "*") continue;
+      try {
+        const u = new URL(o);
+        if (LOCAL_HOSTS.has(u.hostname) || u.hostname === host) s.add(u.host);
+      } catch {}
+    }
+  }
+  return s;
+}
+
+export const LOCAL_ORIGIN_WHITELIST = buildLocalWhitelist();
+
+/** 供 ws-auth 复用与测试注入 */
+export function isWhitelistedLocalOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    const host = u.host;
+    const hostname = u.hostname;
+    return LOCAL_ORIGIN_WHITELIST.has(host) || LOCAL_ORIGIN_WHITELIST.has(hostname);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * API 认证检查。
  * @param req      incoming request（只用其 URL 路径与认证 header，不信任 Host）
@@ -53,24 +102,31 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   const path = pathname ?? new URL(req.url).pathname;
   // Allow local requests without auth (for E2E tests and local development)
   if (isLocal) {
-    // 审计 J-2（2026-08-24）：本机免认证通道此前对任意写方法放行，
-    // 恶意网页可用 no-cors POST 打 /terminal/session、/sandbox/execute、
-    // /vault/write 等。浏览器跨站请求必带与目标不同源的 Origin；
-    // 本地工具（curl/CLI）不带 Origin；Dashboard 自身为同源。
+    // 审计 J-2（2026-08-24）+ Task2（DNS重绑定）：
+    // 本机免认证通道此前对任意写方法放行或仅以 originHost===targetHost 判定同源，
+    // Host 可被 DNS 重绑定伪造（r.evil.com:18789 与 Origin 同域即可绕过）。
+    // 现 Host 去信任：仅 Origin 白名单放行，跨站且无有效凭证一律走 credentialGate。
     const method = req.method.toUpperCase();
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
       const origin = req.headers.get("origin");
       if (origin) {
         try {
           const originHost = new URL(origin).host;
-          const targetHost = new URL(req.url).host;
-          if (originHost !== targetHost) {
-            logger.warn("[Auth] local write blocked by CSRF origin check", {
-              path,
-              origin: originHost,
-              target: targetHost,
-            });
-            return false;
+          const originHostname = new URL(origin).hostname;
+          const whitelisted =
+            LOCAL_ORIGIN_WHITELIST.has(originHost) || LOCAL_ORIGIN_WHITELIST.has(originHostname);
+          if (!whitelisted) {
+            const auth =
+              req.headers.get("x-api-key") ||
+              req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+            if (!safeStringEqual(auth, apiKey)) {
+              logger.warn("[Auth] local write blocked by CSRF origin check", {
+                path,
+                origin: originHost,
+                target: "whitelist-miss",
+              });
+              return false;
+            }
           }
         } catch {
           return false;

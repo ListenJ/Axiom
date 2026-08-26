@@ -392,6 +392,22 @@
 
 ## 2026-08-21 — 差异化测试目标矩阵 + 前后端集成 L2/L3 落地（严苛强化继续）
 
+---
+
+## 2026-08-27 — Slice1 Task2：auth-check Origin 白名单化与 Host 去信任（DNS重绑定闭环）
+
+- **任务**：修复 `src/utils/auth-check.ts:50` `checkApiKey` `isLocal` 分支 Host 信任漏洞（`r.evil.com:18789` 同域 Origin 可绕过 `AXIOM_AUTH_TOKEN` 直达 `/terminal/session`，P2b/P6 RCE）。白名单化 Origin，仅本地回环放行，跨站一律走 `credentialGate`。
+- **工具**：Read（`src/utils/auth-check.ts` 全文、`src/main.ts:587-630`、`tests/unit/auth-rebinding.test.ts`、`tests/unit/csrf-origin.test.ts`）、Edit（`auth-check.ts` + `csrf-origin.test.ts`）、Bash（`bun test`/`bunx tsc --noEmit`/`bun -e` 边界探针、`git`）、Write（`task-2-report.md`）。
+- **操作**（文件级）：
+  1. 备份 `src/utils/auth-check.ts` → `.tmp/backups/src/utils/auth-check.ts`；`tests/unit/csrf-origin.test.ts` → `.tmp/backups/tests/unit/csrf-origin.test.ts`；`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（规则2，先通读全文）。
+  2. 修改 `src/utils/auth-check.ts:12-90`：新增 `import { readString }`、`LOCAL_HOSTS`、`buildLocalWhitelist()`（`AXIOM_GATEWAY_PORT||GATEWAY_PORT||PORT||18789` + `HOST` + `127.0.0.1/localhost` 裸 host/`host:port` + `CORS_ORIGINS` 本地条目）、导出 `LOCAL_ORIGIN_WHITELIST`/`isWhitelistedLocalOrigin`；重写 `isLocal` 分支：`originHost/hostname` 查白名单，未命中则 `x-api-key`/`Authorization: Bearer` 经 `safeStringEqual` 校验，非法 `Origin` 直接 `false`，`Host`（`req.url`）不再为信任锚。
+  3. 修改 `tests/unit/csrf-origin.test.ts:7-31`：契约注释更新为白名单语义；用例 `同源 Origin 放行` 第二断言由 `false` 改 `true`（`localhost:18789` 与 `127.0.0.1:18789` 同属本地白名单，Host 去信任后同放行，设计内变更）。
+  4. 本条目 `docs/operations-log.md`；撰写 `task-2-report.md`（含 RED→GREEN 表格与 12 断言边界探针）。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/unit/auth-rebinding.test.ts` = 4 pass/2 fail（P2b/P6 `true→false`）→ 6 pass/0 fail；合测 `auth-rebinding + csrf-origin` = 11 pass/0 fail；`auth-check.test.ts` 9 pass 回归；`bunx tsc --noEmit` 0 错误；`bun -e` 12 边界（裸 host/带凭证跨站/无效 Origin/GET 旁路）全绿。
+  - 备份验证后删除 `.tmp/backups/src/utils/auth-check.ts`、`.tmp/backups/tests/unit/csrf-origin.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
+- **Commit**：`<pending> fix(auth): Origin白名单化闭环DNS重绑定，Host去信任，P2 r.evil.com 同域由200→401`（含 `auth-check.ts` + `csrf-origin.test.ts` + `operations-log.md` + `task-2-report.md`，`internal211`）
+
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
 - **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
 - **操作**（文件级）：
