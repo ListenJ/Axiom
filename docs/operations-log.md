@@ -440,7 +440,7 @@
   - `bunx tsc --noEmit` **0 错误**（`safeStringEqual` 跨模块导入与 `@deprecated host` 类型干净）。
   - 边界 `ws-auth` 多通道（`header wrong + query correct` → `ok:true`）与 `host` 去信任（`origin 127.0.0.1:18789 + host r.evil.com` → `ok:true`）经 `terminal-auth-fix` 4 例固定。
   - 备份验证后删除 `.tmp/backups/src/utils/ws-auth.ts`、`.tmp/backups/src/routes/route-auth.ts`、`.tmp/backups/tests/route-auth.test.ts`、`.tmp/backups/docs/operations-log.md`（验证后）。
-- **Commit**：`PENDING` `fix(auth): WS credentialGate 任一通道放行 + route-auth 时序安全 + terminal 双闸固定器`（含 `ws-auth.ts` + `route-auth.ts` + `terminal-auth-fix.test.ts` + `route-auth.test.ts` + `operations-log.md`，`internal211` 待回填）
+- **Commit**：`8982d80` `fix(auth): WS credentialGate 任一通道放行 + route-auth 时序安全 + terminal 双闸固定器`（含 `ws-auth.ts` + `route-auth.ts` + `terminal-auth-fix.test.ts` + `route-auth.test.ts` + `operations-log.md`，`internal211` 8982d8067b63df875dcb68ec85fa8f9766707d9a）
 
 - **任务**：按“更为严苛的测试，但是根据模块和对应效能的不同完善测试目标，基于任务难易和具体效果同时将前后端集成测试也加入”（Build 模式继续），在 202 全量 pass 基础上重塑差异化矩阵并落地前后端集成。
 - **工具**：Write（`docs/TEST-STRATEGY-2026-08-21.md` 差异化矩阵：P0/H≥90% 需5次回放+并发 vs P1/M≥95% 模糊20+ vs P3/L快照、`tests/integration/backend-full-pipeline.test.ts` 6 用例后端贯通、`e2e/frontend-backend-integration.spec.ts` 5 用例 + `frontend/src/pages/integration.test.tsx` 3 用例前端贯通）、Read（`src/dre/system-resource.ts:1-179` 全文、`src/dre/runtime/scheduler.ts:1-440` 全文、`frontend/src/App.tsx:1-116` 全文、`src/routes/index.ts:1-589` 全文、`frontend/src/pages/Search.tsx:1-50` 等）、Bash（`bun test` 分批及 `bun --cwd frontend test:run`、`bunx playwright --list`）、Edit（`docs/operations-log.md` 本条目）。
