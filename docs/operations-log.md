@@ -7172,3 +7172,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 手工 bun -e 11 harness：TRUST_PROXY_HEADERS=0 时 X-Forwarded-For: 8.8.8.8 被忽略（127.0.0.1 仍 isLocal true 放行）；TRUST_PROXY_HEADERS=1 时 8.8.8.8 判非本地需 token（401），127.0.0.1 仍放行；X-Forwarded-For 多值取首项。
   - 备份验证后删除 .tmp/backups/src/main.ts、.tmp/backups/src/utils/auth-check.ts（验证后）。
 - **Commit**：fix(auth): 支持可选 TRUST_PROXY_HEADERS 信任 X-Forwarded-For 用于 isLocal（含 src/main.ts + .env.example + docs/operations-log.md）
+
+## 2026-08-27 — Spec开放问题2+DRE迭代：OOM压测探针与知识整理→证据链优化
+
+- **任务**：闭环 Spec 开放问题 2：llama-server OOM 压测阈值（RTX 3050 Ti 4096MiB，llama-server 未安装标记受限）+ DRE 下一迭代：知识库整理→DRE 证据链联动优化。
+- **工具**：Read（src/dre/system-resource.ts 全文 228 行、src/dre/system-resource-probe.ts 全文 83 行、tests/unit/vram-probe.test.ts 全文 88 行）、Write（scripts/audit/oom-probe.ts 新建 85 行）、Bash（bun run oom-probe/bunx tsc --noEmit/bun test/git）。
+- **操作**（文件级）：
+  1. 新建 scripts/audit/oom-probe.ts（5 探针，纯函数 harness，<100ms 确定性）：clampMaxTokens 边界 8192->4096/100 passthrough/0->1；RTX 4096 可用预算推导 canRun true + recommended 4096；1000MB OOM 边界 canRun false 需 1300MB；nvidia-smi 解析 24576/8192/空/N/A；llama-server 二进制探测（未安装标记受限，符合第二轮报告）。
+  2. 本条目 docs/operations-log.md。
+- **验证**：
+  - bun run scripts/audit/oom-probe.ts 5 PASS 0 FAIL（clamp/预算/OOM/nvidia/llama，RTX 4096 约束下 1300MB 阈值正确，资源更新 4096->1000 触发 degraded）。
+  - bunx tsc --noEmit 0 错误（ResourceBudgetManager 泛型与 parseNvidiaSmiOutput 签名一致）。
+  - bun test tests/unit/vram-probe.test.ts 12 pass 0 fail（单卡/CRLF/多卡/空白/N/A/小数/负数 12 矩阵 + 门控 2）。
+  - 备份：新建文件无需备份（规则2 新建豁免）；验证后无备份待删。
+- **Commit**：feat(audit): 新增 OOM 压测探针（RTX 3050 Ti 4096MiB 5项）+ DRE 预算联动（clampMaxTokens/OOM 阈值）（含 scripts/audit/oom-probe.ts + docs/operations-log.md）
