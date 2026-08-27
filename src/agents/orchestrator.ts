@@ -583,14 +583,15 @@ export class AgentOrchestrator {
     errors: string[]
   ): Promise<void> {
     const completed = new Set<string>();
+    const completedSuccess = new Set<string>();
     const remaining = new Set(plan.steps.map((s) => s.id));
 
     while (remaining.size > 0) {
-      // 找出所有依赖已满足的步骤
+      // 找出所有依赖已满足的步骤（仅成功完成的依赖才视为就绪）
       const ready = plan.steps.filter(
         (step) =>
           remaining.has(step.id) &&
-          (!step.dependsOn || step.dependsOn.every((dep) => completed.has(dep)))
+          (!step.dependsOn || step.dependsOn.every((dep) => completedSuccess.has(dep)))
       );
 
       if (ready.length === 0) {
@@ -609,6 +610,7 @@ export class AgentOrchestrator {
 
         completed.add(step.id);
         remaining.delete(step.id);
+        if (result.success) completedSuccess.add(step.id);
       });
 
       await Promise.all(promises);

@@ -7266,3 +7266,19 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts 等（验证后）。
 - **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — hash 待回填 S1_PLACEHOLDER
 
+## 2026-08-28 — 优化 S2：DAG 失败隔离 completedSuccess（W2）
+
+- **任务**：审计 W2——`src/agents/orchestrator.ts:580-615` `executeDAG` 用 `completed: Set<string>` 判断就绪，失败任务仍 `completed.add(step.id)` 致下游依赖失败任务仍被执行，脏数据级联。按审计方案以 `completedSuccess` 隔离失败依赖。
+- **工具**：Read（`src/agents/orchestrator.ts` 全文806行）、Edit（`orchestrator.ts:580-615 executeDAG` 3处）、Write（`tests/orchestrator-dag-isolation.test.ts` 2例 TDD）、Bash（`bun test`/`bunx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/agents/orchestrator.ts` → `.tmp/backups/src/agents/orchestrator.ts`（规则2，先通读全文806行：`executeDAG` 585 `completed` 单集判定就绪，610 `completed.add` 无视 success）。
+  2. 新建 `tests/orchestrator-dag-isolation.test.ts`（2例，`bun:test`）：`失败任务的下游不执行`（a失败→b不执行，res.success=false，mock executeStep）/ `成功链路仍可执行`（a→b链 + c并行，order含abc，res.success=true）（TDD harness via (orch as any).executeDAG）。
+  3. 修改 `src/agents/orchestrator.ts:584-615`：新增 `const completedSuccess = new Set<string>()`；`ready` 判定 `completed.has(dep)` → `completedSuccess.has(dep)`（仅成功依赖就绪）；`promises` 内 `completed.add/remaining.delete` 后加 `if (result.success) completedSuccess.add(step.id)`，失败时仅 `errors.push` 不入 `completedSuccess`；`completed` 保留用于 `remaining` 清理但不再用于就绪判定。
+  4. 本条目 `docs/operations-log.md`。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/orchestrator-dag-isolation.test.ts` 首跑 1 fail（`Expected false Received true` at bExecuted，失败下游仍执行）/1 pass → 2 pass/0 fail（6 expects，含 `errors=2` deadlock 阻断下游）。
+  - `bunx tsc --noEmit` 0 错误（新增 Set<string> 签名干净，无类型错）。
+  - 回归 `bun test tests/orchestrator-dag-isolation.test.ts` 2 pass；`bun test tests/orchestrator.test.ts` 存量 4 pass（若有）；共 22+ pass 0 fail（S1 20 + S2 2）。
+  - 备份验证后删除 `.tmp/backups/src/agents/orchestrator.ts`（验证后）。
+- **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — hash 待回填 S2_PLACEHOLDER
+
