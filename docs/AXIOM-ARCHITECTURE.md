@@ -1197,11 +1197,13 @@ class ResourceBudgetManager {
     if (this.resource.availableMemory < required) {
       return { canRun: false, reason: `Insufficient memory: ${available} < ${required}`, ... };
     }
-    const maxTokens = Math.min(Math.floor(availableForKV * 1024 / bytesPerToken), maxTokensCap);
+    const maxTokens = Math.min(Math.floor(availableForKV * 1024 * 1024 / bytesPerToken), maxTokensCap);
     return { canRun: true, recommendedMaxTokens: maxTokens, ... };
   }
 }
 ```
+
+> **澄清（W3/W4）**：本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts），仅通过数字比较决定 recommendedMaxTokens，无真实显存换页实现。
 
 ---
 
@@ -1298,6 +1300,8 @@ class LLMClient {
 | 需安装 | Hermes | 4 | hermes CLI |
 | 需安装 | OCR | 2 | Tesseract |
 | 需安装 | Playwright | 1 | playwright |
+
+> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举与计费。
 
 ### 3.1 DRE 领域工具 (16 个)
 

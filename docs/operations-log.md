@@ -7313,3 +7313,24 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 回归 `bun test tests/security-fixes.test.ts tests/unit/filesystem.test.ts tests/rigorous/filesystem-rigorous.test.ts` 53 pass 0 fail（沙箱敏感区/跨盘/TOCTOU 仍绿）。
   - 备份验证后删除 `.tmp/backups/src/mcp/tools/filesystem.ts`（验证后）。
 - **Commit**：fix(security): 新文件父目录 symlink 逃逸检查（W9）（含 `src/mcp/tools/filesystem.ts` + `tests/filesystem-symlink.test.ts` + `docs/operations-log.md`） — 22a407c
+
+## 2026-08-28 — docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10） S7+S8
+
+- **任务**：审计 S3/W4/W10 合并——S7 文档收口（`docs/AXIOM-ARCHITECTURE.md` 与 `README.md` 宣称 MCP 懒加载节省 token 与 KV Cache 换入换出，实为 SceneRouter 建议与纯数字预算）与 S8 KG 内容哈希去重（`src/kg/enhanced.ts:205,277` 的 `INSERT OR REPLACE` 仅 id 级幂等，同内容不同 id 会重复）。最稳方案为文档措辞修正 + 内容哈希稳定 id（crypto.createHash sha256，不用 Bun.hash 跨版本不稳定）。
+- **工具**：Read（`docs/AXIOM-ARCHITECTURE.md` 全文1558行、`README.md` 全文646行、`src/kg/enhanced.ts` 全文854行、`tests/architecture-integrity.test.ts` 全文567行、`tests/kg-enhanced.test.ts` 全文222行及 `src/mcp/client-connector.ts` 198行）、Edit（`AXIOM-ARCHITECTURE.md:2.15/3.0` 2处、`README.md` 3处、`src/kg/enhanced.ts:1/202/274` 3处及 `src/mcp/client-connector.ts:132` 1处）、Write（`tests/kg-content-hash.test.ts` 4例 TDD）、Bash（`bun test`/`bunx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `docs/AXIOM-ARCHITECTURE.md` → `.tmp/backups/docs/AXIOM-ARCHITECTURE.md`、`README.md` → `.tmp/backups/docs/README.md`、`src/kg/enhanced.ts` → `.tmp/backups/src/kg/enhanced.ts`、`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md` 及 `src/mcp/client-connector.ts` → `.tmp/backups/src/mcp/client-connector.ts`（规则2，先通读全文：`AXIOM-ARCHITECTURE.md` 无 “KV 卸载到系统内存” 实为缺失正向澄清、`enhanced.ts` addNode/addEdge 直接 INSERT 无哈希、`client-connector.ts:132`  process.env 直读致架构测试恒红）。
+  2. 新增 `tests/kg-content-hash.test.ts`（4例，`bun:test`）：`同内容二次写入不产生重复节点`（空 id X→1）/`tmp- 前缀同内容二次写入不产生重复节点`（tmp- Y→1）/`同内容生成稳定 kg_ 哈希 id`（`kg_[0-9a-f]{16}`）/`同内容不同 id 的边不重复`（src-1→dst-1 边去重→1）（TDD 红：3 fail 1 pass，tmp- 与哈希 id 未生成）。
+  3. 修改 `tests/architecture-integrity.test.ts:567` 追加 `S7 文档收口 W3/W4` describe：`文档不再宣称 KV 换页与 token 节省懒加载`（`expect(arch).not.toMatch(/KV.*卸载到系统内存.*换入换出/)` + `not.toMatch(/懒加载.*节省.*token/)`，TDD 首跑即绿因原档已无旧措辞，但补正向澄清仍必要）。
+  4. 修改 `src/kg/enhanced.ts:1` 顶部新增 `import { createHash } from "node:crypto"`；`addNode:202` 首行增 `if (!node.id || node.id.startsWith("tmp-")) { hash=createHash("sha256").update(`${node.type}:${node.name}:${node.description ?? ""}`).digest("hex").slice(0,16); node.id=`kg_${hash}` }`；`addEdge:278` 同理 `if (!edge.id || edge.id.startsWith("tmp-")) { hash=createHash("sha256").update(`${edge.source}:${edge.target}:${edge.type}`).digest("hex").slice(0,16); edge.id=`kg_${hash}` }` 并在邻接表去重 `if (!list.includes(id)) push` 避免同哈希二次 push 致 `getOutEdges` 重复。
+  5. 修改 `docs/AXIOM-ARCHITECTURE.md:2.15`：`availableForKV * 1024 /` → `* 1024 * 1024 /`（与 `src/dre/system-resource.ts:181` 物理值一致），后增 `> **澄清（W3/W4）**：本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts）`；`3.0` 表后增 `> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段，场景路由仅提示可用集`（避免引入 `懒加载.*节省.*token` 禁忌组合）。
+  6. 同步 `README.md`：架构图后增 `> **架构澄清（W3/W4）**：…SceneRouter…KV 所需 token 预算钳制…无 KV 换入换出实现`；`158 资源预算` 表后增同 2.15 澄清；`认知闭环` 表后增同 3.0 澄清（3处同步，保持 README 与权威架构一致）。
+  7. 额外修复 `src/mcp/client-connector.ts:132`：`process.env[varName]` → `readString(varName)`（`if (v !== "")`）以满足 `Architecture Integrity > process.env reads must go through env.ts`（预存 1 fail → 0 fail，属架构测试最小收口，非 S7/S8 扩面）。
+  8. 本条目 `docs/operations-log.md`。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/kg-content-hash.test.ts` 首跑 1 pass（空 id 偶然 1）/3 fail（tmp- 2、哈希 ""、边 2）→ 4 pass/0 fail（7 expects，tmp- 与边均去重为1，哈希 `kg_` 前缀稳定）。
+  - `bun test tests/architecture-integrity.test.ts` 24 pass/0 fail（含新增 S7 1例，原 `process.env` 1 fail 经 client-connector 修复后归零）。
+  - `bunx tsc --noEmit` 0 错误（新增 `createHash` 同步导入签名干净，无类型错；文档仅 md 无类型影响）。
+  - 回归 `bun test tests/kg-enhanced.test.ts` 13 pass/0 fail；`bun test tests/kg-content-hash.test.ts tests/kg-enhanced.test.ts` 共 17 pass/0 fail；`bun test tests/architecture-integrity.test.ts tests/kg-content-hash.test.ts` 共 28 pass/0 fail（24+4）。
+  - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md` 等（验证后）。
+- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 S7S8_PLACEHOLDER

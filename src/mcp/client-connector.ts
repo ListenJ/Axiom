@@ -129,8 +129,8 @@ function resolveEntryTimeout(value?: number | string): number | undefined {
   const envOnly = str.match(/^\$\{(\w+)\}$/);
   if (envOnly) {
     const [, varName] = envOnly;
-    const v = process.env[varName];
-    if (v !== undefined) {
+    const v = readString(varName);
+    if (v !== "") {
       const n = Number(v);
       return Number.isFinite(n) ? n : undefined;
     }

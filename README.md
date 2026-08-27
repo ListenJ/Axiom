@@ -43,6 +43,7 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
+> **架构澄清（W3/W4）**：上图“场景路由层 (SceneRouter)”仅为场景建议，不减少 list_tools 计费；“VRAM 预算”实为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关），无 KV 在 VRAM/系统内存间的换入换出实现。
 
 ## 8 核心角色体系 (v2.3+)
 
@@ -156,6 +157,8 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | Actor 系统 | `src/dre/actor/system.ts` | 583 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
 | 资源预算 | `src/dre/system-resource.ts` | 179 | 纯数字预算（硬件无关，双阈值滞回；nvidia-smi 已按设计移除） |
 | 降级链 | `src/dre/engine.ts` | 803 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
+
+> **澄清（W3/W4）**：资源预算不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts）。
 
 > ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
 
@@ -283,6 +286,8 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | 约束求解 | `constraint_check`, `constraint_select_best`, `constraint_list`, `constraint_stats` |
 | Actor | `actor_list`, `actor_send` |
 | 认知闭环 | `cognitive_loop` |
+
+> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段。
 
 **配置工具类别** (需 API Key):
 

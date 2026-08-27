@@ -565,3 +565,12 @@ describe("L1 依赖方向（批次5 Phase C）", () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe("S7 文档收口 W3/W4", () => {
+  it("文档不再宣称 KV 换页与 token 节省懒加载", async () => {
+    const fs = await import("fs");
+    const arch = fs.readFileSync("docs/AXIOM-ARCHITECTURE.md", "utf8");
+    expect(arch).not.toMatch(/KV.*卸载到系统内存.*换入换出/);
+    expect(arch).not.toMatch(/懒加载.*节省.*token/);
+  });
+});
