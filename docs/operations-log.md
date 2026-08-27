@@ -7156,3 +7156,19 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 本地 7 探针保持：`health`/`cron`/`mcp`/`rebinding`/`ws`/`mineru`/`dre-caller` 均 `probe*` 覆盖，远端 `probeRemoteViaSsh` 同 7 项 peer。
   - 备份验证后删除 `.tmp/backups/scripts/audit/dual-probe.ts`（验证后）。
 - **Commit**：`fix(audit): dual-probe 远端 peer 化——cron/MCP/重绑定/WS/MinerU/DRE 单次批量 ssh，3s 超时 SKIP 容错，双列填充`（含 `scripts/audit/dual-probe.ts` + `docs/operations-log.md`，`internal211` 待 push，hash 274f815）
+
+## 2026-08-27 — Spec开放问题：X-Forwarded-For 可选信任（TRUST_PROXY_HEADERS）
+
+- **任务**：闭环 Spec 开放问题 1：反代同机部署时 AXIOM_ALLOW_LOCAL_BYPASS=0 需正确识别真实客户端 IP。当前 src/main.ts:608 仅用 server.requestIP 套接字地址，TRUST_PROXY_HEADERS=0 时不信任任何代理头（默认防伪造）；TRUST_PROXY_HEADERS=1 时信任首个 X-Forwarded-For 作为有效远端，用于 isLocal 判定，其余头仍不信任。
+- **工具**：Read（src/main.ts 全文 851 行、src/utils/auth-check.ts 全文 199 行、src/utils/env.ts、tests/unit/auth-rebinding.test.ts）、Edit（main.ts + .env.example）、Bash（bunx tsc --noEmit/bun test/git）。
+- **操作**（文件级）：
+  1. 备份 src/main.ts → .tmp/backups/src/main.ts；src/utils/auth-check.ts → .tmp/backups/src/utils/auth-check.ts（规则2，先通读全文：main.ts:608 remoteAddress=server.requestIP?.address 直判 isLocal；auth-check.ts:104 getLocalWhitelist 已支持热重载）。
+  2. 修改 src/main.ts:583 新增 TRUST_PROXY_HEADERS = readBool("TRUST_PROXY_HEADERS", false)（与 ALLOW_LOCAL_BYPASS 同节，默认 0 不信任）；src/main.ts:608 重构回环判定为 socketAddress + forwardedFor（TRUST_PROXY_HEADERS ? X-Forwarded-For首项 : undefined）合成 effectiveRemote = forwardedFor || socketAddress，再 isLocal = ALLOW_LOCAL_BYPASS && isLocalAddress(effectiveRemote)（注释强调 spoof-proof 仅当 TRUST_PROXY_HEADERS=0）。
+  3. 修改 .env.example:116 追加 TRUST_PROXY_HEADERS=0 注释（与 ALLOW_LOCAL_BYPASS=0 同节，说明仅反代已剥离伪造头时开启）。
+  4. 本条目 docs/operations-log.md。
+- **验证**：
+  - bunx tsc --noEmit 0 错误（新增 TRUST_PROXY_HEADERS 常量与 forwardedFor 逻辑类型干净，readBool 已导入）。
+  - bun test tests/unit/auth-rebinding.test.ts tests/unit/ws-rebinding.test.ts 9 pass 0 fail（P1/P2/P6/WS-P2 均保持 401 拦截，GET 敏感路径 401 仍绿）。
+  - 手工 bun -e 11 harness：TRUST_PROXY_HEADERS=0 时 X-Forwarded-For: 8.8.8.8 被忽略（127.0.0.1 仍 isLocal true 放行）；TRUST_PROXY_HEADERS=1 时 8.8.8.8 判非本地需 token（401），127.0.0.1 仍放行；X-Forwarded-For 多值取首项。
+  - 备份验证后删除 .tmp/backups/src/main.ts、.tmp/backups/src/utils/auth-check.ts（验证后）。
+- **Commit**：fix(auth): 支持可选 TRUST_PROXY_HEADERS 信任 X-Forwarded-For 用于 isLocal（含 src/main.ts + .env.example + docs/operations-log.md）

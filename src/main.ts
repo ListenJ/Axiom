@@ -581,6 +581,11 @@ const API_KEY = readString("AXIOM_AUTH_TOKEN");
 // Set AXIOM_ALLOW_LOCAL_BYPASS=0 when a reverse proxy runs on the same host,
 // otherwise all proxied traffic appears to originate from 127.0.0.1.
 const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
+// Optional: trust X-Forwarded-* headers from a reverse proxy that terminates TLS
+// and is co-located on loopback (e.g., nginx on 127.0.0.1). When enabled, the
+// first X-Forwarded-For entry is used as the effective remote address for
+// isLocal determination; otherwise only the socket peer address is trusted.
+const TRUST_PROXY_HEADERS = readBool("TRUST_PROXY_HEADERS", false);
 
 logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
 
@@ -606,7 +611,11 @@ const server = Bun.serve({
     if (req.method === "OPTIONS") return new Response(null, { headers: baseHeaders });
 
     // Loopback detection via socket peer address (spoof-proof, unlike Host header)
-    const remoteAddress = server.requestIP(req)?.address;
+    // When TRUST_PROXY_HEADERS=1, honor X-Forwarded-For (first entry) as effective remote;
+    // otherwise only the socket peer is trusted (default, spoof-proof).
+    const socketAddress = server.requestIP(req)?.address;
+    const forwardedFor = TRUST_PROXY_HEADERS ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+    const remoteAddress = forwardedFor || socketAddress;
     const isLocal = ALLOW_LOCAL_BYPASS && isLocalAddress(remoteAddress);
 
     // SPA navigation routes — serve index.html before auth check so frontend
