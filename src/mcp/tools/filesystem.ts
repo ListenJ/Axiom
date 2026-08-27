@@ -85,20 +85,17 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
         };
       }
     } catch {
-      // Path doesn't exist yet (e.g., new file write) — parent directory check
-      const parentDir = path.dirname(resolved);
       try {
-        const realParent = fsSync.realpathSync(parentDir);
-        const parentRelative = path.relative(cwd, realParent);
-        if (parentRelative.startsWith("..") || parentRelative === ".." || path.isAbsolute(parentRelative)) {
+        const parent = path.dirname(resolved);
+        const realParent = fsSync.realpathSync(parent);
+        const realRelative = path.relative(cwd, path.join(realParent, path.basename(resolved)));
+        if (realRelative.startsWith("..") || realRelative === ".." || path.isAbsolute(realRelative)) {
           return {
             safe: false,
-            error: `Path '${targetPath}' parent directory resolves outside the working directory.`,
+            error: `Path '${targetPath}' parent directory resolves outside the working directory (symlink parent escape).`,
           };
         }
-      } catch {
-        // Parent doesn't exist either — allow (mkdir will create it within cwd)
-      }
+      } catch {}
     }
 
     return { safe: true };

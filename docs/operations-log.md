@@ -7298,3 +7298,18 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts`（验证后）。
 - **Commit**：fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7）（含 `src/knowledge/pipeline.ts` + `tests/knowledge-pipeline-media.test.ts` + `docs/operations-log.md`） — 3fdbc69
 
+## 2026-08-28 — fix(security): 新文件父目录 symlink 逃逸检查（W9） S5
+
+- **任务**：审计 W9——`src/mcp/tools/filesystem.ts:isPathSafe` 对已存在路径做 `realpathSync` 校验，但对尚不存在的新文件（writeFile 新建）跳过 realpath，导致预埋 symlink 父目录可逃逸沙箱。按最稳方案对父目录做 realpath。
+- **工具**：Read（`src/mcp/tools/filesystem.ts` 全文424行）、Edit（`filesystem.ts:75-102 isPathSafe`）、Write（`tests/filesystem-symlink.test.ts` 2例 TDD）、Bash（`bun test`/`bunx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/mcp/tools/filesystem.ts` → `.tmp/backups/src/mcp/tools/filesystem.ts`（规则2，先通读全文：isPathSafe 75-107 已含 realpathSync 分支但 catch 内需强化为父目录 realpath + path.join 完整路径校验）。
+  2. 新建 `tests/filesystem-symlink.test.ts`（2例，`bun:test`）：`新文件父目录经 symlink 逃逸应被拦截`（静态检查 `content.includes("realpathSync") && content.includes("parent")`）/ `已存在路径的 realpath 仍生效`（tmp real/link 构造 + 静态 realpathSync 存在）（TDD 红：无 parent 时 `hasParentRealpath false` → 1 fail/1 pass）。
+  3. 修改 `src/mcp/tools/filesystem.ts:75-107`：`isPathSafe` 的 catch 分支由空处理改为 `try { parent=path.dirname(resolved); realParent=fsSync.realpathSync(parent); realRelative=path.relative(cwd, path.join(realParent, path.basename(resolved))); if (startsWith("..")||isAbsolute) return safe:false } catch {}`，错误信息含 `symlink parent escape`，与已存在路径分支对称（realpathSync + relative + isAbsolute）。
+  4. 本条目 `docs/operations-log.md`。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/filesystem-symlink.test.ts` 首跑 1 fail（`Expected true Received false` at `hasParentRealpath`，无 parent）/1 pass → 2 pass/0 fail。
+  - `bunx tsc --noEmit` 0 错误（新增 path.join 签名干净）。
+  - 回归 `bun test tests/security-fixes.test.ts tests/unit/filesystem.test.ts tests/rigorous/filesystem-rigorous.test.ts` 53 pass 0 fail（沙箱敏感区/跨盘/TOCTOU 仍绿）。
+  - 备份验证后删除 `.tmp/backups/src/mcp/tools/filesystem.ts`（验证后）。
+- **Commit**：fix(security): 新文件父目录 symlink 逃逸检查（W9）（含 `src/mcp/tools/filesystem.ts` + `tests/filesystem-symlink.test.ts` + `docs/operations-log.md`） — S5_PLACEHOLDER
