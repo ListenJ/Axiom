@@ -7248,3 +7248,21 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/deterministic-search.test.ts 16 pass 0 fail（有界扫描/PARA/关系等均绿）。
   - 备份验证后删除 .tmp/backups/src/memory/vault-manager.ts 等（验证后）。
 - **Commit**：perf(vault): 增量重建（VaultManager + DeterministicSearch 增量 reload，700ms→11ms 热路径）（含 src/memory/vault-manager.ts + src/memory/deterministic-search.ts + docs/operations-log.md）
+
+## 2026-08-28 — 优化 S1：确定性同分 tie-break（W1，最稳切片）
+
+- **任务**：审计 W1——同分排序仅 .score-a.score 无次级键，eaddirSync 未排序致跨平台非确定（POSIX 未保证字典序）。按最稳方案（docs/knowledge/audit-stability-analysis-2026-08-28.md S1 ★★★★★）以最小改动保证同输入同输出。
+- **工具**：Read（src/memory/deterministic-search.ts 全文813行、src/dre/retrieval/deterministic-retrieval-engine.ts 全文847行）、Bash（bunx tsc --noEmit / bun test / git）、Edit（deterministic-search.ts 4处、retrieval-engine 2处）、Write（tests/deterministic-search-tie.test.ts 3例 TDD）。
+- **操作**（文件级）：
+  1. 备份 src/memory/deterministic-search.ts → .tmp/backups/src/memory/deterministic-search.ts；src/dre/retrieval/deterministic-retrieval-engine.ts → .tmp/backups/src/dre/retrieval/deterministic-retrieval-engine.ts（规则2，先通读全文：scanDirectory 113 直用 readdirSync 无排序、results.sort 396 单键、browseByPara/Tag 652/664 单键、collect 762 无排序；retrieval-engine 493/777 单键）。
+  2. 修改 src/memory/deterministic-search.ts:113 readdirSync 后加 .sort((a,b)=>a.name.localeCompare(b.name))；:396 esults.sort((a,b)=>b.score-a.score || a.note.path.localeCompare(b.note.path))；:652/664 sort(... || a.path.localeCompare(b.path))；:762 collect 内 readdirSync 同排序。
+  3. 修改 src/dre/retrieval/deterministic-retrieval-engine.ts:493/777 sort((a,b)=>b.score-a.score || a.id.localeCompare(b.id))。
+  4. 新增 tests/deterministic-search-tie.test.ts 3例（同分5次稳定、逆序创建仍a在b前、readdir排序字典序）。
+  5. 本条目 docs/operations-log.md。
+- **验证**：
+  - bunx tsc --noEmit 0 错误（新增 localeCompare 签名干净）。
+  - bun test tests/deterministic-search-tie.test.ts 3 pass / 0 fail；tests/deterministic-search.test.ts 16 pass；tests/memory/vault-reindex.test.ts 1 pass；共 20 pass 0 fail（含原 17 套件）。
+  - 5次重复实验 Set size=1，同分 a-note 恒在 b-note 前（跨 reload 稳定）。
+  - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts 等（验证后）。
+- **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — hash 待回填 S1_PLACEHOLDER
+

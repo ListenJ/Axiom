@@ -489,8 +489,8 @@ export class DeterministicRetrievalEngine {
       }
     }
 
-    // 按得分降序
-    return Array.from(merged.values()).sort((a, b) => b.score - a.score);
+    // 按得分降序，同分按 id 字典序（确定性 tie-break）
+    return Array.from(merged.values()).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   }
 
   /** 检测图谱结果是否与某个关键词结果名称关联 */

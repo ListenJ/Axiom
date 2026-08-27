@@ -110,7 +110,7 @@ export class DeterministicSearchEngine {
 
   private scanDirectory(basePath: string, relPath: string) {
     const fullPath = nodePath.join(basePath, relPath);
-    const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+    const entries = fs.readdirSync(fullPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
     for (const entry of entries) {
       const entryRel = relPath ? `${relPath}/${entry.name}` : entry.name;
@@ -393,7 +393,7 @@ export class DeterministicSearchEngine {
       });
     }
 
-    results.sort((a, b) => b.score - a.score);
+    results.sort((a, b) => b.score - a.score || a.note.path.localeCompare(b.note.path));
     return results.length > limit ? results.slice(0, limit) : results;
   }
 
@@ -649,7 +649,7 @@ export class DeterministicSearchEngine {
   browseByPara(category: string): VaultNote[] {
     return Array.from(this.notes.values())
       .filter((n) => this.getParaCategory(n.path) === category)
-      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .sort((a, b) => b.modifiedAt - a.modifiedAt || a.path.localeCompare(b.path))
       .map((lite) => this.resolveNote(lite));
   }
 
@@ -661,7 +661,7 @@ export class DeterministicSearchEngine {
       .map((p) => this.notes.get(p))
       .filter(Boolean)
       .map((lite) => this.resolveNote(lite!))
-      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+      .sort((a, b) => b.modifiedAt - a.modifiedAt || a.path.localeCompare(b.path));
   }
 
   /** wiki-link 入链（来源路径+标题），供 KAL 跨存储引用查询（P1-T2） */
@@ -759,7 +759,7 @@ export class DeterministicSearchEngine {
     const collect = (base: string, rel: string) => {
       const full = nodePath.join(base, rel);
       try {
-        const entries = fs.readdirSync(full, { withFileTypes: true });
+        const entries = fs.readdirSync(full, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
         for (const e of entries) {
           const r = rel ? `${rel}/${e.name}` : e.name;
           if (e.isDirectory()) {
