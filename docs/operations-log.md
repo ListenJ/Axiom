@@ -1,4 +1,4 @@
-# 操作日志（Operations Log）
+﻿# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -7333,4 +7333,5 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 `createHash` 同步导入签名干净，无类型错；文档仅 md 无类型影响）。
   - 回归 `bun test tests/kg-enhanced.test.ts` 13 pass/0 fail；`bun test tests/kg-content-hash.test.ts tests/kg-enhanced.test.ts` 共 17 pass/0 fail；`bun test tests/architecture-integrity.test.ts tests/kg-content-hash.test.ts` 共 28 pass/0 fail（24+4）。
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md` 等（验证后）。
-- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 S7S8_PLACEHOLDER
+- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 6b4e9a6
+
