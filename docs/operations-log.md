@@ -7282,3 +7282,19 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 备份验证后删除 `.tmp/backups/src/agents/orchestrator.ts`（验证后）。
 - **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — hash 待回填 S2_PLACEHOLDER
 
+## 2026-08-28 — fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7） S4
+
+- **任务**：审计 W7——`src/knowledge/pipeline.ts` `structureWithGLM` 内 `describeMediaInMarkdown`（glm-4.6v）无 `KNOWLEDGE_USE_LLM` 守卫，含图文档在 zero LLM 承诺下仍尝试视觉网络调用，导致开销与承诺不一致。
+- **工具**：Read（`src/knowledge/pipeline.ts` 全文314行、`src/knowledge/vision.ts` 365行、`src/utils/env.ts` 320行、`tests/document-ingest.test.ts` 144行、`docs/operations-log.md` 全文）、Edit（`pipeline.ts` 1处、`operations-log.md` 本条目）、Write（`tests/knowledge-pipeline-media.test.ts` 1文件）、Bash（`bun test`/`bunx tsc --noEmit`/`git`）。
+- **操作**（文件级）：
+  1. 备份 `src/knowledge/pipeline.ts` → `.tmp/backups/src/knowledge/pipeline.ts`；`docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（规则2，先通读全文：pipeline 已 `import { readBool, readString }`，`structureWithGLM` 118-134 无条件 `try{ describeMediaInMarkdown }`，`runPipeline` 261 已有 `readBool("KNOWLEDGE_USE_LLM", false)` 但仅控 `structureWithGLM` 外层调用，未控其内部媒体分支）。
+  2. 新建 `tests/knowledge-pipeline-media.test.ts`（1例，`bun:test`）：`KNOWLEDGE_USE_LLM=false` 时 `fallbackTFIDF` 不触发 `fetch`（`fetchCalls===0`）+ 静态检查 `pipeline.ts` 含 `readBool("KNOWLEDGE_USE_LLM"` 与 `describeMediaInMarkdown` 关联，且 `structureWithGLM` 函数体内 `readBool` 先于 `describeMediaInMarkdown`（精确守卫验证）（TDD 红：`hasGuardInStructure false` → 1 fail）。
+  3. 修改 `src/knowledge/pipeline.ts:118-134`：`structureWithGLM` 顶部新增 `const useLLM = readBool("KNOWLEDGE_USE_LLM", false)`，媒体分支 `try{ describeMediaInMarkdown }` 整体包 `if (useLLM) { ... }`，注释更新为 `仅当 KNOWLEDGE_USE_LLM=true 时启用（W7 zero LLM 承诺）`，保持 `fallbackTFIDF` 默认无 LLM 路径不变、`runPipeline` 原有三元守卫不动。
+  4. 本条目 `docs/operations-log.md`。
+- **验证**：
+  - TDD RED→GREEN：`bun test tests/knowledge-pipeline-media.test.ts` 首跑 1 fail（`Expected true Received false` at `hasGuardInStructure`，`structureWithGLM` 无守卫）→ 1 pass/0 fail（`fetchCalls 0` + `hasGuard true` + `hasGuardInStructure true`）。
+  - `bunx tsc --noEmit` 0 错误（新增 `readBool` 守卫签名干净，无类型错）。
+  - 回归 `bun test tests/knowledge-pipeline-media.test.ts tests/document-ingest.test.ts tests/knowledge-preprocess-quality.test.ts` 44 pass 0 fail（含 `fallbackTFIDF` DETERMINISTIC 家族与知识预处理 20+）。
+  - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts`（验证后）。
+- **Commit**：fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7）（含 `src/knowledge/pipeline.ts` + `tests/knowledge-pipeline-media.test.ts` + `docs/operations-log.md`） — hash 待回填 S4_PLACEHOLDER
+

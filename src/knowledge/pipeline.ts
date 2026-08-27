@@ -116,21 +116,24 @@ export function fallbackTFIDF(rawMarkdown: string): StructureResult {
 }
 
 async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | null> {
-  // 图/视频自动理解分支：先让 glm-4.6v-flash 理解媒体内容，再把视觉描述并入结构化输入
-  try {
-    const enriched = await describeMediaInMarkdown(
-      rawMarkdown,
-      readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
-    );
-    if (enriched.described > 0) {
-      rawMarkdown = enriched.markdown;
-      logger.info("[Pipeline] Media vision enrichment applied", {
-        mediaCount: enriched.mediaCount,
-        described: enriched.described,
-      });
+  // 图/视频自动理解分支：仅当 KNOWLEDGE_USE_LLM=true 时启用（W7 zero LLM 承诺）
+  const useLLM = readBool("KNOWLEDGE_USE_LLM", false);
+  if (useLLM) {
+    try {
+      const enriched = await describeMediaInMarkdown(
+        rawMarkdown,
+        readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
+      );
+      if (enriched.described > 0) {
+        rawMarkdown = enriched.markdown;
+        logger.info("[Pipeline] Media vision enrichment applied", {
+          mediaCount: enriched.mediaCount,
+          described: enriched.described,
+        });
+      }
+    } catch (err) {
+      logger.warn(`[Pipeline] Media vision enrichment failed: ${(err as Error).message}`);
     }
-  } catch (err) {
-    logger.warn(`[Pipeline] Media vision enrichment failed: ${(err as Error).message}`);
   }
 
   const apiKey = readString("ZHIPU_API_KEY")
