@@ -7141,3 +7141,18 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 叠加终验：tsc 0；go 10 ok；bun test 203 pass 零回归；git diff --cached --stat 每切片仅含本切片文件（git add <only> 隔离验证）；备份验证后删除对应 .tmp/backups/<slice>（规则2: 备份→读全文→修改→验证→删备份）；.superpowers/sdd 保持 ignored 未提交。
 - **Commit**：feat(dre) e29ea92 / feat(mcp) 76a6e0c / feat(go+frontend) 68dfae6 / test b60bf5e（4切片，internal211 待合流推送）；本条目将随 docs/operations-log.md 以 5th commit 落库（internal211 同推），Hash 以 git log 为准。
 
+
+## 2026-08-27 — Spec remaining dual-probe peer (Important I1 from Task8 review)
+
+- **任务**：修复 `scripts/audit/dual-probe.ts` 远端探针浅层问题（仅 `curl health` + `echo skip`），按 Spec 要求远端同本地 peer 覆盖 7 探针：`probeRemoteCron` 经 `ssh cat src/cron/scheduler.ts | grep withRetry`、`probeRemoteMcp` 经 `ssh cat config/mcp-servers.yaml | grep optional`、`probeRemoteRebinding` 经 `ssh cat src/utils/auth-check.ts | grep LOCAL_ORIGIN_WHITELIST`，其余 `ws/mineru/dre-caller/health` 亦 peer；`ssh` 超时 3s 标记 SKIP 非 FAIL（容错）；报告 markdown 双列 Local/Remote 均填充。
+- **工具**：Read（`scripts/audit/dual-probe.ts` 全文 290 行、`src/cron/scheduler.ts`、`config/mcp-servers.yaml`、`src/utils/auth-check.ts`）、Edit（`dual-probe.ts` 批量探针）、Bash（`bun run scripts/audit/dual-probe.ts`/`bunx tsc --noEmit`/`git`）、Write（`.superpowers/sdd/spec-remaining-dualprobe-report.md`）。
+- **操作**（文件级）：
+  1. 备份 `scripts/audit/dual-probe.ts` → `.tmp/backups/scripts/audit/dual-probe.ts`（规则2，通读全文后最小改动）。
+  2. 修改 `scripts/audit/dual-probe.ts`：新增 `sshExec(host,cmd,timeout)`（`Bun.spawn ssh -o ConnectTimeout=3` + 4s kill 竞争，`timedOut` 判 SKIP）；新增 `probeRemoteCron`（`cat ~/openclaw-fusion/src/cron/scheduler.ts | grep -q withRetry` + `SQLITE_BUSY` + `unhandledRejection`，三命中 PASS 否则 FAIL，超时 SKIP）、`probeRemoteMcp`（`cat config/mcp-servers.yaml | grep optional` + `sqlite-server` 缺失 + `MCP_CONNECT_TIMEOUT_MS`，三条件 PASS）、`probeRemoteRebinding`（`cat src/utils/auth-check.ts | grep LOCAL_ORIGIN_WHITELIST`）；重构 `probeRemoteViaSsh` 为单次批量 `ssh` 7 项（解决 Bun 并发 ssh 串行化导致 20s+ 延迟），`curl -m 2 --connect-timeout 2` 防 `curl` 挂起，超时 3.5s 全 SKIP，成功则按标记 `PASS/FAIL`（`health 200=>PASS` 否则 SKIP，`cron 3 命中`、`mcp 3 命中`、`rebinding whitelist`、`ws whitelist`、`mineru 3 命中`、`dre 3 命中`）；`main` 合并注释由 `health/rebinding` 改为 `7 探针 peer 双列填充` 且 `else` 兜底 `remote:` 细节。
+  3. 本条目 `docs/operations-log.md`；撰写 `.superpowers/sdd/spec-remaining-dualprobe-report.md`（含 RED→GREEN 表格与 `bunx tsc` 0 错、`dual-probe` 6 PASS/1 SKIP GREEN、远端 7 SKIP 超时容错）。
+- **验证**：
+  - `bunx tsc --noEmit` 0 错误（新增 `sshExec`/`probeRemote*` 类型干净，`Bun.spawn` 管道正确）。
+  - `bun run scripts/audit/dual-probe.ts` GREEN：本地 6 PASS/0 FAIL/1 SKIP（`health SKIP 服务未启动`，`cron/mcp/rebinding/ws/mineru/dre-caller` 6 PASS），远端 0 PASS/0 FAIL/7 SKIP（`ssh timeout` 单次批量 3.5s 超时，SKIP 非 FAIL 容错，`Bun 并发串行化` 批处理后 3.5s 内完成，`Report written to .tmp/dual-probe-report.md`），`Summary GREEN`。
+  - 本地 7 探针保持：`health`/`cron`/`mcp`/`rebinding`/`ws`/`mineru`/`dre-caller` 均 `probe*` 覆盖，远端 `probeRemoteViaSsh` 同 7 项 peer。
+  - 备份验证后删除 `.tmp/backups/scripts/audit/dual-probe.ts`（验证后）。
+- **Commit**：`fix(audit): dual-probe 远端 peer 化——cron/MCP/重绑定/WS/MinerU/DRE 单次批量 ssh，3s 超时 SKIP 容错，双列填充`（含 `scripts/audit/dual-probe.ts` + `docs/operations-log.md`，`internal211` 待 push，hash 以 `git log` 为准）
