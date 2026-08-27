@@ -7264,7 +7264,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/deterministic-search-tie.test.ts 3 pass / 0 fail；tests/deterministic-search.test.ts 16 pass；tests/memory/vault-reindex.test.ts 1 pass；共 20 pass 0 fail（含原 17 套件）。
   - 5次重复实验 Set size=1，同分 a-note 恒在 b-note 前（跨 reload 稳定）。
   - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts 等（验证后）。
-- **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — hash 待回填 S1_PLACEHOLDER
+- **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — hash 待回填 11f226a
 
 ## 2026-08-28 — 优化 S2：DAG 失败隔离 completedSuccess（W2）
 
@@ -7350,6 +7350,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bunx tsc --noEmit 0；bun test 36 pass / 0 fail（S1 3 + S2 2 + S4 1 + S5 2 + S7 24 + S8 4）。
   - gh repo view visibility = PUBLIC；git ls-remote 200。
   - 扫描 0 真实命中，已满足 AGENTS 规则11。
-- **Commit**：chore(publish): GitHub PRIVATE→PUBLIC（密钥扫描 0 真实命中，S1/S2/S4/S5/S7+S8 已推）（含 docs/operations-log.md） — hash 待回填 S9_PLACEHOLDER
+- **Commit**：chore(publish): GitHub PRIVATE→PUBLIC（密钥扫描 0 真实命中，S1/S2/S4/S5/S7+S8 已推）（含 docs/operations-log.md） — hash 待回填 7753562
 - **回退**：gh repo edit ListenJ/Axiom --visibility private --accept-visibility-change-consequences
+
 
