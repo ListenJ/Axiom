@@ -7200,3 +7200,18 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/unit/docs-consistency.test.ts 9 pass 0 fail（mineru 口径 + DRE 章节均含 判别式/PP-DocLayoutV2/4096 校验）。
   - 备份验证后删除 .tmp/backups/docs/KNOWLEDGE-BASE.md（验证后）。
 - **Commit**：docs(kb): 追加 DRE 下一迭代知识整理→证据链优化章节（RTX 4096预算/证据链/双端探针）（含 docs/KNOWLEDGE-BASE.md + docs/operations-log.md）
+
+## 2026-08-27 — 检索优化：DeterministicSearch 热路径（检索与知识库）
+
+- **任务**：按“检索与知识库”优化方向，针对 173 笔记 Vault 的 100x 检索压测（测试/嵌入式/graph 等 CJK/高频词 140ms+）做热路径优化；目标 10%+ 提升且可回放确定性。
+- **工具**：Read（src/memory/deterministic-search.ts 全文 740 行、axiom-memory stats 173 笔记）、Bash（bun -e 压测/ bunx tsc --noEmit / bun test / git）、Edit（deterministic-search.ts 40 行）。
+- **操作**（文件级）：
+  1. 备份 src/memory/deterministic-search.ts → .tmp/backups/src/memory/deterministic-search.ts（规则2，先通读全文：contentCache 50 + tokenize 200 + para 500 + CONTENT_SCAN_MAX 200；readContent 同步读盘 + toLowerCase 每查询重复；titleWords 每候选重复 tokenize；countOccurrences 重叠 indexOf+1；reload 未清新缓存）。
+  2. 修改 src/memory/deterministic-search.ts:86 新增 contentLowerCache（50→200）与 titleTokensCache（按 path 缓存标题分词，复用 tokenize）；putContentCache 同步双驱逐并缓存 lower；新增 readContentLower（命中则直接返回 lower，否则触发 readContent）与 getTitleTokens（按 path 缓存）；titleMatches 改 getTitleTokens；contentCandidates 改 readContentLower；countOccurrences 改非重叠 indexOf（pos+substring.length，关键词无需重叠）；CONTENT_CACHE_MAX/LOWER 50→200（173 笔记全量扫描时 50 导致 123 次重复读盘，200 可全量缓存）；reload 清空双新缓存。
+  3. 本条目 docs/operations-log.md。
+- **验证**：
+  - 压测（100x search, limit 20, 173 笔记）：优化前 测试 14026ms/嵌入式 14942ms/graph 16963ms/knowledge 51ms；优化后 测试 221ms/嵌入式 226ms/graph 793ms/knowledge 33ms（测试 63x、嵌入式 66x、graph 21x、knowledge 1.5x），二轮 warm 111ms/791ms 仍绿； heap delta 2.37MB 保持。
+  - bunx tsc --noEmit 0 错误（新增缓存与方法签名干净，reload 类型一致）。
+  - bun test tests/deterministic-search.test.ts 16 pass 0 fail（标题/标签/PARA/关系/有界扫描等均绿，P1-T1 有界扫描用例仍绿）；全量相关 203 pass 零回归。
+  - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts（验证后）。
+- **Commit**：perf(search): DeterministicSearch 热路径——小写/标题缓存+内容缓存扩容+非重叠计数（测试 63x/graph 21x）（含 src/memory/deterministic-search.ts + docs/operations-log.md）

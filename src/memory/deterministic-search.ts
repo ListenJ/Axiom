@@ -82,7 +82,12 @@ export class DeterministicSearchEngine {
 
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
-  private readonly CONTENT_CACHE_MAX = 50;
+  private readonly CONTENT_CACHE_MAX = 200;
+  // 小写内容缓存（与 contentCache 同生命周期，避免每查询重复 toLowerCase）
+  private contentLowerCache = new Map<string, string>();
+  private readonly CONTENT_LOWER_CACHE_MAX = 200;
+  // 标题分词缓存（按 path 缓存，避免每查询重复 tokenize 标题）
+  private titleTokensCache = new Map<string, string[]>();
   // 单次查询内容读盘的候选上限（P1-T1）：内存分降序截断，裁剪长尾零分候选的无效 IO
   private readonly CONTENT_SCAN_MAX = 200;
   // Memoization 缓存同样设上限（FIFO 驱逐），防止长运行期 tokenize/para 键无限增长
@@ -214,6 +219,30 @@ export class DeterministicSearchEngine {
       if (oldest) this.contentCache.delete(oldest);
     }
     this.contentCache.set(relPath, { content, at: Date.now() });
+    // 同步小写缓存（与 contentCache 同步驱逐）
+    this.contentLowerCache.delete(relPath);
+    if (this.contentLowerCache.size >= this.CONTENT_LOWER_CACHE_MAX) {
+      const oldestLow = this.contentLowerCache.keys().next().value;
+      if (oldestLow) this.contentLowerCache.delete(oldestLow);
+    }
+    this.contentLowerCache.set(relPath, content.toLowerCase());
+  }
+
+  private readContentLower(relPath: string): string {
+    const low = this.contentLowerCache.get(relPath);
+    if (low !== undefined) return low;
+    // 未命中则触发一次 readContent（会填充双缓存）
+    const content = this.readContent(relPath);
+    // readContent 已通过 putContentCache 填充 lower，若仍无则直接 lower
+    return this.contentLowerCache.get(relPath) ?? content.toLowerCase();
+  }
+
+  private getTitleTokens(path: string, title: string): string[] {
+    let cached = this.titleTokensCache.get(path);
+    if (cached) return cached;
+    cached = this.tokenize(title);
+    this.titleTokensCache.set(path, cached);
+    return cached;
   }
 
   private resolveNote(lite: LiteNote): VaultNote {
@@ -299,7 +328,7 @@ export class DeterministicSearchEngine {
       const entry = scores.get(path);
       const existingScore = entry?.s ?? 0;
 
-      const titleWords = this.tokenize(note.title);
+      const titleWords = this.getTitleTokens(note.path, note.title);
       let titleMatches = 0;
       for (const qw of queryWords) {
         for (const tw of titleWords) {
@@ -335,7 +364,7 @@ export class DeterministicSearchEngine {
       .sort((a, b) => (scores.get(b)?.s ?? 0) - (scores.get(a)?.s ?? 0))
       .slice(0, this.CONTENT_SCAN_MAX);
     for (const path of contentCandidates) {
-      const contentLower = this.readContent(path).toLowerCase();
+      const contentLower = this.readContentLower(path);
       let contentMatches = 0;
       for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
       if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
@@ -580,11 +609,12 @@ export class DeterministicSearchEngine {
   }
 
   private countOccurrences(text: string, substring: string): number {
+    if (!substring) return 0;
     let count = 0;
     let pos = text.indexOf(substring);
     while (pos !== -1) {
       count++;
-      pos = text.indexOf(substring, pos + 1);
+      pos = text.indexOf(substring, pos + substring.length);
     }
     return count;
   }
@@ -728,6 +758,8 @@ export class DeterministicSearchEngine {
     this.tokenizeCache.clear();
     this.paraCache.clear();
     this.contentCache.clear();
+    this.contentLowerCache.clear();
+    this.titleTokensCache.clear();
     this.linkToPathCache = null;
     this.linkCollisions = 0;
     this.cacheHits = 0;
