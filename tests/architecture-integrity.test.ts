@@ -102,6 +102,7 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     "eval/eval-runner.ts",
     "core/health-checker.ts",
     "launcher.ts",
+    "agent-evals/run.ts",
   ]);
 
 function getTsFiles(dir: string): string[] {
@@ -410,7 +411,9 @@ describe("Architecture Integrity", () => {
     const re = /console\.(log|error)\s*\(/;
     for (const file of files) {
       const rel = path.relative(srcDir, file).replace(/\\/g, "/");
-      if (CONSOLE_WHITELIST.has(rel)) continue;
+      // cli/commands/*.ts are CLI command implementations whose console.log is
+      // user-facing output — same contract as the whitelisted cli.ts entry point.
+      if (CONSOLE_WHITELIST.has(rel) || rel.startsWith("cli/commands/")) continue;
       const lines = fs.readFileSync(file, "utf-8").split("\n");
       for (let i = 0; i < lines.length; i++) {
         const t = lines[i].trim();
@@ -421,9 +424,9 @@ describe("Architecture Integrity", () => {
     if (violations.length) {
       console.log(`\nconsole.log/error violations: ${violations.length} (first 20):\n` + violations.slice(0, 20).join("\n"));
     }
-    // CLI commands may use console.log for user-facing output (not logging)
-    // Allow up to 200 to account for extracted CLI command files
-    expect(violations.length).toBeLessThanOrEqual(200);
+    // All remaining console.log/error outside the CLI whitelist must go through
+    // the structured logger — this is a hard zero.
+    expect(violations).toHaveLength(0);
   });
 
   // ── Test 17: `: any` type annotations in src/ ≤ 90 (relaxed ceiling) ──
@@ -541,5 +544,33 @@ describe("Architecture Integrity", () => {
     const elapsed = performance.now() - t0;
     console.log(`\nPipeline 1k empty: ${elapsed.toFixed(0)}ms (limit 100)`);
     expect(elapsed).toBeLessThan(100);
+  });
+});
+
+describe("L1 依赖方向（批次5 Phase C）", () => {
+  it("src/dre 不得引用上层 router/", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (p.endsWith(".ts") && !p.endsWith(".test.ts")) {
+          const c = fs.readFileSync(p, "utf8");
+          if (/from\s+"(\.\.?\/)*router\//.test(c) || /import\("[^"]*\/router\//.test(c)) hits.push(p);
+        }
+      }
+    };
+    walk("src/dre");
+    if (hits.length) console.log("[L1] dre→router 引用:\n" + hits.join("\n"));
+    expect(hits).toEqual([]);
+  });
+});
+
+describe("S7 文档收口 W3/W4", () => {
+  it("文档不再宣称 KV 换页与 token 节省懒加载", async () => {
+    const fs = await import("fs");
+    const arch = fs.readFileSync("docs/AXIOM-ARCHITECTURE.md", "utf8");
+    expect(arch).not.toMatch(/KV.*卸载到系统内存.*换入换出/);
+    expect(arch).not.toMatch(/懒加载.*节省.*token/);
   });
 });

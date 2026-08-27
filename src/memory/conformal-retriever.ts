@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Conformal Prediction 检索框架 — 为检索结果提供统计保证
  *
  * ## 数学原理：归纳式共形预测 (Inductive Conformal Prediction, ICP)
@@ -125,8 +125,8 @@ export interface ConformalRetrieverConfig {
  *   (q, doc) => bm25Score(q, doc)
  * );
  *
- * // predictionSet 内文档的召回率有 α-level 保证
- * console.log(result.predictionSet);
+ *   // predictionSet 内文档的召回率有 α-level 保证
+ *   logger.info("Prediction set", { predictionSet: result.predictionSet });
  * ```
  *
  * @template T 文档类型

@@ -3,6 +3,7 @@
  *
  * 提供安全的 SQL 标识符引用、表名白名单验证、输入清洗
  */
+import path from "path";
 
 // Allowlist of valid table names in the system
 const VALID_TABLES = new Set([
@@ -74,7 +75,7 @@ export function sanitizeSqlValue(value: unknown): string {
 
 /** Validate that a path does not escape a base directory */
 export function validatePath(basePath: string, userPath: string): string {
-  const path = require("path");
+
   const resolved = path.resolve(basePath, userPath);
   const base = path.resolve(basePath);
   const relative = path.relative(base, resolved);

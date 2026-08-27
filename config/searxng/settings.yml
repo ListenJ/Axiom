@@ -13,8 +13,9 @@ search:
 
 server:
   port: 8080
-  bind_address: "0.0.0.0"
-  secret_key: "axiom-searxng-secret-2026"
+  bind_address: "127.0.0.1"
+  # 生产部署请替换为随机值（openssl rand -hex 32）；默认值仅限本地开发
+  secret_key: "axiom-searxng-dev-local-only"
   limiter: false
   public_instance: false
 

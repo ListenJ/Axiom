@@ -104,7 +104,7 @@ export interface ToolContext {
   depth: number;
   aborted: boolean;
   /** 缓存层引用（可选注入） */
-  cache?: { get(key: string): Promise<any>; set(key: string, value: any, ttlMs?: number): void };
+  cache?: { get(key: string): Promise<unknown>; set(key: string, value: unknown, ttlMs?: number): void };
   /** 此请求是否已触发模型调用 */
   modelCalled: boolean;
 }

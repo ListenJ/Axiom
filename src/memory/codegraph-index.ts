@@ -14,8 +14,10 @@
  */
 import { spawn } from "child_process";
 import path from "path";
+import { readFileSync, statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { Cache } from "../utils/cache.js";
+import { tryLocal, searchSymbolsLocal, getCallersLocal, getCalleesLocal, isProjectIndexed, indexProject, type LocalSearchResult } from "../codeindex/local-index.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -58,12 +60,43 @@ export function invalidateCodegraphCache(): void {
   logger.info("[CodeGraph] Cache invalidated after reindex");
 }
 
+
+/** 本地结果 → codegraph 兼容形状（id 转字符串）。 */
+function toCodeGraphResult(local: LocalSearchResult[]): CodeGraphSearchResult[] {
+  return local.map(({ node, score }) => ({
+    node: {
+      id: String(node.id), kind: node.kind, name: node.name, qualifiedName: node.qualifiedName,
+      filePath: node.filePath, language: node.language, startLine: node.startLine, endLine: node.endLine,
+      signature: node.signature,
+    },
+    score,
+  }));
+}
 let codegraphBin: string | null = null;
+
+/**
+ * 确保本地代码索引可用（TS/JS 系）。KG 构建前调用；未索引时执行一次全量 AST 索引。
+ * 本地索引建立后，searchSymbols/getCallers/getCallees 自动本地优先。
+ */
+export function ensureLocalCodeIndex(projectPath: string): boolean {
+  const name = path.basename(projectPath);
+  if (isProjectIndexed(name)) return true;
+  try {
+    indexProject(projectPath, name);
+    return true;
+  } catch (e) {
+    logger.warn("[CodeGraph] Local code index failed, using codegraph fallback", { error: (e as Error).message });
+    return false;
+  }
+}
 
 function getCodegraphBin(): string {
   if (codegraphBin) return codegraphBin;
-  // 尝试在 node_modules 中找到平台特定的二进制文件
+  // 尝试在 node_modules 中找到平台特定的二进制文件。
+  // Windows 上优先 .exe shim —— 无需 shell 即可执行（.cmd 批处理必须要 shell，
+  // 会引入分词与命令注入问题，见 runCodegraph）
   const candidates = [
+    path.resolve("node_modules/.bin/codegraph.exe"),
     path.resolve("node_modules/@colbymchenry/codegraph-win32-x64/bin/codegraph.cmd"),
     path.resolve("node_modules/@colbymchenry/codegraph-darwin-x64/bin/codegraph"),
     path.resolve("node_modules/@colbymchenry/codegraph-darwin-arm64/bin/codegraph"),
@@ -73,7 +106,6 @@ function getCodegraphBin(): string {
   ];
   for (const c of candidates) {
     try {
-      const { statSync } = require("fs");
       statSync(c);
       codegraphBin = c;
       return c;
@@ -82,15 +114,49 @@ function getCodegraphBin(): string {
   throw new Error("CodeGraph binary not found. Run: npm install -g @colbymchenry/codegraph");
 }
 
+/** cmd/bat 批处理只能经 shell 执行，此时每个参数必须加引号防止 shell 分词 */
+function quoteForShell(arg: string): string {
+  return `"${arg.replace(/"/g, '""')}"`;
+}
+
 function runCodegraph(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     const bin = getCodegraphBin();
-    const proc = spawn(bin, args, { cwd: cwd || process.cwd(), shell: true });
+    // 仅 .cmd/.bat 需要 shell；原生二进制/可执行文件用数组形式免 shell。
+    const shell = /\.(cmd|bat)$/i.test(bin);
+    const finalArgs = shell ? args.map(quoteForShell) : args;
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (result: { stdout: string; stderr: string; exitCode: number }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    let proc: ReturnType<typeof spawn> | undefined;
+    // 有界超时：codegraph 查询可能触发全仓重索引而长时间挂起，
+    // 不允许让 KG 构建等死——15s 未返回即截断并报告超时。
+    const timer = setTimeout(() => {
+      try { proc?.kill(); } catch { /* 已退出 */ }
+      finish({ stdout, stderr: stderr + "\n[codegraph] timed out after 15000ms", exitCode: 124 });
+    }, 15000);
+    try {
+      proc = spawn(bin, finalArgs, { cwd: cwd || process.cwd(), shell });
+    } catch (e) {
+      clearTimeout(timer);
+      finish({ stdout: "", stderr: "[codegraph] spawn failed: " + (e as Error).message, exitCode: 127 });
+      return;
+    }
+    proc.on("error", (e) => {
+      clearTimeout(timer);
+      finish({ stdout, stderr: "[codegraph] spawn error: " + e.message, exitCode: 127 });
+    });
     proc.stdout?.on("data", (d) => { stdout += d.toString(); });
     proc.stderr?.on("data", (d) => { stderr += d.toString(); });
-    proc.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      finish({ stdout, stderr, exitCode: code ?? 0 });
+    });
   });
 }
 
@@ -168,7 +234,7 @@ export async function searchFiles(
 export async function isCodegraphInitialized(projectPath?: string): Promise<boolean> {
   const cwd = projectPath || process.cwd();
   try {
-    const { statSync } = require("fs");
+
     statSync(path.join(cwd, ".codegraph", "codegraph.db"));
     return true;
   } catch {
@@ -193,6 +259,12 @@ export async function searchSymbols(
   opts?: { kind?: string; limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("searchSymbols", { query, ...opts }, async () => {
+    // 本地优先：TS/JS 项目已索引时直接查 SQLite，避免 spawn codegraph
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        searchSymbolsLocal(query, path.basename(opts.projectPath!), { kind: opts?.kind, limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["query", query, "--json"];
     if (opts?.kind) args.push("--kind", opts.kind);
     if (opts?.limit) args.push("--limit", String(opts.limit));
@@ -217,6 +289,12 @@ export async function getCallers(
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("getCallers", { symbolName, ...opts }, async () => {
+    // 本地优先
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        getCallersLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["callers", symbolName, "--json"];
     if (opts?.limit) args.push("--limit", String(opts.limit));
 
@@ -232,6 +310,12 @@ export async function getCallees(
   opts?: { limit?: number; projectPath?: string }
 ): Promise<CodeGraphSearchResult[]> {
   return cachedQuery("getCallees", { symbolName, ...opts }, async () => {
+    // 本地优先
+    if (opts?.projectPath) {
+      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
+        getCalleesLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      if (local) return toCodeGraphResult(local);
+    }
     const args = ["callees", symbolName, "--json"];
     if (opts?.limit) args.push("--limit", String(opts.limit));
 
@@ -386,7 +470,6 @@ export async function buildStructuredContext(
       let code: string | undefined;
       if (opts?.includeCode !== false && s.node.filePath) {
         try {
-          const { readFileSync } = require("fs");
           const content = readFileSync(s.node.filePath, "utf-8");
           const lines = content.split("\n");
           const start = Math.max(0, s.node.startLine - 1);

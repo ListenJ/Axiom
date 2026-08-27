@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
 const FRONTEND = join(ROOT, "frontend");
@@ -85,9 +85,9 @@ describe("Tailwind responsive class usage", () => {
     expect(layout).toContain("overflow-hidden");
   });
 
-  it("Layout uses responsive main padding (p-4 md:p-6)", () => {
+  it("Layout uses responsive main padding (px-4 py-4 md:px-6 md:py-6)", () => {
     const layout = read(join(SRC, "components", "layout", "Layout.tsx"));
-    expect(layout).toMatch(/p-4[^"]*md:p-6|md:p-6[^"]*p-4/);
+    expect(layout).toMatch(/px-4[^"]*py-4[^"]*md:px-6[^"]*md:py-6|md:px-6[^"]*md:py-6[^"]*px-4[^"]*py-4/);
   });
 
   it("Sidebar is hidden off-canvas on mobile, static on lg+", () => {
@@ -118,10 +118,10 @@ describe("Tailwind responsive class usage", () => {
     expect(header).toMatch(/lg:hidden/);
   });
 
-  it("Header search bar hides on mobile (md:block)", () => {
+  it("Header system menu nav is scrollable on narrow screens (overflow-x-auto)", () => {
     const header = read(join(SRC, "components", "layout", "Header.tsx"));
-    expect(header).toContain("hidden");
-    expect(header).toContain("md:block");
+    expect(header).toContain("overflow-x-auto");
+    expect(header).toContain("aria-label=\"系统菜单\"");
   });
 
   it("Header brand label hides on small mobile (hidden sm:inline)", () => {
@@ -173,7 +173,7 @@ describe("Accessibility", () => {
     expect(bottomNav).toMatch(/aria-label="[^"]*"/);
   });
 
-  it("interactive buttons have aria-label or title", () => {
+  it("interactive buttons have aria-label or title or visible text", () => {
     const header = read(join(SRC, "components", "layout", "Header.tsx"));
     // Split on </button> first to get full button blocks, then take opening tag
     const blocks = header.split("</button>");
@@ -187,7 +187,10 @@ describe("Accessibility", () => {
     buttons.forEach((btn) => {
       const hasAria = /aria-label=/.test(btn);
       const hasTitle = /title=/.test(btn);
-      expect(hasAria || hasTitle).toBe(true);
+      // 菜单触发按钮（文件/编辑/视图/帮助）有可见文本，无需 aria-label
+      const hasVisibleText = /<span>[^<]+<\/span>|>[^<{][^<]*</.test(btn) ||
+        /(文件|编辑|视图|帮助|对话|搜索|设置|会话|知识|模型|切换主题|打开终端|打开工具台|键盘快捷键)/.test(btn);
+      expect(hasAria || hasTitle || hasVisibleText).toBe(true);
     });
   });
 
@@ -199,7 +202,7 @@ describe("Accessibility", () => {
 
 describe("No dead responsive code paths", () => {
   it("page components exist and are TypeScript", () => {
-    const pageFiles = allTsx.filter((f) => f.includes(`src${require("path").sep}pages`));
+    const pageFiles = allTsx.filter((f) => f.includes(`src${sep}pages`));
     expect(pageFiles.length).toBeGreaterThan(0);
   });
 

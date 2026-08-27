@@ -24,8 +24,9 @@ describe('HelpModal', () => {
   it('lists at least one shortcut per NAV_ITEMS entry plus the global ones', () => {
     useApp.setState({ helpOpen: true })
     render(<HelpModal />)
-    const list = screen.getByRole('list')
-    const items = within(list).getAllByRole('listitem')
+    // 分组渲染（导航 / 全局 / 菜单）：跨所有 list 统计 listitem
+    const lists = screen.getAllByRole('list')
+    const items = lists.flatMap((l) => within(l).getAllByRole('listitem'))
     // 17 NAV items + 6 global shortcuts (Shift+T, /, Ctrl/Cmd+K, ?, Esc, …)
     // We don't pin the exact count to avoid coupling to NAV_ITEMS churn,
     // just sanity-check that there's a meaningful list.

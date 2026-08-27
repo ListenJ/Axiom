@@ -62,6 +62,10 @@ export interface ComputerUseResult {
   latencyMs: number;
   elements?: InteractiveElement[];
   elementEnhanced: boolean;
+  /** 无视觉模型时走文本引导（text-guide）而非视觉分析 */
+  textGuided?: boolean;
+  /** 文本引导的 Markdown 正文（textGuided=true 时提供） */
+  textGuide?: string;
 }
 
 export type ComputerAction =
@@ -180,6 +184,48 @@ export class ComputerUseAgent {
   }
 
   /**
+   * 带降级的分析：优先视觉分析；无视觉模型时回退为文本引导
+   * （需求 3：无视觉模型 → 基于 CDP 可交互元素生成结构化文字引导，不抛错）。
+   */
+  async analyzeWithFallback(input: ComputerUseInput): Promise<ComputerUseResult> {
+    try {
+      return await this.analyze(input);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("No vision model available")) throw err;
+      logger.warn("[ComputerUse] No vision model — falling back to text guidance", { task: input.task });
+      let elements: InteractiveElement[] = [];
+      if (input.cdpUrl) {
+        try {
+          elements = await extractInteractiveElements(input.cdpUrl, 8000);
+        } catch (e) {
+          logger.warn("[ComputerUse] Element extraction failed in fallback", { error: (e as Error).message });
+        }
+      }
+      const { buildTextGuide } = await import("../computer-use/text-guide.js");
+      const guide = buildTextGuide(input.task, elements);
+      return {
+        reasoning: guide.markdown,
+        actions: guide.suggestedActions.map((a) => {
+          const el = a.elementIndex !== undefined ? elements[a.elementIndex] : undefined;
+          const base = { description: a.description, ...(a.elementIndex !== undefined ? { elementIndex: a.elementIndex } : {}) };
+          if (a.type === "click") return { ...base, type: "click" as const, x: el?.centerX ?? 0, y: el?.centerY ?? 0 };
+          if (a.type === "type") return { ...base, type: "type" as const, text: a.text ?? "" };
+          return { ...base, type: "keypress" as const, keys: a.keys ?? [] };
+        }),
+        completed: false,
+        model: "text-guide",
+        provider: "local-deterministic",
+        latencyMs: 0,
+        elements,
+        elementEnhanced: elements.length > 0,
+        textGuided: true,
+        textGuide: guide.markdown,
+      };
+    }
+  }
+
+  /**
    * 执行单步操作（通过 CDP）
    */
   async executeAction(
@@ -212,7 +258,7 @@ export class ComputerUseAgent {
         try {
           const ss = await captureScreenshot(undefined, cdpUrl, { format: "png", timeout: 10000 });
           screenshot = ss.base64;
-        } catch {}
+        } catch (e) { logger.debug("[ComputerUse] screenshot failed", { error: (e as Error).message }); }
       }
 
       return { ...execResult, screenshot };
@@ -494,6 +540,10 @@ export function getComputerUseAgent(): ComputerUseAgent {
 
 export async function analyzeScreenshot(input: ComputerUseInput): Promise<ComputerUseResult> {
   return getComputerUseAgent().analyze(input);
+}
+
+export async function analyzeScreenshotWithFallback(input: ComputerUseInput): Promise<ComputerUseResult> {
+  return getComputerUseAgent().analyzeWithFallback(input);
 }
 
 export async function executeComputerAction(

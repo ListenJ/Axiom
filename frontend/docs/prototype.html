@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Axiom Agent — 前端原型图（AXIS Monochrome）</title>
+<style>
+  :root, [data-theme='dark'] {
+    --bg:#0a0a0a; --shell:#1a1a1a; --shell-raised:#222; --surface:#161616; --surface-hi:#1f1f1f;
+    --border:#2e2e2e; --text:#fff; --text-2:#b5b5b5; --text-3:#8a8a8a;
+    --accent:#fff; --on-accent:#000; --accent-soft:rgba(255,255,255,.1);
+    --glass-bg:rgba(26,26,26,.55); --canvas-bg:rgba(10,10,10,.5);
+    --shadow:10px 0 28px -14px rgba(0,0,0,.7);
+    --rib-1:rgba(255,255,255,.28); --rib-2:rgba(255,255,255,.12);
+    --band-1:rgba(255,255,255,.36); --band-2:rgba(255,255,255,.3);
+  }
+  [data-theme='light'] {
+    --bg:#fff; --shell:#f0f2f5; --shell-raised:#e8eaee; --surface:#f5f5f5; --surface-hi:#ececec;
+    --border:#e0e2e6; --text:#111; --text-2:#555; --text-3:#777;
+    --accent:#111; --on-accent:#fff; --accent-soft:rgba(17,17,17,.06);
+    --glass-bg:rgba(240,242,245,.62); --canvas-bg:rgba(255,255,255,.58);
+    --shadow:10px 0 24px -12px rgba(0,0,0,.26);
+    --rib-1:rgba(0,0,0,.3); --rib-2:rgba(0,0,0,.12);
+    --band-1:rgba(0,0,0,.32); --band-2:rgba(0,0,0,.27);
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; }
+  /* 光流丝绸背景（原型简化版） */
+  .silk { position:fixed; inset:0; z-index:-2; overflow:hidden; }
+  .silk::before { content:''; position:absolute; inset:-10%;
+    background:
+      repeating-linear-gradient(96deg, transparent 0 16px, var(--rib-1) 16px 18px, transparent 18px 40px),
+      repeating-linear-gradient(82deg, transparent 0 28px, var(--rib-2) 28px 30px, transparent 30px 66px);
+    filter:blur(4px); animation:shift 60s linear infinite; }
+  .silk::after { content:''; position:absolute; width:160vw; height:80vh; left:-30vw; top:-24vh; filter:blur(30px);
+    background:
+      linear-gradient(100deg, transparent 10%, var(--band-1) 26%, transparent 58%),
+      linear-gradient(100deg, transparent 6%, var(--band-2) 30%, transparent 68%);
+    transform:rotate(-10deg); animation:flow 22s ease-in-out infinite alternate; }
+  @keyframes shift { from{transform:translateX(-2%)} to{transform:translateX(2%)} }
+  @keyframes flow { from{transform:rotate(-10deg) translateX(-4%)} to{transform:rotate(-10deg) translateX(6%)} }
+  .app { display:flex; height:100vh; }
+  aside { width:288px; background:var(--glass-bg); backdrop-filter:blur(22px); box-shadow:var(--shadow); border-right:1px solid var(--border); padding:14px; }
+  .logo { display:flex; align-items:center; gap:8px; padding:6px; border-radius:8px; }
+  .logo .mark { width:24px; height:24px; border-radius:6px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; }
+  .logo span { font-weight:600; font-size:14px; }
+  .btn { width:100%; margin-top:10px; padding:9px; border-radius:8px; border:0; background:var(--accent); color:var(--on-accent); font-weight:600; cursor:pointer; }
+  .section { margin-top:14px; font-size:11px; color:var(--text-3); }
+  .row { padding:7px 2px; border-radius:6px; font-size:12px; color:var(--text-2); }
+  main { flex:1; display:flex; flex-direction:column; }
+  header { height:52px; background:var(--glass-bg); backdrop-filter:blur(22px); box-shadow:0 4px 18px -8px rgba(0,0,0,.4); display:flex; align-items:center; gap:12px; padding:0 16px; font-size:13px; color:var(--text-2); }
+  .content { flex:1; overflow:auto; padding:24px; }
+  .card { background:var(--canvas-bg); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
+  .card h3 { font-size:13px; margin-bottom:4px; }
+  .card p { font-size:12px; color:var(--text-2); }
+  .swatches { display:flex; gap:8px; margin-top:10px; }
+  .sw { width:28px; height:28px; border-radius:50%; border:2px solid var(--border); }
+  .hex { font-family:ui-monospace,monospace; font-size:11px; color:var(--text-2); margin-top:6px; }
+  .theme-toggle { position:absolute; top:14px; right:18px; z-index:5; display:flex; gap:6px; }
+  .theme-toggle button { padding:5px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; font-size:12px; }
+  .theme-toggle button.active { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+</style>
+</head>
+<body data-theme="dark">
+  <div class="silk" aria-hidden="true"></div>
+  <div class="theme-toggle">
+    <button id="bt-dark" class="active" onclick="setTheme('dark')">深色</button>
+    <button id="bt-light" onclick="setTheme('light')">浅色</button>
+  </div>
+  <div class="app">
+    <aside>
+      <div class="logo"><div class="mark">AX</div><span>Axiom</span></div>
+      <button class="btn">＋ 开启新对话</button>
+      <div class="section">Git 仓库状态</div>
+      <div class="row">master · 4 处变更</div>
+      <div class="section">MCP · Skill</div>
+      <div class="row">Git 操作 · 知识查询 · 代码分析</div>
+      <div class="section">项目区（留白分隔）</div>
+      <div class="row">openclaw-fusion · 2 个会话</div>
+      <div class="row">test-session-001 · 2 条消息</div>
+    </aside>
+    <main>
+      <header>
+        <span>文件</span><span>编辑</span><span>视图</span><span>帮助</span>
+      </header>
+      <div class="content">
+        <div class="card">
+          <h3>有什么可以帮助你的？</h3>
+          <p>深度研究 · 代码审查 · 知识问答 · 创意写作</p>
+        </div>
+        <div class="card">
+          <h3>Agent 颜色</h3>
+          <p>自定义 Agent 的强调色；「墨色」随主题自动黑白。</p>
+          <div class="swatches">
+            <div class="sw" style="background:var(--accent)" title="墨色"></div>
+            <div class="sw" style="background:#339cff" title="云蓝"></div>
+            <div class="sw" style="background:#e8a33d" title="琥珀"></div>
+            <div class="sw" style="background:#3eaf7c" title="翡翠"></div>
+            <div class="sw" style="background:#8b7cf6" title="紫罗兰"></div>
+          </div>
+          <div class="hex" id="hex">墨色 · #ffffff</div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    const THEMES = { dark: { text:'#fff', mono:'#ffffff' }, light: { text:'#111', mono:'#111111' } };
+    function setTheme(t) {
+      document.body.dataset.theme = t;
+      document.getElementById('bt-dark').classList.toggle('active', t==='dark');
+      document.getElementById('bt-light').classList.toggle('active', t==='light');
+      document.getElementById('hex').textContent = '墨色 · ' + THEMES[t].mono;
+    }
+  </script>
+</body>
+</html>

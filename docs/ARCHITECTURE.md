@@ -1,4 +1,4 @@
-# Axiom 架构权威参考
+﻿# Axiom 架构权威参考
 
 > 最后更新: 2026-07-13
 > 本文件是 Axiom 项目的唯一架构权威参考。所有架构决策、分层规则、模块职责均以此为准。
@@ -7,7 +7,7 @@
 
 ## 1. 项目概览
 
-Axiom 是一个确定性 AI Agent 框架，核心设计理念是**零向量、零概率、零 embedding**。所有检索、推理、记忆操作均基于确定性算法（关键词匹配、规则引擎、确定性图遍历），不使用任何 ML 模型进行搜索或聚类。
+Axiom 是一个确定性 AI Agent 框架，核心设计理念是**确定性检索（`src/memory/deterministic-search.ts` SQLite FTS5 + 关键词权重；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 可选（`pgvector` 扩展，可选历史能力 H-M1-03，默认 SQLite FTS5，需 PG 时启用）**。确定性检索（关键词 3x/标签 2.5x/内容 1x + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts:186`）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
 
 | 属性 | 值 |
 |------|-----|
@@ -55,7 +55,7 @@ src/
 ├── workers/         — 远程 Worker 客户端 (pdf-worker, llm-worker)
 ```
 
-**数据库:** PostgreSQL 已完全移除, SQLite 是唯一数据库。所有持久化通过 `sqlite-memory.ts` (FTS5) 和 `codegraph-sync.ts` 完成。
+**数据库:** SQLite 为唯一运行时数据库；PostgreSQL 已迁移为可选历史能力 (H-M1-03)。`src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。
 
 ### 2.1 分层规则
 
@@ -91,7 +91,7 @@ core   → routes   ← agents        (路由注册)
 | 组件 | 行数 | 职责 |
 |------|------|------|
 | `vault-manager.ts` | 640 | 核心记忆管理 (read/write/search/browse) |
-| `deterministic-search.ts` | 603 | 零向量全文搜索 (关键词 + PARA + 标签) |
+| `deterministic-search.ts` | 603 | 确定性全文搜索（FTS5 + 关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
 | `sqlite-memory.ts` | 492 | SQLite FTS5 索引持久化 |
 | `archiver.ts` | 265 | 记忆归档 (frontmatter 处理) |
 | `distiller.ts` | 168 | 记忆蒸馏 (Web/对话→结构化笔记) |
@@ -276,6 +276,21 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 | 2026-07-09 | `process.env` 收口 | 100+→30 合法 |
 | 2026-07-09 | DRE 工厂简化 | 3 单实现工厂 inline |
 | 2026-07-09 | `as any` 修复 | 59→19 |
+
+---
+
+## 8. 已知限制（Limitations）
+
+> 详见 `docs/LIMITATIONS.md`。本节为架构摘要，保持与实现一致。
+
+| 维度 | 现状 | 说明 |
+|------|------|------|
+| 检索 | 确定性 FTS5 + 关键词权重（`deterministic-search.ts`）为默认；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用 | 非历史宣称，而是“确定性为主、向量可选” |
+| LLM | `src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
+| 历史 PG | `src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力为可选历史，非“已移除”即不可用 | 按需启用 |
+| MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **188** 个去重工具，零重复 | 文档中 133/150/172/173 为历史值，已统一为 188 |
+
+*更新：2026-08-21 Task16 文档一致性校准（可选 LLM、PG 可选历史）；2026-08-25 检索口径校准（FTS5+关键词为默认、余弦仅可选语义层）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，已统一为 188（以 `src/testing/tool-count.ts` 为准）。*
 
 ---
 

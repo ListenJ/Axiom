@@ -29,6 +29,14 @@ export default function Tabs({
     <div
       role="tablist"
       aria-orientation="horizontal"
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        const idx = tabs.findIndex((t) => t.id === active)
+        if (idx < 0) return
+        const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length
+        e.preventDefault()
+        onChange(tabs[next].id)
+      }}
       className={`inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-1 ${
         fullWidth ? 'w-full' : ''
       } ${className}`}
@@ -44,11 +52,11 @@ export default function Tabs({
             aria-controls={`tabpanel-${tab.id}`}
             onClick={() => onChange(tab.id)}
             className={`
-              press relative inline-flex flex-1 ${fullWidth ? 'flex-1' : ''} items-center justify-center gap-1.5
+              press relative inline-flex flex-1 ${fullWidth ? 'flex-1' : ''} items-center justify-center gap-1.5 whitespace-nowrap
               rounded-lg px-3 font-medium
               ${sizeClasses}
               transition-colors duration-200
-              focus:outline-none
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1
               ${
                 isActive
                   ? 'bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-sm)]'

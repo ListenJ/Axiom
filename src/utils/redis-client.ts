@@ -11,6 +11,7 @@
  *   await redis.del("key");
  */
 
+import type { Socket } from "bun";
 import { readString } from "./env.js";
 import { logger } from "./logger.js";
 
@@ -24,7 +25,7 @@ export interface RedisConfig {
 }
 
 export class RedisClient {
-  private socket: any | null = null;
+  private socket: Socket | null = null;
   private config: RedisConfig;
   private connected = false;
   // FIFO queue of in-flight commands, in the order they were written to the
@@ -66,38 +67,39 @@ export class RedisClient {
   private async _connect(): Promise<void> {
     const { host, port, connectTimeout } = this.config;
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`Redis connection timeout after ${connectTimeout}ms`));
-      }, connectTimeout);
-
-      const socket = (Bun as any).connect({
-        hostname: host,
-        port: port,
-        socket: {
-          data: (_socket: any, data: Uint8Array) => {
-            this.buffer += new TextDecoder().decode(data);
-            this.processBuffer();
-          },
-          open: (_socket: any) => {
-            clearTimeout(timer);
-            this.connected = true;
-            logger.info("[Redis] Connected", { host, port });
-            resolve();
-          },
-          close: () => {
-            this.connected = false;
-            logger.warn("[Redis] Connection closed");
-          },
-          error: (_socket: any, err: Error) => {
-            clearTimeout(timer);
-            reject(err);
-          },
+    const connect = Bun.connect({
+      hostname: host,
+      port: port,
+      socket: {
+        data: (_socket: Socket, data: Uint8Array) => {
+          this.buffer += new TextDecoder().decode(data);
+          this.processBuffer();
         },
-      });
-
-      this.socket = socket as any;
+        open: (_socket: Socket) => {
+          this.connected = true;
+          logger.info("[Redis] Connected", { host, port });
+        },
+        close: () => {
+          this.connected = false;
+          logger.warn("[Redis] Connection closed");
+        },
+        error: (_socket: Socket, err: Error) => {
+          logger.error("[Redis] Socket error", err);
+        },
+      },
     });
+
+    // Bun.connect 返回 Promise<Socket> —— 必须 await；此前未 await 导致
+    // this.socket 实际是 Promise，所有命令 write 静默无效（被 as any 掩盖）
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Redis connection timeout after ${connectTimeout}ms`)), connectTimeout);
+    });
+    try {
+      this.socket = await Promise.race([connect, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -186,7 +188,7 @@ export class RedisClient {
 
   disconnect(): void {
     if (this.socket) {
-      (this.socket as any).end?.();
+      this.socket.end();
       this.socket = null;
     }
     this.connected = false;
@@ -201,7 +203,8 @@ export class RedisClient {
   }
 
   private async sendCommand(command: string, ...args: string[]): Promise<unknown> {
-    if (!this.connected || !this.socket) {
+    const socket = this.socket;
+    if (!this.connected || !socket) {
       throw new Error("Redis not connected");
     }
 
@@ -218,7 +221,7 @@ export class RedisClient {
         resp += `$${encoded.length}\r\n${part}\r\n`;
       }
 
-      (this.socket as any).write?.(resp);
+      socket.write(resp);
     });
   }
 

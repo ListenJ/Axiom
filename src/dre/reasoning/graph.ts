@@ -101,7 +101,7 @@ export class ReasoningGraph {
    */
   addPremise(content: string, confidence: number = 1.0): ReasoningNode {
     const node: ReasoningNode = {
-      id: `premise-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `premise-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       type: "premise",
       content,
       confidence,
@@ -117,7 +117,7 @@ export class ReasoningGraph {
    */
   addInference(content: string, fromIds: string[], confidence: number = 0.8): ReasoningNode {
     const node: ReasoningNode = {
-      id: `inference-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `inference-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       type: "inference",
       content,
       confidence,
@@ -145,7 +145,7 @@ export class ReasoningGraph {
    */
   addConclusion(content: string, fromIds: string[], confidence: number = 0.7): ReasoningNode {
     const node: ReasoningNode = {
-      id: `conclusion-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `conclusion-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       type: "conclusion",
       content,
       confidence,
@@ -173,7 +173,7 @@ export class ReasoningGraph {
    */
   addEvidence(content: string, targetId: string, supports: boolean): ReasoningNode {
     const node: ReasoningNode = {
-      id: `evidence-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `evidence-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       type: "evidence",
       content,
       confidence: 0.8,
@@ -316,7 +316,7 @@ export class ReasoningGraph {
     }
 
     const node: ReasoningNode = {
-      id: `llm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `llm-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       type: nodeType,
       content: llmResponse,
       confidence,

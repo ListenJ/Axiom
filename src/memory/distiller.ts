@@ -12,7 +12,10 @@
  */
 
 import { VaultManager } from "./vault-manager.js";
+import { generateTagsWithEdge } from "./edge-assist.js";
+import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { logger } from "../utils/logger.js";
+
 
 /** Try to extract a hostname from a URL string, returning a fallback on failure */
 export function safeHostname(url: string): string {
@@ -99,13 +102,31 @@ export class MemoryDistiller {
    */
   async distillManual(title: string, rawContent: string, opts: DistillOptions): Promise<string> {
     // 简化处理：如果内容较短，直接作为原子笔记
-    const coreIdea = this.summarize(rawContent, 300);
+    const coreIdea = await this.summarizeWithEdge(rawContent, 300);
+    const edgeTags = await generateTagsWithEdge(rawContent);
 
     return this.vault.writeAtomicNote(title, coreIdea, {
       context: `Source: ${opts.source} (${opts.sourceType})`,
-      tags: ["distilled", opts.sourceType, ...(opts.tags || [])],
+      tags: ["distilled", opts.sourceType, ...(opts.tags || []), ...(edgeTags || [])],
       relatedNotes: opts.relatedNotes,
     });
+  }
+
+  /** 边缘摘要（回退：规则截断） */
+  private async summarizeWithEdge(text: string, maxLength: number): Promise<string> {
+    if (text.length <= maxLength) return this.summarize(text, maxLength);
+    if (!isEdgeEnabled("EDGE_MEMORY_ASSIST")) return this.summarize(text, maxLength);
+    try {
+      const resp = await getEdgeClient().generate(
+        `用不超过100字概括以下内容的核心要点，只输出概括本身：【${text.slice(0, 1500)}】`,
+        { maxTokens: 160 },
+      );
+      const summary = (resp.content ?? "").trim();
+      if (summary.length >= 10) return summary;
+    } catch (err) {
+      logger.debug("[Distiller] edge summary failed, fallback to truncation", { error: (err as Error).message });
+    }
+    return this.summarize(text, maxLength);
   }
 
   // ===== 提取算法（确定性） =====

@@ -17,7 +17,7 @@ interface StatCardProps {
 }
 
 const ACCENT_CLASSES = {
-  default: { text: 'text-[var(--accent)]', bg: 'bg-[var(--accent-soft)]' },
+  default: { text: 'text-[var(--accent-strong)]', bg: 'bg-[var(--accent-soft)]' },
   success: { text: 'text-[var(--success)]', bg: 'bg-[var(--success-soft)]' },
   warning: { text: 'text-[var(--warning)]', bg: 'bg-[var(--warning-soft)]' },
   danger: { text: 'text-[var(--danger)]', bg: 'bg-[var(--danger-soft)]' },
@@ -36,9 +36,9 @@ export default function StatCard({
   const a = ACCENT_CLASSES[accent]
   return (
     <ShimmerCard padding="md" className={className}>
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">
             {label}
           </p>
           {loading ? (

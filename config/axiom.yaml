@@ -1,3 +1,22 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Axiom Agent 统一配置入口（唯一主配置）
+#
+# 配置地图（防止错乱——所有配置文件在此登记，密钥一律 ${VAR} 引用）：
+#   config/axiom.yaml        —— 主配置（本文件）：网关/模型/记忆/爬虫/一致性
+#   config/model-router.yaml —— 模型角色路由表（user-config-loader 消费）
+#   config/mcp-servers.yaml  —— 外部 MCP server 清单（client-connector 消费）
+#   config/marketplace.yaml  —— 插件市场条目（marketplace.ts 消费）
+#   config/lsp-config.yaml   —— LSP 语言服务配置
+#   config/site-rules.yaml   —— 站点规则（爬虫/检索）
+#   config/searxng/settings.yml —— SearXNG 实例配置
+#
+# 密钥规范（防泄露）：
+#   - 本仓库所有配置文件【不含任何真实密钥】，一律使用 ${VAR} 占位符。
+#   - 真实密钥只存两处（均不入库）：
+#       1) <仓库根>/.env                 —— 运行时密钥/环境注入（gitignored，ACL 仅本人）
+#       2) ~/.axiom/axiom-secrets/       —— 外部服务凭据（services.credentials 等）
+#   - 配置优先级：Runtime Override > ENV > YAML > Default（config-center）
+# ═══════════════════════════════════════════════════════════════════════
 # Axiom AI Agent 主配置 v2.1
 # 注意：所有 API Key 通过环境变量注入，本文件不包含任何密钥
 
@@ -17,7 +36,7 @@ models:
     baseUrl: "https://api.ofox.ai/v1"
     apiKey: "${OFOXAI_API_KEY}"
     tier: 1
-    purpose: ["general-chat", "code-generation", "complex-reasoning"]
+    purpose: [ "general-chat", "code-generation", "complex-reasoning" ]
     priority: 10
     freeOnly: true
 
@@ -28,7 +47,7 @@ models:
     baseUrl: "https://api.opencode.ai/v1"
     apiKey: "${OPENCODE_API_KEY}"
     tier: 1
-    purpose: ["code-generation", "coding"]
+    purpose: [ "code-generation", "coding" ]
     priority: 10
     freeOnly: true
 
@@ -39,7 +58,7 @@ models:
     baseUrl: "https://api.siliconflow.cn/v1"
     apiKey: "${SILICONFLOW_API_KEY}"
     tier: 1
-    purpose: ["tool_call", "classification", "embedding"]
+    purpose: [ "tool_call", "classification", "embedding" ]
     priority: 9
 
   # Tier 2: 付费主力模型
@@ -49,7 +68,7 @@ models:
     baseUrl: "https://api.deepseek.com/v1"
     apiKey: "${DEEPSEEK_API_KEY}"
     tier: 2
-    purpose: ["reasoning", "coding", "research"]
+    purpose: [ "reasoning", "coding", "research" ]
     priority: 8
 
   # Tier 2: DeepSeek Flash（低成本编码）
@@ -59,7 +78,7 @@ models:
     baseUrl: "https://api.deepseek.com/v1"
     apiKey: "${DEEPSEEK_API_KEY}"
     tier: 2
-    purpose: ["code-generation", "coding"]
+    purpose: [ "code-generation", "coding" ]
     priority: 7
 
   # Tier 3: OpenRouter 兜底
@@ -70,14 +89,14 @@ models:
     apiKey: "${OPENROUTER_API_KEY}"
     httpProxy: "${OPENROUTER_HTTP_PROXY}"
     tier: 3
-    purpose: ["fallback"]
+    purpose: [ "fallback" ]
     priority: 1
 
 # OfoxAI 多网关配置（可选，用于直接访问 Anthropic/Gemini 协议）
 ofoxai_gateways:
-  openai:    "${OFOXAI_BASE_URL:-https://api.ofox.ai/v1}"
+  openai: "${OFOXAI_BASE_URL:-https://api.ofox.ai/v1}"
   anthropic: "${OFOXAI_ANTHROPIC_BASE_URL:-https://api.ofox.ai/anthropic}"
-  gemini:    "${OFOXAI_GEMINI_BASE_URL:-https://api.ofox.ai/gemini}"
+  gemini: "${OFOXAI_GEMINI_BASE_URL:-https://api.ofox.ai/gemini}"
 
 # 记忆管理
 memory:

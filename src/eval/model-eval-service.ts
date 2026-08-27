@@ -95,6 +95,21 @@ export interface EvalQueryOptions {
   sinceDays?: number;
 }
 
+/** model_evaluations 表的行类型（snake_case → camelCase 映射前） */
+interface ModelEvalRow {
+  model_id: string;
+  provider: string;
+  evaluated_at: number;
+  capability_score: number;
+  speed_score: number;
+  cost_score: number;
+  safety_score: number;
+  overall_score: number;
+  benchmarks: string;
+  metadata: string;
+  recommendation: string;
+}
+
 // ========== 常量 ==========
 
 const OPENROUTER_API_BASE = "https://openrouter.ai/api/v1";
@@ -761,7 +776,7 @@ export class ModelEvalService {
       params.push(opts.limit);
     }
 
-    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+    const rows = this.db.prepare(sql).all(...params) as ModelEvalRow[];
     return rows.map(this.rowToEvalResult);
   }
 
@@ -773,7 +788,7 @@ export class ModelEvalService {
       SELECT * FROM model_evaluations
       WHERE model_id = ?
       ORDER BY evaluated_at DESC LIMIT 1
-    `).get(modelId) as Record<string, unknown> | null;
+    `).get(modelId) as ModelEvalRow | null;
 
     return row ? this.rowToEvalResult(row) : null;
   }
@@ -889,7 +904,7 @@ export class ModelEvalService {
     }
   }
 
-  private rowToEvalResult(row: any): ModelEvalResult {
+  private rowToEvalResult(row: ModelEvalRow): ModelEvalResult {
     return {
       modelId: row.model_id,
       provider: row.provider,

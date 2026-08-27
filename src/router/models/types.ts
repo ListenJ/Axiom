@@ -14,7 +14,8 @@ export type ModelProvider =
   | "kimi"
   | "minimax"
   | "nvidia-nim"
-  | "zhipu";
+  | "zhipu"
+  | "sensenova";
 
 export type TaskRole =
   | "decision"
@@ -34,7 +35,8 @@ export type TaskRole =
   | "math"
   | "review"
   | "main_coding"
-  | "computer-use";
+  | "computer-use"
+  | "intent-classifier";
 
 export interface UnifiedModel {
   id: string;                    // Unique model identifier

@@ -3,8 +3,8 @@ import { performance } from "perf_hooks";
 
 describe("Performance Benchmarks", () => {
   describe("Model Assignment Speed", () => {
-    it("should assign models in under 10ms", () => {
-      const { assignModel } = require("../src/router/model-capability-registry.js");
+    it("should assign models in under 10ms", async () => {
+      const { assignModel } = await import("../src/router/model-capability-registry.js");
       
       const start = performance.now();
       for (let i = 0; i < 100; i++) {

@@ -14,6 +14,7 @@
 
 import { readString } from "./utils/env.js";
 import { logger } from "./utils/logger.js";
+import { withExecutableExt } from "./utils/platform.js";
 
 export type NativeEdition = "local" | "cloud";
 
@@ -35,7 +36,7 @@ let nativeConfig: NativeConfig = {
   enabled: false,
 };
 
-let nativeProcess: any = null;
+let nativeProcess: Bun.Subprocess | null = null;
 let nativeReady = false;
 
 /** 检测当前部署版本 */
@@ -58,7 +59,7 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
   }
 
   const binaryName = nativeConfig.edition === "cloud" ? "axiom-cloud" : "axiom-local";
-  const binaryPath = `./native/target/release/${binaryName}`;
+  const binaryPath = `./native/target/release/${withExecutableExt(binaryName)}`;
 
   try {
     const { existsSync } = await import("fs");
@@ -73,17 +74,17 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
       "--vault-path", nativeConfig.vaultPath,
       "--log-level", readString("LOG_LEVEL", "info"),
     ];
-    if (nativeConfig.edition === "cloud") {
-      if (nativeConfig.databaseUrl) args.push("--database-url", nativeConfig.databaseUrl);
-      if (nativeConfig.redisUrl) args.push("--redis-url", nativeConfig.redisUrl);
-    } else {
-      if (nativeConfig.dbPath) args.push("--db-path", nativeConfig.dbPath);
+    // Credentials (DATABASE_URL / REDIS_URL) are never passed via argv — they are
+    // inherited through process.env and read by clap's `env` attributes.
+    if (nativeConfig.edition !== "cloud" && nativeConfig.dbPath) {
+      args.push("--db-path", nativeConfig.dbPath);
     }
 
     nativeProcess = Bun.spawn({
       cmd: [binaryPath, ...args],
-      stdout: "pipe",
-      stderr: "pipe",
+      env: { ...process.env },
+      stdout: "inherit",
+      stderr: "inherit",
       onExit: (_proc, exitCode) => {
         logger.warn(`[NativeBridge] Sidecar exited with code ${exitCode}`);
         nativeReady = false;
@@ -109,18 +110,32 @@ export async function initNativeBridge(config?: Partial<NativeConfig>): Promise<
     }
 
     logger.warn("[NativeBridge] Rust core failed to start within timeout");
+    if (nativeProcess) {
+      try {
+        nativeProcess.kill();
+      } catch {}
+      nativeProcess = null;
+    }
+    nativeReady = false;
     return false;
   } catch (e) {
+    if (nativeProcess) {
+      try {
+        nativeProcess.kill();
+      } catch {}
+      nativeProcess = null;
+    }
+    nativeReady = false;
     logger.error("[NativeBridge] Init failed", e as Error);
     return false;
   }
 }
 
-/** 调用 Rust 搜索（零向量确定性搜索） */
+/** 调用 Rust 搜索（确定性搜索；共享 cosineSimilarity 仅可选语义层） */
 export async function nativeSearch(
   query: string,
   opts: { limit?: number; tags?: string[]; para?: string } = {}
-): Promise<any[]> {
+): Promise<unknown[]> {
   if (!nativeReady) return [];
 
   try {
@@ -140,7 +155,7 @@ export async function nativeSearch(
 }
 
 /** 获取 Rust 路由性能报告 */
-export async function nativeRouterPerf(): Promise<any> {
+export async function nativeRouterPerf(): Promise<unknown> {
   if (!nativeReady) return null;
   try {
     const res = await fetch(`http://127.0.0.1:${nativeConfig.port}/native/router/perf`, {
@@ -153,8 +168,16 @@ export async function nativeRouterPerf(): Promise<any> {
   }
 }
 
+/** Rust sidecar /stats 端点返回的系统状态 */
+export interface NativeStats {
+  version?: string;
+  uptime_secs?: number;
+  vault_notes?: number;
+  [key: string]: unknown;
+}
+
 /** 获取系统状态 */
-export async function nativeStats(): Promise<any> {
+export async function nativeStats(): Promise<NativeStats | null> {
   if (!nativeReady) return null;
   try {
     const res = await fetch(`http://127.0.0.1:${nativeConfig.port}/stats`, {

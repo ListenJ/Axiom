@@ -1,107 +1,498 @@
-import { NavLink } from 'react-router-dom'
-import { X } from 'lucide-react'
-import { VISIBLE_NAV_ITEMS } from '@/lib/nav'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  X, FolderOpen, MessageSquare, Clock, ChevronRight,
+  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
+} from 'lucide-react'
+import { endpoints } from '@/lib/api'
+import { useApp } from '@/state/useApp'
+import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
+import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
+import { sessionListTitle, saveChatTitle, clearChatTitle } from '@/lib/chat-title'
+import { formatTime, formatTokens } from '@/components/chat-utils'
+import { MOTION_EASES } from '@/lib/motion-presets'
 
 interface SidebarProps {
   open: boolean
   onClose: () => void
 }
 
+/** 显示截断：项目名 ≤20 字符、会话标题 ≤50 字符（未渲染完全时横向滚动，见 .text-scroll） */
+function limitText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const asideRef = useRef<HTMLElement | null>(null)
+  const reduceMotion = useReducedMotion()
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // 移动端抽屉隐藏时暂停轮询（桌面常驻不受影响）
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const onChange = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const paused = isMobile && !open
+
+  // 移动端抽屉：关闭时 inert，打开时圈定焦点并支持 Esc
+  useEffect(() => {
+    if (!isMobile || !open) return
+    const root = asideRef.current
+    if (!root) return
+    const previous = document.activeElement as HTMLElement | null
+    const focusables = () =>
+      Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+    const first = () => focusables()[0]
+    first()?.focus()
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const items = focusables()
+      if (items.length === 0) return
+      if (e.shiftKey && (document.activeElement === items[0] || !root.contains(document.activeElement))) {
+        e.preventDefault()
+        items[items.length - 1]?.focus()
+      } else if (!e.shiftKey && (document.activeElement === items[items.length - 1] || !root.contains(document.activeElement))) {
+        e.preventDefault()
+        items[0]?.focus()
+      }
+    }
+    const onFocus = (e: FocusEvent) => {
+      if (!root.contains(e.target as Node)) first()?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('focusin', onFocus)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('focusin', onFocus)
+      previous?.focus?.()
+    }
+  }, [isMobile, open])
+
+  const navigate = useNavigate()
+  const location = useLocation()
+  const setHelpOpen = useApp((s) => s.setHelpOpen)
+  const collapsed = useApp((s) => s.sidebarCollapsed)
+  const toggleCollapsed = useApp((s) => s.toggleSidebarCollapsed)
+  const [health, setHealth] = useState<{ status?: string; version?: string; uptime?: number } | null>(null)
+  const [healthError, setHealthError] = useState(false)
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [workspaceError, setWorkspaceError] = useState(false)
+  const [collapsedWs, setCollapsedWs] = useState<Set<string>>(new Set())
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [busyDelete, setBusyDelete] = useState<string | null>(null)
+
+
+  useEffect(() => {
+    if (paused) return
+    let alive = true
+    const load = async () => {
+      try {
+        const r = (await endpoints.system.health()) as { status?: string; version?: string; uptime?: number } | null
+        if (!alive) return
+        setHealth({ status: r?.status, version: r?.version, uptime: r?.uptime })
+        setHealthError(false)
+      } catch {
+        if (alive) setHealthError(true)
+      }
+    }
+    void load()
+    const t = setInterval(load, 30_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [paused])
+
+  useEffect(() => {
+    if (paused) return
+    let alive = true
+    const load = async () => {
+      try {
+        const [w, s] = await Promise.allSettled([endpoints.workspaces.list(), endpoints.memory.sessions()])
+        if (!alive) return
+        if (w.status === 'fulfilled' && Array.isArray(w.value?.workspaces)) {
+          setWorkspaces(w.value.workspaces)
+          setWorkspaceError(false)
+        } else {
+          setWorkspaceError(true)
+        }
+        const sSessions = s.status === 'fulfilled' ? (s.value as { sessions?: SessionSummary[] } | null)?.sessions : undefined
+        if (Array.isArray(sSessions)) {
+          setSessions(sSessions)
+        }
+      } catch {
+        if (alive) setWorkspaceError(true)
+      }
+    }
+    void load()
+    const t = setInterval(load, 30_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [paused])
+
+
+  const online = !healthError && health?.status === 'ok'
+  const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
+  const currentSession = new URLSearchParams(location.search).get('session')
+
+  const openSession = (sessionId: string) => {
+    navigate(`/chat?session=${encodeURIComponent(sessionId)}`)
+    onClose()
+  }
+
+  const startNewChat = () => {
+    navigate('/chat')
+    onClose()
+  }
+
+  const toggleWs = (key: string) => {
+    setCollapsedWs((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const startRename = (sessionId: string, title: string) => {
+    setEditingId(sessionId)
+    setEditValue(title)
+  }
+
+  const commitRename = (sessionId: string) => {
+    const title = editValue.trim()
+    setEditingId(null)
+    if (!title) return
+    saveChatTitle(sessionId, title)
+    setSessions((prev) => prev.map((s) => (s.session_id === sessionId ? { ...s, title } : s)))
+  }
+
+  /** 删除会话：403 下发的 confirmationId 即一次性凭据，带 header 重发即可 */
+  const deleteSession = async (sessionId: string) => {
+    if (busyDelete) return
+    const title = sessionListTitle(sessionId, sessions.find((s) => s.session_id === sessionId)?.title)
+    if (!window.confirm(`确认删除会话「${title}」？\n会话消息将不可恢复。`)) return
+    setBusyDelete(sessionId)
+    try {
+      try {
+        await endpoints.chat.deleteSession(sessionId, '')
+      } catch (err) {
+        const e = err as { status?: number; data?: { confirmationId?: string } }
+        if (e?.status === 403 && e.data?.confirmationId) {
+          await endpoints.chat.deleteSession(sessionId, e.data.confirmationId)
+        } else {
+          throw err
+        }
+      }
+      setSessions((prev) => prev.filter((s) => s.session_id !== sessionId))
+      clearChatTitle(sessionId)
+      if (currentSession === sessionId) navigate('/chat')
+    } catch {
+      window.alert('删除会话失败，请重试')
+    } finally {
+      setBusyDelete(null)
+    }
+  }
+
+  const renderSessionRow = (s: SessionSummary, activityTotal: number) => {
+    const title = limitText(sessionListTitle(s.session_id, s.title), 50)
+    const isEditing = editingId === s.session_id
+    const isActive = currentSession === s.session_id
+    return (
+      <div
+        key={s.session_id}
+        className={`cv-auto group/session relative flex items-center gap-1.5 rounded-lg pr-1 transition-colors ${
+          isActive ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--shell-hover)]'
+        }`}
+      >
+        {isEditing ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1 py-1 pl-2">
+            <input
+              autoFocus
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename(s.session_id)
+                if (e.key === 'Escape') setEditingId(null)
+              }}
+              onBlur={() => commitRename(s.session_id)}
+              aria-label="重命名会话"
+              className="min-w-0 flex-1 rounded border border-[var(--accent)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-2xs text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => commitRename(s.session_id)}
+              aria-label="确认重命名"
+              className="press flex size-5 shrink-0 items-center justify-center rounded text-[var(--success)] hover:bg-[var(--surface-hover)]"
+            >
+              <Check size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openSession(s.session_id)}
+            className={`press flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+            title={collapsed ? title : undefined}
+          >
+            <MessageSquare size={12} className={`shrink-0 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
+            {/* 会话标题 ≤50 字符：未渲染完全时横向滚动（.text-scroll） */}
+            <span className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
+              <span className={`text-scroll block text-2xs leading-snug ${isActive ? 'font-medium text-[var(--accent)]' : 'text-[var(--text)]'}`}>
+                {title}
+              </span>
+              <span className="mt-0.5 block text-2xs leading-relaxed text-[var(--text-muted)]">
+                {s.message_count} 条消息 · {formatTokens(s.total_tokens ?? 0)} Token
+              </span>
+              {/* 动态占比：会话活跃度（消息数）占当前项目总活跃度的比例 */}
+              {activityTotal > 0 && (
+                <span className="mt-1 block h-0.5 w-full overflow-hidden rounded-full bg-[var(--bg-tertiary)]" title="该会话活跃度占项目总活跃度的比例" aria-hidden="true">
+                  <span
+                    className="block h-full rounded-full bg-[var(--accent)] opacity-60 transition-[width] duration-300"
+                    style={{ width: `${Math.min(100, Math.round(((s.message_count || 0) / activityTotal) * 100))}%` }}
+                  />
+                </span>
+              )}
+            </span>
+            <span className={`flex shrink-0 items-center gap-1 text-2xs text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
+              <Clock size={10} />
+              {formatTime(s.last_active)}
+            </span>
+          </button>
+        )}
+        {!isEditing && (
+          <div className={`flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/session:opacity-100 group-focus-within/session:opacity-100 ${collapsed ? 'lg:hidden' : ''}`}>
+            <button
+              type="button"
+              onClick={() => startRename(s.session_id, title)}
+              aria-label="重命名会话"
+              title="重命名"
+              className="press flex size-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteSession(s.session_id)}
+              disabled={busyDelete === s.session_id}
+              aria-label="删除会话"
+              title="删除"
+              className="press flex size-5 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+
   return (
     <aside
+      ref={asideRef}
       className={`
-        fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-[var(--border)]
-        glass-sm
-        transform transition-transform duration-300 ease-out
+        fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-[var(--shell-shadow)]
+        shell-surface
+        transform transition-[width,transform] duration-300 ease-out
         lg:static lg:translate-x-0
+        ${collapsed ? 'lg:w-16' : 'lg:w-72'}
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}
       aria-label="主导航"
+      role={isMobile && open ? 'dialog' : undefined}
+      aria-modal={isMobile && open ? 'true' : undefined}
+      aria-hidden={isMobile && !open ? true : undefined}
+      inert={isMobile && !open ? true : undefined}
     >
-      {/* Brand */}
-      <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
-        <div className="flex items-center gap-2">
-          <svg className="h-8 w-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="url(#logo-gradient)" />
-            <path d="M16 8c-4.4 0-8 3.1-8 7s3.6 7 8 7c2 0 3.8-.7 5.2-1.8l-2.2-2.2c-.8.6-1.9 1-3 1-2.2 0-4-1.6-4-3.6s1.8-3.6 4-3.6 4 1.6 4 3.6v.7h-3.5l4.2 4.2C24.2 18.5 24 13.5 24 15c0-3.9-3.6-7-8-7z" fill="white" />
-            <defs>
-              <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#818cf8" />
-                <stop offset="1" stopColor="#4f46e5" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <div className="flex flex-col leading-tight">
-            <span className="font-display text-sm font-semibold tracking-tight text-[var(--text)]">
-              Axiom
-            </span>
-            <span className="text-2xs text-[var(--text-muted)]">智能工作台</span>
-          </div>
-        </div>
+      {/* 顶部：Axiom Logo（单 Logo，归位侧栏顶部）+ 折叠/关闭 */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
         <button
           type="button"
-          onClick={onClose}
-          className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none lg:hidden"
-          aria-label="关闭菜单"
+          onClick={startNewChat}
+          className="press flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          aria-label="返回对话"
+          title="Axiom"
         >
-          <X size={18} />
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
+            AX
+          </div>
+          <span className={`truncate font-display text-sm font-semibold tracking-tight text-[var(--text)] ${collapsed ? 'lg:hidden' : ''}`}>
+            Axiom
+          </span>
+        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="press hidden h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:flex"
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            title={collapsed ? '展开侧栏' : '折叠侧栏'}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="press flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] lg:hidden"
+            aria-label="关闭菜单"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* 新建对话 */}
+      <div className="shrink-0 px-3 pb-3 pt-1">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="press flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border-strong)] bg-transparent px-3 py-2 text-sm font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          aria-label="开启新对话"
+        >
+          <Plus size={16} />
+          <span className={collapsed ? 'lg:hidden' : ''}>开启新对话</span>
         </button>
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="主导航列表">
-        {VISIBLE_NAV_ITEMS.map((item) => {
-          const Icon = item.icon
-          return (
-            <NavLink
-              key={item.id}
-              to={item.path}
-              end={item.path === '/'}
-              onClick={() => onClose()}
-              className={({ isActive }) =>
-                `press group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    size={18}
-                    className={`shrink-0 transition-transform group-hover:scale-110 ${
-                      isActive ? 'text-[var(--accent)]' : ''
-                    }`}
-                  />
-                  <span className="flex-1">{item.label}</span>
-                  <kbd
-                    className={`font-mono text-2xs ${
-                      isActive
-                        ? 'text-[var(--accent)] opacity-70'
-                        : 'text-[var(--text-muted)]'
-                    }`}
-                  >
-                    {item.shortcut}
-                  </kbd>
-                </>
-              )}
-            </NavLink>
-          )
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-[var(--border)] p-3">
-        <div className="rounded-lg bg-[var(--bg-tertiary)]/50 p-2.5">
-          <div className="flex items-center gap-2">
-            <div className="pulse-dot size-2 rounded-full bg-[var(--success)]" />
-            <span className="text-2xs text-[var(--text-muted)]">系统在线</span>
-          </div>
-          <p className="mt-1 text-2xs text-[var(--text-muted)]">
-            全部服务在线
+      {/* 段 4：加载进 Agent 的项目（风琴垂直折叠） */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {workspaceError ? (
+          <p className={`px-3 py-2 text-2xs text-[var(--text-muted)] ${collapsed ? 'lg:hidden' : ''}`}>
+            工作区服务不可用，请打开设置诊断
           </p>
+        ) : workspaces.length === 0 ? (
+          <div className={`px-3 py-2 ${collapsed ? 'lg:hidden' : ''}`}>
+            <p className="text-2xs text-[var(--text-muted)]">暂无项目</p>
+            <p className="mt-1 text-2xs text-[var(--text-muted)]">
+              点击「开启新对话」开始，或打开设置检查工作区服务。
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {workspaces.map((ws) => {
+              const key = ws.path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+              const wsSessions = sessionsByWorkspace.get(key) ?? []
+              const isCollapsed = collapsedWs.has(key)
+              const wsName = limitText(ws.name, 20)
+              const activityTotal = wsSessions.reduce((acc, x) => acc + (x.message_count || 0), 0)
+              return (
+                <div key={ws.id}>
+                  {/* 风琴头：项目名 ≤20 字符，横向滚动 */}
+                  <button
+                    type="button"
+                    onClick={() => toggleWs(key)}
+                    className={`press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${collapsed ? 'lg:justify-center lg:px-1' : ''}`}
+                    aria-expanded={!isCollapsed}
+                    title={collapsed ? wsName : undefined}
+                  >
+                    <FolderOpen size={16} className="shrink-0 text-[var(--accent)]" />
+                    <span className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
+                      <span className="text-scroll block text-xs font-medium text-[var(--text)]" title={ws.name}>
+                        {wsName}
+                      </span>
+                      <span className="mt-0.5 block truncate font-mono text-2xs text-[var(--text-muted)]" title={ws.path}>
+                        {ws.branch} · {ws.sessionCount} 个会话
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={14}
+                      className={`shrink-0 text-[var(--text-muted)] transition-transform duration-150 ${collapsed ? 'lg:hidden' : ''} ${isCollapsed ? '' : 'rotate-90'}`}
+                    />
+                  </button>
+                  {/* 风琴体：会话条目（垂直折叠展开动画） */}
+                  <AnimatePresence initial={false}>
+                    {!isCollapsed && (
+                      <motion.div
+                        key={`ws-body-${ws.id}`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: MOTION_EASES.out }}
+                        className="mt-0.5 space-y-0.5 overflow-hidden pl-3"
+                      >
+                        {wsSessions.length === 0 ? (
+                          <p className="px-2 py-1 text-2xs text-[var(--text-muted)]">
+                            该项目暂无会话
+                          </p>
+                        ) : (
+                          wsSessions.map((s) => renderSessionRow(s, activityTotal))
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 账号栏：设置 / 头像+用户名+在线状态 / 快捷键 */}
+      <div className="shrink-0 p-2">
+        <div className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ${collapsed ? 'lg:flex-col lg:gap-2 lg:px-0' : ''}`}>
+          <button
+            type="button"
+            onClick={() => {
+              navigate('/settings')
+              onClose()
+            }}
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            aria-label="打开设置"
+            title="设置"
+          >
+            <Settings size={16} />
+          </button>
+            <div className={`flex min-w-0 flex-1 items-center gap-2.5 ${collapsed ? 'lg:hidden' : ''}`}>
+            <span
+              className="avatar-glow flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]"
+              aria-hidden="true"
+            >
+              本
+            </span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-xs font-medium text-[var(--text)]">
+                本地工作区
+              </span>
+              <span className="flex items-center gap-1.5 text-2xs text-[var(--text-muted)]">
+                <span className={`pulse-dot size-1.5 shrink-0 rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
+                {online ? '在线' : healthError ? '服务不可达' : '检查中…'}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            aria-label="键盘快捷键"
+            title="键盘快捷键"
+          >
+            <Keyboard size={16} />
+          </button>
         </div>
       </div>
     </aside>

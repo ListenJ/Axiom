@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js"
+import { sanitizeSpawnEnv } from "../utils/spawn-env.js"
 import type { SandboxProvider, SandboxOptions, SandboxResult } from "./types.js"
 
 const DEFAULT_IMAGE = "ubuntu:22.04"
@@ -64,7 +65,10 @@ export const dockerSandbox: SandboxProvider = {
 
       const proc = Bun.spawn(["docker", ...dockerArgs], {
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env as Record<string, string>, ...opts.env },
+        // 审计 J-3（2026-08-24）：此前直接展开 process.env，容器可读取全部
+        // provider API key。复用 process-sandbox 的 R3 过滤（密钥类变量剥离），
+        // 显式传入的 opts.env 视为有意为之不过滤。
+        env: sanitizeSpawnEnv(process.env, opts.env),
       })
 
       const timeoutHandle = setTimeout(() => {

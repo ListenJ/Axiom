@@ -4,6 +4,8 @@
  */
 import type { RouteContext } from "./types.js";
 import { getReadOptimizer } from "../utils/read-optimizer.js";
+import { requireHttpConfirmation } from "./confirmation.js";
+import { requireAuthToken, auditSuccess } from "./route-auth.js";
 
 async function vaultRead(
   ctx: RouteContext,
@@ -34,6 +36,15 @@ export async function handleVaultStats(ctx: RouteContext): Promise<Response | nu
 }
 
 export async function handleVaultPara(ctx: RouteContext): Promise<Response | null> {
+  // GET /vault/para — PARA 分类分布概览（前端 endpoints.vault.para 契约闭环）
+  if (ctx.url.pathname === "/vault/para" && ctx.req.method === "GET") {
+    const { vaultStatsCache } = await import("../utils/vault-stats-cache.js");
+    return ctx.jsonResponse(
+      { distribution: vaultStatsCache.read()?.paraDistribution ?? {} },
+      200,
+      ctx.baseHeaders
+    );
+  }
   if (ctx.url.pathname.startsWith("/vault/para/") && ctx.req.method === "GET") {
     const category = ctx.url.pathname.slice("/vault/para/".length);
     const data = await vaultRead(ctx, "browsePara", { category });
@@ -45,11 +56,16 @@ export async function handleVaultPara(ctx: RouteContext): Promise<Response | nul
 
 export async function handleVaultTagsList(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/tags" && ctx.req.method === "GET") {
-    const rows = ctx.db.query(
-      "SELECT DISTINCT json_each.value as tag FROM memory_notes, json_each(memory_notes.tags) ORDER BY tag"
-    ).all() as { tag: string }[];
-    const tags = rows.map(r => r.tag);
-    return ctx.jsonResponse({ tags }, 200, ctx.baseHeaders);
+    // 容错：tags 可能为 NULL / 非 JSON / 表尚未迁移，一律优雅降级为空标签列表
+    try {
+      const rows = ctx.db.query(
+        "SELECT DISTINCT json_each.value as tag FROM memory_notes, json_each(memory_notes.tags) " +
+          "WHERE memory_notes.tags IS NOT NULL AND json_valid(memory_notes.tags) ORDER BY tag"
+      ).all() as { tag: string }[];
+      return ctx.jsonResponse({ tags: rows.map(r => r.tag) }, 200, ctx.baseHeaders);
+    } catch {
+      return ctx.jsonResponse({ tags: [] }, 200, ctx.baseHeaders);
+    }
   }
   return null;
 }
@@ -89,11 +105,16 @@ export async function handleVaultNote(ctx: RouteContext): Promise<Response | nul
 
 export async function handleVaultWrite(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/write" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:write", body);
+    if (confirmErr) return confirmErr;
     const { path: notePath, content, ...opts } = body;
     if (!notePath || !content) return ctx.jsonResponse({ error: "Missing path or content" }, 400, ctx.baseHeaders);
     const written = await ctx.vault.writeNote(notePath, content, opts);
+    auditSuccess(ctx, "vault.write", notePath);
     return ctx.jsonResponse({ path: written }, 201, ctx.baseHeaders);
   }
   return null;
@@ -101,11 +122,16 @@ export async function handleVaultWrite(ctx: RouteContext): Promise<Response | nu
 
 export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/atomic" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
     const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:atomic", body);
+    if (confirmErr) return confirmErr;
     const { title, idea, ...opts } = body;
     if (!title || !idea) return ctx.jsonResponse({ error: "Missing title or idea" }, 400, ctx.baseHeaders);
     const path = await ctx.vault.writeAtomicNote(title, idea, opts);
+    auditSuccess(ctx, "vault.write", path);
     return ctx.jsonResponse({ path, title }, 201, ctx.baseHeaders);
   }
   return null;
@@ -113,8 +139,13 @@ export async function handleVaultAtomic(ctx: RouteContext): Promise<Response | n
 
 export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/code-index" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const confirmErr = requireHttpConfirmation(ctx, "vault:code-index");
+    if (confirmErr) return confirmErr;
     const result = await ctx.vault.indexCode();
+    auditSuccess(ctx, "vault.write", "code-index");
     return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   }
   return null;
@@ -122,8 +153,13 @@ export async function handleVaultCodeIndex(ctx: RouteContext): Promise<Response 
 
 export async function handleVaultReload(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/reload" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const confirmErr = requireHttpConfirmation(ctx, "vault:reload");
+    if (confirmErr) return confirmErr;
     ctx.vault.reload();
+    auditSuccess(ctx, "vault.write", "reload");
     return ctx.jsonResponse({ ok: true }, 200, ctx.baseHeaders);
   }
   return null;
@@ -141,11 +177,15 @@ export async function handleVaultWatchStatus(ctx: RouteContext): Promise<Respons
 
 export async function handleVaultDistill(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/vault/distill" && ctx.req.method === "POST") {
+    const authErr = requireAuthToken(ctx);
+    if (authErr) return authErr;
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+    const body = await ctx.req.json();
+    const confirmErr = requireHttpConfirmation(ctx, "vault:distill", body);
+    if (confirmErr) return confirmErr;
     const { getConfig } = await import("../core/config-center.js");
     const { MemoryDistiller } = await import("../memory/distiller.js");
     const config = getConfig();
-    const body = await ctx.req.json();
     const distiller = new MemoryDistiller(config.memory.vaultPath);
     const created = await distiller.distillManual(body.title, body.content, {
       source: body.source || "manual",
@@ -153,6 +193,7 @@ export async function handleVaultDistill(ctx: RouteContext): Promise<Response | 
       tags: body.tags,
       relatedNotes: body.relatedNotes,
     });
+    auditSuccess(ctx, "vault.write", created);
     return ctx.jsonResponse({ created }, 201, ctx.baseHeaders);
   }
   return null;
@@ -160,6 +201,8 @@ export async function handleVaultDistill(ctx: RouteContext): Promise<Response | 
 
 export async function handleBootstrap(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/bootstrap" && ctx.req.method === "GET") {
+    const confirmErr = requireHttpConfirmation(ctx, "bootstrap:run");
+    if (confirmErr) return confirmErr;
     const { getConfig } = await import("../core/config-center.js");
     const { AgentBootstrap } = await import("../memory/bootstrap.js");
     const config = getConfig();
@@ -198,6 +241,8 @@ export async function handleCodegraphSearch(ctx: RouteContext): Promise<Response
 
 export async function handleCodegraphInit(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/codegraph/init" && ctx.req.method === "POST") {
+    const confirmErr = requireHttpConfirmation(ctx, "codegraph:init");
+    if (confirmErr) return confirmErr;
     const { initializeCodegraph, getStatus } = await import("../memory/codegraph-index.js");
     await initializeCodegraph();
     const status = await getStatus();
@@ -211,6 +256,18 @@ export async function handleCodegraphStatus(ctx: RouteContext): Promise<Response
     const { getStatus } = await import("../memory/codegraph-index.js");
     const status = await getStatus();
     return ctx.jsonResponse(status ?? { initialized: false }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleCodegraphFileIndex(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/file-index" && ctx.req.method === "GET") {
+    const { searchFiles, isCodegraphInitialized } = await import("../memory/codegraph-index.js");
+    if (!(await isCodegraphInitialized())) {
+      return ctx.jsonResponse({ files: [] }, 200, ctx.baseHeaders);
+    }
+    const files = await searchFiles("*", { limit: 5000 });
+    return ctx.jsonResponse({ files: files.map((f) => f.path) }, 200, ctx.baseHeaders);
   }
   return null;
 }

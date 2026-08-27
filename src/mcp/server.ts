@@ -14,9 +14,12 @@ import { SerpApiClient } from "../crawl/serpapi-client.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
 import { logger } from "../utils/logger.js";
+import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
-import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
+import { registerVaultTools } from "./server/vault-tools.js";
+import { registerWebTools } from "./server/web-tools.js";
 import { registerSkillTools } from "./server/skill-tools.js";
+import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
 import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
 import { registerKgTools } from "./server/kg-tools.js";
 import { registerCodeAgentTools } from "./server/code-agent-tools.js";
@@ -29,6 +32,8 @@ import { registerModeTools } from "./server/mode-tools.js";
 import { registerArenaTools } from "./server/arena-tools.js";
 import { registerPromptTools } from "./server/prompt-tools.js";
 import { registerOrchestratorTools } from "./server/orchestrator-tools.js";
+import { registerNativeTools } from "./server/native-tools.js";
+import { initializeComponentKernel } from "../agents/component-bootstrap.js";
 import { SceneRouter, DEFAULT_SCENES } from "./scene-router.js";
 import { ToolRegistry } from "./tool-registry.js";
 import {
@@ -46,6 +51,11 @@ import { adaptTools } from "./adapt-tool.js";
 import { readTool } from "../tools/read-tool.js";
 import { writeTool } from "../tools/write-tool.js";
 import { queryTool } from "../tools/query-tool.js";
+import { RecoverableOutputStore, wrapWithRecoverableOutput } from "../components/recoverable-output.js";
+import { registerRecoverableOutputTools } from "./server/recoverable-output-tools.js";
+import { registerMindTools } from "./server/mind-tools.js";
+import { registerBrowserTools } from "./server/browser-tools.js";
+import { registerDocumentTools } from "./server/document-tools.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
@@ -62,6 +72,11 @@ const mcp = new McpServer({
 // ===== 工具定义（单一事实来源） =====
 
 const registry = new ToolRegistry();
+const recoverableOutputStore = new RecoverableOutputStore({
+  maxEntries: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES", "1000")) || 1000,
+  ttlMs: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_TTL_MS", String(60 * 60 * 1000))) || 60 * 60 * 1000,
+});
+registerRecoverableOutputTools(registry, recoverableOutputStore);
 
 // Register self-contained external tools (MiniMax / fs / terminal / git / code-analysis).
 // Moved to mcp/register-external-tools.ts to reduce this file from ~3500 to ~3200 lines.
@@ -232,9 +247,10 @@ registerDbTools(registry, db);
 registerLspTools(registry);
 
 // -- Skill 管理工具 (extracted to server/skill-tools.ts) --
+// SKILL_DIR 环境变量可覆盖首目录；其余沿用统一默认列表（W3 修复）
 const skillDirs = [
   readString("SKILL_DIR", "./skills"),
-  "./axiom-memory/03-Resources/skills",
+  ...DEFAULT_SKILL_DIRS.filter((d) => d !== "./skills"),
 ];
 registerSkillTools(registry, skillDirs);
 
@@ -301,8 +317,14 @@ registerPromptTools(registry);
 
 registerOrchestratorTools(registry);
 
+await initializeComponentKernel();
+registerNativeTools(registry);
+
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
 registerDreTools(registry);
+registerMindTools(registry);
+registerBrowserTools(registry);
+registerDocumentTools(registry);
 
 // ===== KG / DIP / KAL 工具 (extracted to server/kg-tools.ts) =====
 registerKgTools(registry, db);
@@ -385,78 +407,52 @@ process.on("SIGTERM", () => { void gracefulShutdown("SIGTERM"); });
 // ===== 启动服务器 =====
 
 const transport = process.argv.includes("--stdio") ? "stdio" : "http";
+const externalMode = process.argv.includes("--external");
+const recoverableThresholdBytes = Number(readString("AXIOM_EXTERNAL_RECOVERABLE_THRESHOLD", "8192")) || 8192;
+const externalTools = externalMode
+  ? registry.filterByExposure(["external", "safe-external"]).map((tool) =>
+      wrapWithRecoverableOutput(tool, recoverableOutputStore, recoverableThresholdBytes)
+    )
+  : undefined;
 
 if (transport === "stdio") {
-  // stdio 传输：注册所有工具
-  registry.registerWithMcp(mcp);
+  // stdio 传输：外部模式仅注册 exposure 工具
+  registry.registerWithMcp(mcp, externalTools);
   const stdio = new StdioServerTransport();
   mcp.connect(stdio);
 } else {
-  // HTTP 传输：构建 handlers 和 meta
-  const toolHandlers = registry.buildHttpHandlers();
-  const toolsMeta = registry.getToolsMeta();
+  // HTTP 传输：SDK Streamable HTTP（2026-07-26 替换自制 JSON-RPC-over-POST）
+  // 兼容性：Claude Code / Codex CLI / Cursor 等标准 MCP 远程客户端可直接连接；
+  // 自制协议缺失 inputSchema、notifications/initialized、协议协商，已废弃。
+  // 无状态模式：SDK 要求每请求新建 server+transport（注册为纯内存操作，开销可忽略）。
   const port = Number(readString("MCP_PORT", "3001"));
+  // 安全（2026-07-26 审查修复）：
+  // - 默认仅绑定回环（MCP_HOST=0.0.0.0 才暴露网络，此前 Bun 默认 0.0.0.0 全无认证）
+  // - 与网关一致的认证：回环放行，远程必须 x-api-key（AXIOM_AUTH_TOKEN 未配置时 fail-closed）
+  const hostname = readString("MCP_HOST", "127.0.0.1");
+  const apiKey = readString("AXIOM_AUTH_TOKEN");
+
+  const { WebStandardStreamableHTTPServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+  );
 
   Bun.serve({
     port,
-    async fetch(req) {
-      if (req.method !== "POST") return Response.json({ error: "Only POST supported" }, { status: 405 });
-      try {
-        const body = await req.json();
-        if (body.method === "initialize") {
-          return Response.json({
-            jsonrpc: "2.0", id: body.id,
-            result: {
-              protocolVersion: "2024-11-05",
-              capabilities: { tools: { listChanged: true } },
-              serverInfo: { name: "Axiom Agent MCP Server", version: "4.0.0" },
-            },
-          });
-        }
-        if (body.method === "initialized") {
-          return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
-        }
-        if (body.method === "tools/list") {
-          return Response.json({
-            jsonrpc: "2.0", id: body.id,
-            result: { tools: toolsMeta },
-          });
-        }
-        if (body.method === "tools/call") {
-          const { name, arguments: args } = body.params;
-          const handler = toolHandlers[name];
-          if (!handler) {
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              error: { code: -32602, message: `Tool '${name}' not found` },
-            }, { status: 400 });
-          }
-          try {
-            const result = await withTimeout(
-              withRetry(() => handler(args || {}), { maxAttempts: 2, baseDelay: 500 }),
-              TIMEOUTS.MCP_TOOL_DEFAULT
-            );
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              result: {
-                content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-              },
-            });
-          } catch (err) {
-            return Response.json({
-              jsonrpc: "2.0", id: body.id,
-              result: {
-                content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
-                isError: true,
-              },
-            });
-          }
-        }
-        return Response.json({ jsonrpc: "2.0", id: body.id, result: {} });
-      } catch (err) {
-        return Response.json({ error: (err as Error).message }, { status: 400 });
+    hostname,
+    async fetch(req, server) {
+      const remoteAddr = server.requestIP(req)?.address;
+      if (!checkApiKey(req, isLocalAddress(remoteAddr), apiKey)) {
+        logger.warn("[MCP] Unauthorized request rejected", { remote: remoteAddr });
+        return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
       }
+      const reqServer = new McpServer({ name: "Axiom Agent MCP Server", version: "2.9.2" });
+      registry.registerWithMcp(reqServer, externalTools);
+      const httpTransport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
+      await reqServer.connect(httpTransport);
+      return httpTransport.handleRequest(req);
     },
   });
-  logger.info(`[MCP] Server running on http://localhost:${port}`);
+  logger.info(`[MCP] Server running on http://${hostname}:${port} (streamable-http, auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);
 }

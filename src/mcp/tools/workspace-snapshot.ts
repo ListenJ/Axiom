@@ -1,14 +1,23 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { logger } from "../../utils/logger.js";
+
+/** snapshotId 白名单校验（P1-T5）：仅 HEAD 或 6-64 位十六进制，防 git 选项/引用注入 */
+export function assertValidSnapshotId(id: string): void {
+  if (!/^(HEAD|[0-9a-fA-F]{6,64})$/.test(id)) {
+    throw new Error(`Invalid snapshotId: ${id.slice(0, 32)}`);
+  }
+}
 
 export interface SnapshotResult {
   success: boolean;
   snapshotId?: string;
   message?: string;
   error?: string;
+  /** 整改 D5（2026-08-25）：部分文件恢复失败时的失败路径列表（success=false 时提供） */
+  errors?: string[];
   timestamp?: string;
 }
 
@@ -111,8 +120,9 @@ export async function createSnapshot(
 
     try {
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });
-      const result = execSync(
-        `git commit -m "${commitMsg.replace(/"/g, '\\"')}" --allow-empty`,
+      const result = execFileSync(
+        "git",
+        ["commit", "-m", commitMsg, "--allow-empty"],
         { cwd: snapshotDir, encoding: "utf-8", stdio: "pipe" }
       );
       const hashMatch = result.match(/\[.*?([a-f0-9]{7,})/);
@@ -152,10 +162,11 @@ export async function revertSnapshot(
   try {
     const snapshotDir = getSnapshotDir();
     const cwd = process.cwd();
+    assertValidSnapshotId(snapshotId);
 
     // Validate snapshot exists
     try {
-      execSync(`git cat-file -t ${snapshotId}`, {
+      execFileSync("git", ["cat-file", "-t", snapshotId], {
         cwd: snapshotDir,
         stdio: "pipe",
       });
@@ -167,32 +178,37 @@ export async function revertSnapshot(
     }
 
     // Get list of files at that snapshot
-    const filesOutput = execSync(
-      `git ls-tree -r --name-only ${snapshotId}`,
+    const filesOutput = execFileSync(
+      "git",
+      ["ls-tree", "-r", "--name-only", snapshotId],
       { cwd: snapshotDir, encoding: "utf-8", stdio: "pipe" }
     );
     const files = filesOutput.split("\n").filter((f) => f.trim());
 
     // Restore each file
+    // 整改 D5（2026-08-25）：execFileSync 不带 encoding 得 Buffer 原样写盘，
+    // 保证二进制文件逐字节保真；单文件失败不再静默吞掉，聚合进 errors。
+    const failures: string[] = [];
     for (const file of files) {
       try {
-        const content = execSync(`git show ${snapshotId}:${file}`, {
+        const content = execFileSync("git", ["show", `${snapshotId}:${file}`], {
           cwd: snapshotDir,
-          encoding: "utf-8",
           stdio: "pipe",
         });
         const dst = path.join(cwd, file);
         await fs.mkdir(path.dirname(dst), { recursive: true });
-        await fs.writeFile(dst, content, "utf-8");
+        await fs.writeFile(dst, content);
       } catch (e) {
         logger.warn(`Failed to restore ${file}: ` + e);
+        failures.push(file);
       }
     }
 
     return {
-      success: true,
+      success: failures.length === 0,
       snapshotId,
       message: `Reverted to snapshot ${snapshotId}`,
+      ...(failures.length > 0 ? { errors: failures } : {}),
     };
   } catch (error) {
     logger.error("Failed to revert snapshot: " + error);
@@ -266,12 +282,13 @@ export async function diffSnapshot(
         }
       }
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });
-      diffOutput = execSync(`git diff --cached ${snapshotId}`, {
+      if (snapshotId) assertValidSnapshotId(snapshotId);
+      diffOutput = execFileSync("git", ["diff", "--cached", snapshotId], {
         cwd: snapshotDir,
         encoding: "utf-8",
         stdio: "pipe",
       });
-      statOutput = execSync(`git diff --cached --stat ${snapshotId}`, {
+      statOutput = execFileSync("git", ["diff", "--cached", "--stat", snapshotId], {
         cwd: snapshotDir,
         encoding: "utf-8",
         stdio: "pipe",

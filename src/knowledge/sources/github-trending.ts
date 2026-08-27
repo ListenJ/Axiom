@@ -1,4 +1,5 @@
 import { logger } from "../../utils/logger.js"
+import { readString } from "../../utils/env.js"
 
 export interface TrendingRepo {
   name: string
@@ -84,7 +85,7 @@ export async function searchHighPotentialRepos(
   const language = opts?.language
   const limit = opts?.limit ?? 25
 
-  const token = process.env.GITHUB_TOKEN
+  const token = readString("GITHUB_TOKEN")
   if (!token) {
     logger.warn("[GitHubTrending] No GITHUB_TOKEN set, skipping API search")
     return []

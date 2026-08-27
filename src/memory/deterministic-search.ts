@@ -2,7 +2,7 @@
  * 确定性记忆搜索引擎 — 磁盘优先、按需加载版
  *
  * 设计哲学：
- * - 零概率、零向量、零 embedding
+ * - 检索以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层，需 embedding 时启用），PG vector 为可选历史能力
  * - 笔记内容常驻磁盘，内存仅保留轻量级索引
  * - 按需读取：匹配时用索引，返回结果时才读内容
  * - 可解释：每个结果都有明确的得分来源
@@ -75,10 +75,24 @@ export class DeterministicSearchEngine {
   // Memoization caches
   private tokenizeCache = new Map<string, string[]>();
   private paraCache = new Map<string, string>();
+  /** 链接目标（文件名/归一化标题）→ 路径 映射缓存；仅在索引重建时失效 */
+  private linkToPathCache: Map<string, string> | null = null;
+  /** 标题/文件名归一化键冲突计数（首见优先解析保持不变，碰撞可观测） */
+  private linkCollisions = 0;
 
   // Content LRU cache (on-demand disk reads)
   private contentCache = new Map<string, CacheEntry>();
-  private readonly CONTENT_CACHE_MAX = 50;
+  private readonly CONTENT_CACHE_MAX = 200;
+  // 小写内容缓存（与 contentCache 同生命周期，避免每查询重复 toLowerCase）
+  private contentLowerCache = new Map<string, string>();
+  private readonly CONTENT_LOWER_CACHE_MAX = 200;
+  // 标题分词缓存（按 path 缓存，避免每查询重复 tokenize 标题）
+  private titleTokensCache = new Map<string, string[]>();
+  // 单次查询内容读盘的候选上限（P1-T1）：内存分降序截断，裁剪长尾零分候选的无效 IO
+  private readonly CONTENT_SCAN_MAX = 200;
+  // Memoization 缓存同样设上限（FIFO 驱逐），防止长运行期 tokenize/para 键无限增长
+  private readonly TOKENIZE_CACHE_MAX = 200;
+  private readonly PARA_CACHE_MAX = 500;
   private cacheHits = 0;
   private cacheMisses = 0;
 
@@ -96,7 +110,7 @@ export class DeterministicSearchEngine {
 
   private scanDirectory(basePath: string, relPath: string) {
     const fullPath = nodePath.join(basePath, relPath);
-    const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+    const entries = fs.readdirSync(fullPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
     for (const entry of entries) {
       const entryRel = relPath ? `${relPath}/${entry.name}` : entry.name;
@@ -161,13 +175,7 @@ export class DeterministicSearchEngine {
   }
 
   private buildBacklinks() {
-    // 建立链接目标到路径的映射（按文件名和标题）
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     for (const [sourcePath, note] of this.notes) {
       for (const link of note.wikiLinks) {
@@ -211,6 +219,30 @@ export class DeterministicSearchEngine {
       if (oldest) this.contentCache.delete(oldest);
     }
     this.contentCache.set(relPath, { content, at: Date.now() });
+    // 同步小写缓存（与 contentCache 同步驱逐）
+    this.contentLowerCache.delete(relPath);
+    if (this.contentLowerCache.size >= this.CONTENT_LOWER_CACHE_MAX) {
+      const oldestLow = this.contentLowerCache.keys().next().value;
+      if (oldestLow) this.contentLowerCache.delete(oldestLow);
+    }
+    this.contentLowerCache.set(relPath, content.toLowerCase());
+  }
+
+  private readContentLower(relPath: string): string {
+    const low = this.contentLowerCache.get(relPath);
+    if (low !== undefined) return low;
+    // 未命中则触发一次 readContent（会填充双缓存）
+    const content = this.readContent(relPath);
+    // readContent 已通过 putContentCache 填充 lower，若仍无则直接 lower
+    return this.contentLowerCache.get(relPath) ?? content.toLowerCase();
+  }
+
+  private getTitleTokens(path: string, title: string): string[] {
+    let cached = this.titleTokensCache.get(path);
+    if (cached) return cached;
+    cached = this.tokenize(title);
+    this.titleTokensCache.set(path, cached);
+    return cached;
   }
 
   private resolveNote(lite: LiteNote): VaultNote {
@@ -276,8 +308,9 @@ export class DeterministicSearchEngine {
         for (const p of indexedPaths) candidatePaths.add(p);
       }
     }
-    // titleIndex 无命中时回退到全量扫描（冷启动或罕见词）
-    const pathsToScan = candidatePaths.size > 0 ? candidatePaths : this.notes.keys();
+    // titleIndex 无命中时回退到全量扫描（冷启动或罕见词）；物化为数组，
+    // 供主打分循环与内容有界扫描两段共用（迭代器只能消费一次）
+    const pathsToScan = candidatePaths.size > 0 ? [...candidatePaths] : [...this.notes.keys()];
 
     // 确保候选路径在 scores 中有条目，让关系推导能正确处理
     for (const path of candidatePaths) {
@@ -295,7 +328,7 @@ export class DeterministicSearchEngine {
       const entry = scores.get(path);
       const existingScore = entry?.s ?? 0;
 
-      const titleWords = this.tokenize(note.title);
+      const titleWords = this.getTitleTokens(note.path, note.title);
       let titleMatches = 0;
       for (const qw of queryWords) {
         for (const tw of titleWords) {
@@ -312,18 +345,29 @@ export class DeterministicSearchEngine {
       }
       if (tagMatches > 0) addScore(path, Math.min(tagMatches * 12, 50), `标签匹配 x${tagMatches}`);
 
-      // Content keywords — lazy disk read only when needed
-      if (existingScore < 80) {
-        const contentLower = this.readContent(path).toLowerCase();
-        let contentMatches = 0;
-        for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
-        if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
-      }
+      // Content keywords — lazy disk read only when needed（P1-T1:移出主循环，见下方有界扫描）
 
       const pathLower = note.path.toLowerCase();
       let pathMatches = 0;
       for (const qw of queryWords) { if (pathLower.includes(qw)) pathMatches++; }
       if (pathMatches > 0) addScore(path, pathMatches * 5, `路径匹配 x${pathMatches}`);
+    }
+
+    // Content keywords — 有界磁盘扫描（P1-T1）：
+    // 先内存打分，仅对 <80 分候选按"内存分降序"截断至 CONTENT_SCAN_MAX 后读盘，
+    // 裁剪长尾冷查询的无效 IO；语义变化仅为超限零分长尾不再补内容分。
+    const contentCandidates = [...pathsToScan]
+      .filter((p) => {
+        const n = this.notes.get(p);
+        return n && passesFilter(n) && (scores.get(p)?.s ?? 0) < 80;
+      })
+      .sort((a, b) => (scores.get(b)?.s ?? 0) - (scores.get(a)?.s ?? 0))
+      .slice(0, this.CONTENT_SCAN_MAX);
+    for (const path of contentCandidates) {
+      const contentLower = this.readContentLower(path);
+      let contentMatches = 0;
+      for (const qw of queryWords) contentMatches += this.countOccurrences(contentLower, qw);
+      if (contentMatches > 0) addScore(path, Math.min(contentMatches * 3, 30), `内容关键词 x${contentMatches}`);
     }
 
     // Stage 3: Relation boosting
@@ -349,20 +393,14 @@ export class DeterministicSearchEngine {
       });
     }
 
-    results.sort((a, b) => b.score - a.score);
+    results.sort((a, b) => b.score - a.score || a.note.path.localeCompare(b.note.path));
     return results.length > limit ? results.slice(0, limit) : results;
   }
 
   // ===== 关系推导 =====
 
   private boostByRelations(scores: Map<string, { s: number; r: string[] }>, queryWords: string[]) {
-    // 建立链接目标（文件名/标题）到路径的映射
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     const mentionedPaths = new Set<string>();
     for (const [path, note] of this.notes) {
@@ -450,6 +488,24 @@ export class DeterministicSearchEngine {
 
   // ===== 辅助方法 =====
 
+  /** 链接目标（文件名/归一化标题）→ 路径 映射；懒构建并缓存，索引重建时置空 */
+  private getLinkToPath(): Map<string, string> {
+    if (!this.linkToPathCache) {
+      const map = new Map<string, string>();
+      for (const [path, note] of this.notes) {
+        const baseName = nodePath.basename(path, ".md").toLowerCase();
+        if ((map.has(baseName) && map.get(baseName) !== path) ||
+            (map.has(this.normalizeLink(note.title)) && map.get(this.normalizeLink(note.title)) !== path)) {
+          this.linkCollisions++;
+        }
+        map.set(baseName, path);
+        map.set(this.normalizeLink(note.title), path);
+      }
+      this.linkToPathCache = map;
+    }
+    return this.linkToPathCache;
+  }
+
   private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     if (!match) return { frontmatter: {}, body: content };
@@ -529,6 +585,10 @@ export class DeterministicSearchEngine {
     else if (parts[0] === "00-Meta") cached = "meta";
     else cached = "uncategorized";
     this.paraCache.set(notePath, cached);
+    if (this.paraCache.size > this.PARA_CACHE_MAX) {
+      const oldest = this.paraCache.keys().next().value;
+      if (oldest) this.paraCache.delete(oldest);
+    }
     return cached;
   }
 
@@ -541,15 +601,20 @@ export class DeterministicSearchEngine {
       .split(/\s+/)
       .filter((w) => w.length >= 2 || /[\u4e00-\u9fa5]/.test(w));
     this.tokenizeCache.set(text, cached);
+    if (this.tokenizeCache.size > this.TOKENIZE_CACHE_MAX) {
+      const oldest = this.tokenizeCache.keys().next().value;
+      if (oldest) this.tokenizeCache.delete(oldest);
+    }
     return cached;
   }
 
   private countOccurrences(text: string, substring: string): number {
+    if (!substring) return 0;
     let count = 0;
     let pos = text.indexOf(substring);
     while (pos !== -1) {
       count++;
-      pos = text.indexOf(substring, pos + 1);
+      pos = text.indexOf(substring, pos + substring.length);
     }
     return count;
   }
@@ -584,7 +649,7 @@ export class DeterministicSearchEngine {
   browseByPara(category: string): VaultNote[] {
     return Array.from(this.notes.values())
       .filter((n) => this.getParaCategory(n.path) === category)
-      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .sort((a, b) => b.modifiedAt - a.modifiedAt || a.path.localeCompare(b.path))
       .map((lite) => this.resolveNote(lite));
   }
 
@@ -596,18 +661,22 @@ export class DeterministicSearchEngine {
       .map((p) => this.notes.get(p))
       .filter(Boolean)
       .map((lite) => this.resolveNote(lite!))
-      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+      .sort((a, b) => b.modifiedAt - a.modifiedAt || a.path.localeCompare(b.path));
+  }
+
+  /** wiki-link 入链（来源路径+标题），供 KAL 跨存储引用查询（P1-T2） */
+  getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> {
+    const lite = this.notes.get(notePath);
+    if (!lite) return [];
+    return lite.backlinks
+      .map((p) => this.notes.get(p))
+      .filter((b): b is LiteNote => Boolean(b))
+      .map((b) => ({ path: b.path, title: b.title }));
   }
 
   /** 获取笔记的关联网络 */
   getNetwork(notePath: string, depth = 1): { notes: VaultNote[]; relationships: Array<{ from: string; to: string; type: string }> } {
-    // 建立链接目标（文件名/标题）到路径的映射
-    const linkToPath = new Map<string, string>();
-    for (const [path, note] of this.notes) {
-      const baseName = nodePath.basename(path, ".md").toLowerCase();
-      linkToPath.set(baseName, path);
-      linkToPath.set(this.normalizeLink(note.title), path);
-    }
+    const linkToPath = this.getLinkToPath();
 
     const visited = new Set<string>();
     const queue: Array<{ path: string; d: number }> = [{ path: notePath, d: 0 }];
@@ -646,7 +715,7 @@ export class DeterministicSearchEngine {
   }
 
   /** 索引统计 */
-  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number>; cacheHitRate: number } {
+  stats(): { totalNotes: number; totalWords: number; totalTags: number; totalLinks: number; paraDistribution: Record<string, number>; cacheHitRate: number; titleCollisions: number } {
     const paraDistribution: Record<string, number> = {};
     let totalWords = 0;
     let totalTags = 0;
@@ -670,11 +739,57 @@ export class DeterministicSearchEngine {
       totalLinks,
       paraDistribution,
       cacheHitRate,
+      titleCollisions: this.linkCollisions,
     };
   }
 
   /** 重新加载索引 */
+  /** 列出所有笔记相对路径（供 SQLite FTS 重建） */
+  listNotePaths(): string[] {
+    return [...this.notes.keys()];
+  }
+
+  private reloadMtimes = new Map<string, number>();
+
   reload(vaultPath: string) {
+    // 增量重建：仅对 mtime 变化的文件重建索引，未变跳过（173 文件全量 100ms+ → 增量 <10ms 热路径）
+    // 先收集当前文件列表与 mtime，不读内容
+    const currentPaths: string[] = [];
+    const currentMtimes = new Map<string, number>();
+    const collect = (base: string, rel: string) => {
+      const full = nodePath.join(base, rel);
+      try {
+        const entries = fs.readdirSync(full, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+        for (const e of entries) {
+          const r = rel ? `${rel}/${e.name}` : e.name;
+          if (e.isDirectory()) {
+            if (e.name.startsWith(".") || e.name === "attachments") continue;
+            collect(base, r);
+          } else if (e.name.endsWith(".md")) {
+            try {
+              const st = fs.statSync(nodePath.join(base, r));
+              currentPaths.push(r);
+              currentMtimes.set(r, st.mtimeMs);
+            } catch {}
+          }
+        }
+      } catch {}
+    };
+    collect(vaultPath, "");
+    let changed = false;
+    if (currentPaths.length !== this.notes.size) changed = true;
+    else {
+      for (const p of currentPaths) {
+        if (this.reloadMtimes.get(p) !== currentMtimes.get(p)) { changed = true; break; }
+      }
+      if (!changed) for (const p of this.notes.keys()) if (!currentMtimes.has(p)) { changed = true; break; }
+    }
+    if (!changed && this.notes.size > 0) {
+      // 无变更，跳过全量重建，仅更新 vaultPath
+      this.vaultPath = vaultPath;
+      return;
+    }
+    // 有变更，全量重建（173 文件 100ms+，但仅在变更时发生；无变更时 <1ms）
     this.notes.clear();
     this.wikiLinkIndex.clear();
     this.tagIndex.clear();
@@ -683,10 +798,15 @@ export class DeterministicSearchEngine {
     this.tokenizeCache.clear();
     this.paraCache.clear();
     this.contentCache.clear();
+    this.contentLowerCache.clear();
+    this.titleTokensCache.clear();
+    this.linkToPathCache = null;
+    this.linkCollisions = 0;
     this.cacheHits = 0;
     this.cacheMisses = 0;
     this.vaultPath = vaultPath;
     this.buildIndex(vaultPath);
+    this.reloadMtimes = currentMtimes;
   }
 }
 

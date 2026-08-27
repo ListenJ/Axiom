@@ -19,6 +19,15 @@ import { logger } from "../utils/logger.js";
 import { toAxiomError } from "../utils/errors.js";
 import { recognizeIntent, type IntentResult } from "./intent-router.js";
 import { getPromptPool, type AgentRole } from "./prompt-pool.js";
+import { internalAgent } from "./internal-agent.js";
+import {
+  NativeGeneralAgent,
+  NativeCodeAgent,
+  NativeResearchAgent,
+} from "../components/native-agents.js";
+import { createNativeAgentOptions } from "./component-bootstrap.js";
+import { getDefaultSelfEvolve } from "../self-evolve/index.js";
+import type { SelfEvolveEngine } from "../self-evolve/engine.js";
 
 // ========== 类型定义 ==========
 
@@ -213,16 +222,23 @@ class TaskRouterImpl {
    * 根据意图选择 Agent
    */
   selectAgentByIntent(intent: IntentResult, registry: AgentRegistryImpl): AgentInterface | null {
+    // 与 intent-router.ts CATEGORY_INTENTS 的 role 字段对齐（main_coding/research/coding）
     const roleMapping: Record<string, string> = {
-      "code-generation": "opencode",
-      "research": "hermes",
-      "architecture": "hermes",
-      "decision": "hermes",
-      "general-chat": "internal",
-      "general-tool": "internal",
+      "main_coding": "native-code",
+      "coding": "native-code",
+      "code-generation": "native-code",
+      "code-review": "native-code",
+      "refactoring": "native-code",
+      "testing": "native-code",
+      "research": "native-research",
+      "deep-research": "native-research",
+      "architecture": "native-research",
+      "decision": "native-general",
+      "general-chat": "native-general",
+      "general-tool": "native-general",
     };
 
-    const agentId = roleMapping[intent.recommendedRole] || "internal";
+    const agentId = roleMapping[intent.recommendedRole] || "native-general";
     return registry.get(agentId) || null;
   }
 }
@@ -331,7 +347,7 @@ export class AgentOrchestrator {
   private router: TaskRouterImpl;
   private decomposer: TaskDecomposerImpl;
 
-  constructor() {
+  constructor(private readonly options: { selfEvolve?: Pick<SelfEvolveEngine, "selfImprove"> } = {}) {
     this.registry = new AgentRegistryImpl();
     this.router = new TaskRouterImpl();
     this.decomposer = new TaskDecomposerImpl();
@@ -363,14 +379,58 @@ export class AgentOrchestrator {
         };
       }
 
-      // 2. 执行任务
+      // 2. 人工确认闭环（审计整改 O2）：requireConfirmation 任务先经
+      // approval-bridge 走 HITL 确认，拒绝/超时 → failed result 且不执行。
+      if (task.requireConfirmation) {
+        const { getApprovalBridge } = await import("../utils/approval-bridge.js");
+        let approved = false;
+        try {
+          approved = await getApprovalBridge().request(
+            `orchestrator_task:${task.type}`,
+            { taskId: task.id, description: task.description, input: task.input },
+            { risk: "caution" },
+          );
+        } catch (err) {
+          logger.warn("[Orchestrator] Confirmation request failed (treated as denied)", {
+            taskId: task.id,
+            error: (err as Error).message,
+          });
+        }
+        if (!approved) {
+          const denied: AgentResult = {
+            taskId: task.id,
+            agentId: agent.id,
+            success: false,
+            error: "Task requires confirmation but approval was denied or timed out",
+            duration: Date.now() - startTime,
+          };
+          await this.recordEvolution(task, denied);
+          return denied;
+        }
+      }
+
+      // 3. 执行任务（审计整改 O2：task.timeout 到期强制失败，timer 必须清理）
       logger.info("[Orchestrator] Executing task", {
         taskId: task.id,
         agentId: agent.id,
         type: task.type,
       });
 
-      const result = await agent.execute(task);
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      const result = await (task.timeout
+        ? Promise.race([
+            agent.execute(task),
+            new Promise<never>((_, reject) => {
+              timeoutTimer = setTimeout(
+                () => reject(new Error(`Task ${task.id} timeout after ${task.timeout}ms`)),
+                task.timeout,
+              );
+            }),
+          ])
+        : agent.execute(task));
+      clearTimeout(timeoutTimer);
+
+      await this.recordEvolution(task, result);
 
       logger.info("[Orchestrator] Task completed", {
         taskId: task.id,
@@ -384,13 +444,36 @@ export class AgentOrchestrator {
       const error = toAxiomError(err, "Task execution failed");
       logger.error(`[Orchestrator] Task ${task.id} failed`, error);
 
-      return {
+      const failed: AgentResult = {
         taskId: task.id,
         agentId: "unknown",
         success: false,
         error: error.message,
         duration: Date.now() - startTime,
       };
+      await this.recordEvolution(task, failed);
+      return failed;
+    }
+  }
+
+  /**
+   * 执行反馈回流自我进化：成功 → Improve（写教训）；失败 → Debug（修订计划）。
+   * 非阻断：engine 缺失或抛错均不影响任务结果。
+   */
+  private async recordEvolution(task: AgentTask, result: AgentResult): Promise<void> {
+    if (!this.options.selfEvolve) return;
+    try {
+      await this.options.selfEvolve.selfImprove({
+        task: task.description,
+        feedback: {
+          action: task.description || task.type,
+          outcome: result.success ? "completed" : `failed: ${(result.error ?? "").slice(0, 300)}`,
+          success: result.success,
+          error: result.error,
+        },
+      });
+    } catch (err) {
+      logger.debug("[Orchestrator] self-improve skipped", { error: (err as Error).message });
     }
   }
 
@@ -500,14 +583,15 @@ export class AgentOrchestrator {
     errors: string[]
   ): Promise<void> {
     const completed = new Set<string>();
+    const completedSuccess = new Set<string>();
     const remaining = new Set(plan.steps.map((s) => s.id));
 
     while (remaining.size > 0) {
-      // 找出所有依赖已满足的步骤
+      // 找出所有依赖已满足的步骤（仅成功完成的依赖才视为就绪）
       const ready = plan.steps.filter(
         (step) =>
           remaining.has(step.id) &&
-          (!step.dependsOn || step.dependsOn.every((dep) => completed.has(dep)))
+          (!step.dependsOn || step.dependsOn.every((dep) => completedSuccess.has(dep)))
       );
 
       if (ready.length === 0) {
@@ -526,6 +610,7 @@ export class AgentOrchestrator {
 
         completed.add(step.id);
         remaining.delete(step.id);
+        if (result.success) completedSuccess.add(step.id);
       });
 
       await Promise.all(promises);
@@ -536,12 +621,11 @@ export class AgentOrchestrator {
    * 执行单个步骤
    */
   private async executeStep(step: OrchestrationStep): Promise<AgentResult> {
-    // 人工确认检查
-    if (step.requireConfirmation) {
-      logger.info("[Orchestrator] Step requires confirmation", { stepId: step.id });
-      // 实际实现中应等待用户确认
+    // 人工确认闭环（审计整改 O2）：step.requireConfirmation 与
+    // task.requireConfirmation 任一为真都先经 approval-bridge 确认。
+    if (step.requireConfirmation && !step.task.requireConfirmation) {
+      return this.executeTask({ ...step.task, requireConfirmation: true });
     }
-
     return this.executeTask(step.task);
   }
 
@@ -581,18 +665,18 @@ export class InternalAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      // 实际实现中应调用模型
-      logger.info("[InternalAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("general-chat", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Internal Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {
@@ -629,17 +713,18 @@ export class CodeAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      logger.info("[CodeAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("code-generation", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Code Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {
@@ -676,17 +761,18 @@ export class ResearchAgent implements AgentInterface {
         context: task.context ? JSON.stringify(task.context) : undefined,
       });
 
-      logger.info("[ResearchAgent] Executing task", {
-        taskId: task.id,
-        promptTokens: prompt.tokenCount,
-      });
+      const result = await internalAgent.executeWithRole("research", [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: task.description },
+      ]);
 
       return {
         taskId: task.id,
         agentId: this.id,
         success: true,
-        data: { message: "Task completed by Research Agent" },
+        data: { message: result.content || "[No response from model]" },
         duration: Date.now() - startTime,
+        metadata: { model: result.model, provider: result.provider },
       };
     } catch (err) {
       return {
@@ -710,12 +796,13 @@ let _instance: AgentOrchestrator | null = null;
 
 export function getAgentOrchestrator(): AgentOrchestrator {
   if (!_instance) {
-    _instance = new AgentOrchestrator();
+    _instance = new AgentOrchestrator({ selfEvolve: getDefaultSelfEvolve() });
 
-    // 注册内置 Agent
-    _instance.getRegistry().register(new InternalAgent());
-    _instance.getRegistry().register(new CodeAgent());
-    _instance.getRegistry().register(new ResearchAgent());
+    // Day0: native agents are the default path; external CLIs remain optional adapters.
+    const options = createNativeAgentOptions();
+    _instance.getRegistry().register(new NativeGeneralAgent(options));
+    _instance.getRegistry().register(new NativeCodeAgent(options));
+    _instance.getRegistry().register(new NativeResearchAgent(options));
   }
   return _instance;
 }

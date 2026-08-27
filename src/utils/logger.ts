@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { sanitizeRequestBody } from "./security.js";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -189,8 +190,13 @@ class Logger {
 
     const color = this.opts.enableColors ? LEVEL_COLORS[entry.level] : "";
     const reset = this.opts.enableColors ? RESET : "";
-    const ctxStr = Object.keys(entry.context || {}).length
-      ? " " + JSON.stringify(entry.context)
+    // 整改 D4（2026-08-25）：text 路径与 json 路径同样过 redactContext，
+    // 防止 context 中密钥值经 console 明文输出。
+    const safeCtx = entry.context && Object.keys(entry.context).length
+      ? this.redactContext(entry.context)
+      : entry.context;
+    const ctxStr = safeCtx && Object.keys(safeCtx).length
+      ? " " + JSON.stringify(safeCtx)
       : "";
     const errStr = entry.error ? `\n${entry.error.stack || entry.error.message}` : "";
 
@@ -209,19 +215,34 @@ class Logger {
     this.currentSize += Buffer.byteLength(line, "utf8");
   }
 
+  /** 敏感值正则：捕获常见密钥格式（key-based 脱敏由 sanitizeRequestBody 处理，此处补 value-based） */
+  private static readonly SECRET_VALUE_RE =
+    /(sk-[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9._-]+|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20}|xoxb-[0-9A-Za-z-]+)/g;
+
+  /** 脱敏上下文：先按字段名递归脱敏（复用 security.ts），再按值扫描密钥模式 */
+  private redactContext(ctx: Record<string, unknown>): Record<string, unknown> {
+    const cleaned = sanitizeRequestBody(ctx) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(cleaned)) {
+      if (typeof v === "string") {
+        cleaned[k] = v.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+      }
+    }
+    return cleaned;
+  }
+
   private serialize(entry: LogEntry): Record<string, unknown> {
     const obj: Record<string, unknown> = {
       timestamp: entry.timestamp,
       level: entry.level,
       message: entry.message,
     };
-    if (entry.context && Object.keys(entry.context).length) obj.context = entry.context;
+    if (entry.context && Object.keys(entry.context).length) {
+      obj.context = this.redactContext(entry.context);
+    }
     if (entry.error) {
-      obj.error = {
-        name: entry.error.name,
-        message: entry.error.message,
-        stack: entry.error.stack,
-      };
+      const msg = entry.error.message?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]") ?? "";
+      const stack = entry.error.stack?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+      obj.error = { name: entry.error.name, message: msg, stack };
     }
     return obj;
   }

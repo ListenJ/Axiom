@@ -28,13 +28,20 @@ docker run --rm -v "$PROJECT_ROOT:/app" -w /app oven/bun:1 bun x tsc --noEmit 2>
 LINT_EXIT=${PIPESTATUS[0]}
 
 # 3. Test (10min timeout)
+TEST_EXIT=0
+AUDIT_EXIT=0
 if [ "${1:-}" != "--lint-only" ]; then
   echo "[CI] bun test (timeout 600s)..." | tee -a "$LOG_FILE"
   timeout 600 docker run --rm -v "$PROJECT_ROOT:/app" -w /app oven/bun:1 bun test 2>&1 | tee -a "$LOG_FILE"
   TEST_EXIT=${PIPESTATUS[0]}
+
+  # 4. Runtime audit (resource/bounds gate)
+  echo "[CI] audit:runtime..." | tee -a "$LOG_FILE"
+  docker run --rm -v "$PROJECT_ROOT:/app" -w /app oven/bun:1 bun run audit:runtime 2>&1 | tee -a "$LOG_FILE"
+  AUDIT_EXIT=${PIPESTATUS[0]}
 fi
 
-echo "[CI] Results: lint=$LINT_EXIT test=${TEST_EXIT:-0}" | tee -a "$LOG_FILE"
+echo "[CI] Results: lint=$LINT_EXIT test=$TEST_EXIT audit=$AUDIT_EXIT" | tee -a "$LOG_FILE"
 echo "[CI] Done at $(date)" | tee -a "$LOG_FILE"
 echo "[CI] Log: $LOG_FILE"
-exit $(( LINT_EXIT + ${TEST_EXIT:-0} ))
+exit $(( LINT_EXIT + TEST_EXIT + AUDIT_EXIT ))

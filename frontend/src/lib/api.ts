@@ -16,6 +16,7 @@ interface CacheOptions {
 
 type RequestInterceptor = (config: RequestConfig) => RequestConfig | Promise<RequestConfig>
 type ResponseInterceptor = (data: unknown, response: Response) => unknown
+type UnauthorizedHandler = () => void
 
 interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>
@@ -53,6 +54,7 @@ interface ChatStreamMeta {
   model?: string
   provider?: string
   role?: string
+  sessionId?: string
   usage?: Record<string, unknown>
 }
 
@@ -70,8 +72,18 @@ export interface ChatMessage {
   content: string
 }
 
+import type { DiffFile, WebFetchResult, LightpandaStatus, WorkspaceSummary } from './workspace-sessions'
+
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** 构造 name 为 'AbortError' 的错误，与 fetch abort 行为保持一致。 */
+function abortError(): Error {
+  const err = new Error('The operation was aborted.')
+  err.name = 'AbortError'
+  return err
 }
 
 /** Best-effort extraction of the assistant message from a legacy `/chat` JSON response. */
@@ -92,6 +104,7 @@ function pickMeta(parsed: Record<string, unknown>): ChatStreamMeta {
   if (typeof parsed.model === 'string') meta.model = parsed.model
   if (typeof parsed.provider === 'string') meta.provider = parsed.provider
   if (typeof parsed.role === 'string') meta.role = parsed.role
+  if (typeof parsed.sessionId === 'string') meta.sessionId = parsed.sessionId
   if (isPlainObject(parsed.usage)) meta.usage = parsed.usage
   return meta
 }
@@ -152,6 +165,7 @@ export class APIClient {
   defaultHeaders: Record<string, string>
   private requestInterceptors: RequestInterceptor[] = []
   private responseInterceptors: ResponseInterceptor[] = []
+  private unauthorizedHandlers: UnauthorizedHandler[] = []
   private cache = new Map<string, { time: number; data: unknown; ttl: number }>()
   cacheEnabled: boolean
 
@@ -170,6 +184,22 @@ export class APIClient {
   responseInterceptor(fn: ResponseInterceptor) {
     this.responseInterceptors.push(fn)
     return this
+  }
+
+  /** 注册 401 处理器：任何请求收到 401 时依次调用（清除 token、跳转登录页等）。 */
+  onUnauthorized(fn: UnauthorizedHandler) {
+    this.unauthorizedHandlers.push(fn)
+    return this
+  }
+
+  private notifyUnauthorized() {
+    for (const fn of this.unauthorizedHandlers) {
+      try {
+        fn()
+      } catch {
+        /* 处理器异常不应掩盖原始 401 错误 */
+      }
+    }
   }
 
   private buildURL(path: string, params?: Record<string, string | number | boolean | undefined>): string {
@@ -228,6 +258,7 @@ export class APIClient {
       let data: unknown = contentType.includes('application/json') ? await response.json() : await response.text()
 
       if (!response.ok) {
+        if (response.status === 401) this.notifyUnauthorized()
         const dataObj = data as Record<string, unknown> | null
         const messageField =
           dataObj && typeof dataObj === 'object' && 'message' in dataObj
@@ -280,13 +311,21 @@ export class APIClient {
   ): Promise<AbortController> {
     const url = this.buildURL(path)
     const controller = new AbortController()
+    // 外部 signal 与内部 controller 联动：fetch 始终挂在内部 signal 上，
+    // 这样调用方 abort 外部 signal 或内部 controller 都能中止请求。
+    const onExternalAbort = () => controller.abort()
+    if (options.signal) {
+      if (options.signal.aborted) controller.abort()
+      else options.signal.addEventListener('abort', onExternalAbort, { once: true })
+    }
     const response = await fetch(url, {
       method: 'POST',
       headers: { ...this.defaultHeaders, ...(options.headers ?? {}), Accept: 'text/event-stream' },
       body: JSON.stringify(body),
-      signal: options.signal ?? controller.signal,
+      signal: controller.signal,
     })
     if (!response.ok || !response.body) {
+      if (response.status === 401) this.notifyUnauthorized()
       throw new HttpError(`HTTP ${response.status}`, response.status, null)
     }
     const contentType = response.headers.get('content-type') || ''
@@ -304,29 +343,63 @@ export class APIClient {
       return controller
     }
     const reader = response.body.getReader()
+    // abort 时主动 cancel reader，让挂起的 read() 立即返回，不再向调用方派发事件
+    const cancelReader = () => {
+      reader.cancel().catch(() => {})
+    }
+    if (controller.signal.aborted) cancelReader()
+    else controller.signal.addEventListener('abort', cancelReader, { once: true })
     const decoder = new TextDecoder()
     let buffer = ''
-    ;(async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''
-          for (const line of lines) {
-            handleSseLine(line, onEvent)
-          }
+    try {
+      while (!controller.signal.aborted) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (controller.signal.aborted) break
+          handleSseLine(line, onEvent)
         }
-        if (buffer.trim()) {
-          handleSseLine(buffer, onEvent)
-        }
-        onEvent({ type: 'done' })
-      } catch {
-        /* aborted */
       }
-    })()
+      if (controller.signal.aborted) {
+        throw abortError()
+      }
+      if (buffer.trim()) {
+        handleSseLine(buffer, onEvent)
+      }
+      onEvent({ type: 'done' })
+    } catch (err) {
+      // abort 期间 reader/read 抛出的任意错误统一归一化为 AbortError，
+      // 让调用方（Chat/Home 的 catch）走“用户主动中止”分支
+      if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+        throw abortError()
+      }
+      throw err
+    } finally {
+      controller.signal.removeEventListener('abort', cancelReader)
+      options.signal?.removeEventListener('abort', onExternalAbort)
+      try {
+        reader.releaseLock()
+      } catch {
+        /* already released */
+      }
+    }
     return controller
+  }
+
+  /** 写操作二次确认：403 下发 confirmationId 后自动带 body.confirmationId 重试一次 */
+  async requestWithConfirmation<T = unknown>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+    try {
+      return await this.request<T>(method, path, { body })
+    } catch (err) {
+      const e = err as { status?: number; data?: { confirmationId?: string } }
+      if (e?.status === 403 && e?.data?.confirmationId) {
+        return await this.request<T>(method, path, { body: { ...body, confirmationId: e.data.confirmationId } })
+      }
+      throw err
+    }
   }
 
   clearCache(pattern?: string) {
@@ -353,11 +426,29 @@ api.requestInterceptor((config) => {
   return config
 })
 
-api.responseInterceptor((data) => {
-  if (typeof localStorage !== 'undefined' && data && typeof data === 'object' && 'token' in (data as Record<string, unknown>)) {
+api.responseInterceptor((data, response) => {
+  // 仅登录/认证端点返回的 token 才写入 localStorage（避免业务端点 token 字段污染鉴权）
+  const url = response?.url ?? ''
+  const isAuth = url.includes('/auth') || url.includes('/login')
+  if (isAuth && typeof localStorage !== 'undefined' && data && typeof data === 'object' && 'token' in (data as Record<string, unknown>)) {
     localStorage.setItem('token', String((data as Record<string, unknown>).token))
   }
   return data
+})
+
+// 401 闭环：清除本地 token 并跳转登录页。
+// 注意：api.ts 位于 React 树之外，拿不到 router 实例，这里用 location.assign
+// 做整页跳转（顺带丢弃内存中的过期状态）。只在后端真正返回 401 时触发——
+// 本地回环请求后端豁免鉴权（见 src/utils/auth-check.ts），不会走到这里，
+// 因此不会把本地开发锁死。已在 /login 时跳过，避免重定向循环。
+api.onUnauthorized(() => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('token')
+  }
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    const from = window.location.pathname + window.location.search
+    window.location.assign(`/login?from=${encodeURIComponent(from)}`)
+  }
 })
 
 export const endpoints = {
@@ -365,7 +456,7 @@ export const endpoints = {
   tokenDetails: (days?: number) => api.get(`/api/token-details${days ? `?days=${days}` : ''}`),
   chat: {
     send: (message: string, options: Record<string, unknown> = {}) =>
-      api.post('/chat', { message, ...options }),
+      api.post('/chat', { messages: [{ role: 'user', content: message }], taskType: 'general-chat', ...options }),
     stream: (
       messages: ChatMessage[],
       onEvent: ChatStreamHandler,
@@ -374,11 +465,13 @@ export const endpoints = {
         preferNativeStream?: boolean
         signal?: AbortSignal
         model?: string
+        reasoningEffort?: 'low' | 'medium' | 'high'
+        sessionId?: string
       } = {},
     ) => {
       // Destructure `signal` so it is NEVER serialized into the JSON body.
       // The signal belongs on the fetch init, not in the request payload.
-      const { signal, ...bodyOptions } = options
+      const { signal, sessionId, ...bodyOptions } = options
       // Defensive: if a caller ever passes a `signal`-shaped key inside the
       // body options (e.g. via a loose `Record<string, unknown>`), strip it
       // so it cannot leak into `JSON.stringify` and corrupt the request.
@@ -388,24 +481,38 @@ export const endpoints = {
       }
       return api.stream(
         '/chat/stream',
-        { messages, taskType: 'general-chat', ...safeBodyOptions },
+        { messages, taskType: 'general-chat', sessionId, ...safeBodyOptions },
         onEvent,
         signal !== undefined ? { signal } : {},
       )
     },
     history: () => api.get('/chat/history'),
+    renameSession: (sessionId: string, title: string) =>
+      api.patch(`/chat/sessions/${encodeURIComponent(sessionId)}`, { title }),
+    deleteSession: (sessionId: string, confirmationId: string) =>
+      api.delete(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+        headers: { 'x-confirmation-id': confirmationId },
+      }),
+    archiveSession: (sessionId: string) =>
+      api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/archive`),
+    sessionLineage: (sessionId: string) =>
+      api.get(`/chat/sessions/${encodeURIComponent(sessionId)}/lineage`),
   },
   search: {
     vault: (query: string, options: Record<string, unknown> = {}) =>
       api.get('/search', { params: { q: query, ...options } }),
-    code: (query: string) => api.get('/search/code', { params: { q: query } }),
-    suggest: (query: string) => api.get('/search/suggest', { params: { q: query } }),
+    code: (query: string) => api.get('/codegraph/search', { params: { q: query } }),
+    suggest: (query: string) => api.get('/search/suggestions', { params: { q: query } }),
+    web: (query: string, options: Record<string, unknown> = {}) =>
+      api.get('/web-search', { params: { q: query, ...options } }),
+    webFetch: (url: string) => api.get<WebFetchResult>('/web-fetch', { params: { url } }),
+    lightpandaStatus: () => api.get<LightpandaStatus>('/lightpanda/status', { cache: false }),
   },
   codegraph: {
     status: () => api.get('/codegraph/status'),
     search: (query: string, options: Record<string, unknown> = {}) =>
       api.get('/codegraph/search', { params: { q: query, ...options } }),
-    init: () => api.post('/codegraph/init'),
+    init: () => api.requestWithConfirmation('POST', '/codegraph/init'),
     fileIndex: () => api.get('/file-index'),
   },
   agents: {
@@ -455,18 +562,20 @@ export const endpoints = {
     list: () => api.get('/plugins'),
     available: () => api.get('/plugins/available'),
     detail: (id: string) => api.get(`/plugins/${encodeURIComponent(id)}`),
-    install: (path: string, enable = true) => api.post('/plugins/install', { path, enable }),
-    uninstall: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/uninstall`),
-    enable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/enable`),
-    disable: (id: string) => api.post(`/plugins/${encodeURIComponent(id)}/disable`),
+    install: (path: string, enable = true) => api.requestWithConfirmation('POST', '/plugins/install', { path, enable }),
+    uninstall: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/uninstall`),
+    enable: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/enable`),
+    disable: (id: string) => api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/disable`),
     config: (id: string, config: Record<string, unknown>) =>
-      api.post(`/plugins/${encodeURIComponent(id)}/config`, config),
+      api.requestWithConfirmation('POST', `/plugins/${encodeURIComponent(id)}/config`, config),
     activeTools: () => api.get('/plugins/active-tools'),
   },
   memory: {
     sessions: () => api.get('/memory/sessions'),
     conversations: (sessionId: string, options?: Record<string, string | number | boolean | undefined>) =>
       api.get('/memory/conversations', { params: { session: sessionId, ...options } }),
+    sessionSearch: (query: string, limit = 20) =>
+      api.get('/memory/session-search', { params: { q: query, limit } }),
     knowledge: (query: string, options?: Record<string, string | number | boolean | undefined>) =>
       api.get('/memory/knowledge', { params: { q: query, ...options } }),
     tasks: (params?: Record<string, string | number | boolean | undefined>) =>
@@ -499,10 +608,132 @@ export const endpoints = {
     health: () => api.get('/health'),
     version: () => api.get('/version'),
     config: () => api.get('/config'),
+    engines: () => api.get<{ engines: Array<{ name: string; available: boolean }> }>('/engines'),
   },
   traces: {
     list: () => api.get('/traces'),
     detail: (id: string) => api.get(`/traces/${encodeURIComponent(id)}`),
+  },
+  permissions: {
+    check: (body: { type: 'command' | 'file'; command?: string; path?: string; operation?: string }) =>
+      api.post('/permissions/check', body),
+    confirm: (confirmationId: string) =>
+      api.post('/permissions/confirm', { confirmationId }),
+    getMode: () => api.get<{ autoAccept: boolean; highRiskAlwaysConfirmed: boolean }>('/permissions/mode'),
+    setMode: (autoAccept: boolean) =>
+      api.post<{ autoAccept: boolean; highRiskAlwaysConfirmed: boolean }>('/permissions/mode', { autoAccept }),
+  },
+  settings: {
+    catalog: () => api.get<{ sections: Array<{ id: string; label: string }>; items: Array<{ key: string; section: string; label: string; desc: string; keywords: string[]; type: string; source: string }> }>('/settings/catalog'),
+    search: (q: string, limit?: number) =>
+      api.post<{ query: string; engine: 'semantic' | 'keyword' | 'hybrid'; results: Array<{ key: string; label: string; desc: string; section: string; score: number; matchType: 'semantic' | 'keyword' }> }>('/settings/search', { q, limit }),
+  },
+  apiKeys: {
+    list: () => api.get('/api-keys'),
+    set: (body: { provider: string; apiKey: string; baseURL?: string }) =>
+      api.post('/api-keys', body),
+    clear: (provider: string) => api.delete(`/api-keys/${encodeURIComponent(provider)}`),
+    test: (provider: string) =>
+      api.post<{ ok: boolean; latency?: number; modelCount?: number; error?: string }>(
+        `/api-keys/${encodeURIComponent(provider)}/test`,
+      ),
+  },
+  models: {
+    list: () => api.get<{ models: Array<{ id: string; name: string; provider: string; enabled: boolean }> }>('/models'),
+  },
+  sandbox: {
+    execute: (body: {
+      command: string
+      args?: string[]
+      cwd?: string
+      timeoutMs?: number
+      confirmationId?: string
+    }) =>
+      api.post<{
+        success: boolean
+        exitCode?: number
+        stdout?: string
+        stderr?: string
+        durationMs?: number
+        blocked?: boolean
+        confirmationId?: string
+        reason?: string
+        error?: string
+      }>('/sandbox/execute', body),
+    status: () => api.get<{ sandbox: string; ready: boolean }>('/sandbox/status'),
+  },
+  tools: {
+    invocations: (sessionId?: string, limit = 50) =>
+      api.get('/api/tools/invocations', { params: { session: sessionId, limit } }),
+  },
+  terminal: {
+    create: () => api.post<{ sessionId: string }>('/terminal/session'),
+    input: (sessionId: string, data: string) =>
+      api.post(`/terminal/session/${encodeURIComponent(sessionId)}/input`, { data }),
+    close: (sessionId: string) => api.delete(`/terminal/session/${encodeURIComponent(sessionId)}`),
+    list: () => api.get<{ sessions: string[]; stats: { sessions: number } }>('/terminal/sessions'),
+  },
+  workspaces: {
+    list: () => api.get<{ workspaces: WorkspaceSummary[] }>('/api/workspaces', { cache: false }),
+  },
+
+  git: {
+    status: () => api.get<{
+      success: boolean
+      branch?: string
+      modified?: string[]
+      added?: string[]
+      deleted?: string[]
+      untracked?: string[]
+      conflicted?: string[]
+      ahead?: number
+      behind?: number
+      clean?: boolean
+      error?: string
+    }>('/api/git/status'),
+    branch: () =>
+      api.get<{
+        success: boolean
+        current?: string
+        branches?: Array<{ name: string; current: boolean; remote: boolean }>
+      }>('/api/git/branch'),
+    diff: () =>
+      api.get<{ success: boolean; files?: DiffFile[]; diff?: string; error?: string }>('/api/git/diff', {
+        cache: false,
+      }),
+    log: (maxCount = 10) =>
+      api.get<{ success: boolean; commits?: Array<{ hash: string; message: string; author?: string; date?: string }>; error?: string }>(
+        `/api/git/log?maxCount=${maxCount}`,
+        { cache: false },
+      ),
+    commit: (message: string, files?: string[]) =>
+      api.post<{ success: boolean; hash?: string; error?: string }>('/api/git/commit', {
+        message,
+        files,
+      }),
+    push: (remote?: string, branch?: string) =>
+      api.post<{ success: boolean; output?: string; error?: string }>('/api/git/push', {
+        remote,
+        branch,
+      }),
+  },
+  mcp: {
+    scenes: () =>
+      api.get<{ scenes: Array<{ id: string; name: string; description?: string }> }>('/mcp/scenes', {
+        cache: false,
+      }),
+  },
+  marketplace: {
+    list: () =>
+      api.get<{
+        skills: Array<{ id: string; name: string; description: string; category: string; url: string; source?: string; package?: string }>
+        mcpServers: Array<{ id: string; name: string; description: string; category: string; url: string; type: string; endpoint?: string }>
+        registries: Array<{ id: string; name: string; description: string; url: string }>
+      }>('/marketplace'),
+    installSkill: (id: string) =>
+      api.post<{ success: boolean; id: string; name: string; message?: string; output?: string; error?: string }>('/marketplace/skills/install', { id }),
+    installMcp: (id: string) =>
+      api.post<{ success: boolean; id: string; name: string; message?: string; error?: string }>('/marketplace/mcp/install', { id }),
   },
 }
 

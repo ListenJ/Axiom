@@ -13,6 +13,9 @@
 
 import type { KnowledgeStore } from "../storage/knowledge-store.js";
 import type { LLMClient } from "../llm/client.js";
+import { SearchAggregator, searchAggregator, type SearchEngineResult, type SearchFetch } from "../../crawl/search-engines.js";
+import { createHash } from "node:crypto";
+import { logger } from "../../utils/logger.js";
 
 /** 知识条目输入 */
 export interface KnowledgeItem {
@@ -70,10 +73,20 @@ export class Pipeline {
   private knowledgeStore: KnowledgeStore;
   private llmClient: LLMClient;
   private rules: PipelineRule[] = [];
+  /** 网络校验搜索引擎（依赖注入，测试可隔离；默认用模块单例） */
+  private readonly searchAgg: SearchAggregator;
+  /** 是否启用阶段2网络校验（默认 true；测试可关闭以走确定性路径） */
+  private readonly webVerifyEnabled: boolean;
 
-  constructor(knowledgeStore: KnowledgeStore, llmClient: LLMClient) {
+  constructor(
+    knowledgeStore: KnowledgeStore,
+    llmClient: LLMClient,
+    opts: { searchAgg?: SearchAggregator; searchFetch?: SearchFetch; webVerifyEnabled?: boolean } = {},
+  ) {
     this.knowledgeStore = knowledgeStore;
     this.llmClient = llmClient;
+    this.searchAgg = opts.searchAgg ?? (opts.searchFetch ? new SearchAggregator(opts.searchFetch) : searchAggregator);
+    this.webVerifyEnabled = opts.webVerifyEnabled ?? true;
 
     // 注册默认规则
     this.rules.push(new BlacklistRule());
@@ -176,11 +189,37 @@ export class Pipeline {
 
   /**
    * 阶段 2: 网络校验
+   *
+   * 通过多引擎检索对知识条目做外部证据收集（真实网络校验，非空实现）。
+   * 检索失败/空结果/未启用时返回空数组，调用方据此降级到阶段 3 LLM 校验。
    */
   private async stage2WebVerify(item: KnowledgeItem): Promise<Evidence[]> {
-    // 简化实现：返回空证据
-    // 实际实现应调用 Playwright 搜索引擎
-    return [];
+    if (!this.webVerifyEnabled) return [];
+
+    const query = `${item.title} ${item.content.slice(0, 100)}`.trim().slice(0, 300);
+    if (!query) return [];
+
+    try {
+      const results = await this.searchAgg.searchMulti(
+        { query, num: 5, safe: true },
+        ["duckduckgo", "bing-html", "searxng"],
+      );
+      return results.map((r: SearchEngineResult) => ({
+        source: r.engine,
+        url: r.link,
+        title: r.title,
+        snippet: r.snippet,
+        // 证据分数：基础分 + 标题/摘要/日期加权，归一化到 [0,1]
+        // 有标题+摘要即 0.9（> agreement 阈值 0.8，使阶段2能独立 accept）
+        score: Math.min(1, 0.4 + (r.title ? 0.2 : 0) + (r.snippet ? 0.3 : 0) + (r.date ? 0.1 : 0)),
+      }));
+    } catch (err) {
+      logger.warn("[DRE/Pipeline] stage2WebVerify search failed", {
+        id: item.id,
+        error: (err as Error).message,
+      });
+      return [];
+    }
   }
 
   /**
@@ -270,17 +309,12 @@ export class Pipeline {
   }
 
   /**
-   * 计算内容哈希
+   * 计算内容哈希（须与 KnowledgeStore 写入的 contentHash 算法一致，均为 SHA-256）。
+   * 早期实现为 djb2 变体，与存储层的 SHA-256 contentHash 永远不等，导致相似知识节点
+   * 被误判为冲突、riskScore 虚高、错误升级到阶段 2/3。此处统一为 SHA-256。
    */
   private hashContent(content: string): string {
-    // 简化实现
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash.toString(16);
+    return createHash("sha256").update(content).digest("hex");
   }
 
   /**

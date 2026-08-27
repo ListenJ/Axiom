@@ -64,3 +64,21 @@ export interface PromptMatchResult {
   reasons: string[];
   filledPrompt?: string;
 }
+
+/**
+ * 默认 skill 加载目录（2026-07-26 W3 修复：统一三处发散的列表）。
+ * 所有 loader/consumer 必须引用本常量，不再各自硬编码。
+ * 目录均可不存在（loader 跳过）；子目录递归加载，可用于来源命名空间隔离。
+ */
+export const DEFAULT_SKILL_DIRS = [
+  "./skills",
+  "./axiom-memory/03-Resources/skills",
+  "./data/skills",
+] as const;
+
+/**
+ * 默认 prompt 模板保存目录（2026-07-26 W3 延续：与 DEFAULT_SKILL_DIRS 同源，
+ * 消除 prompt-engineer.ts saveTemplateToFile 中的硬编码路径）。
+ * 仅为单个模板文件的默认输出目录，与 skill 加载目录语义不同，故独立声明。
+ */
+export const DEFAULT_PROMPT_DIR = "./axiom-memory/03-Resources/prompts";

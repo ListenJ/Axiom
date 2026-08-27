@@ -13,11 +13,15 @@ export interface ConfigSource {
   dbPath?: string;
   llmUrl?: string;
   llmModel?: string;
+  /** 主推理模型 API Key（DRE_LLM_API_KEY；本地 llama.cpp 可省略） */
+  llmApiKey?: string;
   llmTemperature?: number;
   llmTopK?: number;
   llmSeed?: number;
   discriminUrl?: string;
   discriminModel?: string;
+  /** 甄别模型 API Key（DRE_DISCRIMIN_API_KEY） */
+  discriminApiKey?: string;
   cloudApiKey?: string;
   cloudModel?: string;
   cloudBaseUrl?: string;
@@ -31,6 +35,7 @@ const ENV_MAP: Record<string, keyof ConfigSource> = {
   DRE_DB_PATH: "dbPath",
   DRE_LLM_URL: "llmUrl",
   DRE_LLM_MODEL: "llmModel",
+  DRE_LLM_API_KEY: "llmApiKey",
   DRE_LLM_TEMPERATURE: "llmTemperature",
   DRE_LLM_TOP_K: "llmTopK",
   DRE_LLM_SEED: "llmSeed",
@@ -46,17 +51,20 @@ const ENV_MAP: Record<string, keyof ConfigSource> = {
 };
 
 const DEFAULTS: Required<ConfigSource> = {
-  dbPath: "./data/dre.db",
+  // 单一知识库：DRE 并入主库（DATABASE_PATH）；显式设置 DRE_DB_PATH 仍优先生效
+  dbPath: readString("DATABASE_PATH", "./data/agent.db"),
   llmUrl: "http://127.0.0.1:8080",
   llmModel: "qwen3-1.7b-instruct",
+  llmApiKey: "",
   llmTemperature: 0.0,
   llmTopK: 1,
   llmSeed: 42,
   discriminUrl: "",
   discriminModel: "qwen3-0.6b-instruct",
+  discriminApiKey: "",
   cloudApiKey: "",
-  cloudModel: "deepseek-chat",
-  cloudBaseUrl: "https://api.deepseek.com",
+  cloudModel: "deepseek-v4-flash",
+  cloudBaseUrl: "https://api.deepseek.com/v1",
   tickInterval: 10000,
   autoTick: true,
   workingMemoryCapacity: 16,
@@ -114,6 +122,7 @@ export class ConfigLoader {
       mainLLM: {
         baseUrl: merged.llmUrl,
         model: merged.llmModel,
+        apiKey: merged.llmApiKey || undefined,
         temperature: merged.llmTemperature,
         topK: merged.llmTopK,
         seed: merged.llmSeed,
@@ -128,6 +137,7 @@ export class ConfigLoader {
       config.discriminLLM = {
         baseUrl: merged.discriminUrl,
         model: merged.discriminModel,
+        apiKey: merged.discriminApiKey || undefined,
         temperature: merged.llmTemperature,
         topK: merged.llmTopK,
         seed: merged.llmSeed,
@@ -142,6 +152,11 @@ export class ConfigLoader {
       };
     }
 
+    // 非本地端点且未配置 API Key 时给出清晰告警（本地 llama.cpp 可省略）
+    if (!merged.llmApiKey && !/^https?:\/\/(127\.0\.0\.1|localhost)/.test(merged.llmUrl)) {
+      logger.warn("[DRE] DRE_LLM_URL 指向远程端点但未配置 DRE_LLM_API_KEY，请求将因缺少鉴权而失败");
+    }
+
     return config;
   }
 
@@ -152,3 +167,4 @@ export class ConfigLoader {
     return { ...this.source };
   }
 }
+

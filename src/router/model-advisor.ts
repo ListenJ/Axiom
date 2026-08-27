@@ -15,10 +15,36 @@
  */
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
+import { deepSeekInputPrice, deepSeekOutputPrice } from "./rate-tier.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
-import { isPgAvailable, getPG } from "../db/pg-client.js";
 
 // ========== 类型定义 ==========
+
+/** OpenRouter / SiliconFlow 模型列表 API 返回的单条模型条目 (按需访问的字段) */
+interface ProviderModelEntry {
+  id: string;
+  name?: string;
+  context_length?: number;
+  pricing?: { prompt?: string; completion?: string };
+}
+
+/** model_evaluations 表的行 (评估分数) */
+interface ModelEvalRow {
+  model_id: string;
+  capability: number;
+  speed: number;
+  cost: number;
+  safety: number;
+  overall_score: number;
+}
+
+/** 角色权重 (capability/speed/cost/safety) */
+interface RoleWeights {
+  capability: number;
+  speed: number;
+  cost: number;
+  safety: number;
+}
 
 export interface ProviderConfig {
   name: string;
@@ -78,8 +104,8 @@ const KNOWN_PROVIDERS: Record<string, ProviderConfig> = {
     baseURL: "https://api.deepseek.com/v1",
     apiKeyEnv: "DEEPSEEK_API_KEY",
     models: [
-      { id: "deepseek-chat", name: "DeepSeek V3", contextWindow: 65536, inputPrice: 0.27, outputPrice: 1.10, isFree: false, tags: ["coding", "general"] },
-      { id: "deepseek-reasoner", name: "DeepSeek R1", contextWindow: 65536, inputPrice: 0.55, outputPrice: 2.19, isFree: false, tags: ["research", "reasoning"] },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", contextWindow: 1000000, inputPrice: 0.44, outputPrice: 1.32, isFree: false, tags: ["coding", "general", "fast"] },
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextWindow: 1000000, inputPrice: 1.32, outputPrice: 3.96, isFree: false, tags: ["research", "reasoning", "coding"] },
     ],
     pricing: { freeQuota: 5_000_000, overagePrice: 0 },
   },
@@ -190,7 +216,7 @@ export async function discoverSiliconFlowModels(): Promise<ModelListing[]> {
     if (!res.ok) return [];
 
     const data = await res.json();
-    return (data.data || []).map((m: any) => ({
+    return (data.data || []).map((m: ProviderModelEntry) => ({
       id: m.id,
       name: m.id,
       contextWindow: 32768,
@@ -204,7 +230,7 @@ export async function discoverSiliconFlowModels(): Promise<ModelListing[]> {
   }
 }
 
-function inferModelTags(model: any): string[] {
+function inferModelTags(model: ProviderModelEntry): string[] {
   const tags: string[] = [];
   const id = (model.id || "").toLowerCase();
   const name = (model.name || "").toLowerCase();
@@ -239,7 +265,7 @@ export async function recommendModels(
   const weights = ROLE_WEIGHTS[role] || ROLE_WEIGHTS["default"];
 
   // 收集所有可用模型
-  const allModels: Array<{ model: ModelListing; provider: string; evalScore?: any }> = [];
+  const allModels: Array<{ model: ModelListing; provider: string; evalScore?: ModelEvalRow }> = [];
 
   // 1. 从已知供应商
   for (const [providerKey, provider] of Object.entries(KNOWN_PROVIDERS)) {
@@ -256,25 +282,8 @@ export async function recommendModels(
     allModels.push({ model, provider: "openrouter" });
   }
 
-  // 3. 从 PostgreSQL 获取评估分数 (如果有)
-  if (await isPgAvailable()) {
-    const pg = getPG();
-    try {
-      const evals = await pg`
-        SELECT DISTINCT ON (model_id) model_id, capability, speed, cost, safety, overall_score
-        FROM model_evaluations
-        WHERE created_at > NOW() - INTERVAL '7 days'
-        ORDER BY model_id, created_at DESC
-      `;
-
-      for (const entry of allModels) {
-        const ev = evals.find((e: any) => e.model_id === entry.model.id);
-        if (ev) {
-          entry.evalScore = ev;
-        }
-      }
-    } catch { /* ignore */ }
-  }
+  // 3. [H-M1-03] PostgreSQL 已移除，评估分数从 PG 读取已废弃，改走本地/内存评分
+  // 原 PG 查询 `SELECT DISTINCT ON (model_id) ... FROM model_evaluations` 已移除，SQLite 无此表
 
   // 4. 计算综合分数
   const scored = allModels.map(({ model, provider, evalScore }) => {
@@ -348,13 +357,19 @@ function estimateCostPerCall(model: ModelListing, role: string): number {
   // 估算: 平均 2000 input tokens + 1000 output tokens
   const inputTokens = role === "research" ? 5000 : 2000;
   const outputTokens = role === "research" ? 2000 : 1000;
+  // DeepSeek V4 直连价格按调用时刻峰/谷计费（2026-08-16 起官方峰谷）
+  const peakInput = deepSeekInputPrice(model.id);
+  const peakOutput = deepSeekOutputPrice(model.id);
+  if (peakInput !== undefined && peakOutput !== undefined) {
+    return (inputTokens * peakInput + outputTokens * peakOutput) / 1_000_000;
+  }
   return (inputTokens * model.inputPrice + outputTokens * model.outputPrice) / 1_000_000;
 }
 
 function generateRecommendationReason(
   model: ModelListing,
-  evalScore: any,
-  weights: any,
+  evalScore: ModelEvalRow | undefined,
+  weights: RoleWeights,
 ): string {
   const parts: string[] = [];
 
@@ -416,27 +431,7 @@ export async function runEvolutionCycle(): Promise<EvolutionCycle> {
     logger.info("[ModelEvolution] New candidates discovered", { count: cycle.newCandidates.length });
   }
 
-  // 3. 记录进化历史
-  if (await isPgAvailable()) {
-    try {
-      const pg = getPG();
-      await pg`
-        INSERT INTO model_evaluations (model_id, provider, capability, speed, cost, safety, overall_score, eval_type)
-        SELECT
-          ${cycle.promoted[0]?.modelId || 'unknown'},
-          ${cycle.promoted[0]?.provider || 'unknown'},
-          0, 0, 0, 0,
-          ${cycle.promoted[0]?.score || 0},
-          'evolution'
-        WHERE NOT EXISTS (
-          SELECT 1 FROM model_evaluations
-          WHERE model_id = ${cycle.promoted[0]?.modelId || 'unknown'}
-            AND eval_type = 'evolution'
-            AND created_at > NOW() - INTERVAL '1 hour'
-        )
-      `;
-    } catch { /* ignore */ }
-  }
+  // 3. [H-M1-03] 记录进化历史 PG 已移除，原 INSERT INTO model_evaluations 已废弃，SQLite 无此表
 
   logger.info("[ModelEvolution] Cycle complete", {
     evaluated: cycle.evaluated,

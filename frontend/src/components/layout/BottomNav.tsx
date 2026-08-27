@@ -4,7 +4,7 @@ import { MOBILE_NAV_ITEMS } from '@/lib/nav'
 export default function BottomNav() {
   return (
     <nav
-      className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--border)] glass-sm pb-safe pt-1 lg:hidden"
+      className="shell-surface flex h-16 shrink-0 items-center justify-around border-t border-[var(--shell-border)] pb-safe pt-1 lg:hidden"
       aria-label="底部导航"
     >
       {MOBILE_NAV_ITEMS.map((item) => {
@@ -15,7 +15,7 @@ export default function BottomNav() {
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `press group flex min-w-[4.5rem] flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
+              `press group relative flex min-w-[4.5rem] flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
                 isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] active:text-[var(--accent)]'
               }`
             }

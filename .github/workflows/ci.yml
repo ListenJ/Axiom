@@ -1,4 +1,4 @@
-name: CI/CD
+﻿name: CI/CD
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main, master]
 
 env:
-  BUN_VERSION: "1.3"
+  BUN_VERSION: "1.3.14"
 
 jobs:
   test:
@@ -25,18 +25,32 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build frontend (backend self-hosts public/)
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+          bunx vite build
+          cp -r dist/index.html ../public/index.html
+          rm -rf ../public/assets
+          cp -r dist/assets ../public/assets
+
       - name: Type check (tsc --noEmit)
         run: bun run lint
 
       - name: Run unit tests
         run: bun run test:full
+        env:
+          NODE_ENV: test
+
+      - name: Run runtime audit (resource & bounds gate)
+        run: bun run audit:runtime
         env:
           NODE_ENV: test
 
@@ -48,6 +62,109 @@ jobs:
 
       - name: Run E2E tests
         run: bun run test:e2e
+        env:
+          NODE_ENV: test
+          AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
+
+  dre-plugin:
+    name: DRE Plugin (built-in backend sync + tests)
+    runs-on: ubuntu-latest
+    # 仅当 DRE 引擎/后端或插件代码变化时运行
+    if: >-
+      ${{ github.event_name == 'push' &&
+          (contains(github.event.head_commit.modified, 'src/dre/') ||
+           contains(github.event.head_commit.modified, 'plugins/dre-dsh/') ||
+           contains(github.event.head_commit.added, 'src/dre/') ||
+           contains(github.event.head_commit.added, 'plugins/dre-dsh/')) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install plugin deps
+        run: |
+          cd plugins/dre-dsh
+          bun install --frozen-lockfile
+
+      - name: Check backend/server.js is in sync with src/dre
+        # 重新构建内置后端并对比已提交产物；不一致说明产物过期，需运行 bun run build:backend
+        run: |
+          cd plugins/dre-dsh
+          bun build ../../src/mcp/dre-backend.ts --target=bun --outfile /tmp/backend-check.js --minify
+          if ! cmp -s /tmp/backend-check.js backend/server.js; then
+            echo "::error::plugins/dre-dsh/backend/server.js is out of sync with src/dre. Run: cd plugins/dre-dsh && bun run build:backend, then commit the regenerated file."
+            exit 1
+          fi
+          echo "backend/server.js is in sync with src/dre"
+
+      - name: Typecheck
+        run: |
+          cd plugins/dre-dsh
+          bun run typecheck
+
+      - name: Build (bridge + backend)
+        run: |
+          cd plugins/dre-dsh
+          bun run build
+
+      - name: Plugin tests (self-contained, real MCP smoke)
+        run: |
+          cd plugins/dre-dsh
+          bun test --timeout 60000 tests/
+        env:
+          NODE_ENV: test
+
+  kb-plugin:
+    name: KB Plugin (built-in backend sync + tests)
+    runs-on: ubuntu-latest
+    # 仅当知识库引擎/后端或插件代码变化时运行
+    if: >-
+      ${{ github.event_name == 'push' &&
+          (contains(github.event.head_commit.modified, 'src/mcp/kb-backend.ts') ||
+           contains(github.event.head_commit.modified, 'plugins/kb-dsh/') ||
+           contains(github.event.head_commit.added, 'src/mcp/kb-backend.ts') ||
+           contains(github.event.head_commit.added, 'plugins/kb-dsh/')) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install plugin deps
+        run: |
+          cd plugins/kb-dsh
+          bun install --frozen-lockfile
+
+      - name: Check backend/server.js is in sync with src/kb
+        # 重新构建内置后端并对比已提交产物；不一致说明产物过期，需运行 bun run build:backend
+        run: |
+          cd plugins/kb-dsh
+          bun build ../../src/mcp/kb-backend.ts --target=bun --outfile /tmp/kb-backend-check.js --minify
+          if ! cmp -s /tmp/kb-backend-check.js backend/server.js; then
+            echo "::error::plugins/kb-dsh/backend/server.js is out of sync with src/kb. Run: cd plugins/kb-dsh && bun run build:backend, then commit the regenerated file."
+            exit 1
+          fi
+          echo "backend/server.js is in sync with src/kb"
+
+      - name: Typecheck
+        run: |
+          cd plugins/kb-dsh
+          bun run typecheck
+
+      - name: Build (bridge + backend)
+        run: |
+          cd plugins/kb-dsh
+          bun run build
+
+      - name: Plugin tests (self-contained, real MCP smoke)
+        run: |
+          cd plugins/kb-dsh
+          bun test --timeout 60000 tests/
         env:
           NODE_ENV: test
 
@@ -95,6 +212,67 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
+  stress-test:
+    name: Stress & Performance Gate
+    runs-on: ubuntu-latest
+    needs: test
+    # 性能门禁是合并门禁；extreme-stress 与 baseline 对比仅作报告（避免 CI 抖动误报）
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Restore performance baseline
+        id: restore-baseline
+        uses: actions/cache@v4
+        with:
+          path: reports/stress/baseline.json
+          key: perf-baseline-${{ runner.os }}-${{ github.base_ref || github.ref }}
+          restore-keys: |
+            perf-baseline-${{ runner.os }}-
+
+      - name: Run performance gate (CI blocker)
+        run: bun run test:gate
+        env:
+          NODE_ENV: test
+
+      - name: Run full stress suite with baseline comparison
+        run: bun run stress:compare || true
+        env:
+          NODE_ENV: test
+
+      - name: Generate visualization report
+        run: bun run stress:report
+        if: always()
+
+      - name: Upload stress reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-reports-${{ github.sha }}
+          path: reports/stress/
+          retention-days: 30
+
+      - name: Update baseline (main branch only)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          bun run stress:baseline
+          echo "Baseline updated for ${{ github.ref }}"
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -121,3 +299,43 @@ jobs:
           base: main
           head: HEAD
           extra_args: --debug --only-verified
+  deploy-smoke:
+    name: Linux Deploy Smoke (pm2 + runtime audit)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install pm2
+        run: npm install -g pm2
+
+      - name: Build server bundle
+        run: bun run build
+
+      - name: Start under pm2 and smoke test
+        env:
+          AXIOM_GATEWAY_PORT: "18799"
+          HOST: "127.0.0.1"
+          AXIOM_AUTH_TOKEN: "ci-smoke-token"
+        run: |
+          pm2 start deploy/pm2/ecosystem.config.json --update-env
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18799/health || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18799/health > /dev/null
+          bun run audit:runtime
+          curl -fsS -H "Authorization: Bearer ci-smoke-token" http://127.0.0.1:18799/api/audit/diagnostics > /dev/null
+          pm2 restart axiom-agent
+          sleep 2
+          curl -fsS http://127.0.0.1:18799/health > /dev/null
+          pm2 delete axiom-agent

@@ -78,6 +78,8 @@ export interface ReadResult {
 
 export class SharedBlackboard {
   private entries = new Map<string, BlackboardEntry>();
+  /** 会话事件广播订阅表：topic -> 回调集合 */
+  private listeners = new Map<string, Set<(payload: unknown) => void>>();
   private tagIndex = new Map<string, Set<string>>();
   private sourceIndex = new Map<string, Set<string>>();
   private cache: Cache<BlackboardEntry>;
@@ -119,7 +121,8 @@ export class SharedBlackboard {
           try {
             const payload = JSON.parse(message) as { key: string; entry: BlackboardEntry; source: string };
             if (payload.source === process.pid?.toString()) return; // 忽略自己发的
-            this.storeEntry(payload.key, payload.entry);
+            // M1 审计修复：远程更新必须过与 write() 相同的仲裁，不再 storeEntry 直写
+            this.applyRemoteUpdate(payload.key, payload.entry);
             logger.debug("[Blackboard] Received remote update via Redis", { key: payload.key, source: payload.source });
           } catch {
             // ignore invalid message
@@ -162,21 +165,8 @@ export class SharedBlackboard {
     if (existing && existing.value !== value) {
       const confDiff = Math.abs(existing.confidence - confidence);
       if (confDiff < 0.15 && existing.status === "verified") {
-        // 标记为冲突，不覆盖
-        const conflictEntry: BlackboardEntry = {
-          ...existing,
-          status: "conflict",
-          updatedAt: now,
-          metadata: {
-            ...existing.metadata,
-            conflict_with: value,
-            conflict_source: sourceId,
-            conflict_at: now,
-          },
-        };
-        this.storeEntry(key, conflictEntry);
-        logger.warn("[Blackboard] Conflict detected", { key, existing: existing.value, incoming: value });
-        return conflictEntry;
+        // 标记为冲突，不覆盖（M1: 与远程路径共用 markConflict）
+        return this.markConflict(key, existing, value, sourceId);
       }
 
       // 低置信度不能覆盖高置信度 (差值 > 0.2)
@@ -221,6 +211,11 @@ export class SharedBlackboard {
       sourceId,
     });
 
+    // 会话事件广播：高置信度新事实写入时通知订阅方（如其他会话/工作空间监听者）
+    this.publish(`blackboard:write:${key}`, {
+      key, value, sourceId, status: entry.status,
+      confidence: entry.confidence, updatedAt: entry.updatedAt,
+    });
     return entry;
   }
 
@@ -232,6 +227,51 @@ export class SharedBlackboard {
     sourceId: string
   ): BlackboardEntry[] {
     return items.map((item) => this.write(item.key, item.value, sourceId, item.options));
+  }
+
+  /**
+   * M1 审计修复：跨进程远程更新入口（Redis 订阅路径）。
+   * 与本地 write() 同规则裁决：
+   *   1. 远程 version ≤ 本地 → 忽略（陈旧/重复投递）
+   *   2. 本地 verified 且远程置信度显著更低（>0.2 差） → 拒绝覆盖
+   *   3. 相近置信度但值不同 → 本地转 conflict（保留本地值，记录冲突来源）
+   *   4. 其余（新 key / 更高版本且置信度相当）→ 采用远程条目
+   */
+  applyRemoteUpdate(key: string, remote: BlackboardEntry): void {
+    if (!remote || typeof remote !== "object") return;
+    const existing = this.entries.get(key);
+
+    if (!existing) {
+      this.storeEntry(key, { ...remote, key });
+      return;
+    }
+
+    const remoteConf = typeof remote.confidence === "number" ? remote.confidence : 0;
+
+    // 版本仲裁：陈旧投递直接忽略
+    if ((remote.version ?? 0) <= existing.version) return;
+
+    // 置信度保护：与 write() 同阈值
+    if (existing.status === "verified" && remoteConf < existing.confidence - 0.2) {
+      logger.info("[Blackboard] Rejected low-confidence remote update", {
+        key,
+        existingConfidence: existing.confidence,
+        remoteConfidence: remoteConf,
+      });
+      return;
+    }
+
+    // 冲突检测：相近置信度、值不同、本地已 verified —— 与 write() 对齐转 conflict
+    if (
+      existing.value !== remote.value &&
+      existing.status === "verified" &&
+      Math.abs(existing.confidence - remoteConf) < 0.15
+    ) {
+      this.markConflict(key, existing, remote.value, `remote:${remote.sourceId}`);
+      return;
+    }
+
+    this.storeEntry(key, { ...remote, key });
   }
 
   // ---------------------------------------------------------------------------
@@ -371,10 +411,16 @@ export class SharedBlackboard {
 
   /** 删除条目 */
   delete(key: string): boolean {
-    const existed = this.entries.has(key);
+    const existed = this.entries.get(key);
+    if (!existed) {
+      this.cache.delete(key);
+      return false;
+    }
+    // L2 审计修复：同步回收双索引，Set 不再只增不减
+    this.removeFromIndexes(key, existed);
     this.entries.delete(key);
     this.cache.delete(key);
-    return existed;
+    return true;
   }
 
   /** 标记过期 */
@@ -443,6 +489,30 @@ export class SharedBlackboard {
   // 私有方法
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // 会话事件广播 (跨会话感知)
+  // ---------------------------------------------------------------------------
+
+  /** 向订阅者广播事件（同步、失败不阻断）。 */
+  publish(topic: string, payload: unknown): void {
+    const set = this.listeners.get(topic);
+    if (!set) return;
+    for (const cb of set) {
+      try { cb(payload); } catch { /* 订阅者异常不阻断广播 */ }
+    }
+  }
+
+  /** 订阅主题事件，返回取消订阅函数。 */
+  subscribe(topic: string, cb: (payload: unknown) => void): () => void {
+    const set = this.listeners.get(topic) ?? new Set();
+    set.add(cb);
+    this.listeners.set(topic, set);
+    return () => {
+      set.delete(cb);
+      if (set.size === 0) this.listeners.delete(topic);
+    };
+  }
+
   private storeEntry(key: string, entry: BlackboardEntry): void {
     this.entries.set(key, entry);
     this.cache.set(key, entry);
@@ -459,6 +529,40 @@ export class SharedBlackboard {
     this.sourceIndex.get(entry.sourceId)!.add(key);
   }
 
+  /** 冲突标记（本地 write 与远程 applyRemoteUpdate 共用，M1） */
+  private markConflict(key: string, existing: BlackboardEntry, incomingValue: unknown, sourceId: string): BlackboardEntry {
+    const now = Date.now();
+    const conflictEntry: BlackboardEntry = {
+      ...existing,
+      status: "conflict",
+      updatedAt: now,
+      metadata: {
+        ...existing.metadata,
+        conflict_with: incomingValue,
+        conflict_source: sourceId,
+        conflict_at: now,
+      },
+    };
+    this.storeEntry(key, conflictEntry);
+    logger.warn("[Blackboard] Conflict detected", { key, existing: existing.value, incoming: incomingValue });
+    return conflictEntry;
+  }
+
+  /** L2 审计修复：从 tagIndex/sourceIndex 回收指定条目（Set 空时移除键） */
+  private removeFromIndexes(key: string, entry: BlackboardEntry): void {
+    for (const tag of entry.tags) {
+      const set = this.tagIndex.get(tag);
+      if (!set) continue;
+      set.delete(key);
+      if (set.size === 0) this.tagIndex.delete(tag);
+    }
+    const src = this.sourceIndex.get(entry.sourceId);
+    if (src) {
+      src.delete(key);
+      if (src.size === 0) this.sourceIndex.delete(entry.sourceId);
+    }
+  }
+
   private cleanup(): void {
     const now = Date.now();
     let cleaned = 0;
@@ -466,6 +570,8 @@ export class SharedBlackboard {
     for (const [key, entry] of this.entries) {
       if (entry.expireTime > 0 && now > entry.expireTime + 5 * 60 * 1000) {
         // 过期超过 5 分钟才清理
+        // L2 审计修复：清扫同步回收双索引
+        this.removeFromIndexes(key, entry);
         this.entries.delete(key);
         cleaned++;
       }

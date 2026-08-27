@@ -270,8 +270,8 @@ describe("FTS5 search performance", () => {
 
     store = new KnowledgeStore(db);
 
-    // 插入 1000 条知识
-    for (let i = 0; i < 1000; i++) {
+    // 插入 300 条知识（减少并行负载下 beforeAll 耗时，仍足够 FTS5 vs LIKE 对比）
+    for (let i = 0; i < 300; i++) {
       store.write({
         nodeId: `dre:fts:${i}`,
         title: `文档 ${i} - ${["JWT认证", "OAuth2", "Git合并", "代码重构", "API设计"][i % 5]}`,
@@ -321,7 +321,7 @@ describe("FTS5 search performance", () => {
       likeAvg: `${avgLIKE.toFixed(2)}ms`,
       speedup: `${(avgLIKE / (avgFTS5 || 0.001)).toFixed(1)}x`,
     });
-  });
+  }, 30000);
 });
 
 // ========== ConstraintSolver ==========

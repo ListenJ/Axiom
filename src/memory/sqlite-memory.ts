@@ -19,6 +19,17 @@ import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
+/**
+ * SQLite 记忆库 DB 路径的唯一解析源（审计 E-1 / R3 Task 3.2）。
+ * 此前 kb-backend.ts 自行默认 ./data/kg.db，与 vault 工具的 ./data/agent.db
+ * 分裂（split-brain）：KAL 在 kg.db 里查不存在的 memory_notes 表且被静默吞掉，
+ * 插件部署下 vault 腿恒为空。KAL/vault/KG 必须同库；KB_DB_PATH 仅作为
+ * 显式覆盖出口保留在 kb-backend 侧。
+ */
+export function resolveSqliteMemoryDbPath(): string {
+  return readString("SQLITE_MEMORY_DB") || readString("DATABASE_PATH", "./data/agent.db");
+}
+
 export interface MemoryRecord {
   id?: number;
   path: string;
@@ -48,12 +59,27 @@ export interface SearchResult {
   excerpt: string;
 }
 
+/** 按行兜底的 tags 解析：损坏行降级为空数组，不抛错、不拖垮调用方（P0-5） */
+function parseTags(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** LIKE 通配符转义（%/_/\），配合 ESCAPE '\' 使用，防用户输入改变匹配语义（P0-5） */
+function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, "\\$&");
+}
+
 export class SQLiteMemory {
   private db: Database;
   private dbPath: string;
 
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || readString("SQLITE_MEMORY_DB", "./axiom-memory.db");
+    this.dbPath = dbPath || resolveSqliteMemoryDbPath();
     this.db = new Database(this.dbPath);
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
@@ -117,38 +143,52 @@ export class SQLiteMemory {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_notes(updated_at DESC)`);
   }
 
+  /**
+   * Atomic upsert via INSERT ... ON CONFLICT(path) DO UPDATE.
+   *
+   * The previous SELECT-then-INSERT/UPDATE pattern was not atomic: two
+   * concurrent calls with the same `path` could both see no existing row,
+   * then both try to INSERT, causing a UNIQUE constraint violation on the
+   * second caller. The native UPSERT eliminates this race entirely — the
+   * write is a single SQL statement, atomic at the SQLite level.
+   *
+   * `lastInsertRowid` after ON CONFLICT DO UPDATE is the rowid of the
+   * affected row (both insert and update paths), so we can return it
+   * directly without a second query.
+   */
   upsertNote(record: Omit<MemoryRecord, "id">): number {
     const now = Date.now();
-    const existing = this.db.query("SELECT id FROM memory_notes WHERE path = ?").get(record.path) as { id: number } | null;
-
     const excerpt = record.content.slice(0, 500).replace(/\n/g, " ");
     const tagsJson = JSON.stringify(record.tags);
 
-    if (existing) {
-      this.db.run(`
-        UPDATE memory_notes SET
-          title = ?, content = ?, excerpt = ?, tags = ?,
-          para_category = ?, type = ?, source = ?,
-          confidence = ?, updated_at = ?
-        WHERE path = ?
-      `, [
-        record.title, record.content, excerpt, tagsJson,
-        record.paraCategory, record.type, record.source || null,
-        record.confidence, now, record.path
-      ]);
-      logger.debug("SQLite note updated", { path: record.path });
-      return existing.id;
-    } else {
+    try {
       const result = this.db.run(`
         INSERT INTO memory_notes (path, title, content, excerpt, tags, para_category, type, source, confidence, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          title = excluded.title,
+          content = excluded.content,
+          excerpt = excluded.excerpt,
+          tags = excluded.tags,
+          para_category = excluded.para_category,
+          type = excluded.type,
+          source = excluded.source,
+          confidence = excluded.confidence,
+          updated_at = excluded.updated_at
       `, [
         record.path, record.title, record.content, excerpt, tagsJson,
         record.paraCategory, record.type, record.source || null,
-        record.confidence, now, now
+        record.confidence, now, now,
       ]);
-      logger.debug("SQLite note inserted", { path: record.path });
+      logger.debug("SQLite note upserted", { path: record.path, changes: result.changes });
       return Number(result.lastInsertRowid);
+    } catch (e) {
+      logger.error(
+        "SQLite upsertNote failed",
+        e instanceof Error ? e : new Error(String(e)),
+        { path: record.path },
+      );
+      throw e;
     }
   }
 
@@ -184,12 +224,8 @@ export class SQLiteMemory {
       sql += ` AND mn.confidence >= ?`;
       params.push(String(opts.minConfidence));
     }
-    if (opts.tags && opts.tags.length > 0) {
-      for (const tag of opts.tags) {
-        sql += ` AND mn.tags LIKE ?`;
-        params.push(`%"${tag}"%`);
-      }
-    }
+    // 标签过滤不在 SQL 层做 LIKE（通配符注入 + 子串语义），改为取回后按行精确校验
+    const tagFilter = opts.tags && opts.tags.length > 0 ? opts.tags : null;
 
     sql += ` ORDER BY fts.rank LIMIT ?`;
     params.push(String(limit));
@@ -211,24 +247,30 @@ export class SQLiteMemory {
         rank: number;
       }>;
 
-      return rows.map(row => ({
-        record: {
-          id: row.id,
-          path: row.path,
-          title: row.title,
-          content: row.content,
+      return rows
+        .filter(row => {
+          if (!tagFilter) return true;
+          const noteTags = parseTags(row.tags);
+          return tagFilter.every(t => noteTags.includes(t));
+        })
+        .map(row => ({
+          record: {
+            id: row.id,
+            path: row.path,
+            title: row.title,
+            content: row.content,
+            excerpt: row.excerpt,
+            tags: parseTags(row.tags),
+            paraCategory: row.para_category,
+            type: row.type,
+            source: row.source || undefined,
+            confidence: row.confidence,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          },
+          score: -row.rank,
           excerpt: row.excerpt,
-          tags: JSON.parse(row.tags),
-          paraCategory: row.para_category,
-          type: row.type,
-          source: row.source || undefined,
-          confidence: row.confidence,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
-        score: -row.rank,
-        excerpt: row.excerpt,
-      }));
+        }));
     } catch (e) {
       logger.warn("SQLite FTS search failed", { query, error: e instanceof Error ? e.message : String(e) });
       return [];
@@ -259,7 +301,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,
@@ -293,7 +335,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,
@@ -304,9 +346,11 @@ export class SQLiteMemory {
   }
 
   listByTag(tag: string, limit = 20): MemoryRecord[] {
+    // LIKE 仅作预筛（通配符已转义），精确匹配在应用层按解析后的数组判定；
+    // LIMIT 在精确过滤后施加，避免预筛假阳性挤掉真命中。
     const rows = this.db.query(
-      `SELECT * FROM memory_notes WHERE tags LIKE ? ORDER BY updated_at DESC LIMIT ?`
-    ).all(`%"${tag}"%`, limit) as Array<{
+      `SELECT * FROM memory_notes WHERE tags LIKE ? ESCAPE '\\' ORDER BY updated_at DESC`
+    ).all(`%"${escapeLike(tag)}"%`) as Array<{
       id: number;
       path: string;
       title: string;
@@ -321,20 +365,23 @@ export class SQLiteMemory {
       updated_at: number;
     }>;
 
-    return rows.map(row => ({
-      id: row.id,
-      path: row.path,
-      title: row.title,
-      content: row.content,
-      excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
-      paraCategory: row.para_category,
-      type: row.type,
-      source: row.source || undefined,
-      confidence: row.confidence,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return rows
+      .filter(row => parseTags(row.tags).includes(tag))
+      .slice(0, limit)
+      .map(row => ({
+        id: row.id,
+        path: row.path,
+        title: row.title,
+        content: row.content,
+        excerpt: row.excerpt,
+        tags: parseTags(row.tags),
+        paraCategory: row.para_category,
+        type: row.type,
+        source: row.source || undefined,
+        confidence: row.confidence,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
   }
 
   listRecent(limit = 20): MemoryRecord[] {
@@ -361,7 +408,7 @@ export class SQLiteMemory {
       title: row.title,
       content: row.content,
       excerpt: row.excerpt,
-      tags: JSON.parse(row.tags),
+      tags: parseTags(row.tags),
       paraCategory: row.para_category,
       type: row.type,
       source: row.source || undefined,
@@ -373,6 +420,14 @@ export class SQLiteMemory {
 
   deleteNote(notePath: string): boolean {
     const result = this.db.run("DELETE FROM memory_notes WHERE path = ?", [notePath]);
+    return result.changes > 0;
+  }
+
+  archiveNotePath(notePath: string, archivePath: string): boolean {
+    const result = this.db.run(
+      "UPDATE memory_notes SET path = ?, para_category = 'archives', updated_at = ? WHERE path = ?",
+      [archivePath, Date.now(), notePath],
+    );
     return result.changes > 0;
   }
 

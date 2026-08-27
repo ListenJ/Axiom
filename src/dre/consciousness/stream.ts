@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DRE 意识流 — TypeScript 实现
  *
  * 三层记忆架构:
@@ -20,6 +20,7 @@
  */
 
 import { EventEmitter } from "events";
+import { cosineSimilarity as sharedCosineSimilarity } from "../../utils/math.js";
 
 /** 记忆条目 */
 export interface MemoryItem {
@@ -224,25 +225,8 @@ export class EpisodicMemory {
     return this.items.length;
   }
 
-  /**
-   * 余弦相似度计算
-   */
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
-  }
+  // L9：余弦实现收敛至 src/utils/math.ts（共享单份）
+  private readonly cosineSimilarity = sharedCosineSimilarity;
 }
 
 /**
@@ -382,12 +366,17 @@ export class ConsciousnessStream extends EventEmitter {
   private lastReflectionAt: number = 0;
   private reflectionCount: number = 0;
 
+  private readonly decideFn?: (observation: string) => Promise<unknown>;
+
   constructor(options?: {
     workingMemoryCapacity?: number;
     episodicTTL?: number;
     maxTraceLength?: number;
+    /** 决策钩子：由宿主注入真实 LLM 调用（失败需抛出以便降级链生效）；缺省返回基础 observe */
+    decide?: (observation: string) => Promise<unknown>;
   }) {
     super();
+    this.decideFn = options?.decide;
 
     this.workingMemory = new WorkingMemory(options?.workingMemoryCapacity ?? 16);
     this.episodicMemory = new EpisodicMemory(options?.episodicTTL ?? 3600000);
@@ -467,7 +456,10 @@ export class ConsciousnessStream extends EventEmitter {
    * 决策 (可由外部 Agent 覆盖)
    */
   protected async decide(observation: string): Promise<unknown> {
-    // 默认实现：返回观察内容
+    // 注入的钩子优先；缺省返回观察内容（保持原行为）
+    if (this.decideFn) {
+      return this.decideFn(observation);
+    }
     return { action: "observe", content: observation };
   }
 
@@ -570,3 +562,4 @@ export class ConsciousnessStream extends EventEmitter {
     return hash.toString(16);
   }
 }
+

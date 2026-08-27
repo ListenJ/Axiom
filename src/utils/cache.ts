@@ -6,8 +6,12 @@
  * 无 Redis 时自动回退到 L1 + L3
  */
 import { Database } from "bun:sqlite";
+import { createHash } from "crypto";
 import { getRedisClient, type RedisClient } from "./redis-client.js";
 import { logger } from "./logger.js";
+
+/** ttl=0 语义：永不过期（L1 内存保留；LRU 仍按 maxSize 淘汰） */
+const NO_EXPIRY_MS = Number.MAX_SAFE_INTEGER;
 
 interface CacheEntry<V> {
   value: V;
@@ -44,7 +48,7 @@ export class Cache<V = unknown> {
   constructor(opts: CacheOptions = {}) {
     this.opts = {
       maxSize: opts.maxSize ?? 1000,
-      defaultTtlMs: opts.defaultTtlMs ?? 5 * 60 * 1000,
+      defaultTtlMs: (opts.defaultTtlMs ?? 5 * 60 * 1000) === 0 ? NO_EXPIRY_MS : (opts.defaultTtlMs ?? 5 * 60 * 1000),
       persistent: opts.persistent ?? false,
       dbPath: opts.dbPath ?? "./data/agent.db",
       namespace: opts.namespace ?? "default",
@@ -59,6 +63,12 @@ export class Cache<V = unknown> {
 
     if (this.opts.persistent) {
       this.db = new Database(this.opts.dbPath);
+      // Concurrency hardening: WAL allows concurrent readers + a single writer,
+      // and busy_timeout makes writers wait instead of failing with SQLITE_BUSY
+      // when another process (e.g. a parallel test worker or runtime daemon)
+      // holds the write lock.
+      this.db.exec("PRAGMA busy_timeout = 5000");
+      this.db.exec("PRAGMA journal_mode = WAL");
       this.db.run(`
         CREATE TABLE IF NOT EXISTS cache_store (
           namespace TEXT NOT NULL,
@@ -187,7 +197,7 @@ export class Cache<V = unknown> {
   /** 设置缓存值 — L1 + L2 + L3 */
   set(key: string, value: V, ttlMs?: number): void {
     const fullKey = this.key(key);
-    const effectiveTtl = ttlMs ?? this.opts.defaultTtlMs;
+    const effectiveTtl = (typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? (ttlMs === 0 ? NO_EXPIRY_MS : ttlMs) : this.opts.defaultTtlMs;
     const expiresAt = Date.now() + effectiveTtl;
 
     // L1: 内存
@@ -208,19 +218,47 @@ export class Cache<V = unknown> {
     // L2: Redis (异步，不阻塞)
     if (this.redisReady && this.redis) {
       const redisKey = `${this.opts.namespace}:${key}`;
-      const redisTtl = Math.floor((this.opts.redisTtlMs ?? effectiveTtl) / 1000);
+      const redisTtl = Math.min(Math.floor((this.opts.redisTtlMs ?? effectiveTtl) / 1000), 2147483647);
       this.redis.set(redisKey, JSON.stringify(value), redisTtl).catch((err) => {
         logger.debug("[Cache] Redis write failed", { error: (err as Error).message });
       });
     }
 
-    // L3: SQLite
+    // L3: SQLite（P1-T4 去抖：缓冲 + 单例定时器批量事务落盘，消除高频 set 的同步阻塞）
     if (this.db) {
-      this.db.run(
-        `INSERT OR REPLACE INTO cache_store (namespace, key, value, expires_at)
-         VALUES (?, ?, ?, ?)`,
-        [this.opts.namespace, key, JSON.stringify(value), Math.floor(expiresAt / 1000)]
-      );
+      this.pendingL3.set(key, { value, expiresAt });
+      if (!this.l3Timer) {
+        this.l3Timer = setTimeout(() => this.flushPendingWrites(), 0);
+      }
+    }
+  }
+
+  /** 缓冲的 L3 待落盘写入（key → value/expiresAt） */
+  private pendingL3 = new Map<string, { value: V; expiresAt: number }>();
+  private l3Timer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 将缓冲的 L3 写入事务性落盘（去抖批处理；destroy 前自动调用） */
+  flushPendingWrites(): void {
+    if (this.l3Timer) {
+      clearTimeout(this.l3Timer);
+      this.l3Timer = null;
+    }
+    if (!this.db || this.pendingL3.size === 0) return;
+    const entries = [...this.pendingL3.entries()];
+    this.pendingL3.clear();
+    try {
+      const txn = this.db.transaction(() => {
+        for (const [k, { value, expiresAt }] of entries) {
+          this.db!.run(
+            `INSERT OR REPLACE INTO cache_store (namespace, key, value, expires_at)
+             VALUES (?, ?, ?, ?)`,
+            [this.opts.namespace, k, JSON.stringify(value), Math.floor(expiresAt / 1000)]
+          );
+        }
+      });
+      txn();
+    } catch (err) {
+      logger.debug("[Cache] L3 flush failed", { error: (err as Error).message });
     }
   }
 
@@ -278,6 +316,8 @@ export class Cache<V = unknown> {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+    // 先冲刷缓冲（防止 close 后去抖定时器写入已关闭的 db），再按既有语义清空
+    this.flushPendingWrites();
     this.clear();
     this.db?.close();
   }
@@ -321,6 +361,7 @@ export class Cache<V = unknown> {
 
   private scheduleCleanup() {
     // 每 5 分钟清理过期条目
+    // unref：后台清理定时器不阻止进程自然退出（测试/脚本不会挂起）
     this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, entry] of this.store) {
@@ -328,6 +369,7 @@ export class Cache<V = unknown> {
       }
       this.db?.run("DELETE FROM cache_store WHERE expires_at < unixepoch()");
     }, 5 * 60 * 1000);
+    this.cleanupTimer.unref?.();
   }
 }
 
@@ -345,3 +387,87 @@ export const crawlCache = new Cache<Record<string, unknown>>({
   defaultTtlMs: 30 * 60 * 1000, // 30min
   persistent: true,
 });
+
+/**
+ * LLM 响应缓存 — 跨 DeepSeek / 本地模型 / GLM 统一服务
+ *
+ * 设计要点：
+ *   - L1 内存 + L3 SQLite 持久化：进程重启后缓存仍有效，hit rate 最大化
+ *   - 确定性调用（temperature=0）缓存 1 小时，非确定性调用不缓存
+ *   - 缓存 key = sha256(provider + model + messages + temperature)
+ *   - 仅缓存成功响应（错误不缓存）
+ *   - getOrSet 自带 thundering-herd 保护，并发同 key 只触发一次 API 调用
+ *
+ * 使用方式：
+ *   const cached = await llmCache.getOrSet(key, () => callLLM(), ttlMs);
+ */
+export interface CachedLLMResponse {
+  content: string | null;
+  model: string;
+  provider: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  finishReason?: string;
+}
+
+export const llmCache = new Cache<CachedLLMResponse>({
+  namespace: "llm",
+  maxSize: 2000,
+  defaultTtlMs: 60 * 60 * 1000, // 1 hour for deterministic calls
+  persistent: true,
+  dbPath: "./data/llm-cache.db",
+});
+
+/**
+ * 语义答案缓存 — 归一化查询级确定性答案（temperature=0 的轻任务）。
+ *
+ * 与 llmCache 的区别：
+ *   - llmCache 是字节级精确 key（sha256(messages)），命中要求消息逐字相同；
+ *   - semanticAnswerCache 是归一化 key（normalizeQuery：去停用词 + 排序），
+ *     相同语义的不同措辞也能命中，适合 english/translation/evaluation 等重复性高的确定性任务。
+ * 仅缓存成功、无工具调用的确定性响应；TTL 5 分钟，进程内（不落盘，避免陈旧答案跨重启存活）。
+ */
+export const semanticAnswerCache = new Cache<string>({
+  namespace: "semantic-answer",
+  maxSize: 500,
+  defaultTtlMs: 5 * 60 * 1000,
+  redis: true,
+  persistent: false,
+});
+
+/**
+ * 计算 LLM 缓存 key。
+ *
+ * Key 包含：provider + model + messages + temperature + system
+ * 不包含：timeout / retry / api key（这些不影响输出内容）
+ *
+ * 对于 temperature=0 的确定性调用，相同输入必定产生相同输出，
+ * 缓存命中率高、语义安全。对于 temperature>0 的调用，调用方可
+ * 选择不缓存（通过 ttlMs=0 或不调用 getOrSet）。
+ *
+ * 使用 SHA-256 生成定长 hex 摘要——32-bit hash 在 2000 条目下
+ * 生日碰撞概率约 0.05%，对"返回错误 LLM 响应"零容忍，故用 256-bit。
+ */
+export function llmCacheKey(opts: {
+  provider: string;
+  model: string;
+  messages: Array<{ role?: string; content?: string }>;
+  temperature?: number;
+  system?: string;
+}): string {
+  const parts = [
+    opts.provider,
+    opts.model,
+    opts.system ?? "",
+    ...opts.messages.map((m) => `${m.role ?? ""}:${m.content ?? ""}`),
+    `temp:${opts.temperature ?? 0}`,
+  ];
+  const raw = parts.join("\n");
+  const digest = createHash("sha256").update(raw).digest("hex");
+  return `${opts.provider}:${opts.model}:${digest}`;
+}
+
+

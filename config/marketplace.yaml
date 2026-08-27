@@ -1,0 +1,160 @@
+# Skill / MCP 广场（受控白名单）
+# 来源：skills.sh / anthropics / Vercel / Glama / PulseMCP / mcp.so / Smithery
+# 安装动作由后端按 id 白名单执行，不接受任意命令注入。
+
+skills:
+  - id: vercel-react
+    name: React / Next.js 最佳实践
+    description: Vercel Labs 官方 React、Next.js 与 Web 设计技能，社区安装量 10 万+。
+    source: vercel-labs/agent-skills
+    package: react-best-practices
+    category: web
+    url: https://skills.sh/vercel-labs/agent-skills/react-best-practices
+    install: npx skills add vercel-labs/agent-skills@react-best-practices -y
+
+  - id: anthropic-frontend-design
+    name: Frontend Design
+    description: Anthropic 官方前端设计技能，面向生产级界面与设计系统。
+    source: anthropics/skills
+    package: frontend-design
+    category: design
+    url: https://skills.sh/anthropics/skills/frontend-design
+    install: npx skills add anthropics/skills@frontend-design -y
+
+  - id: anthropic-document-skills
+    name: Document Skills
+    description: Anthropic 官方文档生成、PDF、PPT、表格技能集合。
+    source: anthropics/skills
+    package: document-skills
+    category: productivity
+    url: https://skills.sh/anthropics/skills/document-skills
+    install: npx skills add anthropics/skills@document-skills -y
+
+  - id: code-review
+    name: Code Review
+    description: 基于阿里 open-code-review 的代码质量与安全审查技能。
+    source: anthropics/skills
+    package: code-review
+    category: engineering
+    url: https://skills.sh/anthropics/skills/code-review
+    install: npx skills add anthropics/skills@code-review -y
+
+  - id: git-workflow
+    name: Git Workflow
+    description: Conventional Commits 与干净 Git 历史工作流技能。
+    source: anthropics/skills
+    package: git-workflow
+    category: engineering
+    url: https://skills.sh/anthropics/skills/git-workflow
+    install: npx skills add anthropics/skills@git-workflow -y
+
+mcpServers:
+  - id: context7
+    name: Context7
+    description: 7000+ 库的版本化文档查询，免费免 Key。
+    type: remote
+    endpoint: https://mcp.context7.com/mcp
+    category: docs
+    url: https://mcp.context7.com
+
+  - id: playwright
+    name: Playwright MCP
+    description: 浏览器自动化与网页测试，官方 MCP。
+    type: stdio
+    command: npx
+    args: ["-y", "@playwright/mcp@latest"]
+    category: browser
+    url: https://github.com/microsoft/playwright-mcp
+
+  - id: github
+    name: GitHub MCP
+    description: GitHub 仓库、Issue、PR 与代码搜索。
+    type: remote
+    endpoint: https://api.githubcopilot.com/mcp/
+    category: dev
+    url: https://github.com/github/github-mcp-server
+
+  - id: memory
+    name: Memory MCP
+    description: 官方知识图谱记忆服务器，持久化跨会话上下文。
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-memory"]
+    category: memory
+    url: https://github.com/modelcontextprotocol/servers/tree/main/src/memory
+
+  - id: fetch
+    name: Fetch MCP
+    description: 官方网页抓取服务器，支持 markdown 提取。
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-fetch"]
+    category: web
+    url: https://github.com/modelcontextprotocol/servers/tree/main/src/fetch
+
+  - id: sequential-thinking
+    name: Sequential Thinking
+    description: 官方结构化推理服务器，适合复杂问题拆解。
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    category: reasoning
+    url: https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking
+
+  - id: filesystem
+    name: Filesystem MCP
+    description: 官方文件系统访问服务器，读写与搜索本地文件。
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    category: files
+    url: https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem
+
+  - id: brave-search
+    name: Brave Search
+    description: 实时网络搜索，需要 BRAVE_API_KEY。
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    category: search
+    url: https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search
+
+  - id: notion
+    name: Notion MCP
+    description: Notion 页面、数据库读写，需要 NOTION_TOKEN。
+    type: stdio
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    category: productivity
+    url: https://github.com/makenotion/notion-mcp-server
+
+  - id: firecrawl
+    name: Firecrawl MCP
+    description: 网页抓取与站点爬取，需要 FIRECRAWL_API_KEY。
+    type: stdio
+    command: npx
+    args: ["-y", "firecrawl-mcp"]
+    category: web
+    url: https://github.com/firecrawl/firecrawl-mcp-server
+
+registries:
+  - id: skills-sh
+    name: skills.sh
+    description: Vercel 推出的 Agent Skills 目录与包管理器。
+    url: https://skills.sh/
+  - id: glama
+    name: Glama
+    description: 5 万+ 开源 MCP 服务器索引。
+    url: https://glama.ai/mcp/servers
+  - id: pulsemcp
+    name: PulseMCP
+    description: 2 万+ MCP 服务器目录与精选榜单。
+    url: https://pulsemcp.com/
+  - id: mcp-so
+    name: mcp.so
+    description: 广覆盖 MCP 服务器聚合目录。
+    url: https://mcp.so/
+  - id: smithery
+    name: Smithery
+    description: Agent-first MCP 服务器托管与发现平台。
+    url: https://smithery.ai/

@@ -3,6 +3,8 @@ import { proxyFetch } from "../utils/proxy-fetch.js";
 import { logger } from "../utils/logger.js";
 import { searchDomain, getSubdomainsForDomain } from "./searcher.js";
 import { getKnowledgeStore } from "./store.js";
+import { judgeKnowledgeQualityWithEdge, isNearDuplicateWithEdge, summarizeKnowledgeWithEdge } from "./edge-assist.js";
+import { generateTagsWithEdge } from "../memory/edge-assist.js";
 import type { KnowledgeSource, CollectOptions, CollectResult } from "./types.js";
 
 const pipeline = new DataPipeline({ maxConcurrent: 2, requestDelay: 1500, maxDepth: 1 });
@@ -78,18 +80,40 @@ export async function collectKnowledge(opts: CollectOptions): Promise<CollectRes
         continue;
       }
 
-      const quality = validateContent(crawled.markdown);
+      let quality = validateContent(crawled.markdown);
       if (quality < qualityThreshold) {
-        logger.debug(`[KnowledgeCollector] Low quality (${quality.toFixed(2)}), skipping ${result.link}`);
+        // 边缘二次裁决：规则评分低于阈值时给内容第二次机会（失败回退规则结果）
+        const verdict = await judgeKnowledgeQualityWithEdge(crawled.title, crawled.markdown.slice(0, 1000));
+        if (verdict?.pass === true) {
+          logger.info(`[KnowledgeCollector] Low-quality score overridden by edge: ${result.link} (${verdict.reason ?? "approved"})`);
+          quality = qualityThreshold;
+        } else {
+          logger.debug(`[KnowledgeCollector] Low quality (${quality.toFixed(2)}), skipping ${result.link}`);
+          skipped++;
+          continue;
+        }
+      }
+
+      // 边缘近重复检测：同子域已有内容 vs 新内容（失败按不重复放行）
+      const dupCandidates = store.listTitlesBySubdomain(domain, subdomain, 5);
+      const isDup = await isNearDuplicateWithEdge(crawled.title, crawled.markdown.slice(0, 500), dupCandidates);
+      if (isDup === true) {
+        logger.info(`[KnowledgeCollector] Near-duplicate skipped by edge: ${crawled.title}`);
         skipped++;
         continue;
       }
+
+      // 边缘摘要 + 标签（失败为 null，不影响主流程）
+      const summary = await summarizeKnowledgeWithEdge(crawled.markdown);
+      const edgeTags = await generateTagsWithEdge(crawled.markdown.slice(0, 1500));
 
       const vaultPath = await store.storeAsVaultNote(crawled.title, crawled.markdown, {
         domain: domain as "philosophy" | "mathematics" | "computer-science" | "dictionary",
         subdomain,
         url: result.link,
         quality,
+        extraTags: edgeTags ?? undefined,
+        summary: summary ?? undefined,
       });
 
       const source: KnowledgeSource = {

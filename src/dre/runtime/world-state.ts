@@ -62,11 +62,14 @@ class WorldStateImpl {
       }
     }
 
-    eventBus.publish({
+    // L6：publish 返回的 Promise 吸收兜底，避免未来监听器路径产生未处理 rejection
+    void eventBus.publish({
       type: "state.changed",
       source: "world-state",
       data: { path, value, oldValue, version: this.version },
       priority: "normal",
+    }).catch((err) => {
+      logger.error("[WorldState] state.changed publish failed", err instanceof Error ? err : new Error(String(err)));
     });
   }
 

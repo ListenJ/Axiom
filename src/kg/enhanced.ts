@@ -15,6 +15,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
 
 // ========== 类型定义 ==========
@@ -196,9 +197,13 @@ export class KnowledgeGraphEnhanced {
   // ========== 节点管理 ==========
 
   /**
-   * 添加节点
+   * 添加节点 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 type:name:description 生成稳定 kg_ 哈希 id
    */
   addNode(node: KGNode): void {
+    if (!node.id || node.id.startsWith("tmp-")) {
+      const hash = createHash("sha256").update(`${node.type}:${node.name}:${node.description ?? ""}`).digest("hex").slice(0, 16);
+      node.id = `kg_${hash}`;
+    }
     const now = Date.now();
 
     this.db.prepare(`
@@ -268,9 +273,13 @@ export class KnowledgeGraphEnhanced {
   // ========== 边管理 ==========
 
   /**
-   * 添加边
+   * 添加边 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 source:target:type 生成稳定 kg_ 哈希 id
    */
   addEdge(edge: KGEdge): void {
+    if (!edge.id || edge.id.startsWith("tmp-")) {
+      const hash = createHash("sha256").update(`${edge.source}:${edge.target}:${edge.type}`).digest("hex").slice(0, 16);
+      edge.id = `kg_${hash}`;
+    }
     const now = Date.now();
 
     this.db.prepare(`
@@ -290,16 +299,20 @@ export class KnowledgeGraphEnhanced {
 
     this.edges.set(edge.id, edge);
 
-    // 更新邻接表
+    // 更新邻接表（去重，避免同哈希二次写入产生重复邻接条目）
     if (!this.adjacency.has(edge.source)) {
       this.adjacency.set(edge.source, []);
     }
-    this.adjacency.get(edge.source)!.push(edge.id);
+    if (!this.adjacency.get(edge.source)!.includes(edge.id)) {
+      this.adjacency.get(edge.source)!.push(edge.id);
+    }
 
     if (!this.adjacency.has(edge.target)) {
       this.adjacency.set(edge.target, []);
     }
-    this.adjacency.get(edge.target)!.push(edge.id);
+    if (!this.adjacency.get(edge.target)!.includes(edge.id)) {
+      this.adjacency.get(edge.target)!.push(edge.id);
+    }
   }
 
   /**
@@ -826,10 +839,29 @@ export class KnowledgeGraphEnhanced {
       lineNumber: row.line_number as number | undefined,
       signature: row.signature as string | undefined,
       semantic: row.semantic as string | undefined,
-      tags: JSON.parse((row.tags as string) || "[]"),
-      metadata: JSON.parse((row.metadata as string) || "{}"),
+      tags: safeJsonParse(row.tags, [], isArrayGuard),
+      metadata: safeJsonParse(row.metadata, {}, isObjectGuard),
       community: row.community as number | undefined,
       importance: row.importance as number | undefined,
     };
   }
+}
+
+/** 按行兜底的 JSON 解析：损坏列降级为 fallback，不拖垮整批查询（P0-5） */
+function safeJsonParse<T>(raw: unknown, fallback: T, guard: (v: unknown) => boolean): T {
+  if (typeof raw !== "string" || raw.length === 0) return fallback;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return guard(parsed) ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function isArrayGuard(v: unknown): boolean {
+  return Array.isArray(v);
+}
+
+function isObjectGuard(v: unknown): boolean {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

@@ -17,7 +17,6 @@
  */
 import { logger } from "../utils/logger.js";
 import { internalAgent } from "./internal-agent.js";
-import { isPgAvailable, getPG } from "../db/pg-client.js";
 import {
   buildResearchContext,
   type KGEntity,
@@ -83,7 +82,7 @@ export async function runKnowledgeGraphResearch(
     timeout = 120000,
   } = task;
 
-  logger.info("[KGResearch] Starting research", { query, depth, model });
+  logger.info("[KGResearch] Starting research", { queryLen: query.length, depth, model });
 
   // Step 1: 从知识图谱获取上下文
   const kgContext = await buildResearchContext(query, {
@@ -97,8 +96,26 @@ export async function runKnowledgeGraphResearch(
     relationships: kgContext.relationships.length,
   });
 
+  // Step 1.5: 网络证据补充 — KG 证据不足（实体 < 5）说明是非代码分析型问题，
+  // 并行检索网络（多引擎 + 缓存）为模型提供事实依据；失败不阻塞研究
+  let webEvidence: Array<{ title: string; link: string; snippet: string }> = [];
+  if (kgContext.entities.length < 5) {
+    try {
+      const { unifiedSearch } = await import("../crawl/unified-search.js");
+      const results = await unifiedSearch.search({ query, num: 6, cacheTtl: 60 });
+      webEvidence = results.map((r) => ({
+        title: r.title,
+        link: r.link,
+        snippet: r.snippet,
+      }));
+      logger.info("[KGResearch] Web evidence fetched", { results: webEvidence.length });
+    } catch (err) {
+      logger.warn("[KGResearch] Web evidence unavailable", { error: (err as Error).message });
+    }
+  }
+
   // Step 2: 构建增强 prompt
-  const enhancedPrompt = buildEnhancedPrompt(query, kgContext, task.additionalContext);
+  const enhancedPrompt = buildEnhancedPrompt(query, kgContext, task.additionalContext, webEvidence);
 
   // Step 3: 调用模型
   const conclusion = await callResearchModel(model, enhancedPrompt, timeout);
@@ -141,6 +158,7 @@ function buildEnhancedPrompt(
   query: string,
   kgContext: Awaited<ReturnType<typeof buildResearchContext>>,
   additionalContext?: string,
+  webEvidence: Array<{ title: string; link: string; snippet: string }> = [],
 ): string {
   const sections: string[] = [];
 
@@ -206,6 +224,17 @@ function buildEnhancedPrompt(
     sections.push("");
   }
 
+  // 网络证据（仅在 KG 证据不足时注入，作为事实性论断的来源）
+  if (webEvidence.length > 0) {
+    sections.push("# Web Evidence (from live web search)");
+    sections.push("The following comes from live web search. Use it ONLY for factual claims");
+    sections.push("(pricing, versions, documentation, news); do NOT treat it as code-structure ground truth.");
+    for (const w of webEvidence.slice(0, 6)) {
+      sections.push(`- ${w.title} — ${w.link}${w.snippet ? `\n  ${w.snippet.slice(0, 200)}` : ""}`);
+    }
+    sections.push("");
+  }
+
   sections.push("# Instructions");
   sections.push("Based on the verified code structure above, provide a thorough analysis.");
   sections.push("Focus on:");
@@ -216,6 +245,7 @@ function buildEnhancedPrompt(
   sections.push("");
   sections.push("IMPORTANT: Base your analysis ONLY on the verified structure above.");
   sections.push("Do NOT speculate about code you cannot see. If information is insufficient, say so explicitly.");
+  sections.push("For factual claims outside the code structure (e.g. pricing, versions), cite the Web Evidence sources.");
   sections.push("Cite specific entities and relationships when making claims.");
 
   return sections.join("\n");
@@ -285,21 +315,10 @@ function extractNewFindings(
 }
 
 async function writeFindingsToKG(findings: ResearchResult["newFindings"]): Promise<void> {
-  if (!(await isPgAvailable())) return;
-  const pg = getPG();
-
-  for (const entity of findings.entities) {
-    try {
-      await pg`
-        INSERT INTO kg_entities (name, type, description, properties, source)
-        VALUES (${entity.name}, ${entity.type}, ${entity.description || null}, ${pg.json(entity.properties)}, ${entity.source})
-        ON CONFLICT (name) DO NOTHING
-      `;
-    } catch { /* ignore */ }
-  }
-
-  // 关系需要 entity id，这里简化处理
-  // 实际使用时需要先查找 name → id 映射
+  // PG 已移除 (H-M1-03): 已迁移至 SQLite KnowledgeGraphEnhanced，当前 no-op
+  // 新发现可通过 kg/enhanced.ts 的 addNode/addEdge 写入 SQLite
+  logger.info("[KGResearch] writeFindingsToKG PG 已移除，跳过 PG 写入 (H-M1-03)", { entities: findings.entities.length });
+  return;
 }
 
 // ========== 置信度评估 ==========

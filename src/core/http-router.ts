@@ -57,6 +57,53 @@ interface TrieNode {
   wildcard?: RouteRecord; // /** 通配
 }
 
+/**
+ * 定容环形缓冲区 —— O(1) push、O(1) 淘汰。
+ *
+ * 取代 number[] + shift() 的旧实现：当 perf log 达到 maxPerfEntries (1000)
+ * 后，每次 push 都会触发 shift()，后者需移动全部元素，是热路径上的 O(n) 开销。
+ * 环形缓冲区通过覆盖最旧条目 + 推进 head 指针实现 O(1) 淘汰。
+ */
+class RingBuffer<T> {
+  private buf: T[];
+  private head = 0;   // 最旧元素下标
+  private _size = 0;
+  readonly capacity: number;
+
+  constructor(capacity: number) {
+    this.capacity = capacity;
+    this.buf = new Array<T>(capacity);
+  }
+
+  push(val: T): void {
+    if (this._size < this.capacity) {
+      this.buf[(this.head + this._size) % this.capacity] = val;
+      this._size++;
+    } else {
+      this.buf[this.head] = val;
+      this.head = (this.head + 1) % this.capacity;
+    }
+  }
+
+  get length(): number { return this._size; }
+
+  /** 按写入顺序（旧→新）迭代，支持 `[...buf]` 与 `for..of`。 */
+  *[Symbol.iterator](): Iterator<T> {
+    for (let i = 0; i < this._size; i++) {
+      yield this.buf[(this.head + i) % this.capacity];
+    }
+  }
+
+  /** 返回快照数组（旧→新），供排序/统计使用。 */
+  toArray(): T[] {
+    const out: T[] = new Array<T>(this._size);
+    for (let i = 0; i < this._size; i++) {
+      out[i] = this.buf[(this.head + i) % this.capacity];
+    }
+    return out;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 高性能路由引擎
 // ═══════════════════════════════════════════════════════════════
@@ -64,7 +111,7 @@ interface TrieNode {
 export class HttpRouter {
   private root = new Map<string, TrieNode>(); // method -> trie root
   private cache: Cache<Response>;
-  private perfLog = new Map<string, number[]>(); // endpoint -> latencies
+  private perfLog = new Map<string, RingBuffer<number>>(); // endpoint -> latencies
   private requestCounts = new Map<string, number>();
   private errorCounts = new Map<string, number>();
   private cacheHits = 0;
@@ -240,20 +287,18 @@ export class HttpRouter {
   private recordPerf(endpoint: string, latency: number): void {
     let entries = this.perfLog.get(endpoint);
     if (!entries) {
-      entries = [];
+      entries = new RingBuffer<number>(this.maxPerfEntries);
       this.perfLog.set(endpoint, entries);
     }
-    entries.push(latency);
-    if (entries.length > this.maxPerfEntries) {
-      entries.shift();
-    }
+    entries.push(latency); // O(1) — 环形缓冲区覆盖最旧条目，无需 shift
   }
 
   getPerfReport(): Record<string, PerfMetrics> {
     const report: Record<string, PerfMetrics> = {};
 
     for (const [endpoint, latencies] of this.perfLog) {
-      const sorted = [...latencies].sort((a, b) => a - b);
+      const snapshot = latencies.toArray();
+      const sorted = snapshot.sort((a, b) => a - b);
       const total = sorted.length;
       const totalLatency = sorted.reduce((a, b) => a + b, 0);
       const errors = this.errorCounts.get(endpoint) || 0;
@@ -279,9 +324,10 @@ export class HttpRouter {
     const endpoints: HotspotReport["endpoints"] = [];
 
     for (const [endpoint, count] of this.requestCounts) {
-      const latencies = this.perfLog.get(endpoint) || [];
-      const avgLatency = latencies.length > 0
-        ? latencies.reduce((a, b) => a + b, 0) / latencies.length
+      const latencies = this.perfLog.get(endpoint);
+      const snapshot = latencies ? latencies.toArray() : [];
+      const avgLatency = snapshot.length > 0
+        ? snapshot.reduce((a, b) => a + b, 0) / snapshot.length
         : 0;
       const errors = this.errorCounts.get(endpoint) || 0;
       const errorRate = count > 0 ? errors / count : 0;

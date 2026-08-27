@@ -2,7 +2,18 @@
  * Agent status and tool routes
  */
 import type { RouteContext } from "./types.js";
+
+/** 依赖不可用（CDP/浏览器）→ 503，其余内部错误 → 500。 */
+function toAgentErrorStatus(msg: string): number {
+  return /cdp target|CDP|browser|chrome/i.test(msg) ? 503 : 500;
+}
 import { readString } from "../utils/env.js";
+import { assertSafeCdpUrl } from "../utils/url-safety.js";
+
+/** M7 审计修复：远程 CDP 需显式 AXIOM_ALLOW_REMOTE_CDP=1 */
+function allowRemoteCdp(): boolean {
+  return readString("AXIOM_ALLOW_REMOTE_CDP", "0") === "1";
+}
 
 export async function handleAgentsStatus(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/status" && ctx.req.method === "GET") {
@@ -88,7 +99,7 @@ export async function handleKimiChat(ctx: RouteContext): Promise<Response | null
       return ctx.jsonResponse({ ...result, model: KIMI_CODE_MODEL }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -140,7 +151,7 @@ export async function handleOpenCodeGenerate(ctx: RouteContext): Promise<Respons
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -159,7 +170,7 @@ export async function handleOpenCodeRefactor(ctx: RouteContext): Promise<Respons
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -178,7 +189,7 @@ export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response 
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;
@@ -199,13 +210,13 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
         imageType: body.imageType,
         modelId: body.modelId,
         history: body.history,
-        cdpUrl: body.cdpUrl,
+        cdpUrl: assertSafeCdpUrl(body.cdpUrl, { allowRemote: allowRemoteCdp() }),
         targetUrl: body.targetUrl,
       });
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -223,13 +234,13 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
     try {
       const result = await captureScreenshot(
         body.url,
-        body.cdpUrl || "http://127.0.0.1:9222",
+        assertSafeCdpUrl(body.cdpUrl, { allowRemote: allowRemoteCdp() }),
         { format: body.format || "png", fullPage: body.fullPage, timeout: body.timeout || 20000 }
       );
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -238,11 +249,11 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
     const body = await ctx.req.json();
     const { extractInteractiveElements } = await import("../crawl/lightpanda-client.js");
     try {
-      const result = await extractInteractiveElements(body.cdpUrl || "http://127.0.0.1:9222", body.timeout || 10000);
+      const result = await extractInteractiveElements(assertSafeCdpUrl(body.cdpUrl, { allowRemote: allowRemoteCdp() }), body.timeout || 10000);
       return ctx.jsonResponse({ elements: result, count: result.length }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -251,11 +262,11 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
     const body = await ctx.req.json();
     const { executeComputerAction } = await import("../agents/computer-use-agent.js");
     try {
-      const result = await executeComputerAction(body.action, body.cdpUrl);
+      const result = await executeComputerAction(body.action, assertSafeCdpUrl(body.cdpUrl, { allowRemote: allowRemoteCdp() }));
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -266,14 +277,14 @@ export async function handleComputerUse(ctx: RouteContext): Promise<Response | n
     try {
       const result = await runComputerTask(
         body.goal || body.task || "",
-        body.cdpUrl || "http://127.0.0.1:9222",
+        assertSafeCdpUrl(body.cdpUrl, { allowRemote: allowRemoteCdp() }),
         body.targetUrl,
         body.maxSteps || 10
       );
       return ctx.jsonResponse({ steps: result, totalSteps: result.length }, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
 
@@ -293,7 +304,7 @@ export async function handleOpenCodeTest(ctx: RouteContext): Promise<Response | 
       return ctx.jsonResponse(result, 200, ctx.baseHeaders);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return ctx.jsonResponse({ error: msg }, 500, ctx.baseHeaders);
+      return ctx.jsonResponse({ error: msg }, toAgentErrorStatus(msg), ctx.baseHeaders);
     }
   }
   return null;

@@ -23,6 +23,9 @@ describe('useGlobalHotkeys', () => {
       theme: 'dark',
       sidebarOpen: false,
       helpOpen: false,
+      terminalOpen: false,
+      rightbarOpen: true,
+      rightbarTool: 'summary',
       toasts: [],
     })
   })
@@ -72,6 +75,15 @@ describe('useGlobalHotkeys', () => {
     expect(useApp.getState().helpOpen).toBe(false)
   })
 
+  it('toggles terminal on Ctrl+Backquote', () => {
+    renderHook('/')
+    expect(useApp.getState().terminalOpen).toBe(false)
+    press('`', { ctrlKey: true })
+    expect(useApp.getState().terminalOpen).toBe(true)
+    press('`', { ctrlKey: true })
+    expect(useApp.getState().terminalOpen).toBe(false)
+  })
+
   it('toggles theme on Shift+T', () => {
     renderHook('/')
     press('T', { shiftKey: true })
@@ -80,8 +92,9 @@ describe('useGlobalHotkeys', () => {
 
   it('navigates via number keys based on visible nav items', async () => {
     renderHook('/')
+    // 首页与对话合并后：1 号快捷键跳转 /chat
     press('1')
-    await waitFor(() => expect(screen.getByText('Home')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Chat')).toBeInTheDocument())
   })
 
   it('does not hijack shortcuts inside inputs', async () => {

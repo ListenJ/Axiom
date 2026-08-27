@@ -1,13 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { NAV_ITEMS, MOBILE_NAV_ITEMS, VISIBLE_NAV_ITEMS } from './nav'
+import { NAV_ITEMS, NAV_SECTIONS, MOBILE_NAV_ITEMS, VISIBLE_NAV_ITEMS } from './nav'
+
+describe('NAV_SECTIONS', () => {
+  it('has unique section ids', () => {
+    const ids = NAV_SECTIONS.map((s) => s.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('every item belongs to a declared section and every section has a visible item', () => {
+    const ids = NAV_SECTIONS.map((s) => s.id)
+    for (const item of NAV_ITEMS) expect(ids).toContain(item.section)
+    for (const section of NAV_SECTIONS) {
+      expect(VISIBLE_NAV_ITEMS.some((i) => i.section === section.id)).toBe(true)
+    }
+  })
+})
 
 describe('NAV_ITEMS', () => {
   it('contains the expected core pages', () => {
     const paths = NAV_ITEMS.map((i) => i.path)
-    expect(paths).toContain('/')
+    // 首页与对话合并：/ 不再是一级导航，由 /chat 承担
+    expect(paths).toContain('/chat')
     expect(paths).toContain('/search')
     expect(paths).toContain('/settings')
     expect(paths).toContain('/vault')
+    expect(paths).toContain('/sessions')
   })
 
   it('every item has required fields', () => {
@@ -21,6 +38,7 @@ describe('NAV_ITEMS', () => {
       expect(item.icon).toBeTruthy()
       expect(typeof item.mobilePrimary).toBe('boolean')
       expect(typeof item.visible).toBe('boolean')
+      expect(['workspace', 'knowledge', 'dev', 'system']).toContain(item.section)
     }
   })
 
@@ -44,9 +62,11 @@ describe('VISIBLE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/search/code/vault entries', () => {
+  it('contains the workspace, knowledge, dev, and system entries', () => {
     const ids = VISIBLE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'search', 'code', 'vault']))
+    expect(ids).toEqual(
+      expect.arrayContaining(['chat', 'search', 'code', 'vault', 'providers', 'git', 'sessions', 'tokens', 'settings']),
+    )
   })
 
   it('hides internal/backend-only pages', () => {
@@ -66,8 +86,8 @@ describe('MOBILE_NAV_ITEMS', () => {
     }
   })
 
-  it('contains the home/search/code entries', () => {
+  it('contains the chat/search/code entries', () => {
     const ids = MOBILE_NAV_ITEMS.map((i) => i.id)
-    expect(ids).toEqual(expect.arrayContaining(['home', 'search', 'code']))
+    expect(ids).toEqual(expect.arrayContaining(['chat', 'search', 'code']))
   })
 })

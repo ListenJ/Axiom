@@ -6,7 +6,9 @@
  *     and typed against a `Pick<>` subset of the real class. This file uses
  *     the subset types directly so no `as unknown as` casts are needed.
  *   - `mock.module("../src/memory/vault-manager.js", …)` is wrapped in
- *     `withMockedVault()` so a failure between mock + restore cannot leak.
+ *     `withMockedVault()` so a failure between mock + restore cannot leak;
+ *     an `afterAll` additionally re-registers the real module because
+ *     `mock.restore()` alone does not stop cross-file mock leakage.
  *   - `process.env.OBSIDIAN_VAULT_PATH` / `SQLITE_MEMORY_DB` are snapshotted
  *     in beforeEach and restored in afterEach (no process.env pollution).
  *   - The state store, blackboard, and activity tracker are reset between
@@ -18,11 +20,13 @@ import {
   describe,
   beforeEach,
   afterEach,
+  afterAll,
   test,
   expect,
   spyOn,
   mock,
 } from "bun:test";
+import * as realVaultModule from "../src/memory/vault-manager.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -128,6 +132,7 @@ function installShims(): void {
 
   const archiver: MemoryArchiverSubset = {
     archive: async () => ({ archived: [], skipped: [], errors: [] }),
+    archiveNote: async () => true,
     stats: () => ({ archivedCount: 0, byCategory: {} }),
   };
   setMemoryArchiverForTest(archiver as any);
@@ -135,6 +140,8 @@ function installShims(): void {
   const sqlite: SQLiteMemorySubset = {
     upsertNote: () => 0,
     search: () => [],
+    listByCategory: () => [],
+    deleteNote: () => true,
     close: () => {},
   };
   setSqliteMemoryForTest(sqlite as any);
@@ -178,6 +185,25 @@ async function withMockedVault<T>(fn: () => Promise<T> | T): Promise<T> {
     mock.restore();
   }
 }
+
+// Bun 的 mock.module 是**原地改写**模块命名空间对象：静态 import 拿到的
+// realVaultModule 与被 mock 的是同一对象，mock 后其 getGlobalVault 会被覆盖，
+// 且多轮 mock/restore 后 restore 无法完整还原（实测残留 fake）。
+// 因此在任何 mock.module 调用之前，先把原始导出引用捕获到常量里——
+// 常量持有的是原函数对象，不受后续原地改写影响。
+const REAL_VAULT_EXPORTS = {
+  VaultManager: realVaultModule.VaultManager,
+  getGlobalVault: realVaultModule.getGlobalVault,
+  default: realVaultModule.default,
+};
+
+// Bun 的 mock.restore() 不能可靠阻止模块 mock 泄漏到**本文件之后运行**的测试文件
+// （实测：e2e-runtime.test.ts 的动态 import 拿到了本文件的 fakeVault）。
+// 套件结束后显式把捕获的原始导出重新注册回模块注册表。
+afterAll(() => {
+  mock.restore();
+  mock.module(VAULT_MODULE_PATH, () => REAL_VAULT_EXPORTS);
+});
 
 /** Snapshot process.env keys we touch and restore them in a finally block. */
 function snapshotEnv(keys: string[]): { restore: () => void } {

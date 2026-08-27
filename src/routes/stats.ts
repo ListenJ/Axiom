@@ -1,6 +1,8 @@
 import type { RouteContext } from "./types.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { getTokenTracker } from "../router/token-tracker.js";
+import { costUsdToCny } from "../router/rate-tier.js";
+import { scheduler } from "../dre/runtime/scheduler.js";
 
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/api/stats" || ctx.req.method !== "GET") return null;
@@ -11,7 +13,8 @@ export async function handleStats(ctx: RouteContext): Promise<Response | null> {
     const tokenTracker = getTokenTracker();
 
     const stats = {
-      activeTasks: Math.floor(Math.random() * 5) + 1,
+      // 审计 K-3（2026-08-24）：此前为 Math.random 伪造值；现接调度器真实运行数
+      activeTasks: scheduler.getStatus().running,
       agents: 4,
       completed: vaultStats.totalNotes,
       tokensUsed: tokenTracker.getOverallStats().totalTokens,
@@ -40,7 +43,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
   const recentCalls = tracker.getRecentUsage(50);
   const overall = tracker.getOverallStats();
 
-  const totalCacheHits = dailyTrend.reduce((sum, d) => sum + (((d as unknown as Record<string, unknown>).cacheHits as number) ?? 0), 0);
+  const totalCacheHits = dailyTrend.reduce((sum, d) => sum + (d.cacheHits ?? 0), 0);
   const totalCalls = overall.totalCalls || 1;
 
   return ctx.jsonResponse({
@@ -52,6 +55,8 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       completionTokens: m.totalCompletionTokens,
       totalTokens: m.totalTokens,
       avgLatency: Math.round(m.avgLatencyMs),
+      costUsd: m.costUsd ?? 0,
+      costCny: costUsdToCny(m.costUsd ?? 0),
     })),
     hourlyTrend: dailyTrend.map((d) => ({
       date: d.date,
@@ -59,6 +64,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       totalTokens: d.totalTokens,
       promptTokens: d.promptTokens,
       completionTokens: d.completionTokens,
+      costUsd: d.costUsd ?? 0,
     })),
     overall: {
       totalTokens: overall.totalTokens,
@@ -66,6 +72,8 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       promptTokens: overall.totalPromptTokens,
       completionTokens: overall.totalCompletionTokens,
       avgLatency: Math.round(overall.avgLatencyMs),
+      costUsd: overall.costUsd ?? 0,
+      costCny: costUsdToCny(overall.costUsd ?? 0),
     },
     recentCalls: recentCalls.map((c) => ({
       timestamp: c.timestamp,
@@ -74,6 +82,7 @@ export async function handleTokenDetails(ctx: RouteContext): Promise<Response | 
       completionTokens: c.completionTokens,
       latencyMs: Math.round(c.latencyMs),
       success: c.success,
+      costUsd: c.costUsd ?? 0,
     })),
     cacheStats: {
       totalCalls,

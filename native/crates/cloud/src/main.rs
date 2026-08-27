@@ -1,6 +1,6 @@
-use axum::{
+ï»¿use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -67,11 +67,32 @@ struct HealthResponse {
     cache_backend: String,
 }
 
+fn build_cors_layer() -> tower_http::cors::CorsLayer {
+    let raw = std::env::var("AXIOM_CLOUD_CORS")
+        .unwrap_or_else(|_| "http://localhost:18789,http://127.0.0.1:18789".to_string());
+    let origins: Vec<HeaderValue> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| match HeaderValue::from_str(s) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warn!("Ignoring invalid AXIOM_CLOUD_CORS origin {:?}: {}", s, e);
+                None
+            }
+        })
+        .collect();
+    tower_http::cors::CorsLayer::new()
+        .allow_origin(tower_http::cors::AllowOrigin::list(origins))
+        .allow_methods(tower_http::cors::AllowMethods::any())
+        .allow_headers(tower_http::cors::AllowHeaders::any())
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    let subscriber = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| format!("Axiom_cloud={},tower_http=warn", args.log_level).into()),
@@ -99,7 +120,7 @@ async fn main() {
             }
         }
     } else {
-        warn!("No DATABASE_URL provided â€?running without PostgreSQL");
+        warn!("No DATABASE_URL provided  -- running without PostgreSQL");
         None
     };
 
@@ -142,7 +163,7 @@ async fn main() {
         .route("/native/cache/stats", get(cache_stats_handler))
         .route("/native/cluster/status", get(cluster_status_handler))
         .with_state(state)
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .layer(build_cors_layer())
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(tower::limit::ConcurrencyLimitLayer::new(args.workers * 1000));
@@ -178,6 +199,7 @@ async fn search_handler(
         para_category: params.para,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
 
     let results = state.search.search(&params.q, &opts);
@@ -221,6 +243,7 @@ async fn native_search_handler(
         para_category: None,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
     let results = state.search.search(&req.query, &opts);
     Ok(Json(serde_json::json!({
@@ -240,7 +263,7 @@ async fn router_perf_handler(State(state): State<Arc<AppState>>) -> Json<serde_j
 }
 
 async fn cache_stats_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let redis_info = if let Some(ref mut redis) = state.redis.as_ref() {
+    let redis_info = if let Some(ref mut _redis) = state.redis.as_ref() {
         // Cannot use &mut on shared ref; skip for now
         serde_json::json!(null)
     } else {

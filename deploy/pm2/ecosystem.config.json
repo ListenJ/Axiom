@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "axiom-agent",
-      "script": "src/main.ts",
+      "script": "dist/main.js",
       "interpreter": "bun",
       "cwd": ".",
       "env": {

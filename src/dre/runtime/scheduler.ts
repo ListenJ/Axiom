@@ -14,6 +14,7 @@
 
 import { eventBus } from "./event-bus.js";
 import { logger } from "../../utils/logger.js";
+import { getResourceBudgetManager } from "../system-resource.js";
 
 // ─── Task Types ────────────────────────────────────────────────────────────
 
@@ -38,6 +39,8 @@ export interface ScheduledTask {
   error?: string
   /** Earliest time this task can be re-attempted (set on retry backoff). */
   notBefore?: number
+  /** O4 代数守卫：抢占重派时自增；complete 回传 dispatch 快照以检测陈旧完成 */
+  gen?: number
 }
 
 // ─── Resource Manager ──────────────────────────────────────────────────────
@@ -47,16 +50,39 @@ interface ResourceBudget {
   maxTokensPerMinute: number
   maxMemoryMB: number
   currentTasks: number
+  /** L4：预留字段 —— 当前无累加点，不参与准入判断 */
   currentTokensPerMinute: number
   currentMemoryMB: number
 }
 
+function getEffectiveMemoryUsageMB(): number {
+  try {
+    const mgr = getResourceBudgetManager();
+    const res = mgr.getResource();
+    const used = res.maxMemory - res.availableMemory;
+    if (Number.isFinite(used) && used >= 0) return Math.round(used);
+  } catch {}
+  try {
+    return Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+  } catch {
+    return 0;
+  }
+}
+
 function hasResources(budget: ResourceBudget): boolean {
+  const effectiveCurrent = getEffectiveMemoryUsageMB();
+  budget.currentMemoryMB = effectiveCurrent;
+  try {
+    const mgr = getResourceBudgetManager();
+    const check = mgr.canRun();
+    if (!check.canRun) return false;
+  } catch {}
   return (
     budget.currentTasks < budget.maxConcurrentTasks &&
-    budget.currentTokensPerMinute < budget.maxTokensPerMinute &&
-    budget.currentMemoryMB < budget.maxMemoryMB
+    effectiveCurrent < budget.maxMemoryMB
   );
+  // L4 审计修复：移除恒真的 currentTokensPerMinute 死检查（该字段无累加点）。
+  // 字段保留为未来接入真实 token 计量的预留位。
 }
 
 // ─── Priority Queue ────────────────────────────────────────────────────────
@@ -83,7 +109,7 @@ class SchedulerImpl {
   private budget: ResourceBudget = {
     maxConcurrentTasks: 5,
     maxTokensPerMinute: 100000,
-    maxMemoryMB: 4096,
+    maxMemoryMB: getResourceBudgetManager().getResource().maxMemory,
     currentTasks: 0,
     currentTokensPerMinute: 0,
     currentMemoryMB: 0,
@@ -99,6 +125,7 @@ class SchedulerImpl {
       status: "pending",
       createdAt: Date.now(),
       retries: 0,
+      gen: task.gen ?? 0,
     };
 
     this.queue.push(fullTask);
@@ -119,8 +146,14 @@ class SchedulerImpl {
    * Skips expired tasks (deadline passed) and tasks whose retry backoff hasn't elapsed.
    */
   getNext(): ScheduledTask | null {
+    // H-06 同源同步：每次调度前刷新 maxMemoryMB 以与 ResourceBudgetManager 保持一致
+    try {
+      this.budget.maxMemoryMB = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     // Auto-fail expired pending tasks
     this.expirePendingTasks();
+    // M2 看门狗：超期 running 任务终结并释放并发槽位（旧实现只巡检排队队列）
+    this.expireRunningTasks();
 
     if (!hasResources(this.budget)) {
       // Try preemption if a critical task is waiting and low-priority tasks are running
@@ -173,6 +206,8 @@ class SchedulerImpl {
 
       // Re-queue for later execution — preemption is pause, not cancellation
       task.status = "pending";
+      // O4 代数守卫：重派前递增代数，使旧执行体的迟到 complete 可被识别并丢弃
+      task.gen = (task.gen ?? 0) + 1;
       task.error = `Preempted by critical task at ${new Date().toISOString()}`;
       this.queue.push(task);
       this.queue.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
@@ -207,8 +242,7 @@ class SchedulerImpl {
   /**
    * Mark pending tasks whose deadline has passed as failed.
    */
-  private expirePendingTasks(): void {
-    const now = Date.now();
+  private expirePendingTasks(): void {    const now = Date.now();
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const task = this.queue[i];
       if (task.status !== "pending") continue;
@@ -231,11 +265,47 @@ class SchedulerImpl {
   }
 
   /**
-   * Complete a task.
+   * M2 审计修复：终结已超期的 running 任务并释放并发槽位。
+   * 看门狗强制终态 failed（不重试）—— 挂死的执行体重试大概率再次挂死，
+   * 重试留给可快速失败的显式错误路径。
    */
-  complete(taskId: string, result: unknown): void {
+  private expireRunningTasks(): void {
+    const now = Date.now();
+    for (const [id, task] of this.running) {
+      if (!task.deadline || now <= task.deadline) continue;
+      this.running.delete(id);
+      this.budget.currentTasks--;
+      task.status = "failed";
+      task.error = `Deadline exceeded while running (deadline=${task.deadline})`;
+      task.completedAt = now;
+      this.completed.push(task);
+      this.trimCompleted();
+
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error: task.error, reason: "running_deadline_exceeded" },
+        priority: "high",
+      });
+      logger.warn("[Scheduler] Running task exceeded deadline — force failed", { id });
+    }
+  }
+
+  /**
+   * Complete a task.
+   * O4 代数守卫：gen 与 dispatch 时不匹配（或任务已不在 running）→
+   * 视为陈旧完成，warn 并忽略，不产生入队/重执行副作用。
+   */
+  complete(taskId: string, result: unknown, gen?: number): void {
     const task = this.running.get(taskId);
-    if (!task) return;
+    if (!task || (gen !== undefined && (task.gen ?? 0) !== gen)) {
+      logger.warn("[Scheduler] stale complete ignored", {
+        taskId,
+        expectedGen: task?.gen,
+        gotGen: gen,
+      });
+      return;
+    }
 
     task.status = "completed";
     task.completedAt = Date.now();
@@ -259,9 +329,32 @@ class SchedulerImpl {
    * `maxRetries` semantics match LLMClient: N = number of retries allowed (excluding
    * the initial attempt). So maxRetries=0 = 1 attempt, maxRetries=2 = 3 attempts.
    */
-  fail(taskId: string, error: string): void {
+  /**
+   * 标记任务失败。
+   * 审计 B-1（2026-08-24）：新增 opts.terminal —— 确定性拒绝（如不支持的主题）
+   * 重试必然复现，直接终态失败，不回队、不退避。
+   */
+  fail(taskId: string, error: string, opts?: { terminal?: boolean }): void {
     const task = this.running.get(taskId);
     if (!task) return;
+
+    if (opts?.terminal) {
+      task.retries = task.maxRetries + 1;
+      task.status = "failed";
+      task.error = error;
+      task.completedAt = Date.now();
+      this.running.delete(taskId);
+      this.budget.currentTasks--;
+      this.completed.push(task);
+      this.trimCompleted();
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error, terminal: true },
+        priority: "normal",
+      });
+      return;
+    }
 
     task.retries++;
     this.running.delete(taskId);
@@ -348,11 +441,16 @@ class SchedulerImpl {
     budget: ResourceBudget
     tasks: ScheduledTask[]
   } {
+    // 同源同步：maxMemoryMB 始终以 ResourceBudgetManager 为权威源（H-06 双轨统一）
+    let liveMax = this.budget.maxMemoryMB;
+    try {
+      liveMax = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     return {
       queued: this.queue.length,
       running: this.running.size,
       completed: this.completed.length,
-      budget: { ...this.budget },
+      budget: { ...this.budget, maxMemoryMB: liveMax },
       tasks: [...this.queue, ...Array.from(this.running.values())],
     };
   }
@@ -361,6 +459,20 @@ class SchedulerImpl {
    * Update resource budget.
    */
   setBudget(budget: Partial<ResourceBudget>): void {
+    // H-06 双轨统一：若设置 maxMemoryMB 则同步至权威源 ResourceBudgetManager
+    if (budget.maxMemoryMB !== undefined) {
+      try {
+        getResourceBudgetManager().updateResource({ maxMemory: budget.maxMemoryMB });
+      } catch {}
+      const { maxMemoryMB, ...rest } = budget;
+      Object.assign(this.budget, rest);
+      try {
+        this.budget.maxMemoryMB = getResourceBudgetManager().getResource().maxMemory;
+      } catch {
+        this.budget.maxMemoryMB = maxMemoryMB;
+      }
+      return;
+    }
     Object.assign(this.budget, budget);
   }
 
@@ -371,10 +483,14 @@ class SchedulerImpl {
     this.queue = [];
     this.running.clear();
     this.completed = [];
+    let liveMax = 4096;
+    try {
+      liveMax = getResourceBudgetManager().getResource().maxMemory;
+    } catch {}
     this.budget = {
       maxConcurrentTasks: 5,
       maxTokensPerMinute: 100000,
-      maxMemoryMB: 4096,
+      maxMemoryMB: liveMax,
       currentTasks: 0,
       currentTokensPerMinute: 0,
       currentMemoryMB: 0,

@@ -1,4 +1,4 @@
-use axum::{
+﻿use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::Json,
@@ -14,8 +14,7 @@ use oc_shared::types::{
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::info;
 
 #[derive(Parser, Debug)]
 #[command(name = "Axiom-local", version = "2.3.0")]
@@ -63,7 +62,7 @@ struct HealthResponse {
 async fn main() {
     let args = Args::parse();
 
-    let subscriber = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| format!("Axiom_local={},tower_http=warn", args.log_level).into()),
@@ -127,6 +126,7 @@ async fn search_handler(
         para_category: params.para,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
 
     let results = state.search.search(&params.q, &opts);
@@ -170,6 +170,7 @@ async fn native_search_handler(
         para_category: None,
         date_range: None,
         include_reasons: true,
+            include_recency: false,
     };
     let results = state.search.search(&req.query, &opts);
     Ok(Json(serde_json::json!({

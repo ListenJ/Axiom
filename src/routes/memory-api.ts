@@ -7,6 +7,9 @@
 import type { RouteContext, RouteHandler } from "./types.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { getSessionMessages } from "../db/session-store.js";
+import { getSessionLineage, searchSessionLineage } from "../db/session-lineage.js";
+import { getTokenTracker } from "../router/token-tracker.js";
 
 // ===== Conversation History (Server-side persistence) =====
 
@@ -73,15 +76,17 @@ export async function handleListSessions(ctx: RouteContext): Promise<Response | 
   try {
     const sessions = ctx.db.query(
       `SELECT 
-         session_id,
+         c.session_id,
+         COALESCE(s.title, '') as title,
          COUNT(*) as message_count,
-         SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) as user_messages,
-         SUM(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as assistant_messages,
-         SUM(tokens_used) as total_tokens,
-         MIN(created_at) as started_at,
-         MAX(created_at) as last_active
-       FROM conversations 
-       GROUP BY session_id 
+         SUM(CASE WHEN c.role = 'user' THEN 1 ELSE 0 END) as user_messages,
+         SUM(CASE WHEN c.role = 'assistant' THEN 1 ELSE 0 END) as assistant_messages,
+         SUM(c.tokens_used) as total_tokens,
+         MIN(c.created_at) as started_at,
+         MAX(c.created_at) as last_active
+       FROM conversations c
+       LEFT JOIN chat_sessions s ON s.session_id = c.session_id
+       GROUP BY c.session_id, s.title
        ORDER BY last_active DESC
        LIMIT 100`
     ).all();
@@ -89,6 +94,69 @@ export async function handleListSessions(ctx: RouteContext): Promise<Response | 
   } catch (err) {
     logger.error("Failed to list sessions", err as Error);
     return ctx.jsonResponse({ error: "Failed to list sessions" }, 500, ctx.baseHeaders);
+  }
+}
+
+/**
+ * PATCH /chat/sessions/:id — 重命名会话（持久化到 chat_sessions 表，upsert）
+ */
+export async function handleRenameSession(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/chat/sessions" && !ctx.url.pathname.startsWith("/chat/sessions/")) return null;
+  if (ctx.req.method !== "PATCH") return null;
+
+  const sessionId = ctx.url.pathname.replace("/chat/sessions/", "");
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+
+  const body = (await ctx.req.json().catch(() => ({}))) as { title?: unknown };
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    return ctx.jsonResponse({ error: "title is required" }, 400, ctx.baseHeaders);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    ctx.db.query(
+      `INSERT INTO chat_sessions (session_id, title, created_at, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (session_id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at`
+    ).run(sessionId, title, now, now);
+    return ctx.jsonResponse({ ok: true, sessionId, title }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to rename session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to rename session" }, 500, ctx.baseHeaders);
+  }
+}
+
+/**
+ * DELETE /chat/sessions/:id — 删除会话（chat_sessions 元数据 + conversations 消息）
+ * 破坏性操作：需一次性确认码（x-confirmation-id header，见 confirmation.ts）
+ */
+export async function handleDeleteSession(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/chat/sessions" && !ctx.url.pathname.startsWith("/chat/sessions/")) return null;
+  if (ctx.req.method !== "DELETE") return null;
+
+  const sessionId = ctx.url.pathname.replace("/chat/sessions/", "");
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+
+  const { requireHttpConfirmation } = await import("./confirmation.js");
+  const confirmErr = requireHttpConfirmation(ctx, "chat:session-delete");
+  if (confirmErr) return confirmErr;
+
+  try {
+    ctx.db.query("DELETE FROM chat_sessions WHERE session_id = ?").run(sessionId);
+    const removed = ctx.db.query("DELETE FROM conversations WHERE session_id = ?").run(sessionId);
+    return ctx.jsonResponse(
+      { ok: true, sessionId, removedMessages: Number(removed.changes) },
+      200,
+      ctx.baseHeaders,
+    );
+  } catch (err) {
+    logger.error("Failed to delete session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to delete session" }, 500, ctx.baseHeaders);
   }
 }
 
@@ -104,12 +172,12 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
   const limit = Math.min(parseInt(ctx.url.searchParams.get("limit") || "20", 10), 100);
 
   try {
-    const results: any = { knowledge: [], entities: [], notes: [] };
+    const results: { knowledge: unknown[]; entities: unknown[]; notes: unknown[] } = { knowledge: [], entities: [], notes: [] };
 
     // Search knowledge table
     if (!type || type === "knowledge") {
       let sql = `SELECT id, tier, topic_key as title, content, confidence, access_count, created_at FROM knowledge WHERE 1=1`;
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       if (query) { sql += ` AND (topic_key LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (tier) { sql += ` AND tier = ?`; params.push(tier); }
       sql += ` ORDER BY confidence DESC, access_count DESC LIMIT ?`;
@@ -120,7 +188,7 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
     // Search entities (knowledge graph)
     if (!type || type === "entity") {
       let sql = `SELECT id, name, type, properties, created_at FROM entities WHERE 1=1`;
-      const params: any[] = [];
+      const params: (string | number)[] = [];
       if (query) { sql += ` AND (name LIKE ? OR properties LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
       if (type && type !== "entity") { sql += ` AND type = ?`; params.push(type); }
       sql += ` ORDER BY name LIMIT ?`;
@@ -128,15 +196,15 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
       results.entities = ctx.db.query(sql).all(...params);
     }
 
-    // Search vault notes (cross-database: axiom-memory.db)
+    // Search vault notes（单一知识库：直接读主库 memory_notes）
     if (!type || type === "note") {
       try {
         const { Database } = await import("bun:sqlite");
-        const memDb = new Database("./axiom-memory.db", { readonly: true });
-        let sql = `SELECT id, path, title, excerpt, score FROM memory_notes WHERE 1=1`;
-        const params: any[] = [];
+        const memDb = new Database(readString("DATABASE_PATH", "./data/agent.db"), { readonly: true });
+        let sql = `SELECT id, path, title, excerpt, confidence FROM memory_notes WHERE 1=1`;
+        const params: (string | number)[] = [];
         if (query) { sql += ` AND (title LIKE ? OR content LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
-        sql += ` ORDER BY score DESC LIMIT ?`;
+        sql += ` ORDER BY confidence DESC LIMIT ?`;
         params.push(limit);
         results.notes = memDb.query(sql).all(...params);
         memDb.close();
@@ -274,7 +342,7 @@ export async function handleListTasks(ctx: RouteContext): Promise<Response | nul
 
   try {
     let sql = `SELECT id, title, status, priority, parent_task_id, context_summary, result_summary, created_at, updated_at FROM tasks WHERE 1=1`;
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     if (status) { sql += ` AND status = ?`; params.push(status); }
     sql += ` ORDER BY priority DESC, updated_at DESC LIMIT ?`;
     params.push(limit);
@@ -288,28 +356,82 @@ export async function handleListTasks(ctx: RouteContext): Promise<Response | nul
 
 // ===== Model Usage Stats =====
 
-/** GET /memory/usage — Model usage statistics */
+/**
+ * GET /memory/usage — Model usage statistics
+ * 改接 token-tracker（实时 token_usage 库，含 cost_usd 峰谷/直连价成本）；
+ * 旧 model_usage 死表不再读取。返回形状保持前端兼容。
+ */
 export async function handleModelUsage(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/memory/usage" || ctx.req.method !== "GET") return null;
 
   const days = parseInt(ctx.url.searchParams.get("days") || "7", 10);
   try {
-    const sinceEpoch = Math.floor(Date.now() / 1000) - (days * 86400);
-    const usage = ctx.db.query(
-      `SELECT provider, model_name, 
-              COUNT(*) as call_count,
-              SUM(tokens_input) as total_prompt_tokens,
-              SUM(tokens_output) as total_completion_tokens,
-              AVG(latency_ms) as avg_latency_ms,
-              SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count
-       FROM model_usage 
-       WHERE created_at > ?
-       GROUP BY provider, model_name
-       ORDER BY call_count DESC`
-    ).all(sinceEpoch);
+    const since = Date.now() - days * 86400 * 1000;
+    const stats = getTokenTracker().getStatsByModel({ since });
+    const usage = stats.map((m) => ({
+      provider: m.provider,
+      model_name: m.model,
+      call_count: m.totalCalls,
+      total_prompt_tokens: m.totalPromptTokens,
+      total_completion_tokens: m.totalCompletionTokens,
+      avg_latency_ms: Math.round(m.avgLatencyMs),
+      success_count: Math.round((m.successRate / 100) * m.totalCalls),
+      cost_usd: m.costUsd ?? 0,
+    }));
     return ctx.jsonResponse({ usage, days }, 200, ctx.baseHeaders);
   } catch (err) {
     logger.error("Failed to get usage stats", err as Error);
     return ctx.jsonResponse({ error: "Failed to get usage stats" }, 500, ctx.baseHeaders);
   }
+}
+
+/** POST /chat/sessions/:id/archive — 将会话消息原生写入 Vault 日志 */
+export async function handleArchiveSession(ctx: RouteContext): Promise<Response | null> {
+  const prefix = "/chat/sessions/";
+  const suffix = "/archive";
+  if (!ctx.url.pathname.startsWith(prefix) || !ctx.url.pathname.endsWith(suffix) || ctx.req.method !== "POST") return null;
+  const sessionId = decodeURIComponent(ctx.url.pathname.slice(prefix.length, -suffix.length));
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+  if (!ctx.vault) {
+    return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+  }
+  try {
+    const rows = getSessionMessages(ctx.db, sessionId, 1000, 0);
+    const vaultPath = await ctx.vault.writeConversationLog(
+      sessionId,
+      rows.map((r) => ({
+        role: r.role,
+        content: r.content,
+        timestamp: new Date(r.created_at * 1000).toISOString(),
+      })),
+    );
+    return ctx.jsonResponse({ ok: true, sessionId, vaultPath, archivedMessages: rows.length }, 200, ctx.baseHeaders);
+  } catch (err) {
+    logger.error("Failed to archive session", err as Error);
+    return ctx.jsonResponse({ error: "Failed to archive session" }, 500, ctx.baseHeaders);
+  }
+}
+
+/** GET /memory/session-search?q=X — 轻量搜索会话摘要与 lineage 元数据 */
+export async function handleSessionSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/memory/session-search" || ctx.req.method !== "GET") return null;
+  const query = ctx.url.searchParams.get("q") ?? "";
+  const limit = parseInt(ctx.url.searchParams.get("limit") || "20", 10);
+  const results = searchSessionLineage(ctx.db, query, limit);
+  return ctx.jsonResponse({ results, count: results.length }, 200, ctx.baseHeaders);
+}
+
+/** GET /chat/sessions/:id/lineage — 返回祖先/后代会话谱系 */
+export async function handleSessionLineage(ctx: RouteContext): Promise<Response | null> {
+  const prefix = "/chat/sessions/";
+  const suffix = "/lineage";
+  if (!ctx.url.pathname.startsWith(prefix) || !ctx.url.pathname.endsWith(suffix) || ctx.req.method !== "GET") return null;
+  const sessionId = decodeURIComponent(ctx.url.pathname.slice(prefix.length, -suffix.length));
+  if (!sessionId) {
+    return ctx.jsonResponse({ error: "session id required" }, 400, ctx.baseHeaders);
+  }
+  const lineage = getSessionLineage(ctx.db, sessionId);
+  return ctx.jsonResponse({ sessionId, lineage }, 200, ctx.baseHeaders);
 }

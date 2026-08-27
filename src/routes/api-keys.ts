@@ -20,37 +20,19 @@ import {
   setApiKeyOverride,
   clearApiKeyOverride,
   isKnownProvider,
+  getEffectiveApiKey,
+  getEffectiveBaseURL,
+  testProviderConnection,
 } from "../utils/api-key-store.js";
 import {
   saveApiKeyOverride,
   deleteApiKeyOverride,
 } from "../utils/api-key-persistence.js";
-import { readString } from "../utils/env.js";
+import { requireAuthToken, auditSuccess } from "./route-auth.js";
 import { logger } from "../utils/logger.js";
 
 /** Minimum API key length for validation */
 const MIN_API_KEY_LENGTH = 8;
-
-function requireAuth(ctx: RouteContext): Response | null {
-  const token = readString("AXIOM_AUTH_TOKEN");
-  if (!token) {
-    // Fail closed: if the operator hasn't configured a token, refuse all calls.
-    return ctx.jsonResponse(
-      { error: "Server auth not configured (AXIOM_AUTH_TOKEN missing)" },
-      503,
-      ctx.baseHeaders
-    );
-  }
-
-  const provided =
-    ctx.req.headers.get("x-api-key") ||
-    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-
-  if (provided !== token) {
-    return ctx.jsonResponse({ error: "Unauthorized" }, 401, ctx.baseHeaders);
-  }
-  return null;
-}
 
 /** Validate baseURL format if provided */
 function isValidBaseURL(url: string | undefined): boolean {
@@ -66,9 +48,42 @@ function isValidBaseURL(url: string | undefined): boolean {
 export async function handleApiKeys(ctx: RouteContext): Promise<Response | null> {
   const path = ctx.url.pathname;
 
+  // 仅 /api-keys 路由需要二次认证；非该前缀的请求直接放行（原实现无条件 auth，导致任何未匹配路径（如 /search 导航）到达这里都 401）
+  if (!path.startsWith("/api-keys")) return null;
+
   // All /api-keys routes require authentication
-  const authErr = requireAuth(ctx);
+  const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
+
+  // POST /api-keys/:provider/test — 测试 provider API Key 连通性
+  const testMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)\/test$/);
+  if (testMatch && ctx.req.method === "POST") {
+    const provider = testMatch[1];
+    if (!isKnownProvider(provider)) {
+      return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
+    }
+    const status = listProviderStatus().find((p) => p.provider === provider);
+    if (!status) {
+      return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
+    }
+    const apiKey = getEffectiveApiKey(provider, status.apiKeyEnv);
+    if (!apiKey) {
+      return ctx.jsonResponse(
+        { ok: false, error: `未配置 ${status.apiKeyEnv}` },
+        400,
+        ctx.baseHeaders
+      );
+    }
+    const result = await testProviderConnection(
+      apiKey,
+      getEffectiveBaseURL(provider, status.apiKeyEnv, status.baseURL),
+      status.adapter
+    );
+    if (result.ok) {
+      auditSuccess(ctx, "apikey.test", provider, { ok: true });
+    }
+    return ctx.jsonResponse(result, result.ok ? 200 : 502, ctx.baseHeaders);
+  }
 
   // GET /api-keys — list all
   if (path === "/api-keys" && ctx.req.method === "GET") {
@@ -118,6 +133,7 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
       saveApiKeyOverride(ctx.db, provider, apiKey, baseURL);
       setApiKeyOverride(provider, apiKey, baseURL);
       logger.info(`[api-keys] Set override for ${provider}`);
+      auditSuccess(ctx, "apikey.set", provider);
       return ctx.jsonResponse(
         { success: true, provider, message: `Runtime override set for ${provider}` },
         200,
@@ -155,12 +171,18 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
     // Delete from DB first, then clear memory — ensures consistency
     deleteApiKeyOverride(ctx.db, provider);
     clearApiKeyOverride(provider);
+    auditSuccess(ctx, "apikey.delete", provider);
     return ctx.jsonResponse(
       { success: true, provider, message: `Runtime override cleared for ${provider}` },
       200,
       ctx.baseHeaders
     );
   }
+
+  // POST /api-keys/:provider/test — 测试 API Key 连通性
+  // NOTE: 此端点依赖 api-key-store.ts 的 testProviderConnection（WIP，未提交）。
+  // 待 api-key-store.ts 的 provider 适配/区域系统合并后，在此处恢复端点实现。
+  // 届时同步恢复 auditSuccess(ctx, "apikey.test", provider, { ok: result.ok }) 调用。
 
   return null;
 }

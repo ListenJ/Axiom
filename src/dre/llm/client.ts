@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DRE LLM 客户端
  *
  * 特性:
@@ -10,6 +10,10 @@
  */
 
 import { logger } from "../../utils/logger.js";
+import { getModelOutputStore } from "../../utils/model-output-store.js";
+import { llmCache, llmCacheKey } from "../../utils/cache.js";
+import { clampMaxTokens, getResourceBudgetManager } from "../system-resource.js";
+import { DRELLMError } from "../errors.js";
 
 /** 重试配置 */
 export interface RetryConfig {
@@ -50,6 +54,8 @@ export interface LLMConfig {
   timeout?: number;         // 默认 120000ms
   retry?: Partial<RetryConfig>;     // 重试配置
   circuitBreaker?: Partial<CircuitBreakerConfig>; // 熔断器配置
+  chatTemplateKwargs?: Record<string, unknown>; // 透传 llama.cpp chat_template_kwargs (如 { enable_thinking: false })
+  transport?: "chat" | "completion"; // 默认 "chat"; "completion" 走 llama.cpp 原生 /completion (绕过 chat template, 用于思考无法关闭的模型)
 }
 
 /** LLM 响应 */
@@ -149,6 +155,21 @@ export class LLMClient {
     return this.getCircuitState() !== "open";
   }
 
+  /**
+   * 审计 H-3（2026-08-24）：所有 LLM 调用的 maxTokens 唯一钳制点。
+   * 此前 recommendedMaxTokens 只写日志、各调用方硬编码 maxTokens，
+   * 请求可超 llama.cpp --ctx-size。预算不可用时原样放行（不臆造上限）。
+   */
+  private effectiveMaxTokens(requested: number | undefined): number {
+    const req = requested ?? this.config.maxTokens ?? 1024;
+    try {
+      const rec = getResourceBudgetManager().getStatus().recommendedMaxTokens;
+      return clampMaxTokens(req, rec > 0 ? rec : undefined);
+    } catch {
+      return req;
+    }
+  }
+
   /** 记录成功 */
   private recordSuccess(): void {
     this.stats.successCount++;
@@ -204,6 +225,30 @@ export class LLMClient {
   }
 
   /**
+   * 审计整改 D1（2026-08-25）：资源预算不可用时禁止直发本地 llama.cpp。
+   * canRunLocal=false 时抛 LLM_ERROR(retriable=false)，避免对本地推理服务
+   * 的无效请求；预算管理器自身异常时放行（与 effectiveMaxTokens 容错一致）。
+   */
+  private assertBudgetAvailable(): void {
+    try {
+      const status = getResourceBudgetManager().getStatus();
+      if (!status.canRunLocal) {
+        throw new DRELLMError(
+          `insufficient resources for local inference: ${status.resource.availableMemory}MB available, ` +
+            `need ${status.modelMemoryMB + status.safetyMarginMB}MB (model=${status.modelMemoryMB}MB + safety=${status.safetyMarginMB}MB)`,
+          false,
+          {
+            availableMemoryMB: status.resource.availableMemory,
+            requiredMB: status.modelMemoryMB + status.safetyMarginMB,
+          }
+        );
+      }
+    } catch (err) {
+      if (err instanceof DRELLMError) throw err;
+    }
+  }
+
+  /**
    * 标准生成 (带重试 + 熔断)
    */
   async generate(prompt: string, options?: {
@@ -211,7 +256,11 @@ export class LLMClient {
     maxTokens?: number;
     temperature?: number;
     stop?: string[];
+    answerPrefix?: string;  // completion 模式的前缀引导 (如 '{"risk":"'), 返回内容会自动拼回该前缀
   }): Promise<LLMResponse> {
+    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
+    this.assertBudgetAvailable();
+
     // 熔断器检查
     if (!this.canExecute()) {
       throw new Error(
@@ -221,21 +270,76 @@ export class LLMClient {
     }
 
     this.stats.totalCalls++;
-    const messages = [];
-    if (options?.system) {
-      messages.push({ role: "system", content: options.system });
-    }
-    messages.push({ role: "user", content: prompt });
+    const startTime = Date.now();
 
-    const body = JSON.stringify({
-      model: this.config.model,
-      messages,
-      temperature: options?.temperature ?? this.config.temperature,
-      top_k: this.config.topK,
-      max_tokens: options?.maxTokens ?? this.config.maxTokens,
-      seed: this.config.seed,
-      stop: options?.stop,
-    });
+    // LLM cache: for deterministic calls (temperature === 0, which is the
+    // LLMClient default), check cache before hitting the network. Same prompt
+    // + model + temperature=0 always yields the same output, so caching is
+    // semantically safe and maximizes hit rate.
+    const effectiveTemp = options?.temperature ?? this.config.temperature ?? 0;
+    if (effectiveTemp === 0) {
+      const messages = options?.system
+        ? [{ role: "system", content: options.system }, { role: "user", content: prompt }]
+        : [{ role: "user", content: prompt }];
+      const cKey = llmCacheKey({
+        provider: this.config.baseUrl,
+        model: this.config.model,
+        messages,
+        temperature: 0,
+      });
+      const cached = await llmCache.get(cKey);
+      if (cached) {
+        this.recordSuccess(); // cache hit counts as success for circuit breaker
+        logger.debug("[LLM] Cache HIT", { model: this.config.model });
+        return {
+          content: cached.content ?? "",
+          model: cached.model,
+          usage: {
+            promptTokens: cached.usage?.prompt_tokens ?? 0,
+            completionTokens: cached.usage?.completion_tokens ?? 0,
+          },
+          finishReason: cached.finishReason ?? "stop",
+        };
+      }
+    }
+
+    const useRawCompletion = this.config.transport === "completion";
+
+    let url: string;
+    let body: string;
+    if (useRawCompletion) {
+      // 原生 /completion 模式：system+user 拍平为单段 prompt, "Answer:" 引导直接作答
+      // (用于 chat template 强制思考且无法关闭的模型, 如 Qwopus3.5-2B)
+      const flat = options?.system ? `${options.system}\n\n${prompt}` : prompt;
+      url = `${this.config.baseUrl}/completion`;
+      body = JSON.stringify({
+        prompt: `${flat}\nAnswer: ${options?.answerPrefix ?? ""}`,
+        n_predict: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
+        temperature: options?.temperature ?? this.config.temperature,
+        top_k: this.config.topK,
+        seed: this.config.seed,
+        cache_prompt: true,
+        stop: options?.stop ?? ["\n\n"],
+      });
+    } else {
+      const messages = [];
+      if (options?.system) {
+        messages.push({ role: "system", content: options.system });
+      }
+      messages.push({ role: "user", content: prompt });
+
+      url = `${this.config.baseUrl}/v1/chat/completions`;
+      body = JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: options?.temperature ?? this.config.temperature,
+        top_k: this.config.topK,
+        max_tokens: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
+        seed: this.config.seed,
+        stop: options?.stop,
+        ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
+      });
+    }
 
     const headers = {
       "Content-Type": "application/json",
@@ -247,7 +351,7 @@ export class LLMClient {
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
+        const response = await fetch(url, {
           method: "POST",
           headers,
           body,
@@ -272,9 +376,32 @@ export class LLMClient {
             await this.backoff(attempt);
             continue;
           }
-          // 不可重试的 HTTP 错误 (4xx 除 429)
-          this.recordFailure();
+          // 不可重试的 HTTP 错误 (4xx 除 429) 或重试已耗尽
+          // recordFailure() 由循环后的统一路径调用，此处不再重复计数
           throw err;
+        }
+
+        this.recordSuccess();
+        if (useRawCompletion) {
+          const raw = await response.json() as {
+            content: string;
+            stop: boolean;
+            model: string;
+            tokens_evaluated?: number;
+            tokens_predicted?: number;
+          };
+          return {
+            // 剥离可能残留的 <think> 块 (2B 类模型在补全模式也会思考);
+            // answerPrefix 引导词拼回 (模型从前缀处续写, 完整输出 = 前缀 + 续写)
+            content: (options?.answerPrefix ?? "") +
+              (raw.content ?? "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim(),
+            model: raw.model ?? this.config.model,
+            usage: {
+              promptTokens: raw.tokens_evaluated ?? 0,
+              completionTokens: raw.tokens_predicted ?? 0,
+            },
+            finishReason: raw.stop ? "stop" : "length",
+          };
         }
 
         const data = await response.json() as {
@@ -286,7 +413,50 @@ export class LLMClient {
           usage: { prompt_tokens: number; completion_tokens: number };
         };
 
-        this.recordSuccess();
+        // Persist model output to disk (non-blocking)
+        getModelOutputStore().persist({
+          provider: this.config.baseUrl,
+          model: this.config.model,
+          prompt,
+          system: options?.system,
+          temperature: options?.temperature ?? this.config.temperature,
+          latencyMs: Date.now() - startTime,
+          success: true,
+          response: {
+            content: data.choices[0].message.content,
+            usage: {
+              prompt_tokens: data.usage.prompt_tokens,
+              completion_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+            },
+            finishReason: data.choices[0].finish_reason,
+          },
+        });
+
+        // Cache successful deterministic response
+        if (effectiveTemp === 0) {
+          const messages = options?.system
+            ? [{ role: "system", content: options.system }, { role: "user", content: prompt }]
+            : [{ role: "user", content: prompt }];
+          const cKey = llmCacheKey({
+            provider: this.config.baseUrl,
+            model: this.config.model,
+            messages,
+            temperature: 0,
+          });
+          llmCache.set(cKey, {
+            content: data.choices[0].message.content,
+            model: data.model,
+            provider: this.config.baseUrl,
+            usage: {
+              prompt_tokens: data.usage.prompt_tokens,
+              completion_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+            },
+            finishReason: data.choices[0].finish_reason,
+          });
+        }
+
         return {
           content: data.choices[0].message.content,
           model: data.model,
@@ -318,6 +488,19 @@ export class LLMClient {
     }
 
     this.recordFailure();
+
+    // Persist failed call for observability
+    getModelOutputStore().persist({
+      provider: this.config.baseUrl,
+      model: this.config.model,
+      prompt,
+      system: options?.system,
+      temperature: options?.temperature ?? this.config.temperature,
+      latencyMs: Date.now() - startTime,
+      success: false,
+      error: lastError ?? new Error("LLM generate failed after all retries"),
+    });
+
     throw lastError ?? new Error("LLM generate failed after all retries");
   }
 
@@ -329,6 +512,9 @@ export class LLMClient {
     maxTokens?: number;
     temperature?: number;
   }): AsyncGenerator<string> {
+    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
+    this.assertBudgetAvailable();
+
     const messages = [];
 
     if (options?.system) {
@@ -348,9 +534,10 @@ export class LLMClient {
         messages,
         temperature: options?.temperature ?? this.config.temperature,
         top_k: this.config.topK,
-        max_tokens: options?.maxTokens ?? this.config.maxTokens,
+        max_tokens: this.effectiveMaxTokens(options?.maxTokens ?? this.config.maxTokens),
         seed: this.config.seed,
         stream: true,
+        ...(this.config.chatTemplateKwargs ? { chat_template_kwargs: this.config.chatTemplateKwargs } : {}),
       }),
       signal: AbortSignal.timeout(this.config.timeout!),
     });
@@ -411,6 +598,7 @@ export class LLMClient {
   ): Promise<Record<string, unknown>> {
     const n = options?.n ?? 3;
     const candidates: Array<Record<string, unknown>> = [];
+    let hasCallError = false;
 
     for (let i = 0; i < n; i++) {
       try {
@@ -426,7 +614,10 @@ export class LLMClient {
           candidates.push(parsed);
         }
       } catch (err) {
-        logger.debug("[LLM] Constrained generation parse error, retrying", { error: (err as Error).message });
+        // 区分“LLM 调用/解析失败”与“返回内容不符合 schema”：调用失败应让上游可感知，
+        // 而不是把服务不可用误判成“真实 reject”。
+        hasCallError = true;
+        logger.debug("[LLM] Constrained generation attempt failed", { error: (err as Error).message });
         continue;
       }
     }
@@ -437,7 +628,7 @@ export class LLMClient {
         confidence: 0,
         chain: [],
         evidence_refs: [],
-        reason: "schema_validation_failed",
+        reason: hasCallError ? "llm_unavailable" : "schema_validation_failed",
       };
     }
 
@@ -531,7 +722,11 @@ export class LLMClient {
       }
     }
 
-    // 返回第一个
-    return maxGroup[0];
+    // 返回第一个；若候选存在分歧（每组只出现一次），附加 modeAmbiguous 标记
+    const chosen = maxGroup[0];
+    if (maxCount === 1 && candidates.length > 1) {
+      return { ...chosen, modeAmbiguous: true };
+    }
+    return chosen;
   }
 }

@@ -2,40 +2,32 @@
  * Search routes: vault search, web search, enhanced search, suggestions, history
  */
 import { logger } from "../utils/logger.js";
+import { isSafeUrl } from "../utils/url-safety.js";
 import type { RouteContext } from "./types.js";
+import { withTimeout } from "../utils/resilience.js";
+import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
 
-// SSRF protection: block internal/private IPs and dangerous protocols
-const BLOCKED_PROTOCOLS = ["file:", "ftp:", "gopher:", "dict:"];
-const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "169.254.169.254", "metadata.google.internal"];
-
-function isSafeUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    if (BLOCKED_PROTOCOLS.some(p => parsed.protocol === p)) return false;
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    const hostname = parsed.hostname.toLowerCase();
-    if (BLOCKED_HOSTS.some(h => hostname === h || hostname.endsWith("." + h))) return false;
-    // Block private IP ranges
-    if (/^10\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^192\.168\./.test(hostname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
+// SSRF 防护已抽至共享模块 utils/url-safety.ts（含重定向逐跳校验，见 proxy-fetch ssrfGuard）
 
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
     const query = ctx.url.searchParams.get("q");
-    if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+    // /search 同时是前端页面路由：无 q 且浏览器导航（Accept: text/html）→ 返回 null 让 SPA 回退；API 无 q → 400
+    if (!query) {
+      const accept = ctx.req.headers.get("accept") ?? "";
+      if (accept.includes("text/html")) return null;
+      return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+    }
     if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
 
     const types = ctx.url.searchParams.get("types")?.split(",").filter(Boolean);
     const tags = ctx.url.searchParams.get("tags")?.split(",").filter(Boolean);
     const para = ctx.url.searchParams.get("para") || undefined;
-    const limit = Number(ctx.url.searchParams.get("limit")) || 20;
+    // O5：limit 钳制 ≤100，防止超大 limit 拖垮 vault 检索
+    const limit = Math.min(Number(ctx.url.searchParams.get("limit")) || 20, 100);
     const results = ctx.vault.search(query, { types, tags, paraCategory: para, limit });
     return ctx.jsonResponse({ query, strategy: "deterministic", results }, 200, ctx.baseHeaders);
   }
@@ -51,11 +43,14 @@ export async function handleWebSearch(ctx: RouteContext): Promise<Response | nul
     const { wsManager } = await import("../utils/websocket.js");
 
     const engines = ctx.url.searchParams.get("engines")?.split(",") || undefined;
-    const num = Number(ctx.url.searchParams.get("num")) || 10;
+    // O5：num 钳制 ≤30，防止模型可控的 engines×num 叠加击穿上下文预算
+    const num = Math.min(Number(ctx.url.searchParams.get("num")) || 10, 30);
     const cacheKey = `${query}::${engines?.join(",") || "default"}::${num}`;
-    const results = await searchCache.getOrSet(cacheKey, async () => {
+    const rawResults = await searchCache.getOrSet(cacheKey, async () => {
       return ctx.pipeline.searchMulti(query, { engines, num });
     }, 10 * 60 * 1000) as SearchEngineResult[];
+    // O5：结果过确定性消毒（截断 title/snippet + 总条数上限）
+    const results = sanitizeSearchResultsForContext(rawResults);
 
     ctx.db.run(`INSERT INTO search_history (query, query_hash, engines, results_count, created_at) VALUES (?, ?, ?, ?, ?)`,
       [query, String(Bun.hash(query)), engines?.join(",") || "", results.length, Date.now()]);
@@ -185,8 +180,13 @@ export async function handleWebFetch(ctx: RouteContext): Promise<Response | null
 export async function handleLightpandaStatus(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/lightpanda/status" || ctx.req.method !== "GET") return null;
   const { getLightpandaStatus } = await import("../crawl/lightpanda-client.js");
-  const status = await getLightpandaStatus();
-  return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+  try {
+    // 有界超时：状态检查不允许无限等待底层二进制/端口探测
+    const status = await withTimeout(getLightpandaStatus(), 3000);
+    return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+  } catch (e) {
+    return ctx.jsonResponse({ available: false, error: e instanceof Error ? e.message : String(e) }, 200, ctx.baseHeaders);
+  }
 }
 
 /** GET /direct-search?q=X&engines=google,bing -- Direct search without API keys */
@@ -194,6 +194,10 @@ export async function handleDirectSearch(ctx: RouteContext): Promise<Response | 
   if (ctx.url.pathname !== "/direct-search" || ctx.req.method !== "GET") return null;
   const query = ctx.url.searchParams.get("q");
   if (!query) return ctx.jsonResponse({ error: "Missing q parameter" }, 400, ctx.baseHeaders);
+  // SSRF 防护：若查询本身是 URL（如用户直接传 URL），需校验私网/整数IP
+  if (/^https?:\/\//i.test(query) && !isSafeUrl(query)) {
+    return ctx.jsonResponse({ error: "URL blocked by security policy" }, 403, ctx.baseHeaders);
+  }
   const engines = ctx.url.searchParams.get("engines")?.split(",") || ["google", "bing"];
   const num = parseInt(ctx.url.searchParams.get("num") || "10", 10);
   const { directMultiSearch } = await import("../crawl/lightpanda-search.js");

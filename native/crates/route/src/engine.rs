@@ -2,7 +2,6 @@ use crate::trie::MethodRouter;
 use crate::cache::RouteCache;
 use dashmap::DashMap;
 use oc_shared::types::{PerfMetrics, RouteRecord};
-use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -138,13 +137,17 @@ impl RouterEngine {
     }
 
     fn normalize_endpoint(path: &str) -> String {
-        let mut normalized = path.to_string();
-        // Replace IDs with :id
-        for part in normalized.split('/').collect::<Vec<_>>() {
+        let parts = path.split('/').collect::<Vec<_>>();
+        let normalized: Vec<String> = parts
+            .iter()
+            .map(|part| {
             if part.parse::<u64>().is_ok() || part.len() == 36 && part.contains('-') {
-                normalized = normalized.replace(part, ":id");
-            }
-        }
-        normalized
+                    ":id".to_string()
+                } else {
+                    (*part).to_string()
+                }
+            })
+            .collect();
+        normalized.join("/")
     }
 }

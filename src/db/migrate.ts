@@ -8,10 +8,25 @@ import { readString } from "../utils/env.js";
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
+try {
+  db.run(`PRAGMA journal_mode=WAL`);
+  db.run(`PRAGMA busy_timeout=5000`);
+} catch { /* ignore if PRAGMA unsupported in this env */ }
 
 logger.info("[数据库] Initializing database...");
 
 // ========== 核心表 ==========
+
+// 会话元数据表（会话标题持久化；与 conversations 消息表按 session_id 关联）
+db.run(`
+  CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] chat_sessions");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS conversations (
@@ -28,6 +43,44 @@ db.run(`
   )
 `);
 logger.info("[完成] conversations");
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS tool_invocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    args_hash TEXT NOT NULL,
+    result_hash TEXT,
+    args_preview TEXT,
+    result_ref TEXT,
+    status TEXT NOT NULL,
+    latency_ms INTEGER,
+    output_bytes INTEGER,
+    created_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] tool_invocations");
+
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_session ON tool_invocations(session_id, created_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_tool ON tool_invocations(tool, created_at DESC)`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS session_lineage (
+    session_id TEXT PRIMARY KEY,
+    parent_session_id TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    message_count INTEGER NOT NULL DEFAULT 0,
+    token_estimate INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS session_lineage_fts USING fts5(session_id UNINDEXED, title, summary, tokenize = 'unicode61')`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_updated ON session_lineage(updated_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_parent ON session_lineage(parent_session_id)`);
+logger.info("[完成] session_lineage");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS tasks (

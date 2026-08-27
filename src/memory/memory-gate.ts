@@ -10,6 +10,11 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { judgeSignificanceWithEdge } from "./edge-assist.js";
+import type { LLMClient } from "../dre/llm/client.js";
+
+/** 边缘裁决的灰区下限：confidence ∈ [GRAY_ZONE_FLOOR, minConfidence) 时才咨询边缘模型 */
+const GRAY_ZONE_FLOOR = 0.35;
 
 /** 写入决策结果 */
 export interface WriteDecision {
@@ -250,6 +255,49 @@ export class MemoryGate {
       confidence,
       category: "low-value",
     };
+  }
+
+  /**
+   * 边缘增强版写入决策（异步）—— 灰区由边缘小模型裁决
+   *
+   * 流程：同步规则 fast path（shouldWrite）→
+   *   规则通过 → 直接通过（不调模型）
+   *   规则拒绝但 confidence ∈ [0.35, minConfidence) 灰区 → 边缘裁决
+   *     边缘判定值得 → 升级为 medium-value 写入
+   *     边缘判定不值得 / 不可用 → 维持规则结果（fail-open 到规则）
+   *   远低于阈值（< 0.35）→ 直接拒绝（不调模型）
+   *
+   * 同步 shouldWrite 保持不变，供不需要边缘增强的调用方使用。
+   */
+  async shouldWriteWithEdge(
+    response: string,
+    userMessage: string,
+    ctx: SignificanceContext,
+    client?: Pick<LLMClient, "generate">,
+  ): Promise<WriteDecision> {
+    const ruleDecision = this.shouldWrite(response, userMessage, ctx);
+
+    // 非灰区（通过 / 远低于阈值 / 基础检查失败）→ 直接返回规则结果
+    if (ruleDecision.shouldWrite || ruleDecision.confidence < GRAY_ZONE_FLOOR || ruleDecision.category === "skip") {
+      return ruleDecision;
+    }
+
+    // 灰区：咨询边缘模型
+    const edgeVerdict = await judgeSignificanceWithEdge(userMessage, response, client);
+    if (edgeVerdict?.worth === true) {
+      logger.info("[MemoryGate] Gray-zone write approved by edge model", {
+        ruleConfidence: ruleDecision.confidence,
+        edgeReason: edgeVerdict.reason,
+      });
+      return {
+        shouldWrite: true,
+        reason: `${ruleDecision.reason}; edge-approved: ${edgeVerdict.reason ?? "worth remembering"}`,
+        confidence: this.config.minConfidence,
+        category: "medium-value",
+      };
+    }
+
+    return ruleDecision;
   }
 
   /**

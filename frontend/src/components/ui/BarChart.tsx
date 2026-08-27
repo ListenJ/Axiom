@@ -48,7 +48,7 @@ export default function BarChart({
           <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
             <div className="relative w-full" style={{ height: '100%' }}>
               <div
-                className={`absolute bottom-0 left-0 right-0 rounded-t-sm ${COLOR_CLASSES[color]} transition-all duration-500 ease-out hover:opacity-80`}
+                className={`absolute bottom-0 left-0 right-0 rounded-t-sm ${COLOR_CLASSES[color]} transition-opacity duration-500 ease-out hover:opacity-80`}
                 style={{ height: `${Math.max(pct, 2)}%` }}
                 title={`${d.label}: ${d.value}`}
               />

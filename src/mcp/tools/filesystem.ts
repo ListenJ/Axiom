@@ -57,6 +57,21 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
       };
     }
 
+    // 安全（2026-07-26 审查修复）：沙箱内敏感区域拒绝访问。
+    // fs 工具沙箱根 = 仓库根，.env / 数据库 / git 元数据含密钥与运行状态，
+    // 不得经 agent 工具读取或改写。
+    const DENIED_SEGMENTS: Array<{ pattern: RegExp; label: string }> = [
+      { pattern: /(^|[\\/])\.env([\\/].*)?$|(^|[\\/])\.env\.[^\\/]+$/i, label: ".env 密钥文件" },
+      { pattern: /(^|[\\/])\.git([\\/]|$)/i, label: ".git 元数据" },
+      { pattern: /(^|[\\/])data[\\/][^\\/]*\.db(-\w+)?$/i, label: "运行时数据库" },
+      { pattern: /(^|[\\/])data[\\/]model-config\.json$/i, label: "模型密钥配置" },
+    ];
+    for (const { pattern, label } of DENIED_SEGMENTS) {
+      if (pattern.test(relative)) {
+        return { safe: false, error: `Path '${targetPath}' is in a denied area (${label}).` };
+      }
+    }
+
     // Check 3: resolve symlinks to prevent symlink-based traversal
     // A symlink within cwd could point outside cwd, bypassing the relative check above.
     // Only check if the path exists (writeFile to a new file won't exist yet).
@@ -70,20 +85,17 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
         };
       }
     } catch {
-      // Path doesn't exist yet (e.g., new file write) — parent directory check
-      const parentDir = path.dirname(resolved);
       try {
-        const realParent = fsSync.realpathSync(parentDir);
-        const parentRelative = path.relative(cwd, realParent);
-        if (parentRelative.startsWith("..") || parentRelative === ".." || path.isAbsolute(parentRelative)) {
+        const parent = path.dirname(resolved);
+        const realParent = fsSync.realpathSync(parent);
+        const realRelative = path.relative(cwd, path.join(realParent, path.basename(resolved)));
+        if (realRelative.startsWith("..") || realRelative === ".." || path.isAbsolute(realRelative)) {
           return {
             safe: false,
-            error: `Path '${targetPath}' parent directory resolves outside the working directory.`,
+            error: `Path '${targetPath}' parent directory resolves outside the working directory (symlink parent escape).`,
           };
         }
-      } catch {
-        // Parent doesn't exist either — allow (mkdir will create it within cwd)
-      }
+      } catch {}
     }
 
     return { safe: true };
@@ -139,7 +151,15 @@ export async function writeFile(
 
   try {
     const dir = path.dirname(resolved);
-    await fs.mkdir(dir, { recursive: true });
+    // 原子 mkdir -p + 捕获 EEXIST/竞态（H-03 TOCTOU 修复）
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch {}
+    // TOCTOU 重校验：mkdir 后再次解析真实路径，防止 check→mkdir 窗口的 symlink 抢占
+    const postSafety = isPathSafe(resolved);
+    if (!postSafety.safe) {
+      return { success: false, error: postSafety.error, path: filePath };
+    }
     if (options?.append) {
       await fs.appendFile(resolved, content, "utf-8");
     } else {
@@ -361,7 +381,18 @@ export async function moveFile(
 
   try {
     const dir = path.dirname(dstResolved);
-    await fs.mkdir(dir, { recursive: true });
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch {}
+    const postDstSafety = isPathSafe(dstResolved);
+    if (!postDstSafety.safe) {
+      return { success: false, error: postDstSafety.error, path: destination };
+    }
+    // 源在重命名前再次校验，防止源在 check 后被替换为外链
+    const postSrcSafety = isPathSafe(srcResolved);
+    if (!postSrcSafety.safe) {
+      return { success: false, error: postSrcSafety.error, path: source };
+    }
     await fs.rename(srcResolved, dstResolved);
     return { success: true, path: destination };
   } catch (err: unknown) {

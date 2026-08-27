@@ -28,6 +28,7 @@ import { ActorSystem } from "./actor/system.js";
 import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
 import { worldState } from "./runtime/world-state.js";
+import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from "./constraints.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
@@ -56,6 +57,8 @@ export interface DREConfig {
     apiKey?: string;
     model: string;
   };
+  /** L1 端口：云端降级调用器（组合根注入；未装配时云级不可用） */
+  cloudCaller?: import("./ports/cloud-caller.js").DreCloudCaller;
 }
 
 /**
@@ -152,6 +155,20 @@ export class DREngine {
     this.consciousness = new ConsciousnessStream({
       workingMemoryCapacity: config.workingMemoryCapacity ?? 16,
       episodicTTL: config.episodicTTL ?? 3600000,
+      // 决策钩子：向 mainLLM 发出精确约束（JSON schema + 枚举 + 数值边界）
+      // 网络失败/输出不合 schema → 抛出 → consciousnessStep 降级链真正生效
+      // （maxTokens 由 LLMClient.generate 统一经资源预算钳制，审计 H-3）
+      decide: async (observation: string) => {
+        const resp = await this.mainLLM.generate(observation, {
+          system: DRE_DECISION_SYSTEM,
+          maxTokens: 256,
+        });
+        let parsed: unknown; try { parsed = JSON.parse(resp.content); } catch (e) { throw new Error(`[DRE] LLM decision JSON 解析失败: ${(e as Error).message}`); }
+        if (!isDreDecision(parsed)) {
+          throw new Error("[DRE] LLM decision 不符合约束 schema");
+        }
+        return parsed;
+      },
     });
 
     // 注册反思事件
@@ -689,7 +706,11 @@ export class DREngine {
   }
 
   /**
-   * 云 API 降级: 通过 router.chat 调用云模型
+   * 云 API 降级: 直接使用 cloudFallback.baseUrl/model/apiKey 调用 OpenAI 兼容端点。
+   *
+   * 设计说明：cloudFallback 的三个字段（baseUrl/model/apiKey）是真实请求参数，
+   * 而非仅当布尔开关——若只靠主路由，DRE 就失去了自包含性，也无法在
+   * 主路由未配置对应 provider 时独立工作。调用方显式传入这些值，绕过模型路由。
    */
   private async cloudConsciousnessStep(input: {
     observation: string;
@@ -699,25 +720,26 @@ export class DREngine {
     shouldReflect: boolean;
     reflection?: ReflectionResult;
   }> {
-    const { router } = await import("../router/model-router.js");
-
-    const systemPrompt = `你是一个确定性推理引擎的意识流处理器。
-当前工作记忆中的观察内容如下。
-请根据观察内容做出决策，输出JSON格式:
-{"action": "observe|reflect|act", "content": "...", "confidence": 0.0-1.0}`;
-
-    const result = await router.chat("general-chat", [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: input.observation },
-    ]);
-
-    let decision: unknown;
-    try {
-      decision = JSON.parse(result.content || '{"action":"observe","content":"fallback"}');
-    } catch (err) {
-      logger.debug("[DRE] Cloud API response not JSON, using raw content", { error: (err as Error).message });
-      decision = { action: "observe", content: result.content || input.observation };
+    const fb = this.config.cloudFallback;
+    if (!fb?.apiKey) {
+      throw new Error("[DRE] cloudFallback 未配置 apiKey，无法执行云端降级");
     }
+    // L1 端口倒置：核心不再动态 import 上层 router，调用器由组合根注入
+    const caller = this.config.cloudCaller;
+    if (!caller) {
+      throw new Error("[DRE] cloudCaller 未装配（组合根未注入适配器），无法执行云端降级");
+    }
+
+    const result = await caller.call({
+      system: DRE_DECISION_SYSTEM,
+      user: input.observation,
+      timeoutMs: 30000,
+      temperature: 0,
+    });
+
+    // M11 审计修复：云端坏输出与本地同级 —— 抛错由降级链继续走 L3 规则，
+    // 不再静默合成 observe(0.5) 掩盖输出质量问题。
+    const decision = parseCloudDecisionOrThrow(result.content);
 
     return {
       decision,
@@ -775,3 +797,6 @@ export class DREngine {
     return { decision, shouldReflect, reflection };
   }
 }
+
+
+

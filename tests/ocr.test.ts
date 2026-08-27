@@ -8,56 +8,17 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { getOCREngine, terminateOCREngine, type OCROptions, type OCRResult } from "../src/ocr/engine.js";
+import { getOCREngine, terminateOCREngine, type OCRResult } from "../src/ocr/engine.js";
 import { postProcessOCR, exportDocument, type StructuredDocument } from "../src/ocr/post-processor.js";
 
 describe("OCR Engine", () => {
-  test("should get engine with default config", async () => {
-    // Skip if in CI or if Tesseract worker loading is slow
-    if (process.env.CI) {
-      expect(true).toBe(true);
-      return;
-    }
+  // CI 环境跳过（Tesseract worker 加载慢），本地实跑——不再以 expect(true) 假通过
+  const maybeTest = process.env.CI ? test.skip : test;
+  maybeTest("should get engine with default config", async () => {
     const engine = await getOCREngine();
     expect(engine).toBeDefined();
     await terminateOCREngine();
   }, 30000);
-
-  test("should accept language configuration", () => {
-    const opts: OCROptions = {
-      languages: ["chi_sim", "eng"],
-      confidenceThreshold: 60,
-    };
-    expect(opts.languages).toEqual(["chi_sim", "eng"]);
-    expect(opts.confidenceThreshold).toBe(60);
-  });
-
-  test("should create mock OCR result for testing", () => {
-    const mockResult: OCRResult = {
-      text: "Hello World\nThis is a test",
-      confidence: 95,
-      blocks: [
-        {
-          text: "Hello World",
-          confidence: 97,
-          bbox: { x0: 10, y0: 10, x1: 200, y1: 50 },
-          wordCount: 2,
-        },
-        {
-          text: "This is a test",
-          confidence: 93,
-          bbox: { x0: 10, y0: 60, x1: 250, y1: 100 },
-          wordCount: 4,
-        },
-      ],
-      language: "eng",
-      duration: 1200,
-    };
-
-    expect(mockResult.text).toBe("Hello World\nThis is a test");
-    expect(mockResult.confidence).toBe(95);
-    expect(mockResult.blocks).toHaveLength(2);
-  });
 });
 
 describe("OCR Post-Processor", () => {
@@ -173,37 +134,5 @@ describe("OCR Post-Processor", () => {
     });
 
     expect(structured.sections.length).toBeLessThanOrEqual(2);
-  });
-});
-
-describe("OCR Integration", () => {
-  test("should export pipeline work end-to-end", () => {
-    const pipeline = {
-      scan: async (imageData: string, options?: OCROptions) => {
-        // Mock scan result
-        const result: OCRResult = {
-          text: "Test Document\n\nContent here",
-          confidence: 90,
-          blocks: [
-            { text: "Test Document", confidence: 92, bbox: { x0: 0, y0: 0, x1: 200, y1: 50 }, wordCount: 2 },
-            { text: "Content here", confidence: 88, bbox: { x0: 0, y0: 60, x1: 200, y1: 110 }, wordCount: 2 },
-          ],
-          language: "eng",
-          duration: 500,
-        };
-        return result;
-      },
-      export: (result: OCRResult, format: "markdown" | "json" | "text" | "html") => {
-        const structured = postProcessOCR(result, {
-          layoutAnalysis: true,
-          extractStructure: true,
-        });
-
-        return exportDocument(structured, format);
-      },
-    };
-
-    expect(pipeline.export).toBeDefined();
-    expect(typeof pipeline.scan).toBe("function");
   });
 });

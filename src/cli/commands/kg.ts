@@ -18,29 +18,32 @@ export async function handleKgBuild(args: string[]) {
     for (const e of result.errors.slice(0, 10)) console.log(`    - ${e}`);
     if (result.errors.length > 10) console.log(`    ... +${result.errors.length - 10} more`);
   }
+  if (result.errors.some(e => e.includes("已移除") || e.includes("SQLite"))) {
+    console.log("\n  提示: PostgreSQL 已移除 (H-M1-03)，当前使用 SQLite 本地图谱 (kg/enhanced.ts)");
+  }
 }
 
 export async function handleKgStats() {
-  const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-  if (!(await isPgAvailable())) {
-    console.log("[错误] PostgreSQL 不可用，请先启动 PostgreSQL + pgvector");
-    return;
-  }
-  const pg = getPG();
-  const [entityStats] = await pg`SELECT type, COUNT(*)::int AS cnt FROM kg_entities GROUP BY type ORDER BY cnt DESC`;
-  const [relStats] = await pg`SELECT relation_type, COUNT(*)::int AS cnt FROM kg_relationships GROUP BY relation_type ORDER BY cnt DESC`;
-  const [total] = await pg`SELECT COUNT(*)::int AS entities FROM kg_entities`;
-  const [totalRels] = await pg`SELECT COUNT(*)::int AS rels FROM kg_relationships`;
-  console.log("[知识图谱统计]\n");
-  console.log(`  实体总数: ${total.entities}`);
-  console.log(`  关系总数: ${totalRels.rels}\n`);
-  if (entityStats) {
-    console.log("  [实体类型]");
-    for (const row of entityStats as { type: string; cnt: number }[]) console.log(`    ${String(row.type).padEnd(20)} ${row.cnt}`);
-  }
-  if (relStats) {
-    console.log("\n  [关系类型]");
-    for (const row of relStats as { relation_type: string; cnt: number }[]) console.log(`    ${String(row.relation_type).padEnd(20)} ${row.cnt}`);
+  // PG 已移除 (H-M1-03): 改为 SQLite KnowledgeGraphEnhanced 统计
+  const { KnowledgeGraphEnhanced } = await import("../../kg/enhanced.js");
+  const { Database } = await import("bun:sqlite");
+  const { readString } = await import("../../utils/env.js");
+  // 尝试打开默认知识库 DB，若不存在则报告空
+  try {
+    const dbPath = readString("KB_DB_PATH", "./data/kg.db");
+    const db = new Database(dbPath, { readonly: true });
+    const kg = new KnowledgeGraphEnhanced(db);
+    const stats = kg.getStats();
+    console.log("[知识图谱统计] (SQLite backend H-M1-03)\n");
+    console.log(`  节点总数: ${stats.totalNodes}`);
+    console.log(`  边总数: ${stats.totalEdges}`);
+    console.log(`  按类型: ${JSON.stringify(stats.nodesByType)}`);
+    console.log(`  按边类型: ${JSON.stringify(stats.edgesByType)}`);
+    db.close();
+  } catch (e) {
+    console.log("[知识图谱统计] (SQLite)");
+    console.log("  暂无数据或 DB 不可用:", (e as Error).message);
+    console.log("  提示: PostgreSQL 已移除，已迁移至 SQLite (H-M1-03)");
   }
 }
 

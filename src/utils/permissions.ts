@@ -78,7 +78,7 @@ const pendingConfirmations = new Map<string, { command: string; timestamp: numbe
  * Request user confirmation for a high-risk operation.
  */
 export function requestConfirmation(command: string): string {
-  const id = Math.random().toString(36).slice(2, 10)
+  const id = crypto.randomUUID()
   pendingConfirmations.set(id, {
     command,
     timestamp: Date.now(),
@@ -99,4 +99,43 @@ export function confirmOperation(id: string): { approved: boolean; command?: str
   }
   pendingConfirmations.delete(id)
   return { approved: true, command: entry.command }
+}
+
+// ─── 自动接收模式 (Auto-Accept Mode) ───────────────────────────────────────
+//
+// 用户可在前端 UI 切换"权限自动接收/手动确认"。开启后，"normal" 级别
+// 操作（普通文件读写、安全命令）会被自动放行，无需用户点击确认。
+//
+// 安全护栏：HIGH_RISK_PATTERNS 命中的操作（rm -rf /、mkfs、DROP TABLE
+// 等）永远需要手动确认，autoAcceptMode 无法绕过。这由 checkCommandPermission
+// 与 checkFilePermission 在判断前先做 high-risk 检测保证。
+//
+// 模式仅存在于内存（进程级单例），重启后恢复默认（手动确认）。
+
+let autoAcceptMode = false;
+
+/** 查询当前是否启用自动接收模式。 */
+export function isAutoAcceptMode(): boolean {
+  return autoAcceptMode;
+}
+
+/** 设置自动接收模式（开启/关闭）。返回设置后的新值。 */
+export function setAutoAcceptMode(enabled: boolean): boolean {
+  autoAcceptMode = !!enabled;
+  return autoAcceptMode;
+}
+
+/**
+ * 在 autoAcceptMode 开启时，"normal" 级别操作自动放行；
+ * "high-risk" 永远返回 requiresConfirmation=true。
+ *
+ * 调用方典型用法：
+ *   const check = checkCommandPermission(cmd);
+ *   if (!check.allowed && !isAutoAcceptMode() && check.requiresConfirmation) {
+ *     // 走手动确认流程
+ *   }
+ *   // 若 autoAcceptMode 开启且 check.level === 'normal'，直接放行
+ */
+export function shouldAutoAccept(check: PermissionCheck): boolean {
+  return autoAcceptMode && check.level === "normal" && check.allowed;
 }

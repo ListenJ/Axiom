@@ -37,6 +37,7 @@ import { logger } from "../../utils/logger.js";
 import { getStateStore } from "./state-store.js";
 import { getActivityTracker, resetActivityTrackerForTest } from "./activity-tracker.js";
 import { getReflectionLoop, _resetReflectionLoopForTest } from "./reflection-loop.js";
+import { _resetGoalTrackerForTest } from "./goal-tracker.js";
 import { evaluate, buildScheduleTrigger, buildManualTrigger, isWithinQuietHours } from "./trigger.js";
 import type { ReflectionOutcome, ReflectionTrigger, TriggerConfig } from "./types.js";
 import { DEFAULT_TRIGGER_CONFIG } from "./types.js";
@@ -200,6 +201,7 @@ export function _resetConsciousnessForTest(): void {
   _instance = null;
   resetActivityTrackerForTest();
   _resetReflectionLoopForTest();
+  _resetGoalTrackerForTest();
 }
 
 // Re-exports for convenience.

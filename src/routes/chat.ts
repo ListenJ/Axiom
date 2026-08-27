@@ -4,25 +4,65 @@
 import type { RouteContext } from "./types.js";
 import { logger } from "../utils/logger.js";
 import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-router.js";
+import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
+import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
+import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
+import { toOpenAITools } from "../utils/tool-surface.js";
+import { z } from "zod";
+import type { ToolDef } from "../mcp/tool-registry.js";
+import type { DataPipeline } from "../crawl/data-pipeline.js";
+import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
+  const chatStartedAt = Date.now();
   const body = await ctx.req.json();
-  const { taskType, messages = [], intent: enableIntent = true } = body;
+  const { taskType, messages = [], intent: enableIntent = true, budget, sessionId } = body;
 
-  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+  const { chatMessages: preparedMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
+    { budget },
   );
-  const result = await executeChat(chatMessages, intentInfo, taskType);
+  const chatMessages = await applySelfThought(
+    preparedMessages,
+    String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : ""),
+    getDefaultSelfEvolve(),
+  );
+  const roleForTools = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  const result = await executeChat(chatMessages, intentInfo, taskType, {
+    role: roleForTools,
+    tools,
+    executeTool,
+  });
+
+  const normalizedSessionId = normalizeSessionId(sessionId);
+  const messageList = Array.isArray(messages) ? messages as Array<{ role: string; content: string }> : [];
+  const lastUser = [...messageList].reverse().find((m) => m.role === "user");
+  if (lastUser) {
+    persistChatMessage(ctx.db, { sessionId: normalizedSessionId, role: "user", content: lastUser.content });
+  }
+  if (result.content) {
+    persistChatMessage(ctx.db, {
+      sessionId: normalizedSessionId,
+      role: "assistant",
+      content: result.content,
+      tokensUsed: result.usage?.total_tokens ?? 0,
+    });
+  }
 
   const response = ctx.jsonResponse({
     ...result,
+    sessionId: normalizedSessionId,
     codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
+    tokenBudget: tokenBudgetReport ?? null,
     intent: intentInfo
       ? {
           name: intentInfo.agentName,
@@ -45,28 +85,63 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     });
   }
 
+  // Real Usage 采集（非阻塞，深模块：仅追加一行 JSONL，不影响主流程延迟）
+  try {
+    const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
+    const success = Boolean(result.content && !result.content.includes("error") && result.content.trim().length > 0);
+    const latencyMs = Date.now() - chatStartedAt;
+    const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+    void captureRealUsageTrace({
+      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      task: lastPrompt || "chat",
+      success,
+      model: String(result.model ?? result.provider ?? ""),
+      latencyMs,
+      source: "chat",
+      feedback: success ? "auto-success" : "auto-fail",
+    }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+    // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
+    try {
+      const { getResourceBudgetManager } = await import("../dre/system-resource.js");
+      // 不直接改 availableMemory，仅记录 latency 供未来自适应（预留）
+      logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
+    } catch {}
+  } catch {}
+
   return response;
 }
 
 export async function handleAgentChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/agent-chat" || ctx.req.method !== "POST") return null;
 
+  const agentChatStartedAt = Date.now();
   const body = await ctx.req.json();
-  const { message, history = [], taskType } = body;
+  const { message, history = [], taskType, budget } = body;
   const messages: Array<{ role: string; content: string }> = [
     ...(history as Array<{ role: string; content: string }>),
     { role: "user", content: message },
   ];
 
-  const { chatMessages, intentInfo } = await prepareChatContext(
+  const { chatMessages: preparedMessages, intentInfo, tokenBudgetReport } = await prepareChatContext(
     messages,
     true,
     ctx.vault,
+    { budget },
   );
-  const result = await executeChat(chatMessages, intentInfo, taskType);
+  const chatMessages = await applySelfThought(preparedMessages, String(message ?? ""), getDefaultSelfEvolve());
+  const roleForTools = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
+  const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  const result = await executeChat(chatMessages, intentInfo, taskType, {
+    role: roleForTools,
+    tools,
+    executeTool,
+  });
 
   const response = ctx.jsonResponse({
     ...result,
+    tokenBudget: tokenBudgetReport ?? null,
     intent: intentInfo
       ? {
           name: intentInfo.agentName,
@@ -81,6 +156,21 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     payload: { intent: intentInfo?.agentName || "general", confidence: intentInfo?.confidence || 0, layer: result.layer },
     timestamp: new Date().toISOString(),
   });
+
+  // Real Usage 采集（agent-chat）
+  try {
+    const success = Boolean(result.content && result.content.trim().length > 0);
+    const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+    void captureRealUsageTrace({
+      id: `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      task: String(message ?? "").slice(0, 4000),
+      success,
+      model: String(result.model ?? result.provider ?? ""),
+      latencyMs: Date.now() - agentChatStartedAt,
+      source: "agent-chat",
+      feedback: success ? "auto-success" : "auto-fail",
+    }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+  } catch {}
 
   return response;
 }
@@ -152,6 +242,72 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
   "computer-use",
 ]);
 
+import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
+
+/** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
+/** 联网工具面：web_fetch / web_search / search_engines_list（复用 DataPipeline，结果自动写入 Vault） */
+export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
+  return [
+    {
+      name: "web_fetch",
+      description: "抓取网页并提取结构化数据（自动写入 Vault 记忆库）",
+      inputSchema: { url: z.string().url().describe("目标 URL") },
+      handler: async (args) => {
+        const result = await pipeline.crawlStructured(args.url as string);
+        if (!result) return { error: "Failed to fetch URL" };
+        return {
+          url: result.url, title: result.title, description: result.description,
+          content: (result.markdown ?? "").slice(0, 8000), // 供模型阅读页面正文
+          headings: result.headings.length, tables: result.tables.length,
+          codeBlocks: result.codeBlocks.length, images: result.images.length, savedToVault: true,
+        };
+      },
+    },
+    {
+      name: "web_search",
+      description: "多引擎联网搜索（结果自动写入 Vault）",
+      inputSchema: {
+        query: z.string().describe("搜索关键词"),
+        engines: z.array(z.string()).optional().describe("引擎列表"),
+        num: z.number().optional().default(10).describe("每个引擎数量"),
+      },
+      handler: async (args) => {
+        // M6 审计修复：结果进入上下文前钳制条数与单条长度
+        const results = await pipeline.searchMulti(args.query as string, {
+          engines: args.engines as string[], num: args.num as number,
+        });
+        return sanitizeSearchResultsForContext(results);
+      },
+    },
+    {
+      name: "search_engines_list",
+      description: "列出可用搜索引擎",
+      inputSchema: {},
+      handler: async () => {
+        const { searchAggregator } = await import("../crawl/search-engines.js");
+        return searchAggregator.listEngines();
+      },
+    },
+  ];
+}
+
+/** Chat 工具配置：skill_run/skill_list + 联网工具（web_fetch/web_search/search_engines_list），统一调度。 */
+export function buildChatToolConfig(pipeline: DataPipeline): {
+  tools: ReturnType<typeof toOpenAITools>;
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+} {
+  const skillTools = buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list");
+  const webTools = buildWebToolSurfaces(pipeline);
+  return {
+    tools: toOpenAITools([...skillTools, ...webTools]),
+    executeTool: async (name, args) => {
+      const web = webTools.find((t) => t.name === name);
+      if (web) return web.handler(args);
+      return runSkillTool(name, args);
+    },
+  };
+}
+
 function isValidChatMessage(m: unknown): m is { role: string; content: string } {
   if (m === null || typeof m !== "object") return false;
   const obj = m as Record<string, unknown>;
@@ -182,7 +338,12 @@ export async function handleChatHistory(ctx: RouteContext): Promise<Response | n
   if (ctx.url.pathname !== "/chat/history" || ctx.req.method !== "GET") return null;
   const limit = parseInt(ctx.url.searchParams.get("limit") || "50", 10);
   const sessions = ctx.db.query(
-    "SELECT id, title, created_at as createdAt, updated_at as updatedAt FROM conversations ORDER BY updated_at DESC LIMIT ?"
+    `SELECT c.session_id as id, COALESCE(s.title, '') as title,
+            MIN(c.created_at) as createdAt, MAX(c.created_at) as updatedAt
+     FROM conversations c
+     LEFT JOIN chat_sessions s ON s.session_id = c.session_id
+     GROUP BY c.session_id, s.title
+     ORDER BY updatedAt DESC LIMIT ?`
   ).all(limit);
   return ctx.jsonResponse({ sessions, total: sessions.length }, 200, ctx.baseHeaders);
 }
@@ -198,6 +359,9 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     messages?: unknown;
     intent?: unknown;
     preferNativeStream?: unknown;
+    reasoningEffort?: unknown;
+    budget?: unknown;
+    sessionId?: unknown;
   };
   try {
     body = (await ctx.req.json()) as typeof body;
@@ -221,6 +385,12 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     );
   }
   const messages = body.messages as Array<{ role: string; content: string }>;
+  const sessionId = normalizeSessionId(body.sessionId);
+  const streamStartedAt = Date.now();
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (lastUser) {
+    persistChatMessage(ctx.db, { sessionId, role: "user", content: lastUser.content });
+  }
 
   // taskType 缺失或非法时回退到 'general-chat'
   let taskType: string = "general-chat";
@@ -231,22 +401,33 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
   const enableIntent = body.intent !== false; // 默认为 true
   const preferNativeStream: boolean | undefined =
     typeof body.preferNativeStream === "boolean" ? body.preferNativeStream : undefined;
+  const reasoningEffort: string | undefined =
+    typeof body.reasoningEffort === "string" ? body.reasoningEffort : undefined;
+  const budget: number | undefined =
+    typeof body.budget === "number" ? body.budget : undefined;
 
   // 复用 handleChat 的消息构建逻辑（包含 intent + codegraph + knowledge context）
-  const { chatMessages, intentInfo, codegraphContext } = await prepareChatContext(
+  const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
+    { budget },
   );
 
   // 选择路由（与 handleChat 保持一致：intent > taskType）
   // taskType 已经在上面规范化过，缺失/非法时默认 'general-chat'
-  const roleForStream: string = intentInfo ? intentInfo.intent : taskType;
+  // intent 值（code/research/knowledge/write/plan/chat）不是合法 TaskRole，
+  // 必须经 INTENT_ROUTE_TABLE 映射为角色，否则 findModelsForRole 返回空
+  const roleForStream: string = intentInfo
+    ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
+    : taskType;
 
   // 心跳定时器：避免长时间 LLM 响应被中间代理超时切断
   const encoder = new TextEncoder();
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let closed = false;
+  // 上游生成器句柄提到外层作用域：cancel()（客户端断开）时需要它来停止生成
+  let streamIter: AsyncGenerator<ChatStreamEvent> | null = null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -268,9 +449,14 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
       }, 30000);
 
       try {
-        const streamIter = router.chatStream(roleForStream, chatMessages, {
+        const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+        streamIter = router.chatStream(roleForStream, chatMessages, {
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
+          ...(reasoningEffort ? { reasoningEffort } : {}),
+          tools,
+          executeTool,
+          maxToolIterations: 4,
         });
 
         for await (const ev of streamIter) {
@@ -279,12 +465,14 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
             case "start":
               safeEnqueue(sseEvent("start", {
                 type: "start",
+                sessionId,
                 model: ev.model,
                 provider: ev.provider,
                 role: ev.role,
                 layer: ev.layer,
                 intent: ev.intent,
                 codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
+                tokenBudget: tokenBudgetReport ?? null,
                 intentInfo: intentInfo
                   ? {
                       name: intentInfo.agentName,
@@ -298,6 +486,15 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
               safeEnqueue(sseEvent("token", { type: "token", content: ev.content }));
               break;
             case "done":
+              if (ev.content) {
+                persistChatMessage(ctx.db, {
+                  sessionId,
+                  role: "assistant",
+                  content: ev.content,
+                  tokensUsed: ev.usage?.total_tokens ?? 0,
+                  latencyMs: Date.now() - streamStartedAt,
+                });
+              }
               safeEnqueue(sseEvent("done", {
                 type: "done",
                 content: ev.content,
@@ -306,6 +503,22 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 usage: ev.usage,
                 fallbackUsed: ev.fallbackUsed,
               }));
+
+              // Real Usage 采集（stream done）
+              try {
+                const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
+                const success = Boolean(ev.content && ev.content.trim().length > 0);
+                const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+                void captureRealUsageTrace({
+                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  task: lastPrompt || "chat-stream",
+                  success,
+                  model: String(ev.model ?? ev.provider ?? ""),
+                  latencyMs: Date.now() - streamStartedAt,
+                  source: "chat-stream",
+                  feedback: success ? "auto-success" : "auto-fail",
+                }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+              } catch {}
 
               // 完成后广播一次 usage 给 WebSocket 订阅者
               try {
@@ -362,6 +575,11 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
       if (heartbeat) {
         clearInterval(heartbeat);
         heartbeat = null;
+      }
+      // 客户端断开（abort）：停止上游 LLM 生成，避免请求继续空转
+      if (streamIter) {
+        void streamIter.return(undefined).catch(() => {});
+        streamIter = null;
       }
     },
   });

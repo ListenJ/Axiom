@@ -14,15 +14,23 @@ import { readString } from "./env.js";
 import { logger } from "./logger.js";
 import { getReadOptimizer } from "./read-optimizer.js";
 
+/** Pi Agent 代码工具适配器实例的最小契约 (仅覆盖 read-optimizer-init 中使用到的方法) */
+interface PiCodeTools {
+  grep(query: string, opts: { path: string }): Promise<{ content: string; success: boolean }>;
+  findFiles(pattern: string, opts: { path: string; limit?: number }): Promise<{ content: string; success: boolean }>;
+  readFile(filePath: string, opts: { offset?: number; limit?: number }): Promise<{ content: string; success: boolean }>;
+  listDirectory(path: string): Promise<{ content: string; success: boolean }>;
+}
+
 export interface ReadOptimizerDeps {
-  searchSymbols: (query: string, opts?: any) => Promise<any[]>;
-  searchFiles: (pattern: string, opts?: any) => Promise<any[]>;
-  buildContext: (task: string, opts?: any) => Promise<any>;
-  getCallers: (symbol: string, opts?: any) => Promise<any[]>;
-  getCallees: (symbol: string, opts?: any) => Promise<any[]>;
-  getImpact: (symbol: string, opts?: any) => Promise<any>;
-  getStatus: (projectPath?: string) => Promise<any>;
-  PiCodeToolsAdapter: new (workDir: string) => any;
+  searchSymbols: (query: string, opts?: Record<string, unknown>) => Promise<unknown[]>;
+  searchFiles: (pattern: string, opts?: Record<string, unknown>) => Promise<unknown[]>;
+  buildContext: (task: string, opts?: Record<string, unknown>) => Promise<unknown>;
+  getCallers: (symbol: string, opts?: Record<string, unknown>) => Promise<unknown[]>;
+  getCallees: (symbol: string, opts?: Record<string, unknown>) => Promise<unknown[]>;
+  getImpact: (symbol: string, opts?: Record<string, unknown>) => Promise<unknown>;
+  getStatus: (projectPath?: string) => Promise<unknown>;
+  PiCodeToolsAdapter: new (workDir: string) => PiCodeTools;
 }
 
 let initialized = false;

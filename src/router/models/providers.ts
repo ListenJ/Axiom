@@ -1,55 +1,41 @@
 /**
- * Provider configurations + config helpers.
- * Split from models.ts (was 1128 lines) for maintainability.
+ * Provider configurations — 兼容层（唯一事实源：src/utils/api-key-store.ts）。
+ *
+ * api-key-store 持有完整 provider 表（baseURL/apiKeyEnv/adapter/region/displayName），
+ * 本文件只保留 router 侧需要的 { baseURL, apiKeyEnv } 子集，启动时派生，杜绝双份漂移。
  */
 import type { ModelProvider, ProviderConfig } from "./types.js";
+import { getProviderConfig } from "../../utils/api-key-store.js";
 
-export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = {
-  siliconflow: {
-    baseURL: "https://api.siliconflow.cn/v1",
-    apiKeyEnv: "SILICONFLOW_API_KEY",
-  },
-  ofoxai: {
-    baseURL: "https://api.ofoxai.com",
-    apiKeyEnv: "OFOXAI_API_KEY",
-  },
-  "ofoxai-anthropic": {
-    baseURL: "https://api.ofoxai.com/anthropic",
-    apiKeyEnv: "OFOXAI_ANTHROPIC_API_KEY",
-  },
-  "ofoxai-gemini": {
-    baseURL: "https://api.ofoxai.com/gemini",
-    apiKeyEnv: "OFOXAI_GEMINI_API_KEY",
-  },
-  openrouter: {
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKeyEnv: "OPENROUTER_API_KEY",
-  },
-  deepseek: {
-    baseURL: "https://api.deepseek.com/v1",
-    apiKeyEnv: "DEEPSEEK_API_KEY",
-  },
-  opencode: {
-    baseURL: "https://api.opencode.ai/v1",
-    apiKeyEnv: "OPENCODE_API_KEY",
-  },
-  kimi: {
-    baseURL: "https://api.moonshot.cn/v1",
-    apiKeyEnv: "KIMI_API_KEY",
-  },
-  minimax: {
-    baseURL: process.env.MINIMAX_BASE_URL || "https://api.minimax.chat/v1",
-    apiKeyEnv: "MINIMAX_API_KEY",
-  },
-  "nvidia-nim": {
-    baseURL: "https://integrate.api.nvidia.com/v1",
-    apiKeyEnv: "NIM_API_KEY",
-  },
-  zhipu: {
-    baseURL: "https://open.bigmodel.cn/api/paas/v4",
-    apiKeyEnv: "ZHIPU_API_KEY",
-  },
-};
+/** router 侧支持的 provider 集合（与 models/types.ts ModelProvider 联合保持一致）。 */
+const ALL_MODEL_PROVIDERS: ModelProvider[] = [
+  "siliconflow",
+  "ofoxai",
+  "ofoxai-anthropic",
+  "ofoxai-gemini",
+  "openrouter",
+  "deepseek",
+  "opencode",
+  "kimi",
+  "minimax",
+  "nvidia-nim",
+  "zhipu",
+  "sensenova",
+];
+
+function buildProviderConfig(): Record<ModelProvider, ProviderConfig> {
+  const out = {} as Record<ModelProvider, ProviderConfig>;
+  for (const provider of ALL_MODEL_PROVIDERS) {
+    const cfg = getProviderConfig(provider);
+    if (!cfg) {
+      throw new Error(`[ProviderConfig] api-key-store missing provider entry: ${provider}`);
+    }
+    out[provider] = cfg;
+  }
+  return out;
+}
+
+export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = buildProviderConfig();
 
 /** Check if a provider is configured (its API key env var is set). */
 export function isProviderConfigured(provider: ModelProvider): boolean {
@@ -60,5 +46,5 @@ export function isProviderConfigured(provider: ModelProvider): boolean {
 
 /** List configured providers (those with API keys present in env). */
 export function listConfiguredProviders(): ModelProvider[] {
-  return (Object.keys(PROVIDER_CONFIG) as ModelProvider[]).filter(isProviderConfigured);
+  return ALL_MODEL_PROVIDERS.filter(isProviderConfigured);
 }
