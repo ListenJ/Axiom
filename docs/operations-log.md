@@ -7335,3 +7335,21 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md` 等（验证后）。
 - **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 6b4e9a6
 
+
+## 2026-08-28 — 发布：GitHub PRIVATE→PUBLIC（S9，先扫描再定）
+
+- **任务**：执行计划 S9，将 ListenJ/Axiom 由 PRIVATE 改为 PUBLIC。按“先扫描再定”要求，先完成高熵密钥扫描（sk-*/AKIA*/ghp_*/PRIVATE KEY/ZHIPU/DEEPSEEK/SILICONFLOW）确认仅命中 dist/ SECRET_VALUE_RE 正则、docs/CONFIGURATION 文档、	ests/logger-redact 夹具、.env.example 占位符 sk-your-*，无真实密钥落库；.env 在 .gitignore，内网占位符保持 ${LAN_*}，rchive/ 不入库。
+- **工具**：Bash（Select-String 扫描、gh repo view/edit、git ls-remote）、Read（.env.example/.gitignore）、Bash（bunx tsc --noEmit / bun test）。
+- **操作**（文件级）：
+  1. 扫描：Select-String 全仓高熵模式 0 真实命中（仅占位符/夹具）。
+  2. 推送：git push origin codex/self-evolving-agent（a4005b0..8bce7cc，含 S1/S2/S4/S5/S7+S8 5最稳切片）。
+  3. 发布：gh repo edit ListenJ/Axiom --visibility public --accept-visibility-change-consequences → gh repo view --json visibility = PUBLIC。
+  4. 验证：git ls-remote https://github.com/ListenJ/Axiom.git 可匿名拉取（HEAD b26a9e、codex/self-evolving-agent 8bce7cc）。
+  5. 本条目 docs/operations-log.md。
+- **验证**：
+  - bunx tsc --noEmit 0；bun test 36 pass / 0 fail（S1 3 + S2 2 + S4 1 + S5 2 + S7 24 + S8 4）。
+  - gh repo view visibility = PUBLIC；git ls-remote 200。
+  - 扫描 0 真实命中，已满足 AGENTS 规则11。
+- **Commit**：chore(publish): GitHub PRIVATE→PUBLIC（密钥扫描 0 真实命中，S1/S2/S4/S5/S7+S8 已推）（含 docs/operations-log.md） — hash 待回填 S9_PLACEHOLDER
+- **回退**：gh repo edit ListenJ/Axiom --visibility private --accept-visibility-change-consequences
+
