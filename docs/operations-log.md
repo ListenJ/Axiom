@@ -7312,4 +7312,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 path.join 签名干净）。
   - 回归 `bun test tests/security-fixes.test.ts tests/unit/filesystem.test.ts tests/rigorous/filesystem-rigorous.test.ts` 53 pass 0 fail（沙箱敏感区/跨盘/TOCTOU 仍绿）。
   - 备份验证后删除 `.tmp/backups/src/mcp/tools/filesystem.ts`（验证后）。
-- **Commit**：fix(security): 新文件父目录 symlink 逃逸检查（W9）（含 `src/mcp/tools/filesystem.ts` + `tests/filesystem-symlink.test.ts` + `docs/operations-log.md`） — S5_PLACEHOLDER
+- **Commit**：fix(security): 新文件父目录 symlink 逃逸检查（W9）（含 `src/mcp/tools/filesystem.ts` + `tests/filesystem-symlink.test.ts` + `docs/operations-log.md`） — 22a407c
