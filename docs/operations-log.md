@@ -1144,7 +1144,7 @@
   - profile cordis.patch.yml persona 移除 axiom__* 工具指引，改为 dsh 原生 fs 工具；会话全文检索（session-query-sqlite first-search）保留。
 - **验证**：dump-config 无 `# == axiom-dsh` 层、无任何 axiom 行；dsh web 冷启动 HTTP 200 且不再 spawn `bun run src/mcp/server.ts --stdio`；退出无孤儿进程。
 - **备注**：仓库 `plugins/dsh` 源码与已提交的 lossless-JSON 修复保留，后续需要时重新 `dsh plugin --profile web add D:/openclaw-fusion/plugins/dsh` 即可恢复。
-- **Commit**：`2e86b17（amend，最终 hash 以 git log 为准）`
+- **Commit**：`2e86b17（amend，最终 hash 274f815）`
 
 ## 2026-08-18 — dsh 使用报错分析 + axiom-dsh 桥 lossless-JSON 修复 + modlens BOM + Windows 适配
 
@@ -7155,4 +7155,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bun run scripts/audit/dual-probe.ts` GREEN：本地 6 PASS/0 FAIL/1 SKIP（`health SKIP 服务未启动`，`cron/mcp/rebinding/ws/mineru/dre-caller` 6 PASS），远端 0 PASS/0 FAIL/7 SKIP（`ssh timeout` 单次批量 3.5s 超时，SKIP 非 FAIL 容错，`Bun 并发串行化` 批处理后 3.5s 内完成，`Report written to .tmp/dual-probe-report.md`），`Summary GREEN`。
   - 本地 7 探针保持：`health`/`cron`/`mcp`/`rebinding`/`ws`/`mineru`/`dre-caller` 均 `probe*` 覆盖，远端 `probeRemoteViaSsh` 同 7 项 peer。
   - 备份验证后删除 `.tmp/backups/scripts/audit/dual-probe.ts`（验证后）。
-- **Commit**：`fix(audit): dual-probe 远端 peer 化——cron/MCP/重绑定/WS/MinerU/DRE 单次批量 ssh，3s 超时 SKIP 容错，双列填充`（含 `scripts/audit/dual-probe.ts` + `docs/operations-log.md`，`internal211` 待 push，hash 以 `git log` 为准）
+- **Commit**：`fix(audit): dual-probe 远端 peer 化——cron/MCP/重绑定/WS/MinerU/DRE 单次批量 ssh，3s 超时 SKIP 容错，双列填充`（含 `scripts/audit/dual-probe.ts` + `docs/operations-log.md`，`internal211` 待 push，hash 274f815）
