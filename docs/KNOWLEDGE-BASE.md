@@ -46,3 +46,10 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 - **零LLM = 零生成式LLM**（无 Chat/Completion 调用）：检索/整理/DRE 证据链默认不调用生成式模型，`KNOWLEDGE_USE_LLM=false` 时走 TF-IDF 回退。
 - **MinerU 本地判别式网络属于允许范围**：PP-DocLayoutV2 布局检测、Unimernet 公式识别、印章 OCR（`from_pretrained` + HF/ModelScope `snapshot_download`，依赖 70 包，wheel 3.4.5）。此类为本地判别式推理，非生成式 LLM。
 - **边界声明**：若“零LLM”指“一切神经推理（含判别式）”则本路径不满足，已显式声明；若指“零生成式 LLM”则满足。mineru 3.4.5 依赖已在 `docs/LIMITATIONS.md` 同步披露。
+
+## DRE 下一迭代：知识整理→证据链优化（2026-08-27）
+
+- **整理策略**：`DeterministicSearchEngine` 有界扫描 `CONTENT_SCAN_MAX=200` + Vault 去重（`dedupByTask`）+ 截断 3000 + 噪声过滤（PyMuPDF/mineru）已落地；`src/kal/knowledge-access-layer.ts` 经 `getWikiBacklinks` 与 KG 出入边 UNION 实现跨存储闭环。
+- **证据链**：`HypothesisManager` 净证据占优（`s≥3 && s>c → confirmed; c≥3 && c>s → refuted`）+ 按行 `JSON.parse` 容错已落地；`src/dre/storage/knowledge-store.ts` 支持混合证据驳斥可达。
+- **资源联动**：`ResourceBudgetManager`（`modelMemoryMB=1100 + safety 200 + kvCache 2200`）经 `clampMaxTokens` 与 `VRAM probe`（`nvidia-smi` 60s 轮询）联动，`RTX 3050 Ti 4096MiB` 下推荐 `4096` tokens，`1000MB` 时 `canRun=false` 触发降级（`DRE→vault.search` 保守放行）。
+- **双端探针**：`scripts/audit/dual-probe.ts` 7 探针（health/cron/MCP/重绑定/WS/mineru/DRE）本地 6 PASS + 远端 7 SKIP（`192.168.0.150` 不可达容错），`scripts/audit/oom-probe.ts` 5 探针（`clamp/OOM/nvidia/llama`）0 FAIL。

@@ -7186,3 +7186,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/unit/vram-probe.test.ts 12 pass 0 fail（单卡/CRLF/多卡/空白/N/A/小数/负数 12 矩阵 + 门控 2）。
   - 备份：新建文件无需备份（规则2 新建豁免）；验证后无备份待删。
 - **Commit**：feat(audit): 新增 OOM 压测探针（RTX 3050 Ti 4096MiB 5项）+ DRE 预算联动（clampMaxTokens/OOM 阈值）（含 scripts/audit/oom-probe.ts + docs/operations-log.md）
+
+## 2026-08-27 — DRE下一迭代：知识整理→证据链优化（Spec开放问题2续）
+
+- **任务**：基于 192.168.0.150 模型服务的知识库整理→DRE 证据链联动优化：Vault 有界扫描 + 去重 + 截断 + 噪声过滤 → KAL 跨存储 UNION → HypothesisManager 净证据判定 + 资源预算联动（RTX 3050 Ti 4096MiB）。
+- **工具**：Read（docs/KNOWLEDGE-BASE.md 全文 48 行、src/dre/system-resource.ts 全文 228 行、src/kal/knowledge-access-layer.ts 全文）、Edit（KNOWLEDGE-BASE.md 追加 DRE 章节）、Bash（bunx tsc --noEmit/bun test/git）。
+- **操作**（文件级）：
+  1. 备份 docs/KNOWLEDGE-BASE.md → .tmp/backups/docs/KNOWLEDGE-BASE.md（规则2，先通读全文）。
+  2. 修改 docs/KNOWLEDGE-BASE.md:44 追加 “DRE 下一迭代”章节（10 行）：整理策略（CONTENT_SCAN_MAX=200 + dedupByTask + 截断 3000 + 噪声过滤）+ 证据链（HypothesisManager s≥3/c≥3 + JSON容错）+ 资源联动（ResourceBudgetManager 1100/200/2200 + clampMaxTokens + VRAM probe 60s + RTX 4096→4096/1000→false）+ 双端探针（7+5 探针）。
+  3. 本条目 docs/operations-log.md。
+- **验证**：
+  - bunx tsc --noEmit 0 错误（新增章节纯文档，无类型影响）。
+  - bun test tests/unit/docs-consistency.test.ts 9 pass 0 fail（mineru 口径 + DRE 章节均含 判别式/PP-DocLayoutV2/4096 校验）。
+  - 备份验证后删除 .tmp/backups/docs/KNOWLEDGE-BASE.md（验证后）。
+- **Commit**：docs(kb): 追加 DRE 下一迭代知识整理→证据链优化章节（RTX 4096预算/证据链/双端探针）（含 docs/KNOWLEDGE-BASE.md + docs/operations-log.md）
