@@ -7296,5 +7296,5 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 `readBool` 守卫签名干净，无类型错）。
   - 回归 `bun test tests/knowledge-pipeline-media.test.ts tests/document-ingest.test.ts tests/knowledge-preprocess-quality.test.ts` 44 pass 0 fail（含 `fallbackTFIDF` DETERMINISTIC 家族与知识预处理 20+）。
   - 备份验证后删除 `.tmp/backups/src/knowledge/pipeline.ts`（验证后）。
-- **Commit**：fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7）（含 `src/knowledge/pipeline.ts` + `tests/knowledge-pipeline-media.test.ts` + `docs/operations-log.md`） — hash 待回填 S4_PLACEHOLDER
+- **Commit**：fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7）（含 `src/knowledge/pipeline.ts` + `tests/knowledge-pipeline-media.test.ts` + `docs/operations-log.md`） — 3fdbc69
 
