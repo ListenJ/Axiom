@@ -7215,3 +7215,20 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/deterministic-search.test.ts 16 pass 0 fail（标题/标签/PARA/关系/有界扫描等均绿，P1-T1 有界扫描用例仍绿）；全量相关 203 pass 零回归。
   - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts（验证后）。
 - **Commit**：perf(search): DeterministicSearch 热路径——小写/标题缓存+内容缓存扩容+非重叠计数（测试 63x/graph 21x）（含 src/memory/deterministic-search.ts + docs/operations-log.md）
+
+## 2026-08-27 — 运行时优化：DoRaw 避免 Header.Clone（热路径）
+
+- **任务**：按“运行时与分发”优化方向，消除每查询扇出 RPC 的 Header.Clone 分配（100k QPS 下 200k Clone/s）。DoRaw 原返回 \http.Header\ 并 \Clone()\ 全量头，调用方仅需 \Content-Type\ 做二进制嗅探。
+- **工具**：Read（runtime-go/internal/distrib/raw.go 全文 49 行、internal/search/querybin.go 全文 138 行、internal/search/cluster.go 全文 319 行）、Edit（raw.go 49 行、querybin.go 138 行、cluster.go 319 行、querybin_test.go 95 行）、Bash（go test ./... / go vet / bunx tsc --noEmit / git）。
+- **操作**（文件级）：
+  1. 备份 runtime-go/internal/distrib/raw.go、internal/search/querybin.go、internal/search/cluster.go → .tmp/backups/（规则2，先通读全文：raw.go DoRaw 返回 Header.Clone；querybin.go sniff 需 Header；cluster.go 调 DoRaw 取 hdr）。
+  2. 修改 runtime-go/internal/distrib/raw.go:17 将签名 \( []byte, http.Header, error)\ 改为 \( []byte, string, error)\，返回 esp.Header.Get("Content-Type")\ 而非 \Clone()\，错误分支返回 ""；注释增“避免 Clone”优化说明。
+  3. 修改 runtime-go/internal/search/querybin.go:135 将 \sniffBinaryResponse(header http.Header)\ 改为 \sniffBinaryResponse(contentType string)\，直接比 \== queryBinContentType\，移除 et/http\ 导入。
+  4. 修改 runtime-go/internal/search/cluster.go:246 将 aw, hdr, err := distrib.DoRaw\ 改为 aw, ctype, err\，并 \sniffBinaryResponse(ctype)\。
+  5. 修改 runtime-go/internal/search/querybin_test.go:52 将 TestSniffBinaryResponse 由 Header 构造改为直接传字符串，移除 net/http 导入。
+  6. 本条目 docs/operations-log.md。
+- **验证**：
+  - go test ./... 10 包 ok（distrib 2.05s、search 9.53s，含 BenchmarkQueryBinVsJSON bin 271us vs json 1098us，authHeader 2 sub PASS）。
+  - bunx tsc --noEmit 0 错误（TS 侧无影响，distrib 仅 Go）。
+  - 备份验证后删除 .tmp/backups/runtime-go/internal/distrib/raw.go 等（验证后）。
+- **Commit**：perf(distrib): DoRaw 避免 Header.Clone，sniff 改传 Content-Type 字符串（热路径每扇出省一次 Clone）（含 runtime-go/internal/distrib/raw.go + internal/search/querybin.go + internal/search/cluster.go + internal/search/querybin_test.go + docs/operations-log.md）

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -50,14 +49,10 @@ func TestQueryBinRespRoundTrip(t *testing.T) {
 }
 
 func TestSniffBinaryResponse(t *testing.T) {
-	h := http.Header{}
-	h.Set("Content-Type", queryBinContentType)
-	if !sniffBinaryResponse(h) {
+	if !sniffBinaryResponse(queryBinContentType) {
 		t.Fatal("binary content type not sniffed")
 	}
-	j := http.Header{}
-	j.Set("Content-Type", "application/json; charset=utf-8")
-	if sniffBinaryResponse(j) {
+	if sniffBinaryResponse("application/json; charset=utf-8") {
 		t.Fatal("json misdetected as binary")
 	}
 }

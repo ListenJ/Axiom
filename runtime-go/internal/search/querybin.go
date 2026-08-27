@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 )
 
 // 二进制内部查询协议 v1（P2-12 热路径优化）：
@@ -133,6 +132,7 @@ func decodeQueryBinResp(r io.Reader) ([]Hit, error) {
 }
 
 // sniffBinaryResponse 判定对端是否以二进制协议应答（老节点回 JSON 时走原解码）。
-func sniffBinaryResponse(header http.Header) bool {
-	return header.Get("Content-Type") == queryBinContentType
+// 优化：直接传 Content-Type 字符串而非完整 Header，避免 DoRaw 的 Header.Clone。
+func sniffBinaryResponse(contentType string) bool {
+	return contentType == queryBinContentType
 }

@@ -243,11 +243,11 @@ func (e *Engine) clusterSearch(ctx context.Context, idx *Index, node Node, query
 			defer cancel()
 			// P2-12：二进制热路径；老对端回 JSON 时按 Content-Type 回退解码
 			binReq := appendQueryBinReq(nil, query, remoteShards[id], limit)
-			raw, hdr, err := distrib.DoRaw(qctx, c.client, http.MethodPost,
+			raw, ctype, err := distrib.DoRaw(qctx, c.client, http.MethodPost,
 				node.Addr+"/internal/query", queryBinContentType, binReq)
 			var out internalQueryResponse
 			if err == nil {
-				if sniffBinaryResponse(hdr) {
+				if sniffBinaryResponse(ctype) {
 					out.Hits, err = decodeQueryBinResp(bytes.NewReader(raw))
 				} else if jerr := json.Unmarshal(raw, &out); jerr != nil {
 					err = jerr
