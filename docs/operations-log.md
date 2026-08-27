@@ -7232,3 +7232,19 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bunx tsc --noEmit 0 错误（TS 侧无影响，distrib 仅 Go）。
   - 备份验证后删除 .tmp/backups/runtime-go/internal/distrib/raw.go 等（验证后）。
 - **Commit**：perf(distrib): DoRaw 避免 Header.Clone，sniff 改传 Content-Type 字符串（热路径每扇出省一次 Clone）（含 runtime-go/internal/distrib/raw.go + internal/search/querybin.go + internal/search/cluster.go + internal/search/querybin_test.go + docs/operations-log.md）
+
+## 2026-08-27 — 检索优化2：VaultManager 增量重建 + DeterministicSearch 增量 reload
+
+- **任务**：按“运行时与分发”后续与检索联动，优化 Vault 全量重建（reindexAll 173 笔记 700ms+）为增量（热路径 <15ms）。
+- **工具**：Read（src/memory/vault-manager.ts 全文 815 行、src/memory/deterministic-search.ts 全文 772 行、src/memory/sqlite-memory.ts）、Edit（vault-manager.ts 80 行、deterministic-search.ts 40 行）、Bash（bun -e 压测 701ms→11ms / bunx tsc --noEmit / bun test / git）。
+- **操作**（文件级）：
+  1. 备份 src/memory/vault-manager.ts → .tmp/backups/src/memory/vault-manager.ts；src/memory/deterministic-search.ts → .tmp/backups/src/memory/deterministic-search.ts（规则2，先通读全文：vault-manager reindexAll 全量 reload + 173 upsert 单事务 700ms；deterministic-search reload 全量 scanDirectory 读 173 文件 frontmatter 100ms+）。
+  2. 修改 src/memory/vault-manager.ts:50 新增 lastIndexedMtimes/lastVaultMtime/reindexCount；重构 reindexAll 为增量：vault 目录 mtime 未变时跳过 reload（7ms 热路径），否则 reload；对每文件 mtime 对比跳过未变更，批量 upsert 事务内 + 清理已删除；日志增 elapsed/round。
+  3. 修改 src/memory/deterministic-search.ts:752 新增 reloadMtimes 增量：collect 阶段仅 stat 不读内容，比较 currentMtimes 与 reloadMtimes，无变更时直接 return（<1ms），有变更时全量重建并更新 reloadMtimes；重建时清空双新缓存（contentLower/titleTokens）。
+  4. 本条目 docs/operations-log.md。
+- **验证**：
+  - 压测（VaultManager :memory:）：首轮 reindexAll 173 条 718ms → 二轮增量 0 条 11.2ms（<50ms 目标，5x 提升，热路径 7ms 当目录 mtime 未变）。
+  - bunx tsc --noEmit 0 错误（新增 incremental 逻辑类型干净）。
+  - bun test tests/deterministic-search.test.ts 16 pass 0 fail（有界扫描/PARA/关系等均绿）。
+  - 备份验证后删除 .tmp/backups/src/memory/vault-manager.ts 等（验证后）。
+- **Commit**：perf(vault): 增量重建（VaultManager + DeterministicSearch 增量 reload，700ms→11ms 热路径）（含 src/memory/vault-manager.ts + src/memory/deterministic-search.ts + docs/operations-log.md）
