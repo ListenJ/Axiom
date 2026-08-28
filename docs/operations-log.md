@@ -7375,3 +7375,15 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-28-regression-defense-closure-plan.md`（Task1 回滚归档/Task2 W6 TDD/Task3 W11 四节文档/Task4 test:full 补录/Task5 hash回填）；本条目追加。
 - **验证**：计划自查（spec 覆盖/占位符/类型一致/并行说明）通过；W6 测试夹具与 node-id.ts 真实逻辑核对（vault nodeId=createNodeId("vault","note",path)，归一化不可逆）；test:full 前置试跑 tests/self-evolve/ + tests/agent-evals/ = 204 pass/0 fail。
 - **Commit**：docs(plan): 回归防线收口实施计划（5任务串行：W5W8回滚归档/W6顺序无关/W11四模块/test:full补录） — hash 待回填
+
+## 2026-08-28 — Task 1：W5/W8 在途实现回滚归档（D1）
+
+- **任务**：按已批准决策 D1 回滚被计划修订延期的 W5（KAL FTS）/W8（SearchPort）在途实现。审计证实 W8 静默绕过 searchAgg mock 打真实网络、kg_nodes_fts 死路径、knowledge_node_fts 无回填+提前 return 漏查存量行；patch+副本归档零信息丢失，下迭代测试先行重立项。
+- **工具**：Bash（git diff/checkout -- 两具名文件、mkdir/cp/rm、bunx tsc、bun test）、Write 无（archive 文本经 heredoc 追加）、Read（ARCHIVE-LOG.md 尾部核对格式）。
+- **操作**（文件级）：
+  1. 归档：`archive/w5-w8-inflight-2026-08-28/inflight-w5-w8.patch`（223 行 diff）+ `search-port.ts` 副本（30 行）。
+  2. `archive/ARCHIVE-LOG.md` 追加记录（时间/目的/原位置/归档位置/所属项目，规则4）。
+  3. 还原 `src/dre/pipeline/pipeline.ts`、`src/kal/knowledge-access-layer.ts` 至 HEAD（git checkout -- 具名文件，内容已先行归档，非盲目丢弃）；移除未跟踪 `src/dre/ports/search-port.ts`。
+  4. 本条目 docs/operations-log.md。
+- **验证**：bunx tsc --noEmit 0 错误；bun test tests/dre-stage2-webverify.test.ts tests/kal-references.test.ts = 17 pass/0 fail（mock 恢复生效，不再打真实网络）；git status 中三文件清零。
+- **Commit**：docs(ops): W5/W8 在途实现回滚归档（D1，patch+副本已入 archive/）（含 docs/operations-log.md） — hash 待回填
