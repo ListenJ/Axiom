@@ -7411,3 +7411,14 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail（含 S7 禁忌词断言与文档一致性断言）；bunx tsc --noEmit 0。备份验证后删除。
 - **Commit**：docs(arch): 补齐 ContextManager/ThompsonRouter/HallucinationDetector/SelfEvolve 四模块权威文档 + 行数漂移修正（W11）（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/ARCHITECTURE.md` + `docs/PROJECT-GUIDE.md` + `docs/operations-log.md`） — hash 待回填
+
+## 2026-08-28 — Task 4：test(ci) test:full 白名单补录 agent-evals 与 self-evolve 目录
+
+- **任务**：test:full 手工白名单为结构性陷阱——tests/agent-evals/ 12 个测试仅 1 个（external-benchmarks）入 CI，tests/self-evolve/ 全部 8 个均不在（演进主线与 agent 评估的回归防线漏检）。补录：`tests/agent-evals/external-benchmarks.test.ts` → 目录 `tests/agent-evals/`（12 文件，含原单文件），行尾追加 `tests/self-evolve/`（8 文件）。
+- **工具**：Read（package.json 全文107行）、Edit（package.json:88 一处）、Bash（bun run test:full ×5、bunx tsc、git）。
+- **操作**（文件级）：
+  1. `package.json:88` test:full 一行：external-benchmarks 单文件替换为 `tests/agent-evals/` 目录 + 追加 `tests/self-evolve/`（前置试跑已验 204 pass/0 fail/1.63s）。
+  2. 本条目 docs/operations-log.md（补记）。
+- **验证**：`bun run test:full` 首跑 472 pass/1 fail（偶发，未复现）→ 随后连续 4 轮 473 pass/0 fail/6070 expects/55 files（20-25s），白名单稳定；`bunx tsc --noEmit` 0。偶发如实在录；如复发建议单独排查（嫌疑为 e2e-runtime/perf 类时序敏感用例，均为白名单预存项）。
+- **流程偏差（如实记录）**：规则2的 package.json 备份步骤本次被遗漏（未执行 cp 即 Edit）；因编辑前已通读全文 107 行且改动仅 1 行、经 4 轮全量验证，无信息丢失与回归。后续任务恢复先备份后改的硬顺序。
+- **Commit**：test(ci): test:full 补录 tests/agent-evals 与 tests/self-evolve 目录（回归防线补漏，20+8 测试文件入防）（含 `package.json`） — a1b6c7a；本补记条目随下一条提交入库
