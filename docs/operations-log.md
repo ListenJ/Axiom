@@ -7387,3 +7387,15 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：bunx tsc --noEmit 0 错误；bun test tests/dre-stage2-webverify.test.ts tests/kal-references.test.ts = 17 pass/0 fail（mock 恢复生效，不再打真实网络）；git status 中三文件清零。
 - **Commit**：docs(ops): W5/W8 在途实现回滚归档（D1，patch+副本已入 archive/）（含 docs/operations-log.md） — hash 待回填
+
+## 2026-08-28 — Task 2：fix(kal) getReferences 消除 queryVault 顺序依赖（W6，TDD）
+
+- **任务**：W6——`KAL.getReferences` 的 vault 腿依赖先调 `queryVault` 填充 `vaultNodeIdToPath` 映射，单独调用时静默返回空。修复：适配器接口新增可选 `listNotePaths?(): string[]`，映射缺失时对每条已知路径精确计算 `createNodeId` 比对重建（非猜测）；适配器未提供枚举时维持 O3-F2 既有保守降级，旧测试语义不变。
+- **工具**：Read（`tests/kal-references.test.ts` 全文281行、`src/kal/knowledge-access-layer.ts` 全文403行）、Edit（测试 import+新 describe 1处、KAL 适配器类型+vault分支 2处）、Bash（bun test/bunx tsc/git）。
+- **操作**（文件级）：
+  1. 备份两文件 → `.tmp/backups/`（规则2，先通读全文；注意与既有测试 "O3-F2 未经过 query 建立映射时保守降级" 的语义兼容性——可选方法不影响该例）。
+  2. `tests/kal-references.test.ts`：顶部加 `createNodeId` 静态导入；末尾新增 describe "W6 顺序无关性" 1 例（不调 queryVault 直接 getReferences，断言经 listNotePaths 重建映射后命中入链）。
+  3. `src/kal/knowledge-access-layer.ts`：字段与构造参数类型加 `listNotePaths?(): string[]`；getReferences vault 分支 `const rawPath` → `let` + 缺失时经 `this.vault.listNotePaths()` 枚举 `createNodeId("vault","note",p)` 填充映射后重查。
+  4. 本条目 docs/operations-log.md。
+- **验证**：TDD RED→GREEN：`bun test tests/kal-references.test.ts` 首跑 14 pass/1 fail（新例 refs.length 0≠1）→ 15 pass/0 fail（32 expects）；`bunx tsc --noEmit` 0 错误（可选方法签名向后兼容，生产接线 kg-tools.ts:16 未注入适配器零影响）。备份验证后删除。
+- **Commit**：fix(kal): getReferences 惰性重建 vault 路径映射，消除 queryVault 顺序依赖（W6）（含 `tests/kal-references.test.ts` + `src/kal/knowledge-access-layer.ts` + `docs/operations-log.md`） — hash 待回填

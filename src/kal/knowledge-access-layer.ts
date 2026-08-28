@@ -69,12 +69,12 @@ export interface QueryResult {
 
 export class KnowledgeAccessLayer {
   private db: Database;
-  /** 可选 vault 引擎适配器（P1-T2/O3-F2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边 */
-  private vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> };
+  /** 可选 vault 引擎适配器（P1-T2/O3-F2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边；W6 增加 listNotePaths 供顺序无关反查 */
+  private vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }>; listNotePaths?(): string[] };
   /** O3-F2：queryVault 结果的 nodeId -> 原始路径映射（归一化不可逆，反查靠它） */
   private vaultNodeIdToPath = new Map<string, string>();
 
-  constructor(db: Database, vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }> }) {
+  constructor(db: Database, vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }>; listNotePaths?(): string[] }) {
     this.db = db;
     this.vault = vault;
   }
@@ -356,9 +356,17 @@ export class KnowledgeAccessLayer {
 
     // Vault wiki-link 入链（P1-T2 / O3-F2）：经 queryVault 建立的映射反查
     // 原始路径，再调适配器补齐引用腿。无映射时保守降级（归一化不可逆，不猜测）。
+    // W6：未先 queryVault 时经适配器 listNotePaths 枚举重建映射——
+    // 对每条已知路径精确计算 createNodeId 比对，非猜测；适配器未提供枚举时维持原降级。
     if (parsed.store === "vault") {
       try {
-        const rawPath = this.vaultNodeIdToPath.get(nodeId);
+        let rawPath = this.vaultNodeIdToPath.get(nodeId);
+        if (!rawPath && this.vault?.listNotePaths) {
+          for (const p of this.vault.listNotePaths()) {
+            this.vaultNodeIdToPath.set(createNodeId("vault", "note", p), p);
+          }
+          rawPath = this.vaultNodeIdToPath.get(nodeId);
+        }
         if (rawPath && this.vault) {
           for (const src of this.vault.getWikiBacklinks(rawPath)) {
             results.push({

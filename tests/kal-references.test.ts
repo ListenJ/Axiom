@@ -12,6 +12,7 @@ import { describe, test, expect } from "bun:test";
 import { Database } from "bun:sqlite";
 import { KnowledgeAccessLayer } from "../src/kal/knowledge-access-layer.js";
 import { KGWriter } from "../src/crawl/processor/kg-writer.js";
+import { createNodeId } from "../src/kal/node-id.js";
 
 function makeDb(): Database {
   const db = new Database(":memory:");
@@ -113,6 +114,24 @@ describe("KnowledgeAccessLayer.getReferences", () => {
     });
     // 归一化 ID 无法逆向还原原始路径；无映射时不猜测、不误查
     expect(await kal.getReferences("vault:note:a.md")).toEqual([]);
+  });
+});
+
+describe("KnowledgeAccessLayer.getReferences — W6 顺序无关性", () => {
+  test("未先 queryVault 时仍可经适配器枚举路径精确反查 vault 入链", async () => {
+    const db = makeDb();
+    const notePath = "notes/foo.md";
+    const nodeId = createNodeId("vault", "note", notePath);
+    const vault = {
+      getWikiBacklinks: (p: string) =>
+        p === notePath ? [{ path: "notes/bar.md", title: "Bar" }] : [],
+      listNotePaths: () => [notePath, "notes/bar.md"],
+    };
+    const kal = new KnowledgeAccessLayer(db, vault);
+    // 关键：不调用 queryVault，直接 getReferences（修复前依赖 queryVault 先填充 vaultNodeIdToPath）
+    const refs = await kal.getReferences(nodeId);
+    expect(refs.length).toBe(1);
+    expect(refs[0].nodeId).toBe(createNodeId("vault", "note", "notes/bar.md"));
   });
 });
 
