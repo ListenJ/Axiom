@@ -114,3 +114,34 @@ I1 KAL 统一为接口层+O3-F5 归一，实现层三套独立 SQL；I2 管线�
 | M4-M11/M13/M14 + 全部 Low | 📋 待排期 | — | 见第 4 节，均为接缝级小切片 |
 
 **回归验证（2026-08-28）**：`bun run test:full` 473 pass / 0 fail（含本迭代 8 个新测试文件）；`bunx tsc --noEmit` 0。
+
+## 8. 第二轮修复回写（2026-08-29，待排期清单推进）
+
+| 项 | 状态 | Commit | 说明 |
+|----|------|--------|------|
+| M6 DAG 环/失败混报 | ✅ 已修 | ef049ea | 三分类归因（失败依赖列被阻任务名 / findDagCycle 三色 DFS 报 cyclic 列环上任务 / 兜底 deadlock 附 unresolved） |
+| M7 孤儿任务 | ✅ 留痕方案 | ef049ea | execute 无 AbortSignal（不改签名），race 超时后挂 then/catch，孤儿落定 logger.warn 含 taskId/agentId |
+| M8 每任务同步 selfImprove | ✅ 非阻塞化 | ef049ea | recordEvolution 全仓无同步消费、store.write 无竞态 → fireEvolution（void+catch+warn），三调用点去 await |
+| L5 completed 死变量 | ✅ 已删 | ef049ea | failed Set 承载 M6 归因 |
+| M4 空文档产脏数据 | ✅ 双路守卫 | 8b26162 | dip_ingest_document 返回 success:false "empty document"；pipeline JSONL 空内容 skipped 标注（appendJsonlSkipEmpty） |
+| M5 哈希含 description | ✅ 已修 | 8b26162 | 节点身份改 sha256(type:name)，同实体 REPLACE 幂等；存量旧哈希 id 不迁移（已声明） |
+| L1 created_at 刷新 | ✅ 已修 | 8b26162 | REPLACE 前查旧行沿用 created_at，updated_at 正常推进 |
+| L3 双份 DDL | ✅ 单源 | 8b26162 | src/kg/schema.ts 导出 KG_SCHEMA_DDL，enhanced/kg-writer 共用 |
+| M14 nodeId 双体系 | ✅ 已修（方案一） | 0a8dad4 | 破坏面评估干净（src 消费方零依赖双前缀、0 测试断言锁定）→ queryKG 返回 row.id 原样；残余债（queryDRE 同型包装、enhanced 短哈希非三段格式）已记录 |
+| L2 映射无上界 | ✅ 已修 | 0a8dad4 | MAX_VAULT_NODE_ID_TO_PATH_ENTRIES=1000 FIFO 淘汰 + W6 重建"命中即停"（顺带修复级联挤出缺陷） |
+| M9 curl 最坏 92s | ✅ 收紧至 ~62s | d0ff28e | spawn killTimer 30s 对齐 -m 30 + 35s 硬上限 race + 重试总预算 SEARCH_ENGINE_TOTAL_BUDGET_MS=45s |
+| L12a deepLinks 未钳制 | ✅ 已修 | d0ff28e | clampDeepLinks ≤5 条/项 ≤200 字符 |
+| L12b 检测器重复 new | ✅ 已修 | d0ff28e | 按 factBase 惰性缓存（Map 上限 8，快照语义） |
+| L7 ssrfGuard 默认开 | ⏸ 延期 | — | 16 调用方排查：lightpanda CDP 127.0.0.1:9222、model-router/computer-use 等经 env 可达本地端点——默认开启必断本地链路；注释已记录理由与白名单建议 |
+| M11 chat 请求体零校验 | ✅ 已修 | c8321be | chatRequestSchema（messages 必填 + taskType/intent/budget/sessionId 可选，passthrough 保多模态）；非法 400 |
+| L4 注册无去重 | ✅ 已修 | 1f0450a | add 同名 warn+跳过幂等，188 计数不变 |
+| L6 死代码 | ✅ 已删 | 1f0450a | getToolsByTags/getToolsMetaFiltered 全仓零引用后删除 |
+| L8 HardFloor 字段名窄 | ✅ 已扩展 | 1f0450a | 按工具实参 grep（path×20/source×16/filePath×14/url×7）取并集 + camel/snake 变体；注释声明非完备 |
+| L9 生产导入 devDep | ✅ 已移入 dependencies | 1f0450a | 生产可达实锤（main.ts:88→codegraph-index→local-index:10） |
+| L11 模型名不一致 | ✅ 边界注释 | 1f0450a | 评估为异链路（边缘 :9001 vs DRE :8080），两处注释互指边界 |
+| I6 过时注释 | ✅ 已修 | 1f0450a | count-tools.mjs 实跑 188，注释改准确描述 |
+| L10 静默降级无日志 | ✅ 已修（17 处） | 72f646e | kal 6 + vision 7 + store 1 + quality 2 + preprocessor 1，全补 logger.debug 不改控制流；kal+knowledge 空 catch 17→0 |
+| M13 dre→crawl 反向依赖 | 📋 待排期 | — | 随 W5/W8 重立项（SearchPort 缩窄版）一并处理 |
+| M10 云端降级丢上下文 | 📋 待排期 | — | 需设计本地工作记忆序列化传递，涉及 engine 切换语义，建议单独立项 |
+
+**回归验证（2026-08-29）**：`bun run test:full` 482 pass / 0 fail（基线 473 + 新增 9）；`bunx tsc --noEmit` 0。operations-log 6 条新记录，BOM/历史占位符完好。

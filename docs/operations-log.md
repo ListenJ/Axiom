@@ -7473,7 +7473,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. main.ts 三处：import startVramProbe（:92 后）；dreKernel 初始化日志后 `const stopVramProbe = startVramProbe()`（含 H1 注释）；registerShutdownHook({ name: "vram-probe", priority: 68 })。
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD 红→绿：tests/vram-probe-wiring.test.ts 1 fail → 2 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — hash 待回填
+- **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — 3fd26ca
 
 ## 2026-08-28 — fix(kg): 审计 H2 MCP kg 随机 id 绕过去重 + H7 内存 adjacency 重启恢复（TDD）+ H6 评估
 
@@ -7534,7 +7534,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Read/Edit/Write/Bash（主会话 H4+H1+杂物）、Agent×4（general-purpose 串行执行 KG/H3/确定性/安全切片，各自遵守 AGENTS 规则）、bun run test:full、bunx tsc。
 - **操作**（文件级）：审计报告追加第 7 节修复状态回写表（11 项处置：9 修复+2 延期+待排期清单）；本条目追加。
 - **验证**：bun run test:full 473 pass/0 fail（含 8 个新测试文件）；bunx tsc --noEmit 0；M1/M2 修复 grep 在位（kal:218,263 次级键、dre-engine:778 tie-break）；日志完整性复核（BOM/6 处历史占位符/be6f271..HEAD 净差异 1 行）。
-- **Commit**：docs(audit): 回写修复状态（9 修复 2 延期）— hash 待回填
+- **Commit**：docs(audit): 回写修复状态（9 修复 2 延期）— 6069934
 
 ## 2026-08-29 — fix(orchestrator): 审计 S1 切片 M6 DAG 停滞归因 + M7 孤儿任务留痕 + M8 进化回流非阻塞 + L5 死变量清理（TDD）
 
