@@ -404,7 +404,7 @@ export class AgentOrchestrator {
             error: "Task requires confirmation but approval was denied or timed out",
             duration: Date.now() - startTime,
           };
-          await this.recordEvolution(task, denied);
+          this.fireEvolution(task, denied);
           return denied;
         }
       }
@@ -417,20 +417,38 @@ export class AgentOrchestrator {
       });
 
       let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      const execution = agent.execute(task);
       const result = await (task.timeout
         ? Promise.race([
-            agent.execute(task),
+            execution,
             new Promise<never>((_, reject) => {
-              timeoutTimer = setTimeout(
-                () => reject(new Error(`Task ${task.id} timeout after ${task.timeout}ms`)),
-                task.timeout,
-              );
+              timeoutTimer = setTimeout(() => {
+                // 审计整改 M7：AgentInterface.execute 无 AbortSignal（不改签名不扩面），
+                // race 超时后原任务仍在后台续跑——挂上监听，待其落定时告警留痕。
+                reject(new Error(`Task ${task.id} timeout after ${task.timeout}ms`));
+                void execution.then(
+                  (orphan) =>
+                    logger.warn(
+                      "[Orchestrator] Orphan task still running in background, settled late",
+                      { taskId: task.id, agentId: agent.id, orphanSuccess: orphan.success },
+                    ),
+                  (err: unknown) =>
+                    logger.warn(
+                      "[Orchestrator] Orphan task still running in background, failed late",
+                      {
+                        taskId: task.id,
+                        agentId: agent.id,
+                        error: err instanceof Error ? err.message : String(err),
+                      },
+                    ),
+                );
+              }, task.timeout);
             }),
           ])
-        : agent.execute(task));
+        : execution);
       clearTimeout(timeoutTimer);
 
-      await this.recordEvolution(task, result);
+      this.fireEvolution(task, result);
 
       logger.info("[Orchestrator] Task completed", {
         taskId: task.id,
@@ -451,7 +469,7 @@ export class AgentOrchestrator {
         error: error.message,
         duration: Date.now() - startTime,
       };
-      await this.recordEvolution(task, failed);
+      this.fireEvolution(task, failed);
       return failed;
     }
   }
@@ -475,6 +493,20 @@ export class AgentOrchestrator {
     } catch (err) {
       logger.debug("[Orchestrator] self-improve skipped", { error: (err as Error).message });
     }
+  }
+
+  /**
+   * 审计整改 M8：recordEvolution 返回值无同步消费方（返回 void，轨迹/教训均异步
+   * 落盘，store.write 为独立写入无读改写竞态），改为后台执行避免每任务同步等待
+   * LLM 调用；recordEvolution 内部已捕获 selfImprove 异常，此处仅兜底防御。
+   */
+  private fireEvolution(task: AgentTask, result: AgentResult): void {
+    void this.recordEvolution(task, result).catch((err: unknown) => {
+      logger.warn("[Orchestrator] recordEvolution background failure", {
+        taskId: task.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   }
 
   /**
@@ -582,7 +614,7 @@ export class AgentOrchestrator {
     results: Map<string, AgentResult>,
     errors: string[]
   ): Promise<void> {
-    const completed = new Set<string>();
+    const failed = new Set<string>();
     const completedSuccess = new Set<string>();
     const remaining = new Set(plan.steps.map((s) => s.id));
 
@@ -595,7 +627,33 @@ export class AgentOrchestrator {
       );
 
       if (ready.length === 0) {
-        errors.push("Deadlock detected: no steps can be executed");
+        // 审计整改 M6：ready 为空时区分"依赖失败阻断"与"循环依赖"，并列出具体任务名，
+        // 不再笼统报 "Deadlock detected"。（审计 L5：原只写不读的 completed Set 已删，
+        // 改由 failed Set 承载"已执行且失败"信息，供下方归因消费。）
+        const stepMap = new Map(plan.steps.map((s) => [s.id, s] as const));
+        const blocked: string[] = [];
+        const failedDeps = new Set<string>();
+        for (const id of remaining) {
+          const hit = (stepMap.get(id)?.dependsOn ?? []).filter((dep) => failed.has(dep));
+          if (hit.length > 0) {
+            blocked.push(id);
+            for (const dep of hit) failedDeps.add(dep);
+          }
+        }
+        if (blocked.length > 0) {
+          errors.push(
+            `Blocked by failed dependencies: steps [${blocked.join(", ")}] waiting on failed steps [${Array.from(failedDeps).join(", ")}]`
+          );
+        } else {
+          const cycle = this.findDagCycle(remaining, plan.steps);
+          if (cycle.length > 0) {
+            errors.push(`Cyclic dependency detected: [${cycle.join(" -> ")}]`);
+          } else {
+            errors.push(
+              `Deadlock detected: no steps can be executed; unresolved steps: [${Array.from(remaining).join(", ")}]`
+            );
+          }
+        }
         break;
       }
 
@@ -606,15 +664,49 @@ export class AgentOrchestrator {
 
         if (!result.success) {
           errors.push(`Step ${step.id} failed: ${result.error}`);
+          failed.add(step.id);
         }
 
-        completed.add(step.id);
         remaining.delete(step.id);
         if (result.success) completedSuccess.add(step.id);
       });
 
       await Promise.all(promises);
     }
+  }
+
+  /**
+   * 审计整改 M6：在剩余步骤的依赖图中找一个环（DFS 三色标记），
+   * 返回环上任务名（按环序）；无环返回空数组。
+   */
+  private findDagCycle(remaining: Set<string>, steps: OrchestrationStep[]): string[] {
+    const stepMap = new Map(steps.map((s) => [s.id, s] as const));
+    const state = new Map<string, "visiting" | "done">();
+    const path: string[] = [];
+
+    const visit = (id: string): string[] | null => {
+      state.set(id, "visiting");
+      path.push(id);
+      const deps = (stepMap.get(id)?.dependsOn ?? []).filter((dep) => remaining.has(dep));
+      for (const dep of deps) {
+        if (state.get(dep) === "visiting") {
+          return path.slice(path.indexOf(dep));
+        }
+        if (!state.has(dep)) {
+          const sub = visit(dep);
+          if (sub) return sub;
+        }
+      }
+      path.pop();
+      state.set(id, "done");
+      return null;
+    };
+
+    for (const id of remaining) {
+      const cycle = visit(id);
+      if (cycle) return cycle;
+    }
+    return [];
   }
 
   /**

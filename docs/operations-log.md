@@ -7535,3 +7535,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：审计报告追加第 7 节修复状态回写表（11 项处置：9 修复+2 延期+待排期清单）；本条目追加。
 - **验证**：bun run test:full 473 pass/0 fail（含 8 个新测试文件）；bunx tsc --noEmit 0；M1/M2 修复 grep 在位（kal:218,263 次级键、dre-engine:778 tie-break）；日志完整性复核（BOM/6 处历史占位符/be6f271..HEAD 净差异 1 行）。
 - **Commit**：docs(audit): 回写修复状态（9 修复 2 延期）— hash 待回填
+
+## 2026-08-29 — fix(orchestrator): 审计 S1 切片 M6 DAG 停滞归因 + M7 孤儿任务留痕 + M8 进化回流非阻塞 + L5 死变量清理（TDD）
+
+- **任务**：审计修复切片 S1 编排层（docs/reviews/2026-08-28-independent-full-audit.md，基线 6069934）：M6——executeDAG ready 为空时环与依赖失败混报 "Deadlock detected" 且不列剩余任务名（orchestrator.ts:597-600）；M7——timeout 输 Promise.race 后孤儿任务后台续跑无 abort/留痕（:420-431）；M8——每任务结束同步 await recordEvolution（selfImprove 内 LLM 调用）放大吞吐（:433,454,466）；L5——completed Set 只写不读（:585,611）。
+- **工具**：Read（orchestrator.ts 全文 809 行、dag-isolation/plan-timeout 测试全文、self-evolve engine/index/types、native-agents execute 签名、审计 doc 对应条目）、Edit/Write（测试 3 文件 + orchestrator 4 处）、Bash（cp 备份/rm 备份/grep 断言/bun test/bunx tsc/bun 回填脚本/git）。无子代理（切片要求串行）。
+- **操作**（文件级）：
+  1. 备份 orchestrator.ts、orchestrator-dag-isolation.test.ts、orchestrator-plan-timeout.test.ts、operations-log.md → `.tmp/backups/`（规则2）。偏差如实记录：operations-log 948KB/7537 行超出上下文可全量通读上限，本条目为 EOF 纯追加（尾段已锚定通读），不触碰既有内容。
+  2. 红：tests/orchestrator-dag-isolation.test.ts 新增 describe 追加 M6 两测试——依赖失败阻断场景（alpha 失败→beta 被阻）断言 errors 含被阻断任务名 "beta"、失败依赖名 "alpha"、"failed" 语义且无笼统 Deadlock；A→B→A 环场景断言报 "Cyclic dependency detected" 含环上任务名且环上任务零调度。首跑红（旧消息 "Deadlock detected: no steps can be executed" 不含任务名）。
+  3. 红：tests/orchestrator-plan-timeout.test.ts 追加 M7 测试——timeout=50ms vs 300ms 慢 agent，race 超时返回 failed 后轮询断言孤儿落定时 warn 含 "Orphan task" 与 taskId；首跑红（无任何告警）。
+  4. 红：新建 tests/orchestrator-evolution-async.test.ts——fake selfImprove sleep 200ms，断言 executeTask elapsed<80ms 且回流已触发；旧实现同步 await selfImprove → 必红。首跑合计 5 pass/4 fail（4 红均为新增测试，既有 5 绿）。
+  5. 绿：orchestrator.ts executeDAG 归因重写——删除只写不读的 completed Set（L5），新增 failed Set（已执行且失败）供归因消费；ready 空时三分类：①存在 failed 依赖 → "Blocked by failed dependencies: steps [...] waiting on failed steps [...]"（列被阻断任务与失败依赖）；②新增 findDagCycle（DFS 三色标记，限 remaining 子图）→ "Cyclic dependency detected: [x -> y]"（列环上任务名）；③兜底 Deadlock 消息附 unresolved 任务名。M7——agent.execute 结果提升为 execution 变量，timeout timer 回调内 reject 后对 execution 挂 then/catch，孤儿落定 logger.warn 含 taskId/agentId；AgentInterface.execute 与 NativeAgent execute 均无 AbortSignal 参数（native-agents.ts:86 `_ctx` 未用），按切片约束不改签名，选留痕方案。M8——新增 fireEvolution 私有方法（void recordEvolution().catch → logger.warn 兜底），denied/result/failed 三调用点去除 await；评估结论：recordEvolution 返回值全仓无消费方（3 处调用均 await 后丢弃）、store.write 为独立 Map set + 唯一路径 vault 写无读改写竞态（self-evolve/index.ts:36-74）、recordTrace 同步入栈（engine.ts:238）→ 非阻塞无丢录/竞态风险，改动净增约 12 行实施。
+  6. 本条目 docs/operations-log.md。
+- **验证**：红→绿：5 pass/4 fail → orchestrator 四测试文件（dag-isolation/plan-timeout/evolution-async/orchestrator.test）27 pass/0 fail；回归 bun run test:full 473 pass/0 fail（与上一迭代基线 473 持平，M8/M7 无跨面影响）；bunx tsc --noEmit 0；grep `\bcompleted\b` 残留仅日志文案/注释（无 Set 变量引用）。备份验证后删除。
+- **Commit**：fix(orchestrator): 审计 S1 M6 DAG停滞归因+M7孤儿任务留痕+M8进化回流非阻塞+L5死变量清理（TDD，含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `tests/orchestrator-plan-timeout.test.ts` + `tests/orchestrator-evolution-async.test.ts` + `docs/operations-log.md`） — <hash待回填:S1-ORCH-M6M7M8L5>

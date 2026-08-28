@@ -13,6 +13,7 @@
  */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { readFileSync } from "node:fs";
+import { logger } from "../src/utils/logger.js";
 import { ToolRegistry } from "../src/mcp/tool-registry.js";
 import { registerOrchestratorTools } from "../src/mcp/server/orchestrator-tools.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "../src/mcp/server/orchestrator-tools.js";
@@ -127,5 +128,40 @@ describe("审计 H3: orchestrator_execute_plan 步骤超时", () => {
     const source = readFileSync("src/mcp/server/orchestrator-tools.ts", "utf8");
     expect(source).toContain("timeoutMs: z.number().int().positive().optional()");
     expect(source).toContain("timeout: step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS");
+  });
+
+  // 审计 M7（2026-08-28）：AgentInterface.execute 无 AbortSignal（不改签名不扩面），
+  // timeout 输 race 后孤儿任务后台续跑——落定时应记录 warn 留痕（含任务名）。
+  test("超时 race 后孤儿任务后台落定时记录 warn", async () => {
+    const warns: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const loggerAny = logger as unknown as {
+      warn: (msg: string, ctx?: Record<string, unknown>) => void;
+    };
+    const origWarn = loggerAny.warn;
+    loggerAny.warn = (msg, ctx) => {
+      warns.push({ msg, ctx });
+    };
+    try {
+      const result = await orch.executeTask({
+        id: "orphan-probe",
+        type: "plan-timeout-slow", // fake agent 300ms resolve；timeout 50ms → race 超时
+        description: "orphan probe",
+        input: {},
+        timeout: 50,
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("timeout");
+
+      // 孤儿任务约 300ms 后落定，应出现含任务名的孤儿告警
+      const hit = () =>
+        warns.find((w) => w.msg.includes("Orphan task") && w.ctx?.taskId === "orphan-probe");
+      const deadline = Date.now() + 1500;
+      while (Date.now() < deadline && !hit()) {
+        await Bun.sleep(20);
+      }
+      expect(hit()).toBeDefined();
+    } finally {
+      loggerAny.warn = origWarn;
+    }
   });
 });
