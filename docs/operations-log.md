@@ -7633,4 +7633,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   5. store.ts:148（UNIQUE constraint 判定后 rethrow）与 document-ingest.ts:105（not allowed rethrow + ENOENT 交由 readFileSync）为带控制流语义的处理型 catch，非静默降级，不改。
   6. 本条目 docs/operations-log.md（bun 脚本追加，hash 占位后回填）。
 - **验证**：grep "catch {" src/kal + src/knowledge 由 17 → 0；bun test tests/kal-references.test.ts tests/kal-deterministic-order.test.ts tests/document-ingest.test.ts tests/knowledge-pipeline-media.test.ts 31 pass/0 fail（与改动前基线一致，纯可观测性无红绿接缝）；bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(observability): 审计 S6 L10 kal/knowledge 静默降级补 debug 日志（无行为变化，含 `src/kal/knowledge-access-layer.ts` + `src/knowledge/vision.ts` + `src/knowledge/store.ts` + `src/knowledge/quality-assessor.ts` + `src/knowledge/preprocessor.ts` + `docs/operations-log.md`） — S6-HASH-PENDING-20260829
+- **Commit**：fix(observability): 审计 S6 L10 kal/knowledge 静默降级补 debug 日志（无行为变化，含 `src/kal/knowledge-access-layer.ts` + `src/knowledge/vision.ts` + `src/knowledge/store.ts` + `src/knowledge/quality-assessor.ts` + `src/knowledge/preprocessor.ts` + `docs/operations-log.md`） — 72f646e
