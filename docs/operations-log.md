@@ -7634,3 +7634,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   6. 本条目 docs/operations-log.md（bun 脚本追加，hash 占位后回填）。
 - **验证**：grep "catch {" src/kal + src/knowledge 由 17 → 0；bun test tests/kal-references.test.ts tests/kal-deterministic-order.test.ts tests/document-ingest.test.ts tests/knowledge-pipeline-media.test.ts 31 pass/0 fail（与改动前基线一致，纯可观测性无红绿接缝）；bunx tsc --noEmit 0。备份验证后删除。
 - **Commit**：fix(observability): 审计 S6 L10 kal/knowledge 静默降级补 debug 日志（无行为变化，含 `src/kal/knowledge-access-layer.ts` + `src/knowledge/vision.ts` + `src/knowledge/store.ts` + `src/knowledge/quality-assessor.ts` + `src/knowledge/preprocessor.ts` + `docs/operations-log.md`） — 72f646e
+
+## 2026-08-29 — audit: 联合验证审计 v2 + src 深读覆盖率收口 + 强化设计 spec
+
+- **任务**：①修复声称验证——上轮报告 §7/§8 的 28 项修复声称逐项到 HEAD 核验（24 组抽查），24/24 证实、test:full 482/0 复现一致、早期修复无回退；②src 深读覆盖率收口（上轮明示阻塞项）——3 组子代理深读 B1 集成层 119/119、B2 学习层 115/115、B3 工具域层 112/112，与上轮合计 src 399/399 深读达成；③新发现 High 5（MCP read 任意读可窃 .env、code-analysis 命令注入、command-safety 换行绕过、skill-promoter 幂等破坏、codegen 超时失效挂起+信号量泄漏）+ Medium 18 + Low/Info 21；④确定性 N=5 复测（含新增 tie 测试）5/5 全绿；⑤头脑风暴产出强化设计 spec（方案 A：P0 安全先行 6 切片 + P1 健壮 5 切片 + P2 卫生 2 切片）。
+- **工具**：Bash（目录分片清单、N≥5 复测）、Agent×4（V 验证 + B1/B3 并行成功、B2 并发失败后重试成功，均 Explore 只读）、Write（审计报告 v2 + 强化 spec）、Skill（brainstorming）。
+- **操作**（文件级）：新建 `docs/reviews/2026-08-29-joint-verification-audit.md`（覆盖率/承诺复测/对照表 v2 增量 3 行/新发现清单/总体结论）与 `docs/superpowers/specs/2026-08-29-audit-hardening-design.md`（方案对比 + P0/P1/P2 切片表 + 非目标 + 验收清单 + 回滚）；本条目追加。
+- **验证**：V 组 24 项全部附 文件:行 证据；B1-B3 各自给出逐文件状态与覆盖率；High 全部附代码证据（read-tool.ts:47 零围栏、code-analysis.ts:501 未转义、command-safety.ts:58 无 \r\n、skill-promoter.ts:72 vs :103 id 失配、codegen.ts:40-50 无 signal）；判定标准四项全部满足。
+- **Commit**：docs(audit+spec): 联合验证审计 v2 + 强化设计 spec（24/24 证实/src 399 深读 100%/新 High 5） — hash 待回填
