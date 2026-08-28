@@ -7454,3 +7454,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：新建 `docs/reviews/2026-08-28-independent-full-audit.md`（覆盖率/核心承诺核查/声明对照表 13 行/分模块问题清单 Critical 0+High 7+Medium 14+Low 12+Info 8/未验证项 7 条/总体结论）；本条目追加。
 - **验证**：结论全部附文件:行锚点；High 级 4 项经主会话独立抽验证实（H3 路径修正）；非向量化双方式（依赖清单+主链追踪）交叉一致；确定性 5/5 外环全绿；N≥5 与测试覆盖不对称矛盾如实报告。
 - **Commit**：docs(audit): 独立全量审计报告（Critical 0/High 7/Medium 14/Low 12/Info 8，含覆盖率与未验证项清单） — 237cb7d
+
+## 2026-08-28 — fix(readme): 审计 H4 隐私声明收口（改文档路径）
+
+- **任务**：审计 H4——README:40/612 声明"指纹随机化+代理轮换+反追踪"，src/crawl 全树零实现（UA 固定 Axiom/1.0 data-pipeline.ts:262、代理为静态 env 链 search-engines.ts:70-71、有 SSRF 守卫）。按审计"二选一"取改文档路径（补实现属重施工，违反规则1最小化）；顺带 :41 路由链箭头措辞改为"多供应商动态路由"（对照表 #11 部分一致项）。
+- **工具**：Read（README:36-49/606-617）、Bash（grep 核实 UA/代理 env/SSRF 实现形态与文档断言残留）、Edit（README 2 处）、Bash（bun test 36 pass/git）。
+- **操作**（文件级）：README 架构图隐私行+路由行、技术栈隐私行改写为实际实现描述并注明 H4 收口。
+- **验证**：docs-consistency/architecture-integrity/pg-client-removal 36 pass/0 fail；grep "指纹随机化" tests/ 与 AXIOM 文档零残留。
+- **Commit**：docs(readme): 隐私声明收口为实际实现（固定UA+可选静态代理+SSRF，H4）+ 路由措辞改动态路由（含 README.md） — 328bcdd（本条目为后补记录，提交时日志未随附，与 Task 4 同类偏差，如实记录）
