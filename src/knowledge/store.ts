@@ -205,7 +205,8 @@ export class KnowledgeStore {
         antonyms: r.antonyms ? JSON.parse(r.antonyms as string) : undefined,
         etymology: r.etymology as string | undefined,
       }));
-    } catch {
+    } catch (err) {
+      logger.debug("[Knowledge] searchDictionary FTS degrade to empty", { error: String(err) });
       return [];
     }
   }

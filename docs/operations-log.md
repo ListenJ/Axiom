@@ -7620,3 +7620,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **验证**：红→绿：M11 6 fail→6 pass；L4 1 fail→3 pass。回归：相关 14 文件 91 pass/0 fail（routes/ 全部 + tools-v3 + registry-validation + services-chat + adapt-tool + cache-stats-tool + kg-empty-doc + mcp-client-connector + unit/risk-monitor-degraded（既有 HardFloor O1c 键名扩展测试不破坏）+ unit/tool-mode-gate + 两新文件）；bun run test:full 482 pass/0 fail（基线 473 量级 + 新增 9，允许增幅）；bunx tsc --noEmit 0。调试插桩：修复过程中以临时探针（tests/__probe*.test.ts，即建即删）实证 Bun mock.module 对 barrel re-export 链的污染（mock self-evolve/index.js 会沿 re-export 覆盖 engine.js 导出，致并行 worker 中 apply-self-thought.test.ts 回归）——据此移除该 mock 改用真实 applySelfThought（失败兜底 + 已 mock 的 model-router 保证确定性），test:full 转绿。备份验证后删除。
 - **Commit**：fix(server): 审计 S5 M11 /chat 请求体 zod 校验（TDD，含 `src/routes/chat.ts` + `tests/routes-chat-validation.test.ts` + `docs/operations-log.md`） — c8321be
 - **Commit**：fix(mcp): 审计 S5 L4 ToolRegistry.add 同名去重 + L6 死代码删除 + L8 HardFloor 路径字段并集扩展 + L9 typescript 依赖归位 + I6 tool-count 注释修正 + L11 模型名边界注释（含 `src/mcp/tool-registry.ts` + `tests/tool-registry-dedup.test.ts` + `src/testing/tool-count.ts` + `package.json` + `bun.lock` + `src/local-llm/edge-client.ts` + `src/dre/config.ts`） — 1f0450a
+
+## 2026-08-29 — fix(observability): 审计 S6 切片 L10 kal/knowledge 静默降级补 debug 日志（无行为变化）
+
+- **任务**：审计修复切片 S6（docs/reviews/2026-08-28-independent-full-audit.md L10：kal 6 处 / knowledge 11 处空或仅注释 catch 全无 logger）。每处补 `logger.debug("...", { error: String(err) })`，语义标签标明降级点；不改控制流、不改返回值、不升级日志级别；quality-assessor.ts 与 preprocessor.ts 补 logger import。
+- **工具**：Read（knowledge-access-layer.ts 441 行全文、vision.ts 365 行全文、store.ts 310 行全文、quality-assessor.ts 257 行全文、preprocessor.ts 187 行全文）、Edit（源码 5 文件 17 处 catch + 2 处 import）、Bash（cp 备份/rm 备份/grep 空catch计数/bun test/bunx tsc/bun 追加与回填脚本/git）。无子代理（切片要求串行）。
+- **操作**（文件级）：
+  1. 备份 5 文件 → `.tmp/backups/`（规则2，先通读全文）。
+  2. src/kal/knowledge-access-layer.ts 6 处（queryVault FTS5 / queryKG / queryDRE 降级、getReferences kg 表与 vault wiki-link 引擎降级、safeParseTags JSON 解析失败）——FTS 缺表等高频预期降级按切片要求用 logger.debug 保持安静。
+  3. src/knowledge/vision.ts 7 处（image stat / opencode 读图 / ffmpeg 网格与单帧抽帧 / 媒体路径 stat / walk readdir / 临时帧清理）。
+  4. src/knowledge/store.ts 1 处（searchDictionary FTS 降级）；src/knowledge/quality-assessor.ts 2 处（单条 fact verify、computeAccuracy 整体降级 0.5）；src/knowledge/preprocessor.ts 1 处（preprocess 降级返回原始输入）。
+  5. store.ts:148（UNIQUE constraint 判定后 rethrow）与 document-ingest.ts:105（not allowed rethrow + ENOENT 交由 readFileSync）为带控制流语义的处理型 catch，非静默降级，不改。
+  6. 本条目 docs/operations-log.md（bun 脚本追加，hash 占位后回填）。
+- **验证**：grep "catch {" src/kal + src/knowledge 由 17 → 0；bun test tests/kal-references.test.ts tests/kal-deterministic-order.test.ts tests/document-ingest.test.ts tests/knowledge-pipeline-media.test.ts 31 pass/0 fail（与改动前基线一致，纯可观测性无红绿接缝）；bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：fix(observability): 审计 S6 L10 kal/knowledge 静默降级补 debug 日志（无行为变化，含 `src/kal/knowledge-access-layer.ts` + `src/knowledge/vision.ts` + `src/knowledge/store.ts` + `src/knowledge/quality-assessor.ts` + `src/knowledge/preprocessor.ts` + `docs/operations-log.md`） — S6-HASH-PENDING-20260829

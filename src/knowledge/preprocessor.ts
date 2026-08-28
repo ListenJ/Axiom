@@ -14,6 +14,7 @@
  * 降级策略：清洗失败返回原始输入（不阻塞流程）。
  */
 import { z } from "zod";
+import { logger } from "../utils/logger.js";
 
 /** 抽取出的元数据 */
 export interface ExtractedMetadata {
@@ -176,8 +177,9 @@ export function preprocessKnowledge(rawMarkdown: string): PreprocessedKnowledge 
       extractedMetadata: metadata,
       tokenCount: estimateTokens(md),
     };
-  } catch {
+  } catch (err) {
     // 降级：返回原始输入
+    logger.debug("[Knowledge] preprocess degrade to raw input", { error: String(err) });
     return {
       cleanedMarkdown: rawMarkdown,
       extractedMetadata: {},

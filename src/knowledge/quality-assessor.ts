@@ -12,6 +12,7 @@
  * 降级策略：评估失败返回 overall=0 + issues 描述，调用方应丢弃该数据。
  */
 import { ConformalHallucinationDetector, type FactEntry } from "../memory/hallucination-detector.js";
+import { logger } from "../utils/logger.js";
 import type { StructuredKnowledge } from "./types.js";
 
 /** 质量评估报告 */
@@ -74,14 +75,16 @@ function computeAccuracy(structured: StructuredKnowledge, factBase?: FactEntry[]
         // pValue 越大越可信，直接作为该 statement 的 accuracy 贡献
         sum += verdict.pValue;
         count++;
-      } catch {
+      } catch (err) {
         // 单条验证失败不影响整体
+        logger.debug("[Knowledge] fact verify statement failed", { error: String(err) });
       }
     }
 
     if (count === 0) return 0.5;
     return Math.max(0, Math.min(1, sum / count));
-  } catch {
+  } catch (err) {
+    logger.debug("[Knowledge] computeAccuracy degrade to 0.5", { error: String(err) });
     return 0.5;
   }
 }

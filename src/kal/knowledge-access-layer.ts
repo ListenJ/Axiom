@@ -206,8 +206,9 @@ export class KnowledgeAccessLayer {
           metadata: { path: row.path },
         };
       });
-    } catch {
+    } catch (err) {
       // FTS5 表可能不存在，静默降级
+      logger.debug("[KAL] queryVault FTS5 degrade to empty", { error: String(err) });
       return [];
     }
   }
@@ -255,7 +256,8 @@ export class KnowledgeAccessLayer {
         tags: this.safeParseTags(row.tags),
         metadata: { id: row.id },
       }));
-    } catch {
+    } catch (err) {
+      logger.debug("[KAL] queryKG degrade to empty", { error: String(err) });
       return [];
     }
   }
@@ -300,7 +302,8 @@ export class KnowledgeAccessLayer {
         tags: [row.domain, row.paradigm],
         metadata: { id: row.node_id, domain: row.domain },
       }));
-    } catch {
+    } catch (err) {
+      logger.debug("[KAL] queryDRE degrade to empty", { error: String(err) });
       return [];
     }
   }
@@ -362,7 +365,10 @@ export class KnowledgeAccessLayer {
           });
         }
       }
-    } catch { /* kg 表可能不存在 */ }
+    } catch (err) {
+      // kg 表可能不存在
+      logger.debug("[KAL] getReferences kg tables degrade to no edges", { error: String(err) });
+    }
 
     // Vault wiki-link 入链（P1-T2 / O3-F2）：经 queryVault 建立的映射反查
     // 原始路径，再调适配器补齐引用腿。无映射时保守降级（归一化不可逆，不猜测）。
@@ -399,7 +405,10 @@ export class KnowledgeAccessLayer {
             });
           }
         }
-      } catch { /* 引擎不可用，静默降级 */ }
+      } catch (err) {
+        // 引擎不可用，静默降级
+        logger.debug("[KAL] getReferences vault wiki-link engine unavailable", { error: String(err) });
+      }
     }
 
     return results;
@@ -420,7 +429,8 @@ export class KnowledgeAccessLayer {
   private safeParseTags(tagsJson: string): string[] {
     try {
       return JSON.parse(tagsJson || "[]");
-    } catch {
+    } catch (err) {
+      logger.debug("[KAL] safeParseTags malformed tags JSON degrade to empty", { error: String(err) });
       return [];
     }
   }

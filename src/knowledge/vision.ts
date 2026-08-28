@@ -107,7 +107,8 @@ export async function understandImageFile(
       logger.warn("[KnowledgeVision] image too large (>10MB), skip");
       return null;
     }
-  } catch {
+  } catch (err) {
+    logger.debug("[KnowledgeVision] image stat failed", { error: String(err) });
     return null;
   }
   const b64 = fs.readFileSync(filePath).toString("base64");
@@ -175,7 +176,8 @@ async function tryOpenCodeVision(filePath: string, prompt: string): Promise<stri
   let b64 = "";
   try {
     b64 = fs.readFileSync(filePath).toString("base64");
-  } catch {
+  } catch (err) {
+    logger.debug("[KnowledgeVision] opencode read image failed", { error: String(err) });
     return null;
   }
   const payload = JSON.stringify({
@@ -254,8 +256,8 @@ async function extractVideoFrames(videoPath: string): Promise<string | null> {
     );
     const code = await proc.exited;
     if (code === 0 && fs.existsSync(grid)) return grid;
-  } catch {
-    /* fall through to single frame */
+  } catch (err) {
+    logger.debug("[KnowledgeVision] ffmpeg grid extraction failed; fall back to single frame", { error: String(err) });
   }
   // 回退：单首帧
   const single = path.join(dir, "frame.png");
@@ -266,8 +268,8 @@ async function extractVideoFrames(videoPath: string): Promise<string | null> {
     );
     const c2 = await p2.exited;
     if (c2 === 0 && fs.existsSync(single)) return single;
-  } catch {
-    /* ignore */
+  } catch (err) {
+    logger.debug("[KnowledgeVision] ffmpeg single frame extraction failed", { error: String(err) });
   }
   return null;
 }
@@ -281,7 +283,8 @@ function resolveMediaPath(ref: string, baseDir?: string): string | null {
     if (rel.startsWith("..") || path.isAbsolute(rel)) return null; // 绝对路径/.. 逃逸拒绝
     try {
       if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) return null;
-    } catch {
+    } catch (err) {
+      logger.debug("[KnowledgeVision] media path stat failed", { error: String(err) });
       return null;
     }
     return resolved;
@@ -303,8 +306,8 @@ function resolveMediaPath(ref: string, baseDir?: string): string | null {
           return child;
         }
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      logger.debug("[KnowledgeVision] media walk readdir failed", { error: String(err) });
     }
     return null;
   };
@@ -348,8 +351,8 @@ export async function describeMediaInMarkdown(
     if (fromVideo && imagePath.startsWith(os.tmpdir())) {
       try {
         fs.rmSync(path.dirname(imagePath), { recursive: true, force: true });
-      } catch {
-        /* ignore */
+      } catch (err) {
+        logger.debug("[KnowledgeVision] temp frame cleanup failed", { error: String(err) });
       }
     }
     if (!desc) continue;
