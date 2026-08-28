@@ -7445,4 +7445,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail；bunx tsc --noEmit 0；grep 复核失实声明残留清零（mcp/skill-tools 旧路径、fast/cheap/smart、"默认 minSamples: 5"、"重启清零"均零命中）。备份验证后删除。
 - **Minor 遗留（记录待后续）**：W6 对未命中 nodeId 重复 O(N) 枚举无负缓存、归一化碰撞路径 nodeId 歧义——均随 W5/W8 重立项一并处理；W6 修复当前生产不激活（kg-tools.ts:16 未注入适配器，计划已声明）。
-- **Commit**：fix(docs): 审查勘误——2.20持久化事实/2.18接线参数/2.17接线点更正 + spec D4勘误（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — hash 待回填
+- **Commit**：fix(docs): 审查勘误——2.20持久化事实/2.18接线参数/2.17接线点更正 + spec D4勘误（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — 5bdf0f0
