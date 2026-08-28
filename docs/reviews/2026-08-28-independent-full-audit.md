@@ -92,3 +92,25 @@ I1 KAL 统一为接口层+O3-F5 归一，实现层三套独立 SQL；I2 管线�
 3. **功能面最大风险是 H1+H7+H6**：VRAM 预算全链路失真（探测未挂载）、KG 图内存态重启丢失、vault 适配器未注入——三者共同特征是"组件已写好但未接线"，与 H2（随机 id 击穿去重）、H3（DAG 无超时）合计构成下一迭代"接线与收口"清单。
 4. **工程质量面**：空 catch 分母 341（纯空 35）且关键路径全部无 logger（M12）；架构测试存在 dre→crawl 盲区（M13）；入库杂物（.server-pid.txt、tmp-toctou-target、eval-results）与幽灵依赖声明（@earendil-works/pi-ai）属低风险卫生问题。
 5. 本报告全部结论附代码锚点，7 项 Critical 级未发现；所有 High/Medium 均可在现有接缝上以小切片修复，无需架构级重构。
+
+---
+
+## 7. 修复状态回写（2026-08-28 优化迭代，同日完成）
+
+| 项 | 状态 | Commit | 说明 |
+|----|------|--------|------|
+| H4 隐私声明失实 | ✅ 改文档收口 | 328bcdd | README 声明改为实际实现（固定 UA+可选静态代理+SSRF），路由措辞同步改动态路由 |
+| H1 VRAM 探测未挂载 | ✅ 已接线 | 3fd26ca | main.ts 启动链挂载 startVramProbe（AXIOM_VRAM_PROBE=1 门控）+ 关停钩；tests/vram-probe-wiring.test.ts 锁定 |
+| H2 kg-tools 随机 id | ✅ 已修 | 3e7182c | 两 handler 改走 enhanced.ts sha256 内容哈希；tests/kg-tools-dedup.test.ts 行为级锁定 |
+| H7 图内存态不恢复 | ✅ 已修 | 3e7182c | enhanced.ts 构造时 restoreGraphFromDb() 全量重建；tests/kg-restore-adjacency.test.ts |
+| H3 DAG 无超时 | ✅ 已修 | 2514c71 | MCP 计划步骤默认 120s 超时（DEFAULT_STEP_TIMEOUT_MS，步骤级可覆盖）；tests/orchestrator-plan-timeout.test.ts |
+| H5 snippet 注入面 | ✅ 最小收敛 | 37b96f8 | kg-research-agent 注入点加 UNTRUSTED 边界标记；tests/kg-research-agent-untrusted.test.ts |
+| M12 filesystem 空 catch | ✅ 补日志 | 37b96f8 | 三处 catch 补 logger.debug（:98 fail-open 语义保留并注释残余风险） |
+| M1 KAL 同分次级键 | ✅ 已修 | be6f271 | queryKG/queryDRE ORDER BY 加 id/node_id ASC；tests/kal-deterministic-order.test.ts |
+| M2 dre-engine:777 tie-break | ✅ 已修 | be6f271 | 与 :493 W1 修法对齐；tests/dre-retrieval-tie.test.ts |
+| 杂物入库（.server-pid/tmp-toctou-target） | ✅ 已出库 | 151ff6b | 归档 archive/runtime-junk-2026-08-28 + gitignore 防再入 |
+| H6 vault 适配器未注入 | ⏸ 延期 | — | 接线需改 VaultManager 公共 API 且给 MCP 进程拉起整个 vault 栈，成本/收益不成立；随 W5/W8 重立项一并评估 |
+| M3 localeCompare 显式 locale | ⏸ 延期 | — | 改动会翻转现有排序语义，随 W5/W8 重立项一并处理 |
+| M4-M11/M13/M14 + 全部 Low | 📋 待排期 | — | 见第 4 节，均为接缝级小切片 |
+
+**回归验证（2026-08-28）**：`bun run test:full` 473 pass / 0 fail（含本迭代 8 个新测试文件）；`bunx tsc --noEmit` 0。

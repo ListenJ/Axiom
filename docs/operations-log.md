@@ -7527,3 +7527,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   5. 本条目 docs/operations-log.md。
 - **验证**：TDD 红→绿：1 fail/1 pass → 2 pass/0 fail；filesystem 三件套（tests/filesystem-symlink.test.ts + tests/security-fixes.test.ts + tests/unit/filesystem.test.ts）+ 新测试共 45 pass/0 fail；bunx tsc --noEmit 0；grep 确认 filesystem.ts 无残留 `catch {}`。备份验证后删除。
 - **Commit**：fix(security): 审计 M12 filesystem 空catch补日志 + H5 kg-research 不可信搜索内容边界标记（TDD，含 `src/mcp/tools/filesystem.ts` + `src/agents/kg-research-agent.ts` + `tests/kg-research-agent-untrusted.test.ts` + `docs/operations-log.md`） — 37b96f8
+
+## 2026-08-28 — chore/fix: 审计修复迭代收口（High 5/7 修复+2 延期、M1/M2/M12/H5、杂物出库）
+
+- **任务**：按独立审计报告（237cb7d）执行修复迭代：H4 改文档收口（328bcdd）→ H1 VRAM 探测挂载（3fd26ca）→ H2+H7 KG 层修复+H6 评估延期（3e7182c，子代理）→ H3 DAG 默认超时（2514c71，子代理）→ M1+M2 确定性次级键（be6f271，子代理；中途 sed 误改日志经 0fc4f98/d97503a 字节级恢复，主会话复核 BOM/占位符/净差异完好）→ M12+H5 安全卫生（37b96f8，子代理）→ 杂物出库+gitignore（151ff6b）。
+- **工具**：Read/Edit/Write/Bash（主会话 H4+H1+杂物）、Agent×4（general-purpose 串行执行 KG/H3/确定性/安全切片，各自遵守 AGENTS 规则）、bun run test:full、bunx tsc。
+- **操作**（文件级）：审计报告追加第 7 节修复状态回写表（11 项处置：9 修复+2 延期+待排期清单）；本条目追加。
+- **验证**：bun run test:full 473 pass/0 fail（含 8 个新测试文件）；bunx tsc --noEmit 0；M1/M2 修复 grep 在位（kal:218,263 次级键、dre-engine:778 tie-break）；日志完整性复核（BOM/6 处历史占位符/be6f271..HEAD 净差异 1 行）。
+- **Commit**：docs(audit): 回写修复状态（9 修复 2 延期）— hash 待回填
