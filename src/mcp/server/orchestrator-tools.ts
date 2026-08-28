@@ -2,6 +2,12 @@ import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { getAgentOrchestrator, type AgentTask } from "../../agents/orchestrator.js";
 
+/**
+ * 计划步骤默认超时 (ms)：步骤未显式给 timeoutMs 时的兜底，可被步骤级覆盖。
+ * （审计 H3：否则经 MCP 执行计划的步骤无超时，单步挂起则整体永久挂起。）
+ */
+export const DEFAULT_STEP_TIMEOUT_MS = 120_000;
+
 export function registerOrchestratorTools(registry: ToolRegistry): void {
   registry.add({
     name: "orchestrator_execute_task",
@@ -42,6 +48,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
         taskDescription: z.string(),
         dependsOn: z.array(z.string()).optional(),
         requireConfirmation: z.boolean().optional(),
+        timeoutMs: z.number().int().positive().optional().describe("步骤超时 (ms)，缺省用默认值 120000"),
       })).describe("执行步骤"),
     },
     handler: async (args) => {
@@ -55,6 +62,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
         taskDescription: string;
         dependsOn?: string[];
         requireConfirmation?: boolean;
+        timeoutMs?: number;
       }>).map((step, index) => ({
         id: `${planId}-step-${index}`,
         name: step.name,
@@ -64,6 +72,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
           type: step.taskType,
           description: step.taskDescription,
           input: {},
+          timeout: step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
         },
         dependsOn: step.dependsOn,
         requireConfirmation: step.requireConfirmation,
