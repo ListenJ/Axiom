@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import { logger } from "../../utils/logger.js";
 
 export interface FileResult {
   success: boolean;
@@ -95,7 +96,16 @@ function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
             error: `Path '${targetPath}' parent directory resolves outside the working directory (symlink parent escape).`,
           };
         }
-      } catch {}
+      } catch (err) {
+        // 守卫语义：目标路径与其父目录均无法 realpath（通常是尚未创建的新路径），
+        // 此处保守放行（fail-open）而非拒绝——新建文件属合法场景；
+        // 残余风险（父目录链上的 symlink 竞态）由 writeFile/moveFile 在
+        // mkdir 后的 isPathSafe TOCTOU 重校验兜底。
+        logger.debug("[Filesystem] isPathSafe parent realpath failed, allowing (fail-open)", {
+          path: resolved,
+          error: String(err),
+        });
+      }
     }
 
     return { safe: true };
@@ -154,7 +164,13 @@ export async function writeFile(
     // 原子 mkdir -p + 捕获 EEXIST/竞态（H-03 TOCTOU 修复）
     try {
       await fs.mkdir(dir, { recursive: true });
-    } catch {}
+    } catch (err) {
+      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误（如 EACCES）由后续写入显式返回
+      logger.debug("[Filesystem] mkdir before write failed, deferring to write error", {
+        dir,
+        error: String(err),
+      });
+    }
     // TOCTOU 重校验：mkdir 后再次解析真实路径，防止 check→mkdir 窗口的 symlink 抢占
     const postSafety = isPathSafe(resolved);
     if (!postSafety.safe) {
@@ -383,7 +399,13 @@ export async function moveFile(
     const dir = path.dirname(dstResolved);
     try {
       await fs.mkdir(dir, { recursive: true });
-    } catch {}
+    } catch (err) {
+      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误由后续 rename 显式返回
+      logger.debug("[Filesystem] mkdir before move failed, deferring to rename error", {
+        dir,
+        error: String(err),
+      });
+    }
     const postDstSafety = isPathSafe(dstResolved);
     if (!postDstSafety.safe) {
       return { success: false, error: postDstSafety.error, path: destination };
