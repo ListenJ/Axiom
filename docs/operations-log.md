@@ -7354,3 +7354,16 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **回退**：gh repo edit ListenJ/Axiom --visibility private --accept-visibility-change-consequences
 
 
+## 2026-08-28 — 下一迭代方向：三方辩论 + 独立审计决策设计（头脑风暴）
+
+- **任务**：用户委托"检查最新进展与最新 spec 后头脑风暴，多方辩论 + 审计，产出最优/最轻/最高效率决策"。完成项目现状探索（spec/计划修订/操作日志/工作区在途改动）后，以 3 辩论方子代理（稳定守护者/精益效率派/演进战略派）+ 1 审计员子代理（10 项主张逐条属实性核查）完成辩论与审计，产出决策设计文档。
+- **工具**：Bash（git log/status/diff、bunx tsc --noEmit、bun test、wc/head/tail、mkdir/cp 备份）、Read（spec/计划修订/operations-log 尾部/LIMITATIONS/README）、Write（决策设计 spec）、Edit（本日志）、Agent×4（3 辩论 Explore 子代理 + 1 审计 Explore 子代理，均只读）。
+- **操作**（文件级）：
+  1. 新建 `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`（决策集：D1 在途 W5/W8 回滚归档；D2 本迭代=回归防线收口 W6→W11→test:full 白名单补录；D3 W5/W8 下迭代测试先行缩窄重立项；D4 self-evolve 深化含 deprecated 持久化；D5 eval 缩窄冒烟门禁；D6 性能/前端押后）。
+  2. 备份 `docs/operations-log.md` → `.tmp/backups/docs/operations-log.md`（规则2）；本条目追加。
+- **验证**：
+  - 辩论事实经审计员独立核查：W8 在途改动静默绕过 searchAgg mock（pipeline.ts:97-99/216-218，HEAD 版无此问题，dre-stage2-webverify 1/3 fail + 1 条打真实网络 4.9s）；kg_nodes_fts 全库无建表（queryKG FTS 死路径）；knowledge_node_fts 有建表+触发器无回填且 KAL:309 提前 return 漏查存量行；其余 6+2 文件为行尾/stat 噪音（git diff 0 行）；agent-evals 12 模块+12 测试可跑；src/eval 3348 行 0 行为测试（仅 CI 行数上限）；self-evolve 闭环链真实（skill-tools.ts:116→skill-quality.ts:20-21→skill-promotion.ts:67，9 测试）；tsc 0 / kal-references 14 pass。补充发现：test:full 手工白名单漏 agent-evals（12 测试仅 1 进 CI）与 tests/self-evolve 全部 9 个；skill-quality deprecated 标记不持久化。
+  - spec 自查（占位符/内部一致性/范围/歧义）通过。
+- **Commit**：docs(spec): 下一迭代三方辩论+审计决策设计（W5/W8回滚归档/回归防线收口/缩窄门禁）（含 `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — hash 待回填
+
+
