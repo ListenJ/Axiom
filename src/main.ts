@@ -90,6 +90,7 @@ import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 import { initializeComponentKernel } from "./agents/component-bootstrap.js";
 import { initDreKernel, shutdownDreKernel } from "./dre/host.js";
+import { startVramProbe } from "./dre/system-resource-probe.js";
 
 // ════════════════════════════════════════════════════════════════
 // 数学突破模型 (Math Breakthroughs)
@@ -166,6 +167,11 @@ const dreKernel = await initDreKernel().catch((err) => {
   return null;
 });
 logger.info("[DRE] Host integration state", { ready: dreKernel !== null });
+
+// 审计 H1（2026-08-28）：挂载可选 VRAM 探测插件——AXIOM_VRAM_PROBE=1 时轮询
+// nvidia-smi 更新 ResourceBudgetManager.availableMemory，未启用时 no-op（默认零行为变化）。
+// 不挂载时预算恒为 4000MB 硬编码默认值，canRun/recommendedMaxTokens 全链路失真。
+const stopVramProbe = startVramProbe();
 
 // ===== 环境验证 =====
 const envValidation = validateEnv({ strict: false, exitOnError: false });
@@ -818,6 +824,7 @@ registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "component-kernel", handler: async () => { await componentKernel.dispose(); }, priority: 60 });
 registerShutdownHook({ name: "dre-kernel", handler: async () => { await shutdownDreKernel(); }, priority: 55 });
+registerShutdownHook({ name: "vram-probe", handler: () => stopVramProbe(), priority: 68 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().destroy(), priority: 35 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });

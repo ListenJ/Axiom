@@ -7462,3 +7462,15 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：README 架构图隐私行+路由行、技术栈隐私行改写为实际实现描述并注明 H4 收口。
 - **验证**：docs-consistency/architecture-integrity/pg-client-removal 36 pass/0 fail；grep "指纹随机化" tests/ 与 AXIOM 文档零残留。
 - **Commit**：docs(readme): 隐私声明收口为实际实现（固定UA+可选静态代理+SSRF，H4）+ 路由措辞改动态路由（含 README.md） — 328bcdd（本条目为后补记录，提交时日志未随附，与 Task 4 同类偏差，如实记录）
+
+## 2026-08-28 — fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（TDD）
+
+- **任务**：审计 H1——startVramProbe（system-resource-probe.ts:45，整改 D2 产物）全仓零调用点，availableMemory 恒为 system-resource.ts:52 的 4000MB 硬编码默认值，canRun/recommendedMaxTokens 全链路失真。挂载到 main.ts 启动链路（探测自含 AXIOM_VRAM_PROBE=1 门控，未启用 no-op，默认零行为变化）。
+- **工具**：Read（system-resource-probe.ts 全文84行、main.ts:92-109/160-175/816-829）、Bash（cp 备份/rm 备份/bun test/bunx tsc/git）、Write（tests/vram-probe-wiring.test.ts）、Edit（main.ts 3 处）。
+- **操作**（文件级）：
+  1. 备份 main.ts → .tmp/backups/src/main.ts（规则2，先读三处目标区域）。
+  2. TDD 红：新建 tests/vram-probe-wiring.test.ts 2 例（main.ts 含 startVramProbe() 调用与 "vram-probe" 关停钩的静态断言 + 未设 env 时 no-op 行为断言），首跑 1 pass/1 fail。
+  3. main.ts 三处：import startVramProbe（:92 后）；dreKernel 初始化日志后 `const stopVramProbe = startVramProbe()`（含 H1 注释）；registerShutdownHook({ name: "vram-probe", priority: 68 })。
+  4. 本条目 docs/operations-log.md。
+- **验证**：TDD 红→绿：tests/vram-probe-wiring.test.ts 1 fail → 2 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — hash 待回填
