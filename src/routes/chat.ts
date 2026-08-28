@@ -15,12 +15,41 @@ import type { ToolDef } from "../mcp/tool-registry.js";
 import type { DataPipeline } from "../crawl/data-pipeline.js";
 import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
 
+/**
+ * M11（2026-08-28 审计）：/chat 请求体校验。
+ * 必填最小集：messages 数组，元素须含 string role/content（与 /chat/stream 的
+ * isValidChatMessage 校验对齐；passthrough 保留 name/多模态等扩展字段，不改变
+ * 合法请求行为）。可选字段按 handleChat 实际解构清单逐一声明，未知字段剥离。
+ * 注意：仍非完备——工具调用/提示注入等内容级风险由下游 HardFloor 与风险复核兜底。
+ */
+const chatMessageSchema = z.object({ role: z.string(), content: z.string() }).passthrough();
+
+export const chatRequestSchema = z.object({
+  messages: z.array(chatMessageSchema),
+  taskType: z.string().optional(),
+  intent: z.boolean().optional(),
+  budget: z.union([z.number(), z.object({ maxTokens: z.number(), preserveRecent: z.number().optional() }).passthrough()]).optional(),
+  sessionId: z.string().optional(),
+});
+
 export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/chat" || ctx.req.method !== "POST") return null;
 
   const chatStartedAt = Date.now();
-  const body = await ctx.req.json();
-  const { taskType, messages = [], intent: enableIntent = true, budget, sessionId } = body;
+  let rawBody: unknown;
+  try {
+    rawBody = await ctx.req.json();
+  } catch {
+    return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
+  }
+  const parsed = chatRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "validation failed";
+    return ctx.jsonResponse({ error: `Invalid request body — ${detail}` }, 400, ctx.baseHeaders);
+  }
+  const body = parsed.data;
+  const { taskType, messages, intent: enableIntent = true, budget, sessionId } = body;
 
   const { chatMessages: preparedMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
