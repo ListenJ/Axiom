@@ -7374,7 +7374,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Read（node-id.ts 全文、KAL getReferences/queryVault 区段、四模块头部、现有 kal-references 测试模式、ARCHIVE-LOG 尾部）、Bash（grep 接线点/test:full 试跑 204 pass/archive 结构/文档断言测试定位）、Write（计划文档）。
 - **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-28-regression-defense-closure-plan.md`（Task1 回滚归档/Task2 W6 TDD/Task3 W11 四节文档/Task4 test:full 补录/Task5 hash回填）；本条目追加。
 - **验证**：计划自查（spec 覆盖/占位符/类型一致/并行说明）通过；W6 测试夹具与 node-id.ts 真实逻辑核对（vault nodeId=createNodeId("vault","note",path)，归一化不可逆）；test:full 前置试跑 tests/self-evolve/ + tests/agent-evals/ = 204 pass/0 fail。
-- **Commit**：docs(plan): 回归防线收口实施计划（5任务串行：W5W8回滚归档/W6顺序无关/W11四模块/test:full补录） — hash 待回填
+- **Commit**：docs(plan): 回归防线收口实施计划（5任务串行：W5W8回滚归档/W6顺序无关/W11四模块/test:full补录） — b824d61
 
 ## 2026-08-28 — Task 1：W5/W8 在途实现回滚归档（D1）
 
@@ -7386,7 +7386,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. 还原 `src/dre/pipeline/pipeline.ts`、`src/kal/knowledge-access-layer.ts` 至 HEAD（git checkout -- 具名文件，内容已先行归档，非盲目丢弃）；移除未跟踪 `src/dre/ports/search-port.ts`。
   4. 本条目 docs/operations-log.md。
 - **验证**：bunx tsc --noEmit 0 错误；bun test tests/dre-stage2-webverify.test.ts tests/kal-references.test.ts = 17 pass/0 fail（mock 恢复生效，不再打真实网络）；git status 中三文件清零。
-- **Commit**：docs(ops): W5/W8 在途实现回滚归档（D1，patch+副本已入 archive/）（含 docs/operations-log.md） — hash 待回填
+- **Commit**：docs(ops): W5/W8 在途实现回滚归档（D1，patch+副本已入 archive/）（含 docs/operations-log.md） — c5e96ea
 
 ## 2026-08-28 — Task 2：fix(kal) getReferences 消除 queryVault 顺序依赖（W6，TDD）
 
@@ -7398,7 +7398,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. `src/kal/knowledge-access-layer.ts`：字段与构造参数类型加 `listNotePaths?(): string[]`；getReferences vault 分支 `const rawPath` → `let` + 缺失时经 `this.vault.listNotePaths()` 枚举 `createNodeId("vault","note",p)` 填充映射后重查。
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD RED→GREEN：`bun test tests/kal-references.test.ts` 首跑 14 pass/1 fail（新例 refs.length 0≠1）→ 15 pass/0 fail（32 expects）；`bunx tsc --noEmit` 0 错误（可选方法签名向后兼容，生产接线 kg-tools.ts:16 未注入适配器零影响）。备份验证后删除。
-- **Commit**：fix(kal): getReferences 惰性重建 vault 路径映射，消除 queryVault 顺序依赖（W6）（含 `tests/kal-references.test.ts` + `src/kal/knowledge-access-layer.ts` + `docs/operations-log.md`） — hash 待回填
+- **Commit**：fix(kal): getReferences 惰性重建 vault 路径映射，消除 queryVault 顺序依赖（W6）（含 `tests/kal-references.test.ts` + `src/kal/knowledge-access-layer.ts` + `docs/operations-log.md`） — 0e9a765
 
 ## 2026-08-28 — Task 3：docs(arch) 补齐四模块权威文档 + 行数漂移修正（W11）
 
@@ -7410,7 +7410,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. `docs/ARCHITECTURE.md:111` 283→314；`docs/PROJECT-GUIDE.md:182` ~283→~314。
   4. 本条目 docs/operations-log.md。
 - **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail（含 S7 禁忌词断言与文档一致性断言）；bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：docs(arch): 补齐 ContextManager/ThompsonRouter/HallucinationDetector/SelfEvolve 四模块权威文档 + 行数漂移修正（W11）（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/ARCHITECTURE.md` + `docs/PROJECT-GUIDE.md` + `docs/operations-log.md`） — hash 待回填
+- **Commit**：docs(arch): 补齐 ContextManager/ThompsonRouter/HallucinationDetector/SelfEvolve 四模块权威文档 + 行数漂移修正（W11）（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/ARCHITECTURE.md` + `docs/PROJECT-GUIDE.md` + `docs/operations-log.md`） — af035e9
 
 ## 2026-08-28 — Task 4：test(ci) test:full 白名单补录 agent-evals 与 self-evolve 目录
 
@@ -7422,3 +7422,14 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **验证**：`bun run test:full` 首跑 472 pass/1 fail（偶发，未复现）→ 随后连续 4 轮 473 pass/0 fail/6070 expects/55 files（20-25s），白名单稳定；`bunx tsc --noEmit` 0。偶发如实在录；如复发建议单独排查（嫌疑为 e2e-runtime/perf 类时序敏感用例，均为白名单预存项）。
 - **流程偏差（如实记录）**：规则2的 package.json 备份步骤本次被遗漏（未执行 cp 即 Edit）；因编辑前已通读全文 107 行且改动仅 1 行、经 4 轮全量验证，无信息丢失与回归。后续任务恢复先备份后改的硬顺序。
 - **Commit**：test(ci): test:full 补录 tests/agent-evals 与 tests/self-evolve 目录（回归防线补漏，20+8 测试文件入防）（含 `package.json`） — a1b6c7a；本补记条目随下一条提交入库
+
+## 2026-08-28 — Task 5：docs(ops) 回归防线收口 5 任务 hash 回填 + spec 验收勾选
+
+- **任务**：回填 Task 1-4 及计划提交的实际 hash 至 operations-log（b824d61/c5e96ea/0e9a765/af035e9），勾选决策 spec 第 8 节验收清单，终验全绿后收口本迭代。
+- **工具**：Bash（bun 脚本回填 hash——本机无 python、grep 校验唯一性、bunx tsc/bun test 终验、git）、Edit（spec 验收清单 5 项勾选）。
+- **操作**（文件级）：
+  1. `docs/operations-log.md`：4 处 `hash 待回填` → 实际 hash（bun 脚本逐条断言唯一后替换，脚本用后即删）。
+  2. `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`：验收清单 5 项全部勾选（含验证数据：终验 18 pass、test:full 473 pass × 4 轮）。
+  3. 本条目 docs/operations-log.md。
+- **验证**：bunx tsc --noEmit 0；bun test tests/kal-references.test.ts tests/dre-stage2-webverify.test.ts = 18 pass/0 fail；git status 仅剩预存行尾噪音文件与 .serena/.v2c（审计已证实无内容差异，不属本任务范围）。
+- **Commit**：docs(ops): 回填回归防线收口 5 任务 hash + spec 验收勾选（含 `docs/operations-log.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`） — hash 待回填（本条随提交即知，见下条 git log）

@@ -73,8 +73,8 @@
 
 ## 8. 验收清单
 
-- [ ] 工作区仅剩文档类改动，`bunx tsc --noEmit` 0，dre-stage2/kal-references 全绿
-- [ ] archive/ 含 patch + search-port 副本 + ARCHIVE-LOG 记录
-- [ ] W6 有红→绿测试对；W11 四模块入权威文档且行数/位置与代码一致
-- [ ] test:full 含 agent-evals + self-evolve 且本地全绿
-- [ ] operations-log 每提交一条，hash 回填
+- [x] 工作区仅剩文档类改动，`bunx tsc --noEmit` 0，dre-stage2/kal-references 全绿（18 pass，2026-08-28 终验）
+- [x] archive/ 含 patch + search-port 副本 + ARCHIVE-LOG 记录
+- [x] W6 有红→绿测试对；W11 四模块入权威文档且行数/位置与代码一致
+- [x] test:full 含 agent-evals + self-evolve 且本地全绿（473 pass × 4 轮）
+- [x] operations-log 每提交一条，hash 回填（b824d61/c5e96ea/0e9a765/af035e9/a1b6c7a）
