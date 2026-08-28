@@ -215,7 +215,7 @@ export class KnowledgeAccessLayer {
         FROM kg_nodes
         WHERE (name LIKE ? OR description LIKE ? OR semantic LIKE ?)
         ${intent.typeFilter ? "AND type IN (" + intent.typeFilter.map(() => "?").join(",") + ")" : ""}
-        ORDER BY importance DESC
+        ORDER BY importance DESC, id ASC
         LIMIT ?
       `;
 
@@ -260,7 +260,7 @@ export class KnowledgeAccessLayer {
         FROM knowledge_node
         WHERE (title LIKE ? OR content LIKE ?)
         ${intent.typeFilter ? "AND paradigm IN (" + intent.typeFilter.map(() => "?").join(",") + ")" : ""}
-        ORDER BY confidence DESC
+        ORDER BY confidence DESC, node_id ASC
         LIMIT ?
       `;
 

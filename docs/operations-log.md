@@ -7500,3 +7500,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD 红→绿：0 pass/1 fail → 3 pass/0 fail（挂起步骤 ~50ms 超时完成、dag 下游 死锁 兜底、慢 agent 300ms 被 50ms 超时截断）；既有 tests/orchestrator.test.ts + tests/orchestrator-dag-isolation.test.ts 全绿（3 文件 23 pass/0 fail）；bunx tsc --noEmit 0。备份验证后删除。测试卫生：fake agent 用唯一 capability 注册到全局单例并在 afterAll 注销；全局单例 selfEvolve 在测试期摘除（避免失败路径触发真实模型调用）并在 afterAll 还原。
 - **Commit**：fix(orchestrator): 审计 H3 orchestrator_execute_plan 步骤超时兜底（timeoutMs 透传 + DEFAULT_STEP_TIMEOUT_MS=120000）（含 `src/mcp/server/orchestrator-tools.ts` + `tests/orchestrator-plan-timeout.test.ts` + `docs/operations-log.md`） — 2514c71
+
+## 2026-08-28 — fix(determinism): 审计 M2 DRE mergeWithTraversed 同分次级键 + M1 KAL queryKG/queryDRE ORDER BY 次级键（TDD）
+
+- **任务**：审计修复切片（docs/reviews/2026-08-28-independent-full-audit.md 第 2.2 节"未声明残留"）三项：M2——deterministic-retrieval-engine.ts:777 `mergeWithTraversed` 仅按 `b.score - a.score` 排序无次级键（W1 修复了同文件 :493 漏了此处），retrieveWithPaths 同分 traversed 结果顺序随合并插入序漂移；M1——knowledge-access-layer.ts queryKG `ORDER BY importance DESC`（:218）与 queryDRE `ORDER BY confidence DESC`（:263）同分时返回顺序取决于 SQLite 扫描序（=插入序），跨环境不稳定；M3——localeCompare 无显式 locale 的跨平台问题**记录不实现，延期至 W5/W8 重立项一并处理**（改动会翻转现有排序语义，影响面大）。
+- **工具**：Read（deterministic-retrieval-engine.ts 全文847行、knowledge-access-layer.ts 全文411行、deterministic-search.ts W1 修法定位、knowledge-network.ts 实体/链接接口与 id 生成、sqlite-backend.ts/kg-writer.ts 表结构、既有测试3文件）、Write（tests/dre-retrieval-tie.test.ts、tests/kal-deterministic-order.test.ts）、Edit（deterministic-retrieval-engine.ts 1处、knowledge-access-layer.ts 2处）、Bash（cp 备份/rm 备份/bun test/bunx tsc/git）。
+- **操作**（文件级）：
+  1. 备份 deterministic-retrieval-engine.ts、knowledge-access-layer.ts → `.tmp/backups/src/`（规则2，先读两文件全文）。
+  2. M2 红：新建 tests/dre-retrieval-tie.test.ts——mock 图谱经引擎构造器 graph 依赖注入接缝注入（knowledgeNetwork.create 的 id 含 Math.random() 跨实例不可控，故精确控制 id kn_b<kn_z 与链接插入序），A 以同 weight 链接 Z（先插入）、B（后插入），3 次新建引擎 retrieveWithPaths(maxDepth=1) 断言同分 traversed 结果按 id 字典序且跨实例一致，首跑 0 pass/1 fail（kn_z 在前，插入序压过字典序）。
+  3. M2 绿：:777 改为 `b.score - a.score || a.id.localeCompare(b.id)`，与 :493 W1 风格一致（RetrievalResult.id 为必填 string，无需 `?? ""`）。
+  4. M1 红：新建 tests/kal-deterministic-order.test.ts——内存库 KGWriter 建 kg_nodes，非字典序插入 zeta/alpha/mid（同 importance 0.5），query(targetStore="kg") 3 次断言 id 字典序；queryDRE 腿以最小 knowledge_node 表（与 SELECT 列对齐）同 confidence 0.7 非字典序插入 z/a 断言 node_id 字典序，首跑 0 pass/2 fail（插入序泄漏）。
+  5. M1 绿：两处 SQL 追加主键次级键 `ORDER BY importance DESC, id ASC` / `ORDER BY confidence DESC, node_id ASC`。
+  6. 本条目 docs/operations-log.md。
+- **验证**：TDD 红→绿：M2 0 pass/1 fail → 1 pass；M1 0 pass/2 fail → 2 pass；回归集 tests/deterministic-search-tie.test.ts + dre-retrieval-engine.test.ts + kal-references.test.ts + 新增2文件共 55 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：fix(determinism): 审计 M2 DRE mergeWithTraversed 同分次级键 + M1 KAL queryKG/queryDRE ORDER BY 次级键（TDD，含 `src/dre/retrieval/deterministic-retrieval-engine.ts` + `src/kal/knowledge-access-layer.ts` + `tests/dre-retrieval-tie.test.ts` + `tests/kal-deterministic-order.test.ts` + `docs/operations-log.md`） — hash 待回填

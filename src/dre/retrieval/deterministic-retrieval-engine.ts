@@ -774,7 +774,8 @@ export class DeterministicRetrievalEngine {
         merged.set(tr.id, tr);
       }
     }
-    return Array.from(merged.values()).sort((a, b) => b.score - a.score);
+    // 按得分降序，同分按 id 字典序（确定性 tie-break，与 phaseMergeAndRank 一致）
+    return Array.from(merged.values()).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   }
 
   // ─── 公共 API（统计与维护）────────────────────────────────────────────
