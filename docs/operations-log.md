@@ -7474,3 +7474,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD 红→绿：tests/vram-probe-wiring.test.ts 1 fail → 2 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
 - **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — hash 待回填
+
+## 2026-08-28 — fix(kg): 审计 H2 MCP kg 随机 id 绕过去重 + H7 内存 adjacency 重启恢复（TDD）+ H6 评估
+
+- **任务**：审计修复切片（docs/reviews/2026-08-28-independent-full-audit.md）三项：H2——kg-tools.ts:276/302 handler 生成 `node-/edge-${Date.now()}-${Math.random()}` 随机 id，击穿 enhanced.ts W10 内容哈希去重（仅空 id/tmp- 前缀走 sha256 哈希），同内容手工写入必重复；H7——enhanced.ts 构造建空 Map，内存 adjacency/edges 不从 DB 恢复，重启后 subgraph/shortestPath/getNeighbors/getStats 全空转；H6——kg-tools.ts:16 `new KnowledgeAccessLayer(db)` 未注入 vault 适配器（仅评估）。
+- **工具**：Read（kg-tools.ts 全文451行、enhanced.ts 全文868行、tool-registry.ts、vault-manager.ts/deterministic-search.ts 关键段、knowledge-access-layer.ts 构造区、既有 kg 测试3文件）、Write（tests/kg-tools-dedup.test.ts、tests/kg-restore-adjacency.test.ts）、Edit（kg-tools.ts 3处、enhanced.ts 1处）、Bash（cp 备份/rm 备份/grep 断言/bun test/bunx tsc/git）。
+- **操作**（文件级）：
+  1. 备份 kg-tools.ts、enhanced.ts → `.tmp/backups/src/`（规则2，先读两文件全文）。
+  2. TDD 红：新建 tests/kg-tools-dedup.test.ts（经 ToolRegistry no-op guard 直接调 MCP handler：同内容 kg_add_node×2 断言同一 kg_ 哈希 nodeId 且库内 1 行；kg_add_edge×2 同理）+ tests/kg-restore-adjacency.test.ts（实例 A 写 3 节点 2 边后关库，新实例 B 开同一文件库断言 getOutEdges/subgraph/shortestPath/getStats 可见），首跑 3 fail/0 pass（症状与审计一致）。
+  3. H2 绿：kg-tools.ts 两 handler 删除随机 id 生成，改传 `id: ""`（走 enhanced.ts W10 哈希路径），addNode/addEdge 原地改写 id 后经 node.id/edge.id 返回；import 补 type KGNode/KGEdge。
+  4. H7 绿：enhanced.ts 构造函数 initializeDatabase 后新增 restoreGraphFromDb()——全量 SELECT kg_nodes/kg_edges 重建 nodes/edges/adjacency（注释注明一次性 O(N) 代价、>10 万行打 logger.warn），evidence 列复用 safeJsonParse 兜底。
+  5. 本条目 docs/operations-log.md。
+- **验证**：TDD 红→绿：3 fail → 新增 3 例全 pass；kg 全套+回归集（kg-tools-dedup/kg-restore-adjacency/kg-content-hash/kg-enhanced/kal-references/architecture-integrity/docs-consistency/pg-client-removal）71 pass/0 fail；bunx tsc --noEmit 0；grep 确认 kg-tools.ts 无 Date.now()/Math.random 残留。备份验证后删除。全量 bun test 后台跑 15 分钟无输出（疑似既有长集成测试阻塞），改用有界回归集（爆炸半径分析：仅 4 个 kg 测试文件 import 被改模块，均绿）。
+- **H6 评估结论：延期**。理由：①getGlobalVault() 单例虽存在（vault-manager.ts:857），但适配器对象 DeterministicSearchEngine 是 VaultManager 的 private 字段（:53）且无公开访问器——接线必须先改 VaultManager 公共 API（第三处文件），超出"现成单例直接接线"前提；②MCP server 进程（server.ts/kb-backend.ts）当前不实例化 VaultManager，kg-tools 接线会在首次调用 kal 工具时拉起整个 vault 栈（getGlobalVault → vault 目录扫描 + SQLiteMemory 开库 + CodeIndexer），给 MCP server 引入新的重副作用依赖链；③收益面仅 kal_references 单工具的 vault 腿。预估接线成本：跨 3 文件 ~20 行 + VaultManager 公共 API 变更评审；建议随 W5/W8 vault 栈重构一并立项。
+- **Commit**：fix(kg): 审计 H2 MCP kg随机id改走内容哈希去重 + H7 内存adjacency从DB全量重建（TDD，含 `src/mcp/server/kg-tools.ts` + `src/kg/enhanced.ts` + `tests/kg-tools-dedup.test.ts` + `tests/kg-restore-adjacency.test.ts` + `docs/operations-log.md`） — hash 待回填

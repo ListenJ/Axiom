@@ -152,6 +152,42 @@ export class KnowledgeGraphEnhanced {
   constructor(db: Database) {
     this.db = db;
     this.initializeDatabase();
+    this.restoreGraphFromDb();
+  }
+
+  /**
+   * H7（2026-08-28 审计）：启动时从 DB 全量重建内存 nodes/edges/adjacency。
+   * 此前仅本次运行写入的数据进内存，重启后 subgraph/shortestPath/getNeighbors
+   * 等基于 adjacency 的查询全部空转。代价为一次性 O(N) SELECT（SQLite 本地库可接受）；
+   * 节点超过 10 万行时打日志提示内存占用。
+   */
+  private restoreGraphFromDb(): void {
+    const nodeRows = this.db.prepare("SELECT * FROM kg_nodes").all() as Array<Record<string, unknown>>;
+    if (nodeRows.length > 100_000) {
+      logger.warn(`[kg-enhanced] kg_nodes 共 ${nodeRows.length} 行，全量内存重建可能占用较多内存`);
+    }
+    for (const row of nodeRows) {
+      const node = this.rowToNode(row);
+      this.nodes.set(node.id, node);
+    }
+
+    const edgeRows = this.db.prepare("SELECT * FROM kg_edges").all() as Array<Record<string, unknown>>;
+    for (const row of edgeRows) {
+      const edge: KGEdge = {
+        id: row.id as string,
+        source: row.source as string,
+        target: row.target as string,
+        type: row.type as KGEdgeType,
+        weight: (row.weight as number) ?? 1.0,
+        description: row.description as string | undefined,
+        evidence: safeJsonParse(row.evidence, [], isArrayGuard),
+      };
+      this.edges.set(edge.id, edge);
+      if (!this.adjacency.has(edge.source)) this.adjacency.set(edge.source, []);
+      this.adjacency.get(edge.source)!.push(edge.id);
+      if (!this.adjacency.has(edge.target)) this.adjacency.set(edge.target, []);
+      this.adjacency.get(edge.target)!.push(edge.id);
+    }
   }
 
   private initializeDatabase(): void {

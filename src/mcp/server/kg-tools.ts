@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Database } from "bun:sqlite";
 import type { ToolRegistry } from "../tool-registry.js";
 import type { VaultManager } from "../../memory/vault-manager.js";
-import { KnowledgeGraphEnhanced, type KGNodeType, type KGEdgeType } from "../../kg/enhanced.js";
+import { KnowledgeGraphEnhanced, type KGNode, type KGEdge, type KGNodeType, type KGEdgeType } from "../../kg/enhanced.js";
 import { KnowledgeAccessLayer } from "../../kal/knowledge-access-layer.js";
 import { createNodeId } from "../../kal/node-id.js";
 import { parseMarkdownAST, extractAllEntities } from "../../crawl/processor/markdown-ast.js";
@@ -272,9 +272,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
     handler: async (args) => {
       const kg = getKGEnhancedInstance(db);
-      const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      kg.addNode({
-        id: nodeId,
+      // H2：不生成随机 id，空 id 走 enhanced.ts W10 内容哈希去重（同内容二次写入不重复）
+      const node: KGNode = {
+        id: "",
         type: args.type as KGNodeType,
         name: args.name as string,
         description: args.description as string,
@@ -282,8 +282,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
         lineNumber: args.lineNumber as number,
         signature: args.signature as string,
         tags: args.tags as string[],
-      });
-      return { success: true, nodeId };
+      };
+      kg.addNode(node);
+      return { success: true, nodeId: node.id };
     },
   });
 
@@ -299,16 +300,17 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
     handler: async (args) => {
       const kg = getKGEnhancedInstance(db);
-      const edgeId = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      kg.addEdge({
-        id: edgeId,
+      // H2：不生成随机 id，空 id 走 enhanced.ts W10 内容哈希去重（同 source/target/type 二次写入不重复）
+      const edge: KGEdge = {
+        id: "",
         source: args.source as string,
         target: args.target as string,
         type: args.type as KGEdgeType,
         weight: (args.weight as number) || 1.0,
         description: args.description as string,
-      });
-      return { success: true, edgeId };
+      };
+      kg.addEdge(edge);
+      return { success: true, edgeId: edge.id };
     },
   });
 
