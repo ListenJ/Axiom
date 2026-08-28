@@ -108,7 +108,7 @@ core   → routes   ← agents        (路由注册)
 | `models/registry.ts` | 933 | 模型注册表 (UnifiedModel 数据) |
 | `model-capability-registry.ts` | 162 | 能力注册表 (推荐式, 支持 opts+EXTENSIONS) |
 | `tool-pool.ts` | 240 | 工具执行池 (并发/限流) |
-| `thompson-router.ts` | 283 | Thompson Sampling 多臂赌博机路由 |
+| `thompson-router.ts` | 314 | Thompson Sampling 多臂赌博机路由 |
 
 **查询入口统一:** `model-capability-registry.ts:findModelsForRole()` 是唯一推荐查询入口。旧版 `registry.ts:findModelsForRole()` 已标记 `@deprecated`。
 

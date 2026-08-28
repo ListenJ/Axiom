@@ -1262,6 +1262,96 @@ class LLMClient {
 
 ---
 
+### 2.17 ContextManager — 上下文管理器
+
+**文件:** `src/context/context-manager.ts`（537 行）
+
+管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。
+
+```typescript
+class ContextManager {
+  async checkUsage(...)                    // 用量检查：是否超限与建议动作
+  async splitContext(...)                  // 上下文分割
+  async compressContext(...)               // 上下文压缩
+  async retrieveFromMemory(query, options?) // 历史上下文检索
+  async getEffectiveContext(...)           // 组装生效上下文
+  getStats(): ContextStats                 // 用量统计
+  setMaxContextWindow(tokens) / clearMemory() / getMemoryStats()
+}
+export const contextManager = new ContextManager(); // 模块级单例
+```
+
+**接线点:** `src/core/runtime-audit.ts`（运行时审计引用）。
+
+> **说明（W3/W4 对齐）**：本模块的压缩/分割为提示词与规则级实现，不涉及 KV cache 在显存与系统内存之间的换入换出（资源预算见 2.15）。
+
+---
+
+### 2.18 ThompsonRouter — 汤普森采样模型路由
+
+**文件:** `src/router/thompson-router.ts`（314 行）
+
+Contextual Thompson Sampling 多臂赌博机：在 `fast` / `cheap` / `smart` 等 model arm 间按后验自适应选择，`reportFeedback` 按成败更新 Beta(alpha, beta)，arm 统计可持久化到 SQLite。
+
+```typescript
+interface RouterArm { id: string; model: string; provider: string; alpha: number; beta: number; }
+class ThompsonRouter {
+  constructor(config: ThompsonRouterConfig)
+  async route(context: RoutingContext): Promise<RoutingDecision>  // 采样选择 arm
+  reportFeedback(armId: string, success: boolean): void           // 反馈更新后验
+  getArmStats(): ArmStats[] / addArm / removeArm / reset / close
+}
+```
+
+**接线点:** `src/main.ts`（`createThompsonRouter` 初始化，默认 `minSamples: 5`）。
+
+> **确定性说明**：采样使用 `Math.random`，路由层非确定属设计——不在系统"同输入同输出"的确定性承诺范围内（见 〇、设计原则与 spec 非目标）。
+
+---
+
+### 2.19 HallucinationDetector — 幻觉检测器（归纳式共形预测）
+
+**文件:** `src/memory/hallucination-detector.ts`（567 行）
+
+基于归纳式共形预测（Inductive Conformal Prediction）的陈述核验：对陈述 statement 定义非一致性度量 `s(statement) = 1 − max_evidence_score(statement, factBase)`，经校准集（`CalibrationPair[]`）得到分位数与 p 值，输出 `HallucinationVerdict`（含证据项 `EvidenceItem`）。
+
+```typescript
+class ConformalHallucinationDetector {
+  constructor(config: HallucinationDetectorConfig = {})
+  calibrate(pairs: CalibrationPair[]): this          // 校准
+  verify(statement: string, context?: string): HallucinationVerdict  // 核验
+  setFactBase(facts: FactEntry[]) / addFact / addFacts
+  getCalibrationQuality(): CalibrationQuality / isValid() / resetCalibration() / getDiagnostics()
+}
+```
+
+**接线点:** `src/main.ts`（`alpha: 0.05` 初始化）、`src/crawl/result-scorer.ts`、`src/knowledge/quality-assessor.ts`、`src/memory/math-enhanced-memory.ts`。
+
+---
+
+### 2.20 SelfEvolve — 测试时自我进化引擎组
+
+**文件:** `src/self-evolve/`（engine.ts 380 / index.ts 103 / mind-suggest.ts 103 / skill-promotion.ts 103 / skill-quality.ts 140 / types.ts 102，共 931 行）
+
+思想来源：OpenRSI（FrontisAI × 清华）的原子算子 Draft/Improve/Debug/Crossover 与 RISE（arXiv 2407.18219）的测试时自我改进；本实现将"模型训练级算子"降级为**提示词级算子 + 确定性评估**——无训练、无额外基础设施，契合简约主基调。
+
+```typescript
+class SelfEvolveEngine {
+  async selfThink(req: SelfThinkRequest): Promise<SelfThought>  // Draft + 证据检索 + 置信度精算
+  async selfImprove(...)                                        // orchestrator 接入的改进算子
+}
+applySelfThought / formatSelfThought / tokenize / stableHash / buildEscalationQuery
+MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
+```
+
+**技能质量闭环:** `recordSkillOutcome`（`src/mcp/skill-tools.ts:116`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`skill-promotion.ts:67`）。
+
+**接线点:** `src/agents/orchestrator.ts`（`Pick<SelfEvolveEngine, "selfImprove">` 注入构造）。
+
+> **已知局限**：技能质量统计与 deprecated 标记为内存派生、不持久化——进程重启后质量历史清零，promotion 可能重新提升已判死技能（持久化设计列入下一迭代）。
+
+---
+
 ## 三、MCP 工具完整清单
 
 > 本系统共注册 188 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173 为旧值）。

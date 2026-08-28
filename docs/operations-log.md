@@ -7399,3 +7399,15 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD RED→GREEN：`bun test tests/kal-references.test.ts` 首跑 14 pass/1 fail（新例 refs.length 0≠1）→ 15 pass/0 fail（32 expects）；`bunx tsc --noEmit` 0 错误（可选方法签名向后兼容，生产接线 kg-tools.ts:16 未注入适配器零影响）。备份验证后删除。
 - **Commit**：fix(kal): getReferences 惰性重建 vault 路径映射，消除 queryVault 顺序依赖（W6）（含 `tests/kal-references.test.ts` + `src/kal/knowledge-access-layer.ts` + `docs/operations-log.md`） — hash 待回填
+
+## 2026-08-28 — Task 3：docs(arch) 补齐四模块权威文档 + 行数漂移修正（W11）
+
+- **任务**：W11——AXIOM-ARCHITECTURE.md 全文检索 context-manager/thompson-router/hallucination-detector/self-evolve 均零命中（演进主线子系统无权威文档）；补齐 2.17-2.20 四节，并修正 docs/ARCHITECTURE.md:111 与 docs/PROJECT-GUIDE.md:182 的 thompson-router 行数漂移（283→314）。
+- **工具**：Bash（grep 四模块真实接口/接线点核验、备份/删备份、bun test/bunx tsc/git）、Read（AXIOM-ARCHITECTURE 1218-1270 插入点与 2.15/2.16 格式模板、ARCHITECTURE.md:108-113、PROJECT-GUIDE.md:179-184）、Edit（AXIOM-ARCHITECTURE 1 处插入四节、两处行数修正）。
+- **操作**（文件级）：
+  1. 备份三文档 → `.tmp/backups/docs/`（规则2；四节内容前先核验事实：selfThink/selfImprove 存在（engine.ts:101、orchestrator.ts:350 Pick 注入）、main.ts:100/223 createThompsonRouter、main.ts:99/222 ConformalHallucinationDetector(alpha 0.05)、skill 闭环 skill-tools.ts:116→skill-quality.ts:20-51→skill-promotion.ts:67）。
+  2. `docs/AXIOM-ARCHITECTURE.md`：在 2.16 结束与 `## 三` 之间插入 2.17 ContextManager（537行/单例/runtime-audit 接线）、2.18 ThompsonRouter（314行/main.ts 接线/Math.random 非确定属设计声明）、2.19 ConformalHallucinationDetector（567行/共形预测数学/4 接线点）、2.20 SelfEvolve（931行/OpenRSI+RISE 思想/selfThink+selfImprove/技能质量闭环/deprecated 不持久化局限）；规避 S7 禁忌词组合。
+  3. `docs/ARCHITECTURE.md:111` 283→314；`docs/PROJECT-GUIDE.md:182` ~283→~314。
+  4. 本条目 docs/operations-log.md。
+- **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail（含 S7 禁忌词断言与文档一致性断言）；bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：docs(arch): 补齐 ContextManager/ThompsonRouter/HallucinationDetector/SelfEvolve 四模块权威文档 + 行数漂移修正（W11）（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/ARCHITECTURE.md` + `docs/PROJECT-GUIDE.md` + `docs/operations-log.md`） — hash 待回填

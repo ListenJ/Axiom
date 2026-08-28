@@ -179,7 +179,7 @@ db     ↔ memory                   (通过 services 断环)
 | `model-router.ts` | 811 | 多平台路由 (fallback, retry, streaming) |
 | `models/registry.ts` | 1027 | 模型注册表 (UnifiedModel 数据) |
 | `model-capability-registry.ts` | ~162 | 能力注册表（推荐式，**唯一查询入口**）|
-| `thompson-router.ts` | ~283 | Thompson Sampling 多臂赌博机 |
+| `thompson-router.ts` | ~314 | Thompson Sampling 多臂赌博机 |
 | `tool-pool.ts` | ~240 | 工具执行池 (并发 / 限流) |
 
 **查询入口统一**: `model-capability-registry.ts:findModelsForRole()`。旧版 `registry.ts:findModelsForRole()` 已 `@deprecated`。
