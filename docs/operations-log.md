@@ -7433,3 +7433,16 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. 本条目 docs/operations-log.md。
 - **验证**：bunx tsc --noEmit 0；bun test tests/kal-references.test.ts tests/dre-stage2-webverify.test.ts = 18 pass/0 fail；git status 仅剩预存行尾噪音文件与 .serena/.v2c（审计已证实无内容差异，不属本任务范围）。
 - **Commit**：docs(ops): 回填回归防线收口 5 任务 hash + spec 验收勾选（含 `docs/operations-log.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`） — 5f57cbe
+
+## 2026-08-28 — fix(docs): 代码审查勘误——2.18/2.20 四处失实声明更正 + spec D4 前提失效注记
+
+- **任务**：对本迭代 8 提交（969f3a5..175c263）执行代码审查（审查子代理实测核验），发现 2 项 Important：①2.20"deprecated 不持久化"与代码相反——skill-quality 经 createFileQualityStore 持久化至 data/skill-quality.json 且启动 load 恢复（skill-quality.ts:38-44/91-112，主代理独立复验证实），错误源头为前序辩论阶段的过时审计主张被未验证采信，且已污染 spec D4 决策（"持久化必做"前提失效）；②2.18/2.20 三处接线与参数失实（fast/cheap/smart arm 全仓不存在且 main.ts 空集初始化、skill-tools 真实路径为 src/mcp/server/、minSamples 默认 10 而非 5）。本任务全部更正。
+- **工具**：Bash（sed/grep 抽验审查论断 5 项全证实、备份/删备份、bun test/bunx tsc/git）、Read（skill-quality.ts:38-44/91-112、thompson-router.ts:305-312、ARCHITECTURE.md/PROJECT-GUIDE.md 目标行）、Edit（AXIOM-ARCHITECTURE 4 处、决策 spec 3 处）。
+- **操作**（文件级）：
+  1. 备份两文档 → `.tmp/backups/docs/`（规则2）。
+  2. `docs/AXIOM-ARCHITECTURE.md`：2.17 接线点补全（routes/audit.ts 单例 + runtime-audit.ts 独立实例）并将 KV 措辞改为远离 S7 禁忌模式的无 KV 页级迁移；2.18 arm 描述改为"arm 集由调用方注入、main.ts 空集初始化"+ minSamples"显式传 5、库默认 10"；2.20 接线路径补 `server/`；2.20 局限段改写为持久化勘误说明（含证据锚点）。
+  3. `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`：D4 表行与阶段2 D4 行加勘误注记（该子项取消、D4 待重新立项）；验收清单第 1 项措辞改为可机械验证形式。
+  4. 本条目 docs/operations-log.md。
+- **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail；bunx tsc --noEmit 0；grep 复核失实声明残留清零（mcp/skill-tools 旧路径、fast/cheap/smart、"默认 minSamples: 5"、"重启清零"均零命中）。备份验证后删除。
+- **Minor 遗留（记录待后续）**：W6 对未命中 nodeId 重复 O(N) 枚举无负缓存、归一化碰撞路径 nodeId 歧义——均随 W5/W8 重立项一并处理；W6 修复当前生产不激活（kg-tools.ts:16 未注入适配器，计划已声明）。
+- **Commit**：fix(docs): 审查勘误——2.20持久化事实/2.18接线参数/2.17接线点更正 + spec D4勘误（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — hash 待回填

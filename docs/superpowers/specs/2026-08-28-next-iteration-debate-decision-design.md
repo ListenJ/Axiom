@@ -11,7 +11,7 @@
 | D1 | 在途 W5/W8（被修订延期的 KAL FTS + SearchPort 实现）处置 | **回滚归档**（patch + 文件副本入 `archive/`，ARCHIVE-LOG 记录），零信息丢失 |
 | D2 | 本迭代主线 | **回归防线收口**：W6 修复 → W11 文档补齐 → test:full 白名单补录（agent-evals + self-evolve 测试目录） |
 | D3 | W5/W8 后续 | **下迭代测试先行重新立项**，范围缩窄至 queryDRE FTS（有真实基建），前置门禁 = 真实规模基准数据 |
-| D4 | self-evolve 深化 | 下迭代第一候选；**skill-quality deprecated 标记持久化**为必做（审计预警：内存派生不持久化，重启清零） |
+| D4 | self-evolve 深化 | 下迭代候选（需重新立项）；~~deprecated 标记持久化为必做~~ **勘误（2026-08-28 代码审查）**：skill-quality 已持久化（`skill-quality.ts:91-112` `createFileQualityStore` → `data/skill-quality.json`，构造时 load 恢复），原"内存派生不持久化、重启清零"结论过时，该子项取消 |
 | D5 | eval 门禁 | 缩窄版：仅加最小冒烟门禁，不做 LLM 真跑全量接入（花钱 + flaky） |
 | D6 | 性能第三轮 / 前端分发线 | 押后（收益递减 / 三分支未合并、价值未验证） |
 
@@ -57,7 +57,7 @@
 ## 5. 阶段 2（下迭代，待证据）
 
 - **W5/W8 重立项**（D3）：仅 queryDRE FTS；TDD 先行（含"FTS 部分填充不得漏查存量行"的回归测试）；前置门禁=真实规模 LIKE vs FTS 基准数据；若基准证明 LIKE+LIMIT 不是瓶颈则整个降级为不做。
-- **self-evolve 深化**（D4）：deprecated 标记持久化（SQLite）为第一项；promotion 重启重提升问题随之消除。
+- **self-evolve 深化**（D4）：**勘误（2026-08-28 代码审查）**——原第一项"deprecated 标记持久化"前提失效：`getDefaultQualityTracker()` 已注入 `createFileQualityStore()` 持久化至 `data/skill-quality.json` 且构造时 load 恢复（`skill-quality.ts:38-44/91-112`），deprecated 由持久化统计重算、重启后自动恢复一致。该子项取消，D4 其余内容待重新评估立项。
 - **eval 冒烟门禁**（D5）：最小冒烟（mock LLM / 单用例），不接真实 API。
 
 ## 6. 押后
@@ -73,7 +73,7 @@
 
 ## 8. 验收清单
 
-- [x] 工作区仅剩文档类改动，`bunx tsc --noEmit` 0，dre-stage2/kal-references 全绿（18 pass，2026-08-28 终验）
+- [x] 本迭代相关文件清零（`git diff --stat` 对本任务文件无输出；工作区预存 6 个 M 文件均为行尾噪音、`git diff` 全 0 行），`bunx tsc --noEmit` 0，dre-stage2/kal-references 全绿（18 pass，2026-08-28 终验）
 - [x] archive/ 含 patch + search-port 副本 + ARCHIVE-LOG 记录
 - [x] W6 有红→绿测试对；W11 四模块入权威文档且行数/位置与代码一致
 - [x] test:full 含 agent-evals + self-evolve 且本地全绿（473 pass × 4 轮）

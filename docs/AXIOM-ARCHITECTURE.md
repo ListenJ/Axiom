@@ -1281,9 +1281,9 @@ class ContextManager {
 export const contextManager = new ContextManager(); // 模块级单例
 ```
 
-**接线点:** `src/core/runtime-audit.ts`（运行时审计引用）。
+**接线点:** `src/routes/audit.ts`（使用模块级单例 `contextManager`）与 `src/core/runtime-audit.ts`（运行时审计内 `new ContextManager()` 独立实例，不与单例共享状态）。
 
-> **说明（W3/W4 对齐）**：本模块的压缩/分割为提示词与规则级实现，不涉及 KV cache 在显存与系统内存之间的换入换出（资源预算见 2.15）。
+> **说明（W3/W4 对齐）**：本模块的压缩/分割为纯提示词与规则级实现，无 KV cache 页级迁移（资源预算见 2.15）。
 
 ---
 
@@ -1291,7 +1291,7 @@ export const contextManager = new ContextManager(); // 模块级单例
 
 **文件:** `src/router/thompson-router.ts`（314 行）
 
-Contextual Thompson Sampling 多臂赌博机：在 `fast` / `cheap` / `smart` 等 model arm 间按后验自适应选择，`reportFeedback` 按成败更新 Beta(alpha, beta)，arm 统计可持久化到 SQLite。
+Contextual Thompson Sampling 多臂赌博机：arm 集由调用方注入（`RouterArm[]`），对已注册的 model arm 按后验自适应选择；`reportFeedback` 按成败更新 Beta(alpha, beta)，arm 统计可持久化到 SQLite。当前 `src/main.ts` 以空 arm 集初始化，选择行为在 arm 注册后生效。
 
 ```typescript
 interface RouterArm { id: string; model: string; provider: string; alpha: number; beta: number; }
@@ -1303,7 +1303,7 @@ class ThompsonRouter {
 }
 ```
 
-**接线点:** `src/main.ts`（`createThompsonRouter` 初始化，默认 `minSamples: 5`）。
+**接线点:** `src/main.ts`（`createThompsonRouter` 初始化，显式传 `minSamples: 5`；库默认值为 10）。
 
 > **确定性说明**：采样使用 `Math.random`，路由层非确定属设计——不在系统"同输入同输出"的确定性承诺范围内（见 〇、设计原则与 spec 非目标）。
 
@@ -1344,11 +1344,11 @@ applySelfThought / formatSelfThought / tokenize / stableHash / buildEscalationQu
 MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 ```
 
-**技能质量闭环:** `recordSkillOutcome`（`src/mcp/skill-tools.ts:116`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`skill-promotion.ts:67`）。
+**技能质量闭环:** `recordSkillOutcome`（`src/mcp/server/skill-tools.ts:116`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`skill-promotion.ts:67`）。
 
 **接线点:** `src/agents/orchestrator.ts`（`Pick<SelfEvolveEngine, "selfImprove">` 注入构造）。
 
-> **已知局限**：技能质量统计与 deprecated 标记为内存派生、不持久化——进程重启后质量历史清零，promotion 可能重新提升已判死技能（持久化设计列入下一迭代）。
+> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-evals 共用该实例）；deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致。残余局限仅在于派生标记本身不落盘、依赖 store 的 load/save 容错。
 
 ---
 
