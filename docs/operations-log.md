@@ -7367,3 +7367,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **Commit**：docs(spec): 下一迭代三方辩论+审计决策设计（W5/W8回滚归档/回归防线收口/缩窄门禁）（含 `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — 0fb6630
 
 
+
+## 2026-08-28 — 实施计划：回归防线收口（W5/W8回滚归档+W6+W11+test:full补录）
+
+- **任务**：依据已批准决策 spec（0fb6630）编写阶段1实施计划，5 任务串行（同工作区并行 git 提交有 index.lock 争用风险，不满足规则2.6并行前置）。
+- **工具**：Read（node-id.ts 全文、KAL getReferences/queryVault 区段、四模块头部、现有 kal-references 测试模式、ARCHIVE-LOG 尾部）、Bash（grep 接线点/test:full 试跑 204 pass/archive 结构/文档断言测试定位）、Write（计划文档）。
+- **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-28-regression-defense-closure-plan.md`（Task1 回滚归档/Task2 W6 TDD/Task3 W11 四节文档/Task4 test:full 补录/Task5 hash回填）；本条目追加。
+- **验证**：计划自查（spec 覆盖/占位符/类型一致/并行说明）通过；W6 测试夹具与 node-id.ts 真实逻辑核对（vault nodeId=createNodeId("vault","note",path)，归一化不可逆）；test:full 前置试跑 tests/self-evolve/ + tests/agent-evals/ = 204 pass/0 fail。
+- **Commit**：docs(plan): 回归防线收口实施计划（5任务串行：W5W8回滚归档/W6顺序无关/W11四模块/test:full补录） — hash 待回填
