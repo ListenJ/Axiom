@@ -7432,4 +7432,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   2. `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`：验收清单 5 项全部勾选（含验证数据：终验 18 pass、test:full 473 pass × 4 轮）。
   3. 本条目 docs/operations-log.md。
 - **验证**：bunx tsc --noEmit 0；bun test tests/kal-references.test.ts tests/dre-stage2-webverify.test.ts = 18 pass/0 fail；git status 仅剩预存行尾噪音文件与 .serena/.v2c（审计已证实无内容差异，不属本任务范围）。
-- **Commit**：docs(ops): 回填回归防线收口 5 任务 hash + spec 验收勾选（含 `docs/operations-log.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`） — hash 待回填（本条随提交即知，见下条 git log）
+- **Commit**：docs(ops): 回填回归防线收口 5 任务 hash + spec 验收勾选（含 `docs/operations-log.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`） — 5f57cbe
