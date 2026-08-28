@@ -7364,6 +7364,6 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **验证**：
   - 辩论事实经审计员独立核查：W8 在途改动静默绕过 searchAgg mock（pipeline.ts:97-99/216-218，HEAD 版无此问题，dre-stage2-webverify 1/3 fail + 1 条打真实网络 4.9s）；kg_nodes_fts 全库无建表（queryKG FTS 死路径）；knowledge_node_fts 有建表+触发器无回填且 KAL:309 提前 return 漏查存量行；其余 6+2 文件为行尾/stat 噪音（git diff 0 行）；agent-evals 12 模块+12 测试可跑；src/eval 3348 行 0 行为测试（仅 CI 行数上限）；self-evolve 闭环链真实（skill-tools.ts:116→skill-quality.ts:20-21→skill-promotion.ts:67，9 测试）；tsc 0 / kal-references 14 pass。补充发现：test:full 手工白名单漏 agent-evals（12 测试仅 1 进 CI）与 tests/self-evolve 全部 9 个；skill-quality deprecated 标记不持久化。
   - spec 自查（占位符/内部一致性/范围/歧义）通过。
-- **Commit**：docs(spec): 下一迭代三方辩论+审计决策设计（W5/W8回滚归档/回归防线收口/缩窄门禁）（含 `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — hash 待回填
+- **Commit**：docs(spec): 下一迭代三方辩论+审计决策设计（W5/W8回滚归档/回归防线收口/缩窄门禁）（含 `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — 0fb6630
 
 
