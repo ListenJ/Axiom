@@ -37,8 +37,8 @@
 │  (记忆库)       │(结构化)│ (代码索引)│ (知识/图谱/行为/预测)  │
 ├─────────────────────────────────────────────────────────────┤
 │  数据采集层: 多搜索引擎(DDG/Bing/Google/Yandex/SearXNG)     │
-│  隐私保护: 指纹随机化 + 代理轮换 + 反追踪                    │
-│  模型路由: 硅基流动 → OfoxAI → DeepSeek → OpenRouter        │
+│  隐私: 固定 UA + 可选静态代理 + SSRF 防护（无指纹/轮换）    │
+│  模型路由: 多供应商动态路由（硅基流动/OfoxAI/DeepSeek 等）  │
 │  知识图谱: SQLite 实体关系图 (BFS/最短路径/中心性)          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -609,7 +609,7 @@ Hermes 安装后可通过 MCP 连接 Axiom 共享记忆库。
 - **数据库**: SQLite (bun:sqlite) + Drizzle ORM Schema
 - **协议**: MCP (Model Context Protocol) v1.29
 - **搜索**: DuckDuckGo / Bing / SearXNG / Tavily / Brave / Jina / MiniMax / SerpAPI
-- **隐私**: 指纹随机化 + 代理轮换 + 反追踪
+- **隐私**: 固定 UA（Axiom/1.0）+ 可选静态代理（SEARCH_PROXY/PROXY_URL/HTTPS_PROXY 等 env，仅 https 走 curl）+ SSRF 防护（proxyFetch ssrfGuard）。指纹随机化/代理轮换/反追踪未实现（2026-08-28 审计 H4 收口；如需请先实现再声明）
 - **记忆**: Obsidian Vault (Markdown) + 确定性搜索引擎
 
 ## 测试
