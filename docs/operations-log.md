@@ -7641,4 +7641,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Bash（目录分片清单、N≥5 复测）、Agent×4（V 验证 + B1/B3 并行成功、B2 并发失败后重试成功，均 Explore 只读）、Write（审计报告 v2 + 强化 spec）、Skill（brainstorming）。
 - **操作**（文件级）：新建 `docs/reviews/2026-08-29-joint-verification-audit.md`（覆盖率/承诺复测/对照表 v2 增量 3 行/新发现清单/总体结论）与 `docs/superpowers/specs/2026-08-29-audit-hardening-design.md`（方案对比 + P0/P1/P2 切片表 + 非目标 + 验收清单 + 回滚）；本条目追加。
 - **验证**：V 组 24 项全部附 文件:行 证据；B1-B3 各自给出逐文件状态与覆盖率；High 全部附代码证据（read-tool.ts:47 零围栏、code-analysis.ts:501 未转义、command-safety.ts:58 无 \r\n、skill-promoter.ts:72 vs :103 id 失配、codegen.ts:40-50 无 signal）；判定标准四项全部满足。
-- **Commit**：docs(audit+spec): 联合验证审计 v2 + 强化设计 spec（24/24 证实/src 399 深读 100%/新 High 5） — hash 待回填
+- **Commit**：docs(audit+spec): 联合验证审计 v2 + 强化设计 spec（24/24 证实/src 399 深读 100%/新 High 5） — 60d0521
