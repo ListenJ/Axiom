@@ -7453,4 +7453,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Bash（git ls-files 清单、grep 机械扫描、抽验 sed/grep、bun test N≥5）、Read（vendor-types/package.json/orchestrator-tools）、Write（审计报告）、Agent×5（Explore 深读子代理，只读；3 次因并发/模型失败重试后全部完成）。
 - **操作**（文件级）：新建 `docs/reviews/2026-08-28-independent-full-audit.md`（覆盖率/核心承诺核查/声明对照表 13 行/分模块问题清单 Critical 0+High 7+Medium 14+Low 12+Info 8/未验证项 7 条/总体结论）；本条目追加。
 - **验证**：结论全部附文件:行锚点；High 级 4 项经主会话独立抽验证实（H3 路径修正）；非向量化双方式（依赖清单+主链追踪）交叉一致；确定性 5/5 外环全绿；N≥5 与测试覆盖不对称矛盾如实报告。
-- **Commit**：docs(audit): 独立全量审计报告（Critical 0/High 7/Medium 14/Low 12/Info 8，含覆盖率与未验证项清单） — hash 待回填
+- **Commit**：docs(audit): 独立全量审计报告（Critical 0/High 7/Medium 14/Low 12/Info 8，含覆盖率与未验证项清单） — 237cb7d
