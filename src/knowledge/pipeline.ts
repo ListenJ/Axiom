@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger.js"
 import { readBool, readString } from "../utils/env.js"
+import { appendFileSync } from "node:fs"
 import { discoverGitHubRepos, formatTrendingTable } from "./sources/github-trending.js"
 import { discoverBooks, getPdfUrl } from "./sources/z-library.js"
 import { getGlobalVault } from "../memory/vault-manager.js"
@@ -186,8 +187,24 @@ export interface PipelineResult {
   booksDiscovered: number
   pdfsConverted: number
   notesWritten: number
+  /** M4（2026-08-29 审计 S2）：因内容为空被跳过 JSONL 写入的文档数 */
+  skippedEmpty: number
   errors: string[]
   durationMs: number
+}
+
+/**
+ * M4（2026-08-29 审计 S2）：JSONL 写入守卫——空内容（trim 后为空）文档跳过写入，
+ * 返回 "skipped" 供调用方在结果中标注；非空照写一行返回 "written"。管线不中断。
+ */
+export function appendJsonlSkipEmpty(
+  jsonlPath: string,
+  markdown: string,
+  record: Record<string, unknown>,
+): "written" | "skipped" {
+  if (!markdown.trim()) return "skipped"
+  appendFileSync(jsonlPath, JSON.stringify(record) + "\n")
+  return "written"
 }
 
 /**
@@ -195,7 +212,7 @@ export interface PipelineResult {
  */
 export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineResult> {
   const start = Date.now()
-  const result: PipelineResult = { githubReposCollected: 0, booksDiscovered: 0, pdfsConverted: 0, notesWritten: 0, errors: [], durationMs: 0 }
+  const result: PipelineResult = { githubReposCollected: 0, booksDiscovered: 0, pdfsConverted: 0, notesWritten: 0, skippedEmpty: 0, errors: [], durationMs: 0 }
   const vault = getGlobalVault()
 
   // 1. GitHub trending
@@ -278,19 +295,21 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
                         logger.warn(`[Pipeline] Quality too low for ${book.title}: overall=${quality.overall}`, { issues: quality.issues })
                       } else {
                         const { join } = await import("path")
-                        const { mkdirSync, appendFileSync } = await import("fs")
+                        const { mkdirSync } = await import("fs")
                         const datasetDir = join("data", "dataset")
                         mkdirSync(datasetDir, { recursive: true })
                         const jsonlPath = join(datasetDir, `${safeTopic}.jsonl`)
                         // 写入 JSONL：结构化数据 + 质量报告 + 预处理摘要
-                        appendFileSync(
-                          jsonlPath,
-                          JSON.stringify({
-                            ...parsed.data,
-                            quality,
-                            preprocessed: { tokenCount: preprocessed.tokenCount },
-                          }) + "\n",
-                        )
+                        // M4：空内容文档跳过写入，仅在结果中标注 skipped，管线不中断
+                        const outcome = appendJsonlSkipEmpty(jsonlPath, final.result.markdown, {
+                          ...parsed.data,
+                          quality,
+                          preprocessed: { tokenCount: preprocessed.tokenCount },
+                        })
+                        if (outcome === "skipped") {
+                          result.skippedEmpty++
+                          logger.warn(`[Pipeline] Empty markdown skipped JSONL for ${book.title}`)
+                        }
                       }
                     }
                   }

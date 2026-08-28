@@ -17,6 +17,7 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
+import { KG_SCHEMA_DDL } from "./schema.js";
 
 // ========== 类型定义 ==========
 
@@ -191,56 +192,31 @@ export class KnowledgeGraphEnhanced {
   }
 
   private initializeDatabase(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS kg_nodes (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        file_path TEXT,
-        line_number INTEGER,
-        signature TEXT,
-        semantic TEXT,
-        tags TEXT DEFAULT '[]',
-        metadata TEXT DEFAULT '{}',
-        community INTEGER,
-        importance REAL DEFAULT 0.5,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS kg_edges (
-        id TEXT PRIMARY KEY,
-        source TEXT NOT NULL,
-        target TEXT NOT NULL,
-        type TEXT NOT NULL,
-        weight REAL DEFAULT 1.0,
-        description TEXT,
-        evidence TEXT DEFAULT '[]',
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (source) REFERENCES kg_nodes(id),
-        FOREIGN KEY (target) REFERENCES kg_nodes(id)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_source ON kg_edges(source);
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_target ON kg_edges(target);
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON kg_edges(type);
-      CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON kg_nodes(type);
-      CREATE INDEX IF NOT EXISTS idx_kg_nodes_community ON kg_nodes(community);
-    `);
+    // L3（2026-08-29 审计 S2）：DDL 单源于 src/kg/schema.ts（与 kg-writer 共用，消除双份漂移）
+    this.db.exec(KG_SCHEMA_DDL);
   }
 
   // ========== 节点管理 ==========
 
   /**
-   * 添加节点 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 type:name:description 生成稳定 kg_ 哈希 id
+   * 添加节点 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 type:name 生成稳定 kg_ 哈希 id
+   *
+   * M5（2026-08-29 审计 S2）：哈希公式由 type:name:description 改为 type:name。
+   * 权衡：name 才是实体身份，description 是属性——同 type+name 不同 description
+   * 视为同一实体，后写覆盖（REPLACE 更新属性即幂等），不再因描述变更生成新 id
+   * 而留下旧节点残留。
+   * 存量影响：旧公式生成的哈希 id 不会被新公式匹配，同实体可能残留旧 id 行；
+   * 本地 SQLite 库可接受，不做迁移（如实记录）。
    */
   addNode(node: KGNode): void {
     if (!node.id || node.id.startsWith("tmp-")) {
-      const hash = createHash("sha256").update(`${node.type}:${node.name}:${node.description ?? ""}`).digest("hex").slice(0, 16);
+      const hash = createHash("sha256").update(`${node.type}:${node.name}`).digest("hex").slice(0, 16);
       node.id = `kg_${hash}`;
     }
     const now = Date.now();
+    // L1（2026-08-29 审计 S2）：REPLACE 前查旧行沿用 created_at 保溯源，仅新建才取当前时间
+    const existingNode = this.db.prepare("SELECT created_at FROM kg_nodes WHERE id = ?").get(node.id) as { created_at: number } | undefined;
+    const createdAt = existingNode?.created_at ?? now;
 
     this.db.prepare(`
       INSERT OR REPLACE INTO kg_nodes (
@@ -261,7 +237,7 @@ export class KnowledgeGraphEnhanced {
       JSON.stringify(node.metadata || {}),
       node.community || null,
       node.importance || 0.5,
-      now,
+      createdAt,
       now
     );
 
@@ -317,6 +293,9 @@ export class KnowledgeGraphEnhanced {
       edge.id = `kg_${hash}`;
     }
     const now = Date.now();
+    // L1（2026-08-29 审计 S2）：REPLACE 前查旧行沿用 created_at 保溯源，仅新建才取当前时间
+    const existingEdge = this.db.prepare("SELECT created_at FROM kg_edges WHERE id = ?").get(edge.id) as { created_at: number } | undefined;
+    const createdAt = existingEdge?.created_at ?? now;
 
     this.db.prepare(`
       INSERT OR REPLACE INTO kg_edges (
@@ -330,7 +309,7 @@ export class KnowledgeGraphEnhanced {
       edge.weight,
       edge.description || null,
       JSON.stringify(edge.evidence || []),
-      now
+      createdAt
     );
 
     this.edges.set(edge.id, edge);

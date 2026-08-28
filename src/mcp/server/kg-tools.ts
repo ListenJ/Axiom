@@ -79,7 +79,12 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
       const title = args.title as string;
       const sourceUrl = args.sourceUrl as string;
 
+      // M4（2026-08-29 审计 S2）：空文档守卫——空字符串/纯空白，或 AST root 无任何
+      // 子节点（即无标题/段落/代码块可抽取）时，不写库不建 document 根节点。
       const ast = parseMarkdownAST(markdown);
+      if (!markdown.trim() || ast.children.length === 0) {
+        return { success: false, error: "empty document" };
+      }
 
       const entities = extractAllEntities(ast);
       const functions = entities.filter((e) => e.type === "function");
