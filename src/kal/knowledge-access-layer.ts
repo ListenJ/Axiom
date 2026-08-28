@@ -67,6 +67,13 @@ export interface QueryResult {
 
 // ========== KAL 主类 ==========
 
+/**
+ * 审计 L2：vaultNodeIdToPath 反查缓存容量上限。
+ * 该 Map 仅作归一化 nodeId -> 原始路径的反查缓存，淘汰只影响未命中时的
+ * 降级路径——getReferences 的 W6 逻辑会经适配器 listNotePaths 重建兜底。
+ */
+const MAX_VAULT_NODE_ID_TO_PATH_ENTRIES = 1000;
+
 export class KnowledgeAccessLayer {
   private db: Database;
   /** 可选 vault 引擎适配器（P1-T2/O3-F2）：提供 wiki-link 入链查询，未注入时 getReferences 保持仅 KG 边；W6 增加 listNotePaths 供顺序无关反查 */
@@ -187,7 +194,7 @@ export class KnowledgeAccessLayer {
       return filtered.map((row) => {
         const nodeId = createNodeId("vault", "note", row.path);
         // O3-F2：归一化不可逆（"." 折叠 "_"），记录 nodeId -> 原始路径供 getReferences 反查
-        this.vaultNodeIdToPath.set(nodeId, row.path);
+        this.trackVaultNodeId(nodeId, row.path);
         return {
           nodeId,
           store: "vault" as StorePrefix,
@@ -236,7 +243,10 @@ export class KnowledgeAccessLayer {
       }>;
 
       return rows.map((row) => ({
-        nodeId: createNodeId("kg", row.type, row.id),
+        // 审计 M14：kg_nodes.id 已是库内完整节点 id（kg_edges 亦存原样 id），
+        // 直接返回原样使 queryKG 与 getReferences 语义一致；二次 createNodeId
+        // 会产出 kg:type:kg_type_x-<hash> 双前缀形态，跨接口引用即失配。
+        nodeId: row.id,
         store: "kg" as StorePrefix,
         type: row.type,
         title: row.name,
@@ -362,8 +372,16 @@ export class KnowledgeAccessLayer {
       try {
         let rawPath = this.vaultNodeIdToPath.get(nodeId);
         if (!rawPath && this.vault?.listNotePaths) {
+          // W6 重建为反查目标服务：逐条精确计算比对，命中即停。
+          // 不全量填充——批次超过容量上限时会把刚补回的最早条目再挤出，
+          // 导致每次反查都重复全量枚举。
           for (const p of this.vault.listNotePaths()) {
-            this.vaultNodeIdToPath.set(createNodeId("vault", "note", p), p);
+            const nid = createNodeId("vault", "note", p);
+            this.trackVaultNodeId(nid, p);
+            if (nid === nodeId) {
+              rawPath = p;
+              break;
+            }
           }
           rawPath = this.vaultNodeIdToPath.get(nodeId);
         }
@@ -385,6 +403,18 @@ export class KnowledgeAccessLayer {
     }
 
     return results;
+  }
+
+  /**
+   * 审计 L2：写入反查缓存并保证有界——超上限时先淘汰最早条目（Map 保持
+   * 插入序，首个 key 即最旧）。仅影响缓存命中率，正确性由 W6 重建兜底。
+   */
+  private trackVaultNodeId(nodeId: string, path: string): void {
+    if (this.vaultNodeIdToPath.size >= MAX_VAULT_NODE_ID_TO_PATH_ENTRIES) {
+      const oldest = this.vaultNodeIdToPath.keys().next().value;
+      if (oldest !== undefined) this.vaultNodeIdToPath.delete(oldest);
+    }
+    this.vaultNodeIdToPath.set(nodeId, path);
   }
 
   private safeParseTags(tagsJson: string): string[] {

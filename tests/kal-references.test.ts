@@ -135,6 +135,77 @@ describe("KnowledgeAccessLayer.getReferences — W6 顺序无关性", () => {
   });
 });
 
+// ========== 审计 M14（docs/reviews/2026-08-28-independent-full-audit.md） ==========
+
+describe("审计 M14: queryKG 返回原样 kg_nodes.id，与 getReferences 语义一致", () => {
+  test("query 命中 kg 节点后，返回的 nodeId 可直接调 getReferences 查到其边", async () => {
+    const db = new Database(":memory:");
+    new KGWriter(db); // 确保 kg_nodes / kg_edges 表存在
+    const seedNode = (id: string, name: string) =>
+      db.run(
+        `INSERT INTO kg_nodes (id, type, name, description, semantic, importance, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, "function", name, "m14 probe body", null, 0.9, Date.now(), Date.now()],
+      );
+    // 真实格式 id（kg-writer 写入形态）：kg_nodes.id 已是完整 node_id
+    seedNode("kg:function:foo", "Foo");
+    seedNode("kg:function:bar", "Bar");
+    db.run(
+      `INSERT INTO kg_edges (id, source, target, type, weight, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      ["e1", "kg:function:foo", "kg:function:bar", "calls", 1.0, Date.now()],
+    );
+
+    const kal = new KnowledgeAccessLayer(db);
+    const q = await kal.query({ query: "m14 probe", targetStore: "kg" });
+    expect(q.results.length).toBe(2);
+
+    const foo = q.results.find((r) => r.metadata.id === "kg:function:foo")!;
+    // 修复前 nodeId 为 createNodeId 二次包装（kg:function:kg_function_foo-<hash>），与库内 id 失配
+    expect(foo.nodeId).toBe("kg:function:foo");
+
+    const refs = await kal.getReferences(foo.nodeId);
+    expect(refs.some((r) => r.nodeId === "kg:function:bar")).toBe(true);
+    expect(refs[0].metadata.edgeType).toBe("calls");
+  });
+});
+
+// ========== 审计 L2（docs/reviews/2026-08-28-independent-full-audit.md） ==========
+
+describe("审计 L2: vaultNodeIdToPath 反查缓存有界（上限 1000，淘汰最早条目）", () => {
+  test("写入上限+1 条后：最新条目仍命中映射，最早条目被淘汰并经 W6 重建兜底", async () => {
+    const db = makeVaultDb();
+    const TOTAL = 1001; // 上限常量 1000 + 1
+    const paths = Array.from({ length: TOTAL }, (_, i) => `n${i}.md`);
+    let listCalls = 0;
+    const kal = new KnowledgeAccessLayer(db, {
+      getWikiBacklinks: () => [],
+      listNotePaths: () => {
+        listCalls++;
+        return paths;
+      },
+    });
+    for (let i = 0; i < TOTAL; i++) {
+      seedNote(db, i + 1, paths[i], `N${i}`, `body ${i} probe`, "[]");
+    }
+
+    const q = await kal.query({ query: "body", targetStore: "vault", limit: TOTAL });
+    expect(q.results.length).toBe(TOTAL);
+
+    // 最新条目（最后插入）仍在映射中：getReferences 直接命中，不触发 listNotePaths
+    const newestId = createNodeId("vault", "note", `n${TOTAL - 1}.md`);
+    await kal.getReferences(newestId);
+    expect(listCalls).toBe(0);
+
+    // 最早条目已被淘汰：getReferences 未命中 → 触发 listNotePaths 重建兜底（仍能查到）
+    const oldestId = createNodeId("vault", "note", "n0.md");
+    const refs = await kal.getReferences(oldestId);
+    expect(listCalls).toBe(1);
+    // 重建兜底后反查路径正确（getWikiBacklinks 返回 []，故引用为空但映射已重建）
+    expect(await kal.getReferences(oldestId)).toEqual([]);
+    expect(listCalls).toBe(1); // 重建后映射命中，不再重复枚举
+  });
+});
+
 // ========== 审计整改 O3（F1/F2/F4/F5） ==========
 
 /** 构建带 vault FTS schema 的内存库（对齐 sqlite-memory.ts 的 external-content 结构） */
