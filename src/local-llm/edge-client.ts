@@ -24,6 +24,9 @@ export function getEdgeClient(): LLMClient {
   if (!instance) {
     instance = new LLMClient({
       baseUrl: readString("EDGE_LLM_URL", "http://127.0.0.1:9001"),
+      // L11：边缘辅助链路默认模型（分类/改写/打标，:9001），独立于 DRE 主推理
+      // 模型（src/dre/config.ts 的 llmModel，:8080，env 前缀 DRE_LLM_*）——两者
+      // 服务不同链路，默认名不同是预期行为，非配置漂移。
       model: readString("EDGE_LLM_MODEL", "MiniCPM5-1B"),
       timeout: 8000,
       maxTokens: 512,

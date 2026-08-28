@@ -11,6 +11,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 import { readString } from "../utils/env.js";
+import { logger } from "../utils/logger.js";
 
 /** 工具可见性：internal 仅内部 Agent，external 可被外部 MCP 使用 */
 export type ToolExposure = "internal" | "external" | "safe-external";
@@ -61,7 +62,13 @@ async function defaultToolGuard(toolName: string, args: Record<string, unknown>)
         throw new Error(`[HardFloor] ${c.reason ?? "high-risk command"} (tool=${toolName}, field=${key})`);
       }
     }
-    if (/^(path|file|filePath|target|destination|source|from|to|repoPath|cwd|dir)$/i.test(key)) {
+    if (
+      /^(path|file|filePath|file_path|target|destination|source|url|from|to|repoPath|repo_path|cwd|dir|dirPath|dir_path|folder|directory|absPath|abs_path|newPath|new_path|oldPath|old_path|destPath|dest_path|srcPath|src_path|outputPath|output_path)$/i.test(key)
+    ) {
+      // L8（2026-08-28 审计）：路径承载字段并集按各工具实际参数名 grep 取得，
+      // 覆盖 camelCase/snake_case 常见变体与 url（file:// 等路径型 URL）。
+      // 注意：仍非完备——非常规字段名携带路径可绕过本初筛，
+      // 最终依赖工具内部路径校验兜底（与 M12 呼应），此处仅为最低保障。
       const op = /delete|remove/i.test(toolName) ? ("delete" as const)
         : /write|create|move/i.test(toolName) ? ("write" as const)
         : ("read" as const);
@@ -104,8 +111,14 @@ export class ToolRegistry {
     this.guard = opts?.guard ?? defaultToolGuard;
   }
 
-  /** Add a tool definition（handler 自动包裹安全守卫：先复核后执行） */
+  /** Add a tool definition（handler 自动包裹安全守卫：先复核后执行）。
+   *  L4（2026-08-28 审计）：同名工具已存在时 warn 并跳过（幂等注册语义），
+   *  避免 SDK 层（MCP registerTool）遇重名抛错导致启动期崩溃。 */
   add(tool: ToolDef): this {
+    if (this.tools.some((t) => t.name === tool.name)) {
+      logger.warn(`[ToolRegistry] tool "${tool.name}" already registered, skipping duplicate add`);
+      return this;
+    }
     const guard = this.guard;
     const exposures: ToolExposure[] = tool.exposure?.length ? [...tool.exposure] : ["internal"];
     const wrapped: ToolDef = {
@@ -210,19 +223,6 @@ export class ToolRegistry {
     return this.tools
       .filter((t) => t.exposure?.some((e) => allowSet.has(e)))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  /** 按标签过滤工具 */
-  getToolsByTags(tags: string[]): ToolDef[] {
-    const tagSet = new Set(tags);
-    return this.tools.filter((t) => t.tags?.some((tag) => tagSet.has(tag)));
-  }
-
-  /** 获取工具元数据 (按标签过滤) */
-  getToolsMetaFiltered(tags?: string[]): Array<{ name: string; description: string }> {
-    if (!tags || tags.length === 0) return this.getToolsMeta();
-    const filtered = this.getToolsByTags(tags);
-    return filtered.map((t) => ({ name: t.name, description: t.description }));
   }
 }
 

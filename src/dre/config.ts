@@ -54,6 +54,8 @@ const DEFAULTS: Required<ConfigSource> = {
   // 单一知识库：DRE 并入主库（DATABASE_PATH）；显式设置 DRE_DB_PATH 仍优先生效
   dbPath: readString("DATABASE_PATH", "./data/agent.db"),
   llmUrl: "http://127.0.0.1:8080",
+  // L11：DRE 主推理链路默认模型（:8080），独立于边缘辅助模型
+  // （src/local-llm/edge-client.ts 的 EDGE_LLM_MODEL，:9001）——两者服务不同链路。
   llmModel: "qwen3-1.7b-instruct",
   llmApiKey: "",
   llmTemperature: 0.0,

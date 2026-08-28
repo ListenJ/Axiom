@@ -2,11 +2,11 @@
  * MCP 工具计数（权威静态统计）
  *
  * 背景：docs 多处宣称的工具数（历史 133/150/173/172）与实际注册不符，
- * 且旧验证脚本 scripts/count-tools.mjs 已不存在、验证测试为硬编码同义反复。
- * 本模块按 README 权威口径扫描：
+ * 且旧验证测试为硬编码同义反复。本模块按 README 权威口径扫描：
  *   - src/mcp/server/*.ts + src/mcp/register-external-tools.ts 的 registry.add 字面名
  *   - src/mcp/server.ts 内联注册 + 经 adaptTool 注册的 3 个基础工具（read/write/query）
  * 输出去重总数、重复名与分文件明细，供文档一致性测试与 CI 使用。
+ * 生成器：`bun run scripts/count-tools.mjs` 直接调用本模块输出权威片段（防止数字漂移）。
  */
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
