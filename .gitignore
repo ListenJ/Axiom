@@ -173,3 +173,8 @@ docs/services.md
 
 # === DSH plugin generated preview screenshots ===
 plugins/dsh/preview/screenshots/
+
+# 审计收口（2026-08-28）：运行时状态与测试残留不入库
+.server-pid.txt
+tmp-toctou-target/
+.v2c/
