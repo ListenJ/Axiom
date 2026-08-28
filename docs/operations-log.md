@@ -1,4 +1,4 @@
-﻿# 操作日志（Operations Log）
+# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -7280,7 +7280,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 Set<string> 签名干净，无类型错）。
   - 回归 `bun test tests/orchestrator-dag-isolation.test.ts` 2 pass；`bun test tests/orchestrator.test.ts` 存量 4 pass（若有）；共 22+ pass 0 fail（S1 20 + S2 2）。
   - 备份验证后删除 `.tmp/backups/src/agents/orchestrator.ts`（验证后）。
-- **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — be6f271 S2_PLACEHOLDER
+- **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — hash 待回填 S2_PLACEHOLDER
 
 ## 2026-08-28 — fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7） S4
 
@@ -7333,7 +7333,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 `createHash` 同步导入签名干净，无类型错；文档仅 md 无类型影响）。
   - 回归 `bun test tests/kg-enhanced.test.ts` 13 pass/0 fail；`bun test tests/kg-content-hash.test.ts tests/kg-enhanced.test.ts` 共 17 pass/0 fail；`bun test tests/architecture-integrity.test.ts tests/kg-content-hash.test.ts` 共 28 pass/0 fail（24+4）。
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md` 等（验证后）。
-- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — be6f271 6b4e9a6
+- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 6b4e9a6
 
 
 ## 2026-08-28 — 发布：GitHub PRIVATE→PUBLIC（S9，先扫描再定）
@@ -7473,7 +7473,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. main.ts 三处：import startVramProbe（:92 后）；dreKernel 初始化日志后 `const stopVramProbe = startVramProbe()`（含 H1 注释）；registerShutdownHook({ name: "vram-probe", priority: 68 })。
   4. 本条目 docs/operations-log.md。
 - **验证**：TDD 红→绿：tests/vram-probe-wiring.test.ts 1 fail → 2 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — be6f271
+- **Commit**：fix(dre): 审计 H1 VRAM 探测插件挂载启动链路（AXIOM_VRAM_PROBE=1 轮询更新 availableMemory）（含 `src/main.ts` + `tests/vram-probe-wiring.test.ts` + `docs/operations-log.md`） — hash 待回填
 
 ## 2026-08-28 — fix(kg): 审计 H2 MCP kg 随机 id 绕过去重 + H7 内存 adjacency 重启恢复（TDD）+ H6 评估
 
