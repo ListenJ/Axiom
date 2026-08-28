@@ -45,7 +45,16 @@ export interface ProxyFetchOptions {
   followRedirects?: boolean;
   /** 最大重定向次数 */
   maxRedirects?: number;
-  /** SSRF 防护：为 true 时校验初始 URL 与每个重定向跳（拒绝内网/环回/元数据地址） */
+  /** SSRF 防护：为 true 时校验初始 URL 与每个重定向跳（拒绝内网/环回/元数据地址）。
+   *  L7 审计评估（2026-08-29）：维持 opt-in 默认关。全量调用方排查（grep proxyFetch*）发现
+   *  合法回环/内网目标，默认开启会破坏本地链路：
+   *    - crawl/lightpanda-client.ts：CDP 端点 http://127.0.0.1:9222（url-safety DEFAULT_CDP_URL）；
+   *    - router/model-router.ts、agents/computer-use-agent.ts、agent-evals/runner.ts、
+   *      agents/kimi-code-agent.ts：getEffectiveBaseURL/*_BASE_URL 可解析到本地模型端点
+   *      （如 127.0.0.1:9001 边缘 LLM/embeddings）。
+   *  若后续改默认开，需先落地调用方白名单（如 ProxyFetchOptions 增 ssrfAllowHosts 精确
+   *  放行回环 CDP/本地 LLM），或仅在处理用户可控 URL 的入口（web_fetch、routes/search）
+   *  强制 ssrfGuard:true。注：local-llm/edge-embeddings.ts 走原生 fetch，不经本模块。 */
   ssrfGuard?: boolean;
 }
 

@@ -109,6 +109,30 @@ function scoreTimeliness(dateStr?: string): number {
   return 0.25;
 }
 
+/**
+ * L12b 审计修复：检测器按 factBase 惰性缓存。
+ * 构造器会对全部 factBase 重建 IDF 缓存（逐条 tokenize），逐结果打分路径上每次
+ * new 开销重复；verify() 对检测器状态只读（computeEvidence/computePValue 不写
+ * factBase/idfCache/calibrationScores），同 factBase 复用安全。缓存键取内容序列化，
+ * 传入副本保证检测器不受调用方后续原地修改影响（与逐次构造的快照语义一致）。
+ */
+const DETECTOR_CACHE_MAX = 8;
+const detectorCache = new Map<string, ConformalHallucinationDetector>();
+
+function getSharedHallucinationDetector(factBase: FactEntry[]): ConformalHallucinationDetector {
+  const key = factBase.length === 0 ? "" : JSON.stringify(factBase);
+  const hit = detectorCache.get(key);
+  if (hit) return hit;
+  const detector = new ConformalHallucinationDetector({ alpha: 0.1, factBase: [...factBase] });
+  if (detectorCache.size >= DETECTOR_CACHE_MAX) {
+    // Map 保持插入序，淘汰最旧
+    const oldest = detectorCache.keys().next().value;
+    if (oldest !== undefined) detectorCache.delete(oldest);
+  }
+  detectorCache.set(key, detector);
+  return detector;
+}
+
 /** 计算 factualAccuracy (0-1)，基于 ConformalHallucinationDetector */
 function scoreFactualAccuracy(
   result: SearchEngineResult,
@@ -118,10 +142,7 @@ function scoreFactualAccuracy(
   // 无 snippet 直接给中位分（无法判定）
   if (!result.snippet || result.snippet.trim().length === 0) return 0.5;
   try {
-    const detector = new ConformalHallucinationDetector({
-      alpha: 0.1,
-      factBase: factBase ?? [],
-    });
+    const detector = getSharedHallucinationDetector(factBase ?? []);
     const verdict = detector.verify(result.snippet, query);
     // pValue 越大越可信（非幻觉），factualAccuracy = 1 - pValue 是错的
     // 实际：pValue 大 = 可信 = 高分；factualAccuracy = pValue

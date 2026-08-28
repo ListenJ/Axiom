@@ -25,6 +25,14 @@ export interface SearchEngineResult {
 export const SEARCH_RESULT_SNIPPET_MAX = 300;
 export const SEARCH_RESULT_TITLE_MAX = 200;
 export const SEARCH_RESULT_MAX_ITEMS = 30;
+/** L12a 审计修复：Bing deepLinks 钳制预算（模型可控数据，与上方 M6 常量并列） */
+export const SEARCH_DEEPLINKS_MAX_ITEMS = 5;
+export const SEARCH_DEEPLINKS_ITEM_MAX = 200;
+/** M9 审计修复：单引擎重试总预算（3 次 × curl -m 30 + sleep 最坏 ~92s → 超预算放弃剩余重试） */
+export const SEARCH_ENGINE_TOTAL_BUDGET_MS = 45_000;
+/** M9 审计修复：curl 子进程超时 kill（与 -m 30 对齐）+ kill 后宽限硬上限 */
+export const CURL_PROC_TIMEOUT_MS = 30_000;
+export const CURL_PROC_KILL_GRACE_MS = 5_000;
 
 /**
  * M6 审计修复：单条 snippet/title 截断 + 总条数上限。
@@ -38,6 +46,15 @@ export function sanitizeSearchResultsForContext<T extends { title?: string; snip
     title: (r.title ?? "").slice(0, SEARCH_RESULT_TITLE_MAX),
     snippet: (r.snippet ?? "").slice(0, SEARCH_RESULT_SNIPPET_MAX),
   }));
+}
+
+/** L12a 审计修复：deepLinks 条数 ≤5、单项 ≤200 字符（非字符串项 JSON 序列化后同样钳制） */
+export function clampDeepLinks(deepLinks: unknown[]): string[] {
+  return deepLinks
+    .slice(0, SEARCH_DEEPLINKS_MAX_ITEMS)
+    .map((d) =>
+      (typeof d === "string" ? d : JSON.stringify(d) ?? "").slice(0, SEARCH_DEEPLINKS_ITEM_MAX),
+    );
 }
 
 export interface SearchOptions {
@@ -127,16 +144,33 @@ export async function curlFetch(
     spawnImpl ??
     (async (a) => {
       const proc = Bun.spawn(a, { stdout: "pipe", stderr: "pipe" });
-      const [stdoutBuf, stderrBuf, exitCode] = await Promise.all([
-        new Response(proc.stdout).arrayBuffer(),
-        new Response(proc.stderr).arrayBuffer(),
-        proc.exited,
-      ]);
-      return {
-        exitCode,
-        stdout: new Uint8Array(stdoutBuf),
-        stderr: new Uint8Array(stderrBuf),
-      };
+      // M9 审计修复：-m 30 只约束 curl 自身，进程级挂起（管道不闭合等）仍会无限等待。
+      // 到 CURL_PROC_TIMEOUT_MS 先 kill 子进程，再给 CURL_PROC_KILL_GRACE_MS 宽限，
+      // 仍未退出则硬上限抛错，保证 spawn 路径有界返回。
+      const killTimer = setTimeout(() => { try { proc.kill(); } catch { /* 已退出 */ } }, CURL_PROC_TIMEOUT_MS);
+      const stdoutP = new Response(proc.stdout).arrayBuffer();
+      const stderrP = new Response(proc.stderr).arrayBuffer();
+      stdoutP.catch(() => {}); // 竞速输掉弃置时防 unhandled rejection
+      stderrP.catch(() => {});
+      let hardTimer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          Promise.all([stdoutP, stderrP, proc.exited]).then(([stdoutBuf, stderrBuf, exitCode]) => ({
+            exitCode,
+            stdout: new Uint8Array(stdoutBuf),
+            stderr: new Uint8Array(stderrBuf),
+          })),
+          new Promise<never>((_, reject) => {
+            hardTimer = setTimeout(
+              () => reject(new Error(`curl spawn exceeded ${CURL_PROC_TIMEOUT_MS + CURL_PROC_KILL_GRACE_MS}ms hard limit`)),
+              CURL_PROC_TIMEOUT_MS + CURL_PROC_KILL_GRACE_MS,
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(killTimer);
+        if (hardTimer) clearTimeout(hardTimer);
+      }
     });
   const proc = await spawn([curlBin, ...args], { stdout: "pipe", stderr: "pipe", maxBuffer: 8 * 1024 * 1024 });
   const body = new TextDecoder().decode(proc.stdout);
@@ -170,12 +204,18 @@ export class DuckDuckGoEngine extends SearchEngine {
     // 注入 fetchImpl（测试确定性）时不重试；重试仅针对真实网络的反爬间歇
     const hasProxy = !!readString("SEARCH_PROXY") && !this.fetchImpl;
     const attempts = hasProxy ? 3 : 1;
+    const startedAt = Date.now(); // M9：单引擎总预算起点
     for (let attempt = 0; attempt < attempts; attempt++) {
       const res = await this.fetch(url.toString());
       if (!res.ok) throw new Error(`DuckDuckGo HTTP ${res.status}`);
       const html = await res.text();
       const parsed = this.parseHtml(html, opts.num ?? 10);
       if (parsed.length > 0) return parsed;
+      // M9：超过总预算放弃剩余重试（3×30s+sleep 最坏 ~92s → 有界），返回已得结果
+      if (attempt < attempts - 1 && Date.now() - startedAt >= SEARCH_ENGINE_TOTAL_BUDGET_MS) {
+        logger.warn(`[SearchEngine] duckduckgo retry budget (${SEARCH_ENGINE_TOTAL_BUDGET_MS}ms) exhausted, abandoning remaining retries`);
+        break;
+      }
       if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
     }
     return [];
@@ -266,7 +306,7 @@ export class BingEngine extends SearchEngine {
       date: r.dateLastCrawled,
       source: this.extractDomain(r.url || ""),
       engine: this.name,
-      richSnippets: r.deepLinks ? { deepLinks: r.deepLinks } : undefined,
+      richSnippets: r.deepLinks ? { deepLinks: clampDeepLinks(r.deepLinks) } : undefined,
     }));
   }
 
@@ -340,6 +380,7 @@ export class BingHtmlEngine extends SearchEngine {
     const headers = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" };
     // Bing 对共享代理 IP 间歇 502/空页：仅代理场景重试 2 次
     const attempts = (readString("SEARCH_PROXY") && !this.fetchImpl) ? 3 : 1;
+    const startedAt = Date.now(); // M9：单引擎总预算起点
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const res = await this.fetch(url.toString(), { headers });
@@ -348,6 +389,11 @@ export class BingHtmlEngine extends SearchEngine {
         if (parsed.length > 0) return parsed;
       } catch (e) {
         if (attempt === 2) throw e;
+      }
+      // M9：超过总预算放弃剩余重试（与 DuckDuckGoEngine 对齐）
+      if (attempt < attempts - 1 && Date.now() - startedAt >= SEARCH_ENGINE_TOTAL_BUDGET_MS) {
+        logger.warn(`[SearchEngine] bing-html retry budget (${SEARCH_ENGINE_TOTAL_BUDGET_MS}ms) exhausted, abandoning remaining retries`);
+        break;
       }
       // 仅重试前 sleep（与 DuckDuckGoEngine 对齐，避免单次请求也空等 1000ms）
       if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
