@@ -7596,4 +7596,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   6. L7：仅 proxy-fetch.ts ssrfGuard 选项注释扩充（见评估段），无行为改动。
   7. 本条目 docs/operations-log.md。
 - **验证**：红→绿：首跑 fail（模块导出缺失实锤）→ 11 pass/0 fail。回归：tests/crawl/ 全目录 30 pass/0 fail（含既有 curl-fetch/search-engines 测试与工作区他切片在改文件）；crawl-filter-score-extract（scoreResult 行为锁定）+ security-fixes 62 pass/0 fail；bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(crawl): 审计 S4 M9 curl spawn 超时 kill+重试总预算 45s + L12a deepLinks 钳制 + L12b 检测器惰性缓存（TDD，含 `src/crawl/search-engines.ts` + `src/crawl/result-scorer.ts` + `src/utils/proxy-fetch.ts` + `tests/crawl/audit-s4-network.test.ts` + `docs/operations-log.md`） — S4-COMMIT-HASH-ANCHOR
+- **Commit**：fix(crawl): 审计 S4 M9 curl spawn 超时 kill+重试总预算 45s + L12a deepLinks 钳制 + L12b 检测器惰性缓存（TDD，含 `src/crawl/search-engines.ts` + `src/crawl/result-scorer.ts` + `src/utils/proxy-fetch.ts` + `tests/crawl/audit-s4-network.test.ts` + `docs/operations-log.md`） — d0ff28e
