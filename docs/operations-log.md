@@ -7446,3 +7446,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **验证**：bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts = 36 pass/0 fail；bunx tsc --noEmit 0；grep 复核失实声明残留清零（mcp/skill-tools 旧路径、fast/cheap/smart、"默认 minSamples: 5"、"重启清零"均零命中）。备份验证后删除。
 - **Minor 遗留（记录待后续）**：W6 对未命中 nodeId 重复 O(N) 枚举无负缓存、归一化碰撞路径 nodeId 歧义——均随 W5/W8 重立项一并处理；W6 修复当前生产不激活（kg-tools.ts:16 未注入适配器，计划已声明）。
 - **Commit**：fix(docs): 审查勘误——2.20持久化事实/2.18接线参数/2.17接线点更正 + spec D4勘误（含 `docs/AXIOM-ARCHITECTURE.md` + `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md` + `docs/operations-log.md`） — 5bdf0f0
+
+## 2026-08-28 — audit: 独立全量审计报告（13 模块/1470 文件清单/双方式交叉验证）
+
+- **任务**：用户委托独立第三方全量审计（13 模块审核清单+7 条铁律+强制输出格式）。执行：Phase 0 全量清单（git 跟踪 1470 文件分母）→ 全量机械扫描（向量库/向量模式/Math.random 52 处 29 文件/时间排序/空 catch 341 分母/第三方 import，覆盖 src 100%+外围树声明扫描）→ 5 组子代理深读核心模块（模块7核心承诺/模块5+6知识层/模块2+3编排MCP/模块4+8+9+11搜索本地推理/模块1+10+12+13架构安全）→ 主会话抽验 4 项 High 论断（H1 VRAM 探测零调用点/H2 kg-tools 随机 id/H3 DAG 无超时（路径更正为 src/mcp/server/orchestrator-tools.ts:40-47）/H4 隐私声明零实现）+ 第二验证方式全树向量库零命中 → 模块 7 专项 N≥5 外环实测 5/5 全绿。
+- **工具**：Bash（git ls-files 清单、grep 机械扫描、抽验 sed/grep、bun test N≥5）、Read（vendor-types/package.json/orchestrator-tools）、Write（审计报告）、Agent×5（Explore 深读子代理，只读；3 次因并发/模型失败重试后全部完成）。
+- **操作**（文件级）：新建 `docs/reviews/2026-08-28-independent-full-audit.md`（覆盖率/核心承诺核查/声明对照表 13 行/分模块问题清单 Critical 0+High 7+Medium 14+Low 12+Info 8/未验证项 7 条/总体结论）；本条目追加。
+- **验证**：结论全部附文件:行锚点；High 级 4 项经主会话独立抽验证实（H3 路径修正）；非向量化双方式（依赖清单+主链追踪）交叉一致；确定性 5/5 外环全绿；N≥5 与测试覆盖不对称矛盾如实报告。
+- **Commit**：docs(audit): 独立全量审计报告（Critical 0/High 7/Medium 14/Low 12/Info 8，含覆盖率与未验证项清单） — hash 待回填
