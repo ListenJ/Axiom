@@ -50,7 +50,7 @@ export interface LLMConfig {
   temperature?: number;     // 默认 0.0
   topK?: number;            // 默认 1
   seed?: number;            // 默认 42
-  maxTokens?: number;       // 默认 512
+  maxTokens?: number;       // 默认 2048
   timeout?: number;         // 默认 120000ms
   retry?: Partial<RetryConfig>;     // 重试配置
   circuitBreaker?: Partial<CircuitBreakerConfig>; // 熔断器配置
@@ -110,7 +110,10 @@ export class LLMClient {
       temperature: 0.0,
       topK: 1,
       seed: 42,
-      maxTokens: 512,
+      // 默认 2048：512 过小常致推理中途截断。此默认只是第一层（env/config 可覆盖）；
+      // effectiveMaxTokens → clampMaxTokens (system-resource.ts) 会按资源预算
+      // recommendedMaxTokens 二次钳制，实际生效值 = min(请求值, 预算推荐值)，双层独立。
+      maxTokens: 2048,
       timeout: 120000,
       ...config,
     };
@@ -596,7 +599,12 @@ export class LLMClient {
       seed?: number;
     }
   ): Promise<Record<string, unknown>> {
-    const n = options?.n ?? 3;
+    // 生效温度：约束生成沿用 client 配置温度（默认 0.0，保持确定性）。
+    // temp===0 时与固定种子（默认 seed=42）共同作用使采样确定——n 票必同值，
+    // 众数投票数学等价单票 → n 强制 1，省 2/3 调用成本（该档位 modeAmbiguous
+    // 本就不可能触发）；temp>0 时采样存在随机性，保持默认 n=3 拒绝采样投票。
+    const effectiveTemp = this.config.temperature ?? 0;
+    const n = effectiveTemp === 0 ? 1 : (options?.n ?? 3);
     const candidates: Array<Record<string, unknown>> = [];
     let hasCallError = false;
 
@@ -604,7 +612,7 @@ export class LLMClient {
       try {
         const response = await this.generate(prompt, {
           maxTokens: options?.maxTokens,
-          temperature: 0.0,
+          temperature: effectiveTemp,
         });
 
         const parsed = JSON.parse(response.content);

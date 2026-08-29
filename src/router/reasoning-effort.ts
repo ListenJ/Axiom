@@ -96,8 +96,9 @@ export function buildReasoningParams(
     case "openrouter":
       return { reasoning: { effort: level } };
     case "ofoxai-anthropic":
-      // Anthropic 预算制：1024~128000，high 取 4096（保守）
-      return { thinking: { type: "enabled", budget_tokens: level === "high" ? 4096 : BUDGETS[level] } };
+      // Anthropic 预算制：1024~128000，档位直接对齐 BUDGETS（high=8192 与其他供应商一致，
+      // 不再保守砍半至 4096 压制深度推理；上限 128000 远高于 BUDGETS，无越界风险）
+      return { thinking: { type: "enabled", budget_tokens: BUDGETS[level] } };
     case "ofoxai-gemini":
       return { thinkingConfig: { thinkingBudget: BUDGETS[level] } };
     case "nvidia-nim":

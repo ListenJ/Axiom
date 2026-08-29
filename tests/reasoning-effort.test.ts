@@ -70,9 +70,12 @@ describe("buildReasoningParams", () => {
     });
   });
 
-  it("Anthropic 兼容端点：thinking 预算制", () => {
+  it("Anthropic 兼容端点：thinking 预算制（high 对齐 BUDGETS 上限 8192，不再保守砍半）", () => {
     expect(buildReasoningParams("ofoxai-anthropic", "high")).toEqual({
-      thinking: { type: "enabled", budget_tokens: 4096 },
+      thinking: { type: "enabled", budget_tokens: 8192 },
+    });
+    expect(buildReasoningParams("ofoxai-anthropic", "medium")).toEqual({
+      thinking: { type: "enabled", budget_tokens: 2048 },
     });
     expect(buildReasoningParams("ofoxai-anthropic", "low")).toEqual({
       thinking: { type: "enabled", budget_tokens: 1024 },

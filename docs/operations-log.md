@@ -7986,3 +7986,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-30-p2-closeout-design.md`；本条目追加。
 - **验证**：自查通过；S2 归档规则4、S4 计数联动、S6 结论明确列为硬验收。
 - **Commit**：docs(spec): P2 收尾迭代设计（6 切片） — hash 待回填
+
+## 2026-08-30 — fix(dre): P2-S1 约束再校准（temp0 采样 n=1 / maxTokens 2048 / Anthropic high 8192）
+
+- **任务**：docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S1，评估报告"过紧 TOP3"（DRE 侧约束压制能力与浪费成本）三处修复：①拒绝采样空转（temp0+seed42 下 n=3 三票必全同，3 倍成本空转、modeAmbiguous 永不触发）；②maxTokens 默认 512 过小（推理被截断）；③Anthropic high 档砍半至 4096 压制深度推理。
+- **工具**：Read/Bash（通读 client.ts/reasoning-effort.ts 全文与既有测试约定、影响面核查）、Write/Edit（TDD 测试与实现）、Bash（bun test 定向运行/tsc/git）、bun 脚本（hash 回填，未用 sed）。全程无子代理（任务要求串行）。AGENTS 规则 2 全程执行：备份 .tmp/backups/ → 通读全文 → 最小改动 → 验证 → 删备份；规则 7 垂直切片红→绿。
+- **操作**（文件级）：
+  1. src/dre/llm/client.ts generateConstrained：生效温度改读 client 配置（this.config.temperature ?? 0，原硬编码 0.0）并透传给 generate；生效 temperature===0 时 n 强制 1（temp0+固定种子采样确定，三票必同值，众数投票数学等价单票，省 2/3 调用成本；该档位 modeAmbiguous 本就不可能触发），temp>0 保持默认 n=3 拒绝采样投票；注释写明依据。默认配置行为不变（默认 temp 0.0）。
+  2. src/dre/llm/client.ts 构造默认：maxTokens 512→2048（env/config 可覆盖读法不变），注释说明与 clampMaxTokens（system-resource.ts，recommendedMaxTokens 预算钳制）构成双层独立钳制：实际生效值 = min(请求值, 预算推荐值)；接口注释同步。
+  3. src/router/reasoning-effort.ts ofoxai-anthropic 分支：删除 high 档 4096 特判（属 Anthropic 独有保守值，非通用约束——其他供应商 high 已取 BUDGETS.high=8192），budget_tokens 直接对齐 BUDGETS[level]（high=8192，上限 128000 无越界风险），注释更新。
+  4. 新建 tests/constrained-sampling.test.ts（3 测试）：mock 实例 generate 记录调用次数与生效温度——temp0（默认配置）恰 1 次且结果与旧 n=3 全同票一致（无 modeAmbiguous）；temp0.7 恰 3 次且 generate 收到 0.7；静态断言 client.ts 默认 2048 在位、512 移除、clampMaxTokens 注释在位。
+  5. tests/reasoning-effort.test.ts：Anthropic 档位断言 4096→8192，补 medium=2048。
+- **验证**：TDD 红→绿：constrained-sampling 新测试 3 fail（n=3 调用/温度未透传/512 在位）+ reasoning-effort 1 fail（4096）→ 修复后 16 pass/0 fail。回归分文件全绿：dre-core-modules 96 pass；local-llm-edge+llm-cache+circuit-breaker 27 pass/1 fail——llm-cache"写入 L3 后新实例可读取"经备份源码对照验证为存量失败（该文件仅依赖 src/utils/cache.js，与本改动无关，还原旧 client 后同样失败）；reasoning 相关三文件 8 pass；dre-pipeline-conflict+dre-stage2-webverify 4 pass；dre-constraint-injection+constraints 13 pass；architecture-integrity **24 pass/0 fail**；bunx tsc --noEmit 0。
+- **Commit**：fix(dre): P2-S1 约束再校准（temp0 n=1 + maxTokens 2048 + high 8192） — HASH_S1_DRE_CLOSEOUT_ANCHOR
