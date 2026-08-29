@@ -8012,4 +8012,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. package.json：test:full 与 test:core 白名单同步移除 tests/vib-compressor.test.ts。
 - **验证**：bunx tsc --noEmit 0；分文件验证全绿：math-breakthroughs 10 pass/0 fail、model-router 7 pass/0 fail、flat-router 9 pass/0 fail、integration-realtime 9 pass/1 skip/0 fail、perf-benchmark 31 pass/0 fail、architecture-integrity **24 pass/0 fail**；test:full **598 pass/0 fail**（72 文件）。慢速测试（stress/torture）不在 test:full 白名单，其类型与解析由 tsc（include tests/**）覆盖。
 - **净减行数**（git diff --stat 实测）：删除文件 2235 行 + 修改文件 333 删/16 增 = 仓库净减 2552 行。
-- **Commit**：refactor(cleanup): P2-S2 幽灵裁剪（mathContext 休眠链归档 + autoRoute 死代码删除） — __P2S2_HASH_ANCHOR__
+- **Commit**：refactor(cleanup): P2-S2 幽灵裁剪（mathContext 休眠链归档 + autoRoute 死代码删除） — c3b2d3518fcadd6e99a339cd798cda800ac6407a
