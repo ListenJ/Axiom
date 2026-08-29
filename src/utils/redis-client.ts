@@ -140,6 +140,28 @@ export class RedisClient {
     await this.sendCommand("FLUSHDB");
   }
 
+  /**
+   * 按模式删除（SCAN 游标遍历 + 批量 DEL）。pattern 自动附加 keyPrefix。
+   * 供 Cache.clear 等按命名空间清理的场景使用，替代 flushdb 全库清空。
+   * 返回删除的 key 数量。
+   */
+  async deleteByPattern(pattern: string, batchSize = 200): Promise<number> {
+    const fullPattern = this.prefix(pattern);
+    let cursor = 0;
+    let deleted = 0;
+    do {
+      const result = await this.sendCommand("SCAN", String(cursor), "MATCH", fullPattern, "COUNT", String(batchSize));
+      if (!Array.isArray(result) || result.length !== 2) break;
+      cursor = parseInt(String(result[0]), 10) || 0;
+      const keys = Array.isArray(result[1]) ? result[1].map(String) : [];
+      if (keys.length > 0) {
+        const n = await this.sendCommand("DEL", ...keys);
+        deleted += Number(n) || 0;
+      }
+    } while (cursor !== 0);
+    return deleted;
+  }
+
   async ping(): Promise<string> {
     return String(await this.sendCommand("PING"));
   }

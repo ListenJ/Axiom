@@ -299,12 +299,16 @@ export class Cache<V = unknown> {
     this.db?.run("DELETE FROM cache_store WHERE namespace = ? AND key = ?", [this.opts.namespace, key]);
   }
 
-  /** 清空缓存 */
+  /**
+   * 清空缓存
+   * B3-Medium（2026-08-29）：Redis 侧改为 SCAN+DEL 按本命名空间前缀删除，
+   * 不再 flushdb() 波及同库的 search/crawl/llm 等其他命名空间；本地内存 clear 行为不变。
+   */
   clear(): void {
     this.store.clear();
 
     if (this.redisReady && this.redis) {
-      this.redis.flushdb().catch(() => {});
+      this.redis.deleteByPattern(`${this.opts.namespace}:*`).catch(() => {});
     }
 
     this.db?.run("DELETE FROM cache_store WHERE namespace = ?", [this.opts.namespace]);
