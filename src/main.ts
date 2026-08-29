@@ -255,9 +255,10 @@ const mathContext = {
 modelRouter.setThompsonRouter(mathContext.thompsonRouter);
 logger.info("[MathBreakthroughs] wired components initialized (hallucinationDetector + thompsonRouter)");
 
-// S5（2026-08-29）：P0-C 校准债启动接线（一次性）—— 从落库 verdict 保守自动校准全局
-// detector（半自动标注，循环性等局限见 calibrateFromStored 声明）；极化对 < 50 跳过
-// （内部 debug），结果经 getCalibrationQuality 记录；任何失败吞掉，不阻断启动。
+// S5（2026-08-29）：P0-C 校准债启动接线（一次性）—— 从落库 verdict 校准全局
+// detector（S4 起 HITL 真值 label 优先，无 label 对仍走极化组保守策略，局限见
+// calibrateFromStored 声明）；对 < 50 跳过（内部 debug），结果经 getCalibrationQuality
+// 记录；任何失败吞掉，不阻断启动。
 try {
   const { calibrateFromStored } = await import("./db/hallucination-verdicts.js");
   const quality = calibrateFromStored(db, mathContext.hallucinationDetector);

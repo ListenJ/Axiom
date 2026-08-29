@@ -2,11 +2,11 @@
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
-> **Deterministic Cognitive Runtime · 188 MCP tools · 8 Persona modes**
+> **Deterministic Cognitive Runtime · 189 MCP tools · 8 Persona modes**
 
 > 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >
-> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/188 MCP 工具/配置/测试覆盖
+> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/189 MCP 工具/配置/测试覆盖
 >
 > 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
 
@@ -21,7 +21,7 @@
 ├─────────────┴─────────────┴─────────────┴───────────────────┤
 │  场景路由层 (SceneRouter, 21场景) │ 智能路由层 (Model Router) │
 ├─────────────────────────────────────────────────────────────┤
-│                    188 MCP Tools                             │
+│                    189 MCP Tools                             │
 ├─────────────────────────────────────────────────────────────┤
 │                     引擎层                                    │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
@@ -241,7 +241,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
+暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
@@ -641,7 +641,7 @@ bun test tests/scene-router.test.ts
 
 1. `kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 跨存储引用因本仓库 SQLite **未持久化 wiki_links 表**（wiki-link 图在内存中由 `DeterministicSearchEngine` 从 Markdown 构建），暂未闭环，需后续引入持久化 wiki_links 表或注入 vault 引擎。
 2. 内网拓扑已脱敏为占位符（`${LAN_NODE_N1}` 等），真实地址/账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库不含真实内网信息（见 AGENTS.md 规则 11）。
-3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **188**（CI 与文档均引用此值，不再硬编码静态数字）。
+3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **189**（CI 与文档均引用此值，不再硬编码静态数字）。
 
 > 详细操作留痕见 `docs/operations-log.md`；任务计划与逐项结论见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。
 

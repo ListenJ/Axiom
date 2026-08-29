@@ -26,6 +26,7 @@ import { registerCodeAgentTools } from "./server/code-agent-tools.js";
 import { registerHermesTools } from "./server/hermes-tools.js";
 import { registerRouterTools } from "./server/router-tools.js";
 import { registerDbTools } from "./server/db-tools.js";
+import { registerSafetyTools } from "./server/safety-tools.js";
 import { registerLspTools } from "./server/lsp-tools.js";
 import { registerTokenTools } from "./server/token-tools.js";
 import { registerModeTools } from "./server/mode-tools.js";
@@ -243,6 +244,9 @@ registerHermesTools(registry);
 registerRouterTools(registry);
 
 registerDbTools(registry, db);
+
+// S4 HITL 真值标注管道：hallucination_feedback（校准闭环人工入口）
+registerSafetyTools(registry, db);
 
 registerLspTools(registry);
 

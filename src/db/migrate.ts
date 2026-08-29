@@ -212,7 +212,7 @@ db.run(`
 `);
 logger.info("[完成] search_history");
 
-// ========== 幻觉判定持久化（S5 校准数据积累，DDL 与 src/db/hallucination-verdicts.ts 一致） ==========
+// ========== 幻觉判定持久化（S5 校准数据积累 + S4 HITL 真值标注，DDL 与 src/db/hallucination-verdicts.ts 一致） ==========
 
 db.run(`
   CREATE TABLE IF NOT EXISTS hallucination_verdicts (
@@ -224,9 +224,18 @@ db.run(`
     is_accepted INTEGER NOT NULL,
     evidence_fingerprint TEXT NOT NULL,
     seam TEXT,
+    label INTEGER,
     created_at INTEGER NOT NULL
   )
 `);
+// S4 幂等补列：存量库缺 label 列时 ALTER 补齐（与 hallucination-verdicts.ts ensureLabelColumn 同语义）
+{
+  const cols = db.query("PRAGMA table_info(hallucination_verdicts)").all() as Array<{ name: string }>;
+  if (cols.length > 0 && !cols.some((c) => c.name === "label")) {
+    db.run("ALTER TABLE hallucination_verdicts ADD COLUMN label INTEGER");
+    logger.info("[迁移] hallucination_verdicts 补列 label INTEGER");
+  }
+}
 db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_fingerprint ON hallucination_verdicts(evidence_fingerprint)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_created ON hallucination_verdicts(created_at DESC)`);
 logger.info("[完成] hallucination_verdicts");

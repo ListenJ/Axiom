@@ -35,7 +35,7 @@ Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"
 | 代码行数 | ~70,000 |
 | 测试文件 | 68 个 |
 | 测试总数 | ~1,170 (后端 1042 + 前端 154) |
-| MCP 工具 | 188 个（15+ 领域文件，去重计数以 `src/mcp/tool-registry.ts` 为准） |
+| MCP 工具 | 189 个（15+ 领域文件，去重计数以 `src/mcp/tool-registry.ts` 为准） |
 | HTTP 路由 | 280+ 个端点 |
 | `as any` 总数 | 6（上限 25）|
 | `@ts-expect-error` | ≤ 1 |
@@ -75,7 +75,7 @@ Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"
 │  场景路由 (21 场景) │ 模型路由 (Thompson + Capability)    │
 ├──────────────────────────────────────────────────────────┤
 │              工具层 (Tools)                               │
-│              188 MCP Tools (15+ 领域，去重)                │
+│              189 MCP Tools (15+ 领域，去重)                │
 ├──────────────────────────────────────────────────────────┤
 │              引擎层 (Engines)                             │
 │  Vault │ DRE │ KG │ Arena │ Cognitive Pipeline           │

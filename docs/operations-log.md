@@ -8027,3 +8027,19 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **对照基线**：`bun test ./tests`（全量含 stress，非隔离）现状：3458 测试 / 348 文件 / 3343 pass / 34 skip / 81 fail / exit 1（120s，本次未复现挂起；失败含 stress 目录与隔离前组合干扰——即 test:full 改为自动发现+隔离+账本前的原始状态，如实记录不强求绿）。
 - **验证**：TDD 红→绿：收集测试 Cannot find module 红 → 1 pass → 注入测试断言失败红 → 2 pass/0 fail（绿）。bunx tsc --noEmit 0。最终 test:full 0 fail（上数）。
 - **Commit**：test(ci): P2-S3 test:full 白名单自动发现（--isolate 根治组合序 + flaky 账本） — 3ecccbe16c2e664a47254a9b80baa7633757a230
+
+## 2026-08-30 — feat(safety): P2-S4 HITL 真值标注管道（label 列 + hallucination_feedback 工具 + calibrate 真值优先）
+
+- **任务**：docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S4，P1-S5 校准债最后一环（真值标注无入口）：①hallucination_verdicts 加 `label INTEGER`（0=幻觉/1=事实/null=未标注）列；②新 MCP 工具 hallucination_feedback；③calibrateFromStored 优先取有 label 的对；④tool-count 188→189 单一事实源联动。
+- **工具**：Read/Bash（通读 hallucination-verdicts.ts/migrate.ts/server.ts/tool-count 机制/docs-consistency 断言/architecture-integrity mcp 规则、count-tools.mjs 实跑基线 188）、Write/Edit（TDD 测试与实现、最小改动）、Bash（bun test 定向/tsc/git）、bun 脚本（hash 回填，未用 sed）。全程无子代理（任务要求串行）。AGENTS 规则 2（备份 .tmp/backups/ → 通读全文 → 最小改动 → 验证 → 删备份）与规则 7（垂直切片红→绿）全程执行。
+- **操作**（文件级）：
+  1. src/db/hallucination-verdicts.ts：ensureHallucinationVerdictsTable DDL 加 `label INTEGER` + 新增私有 ensureLabelColumn（PRAGMA table_info 查列缺失则 ALTER TABLE ADD COLUMN，幂等补列，存量库无损）；StoredVerdictRow 加 label 字段；readHallucinationVerdicts 加第三参 opts.hasLabel（true/false/缺省三态过滤，SELECT 补 label）；新增 setLabel(db, id, isFact, note?)——UPDATE 落库 1/0、changes=0（行不存在）返回 null、吞错返回 null 不抛出，note 仅入审计日志不落库（本迭代 label 单列）；模块注释同步 S4。
+  2. src/db/migrate.ts：hallucination_verdicts CREATE TABLE 同步加 label 列 + 内联幂等补列块（PRAGMA 查列 → ALTER，与 ensureLabelColumn 同语义，带"[迁移] 补列"日志）；注释更新（S5+S4）。
+  3. 新建 src/mcp/server/safety-tools.ts：registerSafetyTools(registry, db) 注册 `hallucination_feedback` 工具（zod raw shape：verdictId int / isFact bool / note optional；handler 内 safeParse 同一 schema——非法入参返回 {success:false,error} 不落库；setLabel null → success:false；成功返回 {success,id,label}），经 ToolRegistry.add 自动获得 HardFloor/权限守卫；mcp 集成层豁免扇出（architecture-integrity Test 9 EXEMPT 含 mcp），import db 层合规；Test 12 registerXxxTools 导出约定满足。
+  4. src/mcp/server.ts：import registerSafetyTools + registerDbTools 后挂 registerSafetyTools(registry, db)（477→481 行，≤500 限制内）。
+  5. src/db/hallucination-verdicts.ts calibrateFromStored：SELECT 补 label；校准对构建改双档——有 label 行直接成对（isFact=label===1，无需极化、可矛盾于 is_accepted 即人工真值赢），无 label 行仍走极化组保守策略（保留，局限注释同步：循环性仅限无 label 对，HITL 入口=hallucination_feedback）；minPairs 按总对数判定。
+  6. src/main.ts：S5 启动校准注释更新（半自动标注→S4 起 HITL 真值 label 优先，无 label 对仍走极化组保守策略）。
+  7. tool-count 189 联动（countMcpTools 动态扫描自动 +1，实跑 189/零重复）：README.md 5 处（5/9/24/244/644）、docs/ARCHITECTURE.md（291/293 表格+更新行）、docs/AXIOM-ARCHITECTURE.md:1357、docs/AGENT-ARCHITECTURE.md:22、docs/PROJECT-GUIDE.md（38/78）、docs/MCP_TOOLS_GUIDE.md:5、docs/LIMITATIONS.md:107（当前态声明）；README 历史口径列表补 188。带日期历史快照（docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:157、docs/LIMITATIONS.md:56 审计记录）如实保留不改写。
+  8. 新建 tests/hallucination-feedback.test.ts（13 测试四组）：①setLabel 落库/读取/hasLabel 过滤/吞错；②工具注册名+handler 合法（{success,id,label} 且库内生效）与非法（缺 isFact/verdictId 非整数/类型错）zod 拒绝不落库+不存在 id 吞错；③calibrate 真值优先（label 对无需极化入集、真 detector n 断言 + stub detector 捕获 pairs 断言 label 矛盾赢/无 label 极化对 isFact=is_accepted）；④旧库（无 label 列）ensure 补列不丢数据 + 重复 ensure 幂等。
+- **验证**：TDD 红→绿：新测试首跑红（safety-tools 模块不存在 → 实现后 1 fail：spy 用例造数缺陷（label 后极化组剩单行），修正造数补无 label 极化对 → **13 pass/0 fail**）。回归分文件全绿：hallucination-calibration+wiring 25 pass/0 fail；docs-consistency+architecture-integrity **33 pass/0 fail**（含 server.ts ≤500 行、registerXxxTools 导出、工具数精确相等断言=189）；五文件合计 71 pass/0 fail。bunx tsc --noEmit **0**；count-tools.mjs 实跑 total=**189**/duplicates=[]；migrate.ts 实跑真实库后 PRAGMA table_info 确认 label 列在位。
+- **Commit**：feat(safety): P2-S4 HITL 真值标注管道（label 列 + hallucination_feedback 工具 + calibrate 真值优先 + tool-count 189） — P2S4HASHANCHOR20260830

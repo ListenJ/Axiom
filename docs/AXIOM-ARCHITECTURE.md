@@ -1354,7 +1354,7 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 
 ## 三、MCP 工具完整清单
 
-> 本系统共注册 188 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173 为旧值）。
+> 本系统共注册 189 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173/188 为旧值）。
 
 ### 3.0 全工具总览
 
