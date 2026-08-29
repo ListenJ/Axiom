@@ -7969,4 +7969,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   7. tests/hallucination-wiring.test.ts 新增缝②端口测试组（3 测试，零外网不可达端点+fake caller）：gate 判定后 recordVerdict 全量透传（statement/evidence/pValue/verdict/isAccepted）；gate null（无证据）→不调用；可疑判定→先落库后抛错走 L3 rule 降级。
 - **标注策略与局限**（保守起步，半自动非真值标注，已在代码注释声明）：仅纳入"极化组"——evidence_fingerprint 相同（同一证据基快照下校验）且组内 accepted/非 accepted 并存的记录，accepted→isFact=true、非 accepted→isFact=false（任务书"pValue 分化稳定对比对"的可操作代理）；极化组外不构成对比信息一律排除。局限：未校准运行期 pValue 恒 1.0，判定由证据相似度阈值驱动 → 标签本质是阈值自编码（循环性），FDR 统计保证在此数据上不严格成立；"证据相似度≥0.5 且用户显式纠正"的真值标注需用户反馈通道，属后续 HITL/标注 UI 迭代。
 - **验证**：TDD 红→绿：实现模块临时移出后新测试 0 pass/1 fail（Cannot find module——红）→ 恢复后 9 pass/0 fail（23 expect，绿）。回归分文件全 0 fail：hallucination-wiring 16 pass（含新增缝②端口 3 测试）；chat-memory-loop+chat-preflight-parallel 21 pass；architecture-integrity **24 pass/0 fail**（db→memory 仅 import type 零运行时依赖、routes→db 直调无禁令）。bunx tsc --noEmit 0。主进程启动接线为运行时路径，由吞错兜底与模块级单测覆盖。
-- **Commit**：feat(safety): P1-S5 校准数据积累（双缝 verdict 落库 + calibrateFromStored 保守自动校准） — __S5_COMMIT_HASH__
+- **Commit**：feat(safety): P1-S5 校准数据积累（双缝 verdict 落库 + calibrateFromStored 保守自动校准） — e44332534bd7e4ca48bc12e4a4be138683bd569a
