@@ -65,6 +65,16 @@ export interface DREConfig {
     statement: string,
     evidence: unknown,
   ) => { verdict: string; pValue: number; isAccepted: boolean } | null;
+  /** S5 端口：缝② verdict 落库（组合根注入；避免 dre->db 直引，与 hallucinationGate
+   * 同模式）。gate 判定后调用，成功与可疑判定均透传；摘要/指纹计算与吞错由实现方负责
+   * （落库失败不得阻塞推理链）。 */
+  recordVerdict?: (rec: {
+    statement: string;
+    evidence: unknown;
+    pValue: number;
+    verdict: string;
+    isAccepted: boolean;
+  }) => void;
 }
 
 /**
@@ -754,6 +764,15 @@ export class DREngine {
     // 内 logger.warn）并抛错 → consciousnessStep 既有降级链走 L3 ruleBased 路径。
     const assessment = this.config.hallucinationGate?.(decision.content, input.metadata?.evidence) ?? null;
     if (assessment) {
+      // S5（2026-08-29）：verdict 落库（端口注入，实现方吞错）。抛错前先落库 ——
+      // 可疑判定是最有价值的校准数据，不得因降级链中断而丢失。
+      this.config.recordVerdict?.({
+        statement: decision.content,
+        evidence: input.metadata?.evidence,
+        pValue: assessment.pValue,
+        verdict: assessment.verdict,
+        isAccepted: assessment.isAccepted,
+      });
       if (!assessment.isAccepted) {
         throw new Error(
           "[DRE] cloud decision failed hallucination verify: verdict=" + assessment.verdict +

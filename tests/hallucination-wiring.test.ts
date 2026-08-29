@@ -157,6 +157,99 @@ describe("③ 请求级隔离：两次请求 factBase 互不污染", () => {
   });
 });
 
+describe("⑤ S5 缝② verdict 落库端口（recordVerdict 组合根注入，dre 不直引 db）", () => {
+  type EngineModule = typeof import("../src/dre/engine.js");
+
+  type DreEngineCtor = ConstructorParameters<EngineModule["DREngine"]>[0];
+
+  const makeEngine = async (overrides: Partial<DreEngineCtor>): Promise<InstanceType<EngineModule["DREngine"]>> => {
+    const { DREngine } = await import("../src/dre/engine.js");
+    return new DREngine({
+      dbPath: ":memory:",
+      // 不可达本地端点 → L1 local 失败走 L2 cloud（fake caller），确定性、零外网
+      mainLLM: { baseUrl: "http://127.0.0.1:9", model: "test", timeout: 50 },
+      cloudFallback: { baseUrl: "http://127.0.0.1:9", apiKey: "k", model: "cloud" },
+      ...overrides,
+    });
+  };
+
+  test("gate 判定后 recordVerdict 被调用：statement/evidence/pValue/verdict/isAccepted 全量透传", async () => {
+    const recorded: Array<{ statement: string; evidence: unknown; pValue: number; verdict: string; isAccepted: boolean }> = [];
+    const engine = await makeEngine({
+      cloudCaller: {
+        call: async () => ({
+          content: JSON.stringify({ action: "observe", content: "quicksort runs in o(n log n) average time", confidence: 0.9 }),
+        }),
+      },
+      hallucinationGate: () => ({ verdict: "accepted", pValue: 1, isAccepted: true }),
+      recordVerdict: (rec: { statement: string; evidence: unknown; pValue: number; verdict: string; isAccepted: boolean }) => {
+        recorded.push(rec);
+      },
+    });
+    await engine.waitForReady();
+    try {
+      const r = await engine.consciousnessStep({
+        observation: "classify quicksort complexity",
+        metadata: { evidence: ["quicksort is a sorting algorithm"] },
+      });
+      expect(r.fallbackLevel).toBe("cloud");
+      expect(recorded.length).toBe(1);
+      expect(recorded[0]!.statement).toBe("quicksort runs in o(n log n) average time");
+      expect(recorded[0]!.pValue).toBe(1);
+      expect(recorded[0]!.verdict).toBe("accepted");
+      expect(recorded[0]!.isAccepted).toBe(true);
+      expect(recorded[0]!.evidence).toEqual(["quicksort is a sorting algorithm"]);
+    } finally {
+      await engine.close();
+    }
+  });
+
+  test("gate 返回 null（无证据跳过校验）→ recordVerdict 不被调用", async () => {
+    let calls = 0;
+    const engine = await makeEngine({
+      cloudCaller: {
+        call: async () => ({
+          content: JSON.stringify({ action: "observe", content: "routine observation", confidence: 0.8 }),
+        }),
+      },
+      hallucinationGate: () => null,
+      recordVerdict: () => { calls += 1; },
+    });
+    await engine.waitForReady();
+    try {
+      const r = await engine.consciousnessStep({ observation: "routine observation" });
+      expect(r.fallbackLevel).toBe("cloud");
+      expect(calls).toBe(0);
+    } finally {
+      await engine.close();
+    }
+  });
+
+  test("gate 判可疑（isAccepted=false）→ verdict 先落库，随后抛错走 L3 rule 降级", async () => {
+    const recorded: Array<{ verdict: string; isAccepted: boolean }> = [];
+    const engine = await makeEngine({
+      cloudCaller: {
+        call: async () => ({
+          content: JSON.stringify({ action: "observe", content: "the platypus lays transparent eggs on mars", confidence: 0.9 }),
+        }),
+      },
+      hallucinationGate: () => ({ verdict: "anomalous", pValue: 0.01, isAccepted: false }),
+      recordVerdict: (rec: { verdict: string; isAccepted: boolean }) => { recorded.push(rec); },
+    });
+    await engine.waitForReady();
+    try {
+      const r = await engine.consciousnessStep({ observation: "verify mars platypus", metadata: { evidence: [] } });
+      // 可疑云端输出不入决策：降级链走 L3 规则推理
+      expect(r.fallbackLevel).toBe("rule");
+      expect(recorded.length).toBe(1);
+      expect(recorded[0]!.verdict).toBe("anomalous");
+      expect(recorded[0]!.isAccepted).toBe(false);
+    } finally {
+      await engine.close();
+    }
+  });
+});
+
 describe("④ factBase 构建纯函数", () => {
   test("knowledgeContext 解析为 FactEntry[]：提取 source、剔除检索头", () => {
     const facts = buildFactBaseFromRetrieval({

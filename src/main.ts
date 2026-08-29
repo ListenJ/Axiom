@@ -156,6 +156,7 @@ if (readString("DEEPSEEK_API_KEY", "")) {
   const { setDreHostOverrides } = await import("./dre/host.js");
   const { createDreCloudAdapter } = await import("./router/provider-caller.js");
   const { assessStatement, buildFactBaseFromEvidence } = await import("./memory/hallucination-detector.js");
+  const { recordHallucinationVerdict } = await import("./db/hallucination-verdicts.js");
   setDreHostOverrides({
     cloudCaller: createDreCloudAdapter({
       baseUrl: readString("DEEPSEEK_BASE_URL", ""),
@@ -166,6 +167,25 @@ if (readString("DEEPSEEK_API_KEY", "")) {
     hallucinationGate: (statement: string, evidence: unknown) => {
       const factBase = buildFactBaseFromEvidence(evidence);
       return factBase.length > 0 ? assessStatement(factBase, statement) : null;
+    },
+    // S5（2026-08-29）缝② verdict 落库接线：dre 包不直引 db（与 gate 同端口模式）。
+    // db 于下方启动段创建，闭包惰性引用（请求期才触发）；recordHallucinationVerdict
+    // 内部吞错，此处 try/catch 兜底 db 尚未初始化的极端时序，绝不阻塞推理链。
+    recordVerdict: (rec) => {
+      try {
+        recordHallucinationVerdict(db, {
+          statement: rec.statement,
+          evidenceTexts: buildFactBaseFromEvidence(rec.evidence).map((f) => f.text),
+          pValue: rec.pValue,
+          verdict: rec.verdict,
+          isAccepted: rec.isAccepted,
+          seam: "dre",
+        });
+      } catch (err) {
+        logger.debug("[S5] dre verdict record skipped", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     },
   });
 }
@@ -249,6 +269,27 @@ if (vault) {
   });
 }
 logger.info("[MathBreakthroughs] All 6 modules initialized");
+
+// S5（2026-08-29）：P0-C 校准债启动接线（一次性）—— 从落库 verdict 保守自动校准全局
+// detector（半自动标注，循环性等局限见 calibrateFromStored 声明）；极化对 < 50 跳过
+// （内部 debug），结果经 getCalibrationQuality 记录；任何失败吞掉，不阻断启动。
+try {
+  const { calibrateFromStored } = await import("./db/hallucination-verdicts.js");
+  const quality = calibrateFromStored(db, mathContext.hallucinationDetector);
+  if (quality) {
+    logger.info("[S5] startup auto-calibration applied from stored verdicts", {
+      n: quality.n,
+      meanScore: quality.meanScore,
+      scoreDistribution: quality.scoreDistribution,
+    });
+  } else {
+    logger.debug("[S5] startup auto-calibration skipped (insufficient stored pairs)");
+  }
+} catch (err) {
+  logger.warn("[S5] startup auto-calibration failed (non-blocking)", {
+    error: err instanceof Error ? err.message : String(err),
+  });
+}
 
 // 注册 VaultManager 执行器到 ReadOptimizerFacade
 if (vault) {

@@ -212,6 +212,25 @@ db.run(`
 `);
 logger.info("[完成] search_history");
 
+// ========== 幻觉判定持久化（S5 校准数据积累，DDL 与 src/db/hallucination-verdicts.ts 一致） ==========
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS hallucination_verdicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    statement_digest TEXT NOT NULL,
+    statement TEXT,
+    p_value REAL NOT NULL,
+    verdict TEXT NOT NULL,
+    is_accepted INTEGER NOT NULL,
+    evidence_fingerprint TEXT NOT NULL,
+    seam TEXT,
+    created_at INTEGER NOT NULL
+  )
+`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_fingerprint ON hallucination_verdicts(evidence_fingerprint)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_created ON hallucination_verdicts(created_at DESC)`);
+logger.info("[完成] hallucination_verdicts");
+
 // ========== FTS5 全文索引 ==========
 
 db.run(`

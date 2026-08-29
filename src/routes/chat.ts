@@ -20,6 +20,7 @@ import type { VaultManager } from "../memory/vault-manager.js";
 import type { SignificanceContext } from "../memory/memory-gate.js";
 import { normalizeSessionId, persistChatMessage, getSessionMessages } from "../db/session-store.js";
 import { assessStatement } from "../memory/hallucination-detector.js";
+import { recordHallucinationVerdict } from "../db/hallucination-verdicts.js";
 
 /**
  * M11（2026-08-28 审计）：/chat 请求体校验。
@@ -93,6 +94,19 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   // 请求级隔离：assessStatement 每次用传入 evidence 建独立 detector，不碰 main.ts
   // 全局单例；无证据/空响应返回 null（可观测优先，不阻断响应，不改返回结构）。
   const _hallucination = assessStatement(evidence, result.content ?? "");
+
+  // S5（2026-08-29）：verdict 落库（routes→db 直调，方向与 session-store 既有依赖一致；
+  // recordHallucinationVerdict 内部吞错，不阻塞响应；_hallucination 为 null = 无证据未判定）
+  if (_hallucination) {
+    recordHallucinationVerdict(ctx.db, {
+      statement: result.content ?? "",
+      evidenceTexts: evidence.map((f) => f.text),
+      pValue: _hallucination.pValue,
+      verdict: _hallucination.verdict,
+      isAccepted: _hallucination.isAccepted,
+      seam: "chat",
+    });
+  }
 
   const normalizedSessionId = normalizeSessionId(sessionId);
   const messageList = Array.isArray(messages) ? messages as Array<{ role: string; content: string }> : [];
@@ -650,6 +664,17 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
               // P0-C（2026-08-29）：缝①（流式）—— done 帧正文过请求级 factBase 校验，
               // 结论随 done 事件下发（null = 无检索证据，校验未运行；可观测不阻断）。
               const streamHallucination = assessStatement(evidence, ev.content ?? "");
+              // S5（2026-08-29）：缝①（流式）verdict 落库（与上方非流式同策略，吞错不阻塞 SSE）
+              if (streamHallucination) {
+                recordHallucinationVerdict(ctx.db, {
+                  statement: ev.content ?? "",
+                  evidenceTexts: evidence.map((f) => f.text),
+                  pValue: streamHallucination.pValue,
+                  verdict: streamHallucination.verdict,
+                  isAccepted: streamHallucination.isAccepted,
+                  seam: "chat",
+                });
+              }
               safeEnqueue(sseEvent("done", {
                 type: "done",
                 content: ev.content,
