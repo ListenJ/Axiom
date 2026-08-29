@@ -7840,3 +7840,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新建 `docs/knowledge/agent-decision-chain-assessment-2026-08-29.md`（决策链图/约束松紧表/DRE 三分清单/记忆组件表/杠杆 TOP 与优先级路线）；本条目追加。
 - **验证**：全部结论附 文件:行 证据；核心发现——能力库存与流量错配（检索栈 6 层休眠、幻觉检测橡胶图章、chat 仅 5 工具、主链路零记忆召回、路由不消费学习信号）；约束矛盾=该紧的空转该松的卡脖子。
 - **Commit**：docs(knowledge): Agent 决策链与提升空间评估报告 — 00c08b6
+
+## 2026-08-29 — docs(spec): P0 提升迭代设计（决策链提速/记忆闭环/幻觉防线接火）
+
+- **任务**：用户确认评估报告 P0 三项方向后，产出实施 spec：A 前置调用并行化+边缘合并（真实依赖执行时核实）、B 自动归档+bootstrap 召回接线（受 MemoryGate 约束）、C 请求级 factBase+两缝 verify（可观测优先不阻断，真实 calibrate 记为 P1 校准债）。
+- **工具**：Write、Bash。
+- **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p0-lift-design.md`；本条目追加。
+- **验证**：spec 自查（占位符/一致性/范围/歧义）通过；三项均附现状证据行号与验收标准。
+- **Commit**：docs(spec): P0 提升迭代设计（A 并行合并/B 记忆闭环/C 防线接火） — hash 待回填
