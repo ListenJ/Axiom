@@ -7718,4 +7718,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   8. package.json：test:full 名单补入 3 个新测试文件（opencode-codegen-timeout 之后）。
   9. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：红 = mcp-backend-auth 3 fail + browser-tools-cdp-guard 5 fail（恶意 cdpUrl 未守卫）+ docker-sandbox-mount 12 fail；绿 = 3 新文件 23 pass/0 fail（browser-tools 6 + docker 14 + backend-auth 3）。回归：security-fixes（含 J-3 适配后）+ auth-check + unit/cdp-url-guard + architecture-integrity + security-hardening 合跑 98 pass/0 fail（architecture-integrity mcp<->tools 循环断言绿：本轮仅 src/mcp→src/utils 与 sandbox 层内 import，无跨目录新循环）。bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(security): 审计强化 T4 P0-6 dre/kb 后端鉴权 + cdpUrl 守卫 + docker-sandbox 挂载/截断/禁网（B1/B3，TDD） — __T4_HASH_ANCHOR__
+- **Commit**：fix(security): 审计强化 T4 P0-6 dre/kb 后端鉴权 + cdpUrl 守卫 + docker-sandbox 挂载/截断/禁网（B1/B3，TDD） — f385143
