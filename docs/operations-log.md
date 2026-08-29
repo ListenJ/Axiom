@@ -7977,4 +7977,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Agent×6（S5 三派：captcha 失败/模型失败/成功）、Bash（白名单二分定位、bun test/tsc/test:full）、Write（报告回写）、Edit（package.json）。
 - **操作**（文件级）：评估报告追加第七节 P1 回写表；package.json test:full 先 +5 后回退（组合运行触发 audit-regression-stress 存量 flaky 的残留 tick 挂起——单进程文件序依赖，根治=白名单自动发现，记 P2；5 新测试文件改定向运行全绿，src 改动全保留）；本条目追加。
 - **验证**：白名单 test:full 603 pass/0 fail；5 新测试文件独立/相邻运行全绿（38 pass）；tsc 0；architecture-integrity 24/0。另记录存量失败：stress/audit-regression-stress 在 HEAD 干净 worktree 复现 1 fail（S2 代理与本次二分独立证实）。
-- **Commit**：feat(lift): P1 五切片收口（白名单回退+报告回写） — hash 待回填
+- **Commit**：feat(lift): P1 五切片收口（白名单回退+报告回写） — 64be5a0
