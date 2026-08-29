@@ -7,14 +7,17 @@
  *   - MBPP：将 Agent 生成的代码 + test_list 运行，exit 0 即通过。
  *
  * 设计：
- * - 不依赖网络；Python 解释器默认依次尝试 `python3` / `python`。
- * - 允许注入 pythonCmd 便于测试/CI 固定解释器。
+ * - 不依赖网络；解释器在沙箱容器内解析，默认依次尝试 `python3` / `python`。
+ * - 审计 P1-3（2026-08-29）：LLM 生成的代码一律经 SandboxProvider（默认 docker-sandbox，
+ *   默认禁网 + 资源限制）执行；沙箱不可用时结果标注 skipped，绝不回退为宿主直跑。
+ * - 允许注入 pythonCmd 便于测试/CI 固定沙箱内解释器；可注入 sandbox 提供者便于测试。
  * - verify 为异步（AgentTask.verify 已支持 Promise）。
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { dockerSandbox } from "../sandbox/docker-sandbox.js";
+import { shellQuoteArg } from "../utils/spawn-env.js";
+import type { SandboxOptions, SandboxProvider, SandboxResult } from "../sandbox/types.js";
 import type { AgentTask, TaskContext } from "./tasks.js";
 import type { VerifyResult } from "./verify.js";
 
@@ -23,8 +26,10 @@ export type ExternalKind = "human-eval" | "mbpp";
 export interface ExternalLoadOptions {
   /** 只加载前 N 条（用于快速冒烟/CI） */
   limit?: number;
-  /** Python 解释器命令或 [命令, ...参数]；默认自动尝试 python3 / python */
+  /** 沙箱内 Python 解释器命令或 [命令, ...参数]；默认自动尝试 python3 / python */
   pythonCmd?: string | string[];
+  /** 审计 P1-3：沙箱提供者（默认 dockerSandbox）；测试可注入 fake */
+  sandbox?: SandboxProvider;
 }
 
 interface PythonRunResult {
@@ -34,69 +39,76 @@ interface PythonRunResult {
   stderr: string;
 }
 
-/** 运行一段 Python 代码（写入临时文件后执行），带超时保护。 */
-function runPython(code: string, pythonCmd?: string | string[]): Promise<PythonRunResult> {
-  const candidates: string[][] = pythonCmd
-    ? (Array.isArray(pythonCmd) ? [pythonCmd] : [[pythonCmd]])
-    : (process.platform === "win32" ? [["python"], ["python3"]] : [["python3"], ["python"]]);
-  const tmp = path.join(os.tmpdir(), `axiom-external-${Date.now()}-${Math.random().toString(36).slice(2)}.py`);
-  fs.writeFileSync(tmp, code, "utf8");
+/** 审计 P1-3：单次评测执行超时（与原直跑语义一致，保持 20s）。 */
+const SANDBOX_TIMEOUT_MS = 20_000;
+/** 生成的 Python 脚本文件名（落在挂载目录内，容器内经 /workspace 相对引用）。 */
+const GENERATED_SCRIPT = "generated_code.py";
+/** 脚本运行目录根：项目内 .tmp 下（docker-sandbox 挂载白名单拒绝宿主用户目录首段，如 os.tmpdir）。 */
+const RUN_DIR_ROOT = path.resolve(process.cwd(), ".tmp", "external-eval-runs");
+/** 容器为 Linux 环境，解释器候选不再区分宿主平台。 */
+const DEFAULT_PYTHON_CANDIDATES: string[][] = [["python3"], ["python"]];
 
-  function execOne(cmd: string[]): Promise<PythonRunResult> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const [bin, ...args] = cmd;
-      const child = spawn(bin, [...args, tmp], {
-        windowsHide: true,
-        timeout: 20_000,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      let stdout = "";
-      let stderr = "";
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          child.kill("SIGKILL");
-          resolve({ ok: false, exitCode: null, stdout, stderr: `${cmd} timed out after 20s` });
-        }
-      }, 20_000);
-      child.stdout?.on("data", (d: Buffer) => { stdout += d.toString(); });
-      child.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
-      child.on("error", (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({ ok: false, exitCode: null, stdout, stderr: err.message });
-      });
-      child.on("close", (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({ ok: code === 0, exitCode: code, stdout, stderr });
-      });
-    });
+function resolveSandbox(sandbox?: SandboxProvider): SandboxProvider {
+  return sandbox ?? dockerSandbox;
+}
+
+/** 构造沙箱命令：解释器 + 脚本（POSIX 单引号包裹——容器恒为 Linux；脚本内容在文件内，命令面无注入面）。 */
+function buildSandboxCommand(cmd: string[]): string {
+  return [...cmd, GENERATED_SCRIPT].map((a) => shellQuoteArg(a, "linux")).join(" ");
+}
+
+/** 解释器缺失判定：容器内无该解释器（127 / not found / ENOENT）→ 尝试下一候选。 */
+function isInterpreterMissing(res: SandboxResult): boolean {
+  const text = `${res.stderr}\n${res.error ?? ""}`;
+  return res.exitCode === 127 || /not found|enoent|no such file/i.test(text);
+}
+
+/** 运行一段 Python 代码（写入挂载目录后经沙箱执行），带 20s 超时保护。 */
+async function runPython(
+  code: string,
+  pythonCmd: string | string[] | undefined,
+  sandbox: SandboxProvider,
+): Promise<PythonRunResult> {
+  // 审计 P1-3：沙箱不可用 → skipped（fail-closed），绝不回退宿主直跑。
+  if (!(await sandbox.available())) {
+    return {
+      ok: false,
+      exitCode: null,
+      stdout: "",
+      stderr: `skipped: ${sandbox.name} sandbox unavailable — model-generated code is not executed on the host`,
+    };
   }
+  const runDir = path.join(RUN_DIR_ROOT, `run-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, GENERATED_SCRIPT), code, "utf8");
 
-  return (async () => {
-    try {
-      let lastError = "";
-      for (const cmd of candidates) {
-        const result = await execOne(cmd);
-        // 命令不存在（error 事件）时继续尝试下一个；运行成功或非零退出（语法/断言失败）则直接返回
-        if (result.exitCode !== null || result.stderr.includes("ENOENT") || result.stderr.includes("not found")) {
-          if (result.exitCode === null && (result.stderr.includes("ENOENT") || result.stderr.includes("not found"))) {
-            lastError = result.stderr;
-            continue;
-          }
-          return result;
-        }
-        lastError = result.stderr;
+  try {
+    const candidates: string[][] = pythonCmd
+      ? (Array.isArray(pythonCmd) ? [pythonCmd] : [[pythonCmd]])
+      : DEFAULT_PYTHON_CANDIDATES;
+    let lastError = "";
+    for (const cmd of candidates) {
+      const opts: SandboxOptions = {
+        command: buildSandboxCommand(cmd),
+        cwd: runDir,
+        timeoutMs: SANDBOX_TIMEOUT_MS,
+        networkAccess: false,
+      };
+      const result = await sandbox.execute(opts);
+      if (result.exitCode === 0) {
+        return { ok: true, exitCode: 0, stdout: result.stdout, stderr: result.stderr };
       }
-      return { ok: false, exitCode: null, stdout: "", stderr: lastError || "no python interpreter available" };
-    } finally {
-      try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
+      // 解释器缺失时继续尝试下一个候选；非零退出（语法/断言失败）则直接返回
+      if (isInterpreterMissing(result)) {
+        lastError = result.stderr || result.error || lastError;
+        continue;
+      }
+      return { ok: false, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr || result.error || "" };
     }
-  })();
+    return { ok: false, exitCode: null, stdout: "", stderr: lastError || "no python interpreter available" };
+  } finally {
+    try { fs.rmSync(runDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
 }
 
 /** 从模型输出中提取 Python 代码：优先代码块，其次全文。 */
@@ -106,30 +118,30 @@ export function extractPythonCode(text: string): string {
   return text.trim();
 }
 
-function makeHumanEvalVerify(raw: { prompt: string; test: string; entry_point?: string }, pythonCmd?: string | string[]) {
+function makeHumanEvalVerify(raw: { prompt: string; test: string; entry_point?: string }, options: ExternalLoadOptions) {
   return async (_response: string, _ctx?: TaskContext): Promise<VerifyResult> => {
     const code = extractPythonCode(_response);
     const full = `${raw.prompt}\n${code}\n${raw.test}`;
-    const result = await runPython(full, pythonCmd);
+    const result = await runPython(full, options.pythonCmd, resolveSandbox(options.sandbox));
     if (result.ok) return { passed: true };
     const detail = (result.stderr || result.stdout).trim().slice(0, 300);
     return { passed: false, reason: detail || `python exit ${result.exitCode ?? "unknown"}` };
   };
 }
 
-function makeMbppVerify(raw: { test_setup_code?: string; test_list: string[] }, pythonCmd?: string | string[]) {
+function makeMbppVerify(raw: { test_setup_code?: string; test_list: string[] }, options: ExternalLoadOptions) {
   return async (_response: string, _ctx?: TaskContext): Promise<VerifyResult> => {
     const code = extractPythonCode(_response);
     const tests = raw.test_list.join("\n");
     const full = [raw.test_setup_code, code, tests].filter(Boolean).join("\n");
-    const result = await runPython(full, pythonCmd);
+    const result = await runPython(full, options.pythonCmd, resolveSandbox(options.sandbox));
     if (result.ok) return { passed: true };
     const detail = (result.stderr || result.stdout).trim().slice(0, 300);
     return { passed: false, reason: detail || `python exit ${result.exitCode ?? "unknown"}` };
   };
 }
 
-function toHumanEvalTask(raw: Record<string, unknown>, pythonCmd?: string | string[]): AgentTask {
+function toHumanEvalTask(raw: Record<string, unknown>, options: ExternalLoadOptions): AgentTask {
   const id = String(raw.task_id ?? `HE-${Math.random().toString(36).slice(2)}`);
   const prompt = String(raw.prompt ?? "");
   const test = String(raw.test ?? "");
@@ -139,12 +151,12 @@ function toHumanEvalTask(raw: Record<string, unknown>, pythonCmd?: string | stri
     split: "held-out",
     title: `HumanEval ${id}`,
     prompt: `请补全以下 Python 函数。只输出可运行的 Python 代码，不要额外解释，不要重复函数签名（直接补全函数体）。\n\n${prompt}`,
-    verify: makeHumanEvalVerify({ prompt, test, entry_point: raw.entry_point as string | undefined }, pythonCmd),
+    verify: makeHumanEvalVerify({ prompt, test, entry_point: raw.entry_point as string | undefined }, options),
     maxTokens: 1024,
   };
 }
 
-function toMbppTask(raw: Record<string, unknown>, pythonCmd?: string | string[]): AgentTask {
+function toMbppTask(raw: Record<string, unknown>, options: ExternalLoadOptions): AgentTask {
   const id = String(raw.task_id ?? `MBPP-${Math.random().toString(36).slice(2)}`);
   const text = String(raw.text ?? "");
   const testList = Array.isArray(raw.test_list) ? (raw.test_list as unknown[]).map(String) : [];
@@ -155,7 +167,7 @@ function toMbppTask(raw: Record<string, unknown>, pythonCmd?: string | string[])
     split: "held-out",
     title: `MBPP ${id}`,
     prompt: `根据以下描述编写 Python 函数。只输出可运行的 Python 代码，不要额外解释。\n\n${text}`,
-    verify: makeMbppVerify({ test_setup_code: testSetup, test_list: testList }, pythonCmd),
+    verify: makeMbppVerify({ test_setup_code: testSetup, test_list: testList }, options),
     maxTokens: 1024,
   };
 }
@@ -176,7 +188,7 @@ export function loadExternalTasks(kind: ExternalKind, options: ExternalLoadOptio
     } catch {
       continue; // 跳过损坏行，保持解析健壮
     }
-    tasks.push(kind === "human-eval" ? toHumanEvalTask(raw, options.pythonCmd) : toMbppTask(raw, options.pythonCmd));
+    tasks.push(kind === "human-eval" ? toHumanEvalTask(raw, options) : toMbppTask(raw, options));
     if (options.limit && tasks.length >= options.limit) break;
   }
   return tasks;
