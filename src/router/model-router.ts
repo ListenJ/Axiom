@@ -12,7 +12,8 @@
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
-import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import { assignModel, findModelsForRole, listAllModels, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import type { RouterArm } from "./thompson-router.js";
 import { PROVIDER_CONFIG } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
@@ -187,6 +188,43 @@ function trackCall(
 const DEFAULT_RETRY_ATTEMPTS = 3;
 
 // =============================================================================
+// S4 Thompson 学习回路（组合根接线；未注入时全部路径零行为变化）
+// =============================================================================
+
+/**
+ * Thompson 学习回路最小消费端口（结构化类型）。
+ * ThompsonRouter 公共接口天然满足；测试可注入 fake。
+ */
+export interface ThompsonLearningPort {
+  getArmIds(): string[];
+  route(context: { taskType: string; inputLength: number }): Promise<{ samples: Array<{ armId: string; value: number }> }>;
+  reportFeedback(armId: string, success: boolean): void;
+}
+
+/**
+ * S4① arms 填充：由模型能力注册表（静态 UNIFIED_REGISTRY + 用户扩展）构建 Thompson arms。
+ * arm.id = 注册表模型 id（唯一），model/provider 透传，均匀先验 Beta(1,1)。
+ * 组合根 main.ts 以此构造 thompsonRouter 并注入 router（setThompsonRouter）。
+ */
+export function buildThompsonArms(): RouterArm[] {
+  const byId = new Map<string, RouterArm>();
+  for (const m of listAllModels()) {
+    byId.set(m.id, { id: m.id, model: m.model, provider: m.provider, alpha: 1, beta: 1 });
+  }
+  return Array.from(byId.values());
+}
+
+/** 候选排序比较器（与 S4 前行为一致）：轻任务 free 优先，其余按有效优先级升序 */
+function compareRouteCandidates(a: ModelCapability, b: ModelCapability, isLightRoute: boolean): number {
+  const pa = effectivePriorityForRateTier(a, new Date());
+  const pb = effectivePriorityForRateTier(b, new Date());
+  if (isLightRoute && a.isFree !== b.isFree) {
+    return a.isFree ? -1 : 1;
+  }
+  return pa - pb;
+}
+
+// =============================================================================
 // 路由器 v5.0 — 扁平化核心
 // =============================================================================
 
@@ -221,6 +259,68 @@ export function isModelBlacklisted(provider: string, model: string): boolean {
 }
 
 export class MultiPlatformRouter {
+  /** S4: Thompson 学习回路端口（组合根 main.ts 注入；null = 未接线，路由与反馈路径零行为变化） */
+  private thompson: ThompsonLearningPort | null = null;
+
+  /** S4 组合根接线：注入 Thompson 学习回路（传 null 摘除） */
+  setThompsonRouter(port: ThompsonLearningPort | null): void {
+    this.thompson = port;
+  }
+
+  /** S4: execute 成败记录点同步反馈（异常吞掉 + debug 日志，不破坏主流程） */
+  private reportThompsonFeedback(armId: string, success: boolean): void {
+    if (!this.thompson) return;
+    try {
+      this.thompson.reportFeedback(armId, success);
+    } catch (err) {
+      logger.debug("[Router] thompson feedback ignored", {
+        armId,
+        success,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * S4③ 平级 tie-break 消费：同优先级（比较器相等）候选 ≥2 的连续组内，
+   * 若 thompson 可用且组内 arm 全部注册，用一次 thompson 采样决定组内顺序。
+   * 不改不同优先级之间的排序；未注入 / 无 arms / 组内 arm 未注册 / 采样异常 → 保持现状排序。
+   */
+  private async applyThompsonTieBreak(sorted: ModelCapability[], isLightRoute: boolean, role: TaskRole, messages: ChatMessage[]): Promise<ModelCapability[]> {
+    const thompson = this.thompson;
+    if (!thompson || sorted.length < 2) return sorted;
+    const known = new Set(thompson.getArmIds());
+    if (known.size === 0) return sorted;
+    const out = [...sorted];
+    let i = 0;
+    while (i < out.length - 1) {
+      if (compareRouteCandidates(out[i]!, out[i + 1]!, isLightRoute) !== 0) {
+        i++;
+        continue;
+      }
+      let end = i + 1;
+      while (end < out.length - 1 && compareRouteCandidates(out[end]!, out[end + 1]!, isLightRoute) === 0) end++;
+      const group = out.slice(i, end + 1);
+      if (group.every((m) => known.has(m.id))) {
+        try {
+          const decision = await thompson.route({
+            taskType: role,
+            inputLength: messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0),
+          });
+          const valueOf = new Map(decision.samples.map((s) => [s.armId, s.value]));
+          const reordered = [...group].sort((a, b) => (valueOf.get(b.id) ?? 0) - (valueOf.get(a.id) ?? 0));
+          out.splice(i, group.length, ...reordered);
+        } catch (err) {
+          logger.debug("[Router] thompson tie-break failed, keep static order", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      i = end + 1;
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------------------
   // 统一执行端口 (Unified Execution Port)
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
@@ -271,17 +371,12 @@ export class MultiPlatformRouter {
       "general-tool", "research", "general-chat", "code-review", "english", "evaluation",
     ]);
     const isLightRoute = LIGHT_ROUTES.has(role);
-    const sortedModels = [...candidates].sort((a, b) => {
-      // 峰谷费率：DeepSeek 高峰时 pro 有效优先级 +8（便宜/免费模型优先）
-      const pa = effectivePriorityForRateTier(a, new Date());
-      const pb = effectivePriorityForRateTier(b, new Date());
-      // Light roles: free models first (cost saving), then by priority
-      if (isLightRoute && a.isFree !== b.isFree) {
-        return a.isFree ? -1 : 1;
-      }
-      // Heavy roles: DeepSeek already has priority 1 in the registry
-      return pa - pb;
-    });
+    const sortedModels = await this.applyThompsonTieBreak(
+      [...candidates].sort((a, b) => compareRouteCandidates(a, b, isLightRoute)),
+      isLightRoute,
+      role,
+      messages,
+    );
 
     let lastError: Error | undefined;
     for (const model of sortedModels) {
@@ -376,6 +471,8 @@ export class MultiPlatformRouter {
             latencyMs,
             success: true,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // S4② 成功记录点同步学习反馈（缓存命中路径不计——无真实模型调用信号）
+          this.reportThompsonFeedback(model.id, true);
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
           routerBreaker.recordSuccess(breakerKey);
 
@@ -444,6 +541,8 @@ export class MultiPlatformRouter {
             latencyMs: Date.now() - loopStart,
             success: false,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // S4② 失败记录点同步学习反馈（失败语义 = trackCall success:false）
+          this.reportThompsonFeedback(model.id, false);
           // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
           if (PERMANENT_FAILURE_RE.test(msg)) {
             modelBlacklist.set(`${model.provider}/${model.model}`, Date.now() + BLACKLIST_TTL_MS);

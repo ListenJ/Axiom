@@ -99,6 +99,7 @@ import { VIBCompressor } from "./memory/vib-compressor.js";
 import { ConformalRetriever } from "./memory/conformal-retriever.js";
 import { ConformalHallucinationDetector } from "./memory/hallucination-detector.js";
 import { createThompsonRouter } from "./router/thompson-router.js";
+import { buildThompsonArms, router as modelRouter } from "./router/model-router.js";
 import { RateDistortionCompressor } from "./context/rate-distortion-compressor.js";
 import { ConsensusEngine } from "./agents/consensus-engine.js";
 import { MathEnhancedMemory } from "./memory/math-enhanced-memory.js";
@@ -232,11 +233,13 @@ const mathContext = {
   vibCompressor: new VIBCompressor({ beta: 1.5, capacity: 100 }),
   conformalRetriever: new ConformalRetriever<unknown>({ alpha: 0.1 }),
   hallucinationDetector: new ConformalHallucinationDetector({ alpha: 0.05, factBase: [] }),
-  thompsonRouter: createThompsonRouter({ arms: [], minSamples: 5, inMemory: true }),
+  thompsonRouter: createThompsonRouter({ arms: buildThompsonArms(), minSamples: 5, inMemory: true }),
   rateDistortionCompressor: new RateDistortionCompressor({ maxDistortion: 0.3, minRate: 0.1 }),
   consensusEngine: new ConsensusEngine({ agents: [], beta: 0.5, mode: "wma" }),
   enhancedMemory: null as MathEnhancedMemory | null,
 };
+// S4 学习回路接线：arms 由模型注册表填充；router.execute 成败反馈 + 平级 tie-break 消费。
+modelRouter.setThompsonRouter(mathContext.thompsonRouter);
 if (vault) {
   mathContext.enhancedMemory = new MathEnhancedMemory({
     vaultPath: config.memory.vaultPath,
