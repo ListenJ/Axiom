@@ -53,3 +53,45 @@ B1：pipeline SSE 无 cancel 清理、memory-api 死条件、cache-router 陈旧
 2. **核心技术承诺全部维持**（非向量化一致/确定性主链 5×5 全绿/zero-LLM 一致）。
 3. **src 399 文件深读 100% 达成**，覆盖收口产生了 5 项新 High——集中在**安全面**（MCP read 任意读、命令注入×2、幂等破坏、超时失效），共同模式：工具层"内部兜底"与 permissions 层的防护假设落空。
 4. 按判定标准（覆盖率 100%+未覆盖项注明原因+模块 7 明确结论+High 附证据+对照表无空缺）：**本次联合审核已完成**。
+
+---
+
+## 7. 强化迭代修复回写（2026-08-29，spec 2026-08-29-audit-hardening-design.md 方案 A，9 任务完成）
+
+### P0 安全线（6 切片，全部红→绿）
+| 项 | 状态 | Commit | 说明 |
+|----|------|--------|------|
+| N-H1 MCP read 任意读 | ✅ | 804ec12 | isPathSafe 导出为唯一语义源，read/write 双围栏 + permissions 纳 read；tests/read-tool-fence 10 pass |
+| 循环回归（N-H1 引入） | ✅ | aac3247 | isPathSafe/resolvePath 迁 utils/path-safety.ts 消除 tools<->mcp 循环；architecture-integrity 复绿 |
+| N-H2 命令注入 | ✅ | 8580e95 | 4 处 spawn 数组化 + validateFilePathForCommand 元字符白名单，shell:true 清零 |
+| N-H3 换行绕过 | ✅ | 8580e95 | sanitizeCommand 入口 \r?\n→"; " 归一 + terminal 二次归一 |
+| N-H4 幂等破坏 | ✅ | 7e465c9 | `id === auto-slug \|\| startsWith("auto-slug-")`（尾连字符防 foo/foobar 歧义） |
+| N-H5 codegen 挂起 | ✅ | 7e465c9 | spawn 接 AbortSignal（Bun 实测 328ms 内杀进程）+ releaseSemOnce 防双重释放 |
+| M-dre/kb 零鉴权 | ✅ | f385143 | 两 backend 接 checkApiKey（与 server.ts 逐字对齐，回环豁免保留） |
+| M-cdpUrl 未校验 | ✅ | f385143 | 三处入参过 safeCdpUrl（169.254/192.168/file: 均拒） |
+| M-docker-sandbox | ✅ | f385143 | 挂载白名单 + networkAccess 默认禁网（opt-in）+ stdout 1MB 截断 |
+
+### P1 健壮（5 切片）
+| 项 | 状态 | Commit | 说明 |
+|----|------|--------|------|
+| M1 模板失配 | ✅ | 2289e4b | context+user_input 两处对齐，三块常量单一事实源；渲染无残留 |
+| M2 教训不回读 | ✅ | dbdbad7 | restoreLessonsFromVault（listNotePaths+readNote 原生能力），list() 惰性回读 |
+| M3 评测无沙箱 | ✅ | 68321a3 | 统一经 SandboxProvider（默认 docker，禁网），不可用 fail-closed skipped 绝不直跑；环境注记：镜像需 python3 |
+| M4 thompson 无界 | ✅ | 68321a3 | 500 条/arm 内存+DB 增量裁剪；空 arms 降级不抛；顺带修复观测 INSERT 缺 created_at 潜伏静默失败 |
+| M-proxy-fetch×4 | ✅ | 17ef904/8b0fef8 | Content-Length byteLength、CRLF 过滤、跨域剥凭证、10MB 上限（env 可覆盖） |
+| M-logger 泄密 | ✅ | fcd2ffd | 文本路径过 SECRET_VALUE_RE |
+| M-redis 死实例 | ✅ | 9c4c171 | 断线复位 + RESP 半包续读 |
+| M-cache.clear | ✅ | 1e2ab88 | SCAN+按前缀 DEL 替代 flushdb |
+| M-限流无清理 | ✅ | 705974d | 60s 调度（unref）接线两模块 |
+| M-trace 无界 | ✅ | 10304b4 | complete/fail 即出表 |
+| M-ingest 重定向 | ✅ | ecfd214 | redirect:"manual" 逐跳 isSafeUrl（5 跳上限） |
+
+### P2 卫生（20/20 Low 项）
+| 批 | Commit | 内容 |
+|----|--------|------|
+| B1/B2（11 项） | c385e2f / 854a43a | SSE cancel、死条件修正、陈旧注释、缺省库路径统一、XFF 取末项、transport close、chat 精确判成功、hermes 去 key 硬门、daily 限流生效、pi-code 分支删除、skill-quality 原子写+绝对路径 |
+| B3（9 项） | 5f59a3a | shutdown 计时复位+rejection 阈值化、轮转等 close、readInt 严格+钳制、.env 精确段匹配、read-optimizer fail-fast+均分合并移除、.env 0600、告警去重、ssh 标注 |
+| Info | — | 维持观察不施工（operations-log 声明） |
+
+**回归验证（2026-08-29）**：`bun run test:full` **566 pass / 0 fail / 70 文件**（基线 482 + 强化新增 84，含白名单补录 prompt-pool-template 与 self-evolve-lessons-restore）；`bunx tsc --noEmit` 0。architecture-integrity 含循环断言全绿。
+**遗留注记**：①checkApiKey PUBLIC_PATHS 含 "/" 的既有豁免面（server.ts 同源，非本轮引入）建议单列评估；②外部评测镜像需含 python3（环境配置项）；③组合批跑 isPermanentFailure 模块图错误为预存（import 图零变更佐证），test:full 白名单外，已记录。

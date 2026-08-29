@@ -7824,3 +7824,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   1. fix(routes): 审计强化 T8 P2-1 B1 批（pipeline SSE 清理/memory-api entityType/缓存路由注释/kg 缺省路径/XFF 末项/transport close/chat 判成功/hermes 解耦） — c385e2f
   2. fix(memory): 审计强化 T8 P2-1 B2 批（memory-gate daily 上限/pi-code-engine 分支语义/skill-quality 原子写+锚定） — 854a43a
   3. fix(infra): 审计强化 T8 P2-2 B3 批 + 小测试（graceful-shutdown 计时复位与拒绝阈值/logger 轮转等 close/env readInt 严格化/permissions .env 精确段/read-optimizer fail-fast 与均分移除/install-wizard 0600/security-monitor 告警去重/ssh 注释） — 5f59a3a
+
+## 2026-08-29 — fix(hardening): 审计强化迭代收口（P0×6+P1×5+P2 卫生 20 项全清）
+
+- **任务**：按获批 spec（方案 A）与实施计划完成 9 任务串行施工：T1 read/write 围栏（804ec12）→ 循环回归修复（aac3247）→ T2 注入+换行（8580e95）→ T3 幂等+超时（7e465c9）→ T4 鉴权/cdpUrl/沙箱（f385143）→ T5 模板对齐+教训回读（2289e4b/dbdbad7）→ T6 评测沙箱+thompson 治理（68321a3）→ T7 基础设施 8 项独立提交（17ef904..ecfd214）→ T8 卫生 20 项（c385e2f/854a43a/5f59a3a）。联合审查报告回写第 7 节修复状态。
+- **工具**：Agent×8（串行 general-purpose，各自 AGENTS 规则/TDD/留痕）、Bash（白名单核对补录、bun 脚本、test:full、tsc）、Edit（package.json test:full 补 2 测试）、Write（报告回写）。
+- **操作**（文件级）：`docs/reviews/2026-08-29-joint-verification-audit.md` 追加第 7 节强化修复回写表（P0 9 行/P1 11 行/P2 3 行 + 遗留注记 3 条）；package.json test:full 补录 2 个 T5 测试文件；本条目追加。
+- **验证**：bun run test:full 566 pass/0 fail/70 文件（基线 482+新增 84）；bunx tsc --noEmit 0；architecture-integrity 循环断言绿。
+- **Commit**：docs(audit): 回写强化迭代修复状态（P0/P1/P2 全清） — hash 待回填
