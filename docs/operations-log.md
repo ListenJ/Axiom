@@ -7642,3 +7642,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：新建 `docs/reviews/2026-08-29-joint-verification-audit.md`（覆盖率/承诺复测/对照表 v2 增量 3 行/新发现清单/总体结论）与 `docs/superpowers/specs/2026-08-29-audit-hardening-design.md`（方案对比 + P0/P1/P2 切片表 + 非目标 + 验收清单 + 回滚）；本条目追加。
 - **验证**：V 组 24 项全部附 文件:行 证据；B1-B3 各自给出逐文件状态与覆盖率；High 全部附代码证据（read-tool.ts:47 零围栏、code-analysis.ts:501 未转义、command-safety.ts:58 无 \r\n、skill-promoter.ts:72 vs :103 id 失配、codegen.ts:40-50 无 signal）；判定标准四项全部满足。
 - **Commit**：docs(audit+spec): 联合验证审计 v2 + 强化设计 spec（24/24 证实/src 399 深读 100%/新 High 5） — 60d0521
+
+## 2026-08-29 — docs(plan): 审计强化迭代实施计划（9 执行任务串行）
+
+- **任务**：spec（2026-08-29-audit-hardening-design.md）获批后产出实施计划：P0×6/P1×5/P2×2 共 13 切片归并为 9 个串行执行任务（同工作区 git 串行约束），切片锚点/TDD 要点引用 spec 第 1-3 节，全局约束含 hash 回填 bun 锚点纪律。
+- **工具**：Write（计划文档）、Bash（提交推送）。
+- **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-29-audit-hardening-plan.md`；本条目追加。
+- **验证**：自查（spec 覆盖映射/占位符/接口一致性/串行说明）通过。
+- **Commit**：docs(plan): 审计强化迭代实施计划（9 任务：P0安全6/P1健壮5/P2卫生2） — hash 待回填
