@@ -28,9 +28,12 @@ export async function handleKgStats() {
   const { KnowledgeGraphEnhanced } = await import("../../kg/enhanced.js");
   const { Database } = await import("bun:sqlite");
   const { readString } = await import("../../utils/env.js");
-  // 尝试打开默认知识库 DB，若不存在则报告空
+  const { resolveSqliteMemoryDbPath } = await import("../../memory/sqlite-memory.js");
+  // 尝试打开默认知识库 DB，若不存在则报告空。
+  // 缺省路径与 kb-backend.ts 对齐（KB_DB_PATH 显式覆盖 → resolveSqliteMemoryDbPath 共享缺省），
+  // 避免统计读 ./data/kg.db 而主库实际在 agent.db 的分裂。
   try {
-    const dbPath = readString("KB_DB_PATH", "./data/kg.db");
+    const dbPath = readString("KB_DB_PATH") || resolveSqliteMemoryDbPath();
     const db = new Database(dbPath, { readonly: true });
     const kg = new KnowledgeGraphEnhanced(db);
     const stats = kg.getStats();

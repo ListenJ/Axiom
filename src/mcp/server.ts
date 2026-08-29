@@ -451,7 +451,26 @@ if (transport === "stdio") {
         sessionIdGenerator: undefined,
       });
       await reqServer.connect(httpTransport);
-      return httpTransport.handleRequest(req);
+      const response = await httpTransport.handleRequest(req);
+      // 无状态模式下每请求新建 server+transport（SDK 要求）；请求结束（响应体流尽或
+      // 客户端中途断开）时 close，释放 _streamMapping/_requestResponseMap 与监听器，
+      // 避免长生命周期进程下逐请求累积。
+      const body = response.body;
+      if (!body) return response;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        try {
+          void httpTransport.close();
+        } catch {}
+        try {
+          void reqServer.close();
+        } catch {}
+      };
+      const passthrough = new TransformStream<Uint8Array, Uint8Array>();
+      void body.pipeTo(passthrough.writable).then(release, release);
+      return new Response(passthrough.readable, response);
     },
   });
   logger.info(`[MCP] Server running on http://${hostname}:${port} (streamable-http, auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);

@@ -14,7 +14,9 @@ export interface RouterConfig {
 
 const DEFAULT_CONFIG: RouterConfig = {
   semanticTtlMs: 5 * 60 * 1000,
-  enableKG: false, // KG 需 PostgreSQL，默认关闭
+  // KG 现为 SQLite 单库（kg/enhanced.ts，PostgreSQL 已移除 H-M1-03），不再需要开关；
+  // 本字段已无消费方（仅测试作为 config 透传保留），保留仅为兼容既有 RouterConfig 签名。
+  enableKG: false,
 };
 
 /** 语义答案缓存总开关：SEMANTIC_CACHE_ENABLED=0/false 关闭（默认开启） */

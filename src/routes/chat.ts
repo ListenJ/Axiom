@@ -117,7 +117,9 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   // Real Usage 采集（非阻塞，深模块：仅追加一行 JSONL，不影响主流程延迟）
   try {
     const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
-    const success = Boolean(result.content && !result.content.includes("error") && result.content.trim().length > 0);
+    // 成功判定用精确字段：ChatResponse.content 非空即成功（路由失败路径要么抛错、要么
+    // content 为 null）。不做 includes("error") 子串嗅探——合法回答里含 "error" 一词会被误判。
+    const success = Boolean(result.content && result.content.trim().length > 0);
     const latencyMs = Date.now() - chatStartedAt;
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({

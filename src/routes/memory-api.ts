@@ -168,6 +168,7 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
 
   const query = ctx.url.searchParams.get("q") || "";
   const type = ctx.url.searchParams.get("type"); // knowledge, entity, note
+  const entityType = ctx.url.searchParams.get("entityType"); // 实体类型过滤（entities.type，如 person/concept）
   const tier = ctx.url.searchParams.get("tier"); // episodic, semantic, project, procedural
   const limit = Math.min(parseInt(ctx.url.searchParams.get("limit") || "20", 10), 100);
 
@@ -190,7 +191,9 @@ export async function handleKnowledgeSearch(ctx: RouteContext): Promise<Response
       let sql = `SELECT id, name, type, properties, created_at FROM entities WHERE 1=1`;
       const params: (string | number)[] = [];
       if (query) { sql += ` AND (name LIKE ? OR properties LIKE ?)`; params.push(`%${query}%`, `%${query}%`); }
-      if (type && type !== "entity") { sql += ` AND type = ?`; params.push(type); }
+      // 注意：type 参数是资源选择器（knowledge/entity/note），恒等于 "entity" 时不能再用它过滤
+      // entities.type；实体类型过滤改由独立的 entityType 参数承担（修复审计 Low：原死条件恒 false）。
+      if (entityType) { sql += ` AND type = ?`; params.push(entityType); }
       sql += ` ORDER BY name LIMIT ?`;
       params.push(limit);
       results.entities = ctx.db.query(sql).all(...params);

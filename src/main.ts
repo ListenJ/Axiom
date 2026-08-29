@@ -589,8 +589,11 @@ const API_KEY = readString("AXIOM_AUTH_TOKEN");
 const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
 // Optional: trust X-Forwarded-* headers from a reverse proxy that terminates TLS
 // and is co-located on loopback (e.g., nginx on 127.0.0.1). When enabled, the
-// first X-Forwarded-For entry is used as the effective remote address for
+// LAST X-Forwarded-For entry is used as the effective remote address for
 // isLocal determination; otherwise only the socket peer address is trusted.
+// 伪造面与部署前提：XFF 末项由"紧邻的可信反向代理"追加（客户端可控的是前面的项），
+// 因此仅在"恰好一层可信代理且其总是追加 socket peer 到 XFF 末尾"的部署下成立；
+// 多层代理需由最外层代理重写 XFF，否则不得开启本开关。
 const TRUST_PROXY_HEADERS = readBool("TRUST_PROXY_HEADERS", false);
 
 logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
@@ -617,10 +620,13 @@ const server = Bun.serve({
     if (req.method === "OPTIONS") return new Response(null, { headers: baseHeaders });
 
     // Loopback detection via socket peer address (spoof-proof, unlike Host header)
-    // When TRUST_PROXY_HEADERS=1, honor X-Forwarded-For (first entry) as effective remote;
+    // When TRUST_PROXY_HEADERS=1, honor X-Forwarded-For (last entry = appended by
+    // the trusted co-located proxy; earlier entries are client-spoofable);
     // otherwise only the socket peer is trusted (default, spoof-proof).
     const socketAddress = server.requestIP(req)?.address;
-    const forwardedFor = TRUST_PROXY_HEADERS ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+    const forwardedFor = TRUST_PROXY_HEADERS
+      ? req.headers.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean).pop()
+      : undefined;
     const remoteAddress = forwardedFor || socketAddress;
     const isLocal = ALLOW_LOCAL_BYPASS && isLocalAddress(remoteAddress);
 
