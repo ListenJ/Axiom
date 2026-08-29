@@ -91,6 +91,13 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000;    // 5 分钟活跃窗口
 const EXTENDED_TTL_MS = 60 * 60 * 1000;  // 1 小时扩展窗口
 const TOP_N_LFU_PROTECT = 3;             // LFU 保护 Top-3
 
+// 动态后缀模板块常量（单一事实来源）：模板组装与 assemblePrompt 的替换 pattern
+// 均由此派生，杜绝两者漂移导致替换永不命中、占位符残留进 system prompt（审计 B2-M1）
+const CONTEXT_BLOCK = "{{#if context}}\n## Context\n{{context}}\n{{/if}}";
+const USER_INPUT_BLOCK = "{{#if user_input}}\n## User Input\n{{user_input}}\n{{/if}}";
+const EXAMPLES_BLOCK =
+  "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}";
+
 // ========== XXH3 哈希实现 ==========
 
 /**
@@ -450,29 +457,17 @@ export class UserAgentPromptPool {
       `<!-- CACHE_BOUNDARY: ${cacheMarker} -->`,
     ].join("\n");
 
-    // 动态后缀模板 (Handlebars 语法)
+    // 动态后缀模板 (Handlebars 语法) — 区块由常量拼装，与替换 pattern 同源
     const dynamicSuffixTemplate = [
       "",
       "## Current Task",
       "{{task_description}}",
       "",
-      "{{#if context}}",
-      "## Context",
-      "{{context}}",
-      "{{/if}}",
+      CONTEXT_BLOCK,
       "",
-      "{{#if user_input}}",
-      "## User Input",
-      "{{user_input}}",
-      "{{/if}}",
+      USER_INPUT_BLOCK,
       "",
-      "{{#if examples}}",
-      "## Examples",
-      "{{#each examples}}",
-      "Input: {{this.input}}",
-      "Output: {{this.output}}",
-      "{{/each}}",
-      "{{/if}}",
+      EXAMPLES_BLOCK,
     ].join("\n");
 
     const prefixHash = xxh3Hash(staticPrefix);
@@ -549,12 +544,12 @@ export class UserAgentPromptPool {
       examples?: Array<{ input: string; output: string }>;
     }
   ): AssembledPrompt {
-    // 简单模板渲染 (替代 Handlebars 以减少依赖)
+    // 简单模板渲染 (替代 Handlebars 以减少依赖) — 替换 pattern 由块常量派生，保证与模板一致
     let dynamicSuffix = entry.dynamicSuffixTemplate;
     dynamicSuffix = dynamicSuffix.replace("{{task_description}}", dynamicVars.task_description);
-    dynamicSuffix = dynamicSuffix.replace("{{#if context}}\n{{context}}\n{{/if}}",
+    dynamicSuffix = dynamicSuffix.replace(CONTEXT_BLOCK,
       dynamicVars.context ? `\n## Context\n${dynamicVars.context}\n` : "");
-    dynamicSuffix = dynamicSuffix.replace("{{#if user_input}}\n{{user_input}}\n{{/if}}",
+    dynamicSuffix = dynamicSuffix.replace(USER_INPUT_BLOCK,
       dynamicVars.user_input ? `\n## User Input\n${dynamicVars.user_input}\n` : "");
 
     // 处理 examples
@@ -562,15 +557,9 @@ export class UserAgentPromptPool {
       const examplesText = dynamicVars.examples
         .map(e => `Input: ${e.input}\nOutput: ${e.output}`)
         .join("\n\n");
-      dynamicSuffix = dynamicSuffix.replace(
-        "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}",
-        `\n## Examples\n${examplesText}\n`
-      );
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, `\n## Examples\n${examplesText}\n`);
     } else {
-      dynamicSuffix = dynamicSuffix.replace(
-        "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}",
-        ""
-      );
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, "");
     }
 
     // 组装完整提示词
