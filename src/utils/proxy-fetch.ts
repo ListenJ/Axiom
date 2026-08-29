@@ -409,6 +409,34 @@ function createConnectTunnel(
   });
 }
 
+// ========== 审计强化辅助（B3-Medium，2026-08-29） ==========
+
+/** 手工拼包头值剥离 CR/LF —— 防止经 opts.headers 注入伪造头/响应拆私（多余 CRLF 折叠为单空格） */
+function sanitizeHeaderValue(val: string): string {
+  return val.replace(/[\r\n]+/g, " ");
+}
+
+/** 跨域重定向时剥离的凭证头（键名小写） */
+const SENSITIVE_REDIRECT_HEADERS = new Set(["authorization", "cookie"]);
+
+/**
+ * 重定向目标与源 origin 不同时，剥离 Authorization/Cookie
+ * （防止凭证随 301/302 泄漏到第三方域；同域重定向原样保留）
+ */
+function headersForRedirect(
+  headers: Record<string, string> | undefined,
+  from: URL,
+  to: URL,
+): Record<string, string> | undefined {
+  if (!headers || to.origin === from.origin) return headers;
+  const next: Record<string, string> = {};
+  for (const [key, val] of Object.entries(headers)) {
+    if (SENSITIVE_REDIRECT_HEADERS.has(key.toLowerCase())) continue;
+    next[key] = val;
+  }
+  return next;
+}
+
 // ========== 核心请求函数 ==========
 
 async function makeRequest(
@@ -474,13 +502,15 @@ async function makeRequest(
             `Host: ${url.host}`,
           ];
           // Ensure Content-Length for POST/PUT/PATCH bodies
+          // B3-Medium：body 写出的是原始值（字符串或 Buffer），长度必须按原始值字节计；
+          // 此前 Buffer body 错用 JSON.stringify(opts.body).length，与实际写出的字节错位
           if (opts.body && !headers["Content-Length"] && !headers["content-length"]) {
-            const bodyStr = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
-            lines.push(`Content-Length: ${Buffer.byteLength(bodyStr)}`);
+            const contentLength = typeof opts.body === "string" ? Buffer.byteLength(opts.body) : opts.body.byteLength;
+            lines.push(`Content-Length: ${contentLength}`);
           }
           for (const [key, val] of Object.entries(headers)) {
             if (key.toLowerCase() !== "host") {
-              lines.push(`${key}: ${val}`);
+              lines.push(`${sanitizeHeaderValue(key)}: ${sanitizeHeaderValue(val)}`);
             }
           }
           if (!headers["Connection"] && !headers["connection"]) {
@@ -624,8 +654,10 @@ async function makeRequest(
           if (followRedirects && redirectCount < maxRedirects && [301, 302, 303, 307, 308].includes(statusCode)) {
             const location = responseHeaders["location"];
             if (location) {
+              // B3-Medium：跨域重定向剥离 Authorization/Cookie，防凭证泄漏到第三方 origin
               const redirectUrl = new URL(location, url);
-              resolve(makeRequest(redirectUrl, opts, redirectCount + 1));
+              const redirectHeaders = headersForRedirect(opts.headers, url, redirectUrl);
+              resolve(makeRequest(redirectUrl, { ...opts, headers: redirectHeaders }, redirectCount + 1));
               return;
             }
           }
@@ -702,9 +734,11 @@ async function makeRequest(
       const followRedirects = opts.followRedirects !== false;
       if (followRedirects && redirectCount < maxRedirects && res.statusCode) {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          // B3-Medium：跨域重定向剥离 Authorization/Cookie，防凭证泄漏到第三方 origin
           const redirectUrl = new URL(res.headers.location, url);
+          const redirectHeaders = headersForRedirect(opts.headers, url, redirectUrl);
           res.resume(); // drain the response
-          resolve(makeRequest(redirectUrl, opts, redirectCount + 1));
+          resolve(makeRequest(redirectUrl, { ...opts, headers: redirectHeaders }, redirectCount + 1));
           return;
         }
       }
