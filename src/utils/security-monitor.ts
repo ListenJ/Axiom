@@ -55,9 +55,27 @@ export class SecurityMonitor {
   private thresholds = DEFAULT_THRESHOLDS;
   /** 可注入的 audit logger（默认用单例，测试可传临时实例） */
   private logger: AuditLogger;
+  /** 审计 Low（2026-08-29）告警去重：每类别最近一次写入 security.alert 的时间与严重度 */
+  private lastAlertByCategory = new Map<string, { at: number; severity: SecurityAlert["severity"] }>();
 
   constructor(logger?: AuditLogger) {
     this.logger = logger ?? auditLogger;
+  }
+
+  /**
+   * 审计 Low（2026-08-29）：持续超阈时 health check 每次 refresh 都会重复写入
+   * security.alert（此前还叠加每次全量 readAll）。同因告警在检测窗口的活跃期内只
+   * 写一次审计日志；窗口内严重度升级（medium→high）允许立即再报。
+   * 返回 true 表示本次应写入审计日志。
+   */
+  private shouldEmitAlert(category: SecurityAlert["category"], severity: SecurityAlert["severity"], windowMs: number): boolean {
+    const last = this.lastAlertByCategory.get(category);
+    const now = Date.now();
+    const withinWindow = last !== undefined && now - last.at < windowMs;
+    const escalated = withinWindow && severity === "high" && last.severity !== "high";
+    if (withinWindow && !escalated) return false;
+    this.lastAlertByCategory.set(category, { at: now, severity });
+    return true;
   }
 
   /** 解析 audit.log，返回最近 windowMs 内匹配 event 的条目数 */
@@ -103,20 +121,23 @@ export class SecurityMonitor {
       message: `限流异常：${count} 次 rate_limit.exceeded 在 ${this.thresholds.rateLimitWindowMs / 1000}s 内（阈值 ${this.thresholds.rateLimitThreshold}）`,
     };
 
-    this.logger.log({
-      event: "security.alert",
-      actor: "system",
-      outcome: "failure",
-      reason: alert.message,
-      resource: "rate-limiter",
-      metadata: {
-        severity: alert.severity,
-        category: alert.category,
-        count: alert.count,
-        threshold: alert.threshold,
-        sampleActors: Array.from(new Set(entries.slice(0, 20).map((e) => e.actor))).slice(0, 5),
-      },
-    });
+    // 审计 Low（2026-08-29）：同因活跃期内去重，避免持续超阈时每次 refresh 重复写审计日志
+    if (this.shouldEmitAlert(alert.category, alert.severity, this.thresholds.rateLimitWindowMs)) {
+      this.logger.log({
+        event: "security.alert",
+        actor: "system",
+        outcome: "failure",
+        reason: alert.message,
+        resource: "rate-limiter",
+        metadata: {
+          severity: alert.severity,
+          category: alert.category,
+          count: alert.count,
+          threshold: alert.threshold,
+          sampleActors: Array.from(new Set(entries.slice(0, 20).map((e) => e.actor))).slice(0, 5),
+        },
+      });
+    }
 
     return alert;
   }
@@ -142,20 +163,23 @@ export class SecurityMonitor {
       message: `认证失败爆发：${count} 次 auth.failure 在 ${this.thresholds.authFailureWindowMs / 1000}s 内（阈值 ${this.thresholds.authFailureThreshold}）`,
     };
 
-    this.logger.log({
-      event: "security.alert",
-      actor: "system",
-      outcome: "failure",
-      reason: alert.message,
-      resource: "auth",
-      metadata: {
-        severity: alert.severity,
-        category: alert.category,
-        count: alert.count,
-        threshold: alert.threshold,
-        sampleActors: Array.from(new Set(entries.slice(0, 20).map((e) => e.actor))).slice(0, 5),
-      },
-    });
+    // 审计 Low（2026-08-29）：同因活跃期内去重，避免持续超阈时每次 refresh 重复写审计日志
+    if (this.shouldEmitAlert(alert.category, alert.severity, this.thresholds.authFailureWindowMs)) {
+      this.logger.log({
+        event: "security.alert",
+        actor: "system",
+        outcome: "failure",
+        reason: alert.message,
+        resource: "auth",
+        metadata: {
+          severity: alert.severity,
+          category: alert.category,
+          count: alert.count,
+          threshold: alert.threshold,
+          sampleActors: Array.from(new Set(entries.slice(0, 20).map((e) => e.actor))).slice(0, 5),
+        },
+      });
+    }
 
     return alert;
   }
@@ -195,6 +219,7 @@ export class SecurityMonitor {
   reset(): void {
     this.alerts = [];
     this.lastIncident = null;
+    this.lastAlertByCategory.clear();
   }
 }
 

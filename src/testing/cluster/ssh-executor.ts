@@ -4,8 +4,13 @@
  * 基于系统 ssh 命令（通过 child_process.execFile 调用），不依赖任何外部 SSH 库。
  * 支持连通性测试、远程命令执行、远程脚本执行，并支持超时 kill。
  *
+ * ⚠️ 仅限测试集群使用（testing/cluster），禁止用于生产环境。
  * 命令格式：ssh <options> <user>@<host> <command>
  * SSH 选项：-o StrictHostKeyChecking=no -o ConnectTimeout=<n> -p <port> -i <keyPath>
+ *
+ * 安全提示（审计 Low 2026-08-29）：StrictHostKeyChecking=no 跳过主机指纹校验，
+ * 可接受首次连接的未知主机键（MITM 风险）。仅因测试集群生命周期短、主机频繁重建
+ * 而在此使用；生产连接必须使用 host key 校验（known_hosts / StrictHostKeyChecking=yes）。
  */
 import { execFile } from "child_process";
 import { logger } from "../../utils/logger.js";

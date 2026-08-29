@@ -42,11 +42,19 @@ export function readString(key: string, fallback = ""): string {
   return v === undefined || v === "" ? fallback : v;
 }
 
-export function readInt(key: string, fallback: number): number {
+export function readInt(key: string, fallback: number, clamp?: { min?: number; max?: number }): number {
   const v = process.env[key];
   if (v === undefined || v === "") return fallback;
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : fallback;
+  // 严格解析（审计 Low 2026-08-29）：此前 parseInt 宽松解析（"12abc" → 12、前导空白容忍），
+  // 现仅接受纯数字串；非法值回退默认并记 debug 日志。可选范围钳制。
+  if (!/^\d+$/.test(v)) {
+    logger.debug(`readInt(${key}): non-numeric value "${v}", falling back to ${fallback}`);
+    return fallback;
+  }
+  let n = parseInt(v, 10);
+  if (clamp?.min !== undefined && n < clamp.min) n = clamp.min;
+  if (clamp?.max !== undefined && n > clamp.max) n = clamp.max;
+  return n;
 }
 
 export function readBool(key: string, fallback = false): boolean {

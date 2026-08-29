@@ -92,6 +92,19 @@ class Logger {
     if (this.currentSize < this.rotation.maxSize) return;
 
     this.fileStream?.end();
+    // 审计 Low（2026-08-29）：end() 是异步关闭，立即 renameSync 在 Windows 上会因
+    // 文件句柄未释放而 EPERM/EBUSY。等 close 事件后再 rename（1s 上限容错，
+    // 超时则按原 try/catch 路径重试失败处理，不卡日志主流程）。
+    if (this.fileStream) {
+      const stream = this.fileStream;
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, 1000);
+        stream.once("close", () => {
+          clearTimeout(t);
+          resolve();
+        });
+      });
+    }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const rotatedPath = `${this.filePath}.${timestamp}`;

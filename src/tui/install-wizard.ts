@@ -450,7 +450,12 @@ async function runInstallation(log: blessed.Widgets.Log) {
     if (config.databaseUrl) envLines.push(`DATABASE_URL=${config.databaseUrl}`);
     if (config.redisUrl) envLines.push(`REDIS_URL=${config.redisUrl}`);
   }
-  fs.writeFileSync(".env", envLines.join("\n") + "\n");
+  // 审计 Low（2026-08-29）：.env 含 AXIOM_AUTH_TOKEN 等密钥，写入即限 0600（此前 0644 组可读）。
+  // writeFileSync 的 mode 仅在新建时生效，对已存在的旧 .env 需显式 chmod 收敛权限。
+  fs.writeFileSync(".env", envLines.join("\n") + "\n", { mode: 0o600 });
+  try {
+    fs.chmodSync(".env", 0o600);
+  } catch {}
   log.log("  ✓ .env");
 
   log.log("{cyan-fg}[3/5] Writing config/axiom.yaml...{/cyan-fg}");
