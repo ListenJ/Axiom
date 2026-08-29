@@ -20,6 +20,7 @@ import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
 import { loadSessionBootstrapPrompt, type AgentBootstrap } from "../memory/bootstrap.js";
 import { logger } from "../utils/logger.js";
+import { buildFactBaseFromRetrieval, type FactEntry } from "../memory/hallucination-detector.js";
 import { contextAssembler } from "../components/context-assembler.js";
 import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
 import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
@@ -34,6 +35,12 @@ export interface PreparedContext {
     confidence: number;
   } | null;
   codegraphContext: string;
+  /**
+   * P0-C（2026-08-29）：本次请求检索命中的证据（knowledge + codegraph）转为
+   * FactEntry[]，供响应侧 hallucination 校验（请求级，互不污染）。
+   * 未走检索路径时为空数组 —— 调用方据此跳过校验（不做空 factBase 误判）。
+   */
+  evidence: FactEntry[];
   tokenBudgetReport?: TokenBudgetReport | null;
   readStats?: ReadResponse | null;
 }
@@ -63,6 +70,7 @@ export async function prepareChatContext(
   }));
   let intentInfo: PreparedContext["intentInfo"] = null;
   let codegraphContext = "";
+  let knowledgeContext = "";
   let tokenBudgetReport: TokenBudgetReport | null = null;
   let readStats: ReadResponse | null = null;
 
@@ -186,6 +194,7 @@ export async function prepareChatContext(
                   confidence: intentInfo.confidence,
                 });
                 if (kr.sources.length > 0) {
+                  knowledgeContext = kr.context;
                   knowledgeMsg = { role: "system", content: kr.context };
                 }
               } catch (err) {
@@ -217,10 +226,15 @@ export async function prepareChatContext(
   chatMessages = assembled.messages;
   tokenBudgetReport = assembled.tokenBudgetReport;
 
+  // P0-C（2026-08-29）：本次请求检索证据 → 请求级事实库（纯函数，每请求独立，
+  // 不写 main.ts 全局单例）。未走检索路径时两上下文均为空串 → 空数组。
+  const evidence = buildFactBaseFromRetrieval({ knowledgeContext, codegraphContext });
+
   return {
     chatMessages,
     intentInfo,
     codegraphContext,
+    evidence,
     tokenBudgetReport,
     readStats,
   };

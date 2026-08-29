@@ -564,4 +564,157 @@ export class ConformalHallucinationDetector {
   }
 }
 
+// ============================================================================
+// P0-C（2026-08-29）接线辅助：检索证据 → 事实库；判定分类（纯函数，请求级）
+//
+// 设计（docs/superpowers/specs/2026-08-29-p0-lift-design.md §C）：可观测优先，
+// 不阻断响应。校准债声明：真实 calibrate 需要 (statement, isFact) 标注对积累，
+// 本迭代不做（P1：积累 (evidence, response, verdict) 序列后再校准）。未校准运行下
+// computePValue 恒返回 1.0、isHallucination 恒 false，可疑判定仅由 confidence
+// （证据相似度 = max Jaccard/BM25 × 置信度）驱动 —— 见 classifyHallucinationVerdict。
+// ============================================================================
+
+/** verify 输入上限：响应正文可能很长，超出截断（分词为线性开销，避免极端输入） */
+export const VERIFY_STATEMENT_MAX_CHARS = 2000;
+
+/** 未校准时以证据相似度（confidence）判可疑的阈值：低于该值视为无证据支撑 */
+export const ANOMALY_CONFIDENCE_THRESHOLD = 0.1;
+
+/** 单次构建事实库的最大条数（防超长检索上下文撑爆 IDF 构建） */
+const MAX_FACTBASE_ENTRIES = 64;
+
+/** factBase 条目文本上限（过长事实会稀释相似度信号） */
+const MAX_FACT_TEXT_CHARS = 400;
+
+/** 检索上下文证据（chat 流程 knowledge/codegraph 两路文本） */
+export interface RetrievedEvidence {
+  knowledgeContext?: string;
+  codegraphContext?: string;
+}
+
+/** 判定分类：accepted（证据支撑）/ anomalous（可疑，无证据支撑）/ hallucination（共形判定） */
+export type HallucinationFlag = "accepted" | "anomalous" | "hallucination";
+
+/** 响应元数据 _hallucination 的形状（最小兼容字段） */
+export interface HallucinationAssessment {
+  pValue: number;
+  verdict: HallucinationFlag;
+  isAccepted: boolean;
+}
+
+/** 检索头行（retrieveKnowledge 上下文格式）——不作为证据 */
+const RETRIEVAL_HEADER_PATTERNS = [
+  /^\[自适应检索/,
+  /^检索范围:/,
+  /^找到 \d+ 条结果/,
+];
+
+/**
+ * 把 chat 检索上下文（knowledge + codegraph）解析为 FactEntry[]。
+ *
+ * 纯函数：字符串 → 事实条目。knowledge 上下文按空行分块（每块 = 一条检索结果
+ * "• [source] 标题 + 摘要"），source 从 "• [x]" 提取；codegraph 上下文按空行分块，
+ * source 固定 "codegraph"（来自实际代码库，置信度较高）。检索头行剔除。
+ */
+export function buildFactBaseFromRetrieval(evidence: RetrievedEvidence): FactEntry[] {
+  const facts: FactEntry[] = [];
+
+  const pushBlock = (text: string, source: string, confidence: number): void => {
+    const cleaned = text.replace(/\s+/g, " ").trim().slice(0, MAX_FACT_TEXT_CHARS);
+    if (cleaned.length === 0) return;
+    facts.push({ text: cleaned, source, confidence });
+  };
+
+  const knowledge = evidence.knowledgeContext ?? "";
+  for (const block of knowledge.split(/\n{2,}/)) {
+    // 剔除检索头行，剩余正文作为证据
+    const body = block
+      .split("\n")
+      .filter((line) => !RETRIEVAL_HEADER_PATTERNS.some((p) => p.test(line.trim())))
+      .join(" ")
+      .trim();
+    if (!body) continue;
+    const sourceMatch = body.match(/^\s*•\s*\[([^\]]+)\]/);
+    pushBlock(body, sourceMatch ? sourceMatch[1]! : "knowledge", 0.7);
+  }
+
+  const codegraph = evidence.codegraphContext ?? "";
+  for (const block of codegraph.split(/\n{2,}/)) {
+    if (!block.trim()) continue;
+    pushBlock(block, "codegraph", 0.9);
+  }
+
+  return facts.slice(0, MAX_FACTBASE_ENTRIES);
+}
+
+/**
+ * 把 DRE step 的检索证据（consciousnessStep input.metadata.evidence）转为 FactEntry[]。
+ * 支持 string[] 与 { text, confidence?, source? }[]；其余形态忽略（无证据 → 调用方跳过校验）。
+ */
+export function buildFactBaseFromEvidence(raw: unknown): FactEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const facts: FactEntry[] = [];
+  for (const item of raw) {
+    if (typeof item === "string") {
+      const text = item.trim().slice(0, MAX_FACT_TEXT_CHARS);
+      if (text) facts.push({ text, source: "dre.metadata", confidence: 0.8 });
+      continue;
+    }
+    if (item !== null && typeof item === "object" && typeof (item as { text?: unknown }).text === "string") {
+      const obj = item as { text: string; confidence?: unknown; source?: unknown };
+      const text = obj.text.trim().slice(0, MAX_FACT_TEXT_CHARS);
+      if (!text) continue;
+      const conf = typeof obj.confidence === "number" && Number.isFinite(obj.confidence)
+        ? Math.min(1, Math.max(0, obj.confidence))
+        : 0.8;
+      facts.push({
+        text,
+        source: typeof obj.source === "string" && obj.source ? obj.source : "dre.metadata",
+        confidence: conf,
+      });
+    }
+  }
+  return facts.slice(0, MAX_FACTBASE_ENTRIES);
+}
+
+/**
+ * 把 verify 的 HallucinationVerdict 归类为三档判定：
+ *   - isHallucination（p < α，需校准集）→ "hallucination"
+ *   - 未标 hallucination 但 confidence（最大证据相似度）低于阈值 → "anomalous"（可疑）
+ *   - 其余 → "accepted"
+ */
+export function classifyHallucinationVerdict(
+  verdict: HallucinationVerdict,
+  anomalyThreshold: number = ANOMALY_CONFIDENCE_THRESHOLD,
+): { verdict: HallucinationFlag; isAccepted: boolean } {
+  if (verdict.isHallucination) {
+    return { verdict: "hallucination", isAccepted: false };
+  }
+  if (verdict.confidence < anomalyThreshold) {
+    return { verdict: "anomalous", isAccepted: false };
+  }
+  return { verdict: "accepted", isAccepted: true };
+}
+
+/**
+ * 对一段陈述按给定事实库做请求级校验（每次调用独立 detector 实例，无共享状态，
+ * 不污染 main.ts 全局单例）。无证据 / 空陈述时返回 null —— 不做无据判定，
+ * 避免空 factBase 下把所有响应全量误标（可观测优先，不阻断响应）。
+ */
+export function assessStatement(factBase: FactEntry[], statement: string): HallucinationAssessment | null {
+  if (!statement || statement.trim().length === 0) return null;
+  if (!factBase || factBase.length === 0) return null;
+
+  const detector = new ConformalHallucinationDetector({ factBase });
+  const v = detector.verify(statement.slice(0, VERIFY_STATEMENT_MAX_CHARS));
+  const classified = classifyHallucinationVerdict(v);
+  if (!classified.isAccepted) {
+    logger.warn(
+      "hallucination-wiring: statement flagged as " + classified.verdict +
+      " (pValue=" + v.pValue.toFixed(3) + ", confidence=" + v.confidence.toFixed(3) + ")"
+    );
+  }
+  return { pValue: v.pValue, verdict: classified.verdict, isAccepted: classified.isAccepted };
+}
+
 export default ConformalHallucinationDetector;

@@ -17,6 +17,7 @@ import type { Database } from "bun:sqlite";
 import type { VaultManager } from "../memory/vault-manager.js";
 import type { SignificanceContext } from "../memory/memory-gate.js";
 import { normalizeSessionId, persistChatMessage, getSessionMessages } from "../db/session-store.js";
+import { assessStatement } from "../memory/hallucination-detector.js";
 
 /**
  * M11（2026-08-28 审计）：/chat 请求体校验。
@@ -61,7 +62,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   // T(prepare)+T(selfThink) 降为 max(两者)；失败/空输入静默跳过（语义不变）。
   const rawUserInput = String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : "");
   const selfThoughtPromise = startSelfThought(rawUserInput, getDefaultSelfEvolve());
-  const { chatMessages: preparedMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
+  const { chatMessages: preparedMessages, intentInfo, codegraphContext, evidence, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
@@ -77,6 +78,11 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     tools,
     executeTool,
   });
+
+  // P0-C（2026-08-29）：幻觉防线接火 —— 响应正文过请求级 factBase 校验（缝①）。
+  // 请求级隔离：assessStatement 每次用传入 evidence 建独立 detector，不碰 main.ts
+  // 全局单例；无证据/空响应返回 null（可观测优先，不阻断响应，不改返回结构）。
+  const _hallucination = assessStatement(evidence, result.content ?? "");
 
   const normalizedSessionId = normalizeSessionId(sessionId);
   const messageList = Array.isArray(messages) ? messages as Array<{ role: string; content: string }> : [];
@@ -106,6 +112,8 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     sessionId: normalizedSessionId,
     codegraphContext: codegraphContext ? { length: codegraphContext.length } : null,
     tokenBudget: tokenBudgetReport ?? null,
+    // P0-C：响应元数据（null = 本次无检索证据，校验未运行）
+    _hallucination,
     intent: intentInfo
       ? {
           name: intentInfo.agentName,
@@ -533,7 +541,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     typeof body.budget === "number" ? body.budget : undefined;
 
   // 复用 handleChat 的消息构建逻辑（包含 intent + codegraph + knowledge context）
-  const { chatMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
+  const { chatMessages, intentInfo, codegraphContext, evidence, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
@@ -629,6 +637,9 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   });
                 }
               }
+              // P0-C（2026-08-29）：缝①（流式）—— done 帧正文过请求级 factBase 校验，
+              // 结论随 done 事件下发（null = 无检索证据，校验未运行；可观测不阻断）。
+              const streamHallucination = assessStatement(evidence, ev.content ?? "");
               safeEnqueue(sseEvent("done", {
                 type: "done",
                 content: ev.content,
@@ -636,6 +647,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 provider: ev.provider,
                 usage: ev.usage,
                 fallbackUsed: ev.fallbackUsed,
+                _hallucination: streamHallucination,
               }));
 
               // Real Usage 采集（stream done）
