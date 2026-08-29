@@ -20,6 +20,7 @@
  * 所有升级判定写 auditLogger（security.alert 事件）。
  */
 
+import { z } from "zod";
 import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import { screenPayloadWithEdge, type EdgeRiskResult, type PayloadKind } from "../local-llm/risk-screen.js";
 import { TOOL_CLASSIFICATIONS } from "./tool-classifications.js";
@@ -99,6 +100,16 @@ export interface ReviewResult {
   dangerous: boolean;
   reason?: string;
 }
+
+/**
+ * 复核输出 schema（S3 结构化输出收紧：dangerous 必须为布尔、reason 可选字符串；
+ * 导出供测试复用）。校验失败 → reviewWithDecisionModel 返回 null →
+ * 既有"复核不可用"回退语义不变（fail-closed/fail-open 按初筛等级由调用方处理）。
+ */
+export const riskReviewSchema = z.object({
+  dangerous: z.boolean(),
+  reason: z.string().optional(),
+});
 
 /** 可注入依赖（测试用 fake；生产为真实实现） */
 export interface RiskMonitorDeps {
@@ -307,14 +318,11 @@ async function reviewWithDecisionModel(
         },
       ],
     });
-    const parsed = extractJson<{ dangerous?: unknown; reason?: unknown }>(resp?.content ?? "");
-    if (parsed && typeof parsed.dangerous === "boolean") {
-      return {
-        dangerous: parsed.dangerous,
-        reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
-      };
-    }
-    return null;
+    const parsed = extractJson(resp?.content ?? "");
+    if (!parsed) return null;
+    const review = riskReviewSchema.safeParse(parsed);
+    if (!review.success) return null;
+    return { dangerous: review.data.dangerous, reason: review.data.reason };
   } catch (err) {
     logger.warn("[RiskMonitor] decision-model review failed", {
       error: (err as Error).message,

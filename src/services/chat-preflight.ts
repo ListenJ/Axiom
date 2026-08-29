@@ -17,6 +17,7 @@
  *
  * 测试接缝：PreflightDeps 全量可注入，测试用 fake 替换即可（禁止 mock.module）。
  */
+import { z } from "zod";
 import type { IntentResult } from "../agents/intent-router.js";
 import { buildAgentMessages } from "../agents/intent-router.js";
 import {
@@ -30,8 +31,20 @@ import { enhanceIntentWithLLM, shouldEnhanceIntent } from "../agents/intent-enha
 import { extractJson } from "../utils/extract-json.js";
 import { logger } from "../utils/logger.js";
 
-/** 合法意图集合（与 intent-enhancer VALID_INTENTS 一致） */
-const VALID_INTENTS = new Set(["code", "research", "knowledge", "write", "plan", "chat"]);
+/**
+ * 边缘合并调用结果 schema（S3 结构化输出收紧：rewritten trim 后非空、intent 枚举、
+ * confidence 有限数；导出供测试复用）。trim 在 schema 内完成，与旧手写检查
+ * 「先 trim 再判空/枚举」语义一致；校验失败 → mergedEdgePreflight 返回 null →
+ * 既有串行回退路径不变。
+ */
+export const mergedPreflightSchema = z.object({
+  rewritten: z.string().transform((s) => s.trim()).pipe(z.string().min(1)),
+  intent: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.enum(["code", "research", "knowledge", "write", "plan", "chat"])),
+  confidence: z.number().finite(),
+});
 
 /** 1B 边缘模型 confidence 无校准（常为 0），有效枚举标签统一 0.6 下限（同 intent-enhancer 边缘层） */
 const EDGE_CONFIDENCE_FLOOR = 0.6;
@@ -195,20 +208,11 @@ export async function mergedEdgePreflight(
         + ` Reply JSON {"rewritten":"...","intent":"...","confidence":0.0-1.0}`,
       { maxTokens: 512 },
     );
-    const parsed = extractJson<{
-      rewritten?: unknown;
-      intent?: unknown;
-      confidence?: unknown;
-    }>(resp.content ?? "");
+    const parsed = extractJson(resp.content ?? "");
     if (!parsed) return null;
-    const rewritten = typeof parsed.rewritten === "string" ? parsed.rewritten.trim() : "";
-    const intent = typeof parsed.intent === "string" ? parsed.intent.trim() : "";
-    const confidence =
-      typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
-        ? parsed.confidence
-        : 0;
-    if (!rewritten || !VALID_INTENTS.has(intent)) return null;
-    return { rewritten, intent, confidence };
+    const candidate = mergedPreflightSchema.safeParse(parsed);
+    if (!candidate.success) return null;
+    return candidate.data;
   } catch (err) {
     logger.debug("Preflight: merged edge call failed", {
       error: (err as Error).message,

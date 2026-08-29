@@ -19,6 +19,7 @@
  *   - rpmLimit 200 / concurrentLimit 16，远高于意图分类场景需求
  */
 
+import { z } from "zod";
 import { callProvider } from "../router/provider-caller.js";
 import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { isPrivacyMode } from "./prompt-optimizer.js";
@@ -46,6 +47,17 @@ const GLM_FLASH_PROVIDER = readString("GLM_FLASH_PROVIDER", "zhipu");
 
 /** 合法意图集合（与 intent-router.ts CATEGORY_INTENTS 一致） */
 const VALID_INTENTS = new Set(["code", "research", "knowledge", "write", "plan", "chat"]);
+
+/**
+ * LLM 意图分类响应 schema（S3 结构化输出收紧：严格枚举 + 置信度区间；
+ * 导出供测试复用）。校验失败 → parseClassifierResponse 返回 null →
+ * 既有回退路径（边缘层降 zhipu / 云端层回 baseIntent）不变。
+ */
+export const intentResponseSchema = z.object({
+  intent: z.enum(["code", "research", "knowledge", "write", "plan", "chat"]),
+  confidence: z.number().min(0).max(1).finite(),
+  reason: z.string().optional(),
+}).passthrough();
 
 // ─────────────────────────────────────────────────────────
 // 意图分类 prompt
@@ -219,11 +231,12 @@ function parseClassifierResponse(content: string): {
   // 尝试直接 JSON.parse
   try {
     const obj = JSON.parse(text);
-    if (typeof obj.intent === "string" && typeof obj.confidence === "number") {
+    const parsed = intentResponseSchema.safeParse(obj);
+    if (parsed.success) {
       return {
-        intent: obj.intent,
-        confidence: obj.confidence,
-        reason: typeof obj.reason === "string" ? obj.reason : undefined,
+        intent: parsed.data.intent,
+        confidence: parsed.data.confidence,
+        reason: parsed.data.reason,
       };
     }
   } catch {
@@ -235,11 +248,12 @@ function parseClassifierResponse(content: string): {
   if (match) {
     try {
       const obj = JSON.parse(match[0]);
-      if (typeof obj.intent === "string" && typeof obj.confidence === "number") {
+      const parsed = intentResponseSchema.safeParse(obj);
+      if (parsed.success) {
         return {
-          intent: obj.intent,
-          confidence: obj.confidence,
-          reason: typeof obj.reason === "string" ? obj.reason : undefined,
+          intent: parsed.data.intent,
+          confidence: parsed.data.confidence,
+          reason: parsed.data.reason,
         };
       }
     } catch {
