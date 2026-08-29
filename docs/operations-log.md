@@ -8013,3 +8013,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bunx tsc --noEmit 0；分文件验证全绿：math-breakthroughs 10 pass/0 fail、model-router 7 pass/0 fail、flat-router 9 pass/0 fail、integration-realtime 9 pass/1 skip/0 fail、perf-benchmark 31 pass/0 fail、architecture-integrity **24 pass/0 fail**；test:full **598 pass/0 fail**（72 文件）。慢速测试（stress/torture）不在 test:full 白名单，其类型与解析由 tsc（include tests/**）覆盖。
 - **净减行数**（git diff --stat 实测）：删除文件 2235 行 + 修改文件 333 删/16 增 = 仓库净减 2552 行。
 - **Commit**：refactor(cleanup): P2-S2 幽灵裁剪（mathContext 休眠链归档 + autoRoute 死代码删除） — c3b2d3518fcadd6e99a339cd798cda800ac6407a
+
+## 2026-08-30 — test(ci): P2-S3 test:full 白名单自动发现（--isolate 根治组合序 + flaky 显式账本）
+
+- **任务**：docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S3，根治 test:full 手工白名单结构性弱点（两次漏新测试：P1 五文件回退事件；组合序依赖 stress 文件残留 tick）。
+- **工具**：Read/Bash（通读 package.json/规格/tests 目录结构、白名单 vs 收集清单对比脚本）、Write/Edit（TDD 测试与实现）、Bash（bun test 定向/全量/tsc/git）、bun 脚本（hash 回填，未用 sed）。全程无子代理（任务要求串行）。AGENTS 规则 2（备份→通读→最小改动→验证→删备份）与规则 7（垂直切片红→绿：收集默认排除测试→实现→排除注入测试→实现）全程执行。
+- **操作**（文件级）：
+  1. 新建 scripts/test-full.ts：递归收集 tests 树 *.test.ts（排除目录段 node_modules/stress/e2e 与 *.slow.ts 后缀；stress 排除含 audit-regression-stress 残留 tick 依据）；EXCLUDE_FILES 单文件账本 7 项（env-example-completeness/llm-cache/runtime-audit/edge-cases abnormal-input+network-resilience/rigorous system-scheduler-rigorous/distributed pcda-scheduler-test——存量失败与组合 flaky，各注依据，约定修复后移出）；收集排序输出文件数统计；Bun.spawn `bun test --isolate --timeout 15000 <files>`（stdio 继承、退出码透传；--isolate=每文件独立全局对象）。
+  2. 新建 tests/test-full-script.test.ts（2 测试）：①默认排除行为（临时目录造树：stress/e2e/*.slow.ts/node_modules 排除、嵌套收集、相对路径排序）；②排除清单注入覆盖（excludeDirs/excludeFiles）。
+  3. package.json：test:full 手工白名单行（41 文件 + 2 目录条目）删除 → `bun run scripts/test-full.ts`；test:core 未动。
+- **白名单差异核对**（对比脚本实测）：原 41 文件条目 + 2 目录条目（agent-evals/、self-evolve/）全部被自动收集覆盖，无遗漏；原白名单无不属于 tests/**/ 或落入排除项的文件。自动收集 342 文件，较白名单新增 301 文件（含 P1 六个新测试文件 dre-retrieval-wiring/cjk-bigram-recall/memory/fts-trigram-migration/zod-parse-seams/thompson-routing-learning/hallucination-calibration 与本脚本测试——逐一验证纳入 ✓）。目录排除 18（stress 6 test + 12 slow）+ 根级 *.slow.ts 3 + 账本 7 = 排除 28。
+- **全量验证与失败判定**（逐文件独立复跑分类）：非隔离首发 342 文件 80 fail/22 文件 → 单跑判定 16 文件全绿（组合序干扰：跨文件状态泄漏 mock.module/单例/env 残留）+ 6 文件单跑即败（存量）；bun test --isolate 实证 80 fail → 8 fail（组合序干扰结构性根治）；--timeout 15000（对齐 test 脚本约定）解决 mega-pressure 500 并发 5s 误杀超时；pcda-scheduler autoEscalate 时序 flaky（单文件含 --isolate 复跑全绿、全量负载两次失稳）+ 6 存量入 EXCLUDE_FILES。最终 `bun run test:full`：**3199 pass / 0 fail / 34 skip（335 文件，150s）**。
+- **对照基线**：`bun test ./tests`（全量含 stress，非隔离）现状：3458 测试 / 348 文件 / 3343 pass / 34 skip / 81 fail / exit 1（120s，本次未复现挂起；失败含 stress 目录与隔离前组合干扰——即 test:full 改为自动发现+隔离+账本前的原始状态，如实记录不强求绿）。
+- **验证**：TDD 红→绿：收集测试 Cannot find module 红 → 1 pass → 注入测试断言失败红 → 2 pass/0 fail（绿）。bunx tsc --noEmit 0。最终 test:full 0 fail（上数）。
+- **Commit**：test(ci): P2-S3 test:full 白名单自动发现（--isolate 根治组合序 + flaky 账本） — hash 待回填

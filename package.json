@@ -85,7 +85,7 @@
     "stress:report": "bun run scripts/stress-report.ts",
     "stress:trend": "bun run scripts/stress-report.ts --trend",
     "test:integration": "bun test tests/integration-edge.test.ts",
-    "test:full": "bun test tests/architecture-integrity.test.ts tests/cache-stress.test.ts tests/thompson-stress.test.ts tests/redis-client.test.ts tests/module-exports.test.ts tests/services-chat.test.ts tests/registry-validation.test.ts tests/property-based.test.ts tests/tools-v3.test.ts tests/review-deep.test.ts tests/read-tool-fence.test.ts tests/command-safety-newline.test.ts tests/code-analysis-shell-safety.test.ts tests/skill-promoter-idempotent.test.ts tests/opencode-codegen-timeout.test.ts tests/mcp-backend-auth.test.ts tests/browser-tools-cdp-guard.test.ts tests/docker-sandbox-mount.test.ts tests/external-eval-sandbox.test.ts tests/thompson-observability.test.ts tests/dre-memory-deep.test.ts tests/adapt-tool.test.ts tests/perf-benchmark.test.ts tests/integration-edge.test.ts tests/e2e-runtime.test.ts tests/crawl/search-engines-deep.test.ts tests/crawl/search-fallback.test.ts tests/routes/search-route.test.ts tests/routes/chat-tools.test.ts tests/routes-chat-validation.test.ts tests/tool-registry-dedup.test.ts tests/memory/vault-reindex.test.ts tests/ocr/langs-available.test.ts tests/crawl/curl-fetch.test.ts tests/hardening-t8-low.test.ts tests/agent-evals/ tests/codeindex/local-index.test.ts tests/chat-preflight-parallel.test.ts tests/chat-memory-loop.test.ts tests/hallucination-wiring.test.ts tests/prompt-pool-template.test.ts tests/self-evolve-lessons-restore.test.ts tests/self-evolve/",
+    "test:full": "bun run scripts/test-full.ts",
     "cache:baseline": "bun run scripts/cache-baseline.ts"
   },
   "dependencies": {
