@@ -7907,3 +7907,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p1-lift-design.md`；本条目追加。
 - **验证**：自查通过；S2 迁移降级与 S4 语义不回退列为硬验收。
 - **Commit**：docs(spec): P1 提升迭代设计（5 切片） — hash 待回填
+
+## 2026-08-29 — feat(dre): P1-S1 检索唤醒（DRE retrieve() 接 routes/search 与 vault 回退链两缝隙）
+
+- **任务**：P1 提升迭代 S1（docs/superpowers/specs/2026-08-29-p1-lift-design.md §S1）：修复评估报告杠杆①"848 行检索栈全库零 importer"。缝① routes/search 响应并入 DRE 段（仅在有结果时包含，异常/未启用/超时静默跳过）；缝② VaultManager.search 回退链末尾挂 DRE retrieve()（FTS 充足时行为与现状逐字节一致）。不改 DRE 检索算法本身。
+- **工具**：Read/Bash（通读 3 目标文件全文、架构断言取证、bun test/tsc、git）、Write/Edit（实现与新测试）。全程无子代理（任务要求串行）。AGENTS 规则 2 全程执行：备份 .tmp/backups/ → 通读全文 → 最小改动 → 验证 → 删备份。
+- **操作**（文件级）：
+  1. src/routes/search.ts（缝①）：handleVaultSearch 响应构建改为 payload 对象，检索成功后调 collectDreSegment 异步并入 `dre: { results, source: "dre-retrieval" }` 段（有结果才含）；新增 withDreTimeout（Promise.race 3s 超时包装，DRE_RETRIEVAL_TIMEOUT_MS=3000，超时/异常/拒绝统一 resolve null 丢弃 DRE 段不影响主响应）、collectDreSegment（默认引擎懒构建并缓存：动态 import deterministic-retrieval-engine + 显式注入 knowledgeNetwork 单例（dre/runtime/knowledge-network.ts:709 模块级单例，非 host kernel）+ ctx.vault.getEngine() 作关键词腿（engine.search 非 vault.search，避免回退链递归），limit 钳制 ≤5）、setDreRetriever 注入槽（undefined=默认/null=禁用/函数=注入，测试接缝）。
+  2. src/memory/vault-manager.ts（缝②）：静态引 getRetrievalEngine（memory→dre 单向，dre 实测零引 memory，architecture-integrity 24/0 实证不成环）；search() 既有回退链末尾追加 dreSupplement——仅当链末结果仍稀疏（<3，spec"FTS 命中<3"语义）才调用，默认 getRetrievalEngine().retrieve(limit 3)，异常 logger.debug 静默返回空；dreResultToSearchResult 将 RetrievalResult 映射 SearchResult（notePath 命中时取引擎内真实笔记，否则合成最小 VaultNote），与既有 seen 集合去重后并入再 slice(limit)。新增 setDreRetriever 注入槽。事实勘误：sqlite-memory score=-row.rank（正值），既有 minQuality=-2.0 判据对正值恒真 → 回退分支现状总是触发，故 DRE 补充门控"链末仍<3"是满足逐字节不变契约的唯一最小接法。
+  3. 新建 tests/dre-retrieval-wiring.test.ts（11 测试，零网络：缝① dre 段含/异常无/显式 null 无/空结果无 且主结果不变；超时包装 挂起→null 快速返回/正常透传/拒绝→null/常量=3000；缝② FTS 稀疏→DRE 被调且主结果首位不变且补充并入/同 path 去重/FTS 充足≥3→DRE 零调用）。
+- **验证**：TDD 红→绿：新测试先红（SyntaxError: Export 'DRE_RETRIEVAL_TIMEOUT_MS' not found）→ 实现后 11 pass/0 fail（24 expect）。回归分文件全 0 fail：tests/routes/search-route.test.ts 8 pass；tests/memory/vault-reindex.test.ts 1 pass；tests/dre-retrieval-engine.test.ts 34 pass；tests/architecture-integrity.test.ts 24 pass/0 fail（memory→dre 单向无环、扇出与逐文件断言全绿）。bunx tsc --noEmit 0。
+- **Commit**：feat(dre): P1-S1 检索唤醒（routes/search dre 段 + vault 回退链 DRE 补充） — hash 待回填 P1S1DRE-7f3a

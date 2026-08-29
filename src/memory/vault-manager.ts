@@ -21,6 +21,7 @@
 import fs from "fs";
 import path from "path";
 import { DeterministicSearchEngine, type SearchResult, type VaultNote } from "./deterministic-search.js";
+import { getRetrievalEngine, type RetrievalResponse, type RetrievalResult } from "../dre/retrieval/deterministic-retrieval-engine.js";
 import { CodeIndexer } from "./code-indexer.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
@@ -202,11 +203,59 @@ export class VaultManager {
           seen.add(r.note.path);
         }
       }
+      // S1 缝②：回退链末尾追加 DRE 检索补充（graph/关键词融合）。
+      // 仅当链末结果仍稀疏（<3，spec"FTS 命中<3"语义）才补充——FTS 充足时与现状逐字节一致
+      if (results.length < minResults) {
+        for (const r of this.dreSupplement(query)) {
+          if (!seen.has(r.note.path)) {
+            results.push(r);
+            seen.add(r.note.path);
+          }
+        }
+      }
       results = results.slice(0, limit);
     }
 
     logger.debug("Vault search", { query, fts: ftsResults.length, total: results.length });
     return results;
+  }
+
+  /** DRE 检索补充器注入槽：undefined=默认全局单例，null=显式禁用，函数=注入（测试接缝） */
+  private dreRetriever: ((query: string, opts?: { limit?: number }) => RetrievalResponse) | null | undefined;
+
+  /** 注入 DRE 检索补充器（S1 缝②测试接缝）；传 null 显式禁用 */
+  setDreRetriever(fn: ((query: string, opts?: { limit?: number }) => RetrievalResponse) | null): void {
+    this.dreRetriever = fn;
+  }
+
+  /** DRE 检索补充（回退链末尾）：默认全局单例，异常静默返回空 */
+  private dreSupplement(query: string): SearchResult[] {
+    if (this.dreRetriever === null) return [];
+    try {
+      const resp = this.dreRetriever
+        ? this.dreRetriever(query, { limit: 3 })
+        : getRetrievalEngine().retrieve(query, { limit: 3 });
+      return resp.results.map((r) => this.dreResultToSearchResult(r));
+    } catch (e) {
+      logger.debug("Vault DRE supplement failed", { query, error: e instanceof Error ? e.message : String(e) });
+      return [];
+    }
+  }
+
+  /** DRE 检索结果 → SearchResult（有 notePath 时优先取引擎内真实笔记） */
+  private dreResultToSearchResult(r: RetrievalResult): SearchResult {
+    const note = (r.notePath ? this.engine.getNote(r.notePath) : undefined) ?? {
+      path: r.notePath ?? r.id,
+      title: r.title,
+      content: r.excerpt,
+      frontmatter: {},
+      tags: [],
+      wikiLinks: [],
+      backlinks: [],
+      wordCount: r.excerpt.split(/\s+/).length,
+      modifiedAt: Date.now(),
+    };
+    return { note, score: r.score, reasons: [`dre:${r.source}`, ...r.reasons], excerpt: r.excerpt };
   }
 
   private memoryRecordToVaultNote(record: import("./sqlite-memory.js").MemoryRecord): VaultNote {

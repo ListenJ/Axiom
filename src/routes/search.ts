@@ -9,8 +9,72 @@ import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
 import type { UnifiedSearchResult } from "../crawl/unified-search.js";
 import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
+import type { DeterministicRetrievalEngine, RetrievalResponse } from "../dre/retrieval/deterministic-retrieval-engine.js";
 
 // SSRF 防护已抽至共享模块 utils/url-safety.ts（含重定向逐跳校验，见 proxy-fetch ssrfGuard）
+
+// ─── DRE 检索段（S1 缝①）─────────────────────────────────────────────────
+
+type DreRetriever = (
+  query: string,
+  opts?: { limit?: number },
+) => RetrievalResponse | null | Promise<RetrievalResponse | null>;
+
+// DRE 检索器注入槽：undefined=未注入（默认构建），null=显式禁用，函数=注入（测试/定制）
+let dreRetrieverOverride: DreRetriever | null | undefined;
+
+/** 注入 DRE 检索器（测试接缝）；传 undefined 恢复默认，null 显式禁用 */
+export function setDreRetriever(fn: DreRetriever | null | undefined): void {
+  dreRetrieverOverride = fn;
+}
+
+export const DRE_RETRIEVAL_TIMEOUT_MS = 3000;
+
+/** 3s 超时包装（Promise.race）：超时/异常返回 null（丢弃 DRE 段，不影响主响应） */
+export async function withDreTimeout<T>(p: T | Promise<T>, ms: number = DRE_RETRIEVAL_TIMEOUT_MS): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), ms);
+    });
+    return await Promise.race([Promise.resolve(p), timeout]);
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+let dreEngine: DeterministicRetrievalEngine | null = null;
+let dreEngineVault: unknown;
+
+/**
+ * 收集 DRE 检索段：注入优先；默认引擎注入 knowledgeNetwork 单例（dre/runtime/knowledge-network.ts）
+ * + vault 确定性索引作关键词腿（engine.search，非 vault.search，避免回退链递归）。任何异常静默返回 null。
+ */
+async function collectDreSegment(
+  query: string,
+  vault: RouteContext["vault"],
+  limit: number,
+): Promise<RetrievalResponse | null> {
+  const dreLimit = Math.min(limit, 5);
+  try {
+    if (dreRetrieverOverride !== undefined) {
+      return await withDreTimeout(Promise.resolve().then(() => dreRetrieverOverride!(query, { limit: dreLimit })));
+    }
+    let engine = dreEngine && dreEngineVault === vault ? dreEngine : null;
+    if (!engine) {
+      const { DeterministicRetrievalEngine: DreEngine } = await import("../dre/retrieval/deterministic-retrieval-engine.js");
+      const { knowledgeNetwork } = await import("../dre/runtime/knowledge-network.js");
+      engine = new DreEngine({ keywordSearcher: vault ? vault.getEngine() : null, graph: knowledgeNetwork });
+      dreEngine = engine;
+      dreEngineVault = vault;
+    }
+    return await withDreTimeout(Promise.resolve(engine.retrieve(query, { limit: dreLimit })));
+  } catch {
+    return null;
+  }
+}
 
 export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
@@ -29,7 +93,13 @@ export async function handleVaultSearch(ctx: RouteContext): Promise<Response | n
     // O5：limit 钳制 ≤100，防止超大 limit 拖垮 vault 检索
     const limit = Math.min(Number(ctx.url.searchParams.get("limit")) || 20, 100);
     const results = ctx.vault.search(query, { types, tags, paraCategory: para, limit });
-    return ctx.jsonResponse({ query, strategy: "deterministic", results }, 200, ctx.baseHeaders);
+    const payload: Record<string, unknown> = { query, strategy: "deterministic", results };
+    // S1 缝①：响应并入 DRE 检索段（仅在有结果时包含；异常/超时/未启用静默跳过）
+    const dre = await collectDreSegment(query, ctx.vault, limit);
+    if (dre && dre.results.length > 0) {
+      payload.dre = { results: dre.results, source: "dre-retrieval" };
+    }
+    return ctx.jsonResponse(payload, 200, ctx.baseHeaders);
   }
   return null;
 }
