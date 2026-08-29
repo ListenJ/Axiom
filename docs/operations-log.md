@@ -7680,3 +7680,17 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   7. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：P0-3 首跑 4 fail（白名单 git status\nrm -rf /、CRLF 变体、echo a\nrm -rf /、executeCommand 集成）+ 3 pass（② 语义保持、③ 黑名单回归、无换行回归）；P0-2 首跑因 validateFilePathForCommand 未导出整文件加载红，导出后断言层 6 fail（静态 args 数组形态/转义补丁存在 + 行为接线 4 项），接线后 19 pass/0 fail（52 expect）。回归：unit/command-safety + security-fixes + security-hardening + security-hardening-extended + tools-v3 + command-gate + pty-session + mcp-server + plugin-market + prompt-engineer + rigorous/security-rigorous = 255 pass/0 fail/2 skip（skip 为既有鉴权跳过项）。bunx tsc --noEmit 0。备份验证后删除。
 - **Commit**：fix(security): 审计强化 T2 P0-2 code-analysis 注入消除 + P0-3 换行归一（N-H2/N-H3，TDD） — 8580e95
+
+## 2026-08-29 — fix(agents): 审计强化 Task 3 P0-4 skill-promoter 幂等 + P0-5 codegen 超时（N-H4/N-H5，TDD）
+
+- **任务**：联合审查 N-H4/N-H5（docs/reviews/2026-08-29-joint-verification-audit.md §4）——①skill-promoter.ts:72 幂等检查用精确 id `auto-${slug}`，而 :103 注册 id 带时间后缀（`auto-${slug}-xxxx`）→ 恒不命中，每反射周期重复注册 + :112-115 writeFileSync 重复持久化，SkillRegistry 与 axiom-memory 技能库无界增长；②codegen.ts:40-50 AbortController.abort 无消费方（spawn 未接 signal、无 kill），超时后 stdout reader 永不返回 → 永久挂起，且 :82/:99 tryRelease 不执行 → 并发信号量泄漏。spec：docs/superpowers/specs/2026-08-29-audit-hardening-design.md §1 P0-4/P0-5。
+- **工具**：Read（skill-promoter/codegen/shims/RateLimitedSemaphore/lazy-singleton/opencode-types/consciousness 测试/package.json/operations-log 通读）、Edit（2 源文件 + package.json 最小改动）、Write（2 新测试 + 本追加脚本）、Bash（cp 备份/rm 备份、Bun.spawn signal 实测探针、bun test、bunx tsc、bun 追加与回填、git）。无子代理（串行约束）。
+- **操作**（文件级）：
+  1. 备份 3 文件 → .tmp/backups/（规则2，先通读全文），验证通过后删除。
+  2. P0-5（src/agents/opencode-tools/codegen.ts）：构造器加第 4 参 spawnProc（`typeof spawn`，默认原生 spawn，行为中性接缝，测试可注入受控命令）；callOpenCode 的 spawn options 接入 `signal: controller.signal`（Bun 1.3.14 实测：挂起 powershell 在 abort 后 328ms 内被杀、proc.exited 返回）；timer 回调置 timedOut=true 再 abort；proc.exited 后 timedOut → 抛 "opencode timeout after Xms"（有部分输出也不算成功）；catch 对 timedOut 期间任何错误统一转超时错误；releaseSemOnce 标志位防双重释放（成功/异常/超时三路径共用，恰好一次）。
+  3. P0-4（src/agents/consciousness/skill-promoter.ts）：幂等检查改 `s.id === `auto-${slug}` || s.id.startsWith(`auto-${slug}-`)`（精确 id 或带尾连字符的 slug 精确前缀：兼容存量带后缀 id，且防 foo/foobar 类 slug 前缀歧义误判）。
+  4. 新建 tests/skill-promoter-idempotent.test.ts（3 测试：两次 promote 同模式 → registry 与磁盘 JSON 各仅 1 条；foo/foobar 双向前缀歧义不误判）与 tests/opencode-codegen-timeout.test.ts（1 测试：挂起 powershell + timeoutMs=500 → 3s 内 reject 含 "timeout"、permits=1 信号量 active 回 0 恰好释放、紧随快速命令成功不被饿死）。
+  5. package.json：test:full 名单补入两个新测试文件（code-analysis-shell-safety 之后）。
+  6. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
+- **验证**：TDD 红→绿：skill-promoter 首跑 1 fail（第二次 promote id2 非空、registry/磁盘各 2 条——精确 id 检查恒不命中）；实现后 3 pass（第二次 promote 打出 skip existing）。codegen 首跑 1 fail（接缝未注入前真实 opencode run --model fake-model 3.5s exit 1，错误不含 "timeout"，超时拒绝契约不存在）；实现后 pass（500ms reject 含 timeout、sem.active=0、后续调用不饿死，全程 <1s）。回归：skill-promoter-idempotent + opencode-codegen-timeout + consciousness + self-evolve/ 全目录 = 114 pass/0 fail；bunx tsc --noEmit 0。tests/architecture-integrity 存量失败 1 项（mcp<->tools 循环对：本任务 src diff 零 import 变更且不涉及该两目录，属工作区/HEAD 既有问题，不在本任务范围）。
+- **Commit**：fix(agents): 审计强化 T3 P0-4 skill-promoter 幂等 + P0-5 codegen 超时（N-H4/N-H5，TDD） — T3-ANCHOR-20260829

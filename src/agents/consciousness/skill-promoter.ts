@@ -69,7 +69,13 @@ export class SkillPromoter {
 
     if (this.config.skipExisting) {
       const slug = this.slugify(`${candidate.intent}-${candidate.agentName}`);
-      const existing = registry.list().find((s) => s.id === `auto-${slug}`);
+      // P0-4: registered ids carry a time suffix (`auto-<slug>-xxxx`), so an exact
+      // match never hits and every cycle re-promotes + re-persists. Match the
+      // exact id or the `auto-<slug>-` prefix (the trailing dash prevents
+      // prefix ambiguity between slugs like "foo" and "foobar").
+      const existing = registry
+        .list()
+        .find((s) => s.id === `auto-${slug}` || s.id.startsWith(`auto-${slug}-`));
       if (existing) {
         logger.info("[Consciousness/SkillPromoter] skip existing", { key: candidate.key });
         return null;
