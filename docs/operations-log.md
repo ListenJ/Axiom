@@ -7970,3 +7970,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **标注策略与局限**（保守起步，半自动非真值标注，已在代码注释声明）：仅纳入"极化组"——evidence_fingerprint 相同（同一证据基快照下校验）且组内 accepted/非 accepted 并存的记录，accepted→isFact=true、非 accepted→isFact=false（任务书"pValue 分化稳定对比对"的可操作代理）；极化组外不构成对比信息一律排除。局限：未校准运行期 pValue 恒 1.0，判定由证据相似度阈值驱动 → 标签本质是阈值自编码（循环性），FDR 统计保证在此数据上不严格成立；"证据相似度≥0.5 且用户显式纠正"的真值标注需用户反馈通道，属后续 HITL/标注 UI 迭代。
 - **验证**：TDD 红→绿：实现模块临时移出后新测试 0 pass/1 fail（Cannot find module——红）→ 恢复后 9 pass/0 fail（23 expect，绿）。回归分文件全 0 fail：hallucination-wiring 16 pass（含新增缝②端口 3 测试）；chat-memory-loop+chat-preflight-parallel 21 pass；architecture-integrity **24 pass/0 fail**（db→memory 仅 import type 零运行时依赖、routes→db 直调无禁令）。bunx tsc --noEmit 0。主进程启动接线为运行时路径，由吞错兜底与模块级单测覆盖。
 - **Commit**：feat(safety): P1-S5 校准数据积累（双缝 verdict 落库 + calibrateFromStored 保守自动校准） — e44332534bd7e4ca48bc12e4a4be138683bd569a
+
+## 2026-08-30 — feat(lift): P1 五切片收口（检索唤醒/中文bigram/结构化/学习回路/校准积累）
+
+- **任务**：按 spec（2026-08-29-p1-lift-design.md）完成 5 切片串行施工：S1 检索唤醒（71423ba，routes/search dre 段+3s 超时+vault 回退补充；顺带发现 minQuality=-2.0 恒真）→ S2 中文 bigram 双层（fd62697，trigram 迁移带 RENAME 保底回退）→ S3 四解析点 zod（4065194，降级逐字节一致）→ S4 thompson 学习回路（16e0060，平级 tie-break）→ S5 校准积累（e443325，verdict 落库+≥50 对极化组保守自动校准；首派 captcha 失败但已留实现，重派盘点核对后提交）。
+- **工具**：Agent×6（S5 三派：captcha 失败/模型失败/成功）、Bash（白名单二分定位、bun test/tsc/test:full）、Write（报告回写）、Edit（package.json）。
+- **操作**（文件级）：评估报告追加第七节 P1 回写表；package.json test:full 先 +5 后回退（组合运行触发 audit-regression-stress 存量 flaky 的残留 tick 挂起——单进程文件序依赖，根治=白名单自动发现，记 P2；5 新测试文件改定向运行全绿，src 改动全保留）；本条目追加。
+- **验证**：白名单 test:full 603 pass/0 fail；5 新测试文件独立/相邻运行全绿（38 pass）；tsc 0；architecture-integrity 24/0。另记录存量失败：stress/audit-regression-stress 在 HEAD 干净 worktree 复现 1 fail（S2 代理与本次二分独立证实）。
+- **Commit**：feat(lift): P1 五切片收口（白名单回退+报告回写） — hash 待回填

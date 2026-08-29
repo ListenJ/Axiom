@@ -76,3 +76,18 @@ POST /chat → optimizePrompt(GLM 改写) → 意图判定(关键词 fast path /
 | 架构合规修复 | ✅ | 本轮 | services 扇出 10→8（chat-preflight 注入化 + extractJson 迁 utils）；dre↔memory 循环消除（gate 注入）；extractJson 单源迁 utils/extract-json.ts（edge-client re-export 兼容） |
 
 **回归**：`bun run test:full` **600 pass / 0 fail / 73 文件**（基线 566 + 新增 34，白名单含全部新测试）；`bunx tsc --noEmit` 0；architecture-integrity 24/0（含循环与扇出断言）。
+
+---
+
+## 七、P1 五切片实施回写（2026-08-29/30 完成）
+
+| 杠杆 | 状态 | Commit | 实施要点 |
+|------|------|--------|---------|
+| S1 DRE 检索栈唤醒 | ✅ | 71423ba | routes/search 响应并入 `dre` 段（3s 超时包装，超时/异常丢弃不影响主响应）；vault 回退链末位 dreSupplement（门控仍<3 才补充+去重）；knowledgeNetwork 模块级单例注入；顺带发现 sqlite-memory score=-rank 使 minQuality=-2.0 判据恒真（回退分支现状总是触发） |
+| S2 中文 bigram 双层 | ✅ | fd62697 | SQLite 实测 3.53.0 支持 trigram；层1 内存 tokenize CJK bigram（单字保留/ASCII 原样，索引查询同函数）；层2 memory_notes_fts 迁移 trigram（RENAME 保底→重建→回填→行数校验→失败还原），KAL/搜索 <3 字 CJK 短词 LIKE 兜底拆腿 |
+| S3 主链路结构化收紧 | ✅ | 4065194 | intent-enhancer/chat-preflight/risk-monitor/dre constraints 四处 zod schema（导出可测），降级行为与现状逐字节一致；三处"判定更早更明确"收紧点在 spec 授权内 |
+| S4 thompson 学习回路 | ✅ | 16e0060 | buildThompsonArms 由注册表模型唯一 id 构建（避免同 provider 互相覆盖）；反馈接在 trackCall 成败点；**平级 tie-break**：相邻比较器相等的组经 route() 采样重排（组间优先级不动）；全降级保留 |
+| S5 校准数据积累 | ✅ | e443325 | hallucination_verdicts 表（migrate 纳管+幂等 ensure）；两缝 verdict 落库（chat 直调/DRE 经 recordVerdict 端口注入，dre 零 db 直引）；calibrateFromStored ≥50 对极化组保守自动校准（循环性局限已声明，真值标注属 HITL 后续） |
+
+**回归**：白名单 `bun run test:full` 603 pass/0 fail；tsc 0；architecture-integrity 24/0。
+**已知问题（如实）**：5 个 P1 新测试文件单独/相邻运行全绿，但**追加进 test:full 手工白名单后组合运行触发 audit-regression-stress（存量 flaky，storm-caller actor 压测）的残留 tick 挂起 + 存量失败断言**——单进程文件序依赖是 test:full 手工白名单的结构性弱点（评估报告早已标记），根治=白名单改自动发现（P2 候选）。本次将 5 个新文件回退出白名单、改为定向运行（全部独立绿），src 改动全部保留。
