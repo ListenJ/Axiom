@@ -177,4 +177,76 @@ describe("proxy-fetch 审计强化（B3-Medium）", () => {
     tlsFakes[1].emit("data", httpResponse(200, "OK", { "content-length": "0" }));
     expect((await p).status).toBe(200);
   });
+
+  it("2a 定长响应超默认 10MB 上限：中止并报错含 too large", async () => {
+    installTunnelFakes();
+    const p = proxyFetch("https://target.example/big", {
+      proxy: "http://proxy.internal:3128",
+      timeout: 3000,
+      followRedirects: false,
+    });
+    await sleep(30);
+    // 声明 20MB，先送达 11MB（超过默认 10MB 上限）
+    tlsFakes[0].emit(
+      "data",
+      httpResponse(200, "OK", { "content-length": String(20 * 1024 * 1024) }, Buffer.alloc(11 * 1024 * 1024)),
+    );
+    await expect(p).rejects.toThrow(/too large/i);
+    expect(tlsFakes[0].destroyed).toBe(true); // 超限即中止，不再继续接收
+  });
+
+  it("2b chunked 响应累计超上限：报错含 too large", async () => {
+    installTunnelFakes();
+    const p = proxyFetch("https://target.example/chunked", {
+      proxy: "http://proxy.internal:3128",
+      timeout: 3000,
+      followRedirects: false,
+    });
+    await sleep(30);
+    const sixMB = Buffer.alloc(6 * 1024 * 1024, 0x61);
+    tlsFakes[0].emit(
+      "data",
+      Buffer.concat([
+        Buffer.from("HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n"),
+        Buffer.from(`${(6 * 1024 * 1024).toString(16)}\r\n`),
+        sixMB,
+        Buffer.from("\r\n"),
+      ]),
+    );
+    await sleep(10);
+    tlsFakes[0].emit(
+      "data",
+      Buffer.concat([Buffer.from(`${(6 * 1024 * 1024).toString(16)}\r\n`), sixMB, Buffer.from("\r\n0\r\n\r\n")]),
+    );
+    await expect(p).rejects.toThrow(/too large/i);
+  });
+
+  it("2c PROXY_FETCH_MAX_BODY_BYTES 可覆盖上限", async () => {
+    process.env.PROXY_FETCH_MAX_BODY_BYTES = String(1024 * 1024); // 1MB
+    installTunnelFakes();
+    const p = proxyFetch("https://target.example/medium", {
+      proxy: "http://proxy.internal:3128",
+      timeout: 3000,
+      followRedirects: false,
+    });
+    await sleep(30);
+    tlsFakes[0].emit(
+      "data",
+      httpResponse(200, "OK", { "content-length": String(2 * 1024 * 1024) }, Buffer.alloc(2 * 1024 * 1024)),
+    );
+    await expect(p).rejects.toThrow(/too large/i);
+  });
+
+  it("2d 上限内响应正常完成（行为保持）", async () => {
+    installTunnelFakes();
+    const p = proxyFetch("https://target.example/ok", {
+      proxy: "http://proxy.internal:3128",
+      timeout: 3000,
+      followRedirects: false,
+    });
+    await sleep(30);
+    tlsFakes[0].emit("data", httpResponse(200, "OK", { "content-length": "4" }, "body"));
+    const res = await p;
+    expect(await res.text()).toBe("body");
+  });
 });

@@ -437,6 +437,19 @@ function headersForRedirect(
   return next;
 }
 
+// ========== 响应体上限（B3-Medium，2026-08-29） ==========
+
+/** 响应体缓冲上限（默认 10MB）：content-length 与 chunked 均按原始累计字节计，超限中止请求 */
+const MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024;
+
+/** 读取响应体上限（PROXY_FETCH_MAX_BODY_BYTES 可覆盖；非法值回落默认） */
+function readMaxBodyBytes(): number {
+  const raw = process.env.PROXY_FETCH_MAX_BODY_BYTES;
+  if (!raw) return MAX_RESPONSE_BODY_BYTES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : MAX_RESPONSE_BODY_BYTES;
+}
+
 // ========== 核心请求函数 ==========
 
 async function makeRequest(
@@ -550,6 +563,18 @@ async function makeRequest(
         let savedStatusText = "";
         let savedHeaders: Record<string, string> = {};
 
+        // B3-Medium：响应体无上限 → 超过 readMaxBodyBytes() 即中止（防恶意/异常大响应撑爆内存）
+        const maxBodyBytes = readMaxBodyBytes();
+        const abortIfBodyTooLarge = (): boolean => {
+          const total = bodyChunks.reduce((sum, c) => sum + c.length, 0);
+          if (total > maxBodyBytes) {
+            tlsSocket.destroy();
+            reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+            return true;
+          }
+          return false;
+        };
+
         tlsSocket.on("data", (chunk: Buffer) => {
           if (!headersParsed) {
             headerBuffer = Buffer.concat([headerBuffer, chunk]);
@@ -582,6 +607,14 @@ async function makeRequest(
 
             if (bodyStart.length > 0) bodyChunks.push(bodyStart);
 
+            // B3-Medium：声明的 content-length 或已接收累计超限 → 中止
+            if (contentLength >= 0 && contentLength > maxBodyBytes) {
+              tlsSocket.destroy();
+              reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+              return;
+            }
+            if (abortIfBodyTooLarge()) return;
+
             // Check if body is complete
             if (contentLength >= 0) {
               const totalBody = bodyChunks.reduce((sum, c) => sum + c.length, 0);
@@ -592,6 +625,7 @@ async function makeRequest(
             }
           } else {
             bodyChunks.push(chunk);
+            if (abortIfBodyTooLarge()) return;
             if (contentLength >= 0) {
               const totalBody = bodyChunks.reduce((sum, c) => sum + c.length, 0);
               if (totalBody >= contentLength) {
@@ -730,6 +764,10 @@ async function makeRequest(
     req.end();
 
     function handleResponse(res: http.IncomingMessage) {
+      // B3-Medium：直连/HTTP 代理路径与 CONNECT 路径同样受响应体上限约束
+      const maxBodyBytes = readMaxBodyBytes();
+      let received = 0;
+
       // 处理重定向
       const followRedirects = opts.followRedirects !== false;
       if (followRedirects && redirectCount < maxRedirects && res.statusCode) {
@@ -745,7 +783,14 @@ async function makeRequest(
 
       // 收集响应数据
       const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+        received += chunk.length;
+        if (received > maxBodyBytes) {
+          res.destroy();
+          reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+        }
+      });
       res.on("end", () => {
         const body = Buffer.concat(chunks);
         const responseHeaders: Record<string, string> = {};
