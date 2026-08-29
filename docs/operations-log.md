@@ -7694,3 +7694,11 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   6. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：skill-promoter 首跑 1 fail（第二次 promote id2 非空、registry/磁盘各 2 条——精确 id 检查恒不命中）；实现后 3 pass（第二次 promote 打出 skip existing）。codegen 首跑 1 fail（接缝未注入前真实 opencode run --model fake-model 3.5s exit 1，错误不含 "timeout"，超时拒绝契约不存在）；实现后 pass（500ms reject 含 timeout、sem.active=0、后续调用不饿死，全程 <1s）。回归：skill-promoter-idempotent + opencode-codegen-timeout + consciousness + self-evolve/ 全目录 = 114 pass/0 fail；bunx tsc --noEmit 0。tests/architecture-integrity 存量失败 1 项（mcp<->tools 循环对：本任务 src diff 零 import 变更且不涉及该两目录，属工作区/HEAD 既有问题，不在本任务范围）。
 - **Commit**：fix(agents): 审计强化 T3 P0-4 skill-promoter 幂等 + P0-5 codegen 超时（N-H4/N-H5，TDD） — 7e465c9
+
+## 2026-08-29 — fix(arch): isPathSafe 抽取至 utils/path-safety 消除 tools<->mcp 循环（T1 回归修复）
+
+- **任务**：Task 1（804ec12）让 src/tools/read-tool/write-tool import src/mcp/tools/filesystem 的 isPathSafe，而 src/mcp/server.ts 早已 import src/tools/*——触发 architecture-integrity "no two top-level directories import from each other" 1 fail（mcp<->tools 循环，主会话在 Task 3 后巡检发现）。修复：isPathSafe + resolvePath 原文迁移至叶子层 src/utils/path-safety.ts（utils 无循环约束）；filesystem.ts 改 import + re-export isPathSafe 保持既有调用方零改动；read/write-tool 改 import ../../utils/path-safety.js；tests/filesystem-symlink.test.ts 的 2 处静态断言（对实现文件的 grep）随单一语义源迁移指向 src/utils/path-safety.ts（测试意图"父目录 realpath 守卫存在"不变）。
+- **工具**：Bash（cp 备份/rm 备份、bun 脚本抽取与 import 切换、bun test/bunx tsc）、Read（filesystem.ts:20-126 函数边界确认）。
+- **操作**（文件级）：新建 src/utils/path-safety.ts（resolvePath 导出 + isPathSafe，3457 字符逐字迁移含注释）；修改 src/mcp/tools/filesystem.ts（删两函数，import + `export { isPathSafe }` re-export）、src/tools/read-tool.ts、src/tools/write-tool.ts（import 路径）、tests/filesystem-symlink.test.ts（2 处断言指向）。
+- **验证**：bunx tsc --noEmit 0；architecture-integrity 24 pass/0 fail（循环消除）；read-tool-fence + filesystem-symlink + security-fixes 共 73 pass/0 fail。
+- **Commit**：fix(arch): isPathSafe 迁至 utils/path-safety 消除 tools<->mcp 循环（T1 回归修复） — hash 待回填

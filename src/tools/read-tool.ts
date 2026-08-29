@@ -7,7 +7,7 @@
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
 import { resolve } from "node:path";
-import { isPathSafe } from "../mcp/tools/filesystem.js";
+import { isPathSafe } from "../utils/path-safety.js";
 
 export interface ReadInput {
   /** 读取源: "file" | "web" | "memory" */
