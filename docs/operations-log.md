@@ -7737,7 +7737,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 ## Context
 {{context}}
 {{/if}}" 残留，与审计症状一致；同时确认 examples 块原 pattern 命中）；绿 = 4 pass/0 fail。回归：orchestrator×4 + prompt-optimizer + prompt-engineer 66 pass/0 fail；五组合回归（含 self-evolve 全目录）171 pass/0 fail；bunx tsc --noEmit 0。
-- **Commit**：fix(agents): 审计强化 T5 P1-1 prompt-pool 模板替换对齐（B2-M1，TDD） — hash 待回填(ANCHOR_T5_AGENTS)
+- **Commit**：fix(agents): 审计强化 T5 P1-1 prompt-pool 模板替换对齐（B2-M1，TDD） — 2289e4b
 
 ## 2026-08-29 — fix(self-evolve): 审计强化 T5 P1-2 self-evolve 教训 vault 回读闭环（TDD）
 
@@ -7749,4 +7749,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   3. 回读实现：新增 LessonVaultLike 最小结构接口（writeNote/readNote/getEngine().listNotePaths——VaultManager 三者齐备，无需扩展 vault）+ restoreLessonsFromVault（listNotePaths 过滤 "00-Meta/self-evolve/lessons/" 前缀 → readNote 剥离首个 frontmatter → 按 "# Lesson" 标记提取正文 → 以 stableHash(lesson) 回填内存索引，去重键与运行时写入同源故回读后重写同教训不重复；单文件失败不阻断）；list() 惰性首次回读（restored 标志，对齐任务允许的"惰性首次 list()"方案）；vault 不可用静默跳过；文件头注释同步写明闭环。
   4. 新建 tests/self-evolve-lessons-restore.test.ts（4 测试：写教训→新实例 list() 含该教训；回读与运行时写入同键去重；vault 不可用不抛错仍返回内存教训；lessons 目录外笔记不被回读；fake vault 镜像 VaultManager writeNote/readNote 行为，不触真实文件系统）。
 - **验证**：TDD 红→绿：红 = 注入重构后 2 fail（新实例回读断言失败，即审计症状；另 2 测试先行 pass 作护栏）；绿 = 4 pass/0 fail。回归：tests/self-evolve/ 全目录 + self-evolve-mind-suggest 101 pass/0 fail；五组合回归 171 pass/0 fail；bunx tsc --noEmit 0（首跑 5 处报错为 createDefaultStore 返回类型继承 store? 可选性 + LessonVaultLike.writeNote opts 未可选，改 NonNullable<SelfEvolveDeps["store"]> 与 opts? 后清零）。
-- **Commit**：fix(self-evolve): 审计强化 T5 P1-2 self-evolve 教训 vault 回读闭环（B2-M2，TDD） — hash 待回填(ANCHOR_T5_SELFEVOLVE)
+- **Commit**：fix(self-evolve): 审计强化 T5 P1-2 self-evolve 教训 vault 回读闭环（B2-M2，TDD） — dbdbad7
