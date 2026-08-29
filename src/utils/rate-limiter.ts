@@ -297,3 +297,24 @@ export function createMultiDimensionMiddleware(
 
 /** 全局多维度限流器实例（默认配额：IP 100/min, user 200/min, global 1000/min） */
 export const multiDimLimiter = new MultiDimensionLimiter();
+
+// ============================================================================
+// B3-Medium（2026-08-29）— cleanup 定时调度接线
+// cleanup 一直存在但全仓无调用 → 限流 Map 无界增长；模块加载即调度，
+// 间隔与既有窗口 TTL（60s）对齐，unref() 防驻留（不阻止进程自然退出）。
+// ============================================================================
+
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+let rateLimitCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 启动 cleanup 定时调度（幂等；导出供测试/部署侧显式调用） */
+export function startRateLimitCleanupScheduler(intervalMs: number = RATE_LIMIT_CLEANUP_INTERVAL_MS): void {
+  if (rateLimitCleanupTimer) return;
+  rateLimitCleanupTimer = setInterval(() => {
+    apiLimiter.cleanup();
+    multiDimLimiter.cleanup();
+  }, intervalMs);
+  rateLimitCleanupTimer.unref?.();
+}
+
+startRateLimitCleanupScheduler();

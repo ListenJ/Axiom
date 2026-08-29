@@ -122,7 +122,36 @@ export function createCorsHeaders(
   return headers;
 }
 
-const rateLimitStore = new Map<string, { timestamps: number[] }>();
+// B3-Medium（2026-08-29）：限流记录表原先模块私有且无任何清理 → 无界增长；
+// 导出以便观测/测试，并新增 cleanupRateLimitStore + 模块加载即定时调度。
+export const rateLimitStore = new Map<string, { timestamps: number[] }>();
+
+/** 清理节奏与 checkRateLimit 默认窗口 TTL 对齐 */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * 清理限流记录表：删除最近时间戳已超出 2×窗口的空闲 entry（窗口内的过期时间戳
+ * 由 checkRateLimit 惰性过滤，这里只回收整体空闲的 entry，防 Map 无界增长）。
+ * 返回删除数量。
+ */
+export function cleanupRateLimitStore(now: number = Date.now()): number {
+  let removed = 0;
+  const idleThreshold = now - RATE_LIMIT_WINDOW_MS * 2;
+  for (const [identifier, entry] of rateLimitStore) {
+    const last = entry.timestamps.length > 0 ? entry.timestamps[entry.timestamps.length - 1] : 0;
+    if (last <= idleThreshold) {
+      rateLimitStore.delete(identifier);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+// 模块加载即调度（unref 防驻留，不阻止进程自然退出）
+const rateLimitCleanupTimer = setInterval(() => {
+  cleanupRateLimitStore();
+}, RATE_LIMIT_WINDOW_MS);
+rateLimitCleanupTimer.unref?.();
 
 export function checkRateLimit(
   identifier: string,
