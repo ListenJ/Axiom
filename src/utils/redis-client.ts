@@ -39,6 +39,8 @@ export class RedisClient {
   private cmdId = 0;
   private buffer = "";
   private pushHandler?: (channel: string, message: string) => void;
+  // B3-Medium：断线回调（getRedisClient 注册，用于复位单例状态实现重连）
+  private onDisconnectCb?: (client: RedisClient) => void;
 
   constructor(config: RedisConfig) {
     this.config = {
@@ -80,11 +82,13 @@ export class RedisClient {
           logger.info("[Redis] Connected", { host, port });
         },
         close: () => {
-          this.connected = false;
-          logger.warn("[Redis] Connection closed");
+          // B3-Medium：意外断线 → 复位连接状态 + 拒绝在途命令 + 通知单例层（下次 getRedisClient 重新建连）
+          this.handleDisconnect("closed");
         },
         error: (_socket: Socket, err: Error) => {
           logger.error("[Redis] Socket error", err);
+          // error 后通常紧跟 close；handleDisconnect 幂等（connected 守卫），此处先复位以防 close 缺失
+          this.handleDisconnect("error");
         },
       },
     });
@@ -184,6 +188,27 @@ export class RedisClient {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  /** 注册断线回调（getRedisClient 用它复位单例状态，实现断线后自动重连） */
+  setOnDisconnect(cb: (client: RedisClient) => void): void {
+    this.onDisconnectCb = cb;
+  }
+
+  /**
+   * 断线处理（幂等）：复位连接状态、以明确错误拒绝全部在途命令、通知单例层。
+   * 主动 disconnect() 已先置 connected=false，触发 close 事件时此处直接跳过。
+   */
+  private handleDisconnect(reason: string): void {
+    if (!this.connected) return;
+    this.connected = false;
+    this.socket = null;
+    const pending = this.pendingQueue.splice(0);
+    for (const p of pending) {
+      p.reject(new Error(`Redis connection lost: ${reason}`));
+    }
+    logger.warn("[Redis] Connection lost; singleton reset for reconnect", { reason });
+    this.onDisconnectCb?.(this);
   }
 
   disconnect(): void {
@@ -304,6 +329,10 @@ export class RedisClient {
 
     // 数组 (*)
     if (type === "*") {
+      // B3-Medium：RESP 失步防护 —— 记录数组起始快照；半包（任一元素不完整）时回滚到
+      // 数组起始等待下一包整体重解析。此前头部已消费，后续包会把元素内部字节当作
+      // 新的顶层响应解析（串包错位）。
+      const savedBuffer = this.buffer;
       const lenEnd = this.buffer.indexOf("\r\n");
       if (lenEnd === -1) return undefined;
       const count = parseInt(this.buffer.slice(1, lenEnd), 10);
@@ -314,7 +343,7 @@ export class RedisClient {
       for (let i = 0; i < count; i++) {
         const item = this.parseResponse();
         if (item === undefined) {
-          // 回滚 — 实际上很难做到，这里简化处理
+          this.buffer = savedBuffer;
           return undefined;
         }
         arr.push(item);
@@ -366,6 +395,16 @@ export async function getRedisClient(): Promise<RedisClient | null> {
 
   redisPromise = RedisClient.connect();
   globalRedis = await redisPromise;
+  if (globalRedis) {
+    // B3-Medium：断线后复位单例状态，使下一次 getRedisClient() 重新建连，
+    // 而不是永远返回已断线的死实例。
+    globalRedis.setOnDisconnect((dead) => {
+      if (globalRedis === dead) {
+        globalRedis = null;
+        redisPromise = null;
+      }
+    });
+  }
   return globalRedis;
 }
 
