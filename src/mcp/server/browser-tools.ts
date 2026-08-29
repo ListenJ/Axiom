@@ -11,7 +11,15 @@ import { buildTextGuide, type TextGuideResult } from "../../computer-use/text-gu
 import { launchUserBrowser, detectPlatform, type OpenPlatform } from "../../computer-use/browser-launch.js";
 import { filterElementsByQuery, locateOnPage, type LocateQuery } from "../../computer-use/locate.js";
 import { extractInteractiveElements } from "../../crawl/lightpanda-client.js";
+import { assertSafeCdpUrl } from "../../utils/url-safety.js";
+import { readString } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
+
+/** 审计 B3（2026-08-29）：MCP 工具侧 cdpUrl 与 routes/agents.ts:213 同一守卫；
+ *  远程端点须显式 AXIOM_ALLOW_REMOTE_CDP=1（与路由层同一豁免开关）。 */
+function safeCdpUrl(raw: unknown): string {
+  return assertSafeCdpUrl(raw, { allowRemote: readString("AXIOM_ALLOW_REMOTE_CDP", "0") === "1" });
+}
 
 export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
@@ -25,7 +33,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
     },
     handler: async (args: Record<string, unknown>) => {
       const task = args.task as string;
-      const cdpUrl = (args.cdpUrl as string | undefined) ?? "http://127.0.0.1:9222";
+      const cdpUrl = safeCdpUrl(args.cdpUrl);
       const maxElements = (args.maxElements as number | undefined) ?? 50;
       let elements: TextGuideResult["elements"] = [];
       let cdpOk = false;
@@ -66,7 +74,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
         index: args.index as number | undefined,
       };
       const result = await locateOnPage({
-        cdpUrl: (args.cdpUrl as string | undefined) ?? "http://127.0.0.1:9222",
+        cdpUrl: safeCdpUrl(args.cdpUrl),
         query,
         limit: (args.limit as number | undefined) ?? 20,
       });
@@ -127,7 +135,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
     handler: async (args: Record<string, unknown>) => {
       const { reviewFrontendScreenshot, reviewFrontendUrl } = await import("../../computer-use/frontend-review.js");
       if (args.imageBase64) return reviewFrontendScreenshot(args.imageBase64 as string);
-      if (args.url) return reviewFrontendUrl(args.url as string, { cdpUrl: (args.cdpUrl as string | undefined) ?? "http://127.0.0.1:9222" });
+      if (args.url) return reviewFrontendUrl(args.url as string, { cdpUrl: safeCdpUrl(args.cdpUrl) });
       throw new Error("frontend_visual_review requires url or imageBase64");
     },
   });

@@ -7702,3 +7702,20 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：新建 src/utils/path-safety.ts（resolvePath 导出 + isPathSafe，3457 字符逐字迁移含注释）；修改 src/mcp/tools/filesystem.ts（删两函数，import + `export { isPathSafe }` re-export）、src/tools/read-tool.ts、src/tools/write-tool.ts（import 路径）、tests/filesystem-symlink.test.ts（2 处断言指向）。
 - **验证**：bunx tsc --noEmit 0；architecture-integrity 24 pass/0 fail（循环消除）；read-tool-fence + filesystem-symlink + security-fixes 共 73 pass/0 fail。
 - **Commit**：fix(arch): isPathSafe 迁至 utils/path-safety 消除 tools<->mcp 循环（T1 回归修复） — hash 待回填
+
+## 2026-08-29 — fix(security): 审计强化 Task 4 P0-6 紧邻 Medium 三件（B1 后端鉴权 / B3 cdpUrl 守卫 / B3 docker-sandbox，TDD）
+
+- **任务**：联合审查 Medium（docs/reviews/2026-08-29-joint-verification-audit.md §4）——①B1：src/mcp/dre-backend.ts:35-43 与 src/mcp/kb-backend.ts:54-62 的 Bun.serve fetch 直通 transport.handleRequest，零鉴权（DRE_MCP_HOST/KB_MCP_HOST=0.0.0.0 时全裸）；②B3：src/mcp/server/browser-tools.ts 三处工具入参 cdpUrl（browser_guide:28/browser_locate:69/frontend_visual_review:130）直通下游 fetch，未过 assertSafeCdpUrl；③B3：src/sandbox/docker-sandbox.ts 挂载目录 opts.cwd||"/tmp" 无校验即 -v 挂载、networkAccess===false 才禁网（fail-open）、stdout/stderr 无上限读取。spec：docs/superpowers/specs/2026-08-29-audit-hardening-design.md §1 P0-6，计划 docs/superpowers/plans/2026-08-29-audit-hardening-plan.md Task 4。
+- **工具**：Read（auth-check/server.ts/url-safety/path-safety/process-sandbox/tool-registry/routes·agents·sandbox 调用方与既有测试通读）、Write（3 新测试 + 本追加/回填脚本）、Edit（5 源/测文件 + package.json 最小改动）、Bash（cp/rm 备份、bun test、bunx tsc、git）。无子代理（串行约束）。
+- **操作**（文件级）：
+  1. 备份 7 文件 → .tmp/backups/（规则2，先通读全文），验证通过后删除。
+  2. ①鉴权（src/mcp/dre-backend.ts、src/mcp/kb-backend.ts）：fetch 入口接 `checkApiKey(req, isLocalAddress(server.requestIP(req)?.address), readString("AXIOM_AUTH_TOKEN"))`，对齐 server.ts:439-447 fail-closed 模式；拒绝返回 401 JSON；回环豁免语义与 server.ts 完全一致（isLocalAddress 以 socket 对端判定，写方法仍受 Origin 白名单约束）；注释写明默认仅回环绑定、HOST=0.0.0.0 时远程全走 token、未配置 token 一律 401 的暴露面。kb-backend fetch 签名补 server 参数以取 requestIP。
+  3. ②cdpUrl 守卫（src/mcp/server/browser-tools.ts）：新增 safeCdpUrl 包装 = assertSafeCdpUrl(raw, { allowRemote: AXIOM_ALLOW_REMOTE_CDP==="1" })（与 routes/agents.ts:213 同守卫同豁免开关）；三处入参（含 zod 缺省值路径）全部经守卫，不合法抛错 → tool-registry isError 包装为工具错误。
+  4. ③docker-sandbox（src/sandbox/docker-sandbox.ts）：新增 assertMountDirAllowed——绝对根（"/"、"C:\\"）拒绝 + 宿主系统目录首段黑名单（POSIX 15 项 / WIN 5 项，按运行平台）+ isPathSafe（cwd 逃逸 + .git/.env/运行时数据库敏感段，唯一语义源 utils/path-safety）；默认 "/tmp" 为内置常量仅过根/系统目录规则，显式 opts.cwd（客户端可控）全量校验；mountDir 统一 path.resolve 使校验路径=挂载路径；networkAccess 改 `!== true` 默认禁网（调用方核查：唯一生产调用方 routes/sandbox.ts:63 默认传 false，无调用方依赖 undefined→放网）；stdout/stderr 接 process-sandbox 导出的 readStreamWithLimit/MAX_OUTPUT_BYTES 1MB 流式截断（标记 "[stdout|stderr truncated at 1MB]"）。
+  5. process-sandbox.ts：readStreamWithLimit/MAX_OUTPUT_BYTES 加 export 供 docker 侧复用（沙箱内同层 import，无跨目录循环）。
+  6. 新建 tests/mcp-backend-auth.test.ts（3 测试：两 backend checkApiKey 接线静态断言——import/requestIP/先鉴权后 handleRequest/401/AXIOM_AUTH_TOKEN/默认回环绑定与 0.0.0.0 暴露面注释在案；入口为副作用脚本不可直调 handler，静态断言为契约锁定）、tests/browser-tools-cdp-guard.test.ts（6 测试：metadata 169.254.169.254 / 私网 192.168.x / file: 协议拒绝、缺省与显式回环红线、静态断言三处过守卫；harness 侧 8s 硬超时把未修复时的真实连接挂起转确定性失败）、tests/docker-sandbox-mount.test.ts（14 测试：/ 与 C:\\ 与 C:\\Windows 与 ../ 与 .git/.env 挂载拒且不触发 spawn、合法子目录与缺省 /tmp 红线、默认禁网/opt-in 放网、1.2MB stdout 截断、静态断言 3 项）。
+  7. tests/security-fixes.test.ts：J-3 fake 的 stdout/stderr 改 .body（ReadableStream，适配流式截断读取；断言语义不变）。
+  8. package.json：test:full 名单补入 3 个新测试文件（opencode-codegen-timeout 之后）。
+  9. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
+- **验证**：TDD 红→绿：红 = mcp-backend-auth 3 fail + browser-tools-cdp-guard 5 fail（恶意 cdpUrl 未守卫）+ docker-sandbox-mount 12 fail；绿 = 3 新文件 23 pass/0 fail（browser-tools 6 + docker 14 + backend-auth 3）。回归：security-fixes（含 J-3 适配后）+ auth-check + unit/cdp-url-guard + architecture-integrity + security-hardening 合跑 98 pass/0 fail（architecture-integrity mcp<->tools 循环断言绿：本轮仅 src/mcp→src/utils 与 sandbox 层内 import，无跨目录新循环）。bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：fix(security): 审计强化 T4 P0-6 dre/kb 后端鉴权 + cdpUrl 守卫 + docker-sandbox 挂载/截断/禁网（B1/B3，TDD） — __T4_HASH_ANCHOR__

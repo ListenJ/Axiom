@@ -343,8 +343,9 @@ import { dockerSandbox } from "../src/sandbox/docker-sandbox.js";
 describe("docker-sandbox env 泄漏防线（J-3）", () => {
   test("传给容器的 env 剥离密钥类变量，显式传入的 extra 保留", async () => {
     const fakeProc = {
-      stdout: new Response(""),
-      stderr: new Response(""),
+      // B3（2026-08-29）：docker-sandbox 改用流式截断读取，fake 需提供 ReadableStream
+      stdout: new Response("").body,
+      stderr: new Response("").body,
       exited: Promise.resolve(0),
       kill: () => {},
     };

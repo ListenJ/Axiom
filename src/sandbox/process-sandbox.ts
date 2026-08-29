@@ -6,14 +6,15 @@ import type { SandboxProvider, SandboxOptions, SandboxResult } from "./types.js"
  * Task 4.3: stdout/stderr 流式截断阈值（字节）。
  * 防止恶意命令输出海量数据导致内存耗尽。
  * 超过此阈值后停止读取并追加 `[truncated]` 标记。
+ * 审计 B3（2026-08-29）起导出，供 docker-sandbox 复用同一截断语义。
  */
-const MAX_OUTPUT_BYTES = 1_000_000 // 1MB
+export const MAX_OUTPUT_BYTES = 1_000_000 // 1MB
 
 /**
  * 流式读取 ReadableStream 并在超过 maxBytes 时截断。
  * 返回 { text, truncated }。
  */
-async function readStreamWithLimit(
+export async function readStreamWithLimit(
   stream: ReadableStream<Uint8Array> | null,
   maxBytes: number,
 ): Promise<{ text: string; truncated: boolean }> {
