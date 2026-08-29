@@ -7679,4 +7679,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   6. package.json：test:full 名单补入两个新测试文件（read-tool-fence 之后）。
   7. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：P0-3 首跑 4 fail（白名单 git status\nrm -rf /、CRLF 变体、echo a\nrm -rf /、executeCommand 集成）+ 3 pass（② 语义保持、③ 黑名单回归、无换行回归）；P0-2 首跑因 validateFilePathForCommand 未导出整文件加载红，导出后断言层 6 fail（静态 args 数组形态/转义补丁存在 + 行为接线 4 项），接线后 19 pass/0 fail（52 expect）。回归：unit/command-safety + security-fixes + security-hardening + security-hardening-extended + tools-v3 + command-gate + pty-session + mcp-server + plugin-market + prompt-engineer + rigorous/security-rigorous = 255 pass/0 fail/2 skip（skip 为既有鉴权跳过项）。bunx tsc --noEmit 0。备份验证后删除。
-- **Commit**：fix(security): 审计强化 T2 P0-2 code-analysis 注入消除 + P0-3 换行归一（N-H2/N-H3，TDD） — T2P0HASHANCHOR9X4Q
+- **Commit**：fix(security): 审计强化 T2 P0-2 code-analysis 注入消除 + P0-3 换行归一（N-H2/N-H3，TDD） — 8580e95
