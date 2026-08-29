@@ -79,6 +79,10 @@ const DEFAULT_MAX_BYTES = 20 * 1024 * 1024;
 /** C2 审计修复：本地文件敏感段拒绝（.env/.git），与 fs 工具沙箱策略对齐 */
 const INGEST_DENIED_SEGMENTS: RegExp[] = [/(^|[\\/])\.env(\.[^\\/]*)?([\\/]|$)/i, /(^|[\\/])\.git([\\/]|$)/i];
 
+/** B3-Medium：重定向跟随上限（逐跳校验 SSRF，超限中止） */
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 function isWithinAnyRoot(resolved: string, roots: string[]): boolean {
   return roots.some((root) => {
     const rel = path.relative(root, resolved);
@@ -153,14 +157,35 @@ async function readSource(source: DocumentSource, opts: DocumentIngestOptions, m
   if (!isSafeUrl(source.url)) {
     throw new Error(`URL blocked by SSRF guard: ${source.url}`);
   }
+  // B3-Medium（2026-08-29）：redirect:"follow" 只校验初始 URL，重定向逐跳不校验 → SSRF 残窗。
+  // 改为 redirect:"manual" + 循环逐跳 isSafeUrl（上限 MAX_REDIRECTS 跳），非安全跳转立即中止。
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-  const res = await fetchImpl(source.url, { redirect: "follow", signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error(`fetch failed: HTTP ${res.status} ${source.url}`);
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (buf.length > maxBytes) throw new Error(`content exceeds maxBytes (${maxBytes})`);
-  const ct = res.headers.get("content-type");
-  const name = source.url.split("/").pop()?.split("?")[0];
-  return { bytes: buf, name, contentType: ct ?? undefined, http: source.url };
+  let currentUrl = source.url;
+  let redirectsFollowed = 0;
+  for (;;) {
+    if (!isSafeUrl(currentUrl)) {
+      throw new Error(`URL blocked by SSRF guard: ${currentUrl}`);
+    }
+    const res = await fetchImpl(currentUrl, { redirect: "manual", signal: AbortSignal.timeout(15000) });
+    if (res.status && REDIRECT_STATUSES.has(res.status)) {
+      if (redirectsFollowed >= MAX_REDIRECTS) {
+        throw new Error(`too many redirects (> ${MAX_REDIRECTS}): ${currentUrl}`);
+      }
+      redirectsFollowed++;
+      const location = res.headers.get("location");
+      if (!location) {
+        throw new Error(`redirect ${res.status} without location: ${currentUrl}`);
+      }
+      currentUrl = new URL(location, currentUrl).href;
+      continue;
+    }
+    if (!res.ok) throw new Error(`fetch failed: HTTP ${res.status} ${currentUrl}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error(`content exceeds maxBytes (${maxBytes})`);
+    const ct = res.headers.get("content-type");
+    const name = currentUrl.split("/").pop()?.split("?")[0];
+    return { bytes: buf, name, contentType: ct ?? undefined, http: currentUrl };
+  }
 }
 
 /** 文档摄取主入口（确定性路由 + 可注入依赖） */
