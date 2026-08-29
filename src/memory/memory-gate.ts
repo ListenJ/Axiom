@@ -167,10 +167,11 @@ export class MemoryGate {
     }
 
     // 5. 频率限制检查
-    if (this.isRateLimited()) {
+    const rateLimitReason = this.checkRateLimit();
+    if (rateLimitReason) {
       return {
         shouldWrite: false,
-        reason: `Rate limit exceeded (${this.rateLimit.recentWrites.length} writes in last hour)`,
+        reason: rateLimitReason,
         confidence: 0,
         category: "skip",
       };
@@ -312,9 +313,9 @@ export class MemoryGate {
     // 更新频率限制
     this.rateLimit.recentWrites.push(now);
 
-    // 清理过期记录（1小时前）
-    const oneHourAgo = now - 3_600_000;
-    this.rateLimit.recentWrites = this.rateLimit.recentWrites.filter(t => t > oneHourAgo);
+    // 清理过期记录（保留 24 小时窗口：isRateLimited 需要按天计数，不能只留 1 小时）
+    const oneDayAgo = now - 86_400_000;
+    this.rateLimit.recentWrites = this.rateLimit.recentWrites.filter(t => t > oneDayAgo);
 
     // 清理过期缓存
     for (const [key, entry] of this.writeCache) {
@@ -348,11 +349,23 @@ export class MemoryGate {
     };
   }
 
-  private isRateLimited(): boolean {
+  /**
+   * 频率限制检查（审计 Low 2026-08-29：maxWritesPerDay 此前未参与判定，现接入）。
+   * 命中任一上限时返回原因字符串，未命中返回 null。
+   */
+  private checkRateLimit(): string | null {
     const now = Date.now();
     const oneHourAgo = now - 3_600_000;
-    const recentCount = this.rateLimit.recentWrites.filter(t => t > oneHourAgo).length;
-    return recentCount >= this.rateLimit.maxWritesPerHour;
+    const oneDayAgo = now - 86_400_000;
+    const hourCount = this.rateLimit.recentWrites.filter(t => t > oneHourAgo).length;
+    const dayCount = this.rateLimit.recentWrites.filter(t => t > oneDayAgo).length;
+    if (hourCount >= this.rateLimit.maxWritesPerHour) {
+      return `Hourly rate limit exceeded (${hourCount}/${this.rateLimit.maxWritesPerHour} writes in last hour)`;
+    }
+    if (dayCount >= this.rateLimit.maxWritesPerDay) {
+      return `Daily rate limit exceeded (${dayCount}/${this.rateLimit.maxWritesPerDay} writes in last 24h)`;
+    }
+    return null;
   }
 
   private hashContent(content: string): string {

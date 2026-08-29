@@ -87,20 +87,36 @@ export class SkillQualityTracker {
 /**
  * 轻量文件持久化：data/skill-quality.json。
  * load 对缺失/损坏/非法字段容错（返回 null / 跳过非法记录）；save 由调用方容错。
+ *
+ * 审计 Low（2026-08-29）：
+ * - 路径锚定：默认落点绝对化为 `<cwd>/data/skill-quality.json`（对齐 real-usage.ts 的
+ *   data/ 锚定惯例），避免工作目录漂移导致读写分裂；显式传入 filePath 原样使用（测试/自定义落点）。
+ * - 原子写：save 先写同目录临时文件再 rename 覆盖，避免同步全量重写中途崩溃留下半截 JSON。
  */
-export function createFileQualityStore(filePath = "data/skill-quality.json"): SkillQualityStore {
+export function createFileQualityStore(filePath?: string): SkillQualityStore {
+  const resolvedPath = filePath ?? path.join(process.cwd(), "data", "skill-quality.json");
   return {
     load() {
       try {
-        const raw = fs.readFileSync(filePath, "utf-8");
+        const raw = fs.readFileSync(resolvedPath, "utf-8");
         return sanitizePersisted(JSON.parse(raw));
       } catch {
         return null;
       }
     },
     save(records) {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(records, null, 2), "utf-8");
+      fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+      const tmpPath = `${resolvedPath}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        fs.writeFileSync(tmpPath, JSON.stringify(records, null, 2), "utf-8");
+        fs.renameSync(tmpPath, resolvedPath);
+      } catch (e) {
+        // 失败时清理临时文件后原样抛出（调用方容错语义不变）
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch {}
+        throw e;
+      }
     },
   };
 }
