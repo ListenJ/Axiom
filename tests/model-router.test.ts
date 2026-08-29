@@ -10,20 +10,9 @@ describe("ModelRouter", () => {
   let executeWithRoleSpy: ReturnType<typeof spyOn> | undefined;
   let toolSpy: ReturnType<typeof spyOn> | undefined;
   let embeddingsSpy: ReturnType<typeof spyOn> | undefined;
-  let autoRouteSpy: ReturnType<typeof spyOn> | undefined;
 
   beforeAll(() => {
-    // 审计整改 R1：autoRoute 原先未 mock，会在测试环境尝试真实 LLM 分类；
-    // 统一 mock 后所有用例确定性执行，try/catch 掩码已全部拆除。
-    autoRouteSpy = spyOn(router, "autoRoute").mockImplementation(async () => ({
-      content: "test response",
-      model: "test-model",
-      provider: "test-provider",
-      usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
-      routingMeta: { role: "general-chat", thinking: "none", reason: "test" },
-      latencyMs: 100,
-      fallbackUsed: false,
-    }));
+    // P2-S2：autoRoute 死代码已删除（零调用方），其 mock 一并移除。
     executeSpy = spyOn(router, "execute").mockImplementation(async () => ({
       content: "test response",
       model: "test-model",
@@ -60,7 +49,6 @@ describe("ModelRouter", () => {
     executeWithRoleSpy?.mockRestore();
     toolSpy?.mockRestore();
     embeddingsSpy?.mockRestore();
-    autoRouteSpy?.mockRestore();
   });
 
   it("should initialize router", () => {
@@ -70,24 +58,10 @@ describe("ModelRouter", () => {
     expect(typeof router.architect).toBe("function");
     expect(typeof router.evaluate).toBe("function");
     expect(typeof router.tool).toBe("function");
-    expect(typeof router.autoRoute).toBe("function");
     expect(typeof router.assign).toBe("function");
     expect(typeof router.executeWithRole).toBe("function");
     expect(typeof router.batchExecute).toBe("function");
   });
-
-  it("should auto route messages", async () => {
-    const messages: ChatMessage[] = [
-      { role: "system", content: "You are a helpful assistant." },
-      { role: "user", content: "Write a hello world program in TypeScript" },
-    ];
-
-    const result = await router.autoRoute(messages);
-    expect(result).toBeDefined();
-    expect(result).toHaveProperty("content");
-    expect(result).toHaveProperty("model");
-    expect(result).toHaveProperty("provider");
-  }, 30000);
 
   it("should assign models for known roles", () => {
     const roles = ["coding", "research", "decision", "general-chat"] as const;

@@ -132,24 +132,7 @@ describe("HTTP Router (Trie)", () => {
   });
 });
 
-// ─── 测试 7: VIB 压缩 ──────────────────────────────────────────────
-describe("VIB Memory Compressor (记忆压缩)", () => {
-  it("基础压缩能力", async () => {
-    const { VIBCompressor } = await import("../src/memory/vib-compressor.js");
-    const c = new VIBCompressor({ capacity: 3, existingMemory: ["existing known facts"] });
-    const items = [
-      { id: "1", content: "nova stella", timestamp: Date.now(), source: "test" },
-      { id: "2", content: "existing known facts", timestamp: Date.now(), source: "test" },
-      { id: "3", content: "quantum flux capacitor", timestamp: Date.now(), source: "test" },
-      { id: "4", content: "another novel idea", timestamp: Date.now(), source: "test" },
-    ];
-    const result = await c.compress(items);
-    expect(result.retained.length).toBe(3);
-    expect(result.discarded.length).toBe(1);
-    // 已有事实应该被丢弃（低惊喜度）
-    expect(result.discarded.find(i => i.id === "2")).toBeDefined();
-  });
-});
+// ─── 测试 7（P2-S2 已移除：VIB 压缩模块随幽灵链归档） ──────────────
 
 // ─── 测试 8: MCP 外部工具注册 ──────────────────────────────────────
 describe("MCP External Tools (MCP 工具)", () => {

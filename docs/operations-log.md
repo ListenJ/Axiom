@@ -7999,3 +7999,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. tests/reasoning-effort.test.ts：Anthropic 档位断言 4096→8192，补 medium=2048。
 - **验证**：TDD 红→绿：constrained-sampling 新测试 3 fail（n=3 调用/温度未透传/512 在位）+ reasoning-effort 1 fail（4096）→ 修复后 16 pass/0 fail。回归分文件全绿：dre-core-modules 96 pass；local-llm-edge+llm-cache+circuit-breaker 27 pass/1 fail——llm-cache"写入 L3 后新实例可读取"经备份源码对照验证为存量失败（该文件仅依赖 src/utils/cache.js，与本改动无关，还原旧 client 后同样失败）；reasoning 相关三文件 8 pass；dre-pipeline-conflict+dre-stage2-webverify 4 pass；dre-constraint-injection+constraints 13 pass；architecture-integrity **24 pass/0 fail**；bunx tsc --noEmit 0。
 - **Commit**：fix(dre): P2-S1 约束再校准（temp0 n=1 + maxTokens 2048 + high 8192） — 270f3f6ce3f328d1c8f98055629cc52eff533ca4
+
+## 2026-08-30 — refactor(cleanup): P2-S2 幽灵裁剪（mathContext 休眠链归档 + autoRoute 死代码删除）
+
+- **任务**：docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S2，评估报告"mathContext 幽灵层 ~2000 行 + autoRoute 死代码"清账：①main.ts 休眠实例化块移除；②零引用模块按 AGENTS 规则 4 归档删除；③autoRoute 方法删除。
+- **工具**：Read/Bash（全仓 grep 复核消费方、通读目标文件全文）、Edit（最小改动）、Bash（bun test 分文件验证/tsc/git）、bun 脚本（hash 回填，未用 sed）。全程无子代理（任务要求串行）。AGENTS 规则 2（备份→通读→最小改动→验证→删备份）与规则 4（归档→ARCHIVE-LOG→git rm）全程执行。
+- **操作**（文件级）：
+  1. src/main.ts：移除休眠实例化块（mathContext 五字段 vibCompressor/conformalRetriever/rateDistortionCompressor/consensusEngine/enhancedMemory + MathEnhancedMemory if-vault 块 + 5 个 import；"All 6 modules" 日志改为实际接线描述）。保留 thompsonRouter（S4 setThompsonRouter 组合根接线，tests/thompson-routing-learning.test.ts 静态断言依赖该行，在位）与 hallucinationDetector 实例（P0-C assessStatement 为纯函数不经实例，但 S5 启动 calibrateFromStored(db, mathContext.hallucinationDetector) 真实消费实例，按任务指示保留）。
+  2. 规则 4 归档删除（cp → archive/ghost-modules-2026-08-30/ 保持原相对路径 → ARCHIVE-LOG.md 追加记录 → git rm）：src/memory/vib-compressor.ts（453 行）、src/memory/conformal-retriever.ts（456 行）、src/memory/math-enhanced-memory.ts（524 行）、src/agents/consensus-engine.ts（747 行）、tests/vib-compressor.test.ts（55 行）。RateDistortionCompressor 模块保留（src/components/token-budget.ts:125 生效实例）。
+  3. src/router/model-router.ts：删除 autoRoute 方法（78 行含横幅注释；全仓 grep src/tests/scripts 零调用方，仅测试文件引用）；parseRoutingDecision 保留（flat-router.test.ts 两个用例断言其行为）。
+  4. 测试同步（模块删则测试随删/随裁）：math-breakthroughs.test.ts 移除 VIBCompressor/ConformalRetriever/ConsensusEngine/Integration 四组（保留幻觉检测/Thompson/RateDistortion 三组在役覆盖，10 tests）；integration-realtime.test.ts 移除 VIB describe；perf-benchmark.test.ts 移除 VIB getRetentionScore 用例与模块导入清单行；stress-limit.slow.ts 移除 VIB describe 并在 Memory 混合用例中剔除 VIB 段（保留 Cache 轮次）；stress-system.slow.ts 移除 VIB 用例；torture.slow.ts 移除 Chaos VIB describe；model-router.test.ts 移除 autoRoute spy/声明/mockRestore/typeof 断言/独立用例；flat-router.test.ts 移除 autoRoute typeof 断言行。
+  5. package.json：test:full 与 test:core 白名单同步移除 tests/vib-compressor.test.ts。
+- **验证**：bunx tsc --noEmit 0；分文件验证全绿：math-breakthroughs 10 pass/0 fail、model-router 7 pass/0 fail、flat-router 9 pass/0 fail、integration-realtime 9 pass/1 skip/0 fail、perf-benchmark 31 pass/0 fail、architecture-integrity **24 pass/0 fail**；test:full **598 pass/0 fail**（72 文件）。慢速测试（stress/torture）不在 test:full 白名单，其类型与解析由 tsc（include tests/**）覆盖。
+- **净减行数**（git diff --stat 实测）：删除文件 2235 行 + 修改文件 333 删/16 增 = 仓库净减 2552 行。
+- **Commit**：refactor(cleanup): P2-S2 幽灵裁剪（mathContext 休眠链归档 + autoRoute 死代码删除） — __P2S2_HASH_ANCHOR__

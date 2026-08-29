@@ -177,37 +177,7 @@ describe("Chaos Thompson", () => {
   });
 });
 
-// 4. VIB
-describe("Chaos VIB", () => {
-  it("Fuzz: empty/huge/unicode/special", async () => {
-    const mod = await import("../src/memory/vib-compressor.js");
-    const c = new mod.VIBCompressor({ capacity: 50 });
-    const items = [
-      { id:"e", content:"", timestamp:Date.now(), source:"t" },
-      { id:"ws", content:"   \t\n  ", timestamp:Date.now(), source:"t" },
-      { id:"s", content:"x", timestamp:Date.now(), source:"t" },
-      { id:"u", content:"你好世界🌍🎉unicode", timestamp:Date.now(), source:"t" },
-      { id:"big", content:"x".repeat(100000), timestamp:Date.now(), source:"t" },
-      { id:"rpt", content:"a a a a a ".repeat(1000), timestamp:Date.now(), source:"t" },
-      { id:"sym", content:"!@#$%^&*()_+{}|:\"<>?~`-=[]\\;',./", timestamp:Date.now(), source:"t" },
-    ];
-    const r = await c.compress(items);
-    expect(r.retained.length + r.discarded.length).toBe(items.length);
-  }, 15000);
-
-  it("Determinism: same input same output", async () => {
-    const mod = await import("../src/memory/vib-compressor.js");
-    const items = [
-      { id:"a", content:"the cat sat on the mat", timestamp:1000, source:"t" },
-      { id:"b", content:"the dog runs in the park", timestamp:1001, source:"t" },
-      { id:"c", content:"quantum entanglement is weird", timestamp:1002, source:"t" },
-    ];
-    const bg = ["existing known facts about the world"];
-    const r1 = await (new mod.VIBCompressor({ capacity:2, existingMemory:bg })).compress(items);
-    const r2 = await (new mod.VIBCompressor({ capacity:2, existingMemory:bg })).compress(items);
-    expect(r1.retained.map(x=>x.id).sort()).toEqual(r2.retained.map(x=>x.id).sort());
-  });
-});
+// 4. VIB（P2-S2：模块已随幽灵链归档，本 describe 移除）
 
 // 5. Concurrency
 describe("Chaos Concurrency", () => {

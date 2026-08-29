@@ -120,17 +120,6 @@ describe("性能基准", () => {
     console.log(`  detectLoop (不同输入) ×100/iter: ${(avg / 100).toFixed(4)}ms/op`);
   });
 
-  it("[perf] VIBCompressor getRetentionScore 1万次", async () => {
-    const { VIBCompressor } = await import("../src/memory/vib-compressor.js");
-    const vib = new VIBCompressor();
-    const mem = { id: "1", content: "test", score: 0.8, timestamp: Date.now(), accessCount: 5, lastAccessed: Date.now(), metadata: {}, source: "test" };
-
-    const avg = bench("vibCompressor.getRetentionScore", () => {
-      vib.getRetentionScore(mem);
-    }, 10000);
-    console.log(`  getRetentionScore ×10k: ${avg.toFixed(4)}ms/iter`);
-  });
-
   it("[perf] MemoryGate shouldWrite 1万次", async () => {
     const { MemoryGate } = await import("../src/memory/memory-gate.js");
     const gate = new MemoryGate({
@@ -280,7 +269,6 @@ describe("性能基准", () => {
       "../src/tools/query-tool.js",
       "../src/services/cache-router.js",
       "../src/services/knowledge.js",
-      "../src/memory/vib-compressor.js",
       "../src/memory/memory-gate.js",
       "../src/dre/constraint/solver.js",
       "../src/dre/runtime/event-bus.js",

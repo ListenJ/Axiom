@@ -107,7 +107,6 @@ describe("Flat Router v5.0", () => {
     expect(typeof router.evaluate).toBe("function");
     expect(typeof router.chat).toBe("function");
     expect(typeof router.tool).toBe("function");
-    expect(typeof router.autoRoute).toBe("function");
     expect(typeof router.assign).toBe("function");
     expect(typeof router.executeWithRole).toBe("function");
     expect(typeof router.batchExecute).toBe("function");

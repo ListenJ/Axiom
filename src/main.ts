@@ -93,16 +93,11 @@ import { initDreKernel, shutdownDreKernel } from "./dre/host.js";
 import { startVramProbe } from "./dre/system-resource-probe.js";
 
 // ════════════════════════════════════════════════════════════════
-// 数学突破模型 (Math Breakthroughs)
+// 数学接线组件（P2-S2 幽灵裁剪后保留：幻觉检测器 + Thompson 学习回路）
 // ════════════════════════════════════════════════════════════════
-import { VIBCompressor } from "./memory/vib-compressor.js";
-import { ConformalRetriever } from "./memory/conformal-retriever.js";
 import { ConformalHallucinationDetector } from "./memory/hallucination-detector.js";
 import { createThompsonRouter } from "./router/thompson-router.js";
 import { buildThompsonArms, router as modelRouter } from "./router/model-router.js";
-import { RateDistortionCompressor } from "./context/rate-distortion-compressor.js";
-import { ConsensusEngine } from "./agents/consensus-engine.js";
-import { MathEnhancedMemory } from "./memory/math-enhanced-memory.js";
 
 // ===== 统一配置中心 =====
 const configCenter = getConfigCenter();
@@ -248,27 +243,17 @@ try {
   logger.warn("VaultManager init failed", { error: (e as Error).message });
 }
 
-// Math breakthrough modules
+// P2-S2 幽灵裁剪：仅保留已接线组件——thompsonRouter（S4 学习回路）与
+// hallucinationDetector（S5 启动自动校准的消费者，见下方 calibrateFromStored）；
+// 休眠的 VIBCompressor/ConformalRetriever/MathEnhancedMemory/ConsensusEngine 与
+// 重复 RateDistortionCompressor 实例已移除（生效实例在 components/token-budget.ts）。
 const mathContext = {
-  vibCompressor: new VIBCompressor({ beta: 1.5, capacity: 100 }),
-  conformalRetriever: new ConformalRetriever<unknown>({ alpha: 0.1 }),
   hallucinationDetector: new ConformalHallucinationDetector({ alpha: 0.05, factBase: [] }),
   thompsonRouter: createThompsonRouter({ arms: buildThompsonArms(), minSamples: 5, inMemory: true }),
-  rateDistortionCompressor: new RateDistortionCompressor({ maxDistortion: 0.3, minRate: 0.1 }),
-  consensusEngine: new ConsensusEngine({ agents: [], beta: 0.5, mode: "wma" }),
-  enhancedMemory: null as MathEnhancedMemory | null,
 };
 // S4 学习回路接线：arms 由模型注册表填充；router.execute 成败反馈 + 平级 tie-break 消费。
 modelRouter.setThompsonRouter(mathContext.thompsonRouter);
-if (vault) {
-  mathContext.enhancedMemory = new MathEnhancedMemory({
-    vaultPath: config.memory.vaultPath,
-    vibConfig: { beta: 1.5, capacity: 50 },
-    conformalConfig: { alpha: 0.1 },
-    hallucinationConfig: { alpha: 0.05 },
-  });
-}
-logger.info("[MathBreakthroughs] All 6 modules initialized");
+logger.info("[MathBreakthroughs] wired components initialized (hallucinationDetector + thompsonRouter)");
 
 // S5（2026-08-29）：P0-C 校准债启动接线（一次性）—— 从落库 verdict 保守自动校准全局
 // detector（半自动标注，循环性等局限见 calibrateFromStored 声明）；极化对 < 50 跳过
