@@ -7693,4 +7693,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   5. package.json：test:full 名单补入两个新测试文件（code-analysis-shell-safety 之后）。
   6. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：skill-promoter 首跑 1 fail（第二次 promote id2 非空、registry/磁盘各 2 条——精确 id 检查恒不命中）；实现后 3 pass（第二次 promote 打出 skip existing）。codegen 首跑 1 fail（接缝未注入前真实 opencode run --model fake-model 3.5s exit 1，错误不含 "timeout"，超时拒绝契约不存在）；实现后 pass（500ms reject 含 timeout、sem.active=0、后续调用不饿死，全程 <1s）。回归：skill-promoter-idempotent + opencode-codegen-timeout + consciousness + self-evolve/ 全目录 = 114 pass/0 fail；bunx tsc --noEmit 0。tests/architecture-integrity 存量失败 1 项（mcp<->tools 循环对：本任务 src diff 零 import 变更且不涉及该两目录，属工作区/HEAD 既有问题，不在本任务范围）。
-- **Commit**：fix(agents): 审计强化 T3 P0-4 skill-promoter 幂等 + P0-5 codegen 超时（N-H4/N-H5，TDD） — T3-ANCHOR-20260829
+- **Commit**：fix(agents): 审计强化 T3 P0-4 skill-promoter 幂等 + P0-5 codegen 超时（N-H4/N-H5，TDD） — 7e465c9
