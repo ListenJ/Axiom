@@ -7764,4 +7764,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   6. package.json：test:full 名单补入 2 个新测试文件（docker-sandbox-mount 之后）。
   7. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：红 = external-eval-sandbox 3 fail（注入沙箱被无视、现实现宿主直跑 passed:true/零调用；静态断言命中 node:child_process）+ thompson-observability 模块级错误（MAX_OBSERVATIONS_PER_ARM 不存在）与 DB count=0/降级形态不存在；绿 = 2 新文件 6 pass + external-benchmarks 10 pass 共 16 pass/0 fail。回归：tests/agent-evals/ 全目录 112 pass/0 fail；thompson-stress 5 pass/0 fail；architecture-integrity 24 pass/0 fail（Thompson 50k route PBT 34ms/limit 1000ms）；property-based 40 pass/0 fail；perf-benchmark 32 pass/0 fail；docker-sandbox-mount 14 pass/0 fail。bunx tsc --noEmit 0（首跑 1 处 shellQuoteArg 平台参数字面量 "posix" 不在 NodeJS.Platform，改 "linux" 后清零）。
-- **Commit**：fix(agent-evals): 审计强化 T6 P1-3 评测沙箱执行 + P1-4 thompson 观测有界（B2-M3/M4，TDD） — T6-AUDIT-HASH待回填
+- **Commit**：fix(agent-evals): 审计强化 T6 P1-3 评测沙箱执行 + P1-4 thompson 观测有界（B2-M3/M4，TDD） — 68321a3
