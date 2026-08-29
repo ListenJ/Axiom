@@ -7864,3 +7864,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   7. tests/services-chat.test.ts：prompt-optimizer mock 补 3 个新导出（isRewriteEnabled=false 使合并快路径在该测试进程确定性关闭，避免部分 mock 缺符号 + 防边缘网络请求）。
 - **验证**：TDD 红→绿：新测试先红（error: Cannot find module '../src/services/chat-preflight.js'，1 fail）→ 实现后 13 pass/0 fail（42 expect）。回归分批小跑全 0 fail：services-chat 5、routes-chat-validation 6、self-evolve/apply-self-thought 4、prompt-optimizer+intent-enhancer+local-llm-edge 69、openai-compat+module-exports 13、integration-realtime 10 pass/1 skip；bunx tsc --noEmit 0。注：tests/rigorous/mega-pressure.test.ts 1 例 5s 超时为预存在问题——已还原备份在改动前代码上复现同一超时（该测试 500 并发输入均 <20 字符，合并快路径资格恒 false，本任务零新增网络调用）。
 - **Commit**：perf(chat): P0-A 决策链提速（前置调用并行化+边缘合并调用） — 1171453
+
+## 2026-08-29 — feat(memory): P0-B 跨会话记忆闭环（会话自动归档 + chat bootstrap 召回接线）
+
+- **任务**：P0 提升迭代 Task B（docs/superpowers/specs/2026-08-29-p0-lift-design.md §B）：修复审计断链——主 HTTP 聊天会话无自动归档（curator 断供）、主聊天零记忆召回。
+- **工具**：Read/Bash（通读、取证、回归测试、bunx tsc、git）、Write/Edit（实现与新测试）。全程无子代理（任务要求串行）。AGENTS 规则 2 全程执行：备份 .tmp/backups/ → 通读全文 → 最小改动 → 验证 → 删备份。
+- **操作**（文件级）：
+  1. src/memory/bootstrap.ts：新增 loadSessionBootstrapPrompt（首见 sessionId 经 AgentBootstrap.run({topic})+toSystemPrompt 渲染召回片段；per-session 缓存上限 500 条防无界增长；失败返回 null 降级且不缓存失败；默认 AgentBootstrap 模块级单例，防每会话新建 VaultManager/SQLite 泄漏句柄）与 resetSessionBootstrapCache（测试清理）。
+  2. src/memory/vault-manager.ts：writeConversationLog 增可选 gateContext 透传 writeNote 既有 gateContext 机制——MemoryGate 去重+限流（20/h、100/day，上一迭代 854a43a 的 daily 判定保持不回退）判定与 recordWrite 全在既有路径内完成，手动归档端点（POST /chat/sessions/:id/archive）行为不变。
+  3. src/services/chat.ts：新增 PrepareChatContextOptions（sessionId/bootstrap 可注入）；system prompt 组装处（buildEnhancedSystemPrompt 之后、injectConstitution 之内）附加 bootstrap 片段，与宪法并存；无 sessionId/bootstrap 失败均降级现状。
+  4. src/routes/chat.ts：handleChat/handleChatStream 仅在请求显式提供 sessionId 时传入召回；新增导出 archiveExchangeToVault（非空响应后 fire-and-forget：getSessionMessages 全量读取 → writeConversationLog（gateContext）→ 任何失败仅 logger.debug 不影响响应）+ mapIntentToGateTaskType + buildConversationGateContext（与 hermes/pi-code 既有 SignificanceContext 构造同型）。
+  5. 新建 tests/chat-memory-loop.test.ts（8 测试：非空响应归档落盘临时 vault 04-Conversations/MemoryGate 限流拒绝不写/vault null 与 writeConversationLog 抛错降级/archiveExchangeToVault 直调空响应与 null vault 跳过/bootstrap 注入 system prompt+同会话二次请求仅加载一次+与宪法并存/无 sessionId 跳过/bootstrap 失败降级保留人格与宪法）。env 变更全量存原值并于 afterAll 恢复（防 bun test 同进程跨文件污染）；vault/SQLite/OBSIDIAN_VAULT_PATH 全指向临时目录，不触碰真实 ./axiom-memory（开发中发现默认路径会经 ensureDailyNote 真实落盘，已修复测试隔离并清理误生成文件）。
+  6. tests/coverage-gap/memory-gate.test.ts：2 处预存失败断言对齐——854a43a 将限流原因文案改为小写 "rate limit exceeded"，旧断言期望 "Rate limit"（大写 R）在隔离运行下即红，与本任务改动无关（git diff 证实 memory-gate.ts 未被本任务触碰）。
+- **验证**：TDD 红→绿：新测试先红（archiveExchangeToVault/resetSessionBootstrapCache 未定义等 5 fail）→ 实现后 8 pass/0 fail（24 expect）。回归全绿：chat-memory-loop+routes-chat-validation+services-chat+memory-gate+memory-edge-assist+sqlite-memory+chat-tools 合计 105 pass/0 fail；tests/memory 目录 14 文件+chat-preflight-parallel+chat-sessions 合计 83 pass/0 fail；bunx tsc --noEmit 0。附注：合并运行曾出现 memory-edge-assist 2 例误红，定位为本测试文件 env 进程级泄漏（EDGE_MEMORY_ASSIST=0 未恢复），改为 afterAll 恢复后消除（该文件单独运行 20 pass/0 fail）。
+- **Commit**：feat(memory): P0-B 跨会话记忆闭环（会话自动归档+bootstrap 召回） — hash 占位 ANCHOR-P0B-TASKB-20260829

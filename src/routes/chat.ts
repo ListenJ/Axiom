@@ -13,7 +13,10 @@ import { toOpenAITools } from "../utils/tool-surface.js";
 import { z } from "zod";
 import type { ToolDef } from "../mcp/tool-registry.js";
 import type { DataPipeline } from "../crawl/data-pipeline.js";
-import { normalizeSessionId, persistChatMessage } from "../db/session-store.js";
+import type { Database } from "bun:sqlite";
+import type { VaultManager } from "../memory/vault-manager.js";
+import type { SignificanceContext } from "../memory/memory-gate.js";
+import { normalizeSessionId, persistChatMessage, getSessionMessages } from "../db/session-store.js";
 
 /**
  * M11（2026-08-28 审计）：/chat 请求体校验。
@@ -50,6 +53,8 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   }
   const body = parsed.data;
   const { taskType, messages, intent: enableIntent = true, budget, sessionId } = body;
+  // P0-B：仅显式提供 sessionId 的请求参与会话召回（bootstrap 注入）
+  const recallSessionId = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : undefined;
 
   // P0-A（2026-08-29）：selfThink 只依赖原始输入，与 prepareChatContext
   // （optimize→intent 链）无数据依赖 → 提前并发发起，主模型前总延迟从
@@ -60,7 +65,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     messages,
     enableIntent,
     ctx.vault,
-    { budget },
+    { budget, sessionId: recallSessionId },
   );
   const chatMessages = await attachSelfThought(preparedMessages, selfThoughtPromise);
   const roleForTools = intentInfo
@@ -85,6 +90,14 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       role: "assistant",
       content: result.content,
       tokensUsed: result.usage?.total_tokens ?? 0,
+    });
+  }
+  // P0-B：会话自动归档（非阻塞 fire-and-forget；MemoryGate 约束；失败静默）
+  if (result.content && result.content.trim().length > 0) {
+    void archiveExchangeToVault(ctx.vault, ctx.db, normalizedSessionId, {
+      userContent: lastUser?.content ?? "",
+      assistantContent: result.content,
+      gateTaskType: mapIntentToGateTaskType(intentInfo?.intent ?? taskType),
     });
   }
 
@@ -276,6 +289,83 @@ const VALID_TASK_TYPES: ReadonlySet<string> = new Set([
   "computer-use",
 ]);
 
+// ── P0-B（2026-08-29）会话自动归档 ──────────────────────────────────
+// 审计断链修复：主 HTTP 聊天此前零归档 → curator 断供。非空响应后经既有
+// writeConversationLog 落盘 04-Conversations；受 MemoryGate 既有去重+限流
+// 约束（经 gateContext → writeNote 既有机制，20/h、100/day）；vault 不可用
+// 或写入失败时静默跳过，绝不影响响应（调用方 fire-and-forget）。
+
+/** 意图 → MemoryGate 任务类型（高价值任务加权，闲聊按既有低价值语义处理） */
+function mapIntentToGateTaskType(intent: string | undefined): SignificanceContext["taskType"] {
+  switch (intent) {
+    case "code": return "coding";
+    case "research": return "research";
+    case "write": return "writing";
+    case "plan": return "planning";
+    default: return "chat";
+  }
+}
+
+/** 从本次交换构建显著性上下文（与 hermes/pi-code 既有 gateContext 构造同型） */
+function buildConversationGateContext(
+  userContent: string,
+  assistantContent: string,
+  taskType: SignificanceContext["taskType"],
+  isFirstTurn: boolean,
+): SignificanceContext {
+  return {
+    agentRole: "chat",
+    taskType,
+    responseLength: assistantContent.length,
+    hasCode: assistantContent.includes("```"),
+    hasCitations: assistantContent.includes("http"),
+    hasErrors: false,
+    userMessageLength: userContent.length,
+    isFirstTurn,
+    hasStructuredData: assistantContent.includes("## "),
+    hasTechnicalTerms: /\b(API|SDK|function|class|database|server|model|framework|数据库|接口|函数|服务器)\b/i.test(assistantContent),
+  };
+}
+
+/**
+ * 将当前会话（db 全量历史）经 writeConversationLog 归档到 Vault。
+ * 语义与既有手动归档端点（POST /chat/sessions/:id/archive）一致：全量读取重建，
+ * 幂等覆盖；区别在于写入决策受 MemoryGate 显著性+限流约束。
+ * 任何失败只 debug，不向调用方抛出。
+ */
+export async function archiveExchangeToVault(
+  vault: VaultManager | null,
+  db: Database,
+  sessionId: string,
+  exchange: { userContent: string; assistantContent: string; gateTaskType: SignificanceContext["taskType"] },
+): Promise<void> {
+  if (!vault || !exchange.assistantContent || !exchange.assistantContent.trim()) return;
+  try {
+    const rows = getSessionMessages(db, sessionId, 1000, 0);
+    if (rows.length === 0) return;
+    const userRowCount = rows.filter((r) => r.role === "user").length;
+    await vault.writeConversationLog(
+      sessionId,
+      rows.map((r) => ({
+        role: r.role,
+        content: r.content,
+        timestamp: new Date(r.created_at * 1000).toISOString(),
+      })),
+      buildConversationGateContext(
+        exchange.userContent,
+        exchange.assistantContent,
+        exchange.gateTaskType,
+        userRowCount <= 1,
+      ),
+    );
+  } catch (err) {
+    logger.debug("[chat] conversation auto-archive skipped", {
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
 
 /** 原生 function-calling 暴露给内部模型的 skill 工具（按需调用） */
@@ -420,6 +510,8 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
   }
   const messages = body.messages as Array<{ role: string; content: string }>;
   const sessionId = normalizeSessionId(body.sessionId);
+  // P0-B：仅显式提供 sessionId 的请求参与会话召回（bootstrap 注入）
+  const recallSessionId = typeof body.sessionId === "string" && body.sessionId.trim() ? body.sessionId.trim() : undefined;
   const streamStartedAt = Date.now();
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   if (lastUser) {
@@ -445,7 +537,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
     messages,
     enableIntent,
     ctx.vault,
-    { budget },
+    { budget, sessionId: recallSessionId },
   );
 
   // 选择路由（与 handleChat 保持一致：intent > taskType）
@@ -528,6 +620,14 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   tokensUsed: ev.usage?.total_tokens ?? 0,
                   latencyMs: Date.now() - streamStartedAt,
                 });
+                // P0-B：会话自动归档（非阻塞 fire-and-forget；MemoryGate 约束；失败静默）
+                if (ev.content.trim().length > 0) {
+                  void archiveExchangeToVault(ctx.vault, ctx.db, sessionId, {
+                    userContent: lastUser?.content ?? "",
+                    assistantContent: ev.content,
+                    gateTaskType: mapIntentToGateTaskType(intentInfo?.intent ?? taskType),
+                  });
+                }
               }
               safeEnqueue(sseEvent("done", {
                 type: "done",

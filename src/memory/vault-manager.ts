@@ -366,8 +366,12 @@ ${related}
     });
   }
 
-  /** 写入会话日志 */
-  async writeConversationLog(sessionId: string, messages: Array<{ role: string; content: string; timestamp?: string }>): Promise<string> {
+  /** 写入会话日志（gateContext 提供时经 MemoryGate 既有去重+限流约束决定是否落盘，P0-B 2026-08-29） */
+  async writeConversationLog(
+    sessionId: string,
+    messages: Array<{ role: string; content: string; timestamp?: string }>,
+    gateContext?: SignificanceContext,
+  ): Promise<string> {
     const today = new Date().toISOString().slice(0, 10);
     const notePath = `04-Conversations/${today.slice(0, 4)}/${today.slice(5, 7)}/${today}-${sessionId.slice(0, 8)}.md`;
 
@@ -396,6 +400,7 @@ ${messageLines}
       tags: ["conversation", sessionId.slice(0, 8)],
       // 幂等：同日同会话重复归档时覆盖重建（消息始终从 db 全量读取，不丢失）
       overwrite: true,
+      ...(gateContext ? { gateContext } : {}),
     });
   }
 

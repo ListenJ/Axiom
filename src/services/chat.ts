@@ -18,6 +18,7 @@ import { buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
 import { injectConstitution } from "../agents/constitution.js";
 import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
+import { loadSessionBootstrapPrompt, type AgentBootstrap } from "../memory/bootstrap.js";
 import { logger } from "../utils/logger.js";
 import { contextAssembler } from "../components/context-assembler.js";
 import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
@@ -37,6 +38,15 @@ export interface PreparedContext {
   readStats?: ReadResponse | null;
 }
 
+/** prepareChatContext 选项（P0-B 2026-08-29：sessionId 驱动会话召回，bootstrap 可注入） */
+export interface PrepareChatContextOptions {
+  budget?: number | ComponentBudget;
+  /** 会话 ID（请求显式提供时才传入）— 首见时经 AgentBootstrap 注入记忆上下文（per-session 缓存） */
+  sessionId?: string;
+  /** 可注入的 bootstrap（测试/自定义；缺省用 AgentBootstrap 默认实例） */
+  bootstrap?: Pick<AgentBootstrap, "run" | "toSystemPrompt">;
+}
+
 /**
  * Assemble messages + intent + codegraph + adaptive knowledge context for a chat
  * request. This replaces the previous duplicated logic in handleChat/handleChatStream.
@@ -45,7 +55,7 @@ export async function prepareChatContext(
   messages: Array<{ role: string; content: string }>,
   enableIntent: boolean,
   vault: unknown,
-  options: { budget?: number | ComponentBudget } = {},
+  options: PrepareChatContextOptions = {},
 ): Promise<PreparedContext> {
   let chatMessages: ChatMessage[] = messages.map((m) => ({
     role: m.role as ChatMessage["role"],
@@ -84,8 +94,15 @@ export async function prepareChatContext(
       // 无论是否经过 LLM 增强，都用增强版 system prompt（注入思考框架）
       // 约束词（宪法）前置注入：所有聊天路径（/chat、/chat/stream、/v1/*）统一受宪法约束
       const intent = preflight.intent;
+      const baseSystem = buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content);
+      // P0-B（2026-08-29）：会话记忆召回 — 首见 sessionId 时经 AgentBootstrap 加载
+      // SOUL/IDENTITY/USER 与相关记忆，注入 system prompt（与宪法并存，附于人格框架之后）。
+      // per-session 缓存：同会话仅加载一次；bootstrap 失败/无 sessionId → 降级现状。
+      const bootstrapPrompt = options.sessionId
+        ? await loadSessionBootstrapPrompt(options.sessionId, lastUserMsg.content, { bootstrap: options.bootstrap })
+        : null;
       const enhancedSystem = injectConstitution(
-        buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content),
+        bootstrapPrompt ? `${baseSystem}\n\n${bootstrapPrompt}` : baseSystem,
         getCurrentMode(),
       );
       // 缓存友好的消息结构（2026-07-25）：

@@ -301,7 +301,8 @@ describe("D. MemoryGate 频率限制", () => {
     // 第 4 次应被限流
     const d = gate.shouldWrite(LONG_RESPONSE, LONG_USER_MSG, makeCtx({ taskType: "coding", hasCode: true }));
     expect(d.shouldWrite).toBe(false);
-    expect(d.reason).toContain("Rate limit");
+    // 2026-08-29 审计修复（854a43a）后限流原因文案为 "Hourly/Daily rate limit exceeded (...)"
+    expect(d.reason).toContain("rate limit exceeded");
   });
 
   test("频率限制按小时窗口滚动", async () => {
@@ -512,7 +513,7 @@ React 18 引入并发渲染机制，允许中断渲染过程。
       hasCode: true,
     }));
     expect(d.shouldWrite).toBe(false);
-    expect(d.reason).toContain("Rate limit");
+    expect(d.reason).toContain("rate limit exceeded");
   });
 });
 
