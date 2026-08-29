@@ -7832,3 +7832,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`docs/reviews/2026-08-29-joint-verification-audit.md` 追加第 7 节强化修复回写表（P0 9 行/P1 11 行/P2 3 行 + 遗留注记 3 条）；package.json test:full 补录 2 个 T5 测试文件；本条目追加。
 - **验证**：bun run test:full 566 pass/0 fail/70 文件（基线 482+新增 84）；bunx tsc --noEmit 0；architecture-integrity 循环断言绿。
 - **Commit**：docs(audit): 回写强化迭代修复状态（P0/P1/P2 全清） — hash 待回填
+
+## 2026-08-29 — analysis: Agent 决策链与模型提升空间评估（4 组深读）
+
+- **任务**：用户委托评估 Agent 决策链、模型约束松紧度、DRE 与记忆突破空间。4 组并行深读（决策链全景/约束面/DRE 三分/记忆栈），综合评估报告入库。
+- **工具**：Agent×4（Explore 只读，1 组并发失败后重试成功）、Write、Bash（提交推送）。
+- **操作**（文件级）：新建 `docs/knowledge/agent-decision-chain-assessment-2026-08-29.md`（决策链图/约束松紧表/DRE 三分清单/记忆组件表/杠杆 TOP 与优先级路线）；本条目追加。
+- **验证**：全部结论附 文件:行 证据；核心发现——能力库存与流量错配（检索栈 6 层休眠、幻觉检测橡胶图章、chat 仅 5 工具、主链路零记忆召回、路由不消费学习信号）；约束矛盾=该紧的空转该松的卡脖子。
+- **Commit**：docs(knowledge): Agent 决策链与提升空间评估报告 — hash 待回填
