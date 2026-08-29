@@ -1,4 +1,4 @@
-﻿# 操作日志（Operations Log）
+# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -7765,3 +7765,30 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   7. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：红 = external-eval-sandbox 3 fail（注入沙箱被无视、现实现宿主直跑 passed:true/零调用；静态断言命中 node:child_process）+ thompson-observability 模块级错误（MAX_OBSERVATIONS_PER_ARM 不存在）与 DB count=0/降级形态不存在；绿 = 2 新文件 6 pass + external-benchmarks 10 pass 共 16 pass/0 fail。回归：tests/agent-evals/ 全目录 112 pass/0 fail；thompson-stress 5 pass/0 fail；architecture-integrity 24 pass/0 fail（Thompson 50k route PBT 34ms/limit 1000ms）；property-based 40 pass/0 fail；perf-benchmark 32 pass/0 fail；docker-sandbox-mount 14 pass/0 fail。bunx tsc --noEmit 0（首跑 1 处 shellQuoteArg 平台参数字面量 "posix" 不在 NodeJS.Platform，改 "linux" 后清零）。
 - **Commit**：fix(agent-evals): 审计强化 T6 P1-3 评测沙箱执行 + P1-4 thompson 观测有界（B2-M3/M4，TDD） — 68321a3
+
+
+## 2026-08-29 — fix(infra): 审计强化 T7 P1-5 基础设施批 8 项（B3-Medium，TDD，逐项独立提交）
+
+- **任务**：联合审查 Medium（docs/reviews/2026-08-29-joint-verification-audit.md §4 B3-Medium 组 8 项小修复）——①proxy-fetch CONNECT 隧道 Content-Length 错位 + 手工拼包头值 CRLF 注入 + 重定向跨域重发 Authorization/Cookie；②proxy-fetch 响应体无上限（content-length 与 chunked 全量缓冲）；③logger.ts:201 文本路径 errStr（error.stack/message）未过 SECRET_VALUE_RE（JSON 路径已脱敏）；④redis-client.ts:363-369 断线后 redisPromise 不复位 → getRedisClient 永远返回死实例 + :313-321 RESP 数组半包（头部已消费）串包错位；⑤cache.ts:307 clear() 用 flushdb() 清掉 search/crawl/llm 共库全部命名空间；⑥security.ts:125 rateLimitStore 无 cleanup + rate-limiter.ts:33 cleanup 存在但全仓无调用 → 两个限流 Map 无界增长；⑦agent-trace.ts completeTrace/failTrace 不删 activeTraces → 无界增长；⑧document-ingest.ts:157 redirect:"follow" 仅校验初始 URL → 重定向 SSRF 残窗。spec §2 P1-5，计划 docs/superpowers/plans/2026-08-29-audit-hardening-plan.md Task 7。
+- **工具**：Read（8 个源文件全文 + 审计报告/计划 + 消费方排查：tool-agent.ts、routes/traces.ts、http-router.ts、unified-search.ts、main.ts）、Write（7 个新测试文件）、Edit（8 个源文件 + 既有测试扩展）、Bash（cp/rm 备份、bun test、bunx tsc、git、bun 脚本追加本条目）。无子代理（串行约束）。
+- **操作**（文件级，均按规则 2 先备份→通读→最小改动→验证→删备份）：
+  1. src/utils/proxy-fetch.ts（①）：Content-Length 改按原始 body 字节计（字符串 Buffer.byteLength 语义不变、Buffer 用 byteLength，废除 JSON.stringify(Buffer) 错位）；新增 sanitizeHeaderValue 剥离手拼包头值 CR/LF（键值同防）；新增 headersForRedirect——重定向目标 origin 不同时剥离 Authorization/Cookie（同域保留），CONNECT 隧道（finishResponse）与直连/HTTP 代理（handleResponse）两条路径统一接入。
+  2. src/utils/proxy-fetch.ts（②）：新增 MAX_RESPONSE_BODY_BYTES=10MB + readMaxBodyBytes()（PROXY_FETCH_MAX_BODY_BYTES 可覆盖，非法值回落）；隧道路径声明超限/累计超限即 destroy+reject，直连路径 res.on("data") 累计同防护；错误信息含 "Response body too large"。
+  3. src/utils/logger.ts（③）：writeConsole 的 errStr 与 serialize（JSON 路径）一致套用 Logger.SECRET_VALUE_RE（stack||message，缺失回退语义保持）。
+  4. src/utils/redis-client.ts（④）：新增 setOnDisconnect 回调 + 私有 handleDisconnect（幂等，connected 守卫）——复位 connected/socket、以 "Redis connection lost" 拒绝全部在途命令、通知单例层；socket close/error 事件接入（error 通常后随 close，双重触发幂等）；getRedisClient 注册回调复位 globalRedis/redisPromise=null 实现断线重连；parseResponse 数组分支增加起始快照回滚——半包元素不完整时整体回滚到数组头等待下一包重解析，消除串包错位。
+  5. src/utils/redis-client.ts + src/utils/cache.ts（⑤）：RedisClient 新增 deleteByPattern（SCAN 游标 + 批量 DEL，MATCH 自动附加 keyPrefix，返回删除数）；Cache.clear 改调 deleteByPattern("<namespace>:*")，不再 flushdb；L1 内存与 L3 SQLite 清理语义不变。
+  6. src/utils/rate-limiter.ts + src/utils/security.ts（⑥）：rate-limiter 新增 startRateLimitCleanupScheduler（60s 间隔对齐窗口 TTL，调 apiLimiter.cleanup + multiDimLimiter.cleanup，unref 防驻留，幂等）模块加载即调度；security 的 rateLimitStore 改导出，新增 cleanupRateLimitStore(now?)（删最近时间戳超 2×窗口的空闲 entry，返回删除数）+ 模块加载 setInterval 调度（unref）。
+  7. src/utils/agent-trace.ts（⑦）：completeTrace/failTrace 处理后 activeTraces.delete(taskId)（结果/error step 经返回值交付调用方）；getTrace/getAllTraces 运行中查询行为不变。
+  8. src/knowledge/document-ingest.ts（⑧）：readSource 改 redirect:"manual" + 循环逐跳 isSafeUrl（新增 MAX_REDIRECTS=5 与 REDIRECT_STATUSES，301/302/303/307/308）；非安全跳转立即抛 "URL blocked by SSRF guard"；缺 location 报错；超 5 跳报 "too many redirects"；最终 URL 作为 source/name/http 来源（行为保持）。
+  9. 新建测试：tests/proxy-fetch-hardening.test.ts（9 测试，伪造 net/tls 默认导出属性 + afterEach 恢复，零真实网络；注：Bun mock.module 对 node 内建模块的替换会泄漏同进程后续测试文件，故未采用）、tests/logger-text-error-redact.test.ts（3）、tests/redis-resilience.test.ts（3，伪造 Bun.connect 驱动真实协议/单例路径；含 deadline 竞速断言——Bun --timeout 不会中断 await 永不 settle 的 promise，实测挂死整个进程）、tests/cache-clear-namespace.test.ts（3，mock redis + deleteByPattern 真实 RESP 端到端）、tests/rate-limit-cleanup.test.ts（4，静态断言调度存在 + unref + 行为断言）、tests/agent-trace-bounded.test.ts（3）、tests/document-ingest-redirect-ssrf.test.ts（4，mock fetch 模拟 manual/follow 语义）。
+- **验证**：TDD 红→绿逐项：①红 = Buffer body Content-Length 错位 + 上线线含 "X-Evil: value
+X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-token"（与审计症状一致）；②红 = 超限流无错挂起/2MB 正常完成；③红 = "sk-abcd1234efgh5678" 原样出现在 console 文本；④红 = 断线后 getRedisClient 返回同一死实例/在途命令 2s 竞速超时未决/mget 串包返回 [null,null]；⑤红 = flushdbCalls=1 且其他命名空间 key 被清；⑥红 = 静态断言 2 项失败 + cleanupRateLimitStore 不存在；⑦红 = complete 后 getTrace 仍可查到；⑧红 = doc.error undefined 且 "pwned" 内容被摄取。绿 = 全部 pass。回归：定向批 18 文件 94 pass/0 fail（crawl 全目录 + redis-client + cache-stress + cache-stats-tool + logger-redact + document-ingest + 新测试 7 文件等）；architecture-integrity + module-exports 29 pass/0 fail；bun run test:core 137 pass/0 fail；bunx tsc --noEmit 0。
+- **Commit**（fix(infra) 前缀，逐项独立提交便于单独 revert）：
+  1. proxy-fetch CONNECT/CRLF/跨域凭证 — 17ef904
+  2. proxy-fetch 响应体 10MB 上限 — 8b0fef8
+  3. logger 文本路径 errStr 脱敏 — fcd2ffd
+  4. redis 断线复位 + RESP 半包回滚 — 9c4c171
+  5. cache.clear 命名空间化 SCAN+DEL — 1e2ab88
+  6. 限流 Map cleanup 定时调度 — 705974d
+  7. agent-trace 完成/失败出表 — 10304b4
+  8. document-ingest 重定向逐跳 SSRF — ecfd214
