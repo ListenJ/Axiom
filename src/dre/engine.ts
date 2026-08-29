@@ -32,6 +32,90 @@ import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from ".
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
+// ── M10 云端降级上下文（P2-S5，docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S5）──
+/** 云端降级注入的本地工作记忆条数默认值（可经 DREConfig.cloudContextMaxEntries 覆盖，0=禁用注入） */
+const CLOUD_CONTEXT_DEFAULT_MAX_ENTRIES = 5;
+/** 每条记忆条目 / 反思结论截断字符数（防单条超长挤占预算） */
+const CLOUD_CONTEXT_MAX_ITEM_CHARS = 200;
+/** 注入摘要总长上限（UTF-8 字节） */
+const CLOUD_CONTEXT_MAX_BYTES = 2048;
+/** 注入标记头（云端 prompt 中区分记忆段与 observation） */
+const CLOUD_CONTEXT_HEADER = "[Local working memory context]";
+
+/** 按 UTF-8 字节预算截断字符串（按码点推进，不产生半字符/替换符） */
+function sliceUtf8Within(text: string, maxBytes: number): string {
+  let used = 0;
+  let out = "";
+  for (const ch of text) {
+    const size = Buffer.byteLength(ch, "utf8");
+    if (used + size > maxBytes) break;
+    used += size;
+    out += ch;
+  }
+  return out;
+}
+
+/**
+ * 构建云端降级注入的本地工作记忆摘要（M10）。
+ *
+ * 输入条目按时间正序（WorkingMemory.recent 的插入序），内部反转为时间倒序（最新在前）；
+ * 空白条目跳过；每条截断 maxItemChars 字符；总长按 UTF-8 字节 ≤ maxBytes（放不下的旧条目
+ * 整行丢弃，预算耗尽即止）。无可用内容时返回空串，调用方据此直发 observation（逐字节现状）。
+ */
+export function buildCloudMemoryContext(opts: {
+  entries: Array<{ content: string }>;
+  lastReflectionSummary?: string | null;
+  maxEntries?: number;
+  maxItemChars?: number;
+  maxBytes?: number;
+}): string {
+  const maxItemChars = opts.maxItemChars ?? CLOUD_CONTEXT_MAX_ITEM_CHARS;
+  const maxBytes = opts.maxBytes ?? CLOUD_CONTEXT_MAX_BYTES;
+  const maxEntries = opts.maxEntries ?? CLOUD_CONTEXT_DEFAULT_MAX_ENTRIES;
+
+  const truncate = (s: string): string =>
+    s.length > maxItemChars ? s.slice(0, maxItemChars) : s;
+
+  const recent = maxEntries > 0 ? (opts.entries ?? []).slice(-maxEntries) : [];
+  // 时间倒序：最新在前
+  const lines: string[] = [];
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const content = (recent[i]?.content ?? "").trim();
+    if (content) lines.push(truncate(content));
+  }
+  if (opts.lastReflectionSummary) {
+    const trimmed = opts.lastReflectionSummary.trim();
+    if (trimmed) lines.push("reflection: " + truncate(trimmed));
+  }
+
+  // 字节预算：从最新行起保留，放不下的旧条目整行丢弃
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    const cost = Buffer.byteLength(line, "utf8") + 1; // 含换行
+    if (used + cost > maxBytes) break;
+    used += cost;
+    kept.push(line);
+  }
+  // 单条即超预算时硬截断，保证仍产出最关键的一条
+  if (kept.length === 0 && lines.length > 0) {
+    kept.push(sliceUtf8Within(lines[0]!, maxBytes));
+  }
+  return kept.join("\n");
+}
+
+/**
+ * 拼接云端降级 user prompt（M10）：有摘要时在 observation 后追加标记头与摘要；
+ * 无摘要（记忆不可用/为空）时逐字节现状直发 observation。
+ */
+export function composeCloudUserPrompt(
+  observation: string,
+  memoryContext: string | null | undefined,
+): string {
+  if (!memoryContext) return observation;
+  return `${observation}\n\n${CLOUD_CONTEXT_HEADER}\n${memoryContext}`;
+}
+
 /** DRE 配置 */
 export interface DREConfig {
   /** 数据库路径 */
@@ -75,6 +159,8 @@ export interface DREConfig {
     verdict: string;
     isAccepted: boolean;
   }) => void;
+  /** M10：云端降级注入的本地工作记忆条数上限（默认 5；0 或负数视为禁用注入） */
+  cloudContextMaxEntries?: number;
 }
 
 /**
@@ -100,6 +186,8 @@ export class DREngine {
   private config: DREConfig;
   private _ready: Promise<void>;
   private _readyResolve!: () => void;
+  /** M10：最近一次反思结论摘要（issues+lessons 拼接），供云端降级上下文注入（无反思为 null） */
+  private lastReflectionSummary: string | null = null;
 
   constructor(config: DREConfig) {
     // 保存配置
@@ -681,6 +769,10 @@ export class DREngine {
    * 处理反思结果
    */
   private handleReflection(result: ReflectionResult): void {
+    // M10：记录最近一次反思结论，供云端降级上下文注入（截断在 buildCloudMemoryContext 内做）
+    this.lastReflectionSummary =
+      [...result.issues, ...result.lessons].join("; ").trim() || null;
+
     logger.info("[DRE] Reflection triggered", {
       issues: result.issues.length,
       lessons: result.lessons.length,
@@ -722,6 +814,28 @@ export class DREngine {
   }
 
   /**
+   * M10：提取本地工作记忆摘要（最近 N 条工作记忆 + 最近一次反思结论）。
+   * 任何提取失败吞错降级（返回 null → 云端直发 observation，行为与之前逐字节一致）。
+   */
+  private cloudMemoryContext(): string | null {
+    try {
+      const maxEntries = this.config.cloudContextMaxEntries ?? CLOUD_CONTEXT_DEFAULT_MAX_ENTRIES;
+      const entries = maxEntries > 0 ? this.consciousness.workingMemory.recent(maxEntries) : [];
+      const summary = buildCloudMemoryContext({
+        entries,
+        lastReflectionSummary: this.lastReflectionSummary,
+        maxEntries,
+      });
+      return summary.length > 0 ? summary : null;
+    } catch (err) {
+      logger.warn("[DRE] cloud memory context extraction failed, degrading to raw observation", {
+        error: (err as Error).message,
+      });
+      return null;
+    }
+  }
+
+  /**
    * 云 API 降级: 直接使用 cloudFallback.baseUrl/model/apiKey 调用 OpenAI 兼容端点。
    *
    * 设计说明：cloudFallback 的三个字段（baseUrl/model/apiKey）是真实请求参数，
@@ -746,9 +860,12 @@ export class DREngine {
       throw new Error("[DRE] cloudCaller 未装配（组合根未注入适配器），无法执行云端降级");
     }
 
+    // M10（2026-08-30）：云端降级随行本地工作记忆摘要（最近 N 条 + 最近反思结论，≤2KB），
+    // 记忆不可用/为空时逐字节现状直发 observation（不改 system 与返回结构）。
+    const memoryContext = this.cloudMemoryContext();
     const result = await caller.call({
       system: DRE_DECISION_SYSTEM,
-      user: input.observation,
+      user: composeCloudUserPrompt(input.observation, memoryContext),
       timeoutMs: 30000,
       temperature: 0,
     });
