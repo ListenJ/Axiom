@@ -14,9 +14,7 @@ import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
 import { runToolLoop } from "./tool-loop.js";
 import type { ToolCallDef } from "../utils/tool-surface.js";
-import { buildAgentMessages } from "../agents/intent-router.js";
-import { enhanceIntentWithLLM, shouldEnhanceIntent, buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
-import { optimizePrompt } from "../agents/prompt-optimizer.js";
+import { buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
 import { injectConstitution } from "../agents/constitution.js";
 import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
@@ -25,6 +23,7 @@ import { contextAssembler } from "../components/context-assembler.js";
 import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
 import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
 import { isReadOptimizerInitialized } from "../utils/read-optimizer-init.js";
+import { runPreflight } from "./chat-preflight.js";
 
 export interface PreparedContext {
   chatMessages: ChatMessage[];
@@ -66,32 +65,25 @@ export async function prepareChatContext(
         .slice(0, -1)
         .filter((m) => m.role !== "system");
 
-      // ── 提示词优化：GLM-4.7-flash 改写 + Skill 专家增强 + 三重闸门 ──
-      // 设计：每条输入先经 GLM 改写为更清晰的提示词，再进入 agent 主循环
-      // 失败容错：GLM 链失败/闸门拒绝 → 回退原文，不阻塞主流程
-      // 原文仍用于意识观察与知识检索；仅外发给主模型的 user 消息使用优化文本
-      const optimization = await optimizePrompt(lastUserMsg.content);
-      if (optimization.changed) {
-        logger.debug("Prompt optimized by edge model", {
+      // ── 前置调用编排（P0-A 2026-08-29）──
+      // 真实数据依赖：optimizePrompt(原始输入) → buildAgentMessages(改写文本) →
+      // rawIntent → enhanceIntentWithLLM（回退基线源自改写文本）⇒ 改写与意图增强
+      // 保持串行；边缘 :9001 可用时经合并快路径一次出 {rewritten, intent, confidence}。
+      // selfThink 只依赖原始输入，已在 routes/chat.ts 与本函数并发发起。
+      // 失败容错保持：改写失败回退原文、意图增强失败回退关键词结果、均不阻塞主流程。
+      const preflight = await runPreflight(lastUserMsg.content, history);
+      if (preflight.optimization.changed) {
+        logger.debug("Prompt optimized", {
           original: lastUserMsg.content.slice(0, 80),
-          optimized: optimization.text.slice(0, 80),
+          optimized: preflight.optimization.text.slice(0, 80),
         });
       }
+      const agentMessages = preflight.agentMessages;
 
-      const { intent: rawIntent, messages: agentMessages } = buildAgentMessages(
-        optimization.text,
-        history,
-      );
-
-      // ── 意图增强：当关键词匹配置信度低时，异步调用 GLM4.7-flash 做语义级分类 ──
-      // 设计：fast path（关键词 0ms）+ slow path（LLM ~200ms）双轨
-      // 失败容错：LLM 调用失败/超时 → 回退到 rawIntent，不阻塞主流程
-      let intent = rawIntent;
-      if (shouldEnhanceIntent(rawIntent)) {
-        intent = await enhanceIntentWithLLM(lastUserMsg.content, rawIntent);
-      }
+      // ── 意图：preflight 已产出（合并快路径 or 关键词 fast path + LLM 增强）──
       // 无论是否经过 LLM 增强，都用增强版 system prompt（注入思考框架）
       // 约束词（宪法）前置注入：所有聊天路径（/chat、/chat/stream、/v1/*）统一受宪法约束
+      const intent = preflight.intent;
       const enhancedSystem = injectConstitution(
         buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content),
         getCurrentMode(),

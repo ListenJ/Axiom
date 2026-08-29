@@ -361,7 +361,7 @@ export function formatSelfThought(thought: SelfThought): string {
 }
 
 /**
- * 把针对性自我思考注入消息末尾（路由层接入点，小接口：只需要 selfThink）。
+ * 把自我思考注入消息末尾（路由层接入点，小接口：只需要 selfThink）。
  * 失败 / 未提供 engine / 空输入 → 原样返回，不抛错、不阻断主流程。
  */
 export async function applySelfThought(
@@ -377,4 +377,31 @@ export async function applySelfThought(
   } catch {
     return messages;
   }
+}
+
+/**
+ * 并发启动 selfThink（P0-A 2026-08-29）：selfThink 只依赖原始输入，与
+ * prepareChatContext（optimize+intent 链）无数据依赖，可在 prepare 之前发起、
+ * 与其并发执行，主模型前总延迟从 T(prepare)+T(selfThink) 降为 max(两者)。
+ * 空输入 / 未提供 engine / 引擎抛错 → resolve null，不抛错。
+ */
+export function startSelfThought(
+  input: string,
+  engine?: { selfThink(input: SelfThinkRequest): Promise<SelfThought> },
+): Promise<SelfThought | null> {
+  if (!engine || !input.trim()) return Promise.resolve(null);
+  return engine.selfThink({ input, project: process.cwd() }).catch(() => null);
+}
+
+/**
+ * 把已并发启动的 selfThink 结果注入消息头部（消息形状与 applySelfThought 一致）。
+ * thought 为 null（失败/空输入）→ 原数组原样返回，不抛错、不阻断主流程。
+ */
+export async function attachSelfThought(
+  messages: Message[],
+  thought: SelfThought | null | Promise<SelfThought | null>,
+): Promise<Message[]> {
+  const resolved = await thought;
+  if (!resolved) return messages;
+  return [{ role: "system", content: "[Self-Thought]\n" + formatSelfThought(resolved) }, ...messages];
 }

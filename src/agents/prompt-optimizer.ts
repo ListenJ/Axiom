@@ -246,7 +246,7 @@ export function getPromptOptimizerMetrics(): PromptOptimizerMetrics {
 // ─────────────────────────────────────────────────────────
 
 /** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启）；隐私模式整体关闭 */
-function isRewriteEnabled(): boolean {
+export function isRewriteEnabled(): boolean {
   const off = (v: string) => v === "0" || v.toLowerCase() === "false";
   if (isPrivacyMode()) return false;
   return !off(readString("PROMPT_REWRITE")) && !off(readString("EDGE_PROMPT_REWRITE"));
@@ -356,4 +356,13 @@ function sameLanguage(original: string, optimized: string): boolean {
     (s.match(/[一-龥]/g)?.length ?? 0) / Math.max(s.length, 1);
   const CJK_THRESHOLD = 0.2;
   return (cjkRatio(original) > CJK_THRESHOLD) === (cjkRatio(optimized) > CJK_THRESHOLD);
+}
+
+/**
+ * 确定性闸门（无 LLM 调用）：闸门 1 输出校验 + 闸门 2 语言一致性。
+ * 供边缘合并快路径复用（P0-A，2026-08-29）：合并调用不引入额外 LLM 忠实度
+ * 判别，但改写文本必须先通过这两道确定性闸门，失败即回退串行路径。
+ */
+export function passesDeterministicGates(original: string, optimized: string): boolean {
+  return isValidOptimization(optimized, original) && sameLanguage(original, optimized);
 }

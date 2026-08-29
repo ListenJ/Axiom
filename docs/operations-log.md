@@ -7848,3 +7848,19 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p0-lift-design.md`；本条目追加。
 - **验证**：spec 自查（占位符/一致性/范围/歧义）通过；三项均附现状证据行号与验收标准。
 - **Commit**：docs(spec): P0 提升迭代设计（A 并行合并/B 记忆闭环/C 防线接火） — hash 待回填
+
+## 2026-08-29 — perf(chat): P0-A 决策链提速（前置调用并行化 + 边缘合并调用）
+
+- **任务**：P0 提升迭代 Task A（docs/superpowers/specs/2026-08-29-p0-lift-design.md §A）：chat 主模型前的串行前置 LLM 调用（optimizePrompt → intent-enhancer → selfThink）并行化 + 边缘合并调用，降低每请求延迟；行为语义不变（输出内容与降级路径保持）。
+- **依赖图结论**（通读核实，spec 要求执行时核实）：optimizePrompt(原始输入) → rewritten；buildAgentMessages(rewritten, history) → rawIntent —— 关键词意图基于【改写后】文本；enhanceIntentWithLLM(原始输入, rawIntent) 的回退基线源自改写文本 ⇒ optimize → intent 存在消费链，保持串行（仅真正独立的 selfThink 并行：它只依赖原始输入，在 routes 层直接取得）。
+- **工具**：Read/Bash（通读、依赖图取证、基线对照实验、回归测试）、Write/Edit（新模块与新测试）、Bash（bun test 分批小跑、bunx tsc、git）。全程无子代理（任务要求串行）。AGENTS 规则 2 全程执行：备份 .tmp/backups/ → 通读全文 → 最小改动 → 验证 → 删备份。
+- **操作**（文件级）：
+  1. 新建 src/services/chat-preflight.ts：runPreflight 前置编排（边缘合并快路径 + 现有串行路径回退）；mergedEdgePreflight（:9001 可用时一次结构化调用返回 {rewritten,intent,confidence}，采用 intent-enhancer 实测的 1B 融合式单消息 prompt）；PreflightDeps 全量依赖注入（测试用 fake，禁 mock.module）；合并意图组合沿用 enhanceIntentWithLLM 边缘层语义（confidence 0.6 下限后与关键词基线取 max，agentName/matchedKeywords/recommendedRole 保留关键词基线）。
+  2. src/services/chat.ts：prepareChatContext 内 optimizePrompt/buildAgentMessages/enhanceIntentWithLLM 内联块替换为 runPreflight 调用；宪法注入、enhanced system、codegraph+knowledge 既有并行分支不动。
+  3. src/agents/prompt-optimizer.ts：isRewriteEnabled 由私有改导出；新增 passesDeterministicGates（闸门1 输出校验 + 闸门2 语言一致性，纯确定性无 LLM），供合并快路径约束改写质量——闸门拒绝即回退串行路径。
+  4. src/self-evolve/engine.ts + index.ts：新增 startSelfThought（提前并发发起 selfThink，空输入/无引擎/抛错 resolve null）与 attachSelfThought（注入 [Self-Thought] 消息形状与 applySelfThought 完全一致）；applySelfThought 原样保留（src/routes/openai-compat.ts 继续串行使用，本任务范围外）。
+  5. src/routes/chat.ts：handleChat/handleAgentChat 的 selfThink 改为 prepareChatContext 之前 startSelfThought 并发发起、之后 attachSelfThought 接线——主模型前总延迟从 T(prepare)+T(selfThink) 降为 max(两者)。
+  6. 新建 tests/chat-preflight-parallel.test.ts（13 测试，全依赖注入不用 mock.module：串行回退语义一致且意图基于改写文本【即不能并行的实证】/高置信度 fast path 不增强/无资格与失败两路同果/合并快路径 optimize+enhance 均不调用/意图组合与 0.6 下限/确定性闸门拒绝回退/mergedEdge 抛错回退/mergedEdgePreflight 纯 JSON+code fence 解析、非法意图与缺字段与抛错回退、EDGE_PROMPT_OPTIMIZER=0 不发调用/selfThink 事件序并发发起证明/attach 形状与原数组不可变）。
+  7. tests/services-chat.test.ts：prompt-optimizer mock 补 3 个新导出（isRewriteEnabled=false 使合并快路径在该测试进程确定性关闭，避免部分 mock 缺符号 + 防边缘网络请求）。
+- **验证**：TDD 红→绿：新测试先红（error: Cannot find module '../src/services/chat-preflight.js'，1 fail）→ 实现后 13 pass/0 fail（42 expect）。回归分批小跑全 0 fail：services-chat 5、routes-chat-validation 6、self-evolve/apply-self-thought 4、prompt-optimizer+intent-enhancer+local-llm-edge 69、openai-compat+module-exports 13、integration-realtime 10 pass/1 skip；bunx tsc --noEmit 0。注：tests/rigorous/mega-pressure.test.ts 1 例 5s 超时为预存在问题——已还原备份在改动前代码上复现同一超时（该测试 500 并发输入均 <20 字符，合并快路径资格恒 false，本任务零新增网络调用）。
+- **Commit**：perf(chat): P0-A 决策链提速（前置调用并行化+边缘合并调用） — P0A-TASKA-ANCHOR-20260829-K7Q2

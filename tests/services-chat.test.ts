@@ -32,6 +32,12 @@ mock.module(mockIntentEnhancer, () => ({
 const mockPromptOptimizer = path.join(ROOT, "src", "agents", "prompt-optimizer.js");
 mock.module(mockPromptOptimizer, () => ({
   optimizePrompt: async (text: string) => ({ changed: false, text }),
+  // P0-A：src/services/chat-preflight.js 额外引用这些导出；mock.module 是整模块替换，
+  // 缺失符号在该测试进程内为 undefined。isRewriteEnabled=false 使合并快路径
+  // 确定性关闭（不发边缘网络请求），prepareChatContext 走既有串行语义。
+  shouldSkipOptimization: (text: string) => text.trim().length < 20,
+  isRewriteEnabled: () => false,
+  passesDeterministicGates: () => false,
 }));
 const mockQueryDecomp = path.join(ROOT, "src", "agents", "query-decomposer.js");
 mock.module(mockQueryDecomp, () => ({

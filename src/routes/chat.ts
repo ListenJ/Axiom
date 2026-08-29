@@ -7,7 +7,7 @@ import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
-import { applySelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
+import { startSelfThought, attachSelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
 import { toOpenAITools } from "../utils/tool-surface.js";
 import { z } from "zod";
@@ -51,17 +51,18 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   const body = parsed.data;
   const { taskType, messages, intent: enableIntent = true, budget, sessionId } = body;
 
+  // P0-A（2026-08-29）：selfThink 只依赖原始输入，与 prepareChatContext
+  // （optimize→intent 链）无数据依赖 → 提前并发发起，主模型前总延迟从
+  // T(prepare)+T(selfThink) 降为 max(两者)；失败/空输入静默跳过（语义不变）。
+  const rawUserInput = String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : "");
+  const selfThoughtPromise = startSelfThought(rawUserInput, getDefaultSelfEvolve());
   const { chatMessages: preparedMessages, intentInfo, codegraphContext, tokenBudgetReport } = await prepareChatContext(
     messages,
     enableIntent,
     ctx.vault,
     { budget },
   );
-  const chatMessages = await applySelfThought(
-    preparedMessages,
-    String(Array.isArray(messages) ? [...messages].reverse().find((m: { role?: string }) => m?.role === "user")?.content ?? "" : ""),
-    getDefaultSelfEvolve(),
-  );
+  const chatMessages = await attachSelfThought(preparedMessages, selfThoughtPromise);
   const roleForTools = intentInfo
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
@@ -153,13 +154,15 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     { role: "user", content: message },
   ];
 
+  // P0-A（2026-08-29）：selfThink 提前并发发起（与 prepareChatContext 并行），见 handleChat 注释。
+  const selfThoughtPromise = startSelfThought(String(message ?? ""), getDefaultSelfEvolve());
   const { chatMessages: preparedMessages, intentInfo, tokenBudgetReport } = await prepareChatContext(
     messages,
     true,
     ctx.vault,
     { budget },
   );
-  const chatMessages = await applySelfThought(preparedMessages, String(message ?? ""), getDefaultSelfEvolve());
+  const chatMessages = await attachSelfThought(preparedMessages, selfThoughtPromise);
   const roleForTools = intentInfo
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
