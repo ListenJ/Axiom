@@ -7792,3 +7792,35 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   6. 限流 Map cleanup 定时调度 — 705974d
   7. agent-trace 完成/失败出表 — 10304b4
   8. document-ingest 重定向逐跳 SSRF — ecfd214
+
+## 2026-08-29 — fix(routes)/fix(memory)/fix(infra): 审计强化 T8 P2-1/P2-2 卫生批 Low 20 项 + Info 维持观察
+
+- **任务**：联合审查 Low/Info 21 项（docs/reviews/2026-08-29-joint-verification-audit.md §4）——B1/B2 Low 11 项 + B3 Low 9 项小修复（行为无变化项给前后对比证据，能测项给小测试红→绿）；Info 组不施工维持观察。spec §3 P2-1/P2-2，计划 docs/superpowers/plans/2026-08-29-audit-hardening-plan.md Task 8。
+- **工具**：Read（19 个源文件全文 + node_modules 内 @modelcontextprotocol/sdk webStandardStreamableHttp close 语义 + read-optimizer-init 执行器签名 + model-router chat/tool/execute 签名 + path-safety/real-usage 惯例核对）、Edit（19 个源文件 + package.json）、Write（1 个新测试文件）、Bash（cp/rm 备份、bun test、bunx tsc、git、diff 预存问题复现）、bun 脚本（本条目追加与 hash 锚点回填，未用 sed）。无子代理（串行约束）。
+- **操作**（文件级，均按规则 2 先备份→通读全文→最小改动→验证）：
+  1. src/routes/pipeline.ts（B1#1）：SSE 对齐 terminal.ts——新增 cancel()（客户端断开退订 event-bus）+ closed 标志 safeEnqueue + 300s 定时器 clearTimeout 复位；旧实现监听器残留至进程结束。
+  2. src/routes/memory-api.ts（B1#2）：entities 过滤死条件 `type && type !== "entity"` 恒 false——type 是资源选择器（knowledge/entity/note），实体类型过滤改由新增 entityType 查询参数承担（entities.type 有 idx_entities_type 索引佐证原意）。
+  3. src/services/cache-router.ts（B1#3）："KG 需 PostgreSQL" 陈旧注释对齐 SQLite 单库事实（H-M1-03）；enableKG 无消费方（仅测试 config 透传）标注保留。
+  4. src/cli/commands/kg.ts（B1#4）：KB_DB_PATH 缺省 "./data/kg.db" 与主库分裂——改 KB_DB_PATH 显式覆盖 || resolveSqliteMemoryDbPath()，与 kb-backend.ts 对齐。
+  5. src/main.ts（B1#5）：TRUST_PROXY_HEADERS=1 时 XFF 取首项（客户端可控）改为取最后一项（可信代理追加，.split(",").map(trim).filter(Boolean).pop()），注释写明伪造面与"恰好一层可信代理"部署前提。
+  6. src/mcp/server.ts（B1#6）：HTTP 无状态模式每请求 new server+transport 从不 close——响应体经 pipeTo passthrough 包装，流尽或客户端断开（pipeTo reject）时 close transport+server，释放 _streamMapping/_requestResponseMap；返回 new Response(passthrough.readable, response) 保持 status/headers。
+  7. src/routes/chat.ts（B1#7）：Real Usage success 判定去掉 includes("error") 子串嗅探（合法回答含 "error" 被误判），改精确字段 content 非空即成功（路由失败路径要么抛错要么 content null）。
+  8. src/agents/hermes-agent.ts（B2#8）：codeReview 删除 SILICONFLOW_API_KEY 硬性前置门——executeWithRole("code-review") 经 model-router 分派任意可用 provider，无路由时由既有 catch 返回明确错误（不锁死单 provider）。
+  9. src/memory/memory-gate.ts（B2#9）：maxWritesPerDay（配置 100）未参与判定——recordWrite 时间戳清理窗口 1h→24h（旧实现天计数根本无法维持），isRateLimited 改 checkRateLimit 返回原因串，hourly/daily 双上限接入 shouldWrite（原因串区分 Hourly/Daily）。
+  10. src/pi-agent/pi-code-engine.ts（B2#10）：`options.model ? router.chat(...) : router.tool(...)` 分支语义失效（两签名均只收 role+messages、execute 端口无 model 钉定能力）——删除误导三元分支固定走 tool-pool coding 腿（与全部现有调用方实际行为一致），传入 model 记 debug 如实暴露 advisory-only。
+  11. src/self-evolve/skill-quality.ts（B2#11）：默认落点相对 cwd 改 path.join(process.cwd(), "data", "skill-quality.json") 锚定（对齐 real-usage.ts 惯例）；save 改同目录临时文件 + renameSync 原子替换，失败清理 tmp 后原样抛出。
+  12. src/utils/graceful-shutdown.ts（B3#12/13）：钩子竞速计时器 finally clearTimeout 复位 + 剩余预算 ≤0 时按超时语义 force exit（旧实现 0/负延迟 setTimeout 立即触发把执行中钩子误判超时）；unhandledRejection 一次即全停机 → log.error + 滑动窗口计数（5 次/60s）超阈才停机，错误本体始终完整记录不吞错。
+  13. src/utils/logger.ts（B3#14）：轮转 end() 异步未等即 renameSync（Windows 句柄未释放 EPERM/EBUSY）→ await close 事件（1s 容错上限，超时走原 try/catch 失败路径）后再 rename。
+  14. src/utils/env.ts（B3#15）：readInt parseInt 宽松解析（"12abc"→12、前导空白/负数容忍）→ 严格 /^\d+$/ 校验、非法回退默认并 debug 日志、新增可选 {min,max} 范围钳制参数；既有 17 个调用点全为端口/大小/并发/超时等非负语义，零破坏。
+  15. src/utils/permissions.ts（B3#16）：".env" 移出 includes 子串表，改 ENV_SEGMENT_RE 精确段匹配（与 path-safety isPathSafe 的 .env 规则同源正则）——.env 段与 .env.<suffix> 仍拦截，".environment"/"my.env.bak" 不再误伤；.ssh/.git/config 等其余语义不变。
+  16. src/utils/read-optimizer.ts（B3#17）：①read 入口 fail-fast 断言 blackboard 必填（旧实现未 setBlackboard 时 readFromBlackboard 在 try 内抛错被统一 catch 吞掉降级 fallback，已注册 executor 被静默绕过）；②executeBatched "合并+均分"实现移除——执行器只读 params.query/pattern 单数，"合并"实际执行 items[0] 的查询并把单查询结果 ceil 均分给所有并发请求者（其余请求者拿到无关数据），现返回 null 回退并行单条执行，每请求精确拿到自己查询结果；vault 合并分支为死代码一并移除（无 vault executor 注册）。
+  17. src/tui/install-wizard.ts（B3#18）：.env 写入 0644→0600（writeFileSync mode 参数）+ 对已存在旧文件显式 chmodSync 收敛（mode 仅新建生效）。
+  18. src/utils/security-monitor.ts（B3#19）：持续超阈时每次 refresh 重复写 security.alert → shouldEmitAlert 同因类别在检测窗口活跃期内去重一次 + 窗口内 medium→high 升级立即再报 + reset() 清理去重状态；全量 readAll 增量化需内存增量计数与日志轮转协同（复杂），按任务许可仅做去重，readAll 维持现状。
+  19. src/testing/cluster/ssh-executor.ts（B3#20）：文件头标注"仅限测试集群、禁止生产"+ StrictHostKeyChecking=no 的 MITM 风险与生产 host key 校验前提说明（仅测试集群生命周期短、主机频繁重建故容忍）。
+  20. tests/hardening-t8-low.test.ts 新建（14 测试：#9 daily 达限拒写且原因标明 Daily + hourly 独立生效；#11 save/load 往返与覆盖 + 原子落盘无 .tmp 残留 + 默认锚定源码静态断言；#15 纯数字解析 + "12abc"/负数/前导空白回退 + min/max 钳制；#16 .env 段与 .env.local 拦截 + ".environment"/"my.env.bak" 放行 + 其他敏感路径回归；#18 静态断言 mode 0o600 + 无裸写调用）；package.json test:full 名单补入该文件（crawl/curl-fetch 之后）。
+- **验证**：TDD 红→绿：tests/hardening-t8-low.test.ts 在修复前备份代码上 9 fail/5 pass（红——daily 上限不生效、"12abc"/负数/空白被 parseInt 接受、".environment"/"my.env.bak" 被误拦、install-wizard 无 0600，均与审计症状一致），修复后 14 pass/0 fail（绿）。回归逐文件 0 fail：env 12、security-fixes 37、routes-chat-validation 6、chat-sessions 6、logger-redact 14、logger-text-error-redact 3、semantic-cache 6、memory-edge-assist 20、tools-v3 8、hardening-t8-low 14；mcp/ + memory/ + self-evolve/（含 skill-quality 既有测试）+ cognitive-pipeline + risk-monitor + audit-logger + audit/resource-audit 组合 294 pass/0 fail。注：多文件组合批跑存在 1 例 "Export named 'isPermanentFailure' not found" 模块图错误，已在修复前备份代码上复现同一错误（bun test 特定多文件顺序下的预存在问题，与本任务无关；本任务 import 图零变更——动态 import 仅 kg.ts 一处惰性加载——佐证）。bunx tsc --noEmit 0。
+- **不做**（Info 项维持观察，不施工）：consensus activeVotes 口径、curator 打标数、prompt-pool hitRate 虚高/伪 xxh3、tool-pool NaN、skill-registry 阈值失效、fillTemplate $& 未转义、run.ts 混杂变量等 Info 组——待后续迭代评估，本任务不改动。
+- **Commit**：
+  1. fix(routes): 审计强化 T8 P2-1 B1 批（pipeline SSE 清理/memory-api entityType/缓存路由注释/kg 缺省路径/XFF 末项/transport close/chat 判成功/hermes 解耦） — c385e2f
+  2. fix(memory): 审计强化 T8 P2-1 B2 批（memory-gate daily 上限/pi-code-engine 分支语义/skill-quality 原子写+锚定） — 854a43a
+  3. fix(infra): 审计强化 T8 P2-2 B3 批 + 小测试（graceful-shutdown 计时复位与拒绝阈值/logger 轮转等 close/env readInt 严格化/permissions .env 精确段/read-optimizer fail-fast 与均分移除/install-wizard 0600/security-monitor 告警去重/ssh 注释） — 5f59a3a
