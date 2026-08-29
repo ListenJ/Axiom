@@ -595,11 +595,32 @@ export class DeterministicSearchEngine {
   private tokenize(text: string): string[] {
     let cached = this.tokenizeCache.get(text);
     if (cached) return cached;
-    cached = text
+    // P1-S2 层1：CJK bigram — 连续中文切相邻二字组（"机器学习"→机器/器学/学习），
+    // 语序改写可召回；ASCII 词保持原样；孤立单字中文保留（单字查询不回归）。
+    // 索引侧与查询侧走同一本函数，分词天然一致。
+    const tokens: string[] = [];
+    for (const seg of text
       .toLowerCase()
       .replace(/[^\w\u4e00-\u9fa5]+/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length >= 2 || /[\u4e00-\u9fa5]/.test(w));
+      .split(/\s+/)) {
+      if (!seg) continue;
+      if (!/[\u4e00-\u9fa5]/.test(seg)) {
+        if (seg.length >= 2) tokens.push(seg);
+        continue;
+      }
+      for (const part of seg.match(/[\u4e00-\u9fa5]+|\w+/g) ?? []) {
+        if (/^[\u4e00-\u9fa5]+$/.test(part)) {
+          if (part.length >= 2) {
+            for (let i = 0; i < part.length - 1; i++) tokens.push(part.slice(i, i + 2));
+          } else {
+            tokens.push(part);
+          }
+        } else if (part.length >= 2) {
+          tokens.push(part);
+        }
+      }
+    }
+    cached = tokens;
     this.tokenizeCache.set(text, cached);
     if (this.tokenizeCache.size > this.TOKENIZE_CACHE_MAX) {
       const oldest = this.tokenizeCache.keys().next().value;

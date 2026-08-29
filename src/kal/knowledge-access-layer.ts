@@ -174,14 +174,52 @@ export class KnowledgeAccessLayer {
         LIMIT ?
       `;
       const limit = intent.limit || 10;
-      const ftsQuery = this.sanitizeFTS5(intent.query);
-      if (!ftsQuery) return [];
-      const rows = this.db.query(searchQuery).all(ftsQuery, limit) as Array<{
-        path: string;
-        title: string;
-        content: string;
-        tags: string;
-      }>;
+      // P1-S2 层2：trigram 库上 <3 字的 CJK 短词（常见中文双字词）MATCH 恒空，
+      // 改走 memory_notes LIKE 兜底腿；unicode61 库（迁移降级/夹具）保持旧行为。
+      const words = intent.query
+        .replace(/[^\w\u4e00-\u9fa5\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length > 0);
+      const trigram = this.ftsUsesTrigram();
+      const shortCjkWords = trigram
+        ? words.filter((w) => w.length < 3 && /[\u4e00-\u9fa5]/.test(w))
+        : [];
+      // 短词在 trigram 下不进 MATCH（恒空）；清洗后仅含 \w/CJK，不含 LIKE 通配符，无需转义
+      const ftsQuery = this.sanitizeFTS5(intent.query, trigram ? 3 : 1);
+      if (!ftsQuery && shortCjkWords.length === 0) return [];
+
+      let rows = ftsQuery
+        ? (this.db.query(searchQuery).all(ftsQuery, limit) as Array<{
+            path: string;
+            title: string;
+            content: string;
+            tags: string;
+          }>)
+        : [];
+
+      if (shortCjkWords.length > 0) {
+        const likeClauses = shortCjkWords
+          .map(() => `(mn.title LIKE ? OR mn.content LIKE ?)`)
+          .join(" OR ");
+        const likeParams: string[] = [];
+        for (const w of shortCjkWords) {
+          likeParams.push(`%${w}%`, `%${w}%`);
+        }
+        likeParams.push(String(limit));
+        const likeRows = this.db
+          .query(
+            `SELECT mn.path, mn.title, mn.content, mn.tags
+             FROM memory_notes mn
+             WHERE (${likeClauses})
+             ORDER BY mn.id ASC
+             LIMIT ?`,
+          )
+          .all(...likeParams) as Array<{ path: string; title: string; content: string; tags: string }>;
+        const seen = new Set(rows.map((r) => r.path));
+        for (const r of likeRows) {
+          if (!seen.has(r.path)) rows.push(r);
+        }
+      }
 
       // O3-F1：tagFilter 按 parseTags 后包含判定过滤（对齐 sqlite-memory.ts 的 AND 语义）
       const filtered = intent.tagFilter?.length
@@ -438,14 +476,33 @@ export class KnowledgeAccessLayer {
   /**
    * FTS5 查询转义 (与 VaultManager 保持一致)
    * 移除特殊字符，每个词加引号和前缀通配符
+   * P1-S2 层2：trigram 库上 <3 字符的词 MATCH 恒空（SQLite trigram 最小 3 字符），
+   * minWordLength=3 时过滤之（短词由 queryVault 的 LIKE 兜底腿承接）；默认 1 保持旧行为。
    */
-  private sanitizeFTS5(query: string): string {
+  private sanitizeFTS5(query: string, minWordLength = 1): string {
     const cleaned = query
       .replace(/[^\w\u4e00-\u9fa5\s]/g, " ")
       .split(/\s+/)
-      .filter((w) => w.length > 0)
+      .filter((w) => w.length >= minWordLength)
       .map((w) => `"${w}"*`)
       .join(" OR ");
     return cleaned;
+  }
+
+  /** P1-S2 层2：memory_notes_fts 是否为 trigram（sqlite_master 探测一次并缓存） */
+  private ftsTrigramCache: boolean | null = null;
+
+  private ftsUsesTrigram(): boolean {
+    if (this.ftsTrigramCache === null) {
+      try {
+        const row = this.db
+          .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_notes_fts'")
+          .get() as { sql: string } | undefined;
+        this.ftsTrigramCache = Boolean(row) && /trigram/i.test(row!.sql);
+      } catch {
+        this.ftsTrigramCache = false;
+      }
+    }
+    return this.ftsTrigramCache;
   }
 }

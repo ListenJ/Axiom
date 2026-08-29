@@ -74,9 +74,101 @@ function escapeLike(input: string): string {
   return input.replace(/[\\%_]/g, "\\$&");
 }
 
+/** memory_notes 同步触发器（initSchema 与 trigram 迁移重建共用同一 SQL，P1-S2） */
+const MEMORY_NOTES_TRIGGER_SQL = [
+  `
+      CREATE TRIGGER IF NOT EXISTS memory_notes_ai AFTER INSERT ON memory_notes BEGIN
+        INSERT INTO memory_notes_fts(rowid, title, content, tags)
+        VALUES (new.id, new.title, new.content, new.tags);
+      END
+    `,
+  `
+      CREATE TRIGGER IF NOT EXISTS memory_notes_ad AFTER DELETE ON memory_notes BEGIN
+        INSERT INTO memory_notes_fts(memory_notes_fts, rowid, title, content, tags)
+        VALUES('delete', old.id, old.title, old.content, old.tags);
+      END
+    `,
+  `
+      CREATE TRIGGER IF NOT EXISTS memory_notes_au AFTER UPDATE ON memory_notes BEGIN
+        INSERT INTO memory_notes_fts(memory_notes_fts, rowid, title, content, tags)
+        VALUES('delete', old.id, old.title, old.content, old.tags);
+        INSERT INTO memory_notes_fts(rowid, title, content, tags)
+        VALUES (new.id, new.title, new.content, new.tags);
+      END
+    `,
+];
+
+/** P1-S2 层2：trigram 迁移结果（migrated=false 时 reason 说明跳过/回退原因） */
+export interface FtsMigrationResult {
+  migrated: boolean;
+  reason: string;
+}
+
+/**
+ * P1-S2 层2：将存量 unicode61 的 memory_notes_fts 迁移为 trigram（SQLite ≥3.34 支持子串匹配，
+ * bun:sqlite 打包版本实测 3.53.0）。external content 表（content=memory_notes, content_rowid=id）
+ * 重建方式：事务内 ①删三个同步触发器（防 ALTER RENAME 改写其指向）→ ②旧表 RENAME 保底
+ * → ③按 trigram 重建新表 → ④INSERT 'rebuild' 全量回填 → ⑤校验行数与源表一致
+ * → ⑥删保底表、重建触发器。任一步失败 ROLLBACK，旧表与触发器原样保留，检索降级不中断。
+ */
+export function migrateMemoryFtsToTrigram(db: Database): FtsMigrationResult {
+  let currentSql: string | undefined;
+  try {
+    currentSql = (db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_notes_fts'").get() as { sql: string } | undefined)?.sql;
+  } catch (e) {
+    return { migrated: false, reason: `sqlite_master 查询失败：${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (!currentSql) {
+    return { migrated: false, reason: "memory_notes_fts 不存在，跳过（新库由 initSchema 直接建 trigram）" };
+  }
+  if (/trigram/i.test(currentSql)) {
+    return { migrated: false, reason: "已是 trigram，无需迁移" };
+  }
+
+  try {
+    db.exec("BEGIN");
+    for (const name of ["memory_notes_ai", "memory_notes_ad", "memory_notes_au"]) {
+      db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+    }
+    db.exec("ALTER TABLE memory_notes_fts RENAME TO memory_notes_fts_old");
+    db.exec(`
+      CREATE VIRTUAL TABLE memory_notes_fts USING fts5(
+        title, content, tags,
+        content=memory_notes,
+        content_rowid=id,
+        tokenize='trigram'
+      )
+    `);
+    db.exec("INSERT INTO memory_notes_fts(memory_notes_fts) VALUES('rebuild')");
+    const expected = (db.query("SELECT COUNT(*) AS c FROM memory_notes").get() as { c: number }).c;
+    const actual = (db.query("SELECT COUNT(*) AS c FROM memory_notes_fts").get() as { c: number }).c;
+    if (actual !== expected) {
+      throw new Error(`回填行数不一致：fts=${actual}, source=${expected}`);
+    }
+    db.exec("DROP TABLE memory_notes_fts_old");
+    for (const triggerSql of MEMORY_NOTES_TRIGGER_SQL) {
+      db.exec(triggerSql);
+    }
+    db.exec("COMMIT");
+    logger.info("memory_notes_fts 已迁移为 trigram", { rows: actual });
+    return { migrated: true, reason: `已迁移为 trigram 并回填 ${actual} 行` };
+  } catch (e) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // 事务未开启（如 BEGIN 即失败）时忽略
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.warn("memory_notes_fts trigram 迁移失败，已回退保留旧表", { error: msg });
+    return { migrated: false, reason: `迁移失败已回退：${msg}` };
+  }
+}
+
 export class SQLiteMemory {
   private db: Database;
   private dbPath: string;
+  /** P1-S2 层2：当前 FTS 表是否为 trigram（决定短词 LIKE 兜底腿是否启用） */
+  private ftsTrigram = false;
 
   constructor(dbPath?: string) {
     this.dbPath = dbPath || resolveSqliteMemoryDbPath();
@@ -84,6 +176,15 @@ export class SQLiteMemory {
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
     this.initSchema();
+    // P1-S2 层2：存量 unicode61 库升级为 trigram（新库由 initSchema 直接建 trigram，此处幂等跳过）
+    const migration = migrateMemoryFtsToTrigram(this.db);
+    this.ftsTrigram = /trigram/i.test(
+      (this.db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_notes_fts'").get() as { sql: string } | undefined)?.sql ?? "",
+    );
+    if (!this.ftsTrigram && migration.migrated === false && !migration.reason.includes("已是 trigram") && !migration.reason.includes("不存在")) {
+      // 迁移失败且当前非 trigram：检索降级（FTS 行为同旧库），不中断启动
+      logger.warn("memory_notes_fts 非 trigram 且迁移未生效，FTS 检索按 unicode61 降级", { reason: migration.reason });
+    }
     logger.info("SQLiteMemory initialized", { dbPath: this.dbPath });
   }
 
@@ -105,37 +206,32 @@ export class SQLiteMemory {
       )
     `);
 
-    this.db.run(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
-        title, content, tags,
-        content=memory_notes,
-        content_rowid=id,
-        tokenize='unicode61'
-      )
-    `);
+    // P1-S2 层2：新建表直接用 trigram（SQLite ≥3.34 子串匹配；实测 bun:sqlite 3.53.0 支持）。
+    // 环境不支持时降级 unicode61 建表，检索仍可用（由 migrateMemoryFtsToTrigram 后续再尝试）。
+    try {
+      this.db.run(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
+          title, content, tags,
+          content=memory_notes,
+          content_rowid=id,
+          tokenize='trigram'
+        )
+      `);
+    } catch (e) {
+      logger.warn("memory_notes_fts trigram 建表失败，降级 unicode61", { error: e instanceof Error ? e.message : String(e) });
+      this.db.run(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
+          title, content, tags,
+          content=memory_notes,
+          content_rowid=id,
+          tokenize='unicode61'
+        )
+      `);
+    }
 
-    this.db.run(`
-      CREATE TRIGGER IF NOT EXISTS memory_notes_ai AFTER INSERT ON memory_notes BEGIN
-        INSERT INTO memory_notes_fts(rowid, title, content, tags)
-        VALUES (new.id, new.title, new.content, new.tags);
-      END
-    `);
-
-    this.db.run(`
-      CREATE TRIGGER IF NOT EXISTS memory_notes_ad AFTER DELETE ON memory_notes BEGIN
-        INSERT INTO memory_notes_fts(memory_notes_fts, rowid, title, content, tags)
-        VALUES('delete', old.id, old.title, old.content, old.tags);
-      END
-    `);
-
-    this.db.run(`
-      CREATE TRIGGER IF NOT EXISTS memory_notes_au AFTER UPDATE ON memory_notes BEGIN
-        INSERT INTO memory_notes_fts(memory_notes_fts, rowid, title, content, tags)
-        VALUES('delete', old.id, old.title, old.content, old.tags);
-        INSERT INTO memory_notes_fts(rowid, title, content, tags)
-        VALUES (new.id, new.title, new.content, new.tags);
-      END
-    `);
+    for (const triggerSql of MEMORY_NOTES_TRIGGER_SQL) {
+      this.db.run(triggerSql);
+    }
 
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_path ON memory_notes(path)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_para ON memory_notes(para_category)`);
@@ -195,14 +291,19 @@ export class SQLiteMemory {
   search(query: string, opts: SearchOptions = {}): SearchResult[] {
     const limit = opts.limit ?? 10;
 
-    const ftsQuery = query
+    // P1-S2 层2：trigram 最小 3 字符——<3 字的 CJK 短词（常见中文双字词）MATCH 恒空，
+    // 在 trigram 库上改走 memory_notes LIKE 兜底腿；≥3 字词保持 FTS 子串匹配。
+    // unicode61 库（迁移失败降级）不启用 LIKE 腿，行为与现状一致。
+    const words = query
       .replace(/[^\w\u4e00-\u9fa5\s]/g, " ")
       .split(/\s+/)
-      .filter(w => w.length > 0)
-      .map(w => `"${w}"*`)
-      .join(" OR ");
+      .filter(w => w.length > 0);
+    // trigram 库：<3 字短词不进 MATCH（恒空）；unicode61 库（降级路径）保持全部词进 MATCH（旧行为）
+    const ftsWords = this.ftsTrigram ? words.filter(w => w.length >= 3) : words;
+    const shortCjkWords = words.filter(w => w.length < 3 && /[\u4e00-\u9fa5]/.test(w));
+    const ftsQuery = ftsWords.map(w => `"${w}"*`).join(" OR ");
 
-    if (!ftsQuery) return [];
+    if (!ftsQuery && shortCjkWords.length === 0) return [];
 
     let sql = `
       SELECT mn.*, fts.rank
@@ -230,22 +331,62 @@ export class SQLiteMemory {
     sql += ` ORDER BY fts.rank LIMIT ?`;
     params.push(String(limit));
 
+    type FtsRow = {
+      id: number;
+      path: string;
+      title: string;
+      content: string;
+      excerpt: string;
+      tags: string;
+      para_category: string;
+      type: string;
+      source: string | null;
+      confidence: number;
+      created_at: number;
+      updated_at: number;
+      rank: number;
+    };
+
     try {
-      const rows = this.db.query(sql).all(...params) as Array<{
-        id: number;
-        path: string;
-        title: string;
-        content: string;
-        excerpt: string;
-        tags: string;
-        para_category: string;
-        type: string;
-        source: string | null;
-        confidence: number;
-        created_at: number;
-        updated_at: number;
-        rank: number;
-      }>;
+      let rows: FtsRow[] = ftsQuery
+        ? (this.db.query(sql).all(...params) as FtsRow[])
+        : [];
+
+      if (this.ftsTrigram && shortCjkWords.length > 0) {
+        // 短词 LIKE 兜底腿（仅 trigram 库启用；unicode61 库维持旧行为）
+        const likeClauses = shortCjkWords
+          .map(() => `(mn.title LIKE ? ESCAPE '\\' OR mn.content LIKE ? ESCAPE '\\')`)
+          .join(" OR ");
+        const likeParams: string[] = [];
+        for (const w of shortCjkWords) {
+          const pattern = `%${escapeLike(w)}%`;
+          likeParams.push(pattern, pattern);
+        }
+        let likeSql = `
+          SELECT mn.*, 0 AS rank
+          FROM memory_notes mn
+          WHERE (${likeClauses})
+        `;
+        if (opts.paraCategory) {
+          likeSql += ` AND mn.para_category = ?`;
+          likeParams.push(opts.paraCategory);
+        }
+        if (opts.type) {
+          likeSql += ` AND mn.type = ?`;
+          likeParams.push(opts.type);
+        }
+        if (opts.minConfidence !== undefined) {
+          likeSql += ` AND mn.confidence >= ?`;
+          likeParams.push(String(opts.minConfidence));
+        }
+        likeSql += ` ORDER BY mn.updated_at DESC LIMIT ?`;
+        likeParams.push(String(limit));
+        const likeRows = this.db.query(likeSql).all(...likeParams) as FtsRow[];
+        const seen = new Set(rows.map(r => r.id));
+        for (const r of likeRows) {
+          if (!seen.has(r.id)) rows.push(r);
+        }
+      }
 
       return rows
         .filter(row => {
@@ -253,6 +394,7 @@ export class SQLiteMemory {
           const noteTags = parseTags(row.tags);
           return tagFilter.every(t => noteTags.includes(t));
         })
+        .slice(0, limit)
         .map(row => ({
           record: {
             id: row.id,
