@@ -7863,4 +7863,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   6. 新建 tests/chat-preflight-parallel.test.ts（13 测试，全依赖注入不用 mock.module：串行回退语义一致且意图基于改写文本【即不能并行的实证】/高置信度 fast path 不增强/无资格与失败两路同果/合并快路径 optimize+enhance 均不调用/意图组合与 0.6 下限/确定性闸门拒绝回退/mergedEdge 抛错回退/mergedEdgePreflight 纯 JSON+code fence 解析、非法意图与缺字段与抛错回退、EDGE_PROMPT_OPTIMIZER=0 不发调用/selfThink 事件序并发发起证明/attach 形状与原数组不可变）。
   7. tests/services-chat.test.ts：prompt-optimizer mock 补 3 个新导出（isRewriteEnabled=false 使合并快路径在该测试进程确定性关闭，避免部分 mock 缺符号 + 防边缘网络请求）。
 - **验证**：TDD 红→绿：新测试先红（error: Cannot find module '../src/services/chat-preflight.js'，1 fail）→ 实现后 13 pass/0 fail（42 expect）。回归分批小跑全 0 fail：services-chat 5、routes-chat-validation 6、self-evolve/apply-self-thought 4、prompt-optimizer+intent-enhancer+local-llm-edge 69、openai-compat+module-exports 13、integration-realtime 10 pass/1 skip；bunx tsc --noEmit 0。注：tests/rigorous/mega-pressure.test.ts 1 例 5s 超时为预存在问题——已还原备份在改动前代码上复现同一超时（该测试 500 并发输入均 <20 字符，合并快路径资格恒 false，本任务零新增网络调用）。
-- **Commit**：perf(chat): P0-A 决策链提速（前置调用并行化+边缘合并调用） — P0A-TASKA-ANCHOR-20260829-K7Q2
+- **Commit**：perf(chat): P0-A 决策链提速（前置调用并行化+边缘合并调用） — 1171453
