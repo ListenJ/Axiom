@@ -198,7 +198,11 @@ class Logger {
     const ctxStr = safeCtx && Object.keys(safeCtx).length
       ? " " + JSON.stringify(safeCtx)
       : "";
-    const errStr = entry.error ? `\n${entry.error.stack || entry.error.message}` : "";
+    // B3-Medium（2026-08-29）：errStr 与 JSON 路径（serialize）一致套用 SECRET_VALUE_RE，
+    // 防止 error.stack/message 中的密钥值经 console 文本输出泄漏。
+    const errStr = entry.error
+      ? `\n${(entry.error.stack || entry.error.message || "").replace(Logger.SECRET_VALUE_RE, "[REDACTED]")}`
+      : "";
 
     const line = `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
 
