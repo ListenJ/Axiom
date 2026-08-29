@@ -7978,3 +7978,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：评估报告追加第七节 P1 回写表；package.json test:full 先 +5 后回退（组合运行触发 audit-regression-stress 存量 flaky 的残留 tick 挂起——单进程文件序依赖，根治=白名单自动发现，记 P2；5 新测试文件改定向运行全绿，src 改动全保留）；本条目追加。
 - **验证**：白名单 test:full 603 pass/0 fail；5 新测试文件独立/相邻运行全绿（38 pass）；tsc 0；architecture-integrity 24/0。另记录存量失败：stress/audit-regression-stress 在 HEAD 干净 worktree 复现 1 fail（S2 代理与本次二分独立证实）。
 - **Commit**：feat(lift): P1 五切片收口（白名单回退+报告回写） — 64be5a0
+
+## 2026-08-30 — docs(spec): P2 收尾迭代设计（6 切片：约束再校准/幽灵裁剪/白名单自动发现/HITL管道/M10降级/W5W8基准）
+
+- **任务**：评估报告 P2 行产出实施 spec：S1 DRE 约束再校准（temp0 拒绝采样 n=1/maxTokens 2048/high 8192）；S2 幽灵裁剪（main.ts 休眠实例化移除+零引用模块规则4归档+autoRoute 删除，RateDistortion 保留）；S3 test:full 自动发现脚本（排除清单=显式 flaky 账本）；S4 HITL 标注管道（label 列+hallucination_feedback 工具+calibrate 优先真值，tool-count 189 联动）；S5 M10 降级上下文补全（工作记忆摘要注入 cloud prompt）；S6 W5/W8 基准门禁（10k-100k 合成库 LIKE vs FTS 报告，<2x 关闭立项）。
+- **工具**：Write、Bash。
+- **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-30-p2-closeout-design.md`；本条目追加。
+- **验证**：自查通过；S2 归档规则4、S4 计数联动、S6 结论明确列为硬验收。
+- **Commit**：docs(spec): P2 收尾迭代设计（6 切片） — hash 待回填
