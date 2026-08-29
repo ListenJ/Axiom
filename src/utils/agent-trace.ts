@@ -47,6 +47,9 @@ export function completeTrace(taskId: string, result?: string): AgentTrace | nul
   if (!trace) return null
   trace.status = "completed"
   trace.result = result
+  // B3-Medium（2026-08-29）：完成即出表，防 activeTraces 随任务数无界增长；
+  // 结果经返回值交付调用方，运行中 trace 的查询行为不变。
+  activeTraces.delete(taskId)
   return trace
 }
 
@@ -55,6 +58,8 @@ export function failTrace(taskId: string, error: string): AgentTrace | null {
   if (!trace) return null
   trace.status = "failed"
   addStep(taskId, { type: "error", content: error })
+  // B3-Medium（2026-08-29）：失败同样出表（与 completeTrace 同一生命周期）
+  activeTraces.delete(taskId)
   return trace
 }
 
