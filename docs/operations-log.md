@@ -7998,4 +7998,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. 新建 tests/constrained-sampling.test.ts（3 测试）：mock 实例 generate 记录调用次数与生效温度——temp0（默认配置）恰 1 次且结果与旧 n=3 全同票一致（无 modeAmbiguous）；temp0.7 恰 3 次且 generate 收到 0.7；静态断言 client.ts 默认 2048 在位、512 移除、clampMaxTokens 注释在位。
   5. tests/reasoning-effort.test.ts：Anthropic 档位断言 4096→8192，补 medium=2048。
 - **验证**：TDD 红→绿：constrained-sampling 新测试 3 fail（n=3 调用/温度未透传/512 在位）+ reasoning-effort 1 fail（4096）→ 修复后 16 pass/0 fail。回归分文件全绿：dre-core-modules 96 pass；local-llm-edge+llm-cache+circuit-breaker 27 pass/1 fail——llm-cache"写入 L3 后新实例可读取"经备份源码对照验证为存量失败（该文件仅依赖 src/utils/cache.js，与本改动无关，还原旧 client 后同样失败）；reasoning 相关三文件 8 pass；dre-pipeline-conflict+dre-stage2-webverify 4 pass；dre-constraint-injection+constraints 13 pass；architecture-integrity **24 pass/0 fail**；bunx tsc --noEmit 0。
-- **Commit**：fix(dre): P2-S1 约束再校准（temp0 n=1 + maxTokens 2048 + high 8192） — HASH_S1_DRE_CLOSEOUT_ANCHOR
+- **Commit**：fix(dre): P2-S1 约束再校准（temp0 n=1 + maxTokens 2048 + high 8192） — 270f3f6ce3f328d1c8f98055629cc52eff533ca4
