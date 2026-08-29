@@ -7664,4 +7664,4 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   7. package.json：test:full 名单补入 tests/read-tool-fence.test.ts。
   8. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：tests/read-tool-fence.test.ts 首跑 5 fail（读 .env / .env.local / ../ 穿越 / 写 cwd 外绝对路径 / permissions read .env 全部未拦）+ 5 pass（cwd 内合法读写、vault 回退读红线），实现后 10 pass/0 fail。回归：tests/security-fixes.test.ts + tests/unit/filesystem.test.ts + tools-v3 + review-deep + adapt-tool + tool-registry-dedup + registry-validation + unit/permission-middleware + unit/command-safety = 119 pass/0 fail；integration-edge + e2e-runtime + perf-benchmark + command-gate = 84 pass/0 fail。bunx tsc --noEmit 0。
-- **Commit**：fix(security): 审计强化 T1 P0-1 read/write 路径围栏 + permissions 纳 read（N-H1，TDD） — __P0T1_HASH__
+- **Commit**：fix(security): 审计强化 T1 P0-1 read/write 路径围栏 + permissions 纳 read（N-H1，TDD） — 804ec12
