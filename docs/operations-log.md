@@ -8026,4 +8026,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **全量验证与失败判定**（逐文件独立复跑分类）：非隔离首发 342 文件 80 fail/22 文件 → 单跑判定 16 文件全绿（组合序干扰：跨文件状态泄漏 mock.module/单例/env 残留）+ 6 文件单跑即败（存量）；bun test --isolate 实证 80 fail → 8 fail（组合序干扰结构性根治）；--timeout 15000（对齐 test 脚本约定）解决 mega-pressure 500 并发 5s 误杀超时；pcda-scheduler autoEscalate 时序 flaky（单文件含 --isolate 复跑全绿、全量负载两次失稳）+ 6 存量入 EXCLUDE_FILES。最终 `bun run test:full`：**3199 pass / 0 fail / 34 skip（335 文件，150s）**。
 - **对照基线**：`bun test ./tests`（全量含 stress，非隔离）现状：3458 测试 / 348 文件 / 3343 pass / 34 skip / 81 fail / exit 1（120s，本次未复现挂起；失败含 stress 目录与隔离前组合干扰——即 test:full 改为自动发现+隔离+账本前的原始状态，如实记录不强求绿）。
 - **验证**：TDD 红→绿：收集测试 Cannot find module 红 → 1 pass → 注入测试断言失败红 → 2 pass/0 fail（绿）。bunx tsc --noEmit 0。最终 test:full 0 fail（上数）。
-- **Commit**：test(ci): P2-S3 test:full 白名单自动发现（--isolate 根治组合序 + flaky 账本） — hash 待回填
+- **Commit**：test(ci): P2-S3 test:full 白名单自动发现（--isolate 根治组合序 + flaky 账本） — 3ecccbe16c2e664a47254a9b80baa7633757a230
