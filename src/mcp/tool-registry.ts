@@ -67,8 +67,9 @@ async function defaultToolGuard(toolName: string, args: Record<string, unknown>)
     ) {
       // L8（2026-08-28 审计）：路径承载字段并集按各工具实际参数名 grep 取得，
       // 覆盖 camelCase/snake_case 常见变体与 url（file:// 等路径型 URL）。
-      // 注意：仍非完备——非常规字段名携带路径可绕过本初筛，
-      // 最终依赖工具内部路径校验兜底（与 M12 呼应），此处仅为最低保障。
+      // 注意：仍非完备——非常规字段名携带路径可绕过本初筛，此处仅为最低保障；
+      // 最终兜底为工具内部路径校验（P0-1，2026-08-29）：read/write 工具已接
+      // mcp/tools/filesystem.ts 的 isPathSafe 围栏（cwd 限制 + 敏感区域 + symlink realpath）。
       const op = /delete|remove/i.test(toolName) ? ("delete" as const)
         : /write|create|move/i.test(toolName) ? ("write" as const)
         : ("read" as const);

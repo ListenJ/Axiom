@@ -6,6 +6,8 @@
  */
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
+import { resolve } from "node:path";
+import { isPathSafe } from "../mcp/tools/filesystem.js";
 
 export interface ReadInput {
   /** 读取源: "file" | "web" | "memory" */
@@ -48,9 +50,14 @@ export const readTool: Tool<ReadInput, ReadOutput> = {
     switch (source) {
       case "file": {
         const fs = await import("fs/promises");
+        // P0-1 路径围栏（审计 N-H1，2026-08-29）：与 mcp/tools/filesystem.ts 同一守卫，
+        // 相对路径按 cwd 解析，仅允许 cwd 内且不落敏感区域（.env/.git 等），防任意读窃密钥。
+        const resolved = resolve(process.cwd(), path);
+        const safety = isPathSafe(resolved);
+        if (!safety.safe) throw new Error(safety.error);
         let buffer: Buffer;
         try {
-          buffer = await fs.readFile(path);
+          buffer = await fs.readFile(resolved);
         } catch {
           const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager;
           if (vault?.readNote) {

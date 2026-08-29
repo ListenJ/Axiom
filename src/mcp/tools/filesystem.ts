@@ -41,7 +41,12 @@ function resolvePath(filePath: string): string {
   return path.resolve(process.cwd(), filePath);
 }
 
-function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
+/**
+ * 路径围栏守卫（P0-1，2026-08-29 起导出供 tools/read-tool、tools/write-tool 复用）：
+ * 唯一围栏语义源——cwd 限制 + 敏感区域拒绝 + symlink realpath 校验。
+ * 工具层不各自发明第二套围栏。
+ */
+export function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
   try {
     const resolved = path.resolve(targetPath);
     const cwd = process.cwd();

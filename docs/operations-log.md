@@ -7650,3 +7650,18 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-29-audit-hardening-plan.md`；本条目追加。
 - **验证**：自查（spec 覆盖映射/占位符/接口一致性/串行说明）通过。
 - **Commit**：docs(plan): 审计强化迭代实施计划（9 任务：P0安全6/P1健壮5/P2卫生2） — hash 待回填
+## 2026-08-29 — fix(security): 审计强化 Task 1 P0-1 read/write 工具路径围栏 + permissions 敏感路径拦截纳入 read（N-H1）
+
+- **任务**：联合审查 N-H1（docs/reviews/2026-08-29-joint-verification-audit.md §4）——MCP read 工具 fs.readFile 零路径围栏可读 .env 窃取全部 API key；permissions.ts 敏感路径拦截仅覆盖 write/delete，read 缺席；tool-registry:71-73 “依赖工具内部兜底”声明与实现不符。spec：docs/superpowers/specs/2026-08-29-audit-hardening-design.md §1 P0-1。
+- **工具**：Read（read-tool/write-tool/permissions/filesystem/tool-registry 全文通读）、Edit（5 文件最小改动）、Write（新测试）、Bash（cp 备份/rm 备份、bun test、bunx tsc、bun 追加与回填脚本、git）。无子代理（串行约束）。
+- **操作**（文件级）：
+  1. 备份 5 文件 → .tmp/backups/（规则2，先通读全文），验证后删除。
+  2. src/mcp/tools/filesystem.ts：isPathSafe 加 export（围栏语义唯一源，注释标明 P0-1 复用），供工具层复用，不发明第二套围栏。
+  3. src/tools/read-tool.ts:file 分支：resolve(cwd, path) + isPathSafe 围栏，越界/敏感区域（.env/.git 等）抛 isPathSafe 错误；fs.readFile 改读 resolved；vault 回退逻辑不动（cwd 内合法笔记路径过围栏后仍走回退）。
+  4. src/tools/write-tool.ts:file 分支：同款围栏，mkdir/appendFile/writeFile 改用 resolved。
+  5. src/utils/permissions.ts:checkFilePermission：敏感路径拦截 operation 集合 write/delete → read/write/delete（.env/.ssh/.git/config 等连读都拒）。调用方影响面核查：tool-registry HardFloor（预期收紧，read .env 直接拒）、routes/health.ts /permissions/check 回显（行为随语义收紧）、permission-middleware（仅 write/delete 调用，不受影响）。
+  6. src/mcp/tool-registry.ts:70-73 注释更正：兜底声明与实现对齐（read/write 工具已接 isPathSafe 围栏）。
+  7. package.json：test:full 名单补入 tests/read-tool-fence.test.ts。
+  8. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
+- **验证**：TDD 红→绿：tests/read-tool-fence.test.ts 首跑 5 fail（读 .env / .env.local / ../ 穿越 / 写 cwd 外绝对路径 / permissions read .env 全部未拦）+ 5 pass（cwd 内合法读写、vault 回退读红线），实现后 10 pass/0 fail。回归：tests/security-fixes.test.ts + tests/unit/filesystem.test.ts + tools-v3 + review-deep + adapt-tool + tool-registry-dedup + registry-validation + unit/permission-middleware + unit/command-safety = 119 pass/0 fail；integration-edge + e2e-runtime + perf-benchmark + command-gate = 84 pass/0 fail。bunx tsc --noEmit 0。
+- **Commit**：fix(security): 审计强化 T1 P0-1 read/write 路径围栏 + permissions 纳 read（N-H1，TDD） — __P0T1_HASH__

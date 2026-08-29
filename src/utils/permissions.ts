@@ -65,7 +65,10 @@ export function checkFilePermission(path: string, operation: "read" | "write" | 
     }
   }
   
-  if ((operation === "write" || operation === "delete") && sensitivePaths.some(p => path.includes(p))) {
+  // P0-1（审计 N-H1，2026-08-29）：敏感路径拦截纳入 "read"——
+  // .env/.git/密钥类路径连读都拒（读密钥与写密钥同危险），
+  // 否则 MCP read 工具可零围栏读取 .env 窃取全部 API key。
+  if ((operation === "read" || operation === "write" || operation === "delete") && sensitivePaths.some(p => path.includes(p))) {
     return { allowed: false, requiresConfirmation: true, level: "high-risk", reason: `Sensitive path: ${path} requires manual confirmation` }
   }
   
