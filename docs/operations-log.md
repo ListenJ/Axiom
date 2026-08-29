@@ -7899,3 +7899,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`docs/knowledge/agent-decision-chain-assessment-2026-08-29.md` 追加第 六 节 P0 实施回写表；package.json test:full 补 chat-preflight-parallel/chat-memory-loop/hallucination-wiring 三测试；本条目追加。
 - **验证**：bun run test:full 600 pass/0 fail/73 文件（基线 566+34）；bunx tsc --noEmit 0；architecture-integrity 24/0（循环+扇出双断言绿）。
 - **Commit**：feat(lift): P0 三项收口（架构合规修复+白名单+报告回写） — 90d1be5
+
+## 2026-08-29 — docs(spec): P1 提升迭代设计（S1检索唤醒/S2中文bigram/S3结构化/S4学习回路/S5校准积累）
+
+- **任务**：按评估报告 P1 行产出实施 spec（5 切片：DRE 检索栈接 routes/search 与 vault 回退链；中文 bigram 双层——内存 tokenize + memory_notes_fts trigram 迁移带降级；三解析点 zod；thompson arms 填充+反馈接线+平级 tie-break；hallucination_verdicts 落库+保守自动校准）。非目标：P2 项与 thompson 全面接管。
+- **工具**：Write、Bash。
+- **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p1-lift-design.md`；本条目追加。
+- **验证**：自查通过；S2 迁移降级与 S4 语义不回退列为硬验收。
+- **Commit**：docs(spec): P1 提升迭代设计（5 切片） — hash 待回填
