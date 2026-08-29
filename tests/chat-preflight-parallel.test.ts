@@ -60,6 +60,7 @@ describe("runPreflight — 串行回退路径（行为语义不变）", () => {
     const baseIntent = makeIntent();
     const enhancedIntent = makeIntent({ intent: "code", confidence: 0.8, agentName: "ChatAgent" });
     const deps: PreflightDeps = {
+      edge: null,
       canAttemptMerged: () => true,
       mergedEdge: async () => {
         events.push("merged:null");
@@ -106,6 +107,7 @@ describe("runPreflight — 串行回退路径（行为语义不变）", () => {
     let enhanceCalled = 0;
     const baseIntent = makeIntent({ confidence: 0.9 });
     const deps: PreflightDeps = {
+      edge: null,
       canAttemptMerged: () => false,
       mergedEdge: async () => null,
       gates: () => true,
@@ -125,6 +127,7 @@ describe("runPreflight — 串行回退路径（行为语义不变）", () => {
   test("无合并资格与合并失败两条路进入同一串行路径（结果一致）", async () => {
     const baseIntent = makeIntent();
     const mk = (canAttempt: boolean, merged: MergedPreflight | null): PreflightDeps => ({
+      edge: null,
       canAttemptMerged: () => canAttempt,
       mergedEdge: async () => merged,
       gates: () => true,
@@ -144,6 +147,7 @@ describe("runPreflight — 边缘合并快路径", () => {
 
   function mergedDeps(events: string[], overrides: Partial<PreflightDeps> = {}): PreflightDeps {
     return {
+      edge: null,
       canAttemptMerged: () => true,
       mergedEdge: async () => {
         events.push("merged");
@@ -272,17 +276,13 @@ describe("mergedEdgePreflight — 边缘结构化调用解析", () => {
     ).toBeNull();
   });
 
-  test("EDGE_PROMPT_OPTIMIZER=0 时不开边缘调用（直接 null）", async () => {
+  test("开关关闭（enabled=false）时不开边缘调用（直接 null，组合根语义）", async () => {
     let calls = 0;
     const client = { generate: async () => { calls++; return { content: "{}", model: "f", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" }; } };
-    const prev = process.env.EDGE_PROMPT_OPTIMIZER;
-    process.env.EDGE_PROMPT_OPTIMIZER = "0";
-    try {
-      expect(await mergedEdgePreflight("some input here", client)).toBeNull();
-    } finally {
-      if (prev === undefined) delete process.env.EDGE_PROMPT_OPTIMIZER;
-      else process.env.EDGE_PROMPT_OPTIMIZER = prev;
-    }
+    // P0-A 注入化后开关经组合根 EdgeDep.enabled() 传入（routes 层读 EDGE_PROMPT_OPTIMIZER）
+    expect(await mergedEdgePreflight("some input here", { enabled: () => false, client })).toBeNull();
+    expect(await mergedEdgePreflight("some input here", null)).toBeNull();
+    expect(calls).toBe(0);
     expect(calls).toBe(0);
   });
 });

@@ -7891,3 +7891,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. 新建 tests/hallucination-wiring.test.ts（13 测试，mock.module 模式与 tests/services-chat.test.ts 同型、零网络：①带证据 factBase 下无支撑陈述 anomalous/证据支撑 accepted/空证据与空陈述不判定；②prepareChatContext 返回请求级 evidence（knowledge+codegraph 均入、检索头不入）+ assessStatement 输出即 _hallucination 元数据形状 {pValue,verdict,isAccepted} + 基于请求证据的编造内容标可疑；③请求级隔离（无检索请求 evidence 为空不被污染、assessStatement 连续调用互不影响）；④factBase 构建纯函数（knowledge source 提取与检索头剔除/codegraph 分块/合并/空输入/DRE metadata.evidence 两形态与非法项过滤））。
 - **验证**：TDD 红→绿：新测试先红（SyntaxError: Export 'buildFactBaseFromEvidence' not found + evidence undefined，10 pass/3 fail）→ 实现后 13 pass/0 fail（43 expect）。回归分批小跑全 0 fail：hallucination-detector+services-chat+routes-chat-validation+chat-tools 合计 34 pass；dre-memory-deep+dre-core-modules+cognitive-pipeline+mcp-cognitive-integration 合计 142 pass；chat-memory-loop+chat-preflight-parallel+chat-sessions+openai-compat 合计 35 pass；bunx tsc --noEmit 0。
 - **Commit**：feat(safety): P0-C 幻觉防线接火（请求级 factBase+verify 双缝接线） — b1e8bca1683d1c168433efd142ffd33dc0c92991
+
+## 2026-08-29 — feat(lift): P0 三项实施收口（决策链提速/记忆闭环/防线接火）
+
+- **任务**：按获批 spec（2026-08-29-p0-lift-design.md）完成 P0 三项：Task A 决策链提速（子代理 1171453：selfThink 与 prepare 并行 + chat-preflight 边缘合并快路径；首派子代理 600s 超时死亡，工作区零残留后重派成功）；Task B 记忆闭环（f6f91f2：自动归档+bootstrap 召回）；Task C 防线接火（b1e8bca：请求级 factBase+双缝 verify）。主会话架构合规修复：①services 扇出 10→8（chat-preflight 的 dre type-only/local-llm 边注入化：EdgeDep/EdgeClientLike 结构类型 + normalizeEdge 兼容 + extractJson 迁 utils/extract-json.ts，edge-client re-export；routes 组合根注入生产 edge；中途一次正则破坏测试括号平衡，备份恢复后改联合签名零改调用点；normalize 替换曾丢 enabled() 守卫致 calls=1，补回）；②dre↔memory 循环消除（engine 删 memory 直引，DREConfig.hallucinationGate 组合根注入，main.ts DEEPSEEK 块接线）。
+- **工具**：Agent×4（Task A 首派超时+重派、B、C；general-purpose 串行）、Bash（bun 脚本精确锚点编辑、备份恢复、bun test/tsc/test:full）、Write（报告回写）、Edit（package.json 白名单 +3）。
+- **操作**（文件级）：`docs/knowledge/agent-decision-chain-assessment-2026-08-29.md` 追加第 六 节 P0 实施回写表；package.json test:full 补 chat-preflight-parallel/chat-memory-loop/hallucination-wiring 三测试；本条目追加。
+- **验证**：bun run test:full 600 pass/0 fail/73 文件（基线 566+34）；bunx tsc --noEmit 0；architecture-integrity 24/0（循环+扇出双断言绿）。
+- **Commit**：feat(lift): P0 三项收口（架构合规修复+白名单+报告回写） — hash 待回填

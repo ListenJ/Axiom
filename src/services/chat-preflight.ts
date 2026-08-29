@@ -27,8 +27,7 @@ import {
   type PromptOptimization,
 } from "../agents/prompt-optimizer.js";
 import { enhanceIntentWithLLM, shouldEnhanceIntent } from "../agents/intent-enhancer.js";
-import { getEdgeClient, isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
-import type { LLMClient } from "../dre/llm/client.js";
+import { extractJson } from "../utils/extract-json.js";
 import { logger } from "../utils/logger.js";
 
 /** 合法意图集合（与 intent-enhancer VALID_INTENTS 一致） */
@@ -54,8 +53,28 @@ export interface PreflightResult {
   intent: IntentResult;
 }
 
-/** preflight 依赖（全量可注入；生产用 defaultPreflightDeps） */
+/** 结构化边缘客户端（对齐 edge-client.generate 的实际用面子集，避免跨层类型依赖） */
+export interface EdgeClientLike {
+  generate(prompt: string, options?: { maxTokens?: number }): Promise<{ content: string }>;
+}
+
+/** 边缘依赖：enabled()=EDGE_PROMPT_OPTIMIZER 开关；null = 快路径禁用 */
+export interface EdgeDep {
+  enabled(): boolean;
+  client: EdgeClientLike;
+}
+
+/** 兼容归一：传裸客户端（如测试 fake）视为 enabled=true */
+export function normalizeEdge(edge?: EdgeDep | EdgeClientLike | null): EdgeDep | null {
+  if (!edge) return null;
+  if (typeof (edge as EdgeDep).enabled === "function") return edge as EdgeDep;
+  return { enabled: () => true, client: edge as EdgeClientLike };
+}
+
+/** preflight 依赖（全量可注入；生产用 defaultPreflightDeps，edge 由 routes 组合根注入） */
 export interface PreflightDeps {
+  /** 边缘依赖（合并快路径）；null = 快路径禁用，走串行 */
+  edge: EdgeDep | null;
   /** 快路径资格：默认 改写开关开启 且 输入未被优化器跳过规则排除 */
   canAttemptMerged: (input: string) => boolean;
   /** 边缘合并调用：null = 边缘不可用/解析失败 → 回退串行 */
@@ -80,9 +99,13 @@ export interface PreflightDeps {
 
 /** 生产依赖（测试整体替换为 fake，不用 mock.module） */
 export function defaultPreflightDeps(): PreflightDeps {
+  // edge 默认 null：组合根（routes）注入生产边缘客户端；缺省时合并快路径禁用、
+  // 静默走串行路径（行为语义不变，见 spec §A 降级纪律）。
+  const edge: EdgeDep | null = null;
   return {
+    edge,
     canAttemptMerged: (input) => isRewriteEnabled() && !shouldSkipOptimization(input),
-    mergedEdge: (input) => mergedEdgePreflight(input),
+    mergedEdge: (input) => mergedEdgePreflight(input, edge),
     gates: passesDeterministicGates,
     optimize: (input) => optimizePrompt(input),
     buildMessages: buildAgentMessages,
@@ -156,9 +179,11 @@ export async function runPreflight(
  */
 export async function mergedEdgePreflight(
   userInput: string,
-  client: Pick<LLMClient, "generate"> = getEdgeClient(),
+  edge?: EdgeDep | EdgeClientLike | null,
 ): Promise<MergedPreflight | null> {
-  if (!isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")) return null;
+  const e = normalizeEdge(edge);
+  if (!e || !e.enabled()) return null;
+  const client = e.client;
   try {
     const truncated = userInput.length > MERGED_MAX_INPUT_CHARS
       ? userInput.slice(0, MERGED_MAX_INPUT_CHARS)

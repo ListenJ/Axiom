@@ -29,7 +29,6 @@ import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
 import { worldState } from "./runtime/world-state.js";
 import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from "./constraints.js";
-import { assessStatement, buildFactBaseFromEvidence } from "../memory/hallucination-detector.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
@@ -60,6 +59,12 @@ export interface DREConfig {
   };
   /** L1 端口：云端降级调用器（组合根注入；未装配时云级不可用） */
   cloudCaller?: import("./ports/cloud-caller.js").DreCloudCaller;
+  /** L1 端口：幻觉门（组合根注入；避免 dre->memory 直引）。入参 evidence 为调用方
+   * 检索证据（string[] 或 {text,confidence,source}[]），返回 null = 无证据跳过校验。 */
+  hallucinationGate?: (
+    statement: string,
+    evidence: unknown,
+  ) => { verdict: string; pValue: number; isAccepted: boolean } | null;
 }
 
 /**
@@ -747,10 +752,9 @@ export class DREngine {
     // 无证据时跳过校验，行为与之前完全一致。低置信（verdict 为 anomalous/hallucination，
     // 校准债：未校准下 pValue 恒 1.0，可疑仅由证据相似度驱动）时打标记录（assessStatement
     // 内 logger.warn）并抛错 → consciousnessStep 既有降级链走 L3 ruleBased 路径。
-    const factBase = buildFactBaseFromEvidence(input.metadata?.evidence);
-    if (factBase.length > 0) {
-      const assessment = assessStatement(factBase, decision.content);
-      if (assessment && !assessment.isAccepted) {
+    const assessment = this.config.hallucinationGate?.(decision.content, input.metadata?.evidence) ?? null;
+    if (assessment) {
+      if (!assessment.isAccepted) {
         throw new Error(
           "[DRE] cloud decision failed hallucination verify: verdict=" + assessment.verdict +
           ", pValue=" + assessment.pValue.toFixed(3) +

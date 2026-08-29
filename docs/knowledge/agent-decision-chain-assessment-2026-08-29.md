@@ -63,3 +63,16 @@ POST /chat → optimizePrompt(GLM 改写) → 意图判定(关键词 fast path /
 | P2 | 幽灵裁剪（autoRoute、mathContext 4 模块 ~2000 行） | 减维护税 | 低 |
 
 **哲学结论**：项目声明"LLM 降级为 Cognitive Accelerator、确定性为核心"——这在 DRE 支线兑现了，但主任务链路实际是"LLM 主导+几乎无约束"，两者从未收敛。出路二选一：把确定性设施接进主链路（资产唤醒，推荐——上表杠杆全是接线型改动），或承认主链路松约束并清算休眠确定性设施（负债清算）。推荐前者。
+
+---
+
+## 六、P0 三项实施回写（2026-08-29，同日完成）
+
+| 杠杆 | 状态 | Commit | 实施要点 |
+|------|------|--------|---------|
+| A 决策链提速 | ✅ | 1171453 + 架构修复 6622a3x | 依赖图实测：intent 消费改写文本（保持串行）、selfThink 只依赖原始输入（与 prepare 并行，T(prepare)+T(think)→max）；边缘合并快路径 `src/services/chat-preflight.ts`（一次结构化调用出 {rewritten,intent,confidence}，确定性闸门+静默回退）；组合根注入 edge（services 层不 import local-llm/dre，扇出 10→8） |
+| B 跨会话记忆闭环 | ✅ | f6f91f2 | 交换后 fire-and-forget 自动归档（经既有 writeConversationLog + MemoryGate 限流透传）；AgentBootstrap per-session 缓存（上限 500）注入 system prompt（与 constitution 并存）；vault 不可用降级 |
+| C 幻觉防线接火 | ✅ | b1e8bca + 接线修复 | 请求级 factBase（纯函数 buildFactBaseFromRetrieval/FromEvidence，单条 400 字/64 条上限）；缝① chat 响应 `_hallucination: {pValue,verdict,isAccepted}` 元数据；缝② DRE cloudConsciousnessStep 过 verify（低置信→既有 L3 降级链）；**架构合规**：dre 不直引 memory，gate 经 DREConfig 组合根注入（main.ts）；校准债=P1（未校准下 pValue 恒 1.0，可疑由证据相似度驱动） |
+| 架构合规修复 | ✅ | 本轮 | services 扇出 10→8（chat-preflight 注入化 + extractJson 迁 utils）；dre↔memory 循环消除（gate 注入）；extractJson 单源迁 utils/extract-json.ts（edge-client re-export 兼容） |
+
+**回归**：`bun run test:full` **600 pass / 0 fail / 73 文件**（基线 566 + 新增 34，白名单含全部新测试）；`bunx tsc --noEmit` 0；architecture-integrity 24/0（含循环与扇出断言）。

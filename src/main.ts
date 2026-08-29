@@ -154,12 +154,18 @@ logger.info("[ComponentKernel] Native Day0 components initialized", {
 if (readString("DEEPSEEK_API_KEY", "")) {
   const { setDreHostOverrides } = await import("./dre/host.js");
   const { createDreCloudAdapter } = await import("./router/provider-caller.js");
+  const { assessStatement, buildFactBaseFromEvidence } = await import("./memory/hallucination-detector.js");
   setDreHostOverrides({
     cloudCaller: createDreCloudAdapter({
       baseUrl: readString("DEEPSEEK_BASE_URL", ""),
       apiKey: readString("DEEPSEEK_API_KEY", ""),
       model: readString("DEEPSEEK_MODEL", "deepseek-v4-flash"),
     }),
+    // P0-C 缝② 组合根接线：dre 包不直引 memory（架构循环约束），gate 经配置注入
+    hallucinationGate: (statement: string, evidence: unknown) => {
+      const factBase = buildFactBaseFromEvidence(evidence);
+      return factBase.length > 0 ? assessStatement(factBase, statement) : null;
+    },
   });
 }
 const dreKernel = await initDreKernel().catch((err) => {

@@ -15,6 +15,7 @@
  */
 
 import { LLMClient } from "../dre/llm/client.js";
+import { extractJson } from "../utils/extract-json.js";
 import { readString } from "../utils/env.js";
 
 let instance: LLMClient | null = null;
@@ -52,27 +53,4 @@ export function isEdgeEnabled(flag: string): boolean {
  * 容错 JSON 解析: 剥离 markdown code fence, 提取首个 {...} 对象。
  * 解析失败返回 null (调用方据此回退)。
  */
-export function extractJson<T = Record<string, unknown>>(content: string): T | null {
-  let text = content.trim();
-
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  }
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    // 不是纯 JSON, 尝试提取首个对象
-  }
-
-  const match = text.match(/\{[\s\S]*\}/);
-  if (match) {
-    try {
-      return JSON.parse(match[0]) as T;
-    } catch {
-      // 提取后仍解析失败
-    }
-  }
-
-  return null;
-}
+export { extractJson };

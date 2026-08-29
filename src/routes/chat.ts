@@ -7,6 +7,8 @@ import { router, type ChatMessage, type ChatStreamEvent } from "../router/model-
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
+import { defaultPreflightDeps } from "../services/chat-preflight.js";
+import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { startSelfThought, attachSelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
 import { toOpenAITools } from "../utils/tool-surface.js";
@@ -66,7 +68,15 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     messages,
     enableIntent,
     ctx.vault,
-    { budget, sessionId: recallSessionId },
+    {
+      budget,
+      sessionId: recallSessionId,
+      // P0-A 组合根注入：生产边缘客户端（services 层不 import local-llm，架构扇出约束）
+      preflightDeps: {
+        ...defaultPreflightDeps(),
+        edge: { enabled: () => isEdgeEnabled("EDGE_PROMPT_OPTIMIZER"), client: getEdgeClient() },
+      },
+    },
   );
   const chatMessages = await attachSelfThought(preparedMessages, selfThoughtPromise);
   const roleForTools = intentInfo

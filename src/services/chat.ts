@@ -25,7 +25,7 @@ import { contextAssembler } from "../components/context-assembler.js";
 import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
 import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
 import { isReadOptimizerInitialized } from "../utils/read-optimizer-init.js";
-import { runPreflight } from "./chat-preflight.js";
+import { runPreflight, type PreflightDeps } from "./chat-preflight.js";
 
 export interface PreparedContext {
   chatMessages: ChatMessage[];
@@ -52,6 +52,8 @@ export interface PrepareChatContextOptions {
   sessionId?: string;
   /** 可注入的 bootstrap（测试/自定义；缺省用 AgentBootstrap 默认实例） */
   bootstrap?: Pick<AgentBootstrap, "run" | "toSystemPrompt">;
+  /** 可注入的 preflight 依赖（组合根注入生产边缘客户端；缺省 edge=null 走串行） */
+  preflightDeps?: PreflightDeps;
 }
 
 /**
@@ -89,7 +91,7 @@ export async function prepareChatContext(
       // 保持串行；边缘 :9001 可用时经合并快路径一次出 {rewritten, intent, confidence}。
       // selfThink 只依赖原始输入，已在 routes/chat.ts 与本函数并发发起。
       // 失败容错保持：改写失败回退原文、意图增强失败回退关键词结果、均不阻塞主流程。
-      const preflight = await runPreflight(lastUserMsg.content, history);
+      const preflight = await runPreflight(lastUserMsg.content, history, options.preflightDeps);
       if (preflight.optimization.changed) {
         logger.debug("Prompt optimized", {
           original: lastUserMsg.content.slice(0, 80),
