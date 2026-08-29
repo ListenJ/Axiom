@@ -73,16 +73,20 @@ function parseWhitelist(): Set<string> | null {
 }
 
 export function sanitizeCommand(command: string): { safe: boolean; error?: string } {
+  // N-H3 修复（2026-08-29）：换行归一为分号语句。多行命令在 sh -c / cmd /c 下本就是
+  // 顺序执行，归一后语义等价；白名单命令位提取（; 为分隔符）与黑名单危险模式
+  // 因此都能看到换行分隔的每条子命令，`git status\nrm -rf /` 之类的偷渡被拒。
+  const normalized = command.replace(/\r?\n/g, "; ");
   const whitelist = parseWhitelist();
   if (whitelist) {
     if (whitelist.size === 0) {
       return { safe: false, error: "Terminal whitelist is empty: all commands blocked" };
     }
     // 命令替换的输出可成为被执行的命令本身，白名单模式下整体拒绝
-    if (/\$\(|`/.test(command)) {
+    if (/\$\(|`/.test(normalized)) {
       return { safe: false, error: "Command substitution is not allowed in whitelist mode" };
     }
-    for (const word of extractCommandWords(normalizeCommand(command))) {
+    for (const word of extractCommandWords(normalizeCommand(normalized))) {
       const base = word.split(/[\\/]/).pop()!.toLowerCase();
       if (!whitelist.has(base)) {
         return { safe: false, error: `Command "${base}" is not in the terminal whitelist` };
@@ -91,8 +95,8 @@ export function sanitizeCommand(command: string): { safe: boolean; error?: strin
     return { safe: true };
   }
 
-  // 黑名单：原始串 + 去混淆串双重匹配
-  for (const target of [command, normalizeCommand(command)]) {
+  // 黑名单：原始串 + 归一串 + 去混淆串多重匹配（保留原始串目标防止归一意外掩盖模式）
+  for (const target of [command, normalized, normalizeCommand(normalized)]) {
     for (const pattern of DANGEROUS_PATTERNS) {
       if (pattern.test(target)) {
         return { safe: false, error: `Dangerous command blocked for safety` };

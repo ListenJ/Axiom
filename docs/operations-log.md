@@ -7665,3 +7665,18 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   8. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
 - **验证**：TDD 红→绿：tests/read-tool-fence.test.ts 首跑 5 fail（读 .env / .env.local / ../ 穿越 / 写 cwd 外绝对路径 / permissions read .env 全部未拦）+ 5 pass（cwd 内合法读写、vault 回退读红线），实现后 10 pass/0 fail。回归：tests/security-fixes.test.ts + tests/unit/filesystem.test.ts + tools-v3 + review-deep + adapt-tool + tool-registry-dedup + registry-validation + unit/permission-middleware + unit/command-safety = 119 pass/0 fail；integration-edge + e2e-runtime + perf-benchmark + command-gate = 84 pass/0 fail。bunx tsc --noEmit 0。
 - **Commit**：fix(security): 审计强化 T1 P0-1 read/write 路径围栏 + permissions 纳 read（N-H1，TDD） — 804ec12
+
+## 2026-08-29 — fix(security): 审计强化 Task 2 P0-2 code-analysis 注入消除 + P0-3 换行归一（N-H2/N-H3，TDD）
+
+- **任务**：联合审查 N-H2/N-H3（docs/reviews/2026-08-29-joint-verification-audit.md §4）——①code-analysis.ts:501 将 filePath 以模板串拼进 `npx eslint ...` 未转义、:412 仅 `replace(/"/g,'\\"')`（双引号内 $()/反引号仍被 shell 解释），经 shell:true 执行 → 命令注入；②command-safety.ts:58 白名单命令位提取正则无 `\r\n`，`git status\nrm -rf /` 的 rm 不被提取为命令 token → safe 放行，terminal.ts:92-94 sh -c/cmd /c 原样执行整串。spec：docs/superpowers/specs/2026-08-29-audit-hardening-design.md §1 P0-2/P0-3。
+- **工具**：Read（command-safety/terminal/code-analysis/package.json/operations-log 全文通读）、Edit（3 源文件 + package.json 最小改动）、Write（2 新测试 + 条目临时文件）、Bash（cp 备份/rm 备份、bun test、bunx tsc、bun 追加与回填脚本、git）。无子代理（串行约束）。
+- **操作**（文件级）：
+  1. 备份 5 文件 → .tmp/backups/（规则2，先通读全文），验证后删除。
+  2. P0-2（src/mcp/tools/code-analysis.ts）：新增导出 validateFilePathForCommand（非空 + 无 shell 元字符 [|&;&lt;&gt;()$ 反引号 换行 引号] + 扩展名 LANG_MAP 白名单 + 存在性，先于任何 spawn）；4 处 executeCommand 调用全部改 args 数组通道（spawn 免 shell；Bun win32 下 spawn("npx",args,{shell:false}) 预先实测可用）：全项目 tsc、单文件 tsc 回退分支、语言 linter 执行点（getLinterConfig 三分支去掉假转义与引号包裹）、getCodeActions eslint；移除全部 4 处 replace(/"/g,'\\"') 无效转义补丁。
+  3. P0-3（src/utils/command-safety.ts）：sanitizeCommand 入口 `input.replace(/\r?\n/g, "; ")` 归一为分号语句（spec 选定方案，多行变顺序执行语义等价）；白名单 $()/反引号检测与命令位提取改用归一串；黑名单匹配目标扩为 [原始串, 归一串, 去混淆串] 三重（保留原始串防归一意外掩盖模式）。
+  4. P0-3（src/mcp/tools/terminal.ts）：executeCommand 安全检查通过后对最终命令串二次归一（\r?\n → "; "），防其他入口绕过 sanitize 内部归一后仍把多行串交给 sh -c / cmd /c。
+  5. 新建 tests/command-safety-newline.test.ts（7 测试：①①b 白名单换行拒、②②b 归一语义保持/含非法拒、③ 黑名单回归、无换行回归、executeCommand 集成）与 tests/code-analysis-shell-safety.test.ts（12 测试：静态断言 3——无 shell:true / 全部 args 数组形态 / 无引号转义补丁；校验函数 4；行为接线 5——getCodeActions $() 拒绝、getDiagnostics 元字符/不存在/扩展名拒绝、合法文件不误伤）。
+  6. package.json：test:full 名单补入两个新测试文件（read-tool-fence 之后）。
+  7. 本条目 docs/operations-log.md（bun 脚本追加，锚点回填 hash）。
+- **验证**：TDD 红→绿：P0-3 首跑 4 fail（白名单 git status\nrm -rf /、CRLF 变体、echo a\nrm -rf /、executeCommand 集成）+ 3 pass（② 语义保持、③ 黑名单回归、无换行回归）；P0-2 首跑因 validateFilePathForCommand 未导出整文件加载红，导出后断言层 6 fail（静态 args 数组形态/转义补丁存在 + 行为接线 4 项），接线后 19 pass/0 fail（52 expect）。回归：unit/command-safety + security-fixes + security-hardening + security-hardening-extended + tools-v3 + command-gate + pty-session + mcp-server + plugin-market + prompt-engineer + rigorous/security-rigorous = 255 pass/0 fail/2 skip（skip 为既有鉴权跳过项）。bunx tsc --noEmit 0。备份验证后删除。
+- **Commit**：fix(security): 审计强化 T2 P0-2 code-analysis 注入消除 + P0-3 换行归一（N-H2/N-H3，TDD） — T2P0HASHANCHOR9X4Q

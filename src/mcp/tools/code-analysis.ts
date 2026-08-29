@@ -1,6 +1,7 @@
 import { readFile, searchFiles } from "./filesystem.js";
 import { executeCommand } from "./terminal.js";
 import * as path from "node:path";
+import { existsSync } from "node:fs";
 
 export interface SymbolInfo {
   name: string;
@@ -96,6 +97,32 @@ const LANG_MAP: Record<string, string> = {
 export function detectLanguage(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   return LANG_MAP[ext] || "unknown";
+}
+
+/**
+ * N-H2 审计修复（2026-08-29）：进入命令执行的 filePath 白名单校验。
+ * 通过（返回 null）需同时满足：非空、无 shell 元字符（| & ; < > ( ) $ 反引号、
+ * 换行、引号）、扩展名在 LANG_MAP 白名单内、文件存在。
+ * 校验先于任何 spawn：executeCommand 全部走 args 数组通道（spawn 免 shell），
+ * 此校验为纵深防御，防止未来路径重新进入 shell 语义。
+ */
+const SHELL_METACHAR_RE = /[|&;<>()$`"'\r\n]/;
+
+export function validateFilePathForCommand(filePath: string): string | null {
+  if (!filePath || filePath.trim().length === 0) {
+    return "filePath is required";
+  }
+  if (SHELL_METACHAR_RE.test(filePath)) {
+    return "filePath contains shell metacharacters and was rejected";
+  }
+  const ext = path.extname(filePath).toLowerCase();
+  if (!LANG_MAP[ext]) {
+    return `filePath has an unsupported extension: ${ext || "(none)"}`;
+  }
+  if (!existsSync(filePath)) {
+    return `filePath does not exist: ${filePath}`;
+  }
+  return null;
 }
 
 // Linter configurations per language
@@ -245,28 +272,26 @@ function getLinterConfig(filePath: string): LinterConfig | null {
     case "typescript":
     case "javascript": {
       // Prefer eslint if available, fallback to tsc
-      const safeFilePath = filePath.replace(/"/g, '\\"');
+      // N-H2：参数走数组通道由 spawn 逐项传递，filePath 不再拼入 shell 字符串
       return {
         cmd: "npx",
-        args: ["eslint", "--format", "json", `"${safeFilePath}"`],
+        args: ["eslint", "--format", "json", filePath],
         parseOutput: parseEslintOutput,
         timeout: 30000,
       };
     }
     case "python": {
-      const safeFilePath = filePath.replace(/"/g, '\\"');
       return {
         cmd: "python",
-        args: ["-m", "pylint", "--output-format=text", `"${safeFilePath}"`],
+        args: ["-m", "pylint", "--output-format=text", filePath],
         parseOutput: parsePylintOutput,
         timeout: 30000,
       };
     }
     case "go": {
-      const safeFilePath = filePath.replace(/"/g, '\\"');
       return {
         cmd: "go",
-        args: ["vet", `"${safeFilePath}"`],
+        args: ["vet", filePath],
         parseOutput: parseGoVetOutput,
         timeout: 30000,
       };
@@ -392,8 +417,7 @@ export async function getDiagnostics(
 ): Promise<DiagnosticsResult> {
   // If no filePath, run project-wide TypeScript check
   if (!filePath) {
-    const cmd = "npx tsc --noEmit";
-    const result = await executeCommand(cmd, { timeout: 60000 });
+    const result = await executeCommand("npx", { args: ["tsc", "--noEmit"], timeout: 60000 });
     const diagnostics = parseTscOutput(result.stdout + result.stderr);
     const errorCount = diagnostics.filter((d) => d.severity === "error").length;
     const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
@@ -410,17 +434,30 @@ export async function getDiagnostics(
     };
   }
 
+  // N-H2：filePath 白名单校验（元字符/扩展名/存在性），不合法直接拒绝，不进入命令执行
+  const validationError = validateFilePathForCommand(filePath);
+  if (validationError) {
+    return {
+      success: false,
+      error: validationError,
+      errorCount: 0,
+      warningCount: 0,
+      infoCount: 0,
+      language: detectLanguage(filePath),
+    };
+  }
+
   const lang = options?.language || detectLanguage(filePath);
   const linterConfig = getLinterConfig(filePath);
 
   if (!linterConfig) {
     // Fallback to TypeScript for TS/JS or basic syntax check
     if (lang === "typescript" || lang === "javascript") {
-      const safeFilePath = filePath.replace(/"/g, '\\"');
-      const cmd = options?.quick
-        ? `npx tsc --noEmit --skipLibCheck "${safeFilePath}"`
-        : `npx tsc --noEmit "${safeFilePath}"`;
-      const result = await executeCommand(cmd, { timeout: 60000 });
+      // N-H2：数组通道，filePath 不拼入 shell 字符串
+      const tscArgs = ["tsc", "--noEmit"];
+      if (options?.quick) tscArgs.push("--skipLibCheck");
+      tscArgs.push(filePath);
+      const result = await executeCommand("npx", { args: tscArgs, timeout: 60000 });
       const diagnostics = parseTscOutput(result.stdout + result.stderr);
       const errorCount = diagnostics.filter((d) => d.severity === "error").length;
       const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
@@ -447,11 +484,11 @@ export async function getDiagnostics(
     };
   }
 
-  // Run language-specific linter
-  const result = await executeCommand(
-    `${linterConfig.cmd} ${linterConfig.args.join(" ")}`,
-    { timeout: linterConfig.timeout }
-  );
+  // Run language-specific linter — N-H2：数组通道 spawn，参数逐项传递不经 shell 解释
+  const result = await executeCommand(linterConfig.cmd, {
+    args: linterConfig.args,
+    timeout: linterConfig.timeout,
+  });
 
   // Linter may exit with non-zero code even with valid output
   const diagnostics = linterConfig.parseOutput(result.stdout + result.stderr);
@@ -493,15 +530,22 @@ export async function getQuickDiagnostics(
 export async function getCodeActions(
   filePath: string
 ): Promise<CodeActionsResult> {
+  // N-H2：filePath 白名单校验（元字符/扩展名/存在性），不合法直接返回错误而非执行
+  const validationError = validateFilePathForCommand(filePath);
+  if (validationError) {
+    return { success: false, error: validationError };
+  }
+
   const lang = detectLanguage(filePath);
   const actions: CodeAction[] = [];
 
   if (lang === "typescript" || lang === "javascript") {
     // Use ESLint with fix-dry-run to get suggestions
-    const result = await executeCommand(
-      `npx eslint --format json --fix-dry-run "${filePath}"`,
-      { timeout: 30000 }
-    );
+    // N-H2：数组通道 spawn，filePath 不拼入 shell 字符串
+    const result = await executeCommand("npx", {
+      args: ["eslint", "--format", "json", "--fix-dry-run", filePath],
+      timeout: 30000,
+    });
 
     try {
       const eslintResults = JSON.parse(result.stdout);

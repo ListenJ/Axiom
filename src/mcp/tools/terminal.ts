@@ -64,6 +64,10 @@ export async function executeCommand(
     };
   }
 
+  // N-H3 加固（2026-08-29）：执行前对最终命令串二次归一（\r?\n → "; "），
+  // 防其他入口在绕过 sanitizeCommand 内部归一的情况下仍把多行串交给 sh -c / cmd /c 原样执行。
+  command = command.replace(/\r?\n/g, "; ");
+
   // M5 审计修复：cwd 围栏 —— 与 fs 工具沙箱同策略，阻断任意目录落点
   if (options?.cwd) {
     const target = path.resolve(options.cwd);
