@@ -62,4 +62,23 @@ describe("W5 ensureKgFts 幂等建表 + 存量回填", () => {
     expect(count1).toBe(2);
     expect(count2).toBe(2);
   });
+
+  test("FTS 部分丢失时 ensureKgFts 恢复缺失行（INSERT OR IGNORE 跳过已存在）", () => {
+    const db = new Database(":memory:");
+    db.exec(KG_SCHEMA_DDL);
+    seedNode(db, "kg:concept:a", "Alpha", "semanticentity alpha body", 0.9);
+    seedNode(db, "kg:concept:b", "Beta", "semanticentity beta body", 0.7);
+    seedNode(db, "kg:concept:c", "Gamma", "semanticentity gamma body", 0.5);
+    ensureKgFts(db);
+    expect((db.query("SELECT COUNT(*) AS c FROM kg_nodes_fts").get() as { c: number }).c).toBe(3);
+
+    // 模拟部分丢失（触发器漏同步 / 崩溃残留）：删一行的 FTS 索引，kg_nodes 源行仍在
+    const rowid = (db.query("SELECT rowid FROM kg_nodes WHERE id = ?").get("kg:concept:b") as { rowid: number }).rowid;
+    db.run("DELETE FROM kg_nodes_fts WHERE rowid = ?", [rowid]);
+    expect((db.query("SELECT COUNT(*) AS c FROM kg_nodes_fts").get() as { c: number }).c).toBe(2);
+
+    // 二次 ensureKgFts：ftsCount(2) < srcCount(3) → 回填应跳过已存在 2 行、补回缺失 1 行
+    expect(() => ensureKgFts(db)).not.toThrow();
+    expect((db.query("SELECT COUNT(*) AS c FROM kg_nodes_fts").get() as { c: number }).c).toBe(3);
+  });
 });

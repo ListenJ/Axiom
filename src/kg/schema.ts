@@ -87,7 +87,8 @@ export function ensureKgFts(db: Database): void {
     const ftsCount = (db.query("SELECT COUNT(*) AS c FROM kg_nodes_fts").get() as { c: number }).c;
     const srcCount = (db.query("SELECT COUNT(*) AS c FROM kg_nodes").get() as { c: number }).c;
     if (ftsCount < srcCount) {
-      db.exec(`INSERT INTO kg_nodes_fts(rowid, name, description, semantic)
+      // OR IGNORE：部分丢失场景下跳过已存在行、仅补回缺失行（避免与残留 FTS 行 rowid 冲突致整语句回滚、缺口永久不愈）
+      db.exec(`INSERT OR IGNORE INTO kg_nodes_fts(rowid, name, description, semantic)
                SELECT rowid, name, description, semantic FROM kg_nodes`);
     }
   } catch (err) {
