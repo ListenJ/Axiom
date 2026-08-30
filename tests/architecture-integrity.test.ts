@@ -564,6 +564,25 @@ describe("L1 依赖方向（批次5 Phase C）", () => {
     if (hits.length) console.log("[L1] dre→router 引用:\n" + hits.join("\n"));
     expect(hits).toEqual([]);
   });
+
+  it("src/dre 除 search-port.ts 外不得引用 crawl/（W8 M13 收口）", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (p.endsWith(".ts") && !p.endsWith(".test.ts")) {
+          // W8：豁免端口文件 search-port.ts（唯一允许静态 import crawl 的 dre 文件）
+          if (p.endsWith("search-port.ts")) continue;
+          const c = fs.readFileSync(p, "utf8");
+          if (/from\s+"(\.\.?\/)*crawl\//.test(c) || /import\("[^"]*\/crawl\//.test(c)) hits.push(p);
+        }
+      }
+    };
+    walk("src/dre");
+    if (hits.length) console.log("[L1] dre→crawl 引用（非端口文件）:\n" + hits.join("\n"));
+    expect(hits).toEqual([]);
+  });
 });
 
 describe("S7 文档收口 W3/W4", () => {

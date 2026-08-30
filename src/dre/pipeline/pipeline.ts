@@ -13,7 +13,7 @@
 
 import type { KnowledgeStore } from "../storage/knowledge-store.js";
 import type { LLMClient } from "../llm/client.js";
-import { SearchAggregator, searchAggregator, type SearchEngineResult, type SearchFetch } from "../../crawl/search-engines.js";
+import { defaultSearchPort, searchAggregatorFromFetch, type SearchPort, type SearchEngineResult, type SearchFetch } from "./search-port.js";
 import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 
@@ -73,19 +73,19 @@ export class Pipeline {
   private knowledgeStore: KnowledgeStore;
   private llmClient: LLMClient;
   private rules: PipelineRule[] = [];
-  /** 网络校验搜索引擎（依赖注入，测试可隔离；默认用模块单例） */
-  private readonly searchAgg: SearchAggregator;
+  /** 网络校验搜索引擎端口（依赖注入，测试可隔离；默认走 search-port 单例） */
+  private readonly searchAgg: SearchPort;
   /** 是否启用阶段2网络校验（默认 true；测试可关闭以走确定性路径） */
   private readonly webVerifyEnabled: boolean;
 
   constructor(
     knowledgeStore: KnowledgeStore,
     llmClient: LLMClient,
-    opts: { searchAgg?: SearchAggregator; searchFetch?: SearchFetch; webVerifyEnabled?: boolean } = {},
+    opts: { searchAgg?: SearchPort; searchFetch?: SearchFetch; webVerifyEnabled?: boolean } = {},
   ) {
     this.knowledgeStore = knowledgeStore;
     this.llmClient = llmClient;
-    this.searchAgg = opts.searchAgg ?? (opts.searchFetch ? new SearchAggregator(opts.searchFetch) : searchAggregator);
+    this.searchAgg = opts.searchAgg ?? (opts.searchFetch ? searchAggregatorFromFetch(opts.searchFetch) : defaultSearchPort());
     this.webVerifyEnabled = opts.webVerifyEnabled ?? true;
 
     // 注册默认规则
