@@ -8053,3 +8053,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. 新建 tests/dre-degrade-context.test.ts（8 测试）：①记忆有内容 → mock caller 捕获 user 含注入头与记忆片段、observation 前缀正确；②a cloudContextMaxEntries=0 → user 与 observation 逐字节一致；②b workingMemory getter 抛错（流不可用）→ 吞错降级逐字节现状；③8 条 320 字符 CJK 条目 → 摘要 ≤2048 字节、最新条目保留、旧条目预算淘汰；红线：注入同时 gate/recordVerdict 透传不丢（fallbackLevel=cloud）；纯函数三测（空输入空串/200 字符截断+时间倒序+反思随行/compose 无摘要现状有摘要追加头）。
 - **验证**：TDD 红→绿：实现前 2 pass/6 fail（①②a③红线+纯函数 3 测红；②b 现状保持属性实现前即绿）→ 实现后 **8 pass/0 fail**。回归分文件全绿：hallucination-wiring + unit/cloud-decision-guard **20 pass/0 fail**；dre-core-modules + dre-scenarios **100 pass/0 fail**（gate/recordVerdict/parseCloudDecisionOrThrow/fallbackLevel 行为不变）。bunx tsc --noEmit **0**。
 - **Commit**：fix(dre): P2-S5 M10 云端降级上下文补全（本地工作记忆随行云端 prompt） — f0c8db2
+
+## 2026-08-30 — feat(bench): P2-S6 KAL 检索基准定稿（补 100k 档 + 报告文本动态化，W5/W8 门禁判定）
+
+- **任务**：docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S6 收口：基准脚本补 spec 要求的 100k 档（SCALES 三档）并将报告摘要/门禁/结论的"两档/6 格"硬编码改为 SCALES 派生；seed=42 可复现。脚本自身带冒烟反馈回路（FTS 索引行数一致 + probe 命中）用于校验数据有效性。
+- **工具**：Bash（bun 重跑基准 4 次/备份/验证/rg 硬编码残留）、Edit（脚本 8 处最小改动 + 报告由脚本自动再生成）。无子代理（任务要求串行）。
+- **操作**（文件级）：scripts/bench-kal-retrieval.ts（SCALES+100k、scaleLabel 助手 `(v)=>v>=1000? ${v/1000}k : v`、tierTable/降级标题/摘要档位串/门禁格数/结论格数全部改 SCALES 派生、文件头注释"三档"同步）；docs/knowledge/kal-benchmark-2026-08-30.md（实跑后定稿报告，10k/50k/100k 三档表格 + 门禁结论）；本条目追加。
+- **验证**：TDD 红→绿——补档前实跑仅 10k/50k 两档且摘要硬编码"两档"（红）→ 8 处改动后实跑 3 档且摘要/门禁/结论文本动态（绿）。重跑 4 次（3 档版）p95 中位增益依次 2.27x/2.11x/2.07x/2.07x，**结论稳定为"立项排期"（≥2x）**——100k 档如实改变了判定（2 档草稿 1.14-1.96x 判"关闭"系档位不足的偏置，spec 要求 10k/50k/100k 即为此）。`rg "10k/50k 两档|2 规模|6 格"` 零命中，硬编码全清。tsc non-include 范围（scripts/），以实跑绿 + 报告字段核对为准。
+- **Commit**：feat(bench): P2-S6 KAL 基准定稿（100k 档 + 文本动态化，W5/W8 门禁判定=立项排期） — hash 待回填
