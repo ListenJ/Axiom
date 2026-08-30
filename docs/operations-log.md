@@ -8118,4 +8118,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Grep（确认 kal 测试集 typeFilter 零命中）、Edit（补 helper + 3 测试 + 修类型）、Bash（bun test/tsc/test:full）。无子代理。
 - **操作**（文件级）：`tests/kal-kg-fts.test.ts` 新增 `seedNodeTyped`（按 type 播种）+ 3 测试：①typeFilter 作用于 FTS 主腿（function/concept/function 三节点全含"semanticentity"→ FTS MATCH 全召回 + n.type IN('function') 过滤到 2 条，排序保持）；②typeFilter 作用于 LIKE 兜底腿（<3 字 CJK "图谱" + 类型过滤到 function）；③多类型占位符 N>1（typeFilter:["function","class"]→ IN(?,?) 双占位符+双参数绑定，concept 被滤除）。
 - **验证**：补强中 tsc 暴露一处真实类型缺陷——`r.metadata.id.startsWith(...)` 对 `Record<string,unknown>` 的 `unknown` 值直调方法（bun test 运行时通过因值实为 string，tsc 拦截），改 `(r.metadata.id as string).startsWith(...)`。修后 **tsc 0**，`tests/kal-kg-fts.test.ts` **5 pass/0 fail**（原 2 + 新 3）。`bun run test:full` **3230 pass/0 fail/34 skip**（3227+3 新增，只增不减）。
-- **Commit**：test(kal): W5 queryKG typeFilter 覆盖补强（FTS/LIKE 两腿 + 多类型占位符，修 r.metadata.id unknown 类型） — hash 待回填
+- **Commit**：test(kal): W5 queryKG typeFilter 覆盖补强（FTS/LIKE 两腿 + 多类型占位符，修 r.metadata.id unknown 类型） — 992b252
