@@ -8085,3 +8085,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新建 `docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md`（摘要 + 现状事实表 + 形态阻断点 + 最优形态 + 一致性影响 + 结论 + 遗留待决策）；本条目追加。
 - **验证**：关键判断均有代码证据或实测支撑——①W5 阻断点：kg_nodes.id 为 TEXT PRIMARY KEY（schema.ts:12）+ `INSERT OR REPLACE`（enhanced.ts:222/kg-writer.ts:234）改变隐式 rowid（内存库实测 rowid 1→3），故 external-content FTS（memory 侧形态）不可行，须用 bench 已验的独立 fts5 trigram + rowid 触发器形态（bench-kal-retrieval.ts:126-145）；②W8 端口：SearchAggregator.searchMulti 签名与 SearchPort 接口结构兼容（search-engines.ts:449），M13 反向依赖仅 pipeline.ts:16 一处静态 import；③排序红线：queryKG 现 ORDER BY importance DESC,id ASC（:264）在 FTS 腿仍保持，不触发 M3 翻转风险。tsc 无 src 改动（仅 docs），无需跑。
 - **Commit**：docs(knowledge): W5/W8 落地形态审核 — f703bbf
+
+## 2026-08-30 — feat(kal): W5 KAL queryKG FTS5 trigram（独立虚拟表+rowid 触发器+幂等回填+MATCH/LIKE 并集，排序红线保持）
+
+- **任务**：按落地形态审核 `docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md` §2 落地 W5——KAL queryKG 接入 kg_nodes_fts（fts5 trigram 独立表 + rowid 同步触发器）：MATCH 主腿（>=3 字符词）+ <3 字 CJK LIKE 兜底腿并集去重，排序恒 `importance DESC, id ASC`（保 M1/M3 红线），FTS 不存在/失败回退纯 LIKE。规避 D1 三缺陷（死路径/漏回填/漏查存量）。
+- **工具**：Read（通读 schema.ts/enhanced.ts/kg-writer.ts/knowledge-access-layer.ts queryVault+queryKG+sanitizeFTS5+ftsUsesTrigram/bench 脚本已验 KG_FTS_DDL）、Write（TDD 红测试）、Edit（最小改动接线+queryKG 改造）、Bash（bun test 定向/tsc/test:full/备份删除）。无子代理（TDD 串行）。AGENTS 规则 2（备份 .tmp/backups/→通读→最小改动→验证→删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. 新建 `tests/kal-kg-fts.test.ts`（2 测试）：FTS 主腿非字典序+非 importance 序插 3 节点 → "semanticentity" 命中全部 3 且按 importance DESC/id ASC；<3 字 CJK "图谱" → LIKE 兜底腿命中。
+  2. 新建 `tests/kg-fts-backfill.test.ts`（2 测试）：手工 INSERT 3 行存量（不建 FTS）→ ensureKgFts 回填 3 行；二次调用幂等（行数不变不报错）。
+  3. `src/kg/schema.ts`：新增 `import type { Database }` + `import { logger }`；追加 `KG_FTS_DDL`（独立 fts5 trigram 表 + 3 个 IF NOT EXISTS rowid 触发器 ai/ad/au，照抄 bench 已验形态）+ `ensureKgFts(db)`（幂等建表+回填+try/catch 降级，FTS 失败不阻断主表）。
+  4. `src/kg/enhanced.ts`：import 加 `ensureKgFts`；`initializeDatabase()` 在 `exec(KG_SCHEMA_DDL)` 后调 `ensureKgFts(this.db)`。
+  5. `src/crawl/processor/kg-writer.ts`：import 加 `ensureKgFts`；`ensureTables()` 在 `exec(KG_SCHEMA_DDL)` 后调 `ensureKgFts(this.db)`。
+  6. `src/kal/knowledge-access-layer.ts`：新增 `kgFtsCache`/`kgFtsUsable()`（sqlite_master 探测 kg_nodes_fts 含 trigram，缓存，失败 false→纯 LIKE，镜像 ftsUsesTrigram）；queryKG 改为 trigram 时 FTS MATCH 主腿（JOIN n ON n.rowid=fts.rowid + typeFilter 于 n 侧 + ORDER BY n.importance DESC,n.id ASC LIMIT）+ shortCjkWords LIKE 兜底腿并集去重，!trigram 走原纯 LIKE 不变；M14 id 原样返回不变。
+- **验证**：TDD 红→绿——实现前 kal-kg-fts 2 pass（LIKE 基线可跑）+ kg-fts-backfill 1 fail/1 error（ensureKgFts 未导出，红）→ 实现后 **4 pass/0 fail**。既有 KAL 测试不动：kal-deterministic-order + kal-references **19 pass/0 fail**（M1 排序/references 不受影响）。`bunx tsc --noEmit` **0**。`bun run test:full` **3224 pass/0 fail/34 skip**（基线 3220+4 新增，只增不减）。
+- **Commit**：feat(kal): W5 KAL queryKG FTS5 trigram（独立虚拟表+rowid 触发器+幂等回填+MATCH/LIKE 并集，排序红线保持） — hash 待回填

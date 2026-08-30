@@ -17,7 +17,7 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
-import { KG_SCHEMA_DDL } from "./schema.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "./schema.js";
 
 // ========== 类型定义 ==========
 
@@ -194,6 +194,8 @@ export class KnowledgeGraphEnhanced {
   private initializeDatabase(): void {
     // L3（2026-08-29 审计 S2）：DDL 单源于 src/kg/schema.ts（与 kg-writer 共用，消除双份漂移）
     this.db.exec(KG_SCHEMA_DDL);
+    // W5：kg_nodes_fts（fts5 trigram 独立表 + rowid 触发器）建表 + 存量回填
+    ensureKgFts(this.db);
   }
 
   // ========== 节点管理 ==========

@@ -17,7 +17,7 @@ import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 import { createNodeId } from "../../kal/node-id.js";
-import { KG_SCHEMA_DDL } from "../../kg/schema.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "../../kg/schema.js";
 import type { ASTNode } from "./markdown-ast.js";
 
 // ========== 类型定义 ==========
@@ -46,6 +46,8 @@ export class KGWriter {
    */
   private ensureTables(): void {
     this.db.exec(KG_SCHEMA_DDL);
+    // W5：kg_nodes_fts（fts5 trigram 独立表 + rowid 触发器）建表 + 存量回填
+    ensureKgFts(this.db);
   }
 
   /**

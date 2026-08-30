@@ -253,33 +253,102 @@ export class KnowledgeAccessLayer {
 
   /**
    * 查询 KG (知识图谱)
+   * W5（落地形态审核 §2.3）：trigram 库走 kg_nodes_fts MATCH 主腿 +
+   * <3 字 CJK LIKE 兜底腿并集去重（镜像 queryVault）；非 trigram 库走原纯 LIKE。
+   * 排序恒 ORDER BY importance DESC, id ASC（保 M1/M3 红线，FTS MATCH 仅作候选召回不用 rank）。
    */
   private queryKG(intent: QueryIntent): KnowledgeUnit[] {
     try {
-      const searchQuery = `
-        SELECT id, type, name, description, tags, importance
-        FROM kg_nodes
-        WHERE (name LIKE ? OR description LIKE ? OR semantic LIKE ?)
-        ${intent.typeFilter ? "AND type IN (" + intent.typeFilter.map(() => "?").join(",") + ")" : ""}
-        ORDER BY importance DESC, id ASC
-        LIMIT ?
-      `;
+      const limit = intent.limit || 10;
+      const typeFilter = intent.typeFilter;
+      const typeFilterClause = typeFilter
+        ? `AND type IN (${typeFilter.map(() => "?").join(",")})`
+        : "";
+      const typeFilterNClause = typeFilter
+        ? `AND n.type IN (${typeFilter.map(() => "?").join(",")})`
+        : "";
 
-      const pattern = `%${intent.query}%`;
-      const params: (string | number)[] = [pattern, pattern, pattern];
-      if (intent.typeFilter) {
-        params.push(...intent.typeFilter);
-      }
-      params.push(intent.limit || 10);
-
-      const rows = this.db.query(searchQuery).all(...params) as Array<{
+      type KgRow = {
         id: string;
         type: string;
         name: string;
         description: string;
         tags: string;
         importance: number;
-      }>;
+      };
+
+      const trigram = this.kgFtsUsable();
+      let rows: KgRow[];
+
+      if (!trigram) {
+        // 原纯 LIKE 路径不变（FTS 表不存在/非 trigram）
+        const likeSql = `
+          SELECT id, type, name, description, tags, importance
+          FROM kg_nodes
+          WHERE (name LIKE ? OR description LIKE ? OR semantic LIKE ?)
+          ${typeFilterClause}
+          ORDER BY importance DESC, id ASC
+          LIMIT ?
+        `;
+        const pattern = `%${intent.query}%`;
+        const likeParams: (string | number)[] = [pattern, pattern, pattern];
+        if (typeFilter) likeParams.push(...typeFilter);
+        likeParams.push(limit);
+        rows = this.db.query(likeSql).all(...likeParams) as KgRow[];
+      } else {
+        // W5：FTS MATCH 主腿（>=3 字符词）+ <3 字 CJK LIKE 兜底腿并集去重
+        const words = intent.query
+          .replace(/[^\w一-龥\s]/g, " ")
+          .split(/\s+/)
+          .filter((w) => w.length > 0);
+        const shortCjkWords = words.filter(
+          (w) => w.length < 3 && /[一-龥]/.test(w),
+        );
+        const ftsQuery = this.sanitizeFTS5(intent.query, 3);
+        if (!ftsQuery && shortCjkWords.length === 0) return [];
+
+        rows = [];
+        if (ftsQuery) {
+          const ftsSql = `
+            SELECT n.id, n.type, n.name, n.description, n.tags, n.importance
+            FROM kg_nodes_fts fts
+            JOIN kg_nodes n ON n.rowid = fts.rowid
+            WHERE kg_nodes_fts MATCH ?
+              ${typeFilterNClause}
+            ORDER BY n.importance DESC, n.id ASC
+            LIMIT ?
+          `;
+          const ftsParams: (string | number)[] = [ftsQuery];
+          if (typeFilter) ftsParams.push(...typeFilter);
+          ftsParams.push(limit);
+          rows = this.db.query(ftsSql).all(...ftsParams) as KgRow[];
+        }
+
+        if (shortCjkWords.length > 0) {
+          const likeClauses = shortCjkWords
+            .map(() => `(name LIKE ? OR description LIKE ? OR semantic LIKE ?)`)
+            .join(" OR ");
+          const likeSql = `
+            SELECT id, type, name, description, tags, importance
+            FROM kg_nodes
+            WHERE (${likeClauses})
+              ${typeFilterClause}
+            ORDER BY importance DESC, id ASC
+            LIMIT ?
+          `;
+          const likeParams: (string | number)[] = [];
+          for (const w of shortCjkWords) {
+            likeParams.push(`%${w}%`, `%${w}%`, `%${w}%`);
+          }
+          if (typeFilter) likeParams.push(...typeFilter);
+          likeParams.push(limit);
+          const likeRows = this.db.query(likeSql).all(...likeParams) as KgRow[];
+          const seen = new Set(rows.map((r) => r.id));
+          for (const r of likeRows) {
+            if (!seen.has(r.id)) rows.push(r);
+          }
+        }
+      }
 
       return rows.map((row) => ({
         // 审计 M14：kg_nodes.id 已是库内完整节点 id（kg_edges 亦存原样 id），
@@ -504,5 +573,22 @@ export class KnowledgeAccessLayer {
       }
     }
     return this.ftsTrigramCache;
+  }
+
+  /** W5：kg_nodes_fts 是否为 trigram（sqlite_master 探测一次并缓存）；不存在/失败 → false 走纯 LIKE */
+  private kgFtsCache: boolean | null = null;
+
+  private kgFtsUsable(): boolean {
+    if (this.kgFtsCache === null) {
+      try {
+        const row = this.db
+          .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'kg_nodes_fts'")
+          .get() as { sql: string } | undefined;
+        this.kgFtsCache = Boolean(row) && /trigram/i.test(row!.sql);
+      } catch {
+        this.kgFtsCache = false;
+      }
+    }
+    return this.kgFtsCache;
   }
 }
