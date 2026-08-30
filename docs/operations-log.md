@@ -8077,3 +8077,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：tests/browser-tools-cdp-guard.test.ts:79 消息白名单加 `|ECONNREFUSED|refused`；tests/coverage-gap/rate-limiter.test.ts"窗口边界"窗口 50→300ms、sleep 30→100/30→400ms（保留原断言语义，仅远离计时毛刺）；本条目追加。两文件与本任务 src/ 改动零耦合（git diff 验证本任务 3 提交仅 touched scripts/bench-kal-retrieval.ts）。
 - **验证**：两处以 bun test --isolate 复绿（6/6、38/38）；`bun run test:full` 连续两轮 **3220 pass / 0 fail**（修复前 3219-3220 区间 1-2 fail 漂移）；bunx tsc --noEmit 0。
 - **Commit**：test(fix): 终验存量 flaky 修复（cdp 守卫消息白名单放宽 + rate-limiter 边界时序扩容） — fbe8e32
+
+## 2026-08-30 — docs(knowledge): W5/W8 落地形态审核（基准立项后的最优形态方案）
+
+- **任务**：P2 收尾立项 W5（KAL FTS）/W8（SearchPort 分层）后，审核其最优落地形态（只审核不改码）。用户指示继续。
+- **工具**：Read/Bash（通读 queryKG/queryVault/sqlite-memory/kg schema/enhanced/kg-writer/search-engines/pipeline/architecture-integrity；bun 内存库实测 TEXT PK 表隐式 rowid 与 REPLACE 重分配）。无子代理。
+- **操作**（文件级）：新建 `docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md`（摘要 + 现状事实表 + 形态阻断点 + 最优形态 + 一致性影响 + 结论 + 遗留待决策）；本条目追加。
+- **验证**：关键判断均有代码证据或实测支撑——①W5 阻断点：kg_nodes.id 为 TEXT PRIMARY KEY（schema.ts:12）+ `INSERT OR REPLACE`（enhanced.ts:222/kg-writer.ts:234）改变隐式 rowid（内存库实测 rowid 1→3），故 external-content FTS（memory 侧形态）不可行，须用 bench 已验的独立 fts5 trigram + rowid 触发器形态（bench-kal-retrieval.ts:126-145）；②W8 端口：SearchAggregator.searchMulti 签名与 SearchPort 接口结构兼容（search-engines.ts:449），M13 反向依赖仅 pipeline.ts:16 一处静态 import；③排序红线：queryKG 现 ORDER BY importance DESC,id ASC（:264）在 FTS 腿仍保持，不触发 M3 翻转风险。tsc 无 src 改动（仅 docs），无需跑。
+- **Commit**：docs(knowledge): W5/W8 落地形态审核 — hash 待回填
