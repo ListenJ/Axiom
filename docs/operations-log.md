@@ -8076,4 +8076,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Bash（bun test 定向 isolate 复现 / test:full 三轮 3220 pass 复跑）、Edit（各一处最小改动）。无子代理。
 - **操作**（文件级）：tests/browser-tools-cdp-guard.test.ts:79 消息白名单加 `|ECONNREFUSED|refused`；tests/coverage-gap/rate-limiter.test.ts"窗口边界"窗口 50→300ms、sleep 30→100/30→400ms（保留原断言语义，仅远离计时毛刺）；本条目追加。两文件与本任务 src/ 改动零耦合（git diff 验证本任务 3 提交仅 touched scripts/bench-kal-retrieval.ts）。
 - **验证**：两处以 bun test --isolate 复绿（6/6、38/38）；`bun run test:full` 连续两轮 **3220 pass / 0 fail**（修复前 3219-3220 区间 1-2 fail 漂移）；bunx tsc --noEmit 0。
-- **Commit**：test(fix): 终验存量 flaky 修复（cdp 守卫消息白名单放宽 + rate-limiter 边界时序扩容） — hash 待回填
+- **Commit**：test(fix): 终验存量 flaky 修复（cdp 守卫消息白名单放宽 + rate-limiter 边界时序扩容） — fbe8e32
