@@ -7985,7 +7985,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Write、Bash。
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-30-p2-closeout-design.md`；本条目追加。
 - **验证**：自查通过；S2 归档规则4、S4 计数联动、S6 结论明确列为硬验收。
-- **Commit**：docs(spec): P2 收尾迭代设计（6 切片） — hash 待回填
+- **Commit**：docs(spec): P2 收尾迭代设计（6 切片） — 5abfe4b
 
 ## 2026-08-30 — fix(dre): P2-S1 约束再校准（temp0 采样 n=1 / maxTokens 2048 / Anthropic high 8192）
 
@@ -8060,7 +8060,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Bash（bun 重跑基准 4 次/备份/验证/rg 硬编码残留）、Edit（脚本 8 处最小改动 + 报告由脚本自动再生成）。无子代理（任务要求串行）。
 - **操作**（文件级）：scripts/bench-kal-retrieval.ts（SCALES+100k、scaleLabel 助手 `(v)=>v>=1000? ${v/1000}k : v`、tierTable/降级标题/摘要档位串/门禁格数/结论格数全部改 SCALES 派生、文件头注释"三档"同步）；docs/knowledge/kal-benchmark-2026-08-30.md（实跑后定稿报告，10k/50k/100k 三档表格 + 门禁结论）；本条目追加。
 - **验证**：TDD 红→绿——补档前实跑仅 10k/50k 两档且摘要硬编码"两档"（红）→ 8 处改动后实跑 3 档且摘要/门禁/结论文本动态（绿）。重跑 4 次（3 档版）p95 中位增益依次 2.27x/2.11x/2.07x/2.07x，**结论稳定为"立项排期"（≥2x）**——100k 档如实改变了判定（2 档草稿 1.14-1.96x 判"关闭"系档位不足的偏置，spec 要求 10k/50k/100k 即为此）。`rg "10k/50k 两档|2 规模|6 格"` 零命中，硬编码全清。tsc non-include 范围（scripts/），以实跑绿 + 报告字段核对为准。
-- **Commit**：feat(bench): P2-S6 KAL 基准定稿（100k 档 + 文本动态化，W5/W8 门禁判定=立项排期） — hash 待回填
+- **Commit**：feat(bench): P2-S6 KAL 基准定稿（100k 档 + 文本动态化，W5/W8 门禁判定=立项排期） — 9fa1a8c
 
 ## 2026-08-30 — docs(report): P2 评估报告终版回写（§八 杠杆清单全清）
 
@@ -8068,4 +8068,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Edit（最小追加）。无子代理。
 - **操作**（文件级）：docs/knowledge/agent-decision-chain-assessment-2026-08-29.md 追加 §8（六行回写表 + 归结行）；本条目追加。
 - **验证**：§8 六行 commit 与 S1-S6 实际提交一一对应（270f3f6/c3b2d35/3ecccbe/d549c64/f0c8db2/9fa1a8c）；P2-6 行如实记录 gate=立项排期（≥2x 数据驱动）；结论行与 spec 验收口径一致。
-- **Commit**：docs(report): P2 评估报告终版回写（§八 杠杆清单全清） — hash 待回填
+- **Commit**：docs(report): P2 评估报告终版回写（§八 杠杆清单全清） — e355d97

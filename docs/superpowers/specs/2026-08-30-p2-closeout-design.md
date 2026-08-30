@@ -31,14 +31,14 @@
 ## S6: W5/W8 重立项前置门禁（真实规模基准）
 **证据**：修订决定"W5 延期：索引优化下迭代"；S4 评估要求"前置门禁=真实规模基准数据"。现有 FTS vs LIKE 对比仅 300 行玩具数据。
 **设计**：基准脚本 `scripts/bench-kal-retrieval.ts`——生成合成库（10k/50k/100k 行 CJK+英文混合 kg_nodes/knowledge_node），对 LIKE（现状）vs FTS（trigram，S2 基建）跑标准查询集（精确词/改写/前缀），输出 p50/p95 表格 Markdown 报告至 docs/knowledge/kal-benchmark-<date>.md。**结论写进报告：FTS 增益 <2x 则 W5/W8 正式关闭（不做），≥2x 则立项排期。**
-**验收**：脚本能跑（本地生成合成库不入库 data/ 真实库）；报告产出；结论明确。
+**验收**：脚本能跑（本地生成合成库不入库 data/ 真实库，10k/50k/100k 三档）；报告产出；结论明确（p95 中位增益 ≥2x，W5/W8 立项排期）。
 
 ## 非目标
 HITL 标注 UI（仅管道）；MultiDimensionLimiter/executeWithModeGuard 处置（避免扩面）；外围 9 棵树。
 
 ## 验收清单
-- [ ] S1-S6 各红→绿或产出证据；`bun test ./tests`（自动发现）全绿；tsc 0
-- [ ] S2 归档按规则 4（archive/ + ARCHIVE-LOG + git rm）
-- [ ] S4 tool-count 189 联动（tool-count.ts/docs/architecture-integrity）
-- [ ] S6 基准报告落 docs/knowledge/ 且结论明确
-- [ ] 评估报告终版回写（杠杆清单全清）+ operations-log 留痕
+- [x] S1-S6 各红→绿或产出证据；`bun run test:full` 全绿（3199→含 P2 新增）；tsc 0
+- [x] S2 归档按规则 4（archive/ + ARCHIVE-LOG + git rm）——c3b2d35
+- [x] S4 tool-count 189 联动（tool-count.ts/docs/architecture-integrity）——d549c64
+- [x] S6 基准报告落 docs/knowledge/ 且结论明确——kal-benchmark-2026-08-30.md，W5/W8 立项排期
+- [x] 评估报告终版回写（杠杆清单全清）+ operations-log 留痕——评估报告 §8
