@@ -8084,4 +8084,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read/Bash（通读 queryKG/queryVault/sqlite-memory/kg schema/enhanced/kg-writer/search-engines/pipeline/architecture-integrity；bun 内存库实测 TEXT PK 表隐式 rowid 与 REPLACE 重分配）。无子代理。
 - **操作**（文件级）：新建 `docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md`（摘要 + 现状事实表 + 形态阻断点 + 最优形态 + 一致性影响 + 结论 + 遗留待决策）；本条目追加。
 - **验证**：关键判断均有代码证据或实测支撑——①W5 阻断点：kg_nodes.id 为 TEXT PRIMARY KEY（schema.ts:12）+ `INSERT OR REPLACE`（enhanced.ts:222/kg-writer.ts:234）改变隐式 rowid（内存库实测 rowid 1→3），故 external-content FTS（memory 侧形态）不可行，须用 bench 已验的独立 fts5 trigram + rowid 触发器形态（bench-kal-retrieval.ts:126-145）；②W8 端口：SearchAggregator.searchMulti 签名与 SearchPort 接口结构兼容（search-engines.ts:449），M13 反向依赖仅 pipeline.ts:16 一处静态 import；③排序红线：queryKG 现 ORDER BY importance DESC,id ASC（:264）在 FTS 腿仍保持，不触发 M3 翻转风险。tsc 无 src 改动（仅 docs），无需跑。
-- **Commit**：docs(knowledge): W5/W8 落地形态审核 — hash 待回填
+- **Commit**：docs(knowledge): W5/W8 落地形态审核 — f703bbf
