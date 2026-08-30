@@ -1,3 +1,4 @@
+// @smoke
 // W8（落地形态审核 §3）：SearchPort 端口注入优先 + 不绕过 mock 打真实网络（D1 缺陷①回归）
 import { test, expect, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";

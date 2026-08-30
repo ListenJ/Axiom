@@ -1,3 +1,4 @@
+// @smoke
 /**
  * kal_references 跨存储引用（KG 出入边 UNION）
  *

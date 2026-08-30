@@ -1,3 +1,4 @@
+// @smoke
 // 验证 Pipeline 阶段2 网络校验真实产出证据（注入 mock fetch）
 import { test, expect } from "bun:test";
 import { Pipeline } from "../src/dre/pipeline/pipeline.ts";

@@ -8135,3 +8135,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`tests/kal-kg-fts.test.ts` 新增 `spyOn(db,"query")` 守卫测试——trigram FTS 存在时查 "semanticentity"（≥3 字词，仅 FTS 腿可处理），断言 `db.query` 调用记录中含 `kg_nodes_fts` + `MATCH` SQL（LIKE 回退腿无此 SQL，退化即失败）。
 - **验证**：`spyOn(db,"query")` 对 bun:sqlite Database 可用（记录+透传）；守卫测试 **6 pass/0 fail**（原 5 + 新 1）。`bunx tsc --noEmit` **0**。`bun run test:full` **3232 pass/0 fail/34 skip**（3231+1 新增，只增不减）。
 - **Commit**：test(kal): W5 queryKG FTS 路径守卫（spyOn db.query 断言 MATCH 腿执行，防 kgFtsUsable 退化致 2x 增益静默丢失） — aa45fb2
+
+## 2026-08-31 — feat(scripts): test:smoke 自动发现快烟囱门禁（@smoke 标记子集，分割工作流）
+
+- **任务**：评估发现 `test:full`（~4min/3232 测）是唯一自动发现门禁，`test:core` 是漂移废弃的手工清单；迭代期无秒级反馈门禁。落地 `test:smoke`：复用 `test-full.ts` 自动发现框架，按 `@smoke` 文件头标记筛核心子集（架构红线 + 活跃特性 + 不变量），新 smoke 测试加标记即自动纳入（不退回手工清单）。
+- **工具**：Read（test-full.ts collectTestFiles 框架 + 测试树盘点 193 顶层/子目录计数）、Write（test-smoke.ts）、Edit（8 文件加 @smoke 标记 + package.json 脚本）、Bash（bun run test:smoke 计时/tsc）。无子代理。
+- **操作**（文件级）：①新建 `scripts/test-smoke.ts`（import collectTestFiles 继承 flaky 账本+目录排除 → 扫首 4KB 命中 `@smoke` → `bun test --isolate --timeout 15000` 单进程跑子集）；②`package.json` 加 `"test:smoke"`；③8 文件首行加 `// @smoke`：architecture-integrity / module-exports / kal-deterministic-order / kal-references / kal-kg-fts / kg-fts-backfill / dre-search-port / dre-stage2-webverify。
+- **验证**：`bun run test:smoke` **63 pass/0 fail，1.5s**（vs test:full ~230s，~150x 快）；`bunx tsc --noEmit` **0**。门禁定位：迭代秒级反馈；test:full 仍为 pre-merge 全量。@smoke 标记子集可按需扩（新核心测试加标记即纳）。
+- **Commit**：feat(scripts): test:smoke 自动发现快烟囱门禁（@smoke 标记子集，1.5s vs 4min，分割工作流） — hash 待回填

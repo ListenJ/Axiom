@@ -1,3 +1,4 @@
+// @smoke
 /**
  * 审计 M1（docs/reviews/2026-08-28-independent-full-audit.md 2.2）：KAL queryKG/queryDRE
  * ORDER BY importance DESC / confidence DESC 无次级键——同分时返回顺序取决于

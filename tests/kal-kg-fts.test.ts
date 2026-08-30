@@ -1,3 +1,4 @@
+// @smoke
 /**
  * W5（docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md §2）：
  * queryKG 走 kg_nodes_fts（fts5 trigram 独立表 + rowid 触发器）FTS5 MATCH 主腿 +

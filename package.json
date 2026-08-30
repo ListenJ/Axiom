@@ -86,6 +86,7 @@
     "stress:trend": "bun run scripts/stress-report.ts --trend",
     "test:integration": "bun test tests/integration-edge.test.ts",
     "test:full": "bun run scripts/test-full.ts",
+    "test:smoke": "bun run scripts/test-smoke.ts",
     "cache:baseline": "bun run scripts/cache-baseline.ts"
   },
   "dependencies": {

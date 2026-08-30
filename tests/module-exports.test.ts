@@ -1,3 +1,4 @@
+// @smoke
 /**
  * register-external-tools: 验证注册数据结构完整性
  */

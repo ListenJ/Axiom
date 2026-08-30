@@ -1,3 +1,4 @@
+// @smoke
 /**
  * W5（docs/knowledge/w5-w8-landing-form-audit-2026-08-30.md §2.3）：
  * ensureKgFts 幂等建表 + 存量回填。先建 kg_nodes（KG_SCHEMA_DDL）并手工插入

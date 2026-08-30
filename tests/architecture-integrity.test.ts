@@ -1,3 +1,4 @@
+// @smoke
 import { describe, it, expect } from "bun:test";
 import fs from "fs";
 import path from "path";
