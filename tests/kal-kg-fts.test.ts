@@ -7,7 +7,7 @@
  * 1. FTS 主腿：>=3 字词命中，返回全部匹配行且按 importance DESC, id ASC 排序。
  * 2. LIKE 兜底腿：<3 字 CJK 短词（trigram MATCH 恒空）经 LIKE 命中。
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";
 import { KnowledgeAccessLayer } from "../src/kal/knowledge-access-layer.js";
 import { KGWriter } from "../src/crawl/processor/kg-writer.js";
@@ -77,6 +77,18 @@ describe("W5 queryKG FTS5 trigram 主腿 + LIKE 兜底腿", () => {
 
     expect(res.results.length).toBe(1);
     expect(res.results[0].metadata.id).toBe("kg:concept:graphtheory");
+  });
+
+  test("kg_nodes_fts(trigram) 存在时 queryKG 走 FTS MATCH 腿（非静默回退 LIKE）", async () => {
+    const db = makeDb(); // KGWriter → ensureKgFts 建 trigram FTS
+    seedNode(db, "kg:concept:fts", "FTS", "semanticentity body", 0.5);
+    const kal = new KnowledgeAccessLayer(db);
+    const querySpy = spyOn(db, "query");
+    await kal.query({ query: "semanticentity", targetStore: "kg", limit: 10 });
+    const sqls = querySpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    querySpy.mockRestore();
+    // 守卫：FTS 表存在时必走 MATCH 腿（保 2x 增益不因 kgFtsUsable 退化静默丢失）
+    expect(sqls.some((s) => s.includes("kg_nodes_fts") && s.includes("MATCH"))).toBe(true);
   });
 });
 

@@ -8127,3 +8127,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：①`src/kg/schema.ts` `ensureKgFts` 回填 `INSERT INTO` → `INSERT OR IGNORE INTO`（fts5 rowid 冲突时跳过该行，仅补回缺失行，全量 SELECT 仍幂等）；②`tests/kg-fts-backfill.test.ts` 新增"FTS 部分丢失时 ensureKgFts 恢复缺失行"测试：建 3 行→全量回填→手动删 1 行 FTS 索引（kg 源行仍在）→二次 `ensureKgFts`→断言行数恢复 3。
 - **验证**：TDD 红→绿——裸 `INSERT` 下二次回填报 `"constraint failed"`（try/catch 吞错，FTS 停留 2，缺失行不愈，红）→ `INSERT OR IGNORE` 后跳过已存在 2 行补回缺失 1 行，FTS 恢复 3（绿）。**8 pass/0 fail**（3 backfill + 5 kal-kg-fts）。`bunx tsc --noEmit` **0**。`bun run test:full` **3231 pass/0 fail/34 skip**（3230+1 新增，只增不减）。
 - **Commit**：fix(kg): W5 ensureKgFts 部分丢失幂等恢复（INSERT OR IGNORE 跳过已存在行，消除 rowid 冲突致回填失败死锁） — f8e3cf7
+
+## 2026-08-31 — test(kal): W5 queryKG FTS 路径守卫（spyOn db.query 断言 MATCH 腿执行）
+
+- **任务**：W5 自检发现既有 kal-kg-fts 测试在 FTS 腿与 LIKE 回退腿下结果同形（trigram 子串匹配召回 == LIKE 子串匹配），无法区分实际走了哪条腿——若 `kgFtsUsable()` 后续退化返回 false（静默回退纯 LIKE，结果仍对但慢），**2x 增益无任何测试失败即丢失**。补白盒守卫锁定 FTS MATCH 腿真实执行。
+- **工具**：Read（重审 queryKG 两腿 + sanitizeFTS5/trigram 子串语义召回等价性）、Edit（+守卫测试）、Bash（bun test/tsc/test:full，验证 spyOn(db,"query") 对 bun:sqlite 可用）。无子代理。
+- **操作**（文件级）：`tests/kal-kg-fts.test.ts` 新增 `spyOn(db,"query")` 守卫测试——trigram FTS 存在时查 "semanticentity"（≥3 字词，仅 FTS 腿可处理），断言 `db.query` 调用记录中含 `kg_nodes_fts` + `MATCH` SQL（LIKE 回退腿无此 SQL，退化即失败）。
+- **验证**：`spyOn(db,"query")` 对 bun:sqlite Database 可用（记录+透传）；守卫测试 **6 pass/0 fail**（原 5 + 新 1）。`bunx tsc --noEmit` **0**。`bun run test:full` **3232 pass/0 fail/34 skip**（3231+1 新增，只增不减）。
+- **Commit**：test(kal): W5 queryKG FTS 路径守卫（spyOn db.query 断言 MATCH 腿执行，防 kgFtsUsable 退化致 2x 增益静默丢失） — hash 待回填
