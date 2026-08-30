@@ -8134,4 +8134,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read（重审 queryKG 两腿 + sanitizeFTS5/trigram 子串语义召回等价性）、Edit（+守卫测试）、Bash（bun test/tsc/test:full，验证 spyOn(db,"query") 对 bun:sqlite 可用）。无子代理。
 - **操作**（文件级）：`tests/kal-kg-fts.test.ts` 新增 `spyOn(db,"query")` 守卫测试——trigram FTS 存在时查 "semanticentity"（≥3 字词，仅 FTS 腿可处理），断言 `db.query` 调用记录中含 `kg_nodes_fts` + `MATCH` SQL（LIKE 回退腿无此 SQL，退化即失败）。
 - **验证**：`spyOn(db,"query")` 对 bun:sqlite Database 可用（记录+透传）；守卫测试 **6 pass/0 fail**（原 5 + 新 1）。`bunx tsc --noEmit` **0**。`bun run test:full` **3232 pass/0 fail/34 skip**（3231+1 新增，只增不减）。
-- **Commit**：test(kal): W5 queryKG FTS 路径守卫（spyOn db.query 断言 MATCH 腿执行，防 kgFtsUsable 退化致 2x 增益静默丢失） — hash 待回填
+- **Commit**：test(kal): W5 queryKG FTS 路径守卫（spyOn db.query 断言 MATCH 腿执行，防 kgFtsUsable 退化致 2x 增益静默丢失） — aa45fb2
