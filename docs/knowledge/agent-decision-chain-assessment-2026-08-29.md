@@ -91,3 +91,18 @@ POST /chat → optimizePrompt(GLM 改写) → 意图判定(关键词 fast path /
 
 **回归**：白名单 `bun run test:full` 603 pass/0 fail；tsc 0；architecture-integrity 24/0。
 **已知问题（如实）**：5 个 P1 新测试文件单独/相邻运行全绿，但**追加进 test:full 手工白名单后组合运行触发 audit-regression-stress（存量 flaky，storm-caller actor 压测）的残留 tick 挂起 + 存量失败断言**——单进程文件序依赖是 test:full 手工白名单的结构性弱点（评估报告早已标记），根治=白名单改自动发现（P2 候选）。本次将 5 个新文件回退出白名单、改为定向运行（全部独立绿），src 改动全部保留。
+
+---
+
+## 八、P2 收尾回写（2026-08-30，杠杆清单全清）
+
+| 杠杆 | 状态 | Commit | 实施要点 |
+|------|------|--------|---------|
+| P2-1 约束再校准 | ✅ | 270f3f6 | temp0 拒绝采样 n=1（三票同值数学等价单票，省 2/3 成本）、DRE maxTokens 512→2048、Anthropic high 4096→8192 |
+| P2-2 幽灵裁剪 | ✅ | c3b2d35 | mathContext 休眠链 4 模块规则4 归档（-2552 行）、autoRoute 死代码删除、RateDistortion 保留 |
+| P2-3 test:full 自动发现 | ✅ | 3ecccbe | --isolate 根治组合序 + EXCLUDE_FILES flaky 账本，3199 pass/0 fail |
+| P2-4 HITL 真值标注管道 | ✅ | d549c64 | hallucination_verdicts label 列 + hallucination_feedback 工具 + calibrate 真值优先，tool-count 189 |
+| P2-5 M10 降级上下文补全 | ✅ | f0c8db2 | 本地工作记忆摘要随行云端 prompt（≤2KB），记忆不可用逐字节现状 |
+| P2-6 W5/W8 基准门禁 | ✅ | 9fa1a8c | 10k/50k/100k 三档合成库 LIKE vs FTS5 trigram（seed=42，3 次实跑 p95 中位增益 2.07/2.11/2.27x 均 ≥2x），**gate ≥2x → W5/W8 立项排期**（推翻 2 档草稿"关闭"结论——100k 档如实改变判定，spec 要求 10k/50k/100k 即为此）；落地形态：kg_nodes fts5 trigram 虚拟表+触发器 + queryKG MATCH 主腿 + 2 字 CJK LIKE 兜底腿 |
+
+**结论**：评估报告 §五 提升路线全部杠杆（P0×3 / P1×5 / P2×6）已清账；`docs/superpowers/specs/2026-08-30-p2-closeout-design.md` 验收清单全部勾选。本迭代闭环。
