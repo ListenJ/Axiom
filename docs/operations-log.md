@@ -8142,4 +8142,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read（test-full.ts collectTestFiles 框架 + 测试树盘点 193 顶层/子目录计数）、Write（test-smoke.ts）、Edit（8 文件加 @smoke 标记 + package.json 脚本）、Bash（bun run test:smoke 计时/tsc）。无子代理。
 - **操作**（文件级）：①新建 `scripts/test-smoke.ts`（import collectTestFiles 继承 flaky 账本+目录排除 → 扫首 4KB 命中 `@smoke` → `bun test --isolate --timeout 15000` 单进程跑子集）；②`package.json` 加 `"test:smoke"`；③8 文件首行加 `// @smoke`：architecture-integrity / module-exports / kal-deterministic-order / kal-references / kal-kg-fts / kg-fts-backfill / dre-search-port / dre-stage2-webverify。
 - **验证**：`bun run test:smoke` **63 pass/0 fail，1.5s**（vs test:full ~230s，~150x 快）；`bunx tsc --noEmit` **0**。门禁定位：迭代秒级反馈；test:full 仍为 pre-merge 全量。@smoke 标记子集可按需扩（新核心测试加标记即纳）。
-- **Commit**：feat(scripts): test:smoke 自动发现快烟囱门禁（@smoke 标记子集，1.5s vs 4min，分割工作流） — hash 待回填
+- **Commit**：feat(scripts): test:smoke 自动发现快烟囱门禁（@smoke 标记子集，1.5s vs 4min，分割工作流） — 210dc6d
