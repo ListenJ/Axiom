@@ -8126,4 +8126,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read（重审 queryKG/ensureKgFts/触发器/REPLACE 交互）、Edit（最小改动 INSERT→INSERT OR IGNORE + 新增恢复测试）、Bash（bun test 红复现→绿/tsc/test:full）。无子代理。
 - **操作**（文件级）：①`src/kg/schema.ts` `ensureKgFts` 回填 `INSERT INTO` → `INSERT OR IGNORE INTO`（fts5 rowid 冲突时跳过该行，仅补回缺失行，全量 SELECT 仍幂等）；②`tests/kg-fts-backfill.test.ts` 新增"FTS 部分丢失时 ensureKgFts 恢复缺失行"测试：建 3 行→全量回填→手动删 1 行 FTS 索引（kg 源行仍在）→二次 `ensureKgFts`→断言行数恢复 3。
 - **验证**：TDD 红→绿——裸 `INSERT` 下二次回填报 `"constraint failed"`（try/catch 吞错，FTS 停留 2，缺失行不愈，红）→ `INSERT OR IGNORE` 后跳过已存在 2 行补回缺失 1 行，FTS 恢复 3（绿）。**8 pass/0 fail**（3 backfill + 5 kal-kg-fts）。`bunx tsc --noEmit` **0**。`bun run test:full` **3231 pass/0 fail/34 skip**（3230+1 新增，只增不减）。
-- **Commit**：fix(kg): W5 ensureKgFts 部分丢失幂等恢复（INSERT OR IGNORE 跳过已存在行，消除 rowid 冲突致回填失败死锁） — hash 待回填
+- **Commit**：fix(kg): W5 ensureKgFts 部分丢失幂等恢复（INSERT OR IGNORE 跳过已存在行，消除 rowid 冲突致回填失败死锁） — f8e3cf7
