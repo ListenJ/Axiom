@@ -8111,3 +8111,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. 新建 `tests/dre-search-port.test.ts`（2 测试）：①注入 SearchAggregator(mockFetch) → spyOn searchMulti → "谣言"触发阶段2 → 断言注入端口的 searchMulti 被调用（D1①回归：注入优先未绕过 mock 走默认单例打真实网络）；②defaultSearchPort() 返回具有 searchMulti 的实现。
 - **验证**：TDD 红→绿——实现前 0 pass/1 fail/1 error（search-port.ts 不存在，import 失败，红）→ 实现后 **2 pass/0 fail**。回归分文件全绿：dre-stage2-webverify + dre-pipeline-conflict + data-pipeline + architecture-integrity **36 pass/0 fail**（注入 mock 恒生效，stage2 调用点签名不变，L1 router+crawl 双断言绿）。`bunx tsc --noEmit` **0**。`bun run test:full` **3227 pass/0 fail/34 skip**（基线 3220+4 W5+3 W8，只增不减）。
 - **Commit**：refactor(dre): W8 SearchPort 端口分层（pipeline 去 crawl 静态依赖，M13 闭合 + L1 盲区收口，注入优先防 mock 绕过） — 37c24ae
+
+## 2026-08-31 — test(kal): W5 queryKG typeFilter 覆盖补强（FTS/LIKE 两腿 + 多类型占位符）
+
+- **任务**：W5 落地后自检发现 typeFilter 在 kal/kg 上下文零覆盖——queryKG 新增的 FTS 腿 `typeFilterNClause`（n.type 侧过滤）与 LIKE 兜底腿 `typeFilterClause` 的占位符/参数绑定从未被任何测试执行（落地形态审核 §2.4 声称"typeFilter 继续作用于 kg_nodes 侧"无回归保护）。补强锁定该生产行为。
+- **工具**：Grep（确认 kal 测试集 typeFilter 零命中）、Edit（补 helper + 3 测试 + 修类型）、Bash（bun test/tsc/test:full）。无子代理。
+- **操作**（文件级）：`tests/kal-kg-fts.test.ts` 新增 `seedNodeTyped`（按 type 播种）+ 3 测试：①typeFilter 作用于 FTS 主腿（function/concept/function 三节点全含"semanticentity"→ FTS MATCH 全召回 + n.type IN('function') 过滤到 2 条，排序保持）；②typeFilter 作用于 LIKE 兜底腿（<3 字 CJK "图谱" + 类型过滤到 function）；③多类型占位符 N>1（typeFilter:["function","class"]→ IN(?,?) 双占位符+双参数绑定，concept 被滤除）。
+- **验证**：补强中 tsc 暴露一处真实类型缺陷——`r.metadata.id.startsWith(...)` 对 `Record<string,unknown>` 的 `unknown` 值直调方法（bun test 运行时通过因值实为 string，tsc 拦截），改 `(r.metadata.id as string).startsWith(...)`。修后 **tsc 0**，`tests/kal-kg-fts.test.ts` **5 pass/0 fail**（原 2 + 新 3）。`bun run test:full` **3230 pass/0 fail/34 skip**（3227+3 新增，只增不减）。
+- **Commit**：test(kal): W5 queryKG typeFilter 覆盖补强（FTS/LIKE 两腿 + 多类型占位符，修 r.metadata.id unknown 类型） — hash 待回填

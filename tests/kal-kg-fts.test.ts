@@ -32,6 +32,21 @@ function seedNode(
   );
 }
 
+function seedNodeTyped(
+  db: Database,
+  id: string,
+  type: string,
+  name: string,
+  description: string,
+  importance: number,
+) {
+  db.run(
+    `INSERT INTO kg_nodes (id, type, name, description, semantic, importance, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, type, name, description, null, importance, Date.now(), Date.now()],
+  );
+}
+
 describe("W5 queryKG FTS5 trigram 主腿 + LIKE 兜底腿", () => {
   test("FTS 主腿：>=3 字词命中全部匹配行，且按 importance DESC, id ASC 排序", async () => {
     const db = makeDb();
@@ -62,5 +77,71 @@ describe("W5 queryKG FTS5 trigram 主腿 + LIKE 兜底腿", () => {
 
     expect(res.results.length).toBe(1);
     expect(res.results[0].metadata.id).toBe("kg:concept:graphtheory");
+  });
+});
+
+describe("W5 queryKG typeFilter 作用于 FTS/LIKE 两腿（落地形态审核 §2.4）", () => {
+  test("typeFilter 作用于 FTS 主腿（n.type 侧过滤，排序保持）", async () => {
+    const db = makeDb();
+    // 三节点均含 "semanticentity"（FTS MATCH 全召回），分属 function/concept/function
+    seedNodeTyped(db, "kg:func:alpha", "function", "AlphaFunc", "semanticentity alpha body", 0.9);
+    seedNodeTyped(db, "kg:concept:beta", "concept", "BetaConcept", "semanticentity beta body", 0.7);
+    seedNodeTyped(db, "kg:func:gamma", "function", "GammaFunc", "semanticentity gamma body", 0.5);
+
+    const kal = new KnowledgeAccessLayer(db);
+    const res = await kal.query({
+      query: "semanticentity",
+      targetStore: "kg",
+      typeFilter: ["function"],
+      limit: 10,
+    });
+
+    // 仅 function 类型命中（FTS MATCH 召回全部 → n.type IN ('function') 过滤）
+    expect(res.results.length).toBe(2);
+    expect(res.results.every((r) => (r.metadata.id as string).startsWith("kg:func:"))).toBe(true);
+    // importance DESC, id ASC：alpha(0.9) → gamma(0.5)
+    expect(res.results.map((r) => r.metadata.id as string)).toEqual([
+      "kg:func:alpha",
+      "kg:func:gamma",
+    ]);
+  });
+
+  test("typeFilter 作用于 LIKE 兜底腿（<3 字 CJK + 类型过滤）", async () => {
+    const db = makeDb();
+    seedNodeTyped(db, "kg:func:gt", "function", "图谱函数", "含 图谱 二字", 0.8);
+    seedNodeTyped(db, "kg:concept:gt", "concept", "图谱概念", "含 图谱 二字", 0.8);
+
+    const kal = new KnowledgeAccessLayer(db);
+    const res = await kal.query({
+      query: "图谱",
+      targetStore: "kg",
+      typeFilter: ["function"],
+      limit: 10,
+    });
+
+    // <3 字 CJK 走 LIKE 兜底腿，typeFilter 于 kg_nodes 侧过滤到 function
+    expect(res.results.length).toBe(1);
+    expect(res.results[0].metadata.id).toBe("kg:func:gt");
+  });
+
+  test("typeFilter 多类型占位符绑定正确（N>1，FTS 主腿）", async () => {
+    const db = makeDb();
+    seedNodeTyped(db, "kg:func:a", "function", "A", "semanticentity body", 0.9);
+    seedNodeTyped(db, "kg:class:b", "class", "B", "semanticentity body", 0.7);
+    seedNodeTyped(db, "kg:concept:c", "concept", "C", "semanticentity body", 0.5);
+
+    const kal = new KnowledgeAccessLayer(db);
+    const res = await kal.query({
+      query: "semanticentity",
+      targetStore: "kg",
+      typeFilter: ["function", "class"],
+      limit: 10,
+    });
+
+    // function + class 命中，concept 被滤除（验证多占位符 `IN (?,?)` + 多参数绑定）
+    expect(res.results.length).toBe(2);
+    const ids = res.results.map((r) => r.metadata.id as string);
+    expect(ids).toContain("kg:func:a");
+    expect(ids).toContain("kg:class:b");
   });
 });
