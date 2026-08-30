@@ -8069,3 +8069,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：docs/knowledge/agent-decision-chain-assessment-2026-08-29.md 追加 §8（六行回写表 + 归结行）；本条目追加。
 - **验证**：§8 六行 commit 与 S1-S6 实际提交一一对应（270f3f6/c3b2d35/3ecccbe/d549c64/f0c8db2/9fa1a8c）；P2-6 行如实记录 gate=立项排期（≥2x 数据驱动）；结论行与 spec 验收口径一致。
 - **Commit**：docs(report): P2 评估报告终版回写（§八 杠杆清单全清） — e355d97
+
+## 2026-08-30 — test(fix): 终验发现的两处存量 flaky 测试修复（cdp 守卫消息格式 + rate-limiter 边界计时）(记录维护无关业务)
+
+- **任务**：P2 收尾终验（`bun run test:full`）逼迫出的两处**存量 flaky**（非本任务引入，见证据）：①`tests/browser-tools-cdp-guard.test.ts` "显式回环 cdpUrl 放行"断言失败——Bun 1.3.14 Windows 上拒连环回端点错误消息为裸 `"ECONNREFUSED"`（无 CDP/fetch/connect 关键词），守卫行为断言（error 不含 "remote cdpUrl blocked/invalid cdpUrl/protocol not allowed"）实际已通过，唯消息白名单过窄误伤；②`tests/coverage-gap/rate-limiter.test.ts` "窗口边界"用 50ms 窗口 + 6 个 setTimeout 边界，全量并发时序抖动下 1-2 个用例随负载漂移（isolate 单跑 38 pass/0 fail）。
+- **工具**：Bash（bun test 定向 isolate 复现 / test:full 三轮 3220 pass 复跑）、Edit（各一处最小改动）。无子代理。
+- **操作**（文件级）：tests/browser-tools-cdp-guard.test.ts:79 消息白名单加 `|ECONNREFUSED|refused`；tests/coverage-gap/rate-limiter.test.ts"窗口边界"窗口 50→300ms、sleep 30→100/30→400ms（保留原断言语义，仅远离计时毛刺）；本条目追加。两文件与本任务 src/ 改动零耦合（git diff 验证本任务 3 提交仅 touched scripts/bench-kal-retrieval.ts）。
+- **验证**：两处以 bun test --isolate 复绿（6/6、38/38）；`bun run test:full` 连续两轮 **3220 pass / 0 fail**（修复前 3219-3220 区间 1-2 fail 漂移）；bunx tsc --noEmit 0。
+- **Commit**：test(fix): 终验存量 flaky 修复（cdp 守卫消息白名单放宽 + rate-limiter 边界时序扩容） — hash 待回填

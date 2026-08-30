@@ -76,7 +76,7 @@ describe("[T4-②] browser-tools cdpUrl 守卫（审计 B3）", () => {
       // 本机无 CDP 监听 → 下游连接错误透出；关键是错误不含守卫拒绝语义
       const msg = e instanceof Error ? e.message : String(e);
       expect(msg).not.toMatch(/remote cdpUrl blocked|invalid cdpUrl|protocol not allowed/i);
-      expect(msg).toMatch(/CDP|cdp|fetch|connect|target|network/i);
+      expect(msg).toMatch(/CDP|cdp|fetch|connect|target|network|ECONNREFUSED|refused/i);
     }
   });
 

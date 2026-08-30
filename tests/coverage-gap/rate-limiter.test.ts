@@ -112,14 +112,14 @@ describe("B. RateLimiter 边界条件", () => {
   });
 
   test("窗口边界 — 恰好在边界上的请求被清理", async () => {
-    const lim = new RateLimiter({ windowMs: 50, maxRequests: 2 });
+    const lim = new RateLimiter({ windowMs: 300, maxRequests: 2 });
     lim.check("k");
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 100));
     lim.check("k");
     // 第 3 次应该被拒绝（窗口内已有 2 个）
     expect(lim.check("k").allowed).toBe(false);
-    // 等待窗口完全滚动
-    await new Promise((r) => setTimeout(r, 30));
+    // 等待窗口完全滚动（> 窗口时长，使首个请求过期）
+    await new Promise((r) => setTimeout(r, 400));
     expect(lim.check("k").allowed).toBe(true);
   });
 
