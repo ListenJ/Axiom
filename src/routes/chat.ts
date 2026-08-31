@@ -177,6 +177,9 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       source: "chat",
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+    // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
+    const { maybeAutoEvolve } = await import("../agent-evals/auto-evolve.js");
+    void maybeAutoEvolve().catch((err) => logger.warn("[chat] auto-evolve check failed", { error: err instanceof Error ? err.message : String(err) }));
     // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
     try {
       const { getResourceBudgetManager } = await import("../dre/system-resource.js");
@@ -249,6 +252,9 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
       source: "agent-chat",
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+    // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
+    const { maybeAutoEvolve } = await import("../agent-evals/auto-evolve.js");
+    void maybeAutoEvolve().catch((err) => logger.warn("[chat] auto-evolve check failed", { error: err instanceof Error ? err.message : String(err) }));
   } catch {}
 
   return response;
@@ -699,6 +705,9 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   source: "chat-stream",
                   feedback: success ? "auto-success" : "auto-fail",
                 }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+                // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
+                const { maybeAutoEvolve } = await import("../agent-evals/auto-evolve.js");
+                void maybeAutoEvolve().catch((err) => logger.warn("[chat] auto-evolve check failed", { error: err instanceof Error ? err.message : String(err) }));
               } catch {}
 
               // 完成后广播一次 usage 给 WebSocket 订阅者
