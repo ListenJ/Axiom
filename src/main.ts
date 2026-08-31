@@ -480,7 +480,7 @@ logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes
 // ===== HTTP 服务 =====
 const securityHeaders = createSecurityHeaders({ hsts: readString("NODE_ENV") === "production", csp: true });
 const rateLimitCheck = createRateLimitMiddleware(apiLimiter);
-const MAX_BODY_SIZE = readInt("MAX_BODY_SIZE", 1048576);
+const MAX_BODY_SIZE = readInt("MAX_BODY_SIZE", 1048576, { min: 1024, max: 16 * 1024 * 1024 });
 const port = config.gateway.port;
 
 // ═══════════════════════════════════════════════════════════════

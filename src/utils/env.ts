@@ -52,6 +52,12 @@ export function readInt(key: string, fallback: number, clamp?: { min?: number; m
     return fallback;
   }
   let n = parseInt(v, 10);
+  // 越界防护（审计 2026-09-01）：超出安全整数范围的离谱值（如 MAX_BODY_SIZE=999999999999）
+  // 直接回退默认，避免限制类配置被静默击穿（body 限流/日志轮转等）。
+  if (n > Number.MAX_SAFE_INTEGER || !Number.isSafeInteger(n)) {
+    logger.debug(`readInt(${key}): value "${v}" exceeds safe integer range, falling back to ${fallback}`);
+    return fallback;
+  }
   if (clamp?.min !== undefined && n < clamp.min) n = clamp.min;
   if (clamp?.max !== undefined && n > clamp.max) n = clamp.max;
   return n;

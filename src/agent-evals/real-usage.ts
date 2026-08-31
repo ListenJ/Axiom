@@ -39,8 +39,14 @@ function ensureDir(filePath: string): void {
 // 批处理队列：高并发下聚合 10 条或 50ms 刷新，减少同步 I/O 阻塞（优化）
 const pendingWrites = new Map<string, string[]>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// per-target 串行写链：保证同一 target 的 appendFile 严格按序执行、不并发交错，
+// flush 期间新入队的批也会被后续链段取走，不丢批（并发 flush 依次排队）。
+const flushChains = new Map<string, Promise<void>>();
 
-async function flushPending(target: string): Promise<void> {
+/**
+ * 单次 flush 一个批次（取走当前队列）。返回是否还有更多待写（append 期间可能新入队）。
+ */
+async function flushOneBatch(target: string): Promise<void> {
   const batch = pendingWrites.get(target);
   if (!batch || batch.length === 0) return;
   pendingWrites.set(target, []);
@@ -58,6 +64,20 @@ async function flushPending(target: string): Promise<void> {
   }
 }
 
+async function flushPending(target: string): Promise<void> {
+  // 串行化：同一 target 的多次 flush 排队执行；每条链段执行后检查是否又积压，积压则继续
+  const prev = flushChains.get(target) ?? Promise.resolve();
+  const next = prev.then(async () => {
+    for (;;) {
+      const batch = pendingWrites.get(target);
+      if (!batch || batch.length === 0) break; // 队列空 → 链段结束
+      await flushOneBatch(target);
+    }
+  });
+  flushChains.set(target, next.catch(() => {})); // 链尾吞错，避免断链（flush 无返回值语义）
+  await next;
+}
+
 /**
  * 测试流量守卫：bun test 设 NODE_ENV=test，chat 路由测试（mock model m1 驱动真实
  * handleChat）若不隔离 REAL_USAGE_PATH 会往生产 JSONL 追加测试噪声，毒化学习信号。
@@ -65,7 +85,8 @@ async function flushPending(target: string): Promise<void> {
  */
 function shouldSkipCapture(filePath?: string): boolean {
   if (filePath !== undefined) return false; // 显式路径（单元测试/自定义落点）不跳过
-  return readString("NODE_ENV") === "test"; // 生产默认落点：测试环境跳过
+  // 生产默认落点：测试环境跳过。大小写鲁棒（validateEnv 接受 Test/TEST，需与之一致，防 CI 设大写绕过守卫）
+  return readString("NODE_ENV", "").toLowerCase() === "test";
 }
 
 /**
@@ -140,6 +161,9 @@ export async function clearRealUsageTraces(filePath?: string): Promise<void> {
     clearTimeout(t);
     flushTimers.delete(target);
   }
+  // 等待进行中的串行写链排空再清空文件，避免清空后链段又把旧批次写回（测试合规性）
+  await flushChains.get(target)?.catch(() => {});
+  flushChains.delete(target);
   if (fs.existsSync(target)) fs.writeFileSync(target, "", "utf8");
 }
 

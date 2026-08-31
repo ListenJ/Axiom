@@ -738,6 +738,20 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
               break;
             case "error":
               safeEnqueue(sseEvent("error", { type: "error", message: ev.message }));
+              // Real Usage 采集（stream error）：失败交换同样留痕，避免学习侧看不到失败模式
+              // error 事件不含 model/provider（产生时模型已不可用），模型字段留空
+              try {
+                const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
+                const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
+                void captureRealUsageTrace({
+                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  task: lastPrompt || "chat-stream",
+                  success: false,
+                  latencyMs: Date.now() - streamStartedAt,
+                  source: "chat-stream",
+                  feedback: "stream-error",
+                }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
+              } catch {}
               break;
           }
         }

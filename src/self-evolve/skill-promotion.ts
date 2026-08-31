@@ -44,7 +44,15 @@ function defaultDeps(): InductionPromotionDeps {
       const targetDir = DEFAULT_SKILL_DIRS[1] ?? "./axiom-memory/03-Resources/skills";
       const targetPath = path.join(targetDir, `${skill.id}.json`);
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-      fs.writeFileSync(targetPath, JSON.stringify(skill, null, 2), "utf-8");
+      // 原子写（tmp + rename，镜像 skill-quality.ts）：避免中途崩溃留下半截 JSON 破坏下次加载
+      const tmpPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        fs.writeFileSync(tmpPath, JSON.stringify(skill, null, 2), "utf-8");
+        fs.renameSync(tmpPath, targetPath);
+      } catch (e) {
+        try { fs.unlinkSync(tmpPath); } catch {}
+        throw e;
+      }
     },
   };
 }

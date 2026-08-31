@@ -42,4 +42,20 @@ describe("real-usage 测试流量守卫", () => {
     const content = fs.readFileSync(explicitPath, "utf-8");
     expect(content).toContain("explicit path writes");
   });
+
+  test("NODE_ENV=TEST（大写）省略 filePath → 跳过（大小写鲁棒，防 CI 大写绕过）", async () => {
+    process.env.NODE_ENV = "TEST";
+    await captureRealUsageTrace({ id: "t3", task: "uppercase test env", success: true } as any);
+    await flushRealUsageTraces(prodPath);
+    expect(fs.existsSync(prodPath)).toBe(false); // 跳过 → 文件未被创建
+  });
+
+  test("NODE_ENV=production 省略 filePath → 正常采集（生产行为不受守卫阻断）", async () => {
+    process.env.NODE_ENV = "production";
+    await captureRealUsageTrace({ id: "t4", task: "production default path", success: true } as any);
+    await flushRealUsageTraces(prodPath);
+    expect(fs.existsSync(prodPath)).toBe(true);
+    const content = fs.readFileSync(prodPath, "utf-8");
+    expect(content).toContain("production default path");
+  });
 });

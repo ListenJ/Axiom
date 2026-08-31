@@ -8173,3 +8173,20 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. **存量归档清零（用户确认）**：`data/real-usage-traces.jsonl`（272 行测试噪声）→ `archive/real-usage-test-noise/real-usage-traces-20260831-222947.jsonl`（规则4 archive-not-delete，archive/ 已被 gitignore:151 覆盖不入库），原文件清空为 0 行，真实数据从零开始。
 - **验证**：TDD 红→绿——实现前守卫测试 1 fail（`Expected:false Received:true` 文件被写入，红）→ 实现后 2 pass/0 fail。既有 `real-usage.test.ts` 5 pass 不受影响（显式 tmpPath 绕过守卫）。回归：agent-evals 全目录 + chat 6 文件 **159 pass/0 fail**。污染停止实证：修复后重跑 `chat-memory-loop.test.ts` 文件 272→272 不再增长；全 chat+agent-evals 套件后 data 文件仍 0 行。`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**。
 - **Commit**：fix(agent-evals): real-usage 采集跳过测试流量（NODE_ENV=test 守卫，防测试噪声污染生产 JSONL） — fedaefc
+
+## 2026-09-01 — fix(agent-evals): 跨模块 bug 加固（并行子代理检索 + 主模型审核后落地 6 项修复）
+
+- **任务**：按用户要求"检查其他部分是否有bug，使用并行子代理完成检索、主模型审核"，对 auto-evolve / real-usage / skill 执行 / 基础工具层做跨模块 bug 检索。4 个并行子代理（self-evolve 链路 / skill-registry+执行 / chat路由+测试污染 / 工具基础设施）共报 1 critical + 14 major + 若干 minor；主模型逐一复核后**降级多数**（未危及 auto-evolve 处理用户数据的安全性——生产路径无删除/无覆盖），确认 6 项值得落地（3 真问题 + 3 加固）。方案 B（A+加固）用户确认实施。
+- **工具**：Agent（4 并行子代理检索，只读）、Read（逐文件复核子代理关键发现）、Edit（6 处源码 + 2 测试文件）、Write（词边界新测试 6 例）、Bash（bun test 红→绿 / tsc / test:smoke）。AGENTS 规则 2（备份 `.tmp/backups/` 6 源文件 + 1 测试 → 通读 → 最小改动 → 验证）与规则 7（红→绿：词边界测试先红后绿）全程执行。
+- **操作**（文件级）：
+  1. `src/routes/chat.ts`：handleChatStream `case "error"` 分支补 `captureRealUsageTrace({success:false, feedback:"stream-error"})`——流式失败交换不留痕，学习侧看不到失败模式、successRate 被高估（对齐 handleChat/handleAgentChat）。error 事件不含 model/provider（产生时模型已不可用），模型字段留空。
+  2. `src/agent-evals/real-usage.ts`：`flushPending` 重构为 **per-target 串行写链**（`flushChains` Map：每次 flush 排在链尾，链段执行后循环取走 append 期间新入队批次，防并发 flush 丢批/乱序）；`flushOneBatch` 抽离单批处理；`clearRealUsageTraces` 先 await 进行中链排空再清文件+清理 flushChains（避免清空后链段写回旧批次）。`shouldSkipCapture` 改 `readString("NODE_ENV","").toLowerCase()==="test"` 大小写鲁棒（防 CI 设 `NODE_ENV=TEST` 绕过守卫，与 validateEnv 的 toLowerCase 一致）。
+  3. `tests/agent-evals/real-usage-guard.test.ts`：补 2 例——`NODE_ENV=TEST`（大写）跳过 + `NODE_ENV=production` 正常采集。
+  4. `src/utils/env.ts`：`readInt` 加 `Number.MAX_SAFE_INTEGER` overflow guard——超安全整数范围的离谱值（如 MAX_BODY_SIZE=999999999999）回退默认，防限制类配置（body 限流/日志轮转）被静默击穿。
+  5. `src/main.ts`：`MAX_BODY_SIZE` 加 `clamp:{min:1024, max:16MiB}`（此前无上界，env 可禁用请求体限制）。
+  6. `src/skills/skill-registry.ts`：短 ASCII trigger（≤4 字符如 doc/fix/test）改用**词边界匹配**（`\b`，trigger 内容先 escapeRe 转义），防 `"doc"` 误命中 `"docile"`、`"test"` 误命中 `"contest"`；CJK（无空格分词，\b 无效）与长 trigger 保持 includes。`match()` 与 `matchAll()` 共用 `triggerMatchLevel` 辅助。
+  7. 新建 `tests/skills/skill-trigger-word-boundary.test.ts`（6 例）：docile/contest 不误命中、doc/test 独立词命中、长 trigger review/codereview 仍 includes、CJK "优化" 嵌入词仍命中。独立构造 `new SkillRegistry({skillDirs:[]})` 避开全局单例污染。
+  8. `src/self-evolve/skill-promotion.ts`：persist 改 **tmp+renameSync 原子写**（镜像 skill-quality.ts），失败清理临时文件后抛出、不阻断内存注册。
+- **验证**：词边界测试先 2 pass/3 fail（红——子串误命中复现）→ 修正测试设计（builtin doc-generate/review 竞争干扰）后 **6 pass/0 fail**（绿）。受影响模块关键套件 7 文件 **33 pass/0 fail**（real-usage guard+unit、auto-evolve、skill-promotion、词边界、registry-p2、execute-by-id）。`bunx tsc --noEmit` **0**（首跑拦截 chat.ts error 事件无 model/provider 字段 + SkillDefinition 未导出 + 2 处 null 断言，已修）。`bun run test:smoke` **63 pass/0 fail**（基线一致）。`test:full` 全量（预期只增不减，新增 2+6=8 例）。
+- **红线**：不接触 queryKG 排序/架构完整性；未改 evolveFromRealUsage/selfInduce/promote 内部语义（仅 persist 写入方式加固）；技能匹配改动仅影响短 ASCII trigger（CJK 行为不变）。
+- **Commit**：fix(agent-evals): 跨模块 bug 加固（stream error 采轨迹、flush 串行化、NODE_ENV 大小写、readInt clamp、trigger 词边界、persist 原子写） — hash 待回填

@@ -247,6 +247,37 @@ const BUILTIN_SKILLS: SkillDefinition[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
+// Trigger 匹配辅助
+// ═══════════════════════════════════════════════════════════════
+
+/** 短 ASCII trigger（≤4 字符，如 "doc"/"fix"/"test"）。对它们要求独立成词，防子串误命中。 */
+const SHORT_ASCII_TRIGGER_RE = /^[a-z0-9][a-z0-9_]{0,3}$/i;
+
+/** 转义正则元字符（构造词边界正则时防 trigger 内容被当作元字符解释） */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 单个 trigger 的命中级别：
+ *   0 = 未命中；1 = 分词精确命中（权重低）；2 = 包含命中 / 词边界命中（权重高）。
+ * 短 ASCII trigger 要求独立成词（`\b` 边界），避免 "doc" 命中 "docile" 这类子串误报；
+ * CJK 与长 trigger 沿用 includes（无空格分词，\b 对 CJK 无效）。
+ */
+function triggerMatchLevel(normalized: string, words: Set<string>, trigger: string): 0 | 1 | 2 {
+  const triggerLower = trigger.toLowerCase();
+  if (words.has(triggerLower)) return 1;
+  if (SHORT_ASCII_TRIGGER_RE.test(triggerLower)) {
+    try {
+      return new RegExp(`\\b${escapeRe(triggerLower)}\\b`, "i").test(normalized) ? 2 : 0;
+    } catch {
+      return normalized.includes(triggerLower) ? 2 : 0;
+    }
+  }
+  return normalized.includes(triggerLower) ? 2 : 0;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Skill Registry
 // ═══════════════════════════════════════════════════════════════
 
@@ -341,14 +372,14 @@ export class SkillRegistry {
       const matchedTriggers: string[] = [];
 
       for (const trigger of skill.triggers) {
-        const triggerLower = trigger.toLowerCase();
-        // 完整包含匹配（权重高）
-        if (normalized.includes(triggerLower)) {
+        const level = triggerMatchLevel(normalized, words, trigger);
+        // 完整包含/词边界匹配（权重高）
+        if (level === 2) {
           score += trigger.length >= 4 ? 3 : 2;
           matchedTriggers.push(trigger);
         }
         // 分词匹配（权重低）
-        else if (words.has(triggerLower)) {
+        else if (level === 1) {
           score += 1;
           matchedTriggers.push(trigger);
         }
@@ -400,11 +431,11 @@ export class SkillRegistry {
       const matchedTriggers: string[] = [];
 
       for (const trigger of skill.triggers) {
-        const triggerLower = trigger.toLowerCase();
-        if (normalized.includes(triggerLower)) {
+        const level = triggerMatchLevel(normalized, words, trigger);
+        if (level === 2) {
           score += trigger.length >= 4 ? 3 : 2;
           matchedTriggers.push(trigger);
-        } else if (words.has(triggerLower)) {
+        } else if (level === 1) {
           score += 1;
           matchedTriggers.push(trigger);
         }
