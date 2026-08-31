@@ -8172,4 +8172,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. 新建 `tests/agent-evals/real-usage-guard.test.ts`（2 例）：①NODE_ENV=test + 省略 filePath（REAL_USAGE_PATH 指向 .tmp 临时"生产落点"）→ 断言文件未创建（跳过）；②NODE_ENV=test + 显式 filePath → 正常写入。用 `REAL_USAGE_PATH=<.tmp>` 安全解析，绝不碰真实 data/。
   3. **存量归档清零（用户确认）**：`data/real-usage-traces.jsonl`（272 行测试噪声）→ `archive/real-usage-test-noise/real-usage-traces-20260831-222947.jsonl`（规则4 archive-not-delete，archive/ 已被 gitignore:151 覆盖不入库），原文件清空为 0 行，真实数据从零开始。
 - **验证**：TDD 红→绿——实现前守卫测试 1 fail（`Expected:false Received:true` 文件被写入，红）→ 实现后 2 pass/0 fail。既有 `real-usage.test.ts` 5 pass 不受影响（显式 tmpPath 绕过守卫）。回归：agent-evals 全目录 + chat 6 文件 **159 pass/0 fail**。污染停止实证：修复后重跑 `chat-memory-loop.test.ts` 文件 272→272 不再增长；全 chat+agent-evals 套件后 data 文件仍 0 行。`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**。
-- **Commit**：fix(agent-evals): real-usage 采集跳过测试流量（NODE_ENV=test 守卫，防测试噪声污染生产 JSONL） — hash 待回填
+- **Commit**：fix(agent-evals): real-usage 采集跳过测试流量（NODE_ENV=test 守卫，防测试噪声污染生产 JSONL） — fedaefc
