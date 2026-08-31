@@ -7264,7 +7264,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bun test tests/deterministic-search-tie.test.ts 3 pass / 0 fail；tests/deterministic-search.test.ts 16 pass；tests/memory/vault-reindex.test.ts 1 pass；共 20 pass 0 fail（含原 17 套件）。
   - 5次重复实验 Set size=1，同分 a-note 恒在 b-note 前（跨 reload 稳定）。
   - 备份验证后删除 .tmp/backups/src/memory/deterministic-search.ts 等（验证后）。
-- **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — hash 待回填 11f226a
+- **Commit**：fix(determinism): tie-break 同分按 path/id 字典序 + readdirSync 排序（W1）（含 src/memory/deterministic-search.ts + src/dre/retrieval/deterministic-retrieval-engine.ts + tests/deterministic-search-tie.test.ts + docs/operations-log.md） — 11f226a
 
 ## 2026-08-28 — 优化 S2：DAG 失败隔离 completedSuccess（W2）
 
@@ -7280,7 +7280,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 Set<string> 签名干净，无类型错）。
   - 回归 `bun test tests/orchestrator-dag-isolation.test.ts` 2 pass；`bun test tests/orchestrator.test.ts` 存量 4 pass（若有）；共 22+ pass 0 fail（S1 20 + S2 2）。
   - 备份验证后删除 `.tmp/backups/src/agents/orchestrator.ts`（验证后）。
-- **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — hash 待回填 S2_PLACEHOLDER
+- **Commit**：fix(orchestrator): DAG 失败隔离 completedSuccess（W2）（含 `src/agents/orchestrator.ts` + `tests/orchestrator-dag-isolation.test.ts` + `docs/operations-log.md`） — df5e125
 
 ## 2026-08-28 — fix(dip): 媒体视觉受 KNOWLEDGE_USE_LLM 开关（W7） S4
 
@@ -7333,7 +7333,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - `bunx tsc --noEmit` 0 错误（新增 `createHash` 同步导入签名干净，无类型错；文档仅 md 无类型影响）。
   - 回归 `bun test tests/kg-enhanced.test.ts` 13 pass/0 fail；`bun test tests/kg-content-hash.test.ts tests/kg-enhanced.test.ts` 共 17 pass/0 fail；`bun test tests/architecture-integrity.test.ts tests/kg-content-hash.test.ts` 共 28 pass/0 fail（24+4）。
   - 备份验证后删除 `.tmp/backups/docs/AXIOM-ARCHITECTURE.md` 等（验证后）。
-- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — hash 待回填 6b4e9a6
+- **Commit**：docs/fix(kg): 文档收口懒加载/KV措辞 + 内容哈希去重（W3/W4/W10）（含 `docs/AXIOM-ARCHITECTURE.md` + `README.md` + `src/kg/enhanced.ts` + `src/mcp/client-connector.ts` + `tests/architecture-integrity.test.ts` + `tests/kg-content-hash.test.ts` + `docs/operations-log.md`） — 6b4e9a6
 
 
 ## 2026-08-28 — 发布：GitHub PRIVATE→PUBLIC（S9，先扫描再定）
@@ -7350,7 +7350,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
   - bunx tsc --noEmit 0；bun test 36 pass / 0 fail（S1 3 + S2 2 + S4 1 + S5 2 + S7 24 + S8 4）。
   - gh repo view visibility = PUBLIC；git ls-remote 200。
   - 扫描 0 真实命中，已满足 AGENTS 规则11。
-- **Commit**：chore(publish): GitHub PRIVATE→PUBLIC（密钥扫描 0 真实命中，S1/S2/S4/S5/S7+S8 已推）（含 docs/operations-log.md） — hash 待回填 7753562
+- **Commit**：chore(publish): GitHub PRIVATE→PUBLIC（密钥扫描 0 真实命中，S1/S2/S4/S5/S7+S8 已推）（含 docs/operations-log.md） — 7753562
 - **回退**：gh repo edit ListenJ/Axiom --visibility private --accept-visibility-change-consequences
 
 
@@ -7649,7 +7649,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Write（计划文档）、Bash（提交推送）。
 - **操作**（文件级）：新建 `docs/superpowers/plans/2026-08-29-audit-hardening-plan.md`；本条目追加。
 - **验证**：自查（spec 覆盖映射/占位符/接口一致性/串行说明）通过。
-- **Commit**：docs(plan): 审计强化迭代实施计划（9 任务：P0安全6/P1健壮5/P2卫生2） — hash 待回填
+- **Commit**：docs(plan): 审计强化迭代实施计划（9 任务：P0安全6/P1健壮5/P2卫生2） — f3e8d49
 ## 2026-08-29 — fix(security): 审计强化 Task 1 P0-1 read/write 工具路径围栏 + permissions 敏感路径拦截纳入 read（N-H1）
 
 - **任务**：联合审查 N-H1（docs/reviews/2026-08-29-joint-verification-audit.md §4）——MCP read 工具 fs.readFile 零路径围栏可读 .env 窃取全部 API key；permissions.ts 敏感路径拦截仅覆盖 write/delete，read 缺席；tool-registry:71-73 “依赖工具内部兜底”声明与实现不符。spec：docs/superpowers/specs/2026-08-29-audit-hardening-design.md §1 P0-1。
@@ -7701,7 +7701,7 @@ ative/crates/search\：indexer modified_at 改文件 mtime；engine 评分抽纯
 - **工具**：Bash（cp 备份/rm 备份、bun 脚本抽取与 import 切换、bun test/bunx tsc）、Read（filesystem.ts:20-126 函数边界确认）。
 - **操作**（文件级）：新建 src/utils/path-safety.ts（resolvePath 导出 + isPathSafe，3457 字符逐字迁移含注释）；修改 src/mcp/tools/filesystem.ts（删两函数，import + `export { isPathSafe }` re-export）、src/tools/read-tool.ts、src/tools/write-tool.ts（import 路径）、tests/filesystem-symlink.test.ts（2 处断言指向）。
 - **验证**：bunx tsc --noEmit 0；architecture-integrity 24 pass/0 fail（循环消除）；read-tool-fence + filesystem-symlink + security-fixes 共 73 pass/0 fail。
-- **Commit**：fix(arch): isPathSafe 迁至 utils/path-safety 消除 tools<->mcp 循环（T1 回归修复） — hash 待回填
+- **Commit**：fix(arch): isPathSafe 迁至 utils/path-safety 消除 tools<->mcp 循环（T1 回归修复） — aac3247
 
 ## 2026-08-29 — fix(security): 审计强化 Task 4 P0-6 紧邻 Medium 三件（B1 后端鉴权 / B3 cdpUrl 守卫 / B3 docker-sandbox，TDD）
 
@@ -7831,7 +7831,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Agent×8（串行 general-purpose，各自 AGENTS 规则/TDD/留痕）、Bash（白名单核对补录、bun 脚本、test:full、tsc）、Edit（package.json test:full 补 2 测试）、Write（报告回写）。
 - **操作**（文件级）：`docs/reviews/2026-08-29-joint-verification-audit.md` 追加第 7 节强化修复回写表（P0 9 行/P1 11 行/P2 3 行 + 遗留注记 3 条）；package.json test:full 补录 2 个 T5 测试文件；本条目追加。
 - **验证**：bun run test:full 566 pass/0 fail/70 文件（基线 482+新增 84）；bunx tsc --noEmit 0；architecture-integrity 循环断言绿。
-- **Commit**：docs(audit): 回写强化迭代修复状态（P0/P1/P2 全清） — hash 待回填
+- **Commit**：docs(audit): 回写强化迭代修复状态（P0/P1/P2 全清） — 3dac4cf
 
 ## 2026-08-29 — analysis: Agent 决策链与模型提升空间评估（4 组深读）
 
@@ -7847,7 +7847,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Write、Bash。
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p0-lift-design.md`；本条目追加。
 - **验证**：spec 自查（占位符/一致性/范围/歧义）通过；三项均附现状证据行号与验收标准。
-- **Commit**：docs(spec): P0 提升迭代设计（A 并行合并/B 记忆闭环/C 防线接火） — hash 待回填
+- **Commit**：docs(spec): P0 提升迭代设计（A 并行合并/B 记忆闭环/C 防线接火） — 7de4474
 
 ## 2026-08-29 — perf(chat): P0-A 决策链提速（前置调用并行化 + 边缘合并调用）
 
@@ -7906,7 +7906,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Write、Bash。
 - **操作**（文件级）：新建 `docs/superpowers/specs/2026-08-29-p1-lift-design.md`；本条目追加。
 - **验证**：自查通过；S2 迁移降级与 S4 语义不回退列为硬验收。
-- **Commit**：docs(spec): P1 提升迭代设计（5 切片） — hash 待回填
+- **Commit**：docs(spec): P1 提升迭代设计（5 切片） — 6ce2d9f
 
 ## 2026-08-29 — feat(dre): P1-S1 检索唤醒（DRE retrieve() 接 routes/search 与 vault 回退链两缝隙）
 
@@ -8154,3 +8154,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. 新建 `tests/agent-evals/auto-evolve.test.ts`（7 测试，全注入 fake，不碰真实 registry/磁盘/JSONL）：disabled 不读 state 不 evolve；ok 透传 result + state 落 lastNewTraces=50 + 二次同值 insufficient-new；冷却短路 getNewTraces 零调用 + 过冷却走 ok；evolve 未决期间二次入参 busy（evolve 仍 1 次）；损坏 state 降级全 0 走 ok；evolve 抛错 reason error 且 state 已推进。
 - **验证**：TDD 红→绿——实现前 0 pass/1 error（auto-evolve.js 不存在，红）→ 实现后 **7 pass/0 fail**。`bunx tsc --noEmit` **0**（首跑拦截 `deps.now()` 未知可选调用的 TS2722，改 `deps.now!()` 后 0）。回归：chat 五文件 + agent-evals 两文件 7 文件套件 4 次连跑 **50 pass/0 fail**（首跑一次 48/2 为限流窗口负载抖动，后续全部绿，判定非本任务引入）；`bun run test:smoke` **63 pass/0 fail**。
 - **Commit**：feat(self-evolve): 自动 evolve 触发器（chat 轮末 fire-and-forget，阈值/冷却/开关默认 OFF，闭环接线完） — 151837d
+
+## 2026-08-31 — docs(ops): 回填历史遗留 9 处 hash 待回填（记录维护，规则5）
+
+- **任务**：ops-log 累积 9 处历史遗留 `hash 待回填` 占位符（W1/W2/W3/W4/W10/S9 及 P0/P1 提升迭代计划/设计条目）——4 处（7267/7336/7353）已带真实 hash 但残留标记前缀（`— hash 待回填 11f226a` 等），1 处（7283）是 `S2_PLACEHOLDER` 伪占位，4 处（7652/7704/7834/7850/7909 中 5 处）完全未填。按 `docs/operations-log.md:7431` 自述的既有回填惯例（bun 脚本逐条断言唯一后替换）全部清理，终结占位符债。
+- **工具**：Bash（cp 备份、bun 脚本唯一锚点回填、git diff 核对、grep 校验）、Read（git log 逐条核实映射、上下文）。无子代理。
+- **操作**（文件级）：`docs/operations-log.md` 9 处 `**Commit**：<subject> — hash 待回填 [<已有hash>|<占位>]` → `**Commit**：<subject> — <实际hash>`，映射经 `git log -1 --format=%s` 逐条核实：11f226a（W1 determinism tie-break）/ df5e125（W2 DAG 失败隔离，原 S2_PLACEHOLDER）/ 6b4e9a6（W3/W4/W10 kg 内容哈希）/ 7753562（S9 GitHub PUBLIC）/ f3e8d49（审计强化计划）/ aac3247（isPathSafe 迁移 T1）/ 3dac4cf（审计状态回写）/ 7de4474（P0 提升设计）/ 6ce2d9f（P1 提升设计）。第 7431 行为既有回填过程自述文字，非占位符，保留。
+- **验证**：`grep "hash 待回填"` 仅剩 7431 行过程自述（非占位）；9 处均以正确 hash 结尾；`git diff` 净变更恰 9 行（+9/−9，无其他改动）。
+- **Commit**：docs(ops): 回填历史遗留 9 处 hash 待回填（记录维护，规则5） — hash 待回填
