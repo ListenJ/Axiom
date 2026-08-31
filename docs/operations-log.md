@@ -8189,4 +8189,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   8. `src/self-evolve/skill-promotion.ts`：persist 改 **tmp+renameSync 原子写**（镜像 skill-quality.ts），失败清理临时文件后抛出、不阻断内存注册。
 - **验证**：词边界测试先 2 pass/3 fail（红——子串误命中复现）→ 修正测试设计（builtin doc-generate/review 竞争干扰）后 **6 pass/0 fail**（绿）。受影响模块关键套件 7 文件 **33 pass/0 fail**（real-usage guard+unit、auto-evolve、skill-promotion、词边界、registry-p2、execute-by-id）。`bunx tsc --noEmit` **0**（首跑拦截 chat.ts error 事件无 model/provider 字段 + SkillDefinition 未导出 + 2 处 null 断言，已修）。`bun run test:smoke` **63 pass/0 fail**（基线一致）。`test:full` 全量（预期只增不减，新增 2+6=8 例）。
 - **红线**：不接触 queryKG 排序/架构完整性；未改 evolveFromRealUsage/selfInduce/promote 内部语义（仅 persist 写入方式加固）；技能匹配改动仅影响短 ASCII trigger（CJK 行为不变）。
-- **Commit**：fix(agent-evals): 跨模块 bug 加固（stream error 采轨迹、flush 串行化、NODE_ENV 大小写、readInt clamp、trigger 词边界、persist 原子写） — hash 待回填
+- **Commit**：fix(agent-evals): 跨模块 bug 加固（stream error 采轨迹、flush 串行化、NODE_ENV 大小写、readInt clamp、trigger 词边界、persist 原子写） — 583b8b4
