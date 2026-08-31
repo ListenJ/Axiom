@@ -8153,4 +8153,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `src/routes/chat.ts` 三处既有 capture 块内紧随 capture 追加：动态 import `maybeAutoEvolve` + `void maybeAutoEvolve().catch(warn)`（handleChat / handleAgentChat / handleChatStream 的 done case，均同一 try 作用域，fire-and-forget 不阻断响应）。动态 import 与本文件既有 capture 动态 import 同位。
   3. 新建 `tests/agent-evals/auto-evolve.test.ts`（7 测试，全注入 fake，不碰真实 registry/磁盘/JSONL）：disabled 不读 state 不 evolve；ok 透传 result + state 落 lastNewTraces=50 + 二次同值 insufficient-new；冷却短路 getNewTraces 零调用 + 过冷却走 ok；evolve 未决期间二次入参 busy（evolve 仍 1 次）；损坏 state 降级全 0 走 ok；evolve 抛错 reason error 且 state 已推进。
 - **验证**：TDD 红→绿——实现前 0 pass/1 error（auto-evolve.js 不存在，红）→ 实现后 **7 pass/0 fail**。`bunx tsc --noEmit` **0**（首跑拦截 `deps.now()` 未知可选调用的 TS2722，改 `deps.now!()` 后 0）。回归：chat 五文件 + agent-evals 两文件 7 文件套件 4 次连跑 **50 pass/0 fail**（首跑一次 48/2 为限流窗口负载抖动，后续全部绿，判定非本任务引入）；`bun run test:smoke` **63 pass/0 fail**。
-- **Commit**：feat(self-evolve): 自动 evolve 触发器（chat 轮末 fire-and-forget，阈值/冷却/开关默认 OFF，闭环接线完） — hash 待回填
+- **Commit**：feat(self-evolve): 自动 evolve 触发器（chat 轮末 fire-and-forget，阈值/冷却/开关默认 OFF，闭环接线完） — 151837d
