@@ -8161,4 +8161,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Bash（cp 备份、bun 脚本唯一锚点回填、git diff 核对、grep 校验）、Read（git log 逐条核实映射、上下文）。无子代理。
 - **操作**（文件级）：`docs/operations-log.md` 9 处 `**Commit**：<subject> — hash 待回填 [<已有hash>|<占位>]` → `**Commit**：<subject> — <实际hash>`，映射经 `git log -1 --format=%s` 逐条核实：11f226a（W1 determinism tie-break）/ df5e125（W2 DAG 失败隔离，原 S2_PLACEHOLDER）/ 6b4e9a6（W3/W4/W10 kg 内容哈希）/ 7753562（S9 GitHub PUBLIC）/ f3e8d49（审计强化计划）/ aac3247（isPathSafe 迁移 T1）/ 3dac4cf（审计状态回写）/ 7de4474（P0 提升设计）/ 6ce2d9f（P1 提升设计）。第 7431 行为既有回填过程自述文字，非占位符，保留。
 - **验证**：`grep "hash 待回填"` 仅剩 7431 行过程自述（非占位）；9 处均以正确 hash 结尾；`git diff` 净变更恰 9 行（+9/−9，无其他改动）。
-- **Commit**：docs(ops): 回填历史遗留 9 处 hash 待回填（记录维护，规则5） — hash 待回填
+- **Commit**：docs(ops): 回填历史遗留 9 处 hash 待回填（记录维护，规则5） — 33f7647
