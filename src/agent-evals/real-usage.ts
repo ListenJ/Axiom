@@ -59,9 +59,23 @@ async function flushPending(target: string): Promise<void> {
 }
 
 /**
+ * 测试流量守卫：bun test 设 NODE_ENV=test，chat 路由测试（mock model m1 驱动真实
+ * handleChat）若不隔离 REAL_USAGE_PATH 会往生产 JSONL 追加测试噪声，毒化学习信号。
+ * 生产默认落点（省略 filePath）在测试环境跳过；显式 filePath（单元测试/自定义落点）不受影响。
+ */
+function shouldSkipCapture(filePath?: string): boolean {
+  if (filePath !== undefined) return false; // 显式路径（单元测试/自定义落点）不跳过
+  return readString("NODE_ENV") === "test"; // 生产默认落点：测试环境跳过
+}
+
+/**
  * 采集一条真实使用轨迹（批处理异步追加，保序且高并发友好）
  */
 export async function captureRealUsageTrace(trace: RealUsageTrace, filePath?: string): Promise<void> {
+  if (shouldSkipCapture(filePath)) {
+    logger.debug("[RealUsage] skip capture in test env", { id: trace.id });
+    return;
+  }
   const target = resolvePath(filePath);
   ensureDir(target);
   const enriched: RealUsageTrace = {

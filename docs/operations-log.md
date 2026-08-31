@@ -8162,3 +8162,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`docs/operations-log.md` 9 处 `**Commit**：<subject> — hash 待回填 [<已有hash>|<占位>]` → `**Commit**：<subject> — <实际hash>`，映射经 `git log -1 --format=%s` 逐条核实：11f226a（W1 determinism tie-break）/ df5e125（W2 DAG 失败隔离，原 S2_PLACEHOLDER）/ 6b4e9a6（W3/W4/W10 kg 内容哈希）/ 7753562（S9 GitHub PUBLIC）/ f3e8d49（审计强化计划）/ aac3247（isPathSafe 迁移 T1）/ 3dac4cf（审计状态回写）/ 7de4474（P0 提升设计）/ 6ce2d9f（P1 提升设计）。第 7431 行为既有回填过程自述文字，非占位符，保留。
 - **验证**：`grep "hash 待回填"` 仅剩 7431 行过程自述（非占位）；9 处均以正确 hash 结尾；`git diff` 净变更恰 9 行（+9/−9，无其他改动）。
 - **Commit**：docs(ops): 回填历史遗留 9 处 hash 待回填（记录维护，规则5） — 33f7647
+
+## 2026-08-31 — fix(agent-evals): real-usage 采集跳过测试流量（NODE_ENV=test 守卫，防测试噪声污染生产 JSONL）
+
+- **任务**："数据利用"方向第一步——确保被利用的数据干净。实测 `data/real-usage-traces.jsonl`（272 行）**100% 是测试流量**，不是真实使用：model 全为 `m1`（测试 mock）、source 全 chat、distinct task 仅 3 个（178× 合成 api-bug 任务 / 46× hello / 46× chat）、270/0 恒成功。**根因（已复现）**：`bun test` 自动设 `NODE_ENV=test`（探针实测），chat 路由测试（如 chat-memory-loop）mock model m1 驱动真实 `handleChat`/`handleAgentChat` 路由，而测试只隔离 SQLite/vault 未隔离 `REAL_USAGE_PATH` → 每次测试运行往生产 JSONL 追加。实测跑 `chat-memory-loop.test.ts` 使文件 270→272。危害：`evolveFromRealUsage`（last-200 采样）会把测试噪声归纳成垃圾 `auto-induce-*` skill；自动 evolve 触发器一旦开启会在测试流量上空转。
+- **工具**：Bash（探针确认 bun test 设 NODE_ENV=test、wc 实测复现 270→272、git 核实、bun test/tsc）、Read（real-usage.ts/env.ts）、Write（守卫测试 TDD）、Edit（real-usage.ts 守卫）。无子代理。AGENTS 规则 2（备份→通读→最小改动→验证→删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/real-usage.ts`：新增 `shouldSkipCapture(filePath?)`——省略 filePath（生产默认落点）且 `readString("NODE_ENV")==="test"` 时跳过采集；显式 filePath（单元测试/自定义落点）不受影响。`captureRealUsageTrace` 开头调用，跳过仅 `logger.debug` 不追加。
+  2. 新建 `tests/agent-evals/real-usage-guard.test.ts`（2 例）：①NODE_ENV=test + 省略 filePath（REAL_USAGE_PATH 指向 .tmp 临时"生产落点"）→ 断言文件未创建（跳过）；②NODE_ENV=test + 显式 filePath → 正常写入。用 `REAL_USAGE_PATH=<.tmp>` 安全解析，绝不碰真实 data/。
+  3. **存量归档清零（用户确认）**：`data/real-usage-traces.jsonl`（272 行测试噪声）→ `archive/real-usage-test-noise/real-usage-traces-20260831-222947.jsonl`（规则4 archive-not-delete，archive/ 已被 gitignore:151 覆盖不入库），原文件清空为 0 行，真实数据从零开始。
+- **验证**：TDD 红→绿——实现前守卫测试 1 fail（`Expected:false Received:true` 文件被写入，红）→ 实现后 2 pass/0 fail。既有 `real-usage.test.ts` 5 pass 不受影响（显式 tmpPath 绕过守卫）。回归：agent-evals 全目录 + chat 6 文件 **159 pass/0 fail**。污染停止实证：修复后重跑 `chat-memory-loop.test.ts` 文件 272→272 不再增长；全 chat+agent-evals 套件后 data 文件仍 0 行。`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**。
+- **Commit**：fix(agent-evals): real-usage 采集跳过测试流量（NODE_ENV=test 守卫，防测试噪声污染生产 JSONL） — hash 待回填
