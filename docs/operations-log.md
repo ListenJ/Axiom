@@ -8269,3 +8269,18 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/agent-evals/registry.test.ts 9 pass/0 fail、架构完整性 25 pass/0 fail；全量终验 bun run test:full 3289 pass/34 skip/0 fail、bunx tsc --noEmit 0。
 - **红线**：仅新增上述文件最小改动；registry 持久化全程 try/catch 非阻塞，不影响既有 run 流程；data/*.db gitignored 不入库（schema 在源码模块、种子经 CLI）。
 - **Commit**：feat(agent-evals): 回归基准入库（eval-registry: metrics-types/registry/run 落点/查询 CLI/历史基线种子）— e8acd5a
+
+## 2026-09-02 — fix(agent-evals): eval 暴跌根因修复（失败分类 + zhipu 限流缓解 + 干净基线重跑）
+
+- **任务**：追查 2026-09-01 17:52 UTC eval-registry run #3（glm-4.7-flash / provider zhipu / `--concurrency=3`）通过率暴跌至 **12.5%（1/8）**，对照 deepseek-v4-flash 基线 95.83%/91.67%。根因定位：zhipu 免费模型限流（HTTP 429 code 1302）在并发 3 下产出 `[ERROR] ...` 空内容串，被关键字验证器误判为能力失败（7/8 任务 output_len=41）。经用户确认三项修复："失败分类（根治）、降并发（缓解）、重跑干净基线"。
+- **工具**：Read/Edit/Write（src/agent-evals 各模块 + 测试 TDD 红→绿）、Bash（bun test 红→绿 / `bun run test:full` / `bunx tsc --noEmit` / registry-cli 查询核验）、Bash sqlite 迁移（data/eval-registry.db `ensureColumn` + run #3 重分类，备份 `.tmp/eval-registry.db.pre-migrate-r3`）。无子代理。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/metrics-types.ts` + `metrics.ts` + `runner.ts`：新增 `executionError?: boolean`（TaskResult/StoredTaskResult/FamilyMetrics/MetricsSummary）与 `executionErrors` 计数；runner 检测 `[ERROR] ` 前缀 → 直接返回 executionError:true 结果（不经关键字验证器）；**通过率分母剔除执行错误**（能力通过率 = passed / (total − executionErrors)）；pickBest 重跑语义：优先 pass → 其次非 executionError 尝试 → 兜底 attempts[0]。
+  2. `src/agent-evals/registry.ts`：SCHEMA 增 `summary_execution_errors` / `execution_error` 两列 + `ensureColumn()`（PRAGMA table_info + ALTER TABLE ADD COLUMN，兼容既有 DB 增量迁移）；`insertRun`/`insertTaskResults`/`rowToTask` 落点映射。
+  3. `src/agent-evals/report.ts` + `registry-cli.ts`：报表/CLI 拆分显示——执行错误行 `⚠️` 标记、表头增"执行错误"列、通过率旁注"不计入分母"。
+  4. `src/agent-evals/run.ts`：**zhipu 并发钳制**——`provider === "zhipu"` 时并发强制 1（原并发 3 超限），请求并发 >1 时告警提示 429 code 1302 缓解。
+  5. `tests/agent-evals/`：metrics.test.ts（+3 例：executionError 不计分母/计数）、registry.test.ts（+1 例：executionError/summaryExecutionErrors 落库读回）、runner-rerun.test.ts（+1 例：pickBest 非执行错误优先）。
+  6. `data/eval-registry.db`（gitignored，已迁移）：run #3 重分类——7 个 output_len=41 限流任务置 execution_error=1、summary_execution_errors=7、summary_pass_rate 回算 **100**（8 任务中 1 通过 + 7 执行错误，能力通过率 1/(8−7)=100%）；run #4 以并发 1 重跑干净基线 **8/8 通过（100%）**，证实 zhipu/glm 能力无缺陷、根因纯限流。
+- **验证**：TDD 红→绿；agent-evals 相关测试全绿（metrics/registry/runner-rerun 新增 4 例）；`bun run test:full` **3293 pass/34 skip/0 fail**（首跑 1 例 flaky fail 定位为 `tests/memory/sqlite-memory-tags.test.ts` afterAll 清理的 Windows EBUSY 文件锁竞争，与本次改动无关，重跑复绿）；`bunx tsc --noEmit` **0**；registry-cli `show` 核验 run #3 重分类结果与 run #4 100%。
+- **红线**：通过率分母剔除仅作用于 executionError 计数，不改 passed/total 原始口径；zhipu 并发钳制仅作用于 provider=zhipu，其他 provider 并发不变；既有 run 数据仅重分类污染行（备份 `.tmp/eval-registry.db.pre-migrate-r3`），无破坏性删除；测试全部注入 fake / `.tmp` 临时 DB，不连真实 provider。
+- **Commit**：fix(agent-evals): eval 暴跌根因修复（失败分类 executionError 不计通过率 + zhipu 限流并发 1 + 干净基线重跑）— hash 待回填

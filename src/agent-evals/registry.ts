@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS eval_runs (
   summary_avg_latency_ms REAL,
   summary_avg_output_len REAL,
   summary_by_family TEXT,
+  summary_execution_errors INTEGER NOT NULL DEFAULT 0,
   exit_code INTEGER,
   CONSTRAINT uq_eval_runs_tag UNIQUE(run_tag)
 );
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS eval_task_results (
   output_len INTEGER,
   model TEXT,
   injected_skills TEXT,
+  execution_error INTEGER NOT NULL DEFAULT 0,
   CONSTRAINT uq_eval_results_runtask UNIQUE(run_id, task_id)
 );
 CREATE INDEX IF NOT EXISTS idx_eval_results_run  ON eval_task_results(run_id);
@@ -83,6 +85,15 @@ function parseJson<T>(raw: unknown, fallback: T): T {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** 轻量 schema 迁移：老库无新列时 ALTER 补齐（CREATE TABLE IF NOT EXISTS 对已存在表不生效）。
+ * 规则 1 最小施工：只加执行错误相关两列，不动其余结构。 */
+function ensureColumn(db: Database, table: string, column: string, ddl: string): void {
+  const cols = db.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
 }
 
 /** DB 行 → RunRow（sanitize：类型钳制 + JSON 降级） */
@@ -111,6 +122,7 @@ function rowToRun(row: Record<string, unknown>): RunRow {
     summaryAvgLatencyMs: Number(row.summary_avg_latency_ms ?? 0),
     summaryAvgOutputLen: Number(row.summary_avg_output_len ?? 0),
     summaryByFamily: family,
+    summaryExecutionErrors: Number(row.summary_execution_errors ?? 0),
     exitCode: row.exit_code == null ? null : Number(row.exit_code),
   };
 }
@@ -129,6 +141,7 @@ function rowToTask(row: Record<string, unknown>): StoredTaskRow {
     outputLen: Number(row.output_len ?? 0),
     model: row.model == null ? null : String(row.model),
     injectedSkills: parseJson<string[]>(row.injected_skills, []),
+    executionError: Number(row.execution_error ?? 0) === 1,
   };
 }
 
@@ -168,6 +181,9 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
   const db = new Database(dbPath);
   db.exec("PRAGMA foreign_keys = ON"); // ON DELETE CASCADE 生效必需（SQLite 默认关闭）
   db.exec(SCHEMA);
+  // 老库迁移：执行错误分类列（已存在则跳过）
+  ensureColumn(db, "eval_runs", "summary_execution_errors", "summary_execution_errors INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "eval_task_results", "execution_error", "execution_error INTEGER NOT NULL DEFAULT 0");
 
   const insertRunStmt = db.query(`
     INSERT INTO eval_runs (
@@ -175,20 +191,20 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
       rerun_each, evolve_phase, git_commit, src_argv, src_doc,
       summary_total, summary_passed, summary_pass_rate, summary_train_rate,
       summary_held_out_rate, summary_generalization, summary_avg_latency_ms,
-      summary_avg_output_len, summary_by_family, exit_code
+      summary_avg_output_len, summary_by_family, summary_execution_errors, exit_code
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?,
-      ?, ?, ?
+      ?, ?, ?, ?
     )
   `);
 
   const insertTaskStmt = db.query(`
     INSERT INTO eval_task_results (
-      run_id, task_id, family, split, passed, reason, latency_ms, output_len, model, injected_skills
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      run_id, task_id, family, split, passed, reason, latency_ms, output_len, model, injected_skills, execution_error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const listAllStmt = db.query(`SELECT * FROM eval_runs ORDER BY started_at DESC`);
@@ -242,6 +258,7 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
         round2(summary.avgLatencyMs),
         round2(summary.avgOutputLength),
         JSON.stringify(summary.byFamily ?? {}),
+        summary.executionErrors ?? 0,
         meta.exitCode ?? null,
       );
       return Number(info.lastInsertRowid);
@@ -260,6 +277,7 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
           t.outputLength,
           t.model ?? null,
           JSON.stringify(t.injectedSkills ?? []),
+          t.executionError ? 1 : 0,
         );
       }
     },

@@ -14,12 +14,16 @@ export interface TaskResult {
   model?: string;
   /** 本次任务实际注入的 auto-* 技能 id 列表（无注入为空） */
   injectedSkills?: string[];
+  /** 执行错误（限流/传输/空内容等 provider 侧故障，非能力失败）：不计入能力通过率分母 */
+  executionError?: boolean;
 }
 
 export interface FamilyMetrics {
   total: number;
   passed: number;
   passRate: number; // 0-100
+  /** 本族执行错误数（限流/传输等 provider 侧故障，非能力失败） */
+  executionErrors: number;
 }
 
 export interface MetricsSummary {
@@ -33,19 +37,26 @@ export interface MetricsSummary {
   generalizationRatio: number | null;
   avgLatencyMs: number;
   avgOutputLength: number;
+  /** 执行错误数（限流/传输等 provider 侧故障，非能力失败） */
+  executionErrors: number;
 }
 
 export function summarize(results: TaskResult[]): MetricsSummary {
   const byFamily: Record<string, FamilyMetrics> = {};
   for (const r of results) {
-    const f = (byFamily[r.family] ??= { total: 0, passed: 0, passRate: 0 });
+    const f = (byFamily[r.family] ??= { total: 0, passed: 0, passRate: 0, executionErrors: 0 });
     f.total++;
-    if (r.passed) f.passed++;
-    f.passRate = Math.round((f.passed / f.total) * 1000) / 10;
+    if (r.executionError) f.executionErrors++;
+    else if (r.passed) f.passed++;
+    // 能力通过率：分母排除执行错误（限流/传输噪声不拉低能力基线）
+    const capabilityDenom = f.total - f.executionErrors;
+    f.passRate = capabilityDenom <= 0 ? 0 : Math.round((f.passed / capabilityDenom) * 1000) / 10;
   }
+  const executionErrors = results.filter((r) => r.executionError).length;
+  const capabilityTotal = results.length - executionErrors;
   const passed = results.filter((r) => r.passed).length;
-  const train = results.filter((r) => r.split === "train");
-  const heldOut = results.filter((r) => r.split === "held-out");
+  const train = results.filter((r) => r.split === "train" && !r.executionError);
+  const heldOut = results.filter((r) => r.split === "held-out" && !r.executionError);
   const rate = (arr: TaskResult[]) =>
     arr.length === 0 ? 0 : Math.round((arr.filter((r) => r.passed).length / arr.length) * 1000) / 10;
   const trainRate = rate(train);
@@ -53,12 +64,13 @@ export function summarize(results: TaskResult[]): MetricsSummary {
   return {
     total: results.length,
     passed,
-    passRate: results.length === 0 ? 0 : Math.round((passed / results.length) * 1000) / 10,
+    passRate: capabilityTotal <= 0 ? 0 : Math.round((passed / capabilityTotal) * 1000) / 10,
     byFamily,
     trainRate,
     heldOutRate,
     generalizationRatio: trainRate === 0 ? null : Math.round((heldOutRate / trainRate) * 1000) / 1000,
     avgLatencyMs: results.length === 0 ? 0 : Math.round(results.reduce((a, b) => a + b.latencyMs, 0) / results.length),
     avgOutputLength: results.length === 0 ? 0 : Math.round(results.reduce((a, b) => a + b.outputLength, 0) / results.length),
+    executionErrors,
   };
 }

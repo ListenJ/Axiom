@@ -83,6 +83,23 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
     content = `[ERROR] ${(err as Error).message}`;
   }
   const latencyMs = Math.round(performance.now() - t0);
+  const isExecutionError = content.startsWith("[ERROR] ");
+  if (isExecutionError) {
+    // 执行错误（限流/传输/空内容等 provider 侧故障）≠ 能力失败：跳过关键字验证，
+    // 避免 `[ERROR] ...` 字符串被关键字验证器误判为能力缺陷，污染能力基线。
+    return {
+      taskId: task.id,
+      family: task.family,
+      split: task.split,
+      passed: false,
+      reason: content.slice(0, 200),
+      latencyMs,
+      outputLength: content.length,
+      model,
+      injectedSkills: injectedSkillIds,
+      executionError: true,
+    };
+  }
   const verdict = await task.verify(content);
   return {
     taskId: task.id,
@@ -100,9 +117,14 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
 /** 评测统一口径：默认每个任务重跑 2 次取最优，消除单样本波动（分数口径稳定可比）。 */
 export const DEFAULT_RERUN_EACH = 2;
 
-/** 从多次尝试中取最优：任一通过取首个通过；全失败保留首次（含失败原因）。 */
+/** 从多次尝试中取最优：任一通过取首个通过；全失败优先保留真实能力失败
+ * （非执行错误），仅在全部尝试都是执行错误时保留首次。 */
 export function pickBest(attempts: TaskResult[]): TaskResult {
-  return attempts.find((a) => a.passed) ?? attempts[0];
+  return (
+    attempts.find((a) => a.passed) ??
+    attempts.find((a) => !a.executionError) ??
+    attempts[0]
+  );
 }
 
 /** 单任务执行：按 rerunEach 重跑取最优（默认 DEFAULT_RERUN_EACH=2）。 */

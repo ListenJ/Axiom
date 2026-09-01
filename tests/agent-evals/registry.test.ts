@@ -78,6 +78,31 @@ describe("eval registry (回归基准入库)", () => {
     }
   });
 
+  it("roundtrip: executionError / summaryExecutionErrors 落库并读回 (执行错误非能力失败)", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const runId = reg.insertRun(
+        makeMeta(),
+        makeSummary({ passed: 1, passRate: 50, executionErrors: 1 }),
+      );
+      reg.insertTaskResults(runId, [
+        makeTask({ taskId: "CODING-01", passed: true, executionError: false }),
+        makeTask({ taskId: "CODING-02", passed: false, executionError: true }),
+      ]);
+
+      const run = reg.getRun(runId);
+      expect(run).not.toBeNull();
+      expect(run!.summaryExecutionErrors).toBe(1);
+
+      const tasks = reg.getTasks(runId);
+      expect(tasks.length).toBe(2);
+      expect(tasks.find((t) => t.taskId === "CODING-01")!.executionError).toBe(false);
+      expect(tasks.find((t) => t.taskId === "CODING-02")!.executionError).toBe(true);
+    } finally {
+      reg.close();
+    }
+  });
+
   it("getRun 支持按 tag 解析, 空库 listRuns 返回 []", () => {
     const reg = openRegistry(":memory:");
     try {

@@ -27,9 +27,11 @@ const externalKind = flag("external") as ExternalKind | undefined;
 const externalLimitRaw = Number(flag("limit") ?? "0");
 const externalLimit = Number.isFinite(externalLimitRaw) && externalLimitRaw >= 1 ? Math.floor(externalLimitRaw) : undefined;
 const rawConcurrency = Number(flag("concurrency") ?? "1");
-const concurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
+const requestedConcurrency = Number.isFinite(rawConcurrency) && rawConcurrency >= 1 ? Math.floor(rawConcurrency) : 1;
 const modelHint = flag("model");
 const provider = flag("provider");
+// 缓解：zhipu 免费模型限流（HTTP 429 code 1302）——并发请求易触发限流，强制并发 1
+const concurrency = provider === "zhipu" ? 1 : requestedConcurrency;
 const directModel = flag("model") ?? flag("direct-model");
 const fallbackProvider = flag("fallback-provider");
 const fallbackModel = flag("fallback-model");
@@ -97,6 +99,7 @@ function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: 
         outputLength: r.outputLength,
         model: r.model,
         injectedSkills: r.injectedSkills,
+        executionError: r.executionError,
       }));
       const meta: RunMetadata = {
         runTag: makeRunTag(cliStartAt.replace(/[:.]/g, "-"), phase),
@@ -193,6 +196,9 @@ if (evolve && !externalKind) {
   process.exit([...baselineResults, ...evolvedResults].some((r) => !r.passed) ? 1 : 0);
 }
 
+if (provider === "zhipu" && requestedConcurrency > 1) {
+  logger.warn(`[AgentEval] zhipu 免费模型限流缓解：并发 ${requestedConcurrency} → 1（避免 429 code 1302）`);
+}
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
 const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel, rerunEach });
 const summary = summarize(results);

@@ -17,6 +17,8 @@ export interface StoredTaskResult {
   outputLength: number;
   model?: string;
   injectedSkills?: string[];
+  /** 执行错误（限流/传输等 provider 侧故障，非能力失败） */
+  executionError?: boolean;
 }
 
 /** 单族统计（与 metrics.FamilyMetrics 同构，独立定义） */
@@ -24,6 +26,8 @@ export interface FamilySnapshot {
   total: number;
   passed: number;
   passRate: number; // 0-100
+  /** 本族执行错误数 */
+  executionErrors?: number;
 }
 
 /** 一轮评测 summary 的存储形态（与 metrics.MetricsSummary 同构，独立定义） */
@@ -37,6 +41,8 @@ export interface RunSummarySnapshot {
   generalizationRatio: number | null;
   avgLatencyMs: number;
   avgOutputLength: number;
+  /** 执行错误数（限流/传输等 provider 侧故障，非能力失败） */
+  executionErrors?: number;
 }
 
 /** listRuns / getTrend 过滤条件 */
@@ -87,6 +93,8 @@ export interface RunRow {
   summaryAvgLatencyMs: number;
   summaryAvgOutputLen: number;
   summaryByFamily: Record<string, FamilySnapshot>;
+  /** 本轮执行错误数（限流/传输等 provider 侧故障，非能力失败） */
+  summaryExecutionErrors: number;
   exitCode: number | null;
 }
 
@@ -103,6 +111,8 @@ export interface StoredTaskRow {
   outputLen: number;
   model: string | null;
   injectedSkills: string[];
+  /** 该任务是否执行错误（限流/传输等 provider 侧故障，非能力失败） */
+  executionError: boolean;
 }
 
 /** compare(a, b) 的返回：两轮 summary 与分族差异 */

@@ -50,12 +50,12 @@ function printStats() {
       console.log("（无评测记录）");
       return;
     }
-    console.log("| id | 时间 | 模型 | 族 | split | 通过率 | train | held | 来源 |");
-    console.log("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    console.log("| id | 时间 | 模型 | 族 | split | 通过率 | train | held | 执行错误 | 来源 |");
+    console.log("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     for (const r of runs) {
       const src = r.srcDoc ? "manual" : (r.evolvePhase ?? "run");
       console.log(
-        `| ${r.id} | ${fmtDate(r.startedAt)} | ${r.model ?? "-"} | ${r.familyFilter ?? "all"} | ${r.splitFilter ?? "-"} | ${pct(r.summaryPassRate)} | ${pct(r.summaryTrainRate)} | ${pct(r.summaryHeldOutRate)} | ${src} |`,
+        `| ${r.id} | ${fmtDate(r.startedAt)} | ${r.model ?? "-"} | ${r.familyFilter ?? "all"} | ${r.splitFilter ?? "-"} | ${pct(r.summaryPassRate)} | ${pct(r.summaryTrainRate)} | ${pct(r.summaryHeldOutRate)} | ${r.summaryExecutionErrors > 0 ? `⚠️${r.summaryExecutionErrors}` : "-"} | ${src} |`,
       );
     }
   } finally {
@@ -79,7 +79,8 @@ function printShow(ref: string) {
     if (run.srcDoc) console.log(`- 来源文档(manual): ${run.srcDoc}`);
     if (run.srcArgv) console.log(`- 命令: ${run.srcArgv}`);
     console.log("");
-    console.log(`## 汇总: ${run.summaryPassed}/${run.summaryTotal} = ${pct(run.summaryPassRate)}`);
+    const errNote = run.summaryExecutionErrors > 0 ? ` ｜ 执行错误: ⚠️${run.summaryExecutionErrors}（不计入通过率分母）` : "";
+    console.log(`## 汇总: ${run.summaryPassed}/${run.summaryTotal} = ${pct(run.summaryPassRate)}${errNote}`);
     console.log(`train ${pct(run.summaryTrainRate)} ｜ held-out ${pct(run.summaryHeldOutRate)} ｜ 泛化 ${run.summaryGeneralization ?? "N/A"} ｜ 平均延迟 ${run.summaryAvgLatencyMs}ms`);
     const fams = Object.entries(run.summaryByFamily);
     if (fams.length > 0) {
@@ -93,11 +94,14 @@ function printShow(ref: string) {
     const tasks = reg.getTasks(run.id);
     if (tasks.length > 0) {
       console.log("");
-      console.log("| ID | 族 | split | 通过 | 延迟(ms) | 模型 |");
-      console.log("| --- | --- | --- | --- | --- | --- |");
+      console.log("| ID | 族 | split | 通过 | 延迟(ms) | 模型 | 备注 |");
+      console.log("| --- | --- | --- | --- | --- | --- | --- |");
       for (const t of tasks) {
-        console.log(`| ${t.taskId} | ${t.family} | ${t.split} | ${t.passed ? "✅" : "❌"} | ${t.latencyMs} | ${t.model ?? "-"} |`);
-        if (!t.passed && t.reason) console.log(`  - 失败原因: ${t.reason}`);
+        const status = t.executionError ? "⚠️" : t.passed ? "✅" : "❌";
+        const note = t.executionError ? "执行错误" : "";
+        console.log(`| ${t.taskId} | ${t.family} | ${t.split} | ${status} | ${t.latencyMs} | ${t.model ?? "-"} | ${note} |`);
+        if (t.executionError && t.reason) console.log(`  - 执行错误: ${t.reason}`);
+        else if (!t.passed && t.reason) console.log(`  - 失败原因: ${t.reason}`);
       }
     }
   } finally {

@@ -7,7 +7,8 @@ export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): stri
   const lines: string[] = [];
   lines.push("# Agent 能力边界评测报告");
   lines.push("");
-  lines.push(`- 任务数: ${summary.total} ｜ 通过: ${summary.passed} ｜ 通过率: ${summary.passRate}%`);
+  const errNote = summary.executionErrors > 0 ? ` ｜ 执行错误: ${summary.executionErrors}（不计入通过率分母）` : "";
+  lines.push(`- 任务数: ${summary.total} ｜ 通过: ${summary.passed} ｜ 通过率: ${summary.passRate}%${errNote}`);
   lines.push(`- train 通过率: ${summary.trainRate}% ｜ held-out 通过率: ${summary.heldOutRate}%`);
   lines.push(
     summary.generalizationRatio === null
@@ -26,11 +27,15 @@ export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): stri
   lines.push("");
   lines.push("## 明细");
   lines.push("");
-  lines.push("| ID | 族 | split | 通过 | 延迟(ms) | 模型 |");
-  lines.push("| --- | --- | --- | --- | --- | --- |");
+  lines.push("| ID | 族 | split | 通过 | 延迟(ms) | 模型 | 备注 |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const r of results) {
-    lines.push(`| ${r.taskId} | ${r.family} | ${r.split} | ${r.passed ? "✅" : "❌"} | ${r.latencyMs} | ${r.model} |`);
-    if (!r.passed && r.reason) {
+    const status = r.executionError ? "⚠️" : r.passed ? "✅" : "❌";
+    const note = r.executionError ? "执行错误" : "";
+    lines.push(`| ${r.taskId} | ${r.family} | ${r.split} | ${status} | ${r.latencyMs} | ${r.model} | ${note} |`);
+    if (r.executionError && r.reason) {
+      lines.push(`  - 执行错误: ${r.reason}`);
+    } else if (!r.passed && r.reason) {
       lines.push(`  - 失败原因: ${r.reason}`);
     }
   }

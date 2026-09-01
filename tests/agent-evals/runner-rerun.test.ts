@@ -30,6 +30,17 @@ describe("pickBest 取最优", () => {
     expect(pickBest(attempts)).toBe(first);
   });
 
+  it("全失败且含执行错误时优先保留真实能力失败（而非限流/传输执行错误）", () => {
+    const execErr = { ...result(false), executionError: true };
+    const realFail = result(false);
+    // 真实能力失败在后的场景
+    expect(pickBest([execErr, realFail])).toBe(realFail);
+    // 真实能力失败在前的场景
+    expect(pickBest([realFail, execErr])).toBe(realFail);
+    // 全部是执行错误 → 保留首次
+    expect(pickBest([execErr, { ...result(false), executionError: true }])).toBe(execErr);
+  });
+
   it("空列表返回 undefined（防御）", () => {
     expect(pickBest([])).toBeUndefined();
   });
