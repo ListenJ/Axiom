@@ -8202,3 +8202,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——首跑 6 pass/1 fail（红：拒卷分支 `traceCount` 误用 total 而非合法数，语义与既有 real-usage.test.ts 的 traceCount=合法轨迹数不一致，已修正拒卷分支为 total−malformed + 测试断言改为合法数）→ **7 pass/0 fail**（绿）。既有 real-usage 全系 4 文件 **23 pass/0 fail** 无回归（既有 evolve 测试的 traceCount 断言不受影响）。`bunx tsc --noEmit` **0**。生产轨迹文件实测 0 行未被污染（sentinel 测试用 `.tmp` 路径隔离）。
 - **红线**：sentinel 是**拒绝门非删除门**——不触碰/不删除/不改动轨迹文件；`evolveFromRealUsage` 正常路径语义不变（仅新增 `refused`/`health` 可选字段，非破坏性）；不接触 queryKG 排序/架构完整性。
 - **Commit**：feat(agent-evals): 数据质量 sentinel（evolve 畸形率拒卷门，防脏数据误归纳） — 30a77eb
+
+## 2026-09-01 — fix(self-evolve): auto-evolve 高水位回退（轨迹文件清空/归档后不长期卡 insufficient-new）
+
+- **任务**：审计 `maybeAutoEvolve` 水位逻辑发现真实缺陷——`getNewTraces` 返回轨迹**总数**，增量 = `newTraces − lastNewTraces`。但轨迹文件可能被清空/归档（如 2026-08-31 fedaefc 将 272 行测试噪声归档清零），此时 `lastNewTraces` 停在旧高水位（如 50），文件清空后 `newTraces=0` → 增量恒负 → 即便之后累积了 30 条真实轨迹，`pending = 30−50 = −20 < minNewTraces` 仍长期卡 `insufficient-new`，自动 evolve 静默停摆。
+- **工具**：Read（auto-evolve.ts / auto-evolve.test.ts 通读）、Write（新增水位回退测试，TDD 红）、Edit（auto-evolve.ts 水位回退）、Bash（bun test 红→绿 / tsc / test:smoke / agent-evals 全目录）。无子代理。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `tests/agent-evals/auto-evolve.test.ts`：新增 1 例「水位回退」——preset state lastNewTraces=50 → `getNewTraces` 返回 0（清空）→ 断言不 evolve 且 **state.lastNewTraces 已回退到 0**（持久化）→ 再累积 30 条 → 断言正常 evolve（若不回退水位，pending=−20 会卡死）。
+  2. `src/agent-evals/auto-evolve.ts`：`maybeAutoEvolve` 内读 `newTraces` 后，若 `newTraces < state.lastNewTraces`（文件被清空/归档）则以当前数为新水位 `writeState` 持久化并更新内存 state——增量不再为负，从新基重新计数。
+- **验证**：TDD 红→绿——实现前新测试 fail（`Expected:0 Received:50`，水位残留，红）→ 实现后 **8 pass/0 fail**（绿）。`bunx tsc --noEmit` **0**。回归：agent-evals 全目录 **131 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
+- **红线**：只改 auto-evolve 水位语义（文件清空后回退，不改变 append-only 正常路径）；不触碰 evolveFromRealUsage/selfInduce/promote 内部与轨迹文件本身。
+- **Commit**：fix(self-evolve): auto-evolve 高水位回退（轨迹文件清空后从新基计数，防增量恒负停摆） — hash 待回填

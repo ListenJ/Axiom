@@ -152,6 +152,32 @@ describe("auto-evolve 自动触发器", () => {
     expect(result.ran).toBe(true);
   });
 
+  test("水位回退：轨迹文件被清空/归档后从新基重新计数，不长期卡 insufficient-new", async () => {
+    // 上次 evolve 后水位 50；随后文件被清空（0 条）——lastNewTraces 是旧高水位
+    presetState({ lastRunAt: 0, lastNewTraces: 50 });
+    let count = 0; // 当前轨迹总数：清空后为 0，随后真实轨迹累积
+    const deps = makeDeps({
+      getNewTraces: async () => count,
+      minNewTraces: () => 30,
+    });
+    const evolveTracker = spyDeps(deps, "evolve");
+
+    // 清空后第一次调用：0 条 → 不 evolve，且水位应回退到 0（持久化，防旧高水位残留）
+    count = 0;
+    let r = await maybeAutoEvolve(deps);
+    expect(r.ran).toBe(false);
+    expect(r.reason).toBe("insufficient-new");
+    expect(evolveTracker.mock.calls()).toBe(0);
+    expect(readState()?.lastNewTraces).toBe(0); // 水位已回退
+
+    // 累积 30 条真实轨迹 → 应 evolve（若不回退水位，pending = 30-50 = -20 < 30 会卡死）
+    count = 30;
+    r = await maybeAutoEvolve(deps);
+    expect(r.ran).toBe(true);
+    expect(r.reason).toBe("ok");
+    expect(evolveTracker.mock.calls()).toBe(1);
+  });
+
   test("evolve 抛错 → reason error，且 state.lastNewTraces 已推进（防热重试）", async () => {
     const deps = makeDeps({
       evolve: async () => { throw new Error("boom"); },

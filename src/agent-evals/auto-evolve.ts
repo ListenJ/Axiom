@@ -99,6 +99,12 @@ export async function maybeAutoEvolve(deps?: AutoEvolveDeps): Promise<AutoEvolve
       return { ran: false, reason: "cooldown" };
     }
     const newTraces = await d.getNewTraces();
+    // 水位回退（轨迹文件被清空/归档，newTraces < lastNewTraces）：以当前数为新水位并持久化。
+    // 否则 lastNewTraces 停在旧高水位，增量恒为负，自动 evolve 会长期卡 insufficient-new。
+    if (newTraces < state.lastNewTraces) {
+      writeState(d.statePath(), { lastRunAt: state.lastRunAt, lastNewTraces: newTraces });
+      state.lastNewTraces = newTraces;
+    }
     const pending = newTraces - state.lastNewTraces;
     if (pending < d.minNewTraces()) {
       return { ran: false, reason: "insufficient-new" };
