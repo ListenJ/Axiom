@@ -401,7 +401,11 @@ export class SharedBlackboard {
   syncToCache(key: string, ttlMs?: number): void {
     const entry = this.entries.get(key);
     if (entry) {
-      this.cache.set(key, entry, ttlMs ?? entry.expireTime - Date.now());
+      // Fix 5：expireTime===0 表示永不过期，映射为缓存的永不过期哨兵 ttlMs=0
+      // （cache.ts 语义：ttlMs===0 → NO_EXPIRY_MS），避免 0 - Date.now() 负数被
+      // 误判为未传 TTL 而回退到默认 1h，导致永不过期事实被缓存层 1h 后淘汰。
+      const cacheTtl = ttlMs ?? (entry.expireTime === 0 ? 0 : entry.expireTime - Date.now());
+      this.cache.set(key, entry, cacheTtl);
     }
   }
 
@@ -515,7 +519,10 @@ export class SharedBlackboard {
 
   private storeEntry(key: string, entry: BlackboardEntry): void {
     this.entries.set(key, entry);
-    this.cache.set(key, entry);
+    // Fix 5：永不过期条目（expireTime===0）使用缓存永不过期哨兵 ttlMs=0，
+    // 避免默认 1h TTL 导致缓存层提前淘汰（详见 syncToCache 注释）。
+    const cacheTtl = entry.expireTime === 0 ? 0 : entry.expireTime - Date.now();
+    this.cache.set(key, entry, cacheTtl);
 
     // 更新索引
     for (const tag of entry.tags) {

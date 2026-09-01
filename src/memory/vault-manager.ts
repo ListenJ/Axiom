@@ -337,23 +337,35 @@ export class VaultManager {
       throw new Error(`Note already exists: ${notePath} (use overwrite=true or append=true)`);
     }
 
-    fs.writeFileSync(fullPath, finalContent, "utf-8");
+    // Fix 2：原子写（tmp + renameSync，镜像 skill-promotion.ts / skill-quality.ts）。
+    // 先写入临时文件，索引 upsertNote 成功后才 rename 到正式路径；
+    // upsertNote 抛错时清理临时文件，避免“文件已落盘但索引无行”的静默发散（孤文件）。
+    const tmpPath = `${fullPath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      fs.writeFileSync(tmpPath, finalContent, "utf-8");
 
-    // Sync to SQLite index
-    const stat = fs.statSync(fullPath);
-    this.sqliteMemory.upsertNote({
-      path: notePath,
-      title: opts.title || path.basename(notePath, ".md"),
-      content: finalContent,
-      excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
-      tags: opts.tags || [],
-      paraCategory: opts.paraCategory || "resources",
-      type: opts.type || "note",
-      source: opts.source,
-      confidence: opts.confidence ?? 0.7,
-      createdAt: stat.birthtimeMs || stat.ctimeMs,
-      updatedAt: stat.mtimeMs,
-    });
+      const stat = fs.statSync(tmpPath);
+      // Sync to SQLite index —— 失败则抛错，catch 清理 tmp，正式文件不发布
+      this.sqliteMemory.upsertNote({
+        path: notePath,
+        title: opts.title || path.basename(notePath, ".md"),
+        content: finalContent,
+        excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
+        tags: opts.tags || [],
+        paraCategory: opts.paraCategory || "resources",
+        type: opts.type || "note",
+        source: opts.source,
+        confidence: opts.confidence ?? 0.7,
+        createdAt: stat.birthtimeMs || stat.ctimeMs,
+        updatedAt: stat.mtimeMs,
+      });
+
+      // 索引成功后才发布正式文件
+      fs.renameSync(tmpPath, fullPath);
+    } catch (e) {
+      try { fs.unlinkSync(tmpPath); } catch {}
+      throw e;
+    }
 
     // SQLite FTS index updated via upsertNote above.
     // Deterministic engine rebuilds lazily on next search if needed.

@@ -8239,3 +8239,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`bun test tests/router` **48 pass/0 fail**、`bun test tests/utils` **17 pass/0 fail**、`tests/architecture-integrity.test.ts` **25 pass/0 fail**、`bun run test:smoke` **63 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
 - **红线**：仅改上述 4 点最小改动，不触碰 memory/self-evolve/agent-evals；测试全注入 fake（不连真实 provider/网络）；与 Task 6 文件集不重叠，共享树并行安全。
 - **Commit**：fix(router/env): native-stream 记熔断、endpoint 取实际执行模型、默认值过校验、withTimeout 监听清理 — hash 待回填
+
+## 2026-09-01 — fix(memory): 归档原子性/路径守卫 + vault 原子写 + blackboard 永不过期语义（跨模块已验证修复）
+
+- **任务**：主线 B 跨模块 bug 检索**已验证修复集**的 memory/vault 部分——验证子代理确认的活跃缺陷（原始 CRITICAL path traversal 经复核为当前线路不可达的防御缺口，降级为 PLAUSIBLE 后仍按防御性加固处理）。经用户确认"两者并行推进"、并行任务用子代理完成，由实施子代理 TDD 红→绿。
+- **工具**：实施子代理（general-purpose）Read/Write/Edit/Bash 完成；主会话核验（Read archiver.ts / vault-manager.ts / blackboard.ts 关键区段 + 全量终验）。AGENTS 规则 2（备份）与规则 7（红→绿）全程执行，备份已删。
+- **操作**（文件级）：
+  1. `src/memory/archiver.ts` **Fix 1（最高优先，数据孤立）** moveToArchive：源文件删除移至索引更新**成功之后**；索引失败时 rename 路径移回源、EXDEV 路径删归档保留源，并 re-throw——杜绝"源已删、索引仍指向旧路径"的孤文件。**Fix 3（无事务）**：优先 `fs.renameSync(sourcePath, archiveFullPath)` 原子移动（同文件系统），EXDEV 回退 tmp 写入 + rename，消除 copy-then-delete 崩溃窗口。**Fix 4（防御缺口）**：新增 `isPathWithinVault(fileRel)`（与 VaultManager.resolveSafePath 同构，拒 `..`/绝对路径/逃逸），`archiveNote` 与 `moveToArchive` 入口调用。新增 `tests/memory/archiver-safe-move.test.ts`。
+  2. `src/memory/vault-manager.ts` **Fix 2（非原子写）** writeNote：tmp + `renameSync`（镜像 skill-promotion/skill-quality 既有原子写习惯）——先写 tmp，`upsertNote` 索引**成功后**才 rename 发布正式文件；索引抛错清理 tmp，不留"文件在索引不在"的孤文件。新增 `tests/memory/vault-atomic-write.test.ts`。
+  3. `src/memory/blackboard.ts` **Fix 5（缓存语义泄漏）** syncToCache/storeEntry：`expireTime===0`（永不过期）映射 cache 的 `ttlMs===0` NO_EXPIRY 哨兵，避免 `0 - Date.now()` 负数被 cache.ts 误判为未传 TTL 回退默认 1h、导致永不过期事实 1h 后被淘汰。新增 `tests/memory/blackboard-cache-never-expire.test.ts`。
+- **验证**：`bun test tests/memory` **82 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
+- **红线**：仅改上述 3 文件最小改动；测试用注入 fake / `.tmp` 临时目录，绝不写真实 axiom-memory 生产目录；与 Task 5 文件集不重叠，共享树并行安全。
+- **Commit**：fix(memory): 归档原子 move + 索引成功才删源 + vault 路径守卫、vault 原子写、blackboard 永不过期映射 — hash 待回填
