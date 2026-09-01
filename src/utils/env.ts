@@ -63,6 +63,25 @@ export function readInt(key: string, fallback: number, clamp?: { min?: number; m
   return n;
 }
 
+/**
+ * 严格解析非负浮点数（审计 2026-09-01，为数据质量 sentinel 阈值引入）：
+ * 仅接受形如 `0.2` / `0.05` 的十进制小数或整数；非法值回退默认，可选范围钳制。
+ * 返回 NaN / Infinity / 负数一律回退，避免阈值配置失效。
+ */
+export function readNumber(key: string, fallback: number, clamp?: { min?: number; max?: number }): number {
+  const v = process.env[key];
+  if (v === undefined || v === "") return fallback;
+  if (!/^\d+(\.\d+)?$/.test(v)) {
+    logger.debug(`readNumber(${key}): non-numeric value "${v}", falling back to ${fallback}`);
+    return fallback;
+  }
+  let n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  if (clamp?.min !== undefined && n < clamp.min) n = clamp.min;
+  if (clamp?.max !== undefined && n > clamp.max) n = clamp.max;
+  return n;
+}
+
 export function readBool(key: string, fallback = false): boolean {
   const v = process.env[key];
   if (v === undefined || v === "") return fallback;

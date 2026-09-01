@@ -8190,3 +8190,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：词边界测试先 2 pass/3 fail（红——子串误命中复现）→ 修正测试设计（builtin doc-generate/review 竞争干扰）后 **6 pass/0 fail**（绿）。受影响模块关键套件 7 文件 **33 pass/0 fail**（real-usage guard+unit、auto-evolve、skill-promotion、词边界、registry-p2、execute-by-id）。`bunx tsc --noEmit` **0**（首跑拦截 chat.ts error 事件无 model/provider 字段 + SkillDefinition 未导出 + 2 处 null 断言，已修）。`bun run test:smoke` **63 pass/0 fail**（基线一致）。`test:full` 全量（预期只增不减，新增 2+6=8 例）。
 - **红线**：不接触 queryKG 排序/架构完整性；未改 evolveFromRealUsage/selfInduce/promote 内部语义（仅 persist 写入方式加固）；技能匹配改动仅影响短 ASCII trigger（CJK 行为不变）。
 - **Commit**：fix(agent-evals): 跨模块 bug 加固（stream error 采轨迹、flush 串行化、NODE_ENV 大小写、readInt clamp、trigger 词边界、persist 原子写） — 583b8b4
+
+## 2026-09-01 — feat(agent-evals): 数据质量 sentinel（evolve 畸形率拒卷门，防脏数据误归纳）
+
+- **任务**：用户原始关切"自动 evolve 不因脏数据产生误差/误删"的收尾——此前已确认生产路径无删除/无覆盖，本任务加一道**拒绝门**而非删除门：轨迹文件畸形率过高时拒卷，阻止损坏/脏数据被 `evolveFromRealUsage` 归纳成垃圾 `auto-induce-*` skill。只读评估，不改动任何用户数据。
+- **工具**：Read（real-usage.ts 加载/evolve 落点、env.ts 既有 helper 家族）、Write（TDD 红测试 + sentinel 实现 + env readNumber）、Edit（real-usage.ts + env.ts + 测试修正）、Bash（bun test 红→绿/tsc）。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/utils/env.ts`：新增 `readNumber(key, fallback, clamp?)`——严格解析非负浮点数（`^\d+(\.\d+)?$`），非法/NaN/Infinity 回退默认，可选 [min,max] 钳制（对齐 readInt 的严格解析+越界防护，供阈值类配置使用）。
+  2. `src/agent-evals/real-usage.ts`：新增 `assessTraceHealth(filePath?)` → `{total, malformed, malformedRate}`（非空行总数 / 畸形行数[JSON 解析失败或缺 id/task] / 畸形率；只读，先 flush 保证一致）；`evolveFromRealUsage` 归纳前先评估——畸形率 ≥ 阈值（默认 0.2，env `AXIOM_EVOLVE_MAX_MALFORMED_RATE`，clamp [0,1]）时 **拒卷**（返回 `refused:"malformed-rate"` + `health` 快照），`traceCount` 语义与正常路径一致 = 合法轨迹数（total − malformed），不归纳、不创建 skill、不改动文件。
+  3. 新建 `tests/agent-evals/real-usage-sentinel.test.ts`（7 例）：正常文件畸形率 0；统计损坏 JSON + 缺字段行；畸形率超阈值拒卷（refused + inductionCount 0 + health 快照）；低于阈值正常 evolve；阈值 env 调高（=1 永不拒卷）/ 调低（=0 任何畸形都拒卷）；空文件不拒卷不崩。
+- **验证**：TDD 红→绿——首跑 6 pass/1 fail（红：拒卷分支 `traceCount` 误用 total 而非合法数，语义与既有 real-usage.test.ts 的 traceCount=合法轨迹数不一致，已修正拒卷分支为 total−malformed + 测试断言改为合法数）→ **7 pass/0 fail**（绿）。既有 real-usage 全系 4 文件 **23 pass/0 fail** 无回归（既有 evolve 测试的 traceCount 断言不受影响）。`bunx tsc --noEmit` **0**。生产轨迹文件实测 0 行未被污染（sentinel 测试用 `.tmp` 路径隔离）。
+- **红线**：sentinel 是**拒绝门非删除门**——不触碰/不删除/不改动轨迹文件；`evolveFromRealUsage` 正常路径语义不变（仅新增 `refused`/`health` 可选字段，非破坏性）；不接触 queryKG 排序/架构完整性。
+- **Commit**：feat(agent-evals): 数据质量 sentinel（evolve 畸形率拒卷门，防脏数据误归纳） — hash 待回填

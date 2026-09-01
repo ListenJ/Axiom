@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { logger } from "../utils/logger.js";
-import { readString } from "../utils/env.js";
+import { readNumber, readString } from "../utils/env.js";
 import type { TaskTrace } from "../self-evolve/types.js";
 
 export interface RealUsageTrace extends TaskTrace {
@@ -168,14 +168,66 @@ export async function clearRealUsageTraces(filePath?: string): Promise<void> {
 }
 
 /**
+ * 轨迹文件健康评估（数据质量 sentinel，2026-09-01）：
+ * 统计非空行总数、畸形行数（JSON 解析失败或缺 id/task 字段）与畸形率。
+ * 只读，不改动文件。供 evolve 前做拒卷门，防脏数据/损坏文件被误归纳产生垃圾 skill。
+ */
+export interface TraceHealth {
+  /** 非空行总数 */
+  total: number;
+  /** 畸形行数（JSON 解析失败或缺 id/task） */
+  malformed: number;
+  /** 畸形率 = malformed / total（total=0 时为 0） */
+  malformedRate: number;
+}
+
+export async function assessTraceHealth(filePath?: string): Promise<TraceHealth> {
+  const target = resolvePath(filePath);
+  await flushPending(target);
+  if (!fs.existsSync(target)) return { total: 0, malformed: 0, malformedRate: 0 };
+  const content = fs.readFileSync(target, "utf8");
+  const lines = content.split("\n").filter((l) => l.trim().length > 0);
+  let malformed = 0;
+  for (const line of lines) {
+    try {
+      const obj = JSON.parse(line);
+      if (!obj || typeof obj.id !== "string" || typeof obj.task !== "string") malformed++;
+    } catch {
+      malformed++;
+    }
+  }
+  const total = lines.length;
+  return { total, malformed, malformedRate: total === 0 ? 0 : malformed / total };
+}
+
+/**
  * 从真实轨迹进化（归纳→晋升 skill）
  * 优化：大文件增量采样（近 N 条 + 按 task 去重），避免 10k+ 历史膨胀导致归纳噪声与延迟
  * 复用 `createDefaultSelfEvolve` 的 selfInduce + promoteInductionsToSkills 链路
+ *
+ * 数据质量 sentinel：归纳前先评估健康度，畸形率 ≥ 阈值（默认 0.2，env
+ * `AXIOM_EVOLVE_MAX_MALFORMED_RATE` 可调，clamp [0,1]）时**拒卷**（refused 字段），
+ * 不删除、不改动轨迹文件——只阻止脏数据上归纳产生误差。
  */
 export async function evolveFromRealUsage(
   filePath?: string,
   opts?: { maxTraces?: number; dedupByTask?: boolean }
-): Promise<{ traceCount: number; inductionCount: number; created: string[]; sampled: number }> {
+): Promise<{ traceCount: number; inductionCount: number; created: string[]; sampled: number; refused?: string; health?: TraceHealth }> {
+  // sentinel：畸形率拒卷门。traceCount 语义与正常路径一致 = 合法轨迹数（total - malformed）。
+  const health = await assessTraceHealth(filePath);
+  const validCount = health.total - health.malformed;
+  if (health.total > 0) {
+    const maxRate = readNumber("AXIOM_EVOLVE_MAX_MALFORMED_RATE", 0.2, { min: 0, max: 1 });
+    if (health.malformedRate >= maxRate) {
+      logger.warn("[RealUsage] evolve refused: malformed rate too high (sentinel)", {
+        total: health.total,
+        malformed: health.malformed,
+        malformedRate: health.malformedRate,
+        threshold: maxRate,
+      });
+      return { traceCount: validCount, inductionCount: 0, created: [], sampled: 0, refused: "malformed-rate", health };
+    }
+  }
   const allTraces = await loadRealUsageTraces(filePath);
   if (allTraces.length === 0) {
     logger.info("[RealUsage] no traces to evolve");
