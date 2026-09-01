@@ -8283,4 +8283,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   6. `data/eval-registry.db`（gitignored，已迁移）：run #3 重分类——7 个 output_len=41 限流任务置 execution_error=1、summary_execution_errors=7、summary_pass_rate 回算 **100**（8 任务中 1 通过 + 7 执行错误，能力通过率 1/(8−7)=100%）；run #4 以并发 1 重跑干净基线 **8/8 通过（100%）**，证实 zhipu/glm 能力无缺陷、根因纯限流。
 - **验证**：TDD 红→绿；agent-evals 相关测试全绿（metrics/registry/runner-rerun 新增 4 例）；`bun run test:full` **3293 pass/34 skip/0 fail**（首跑 1 例 flaky fail 定位为 `tests/memory/sqlite-memory-tags.test.ts` afterAll 清理的 Windows EBUSY 文件锁竞争，与本次改动无关，重跑复绿）；`bunx tsc --noEmit` **0**；registry-cli `show` 核验 run #3 重分类结果与 run #4 100%。
 - **红线**：通过率分母剔除仅作用于 executionError 计数，不改 passed/total 原始口径；zhipu 并发钳制仅作用于 provider=zhipu，其他 provider 并发不变；既有 run 数据仅重分类污染行（备份 `.tmp/eval-registry.db.pre-migrate-r3`），无破坏性删除；测试全部注入 fake / `.tmp` 临时 DB，不连真实 provider。
-- **Commit**：fix(agent-evals): eval 暴跌根因修复（失败分类 executionError 不计通过率 + zhipu 限流并发 1 + 干净基线重跑）— hash 待回填
+- **Commit**：fix(agent-evals): eval 暴跌根因修复（失败分类 executionError 不计通过率 + zhipu 限流并发 1 + 干净基线重跑）— 7fb009a
