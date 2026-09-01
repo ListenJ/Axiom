@@ -8213,3 +8213,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前新测试 fail（`Expected:0 Received:50`，水位残留，红）→ 实现后 **8 pass/0 fail**（绿）。`bunx tsc --noEmit` **0**。回归：agent-evals 全目录 **131 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
 - **红线**：只改 auto-evolve 水位语义（文件清空后回退，不改变 append-only 正常路径）；不触碰 evolveFromRealUsage/selfInduce/promote 内部与轨迹文件本身。
 - **Commit**：fix(self-evolve): auto-evolve 高水位回退（轨迹文件清空后从新基计数，防增量恒负停摆） — hash 待回填
+
+## 2026-09-01 — fix(self-evolve): selfInduce 归纳特异性过滤 + 34 污染 skill 归档（打通真实数据端到端）
+
+- **任务**：审计"打通真实数据端到端"方向时发现 `selfInduce → promoteInductionsToSkills` 链路有**特异性缺口**——仅按 `support≥2 && successRate≥0.6` 归纳，通用会话词（CJK 功能 bigram + 泛化技术词）也被提升为 `auto-induce-*` skill。实据：`axiom-memory/03-Resources/skills/` 34 个历史 `auto-induce-*` 污染文件（trigger 均为 `json/api/node/pattern/task/success/写一/一个/函数/步骤/用/用户/返回/参数/执行/重试/回滚...` 类通用词），其中 `auto-induce-task/success/pattern` 由既有 `real-usage.test.ts` 的 `evolveFromRealUsage` 默认 promotion deps 反复写真实 skill 目录产生——**重复污染源亦被本次堵死**。
+- **工具**：Glob/Read（34 污染 skill 枚举 + `engine.ts`/`skill-promotion.ts`/`real-usage.ts` 链路通读 + trigger 逐项核验）、Write（特异性红测试 + 端到端 `.tmp` evolve 测试，TDD 红）、Edit（`engine.ts` 新增 `INDUCE_STOPWORDS` + `selfInduce` 过滤）、Bash（bun test 红→绿）。并行实施子代理 2 个（router/env、memory/vault，见独立任务）。AGENTS 规则 2（备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. 新建 `tests/self-evolve/induce-specificity.test.ts`（2 例）：真实形态样本（`写一个 json 处理函数`/`用 node 写一个 api`/`调用 mcp 超时处理`/`优化 redis 缓存命中率` 混喂）——有语义术语（mcp/redis/超时/缓存）必须保留，通用词（json/api/node/写一/一个/函数/用/处理/优化）不得出现；纯术语样本（debug mcp timeout×2 / tune redis cache×2）回归 guard——mcp/redis 仍被归纳（不误杀）。首跑红（json/写一/一个/函数/node/api 全被归纳）。
+  2. `src/self-evolve/engine.ts`：新增 `INDUCE_STOPWORDS`（泛化技术词 json/api/node/pattern/task/success/agent/js/sql/client/file/code/data/function + 中文功能 bigram 写一/一个/用/用户/返回/步骤/不要/一次/多少/给出/现在/函数/参数/执行/约束/重试/回滚/先读/什么/一条/一句/处理/优化——以真实污染 trigger 为蓝本反推）；`selfInduce` 在 `support≥2 && successRate≥0.6` 门槛内叠加 `if (INDUCE_STOPWORDS.has(pattern)) continue;`——跳过不进 result，保留既有排序与 `topN`，签名不变（对 evolve.ts/real-usage.ts/reflection-loop.ts 透明）。
+  3. 新建 `tests/agent-evals/real-usage-evolve-specificity.test.ts`（1 例端到端）：走真实加载路径 `loadRealUsageTraces(.tmp jsonl)` + 真实引擎 `selfInduce` + `promoteInductionsToSkills(fakeDeps)`——刻意**不调** `evolveFromRealUsage`（其对 promotion 无 deps 注入，会写真实 `axiom-memory/03-Resources/skills`）。断言只创建 `auto-induce-mcp`/`auto-induce-redis`，无 `auto-induce-json/api/写一/函数` 等通用词 skill。
+  4. `axiom-memory/03-Resources/skills/auto-induce-*.json`（34 个）→ `git mv` 归档至 `archive/real-usage-test-noise/skills/`（规则 4 归档非删除）。逐项核验：即使 `redis`/`postgresql` 等术语样 trigger，其 promptTemplate 亦为 "Pattern X appeared in N traces" 模板化空壳（源自在 2-3 条测试噪声轨迹），无执行语义，故 34 个全部归档、无保留项。
+- **验证**：TDD 红→绿——特异性测试首跑 1 fail（`json` 仍被归纳，红）→ 实施后全绿。相关 6 文件 **23 pass/0 fail**（新增 3 例 + 既有 cjk-tokenize/reflection-induce/skill-promotion/real-usage 无回归；real-usage.test.ts 的 `evolveFromRealUsage` 不再因默认 promotion deps 写垃圾 skill 文件）。`bunx tsc --noEmit` 0（终验统一跑）。
+- **红线**：`selfInduce` 签名不变、`support≥2 && successRate≥0.6` 门槛保留（仅叠加特异性层）；`tokenize`/检索等其他用途不触碰；不写生产 `data/real-usage-traces.jsonl`（端到端用 `.tmp` 路径）；归档非删除（git mv）；不触碰 queryKG/W5 落地区。
+- **Commit**：feat(self-evolve): selfInduce 归纳特异性过滤（通用词不入 skill，堵 real-usage 测试重复污染源）+ 34 历史污染 skill 归档 — hash 待回填

@@ -45,6 +45,22 @@ const STOPWORDS = new Set([
   "my", "your", "our", "their",
 ]);
 
+/**
+ * 归纳特异性停用词（2026-09-01）：selfInduce 不再提升通用会话词为 skill。
+ * 蓝本 = 真实 34 个历史污染 auto-induce-* skill 的 trigger（json/api/node/pattern/
+ * 写一个/函数/步骤...）——这类词只能证明"用户经常聊到它们"，不构成可复用模式。
+ * 只做归纳层过滤，不改 tokenize/检索等其他用途。
+ */
+const INDUCE_STOPWORDS = new Set([
+  // 泛化技术词（高频会话标签，无特定执行语义）
+  "json", "api", "node", "pattern", "task", "success", "agent", "js",
+  "sql", "client", "file", "code", "data", "function",
+  // 中文高频功能词 bigram（"写一个"、"多少次" 等结构词）
+  "写一", "一个", "用", "用户", "返回", "步骤", "不要", "一次", "多少",
+  "给出", "现在", "函数", "参数", "执行", "约束", "重试", "回滚", "先读",
+  "什么", "一条", "一句", "处理", "优化",
+]);
+
 /** 简易分词：拉丁词按非字母数字切分并过滤停用词；CJK 短语保持整段。 */
 export function tokenize(text: string): string[] {
   const tokens: string[] = [];
@@ -220,6 +236,8 @@ export class SelfEvolveEngine {
       if (c.support < 2) continue;
       const successRate = c.success / c.support;
       if (successRate < 0.6) continue;
+      // 特异性过滤：通用会话词/泛化技术词不构成可复用模式，跳过（防 skill 库污染）
+      if (INDUCE_STOPWORDS.has(pattern)) continue;
       result.push({
         pattern,
         support: c.support,
