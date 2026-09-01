@@ -8251,3 +8251,21 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`bun test tests/memory` **82 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
 - **红线**：仅改上述 3 文件最小改动；测试用注入 fake / `.tmp` 临时目录，绝不写真实 axiom-memory 生产目录；与 Task 5 文件集不重叠，共享树并行安全。
 - **Commit**：fix(memory): 归档原子 move + 索引成功才删源 + vault 路径守卫、vault 原子写、blackboard 永不过期映射 — 6f5ed2f
+
+## 2026-09-01 — feat(agent-evals): 回归基准入库（eval-registry）
+
+- **任务**：主线 D eval 基建——agent-evals 结果结构化落盘 `data/eval-registry.db`（SQLite,bun:sqlite 内建零第三方依赖,镜像 model-eval-service 既有惯例）,配 stats/trend/compare 查询 CLI,历史 87.5
+## 2026-09-01 — feat(agent-evals): 回归基准入库（eval-registry）
+
+- **任务**：主线 D eval 基建——agent-evals 结果结构化落盘 data/eval-registry.db（SQLite，bun:sqlite 内建零第三方依赖，镜像 model-eval-service 既有惯例），配 stats/trend/compare 查询 CLI，历史 87.5% 基线数字升级为可查询的基准行。经用户确认"确认并开始继续完善"并选定该方向推进。
+- **工具**：主会话实现，子代理并行查询/检索；测试全注入 :memory:/tmpfile（不连真模型/不花 API 费用）。AGENTS 规则 2（备份）、规则 7（TDD 红→绿）执行，备份已删。
+- **操作**（文件级）：
+  1. src/agent-evals/metrics-types.ts 新增：StoredTaskResult/FamilySnapshot/RunSummarySnapshot/RunFilter/RunMetadata/RunRow/StoredTaskRow/RunComparison——类型从 metrics.ts 解耦避免循环依赖。
+  2. src/agent-evals/registry.ts 新增：openRegistry 返回 SQL 访问层，SCHEMA 建 eval_runs + eval_task_results（run_id REFERENCES eval_runs ON DELETE CASCADE）；关键修复 PRAGMA foreign_keys = ON（SQLite 级联默认关闭）。API：insertRun/insertTaskResults/listRuns/getRun(ref id|tag)/getTasks/compare/getTrend/seedBaseline/deleteRun。
+  3. src/agent-evals/run.ts 改造：两个落点插桩——evolve 路径（baseline/evolved 两阶段）+ 常规路径；--no-persist 逃生口；runTag 含 pid 与 phase 避免 UNIQUE 冲突（冲突时 +1s 重试）；持久化整体 try/catch 非阻塞（镜像 skill-gain FileStore 惯例）。
+  4. src/agent-evals/registry-cli.ts 新增：stats/show/compare/trend/seed-baseline 子命令。
+  5. data/eval-registry.db 种子（gitignored）：2026-08-13-42loop-baseline 23/24=95.83%、2026-08-16-evolve-constraints-baseline 22/24=91.67% 两条历史基准入档。
+  6. tests/agent-evals/registry.test.ts 新增 9 例：roundtrip/getRun-by-tag/UNIQUE 冲突/compare/trend 排序/seed-baseline/损坏 JSON 兜底/tmpfile 持久化/deleteRun 级联。
+- **验证**：bun test tests/agent-evals/registry.test.ts 9 pass/0 fail、架构完整性 25 pass/0 fail；全量终验 bun run test:full 3289 pass/34 skip/0 fail、bunx tsc --noEmit 0。
+- **红线**：仅新增上述文件最小改动；registry 持久化全程 try/catch 非阻塞，不影响既有 run 流程；data/*.db gitignored 不入库（schema 在源码模块、种子经 CLI）。
+- **Commit**：feat(agent-evals): 回归基准入库（eval-registry: metrics-types/registry/run 落点/查询 CLI/历史基线种子）— hash 待回填

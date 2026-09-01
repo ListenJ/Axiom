@@ -6,8 +6,11 @@ import { ALL_AGENT_TASKS, getTasksByFamily, validateTasks, type TaskFamily, type
 import { loadExternalTasks, type ExternalKind } from "./external.js";
 import { runTasks, DEFAULT_RERUN_EACH } from "./runner.js";
 import { summarize } from "./metrics.js";
+import type { TaskResult, MetricsSummary } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
 import { logger } from "../utils/logger.js";
+import { openRegistry, DEFAULT_REGISTRY_PATH } from "./registry.js";
+import type { RunMetadata, StoredTaskResult } from "./metrics-types.js";
 
 const args = Bun.argv.slice(2);
 const flag = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
@@ -30,6 +33,8 @@ const provider = flag("provider");
 const directModel = flag("model") ?? flag("direct-model");
 const fallbackProvider = flag("fallback-provider");
 const fallbackModel = flag("fallback-model");
+const noPersist = args.includes("--no-persist"); // 逃生舱：跳过 eval-registry 落盘
+const cliStartAt = new Date().toISOString();
 
 function showHelp() {
   logger.info(`
@@ -51,9 +56,78 @@ Options:
   --inject-skills   评测时注入已归纳的 auto-induce-* 技能
   --rerun-each=N    每个任务重跑 N 次取最优（消除单样本波动，默认 2）
   --constraints     附加通用回答约束（完整性/直接性/复杂度标定）
+  --no-persist      跳过 eval-registry 落盘（默认落盘 data/eval-registry.db）
   --help            帮助
 `);
   process.exit(0);
+}
+
+/** 生成唯一 run_tag：本地时间戳 + pid（eval_runs.run_tag UNIQUE 冲突时 retry +1s） */
+function makeRunTag(base: string, phase?: string): string {
+  const tag = `${base}.${process.pid}${phase ? `::${phase}` : ""}`;
+  return tag;
+}
+
+/** 当前 HEAD commit SHA（采集失败返回 null，不阻断） */
+function currentGitCommit(): string | null {
+  try {
+    const out = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: process.cwd() }).stdout.toString().trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 评测结果落盘到 eval-registry（失败只 warn，不阻断评测 stdout/exit）。
+ * 按 AGENTS 规则：`--no-persist` 逃生舱跳过；落盘失败降级为提示。
+ */
+function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: string): void {
+  if (noPersist) return;
+  try {
+    const registry = openRegistry(DEFAULT_REGISTRY_PATH);
+    try {
+      const tasks: StoredTaskResult[] = results.map((r) => ({
+        taskId: r.taskId,
+        family: r.family,
+        split: r.split,
+        passed: r.passed,
+        reason: r.reason,
+        latencyMs: r.latencyMs,
+        outputLength: r.outputLength,
+        model: r.model,
+        injectedSkills: r.injectedSkills,
+      }));
+      const meta: RunMetadata = {
+        runTag: makeRunTag(cliStartAt.replace(/[:.]/g, "-"), phase),
+        startedAt: cliStartAt,
+        finishedAt: new Date().toISOString(),
+        model: directModel ?? modelHint ?? undefined,
+        provider: provider ?? undefined,
+        familyFilter: family,
+        splitFilter: split,
+        rerunEach,
+        evolvePhase: phase,
+        gitCommit: currentGitCommit() ?? undefined,
+        srcArgv: Bun.argv.slice(2).join(" "),
+        exitCode: results.some((r) => !r.passed) ? 1 : 0,
+      };
+      try {
+        const runId = registry.insertRun(meta, summary);
+        registry.insertTaskResults(runId, tasks);
+        logger.info(`[EvalRegistry] 已入库 run#${runId} ${meta.runTag}（${tasks.length} 任务, passRate=${summary.passRate}%）`);
+      } catch (err) {
+        // run_tag 冲突（同一秒两轮）→ 重试一次 +1s
+        const retried = registry.insertRun({ ...meta, runTag: `${meta.runTag}+1s` }, summary);
+        registry.insertTaskResults(retried, tasks);
+        logger.info(`[EvalRegistry] run_tag 冲突重试成功 run#${retried}`);
+      }
+    } finally {
+      registry.close();
+    }
+  } catch (err) {
+    logger.warn(`[EvalRegistry] 结果落盘失败（评测不受影响）: ${(err as Error).message}`);
+  }
 }
 
 if (args.includes("--help") || args.includes("-h")) showHelp();
@@ -107,6 +181,9 @@ if (evolve && !externalKind) {
 
   const baseSummary = summarize(baselineResults);
   const evolSummary = summarize(evolvedResults);
+  // 两阶段结果入库（阶段区分 run_tag 派生，便于 baseline/evolved 对比查询）
+  persistResults(baselineResults, baseSummary, "baseline");
+  persistResults(evolvedResults, evolSummary, "evolved");
   const header = `# 评测→进化闭环对比（held-out）\n\n| 阶段 | 通过率 | 通过/总数 |\n| --- | --- | --- |\n| baseline（无技能） | ${baseSummary.passRate}% | ${baseSummary.passed}/${baseSummary.total} |\n| evolved（注入技能） | ${evolSummary.passRate}% | ${evolSummary.passed}/${evolSummary.total} |\n`;
   console.log(header);
   console.log("## baseline held-out 明细");
@@ -119,6 +196,7 @@ if (evolve && !externalKind) {
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
 const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel, rerunEach });
 const summary = summarize(results);
+persistResults(results, summary); // 结果入库（--no-persist 跳过）
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);
 if (json) {
