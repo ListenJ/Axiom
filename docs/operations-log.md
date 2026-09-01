@@ -8268,4 +8268,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   6. tests/agent-evals/registry.test.ts 新增 9 例：roundtrip/getRun-by-tag/UNIQUE 冲突/compare/trend 排序/seed-baseline/损坏 JSON 兜底/tmpfile 持久化/deleteRun 级联。
 - **验证**：bun test tests/agent-evals/registry.test.ts 9 pass/0 fail、架构完整性 25 pass/0 fail；全量终验 bun run test:full 3289 pass/34 skip/0 fail、bunx tsc --noEmit 0。
 - **红线**：仅新增上述文件最小改动；registry 持久化全程 try/catch 非阻塞，不影响既有 run 流程；data/*.db gitignored 不入库（schema 在源码模块、种子经 CLI）。
-- **Commit**：feat(agent-evals): 回归基准入库（eval-registry: metrics-types/registry/run 落点/查询 CLI/历史基线种子）— hash 待回填
+- **Commit**：feat(agent-evals): 回归基准入库（eval-registry: metrics-types/registry/run 落点/查询 CLI/历史基线种子）— e8acd5a
