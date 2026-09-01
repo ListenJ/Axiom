@@ -794,6 +794,9 @@ export class MultiPlatformRouter {
               logger.debug(`[Router/chatStream] native stream failed for ${model.provider}/${model.model}, falling back to buffered`, {
                 error: nativeErr instanceof Error ? nativeErr.message : String(nativeErr),
               });
+              // 记录本次尝试失败到熔断器：即使随后 buffered 路径成功，breaker 也需要
+              // 知道原生流路径在本回合对当前模型是失败的，否则会反复命中原生流再静默回退。
+              routerBreaker.recordFailure(breakerKey);
             }
 
             if (nativeResult?.toolCalls?.length && executeTool) {
@@ -1107,8 +1110,10 @@ export class MultiPlatformRouter {
     });
     let endpoint = "";
     try {
-      const assignment = this.assign(role, { excludeModels: options?.excludeModels });
-      const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
+      // 从实际执行成功的模型/ provider 推导 endpoint，而非重新 assign() 首选候选。
+      // 修复前：当首选 A 挂掉、fallback 到 B 成功时，此处的 assignment 仍是 A，
+      // 导致 out.model === B 但 endpoint 指向 A（甚至为空）——调用方拿到不匹配的来源。
+      const config = PROVIDER_CONFIG[out.provider as keyof typeof PROVIDER_CONFIG];
       endpoint = config?.baseURL ?? "";
     } catch {
       // 无可用模型时降级（endpoint 留空），不抛错——与 execute 的降级语义一致

@@ -270,6 +270,15 @@ export function validateEnv(options?: {
         process.env[config.name] = config.default;
         result.appliedDefaults.push({ name: config.name, value: config.default });
         logger.debug(`Applied default value for ${config.name}: ${config.default}`);
+        // 默认值也要过 validate，防止无效 default 被静默通过（Fix 3）
+        if (config.validate && !config.validate(config.default)) {
+          result.invalid.push({
+            name: config.name,
+            value: config.default,
+            reason: `Failed validation for ${config.description} (default value)`,
+          });
+          result.valid = false;
+        }
       }
       continue;
     }

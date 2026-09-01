@@ -8226,3 +8226,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——特异性测试首跑 1 fail（`json` 仍被归纳，红）→ 实施后全绿。相关 6 文件 **23 pass/0 fail**（新增 3 例 + 既有 cjk-tokenize/reflection-induce/skill-promotion/real-usage 无回归；real-usage.test.ts 的 `evolveFromRealUsage` 不再因默认 promotion deps 写垃圾 skill 文件）。`bunx tsc --noEmit` 0（终验统一跑）。
 - **红线**：`selfInduce` 签名不变、`support≥2 && successRate≥0.6` 门槛保留（仅叠加特异性层）；`tokenize`/检索等其他用途不触碰；不写生产 `data/real-usage-traces.jsonl`（端到端用 `.tmp` 路径）；归档非删除（git mv）；不触碰 queryKG/W5 落地区。
 - **Commit**：feat(self-evolve): selfInduce 归纳特异性过滤（通用词不入 skill，堵 real-usage 测试重复污染源）+ 34 历史污染 skill 归档 — hash 待回填
+
+## 2026-09-01 — fix(router/env): 跨模块已验证修复（native-stream 记熔断、endpoint 实际模型、默认值校验、withTimeout 监听清理）
+
+- **任务**：主线 B 跨模块 bug 检索的**已验证修复集**——两个只读验证子代理对原始 bug 报告逐项复核降级后，确认的 router/env 活跃缺陷（原始 CRITICAL 均未存活：path traversal 当前线路不可达、breaker 半开竞争单进程不可达）。本任务经用户确认"两者并行推进"、并行任务用子代理完成，由实施子代理 TDD 红→绿。
+- **工具**：实施子代理（general-purpose）Read/Write/Edit/Bash 完成；主会话核验（Read model-router.ts / env.ts / resilience.ts 关键区段 + 全量终验）。AGENTS 规则 2（备份）与规则 7（红→绿）全程执行，备份已删。
+- **操作**（文件级）：
+  1. `src/router/model-router.ts` **Fix 1（HIGH）** chatStream native-stream 失败路径（~L792-800）：catch 块内 `routerBreaker.recordFailure(breakerKey)` 后再回退 buffered——native 失败不再静默不记，breaker 学习模型失败，permanent 错误不再烧 2 次调用。新增 `tests/router/chat-stream-native-breaker.test.ts`（2 例，注入抛错 native stream 断言 recordFailure 被调 + 回退仅一次）。
+  2. `src/router/model-router.ts` **Fix 2（MEDIUM）** executeWithRole endpoint 推导（~L1111-1117）：由实际执行模型 `out.provider` 经 `PROVIDER_CONFIG` 查 baseURL，替代重新 `assign()` 首选候选（fallback 后首选可能已死，endpoint 与 out.model 指向不同 provider）。新增 `tests/router/executeWithRole-endpoint.test.ts`（3 例：A 死 B 活 → out.model=B 且 endpoint=B baseURL）。
+  3. `src/utils/env.ts` **Fix 3（LOW）** validateEnv 默认值路径（~L269-275）：非必填变量缺省应用默认值后补一次 `config.validate(config.default)`，非法默认值拒绝并标记 invalid。新增 `tests/utils/env-invalid-default.test.ts`（2 例）。
+  4. `src/utils/resilience.ts` **Fix 4（加固）** withTimeout abort 监听清理（~L102-117）：抽出具名 abort handler，resolve/reject 后 `signal.removeEventListener`——闭包不再滞留 signal。新增 `tests/utils/withTimeout-listener-leak.test.ts`（2 例，行为等价：settle 后外部 abort 不再产生额外 rejection）。
+- **验证**：`bun test tests/router` **48 pass/0 fail**、`bun test tests/utils` **17 pass/0 fail**、`tests/architecture-integrity.test.ts` **25 pass/0 fail**、`bun run test:smoke` **63 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
+- **红线**：仅改上述 4 点最小改动，不触碰 memory/self-evolve/agent-evals；测试全注入 fake（不连真实 provider/网络）；与 Task 6 文件集不重叠，共享树并行安全。
+- **Commit**：fix(router/env): native-stream 记熔断、endpoint 取实际执行模型、默认值过校验、withTimeout 监听清理 — hash 待回填
