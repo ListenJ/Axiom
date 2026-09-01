@@ -8212,7 +8212,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `src/agent-evals/auto-evolve.ts`：`maybeAutoEvolve` 内读 `newTraces` 后，若 `newTraces < state.lastNewTraces`（文件被清空/归档）则以当前数为新水位 `writeState` 持久化并更新内存 state——增量不再为负，从新基重新计数。
 - **验证**：TDD 红→绿——实现前新测试 fail（`Expected:0 Received:50`，水位残留，红）→ 实现后 **8 pass/0 fail**（绿）。`bunx tsc --noEmit` **0**。回归：agent-evals 全目录 **131 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
 - **红线**：只改 auto-evolve 水位语义（文件清空后回退，不改变 append-only 正常路径）；不触碰 evolveFromRealUsage/selfInduce/promote 内部与轨迹文件本身。
-- **Commit**：fix(self-evolve): auto-evolve 高水位回退（轨迹文件清空后从新基计数，防增量恒负停摆） — hash 待回填
+- **Commit**：fix(self-evolve): auto-evolve 高水位回退（轨迹文件清空后从新基计数，防增量恒负停摆） — e4e8a46
 
 ## 2026-09-01 — fix(self-evolve): selfInduce 归纳特异性过滤 + 34 污染 skill 归档（打通真实数据端到端）
 
@@ -8225,7 +8225,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. `axiom-memory/03-Resources/skills/auto-induce-*.json`（34 个）→ `git mv` 归档至 `archive/real-usage-test-noise/skills/`（规则 4 归档非删除）。逐项核验：即使 `redis`/`postgresql` 等术语样 trigger，其 promptTemplate 亦为 "Pattern X appeared in N traces" 模板化空壳（源自在 2-3 条测试噪声轨迹），无执行语义，故 34 个全部归档、无保留项。
 - **验证**：TDD 红→绿——特异性测试首跑 1 fail（`json` 仍被归纳，红）→ 实施后全绿。相关 6 文件 **23 pass/0 fail**（新增 3 例 + 既有 cjk-tokenize/reflection-induce/skill-promotion/real-usage 无回归；real-usage.test.ts 的 `evolveFromRealUsage` 不再因默认 promotion deps 写垃圾 skill 文件）。`bunx tsc --noEmit` 0（终验统一跑）。
 - **红线**：`selfInduce` 签名不变、`support≥2 && successRate≥0.6` 门槛保留（仅叠加特异性层）；`tokenize`/检索等其他用途不触碰；不写生产 `data/real-usage-traces.jsonl`（端到端用 `.tmp` 路径）；归档非删除（git mv）；不触碰 queryKG/W5 落地区。
-- **Commit**：feat(self-evolve): selfInduce 归纳特异性过滤（通用词不入 skill，堵 real-usage 测试重复污染源）+ 34 历史污染 skill 归档 — hash 待回填
+- **Commit**：feat(self-evolve): selfInduce 归纳特异性过滤（通用词不入 skill，堵 real-usage 测试重复污染源）+ 34 历史污染 skill 归档 — 4f87c4b
 
 ## 2026-09-01 — fix(router/env): 跨模块已验证修复（native-stream 记熔断、endpoint 实际模型、默认值校验、withTimeout 监听清理）
 
@@ -8238,7 +8238,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. `src/utils/resilience.ts` **Fix 4（加固）** withTimeout abort 监听清理（~L102-117）：抽出具名 abort handler，resolve/reject 后 `signal.removeEventListener`——闭包不再滞留 signal。新增 `tests/utils/withTimeout-listener-leak.test.ts`（2 例，行为等价：settle 后外部 abort 不再产生额外 rejection）。
 - **验证**：`bun test tests/router` **48 pass/0 fail**、`bun test tests/utils` **17 pass/0 fail**、`tests/architecture-integrity.test.ts` **25 pass/0 fail**、`bun run test:smoke` **63 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
 - **红线**：仅改上述 4 点最小改动，不触碰 memory/self-evolve/agent-evals；测试全注入 fake（不连真实 provider/网络）；与 Task 6 文件集不重叠，共享树并行安全。
-- **Commit**：fix(router/env): native-stream 记熔断、endpoint 取实际执行模型、默认值过校验、withTimeout 监听清理 — hash 待回填
+- **Commit**：fix(router/env): native-stream 记熔断、endpoint 取实际执行模型、默认值过校验、withTimeout 监听清理 — 70ba841
 
 ## 2026-09-01 — fix(memory): 归档原子性/路径守卫 + vault 原子写 + blackboard 永不过期语义（跨模块已验证修复）
 
@@ -8250,4 +8250,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `src/memory/blackboard.ts` **Fix 5（缓存语义泄漏）** syncToCache/storeEntry：`expireTime===0`（永不过期）映射 cache 的 `ttlMs===0` NO_EXPIRY 哨兵，避免 `0 - Date.now()` 负数被 cache.ts 误判为未传 TTL 回退默认 1h、导致永不过期事实 1h 后被淘汰。新增 `tests/memory/blackboard-cache-never-expire.test.ts`。
 - **验证**：`bun test tests/memory` **82 pass/0 fail**。全量终验由主会话统一跑：`bun run test:full` **3280 pass/34 skip/0 fail**、`bunx tsc --noEmit` **0**。
 - **红线**：仅改上述 3 文件最小改动；测试用注入 fake / `.tmp` 临时目录，绝不写真实 axiom-memory 生产目录；与 Task 5 文件集不重叠，共享树并行安全。
-- **Commit**：fix(memory): 归档原子 move + 索引成功才删源 + vault 路径守卫、vault 原子写、blackboard 永不过期映射 — hash 待回填
+- **Commit**：fix(memory): 归档原子 move + 索引成功才删源 + vault 路径守卫、vault 原子写、blackboard 永不过期映射 — 6f5ed2f
