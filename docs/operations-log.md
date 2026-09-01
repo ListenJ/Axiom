@@ -8201,4 +8201,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. 新建 `tests/agent-evals/real-usage-sentinel.test.ts`（7 例）：正常文件畸形率 0；统计损坏 JSON + 缺字段行；畸形率超阈值拒卷（refused + inductionCount 0 + health 快照）；低于阈值正常 evolve；阈值 env 调高（=1 永不拒卷）/ 调低（=0 任何畸形都拒卷）；空文件不拒卷不崩。
 - **验证**：TDD 红→绿——首跑 6 pass/1 fail（红：拒卷分支 `traceCount` 误用 total 而非合法数，语义与既有 real-usage.test.ts 的 traceCount=合法轨迹数不一致，已修正拒卷分支为 total−malformed + 测试断言改为合法数）→ **7 pass/0 fail**（绿）。既有 real-usage 全系 4 文件 **23 pass/0 fail** 无回归（既有 evolve 测试的 traceCount 断言不受影响）。`bunx tsc --noEmit` **0**。生产轨迹文件实测 0 行未被污染（sentinel 测试用 `.tmp` 路径隔离）。
 - **红线**：sentinel 是**拒绝门非删除门**——不触碰/不删除/不改动轨迹文件；`evolveFromRealUsage` 正常路径语义不变（仅新增 `refused`/`health` 可选字段，非破坏性）；不接触 queryKG 排序/架构完整性。
-- **Commit**：feat(agent-evals): 数据质量 sentinel（evolve 畸形率拒卷门，防脏数据误归纳） — hash 待回填
+- **Commit**：feat(agent-evals): 数据质量 sentinel（evolve 畸形率拒卷门，防脏数据误归纳） — 30a77eb
