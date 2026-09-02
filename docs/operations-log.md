@@ -8307,3 +8307,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 7 fail（checkRegression 未定义，红）→ 实现后 **17 pass/0 fail**（含既有 10 例无回归）。真实 DB 端到端：`check 4`（glm-4.7-flash/coding）自动基准取 run 3（同作用域），0pp 回落 exit 0；`check 4 --baseline=2`（跨模型显式）→ 候选高于基准 8.33pp exit 0；`check 999` / 缺参 → 防御报错 exit 1。`bunx tsc --noEmit` **0**（首跑拦下 `asId` 返回类型含 undefined 的 TS2345，已修）；agent-evals 全目录 **157 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**。
 - **红线**：只新增 registry 接口 + CLI 命令，不改既有 insertRun/listRuns/compare/trend/seed 语义；自动基准严格限定同族同模型同 split（宁缺毋滥），显式 baseline 由用户负责可比性；测试全 `:memory:`，不碰真实 DB 数据（真实 DB 仅 CLI 端到端只读核验）。
 - **Commit**：feat(agent-evals): eval-registry 回归守卫（check 子命令，回落超阈值自动报警）— 276f95a
+
+## 2026-09-02 — fix(agent-evals): evolve 链路三处真实缺陷（state 写失败抛穿 / promotion 无 deps 注入写真实技能目录 / clear 竞态注释）
+
+- **任务**：并行 bug-hunt 子代理在 evolve 链路（real-usage.ts + auto-evolve.ts）定位到 3 处真实缺陷——①`maybeAutoEvolve` 的 `writeState` 在 state 路径不可写时**同步抛错**，会把 fire-and-forget 触发器的错误抛给 chat 交换主流程（与设计意图「evolve 失败不阻断 chat 响应」矛盾，W3 可降级）；②`evolveFromRealUsage` 无条件走 `defaultDeps()` → **每次 evolve 都往真实 axiom-memory/03-Resources/skills 写 auto-induce-* JSON**（既有污染源，specificity 测试顶部注释标注的缺口）；③`clearRealUsageTraces` 清队列→等写链排空的竞态语义未注释，行为与「先清队列再排空（不丢新数据）」意图有偏差。
+- **工具**：Read（auto-evolve.ts / real-usage.ts / skill-promotion.ts / engine.ts / specificity 测试通读）、Write（TDD 红测试 4 例 + 新测试文件 1 个）、Edit（real-usage.ts / auto-evolve.ts 最小改动）、Bash（bun test 红→绿 / 全目录回归 / tsc / 真实技能目录污染清理核验）。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。**注**：promotion-deps 红跑会写真实技能目录，已当场清理（auto-induce-mcp.json / auto-induce-调用.json 删除，绿跑后目录 0 污染）。
+- **操作**（文件级）：
+  1. `src/agent-evals/auto-evolve.ts`：新增 `safeWriteState`（吞写失败仅记日志，W3 可降级），3 处 `writeState` 调用点（水位回退 / ok / error）全部替换；`writeState` 原样保留（语义单一职责）。
+  2. `src/agent-evals/real-usage.ts`：`evolveFromRealUsage` 签名新增 `opts.promotionDeps?: InductionPromotionDeps` 并注入 `promoteInductionsToSkills`（缺省走 defaultDeps，生产行为不变）；`clearRealUsageTraces` 竞态语义注释补齐（先清队列再排空写链，trade-off 明示）。
+  3. `tests/agent-evals/auto-evolve.test.ts`：新增 2 例（evolve 成功但 state 写失败 → 不抛返回 ok；evolve 抛错且 state 写也失败 → 不抛返回 error）——blocker 用「statePath 的 dirname 是普通文件」触发 mkdirSync 抛错。
+  4. `tests/agent-evals/real-usage-sentinel.test.ts`：新增 1 例（畸形率 == 阈值 0.2 拒卷，`>=` 闭区间语义固定）。
+  5. `tests/agent-evals/real-usage-promotion-deps.test.ts`（新）：端到端——capture(jsonl) → load(dedup) → selfInduce → promote(fake deps)，断言 `created`/`registered` 含 auto-induce-mcp 且零磁盘写入；用「不同任务共享术语」绕过 dedup 折叠保证 support>=2。
+- **验证**：TDD 红→绿——实现前 3 fail（2 例 state 写失败 + promotion-deps 未注入）+ 1 例 characterization（==阈值拒卷，当前代码 `>=` 已满足，绿）→ 实现后 **20 pass/0 fail**（4 文件）；agent-evals 全目录 **162 pass/0 fail**；`bunx tsc --noEmit` **0**；真实技能目录绿跑后 `auto-induce` 计数 **0**（零污染）。
+- **红线**：`writeState` 语义不变（仅调用方容错层级改变）；`promotionDeps` 缺省行为与 CLI 路径（`real-usage.ts --evolve` 不传 opts）完全不变；clear 竞态 trade-off 仅注释化，不改逻辑；测试全 `.tmp` / fake deps，不连真实 provider、不写真实技能目录。
+- **Commit**：fix(agent-evals): evolve 链路三处真实缺陷（state 写失败抛穿、promotion 无 deps 注入写真实技能目录、clear 竞态注释）— 0f10c19
