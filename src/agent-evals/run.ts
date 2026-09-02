@@ -47,7 +47,7 @@ Options:
   --split=<s>       只跑指定划分 (train|held-out)
   --external=<k>    运行外部基准 (human-eval|mbpp)，与自建任务集并存
   --limit=N         外部基准只加载前 N 条（默认全部）
-  --concurrency=N   并发数 (默认 2)
+  --concurrency=N   并发数 (默认 1)
   --model=<id>      指定模型（默认走 model-router general-chat 角色）
   --provider=<p>    直连 provider（如 zhipu），配合 --model 使用，绕过 model-router
   --fallback-provider=<p>  主 provider 限流/失败时的备用 provider（配合 --fallback-model）

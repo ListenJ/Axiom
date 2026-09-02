@@ -54,7 +54,8 @@ export function summarize(results: TaskResult[]): MetricsSummary {
   }
   const executionErrors = results.filter((r) => r.executionError).length;
   const capabilityTotal = results.length - executionErrors;
-  const passed = results.filter((r) => r.passed).length;
+  // 与分族口径（byFamily 用 else-if 剔除执行错误）一致：执行错误样本不计入能力通过数
+  const passed = results.filter((r) => r.passed && !r.executionError).length;
   const train = results.filter((r) => r.split === "train" && !r.executionError);
   const heldOut = results.filter((r) => r.split === "held-out" && !r.executionError);
   const rate = (arr: TaskResult[]) =>

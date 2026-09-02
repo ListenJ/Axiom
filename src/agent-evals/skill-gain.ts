@@ -124,7 +124,7 @@ export class SkillGainTracker {
 
   /**
    * 是否允许注入（收紧版）：
-   *  - auto-induce 高频词技能：要求严格正增益且 ≥5pp 且样本 ≥10，否则不注入（跨族上下文噪声）；
+   *  - auto-induce 高频词技能：要求极强正增益（≥10pp）且样本 ≥20，否则不注入（跨族上下文噪声）；
    *  - auto-fix 方法论技能：样本 <3 允许试用；样本 ≥3 要求严格正增益。
    */
   shouldInject(skillId: string, family: TaskFamily): boolean {

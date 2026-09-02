@@ -73,4 +73,17 @@ describe("metrics summarize", () => {
     expect(s.executionErrors).toBe(1);
     expect(s.passRate).toBe(0);
   });
+
+  it("passed=true + executionError=true 异常组合不计入全局 passed（与分族口径一致）", () => {
+    const s = summarize([
+      { taskId: "a", family: "coding", split: "held-out", passed: true, executionError: true, latencyMs: 100, outputLength: 41 },
+      { taskId: "b", family: "coding", split: "held-out", passed: false, latencyMs: 100, outputLength: 41 },
+    ]);
+    // 唯一「通过」的样本其实是执行错误：能力通过数应为 0，分母剔除后 passRate 0%
+    expect(s.executionErrors).toBe(1);
+    expect(s.passed).toBe(0);
+    expect(s.passRate).toBe(0);
+    expect(s.byFamily.coding.passed).toBe(0);
+    expect(s.byFamily.coding.passRate).toBe(0);
+  });
 });
