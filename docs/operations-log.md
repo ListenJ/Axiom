@@ -8321,3 +8321,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 3 fail（2 例 state 写失败 + promotion-deps 未注入）+ 1 例 characterization（==阈值拒卷，当前代码 `>=` 已满足，绿）→ 实现后 **20 pass/0 fail**（4 文件）；agent-evals 全目录 **162 pass/0 fail**；`bunx tsc --noEmit` **0**；真实技能目录绿跑后 `auto-induce` 计数 **0**（零污染）。
 - **红线**：`writeState` 语义不变（仅调用方容错层级改变）；`promotionDeps` 缺省行为与 CLI 路径（`real-usage.ts --evolve` 不传 opts）完全不变；clear 竞态 trade-off 仅注释化，不改逻辑；测试全 `.tmp` / fake deps，不连真实 provider、不写真实技能目录。
 - **Commit**：fix(agent-evals): evolve 链路三处真实缺陷（state 写失败抛穿、promotion 无 deps 注入写真实技能目录、clear 竞态注释）— 0f10c19
+
+## 2026-09-02 — fix(self-evolve): tokenize 混合脚本段整段 bigram 切碎拉丁（假跨脚本 bigram 污染归纳）
+
+- **任务**：并行 bug-hunt 子代理在 `tokenize` 定位到分词缺陷——含 CJK 的段（如 `redis缓存命中率`、`sqlite查询次数超限`）整体命中 CJK 分支后被**逐字符 bigram 切分**，拉丁部分被切碎成 `re/ed/di/s缓` 这类**假跨脚本 bigram**（`re`、`s缓` 无真实语义），污染 selfInduce 的触发模式共现统计与教训检索。修复：含 CJK 段先按**连续 CJK 块**切分——中文块照旧 bigram（"如何优化" -> 如何/何优/优化），拉丁/数字块**保留整词**（`redis缓存命中率` -> `redis` + 缓存/存命/命中/中率）。行为对纯中文段、纯拉丁段完全不变。
+- **工具**：Read（engine.ts tokenize / cjk-tokenize.test.ts 通读）、Write（TDD 红测试 2 例）、Edit（engine.ts tokenize 最小改动）、Bash（bun test 红→绿 / self-evolve 全目录回归 / tsc）。无子代理。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/self-evolve/engine.ts`：`tokenize` 的 CJK 分支改为 `while` 扫描——`/[一-鿿]/` 连续 CJK 块 bigram 切分，非 CJK 连续块按整词入栈（长度 >=2 且非停用词）；纯中文段/纯拉丁段路径语义不变（原 `if (seg.length >= 2)` bigram 循环改为对 CJK 子块执行，拉丁整词分支保留）。CJK 判定沿用原 `[一-鿿]` 范围（字符字面量形式，等价）。
+  2. `tests/self-evolve/cjk-tokenize.test.ts`：新增 2 例（`redis缓存命中率` 含整词 redis 且无 `re`/`s缓` 碎片；`sqlite查询次数超限` 含整词 sqlite 且无 `q查` 碎片）。
+- **验证**：TDD 红→绿——实现前 2 fail（复现 `["re","ed","di","s缓","缓存","存命","命中","中率"]` 污染输出，红）→ 实现后 **5 pass/0 fail**（红 2 转绿 + 既有 3 例无回归）；self-evolve 全目录 **96 pass/0 fail**（15 文件）；`bunx tsc --noEmit` **0**。
+- **红线**：只改 `tokenize` 的混合段切分逻辑；纯中文 bigram 语义、单字 CJK 保留、拉丁停用词过滤、`STOPWORDS` 集合均不变；`selfInduce` / `INDUCE_STOPWORDS` / 检索链路未触碰；无测试连真实 provider / 真实技能目录。
+- **Commit**：fix(self-evolve): tokenize 混合脚本段整段 bigram 切碎拉丁（假跨脚本 bigram 污染归纳）— __HASH__

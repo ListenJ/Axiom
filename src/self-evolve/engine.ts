@@ -66,15 +66,34 @@ export function tokenize(text: string): string[] {
   const tokens: string[] = [];
   for (const seg of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     if (!seg) continue;
-    // CJK 段：bigram 切分（"如何优化" -> 如何/何优/优化），使中文术语可跨样本共现归纳
+    // 含 CJK 段：中文块 bigram 切分（"如何优化" -> 如何/何优/优化），使中文术语可跨样本共现归纳；
+    // 拉丁块保留整词（见下方混合段处理）
     if (/[\u4e00-\u9fff]/.test(seg)) {
-      if (seg.length >= 2) {
-        for (let i = 0; i < seg.length - 1; i++) {
-          const bigram = seg.slice(i, i + 2);
-          if (!STOPWORDS.has(bigram)) tokens.push(bigram);
+      // 混合段（拉丁+CJK 无空格，如 "redis缓存命中率"）：先按连续 CJK 块切分，
+      // 中文块 bigram，拉丁/数字块保留整词（修复 2026-09-02：整段 bigram 会把
+      // 拉丁切碎成 "re/ed/di/s缓" 的假跨脚本 bigram）
+      let i = 0;
+      while (i < seg.length) {
+        if (/[一-鿿]/.test(seg[i])) {
+          let j = i;
+          while (j < seg.length && /[一-鿿]/.test(seg[j])) j++;
+          const cjk = seg.slice(i, j);
+          if (cjk.length >= 2) {
+            for (let k = 0; k < cjk.length - 1; k++) {
+              const bigram = cjk.slice(k, k + 2);
+              if (!STOPWORDS.has(bigram)) tokens.push(bigram);
+            }
+          } else if (!STOPWORDS.has(cjk)) {
+            tokens.push(cjk); // 单字 CJK（如"先"）保留
+          }
+          i = j;
+        } else {
+          let j = i;
+          while (j < seg.length && !/[一-鿿]/.test(seg[j])) j++;
+          const latin = seg.slice(i, j);
+          if (latin.length >= 2 && !STOPWORDS.has(latin)) tokens.push(latin);
+          i = j;
         }
-      } else if (!STOPWORDS.has(seg)) {
-        tokens.push(seg); // 单字 CJK（如"先"）保留
       }
     } else if (seg.length >= 2 && !STOPWORDS.has(seg)) {
       tokens.push(seg);
