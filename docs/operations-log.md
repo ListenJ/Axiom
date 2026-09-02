@@ -8383,4 +8383,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**：recordTrace 改为 `this.traces.push({ ...trace })` 浅拷贝入栈；reflection-induce.test.ts 加回归测试（record 后改原对象 → 归纳仍按记录时快照计，support/成功率/字段不变）。
 - **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/`（含 tokenize/induce 整词套件）14 pass / 0 fail；全量 `bun test tests/` 后台跑批待确认。
 - **红线**：规则 1（一行拷贝，不做深度克隆——TaskTrace 为纯字段对象）；规则 2（备份 .tmp/backups/ 待验证后删）；规则 3（只 add 本任务文件）。
-- **Commit**：`__HASH__`
+- **Commit**：`b55437f`
