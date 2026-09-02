@@ -191,4 +191,39 @@ describe("auto-evolve 自动触发器", () => {
     expect(state?.lastNewTraces).toBe(50);
     expect(state?.lastRunAt).toBe(deps.now!());
   });
+
+  test("evolve 成功但 state 写入失败 → 不抛异常，返回 ok（evolve 已生效）", async () => {
+    // statePath 的 dirname 是一个普通文件 → writeState 的 mkdirSync 抛错
+    const blocker = path.join(process.cwd(), ".tmp", "test-auto-evolve-blocker");
+    fs.mkdirSync(path.dirname(blocker), { recursive: true });
+    fs.writeFileSync(blocker, "i am a file", "utf-8");
+    try {
+      const deps = makeDeps({ statePath: () => path.join(blocker, "state.json") });
+      const evolveTracker = spyDeps(deps, "evolve");
+      const result = await maybeAutoEvolve(deps); // 不 reject
+      expect(result.ran).toBe(true);
+      expect(result.reason).toBe("ok");
+      expect(result.result).toEqual(fixedResult);
+      expect(evolveTracker.mock.calls()).toBe(1);
+    } finally {
+      try { fs.unlinkSync(blocker); } catch {}
+    }
+  });
+
+  test("evolve 抛错且 state 写入也失败 → 不抛异常，返回 error", async () => {
+    const blocker = path.join(process.cwd(), ".tmp", "test-auto-evolve-blocker");
+    fs.mkdirSync(path.dirname(blocker), { recursive: true });
+    fs.writeFileSync(blocker, "i am a file", "utf-8");
+    try {
+      const deps = makeDeps({
+        statePath: () => path.join(blocker, "state.json"),
+        evolve: async () => { throw new Error("boom"); },
+      });
+      const result = await maybeAutoEvolve(deps); // 不 reject
+      expect(result.ran).toBe(false);
+      expect(result.reason).toBe("error");
+    } finally {
+      try { fs.unlinkSync(blocker); } catch {}
+    }
+  });
 });

@@ -11,6 +11,7 @@ import * as path from "node:path";
 import { logger } from "../utils/logger.js";
 import { readNumber, readString } from "../utils/env.js";
 import type { TaskTrace } from "../self-evolve/types.js";
+import type { InductionPromotionDeps } from "../self-evolve/skill-promotion.js";
 
 export interface RealUsageTrace extends TaskTrace {
   /** 使用的模型 */
@@ -154,14 +155,17 @@ export async function loadRealUsageTraces(filePath?: string): Promise<RealUsageT
  */
 export async function clearRealUsageTraces(filePath?: string): Promise<void> {
   const target = resolvePath(filePath);
-  // 清理挂起批次避免脏写
+  // 清理挂起批次与定时器，避免清空后旧批次被 flush 写回（测试合规性）。
+  // 刻意先清 pendingWrites 再等写链排空：排空期间新 capture 由自己的链段追加，
+  // 不受本清空影响（不丢新数据）；代价是与"立即 flush 的新批"存在极窄竞态，
+  // 可能丢该批（trade-off：维护/测试清空优先于丢失新批概率）。
   pendingWrites.delete(target);
   const t = flushTimers.get(target);
   if (t) {
     clearTimeout(t);
     flushTimers.delete(target);
   }
-  // 等待进行中的串行写链排空再清空文件，避免清空后链段又把旧批次写回（测试合规性）
+  // 等待进行中的串行写链排空（此时其队列已空，排空即结束），再清空文件
   await flushChains.get(target)?.catch(() => {});
   flushChains.delete(target);
   if (fs.existsSync(target)) fs.writeFileSync(target, "", "utf8");
@@ -211,7 +215,13 @@ export async function assessTraceHealth(filePath?: string): Promise<TraceHealth>
  */
 export async function evolveFromRealUsage(
   filePath?: string,
-  opts?: { maxTraces?: number; dedupByTask?: boolean }
+  opts?: {
+    maxTraces?: number;
+    dedupByTask?: boolean;
+    /** 归纳晋升依赖注入：默认写真实技能目录（axiom-memory/03-Resources/skills），
+     *  测试/巡检可注入 fake deps 隔离，避免每次 evolve 污染真实 skill 库。 */
+    promotionDeps?: InductionPromotionDeps;
+  }
 ): Promise<{ traceCount: number; inductionCount: number; created: string[]; sampled: number; refused?: string; health?: TraceHealth }> {
   // sentinel：畸形率拒卷门。traceCount 语义与正常路径一致 = 合法轨迹数（total - malformed）。
   const health = await assessTraceHealth(filePath);
@@ -258,7 +268,8 @@ export async function evolveFromRealUsage(
   const { promoteInductionsToSkills } = await import("../self-evolve/skill-promotion.js");
   const engine = createDefaultSelfEvolve();
   const inductions = engine.selfInduce(sampled as TaskTrace[], Math.min(10, sampled.length));
-  const created = promoteInductionsToSkills(inductions);
+  // promotionDeps 可注入（测试隔离用）；缺省走 defaultDeps 写真实技能目录（生产行为不变）
+  const created = promoteInductionsToSkills(inductions, opts?.promotionDeps);
   logger.info("[RealUsage] evolved", { traceCount: allTraces.length, sampled: sampled.length, inductionCount: inductions.length, created: created.length });
   return { traceCount: allTraces.length, inductionCount: inductions.length, created, sampled: sampled.length };
 }

@@ -75,6 +75,17 @@ describe("real-usage 数据质量 sentinel", () => {
     expect(result.traceCount).toBe(5); // 合法轨迹数
   });
 
+  test("畸形率恰好等于阈值（默认 0.2）时拒卷（>= 闭区间语义）", async () => {
+    // 4 条合法 + 1 条畸形 → 畸形率 1/5 = 0.2 == 阈值 → 拒卷
+    for (let i = 0; i < 4; i++) {
+      await captureRealUsageTrace({ id: `b-${i}`, task: `pattern task ${i}`, success: true } as any, tmpPath);
+    }
+    fs.appendFileSync(tmpPath, "{ malformed }\n", "utf8");
+    const result = await evolveFromRealUsage(tmpPath);
+    expect(result.refused).toBe("malformed-rate");
+    expect(result.traceCount).toBe(4);
+  });
+
   test("阈值可通过 env 调高（AXIOM_EVOLVE_MAX_MALFORMED_RATE=1 永不拒卷）", async () => {
     process.env.AXIOM_EVOLVE_MAX_MALFORMED_RATE = "1";
     await captureRealUsageTrace({ id: "e-1", task: "valid", success: true } as any, tmpPath);

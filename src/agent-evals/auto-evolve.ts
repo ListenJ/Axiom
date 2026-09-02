@@ -82,6 +82,20 @@ function writeState(filePath: string, state: AutoEvolveState): void {
 }
 
 /**
+ * 安全写 state：吞掉写入异常仅记日志。fire-and-forget 触发器的主职责是"evolve 是否跑"，
+ * state 持久化失败不应把错误抛给 chat 交换主流程（W3 可降级：本次不持久化，下次轮照常判定）。
+ */
+function safeWriteState(filePath: string, state: AutoEvolveState): void {
+  try {
+    writeState(filePath, state);
+  } catch (e) {
+    logger.warn("[auto-evolve] state write failed (degraded: skip persist)", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/**
  * 自动 evolve 检查（每次 chat 交换后 fire-and-forget 调用）。
  * 廉价检查先行：默认 OFF 时不读任何文件；冷却窗口内只付一次小 JSON 读，
  * 不做 expensive 的全量轨迹读。通过全部闸门才执行 evolve。
@@ -102,7 +116,7 @@ export async function maybeAutoEvolve(deps?: AutoEvolveDeps): Promise<AutoEvolve
     // 水位回退（轨迹文件被清空/归档，newTraces < lastNewTraces）：以当前数为新水位并持久化。
     // 否则 lastNewTraces 停在旧高水位，增量恒为负，自动 evolve 会长期卡 insufficient-new。
     if (newTraces < state.lastNewTraces) {
-      writeState(d.statePath(), { lastRunAt: state.lastRunAt, lastNewTraces: newTraces });
+      safeWriteState(d.statePath(), { lastRunAt: state.lastRunAt, lastNewTraces: newTraces });
       state.lastNewTraces = newTraces;
     }
     const pending = newTraces - state.lastNewTraces;
@@ -111,14 +125,14 @@ export async function maybeAutoEvolve(deps?: AutoEvolveDeps): Promise<AutoEvolve
     }
     try {
       const result = await d.evolve();
-      writeState(d.statePath(), { lastRunAt: d.now(), lastNewTraces: newTraces });
+      safeWriteState(d.statePath(), { lastRunAt: d.now(), lastNewTraces: newTraces });
       return { ran: true, reason: "ok", result };
     } catch (err) {
       // evolve 失败不阻断 chat 响应；仍推进 state 防下一轮 turn 热重试同一失败
       logger.warn("[auto-evolve] evolve failed; state advanced to avoid hot-retry", {
         error: err instanceof Error ? err.message : String(err),
       });
-      writeState(d.statePath(), { lastRunAt: d.now(), lastNewTraces: newTraces });
+      safeWriteState(d.statePath(), { lastRunAt: d.now(), lastNewTraces: newTraces });
       return { ran: false, reason: "error" };
     }
   } finally {
