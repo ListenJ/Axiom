@@ -8306,4 +8306,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `tests/agent-evals/registry.test.ts`：新增 7 例（回落=阈值不报警、回落>阈值报警含分族 diff、改进负 drop 不报警、自动基准取历史最优非最近、模型不同自动无可比需显式、family 作用域不同自动无可比、候选缺失 null）。
 - **验证**：TDD 红→绿——实现前 7 fail（checkRegression 未定义，红）→ 实现后 **17 pass/0 fail**（含既有 10 例无回归）。真实 DB 端到端：`check 4`（glm-4.7-flash/coding）自动基准取 run 3（同作用域），0pp 回落 exit 0；`check 4 --baseline=2`（跨模型显式）→ 候选高于基准 8.33pp exit 0；`check 999` / 缺参 → 防御报错 exit 1。`bunx tsc --noEmit` **0**（首跑拦下 `asId` 返回类型含 undefined 的 TS2345，已修）；agent-evals 全目录 **157 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**。
 - **红线**：只新增 registry 接口 + CLI 命令，不改既有 insertRun/listRuns/compare/trend/seed 语义；自动基准严格限定同族同模型同 split（宁缺毋滥），显式 baseline 由用户负责可比性；测试全 `:memory:`，不碰真实 DB 数据（真实 DB 仅 CLI 端到端只读核验）。
-- **Commit**：feat(agent-evals): eval-registry 回归守卫（check 子命令，回落超阈值自动报警）— hash 待回填
+- **Commit**：feat(agent-evals): eval-registry 回归守卫（check 子命令，回落超阈值自动报警）— 276f95a
