@@ -8284,3 +8284,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿；agent-evals 相关测试全绿（metrics/registry/runner-rerun 新增 4 例）；`bun run test:full` **3293 pass/34 skip/0 fail**（首跑 1 例 flaky fail 定位为 `tests/memory/sqlite-memory-tags.test.ts` afterAll 清理的 Windows EBUSY 文件锁竞争，与本次改动无关，重跑复绿）；`bunx tsc --noEmit` **0**；registry-cli `show` 核验 run #3 重分类结果与 run #4 100%。
 - **红线**：通过率分母剔除仅作用于 executionError 计数，不改 passed/total 原始口径；zhipu 并发钳制仅作用于 provider=zhipu，其他 provider 并发不变；既有 run 数据仅重分类污染行（备份 `.tmp/eval-registry.db.pre-migrate-r3`），无破坏性删除；测试全部注入 fake / `.tmp` 临时 DB，不连真实 provider。
 - **Commit**：fix(agent-evals): eval 暴跌根因修复（失败分类 executionError 不计通过率 + zhipu 限流并发 1 + 干净基线重跑）— 7fb009a
+
+## 2026-09-02 — perf(agent-evals): eval 自适应重跑（首次即通过停止，结果等价省约一半调用）
+
+- **任务**：追查 eval 运行时成本——`runOneBest` 固定按 `rerunEach`（默认 2）跑满全部尝试，**即使首次尝试已通过**也再跑一次。`pickBest` 语义取首个通过，通过任务的第 2 次采样对结果零贡献却双倍消耗 provider 调用与耗时（zhipu 并发 1 + 任务间 4s 间隔下尤其明显）。优化：**首次尝试即通过则停止重跑**（break at first pass），结果与「跑满 rerunEach 次后 pickBest」**完全等价**——pickBest 只取首个通过，通过位置前后的多余样本都不影响其选择；无通过时两者同样跑满全部尝试（消除单样本波动的设计意图完整保留）。高通过率轮次（基线为主）省约一半调用。
+- **工具**：Read（runner.ts / runner-rerun.test.ts 通读）、Write（TDD 红测试 5 例）、Edit（runner.ts 新增 `rerunAdaptive` + `runOneBest` 改用它）、Bash（bun test 红→绿 / 全目录回归 / tsc / test:smoke）。无子代理。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/runner.ts`：新增导出 `rerunAdaptive(runOnce, rerunEach)`——循环内每次 `runOnce()` 后若 `passed` 即 break；`runOneBest` 由「固定跑满 rerunEach 次」改为 `return rerunAdaptive(() => runOne(task, options), rerunEach)`。`pickBest` / `DEFAULT_RERUN_EACH` 不变，签名对调用方透明（runTasks 行为不变，仅每任务调用数下降）。
+  2. `tests/agent-evals/runner-rerun.test.ts`：新增 5 例（首过只调 1 次；首败后第 2 次通过处停止；全败跑满保留首次；rerunEach=1 只调 1 次；全执行错误跑满且真实能力失败不被执行错误吞没）——用调用计数 tracker 断言「省调用」与「结果等价」双重性质。
+- **验证**：TDD 红→绿——实现前 `rerunAdaptive` 未导出（SyntaxError，红）→ 实现后 **10 pass/0 fail**（绿，含既有 pickBest 5 例无回归）。回归：agent-evals + self-evolve 全目录 **244 pass/0 fail**；`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
+- **红线**：不改 `pickBest` / `DEFAULT_RERUN_EACH` / 并发语义；只改「已通过任务是否还需重跑」，失败/执行错误任务仍跑满 rerunEach 次（消除单样本波动设计意图不变）；无 provider/网络调用变更。
+- **Commit**：perf(agent-evals): eval 自适应重跑（首次即通过停止，结果等价省约一半调用）— hash 待回填

@@ -127,12 +127,27 @@ export function pickBest(attempts: TaskResult[]): TaskResult {
   );
 }
 
-/** 单任务执行：按 rerunEach 重跑取最优（默认 DEFAULT_RERUN_EACH=2）。 */
+/**
+ * 自适应重跑：首次尝试即通过则停止（通过即通过，无需再采样），否则跑满 rerunEach 次。
+ * 结果与「跑满 rerunEach 次后 pickBest」完全等价——pickBest 取首个通过，首次通过
+ * 位置之前/之后的重跑样本都不影响其选择；无通过时两者同样跑满全部尝试。
+ * 高通过率轮次（基线为主）省约一半 provider 调用，缩短评测耗时与成本。
+ */
+export async function rerunAdaptive(runOnce: () => Promise<TaskResult>, rerunEach: number): Promise<TaskResult> {
+  const n = Math.max(1, rerunEach);
+  const attempts: TaskResult[] = [];
+  for (let i = 0; i < n; i++) {
+    const attempt = await runOnce();
+    attempts.push(attempt);
+    if (attempt.passed) break;
+  }
+  return pickBest(attempts);
+}
+
+/** 单任务执行：按 rerunEach 自适应重跑取最优（默认 DEFAULT_RERUN_EACH=2）。 */
 async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskResult> {
   const rerunEach = Math.max(1, options.rerunEach ?? DEFAULT_RERUN_EACH);
-  const attempts: TaskResult[] = [];
-  for (let i = 0; i < rerunEach; i++) attempts.push(await runOne(task, options));
-  return pickBest(attempts);
+  return rerunAdaptive(() => runOne(task, options), rerunEach);
 }
 
 
