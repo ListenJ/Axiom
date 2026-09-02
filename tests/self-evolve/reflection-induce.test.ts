@@ -97,6 +97,23 @@ describe("Engine trace recording + no-arg induction", () => {
     }
     expect(engine.listTraces()).toHaveLength(500);
   });
+
+  test("recordTrace snapshots the caller's object (mutation after record does not corrupt induction)", () => {
+    const engine = new SelfEvolveEngine(makeDeps());
+    const trace: TaskTrace = { id: "m1", task: "debug mcp timeout", success: true };
+    engine.recordTrace(trace);
+    engine.recordTrace(trace);
+    trace.success = false; // 外部复用对象后续被改动，不应污染已记录轨迹
+    trace.task = "poisoned";
+
+    const inductions = engine.selfInduce();
+    const mcp = inductions.find((i) => i.pattern === "mcp");
+    expect(mcp).toBeDefined();
+    expect(mcp!.support).toBe(2);
+    expect(mcp!.successRate).toBe(1);
+    expect(engine.listTraces()[0].task).toBe("debug mcp timeout");
+    expect(engine.listTraces()[0].success).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

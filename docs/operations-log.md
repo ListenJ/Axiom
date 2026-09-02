@@ -8376,3 +8376,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/` 96 pass / 0 fail（含更新后的整词断言）；7/37 断言落在两个改动文件。
 - **红线**：规则 2（备份 .tmp/backups/engine.ts 待验证后删）；规则 3（只 add 本任务文件）；规则 7（测试先行，行为即契约）。
 - **Commit**：`feb272b`
+## 2026-09-02 — fix(self-evolve): recordTrace 防御性拷贝，杜绝外部对象污染归纳
+
+- **任务**：`recordTrace` 直接存调用方对象引用（`this.traces.push(trace)`），外部复用/改动原对象会污染内部轨迹与 selfInduce 归纳结果。listTraces 已只读快照，写入侧缺失对称保护。
+- **工具**：Edit、bunx tsc --noEmit、bun test、git。
+- **操作**：recordTrace 改为 `this.traces.push({ ...trace })` 浅拷贝入栈；reflection-induce.test.ts 加回归测试（record 后改原对象 → 归纳仍按记录时快照计，support/成功率/字段不变）。
+- **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/`（含 tokenize/induce 整词套件）14 pass / 0 fail；全量 `bun test tests/` 后台跑批待确认。
+- **红线**：规则 1（一行拷贝，不做深度克隆——TaskTrace 为纯字段对象）；规则 2（备份 .tmp/backups/ 待验证后删）；规则 3（只 add 本任务文件）。
+- **Commit**：`__HASH__`

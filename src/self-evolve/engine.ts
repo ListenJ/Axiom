@@ -278,7 +278,9 @@ export class SelfEvolveEngine {
 
   /** 记录一条执行轨迹（供 selfInduce 归纳；selfImprove 自动调用，亦可手动喂入）。 */
   recordTrace(trace: TaskTrace): void {
-    this.traces.push(trace);
+    // 防御性拷贝：外部调用方复用/改动原对象（如缓冲池 buffer）会污染内部轨迹，
+    // 进而污染 selfInduce 归纳结果（2026-09-02 修复）
+    this.traces.push({ ...trace });
     if (this.traces.length > SelfEvolveEngine.MAX_TRACES) {
       this.traces.splice(0, this.traces.length - SelfEvolveEngine.MAX_TRACES);
     }
