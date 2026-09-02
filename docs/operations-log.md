@@ -8294,4 +8294,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `tests/agent-evals/runner-rerun.test.ts`：新增 5 例（首过只调 1 次；首败后第 2 次通过处停止；全败跑满保留首次；rerunEach=1 只调 1 次；全执行错误跑满且真实能力失败不被执行错误吞没）——用调用计数 tracker 断言「省调用」与「结果等价」双重性质。
 - **验证**：TDD 红→绿——实现前 `rerunAdaptive` 未导出（SyntaxError，红）→ 实现后 **10 pass/0 fail**（绿，含既有 pickBest 5 例无回归）。回归：agent-evals + self-evolve 全目录 **244 pass/0 fail**；`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
 - **红线**：不改 `pickBest` / `DEFAULT_RERUN_EACH` / 并发语义；只改「已通过任务是否还需重跑」，失败/执行错误任务仍跑满 rerunEach 次（消除单样本波动设计意图不变）；无 provider/网络调用变更。
-- **Commit**：perf(agent-evals): eval 自适应重跑（首次即通过停止，结果等价省约一半调用）— hash 待回填
+- **Commit**：perf(agent-evals): eval 自适应重跑（首次即通过停止，结果等价省约一半调用）— 399ed2c
