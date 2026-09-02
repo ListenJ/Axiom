@@ -8364,4 +8364,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `tests/agent-evals/registry.test.ts`：新增 3 例（pass>total 拒绝 / 负数 pass 拒绝 / pass==total 边界 100% 接受）。
 - **验证**：TDD 红→绿——实现前 2 fail（pass>total 与负数 pass 均不抛）→ 实现后 **170 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**；真实 DB e2e：`seed-baseline --pass=10 --total=3` exit 1 拒绝、`stats --family=` 返回全量 4 轮（不再静默空）。
 - **红线**：合法 seed 语义不变（sourceDoc 必填、total>0 原守卫保留、通过率计算逻辑原样）；CLI 其他参数（limit 缺省、显式真实 family/model）行为不变；仅空串特判。
-- **Commit**：fix(agent-evals): seedBaseline 接受非法通过率污染回归基准 + CLI 空串过滤参数静默空结果 — __HASH__
+- **Commit**：fix(agent-evals): seedBaseline 接受非法通过率污染回归基准 + CLI 空串过滤参数静默空结果 — bb8e547
