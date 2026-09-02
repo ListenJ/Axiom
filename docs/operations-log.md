@@ -8331,4 +8331,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `tests/self-evolve/cjk-tokenize.test.ts`：新增 2 例（`redis缓存命中率` 含整词 redis 且无 `re`/`s缓` 碎片；`sqlite查询次数超限` 含整词 sqlite 且无 `q查` 碎片）。
 - **验证**：TDD 红→绿——实现前 2 fail（复现 `["re","ed","di","s缓","缓存","存命","命中","中率"]` 污染输出，红）→ 实现后 **5 pass/0 fail**（红 2 转绿 + 既有 3 例无回归）；self-evolve 全目录 **96 pass/0 fail**（15 文件）；`bunx tsc --noEmit` **0**。
 - **红线**：只改 `tokenize` 的混合段切分逻辑；纯中文 bigram 语义、单字 CJK 保留、拉丁停用词过滤、`STOPWORDS` 集合均不变；`selfInduce` / `INDUCE_STOPWORDS` / 检索链路未触碰；无测试连真实 provider / 真实技能目录。
-- **Commit**：fix(self-evolve): tokenize 混合脚本段整段 bigram 切碎拉丁（假跨脚本 bigram 污染归纳）— __HASH__
+- **Commit**：fix(self-evolve): tokenize 混合脚本段整段 bigram 切碎拉丁（假跨脚本 bigram 污染归纳）— fdfd7f2
