@@ -192,6 +192,36 @@ describe("eval registry (回归基准入库)", () => {
     }
   });
 
+  it("seed-baseline 拒绝非法 pass 率（pass > total）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      // 不可能通过率（333.33%）会污染 checkRegression 回归判定，必须拒绝
+      expect(() => reg.seedBaseline({ name: "impossible", pass: 10, total: 3, sourceDoc: "x.md" })).toThrow(/pass/);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("seed-baseline 拒绝负数 pass", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      expect(() => reg.seedBaseline({ name: "neg", pass: -5, total: 10, sourceDoc: "x.md" })).toThrow(/pass/);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("seed-baseline 接受边界 pass == total（100%）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const id = reg.seedBaseline({ name: "full", pass: 3, total: 3, sourceDoc: "x.md", family: "coding" });
+      const run = reg.getRun(id);
+      expect(run!.summaryPassRate).toBe(100);
+    } finally {
+      reg.close();
+    }
+  });
+
   it("容错: 损坏 summary JSON → sanitize 降级不抛", () => {
     const reg = openRegistry(":memory:");
     try {

@@ -8353,3 +8353,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 3 fail（2 例无基线语义 + recordFromResults 未实现）+ 2 例 characterization 已绿 → 实现后 **167 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**。
 - **红线**：有基线时的增益/注入判定语义完全不变（基线存在 → 原比较逻辑原样）；auto-induce 严格口径保持；`recordBaseline`/`recordInjection` 单样本接口原样保留；不连真实 provider / 不写真实技能目录。
 - **Commit**：fix(agent-evals): skill-gain 无基线自引用回退致增益失真/注入被拒 + 增益统计混入执行错误 — 3f7c53d
+
+## 2026-09-02 — fix(agent-evals): seedBaseline 接受非法通过率污染回归基准 + CLI 空串过滤参数静默空结果
+
+- **任务**：并行 bug-hunt 子代理在 agent-evals 定位到 registry 两处真实缺陷——①`seedBaseline`（及 CLI `seed-baseline`）只校验 `total > 0`，`pass > total`（如 10/3 → 333.33%）或负数 pass 会被入库，污染 `checkRegression` 回归判定；②CLI `--family=`/`--model=` 空串被 `?? null` 放行为真实过滤条件，SQL 匹配 `family_filter = ''` 静默返回空结果，用户看到「无评测记录」而非全量列表。
+- **工具**：Agent（并行 bug-hunt 子代理 3 路之一）、Read（registry.ts/registry-cli.ts/registry.test.ts 通读）、Edit（registry.ts/registry-cli.ts/测试最小改动）、Bash（bun test 红→绿 / tsc / 真实 DB CLI 端到端核验）。AGENTS 规则 2 与规则 7 全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/registry.ts` `seedBaseline`：新增 `pass` 范围守卫（`pass >= 0 && pass <= total`），非法抛错并说明会污染回归基准。
+  2. `src/agent-evals/registry-cli.ts`：`cmdSeed` 校验补 `passRaw > totalRaw`；`flag()` 解析空值返回 `undefined`（空值视为未传，避免 `--family=` 当真过滤条件）。
+  3. `tests/agent-evals/registry.test.ts`：新增 3 例（pass>total 拒绝 / 负数 pass 拒绝 / pass==total 边界 100% 接受）。
+- **验证**：TDD 红→绿——实现前 2 fail（pass>total 与负数 pass 均不抛）→ 实现后 **170 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**；真实 DB e2e：`seed-baseline --pass=10 --total=3` exit 1 拒绝、`stats --family=` 返回全量 4 轮（不再静默空）。
+- **红线**：合法 seed 语义不变（sourceDoc 必填、total>0 原守卫保留、通过率计算逻辑原样）；CLI 其他参数（limit 缺省、显式真实 family/model）行为不变；仅空串特判。
+- **Commit**：fix(agent-evals): seedBaseline 接受非法通过率污染回归基准 + CLI 空串过滤参数静默空结果 — __HASH__

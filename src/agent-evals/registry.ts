@@ -412,6 +412,8 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
     seedBaseline(opts) {
       if (!opts.sourceDoc) throw new Error("seed-baseline: sourceDoc 必填（标注来源文档，不造假 claim）");
       if (!(opts.total > 0)) throw new Error("seed-baseline: total 必须为正数");
+      if (!(opts.pass >= 0 && opts.pass <= opts.total))
+        throw new Error("seed-baseline: pass 必须在 0..total 之间（非法通过率会污染回归基准）");
       const passRate = round2((opts.pass / opts.total) * 100);
       const byFamily: Record<string, FamilySnapshot> = opts.family
         ? { [opts.family]: { total: opts.total, passed: opts.pass, passRate } }

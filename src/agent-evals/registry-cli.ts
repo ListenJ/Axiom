@@ -9,7 +9,10 @@ import type { RunRow } from "./metrics-types.js";
 
 const args = Bun.argv.slice(2);
 const command = args[0];
-const flag = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
+const flag = (name: string) => {
+  const v = args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
+  return v === "" ? undefined : v; // 空值视为未传：避免空串当真过滤条件（--family= 静默空结果）
+};
 
 function showHelp() {
   console.log(`
@@ -222,7 +225,7 @@ function cmdSeed() {
   const passRaw = Number(flag("pass") ?? "NaN");
   const totalRaw = Number(flag("total") ?? "NaN");
   const source = flag("source");
-  if (!name || !source || !Number.isFinite(passRaw) || !Number.isFinite(totalRaw) || passRaw < 0 || totalRaw <= 0) {
+  if (!name || !source || !Number.isFinite(passRaw) || !Number.isFinite(totalRaw) || passRaw < 0 || totalRaw <= 0 || passRaw > totalRaw) {
     console.error("seed-baseline 需要: --name=X --pass=N --total=M --source=<doc> [--family=<f>] [--date=D] [--model=<m>]");
     process.exit(1);
   }
