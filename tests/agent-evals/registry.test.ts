@@ -242,3 +242,107 @@ describe("eval registry (回归基准入库)", () => {
     }
   });
 });
+
+describe("checkRegression 回归守卫（相对基准回落超阈值报警）", () => {
+  it("回落未超阈值 → 不报警（drop == maxDrop 允许，严格大于才回归）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const b = reg.insertRun(makeMeta({ runTag: "base" }), makeSummary({ passed: 2, passRate: 100 }));
+      const c = reg.insertRun(
+        makeMeta({ runTag: "cand" }),
+        makeSummary({ passed: 1, passRate: 90, byFamily: { coding: { total: 2, passed: 1, passRate: 90 } } }),
+      );
+      const chk = reg.checkRegression(c, { maxDropPp: 10 });
+      expect(chk).not.toBeNull();
+      expect(chk!.baseline.id).toBe(b);
+      expect(chk!.dropPp).toBe(10);
+      expect(chk!.regressed).toBe(false);
+      expect(chk!.maxDropPp).toBe(10);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("回落超阈值 → 报警，dropPp/分族 diff 正确", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const b = reg.insertRun(makeMeta({ runTag: "base" }), makeSummary({ passed: 2, passRate: 100 }));
+      const c = reg.insertRun(
+        makeMeta({ runTag: "cand" }),
+        makeSummary({ passed: 1, passRate: 80, byFamily: { coding: { total: 2, passed: 1, passRate: 80 } } }),
+      );
+      const chk = reg.checkRegression(c, { baseline: b, maxDropPp: 10 });
+      expect(chk).not.toBeNull();
+      expect(chk!.dropPp).toBe(20);
+      expect(chk!.regressed).toBe(true);
+      expect(chk!.familyDiffs).toContainEqual({ family: "coding", baselineRate: 100, candidateRate: 80, diffPp: -20 });
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("改进（候选高于基准）→ 负 drop 不报警", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      reg.insertRun(makeMeta({ runTag: "base" }), makeSummary({ passed: 1, passRate: 90 }));
+      const c = reg.insertRun(makeMeta({ runTag: "cand" }), makeSummary({ passed: 2, passRate: 100 }));
+      const chk = reg.checkRegression(c, {});
+      expect(chk).not.toBeNull();
+      expect(chk!.dropPp).toBe(-10);
+      expect(chk!.regressed).toBe(false);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("自动基准取同作用域历史最优（同族同模型同 split 的最高通过率），非最近", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const old80 = reg.insertRun(makeMeta({ runTag: "old-80", startedAt: "2026-08-01T00:00:00.000Z" }), makeSummary({ passed: 1, passRate: 80 }));
+      const best = reg.insertRun(makeMeta({ runTag: "best-100", startedAt: "2026-08-10T00:00:00.000Z" }), makeSummary({ passed: 2, passRate: 100 }));
+      const c = reg.insertRun(makeMeta({ runTag: "cand-90", startedAt: "2026-09-01T00:00:00.000Z" }), makeSummary({ passed: 1, passRate: 90 }));
+      const chk = reg.checkRegression(c, {});
+      expect(chk).not.toBeNull();
+      expect(chk!.baseline.id).toBe(best); // 取最优 100，而非最近 old-80
+      expect(chk!.dropPp).toBe(10);
+      expect(chk!.regressed).toBe(false);
+      void old80;
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("模型不同 → 自动基准无可比（null），需显式 --baseline", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const base = reg.insertRun(makeMeta({ runTag: "deepseek", model: "deepseek-v4-flash" }), makeSummary());
+      const c = reg.insertRun(makeMeta({ runTag: "zhipu", model: "glm-4.7-flash" }), makeSummary());
+      expect(reg.checkRegression(c, {})).toBeNull(); // 自动：模型不同不可比
+      const chk = reg.checkRegression(c, { baseline: base }); // 显式：用户负责可比性
+      expect(chk).not.toBeNull();
+      expect(chk!.baseline.id).toBe(base);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("family 作用域不同 → 自动基准无可比（null）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      reg.insertRun(makeMeta({ runTag: "coding-base", familyFilter: "coding" }), makeSummary());
+      const c = reg.insertRun(makeMeta({ runTag: "knowledge-cand", familyFilter: "knowledge" }), makeSummary());
+      expect(reg.checkRegression(c, {})).toBeNull();
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("候选不存在 → null（防御）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      expect(reg.checkRegression(999, {})).toBeNull();
+    } finally {
+      reg.close();
+    }
+  });
+});

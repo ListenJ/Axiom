@@ -8295,3 +8295,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 `rerunAdaptive` 未导出（SyntaxError，红）→ 实现后 **10 pass/0 fail**（绿，含既有 pickBest 5 例无回归）。回归：agent-evals + self-evolve 全目录 **244 pass/0 fail**；`bunx tsc --noEmit` **0**；`bun run test:smoke` **63 pass/0 fail**（基线一致）。
 - **红线**：不改 `pickBest` / `DEFAULT_RERUN_EACH` / 并发语义；只改「已通过任务是否还需重跑」，失败/执行错误任务仍跑满 rerunEach 次（消除单样本波动设计意图不变）；无 provider/网络调用变更。
 - **Commit**：perf(agent-evals): eval 自适应重跑（首次即通过停止，结果等价省约一半调用）— 399ed2c
+
+## 2026-09-02 — feat(agent-evals): eval-registry 回归守卫（check 子命令，回落超阈值自动报警）
+
+- **任务**：eval-registry 已入库历史基线与真实轮次，但**没有任何东西在「新轮次相对基准通过率回落」时自动报警**——回归防御闭环缺最后一环。新增 `registry-cli check <id>`：候选轮 vs 基准轮（默认自动取**同族+同模型+同 split 作用域**的历史最高通过率轮次；`--baseline=<id|tag>` 显式指定）通过率回落超阈值（默认 10pp，`--max-drop=N`）→ 打印对比表并 **exit 1**（可接入 CI/脚本）。基准 passRate 已剔除执行错误（能力口径），比较公平。
+- **工具**：Read（registry.ts / registry-cli.ts / registry.test.ts 通读）、Write（TDD 红测试 7 例）、Edit（registry.ts 新增 `RegressionCheck` + `checkRegression`；registry-cli.ts 新增 `check` 命令）、Bash（bun test 红→绿 / tsc / test:smoke / 真实 DB 端到端核验）。无子代理。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/registry.ts`：新增导出 `RegressionCheck` 类型 + Registry 接口 `checkRegression(candidate, opts?)`——显式 baseline 优先；否则 `listAllStmt.all()` 过滤**同 family+同 model+同 split（null-safe）** 且排除候选自身，取 `summaryPassRate` 最高者为历史最优基准（跨模型/跨族/跨 split 不可比，宁缺毋滥——防跨模型假阳性）。`dropPp = 基准 − 候选`，`regressed = dropPp > maxDropPp`（严格大于，回落等于阈值允许）；附 `familyDiffs`（逐族 基准/候选/Δ）。
+  2. `src/agent-evals/registry-cli.ts`：新增 `check <id> [--baseline=<ref>] [--max-drop=N]`——数字形态 ref 按 id 解析（与 printCompare 同惯例，`toId`/`toOptionalId` 消歧）；无可比基准/候选缺失 → 明确报错 exit 1；对比表 + 判定行（回归/未回归）；`regressed` → exit 1。
+  3. `tests/agent-evals/registry.test.ts`：新增 7 例（回落=阈值不报警、回落>阈值报警含分族 diff、改进负 drop 不报警、自动基准取历史最优非最近、模型不同自动无可比需显式、family 作用域不同自动无可比、候选缺失 null）。
+- **验证**：TDD 红→绿——实现前 7 fail（checkRegression 未定义，红）→ 实现后 **17 pass/0 fail**（含既有 10 例无回归）。真实 DB 端到端：`check 4`（glm-4.7-flash/coding）自动基准取 run 3（同作用域），0pp 回落 exit 0；`check 4 --baseline=2`（跨模型显式）→ 候选高于基准 8.33pp exit 0；`check 999` / 缺参 → 防御报错 exit 1。`bunx tsc --noEmit` **0**（首跑拦下 `asId` 返回类型含 undefined 的 TS2345，已修）；agent-evals 全目录 **157 pass/0 fail**；`bun run test:smoke` **63 pass/0 fail**。
+- **红线**：只新增 registry 接口 + CLI 命令，不改既有 insertRun/listRuns/compare/trend/seed 语义；自动基准严格限定同族同模型同 split（宁缺毋滥），显式 baseline 由用户负责可比性；测试全 `:memory:`，不碰真实 DB 数据（真实 DB 仅 CLI 端到端只读核验）。
+- **Commit**：feat(agent-evals): eval-registry 回归守卫（check 子命令，回落超阈值自动报警）— hash 待回填

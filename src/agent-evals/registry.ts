@@ -145,6 +145,23 @@ function rowToTask(row: Record<string, unknown>): StoredTaskRow {
   };
 }
 
+/** 回归守卫判定结果（checkRegression）：候选轮 vs 基准轮的可比通过率落差。 */
+export interface RegressionCheck {
+  candidate: RunRow;
+  baseline: RunRow;
+  /** 通过率回落 = 基准 − 候选（pp；负值表示候选高于基准） */
+  dropPp: number;
+  maxDropPp: number;
+  /** dropPp 严格大于 maxDropPp 才判回归（回落等于阈值允许） */
+  regressed: boolean;
+  familyDiffs: Array<{
+    family: string;
+    baselineRate: number | null;
+    candidateRate: number | null;
+    diffPp: number | null;
+  }>;
+}
+
 export interface Registry {
   /** 底层 Database（测试注入脏数据用；生产代码不使用） */
   rawDb(): Database;
@@ -160,6 +177,13 @@ export interface Registry {
   getTasks(runId: number): StoredTaskRow[];
   /** 两轮并排对比（summaryDiff + familyDiffs）；任一轮缺失返回 null */
   compare(a: number | string, b: number | string): RunComparison | null;
+  /** 回归守卫：候选轮相对基准轮（显式 --baseline，或自动取同族同模型同 split
+   *  的历史最高通过率轮次）通过率回落超 maxDropPp → regressed。
+   *  候选缺失 / 无可比基准 → null。基准 passRate 已剔除执行错误（能力口径）。 */
+  checkRegression(
+    candidate: number | string,
+    opts?: { baseline?: number | string; maxDropPp?: number },
+  ): RegressionCheck | null;
   /** 时间升序趋势（filter 可选 family/model） */
   getTrend(filter?: RunFilter): RunRow[];
   /** 手工基线 seed（src_doc 必填；无子行；summary 由 pass/total 计算） */
@@ -346,6 +370,43 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
               filter.model ?? null,
             ) as Record<string, unknown>[]);
       return rows.map(rowToRun);
+    },
+
+    checkRegression(candidate, opts = {}) {
+      const cand = getRun(candidate);
+      if (!cand) return null;
+      const maxDropPp = opts.maxDropPp ?? 10;
+      let baseline: RunRow | null = null;
+      if (opts.baseline !== undefined) {
+        baseline = getRun(opts.baseline);
+      } else {
+        // 自动基准：排除候选自身，取同 family + 同 model + 同 split 作用域中通过率最高者
+        // （历史最优即「回归防线」参照；跨模型/跨族/跨 split 不可比，宁缺毋滥）
+        const sameScope = (r: RunRow) =>
+          (r.familyFilter ?? null) === (cand.familyFilter ?? null) &&
+          (r.model ?? null) === (cand.model ?? null) &&
+          (r.splitFilter ?? null) === (cand.splitFilter ?? null);
+        baseline =
+          (listAllStmt.all() as Record<string, unknown>[])
+            .map(rowToRun)
+            .filter((r) => r.id !== cand.id)
+            .filter(sameScope)
+            .sort((a, b) => b.summaryPassRate - a.summaryPassRate)[0] ?? null;
+      }
+      if (!baseline) return null;
+      const dropPp = round2(baseline.summaryPassRate - cand.summaryPassRate);
+      const families = new Set([...Object.keys(cand.summaryByFamily), ...Object.keys(baseline.summaryByFamily)]);
+      const familyDiffs = [...families].sort().map((family) => {
+        const bl = baseline.summaryByFamily[family]?.passRate ?? null;
+        const cr = cand.summaryByFamily[family]?.passRate ?? null;
+        return {
+          family,
+          baselineRate: bl,
+          candidateRate: cr,
+          diffPp: bl != null && cr != null ? round2(cr - bl) : null,
+        };
+      });
+      return { candidate: cand, baseline, dropPp, maxDropPp, regressed: dropPp > maxDropPp, familyDiffs };
     },
 
     seedBaseline(opts) {

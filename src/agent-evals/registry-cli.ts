@@ -23,6 +23,9 @@ Commands:
        单轮 summary + 分族表 + 逐条明细
   compare <idA> <idB>
        两轮并排对比（通过率/分族/generalization/延迟）
+  check <id> [--baseline=<ref>] [--max-drop=N]
+       回归守卫：候选轮 vs 基准轮通过率回落超 N pp（默认 10）→ 回归，exit 1。
+       默认基准 = 同族同模型同 split 的历史最高通过率轮次；--baseline 显式指定。
   trend [--family=<f>] [--model=<m>]
        时间升序通过率趋势（markdown 表格）
   seed-baseline --name=X --pass=N --total=M [--family=<f>] --source=<doc> [--date=D] [--model=<m>]
@@ -142,6 +145,60 @@ function printCompare(refA: string, refB: string) {
   }
 }
 
+function printCheck(ref: string) {
+  const reg = openRegistry(DEFAULT_REGISTRY_PATH);
+  try {
+    // 数字形态的 ref（如 `4`）按 id 解析，否则按 run_tag（与 printCompare 同惯例）
+    const toId = (x: string): string | number => (Number.isFinite(Number(x)) ? Number(x) : x);
+    const toOptionalId = (x: string | undefined): string | number | undefined =>
+      x !== undefined ? toId(x) : undefined;
+    const maxDropRaw = Number(flag("max-drop") ?? "10");
+    const maxDrop = Number.isFinite(maxDropRaw) && maxDropRaw >= 0 ? maxDropRaw : 10;
+    const candRef = toId(ref);
+    const chk = reg.checkRegression(candRef, { baseline: toOptionalId(flag("baseline")), maxDropPp: maxDrop });
+    if (!chk) {
+      if (!reg.getRun(candRef)) {
+        console.error(`找不到 run: ${ref}`);
+        process.exit(1);
+      }
+      console.error(`无可比基准（同族同模型同 split 的历史轮次）；用 --baseline=<id|tag> 显式指定`);
+      process.exit(1);
+    }
+    const { candidate, baseline } = chk;
+    const deltaPp = -chk.dropPp; // Δ = 候选 − 基准（dropPp = 基准 − 候选）
+    const fmtDelta = (x: number) => `${x > 0 ? "+" : ""}${x}pp`;
+    console.log(`# check ${candidate.id}(${candidate.runTag}) vs 基准 ${baseline.id}(${baseline.runTag})`);
+    console.log(`- 作用域: family=${candidate.familyFilter ?? "all"} ｜ model=${candidate.model ?? "-"} ｜ split=${candidate.splitFilter ?? "-"}`);
+    console.log("");
+    console.log("| 指标 | 基准 | 候选 | Δ(候选−基准) |");
+    console.log("| --- | --- | --- | --- |");
+    console.log(`| 通过率 | ${pct(baseline.summaryPassRate)} | ${pct(candidate.summaryPassRate)} | ${fmtDelta(deltaPp)} |`);
+    console.log(`| 执行错误 | ${baseline.summaryExecutionErrors} | ${candidate.summaryExecutionErrors} | - |`);
+    if (chk.familyDiffs.length > 0) {
+      console.log("");
+      console.log("| 任务族 | 基准 | 候选 | Δ |");
+      console.log("| --- | --- | --- | --- |");
+      for (const f of chk.familyDiffs) {
+        const a = f.baselineRate == null ? "-" : `${f.baselineRate}%`;
+        const b = f.candidateRate == null ? "-" : `${f.candidateRate}%`;
+        const d = f.diffPp == null ? "N/A" : fmtDelta(f.diffPp);
+        console.log(`| ${f.family} | ${a} | ${b} | ${d} |`);
+      }
+    }
+    console.log("");
+    if (chk.regressed) {
+      console.log(`⚠️ 回归！通过率回落 ${chk.dropPp}pp > 阈值 ${chk.maxDropPp}pp（候选 ${pct(candidate.summaryPassRate)} vs 基准 ${pct(baseline.summaryPassRate)}）`);
+    } else if (chk.dropPp > 0) {
+      console.log(`✅ 未回归（回落 ${chk.dropPp}pp ≤ 阈值 ${chk.maxDropPp}pp）`);
+    } else {
+      console.log(`✅ 未回归（候选高于基准 ${-chk.dropPp}pp，无回落）`);
+    }
+    process.exit(chk.regressed ? 1 : 0);
+  } finally {
+    reg.close();
+  }
+}
+
 function printTrend() {
   const reg = openRegistry(DEFAULT_REGISTRY_PATH);
   try {
@@ -198,6 +255,10 @@ async function main() {
     case "compare":
       if (!args[1] || !args[2]) { showHelp(); process.exit(1); }
       printCompare(args[1], args[2]);
+      break;
+    case "check":
+      if (!args[1]) { showHelp(); process.exit(1); }
+      printCheck(args[1]);
       break;
     case "trend":
       printTrend();
