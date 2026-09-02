@@ -8352,4 +8352,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `tests/agent-evals/skill-gain.test.ts`：新增 5 例（无基线 gainOf 返回 null / 无基线全通过 auto-fix 注入 / 无基线全败不注入 / 无基线 auto-induce 不注入 / recordFromResults 跳过执行错误样本）。
 - **验证**：TDD 红→绿——实现前 3 fail（2 例无基线语义 + recordFromResults 未实现）+ 2 例 characterization 已绿 → 实现后 **167 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**。
 - **红线**：有基线时的增益/注入判定语义完全不变（基线存在 → 原比较逻辑原样）；auto-induce 严格口径保持；`recordBaseline`/`recordInjection` 单样本接口原样保留；不连真实 provider / 不写真实技能目录。
-- **Commit**：fix(agent-evals): skill-gain 无基线自引用回退致增益失真/注入被拒 + 增益统计混入执行错误 — __HASH__
+- **Commit**：fix(agent-evals): skill-gain 无基线自引用回退致增益失真/注入被拒 + 增益统计混入执行错误 — 3f7c53d
