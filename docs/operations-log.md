@@ -8341,3 +8341,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：修改后 `git status` 不再列出 `data/real-usage-traces.jsonl`；备份删除。
 - **红线**：仅新增忽略规则，不改任何代码/数据文件语义。
 - **Commit**：chore(infra): .gitignore 覆盖 data/*.jsonl（real-usage 运行时 trace 不入库）— 7dac69f
+
+## 2026-09-02 — fix(agent-evals): skill-gain 无基线自引用回退致增益失真/注入被拒 + 增益统计混入执行错误
+
+- **任务**：并行 bug-hunt 子代理在 agent-evals 定位到 skill-gain 两处真实缺陷——①`gainOf`/`shouldInject` 无族基线时回退 `baselineRate = injectedRate`（自引用），增益恒为 0、`injectedRate > baselineRate` 恒 false，把 ≥3 样本的全通过 auto-fix 技能永久拒于注入之外（与契约「无记录 → 允许试用」矛盾，也违背 gainOf 自身注释「无基线返回 null」）；②`run.ts` 增益反馈把执行错误（限流/传输等 provider 侧故障）按能力失败计入族基线与技能注入样本，与 metrics.ts 的 capability-denominated 口径不一致，让基建噪声左右注入决策。
+- **工具**：Agent（并行 bug-hunt 子代理 3 路之一，report 4 findings）、Read（skill-gain.ts/run.ts/metrics.ts/registry.ts/registry-cli.ts/既有测试通读）、Edit（skill-gain.ts/run.ts/测试最小改动）、Bash（bun test 红→绿 / 全目录回归 / tsc）。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（红→绿）全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/skill-gain.ts`：`gainOf` 无基线 → 返回 null（增益未知，不再自引用压 0）；`shouldInject` auto-fix 无基线 → `pass > 0` 才注入（允许试用契约）；auto-induce 无基线 → 不注入（无法证明 ≥10pp，宁缺毋滥）；新增 `recordFromResults(baseline, evolved)` 方法（执行错误样本跳过），策略内聚于技能增益模块。
+  2. `src/agent-evals/run.ts`：增益反馈两处循环改为 `gain.recordFromResults(...)`，执行错误不再计入基线/注入样本。
+  3. `tests/agent-evals/skill-gain.test.ts`：新增 5 例（无基线 gainOf 返回 null / 无基线全通过 auto-fix 注入 / 无基线全败不注入 / 无基线 auto-induce 不注入 / recordFromResults 跳过执行错误样本）。
+- **验证**：TDD 红→绿——实现前 3 fail（2 例无基线语义 + recordFromResults 未实现）+ 2 例 characterization 已绿 → 实现后 **167 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**。
+- **红线**：有基线时的增益/注入判定语义完全不变（基线存在 → 原比较逻辑原样）；auto-induce 严格口径保持；`recordBaseline`/`recordInjection` 单样本接口原样保留；不连真实 provider / 不写真实技能目录。
+- **Commit**：fix(agent-evals): skill-gain 无基线自引用回退致增益失真/注入被拒 + 增益统计混入执行错误 — __HASH__

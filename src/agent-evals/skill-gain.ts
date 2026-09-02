@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { TaskFamily } from "./tasks.js";
+import type { TaskResult } from "./metrics.js";
 
 interface Persisted {
   baseline: Record<string, { count: number; pass: number }>;
@@ -117,8 +118,9 @@ export class SkillGainTracker {
     const inj = this.injection.get(skillId);
     const base = this.baseline.get(family);
     if (!inj || inj.count === 0) return null;
+    if (!base || base.count === 0) return null; // 无基线 → 增益未知（勿用自引用回退压成 0）
     const injectedRate = inj.pass / inj.count;
-    const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;
+    const baselineRate = base.pass / base.count;
     return Math.round((injectedRate - baselineRate) * 1000) / 10;
   }
 
@@ -133,16 +135,37 @@ export class SkillGainTracker {
     if (skillId.startsWith("auto-induce-")) {
       // 高频词技能（术语共现产物，非方法论）：要求极强正增益（>=10pp）且样本 >=20 才注入
       if (!inj || inj.count < 20) return false;
+      if (!base || base.count === 0) return false; // 无基线无法证明极强正增益 → 宁缺毋滥
       const injectedRate = inj.pass / inj.count;
-      const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;
+      const baselineRate = base.pass / base.count;
       return injectedRate - baselineRate >= 0.1;
     }
     if (!inj || inj.count < 3) {
       return true; // auto-fix 方法论技能允许试用
     }
+    if (!base || base.count === 0) {
+      // 无基线：契约「无记录 → 允许试用」——有通过样本即注入，全败不注入
+      // （修复：旧自引用回退 baselineRate=injectedRate 把增益恒压 0，永远拒绝）
+      return inj.pass > 0;
+    }
     const injectedRate = inj.pass / inj.count;
-    const baselineRate = base && base.count > 0 ? base.pass / base.count : injectedRate;
+    const baselineRate = base.pass / base.count;
     return injectedRate > baselineRate;
+  }
+
+  /**
+   * 从评测结果批量记录增益反馈（能力口径）：执行错误（限流/传输等 provider 侧故障）
+   * 不计入基线/注入样本——与 metrics.ts 的 capability-denominated 口径一致。
+   */
+  recordFromResults(baselineResults: readonly TaskResult[], evolvedResults: readonly TaskResult[]): void {
+    for (const r of baselineResults) {
+      if (r.executionError) continue;
+      this.recordBaseline(r.family, r.passed);
+    }
+    for (const r of evolvedResults) {
+      if (r.executionError) continue;
+      for (const skillId of r.injectedSkills ?? []) this.recordInjection(skillId, r.passed);
+    }
   }
 
   listGain(family: TaskFamily): GainSummary[] {

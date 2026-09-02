@@ -170,13 +170,10 @@ if (evolve && !externalKind) {
   logger.info(`[Evolve] 阶段3/3: held-out evolved ${heldOutTasks.length} 任务（注入技能）...`);
   const evolvedResults = await runTasks(heldOutTasks, { family, split: "held-out", concurrency, modelHint, provider, model: directModel, injectSkills: true, constraints, fallbackProvider, fallbackModel, rerunEach });
 
-  // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果
+  // 增益反馈：baseline 记录族基线，evolved 记录技能注入结果（执行错误不计入，能力口径）
   const { getDefaultGainTracker } = await import("./skill-gain.js");
   const gain = getDefaultGainTracker();
-  for (const r of baselineResults) gain.recordBaseline(r.family, r.passed);
-  for (const r of evolvedResults) {
-    for (const skillId of r.injectedSkills ?? []) gain.recordInjection(skillId, r.passed);
-  }
+  gain.recordFromResults(baselineResults, evolvedResults);
   const gainSummary = gain.listGain(family ?? "coding");
   if (gainSummary.length > 0) {
     logger.info(`[Evolve] 增益概览: ${gainSummary.map((g) => `${g.skillId}=+(${g.gain ?? "?"}pp/${g.samples}次)`).join(", ")}`);
