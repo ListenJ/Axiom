@@ -8375,4 +8375,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   - 重写 cjk-tokenize / induce-specificity 两个测试为整词语义契约（含反例断言：无 "何优"/"先处"/"s缓"/"次数"）。
 - **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/` 96 pass / 0 fail（含更新后的整词断言）；7/37 断言落在两个改动文件。
 - **红线**：规则 2（备份 .tmp/backups/engine.ts 待验证后删）；规则 3（只 add 本任务文件）；规则 7（测试先行，行为即契约）。
-- **Commit**：`__HASH__`
+- **Commit**：`feb272b`
