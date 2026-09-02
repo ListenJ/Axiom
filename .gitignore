@@ -44,6 +44,8 @@ Thumbs.db
 
 # === Python ===
 .venv/
+__pycache__/
+*.pyc
 
 # === OMC state ===
 .omc/

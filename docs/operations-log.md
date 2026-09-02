@@ -8384,3 +8384,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/`（含 tokenize/induce 整词套件）14 pass / 0 fail；全量 `bun test tests/` 后台跑批待确认。
 - **红线**：规则 1（一行拷贝，不做深度克隆——TaskTrace 为纯字段对象）；规则 2（备份 .tmp/backups/ 待验证后删）；规则 3（只 add 本任务文件）。
 - **Commit**：`b55437f`
+## 2026-09-02 — chore(gitignore): 忽略 Python 字节码缓存（__pycache__）
+
+- **任务**：`scripts/pdf-worker/__pycache__/`（Python 构建产物）持续出现在 git status，`.gitignore` 的 `# === Python ===` 段只忽略了 `.venv/`，未覆盖字节码缓存。
+- **工具**：Edit、git check-ignore、git。
+- **操作**：`.gitignore` 的 Python 段补 `__pycache__/` 与 `*.pyc` 两行。
+- **验证**：`git check-ignore scripts/pdf-worker/__pycache__/app.cpython-311.pyc` 退出 0（已忽略）；无业务文件改动。
+- **红线**：规则 1（仅两行，不重建忽略结构）；规则 2（备份 .tmp/backups/.gitignore 待验证后删）；规则 3（只 add 本任务文件）。
+- **Commit**：`__HASH__`
