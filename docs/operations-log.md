@@ -8340,4 +8340,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`.gitignore` Data 段新增 `data/*.jsonl` 一行（`data/*.json` 之后）；已跟踪 jsonl 无受影响项（`git ls-files 'data/*.jsonl'` 为空）。
 - **验证**：修改后 `git status` 不再列出 `data/real-usage-traces.jsonl`；备份删除。
 - **红线**：仅新增忽略规则，不改任何代码/数据文件语义。
-- **Commit**：chore(infra): .gitignore 覆盖 data/*.jsonl（real-usage 运行时 trace 不入库）— __HASH__
+- **Commit**：chore(infra): .gitignore 覆盖 data/*.jsonl（real-usage 运行时 trace 不入库）— 7dac69f
