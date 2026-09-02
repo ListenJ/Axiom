@@ -21,6 +21,7 @@ public/assets/
 # === Data ===
 data/*.db
 data/*.json
+data/*.jsonl
 data/raw/
 data/model-outputs/
 

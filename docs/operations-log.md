@@ -8332,3 +8332,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 2 fail（复现 `["re","ed","di","s缓","缓存","存命","命中","中率"]` 污染输出，红）→ 实现后 **5 pass/0 fail**（红 2 转绿 + 既有 3 例无回归）；self-evolve 全目录 **96 pass/0 fail**（15 文件）；`bunx tsc --noEmit` **0**。
 - **红线**：只改 `tokenize` 的混合段切分逻辑；纯中文 bigram 语义、单字 CJK 保留、拉丁停用词过滤、`STOPWORDS` 集合均不变；`selfInduce` / `INDUCE_STOPWORDS` / 检索链路未触碰；无测试连真实 provider / 真实技能目录。
 - **Commit**：fix(self-evolve): tokenize 混合脚本段整段 bigram 切碎拉丁（假跨脚本 bigram 污染归纳）— fdfd7f2
+
+## 2026-09-02 — chore(infra): .gitignore 覆盖 data/*.jsonl（real-usage 运行时 trace 不入库）
+
+- **任务**：`REAL_USAGE_PATH` 运行时 capture 目标 `data/real-usage-traces.jsonl`（.jsonl 后缀）未被既有 `data/*.json` 规则覆盖，会以未跟踪文件形式混入工作区、有被误提交风险；补 `data/*.jsonl` 忽略规则。
+- **工具**：Read（.gitignore 通读）、Edit（最小加一行）、Bash（git status 核验未跟踪文件已忽略）。AGENTS 规则 2（备份 → 通读 → 最小改动 → 验证 → 删备份）执行。
+- **操作**（文件级）：`.gitignore` Data 段新增 `data/*.jsonl` 一行（`data/*.json` 之后）；已跟踪 jsonl 无受影响项（`git ls-files 'data/*.jsonl'` 为空）。
+- **验证**：修改后 `git status` 不再列出 `data/real-usage-traces.jsonl`；备份删除。
+- **红线**：仅新增忽略规则，不改任何代码/数据文件语义。
+- **Commit**：chore(infra): .gitignore 覆盖 data/*.jsonl（real-usage 运行时 trace 不入库）— __HASH__
