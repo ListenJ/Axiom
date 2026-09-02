@@ -61,31 +61,25 @@ const INDUCE_STOPWORDS = new Set([
   "什么", "一条", "一句", "处理", "优化",
 ]);
 
-/** 简易分词：拉丁词按非字母数字切分并过滤停用词；CJK 短语保持整段。 */
+/** 简易分词：拉丁词按非字母数字切分并过滤停用词；CJK 连续块整词保留。 */
 export function tokenize(text: string): string[] {
   const tokens: string[] = [];
   for (const seg of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     if (!seg) continue;
-    // 含 CJK 段：中文块 bigram 切分（"如何优化" -> 如何/何优/优化），使中文术语可跨样本共现归纳；
-    // 拉丁块保留整词（见下方混合段处理）
+    // 含 CJK 段：中文块整词保留（"如何优化" -> "如何优化"），拉丁/数字块保留整词。
+    // 2026-09-02 修复：不再 bigram 切分——跨词边界 bigram（"先处理"->"先处"）是自造伪术语，
+    // 整词过滤（INDUCE_STOPWORDS）无法拦截，会漏进 auto-induce-* skill 污染技能库。
     if (/[\u4e00-\u9fff]/.test(seg)) {
-      // 混合段（拉丁+CJK 无空格，如 "redis缓存命中率"）：先按连续 CJK 块切分，
-      // 中文块 bigram，拉丁/数字块保留整词（修复 2026-09-02：整段 bigram 会把
-      // 拉丁切碎成 "re/ed/di/s缓" 的假跨脚本 bigram）
+      // 混合段（拉丁+CJK 无空格，如 "redis缓存命中率"）：按连续 CJK 块切分，
+      // 中文块整词、拉丁/数字块整词（修复 2026-09-02：整段 bigram 会把拉丁切碎成
+      // "re/ed/di/s缓" 的假跨脚本 bigram）
       let i = 0;
       while (i < seg.length) {
         if (/[一-鿿]/.test(seg[i])) {
           let j = i;
           while (j < seg.length && /[一-鿿]/.test(seg[j])) j++;
           const cjk = seg.slice(i, j);
-          if (cjk.length >= 2) {
-            for (let k = 0; k < cjk.length - 1; k++) {
-              const bigram = cjk.slice(k, k + 2);
-              if (!STOPWORDS.has(bigram)) tokens.push(bigram);
-            }
-          } else if (!STOPWORDS.has(cjk)) {
-            tokens.push(cjk); // 单字 CJK（如"先"）保留
-          }
+          if (!STOPWORDS.has(cjk)) tokens.push(cjk); // 中文块整词保留（单字/多字均整词）
           i = j;
         } else {
           let j = i;
@@ -257,6 +251,17 @@ export class SelfEvolveEngine {
       if (successRate < 0.6) continue;
       // 特异性过滤：通用会话词/泛化技术词不构成可复用模式，跳过（防 skill 库污染）
       if (INDUCE_STOPWORDS.has(pattern)) continue;
+      // 单字 CJK（"先"/"的"/"是"）：太泛化，不构成可复用模式
+      if (pattern.length === 1 && /[一-鿿]/.test(pattern)) continue;
+      // 含通用词子串的中文短语（"写一个"/"处理函数"/"超时处理"）：由通用词复合，
+      // 整词输出后不再被 exact 命中拦截，须按子串过滤（2026-09-02）
+      if (/[一-鿿]/.test(pattern)) {
+        let composed = false;
+        for (const s of INDUCE_STOPWORDS) {
+          if (s.length >= 2 && pattern.includes(s)) { composed = true; break; }
+        }
+        if (composed) continue;
+      }
       result.push({
         pattern,
         support: c.support,

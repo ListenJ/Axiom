@@ -8365,3 +8365,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 2 fail（pass>total 与负数 pass 均不抛）→ 实现后 **170 pass/0 fail**（agent-evals 全目录 23 文件）；`bunx tsc --noEmit` **0**；真实 DB e2e：`seed-baseline --pass=10 --total=3` exit 1 拒绝、`stats --family=` 返回全量 4 轮（不再静默空）。
 - **红线**：合法 seed 语义不变（sourceDoc 必填、total>0 原守卫保留、通过率计算逻辑原样）；CLI 其他参数（limit 缺省、显式真实 family/model）行为不变；仅空串特判。
 - **Commit**：fix(agent-evals): seedBaseline 接受非法通过率污染回归基准 + CLI 空串过滤参数静默空结果 — bb8e547
+## 2026-09-02 — fix(self-evolve): tokenize 整词化，根治 auto-induce 伪术语污染
+
+- **任务**：selfInduce 把 bigram 自造伪术语（"先处"/"如何" 跨词边界、混合段 "re/ed/di/s缓"）提升为 auto-induce-* skill，污染技能库。root cause = tokenize 的 CJK bigram 切分切穿了词边界。
+- **工具**：Edit（整函数替换按 `\uXXXX` 行避让分段编辑）、bunx tsc --noEmit、bun test、git。
+- **操作**：
+  - tokenize 改为整词语义：CJK 连续块整词保留（"如何优化"→整词）；混合段按连续脚本块切分，拉丁/数字整词（"redis缓存命中率"→redis + 缓存命中率）。
+  - selfInduce 补两道特异过滤：单字 CJK 跳过；含 INDUCE_STOPWORDS（≥2 字）子串的中文短语按组成过滤（"写一个"/"处理函数"/"超时处理" 不再漏网）。
+  - 重写 cjk-tokenize / induce-specificity 两个测试为整词语义契约（含反例断言：无 "何优"/"先处"/"s缓"/"次数"）。
+- **验证**：bunx tsc --noEmit 退出 0；`bun test tests/self-evolve/` 96 pass / 0 fail（含更新后的整词断言）；7/37 断言落在两个改动文件。
+- **红线**：规则 2（备份 .tmp/backups/engine.ts 待验证后删）；规则 3（只 add 本任务文件）；规则 7（测试先行，行为即契约）。
+- **Commit**：`__HASH__`

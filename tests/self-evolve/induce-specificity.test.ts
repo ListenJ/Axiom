@@ -1,7 +1,9 @@
 /**
- * selfInduce 特异性过滤（2026-09-01）：
+ * selfInduce 特异性过滤（2026-09-01，2026-09-02 整词化修订）：
  *   - 根因：selfInduce 仅按 support≥2 && successRate≥0.6 归纳，通用会话词（CJK 功能 bigram +
  *     泛化技术词）也被提升为 auto-induce-* skill，污染技能库（34 个历史污染项即由此产生）。
+ *   - 2026-09-02：tokenize 整词化后，"写一个"/"处理函数"/"超时处理" 不再被 bigram 切碎，
+ *     改为在 selfInduce 里按 INDUCE_STOPWORDS 子串组成过滤。
  *   - contract：通用词不进 result；有语义术语不误杀；纯术语样本回归不破。
  */
 import { describe, test, expect } from "bun:test";
@@ -32,11 +34,24 @@ describe("selfInduce 特异性过滤", () => {
     const patterns = result.map((i) => i.pattern);
 
     // 有语义术语必须在（不误杀）
-    for (const term of ["mcp", "redis", "超时", "缓存"]) {
+    for (const term of ["mcp", "redis", "调用", "缓存命中率"]) {
       expect(patterns).toContain(term);
     }
-    // 通用会话词必须不在（特异性过滤生效）
-    for (const junk of ["json", "api", "node", "写一", "一个", "函数", "用", "处理", "优化"]) {
+    // 通用会话词必须不在（特异性过滤生效；整词输出后的组成短语也须按子串拦截）
+    for (const junk of [
+      "json",
+      "api",
+      "node",
+      "写一",
+      "写一个",
+      "一个",
+      "函数",
+      "处理函数",
+      "用",
+      "处理",
+      "超时处理",
+      "优化",
+    ]) {
       expect(patterns).not.toContain(junk);
     }
   });
