@@ -8391,4 +8391,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**：`.gitignore` 的 Python 段补 `__pycache__/` 与 `*.pyc` 两行。
 - **验证**：`git check-ignore scripts/pdf-worker/__pycache__/app.cpython-311.pyc` 退出 0（已忽略）；无业务文件改动。
 - **红线**：规则 1（仅两行，不重建忽略结构）；规则 2（备份 .tmp/backups/.gitignore 待验证后删）；规则 3（只 add 本任务文件）。
-- **Commit**：`__HASH__`
+- **Commit**：`3126f20`
