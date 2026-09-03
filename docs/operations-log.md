@@ -8406,3 +8406,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——实现前 6 fail+1 error（缺 DATABASE_PATH / required 仍 true / 假 missing / hasCapabilityFailure 未导出 / 文件名截断）；实现后受影响套件全绿：`tests/self-evolve tests/agent-evals tests/utils tests/native-bridge.test.ts tests/main.test.ts` = **310 pass / 0 fail**；`bun build` 三个改动入口 0 错。
 - **红线**：规则 2（备份 .tmp/backups/ 已验证后删除）；规则 3（只 add 本任务文件，其余工作区改动不碰）；规则 7（测试先行）；规则 9（无强推/reset）。`DATABASE_URL`/`VAULT_PATH` 未删除仅降级，backup 脚本/云端检测兼容。
 - **Commit**：`1759a93`
+## 2026-09-03 — docs(plans): 回写 08-28/09-01 计划完成状态（记录维护）
+
+- **任务**：迭代间隙文档回填——08-28 最稳路径修订计划（8 切片，含延期 W5/W8）与 09-01 打通真实数据端到端计划（主线 A/B）均已实际完成，两份计划文档状态与 git 历史不一致，需回写完成状态与 commit 锚点。
+- **工具**：Read/Grep/Bash（git log 核对各 commit 锚点）、Node（BOM/CRLF 安全的文本替换）、git。AGENTS 规则 5（记录维护）执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-08-28-plan-amendment-most-stable.md`：8 切片全部标 ✅ 并补 commit 锚点（S1=11f226a、S2=df5e125、S4=3fdbc69、S5=22a407c(+aac3247)、S7+S8=6b4e9a6、W5=fbb47c2+f703bbf、W8=37c24ae）；`延期（下迭代）` → `已完成`；目标/验证/执行顺序各节标注实际结果。
+  2. `docs/superpowers/plans/2026-09-01-real-data-evolve-specificity-plan.md`：24 个真实 checkbox `- [ ]` → `- [x]`（保留第 3 行代码 span 的 `- [ ]` 示例），逐任务补完成锚点（主线 A=4f87c4b、Task 5=70ba841、Task 6=6f5ed2f、Task 7 终验=3280 pass/0 fail）。
+- **验证**：`git diff` 仅两计划文档与 ops-log；09-01 文件残留 `- [ ] **Step` 计数为 0；08-28 全部切片锚点存在。
+- **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件，幻影 stat-cache 文件不碰）；规则 5（hash 回填独立提交）。
+- **Commit**：__HASH__

@@ -29,7 +29,7 @@
 **Files:**
 - Add: `tests/self-evolve/induce-specificity.test.ts`
 
-- [ ] **Step 1: 写 selfInduce 特异性过滤测试（红）**
+- [x] **Step 1: 写 selfInduce 特异性过滤测试（红）**
 
 新建 `tests/self-evolve/induce-specificity.test.ts`：
 - 喂入含通用词的真实形态样本（如 task 含 `写一个 json 处理函数`、`用 node 写一个 api`、`返回多少步骤` 等，success 全 true，support≥2），断言：
@@ -48,10 +48,10 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 
 **Interfaces:** 不改 `selfInduce` 签名（`traces?, topN?` 不变），纯内部行为收紧——对既有调用方（`evolve.ts`、`real-usage.ts`、`reflection-loop.ts`）透明。
 
-- [ ] **Step 1: 备份并通读** `src/self-evolve/engine.ts`（备份 `.tmp/backups/`，规则 2）。
-- [ ] **Step 2: 新增 `INDUCE_STOPWORDS`**：以 34 个污染 skill 的 trigger 反推的通用词集合（英文通用技术词 json/api/node/pattern/task/success/agent + 中文功能 bigram 写一/函数/步骤/一个/用/用户/返回/参数/执行/约束/重试/回滚/先读/不要/一次/多少/给出/现在/什么/一条/一句/一个 等）。
-- [ ] **Step 3: selfInduce 内**，在 `if (c.support < 2) continue;` 与 `successRate` 检查之间/之后叠加：若 `pattern` 命中 `INDUCE_STOPWORDS` → `continue`（跳过，不进 result）。保留既有排序与 `topN`。
-- [ ] **Step 4: 跑 Task 1 测试** → 绿；跑 `tests/self-evolve/cjk-tokenize.test.ts`、`reflection-induce.test.ts`、`skill-promotion.test.ts`、`evolve` 相关测试确认无回归。
+- [x] **Step 1: 备份并通读** `src/self-evolve/engine.ts`（备份 `.tmp/backups/`，规则 2）。
+- [x] **Step 2: 新增 `INDUCE_STOPWORDS`**：以 34 个污染 skill 的 trigger 反推的通用词集合（英文通用技术词 json/api/node/pattern/task/success/agent + 中文功能 bigram 写一/函数/步骤/一个/用/用户/返回/参数/执行/约束/重试/回滚/先读/不要/一次/多少/给出/现在/什么/一条/一句/一个 等）。
+- [x] **Step 3: selfInduce 内**，在 `if (c.support < 2) continue;` 与 `successRate` 检查之间/之后叠加：若 `pattern` 命中 `INDUCE_STOPWORDS` → `continue`（跳过，不进 result）。保留既有排序与 `topN`。
+- [x] **Step 4: 跑 Task 1 测试** → 绿；跑 `tests/self-evolve/cjk-tokenize.test.ts`、`reflection-induce.test.ts`、`skill-promotion.test.ts`、`evolve` 相关测试确认无回归。
 
 ---
 
@@ -62,9 +62,9 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 
 **关键注入约束**：`evolveFromRealUsage` 对 `promoteInductionsToSkills` 无 deps 注入（real-usage.ts:261 裸调用），直接调它会写真实 skill 目录——故本测试**不调** `evolveFromRealUsage`，而是组合 `selfInduce`（过滤后）+ `promoteInductionsToSkills(inductions, fakeDeps)`（镜像 skill-promotion.test.ts 的 fake deps：register/has/persist 全内存），全程不落真实磁盘。生产侧 `evolveFromRealUsage` 仍用默认 deps，特异性过滤天然生效——合法性由 Task 1-2 的引擎级测试保证。
 
-- [ ] **Step 1: 构造 curated 真实形态 traces**（写临时文件到 `.tmp/`，**绝不写生产** `data/real-usage-traces.jsonl`）：含自然语言请求 + 有意义任务（如 `调用 mcp 超时处理`、`优化 redis 缓存命中率`）+ 混杂通用词样本。
-- [ ] **Step 2: 断言端到端结果**：`engine.selfInduce(tmpTraces)` → `promoteInductionsToSkills(inductions, fakeDeps)` 返回的 `registered` 只含有意义 skill id（`auto-induce-mcp`、`auto-induce-redis` 等），**不含** `auto-induce-json`/`auto-induce-写一` 等通用词 skill。
-- [ ] **Step 3: 验证 sentinel 仍生效**（`assessTraceHealth` 畸形率拒卷，既有测试覆盖）与 dedup 路径不受影响（既有 real-usage 测试绿即可，此处不重复）。
+- [x] **Step 1: 构造 curated 真实形态 traces**（写临时文件到 `.tmp/`，**绝不写生产** `data/real-usage-traces.jsonl`）：含自然语言请求 + 有意义任务（如 `调用 mcp 超时处理`、`优化 redis 缓存命中率`）+ 混杂通用词样本。
+- [x] **Step 2: 断言端到端结果**：`engine.selfInduce(tmpTraces)` → `promoteInductionsToSkills(inductions, fakeDeps)` 返回的 `registered` 只含有意义 skill id（`auto-induce-mcp`、`auto-induce-redis` 等），**不含** `auto-induce-json`/`auto-induce-写一` 等通用词 skill。
+- [x] **Step 3: 验证 sentinel 仍生效**（`assessTraceHealth` 畸形率拒卷，既有测试覆盖）与 dedup 路径不受影响（既有 real-usage 测试绿即可，此处不重复）。
 
 ---
 
@@ -74,9 +74,10 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 - Move: `axiom-memory/03-Resources/skills/auto-induce-*.json`（34 个中的无意义项）→ `archive/real-usage-test-noise/skills/`
 - 保留有语义价值项（如 `auto-induce-mcp`、`auto-induce-redis`——若存在且 trigger 为术语）。
 
-- [ ] **Step 1: 逐项评估 34 个 `auto-induce-*`**：trigger 为通用词（写一/函数/步骤/json/api/node/pattern/agent/task/success/用/用户/返回/参数/执行/约束/重试/回滚/先读/不要/一次/多少/给出/现在/什么/一条/一句/一个 等）→ 归档；trigger 为有语义术语 → 保留。
-- [ ] **Step 2: 归档**到 `archive/real-usage-test-noise/skills/`（`git mv` 保留历史，规则 4）。
-- [ ] **Step 3: 重新加载 SkillRegistry**，断言不再出现已归档 id；`bunx tsc --noEmit` 0。
+- [x] **Step 1: 逐项评估 34 个 `auto-induce-*`**：trigger 为通用词（写一/函数/步骤/json/api/node/pattern/agent/task/success/用/用户/返回/参数/执行/约束/重试/回滚/先读/不要/一次/多少/给出/现在/什么/一条/一句/一个 等）→ 归档；trigger 为有语义术语 → 保留。
+- [x] **Step 2: 归档**到 `archive/real-usage-test-noise/skills/`（`git mv` 保留历史，规则 4）。
+- [x] **Step 3: 重新加载 SkillRegistry**，断言不再出现已归档 id；`bunx tsc --noEmit` 0。
+> **完成（记录维护回写）：** Task 1-4 已随 `4f87c4b` 落地：selfInduce 特异性过滤（`INDUCE_STOPWORDS`）+ 34 历史污染 skill 归档（`git mv` → `archive/real-usage-test-noise/skills/`），端到端测试绿。
 
 ---
 
@@ -92,10 +93,11 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 - Modify: `src/utils/resilience.ts`（#7，可选加固）
 - Add: `tests/router/` 对应回归测试（#1/#2）、`tests/utils/`（#10/#7）
 
-- [ ] **Step 1（#1 HIGH）**：`chatStream` native-stream 失败路径（`model-router.ts:680-918`）——native 尝试失败时先 `routerBreaker.recordFailure(breakerKey)`，再决定是否走 buffered 回退；`fallbackBufferedStream` 成功后 update breaker 状态（报告原文：native 失败从不记入 breaker，同一 attempt 对同模型打两次，breaker 不学习 native 失败）。TDD：注入会抛错的 native stream → 断言 `recordFailure` 被调用、buffered 只回退一次。
-- [ ] **Step 2（#2 MEDIUM）**：`executeWithRole` 的 `endpoint` 由 `this.assign()` 结果推导（`model-router.ts:1108-1127`）——fallback 后 `assign()` 仍返回 primary（可能是已死模型），`endpoint` 与 `out.provider` 指向不同 provider。TDD：A 死 B 活 → `out.model=B` 且 `endpoint` == B 的 baseURL。
-- [ ] **Step 3（#10 LOW，一行）**：`validateEnv` 应用默认值时跳过 `config.validate()`（`env.ts:265-274`）——默认值落盘 `process.env` 前补一次 validate。TDD：非法默认值被拒绝。
-- [ ] **Step 4（#7 PLAUSIBLE，可选）**：`withTimeout` abort listener 未在正常 resolve 时 detach（`resilience.ts:91-119`，`once:true` 防双发但闭包滞留到 GC/abort；17 处调用点）。加固：resolve 后 `signal.removeEventListener`。若改动面影响测试结构则以主模型判断是否纳入本次。
+- [x] **Step 1（#1 HIGH）**：`chatStream` native-stream 失败路径（`model-router.ts:680-918`）——native 尝试失败时先 `routerBreaker.recordFailure(breakerKey)`，再决定是否走 buffered 回退；`fallbackBufferedStream` 成功后 update breaker 状态（报告原文：native 失败从不记入 breaker，同一 attempt 对同模型打两次，breaker 不学习 native 失败）。TDD：注入会抛错的 native stream → 断言 `recordFailure` 被调用、buffered 只回退一次。
+- [x] **Step 2（#2 MEDIUM）**：`executeWithRole` 的 `endpoint` 由 `this.assign()` 结果推导（`model-router.ts:1108-1127`）——fallback 后 `assign()` 仍返回 primary（可能是已死模型），`endpoint` 与 `out.provider` 指向不同 provider。TDD：A 死 B 活 → `out.model=B` 且 `endpoint` == B 的 baseURL。
+- [x] **Step 3（#10 LOW，一行）**：`validateEnv` 应用默认值时跳过 `config.validate()`（`env.ts:265-274`）——默认值落盘 `process.env` 前补一次 validate。TDD：非法默认值被拒绝。
+- [x] **Step 4（#7 PLAUSIBLE，可选）**：`withTimeout` abort listener 未在正常 resolve 时 detach（`resilience.ts:91-119`，`once:true` 防双发但闭包滞留到 GC/abort；17 处调用点）。加固：resolve 后 `signal.removeEventListener`。若改动面影响测试结构则以主模型判断是否纳入本次。
+> **完成（记录维护回写）：** Task 5 已随 `70ba841` 落地（4 项全部完成，含可选的 #7）。
 
 ---
 
@@ -107,11 +109,12 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 - Modify: `src/memory/blackboard.ts`（#3+#9）
 - Add: `tests/memory/` 对应回归测试
 
-- [ ] **Step 1（#4 数据孤立，最高优先）**：`archiver.ts:222-232`——`archiveNotePath` UPDATE 抛错被 catch 后，`fs.unlinkSync(sourcePath)` 仍在 catch 之外执行（file 已删、索引行保留指残）。修复：将 index UPDATE 放入 try 块内，**索引成功后**才 unlink；或改用 rename 式移动。TDD：`archiveNotePath` 抛错 → 源文件不 unlink。
-- [ ] **Step 2（#2 非原子写）**：`vault-manager.ts:340-356`——`writeFileSync` 先写文件、`upsertNote` 后写索引，upsert 抛错无回滚 → 文件在索引不在。修复：索引失败时清理已写文件（或先索引后文件 + 失败删文件），防静默文件↔索引分歧。TDD：注入 upsert 抛错 → 断言文件未残留。
-- [ ] **Step 3（#6 无事务）**：`moveToArchive` 写-索引-删 无原子性（`archiver.ts:200-232`）——崩溃窗口文件重复或索引指向缺失归档。修复：rename 式移动 + 索引更新先于 unlink（与 #4 合并实现可共享路径）。TDD：与 #4 回归合一或独立断言。
-- [ ] **Step 4（#1 防御缺口）**：`archiveNote` 公共 sink 无 vault 边界校验（`archiver.ts:178-186`）——补 `resolveSafePath` 风格 vault 边界检查，当前线路不可达（降级为 PLAUSIBLE），做防御式缓冲。TDD：`fileRel` 含 `..` → 拒绝，不越界写。
-- [ ] **Step 5（#3+#9 缓存语义泄漏）**：`blackboard.ts:404, 518`——`expireTime===0`（永不过期）条目被 `syncToCache`/`storeEntry` 以 1h 默认 TTL 存入 cache（`cache.ts:200` 负值回退默认）。修复：`expireTime===0` 映射 `undefined`/`NO_EXPIRY_MS`，逐出行为与语义一致。TDD：never-expire 条目 1h 后仍在 cache。
+- [x] **Step 1（#4 数据孤立，最高优先）**：`archiver.ts:222-232`——`archiveNotePath` UPDATE 抛错被 catch 后，`fs.unlinkSync(sourcePath)` 仍在 catch 之外执行（file 已删、索引行保留指残）。修复：将 index UPDATE 放入 try 块内，**索引成功后**才 unlink；或改用 rename 式移动。TDD：`archiveNotePath` 抛错 → 源文件不 unlink。
+- [x] **Step 2（#2 非原子写）**：`vault-manager.ts:340-356`——`writeFileSync` 先写文件、`upsertNote` 后写索引，upsert 抛错无回滚 → 文件在索引不在。修复：索引失败时清理已写文件（或先索引后文件 + 失败删文件），防静默文件↔索引分歧。TDD：注入 upsert 抛错 → 断言文件未残留。
+- [x] **Step 3（#6 无事务）**：`moveToArchive` 写-索引-删 无原子性（`archiver.ts:200-232`）——崩溃窗口文件重复或索引指向缺失归档。修复：rename 式移动 + 索引更新先于 unlink（与 #4 合并实现可共享路径）。TDD：与 #4 回归合一或独立断言。
+- [x] **Step 4（#1 防御缺口）**：`archiveNote` 公共 sink 无 vault 边界校验（`archiver.ts:178-186`）——补 `resolveSafePath` 风格 vault 边界检查，当前线路不可达（降级为 PLAUSIBLE），做防御式缓冲。TDD：`fileRel` 含 `..` → 拒绝，不越界写。
+- [x] **Step 5（#3+#9 缓存语义泄漏）**：`blackboard.ts:404, 518`——`expireTime===0`（永不过期）条目被 `syncToCache`/`storeEntry` 以 1h 默认 TTL 存入 cache（`cache.ts:200` 负值回退默认）。修复：`expireTime===0` 映射 `undefined`/`NO_EXPIRY_MS`，逐出行为与语义一致。TDD：never-expire 条目 1h 后仍在 cache。
+> **完成（记录维护回写）：** Task 6 已随 `6f5ed2f` 落地（5 项全部完成，含防御性 #1）。
 
 ---
 
@@ -119,10 +122,11 @@ Run: `bun test tests/self-evolve/induce-specificity.test.ts` → 红（当前 se
 
 ### Task 7: 终验 + 提交 + 推送
 
-- [ ] **Step 1: 全量验证**：`bun run test:full` 全绿 + `bunx tsc --noEmit` 0。
-- [ ] **Step 2: 提交**（仅本任务文件，规则 3）：主线 A 一项 + 主线 B 按 Task 5/6 各一项（提交粒度与 ops-log 条目一一对应，规则 5）。
-- [ ] **Step 3: 推送** `internal211 codex/self-evolving-agent`（规则 3，禁 force push），回填 ops-log hash（规则 5）。
-- [ ] **Step 4: 报告**用户：A 特异性修复 + 端到端验证 + 归档清理；B 各修正 file:line + 测试；推送状态。
+- [x] **Step 1: 全量验证**：`bun run test:full` 全绿 + `bunx tsc --noEmit` 0。
+- [x] **Step 2: 提交**（仅本任务文件，规则 3）：主线 A 一项 + 主线 B 按 Task 5/6 各一项（提交粒度与 ops-log 条目一一对应，规则 5）。
+- [x] **Step 3: 推送** `internal211 codex/self-evolving-agent`（规则 3，禁 force push），回填 ops-log hash（规则 5）。
+- [x] **Step 4: 报告**用户：A 特异性修复 + 端到端验证 + 归档清理；B 各修正 file:line + 测试；推送状态。
+> **完成（记录维护回写）：** Task 7 终验通过——`bun run test:full` 3280 pass/34 skip/0 fail、`bunx tsc --noEmit` 0；主线 A 与主线 B 各 commit 已按规则 3 推送到 `internal211 codex/self-evolving-agent`，ops-log hash 已回填（规则 5）。
 
 ## Self-Review（writing-plans 强制自检）
 
