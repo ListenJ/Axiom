@@ -8392,3 +8392,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git check-ignore scripts/pdf-worker/__pycache__/app.cpython-311.pyc` 退出 0（已忽略）；无业务文件改动。
 - **红线**：规则 1（仅两行，不重建忽略结构）；规则 2（备份 .tmp/backups/.gitignore 待验证后删）；规则 3（只 add 本任务文件）。
 - **Commit**：`3126f20`
+
+## 2026-09-02 — fix(agent-evals,self-evolve,utils): 三处已验证缺陷修复（run.ts 执行错误退出码口径 / env.ts 必需变量命名错位 / 教训文件名 hash 截断）
+
+- **任务**：并行 bug-hunt 子代理三路报告，逐一对照源码复核后确认 3 处真实缺陷并一并修复——①`run.ts` 三处退出码判定（persistResults.exitCode / evolve 合并 / 常规结果）把执行错误当失败（`!r.passed`），与 `metrics.summarize` 能力口径契约不一致（执行错误不计通过率分母），一次限流即整场 eval 失败退出；②`env.ts` `REQUIRED_ENV_VARS` 把运行时从未读取的 `DATABASE_URL`/`VAULT_PATH` 标记 required，每次启动假告警「Missing required: DATABASE_URL, VAULT_PATH」，真实运行时变量 `DATABASE_PATH`/`OBSIDIAN_VAULT_PATH`（config-center/main 实际读取）却零校验（audit 预列 P2）；③`self-evolve/index.ts` 教训落盘文件名用 `stableHash` 截断 6 位，而内存去重/回读键是完整 8 位，hash 前 6 位相同的两个教训写同一文件互相静默覆盖。
+- **工具**：Agent（并行 bug-hunt 子代理 3 路）、Read/Grep（对照 config-center/native-bridge/main/registry 复核）、Write/Edit（测试先行 + 源码最小改动）、Bash（bun test 红→绿、typecheck、真实 stableHash 碰撞检索、ops-log CRLF 追加）。AGENTS 规则 2/3/5/7 全程执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/metrics.ts`：新增导出 `hasCapabilityFailure(results)`——存在非执行错误的任务失败才为真（与 passRate 能力口径一致）。
+  2. `src/agent-evals/run.ts`：3 处退出码判定改用 `hasCapabilityFailure`，执行错误（限流/传输/provider 故障）不再令 eval 失败退出。
+  3. `src/utils/env.ts`：`REQUIRED_ENV_VARS` 两条 required 项改名 `DATABASE_PATH`（默认 ./data/agent.db）/`OBSIDIAN_VAULT_PATH`（默认 ./axiom-memory）；`DATABASE_URL`/`VAULT_PATH` 降级 required:false 保留（backup 脚本 / native-bridge 云端检测 / 可选 PG 知识图谱仍读）。
+  4. `src/self-evolve/index.ts`：教训文件名 `hash.slice(0, 6)` → 完整 8 位 `hash`（title 本就用 8 位，回读按内容 hash 键，向后兼容）。
+  5. 新增 `tests/utils/env-runtime-vars.test.ts`（3 例）、`tests/self-evolve/lesson-store.test.ts`（2 例，含真实 djb2 前 6 位碰撞对）、扩展 `tests/agent-evals/metrics.test.ts`（3 例 hasCapabilityFailure）。
+- **验证**：TDD 红→绿——实现前 6 fail+1 error（缺 DATABASE_PATH / required 仍 true / 假 missing / hasCapabilityFailure 未导出 / 文件名截断）；实现后受影响套件全绿：`tests/self-evolve tests/agent-evals tests/utils tests/native-bridge.test.ts tests/main.test.ts` = **310 pass / 0 fail**；`bun build` 三个改动入口 0 错。
+- **红线**：规则 2（备份 .tmp/backups/ 已验证后删除）；规则 3（只 add 本任务文件，其余工作区改动不碰）；规则 7（测试先行）；规则 9（无强推/reset）。`DATABASE_URL`/`VAULT_PATH` 未删除仅降级，backup 脚本/云端检测兼容。
+- **Commit**：`__HASH__`

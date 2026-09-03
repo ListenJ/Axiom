@@ -157,15 +157,20 @@ export interface EnvVarConfig {
 
 export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
   {
-    name: "DATABASE_URL",
-    required: true,
-    description: "SQLite database connection string",
+    name: "DATABASE_PATH",
+    required: false,
+    default: "./data/agent.db",
+    description: "SQLite database file path",
   },
   {
-    name: "VAULT_PATH",
-    required: true,
+    name: "OBSIDIAN_VAULT_PATH",
+    required: false,
+    default: "./axiom-memory",
     description: "Obsidian vault path for memory storage",
   },
+  // 旧名保留（backup 脚本 / native-bridge 云端检测仍读），但非运行时必需
+  { name: "DATABASE_URL", required: false, description: "Legacy alias — SQLite connection string（backup 脚本/云端检测）" },
+  { name: "VAULT_PATH", required: false, description: "Legacy alias — Obsidian vault path（backup 脚本）" },
   { name: "OPENROUTER_API_KEY", required: false, description: "OpenRouter API key for model routing" },
   { name: "SILICONFLOW_API_KEY", required: false, description: "SiliconFlow API key" },
   { name: "OFOXAI_API_KEY", required: false, description: "OFoxAI API key" },

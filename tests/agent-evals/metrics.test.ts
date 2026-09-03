@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { summarize, type TaskResult } from "../../src/agent-evals/metrics.js";
+import { summarize, hasCapabilityFailure, type TaskResult } from "../../src/agent-evals/metrics.js";
 
 const result = (
   taskId: string,
@@ -85,5 +85,29 @@ describe("metrics summarize", () => {
     expect(s.passRate).toBe(0);
     expect(s.byFamily.coding.passed).toBe(0);
     expect(s.byFamily.coding.passRate).toBe(0);
+  });
+});
+
+describe("metrics hasCapabilityFailure（run.ts 退出码口径，执行错误不计失败）", () => {
+  it("纯执行错误的任务不构成能力失败", () => {
+    expect(
+      hasCapabilityFailure([
+        { taskId: "a", family: "coding", split: "held-out", passed: false, executionError: true, latencyMs: 100, outputLength: 41 },
+        { taskId: "b", family: "coding", split: "held-out", passed: true, latencyMs: 100, outputLength: 41 },
+      ]),
+    ).toBe(false);
+  });
+
+  it("存在真实能力失败（非执行错误）时为 true", () => {
+    expect(
+      hasCapabilityFailure([
+        { taskId: "a", family: "coding", split: "held-out", passed: false, latencyMs: 100, outputLength: 41 },
+        { taskId: "b", family: "coding", split: "held-out", passed: true, latencyMs: 100, outputLength: 41 },
+      ]),
+    ).toBe(true);
+  });
+
+  it("空结果不为失败", () => {
+    expect(hasCapabilityFailure([])).toBe(false);
   });
 });

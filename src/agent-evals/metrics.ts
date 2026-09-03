@@ -75,3 +75,12 @@ export function summarize(results: TaskResult[]): MetricsSummary {
     executionErrors,
   };
 }
+
+/**
+ * 是否存在真实能力失败（非执行错误）：与 passRate 能力口径一致。
+ * 执行错误（限流/传输等 provider 侧故障）不计为失败——run.ts 退出码用它判定，
+ * 避免「一次限流让整场 eval 以失败退出」。全执行错误的 run 也不判失败（无能力信号）。
+ */
+export function hasCapabilityFailure(results: TaskResult[]): boolean {
+  return results.some((r) => !r.passed && !r.executionError);
+}

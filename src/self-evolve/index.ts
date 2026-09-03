@@ -114,7 +114,9 @@ export function createDefaultStore(
         const vault = await getVault();
         if (!vault) return;
         const date = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
-        const path = `${LESSON_PREFIX}/${date}-${hash.slice(0, 6)}.md`;
+        // 完整 stableHash（8 hex）作文件名：内存去重/回读键都是完整 hash，截断 6 位会让
+        // hash 前 6 位相同的两个教训写到同一文件互相覆盖（教训静默丢失）
+        const path = `${LESSON_PREFIX}/${date}-${hash}.md`;
         await vault.writeNote(
           path,
           [

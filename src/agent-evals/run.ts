@@ -5,7 +5,7 @@
 import { ALL_AGENT_TASKS, getTasksByFamily, validateTasks, type TaskFamily, type TaskSplit } from "./tasks.js";
 import { loadExternalTasks, type ExternalKind } from "./external.js";
 import { runTasks, DEFAULT_RERUN_EACH } from "./runner.js";
-import { summarize } from "./metrics.js";
+import { summarize, hasCapabilityFailure } from "./metrics.js";
 import type { TaskResult, MetricsSummary } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
 import { logger } from "../utils/logger.js";
@@ -113,7 +113,7 @@ function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: 
         evolvePhase: phase,
         gitCommit: currentGitCommit() ?? undefined,
         srcArgv: Bun.argv.slice(2).join(" "),
-        exitCode: results.some((r) => !r.passed) ? 1 : 0,
+        exitCode: hasCapabilityFailure(results) ? 1 : 0,
       };
       try {
         const runId = registry.insertRun(meta, summary);
@@ -190,7 +190,7 @@ if (evolve && !externalKind) {
   console.log(toMarkdown(baseSummary, baselineResults));
   console.log("## evolved held-out 明细");
   console.log(toMarkdown(evolSummary, evolvedResults));
-  process.exit([...baselineResults, ...evolvedResults].some((r) => !r.passed) ? 1 : 0);
+  process.exit(hasCapabilityFailure([...baselineResults, ...evolvedResults]) ? 1 : 0);
 }
 
 if (provider === "zhipu" && requestedConcurrency > 1) {
@@ -208,5 +208,4 @@ if (json) {
   console.log(output);
 }
 
-const failed = results.filter((r) => !r.passed).length;
-process.exit(failed > 0 ? 1 : 0);
+process.exit(hasCapabilityFailure(results) ? 1 : 0);
