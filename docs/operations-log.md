@@ -8415,4 +8415,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `docs/superpowers/plans/2026-09-01-real-data-evolve-specificity-plan.md`：24 个真实 checkbox `- [ ]` → `- [x]`（保留第 3 行代码 span 的 `- [ ]` 示例），逐任务补完成锚点（主线 A=4f87c4b、Task 5=70ba841、Task 6=6f5ed2f、Task 7 终验=3280 pass/0 fail）。
 - **验证**：`git diff` 仅两计划文档与 ops-log；09-01 文件残留 `- [ ] **Step` 计数为 0；08-28 全部切片锚点存在。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件，幻影 stat-cache 文件不碰）；规则 5（hash 回填独立提交）。
-- **Commit**：__HASH__
+- **Commit**：`a2942d5`
