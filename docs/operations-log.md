@@ -8405,4 +8405,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. 新增 `tests/utils/env-runtime-vars.test.ts`（3 例）、`tests/self-evolve/lesson-store.test.ts`（2 例，含真实 djb2 前 6 位碰撞对）、扩展 `tests/agent-evals/metrics.test.ts`（3 例 hasCapabilityFailure）。
 - **验证**：TDD 红→绿——实现前 6 fail+1 error（缺 DATABASE_PATH / required 仍 true / 假 missing / hasCapabilityFailure 未导出 / 文件名截断）；实现后受影响套件全绿：`tests/self-evolve tests/agent-evals tests/utils tests/native-bridge.test.ts tests/main.test.ts` = **310 pass / 0 fail**；`bun build` 三个改动入口 0 错。
 - **红线**：规则 2（备份 .tmp/backups/ 已验证后删除）；规则 3（只 add 本任务文件，其余工作区改动不碰）；规则 7（测试先行）；规则 9（无强推/reset）。`DATABASE_URL`/`VAULT_PATH` 未删除仅降级，backup 脚本/云端检测兼容。
-- **Commit**：`__HASH__`
+- **Commit**：`1759a93`
