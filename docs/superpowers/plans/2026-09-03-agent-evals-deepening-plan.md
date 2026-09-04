@@ -3,6 +3,7 @@
 > 基于 2026-09-03 现状盘点（metrics/runner/registry/report/tasks 全读）。方向由用户选定 **A — agent-evals 体系深化**。
 > 目标：在**不破坏**既有回归防线（eval-registry、checkRegression、executionError 能力口径）的前提下，
 > 补齐评估维度（成本/Token、延迟分位、失败聚类），让评测回答「能力多强 + 花多少钱 + 慢在哪儿 + 败在哪类」。
+> **状态：执行于 2026-09-04，主线 A（S1/S2/S3）全部完成并合入 `47a966c`（3 路并行子代理 + TDD，单提交合入而非每片独立 commit）；主线 B（S4 任务集质量强化）按计划留待下迭代，本迭代未实施。**
 
 ## 现状盘点（2026-09-03 全读源码）
 
@@ -17,18 +18,18 @@
 
 ### 主线 A（本迭代必做）
 
-- **S1 成本/Token 维度采集与落库**
+- **S1 成本/Token 维度采集与落库**（✅ 2026-09-04 · `47a966c`）
   - `runner.ts` 两路径采集 token 用量：
     - 直连路径：`callWithProxy`/`callWithCurl` 的响应 body 增加 `usage` 解析（prompt/completion/total_tokens）。
     - internalAgent 路径：从 `SmartAssignmentResponse.usage` 取 token 与 `cost_usd`（有则取，无则 null）。
   - `metrics-types.ts` / `metrics.ts`：`TaskResult` 增加 `tokenUsage?` 与 `costUsd?`；`MetricsSummary` 增加 `avgCostUsd`、`totalCostUsd`、`avgPromptTokens`/`avgCompletionTokens`（无数据为 null/0，不破坏调用方）。
   - `registry.ts`：`eval_task_results` 增 `prompt_tokens`/`completion_tokens`/`cost_usd`；`eval_runs` 增 `summary_avg_cost_usd`/`summary_total_cost_usd`。ensureColumn 迁移（老库自动补列）。
   - `run.ts`：persistResults 透传新字段。
-- **S2 延迟分位（p50/p95/p99）**
+- **S2 延迟分位（p50/p95/p99）**（✅ 2026-09-04 · `47a966c`）
   - `metrics.ts`：`summarize` 增加 `latencyP50/p95/p99`（按 latencyMs 升序取分位；样本 <3 时 p95/p99 可回退 max 或 null，文档注明）。
   - `registry.ts`：`eval_runs` 增 `summary_latency_p50/p95/p99` 三列（ensureColumn）。
   - `report.ts`：Markdown 输出延迟分位行。
-- **S3 失败原因聚类 + 趋势/对比视图**
+- **S3 失败原因聚类 + 趋势/对比视图**（✅ 2026-09-04 · `47a966c`）
   - `report.ts`：新增失败原因聚类段——按 reason 关键词分组（执行错误/限流/超时/内容缺失/JSON 缺失/其他），输出各簇计数。
   - `report.ts` 或独立小模块：`trendMarkdown(rows, byFamily)` 输出最近 N 轮通过率趋势；`compareMarkdown(a, b)` 输出两轮对比（直接消费 registry.getTrend/compare/checkRegression 返回，不新增查询逻辑）。
   - `run.ts`：新增 `--trend=N`（最近 N 轮趋势，需要 registry）与 `--compare=<tagA> --compare=<tagB>`（或 `--compare=a..b`）CLI 开关；默认行为不变（单轮报告）。
@@ -41,6 +42,7 @@
 
 - 每片先写测试（红）→ 最小实现（绿）→ `bunx tsc --noEmit` 0 → 相关 `bun test tests/agent-evals` 全绿。
 - 全量回归：`bun run test:full`（3280 pass/34 skip/0 fail 基线）不得下降。
+- ✅ 实测（2026-09-04）：`bunx tsc --noEmit` 0 错误；`bun test tests/agent-evals` **212 pass / 0 fail**（新增 cost-token 12 + latency-percentile 13 + report-extras 14）；`bun run test:full` **3368 pass / 34 skip / 0 fail**（基线 3280 不下滑，多出 88 个新用例全过）。
 - 兼容红线：既有 registry 测试（makeMeta/makeSummary 不传新字段）必须仍绿——新列全部可选/默认值；既有 report 调用（单轮输出）必须仍绿。
 - 真实 provider 调用**不**纳入本计划自动化测试（成本/网络敏感）；S1 采集逻辑用注入 fake provider 响应断言 usage 解析，不连真实网络。
 

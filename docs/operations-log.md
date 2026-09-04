@@ -8433,3 +8433,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：各子代理 TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 212 pass / 0 fail；`bun run test:full` 3368 pass / 34 skip / 0 fail（基线 3280 pass/0 fail 不下降）。
 - **红线**：规则 1（只加新字段/新输出，passRate 能力口径 / executionError / 泛化率 / rerun/fallback 语义全不变）；规则 3（只 add 本任务 10 个文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 等无关改动未触碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无真实密钥、无网络）。并行期间子代理跑 bun test 生成的 junit-evals.xml 测试产物已删除。
 - **Commit**：47a966c
+
+## 2026-09-04 — docs(plans): 回写 09-03 计划完成状态（记录维护）
+
+- **任务**：迭代间隙文档回填——09-03 agent-evals 深化计划（S1 成本/Token、S2 延迟分位、S3 失败聚类+趋势/对比）已随 `47a966c` 合入（3 路并行子代理 + TDD，主线 A 三主线全部完成），计划文档状态与 git 历史不一致，需回写完成状态与 commit 锚点。
+- **工具**：Read/Grep/Bash（git show 核对 a2942d5 记录维护格式与 47a966c 锚点）、Edit（UTF-8 无 BOM、LF 行尾）、Node（CRLF 安全的 ops-log 追加）、git。AGENTS 规则 5（记录维护）执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-09-03-agent-evals-deepening-plan.md`：引言块追加状态行（主线 A 全部完成 · `47a966c`，注明「3 路并行、单提交合入而非每片独立 commit」与计划的差异）；S1/S2/S3 标题标 ✅ + 锚点；验证修订节补实测结果（tsc 0 / agent-evals 212 pass / test:full 3368 pass）；主线 B 维持「下迭代实施」不变。
+  2. `docs/operations-log.md`：CRLF 追加本条记录（Hash 占位 `__HASH__` 待后续回填）。
+- **验证**：`git diff` 仅计划文档与 ops-log 两文件；计划文档 S1/S2/S3 锚点与 `47a966c` 一致；主题内容（设计/红线/主线 B 留滞）未删改。
+- **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）。
+- **Commit**：__HASH__
