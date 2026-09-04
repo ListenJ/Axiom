@@ -8432,4 +8432,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   8. 测试（新）：tests/agent-evals/cost-token-dimension.test.ts（12 例）、latency-percentile.test.ts（13 例）、report-extras.test.ts（14 例）。
 - **验证**：各子代理 TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 212 pass / 0 fail；`bun run test:full` 3368 pass / 34 skip / 0 fail（基线 3280 pass/0 fail 不下降）。
 - **红线**：规则 1（只加新字段/新输出，passRate 能力口径 / executionError / 泛化率 / rerun/fallback 语义全不变）；规则 3（只 add 本任务 10 个文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 等无关改动未触碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无真实密钥、无网络）。并行期间子代理跑 bun test 生成的 junit-evals.xml 测试产物已删除。
-- **Commit**：待回填
+- **Commit**：47a966c
