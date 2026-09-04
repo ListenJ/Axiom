@@ -15,7 +15,11 @@ export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): stri
       ? "- held-out 泛化率: N/A（无 train 数据）"
       : `- held-out 泛化率: ${summary.generalizationRatio}（<1 表示过拟合训练分布）`,
   );
-  lines.push(`- 平均延迟: ${summary.avgLatencyMs}ms ｜ 平均输出长度: ${summary.avgOutputLength}`);
+  // 分位为 null（样本 <3 无统计意义）时显示 "-"，不写 ms；保持「- 平均延迟:」前缀不变，不拆行。
+  const fmtPct = (v: number | null | undefined) => (v === null || v === undefined ? "-" : `${v}ms`);
+  lines.push(
+    `- 平均延迟: ${summary.avgLatencyMs}ms ｜ p50: ${fmtPct(summary.latencyP50)} ｜ p95: ${fmtPct(summary.latencyP95)} ｜ p99: ${fmtPct(summary.latencyP99)} ｜ 平均输出长度: ${summary.avgOutputLength}`,
+  );
   lines.push("");
   lines.push("## 分族结果");
   lines.push("");

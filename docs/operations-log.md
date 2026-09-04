@@ -8416,3 +8416,20 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git diff` 仅两计划文档与 ops-log；09-01 文件残留 `- [ ] **Step` 计数为 0；08-28 全部切片锚点存在。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件，幻影 stat-cache 文件不碰）；规则 5（hash 回填独立提交）。
 - **Commit**：`a2942d5`
+
+## 2026-09-04 — feat(agent-evals): 深化计划 S1+S2+S3 落地（成本/Token 维度 + 延迟分位 + 失败聚类与趋势/对比）
+
+- **任务**：实施 docs/superpowers/plans/2026-09-03-agent-evals-deepening-plan.md 三主线。主线程先搭共享脚手架（registry 全部列接线、run.ts 透传与 CLI 骨架、metrics-types 类型），再以 3 个并行子代理分片独占文件（runner / metrics+report / report-extras）落实现剥离。
+- **工具**：Agent（并行子代理 3 路）、主线程 Read/Edit/Write、Bash（bun test / tsc / test:full）。AGENTS 规则 1/2/3/5/7/9 执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/runner.ts`：导出 parseProviderUsage（OpenAI 兼容 usage 解析）+ 直连/internalAgent 两路径采集 token 用量与 costUsd；响应体单次 JSON 解析，content 与 usage 共用；fallback 路径对等采集；执行错误早退保留本轮已采集用量。
+  2. `src/agent-evals/registry.ts`：eval_runs 增 summary_avg_cost_usd/summary_total_cost_usd/summary_latency_p50/p95/p99 五列、eval_task_results 增 prompt_tokens/completion_tokens/cost_usd 三列；insertRun/insertTaskResults 写入、rowToRun/rowToTask 读回、ensureColumn 老库迁移；修复两处实参/列绑定位错（成本列与分位列）。
+  3. `src/agent-evals/metrics.ts`：summarize 聚合成本/Token 维度（无数据 null）+ 延迟分位 latencyP50/P95/P99（nearest-rank，全样本含执行错误，n<3 时 p95/p99 回退 null）。
+  4. `src/agent-evals/metrics-types.ts`：RunSummarySnapshot/RunRow/StoredTaskRow 增成本与分位字段（全可选，老调用方兼容）。
+  5. `src/agent-evals/report.ts`：延迟行扩为 平均延迟/p50/p95/p99（null 显示 "-"），前缀与单行结构不变。
+  6. `src/agent-evals/run.ts`：persistResults 透传 token 用量与成本；新增 --trend=N（最近 N 轮趋势）与 --compare=a..b（两轮对比）CLI，只读 registry 不执行评测。
+  7. `src/agent-evals/report-extras.ts`（新）：失败原因聚类（执行错误/限流/超时/内容缺失/JSON缺失/其他，命中即归桶）+ trendMarkdown + compareMarkdown（消费 registry.getTrend/compare 返回值）。
+  8. 测试（新）：tests/agent-evals/cost-token-dimension.test.ts（12 例）、latency-percentile.test.ts（13 例）、report-extras.test.ts（14 例）。
+- **验证**：各子代理 TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 212 pass / 0 fail；`bun run test:full` 3368 pass / 34 skip / 0 fail（基线 3280 pass/0 fail 不下降）。
+- **红线**：规则 1（只加新字段/新输出，passRate 能力口径 / executionError / 泛化率 / rerun/fallback 语义全不变）；规则 3（只 add 本任务 10 个文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 等无关改动未触碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无真实密钥、无网络）。并行期间子代理跑 bun test 生成的 junit-evals.xml 测试产物已删除。
+- **Commit**：待回填

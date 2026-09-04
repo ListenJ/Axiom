@@ -50,6 +50,11 @@ CREATE TABLE IF NOT EXISTS eval_runs (
   summary_avg_output_len REAL,
   summary_by_family TEXT,
   summary_execution_errors INTEGER NOT NULL DEFAULT 0,
+  summary_avg_cost_usd REAL,
+  summary_total_cost_usd REAL,
+  summary_latency_p50 REAL,
+  summary_latency_p95 REAL,
+  summary_latency_p99 REAL,
   exit_code INTEGER,
   CONSTRAINT uq_eval_runs_tag UNIQUE(run_tag)
 );
@@ -66,6 +71,9 @@ CREATE TABLE IF NOT EXISTS eval_task_results (
   model TEXT,
   injected_skills TEXT,
   execution_error INTEGER NOT NULL DEFAULT 0,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  cost_usd REAL,
   CONSTRAINT uq_eval_results_runtask UNIQUE(run_id, task_id)
 );
 CREATE INDEX IF NOT EXISTS idx_eval_results_run  ON eval_task_results(run_id);
@@ -88,7 +96,7 @@ function round2(n: number): number {
 }
 
 /** 轻量 schema 迁移：老库无新列时 ALTER 补齐（CREATE TABLE IF NOT EXISTS 对已存在表不生效）。
- * 规则 1 最小施工：只加执行错误相关两列，不动其余结构。 */
+ * 规则 1 最小施工：只加所需列，不动其余结构。 */
 function ensureColumn(db: Database, table: string, column: string, ddl: string): void {
   const cols = db.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === column)) {
@@ -123,6 +131,11 @@ function rowToRun(row: Record<string, unknown>): RunRow {
     summaryAvgOutputLen: Number(row.summary_avg_output_len ?? 0),
     summaryByFamily: family,
     summaryExecutionErrors: Number(row.summary_execution_errors ?? 0),
+    summaryAvgCostUsd: row.summary_avg_cost_usd == null ? null : Number(row.summary_avg_cost_usd),
+    summaryTotalCostUsd: row.summary_total_cost_usd == null ? null : Number(row.summary_total_cost_usd),
+    summaryLatencyP50: row.summary_latency_p50 == null ? null : Number(row.summary_latency_p50),
+    summaryLatencyP95: row.summary_latency_p95 == null ? null : Number(row.summary_latency_p95),
+    summaryLatencyP99: row.summary_latency_p99 == null ? null : Number(row.summary_latency_p99),
     exitCode: row.exit_code == null ? null : Number(row.exit_code),
   };
 }
@@ -142,6 +155,9 @@ function rowToTask(row: Record<string, unknown>): StoredTaskRow {
     model: row.model == null ? null : String(row.model),
     injectedSkills: parseJson<string[]>(row.injected_skills, []),
     executionError: Number(row.execution_error ?? 0) === 1,
+    promptTokens: row.prompt_tokens == null ? null : Number(row.prompt_tokens),
+    completionTokens: row.completion_tokens == null ? null : Number(row.completion_tokens),
+    costUsd: row.cost_usd == null ? null : Number(row.cost_usd),
   };
 }
 
@@ -205,9 +221,17 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
   const db = new Database(dbPath);
   db.exec("PRAGMA foreign_keys = ON"); // ON DELETE CASCADE 生效必需（SQLite 默认关闭）
   db.exec(SCHEMA);
-  // 老库迁移：执行错误分类列（已存在则跳过）
+  // 老库迁移：执行错误分类列 + 成本/Token 列（已存在则跳过）
   ensureColumn(db, "eval_runs", "summary_execution_errors", "summary_execution_errors INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "eval_task_results", "execution_error", "execution_error INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "eval_runs", "summary_avg_cost_usd", "summary_avg_cost_usd REAL");
+  ensureColumn(db, "eval_runs", "summary_total_cost_usd", "summary_total_cost_usd REAL");
+  ensureColumn(db, "eval_runs", "summary_latency_p50", "summary_latency_p50 REAL");
+  ensureColumn(db, "eval_runs", "summary_latency_p95", "summary_latency_p95 REAL");
+  ensureColumn(db, "eval_runs", "summary_latency_p99", "summary_latency_p99 REAL");
+  ensureColumn(db, "eval_task_results", "prompt_tokens", "prompt_tokens INTEGER");
+  ensureColumn(db, "eval_task_results", "completion_tokens", "completion_tokens INTEGER");
+  ensureColumn(db, "eval_task_results", "cost_usd", "cost_usd REAL");
 
   const insertRunStmt = db.query(`
     INSERT INTO eval_runs (
@@ -215,20 +239,27 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
       rerun_each, evolve_phase, git_commit, src_argv, src_doc,
       summary_total, summary_passed, summary_pass_rate, summary_train_rate,
       summary_held_out_rate, summary_generalization, summary_avg_latency_ms,
-      summary_avg_output_len, summary_by_family, summary_execution_errors, exit_code
+      summary_avg_output_len, summary_by_family, summary_execution_errors,
+      summary_avg_cost_usd, summary_total_cost_usd,
+      summary_latency_p50, summary_latency_p95, summary_latency_p99,
+      exit_code
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?,
-      ?, ?, ?, ?
+      ?, ?, ?,
+      ?, ?,
+      ?, ?, ?,
+      ?
     )
   `);
 
   const insertTaskStmt = db.query(`
     INSERT INTO eval_task_results (
-      run_id, task_id, family, split, passed, reason, latency_ms, output_len, model, injected_skills, execution_error
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      run_id, task_id, family, split, passed, reason, latency_ms, output_len, model, injected_skills, execution_error,
+      prompt_tokens, completion_tokens, cost_usd
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const listAllStmt = db.query(`SELECT * FROM eval_runs ORDER BY started_at DESC`);
@@ -283,6 +314,11 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
         round2(summary.avgOutputLength),
         JSON.stringify(summary.byFamily ?? {}),
         summary.executionErrors ?? 0,
+        summary.avgCostUsd ?? null,
+        summary.totalCostUsd ?? null,
+        summary.latencyP50 ?? null,
+        summary.latencyP95 ?? null,
+        summary.latencyP99 ?? null,
         meta.exitCode ?? null,
       );
       return Number(info.lastInsertRowid);
@@ -302,6 +338,9 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
           t.model ?? null,
           JSON.stringify(t.injectedSkills ?? []),
           t.executionError ? 1 : 0,
+          t.promptTokens ?? null,
+          t.completionTokens ?? null,
+          t.costUsd ?? null,
         );
       }
     },

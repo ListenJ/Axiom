@@ -37,6 +37,9 @@ const fallbackProvider = flag("fallback-provider");
 const fallbackModel = flag("fallback-model");
 const noPersist = args.includes("--no-persist"); // 逃生舱：跳过 eval-registry 落盘
 const cliStartAt = new Date().toISOString();
+const trendRaw = Number(flag("trend") ?? "0"); // S3：最近 N 轮通过率/成本趋势（需 registry）
+const trendN = Number.isFinite(trendRaw) && trendRaw >= 1 ? Math.floor(trendRaw) : 0;
+const compareSpec = flag("compare"); // S3：两轮对比 <refA>..<refB>（run_tag 或 id，需 registry）
 
 function showHelp() {
   logger.info(`
@@ -59,6 +62,8 @@ Options:
   --rerun-each=N    每个任务重跑 N 次取最优（消除单样本波动，默认 2）
   --constraints     附加通用回答约束（完整性/直接性/复杂度标定）
   --no-persist      跳过 eval-registry 落盘（默认落盘 data/eval-registry.db）
+  --trend=N         输出最近 N 轮通过率/成本趋势（需 registry，不执行评测）
+  --compare=a..b    输出 run_tag(或 id) a 与 b 两轮对比（需 registry，不执行评测）
   --help            帮助
 `);
   process.exit(0);
@@ -100,6 +105,9 @@ function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: 
         model: r.model,
         injectedSkills: r.injectedSkills,
         executionError: r.executionError,
+        promptTokens: r.tokenUsage && typeof r.tokenUsage.promptTokens === "number" ? r.tokenUsage.promptTokens : null,
+        completionTokens: r.tokenUsage && typeof r.tokenUsage.completionTokens === "number" ? r.tokenUsage.completionTokens : null,
+        costUsd: typeof r.costUsd === "number" ? r.costUsd : null,
       }));
       const meta: RunMetadata = {
         runTag: makeRunTag(cliStartAt.replace(/[:.]/g, "-"), phase),
@@ -142,6 +150,43 @@ if (!externalKind) {
 ${errors.join("\n")}`);
     process.exit(1);
   }
+}
+
+/**
+ * 趋势 / 对比视图（S3）：只读 eval-registry，不执行评测。
+ * 引用解析：纯数字按 id、其余按 run_tag（对齐 registry.getRun 双形态）。
+ */
+const runRef = (raw: string): number | string => (/^[0-9]+$/.test(raw) ? Number(raw) : raw);
+if (trendN > 0 || compareSpec) {
+  const registry = openRegistry(DEFAULT_REGISTRY_PATH);
+  try {
+    const { trendMarkdown, compareMarkdown } = await import("./report-extras.js");
+    if (compareSpec) {
+      const m = compareSpec.match(/^(.+)\.\.(.+)$/);
+      if (!m) {
+        logger.error(`--compare 需要 <refA>..<refB> 格式（run_tag 或 id），收到: ${compareSpec}`);
+        process.exit(2);
+      }
+      const [ra, rb] = [runRef(m[1]), runRef(m[2])];
+      if (!registry.getRun(ra) || !registry.getRun(rb)) {
+        logger.error(`--compare 引用的轮次不存在（${compareSpec}）`);
+        process.exit(2);
+      }
+      const cmp = registry.compare(ra, rb);
+      if (!cmp) {
+        logger.error(`--compare 无法对比（轮次缺失）`);
+        process.exit(2);
+      }
+      console.log(compareMarkdown(cmp));
+    } else {
+      const runs = registry.getTrend({ family, model: directModel ?? modelHint });
+      const latest = runs.slice(-trendN);
+      console.log(trendMarkdown(latest, { limit: trendN, family }));
+    }
+  } finally {
+    registry.close();
+  }
+  process.exit(0);
 }
 
 const tasks = externalKind

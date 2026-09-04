@@ -16,7 +16,7 @@ import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import type { AgentTask, TaskFamily } from "./tasks.js";
-import type { TaskResult } from "./metrics.js";
+import type { TaskResult, TokenUsage } from "./metrics.js";
 
 export interface RunOptions {
   family?: AgentTask["family"];
@@ -43,6 +43,8 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
   const t0 = performance.now();
   let content = "";
   let model = options.modelHint ?? options.model ?? "router-default";
+  let tokenUsage: TokenUsage | undefined;
+  let costUsd: number | undefined;
   const built = buildSystemPrompt(task, options.injectSkills);
   const systemPrompt = options.constraints ? appendConstraints(built.prompt) : built.prompt;
   const injectedSkillIds = built.injectedSkillIds;
@@ -51,13 +53,17 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
       // 免费模型限流 / opencode 网络不稳定：任务间最小间隔 4s（实测连续请求会触发超时）
       await new Promise((r) => setTimeout(r, 4000));
       try {
-        content = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
+        const res = await callProviderDirect(options.provider, options.model ?? "", task, model, systemPrompt);
+        content = res.content;
+        tokenUsage = res.usage;
       } catch (primaryErr) {
         if (options.fallbackProvider) {
           const fbModel = options.fallbackModel ?? options.modelHint ?? options.model ?? "";
           logger.warn(`[AgentEval] primary ${options.provider} failed, fallback to ${options.fallbackProvider}/${fbModel}: ${(primaryErr as Error).message.slice(0, 120)}`);
           await new Promise((res) => setTimeout(res, 2000));
-          content = await callProviderDirect(options.fallbackProvider, fbModel, task, fbModel, systemPrompt);
+          const res = await callProviderDirect(options.fallbackProvider, fbModel, task, fbModel, systemPrompt);
+          content = res.content;
+          tokenUsage = res.usage;
           model = fbModel;
         } else {
           throw primaryErr;
@@ -78,6 +84,9 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
       );
       content = result.content || "";
       if (result.model) model = result.model;
+      const u = result.usage;
+      tokenUsage = toTokenUsage(u);
+      costUsd = typeof u?.cost_usd === "number" ? u.cost_usd : undefined;
     }
   } catch (err) {
     content = `[ERROR] ${(err as Error).message}`;
@@ -87,6 +96,7 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
   if (isExecutionError) {
     // 执行错误（限流/传输/空内容等 provider 侧故障）≠ 能力失败：跳过关键字验证，
     // 避免 `[ERROR] ...` 字符串被关键字验证器误判为能力缺陷，污染能力基线。
+    // 本轮已采集的 token/cost 一并保留（限流前的退避重试同样计费）。
     return {
       taskId: task.id,
       family: task.family,
@@ -97,6 +107,8 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
       outputLength: content.length,
       model,
       injectedSkills: injectedSkillIds,
+      tokenUsage,
+      costUsd,
       executionError: true,
     };
   }
@@ -111,6 +123,8 @@ async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult>
     outputLength: content.length,
     model,
     injectedSkills: injectedSkillIds,
+    tokenUsage,
+    costUsd,
   };
 }
 
@@ -151,16 +165,41 @@ async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskRes
 }
 
 
+/** snake_case usage 字段 → camelCase TokenUsage；缺字段保留可用字段，全缺/非对象返回 undefined。 */
+function toTokenUsage(
+  u: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } | undefined,
+): TokenUsage | undefined {
+  if (!u || typeof u !== "object") return undefined;
+  const usage: TokenUsage = {};
+  if (typeof u.prompt_tokens === "number" && Number.isFinite(u.prompt_tokens)) usage.promptTokens = u.prompt_tokens;
+  if (typeof u.completion_tokens === "number" && Number.isFinite(u.completion_tokens)) usage.completionTokens = u.completion_tokens;
+  if (typeof u.total_tokens === "number" && Number.isFinite(u.total_tokens)) usage.totalTokens = u.total_tokens;
+  return usage;
+}
+
+/** OpenAI 兼容 /chat/completions 响应体的 usage 字段解析（prompt/completion/total_tokens，
+ * 缺字段保留可用字段）；非法 JSON 或无 usage 返回 undefined（不阻断评测）。
+ * 直连路径无成本字段，成本按 token 数展示，不产出 costUsd。 */
+export function parseProviderUsage(body: string): TokenUsage | undefined {
+  try {
+    const data = JSON.parse(body) as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } };
+    return toTokenUsage(data.usage);
+  } catch {
+    return undefined;
+  }
+}
+
 /** 直连 provider 调用（OpenAI 兼容协议）：
  * 传输层/429/5xx 退避重试 3 次（5s/10s/10s 封顶）；200 但 content 为空时升级 max_tokens 再试一次
- * （deepseek-v4-flash 隐藏推理会吃光小预算导致空回答，实测 4096 可完成推理并输出内容）。 */
+ * （deepseek-v4-flash 隐藏推理会吃光小预算导致空回答，实测 4096 可完成推理并输出内容）。
+ * usage 取「最终被采用那次调用」的（非空 content 所在那次的用量）。 */
 async function callProviderDirect(
   provider: string,
   model: string,
   task: AgentTask,
   label: string,
   systemPrompt?: string,
-): Promise<string> {
+): Promise<{ content: string; usage?: TokenUsage }> {
   const cfg = getProviderConfig(provider);
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   const apiKey = readString(cfg.apiKeyEnv);
@@ -169,15 +208,16 @@ async function callProviderDirect(
   const baseBudget = Math.max(task.maxTokens ?? 512, 4096);
   const budgets = [baseBudget, 8192];
   for (const maxTokens of budgets) {
-    const content = await callProviderWithBudget(provider, cfg, apiKey, model, task, label, systemPrompt, maxTokens);
-    if (content.trim().length > 0) return content;
+    const res = await callProviderWithBudget(provider, cfg, apiKey, model, task, label, systemPrompt, maxTokens);
+    if (res.content.trim().length > 0) return res;
     if (maxTokens === budgets[budgets.length - 1]) break;
     logger.warn(`[AgentEval] ${label} empty content (hidden reasoning likely consumed budget), retry with max_tokens=${maxTokens} -> ${budgets[budgets.length - 1]}`);
   }
   throw new Error(`${provider} empty content after retries`);
 }
 
-/** 单预算下的 provider 调用：429/5xx/传输层退避重试 3 次，返回 content（可能为空）。 */
+/** 单预算下的 provider 调用：429/5xx/传输层退避重试 3 次，返回 content（可能为空）+ usage。
+ * 响应体只解析一次 JSON：content 与 usage 共用同一次 parse 结果。 */
 async function callProviderWithBudget(
   provider: string,
   cfg: { baseURL: string; apiKeyEnv: string },
@@ -187,7 +227,7 @@ async function callProviderWithBudget(
   label: string,
   systemPrompt: string | undefined,
   maxTokens: number,
-): Promise<string> {
+): Promise<{ content: string; usage?: TokenUsage }> {
   const useCurl = provider === "opencode"; // Bun fetch/proxyFetch 无法直连 opencode.ai，仅 curl 可达
   // 限流退避封顶：5s/10s/10s × 3 次（原 5/10/20/40/80s 会让评测无限磨）；有 fallback 时快速失败让位
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -215,8 +255,11 @@ async function callProviderWithBudget(
     if (status >= 400) {
       throw new Error(`${provider} returned ${status}: ${body.slice(0, 200)}`);
     }
-    const data = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
-    return data.choices?.[0]?.message?.content ?? "";
+    const data = JSON.parse(body) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown };
+    };
+    return { content: data.choices?.[0]?.message?.content ?? "", usage: toTokenUsage(data.usage) };
   }
   throw new Error(`${provider} failed after retries`);
 }

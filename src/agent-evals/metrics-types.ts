@@ -19,6 +19,11 @@ export interface StoredTaskResult {
   injectedSkills?: string[];
   /** 执行错误（限流/传输等 provider 侧故障，非能力失败） */
   executionError?: boolean;
+  /** provider 返回的 token 用量（缺失时 null） */
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  /** 单任务估算成本（美元；缺失时 null） */
+  costUsd?: number | null;
 }
 
 /** 单族统计（与 metrics.FamilyMetrics 同构，独立定义） */
@@ -43,6 +48,15 @@ export interface RunSummarySnapshot {
   avgOutputLength: number;
   /** 执行错误数（限流/传输等 provider 侧故障，非能力失败） */
   executionErrors?: number;
+  /** 成本/Token 维度（无数据时 null；可选，兼容旧调用方） */
+  totalCostUsd?: number | null;
+  avgCostUsd?: number | null;
+  avgPromptTokens?: number | null;
+  avgCompletionTokens?: number | null;
+  /** 延迟分位（ms；样本过少无有效分位时 null；可选，兼容旧调用方） */
+  latencyP50?: number | null;
+  latencyP95?: number | null;
+  latencyP99?: number | null;
 }
 
 /** listRuns / getTrend 过滤条件 */
@@ -95,6 +109,13 @@ export interface RunRow {
   summaryByFamily: Record<string, FamilySnapshot>;
   /** 本轮执行错误数（限流/传输等 provider 侧故障，非能力失败） */
   summaryExecutionErrors: number;
+  /** 本轮成本/Token 聚合（DB 列，缺省 NULL） */
+  summaryAvgCostUsd: number | null;
+  summaryTotalCostUsd: number | null;
+  /** 本轮延迟分位（ms；DB 列，缺省 NULL） */
+  summaryLatencyP50: number | null;
+  summaryLatencyP95: number | null;
+  summaryLatencyP99: number | null;
   exitCode: number | null;
 }
 
@@ -113,6 +134,10 @@ export interface StoredTaskRow {
   injectedSkills: string[];
   /** 该任务是否执行错误（限流/传输等 provider 侧故障，非能力失败） */
   executionError: boolean;
+  /** 单任务 token 用量/成本（DB 列，缺省 NULL） */
+  promptTokens: number | null;
+  completionTokens: number | null;
+  costUsd: number | null;
 }
 
 /** compare(a, b) 的返回：两轮 summary 与分族差异 */
