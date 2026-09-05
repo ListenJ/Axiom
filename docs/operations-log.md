@@ -8574,4 +8574,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `docs/operations-log.md`：CRLF 追加本条（Commit 占位待回填）。
 - **验证**：registry run#8/9 逐项核对（baseline passed=36/38 execErr=0 / evolved 38/38 带 injected_skills；exit_code 1/0 符合分级；git_commit 4e4dc82 与 run#7/#10 一致证实 66 任务集）；`.tmp/run-deepseek-evolve2.log`（12:49 阶段1/3 撞墙）与 `.tmp/eval-logs/deepseek.log`（10:40 全量）确认两次失败尝试与成功 job 区分；git diff 仅标定/计划/ops-log 三文件。
 - **红线**：规则 1（纯文档纠错回填，未改源码）；规则 2（两文档已备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：3f256be
