@@ -242,20 +242,21 @@ describe("t() overload 契约：verify 闭包 vs assert 派生", () => {
       expect(typeof task.verify, task.id).toBe("function");
     }
   });
-  it("既有 48 个显式 verify 任务 assert === undefined", () => {
-    const legacy = ALL_AGENT_TASKS.filter((t) => !t.id.endsWith("-09"));
+  it("既有 48 个显式 verify 任务 assert === undefined（按属性计数，不依赖 id 后缀）", () => {
+    const legacy = ALL_AGENT_TASKS.filter((t) => t.assert === undefined);
     expect(legacy.length).toBe(48);
     expect(legacy.every((t) => t.assert === undefined)).toBe(true);
   });
-  it("6 个新 assert 任务 assert === 传入的 spec，且派生闭包与 compileAssertion 结果等价", async () => {
-    for (const id of ["CODING-09", "KNOW-09", "PLAN-09", "TOOL-09", "MEM-09", "EVOLVE-09"]) {
-      const task = find(id);
-      expect(task.assert, id).not.toBeUndefined();
+  it("全部 assert 任务（-09 六 + 真实场景 12 = 18 个）assert === 传入的 spec，且派生闭包与 compileAssertion 结果等价", async () => {
+    const assertTasks = ALL_AGENT_TASKS.filter((t) => t.assert !== undefined);
+    expect(assertTasks.length).toBe(18);
+    for (const task of assertTasks) {
+      expect(task.assert, task.id).not.toBeUndefined();
       const reference = compileAssertion(task.assert!);
       const probe = ["1. 第一步\n2. 第二步", '{"count": 3}', "结果是 42", "无有效内容"];
       for (const p of probe) {
         const got = await task.verify(p);
-        expect(got.passed, `${id} vs ${p}`).toBe(reference(p).passed);
+        expect(got.passed, `${task.id} vs ${p}`).toBe(reference(p).passed);
       }
     }
   });

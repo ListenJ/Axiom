@@ -8528,3 +8528,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；锚点 `7b06ca2` 与会话实际 commit 一致；补充段主题内容未删改。
 - **红线**：规则 1（只回写状态）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
 - **Commit**：aabf0e5
+## 2026-09-05 — feat(agent-evals): 真实场景测试集 +12 任务（6族扩展 54→66，S4 声明式断言）
+
+- **任务**：Phase B 实施——按 Agent 真实使用规范（8 角色 + 19 TaskRole + persona + constitution + AGENTS 工程纪律 + 自进化闭环 + model-router/web_search 本体知识）扩展现有 6 族，新增 12 个真实场景任务（每族 1 train + 1 held-out），全部 S4 AssertionSpec 声明式断言（t() + assert + expectedBehavior + maxTokens），并同步 TDD 测试与活文档。
+- **工具**：Read/Edit（tasks.ts 逐族追加）、Write（新测试文件）、bun test（TDD 红→绿）、bunx tsc --noEmit、git、node（ops-log CRLF 追加）。无子代理（tasks.ts 单写入者）。
+- **操作**（文件级）：
+  1. `tests/agent-evals/tasks-real.test.ts`（新增）：真实场景测试 31 用例——12 任务存在性/质量门（validateTasks 0 错误、总数 66）+ 每任务通过/失败行为断言（含 reason 文案核对：缺少任一概念 / JSON 缺少键 / 未找到有效 JSON 对象）。
+  2. `src/agent-evals/tasks.ts`：追加 CODING-10/11、KNOW-10/11、PLAN-10/11、TOOL-10/11、MEM-10/11、EVOLVE-10/11（工程纪律规则2/1/9、model-router 路由降级、code-review 角色流程、self-evolve 闭环规划、web_search JSON 参数、容器排障命令序、角色+模型 JSON 约束、多约束数值保持、从失败提炼教训、调试纪律 rule6）。
+  3. `tests/agent-evals/tasks-s4-assert.test.ts`：t() 契约断言改为按属性计数——48 显式闭包 assert===undefined、18 个 assert 任务（-09 六 + -10/-11 十二）与 compileAssertion 等价。
+  4. `docs/AGENT-EVALS.md`：任务集描述更新为 66 个自建任务（6 族 × 9 基础 + 12 真实场景扩展）。
+  5. `docs/superpowers/plans/2026-09-05-real-eval-baseline-plan.md`：本次任务计划文件（本提交一并纳入）。
+- **验证**：TDD 红（任务不存在 12 项失败）→ 绿（31/31）；全量 `bun test tests/agent-evals` **447 pass / 0 fail**（原 416 + 31 新，无回退）；`bunx tsc --noEmit` 0 错误；`run.ts --dry-run` 任务清单 66 且校验通过。
+- **红线**：规则 1（只新增任务与对应测试，未改既有 54 任务语义/验证器，零基线风险）；规则 2（tasks.ts 已备份 .tmp/backups/，验证后删）；规则 3（只 add 本任务文件：tasks.ts、tests-real、tasks-s4-assert、AGENT-EVALS.md、plan；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset/checkout）；规则 11（无密钥）。
+- **Commit**：__HASH__

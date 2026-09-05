@@ -131,6 +131,16 @@ const coding: AgentTask[] = [
     { mustReturnNumber: { min: 1048576, max: 1048576 } },
     { maxTokens: 256,
       expectedBehavior: "输出以 1048576 结尾的换算过程（1024 × 1024 = 1048576），末尾数值精确等于 1 MiB 的字节数" }),
+  t("CODING-10", "coding", "held-out", "改动前备份流程（工程纪律）",
+    "工程纪律（规则 2）：改动文件前必须备份。给定待修复文件 src/utils/config.ts（只改 1 行），请按规范给出改动前操作顺序：先备份（说出备份放置路径）、再改动、最后验证并清理。",
+    { containsAllAny: [["备份", "backup", "copy", "快照"], ["验证", "测试", "运行", "检查"]] },
+    { maxTokens: 256,
+      expectedBehavior: "给出改动前备份→验证→清理的流程：包含备份概念（路径/backup/copy/快照）与验证概念（验证/测试/运行/检查）" }),
+  t("CODING-11", "coding", "train", "最小改动判定（工程纪律）",
+    "规则（规则 1）：改动必须保持最小范围。某次提交改动清单：① 修复了 bug 本身；② 顺手把与 bug 无关的变量重命名；③ 重构了一个无关工具函数。请判定该提交是否符合「最小改动」，并一句话说明理由。",
+    { containsAllAny: [["越界", "超出", "无关", "多余", "过度", "不相关"], ["不合规", "违规", "违反", "应只改", "应当只改", "应聚焦", "最小改动"]] },
+    { maxTokens: 256,
+      expectedBehavior: "判定提交不合规/越出最小改动范围：指出无关改动（无关/越界/多余等）并给出越界理由（应只改/不合规/最小改动）" }),
 ];
 
 // ===== knowledge =====
@@ -180,6 +190,16 @@ const knowledge: AgentTask[] = [
     { outputLength: { min: 15, max: 200 }, containsAll: ["一致性", "可用性", "分区容错性"] },
     { maxTokens: 512,
       expectedBehavior: "2-3 句（15-200 字）解释 CAP 定理，同时出现「一致性」「可用性」「分区容错性」三个术语" }),
+  t("KNOW-10", "knowledge", "train", "model-router 角色路由与降级（Agent 本体知识）",
+    "Agent 能力自述：当用户请求被映射为不同 TaskRole（如 code-review / research / decision），model-router 如何选择模型？主模型失败时的兜底机制是什么？各用一句话回答。",
+    { containsAllAny: [["model-router", "模型路由", "角色路由", "路由", "taskrole"], ["fallback", "降级", "备用", "兜底", "重试", "备选"]] },
+    { maxTokens: 256,
+      expectedBehavior: "说明 model-router 按 TaskRole/角色路由选择模型，并给出主模型失败时 fallback/降级/备用/兜底的兜底机制" }),
+  t("KNOW-11", "knowledge", "held-out", "git 安全护栏（规则 9）",
+    "Agent 工程纪律（规则 9）：列出至少两条被明令禁止的 git 高危操作（force 推送 / 硬重置等），不要展开其他内容。",
+    { containsAllAny: [["force push", "push --force", "--force", "force-push"], ["reset --hard", "reset hard", "硬重置", "硬回退"]] },
+    { maxTokens: 256,
+      expectedBehavior: "列出至少两条被禁 git 高危操作：一条是 force 推送（force push / push --force / --force），一条是硬重置（reset --hard / 硬重置）" }),
 ];
 
 // ===== planning =====
@@ -229,6 +249,16 @@ const planning: AgentTask[] = [
     { matchesAll: ["^\\d+[.、]\\s*"], outputLength: { max: 400 } },
     { maxTokens: 512,
       expectedBehavior: "输出 3-5 个以数字加标点开头的编号步骤，总长不超过 400 字" }),
+  t("PLAN-10", "planning", "train", "code-review 角色评审流程",
+    "以「代码评审者」角色执行一次 PR 评审：请列出你执行 code-review 时的标准流程（含先看什么、如何给建议、如何复核修改是否落地），按顺序 3 步，每步一句话。",
+    { containsAllAny: [["diff", "改动", "变更", "修改", "评审", "review"], ["建议", "意见", "反馈"], ["复核", "确认", "验证", "跟进"]] },
+    { maxTokens: 256,
+      expectedBehavior: "code-review 流程覆盖三环节：读 diff/改动（评审内容）、给建议/意见/反馈、复核/确认修改落地" }),
+  t("PLAN-11", "planning", "held-out", "self-evolve 闭环评测规划",
+    "为自进化 Agent 设计一轮闭环评测（带 --evolve 能力）：按顺序列出 4 个环节——先建立 train 基线、再归纳技能、再在 held-out 上注入验证、最后回归对比。每环节一句话。",
+    { containsAllAny: [["train", "训练", "基线", "baseline"], ["归纳", "提炼", "技能", "教训"], ["held-out", "未见", "留出", "泛化", "注入"], ["回归", "regression", "对比", "验证"]] },
+    { maxTokens: 256,
+      expectedBehavior: "闭环评测规划覆盖四环节：train 基线、技能归纳、held-out 注入验证、回归对比" }),
 ];
 
 // ===== tool-use =====
@@ -278,6 +308,16 @@ const toolUse: AgentTask[] = [
     { mustReturnNumber: { min: 0.3, max: 0.30000000000000005 } },
     { maxTokens: 256,
       expectedBehavior: "给出 0.1 + 0.2 的实际结果数字（0.3 或 0.30000000000000004 等浮点精度写法）" }),
+  t("TOOL-10", "tool-use", "held-out", "web_search 工具参数构造",
+    "工具调用：你需要使用 web_search 工具检索「2026 年 RAG 最新综述」。工具要求以 JSON 形式传参，唯一必填字段是 query。请直接输出要传给工具的 JSON 参数对象（不要加多余说明）。",
+    { hasJSONKeys: ["query"] },
+    { maxTokens: 256,
+      expectedBehavior: "输出含 query 键的工具参数 JSON 对象（代码块包裹同样通过）" }),
+  t("TOOL-11", "tool-use", "train", "容器启动即退出排障（快速路径）",
+    "一个 Docker 容器启动后立即退出（exit code 非 0）。给出排查第一步与第二步的精确命令：先看容器状态与退出码，再看启动日志。",
+    { containsAllAny: [["docker ps", "ps -a", "容器状态"], ["docker logs", "logs", "日志"]] },
+    { maxTokens: 256,
+      expectedBehavior: "两步命令：先用 docker ps -a / ps -a 看容器状态与退出码，再用 docker logs / 日志查看启动日志" }),
 ];
 
 // ===== memory =====
@@ -327,6 +367,16 @@ const memory: AgentTask[] = [
     { hasJSONKeys: ["count"], mustReturnNumber: { positive: true } },
     { maxTokens: 256,
       expectedBehavior: "输出 JSON 对象且包含正值 count 字段（count > 0）" }),
+  t("MEM-10", "memory", "train", "角色与模型约束保持（JSON 键）",
+    "约束：① 你当前扮演的角色是 code-review；② 调用模型必须是 glm-4.7-flash；③ 输出必须是 JSON 且必须包含 model 与 costUsd 两个字段。请用 JSON 描述当前角色的模型配置。",
+    { hasJSONKeys: ["model", "costUsd"] },
+    { maxTokens: 256,
+      expectedBehavior: "输出 JSON 对象且同时包含 model 与 costUsd 两个字段（保持约束指定的键）" }),
+  t("MEM-11", "memory", "held-out", "多约束整合配置（数值保持）",
+    "约束四则：① provider=opencode ② model=deepseek-v4-flash ③ 并发 concurrency=2 ④ 重试 retry=2。请一次性输出同时满足四条约束的配置（JSON 或 key=value 均可），数值必须原样保留。",
+    { containsAll: ["provider", "model"], containsAllAny: [["opencode"], ["deepseek"]], containsAny: ["concurrency", "retry", "并发", "重试"], mustReturnNumber: { min: 2, max: 2 } },
+    { maxTokens: 256,
+      expectedBehavior: "输出同时含 provider=opencode 与 model=deepseek 的配置，提及并发/重试（concurrency/retry）且末尾数值为 2" }),
 ];
 
 // ===== self-evolve =====
@@ -376,6 +426,16 @@ const selfEvolve: AgentTask[] = [
     { containsAllAny: [["下次"], ["验证"], ["回滚"]], mustReturnNumber: { min: 2 } },
     { maxTokens: 512,
       expectedBehavior: "输出至少 2 条编号规则，覆盖「下次」动作、验证点与回滚确认点" }),
+  t("EVOLVE-10", "self-evolve", "held-out", "从 eval 失败提炼教训（含「下次」）",
+    "下面是一条 eval 失败轨迹：模型在 EVOLVE 任务里只描述了「工具调用意图」而没有输出工具参数，导致断言校验失败。请提炼一条可复用的教训（一句话，必须以「下次」开头）。",
+    { containsAllAny: [["下次", "以后", "下一次"], ["参数", "json", "输出", "格式", "结构", "检查"]] },
+    { maxTokens: 256,
+      expectedBehavior: "提炼出以「下次/以后」开头的教训，并涉及工具参数/JSON 输出/格式检查等实质内容" }),
+  t("EVOLVE-11", "self-evolve", "train", "调试纪律：先建立反馈回路再提假设",
+    "工程调试纪律（规则 6）：遇到一个难以定位的 bug，第一步做什么、第二步做什么？要求先建立可复现的反馈回路，再提出可证伪的假设。请按「先…后…」表述。",
+    { containsAllAny: [["复现", "重现", "最小复现", "回放", "复现命令"], ["假设", "怀疑", "原因", "推断", "判断"]] },
+    { maxTokens: 256,
+      expectedBehavior: "调试两步走：先复现/建立反馈回路，再提出假设/怀疑；同时覆盖复现概念与假设概念" }),
 ];
 
 export const ALL_AGENT_TASKS: AgentTask[] = [

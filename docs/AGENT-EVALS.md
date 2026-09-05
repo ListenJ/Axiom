@@ -18,7 +18,7 @@ tags: [agent-evals, testing, capability-boundary, engineering]
 ## 目标
 
 1. 可自动运行：`bun run src/agent-evals/run.ts --family=coding`，输出 Markdown/JSON 报告；
-2. 覆盖能力边界：知识/代码/规划/工具使用/记忆/自我进化 6 个任务族；
+2. 覆盖能力边界：知识/代码/规划/工具使用/记忆/自我进化 6 个任务族（截至 2026-09-05 共 **66 个自建任务**：6 族 × 9 基础 + 12 真实场景扩展，train/hold-out 每族均有覆盖）；
 3. 支持 held-out 划分：任务带 `split: train|held-out`，可验证"经验→技能"机制是否过拟合训练分布（方向乙联动）；
 4. 低成本：验证器优先**确定性规则**（模式/结构），LLM judge 兜底留接口；
 5. 真实场景：任务取材于本项目真实代码与常见工程场景，避免玩具化。
