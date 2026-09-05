@@ -8550,4 +8550,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `docs/knowledge/agent-eval-benchmarks-2026-09-05.md`（新增）：2026 agent 评测调研——轨迹级评测/确定性验证器 vs LLM judge/回归控制复合增益/跨 harness 差异四结论，12 篇来源表，结论标注事实/判断。
 - **验证**：registry 数字逐条自 SQL 聚合核对（run#5 pt=2291 ct=24674、run#6 pt=5374 ct=45334、cap_rate 90.57%/100%、分族 passed/total）；文档未杜撰、无密钥；Phase B 提交后全量测试 447 pass / 0 fail。
 - **红线**：规则 1（仅新增文档，未改源码）；规则 3（只 add 本任务 2 文档 + ops-log；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥、报告只记 provider/模型/用量）。
-- **Commit**：__HASH__
+- **Commit**：8cd5fd5
