@@ -3,7 +3,7 @@
 > 基于 2026-09-03 现状盘点（metrics/runner/registry/report/tasks 全读）。方向由用户选定 **A — agent-evals 体系深化**。
 > 目标：在**不破坏**既有回归防线（eval-registry、checkRegression、executionError 能力口径）的前提下，
 > 补齐评估维度（成本/Token、延迟分位、失败聚类），让评测回答「能力多强 + 花多少钱 + 慢在哪儿 + 败在哪类」。
-> **状态：执行于 2026-09-04，主线 A（S1/S2/S3）全部完成并合入 `47a966c`（3 路并行子代理 + TDD，单提交合入而非每片独立 commit）；主线 B（S4 任务集质量强化）按计划留待下迭代，本迭代未实施。**
+> **状态：主线 A（S1/S2/S3）2026-09-04 全部完成并合入 `47a966c`（3 路并行子代理 + TDD，单提交合入而非每片独立 commit）；主线 B（S4 任务集质量强化）2026-09-05 全量完成并合入 `441976a`（主线程基建 + 双路并行子代理 + TDD，任务集 48 → 54）。**
 
 ## 现状盘点（2026-09-03 全读源码）
 
@@ -36,13 +36,14 @@
 
 ### 主线 B（条件/下迭代，不在本计划实施）
 
-- **S4 任务集质量强化**：给 48 个关键词验证任务补 `expectedBehavior` 语义标定，或引入「结构/数值断言」验证器（如 mustReturnNumber / matchesRegexp）——改动面大（需逐任务复核验证器严格度，防误伤基线），本计划不实施。
+- **S4 任务集质量强化**（✅ 2026-09-05 · `441976a`）：48 个关键词验证任务**全量补 `expectedBehavior` 语义标定**（闭包一字不动，零基线风险）+ 引入**可内省的结构化断言层** —— `AssertionSpec` 8 字段 1:1 映射既有验证器（containsAll/Any/AllAny/notContains/matchesAll/hasJSONKeys + 新 mustReturnNumber/outputLength），`compileAssertion`（畸形 spec fail-closed 桩不 throw）、`assertSpecErrors`（compileAssertion 与 validateTasks 共用）、`t()` 工厂 overload（AssertionSpec 派生 verify，显式闭包最高优先）、validateTasks 质量门（assert 良构 + expectedBehavior 必填）+ 6 个跨族新任务（CODING-09/KNOW-09/PLAN-09/TOOL-09/MEM-09/EVOLVE-09，任务集 48 → 54）。外部 HumanEval/MBPP 任务补 expectedBehavior 元数据。实施计划详见本迭代 plan 文件（声明式断言 + t() overload + 文件独占并行）。
 
 ## 验证修订（TDD 红→绿，规则 7）
 
 - 每片先写测试（红）→ 最小实现（绿）→ `bunx tsc --noEmit` 0 → 相关 `bun test tests/agent-evals` 全绿。
 - 全量回归：`bun run test:full`（3280 pass/34 skip/0 fail 基线）不得下降。
 - ✅ 实测（2026-09-04）：`bunx tsc --noEmit` 0 错误；`bun test tests/agent-evals` **212 pass / 0 fail**（新增 cost-token 12 + latency-percentile 13 + report-extras 14）；`bun run test:full` **3368 pass / 34 skip / 0 fail**（基线 3280 不下滑，多出 88 个新用例全过）。
+- ✅ 实测（2026-09-05 · 主线 B / S4）：`bunx tsc --noEmit` 0 错误；`bun test tests/agent-evals` **392 pass / 0 fail / 29 files**（基线 212，+180）；影响面穷举 `tests/agent-evals + tests/utils + tests/native-bridge + tests/main` 421 pass / 0 fail；外部消费方 `tests/external-eval-sandbox.test.ts` 3 pass。新增用例 assertion-validators 25 + assertion-spec-guard（红队）99 + tasks-s4-assert 49 + external +2 + tasks +1。全仓 test:full 未跑（用户中断，已穷举 src 无其他 agent-evals 消费方）。
 - 兼容红线：既有 registry 测试（makeMeta/makeSummary 不传新字段）必须仍绿——新列全部可选/默认值；既有 report 调用（单轮输出）必须仍绿。
 - 真实 provider 调用**不**纳入本计划自动化测试（成本/网络敏感）；S1 采集逻辑用注入 fake provider 响应断言 usage 解析，不连真实网络。
 

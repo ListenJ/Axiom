@@ -8458,3 +8458,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿——guard 曾 1 fail（null bug，修复后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 392 pass / 0 fail（基线 212，+180）；`tests/agent-evals + tests/utils + tests/native-bridge + tests/main` 421 pass / 0 fail；外部消费方 `tests/external-eval-sandbox.test.ts` 3 pass。全仓 test:full 未跑（用户中断，影响面已穷举：src 无其他 agent-evals 消费方）。
 - **红线**：规则 1（48 闭包语义全不变，`git diff` 确认 `(r) =>` 闭包零改动，仅 extra 补 expectedBehavior + 工厂 overload）；规则 2（.tmp/backups 验证后删净）；规则 3（只 add 本任务 9 文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络，新任务只测纯函数判定）。
 - **Commit**：441976a
+## 2026-09-05 — docs(plans): 回写 09-03 计划主线 B（S4）完成状态（记录维护，规则5）
+
+- **任务**：迭代收尾——S4 任务集质量强化（09-03 计划主线 B）已随 `441976a` 合入（主线程基建 + 双路并行子代理 + TDD，任务集 48 → 54），计划文档状态与 git 历史不一致，需回写完成状态与 commit 锚点；顺带清 09-04 上一轮遗留的 `__HASH__` 拖欠（随 61a70b5 一并回填）。
+- **工具**：node（CRLF 安全 ops-log 追加）、Edit（计划文档 UTF-8 无 BOM）、git。AGENTS 规则 5（记录维护）执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-09-03-agent-evals-deepening-plan.md`：引言状态行改为双主线全覆盖（A→`47a966c`，B→`441976a`）；主线 B 段落从「不实施」改写为 ✅ 实施详情（AssertionSpec 层 / t() overload / validateTasks 质量门 / 6 新任务 / external 元数据）；验证修订节补 S4 实测（tsc 0 / agent-evals 392 pass / 影响面 421 pass / external-sandbox 3 pass）。
+  2. `docs/operations-log.md`：CRLF 追加本条记录（Commit 字段占位待回填）。
+- **验证**：`git diff` 仅计划文档与 ops-log 两文件；S4 锚点 `441976a` 与会话实际 commit 一致；主题内容（设计/红线/主线 A 记录）未删改。
+- **红线**：规则 1（只回写状态，不删改计划内容与主线 B 交付语义）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
+- **Commit**：待回填
