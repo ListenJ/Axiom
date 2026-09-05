@@ -8597,4 +8597,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   1. `docs/agent-eval-baseline-2026-09-05.md`（备份 `.tmp/backups/`）：新增 `### 撞窗新任务干净窗口重跑校准（run#14/#16/#17/#18）` 小节（8 任务补测结果表 + 3 条关键发现：12 新任务两路全通、KNOW-11 run#17 flake 判采样方差、zhipu 空内容窗口时段性）；run#7/run#10 的「待干净窗口重跑」措辞改指该小节；`### 待回填` 三项中「撞窗补测」与「EVOLVE-09」两项勾选完成（附结论），仅保留 deepseek 全量 66 待回填。
 - **验证**：registry 实查 run#14/#16/#17/#18——sensenova 3/3 PASS（CODING-11 run#16、KNOW-11/MEM-11 run#14）、zhipu 5/5 PASS（CODING-11/EVOLVE-10/EVOLVE-11 run#17、CODING-10/KNOW-11 run#18）；探针证实 KNOW-11 完整答案可产出（force push + 硬重置），run#17 缺 `reset --hard` 组判采样方差而非断言误伤/能力缺口；结论：12 个新任务两路全通，无真实能力缺口。
 - **红线**：规则 1（仅改标定文档 + ops-log，未动源码/测试）；规则 2（改动前备份 `.tmp/backups/docs/`，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：ff651da
