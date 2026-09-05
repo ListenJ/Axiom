@@ -8609,4 +8609,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   3. `docs/agent-eval-baseline-2026-09-05.md`（备份 `.tmp/backups/`）：七表两行标注「已校准」；十.2 从「需补同义词」改为「已核验：断言过度标定，已按 prompt 对齐校准」。
 - **验证**：TDD 红→绿（旧断言下 4 红：真实回答被误杀 + KNOW-05 缺「启动」却被「镜像」放行）；`bun test tests/agent-evals` 458 全绿（+6 新用例，无回归）；`bunx tsc --noEmit` 0；真机双路核验 zhipu run#20 3/3 恢复通过、sensenova run#19 3/3 无回归；断言仍具区分度（缺维度/无具体自检项回答仍失败）。
 - **红线**：规则 1（仅改 3 处断言 + 1 测试文件 + 标定文档）；规则 2（改动前备份、验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD 红→绿）；规则 9（无 force/reset）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：175efa0
