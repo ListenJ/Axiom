@@ -8468,3 +8468,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；S4 锚点 `441976a` 与会话实际 commit 一致；主题内容（设计/红线/主线 A 记录）未删改。
 - **红线**：规则 1（只回写状态，不删改计划内容与主线 B 交付语义）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
 - **Commit**：58ace5c
+
+## 2026-09-05 — docs(plan): agent-evals S5 收尾计划（报告落地 / 回归自动检测 / 验证器直测）
+
+- **任务**：S5 迭代规划——S4 后三处「半成品」收口（S3 失败聚类段未接入主报告 / checkRegression 未自动跑 / verify.ts 14 导出仅直测 7 个）。方向由用户选定（排除 HTML 报告视图）；设计决策：失败聚类无失败轮次省略段、回归检测默认开启 + --no-check-regression 逃生舱、分级退出码（回归=2 > 能力失败=1 > 正常=0）。
+- **工具**：Read/Grep/Bash（现状盘点全读 report-extras/registry/run/verify）、Write（计划文档）、node（CRLF 安全 ops-log 追加）。AGENTS 规则 5 执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-09-05-agent-evals-s5-closure-plan.md`（新）：S5 收尾计划——4 个 Slice（验证器直测补齐 / 报告落地补全 / run-check 纯函数 / run.ts 胶水 + 分级退出码），含兼容红线与验证策略。
+- **验证**：计划与用户 AskUserQuestion 选择一致；改动面与既有代码 read 核对。
+- **红线**：规则 1（仅接入既有能力）；规则 3（只 add 计划文档 + ops-log）；规则 9（无 force/reset）。
+- **Commit**：__HASH__
