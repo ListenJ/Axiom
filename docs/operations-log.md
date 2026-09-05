@@ -8541,3 +8541,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红（任务不存在 12 项失败）→ 绿（31/31）；全量 `bun test tests/agent-evals` **447 pass / 0 fail**（原 416 + 31 新，无回退）；`bunx tsc --noEmit` 0 错误；`run.ts --dry-run` 任务清单 66 且校验通过。
 - **红线**：规则 1（只新增任务与对应测试，未改既有 54 任务语义/验证器，零基线风险）；规则 2（tasks.ts 已备份 .tmp/backups/，验证后删）；规则 3（只 add 本任务文件：tasks.ts、tests-real、tasks-s4-assert、AGENT-EVALS.md、plan；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset/checkout）；规则 11（无密钥）。
 - **Commit**：8fb0739
+## 2026-09-05 — docs(agent-evals): 基准标定第一版（54 任务集，run#5/#6）+ 2026 评测基准调研知识文件
+
+- **任务**：Phase C + Phase D 交付——(C) 依据 registry 真实 run#5（zhipu glm-4.7-flash 54 任务）/ run#6（sensenova deepseek-v4-flash 54 任务）撰写第一版基准标定文档（三路对比/分族/泛化/成本 Token/延迟分位/失败聚类/历史对比/回归检测/结论建议，66 任务 Wave-2 标"待回填"）；(D) arxiv API 直检索 2026-08~09 最新 agent 评测论文，产出知识文件（ClawProBench/Agent-as-a-Judge/EarlyEval/Same Model Different Harness/Do Agent Optimizers Compound 等 12 篇，落进测试集设计与定位判断）。
+- **工具**：arxiv API（curl）+ grep/sed 解析摘要（WebSearch/WebFetch 后端摘要模型不可用，绕行）；bun + bun:sqlite 直查 eval_registry/eval_task_results（listRuns 不含 summary 列，改 PRAGMA + 直接 SQL）；Write（两文档）；git；node（ops-log CRLF 追加）。后台两个评测 Job 并行（zhipu-66 bac0fclnj、deepseek-evolve-66 b7862dw8d）。
+- **操作**（文件级）：
+  1. `docs/agent-eval-baseline-2026-09-05.md`（新增）：第一版全量基线——zhipu 90.6%（48/53，执行错误 1）/ sensenova 100%（45/45，执行错误 9）；分族表、泛化率 1.095、token 26,965 vs 50,708、延迟 p50/p95/p99、失败聚类（zhipu 5 能力失败 + 1 执行错误）、历史对比、结论建议；Wave-2 待回填清单。
+  2. `docs/knowledge/agent-eval-benchmarks-2026-09-05.md`（新增）：2026 agent 评测调研——轨迹级评测/确定性验证器 vs LLM judge/回归控制复合增益/跨 harness 差异四结论，12 篇来源表，结论标注事实/判断。
+- **验证**：registry 数字逐条自 SQL 聚合核对（run#5 pt=2291 ct=24674、run#6 pt=5374 ct=45334、cap_rate 90.57%/100%、分族 passed/total）；文档未杜撰、无密钥；Phase B 提交后全量测试 447 pass / 0 fail。
+- **红线**：规则 1（仅新增文档，未改源码）；规则 3（只 add 本任务 2 文档 + ops-log；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥、报告只记 provider/模型/用量）。
+- **Commit**：__HASH__
