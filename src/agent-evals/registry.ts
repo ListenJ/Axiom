@@ -214,6 +214,8 @@ export interface Registry {
   }): number;
   /** 删除一轮（CASCADE 清子表） */
   deleteRun(runId: number): void;
+  /** 回写一轮 exit_code（回归检测在落库后发生，需回填 DB 真值）；返回影响行数（0 = runId 不存在） */
+  updateExitCode(runId: number, code: number): number;
   close(): void;
 }
 
@@ -277,6 +279,7 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
     ORDER BY started_at ASC
   `);
   const deleteStmt = db.query(`DELETE FROM eval_runs WHERE id = ?`);
+  const updateExitStmt = db.query(`UPDATE eval_runs SET exit_code = ? WHERE id = ?`);
 
   function getRun(ref: number | string): RunRow | null {
     const row =
@@ -482,6 +485,10 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
 
     deleteRun(runId) {
       deleteStmt.run(runId);
+    },
+
+    updateExitCode(runId, code) {
+      return Number(updateExitStmt.run(code, runId).changes);
     },
 
     close() {

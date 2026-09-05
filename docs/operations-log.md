@@ -8503,3 +8503,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；S5 锚点 `e5bc202` 与会话实际 commit 一致；主题内容（设计/红线/验证策略原文）未删改。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
 - **Commit**：319b6f9
+
+## 2026-09-05 — feat(agent-evals): evolve 回归闭环 + exit_code 真值回写（S5 补充）
+
+- **任务**：evolve 修复——S5 后 evolve 是回归闭环的「另一半」缺口：主路径已接 auto-check + 分级退出码，evolve 两阶段落库后不检测，--baseline/--max-drop/--no-check-regression 三 flag 在 evolve 下是死代码，退出码仍旧 1:0。本次补上：autoCheckEvolve 纯函数（基准解析 spec→baselineRunId→历史最优）+ evolve 接线 + registry.updateExitCode 真值回写（主/evolve 两路径 regressed 时 DB exit_code 记 2）。
+- **工具**：主线程 TDD 红→绿（run-check +4 例、registry +2 例先 RED）、Edit/Write、bun test、bunx tsc、node（CRLF 安全 ops-log 追加）。AGENTS 规则 1/3/5/7/9/11 执行。
+- **操作**（文件级）：
+  1. `src/agent-evals/run-check.ts`：新增 autoCheckEvolve——evolvedRunId null 纯无操作；基准 = 用户 --baseline（run_tag/纯数字双形态）→ 本轮回 baseline 阶段 runId → 自动历史最优。
+  2. `src/agent-evals/registry.ts`：接口 + 实现新增 updateExitCode(runId, code)（UPDATE eval_runs.exit_code，返回影响行数）。
+  3. `src/agent-evals/run.ts`：evolve 段捕获 baseline/evolved runId；!noCheckRegression 时 autoCheckEvolve（候选=evolved，基准=--baseline 或 baseline 阶段），regressed → updateExitCode(evolvedRunId,2) + 退出码 2；主路径 regressed 分支同样 updateExitCode(runId,2) 回写 DB 真值；evolve 退出码升级分级 2:1:0。
+  4. `tests/agent-evals/run-check.test.ts`：+4 例 autoCheckEvolve（baselineRunId 采用 / spec 覆盖双形态 / evolvedRunId null 无操作 / 双无回落历史最优）。
+  5. `tests/agent-evals/registry.test.ts`：+2 例 updateExitCode（回写后 getRun 读新值 / 不存在返回 0 行）。
+- **验证**：TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 416 pass / 0 fail / 31 files（基线 410，+6 = run-check 4 + registry 2）；`latency-percentile.test.ts` 13 pass（兼容红线）；`--help` --evolve + 三 flag 可见、`--dry-run` exit 0。evolve 判定逻辑 :memory: 全覆盖（不连 provider）。
+- **红线**：规则 1（仅新增，无语义删改；主路径行为向后兼容）；规则 3（只 add 本任务 7 文件 + 计划补充 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
+- **Commit**：__HASH__

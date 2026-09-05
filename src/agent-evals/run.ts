@@ -10,7 +10,7 @@ import type { TaskResult, MetricsSummary } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
 import { logger } from "../utils/logger.js";
 import { openRegistry, DEFAULT_REGISTRY_PATH } from "./registry.js";
-import { autoCheckRegression } from "./run-check.js";
+import { autoCheckRegression, autoCheckEvolve } from "./run-check.js";
 import type { RunMetadata, StoredTaskResult } from "./metrics-types.js";
 
 const args = Bun.argv.slice(2);
@@ -238,16 +238,44 @@ if (evolve && !externalKind) {
 
   const baseSummary = summarize(baselineResults);
   const evolSummary = summarize(evolvedResults);
-  // 两阶段结果入库（阶段区分 run_tag 派生，便于 baseline/evolved 对比查询）
-  persistResults(baselineResults, baseSummary, "baseline");
-  persistResults(evolvedResults, evolSummary, "evolved");
+  // 两阶段结果入库（阶段区分 run_tag 派生，便于 baseline/evolved 对比查询）；返回 runId 供回归检测
+  const baselineRunId = persistResults(baselineResults, baseSummary, "baseline");
+  const evolvedRunId = persistResults(evolvedResults, evolSummary, "evolved");
+
+  // S5 回归检测闭环（evolve 版）：候选 = evolved 阶段，基准 = 用户 --baseline 或本轮回 baseline 阶段
+  // （技能注入 vs 无技能同 held-out 的苹果对苹果，最贴近 evolve 的语义）；--no-check-regression 逃生舱。
+  let regressed = false;
+  if (!noCheckRegression) {
+    const registry = openRegistry(DEFAULT_REGISTRY_PATH);
+    try {
+      const outcome = autoCheckEvolve(registry, { evolvedRunId, baselineRunId, baselineSpec, maxDropPp });
+      if (outcome.checked && outcome.regressed) {
+        const check = outcome.check!;
+        regressed = true;
+        if (evolvedRunId !== null) registry.updateExitCode(evolvedRunId, 2); // 落库早于检测，回写 DB 真值
+        logger.warn(
+          `[Evolve] ⚠️ 回归检测: 注入技能后 held-out 通过率回落 ${check.dropPp}pp（阈值 ${check.maxDropPp}pp）vs 基准 run#${check.baseline.id} ${check.baseline.runTag}（退出码 2）`,
+        );
+      } else if (outcome.checked) {
+        const check = outcome.check!;
+        logger.info(`[Evolve] 回归检测: held-out 通过率回落 ${check.dropPp}pp（阈值 ${check.maxDropPp}pp），未判回归`);
+      } else if (outcome.skipped === "no-baseline") {
+        logger.info("[Evolve] 回归检测跳过: 无可比基准（首次评测或 --baseline 不存在）");
+      } else if (outcome.skipped === "no-candidate") {
+        logger.warn("[Evolve] 回归检测跳过: 候选轮不存在（--no-persist 或落盘失败）");
+      }
+    } finally {
+      registry.close();
+    }
+  }
+
   const header = `# 评测→进化闭环对比（held-out）\n\n| 阶段 | 通过率 | 通过/总数 |\n| --- | --- | --- |\n| baseline（无技能） | ${baseSummary.passRate}% | ${baseSummary.passed}/${baseSummary.total} |\n| evolved（注入技能） | ${evolSummary.passRate}% | ${evolSummary.passed}/${evolSummary.total} |\n`;
   console.log(header);
   console.log("## baseline held-out 明细");
   console.log(toMarkdown(baseSummary, baselineResults));
   console.log("## evolved held-out 明细");
   console.log(toMarkdown(evolSummary, evolvedResults));
-  process.exit(hasCapabilityFailure([...baselineResults, ...evolvedResults]) ? 1 : 0);
+  process.exit(regressed ? 2 : hasCapabilityFailure([...baselineResults, ...evolvedResults]) ? 1 : 0);
 }
 
 if (provider === "zhipu" && requestedConcurrency > 1) {
@@ -273,6 +301,7 @@ if (!noCheckRegression) {
     if (outcome.checked && outcome.regressed) {
       const check = outcome.check!;
       regressed = true;
+      if (runId !== null) registry.updateExitCode(runId, 2); // 落库早于检测，回写 DB 真值
       logger.warn(
         `[EvalRegistry] ⚠️ 回归检测: 通过率回落 ${check.dropPp}pp（阈值 ${check.maxDropPp}pp）vs 基准 run#${check.baseline.id} ${check.baseline.runTag}（退出码 2）`,
       );

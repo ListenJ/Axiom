@@ -40,3 +40,26 @@ export function autoCheckRegression(
   }
   return { checked: true, regressed: check.regressed, check, skipped: null };
 }
+
+/**
+ * evolve 闭环的回归检测（S5）：候选 = evolved 阶段 run，基准解析优先级
+ * 用户显式 `--baseline`（run_tag 或纯数字 id）→ 本轮回 baseline 阶段 runId
+ * （技能注入 vs 无技能同 held-out 的苹果对苹果）→ 自动历史最优（回落默认）。
+ * 委托 autoCheckRegression，本身无副作用可测。
+ */
+export function autoCheckEvolve(
+  registry: Registry,
+  opts: { evolvedRunId: number | null; baselineRunId: number | null; baselineSpec?: string; maxDropPp?: number },
+): AutoCheckOutcome {
+  const baseline =
+    opts.baselineSpec !== undefined
+      ? /^[0-9]+$/.test(opts.baselineSpec)
+        ? Number(opts.baselineSpec)
+        : opts.baselineSpec
+      : opts.baselineRunId;
+  return autoCheckRegression(registry, {
+    runId: opts.evolvedRunId,
+    baseline: baseline ?? undefined,
+    maxDropPp: opts.maxDropPp,
+  });
+}

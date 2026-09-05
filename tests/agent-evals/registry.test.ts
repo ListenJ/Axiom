@@ -376,3 +376,27 @@ describe("checkRegression 回归守卫（相对基准回落超阈值报警）", 
     }
   });
 });
+
+describe("updateExitCode（S5 回归检测后回写 DB 真值）", () => {
+  it("回写后 getRun 读到新 exit_code，返回影响行数 1", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const runId = reg.insertRun(makeMeta(), makeSummary());
+      expect(reg.getRun(runId)!.exitCode).toBeNull(); // 未写 exitCode → null
+      const affected = reg.updateExitCode(runId, 2);
+      expect(affected).toBe(1);
+      expect(reg.getRun(runId)!.exitCode).toBe(2);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("runId 不存在 → 返回 0 行，不抛", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      expect(reg.updateExitCode(999, 2)).toBe(0);
+    } finally {
+      reg.close();
+    }
+  });
+});

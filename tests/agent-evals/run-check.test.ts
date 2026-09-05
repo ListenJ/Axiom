@@ -5,7 +5,7 @@
  * 不可比基准 / 无候选 / runId null 三类跳过分支。规则 11：无网络、无密钥。
  */
 import { describe, expect, it } from "bun:test";
-import { autoCheckRegression } from "../../src/agent-evals/run-check.js";
+import { autoCheckRegression, autoCheckEvolve } from "../../src/agent-evals/run-check.js";
 import { openRegistry } from "../../src/agent-evals/registry.js";
 import type { RunMetadata, RunSummarySnapshot } from "../../src/agent-evals/metrics-types.js";
 
@@ -125,6 +125,69 @@ describe("run-check.autoCheckRegression（S5 回归自动检测）", () => {
     try {
       const outcome = autoCheckRegression(reg, { runId: null });
       expect(outcome).toEqual({ checked: false, regressed: false, check: null, skipped: null });
+    } finally {
+      reg.close();
+    }
+  });
+});
+
+describe("run-check.autoCheckEvolve（S5 evolve 回归检测）", () => {
+  it("无显式 --baseline 时采用本轮回 baseline 阶段 runId（evolved vs baseline 判回归）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const { baseId, candId } = seedRegression(reg);
+      const outcome = autoCheckEvolve(reg, { evolvedRunId: candId, baselineRunId: baseId });
+      expect(outcome.checked).toBe(true);
+      expect(outcome.regressed).toBe(true);
+      expect(outcome.skipped).toBeNull();
+      expect(outcome.check!.baseline.runTag).toBe("base");
+      expect(outcome.check!.dropPp).toBe(50);
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("显式 baselineSpec 覆盖 baselineRunId（双形态：tag 与纯数字 id）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      // 无关低通过率轮「spec-target」（80%），用 tag 指定它
+      const specId = reg.insertRun(
+        makeMeta({ runTag: "spec-target" }),
+        makeSummary({ passed: 3, passRate: 80, byFamily: { coding: { total: 4, passed: 3, passRate: 80 } } }),
+      );
+      const { baseId, candId } = seedRegression(reg);
+      void baseId;
+      // tag 形态
+      let outcome = autoCheckEvolve(reg, { evolvedRunId: candId, baselineRunId: specId, baselineSpec: "spec-target" });
+      expect(outcome.check!.baseline.runTag).toBe("spec-target");
+      expect(outcome.check!.dropPp).toBe(30);
+      // 纯数字 id 形态
+      outcome = autoCheckEvolve(reg, { evolvedRunId: candId, baselineRunId: specId, baselineSpec: String(specId) });
+      expect(outcome.check!.baseline.runTag).toBe("spec-target");
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("evolvedRunId null（--no-persist）→ 纯无操作，不查库不抛", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const outcome = autoCheckEvolve(reg, { evolvedRunId: null, baselineRunId: null });
+      expect(outcome).toEqual({ checked: false, regressed: false, check: null, skipped: null });
+    } finally {
+      reg.close();
+    }
+  });
+
+  it("baselineRunId null 且无 spec → 回落自动历史最优（同作用域最高通过率）", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const { baseId, candId } = seedRegression(reg);
+      void baseId;
+      const outcome = autoCheckEvolve(reg, { evolvedRunId: candId, baselineRunId: null });
+      expect(outcome.checked).toBe(true);
+      expect(outcome.regressed).toBe(true);
+      expect(outcome.check!.baseline.runTag).toBe("base");
     } finally {
       reg.close();
     }

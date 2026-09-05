@@ -40,7 +40,7 @@
 - 新 flag：`--baseline=<id|tag>`（复用 runRef 双形态）、`--max-drop=N`（回落阈值 pp，默认 10）、`--no-check-regression`（逃生舱）。
 - 主路径落库后自动跑 `autoCheckRegression`：告警走 `logger.warn`（stderr，不污染 `--json` stdout 流）；跳过原因走 `logger.info`。
 - **分级退出码**：回归 → 2；能力失败 → 1；正常 → 0。`--no-persist` 时 runId null → 自然跳过检测。
-- evolve 路径不接自动检测（保持现状）。
+- evolve 路径不接自动检测（保持现状）——**后经用户指示 `evolve 修复` 调整，见文末补充段**。
 
 ## 兼容红线
 
@@ -53,3 +53,15 @@
 `--help` 含新 flag、`--dry-run` exit 0 smoke。真实回归判定不连 provider（规则 11），由 run-check.test.ts 以 `:memory:` 全覆盖。
 
 - ✅ 实测（2026-09-05 · `e5bc202`）：逐 Slice 红→绿——report-main.test.ts 曾 1 fail（夹具 reason「缺少关键内容:」实际归「其他」桶，改 `empty response` 命中「内容缺失」规则后转绿，系测试预期修正非实现 bug）；`bunx tsc --noEmit` 0 错误；`bun test tests/agent-evals` **410 pass / 0 fail / 31 files**（基线 392，+18 = verify 直测 +7 + report-main 5 + run-check 6）；兼容红线 `latency-percentile.test.ts` 13 pass（全绿轮次省略段保逐字节）；`--help` 三新 flag 可见、`--dry-run` exit 0。真实回归判定未连 provider（run-check 判定逻辑以 `:memory:` 6 例全分支覆盖）。
+
+## 补充（2026-09-05 · evolve 修复，偏离上文「evolve 不接自动检查」）
+
+> **状态：evolve 修复已实施并合入（锚点见 ops-log 对应记录，下略）。**
+
+上文 Slice 4 原定「evolve 路径不接自动检查（保持现状）」，用户后续指示 `evolve 修复` 后调整：evolve 两阶段落库后也接入回归检测闭环——
+
+- **候选** = evolved 阶段 run；**基准选择** = 用户 `--baseline`（run_tag/纯数字双形态）→ 本轮回 baseline 阶段 runId（技能注入 vs 无技能同 held-out 的苹果对苹果，最贴近 evolve 语义）→ 自动历史最优。
+- **逃生舱/阈值**：`--no-check-regression` / `--max-drop` 在 evolve 下同样生效（此前为死代码）。
+- **退出码**：evolve 升级为分级 `回归=2 > 能力失败=1 > 正常=0`。
+- **DB 真值回写**：新增 `registry.updateExitCode(runId, code)`（`UPDATE eval_runs.exit_code`）——persist 早于检测发生，regressed 时回写 `exit_code=2`，主/evolve 两路径的 DB 记录与进程实际退出码一致（此前列记 1/0、进程退 2 不真）。
+- 实现：`run-check.ts` 新增纯函数 `autoCheckEvolve`（可 `:memory:` 直测）；`run-check.test.ts` +4 例、`registry.test.ts` +2 例、`run.ts` 接线。
