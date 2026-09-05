@@ -3,7 +3,7 @@
 > 基于 S4（`441976a`）后的差距盘点。方向由用户选定：**报告落地补全 + 回归自动检测闭环 + 验证器直测补齐**（明确排除 HTML 报告视图）。
 > 目标：把「S3 已实现但未接入主报告」的失败聚类段落地、把「checkRegression 已存在但 run.ts 不自动跑」的闭环接通、
 > 把「verify.ts 14 导出仅直测 7 个」的直测补齐——三者均为既有能力的**接入收口**，零新算法。
-> **状态：实施完成（详见 feat 提交）→ 回写见文末。**
+> **状态：S5 四 Slice 全部实施完成并合入 `e5bc202`（主线程 TDD 红→绿逐片推进：验证器直测 / 报告落地 / 回归闭环 / run.ts 胶水）。**
 
 ## 现状盘点（S4 后全读源码）
 
@@ -14,27 +14,27 @@
 
 ## 变更设计（规则 1 最小改动）
 
-### Slice 1 — 验证器直测补齐（TDD，仅测试）
+### Slice 1 — 验证器直测补齐（TDD，仅测试）（✅ 2026-09-05 · `e5bc202`）
 
 - `tests/agent-evals/verify.test.ts`：新增第 4 个 describe「S4 assertion layer (direct)」，直接 import 并断言 S4 新增 7 导出
   （`assertSpecErrors`/`compileAssertion`/`extractLastNumber`/`mustReturnNumber`/`outputLength` + `ASSERTION_SPEC_KEYS` 相关面），
   补齐「S4 交付未直测」的测试债务。**不改 verify.ts 一行**。
 
-### Slice 2 — 报告落地补全（`report.ts`，消费既有 `clusterFailures`）
+### Slice 2 — 报告落地补全（`report.ts`，消费既有 `clusterFailures`）（✅ 2026-09-05 · `e5bc202`）
 
 - `report.ts` 顶部 `import { clusterFailures } from "./report-extras.js";`（report-extras 仅 type-import metrics 系，无环）。
 - `toMarkdown`：明细表之后追加 `## 失败聚类` → `| 桶 | 数量 | 代表样例 |` 表（samples 以 `；` 连接）；
   **仅在有失败轮次时输出该段**（`clusterFailures(results).length > 0`）——全绿轮次省略段，输出逐字节不变（兼容红线）。
 - `toJSON`：`JSON.stringify({ summary, results, failures: clusterFailures(results) }, null, 2)`——结构化 failures 恒在（空数组兜底）。
 
-### Slice 3 — 回归检测纯函数（`run-check.ts` 新建，无副作用可测）
+### Slice 3 — 回归检测纯函数（`run-check.ts` 新建，无副作用可测）（✅ 2026-09-05 · `e5bc202`）
 
 - `autoCheckRegression(registry, { runId, baseline?, maxDropPp? })`：runId null（`--no-persist`）→ 纯无操作；
   候选缺失 → `skipped: "no-candidate"`；无可比基准 → `skipped: "no-baseline"`；正常 → `{ checked, regressed, check }`。
 - 复用 `registry.checkRegression`（自动取同族同模型同 split 历史最优，或显式 `--baseline`），不新增查询逻辑。
 - 因 run.ts 是带顶层副作用的 CLI（不可 import），判定逻辑剥离至此供 `openRegistry(":memory:")` 直测。
 
-### Slice 4 — run.ts 胶水（CLI 接线 + 分级退出码）
+### Slice 4 — run.ts 胶水（CLI 接线 + 分级退出码）（✅ 2026-09-05 · `e5bc202`）
 
 - `persistResults` 返回 `number | null`（成功时 runId；`--no-persist`/落盘失败为 null）。
 - 新 flag：`--baseline=<id|tag>`（复用 runRef 双形态）、`--max-drop=N`（回落阈值 pp，默认 10）、`--no-check-regression`（逃生舱）。
@@ -51,3 +51,5 @@
 
 每片 TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 全量（基线 392 → 预期 410）；
 `--help` 含新 flag、`--dry-run` exit 0 smoke。真实回归判定不连 provider（规则 11），由 run-check.test.ts 以 `:memory:` 全覆盖。
+
+- ✅ 实测（2026-09-05 · `e5bc202`）：逐 Slice 红→绿——report-main.test.ts 曾 1 fail（夹具 reason「缺少关键内容:」实际归「其他」桶，改 `empty response` 命中「内容缺失」规则后转绿，系测试预期修正非实现 bug）；`bunx tsc --noEmit` 0 错误；`bun test tests/agent-evals` **410 pass / 0 fail / 31 files**（基线 392，+18 = verify 直测 +7 + report-main 5 + run-check 6）；兼容红线 `latency-percentile.test.ts` 13 pass（全绿轮次省略段保逐字节）；`--help` 三新 flag 可见、`--dry-run` exit 0。真实回归判定未连 provider（run-check 判定逻辑以 `:memory:` 6 例全分支覆盖）。

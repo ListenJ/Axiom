@@ -8492,3 +8492,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：逐 Slice 红→绿（report-main 曾 1 fail 因夹具 reason「缺少关键内容:」实际归「其他」桶，改 empty response 命中「内容缺失」后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 410 pass / 0 fail / 31 files（基线 392）；`tests/agent-evals/latency-percentile.test.ts` 13 pass（兼容红线）；`--help` 三 flag 可见、`--dry-run` exit 0。真实回归判定不连 provider（run-check 判定逻辑 :memory: 全覆盖）。
 - **红线**：规则 1（仅接入既有 clusterFailures/checkRegression，无新算法；全绿轮次 toMarkdown 逐字节不变）；规则 2（.tmp/backups/tests/agent-evals/verify.test.ts.bak 验证后删除）；规则 3（只 add 本任务 6 文件 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
 - **Commit**：e5bc202
+
+## 2026-09-05 — docs(plans): 回写 09-05 计划完成状态（记录维护，规则5）
+
+- **任务**：迭代收尾——S5 收尾计划（报告落地 / 回归自动检测 / 验证器直测）已随 `e5bc202` 合入（主线程 TDD 红→绿逐片推进，agent-evals 392 → 410 pass），计划文档状态与 git 历史不一致，需回写完成状态与 commit 锚点。
+- **工具**：Edit（计划文档 UTF-8 无 BOM、LF）、node（CRLF 安全 ops-log 追加）、git。AGENTS 规则 5（记录维护）执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-09-05-agent-evals-s5-closure-plan.md`：状态行改为 S5 四 Slice 全部完成合入 `e5bc202`；四个 Slice 标题标 ✅ + 锚点；验证策略节补实测（tsc 0 / agent-evals 410 pass / 红线 13 pass / 三 flag smoke）。
+  2. `docs/operations-log.md`：CRLF 追加本条记录（Commit 字段占位待回填）。
+- **验证**：`git diff` 仅计划文档与 ops-log 两文件；S5 锚点 `e5bc202` 与会话实际 commit 一致；主题内容（设计/红线/验证策略原文）未删改。
+- **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
+- **Commit**：__HASH__
