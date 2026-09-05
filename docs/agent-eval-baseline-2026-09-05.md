@@ -1,7 +1,7 @@
 # Agent 能力评测基准标定（2026-09-05）
 
-> 数据源：`data/eval-registry.db` run#5（zhipu glm-4.7-flash，54 任务）、run#6（sensenova deepseek-v4-flash，54 任务）。全部数字来自真实 provider 运行，registry 落库，未杜撰。
-> 本版为**第一版全量基线（54 任务集）**；66 任务扩展（+12 真实场景任务）的 Wave-2 数据见文末"待回填"节。
+> 数据源：`data/eval-registry.db` run#5/#6（54 任务第一版全量基线）、run#7（66 任务 zhipu Wave-2）、run#10（66 任务 sensenova Wave-2）。全部数字来自真实 provider 运行，registry 落库，未杜撰。
+> 本版 = **54 任务第一版全量基线** + **66 任务 Wave-2 双路实时更新**；deepseek（opencode）全量 + evolve 闭环因模型自竞争两次不可达，见文末"待回填"。
 
 ## 一、方法与口径
 
@@ -16,7 +16,7 @@
 | --- | --- | --- | --- | --- | --- |
 | zhipu / glm-4.7-flash | **90.6%** | 48 / 53 | 1 | 8164 / 24091 / 28951 | 981 字符 |
 | sensenova / deepseek-v4-flash | **100%** | 45 / 45 | 9 | 21951 / 90720 / 128775 | 699 字符 |
-| opencode / deepseek-v4-flash | _待重试（模型过载）_ | — | — | — | — |
+| opencode / deepseek-v4-flash | _不可达（模型自竞争，待空闲重试）_ | — | — | — | — |
 
 **核心结论**：两个真实端点都是首次全量基线。zhipu 能力通过率 90.6%（6 项失败），sensenova 能力通过率 100%（45/45 无能力失败，但 9 项执行错误被排除）。**sensenova 延迟极不稳定**（p95≈90s，p99≈129s，单任务最高 128775ms），适合低吞吐场景；zhipu 延迟平稳（p50 8s），是日常评测主选。
 
@@ -84,6 +84,8 @@
 | 2026-08 | 24 任务旧集（coding） | 默认路由 zhipu | 16.7% |
 | **2026-09-05** | **54 任务新集（6 族）** | **zhipu glm-4.7-flash** | **90.6%**（能力） |
 | **2026-09-05** | **54 任务新集（6 族）** | **sensenova deepseek-v4-flash** | **100%**（能力） |
+| **2026-09-05** | **66 任务新集（6 族）** | **zhipu glm-4.7-flash（Wave-2）** | **92.3%**（能力） |
+| **2026-09-05** | **66 任务新集（6 族）** | **sensenova deepseek-v4-flash（Wave-2）** | **91.5%**（能力） |
 
 **结论**：54 任务新集首次全量基线高于旧 24 任务集历史最优（90.6% / 100% vs 87.5%），且新集跨 6 族、覆盖更广，含 held-out 泛化验证。
 
@@ -95,11 +97,49 @@
 
 1. **模型选型**：日常评测默认 **zhipu/glm-4.7-flash**（延迟平稳、免费、90.6% 能力）；**sensenova/deepseek-v4-flash** 能力最强（100%）但延迟长尾严重、执行错误多，仅适合低吞吐/高精度场景。
 2. **校验器校准点**（zhipu 6 失败中 4 个是同义词组未命中）：KNOW-02/KNOW-05 的验证器同义词组需补 `JavaScriptCore`/`image` 等常见写法；EVOLVE-06 补 `备份` 同义词——**先看回答原文再定组，避免误伤真答**。
-3. **执行错误治理**：sensenova 长输出任务超时是主要执行损失（9/54），可考虑对该端点提高 curl 超时或降低 `maxTokens`；glm-4.7-flash 的"空内容（hidden reasoning 消耗预算）"在 66 扩展任务的 512-768 maxTokens 提示下更频繁（见 Wave-2）。
-4. **后续迭代**：deepseek（opencode 端点）基线待重试；66 任务 Wave-2 数据待回填；外部 HumanEval/MBPP docker 沙箱能力轴待单独标定。
+3. **执行错误治理**：两个端点在 66 任务重跑中执行错误均显著上升（zhipu 1→14、sensenova 9→19）且各呈不稳定窗口——zhipu 为空内容突发窗口，sensenova 为 429 密集限流窗口（本时段端点负载高）；长输出任务（maxTokens 大）是共同易损点，建议提高 curl 超时或降低 `maxTokens`，并避开高峰窗口重跑。
+4. **后续迭代**：deepseek（opencode 端点）全量 + evolve 闭环因**模型自竞争**（opencode 即当前会话所用模型，会话活跃即抢占端点）两次不可达，需在**模型空闲期**（独立会话）重试；外部 HumanEval/MBPP docker 沙箱能力轴待单独标定。
 
-## 待回填（Wave-2，后台运行完成后更新）
+## 十一、66 任务 Wave-2（+12 真实场景任务，2026-09-05 实时）
 
-- [ ] 66 任务（+12 真实场景任务）zhipu / sensenova 重跑数据（后台 Job：bac0fclnj）
-- [ ] deepseek-v4-flash（opencode）全量 + `--evolve` 闭环数据（后台 Job：b7862dw8d）
-- [ ] 12 个新任务的分任务通过率与失败聚类
+### run#7 — zhipu / glm-4.7-flash（66 任务，registry 已落库）
+
+| 指标 | 值 |
+| --- | --- |
+| 通过率（能力口径） | **92.3%**（48/52，14 执行错误不计入） |
+| train / held-out / 泛化 | 95.2% / 90.3% / 0.949 |
+| 执行错误 | **14**（vs 54 任务集仅 1） |
+| 延迟 p50 / p95 / p99 | 20125 / 65802 / 76724 ms |
+
+**分族（passed / 非执行错误数，率）**：coding 6/6（100%）、knowledge 5/5（100%）、planning 11/11（100%）、tool-use 10/10（100%）、memory 10/11（**90.9%**）、self-evolve 6/9（**66.7%**）。
+
+**关键发现**：
+1. **14 个执行错误是端点不稳定，非任务设计问题**——逐任务时序分析显示两段 ~4.3s 空内容连爆（CODING-07→KNOW-05 连续 9 个；KNOW-11、EVOLVE-10/11+TOOL-01 连续 3 个），中间窗口恢复后 KNOW-06~MEM-11、PLAN 全族、TOOL-02~11 全部正常。glm-4.7-flash 空内容（hidden reasoning 消耗预算）在本次运行呈**突发性窗口**而非均匀分布。
+2. **新任务 12 个：7 个执行成功全部通过**（KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / MEM-11），**5 个撞上端点不稳定窗口未测出**（CODING-10 / CODING-11 / KNOW-11 / EVOLVE-10 / EVOLVE-11），待干净窗口重跑校准。
+3. **真实能力失败 4 个**：MEM-09（数值非正 0，与 run#5 一致）、EVOLVE-06（缺 备份，与 run#5 一致）、EVOLVE-04（缺 降级/处理——run#5 通过，本次波动失败）、EVOLVE-09（缺 下次——run#5 为未找到数字，失败模式漂移）。→ 与 run#5 对比，**稳定失败仅 MEM-09 + EVOLVE-06**；EVOLVE-04/09 为样本波动。
+
+**结论**：66 任务 zhipu 基线的**能力信号有效**（92.3%，无执行错误的任务表现与 run#5 一致）；执行错误率飙升本身是 glm-4.7-flash 端点可靠性的独立发现，建议评测重跑窗口避开其不稳定时段。5 个未测出的新任务列入待重跑。
+
+### run#10 — sensenova / deepseek-v4-flash（66 任务，registry 已落库）
+
+| 指标 | 值 |
+| --- | --- |
+| 通过率（能力口径） | **91.5%**（43/47，19 执行错误不计入） |
+| train / held-out / 泛化 | 85% / 96.3% / **1.133** |
+| 执行错误 | **19**（vs run#6 54 任务集 9；本时段端点 429 密集限流） |
+| 延迟 p50 / p95 / p99 | 22853 / 119400 / 119486 ms（平均输出 492 字符） |
+
+**分族（能力口径 passed/非执行错误数，率）**：coding 6/7（85.7%）、knowledge 6/7（85.7%）、planning 10/10（100%）、tool-use 9/9（100%）、memory 8/8（100%）、self-evolve 4/6（**66.7%**）。
+
+**关键发现**：
+1. **19 个执行错误 = 端点 429 限流密集窗口，非任务设计问题**——运行日志全程大量 `rate-limited (429)` 重试 + empty content + transport abort；sensenova（token.sensenova.cn）本时段负载高，与 run#6（54 任务仅 9 执行错误）对比呈窗口性恶化。能力判定不受影响（执行错误不计入分母）。
+2. **新任务 12 个：9 个通过**（CODING-10 / KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / EVOLVE-10 / EVOLVE-11），**3 个撞限流窗口未测出**（CODING-11 / KNOW-11 / MEM-11）。
+3. **真实能力失败 4 个**：CODING-03（缺 `regexp/正则`——zhipu run#5 通过，本路波动失败）、KNOW-02（缺 `zig`——zhipu run#5 缺 `javascriptcore`，**验证器同义词组半命中**：两路各答出另一半）、EVOLVE-01（缺 `检查/判断`）、EVOLVE-09（缺 `下次`）。→ **EVOLVE-09 为跨 provider 稳定失败**（zhipu run#5/#7 + sensenova run#10 均缺 `下次`），属验证器校准点还是真实能力缺口，需看回答原文再定。
+
+**结论**：sensenova 66 任务能力口径 91.5%，泛化率 1.133（held-out 反超 train，无过拟合）；与 zhipu run#7（92.3%）接近，但本路执行错误更高（429 窗口）。**跨 provider 稳定失败 EVOLVE-09（缺 下次）** 是 12 个新任务外最值得优先核验的信号。
+
+### 待回填（后台运行中）
+
+- [ ] deepseek-v4-flash（opencode）全量 + `--evolve` 闭环——**不可达（模型自竞争）**：opencode 端点即当前会话所用模型，会话活跃即抢占端点。首次尝试 35min 0 任务、到达阶段 2/3 崩溃无落库；重跑在阶段 1/3 被同端点过载（120s 0 字节）拖死。**需模型空闲期（独立会话）重试**。
+- [ ] zhipu 5 个撞窗新任务（CODING-10/11、KNOW-11、EVOLVE-10/11）+ sensenova 3 个（CODING-11、KNOW-11、MEM-11）干净窗口重跑校准
+- [ ] EVOLVE-09（缺 下次）跨 provider 稳定失败：先看两路回答原文，再定验证器校准 vs 能力缺口

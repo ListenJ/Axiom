@@ -8551,3 +8551,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：registry 数字逐条自 SQL 聚合核对（run#5 pt=2291 ct=24674、run#6 pt=5374 ct=45334、cap_rate 90.57%/100%、分族 passed/total）；文档未杜撰、无密钥；Phase B 提交后全量测试 447 pass / 0 fail。
 - **红线**：规则 1（仅新增文档，未改源码）；规则 3（只 add 本任务 2 文档 + ops-log；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥、报告只记 provider/模型/用量）。
 - **Commit**：8cd5fd5
+
+## 2026-09-05 — docs(agent-evals): 标定文档回填 sensenova-66（run#10）+ Wave-2 实时更新与计划回写
+
+- **任务**：Phase C 收尾——sensenova-66（run#10，66 任务全量 Wave-2）完成后回填标定文档第十一节；deepseek（opencode）全量 + evolve 两次不可达（模型自竞争）如实记录；计划文件回写完成状态；66 任务 sensenova 报告落 eval-results/。
+- **工具**：git、node（ops-log CRLF 追加）、Read/Edit/Write（文档与报告）。后台 Job：sensenova-66（bymzn4aez）完成、deepseek-evolve2（bj8te3cdz）停止。
+- **操作**（文件级）：
+  1. `docs/agent-eval-baseline-2026-09-05.md`：新增第十一节 run#10（sensenova 66 任务）——能力口径 91.5%（43/47，19 执行错误不计入）、泛化率 1.133、分族表、4 个真实能力失败（CODING-03/KNOW-02/EVOLVE-01/09）、EVOLVE-09 跨 provider 稳定失败识别；历史对比表补两行 66 任务；结论与待回填更新（deepseek 不可达原因、撞窗任务重跑清单）。
+  2. `docs/superpowers/plans/2026-09-05-real-eval-baseline-plan.md`：状态回写「已完成（deepseek 路不可达除外）」+ 四阶段完成说明。
+  3. `eval-results/agent-evals-2026-09-05-sensenova-66.md`（新增）：run#10 完整报告（分族 + 逐任务明细 + 失败聚类）。
+  4. `docs/operations-log.md`：CRLF 追加本条记录（Commit 占位待回填）。
+- **验证**：run#10 registry 落库记录（passRate=91.5%，回归检测回落 8.5pp < 10pp 未判回归）；文档数字与 registry/报告逐项核对；git diff 仅本任务文件；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md。
+- **红线**：规则 1（仅文档/报告，未改源码）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）；规则 11（无密钥）。
+- **Commit**：__HASH__
