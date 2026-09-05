@@ -8587,4 +8587,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. `tests/agent-evals/tasks-s4-assert.test.ts`（备份 `.tmp/backups/`）：EVOLVE-09 测试块重写（6→8 条），纳入两个真实样本（zhipu 中文序号 / sensenova 阿拉伯序号）。
 - **验证**：TDD 红→绿；`bun test tests/agent-evals` 452 全绿（无回归）；`bunx tsc --noEmit` 0；`--dry-run --tasks=EVOLVE-09` 精确 1 任务；真机重跑 run#11（zhipu）/run#12（sensenova）EVOLVE-09 在新断言下均 PASS。校准结论：EVOLVE-09 原断言「必须字面下次 + 数字≥2」误伤合格回答（zhipu 用「规则一/二」中文序号无数字、sensenova 用「规则 1/2/3」且未复述「下次」，但均含验证动作+回滚确认点）——属验证器过度标定而非能力缺口。
 - **红线**：规则 1（最小改动）；规则 2（四处改动前均备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD）；规则 9（无 force/reset）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：4787a45
