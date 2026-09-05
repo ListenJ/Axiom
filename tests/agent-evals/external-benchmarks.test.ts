@@ -81,6 +81,25 @@ describe("loadExternalTasks 解析稳定性（H1）", () => {
     expect(tasks.length).toBe(1);
     expect(tasks[0].prompt).not.toContain("test_list");
   });
+
+  test("S4 元数据一致性：HumanEval 任务带非空 expectedBehavior", () => {
+    const tasks = loadExternalTasks("human-eval", { limit: 3 });
+    for (const t of tasks) {
+      expect(typeof t.expectedBehavior).toBe("string");
+      expect(t.expectedBehavior!.length).toBeGreaterThan(0);
+      expect(t.expectedBehavior).toContain("Python");
+      expect(t.expectedBehavior).toContain("exit 0");
+    }
+  });
+
+  test("S4 元数据一致性：MBPP 任务带非空 expectedBehavior", () => {
+    const tasks = loadExternalTasks("mbpp", { limit: 3 });
+    for (const t of tasks) {
+      expect(typeof t.expectedBehavior).toBe("string");
+      expect(t.expectedBehavior!.length).toBeGreaterThan(0);
+      expect(t.expectedBehavior).toContain("test_list");
+    }
+  });
 });
 
 describe("extractPythonCode", () => {

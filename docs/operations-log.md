@@ -8444,3 +8444,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；计划文档 S1/S2/S3 锚点与 `47a966c` 一致；主题内容（设计/红线/主线 B 留滞）未删改。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）。
 - **Commit**：__HASH__
+
+## 2026-09-05 — feat(agent-evals): S4 任务集质量强化（声明式断言 + expectedBehavior 标定）
+
+- **任务**：主线 B（S4）落地——之前的关键词闭包验证无法表达数值/长度/正则断言、`expectedBehavior` 字段（tasks.ts:30）48 任务零使用。本次给 agent-evals 引入**可内省的结构化断言层**（AssertionSpec + compileAssertion）+ **全量 expectedBehavior 语义标定** + 6 个跨族新任务演示新能力。
+- **工具**：主线程（verify.ts 基建全量实现 + assertion-validators.test.ts + index.ts 重导出）→ 子代理 A（独占 tasks.ts 内容层）+ 子代理 B（独占 external.ts + assertion-spec-guard.test.ts 红队）双路并行，文件零冲突，TDD 红→绿。
+- **操作**（文件级）：
+  1. `src/agent-evals/verify.ts`：新增 `AssertionSpec`（8 字段 1:1 映射既有验证器，AND 短路）+ `NumberAssertion`/`OutputLengthBounds` + `ASSERTION_SPEC_KEYS` + `assertSpecErrors`（良构校验，compileAssertion 与 validateTasks 共用）+ `compileAssertion`（畸形 spec 返回 fail-closed 桩不 throw）+ `extractLastNumber`/`mustReturnNumber`/`outputLength` 新验证器。红队发现的 `{ mustReturnNumber: null }` 崩溃级 bug 已修（`typeof null === "object"` 漏守卫，outputLength/mustReturnNumber 两分支一并补 `=== null`）。
+  2. `src/agent-evals/tasks.ts`：`AgentTask` 增 `assert?`；`t()` 工厂 overload（AssertionSpec 派生 verify，显式闭包最高优先）；`validateTasks` 增 assert 良构 + expectedBehavior 质量门 2 类规则；**48 既有任务全量 expectedBehavior**（闭包一字不动）；新增 6 任务（CODING-09/KNOW-09/PLAN-09/TOOL-09/MEM-09/EVOLVE-09 各演示 mustReturnNumber 精确/区间、outputLength、matchesAll 正则、JSON键+数值、组合）。
+  3. `src/agent-evals/external.ts`：toHumanEvalTask/toMbppTask 补 expectedBehavior 元数据（真实执行断言语义）。
+  4. `src/agent-evals/index.ts`：补全重导出（新增验证器 + 顺带补漏 containsAllAny）。
+  5. 测试：assertion-validators.test.ts（25）、assertion-spec-guard.test.ts（99，红队）、tasks-s4-assert.test.ts（49）、external-benchmarks.test.ts（+2）、tasks.test.ts（+1）。
+- **验证**：TDD 红→绿——guard 曾 1 fail（null bug，修复后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 392 pass / 0 fail（基线 212，+180）；`tests/agent-evals + tests/utils + tests/native-bridge + tests/main` 421 pass / 0 fail；外部消费方 `tests/external-eval-sandbox.test.ts` 3 pass。全仓 test:full 未跑（用户中断，影响面已穷举：src 无其他 agent-evals 消费方）。
+- **红线**：规则 1（48 闭包语义全不变，`git diff` 确认 `(r) =>` 闭包零改动，仅 extra 补 expectedBehavior + 工厂 overload）；规则 2（.tmp/backups 验证后删净）；规则 3（只 add 本任务 9 文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络，新任务只测纯函数判定）。
+- **Commit**：待回填

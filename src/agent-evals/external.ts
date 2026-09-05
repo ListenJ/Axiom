@@ -151,6 +151,7 @@ function toHumanEvalTask(raw: Record<string, unknown>, options: ExternalLoadOpti
     split: "held-out",
     title: `HumanEval ${id}`,
     prompt: `请补全以下 Python 函数。只输出可运行的 Python 代码，不要额外解释，不要重复函数签名（直接补全函数体）。\n\n${prompt}`,
+    expectedBehavior: "验证输出是可直接运行的 Python 代码补全，沙箱执行单测后 exit 0 方可判定通过（真实执行断言）",
     verify: makeHumanEvalVerify({ prompt, test, entry_point: raw.entry_point as string | undefined }, options),
     maxTokens: 1024,
   };
@@ -167,6 +168,7 @@ function toMbppTask(raw: Record<string, unknown>, options: ExternalLoadOptions):
     split: "held-out",
     title: `MBPP ${id}`,
     prompt: `根据以下描述编写 Python 函数。只输出可运行的 Python 代码，不要额外解释。\n\n${text}`,
+    expectedBehavior: "验证输出是可直接运行的 Python 代码，沙箱执行 test_list 后 exit 0 方可判定通过（真实执行断言）",
     verify: makeMbppVerify({ test_setup_code: testSetup, test_list: testList }, options),
     maxTokens: 1024,
   };
