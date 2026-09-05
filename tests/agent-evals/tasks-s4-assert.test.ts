@@ -198,13 +198,35 @@ describe("新任务：MEM-09 记忆状态快照（JSON 键 + 正值断言）", (
   });
 });
 
-// ===== 新任务：EVOLVE-09 多组同义词 + 数值下界（组合断言） =====
-describe("新任务：EVOLVE-09 经验归纳（多组同义词 + 数值下界）", () => {
+// ===== 新任务：EVOLVE-09 多组同义词 + 编号条数（组合断言，2026-09-05 校准） =====
+describe("新任务：EVOLVE-09 经验归纳（多组同义词 + 编号条数正则）", () => {
   const task = find("EVOLVE-09");
-  it("spec 同时含 containsAllAny（3 组）与 mustReturnNumber.min", () => {
-    expect(task.assert?.containsAllAny).toEqual([["下次"], ["验证"], ["回滚"]]);
-    expect(task.assert?.mustReturnNumber).toEqual({ min: 2 });
+  // 校准依据（2026-09-05 干净重跑原文）：zhipu glm-4.7-flash 用中文序号「规则一/规则二」、
+  // sensenova 用「规则 1/2/3」，均含验证动作 + 回滚确认点，属合格回答；原断言
+  // （必须字面「下次」+ 数字 ≥2，extractLastNumber 只取最后一个数字 token）双双误伤。
+  // 放宽为「改动上下文 / 验证 / 回滚」三组同义词 + 「≥2 编号标记」正则（替代 mustReturnNumber）。
+  it("spec：containsAllAny（改动/验证/回滚三组）+ matchesAll 编号对正则", () => {
+    expect(task.assert?.containsAllAny).toHaveLength(3);
+    expect(task.assert?.containsAllAny![0]).toContain("改动");
+    expect(task.assert?.containsAllAny![1]).toContain("验证");
+    expect(task.assert?.containsAllAny![2]).toContain("回滚");
+    expect(task.assert?.matchesAll).toHaveLength(1);
     expect(typeof task.verify).toBe("function");
+  });
+  it("真实样本：zhipu 中文序号（规则一/规则二）+ 验证动作 + 回滚确认点通过", async () => {
+    const ans =
+      "基于近期常见的改动风险（如配置变更、代码发布、数据迁移），归纳出以下两条可复用的规则：\n" +
+      "### 规则一：针对“配置或参数类”改动\n**验证动作：**在灰度环境或预发环境，使用最小化流量进行一次全链路模拟，确认系统在改动参数下的响应时间和错误率符合预期。\n**回滚确认点：**确认配置回滚脚本或命令在本地已验证通过，且配置中心的回滚开关处于可用状态。\n" +
+      "### 规则二：针对“代码或逻辑类”改动\n**验证动作：**在上线前，在测试环境执行一次全量回归测试，确保改动未引入新的边界条件 Bug。\n**回滚确认点：**确认构建产物的版本标签已正确打上，且回滚版本已在发布流水线中预先构建并锁定。";
+    expect((await check(task, ans)).passed).toBe(true);
+  });
+  it("真实样本：sensenova 阿拉伯序号（规则 1/2/3）+ 先验证什么 + 回滚路径通过", async () => {
+    const ans =
+      "基于近期三条改动经验，可归纳为以下可复用规则：\n" +
+      "## 规则 1：外部接口/协议改动\n- **先验证什么**：用旧版调用方/客户端真实请求打到新接口上，确认返回格式、字段、错误码仍然兼容。\n- **提前确认哪条回滚路径**：确认有按流量/按用户的开关可一键切回旧逻辑，而不是依赖重新部署整个服务。\n" +
+      "## 规则 2：数据表结构/数据迁移改动\n- **先验证什么**：在临时库上连续执行两次迁移脚本，确认第二次执行是幂等空操作。\n- **提前确认哪条回滚路径**：确认已备份迁移前数据，且备份可恢复；确认数据库迁移脚本有明确的降级脚本。\n" +
+      "## 规则 3：配置/权限类改动\n- **先验证什么**：在测试环境模拟真实用户身份，验证改动后的配置或权限在原有权限范围下仍能正常工作。\n- **提前确认哪条回滚路径**：确认配置中心保留该配置的历史版本，能一键回滚到改动前值。";
+    expect((await check(task, ans)).passed).toBe(true);
   });
   it("三条可验证回滚规则 + 包含「下次」的完整归纳通过", async () => {
     const ans =
@@ -214,24 +236,22 @@ describe("新任务：EVOLVE-09 经验归纳（多组同义词 + 数值下界）
   it("漏掉「回滚」维度失败", async () => {
     const r = await check(task, "下次改动前先验证默认值，再验证告警阈值。");
     expect(r.passed).toBe(false);
-    expect(r.reason).toContain("未找到数字");
-    expect(compileAssertion({ containsAllAny: [["下次"], ["验证"], ["回滚"]] })("下次改动前先验证默认值，再验证告警阈值。").reason).toContain("缺少任一概念");
+    expect(r.reason).toContain("缺少任一概念");
   });
-  it("漏掉「下次」维度失败", async () => {
+  it("缺改动/下次上下文失败", async () => {
     const r = await check(task, "先验证默认值，再验证告警阈值，同时提前确认回滚路径可用。");
     expect(r.passed).toBe(false);
-    expect(r.reason).toContain("未找到数字");
-    expect(compileAssertion({ containsAllAny: [["下次"], ["验证"], ["回滚"]] })("先验证默认值，再验证告警阈值，同时提前确认回滚路径可用。").reason).toContain("缺少任一概念");
+    expect(r.reason).toContain("缺少任一概念");
   });
-  it("概念齐全但未列出具体规则条数失败", async () => {
+  it("概念齐全但未列出编号规则失败", async () => {
     const r = await check(task, "下次改动要先验证，并且要提前确认回滚路径可用。");
     expect(r.passed).toBe(false);
-    expect(r.reason).toContain("未找到数字");
+    expect(r.reason).toContain("未匹配模式");
   });
   it("规则条数不足（仅 1 条）失败", async () => {
     const r = await check(task, "下次改动前先验证，并确认回滚路径可用。共 1 条规则。");
     expect(r.passed).toBe(false);
-    expect(r.reason).toContain("数值越界");
+    expect(r.reason).toContain("未匹配模式");
   });
 });
 

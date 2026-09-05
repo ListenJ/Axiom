@@ -8575,3 +8575,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：registry run#8/9 逐项核对（baseline passed=36/38 execErr=0 / evolved 38/38 带 injected_skills；exit_code 1/0 符合分级；git_commit 4e4dc82 与 run#7/#10 一致证实 66 任务集）；`.tmp/run-deepseek-evolve2.log`（12:49 阶段1/3 撞墙）与 `.tmp/eval-logs/deepseek.log`（10:40 全量）确认两次失败尝试与成功 job 区分；git diff 仅标定/计划/ops-log 三文件。
 - **红线**：规则 1（纯文档纠错回填，未改源码）；规则 2（两文档已备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
 - **Commit**：3f256be
+
+## 2026-09-05 — feat(agent-evals): CLI --tasks 精确过滤 + EVOLVE-09 断言校准（TDD）
+
+- **任务**：① 给评测 CLI 加 `--tasks=<id1,id2>` 精确任务过滤（撞窗补测/单任务核验需要，family/split 无法精确定位跨族任务）；② 校准 EVOLVE-09 断言——干净重跑证实原断言误伤合格回答（见验证）。
+- **工具**：bun:test（TDD 红→绿）、bunx tsc --noEmit、探针 `.tmp/probe-evolve09.ts`（直连 zhipu/sensenova 抓 EVOLVE-09 原始回答）、真实评测 `run.ts --tasks=EVOLVE-09`。无子代理。
+- **操作**（文件级）：
+  1. `src/agent-evals/tasks.ts`（备份 `.tmp/backups/`）：新增 `getTasksByIds`（按 id 精确挑选、保持目录顺序、忽略未知 id）；EVOLVE-09 断言由 `{ containsAllAny: [["下次"],["验证"],["回滚"]], mustReturnNumber:{min:2} }` 放宽为 `{ containsAllAny: [改动上下文/验证/回滚 三组同义词], matchesAll: [≥2 编号标记正则（兼容阿拉伯/中文序号/第X条）] }`。
+  2. `src/agent-evals/run.ts`（备份 `.tmp/backups/`）：解析 `--tasks`、选择逻辑改 `getTasksByIds`、与 `--evolve` 互斥守卫、帮助文案。
+  3. `tests/agent-evals/tasks.test.ts`（备份 `.tmp/backups/`）：+3 条 `getTasksByIds` 行为测试。
+  4. `tests/agent-evals/tasks-s4-assert.test.ts`（备份 `.tmp/backups/`）：EVOLVE-09 测试块重写（6→8 条），纳入两个真实样本（zhipu 中文序号 / sensenova 阿拉伯序号）。
+- **验证**：TDD 红→绿；`bun test tests/agent-evals` 452 全绿（无回归）；`bunx tsc --noEmit` 0；`--dry-run --tasks=EVOLVE-09` 精确 1 任务；真机重跑 run#11（zhipu）/run#12（sensenova）EVOLVE-09 在新断言下均 PASS。校准结论：EVOLVE-09 原断言「必须字面下次 + 数字≥2」误伤合格回答（zhipu 用「规则一/二」中文序号无数字、sensenova 用「规则 1/2/3」且未复述「下次」，但均含验证动作+回滚确认点）——属验证器过度标定而非能力缺口。
+- **红线**：规则 1（最小改动）；规则 2（四处改动前均备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD）；规则 9（无 force/reset）；规则 11（无密钥）。
+- **Commit**：__HASH__

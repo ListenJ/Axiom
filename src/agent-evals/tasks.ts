@@ -423,9 +423,19 @@ const selfEvolve: AgentTask[] = [
       expectedBehavior: "抽象出「收集→处理→汇总」的跨案例通用原则，并说明其适用范围或可复用场景" }),
   t("EVOLVE-09", "self-evolve", "train", "改动前验证与回滚规则归纳（声明式断言）",
     "把三条近期改动经验归纳为「下次改动前要先验证什么、要提前确认哪条回滚路径」的可复用规则：给出至少 2 条编号规则，每条含一个具体验证动作与对应的回滚确认点。",
-    { containsAllAny: [["下次"], ["验证"], ["回滚"]], mustReturnNumber: { min: 2 } },
+    // 2026-09-05 校准：原断言（必须字面「下次」+ 数字≥2）误伤合格回答——真实重跑
+    // 中 zhipu 用「规则一/规则二」中文序号（无数字）、sensenova 用「规则 1/2/3」且均未
+    // 复述「下次」，但都含验证动作 + 回滚确认点。放宽为「改动上下文/验证/回滚」三组
+    // 同义词 + 「≥2 编号标记」正则（兼容阿拉伯/中文序号/第X条），替代 mustReturnNumber。
+    { containsAllAny: [
+      ["改动", "变更", "修改", "更新", "迁移", "发布", "上线", "下次", "以后", "未来", "后续", "之后"],
+      ["验证", "检查", "确认", "测试", "核实"],
+      ["回滚", "回退", "恢复", "rollback"],
+    ], matchesAll: [
+      "(?:第\\s*[一二两三四五六七八九十百\\d]+[条项点]|规则\\s*[一二两三四五六七八九十百\\d]+|(?:^|\\n)\\s*[一二两三四五六七八九十]+[、.．]|\\d+\\s*[.、．)）])(?:[\\s\\S]*?)(?:第\\s*[一二两三四五六七八九十百\\d]+[条项点]|规则\\s*[一二两三四五六七八九十百\\d]+|(?:^|\\n)\\s*[一二两三四五六七八九十]+[、.．]|\\d+\\s*[.、．)）])",
+    ] },
     { maxTokens: 512,
-      expectedBehavior: "输出至少 2 条编号规则，覆盖「下次」动作、验证点与回滚确认点" }),
+      expectedBehavior: "输出至少 2 条编号规则，覆盖改动/下次上下文、验证点与回滚确认点" }),
   t("EVOLVE-10", "self-evolve", "held-out", "从 eval 失败提炼教训（含「下次」）",
     "下面是一条 eval 失败轨迹：模型在 EVOLVE 任务里只描述了「工具调用意图」而没有输出工具参数，导致断言校验失败。请提炼一条可复用的教训（一句话，必须以「下次」开头）。",
     { containsAllAny: [["下次", "以后", "下一次"], ["参数", "json", "输出", "格式", "结构", "检查"]] },
@@ -453,6 +463,12 @@ export function getTasksByFamily(family?: TaskFamily, split?: TaskSplit): AgentT
   return ALL_AGENT_TASKS.filter(
     (task) => (!family || task.family === family) && (!split || task.split === split),
   );
+}
+
+/** 按 id 精确挑选任务（保持目录顺序；未知 id 忽略），供 --tasks 单任务/精确子集评测 */
+export function getTasksByIds(ids: string[]): AgentTask[] {
+  const wanted = new Set(ids);
+  return ALL_AGENT_TASKS.filter((task) => wanted.has(task.id));
 }
 
 export function getTaskFamilies(tasks: AgentTask[]): TaskFamily[] {

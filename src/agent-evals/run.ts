@@ -2,7 +2,7 @@
  * Agent 能力边界评测 CLI
  * 用法: bun run src/agent-evals/run.ts [--family=coding] [--split=train|held-out] [--json] [--dry-run]
  */
-import { ALL_AGENT_TASKS, getTasksByFamily, validateTasks, type TaskFamily, type TaskSplit } from "./tasks.js";
+import { ALL_AGENT_TASKS, getTasksByFamily, getTasksByIds, validateTasks, type TaskFamily, type TaskSplit } from "./tasks.js";
 import { loadExternalTasks, type ExternalKind } from "./external.js";
 import { runTasks, DEFAULT_RERUN_EACH } from "./runner.js";
 import { summarize, hasCapabilityFailure } from "./metrics.js";
@@ -17,6 +17,7 @@ const args = Bun.argv.slice(2);
 const flag = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
 const family = flag("family") as TaskFamily | undefined;
 const split = flag("split") as TaskSplit | undefined;
+const taskIds = flag("tasks")?.split(",").map((s) => s.trim()).filter(Boolean);
 const json = args.includes("--json");
 const dryRun = args.includes("--dry-run");
 const evolve = args.includes("--evolve");
@@ -52,6 +53,7 @@ Agent 能力边界评测 CLI
 用法: bun run src/agent-evals/run.ts [options]
 Options:
   --family=<f>      只跑指定任务族 (coding|knowledge|planning|tool-use|memory|self-evolve)
+  --tasks=<a,b,c>   只跑指定任务 id（精确子集，逗号分隔；与 --evolve 互斥）
   --split=<s>       只跑指定划分 (train|held-out)
   --external=<k>    运行外部基准 (human-eval|mbpp)，与自建任务集并存
   --limit=N         外部基准只加载前 N 条（默认全部）
@@ -201,9 +203,15 @@ if (trendN > 0 || compareSpec) {
   process.exit(0);
 }
 
+if (evolve && taskIds) {
+  logger.error("--tasks 与 --evolve 互斥：evolve 三阶段按 family/split 划分，不支持精确任务子集");
+  process.exit(1);
+}
 const tasks = externalKind
   ? loadExternalTasks(externalKind, { limit: externalLimit })
-  : getTasksByFamily(family, split);
+  : taskIds
+    ? getTasksByIds(taskIds)
+    : getTasksByFamily(family, split);
 if (dryRun) {
   logger.info(`任务清单（${tasks.length}）:`);
   for (const task of tasks) logger.info(`  [${task.split}] ${task.id} ${task.family} - ${task.title}`);
