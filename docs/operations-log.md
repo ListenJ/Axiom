@@ -8478,3 +8478,17 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：计划与用户 AskUserQuestion 选择一致；改动面与既有代码 read 核对。
 - **红线**：规则 1（仅接入既有能力）；规则 3（只 add 计划文档 + ops-log）；规则 9（无 force/reset）。
 - **Commit**：__HASH__
+
+## 2026-09-05 — feat(agent-evals): S5 报告落地补全 + 回归自动检测闭环 + 验证器直测补齐
+
+- **任务**：S5 三项收口全部落地（4 Slice 顺序推进）——(1) 验证器直测补齐：verify.test.ts 新增 describe 直测 S4 新增 7 导出；(2) 报告落地补全：report.toMarkdown 明细表后按需追加 ## 失败聚类 段（仅失败轮次，全绿省略保逐字节兼容），toJSON 增结构化 failures；(3) run-check.ts 新建 autoCheckRegression 纯函数（:memory: 全分支测试）；(4) run.ts 胶水：persistResults 返回 runId、--baseline/--max-drop/--no-check-regression 三 flag、落库后自动回归检测（告警走 warn/stderr）、分级退出码 回归=2 > 能力失败=1 > 正常=0。
+- **工具**：主线程 TDD 红→绿逐 Slice（report-main.test.ts 5 例、run-check.test.ts 6 例先 RED 后 GREEN）、Edit/Write、bun test、bunx tsc、node（CRLF 安全 ops-log 追加）。AGENTS 规则 1/3/5/7/9/11 执行。
+- **操作**（文件级）：
+  1. `tests/agent-evals/verify.test.ts`：新增「S4 assertion layer (direct)」describe，直接 import 7 个 S4 导出补齐直测。
+  2. `src/agent-evals/report.ts`：import clusterFailures；toMarkdown 明细表后追加失败聚类段（clusters.length>0 才输出）；toJSON 增 failures 结构化字段。
+  3. `src/agent-evals/run-check.ts`（新）：autoCheckRegression——runId null 纯无操作 / 候选缺失 no-candidate / 无可比基准 no-baseline / 正常 checked+regressed。
+  4. `src/agent-evals/run.ts`：persistResults 返回 number|null；--baseline/--max-drop/--no-check-regression；主路径 auto-check（warn→stderr，跳过→info）；分级退出码；帮助文本补三 flag。
+  5. 测试（新）：report-main.test.ts（5 例，含兼容红线省略段）、run-check.test.ts（6 例）。
+- **验证**：逐 Slice 红→绿（report-main 曾 1 fail 因夹具 reason「缺少关键内容:」实际归「其他」桶，改 empty response 命中「内容缺失」后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 410 pass / 0 fail / 31 files（基线 392）；`tests/agent-evals/latency-percentile.test.ts` 13 pass（兼容红线）；`--help` 三 flag 可见、`--dry-run` exit 0。真实回归判定不连 provider（run-check 判定逻辑 :memory: 全覆盖）。
+- **红线**：规则 1（仅接入既有 clusterFailures/checkRegression，无新算法；全绿轮次 toMarkdown 逐字节不变）；规则 2（.tmp/backups/tests/agent-evals/verify.test.ts.bak 验证后删除）；规则 3（只 add 本任务 6 文件 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
+- **Commit**：__HASH__

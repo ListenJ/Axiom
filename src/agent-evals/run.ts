@@ -10,6 +10,7 @@ import type { TaskResult, MetricsSummary } from "./metrics.js";
 import { toMarkdown, toJSON } from "./report.js";
 import { logger } from "../utils/logger.js";
 import { openRegistry, DEFAULT_REGISTRY_PATH } from "./registry.js";
+import { autoCheckRegression } from "./run-check.js";
 import type { RunMetadata, StoredTaskResult } from "./metrics-types.js";
 
 const args = Bun.argv.slice(2);
@@ -36,6 +37,10 @@ const directModel = flag("model") ?? flag("direct-model");
 const fallbackProvider = flag("fallback-provider");
 const fallbackModel = flag("fallback-model");
 const noPersist = args.includes("--no-persist"); // 逃生舱：跳过 eval-registry 落盘
+const baselineSpec = flag("baseline"); // S5 回归检测显式基准（run_tag 或 id；缺省自动取同作用域历史最优）
+const maxDropValue = flag("max-drop") === undefined ? NaN : Number(flag("max-drop"));
+const maxDropPp = Number.isFinite(maxDropValue) && maxDropValue >= 0 ? maxDropValue : undefined; // S5 回落阈值 pp
+const noCheckRegression = args.includes("--no-check-regression"); // S5 逃生舱：跳过回归自动检测
 const cliStartAt = new Date().toISOString();
 const trendRaw = Number(flag("trend") ?? "0"); // S3：最近 N 轮通过率/成本趋势（需 registry）
 const trendN = Number.isFinite(trendRaw) && trendRaw >= 1 ? Math.floor(trendRaw) : 0;
@@ -64,6 +69,9 @@ Options:
   --no-persist      跳过 eval-registry 落盘（默认落盘 data/eval-registry.db）
   --trend=N         输出最近 N 轮通过率/成本趋势（需 registry，不执行评测）
   --compare=a..b    输出 run_tag(或 id) a 与 b 两轮对比（需 registry，不执行评测）
+  --baseline=<ref>  回归检测显式基准 run_tag/id（默认自动取同族同模型同 split 历史最优）
+  --max-drop=N      通过率回落阈值 pp（回落超 N 判回归；默认 10）
+  --no-check-regression  跳过回归自动检测（默认开启；回归时退出码 2）
   --help            帮助
 `);
   process.exit(0);
@@ -88,9 +96,10 @@ function currentGitCommit(): string | null {
 /**
  * 评测结果落盘到 eval-registry（失败只 warn，不阻断评测 stdout/exit）。
  * 按 AGENTS 规则：`--no-persist` 逃生舱跳过；落盘失败降级为提示。
+ * S5 起返回本轮 runId（落盘成功时；跳过/失败返回 null），供回归自动检测消费。
  */
-function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: string): void {
-  if (noPersist) return;
+function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: string): number | null {
+  if (noPersist) return null;
   try {
     const registry = openRegistry(DEFAULT_REGISTRY_PATH);
     try {
@@ -127,17 +136,20 @@ function persistResults(results: TaskResult[], summary: MetricsSummary, phase?: 
         const runId = registry.insertRun(meta, summary);
         registry.insertTaskResults(runId, tasks);
         logger.info(`[EvalRegistry] 已入库 run#${runId} ${meta.runTag}（${tasks.length} 任务, passRate=${summary.passRate}%）`);
+        return runId;
       } catch (err) {
         // run_tag 冲突（同一秒两轮）→ 重试一次 +1s
         const retried = registry.insertRun({ ...meta, runTag: `${meta.runTag}+1s` }, summary);
         registry.insertTaskResults(retried, tasks);
         logger.info(`[EvalRegistry] run_tag 冲突重试成功 run#${retried}`);
+        return retried;
       }
     } finally {
       registry.close();
     }
   } catch (err) {
     logger.warn(`[EvalRegistry] 结果落盘失败（评测不受影响）: ${(err as Error).message}`);
+    return null;
   }
 }
 
@@ -244,7 +256,38 @@ if (provider === "zhipu" && requestedConcurrency > 1) {
 logger.info(`开始评测 ${tasks.length} 个任务（并发 ${concurrency}）...`);
 const results = await runTasks(tasks, { family, split, concurrency, modelHint, provider, model: directModel, injectSkills, constraints, fallbackProvider, fallbackModel, rerunEach });
 const summary = summarize(results);
-persistResults(results, summary); // 结果入库（--no-persist 跳过）
+const runId = persistResults(results, summary); // 结果入库（--no-persist 跳过）；返回 runId 供回归检测
+
+// S5 回归自动检测闭环：默认开启，--no-check-regression 逃生舱跳过；判定在 run-check.ts
+// （无副作用可测），此处仅消费结果。告警走 warn/stderr（不污染 --json 的 stdout 流）；
+// 分级退出码 回归=2 > 能力失败=1 > 正常=0。
+let regressed = false;
+if (!noCheckRegression) {
+  const registry = openRegistry(DEFAULT_REGISTRY_PATH);
+  try {
+    const outcome = autoCheckRegression(registry, {
+      runId,
+      baseline: baselineSpec !== undefined ? runRef(baselineSpec) : undefined,
+      maxDropPp,
+    });
+    if (outcome.checked && outcome.regressed) {
+      const check = outcome.check!;
+      regressed = true;
+      logger.warn(
+        `[EvalRegistry] ⚠️ 回归检测: 通过率回落 ${check.dropPp}pp（阈值 ${check.maxDropPp}pp）vs 基准 run#${check.baseline.id} ${check.baseline.runTag}（退出码 2）`,
+      );
+    } else if (outcome.checked) {
+      const check = outcome.check!;
+      logger.info(`[EvalRegistry] 回归检测: 通过率回落 ${check.dropPp}pp（阈值 ${check.maxDropPp}pp），未判回归`);
+    } else if (outcome.skipped === "no-baseline") {
+      logger.info("[EvalRegistry] 回归检测跳过: 无可比基准（首次评测或 --baseline 不存在）");
+    } else if (outcome.skipped === "no-candidate") {
+      logger.warn("[EvalRegistry] 回归检测跳过: 候选轮不存在（--no-persist 或落盘失败）");
+    }
+  } finally {
+    registry.close();
+  }
+}
 
 const output = json ? toJSON(summary, results) : toMarkdown(summary, results);
 if (json) {
@@ -253,4 +296,4 @@ if (json) {
   console.log(output);
 }
 
-process.exit(hasCapabilityFailure(results) ? 1 : 0);
+process.exit(regressed ? 2 : hasCapabilityFailure(results) ? 1 : 0);

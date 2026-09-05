@@ -2,6 +2,7 @@
  * Agent 评测报告 — Markdown / JSON 输出。
  */
 import type { MetricsSummary, TaskResult } from "./metrics.js";
+import { clusterFailures } from "./report-extras.js";
 
 export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): string {
   const lines: string[] = [];
@@ -43,10 +44,21 @@ export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): stri
       lines.push(`  - 失败原因: ${r.reason}`);
     }
   }
+  // S5 失败聚类段：仅在有失败轮次时输出（全绿轮次省略段，输出逐字节不变）。
+  const clusters = clusterFailures(results);
+  if (clusters.length > 0) {
+    lines.push("## 失败聚类");
+    lines.push("");
+    lines.push("| 桶 | 数量 | 代表样例 |");
+    lines.push("| --- | --- | --- |");
+    for (const c of clusters) {
+      lines.push(`| ${c.bucket} | ${c.count} | ${c.samples.join("；")} |`);
+    }
+  }
   lines.push("");
   return lines.join("\n");
 }
 
 export function toJSON(summary: MetricsSummary, results: TaskResult[]): string {
-  return JSON.stringify({ summary, results }, null, 2);
+  return JSON.stringify({ summary, results, failures: clusterFailures(results) }, null, 2);
 }
