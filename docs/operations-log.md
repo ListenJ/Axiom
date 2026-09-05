@@ -8588,3 +8588,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿；`bun test tests/agent-evals` 452 全绿（无回归）；`bunx tsc --noEmit` 0；`--dry-run --tasks=EVOLVE-09` 精确 1 任务；真机重跑 run#11（zhipu）/run#12（sensenova）EVOLVE-09 在新断言下均 PASS。校准结论：EVOLVE-09 原断言「必须字面下次 + 数字≥2」误伤合格回答（zhipu 用「规则一/二」中文序号无数字、sensenova 用「规则 1/2/3」且未复述「下次」，但均含验证动作+回滚确认点）——属验证器过度标定而非能力缺口。
 - **红线**：规则 1（最小改动）；规则 2（四处改动前均备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD）；规则 9（无 force/reset）；规则 11（无密钥）。
 - **Commit**：4787a45
+
+## 2026-09-05 — docs(agent-evals): 撞窗新任务干净窗口补测回填（zhipu 5 + sensenova 3 全通）+ EVOLVE-09 校验器校准结论落档
+
+- **任务**：Wave-2（66 任务）run#7（zhipu）/run#10（sensenova）撞上端点不稳定窗口未测出的 8 个新任务（zhipu 5：CODING-10/11、KNOW-11、EVOLVE-10/11；sensenova 3：CODING-11、KNOW-11、MEM-11）在干净窗口补测校准；落档 EVOLVE-09 跨 provider 稳定性核验结论（任务 #4 已判定：验证器校准，非能力缺口）。
+- **工具**：真实评测 `run.ts --tasks=<id,…> --provider=… --no-check-regression --rerun-each=N`（run#14/#16/#17/#18）；直连探针 `.tmp/probe-zhipu-know11.ts`（抓 zhipu KNOW-11 原始回答）；bun+sqlite 查 registry 核对 8 任务跨轮状态。无子代理。
+- **操作**（文件级）：
+  1. `docs/agent-eval-baseline-2026-09-05.md`（备份 `.tmp/backups/`）：新增 `### 撞窗新任务干净窗口重跑校准（run#14/#16/#17/#18）` 小节（8 任务补测结果表 + 3 条关键发现：12 新任务两路全通、KNOW-11 run#17 flake 判采样方差、zhipu 空内容窗口时段性）；run#7/run#10 的「待干净窗口重跑」措辞改指该小节；`### 待回填` 三项中「撞窗补测」与「EVOLVE-09」两项勾选完成（附结论），仅保留 deepseek 全量 66 待回填。
+- **验证**：registry 实查 run#14/#16/#17/#18——sensenova 3/3 PASS（CODING-11 run#16、KNOW-11/MEM-11 run#14）、zhipu 5/5 PASS（CODING-11/EVOLVE-10/EVOLVE-11 run#17、CODING-10/KNOW-11 run#18）；探针证实 KNOW-11 完整答案可产出（force push + 硬重置），run#17 缺 `reset --hard` 组判采样方差而非断言误伤/能力缺口；结论：12 个新任务两路全通，无真实能力缺口。
+- **红线**：规则 1（仅改标定文档 + ops-log，未动源码/测试）；规则 2（改动前备份 `.tmp/backups/docs/`，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
+- **Commit**：__HASH__

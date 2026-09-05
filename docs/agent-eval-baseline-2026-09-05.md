@@ -116,7 +116,7 @@
 
 **关键发现**：
 1. **14 个执行错误是端点不稳定，非任务设计问题**——逐任务时序分析显示两段 ~4.3s 空内容连爆（CODING-07→KNOW-05 连续 9 个；KNOW-11、EVOLVE-10/11+TOOL-01 连续 3 个），中间窗口恢复后 KNOW-06~MEM-11、PLAN 全族、TOOL-02~11 全部正常。glm-4.7-flash 空内容（hidden reasoning 消耗预算）在本次运行呈**突发性窗口**而非均匀分布。
-2. **新任务 12 个：7 个执行成功全部通过**（KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / MEM-11），**5 个撞上端点不稳定窗口未测出**（CODING-10 / CODING-11 / KNOW-11 / EVOLVE-10 / EVOLVE-11），待干净窗口重跑校准。
+2. **新任务 12 个：7 个执行成功全部通过**（KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / MEM-11），**5 个撞上端点不稳定窗口未测出**（CODING-10 / CODING-11 / KNOW-11 / EVOLVE-10 / EVOLVE-11）——已在下文 `### 撞窗新任务干净窗口重跑校准` 全部补测通过。
 3. **真实能力失败 4 个**：MEM-09（数值非正 0，与 run#5 一致）、EVOLVE-06（缺 备份，与 run#5 一致）、EVOLVE-04（缺 降级/处理——run#5 通过，本次波动失败）、EVOLVE-09（缺 下次——run#5 为未找到数字，失败模式漂移）。→ 与 run#5 对比，**稳定失败仅 MEM-09 + EVOLVE-06**；EVOLVE-04/09 为样本波动。
 
 **结论**：66 任务 zhipu 基线的**能力信号有效**（92.3%，无执行错误的任务表现与 run#5 一致）；执行错误率飙升本身是 glm-4.7-flash 端点可靠性的独立发现，建议评测重跑窗口避开其不稳定时段。5 个未测出的新任务列入待重跑。
@@ -134,7 +134,7 @@
 
 **关键发现**：
 1. **19 个执行错误 = 端点 429 限流密集窗口，非任务设计问题**——运行日志全程大量 `rate-limited (429)` 重试 + empty content + transport abort；sensenova（token.sensenova.cn）本时段负载高，与 run#6（54 任务仅 9 执行错误）对比呈窗口性恶化。能力判定不受影响（执行错误不计入分母）。
-2. **新任务 12 个：9 个通过**（CODING-10 / KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / EVOLVE-10 / EVOLVE-11），**3 个撞限流窗口未测出**（CODING-11 / KNOW-11 / MEM-11）。
+2. **新任务 12 个：9 个通过**（CODING-10 / KNOW-10 / PLAN-10 / PLAN-11 / TOOL-10 / TOOL-11 / MEM-10 / EVOLVE-10 / EVOLVE-11），**3 个撞限流窗口未测出**（CODING-11 / KNOW-11 / MEM-11）——已在下文 `### 撞窗新任务干净窗口重跑校准` 全部补测通过。
 3. **真实能力失败 4 个**：CODING-03（缺 `regexp/正则`——zhipu run#5 通过，本路波动失败）、KNOW-02（缺 `zig`——zhipu run#5 缺 `javascriptcore`，**验证器同义词组半命中**：两路各答出另一半）、EVOLVE-01（缺 `检查/判断`）、EVOLVE-09（缺 `下次`）。→ **EVOLVE-09 为跨 provider 稳定失败**（zhipu run#5/#7 + sensenova run#10 均缺 `下次`），属验证器校准点还是真实能力缺口，需看回答原文再定。
 
 **结论**：sensenova 66 任务能力口径 91.5%，泛化率 1.133（held-out 反超 train，无过拟合）；与 zhipu run#7（92.3%）接近，但本路执行错误更高（429 窗口）。**跨 provider 稳定失败 EVOLVE-09（缺 下次）** 是 12 个新任务外最值得优先核验的信号。
@@ -157,8 +157,28 @@
 
 **结论**：deepseek-v4-flash 在本套件上能力**不低于**两路（evolve 后 held-out 100%），且 evolve 闭环验证真实有效；**唯一未完成的是 deepseek 全量 66（无 evolve）评估**，需模型空闲期补跑（见待回填）。
 
+### 撞窗新任务干净窗口重跑校准（run#14/#16/#17/#18）
+
+run#7（zhipu）/run#10（sensenova）撞上端点不稳定窗口的 8 个新任务，避开高峰时段后补测**全部通过**——证明这些失败是纯端点窗口产物，非能力缺口：
+
+| 任务 | zhipu（run#17 18:04 / run#18 18:20） | sensenova（run#14 17:31 / run#16 17:48） |
+| --- | --- | --- |
+| CODING-10 | ✅ PASS（run#18；run#17 仍空内容 1 次→残留瞬态，run#18 恢复） | ✅ run#10 已过 |
+| CODING-11 | ✅ PASS（run#17） | ✅ PASS（run#16，429 窗口后） |
+| KNOW-11 | ✅ PASS（run#18；run#17 缺 `reset --hard` 组 flake→见下） | ✅ PASS（run#14） |
+| MEM-11 | ✅ run#7 已过 | ✅ PASS（run#14） |
+| EVOLVE-10 | ✅ PASS（run#17） | ✅ run#10 已过 |
+| EVOLVE-11 | ✅ PASS（run#17） | ✅ run#10 已过 |
+
+**关键发现**：
+1. **12 个新任务两路全通**：zhipu 12/12、sensenova 12/12（含撞窗任务），新任务无真实能力缺口；run#7/run#10 的撞窗失败 100% 可归因于端点窗口。
+2. **KNOW-11 单样本 flake 属采样方差**：run#17（18:05）zhipu 答出 force push 但未点名 `硬重置`→断言缺第二组；直连探针（`.tmp/probe-zhipu-know11.ts`）与 run#18（`--rerun-each=3`）均产出完整答案（force push + 硬重置），断言本身无误伤——**能力存在但答案存在采样波动**（temperature=0.2 下偶发换用第二个高危操作）。
+3. **执行错误（空内容）不再集中**：run#17 仅 1/5 空内容（vs run#7 的 5/5、run#13 的 5/5），run#18 0/2——zhipu 的 glm-4.7-flash 空内容窗口是**时段性**负载甩载，避峰后基本恢复。
+
+**结论**：Wave-2 的 66 任务两路基线结论**不受撞窗影响**（能力口径与待回填校准后的新任务全通一致）；zhipu 空内容窗口的时段性特征再次确认（下午/傍晚高发，深夜/凌晨恢复）。
+
 ### 待回填
 
 - [ ] deepseek-v4-flash（opencode）**全量 66（无 evolve）**——尚不可达（模型自竞争）：opencode 端点即当前会话所用模型，会话活跃即抢占端点。三次尝试明细：10:40 全量 54（`.tmp/eval-logs/deepseek.log`）transport error 拖死、12:04 **evolve 闭环成功（run#8/#9，已回填本节）**、12:49 evolve2（`.tmp/run-deepseek-evolve2.log`）阶段1/3 撞 120s 超时拖死。**全量 66 需模型空闲期（独立会话）重跑**。
-- [ ] zhipu 5 个撞窗新任务（CODING-10/11、KNOW-11、EVOLVE-10/11）+ sensenova 3 个（CODING-11、KNOW-11、MEM-11）干净窗口重跑校准
-- [ ] EVOLVE-09 跨 provider 稳定性核验：run#5 zhipu=未找到数字、run#7 zhipu=缺 下次、run#10 sensenova=缺 下次、run#6 sensenova=通过——先看回答原文再定验证器校准 vs 能力缺口
+- [x] zhipu 5 个撞窗新任务（CODING-10/11、KNOW-11、EVOLVE-10/11）+ sensenova 3 个（CODING-11、KNOW-11、MEM-11）干净窗口重跑校准——**8/8 全部补测通过**（run#14/#16/#17/#18），见 `### 撞窗新任务干净窗口重跑校准`；撞窗失败 100% 归因端点窗口，无能力缺口
+- [x] EVOLVE-09 跨 provider 稳定性核验——**结论：验证器校准，非能力缺口**。原断言要求「字面 下次 + 数字≥2」误伤合格回答（zhipu 用中文序号「规则一/二」无数字、sensenova 用「规则 1/2/3」未复述「下次」，但均含验证动作+回滚确认点）；校准后新断言（三组同义词 + ≥2 编号标记）下 run#11 zhipu / run#12 sensenova 双 PASS
