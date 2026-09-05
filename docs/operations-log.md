@@ -8516,4 +8516,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. `tests/agent-evals/registry.test.ts`：+2 例 updateExitCode（回写后 getRun 读新值 / 不存在返回 0 行）。
 - **验证**：TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 416 pass / 0 fail / 31 files（基线 410，+6 = run-check 4 + registry 2）；`latency-percentile.test.ts` 13 pass（兼容红线）；`--help` --evolve + 三 flag 可见、`--dry-run` exit 0。evolve 判定逻辑 :memory: 全覆盖（不连 provider）。
 - **红线**：规则 1（仅新增，无语义删改；主路径行为向后兼容）；规则 3（只 add 本任务 7 文件 + 计划补充 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
-- **Commit**：__HASH__
+- **Commit**：7b06ca2
