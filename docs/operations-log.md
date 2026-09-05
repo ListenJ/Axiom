@@ -8540,4 +8540,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. `docs/superpowers/plans/2026-09-05-real-eval-baseline-plan.md`：本次任务计划文件（本提交一并纳入）。
 - **验证**：TDD 红（任务不存在 12 项失败）→ 绿（31/31）；全量 `bun test tests/agent-evals` **447 pass / 0 fail**（原 416 + 31 新，无回退）；`bunx tsc --noEmit` 0 错误；`run.ts --dry-run` 任务清单 66 且校验通过。
 - **红线**：规则 1（只新增任务与对应测试，未改既有 54 任务语义/验证器，零基线风险）；规则 2（tasks.ts 已备份 .tmp/backups/，验证后删）；规则 3（只 add 本任务文件：tasks.ts、tests-real、tasks-s4-assert、AGENT-EVALS.md、plan；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset/checkout）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：8fb0739
