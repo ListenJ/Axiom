@@ -8517,3 +8517,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 416 pass / 0 fail / 31 files（基线 410，+6 = run-check 4 + registry 2）；`latency-percentile.test.ts` 13 pass（兼容红线）；`--help` --evolve + 三 flag 可见、`--dry-run` exit 0。evolve 判定逻辑 :memory: 全覆盖（不连 provider）。
 - **红线**：规则 1（仅新增，无语义删改；主路径行为向后兼容）；规则 3（只 add 本任务 7 文件 + 计划补充 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
 - **Commit**：7b06ca2
+
+## 2026-09-05 — docs(plans): 回写 09-05 计划 evolve 补充完成状态（记录维护，规则5）
+
+- **任务**：迭代收尾——S5 计划文末「补充（evolve 修复）」段已随 `7b06ca2` 实施（偏离原「evolve 不接自动检查」，用户指示 evolve 修复后调整：evolve 两阶段接入回归检测 + 分级退出码 + updateExitCode 真值回写），补充段状态行缺锚点，需回写完成状态与 commit 锚点。
+- **工具**：Edit（计划文档 UTF-8 无 BOM、LF）、node（CRLF 安全 ops-log 追加）、git。AGENTS 规则 5（记录维护）执行。
+- **操作**（文件级）：
+  1. `docs/superpowers/plans/2026-09-05-agent-evals-s5-closure-plan.md`：补充段状态行改为 evolve 修复已实施并合入 `7b06ca2`（410 → 416 pass）。
+  2. `docs/operations-log.md`：CRLF 追加本条记录（Commit 字段占位待回填）。
+- **验证**：`git diff` 仅计划文档与 ops-log 两文件；锚点 `7b06ca2` 与会话实际 commit 一致；补充段主题内容未删改。
+- **红线**：规则 1（只回写状态）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
+- **Commit**：__HASH__
