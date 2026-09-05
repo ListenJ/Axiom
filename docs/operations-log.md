@@ -8477,7 +8477,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   1. `docs/superpowers/plans/2026-09-05-agent-evals-s5-closure-plan.md`（新）：S5 收尾计划——4 个 Slice（验证器直测补齐 / 报告落地补全 / run-check 纯函数 / run.ts 胶水 + 分级退出码），含兼容红线与验证策略。
 - **验证**：计划与用户 AskUserQuestion 选择一致；改动面与既有代码 read 核对。
 - **红线**：规则 1（仅接入既有能力）；规则 3（只 add 计划文档 + ops-log）；规则 9（无 force/reset）。
-- **Commit**：__HASH__
+- **Commit**：b771ec6
 
 ## 2026-09-05 — feat(agent-evals): S5 报告落地补全 + 回归自动检测闭环 + 验证器直测补齐
 
@@ -8491,4 +8491,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. 测试（新）：report-main.test.ts（5 例，含兼容红线省略段）、run-check.test.ts（6 例）。
 - **验证**：逐 Slice 红→绿（report-main 曾 1 fail 因夹具 reason「缺少关键内容:」实际归「其他」桶，改 empty response 命中「内容缺失」后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 410 pass / 0 fail / 31 files（基线 392）；`tests/agent-evals/latency-percentile.test.ts` 13 pass（兼容红线）；`--help` 三 flag 可见、`--dry-run` exit 0。真实回归判定不连 provider（run-check 判定逻辑 :memory: 全覆盖）。
 - **红线**：规则 1（仅接入既有 clusterFailures/checkRegression，无新算法；全绿轮次 toMarkdown 逐字节不变）；规则 2（.tmp/backups/tests/agent-evals/verify.test.ts.bak 验证后删除）；规则 3（只 add 本任务 6 文件 + ops-log；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络）。
-- **Commit**：__HASH__
+- **Commit**：e5bc202
