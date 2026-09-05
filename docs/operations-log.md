@@ -8564,3 +8564,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：run#10 registry 落库记录（passRate=91.5%，回归检测回落 8.5pp < 10pp 未判回归）；文档数字与 registry/报告逐项核对；git diff 仅本任务文件；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md。
 - **红线**：规则 1（仅文档/报告，未改源码）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）；规则 11（无密钥）。
 - **Commit**：cfdbe6b
+## 2026-09-05 — docs(agent-evals): 回填 deepseek evolve 真实结果（run#8/#9，纠错首版「两次不可达」叙事）
+
+- **任务**：复查 registry 时发现首版标定文档与 ops-log cfdbe6b 记载「deepseek（opencode）全量 + evolve 两次不可达、0 任务落库」有误：run#8/run#9（run_tag `..30192::baseline`/`::evolved`，argv `--provider=opencode --model=deepseek-v4-flash --evolve --concurrency=1 --rerun-each=1`，12:04:18 启动、12:43:52 完成）实为完整成功的 evolve 闭环。三个后台 job 时间线交叉核对：10:40 全量54（`.tmp/eval-logs/deepseek.log`）transport error 拖死、12:04 deepseek-evolve-66（b7862dw8d，=run#8/#9）成功、12:49 deepseek-evolve2（bj8te3cdz，`.tmp/run-deepseek-evolve2.log`）阶段1/3 撞墙——cfdbe6b 把 bj8te3cdz 当成唯一 deepseek job 记录为「停止」，漏看了 b7862dw8d 已成功落库。本次回填真实结果并纠正叙事。
+- **工具**：Read/regex（registry 直查）、bun+sqlite（run#8/9 明细、分族、injected_skills 38/38、exit_code 1→0、git_commit 4e4dc82 与 run#7/#10 同版）、node（CRLF 安全 ops-log 追加）、git。无子代理（纯文档回填）。
+- **操作**（文件级）：
+  1. `docs/agent-eval-baseline-2026-09-05.md`（备份 `.tmp/backups/`）：头部修订注记、全局对比表 opencode 行由「不可达」改真实数据（evolved 100% / baseline 94.7%）、核心结论三路并列、历史对比表补 deepseek evolve 行、结论4 区分「evolve 已成功 vs 全量66未做」、第十一节新增 run#8/#9 小节（baseline 36/38=94.7%→evolved 38/38=100%，分族 coding 5/6→6/6、memory 6/7→7/7，两阶段零执行错误）、待回填清单 deepseek 项改为「全量66（无evolve）待空闲期补跑」并附三次尝试明细。
+  2. `docs/superpowers/plans/2026-09-05-real-eval-baseline-plan.md`（备份 `.tmp/backups/`）：状态行「deepseek 路不可达除外」同步纠正为「deepseek 全量 66 例外」，回写清单补 evolve ✅。
+  3. `docs/operations-log.md`：CRLF 追加本条（Commit 占位待回填）。
+- **验证**：registry run#8/9 逐项核对（baseline passed=36/38 execErr=0 / evolved 38/38 带 injected_skills；exit_code 1/0 符合分级；git_commit 4e4dc82 与 run#7/#10 一致证实 66 任务集）；`.tmp/run-deepseek-evolve2.log`（12:49 阶段1/3 撞墙）与 `.tmp/eval-logs/deepseek.log`（10:40 全量）确认两次失败尝试与成功 job 区分；git diff 仅标定/计划/ops-log 三文件。
+- **红线**：规则 1（纯文档纠错回填，未改源码）；规则 2（两文档已备份，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条目，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
+- **Commit**：__HASH__

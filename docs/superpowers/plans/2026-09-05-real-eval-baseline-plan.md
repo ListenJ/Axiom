@@ -1,7 +1,7 @@
 # Agent 真实评测 + 真实场景测试集 + 基准标定计划（2026-09-05）
 
-> **状态：已完成（deepseek 路不可达除外）。** 计划文件（本次覆盖新任务，非增量）。
-> **回写（2026-09-05）**：Phase A 三路全量——zhipu/sensenova 54 任务✅（run#5/#6）、66 任务 Wave-2✅（run#7/#10，见标定文档第十一节）；opencode/deepseek 全量 + evolve ❌**不可达（模型自竞争）**，两次尝试均被同端点过载击穿，需空闲期独立会话重试。Phase B✅（+12 任务，commit 8fb0739）、Phase C✅（标定文档）、Phase D✅（知识文件）。
+> **状态：已完成（deepseek 全量 66 例外）。** 计划文件（本次覆盖新任务，非增量）。
+> **回写（2026-09-05）**：Phase A 三路全量——zhipu/sensenova 54 任务✅（run#5/#6）、66 任务 Wave-2✅（run#7/#10，见标定文档第十一节）、deepseek evolve ✅（run#8/#9，held-out baseline 94.7%→evolved 100%，job b7862dw8d）；仅 deepseek **全量 66（无 evolve）** ❌不可达（模型自竞争，需空闲期独立会话重试）。Phase B✅（+12 任务，commit 8fb0739）、Phase C✅（标定文档）、Phase D✅（知识文件）。**修订（复查）**：首版误记"deepseek evolve 两次不可达"，实际 run#8/#9 已成功，见标定文档第十一节。
 > **用户指令**：执行真实评测（已授权真实 provider 调用）→ 按 Agent 真实场景使用规范设计测试集 → 完成能力测试与基准标定 → 用最新研究与评测数据完善。
 > **用户选定**：① 三路 provider 全铺（opencode/deepseek-v4-flash + zhipu/glm-4.7-flash + sensenova/deepseek-v4-flash-sensenova）；② 在 deepseek 上跑一轮 `--evolve` 闭环（自进化能力标定）；③ 真实场景任务**扩展现有 6 族**（不新增第 7 族）。
 

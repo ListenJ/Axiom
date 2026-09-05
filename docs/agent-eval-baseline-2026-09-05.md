@@ -1,7 +1,7 @@
 # Agent 能力评测基准标定（2026-09-05）
 
 > 数据源：`data/eval-registry.db` run#5/#6（54 任务第一版全量基线）、run#7（66 任务 zhipu Wave-2）、run#10（66 任务 sensenova Wave-2）。全部数字来自真实 provider 运行，registry 落库，未杜撰。
-> 本版 = **54 任务第一版全量基线** + **66 任务 Wave-2 双路实时更新**；deepseek（opencode）全量 + evolve 闭环因模型自竞争两次不可达，见文末"待回填"。
+> 本版 = **54 任务第一版全量基线** + **66 任务 Wave-2 双路实时更新 + deepseek evolve 闭环（run#8/#9）**；deepseek 全量 66（无 evolve 的完整评估）仍不可达（模型自竞争），见文末"待回填"。**修订（2026-09-05 复查）**：首版记载"deepseek evolve 两次不可达、0 任务"有误——run#8/#9（12:04-12:43，job b7862dw8d）实为完整成功的一次 evolve 闭环（held-out baseline 94.7% → evolved 100%），已回填本节。
 
 ## 一、方法与口径
 
@@ -16,9 +16,9 @@
 | --- | --- | --- | --- | --- | --- |
 | zhipu / glm-4.7-flash | **90.6%** | 48 / 53 | 1 | 8164 / 24091 / 28951 | 981 字符 |
 | sensenova / deepseek-v4-flash | **100%** | 45 / 45 | 9 | 21951 / 90720 / 128775 | 699 字符 |
-| opencode / deepseek-v4-flash | _不可达（模型自竞争，待空闲重试）_ | — | — | — | — |
+| opencode / deepseek-v4-flash | **100%**（evolve evolved；baseline 94.7%） | 38 / 38（evolved held-out） | 0 | 25201（evolved 均值） | 972 字符 |
 
-**核心结论**：两个真实端点都是首次全量基线。zhipu 能力通过率 90.6%（6 项失败），sensenova 能力通过率 100%（45/45 无能力失败，但 9 项执行错误被排除）。**sensenova 延迟极不稳定**（p95≈90s，p99≈129s，单任务最高 128775ms），适合低吞吐场景；zhipu 延迟平稳（p50 8s），是日常评测主选。
+**核心结论**：三个真实端点均有能力基线（deepseek 为 evolve 闭环）。zhipu 能力通过率 90.6%（6 项失败），sensenova 能力通过率 100%（45/45 无能力失败，但 9 项执行错误被排除），deepseek evolve 后 held-out 100%（baseline 94.7%→100%，技能注入恢复全部失败）。**sensenova 延迟极不稳定**（p95≈90s，p99≈129s，单任务最高 128775ms），适合低吞吐场景；zhipu 延迟平稳（p50 8s），是日常评测主选；deepseek（opencode）为模型自竞争端点，仅模型空闲期可用。
 
 ## 三、分族通过率（能力口径）
 
@@ -86,8 +86,9 @@
 | **2026-09-05** | **54 任务新集（6 族）** | **sensenova deepseek-v4-flash** | **100%**（能力） |
 | **2026-09-05** | **66 任务新集（6 族）** | **zhipu glm-4.7-flash（Wave-2）** | **92.3%**（能力） |
 | **2026-09-05** | **66 任务新集（6 族）** | **sensenova deepseek-v4-flash（Wave-2）** | **91.5%**（能力） |
+| **2026-09-05** | **66 任务新集 held-out（6 族）** | **opencode deepseek-v4-flash --evolve（run#8/#9）** | **baseline 94.7% → evolved 100%**（held-out） |
 
-**结论**：54 任务新集首次全量基线高于旧 24 任务集历史最优（90.6% / 100% vs 87.5%），且新集跨 6 族、覆盖更广，含 held-out 泛化验证。
+**结论**：54 任务新集首次全量基线高于旧 24 任务集历史最优（90.6% / 100% vs 87.5%），且新集跨 6 族、覆盖更广，含 held-out 泛化验证。deepseek evolve 闭环（当日唯一一场 evolve）显示**技能注入恢复全部 baseline 失败且无回归**（94.7%→100%），从 24 任务旧集历史最优 87.5% 相同演化路径再验证。
 
 ## 九、回归检测
 
@@ -98,7 +99,7 @@
 1. **模型选型**：日常评测默认 **zhipu/glm-4.7-flash**（延迟平稳、免费、90.6% 能力）；**sensenova/deepseek-v4-flash** 能力最强（100%）但延迟长尾严重、执行错误多，仅适合低吞吐/高精度场景。
 2. **校验器校准点**（zhipu 6 失败中 4 个是同义词组未命中）：KNOW-02/KNOW-05 的验证器同义词组需补 `JavaScriptCore`/`image` 等常见写法；EVOLVE-06 补 `备份` 同义词——**先看回答原文再定组，避免误伤真答**。
 3. **执行错误治理**：两个端点在 66 任务重跑中执行错误均显著上升（zhipu 1→14、sensenova 9→19）且各呈不稳定窗口——zhipu 为空内容突发窗口，sensenova 为 429 密集限流窗口（本时段端点负载高）；长输出任务（maxTokens 大）是共同易损点，建议提高 curl 超时或降低 `maxTokens`，并避开高峰窗口重跑。
-4. **后续迭代**：deepseek（opencode 端点）全量 + evolve 闭环因**模型自竞争**（opencode 即当前会话所用模型，会话活跃即抢占端点）两次不可达，需在**模型空闲期**（独立会话）重试；外部 HumanEval/MBPP docker 沙箱能力轴待单独标定。
+4. **后续迭代**：deepseek（opencode）evolve 闭环**已成功于本日 run#8/#9**（held-out baseline 94.7%→evolved 100%）；**未完成的是 deepseek 全量 66（无 evolve）评估**——精确到端点的三次尝试中两次撞 transport error（10:40 全量、12:49 evolve2），另一次（12:04 evolve）成功。模型自竞争（opencode 即会话所用模型）下仅空闲期可跑，需**模型空闲期**（独立会话）补全量 66；外部 HumanEval/MBPP docker 沙箱能力轴待单独标定。
 
 ## 十一、66 任务 Wave-2（+12 真实场景任务，2026-09-05 实时）
 
@@ -138,8 +139,26 @@
 
 **结论**：sensenova 66 任务能力口径 91.5%，泛化率 1.133（held-out 反超 train，无过拟合）；与 zhipu run#7（92.3%）接近，但本路执行错误更高（429 窗口）。**跨 provider 稳定失败 EVOLVE-09（缺 下次）** 是 12 个新任务外最值得优先核验的信号。
 
-### 待回填（后台运行中）
+### run#8 / run#9 — deepseek-v4-flash（opencode）evolve 闭环（66 任务集 held-out）
 
-- [ ] deepseek-v4-flash（opencode）全量 + `--evolve` 闭环——**不可达（模型自竞争）**：opencode 端点即当前会话所用模型，会话活跃即抢占端点。首次尝试 35min 0 任务、到达阶段 2/3 崩溃无落库；重跑在阶段 1/3 被同端点过载（120s 0 字节）拖死。**需模型空闲期（独立会话）重试**。
+**运行**：git_commit `4e4dc82`（与 run#7/#10 同版本，66 任务集）；argv `--provider=opencode --model=deepseek-v4-flash --evolve --concurrency=1 --rerun-each=1`；12:04:18 启动，12:43:52 两阶段完成落库（run_tag `...30192::baseline` / `::evolved`）。**这是当日唯一一场完整跑通的 evolve 闭环**（后台 job b7862dw8d / deepseek-evolve-66）。
+
+| 阶段 | 通过率 | 通过/总数（held-out） | 执行错误 | 平均延迟 | 平均输出 |
+| --- | --- | --- | --- | --- | --- |
+| baseline（无技能） | **94.7%** | 36/38 | 0 | 27989 ms | 1147 字符 |
+| evolved（注入技能） | **100%** | 38/38 | 0 | 25201 ms | 972 字符 |
+
+**分族（baseline → evolved，passed/总数）**：coding 5/6→6/6、knowledge 7/7→7/7、planning 6/6→6/6、tool-use 6/6→6/6、memory 6/7→7/7、self-evolve 6/6→6/6。
+
+**关键发现**：
+1. **技能注入恢复全部 baseline 失败且无回归**：baseline 的 2 项真实能力失败（CODING-03 缺 `regexp/正则`、MEM-09 数值非正 0）在 evolved 阶段被工具技能全部恢复（38/38 带 injected_skills），memory 族 85.7%→100%。这与 24 任务旧集历史最优路径（deepseek+evolve 87.5%）方向一致，再次验证 evolve 闭环的自修复价值。
+2. **两阶段零执行错误**：与同日 zhipu/sensenova 的 66 任务执行错误暴增（14/19）对比，opencode 端点本时段（12:04-12:43）稳定可靠。
+3. **实测噪音**：concurrency=1（较保守）、rerun-each=1（无重跑）——真实能力信号强但不同于其他两路口径（held-out 38 vs 全量 66），不做跨路直接对等比较。
+
+**结论**：deepseek-v4-flash 在本套件上能力**不低于**两路（evolve 后 held-out 100%），且 evolve 闭环验证真实有效；**唯一未完成的是 deepseek 全量 66（无 evolve）评估**，需模型空闲期补跑（见待回填）。
+
+### 待回填
+
+- [ ] deepseek-v4-flash（opencode）**全量 66（无 evolve）**——尚不可达（模型自竞争）：opencode 端点即当前会话所用模型，会话活跃即抢占端点。三次尝试明细：10:40 全量 54（`.tmp/eval-logs/deepseek.log`）transport error 拖死、12:04 **evolve 闭环成功（run#8/#9，已回填本节）**、12:49 evolve2（`.tmp/run-deepseek-evolve2.log`）阶段1/3 撞 120s 超时拖死。**全量 66 需模型空闲期（独立会话）重跑**。
 - [ ] zhipu 5 个撞窗新任务（CODING-10/11、KNOW-11、EVOLVE-10/11）+ sensenova 3 个（CODING-11、KNOW-11、MEM-11）干净窗口重跑校准
-- [ ] EVOLVE-09（缺 下次）跨 provider 稳定失败：先看两路回答原文，再定验证器校准 vs 能力缺口
+- [ ] EVOLVE-09 跨 provider 稳定性核验：run#5 zhipu=未找到数字、run#7 zhipu=缺 下次、run#10 sensenova=缺 下次、run#6 sensenova=通过——先看回答原文再定验证器校准 vs 能力缺口
