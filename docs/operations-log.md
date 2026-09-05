@@ -8563,4 +8563,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   4. `docs/operations-log.md`：CRLF 追加本条记录（Commit 占位待回填）。
 - **验证**：run#10 registry 落库记录（passRate=91.5%，回归检测回落 8.5pp < 10pp 未判回归）；文档数字与 registry/报告逐项核对；git diff 仅本任务文件；未碰 .serena/*、scripts/pdf-worker/app.py、CLAUDE.md。
 - **红线**：规则 1（仅文档/报告，未改源码）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）；规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：cfdbe6b
