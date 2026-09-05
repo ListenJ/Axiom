@@ -52,13 +52,17 @@ describe("校验器降噪：中文同义词不再误杀（TOOL-07）", () => {
   });
 });
 
-describe("校验器降噪：中文同义词不再误杀（EVOLVE-06）", () => {
+describe("校验器降噪：prompt 未要求的概念不再强制（EVOLVE-06）", () => {
   const task = find("EVOLVE-06");
   it("『路径/确认/备份快照』中文答案通过", async () => {
     expect((await task.verify("删除前检查目标路径，确认不是根目录或关键目录，先保存快照备份。")).passed).toBe(true);
   });
-  it("缺备份要求仍失败", async () => {
-    expect((await task.verify("检查路径并确认目标。")).passed).toBe(false);
+  it("给出 3 条合法自检项但未提备份也通过（prompt 只要求 3 条自检项，未指定必须含备份）", async () => {
+    // 真实 zhipu 回答（2026-09-05 探针）：路径绝对性 + 软链接陷阱 + 权限
+    expect((await task.verify("1. 确认目标路径的绝对准确性；2. 确认目录结构是否包含软链接或循环引用；3. 确认当前用户权限。")).passed).toBe(true);
+  });
+  it("无任何具体自检项仍失败", async () => {
+    expect((await task.verify("删除前小心使用即可。")).passed).toBe(false);
   });
 });
 
@@ -69,6 +73,29 @@ describe("校验器降噪：中文同义词不再误杀（KNOW-03）", () => {
   });
   it("缺工具维度仍失败", async () => {
     expect((await task.verify("MCP 是一种上下文协议，用于标准化通信。")).passed).toBe(false);
+  });
+});
+
+describe("校验器降噪：KNOW-02 运行时点接受多信号（引擎/性能/运行时）", () => {
+  const task = find("KNOW-02");
+  it("完整答案（Zig + JavaScriptCore + TypeScript）通过", async () => {
+    expect((await task.verify("Bun 基于 Zig 构建、使用 JavaScriptCore（JSC）引擎、原生支持 TypeScript。")).passed).toBe(true);
+  });
+  it("真实 zhipu 回答通过：用 性能/V8 描述运行时差异、未点名 JSC（prompt 只要求三点差异，未要求点名引擎）", async () => {
+    expect((await task.verify("Bun 使用 Zig 编写，避免了 Node.js V8 引擎的额外开销；包管理上内置 bun install；Bun 原生支持 TypeScript。")).passed).toBe(true);
+  });
+  it("完全没提运行时差异仍失败", async () => {
+    expect((await task.verify("Bun 支持 TypeScript，bun install 很快。")).passed).toBe(false);
+  });
+});
+
+describe("校验器降噪：KNOW-05 第三维对齐 prompt（启动速度，而非未要求的 镜像）", () => {
+  const task = find("KNOW-05");
+  it("真实 zhipu 回答通过：三句话各覆盖 隔离粒度/资源开销/启动速度 但未提镜像", async () => {
+    expect((await task.verify("隔离粒度：容器共享宿主机内核，仅隔离应用进程与文件系统；资源开销：容器直接使用宿主机资源，开销极低；启动速度：容器启动仅需秒级，无需启动完整操作系统。")).passed).toBe(true);
+  });
+  it("缺启动速度维度仍失败", async () => {
+    expect((await task.verify("容器共享宿主机内核、隔离性弱，且通过镜像分发。")).passed).toBe(false);
   });
 });
 

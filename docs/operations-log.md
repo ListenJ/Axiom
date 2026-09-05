@@ -8598,3 +8598,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：registry 实查 run#14/#16/#17/#18——sensenova 3/3 PASS（CODING-11 run#16、KNOW-11/MEM-11 run#14）、zhipu 5/5 PASS（CODING-11/EVOLVE-10/EVOLVE-11 run#17、CODING-10/KNOW-11 run#18）；探针证实 KNOW-11 完整答案可产出（force push + 硬重置），run#17 缺 `reset --hard` 组判采样方差而非断言误伤/能力缺口；结论：12 个新任务两路全通，无真实能力缺口。
 - **红线**：规则 1（仅改标定文档 + ops-log，未动源码/测试）；规则 2（改动前备份 `.tmp/backups/docs/`，验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 9（无 force/reset）；规则 11（无密钥）。
 - **Commit**：ff651da
+
+## 2026-09-05 — feat(agent-evals): 校验器校准 — KNOW-02/05 + EVOLVE-06 断言过度标定修正（TDD 红→绿 + 双路真机核验）
+
+- **任务**：核实并校准标定文档「结论与建议 #2」点名的三处校验器校准点（KNOW-02/KNOW-05/EVOLVE-06）。探针取 zhipu/sensenova 原始回答核实：三处失败均为**断言强制了 prompt 未要求的概念**（KNOW-02 运行时点只认引擎名、KNOW-05 强制未要求的「镜像」、EVOLVE-06 强制未指定的「备份」），而非同义词组过窄——组内已含常见写法。
+- **工具**：探针 `.tmp/probe-zhipu-calib.ts`/`.tmp/probe-zhipu-calib2.ts`/`.tmp/probe-sensenova-calib.ts`（直连抓原始回答，zhipu 空内容/ECONNRESET 内建重试）；bun:test（TDD 红→绿）；bunx tsc --noEmit；真实评测 `run.ts --tasks=KNOW-02,KNOW-05,EVOLVE-06 --rerun-each=2 --no-check-regression`（zhipu run#20 / sensenova run#19）。无子代理。
+- **操作**（文件级）：
+  1. `src/agent-evals/tasks.ts`（备份 `.tmp/backups/`）：三处函数式断言按 prompt 对齐——KNOW-02 运行时点 `["jsc","javascriptcore"]` 放宽为 `["jsc","javascriptcore","v8","引擎","engine","运行时","性能"]`；KNOW-05 第三组 `["镜像","image"]`（prompt 未要求）改为 `["启动","秒级","毫秒","引导"]`（prompt 三维度之三）；EVOLVE-06 删除强制组 `["备份","backup","保存","快照"]`（prompt 只要求 3 条自检项、未指定内容）。
+  2. `tests/agent-evals/validators-noise.test.ts`（备份 `.tmp/backups/`）：EVOLVE-06 块重写（原「缺备份仍失败」用例翻转——真实 zhipu 3 条合法自检项通过；新增「无任何具体自检项」失败用例）；新增 KNOW-02/KNOW-05 两个 describe（真实 zhipu 探针回答作通过夹具 + 缺维度失败用例）。
+  3. `docs/agent-eval-baseline-2026-09-05.md`（备份 `.tmp/backups/`）：七表两行标注「已校准」；十.2 从「需补同义词」改为「已核验：断言过度标定，已按 prompt 对齐校准」。
+- **验证**：TDD 红→绿（旧断言下 4 红：真实回答被误杀 + KNOW-05 缺「启动」却被「镜像」放行）；`bun test tests/agent-evals` 458 全绿（+6 新用例，无回归）；`bunx tsc --noEmit` 0；真机双路核验 zhipu run#20 3/3 恢复通过、sensenova run#19 3/3 无回归；断言仍具区分度（缺维度/无具体自检项回答仍失败）。
+- **红线**：规则 1（仅改 3 处断言 + 1 测试文件 + 标定文档）；规则 2（改动前备份、验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD 红→绿）；规则 9（无 force/reset）；规则 11（无密钥）。
+- **Commit**：__HASH__

@@ -68,8 +68,8 @@
 
 | 簇 | 代表样例 | 失败原因 |
 | --- | --- | --- |
-| 内容缺失（同义词组未命中） | KNOW-02（缺 `jsc/javascriptcore`）、KNOW-05（缺 `镜像/image`） | 回答正确但未命中验证器同义词组（校验器校准点） |
-| 内容缺失 | EVOLVE-06（缺 `备份`） | rm -rf 自检漏提备份 |
+| 内容缺失（断言过度标定→**已校准**） | KNOW-02（缺 `jsc/javascriptcore`）、KNOW-05（缺 `镜像/image`） | 断言强制 prompt 未要求的概念；探针核实回答符合 prompt 却被误杀（见 十.2） |
+| 内容缺失（断言过度标定→**已校准**） | EVOLVE-06（缺 `备份`） | 断言强制「备份」但 prompt 只要求 3 条自检项、未指定内容（见 十.2） |
 | 数值/格式（数字） | EVOLVE-09（未找到数字）、MEM-09（数值非正：0） | 未按要求输出数值 / count=0 |
 | 执行错误 | PLAN-09 | glm-4.7-flash 空内容重试后仍失败 |
 
@@ -97,7 +97,7 @@
 ## 十、结论与建议
 
 1. **模型选型**：日常评测默认 **zhipu/glm-4.7-flash**（延迟平稳、免费、90.6% 能力）；**sensenova/deepseek-v4-flash** 能力最强（100%）但延迟长尾严重、执行错误多，仅适合低吞吐/高精度场景。
-2. **校验器校准点**（zhipu 6 失败中 4 个是同义词组未命中）：KNOW-02/KNOW-05 的验证器同义词组需补 `JavaScriptCore`/`image` 等常见写法；EVOLVE-06 补 `备份` 同义词——**先看回答原文再定组，避免误伤真答**。
+2. **校验器校准点（已核验并校准）**：KNOW-02/KNOW-05/EVOLVE-06 三处**并非同义词组过窄**——组内已含 `javascriptcore`/`image`/`备份` 等常见写法；探针核实为**断言强制了 prompt 未要求的概念**：KNOW-02 运行时点只认引擎名（答「Zig+性能」被误杀）、KNOW-05 强制未要求的 `镜像`（prompt 只问隔离/资源/启动三维）、EVOLVE-06 强制未指定的 `备份`（prompt 只要求 3 条自检项）。已按 prompt 对齐校准（KNOW-02 运行时点放宽多信号、KNOW-05 镜像组→启动速度组、EVOLVE-06 删备份组），TDD 红→绿 + 双路真机重跑核验（zhipu run#20 3/3 恢复通过、sensenova run#19 3/3 无回归）。
 3. **执行错误治理**：两个端点在 66 任务重跑中执行错误均显著上升（zhipu 1→14、sensenova 9→19）且各呈不稳定窗口——zhipu 为空内容突发窗口，sensenova 为 429 密集限流窗口（本时段端点负载高）；长输出任务（maxTokens 大）是共同易损点，建议提高 curl 超时或降低 `maxTokens`，并避开高峰窗口重跑。
 4. **后续迭代**：deepseek（opencode）evolve 闭环**已成功于本日 run#8/#9**（held-out baseline 94.7%→evolved 100%）；**未完成的是 deepseek 全量 66（无 evolve）评估**——精确到端点的三次尝试中两次撞 transport error（10:40 全量、12:49 evolve2），另一次（12:04 evolve）成功。模型自竞争（opencode 即会话所用模型）下仅空闲期可跑，需**模型空闲期**（独立会话）补全量 66；外部 HumanEval/MBPP docker 沙箱能力轴待单独标定。
 
