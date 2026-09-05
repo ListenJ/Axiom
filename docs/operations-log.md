@@ -8527,4 +8527,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `docs/operations-log.md`：CRLF 追加本条记录（Commit 字段占位待回填）。
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；锚点 `7b06ca2` 与会话实际 commit 一致；补充段主题内容未删改。
 - **红线**：规则 1（只回写状态）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）；规则 9（无 force/reset）。
-- **Commit**：__HASH__
+- **Commit**：aabf0e5
