@@ -8443,7 +8443,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   2. `docs/operations-log.md`：CRLF 追加本条记录（Hash 占位 `__HASH__` 待后续回填）。
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；计划文档 S1/S2/S3 锚点与 `47a966c` 一致；主题内容（设计/红线/主线 B 留滞）未删改。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）。
-- **Commit**：__HASH__
+- **Commit**：579b2b3
 
 ## 2026-09-05 — feat(agent-evals): S4 任务集质量强化（声明式断言 + expectedBehavior 标定）
 
@@ -8457,4 +8457,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
   5. 测试：assertion-validators.test.ts（25）、assertion-spec-guard.test.ts（99，红队）、tasks-s4-assert.test.ts（49）、external-benchmarks.test.ts（+2）、tasks.test.ts（+1）。
 - **验证**：TDD 红→绿——guard 曾 1 fail（null bug，修复后转绿）；`bunx tsc --noEmit` 0；`bun test tests/agent-evals` 392 pass / 0 fail（基线 212，+180）；`tests/agent-evals + tests/utils + tests/native-bridge + tests/main` 421 pass / 0 fail；外部消费方 `tests/external-eval-sandbox.test.ts` 3 pass。全仓 test:full 未跑（用户中断，影响面已穷举：src 无其他 agent-evals 消费方）。
 - **红线**：规则 1（48 闭包语义全不变，`git diff` 确认 `(r) =>` 闭包零改动，仅 extra 补 expectedBehavior + 工厂 overload）；规则 2（.tmp/backups 验证后删净）；规则 3（只 add 本任务 9 文件；.serena/*、scripts/pdf-worker/app.py、CLAUDE.md 未碰）；规则 7（测试先行）；规则 9（无 force/reset/checkout）；规则 11（无密钥、无网络，新任务只测纯函数判定）。
-- **Commit**：待回填
+- **Commit**：441976a
