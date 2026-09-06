@@ -8700,5 +8700,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md P1-C 行状态回写；docs/operations-log.md 追加本条。
 - **验证**：git diff 仅计划与 ops-log 两文件。
 - **红线**：规则 1（仅文档）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）。
-- **Commit**：__HASH_P1CWB__
+- **Commit**：958a375
 
