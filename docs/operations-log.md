@@ -8693,3 +8693,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（最小修复，日志 redact/轮转语义不变）、规则 2（备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（TDD）、规则 9（无 force/reset）、规则 11（无密钥落盘）。
 - **Commit**：5f5c58d
 
+## 2026-09-06 — docs(plans): 前缀缓存计划 P1-C 状态回写（切片①②完成 d187124，切片③押后附理由）
+
+- **任务**：记录维护——P1-C 切片①②已实施（CACHE_BOUNDARY 确定性化 + 工具稳定排序，commit d187124），切片③（prompt-pool 接入 router 主路径）经评估押后：重接线属全局 system prompt 行为变更，会作废本迭代刚建立的 66 任务基线与回归防线参照，需独立切片 + 行为差异评估 + 重基线后再施工。
+- **工具**：Edit、git。无子代理。
+- **操作**（文件级）：docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md P1-C 行状态回写；docs/operations-log.md 追加本条。
+- **验证**：git diff 仅计划与 ops-log 两文件。
+- **红线**：规则 1（仅文档）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）。
+- **Commit**：__HASH_P1CWB__
+
