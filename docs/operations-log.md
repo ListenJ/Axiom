@@ -8681,5 +8681,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿（导入红 0 pass → 11 pass）；bun run test:full 3640 pass / 34 skip / 0 fail（310s）；bunx tsc --noEmit 0。判定记录：原始 bun test tests/ 单进程混跑出现 131 fail，经备份对照（model-router 套件两版本均单独全绿）+ test:full 隔离门禁全绿证实为既有跨测试干扰特性（EXCLUDE_FILES+isolate 机制之设计原因），非本次改动引入。
 - **偏差与押后**：P1-C 切片③「prompt-pool 静态前缀接入 router 主路径」押后——重接线会全局替换 router 消费方 system prompt（行为变更），将作废本迭代刚建立的 66 任务基线与回归防线参照；需独立切片 + 行为差异评估 + 重基线后再施工（已回写计划 P1-C 行）。
 - **红线**：规则 1（最小改动，不改池语义与排序语义）、规则 2（备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 8（orderToolsForCache 为纯函数小接口）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：__HASH_P1C__
+- **Commit**：d187124
 
