@@ -8671,5 +8671,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：docs/superpowers/specs/2026-09-06-next-iteration-decision-design.md 新增 §9 事实更正（W5/W8 落地证据链 + 验收结论：本迭代无需重复施工，gate 基准以 08-30 bench 记录为准）；docs/operations-log.md 追加本条。
 - **验证**：bun test tests/kg-fts-backfill.test.ts tests/kal-kg-fts.test.ts 9 pass / 0 fail（测试点覆盖辩论要求的全部回归点）；两测试文件不在 test-full.ts EXCLUDE_FILES（自动发现覆盖）；ops-log 中 fbb47c2/f8e3cf7 留痕与 hash 回填齐全。
 - **红线**：规则 1（仅文档更正）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 10.5（事实/推测/判断分离）、规则 9（无 force/reset）。
-- **Commit**：__HASH_D2FIX__
+- **Commit**：6a48160
 
