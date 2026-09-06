@@ -8709,5 +8709,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：eval-results/agent-evals-2026-09-06-external-zhipu.md（新增首轮标定报告：口径/失败聚类/口径注记/后续）；docs/agent-eval-baseline-2026-09-05.md（结论#4 回填外部轴标定结果与定位）；docs/operations-log.md（本条）。
 - **验证**：registry run#22/#24 逐项核对（164 题 4 通过 2.5% 执行错误 1 缓存命中 4843 tokens；50 题 3 通过 6% 缓存命中 1288 tokens）；报告数字与 registry/日志一致。核心结论：①数字刻画外轴 harness 缺陷而非模型能力（HumanEval 失败=拼接/缩进错位主导 H1；MBPP=入口函数名改写 H3），修复后需重标定；②超时治理成效实证：执行错误仅 1/164（p95 190s/p99 228s 在旧 90s/120s 限下会大量转为执行错误）；③P0-A 缓存命中度量真机首采成功；④exit_code 2 为假回归（首轮无同集基准，auto-baseline 撞同 scope 内部集 run#7，跨基准对比无效——数据完好，回归 scope 纳入任务集标识列为下迭代候选项）。
 - **红线**：规则 1（仅评测运行与文档，未改源码）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 10.5（失败聚类区分事实/判断）、规则 11（密钥仅 .env，报告不落）。
-- **Commit**：__HASH_EXTCAL__
+- **Commit**：e743e74
 
