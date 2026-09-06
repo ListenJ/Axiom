@@ -8635,5 +8635,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：① docs/superpowers/specs/2026-09-06-next-iteration-debate-decision-design.md 追加 §8 修正案（D8 runtime 定位+前缀缓存优先 / D9 OpenCode-only，D6 其余宿主由押后改取消）；② docs/superpowers/specs/2026-08-09-nextgen-agent-state.md 头部修订注记 + 架构图组件状态修正（切片3/4 已完成、切片5 进行中，消除 :58 vs :79 矛盾）+ 消费方列表/P0-2/验证标准收紧 OpenCode-only；③ docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md §6 下一步 Kimi/Pi/Codex 项取消；④ docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md 头部存档注记；⑤ docs/ARCHITECTURE.md:10 定位由「AI Agent 框架」改为「确定性认知运行时（生态位低于 Agent 的基础设施层，引 ADR-001）」；⑥ 新增 docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md（现状审计 8 项锚点 + P0-A 度量先行/P0-B llm-cache 修复/P1-C 前缀纪律接入主路径/P1-D 请求层适配/P2-E 前缀级 key 押后）；⑦ 2026-08-28-regression-defense-closure-plan.md 与 2026-08-30-p2-closeout-plan.md checkbox 补勾（24/16）+ 头部状态回写行（记录维护）。
 - **验证**：git diff 仅本任务 9 文件；勾选数核对（24+16）；两份计划工作落地事实此前已经独立审计核实（commit c5e96ea/0e9a765/af035e9/a1b6c7a/5f57cbe/9fa1a8c/e355d97/36a9231）；nextgen spec 修订后内部无状态矛盾；备份在 .tmp/backups/docs/（验证后删）。
 - **红线**：规则 1（文档最小改动，LANDSCAPE 等研究文档只加注记不重写）、规则 2（改前备份）、规则 3（仅 add 本任务文件）、规则 5（本条，Commit 占位待回填）、规则 9（无 force/reset）、规则 10（用户定位指令与 ADR-001 一致性已核对，RUNTIME-SPEC 潜在冲突留待后续评估）、规则 11（无密钥）。
-- **Commit**：__HASH_DOCS__
+- **Commit**：37c470c
 
