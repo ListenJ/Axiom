@@ -17,6 +17,15 @@ export interface ChatMessage {
 
 export type StreamChunkCallback = (chunk: string) => void;
 
+/**
+ * P1-C（前缀缓存计划）：请求边界工具列表确定性排序——按 function.name 升序、稳定、不原地修改。
+ * 工具定义位于序列化请求前缀中，调用方传入顺序不定会让同前缀请求字节不稳定，
+ * 白白损失 provider 端前缀缓存；排序只影响请求体字节布局，不改变工具语义与数量。
+ */
+export function orderToolsForCache(tools: ToolCallDef[]): ToolCallDef[] {
+  return [...tools].sort((a, b) => (a.function.name < b.function.name ? -1 : a.function.name > b.function.name ? 1 : 0));
+}
+
 const MAX_REQUEST_BYTES = 1 * 1024 * 1024;
 const MAX_CONTEXT_CHARS = 600_000;
 
@@ -110,7 +119,7 @@ export async function callProvider(
         temperature,
         ...(maxTokens ? { max_tokens: maxTokens } : {}),
         ...buildReasoningParams(provider, reasoningEffort, { thinking: override?.thinking }),
-        ...(tools && tools.length > 0 ? { tools } : {}),
+        ...(tools && tools.length > 0 ? { tools: orderToolsForCache(tools) } : {}),
       }),
       signal: controller.signal,
     });
@@ -218,7 +227,7 @@ export async function callProviderNativeStream(
         temperature,
         stream: true,
         ...buildReasoningParams(provider, reasoningEffort, { thinking: override?.thinking }),
-        ...(tools && tools.length > 0 ? { tools } : {}),
+        ...(tools && tools.length > 0 ? { tools: orderToolsForCache(tools) } : {}),
       }),
       signal: controller.signal,
     });

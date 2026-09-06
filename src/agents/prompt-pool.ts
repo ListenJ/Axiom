@@ -135,17 +135,6 @@ function estimateTokenCount(text: string): number {
   return Math.ceil(count);
 }
 
-/**
- * 生成 UUID 缓存边界标记
- */
-function generateCacheMarker(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
 // ========== 8 核心角色配置 ==========
 
 const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
@@ -442,10 +431,10 @@ export class UserAgentPromptPool {
    * 构建池化条目
    */
   private buildPoolEntry(role: AgentRole, config: RoleConfig): PromptPoolEntry {
-    const cacheMarker = generateCacheMarker();
-
-    // 构建静态前缀 (可缓存部分)
-    const staticPrefix = [
+    // P1-C（前缀缓存计划）：静态前缀必须跨进程重启字节级稳定——CACHE_BOUNDARY marker
+    // 由前缀内容 hash 派生。原 Math.random UUID 使每次重建（含重启）的前缀字节不同，
+    // provider 端前缀缓存按字节前缀匹配，随机 marker 会让缓存命中率归零。
+    const contentLines = [
       config.systemPromptPrefix,
       "",
       "## Available Tools",
@@ -454,8 +443,9 @@ export class UserAgentPromptPool {
       "## Constraints",
       ...config.constraints.map(c => `- ${c}`),
       "",
-      `<!-- CACHE_BOUNDARY: ${cacheMarker} -->`,
-    ].join("\n");
+    ];
+    const cacheMarker = `<!-- CACHE_BOUNDARY: ${xxh3Hash(contentLines.join("\n"))} -->`;
+    const staticPrefix = [...contentLines, cacheMarker].join("\n");
 
     // 动态后缀模板 (Handlebars 语法) — 区块由常量拼装，与替换 pattern 同源
     const dynamicSuffixTemplate = [
