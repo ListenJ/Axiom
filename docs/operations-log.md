@@ -8637,3 +8637,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（文档最小改动，LANDSCAPE 等研究文档只加注记不重写）、规则 2（改前备份）、规则 3（仅 add 本任务文件）、规则 5（本条，Commit 占位待回填）、规则 9（无 force/reset）、规则 10（用户定位指令与 ADR-001 一致性已核对，RUNTIME-SPEC 潜在冲突留待后续评估）、规则 11（无密钥）。
 - **Commit**：37c470c
 
+## 2026-09-06 — docs(knowledge): provider 缓存官方文档核查知识文件 + 计划 P1-D 缩窄回写
+
+- **任务**：前缀缓存计划 P1-D 施工前置——按计划红线「provider 缓存行为属外部事实，每个参数注入必须有官方文档依据（规则 10.2）」核查三家 provider 官方缓存语义，落知识文件并回写计划 P1-D 范围。
+- **工具**：WebSearch（3 次，官方文档定位）、Read/Write/Edit、node（CRLF 追加 ops-log）、git。无子代理（环境模型并发上限 1，工作者改为严格串行；本条为主线程文档工作）。
+- **操作**（文件级）：新增 docs/knowledge/prefix-cache-provider-api-2026-09-06.md（DeepSeek usage.prompt_cache_hit_tokens/miss_tokens + 自动磁盘缓存 hit 计价约 1/10；OpenAI prompt_cache_key/自动前缀缓存 ≥1024 token/prompt_tokens_details.cached_tokens；智谱自动隐式缓存无参数；结论表事实/推测/判断分离：三家当前端点均无参数可注入→P1-D 缩窄为 usage 字段透传、P1-C 前缀稳定为唯一施工杠杆）；编辑 docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md（P1-D 行缩窄为「usage 字段透传即完成」并链知识文件）；docs/operations-log.md 追加本条。
+- **验证**：三来源均为官方域名（api-docs.deepseek.com / developers.openai.com / docs.bigmodel.cn）；结论表按规则 10.5 标注事实/推测/判断；git diff 仅两文档 + ops-log。
+- **红线**：规则 1（仅文档，未碰工作者分区 src/utils/cache.ts、src/agent-evals、src/kal、src/kg）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 10.2/10.3（官方来源 + 知识文件）、规则 11（无密钥）。
+- **Commit**：__HASH_KNOWLEDGE__
+

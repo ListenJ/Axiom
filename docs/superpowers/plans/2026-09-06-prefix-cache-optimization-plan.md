@@ -28,7 +28,7 @@
 | P0-A | **缓存命中度量先行** | `TokenUsage` 加 `cacheHitTokens`；`parseProviderUsage` 解析 `prompt_cache_hit_tokens`（deepseek 系）/`cached_tokens`/`prompt_tokens_details`；metrics summarize 聚合 + 报告展示；TDD | S | 本轮施工 |
 | P0-B | **llm-cache E 组修复 + destroy 语义修正** | E 组红→绿：测试显式等待 flush（暴露真实异步语义）或 set 提供 flush 钩子——以实现语义为准，禁止测试里 sleep 猜时序；`destroy()` 只 flush+关库、不 DELETE L3 数据（清数据是 `clear()` 的职责）；补 destroy 不清库回归测试 | S | 本轮施工 |
 | P1-C | **prompt 前缀纪律接入主路径** | prompt-pool 静态前缀（system+工具表+约束）接入 router 主路径；CACHE_BOUNDARY marker 去随机化（确定性内容 hash）；工具列表稳定排序；易变内容（技能注入/时间戳/动态计数）全部移到边界之后 | M | P0 落地后 |
-| P1-D | **请求层 provider 缓存适配** | provider-caller 按 provider 注入缓存参数（OpenAI 系 `prompt_cache_key`；显式 cache_control 类仅对确认支持的 provider 开启），响应 usage 缓存字段全量透传落库 | M | P0 落地后 |
+| P1-D | **请求层 provider 缓存适配（缩窄）** | 2026-09-06 官方文档核查（`docs/knowledge/prefix-cache-provider-api-2026-09-06.md`）：三家 provider 均为自动隐式缓存、无缓存请求参数可注入——本子项缩窄为 usage 缓存字段全量透传落库（P0-A 合并即视为完成）；仅当未来接入 OpenAI 官方端点时才注入 `prompt_cache_key`（届时重新核查该端点文档） | S | P0-A 合并即完成 |
 | P2-E | **llmCache 前缀级 key** | 现全串 sha256 使多轮对话历史每轮增长即永不命中——需增量前缀 key 设计 | L | 押后：C/D 落地后若 provider 端命中率已达标则重估必要性 |
 
 ## 验证策略
