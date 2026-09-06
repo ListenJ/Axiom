@@ -47,6 +47,8 @@ const GENERATED_SCRIPT = "generated_code.py";
 const RUN_DIR_ROOT = path.resolve(process.cwd(), ".tmp", "external-eval-runs");
 /** 容器为 Linux 环境，解释器候选不再区分宿主平台。 */
 const DEFAULT_PYTHON_CANDIDATES: string[][] = [["python3"], ["python"]];
+/** 外部评测沙箱镜像：Python 运行时（禁网/只读挂载/20s 超时由 docker-sandbox 保证）。 */
+const SANDBOX_IMAGE = "python:3.11-slim";
 
 function resolveSandbox(sandbox?: SandboxProvider): SandboxProvider {
   return sandbox ?? dockerSandbox;
@@ -93,6 +95,7 @@ async function runPython(
         cwd: runDir,
         timeoutMs: SANDBOX_TIMEOUT_MS,
         networkAccess: false,
+        image: SANDBOX_IMAGE,
       };
       const result = await sandbox.execute(opts);
       if (result.exitCode === 0) {

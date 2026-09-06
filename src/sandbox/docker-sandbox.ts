@@ -102,7 +102,7 @@ export const dockerSandbox: SandboxProvider = {
       dockerArgs.push("-w", "/workspace")
 
       // Image and command
-      dockerArgs.push(DEFAULT_IMAGE, "/bin/sh", "-c", opts.command)
+      dockerArgs.push(opts.image ?? DEFAULT_IMAGE, "/bin/sh", "-c", opts.command)
 
       logger.info(`[DockerSandbox] Running: docker ${dockerArgs.slice(0, 6).join(" ")} ...`)
 

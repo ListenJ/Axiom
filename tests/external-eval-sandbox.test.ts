@@ -63,6 +63,7 @@ describe("[P1-3] external 评测沙箱执行", () => {
     expect(calls.length).toBe(1);
     expect(calls[0].timeoutMs).toBe(20_000);
     expect(calls[0].networkAccess).toBe(false);
+    expect(calls[0].image).toBe("python:3.11-slim");
     expect(calls[0].command).toContain(".py");
     // 挂载适配：脚本目录必须在项目内 .tmp/external-eval-runs 下（docker-sandbox 挂载
     // 白名单会拒绝 os.tmpdir 的宿主用户目录首段，且容器内经 /workspace 相对引用脚本）

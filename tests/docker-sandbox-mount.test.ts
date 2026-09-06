@@ -140,6 +140,36 @@ describe("[T4-③] docker-sandbox 网络默认禁用（opt-in）", () => {
   });
 });
 
+describe("[T4-③] docker-sandbox 镜像选择（opts.image 注入，缺省回退默认镜像）", () => {
+  it("传入 image → spawn args 该镜像紧跟 -w，位于 /bin/sh 之前", async () => {
+    const spy = spySpawn();
+    try {
+      await dockerSandbox.execute({
+        command: "echo hi",
+        cwd: LEGAL_DIR,
+        image: "python:3.11-slim",
+      });
+      const args = spy.mock.calls[0][0] as unknown as string[];
+      const shIdx = args.indexOf("/bin/sh");
+      expect(shIdx).toBeGreaterThan(-1);
+      expect(args[shIdx - 1]).toBe("python:3.11-slim");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("缺省 image → 仍用默认镜像 ubuntu:22.04", async () => {
+    const spy = spySpawn();
+    try {
+      await dockerSandbox.execute({ command: "echo hi", cwd: LEGAL_DIR });
+      const args = spy.mock.calls[0][0] as unknown as string[];
+      expect(args).toContain("ubuntu:22.04");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe("[T4-③] docker-sandbox 输出截断（对齐 process-sandbox 1MB）", () => {
   it("stdout 超 1MB 被截断并带标记", async () => {
     const spy = spyOn(Bun, "spawn").mockImplementation(
@@ -171,5 +201,9 @@ describe("[T4-③] docker-sandbox 静态断言", () => {
 
   it("networkAccess 默认禁网语义（!== true）", () => {
     expect(src).toMatch(/networkAccess !== true/);
+  });
+
+  it("镜像可注入（opts.image ?? DEFAULT_IMAGE，不硬编码唯一镜像）", () => {
+    expect(src).toMatch(/opts\.image \?\? DEFAULT_IMAGE/);
   });
 });

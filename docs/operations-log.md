@@ -8610,3 +8610,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：TDD 红→绿（旧断言下 4 红：真实回答被误杀 + KNOW-05 缺「启动」却被「镜像」放行）；`bun test tests/agent-evals` 458 全绿（+6 新用例，无回归）；`bunx tsc --noEmit` 0；真机双路核验 zhipu run#20 3/3 恢复通过、sensenova run#19 3/3 无回归；断言仍具区分度（缺维度/无具体自检项回答仍失败）。
 - **红线**：规则 1（仅改 3 处断言 + 1 测试文件 + 标定文档）；规则 2（改动前备份、验证后删）；规则 3（仅 add 本任务文件）；规则 5（本条，Commit 占位待回填）；规则 7（垂直切片 TDD 红→绿）；规则 9（无 force/reset）；规则 11（无密钥）。
 - **Commit**：175efa0
+## 2026-09-06 — feat(agent-evals): 外部评测沙箱镜像固定收口（docker-sandbox opts.image 注入 + python:3.11-slim）
+
+- **任务**：核验收口中断会话遗留的工作区改动——docker-sandbox 支持 opts.image 注入（缺省回退默认镜像 ubuntu:22.04），external 评测 runPython 固定 python:3.11-slim 镜像（ubuntu:22.04 无 python3 保障，是基线文档结论#4「外部 HumanEval/MBPP docker 沙箱能力轴标定」的前置）。改动含新测试（镜像注入参数序 / 缺省回退 / 静态断言 / external 传参断言）。
+- **工具**：bunx tsc --noEmit、bun test（tests/docker-sandbox-mount.test.ts + tests/external-eval-sandbox.test.ts）、git。无子代理（改动系上次会话遗留，本次仅核验 + 留痕 + 提交）。
+- **操作**（文件级）：src/agent-evals/external.ts（SANDBOX_IMAGE 常量 + sandboxOpts.image 透传）、src/sandbox/docker-sandbox.ts（opts.image ?? DEFAULT_IMAGE）、src/sandbox/types.ts（SandboxOptions.image 字段 + 注释）、tests/docker-sandbox-mount.test.ts（+2 行为测试 +1 静态断言）、tests/external-eval-sandbox.test.ts（+1 断言 image=python:3.11-slim）、docs/operations-log.md（追加本条）。
+- **验证**：bunx tsc --noEmit 0；bun test 两文件 20 pass / 0 fail（45 expect）；git diff 仅本任务 5 文件（CLAUDE.md 空文件维持不碰，沿用 09-05 计划约定）。
+- **红线**：规则 1（最小改动，不改既有沙箱语义与默认行为）、规则 3（仅 add 本任务文件）、规则 5（本条，Commit 占位待回填）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：__HASH__
+
