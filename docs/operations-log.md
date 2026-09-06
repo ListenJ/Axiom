@@ -8440,7 +8440,7 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read/Grep/Bash（git show 核对 a2942d5 记录维护格式与 47a966c 锚点）、Edit（UTF-8 无 BOM、LF 行尾）、Node（CRLF 安全的 ops-log 追加）、git。AGENTS 规则 5（记录维护）执行。
 - **操作**（文件级）：
   1. `docs/superpowers/plans/2026-09-03-agent-evals-deepening-plan.md`：引言块追加状态行（主线 A 全部完成 · `47a966c`，注明「3 路并行、单提交合入而非每片独立 commit」与计划的差异）；S1/S2/S3 标题标 ✅ + 锚点；验证修订节补实测结果（tsc 0 / agent-evals 212 pass / test:full 3368 pass）；主线 B 维持「下迭代实施」不变。
-  2. `docs/operations-log.md`：CRLF 追加本条记录（Hash 占位 `f78e50a` 待后续回填）。
+  2. `docs/operations-log.md`：CRLF 追加本条记录（Hash 占位 `__HASH__` 待后续回填）。
 - **验证**：`git diff` 仅计划文档与 ops-log 两文件；计划文档 S1/S2/S3 锚点与 `47a966c` 一致；主题内容（设计/红线/主线 B 留滞）未删改。
 - **红线**：规则 1（只回写状态，不删改计划内容）；规则 3（只 add 本任务文件）；规则 5（hash 回填独立提交）。
 - **Commit**：579b2b3
@@ -8617,5 +8617,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：src/agent-evals/external.ts（SANDBOX_IMAGE 常量 + sandboxOpts.image 透传）、src/sandbox/docker-sandbox.ts（opts.image ?? DEFAULT_IMAGE）、src/sandbox/types.ts（SandboxOptions.image 字段 + 注释）、tests/docker-sandbox-mount.test.ts（+2 行为测试 +1 静态断言）、tests/external-eval-sandbox.test.ts（+1 断言 image=python:3.11-slim）、docs/operations-log.md（追加本条）。
 - **验证**：bunx tsc --noEmit 0；bun test 两文件 20 pass / 0 fail（45 expect）；git diff 仅本任务 5 文件（CLAUDE.md 空文件维持不碰，沿用 09-05 计划约定）。
 - **红线**：规则 1（最小改动，不改既有沙箱语义与默认行为）、规则 3（仅 add 本任务文件）、规则 5（本条，Commit 占位待回填）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：__HASH__
+- **Commit**：f78e50a
 
