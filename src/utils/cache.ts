@@ -314,15 +314,17 @@ export class Cache<V = unknown> {
     this.db?.run("DELETE FROM cache_store WHERE namespace = ?", [this.opts.namespace]);
   }
 
-  /** 停止清理定时器 */
+  /**
+   * 销毁实例：停止清理定时器 + 冲刷 L3 缓冲 + 关闭数据库。
+   * 不清空任何数据——清数据是 clear() 的职责；销毁实例 ≠ 清库，
+   * 进程重启后新实例应能从 L3 恢复之前写入的条目。
+   */
   destroy(): void {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
-    // 先冲刷缓冲（防止 close 后去抖定时器写入已关闭的 db），再按既有语义清空
     this.flushPendingWrites();
-    this.clear();
     this.db?.close();
   }
 

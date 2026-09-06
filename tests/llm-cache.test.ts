@@ -201,8 +201,10 @@ describe("E. LLM Cache 持久化 (L3 SQLite)", () => {
       provider: "p",
     }));
 
-    // L3 写入是同步的（this.db.run），getOrSet 返回后数据已在 SQLite
-    // 不调用 destroy()（它会 clear() 删 L3 数据），改为直接关闭 db 连接
+    // L3 写入是去抖异步的（pendingL3 + setTimeout(0)）：显式调用 flush 钩子
+    // 落盘后再关库，不猜测时序。此处不走 destroy()（其自身语义由下方
+    // 回归测试覆盖），改为直接关闭 db 连接。
+    cache1.flushPendingWrites();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (cache1 as any).db?.close();
 
@@ -219,6 +221,41 @@ describe("E. LLM Cache 持久化 (L3 SQLite)", () => {
     const cached = await cache2.get("persist-key");
     expect(cached).toBeDefined();
     expect(cached!.content).toBe("persisted");
+
+    cache2.destroy();
+  });
+
+  test("destroy() 只冲刷不清理，新实例可读到已写入条目", async () => {
+    const cache1 = new Cache<CachedLLMResponse>({
+      namespace: "llm-destroy-test",
+      maxSize: 100,
+      defaultTtlMs: 60_000,
+      redis: false,
+      persistent: true,
+      dbPath,
+    });
+
+    await cache1.getOrSet("destroy-key", async () => ({
+      content: "survives-destroy",
+      model: "m",
+      provider: "p",
+    }));
+
+    // 销毁实例 ≠ 清库：destroy 只 flush + 关库，L3 数据保留给后续实例
+    cache1.destroy();
+
+    const cache2 = new Cache<CachedLLMResponse>({
+      namespace: "llm-destroy-test",
+      maxSize: 100,
+      defaultTtlMs: 60_000,
+      redis: false,
+      persistent: true,
+      dbPath,
+    });
+
+    const cached = await cache2.get("destroy-key");
+    expect(cached).toBeDefined();
+    expect(cached!.content).toBe("survives-destroy");
 
     cache2.destroy();
   });

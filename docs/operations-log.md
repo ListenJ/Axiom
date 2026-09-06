@@ -8646,3 +8646,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（仅文档，未碰工作者分区 src/utils/cache.ts、src/agent-evals、src/kal、src/kg）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 10.2/10.3（官方来源 + 知识文件）、规则 11（无密钥）。
 - **Commit**：74e9f93
 
+## 2026-09-06 — fix(llm-cache): P0-B destroy() 语义修正 + E 组 flush 时序修复（TDD 红→绿，子代理施工）
+
+- **任务**：前缀缓存计划 P0-B——①E 组存量失败「写入 L3 后新实例可读取」根因是 L3 去抖异步 flush（pendingL3 + setTimeout(0)）未落盘即关库；②destroy() 误实现为「flush 后 DELETE 整个 namespace L3」，销毁实例语义被错误实现成清库。
+- **工具**：general-purpose 子代理（独立备份/验证，禁止 git 写命令）、bun:test（TDD 红→绿）、bunx tsc --noEmit、git（主线程统一提交）。
+- **操作**（文件级）：src/utils/cache.ts（destroy() 移除 clear()，仅停定时器 + flushPendingWrites() + db.close()，注释「销毁实例 ≠ 清库」；复用既有 public flushPendingWrites() 作显式钩子，不加浅透传别名）；tests/llm-cache.test.ts（E 组改显式 flush 钩子后关库、零 sleep；新增「destroy 只冲刷不清理，新实例可读」回归测试）；docs/operations-log.md（主线程追加本条）。
+- **验证**：主线程复跑 bun test tests/llm-cache.test.ts 11 pass / 0 fail、bunx tsc --noEmit 0。子代理红→绿链：9/1（复现）→10/0（flush 钩子）→10/1（destroy 回归红）→11/0（修复绿）。相邻 runtime-audit / abnormal-input 各 1 失败经原版 cache.ts 对照复跑证实为存量问题（EXCLUDE_FILES 已知账），与本次改动无关。
+- **红线**：规则 1（最小改动，仅 2 文件）、规则 2（子代理备份 .tmp/backups/ 验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 8（复用既有钩子不造浅接口）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：__HASH_P0B__
+
