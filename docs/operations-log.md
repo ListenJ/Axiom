@@ -8626,5 +8626,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 docs/superpowers/specs/2026-09-06-next-iteration-debate-decision-design.md（决策集 D1-D7：D1 沙箱收口 3:0 / D2 W5-W8 FTS 本迭代启动 3:0 / D3 主线组合排序 / D4 EarlyEval 押后一轮 / D5 flaky 最小核实 llm-cache / D6 轨迹轨-分发线-前端押后 / D7 观感债）；执行 D1（沙箱镜像改动核验收口，见上条 f78e50a）；docs/operations-log.md 追加本条。
 - **验证**：审计员 8 项主张逐条属实性判定（2 项辩论方引用锚点错误被纠正：AXIOM-ARCHITECTURE:1389 非宿主接入形态、llm-cache 注释未定性「真缺陷」）；D1 收口经 tsc 0 + 20 测试 pass 核验；决策文档验收清单仅勾选已实施项，阶段 1 第 2-7 项标注待用户批准。
 - **红线**：规则 1（本轮仅文档落档 + D1 收口，未启动阶段 1 新施工）、规则 3（仅 add 本任务文件）、规则 5（本条，Commit 占位待回填）、规则 9（无 force/reset）、规则 10（事实/推测/判断分离，分歧点 2:1 投票记录在案）、规则 11（无密钥）。
-- **Commit**：__HASH_DECISION__
+- **Commit**：45aa452
 
