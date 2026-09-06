@@ -83,3 +83,7 @@
 - **D8（runtime 定位 + 前缀缓存优先）**：最终形态是 **runtime**，不是传统意义的 Agent——生态位比现有 Agent **更低**（Agent 之下的基础设施层，为上层 Agent/宿主提供确定性认知基建与模型调用效率）。据此新增主线：**针对模型的前缀缓存优化，提升缓存命中率**（现状审计：全仓无任何 provider 端缓存请求参数、评测直连路径丢弃 `prompt_cache_hit_tokens`、prompt-pool 静态前缀未接入 router 主路径且 marker 随机化——见新计划 `docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md`）。该主线与 D3-②（执行错误治理）共享 provider 调用面，**合并施工**。
 - **D9（宿主接入 OpenCode-only）**：除 OpenCode 外，其他深度工程化 Agent **不再添加**进入本 runtime（宿主消费方与 AgentAdapter 双面均冻结；存量 `src/agents/kimi-code-agent.ts` 等不再深化、不删除）。原 D3-④ 的「1 个宿主（OpenCode）」维持不变，D6 中「其余宿主（≥3）」由**押后改为取消**；nextgen spec / HOST-VALIDATION / LANDSCAPE 相关引用已同步收紧（2026-09-06）。
 - **D3 顺序更新（按批复执行）**：① 外部 HumanEval/MBPP 沙箱标定 → ② 执行错误治理 + 缓存命中度量（D8 合并）→ ③ W5/W8 FTS → ④ OpenCode 宿主冒烟 → ⑤ llm-cache 核实（并入前缀缓存计划第 1 子项先行）。
+
+## 9. 事实更正（2026-09-06 施工核验）
+
+- **D2 的"W5/W8 重立项"事实前提有误（勘误）**：辩论事实基座将 W5/W8 标为"获准立项待施工"，但 git 核实两者**已于 2026-08-30/31 按落地形态审计完成落地**——W5 `fbb47c2`（queryKG FTS5 trigram：独立虚拟表 + rowid 触发器 + 幂等回填 + MATCH/LIKE 并集，排序红线保持）+ `f8e3cf7`（部分丢失幂等恢复 INSERT OR IGNORE，直接覆盖"部分填充不得漏查存量行"教训）；W8 `37c24ae`（SearchPort 端口分层，M13 闭合 + L1 盲区收口）。验收核验（2026-09-06）：`bun test tests/kg-fts-backfill.test.ts tests/kal-kg-fts.test.ts` 9 pass / 0 fail，测试点覆盖辩论要求的全部回归点（主腿排序 / LIKE 兜底 / 死路径回归 / 回填幂等 / 部分丢失恢复 / typeFilter 两腿），ops-log 与 plan-amendment 回写齐全。**D2 实际效果 = 已由既往会话兑现，本迭代无需重复施工**；gate 基准（LIKE vs FTS 2.07-2.27x）以 08-30 bench 记录为准（生产形态与 bench B 组 1:1，见审计 §2.3）。此更正按规则 10.5 落档（事实/推测/判断分离）。

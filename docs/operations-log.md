@@ -8664,3 +8664,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（最小改动：治理不降 maxTokens、不改任务断言）、规则 2（主线程改前备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 9（无 force/reset）、规则 10.2（字段形态依据官方文档知识文件）、规则 11（密钥仅 .env，报告不落）。
 - **Commit**：253e309
 
+## 2026-09-06 — docs(specs): D2 事实更正（W5/W8 已于 08-30/31 落地，辩论基座误标待立项）+ W5 验收核验
+
+- **任务**：施工核验发现决策文档 D2 事实前提有误——W5（fbb47c2 queryKG FTS5 trigram + f8e3cf7 部分丢失幂等恢复）与 W8（37c24ae SearchPort 端口分层、M13 闭合）已于 2026-08-30/31 按落地形态审计完成并提交，第二轮辩论时被误标为「获准立项待施工」。按规则 10.5 落档更正。
+- **工具**：bun:test（W5 测试套件复跑验收）、git log/show（落地时间线核实）、Read/Edit（决策文档 §9 更正）、node（CRLF ops-log）、git。
+- **操作**（文件级）：docs/superpowers/specs/2026-09-06-next-iteration-decision-design.md 新增 §9 事实更正（W5/W8 落地证据链 + 验收结论：本迭代无需重复施工，gate 基准以 08-30 bench 记录为准）；docs/operations-log.md 追加本条。
+- **验证**：bun test tests/kg-fts-backfill.test.ts tests/kal-kg-fts.test.ts 9 pass / 0 fail（测试点覆盖辩论要求的全部回归点）；两测试文件不在 test-full.ts EXCLUDE_FILES（自动发现覆盖）；ops-log 中 fbb47c2/f8e3cf7 留痕与 hash 回填齐全。
+- **红线**：规则 1（仅文档更正）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 10.5（事实/推测/判断分离）、规则 9（无 force/reset）。
+- **Commit**：__HASH_D2FIX__
+
