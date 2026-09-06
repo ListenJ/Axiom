@@ -8683,3 +8683,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（最小改动，不改池语义与排序语义）、规则 2（备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 8（orderToolsForCache 为纯函数小接口）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：d187124
 
+## 2026-09-06 — fix(mcp)+smoke: MCP stdio stdout 纯净性修复 + OpenCode 真实宿主冒烟闭环（D3-④ 完成）
+
+- **任务**：清单④ OpenCode 单宿主冒烟切片——冒烟实证发现真实产品缺陷并修复，完成宿主消费面第一手信息采集。
+- **工具**：opencode CLI 1.18.25（真实宿主）、bun:test（TDD 红→绿）、bunx tsc --noEmit、git。无子代理。
+- **冒烟过程与发现**：①服务端手动握手正常但 opencode 标记 axiom server unavailable；②根因一（服务端缺陷）：logger info/debug 经 console.log 混入 stdout 污染 JSON-RPC 协议流——修复为 stdio 模式全部日志改写 stderr，新增 tests/mcp-stdio-stdout-purity.test.ts 真实 spawn 回归（红→绿）；③根因二（宿主侧 Windows 模式）：opencode 直接 spawn "bun" 失败，需 cmd /c 包装——已补入 scripts/setup-external-mcp.ts 片段；④修复后闭环：14 个 axiom_* 工具被 opencode 列出，axiom_token_stats 经宿主真实调用并返回运行时数据（totalCalls 2982/successRate 100%）。HOST-VALIDATION 文档「下一步第 1 项」验收线达成。
+- **操作**（文件级）：src/utils/logger.ts（writeConsole stdio 分支 + formatLine 抽取，redact 语义不变）；tests/mcp-stdio-stdout-purity.test.ts（新增，真实 spawn 断言 stdout 每行为合法 JSON-RPC）；scripts/setup-external-mcp.ts（OpenCode 片段补 Windows cmd /c 变体）；docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md（§7 冒烟结果）；docs/operations-log.md（本条）。
+- **验证**：bun test tests/mcp-stdio-stdout-purity.test.ts 1 pass / 0 fail；bunx tsc --noEmit 0；冒烟三步（发现→调用→数据回传）全部真实完成；隔离项目（仓库外 TEMP）零写入真实仓库数据。
+- **红线**：规则 1（最小修复，日志 redact/轮转语义不变）、规则 2（备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（TDD）、规则 9（无 force/reset）、规则 11（无密钥落盘）。
+- **Commit**：__HASH_SMOKE__
+

@@ -196,10 +196,27 @@ class Logger {
   }
 
   private writeConsole(entry: LogEntry) {
+    // 宿主互操作契约（2026-09-06 OpenCode 冒烟实证）：MCP stdio 传输（--stdio）下
+    // stdout 仅承载 JSON-RPC 帧，宿主按行解析协议流——info/debug 日志经 console.log
+    // 混入 stdout 会使标准客户端解析失败并标记 server unavailable。故 stdio 模式
+    // 全部日志改写 stderr（协议流纯净性回归：tests/mcp-stdio-stdout-purity.test.ts）。
+    if (process.argv.includes("--stdio")) {
+      console.error(this.formatLine(entry));
+      return;
+    }
     if (this.opts.format === "json") {
       console.log(JSON.stringify(this.serialize(entry)));
       return;
     }
+
+    if (entry.level === "error" || entry.level === "fatal") console.error(this.formatLine(entry));
+    else if (entry.level === "warn") console.warn(this.formatLine(entry));
+    else console.log(this.formatLine(entry));
+  }
+
+  /** text 格式行渲染（redactContext/SECRET_VALUE_RE 语义保持不变，仅抽取复用） */
+  private formatLine(entry: LogEntry): string {
+    if (this.opts.format === "json") return JSON.stringify(this.serialize(entry));
 
     const color = this.opts.enableColors ? LEVEL_COLORS[entry.level] : "";
     const reset = this.opts.enableColors ? RESET : "";
@@ -217,11 +234,7 @@ class Logger {
       ? `\n${(entry.error.stack || entry.error.message || "").replace(Logger.SECRET_VALUE_RE, "[REDACTED]")}`
       : "";
 
-    const line = `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
-
-    if (entry.level === "error" || entry.level === "fatal") console.error(line);
-    else if (entry.level === "warn") console.warn(line);
-    else console.log(line);
+    return `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
   }
 
   private async writeFile(entry: LogEntry) {

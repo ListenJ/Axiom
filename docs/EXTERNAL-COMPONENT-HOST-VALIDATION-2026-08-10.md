@@ -85,3 +85,17 @@
 2. ~~Kimi 配额刷新后重跑 `kimi -p` 真实调用。~~（已取消，2026-09-06）
 3. ~~若本地有 Pi / Codex CLI，追加第三个真实宿主。~~（已取消，2026-09-06）
 4. 同步建立缓存命中率与 token 节省基线。
+
+## 7. OpenCode 真实宿主冒烟结果（2026-09-06，D3-④ 切片完成）
+
+> 环境opencode CLI 1.18.25（Windows）；服务端 `bun run src/mcp/server.ts --external --stdio`；模型 opencode/ling-3.0-flash-fin-free；项目隔离于仓库外 TEMP 目录（零写入真实仓库数据）。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 协议层（手动握手） | initialize + tools/list 正常返回（修复后 stdout 纯净） |
+| 宿主工具发现 | **14 个 axiom_\* 工具被 opencode 列出**（browser_locate_local / frontend_audit / frontend_visual_review / kal_query / knowledge_ingest_document / memory_read / memory_search / read_tool_result / recoverable_output_stats / search_engines_list / skill_list / skill_run / token_stats / web_search） |
+| 真实工具调用回环 | `axiom_token_stats` 经 opencode 发起 → axiom 执行 → 真实运行时数据返回宿主（totalCalls 2982 / totalTokens 234170 / successRate 100%）——**下一步第 1 项验收线达成**（search_engines_list 同类回环，token_stats 为纯本地等价验证） |
+
+**冒烟发现并修复的真实缺陷**：MCP stdio 模式下 logger 的 info/debug 经 console.log 混入 stdout，污染 JSON-RPC 协议流——opencode 实测标记 `server unavailable`。修复：stdio 模式日志全部改写 stderr（`src/utils/logger.ts`），协议流纯净性由 `tests/mcp-stdio-stdout-purity.test.ts` 回归锁定（TDD 红→绿）。
+
+**宿主侧配置结论**：Windows 下 opencode 直接 spawn `"bun"` 会失败，需 `cmd /c` 包装（已补入 `scripts/setup-external-mcp.ts` 片段）。服务端 stdio 修复后，非 Windows 宿主可直接使用原片段。

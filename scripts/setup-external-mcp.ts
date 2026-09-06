@@ -39,6 +39,19 @@ ${json({
   },
 })}
 
+   Windows 宿主注意（2026-09-06 OpenCode 冒烟实证）：直接 spawn "bun" 会被 opencode
+   标记 server unavailable（Windows 子进程解析问题），需经 cmd /c 包装：
+${json({
+  mcp: {
+    axiom: {
+      type: "local",
+      command: ["cmd", "/c", "bun", ...stdioArgs],
+      enabled: true,
+    },
+  },
+})}
+   （服务端 stdout 协议流纯净性已由 tests/mcp-stdio-stdout-purity.test.ts 锁定。）
+
 4. Codex config.toml
 [mcp_servers.axiom]
 command = "bun"
