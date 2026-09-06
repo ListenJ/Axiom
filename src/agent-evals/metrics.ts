@@ -8,6 +8,9 @@ export interface TokenUsage {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  /** provider 端 prompt 缓存命中 token（P0-A：deepseek 系 prompt_cache_hit_tokens /
+   * OpenAI 兼容系 prompt_tokens_details.cached_tokens；缺省不产出，绝不报错） */
+  cacheHitTokens?: number;
 }
 
 export interface TaskResult {
@@ -59,6 +62,9 @@ export interface MetricsSummary {
   avgCostUsd: number | null;
   avgPromptTokens: number | null;
   avgCompletionTokens: number | null;
+  /** 缓存命中 token（P0-A）：仅统计带 cacheHitTokens 数据的样本；全部缺失时为 null */
+  totalCacheHitTokens: number | null;
+  avgCacheHitTokens: number | null;
 }
 
 export function summarize(results: TaskResult[]): MetricsSummary {
@@ -87,6 +93,10 @@ export function summarize(results: TaskResult[]): MetricsSummary {
   const costed = results.filter((r) => typeof r.costUsd === "number");
   const tokened = results.filter((r) => r.tokenUsage && typeof r.tokenUsage.promptTokens === "number");
   const completionTokened = results.filter((r) => r.tokenUsage && typeof r.tokenUsage.completionTokens === "number");
+  // 缓存命中维度：仅统计带 cacheHitTokens 数据的样本（provider 未返回时缺失，不阻断旧调用方）
+  const cacheHited = results.filter((r) => r.tokenUsage && typeof r.tokenUsage.cacheHitTokens === "number");
+  const totalCacheHitTokens =
+    cacheHited.length === 0 ? null : cacheHited.reduce((a, b) => a + (b.tokenUsage!.cacheHitTokens as number), 0);
   const totalCostUsd = costed.length === 0 ? null : round4(costed.reduce((a, b) => a + (b.costUsd as number), 0));
   const avgCostUsd = costed.length === 0 ? null : round4(totalCostUsd! / costed.length);
   // 延迟分位：全样本（含执行错误）升序取 nearest-rank，口径与 avgLatencyMs 一致。
@@ -111,6 +121,8 @@ export function summarize(results: TaskResult[]): MetricsSummary {
     avgPromptTokens: tokened.length === 0 ? null : Math.round(tokened.reduce((a, b) => a + (b.tokenUsage!.promptTokens as number), 0) / tokened.length),
     avgCompletionTokens:
       completionTokened.length === 0 ? null : Math.round(completionTokened.reduce((a, b) => a + (b.tokenUsage!.completionTokens as number), 0) / completionTokened.length),
+    totalCacheHitTokens,
+    avgCacheHitTokens: cacheHited.length === 0 ? null : Math.round(totalCacheHitTokens! / cacheHited.length),
   };
 }
 

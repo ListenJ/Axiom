@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS eval_runs (
   summary_latency_p50 REAL,
   summary_latency_p95 REAL,
   summary_latency_p99 REAL,
+  summary_avg_cache_hit_tokens REAL,
+  summary_total_cache_hit_tokens INTEGER,
   exit_code INTEGER,
   CONSTRAINT uq_eval_runs_tag UNIQUE(run_tag)
 );
@@ -136,6 +138,8 @@ function rowToRun(row: Record<string, unknown>): RunRow {
     summaryLatencyP50: row.summary_latency_p50 == null ? null : Number(row.summary_latency_p50),
     summaryLatencyP95: row.summary_latency_p95 == null ? null : Number(row.summary_latency_p95),
     summaryLatencyP99: row.summary_latency_p99 == null ? null : Number(row.summary_latency_p99),
+    summaryAvgCacheHitTokens: row.summary_avg_cache_hit_tokens == null ? null : Number(row.summary_avg_cache_hit_tokens),
+    summaryTotalCacheHitTokens: row.summary_total_cache_hit_tokens == null ? null : Number(row.summary_total_cache_hit_tokens),
     exitCode: row.exit_code == null ? null : Number(row.exit_code),
   };
 }
@@ -231,6 +235,8 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
   ensureColumn(db, "eval_runs", "summary_latency_p50", "summary_latency_p50 REAL");
   ensureColumn(db, "eval_runs", "summary_latency_p95", "summary_latency_p95 REAL");
   ensureColumn(db, "eval_runs", "summary_latency_p99", "summary_latency_p99 REAL");
+  ensureColumn(db, "eval_runs", "summary_avg_cache_hit_tokens", "summary_avg_cache_hit_tokens REAL");
+  ensureColumn(db, "eval_runs", "summary_total_cache_hit_tokens", "summary_total_cache_hit_tokens INTEGER");
   ensureColumn(db, "eval_task_results", "prompt_tokens", "prompt_tokens INTEGER");
   ensureColumn(db, "eval_task_results", "completion_tokens", "completion_tokens INTEGER");
   ensureColumn(db, "eval_task_results", "cost_usd", "cost_usd REAL");
@@ -244,6 +250,7 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
       summary_avg_output_len, summary_by_family, summary_execution_errors,
       summary_avg_cost_usd, summary_total_cost_usd,
       summary_latency_p50, summary_latency_p95, summary_latency_p99,
+      summary_avg_cache_hit_tokens, summary_total_cache_hit_tokens,
       exit_code
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?,
@@ -253,6 +260,7 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
       ?, ?, ?,
       ?, ?,
       ?, ?, ?,
+      ?, ?,
       ?
     )
   `);
@@ -322,6 +330,8 @@ export function openRegistry(dbPath: string = DEFAULT_REGISTRY_PATH): Registry {
         summary.latencyP50 ?? null,
         summary.latencyP95 ?? null,
         summary.latencyP99 ?? null,
+        summary.avgCacheHitTokens ?? null,
+        summary.totalCacheHitTokens ?? null,
         meta.exitCode ?? null,
       );
       return Number(info.lastInsertRowid);

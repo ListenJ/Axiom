@@ -121,6 +121,8 @@ describe("report toMarkdown 延迟行（分位展示，前缀不变）", () => {
     avgCostUsd: null,
     avgPromptTokens: null,
     avgCompletionTokens: null,
+    totalCacheHitTokens: null,
+    avgCacheHitTokens: null,
   };
 
   it("有分位时在同一行展示 p50/p95/p99，前缀 `- 平均延迟:` 保持不变", () => {

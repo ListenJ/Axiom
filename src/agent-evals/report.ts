@@ -21,6 +21,10 @@ export function toMarkdown(summary: MetricsSummary, results: TaskResult[]): stri
   lines.push(
     `- 平均延迟: ${summary.avgLatencyMs}ms ｜ p50: ${fmtPct(summary.latencyP50)} ｜ p95: ${fmtPct(summary.latencyP95)} ｜ p99: ${fmtPct(summary.latencyP99)} ｜ 平均输出长度: ${summary.avgOutputLength}`,
   );
+  // P0-A 缓存命中段：仅当本轮有 provider 缓存命中数据时输出（保持无数据轮次输出形态不变）。
+  if (summary.totalCacheHitTokens !== null) {
+    lines.push(`- 缓存命中: ${summary.totalCacheHitTokens} tokens ｜ 平均 ${summary.avgCacheHitTokens}/调用`);
+  }
   lines.push("");
   lines.push("## 分族结果");
   lines.push("");

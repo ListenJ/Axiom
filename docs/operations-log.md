@@ -8655,3 +8655,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **红线**：规则 1（最小改动，仅 2 文件）、规则 2（子代理备份 .tmp/backups/ 验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 8（复用既有钩子不造浅接口）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：a825b92
 
+## 2026-09-06 — feat(agent-evals): P0-A 缓存命中度量 + 清单②执行错误治理（TDD 红→绿 + 真机冒烟）
+
+- **任务**：前缀缓存计划 P0-A——agent-evals 采集 provider 端缓存命中 token（deepseek 系 prompt_cache_hit_tokens / OpenAI 兼容 prompt_tokens_details.cached_tokens / 顶层 cached_tokens，防御性解析）；清单②执行错误治理——直连请求超时可配置（AGENT_EVALS_TIMEOUT_MS）+ 默认 90s/120s 统一上调 180s（覆盖 sensenova p99≈129s 长尾，执行错误 zhipu 1→14 / sensenova 9→19 的易损点）；禁止降 maxTokens（不改断言语义）。
+- **工具**：bun:test（TDD 红→绿）、bunx tsc --noEmit、真实评测 run.ts（真机冒烟 run#21）、git。无子代理（P0-A 首次子代理派工两次死于平台模型并发限制，遗留解析层半成品由主线程按 TDD 完成聚合/报告/落库/治理切片并验收）。
+- **操作**（文件级）：src/agent-evals/runner.ts（extractCacheHitTokens 多形态解析 + toTokenUsage/parseProviderUsage 接线【子代理遗留】；DEFAULT_REQUEST_TIMEOUT_MS=180s + resolveRequestTimeoutMs（env 可配置、非法回退）；fetch signal 与 curl -m 两处接线）；src/agent-evals/metrics.ts（TokenUsage.cacheHitTokens【遗留】+ MetricsSummary.totalCacheHitTokens/avgCacheHitTokens + summarize 聚合）；src/agent-evals/metrics-types.ts（RunSummarySnapshot/RunRow 缓存字段）；src/agent-evals/report.ts（有数据才输出缓存命中行，无数据轮次输出形态不变）；src/agent-evals/registry.ts（2 列 DDL + ensureColumn 迁移 + insertRunStmt + rowToRun）；tests/agent-evals/cache-hit-dimension.test.ts（新增：解析 5 + 聚合 2 + 报告 2 + 落库 2）；tests/agent-evals/timeout-governance.test.ts（新增：默认/env/非法值 + 两路径接线静态断言）；latency-percentile/report-main/report-extras 测试夹具补新必填字段；docs/operations-log.md 追加本条。
+- **验证**：红→绿链（聚合/报告/落库 5 红转绿；超时测试模块导入红转绿）；bun test tests/agent-evals 474 pass / 0 fail；bunx tsc --noEmit 0；真机冒烟 run#21（sensenova MEM-10 单任务通过）报告输出「缓存命中: 0 tokens」——sensenova 确认返回缓存字段且端到端采集成功（首次调用命中 0 属预期，前缀复用后调用方可见命中增长）。注意 run#21 为 1 任务冒烟轮（与 run#11/12/19/20 局部标定轮同性质）。
+- **红线**：规则 1（最小改动：治理不降 maxTokens、不改任务断言）、规则 2（主线程改前备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（垂直切片）、规则 9（无 force/reset）、规则 10.2（字段形态依据官方文档知识文件）、规则 11（密钥仅 .env，报告不落）。
+- **Commit**：__HASH_P0A__
+

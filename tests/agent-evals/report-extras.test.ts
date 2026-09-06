@@ -53,6 +53,8 @@ function makeRun(overrides: Partial<RunRow> = {}): RunRow {
     summaryExecutionErrors: 0,
     summaryAvgCostUsd: null,
     summaryTotalCostUsd: null,
+    summaryAvgCacheHitTokens: null,
+    summaryTotalCacheHitTokens: null,
     summaryLatencyP50: null,
     summaryLatencyP95: null,
     summaryLatencyP99: null,

@@ -39,6 +39,19 @@ export interface RunOptions {
   rerunEach?: number;
 }
 
+/**
+ * 直连 provider 请求超时（清单②执行错误治理，基线文档结论#3）：默认 180s。
+ * 原值 fetch 90s / curl 120s 均低于 sensenova p99≈129s 长尾，长输出任务被传输
+ * 超时截断为执行错误（66 任务重跑执行错误 zhipu 1→14、sensenova 9→19）。
+ * AGENT_EVALS_TIMEOUT_MS（毫秒）可配置；非法值回退默认，绝不产出 0/负超时。
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 180_000;
+
+export function resolveRequestTimeoutMs(env: Record<string, string | undefined> = process.env): number {
+  const raw = Number(env.AGENT_EVALS_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
 async function runOne(task: AgentTask, options: RunOptions): Promise<TaskResult> {
   const t0 = performance.now();
   let content = "";
@@ -165,24 +178,62 @@ async function runOneBest(task: AgentTask, options: RunOptions): Promise<TaskRes
 }
 
 
+/** usage 字段的多形态缓存命中 token（P0-A，字段形态依据 docs/knowledge/prefix-cache-provider-api-2026-09-06.md）：
+ * deepseek 系 prompt_cache_hit_tokens 优先 → OpenAI 兼容系 prompt_tokens_details.cached_tokens
+ * → 部分 provider 顶层 cached_tokens；缺省/非法值返回 undefined（防御性解析，绝不报错）。 */
+function extractCacheHitTokens(u: {
+  prompt_cache_hit_tokens?: unknown;
+  prompt_tokens_details?: unknown;
+  cached_tokens?: unknown;
+}): number | undefined {
+  if (typeof u.prompt_cache_hit_tokens === "number" && Number.isFinite(u.prompt_cache_hit_tokens)) {
+    return u.prompt_cache_hit_tokens;
+  }
+  if (u.prompt_tokens_details && typeof u.prompt_tokens_details === "object") {
+    const cached = (u.prompt_tokens_details as { cached_tokens?: unknown }).cached_tokens;
+    if (typeof cached === "number" && Number.isFinite(cached)) return cached;
+  }
+  if (typeof u.cached_tokens === "number" && Number.isFinite(u.cached_tokens)) return u.cached_tokens;
+  return undefined;
+}
+
 /** snake_case usage 字段 → camelCase TokenUsage；缺字段保留可用字段，全缺/非对象返回 undefined。 */
 function toTokenUsage(
-  u: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } | undefined,
+  u: {
+    prompt_tokens?: unknown;
+    completion_tokens?: unknown;
+    total_tokens?: unknown;
+    prompt_cache_hit_tokens?: unknown;
+    prompt_tokens_details?: unknown;
+    cached_tokens?: unknown;
+  }
+  | undefined,
 ): TokenUsage | undefined {
   if (!u || typeof u !== "object") return undefined;
   const usage: TokenUsage = {};
   if (typeof u.prompt_tokens === "number" && Number.isFinite(u.prompt_tokens)) usage.promptTokens = u.prompt_tokens;
   if (typeof u.completion_tokens === "number" && Number.isFinite(u.completion_tokens)) usage.completionTokens = u.completion_tokens;
   if (typeof u.total_tokens === "number" && Number.isFinite(u.total_tokens)) usage.totalTokens = u.total_tokens;
+  const cacheHitTokens = extractCacheHitTokens(u);
+  if (cacheHitTokens !== undefined) usage.cacheHitTokens = cacheHitTokens;
   return usage;
 }
 
-/** OpenAI 兼容 /chat/completions 响应体的 usage 字段解析（prompt/completion/total_tokens，
- * 缺字段保留可用字段）；非法 JSON 或无 usage 返回 undefined（不阻断评测）。
+/** OpenAI 兼容 /chat/completions 响应体的 usage 字段解析（prompt/completion/total_tokens +
+ * 多形态缓存命中 token，缺字段保留可用字段）；非法 JSON 或无 usage 返回 undefined（不阻断评测）。
  * 直连路径无成本字段，成本按 token 数展示，不产出 costUsd。 */
 export function parseProviderUsage(body: string): TokenUsage | undefined {
   try {
-    const data = JSON.parse(body) as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } };
+    const data = JSON.parse(body) as {
+      usage?: {
+        prompt_tokens?: unknown;
+        completion_tokens?: unknown;
+        total_tokens?: unknown;
+        prompt_cache_hit_tokens?: unknown;
+        prompt_tokens_details?: unknown;
+        cached_tokens?: unknown;
+      };
+    };
     return toTokenUsage(data.usage);
   } catch {
     return undefined;
@@ -289,7 +340,7 @@ async function callWithProxy(
       // GLM 推理模型默认强制思考（content 为空），评测场景禁用思考以获得直接答案
       ...(provider === "zhipu" ? { thinking: { type: "disabled" } } : {}),
     }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(resolveRequestTimeoutMs()),
   });
   return { status: res.status, body: await res.text().catch(() => "") };
 }
@@ -318,7 +369,7 @@ async function callWithCurl(
   fs.writeFileSync(tmpFile, payload, "utf8");
   try {
     const proc = spawnSync(
-      ["curl.exe", "-sS", "--connect-timeout", "15", "-m", "120", "-X", "POST",
+      ["curl.exe", "-sS", "--connect-timeout", "15", "-m", String(Math.round(resolveRequestTimeoutMs() / 1000)), "-X", "POST",
         `${baseURL.replace(/\/$/, "")}/chat/completions`,
         "-H", "Content-Type: application/json",
         "-H", `Authorization: Bearer ${apiKey}`,

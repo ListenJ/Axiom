@@ -40,6 +40,8 @@ function makeSummary(overrides: Partial<MetricsSummary> = {}): MetricsSummary {
     avgCostUsd: null,
     avgPromptTokens: null,
     avgCompletionTokens: null,
+    totalCacheHitTokens: null,
+    avgCacheHitTokens: null,
     ...overrides,
   };
 }

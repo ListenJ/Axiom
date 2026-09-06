@@ -53,6 +53,9 @@ export interface RunSummarySnapshot {
   avgCostUsd?: number | null;
   avgPromptTokens?: number | null;
   avgCompletionTokens?: number | null;
+  /** 缓存命中 token（P0-A；provider 未返回时 null；可选，兼容旧调用方） */
+  totalCacheHitTokens?: number | null;
+  avgCacheHitTokens?: number | null;
   /** 延迟分位（ms；样本过少无有效分位时 null；可选，兼容旧调用方） */
   latencyP50?: number | null;
   latencyP95?: number | null;
@@ -112,6 +115,9 @@ export interface RunRow {
   /** 本轮成本/Token 聚合（DB 列，缺省 NULL） */
   summaryAvgCostUsd: number | null;
   summaryTotalCostUsd: number | null;
+  /** 本轮缓存命中聚合（P0-A；DB 列，缺省 NULL） */
+  summaryAvgCacheHitTokens: number | null;
+  summaryTotalCacheHitTokens: number | null;
   /** 本轮延迟分位（ms；DB 列，缺省 NULL） */
   summaryLatencyP50: number | null;
   summaryLatencyP95: number | null;
