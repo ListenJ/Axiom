@@ -8691,5 +8691,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：src/utils/logger.ts（writeConsole stdio 分支 + formatLine 抽取，redact 语义不变）；tests/mcp-stdio-stdout-purity.test.ts（新增，真实 spawn 断言 stdout 每行为合法 JSON-RPC）；scripts/setup-external-mcp.ts（OpenCode 片段补 Windows cmd /c 变体）；docs/EXTERNAL-COMPONENT-HOST-VALIDATION-2026-08-10.md（§7 冒烟结果）；docs/operations-log.md（本条）。
 - **验证**：bun test tests/mcp-stdio-stdout-purity.test.ts 1 pass / 0 fail；bunx tsc --noEmit 0；冒烟三步（发现→调用→数据回传）全部真实完成；隔离项目（仓库外 TEMP）零写入真实仓库数据。
 - **红线**：规则 1（最小修复，日志 redact/轮转语义不变）、规则 2（备份 .tmp/backups/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 7（TDD）、规则 9（无 force/reset）、规则 11（无密钥落盘）。
-- **Commit**：__HASH_SMOKE__
+- **Commit**：5f5c58d
 
