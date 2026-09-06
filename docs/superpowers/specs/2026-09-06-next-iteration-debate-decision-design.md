@@ -75,3 +75,11 @@
 - [x] D1 沙箱改动收口（留痕 + 提交 + 推送）
 - [x] 本决策文档落档 + 提交 + 推送
 - [ ] 阶段 1 第 2-7 项待用户批准后实施（各自验收标准见执行清单）
+
+## 8. 修正案（2026-09-06 用户批复）
+
+**批复**：阶段 1 执行清单第 2-7 项**全部批准**；同时下达两项新指令，作为 D8/D9 修正案并入本决策集。
+
+- **D8（runtime 定位 + 前缀缓存优先）**：最终形态是 **runtime**，不是传统意义的 Agent——生态位比现有 Agent **更低**（Agent 之下的基础设施层，为上层 Agent/宿主提供确定性认知基建与模型调用效率）。据此新增主线：**针对模型的前缀缓存优化，提升缓存命中率**（现状审计：全仓无任何 provider 端缓存请求参数、评测直连路径丢弃 `prompt_cache_hit_tokens`、prompt-pool 静态前缀未接入 router 主路径且 marker 随机化——见新计划 `docs/superpowers/plans/2026-09-06-prefix-cache-optimization-plan.md`）。该主线与 D3-②（执行错误治理）共享 provider 调用面，**合并施工**。
+- **D9（宿主接入 OpenCode-only）**：除 OpenCode 外，其他深度工程化 Agent **不再添加**进入本 runtime（宿主消费方与 AgentAdapter 双面均冻结；存量 `src/agents/kimi-code-agent.ts` 等不再深化、不删除）。原 D3-④ 的「1 个宿主（OpenCode）」维持不变，D6 中「其余宿主（≥3）」由**押后改为取消**；nextgen spec / HOST-VALIDATION / LANDSCAPE 相关引用已同步收紧（2026-09-06）。
+- **D3 顺序更新（按批复执行）**：① 外部 HumanEval/MBPP 沙箱标定 → ② 执行错误治理 + 缓存命中度量（D8 合并）→ ③ W5/W8 FTS → ④ OpenCode 宿主冒烟 → ⑤ llm-cache 核实（并入前缀缓存计划第 1 子项先行）。

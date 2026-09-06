@@ -3,6 +3,7 @@
 > 状态：方向已收敛，切片 1 已落地，进入外部组件 MVP 阶段
 > 分支：codex/external-component-runtime
 > 关联：external-component-runtime design / agent-cache-optimization / agent-external-component-landscape / agent-components-day0 design / AXIOM-ARCHITECTURE
+> **修订（2026-09-06，用户决策）**：①宿主接入目标收紧为 **OpenCode-only**——除 OpenCode 外，其他深度工程化 Agent（Kimi Code / Codex / Pi / Hermes / Claude Code）不再添加进入本 runtime（作为宿主消费方或 AgentAdapter 均冻结，存量 kimi-code-agent 等不再深化）；②项目定位进一步明确为 **runtime**（生态位低于现有 Agent 的基础设施层，为上层 Agent 提供确定性认知基建与模型调用效率），下文架构图与 P0/验证标准已同步收紧。
 
 ## 1. 下一代 Agent 的定义
 
@@ -53,12 +54,12 @@ Component Kernel + Runtime
         │ 内部完整工具面
 External MCP Server（--external）
   - ToolSurface exposure 过滤
-  - ContextCacheDiscipline（待实施）
-  - RecoverableToolOutput（待实施）
-  - AdaptiveCompaction（待实施）
+  - ContextCacheDiscipline（切片 3 已完成）
+  - RecoverableToolOutput（切片 4 已完成）
+  - AdaptiveCompaction（切片 5 进行中）
         ▲
         │ MCP stdio / Streamable HTTP + SKILL.md
-OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
+OpenCode（唯一宿主目标，2026-09-06 收紧；Kimi Code / Codex / Claude / Pi / Hermes 不再接入）
 ```
 
 ## 4. 当前开发状态（2026-08-09 快照）
@@ -84,7 +85,7 @@ OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
 ### P0：证明外部价值
 
 1. External MCP MVP：完整外部工具面、鉴权、server.json、SKILL.md。
-2. 用 OpenCode / Kimi Code / Codex / Pi 真实接入并冒烟。
+2. 用 OpenCode 真实接入并冒烟（2026-09-06 收紧为 OpenCode-only；真实模型回环打通为验收线）。
 3. 建立缓存命中率与 token 节省基线。
 
 ### P1：形成差异化
@@ -103,7 +104,7 @@ OpenCode / Kimi Code / Codex / Claude / Pi / Hermes
 
 ## 6. 下一代 Agent 验证标准
 
-- 外部接入：OpenCode、Kimi Code、Codex、Pi、Hermes 至少 3 个真实宿主成功调用。
+- 外部接入：OpenCode 真实宿主成功调用（2026-09-06 收紧为 OpenCode-only；原「至少 3 个宿主」目标取消）。
 - 上下文：缓存命中率达到我们的基线目标；p50 延迟不劣于直接调用；token 节省基于自有 benchmark 验证。
 - 恢复性：压缩后的 tool result 可通过 read_tool_result 展开，不静默丢失。
 - 安全：外部面默认只读，写操作显式开启；路径穿越 / SSRF / 高危工具回归测试通过。

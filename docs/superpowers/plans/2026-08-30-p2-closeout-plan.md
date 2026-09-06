@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **状态回写（2026-09-06）**：Task1-5 全部完成并核实——S6 基准 100k 档入库 9fa1a8c（scripts/bench-kal-retrieval.ts SCALES 三档 + kal-benchmark-2026-08-30.md）、评估报告 §8 回写 e355d97、spec 验收勾选 36a9231、ops hash 回填；验收清单 5 项此前已勾。checkbox 本次补勾（记录维护）。
+
 **Goal:** 收口 P2 收尾迭代：S6 KAL 基准补全 100k 档并定稿入库，评估报告杠杆清单回写全清，spec 验收清单勾选，ops-log 留痕 + spec hash 回填，终验后提交推送。
 
 **Architecture:** S1–S5 已提交（270f3f6/c3b2d35/3ecccbe/d549c64/f0c8db2）。剩余 = S6 资产（`scripts/bench-kal-retrieval.ts` + `docs/knowledge/kal-benchmark-2026-08-30.md`，均未跟踪）→ 按 spec §S6 补 100k 档并将报告文本的规模/格数硬编码改动态 → 定稿重跑 → 提交；评估报告（`agent-decision-chain-assessment-2026-08-29.md`）追加 §8 P2 收尾回写（杠杆清单全清）；spec（`2026-08-30-p2-closeout-design.md`）验收清单 5 项勾选；ops-log 逐提交留痕 + 回填 spec 提交 hash `5abfe4b`；最后 `bun run test:full` + `bunx tsc --noEmit` 终验。
@@ -31,14 +33,14 @@
 **Interfaces:**
 - Produces: `SCALES=[10_000,50_000,100_000]`；`scaleLabel(v:number):string`（k 缩写）；报告文本中规模串/格数由 SCALES 派生（`${SCALES.length}`/`${SCALES.length*3}`）。
 
-- [ ] **Step 1: 写失败测试（红）**
+- [x] **Step 1: 写失败测试（红）**
 
 基准脚本无单测库（spec 明示不进 test:full），红态定义为：现脚本只跑 10k/50k 两档、摘要文本仍写死 "10k/50k 两档"。先把脚本跑一遍确认当前红态：
 
 Run: `bun run scripts/bench-kal-retrieval.ts`
 Expected: 日志仅 `10000 行完成` 与 `50000 行完成`（无 100000）；随后报告无 `### 100k 行` 小节（可 `rg "### 100k 行" docs/knowledge/kal-benchmark-2026-08-30.md` → 无匹配）。
 
-- [ ] **Step 2: 补 100k 档 + 引入 scaleLabel**
+- [x] **Step 2: 补 100k 档 + 引入 scaleLabel**
 
 Run: 先备份
 ```powershell
@@ -79,7 +81,7 @@ Edit 7（`:606` 结论）格数动态化：
 
 Edit 8（`:12-16` 文件头注释）档位改为 `10k / 50k / 100k 三档`。
 
-- [ ] **Step 3: 重跑验证（绿）**
+- [x] **Step 3: 重跑验证（绿）**
 
 Run: `bun run scripts/bench-kal-retrieval.ts`
 Expected: 日志出现 `100000 行完成（...）`；报告写入成功，`rg "### 100k 行" docs/knowledge/kal-benchmark-2026-08-30.md` 命中；摘要含 `10k/50k/100k 共 3 档`；门禁行含 `3 规模 × 3 类型共 9 格`；结论行含 `（9 格中位数）` 与 `**结论行：`。
@@ -87,7 +89,7 @@ Expected: 日志出现 `100000 行完成（...）`；报告写入成功，`rg "#
 Run: `rg "10k/50k 两档|2 规模|6 格" docs/knowledge/kal-benchmark-2026-08-30.md`
 Expected: 无匹配（硬编码全部消除）。
 
-- [ ] **Step 4: 报告逐字段核对 + 备份清理**
+- [x] **Step 4: 报告逐字段核对 + 备份清理**
 
 Run: `Get-Content docs/knowledge/kal-benchmark-2026-08-30.md`
 Check: 3 档表格（10k/50k/100k）、FTS 召回均值、p95 增益列、门禁结论行存在；若任一档 degraded 必须如实保留（不得造假数据）。核对后删除备份。
@@ -102,7 +104,7 @@ Run: `Remove-Item .tmp\backups\scripts\bench-kal-retrieval.ts -Force`
 - Add: `scripts/bench-kal-retrieval.ts`、`docs/knowledge/kal-benchmark-2026-08-30.md`
 - Modify: `docs/operations-log.md`（追加 S6 条目）
 
-- [ ] **Step 1: ops-log 追加 S6 条目**
+- [x] **Step 1: ops-log 追加 S6 条目**
 
 在 `docs/operations-log.md` 末尾追加一条（hash 先写 `待回填`）：
 
@@ -116,7 +118,7 @@ Run: `Remove-Item .tmp\backups\scripts\bench-kal-retrieval.ts -Force`
 - **Commit**：feat(bench): P2-S6 KAL 基准定稿（100k 档 + 文本动态化，W5/W8 门禁判定） — hash 待回填
 ```
 
-- [ ] **Step 2: 提交 C1 并推送**
+- [x] **Step 2: 提交 C1 并推送**
 
 ```bash
 git add scripts/bench-kal-retrieval.ts docs/knowledge/kal-benchmark-2026-08-30.md docs/operations-log.md
@@ -124,7 +126,7 @@ git commit -m "feat(bench): P2-S6 KAL 基准定稿（补 100k 档 + 报告文本
 git push internal211 codex/self-evolving-agent
 ```
 
-- [ ] **Step 3: 回填 C1 hash**
+- [x] **Step 3: 回填 C1 hash**
 
 用 bun 脚本唯一锚点替换 `P2-S6 ... — hash 待回填` 行尾的占位符（禁止 sed）；该回填并入下个提交一起推送（见 Task 4 Step 3），此为记录维护不再追加业务条目。
 
@@ -135,14 +137,14 @@ git push internal211 codex/self-evolving-agent
 **Files:**
 - Modify: `docs/knowledge/agent-decision-chain-assessment-2026-08-29.md`（追加 §8）
 
-- [ ] **Step 1: 备份 + 通读末尾**
+- [x] **Step 1: 备份 + 通读末尾**
 
 ```powershell
 Copy-Item docs/knowledge/agent-decision-chain-assessment-2026-08-29.md .tmp\backups\docs\knowledge\agent-decision-chain-assessment-2026-08-29.md -Force
 ```
 Read: 文件全文（已通读，含 §七 P1 回写表）。
 
-- [ ] **Step 2: 追加 §8 回写表**
+- [x] **Step 2: 追加 §8 回写表**
 
 在文件 §七 之后追加：
 
@@ -163,7 +165,7 @@ Read: 文件全文（已通读，含 §七 P1 回写表）。
 **结论**：评估报告 §五 提升路线全部杠杆（P0×3 / P1×5 / P2×6）已清账；`docs/superpowers/specs/2026-08-30-p2-closeout-design.md` 验收清单全部勾选。本迭代闭环。
 ```
 
-- [ ] **Step 3: ops-log 追加回写条目 + 提交 C2 + 推送**
+- [x] **Step 3: ops-log 追加回写条目 + 提交 C2 + 推送**
 
 ops-log 末尾追加（hash 待填→回填）：
 
@@ -192,7 +194,7 @@ git push internal211 codex/self-evolving-agent
 - Modify: `docs/superpowers/specs/2026-08-30-p2-closeout-design.md`（验收清单勾选 + S6 验收口径同步 100k 三档）
 - Modify: `docs/operations-log.md`（回填 C1/C2 与 spec 提交 5abfe4b 的 hash，记录维护）
 
-- [ ] **Step 1: 备份 + 勾选验收清单 + S6 措辞对齐 spec**
+- [x] **Step 1: 备份 + 勾选验收清单 + S6 措辞对齐 spec**
 
 ```powershell
 Copy-Item docs/superpowers/specs/2026-08-30-p2-closeout-design.md .tmp\backups\docs\superpowers\specs\2026-08-30-p2-closeout-design.md -Force
@@ -211,7 +213,7 @@ Edit C（:39 勾选）：
 - [x] 评估报告终版回写（杠杆清单全清）+ operations-log 留痕——评估报告 §8
 ```
 
-- [ ] **Step 2: 回填 hash（bun 脚本唯一锚点，禁 sed）**
+- [x] **Step 2: 回填 hash（bun 脚本唯一锚点，禁 sed）**
 
 回填三点：
 1. spec 提交 `docs(spec): P2 收尾迭代设计（6 切片） — hash 待回填`（ops-log:7990）→ `5abfe4b`
@@ -220,7 +222,7 @@ Edit C（:39 勾选）：
 
 用 bun 单行脚本对唯一锚点做 `replace(待填, hash)`，先 `rg` 校验各占位符唯一命中再替换。
 
-- [ ] **Step 3: 提交 C3 + 推送**
+- [x] **Step 3: 提交 C3 + 推送**
 
 ```bash
 git add docs/superpowers/specs/2026-08-30-p2-closeout-design.md docs/operations-log.md
@@ -232,7 +234,7 @@ git push internal211 codex/self-evolving-agent
 
 ### Task 5: 终验 + 收口
 
-- [ ] **Step 1: 全量终验**
+- [x] **Step 1: 全量终验**
 
 Run: `bun run test:full`
 Expected: 全绿 0 fail（P2-S3 自动发现基线 3199 pass，S4/S5/T1 后数字只增不减；bench 不进 test:full 已由排除清单保证）。
@@ -240,12 +242,12 @@ Expected: 全绿 0 fail（P2-S3 自动发现基线 3199 pass，S4/S5/T1 后数�
 Run: `bunx tsc --noEmit`
 Expected: 0 错误（src/** tests/**）。
 
-- [ ] **Step 2: 残存检查**
+- [x] **Step 2: 残存检查**
 
 Run: `rg "P2-S6|P2 评估报告|spec.*hash 待回填|待回填" docs/operations-log.md`
 Expected: 仅回填后的真实 hash 在列，无残留占位符；`git status --short` 仅剩与本任务无关的 4 个 stat-噪音 M（.serena/*/plan-amendment/pdf-worker）与未跟踪 traces/__pycache__——不得暂存。
 
-- [ ] **Step 3: 若无修正则收口**
+- [x] **Step 3: 若无修正则收口**
 
 若 Step 1/2 全绿且无新改动，则无需新提交；已在 Task 2/3/4 按规则 5 逐提交留痕并推送。将终验结论补记到 Task 4 的 C3 条目验证段（若 C3 未推送则一起推；若已推送则终验属纯验证无需入 log，避免记录维护递归）。
 

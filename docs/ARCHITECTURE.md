@@ -7,7 +7,7 @@
 
 ## 1. 项目概览
 
-Axiom 是一个确定性 AI Agent 框架，核心设计理念是**确定性检索（`src/memory/deterministic-search.ts` SQLite FTS5 + 关键词权重；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 可选（`pgvector` 扩展，可选历史能力 H-M1-03，默认 SQLite FTS5，需 PG 时启用）**。确定性检索（关键词 3x/标签 2.5x/内容 1x + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts:186`）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
+Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 Agent 之下的基础设施层（ADR-001「Runtime 优先于 Agent」，见 AXIOM-ARCHITECTURE §〇），为上层 Agent/宿主提供确定性认知基建（检索/记忆/KG/推理/工具面）与模型调用效率（缓存/路由/预算），而非又一个 Agent。核心设计理念是**确定性检索（`src/memory/deterministic-search.ts` SQLite FTS5 + 关键词权重；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 可选（`pgvector` 扩展，可选历史能力 H-M1-03，默认 SQLite FTS5，需 PG 时启用）**。确定性检索（关键词 3x/标签 2.5x/内容 1x + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts:186`）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
 
 | 属性 | 值 |
 |------|-----|

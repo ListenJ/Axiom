@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **状态回写（2026-09-06）**：5 个 Task 全部完成并核实——W5/W8 归档 c5e96ea、W6 修复 0e9a765、W11 文档 af035e9、test:full 补录 a1b6c7a（后经 3ecccbe 重构为 scripts/test-full.ts 自动发现）、hash 回填 5f57cbe；验收清单 5 项全勾（473 pass × 4 轮，见 spec 2026-08-28-next-iteration-debate-decision-design.md §8）。checkbox 本次补勾（记录维护）。
+
 **Goal:** 主分支归零在途缺陷代码、修复 W6 顺序依赖、补齐 W11 四模块权威文档、堵住 test:full 白名单漏测试的结构性漏洞。
 
 **Architecture:** 先按已批准决策 D1 把被延期的 W5/W8 在途实现归档回滚（零信息丢失），随后三个互不重叠的低耦合收口任务（W6 代码 / W11 文档 / test:full 脚本），全程 TDD + 每任务一次提交留痕。
@@ -33,7 +35,7 @@
 
 **Interfaces:** 无代码接口变更；还原后 `pipeline.ts` 恢复 `this.searchAgg.searchMulti` 直调路径，`tests/dre-stage2-webverify.test.ts` 的 searchAgg mock 恢复生效。
 
-- [ ] **Step 1: 归档 patch 与未跟踪文件**
+- [x] **Step 1: 归档 patch 与未跟踪文件**
 
 ```bash
 mkdir -p archive/w5-w8-inflight-2026-08-28
@@ -43,7 +45,7 @@ wc -l archive/w5-w8-inflight-2026-08-28/inflight-w5-w8.patch
 ```
 Expected: patch 文件约 170 行，两文件均存在。
 
-- [ ] **Step 2: ARCHIVE-LOG.md 追加记录**
+- [x] **Step 2: ARCHIVE-LOG.md 追加记录**
 
 在 `archive/ARCHIVE-LOG.md` 末尾追加（archive/ 在 .gitignore 内，属本地归档参考，符合规则 4）：
 
@@ -56,7 +58,7 @@ Expected: patch 文件约 170 行，两文件均存在。
 - **所属项目**：openclaw-fusion（Axiom）
 ```
 
-- [ ] **Step 3: 还原两个已跟踪文件 + 移除未跟踪文件**
+- [x] **Step 3: 还原两个已跟踪文件 + 移除未跟踪文件**
 
 ```bash
 git checkout -- src/dre/pipeline/pipeline.ts src/kal/knowledge-access-layer.ts
@@ -65,7 +67,7 @@ git status --short | grep -E "pipeline|knowledge-access|search-port"
 ```
 Expected: 三者在 git status 中不再出现（grep 无输出）。
 
-- [ ] **Step 4: 验证回绿**
+- [x] **Step 4: 验证回绿**
 
 ```bash
 bunx tsc --noEmit
@@ -73,7 +75,7 @@ bun test tests/dre-stage2-webverify.test.ts tests/kal-references.test.ts 2>&1 | 
 ```
 Expected: tsc 0 错误；dre-stage2-webverify 3 pass 0 fail（mock 恢复生效、不再打真实网络）；kal-references 14 pass。
 
-- [ ] **Step 5: operations-log 追加 + 提交推送**
+- [x] **Step 5: operations-log 追加 + 提交推送**
 
 本任务无 src 变更入 git（还原即无 diff），仅日志条目入提交：
 
@@ -95,7 +97,7 @@ git push internal211 codex/self-evolving-agent
 - Consumes: `createNodeId(store, type, identifier)`（`src/kal/node-id.ts:20`，queryVault 的 vault nodeId 即 `createNodeId("vault","note",row.path)`）；`parseNodeId`（`src/kal/node-id.ts:40`）。
 - Produces: vault 适配器可选方法 `listNotePaths?(): string[]`（向后兼容，生产接线 `src/mcp/server/kg-tools.ts:16` 未注入适配器，零影响）。
 
-- [ ] **Step 1: 备份**
+- [x] **Step 1: 备份**
 
 ```bash
 mkdir -p .tmp/backups/tests .tmp/backups/src/kal
@@ -103,7 +105,7 @@ cp tests/kal-references.test.ts .tmp/backups/tests/kal-references.test.ts
 cp src/kal/knowledge-access-layer.ts .tmp/backups/src/kal/knowledge-access-layer.ts
 ```
 
-- [ ] **Step 2: 通读全文后追加失败测试**
+- [x] **Step 2: 通读全文后追加失败测试**
 
 先通读 `tests/kal-references.test.ts` 与 `src/kal/knowledge-access-layer.ts` 全文。在测试文件 import 区加入：
 
@@ -133,14 +135,14 @@ describe("KnowledgeAccessLayer.getReferences — W6 顺序无关性", () => {
 });
 ```
 
-- [ ] **Step 3: 跑测试确认红**
+- [x] **Step 3: 跑测试确认红**
 
 ```bash
 bun test tests/kal-references.test.ts 2>&1 | tail -6
 ```
 Expected: 新例 FAIL（`refs.length` 期望 1 实得 0，映射为空跳过 vault 腿），存量 14 pass。
 
-- [ ] **Step 4: 最小实现**
+- [x] **Step 4: 最小实现**
 
 `src/kal/knowledge-access-layer.ts` 两处：
 
@@ -170,7 +172,7 @@ Expected: 新例 FAIL（`refs.length` 期望 1 实得 0，映射为空跳过 vau
 
 后续 `for (const src of this.vault.getWikiBacklinks(rawPath))` 循环体保持不变。
 
-- [ ] **Step 5: 跑测试确认绿 + 回归**
+- [x] **Step 5: 跑测试确认绿 + 回归**
 
 ```bash
 bun test tests/kal-references.test.ts 2>&1 | tail -4
@@ -178,7 +180,7 @@ bunx tsc --noEmit
 ```
 Expected: 15 pass 0 fail；tsc 0 错误。
 
-- [ ] **Step 6: 删备份 → 日志 → 提交推送**
+- [x] **Step 6: 删备份 → 日志 → 提交推送**
 
 ```bash
 rm .tmp/backups/tests/kal-references.test.ts .tmp/backups/src/kal/knowledge-access-layer.ts
@@ -207,7 +209,7 @@ git push internal211 codex/self-evolving-agent
 | 2.19 | HallucinationDetector 幻觉检测器 | `src/memory/hallucination-detector.ts` 567 行 | 归纳式共形预测（nonconformity = 1 − max evidence score）；`FactEntry`/`HallucinationVerdict`/`EvidenceItem`/`CalibrationPair`/`CalibrationQuality`/`HallucinationDetectorConfig` | `src/main.ts`、`src/crawl/result-scorer.ts`、`src/knowledge/quality-assessor.ts`、`src/memory/math-enhanced-memory.ts` |
 | 2.20 | SelfEvolve 测试时自我进化 | `src/self-evolve/` 引擎组 931 行（engine 380/index 103/mind-suggest 103/skill-promotion 103/skill-quality 140/types 102） | `SelfEvolveEngine`（Draft/Improve/Debug/Crossover 提示词级算子 + 确定性评估，思想源自 OpenRSI 与 RISE arXiv 2407.18219）、`tokenize`/`stableHash`/`buildEscalationQuery`/`formatSelfThought`/`applySelfThought`；技能质量闭环 `recordSkillOutcome`（mcp/skill-tools.ts:116）→ deprecated 判定（skill-quality.ts:20-51）→ promotion 跳过（skill-promotion.ts:67） | `src/agents/orchestrator.ts`（`SelfEvolveEngine` 直接引用）；已知局限：deprecated 为内存派生标记不持久化（LIMITATIONS 风格如实写入） |
 
-- [ ] **Step 1: 备份三个文档**
+- [x] **Step 1: 备份三个文档**
 
 ```bash
 mkdir -p .tmp/backups/docs
@@ -216,20 +218,20 @@ cp docs/ARCHITECTURE.md .tmp/backups/docs/ARCHITECTURE.md
 cp docs/PROJECT-GUIDE.md .tmp/backups/docs/PROJECT-GUIDE.md
 ```
 
-- [ ] **Step 2: 通读插入点上下文与各模块源码头部**
+- [x] **Step 2: 通读插入点上下文与各模块源码头部**
 
 通读 `docs/AXIOM-ARCHITECTURE.md` 2.14-2.16 节（1145-1264 行）掌握既有格式（每节：职责段 → 核心代码块 → 数据流/要点），再读四个模块文件头 60 行 + 导出签名，确保描述与代码一致。
 
-- [ ] **Step 3: 插入 2.17-2.20 四节**
+- [x] **Step 3: 插入 2.17-2.20 四节**
 
 在 `## 三、MCP 工具完整清单`（当前 1265 行）之前的 `---` 分隔线后插入。每节按既有 2.x 格式：`### 2.N 模块名 — 一句话定位`，含职责段、关键接口清单（用上表真实导出名）、接线点、与确定性承诺的关系（2.18 注明非确定属设计；2.20 注明 deprecated 不持久化局限）。**禁止出现禁忌词组合**（KV 换页 / 懒加载省 token）。四节合计约 120-180 行，不贴大段源码（既有节有代码块，本四模块以接口清单为主即可，保持最小）。
 
-- [ ] **Step 4: 修正两处行数漂移**
+- [x] **Step 4: 修正两处行数漂移**
 
 `docs/ARCHITECTURE.md:111`：`| `thompson-router.ts` | 283 |` → `| `thompson-router.ts` | 314 |`；
 `docs/PROJECT-GUIDE.md:182`：`~283` → `~314`。
 
-- [ ] **Step 5: 验证**
+- [x] **Step 5: 验证**
 
 ```bash
 bun test tests/architecture-integrity.test.ts tests/unit/docs-consistency.test.ts tests/unit/pg-client-removal.test.ts 2>&1 | tail -5
@@ -237,7 +239,7 @@ bunx tsc --noEmit
 ```
 Expected: 三文件全部 pass 0 fail（含 S7 禁忌词断言、docs-consistency、pg-client-removal 的文档断言）；tsc 0。
 
-- [ ] **Step 6: 删备份 → 日志 → 提交推送**
+- [x] **Step 6: 删备份 → 日志 → 提交推送**
 
 ```bash
 rm .tmp/backups/docs/AXIOM-ARCHITECTURE.md .tmp/backups/docs/ARCHITECTURE.md .tmp/backups/docs/PROJECT-GUIDE.md
@@ -255,14 +257,14 @@ git push internal211 codex/self-evolving-agent
 
 **Interfaces:** 无代码接口；`test:full` 被 CI 消费，补录后 `tests/agent-evals/`（12 文件，替换原单文件 `external-benchmarks.test.ts`，目录形式已含它）与 `tests/self-evolve/`（8 文件）入回归防线。前置试跑已验证：`bun test tests/self-evolve/ tests/agent-evals/` → **204 pass / 0 fail / 1.63s**（2026-08-28 实测）。
 
-- [ ] **Step 1: 备份并通读**
+- [x] **Step 1: 备份并通读**
 
 ```bash
 cp package.json .tmp/backups/package.json
 ```
 通读 `package.json` 全文（重点 scripts 区），确认 :88 行为 test:full 单行白名单。
 
-- [ ] **Step 2: 最小编辑**
+- [x] **Step 2: 最小编辑**
 
 将 `tests/agent-evals/external-benchmarks.test.ts` 替换为 `tests/agent-evals/`，并在行尾追加 ` tests/self-evolve/`：
 
@@ -270,7 +272,7 @@ cp package.json .tmp/backups/package.json
     "test:full": "bun test tests/architecture-integrity.test.ts tests/cache-stress.test.ts tests/thompson-stress.test.ts tests/vib-compressor.test.ts tests/redis-client.test.ts tests/module-exports.test.ts tests/services-chat.test.ts tests/registry-validation.test.ts tests/property-based.test.ts tests/tools-v3.test.ts tests/review-deep.test.ts tests/dre-memory-deep.test.ts tests/adapt-tool.test.ts tests/perf-benchmark.test.ts tests/integration-edge.test.ts tests/e2e-runtime.test.ts tests/crawl/search-engines-deep.test.ts tests/crawl/search-fallback.test.ts tests/routes/search-route.test.ts tests/routes/chat-tools.test.ts tests/memory/vault-reindex.test.ts tests/ocr/langs-available.test.ts tests/crawl/curl-fetch.test.ts tests/agent-evals/ tests/codeindex/local-index.test.ts tests/self-evolve/",
 ```
 
-- [ ] **Step 3: 全量验证**
+- [x] **Step 3: 全量验证**
 
 ```bash
 bun run test:full 2>&1 | tail -6
@@ -278,7 +280,7 @@ bunx tsc --noEmit
 ```
 Expected: 白名单全绿 0 fail（新增目录贡献 204 例，总时长允许数分钟）；tsc 0。若出现环境依赖失败（如需网络/API key 的用例），如实记录并将该单个文件从目录改回精确排除的最小白名单，不得静默跳过。
 
-- [ ] **Step 4: 删备份 → 日志 → 提交推送**
+- [x] **Step 4: 删备份 → 日志 → 提交推送**
 
 ```bash
 rm .tmp/backups/package.json
@@ -295,18 +297,18 @@ git push internal211 codex/self-evolving-agent
 - Modify: `docs/operations-log.md`（回填 Task 1-4 的 commit hash）
 - Modify: `docs/superpowers/specs/2026-08-28-next-iteration-debate-decision-design.md`（验收清单勾选）
 
-- [ ] **Step 1: 收集 hash 并回填**
+- [x] **Step 1: 收集 hash 并回填**
 
 ```bash
 git log --oneline -6
 ```
 将 Task 1-4 日志条目中的 `hash 待回填` 逐个替换为实际 hash（仿照既有"回填"条目惯例）。
 
-- [ ] **Step 2: spec 验收清单勾选**
+- [x] **Step 2: spec 验收清单勾选**
 
 逐项核对 spec 第 8 节验收清单，完成项 `- [ ]` → `- [x]`。
 
-- [ ] **Step 3: 最终核验 + 提交推送**
+- [x] **Step 3: 最终核验 + 提交推送**
 
 ```bash
 bunx tsc --noEmit

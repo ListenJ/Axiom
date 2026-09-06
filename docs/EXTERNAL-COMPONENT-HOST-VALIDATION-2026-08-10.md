@@ -79,7 +79,9 @@
 
 ## 6. 下一步
 
-1. 在 OpenCode 使用可用 provider 完成真实 `mcp__axiom__search_engines_list` 调用。
-2. Kimi 配额刷新后重跑 `kimi -p` 真实调用。
-3. 若本地有 Pi / Codex CLI，追加第三个真实宿主。
+> 修订（2026-09-06，用户决策）：宿主接入收紧为 **OpenCode-only**——Kimi Code / Pi / Codex 不再作为宿主接入目标（下述第 2、3 项取消；Kimi 相关链接仅存档参考）。
+
+1. 在 OpenCode 使用可用 provider 完成真实 `mcp__axiom__search_engines_list` 调用（真实模型回环为验收线）。
+2. ~~Kimi 配额刷新后重跑 `kimi -p` 真实调用。~~（已取消，2026-09-06）
+3. ~~若本地有 Pi / Codex CLI，追加第三个真实宿主。~~（已取消，2026-09-06）
 4. 同步建立缓存命中率与 token 节省基线。
