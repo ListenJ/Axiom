@@ -1,4 +1,4 @@
-# 操作日志（Operations Log）
+﻿# 操作日志（Operations Log）
 
 > 按 `AGENTS.md` 规则 5：每次提交记录一条，提交一次记录一次。
 > 字段：时间 / 任务 / 工具 / 操作 / 验证 / Commit。
@@ -8712,11 +8712,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **Commit**：e743e74
 
 
-## 2026-09-07 — docs(audit): 审计未验证项补验 6/6 收口 + 验证日志落盘（工具故障会话续）
-
-- **任务**：接续 2026-09-06 因工具接口故障中断的独立审计复核会话——将原始实验记录落盘 docs/audit-verification-log.md（第一部分原文存档），并以恢复后的工具补验全部 6 个未验证项（第二部分，含 file:line 证据）+ V1-V3 交叉复核。
-- **工具**：rg、bun run scripts/count-tools.mjs、Read/Write、PowerShell（备份/追加）、git。无子代理。
-- **操作**（文件级）：docs/audit-verification-log.md（新增，两段式：原文存档 + 补验结果）；docs/operations-log.md（本条）。
-- **验证**：补验结论——item 8 RESOLVED（count-tools 实测 total 189 / duplicates 0，与声明精确一致）；item 5 CONFIRMED（isPathSafe 四层校验 path-safety.ts:22-93；ssrfGuard opt-in 决策记录 proxy-fetch.ts:48-58 + 用户可控入口强制 data-pipeline.ts:341；web 内容进上下文前钳制 web-tools.ts:39-43）；item 4 CONFIRMED（截断/去重/域名多样性/引擎级隔离/代理回退/预算全链路，无静默挂起；无主动限流器记 Info）；item 6 静态自洽（bytesPerToken 公式正确、峰值约 2206MB < 4GB、system-resource.ts:178 缺 activation 项确认；端到端实测未做）；item 6b RESOLVED（KG 稳定 id + OR REPLACE/IGNORE + created_at 保留 + 邻接去重；AST 纯正则无中断路径；MinerU 为外部 Python 组件且口径双处披露）；item 7 CONFIRMED（dre/retrieval 四文件无外部消费方，唯一命中为内部互引 hybrid-fusion.ts:25；package.json/bun.lock 零向量库依赖）。V1 复核加强（native 全部构造点均 false）；V2/V3 复核成立。新发现：两条生产向量语义路径（/settings/search 默认链尝试 embedding，settings-search.ts:121-176；context-manager.ts:251-311 cosine top-k），与现行文档口径「仅在可选语义层使用」部分一致，定性 Medium 文档口径缺口。整体仍非全量审核（Phase 0 清单未建立），不构成「审核完成」。
-- **红线**：规则 1（仅新增文档，未改源码）、规则 2（备份 .tmp/backups/docs/operations-log.md，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10.5（事实/推测/判断分离：向量路径为事实，口径定性为判断）、规则 11（无密钥）。
-- **Commit**：PENDING
+$19921f67
