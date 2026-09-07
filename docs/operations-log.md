@@ -8755,4 +8755,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 eval/semantic-equivalence/tools/dataset-manifest.jsonl（100 例甄选清单：origin+source+task_type）；新增 eval/semantic-equivalence/tools/build-dataset.ts（parseMarkdownAST → KGWriter(:memory:) → kg_nodes/kg_edges → 指南 §3.1 确定性投影，投影规则固化于脚本头注释；代码例包 ts 栅栏模拟文档内嵌代码摄取）；生成 eval/semantic-equivalence/dataset/se-0001..0100.json（每例含 source_text 原文、source_origin 可回溯、candidate_mr、task_type、generation 构建元数据）。
 - **验证**：构建脚本运行成功（100/100，分布 doc_ingest=40 / vault_summary=30 / kg_extract=30）；schema 校验 100/100 通过（id/source_text/source_origin/candidate_mr 五字段/provenance 与 propositions 等长/task_type/generation）；抽查 se-0007（段落全文保留）、se-0042（摘要 500 字符截断如实呈现）、se-0078（JSDoc 语义丢失如实呈现）、se-0049（<50 字符段落空候选，§6.6 适用）；11 例空候选为管线真实行为（2 lesson 短句 + 9 代码例无函数/类/导入实体），非构建缺陷。
 - **红线**：规则 1（仅新增评估资产，不改源码）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（溯源片段级/截断/空候选均如实标注于 generation.note）、规则 11（无密钥）。
-- **Commit**：<pending>
+- **Commit**：9211ba0
