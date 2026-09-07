@@ -8833,4 +8833,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：`git update-index --chmod=+x .ci/frontend-audit.sh`（仅索引 mode 100644→100755，文件内容零改动，无需备份/验证运行）；docs/operations-log.md（本条 + 上一条 hash 回填）。
 - **验证**：gh Actions 重跑由 push 触发观察（frontend-audit.yml 是唯一以 `./` 直接调用该脚本的工作流；.ci/run.sh 无 GitHub workflow 引用，不改动）。
 - **红线**：规则 1（单文件 mode 位最小改动）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：占位
+- **Commit**：eb90d19
