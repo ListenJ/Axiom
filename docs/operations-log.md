@@ -8771,4 +8771,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 eval/semantic-equivalence/tools/annotation-runner.ts（约 470 行）；docs/operations-log.md（本条）。
 - **验证**：冒烟数据（10 gold + 6 例 A/B 临时标注 + 仲裁 resolved，用后即删未入库）驱动三子命令——gold：10/10 全对 exit 0；compare：κ=0.615 门禁未通过触发停线 exit 2（刻意构造的分歧样本，符合 §8 预期）、分歧 2/incomplete 0/uncertain 配对 1 正确落盘 pending-smoketest.json；finalize：合并 resolved 后严格 40.0%/宽松 40.0%（N=5=6−contested 1），unresolved=0 exit 0，与构造数字一致。幂等性（S-A4 验收"数字可复现"）：compare 连跑两次，报告与 pending 除 generated_at 时间戳外字节一致。修复缺陷：cmdCompare 控制台输出当分母为 0 时误打印 0.0%（null*100=0），改为与 md 报告一致的 n/a 口径；修复后三子命令复跑无回归。κ 计算排除 gold 与 uncertain 配对（§6.7）；双口径分母剔除 contested+uncertain（§9）。
 - **红线**：规则 1（仅新增 runner 工具）、规则 2（修改前备份 .tmp/backups/，验证通过后已删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先建冒烟反馈回路再改码）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：<待回填>
+- **Commit**：5598c06
