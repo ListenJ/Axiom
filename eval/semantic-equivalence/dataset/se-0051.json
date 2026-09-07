@@ -1,0 +1,40 @@
+{
+  "id": "se-0051",
+  "source_text": "{\n  \"intent\": \"观察系统状态并等待用户输入\",\n  \"goals\": [\n    {\n      \"description\": \"等待用户的首次交互信号\",\n      \"priority\": \"medium\"\n    }\n  ],\n  \"beliefs\": [\n    {\n      \"proposition\": \"当前处于空闲待机状态\",\n      \"confidence\": 0.95\n    }\n  ]\n}\n```",
+  "source_origin": "axiom-memory/00-Meta/consciousness/reflections/2026-07-25-16-05.md#L38-L53",
+  "candidate_mr": {
+    "propositions": [
+      "{   \"intent\": \"观察系统状态并等待用户输入\",   \"goals\": [     {       \"description\": \"等待用户的首次交互信号\",       \"priority\": \"medium\"     }   ],   \"beliefs\": [     {       \"proposition\": \"当前处于空闲待机状态\",       \"confidence\": 0.95     }   ] }"
+    ],
+    "entities": [
+      {
+        "name": "{   \"intent\": \"观察系统状态并等待用户输入\",   \"goals\": [     {       \"description\": \"等待用户的首次交互信号\",       \"priority\": \"medium\"     }   ],   \"beliefs\": [     {       \"proposition\": \"当前处于空闲待机状态\",       \"confidence\": ",
+        "type": "concept",
+        "link": "kg:concept:_____intent_______________________goals__________________description____________-fa543feb"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Meta/consciousness/reflections/2026-07-25-16-05.md",
+        "predicate": "contains",
+        "object": "{   \"intent\": \"观察系统状态并等待用户输入\",   \"goals\": [     {       \"description\": \"等待用户的首次交互信号\",       \"priority\": \"medium\"     }   ],   \"beliefs\": [     {       \"proposition\": \"当前处于空闲待机状态\",       \"confidence\": "
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Meta/consciousness/reflections/2026-07-25-16-05.md#L38-L53"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

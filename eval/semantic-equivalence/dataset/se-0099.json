@@ -1,0 +1,21 @@
+{
+  "id": "se-0099",
+  "source_text": "```ts\n/**\n * KG 节点 FTS5 trigram 虚拟表 DDL（W5，落地形态审核 §2）。\n * 独立（非 external-content）fts5 表：kg_nodes.id 为 TEXT PK 无 INTEGER rowid 别名，\n * INSERT OR REPLACE 会重分配隐式 rowid，external-content 关联会失联——故用独立表 +\n * rowid 同步触发器（bench-kal-retrieval.ts KG_FTS_DDL 已验证等价性）。\n * 触发器用 IF NOT EXISTS：enhanced.ts / kg-writer.ts 可对同一 db 重复 exec，幂等。\n */\nexport const KG_FTS_DDL = `\n      CREATE VIRTUAL TABLE IF NOT EXISTS kg_nodes_fts USING fts5(\n        name, description, semantic,\n```",
+  "source_origin": "src/kg/schema.ts#L52-L58",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

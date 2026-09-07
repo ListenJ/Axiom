@@ -1,0 +1,40 @@
+{
+  "id": "se-0076",
+  "source_text": "```ts\n/**\n * 评测结果回归基准入库（eval registry）— SQLite 落盘 + 查询。\n *\n * 设计（深模块）：小接口大实现。依 model-eval-service 的 bun:sqlite 先例\n * （参数化 SQL + CREATE TABLE IF NOT EXISTS + 索引）；依 skill-gain 的\n * 容错惯例（持久化失败 try/catch 不阻断评测；脏数据 sanitize 降级）。\n *\n * - eval_runs：一轮评测 = 一行，含 summary 快照 + git_commit + src_doc（手工\n *   基线来源文档，非空即 manual baseline 行，无子表行、exit_code 0）。\n * - eval_task_results：每任务一行，关联 run_id（ON DELETE CASCADE）。\n * - 落盘失败不抛（评测照常 stdout/exit）；查询层 sanitize 损坏行。\n */\nimport { Database } from \"bun:sqlite\";\nimport type {\n  FamilySnapshot,\n```",
+  "source_origin": "src/agent-evals/registry.ts#L1-L12",
+  "candidate_mr": {
+    "propositions": [
+      "依赖模块「bun:sqlite」"
+    ],
+    "entities": [
+      {
+        "name": "bun:sqlite",
+        "type": "module",
+        "link": "kg:module:bun_sqlite-8d26f437"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/registry.ts",
+        "predicate": "depends-on",
+        "object": "bun:sqlite"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/registry.ts#L1-L12"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

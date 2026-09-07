@@ -1,0 +1,40 @@
+{
+  "id": "se-0059",
+  "source_text": "- **Description:** Solution for long term memory for agent coding CLIs and to facilitate handoff between different agent vendors\n- **Language:** Rust\n- **Stars:** 3510 | **Today:** 335\n- **Topics:** -",
+  "source_origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md#L111-L114",
+  "candidate_mr": {
+    "propositions": [
+      "- **Description:** Solution for long term memory for agent coding CLIs and to facilitate handoff between different agent vendors - **Language:** Rust - **Stars:** 3510 | **Today:** 335 - **Topics:** -"
+    ],
+    "entities": [
+      {
+        "name": "- **Description:** Solution for long term memory for agent coding CLIs and to facilitate handoff between different agent vendors - **Language:** Rust - **Stars:** 3510 | **Today:** 335 - **Topics:** -",
+        "type": "concept",
+        "link": "kg:concept:-___Description____Solution_for_long_term_memory_for_agent_coding_CLIs_and_to_fa-ad61823b"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md",
+        "predicate": "contains",
+        "object": "- **Description:** Solution for long term memory for agent coding CLIs and to facilitate handoff between different agent vendors - **Language:** Rust - **Stars:** 3510 | **Today:** 335 - **Topics:** -"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md#L111-L114"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

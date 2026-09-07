@@ -1,0 +1,50 @@
+{
+  "id": "se-0045",
+  "source_text": "## Abstract\n\nLarge language models (LLMs) often improve their performance in downstream tasks when they generate Chain of Thought reasoning text before producing an answer. We investigate how LLMs recover from errors in Chain of Thought. Through analysis of error recovery behaviors, we find evidence for unfaithfulness in Chain of Thought, which occurs when models arrive at the correct answer despite invalid reasoning text. We identify factors that shift LLM recovery behavior: LLMs recover more frequently from obvious errors and in contexts that provide more evidence for the correct answer. Critically, these factors have divergent effects on faithful and unfaithful recoveries. Our results indicate that there are distinct mechanisms driving faithful and unfaithful error recoveries. Selective targeting of these mechanisms may be able to drive down the rate of unfaithful reasoning and improve model interpretability.",
+  "source_origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/dissociation-of-faithful-and-unfaithful-reasoning-in-llms.md#L17-L19",
+  "candidate_mr": {
+    "propositions": [
+      "存在章节「Abstract」",
+      "Large language models (LLMs) often improve their performance in downstream tasks when they generate Chain of Thought reasoning text before producing an answer. We investigate how LLMs recover from errors in Chain of Thought. Through analysis of error recovery behaviors, we find evidence for unfaithfulness in Chain of Thought, which occurs when models arrive at the correct answer despite invalid reasoning text. We identify factors that shift LLM recovery behavior: LLMs recover more frequently fro"
+    ],
+    "entities": [
+      {
+        "name": "Abstract",
+        "type": "concept",
+        "link": "kg:concept:Abstract"
+      },
+      {
+        "name": "Large language models (LLMs) often improve their performance in downstream tasks when they generate Chain of Thought reasoning text before producing an answer. We investigate how LLMs recover from err",
+        "type": "concept",
+        "link": "kg:concept:Large_language_models__LLMs__often_improve_their_performance_in_downstream_tasks-cebe1113"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/dissociation-of-faithful-and-unfaithful-reasoning-in-llms.md",
+        "predicate": "contains",
+        "object": "Abstract"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/dissociation-of-faithful-and-unfaithful-reasoning-in-llms.md#L17-L19"
+      },
+      {
+        "prop_index": 1,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/dissociation-of-faithful-and-unfaithful-reasoning-in-llms.md#L17-L19"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "se-0057",
+  "source_text": "- **Description:** A next.js web application that integrates AI capabilities with draw.io diagrams. This app allows you to create, modify, and enhance diagrams through natural language commands and AI-assisted visualization.\n- **Language:** TypeScript\n- **Stars:** 33399 | **Today:** 81\n- **Topics:** -",
+  "source_origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-07-12.md#L112-L115",
+  "candidate_mr": {
+    "propositions": [
+      "- **Description:** A next.js web application that integrates AI capabilities with draw.io diagrams. This app allows you to create, modify, and enhance diagrams through natural language commands and AI-assisted visualization. - **Language:** TypeScript - **Stars:** 33399 | **Today:** 81 - **Topics:** -"
+    ],
+    "entities": [
+      {
+        "name": "- **Description:** A next.js web application that integrates AI capabilities with draw.io diagrams. This app allows you to create, modify, and enhance diagrams through natural language commands and AI",
+        "type": "concept",
+        "link": "kg:concept:-___Description____A_next_js_web_application_that_integrates_AI_capabilities_wit-ec71e82d"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/GitHub/trending/2026-07-12.md",
+        "predicate": "contains",
+        "object": "- **Description:** A next.js web application that integrates AI capabilities with draw.io diagrams. This app allows you to create, modify, and enhance diagrams through natural language commands and AI"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-07-12.md#L112-L115"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

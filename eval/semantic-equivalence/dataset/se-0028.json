@@ -1,0 +1,40 @@
+{
+  "id": "se-0028",
+  "source_text": "- **模型**：Qwen3-1.7B，28 层 × 2048 隐维度\n- **KV-Cache 单 token 估算（FP16）**：\n  ```\n  bytesPerToken = layers × hidden × 2(K/V) × 2B(FP16)\n                = 28 × 2048 × 2 × 2\n                = 229376 bytes\n                ≈ 224 KB (÷1024) / 229 KB (÷1000)\n  ```\n  源码：`src/dre/system-resource.ts:53,68`；测试锁定：`tests/unit/system-resource.test.ts:12-15`。\n- **推荐 token 公式**：\n  ```ts\n  availableForKV = availableMemory - modelMemoryMB; // MB\n  recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 * 1024 / bytesPerToken )\n  // 上限：min(..., maxTokensCap=4096)\n  ```\n  示例：默认 `availableMemory=4000, modelMemoryMB=1100, kvCacheMaxMB=2200` → `min(2900,2200)*1048576/229376 ≈ 10057` tokens（受 cap 截断为 4096）。\n  （H2 审计修复：旧式 `*1024` 为 MB→KB 错配，结果偏小 1024 倍，已于本次修正并同步测试。）",
+  "source_origin": "docs/LIMITATIONS.md#L16-L32",
+  "candidate_mr": {
+    "propositions": [
+      "- **模型**：Qwen3-1.7B，28 层 × 2048 隐维度 - **KV-Cache 单 token 估算（FP16）**：   ```   bytesPerToken = layers × hidden × 2(K/V) × 2B(FP16)                 = 28 × 2048 × 2 × 2                 = 229376 bytes                 ≈ 224 KB (÷1024) / 229 KB (÷1000)   ```   源码：`src/dre/system-resource.ts:53,68`；测试锁定：`tests/unit/system-resource.test.ts:12-15`。 - **推荐 token 公式**：   ```ts   availableForKV = availableMemory - modelMemoryMB; // MB   recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 *"
+    ],
+    "entities": [
+      {
+        "name": "- **模型**：Qwen3-1.7B，28 层 × 2048 隐维度 - **KV-Cache 单 token 估算（FP16）**：   ```   bytesPerToken = layers × hidden × 2(K/V) × 2B(FP16)                 = 28 × 2048 × 2 × 2                 = 229376 bytes     ",
+        "type": "concept",
+        "link": "kg:concept:-________Qwen3-1_7B_28_____2048_____-___KV-Cache___token____FP16_____________byt-815c9afe"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/LIMITATIONS.md",
+        "predicate": "contains",
+        "object": "- **模型**：Qwen3-1.7B，28 层 × 2048 隐维度 - **KV-Cache 单 token 估算（FP16）**：   ```   bytesPerToken = layers × hidden × 2(K/V) × 2B(FP16)                 = 28 × 2048 × 2 × 2                 = 229376 bytes     "
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/LIMITATIONS.md#L16-L32"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

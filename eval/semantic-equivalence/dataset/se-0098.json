@@ -1,0 +1,55 @@
+{
+  "id": "se-0098",
+  "source_text": "```ts\n/**\n * KG 表 DDL 单源（L3，2026-08-29 审计 S2）\n *\n * 此前 kg_nodes/kg_edges 建表语句在 src/kg/enhanced.ts 与\n * src/crawl/processor/kg-writer.ts 各存一份，存在漂移风险。\n * 现抽为本模块常量供两处 import（依赖方向：enhanced.ts / kg-writer.ts → 本模块，\n * 本模块零依赖，无环）。SQL 文本逐字符迁移自 enhanced.ts（含全部索引，为两份\n * 原文中的超集）；CREATE TABLE/INDEX 均为 IF NOT EXISTS，对既有库幂等无差异。\n */\n\nimport type { Database } from \"bun:sqlite\";\nimport { logger } from \"../utils/logger.js\";\n```",
+  "source_origin": "src/kg/schema.ts#L1-L9",
+  "candidate_mr": {
+    "propositions": [
+      "依赖模块「bun:sqlite」",
+      "依赖模块「../utils/logger.js」"
+    ],
+    "entities": [
+      {
+        "name": "bun:sqlite",
+        "type": "module",
+        "link": "kg:module:bun_sqlite-8d26f437"
+      },
+      {
+        "name": "../utils/logger.js",
+        "type": "module",
+        "link": "kg:module:__/utils/logger_js-aa5d521c"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/kg/schema.ts",
+        "predicate": "depends-on",
+        "object": "bun:sqlite"
+      },
+      {
+        "subject": "src/kg/schema.ts",
+        "predicate": "depends-on",
+        "object": "../utils/logger.js"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/kg/schema.ts#L1-L9"
+      },
+      {
+        "prop_index": 1,
+        "origin": "src/kg/schema.ts#L1-L9"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

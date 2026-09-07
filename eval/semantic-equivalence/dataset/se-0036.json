@@ -1,0 +1,40 @@
+{
+  "id": "se-0036",
+  "source_text": "Long-Horizon-Terminal-Bench：最强模型仅 15.2% pass@1（0.95 部分分阈值）；只按最终结果评分会漏掉中间进展，dense reward / 部分分更完整。StateM：长程失败源于丢可变状态、不重激活先前经验、跳过已知流程、过早停止。OSWorld 2.0：top 代理仅 20.6%，失败模式=丢约束、错过任务中途信息、猜而不问用户、跳过验证。\n**对本项目**（判断）：我们的自进化（evolve 归纳经验并注入）直接对应 StateM 的\"重激活经验\"杠杆；本套件暂无长程多步真实执行任务（外部 HumanEval/MBPP docker 沙箱是单步补偿），Phase C 定位中如实声明。",
+  "source_origin": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md#L45-L46",
+  "candidate_mr": {
+    "propositions": [
+      "Long-Horizon-Terminal-Bench：最强模型仅 15.2% pass@1（0.95 部分分阈值）；只按最终结果评分会漏掉中间进展，dense reward / 部分分更完整。StateM：长程失败源于丢可变状态、不重激活先前经验、跳过已知流程、过早停止。OSWorld 2.0：top 代理仅 20.6%，失败模式=丢约束、错过任务中途信息、猜而不问用户、跳过验证。 **对本项目**（判断）：我们的自进化（evolve 归纳经验并注入）直接对应 StateM 的\"重激活经验\"杠杆；本套件暂无长程多步真实执行任务（外部 HumanEval/MBPP docker 沙箱是单步补偿），Phase C 定位中如实声明。"
+    ],
+    "entities": [
+      {
+        "name": "Long-Horizon-Terminal-Bench：最强模型仅 15.2% pass@1（0.95 部分分阈值）；只按最终结果评分会漏掉中间进展，dense reward / 部分分更完整。StateM：长程失败源于丢可变状态、不重激活先前经验、跳过已知流程、过早停止。OSWorld 2.0：top 代理仅 20.6%，失败模式=丢约束、错过任务中途信息、猜而不问用户、跳过验证。 **对本项目",
+        "type": "concept",
+        "link": "kg:concept:Long-Horizon-Terminal-Bench_______15_2__pass_1_0_95________________________dense-67ecada9"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md",
+        "predicate": "contains",
+        "object": "Long-Horizon-Terminal-Bench：最强模型仅 15.2% pass@1（0.95 部分分阈值）；只按最终结果评分会漏掉中间进展，dense reward / 部分分更完整。StateM：长程失败源于丢可变状态、不重激活先前经验、跳过已知流程、过早停止。OSWorld 2.0：top 代理仅 20.6%，失败模式=丢约束、错过任务中途信息、猜而不问用户、跳过验证。 **对本项目"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md#L45-L46"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

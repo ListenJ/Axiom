@@ -1,0 +1,40 @@
+{
+  "id": "se-0035",
+  "source_text": "1. ContextCacheDiscipline：稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率。\n2. RecoverableToolOutput：工具结果外置可恢复，避免压缩吞掉信息。\n3. AdaptiveCompaction：双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康。\n4. ToolSurface：注册面与模型可见面分离，按会话裁剪、稳定排序、批量压缩。",
+  "source_origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L99-L102",
+  "candidate_mr": {
+    "propositions": [
+      "1. ContextCacheDiscipline：稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率。 2. RecoverableToolOutput：工具结果外置可恢复，避免压缩吞掉信息。 3. AdaptiveCompaction：双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康。 4. ToolSurface：注册面与模型可见面分离，按会话裁剪、稳定排序、批量压缩。"
+    ],
+    "entities": [
+      {
+        "name": "1. ContextCacheDiscipline：稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率。 2. RecoverableToolOutput：工具结果外置可恢复，避免压缩吞掉信息。 3. AdaptiveCompaction：双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康。 4. ToolSurface：注册面与模",
+        "type": "concept",
+        "link": "kg:concept:1__ContextCacheDiscipline______-______-_______provider_________________2__Recove-5a88b8df"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md",
+        "predicate": "contains",
+        "object": "1. ContextCacheDiscipline：稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率。 2. RecoverableToolOutput：工具结果外置可恢复，避免压缩吞掉信息。 3. AdaptiveCompaction：双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康。 4. ToolSurface：注册面与模"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L99-L102"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

@@ -8747,3 +8747,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：R1 四项与 ANNOTATION-GUIDE v1.0 及计划 S-A4/S-A7 原文无冲突；指南 §2 隔离要求由子代理实例形态满足；文档不落密钥。
 - **红线**：规则 1（仅文档修订）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（口径决策留痕）、规则 11（无密钥）。
 - **Commit**：25f2e0d
+
+## 2026-09-07 — eval(dataset): S-A4 dataset 100 例构建（m3-1，现状基线抽取投影）
+
+- **任务**：M3 m3-1——按 ANNOTATION-GUIDE v1.0 §3.1 与计划 R1 口径，构建 dataset 第一批 100 例（docs/ 权威文档 40 + Vault 笔记 30 + 代码注释/docstring 30），candidate_mr 来源于现状真实抽取路径的可复现投影。
+- **工具**：Write（manifest/构建脚本）、bun（执行构建与验证）、一次性扫描脚本（.tmp，已删）、PowerShell（ops-log）、git。无子代理。
+- **操作**（文件级）：新增 eval/semantic-equivalence/tools/dataset-manifest.jsonl（100 例甄选清单：origin+source+task_type）；新增 eval/semantic-equivalence/tools/build-dataset.ts（parseMarkdownAST → KGWriter(:memory:) → kg_nodes/kg_edges → 指南 §3.1 确定性投影，投影规则固化于脚本头注释；代码例包 ts 栅栏模拟文档内嵌代码摄取）；生成 eval/semantic-equivalence/dataset/se-0001..0100.json（每例含 source_text 原文、source_origin 可回溯、candidate_mr、task_type、generation 构建元数据）。
+- **验证**：构建脚本运行成功（100/100，分布 doc_ingest=40 / vault_summary=30 / kg_extract=30）；schema 校验 100/100 通过（id/source_text/source_origin/candidate_mr 五字段/provenance 与 propositions 等长/task_type/generation）；抽查 se-0007（段落全文保留）、se-0042（摘要 500 字符截断如实呈现）、se-0078（JSDoc 语义丢失如实呈现）、se-0049（<50 字符段落空候选，§6.6 适用）；11 例空候选为管线真实行为（2 lesson 短句 + 9 代码例无函数/类/导入实体），非构建缺陷。
+- **红线**：规则 1（仅新增评估资产，不改源码）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（溯源片段级/截断/空候选均如实标注于 generation.note）、规则 11（无密钥）。
+- **Commit**：<pending>

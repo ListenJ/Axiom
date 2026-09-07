@@ -1,0 +1,40 @@
+{
+  "id": "se-0091",
+  "source_text": "```ts\n/**\n * 自动 evolve 检查（每次 chat 交换后 fire-and-forget 调用）。\n * 廉价检查先行：默认 OFF 时不读任何文件；冷却窗口内只付一次小 JSON 读，\n * 不做 expensive 的全量轨迹读。通过全部闸门才执行 evolve。\n */\nexport async function maybeAutoEvolve(deps?: AutoEvolveDeps): Promise<AutoEvolveResult> {\n  const d = resolveDeps(deps);\n  if (!d.enabled()) return { ran: false, reason: \"disabled\" };\n```",
+  "source_origin": "src/agent-evals/auto-evolve.ts#L98-L102",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「maybeAutoEvolve」"
+    ],
+    "entities": [
+      {
+        "name": "maybeAutoEvolve",
+        "type": "function",
+        "link": "kg:function:maybeAutoEvolve"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/auto-evolve.ts",
+        "predicate": "defines",
+        "object": "maybeAutoEvolve"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/auto-evolve.ts#L98-L102"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

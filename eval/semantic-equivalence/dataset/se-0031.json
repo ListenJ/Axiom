@@ -1,0 +1,40 @@
+{
+  "id": "se-0031",
+  "source_text": "DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom\n  HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）、`/axiom` 代理、`axiom_status` 诊断。\n- 桥接实现只用 dsh 稳定接缝（`ctx.tools.register` / `ctx.effect` / `ctx.inject` / `ctx.get`），\n  结构性类型解耦 `@deepseek-ai/*`，随 dsh developer preview 演进不易漂移。\n- 契约与取证详见 `docs/research/deepseek-harness-plugin-2026-08-14.md`。",
+  "source_origin": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md#L61-L65",
+  "candidate_mr": {
+    "propositions": [
+      "DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom   HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）、`/axiom` 代理、`axiom_status` 诊断。 - 桥接实现只用 dsh 稳定接缝（`ctx.tools.register` / `ctx.effect` / `ctx.inject` / `ctx.get`），   结构性类型解耦 `@deepseek-ai/*`，随 dsh developer preview 演进不易漂移。 - 契约与取证详见 `docs/research/deepseek-harness-plugin-2026-08-14.md`。"
+    ],
+    "entities": [
+      {
+        "name": "DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom   HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）、`/axiom` 代理、`axiom_status` 诊断。 - 桥接实现只用 dsh 稳定接缝（`ctx.tool",
+        "type": "concept",
+        "link": "kg:concept:DeepSeek_Harness_MCP______axiom___tool_____vault/kg/token/router/prompt_______Ax-2b8fed16"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md",
+        "predicate": "contains",
+        "object": "DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom   HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）、`/axiom` 代理、`axiom_status` 诊断。 - 桥接实现只用 dsh 稳定接缝（`ctx.tool"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md#L61-L65"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

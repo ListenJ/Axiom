@@ -1,0 +1,40 @@
+{
+  "id": "se-0034",
+  "source_text": "事实：官方 Context Compression 文档采用双压缩层：Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net。算法分 4 阶段：prune 旧 tool results（>200 字符替换占位符，无 LLM 调用）-> 保护 head(3) + token-budget tail（默认 target 20%）-> 结构摘要（便宜模型，summary 预算 max 12K/20%）-> 重组并对齐 tool_call/tool_result 边界。",
+  "source_origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L29-L29",
+  "candidate_mr": {
+    "propositions": [
+      "事实：官方 Context Compression 文档采用双压缩层：Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net。算法分 4 阶段：prune 旧 tool results（>200 字符替换占位符，无 LLM 调用）-> 保护 head(3) + token-budget tail（默认 target 20%）-> 结构摘要（便宜模型，summary 预算 max 12K/20%）-> 重组并对齐 tool_call/tool_result 边界。"
+    ],
+    "entities": [
+      {
+        "name": "事实：官方 Context Compression 文档采用双压缩层：Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net。算法分 4 阶段：prune 旧 tool results（>200 字符替换占位符，无 LLM 调用）-> 保护 head(3) + token-budget tail（默认 target 20%）-",
+        "type": "concept",
+        "link": "kg:concept:______Context_Compression__________Agent_Compressor____50_____Gateway_Hygiene_85-c5b2c4eb"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md",
+        "predicate": "contains",
+        "object": "事实：官方 Context Compression 文档采用双压缩层：Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net。算法分 4 阶段：prune 旧 tool results（>200 字符替换占位符，无 LLM 调用）-> 保护 head(3) + token-budget tail（默认 target 20%）-"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L29-L29"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

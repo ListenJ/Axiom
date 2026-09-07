@@ -1,0 +1,40 @@
+{
+  "id": "se-0077",
+  "source_text": "```ts\n/** 评测统一口径：默认每个任务重跑 2 次取最优，消除单样本波动（分数口径稳定可比）。 */\nexport const DEFAULT_RERUN_EACH = 2;\n\n/** 从多次尝试中取最优：任一通过取首个通过；全失败优先保留真实能力失败\n * （非执行错误），仅在全部尝试都是执行错误时保留首次。 */\nexport function pickBest(attempts: TaskResult[]): TaskResult {\n  return (\n    attempts.find((a) => a.passed) ??\n```",
+  "source_origin": "src/agent-evals/runner.ts#L144-L148",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「pickBest」"
+    ],
+    "entities": [
+      {
+        "name": "pickBest",
+        "type": "function",
+        "link": "kg:function:pickBest"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/runner.ts",
+        "predicate": "defines",
+        "object": "pickBest"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/runner.ts#L144-L148"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

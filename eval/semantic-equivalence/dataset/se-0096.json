@@ -1,0 +1,40 @@
+{
+  "id": "se-0096",
+  "source_text": "```ts\n/**\n * GoalTracker — 超长会话下的目标事实核查 + 生命周期 + 会话状态追踪\n *\n * 核心职责：\n *   1. 事实核查：用 Jaccard 相似度验证 LLM 提取的 goals/beliefs 是否基于\n *      可靠信息源（实际观察数据）。低相似度的目标被判为潜在幻觉并过滤。\n *   2. 目标生命周期：合并新目标与已有目标（去重 + 累计计数），而非整体替换。\n *      支持活跃/达成/放弃状态转换，上限管理。\n *   3. 会话状态追踪：跨反思周期维护目标历史，检测目标漂移以维持上下文一致性。\n *\n * 设计原则：\n *   - 零额外 LLM 调用 — 纯 token 相似度计算\n *   - 无外部依赖 — 自带分词器 + Jaccard 实现\n *   - 单例模式 — 与 consciousness 模块其他组件一致\n *   - 可测试 — 提供 reset() 和直接构造函数\n */\n\nimport { logger } from \"../../utils/logger.js\";\n```",
+  "source_origin": "src/agents/consciousness/goal-tracker.ts#L1-L16",
+  "candidate_mr": {
+    "propositions": [
+      "依赖模块「../../utils/logger.js」"
+    ],
+    "entities": [
+      {
+        "name": "../../utils/logger.js",
+        "type": "module",
+        "link": "kg:module:__/__/utils/logger_js-88b60c64"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agents/consciousness/goal-tracker.ts",
+        "predicate": "depends-on",
+        "object": "../../utils/logger.js"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agents/consciousness/goal-tracker.ts#L1-L16"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

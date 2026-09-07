@@ -1,0 +1,55 @@
+{
+  "id": "se-0092",
+  "source_text": "```ts\n/** 读状态：缺失/损坏降级全 0（W3），不抛。 */\nfunction readState(filePath: string): AutoEvolveState {\n  try {\n    const raw = fs.readFileSync(filePath, \"utf-8\");\n    const parsed = JSON.parse(raw) as Partial<AutoEvolveState>;\n    if (typeof parsed.lastRunAt !== \"number\" || typeof parsed.lastNewTraces !== \"number\") return EMPTY_STATE;\n    return { lastRunAt: parsed.lastRunAt, lastNewTraces: parsed.lastNewTraces };\n  } catch {\n    return EMPTY_STATE;\n  }\n}\n\n/** 原子写（tmp + renameSync，镜像 skill-quality.ts）：失败清理临时文件后原样抛出，由调用方容错。 */\nfunction writeState(filePath: string, state: AutoEvolveState): void {\n  fs.mkdirSync(path.dirname(filePath), { recursive: true });\n  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;\n```",
+  "source_origin": "src/agent-evals/auto-evolve.ts#L59-L71",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「readState」",
+      "定义函数「writeState」"
+    ],
+    "entities": [
+      {
+        "name": "readState",
+        "type": "function",
+        "link": "kg:function:readState"
+      },
+      {
+        "name": "writeState",
+        "type": "function",
+        "link": "kg:function:writeState"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/auto-evolve.ts",
+        "predicate": "defines",
+        "object": "readState"
+      },
+      {
+        "subject": "src/agent-evals/auto-evolve.ts",
+        "predicate": "defines",
+        "object": "writeState"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/auto-evolve.ts#L59-L71"
+      },
+      {
+        "prop_index": 1,
+        "origin": "src/agent-evals/auto-evolve.ts#L59-L71"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

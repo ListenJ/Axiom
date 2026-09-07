@@ -1,0 +1,40 @@
+{
+  "id": "se-0055",
+  "source_text": "8. `packages/bundle/axiom/` — axiom-dsh profile bundle\n   - cordis.patch.yml 编排所有 axiom 插件\n   - 不覆盖 DSH 默认侧边栏（避免重复）",
+  "source_origin": "axiom-memory/projects/axiom-dsh/PLAN.md#L70-L72",
+  "candidate_mr": {
+    "propositions": [
+      "8. `packages/bundle/axiom/` — axiom-dsh profile bundle    - cordis.patch.yml 编排所有 axiom 插件    - 不覆盖 DSH 默认侧边栏（避免重复）"
+    ],
+    "entities": [
+      {
+        "name": "8. `packages/bundle/axiom/` — axiom-dsh profile bundle    - cordis.patch.yml 编排所有 axiom 插件    - 不覆盖 DSH 默认侧边栏（避免重复）",
+        "type": "concept",
+        "link": "kg:concept:8___packages/bundle/axiom/____axiom-dsh_profile_bundle____-_cordis_patch_yml____-4c92c0c8"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/projects/axiom-dsh/PLAN.md",
+        "predicate": "contains",
+        "object": "8. `packages/bundle/axiom/` — axiom-dsh profile bundle    - cordis.patch.yml 编排所有 axiom 插件    - 不覆盖 DSH 默认侧边栏（避免重复）"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/projects/axiom-dsh/PLAN.md#L70-L72"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}
