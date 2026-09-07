@@ -2,8 +2,8 @@
   "apps": [
     {
       "name": "axiom-agent",
-      "script": "dist/main.js",
-      "interpreter": "bun",
+      "script": "deploy/pm2/start.sh",
+      "interpreter": "bash",
       "cwd": ".",
       "env": {
         "NODE_ENV": "production"

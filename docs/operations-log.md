@@ -8887,3 +8887,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：上一条目（插桩轮）修改 ci.yml 前未备份（规则 2 字面未走全，已记录）；本轮修改前已备份 .tmp/backups/ci.yml 并于验证通过后删除。
 - **红线**：规则 1（仅 CI workflow 最小改动）、规则 2（本轮合规）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（本地反馈回路→假设排除→单变量修复→回归验证）、规则 9（无 force/reset）、规则 11（占位 token 非真实凭据）。
 - **Commit**：c72ce3e
+
+## 2026-09-08 — fix(deploy): ecosystem.config.json 弃用 bun 直载改 bash 包装（require-ESM 缺陷修复）
+
+- **任务**：修复上一轮（c72ce3e）记录的存量缺陷——deploy/pm2/ecosystem.config.json 以 interpreter bun 直载 dist/main.js，pm2 bun fork 容器 require() 加载含 top-level await 的 ESM bundle 必崩（TypeError 崩溃循环，永不监听）。真实 pm2 部署场景同样暴露于该缺陷。
+- **工具**：Read、Write、本地 pm2 7.0.4 端到端验证（pm2 start ecosystem 配置全流程）、Git Bash。无子代理。
+- **操作**（文件级）：① 新增 deploy/pm2/start.sh（bash 包装：cd 项目根 + exec bun dist/main.js，注明根因）——deploy/ 在 .gitignore:146 中，按 ecosystem.config.json 同性质配套部署资产以 add -f 入库并置 100755；② deploy/pm2/ecosystem.config.json：script dist/main.js→deploy/pm2/start.sh，interpreter bun→bash，其余字段未动；③ .github/workflows/ci.yml deploy-smoke：撤去内联 heredoc 包装，改回 pm2 start deploy/pm2/ecosystem.config.json --update-env——使 CI 冒烟持续回归验证真实部署配置；docs/operations-log.md（本条）。
+- **验证**：本地 Git Bash 模拟真实部署路径全流程——pm2 start deploy/pm2/ecosystem.config.json --update-env → 90s 窗口内 listen/health 200 → diagnostics 200 → pm2 restart 后 6s 恢复 200 → pm2 delete，ECOSYSTEM SMOKE ALL GREEN。start.sh 自带 cd 兜底（不依赖 cwd 配置）。
+- **回归影响**：CI deploy-smoke 从"测内联等效物"升级为"直接测部署配置"，防止该缺陷复发。
+- **红线**：规则 1（最小改动：config 两行 + 一个包装脚本 + CI 一段）、规则 2（两处修改前均备份，验证后删）、规则 3（仅 add 本任务文件，start.sh 因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 6（复用上轮已证实的根因与接缝）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：<PENDING4>

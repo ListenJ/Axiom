@@ -326,14 +326,9 @@ jobs:
           HOST: "127.0.0.1"
           AXIOM_AUTH_TOKEN: "ci-smoke-token-16chars"
         run: |
-          # pm2 的 bun fork 容器（ProcessContainerForkBun.js）用 require() 加载入口，
-          # 而 dist/main.js 是含 top-level await 的 ESM bundle → TypeError 崩溃循环（run 34162662690，
-          # 本地 pm2 复现同因）。改为 bash 包装 exec bun，pm2 直接管理 bash→bun 进程。
-          cat > /tmp/smoke-entry.sh <<'EOF'
-          #!/bin/bash
-          exec bun dist/main.js
-          EOF
-          pm2 start --name axiom-agent /tmp/smoke-entry.sh --interpreter bash
+          # 经 ecosystem.config.json 启动（bash 包装 exec bun，绕开 pm2 bun 容器 require()-ESM 缺陷，
+          # 见 deploy/pm2/start.sh），CI 持续回归验证真实部署配置
+          pm2 start deploy/pm2/ecosystem.config.json --update-env
           # 冷启动实测 6-23s（bundle 加载 + 外部 MCP 初始化），放宽到 90s
           for i in $(seq 1 90); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18799/health || true)
