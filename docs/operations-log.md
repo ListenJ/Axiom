@@ -8875,3 +8875,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：本次修改 ci.yml 前未先备份（规则 2 字面未走全）；该文件修改前与 HEAD 一致、原版可由 git 恢复，无数据风险。后续仍严格先备份。
 - **红线**：规则 1（两处最小改动）、规则 2（备份缺失已如实记录）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（先复现建回路→单变量验证）、规则 9（无 force/reset）、规则 11（token 为测试占位符非真实凭据）。
 - **Commit**：934ac94
+
+## 2026-09-08 — ci(deploy-smoke): pm2 bash 包装启动替代 bun 解释器直载（第七轮失败修复）
+
+- **任务**：CI run 34162662690——Test & Lint 持续绿；Linux Deploy Smoke 90s 健康窗口耗尽仍 exit 7。该 job 此前从未执行过（历史上游一直红被跳过），属首次暴露的存量故障。
+- **工具**：gh CLI、本地 pm2 7.0.4（npm -g）、bundle 直跑对照、Git Bash 端到端复现脚本、Read。无子代理。
+- **根因**（事实，本地 pm2 全链路复现）：pm2 bun fork 容器 ProcessContainerForkBun.js L25 以 require() 加载入口，而 dist/main.js 为含 top-level await 的 ESM bundle → "TypeError: require() async module is unsupported"，每轮重启同点崩溃（本地 ↺6/30s，axiom-error.log 逐轮实证）→ 永不监听。90s 窗口无用（崩溃循环非慢启动）。次生缺陷：pm2 restart 后 sleep 2 即 curl，实测恢复需 ~6-7s（完整重新初始化）。
+- **备选假设**（规则 6，已排除）：慢启动超窗口（90s 仍挂 + 本地直跑 6s listen 证伪）；spawn ENOENT（pm2 status 显示 online 且有日志证伪）。
+- **操作**（文件级）：.github/workflows/ci.yml deploy-smoke 步骤——改 `pm2 start --name axiom-agent /tmp/smoke-entry.sh --interpreter bash`（workflow 内联 heredoc 写 `exec bun dist/main.js` 包装脚本，绕开 require-ESM，pm2 管 bash→bun）；restart 后 sleep 2 改 90s 轮询；失败诊断分支精简（去 [DEBUG-smoke7] 标记与失效的 data/logs tail——新模式下 pm2 logs 即全部证据）；docs/operations-log.md（本条）。deploy/pm2/ecosystem.config.json 未动（产品部署文件，其 require-ESM 缺陷另行记录）。
+- **验证**：本地 Git Bash 端到端复现 CI 步骤全脚本——first listen 6s/200 → audit:runtime 过 → diagnostics 200 → restart 后 6s 恢复 200 → delete → SMOKE ALL GREEN。YAML 块内 heredoc EOF 落第 0 列（块缩进剥离）确认。
+- **偏差记录**：上一条目（插桩轮）修改 ci.yml 前未备份（规则 2 字面未走全，已记录）；本轮修改前已备份 .tmp/backups/ci.yml 并于验证通过后删除。
+- **红线**：规则 1（仅 CI workflow 最小改动）、规则 2（本轮合规）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（本地反馈回路→假设排除→单变量修复→回归验证）、规则 9（无 force/reset）、规则 11（占位 token 非真实凭据）。
+- **Commit**：<PENDING3>
