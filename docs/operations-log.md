@@ -8789,4 +8789,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 annotations/annotator-A/ann-calibration-gold-01..10.json（A 初标 10 例，其中 gold-03 后由回炉子代理重写）；新增 annotations/annotator-B/ann-calibration-gold-01..10.json（B 10 例）；修改 tools/annotation-runner.ts cmdGold（校验语义：error_classes 数组精确相等 → 预埋类包含判定 + severity 精确门）；docs/operations-log.md（本条）。
 - **验证**：门禁（gold 子命令）——首轮 A 8/10、B 8/10，verdict 均 10/10 全对，仅 error_classes 超集被判错；根因诊断（规则 10）：指南 §4.3 明文"一例可多类，逐一登记"，runner 的数组精确相等实现惩罚合规多类登记，属 runner 实现偏离指南而非标注员错误（双方多类登记经逐例核验均有源文依据；gold-02 附录 se-0008 亦明文换向类"两分类都接受"）。修正后 A 9/10（gold-03 漏检植入 E2 换向类）、B 10/10；A 按指南 §8 回炉（重学 §5/附录 A 后盲判重标 gold-03，登记 E2+E3+E4 且引用原文）→ 复检 10/10。**双方均获上岗资格（κ 门禁前置条件满足）**。回炉全程未泄露预埋答案与 B 方结果（隔离保持）。runner 修改前备份 .tmp/backups/，验证通过后删除。
 - **红线**：规则 1（最小改动：runner 单函数语义修正）、规则 2（备份→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先门禁复现→诊断→单变量修正）、规则 9（无 force/reset）、规则 10（根因判定标注员合规、偏差在 runner）、规则 11（answer-key 不入 A/B 子代理上下文，无密钥）。
-- **Commit**：<待回填>
+- **Commit**：04ee1a1
