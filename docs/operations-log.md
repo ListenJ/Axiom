@@ -8780,4 +8780,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 eval/semantic-equivalence/annotations/annotator-A/ann-calibration-gold-01..10.json；docs/operations-log.md（本条）。
 - **验证**：bun 自校验 10/10 通过（JSON 可解析、8 字段齐全无多余、annotator=A、run=calibration、verdict 映射符合 §3.2/§5 硬规则：not_equivalent 必有 error_classes+critical、equivalent 必为空）。判定分布：equivalent 2（gold-01、gold-08）；equivalent_with_notes 1（gold-06，provenance 仅行号省略文件前缀，经核验行号与 docs/MIND-SYNAPSE.md 实际内容吻合，minor）；not_equivalent 7（gold-02 E4+E3、gold-03 E4+E3、gold-04 E3、gold-05 E1、gold-07 E2+E3、gold-09 E3、gold-10 E1，均 critical）。事实核查依据：model-router README 全文无 DRE/DRE_DB_PATH（gold-05 E1 错链依据），DRE_DB_PATH 实际见于 docs/ 下五文件；scripts/merge-knowledge-dbs.ts 存在（gold-01 实体指向正确）。
 - **红线**：规则 1（仅新增 10 标注文件+本条日志）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（rationale 均逐字引用 source_text ≥8 字片段，事实/判断分离）、规则 11（未读写 answer-key；无密钥入库）。
-- **Commit**：待回填
+- **Commit**：1af85eb
