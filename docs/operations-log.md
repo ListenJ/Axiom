@@ -8772,3 +8772,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：冒烟数据（10 gold + 6 例 A/B 临时标注 + 仲裁 resolved，用后即删未入库）驱动三子命令——gold：10/10 全对 exit 0；compare：κ=0.615 门禁未通过触发停线 exit 2（刻意构造的分歧样本，符合 §8 预期）、分歧 2/incomplete 0/uncertain 配对 1 正确落盘 pending-smoketest.json；finalize：合并 resolved 后严格 40.0%/宽松 40.0%（N=5=6−contested 1），unresolved=0 exit 0，与构造数字一致。幂等性（S-A4 验收"数字可复现"）：compare 连跑两次，报告与 pending 除 generated_at 时间戳外字节一致。修复缺陷：cmdCompare 控制台输出当分母为 0 时误打印 0.0%（null*100=0），改为与 md 报告一致的 n/a 口径；修复后三子命令复跑无回归。κ 计算排除 gold 与 uncertain 配对（§6.7）；双口径分母剔除 contested+uncertain（§9）。
 - **红线**：规则 1（仅新增 runner 工具）、规则 2（修改前备份 .tmp/backups/，验证通过后已删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先建冒烟反馈回路再改码）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：5598c06
+
+## 2026-09-07 — eval(annotation): S-A4 上岗校准·标注员 A 独立标注 gold 10 例（m3-4）
+
+- **任务**：ANNOTATION-GUIDE v1.0 §8 上岗校准——标注员 A 在隔离约束下（禁读 answer-key.json、annotations/ 既有文件、arbitration/ 与 reports/）对 gold-01..10 按 §4 五步规程独立判定，产出 10 个标注文件。
+- **工具**：Read（指南全文 + gold-01..10 逐例）、PowerShell（事实核查：Test-Path 验证 scripts/merge-knowledge-dbs.ts 与 axiom-memory/.../model-router/README.md 存在性、Select-String 核查 DRE_DB_PATH 实际记载位置、MIND-SYNAPSE.md L11-13 行号核验）、Write（10 个标注文件）、bun（一次性自校验脚本 .tmp/verify-ann-A.ts，用后即删）、git。无子代理。
+- **操作**（文件级）：新增 eval/semantic-equivalence/annotations/annotator-A/ann-calibration-gold-01..10.json；docs/operations-log.md（本条）。
+- **验证**：bun 自校验 10/10 通过（JSON 可解析、8 字段齐全无多余、annotator=A、run=calibration、verdict 映射符合 §3.2/§5 硬规则：not_equivalent 必有 error_classes+critical、equivalent 必为空）。判定分布：equivalent 2（gold-01、gold-08）；equivalent_with_notes 1（gold-06，provenance 仅行号省略文件前缀，经核验行号与 docs/MIND-SYNAPSE.md 实际内容吻合，minor）；not_equivalent 7（gold-02 E4+E3、gold-03 E4+E3、gold-04 E3、gold-05 E1、gold-07 E2+E3、gold-09 E3、gold-10 E1，均 critical）。事实核查依据：model-router README 全文无 DRE/DRE_DB_PATH（gold-05 E1 错链依据），DRE_DB_PATH 实际见于 docs/ 下五文件；scripts/merge-knowledge-dbs.ts 存在（gold-01 实体指向正确）。
+- **红线**：规则 1（仅新增 10 标注文件+本条日志）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（rationale 均逐字引用 source_text ≥8 字片段，事实/判断分离）、规则 11（未读写 answer-key；无密钥入库）。
+- **Commit**：待回填

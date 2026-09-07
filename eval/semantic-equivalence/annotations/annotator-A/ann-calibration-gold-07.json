@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-07",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E2", "E3"],
+  "severity": "critical",
+  "rationale": "源文本：『改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标），改由 **GLM-4.7-flash 免费链**：zhipu 直连优先 → siliconflow `GLM-4.7-Flash:free` 兜底』。候选命题 1『改写/忠实度判别由边缘模型承担』将源的否定关系『不再由边缘模型承担』翻转为肯定断言，关系极性错向（E2，关键：否定差异，指南 §5 明列否定为关键命题，附录 se-0008 换向类先例）；同时候选漏掉翻转原因『（1B 漂移、2B 照抄，实测不达标）』与免费链路『zhipu 直连优先 → siliconflow GLM-4.7-Flash:free 兜底』的优先/兜底顺序条件（E3，丢因果与条件）。命题 2 与 handled-by 三元组本身有据，但不足以抵消极性翻转。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

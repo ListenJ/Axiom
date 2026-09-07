@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-06",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本：『核心约束：**全部写操作追加链式哈希验证链**（每条记录带 `prevHash`，篡改即失配），因此数据\"有可以校验的路径、可以追溯实现效果\"（`mind_synapse_verify` / `mind_synapse_trace`）。本地模型仅作**可选**增强（注入 `localModelAssist`），不配置时模块 100% 确定性、零网络依赖』。候选三命题逐条忠实覆盖：链式哈希验证链与 prevHash/篡改失配、可校验可追溯及两工具名、本地模型仅可选增强与不配置时 100% 确定性零网络依赖，无漏无增。唯一差异为溯源引用格式：provenance.origin 仅写行号『L11-L13』/『L13』而省略文件路径前缀（source_origin 为 docs/MIND-SYNAPSE.md#L11-L13）；经核验 docs/MIND-SYNAPSE.md 第 11-13 行与源文本逐行吻合，定位本身正确。属指南 §5『仅溯源引用格式问题且命题本体正确』→ equivalent_with_notes（minor）。可忽略差异具体内容：provenance 省略文件路径前缀，行号定位经核验无误。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

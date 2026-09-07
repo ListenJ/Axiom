@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-03",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E4", "E3"],
+  "severity": "critical",
+  "rationale": "源文本：『这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环』。候选唯一命题断言三模块『是位于 src/services/ 之外的独立模块，依赖 src/services/ 提供的桥接』——与源『src/services/ 中的薄桥接模块』的归属定位直接相悖，且三条 depends-on 三元组在源文本中均无依据（源说它们本身就是 src/services/ 内的桥接模块，而非依赖 src/services/ 提供的桥接），属加命题（E4，关键：模块归属与依赖方向均被改写）；同时候选完全丢失源的核心命题：存在循环依赖、以及通过这三个薄桥接模块『显式断环』的因果机制（E3，漏关键命题：丢因果环节）。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

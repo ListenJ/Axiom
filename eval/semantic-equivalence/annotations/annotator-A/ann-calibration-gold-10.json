@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-10",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E1"],
+  "severity": "critical",
+  "rationale": "源文本：『1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）』。候选两命题本体忠实区分了两处位置及各自用途。但实体 .env 的 link 为 ~/.axiom/axiom-secrets/.env——源明确将 .env 定位于『<仓库根>/.env』，而『~/.axiom/axiom-secrets/』在源文中存放的是『services.credentials 等』外部服务凭据；该 link 把 .env 错链到源文中另一实体的位置，与源的区分性表述直接相悖（E1：实体错链，指代错对象）。按指南 §5 硬规则，任一 E1 → not_equivalent（critical）。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}
