@@ -8763,4 +8763,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：新增 eval/semantic-equivalence/gold/gold-01..10.json（指南 §3.1 形态，generation.method=manual-planted）；新增 eval/semantic-equivalence/gold/answer-key.json（预埋答案+判定要点+覆盖索引，标注员禁读，文件头 _notice 声明）。
 - **验证**：bun 校验 10/10 通过（JSON 合法、provenance 与 propositions 等长、answer-key verdict 映射符合指南 §3.2/§5 硬规则——not_equivalent 必有 error_classes、equivalent 必为空）；错误类覆盖 E1,E2,E3,E4；source_text 与源文件逐字核对（CONFIGURATION/AXIOM-ARCHITECTURE/ARCHITECTURE/DOCUMENT-INGEST/MIND-SYNAPSE/EDGE-LLM/DRE-ARCHITECTURE/lessons）。
 - **红线**：规则 1（仅新增 gold 资产）、规则 2（新文件无需备份）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 11（answer-key 无密钥，g-10 源文本仅含密钥存放路径描述无真实凭据）。
-- **Commit**：<pending>
+- **Commit**：299f697
