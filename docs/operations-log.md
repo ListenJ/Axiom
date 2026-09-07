@@ -8843,4 +8843,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：修改 tests/coverage-gap/rate-limiter.test.ts（L106-114）——移除竞态的"立即拒绝"断言（该行为已由 "maxRequests=1"（windowMs=1000）用例确定性覆盖），保留用例独特价值"1ms 窗口快速恢复"断言并注明原因；docs/operations-log.md（本条）。实现文件未改动。
 - **验证**：bun test 3 连跑 38 pass / 0 fail（83 expect）。同文件其余时间窗用例（50/300ms 窗）余量 ≥50 倍，无需改动。
 - **红线**：规则 1（单用例最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：占位
+- **Commit**：441e17d
