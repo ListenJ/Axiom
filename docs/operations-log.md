@@ -8824,4 +8824,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **备选假设**（规则 6，已排除）：VaultManager 构造包 try/catch（掩盖真实错误）；CI/测试侧建目录（只治症状，生产新装机仍崩）。
 - **验证**：红绿闭环——复现命令（OBSIDIAN_VAULT_PATH 指向不存在目录 + handshake）崩于 scandir ENOENT；修复后同一场景测试 1 pass/0 fail（6 expect，545ms）；回归 4 文件（deterministic-search/tie/cjk-bigram/link-collision）23 pass/0 fail。
 - **红线**：规则 1（单函数 3 行最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（先复现红→单变量修→验绿）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：5c5f17f
+
+## 2026-09-08 — fix(ci): .ci/frontend-audit.sh 恢复可执行位（Frontend Visual Audit exit 126）
+
+- **任务**：Frontend Visual Audit workflow（GitHub run 34158431442）失败：`./.ci/frontend-audit.sh: Permission denied`，exit 126——文件 mode 为 100644（Windows 文件系统无 +x 位，提交时丢失）。
+- **工具**：gh CLI（log-failed 定位）、git ls-files -s（mode 核验）、git update-index --chmod。无子代理。
+- **操作**（文件级）：`git update-index --chmod=+x .ci/frontend-audit.sh`（仅索引 mode 100644→100755，文件内容零改动，无需备份/验证运行）；docs/operations-log.md（本条 + 上一条 hash 回填）。
+- **验证**：gh Actions 重跑由 push 触发观察（frontend-audit.yml 是唯一以 `./` 直接调用该脚本的工作流；.ci/run.sh 无 GitHub workflow 引用，不改动）。
+- **红线**：规则 1（单文件 mode 位最小改动）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：占位
