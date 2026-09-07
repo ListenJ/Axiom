@@ -8756,3 +8756,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：构建脚本运行成功（100/100，分布 doc_ingest=40 / vault_summary=30 / kg_extract=30）；schema 校验 100/100 通过（id/source_text/source_origin/candidate_mr 五字段/provenance 与 propositions 等长/task_type/generation）；抽查 se-0007（段落全文保留）、se-0042（摘要 500 字符截断如实呈现）、se-0078（JSDoc 语义丢失如实呈现）、se-0049（<50 字符段落空候选，§6.6 适用）；11 例空候选为管线真实行为（2 lesson 短句 + 9 代码例无函数/类/导入实体），非构建缺陷。
 - **红线**：规则 1（仅新增评估资产，不改源码）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（溯源片段级/截断/空候选均如实标注于 generation.note）、规则 11（无密钥）。
 - **Commit**：9211ba0
+## 2026-09-07 — eval(gold): S-A4 gold 校准题 10 例（m3-2，预埋 E1-E4）
+
+- **任务**：M3 m3-2——按 ANNOTATION-GUIDE v1.0 §8 上岗校准要求，构造 10 例 gold（源文本逐字取自真实文件），预埋错误覆盖 E1-E4 各≥1 及边界情形（§6.1 可推导命题、§6.6 空候选、§5 溯源格式 vs 错链分辨），每例附预埋说明。
+- **工具**：Write（gold 题与 answer-key）、bun（校验脚本一次性，用后即删）、PowerShell（ops-log）、git。无子代理。
+- **操作**（文件级）：新增 eval/semantic-equivalence/gold/gold-01..10.json（指南 §3.1 形态，generation.method=manual-planted）；新增 eval/semantic-equivalence/gold/answer-key.json（预埋答案+判定要点+覆盖索引，标注员禁读，文件头 _notice 声明）。
+- **验证**：bun 校验 10/10 通过（JSON 合法、provenance 与 propositions 等长、answer-key verdict 映射符合指南 §3.2/§5 硬规则——not_equivalent 必有 error_classes、equivalent 必为空）；错误类覆盖 E1,E2,E3,E4；source_text 与源文件逐字核对（CONFIGURATION/AXIOM-ARCHITECTURE/ARCHITECTURE/DOCUMENT-INGEST/MIND-SYNAPSE/EDGE-LLM/DRE-ARCHITECTURE/lessons）。
+- **红线**：规则 1（仅新增 gold 资产）、规则 2（新文件无需备份）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 11（answer-key 无密钥，g-10 源文本仅含密钥存放路径描述无真实凭据）。
+- **Commit**：<pending>

@@ -1,0 +1,28 @@
+{
+  "id": "gold-07",
+  "source_text": "改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标），改由 **GLM-4.7-flash 免费链**：zhipu 直连优先 → siliconflow `GLM-4.7-Flash:free` 兜底。流程：",
+  "source_origin": "docs/EDGE-LLM.md#L49-L49",
+  "candidate_mr": {
+    "propositions": [
+      "改写/忠实度判别由边缘模型承担",
+      "GLM-4.7-flash 免费链用于改写/忠实度判别"
+    ],
+    "entities": [
+      { "name": "GLM-4.7-flash", "type": "model", "link": "kg:model:glm-4-7-flash" }
+    ],
+    "triples": [
+      { "subject": "改写/忠实度判别", "predicate": "handled-by", "object": "GLM-4.7-flash" }
+    ],
+    "provenance": [
+      { "prop_index": 0, "origin": "docs/EDGE-LLM.md#L49-L49" },
+      { "prop_index": 1, "origin": "docs/EDGE-LLM.md#L49-L49" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

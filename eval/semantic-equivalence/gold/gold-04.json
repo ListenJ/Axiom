@@ -1,0 +1,33 @@
+{
+  "id": "gold-04",
+  "source_text": "PDF 摄取策略（`ingestPdf`）：**本地 unpdf 优先**（via=pdf-local）→ 无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR。",
+  "source_origin": "docs/DOCUMENT-INGEST.md#L65-L65",
+  "candidate_mr": {
+    "propositions": [
+      "PDF 摄取（ingestPdf）可走本地 unpdf、外部 pdf-worker、OCR 三条路径",
+      "无文本层（扫描型）时走外部 pdf-worker",
+      "否则降级说明走 OCR"
+    ],
+    "entities": [
+      { "name": "ingestPdf", "type": "function", "link": "kg:function:ingest-pdf" },
+      { "name": "unpdf", "type": "module", "link": "kg:module:unpdf" },
+      { "name": "pdf-worker", "type": "module", "link": "kg:module:pdf-worker" }
+    ],
+    "triples": [
+      { "subject": "ingestPdf", "predicate": "depends-on", "object": "unpdf" },
+      { "subject": "ingestPdf", "predicate": "depends-on", "object": "pdf-worker" }
+    ],
+    "provenance": [
+      { "prop_index": 0, "origin": "docs/DOCUMENT-INGEST.md#L65-L65" },
+      { "prop_index": 1, "origin": "docs/DOCUMENT-INGEST.md#L65-L65" },
+      { "prop_index": 2, "origin": "docs/DOCUMENT-INGEST.md#L65-L65" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

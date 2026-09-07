@@ -1,0 +1,26 @@
+{
+  "id": "gold-10",
+  "source_text": "1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。\n2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）。",
+  "source_origin": "docs/CONFIGURATION.md#L34-L35",
+  "candidate_mr": {
+    "propositions": [
+      "<仓库根>/.env 用于运行时密钥/环境注入，gitignored，Windows ACL 仅本人+SYSTEM",
+      "~/.axiom/axiom-secrets/ 存放外部服务凭据（services.credentials 等）"
+    ],
+    "entities": [
+      { "name": ".env", "type": "config", "link": "~/.axiom/axiom-secrets/.env" }
+    ],
+    "triples": [],
+    "provenance": [
+      { "prop_index": 0, "origin": "docs/CONFIGURATION.md#L34-L35" },
+      { "prop_index": 1, "origin": "docs/CONFIGURATION.md#L34-L35" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

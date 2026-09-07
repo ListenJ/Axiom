@@ -1,0 +1,28 @@
+{
+  "id": "gold-02",
+  "source_text": "决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28",
+  "candidate_mr": {
+    "propositions": [
+      "ResourceBudgetManager 只做数字比较",
+      "ResourceBudgetManager 定期调用 nvidia-smi 采集 GPU 硬件状态",
+      "Runtime 只关心可用预算数量，不关心预算来源"
+    ],
+    "entities": [
+      { "name": "ResourceBudgetManager", "type": "class", "link": "kg:class:resource-budget-manager" }
+    ],
+    "triples": [],
+    "provenance": [
+      { "prop_index": 0, "origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28" },
+      { "prop_index": 1, "origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28" },
+      { "prop_index": 2, "origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

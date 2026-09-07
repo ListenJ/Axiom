@@ -1,0 +1,18 @@
+{
+  "id": "gold-09",
+  "source_text": "在特定插件目录（如 dsh）运行 TypeScript 构建和测试命令会成功通过，无需额外配置。",
+  "source_origin": "axiom-memory/00-Meta/self-evolve/lessons/2026-08-17-20-52-0528e9.md#L19-L19",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}
