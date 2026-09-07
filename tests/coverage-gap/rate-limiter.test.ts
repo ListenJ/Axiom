@@ -106,7 +106,9 @@ describe("B. RateLimiter 边界条件", () => {
   test("windowMs 极小（1ms）— 快速恢复", async () => {
     const lim = new RateLimiter({ windowMs: 1, maxRequests: 1 });
     lim.check("k");
-    expect(lim.check("k").allowed).toBe(false);
+    // 不在此处断言"窗口内立即拒绝"：该断言依赖两次同步 check 间隔 <1ms，CI 负载下无余量必然
+    // 偶发翻车（2026-09-08 CI 实证）；拒绝行为已由 "maxRequests=1"（windowMs=1000）确定性覆盖。
+    // 本用例只验证 1ms 窗口的快速恢复。
     await new Promise((r) => setTimeout(r, 5));
     expect(lim.check("k").allowed).toBe(true);
   });

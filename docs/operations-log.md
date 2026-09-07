@@ -8834,3 +8834,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：gh Actions 重跑由 push 触发观察（frontend-audit.yml 是唯一以 `./` 直接调用该脚本的工作流；.ci/run.sh 无 GitHub workflow 引用，不改动）。
 - **红线**：规则 1（单文件 mode 位最小改动）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：eb90d19
+
+## 2026-09-08 — test(rate-limiter): 移除 1ms 窗口用例中的竞态断言（Linux CI 第三轮失败修复）
+
+- **任务**：CI run 34158431441（含 vault 修复）仍红——"B. RateLimiter 边界条件 > windowMs 极小（1ms）— 快速恢复"失败（0.35ms，Expected false / Received true）。vault 修复已生效（mcp-stdio-stdout-purity 转绿）。
+- **工具**：gh CLI（log-failed）、Read（测试全文）、PowerShell（备份）、bun test（3 连跑稳定性验证）。无子代理。
+- **根因**（事实）：tests/coverage-gap/rate-limiter.test.ts L107-109 在 windowMs=1 下断言第二次同步 check 被拒——依赖两次调用间隔 <1ms，CI 负载下（GC/调度停顿）无任何余量，窗口已过期则 allowed=true。属测试自身非确定性，非实现缺陷。
+- **操作**（文件级）：修改 tests/coverage-gap/rate-limiter.test.ts（L106-114）——移除竞态的"立即拒绝"断言（该行为已由 "maxRequests=1"（windowMs=1000）用例确定性覆盖），保留用例独特价值"1ms 窗口快速恢复"断言并注明原因；docs/operations-log.md（本条）。实现文件未改动。
+- **验证**：bun test 3 连跑 38 pass / 0 fail（83 expect）。同文件其余时间窗用例（50/300ms 窗）余量 ≥50 倍，无需改动。
+- **红线**：规则 1（单用例最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：占位
