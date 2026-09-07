@@ -8737,4 +8737,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：eval/semantic-equivalence/ANNOTATION-GUIDE.md（新增，v1.0，含附录判定示例两则）；docs/operations-log.md（本条）。
 - **验证**：指南与计划 S-A4 错误分类四类一一对应；verdict 映射为硬规则无裁量空间；κ≥0.7 与双口径报告承接仓库口径诚实惯例；目录落点 eval/semantic-equivalence/ 与计划一致（目录本次随指南首次创建）；无密钥落盘。
 - **红线**：规则 1（仅新增文档）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10.5（标注判定定性为"判断"并在指南第 10 节固化）、规则 11（无密钥）。
-- **Commit**：PENDING
+- **Commit**：078f43e
