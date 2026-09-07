@@ -8874,4 +8874,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：本地复现反馈回路——旧 token+30s：12s 探测失败、日志见 "Invalid value for AXIOM_AUTH_TOKEN"（ERROR）且 23s 才 listen（复现 CI 症状）；新 token：0 校验 ERROR、9s listen、health 200；bun run audit:runtime 16/16 pass exit 0。
 - **偏差记录**：本次修改 ci.yml 前未先备份（规则 2 字面未走全）；该文件修改前与 HEAD 一致、原版可由 git 恢复，无数据风险。后续仍严格先备份。
 - **红线**：规则 1（两处最小改动）、规则 2（备份缺失已如实记录）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（先复现建回路→单变量验证）、规则 9（无 force/reset）、规则 11（token 为测试占位符非真实凭据）。
-- **Commit**：<PENDING2>
+- **Commit**：934ac94
