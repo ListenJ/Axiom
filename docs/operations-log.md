@@ -8863,4 +8863,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：e2e/frontend-backend-integration.spec.ts——L23 改为 `.or()` 组合断言（加载骨架屏 `[aria-label="正在搜索"]` 防抖后确定性渲染 ∨ 终态 `/共 \d+ 条结果|没有匹配结果/`），消除对后端查询耗时的依赖；L36 OCR 改 `getByRole("heading", /扫描文档/)`（面板静态标题）；Proxies 用例 heading 收窄 `/代理管理/`（精确 h1）；趋势 tab 沿用既有 heading 修复。.ci/frontend-audit.sh——启动后端前加 `mkdir -p data/logs`。docs/operations-log.md（本条）。
 - **验证**：bun run test:e2e 全量 2 轮——第 1 轮暴露上述 ①-③（修复前），第 2 轮 11 spec 全过、0 failed、0 flaky（integration 5 passed 首试即过）；bash -n 语法通过；mkdir -p data/logs 本地 Git Bash 实证 OK；.ci/frontend-audit.sh 可执行位 100755 保留。
 - **红线**：规则 1（仅断言/一行 mkdir，未动产品代码）、规则 2（备份→读全文→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（gh log 先证、本地复现、逐项单变量）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：<PENDING>
+- **Commit**：b6e8324
