@@ -8886,4 +8886,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：本地 Git Bash 端到端复现 CI 步骤全脚本——first listen 6s/200 → audit:runtime 过 → diagnostics 200 → restart 后 6s 恢复 200 → delete → SMOKE ALL GREEN。YAML 块内 heredoc EOF 落第 0 列（块缩进剥离）确认。
 - **偏差记录**：上一条目（插桩轮）修改 ci.yml 前未备份（规则 2 字面未走全，已记录）；本轮修改前已备份 .tmp/backups/ci.yml 并于验证通过后删除。
 - **红线**：规则 1（仅 CI workflow 最小改动）、规则 2（本轮合规）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（本地反馈回路→假设排除→单变量修复→回归验证）、规则 9（无 force/reset）、规则 11（占位 token 非真实凭据）。
-- **Commit**：<PENDING3>
+- **Commit**：c72ce3e
