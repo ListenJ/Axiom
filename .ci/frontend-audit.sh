@@ -18,6 +18,7 @@ cp -r frontend/dist/index.html public/index.html
 rm -rf public/assets && cp -r frontend/dist/assets public/assets
 
 echo "[FrontendAudit-CI] start backend on :${PORT} ..."
+mkdir -p data/logs  # CI 检出目录无 data/logs，重定向会直接失败（2026-09-08 实证）
 AXIOM_GATEWAY_PORT="${PORT}" AXIOM_AUTH_TOKEN="${AXIOM_AUTH_TOKEN:-ci-visual-audit-token-at-least-16chars}" \
   nohup bun run src/main.ts > data/logs/ci-frontend-audit.log 2>&1 &
 BACKEND_PID=$!

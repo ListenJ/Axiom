@@ -8855,3 +8855,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：repro harness 5 连跑 0 失败（修复前 12/50 失败）；相关 6 测试文件 5 连跑 85 pass / 0 fail；tsc --noEmit 通过。架构注（规则 6 Phase 6）：writeFile 接口未变，串行化+原子替换藏在实现内（深模块）。
 - **红线**：规则 1（单文件最小改动，接口不变）、规则 2（备份→读全文→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（复现→假设→单变量验证）、规则 7（既有测试即红测试，未弱化）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：f45c097
+## 2026-09-08 — fix(e2e)+ci: E2E 集成断言去歧义/去网络竞态 + frontend-audit 日志目录修复（第五轮失败修复）
+
+- **任务**：CI run 34159543255（CI/CD，E2E 2 用例失败）与 34159543261（Frontend Visual Audit，exit 1）修复。
+- **工具**：gh CLI（log/log-failed）、Read（组件全文：search-panels.tsx / Proxies.tsx / Router.tsx / frontend-audit.sh）、Playwright 本地全量 2 轮、bash -n、PowerShell（备份）。无子代理。
+- **根因**（事实）：① e2e L23 旧断言 `/模型路由笔记|没有匹配结果/` 不含实际文案"共 X 条结果"（codegraph 搜 router 必命中）→ element not found；改为等终态后本地又暴露冷启动 codegraph 首查 >15s，allSettled 全完成前终态也不渲染（本地实证 flaky）。② `getByText(/OCR|文字识别/)` 同时命中 tab 按钮与状态条"OCR 就绪"→ strict 歧义。③ `/Proxies|代理/` 同时命中 h1"代理管理"与 h2"代理配置"→ strict 歧义。④ .ci/frontend-audit.sh L22 日志重定向到 data/logs/ci-frontend-audit.log，CI 检出目录无 data/logs → bash 重定向直接报错，后端从未启动 → "backend not healthy"（gh log 实证）。
+- **操作**（文件级）：e2e/frontend-backend-integration.spec.ts——L23 改为 `.or()` 组合断言（加载骨架屏 `[aria-label="正在搜索"]` 防抖后确定性渲染 ∨ 终态 `/共 \d+ 条结果|没有匹配结果/`），消除对后端查询耗时的依赖；L36 OCR 改 `getByRole("heading", /扫描文档/)`（面板静态标题）；Proxies 用例 heading 收窄 `/代理管理/`（精确 h1）；趋势 tab 沿用既有 heading 修复。.ci/frontend-audit.sh——启动后端前加 `mkdir -p data/logs`。docs/operations-log.md（本条）。
+- **验证**：bun run test:e2e 全量 2 轮——第 1 轮暴露上述 ①-③（修复前），第 2 轮 11 spec 全过、0 failed、0 flaky（integration 5 passed 首试即过）；bash -n 语法通过；mkdir -p data/logs 本地 Git Bash 实证 OK；.ci/frontend-audit.sh 可执行位 100755 保留。
+- **红线**：规则 1（仅断言/一行 mkdir，未动产品代码）、规则 2（备份→读全文→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（gh log 先证、本地复现、逐项单变量）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：<PENDING>

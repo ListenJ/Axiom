@@ -19,8 +19,13 @@ test("Search Hub：搜索→研究→趋势→OCR 四 tab 数据流", async ({ p
   const input = page.getByLabel("搜索关键词");
   await expect(input).toBeVisible();
   await input.fill("router");
-  // 结果区应出现（即使无匹配也应有“没有匹配结果”）
-  await expect(page.getByText(/模型路由笔记|没有匹配结果/)).toBeVisible({ timeout: 10000 });
+  // 结果区状态断言：加载骨架屏（防抖后确定性渲染）或终态（有结果"共 X 条"／全空"没有匹配结果"）。
+  // 不直接等终态：冷启动 codegraph 首查 >15s，allSettled 全完成前两者都不出现（CI 实证 flaky）。
+  await expect(
+    page
+      .getByText(/共 \d+ 条结果|没有匹配结果/)
+      .or(page.locator('[aria-label="正在搜索"]')),
+  ).toBeVisible({ timeout: 15000 });
 
   // 深度研究
   await page.getByRole("tab", { name: /深度研究/ }).click();
@@ -28,11 +33,13 @@ test("Search Hub：搜索→研究→趋势→OCR 四 tab 数据流", async ({ p
 
   // 趋势
   await page.getByRole("tab", { name: /趋势/ }).click();
-  await expect(page.getByText(/趋势|搜索趋势/)).toBeVisible({ timeout: 10000 });
+  // 用 heading 精确断言面板渲染（getByText(/趋势/) 会同时命中 tab 按钮与"搜索趋势"/"对话趋势"标题，strict 歧义）
+  await expect(page.getByRole("heading", { name: /搜索趋势/ })).toBeVisible({ timeout: 10000 });
 
   // OCR
   await page.getByRole("tab", { name: /OCR/ }).click();
-  await expect(page.getByText(/OCR|文字识别/)).toBeVisible({ timeout: 10000 });
+  // 断言面板静态标题（getByText(/OCR/) 会同时命中 tab 按钮与状态条"OCR 就绪"，strict 歧义）
+  await expect(page.getByRole("heading", { name: /扫描文档/ })).toBeVisible({ timeout: 10000 });
 });
 
 test("Vault：写→读 回放一致（经由 /vault/write 与 /vault/note）", async ({ page, request }) => {
@@ -88,8 +95,8 @@ test("Sessions：列表可达且与 Chat 会话保持", async ({ page }) => {
 
 test("Providers/Proxies/Router：配置页与后端 /config 一致", async ({ page }) => {
   const cases = [
-    { path: "/providers", heading: /Providers|模型提供商/ },
-    { path: "/proxies", heading: /Proxies|代理/ },
+    { path: "/providers", heading: /Provider|模型提供商/ }, // 页面标题现为 "Provider 管理"
+    { path: "/proxies", heading: /代理管理/ }, // 精确到 h1（/代理/ 会同时命中 h1"代理管理"与 h2"代理配置"，strict 歧义）
     { path: "/router", heading: /模型路由|Router/ },
   ];
   for (const { path, heading } of cases) {
