@@ -8781,3 +8781,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun 自校验 10/10 通过（JSON 可解析、8 字段齐全无多余、annotator=A、run=calibration、verdict 映射符合 §3.2/§5 硬规则：not_equivalent 必有 error_classes+critical、equivalent 必为空）。判定分布：equivalent 2（gold-01、gold-08）；equivalent_with_notes 1（gold-06，provenance 仅行号省略文件前缀，经核验行号与 docs/MIND-SYNAPSE.md 实际内容吻合，minor）；not_equivalent 7（gold-02 E4+E3、gold-03 E4+E3、gold-04 E3、gold-05 E1、gold-07 E2+E3、gold-09 E3、gold-10 E1，均 critical）。事实核查依据：model-router README 全文无 DRE/DRE_DB_PATH（gold-05 E1 错链依据），DRE_DB_PATH 实际见于 docs/ 下五文件；scripts/merge-knowledge-dbs.ts 存在（gold-01 实体指向正确）。
 - **红线**：规则 1（仅新增 10 标注文件+本条日志）、规则 2（新文件无需备份；一次性脚本用后即删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（rationale 均逐字引用 source_text ≥8 字片段，事实/判断分离）、规则 11（未读写 answer-key；无密钥入库）。
 - **Commit**：1af85eb
+
+## 2026-09-07 — eval(calibration): S-A4 校准会（m3-4，隔离 A/B 共标 gold + runner 校准语义修正）
+
+- **任务**：M3 m3-4——按指南 §2/§8 双上下文隔离子代理独立标注 10 例 gold，runner 校准门禁判定上岗资格；诊断并修正 runner gold 校验语义偏差。
+- **工具**：Agent 子代理×3（标注员 A 初标 / 标注员 B / 标注员 A 回炉重标，各自上下文隔离、禁读 answer-key 与对方目录）、bun（门禁）、Edit（runner）、PowerShell（备份/ops-log）、git。
+- **操作**（文件级）：新增 annotations/annotator-A/ann-calibration-gold-01..10.json（A 初标 10 例，其中 gold-03 后由回炉子代理重写）；新增 annotations/annotator-B/ann-calibration-gold-01..10.json（B 10 例）；修改 tools/annotation-runner.ts cmdGold（校验语义：error_classes 数组精确相等 → 预埋类包含判定 + severity 精确门）；docs/operations-log.md（本条）。
+- **验证**：门禁（gold 子命令）——首轮 A 8/10、B 8/10，verdict 均 10/10 全对，仅 error_classes 超集被判错；根因诊断（规则 10）：指南 §4.3 明文"一例可多类，逐一登记"，runner 的数组精确相等实现惩罚合规多类登记，属 runner 实现偏离指南而非标注员错误（双方多类登记经逐例核验均有源文依据；gold-02 附录 se-0008 亦明文换向类"两分类都接受"）。修正后 A 9/10（gold-03 漏检植入 E2 换向类）、B 10/10；A 按指南 §8 回炉（重学 §5/附录 A 后盲判重标 gold-03，登记 E2+E3+E4 且引用原文）→ 复检 10/10。**双方均获上岗资格（κ 门禁前置条件满足）**。回炉全程未泄露预埋答案与 B 方结果（隔离保持）。runner 修改前备份 .tmp/backups/，验证通过后删除。
+- **红线**：规则 1（最小改动：runner 单函数语义修正）、规则 2（备份→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先门禁复现→诊断→单变量修正）、规则 9（无 force/reset）、规则 10（根因判定标注员合规、偏差在 runner）、规则 11（answer-key 不入 A/B 子代理上下文，无密钥）。
+- **Commit**：<待回填>

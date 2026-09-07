@@ -328,14 +328,22 @@ function cmdGold(annotator: string, run: string): number {
       continue;
     }
     const verdictOk = a.verdict === k.expected_verdict;
+    const severityOk = (a.severity ?? "none") === k.expected_severity;
+    // 校准语义（2026-09-07 校准会诊断修订）：指南 §4.3 要求"一例可多类，逐一登记"，
+    // 故 not_equivalent 采用包含判定——预埋主类 ⊆ 登记集合（允许登记其他真实适用类），
+    // 而非数组精确相等（精确相等会惩罚合规多类登记）；equivalent/with_notes 沿 §3.2 硬规则要求为空。
+    // 局限：无差别多类扫射可通过包含判定，由 verdict/severity 硬门 + κ + 仲裁环节兜底。
     const classesOk =
       k.expected_verdict === "not_equivalent"
-        ? [...(a.error_classes ?? [])].sort().join(",") === [...k.expected_error_classes].sort().join(",")
+        ? [...k.expected_error_classes].every((c) => (a.error_classes ?? []).includes(c))
         : (a.error_classes ?? []).length === 0;
-    if (verdictOk && classesOk) {
+    if (verdictOk && severityOk && classesOk) {
       pass++;
     } else {
-      fails.push(`${id}: 判=${a.verdict}/${(a.error_classes ?? []).join("+") || "-"} 预埋=${k.expected_verdict}/${k.expected_error_classes.join("+") || "-"}${verdictOk ? "（verdict 对、错误类不符）" : ""}`);
+      const miss = k.expected_verdict === "not_equivalent"
+        ? [...k.expected_error_classes].filter((c) => !(a.error_classes ?? []).includes(c))
+        : [];
+      fails.push(`${id}: 判=${a.verdict}/${(a.error_classes ?? []).join("+") || "-"} 预埋=${k.expected_verdict}/${k.expected_error_classes.join("+") || "-"}${verdictOk ? "" : "（verdict 不符）"}${severityOk ? "" : "（severity 不符）"}${miss.length ? `（未检出植入类 ${miss.join("+")}）` : ""}`);
     }
   }
   console.log(`[runner] gold 校准（annotator ${annotator}）：${pass}/${goldIds.length} 全对=${pass === goldIds.length ? "是，可上岗" : "否 → 回炉细则再校准（§8）"}`);
