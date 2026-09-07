@@ -8720,3 +8720,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：补验结论——item 8 RESOLVED（count-tools 实测 total 189 / duplicates 0，与声明精确一致）；item 5 CONFIRMED（isPathSafe 四层校验 path-safety.ts:22-93；ssrfGuard opt-in 决策记录 proxy-fetch.ts:48-58 + 用户可控入口强制 data-pipeline.ts:341；web 内容进上下文前钳制 web-tools.ts:39-43）；item 4 CONFIRMED（截断/去重/域名多样性/引擎级隔离/代理回退/预算全链路，无静默挂起；无主动限流器记 Info）；item 6 静态自洽（bytesPerToken 公式正确、峰值约 2206MB < 4GB、system-resource.ts:178 缺 activation 项确认；端到端实测未做）；item 6b RESOLVED（KG 稳定 id + OR REPLACE/IGNORE + created_at 保留 + 邻接去重；AST 纯正则无中断路径；MinerU 为外部 Python 组件且口径双处披露）；item 7 CONFIRMED（dre/retrieval 四文件无外部消费方，唯一命中为内部互引 hybrid-fusion.ts:25；package.json/bun.lock 零向量库依赖）。V1 复核加强（native 全部构造点均 false）；V2/V3 复核成立。新发现：两条生产向量语义路径（/settings/search 默认链尝试 embedding，settings-search.ts:121-176；context-manager.ts:251-311 cosine top-k），与现行文档口径「仅在可选语义层使用」部分一致，定性 Medium 文档口径缺口。整体仍非全量审核（Phase 0 清单未建立），不构成「审核完成」。
 - **红线**：规则 1（仅新增文档，未改源码）、规则 2（备份 .tmp/backups/docs/operations-log.md，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10.5（事实/推测/判断分离：向量路径为事实，口径定性为判断）、规则 11（无密钥）。
 - **Commit**：9921f67
+
+## 2026-09-07 — docs(plans): 语义意义构建 × Runtime 优化迭代计划落盘（约束审查 + 长会话不崩坏修订）
+
+- **任务**：基于 2026-09-07 审计补验结论制定双目标迭代计划。对"100% 准确率"约束出具审查意见（拆可判定层/语义层），用户同日撤销 100% 承诺并新增「长上下文/长会话不崩坏」核心保证——已修订入计划：新增 S-A7 切片（崩坏 5 项可判定定义 / 记忆融合契约 / N≥200 轮 soak harness / 降级阶梯锁定）、probe runner 增 long-session-soak-probe、里程碑与验收表同步更新。
+- **工具**：Write/Edit（计划文档）、PowerShell（备份/追加 ops-log）、git。无子代理。
+- **操作**（文件级）：docs/superpowers/plans/2026-09-07-semantic-meaning-runtime-optimization-plan.md（新增：S-A1~A7、S-B1~B7、时间节点/资源/风险/交付验收八节）；docs/operations-log.md（本条）。
+- **验证**：计划八节结构完整；100% 约束处理经用户确认（撤销，改不崩坏保证）；"崩坏"收敛为 5 项可判定集合；全部切片锚定 audit-verification-log.md 已核验 file:line 基线；文档不落密钥。
+- **红线**：规则 1（仅新增文档，未改源码）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（约束审查与直接异议留痕）、规则 11（无密钥）。
+- **Commit**：PENDING
