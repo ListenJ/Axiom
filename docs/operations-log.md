@@ -8738,3 +8738,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：指南与计划 S-A4 错误分类四类一一对应；verdict 映射为硬规则无裁量空间；κ≥0.7 与双口径报告承接仓库口径诚实惯例；目录落点 eval/semantic-equivalence/ 与计划一致（目录本次随指南首次创建）；无密钥落盘。
 - **红线**：规则 1（仅新增文档）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10.5（标注判定定性为"判断"并在指南第 10 节固化）、规则 11（无密钥）。
 - **Commit**：078f43e
+
+## 2026-09-07 — docs(plans): M3 启动口径 R1 修订（首轮基线对象/隔离标注形态/soak 骨架先行）
+
+- **任务**：用户批准启动 M3；将三项启动决策写入计划执行修订记录 R1——①S-A4 首轮测定对象为现状基线（kg-writer 现有抽取产出作 before，S-A1/S-A2 上线后同集重测 after）；②标注员 A/B 为上下文隔离子代理、仲裁人为用户；③S-A7 soak harness 骨架先行针对现有组件（context-manager/sqlite-memory/KG 幂等）测 5 项崩坏指标，不阻塞于 M1；④dataset 第一批 100 例三源分布。
+- **工具**：Edit（计划文档）、PowerShell（备份/追加 ops-log）、git。无子代理。
+- **操作**（文件级）：docs/superpowers/plans/2026-09-07-semantic-meaning-runtime-optimization-plan.md（新增"九、执行修订记录 R1"）；docs/operations-log.md（本条）。
+- **验证**：R1 四项与 ANNOTATION-GUIDE v1.0 及计划 S-A4/S-A7 原文无冲突；指南 §2 隔离要求由子代理实例形态满足；文档不落密钥。
+- **红线**：规则 1（仅文档修订）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（口径决策留痕）、规则 11（无密钥）。
+- **Commit**：PENDING
