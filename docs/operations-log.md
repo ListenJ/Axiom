@@ -8844,3 +8844,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test 3 连跑 38 pass / 0 fail（83 expect）。同文件其余时间窗用例（50/300ms 窗）余量 ≥50 倍，无需改动。
 - **红线**：规则 1（单用例最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：441e17d
+
+## 2026-09-08 — fix(filesystem): writeFile 并发同文件写原子化（Linux CI 第四轮失败修复）
+
+- **任务**：CI run 34158812795（含 rate-limiter 修复）仍红——"filesystem H-03 TOCTOU > 并发同文件写入不创建非预期文件"失败（L49：最终内容既非 "first" 亦非 "second"）。
+- **工具**：gh CLI（log-failed）、Read（实现+测试全文）、bun run harness（本地复现 50 路并发）、bunx tsc、bun test（5 连跑）。无子代理。
+- **根因**（事实，本地 harness 复现）：src/mcp/tools/filesystem.ts writeFile 用非原子 open('w')+write——POSIX 两路并发交错出 "firstd" 类损坏产物（CI 实证）；改 tmp+rename 后 Windows 本地 50 路并发 rename 同一目标又确定性 EPERM（MoveFileEx 替换冲突，指数退避重试 5 次仍 12/50 失败，实证排除瞬时冲突假设）。
+- **操作**（文件级）：修改 src/mcp/tools/filesystem.ts——新增模块级 writeQueues + queueWrite（进程内按 resolved 路径串行化），非 append 分支整段"写同目录唯一临时文件→rename"入队执行；失败清理 tmp；append 分支不变；docs/operations-log.md（本条）。
+- **备选假设**（规则 6，已排除）：测试弱化（放弃原子覆盖契约）；纯重试（harness 实证无效）；仅 POSIX 启用原子写（Windows 生产同样暴露于撕裂写）。
+- **验证**：repro harness 5 连跑 0 失败（修复前 12/50 失败）；相关 6 测试文件 5 连跑 85 pass / 0 fail；tsc --noEmit 通过。架构注（规则 6 Phase 6）：writeFile 接口未变，串行化+原子替换藏在实现内（深模块）。
+- **红线**：规则 1（单文件最小改动，接口不变）、规则 2（备份→读全文→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（复现→假设→单变量验证）、规则 7（既有测试即红测试，未弱化）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：占位

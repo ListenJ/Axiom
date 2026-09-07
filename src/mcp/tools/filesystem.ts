@@ -74,6 +74,23 @@ export async function readFile(
   }
 }
 
+// ===== 同路径写串行化 + 原子替换（2026-09-08 CI 实证修复） =====
+// 直接 open('w')+write 在并发写同一文件时交错出 "firstd" 类损坏产物（POSIX 实证）；
+// Windows 下多路并发 rename 同一目标又确定性 EPERM（MoveFileEx 替换冲突，重试无效）。
+// 方案：进程内按 resolved 路径串行化整段"写临时文件→rename"——
+// 每次调用都成功，最终内容必为某一完整版本（rename 原子替换，进程崩溃也不留半截文件）。
+const writeQueues = new Map<string, Promise<unknown>>();
+
+function queueWrite<T>(resolved: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeQueues.get(resolved) ?? Promise.resolve();
+  const task = prev.then(fn, fn);
+  writeQueues.set(resolved, task);
+  void task.catch(() => {}).then(() => {
+    if (writeQueues.get(resolved) === task) writeQueues.delete(resolved);
+  });
+  return task;
+}
+
 export async function writeFile(
   filePath: string,
   content: string,
@@ -105,7 +122,16 @@ export async function writeFile(
     if (options?.append) {
       await fs.appendFile(resolved, content, "utf-8");
     } else {
-      await fs.writeFile(resolved, content, "utf-8");
+      await queueWrite(resolved, async () => {
+        const tmp = `${resolved}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+        try {
+          await fs.writeFile(tmp, content, "utf-8");
+          await fs.rename(tmp, resolved);
+        } catch (writeErr) {
+          try { await fs.unlink(tmp); } catch { /* tmp 可能尚未创建 */ }
+          throw writeErr;
+        }
+      });
     }
     return { success: true, path: filePath };
   } catch (err: unknown) {
