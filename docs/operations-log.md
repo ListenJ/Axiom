@@ -8764,3 +8764,11 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun 校验 10/10 通过（JSON 合法、provenance 与 propositions 等长、answer-key verdict 映射符合指南 §3.2/§5 硬规则——not_equivalent 必有 error_classes、equivalent 必为空）；错误类覆盖 E1,E2,E3,E4；source_text 与源文件逐字核对（CONFIGURATION/AXIOM-ARCHITECTURE/ARCHITECTURE/DOCUMENT-INGEST/MIND-SYNAPSE/EDGE-LLM/DRE-ARCHITECTURE/lessons）。
 - **红线**：规则 1（仅新增 gold 资产）、规则 2（新文件无需备份）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 11（answer-key 无密钥，g-10 源文本仅含密钥存放路径描述无真实凭据）。
 - **Commit**：299f697
+## 2026-09-07 — eval(tools): S-A4 标注 runner（m3-3，A/B 对比 + κ + 分歧清单 + 终局双口径）
+
+- **任务**：M3 m3-3——实现 ANNOTATION-GUIDE v1.0 §7-§9 的标注 runner：compare（A/B 对比、三分类 Cohen's κ、分歧清单 pending-<run>.json、仲裁前预报告）、finalize（合并仲裁 resolved，输出终局双口径报告）、gold（标注员校准对账 answer-key）。
+- **工具**：Write（runner）、bun（冒烟+幂等验证）、PowerShell（备份/ops-log）、Edit（1 处控制台输出缺陷修复）、git。无子代理。
+- **操作**（文件级）：新增 eval/semantic-equivalence/tools/annotation-runner.ts（约 470 行）；docs/operations-log.md（本条）。
+- **验证**：冒烟数据（10 gold + 6 例 A/B 临时标注 + 仲裁 resolved，用后即删未入库）驱动三子命令——gold：10/10 全对 exit 0；compare：κ=0.615 门禁未通过触发停线 exit 2（刻意构造的分歧样本，符合 §8 预期）、分歧 2/incomplete 0/uncertain 配对 1 正确落盘 pending-smoketest.json；finalize：合并 resolved 后严格 40.0%/宽松 40.0%（N=5=6−contested 1），unresolved=0 exit 0，与构造数字一致。幂等性（S-A4 验收"数字可复现"）：compare 连跑两次，报告与 pending 除 generated_at 时间戳外字节一致。修复缺陷：cmdCompare 控制台输出当分母为 0 时误打印 0.0%（null*100=0），改为与 md 报告一致的 n/a 口径；修复后三子命令复跑无回归。κ 计算排除 gold 与 uncertain 配对（§6.7）；双口径分母剔除 contested+uncertain（§9）。
+- **红线**：规则 1（仅新增 runner 工具）、规则 2（修改前备份 .tmp/backups/，验证通过后已删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先建冒烟反馈回路再改码）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：<待回填>
