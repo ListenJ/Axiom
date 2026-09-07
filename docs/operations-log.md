@@ -8746,4 +8746,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：docs/superpowers/plans/2026-09-07-semantic-meaning-runtime-optimization-plan.md（新增"九、执行修订记录 R1"）；docs/operations-log.md（本条）。
 - **验证**：R1 四项与 ANNOTATION-GUIDE v1.0 及计划 S-A4/S-A7 原文无冲突；指南 §2 隔离要求由子代理实例形态满足；文档不落密钥。
 - **红线**：规则 1（仅文档修订）、规则 2（备份 .tmp/backups/docs/，验证后删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 9（无 force/reset）、规则 10（口径决策留痕）、规则 11（无密钥）。
-- **Commit**：PENDING
+- **Commit**：25f2e0d
