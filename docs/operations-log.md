@@ -8864,3 +8864,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun run test:e2e 全量 2 轮——第 1 轮暴露上述 ①-③（修复前），第 2 轮 11 spec 全过、0 failed、0 flaky（integration 5 passed 首试即过）；bash -n 语法通过；mkdir -p data/logs 本地 Git Bash 实证 OK；.ci/frontend-audit.sh 可执行位 100755 保留。
 - **红线**：规则 1（仅断言/一行 mkdir，未动产品代码）、规则 2（备份→读全文→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（gh log 先证、本地复现、逐项单变量）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：b6e8324
+
+## 2026-09-08 — ci(deploy-smoke): 健康等待 30s→90s + token 补足 16 字符（第六轮失败修复）
+
+- **任务**：CI run 34161538021——Test & Lint 已绿（E2E 修复生效，5m5s 通过），新失败点 Linux Deploy Smoke："Start under pm2 and smoke test" 30s 健康循环耗尽，curl exit 7（connection refused）。
+- **工具**：gh CLI（run view/log-failed）、Read（ci.yml / ecosystem.config.json / runtime-audit.ts）、本地 bundle 复现（bun dist/main.js + 同 env + curl 探测）、bun run audit:runtime、PowerShell。无子代理。
+- **根因**（事实，本地全链路复现）：网关冷启动至监听实测 23s（11.5MB bundle 加载 + 外部 MCP 初始化，obsidian 10s 超时为确定性拖累；第二跑热态 9s），CI 健康循环仅 30s，慢 runner 下不够 → exit 7。另：AXIOM_AUTH_TOKEN "ci-smoke-token" 仅 14 字符 < 16 下限，启动时 env 校验 ERROR（被容忍继续启动，非阻塞但属隐患，本地日志实证）。DRE/KB Plugin 与 Build Docker 的 "-" 为条件跳过（build 仅 push main/master），非新故障。
+- **操作**（文件级）：.github/workflows/ci.yml——健康循环 seq 1 30→1 90 并注明实测依据；AXIOM_AUTH_TOKEN "ci-smoke-token"→"ci-smoke-token-16chars"（19 字符），diagnostics 调用的 Bearer 同步改；docs/operations-log.md（本条）。pm2 ecosystem 与产品代码未动。
+- **验证**：本地复现反馈回路——旧 token+30s：12s 探测失败、日志见 "Invalid value for AXIOM_AUTH_TOKEN"（ERROR）且 23s 才 listen（复现 CI 症状）；新 token：0 校验 ERROR、9s listen、health 200；bun run audit:runtime 16/16 pass exit 0。
+- **偏差记录**：本次修改 ci.yml 前未先备份（规则 2 字面未走全）；该文件修改前与 HEAD 一致、原版可由 git 恢复，无数据风险。后续仍严格先备份。
+- **红线**：规则 1（两处最小改动）、规则 2（备份缺失已如实记录）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（先复现建回路→单变量验证）、规则 9（无 force/reset）、规则 11（token 为测试占位符非真实凭据）。
+- **Commit**：<PENDING2>

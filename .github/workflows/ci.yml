@@ -1,4 +1,4 @@
-﻿name: CI/CD
+name: CI/CD
 
 on:
   push:
@@ -324,17 +324,18 @@ jobs:
         env:
           AXIOM_GATEWAY_PORT: "18799"
           HOST: "127.0.0.1"
-          AXIOM_AUTH_TOKEN: "ci-smoke-token"
+          AXIOM_AUTH_TOKEN: "ci-smoke-token-16chars"
         run: |
           pm2 start deploy/pm2/ecosystem.config.json --update-env
-          for i in $(seq 1 30); do
+          # 冷启动实测 ~23s（bundle 加载 + 外部 MCP 初始化，obsidian 10s 超时拖累），CI 慢 runner 30s 窗口不够（run 34161538021 实证 exit 7），放宽到 90s
+          for i in $(seq 1 90); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18799/health || true)
             if [ "$code" = "200" ]; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:18799/health > /dev/null
           bun run audit:runtime
-          curl -fsS -H "Authorization: Bearer ci-smoke-token" http://127.0.0.1:18799/api/audit/diagnostics > /dev/null
+          curl -fsS -H "Authorization: Bearer ci-smoke-token-16chars" http://127.0.0.1:18799/api/audit/diagnostics > /dev/null
           pm2 restart axiom-agent
           sleep 2
           curl -fsS http://127.0.0.1:18799/health > /dev/null
