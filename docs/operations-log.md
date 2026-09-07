@@ -8896,4 +8896,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：本地 Git Bash 模拟真实部署路径全流程——pm2 start deploy/pm2/ecosystem.config.json --update-env → 90s 窗口内 listen/health 200 → diagnostics 200 → pm2 restart 后 6s 恢复 200 → pm2 delete，ECOSYSTEM SMOKE ALL GREEN。start.sh 自带 cd 兜底（不依赖 cwd 配置）。
 - **回归影响**：CI deploy-smoke 从"测内联等效物"升级为"直接测部署配置"，防止该缺陷复发。
 - **红线**：规则 1（最小改动：config 两行 + 一个包装脚本 + CI 一段）、规则 2（两处修改前均备份，验证后删）、规则 3（仅 add 本任务文件，start.sh 因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 6（复用上轮已证实的根因与接缝）、规则 9（无 force/reset）、规则 11（无密钥）。
-- **Commit**：<PENDING4>
+- **Commit**：6d2cb51
