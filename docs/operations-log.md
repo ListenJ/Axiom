@@ -8814,3 +8814,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test --isolate --timeout 全部 6 个受影响文件：74 pass（agent-discovery/security-hardening/workspaces/ocr-v7/opencode-codegen-timeout）+ 4 pass（dre-scenarios）= 78 pass / 0 fail；lint 通过。
 - **红线**：规则 1（各修复均为最小改动）、规则 2（备份→读全文→改→验→删）、规则 3（仅 add 本任务相关文件）、规则 5（本条留痕+占位回填）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：4851fb8
+
+## 2026-09-08 — fix(memory): vault 目录缺失导致 MCP stdio 服务器启动即崩（Linux CI 第二轮失败修复）
+
+- **任务**：用户要求检查 CI 运行状态。推送修复后 GitHub run 34157644311 仍红——Test & Lint「Run unit tests」失败于 tests/mcp-stdio-stdout-purity.test.ts L56（lines.length===0，928ms 内失败，Linux CI 独有）。
+- **工具**：gh CLI（run view/log-failed 复现）、rg/Read（静态排查启动路径）、PowerShell（复现命令 + 备份）、bun test（红绿验证）。无子代理。
+- **根因**（事实，本地已复现）：tests spawn 的 `src/mcp/server.ts` 顶层模块 L66 `getGlobalVault()` → VaultManager 构造 → DeterministicSearchEngine 构造 → buildIndex → scanDirectory `fs.readdirSync("./axiom-memory")` 无保护；`axiom-memory/` 已 gitignore（.gitignore L55），CI 裸 checkout 无此目录 → ENOENT → 进程启动即崩 → stdout 关闭 → 测试 0 行。本地目录存在故绿。
+- **操作**（文件级）：修改 src/memory/deterministic-search.ts buildIndex（L106-113）——vault 根目录缺失时返回空索引（existsSync 守卫），缺失记忆库=空索引属合理生产行为；docs/operations-log.md（本条）。测试文件未改动。
+- **备选假设**（规则 6，已排除）：VaultManager 构造包 try/catch（掩盖真实错误）；CI/测试侧建目录（只治症状，生产新装机仍崩）。
+- **验证**：红绿闭环——复现命令（OBSIDIAN_VAULT_PATH 指向不存在目录 + handshake）崩于 scandir ENOENT；修复后同一场景测试 1 pass/0 fail（6 expect，545ms）；回归 4 文件（deterministic-search/tie/cjk-bigram/link-collision）23 pass/0 fail。
+- **红线**：规则 1（单函数 3 行最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 6（先复现红→单变量修→验绿）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：占位

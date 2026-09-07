@@ -104,7 +104,11 @@ export class DeterministicSearchEngine {
   // ===== 索引构建（只提取元数据，不保留 content） =====
 
   private buildIndex(vaultPath: string) {
-    this.scanDirectory(vaultPath, "");
+    // vault 目录可能不存在（axiom-memory/ 已 gitignore，CI/新装 checkout 为空）：
+    // 缺失 = 空索引而非启动崩溃（2026-09-08 CI 修复：MCP stdio 服务器 scandir ENOENT 启动即崩）
+    if (fs.existsSync(vaultPath)) {
+      this.scanDirectory(vaultPath, "");
+    }
     this.buildBacklinks();
   }
 
