@@ -126,7 +126,9 @@ export const processSandbox: SandboxProvider = {
         cmd = "/bin/sh"
         // R3 修复：args 单引号引用，防注入
         const quotedArgs = (opts.args ?? []).map((a) => shellQuoteArg(a)).join(" ")
-        args = ["-c", `${limits.join("; ")}; ${opts.command} ${quotedArgs}`]
+        // CI 修复（2026-09-08）：limits 为空时不得产生前导 "; "（dash 语法错误 exit 2）
+        const prefix = limits.length > 0 ? `${limits.join("; ")}; ` : ""
+        args = ["-c", `${prefix}${opts.command} ${quotedArgs}`]
       }
 
       const proc = Bun.spawn([cmd, ...args], spawnOpts)

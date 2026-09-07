@@ -7,7 +7,19 @@
  *   2) 行提取正确（文本/置信度/bbox）；
  *   3) 旧版 data.lines 兼容路径仍在。
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, beforeAll, afterAll } from "bun:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+// CI checkout has no *.traineddata (gitignored): use a temp fake lang dir as langPath so
+// the mock-level test does not depend on real language packs (pattern of tests/ocr/langs-available.test.ts).
+let tmpLang = "";
+beforeAll(() => {
+  tmpLang = fs.mkdtempSync(path.join(os.tmpdir(), "ocr-v7-test-"));
+  fs.writeFileSync(path.join(tmpLang, "eng.traineddata"), "fake-data", "utf8");
+});
+afterAll(() => { try { fs.rmSync(tmpLang, { recursive: true, force: true }); } catch {} });
 
 const recognizeCalls: unknown[] = [];
 
@@ -63,7 +75,7 @@ describe("OCREngine — tesseract.js v7 结构化输出", () => {
     }));
 
     const { getOCREngine, terminateOCREngine } = await import("../src/ocr/engine.js");
-    const engine = await getOCREngine(["eng"]);
+    const engine = await getOCREngine(["eng"], tmpLang);
     const result = await engine.recognize("x.png");
     expect(recognizeCalls[0]).toEqual({ blocks: true });
     expect(result.text).toBe("Hello World\nSecond line");
@@ -79,7 +91,7 @@ describe("OCREngine — tesseract.js v7 结构化输出", () => {
       createWorker: async () => legacyWorker,
     }));
     const { getOCREngine, terminateOCREngine } = await import("../src/ocr/engine.js");
-    const engine = await getOCREngine(["eng"]);
+    const engine = await getOCREngine(["eng"], tmpLang);
     const result = await engine.recognize("y.png");
     expect(result.text).toBe("Legacy line");
     expect(result.blocks).toHaveLength(1);

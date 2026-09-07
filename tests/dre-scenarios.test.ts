@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import fs from "fs";
+import path from "path";
 import { initDreKernel, shutdownDreKernel } from "../src/dre/host.js";
 import { CognitivePipeline } from "../src/dre/index.js";
 import { writeFact, readFact, getGlobalBlackboard } from "../src/memory/blackboard.js";
@@ -49,6 +50,7 @@ describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
     saveEnv("DRE_AUTO_TICK");
     saveEnv("DRE_GAP_FILL_FINE");
     saveEnv("DEEPSEEK_API_KEY");
+    fs.mkdirSync(path.dirname(DB), { recursive: true });
     process.env.DRE_DB_PATH = DB;
     process.env.DRE_LLM_URL = "http://127.0.0.1:8080"; // 本地 llama.cpp（不可达 → 降级）
     process.env.DRE_AUTO_TICK = "0";

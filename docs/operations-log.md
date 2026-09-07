@@ -8790,3 +8790,27 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：门禁（gold 子命令）——首轮 A 8/10、B 8/10，verdict 均 10/10 全对，仅 error_classes 超集被判错；根因诊断（规则 10）：指南 §4.3 明文"一例可多类，逐一登记"，runner 的数组精确相等实现惩罚合规多类登记，属 runner 实现偏离指南而非标注员错误（双方多类登记经逐例核验均有源文依据；gold-02 附录 se-0008 亦明文换向类"两分类都接受"）。修正后 A 9/10（gold-03 漏检植入 E2 换向类）、B 10/10；A 按指南 §8 回炉（重学 §5/附录 A 后盲判重标 gold-03，登记 E2+E3+E4 且引用原文）→ 复检 10/10。**双方均获上岗资格（κ 门禁前置条件满足）**。回炉全程未泄露预埋答案与 B 方结果（隔离保持）。runner 修改前备份 .tmp/backups/，验证通过后删除。
 - **红线**：规则 1（最小改动：runner 单函数语义修正）、规则 2（备份→改→验→删）、规则 3（仅 add 本任务文件）、规则 5（本条占位回填）、规则 6（先门禁复现→诊断→单变量修正）、规则 9（无 force/reset）、规则 10（根因判定标注员合规、偏差在 runner）、规则 11（answer-key 不入 A/B 子代理上下文，无密钥）。
 - **Commit**：04ee1a1
+
+## 2026-09-08 — fix(agents): AgentDiscovery 重复 name 去重跨平台确定性（Linux CI 独有失败修复）
+
+- **任务**：诊断并修复 Linux CI（ubuntu-24.04）独有失败——"重复 name 去重" 期望 "First occurrence" 实得 "Second occurrence"（Windows 本地绿）。
+- **工具**：Read（测试/实现全文）、PowerShell（备份、字节级精确替换、行尾与 BOM 核验）、bun test、DeleteFile+PowerShell（备份清理）。无子代理。
+- **操作**（文件级）：修改 src/agents/agent-discovery.ts scanMarkdownFiles（L87-89）——返回前对文件列表按完整路径字典序排序（码点比较），使同名去重"先到先得"跨平台一致；docs/operations-log.md（本条）。测试文件未改动。
+- **验证**：根因（事实）=去重采用 seenNames 先到先得，文件顺序来自 fs.readdirSync，POSIX 不保证顺序（NTFS 按名称序、ext4 按哈希序），CI 上 agent2.md 先于 agent1.md 被处理；AgentMeta 无任何时间戳字段（已核验 intent-router.ts），任务假设的"同毫秒时间戳 tie-break 缺失"不成立（推测排除）。测试层无注入缝隙（实现不消费时钟/时间戳，弱化断言会破坏"先出现者保留"语义），故按任务预留出口修实现。bun test --isolate --timeout 15000 tests/agent-discovery.test.ts：27 pass / 0 fail（62 expect）。
+- **红线**：规则 1（单函数 3 行级最小改动）、规则 2（备份→改→验→删，备份已清理）、规则 3（本子代理被明确禁止 git 操作，提交与回填由主代理执行）、规则 5（本条占位回填）、规则 6/7（先证据后假设：字节级核验排除行尾/编码/缩进干扰）、规则 9（无破坏性操作）、规则 11（无密钥）。
+- **Commit**：占位（子代理禁 git，主代理提交后回填）
+
+## 2026-09-08 — fix(ci): Test & Lint Linux CI 失败批量修复（sandbox dash 语法/工作区路径断言/DRE DB 目录/OCR 语言包/codegen 平台命令）
+
+- **任务**：用户报告 CI/CD「Test & Lint」失败（11 annotations），下游 DRE/KB/Build/Security/Stress/Deploy-Smoke 全部 Skipped；定位并修复 5 处 Linux CI 独有失败（Windows 本地均绿），连同上一条 AgentDiscovery 修复一并提交。
+- **工具**：Read、rg、PowerShell（备份/替换/验证）、bun test。无子代理。
+- **操作**（文件级）：
+  1. src/sandbox/process-sandbox.ts——Linux `/bin/sh -c` 分支 limits 为空时产生前导 `; `（dash 语法错误 exit 2），改为 limits.length>0 才拼前缀；
+  2. tests/workspaces.test.ts——断言硬编码目录名 openclaw-fusion，CI checkout 目录名不同导致失败，改为 `path.resolve(".")`；顺带去除文件头 BOM；
+  3. tests/dre-scenarios.test.ts——CI 无 `.tmp` 目录致 SQLITE_CANTOPEN，beforeAll 增加 `fs.mkdirSync(path.dirname(DB), { recursive: true })`；
+  4. tests/ocr-v7.test.ts——CI checkout 无 `*.traineddata`（gitignored），beforeAll/afterAll 建临时假语言包目录，`getOCREngine(["eng"], tmpLang)` 显式传 langPath（engine.ts L257 签名已支持）；
+  5. tests/opencode-codegen-timeout.test.ts——Windows 专属命令（powershell/cmd）在 Linux ENOENT 秒败，按平台条件化（POSIX: `sleep 15` / `echo`，语义等价）。
+  6. docs/operations-log.md（本条 + 上一条回填）。
+- **验证**：bun test --isolate --timeout 全部 6 个受影响文件：74 pass（agent-discovery/security-hardening/workspaces/ocr-v7/opencode-codegen-timeout）+ 4 pass（dre-scenarios）= 78 pass / 0 fail；lint 通过。
+- **红线**：规则 1（各修复均为最小改动）、规则 2（备份→读全文→改→验→删）、规则 3（仅 add 本任务相关文件）、规则 5（本条留痕+占位回填）、规则 9（无 force/reset）、规则 11（无密钥）。
+- **Commit**：占位（主提交后回填，含上一条 AgentDiscovery）

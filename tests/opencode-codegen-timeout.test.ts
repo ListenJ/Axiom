@@ -29,8 +29,16 @@ function fakeState(permits = 1): ModelRuntimeState {
   };
 }
 
-const HANG_CMD = ["powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 15"];
-const FAST_CMD = ["cmd", "/c", "echo opencode-fake-output"];
+// Platform command difference: Windows uses powershell/cmd; Linux CI lacks both binaries,
+// so spawn fails synchronously with ENOENT and the case fails in ~1ms. POSIX uses sleep
+// (hang) and echo (fast return), semantically equivalent.
+const IS_WIN = process.platform === "win32";
+const HANG_CMD = IS_WIN
+  ? ["powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 15"]
+  : ["sleep", "15"];
+const FAST_CMD = IS_WIN
+  ? ["cmd", "/c", "echo opencode-fake-output"]
+  : ["echo", "opencode-fake-output"];
 
 describe("CodegenExecutor.callOpenCode timeout (P0-5)", () => {
   test("挂起进程超时 reject（含 timeout）且信号量恰好释放，后续调用不被饿死", async () => {

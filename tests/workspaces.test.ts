@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Workspace list route tests
  *
  * 覆盖：
@@ -68,7 +68,7 @@ describe("工作区列表路由", () => {
     expect(ws.id.length).toBeGreaterThan(0);
     expect(ws.name.length).toBeGreaterThan(0);
     expect(path.isAbsolute(ws.path)).toBe(true);
-    expect(ws.path.replace(/\\/g, '/')).toContain('openclaw-fusion');
+    expect(ws.path).toBe(path.resolve("."));
     expect(typeof ws.branch).toBe("string");
     expect(typeof ws.clean).toBe("boolean");
     expect(ws.sessionCount).toBe(2);
