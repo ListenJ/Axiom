@@ -8907,4 +8907,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **gold 漂移检查**（§8，如实记录，未处置待决策）：双方各 8/10 全对——① gold-06 双方一致判 equivalent，answer-key 期望 equivalent_with_notes（§5 映射行"仅溯源引用格式问题且命题本体正确→eq_notes"执行遗漏，双方一致漏同一点）；② gold-07 双方 verdict/severity 正确，error_classes 判 E4+E3，answer-key 期望 E2+E3——指南附录 A（se-0008：反向命题"归 E4 亦可，仲裁统一归 E4"）与 answer-key 自相矛盾，属细则/答案键缺陷非标注员过错。按 §8 停线复盘原则，处置方案待需求方决策（细则 v1.1 澄清 / 报告披露维持）。
 - **验证**：runner 硬约束校验通过（not_equivalent⇒error_classes 非空、equivalent⇒空）；JSON 全部合法；22×2 文件落位正确。
 - **红线**：规则 1（仅标注产物与 runner 产物）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 10（判定为"判断"定性，等价率解读不作承诺）、指南 §10 诚实原则（分歧/漂移全量披露，不静默）。
-- **Commit**：<PENDING5>
+- **Commit**：79f56a5
