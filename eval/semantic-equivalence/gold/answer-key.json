@@ -5,7 +5,7 @@
     "E0_derivable_boundary_sec61": ["gold-08"],
     "E1_entity_mislink": ["gold-05", "gold-10"],
     "E2_relation_direction": ["gold-03"],
-    "E2_plus_E3_compound": ["gold-07"],
+    "E4_plus_E3_compound_v11": ["gold-07"],
     "E3_missing_proposition": ["gold-04"],
     "E3_empty_candidate_sec66": ["gold-09"],
     "E4_added_proposition": ["gold-02"],
@@ -63,9 +63,9 @@
     {
       "id": "gold-07",
       "expected_verdict": "not_equivalent",
-      "expected_error_classes": ["E2", "E3"],
+      "expected_error_classes": ["E3", "E4"],
       "expected_severity": "critical",
-      "planting": "复合：①命题 1 方向完全写反（源『不再由边缘模型承担』→ 候选『由边缘模型承担』）→ E2；②漏掉免费链内部顺序『zhipu 直连优先 → siliconflow 兜底』→ E3。『1B 漂移、2B 照抄实测不达标』为解释性原因，缺失不计（次要）。一例多类逐一登记。",
+      "planting": "复合：①命题 1 方向完全写反（源『不再由边缘模型承担』→ 候选『由边缘模型承担』）——v1.1 口径（§6.9）反向/否定翻转统一归 E4（原 E2 期望与指南附录 A se-0008 自相矛盾，2026-09-08 对齐修正）；②漏掉免费链内部顺序『zhipu 直连优先 → siliconflow 兜底』→ E3。『1B 漂移、2B 照抄实测不达标』为解释性原因，缺失不计（次要）。一例多类逐一登记。",
       "key_rationale_cue": "引用源文本『不再由边缘模型承担』『zhipu 直连优先 → siliconflow 兜底』"
     },
     {

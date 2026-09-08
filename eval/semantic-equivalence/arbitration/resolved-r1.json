@@ -1,0 +1,38 @@
+[
+  {
+    "example_id": "se-0056",
+    "final_verdict": "equivalent_with_notes",
+    "final_error_classes": [],
+    "final_severity": "minor",
+    "adopted_from": "B",
+    "arbitration_rationale": "仲裁人独立判定与 B 一致。命题层：候选唯一命题逐字保留源文本全部内容（Description 句、Language: Go、Stars: 49424 | Today: 229、Topics: -），无增无漏，语义闭合（§6.4 结构拍平不算丢失）。但两处结构失真值得 notes 披露：①源的结构化字段（Language/Stars/Today/Topics 分项）被拍平为单条长命题，字段边界不可再分；②实体层把整段 Description 截断文本当单个 concept 实体（粒度失真，但 link 指向自身派生 id，未错链到他物，§5 E1 特征『同名不同物/指代错对象/link 指向不存在路径』均不命中）。按 v1.1 §6.8 精神（格式/粒度问题与指向错误区分），判 equivalent_with_notes 而非 E1。",
+    "resolved_at": "2026-09-08T11:20:00.000Z"
+  },
+  {
+    "example_id": "se-0057",
+    "final_verdict": "equivalent_with_notes",
+    "final_error_classes": [],
+    "final_severity": "minor",
+    "adopted_from": "B",
+    "arbitration_rationale": "与 se-0056 完全同型（next.js/draw.io trending 条目）：命题层逐字保留（Language: TypeScript、Stars: 33399 | Today: 81 数值无差），结构拍平 + 片段当 concept 实体的粒度失真以 notes 披露。仲裁人独立判定与 B 一致，采纳 B。",
+    "resolved_at": "2026-09-08T11:20:00.000Z"
+  },
+  {
+    "example_id": "se-0060",
+    "final_verdict": "equivalent_with_notes",
+    "final_error_classes": [],
+    "final_severity": "minor",
+    "adopted_from": "B",
+    "arbitration_rationale": "与 se-0056/0057 同型（RAGFlow trending 条目）：命题层逐字保留（Stars: 87850 | Today: 139 数值无差），结构拍平 + 实体粒度失真以 notes 披露。仲裁人独立判定与 B 一致，采纳 B。",
+    "resolved_at": "2026-09-08T11:20:00.000Z"
+  },
+  {
+    "example_id": "gold-06",
+    "final_verdict": "equivalent_with_notes",
+    "final_error_classes": [],
+    "final_severity": "minor",
+    "adopted_from": "arbitrator",
+    "arbitration_rationale": "质控终局口径（gold 不计入等价率统计）。A/B 原判 equivalent 在 v1.0 下系细则可发现性不足的一致偏差（溯源格式残缺处理仅散见 §5 映射行）；v1.1 §6.8 显式化后口径明确：provenance origin『L11-L13』缺文件路径属格式残缺，引用对象本身正确（docs/MIND-SYNAPSE.md#L11-L13）且三命题均逐点有据 → equivalent_with_notes（minor）。answer-key 期望本即为 equivalent_with_notes，v1.1 后标注口径与答案键对齐。",
+    "resolved_at": "2026-09-08T11:20:00.000Z"
+  }
+]
