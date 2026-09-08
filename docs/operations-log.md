@@ -8950,3 +8950,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **结果**（事实）：RED 确认（模块不存在，1 fail）→ GREEN 3/3 pass（6 expect）；npx tsc --noEmit 退出码 0。零网络零 LLM 成本。
 - **红线**：规则 1（仅新增 2 文件）、规则 2（ops log 修改前备份 .tmp/backups/，验证后删除；新文件无需备份）、规则 3+5（本条留痕+回填）、规则 7（垂直切片，未预写切片 2 测试）、规则 8（validateMeaningRepresentation 单一公共接缝）。
 - **Commit**：365eba8
+
+## 2026-09-09 — docs(agents): 新增规则 12 PCDA 施工闭环（防过度工程化/过度施工）
+
+- **任务**：检查 AGENTS.md 现行规则，将施工方式显式约束为 PCDA（Plan → Do → Check → Act）闭环，降低过度工程化与过度施工风险。
+- **工具**：Read/apply_patch、Bun test（docs-consistency）、PowerShell（结构断言/行尾检查）。无子代理。
+- **操作**（文件级）：① AGENTS.md——新增「规则 12：PCDA 施工闭环」，定义 Plan/Do/Check/Act 四阶段准入退出条件、过度施工红线与完成判定；规则 1 增加一句 PCDA 交叉引用；规则 10 适用范围由「1-9、11」更新为「1-9、11-12」；文末「十一条规则」更新为「十二条规则」；② docs/operations-log.md（本条）。
+- **关键判断**（规则 10，事实/判断分离）：事实——本仓库既有代码与文档使用 PCDA 术语（`src/testing/scheduler/types.ts:4` 明示 PCDA 循环 Plan-Do-Check-Act），故沿用 PCDA 而非改写为 PDCA；判断——新增独立规则而非扩充规则 1，避免最小施工规则被流程细节淹没。
+- **验证**：结构断言通过（12 个规则标题、编号 1-12 连续、无「十一条」残留、文末「十二条」、PCDA 四阶段存在）；`git diff --check` 无空白错误；`bun test tests/unit/docs-consistency.test.ts` 9 pass / 0 fail；行尾/编码检查 UTF-8 无 BOM、LF 一致。
+- **红线**：规则 1（仅 AGENTS.md + 本条 ops log）、规则 2（两文件修改前均备份 .tmp/backups/，验证后删除）、规则 3+5（仅 add 本任务文件，本条留痕+回填）、规则 10（PCDA 术语事实核验）、规则 12（Plan→Do→Check→Act 闭环）。
+- **Commit**：e1e2b60（amend 前初稿）
