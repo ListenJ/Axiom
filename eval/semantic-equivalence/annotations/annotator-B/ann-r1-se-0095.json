@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0095",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键命题：「带降级的分析：优先视觉分析；无视觉模型时回退为文本引导（需求 3：无视觉模型 → 基于 CDP 可交互元素生成结构化文字引导，不抛错）」——优先级、回退条件与否定命题（不抛错）均为关键行为语义。按 §6.6 判 not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

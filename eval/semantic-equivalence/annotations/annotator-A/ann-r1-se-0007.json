@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0007",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"决定: 所有数据通过 DataUnifier 写入和查询, 替代 VFS + KnowledgeStore + AtomEngine 三个独立入口。\"及三条理由（写操作不一致、搜索需分别查询再合并、DataUnifier 确保原子性\"Atom 始终与 KnowledgeNode 一起创建\"）被候选命题逐字完整保留，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

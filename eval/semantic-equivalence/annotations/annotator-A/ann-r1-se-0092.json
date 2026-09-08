@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0092",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题在候选（仅『定义函数「readState」』『定义函数「writeState」』）中全部缺失：readState 的『读状态：缺失/损坏降级全 0（W3），不抛』（条件降级 + 否定『不抛』）；writeState 的『原子写（tmp + renameSync，镜像 skill-quality.ts）：失败清理临时文件后原样抛出，由调用方容错』（原子性 + 失败行为 + 责任归属）。条件/否定/异常路径均为关键命题，遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

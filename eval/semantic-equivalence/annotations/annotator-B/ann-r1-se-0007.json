@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0007",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『所有数据通过 DataUnifier 写入和查询, 替代 VFS + KnowledgeStore + AtomEngine 三个独立入口』及三条理由完整保留，含『数据可能只写入一个存储』的量词限定与『Atom 始终与 KnowledgeNode 一起创建』的因果断言；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

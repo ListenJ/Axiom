@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0064",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本 11 个 src/crawl 文件路径全部逐字保留于候选命题（含首项『- `src/crawl/concurrent-search.ts`』与末项『- `src/crawl/unified-search.ts`』），无添加无遗漏；可忽略差异：实体名与三元组 object 字段止于『- `src/crawl/lightpanda-search.ts`』（result-filter 起 5 项未进入辅助字段），命题本体完整。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

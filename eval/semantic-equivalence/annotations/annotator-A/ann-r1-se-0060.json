@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0060",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选唯一命题逐字保留源文本全部内容：「RAGFlow is a leading open-source Retrieval-Augmented Generation (RAG) engine」「fuses cutting-edge RAG with Agent capabilities to create a superior context layer for LLMs」「Language Go」「Stars 87850 | Today 139」均在，数值一致，仅换行归一为空格，语义闭合。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

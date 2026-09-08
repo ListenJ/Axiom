@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0051",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选唯一命题逐字保留源 JSON 全部语义内容：「intent 观察系统状态并等待用户输入」「等待用户的首次交互信号」「priority medium」「当前处于空闲待机状态」「confidence 0.95」均在，语义闭合。可忽略差异：源文本换行/缩进被归一为空格，且源文末尾残留的闭合代码围栏 ``` 未保留（源文本以『}\n```』结尾），属格式残留，不改变行为含义；另实体名与三元组宾语在显示层被截断，但指涉对象同一、无错链。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0009",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。\"及三条理由（独立状态与生命周期之别、切换轻量、\"Persona 可以堆叠和组合 (push/pop), Agent 不能\"）被候选命题逐字完整保留，否定与对比关系未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0056",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选唯一命题逐字保留源文本全部内容：「Terraform enables you to safely and predictably create, change, and improve infrastructure」「codifies APIs into declarative configuration files」「Language Go」「Stars 49424 | Today 229」等描述与数值均一致，仅换行归一为空格；实体名截断仅为显示层存储痕迹，指涉同一内容、无错链，语义闭合。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

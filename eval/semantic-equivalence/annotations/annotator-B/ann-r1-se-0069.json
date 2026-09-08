@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0069",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字复刻源文本全部关键命题：覆盖『binary search, weighted graph algorithms』、transitive closure and reduction、range search 等主题，以及计算几何、多线程算法、图论等现代算法（列举项完整，and more 保留）。无漏无加；溯源 origin 与 source_origin 一致。可忽略差异：实体 name 与三元组 object 在约 200 字符处截断（止于『computational geometry, 』），完整文本保留于 propositions 中。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

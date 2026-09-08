@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-01",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选三条命题逐条有据且完整覆盖源文本：『旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档（archive/knowledge-db-merge-2026-08-20/）』对应命题一与命题二（路径逐字保留），『迁移工具：`bun run scripts/merge-knowledge-dbs.ts`（幂等，可重复执行）』对应命题三。无关键命题缺失、无无据添加，实体 merge-knowledge-dbs.ts 类型 function 有据，溯源指向正确 → equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

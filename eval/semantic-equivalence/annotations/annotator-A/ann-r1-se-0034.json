@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0034",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题（数值全保留）：『Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net』『prune 旧 tool results（>200 字符替换占位符，无 LLM 调用）』『保护 head(3) + token-budget tail（默认 target 20%）』『结构摘要（便宜模型，summary 预算 max 12K/20%）』『重组并对齐 tool_call/tool_result 边界』。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『默认 target 20%）-』处，截断内容在命题字段完整存在，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

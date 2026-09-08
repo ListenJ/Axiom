@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0083",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题『从失败结果批量生成方法论技能（幂等：同 id 已存在则跳过）』中的幂等语义（条件/例外：『同 id 已存在则跳过』）与『@returns 新建的 SkillDefinition 列表』（返回契约），在候选（仅『定义函数「craftFailureSkills」』）中全部缺失。候选已有命题忠实，但条件型关键命题遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

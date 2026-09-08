@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0027",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选逐字保留源文本：『本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）』，枚举原因、用途与首个条目定位/编号均原样，无换行差异，无命题增删，溯源指向 docs/LIMITATIONS.md#L3-L3 正确。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

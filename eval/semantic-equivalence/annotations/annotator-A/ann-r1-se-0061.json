@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0061",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题为源文本逐字投影，完整保留『**Language:** Python』『- **Stars:** 3713 | **Today:** 339』『The ultimate RAG for your monorepo. Query, understand, and edit multi-language codebases with the power of AI and knowledge graphs』等全部关键命题，无添加无遗漏；可忽略差异：实体名与三元组 object 字段在『| **Today』处截断（数值 339 未进入辅助字段，但命题本体完整）、换行被折叠为空格。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

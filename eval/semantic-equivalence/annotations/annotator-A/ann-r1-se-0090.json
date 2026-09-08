@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0090",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅覆盖两条忠实命题『依赖模块 node:fs』『依赖模块 node:path』（import 行有据），但源文本关键行为命题全部缺失：『小接口 capture/load/evolve/clear，大量行为藏于内部（文件追加、去重、归纳、晋升）』、『依赖注入：文件路径可配（env REAL_USAGE_PATH）』、『进化引擎通过 createDefaultSelfEvolve 注入』、『capture 追加写为原子 appendFileSync；load 按行解析；evolve 归纳结果排序稳定』。原子性、可配置性、稳定性均为改变行为含义的关键命题，遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

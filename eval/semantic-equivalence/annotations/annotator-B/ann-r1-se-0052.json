@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0052",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本 JSON：intent『观察并等待用户指令』、两个 goal（『保持静默观察系统状态』『等待用户的首次交互信号』均 priority high）、两个 belief（『当前系统处于待机状态，需要用户输入才能启动』0.9、『保持中性的情绪状态有助于理性分析』0.8），数值 0.9/0.8 无差异。可忽略差异（minor）：实体与三元组标签截断（止于 beliefs 键名前），完整内容由命题承载，属格式残缺且命题正确 → equivalent_with_notes。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

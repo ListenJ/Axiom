@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0046",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题止于『To enable systematic exploration of the reasoning ability of LLMs, we 』处截断。源文本关键命题缺失：数据集定义『a new synthetic question-answering dataset called PrOntoQA』、方法『generated from a synthetic world model represented in first-order logic』、发现『LLMs are quite capable of making correct individual deduction steps』与『they have difficulty with proof planning』。关键命题全部缺失 → not_equivalent（E3）。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

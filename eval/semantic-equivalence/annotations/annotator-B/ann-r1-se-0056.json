@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0056",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本全部字段与数值：『Terraform enables you to safely and predictably create, change, and improve infrastructure』『Language: Go』『Stars: 49424 | Today: 229』『Topics: -』，数值 49424/229 无差异。可忽略差异（minor）：实体与三元组标签截断（止于 configuration files 处），完整内容由命题层承载，属格式残缺且命题正确 → equivalent_with_notes。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

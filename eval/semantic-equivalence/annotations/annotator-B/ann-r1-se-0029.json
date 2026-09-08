@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0029",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题逐字保留源文本全部关键命题：『内核只保留』＋『（网关 / 配置 / 模型路由 / 插件装载 / 会话工作区 / 安全）』、『自进化、评测、DRE、意识/意图增强、终端、CLI 等）一律作为**插件或工具**存在，内核不硬编码它们』——骨架清单、外挂能力枚举与否定式结论（内核不硬编码）均无损；无添加。entities、triples、provenance 完整一致，仅换行折叠为格式级差异。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

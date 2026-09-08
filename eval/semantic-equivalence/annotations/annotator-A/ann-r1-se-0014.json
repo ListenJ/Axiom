@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0014",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"管理 Agent 对话上下文的生命周期\"及四项能力（监控 token 用量对照 maxContextWindow 超阈值触发分割/压缩、经记忆层存取支持检索与过期、并行分块 ContextChunk、\"上下文过大时优雅降级（切换更便宜模型处理）\"）被候选命题逐字完整保留，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

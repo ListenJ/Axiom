@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0055",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体、三元组逐字保留源文本全部内容：『`packages/bundle/axiom/` — axiom-dsh profile bundle』『cordis.patch.yml 编排所有 axiom 插件』『不覆盖 DSH 默认侧边栏（避免重复）』，否定词『不覆盖』与目的括注完整保留，仅空白扁平化，无命题增删 → equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

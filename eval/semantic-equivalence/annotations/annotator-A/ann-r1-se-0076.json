@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0076",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的『依赖模块「bun:sqlite」』有据（源文本 import 了 bun:sqlite 的 Database），但源文本关键命题大量缺失：『落盘失败不抛（评测照常 stdout/exit）；查询层 sanitize 损坏行』（否定/例外）、『eval_task_results：每任务一行，关联 run_id（ON DELETE CASCADE）』等结构命题均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

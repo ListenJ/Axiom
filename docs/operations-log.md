@@ -8897,3 +8897,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **回归影响**：CI deploy-smoke 从"测内联等效物"升级为"直接测部署配置"，防止该缺陷复发。
 - **红线**：规则 1（最小改动：config 两行 + 一个包装脚本 + CI 一段）、规则 2（两处修改前均备份，验证后删）、规则 3（仅 add 本任务文件，start.sh 因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 6（复用上轮已证实的根因与接缝）、规则 9（无 force/reset）、规则 11（无密钥）。
 - **Commit**：6d2cb51
+
+## 2026-09-08 — eval(m3-5): 第5批标注收官 + 全量100例 compare（κ=0.954 门禁通过）+ 补提交积压批次
+
+- **任务**：S-A4 第 5 批（最后一批）双人全量标注：se-0081..se-0100（20 例 dataset）+ gold-06/07 插桩（每批 2 例，标注员不知情），至此 100 例 A/B 双人全量标注完成。
+- **工具**：两个隔离子代理（标注员 A/B 并行，互相不可见对方结果，均未读 answer-key/arbitration/reports/对方目录——双方最终报告含隔离合规声明）；annotation-runner.ts（gold / compare）。仲裁人与编排由主会话承担。
+- **操作**（文件级）：① annotations/annotator-A|B/ 新增第 5 批 22×2 文件，并补提交前 4 批积压（工作区此前未提交的 ann-r1-se-0001..0080、ann-r1-gold-01..05/08..10、ann-calibration-*）；② arbitration/pending-r1.json 由 runner 重新生成（全量口径）；docs/operations-log.md（本条）。
+- **结果**（事实）：κ=0.954（≥0.7 门禁通过）；一致 97 / 分歧 3（se-0056/0057/0060，全部为 A:equivalent vs B:equivalent_with_notes 宽严差，error_classes 双方均空，零 E1-E4 分歧）；incomplete 0 / uncertain 配对 0。预口径（仅一致项 97）：严格 23.7% / 宽松 55.7%。
+- **gold 漂移检查**（§8，如实记录，未处置待决策）：双方各 8/10 全对——① gold-06 双方一致判 equivalent，answer-key 期望 equivalent_with_notes（§5 映射行"仅溯源引用格式问题且命题本体正确→eq_notes"执行遗漏，双方一致漏同一点）；② gold-07 双方 verdict/severity 正确，error_classes 判 E4+E3，answer-key 期望 E2+E3——指南附录 A（se-0008：反向命题"归 E4 亦可，仲裁统一归 E4"）与 answer-key 自相矛盾，属细则/答案键缺陷非标注员过错。按 §8 停线复盘原则，处置方案待需求方决策（细则 v1.1 澄清 / 报告披露维持）。
+- **验证**：runner 硬约束校验通过（not_equivalent⇒error_classes 非空、equivalent⇒空）；JSON 全部合法；22×2 文件落位正确。
+- **红线**：规则 1（仅标注产物与 runner 产物）、规则 3（仅 add 本任务文件）、规则 5（本条留痕+回填）、规则 10（判定为"判断"定性，等价率解读不作承诺）、指南 §10 诚实原则（分歧/漂移全量披露，不静默）。
+- **Commit**：<PENDING5>

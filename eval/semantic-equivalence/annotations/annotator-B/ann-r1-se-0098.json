@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0098",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 仅覆盖「依赖模块 bun:sqlite」「依赖模块 ../utils/logger.js」，两条命题在源文本 import 语句中有据、忠实，无 E4。但源文本关键命题全部缺失：「此前 kg_nodes/kg_edges 建表语句在 src/kg/enhanced.ts 与 src/crawl/processor/kg-writer.ts 各存一份，存在漂移风险」（背景因果）「现抽为本模块常量供两处 import（依赖方向：enhanced.ts / kg-writer.ts → 本模块，本模块零依赖，无环）」（依赖方向关键命题）「SQL 文本逐字符迁移自 enhanced.ts（含全部索引，为两份原文中的超集）」「CREATE TABLE/INDEX 均为 IF NOT EXISTS，对既有库幂等无差异」（幂等条件）。判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

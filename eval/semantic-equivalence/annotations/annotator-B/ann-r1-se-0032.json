@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0032",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本四点结论：『提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面』『在 MCP Registry 发布 server.json 元数据』『提供 SKILL.md / agent plugin 安装引导』『可选提供 A2A Agent Card，把 Axiom 整体暴露为远程 Agent』，序数与『可选』限定词无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『4. 可选提供 A2A Agent Card，把』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

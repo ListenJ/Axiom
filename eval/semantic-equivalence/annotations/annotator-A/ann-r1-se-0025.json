@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0025",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选逐字保留源文本全部命题：『核心约束：**全部写操作追加链式哈希验证链**（每条记录带 `prevHash`，篡改即失配）』『因此数据\"有可以校验的路径、可以追溯实现效果\"（`mind_synapse_verify` / `mind_synapse_trace`）』『本地模型仅作**可选**增强…不配置时模块 100% 确定性、零网络依赖』，量词『全部』、『可选』限定与否定『零网络依赖』原样，仅换行压平，无命题增删。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

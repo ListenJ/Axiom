@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0006",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『LLM 仅作为确定性管道的补全器, 不作为推理主体』及三条理由完整保留，含否定『不作为』『不可靠、不可预测、不可审计』与条件『仅在确定性管道检测到知识缺口时调用』；实体与三元组完整未截断，溯源一致，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

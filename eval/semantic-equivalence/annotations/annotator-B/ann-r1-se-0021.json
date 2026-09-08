@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0021",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题为源文本逐字投影（仅多条要点合并为单命题、换行折叠为空格，属指南 §6.4 允许的粒度合并）。覆盖向：源文本关键命题『改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标）』『改由 **GLM-4.7-flash 免费链**』『zhipu 直连优先 → siliconflow `GLM-4.7-Flash:free` 兜底』全部保留，优先/兜底顺序未变；忠实向：候选无源文本之外的添加。entities、triples、provenance 完整且定位一致。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

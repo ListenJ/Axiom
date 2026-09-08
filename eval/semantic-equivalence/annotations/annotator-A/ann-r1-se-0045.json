@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0045",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『LLMs recover more frequently fro』，其后关键命题缺失：『obvious errors and in contexts that provide more evidence for the correct answer』『these factors have divergent effects on faithful and unfaithful recoveries』『there are distinct mechanisms driving faithful and unfaithful error recoveries』，改变结论与因果方向的关键命题遗漏，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

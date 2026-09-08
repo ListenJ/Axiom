@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0018",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档\"及归档路径 archive/knowledge-db-merge-2026-08-20/、迁移工具\"`bun run scripts/merge-knowledge-dbs.ts`（幂等，可重复执行）\"被候选命题逐字完整保留，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

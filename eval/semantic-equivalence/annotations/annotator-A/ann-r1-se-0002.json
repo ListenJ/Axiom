@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0002",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"仅允许在以下场景使用 `as any`\"的四个白名单场景（Bun 内部 API、SQLite 查询结果行、复杂 DOM/协议类型、第三方库兼容）在候选命题中逐字完整保留，意义闭合。可忽略差异：entities[0].name 与 triples[0].object 在约 120 字符处被截断，止于\"install-wizard.ts: bles\"（截断于 blessed 词中），属格式残缺；命题本体完整，contains 关系仍为真，不改变行为含义。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

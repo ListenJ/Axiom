@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0097",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本 tokenize 的行为契约『简单分词：小写 + 字母数字序列，过滤长度 < 2 的 token』（含数值条件与过滤规则）与『支持中英文混合：英文用 [a-z0-9]+，中文按单字切分』（限定），以及字段语义『consistencyScore：当前目标与历史目标的平均相似度』，在候选（仅『定义函数「tokenize」』）中全部缺失。『过滤长度 < 2』属数值/条件型关键命题（§6.5），遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

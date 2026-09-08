@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0011",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"5. → 精准 Prompt: 仅发送性能指标 + 相关代码 + 指定的重构模式\"及六步 Runtime 内部流程（含步骤 4\"不知道\\\"如何将性能指标映射到具体重构模式\\\"\"的缺口判定）在候选命题中逐字完整保留，顺序与\"仅\"限定未丢失。可忽略差异：entities[0].name 与 triples[0].object 截断于\"仅生成优化后的代\"（约 120 字符上限），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

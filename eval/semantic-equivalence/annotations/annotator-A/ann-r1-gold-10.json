@@ -1,0 +1,12 @@
+{
+  "example_id": "gold-10",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E1"
+  ],
+  "severity": "critical",
+  "rationale": "候选两条命题忠实于源文本（『运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）』『外部服务凭据（`services.credentials` 等）』），但实体 .env 的 link 指向『~/.axiom/axiom-secrets/.env』，而源文本明确该文件位于『<仓库根>/.env』并与『~/.axiom/axiom-secrets/』并列为两个不同位置——链接把源文本刻意区分的两个实体混为一谈，属 E1 实体错链。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

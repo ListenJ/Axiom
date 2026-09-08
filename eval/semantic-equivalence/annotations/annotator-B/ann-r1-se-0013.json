@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0013",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影，关键否定命题完整：『本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出』『无真实显存换页实现』，及限定『仅通过数字比较决定 recommendedMaxTokens』均保留；各字段完整未截断，溯源一致，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

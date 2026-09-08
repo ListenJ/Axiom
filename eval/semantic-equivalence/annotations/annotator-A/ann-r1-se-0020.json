@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0020",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本三项 OCR 勘误（\"未配置 `langPath` → 离线环境静默空文本\"、tesseract.js v7 API 漂移需 recognize(img, {}, { blocks: true }) 显式请求、getOCREngine(undefined) 挂起→默认 [\"eng\"]）在候选命题中逐字完整保留，含\"修复前 OCR 静默返回空文本\"的前后对比。可忽略差异：entities[0].name 与 triples[0].object 截断于\"2. **\"（约 120 字符上限），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

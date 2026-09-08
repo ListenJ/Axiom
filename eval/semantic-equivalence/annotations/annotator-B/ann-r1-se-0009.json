@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0009",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例』及三条理由完整保留，含否定『不是』『Agent 不能』与比较级『轻量得多』；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

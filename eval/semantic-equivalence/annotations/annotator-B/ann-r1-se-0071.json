@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0071",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选四字段全空（propositions/entities/triples/provenance 均为空数组），命中 §6.6：空候选 vs 非空源 → not_equivalent + E3。源文本非空且含关键数值命题：『const SANDBOX_TIMEOUT_MS = 20_000』（注释『与原直跑语义一致，保持 20s』，超时数值）、生成脚本文件名 generated_code.py、『脚本运行目录根：项目内 .tmp 下（docker-sandbox 挂载白名单拒绝宿主用户目录首段，如 os.tmpdir）』的目录约束。全部关键命题（含数值与条件）缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

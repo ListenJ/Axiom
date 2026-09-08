@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0099",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键命题：「独立（非 external-content）fts5 表」——关键否定/限定；「kg_nodes.id 为 TEXT PK 无 INTEGER rowid 别名，INSERT OR REPLACE 会重分配隐式 rowid，external-content 关联会失联——故用独立表 + rowid 同步触发器」——因果链；「触发器用 IF NOT EXISTS：enhanced.ts / kg-writer.ts 可对同一 db 重复 exec，幂等」——幂等条件。按 §6.6 判 not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

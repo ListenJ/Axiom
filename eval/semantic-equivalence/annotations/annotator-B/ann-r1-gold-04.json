@@ -1,0 +1,13 @@
+{
+  "example_id": "gold-04",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E2",
+    "E3"
+  ],
+  "severity": "critical",
+  "rationale": "源文本断言带优先级的回退链：『本地 unpdf 优先』（via=pdf-local）→『无文本层（扫描型）才走外部 pdf-worker』→『否则降级说明走 OCR』。候选命题 1 弱化为『可走…三条路径』，丢失『本地 unpdf 优先』的优先级与 via=pdf-local 取值（优先级决定先走哪条路径，改变行为含义）；命题 2 将排他条件『才走』弱化为『时走』——源为仅无文本层才走 pdf-worker，候选未排除有文本层也走的解读，属量词/条件差异（§6.5 永不等价）。→ E2（量词弱化）+ E3（优先级与 via 值缺失），critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0058",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体、三元组均逐字保留源文本全部内容与数值：『Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills』『Language: Python』『Stars: 30921 | Today: 955』，仅空白扁平化，无命题增删，语义闭合 → equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

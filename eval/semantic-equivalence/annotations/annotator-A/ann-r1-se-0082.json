@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0082",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本核心行为命题『对失败结果做自检分析：从 verify 失败原因提取缺口类别并生成自检项』（因果/行为链）与『任务路径规划的确定性骨架（结合任务目标与验证期望）』及其 PATH_SKELETON 四步内容，在候选（仅『定义函数「selfCheckFailures」』）中全部缺失。候选已有命题忠实（export function selfCheckFailures 有据），但关键行为命题遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

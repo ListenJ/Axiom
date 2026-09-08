@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0090",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 仅覆盖「依赖模块 node:fs」「依赖模块 node:path」，两条命题在源文本 import 语句中有据、忠实，无 E4。但源文本关键设计/行为命题全部缺失：「小接口 capture/load/evolve/clear，大量行为藏于内部（文件追加、去重、归纳、晋升）」「依赖注入：文件路径可配（env REAL_USAGE_PATH），便于测试隔离；进化引擎通过 createDefaultSelfEvolve 注入」「capture 追加写为原子 appendFileSync」「load 按行解析」「evolve 归纳结果排序稳定」。上述决定模块行为语义的命题为关键命题，判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}
