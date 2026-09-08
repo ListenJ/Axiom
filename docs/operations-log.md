@@ -8918,4 +8918,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **结果**（事实）：终局双口径 N=100（contested 0，uncertain 0）：严格 23.0%（equivalent 23）/ 宽松 57.0%（+eq_notes 34）/ not_equivalent 43；κ=0.954；仲裁采纳来源 A=0 B=3 仲裁人=0（dataset 例）；错误分布（A+B 合计）E1=0 E2=0 E3=86 E4=0。
 - **验证**：runner finalize 通过（unresolved=0）；resolved 数组结构修正后 runner 可解析；指南 §6 编号连续。
 - **红线**：规则 1（最小改动）、规则 2（备份→改→验→删）、规则 3（仅 add 本任务文件，final 报告因 ignore 需 -f）、规则 5（本条留痕+回填）、规则 10（报告中事实/判断分离标注）、指南 §10.5（细则修订独立提交+披露版本号 v1.1，非为数字变好——仲裁使宽松口径 +3 例属采纳 B 的正当结果，严格口径仅受 equivalent 定义影响不因仲裁上升）。
-- **Commit**：<PENDING6>
+- **Commit**：b4f32f0
