@@ -8930,3 +8930,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/soak/soak-harness.test.ts 4/4；bunx tsc --noEmit soak 相关零错误；context 相关回归（context-engine / context-cache-discipline / context-assembler / dre-degrade-context）34/34；run-soak 全量 PASS（报告落盘 reports/soak/）。
 - **红线**：规则 1（仅 soak 相关文件 + 一处导出最小改动）、规则 2（soak-core 与测试文件修改前备份 .tmp/backups/，验证通过后删除）、规则 3（仅 add 本任务文件，报告因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 7（垂直切片 RED→GREEN ×4）、规则 10（口径与事实/判断分离披露）。
 - **Commit**：1738cfb
+
+## 2026-09-08 — plan(m3-8): S-A8 测试计划（S-A2 多级校验流水线 + S-A1 前置 + soak 断言增强）
+
+- **任务**：生成下一轮 S-A8 测试计划。S-A8 未在原计划定义（A 轨仅至 S-A7），经用户决策定范围：S-A2 校验流水线为被测主体、S-A1 schema 为前置（计划文档明文 S-A2 第 1 级复用 S-A1，且 src/semantic/ 实际不存在，二者不可拆轮）。
+- **工具**：Grep/Glob/Read（代码勘察：src/semantic 不存在、KNOWLEDGE_USE_LLM 门位置、KG INSERT OR REPLACE 幂等语义、S-A7 soak 挂点）、AskUserQuestion（范围决策）、Write（计划文档）。无子代理。
+- **操作**（文件级）：新增 docs/superpowers/plans/2026-09-08-sa8-validation-pipeline-test-plan.md（9 切片 TDD 设计：S-A1 合法零误拒 → 非法变体矩阵 V1-V7 → 级 1-4 独立测试（依赖注入假件）→ 端到端 fail-closed（含校验器自身异常注入）→ 对抗样例集 ≥30 例 100% 拦截 → soak top-K 断言增强（无 key 环境 SKIP 有因））；docs/operations-log.md（本条）。
+- **关键口径**（事实/判断分离）：① KG 幂等为 INSERT OR REPLACE 写入语义，"不静默覆盖"必须由流水线级 3 写入前拦截（事实，src/kg/enhanced.ts:224/303）；② 级 3 冲突只做"同实体对矛盾关系"最小判定，宁标不拒防误杀（判断）；③ anchor 格式建议 vault:/kg: 双前缀（判断，实施首日决策点）；④ zod vs 手写守卫留实施首日决策（判断）。
+- **验证**：计划文档落盘；代码勘察均有文件行号依据；切片 9 明确不破坏 m3-7 soak 4/4 回归。
+- **红线**：规则 1（本轮零生产代码，纯测试计划）、规则 3+5（留痕+提交+回填）、规则 10（S-A8 未定义直接指出并以选项交用户决策；事实/判断分离）。
+- **Commit**：待回填
