@@ -8940,3 +8940,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：计划文档落盘；代码勘察均有文件行号依据；切片 9 明确不破坏 m3-7 soak 4/4 回归。
 - **红线**：规则 1（本轮零生产代码，纯测试计划）、规则 3+5（留痕+提交+回填）、规则 10（S-A8 未定义直接指出并以选项交用户决策；事实/判断分离）。
 - **Commit**：e133569
+
+## 2026-09-09 — test(m3-8 切片 1): S-A1 schema 合法样例零误拒（TDD RED→GREEN）
+
+- **任务**：S-A8 测试计划切片 1——S-A1 语义 schema 落地第一步：golden 合法样例（≥3）全部通过且原因码为空。
+- **工具**：Bun test（TDD 垂直切片 RED→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① 新增 tests/semantic/meaning-schema.test.ts——3 个 golden 合法样例（最小合法：单实体+单命题无关系；完整：多命题+实体链接+vault:/kg: 双前缀溯源+关系三元组；边界值合法：confidence 恰落 0/1、空实体引用列表、关系链），断言 ok===true 且 reasonCodes 为空；② 新增 src/semantic/meaning-schema.ts——MeaningRepresentation zod schema（命题集/实体/关系三元组/溯源头引用/置信标记 [0,1]）+ 公共接口 validateMeaningRepresentation(x: unknown): ValidationResult（fail-closed）最小实现。
+- **决策**（计划第六节实施首日决策点）：zod vs 手写守卫 → 采用 zod（zod@^3.22.0 已在 dependencies，零新增依赖，不违反规则 1）；anchor 格式采纳 vault:/kg: 双前缀。非法分支暂以占位原因码 schema-invalid 返回，切片 2 按非法变体矩阵精化为精确原因码映射。
+- **结果**（事实）：RED 确认（模块不存在，1 fail）→ GREEN 3/3 pass（6 expect）；npx tsc --noEmit 退出码 0。零网络零 LLM 成本。
+- **红线**：规则 1（仅新增 2 文件）、规则 2（ops log 修改前备份 .tmp/backups/，验证后删除；新文件无需备份）、规则 3+5（本条留痕+回填）、规则 7（垂直切片，未预写切片 2 测试）、规则 8（validateMeaningRepresentation 单一公共接缝）。
+- **Commit**：<占位-切片1>
