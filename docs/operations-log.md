@@ -8919,3 +8919,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：runner finalize 通过（unresolved=0）；resolved 数组结构修正后 runner 可解析；指南 §6 编号连续。
 - **红线**：规则 1（最小改动）、规则 2（备份→改→验→删）、规则 3（仅 add 本任务文件，final 报告因 ignore 需 -f）、规则 5（本条留痕+回填）、规则 10（报告中事实/判断分离标注）、指南 §10.5（细则修订独立提交+披露版本号 v1.1，非为数字变好——仲裁使宽松口径 +3 例属采纳 B 的正当结果，严格口径仅受 equivalent 定义影响不因仲裁上升）。
 - **Commit**：b4f32f0
+
+## 2026-09-08 — test(m3-7): S-A7 soak harness 落地 + 全量 N=240 跑通（5 项崩坏指标全 PASS）
+
+- **任务**：M4 补 S-A7——soak harness 骨架针对现有组件（context-manager compress/retrieve、sqlite-memory、KG 幂等）落地 5 项崩坏断言（N≥200 轮零未捕获异常 / 逐轮上下文 ≤ 预算 / 植入记忆召回一致率 ≥ 阈值 / 重复注入零重复 KG/Vault 写入 / 中断-恢复可续），全量 run-soak 出报告。
+- **工具**：Bun test（TDD 垂直切片 4 轮 RED→GREEN）、bun scripts/soak/run-soak.ts（全量 runner）、bunx tsc --noEmit。无子代理。
+- **操作**（文件级）：① 新增 scripts/soak/soak-core.ts——确定性 soak 核心：applyDeterministicEnv（清 *_API_KEY 强制 fallback 链）、forceDeterministicSummary（动态 import 绕 model-router ESM 循环链 + 会话期临时改 decision 角色模型 isFree/priority 使摘要零延迟直达 fallbackSummary）、mulberry32 种子会话模拟、runSoakSession（预算采集 + 每 6 轮锚词植入/检索 + 每 8 轮重复注入计量 + 进程级 uncaughtException/unhandledRejection 兜底）、runSoakInterruptRecovery（120+120 轮：中断前锚词写 sqlite-memory → 无收尾丢弃运行态模拟进程死亡 → 全新 SQLiteMemory/ContextManager 重开同 db 续跑，getByPath 精确校验存续）+ 4 个纯函数断言器（assertBudgetPerRound / assertRecallConsistency / assertNoDuplicateWrites / assertInterruptRecovery）；② 新增 scripts/soak/run-soak.ts——全量 runner，产出 reports/soak/soak-report-2026-09-08.json+.md（reports/ 被 .gitignore:68 命中，按 report-r1 先例 add -f 入库）；③ 新增 tests/soak/soak-harness.test.ts——4 切片冒烟测试（预算 / 存续率 / 重复注入 / 中断-恢复）；④ src/context/context-manager.ts——estimateMessageTokens 由私有改导出（harness 复用同一 token 口径，防双份公式漂移；文件头 BOM 顺带去除）；⑤ docs/operations-log.md（本条）。
+- **结果**（事实，N=240 轮 seed=42 budget=3000，deterministic-fallback 零网络零 LLM 成本）：① 零未捕获异常（会话腿+中断腿合计 0）；② 逐轮 max 1797 / p95 1744 / 均值 1046 ≤ 预算 3000，压缩 73 次；③ 植入记忆存续率 100%（39/39，阈值 90%）；④ 重复注入 30 批次，KG 节点/KG 边/sqlite 增量全 0；⑤ 中断-恢复锚词存续 20/20，恢复后 120 轮全完成、压缩 25 次、零异常。判定 PASS。
+- **口径说明**：召回口径为"存续率"——fallback 摘要递归吸收历史决策消息、字符频率向量同分致 top-K 排序无判别力（实测 0.594 同分），故按全量检索验证"记忆不凭空丢失"，top-K 排序一致性待 S-A2 真实 embedding 接入后增强；恢复口径为 sqlite-memory 持久层存活 + 全新实例续跑（ContextManager 进程内记忆不跨进程属架构事实，恢复层即 sqlite-memory，Vault 索引与之同源）。
+- **验证**：bun test tests/soak/soak-harness.test.ts 4/4；bunx tsc --noEmit soak 相关零错误；context 相关回归（context-engine / context-cache-discipline / context-assembler / dre-degrade-context）34/34；run-soak 全量 PASS（报告落盘 reports/soak/）。
+- **红线**：规则 1（仅 soak 相关文件 + 一处导出最小改动）、规则 2（soak-core 与测试文件修改前备份 .tmp/backups/，验证通过后删除）、规则 3（仅 add 本任务文件，报告因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 7（垂直切片 RED→GREEN ×4）、规则 10（口径与事实/判断分离披露）。
+- **Commit**：待回填

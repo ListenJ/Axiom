@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 上下文管理器 (Context Manager)
  *
  * 管理 Agent 对话上下文的生命周期:
@@ -72,7 +72,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(chineseChars / 1.5 + otherChars / 4);
 }
 
-function estimateMessageTokens(msg: ChatMessage): number {
+export function estimateMessageTokens(msg: ChatMessage): number {
   // 每条消息基础开销 ~4 tokens + content
   return 4 + estimateTokens(msg.content);
 }
