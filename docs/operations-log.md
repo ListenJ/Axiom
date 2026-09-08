@@ -8929,4 +8929,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **口径说明**：召回口径为"存续率"——fallback 摘要递归吸收历史决策消息、字符频率向量同分致 top-K 排序无判别力（实测 0.594 同分），故按全量检索验证"记忆不凭空丢失"，top-K 排序一致性待 S-A2 真实 embedding 接入后增强；恢复口径为 sqlite-memory 持久层存活 + 全新实例续跑（ContextManager 进程内记忆不跨进程属架构事实，恢复层即 sqlite-memory，Vault 索引与之同源）。
 - **验证**：bun test tests/soak/soak-harness.test.ts 4/4；bunx tsc --noEmit soak 相关零错误；context 相关回归（context-engine / context-cache-discipline / context-assembler / dre-degrade-context）34/34；run-soak 全量 PASS（报告落盘 reports/soak/）。
 - **红线**：规则 1（仅 soak 相关文件 + 一处导出最小改动）、规则 2（soak-core 与测试文件修改前备份 .tmp/backups/，验证通过后删除）、规则 3（仅 add 本任务文件，报告因 gitignore 需 -f）、规则 5（本条留痕+回填）、规则 7（垂直切片 RED→GREEN ×4）、规则 10（口径与事实/判断分离披露）。
-- **Commit**：待回填
+- **Commit**：1738cfb
