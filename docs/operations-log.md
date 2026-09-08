@@ -8949,4 +8949,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **决策**（计划第六节实施首日决策点）：zod vs 手写守卫 → 采用 zod（zod@^3.22.0 已在 dependencies，零新增依赖，不违反规则 1）；anchor 格式采纳 vault:/kg: 双前缀。非法分支暂以占位原因码 schema-invalid 返回，切片 2 按非法变体矩阵精化为精确原因码映射。
 - **结果**（事实）：RED 确认（模块不存在，1 fail）→ GREEN 3/3 pass（6 expect）；npx tsc --noEmit 退出码 0。零网络零 LLM 成本。
 - **红线**：规则 1（仅新增 2 文件）、规则 2（ops log 修改前备份 .tmp/backups/，验证后删除；新文件无需备份）、规则 3+5（本条留痕+回填）、规则 7（垂直切片，未预写切片 2 测试）、规则 8（validateMeaningRepresentation 单一公共接缝）。
-- **Commit**：<占位-切片1>
+- **Commit**：365eba8
