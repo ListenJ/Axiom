@@ -9149,3 +9149,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证结果**：RED 5 fail→GREEN semantic 49/49（227 expect）；A1 grep embedder|cosine|ENTITY_SIM_THRESHOLD 于 src/semantic 零命中；A4 测试 diff hunks 仅 makeFakeDeps+slice-6 区（slice-3/4/5/7 零改动）；对抗 runner 零 embedder 引用，31 例含于 semantic 全拦截；soak 8/8 零改动全绿（A6）；bun run test:full 3697 pass/0 fail/35 skip（376 文件，280s）；tsc --noEmit 退出码 0。
 - **偏差记录**：一处新测试夹具错误（e-docker 未入假件节点表被级 2 拦截）GREEN 首轮 1 fail，属测试面自身缺陷，修正夹具后全绿；实现代码一次通过无缺陷。
 - **Commit**：6bf651a
+
+## 2026-09-10 — feat(sa8-e3): 演进切片 3——级 4 腿 2 KG 一跳邻域匹配
+
+- **任务**：按 S-A8 演进计划切片 3，级 4 三级判定补齐腿 2：实体一跳出边邻居名命中 ctx.keyEntities 即视为语境相关（可解释性来源，只读零写入）。
+- **工具**：备份（规则 2）→ 串行 Edit（RED 先行 2 fail 确认 → GREEN）→ bun test + tsc。无子代理。
+- **操作**（文件级）：src/semantic/validation-pipeline.ts（级 4 匹配逻辑抽 matchesKey 复用腿 1+3，实体自身不匹配时遍历 getOutEdges(entity.id)→getNode(target).name 再判，不扩注入接口——复用级 2/3 已有 getOutEdges/getNode，生产 KnowledgeGraphEnhanced 两方法实测存在且返回含 name 的 KGNode）；tests/semantic/validation-pipeline.test.ts（makeFakeDeps 增可选 extra 注入 edges/names/writes；新增演进切片 3 describe 四用例：邻域命中/无出边退回/邻居归一化匹配/入边不计入+零写入断言）。
+- **验证结果**：RED 2 fail（邻域命中用例失败，退回/入边用例通过=旧行为一致）→ GREEN semantic 53/53（236 expect，含 slice-2/3/4/5/7 既有 49 用例零改动复跑 + 对抗 31 例）；tsc --noEmit 退出码 0。
+- **设计核对**（规则 8）：未新增 deps 接口方法（复用注入缝）；腿 2 仅 ctx.keyEntities 在场时触发，slice-7 真实 KG 端到端不传 ctx 零影响；writes 断言证明级 4 只读。
+- **偏差记录**：无。
+- **Commit**：[占位]

@@ -152,19 +152,37 @@ export class ValidationPipeline {
         flags: [...flags],
       };
     }
-    // 级 4：上下文连贯——关键实体符号重叠度（降级不拒绝，演进切片 2 去 embedding 化）
+    // 级 4：上下文连贯——关键实体符号重叠度（降级不拒绝，演进切片 2/3 去 embedding 化）
     // 仅 ctx.keyEntities 在场即评估（符号判定零外部向量依赖）；缺席则级 4 无证据，pass 但 level 停留在已判定层级
-    // 腿 1 归一化精确匹配 → 腿 3 字符 bigram Jaccard（腿 2 KG 一跳邻域于切片 3 接入）
+    // 三级判定：腿 1 归一化精确匹配 → 腿 2 KG 一跳出边邻域（可解释）→ 腿 3 字符 bigram Jaccard
     const keyEntities = ctx?.keyEntities;
     const evaluatedL4 = !!keyEntities && keyEntities.length > 0;
     if (keyEntities && keyEntities.length > 0) {
       const normKeys = keyEntities.map(normalizeEntity);
+      const matchesKey = (name: string): boolean => {
+        const norm = normalizeEntity(name);
+        return (
+          normKeys.includes(norm) ||
+          normKeys.some((k) => bigramJaccard(norm, k) >= ENTITY_JACCARD_THRESHOLD)
+        );
+      };
       let matched = 0;
       for (const entity of parsed.entities) {
-        const normName = normalizeEntity(entity.name);
-        const hit =
-          normKeys.includes(normName) ||
-          normKeys.some((k) => bigramJaccard(entity.name, k) >= ENTITY_JACCARD_THRESHOLD);
+        let hit = matchesKey(entity.name);
+        if (!hit) {
+          // 腿 2：一跳出边邻居名命中 keyEntities 即视为语境相关（只读，复用级 2/3 注入接口，零写入）
+          for (const edge of this.deps.kg.getOutEdges(entity.id)) {
+            const neighbor = this.deps.kg.getNode(edge.target);
+            const neighborName =
+              neighbor && typeof neighbor === "object" && "name" in neighbor
+                ? String((neighbor as { name: unknown }).name)
+                : "";
+            if (neighborName && matchesKey(neighborName)) {
+              hit = true;
+              break;
+            }
+          }
+        }
         if (hit) matched += 1;
       }
       const overlap = matched / parsed.entities.length;

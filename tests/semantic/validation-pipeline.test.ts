@@ -102,16 +102,32 @@ describe("S-A8 切片 3：ValidationPipeline 级 1 语法级薄透传", () => {
   });
 });
 
-/** Map 内存假件（规则 8：接受依赖）：KG 节点表 + Vault 笔记表，表外一律不可解析 */
-function makeFakeDeps(nodes: string[], notes: string[]): ValidationPipelineDeps {
-  const kgMap = new Map(nodes.map((id) => [id, { id }]));
+/** Map 内存假件（规则 8：接受依赖）：KG 节点表 + Vault 笔记表，表外一律不可解析；可选注入出边/邻居名/写入记录 */
+function makeFakeDeps(
+  nodes: string[],
+  notes: string[],
+  extra?: {
+    edges?: Array<{ source: string; target: string }>;
+    names?: Record<string, string>;
+    writes?: string[];
+  },
+): ValidationPipelineDeps {
+  const kgMap = new Map(nodes.map((id) => [id, { id, name: extra?.names?.[id] ?? id }]));
+  const edges = extra?.edges ?? [];
   const noteSet = new Set(notes);
   return {
     kg: {
       getNode: (id) => kgMap.get(id) ?? null,
-      getOutEdges: () => [],
-      addNode: () => {},
-      addEdge: () => {},
+      getOutEdges: (nodeId) =>
+        edges
+          .filter((e) => e.source === nodeId)
+          .map((e) => ({ target: e.target, type: "related-to" })),
+      addNode: (n) => {
+        extra?.writes?.push(`addNode:${n.id}`);
+      },
+      addEdge: (e) => {
+        extra?.writes?.push(`addEdge:${e.source}->${e.target}`);
+      },
     },
     memory: { getByPath: (p) => (noteSet.has(p) ? { path: p } : null) },
   };
@@ -310,6 +326,63 @@ describe("S-A8 演进切片 2：ValidationPipeline 级 4 上下文连贯（符�
       { keyEntities: ["SQLite"] }, // 2 实体仅 1 匹配 → overlap 0.5 < 1.0
     );
     expect(verdict.level).toBe(4);
+    expect(verdict.flags).toContain("low-confidence");
+  });
+});
+
+describe("S-A8 演进切片 3：级 4 腿 2——KG 一跳邻域匹配（只读，可解释性）", () => {
+  it("实体自身名不匹配，但一跳邻居名命中 keyEntities → 匹配（无 low-confidence），level=4", () => {
+    const writes: string[] = [];
+    // e-sqlite 名 "SQLite" 与 keyEntities ["Docker"] 不匹配；但 e-sqlite 有一条出边指向 e-docker（名 "Docker"）
+    const deps = makeFakeDeps(["e-sqlite", "e-docker"], ["docs/architecture.md"], {
+      edges: [{ source: "e-sqlite", target: "e-docker" }],
+      names: { "e-docker": "Docker" },
+      writes,
+    });
+    const verdict = new ValidationPipeline(deps).validate(legalMr, {
+      keyEntities: ["Docker"],
+    });
+    expect(verdict.pass).toBe(true);
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toEqual([]); // 邻域命中 → 视为语境相关
+    expect(writes).toEqual([]); // 级 4 只读，零写入
+  });
+
+  it("无出边（getOutEdges 返回空）→ 退回腿 1+3 行为：不匹配则 low-confidence", () => {
+    const deps = makeFakeDeps(["e-sqlite", "e-docker"], ["docs/architecture.md"], {
+      edges: [], // e-sqlite 无出边
+      names: { "e-docker": "Docker" },
+    });
+    const verdict = new ValidationPipeline(deps).validate(legalMr, {
+      keyEntities: ["Docker"],
+    });
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toContain("low-confidence"); // 邻域无邻居，SQLite~Docker 腿 1/3 均不匹配
+  });
+
+  it("邻居名经归一化匹配（大小写/变体）：邻居 'PostgreSQL' ~ keyEntity 'postgres'", () => {
+    const deps = makeFakeDeps(["e-sqlite", "e-pg"], ["docs/architecture.md"], {
+      edges: [{ source: "e-sqlite", target: "e-pg" }],
+      names: { "e-pg": "PostgreSQL" },
+    });
+    const mr = mutable(legalMr);
+    mr.entities[0].name = "Redis"; // 自身与 postgres 不匹配（腿 1/3 均否）
+    const verdict = new ValidationPipeline(deps).validate(mr as MeaningRepresentation, {
+      keyEntities: ["postgres"],
+    });
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toEqual([]); // 邻居 PostgreSQL Jaccard(postgres)≈0.778 命中
+  });
+
+  it("入边邻居不计入（仅 getOutEdges 出边）：仅有指向实体的入边 → 不匹配", () => {
+    // e-docker -> e-sqlite（反向），实体 e-sqlite 的出边集为空 → 腿 2 无命中
+    const deps = makeFakeDeps(["e-sqlite", "e-docker"], ["docs/architecture.md"], {
+      edges: [{ source: "e-docker", target: "e-sqlite" }],
+      names: { "e-docker": "Docker" },
+    });
+    const verdict = new ValidationPipeline(deps).validate(legalMr, {
+      keyEntities: ["Docker"],
+    });
     expect(verdict.flags).toContain("low-confidence");
   });
 });
