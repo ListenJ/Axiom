@@ -103,11 +103,7 @@ describe("S-A8 切片 3：ValidationPipeline 级 1 语法级薄透传", () => {
 });
 
 /** Map 内存假件（规则 8：接受依赖）：KG 节点表 + Vault 笔记表，表外一律不可解析 */
-function makeFakeDeps(
-  nodes: string[],
-  notes: string[],
-  embedder?: ValidationPipelineDeps["embedder"],
-): ValidationPipelineDeps {
+function makeFakeDeps(nodes: string[], notes: string[]): ValidationPipelineDeps {
   const kgMap = new Map(nodes.map((id) => [id, { id }]));
   const noteSet = new Set(notes);
   return {
@@ -118,7 +114,6 @@ function makeFakeDeps(
       addEdge: () => {},
     },
     memory: { getByPath: (p) => (noteSet.has(p) ? { path: p } : null) },
-    embedder,
   };
 }
 
@@ -251,62 +246,71 @@ describe("S-A8 切片 5：ValidationPipeline 级 3 逻辑一致性（同实体�
   });
 });
 
-describe("S-A8 切片 6：ValidationPipeline 级 4 上下文连贯（重叠度阈值，降级不拒绝）", () => {
-  /**
-   * 确定性假 embedder（计划第四节：字符频率向量，零网络、无随机源）。
-   * 26 维小写字母频次归一化向量：同名/近形词余弦相似度高，无关词低。
-   */
-  function charFreqEmbedder(text: string): number[] {
-    const v = new Array<number>(26).fill(0);
-    for (const ch of text.toLowerCase()) {
-      const c = ch.charCodeAt(0) - 97;
-      if (c >= 0 && c < 26) v[c] += 1;
-    }
-    const norm = Math.hypot(...v) || 1;
-    return v.map((x) => x / norm);
-  }
-
-  it("高重叠（ctx 关键实体含同名实体）→ 通过无标签，level=4", () => {
-    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"], {
-      embed: charFreqEmbedder,
-    });
+describe("S-A8 演进切片 2：ValidationPipeline 级 4 上下文连贯（符号三级判定腿 1+3，降级不拒绝）", () => {
+  it("腿 1 归一化精确匹配（同名，大小写变体）→ 通过无标签，level=4", () => {
+    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
     const verdict = new ValidationPipeline(deps).validate(legalMr, {
-      keyEntities: ["SQLite"],
+      keyEntities: ["  sqlite "], // 归一化后 = "sqlite" = normalizeEntity("SQLite")
     });
     expect(verdict.pass).toBe(true);
     expect(verdict.level).toBe(4);
     expect(verdict.flags).toEqual([]);
   });
 
-  it("零重叠且低于阈值 → pass=true + low-confidence 标签（降级不拒绝），level=4", () => {
-    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"], {
-      embed: charFreqEmbedder,
+  it("腿 1 连字符/空格变体归一后相等 → 匹配无标签", () => {
+    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
+    const mr = mutable(legalMr);
+    mr.entities[0].name = "Post-Gre SQL";
+    const verdict = new ValidationPipeline(deps).validate(mr as MeaningRepresentation, {
+      keyEntities: ["postgre sql"],
     });
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toEqual([]);
+  });
+
+  it("腿 3 Jaccard 近形匹配（postgres~postgresql≈0.778 ≥0.4）→ 匹配无标签", () => {
+    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
+    const mr = mutable(legalMr);
+    mr.entities[0].name = "postgres";
+    const verdict = new ValidationPipeline(deps).validate(mr as MeaningRepresentation, {
+      keyEntities: ["PostgreSQL"],
+    });
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toEqual([]);
+  });
+
+  it("零重叠且低于阈值 → pass=true + low-confidence 标签（降级不拒绝），level=4", () => {
+    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
     const verdict = new ValidationPipeline(deps).validate(legalMr, {
-      keyEntities: ["Docker"], // 与 SQLite 字符频率余弦 ≈0.17，远低于 0.5 匹配阈值
+      keyEntities: ["Docker"], // SQLite~Docker Jaccard = 0，远低于 0.4 匹配阈值
     });
     expect(verdict.pass).toBe(true); // 降级不拒绝
     expect(verdict.level).toBe(4);
     expect(verdict.flags).toContain("low-confidence");
   });
 
-  it("无 ctx 或无 embedder → 级 4 无证据跳过：pass、level 停留 3、无标签", () => {
-    const withEmbedder = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"], {
-      embed: charFreqEmbedder,
-    });
-    // 有 embedder 无 ctx
-    const noCtx = new ValidationPipeline(withEmbedder).validate(legalMr);
+  it("无 ctx.keyEntities → 级 4 无证据跳过：pass、level 停留 3、无标签（不再依赖 embedder 在场）", () => {
+    const deps = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
+    const noCtx = new ValidationPipeline(deps).validate(legalMr);
     expect(noCtx.pass).toBe(true);
     expect(noCtx.level).toBe(3);
     expect(noCtx.flags).toEqual([]);
-    // 有 ctx 无 embedder
-    const noEmbedder = makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]);
-    const verdict = new ValidationPipeline(noEmbedder).validate(legalMr, {
-      keyEntities: ["SQLite"],
-    });
-    expect(verdict.pass).toBe(true);
-    expect(verdict.level).toBe(3);
-    expect(verdict.flags).toEqual([]);
+    // 空 keyEntities 数组同样视为无证据
+    const emptyCtx = new ValidationPipeline(deps).validate(legalMr, { keyEntities: [] });
+    expect(emptyCtx.level).toBe(3);
+    expect(emptyCtx.flags).toEqual([]);
+  });
+
+  it("阈值可配置：contextOverlapThreshold=1.0 → 单实体部分匹配仍打 low-confidence", () => {
+    const deps = makeFakeDeps(["e-sqlite", "e-docker"], ["docs/architecture.md"]);
+    const mr = mutable(legalMr);
+    mr.entities.push({ id: "e-docker", name: "Docker" });
+    const verdict = new ValidationPipeline(deps, { contextOverlapThreshold: 1 }).validate(
+      mr as MeaningRepresentation,
+      { keyEntities: ["SQLite"] }, // 2 实体仅 1 匹配 → overlap 0.5 < 1.0
+    );
+    expect(verdict.level).toBe(4);
+    expect(verdict.flags).toContain("low-confidence");
   });
 });
 

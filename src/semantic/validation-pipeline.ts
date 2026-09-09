@@ -7,13 +7,16 @@
  *
  * 级别语义：1=语法级（S-A1 透传）；2=结构级·实存性（实体 KG 可解析 + 溯源 anchor 双前缀可解析）；
  * 3=逻辑一致性（同实体对矛盾关系→conflict，策略可配置：mark 默认放行防误杀 / reject 拒绝）；
- * 4=上下文连贯（输入关键实体与 ctx.keyEntities 重叠度低于阈值→low-confidence 降级标记，不拒绝）。
+ * 4=上下文连贯（符号三级判定：归一化精确匹配→KG 一跳邻域→字符 bigram Jaccard；
+ *   与 ctx.keyEntities 重叠度低于阈值→low-confidence 降级标记，不拒绝。
+ *   S-A8 演进切片 2 去 embedding 化，见 2026-09-10-sa8-evolution-l4-symbolic-plan.md）。
  * 生产依赖为同步接口（KnowledgeGraphEnhanced.getNode/getOutEdges / SQLiteMemory.getByPath），故 validate 同步。
  */
 import {
   validateMeaningRepresentation,
   type MeaningRepresentation,
 } from "./meaning-schema.js";
+import { normalizeEntity, bigramJaccard } from "./symbolic-similarity.js";
 
 export interface PipelineVerdict {
   pass: boolean;
@@ -35,8 +38,6 @@ export interface ValidationPipelineDeps {
     addEdge(edge: { source: string; target: string; type: string; weight: number }): unknown;
   };
   memory: { getByPath(path: string): unknown };
-  /** 级 4 可选：文本向量化（生产接真实 embedder，测试注入字符频率假件，计划第四节） */
-  embedder?: { embed(text: string): number[] };
 }
 
 /** 级 4 上下文（调用方从 vault 笔记原文/对话历史预提取关键实体） */
@@ -53,21 +54,8 @@ export interface ValidationPipelineOptions {
   onAlert?: (event: { level: number; error: string }) => void;
 }
 
-/** 级 4 单实体匹配阈值（字符频率向量：同名/近形 ≥0.9，无关词 ≲0.45） */
-const ENTITY_SIM_THRESHOLD = 0.5;
-
-/** 余弦相似度（零向量返回 0，fail 向不匹配侧） */
-function cosine(a: number[], b: number[]): number {
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-  return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
+/** 级 4 单实体 Jaccard 匹配阈值（演进切片 1 校准矩阵冻结：postgres~postgresql≈0.778 匹配 / docker~kubernetes≈0.077 不匹配） */
+const ENTITY_JACCARD_THRESHOLD = 0.4;
 
 export class ValidationPipeline {
   private readonly conflictPolicy: "mark" | "reject";
@@ -164,18 +152,20 @@ export class ValidationPipeline {
         flags: [...flags],
       };
     }
-    // 级 4：上下文连贯——关键实体重叠度（降级不拒绝）
-    // ctx.keyEntities 与 embedder 同时在场才可判定；缺席则级 4 无证据，pass 但 level 停留在已判定层级
+    // 级 4：上下文连贯——关键实体符号重叠度（降级不拒绝，演进切片 2 去 embedding 化）
+    // 仅 ctx.keyEntities 在场即评估（符号判定零外部向量依赖）；缺席则级 4 无证据，pass 但 level 停留在已判定层级
+    // 腿 1 归一化精确匹配 → 腿 3 字符 bigram Jaccard（腿 2 KG 一跳邻域于切片 3 接入）
     const keyEntities = ctx?.keyEntities;
-    const embedder = this.deps.embedder;
-    const evaluatedL4 = !!(embedder && keyEntities && keyEntities.length > 0);
-    if (evaluatedL4) {
-      const ctxVecs = keyEntities.map((name) => embedder.embed(name));
+    const evaluatedL4 = !!keyEntities && keyEntities.length > 0;
+    if (keyEntities && keyEntities.length > 0) {
+      const normKeys = keyEntities.map(normalizeEntity);
       let matched = 0;
       for (const entity of parsed.entities) {
-        const v = embedder.embed(entity.name);
-        const maxSim = Math.max(...ctxVecs.map((c) => cosine(v, c)));
-        if (maxSim >= ENTITY_SIM_THRESHOLD) matched += 1;
+        const normName = normalizeEntity(entity.name);
+        const hit =
+          normKeys.includes(normName) ||
+          normKeys.some((k) => bigramJaccard(entity.name, k) >= ENTITY_JACCARD_THRESHOLD);
+        if (hit) matched += 1;
       }
       const overlap = matched / parsed.entities.length;
       if (overlap < this.contextOverlapThreshold) {

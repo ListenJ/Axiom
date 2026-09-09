@@ -48,7 +48,7 @@ export function bigrams(s: string): Set<string> {
 
 /**
  * 字符 bigram Jaccard 相似度 = |A∩B| / |A∪B|。
- * 任一侧空集（空串/纯符号/单字符）→ 0，fail 向不匹配侧（对齐流水线 cosine 零向量口径）。
+ * 任一侧空集（空串/纯符号/单字符）→ 0，fail 向不匹配侧（与原向量实现零向量口径一致）。
  */
 export function bigramJaccard(a: string, b: string): number {
   const setA = bigrams(a);
