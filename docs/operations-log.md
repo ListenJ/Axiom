@@ -9021,3 +9021,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 5/5；bun test tests/semantic/ 15/15；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（Map 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
 - **Commit**：684c8d3
+
+## 2026-09-09 — test(m3-8 切片 5): ValidationPipeline 级 3 逻辑一致性·同实体对矛盾关系（TDD RED→GREEN）
+
+- **任务**：S-A8 切片 5——既有 KG 事实与输入三元组同实体对矛盾 → conflict 标记（策略可配置），幂等重放与新事实放行，全程断言 KG 行数不变且零写入（不静默覆盖，INSERT OR REPLACE 之上先拦）。
+- **工具**：Bun test（TDD 1 轮 RED 确认 4 fail →最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① src/semantic/validation-pipeline.ts——deps.kg 增 getOutEdges（结构对齐生产 KGEdge.source/target/type）；新增 ValidationPipelineOptions.conflictPolicy（mark 默认/reject，计划第六节"宁可标记不拒绝"）；PipelineVerdict 增 flags（软标记，pass=true 也可非空）；级 3 只读检测：getOutEdges(source) 中同 target 且 type 不同→conflict，类型相同→幂等重放，无既有边→开放世界新事实放行；全部返回点补 flags 字段；② tests/semantic/validation-pipeline.test.ts——既有两假件补 getOutEdges；切片 4 全可解析用例 level 2→3（pass=到达最深层级语义的自然演进）；新增切片 5 describe ×4（mark/reject/幂等重放/新事实，makeKgFake 含 INSERT OR REPLACE 式写入记录与 rows() 行数断言）；③ docs/operations-log.md（本条）。
+- **口径细化**（判断）：① conflict 只判同向实体对（source→target），反向 (B,Y,A) 视为新事实（计划样例为同向，最小实现）；② mark 策略下 conflict 走 flags 不走 reasonCode（reasonCode 保留给 fail 语义）；③ 切片 4 用例 level 断言随级 3 落地演进为 3（契约内声明）。
+- **结果**（事实）：RED 4 fail→GREEN 9/9（50 expect）；全量 bun test tests/semantic/ 19/19（切片 1-4 回归保持，78 expect）；npx tsc --noEmit 退出码 0。
+- **偏差记录**：一次对同一测试文件并行下发 4 处 Edit 触发竞态（3 处丢失），改回逐次串行编辑后修复——AGENTS.md 规则 2.6"同一文件禁止并行编辑"的实例教训，复发即停。
+- **验证**：bun test tests/semantic/validation-pipeline.test.ts 9/9；bun test tests/semantic/ 19/19；tsc=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（内存 KG 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
+- **Commit**：待回填

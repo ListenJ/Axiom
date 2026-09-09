@@ -51,6 +51,7 @@ function makeSpyDeps(): {
           kgCalls.push(id);
           return { id };
         },
+        getOutEdges: () => [],
       },
       memory: {
         getByPath: (path: string) => {
@@ -102,7 +103,7 @@ describe("S-A8 切片 4：ValidationPipeline 级 2 实存性校验", () => {
     const kgMap = new Map(nodes.map((id) => [id, { id }]));
     const noteSet = new Set(notes);
     return {
-      kg: { getNode: (id) => kgMap.get(id) ?? null },
+      kg: { getNode: (id) => kgMap.get(id) ?? null, getOutEdges: () => [] },
       memory: { getByPath: (p) => (noteSet.has(p) ? { path: p } : null) },
     };
   }
@@ -129,12 +130,108 @@ describe("S-A8 切片 4：ValidationPipeline 级 2 实存性校验", () => {
     expect(kgMiss.reasonCode).toBe("unresolvable-provenance");
   });
 
-  it("全部可解析（实体在 KG、vault 笔记存在）→ 通过且 level=2", () => {
+  it("全部可解析（实体在 KG、vault 笔记存在）→ 通过（level 随切片 5 级 3 落地演进为 3）", () => {
     const verdict = new ValidationPipeline(
       makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]),
     ).validate(legalMr);
     expect(verdict.pass).toBe(true);
-    expect(verdict.level).toBe(2);
+    expect(verdict.level).toBe(3);
     expect(verdict.reasonCode).toBeNull();
+  });
+});
+
+describe("S-A8 切片 5：ValidationPipeline 级 3 逻辑一致性（同实体对矛盾关系）", () => {
+  /**
+   * 内存 KG 假件（规则 8）：节点/边表 + INSERT OR REPLACE 写入记录。
+   * rows() 模拟 KG 行数，addNode/addEdge 记录写入调用——流水线只读校验，
+   * 任何写入调用即违反"不静默覆盖"不变量。
+   */
+  function makeKgFake(nodes: string[], edges: Array<{ source: string; target: string; type: string }>) {
+    const nodeMap = new Map(nodes.map((id) => [id, { id }]));
+    const edgeMap = new Map(edges.map((e) => [`${e.source}->${e.target}`, e]));
+    const writes: string[] = [];
+    const kg = {
+      getNode: (id: string) => nodeMap.get(id) ?? null,
+      getOutEdges: (nodeId: string) => [...edgeMap.values()].filter((e) => e.source === nodeId),
+      addNode: (id: string) => {
+        writes.push(`addNode:${id}`);
+        nodeMap.set(id, { id });
+      },
+      addEdge: (e: { source: string; target: string; type: string }) => {
+        writes.push(`addEdge:${e.source}->${e.target}(${e.type})`);
+        edgeMap.set(`${e.source}->${e.target}`, e);
+      },
+    };
+    const deps: ValidationPipelineDeps = {
+      kg,
+      memory: { getByPath: (p: string) => ({ path: p }) },
+    };
+    return {
+      deps,
+      writes,
+      rows: () => nodeMap.size + edgeMap.size,
+    };
+  }
+
+  /** 既有 KG：节点 e-a/e-b + 边 (e-a,related-to,e-b)；输入带关系的关系型 MR */
+  function conflictMr(type: string): MeaningRepresentation {
+    const mr = mutable(legalMr);
+    mr.entities.push(
+      { id: "e-a", name: "A" },
+      { id: "e-b", name: "B" },
+    );
+    mr.relations.push({ source: "e-a", target: "e-b", type });
+    return mr as MeaningRepresentation;
+  }
+
+  it("矛盾三元组（mark 默认策略）→ pass=true + conflict 标记 + KG 行数不变且零写入", () => {
+    const kg = makeKgFake(
+      ["e-sqlite", "e-a", "e-b"],
+      [{ source: "e-a", target: "e-b", type: "related-to" }],
+    );
+    const before = kg.rows();
+    const verdict = new ValidationPipeline(kg.deps).validate(conflictMr("located-in"));
+    expect(verdict.pass).toBe(true); // 开放世界：宁可标记不拒绝（计划第六节）
+    expect(verdict.level).toBe(3);
+    expect(verdict.reasonCode).toBeNull();
+    expect(verdict.flags).toContain("conflict");
+    expect(kg.rows()).toBe(before); // KG 行数不变
+    expect(kg.writes).toEqual([]); // 零写入调用（不静默覆盖）
+  });
+
+  it("矛盾三元组（reject 策略）→ pass=false level=3 reasonCode=conflict + KG 不变", () => {
+    const kg = makeKgFake(
+      ["e-sqlite", "e-a", "e-b"],
+      [{ source: "e-a", target: "e-b", type: "related-to" }],
+    );
+    const before = kg.rows();
+    const verdict = new ValidationPipeline(kg.deps, { conflictPolicy: "reject" }).validate(
+      conflictMr("located-in"),
+    );
+    expect(verdict.pass).toBe(false);
+    expect(verdict.level).toBe(3);
+    expect(verdict.reasonCode).toBe("conflict");
+    expect(kg.rows()).toBe(before);
+    expect(kg.writes).toEqual([]);
+  });
+
+  it("幂等重放（与既有事实完全相同的三元组）→ 通过无 conflict 标记 + KG 行数不变", () => {
+    const kg = makeKgFake(
+      ["e-sqlite", "e-a", "e-b"],
+      [{ source: "e-a", target: "e-b", type: "related-to" }],
+    );
+    const before = kg.rows();
+    const verdict = new ValidationPipeline(kg.deps).validate(conflictMr("related-to"));
+    expect(verdict.pass).toBe(true);
+    expect(verdict.flags).not.toContain("conflict"); // 合法幂等重放，非冲突
+    expect(kg.rows()).toBe(before);
+    expect(kg.writes).toEqual([]);
+  });
+
+  it("新事实（实体对无既有关系）→ 通过无标记（开放世界放行）", () => {
+    const kg = makeKgFake(["e-sqlite", "e-a", "e-b", "e-c"], []);
+    const verdict = new ValidationPipeline(kg.deps).validate(conflictMr("located-in"));
+    expect(verdict.pass).toBe(true);
+    expect(verdict.flags).toEqual([]);
   });
 });
