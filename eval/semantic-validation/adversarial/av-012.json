@@ -1,0 +1,1 @@
+{"id":"av-012","category":"V4","variant":"both-endpoints-undeclared","mr":{"propositions":[{"id":"p-1","text":"Axiom-Agent 使用 SQLite 作为唯一持久化数据库。","confidence":0.9,"sourceAnchor":"vault:docs/architecture.md","entityIds":["e-sqlite"]}],"entities":[{"id":"e-sqlite","name":"SQLite"}],"relations":[{"source":"e-ghost","target":"e-phantom","type":"related-to"}]}}

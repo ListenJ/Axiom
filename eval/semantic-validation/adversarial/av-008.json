@@ -1,0 +1,1 @@
+{"id":"av-008","category":"V3","variant":"text-not-string","mr":{"propositions":[{"id":"p-1","text":42,"confidence":0.9,"sourceAnchor":"vault:docs/architecture.md","entityIds":["e-sqlite"]}],"entities":[{"id":"e-sqlite","name":"SQLite"}],"relations":[]}}

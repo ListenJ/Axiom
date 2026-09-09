@@ -1,0 +1,1 @@
+{"id":"av-027","category":"COMBO","variant":"missing-provenance-plus-empty-entities","mr":{"propositions":[{"id":"p-1","text":"Axiom-Agent 使用 SQLite 作为唯一持久化数据库。","confidence":0.9,"entityIds":["e-sqlite"]}],"entities":[],"relations":[]}}

@@ -9057,3 +9057,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 15/15；bun test tests/semantic/ 25/25；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（写入窄接口对齐生产，e2e 零适配器；异常注入走 stub 假件）、规则 9（无破坏性操作；测试全内存零外部副作用）。
 - **Commit**：755ae13
+
+## 2026-09-09 — test(m3-8 切片 8): 对抗样例集全量拦截（S-A2 收口）（TDD RED→GREEN）
+
+- **任务**：S-A8 切片 8——eval/semantic-validation/adversarial/ ≥30 例畸形/对抗样例（V1-V7 每类 ≥3 + 组合 ≥9，含注入风格、超深嵌套、超大 payload）；runner 断言 100% 拦截且每例有原因码；报告落 reports/（S-A4 md+json 惯例）；样例 JSON 化可复现。
+- **工具**：Bun test（TDD 1 轮 RED 确认 1 error（runner 模块不存在）→最小实现→GREEN）、npx tsc --noEmit、一次性生成脚本（.tmp，不入库）。无子代理。
+- **操作**（文件级）：① eval/semantic-validation/adversarial/av-001..031.json——31 例（V1-V7×3=21 + COMBO×10：注入风格/2000 层深嵌套/64KB payload/V3+V4/V2+V5/V1+V6/数组包裹/注入+超大/多字段畸形/500 实体批量不可解析）；② eval/semantic-validation/tools/adversarial-runner.ts——makeEmptyDeps（空 KG/空 memory 假件）+ loadAdversarialSamples（av-*.json 确定序加载）+ runAdversarialSuite（走 ValidationPipeline.validate 公共接口，收集 blocked/level/reasonCode + 类别/原因码/层级分布）+ renderReportMd + main（import.meta.main 直接运行：断言 100% 拦截 → 写 report-adversarial-r1.{md,json}，拦截率≠100% 退出码 1）；③ tests/semantic/adversarial-runner.test.ts——3 测试（样例集规模与类别分布达标/100% 拦截+每例原因码/判定语义 not-an-object 与 unresolved-entity 兜底）；④ eval/semantic-validation/reports/report-adversarial-r1.{md,json}（31/31 拦截：级 1×26 + 级 2×5）；⑤ docs/operations-log.md（本条）。
+- **口径细化**（判断）：① 判定走 ValidationPipeline 而非 S-A1 直接调用——对齐验收条款 S-A2"畸形样例 100% 拦截"的流水线语义；② 空依赖假件保证语法合法对抗样例由级 2 实存性兜底（unresolved-entity），注入风格字段 zod strip 后 text 合法仍被兜底拦截；③ 深嵌套/超大样例静态 JSON 化（紧凑序列化防缩进平方膨胀：全量 162KB）；④ 生成脚本不入库——静态样例即交付物，同输入同结果重放兼容。
+- **结果**（事实）：RED 1 error→GREEN 3/3（78 expect）；全量 bun test tests/semantic/ 28/28（切片 1-7 回归保持，193 expect）；runner main 退出码 0（total=31 blocked=31 blockRate=1 allHaveReasonCode=true）；npx tsc --noEmit 退出码 0。
+- **偏差记录**：首版样例 JSON 用 2 空格缩进序列化，2000 层深嵌套缩进平方膨胀致全量 8.2MB，改紧凑序列化后 162KB（无实现改动）。
+- **验证**：bun test tests/semantic/adversarial-runner.test.ts 3/3；bun test tests/semantic/ 28/28；tsc=0；ops log 备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（零 src/ 实现改动，纯新增 eval+tests 文件）、规则 2（ops log 改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（runner 穿越公共接口 validate，空依赖=第二适配器接缝成立）、规则 9（无破坏性操作）、规则 11（样例注入文本为虚构攻击串，无真实凭据）。
+- **Commit**：待回填
