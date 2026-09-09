@@ -9080,4 +9080,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：无（测试第 3 例 misses 断言初版误引用违规结构字段，RED 前修正，未产生错误 RED）。
 - **验证**：bun test tests/soak/soak-topk.test.ts 4/4；bun test tests/soak/ 8/8；bun test tests/semantic/ 28/28；tsc=0；CLI 报告核验通过；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅两文件增强 + 一测试新文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（topKProbe 注入接缝=第二适配器：缺省路径与假件路径两实现）、规则 9（无破坏性操作）、规则 11（无密钥入库；探针接口不含凭据）。
-- **Commit**：待回填
+- **Commit**：8194ee9
