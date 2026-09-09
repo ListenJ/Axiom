@@ -9044,4 +9044,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：零重叠用例首选用词 Kubernetes 与 SQLite 字符频率余弦 ≈0.51 恰越过 0.5 阈值（夹具选词不分离），改用 Docker（≈0.17）——假 embedder 粒度粗，用例须选明显分离词对；无实现改动。
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 12/12；bun test tests/semantic/ 22/22；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（embedder 确定性假件=第二适配器，接缝成立；测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
-- **Commit**：待回填
+- **Commit**：facf7c4
