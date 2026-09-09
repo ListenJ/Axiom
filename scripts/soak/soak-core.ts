@@ -102,6 +102,16 @@ export interface SoakSessionConfig {
   budgetTokens: number;
   /** 植入记忆存续率阈值（默认 0.9） */
   recallThreshold?: number;
+  /**
+   * 切片 9（S-A7 遗留）：top-K 排序一致性探针——真实 embedding 环境注入；
+   * 缺省或 isAvailable()=false → SKIP 有因（字符频率 fallback 向量 top-K 无判别力）。
+   */
+  topKProbe?: {
+    /** 真实 embedding 是否可用（环境有 key 等） */
+    isAvailable: () => boolean;
+    /** top-1 排序探针：top-1 检索是否命中植入锚词 */
+    top1: (anchor: string) => boolean;
+  };
 }
 
 export interface SoakSessionResult {
@@ -131,6 +141,19 @@ export interface SoakSessionResult {
     kgNodeRowsAdded: number;
     kgEdgeRowsAdded: number;
     sqliteRowsAdded: number;
+  };
+  /**
+   * 切片 9（S-A7 遗留）：top-K 排序一致性（断言 6，top-1 命中植入锚词）。
+   * skipped=探针缺省/不可用（SKIP 有因落报告）；evaluated=真实 embedding 环境判定结果。
+   */
+  topK: {
+    status: "evaluated" | "skipped";
+    /** skipped 时的 SKIP 理由；evaluated 时为 null */
+    skipReason: string | null;
+    planted: number;
+    top1Hits: number;
+    /** top1Hits / planted；skipped 时为 null */
+    rate: number | null;
   };
   /** 未捕获异常清单（进程级 uncaughtException/unhandledRejection + 逐轮 catch） */
   uncaughtAnomalies: string[];
@@ -176,6 +199,12 @@ export async function runSoakSession(config: SoakSessionConfig): Promise<SoakSes
   let recallPlanted = 0;
   let recallHits = 0;
   let pendingAnchor: string | null = null;
+
+  // 断言 6（切片 9）：top-K 排序一致性探针状态（真实 embedding 环境判定，缺省 SKIP 有因）
+  const topKProbe = config.topKProbe;
+  const topKUsable = topKProbe?.isAvailable() ?? false;
+  let topKPlanted = 0;
+  let topKHits = 0;
 
   // 断言 4 资源：临时 KG / sqlite-memory / Vault 实例（会话结束清理）
   const tmpDir = mkdtempSync(path.join(tmpdir(), "soak-s7-"));
@@ -293,6 +322,11 @@ export async function runSoakSession(config: SoakSessionConfig): Promise<SoakSes
             const got = await cm.retrieveFromMemory(pendingAnchor, { limit });
             recallPlanted++;
             if (got.some((m) => m.content.includes(pendingAnchor!))) recallHits++;
+            // 断言 6（切片 9）：top-1 排序探针（真实 embedding 环境注入时对同一锚词判定）
+            if (topKUsable) {
+              topKPlanted++;
+              if (topKProbe!.top1(pendingAnchor)) topKHits++;
+            }
           }
           pendingAnchor = `soak-anchor-${round}`;
           messages.push({
@@ -348,6 +382,23 @@ export async function runSoakSession(config: SoakSessionConfig): Promise<SoakSes
       kgEdgeRowsAdded,
       sqliteRowsAdded,
     },
+    topK: topKUsable
+      ? {
+          status: "evaluated",
+          skipReason: null,
+          planted: topKPlanted,
+          top1Hits: topKHits,
+          rate: topKPlanted > 0 ? topKHits / topKPlanted : 1,
+        }
+      : {
+          status: "skipped",
+          skipReason: topKProbe
+            ? "真实 embedding 不可用（探针 isAvailable()=false，环境无 key）"
+            : "未注入 topKProbe（无 key 环境走确定性 fallback，字符频率向量 top-K 排序无判别力）",
+          planted: 0,
+          top1Hits: 0,
+          rate: null,
+        },
     uncaughtAnomalies,
     durationMs: Date.now() - start,
   };
@@ -581,6 +632,35 @@ export function assertNoDuplicateWrites(result: SoakSessionResult): DuplicateWri
   if (d.kgEdgeRowsAdded > 0) violations.push({ kind: "kg-edges", added: d.kgEdgeRowsAdded });
   if (d.sqliteRowsAdded > 0) violations.push({ kind: "sqlite-rows", added: d.sqliteRowsAdded });
   return violations;
+}
+
+export interface TopKViolation {
+  kind: "top1-rate-below-threshold";
+  rate: number;
+  threshold: number;
+  planted: number;
+  hits: number;
+  misses: number;
+}
+
+/** 断言 6（切片 9）：top-K 排序一致性——top-1 命中植入锚词率 ≥ 召回阈值。
+ *  skipped=SKIP 有因（探针缺省/embedding 不可用），不产生违例；阈值复用 recall.threshold 同一口径。 */
+export function assertTopKConsistency(result: SoakSessionResult): TopKViolation[] {
+  const { status, rate, planted, top1Hits } = result.topK;
+  if (status === "skipped") return [];
+  const threshold = result.recall.threshold;
+  const effectiveRate = rate ?? 1;
+  if (effectiveRate >= threshold) return [];
+  return [
+    {
+      kind: "top1-rate-below-threshold",
+      rate: effectiveRate,
+      threshold,
+      planted,
+      hits: top1Hits,
+      misses: planted - top1Hits,
+    },
+  ];
 }
 
 export interface InterruptRecoveryViolation {

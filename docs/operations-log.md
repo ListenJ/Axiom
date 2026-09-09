@@ -9069,3 +9069,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/adversarial-runner.test.ts 3/3；bun test tests/semantic/ 28/28；tsc=0；ops log 备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（零 src/ 实现改动，纯新增 eval+tests 文件）、规则 2（ops log 改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（runner 穿越公共接口 validate，空依赖=第二适配器接缝成立）、规则 9（无破坏性操作）、规则 11（样例注入文本为虚构攻击串，无真实凭据）。
 - **Commit**：ecb47d2
+
+## 2026-09-09 — test(m3-8 切片 9): soak 断言增强——top-K 排序一致性（S-A7 遗留收口）（TDD RED→GREEN）
+
+- **任务**：S-A8 切片 9——runSoakSession 叠加 top-K 排序一致性断言（top-1 命中植入锚词）：真实 embedding 可用（topKProbe 注入）时 evaluated 判定；无 key 环境 SKIP 有因落报告；不破坏 m3-7 soak 4/4 全绿。
+- **工具**：Bun test（TDD 1 轮 RED 确认 1 error（topK 字段/断言函数不存在）→最小实现→GREEN）、npx tsc --noEmit、run-soak CLI 小轮数验证报告落盘。无子代理。
+- **操作**（文件级）：① scripts/soak/soak-core.ts——SoakSessionConfig 增可选 topKProbe{isAvailable,top1}（规则 8 依赖注入接缝）；SoakSessionResult 增 topK{status:evaluated|skipped, skipReason, planted, top1Hits, rate}；runSoakSession recall 循环处探针可用时对同一锚词做 top-1 判定，缺省/不可用→SKIP 有因（两种理由措辞：未注入探针 / isAvailable=false）；新增 assertTopKConsistency（skipped→零违例；evaluated 且 rate<recall.threshold→违例 top1-rate-below-threshold，阈值复用召回口径）；② scripts/soak/run-soak.ts——断言链接入第 6 项（计入 pass 判定）+ reportJson.assertions 增 topKViolations/topK（SKIP 理由自动落 json）+ md 报告第 6 行（evaluated→PASS/FAIL；skipped→SKIP(理由)）+ 违例明细增 top-K 项 + 口径说明更新；③ tests/soak/soak-topk.test.ts——4 测试（无探针默认 SKIP 有因 / 恒命中假件 evaluated+rate=1 / 恒不命中→违例 / isAvailable=false→SKIP 有因），m3-7 文件 soak-harness.test.ts 零改动。
+- **口径细化**（判断）：① 探针走 SoakSessionConfig 注入而非 env 探测——soak 确定性环境（applyDeterministicEnv 清 key）下 env 探测恒 false 使"真实 embedding"路径成不可测死代码；注入接缝让接线逻辑可测（恒命中/恒不命中/不可用三假件），真实 embedding 由生产环境注入（零网络测试原则不破坏）；② 阈值复用 recall.threshold（同一召回口径，不新增配置面）；③ skipped 不计入违例、PASS 不受阻——对齐 dual-probe SKIP 有因惯例。
+- **结果**（事实）：RED 1 error→GREEN 4/4（19 expect）；bun test tests/soak/ 8/8（m3-7 4/4 回归保持）；bun test tests/semantic/ 28/28；npx tsc --noEmit 退出码 0；run-soak CLI（--rounds 12）判定 PASS，md 第 6 项"SKIP：未注入 topKProbe（…）"落报告（reports/soak/ 在 .gitignore 内，运行产物不入库）。
+- **偏差记录**：无（测试第 3 例 misses 断言初版误引用违规结构字段，RED 前修正，未产生错误 RED）。
+- **验证**：bun test tests/soak/soak-topk.test.ts 4/4；bun test tests/soak/ 8/8；bun test tests/semantic/ 28/28；tsc=0；CLI 报告核验通过；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅两文件增强 + 一测试新文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（topKProbe 注入接缝=第二适配器：缺省路径与假件路径两实现）、规则 9（无破坏性操作）、规则 11（无密钥入库；探针接口不含凭据）。
+- **Commit**：待回填

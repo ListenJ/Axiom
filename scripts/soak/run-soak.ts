@@ -25,6 +25,7 @@ import {
   assertRecallConsistency,
   assertNoDuplicateWrites,
   assertInterruptRecovery,
+  assertTopKConsistency,
   type SoakSessionResult,
   type InterruptRecoveryResult,
 } from "./soak-core.js";
@@ -92,11 +93,12 @@ async function main(): Promise<void> {
       `异常 ${interrupt.uncaughtAnomalies.length} 个`
   );
 
-  // ── 5 项断言 ──
+  // ── 6 项断言（第 6 项为切片 9 增强：skipped=SKIP 有因不违例）──
   const budgetViolations = assertBudgetPerRound(session);
   const recallViolations = assertRecallConsistency(session);
   const duplicateViolations = assertNoDuplicateWrites(session);
   const interruptViolations = assertInterruptRecovery(interrupt);
+  const topKViolations = assertTopKConsistency(session);
   const anomalyCount = session.uncaughtAnomalies.length + interrupt.uncaughtAnomalies.length;
 
   const pass =
@@ -104,6 +106,7 @@ async function main(): Promise<void> {
     recallViolations.length === 0 &&
     duplicateViolations.length === 0 &&
     interruptViolations.length === 0 &&
+    topKViolations.length === 0 &&
     anomalyCount === 0;
   const verdict = pass ? "PASS" : "FAIL";
 
@@ -140,6 +143,8 @@ async function main(): Promise<void> {
       recallViolations,
       duplicateWriteViolations: duplicateViolations,
       interruptRecoveryViolations: interruptViolations,
+      topKViolations,
+      topK: session.topK,
     },
     verdict,
     durationMs: Date.now() - startAll,
@@ -159,7 +164,7 @@ async function main(): Promise<void> {
 | 中断-恢复腿 | ${interruptBefore}+${interruptAfter} 轮 |
 | 总耗时 | ${reportJson.durationMs}ms |
 
-## 5 项崩坏指标
+## 6 项崩坏指标
 
 | # | 指标 | 实测 | 判定 |
 |---|------|------|------|
@@ -168,6 +173,7 @@ async function main(): Promise<void> {
 | 3 | 植入记忆召回一致率 | ${(session.recall.rate * 100).toFixed(1)}%（${session.recall.hits}/${session.recall.planted}，阈值 ${(recallThreshold * 100).toFixed(0)}%） | ${recallViolations.length === 0 ? "PASS" : "FAIL"} |
 | 4 | 重复注入零重复写入 | ${session.duplicateWrites.injections} 批次；KG 节点 +${session.duplicateWrites.kgNodeRowsAdded} / KG 边 +${session.duplicateWrites.kgEdgeRowsAdded} / sqlite +${session.duplicateWrites.sqliteRowsAdded} | ${duplicateViolations.length === 0 ? "PASS" : "FAIL"} |
 | 5 | 中断-恢复可续 | 锚词存续 ${interrupt.anchorsRecoveredAfterResume}/${interrupt.anchorsPlantedBefore}；恢复后 ${interrupt.perRoundTokensAfterResume.length} 轮全完成，压缩 ${interrupt.compressEventsAfterResume} 次 | ${interruptViolations.length === 0 ? "PASS" : "FAIL"} |
+| 6 | top-K 排序一致性（S-A2 增强） | ${session.topK.status === "evaluated" ? `top-1 命中 ${session.topK.top1Hits}/${session.topK.planted}（阈值 ${(recallThreshold * 100).toFixed(0)}%）` : `SKIP：${session.topK.skipReason}`} | ${session.topK.status === "evaluated" ? (topKViolations.length === 0 ? "PASS" : "FAIL") : "SKIP"} |
 
 ## 会话腿明细
 
@@ -188,6 +194,7 @@ ${[
   ["召回违例", recallViolations],
   ["重复写入违例", duplicateViolations],
   ["中断-恢复违例", interruptViolations],
+  ["top-K 违例", topKViolations],
 ]
   .map(([name, vs]) => `- ${name}：${fmtViolations(vs as never)}`)
   .join("\n")}
@@ -197,7 +204,8 @@ ${[
 - 恢复口径：ContextManager 进程内记忆不跨进程（架构事实），恢复层为 sqlite-memory（Vault 索引同源）；
   指标验证持久层存活 + 全新实例续跑会话。
 - 召回口径：fallback 摘要递归吸收历史决策消息，字符频率向量同分、top-K 排序无判别力，
-  故按全量检索验证"记忆不凭空丢失"（存续率）；top-K 排序一致性待 S-A2 真实 embedding 接入后增强。
+  故按全量检索验证"记忆不凭空丢失"（存续率）；top-K 排序一致性（第 6 项，S-A8 切片 9 增强）
+  经 SoakSessionConfig.topKProbe 注入真实 embedding 探针后判定，缺省/不可用环境 SKIP 有因（理由见第 6 项实测列）。
 - 复现：\`bun scripts/soak/run-soak.ts --rounds ${rounds} --seed ${seed} --budget ${budgetTokens}\`
 `;
 
