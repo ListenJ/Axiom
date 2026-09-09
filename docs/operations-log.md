@@ -8971,3 +8971,20 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：结构断言通过（12 个规则标题、编号 1-12 连续、总则 0.1-0.7、版本 v1.2、无“十一条/十二条”残留、无“1-9、11-12”死引用、代码块闭合）；`git diff --check` 无空白错误；`bun test tests/unit/docs-consistency.test.ts` 9 pass / 0 fail；AGENTS.md UTF-8 无 BOM、LF 行尾。
 - **红线**：规则 1（仅 AGENTS.md + 本条 ops log）、规则 2（两文件修改前备份，验证后删除）、规则 3+5（仅 add 本任务文件，本条留痕+回填）、规则 9（未推送才 amend；无 force）、规则 11（无密钥明文）、规则 12（PCDA 闭环）、总则 0.7（规则变更协议）。
 - **Commit**：15ee91b（amend 前初稿）
+
+## 2026-09-09 — plan(下一轮前置): 多模型协同处理系统设计文档入库 + 规则 10 审查
+
+- **任务**：用户提交《多模型协同处理系统设计文档》，自述定位为"切片 2 实施完成后的下一轮迭代指导"；入库存档并按规则 10 给出独立审查意见。
+- **工具**：Glob（存量能力勘察：src/agents/、src/router/、src/context/）、Write、Edit。无子代理。
+- **操作**（文件级）：新增 docs/superpowers/plans/2026-09-09-multi-model-collaboration-design.md（用户原文未改动 + 出处/定位/状态头）；docs/operations-log.md（本条）。
+- **审查要点**（事实/判断分离）：
+  - 事实①：文档模型名单（GPT-4/Claude 3/GPT-3.5/Llama 2/PaLM 2）为 2023 世代产品名；本仓库模型接入为 provider/endpoint 抽象（src/router/model-router.ts 角色×isFree/priority 模型配置、api-key-store 动态读 env、scripts/discover-free-models.ts），设计应按"角色×能力档位"建模而非产品名。
+  - 事实②：绿地假设不成立——2.2 组件与存量模块大面积对应：任务分发↔src/agents/orchestrator.ts+intent-router.ts+query-decomposer.ts、上下文管理↔src/context/context-manager.ts（预算/压缩，S-A7 已 soak 验证）、提示词模板/动态生成/版本↔prompt-pool.ts+prompt-engineer.ts+prompt-optimizer.ts、知识库集成↔src/knowledge/pipeline.ts+src/kg/enhanced.ts。实施前必须划清"复用 vs 新建"。
+  - 事实③：3.2 输出质量校准、3.3 幻觉预防（交叉验证/知识库锚定）与 S-A2 四级校验流水线职责面重合；S-A8 切片 3-8 尚未实施，切片 2 完成仅等于 S-A1 收口。
+  - 判断①（顺序风险）：文档"切片 2 后启动新系统"存在依赖倒置——新系统的审核层/交叉验证/知识库锚定需要 S-A2 流水线作落地接缝；建议切片 2 后至少完成 S-A8 切片 3-4（级 1-2），或将 S-A2 级 3-4 并入新系统"指挥与审核层"合并设计。
+  - 判断②（指标不可验收）：幻觉率<1%、满意度>4.5/5、可用性 99.9% 无测量协议支撑；按 m3-6 惯例先定义评估集+runner+口径再立目标，否则数字不可复现。
+  - 判断③（成本矛盾）：3.3"关键结论至少两个不同模型独立验证"与 5.2"降本 40%+"目标存在张力，需按任务分级选择性交叉验证。
+  - 判断④（形态）：设计文档非 TDD 测试计划；按仓库惯例实施前转切片化测试计划（接口面/验收口径/确定性保证），时间估算（阶段一 2 周等）按纪律不作承诺。分层思想、统一接口抹平差异、fail-closed 精神与现行方向一致，可作方向输入。
+- **验证**：勘察均有文件路径依据；文档含 11 条规则敏感信息扫描（无密钥/凭据，规则 11 通过）。
+- **红线**：规则 1（本轮仅文档入库零生产代码）、规则 3+5（本条留痕+回填）、规则 10（原文未改动，审查意见事实/判断分离、直接异议不迎合）。
+- **Commit**：<占位-设计文档入库>
