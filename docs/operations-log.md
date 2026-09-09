@@ -8988,3 +8988,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：勘察均有文件路径依据；文档含 11 条规则敏感信息扫描（无密钥/凭据，规则 11 通过）。
 - **红线**：规则 1（本轮仅文档入库零生产代码）、规则 3+5（本条留痕+回填）、规则 10（原文未改动，审查意见事实/判断分离、直接异议不迎合）。
 - **Commit**：a2ce727
+
+## 2026-09-09 — test(m3-8 切片 2): S-A1 非法变体矩阵 V1-V7 fail-closed（TDD 垂直切片 ×7 RED→GREEN）
+
+- **任务**：S-A8 切片 2——S-A1 schema 对 7 类非法变体 fail-closed 且原因码精确匹配（不多报不漏报），S-A1 收口（合法零误拒 + 非法全拦截双验收达成）。
+- **工具**：Bun test（TDD 垂直切片 7 轮，每轮 RED 确认→最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① tests/semantic/meaning-schema.test.ts——追加切片 2 describe（V1-V7 各一独立测试，mutable 深克隆变体构造，每变体断言 ok===false 且 reasonCodes toEqual 精确单码）；② src/semantic/meaning-schema.ts——validateMeaningRepresentation 演进为四段：V7 前置拦截（null/原始值/数组→not-an-object）→ zod safeParse（V1/V3 按 issue.path 归因：sourceAnchor 缺失或前缀非法→missing-provenance，其余→type-mismatch，Set 去重）→ 结构级闭合检查收集（V6 空命题集/空实体集、V2 悬空实体引用、V4 关系端点未声明）→ hasCyclicRelation DFS 三色环检测（V5，含自环）。
+- **口径细化**（计划表"原因码（拟）"两处，事实/判断分离）：① 空实体集单列 empty-entities（与 empty-propositions 分开精确归因，判断：计划将"空命题集/空实体集"并为一行但共用一码会导致归因模糊）；② missing-provenance 覆盖"锚字段缺失"与"前缀非法（非 vault:/kg:）"两种子态（判断：二者同为"溯源不可解析"）。V4 依计划注记仅查声明闭合，实存性留给流水线级 2。
+- **结果**（事实）：7 轮逐轮 RED 确认（各 1 fail）→ GREEN；终态 10/10 pass（3 golden 零误拒保持 + V1-V7 全拦截，28 expect）；npx tsc --noEmit 退出码 0。每轮最小实现，未预写后续轮测试。
+- **验证**：bun test tests/semantic/meaning-schema.test.ts 10/10；npx tsc --noEmit=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约两文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片 ×7 禁止水平铺）、规则 8（公共接口不变，validateMeaningRepresentation 单接缝）、规则 9（无破坏性操作）。
+- **Commit**：<占位-切片2>

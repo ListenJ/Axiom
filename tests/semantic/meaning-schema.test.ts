@@ -107,3 +107,77 @@ describe("S-A8 切片 1：S-A1 schema 合法样例零误拒", () => {
     expect(result.reasonCodes).toEqual([]);
   });
 });
+
+/** 变体构造辅助：深克隆后自由变异（绕过 TS 字段类型，模拟外部脏输入） */
+const mutable = (mr: MeaningRepresentation): Record<string, any> =>
+  JSON.parse(JSON.stringify(mr)) as Record<string, any>;
+
+describe("S-A8 切片 2：S-A1 非法变体矩阵 fail-closed", () => {
+  it("V7：非对象输入（null/字符串/数组/数字）→ not-an-object", () => {
+    for (const bad of [null, "mr", [minimalLegal], 42]) {
+      const result = validateMeaningRepresentation(bad);
+      expect(result.ok).toBe(false);
+      expect(result.reasonCodes).toEqual(["not-an-object"]);
+    }
+  });
+
+  it("V3：类型错配（confidence 越界 / 字段类型不符）→ type-mismatch", () => {
+    const overConfidence = mutable(completeLegal);
+    overConfidence.propositions[1].confidence = 1.5;
+    expect(validateMeaningRepresentation(overConfidence).ok).toBe(false);
+    expect(validateMeaningRepresentation(overConfidence).reasonCodes).toEqual(["type-mismatch"]);
+
+    const badText = mutable(completeLegal);
+    badText.propositions[0].text = 123;
+    expect(validateMeaningRepresentation(badText).reasonCodes).toEqual(["type-mismatch"]);
+  });
+
+  it("V6：空命题集 / 空实体集 → empty-propositions / empty-entities", () => {
+    const noProps = mutable(completeLegal);
+    noProps.propositions = [];
+    expect(validateMeaningRepresentation(noProps).reasonCodes).toEqual(["empty-propositions"]);
+
+    const noEntities = mutable(minimalLegal);
+    noEntities.entities = [];
+    noEntities.propositions[0].entityIds = [];
+    expect(validateMeaningRepresentation(noEntities).reasonCodes).toEqual(["empty-entities"]);
+  });
+
+  it("V1：缺溯源头引用（缺失 / 前缀非法）→ missing-provenance", () => {
+    const noAnchor = mutable(completeLegal);
+    delete noAnchor.propositions[1].sourceAnchor;
+    expect(validateMeaningRepresentation(noAnchor).reasonCodes).toEqual(["missing-provenance"]);
+
+    const badAnchor = mutable(completeLegal);
+    badAnchor.propositions[2].sourceAnchor = "note:nowhere.md";
+    expect(validateMeaningRepresentation(badAnchor).reasonCodes).toEqual(["missing-provenance"]);
+  });
+
+  it("V2：悬空实体引用（命题引用未声明实体）→ dangling-entity-ref", () => {
+    const dangling = mutable(completeLegal);
+    dangling.propositions[0].entityIds.push("e-ghost");
+    expect(validateMeaningRepresentation(dangling).ok).toBe(false);
+    expect(validateMeaningRepresentation(dangling).reasonCodes).toEqual(["dangling-entity-ref"]);
+  });
+
+  it("V4：关系端点缺失（端点非已声明实体）→ endpoint-not-declared", () => {
+    const badEndpoint = mutable(completeLegal);
+    badEndpoint.relations.push({ source: "e-ghost", target: "e-sqlite", type: "related-to" });
+    expect(validateMeaningRepresentation(badEndpoint).ok).toBe(false);
+    expect(validateMeaningRepresentation(badEndpoint).reasonCodes).toEqual([
+      "endpoint-not-declared",
+    ]);
+  });
+
+  it("V5：循环关系（A→B→A 二环 / A→A 自环）→ cyclic-relation", () => {
+    const twoCycle = mutable(completeLegal);
+    // 既有 e-kg→e-sqlite，补反向边构成二环
+    twoCycle.relations.push({ source: "e-sqlite", target: "e-kg", type: "related-to" });
+    expect(validateMeaningRepresentation(twoCycle).ok).toBe(false);
+    expect(validateMeaningRepresentation(twoCycle).reasonCodes).toEqual(["cyclic-relation"]);
+
+    const selfLoop = mutable(completeLegal);
+    selfLoop.relations.push({ source: "e-pipeline", target: "e-pipeline", type: "related-to" });
+    expect(validateMeaningRepresentation(selfLoop).reasonCodes).toEqual(["cyclic-relation"]);
+  });
+});
