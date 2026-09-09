@@ -8998,4 +8998,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **结果**（事实）：7 轮逐轮 RED 确认（各 1 fail）→ GREEN；终态 10/10 pass（3 golden 零误拒保持 + V1-V7 全拦截，28 expect）；npx tsc --noEmit 退出码 0。每轮最小实现，未预写后续轮测试。
 - **验证**：bun test tests/semantic/meaning-schema.test.ts 10/10；npx tsc --noEmit=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约两文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片 ×7 禁止水平铺）、规则 8（公共接口不变，validateMeaningRepresentation 单接缝）、规则 9（无破坏性操作）。
-- **Commit**：<占位-切片2>
+- **Commit**：e15f8d6
