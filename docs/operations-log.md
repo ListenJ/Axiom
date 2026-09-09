@@ -9148,4 +9148,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **操作**（文件级）：src/semantic/validation-pipeline.ts（删 embedder 依赖/cosine/旧阈值，新增 ENTITY_JACCARD_THRESHOLD=0.4，级 4 门控改 ctx.keyEntities 在场即评估，头部注释同步）；tests/semantic/validation-pipeline.test.ts（makeFakeDeps 删 embedder 参数；slice-6 重写为演进切片 2 六用例：腿 1 同名/变体、腿 3 近形、零重叠 low-confidence、无 ctx/空 ctx 跳过、阈值可配置）；src/semantic/symbolic-similarity.ts（注释措辞去 cosine 字样，使 A1 grep 严格零命中）。
 - **验证结果**：RED 5 fail→GREEN semantic 49/49（227 expect）；A1 grep embedder|cosine|ENTITY_SIM_THRESHOLD 于 src/semantic 零命中；A4 测试 diff hunks 仅 makeFakeDeps+slice-6 区（slice-3/4/5/7 零改动）；对抗 runner 零 embedder 引用，31 例含于 semantic 全拦截；soak 8/8 零改动全绿（A6）；bun run test:full 3697 pass/0 fail/35 skip（376 文件，280s）；tsc --noEmit 退出码 0。
 - **偏差记录**：一处新测试夹具错误（e-docker 未入假件节点表被级 2 拦截）GREEN 首轮 1 fail，属测试面自身缺陷，修正夹具后全绿；实现代码一次通过无缺陷。
-- **Commit**：[占位]
+- **Commit**：6bf651a
