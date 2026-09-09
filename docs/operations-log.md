@@ -9130,3 +9130,13 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：契约覆盖总则 0.4 六要素；每项改动可回答"删掉它验收标准是否仍成立"；接口事实（KGNode.name、getOutEdges、slice-6 测试面、makeFakeDeps）均实测核对。
 - **红线**：规则 1（仅新建计划文件+本留痕）、规则 3+5（占位 hash 回填）、规则 10（决策依据标注事实/判断分离）。
 - **Commit**：29deb80
+
+## 2026-09-10 — feat(sa8-e1): 演进切片 1——symbolic-similarity 纯函数 + 校准矩阵
+
+- **任务**：按 S-A8 演进计划（2026-09-10-sa8-evolution-l4-symbolic-plan.md 切片 1）实现级 4 符号相似度纯函数，TDD RED→GREEN。
+- **工具**：Write/Edit + bun test + bunx tsc。无子代理。
+- **操作**（文件级）：新建 src/semantic/symbolic-similarity.ts（normalizeEntity 全角折叠/小写/去连接符 + bigrams CJK 二字组/拉丁字符二元组分段切分 + bigramJaccard 空集 fail 向不匹配侧）；新建 tests/semantic/symbolic-similarity.test.ts（18 用例：归一化 5 + 切分 6 + 校准矩阵 7）。
+- **验证结果**：RED 确认（模块缺失 1 fail）→ GREEN 18/18 pass / 29 expect；bunx tsc --noEmit 退出码 0。
+- **校准冻结**（计划 D2）：postgres~postgresql=7/9≈0.778 匹配；docker~kubernetes=1/13≈0.077 不匹配（切片 6 余弦 0.51 越阈教训修复）；机器学习~深度学习=0.20 不匹配（弱点交别名表不做项）；kubernetes~k8s=0。ENTITY_JACCARD_THRESHOLD=0.4 实测成立，无需调整。
+- **偏差记录**：两处测试断言笔误（docker~kubernetes 并集 12→13、post_gre 归一化期望值）为实现前测试面自身错误，非实现缺陷，RED→GREEN 中修正；计划文档 D2 表 docker~kubernetes 预估 0.10 实测 0.077，同侧不匹配，不影响阈值结论。
+- **Commit**：[占位]
