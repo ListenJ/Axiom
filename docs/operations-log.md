@@ -9056,4 +9056,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：首版 e2e 用 rowCount 查 KG 库的 memory_notes 表报 no such table——memory_notes 在 SQLiteMemory 自身 :memory: 库，改用 mem.stats().totalNotes（无实现改动）。
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 15/15；bun test tests/semantic/ 25/25；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（写入窄接口对齐生产，e2e 零适配器；异常注入走 stub 假件）、规则 9（无破坏性操作；测试全内存零外部副作用）。
-- **Commit**：待回填
+- **Commit**：755ae13
