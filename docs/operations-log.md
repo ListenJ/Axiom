@@ -9158,4 +9158,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证结果**：RED 2 fail（邻域命中用例失败，退回/入边用例通过=旧行为一致）→ GREEN semantic 53/53（236 expect，含 slice-2/3/4/5/7 既有 49 用例零改动复跑 + 对抗 31 例）；tsc --noEmit 退出码 0。
 - **设计核对**（规则 8）：未新增 deps 接口方法（复用注入缝）；腿 2 仅 ctx.keyEntities 在场时触发，slice-7 真实 KG 端到端不传 ctx 零影响；writes 断言证明级 4 只读。
 - **偏差记录**：无。
-- **Commit**：[占位]
+- **Commit**：06e29f4
