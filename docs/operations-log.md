@@ -9068,4 +9068,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：首版样例 JSON 用 2 空格缩进序列化，2000 层深嵌套缩进平方膨胀致全量 8.2MB，改紧凑序列化后 162KB（无实现改动）。
 - **验证**：bun test tests/semantic/adversarial-runner.test.ts 3/3；bun test tests/semantic/ 28/28；tsc=0；ops log 备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（零 src/ 实现改动，纯新增 eval+tests 文件）、规则 2（ops log 改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（runner 穿越公共接口 validate，空依赖=第二适配器接缝成立）、规则 9（无破坏性操作）、规则 11（样例注入文本为虚构攻击串，无真实凭据）。
-- **Commit**：待回填
+- **Commit**：ecb47d2
