@@ -9117,3 +9117,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：契约覆盖总则 0.4 全部六要素；改动清单均可回答"删掉它验收标准是否仍成立"。
 - **红线**：规则 1（单文件追加）、规则 3+5（仅 add 本任务文件+回填）、规则 10（口径裁剪标注判断与理由）。
 - **Commit**：b864437
+
+## 2026-09-10 — docs(plan): S-A8 演进计划落盘——级 4 去 embedding 化（方案 A+B）
+
+- **任务**：用户批准"不用 embedding 完成任务"头脑风暴结论（方案 A+B），要求先立切片计划。
+- **工具**：Grep/Read 全仓 embedding 依赖图勘察（33 命中文件逐条甄别）+ AdvisorTool 策略校准 + 直接撰写。无子代理。
+- **勘察事实**：主检索栈本就零 embedding（FTS5/bigram/BM25/Jaccard）；embedder 仅 S-A8 级 4 消费且从未接生产（可选依赖，缺席即跳过）；soak topKProbe 无 key 已 SKIP 有因；settings-search 三级回退链独立成立；ENTITY_SIM_THRESHOLD=0.5 为字符频率余弦阈值（切片 6 教训：docker~kubernetes 余弦 0.51 越阈）。
+- **操作**（文件级）：新建 docs/superpowers/plans/2026-09-10-sa8-evolution-l4-symbolic-plan.md——任务契约（T2）+ 设计决策 D1-D4（三级判定：归一化精确匹配→KG 一跳邻域→字符 bigram Jaccard；阈值 0.4 校准矩阵冻结；门控改 ctx.keyEntities 在场即评估；embedder/cosine 全删不留缝）+ 四切片 TDD 顺序 + DoD。
+- **决策依据**（判断）：删除 embedder 注入缝（规则 8 单适配器非真接缝、规则 12 不投机保留）；别名表/soak FTS5 化列入不做项另立计划；soak 线本计划零触碰。
+- **结果**（事实）：计划落盘，未动工实现（待用户批准契约后按切片开工）。
+- **偏差记录**：无。
+- **验证**：契约覆盖总则 0.4 六要素；每项改动可回答"删掉它验收标准是否仍成立"；接口事实（KGNode.name、getOutEdges、slice-6 测试面、makeFakeDeps）均实测核对。
+- **红线**：规则 1（仅新建计划文件+本留痕）、规则 3+5（占位 hash 回填）、规则 10（决策依据标注事实/判断分离）。
+- **Commit**：[占位]
