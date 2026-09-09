@@ -9129,4 +9129,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：无。
 - **验证**：契约覆盖总则 0.4 六要素；每项改动可回答"删掉它验收标准是否仍成立"；接口事实（KGNode.name、getOutEdges、slice-6 测试面、makeFakeDeps）均实测核对。
 - **红线**：规则 1（仅新建计划文件+本留痕）、规则 3+5（占位 hash 回填）、规则 10（决策依据标注事实/判断分离）。
-- **Commit**：[占位]
+- **Commit**：29deb80
