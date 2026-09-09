@@ -9159,3 +9159,12 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **设计核对**（规则 8）：未新增 deps 接口方法（复用注入缝）；腿 2 仅 ctx.keyEntities 在场时触发，slice-7 真实 KG 端到端不传 ctx 零影响；writes 断言证明级 4 只读。
 - **偏差记录**：无。
 - **Commit**：06e29f4
+
+## 2026-09-10 — docs(sa8-e4): 演进切片 4——回归收口 + 演进报告（S-A8 级 4 去 embedding 化轮次闭环）
+
+- **任务**：按 S-A8 演进计划切片 4，核对六项验收门禁（A1-A6），产出演进报告并收口本轮。
+- **工具**：Read/Glob/Grep 证据核对 + 逐文件 bun test 实测用例数 + Write 报告。无子代理。
+- **操作**（文件级）：新建 eval/semantic-validation/reports/report-sa8-e1-l4-symbolic.md——六门禁逐项 PASS 表（A1 grep 零命中实测、A5 full 3701/0 + tsc 0、A6 soak 8/8）、演进切片 0-4 提交链、三级判定最终设计、阈值校准矩阵（实测值：0.778/0.077/0.20/0/1.0）、删除项与偏差、未决项（别名表/soak FTS5 化；P-5③ embedding 接线销账）、复现命令。
+- **验证结果**：用例数逐文件实测（symbolic 18 + schema 10 + adversarial 3 + pipeline 22 = 53，与套件 53/53 一致）；对抗样例 31 例 Glob 计数核对；报告数字全部来自实测，无推算。
+- **偏差记录**：无。
+- **Commit**：[占位]
