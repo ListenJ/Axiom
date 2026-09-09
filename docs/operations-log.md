@@ -9020,4 +9020,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **结果**（事实）：RED 2 fail→GREEN 5/5（33 expect）；全量 bun test tests/semantic/ 15/15（切片 1-3 回归保持，61 expect）；npx tsc --noEmit 退出码 0。
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 5/5；bun test tests/semantic/ 15/15；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（Map 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
-- **Commit**：待回填
+- **Commit**：684c8d3
