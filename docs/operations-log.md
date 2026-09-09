@@ -9032,4 +9032,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：一次对同一测试文件并行下发 4 处 Edit 触发竞态（3 处丢失），改回逐次串行编辑后修复——AGENTS.md 规则 2.6"同一文件禁止并行编辑"的实例教训，复发即停。
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 9/9；bun test tests/semantic/ 19/19；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（内存 KG 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
-- **Commit**：待回填
+- **Commit**：7978f5b
