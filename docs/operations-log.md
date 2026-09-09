@@ -8999,3 +8999,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/meaning-schema.test.ts 10/10；npx tsc --noEmit=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约两文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片 ×7 禁止水平铺）、规则 8（公共接口不变，validateMeaningRepresentation 单接缝）、规则 9（无破坏性操作）。
 - **Commit**：e15f8d6
+
+## 2026-09-09 — test(m3-8 切片 3): ValidationPipeline 级 1 语法级薄透传（TDD 垂直切片 RED→GREEN）
+
+- **任务**：S-A8 切片 3——流水线对非法 schema 输入返回 level=1 + 对应原因码且不进入后续级；反向断言合法输入穿过级 1（级 2 被调用可观测证据）。
+- **工具**：Bun test（TDD 1 轮 RED 确认→最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① 新增 tests/semantic/validation-pipeline.test.ts（2 测试：非法输入 level=1+精确原因码+spy 零调用，覆盖 V7/V1/V3/V6 四代表变体；合法输入 kg.getNode spy 触发+放行）；② 新增 src/semantic/validation-pipeline.ts（PipelineVerdict{pass,level,reasonCode,detail} + ValidationPipelineDeps 对齐生产同步接口 getNode/getByPath + validate：级 1 薄透传 validateMeaningRepresentation，fail→level 1 首因码；pass→级 2 入口遍历声明实体调 kg.getNode，本切片无拒绝语义）。
+- **口径细化**（判断）：① level 语义=fail 拦截所在级/pass 到达的最深层级（合法输入 level=2 即穿过级 1 的证据）；② validate 同步（生产两依赖 getNode/getByPath 均同步，异步留待真异步依赖出现）；③ ctx/embedder 参数不做，对应切片（6）再加。
+- **结果**（事实）：RED 确认（模块不存在 1 fail）→ GREEN 2/2；全量 bun test tests/semantic/ 12/12（切片 1-2 回归保持，50 expect）；npx tsc --noEmit 退出码 0。
+- **验证**：bun test tests/semantic/validation-pipeline.test.ts 2/2；bun test tests/semantic/ 12/12；tsc=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约三文件）、规则 2（ops log 改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮，未预写级 2 测试）、规则 8（依赖注入 spy 假件，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
+- **Commit**：待回填
