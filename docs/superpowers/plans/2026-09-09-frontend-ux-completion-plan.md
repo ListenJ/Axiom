@@ -141,3 +141,64 @@
 ---
 
 **批准门槛**：本计划经用户批准 + D1–D5 决策点会议结论落盘后，T1 阶段方可开工（计划未冻结不得动工，总则 0.4）。
+
+## 附录 A：T1.3 任务契约（像素基线建设）
+
+```
+任务: 建设确定性像素 diff 基线——页面 × 浏览器 × 视口矩阵快照 + 独立 snapshot 配置（复用既有 e2e 基础设施）
+开工前置: D1（容差默认值）与 D2（页面范围）会议结论；D3 以实测数据驱动（见验收 3，无需会前拍板）
+改动清单（文件级）:
+  1. playwright.snapshot.config.mjs（新）——独立配置，不动既有 playwright.config.mjs：
+     projects = chromium/firefox/webkit × 视口 {desktop 1440×900 / tablet 768×1024 / mobile 390×844}；
+     testDir ./e2e 且 testMatch 仅 *snapshot*（与功能用例隔离）；
+     确定性 use：reducedMotion:"reduce"、固定 deviceScaleFactor 与 timezoneId、
+     screenshot:"off"（快照仅由 toHaveScreenshot 产生）；
+     baseURL 沿用 http://localhost:18789（后端生命周期复用 scripts/run-e2e.cjs，不改动）
+  2. e2e/visual-snapshot.spec.ts（新）——页面清单从 src/computer-use/frontend-audit.ts 的
+     DEFAULT_AUDIT_PAGES 导入（单一事实源，禁止复制清单）；每页：goto → 后端就绪等待 →
+     document.fonts.ready → toHaveScreenshot（动态区域 mask 清单 + D1 容差参数）
+  3. .gitignore（修订）——在 e2e/*.png 规则上增加基线快照目录例外（e2e/**/*-snapshots/ 入库）；
+     首轮基线落库后实测总体积，>50MB 时回退 D3 备选（git LFS 或独立基线分支），实测数据落 ops log
+验收标准:
+  1. --update-snapshots 首跑生成基线，数量 = 页面数 × 3 浏览器 × 3 视口，逐项可数
+  2. 二跑零 diff（确定性自证）；临时注入 1px 样式差异 → 红；还原 → 绿（门禁自证）
+  3. 基线 PNG git ls-files 可见，总体积实测数字写入 ops log（D3 决策证据）
+  4. 既有功能 e2e（默认 config）回归全绿——存量行为零影响
+  5. 动态区域 mask 清单作为交付物随基线提交（首轮运行后迭代补齐）
+不做项: 不改 playwright.config.mjs 与既有功能用例；不接 CI 门禁（T2.3 范畴）；不动 LLM 审核链
+验证命令: npx playwright test -c playwright.snapshot.config.mjs（×2 验确定性）;
+  npx playwright test（回归）; git ls-files "e2e/**/*-snapshots/**" 计数; du 实测体积
+风险/回滚: ①动态内容噪声（时间戳/列表顺序）→ mask 清单迭代 + 必要时测试态数据固定；
+  ②基线体积 → 实测驱动 D3；回滚 = revert 提交 + 删基线目录（纯新增，无历史包袱）
+```
+
+## 附录 B：T3.1 任务契约（渲染层级深度扫描脚本）
+
+```
+任务: 确定性渲染层级深度扫描脚本——frontend/src/**/*.tsx 的 JSX 嵌套深度审计，产出 >10 层热点清单
+开工前置: 无（不依赖 D1-D5；纯本地零网络零 LLM）
+口径决策（契约内冻结，判断）: T3.1 只做「单文件 AST 静态 JSX 嵌套深度」——确定性高、实现小、
+  直接回答"哪几处嵌套过深"；「跨文件组件引用图深度」裁剪为后续可选（T3.2 Profiler 若证实
+  组件树深度是瓶颈再补，避免投机实现——规则 1/8）。运行时深度归 T3.2。
+改动清单（文件级）:
+  1. scripts/frontend/render-depth-audit.ts（新）——
+     纯函数核心 scanJsxDepth(source: string): { maxDepth: number; hotspots: Array<{line,depth}> }
+     （小接口大实现，测试面即函数面）；实现用 typescript 包 createSourceFile 遍历
+     JsxElement/JsxSelfClosingElement 嵌套（零新增依赖——typescript 已在依赖树）；
+     CLI 薄封装：glob frontend/src/**/*.tsx → 每文件深度 + 全仓 Top 清单；
+     报告双份：JSON（reports/，ignore 内）+ Markdown 摘要（>DEPTH_WARN=10 层清单，文件:行号）
+  2. tests/frontend/render-depth-audit.test.ts（新，bun test 对齐仓库测试惯例）——
+     夹具字符串用例：浅嵌套/深嵌套/自闭合/Fragment/条件渲染/空源/语法错误容错；
+     TDD 垂直切片（RED→GREEN 逐用例）
+验收标准:
+  1. bun test tests/frontend/ 绿，夹具深度数字精确匹配
+  2. 对 frontend/src 全量跑两次输出 diff 为空（确定性可复现）
+  3. 报告含 >10 层组件清单（文件:行号），可直接作为 T3.3 优化输入
+  4. npx tsc --noEmit 零错；零新增依赖（package.json 无 diff）
+不做项: 不做运行时插桩与 Profiler（T3.2）；不修改任何前端组件（T3.3）；不引入新依赖；
+  跨文件引用图深度（后续可选，需回 Plan 补契约）
+验证命令: bun test tests/frontend/render-depth-audit.test.ts;
+  bun run scripts/frontend/render-depth-audit.ts（×2 diff）; npx tsc --noEmit
+风险/回滚: JSX 语法长尾（泛型组件/可选链子元素）→ 测试夹具覆盖主要形态，
+  未覆盖形态进"不做/后续"并如实记录；回滚 = revert（纯新增文件）
+```

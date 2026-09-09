@@ -9104,3 +9104,16 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：计划文档存在且覆盖用户 5 项要求逐条映射（§1 时间轴/§2 决策会/§3 视觉测试/§4 体验/§5 渲染审计）；勘察结论附文件路径依据。
 - **红线**：规则 1（两文件：计划 + 本条留痕）、规则 3+5（仅 add 本任务文件 + 回填）、规则 10（事实/判断分离、会议边界直接异议）。
 - **Commit**：b977875
+
+## 2026-09-09 — docs(frontend-plan): T1.3/T3.1 任务契约落盘（计划附录 A/B）
+
+- **任务**：用户要求拟定像素基线建设（T1.3）与渲染深度扫描脚本（T3.1）的具体任务契约。
+- **工具**：Read 勘察（playwright.config.mjs、scripts/frontend-audit.ts）+ 直接撰写。无子代理。
+- **勘察事实**：既有 Playwright 仅单 Chromium project（无浏览器/视口矩阵）、testDir ./e2e、baseURL 18789、后端生命周期由 scripts/run-e2e.cjs 管理；页面清单单一事实源 DEFAULT_AUDIT_PAGES（src/computer-use/frontend-audit.ts 已导出）；e2e/*.png 被 gitignore（基线 PNG 入库需例外规则）。
+- **操作**（文件级）：docs/superpowers/plans/2026-09-09-frontend-ux-completion-plan.md 追加附录 A/B——按总则 0.4 格式（任务/验收/改动清单/不做项/验证命令/风险回滚）。A：独立 playwright.snapshot.config.mjs（3 浏览器×3 视口，不动既有 config）、e2e/visual-snapshot.spec.ts（复用 DEFAULT_AUDIT_PAGES）、.gitignore 基线例外 + 体积实测驱动 D3；B：纯函数 scanJsxDepth（typescript 包 AST 遍历，零新依赖）+ CLI 薄封装 + bun test 夹具用例（TDD）。
+- **口径细化**（判断）：① T3.1 冻结为「单文件 JSX 静态嵌套深度」，跨文件组件引用图深度裁剪为后续可选（T3.2 证实瓶颈再补，防投机实现）；② T1.3 开工前置收窄为 D1/D2，D3 改为实测数据驱动（>50MB 才回退 LFS/分支）；③ snapshot 独立配置文件隔离，保证存量功能 e2e 零影响。
+- **结果**（事实）：契约落盘；本轮未动工实现（两契约开工前置未满足/待用户批准）。
+- **偏差记录**：无。
+- **验证**：契约覆盖总则 0.4 全部六要素；改动清单均可回答"删掉它验收标准是否仍成立"。
+- **红线**：规则 1（单文件追加）、规则 3+5（仅 add 本任务文件+回填）、规则 10（口径裁剪标注判断与理由）。
+- **Commit**：待回填
