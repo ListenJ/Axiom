@@ -34,7 +34,7 @@ const legalMr: MeaningRepresentation = {
 const mutable = (mr: MeaningRepresentation): Record<string, any> =>
   JSON.parse(JSON.stringify(mr)) as Record<string, any>;
 
-/** spy 依赖：记录级 2+ 的调用证据（假件恒返回 null = 不可解析） */
+/** spy 依赖：记录级 2+ 的调用证据（假件恒可解析返回占位记录——切片 4 起级 2 有拒绝语义，恒 null 会误拒合法输入） */
 function makeSpyDeps(): {
   deps: ValidationPipelineDeps;
   kgCalls: string[];
@@ -49,13 +49,13 @@ function makeSpyDeps(): {
       kg: {
         getNode: (id: string) => {
           kgCalls.push(id);
-          return null;
+          return { id };
         },
       },
       memory: {
         getByPath: (path: string) => {
           memoryCalls.push(path);
-          return null;
+          return { path };
         },
       },
     },
@@ -93,5 +93,48 @@ describe("S-A8 切片 3：ValidationPipeline 级 1 语法级薄透传", () => {
     const verdict = new ValidationPipeline(deps).validate(legalMr);
     expect(verdict.pass).toBe(true);
     expect(kgCalls).toContain("e-sqlite"); // 级 2 实存性解析已被触发
+  });
+});
+
+describe("S-A8 切片 4：ValidationPipeline 级 2 实存性校验", () => {
+  /** Map 内存假件（规则 8：接受依赖）：KG 节点表 + Vault 笔记表，表外一律不可解析 */
+  function makeFakeDeps(nodes: string[], notes: string[]): ValidationPipelineDeps {
+    const kgMap = new Map(nodes.map((id) => [id, { id }]));
+    const noteSet = new Set(notes);
+    return {
+      kg: { getNode: (id) => kgMap.get(id) ?? null },
+      memory: { getByPath: (p) => (noteSet.has(p) ? { path: p } : null) },
+    };
+  }
+
+  it("实体链接指向不存在 KG 节点 → unresolved-entity 拒绝（level=2）", () => {
+    const verdict = new ValidationPipeline(makeFakeDeps([], [])).validate(legalMr);
+    expect(verdict.pass).toBe(false);
+    expect(verdict.level).toBe(2);
+    expect(verdict.reasonCode).toBe("unresolved-entity");
+  });
+
+  it("溯源 anchor 不可解析 → unresolvable-provenance 拒绝（vault: 缺笔记 / kg: 缺节点）", () => {
+    // vault: 笔记表为空 → getByPath 不可解析
+    const vaultMiss = new ValidationPipeline(makeFakeDeps(["e-sqlite"], [])).validate(legalMr);
+    expect(vaultMiss.pass).toBe(false);
+    expect(vaultMiss.level).toBe(2);
+    expect(vaultMiss.reasonCode).toBe("unresolvable-provenance");
+
+    // kg: 锚指向不存在的节点
+    const kgAnchorMr = mutable(legalMr);
+    kgAnchorMr.propositions[0].sourceAnchor = "kg:node-ghost";
+    const kgMiss = new ValidationPipeline(makeFakeDeps(["e-sqlite"], [])).validate(kgAnchorMr);
+    expect(kgMiss.pass).toBe(false);
+    expect(kgMiss.reasonCode).toBe("unresolvable-provenance");
+  });
+
+  it("全部可解析（实体在 KG、vault 笔记存在）→ 通过且 level=2", () => {
+    const verdict = new ValidationPipeline(
+      makeFakeDeps(["e-sqlite"], ["docs/architecture.md"]),
+    ).validate(legalMr);
+    expect(verdict.pass).toBe(true);
+    expect(verdict.level).toBe(2);
+    expect(verdict.reasonCode).toBeNull();
   });
 });

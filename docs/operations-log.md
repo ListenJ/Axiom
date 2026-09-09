@@ -9010,3 +9010,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 2/2；bun test tests/semantic/ 12/12；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（ops log 改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮，未预写级 2 测试）、规则 8（依赖注入 spy 假件，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
 - **Commit**：c383aff
+
+## 2026-09-09 — test(m3-8 切片 4): ValidationPipeline 级 2 实存性校验（TDD 垂直切片 RED→GREEN）
+
+- **任务**：S-A8 切片 4——级 2 拒绝语义：实体不可解析→unresolved-entity、溯源 anchor 不可解析→unresolvable-provenance、全部可解析→通过（依赖注入 Map 内存假件，规则 8）。
+- **工具**：Bun test（TDD 1 轮 RED 确认（2 fail：新拒绝语义未实现）→最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① src/semantic/validation-pipeline.ts——级 2 由"调用入口"演进为实存性校验：声明实体逐个 kg.getNode（null/undefined 判不可解析）；命题 anchor 双前缀解析（vault:→memory.getByPath 去前缀路径、kg:→kg.getNode 去前缀 id），fail-closed Set 收集原因码（reasonCode=首码，detail 携带全部 code:offender），全可解析→pass level=2；② tests/semantic/validation-pipeline.test.ts——追加切片 4 describe（3 测试：实体缺节点、vault 缺笔记/kg 缺节点双态、全可解析通过）+ 切片 3 spy 假件由恒 null 改为可解析占位记录（级 2 有拒绝语义后恒 null 会误拒合法输入，反向断言语义保持）；③ docs/operations-log.md（本条）。
+- **口径细化**（判断）：① kg: 溯源锚与实体同走 kg.getNode 解析（双前缀锚是唯二可解析锚，fail-closed 要求两者都可解析）；② 不可解析判定 == null（覆盖 null/undefined，fail-closed）；③ reasonCode 单字段取首码、detail 承载全部失败项，不新增多码字段。
+- **结果**（事实）：RED 2 fail→GREEN 5/5（33 expect）；全量 bun test tests/semantic/ 15/15（切片 1-3 回归保持，61 expect）；npx tsc --noEmit 退出码 0。
+- **验证**：bun test tests/semantic/validation-pipeline.test.ts 5/5；bun test tests/semantic/ 15/15；tsc=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（Map 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
+- **Commit**：待回填
