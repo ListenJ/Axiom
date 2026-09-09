@@ -30,6 +30,9 @@ export interface ValidationPipelineDeps {
   kg: {
     getNode(id: string): unknown;
     getOutEdges(nodeId: string): Array<{ target: string; type: string }>;
+    /** 唯一入库通道写入接口（窄形状，生产 KnowledgeGraphEnhanced 结构兼容，INSERT OR REPLACE 幂等） */
+    addNode(node: { id: string; name: string; type: string }): unknown;
+    addEdge(edge: { source: string; target: string; type: string; weight: number }): unknown;
   };
   memory: { getByPath(path: string): unknown };
   /** 级 4 可选：文本向量化（生产接真实 embedder，测试注入字符频率假件，计划第四节） */
@@ -46,6 +49,8 @@ export interface ValidationPipelineOptions {
   conflictPolicy?: "mark" | "reject";
   /** 级 4 重叠度阈值：低于此值打 low-confidence（默认 0.1≈要求至少一个关键实体与上下文有交集） */
   contextOverlapThreshold?: number;
+  /** A.3 崩坏隔离：校验器自身异常时的告警路径（注入回调，测试断言触发） */
+  onAlert?: (event: { level: number; error: string }) => void;
 }
 
 /** 级 4 单实体匹配阈值（字符频率向量：同名/近形 ≥0.9，无关词 ≲0.45） */
@@ -67,6 +72,7 @@ function cosine(a: number[], b: number[]): number {
 export class ValidationPipeline {
   private readonly conflictPolicy: "mark" | "reject";
   private readonly contextOverlapThreshold: number;
+  private readonly onAlert?: (event: { level: number; error: string }) => void;
 
   constructor(
     private readonly deps: ValidationPipelineDeps,
@@ -74,10 +80,27 @@ export class ValidationPipeline {
   ) {
     this.conflictPolicy = options.conflictPolicy ?? "mark";
     this.contextOverlapThreshold = options.contextOverlapThreshold ?? 0.1;
+    this.onAlert = options.onAlert;
   }
 
-  /** 多级校验入口（fail-closed：任一级拦截即拒绝；软标记除外） */
+  /** 多级校验入口（fail-closed：任一级拦截即拒绝；软标记除外；自身异常→internal-error + 告警，A.3 崩坏隔离） */
   validate(mr: unknown, ctx?: ValidationContext): PipelineVerdict {
+    try {
+      return this.validateLevels(mr, ctx);
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      this.onAlert?.({ level: 0, error });
+      return {
+        pass: false,
+        level: 0,
+        reasonCode: "internal-error",
+        detail: `校验器自身异常（fail-closed 崩坏隔离）: ${error}`,
+        flags: [],
+      };
+    }
+  }
+
+  private validateLevels(mr: unknown, ctx?: ValidationContext): PipelineVerdict {
     // 级 1：语法级薄透传（复用 S-A1）
     const l1 = validateMeaningRepresentation(mr);
     if (!l1.ok) {
@@ -169,5 +192,47 @@ export class ValidationPipeline {
           : `级 1-${evaluatedL4 ? 4 : 3} 通过`,
       flags: [...flags],
     };
+  }
+
+  /**
+   * 唯一入库通道（S-A8 切片 7 铁律）：先四级校验（fail-closed），全绿才写入 KG
+   * （实体→节点 type="entity"、关系→边 weight=1，INSERT OR REPLACE 幂等）。
+   * 任一级失败或写入异常 → 零写入 + 原因码；写入异常另走 onAlert 告警。
+   * memory/Vault 不回写：命题随 vault 笔记存在，溯源锚仅作存在性校验。
+   */
+  ingest(
+    mr: unknown,
+    ctx?: ValidationContext,
+  ): PipelineVerdict & { writtenNodes: number; writtenEdges: number } {
+    const verdict = this.validate(mr, ctx);
+    if (!verdict.pass) {
+      return { ...verdict, writtenNodes: 0, writtenEdges: 0 };
+    }
+    try {
+      const parsed = mr as MeaningRepresentation;
+      for (const entity of parsed.entities) {
+        this.deps.kg.addNode({ id: entity.id, name: entity.name, type: "entity" });
+      }
+      for (const rel of parsed.relations) {
+        this.deps.kg.addEdge({ source: rel.source, target: rel.target, type: rel.type, weight: 1 });
+      }
+      return {
+        ...verdict,
+        writtenNodes: parsed.entities.length,
+        writtenEdges: parsed.relations.length,
+      };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      this.onAlert?.({ level: verdict.level, error });
+      return {
+        pass: false,
+        level: verdict.level,
+        reasonCode: "internal-error",
+        detail: `入库写入异常（fail-closed）: ${error}`,
+        flags: [],
+        writtenNodes: 0,
+        writtenEdges: 0,
+      };
+    }
   }
 }

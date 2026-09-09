@@ -9045,3 +9045,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 12/12；bun test tests/semantic/ 22/22；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（embedder 确定性假件=第二适配器，接缝成立；测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
 - **Commit**：facf7c4
+
+## 2026-09-09 — test(m3-8 切片 7): 端到端 fail-closed 铁律（真实临时 KG + SQLiteMemory）（TDD RED→GREEN）
+
+- **任务**：S-A8 切片 7——真实依赖端到端：任一级失败→零写入断言（KG/memory 行数不变）；全绿→唯一入库通道写入成功（幂等重放行数不变）；stub resolver 抛错→internal-error fail-closed + onAlert 告警（A.3 崩坏隔离）。
+- **工具**：Bun test（TDD 1 轮 RED 确认 3 fail（ingest 未实现）→最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① src/semantic/validation-pipeline.ts——deps.kg 增必选窄写入接口 addNode({id,name,type})/addEdge({source,target,type,weight})（生产 KnowledgeGraphEnhanced 经方法双变结构兼容，INSERT OR REPLACE 幂等）；options 增 onAlert 告警回调；validate 拆为 fail-closed 包装 + 私有 validateLevels（自身异常→reasonCode="internal-error"、level=0、onAlert 触发、不放行）；新增 ingest 唯一入库通道（校验全绿才写：实体→节点 type="entity"、关系→边 weight=1，返回 writtenNodes/writtenEdges，写入异常同样 fail-closed+告警）；② tests/semantic/validation-pipeline.test.ts——makeSpyDeps/makeFakeDeps 补 no-op 写入方法、makeKgFake 写入签名改对象参数；新增切片 7 e2e describe ×3（Database(":memory:")+KnowledgeGraphEnhanced+SQLiteMemory 真实依赖，rowCount 直接 SQL COUNT kg_nodes/kg_edges，memory 用 stats().totalNotes）；③ docs/operations-log.md（本条）。
+- **口径细化**（判断）：① ingest 只写 KG（实体+关系），memory/Vault 不回写——命题随 vault 笔记存在，溯源锚仅作存在性校验；Vault 文件数由 memory 行数代表（getByPath 走 SQLite 索引同源）；② conflict mark（pass=true）仍入库，是否拒收由调用方 conflictPolicy 决定；③ internal-error level=0 表示未完成任何一级；④ 写入异常 fail-closed 但不做事务级部分写回滚（超出本轮）。
+- **结果**（事实）：RED 3 fail→GREEN 15/15（87 expect）；全量 bun test tests/semantic/ 25/25（切片 1-6 回归保持，115 expect）；npx tsc --noEmit 退出码 0（真实 KG/SQLiteMemory 直接通过结构化类型注入，零适配器）。
+- **偏差记录**：首版 e2e 用 rowCount 查 KG 库的 memory_notes 表报 no such table——memory_notes 在 SQLiteMemory 自身 :memory: 库，改用 mem.stats().totalNotes（无实现改动）。
+- **验证**：bun test tests/semantic/validation-pipeline.test.ts 15/15；bun test tests/semantic/ 25/25；tsc=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（写入窄接口对齐生产，e2e 零适配器；异常注入走 stub 假件）、规则 9（无破坏性操作；测试全内存零外部副作用）。
+- **Commit**：待回填

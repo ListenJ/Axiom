@@ -9,11 +9,14 @@
  * KnowledgeGraphEnhanced.getNode / SQLiteMemory.getByPath（均同步）。
  */
 import { describe, expect, it } from "bun:test";
+import { Database } from "bun:sqlite";
 import {
   ValidationPipeline,
   type ValidationPipelineDeps,
 } from "../../src/semantic/validation-pipeline.js";
 import type { MeaningRepresentation } from "../../src/semantic/meaning-schema.js";
+import { KnowledgeGraphEnhanced } from "../../src/kg/enhanced.js";
+import { SQLiteMemory } from "../../src/memory/sqlite-memory.js";
 
 /** 合法输入基样例（与切片 1 golden 1 同构：单实体+单命题，无关系） */
 const legalMr: MeaningRepresentation = {
@@ -52,6 +55,8 @@ function makeSpyDeps(): {
           return { id };
         },
         getOutEdges: () => [],
+        addNode: () => {},
+        addEdge: () => {},
       },
       memory: {
         getByPath: (path: string) => {
@@ -106,7 +111,12 @@ function makeFakeDeps(
   const kgMap = new Map(nodes.map((id) => [id, { id }]));
   const noteSet = new Set(notes);
   return {
-    kg: { getNode: (id) => kgMap.get(id) ?? null, getOutEdges: () => [] },
+    kg: {
+      getNode: (id) => kgMap.get(id) ?? null,
+      getOutEdges: () => [],
+      addNode: () => {},
+      addEdge: () => {},
+    },
     memory: { getByPath: (p) => (noteSet.has(p) ? { path: p } : null) },
     embedder,
   };
@@ -158,11 +168,11 @@ describe("S-A8 切片 5：ValidationPipeline 级 3 逻辑一致性（同实体�
     const kg = {
       getNode: (id: string) => nodeMap.get(id) ?? null,
       getOutEdges: (nodeId: string) => [...edgeMap.values()].filter((e) => e.source === nodeId),
-      addNode: (id: string) => {
-        writes.push(`addNode:${id}`);
-        nodeMap.set(id, { id });
+      addNode: (n: { id: string; name: string; type: string }) => {
+        writes.push(`addNode:${n.id}`);
+        nodeMap.set(n.id, { id: n.id });
       },
-      addEdge: (e: { source: string; target: string; type: string }) => {
+      addEdge: (e: { source: string; target: string; type: string; weight: number }) => {
         writes.push(`addEdge:${e.source}->${e.target}(${e.type})`);
         edgeMap.set(`${e.source}->${e.target}`, e);
       },
@@ -297,5 +307,125 @@ describe("S-A8 切片 6：ValidationPipeline 级 4 上下文连贯（重叠度�
     expect(verdict.pass).toBe(true);
     expect(verdict.level).toBe(3);
     expect(verdict.flags).toEqual([]);
+  });
+});
+
+describe("S-A8 切片 7：端到端 fail-closed 铁律（真实临时 KG + SQLiteMemory）", () => {
+  const rowCount = (db: Database, table: string): number =>
+    (db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c;
+
+  /** 真实依赖（沿用 soak 惯例：内存 SQLite，零外部副作用） */
+  function makeReal(): { db: Database; kg: KnowledgeGraphEnhanced; mem: SQLiteMemory } {
+    const db = new Database(":memory:");
+    const kg = new KnowledgeGraphEnhanced(db);
+    const mem = new SQLiteMemory(":memory:");
+    mem.upsertNote({
+      path: "docs/architecture.md",
+      title: "架构",
+      content: "Axiom-Agent 使用 SQLite 作为唯一持久化数据库。",
+      excerpt: "",
+      tags: [],
+      paraCategory: "resources",
+      type: "note",
+      confidence: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    return { db, kg, mem };
+  }
+
+  /** 关系型合法 MR：e-sqlite + e-a + e-b 三实体、一条 related-to 边 */
+  function relationMr(): MeaningRepresentation {
+    const mr = mutable(legalMr);
+    mr.entities.push({ id: "e-a", name: "A" }, { id: "e-b", name: "B" });
+    mr.relations.push({ source: "e-a", target: "e-b", type: "related-to" });
+    return mr as MeaningRepresentation;
+  }
+
+  it("任一级失败 → fail + 原因码，KG/memory 行数前后不变（零写入）", () => {
+    const { db, kg, mem } = makeReal();
+    const pipeline = new ValidationPipeline({ kg, memory: mem });
+    const before = {
+      nodes: rowCount(db, "kg_nodes"),
+      edges: rowCount(db, "kg_edges"),
+      notes: mem.stats().totalNotes, // memory_notes 在 SQLiteMemory 自身 :memory: 库
+    };
+
+    // 级 1 失败：非对象输入
+    const v1 = pipeline.ingest(null);
+    expect(v1.pass).toBe(false);
+    expect(v1.level).toBe(1);
+    expect(v1.reasonCode).toBe("not-an-object");
+    expect(v1.writtenNodes).toBe(0);
+    expect(v1.writtenEdges).toBe(0);
+
+    // 级 2 失败：实体不在 KG
+    const v2 = pipeline.ingest(legalMr);
+    expect(v2.pass).toBe(false);
+    expect(v2.reasonCode).toBe("unresolved-entity");
+
+    expect(rowCount(db, "kg_nodes")).toBe(before.nodes);
+    expect(rowCount(db, "kg_edges")).toBe(before.edges);
+    expect(mem.stats().totalNotes).toBe(before.notes);
+  });
+
+  it("全绿 → 唯一入库通道写入成功（实体+关系入 KG）；幂等重放行数不变", () => {
+    const { db, kg, mem } = makeReal();
+    kg.addNode({ id: "e-sqlite", type: "entity", name: "SQLite" });
+    kg.addNode({ id: "e-a", type: "entity", name: "A" });
+    kg.addNode({ id: "e-b", type: "entity", name: "B" });
+    const pipeline = new ValidationPipeline({ kg, memory: mem });
+    const beforeNodes = rowCount(db, "kg_nodes");
+    const beforeEdges = rowCount(db, "kg_edges");
+    const beforeNotes = mem.stats().totalNotes;
+
+    const v = pipeline.ingest(relationMr());
+    expect(v.pass).toBe(true);
+    expect(v.writtenNodes).toBe(3);
+    expect(v.writtenEdges).toBe(1);
+    expect(rowCount(db, "kg_nodes")).toBe(beforeNodes); // INSERT OR REPLACE 幂等
+    expect(rowCount(db, "kg_edges")).toBe(beforeEdges + 1);
+    expect(mem.stats().totalNotes).toBe(beforeNotes); // memory 不回写
+
+    // 幂等重放：同 MR 二次入库，行数不变
+    const v2 = pipeline.ingest(relationMr());
+    expect(v2.pass).toBe(true);
+    expect(rowCount(db, "kg_nodes")).toBe(beforeNodes);
+    expect(rowCount(db, "kg_edges")).toBe(beforeEdges + 1);
+  });
+
+  it("stub resolver 抛错 → internal-error fail-closed + onAlert 触发 + 零写入不放行", () => {
+    const { db, kg, mem } = makeReal();
+    kg.addNode({ id: "e-sqlite", type: "entity", name: "SQLite" });
+    const beforeNodes = rowCount(db, "kg_nodes");
+    const beforeEdges = rowCount(db, "kg_edges");
+    const alerts: Array<{ level: number; error: string }> = [];
+    const deps: ValidationPipelineDeps = {
+      kg: {
+        getNode: () => {
+          throw new Error("db locked");
+        },
+        getOutEdges: () => {
+          throw new Error("db locked");
+        },
+        addNode: () => {},
+        addEdge: () => {},
+      },
+      memory: {
+        getByPath: () => {
+          throw new Error("db locked");
+        },
+      },
+    };
+    const pipeline = new ValidationPipeline(deps, {
+      onAlert: (event) => alerts.push(event),
+    });
+    const v = pipeline.ingest(legalMr);
+    expect(v.pass).toBe(false);
+    expect(v.reasonCode).toBe("internal-error");
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].error).toContain("db locked");
+    expect(rowCount(db, "kg_nodes")).toBe(beforeNodes); // 零写入
+    expect(rowCount(db, "kg_edges")).toBe(beforeEdges);
   });
 });
