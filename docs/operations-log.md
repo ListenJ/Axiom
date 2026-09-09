@@ -9139,4 +9139,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证结果**：RED 确认（模块缺失 1 fail）→ GREEN 18/18 pass / 29 expect；bunx tsc --noEmit 退出码 0。
 - **校准冻结**（计划 D2）：postgres~postgresql=7/9≈0.778 匹配；docker~kubernetes=1/13≈0.077 不匹配（切片 6 余弦 0.51 越阈教训修复）；机器学习~深度学习=0.20 不匹配（弱点交别名表不做项）；kubernetes~k8s=0。ENTITY_JACCARD_THRESHOLD=0.4 实测成立，无需调整。
 - **偏差记录**：两处测试断言笔误（docker~kubernetes 并集 12→13、post_gre 归一化期望值）为实现前测试面自身错误，非实现缺陷，RED→GREEN 中修正；计划文档 D2 表 docker~kubernetes 预估 0.10 实测 0.077，同侧不匹配，不影响阈值结论。
-- **Commit**：[占位]
+- **Commit**：d6b4823
