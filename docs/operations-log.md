@@ -9091,4 +9091,4 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **偏差记录**：无。
 - **验证**：报告数据与 ops log 九条记录逐项核对一致（commit hash / 测试数 / 门禁指标）。
 - **红线**：规则 1（单文件新增）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 10（事实与判断分节标注）。
-- **Commit**：待回填
+- **Commit**：a84bc01
