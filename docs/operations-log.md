@@ -9033,3 +9033,15 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/semantic/validation-pipeline.test.ts 9/9；bun test tests/semantic/ 19/19；tsc=0；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（内存 KG 假件注入，测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
 - **Commit**：7978f5b
+
+## 2026-09-09 — test(m3-8 切片 6): ValidationPipeline 级 4 上下文连贯·重叠度阈值（TDD RED→GREEN）
+
+- **任务**：S-A8 切片 6——输入关键实体与上下文关键实体重叠度低于阈值→low-confidence 降级标记（不拒绝）；高于阈值→无标签；无证据时级 4 跳过。
+- **工具**：Bun test（TDD 1 轮 RED 确认 3 fail（引用作用域外假件 ReferenceError）→最小实现→GREEN）、npx tsc --noEmit。无子代理。
+- **操作**（文件级）：① src/semantic/validation-pipeline.ts——deps 增可选 embedder{embed(text):number[]}；新增 ValidationContext{keyEntities?}（validate 第二可选参数，补齐计划接口面 validate(mr,ctx)）；options 增 contextOverlapThreshold 默认 0.1；级 4 判定：ctx.keyEntities 与 embedder 同时在场→逐实体 embed 后与上下文向量取最大余弦（≥ENTITY_SIM_THRESHOLD=0.5 记匹配），overlap=匹配数/实体数，<阈值→flags 加 low-confidence；缺席则级 4 无证据跳过（level 停留 3）；模块级 cosine 辅助（零向量返 0）；② tests/semantic/validation-pipeline.test.ts——makeFakeDeps 上移模块作用域并增可选 embedder 参数；新增切片 6 describe ×3（高重叠 level=4 无标签 / 零重叠 low-confidence 降级 / 无 ctx 或无 embedder 跳过 level=3），字符频率假 embedder（26 维小写字母频次归一化，确定性零网络，计划第四节）；③ docs/operations-log.md（本条）。
+- **口径细化**（判断）：① 级 4 判定需 ctx.keyEntities 与 embedder 同时在场，缺席跳过且 level 停留已判定层级（切片 3-5 既有用例零改动）；② low-confidence 只降级不拒绝（计划切片 6 原文）；③ ctx 只收 keyEntities（原文/对话历史预提取是调用方职责，后续按需）。
+- **结果**（事实）：RED 3 fail→GREEN 12/12（62 expect）；全量 bun test tests/semantic/ 22/22（切片 1-5 回归保持，90 expect）；npx tsc --noEmit 退出码 0。
+- **偏差记录**：零重叠用例首选用词 Kubernetes 与 SQLite 字符频率余弦 ≈0.51 恰越过 0.5 阈值（夹具选词不分离），改用 Docker（≈0.17）——假 embedder 粒度粗，用例须选明显分离词对；无实现改动。
+- **验证**：bun test tests/semantic/validation-pipeline.test.ts 12/12；bun test tests/semantic/ 22/22；tsc=0；备份验证通过后删除（规则 2.5）。
+- **红线**：规则 1（仅任务契约三文件）、规则 2（三文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（embedder 确定性假件=第二适配器，接缝成立；测试只穿越 validate 公共接口）、规则 9（无破坏性操作）。
+- **Commit**：待回填
