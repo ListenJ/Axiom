@@ -9081,3 +9081,14 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **验证**：bun test tests/soak/soak-topk.test.ts 4/4；bun test tests/soak/ 8/8；bun test tests/semantic/ 28/28；tsc=0；CLI 报告核验通过；备份验证通过后删除（规则 2.5）。
 - **红线**：规则 1（仅两文件增强 + 一测试新文件）、规则 2（两文件改前备份→改→验→删）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 7（垂直切片单轮）、规则 8（topKProbe 注入接缝=第二适配器：缺省路径与假件路径两实现）、规则 9（无破坏性操作）、规则 11（无密钥入库；探针接口不含凭据）。
 - **Commit**：8194ee9
+
+## 2026-09-09 — docs(m3-8 终局): S-A8 终局报告（9 切片汇总 + 终局门禁核对）
+
+- **任务**：S-A8 测试计划全部切片完成后，按 S-A4 终局报告惯例（report-r1-final.md 先例）生成终局汇总报告。
+- **工具**：直接撰写（数据来源：ops log 九条切片记录 + 各切片收尾验证输出）。无子代理。
+- **操作**（文件级）：新增 eval/semantic-validation/reports/report-sa8-final.md——终局门禁四项核对（全切片绿 28/28+8/8、对抗 31/31 拦截、m3-7 soak 4/4 保持、tsc=0）+ 九切片逐项 commit/测试数表 + 交付物清单 + 关键设计决策复盘 + 偏差与遗留（zod 非 strict、ingest 无事务级回滚、真实 embedding 生产接线）+ 复现命令。
+- **结果**（事实）：报告落盘并入库存（reports/ 目录被 .gitignore 全局规则忽略，沿用 S-A4 force-add 入库先例）；终局门禁四项全 PASS。
+- **偏差记录**：无。
+- **验证**：报告数据与 ops log 九条记录逐项核对一致（commit hash / 测试数 / 门禁指标）。
+- **红线**：规则 1（单文件新增）、规则 3+5（仅 add 本任务文件+本条留痕回填）、规则 10（事实与判断分节标注）。
+- **Commit**：待回填
