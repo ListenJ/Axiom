@@ -9166,5 +9166,5 @@ X-Injected: pwned" 真实注入 + 第二跳带 "Authorization: Bearer secret-tok
 - **工具**：Read/Glob/Grep 证据核对 + 逐文件 bun test 实测用例数 + Write 报告。无子代理。
 - **操作**（文件级）：新建 eval/semantic-validation/reports/report-sa8-e1-l4-symbolic.md——六门禁逐项 PASS 表（A1 grep 零命中实测、A5 full 3701/0 + tsc 0、A6 soak 8/8）、演进切片 0-4 提交链、三级判定最终设计、阈值校准矩阵（实测值：0.778/0.077/0.20/0/1.0）、删除项与偏差、未决项（别名表/soak FTS5 化；P-5③ embedding 接线销账）、复现命令。
 - **验证结果**：用例数逐文件实测（symbolic 18 + schema 10 + adversarial 3 + pipeline 22 = 53，与套件 53/53 一致）；对抗样例 31 例 Glob 计数核对；报告数字全部来自实测，无推算。
-- **偏差记录**：无。
-- **Commit**：[占位]
+- **偏差记录**：reports/ 命中 .gitignore:68（stress 产物规则），前轮 report-sa8-final.md 经 -f 入库为既定交付惯例，本轮对齐（不改 .gitignore，规则 1 最小改动）。
+- **Commit**：8835b0b（留痕）+ f79edfc（报告 -f 入库）

@@ -23,7 +23,7 @@
 | 1 | symbolic-similarity.ts 纯函数 + 校准矩阵 | d6b4823 | 85f4f0c | 18/18（29 expect），阈值 0.4 实测冻结 |
 | 2 | 级 4 符号腿 1+3 接入 + embedder/cosine 删除 | 6bf651a | da1cd6c | semantic 49/49（227 expect）；RED 5 fail→GREEN |
 | 3 | 级 4 腿 2 KG 一跳邻域匹配（只读） | 06e29f4 | d3a2a23 | semantic 53/53（236 expect）；RED 2 fail→GREEN |
-| 4 | 回归收口 + 本报告 + 留痕 | （本提交） | （回填） | full 3701/0 + soak 8/8 + tsc 0 |
+| 4 | 回归收口 + 本报告 + 留痕 | 8835b0b + f79edfc（报告 -f 入库） | （记录维护提交） | full 3701/0 + soak 8/8 + tsc 0 |
 
 ## 三、级 4 三级判定设计（最终实现）
 
