@@ -14,6 +14,7 @@ import {
   CrossValidator,
   type VerificationVote,
   type VoteDispatch,
+  type ArbitrateFn,
 } from "../../src/agents/cross-validator.js";
 
 /** 便捷构造：按票型字符串数组生成投票（模型名自动编号） */
@@ -176,14 +177,14 @@ describe("S2 parseVoteVerdict：票面解析", () => {
   });
 });
 
-/** fake dispatch：记录调用序列，按脚本返回 {model, content} 或抛错 */
+/** fake dispatch：记录调用序列（含 messages 供仲裁提示词断言），按脚本返回 {model, content} 或抛错 */
 function makeDispatchFake(
   script: Array<{ model: string; content: string | null } | { error: true }>,
 ) {
-  const calls: Array<{ role: string; excludeModels: string[] }> = [];
+  const calls: Array<{ role: string; excludeModels: string[]; messages: readonly { role: string; content: string }[] }> = [];
   let i = 0;
-  const dispatch: VoteDispatch = async (role, _messages, opts) => {
-    calls.push({ role, excludeModels: [...(opts?.excludeModels ?? [])] });
+  const dispatch: VoteDispatch = async (role, messages, opts) => {
+    calls.push({ role, excludeModels: [...(opts?.excludeModels ?? [])], messages });
     const step = script[i++];
     if (!step) throw new Error("fake dispatch: script exhausted");
     if ("error" in step) throw new Error("upstream 500");
@@ -273,5 +274,96 @@ describe("S2 CrossValidator.validate：分发 + 聚合 + fail-closed", () => {
     const r = await new CrossValidator({ dispatch }).validate("x", ["decision"]);
     expect(r.aggregate.outcome).toBe("insufficient");
     expect(r.aggregate.needsArbitration).toBe(true);
+  });
+});
+
+// ============ S3：分歧裁决（仲裁端口注入，fail-closed 未决不默认放行） ============
+
+/** fake arbitrate：记录入参，按脚本返回票或抛错 */
+function makeArbitrateFake(
+  step: { verdict: "agree" | "disagree" | "abstain" } | { error: true },
+) {
+  const calls: Array<{ conclusion: string; votes: readonly VerificationVote[] }> = [];
+  const arbitrate: ArbitrateFn = async (conclusion, votes) => {
+    calls.push({ conclusion, votes: [...votes] });
+    if ("error" in step) throw new Error("arbiter upstream 500");
+    return step.verdict;
+  };
+  return { arbitrate, calls };
+}
+
+describe("S3 CrossValidator 仲裁接缝：触发与裁决", () => {
+  it("平票 + 仲裁 agree → triggered/resolved，finalVerdict=agree，仲裁收到结论与全票", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "DISAGREE" },
+    ]);
+    const { arbitrate, calls } = makeArbitrateFake({ verdict: "agree" });
+    const r = await new CrossValidator({ dispatch, arbitrate }).validate("K8s 是数据库", [
+      "decision",
+      "review",
+    ]);
+    expect(r.aggregate.outcome).toBe("tie");
+    expect(r.arbitration.triggered).toBe(true);
+    expect(r.arbitration.resolved).toBe(true);
+    expect(r.arbitration.finalVerdict).toBe("agree");
+    expect(calls.length).toBe(1);
+    expect(calls[0].conclusion).toBe("K8s 是数据库");
+    expect(calls[0].votes.map((v) => v.verdict)).toEqual(["agree", "disagree"]);
+  });
+
+  it("有效票不足（单票）+ 仲裁 disagree → finalVerdict=disagree（仲裁可救 insufficient）", async () => {
+    const { dispatch } = makeDispatchFake([{ model: "m1", content: "AGREE" }]);
+    const { arbitrate } = makeArbitrateFake({ verdict: "disagree" });
+    const r = await new CrossValidator({ dispatch, arbitrate }).validate("x", ["decision"]);
+    expect(r.aggregate.outcome).toBe("insufficient");
+    expect(r.arbitration).toMatchObject({ triggered: true, resolved: true, finalVerdict: "disagree" });
+  });
+
+  it("仲裁弃权（abstain）→ resolved=false + finalVerdict=null（fail-closed 未决）", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "DISAGREE" },
+    ]);
+    const { arbitrate } = makeArbitrateFake({ verdict: "abstain" });
+    const r = await new CrossValidator({ dispatch, arbitrate }).validate("x", ["decision", "review"]);
+    expect(r.arbitration).toMatchObject({
+      triggered: true,
+      resolved: false,
+      verdict: "abstain",
+      finalVerdict: null,
+    });
+  });
+
+  it("仲裁抛错 → 不崩溃，resolved=false + finalVerdict=null（fail-closed）", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "DISAGREE" },
+    ]);
+    const { arbitrate } = makeArbitrateFake({ error: true });
+    const r = await new CrossValidator({ dispatch, arbitrate }).validate("x", ["decision", "review"]);
+    expect(r.arbitration).toMatchObject({ triggered: true, resolved: false, finalVerdict: null });
+  });
+
+  it("共识（无需仲裁）→ arbitrate 零调用，arbitration.triggered=false 且 finalVerdict 透传聚合结论", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "AGREE" },
+    ]);
+    const { arbitrate, calls } = makeArbitrateFake({ verdict: "disagree" });
+    const r = await new CrossValidator({ dispatch, arbitrate }).validate("x", ["decision", "review"]);
+    expect(calls.length).toBe(0); // 铁律：共识绝不叫仲裁（防仲裁翻案已定结论）
+    expect(r.arbitration.triggered).toBe(false);
+    expect(r.arbitration.resolved).toBe(true);
+    expect(r.arbitration.finalVerdict).toBe("agree");
+  });
+
+  it("未配置 arbitrate 的分歧 → triggered=false、resolved=false（保持 S1/S2 语义不变）", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "DISAGREE" },
+    ]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision", "review"]);
+    expect(r.arbitration).toMatchObject({ triggered: false, resolved: false, finalVerdict: null });
   });
 });

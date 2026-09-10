@@ -117,11 +117,38 @@ function voteMessages(conclusion: string): { role: string; content: string }[] {
 
 export interface CrossValidatorDeps {
   dispatch: VoteDispatch;
+  /**
+   * 仲裁端口（D3 冻结：平票/有效票不足时交裁决；生产可接仲裁角色或 ValidationPipeline，
+   * 接缝与 dispatch 同构由调用方适配，S3 只约定"结论+全票→票"契约）。缺省则分歧保持未决。
+   */
+  arbitrate?: ArbitrateFn;
+}
+
+/**
+ * 仲裁端口：给定结论与分歧票面，产出独立裁决票。
+ * 返回 abstain = 仲裁者亦无法定夺（fail-closed 未决，绝不默认放行）。
+ */
+export type ArbitrateFn = (
+  conclusion: string,
+  votes: readonly VerificationVote[],
+) => Promise<VoteVerdict>;
+
+/** 仲裁阶段结果（needsArbitration=false 时 triggered=false、finalVerdict 透传聚合结论） */
+export interface ArbitrationResult {
+  /** 是否进入仲裁流程（= aggregate.needsArbitration 且已配置 arbitrate） */
+  triggered: boolean;
+  /** 是否得到确定裁决（共识/多数恒 true；仲裁 agree/disagree 为 true；仲裁 abstain/抛错/未配置为 false） */
+  resolved: boolean;
+  /** 仲裁者原始票（未触发仲裁为 null） */
+  verdict: VoteVerdict | null;
+  /** 最终结论方向：共识/多数=聚合结论；仲裁成功=仲裁票；未决=null（fail-closed） */
+  finalVerdict: "agree" | "disagree" | null;
 }
 
 export interface CrossValidationResult {
   votes: VerificationVote[];
   aggregate: VoteAggregate;
+  arbitration: ArbitrationResult;
 }
 
 export class CrossValidator {
@@ -155,6 +182,44 @@ export class CrossValidator {
         votes.push({ model: `role:${role}`, verdict: "abstain" });
       }
     }
-    return { votes, aggregate: aggregateVotes(votes) };
+    const aggregate = aggregateVotes(votes);
+    return { votes, aggregate, arbitration: await this.arbitrate(conclusion, votes, aggregate) };
+  }
+
+  /**
+   * 分歧裁决（S3）。铁律：
+   * - 共识/多数（needsArbitration=false）→ 直接透传聚合结论，**绝不叫仲裁**（防翻案已定结论）；
+   * - tie/insufficient 且已配置 arbitrate → 触发仲裁；仲裁 abstain/抛错 → 未决（finalVerdict=null）；
+   * - 未配置 arbitrate → 保持分歧未决（triggered=false，向后兼容 S1/S2 语义）。
+   */
+  private async arbitrate(
+    conclusion: string,
+    votes: readonly VerificationVote[],
+    aggregate: VoteAggregate,
+  ): Promise<ArbitrationResult> {
+    if (!aggregate.needsArbitration) {
+      return {
+        triggered: false,
+        resolved: true,
+        verdict: null,
+        finalVerdict: aggregate.finalVerdict,
+      };
+    }
+    if (!this.deps.arbitrate) {
+      return { triggered: false, resolved: false, verdict: null, finalVerdict: null };
+    }
+    try {
+      const verdict = await this.deps.arbitrate(conclusion, votes);
+      const decided = verdict === "agree" || verdict === "disagree";
+      return {
+        triggered: true,
+        resolved: decided,
+        verdict,
+        finalVerdict: decided ? verdict : null,
+      };
+    } catch {
+      // 仲裁自身异常 → fail-closed 未决（对齐 S-A8 崩坏隔离：绝不默认放行）
+      return { triggered: true, resolved: false, verdict: null, finalVerdict: null };
+    }
   }
 }

@@ -1056,3 +1056,12 @@
 - **验证结果**：cross-validator 27/27（77 expect）；tsc --noEmit 退出码 0；tests/agents/ 31/31 无碰撞。
 - **偏差记录**：计划 S2 原措辞"并发调用"与 excludeModels 去重语义冲突——并发下后发调用看不到先发返回的模型，无法累积 excludeModels 保证"≥2 独立模型"（设计 3.3 核心）。改顺序分发，回 Plan 修正措辞（规则 12：影响验收标准回 Plan）。parseVoteVerdict 先判 DISAGREE 再判 AGREE（子串陷阱：DISAGREE 含 AGREE）。
 - **Commit**：da69371
+
+## 2026-09-10 — feat(mm-s3): CrossValidator 分歧裁决（仲裁端口注入，fail-closed 未决）
+
+- **任务**：实施 S3——needsArbitration（tie/insufficient）时交仲裁端口裁决，共识/多数绝不叫仲裁；仲裁弃权/抛错→未决（finalVerdict=null，绝不默认放行）。
+- **工具**：Read ValidationPipeline 接口（validation-pipeline.ts L21-89，确认其同步/结构化输入与投票语义不同构，仲裁端口按 D3 接缝同构 dispatch 设计，生产适配归调用方）→ git HEAD 补建 S3 前备份 → Edit 测试（追加 6 用例 + makeDispatchFake 记录 messages + makeArbitrateFake）→ Edit 实现 → bun test + tsc。无子代理。
+- **操作**（文件级）：src/agents/cross-validator.ts（新增 ArbitrateFn 端口、ArbitrationResult、CrossValidatorDeps.arbitrate 可选、validate 返回 arbitration 字段、私有 arbitrate 方法三段铁律）；tests/agents/cross-validator.test.ts（S3 describe 6 用例：平票+仲裁 agree 定案、insufficient+仲裁 disagree 救回、仲裁 abstain→未决、仲裁抛错→未决不崩溃、共识零调用透传、未配置向后兼容）。
+- **验证结果**：cross-validator 33/33（93 expect）；tsc --noEmit 退出码 0；tests/agents/ 37/37 无碰撞。
+- **偏差记录**：①S3 测试追加后未单独跑 RED 即实现（测试 import 的 ArbitrateFn 在 S2 版本必致编译失败，RED 为编译级必然，但流程上应先跑 RED 留证——如实记录，结果面 GREEN 证据完整）；②计划 S3 接缝列"validate 或 dispatch"，实现取"仲裁端口与 dispatch 同构由调用方适配 ValidationPipeline"，与 D3 平票交仲裁语义一致，无验收偏差。
+- **Commit**：[占位]
