@@ -1197,4 +1197,4 @@
 - **操作**（文件级）：新建 docs/superpowers/plans/2026-09-11-frontend-t1-closeout.md（交付总览/D1-D5 结论/实测证据/验收对照/偏差教训/移交 T2 未决项）；改 docs/superpowers/plans/2026-09-09-frontend-ux-completion-plan.md 状态行与 §1 T1 标题为「T1 已完成、T2 可开工」。
 - **验证结果**：报告内全部数字与链接指向既有已提交产物（f17b368 / 2f27538 / acd2141），未新增任何未验证断言；验收对照逐项核对，CI 接线如实标注为 T2.3 未做（不声称完成）。
 - **偏差记录**：①计划文件与本 log 修改前已按规则 2 备份至 .tmp/backups/，验证通过后删除；②评审报告未新建模板/流程，仅汇总既有证据，符合规则 1 最小化；③**落点校正**：初稿写 docs/reports/（规则 5 用语），实测该目录被根 .gitignore `reports/` 排除、仓库历史 0 跟踪文件——遵循 2026-09-10 收口惯例改落 docs/superpowers/plans/*-closeout.md，并删除空目录。
-- **Commit**：待回填
+- **Commit**：5d1061f
