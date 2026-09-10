@@ -228,3 +228,111 @@ export class CrossValidator {
     }
   }
 }
+
+// ============ S6：关键结论触发策略（缺口 D，D4 冻结：可配置策略，非全量交叉验证） ============
+
+/** 触发判定输入（纯函数无隐藏状态，规则 8：启发式是保守近似，调用方可用 force 完全接管） */
+export interface CrossValidationTriggerOptions {
+  /** 显式强制（true=必验 / false=必不验），压过 patterns */
+  force?: boolean;
+  /** 关键结论命中词（缺省 = DEFAULT_CRITICAL_PATTERNS） */
+  criticalPatterns?: readonly RegExp[];
+  /** 豁免词（缺省 = DEFAULT_SKIP_PATTERNS；先于 critical 判定，skip 压过 critical） */
+  skipPatterns?: readonly RegExp[];
+}
+
+/** 默认关键结论词表：事实/结论/决定/方案类输出 + 高风险动作（迁移/上线/回滚）+ 英文对应 */
+export const DEFAULT_CRITICAL_PATTERNS: readonly RegExp[] = [
+  /事实[：:]/,
+  /结论[是为]/,
+  /决定/,
+  /方案/,
+  /架构/,
+  /迁移/,
+  /验收/,
+  /上线/,
+  /发布/,
+  /回滚/,
+  /\bconclusion\b/i,
+  /\bdecision\b/i,
+  /\bdeploy\b/i,
+  /\brelease\b/i,
+  /\barchitecture\b/i,
+  /\bmigration\b/i,
+];
+
+/** 默认豁免词表：寒暄/闲聊/简单应答（降本侧，设计 5.2 张力平衡） */
+export const DEFAULT_SKIP_PATTERNS: readonly RegExp[] = [
+  /闲聊/,
+  /随便聊聊/,
+  /你好/,
+  /您好/,
+  /嗨/,
+  /谢谢/,
+  /好的/,
+  /天气/,
+  /讲个笑话/,
+  /\byes\b/i,
+  /\bno\b/i,
+  /\bhi\b/i,
+  /\bhello\b/i,
+  /\bthanks?\b/i,
+];
+
+/**
+ * 触发判定（D4 冻结语义）：force 显式覆盖 > skip 命中豁免 > critical 命中触发 > 默认不触发。
+ * 保守取向：不确定形态（空文本/无命中）不触发——交叉验证是成本项，全量验证违反降本目标。
+ */
+export function decideCrossValidation(
+  text: string,
+  opts: CrossValidationTriggerOptions = {},
+): boolean {
+  if (opts.force === true) return true;
+  if (opts.force === false) return false;
+  const critical = opts.criticalPatterns ?? DEFAULT_CRITICAL_PATTERNS;
+  const skip = opts.skipPatterns ?? DEFAULT_SKIP_PATTERNS;
+  if (skip.some((re) => re.test(text))) return false;
+  return critical.some((re) => re.test(text));
+}
+
+/** 工厂产出的审核器（结构兼容 TaskOrchestrator 的 AnswerVerifier 接缝，S4） */
+export type TriggeredVerifier = (
+  answer: string,
+  call?: { crossValidate?: boolean; excludeModels?: readonly string[] },
+) => Promise<{ ok: boolean; feedback?: string }>;
+
+/**
+ * 组装"触发策略 + 交叉验证"为可直接注入 orchestrator.execute({verify}) 的审核器。
+ * - 恒按 decideCrossValidation 门控（D4：默认即关键结论触发，非全量）；trigger 配置词表，
+ *   trigger.force=true 可恢复"恒触发"（S5 全量验证语义）；
+ * - 不触发 → 直接 {ok:true} 且**绝不 dispatch**（降本铁律：非关键结论零验证成本）；
+ * - 触发 → 走 CrossValidator 全流程（S1-S3），disagree/未决一律 fail-closed ok:false。
+ */
+export function createCrossValidationVerifier(
+  deps: CrossValidatorDeps,
+  opts: {
+    roles: readonly TaskRole[];
+    validator?: CrossValidator;
+    trigger?: CrossValidationTriggerOptions;
+  },
+): TriggeredVerifier {
+  const validator = opts.validator ?? new CrossValidator(deps);
+  return async (answer, call) => {
+    const decided = decideCrossValidation(answer, {
+      ...opts.trigger,
+      ...(call?.crossValidate !== undefined ? { force: call.crossValidate } : {}),
+    });
+    if (!decided) return { ok: true };
+    const r = await validator.validate(
+      answer,
+      opts.roles,
+      call?.excludeModels ? { excludeModels: call.excludeModels } : undefined,
+    );
+    const verdict = r.arbitration.finalVerdict;
+    if (verdict === "agree") return { ok: true };
+    return {
+      ok: false,
+      feedback: `交叉验证未通过（finalVerdict=${verdict ?? "未决"}，outcome=${r.aggregate.outcome}），请修正`,
+    };
+  };
+}
