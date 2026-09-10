@@ -1189,3 +1189,12 @@
 - **验证结果**：①首跑 --update-snapshots 生成 21 基线；②复跑不带参数 **21/21 零 diff**（可复现自证）；③门禁自证——临时注入 3px 样式差异→chat 红（12959 像素 ratio 0.01>0.002），还原→绿，探针 GATE-SELFTEST 已 grep 确认无残留；④功能 e2e 回归 run-e2e.cjs 全套 exit 0「All E2E tests passed」（视觉 spec 在 e2e-visual/ 不在 run-e2e 读取的 e2e/，物理隔离，存量零影响）；⑤体积实测 21 PNG/3.44MB<<50MB→D3 定 git 跟踪（写 ADR-003）。
 - **偏差记录**：①**契约偏离校正（规则 12 回 Plan）**：初版误将视觉 spec 建在 e2e/ 下（会被 run-e2e.cjs 当功能用例跑、无基线首跑必 fail）且硬编码清单——违反契约"不动 playwright.config.mjs/独立 snapshot 配置"，已删除错建文件回退 e2e/.gitignore，按契约重建为独立 playwright.snapshot.config.mjs + e2e-visual/ 目录；②**清单来源冲突**：契约附录 A 引 DEFAULT_AUDIT_PAGES（仅 9 页 LLM 审核清单），但 ADR-002 已表决 21 页全量——服从更新且明确的 ADR-002，清单落 spec 内单一事实源（不复制），记此偏差；③**视口/浏览器裁剪**：契约矩阵 3 浏览器×3 视口，用户指示本轮 Desktop Chrome 单视口，扩展留待基线稳定后迭代；④tokens 页首跑崩（mock 默认 {} 但页面直读 data.overall.totalTokens），补 token-details fixture 修复（mock 形状不全，非生产 bug）；⑤mask 清单未交付（验收 5）：mock 下无动态区（全空态+固定 health），当前无需 mask，真实数据态基线时再迭代补齐。
 - **Commit**：acd2141
+
+## 2026-09-11 — docs(T1): 阶段文档整理与评审报告落盘（T1 收口，T2 解冻）
+
+- **任务**：用户指示「先停在这里，整理 T1 阶段文档」。把 T1.1/T1.2/T1.3 散落在 ADR、盘点报告、spec 与 ops log 中的产出收敛为一份阶段评审，并更新计划状态。纯文档，无代码改动。
+- **工具**：Read/Glob/Grep 汇总既有交付物、Write 新建评审报告、Edit 改计划状态行。无子代理。终止了上一轮遗留的后台 `bun test`（job-e2c13ac，输出为空、无结论价值）。
+- **操作**（文件级）：新建 docs/superpowers/plans/2026-09-11-frontend-t1-closeout.md（交付总览/D1-D5 结论/实测证据/验收对照/偏差教训/移交 T2 未决项）；改 docs/superpowers/plans/2026-09-09-frontend-ux-completion-plan.md 状态行与 §1 T1 标题为「T1 已完成、T2 可开工」。
+- **验证结果**：报告内全部数字与链接指向既有已提交产物（f17b368 / 2f27538 / acd2141），未新增任何未验证断言；验收对照逐项核对，CI 接线如实标注为 T2.3 未做（不声称完成）。
+- **偏差记录**：①计划文件与本 log 修改前已按规则 2 备份至 .tmp/backups/，验证通过后删除；②评审报告未新建模板/流程，仅汇总既有证据，符合规则 1 最小化；③**落点校正**：初稿写 docs/reports/（规则 5 用语），实测该目录被根 .gitignore `reports/` 排除、仓库历史 0 跟踪文件——遵循 2026-09-10 收口惯例改落 docs/superpowers/plans/*-closeout.md，并删除空目录。
+- **Commit**：待回填
