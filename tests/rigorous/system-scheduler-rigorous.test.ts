@@ -57,14 +57,19 @@ describe("严苛：VRAM Budget 边界与确定性回放", () => {
     expect(mgr.getResource().availableMemory).toBe(2100);
   });
 
-  test("recommendedMaxTokens 随 available 线性：2000 vs 4000 差约2倍", () => {
+  test("recommendedMaxTokens 随 available 线性：未饱和区 1500 vs 1900 差约2倍", () => {
     const { ResourceBudgetManager } = require("../../src/dre/system-resource.js");
     const mk = (avail: number) => new ResourceBudgetManager({ resource: { maxMemory: 4000, availableMemory: avail, maxCompute: 100, availableCompute: 100, source: "t" } }).canRun().recommendedMaxTokens!;
-    const a2000 = mk(2000);
-    const a4000 = mk(4000);
-    expect(a4000).toBeGreaterThan(a2000);
-    expect(a4000 / a2000).toBeGreaterThan(1.8);
-    expect(a4000 / a2000).toBeLessThan(3.5);
+    // 观测点必须落在未饱和区：recommendedMaxTokens = min(floor(min(avail-1100, kvCacheMaxMB=2200)×1024²/229376), cap=4096)。
+    // 旧用例取 2000/4000：kv=900→4114→钳 4096、kv=2900→10057→钳 4096，两点双双饱和恒 4096，线性断言必然失败
+    // （与 jitter 无关：独立实例绕过 updateResource，防抖不参与）。改取 1500/1900 → kv=400/800（翻倍且均 <4096 未饱和）。
+    const a1500 = mk(1500);
+    const a1900 = mk(1900);
+    expect(a1500).toBeGreaterThan(0);
+    expect(a1900).toBeLessThan(4096); // 确认仍在未饱和区，观测点有效
+    expect(a1900).toBeGreaterThan(a1500);
+    expect(a1900 / a1500).toBeGreaterThan(1.8);
+    expect(a1900 / a1500).toBeLessThan(3.5);
   });
 
   test("并发：100 并发 updateResource 不崩且最终为合法值", async () => {

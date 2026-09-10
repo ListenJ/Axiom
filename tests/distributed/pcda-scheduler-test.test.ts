@@ -86,6 +86,18 @@ function makeCrossTalkResult(
   });
 }
 
+/**
+ * 端到端用例专用：中性化性能阈值（expectedMaxResponseMs 放大到不可能触发），
+ * 隔离真实墙钟 p95 对 escalate/pass 决策的干扰。
+ * 根因：runConcurrentLoad 用 Date.now() 实测 setTimeout(5ms)，全量并发时事件循环拥塞使
+ * p95 膨胀（负载下可达阈值 2x → high performance issue → act 返回 degrade，破坏升级状态机断言）。
+ * 性能阈值判定本身由 Check 阶段单测（mock TestResult，见"P95 响应时间超阈值"）确定覆盖；
+ * 本组端到端用例只验证 Plan→Do→Check→Act 的 escalate/pass 状态机，不应耦合真实调度延迟。
+ */
+function loadLevelsNoPerfCap(): LoadLevel[] {
+  return LOAD_LEVELS.map((l) => ({ ...l, expectedMaxResponseMs: 1_000_000 }));
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Plan 阶段测试
 // ═══════════════════════════════════════════════════════════════
@@ -333,6 +345,7 @@ describe("PCDAScheduler — 完整循环", () => {
       initialLoadLevel: 1,
       autoEscalate: true,
       maxLoadLevel: 4,
+      customLoadLevels: loadLevelsNoPerfCap(), // 隔离真实墙钟 p95，专注 escalate/pass 状态机
     };
 
     const scheduler = new PCDAScheduler(config, localCluster());
@@ -352,6 +365,7 @@ describe("PCDAScheduler — 完整循环", () => {
       maxCycles: 1,
       initialLoadLevel: 1, // warmup
       autoEscalate: false,
+      customLoadLevels: loadLevelsNoPerfCap(), // 隔离真实墙钟 p95，专注 passed 判定（无幻觉/串词）
     };
 
     const scheduler = new PCDAScheduler(config, localCluster());

@@ -1138,3 +1138,15 @@
 - **偏差记录**：①首跑 1 fail 未留日志、后续 5 次全量 + 3 次单跑不可复现——按规则 6 不盲改：无最小复现回路即无法定位，不凭猜测改测试（如放宽 elapsed<50ms 墙钟断言）；②观察点：D.1"连续失败触发熔断"负载下 6.1s（单跑 2.3s，慢化 2.6x，疑 llmCache 持久化 SQLite 跨文件争用；该用例 D.1 describe 无 llmCache.clear，而 D.2 有），若未来复现超时类失败优先查此；③账本剩余 2 项（system-scheduler-rigorous jitter / pcda-scheduler 负载失稳）待逐项勘察。
 - **未决项**：network-resilience 纳入后偶发 1 fail（发生率 ~1/6 全量运行，未归因）。处置：保留在 test:full 守护面（6 次全量 1 fail 5 绿 + 单跑 3 绿，证据倾向首跑为环境噪声/冷启动效应）；若再次复现，按规则 6 从 D.1 慢化观察点切入建回路。
 - **Commit**：b641355
+
+## 2026-09-10 — fix(test-flaky): 账本最后 2 项 scheduler 定性修复（rigorous 观测点饱和 / pcda 真实墙钟 p95），账本清空
+
+- **任务**：用户指定啃账本最后 2 项 scheduler。Phase 1 回路定性：rigorous 单跑稳定 1 fail（确定性）；pcda 单跑/isolate 18/0 全绿（真负载敏感，账本记录 ~1/6 全量复现）。
+- **根因（Phase 3-4）**：
+  - rigorous "recommendedMaxTokens 2000 vs 4000 线性"：`recommendedMaxTokens = min(floor(min(avail-1100, kvCacheMaxMB=2200)×1024²/229376), cap=4096)`。取 2000→kv900→4114→钳 4096、4000→kv2900→10057→钳 4096，**两点双双落在饱和区恒 4096**，线性断言必失。**账本"jitter 过滤干扰"归因错误**：测试用 `new ResourceBudgetManager({resource})` 直接构造绕过 updateResource，防抖根本不参与。属确定性测试观测点缺陷（cap=4096 是 H-3 有意 ctx 上限，非生产 bug）。
+  - pcda "autoEscalate 升级断言时序敏感"：`runConcurrentLoad` 用 `Date.now()-reqStart` 实测 `setTimeout(5ms)`，全量并发时事件循环拥塞使 p95 膨胀；level-2 阈值 50ms，负载下可达 2x → high performance issue → `act` 返回 `degrade`，而端到端用例断言集 `[pass,escalate,fail]` 不含 degrade → 失败。真负载敏感（非逻辑错误）。
+- **工具**：bun test（RED/GREEN 单跑 + 4 次全量连跑）、Grep/Read 定位 system-resource 钳制公式与 pcda-scheduler check/act 路径。无子代理。
+- **操作**（文件级）：①tests/rigorous/system-scheduler-rigorous.test.ts（观测点 2000/4000→未饱和区 1500/1900，kv=400/800 翻倍且均<4096；加 a1900<4096 断言锁定观测点有效；改测试名+注释澄清饱和根因）；②tests/distributed/pcda-scheduler-test.test.ts（新增 `loadLevelsNoPerfCap()` helper 经既有 `customLoadLevels` 接缝中性化 expectedMaxResponseMs，仅用于 2 个依赖 p95 决策的端到端用例——autoEscalate 升级、warmup passed；性能阈值判定本身由 Check 单测 mock result 确定覆盖）；③scripts/test-full.ts（EXCLUDE_FILES 清空，账本 4 项存量全部修复移出）。无生产代码改动。
+- **验证结果**：rigorous 单跑 14 pass/0 fail；pcda 单跑/isolate 18 pass/0 fail；`bun run test:full` **4 次全量连跑全绿**（3871 pass/35 skip/0 fail，388 文件，file ledger:0，exit 0；+32 pass/+2 文件与两文件用例数吻合）；tsc 0。pcda 历史 ~1/6 复现率，4 次全绿 + 机制隔离（不再耦合真实墙钟）为充分稳定性证据。
+- **偏差记录**：①rigorous 账本"jitter 归因"经勘察证伪，实为观测点落饱和区——修正记录；②pcda 用 customLoadLevels 中性化性能阈值是隔离测试关注点（端到端测状态机、Check 单测测阈值），非掩盖生产性能问题；真实 p95 性能由 test:stress（.slow.ts）专门度量，本就不属单测职责；③network-resilience 上一轮未归因偶发 fail 在本轮 4 次全量中未复现，继续观察。
+- **Commit**：[占位]

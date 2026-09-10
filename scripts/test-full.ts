@@ -24,16 +24,12 @@ const EXCLUDE_DIRS = ["node_modules", "stress", "e2e"];
  * 单文件黑名单（相对收集根的 POSIX 路径）——"已知 flaky/环境依赖"显式账本。
  * 约定：新增测试在全量跑中发现 flaky/环境依赖 → 先入此清单并注明依据，修复后移除。
  *
- * 以下各项均为存量失败（2026-08-30 全量自动发现首次盘点，单文件独立运行可复现，
- * 与本脚本无关；修复后应移出本清单）：
+ * 2026-09-10：2026-08-30 首次盘点的 4 项存量已全部修复移出
+ * （llm-cache 拖欠清理 / abnormal-input 与 network-resilience 缺 await /
+ *  rigorous 观测点落饱和区 / pcda 端到端用例中性化真实墙钟 p95）。
+ * 账本清空；后续新发现 flaky 按约定重新登记。
  */
-const EXCLUDE_FILES: string[] = [
-  // ResourceBudget recommendedMaxTokens 2000 vs 4000 线性断言（存量，jitter 过滤干扰）
-  "rigorous/system-scheduler-rigorous.test.ts",
-  // autoEscalate 升级断言时序敏感：单文件独立运行（含 --isolate）全绿，
-  // 全量负载下 ~1.6s 升级窗口失稳（2026-08-30 两次全量复现，见 operations-log）
-  "distributed/pcda-scheduler-test.test.ts",
-];
+const EXCLUDE_FILES: string[] = [];
 
 /** 慢速属性测试后缀（长时运行，由 test:stress / stress-runner 单独调度） */
 const SLOW_SUFFIX = ".slow.ts";
