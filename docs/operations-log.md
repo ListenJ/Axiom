@@ -1074,3 +1074,12 @@
 - **验证结果**：RED（verification 不存在 6 fail）→GREEN 6/6（18 expect）；tsc --noEmit 退出码 0；orchestrator 既有 5 测试文件 31/31 零改动复跑无碰撞（回归铁律：主链路未破坏）。diff 范围核对：仅 task-orchestrator.ts +113/-20 + 新测试，无清单外改动。
 - **偏差记录**：①首版测试用 spyOn 复用致 mock.calls 跨用例累积、toHaveBeenCalledTimes 不可靠，重写为每用例独立闭包计数器+afterEach 显式 restore（测试面缺陷，非实现问题，旧版已备份 .tmp）；②verify 抛错语义：设计为"立即降级不触发修正重跑"（校验器已挂重跑无意义），比计划"裁决失败 fail-closed"更精确，无验收偏差；③executeMultiAgent 暂不接回环（S4 范围仅 execute()），如实标注。
 - **Commit**：73b0116
+
+## 2026-09-10 — test(mm-s5): 端到端 fail-closed 铁律集成测试（缺口 A+B 串联，对齐 S-A8 切片 7）
+
+- **任务**：实施 S5——用单一 fake router（executeWithRole spy 同时承接任务执行/交叉验证/仲裁三类调用）串联 TaskOrchestrator.execute（S4 回环）← verify 适配 ← CrossValidator（S1 聚合/S2 分发/S3 仲裁），断言幻觉/未决结论绝不静默放行。
+- **工具**：Read 计划 S5 口径 + cross-validator.ts / task-orchestrator.ts 全文 + executeWithRole 签名（确认三类调用可经消息特征路由）→ 备份 cross-validator.ts → Write RED 集成测试（4 用例）→ Edit 补告警 → bun test + tsc + 并行回归 + 全量。Explore 子代理定位失败文件路径。
+- **操作**（文件级）：新建 tests/integration/multi-model-failclosed.test.ts（4 用例：正常共识 AGREE→passed 放行+excludeModels 去重断言、幻觉共识 DISAGREE→修正一轮仍不过→degraded 拦截、全角色分发异常→abstain→insufficient→仲裁弃权→degraded+logger.warn 告警、平票+仲裁弃权→degraded）；src/agents/cross-validator.ts（validate 分发 catch 补 logger.warn 告警，兑现计划"协调器异常→fail-closed+告警"——原实现仅票面降级 abstain、异常静默，无 warn）。
+- **验证结果**：RED（告警断言 1 fail，其余 3 绿）→GREEN 4/4；tsc --noEmit 退出码 0；agents/router/integration 并行 123/123 绿；全量 3975 pass/10 fail（10 fail 经"暂存改动前后同文件集对比"证实为既有失败：perf 门禁/并发压测/文档 grep 类，与本次 diff 无交集）。
+- **偏差记录**：①计划 S5 接缝列"集成"，实现取"单一 executeWithRole spy 按消息 system 前缀路由三类调用"，未新建独立 fake router 模块——最小化（规则 1），零生产接线改动除告警外；②发现并修复既有缺口：CrossValidator 分发异常原静默转 abstain、无 warn，不满足计划"协调器异常→告警"，补 logger.warn（唯一生产改动）；③直跑 `bun test <多目录>`（非 --parallel）会跨文件 spyOn(router) 泄漏致 S4/S5 假失败——项目标准命令用 --parallel=8 进程隔离，验证一律按权威并行口径。
+- **Commit**：[占位]

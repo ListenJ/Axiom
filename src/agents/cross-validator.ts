@@ -11,6 +11,7 @@
  * 仲裁角色）分别归 S2/S3，经依赖注入接入（规则 8：接缝在测试面）。
  */
 import type { TaskRole } from "../router/models/types.js";
+import { logger } from "../utils/logger.js";
 
 /** 单模型验证票：agree=认可结论；disagree=否定结论；abstain=该模型未能给出可判票（超时/解析失败，S2 映射） */
 export type VoteVerdict = "agree" | "disagree" | "abstain";
@@ -178,7 +179,11 @@ export class CrossValidator {
         });
         used.push(res.model);
         votes.push({ model: res.model, verdict: parseVoteVerdict(res.content) });
-      } catch {
+      } catch (e) {
+        // S5 告警铁律（对齐 S-A8 切片 7）：分发异常不得静默，票面降级 abstain 同时留 warn
+        logger.warn(
+          `[CrossValidator] dispatch threw for role ${role} (fail-closed abstain): ${e instanceof Error ? e.message : String(e)}`,
+        );
         votes.push({ model: `role:${role}`, verdict: "abstain" });
       }
     }
