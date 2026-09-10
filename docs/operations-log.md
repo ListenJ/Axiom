@@ -1137,4 +1137,4 @@
 - **验证结果**：单文件 3 连跑 11 pass/0 fail；`bun run test:full` 首跑纳入后 **1 fail（3838 pass，用例名未捕获）**，随后 **5 次全量连跑全绿**（3838-3839 pass/35 skip/0 fail，386 文件，exit 0）；tsc 0。
 - **偏差记录**：①首跑 1 fail 未留日志、后续 5 次全量 + 3 次单跑不可复现——按规则 6 不盲改：无最小复现回路即无法定位，不凭猜测改测试（如放宽 elapsed<50ms 墙钟断言）；②观察点：D.1"连续失败触发熔断"负载下 6.1s（单跑 2.3s，慢化 2.6x，疑 llmCache 持久化 SQLite 跨文件争用；该用例 D.1 describe 无 llmCache.clear，而 D.2 有），若未来复现超时类失败优先查此；③账本剩余 2 项（system-scheduler-rigorous jitter / pcda-scheduler 负载失稳）待逐项勘察。
 - **未决项**：network-resilience 纳入后偶发 1 fail（发生率 ~1/6 全量运行，未归因）。处置：保留在 test:full 守护面（6 次全量 1 fail 5 绿 + 单跑 3 绿，证据倾向首跑为环境噪声/冷启动效应）；若再次复现，按规则 6 从 D.1 慢化观察点切入建回路。
-- **Commit**：[占位]
+- **Commit**：b641355
