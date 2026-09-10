@@ -1055,4 +1055,4 @@
 - **操作**（文件级）：src/agents/cross-validator.ts（新增 VoteDispatch 端口类型、parseVoteVerdict 票面解析、voteMessages 系统提示、CrossValidator 类 validate 方法）；tests/agents/cross-validator.test.ts（追加 S2 两 describe：parseVoteVerdict 4 + validate 8，含 makeDispatchFake）；计划文档 S2 行措辞修正（并发→顺序分发）。
 - **验证结果**：cross-validator 27/27（77 expect）；tsc --noEmit 退出码 0；tests/agents/ 31/31 无碰撞。
 - **偏差记录**：计划 S2 原措辞"并发调用"与 excludeModels 去重语义冲突——并发下后发调用看不到先发返回的模型，无法累积 excludeModels 保证"≥2 独立模型"（设计 3.3 核心）。改顺序分发，回 Plan 修正措辞（规则 12：影响验收标准回 Plan）。parseVoteVerdict 先判 DISAGREE 再判 AGREE（子串陷阱：DISAGREE 含 AGREE）。
-- **Commit**：[占位]
+- **Commit**：da69371
