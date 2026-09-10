@@ -10,7 +10,10 @@
 import { describe, expect, it } from "bun:test";
 import {
   aggregateVotes,
+  parseVoteVerdict,
+  CrossValidator,
   type VerificationVote,
+  type VoteDispatch,
 } from "../../src/agents/cross-validator.js";
 
 /** 便捷构造：按票型字符串数组生成投票（模型名自动编号） */
@@ -143,5 +146,132 @@ describe("S1 aggregateVotes：不变量", () => {
     const a = aggregateVotes(votes("agree", "disagree", "agree"));
     const b = aggregateVotes(votes("disagree", "agree", "agree"));
     expect(a).toEqual(b);
+  });
+});
+
+// ============ S2：validate 接注入 dispatch（fake router，零网络） ============
+
+/** 票面文本解析（D2 复用 registry 角色，模型以自由文本作答，需鲁棒解析成票） */
+describe("S2 parseVoteVerdict：票面解析", () => {
+  it("显式 VERDICT: AGREE / DISAGREE（大小写不敏感）", () => {
+    expect(parseVoteVerdict("VERDICT: AGREE")).toBe("agree");
+    expect(parseVoteVerdict("verdict: disagree")).toBe("disagree");
+  });
+
+  it("裸词 AGREE / DISAGREE（含 DISAGREE 不误判为 AGREE——子串陷阱）", () => {
+    expect(parseVoteVerdict("AGREE")).toBe("agree");
+    expect(parseVoteVerdict("DISAGREE")).toBe("disagree");
+    expect(parseVoteVerdict("I DISAGREE with this claim.")).toBe("disagree");
+  });
+
+  it("先给理由再给票（取票面关键词）", () => {
+    expect(parseVoteVerdict("After checking the sources, I agree.")).toBe("agree");
+  });
+
+  it("无票面关键词 / 空 / null → abstain（未能给出可判票）", () => {
+    expect(parseVoteVerdict("maybe, not sure")).toBe("abstain");
+    expect(parseVoteVerdict("")).toBe("abstain");
+    expect(parseVoteVerdict(null)).toBe("abstain");
+    expect(parseVoteVerdict(undefined)).toBe("abstain");
+  });
+});
+
+/** fake dispatch：记录调用序列，按脚本返回 {model, content} 或抛错 */
+function makeDispatchFake(
+  script: Array<{ model: string; content: string | null } | { error: true }>,
+) {
+  const calls: Array<{ role: string; excludeModels: string[] }> = [];
+  let i = 0;
+  const dispatch: VoteDispatch = async (role, _messages, opts) => {
+    calls.push({ role, excludeModels: [...(opts?.excludeModels ?? [])] });
+    const step = script[i++];
+    if (!step) throw new Error("fake dispatch: script exhausted");
+    if ("error" in step) throw new Error("upstream 500");
+    return step;
+  };
+  return { dispatch, calls };
+}
+
+describe("S2 CrossValidator.validate：分发 + 聚合 + fail-closed", () => {
+  it("三角色全 agree → consensus，dispatch 收到 3 次调用", async () => {
+    const { dispatch, calls } = makeDispatchFake([
+      { model: "deepseek-a", content: "VERDICT: AGREE" },
+      { model: "qwen-b", content: "I agree" },
+      { model: "glm-c", content: "agree" },
+    ]);
+    const v = new CrossValidator({ dispatch });
+    const r = await v.validate("Kubernetes 是容器编排系统", ["decision", "evaluation", "review"]);
+    expect(calls.length).toBe(3);
+    expect(r.votes.map((x) => x.verdict)).toEqual(["agree", "agree", "agree"]);
+    expect(r.aggregate.outcome).toBe("consensus");
+    expect(r.aggregate.finalVerdict).toBe("agree");
+  });
+
+  it("2 agree + 1 disagree → majority(agree)，票按角色顺序记录", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "DISAGREE" },
+      { model: "m3", content: "AGREE" },
+    ]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision", "review", "research"]);
+    expect(r.aggregate).toMatchObject({ outcome: "majority", finalVerdict: "agree", agree: 2, disagree: 1 });
+  });
+
+  it("excludeModels 累积防重复：第 2 次调用收到第 1 次返回的模型", async () => {
+    const { dispatch, calls } = makeDispatchFake([
+      { model: "deepseek-a", content: "AGREE" },
+      { model: "qwen-b", content: "AGREE" },
+    ]);
+    await new CrossValidator({ dispatch }).validate("x", ["decision", "evaluation"]);
+    expect(calls[0].excludeModels).toEqual([]);
+    expect(calls[1].excludeModels).toContain("deepseek-a");
+  });
+
+  it("调用方预置 excludeModels 透传并累积", async () => {
+    const { dispatch, calls } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: "AGREE" },
+    ]);
+    await new CrossValidator({ dispatch }).validate("x", ["decision", "review"], {
+      excludeModels: ["forbidden-model"],
+    });
+    expect(calls[0].excludeModels).toEqual(["forbidden-model"]);
+    expect(calls[1].excludeModels).toEqual(["forbidden-model", "m1"]);
+  });
+
+  it("错误隔离：某角色 dispatch 抛错 → 该票记 abstain，不使整体崩溃", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { error: true },
+      { model: "m3", content: "AGREE" },
+    ]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision", "review", "research"]);
+    expect(r.votes.map((x) => x.verdict)).toEqual(["agree", "abstain", "agree"]);
+    expect(r.aggregate).toMatchObject({ outcome: "consensus", finalVerdict: "agree", abstain: 1 });
+  });
+
+  it("content 为 null（上游空响应）→ abstain", async () => {
+    const { dispatch } = makeDispatchFake([
+      { model: "m1", content: "AGREE" },
+      { model: "m2", content: null },
+      { model: "m3", content: "AGREE" },
+    ]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision", "review", "research"]);
+    expect(r.votes[1].verdict).toBe("abstain");
+  });
+
+  it("全角色抛错 → 全 abstain → insufficient + needsArbitration（fail-closed）", async () => {
+    const { dispatch } = makeDispatchFake([{ error: true }, { error: true }]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision", "review"]);
+    expect(r.aggregate.outcome).toBe("insufficient");
+    expect(r.aggregate.needsArbitration).toBe(true);
+    expect(r.aggregate.finalVerdict).toBeNull();
+  });
+
+  it("单角色验证 → insufficient（有效票 <2，不满足 ≥2 独立验证）", async () => {
+    const { dispatch } = makeDispatchFake([{ model: "m1", content: "AGREE" }]);
+    const r = await new CrossValidator({ dispatch }).validate("x", ["decision"]);
+    expect(r.aggregate.outcome).toBe("insufficient");
+    expect(r.aggregate.needsArbitration).toBe(true);
   });
 });

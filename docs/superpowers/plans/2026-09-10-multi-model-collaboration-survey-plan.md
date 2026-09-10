@@ -46,7 +46,7 @@
 |---|---|---|---|
 | **S0** | 计划冻结 + 关键决策确认（见第六节） | — | 用户批准 D1-D4 |
 | **S1** | `CrossValidator` 纯聚合逻辑（投票/分歧判定），先不接 LLM | 输入 N 个 verdict → 输出 一致/分歧/裁决 | 单测：全一致/2-1分歧/全分歧/单模型退化 |
-| **S2** | `CrossValidator` 接 `Dispatcher.dispatch(role)` 并发调用（fake router 注入） | deps: {dispatch} | 单测：≥2 角色调用、excludeModels 防重复、错误隔离 |
+| **S2** | `CrossValidator` 接 `Dispatcher.dispatch(role)` **顺序分发**（fake router 注入；excludeModels 须累积前序已用模型以保证"独立模型"去重，故非并发） | deps: {dispatch} | 单测：≥2 角色调用、excludeModels 防重复、错误隔离→abstain |
 | **S3** | 分歧裁决接 `ValidationPipeline`（S-A8 复用）或仲裁角色 | deps: {validate 或 dispatch} | 单测：分歧→触发裁决、裁决失败 fail-closed |
 | **S4** | `TaskOrchestrator` 审核回环（缺口 B）：执行→指挥回验→修正 | 扩展 execute() 可选 verify 阶段 | 单测：回验通过直出、不通过触发一次修正、二次仍不过降级 |
 | **S5** | 端到端 fail-closed 铁律（对齐 S-A8 切片 7）：真实 fake router + 断言交叉验证拦截幻觉结论 | 集成 | 单测：幻觉注入→拦截、正常→放行、协调器异常→fail-closed+告警 |

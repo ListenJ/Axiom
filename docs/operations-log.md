@@ -1047,3 +1047,12 @@
 - **验证结果**：RED（模块缺失）→GREEN 15/15（50 expect）；tsc --noEmit 退出码 0；tests/agents/ 目录 19/19 无碰撞（纯新增文件）。
 - **偏差记录**：无。S2-S7 按计划顺序推进，S2 接 Dispatcher（fake dispatch 注入）。
 - **Commit**：5788948
+
+## 2026-09-10 — feat(mm-s2): CrossValidator 接分发端口（顺序分发 + 票面解析 + 错误隔离）
+
+- **任务**：实施 S2——CrossValidator.validate 经注入 dispatch 端口对结论做 ≥N 角色独立交叉验证（缺口 A 分发层，fake router 零网络）。
+- **工具**：Read 生产接口（TaskRole 联合类型 models/types.ts:20、SmartAssignmentResponse model-router.ts:66）→ 备份 3 文件 → Edit 测试（追加 12 用例）→ Edit 实现 → bun test + tsc。无子代理。
+- **操作**（文件级）：src/agents/cross-validator.ts（新增 VoteDispatch 端口类型、parseVoteVerdict 票面解析、voteMessages 系统提示、CrossValidator 类 validate 方法）；tests/agents/cross-validator.test.ts（追加 S2 两 describe：parseVoteVerdict 4 + validate 8，含 makeDispatchFake）；计划文档 S2 行措辞修正（并发→顺序分发）。
+- **验证结果**：cross-validator 27/27（77 expect）；tsc --noEmit 退出码 0；tests/agents/ 31/31 无碰撞。
+- **偏差记录**：计划 S2 原措辞"并发调用"与 excludeModels 去重语义冲突——并发下后发调用看不到先发返回的模型，无法累积 excludeModels 保证"≥2 独立模型"（设计 3.3 核心）。改顺序分发，回 Plan 修正措辞（规则 12：影响验收标准回 Plan）。parseVoteVerdict 先判 DISAGREE 再判 AGREE（子串陷阱：DISAGREE 含 AGREE）。
+- **Commit**：[占位]
