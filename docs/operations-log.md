@@ -1109,4 +1109,4 @@
 - **操作**（文件级）：package.json（去首 3 字节 BOM，内容 trimStart(U+FEFF) 比对一致）；.env.example（按主题就近补登 15 变量：网关区 GATEWAY_PORT/PORT/MCP_CONNECT_TIMEOUT_MS、安全区 AXIOM_ALLOW_REMOTE_CDP/AXIOM_ENFORCE_MODE_APPROVAL/AXIOM_SECOND_FACTOR_TOKEN/EDGE_RISK_FAIL_CLOSED/RISK_VERDICT_CACHE_TTL_MS、知识库 KNOWLEDGE_USE_LLM、原生 AXIOM_VRAM_PROBE、爬虫 SEARCH_MAX_PER_DOMAIN、新增十八节自进化 REAL_USAGE_PATH/AXIOM_SELF_EVOLVE_AUTO/COOLDOWN_MS/MIN_NEW_TRACES；凭据类用空占位注释，遵守规则 11）；scripts/test-full.ts（EXCLUDE_FILES 移出 env-example-completeness/runtime-audit 两项，注释"6 项"改自调整表述）。
 - **验证结果**：两测试单跑 9/9 绿；`bun run test:full` **3782 pass / 35 skip / 0 fail**（383 文件，exit 0；较 S7 的 3773 增 9 = 移出账本纳入的用例）；tsc --noEmit 退出码 0；git diff --stat 核对改动仅 3 文件。
 - **偏差记录**：①package.json 属 git 跟踪文件，去 BOM 用字节级 WriteAllBytes 而非文本重写，避免行尾/编码二次污染，改后 content-equal 断言 + JSON.parse 双验；②15 变量登记值全部取代码内实际默认值（Grep 核实），非臆测；③账本移出后 test:full 文件数 381→383，pass 增量与移出用例数吻合，无新引入失败。
-- **Commit**：[占位]
+- **Commit**：21b1437
