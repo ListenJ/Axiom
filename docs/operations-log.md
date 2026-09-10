@@ -1028,4 +1028,4 @@
 - **操作**（文件级）：新建 scripts/frontend/render-depth-audit.ts（纯函数 scanJsxDepth(source)→{maxDepth,hotspots}，typescript 5.9.3 createSourceFile 遍历 JsxElement/JsxSelfClosingElement/JsxFragment 计层，DEPTH_WARN=10 契约冻结，hotspots 深度降序行号升序稳定排序；CLI 薄封装 Bun.Glob 扫 frontend/src 全部 .tsx → reports/frontend/render-depth.{json,md} 双份，无时间戳+路径升序=确定性）；新建 tests/frontend/render-depth-audit.test.ts（15 用例：浅嵌套/自闭合/Fragment/显式 Fragment/条件渲染/无JSX/精确深度 1-6-12/hotspots 阈值严格大于/行号精确/空源/语法错误容错/泛型箭头组件/可选链子元素）。
 - **验证结果**：RED（模块缺失）→GREEN 15/15（22 expect）；CLI 双跑 diff 为空（确定性验收）；tsc --noEmit 退出码 0（scripts 经测试 import 纳入检查）；package.json/bun.lock 零 diff（零新增依赖验收）。实测扫描：115 文件，最深 9 层（Chat/Vault/panels），0 热点（>10 层），分布 0-4 层 80 文件 + 5-9 层 35 文件（解析有效性佐证）。
 - **偏差记录**：首版块注释含 glob 模式 `**/*.tsx`，其中 `*/` 提前终止注释致语法错误（bun build 定位 7:65），改措辞后通过——测试面/实现均一次 GREEN，唯注释自毁一处。
-- **Commit**：[占位]
+- **Commit**：d6ff4a0
