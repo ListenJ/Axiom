@@ -1110,3 +1110,12 @@
 - **验证结果**：两测试单跑 9/9 绿；`bun run test:full` **3782 pass / 35 skip / 0 fail**（383 文件，exit 0；较 S7 的 3773 增 9 = 移出账本纳入的用例）；tsc --noEmit 退出码 0；git diff --stat 核对改动仅 3 文件。
 - **偏差记录**：①package.json 属 git 跟踪文件，去 BOM 用字节级 WriteAllBytes 而非文本重写，避免行尾/编码二次污染，改后 content-equal 断言 + JSON.parse 双验；②15 变量登记值全部取代码内实际默认值（Grep 核实），非臆测；③账本移出后 test:full 文件数 381→383，pass 增量与移出用例数吻合，无新引入失败。
 - **Commit**：21b1437
+
+## 2026-09-10 — chore(test-ledger): 移除 llm-cache flaky 账本条目（修复早已入库的拖欠清理）
+
+- **任务**：用户指定继续啃账本 llm-cache。勘察（规则 6 Phase 1 反馈回路）：单跑 `bun test tests/llm-cache.test.ts` 11/11 绿 ×3 次连跑稳定——**非现行失败**。git log 证实修复提交 `a825b92`（2026-09-06，fix(llm-cache): P0-B destroy() 只冲刷不清库 + E 组显式 flush 时序修复，TDD）已在当前分支——账本条目是该修复后未按约定移除的拖欠（账本注释明写"修复后应移出"）。
+- **工具**：bun test（RED 回路复现尝试→实际全绿）、git log/merge-base（修复提交溯源与分支包含性确认）。无子代理。
+- **操作**（文件级）：scripts/test-full.ts（EXCLUDE_FILES 移除 llm-cache.test.ts 条目及其注释，其余 4 条目不动）。无生产代码改动（勘察无缺陷证据，规则 1）。
+- **验证结果**：`bun run test:full` **3793 pass / 35 skip / 0 fail**（384 文件，exit 0；较上次 +11 pass/+1 文件 = llm-cache 11 用例纳入守护，增量吻合）；tsc --noEmit 退出码 0。
+- **偏差记录**：①任务预期"啃硬 bug"，实际勘察发现是账本拖欠清理（T2→T1 降级，按影响面如实处理）——若跳过 Phase 1 直接改代码即违反规则 6；②账本剩余 4 条目（EventBus 时序 ×2 / scheduler jitter / pcda 负载失稳）均为真时序敏感，修复需先建确定性回路，另行立项。
+- **Commit**：[占位]

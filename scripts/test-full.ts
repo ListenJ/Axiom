@@ -28,8 +28,6 @@ const EXCLUDE_DIRS = ["node_modules", "stress", "e2e"];
  * 与本脚本无关；修复后应移出本清单）：
  */
 const EXCLUDE_FILES: string[] = [
-  // L3 SQLite 持久化"写入后新实例可读取"（存量失败，operations-log 2026-08-30 P2-S1 已记录）
-  "llm-cache.test.ts",
   // EventBus async handler 抛错后仍继续执行后续 handler 的断言（存量时序敏感）
   "edge-cases/abnormal-input.test.ts",
   // EventBus 错误风暴后自愈断言（存量时序敏感）
