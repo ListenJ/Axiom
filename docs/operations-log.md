@@ -1127,4 +1127,4 @@
 - **操作**（文件级）：tests/edge-cases/abnormal-input.test.ts（A.5 两用例确定化：①"handler 抛错不影响后续"改 async + await publish；②"rejected Promise"删 setTimeout(50) 猜时序改 await publish——后者是负载失稳的真实来源）；scripts/test-full.ts（EXCLUDE_FILES 移除 abnormal-input 条目）。无生产代码改动（errors microtask 结算对 sync/async handler 语义一致，属合理设计，改之即扩权）。
 - **验证结果**：单文件 3 次连跑 35 pass/0 fail 稳定；`bun run test:full` **3828 pass / 35 skip / 0 fail**（385 文件，exit 0；+35 pass/+1 文件与 abnormal-input 用例数精确吻合）；tsc --noEmit 退出码 0。
 - **偏差记录**：①用户预期"虚拟时钟回路"，实际勘察发现根因是缺 await/setTimeout 猜时序，await 即完全确定化——虚拟时钟反而引入不必要的测试机制（规则 1/8），按事实采用最小接缝并如实报告；②修正上一条留痕判断：abnormal-input 并非"真时序敏感"，是确定性测试缺陷；账本剩余 3 条目（network-resilience 自愈断言 / scheduler jitter / pcda 负载失稳）待逐项勘察定性，不预设；③规则 2 备份：两改动文件均 git 跟踪，以 HEAD b8dd1e9 为回滚点（git show 可复原），未另做 .tmp/backups 物理副本，ops log 已备份。
-- **Commit**：[占位]
+- **Commit**：16bfea0
