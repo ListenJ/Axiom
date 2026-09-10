@@ -1149,4 +1149,4 @@
 - **操作**（文件级）：①tests/rigorous/system-scheduler-rigorous.test.ts（观测点 2000/4000→未饱和区 1500/1900，kv=400/800 翻倍且均<4096；加 a1900<4096 断言锁定观测点有效；改测试名+注释澄清饱和根因）；②tests/distributed/pcda-scheduler-test.test.ts（新增 `loadLevelsNoPerfCap()` helper 经既有 `customLoadLevels` 接缝中性化 expectedMaxResponseMs，仅用于 2 个依赖 p95 决策的端到端用例——autoEscalate 升级、warmup passed；性能阈值判定本身由 Check 单测 mock result 确定覆盖）；③scripts/test-full.ts（EXCLUDE_FILES 清空，账本 4 项存量全部修复移出）。无生产代码改动。
 - **验证结果**：rigorous 单跑 14 pass/0 fail；pcda 单跑/isolate 18 pass/0 fail；`bun run test:full` **4 次全量连跑全绿**（3871 pass/35 skip/0 fail，388 文件，file ledger:0，exit 0；+32 pass/+2 文件与两文件用例数吻合）；tsc 0。pcda 历史 ~1/6 复现率，4 次全绿 + 机制隔离（不再耦合真实墙钟）为充分稳定性证据。
 - **偏差记录**：①rigorous 账本"jitter 归因"经勘察证伪，实为观测点落饱和区——修正记录；②pcda 用 customLoadLevels 中性化性能阈值是隔离测试关注点（端到端测状态机、Check 单测测阈值），非掩盖生产性能问题；真实 p95 性能由 test:stress（.slow.ts）专门度量，本就不属单测职责；③network-resilience 上一轮未归因偶发 fail 在本轮 4 次全量中未复现，继续观察。
-- **Commit**：[占位]
+- **Commit**：b3e64bc
