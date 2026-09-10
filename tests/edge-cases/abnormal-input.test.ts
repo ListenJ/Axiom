@@ -274,7 +274,7 @@ describe("A.5 EventBus 异常输入处理", () => {
     subscribedIds.length = 0;
   });
 
-  test("handler 抛出错误不应影响后续 handler 执行", () => {
+  test("handler 抛出错误不应影响后续 handler 执行", async () => {
     const order: string[] = [];
     subscribedIds.push(
       eventBus.subscribe("test-error", () => {
@@ -288,7 +288,9 @@ describe("A.5 EventBus 异常输入处理", () => {
       }),
     );
 
-    eventBus.publish({
+    // publish 为 async：errors 在 Promise.allSettled 结算后自增（microtask），
+    // 必须 await 再读 stats，否则确定性读到 errors=0（原测试缺 await 是时序缺陷，非 flaky）。
+    await eventBus.publish({
       type: "test-error",
       source: "test",
       data: null,
@@ -308,15 +310,15 @@ describe("A.5 EventBus 异常输入处理", () => {
       }),
     );
 
-    eventBus.publish({
+    // await publish：errors 在 Promise.allSettled 结算后自增，await 即确定化，
+    // 不再用 setTimeout(50) 猜时序（负载下 50ms 可能不足，是该文件"时序敏感"的来源）。
+    await eventBus.publish({
       type: "test-async-error",
       source: "test",
       data: null,
       priority: "normal",
     });
 
-    // 等待微任务完成
-    await new Promise((r) => setTimeout(r, 50));
     const stats = eventBus.getStats();
     expect(stats.errors).toBeGreaterThan(0);
   });

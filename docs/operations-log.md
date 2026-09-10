@@ -1119,3 +1119,12 @@
 - **验证结果**：`bun run test:full` **3793 pass / 35 skip / 0 fail**（384 文件，exit 0；较上次 +11 pass/+1 文件 = llm-cache 11 用例纳入守护，增量吻合）；tsc --noEmit 退出码 0。
 - **偏差记录**：①任务预期"啃硬 bug"，实际勘察发现是账本拖欠清理（T2→T1 降级，按影响面如实处理）——若跳过 Phase 1 直接改代码即违反规则 6；②账本剩余 4 条目（EventBus 时序 ×2 / scheduler jitter / pcda 负载失稳）均为真时序敏感，修复需先建确定性回路，另行立项。
 - **Commit**：eb5085b
+
+## 2026-09-10 — fix(test-flaky): EventBus abnormal-input 时序确定化（缺 await + setTimeout 猜时序，移出账本）
+
+- **任务**：用户指定啃账本 EventBus abnormal-input 的"虚拟时钟回路"。Phase 1 回路：单跑稳定 1 fail/34 pass（非 flaky，确定性）。根因（Phase 3-4）：`publish` 为 async，`stats.errors` 在 `await Promise.allSettled` 之后才自增（src/dre/runtime/event-bus.ts:91-92），而失败用例用同步 `test(...)` 不 await publish 立即读 stats → 恒 errors=0。判定为**测试时序缺陷**而非生产缺陷；正确接缝是 await publish，无需虚拟时钟（避免投机抽象，规则 8）。
+- **工具**：bun test（RED 回路 + 3 次连跑 GREEN 验证）、Read/Grep 定位 publish 结算路径与同文件全部时序模式。无子代理。
+- **操作**（文件级）：tests/edge-cases/abnormal-input.test.ts（A.5 两用例确定化：①"handler 抛错不影响后续"改 async + await publish；②"rejected Promise"删 setTimeout(50) 猜时序改 await publish——后者是负载失稳的真实来源）；scripts/test-full.ts（EXCLUDE_FILES 移除 abnormal-input 条目）。无生产代码改动（errors microtask 结算对 sync/async handler 语义一致，属合理设计，改之即扩权）。
+- **验证结果**：单文件 3 次连跑 35 pass/0 fail 稳定；`bun run test:full` **3828 pass / 35 skip / 0 fail**（385 文件，exit 0；+35 pass/+1 文件与 abnormal-input 用例数精确吻合）；tsc --noEmit 退出码 0。
+- **偏差记录**：①用户预期"虚拟时钟回路"，实际勘察发现根因是缺 await/setTimeout 猜时序，await 即完全确定化——虚拟时钟反而引入不必要的测试机制（规则 1/8），按事实采用最小接缝并如实报告；②修正上一条留痕判断：abnormal-input 并非"真时序敏感"，是确定性测试缺陷；账本剩余 3 条目（network-resilience 自愈断言 / scheduler jitter / pcda 负载失稳）待逐项勘察定性，不预设；③规则 2 备份：两改动文件均 git 跟踪，以 HEAD b8dd1e9 为回滚点（git show 可复原），未另做 .tmp/backups 物理副本，ops log 已备份。
+- **Commit**：[占位]

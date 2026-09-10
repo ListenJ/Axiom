@@ -28,8 +28,6 @@ const EXCLUDE_DIRS = ["node_modules", "stress", "e2e"];
  * 与本脚本无关；修复后应移出本清单）：
  */
 const EXCLUDE_FILES: string[] = [
-  // EventBus async handler 抛错后仍继续执行后续 handler 的断言（存量时序敏感）
-  "edge-cases/abnormal-input.test.ts",
   // EventBus 错误风暴后自愈断言（存量时序敏感）
   "edge-cases/network-resilience.test.ts",
   // ResourceBudget recommendedMaxTokens 2000 vs 4000 线性断言（存量，jitter 过滤干扰）
