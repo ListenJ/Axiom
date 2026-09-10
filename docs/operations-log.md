@@ -1091,4 +1091,4 @@
 - **操作**（文件级）：src/agents/cross-validator.ts（新增 decideCrossValidation 纯函数：force 显式覆盖 > skip 豁免 > critical 命中 > 默认不触发；DEFAULT_CRITICAL/SKIP_PATTERNS 中英词表；createCrossValidationVerifier 工厂：组装触发策略+交叉验证为可直接注入 orchestrator.execute({verify}) 的审核器，不触发零 dispatch）；新建 tests/agents/cross-validation-trigger.test.ts（14 用例：优先级链/默认词表正反例/空文本/自定义接管/降本铁律零调用/force 恒触发/DISAGREE fail-closed/未决 fail-closed/显式强制/opts 复用无残留/validator 注入复用）。
 - **验证结果**：RED（import 编译失败）→GREEN 14/14（45 expect）；tsc --noEmit 退出码 0；agents/router/integration 并行 190/190（2 skip 既有）；全量 3989 pass/10 fail——10 fail 与 S5 基线完全一致（perf 门禁/并发压测/文档 grep 既有失败），零回归。
 - **偏差记录**：①首版实现"trigger 缺省=恒触发（兼容 S5）"致降本铁律用例红（闲聊文本也 dispatch），RED 回路暴露语义错误——改为"恒门控、trigger.force=true 恢复恒触发"（D4 冻结语义：默认即关键结论触发，非全量），同步修正测试假设；②工厂 call 参（crossValidate/excludeModels）与 AnswerVerifier 接缝兼容：orchestrator 只传单参，多余可选参不影响结构赋值。
-- **Commit**：[占位]
+- **Commit**：ed79cad
