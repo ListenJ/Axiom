@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0022",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题在『**审计**：升级判定写 `auditLogger`（`security.alert` 事件』处截断，源文本其后内容全部缺失：审计日志路径『`data/logs/audit.log`』，以及整条关键命题『所有边缘函数接受可选 `client` 参数…测试注入 fake，不依赖 LAN 端点』与警告『**不要**用 `mock.module` 全局 mock 边缘模块——bun 同进程 mock 会泄漏污染其他测试文件』。DI 测试接缝与 mock 泄漏警告改变行为含义（决定测试如何编写与隔离），属关键命题整体丢失，E3 critical。provenance 指向 docs/EDGE-LLM.md#L65-L69 正确，但不能弥补命题缺失。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

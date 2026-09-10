@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 多平台模型路由器 v5.0 — 扁平化架构
  *
  * 设计原则:
@@ -6,13 +6,14 @@
  *   - 扁平路由表: intent → role 直接映射，无嵌套 if/else
  *   - 统一执行端口: 所有调用走统一的 execute() 管线
  *   - 静态配置表 + 简单 fallback
- *   - 无 circuit breaker, 无 protocol 适配层
+ *   - 熔断器: 连续失败阈值打开 + 冷却 (utils/circuit-breaker)
  */
 
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { toolPool, type ToolRole } from "./tool-pool.js";
-import { assignModel, findModelsForRole, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import { assignModel, findModelsForRole, listAllModels, type TaskRole, type AssignmentResult, type ModelCapability } from "./model-capability-registry.js";
+import type { RouterArm } from "./thompson-router.js";
 import { PROVIDER_CONFIG } from "./models.js";
 import { getTokenTracker } from "./token-tracker.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
@@ -20,7 +21,14 @@ import { TIMEOUTS } from "../constants/timeouts.js";
 import { metrics } from "../utils/metrics.js";
 import { calculateBackoffDelay } from "../utils/resilience.js";
 import { callProvider, callProviderNativeStream, type ChatMessage, type StreamChunkCallback, type NativeStreamResult } from "./provider-caller.js";
+import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
+import { getModelOutputStore } from "../utils/model-output-store.js";
+import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
+import { cacheFirstRoute, writeCache, isSemanticCacheEnabled } from "../services/cache-router.js";
+import { routerBreaker } from "../utils/circuit-breaker.js";
+import { effectivePriorityForRateTier } from "./rate-tier.js";
+import { defaultThinkingForRole, defaultTemperatureForRole } from "./reasoning-effort.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -37,6 +45,7 @@ import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 export type ChatStreamEvent =
   | { type: "start"; model: string; provider: string; role: TaskRole; layer?: "decision" | "architecture" | "tool" | "evaluation" | "general"; intent?: string }
   | { type: "token"; content: string }
+  | { type: "tool"; name: string; args: string }
   | { type: "done"; content: string; usage?: ChatResponse["usage"]; model: string; provider: string; fallbackUsed: boolean }
   | { type: "error"; message: string };
 
@@ -68,6 +77,12 @@ export interface SmartAssignmentResponse {
   };
   latency_ms?: number;
   fallback_used?: boolean;
+  /** 模型发起的工具调用（function calling） */
+  toolCalls?: ToolCall[];
+  /** 思考链片段（reasoning_content），供工具循环回传 */
+  thinking?: string[];
+  /** 任务分层（与 ChatResponse.layer 对齐，便于路由层透传） */
+  layer?: "decision" | "architecture" | "tool" | "evaluation" | "general";
 }
 
 /** 批量任务输入 */
@@ -91,6 +106,9 @@ export interface ExecuteInput {
   messages: ChatMessage[];
   timeout?: number;
   temperature?: number;
+  maxTokens?: number;
+  /** 外部中止信号（透传给 provider 调用） */
+  signal?: AbortSignal;
   trackAs?: string;
   /**
    * Models to skip during fallback iteration. Used by `executeWithRole`
@@ -98,6 +116,10 @@ export interface ExecuteInput {
    * to avoid re-trying models that already failed for this call.
    */
   excludeModels?: string[];
+  /** OpenAI 兼容 tools 定义（function calling） */
+  tools?: ToolCallDef[];
+  /** DeepSeek 思考模式开关（默认开启；false = 非思考模式） */
+  thinking?: boolean;
 }
 
 /** 统一执行端口输出 */
@@ -109,6 +131,9 @@ export interface ExecuteOutput {
   latencyMs: number;
   fallbackUsed: boolean;
   routingMeta?: RoutingMeta;
+  toolCalls?: ToolCall[];
+  /** 思考链片段（reasoning_content），供工具循环回传 */
+  thinking?: string[];
 }
 
 // =============================================================================
@@ -120,15 +145,26 @@ function trackCall(
   provider: string,
   messages: ChatMessage[],
   result: {
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      /** DeepSeek prompt-cache 命中 token */
+      prompt_cache_hit_tokens?: number;
+      /** DeepSeek prompt-cache 未命中 token */
+      prompt_cache_miss_tokens?: number;
+    };
     latencyMs: number;
     success: boolean;
     fallbackUsed?: boolean;
+    /** 该次调用整体命中本地 llmCache（未发起 API 调用） */
+    cacheHit?: boolean;
   },
   meta?: { role?: string; taskType?: string }
 ) {
-  const usage = result.usage;
-  if (!usage || !usage.total_tokens) return;
+  // 缓存命中（cacheHit=true）即使 0 token 也要落库（观测 prompt-cache/语义缓存命中）
+  const usage = result.usage ?? {};
+  if (!result.cacheHit && !usage.total_tokens) return;
 
   getTokenTracker().record({
     timestamp: Date.now(),
@@ -143,22 +179,158 @@ function trackCall(
     contentLength: messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0),
     success: result.success,
     fallbackUsed: result.fallbackUsed ?? false,
+    cacheHitTokens: usage.prompt_cache_hit_tokens ?? 0,
+    cacheMissTokens: usage.prompt_cache_miss_tokens ?? 0,
+    cacheHit: result.cacheHit ?? false,
   });
 }
 
 const DEFAULT_RETRY_ATTEMPTS = 3;
 
 // =============================================================================
+// S4 Thompson 学习回路（组合根接线；未注入时全部路径零行为变化）
+// =============================================================================
+
+/**
+ * Thompson 学习回路最小消费端口（结构化类型）。
+ * ThompsonRouter 公共接口天然满足；测试可注入 fake。
+ */
+export interface ThompsonLearningPort {
+  getArmIds(): string[];
+  route(context: { taskType: string; inputLength: number }): Promise<{ samples: Array<{ armId: string; value: number }> }>;
+  reportFeedback(armId: string, success: boolean): void;
+}
+
+/**
+ * S4① arms 填充：由模型能力注册表（静态 UNIFIED_REGISTRY + 用户扩展）构建 Thompson arms。
+ * arm.id = 注册表模型 id（唯一），model/provider 透传，均匀先验 Beta(1,1)。
+ * 组合根 main.ts 以此构造 thompsonRouter 并注入 router（setThompsonRouter）。
+ */
+export function buildThompsonArms(): RouterArm[] {
+  const byId = new Map<string, RouterArm>();
+  for (const m of listAllModels()) {
+    byId.set(m.id, { id: m.id, model: m.model, provider: m.provider, alpha: 1, beta: 1 });
+  }
+  return Array.from(byId.values());
+}
+
+/** 候选排序比较器（与 S4 前行为一致）：轻任务 free 优先，其余按有效优先级升序 */
+function compareRouteCandidates(a: ModelCapability, b: ModelCapability, isLightRoute: boolean): number {
+  const pa = effectivePriorityForRateTier(a, new Date());
+  const pb = effectivePriorityForRateTier(b, new Date());
+  if (isLightRoute && a.isFree !== b.isFree) {
+    return a.isFree ? -1 : 1;
+  }
+  return pa - pb;
+}
+
+// =============================================================================
 // 路由器 v5.0 — 扁平化核心
 // =============================================================================
 
+// ---------------------------------------------------------------------------
+// 永久性失败处理（2026-07-26 生产化修复）
+// 缺 key / 型号不存在 / 未授权等永久性错误：不重试（此前每个死模型每次请求
+// 都白烧 maxRetries 次），并拉黑 5 分钟（避免后续请求重复烧秒）。
+// ---------------------------------------------------------------------------
+const PERMANENT_FAILURE_RE = /Missing API key|Model does not exist|Model disabled|HTTP 40[134]/i;
+const BLACKLIST_TTL_MS = 5 * 60 * 1000;
+const modelBlacklist = new Map<string, number>(); // "provider/model" -> 拉黑截止时刻
+
+/** 判定错误是否永久性（不可重试）—— 导出供单元测试 */
+export function isPermanentFailure(msg: string): boolean {
+  return PERMANENT_FAILURE_RE.test(msg);
+}
+
+/** 记录一次永久性失败（拉黑 TTL）—— 导出供单元测试 */
+export function recordPermanentFailure(provider: string, model: string): void {
+  modelBlacklist.set(`${provider}/${model}`, Date.now() + BLACKLIST_TTL_MS);
+}
+
+/** 查询模型是否在黑名单中（过期自动清除）—— 导出供单元测试 */
+export function isModelBlacklisted(provider: string, model: string): boolean {
+  const until = modelBlacklist.get(`${provider}/${model}`);
+  if (until === undefined) return false;
+  if (Date.now() > until) {
+    modelBlacklist.delete(`${provider}/${model}`);
+    return false;
+  }
+  return true;
+}
+
 export class MultiPlatformRouter {
+  /** S4: Thompson 学习回路端口（组合根 main.ts 注入；null = 未接线，路由与反馈路径零行为变化） */
+  private thompson: ThompsonLearningPort | null = null;
+
+  /** S4 组合根接线：注入 Thompson 学习回路（传 null 摘除） */
+  setThompsonRouter(port: ThompsonLearningPort | null): void {
+    this.thompson = port;
+  }
+
+  /** S4: execute 成败记录点同步反馈（异常吞掉 + debug 日志，不破坏主流程） */
+  private reportThompsonFeedback(armId: string, success: boolean): void {
+    if (!this.thompson) return;
+    try {
+      this.thompson.reportFeedback(armId, success);
+    } catch (err) {
+      logger.debug("[Router] thompson feedback ignored", {
+        armId,
+        success,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * S4③ 平级 tie-break 消费：同优先级（比较器相等）候选 ≥2 的连续组内，
+   * 若 thompson 可用且组内 arm 全部注册，用一次 thompson 采样决定组内顺序。
+   * 不改不同优先级之间的排序；未注入 / 无 arms / 组内 arm 未注册 / 采样异常 → 保持现状排序。
+   */
+  private async applyThompsonTieBreak(sorted: ModelCapability[], isLightRoute: boolean, role: TaskRole, messages: ChatMessage[]): Promise<ModelCapability[]> {
+    const thompson = this.thompson;
+    if (!thompson || sorted.length < 2) return sorted;
+    const known = new Set(thompson.getArmIds());
+    if (known.size === 0) return sorted;
+    const out = [...sorted];
+    let i = 0;
+    while (i < out.length - 1) {
+      if (compareRouteCandidates(out[i]!, out[i + 1]!, isLightRoute) !== 0) {
+        i++;
+        continue;
+      }
+      let end = i + 1;
+      while (end < out.length - 1 && compareRouteCandidates(out[end]!, out[end + 1]!, isLightRoute) === 0) end++;
+      const group = out.slice(i, end + 1);
+      if (group.every((m) => known.has(m.id))) {
+        try {
+          const decision = await thompson.route({
+            taskType: role,
+            inputLength: messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0),
+          });
+          const valueOf = new Map(decision.samples.map((s) => [s.armId, s.value]));
+          const reordered = [...group].sort((a, b) => (valueOf.get(b.id) ?? 0) - (valueOf.get(a.id) ?? 0));
+          out.splice(i, group.length, ...reordered);
+        } catch (err) {
+          logger.debug("[Router] thompson tie-break failed, keep static order", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      i = end + 1;
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------------------
   // 统一执行端口 (Unified Execution Port)
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
-    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, trackAs } = input;
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools, thinking } = input;
+    // 轻任务默认非思考模式（显式 thinking 优先）
+    const effectiveThinking = thinking ?? defaultThinkingForRole(role);
+    // 确定性角色默认 temperature=0（english/translation/localization/evaluation），激活确定性响应缓存
+    const effectiveTemperature = temperature ?? defaultTemperatureForRole(role);
     const startTime = Date.now();
 
     const allModels = findModelsForRole(role);
@@ -177,9 +349,10 @@ export class MultiPlatformRouter {
     // executeWithRole passes its `excludeModels` option through; dispatcher
     // accumulates excludeModels as it walks preventDuplicateModels: true.
     const excluded = new Set(input.excludeModels ?? []);
-    const candidates = excluded.size > 0
+    const candidates = (excluded.size > 0
       ? allModels.filter((m) => !excluded.has(m.id) && !excluded.has(m.model))
-      : allModels;
+      : allModels
+    ).filter((m) => !isModelBlacklisted(m.provider, m.model));
     if (candidates.length === 0) {
       logger.warn(`[Router] No candidate models for role ${role} after exclude`, {
         excluded: Array.from(excluded),
@@ -192,22 +365,105 @@ export class MultiPlatformRouter {
         fallbackUsed: true,
       };
     }
-    const sortedModels = [...candidates].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    // Task-type-based routing: light roles (read/check) prefer free models,
+    // heavy roles (code/decision) prefer DeepSeek via priority.
+    const LIGHT_ROUTES = new Set<TaskRole>([
+      "general-tool", "research", "general-chat", "code-review", "english", "evaluation",
+    ]);
+    const isLightRoute = LIGHT_ROUTES.has(role);
+    const sortedModels = await this.applyThompsonTieBreak(
+      [...candidates].sort((a, b) => compareRouteCandidates(a, b, isLightRoute)),
+      isLightRoute,
+      role,
+      messages,
+    );
 
+    let lastError: Error | undefined;
     for (const model of sortedModels) {
+      const breakerKey = `${model.provider}/${model.model}`;
+      if (!routerBreaker.allow(breakerKey)) {
+        logger.warn(`[Router] Circuit open, skip ${breakerKey}`);
+        continue;
+      }
       // Per-model retry: honor the model's own maxRetries, falling back to DEFAULT_RETRY_ATTEMPTS.
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
-      let lastError: Error | undefined;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const loopStart = Date.now();
+
+        // 语义答案缓存：归一化查询级命中（temperature=0 的确定性轻任务，无工具调用时）
+        // 与 llmCache（字节级精确 key）互补：相同语义不同措辞也能命中。
+        if (effectiveTemperature === 0 && attempt === 0 && !tools?.length) {
+          const lastUser = [...messages].reverse().find((m) => m.role === "user");
+          if (lastUser?.content && isSemanticCacheEnabled()) {
+            const semanticHit = await cacheFirstRoute(lastUser.content, role);
+            if (semanticHit) {
+              routerBreaker.recordSuccess(breakerKey);
+              const latencyMs = Date.now() - loopStart;
+              metrics.increment("routing_decisions_total", 1, { role, source: "semantic-cache", model: model.id });
+              logger.info(`[Router] Semantic cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
+              trackCall(model.model, model.provider, messages, {
+                latencyMs,
+                success: true,
+                fallbackUsed: false,
+                cacheHit: true,
+              }, { role: trackAs ?? role, taskType: trackAs ?? role });
+              return {
+                content: semanticHit.answer,
+                model: "cache",
+                provider: "cache",
+                latencyMs,
+                fallbackUsed: false,
+              };
+            }
+          }
+        }
+
+        // LLM cache: only for deterministic calls (temperature === 0).
+        // Cache hit eliminates the API call entirely — max hit-rate savings.
+        if (effectiveTemperature === 0 && attempt === 0) {
+          const cKey = llmCacheKey({
+            provider: model.provider,
+            model: model.model,
+            messages,
+            temperature: 0,
+          });
+          const cached = await llmCache.get(cKey);
+          if (cached) {
+            routerBreaker.recordSuccess(breakerKey);
+            const latencyMs = Date.now() - loopStart;
+            metrics.increment("routing_decisions_total", 1, { role, source: "execute-cached", model: model.id });
+            logger.info(`[Router] Execute cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
+            trackCall(model.model, model.provider, messages, {
+              usage: cached.usage,
+              latencyMs,
+              success: true,
+              fallbackUsed: false,
+              cacheHit: true,
+            }, { role: trackAs ?? role, taskType: trackAs ?? role });
+            return {
+              content: cached.content,
+              model: cached.model,
+              provider: cached.provider,
+              usage: cached.usage,
+              latencyMs,
+              fallbackUsed: false,
+            };
+          }
+        }
+
         try {
           const response = await callProvider(
             model.provider,
             model.model,
             messages,
             model.timeout ?? timeout,
-            temperature
+            effectiveTemperature,
+            undefined,
+            tools,
+            { baseURL: model.baseURL, apiKey: model.apiKey, ...(effectiveThinking !== undefined ? { thinking: effectiveThinking } : {}) },
+            maxTokens,
+            signal
           );
           const latencyMs = Date.now() - loopStart;
           trackCall(model.model, model.provider, messages, {
@@ -215,11 +471,53 @@ export class MultiPlatformRouter {
             latencyMs,
             success: true,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // S4② 成功记录点同步学习反馈（缓存命中路径不计——无真实模型调用信号）
+          this.reportThompsonFeedback(model.id, true);
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
+          routerBreaker.recordSuccess(breakerKey);
 
           // Record routing decision metric
           metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: model.id });
           metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "execute" });
+
+          // Persist model output to disk (non-blocking, eliminates context dependency)
+          getModelOutputStore().persist({
+            provider: model.provider,
+            model: model.model,
+            prompt: messages[messages.length - 1]?.content ?? "",
+            messages,
+            temperature,
+            latencyMs,
+            success: true,
+            response: {
+              content: response.content,
+              usage: response.usage,
+            },
+          });
+
+          // Cache successful deterministic response for future hits
+          if (effectiveTemperature === 0) {
+            const cKey = llmCacheKey({
+              provider: model.provider,
+              model: model.model,
+              messages,
+              temperature: 0,
+            });
+            const cached: CachedLLMResponse = {
+              content: response.content,
+              model: model.model,
+              provider: model.provider,
+              usage: response.usage,
+            };
+            llmCache.set(cKey, cached);
+            // 语义答案缓存回写（无工具调用的确定性响应）
+            if (response.content && !tools?.length) {
+              const lastUser = [...messages].reverse().find((m) => m.role === "user");
+              if (lastUser?.content) {
+                writeCache(lastUser.content, role, response.content);
+              }
+            }
+          }
 
           return {
             content: response.content,
@@ -228,10 +526,13 @@ export class MultiPlatformRouter {
             usage: response.usage,
             latencyMs,
             fallbackUsed: false,
+            toolCalls: response.toolCalls,
+            thinking: response.thinking,
           };
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
+          routerBreaker.recordFailure(breakerKey);
           logger.warn(
             `[Router] Execute failed ${model.provider}/${model.model} (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg }
@@ -240,6 +541,14 @@ export class MultiPlatformRouter {
             latencyMs: Date.now() - loopStart,
             success: false,
           }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          // S4② 失败记录点同步学习反馈（失败语义 = trackCall success:false）
+          this.reportThompsonFeedback(model.id, false);
+          // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
+          if (PERMANENT_FAILURE_RE.test(msg)) {
+            modelBlacklist.set(`${model.provider}/${model.model}`, Date.now() + BLACKLIST_TTL_MS);
+            logger.warn(`[Router] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
+            break;
+          }
           // Exponential backoff with jitter, capped at 5s
           if (attempt < maxRetries - 1) {
             const delay = calculateBackoffDelay(attempt);
@@ -256,6 +565,19 @@ export class MultiPlatformRouter {
 
     logger.error(`[Router] All models exhausted for role: ${role}`);
     metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: "degraded" });
+
+    // Persist degraded response for observability
+    getModelOutputStore().persist({
+      provider: "local",
+      model: "degraded",
+      prompt: messages[messages.length - 1]?.content ?? "",
+      messages,
+      temperature,
+      latencyMs: Date.now() - startTime,
+      success: false,
+      error: lastError ?? new Error(`All models exhausted for role: ${role}`),
+    });
+
     return {
       content: "I'm currently experiencing high load. Please try again in a moment.",
       model: "degraded",
@@ -305,11 +627,22 @@ export class MultiPlatformRouter {
   async *chatStream(
     taskType: TaskRole | string,
     messages: ChatMessage[],
-    options?: { preferNativeStream?: boolean; intent?: string }
+    options?: {
+      preferNativeStream?: boolean;
+      intent?: string;
+      reasoningEffort?: string;
+      tools?: ToolCallDef[];
+      executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+      maxToolIterations?: number;
+      /** DeepSeek 思考模式开关（默认开启；false = 非思考模式） */
+      thinking?: boolean;
+    }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
     const preferNative = options?.preferNativeStream !== false;
     const intentLabel = options?.intent;
+    const reasoningEffort = options?.reasoningEffort;
+    const thinking = options?.thinking ?? defaultThinkingForRole(role);
     const models = findModelsForRole(role);
     if (models.length === 0) {
       logger.warn(`[Router/chatStream] No models for role: ${role}`);
@@ -317,7 +650,17 @@ export class MultiPlatformRouter {
       return;
     }
 
-    const sortedModels = [...models].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    const sortedModels = [...models].sort(
+      (a, b) => effectivePriorityForRateTier(a, new Date()) - effectivePriorityForRateTier(b, new Date()),
+    );
+
+    // 流式工具循环：tools + executeTool 存在时，模型可发起 tool_calls，
+    // 服务端执行后追加 assistant(tool_calls)+tool 消息并继续下一轮（有界）。
+    const tools = options?.tools;
+    const executeTool = options?.executeTool;
+    const maxToolIterations = options?.maxToolIterations ?? (tools?.length ? 4 : 1);
+    const working: ChatMessage[] = [...messages];
+    let toolRounds = 0;
 
     // 流事件先一次性给出 routing metadata，让前端可在首字节前就显示 provider 信息
     const firstModel = sortedModels[0]!;
@@ -333,7 +676,13 @@ export class MultiPlatformRouter {
     const startTime = Date.now();
     let lastError: Error | undefined;
 
+    toolLoop: while (toolRounds < maxToolIterations) {
     for (const model of sortedModels) {
+      const breakerKey = `${model.provider}/${model.model}`;
+      if (!routerBreaker.allow(breakerKey)) {
+        logger.warn(`[Router/chatStream] Circuit open, skip ${breakerKey}`);
+        continue;
+      }
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -343,13 +692,16 @@ export class MultiPlatformRouter {
           const response = await callProvider(
             model.provider,
             model.model,
-            messages,
+            working,
             model.timeout ?? TIMEOUTS.API_DEFAULT,
             0.7,
+            reasoningEffort,
+            tools,
+            { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
           );
           const text = response.content ?? "";
           // 缓冲路径：返回完整文本，由调用方决定如何分片成 SSE token
-          return { content: text, usage: response.usage };
+          return { content: text, usage: response.usage, toolCalls: response.toolCalls, thinking: response.thinking };
         };
 
         try {
@@ -391,12 +743,16 @@ export class MultiPlatformRouter {
             const streamPromise = callProviderNativeStream(
               model.provider,
               model.model,
-              messages,
+              working,
               model.timeout ?? TIMEOUTS.API_STREAMING,
               0.7,
               (delta) => {
                 enqueue({ kind: "chunk", content: delta });
               },
+              undefined,
+              reasoningEffort,
+              tools,
+              { baseURL: model.baseURL, apiKey: model.apiKey, ...(thinking !== undefined ? { thinking } : {}) },
             ).then(
               (result) => enqueue({ kind: "done", result }),
               (err: unknown) =>
@@ -438,6 +794,31 @@ export class MultiPlatformRouter {
               logger.debug(`[Router/chatStream] native stream failed for ${model.provider}/${model.model}, falling back to buffered`, {
                 error: nativeErr instanceof Error ? nativeErr.message : String(nativeErr),
               });
+              // 记录本次尝试失败到熔断器：即使随后 buffered 路径成功，breaker 也需要
+              // 知道原生流路径在本回合对当前模型是失败的，否则会反复命中原生流再静默回退。
+              routerBreaker.recordFailure(breakerKey);
+            }
+
+            if (nativeResult?.toolCalls?.length && executeTool) {
+              const nativeReasoning = (nativeResult.thinking ?? []).join("");
+              working.push({
+                role: "assistant",
+                content: nativeResult.content ?? "",
+                tool_calls: nativeResult.toolCalls,
+                ...(nativeReasoning ? { reasoning_content: nativeReasoning } : {}),
+              });
+              for (const call of nativeResult.toolCalls) {
+                yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
+                let output: unknown;
+                try {
+                  output = await executeTool(call.function.name, parseToolArgs(call.function.arguments));
+                } catch (err) {
+                  output = { error: err instanceof Error ? err.message : String(err) };
+                }
+                working.push({ role: "tool", tool_call_id: call.id, content: typeof output === "string" ? output : JSON.stringify(output) });
+              }
+              toolRounds++;
+              continue toolLoop;
             }
 
             if (nativeResult) {
@@ -451,6 +832,7 @@ export class MultiPlatformRouter {
               metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
               metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
               logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
+              routerBreaker.recordSuccess(breakerKey);
 
               yield {
                 type: "done",
@@ -467,6 +849,29 @@ export class MultiPlatformRouter {
           if (!nativeOk) {
             // 缓冲路径：整段内容作为单个 token 事件推送（模拟流式）
             const result = await fallbackBufferedStream();
+
+            if (result.toolCalls?.length && executeTool) {
+              const resultReasoning = (result.thinking ?? []).join("");
+              working.push({
+                role: "assistant",
+                content: result.content,
+                tool_calls: result.toolCalls,
+                ...(resultReasoning ? { reasoning_content: resultReasoning } : {}),
+              });
+              for (const call of result.toolCalls) {
+                yield { type: "tool", name: call.function.name, args: call.function.arguments.slice(0, 200) };
+                let output: unknown;
+                try {
+                  output = await executeTool(call.function.name, parseToolArgs(call.function.arguments));
+                } catch (err) {
+                  output = { error: err instanceof Error ? err.message : String(err) };
+                }
+                working.push({ role: "tool", tool_call_id: call.id, content: typeof output === "string" ? output : JSON.stringify(output) });
+              }
+              toolRounds++;
+              continue toolLoop;
+            }
+
             const latencyMs = Date.now() - loopStart;
             trackCall(model.model, model.provider, messages, {
               usage: result.usage,
@@ -476,7 +881,13 @@ export class MultiPlatformRouter {
             }, { role, taskType: "chat-stream" });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
+            routerBreaker.recordSuccess(breakerKey);
 
+            if (result.thinking?.length) {
+              for (const t of result.thinking) {
+                yield { type: "token", content: JSON.stringify({ _axon: "thinking", content: t }) };
+              }
+            }
             if (result.content.length > 0) {
               yield { type: "token", content: result.content };
             }
@@ -494,6 +905,7 @@ export class MultiPlatformRouter {
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
+          routerBreaker.recordFailure(breakerKey);
           logger.warn(
             `[Router/chatStream] ${model.provider}/${model.model} failed (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg },
@@ -515,12 +927,19 @@ export class MultiPlatformRouter {
       });
     }
 
-    // 所有 model 都失败
-    logger.error(`[Router/chatStream] All models exhausted for role: ${role}`);
-    metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: "degraded" });
+      // 当前 tool round 内所有 model 都失败
+      logger.error(`[Router/chatStream] All models exhausted for role: ${role}`);
+      metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: "degraded" });
+      yield {
+        type: "error",
+        message: lastError?.message ?? `All models for role "${role}" are unavailable.`,
+      };
+      return;
+    } // toolLoop
+
     yield {
       type: "error",
-      message: lastError?.message ?? `All models for role "${role}" are unavailable.`,
+      message: "[Tool loop] exceeded max tool iterations without a final answer.",
     };
   }
 
@@ -582,84 +1001,6 @@ export class MultiPlatformRouter {
 
     // 未匹配到任何意图，走默认
     return this.chat(DEFAULT_ROLE, messages);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Auto Route — 使用廉价模型做 per-turn 路由决策
-  // ---------------------------------------------------------------------------
-
-  async autoRoute(messages: ChatMessage[]): Promise<ChatResponse & { routing?: RoutingMeta }> {
-    const startTime = Date.now();
-
-    const routingModel = assignModel("decision");
-    if (!routingModel) {
-      logger.warn("[AutoRoute] No decision model configured, falling back to general-chat");
-      const fallback = await this.chat("general-chat", messages);
-      return { ...fallback, routing: { role: "general-chat", thinking: "none", reason: "无决策模型配置" } };
-    }
-
-    const routingMessages: ChatMessage[] = [
-      {
-        role: "system",
-        content: `你是一个任务路由专家。分析用户请求，输出 JSON 格式的路由决策。
-
-可用角色:
-- coding: 代码生成、重构、调试
-- review: 代码审查、质量评估
-- research: 技术研究、知识查询
-- architecture: 架构设计、系统规划
-- decision: 决策分析、方案比较
-- general-chat: 一般对话、解释说明
-
-思考强度:
-- none: 简单任务，直接回答
-- low: 标准思考，平衡速度和质量
-- medium: 复杂任务，需要多步推理
-- high: 非常困难的任务，深度分析
-
-输出格式:
-{
-  "role": "角色名称",
-  "thinking": "none/low/medium/high",
-  "reason": "简要说明选择理由"
-}`,
-      },
-      messages[messages.length - 1],
-    ];
-
-    try {
-      const model = routingModel.model;
-      const flashResponse = await callProvider(model.provider, model.model, routingMessages, 10000);
-      const routing = this.parseRoutingDecision(flashResponse.content);
-
-      logger.info("[AutoRoute] Routing decision", {
-        role: routing.role,
-        thinking: routing.thinking,
-        reason: routing.reason,
-        model: model.id,
-      });
-
-      trackCall(model.id, model.provider, routingMessages, { latencyMs: Date.now() - startTime, success: true }, { role: "decision", taskType: "auto_route" });
-
-      const result = await this.executeWithRole(routing.role, messages);
-
-      return {
-        content: result.content,
-        model: result.model,
-        provider: result.provider,
-        usage: result.usage,
-        layer: "general",
-        routing: {
-          role: routing.role,
-          thinking: routing.thinking,
-          reason: routing.reason,
-        },
-      };
-    } catch (error) {
-      logger.warn("[AutoRoute] Routing failed, falling back to general-chat", { error: (error as Error).message });
-      const fallback = await this.chat("general-chat", messages);
-      return { ...fallback, routing: { role: "general-chat", thinking: "none", reason: "路由失败，使用默认回退" } };
-    }
   }
 
   parseRoutingDecision(content: string | null): RoutingMeta {
@@ -726,8 +1067,8 @@ export class MultiPlatformRouter {
     });
 
     if (!res.ok) throw new Error(`Embedding request failed: ${res.status}`);
-    const data = await res.json();
-    return data.data?.map((d: any) => d.embedding) ?? [];
+    const data = await res.json() as { data?: Array<{ embedding?: number[] }> };
+    return data.data?.map((d) => d.embedding ?? []) ?? [];
   }
 
   // ---------------------------------------------------------------------------
@@ -752,27 +1093,42 @@ export class MultiPlatformRouter {
    * fallback), which matches what `chat()` and `chatStream()` already
    * returned.
    */
-  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[] }): Promise<SmartAssignmentResponse> {
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string; thinking?: boolean }): Promise<SmartAssignmentResponse> {
     const out = await this.execute({
       role,
       messages,
       ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
-      trackAs: role,
+      ...(options?.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+      ...(options?.timeout !== undefined ? { timeout: options.timeout } : {}),
+      ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+      trackAs: options?.trackAs ?? role,
       ...(options?.excludeModels && options.excludeModels.length > 0
         ? { excludeModels: options.excludeModels }
         : {}),
+      ...(options?.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
+      ...(options?.thinking !== undefined ? { thinking: options.thinking } : {}),
     });
-    const assignment = this.assign(role, { excludeModels: options?.excludeModels });
-    const config = PROVIDER_CONFIG[assignment.model.provider as keyof typeof PROVIDER_CONFIG];
+    let endpoint = "";
+    try {
+      // 从实际执行成功的模型/ provider 推导 endpoint，而非重新 assign() 首选候选。
+      // 修复前：当首选 A 挂掉、fallback 到 B 成功时，此处的 assignment 仍是 A，
+      // 导致 out.model === B 但 endpoint 指向 A（甚至为空）——调用方拿到不匹配的来源。
+      const config = PROVIDER_CONFIG[out.provider as keyof typeof PROVIDER_CONFIG];
+      endpoint = config?.baseURL ?? "";
+    } catch {
+      // 无可用模型时降级（endpoint 留空），不抛错——与 execute 的降级语义一致
+    }
     return {
       role,
       model: out.model,
       provider: out.provider,
-      endpoint: config?.baseURL ?? "",
+      endpoint,
       content: out.content,
       usage: out.usage,
       latency_ms: out.latencyMs,
       fallback_used: out.fallbackUsed,
+      toolCalls: out.toolCalls,
+      thinking: out.thinking,
     };
   }
 
@@ -805,7 +1161,20 @@ export class MultiPlatformRouter {
   }
 }
 
+/** 解析模型返回的工具调用参数（非法 JSON 降级为空对象） */
+function parseToolArgs(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export const router = new MultiPlatformRouter();
 export { toolPool, type ToolRole };
 export type { TaskRole } from "./model-capability-registry.js";
 export type { ChatMessage, StreamChunkCallback } from "./provider-caller.js";
+
+
+

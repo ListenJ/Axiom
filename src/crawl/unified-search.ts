@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 统一搜索接口
  * 合并 SearchAggregator + EnhancedSearchAggregator 为单一入口
  *
@@ -7,10 +7,20 @@
  */
 import {
   searchAggregator,
+  sanitizeSearchResultsForContext,
   type SearchEngineResult,
   type SearchOptions,
 } from "./search-engines.js";
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
+
+/** L12a：SHA-256 强缓存键（替代 32 位弱 hash，消除串缓存碰撞面） */
+export function strongCacheKey(
+  ...parts: Array<string | number | readonly (string | number)[]>
+): string {
+  const flat = parts.flatMap((p) => (Array.isArray(p) ? p.map(String) : [String(p)]));
+  return "cache_" + createHash("sha256").update(flat.join("|")).digest("hex").slice(0, 32);
+}
 
 // ========== 类型定义 ==========
 
@@ -151,7 +161,7 @@ export class UnifiedSearch {
     const query = optimizeQuery ? this.optimizeQuery(rawQuery) : rawQuery;
 
     // Cache check
-    const cacheKey = this.buildCacheKey(query, engines);
+    const cacheKey = this.buildCacheKey(query, engines, opts.num ?? 10, relevanceThreshold);
     if (useCache) {
       const cached = this.getFromCache(cacheKey, cacheTtl);
       if (cached) return cached;
@@ -201,16 +211,22 @@ export class UnifiedSearch {
     // Sort by relevance (stable, only if reranked)
     if (rerank) results.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
+    // 审计 D-1（2026-08-24）：此前 sanitize 仅存在于 web_search/chat 两个工具
+    // 边界，本方法与 concurrentSearch 的返回路径无任何条数/长度钳制——消费方
+    // 直连上下文时超长网页内容可击穿预算。现于唯一出口统一收口（缓存写入
+    // 的也是钳制后的结果）。
+    const sanitized = sanitizeSearchResultsForContext(results);
+
     // Cache
-    if (useCache) this.putToCache(cacheKey, results);
+    if (useCache) this.putToCache(cacheKey, sanitized);
 
     // History
     if (recordHistory) {
       const latency = Math.round(performance.now() - startTime);
-      this.recordHistory(query, engines, results.length, latency);
+      this.recordHistory(query, engines, sanitized.length, latency);
     }
 
-    return results;
+    return sanitized;
   }
 
   // ========== 便捷方法 ==========
@@ -280,13 +296,10 @@ export class UnifiedSearch {
 
   // ========== 缓存管理 ==========
 
-  private buildCacheKey(query: string, engines: string[]): string {
-    const key = `${query}|${engines.join(",")}`;
-    let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-      hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-    }
-    return `cache_${hash}`;
+  private buildCacheKey(query: string, engines: string[], num: number, threshold: number): string {
+    // 纳入 num 与 relevanceThreshold：quickSearch(num=10) 与 deepSearch(num=20) 须命中不同缓存键，
+    // 否则会因缓存返回错误条数/过滤结果。
+    return strongCacheKey(query, engines.join(","), num, threshold);
   }
 
   private getFromCache(key: string, ttlMinutes: number): UnifiedSearchResult[] | null {

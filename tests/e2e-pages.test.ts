@@ -1,118 +1,35 @@
+/**
+ * 前端页面场景测试覆盖清单（原为"模拟逻辑"的假 E2E，已替换为真实覆盖校验）
+ *
+ * 需求 1/5：每个页面组件必须有 colocated 场景测试（frontend/src/pages/*.test.tsx，
+ * vitest + testing-library）。本测试用文件系统校验覆盖清单，防止新增页面漏测。
+ */
 import { describe, it, expect } from "bun:test";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
 
-describe("E2E - Chat Page", () => {
-  it("should render chat interface", async () => {
-    // Simulate DOM structure
-    const chatMessages = [] as Array<{ role: string; content: string }>;
-    const addMessage = (role: string, content: string) => {
-      chatMessages.push({ role, content });
-    };
+const PAGES_DIR = join(import.meta.dir, "../frontend/src/pages");
 
-    addMessage("user", "Hello");
-    addMessage("assistant", "Hi there!");
+function pageFiles(): string[] {
+  return readdirSync(PAGES_DIR)
+    .filter((f) => f.endsWith(".tsx") && !f.includes(".test."))
+    .sort();
+}
 
-    expect(chatMessages.length).toBe(2);
-    expect(chatMessages[0].role).toBe("user");
-    expect(chatMessages[1].role).toBe("assistant");
+function testFor(page: string): string {
+  return page.replace(/.tsx$/, ".test.tsx");
+}
+
+describe("Frontend page scenario-test coverage manifest", () => {
+  const pages = pageFiles();
+
+  it("每一个页面组件都有 colocated 场景测试", () => {
+    const missing = pages.filter((f) => !existsSync(join(PAGES_DIR, testFor(f))));
+    expect(missing).toEqual([]);
   });
 
-  it("should handle message sending", async () => {
-    let inputValue = "";
-    const sendMessage = () => {
-      const content = inputValue.trim();
-      if (!content) return false;
-      inputValue = "";
-      return { content, timestamp: Date.now() };
-    };
-
-    inputValue = "Test message";
-    const result = sendMessage();
-    expect(result).toBeTruthy();
-    expect((result as Record<string, unknown>).content).toBe("Test message");
-    expect(inputValue).toBe("");
-  });
-});
-
-describe("E2E - Code Page", () => {
-  it("should display CodeGraph status", () => {
-    const status = {
-      indexed: 188,
-      nodes: 2558,
-      edges: 6665,
-      status: "ready",
-    };
-
-    expect(status.status).toBe("ready");
-    expect(status.indexed).toBeGreaterThan(0);
-  });
-
-  it("should search symbols", () => {
-    const symbols = [
-      { name: "ModelRouter", type: "class", file: "model-router.ts" },
-      { name: "execute", type: "method", file: "model-router.ts" },
-    ];
-
-    const search = (query: string) =>
-      symbols.filter((s) => s.name.toLowerCase().includes(query.toLowerCase()));
-
-    const results = search("model");
-    expect(results.length).toBe(1);
-    expect(results[0].name).toBe("ModelRouter");
-  });
-});
-
-describe("E2E - Agents Page", () => {
-  it("should switch between agent tabs", () => {
-    const tabs = ["generate", "refactor", "review", "test"];
-    let activeTab = "generate";
-
-    const switchTab = (tab: string) => {
-      if (tabs.includes(tab)) activeTab = tab;
-    };
-
-    switchTab("refactor");
-    expect(activeTab).toBe("refactor");
-    switchTab("invalid");
-    expect(activeTab).toBe("refactor");
-  });
-});
-
-describe("E2E - Router Page", () => {
-  it("should display model health status", () => {
-    const models = [
-      { name: "GPT-5.5", status: "healthy", latency: 120 },
-      { name: "Claude Opus 4.7", status: "healthy", latency: 150 },
-      { name: "DeepSeek V4", status: "degraded", latency: 500 },
-    ];
-
-    const healthy = models.filter((m) => m.status === "healthy");
-    expect(healthy.length).toBe(2);
-  });
-});
-
-describe("E2E - Settings Page", () => {
-  it("should toggle theme", () => {
-    let theme = "dark";
-    const toggleTheme = () => {
-      theme = theme === "dark" ? "light" : "dark";
-    };
-
-    toggleTheme();
-    expect(theme).toBe("light");
-    toggleTheme();
-    expect(theme).toBe("dark");
-  });
-
-  it("should update API key", () => {
-    const keys: Record<string, string> = {};
-    const setKey = (provider: string, key: string) => {
-      if (key.length > 10) keys[provider] = key;
-    };
-
-    setKey("openrouter", "sk-test1234567890");
-    expect(keys.openrouter).toBe("sk-test1234567890");
-
-    setKey("invalid", "short");
-    expect(keys.invalid).toBeUndefined();
+  it("覆盖页面数不少于 20", () => {
+    const tested = pages.filter((f) => existsSync(join(PAGES_DIR, testFor(f))));
+    expect(tested.length).toBeGreaterThanOrEqual(20);
   });
 });

@@ -82,6 +82,24 @@ evaluation:
     maxRetries: 1
     timeout: 120000
 
+# ========== 研究/检索（低成本优先，强模型兜底） ==========
+research:
+  - provider: openrouter
+    model: google/gemma-4-26b-a4b-it:free
+    priority: 0
+    maxRetries: 2
+    timeout: 60000
+  - provider: openrouter
+    model: qwen/qwen3-coder:free
+    priority: 1
+    maxRetries: 2
+    timeout: 60000
+  - provider: siliconflow
+    model: zhipu/GLM-5.1
+    priority: 2
+    maxRetries: 1
+    timeout: 60000
+
 # ========== L5 通用对话 ==========
 general-chat:
   - provider: siliconflow

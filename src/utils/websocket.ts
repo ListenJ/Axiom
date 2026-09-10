@@ -1,8 +1,13 @@
 /**
  * WebSocket 实时推送层
  * 用于 Dashboard 实时更新、系统事件广播
+ *
+ * Task 4.5: 配置化 + CSRF/XSS 防护扩展
+ * - MAX_WS_CLIENTS 通过 AXIOM_WS_MAX_CLIENTS 环境变量配置（默认 100）
+ * - 消息长度限制（默认 64KB）防止超大消息导致内存耗尽 / XSS 载荷注入
  */
 import type { ServerWebSocket } from "bun";
+import { readInt } from "./env.js";
 
 export type WsEventType =
   | "system.status"
@@ -12,7 +17,9 @@ export type WsEventType =
   | "model.usage"
   | "health.check"
   | "heartbeat"
-  | "agent.intent";
+  | "agent.intent"
+  | "approval.requested"
+  | "approval.resolved";
 
 export interface WsMessage {
   type: WsEventType;
@@ -26,7 +33,10 @@ interface WsClient {
   connectedAt: number;
 }
 
-const MAX_WS_CLIENTS = 100; // 限制最大连接数防止内存耗尽
+/** Task 4.5: 最大并发连接数（可配置，默认 100，范围 1-10000） */
+const MAX_WS_CLIENTS = Math.max(1, Math.min(10000, readInt("AXIOM_WS_MAX_CLIENTS", 100)));
+/** Task 4.5: 单条消息最大字节数（默认 64KB，防止超大消息导致内存耗尽） */
+const MAX_MESSAGE_BYTES = 64 * 1024;
 
 export class WebSocketManager {
   private clients = new Map<string, WsClient>();
@@ -62,6 +72,15 @@ export class WebSocketManager {
 
   /** 客户端消息 */
   onMessage(ws: ServerWebSocket<{ clientId: string }>, message: string): void {
+    // Task 4.5: 消息长度限制（防止超大消息导致内存耗尽 / XSS 载荷注入）
+    if (message.length > MAX_MESSAGE_BYTES) {
+      ws.send(JSON.stringify({
+        type: "system.status",
+        payload: { error: "message_too_large", limit: MAX_MESSAGE_BYTES },
+        timestamp: new Date().toISOString(),
+      }));
+      return;
+    }
     try {
       const data = JSON.parse(message);
       const client = this.clients.get(ws.data.clientId);

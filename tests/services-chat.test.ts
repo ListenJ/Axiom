@@ -18,8 +18,27 @@ mock.module(mockRouterMod, () => ({
 const mockCodegraph = path.join(ROOT, "src", "memory", "codegraph-index.js");
 mock.module(mockCodegraph, () => ({
   retrieveCodeMemory: async () => ({ source: "codegraph", results: "code context" }),
+  // code-indexer.ts 也从此模块导入该符号，mock 缺失会导致 SyntaxError
+  getFileSymbolsFromCodeGraph: async () => null,
 }));
 
+const mockIntentEnhancer = path.join(ROOT, "src", "agents", "intent-enhancer.js");
+mock.module(mockIntentEnhancer, () => ({
+  shouldEnhanceIntent: () => false,
+  enhanceIntentWithLLM: async (_input: string, intent: { intent: string }) => intent,
+  buildEnhancedSystemPrompt: (intent: string) => `Enhanced ${intent}`,
+}));
+
+const mockPromptOptimizer = path.join(ROOT, "src", "agents", "prompt-optimizer.js");
+mock.module(mockPromptOptimizer, () => ({
+  optimizePrompt: async (text: string) => ({ changed: false, text }),
+  // P0-A：src/services/chat-preflight.js 额外引用这些导出；mock.module 是整模块替换，
+  // 缺失符号在该测试进程内为 undefined。isRewriteEnabled=false 使合并快路径
+  // 确定性关闭（不发边缘网络请求），prepareChatContext 走既有串行语义。
+  shouldSkipOptimization: (text: string) => text.trim().length < 20,
+  isRewriteEnabled: () => false,
+  passesDeterministicGates: () => false,
+}));
 const mockQueryDecomp = path.join(ROOT, "src", "agents", "query-decomposer.js");
 mock.module(mockQueryDecomp, () => ({
   decomposeQuery: () => ({ subQueries: ["q1"] }),
@@ -58,5 +77,17 @@ describe("ChatService", () => {
       [{ role: "user", content: "test" }], null, "general-chat",
     );
     expect(result.content).toBe("general chat");
+  });
+
+  it("prepareChatContext applies token budget", async () => {
+    const { prepareChatContext } = await import("../src/services/chat.js");
+    const result = await prepareChatContext(
+      [{ role: "user", content: "x".repeat(500) }],
+      false,
+      null,
+      { budget: 64 },
+    );
+    expect(result.tokenBudgetReport).toBeDefined();
+    expect(result.chatMessages.length).toBeGreaterThan(0);
   });
 });

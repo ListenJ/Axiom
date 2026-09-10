@@ -15,6 +15,8 @@ import { logger } from "../utils/logger.js";
 export interface KernelConfig extends DREConfig {
   tickInterval?: number;
   autoTick?: boolean;
+  /** H1：任务派发给 Actor 的 ask 超时（ms），超时视为失败进入重试 */
+  actorAskTimeoutMs?: number;
 }
 
 export interface KernelStatus {
@@ -34,7 +36,8 @@ export class Kernel {
   private _tickCount = 0;
   private _lastTickTime = 0;
   private _startTime = 0;
-  private _tickTimer: ReturnType<typeof setInterval> | null = null;
+  private _tickTimer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null = null;
+  private _running = false;
 
   constructor(config: KernelConfig) {
     this.config = config;
@@ -103,19 +106,35 @@ export class Kernel {
       // 驱动调度器: 尝试执行下一个待办任务
       const nextTask = scheduler.getNext();
       if (nextTask) {
+        // O4 代数守卫：dispatch 时快照代数，complete 回传以检测抢占后的陈旧完成
+        const dispatchGen = nextTask.gen ?? 0;
         try {
-          // 将任务派发给 Actor 系统 — must await so the task is only marked
-          // complete after the actor has accepted (and processed) the message.
-          // Without await, scheduler.complete() runs before dispatch resolves,
-          // masking actor failures as successes.
-          await this.engine.actors.send(
+          // H1 编排闭环修复：request/response 式派发 —— 依据 Actor 的真实响应
+          // （response / 结构化 NACK / 超时）判定任务成败，失败进入 scheduler.fail()
+          // 的指数退避重试，不再无条件标记成功。
+          const reply = await this.engine.actors.ask(
             "kernel",
             nextTask.assignedTo || "knowledge",
             "request",
             "execute",
-            nextTask
+            nextTask,
+            this.config.actorAskTimeoutMs ?? 5000,
           );
-          scheduler.complete(nextTask.id, { dispatched: true });
+          if (reply.type === "error") {
+            const payload = (reply.payload as { error?: string; code?: string } | null) ?? {};
+            const errMsg = payload.error ?? `actor ${reply.from} returned error`;
+            // 审计 B-1（2026-08-24）：不支持的主题属于确定性拒绝，重试必然
+            // 再次 NACK——终态失败，不进入指数退避重试。
+            const terminal = payload.code === "UNSUPPORTED_TOPIC";
+            logger.warn("[Kernel] Task rejected by actor", {
+              taskId: nextTask.id,
+              error: errMsg,
+              terminal,
+            });
+            scheduler.fail(nextTask.id, errMsg, { terminal });
+          } else {
+            scheduler.complete(nextTask.id, reply.payload, dispatchGen);
+          }
         } catch (err) {
           scheduler.fail(nextTask.id, (err as Error).message);
         }
@@ -136,15 +155,27 @@ export class Kernel {
   }
 
   startTickLoop(): void {
-    if (this._tickTimer) return;
+    if (this._running) return;
+    this._running = true;
     const interval = this.config.tickInterval ?? 5000;
-    this._tickTimer = setInterval(() => this.tick("auto"), interval);
+    // 占位 timer，保持 _tickTimer 非空以兼容旧的 stop 逻辑；真实驱动为 while 循环
+    this._tickTimer = setInterval(() => {}, 1 << 30) as unknown as ReturnType<typeof setInterval>;
+    const loop = async () => {
+      while (this._running) {
+        await this.tick("auto");
+        if (!this._running) break;
+        await new Promise<void>((resolve) => setTimeout(resolve, interval));
+      }
+    };
+    loop().catch((err) => logger.error("[Kernel] Tick loop error", err as Error));
     logger.info("[Kernel] Tick loop started", { interval });
   }
 
   stopTickLoop(): void {
+    this._running = false;
     if (this._tickTimer) {
-      clearInterval(this._tickTimer);
+      clearInterval(this._tickTimer as unknown as NodeJS.Timeout);
+      clearTimeout(this._tickTimer as unknown as NodeJS.Timeout);
       this._tickTimer = null;
     }
   }

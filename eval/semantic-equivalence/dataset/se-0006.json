@@ -1,0 +1,40 @@
+{
+  "id": "se-0006",
+  "source_text": "决定: LLM 仅作为确定性管道的补全器, 不作为推理主体。理由: (1) 确定性推理可测试、可审计、可回放; (2) LLM 不可靠、不可预测、不可审计; (3) 将 LLM 作为填空者可以最小化幻觉影响范围, 仅在确定性管道检测到知识缺口时调用。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L16-L16",
+  "candidate_mr": {
+    "propositions": [
+      "决定: LLM 仅作为确定性管道的补全器, 不作为推理主体。理由: (1) 确定性推理可测试、可审计、可回放; (2) LLM 不可靠、不可预测、不可审计; (3) 将 LLM 作为填空者可以最小化幻觉影响范围, 仅在确定性管道检测到知识缺口时调用。"
+    ],
+    "entities": [
+      {
+        "name": "决定: LLM 仅作为确定性管道的补全器, 不作为推理主体。理由: (1) 确定性推理可测试、可审计、可回放; (2) LLM 不可靠、不可预测、不可审计; (3) 将 LLM 作为填空者可以最小化幻觉影响范围, 仅在确定性管道检测到知识缺口时调用。",
+        "type": "concept",
+        "link": "kg:concept:____LLM____________________________1_____________________2__LLM_________________-aa7da50b"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "决定: LLM 仅作为确定性管道的补全器, 不作为推理主体。理由: (1) 确定性推理可测试、可审计、可回放; (2) LLM 不可靠、不可预测、不可审计; (3) 将 LLM 作为填空者可以最小化幻觉影响范围, 仅在确定性管道检测到知识缺口时调用。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L16-L16"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

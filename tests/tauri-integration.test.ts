@@ -44,7 +44,7 @@ interface TauriConfig {
   }
   bundle: {
     active: boolean
-    targets: string
+    targets: string | string[]
     icon: string[]
     android?: { debugApplicationIdSuffix: string }
   }
@@ -144,8 +144,8 @@ describe("Tauri Bundle Configuration", () => {
     expect(conf.bundle.active).toBe(true)
   })
 
-  it("targets all platforms", () => {
-    expect(conf.bundle.targets).toBe("all")
+  it("targets Windows + Linux bundles (no macOS)", () => {
+    expect(conf.bundle.targets).toEqual(["nsis", "deb", "appimage"])
   })
 
   it("includes icon files in bundle config", () => {

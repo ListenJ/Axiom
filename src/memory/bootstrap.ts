@@ -239,4 +239,60 @@ export class AgentBootstrap {
   }
 }
 
+/** 默认 bootstrap 单例：复用同一 VaultManager/SQLite 连接，避免每会话新建实例泄漏句柄 */
+let _defaultBootstrap: AgentBootstrap | null = null;
+function getDefaultBootstrap(): AgentBootstrap {
+  if (!_defaultBootstrap) _defaultBootstrap = new AgentBootstrap();
+  return _defaultBootstrap;
+}
+
+/** per-sessionId bootstrap prompt 缓存上限（防长驻进程无界增长，LRU 简化版：满则淘汰最早项） */
+const SESSION_PROMPT_CACHE_MAX = 500;
+const sessionPromptCache = new Map<string, string>();
+
+/** loadSessionBootstrapPrompt 可注入依赖（测试/自定义加载器） */
+export interface SessionBootstrapDeps {
+  bootstrap?: Pick<AgentBootstrap, "run" | "toSystemPrompt">;
+}
+
+/**
+ * P0-B（2026-08-29）chat 会话召回：chat 首次见到某 sessionId 时加载 bootstrap
+ * 上下文（SOUL/IDENTITY/USER + 相关记忆）并渲染为 system prompt 片段。
+ *
+ * - per-session 缓存：同会话多次请求仅加载一次；
+ * - 失败（vault 不可用等）返回 null，调用方降级为无 bootstrap 的现状，不缓存失败；
+ * - 空 sessionId 返回 null（无 sessionId 的请求跳过）。
+ */
+export async function loadSessionBootstrapPrompt(
+  sessionId: string,
+  topic: string,
+  deps: SessionBootstrapDeps = {},
+): Promise<string | null> {
+  if (!sessionId) return null;
+  const cached = sessionPromptCache.get(sessionId);
+  if (cached !== undefined) return cached;
+  try {
+    const boot = deps.bootstrap ?? getDefaultBootstrap();
+    const context = await boot.run({ topic });
+    const prompt = boot.toSystemPrompt(context);
+    if (sessionPromptCache.size >= SESSION_PROMPT_CACHE_MAX) {
+      const firstKey = sessionPromptCache.keys().next().value;
+      if (firstKey !== undefined) sessionPromptCache.delete(firstKey);
+    }
+    sessionPromptCache.set(sessionId, prompt);
+    return prompt;
+  } catch (err) {
+    logger.debug("[AgentBootstrap] session recall failed, degrading to no-bootstrap", {
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/** 测试/热更新用：清空 per-session bootstrap 缓存 */
+export function resetSessionBootstrapCache(): void {
+  sessionPromptCache.clear();
+}
+
 export default AgentBootstrap;

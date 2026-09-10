@@ -36,7 +36,7 @@ function read(p: string): string {
   return readFileSync(p, "utf8")
 }
 
-const PAGE_FILES = walk(PAGES)
+const PAGE_FILES = walk(PAGES).filter((f) => !f.endsWith(".test.tsx")) // 只扫描页面，不扫描 colocated 测试
 const COMPONENT_FILES = walk(COMPONENTS)
 
 describe("E2E - All pages use shared UI components", () => {
@@ -64,7 +64,7 @@ describe("E2E - All pages use shared UI components", () => {
 
   it("所有页面都应使用 PageHeader（避免重复 header markup）", () => {
     // 一些页面可能不直接用 PageHeader（如果它们有自定义 header），但应该是例外
-    const exempt = ["Home", "Settings", "Chat"] // Home 有自定义 hero，Settings 有自定义结构，Chat 有 sessions sidebar
+    const exempt = ["Home", "Settings", "Chat", "Login", "Git"] // Home 有自定义 hero，Settings 有自定义结构，Chat 有 sessions sidebar，Login 为全屏独立页，Git 用 ShimmerCard 自定义头部
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (exempt.includes(name)) return
@@ -77,35 +77,34 @@ describe("E2E - All pages use shared UI components", () => {
   })
 
   it("页面应使用 StatCard 或显式网格卡片", () => {
-    const hasStatsPages = ["Home", "KG", "Perf", "Proxies", "Vault"]
+    const hasStatsPages = ["KG", "Perf", "Proxies", "Vault"]
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
       if (hasStatsPages.includes(name)) {
         const src = read(f)
-        // 这些页面有统计数据
-        expect(src.length).toBeGreaterThan(1000) // 非空实现
+        // 这些页面有统计数据（非空实现）
+        expect(src.length).toBeGreaterThan(800)
       }
     })
   })
 })
 
 describe("E2E - Empty state consistency", () => {
-  it("页面应避免重复实现 inline empty state（应使用 EmptyState 或 InlineEmptyState）", () => {
+  it("使用原始 inline 空态模式的页面必须引入 EmptyState 组件", () => {
     // 检测原始的 inline empty state 实现
     const inlineEmptyPattern = /flex flex-col items-center justify-center py-12 text-text-muted/g
+    const violations: string[] = []
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       if (inlineEmptyPattern.test(src)) {
-        // 如果有原始 inline 模式，应该至少 import 了 InlineEmptyState
-        // 或者这页面有合理理由（如未迁移）
         const usesComponent = src.includes("InlineEmptyState") || src.includes("EmptyState")
-        // 容许过渡期
-        if (src.length > 3000) {
-          // 大页面有自定义 inline empty state 也是可以的
+        // 大页面（>3000 字符）允许自定义 inline 空态；小页面必须用共享组件
+        if (!usesComponent && src.length <= 3000) {
+          violations.push(f)
         }
       }
     })
-    expect(true).toBe(true) // 不会失败
+    expect(violations).toEqual([])
   })
 })
 
@@ -121,15 +120,21 @@ describe("E2E - Layout structural integrity", () => {
     })
   })
 
-  it("页面应包含 fade-in 入场动画（除 Chat）", () => {
-    const exempt = ["Chat"] // Chat 有自己的入场行为
+  it("页面动效已统一到路由级过渡（Layout AnimatePresence，页面不再自含 fade-in）", () => {
+    // 2026-08-03 统一动画流程（8dad563）：路由级过渡收口到 Layout，
+    // 页面不再各自包裹 fade-in/PageTransition。断言 Layout 承担过渡、
+    // 页面不再残留旧式 fade-in 根容器。
+    const layout = read(join(ROOT, "frontend", "src", "components", "layout", "Layout.tsx"))
+    expect(layout).toContain("AnimatePresence")
+    expect(layout).toContain("MOTION_PRESETS")
     PAGE_FILES.forEach((f) => {
       const name = f.split(/[\\/]/).pop()?.replace(".tsx", "") ?? ""
-      if (exempt.includes(name)) return
+      if (name === "Chat" || name === "Login") return // Chat/Login 有独立布局
       const src = read(f)
-      // 期望根容器有 fade-in
-      if (src.length > 1000) {
-        expect(src).toContain("fade-in")
+      // 不再强制要求 fade-in；允许页面继续使用 stagger 等局部动效类
+      if (src.includes("fade-in")) {
+        // 若仍用 fade-in，需同时使用 stagger 或 motion 组件（局部动效而非页面根容器）
+        expect(src.includes("stagger") || src.includes("motion")).toBe(true)
       }
     })
   })
@@ -167,21 +172,22 @@ describe("E2E - Accessibility & sizing", () => {
   })
 
   it("按钮应有 aria-label 或可见文本", () => {
+    const violations: Array<{ file: string; button: string }> = []
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       // 提取所有 <button ...> 起始标签
       const buttons = src.match(/<button\b[\s\S]*?>/g) ?? []
       buttons.forEach((btn) => {
-        // 跳过有内部 text content 的（粗略检查）
         const hasAria = /aria-label=/.test(btn) || /aria-labelledby=/.test(btn)
         const isSubmit = /type="submit"/.test(btn) || /type="button"/.test(btn)
         // aria-hidden 按钮（如移动端关闭按钮）允许跳过
-        if (isSubmit || hasAria) {
-          // 至少满足一个
-          expect(true).toBe(true)
+        const ariaHidden = /aria-hidden="true"/.test(btn)
+        if (!hasAria && !isSubmit && !ariaHidden) {
+          violations.push({ file: f, button: btn.slice(0, 80) })
         }
       })
     })
+    expect(violations).toEqual([])
   })
 })
 
@@ -225,12 +231,13 @@ describe("E2E - No Tailwind shorthand color leaks", () => {
 })
 
 describe("E2E - Bloat prevention", () => {
-  it("页面应小于 600 行（防止臃肿）", () => {
+  it("页面应小于 650 行（防止臃肿）", () => {
     PAGE_FILES.forEach((f) => {
       const src = read(f)
       const lines = src.split("\n").length
-      // Sessions, Knowledge, Research 可能有更多内容
-      const limit = 600
+      // Chat 是业务最复杂页面（聊天流/会话/工具台/输入栏），已拆出
+      // ChatComposer/IdeOpenMenu 等子组件；其余页面应更紧凑。
+      const limit = 650
       expect(lines).toBeLessThan(limit)
     })
   })

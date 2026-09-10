@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Database } from "bun:sqlite";
 import type { ToolRegistry } from "../tool-registry.js";
 import type { VaultManager } from "../../memory/vault-manager.js";
-import { KnowledgeGraphEnhanced, type KGNodeType, type KGEdgeType } from "../../kg/enhanced.js";
+import { KnowledgeGraphEnhanced, type KGNode, type KGEdge, type KGNodeType, type KGEdgeType } from "../../kg/enhanced.js";
 import { KnowledgeAccessLayer } from "../../kal/knowledge-access-layer.js";
 import { createNodeId } from "../../kal/node-id.js";
 import { parseMarkdownAST, extractAllEntities } from "../../crawl/processor/markdown-ast.js";
@@ -31,6 +31,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
   registry.add({
     name: "kal_query",
     description: "统一知识查询 (跨 Vault/KG/DRE 一次查询，自动 fan-out + 结果合并)",
+    exposure: ["external", "safe-external"],
     inputSchema: {
       query: z.string().describe("搜索关键词或自然语言查询"),
       store: z.enum(["vault", "kg", "dre"]).optional().describe("指定存储 (不指定则查询全部)"),
@@ -78,7 +79,12 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
       const title = args.title as string;
       const sourceUrl = args.sourceUrl as string;
 
+      // M4（2026-08-29 审计 S2）：空文档守卫——空字符串/纯空白，或 AST root 无任何
+      // 子节点（即无标题/段落/代码块可抽取）时，不写库不建 document 根节点。
       const ast = parseMarkdownAST(markdown);
+      if (!markdown.trim() || ast.children.length === 0) {
+        return { success: false, error: "empty document" };
+      }
 
       const entities = extractAllEntities(ast);
       const functions = entities.filter((e) => e.type === "function");
@@ -139,22 +145,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
   });
 
-  // ===== 知识图谱工具 (PostgreSQL + SQLite 统一降级) =====
+  // ===== 知识图谱工具 (SQLite 唯一后端 H-M1-03) =====
 
   registry.add({
     name: "kg_stats",
-    description: "获取知识图谱统计信息 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱统计信息 (SQLite)",
     inputSchema: {},
     handler: async () => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const [entityCount] = await pg`SELECT COUNT(*)::int as count FROM kg_entities`;
-          const [relCount] = await pg`SELECT COUNT(*)::int as count FROM kg_relationships`;
-          return { success: true, backend: "postgresql", totalNodes: entityCount?.count || 0, totalEdges: relCount?.count || 0 };
-        }
-      } catch { /* PG not available, fall through to SQLite */ }
       const kg = getKGEnhancedInstance(db);
       return { success: true, backend: "sqlite", ...kg.getStats() };
     },
@@ -162,32 +159,13 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entities",
-    description: "查询知识图谱实体 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "查询知识图谱实体 (SQLite)",
     inputSchema: {
       type: z.string().optional().describe("实体类型过滤"),
       query: z.string().optional().describe("搜索关键词"),
       limit: z.number().optional().default(50).describe("返回数量"),
     },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const type = args.type as string;
-          const search = args.query as string;
-          const limit = (args.limit as number) || 50;
-          let query = "SELECT id, name, type, description FROM kg_entities";
-          const conditions: string[] = [];
-          const params: (string | number)[] = [];
-          if (type) { params.push(type); conditions.push(`type = $${params.length}`); }
-          if (search) { params.push(`%${search}%`); conditions.push(`(name ILIKE $${params.length} OR description ILIKE $${params.length})`); }
-          if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
-          query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
-          params.push(limit);
-          const entities = await pg.unsafe(query, params);
-          return { success: true, backend: "postgresql", data: entities, count: entities.length };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes((args.query as string) || "", {
         type: args.type as KGNodeType | undefined,
@@ -199,29 +177,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entity_detail",
-    description: "获取知识图谱实体详情及关系 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱实体详情及关系 (SQLite)",
     inputSchema: { name: z.string().describe("实体名称") },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entityName = args.name as string;
-          const [entity] = await pg`SELECT * FROM kg_entities WHERE name = ${entityName}`;
-          if (!entity) return { success: false, error: "Entity not found" };
-          const relationships = await pg`
-            SELECT r.relation_type, r.weight,
-              CASE WHEN r.source_id = ${entity.id} THEN 'outgoing' ELSE 'incoming' END AS direction,
-              CASE WHEN r.source_id = ${entity.id} THEN te.name ELSE se.name END AS other_entity,
-              CASE WHEN r.source_id = ${entity.id} THEN te.type ELSE se.type END AS other_type
-            FROM kg_relationships r
-            JOIN kg_entities se ON se.id = r.source_id
-            JOIN kg_entities te ON te.id = r.target_id
-            WHERE r.source_id = ${entity.id} OR r.target_id = ${entity.id}
-            ORDER BY r.weight DESC`;
-          return { success: true, backend: "postgresql", data: { entity, relationships } };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes(args.name as string, { limit: 1 });
       if (nodes.length === 0) return { success: false, error: "Entity not found" };
@@ -233,24 +191,12 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_traverse",
-    description: "知识图谱遍历 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "知识图谱遍历 (SQLite)",
     inputSchema: {
       entityName: z.string().describe("起始实体名称"),
       depth: z.number().optional().default(2).describe("遍历深度"),
     },
     handler: async (args) => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entityName = args.entityName as string;
-          const depth = (args.depth as number) || 2;
-          const [entity] = await pg`SELECT id FROM kg_entities WHERE name = ${entityName}`;
-          if (!entity) return { success: false, error: "Entity not found" };
-          const results = await pg`SELECT * FROM kg_traverse(${entity.id}, ${depth})`;
-          return { success: true, backend: "postgresql", data: results, depth, startEntity: entityName };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       const nodes = kg.searchNodes(args.entityName as string, { limit: 1 });
       if (nodes.length === 0) return { success: false, error: "Entity not found" };
@@ -307,24 +253,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_graph",
-    description: "获取知识图谱可视化数据 (PostgreSQL 优先，自动降级到 SQLite)",
+    description: "获取知识图谱可视化数据 (SQLite)",
     inputSchema: {},
     handler: async () => {
-      try {
-        const { isPgAvailable, getPG } = await import("../../db/pg-client.js");
-        if (await isPgAvailable()) {
-          const pg = getPG();
-          const entities = await pg`SELECT id, name, type, description FROM kg_entities ORDER BY updated_at DESC LIMIT 500`;
-          const nodeIds = entities.map((e: any) => String(e.id));
-          const relationships = await pg.unsafe(
-            `SELECT r.source_id, r.target_id, r.relation_type FROM kg_relationships r
-             WHERE r.source_id = ANY($1::bigint[]) AND r.target_id = ANY($1::bigint[])
-             ORDER BY r.weight DESC LIMIT 2000`, [nodeIds]);
-          const nodes = entities.map((e: any) => ({ id: e.id, name: e.name, type: e.type, label: e.name.split("/").pop()?.split(".").pop() || e.name }));
-          const edges = relationships.map((r: any) => ({ source: r.source_id, target: r.target_id, type: r.relation_type }));
-          return { success: true, backend: "postgresql", data: { nodes, edges, stats: { nodeCount: nodes.length, edgeCount: edges.length } } };
-        }
-      } catch { /* fall through */ }
       const kg = getKGEnhancedInstance(db);
       return { success: true, backend: "sqlite", data: kg.toEChartsData({ maxNodes: 200, includeEdges: true }) };
     },
@@ -346,9 +277,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
     handler: async (args) => {
       const kg = getKGEnhancedInstance(db);
-      const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      kg.addNode({
-        id: nodeId,
+      // H2：不生成随机 id，空 id 走 enhanced.ts W10 内容哈希去重（同内容二次写入不重复）
+      const node: KGNode = {
+        id: "",
         type: args.type as KGNodeType,
         name: args.name as string,
         description: args.description as string,
@@ -356,8 +287,9 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
         lineNumber: args.lineNumber as number,
         signature: args.signature as string,
         tags: args.tags as string[],
-      });
-      return { success: true, nodeId };
+      };
+      kg.addNode(node);
+      return { success: true, nodeId: node.id };
     },
   });
 
@@ -373,16 +305,17 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
     },
     handler: async (args) => {
       const kg = getKGEnhancedInstance(db);
-      const edgeId = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      kg.addEdge({
-        id: edgeId,
+      // H2：不生成随机 id，空 id 走 enhanced.ts W10 内容哈希去重（同 source/target/type 二次写入不重复）
+      const edge: KGEdge = {
+        id: "",
         source: args.source as string,
         target: args.target as string,
         type: args.type as KGEdgeType,
         weight: (args.weight as number) || 1.0,
         description: args.description as string,
-      });
-      return { success: true, edgeId };
+      };
+      kg.addEdge(edge);
+      return { success: true, edgeId: edge.id };
     },
   });
 

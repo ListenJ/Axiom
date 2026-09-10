@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0008",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"决定: 系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果。\"及三条理由（对话式是黑盒、状态式可随时中断/修正/继续、更适合工具调用场景）被候选命题逐字完整保留，\"而非返回最终结果\"的否定对比未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

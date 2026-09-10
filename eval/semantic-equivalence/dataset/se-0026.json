@@ -1,0 +1,40 @@
+{
+  "id": "se-0026",
+  "source_text": "本地模型增强（可选）：`createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个\n`localModelAssist` 函数，注入 `SynapseEngine` 后会在确定性建议基础上做重排/裁剪；\n使用 OpenAI 兼容 `POST {baseUrl}/chat/completions`，`temperature=0` + 强约束 system 提示\n（只允许重排/裁剪、不得新增事实）。不注入则完全确定性。",
+  "source_origin": "docs/MIND-SYNAPSE.md#L55-L58",
+  "candidate_mr": {
+    "propositions": [
+      "本地模型增强（可选）：`createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个 `localModelAssist` 函数，注入 `SynapseEngine` 后会在确定性建议基础上做重排/裁剪； 使用 OpenAI 兼容 `POST {baseUrl}/chat/completions`，`temperature=0` + 强约束 system 提示 （只允许重排/裁剪、不得新增事实）。不注入则完全确定性。"
+    ],
+    "entities": [
+      {
+        "name": "本地模型增强（可选）：`createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个 `localModelAssist` 函数，注入 `SynapseEngine` 后会在确定性建议基础上做重排/裁剪； 使用 OpenAI 兼容 `POST {baseUrl}/chat/completions`，`temperature=0` + 强约束 sy",
+        "type": "concept",
+        "link": "kg:concept:____________createLocalModelAssist___baseUrl__apiKey__model___________localModel-686e5df4"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/MIND-SYNAPSE.md",
+        "predicate": "contains",
+        "object": "本地模型增强（可选）：`createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个 `localModelAssist` 函数，注入 `SynapseEngine` 后会在确定性建议基础上做重排/裁剪； 使用 OpenAI 兼容 `POST {baseUrl}/chat/completions`，`temperature=0` + 强约束 sy"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/MIND-SYNAPSE.md#L55-L58"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

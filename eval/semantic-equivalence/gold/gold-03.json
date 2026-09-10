@@ -1,0 +1,29 @@
+{
+  "id": "gold-03",
+  "source_text": "这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环。",
+  "source_origin": "docs/ARCHITECTURE.md#L83-L83",
+  "candidate_mr": {
+    "propositions": [
+      "router.ts、consciousness.ts、execution.ts 是位于 src/services/ 之外的独立模块，依赖 src/services/ 提供的桥接"
+    ],
+    "entities": [
+      { "name": "router.ts", "type": "module", "link": "kg:module:router" },
+      { "name": "consciousness.ts", "type": "module", "link": "kg:module:consciousness" },
+      { "name": "execution.ts", "type": "module", "link": "kg:module:execution" },
+      { "name": "src/services/", "type": "module", "link": "kg:module:src-services" }
+    ],
+    "triples": [
+      { "subject": "router.ts", "predicate": "depends-on", "object": "src/services/" },
+      { "subject": "consciousness.ts", "predicate": "depends-on", "object": "src/services/" },
+      { "subject": "execution.ts", "predicate": "depends-on", "object": "src/services/" }
+    ],
+    "provenance": [{ "prop_index": 0, "origin": "docs/ARCHITECTURE.md#L83-L83" }],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

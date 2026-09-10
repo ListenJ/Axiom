@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0041",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题仅为源文本的逐字前缀，止于『called E 2』（模型名 E 2 -LLM 中途截断）。源文本后半部关键命题全部缺失：『the training data of our E 2 -LLM only requires a short length (e.g., 4k)』『the training procedure on the short training context window is performed only once time』『we introduce two different augmentation methods on the scale and position index parameters』以及实验结论『demonstrate the effectiveness of our E 2 -LLM on challenging long-context tasks』均无对应命题，数值（4k）、训练次数（一次）、方法数量（两种）等关键信息丢失。§5：关键命题 E3 → not_equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

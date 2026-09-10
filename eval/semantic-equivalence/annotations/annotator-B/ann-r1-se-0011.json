@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0011",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题字段完整保留源文本六步流程（含缺口命题『不知道如何将性能指标映射到具体重构模式』与两处『仅』限定：『仅发送性能指标 + 相关代码 + 指定的重构模式』『仅生成优化后的代码片段』）；可忽略差异：实体 name 与 triple object 截断于『优化后的代』，源末尾代码围栏未收录，均为格式残缺，命题本体正确。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

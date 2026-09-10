@@ -35,10 +35,11 @@ describe('Eval page integration', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mocks.stats.mockResolvedValue({
-      totalModels: 3,
-      evaluatedModels: 2,
-      avgScore: 0.85,
-      activeAssignments: 1,
+      // model-eval-service getStats 真实返回形状
+      totalEvaluations: 3,
+      modelsEvaluated: 2,
+      lastEvalAt: new Date().toISOString(),
+      topModels: [{ modelId: 'm1', overall: 85 }],
     })
     mocks.results.mockResolvedValue([
       {

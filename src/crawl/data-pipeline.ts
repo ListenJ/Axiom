@@ -16,7 +16,10 @@
 import { logger } from "../utils/logger.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 
-import { searchAggregator, type SearchEngineResult, type SearchOptions } from "./search-engines.js";
+import { SearchAggregator, searchAggregator, type SearchEngineResult, type SearchOptions, type SearchFetch } from "./search-engines.js";
+import { filterResults } from "./result-filter.js";
+import { scoreResult, type ScoreBreakdown } from "./result-scorer.js";
+import { extractFacts, type ExtractedFact } from "./data-extractor.js";
 import { Database } from "bun:sqlite";
 
 // Precompiled noise-removal patterns (module-level, reused on every crawl pass
@@ -38,6 +41,14 @@ import { VaultManager, getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withFallback, withTimeout, isRetryableError } from "../utils/resilience.js";
 import { readString } from "../utils/env.js";
 
+/** 日志脱敏：查询不落明文日志（防敏感查询经日志采集泄露），返回长度+前 8 位哈希。 */
+function sanitizeQueryForLog(query: string): string {
+  let h = 0;
+  for (let i = 0; i < query.length; i++) h = ((h << 5) - h + query.charCodeAt(i)) | 0;
+  return `len=${query.length} h=${(h >>> 0).toString(16).slice(0, 8)}`;
+}
+
+
 // ========== 类型定义 ==========
 
 interface CrawlOptions {
@@ -46,6 +57,10 @@ interface CrawlOptions {
   maxDepth?: number;
   retries?: number;
   userAgent?: string;
+  /** 可注入 fetch（测试用，绕过 proxyFetch 真实网络） */
+  fetchImpl?: (url: string, init: RequestInit & { ssrfGuard?: boolean; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
+  /** 可注入搜索 fetch（测试用，传给 SearchAggregator） */
+  searchFetchImpl?: SearchFetch;
 }
 
 /** 结构化爬取结果 */
@@ -233,8 +248,10 @@ const SITE_RULES: SiteExtractRule[] = [
 // ========== 主类 ==========
 
 export class DataPipeline {
-  private options: Required<CrawlOptions>;
+  private options: Required<Omit<CrawlOptions, "fetchImpl" | "searchFetchImpl">>;
   private visited = new Set<string>();
+  private readonly fetchImpl?: CrawlOptions["fetchImpl"];
+  private readonly searchAgg: SearchAggregator;
 
   constructor(options: CrawlOptions = {}) {
     this.options = {
@@ -244,6 +261,9 @@ export class DataPipeline {
       retries: options.retries || 3,
       userAgent: options.userAgent || "Axiom/1.0 (Research Bot; +https://axiom-runtime.ai)",
     };
+    this.fetchImpl = options.fetchImpl;
+    // searchFetchImpl 注入时构造隔离聚合器（测试确定性）；否则用模块单例
+    this.searchAgg = options.searchFetchImpl ? new SearchAggregator(options.searchFetchImpl) : searchAggregator;
   }
 
   // ===== 搜索层：多引擎聚合 =====
@@ -265,8 +285,8 @@ export class DataPipeline {
       timeRange: opts?.timeRange,
     };
 
-    logger.info(`[Pipeline] Multi-engine search: "${query}" via [${engines.join(", ")}]`);
-    return searchAggregator.searchMulti(searchOpts, engines);
+    logger.info(`[Pipeline] Multi-engine search: ${sanitizeQueryForLog(query)} via [${engines.join(", ")}]`);
+    return this.searchAgg.searchMulti(searchOpts, engines);
   }
 
   /**
@@ -277,8 +297,8 @@ export class DataPipeline {
     engine: string = "duckduckgo",
     opts?: { num?: number; lang?: string; site?: string; safe?: boolean }
   ): Promise<SearchEngineResult[]> {
-    logger.info(`[Pipeline] Search via ${engine}: "${query}"`);
-    return searchAggregator.search(engine, {
+    logger.info(`[Pipeline] Search via ${engine}: ${sanitizeQueryForLog(query)}`);
+    return this.searchAgg.search(engine, {
       query,
       num: opts?.num ?? 10,
       lang: opts?.lang,
@@ -310,12 +330,15 @@ export class DataPipeline {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
 
-          const res = await proxyFetch(url, {
+          const fetcher = this.fetchImpl ?? ((u: string, i: any) => proxyFetch(u, i));
+          const res = await fetcher(url, {
             headers: {
               "User-Agent": this.options.userAgent,
               Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
             signal: controller.signal,
+            // SSRF 防护：初始 URL 与每个重定向跳都校验（覆盖 MCP web_fetch / /web-fetch / collector）
+            ssrfGuard: true,
           });
 
           clearTimeout(timer);
@@ -761,6 +784,13 @@ export class DataPipeline {
     const wordCount = result.chunks.reduce((sum, c) => sum + c.wordCount, 0);
     const qualityScore = this.calculateQualityScore(result, wordCount);
 
+    // Task 2.3: 抽取 (subject, predicate, object) 三元组，与 Schema.org 数据合并写入 structured_data 字段
+    const facts: ExtractedFact[] = extractFacts(result.markdown, result.url);
+    const structuredDataWithFacts = {
+      schema: result.structuredData,
+      facts,
+    };
+
     db.run(
       `INSERT OR REPLACE INTO crawl_results (
         url, url_hash, title, description, site_name, language,
@@ -775,7 +805,7 @@ export class DataPipeline {
         result.siteName || null,
         result.language || null,
         result.markdown,
-        JSON.stringify(result.structuredData),
+        JSON.stringify(structuredDataWithFacts),
         JSON.stringify(result.headings),
         JSON.stringify(result.tables),
         JSON.stringify(result.codeBlocks),
@@ -810,8 +840,15 @@ export class DataPipeline {
 
   /**
    * 计算内容质量评分 (0-100)
+   *
+   * 可选 scoreHook：允许外部接入额外的打分逻辑（如基于检索 query 的相关性得分），
+   * 返回值会被累加到基础分上（最终仍 clamp 到 [0, 100]）。
    */
-  private calculateQualityScore(result: StructuredCrawlResult, wordCount: number): number {
+  private calculateQualityScore(
+    result: StructuredCrawlResult,
+    wordCount: number,
+    scoreHook?: (result: StructuredCrawlResult, wordCount: number) => number,
+  ): number {
     let score = 0;
     // 基础分：有标题 +10
     if (result.title && result.title !== "Untitled") score += 10;
@@ -828,6 +865,11 @@ export class DataPipeline {
     score += Math.min(result.images.length, 5);
     // Schema.org 数据 +5
     if (result.structuredData.length > 0) score += 5;
+    // 外部 hook 加分（Task 2.2 接入点）
+    if (scoreHook) {
+      const extra = scoreHook(result, wordCount);
+      if (typeof extra === "number" && Number.isFinite(extra)) score += extra;
+    }
     return Math.min(Math.round(score), 100);
   }
 
@@ -858,8 +900,20 @@ export class DataPipeline {
       num: opts?.num || 10,
       engines: opts?.engines,
     });
+
+    // Task 2.1: 黑名单 + 启发式 + 去重过滤
+    const filtered = filterResults(results);
+    // Task 2.2: 4 维度打分并按 total 降序排序
+    const scored = filtered
+      .map((r) => ({ result: r, score: scoreResult(r, query) }))
+      .sort((a, b) => b.score.total - a.score.total);
+
     const max = opts?.maxResults || 5;
-    const targets = results.slice(0, max);
+    const targets = scored.slice(0, max).map((s) => s.result);
+
+    logger.info(
+      `[Pipeline] crawlSearchResults: query="${query}" raw=${results.length} filtered=${filtered.length} targets=${targets.length}`
+    );
 
     const crawled: StructuredCrawlResult[] = [];
     for (const item of targets) {

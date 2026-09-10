@@ -30,3 +30,13 @@ export {
   handleEvalResults,
   handleEvalTrend,
 } from "./eval.js";
+
+export {
+  handleKnowledgeCollect,
+  handleKnowledgeStats,
+  handleKnowledgePipeline,
+  handleKnowledgeAutoupdateStart,
+  handleKnowledgeAutoupdateStop,
+  handleKnowledgeAutoupdateStatus,
+  handleKnowledgeAutoupdateRun,
+} from "./knowledge.js";

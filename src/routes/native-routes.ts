@@ -59,7 +59,8 @@ export async function handleNativeStats(ctx: RouteContext): Promise<Response | n
   if (req.method !== "GET") return null;
 
   if (!isNativeReady()) {
-    return ctx.jsonResponse({ error: "Native core not available" }, 503);
+    // 未就绪返回 200 空态：前端展示“未启用”，避免控制台 503 噪声
+    return ctx.jsonResponse({ available: false, reason: "native core not available" }, 200);
   }
 
   const stats = await nativeStats();

@@ -180,7 +180,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_delete",
-    description: "删除文件或目录",
+    description: "删除文件（仅支持单文件 unlink；不支持目录）",
     inputSchema: {
       path: z.string().describe("要删除的路径"),
     },
@@ -306,7 +306,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
       const filterType = args.type as string;
       if (filterType && result.success && result.symbols) {
         result.symbols = result.symbols.filter(
-          (s: any) => s.type === filterType,
+          (s: { type: string }) => s.type === filterType,
         );
       }
       return result;

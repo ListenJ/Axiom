@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test"
+import { describe, it, expect, spyOn } from "bun:test"
 import { formatTrendingTable } from "../../../src/knowledge/sources/github-trending.js"
 import type { TrendingRepo } from "../../../src/knowledge/sources/github-trending.js"
 
@@ -21,8 +21,14 @@ describe("formatTrendingTable", () => {
 
 describe("discoverGitHubRepos", () => {
   it("returns empty array without token (API) but will still scrape trending", async () => {
-    const { discoverGitHubRepos } = await import("../../../src/knowledge/sources/github-trending.js")
-    const repos = await discoverGitHubRepos({ limit: 3 })
-    expect(Array.isArray(repos)).toBe(true)
+    // Mock the network so the test is deterministic (no live github.com fetch).
+    const fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async () => new Response("", { status: 200 })) as unknown as typeof fetch)
+    try {
+      const { discoverGitHubRepos } = await import("../../../src/knowledge/sources/github-trending.js")
+      const repos = await discoverGitHubRepos({ limit: 3 })
+      expect(Array.isArray(repos)).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })

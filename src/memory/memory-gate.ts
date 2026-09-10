@@ -10,6 +10,11 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { judgeSignificanceWithEdge } from "./edge-assist.js";
+import type { LLMClient } from "../dre/llm/client.js";
+
+/** 边缘裁决的灰区下限：confidence ∈ [GRAY_ZONE_FLOOR, minConfidence) 时才咨询边缘模型 */
+const GRAY_ZONE_FLOOR = 0.35;
 
 /** 写入决策结果 */
 export interface WriteDecision {
@@ -162,10 +167,11 @@ export class MemoryGate {
     }
 
     // 5. 频率限制检查
-    if (this.isRateLimited()) {
+    const rateLimitReason = this.checkRateLimit();
+    if (rateLimitReason) {
       return {
         shouldWrite: false,
-        reason: `Rate limit exceeded (${this.rateLimit.recentWrites.length} writes in last hour)`,
+        reason: rateLimitReason,
         confidence: 0,
         category: "skip",
       };
@@ -253,6 +259,49 @@ export class MemoryGate {
   }
 
   /**
+   * 边缘增强版写入决策（异步）—— 灰区由边缘小模型裁决
+   *
+   * 流程：同步规则 fast path（shouldWrite）→
+   *   规则通过 → 直接通过（不调模型）
+   *   规则拒绝但 confidence ∈ [0.35, minConfidence) 灰区 → 边缘裁决
+   *     边缘判定值得 → 升级为 medium-value 写入
+   *     边缘判定不值得 / 不可用 → 维持规则结果（fail-open 到规则）
+   *   远低于阈值（< 0.35）→ 直接拒绝（不调模型）
+   *
+   * 同步 shouldWrite 保持不变，供不需要边缘增强的调用方使用。
+   */
+  async shouldWriteWithEdge(
+    response: string,
+    userMessage: string,
+    ctx: SignificanceContext,
+    client?: Pick<LLMClient, "generate">,
+  ): Promise<WriteDecision> {
+    const ruleDecision = this.shouldWrite(response, userMessage, ctx);
+
+    // 非灰区（通过 / 远低于阈值 / 基础检查失败）→ 直接返回规则结果
+    if (ruleDecision.shouldWrite || ruleDecision.confidence < GRAY_ZONE_FLOOR || ruleDecision.category === "skip") {
+      return ruleDecision;
+    }
+
+    // 灰区：咨询边缘模型
+    const edgeVerdict = await judgeSignificanceWithEdge(userMessage, response, client);
+    if (edgeVerdict?.worth === true) {
+      logger.info("[MemoryGate] Gray-zone write approved by edge model", {
+        ruleConfidence: ruleDecision.confidence,
+        edgeReason: edgeVerdict.reason,
+      });
+      return {
+        shouldWrite: true,
+        reason: `${ruleDecision.reason}; edge-approved: ${edgeVerdict.reason ?? "worth remembering"}`,
+        confidence: this.config.minConfidence,
+        category: "medium-value",
+      };
+    }
+
+    return ruleDecision;
+  }
+
+  /**
    * 记录一次写入（用于频率限制和去重）
    */
   recordWrite(contentHash: string, path: string): void {
@@ -264,9 +313,9 @@ export class MemoryGate {
     // 更新频率限制
     this.rateLimit.recentWrites.push(now);
 
-    // 清理过期记录（1小时前）
-    const oneHourAgo = now - 3_600_000;
-    this.rateLimit.recentWrites = this.rateLimit.recentWrites.filter(t => t > oneHourAgo);
+    // 清理过期记录（保留 24 小时窗口：isRateLimited 需要按天计数，不能只留 1 小时）
+    const oneDayAgo = now - 86_400_000;
+    this.rateLimit.recentWrites = this.rateLimit.recentWrites.filter(t => t > oneDayAgo);
 
     // 清理过期缓存
     for (const [key, entry] of this.writeCache) {
@@ -300,11 +349,23 @@ export class MemoryGate {
     };
   }
 
-  private isRateLimited(): boolean {
+  /**
+   * 频率限制检查（审计 Low 2026-08-29：maxWritesPerDay 此前未参与判定，现接入）。
+   * 命中任一上限时返回原因字符串，未命中返回 null。
+   */
+  private checkRateLimit(): string | null {
     const now = Date.now();
     const oneHourAgo = now - 3_600_000;
-    const recentCount = this.rateLimit.recentWrites.filter(t => t > oneHourAgo).length;
-    return recentCount >= this.rateLimit.maxWritesPerHour;
+    const oneDayAgo = now - 86_400_000;
+    const hourCount = this.rateLimit.recentWrites.filter(t => t > oneHourAgo).length;
+    const dayCount = this.rateLimit.recentWrites.filter(t => t > oneDayAgo).length;
+    if (hourCount >= this.rateLimit.maxWritesPerHour) {
+      return `Hourly rate limit exceeded (${hourCount}/${this.rateLimit.maxWritesPerHour} writes in last hour)`;
+    }
+    if (dayCount >= this.rateLimit.maxWritesPerDay) {
+      return `Daily rate limit exceeded (${dayCount}/${this.rateLimit.maxWritesPerDay} writes in last 24h)`;
+    }
+    return null;
   }
 
   private hashContent(content: string): string {

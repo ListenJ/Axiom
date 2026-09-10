@@ -542,9 +542,12 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         for (const check of report.checks) {
           if (check.autoFixable && check.fix) {
             try {
-              const { execSync } = await import("child_process");
+              const fs = await import("fs");
+              // fix 串形如 "mkdir -p <dir>"（health-checker 内部生成）。
+              // 不经 shell 直接创建目录，消除命令注入面
               if (check.fix.startsWith("mkdir")) {
-                execSync(check.fix);
+                const dir = check.fix.replace(/^mkdir\s+(?:-p\s+)?/, "").trim();
+                fs.mkdirSync(dir, { recursive: true });
                 fixed.push(check.component);
               }
             } catch {
@@ -795,13 +798,14 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       console.log(`  Kimi Code: ${kimiApiOk || kimiCliOk ? "[OK]" : "[缺失]"} API Key ${kimiApiOk ? "已配置" : "未配置"} | CLI ${kimiCliOk ? "已安装" : "未安装"}`);
 
       // Prompt Engineer 状态
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const templates = promptEngineer.listTemplates();
       const skills = promptEngineer.listSkills();
       console.log(`\n  Prompt Engineer:`);
       console.log(`    模板数: ${templates.length}`);
       console.log(`    Skill数: ${skills.length}`);
-      console.log(`    匹配模式: 零向量 (确定性关键词计数)`);
+      console.log(`    匹配模式: 确定性关键词计数（共享 cosineSimilarity 仅可选语义层）`);
     },
   },
 
@@ -888,7 +892,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     desc: "列出所有提示词模板 (prompt:list [--category=engineering])",
     run: async (args) => {
       const category = args.find((a) => a.startsWith("--category="))?.slice(11);
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const templates = promptEngineer.listTemplates(category);
       console.log(`[提示词模板] (${category || "全部"})\n`);
       for (const t of templates) {
@@ -909,7 +914,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const desc = args.find((a) => !a.startsWith("--"));
       if (!desc) { console.error("Usage: prompt:match <task_description>"); return; }
       const intensity = args.find((a) => a.startsWith("--intensity="))?.slice(12) as "low" | "medium" | "high" | undefined;
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const match = promptEngineer.matchTemplate(desc, { thinkingIntensity: intensity });
       if (!match) {
         console.log("[错误] 未找到匹配的模板");
@@ -931,7 +937,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const templateId = args[0];
       const varsJson = args[1];
       if (!templateId || !varsJson) { console.error("Usage: prompt:fill <template_id> <json_variables>"); return; }
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const template = promptEngineer.listTemplates().find((t) => t.id === templateId);
       if (!template) { console.error(`模板不存在: ${templateId}`); return; }
       const variables = JSON.parse(varsJson);
@@ -946,7 +953,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
     run: async (args) => {
       const trigger = args.join(" ");
       if (!trigger) { console.error("Usage: prompt:skill <trigger>"); return; }
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const skill = promptEngineer.matchSkill(trigger);
       if (!skill) {
         console.log("[错误] 未找到匹配的 Skill");
@@ -971,7 +979,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const installed = await checkHermes();
       if (!installed) { console.log("[错误] Hermes 未安装"); return; }
       console.log(`[Hermes] 生成提示词模板...\n`);
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const template = await promptEngineer.generateTemplateWithHermes(description, category, vars);
       if (!template) { console.log("[错误] 生成失败"); return; }
       console.log(`[生成] 模板: ${template.name}`);
@@ -994,7 +1003,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         process.stdin.on("data", (chunk) => { data += chunk; });
         process.stdin.on("end", () => resolve(data));
       });
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       console.log("[优化中]...\n");
       const optimized = await promptEngineer.optimizePromptWithHermes(prompt, goal);
       if (!optimized) { console.log("[错误] 优化失败"); return; }
@@ -1013,7 +1023,8 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const installed = await checkHermes();
       if (!installed) { console.log("[错误] Hermes 未安装"); return; }
       console.log(`[Hermes] 生成 Skill...\n`);
-      const { promptEngineer } = await import("./agents/prompt-engineer.js");
+      const { getPromptEngineer } = await import("./agents/prompt-engineer.js");
+      const promptEngineer = getPromptEngineer();
       const skill = await promptEngineer.generateSkillWithHermes(name, description, triggers);
       if (!skill) { console.log("[错误] 生成失败"); return; }
       console.log(`[生成] Skill: ${skill.name}`);

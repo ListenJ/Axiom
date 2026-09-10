@@ -48,7 +48,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 |------|------|----------|
 | **Runtime Kernel** | 事件, 调度, 生命周期, Actor, 状态管理 | kernel.ts + event-bus.ts + world-state.ts |
 | **Knowledge Representation** | 事实/行为/过程/约束/证据/预测的统一表示 | data-unifier.ts + atom-engine.ts |
-| **Deterministic Cognitive Pipeline** | Observation → State → Reasoning → Planning → Verification | cognitive-pipeline.ts + reasoning-runtime.ts |
+| **Deterministic Cognitive Pipeline** | Observation → State → Reasoning → Planning → Verification | cognitive-pipeline.ts |
 | **LLM Adapter** | 所有模型统一抽象为认知增强器 | llm/client.ts |
 
 ### 设计原则 (排序)
@@ -162,8 +162,8 @@ verification-engine.ts: verifyResult()
     → needsLLM = true (让 LLM 自我修正)
     → 修正 Prompt 包含: "你违反了 [Constraint: No External Libs]"
 
-reasoning-runtime.ts: Stage 8 (verification)
-  → 集成 verificationEngine
+verification-engine.ts: Stage 8 (verification)
+  → 集成 verificationEngine（经 cognitive-pipeline.ts）
   → 失败时发布 pipeline.verification 事件
 ```
 
@@ -279,7 +279,7 @@ consciousness/stream.ts:
 
 ### 2.1 Kernel — 极薄启动器
 
-**文件:** `src/dre/kernel.ts` (174 行)
+**文件:** `src/dre/kernel.ts`
 
 **设计理念:** Kernel 不做任何业务逻辑。它只做三件事: (1) 通过 `init()` 启动所有子系统, (2) 通过 `tick()` 驱动循环, (3) 通过 `shutdown()` 优雅关闭。
 
@@ -363,7 +363,7 @@ async shutdown(): Promise<void> {
 
 ### 2.2 DREngine — 引擎主入口
 
-**文件:** `src/dre/engine.ts` (700 行)
+**文件:** `src/dre/engine.ts`
 
 **职责:** 整合所有子系统。构造函数同步初始化 12 个模块, 对外提供统一 API。
 
@@ -492,7 +492,7 @@ catch { return ruleBasedConsciousnessStep(input); }
 
 ### 2.3 DataUnifier — 统一数据入口 ★ v3.1
 
-**文件:** `src/dre/runtime/data-unifier.ts` (167 行)
+**文件:** `src/dre/runtime/data-unifier.ts`
 
 **设计:** 替代 VFS + KnowledgeStore + AtomEngine 三个独立入口。所有读写经过这里。
 
@@ -541,7 +541,7 @@ load(db): number {
 
 ### 2.4 CognitivePipeline — 认知管道
 
-**文件:** `src/dre/pipeline/cognitive-pipeline.ts` (564 行)
+**文件:** `src/dre/pipeline/cognitive-pipeline.ts`
 
 **6 步确定性闭环 + 4 级 LLM 降级 + TaskGraph 执行:**
 
@@ -621,7 +621,7 @@ private classify(input: string) {
 
 ### 2.5 PersonaLoader — 角色加载器 ★ v3.0
 
-**文件:** `src/dre/persona/loader.ts` (431 行)
+**文件:** `src/dre/persona/loader.ts`
 
 **设计:** Persona ≠ Agent。Persona = Constraints + MentalModels + Capabilities + PromptTemplate。
 
@@ -722,7 +722,7 @@ render(id: string, variables: TemplateVariables = {}): string {
 
 ### 2.6 ConsciousnessStream — 意识流
 
-**文件:** `src/dre/consciousness/stream.ts` (557 行)
+**文件:** `src/dre/consciousness/stream.ts`
 
 **3 层记忆 + 反思 + 记忆整合:**
 
@@ -802,7 +802,7 @@ class ReflectionQueue {
 
 ### 2.7 VerificationEngine — 验证引擎 ★ v3.0
 
-**文件:** `src/dre/runtime/verification-engine.ts` (247 行)
+**文件:** `src/dre/runtime/verification-engine.ts`
 
 ```typescript
 // 4 层验证 + LLM fallback 决策
@@ -834,9 +834,9 @@ verifyResult(executionId, result, opts?): VerificationReport {
 }
 ```
 
-**集成到 ReasoningRuntime Stage 8:**
+**集成到 VerificationEngine Stage 8（经 CognitivePipeline）:**
 ```typescript
-// reasoning-runtime.ts — Stage 8
+// verification-engine.ts — Stage 8 (集成于 cognitive-pipeline.ts)
 this.registerStage("verification", async (ctx) => {
   if (ctx.result && !ctx.needsLLM) {
     const report = verificationEngine.verifyResult(`pipeline_${Date.now()}`, JSON.stringify(ctx.result));
@@ -847,11 +847,11 @@ this.registerStage("verification", async (ctx) => {
 
 ---
 
-### 2.8 ReasoningRuntime — 8 阶推理引擎
+### 2.8 ReasoningRuntime — 8 阶推理引擎（已归档）
 
-**文件:** `src/dre/runtime/reasoner/reasoning-runtime.ts` (431 行)
+**文件:** 已归档（历史实现已移除，现由 `src/dre/pipeline/cognitive-pipeline.ts` + `src/dre/runtime/verification-engine.ts` 承担）
 
-**事件驱动:** 订阅 `reasoning.request` → 执行 8 阶管道 → 发布 `reasoning.result`
+**事件驱动（历史）:** 订阅 `reasoning.request` → 执行 8 阶管道 → 发布 `reasoning.result`（现由 CognitivePipeline 统一调度）
 
 ```typescript
 class ReasoningRuntime {
@@ -891,7 +891,7 @@ class ReasoningRuntime {
 
 ### 2.9 ConstraintSolver — 多维约束求解器
 
-**文件:** `src/dre/constraint/solver.ts` (656 行)
+**文件:** `src/dre/constraint/solver.ts`
 
 ```typescript
 class ConstraintSolver {
@@ -936,7 +936,7 @@ class ConstraintSolver {
 
 ### 2.10 MentalModelPool — 心智模型池
 
-**文件:** `src/dre/mental-model/pool.ts` (572 行)
+**文件:** `src/dre/mental-model/pool.ts`
 
 **设计:** 有限状态机 + 概念图 + 规则 + 模拟 + 技能生成
 
@@ -984,7 +984,7 @@ class MentalModelPool {
 
 ### 2.11 TaskGraph — DAG 任务执行 + MCP 工具调用 ★ v3.1
 
-**文件:** `src/dre/pipeline/task-graph.ts` (397 行)
+**文件:** `src/dre/pipeline/task-graph.ts`
 
 **设计:** DAG 执行 + 回滚 + 检查点/恢复 + **MCP 工具直接调用**。
 
@@ -1058,7 +1058,7 @@ class TaskGraph {
 
 ### 2.12 EventBus — 发布订阅事件总线
 
-**文件:** `src/dre/runtime/event-bus.ts` (121 行)
+**文件:** `src/dre/runtime/event-bus.ts`
 
 ```typescript
 class EventBusImpl extends EventEmitter {
@@ -1072,9 +1072,9 @@ class EventBusImpl extends EventEmitter {
 
     const handlers = this.handlers.get(event.type) ?? [];
     handlers.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
-    for (const h of handlers) {
-      try { h.handler(event); } catch (err) { /* 记录错误, 不中断 */ }
-    }
+    // 实现为 async 并等待全部 handler 完成（allSettled 吸收异常）：
+    // 慢 handler 会阻塞发布方 —— 订阅侧务必保持轻量/非阻塞。
+    await Promise.allSettled(handlers.map((h) => h.handler(event)));
     return event;
   }
 
@@ -1104,7 +1104,7 @@ interface RuntimeEvent {
 
 ### 2.13 WorldState — 全局状态树
 
-**文件:** `src/dre/runtime/world-state.ts` (148 行)
+**文件:** `src/dre/runtime/world-state.ts`
 
 ```typescript
 class WorldStateImpl {
@@ -1123,7 +1123,11 @@ class WorldStateImpl {
   // 认知维度
   setIntent(intent: string, confidence: number): void { this.set("mental.intent", { intent, confidence, timestamp }); }
   setGoal(goalId: string, description: string, status: "active"|"completed"|"abandoned"): void {
-    this.set(`mental.goals.${goalId}`, { description, status, timestamp });
+    // 实现：单键 "mental.goals" 下维护整张 Map 快照（非逐 goal 子键），
+    // watch("mental.goals") 可观察整体变化；查询走 getGoals()。
+    const goals = this.get<Map<string, unknown>>("mental.goals") ?? new Map();
+    goals.set(goalId, { description, status, timestamp: Date.now() });
+    this.set("mental.goals", goals);
   }
   setBelief(beliefId: string, statement: string, confidence: number): void { ... }
   setHypothesis(id: string, statement: string, status: string): void { ... }
@@ -1140,7 +1144,7 @@ class WorldStateImpl {
 
 ### 2.14 ConfigLoader — 配置加载器 ★ v3.1
 
-**文件:** `src/dre/config.ts` (142 行)
+**文件:** `src/dre/config.ts`
 
 ```typescript
 class ConfigLoader {
@@ -1179,7 +1183,7 @@ class ConfigLoader {
 
 ### 2.15 ResourceBudgetManager — 资源预算 ★ v3.0
 
-**文件:** `src/dre/system-resource.ts` (149 行)
+**文件:** `src/dre/system-resource.ts`
 
 ```typescript
 // 硬件无关 — 纯数字比较
@@ -1193,17 +1197,19 @@ class ResourceBudgetManager {
     if (this.resource.availableMemory < required) {
       return { canRun: false, reason: `Insufficient memory: ${available} < ${required}`, ... };
     }
-    const maxTokens = Math.min(Math.floor(availableForKV * 1024 / bytesPerToken), maxTokensCap);
+    const maxTokens = Math.min(Math.floor(availableForKV * 1024 * 1024 / bytesPerToken), maxTokensCap);
     return { canRun: true, recommendedMaxTokens: maxTokens, ... };
   }
 }
 ```
 
+> **澄清（W3/W4）**：本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts），仅通过数字比较决定 recommendedMaxTokens，无真实显存换页实现。
+
 ---
 
 ### 2.16 LLMClient — LLM 客户端
 
-**文件:** `src/dre/llm/client.ts` (325 行)
+**文件:** `src/dre/llm/client.ts`
 
 ```typescript
 class LLMClient {
@@ -1256,9 +1262,99 @@ class LLMClient {
 
 ---
 
+### 2.17 ContextManager — 上下文管理器
+
+**文件:** `src/context/context-manager.ts`（537 行）
+
+管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。
+
+```typescript
+class ContextManager {
+  async checkUsage(...)                    // 用量检查：是否超限与建议动作
+  async splitContext(...)                  // 上下文分割
+  async compressContext(...)               // 上下文压缩
+  async retrieveFromMemory(query, options?) // 历史上下文检索
+  async getEffectiveContext(...)           // 组装生效上下文
+  getStats(): ContextStats                 // 用量统计
+  setMaxContextWindow(tokens) / clearMemory() / getMemoryStats()
+}
+export const contextManager = new ContextManager(); // 模块级单例
+```
+
+**接线点:** `src/routes/audit.ts`（使用模块级单例 `contextManager`）与 `src/core/runtime-audit.ts`（运行时审计内 `new ContextManager()` 独立实例，不与单例共享状态）。
+
+> **说明（W3/W4 对齐）**：本模块的压缩/分割为纯提示词与规则级实现，无 KV cache 页级迁移（资源预算见 2.15）。
+
+---
+
+### 2.18 ThompsonRouter — 汤普森采样模型路由
+
+**文件:** `src/router/thompson-router.ts`（314 行）
+
+Contextual Thompson Sampling 多臂赌博机：arm 集由调用方注入（`RouterArm[]`），对已注册的 model arm 按后验自适应选择；`reportFeedback` 按成败更新 Beta(alpha, beta)，arm 统计可持久化到 SQLite。当前 `src/main.ts` 以空 arm 集初始化，选择行为在 arm 注册后生效。
+
+```typescript
+interface RouterArm { id: string; model: string; provider: string; alpha: number; beta: number; }
+class ThompsonRouter {
+  constructor(config: ThompsonRouterConfig)
+  async route(context: RoutingContext): Promise<RoutingDecision>  // 采样选择 arm
+  reportFeedback(armId: string, success: boolean): void           // 反馈更新后验
+  getArmStats(): ArmStats[] / addArm / removeArm / reset / close
+}
+```
+
+**接线点:** `src/main.ts`（`createThompsonRouter` 初始化，显式传 `minSamples: 5`；库默认值为 10）。
+
+> **确定性说明**：采样使用 `Math.random`，路由层非确定属设计——不在系统"同输入同输出"的确定性承诺范围内（见 〇、设计原则与 spec 非目标）。
+
+---
+
+### 2.19 HallucinationDetector — 幻觉检测器（归纳式共形预测）
+
+**文件:** `src/memory/hallucination-detector.ts`（567 行）
+
+基于归纳式共形预测（Inductive Conformal Prediction）的陈述核验：对陈述 statement 定义非一致性度量 `s(statement) = 1 − max_evidence_score(statement, factBase)`，经校准集（`CalibrationPair[]`）得到分位数与 p 值，输出 `HallucinationVerdict`（含证据项 `EvidenceItem`）。
+
+```typescript
+class ConformalHallucinationDetector {
+  constructor(config: HallucinationDetectorConfig = {})
+  calibrate(pairs: CalibrationPair[]): this          // 校准
+  verify(statement: string, context?: string): HallucinationVerdict  // 核验
+  setFactBase(facts: FactEntry[]) / addFact / addFacts
+  getCalibrationQuality(): CalibrationQuality / isValid() / resetCalibration() / getDiagnostics()
+}
+```
+
+**接线点:** `src/main.ts`（`alpha: 0.05` 初始化）、`src/crawl/result-scorer.ts`、`src/knowledge/quality-assessor.ts`、`src/memory/math-enhanced-memory.ts`。
+
+---
+
+### 2.20 SelfEvolve — 测试时自我进化引擎组
+
+**文件:** `src/self-evolve/`（engine.ts 380 / index.ts 103 / mind-suggest.ts 103 / skill-promotion.ts 103 / skill-quality.ts 140 / types.ts 102，共 931 行）
+
+思想来源：OpenRSI（FrontisAI × 清华）的原子算子 Draft/Improve/Debug/Crossover 与 RISE（arXiv 2407.18219）的测试时自我改进；本实现将"模型训练级算子"降级为**提示词级算子 + 确定性评估**——无训练、无额外基础设施，契合简约主基调。
+
+```typescript
+class SelfEvolveEngine {
+  async selfThink(req: SelfThinkRequest): Promise<SelfThought>  // Draft + 证据检索 + 置信度精算
+  async selfImprove(...)                                        // orchestrator 接入的改进算子
+}
+applySelfThought / formatSelfThought / tokenize / stableHash / buildEscalationQuery
+MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
+```
+
+**技能质量闭环:** `recordSkillOutcome`（`src/mcp/server/skill-tools.ts:116`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`skill-promotion.ts:67`）。
+
+**接线点:** `src/agents/orchestrator.ts`（`Pick<SelfEvolveEngine, "selfImprove">` 注入构造）。
+
+> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-evals 共用该实例）；deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致。残余局限仅在于派生标记本身不落盘、依赖 store 的 load/save 容错。
+
+---
+
 ## 三、MCP 工具完整清单
 
-> 本系统共注册 133 个去重 MCP 工具。88 个零配置可用, 33 个需 API Key, 12 个需安装外部服务。
+> 本系统共注册 189 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173/188 为旧值）。
 
 ### 3.0 全工具总览
 
@@ -1294,6 +1390,8 @@ class LLMClient {
 | 需安装 | Hermes | 4 | hermes CLI |
 | 需安装 | OCR | 2 | Tesseract |
 | 需安装 | Playwright | 1 | playwright |
+
+> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举与计费。
 
 ### 3.1 DRE 领域工具 (16 个)
 
@@ -1389,19 +1487,22 @@ MCP tool: cognitive_state
 |------|--------|------|
 | `DRE_DB_PATH` | `"./data/dre.db"` | SQLite 数据库路径 |
 | `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | 本地 LLM API 地址 |
-| `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型 |
+| `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型（OpenAI 兼容端点可填云端模型） |
+| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向云端端点时必填；本地 llama.cpp 可省略） |
 | `DRE_LLM_TEMPERATURE` | `0` | 推理温度 |
 | `DRE_LLM_TOP_K` | `1` | Top-K 采样 |
 | `DRE_LLM_SEED` | `42` | 随机种子 (确定性) |
 | `DRE_DISCRIMIN_URL` | — | 甄别模型 API 地址 (可选) |
 | `DRE_DISCRIMIN_MODEL` | `"qwen3-0.6b-instruct"` | 甄别模型 |
+| `DRE_DISCRIMIN_API_KEY` | — | 甄别模型 API Key（可选） |
 | `DRE_TICK_INTERVAL` | `10000` | Kernel tick 间隔 (ms) |
 | `DRE_AUTO_TICK` | `true` | 是否自动启动 tick 循环 |
 | `DRE_WORKING_MEMORY_CAPACITY` | `16` | 工作记忆容量 |
 | `DRE_EPISODIC_TTL` | `3600000` | 情景记忆 TTL (ms) |
 | `DEEPSEEK_API_KEY` | — | 云降级 API Key |
-| `DEEPSEEK_MODEL` | `"deepseek-chat"` | 云模型 |
-| `DEEPSEEK_BASE_URL` | `"https://api.deepseek.com"` | 云 API 地址 |
+| `DEEPSEEK_MODEL` | `"deepseek-v4-flash"` | 云降级模型（cloudFallback 真实生效，非布尔开关） |
+| `DEEPSEEK_BASE_URL` | `"https://api.deepseek.com/v1"` | 云降级端点 |
+| `AXIOM_DRE_ENABLED` | `1` | 主服务宿主集成开关（0 关闭 /dre/run 与 /pipeline/stream 观测） |
 
 ### 5.2 启动配置
 
@@ -1421,15 +1522,21 @@ const kernel = new Kernel({
 await kernel.init();
 ```
 
+> **P2 主服务集成（2026-08-14）**：`src/main.ts` 启动时经 `src/dre/host.ts` 初始化 Kernel
+> （`AXIOM_DRE_ENABLED=0` 关闭；失败不阻断主服务）。新增 `POST /dre/run`（纯确定性
+> `CognitivePipeline.run`，零 LLM），与 `GET /pipeline/stream` SSE 同进程共享同一 eventBus
+> 单例，观测链路天然打通。MCP 侧 `dre-*` 工具统一走 `getKernelAsync()`（等待 init、
+> 失败返回明确错误）。
+
 ---
 
 ## 六、测试覆盖
 
-**测试文件:** `tests/dre-core-modules.test.ts` — 93 个测试, 全部通过。
+**测试文件:** `tests/dre-*.test.ts` + `tests/dre-host-integration.test.ts` — **244 个测试, 全部通过**（其中 dre-core-modules 93 个）。
 
 | 度量 | 值 |
 |------|-----|
-| 测试总数 | 93 |
+| 测试总数 | 244 |
 | 失败 | 0 |
 | 跳过 | 0 |
 | describe 组 | 22 |
@@ -1542,3 +1649,4 @@ await kernel.init();
 | CognitivePipeline 工具执行器 | `cognitive-pipeline.ts` | `setToolExecutor()` — 透传到 TaskGraph |
 | MCP server 集成 | `server.ts` | CognitivePipeline 创建时自动注入 `registry.buildHttpHandlers()` 作为工具执行器 |
 | 共享 TaskGraph 工厂 | `cognitive-pipeline.ts` | `executeTaskGraph()` — 消除 48 行全等代码 |
+

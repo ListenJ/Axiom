@@ -2,7 +2,7 @@
  * 多 Agent 编排器测试
  */
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, spyOn } from "bun:test";
 import {
   AgentOrchestrator,
   InternalAgent,
@@ -10,40 +10,58 @@ import {
   ResearchAgent,
   type AgentTask,
 } from "../src/agents/orchestrator";
+import {
+  NativeGeneralAgent,
+  NativeCodeAgent,
+  NativeResearchAgent,
+  type NativeExecutor,
+} from "../src/components/native-agents";
+import { createNativeAgentOptions } from "../src/agents/component-bootstrap";
 
 describe("AgentOrchestrator", () => {
   let orchestrator: AgentOrchestrator;
 
   beforeAll(() => {
     orchestrator = new AgentOrchestrator();
-    orchestrator.getRegistry().register(new InternalAgent());
-    orchestrator.getRegistry().register(new CodeAgent());
-    orchestrator.getRegistry().register(new ResearchAgent());
+    const options = createNativeAgentOptions({ includeCodeToolchain: false });
+    // Deterministic tests: replace the real model executor so no live LLM/API
+    // calls are made (orchestrator logic is what is under test, not the model).
+    const fakeExecutor: NativeExecutor = async (role, messages) => ({
+      content: `mock(${role}): ${messages.length} messages`,
+      model: "mock-model",
+      provider: "mock-provider",
+      latencyMs: 1,
+      fallbackUsed: false,
+    });
+    options.executor = fakeExecutor;
+    orchestrator.getRegistry().register(new NativeGeneralAgent(options));
+    orchestrator.getRegistry().register(new NativeCodeAgent(options));
+    orchestrator.getRegistry().register(new NativeResearchAgent(options));
   });
 
   describe("Agent Registry", () => {
     test("list registered agents", () => {
       const agents = orchestrator.getRegistry().list();
       expect(agents.length).toBe(3);
-      expect(agents.map((a) => a.id)).toContain("internal");
-      expect(agents.map((a) => a.id)).toContain("opencode");
-      expect(agents.map((a) => a.id)).toContain("hermes");
+      expect(agents.map((a) => a.id)).toContain("native-general");
+      expect(agents.map((a) => a.id)).toContain("native-code");
+      expect(agents.map((a) => a.id)).toContain("native-research");
     });
 
     test("get agent by id", () => {
-      const agent = orchestrator.getRegistry().get("internal");
+      const agent = orchestrator.getRegistry().get("native-general");
       expect(agent).toBeDefined();
-      expect(agent?.name).toBe("Internal Agent");
+      expect(agent?.name).toContain("General");
     });
 
     test("find agents by capability", () => {
       const codeAgents = orchestrator.getRegistry().findByCapability("code-generation");
       expect(codeAgents.length).toBeGreaterThanOrEqual(1);
-      expect(codeAgents[0].id).toBe("opencode");
+      expect(codeAgents[0].id).toBe("native-code");
 
       const researchAgents = orchestrator.getRegistry().findByCapability("research");
       expect(researchAgents.length).toBeGreaterThanOrEqual(1);
-      expect(researchAgents[0].id).toBe("hermes");
+      expect(researchAgents[0].id).toBe("native-research");
     });
 
     test("register and unregister agent", () => {
@@ -216,15 +234,81 @@ describe("AgentOrchestrator", () => {
     test("health check all agents", async () => {
       const health = await orchestrator.getRegistry().healthCheckAll();
       expect(health.size).toBe(3);
-      expect(health.get("internal")).toBe(true);
-      expect(health.get("opencode")).toBe(true);
-      expect(health.get("hermes")).toBe(true);
+      expect(health.get("native-general")).toBe(true);
+      expect(health.get("native-code")).toBe(true);
+      expect(health.get("native-research")).toBe(true);
     });
 
     test("get orchestrator status", () => {
       const status = orchestrator.getStatus();
       expect(status.registeredAgents).toBe(3);
     });
+  });
+});
+
+describe("Orchestrator 超时与确认闭环（审计整改 O2）", () => {
+  test("task.timeout 到期 → failed 且 error 含 timeout", async () => {
+    const orch = new AgentOrchestrator();
+    orch.getRegistry().register({
+      id: "hang-agent",
+      name: "Hang Agent",
+      description: "",
+      capabilities: ["hang"],
+      execute: () => new Promise(() => {}), // 永挂
+      healthCheck: async () => true,
+    });
+
+    const result = await orch.executeTask({
+      id: "t-timeout",
+      type: "hang",
+      description: "never finishes",
+      input: {},
+      timeout: 50,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("timeout");
+  });
+
+  test("requireConfirmation=true 且审批被拒 → 任务不执行", async () => {
+    const { ApprovalBridge, setApprovalBridge } = await import("../src/utils/approval-bridge.js");
+    const orch = new AgentOrchestrator();
+    let executed = false;
+    orch.getRegistry().register({
+      id: "conf-agent",
+      name: "Conf Agent",
+      description: "",
+      capabilities: ["conf"],
+      execute: async () => {
+        executed = true;
+        return { taskId: "t-conf", agentId: "conf-agent", success: true, duration: 1 };
+      },
+      healthCheck: async () => true,
+    });
+
+    const requests: Array<{ tool: string }> = [];
+    const fakeBridge = {
+      request: async (tool: string) => {
+        requests.push({ tool });
+        return false; // 用户拒绝
+      },
+      denyAll: () => 0,
+    };
+    setApprovalBridge(fakeBridge as never);
+    try {
+      const result = await orch.executeTask({
+        id: "t-conf",
+        type: "conf",
+        description: "needs human confirmation",
+        input: {},
+        requireConfirmation: true,
+      });
+      expect(result.success).toBe(false);
+      expect(executed).toBe(false);
+      expect(requests.length).toBe(1);
+    } finally {
+      setApprovalBridge(new ApprovalBridge());
+    }
   });
 });
 
@@ -257,16 +341,31 @@ describe("Built-in Agents", () => {
   });
 
   test("agent execute task", async () => {
-    const agent = new InternalAgent();
-    const task: AgentTask = {
-      id: "test-task",
-      type: "general",
-      description: "Test",
-      input: {},
-    };
+    // Deterministic: mock the router so no live LLM call is made.
+    const { router } = await import("../src/router/model-router.js");
+    const executeSpy = spyOn(router, "executeWithRole").mockImplementation(async () => ({
+      content: "mock reply",
+      model: "mock-model",
+      provider: "mock-provider",
+      latencyMs: 1,
+      fallbackUsed: false,
+      role: "general-chat",
+      layer: "general",
+    } as never));
+    try {
+      const agent = new InternalAgent();
+      const task: AgentTask = {
+        id: "test-task",
+        type: "general",
+        description: "Test",
+        input: {},
+      };
 
-    const result = await agent.execute(task);
-    expect(result.success).toBe(true);
-    expect(result.agentId).toBe("internal");
+      const result = await agent.execute(task);
+      expect(result.success).toBe(true);
+      expect(result.agentId).toBe("internal");
+    } finally {
+      executeSpy.mockRestore();
+    }
   });
 });

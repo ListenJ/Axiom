@@ -47,14 +47,15 @@ describe("Native Routes", () => {
     expect(res!.status).toBe(503);
   });
 
-  it("should return 503 for stats when native not ready", async () => {
+  it("should return 200 empty state for stats when native not ready", async () => {
     const ctx = mockCtx({
       url: new URL("http://localhost:18789/native/stats"),
       req: new Request("http://localhost:18789/native/stats"),
     });
     const res = await handleNativeStats(ctx);
     expect(res).not.toBeNull();
-    expect(res!.status).toBe(503);
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toMatchObject({ available: false });
   });
 
   it("should proxy non-matching native paths", async () => {

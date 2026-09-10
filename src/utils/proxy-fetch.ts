@@ -27,6 +27,7 @@ import net from "node:net";
 import tls from "node:tls";
 import { URL } from "node:url";
 import { logger } from "./logger.js";
+import { isSafeUrl, assertResolvedHostSafe } from "./url-safety.js";
 
 // ========== 类型定义 ==========
 
@@ -44,6 +45,17 @@ export interface ProxyFetchOptions {
   followRedirects?: boolean;
   /** 最大重定向次数 */
   maxRedirects?: number;
+  /** SSRF 防护：为 true 时校验初始 URL 与每个重定向跳（拒绝内网/环回/元数据地址）。
+   *  L7 审计评估（2026-08-29）：维持 opt-in 默认关。全量调用方排查（grep proxyFetch*）发现
+   *  合法回环/内网目标，默认开启会破坏本地链路：
+   *    - crawl/lightpanda-client.ts：CDP 端点 http://127.0.0.1:9222（url-safety DEFAULT_CDP_URL）；
+   *    - router/model-router.ts、agents/computer-use-agent.ts、agent-evals/runner.ts、
+   *      agents/kimi-code-agent.ts：getEffectiveBaseURL/*_BASE_URL 可解析到本地模型端点
+   *      （如 127.0.0.1:9001 边缘 LLM/embeddings）。
+   *  若后续改默认开，需先落地调用方白名单（如 ProxyFetchOptions 增 ssrfAllowHosts 精确
+   *  放行回环 CDP/本地 LLM），或仅在处理用户可控 URL 的入口（web_fetch、routes/search）
+   *  强制 ssrfGuard:true。注：local-llm/edge-embeddings.ts 走原生 fetch，不经本模块。 */
+  ssrfGuard?: boolean;
 }
 
 export interface ProxyFetchResponse {
@@ -397,6 +409,47 @@ function createConnectTunnel(
   });
 }
 
+// ========== 审计强化辅助（B3-Medium，2026-08-29） ==========
+
+/** 手工拼包头值剥离 CR/LF —— 防止经 opts.headers 注入伪造头/响应拆私（多余 CRLF 折叠为单空格） */
+function sanitizeHeaderValue(val: string): string {
+  return val.replace(/[\r\n]+/g, " ");
+}
+
+/** 跨域重定向时剥离的凭证头（键名小写） */
+const SENSITIVE_REDIRECT_HEADERS = new Set(["authorization", "cookie"]);
+
+/**
+ * 重定向目标与源 origin 不同时，剥离 Authorization/Cookie
+ * （防止凭证随 301/302 泄漏到第三方域；同域重定向原样保留）
+ */
+function headersForRedirect(
+  headers: Record<string, string> | undefined,
+  from: URL,
+  to: URL,
+): Record<string, string> | undefined {
+  if (!headers || to.origin === from.origin) return headers;
+  const next: Record<string, string> = {};
+  for (const [key, val] of Object.entries(headers)) {
+    if (SENSITIVE_REDIRECT_HEADERS.has(key.toLowerCase())) continue;
+    next[key] = val;
+  }
+  return next;
+}
+
+// ========== 响应体上限（B3-Medium，2026-08-29） ==========
+
+/** 响应体缓冲上限（默认 10MB）：content-length 与 chunked 均按原始累计字节计，超限中止请求 */
+const MAX_RESPONSE_BODY_BYTES = 10 * 1024 * 1024;
+
+/** 读取响应体上限（PROXY_FETCH_MAX_BODY_BYTES 可覆盖；非法值回落默认） */
+function readMaxBodyBytes(): number {
+  const raw = process.env.PROXY_FETCH_MAX_BODY_BYTES;
+  if (!raw) return MAX_RESPONSE_BODY_BYTES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : MAX_RESPONSE_BODY_BYTES;
+}
+
 // ========== 核心请求函数 ==========
 
 async function makeRequest(
@@ -404,6 +457,15 @@ async function makeRequest(
   opts: ProxyFetchOptions,
   redirectCount: number = 0,
 ): Promise<ProxyFetchResponse> {
+  // SSRF 防护：初始 URL 与每个重定向跳都过校验（makeRequest 递归即逐跳）
+  if (opts.ssrfGuard && !isSafeUrl(url.href)) {
+    return Promise.reject(new Error(`URL blocked by SSRF guard: ${url.hostname}`));
+  }
+  // L13：DNS 解析后二次校验（rebinding 缓解；TOCTOU 残窗已在 LIMITATIONS 披露）
+  if (opts.ssrfGuard) {
+    await assertResolvedHostSafe(url.hostname);
+  }
+
   const isHttps = url.protocol === "https:";
   const proxy = opts.proxy !== undefined
     ? (opts.proxy ? parseProxyString(opts.proxy) : null)
@@ -453,13 +515,15 @@ async function makeRequest(
             `Host: ${url.host}`,
           ];
           // Ensure Content-Length for POST/PUT/PATCH bodies
+          // B3-Medium：body 写出的是原始值（字符串或 Buffer），长度必须按原始值字节计；
+          // 此前 Buffer body 错用 JSON.stringify(opts.body).length，与实际写出的字节错位
           if (opts.body && !headers["Content-Length"] && !headers["content-length"]) {
-            const bodyStr = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
-            lines.push(`Content-Length: ${Buffer.byteLength(bodyStr)}`);
+            const contentLength = typeof opts.body === "string" ? Buffer.byteLength(opts.body) : opts.body.byteLength;
+            lines.push(`Content-Length: ${contentLength}`);
           }
           for (const [key, val] of Object.entries(headers)) {
             if (key.toLowerCase() !== "host") {
-              lines.push(`${key}: ${val}`);
+              lines.push(`${sanitizeHeaderValue(key)}: ${sanitizeHeaderValue(val)}`);
             }
           }
           if (!headers["Connection"] && !headers["connection"]) {
@@ -499,6 +563,18 @@ async function makeRequest(
         let savedStatusText = "";
         let savedHeaders: Record<string, string> = {};
 
+        // B3-Medium：响应体无上限 → 超过 readMaxBodyBytes() 即中止（防恶意/异常大响应撑爆内存）
+        const maxBodyBytes = readMaxBodyBytes();
+        const abortIfBodyTooLarge = (): boolean => {
+          const total = bodyChunks.reduce((sum, c) => sum + c.length, 0);
+          if (total > maxBodyBytes) {
+            tlsSocket.destroy();
+            reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+            return true;
+          }
+          return false;
+        };
+
         tlsSocket.on("data", (chunk: Buffer) => {
           if (!headersParsed) {
             headerBuffer = Buffer.concat([headerBuffer, chunk]);
@@ -531,6 +607,14 @@ async function makeRequest(
 
             if (bodyStart.length > 0) bodyChunks.push(bodyStart);
 
+            // B3-Medium：声明的 content-length 或已接收累计超限 → 中止
+            if (contentLength >= 0 && contentLength > maxBodyBytes) {
+              tlsSocket.destroy();
+              reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+              return;
+            }
+            if (abortIfBodyTooLarge()) return;
+
             // Check if body is complete
             if (contentLength >= 0) {
               const totalBody = bodyChunks.reduce((sum, c) => sum + c.length, 0);
@@ -541,6 +625,7 @@ async function makeRequest(
             }
           } else {
             bodyChunks.push(chunk);
+            if (abortIfBodyTooLarge()) return;
             if (contentLength >= 0) {
               const totalBody = bodyChunks.reduce((sum, c) => sum + c.length, 0);
               if (totalBody >= contentLength) {
@@ -603,8 +688,10 @@ async function makeRequest(
           if (followRedirects && redirectCount < maxRedirects && [301, 302, 303, 307, 308].includes(statusCode)) {
             const location = responseHeaders["location"];
             if (location) {
+              // B3-Medium：跨域重定向剥离 Authorization/Cookie，防凭证泄漏到第三方 origin
               const redirectUrl = new URL(location, url);
-              resolve(makeRequest(redirectUrl, opts, redirectCount + 1));
+              const redirectHeaders = headersForRedirect(opts.headers, url, redirectUrl);
+              resolve(makeRequest(redirectUrl, { ...opts, headers: redirectHeaders }, redirectCount + 1));
               return;
             }
           }
@@ -677,20 +764,33 @@ async function makeRequest(
     req.end();
 
     function handleResponse(res: http.IncomingMessage) {
+      // B3-Medium：直连/HTTP 代理路径与 CONNECT 路径同样受响应体上限约束
+      const maxBodyBytes = readMaxBodyBytes();
+      let received = 0;
+
       // 处理重定向
       const followRedirects = opts.followRedirects !== false;
       if (followRedirects && redirectCount < maxRedirects && res.statusCode) {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          // B3-Medium：跨域重定向剥离 Authorization/Cookie，防凭证泄漏到第三方 origin
           const redirectUrl = new URL(res.headers.location, url);
+          const redirectHeaders = headersForRedirect(opts.headers, url, redirectUrl);
           res.resume(); // drain the response
-          resolve(makeRequest(redirectUrl, opts, redirectCount + 1));
+          resolve(makeRequest(redirectUrl, { ...opts, headers: redirectHeaders }, redirectCount + 1));
           return;
         }
       }
 
       // 收集响应数据
       const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+        received += chunk.length;
+        if (received > maxBodyBytes) {
+          res.destroy();
+          reject(new Error(`Response body too large (> ${maxBodyBytes} bytes)`));
+        }
+      });
       res.on("end", () => {
         const body = Buffer.concat(chunks);
         const responseHeaders: Record<string, string> = {};
@@ -766,9 +866,9 @@ export async function proxyFetch(
 /**
  * 便捷方法: 发送 JSON 请求
  */
-export async function proxyFetchJson<T = any>(
+export async function proxyFetchJson<T = unknown>(
   url: string | URL,
-  opts: ProxyFetchOptions & { body?: any } = {},
+  opts: ProxyFetchOptions & { body?: unknown } = {},
 ): Promise<T> {
   const headers = { ...opts.headers };
   let body: string | undefined;

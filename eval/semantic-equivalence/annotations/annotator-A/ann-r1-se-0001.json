@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0001",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"所有环境变量读取必须通过 `src/utils/env.ts` 的 `readString()`, `readInt()`, `readBool()`。例外白名单：\"被候选命题逐字完整保留，覆盖向与忠实向均闭合；三元组 docs/ARCHITECTURE.md contains <该文本> 为真，provenance 与 source_origin 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

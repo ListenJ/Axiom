@@ -8,6 +8,7 @@ import { generateReport, toMarkdown, toJSON, type EvalReport } from "./reporter.
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { proxyFetch } from "../utils/proxy-fetch.js";
 import { readString } from "../utils/env.js";
+import { logger } from "../utils/logger.js";
 
 // ===== Config =====
 const OUTPUT_DIR = "./eval-results";
@@ -29,7 +30,7 @@ const outputFormat = args.includes("--json") ? "json" : "md";
 const helpRequested = args.includes("--help") || args.includes("-h");
 
 if (helpRequested) {
-  console.log(`
+  logger.info(`
 Axiom Model Evaluation Runner
 =================================
 Usage: bun run src/eval/eval-runner.ts [options]
@@ -164,22 +165,22 @@ async function main() {
   const judgeModel = readString("JUDGE_MODEL", "anthropic/claude-sonnet-4.6");
 
   const filterLabel = categoryFilter || dimensionFilter || "all";
-  console.log(`\n🔬 Axiom Model Evaluation`);
-  console.log(`   Models: ${models.join(", ")}`);
-  console.log(`   Test cases: ${testCases.length} (${filterLabel})`);
-  console.log(`   Judge: ${noJudge ? "disabled" : judgeModel}`);
-  console.log(`   Concurrency: ${CONCURRENCY}`);
-  console.log(`   Total calls: ${models.length * testCases.length}\n`);
+  logger.info("🔬 Axiom Model Evaluation");
+  logger.info(`   Models: ${models.join(", ")}`);
+  logger.info(`   Test cases: ${testCases.length} (${filterLabel})`);
+  logger.info(`   Judge: ${noJudge ? "disabled" : judgeModel}`);
+  logger.info(`   Concurrency: ${CONCURRENCY}`);
+  logger.info(`   Total calls: ${models.length * testCases.length}`);
 
   if (dryRun) {
-    console.log("📋 Test Plan:");
+    logger.info("📋 Test Plan:");
     let i = 1;
     for (const model of models) {
       for (const tc of testCases) {
-        console.log(`   ${i++}. [${tc.dimension}] ${tc.id}: ${tc.category} → ${model}`);
+        logger.info(`   ${i++}. [${tc.dimension}] ${tc.id}: ${tc.category} → ${model}`);
       }
     }
-    console.log(`\n   (Dry run — no API calls made)`);
+    logger.info(`   (Dry run — no API calls made)`);
     return;
   }
 
@@ -191,7 +192,7 @@ async function main() {
     testCases.map((tc) => ({ model, testCase: tc }))
   );
 
-  console.log("📡 Calling models...");
+  logger.info("📡 Calling models...");
   const tStart = performance.now();
 
   const modelResponses = await runWithConcurrency(
@@ -200,20 +201,20 @@ async function main() {
       const idx = allModels.findIndex((m) => m.model === model && m.testCase === testCase) + 1;
       process.stdout.write(`   [${idx}/${allModels.length}] ${testCase.id} → ${model.split("/").pop()}... `);
       const response = await callModel(model, testCase);
-      console.log(`${response.latencyMs}ms (${response.tokensUsed} tok)`);
+      logger.info(`${response.latencyMs}ms (${response.tokensUsed} tok)`);
       return response;
     },
     CONCURRENCY
   );
 
   const modelTime = Math.round(performance.now() - tStart);
-  console.log(`\n✅ Model calls complete in ${modelTime}ms\n`);
+  logger.info(`✅ Model calls complete in ${modelTime}ms`);
 
   // Step 2: Judge responses
   const evaluated: EvaluatedResponse[] = [];
 
   if (!noJudge) {
-    console.log("⚖️  Judge scoring...");
+    logger.info("⚖️  Judge scoring...");
     const tJudgeStart = performance.now();
 
     const evalResults = await runWithConcurrency(
@@ -223,7 +224,7 @@ async function main() {
         const idx = modelResponses.indexOf(response) + 1;
         process.stdout.write(`   [${idx}/${modelResponses.length}] ${tc.id} ← ${response.model.split("/").pop()}... `);
         const result = await evaluateResponse(response, tc);
-        console.log(`${result.overallScore}/100 (${result.grade})`);
+        logger.info(`${result.overallScore}/100 (${result.grade})`);
         return result;
       },
       CONCURRENCY
@@ -231,7 +232,7 @@ async function main() {
 
     evaluated.push(...evalResults);
     const judgeTime = Math.round(performance.now() - tJudgeStart);
-    console.log(`\n✅ Judge scoring complete in ${judgeTime}ms\n`);
+    logger.info(`✅ Judge scoring complete in ${judgeTime}ms`);
   } else {
     // --no-judge: create pseudo-evaluated entries from raw responses
     evaluated.push(...modelResponses.map((response) => {
@@ -256,21 +257,21 @@ async function main() {
   if (outputFormat === "json") {
     const jsonPath = `${OUTPUT_DIR}/eval-${timestamp}${suffix}.json`;
     writeFileSync(jsonPath, toJSON(report));
-    console.log(`📄 Report: ${jsonPath}`);
+    logger.info(`📄 Report: ${jsonPath}`);
   } else {
     const mdPath = `${OUTPUT_DIR}/eval-${timestamp}${suffix}.md`;
     writeFileSync(mdPath, toMarkdown(report));
-    console.log(`📄 Report: ${mdPath}`);
+    logger.info(`📄 Report: ${mdPath}`);
   }
 
   // Summary
-  console.log(`\n📊 Summary:`);
+  logger.info(`📊 Summary:`);
   for (const s of report.summaries) {
-    console.log(`   ${s.model}: ${s.overallScore}/100 (${s.grade}) — ${s.latency.avgMs}ms avg, $${s.cost.total.toFixed(4)}`);
+    logger.info(`   ${s.model}: ${s.overallScore}/100 (${s.grade}) — ${s.latency.avgMs}ms avg, $${s.cost.total.toFixed(4)}`);
   }
 }
 
 main().catch((err) => {
-  console.error(`\n❌ Fatal error:`, err.message);
+  logger.error("❌ Fatal error", err instanceof Error ? err : new Error(String(err)));
   process.exit(1);
 });

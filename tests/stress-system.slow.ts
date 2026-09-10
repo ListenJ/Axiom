@@ -88,28 +88,7 @@ describe("系统压力测试", () => {
     });
   });
 
-  it("VIB 压缩 1000 条记忆", async () => {
-    const { VIBCompressor } = await import("../src/memory/vib-compressor.js");
-    const c = new VIBCompressor({
-      capacity: 100,
-      existingMemory: Array.from({ length: 50 }, (_, i) => `existing memory block ${i} with various content`),
-    });
-
-    const items = Array.from({ length: 1000 }, (_, i) => ({
-      id: `mem-${i}`,
-      content: `Memory item ${i}: ${"data ".repeat((i % 20) + 1)}`,
-      timestamp: Date.now() + i,
-      source: i % 2 === 0 ? "user" : "system",
-    }));
-
-    const start = performance.now();
-    const result = await c.compress(items);
-    const elapsed = performance.now() - start;
-
-    expect(result.retained.length).toBe(100);
-    expect(result.discarded.length).toBe(900);
-    expect(elapsed).toBeLessThan(10000);
-  });
+  // P2-S2：VIB 压缩用例已随模块归档移除。
 
   it("RedisClient 队列结构正确", async () => {
     const { RedisClient } = await import("../src/utils/redis-client.js");

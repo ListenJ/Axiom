@@ -1,68 +1,12 @@
 /**
- * math-breakthroughs.test.ts - all 6 modules + integration
+ * math-breakthroughs.test.ts - P2-S2 幽灵裁剪后仅保留在役模块
+ * （ConformalHallucinationDetector / ThompsonRouter / RateDistortionCompressor）；
+ * VIBCompressor / ConformalRetriever / ConsensusEngine 模块已随休眠链归档删除。
  */
 import { describe, it, expect } from "bun:test";
-import { VIBCompressor, type MemoryItem, type CompressedResult } from "../src/memory/vib-compressor";
-import { ConformalRetriever, type CalibrationPair } from "../src/memory/conformal-retriever";
 import { ConformalHallucinationDetector, type FactEntry } from "../src/memory/hallucination-detector";
 import { ThompsonRouter, type RouterArm, type RoutingContext, createThompsonRouter } from "../src/router/thompson-router";
 import { RateDistortionCompressor, type ContextItem, contextEntropy, contextRedundancy } from "../src/context/rate-distortion-compressor";
-import { ConsensusEngine, type ConsensusAgent } from "../src/agents/consensus-engine";
-
-const makeItem = (id: string, content: string): MemoryItem => ({id, content, timestamp: Date.now(), source: "test"});
-
-describe("VIBCompressor", () => {
-  it("retains top-K by surprisal", async () => {
-    const c = new VIBCompressor({ beta: 1.5, capacity: 3 });
-    const items = [makeItem("1","unique rare quantum physics"), makeItem("2","the the the the the the"), makeItem("3","machine learning ai gpt neural"), makeItem("4","a a a a a a a a a a")];
-    const r = await c.compress(items);
-    expect(r.retained.length).toBeGreaterThan(0);
-    expect(r.retained.length).toBeLessThanOrEqual(3);
-  });
-  it("capacity limit", async () => {
-    const c = new VIBCompressor({ beta: 1, capacity: 5 });
-    const items = Array.from({length: 20}, (_, i) => makeItem(String(i), "content number " + i));
-    const r = await c.compress(items);
-    expect(r.retained.length).toBeLessThanOrEqual(5);
-  });
-  it("beta affects retention", async () => {
-    const items = Array.from({length: 20}, (_, i) => makeItem(String(i), "item " + i + " " + (i%3?"common":"rare unique")));
-    const lo = await new VIBCompressor({beta:1,capacity:20}).compress(items);
-    const hi = await new VIBCompressor({beta:4,capacity:20}).compress(items);
-    expect(hi.retained.length).toBeLessThanOrEqual(lo.retained.length);
-  });
-  it("empty input", async () => {
-    const c = new VIBCompressor({beta:1,capacity:10});
-    const r = await c.compress([]);
-    expect(r.retained).toEqual([]);
-    expect(r.stats.totalInput).toBe(0);
-  });
-});
-
-describe("ConformalRetriever", () => {
-  interface Doc {id:string;text:string}
-  const sim = (q:string,d:Doc):number => {const qs=new Set(q.toLowerCase().split(/\s+/));const ds=new Set(d.text.toLowerCase().split(/\s+/));let o=0;for(const w of qs){if(ds.has(w))o++}return new Set([...qs,...ds]).size>0?o/new Set([...qs,...ds]).size:0};
-  it("relevant docs in prediction set", () => {
-    const r = new ConformalRetriever<Doc>({alpha:0.2});
-    r.calibrate([{document:{id:"c1",text:"ml deep"},relevance:0.9},{document:{id:"c2",text:"cooking"},relevance:0.1}]);
-    const cand = [{id:"d1",text:"deep learning ai"},{id:"d2",text:"recipes food"}];
-    const res = r.retrieve("ai learning",cand,sim);
-    expect(res.predictionSet.map(d=>d.id)).toContain("d1");
-  });
-  it("uncalibrated returns all", () => {
-    const r = new ConformalRetriever<Doc>({alpha:0.1});
-    const res = r.retrieve("q",[{id:"a",text:"x"}],sim);
-    expect(res.predictionSet.length).toBe(1);
-    expect(res.conformal).toBe(false);
-  });
-  it("p-values monotonic", () => {
-    const r = new ConformalRetriever<Doc>({alpha:0.1});
-    r.calibrate([{document:{id:"h",text:"high"},relevance:0.95},{document:{id:"l",text:"low"},relevance:0.1}]);
-    const cand = [{id:"d1",text:"high match"},{id:"d2",text:"unrelated"}];
-    const res = r.retrieve("high",cand,sim);
-    expect(res.pValues.get(cand[0])!).toBeGreaterThan(res.pValues.get(cand[1])!);
-  });
-});
 
 describe("ConformalHallucinationDetector", () => {
   const facts:FactEntry[] = [
@@ -136,45 +80,4 @@ describe("RateDistortionCompressor", () => {
   });
   it("entropy non-negative",()=>{expect(contextEntropy([mi("a","hello",1,3)])).toBeGreaterThanOrEqual(0)});
   it("redundancy in range",()=>{const v=contextRedundancy([mi("a","test",1,3)]);expect(v).toBeGreaterThanOrEqual(0);expect(v).toBeLessThanOrEqual(1)});
-});
-
-describe("ConsensusEngine", () => {
-  const ag = (id:string,d:"approve"|"reject"|"abstain",c:number):ConsensusAgent => ({id,name:"a-"+id,vote:async()=>({decision:d,confidence:c,reasoning:id})});
-  it("WMA majority", async () => {
-    const e = new ConsensusEngine({agents:[ag("1","approve",0.9),ag("2","approve",0.8),ag("3","reject",0.7)],beta:0.5,mode:"wma"});
-    const r = await e.reachConsensus("test");
-    expect(r.decision).toBe("approve");
-    expect(r.approvalRatio).toBeCloseTo(2/3,1);
-  });
-  it("regret bound finite", async () => {
-    const e = new ConsensusEngine({agents:[ag("1","approve",0.9),ag("2","reject",0.6)],beta:0.5,mode:"wma"});
-    const r = await e.reachConsensus("test");
-    expect(r.regretBound).toBeGreaterThan(0);
-    expect(Number.isFinite(r.regretBound)).toBe(true);
-  });
-  it("agreement high when unanimous", async () => {
-    const e = new ConsensusEngine({agents:[ag("1","approve",0.9),ag("2","approve",0.9),ag("3","approve",0.9)],mode:"wma"});
-    const r = await e.reachConsensus("test");
-    expect(r.agreementLevel).toBeGreaterThan(0.8);
-  });
-});
-
-describe("Integration", () => {
-  it("VIB + Conformal pipeline", async () => {
-    const c = new VIBCompressor({beta:1.5,capacity:5});
-    const items = Array.from({length:10},(_,i)=>makeItem(String(i),"memory "+i+" unique "+String.fromCharCode(65+i)));
-    const r = await c.compress(items);
-    expect(r.retained.length).toBeGreaterThan(0);
-    expect(r.retained.length).toBeLessThanOrEqual(5);
-  });
-  it("Thompson + Consensus unified", async () => {
-    const arms:RouterArm[] = [{id:"m1",model:"a",provider:"p1",alpha:5,beta:2,metadata:{}}];
-    const router = createThompsonRouter({arms,minSamples:5,inMemory:true});
-    const d = await router.route({taskType:"research",inputLength:1000,timeWindow:30000});
-    expect(d.arm).toBeDefined();
-    const agents:ConsensusAgent[] = [{id:"v1",name:"v",vote:async()=>({decision:"approve" as const,confidence:0.8,reasoning:"ok"})}];
-    const engine = new ConsensusEngine({agents,mode:"majority"});
-    const consensus = await engine.reachConsensus("test");
-    expect(consensus.decision).toBe("approve");
-  });
 });

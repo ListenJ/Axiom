@@ -1,0 +1,40 @@
+{
+  "id": "se-0097",
+  "source_text": "```ts\n/** 当前目标与历史目标的平均相似度 */\n  consistencyScore: number;\n}\n\n// ─── 分词器 + Jaccard 相似度（轻量级，零依赖）────────────────────────────\n\n/** 简单分词：小写 + 字母数字序列，过滤长度 < 2 的 token */\nfunction tokenize(text: string): string[] {\n  if (!text) return [];\n  // 支持中英文混合：英文用 [a-z0-9]+，中文按单字切分\n```",
+  "source_origin": "src/agents/consciousness/goal-tracker.ts#L66-L72",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「tokenize」"
+    ],
+    "entities": [
+      {
+        "name": "tokenize",
+        "type": "function",
+        "link": "kg:function:tokenize"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agents/consciousness/goal-tracker.ts",
+        "predicate": "defines",
+        "object": "tokenize"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agents/consciousness/goal-tracker.ts#L66-L72"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

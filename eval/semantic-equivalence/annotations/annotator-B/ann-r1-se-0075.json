@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0075",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选四字段全空，命中 §6.6：空候选 vs 非空源 → not_equivalent + E3。源文本非空且含关键条件/数值命题：『dropPp 严格大于 maxDropPp 才判回归（回落等于阈值允许）』（回归判定条件，含严格大于边界）、『写入一轮（summary 快照），返回 run id。UNIQUE(run_tag) 冲突直接抛（retry 由调用方 persistRun 层处理）』（异常条件）、Registry 接口 rawDb/insertRun 契约。关键命题全部缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

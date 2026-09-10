@@ -1,0 +1,59 @@
+{
+  "name": "axiom-dre-dsh",
+  "version": "0.1.0",
+  "description": "Axiom Deterministic Reasoning Engine (DRE) as a DeepSeek Harness (dsh) plugin: bridges the DRE knowledge-verification / deterministic-cognition / constraint-solving / synapse-memory tools into dsh under the `dre__` prefix to strengthen information certainty.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "backend"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && bun run build:backend",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test --timeout 60000 tests/",
+    "build:backend": "bun build ../../src/mcp/dre-backend.ts --target=bun --outfile backend/server.js --minify"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ListenJ/axiom-dre-dsh.git",
+    "directory": "plugins/dre-dsh"
+  },
+  "homepage": "https://github.com/ListenJ/axiom-dre-dsh#readme",
+  "bugs": {
+    "url": "https://github.com/ListenJ/axiom-dre-dsh/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "dre",
+    "deterministic-reasoning",
+    "mcp"
+  ]
+}

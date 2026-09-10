@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0033",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本三层结构事实：『stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints』『context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.cursorrules），带安全扫描与截断』『volatile 包含 memory snapshot、timestamp、session/model/provider 行』，『唯一』量词与『安全扫描与截断』条件无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『.curso』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

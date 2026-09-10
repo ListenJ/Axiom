@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0097",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题：「当前目标与历史目标的平均相似度」（consistencyScore 语义）「简单分词：小写 + 字母数字序列，过滤长度 < 2 的 token」——含数值条件（长度 < 2）；「支持中英文混合：英文用 [a-z0-9]+，中文按单字切分」——处理规则。candidate 仅覆盖「定义函数 tokenize」，行为/条件关键命题全缺，判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

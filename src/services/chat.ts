@@ -12,9 +12,20 @@
  */
 import type { ChatMessage } from "../router/model-router.js";
 import { router } from "../router/model-router.js";
-import { buildAgentMessages } from "../agents/intent-router.js";
+import { runToolLoop } from "./tool-loop.js";
+import type { ToolCallDef } from "../utils/tool-surface.js";
+import { buildEnhancedSystemPrompt } from "../agents/intent-enhancer.js";
+import { injectConstitution } from "../agents/constitution.js";
+import { getCurrentMode } from "../agents/execution-mode.js";
 import { getConsciousness } from "../agents/consciousness/index.js";
+import { loadSessionBootstrapPrompt, type AgentBootstrap } from "../memory/bootstrap.js";
 import { logger } from "../utils/logger.js";
+import { buildFactBaseFromRetrieval, type FactEntry } from "../memory/hallucination-detector.js";
+import { contextAssembler } from "../components/context-assembler.js";
+import type { ComponentBudget, ComponentMessage, TokenBudgetReport } from "../components/contracts.js";
+import { getReadOptimizer, type ReadResponse } from "../utils/read-optimizer.js";
+import { isReadOptimizerInitialized } from "../utils/read-optimizer-init.js";
+import { runPreflight, type PreflightDeps } from "./chat-preflight.js";
 
 export interface PreparedContext {
   chatMessages: ChatMessage[];
@@ -24,6 +35,25 @@ export interface PreparedContext {
     confidence: number;
   } | null;
   codegraphContext: string;
+  /**
+   * P0-C（2026-08-29）：本次请求检索命中的证据（knowledge + codegraph）转为
+   * FactEntry[]，供响应侧 hallucination 校验（请求级，互不污染）。
+   * 未走检索路径时为空数组 —— 调用方据此跳过校验（不做空 factBase 误判）。
+   */
+  evidence: FactEntry[];
+  tokenBudgetReport?: TokenBudgetReport | null;
+  readStats?: ReadResponse | null;
+}
+
+/** prepareChatContext 选项（P0-B 2026-08-29：sessionId 驱动会话召回，bootstrap 可注入） */
+export interface PrepareChatContextOptions {
+  budget?: number | ComponentBudget;
+  /** 会话 ID（请求显式提供时才传入）— 首见时经 AgentBootstrap 注入记忆上下文（per-session 缓存） */
+  sessionId?: string;
+  /** 可注入的 bootstrap（测试/自定义；缺省用 AgentBootstrap 默认实例） */
+  bootstrap?: Pick<AgentBootstrap, "run" | "toSystemPrompt">;
+  /** 可注入的 preflight 依赖（组合根注入生产边缘客户端；缺省 edge=null 走串行） */
+  preflightDeps?: PreflightDeps;
 }
 
 /**
@@ -34,6 +64,7 @@ export async function prepareChatContext(
   messages: Array<{ role: string; content: string }>,
   enableIntent: boolean,
   vault: unknown,
+  options: PrepareChatContextOptions = {},
 ): Promise<PreparedContext> {
   let chatMessages: ChatMessage[] = messages.map((m) => ({
     role: m.role as ChatMessage["role"],
@@ -41,6 +72,9 @@ export async function prepareChatContext(
   }));
   let intentInfo: PreparedContext["intentInfo"] = null;
   let codegraphContext = "";
+  let knowledgeContext = "";
+  let tokenBudgetReport: TokenBudgetReport | null = null;
+  let readStats: ReadResponse | null = null;
 
   if (enableIntent !== false && messages.length > 0) {
     const lastUserMsg = [...messages]
@@ -51,66 +85,161 @@ export async function prepareChatContext(
         .slice(0, -1)
         .filter((m) => m.role !== "system");
 
-      const { intent, messages: agentMessages } = buildAgentMessages(
-        lastUserMsg.content,
-        history,
+      // ── 前置调用编排（P0-A 2026-08-29）──
+      // 真实数据依赖：optimizePrompt(原始输入) → buildAgentMessages(改写文本) →
+      // rawIntent → enhanceIntentWithLLM（回退基线源自改写文本）⇒ 改写与意图增强
+      // 保持串行；边缘 :9001 可用时经合并快路径一次出 {rewritten, intent, confidence}。
+      // selfThink 只依赖原始输入，已在 routes/chat.ts 与本函数并发发起。
+      // 失败容错保持：改写失败回退原文、意图增强失败回退关键词结果、均不阻塞主流程。
+      const preflight = await runPreflight(lastUserMsg.content, history, options.preflightDeps);
+      if (preflight.optimization.changed) {
+        logger.debug("Prompt optimized", {
+          original: lastUserMsg.content.slice(0, 80),
+          optimized: preflight.optimization.text.slice(0, 80),
+        });
+      }
+      const agentMessages = preflight.agentMessages;
+
+      // ── 意图：preflight 已产出（合并快路径 or 关键词 fast path + LLM 增强）──
+      // 无论是否经过 LLM 增强，都用增强版 system prompt（注入思考框架）
+      // 约束词（宪法）前置注入：所有聊天路径（/chat、/chat/stream、/v1/*）统一受宪法约束
+      const intent = preflight.intent;
+      const baseSystem = buildEnhancedSystemPrompt(intent.intent, lastUserMsg.content);
+      // P0-B（2026-08-29）：会话记忆召回 — 首见 sessionId 时经 AgentBootstrap 加载
+      // SOUL/IDENTITY/USER 与相关记忆，注入 system prompt（与宪法并存，附于人格框架之后）。
+      // per-session 缓存：同会话仅加载一次；bootstrap 失败/无 sessionId → 降级现状。
+      const bootstrapPrompt = options.sessionId
+        ? await loadSessionBootstrapPrompt(options.sessionId, lastUserMsg.content, { bootstrap: options.bootstrap })
+        : null;
+      const enhancedSystem = injectConstitution(
+        bootstrapPrompt ? `${baseSystem}\n\n${bootstrapPrompt}` : baseSystem,
+        getCurrentMode(),
       );
-      chatMessages = agentMessages;
+      // 缓存友好的消息结构（2026-07-25）：
+      //   稳定前缀在前 —— [增强 system]（同一 intent 文本 byte 级稳定）
+      //   易变内容在后 —— [codegraph 上下文][知识上下文]（固定相对次序）
+      // 并行分支只写局部变量，Promise.all 后确定性组装（此前 prepend 写法
+      // 会丢弃 enhanced system 且分支间存在 read-modify-write 竞态）
+      const enhancedSystemMsg: ChatMessage = { role: "system", content: enhancedSystem };
+      const restMessages = agentMessages.filter((m, idx) => !(idx === 0 && m.role === "system"));
+      let codegraphMsg: ChatMessage | null = null;
+      let knowledgeMsg: ChatMessage | null = null;
       intentInfo = intent;
       getConsciousness().observe(lastUserMsg.content, intent);
 
-      // CodeGraph memory for code / research intents
-      if (intent && ["code", "research"].includes(intent.intent)) {
-        try {
-          const { retrieveCodeMemory } = await import(
-            "../memory/codegraph-index.js"
+      // ── 并行化：CodeGraph 检索 + 自适应知识检索同时进行 ──
+      // 历史问题：原实现串行执行 retrieveCodeMemory → retrieveKnowledge，
+      //          总延迟 = T(codegraph) + T(knowledge)
+      // 优化后：Promise.all 并行，总延迟 ≈ max(T(codegraph), T(knowledge))
+      // 失败容错：单个分支失败不影响另一个；任一返回空都不阻塞主流程
+      const needCodegraph = intent && ["code", "research"].includes(intent.intent);
+      const needKnowledge = shouldSearch(intentInfo.intent);
+      if (needCodegraph || needKnowledge) {
+        // 构建并行任务（懒加载模块以避免启动时全部加载）
+        const parallelTasks: Promise<void>[] = [];
+        if (needCodegraph) {
+          parallelTasks.push(
+            (async () => {
+              try {
+                const useOptimizer = isReadOptimizerInitialized();
+                if (useOptimizer) {
+                  const rr = await getReadOptimizer().read({
+                    resource: "codegraph",
+                    action: "buildContext",
+                    params: { task: lastUserMsg.content, projectPath: process.cwd() },
+                    fields: ["results"],
+                    agentId: "context-assembler",
+                  });
+                  readStats = rr;
+                  const content =
+                    typeof rr.data === "string"
+                      ? rr.data
+                      : JSON.stringify(rr.data ?? "");
+                  if (content && content !== "null") {
+                    codegraphContext = content.slice(0, 3000);
+                    codegraphMsg = {
+                      role: "system",
+                      content: "[CodeGraph Context]\n" + codegraphContext,
+                    };
+                  }
+                } else {
+                  const { retrieveCodeMemory } = await import(
+                    "../memory/codegraph-index.js"
+                  );
+                  const cgResult = await retrieveCodeMemory(lastUserMsg.content);
+                  if (
+                    cgResult &&
+                    cgResult.source === "codegraph" &&
+                    cgResult.results
+                  ) {
+                    codegraphContext = cgResult.results.slice(0, 3000);
+                    codegraphMsg = {
+                      role: "system",
+                      content: "[CodeGraph Context]\n" + codegraphContext,
+                    };
+                  }
+                }
+              } catch {
+                /* non-fatal */
+              }
+            })(),
           );
-          const cgResult = await retrieveCodeMemory(lastUserMsg.content);
-          if (
-            cgResult &&
-            cgResult.source === "codegraph" &&
-            cgResult.results
-          ) {
-            codegraphContext = cgResult.results.slice(0, 3000);
-            chatMessages = [
-              {
-                role: "system",
-                content: `[CodeGraph Context]\n${codegraphContext}`,
-              },
-              ...chatMessages.filter((m) => m.role !== "system"),
-            ];
-          }
-        } catch {
-          /* non-fatal — continue without codegraph context */
         }
+        if (needKnowledge) {
+          parallelTasks.push(
+            (async () => {
+              try {
+                const { retrieveKnowledge } = await import("./knowledge.js");
+                const kr = await retrieveKnowledge({
+                  query: lastUserMsg.content,
+                  intent: intentInfo.intent,
+                  confidence: intentInfo.confidence,
+                });
+                if (kr.sources.length > 0) {
+                  knowledgeContext = kr.context;
+                  knowledgeMsg = { role: "system", content: kr.context };
+                }
+              } catch (err) {
+                logger.debug("Adaptive knowledge retrieval failed", {
+                  error: (err as Error).message,
+                });
+              }
+            })(),
+          );
+        }
+        await Promise.all(parallelTasks);
       }
 
-      // Adaptive knowledge retrieval — uses tool pipeline
-      // triggered for any intent that may need external info
-      if (intentInfo && shouldSearch(intentInfo.intent)) {
-        try {
-          const { retrieveKnowledge } = await import("./knowledge.js");
-          const kr = await retrieveKnowledge({
-            query: lastUserMsg.content,
-            intent: intentInfo.intent,
-            confidence: intentInfo.confidence,
-          });
-          if (kr.sources.length > 0) {
-            chatMessages = [
-              { role: "system", content: kr.context },
-              ...chatMessages,
-            ];
-          }
-        } catch (err) {
-          logger.debug("Adaptive knowledge retrieval failed", {
-            error: (err as Error).message,
-          });
-        }
-      }
+      // 确定性组装：稳定前缀 → 易变上下文（固定次序）→ 历史与当前输入
+      chatMessages = [
+        enhancedSystemMsg,
+        ...(codegraphMsg ? [codegraphMsg] : []),
+        ...(knowledgeMsg ? [knowledgeMsg] : []),
+        ...restMessages,
+      ];
     }
   }
 
-  return { chatMessages, intentInfo, codegraphContext };
+  const assembled = await contextAssembler.assemble({
+    messages: chatMessages as unknown as ComponentMessage[],
+    role: intentInfo?.intent ?? "chat",
+    budget: options.budget,
+  });
+  chatMessages = assembled.messages;
+  tokenBudgetReport = assembled.tokenBudgetReport;
+
+  // P0-C（2026-08-29）：本次请求检索证据 → 请求级事实库（纯函数，每请求独立，
+  // 不写 main.ts 全局单例）。未走检索路径时两上下文均为空串 → 空数组。
+  const evidence = buildFactBaseFromRetrieval({ knowledgeContext, codegraphContext });
+
+  return {
+    chatMessages,
+    intentInfo,
+    codegraphContext,
+    evidence,
+    tokenBudgetReport,
+    readStats,
+  };
 }
 
 /** 需要自适应搜索的意图类别 */
@@ -122,14 +251,35 @@ function shouldSearch(intent: string): boolean {
   ].includes(intent);
 }
 
+/** executeChat 的扩展选项（原生 function-calling） */
+export interface ExecuteChatOptions {
+  /** 工具循环使用的 TaskRole（由路由层计算） */
+  role?: string;
+  /** OpenAI 兼容 tools 定义 */
+  tools?: ToolCallDef[];
+  /** 工具执行器（按名称分发） */
+  executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  /** 工具循环最大轮数 */
+  maxToolIterations?: number;
+}
+
 /**
  * Execute a blocking (non-streaming) chat call through the model router.
+ * 传入 tools + executeTool 时走原生 function-calling 工具循环（按需调用工具）。
  */
 export async function executeChat(
   messages: ChatMessage[],
   intentInfo: PreparedContext["intentInfo"],
   taskType: string | undefined,
+  options: ExecuteChatOptions = {},
 ) {
+  if (options.tools?.length && options.role && options.executeTool) {
+    return runToolLoop(options.role, messages, {
+      tools: options.tools,
+      executeTool: options.executeTool,
+      maxIterations: options.maxToolIterations,
+    });
+  }
   if (intentInfo) {
     return router.routeByIntent(intentInfo.intent, messages);
   }

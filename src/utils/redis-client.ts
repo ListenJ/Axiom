@@ -11,6 +11,7 @@
  *   await redis.del("key");
  */
 
+import type { Socket } from "bun";
 import { readString } from "./env.js";
 import { logger } from "./logger.js";
 
@@ -24,7 +25,7 @@ export interface RedisConfig {
 }
 
 export class RedisClient {
-  private socket: any | null = null;
+  private socket: Socket | null = null;
   private config: RedisConfig;
   private connected = false;
   // FIFO queue of in-flight commands, in the order they were written to the
@@ -38,6 +39,8 @@ export class RedisClient {
   private cmdId = 0;
   private buffer = "";
   private pushHandler?: (channel: string, message: string) => void;
+  // B3-Medium：断线回调（getRedisClient 注册，用于复位单例状态实现重连）
+  private onDisconnectCb?: (client: RedisClient) => void;
 
   constructor(config: RedisConfig) {
     this.config = {
@@ -66,38 +69,41 @@ export class RedisClient {
   private async _connect(): Promise<void> {
     const { host, port, connectTimeout } = this.config;
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`Redis connection timeout after ${connectTimeout}ms`));
-      }, connectTimeout);
-
-      const socket = (Bun as any).connect({
-        hostname: host,
-        port: port,
-        socket: {
-          data: (_socket: any, data: Uint8Array) => {
-            this.buffer += new TextDecoder().decode(data);
-            this.processBuffer();
-          },
-          open: (_socket: any) => {
-            clearTimeout(timer);
-            this.connected = true;
-            logger.info("[Redis] Connected", { host, port });
-            resolve();
-          },
-          close: () => {
-            this.connected = false;
-            logger.warn("[Redis] Connection closed");
-          },
-          error: (_socket: any, err: Error) => {
-            clearTimeout(timer);
-            reject(err);
-          },
+    const connect = Bun.connect({
+      hostname: host,
+      port: port,
+      socket: {
+        data: (_socket: Socket, data: Uint8Array) => {
+          this.buffer += new TextDecoder().decode(data);
+          this.processBuffer();
         },
-      });
-
-      this.socket = socket as any;
+        open: (_socket: Socket) => {
+          this.connected = true;
+          logger.info("[Redis] Connected", { host, port });
+        },
+        close: () => {
+          // B3-Medium：意外断线 → 复位连接状态 + 拒绝在途命令 + 通知单例层（下次 getRedisClient 重新建连）
+          this.handleDisconnect("closed");
+        },
+        error: (_socket: Socket, err: Error) => {
+          logger.error("[Redis] Socket error", err);
+          // error 后通常紧跟 close；handleDisconnect 幂等（connected 守卫），此处先复位以防 close 缺失
+          this.handleDisconnect("error");
+        },
+      },
     });
+
+    // Bun.connect 返回 Promise<Socket> —— 必须 await；此前未 await 导致
+    // this.socket 实际是 Promise，所有命令 write 静默无效（被 as any 掩盖）
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Redis connection timeout after ${connectTimeout}ms`)), connectTimeout);
+    });
+    try {
+      this.socket = await Promise.race([connect, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -132,6 +138,28 @@ export class RedisClient {
 
   async flushdb(): Promise<void> {
     await this.sendCommand("FLUSHDB");
+  }
+
+  /**
+   * 按模式删除（SCAN 游标遍历 + 批量 DEL）。pattern 自动附加 keyPrefix。
+   * 供 Cache.clear 等按命名空间清理的场景使用，替代 flushdb 全库清空。
+   * 返回删除的 key 数量。
+   */
+  async deleteByPattern(pattern: string, batchSize = 200): Promise<number> {
+    const fullPattern = this.prefix(pattern);
+    let cursor = 0;
+    let deleted = 0;
+    do {
+      const result = await this.sendCommand("SCAN", String(cursor), "MATCH", fullPattern, "COUNT", String(batchSize));
+      if (!Array.isArray(result) || result.length !== 2) break;
+      cursor = parseInt(String(result[0]), 10) || 0;
+      const keys = Array.isArray(result[1]) ? result[1].map(String) : [];
+      if (keys.length > 0) {
+        const n = await this.sendCommand("DEL", ...keys);
+        deleted += Number(n) || 0;
+      }
+    } while (cursor !== 0);
+    return deleted;
   }
 
   async ping(): Promise<string> {
@@ -184,9 +212,30 @@ export class RedisClient {
     return this.connected;
   }
 
+  /** 注册断线回调（getRedisClient 用它复位单例状态，实现断线后自动重连） */
+  setOnDisconnect(cb: (client: RedisClient) => void): void {
+    this.onDisconnectCb = cb;
+  }
+
+  /**
+   * 断线处理（幂等）：复位连接状态、以明确错误拒绝全部在途命令、通知单例层。
+   * 主动 disconnect() 已先置 connected=false，触发 close 事件时此处直接跳过。
+   */
+  private handleDisconnect(reason: string): void {
+    if (!this.connected) return;
+    this.connected = false;
+    this.socket = null;
+    const pending = this.pendingQueue.splice(0);
+    for (const p of pending) {
+      p.reject(new Error(`Redis connection lost: ${reason}`));
+    }
+    logger.warn("[Redis] Connection lost; singleton reset for reconnect", { reason });
+    this.onDisconnectCb?.(this);
+  }
+
   disconnect(): void {
     if (this.socket) {
-      (this.socket as any).end?.();
+      this.socket.end();
       this.socket = null;
     }
     this.connected = false;
@@ -201,7 +250,8 @@ export class RedisClient {
   }
 
   private async sendCommand(command: string, ...args: string[]): Promise<unknown> {
-    if (!this.connected || !this.socket) {
+    const socket = this.socket;
+    if (!this.connected || !socket) {
       throw new Error("Redis not connected");
     }
 
@@ -218,7 +268,7 @@ export class RedisClient {
         resp += `$${encoded.length}\r\n${part}\r\n`;
       }
 
-      (this.socket as any).write?.(resp);
+      socket.write(resp);
     });
   }
 
@@ -301,6 +351,10 @@ export class RedisClient {
 
     // 数组 (*)
     if (type === "*") {
+      // B3-Medium：RESP 失步防护 —— 记录数组起始快照；半包（任一元素不完整）时回滚到
+      // 数组起始等待下一包整体重解析。此前头部已消费，后续包会把元素内部字节当作
+      // 新的顶层响应解析（串包错位）。
+      const savedBuffer = this.buffer;
       const lenEnd = this.buffer.indexOf("\r\n");
       if (lenEnd === -1) return undefined;
       const count = parseInt(this.buffer.slice(1, lenEnd), 10);
@@ -311,7 +365,7 @@ export class RedisClient {
       for (let i = 0; i < count; i++) {
         const item = this.parseResponse();
         if (item === undefined) {
-          // 回滚 — 实际上很难做到，这里简化处理
+          this.buffer = savedBuffer;
           return undefined;
         }
         arr.push(item);
@@ -363,6 +417,16 @@ export async function getRedisClient(): Promise<RedisClient | null> {
 
   redisPromise = RedisClient.connect();
   globalRedis = await redisPromise;
+  if (globalRedis) {
+    // B3-Medium：断线后复位单例状态，使下一次 getRedisClient() 重新建连，
+    // 而不是永远返回已断线的死实例。
+    globalRedis.setOnDisconnect((dead) => {
+      if (globalRedis === dead) {
+        globalRedis = null;
+        redisPromise = null;
+      }
+    });
+  }
   return globalRedis;
 }
 

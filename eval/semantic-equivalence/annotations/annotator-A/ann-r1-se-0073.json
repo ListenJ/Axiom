@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0073",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的两条定义命题（resolveSandbox、buildSandboxCommand）有据，但源文本关键命题缺失：SANDBOX_IMAGE 的注释『禁网/只读挂载/20s 超时由 docker-sandbox 保证』（数值与约束）、『python:3.11-slim』、resolveSandbox 的回退逻辑（sandbox 缺省时用 dockerSandbox）与 buildSandboxCommand 的 POSIX 单引号包裹策略均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

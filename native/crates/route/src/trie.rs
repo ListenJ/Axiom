@@ -40,7 +40,7 @@ impl TrieNode {
         self.match_recursive(segments, HashMap::new())
     }
 
-    fn match_recursive<'a>(&'a self, segments: &[&str], mut params: HashMap<String, String>) -> Option<(&'a str, HashMap<String, String>)> {
+    fn match_recursive<'a>(&'a self, segments: &[&str], params: HashMap<String, String>) -> Option<(&'a str, HashMap<String, String>)> {
         if segments.is_empty() {
             return self.handler_id.as_ref().map(|id| (id.as_str(), params));
         }
@@ -55,8 +55,9 @@ impl TrieNode {
 
         // Param match
         if let Some(ref param_name) = self.param {
-            params.insert(param_name.clone(), seg.to_string());
-            if let Some(result) = self.match_recursive(&segments[1..], params) {
+            let mut next_params = params.clone();
+            next_params.insert(param_name.clone(), seg.to_string());
+            if let Some(result) = self.match_recursive(&segments[1..], next_params) {
                 return Some(result);
             }
         }

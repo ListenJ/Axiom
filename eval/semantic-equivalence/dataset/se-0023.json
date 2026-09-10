@@ -1,0 +1,40 @@
+{
+  "id": "se-0023",
+  "source_text": "DREngine.writeKnowledge(item)\n  → Pipeline.process(item)\n      阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore\n        riskScore<0.3  → 直接入库\n        [0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）\n        >0.7           → 阶段3 LLM 自推理（generateConstrained 强约束）\n  → KnowledgeStore 入库（accepted/verdict/confidence/evidenceRefs）\n```",
+  "source_origin": "docs/DRE-ARCHITECTURE.md#L95-L102",
+  "candidate_mr": {
+    "propositions": [
+      "DREngine.writeKnowledge(item)   → Pipeline.process(item)       阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore         riskScore<0.3  → 直接入库         [0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）         >0.7           → 阶段3 LLM 自推理（generateConstrained 强约束）   → KnowledgeStore 入库（accepted/verdict/confidence/evidenceRefs）"
+    ],
+    "entities": [
+      {
+        "name": "DREngine.writeKnowledge(item)   → Pipeline.process(item)       阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore         riskScore<0.3  → 直接入库         [0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）         >0.7  ",
+        "type": "concept",
+        "link": "kg:concept:DREngine_writeKnowledge_item______Pipeline_process_item__________1______________-6c09ea52"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/DRE-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "DREngine.writeKnowledge(item)   → Pipeline.process(item)       阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore         riskScore<0.3  → 直接入库         [0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）         >0.7  "
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/DRE-ARCHITECTURE.md#L95-L102"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

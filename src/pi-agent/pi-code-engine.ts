@@ -115,9 +115,17 @@ Rules:
     ];
 
     // Step 3: 调用 LLM（使用精简上下文，token 消耗大幅降低）
-    const response = options.model
-      ? await router.chat("code-generation", messages)
-      : await router.tool("coding", messages);
+    // 审计 Low（2026-08-29）：此前 `options.model ? router.chat(...) : router.tool(...)`
+    // 的分支语义失效——router.chat(taskType, messages) 与 router.tool(role, messages)
+    // 两个签名均不接 model 参数，显式 model 请求实际被静默忽略。路由器 execute 端口
+    // 无 model 钉定能力（按 role 分派 + fallback），故删除误导性三元分支，固定走
+    // tool-pool 的 coding 腿（与既有默认行为一致）；传入 model 时记 debug 日志如实暴露。
+    if (options.model) {
+      logger.debug("[PiCodeEngine] options.model is advisory only; router dispatches by role", {
+        requested: options.model,
+      });
+    }
+    const response = await router.tool("coding", messages);
 
     const latency = Date.now() - startTime;
     const content = response.content || "";

@@ -86,24 +86,44 @@ class ActorInstance extends EventEmitter {
   readonly id: string;
   readonly behavior: ActorBehavior;
   private mailbox: ActorMessage[] = [];
+  /** O4 有界邮箱容量：溢出丢最旧，防慢消费者内存无界增长 */
+  private readonly mailboxCapacity: number;
+  private droppedCount = 0;
   private state: unknown = null;
   private processing = false;
   private system: ActorSystem;
 
-  constructor(behavior: ActorBehavior, system: ActorSystem) {
+  constructor(behavior: ActorBehavior, system: ActorSystem, mailboxCapacity: number = 256) {
     super();
     this.id = behavior.id;
     this.behavior = behavior;
     this.system = system;
+    this.mailboxCapacity = mailboxCapacity;
+  }
+
+  /** O4：已丢弃消息总数（观测面） */
+  get dropped(): number {
+    return this.droppedCount;
   }
 
   /**
    * 接收消息
    */
-  receive(message: ActorMessage): void {
+  async receive(message: ActorMessage): Promise<void> {
+    // O4 有界邮箱：溢出丢最旧；每 100 次丢弃降采样告警一次
+    if (this.mailbox.length >= this.mailboxCapacity) {
+      this.mailbox.shift();
+      this.droppedCount++;
+      if (this.droppedCount % 100 === 0) {
+        logger.warn(`[Actor:${this.id}] Mailbox overflow — dropped oldest message`, {
+          capacity: this.mailboxCapacity,
+          droppedTotal: this.droppedCount,
+        });
+      }
+    }
     this.mailbox.push(message);
     this.emit("message", message);
-    this.processNext();
+    await this.processNext();
   }
 
   /**
@@ -120,6 +140,10 @@ class ActorInstance extends EventEmitter {
 
       if (response) {
         this.system.deliver(response);
+      } else if (message.type === "request" || message.type === "query") {
+        // H1 修复：请求/查询类消息得不到响应时系统层兜底 NACK —— 静默丢弃会让
+        // 上层（kernel/scheduler）把任务误标为成功，重试机制永远不可达。
+        this.system.deliver(unsupportedTopicNack(this.id, message));
       }
     } catch (err) {
       logger.error(`[Actor:${this.id}] Error processing message: ${(err as Error).message}`);
@@ -139,7 +163,7 @@ class ActorInstance extends EventEmitter {
     } finally {
       this.processing = false;
       if (this.mailbox.length > 0) {
-        this.processNext();
+        await this.processNext();
       }
     }
   }
@@ -227,6 +251,12 @@ class ActorInstance extends EventEmitter {
 export class ActorSystem {
   private actors = new Map<string, ActorInstance>();
   private stopped = false;
+  /** H1 修复：ask() 的挂起回复注册表（replyTo → resolver），使发送方无需注册为 Actor 即可拿到回信 */
+  private pendingReplies = new Map<string, {
+    resolve: (msg: ActorMessage) => void;
+    reject: (err: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
 
   /**
    * 注册 Actor
@@ -239,14 +269,35 @@ export class ActorSystem {
   }
 
   /**
-   * 注销 Actor
+   * 请求-响应式发送：等待目标 Actor 的 response/error 回复，超时抛错。
+   * H1 编排闭环修复的核心接缝 —— kernel 用它判定任务成败，替代原 fire-and-forget。
    */
-  async unregister(actorId: string): Promise<void> {
-    const actor = this.actors.get(actorId);
-    if (actor) {
-      await actor.destroy();
-      this.actors.delete(actorId);
-    }
+  async ask(
+    from: string,
+    to: string,
+    type: MessageType,
+    topic: string,
+    payload: unknown,
+    timeoutMs: number = 5000,
+  ): Promise<ActorMessage> {
+    const message: ActorMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      from,
+      to,
+      topic,
+      payload,
+      timestamp: Date.now(),
+    };
+    const reply = new Promise<ActorMessage>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingReplies.delete(message.id);
+        reject(new Error(`[ActorSystem] ask timeout after ${timeoutMs}ms (to=${to}, topic=${topic})`));
+      }, timeoutMs);
+      this.pendingReplies.set(message.id, { resolve, reject, timer });
+    });
+    this.deliver(message);
+    return reply;
   }
 
   /**
@@ -255,13 +306,46 @@ export class ActorSystem {
   deliver(message: ActorMessage): void {
     if (this.stopped) {
       logger.warn("[ActorSystem] Message dropped — system stopped", { to: message.to });
+      this.rejectPending(message.replyTo, "system stopped");
       return;
+    }
+    // H1 修复：回复消息优先按 replyTo 配对给挂起的 ask()（即使收件人未注册——如 "kernel"）
+    if (message.replyTo) {
+      const pending = this.pendingReplies.get(message.replyTo);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.pendingReplies.delete(message.replyTo);
+        pending.resolve(message);
+        return;
+      }
     }
     const actor = this.actors.get(message.to);
     if (actor) {
       actor.receive(message);
     } else {
       logger.warn("[ActorSystem] Actor not found", { to: message.to });
+      this.rejectPending(message.id, `actor "${message.to}" not found`);
+    }
+  }
+
+  private rejectPending(replyTo: string | undefined, reason: string): void {
+    if (!replyTo) return;
+    const pending = this.pendingReplies.get(replyTo);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingReplies.delete(replyTo);
+      pending.reject(new Error(`[ActorSystem] ${reason}`));
+    }
+  }
+
+  /**
+   * 注销 Actor
+   */
+  async unregister(actorId: string): Promise<void> {
+    const actor = this.actors.get(actorId);
+    if (actor) {
+      await actor.destroy();
+      this.actors.delete(actorId);
     }
   }
 
@@ -303,6 +387,12 @@ export class ActorSystem {
    */
   async shutdown(timeoutMs: number = 5000): Promise<void> {
     this.stopped = true;
+    // H1 修复：清理所有挂起的 ask()，避免调用方永久悬挂
+    for (const [id, pending] of this.pendingReplies) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("[ActorSystem] system shutting down"));
+      this.pendingReplies.delete(id);
+    }
     const destroyPromises = Array.from(this.actors.entries()).map(async ([id, actor]) => {
       try {
         await Promise.race([
@@ -321,18 +411,37 @@ export class ActorSystem {
   }
 
   /**
-   * 健康检查 — 返回所有 Actor 状态
+   * 健康检查 — 返回所有 Actor 状态（含 O4 邮箱丢弃计数）
    */
-  healthCheck(): Array<{ id: string; type: string; status: "alive" | "stopped" }> {
+  healthCheck(): Array<{ id: string; type: string; status: "alive" | "stopped"; droppedCount: number }> {
     return Array.from(this.actors.values()).map((a) => ({
       id: a.id,
       type: a.behavior.type,
       status: this.stopped ? ("stopped" as const) : ("alive" as const),
+      droppedCount: a.dropped,
     }));
   }
 }
 
 // ========== 预定义 Actor 行为 ==========
+
+/** H1 修复：不支持主题的结构化 NACK —— 静默返回 null 会让上层把任务误标为成功 */
+export function unsupportedTopicNack(actorId: string, message: ActorMessage): ActorMessage {
+  return {
+    id: `nack-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    type: "error",
+    from: actorId,
+    to: message.from,
+    topic: message.topic,
+    payload: {
+      error: `Unsupported topic "${message.topic}" for actor ${actorId}`,
+      // 审计 B-1（2026-08-24）：结构化错误码，供 kernel 判定终态失败（不重试）
+      code: "UNSUPPORTED_TOPIC",
+    },
+    timestamp: Date.now(),
+    replyTo: message.id,
+  };
+}
 
 /** 知识 Actor — 主动查询和更新知识 */
 export class KnowledgeActorBehavior implements ActorBehavior {
@@ -367,8 +476,31 @@ export class KnowledgeActorBehavior implements ActorBehavior {
           replyTo: message.id,
         };
 
+      case "execute": {
+        // 审计 B-1（2026-08-24）：kernel 以 topic="execute" 派发调度任务，
+        // 此前无任何 Actor 处理该主题 → 全部 NACK → 重试耗尽即 failed。
+        // Knowledge 作为默认执行者，返回结构化执行回执（payload 原样回传，
+        // 由上层按任务语义消费；不在此伪造业务结果）。
+        const task = (message.payload ?? {}) as { id?: string; name?: string };
+        return {
+          id: `resp-${Date.now()}`,
+          type: "response",
+          from: this.id,
+          to: message.from,
+          topic: "execute.result",
+          payload: {
+            taskId: task.id,
+            taskName: task.name,
+            handledBy: this.id,
+            acceptedAt: Date.now(),
+          },
+          timestamp: Date.now(),
+          replyTo: message.id,
+        };
+      }
+
       default:
-        return null;
+        return null; // 系统层 processNext 兜底 NACK（H1）
     }
   }
 }
@@ -407,7 +539,7 @@ export class ConstraintActorBehavior implements ActorBehavior {
         };
 
       default:
-        return null;
+        return null; // 系统层 processNext 兜底 NACK（H1）
     }
   }
 }
@@ -444,7 +576,7 @@ export class MentalModelActorBehavior implements ActorBehavior {
         };
 
       default:
-        return null;
+        return null; // 系统层 processNext 兜底 NACK（H1）
     }
   }
 }
@@ -481,7 +613,7 @@ export class ReasoningActorBehavior implements ActorBehavior {
         };
 
       default:
-        return null;
+        return null; // 系统层 processNext 兜底 NACK（H1）
     }
   }
 }

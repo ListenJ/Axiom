@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-08",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题 1-4 与源文本流程逐项对应且忠实：『DREngine.writeKnowledge(item)』经『Pipeline.process(item)』，阶段1『规则预筛 + 向量召回 + 冲突检测』产出 riskScore；分支『[0.3,0.7]』走『阶段2 网络校验（SearchAggregator 多源证据）』、『>0.7』走『阶段3 LLM 自推理（generateConstrained 强约束）』，末端『accepted/verdict/confidence/evidenceRefs』经 KnowledgeStore 入库，数值边界 0.3/0.7 与方向均无差异。命题 5（item 由 writeKnowledge 传入 process）属流程图单步确定性可推导（§6.1，不算 E4）；三分支合并为一条命题属粒度合并（§6.4）；三元组 DREngine calls Pipeline 有据 → equivalent。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

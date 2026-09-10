@@ -1,0 +1,40 @@
+{
+  "id": "se-0017",
+  "source_text": "1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。\n  2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）。\n- 新增密钥三步：`/src/utils/env.ts` 读取 → `.env` 写入真实值 → `.env.example` 登记占位符（`env-example-completeness` 门禁）。\n- 密钥曾以明文暴露（日志/对话/文件）→ 立即轮换。",
+  "source_origin": "docs/CONFIGURATION.md#L34-L37",
+  "candidate_mr": {
+    "propositions": [
+      "1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。   2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）。 - 新增密钥三步：`/src/utils/env.ts` 读取 → `.env` 写入真实值 → `.env.example` 登记占位符（`env-example-completeness` 门禁）。 - 密钥曾以明文暴露（日志/对话/文件）→ 立即轮换。"
+    ],
+    "entities": [
+      {
+        "name": "1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。   2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）。 - 新增密钥三步：`/src/utils/env.ts` 读取 → `.env` 写入真实值 → `.env.exa",
+        "type": "concept",
+        "link": "kg:concept:1__________/_env____________/_____gitignored_Windows_ACL_____SYSTEM_____2______/-0f9d099b"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/CONFIGURATION.md",
+        "predicate": "contains",
+        "object": "1. **`<仓库根>/.env`** —— 运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）。   2. **`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）。 - 新增密钥三步：`/src/utils/env.ts` 读取 → `.env` 写入真实值 → `.env.exa"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/CONFIGURATION.md#L34-L37"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

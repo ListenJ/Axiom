@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0039",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『DeepSeek 系与智谱均为**自动隐式缓存**（无请求参数可注入），仅 OpenAI 官方端点有显式 `prompt_cache_key` 参数』『当前三家 provider…无一适用参数注入』『**P1-D 缩窄为 usage 缓存字段全量透传**（P0-A 已覆盖）』『前缀稳定性（P1-C）成为唯一真正提升命中率的杠杆』，否定『无一适用』与『仅』限定原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『显式 `pro』处，截断内容在命题字段完整存在；命题内『成\\n为』处残留一个换行（源换行压平痕迹），未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

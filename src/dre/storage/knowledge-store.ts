@@ -471,8 +471,8 @@ export class BehaviorKnowledge {
         return { predicted: false, probability: 0 };
       }
     }
-    // 返回最高概率的结果
-    const best = behavior.outcomes.sort((a, b) => b.probability - a.probability)[0];
+    // 返回最高概率的结果（复制后排序，避免就地修改共享的 outcomes 数组）
+    const best = [...behavior.outcomes].sort((a, b) => b.probability - a.probability)[0];
     return {
       predicted: true,
       outcome: best?.result,
@@ -711,19 +711,27 @@ export class HypothesisManager {
 
     if (!row?.hypothesis) return;
 
-    const hypothesis: Hypothesis = JSON.parse(row.hypothesis);
+    let hypothesis: Hypothesis;
+    try {
+      hypothesis = JSON.parse(row.hypothesis);
+    } catch {
+      // 损坏行无法追加证据：跳过该条，不拖垮调用方
+      return;
+    }
     if (supports) {
       hypothesis.supportingEvidence.push(evidence);
     } else {
       hypothesis.contradictingEvidence.push(evidence);
     }
 
-    // 自动更新状态
-    if (hypothesis.supportingEvidence.length >= 3 && hypothesis.contradictingEvidence.length === 0) {
+    // 自动更新状态（净证据占优判定，避免"曾有支持证据即永久无法驳斥"）
+    const s = hypothesis.supportingEvidence.length;
+    const c = hypothesis.contradictingEvidence.length;
+    if (s >= 3 && s > c) {
       hypothesis.status = "confirmed";
-    } else if (hypothesis.contradictingEvidence.length >= 3 && hypothesis.supportingEvidence.length === 0) {
+    } else if (c >= 3 && c > s) {
       hypothesis.status = "refuted";
-    } else if (hypothesis.supportingEvidence.length > 0 || hypothesis.contradictingEvidence.length > 0) {
+    } else if (s > 0 || c > 0) {
       hypothesis.status = "testing";
     }
 
@@ -740,29 +748,41 @@ export class HypothesisManager {
    * 获取所有待验证假设
    */
   getUntested(): KnowledgeNode[] {
+    // 不在 SQL 层做 json_extract 过滤：单条损坏 JSON 会令整个查询抛错。
+    // 改为取出全部 hypothesis 行，按行解析并跳过损坏/非 untested 条目。
     const rows = this.db.prepare(`
       SELECT * FROM knowledge_node WHERE paradigm = 'hypothesis'
-      AND json_extract(hypothesis, '$.status') = 'untested'
       ORDER BY created_at DESC
     `).all() as Array<Record<string, unknown>>;
 
-    return rows.map((row) => ({
-      nodeId: row.node_id as string,
-      title: row.title as string,
-      content: row.content as string,
-      contentHash: row.content_hash as string,
-      schemaVersion: row.schema_version as number,
-      domain: row.domain as string,
-      paradigm: "hypothesis" as const,
-      confidence: row.confidence as number,
-      sourceType: row.source_type as KnowledgeNode["sourceType"],
-      sourceUri: row.source_uri as string | undefined,
-      createdAt: row.created_at as number,
-      updatedAt: row.updated_at as number,
-      revision: row.revision as number,
-      isVerified: (row.is_verified as number) === 1,
-      hypothesis: JSON.parse(row.hypothesis as string),
-    }));
+    const out: KnowledgeNode[] = [];
+    for (const row of rows) {
+      let hypothesis: Hypothesis;
+      try {
+        hypothesis = JSON.parse(row.hypothesis as string);
+      } catch {
+        continue;
+      }
+      if (hypothesis.status !== "untested") continue;
+      out.push({
+        nodeId: row.node_id as string,
+        title: row.title as string,
+        content: row.content as string,
+        contentHash: row.content_hash as string,
+        schemaVersion: row.schema_version as number,
+        domain: row.domain as string,
+        paradigm: "hypothesis" as const,
+        confidence: row.confidence as number,
+        sourceType: row.source_type as KnowledgeNode["sourceType"],
+        sourceUri: row.source_uri as string | undefined,
+        createdAt: row.created_at as number,
+        updatedAt: row.updated_at as number,
+        revision: row.revision as number,
+        isVerified: (row.is_verified as number) === 1,
+        hypothesis,
+      });
+    }
+    return out;
   }
 
   /**

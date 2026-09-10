@@ -1,0 +1,21 @@
+{
+  "id": "se-0088",
+  "source_text": "```ts\n/**\n * 轨迹文件健康评估（数据质量 sentinel，2026-09-01）：\n * 统计非空行总数、畸形行数（JSON 解析失败或缺 id/task 字段）与畸形率。\n * 只读，不改动文件。供 evolve 前做拒卷门，防脏数据/损坏文件被误归纳产生垃圾 skill。\n */\nexport interface TraceHealth {\n  /** 非空行总数 */\n  total: number;\n```",
+  "source_origin": "src/agent-evals/real-usage.ts#L174-L178",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

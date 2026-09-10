@@ -1,0 +1,40 @@
+{
+  "id": "se-0093",
+  "source_text": "```ts\n/**\n * evolve 闭环的回归检测（S5）：候选 = evolved 阶段 run，基准解析优先级\n * 用户显式 `--baseline`（run_tag 或纯数字 id）→ 本轮回 baseline 阶段 runId\n * （技能注入 vs 无技能同 held-out 的苹果对苹果）→ 自动历史最优（回落默认）。\n * 委托 autoCheckRegression，本身无副作用可测。\n */\nexport function autoCheckEvolve(\n  registry: Registry,\n  opts: { evolvedRunId: number | null; baselineRunId: number | null; baselineSpec?: string; maxDropPp?: number },\n```",
+  "source_origin": "src/agent-evals/run-check.ts#L44-L49",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「autoCheckEvolve」"
+    ],
+    "entities": [
+      {
+        "name": "autoCheckEvolve",
+        "type": "function",
+        "link": "kg:function:autoCheckEvolve"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/run-check.ts",
+        "predicate": "defines",
+        "object": "autoCheckEvolve"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/run-check.ts#L44-L49"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

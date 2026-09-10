@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0073",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获两条结构命题（定义函数 resolveSandbox、buildSandboxCommand，均有据），但漏掉源文本的关键数值/行为命题：常量 SANDBOX_IMAGE（值 python:3.11-slim）及其注释『外部评测沙箱镜像：Python 运行时（禁网/只读挂载/20s 超时由 docker-sandbox 保证）』整体缺失；『构造沙箱命令：解释器 + 脚本（POSIX 单引号包裹——容器恒为 Linux；脚本内容在文件内，命令面无注入面）』的行为语义亦缺失。漏掉数值与条件类关键命题 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0067",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字复刻源文本全部关键命题：OS 以易用抽象虚拟化机器并掩盖限制；『a path of execution within a process』（thread 定义）且进程可含多线程；多线程并发执行提升整体响应与效率。条件与因果方向均在，无漏无加；溯源 origin 与 source_origin 一致。可忽略差异：源内 thread 一词前后的换行被折叠为空格（命题中呈现为双空格）；实体 name 与三元组 object 在约 200 字符处截断（止于『and a process 』），完整文本保留于 propositions 中。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

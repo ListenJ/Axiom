@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0094",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选 propositions/entities/triples 全空（§6.6）。源文本关键命题全部缺失：『本次任务实际注入的 auto-* 技能 id 列表（无注入为空）』（条件）、『执行错误（限流/传输/空内容等 provider 侧故障，非能力失败）：不计入能力通过率分母』（例外+否定，直接改变通过率统计口径）、『tokenUsage…provider 未返回时缺失；不阻断评测』、『costUsd…仅 internalAgent 路径可能提供，直连路径按 token 数展示』（条件限定）。归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

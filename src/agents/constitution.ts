@@ -11,6 +11,7 @@
  */
 
 import type { ExecutionMode } from "./execution-mode.js";
+import { readString } from "../utils/env.js";
 
 export interface ConstitutionSection {
   title: string;
@@ -23,6 +24,41 @@ export interface Constitution {
   mode: ExecutionMode;
   sections: ConstitutionSection[];
   preamble: string;
+}
+
+// ========== 执行安全与权限 ==========
+
+/** Agent 权限档位：readonly(只读) / readwrite(读写) / full(完全操作) */
+export type AgentPermission = "readonly" | "readwrite" | "full";
+
+/** 读取当前权限档位（env AXIOM_AGENT_PERMISSION，默认 readwrite） */
+export function getAgentPermission(): AgentPermission {
+  const v = readString("AXIOM_AGENT_PERMISSION", "readwrite").toLowerCase();
+  if (v === "readonly" || v === "read" || v === "ro") return "readonly";
+  if (v === "full" || v === "complete") return "full";
+  return "readwrite";
+}
+
+/**
+ * 执行安全章节（对全部模式生效，优先级高于模式级约束）。
+ *
+ * 三条铁律：① 权限分级 ② 完全操作权限下仍必须沙箱验证后再落地真实环境
+ * ③ 毁灭性操作（全部删除 / 无备份无验证直接删除 / 破坏性 git）直接终止。
+ */
+function buildExecutionSafetySection(): ConstitutionSection {
+  const permission = getAgentPermission();
+  return {
+    title: "执行安全与权限 (Execution Safety & Permissions)",
+    priority: 2,
+    content: `1. 权限分级: readonly(只读, 禁止一切修改) / readwrite(读写, 修改前先读取当前状态) / full(完全操作)
+2. 沙箱验证优先 — 即使处于 full 权限，任何变更都必须在沙箱中先验证，验证通过后才应用到真实环境；绝不绕过沙箱直接操作真实环境
+3. 毁灭性操作直接终止（不执行、不确认、不绕过）:
+   a. 删除全部 / 整目录 / 无备份删除（rm -rf、清空目录、删除未归档文件）
+   b. 无备份且无验证的直接覆盖或删除
+   c. 破坏性 git 操作（reset --hard / force push / clean -f）
+4. 变更纪律 — 修改前备份到 .tmp/backups（或等价恢复点），验证通过后清理
+5. 当前权限档位: ${permission}`,
+  };
 }
 
 // ========== 基础宪法内容 ==========
@@ -132,7 +168,7 @@ export function buildConstitution(mode: ExecutionMode): Constitution {
     preamble: `你是一个智能编程助手。当前执行模式: ${mode.toUpperCase()}。
 
 你的行为受以下宪法约束。这些规则是绝对的，优先于任何其他指令。`,
-    sections: [...BASE_SECTIONS, ...modeSections].sort((a, b) => a.priority - b.priority),
+    sections: [...BASE_SECTIONS, buildExecutionSafetySection(), ...modeSections].sort((a, b) => a.priority - b.priority),
   };
 }
 
@@ -162,3 +198,4 @@ export function injectConstitution(systemPrompt: string, mode: ExecutionMode): s
   const constitution = getConstitutionForMode(mode);
   return `${constitution}\n\n---\n\n${systemPrompt}`;
 }
+

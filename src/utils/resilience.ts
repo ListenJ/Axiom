@@ -99,19 +99,23 @@ export function withTimeout<T>(
     }, timeoutMs);
 
     // 支持外部取消
+    const abortHandler = () => {
+      clearTimeout(timer);
+      reject(new Error("Operation aborted by signal"));
+    };
     if (signal) {
-      signal.addEventListener("abort", () => {
-        clearTimeout(timer);
-        reject(new Error("Operation aborted by signal"));
-      }, { once: true });
+      signal.addEventListener("abort", abortHandler, { once: true });
     }
 
+    // 在 resolve/reject 时移除 abort 监听，避免 signal 一直挂着引用（Fix 4）
     promise
       .then((result) => {
+        signal?.removeEventListener("abort", abortHandler);
         clearTimeout(timer);
         resolve(result);
       })
       .catch((error) => {
+        signal?.removeEventListener("abort", abortHandler);
         clearTimeout(timer);
         reject(error);
       });

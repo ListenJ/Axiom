@@ -20,7 +20,9 @@ describe('ShimmerCard', () => {
 
   it('applies variant=accent classes', () => {
     render(<ShimmerCard data-testid="card" variant="accent">x</ShimmerCard>)
-    expect(screen.getByTestId('card').className).toMatch(/border-\[var\(--accent-soft\)\]/)
+    const cls = screen.getByTestId('card').className
+    expect(cls).toMatch(/card-glass/)
+    expect(cls).toMatch(/hover:border-\[var\(--accent\)\]/)
   })
 
   it('applies variant=outlined dashed border', () => {

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0008",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果』及三条理由完整保留，含否定对比『而非』与因果链『状态式使用户可以看到推理的每一步』；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

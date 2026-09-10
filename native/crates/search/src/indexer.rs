@@ -1,7 +1,6 @@
 use dashmap::DashMap;
 use oc_shared::types::LiteNote;
 use parking_lot::RwLock;
-use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -88,14 +87,14 @@ impl VaultIndex {
         let title = frontmatter
             .get("title")
             .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 Path::new(path)
                     .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
-                    .as_ref()
-            })
-            .to_string();
+                    .into_owned()
+            });
         let tags: Vec<String> = frontmatter
             .get("tags")
             .and_then(|v| v.as_array())
@@ -107,10 +106,13 @@ impl VaultIndex {
             .unwrap_or_default();
         let wiki_links = extract_wiki_links(body);
         let word_count = body.split_whitespace().count();
-        let modified_at = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // M9：modified_at 必须取文件真实 mtime，而非索引时刻（否则每次重建都视为"刚修改"）
+        let modified_at = std::fs::metadata(self.vault_path.join(path))
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
 
         let note = Arc::new(LiteNote {
             path: path.to_string(),
@@ -155,13 +157,14 @@ impl VaultIndex {
     fn build_backlinks(&self) {
         // Clear existing backlinks first
         for mut note in self.notes.iter_mut() {
-            note.backlinks.clear();
+            Arc::make_mut(&mut *note).backlinks.clear();
         }
         // Build from wiki_out
         for link_entry in self.wiki_out.iter() {
             let target = link_entry.key();
             for source in link_entry.value().iter() {
-                if let Some(mut note) = self.notes.get_mut(target) {
+                if let Some(mut note_arc) = self.notes.get_mut(target) {
+                    let note = Arc::make_mut(&mut *note_arc);
                     if !note.backlinks.contains(source) {
                         note.backlinks.push(source.clone());
                     }
@@ -306,5 +309,29 @@ mod tests {
     #[test]
     fn test_slugify() {
         assert_eq!(oc_shared::utils::slugify("Hello World"), "hello-world");
+    }
+
+    #[test]
+    fn modified_at_uses_file_mtime_not_index_time() {
+        let dir = std::env::temp_dir().join(format!("oc-mtime-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("a.md");
+        std::fs::write(&p, "---\ntitle: A\n---\nbody\n").unwrap();
+        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        set_mtime(&p, older);
+
+        let idx = VaultIndex::new(&dir);
+        let note = idx.get("a.md").unwrap();
+        let want = older
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert_eq!(note.modified_at, want, "modified_at 必须等于文件 mtime");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn set_mtime(p: &std::path::Path, t: std::time::SystemTime) {
+        let f = std::fs::OpenOptions::new().append(true).open(p).unwrap();
+        f.set_times(std::fs::FileTimes::new().set_modified(t)).unwrap();
     }
 }

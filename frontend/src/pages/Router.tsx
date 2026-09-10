@@ -1,0 +1,129 @@
+import { useEffect, useState } from 'react'
+import { Compass, Heart, Coins } from 'lucide-react'
+import { ShimmerCard, PageHeader, Skeleton } from '@/components/ui'
+import { endpoints } from '@/lib/api'
+import { formatNumber } from '@/lib/format'
+
+interface RouterStatus {
+  status?: string
+  models?: number
+  healthy?: number
+  tokens?: { used: number; total: number }
+}
+
+/** 模型路由面板（设置页「调试与检查」嵌入用，不含页头） */
+export function RouterPanel() {
+  const [status, setStatus] = useState<RouterStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    Promise.allSettled([
+      endpoints.router.status().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
+      endpoints.router.health().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
+      endpoints.router.tokenStats().then((d) => unwrapData(d) as RouterStatus).catch(() => null),
+    ]).then(([s, h, t]) => {
+      const sVal = s.status === 'fulfilled' ? s.value : null
+      const hVal = h.status === 'fulfilled' ? h.value : null
+      const tVal = t.status === 'fulfilled' ? t.value : null
+      const merged: RouterStatus = {
+        status: sVal?.status ?? hVal?.status ?? '未知',
+        models: sVal?.models ?? hVal?.models,
+        healthy: hVal?.healthy,
+        tokens: tVal?.tokens,
+      }
+      setStatus(merged)
+      const anyError = [s, h, t].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
+      if (anyError) setError(String(anyError.reason?.message ?? anyError.reason))
+    })
+  }, [])
+
+  const loading = status === null
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]"
+        >
+          部分指标暂不可用：{error}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-busy={loading}>
+        <ShimmerCard glow>
+          <div className="flex items-center gap-2 text-[var(--text-muted)]">
+            <Heart className="size-4" />
+            <span className="text-sm">健康模型</span>
+          </div>
+          {loading ? (
+            <>
+              <Skeleton className="mt-3 h-8 w-16" />
+              <Skeleton className="mt-2 h-3 w-24" />
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-3xl font-bold text-[var(--text)]">{status?.healthy ?? '—'}</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">共 {status?.models ?? '—'} 个模型</p>
+            </>
+          )}
+        </ShimmerCard>
+
+        <ShimmerCard>
+          <div className="flex items-center gap-2 text-[var(--text-muted)]">
+            <Coins className="size-4" />
+            <span className="text-sm">Token 使用</span>
+          </div>
+          {loading ? (
+            <>
+              <Skeleton className="mt-3 h-8 w-24" />
+              <Skeleton className="mt-2 h-3 w-20" />
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-3xl font-bold text-[var(--text)]">
+                {status?.tokens ? formatNumber(status.tokens.used) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                / {status?.tokens ? formatNumber(status.tokens.total) : '—'}
+              </p>
+            </>
+          )}
+        </ShimmerCard>
+
+        <ShimmerCard>
+          <div className="flex items-center gap-2 text-[var(--text-muted)]">
+            <Compass className="size-4" />
+            <span className="text-sm">路由状态</span>
+          </div>
+          {loading ? (
+            <Skeleton className="mt-3 h-8 w-20" />
+          ) : (
+            <p className="mt-2 text-3xl font-bold capitalize text-[var(--success)]">
+              {status?.status ?? '—'}
+            </p>
+          )}
+        </ShimmerCard>
+      </div>
+    </div>
+  )
+}
+
+/** 兼容后端 { success, data } 响应包裹（unwrap 取 data）。 */
+function unwrapData(d: unknown): unknown {
+  const obj = d as { data?: unknown }
+  return obj && typeof obj === 'object' && 'data' in obj ? obj.data : d
+}
+
+export default function Router() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Compass className="size-5" />}
+        title="模型路由"
+        description="Advisor + Health + Token 使用统计。"
+      />
+      <RouterPanel />
+    </div>
+  )
+}

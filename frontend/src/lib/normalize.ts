@@ -44,6 +44,24 @@ export interface PerfMetrics {
   p95?: number
 }
 
+/** 解析后端 /metrics 的 Prometheus 文本（text/plain）为 PerfMetrics；非文本/无指标返回 null。 */
+export function normalizePromMetrics(text: string): PerfMetrics | null {
+  if (typeof text !== 'string' || !text.trim()) return null
+  const lines = text.split('\n')
+  const first = (prefixes: string[]): number | undefined => {
+    const line = lines.find((l) => prefixes.some((p) => l.startsWith(p)))
+    if (!line) return undefined
+    const m = line.match(/([-+]?\d+(?:\.\d+)?)/)
+    return m ? Number(m[1]) : undefined
+  }
+  return {
+    cpu: first(['process_cpu', 'nodejs_cpu', 'cpu']),
+    memory: first(['process_memory', 'nodejs_memory', 'memory']),
+    rps: first(['http_requests', 'requests']),
+    p95: first(['http_request_duration_seconds_bucket', 'p95']),
+  }
+}
+
 export interface EvalResult {
   id: string
   provider: string

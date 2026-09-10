@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { sanitizeRequestBody } from "./security.js";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -91,6 +92,19 @@ class Logger {
     if (this.currentSize < this.rotation.maxSize) return;
 
     this.fileStream?.end();
+    // 审计 Low（2026-08-29）：end() 是异步关闭，立即 renameSync 在 Windows 上会因
+    // 文件句柄未释放而 EPERM/EBUSY。等 close 事件后再 rename（1s 上限容错，
+    // 超时则按原 try/catch 路径重试失败处理，不卡日志主流程）。
+    if (this.fileStream) {
+      const stream = this.fileStream;
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, 1000);
+        stream.once("close", () => {
+          clearTimeout(t);
+          resolve();
+        });
+      });
+    }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const rotatedPath = `${this.filePath}.${timestamp}`;
@@ -182,23 +196,45 @@ class Logger {
   }
 
   private writeConsole(entry: LogEntry) {
+    // 宿主互操作契约（2026-09-06 OpenCode 冒烟实证）：MCP stdio 传输（--stdio）下
+    // stdout 仅承载 JSON-RPC 帧，宿主按行解析协议流——info/debug 日志经 console.log
+    // 混入 stdout 会使标准客户端解析失败并标记 server unavailable。故 stdio 模式
+    // 全部日志改写 stderr（协议流纯净性回归：tests/mcp-stdio-stdout-purity.test.ts）。
+    if (process.argv.includes("--stdio")) {
+      console.error(this.formatLine(entry));
+      return;
+    }
     if (this.opts.format === "json") {
       console.log(JSON.stringify(this.serialize(entry)));
       return;
     }
 
+    if (entry.level === "error" || entry.level === "fatal") console.error(this.formatLine(entry));
+    else if (entry.level === "warn") console.warn(this.formatLine(entry));
+    else console.log(this.formatLine(entry));
+  }
+
+  /** text 格式行渲染（redactContext/SECRET_VALUE_RE 语义保持不变，仅抽取复用） */
+  private formatLine(entry: LogEntry): string {
+    if (this.opts.format === "json") return JSON.stringify(this.serialize(entry));
+
     const color = this.opts.enableColors ? LEVEL_COLORS[entry.level] : "";
     const reset = this.opts.enableColors ? RESET : "";
-    const ctxStr = Object.keys(entry.context || {}).length
-      ? " " + JSON.stringify(entry.context)
+    // 整改 D4（2026-08-25）：text 路径与 json 路径同样过 redactContext，
+    // 防止 context 中密钥值经 console 明文输出。
+    const safeCtx = entry.context && Object.keys(entry.context).length
+      ? this.redactContext(entry.context)
+      : entry.context;
+    const ctxStr = safeCtx && Object.keys(safeCtx).length
+      ? " " + JSON.stringify(safeCtx)
       : "";
-    const errStr = entry.error ? `\n${entry.error.stack || entry.error.message}` : "";
+    // B3-Medium（2026-08-29）：errStr 与 JSON 路径（serialize）一致套用 SECRET_VALUE_RE，
+    // 防止 error.stack/message 中的密钥值经 console 文本输出泄漏。
+    const errStr = entry.error
+      ? `\n${(entry.error.stack || entry.error.message || "").replace(Logger.SECRET_VALUE_RE, "[REDACTED]")}`
+      : "";
 
-    const line = `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
-
-    if (entry.level === "error" || entry.level === "fatal") console.error(line);
-    else if (entry.level === "warn") console.warn(line);
-    else console.log(line);
+    return `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
   }
 
   private async writeFile(entry: LogEntry) {
@@ -209,19 +245,34 @@ class Logger {
     this.currentSize += Buffer.byteLength(line, "utf8");
   }
 
+  /** 敏感值正则：捕获常见密钥格式（key-based 脱敏由 sanitizeRequestBody 处理，此处补 value-based） */
+  private static readonly SECRET_VALUE_RE =
+    /(sk-[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9._-]+|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20}|xoxb-[0-9A-Za-z-]+)/g;
+
+  /** 脱敏上下文：先按字段名递归脱敏（复用 security.ts），再按值扫描密钥模式 */
+  private redactContext(ctx: Record<string, unknown>): Record<string, unknown> {
+    const cleaned = sanitizeRequestBody(ctx) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(cleaned)) {
+      if (typeof v === "string") {
+        cleaned[k] = v.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+      }
+    }
+    return cleaned;
+  }
+
   private serialize(entry: LogEntry): Record<string, unknown> {
     const obj: Record<string, unknown> = {
       timestamp: entry.timestamp,
       level: entry.level,
       message: entry.message,
     };
-    if (entry.context && Object.keys(entry.context).length) obj.context = entry.context;
+    if (entry.context && Object.keys(entry.context).length) {
+      obj.context = this.redactContext(entry.context);
+    }
     if (entry.error) {
-      obj.error = {
-        name: entry.error.name,
-        message: entry.error.message,
-        stack: entry.error.stack,
-      };
+      const msg = entry.error.message?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]") ?? "";
+      const stack = entry.error.stack?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+      obj.error = { name: entry.error.name, message: msg, stack };
     }
     return obj;
   }

@@ -84,7 +84,9 @@ function scanMarkdownFiles(dir: string, recursive = true): string[] {
     }
   }
 
-  return files;
+  // POSIX does not guarantee readdir order (Windows NTFS sorts by name, Linux ext4 sorts by hash),
+  // Sort by full path lexicographic order to ensure the same-name dedup "first come first served" is consistent across platforms
+  return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** 从单个文件提取 AgentMeta */

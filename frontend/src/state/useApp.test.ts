@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { useApp } from './useApp'
+import { useApp, readInitialTheme } from './useApp'
 
 describe('useApp store', () => {
   beforeEach(() => {
@@ -7,6 +7,9 @@ describe('useApp store', () => {
       theme: 'dark',
       sidebarOpen: false,
       helpOpen: false,
+      terminalOpen: false,
+      rightbarOpen: true,
+      rightbarTool: 'summary',
       toasts: [],
     })
     localStorage.clear()
@@ -15,6 +18,15 @@ describe('useApp store', () => {
   describe('theme', () => {
     it('defaults to dark when no localStorage entry', () => {
       expect(useApp.getState().theme).toBe('dark')
+    })
+
+    it('readInitialTheme returns dark when nothing stored and keeps explicit light', () => {
+      localStorage.removeItem('axiom:theme')
+      expect(readInitialTheme()).toBe('dark')
+      localStorage.setItem('axiom:theme', 'light')
+      expect(readInitialTheme()).toBe('light')
+      localStorage.setItem('axiom:theme', 'system')
+      expect(readInitialTheme()).toBe('system')
     })
 
     it('setTheme updates state and persists to localStorage', () => {
@@ -47,6 +59,28 @@ describe('useApp store', () => {
       expect(useApp.getState().helpOpen).toBe(true)
       useApp.getState().setHelpOpen(false)
       expect(useApp.getState().helpOpen).toBe(false)
+    })
+  })
+
+  describe('terminal', () => {
+    it('opens and closes', () => {
+      useApp.getState().setTerminalOpen(true)
+      expect(useApp.getState().terminalOpen).toBe(true)
+      useApp.getState().setTerminalOpen(false)
+      expect(useApp.getState().terminalOpen).toBe(false)
+    })
+  })
+
+  describe('rightbar', () => {
+    it('toggles open/close and tracks the active tool', () => {
+      useApp.getState().setRightbarOpen(false)
+      expect(useApp.getState().rightbarOpen).toBe(false)
+      useApp.getState().setRightbarTool('git')
+      expect(useApp.getState().rightbarTool).toBe('git')
+      expect(useApp.getState().rightbarOpen).toBe(false)
+      useApp.getState().openRightTool('terminal')
+      expect(useApp.getState().rightbarTool).toBe('terminal')
+      expect(useApp.getState().rightbarOpen).toBe(true)
     })
   })
 

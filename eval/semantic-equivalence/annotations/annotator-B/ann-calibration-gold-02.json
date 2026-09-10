@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-02",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E2", "E4"],
+  "severity": "critical",
+  "rationale": "源文本明确否定：『ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API』。候选命题 2『定期调用 nvidia-smi 采集 GPU 硬件状态』把否定翻转为肯定（E2 关系极性错向），且『定期』『采集 GPU 硬件状态』为源文本无依据的编造细节（E4 加命题），直接与源相悖并改变行为含义 → critical。候选命题 1（『只做数字比较』）与命题 3（『Runtime 只关心可用预算数量, 不关心预算来源』）有据。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

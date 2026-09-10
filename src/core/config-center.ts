@@ -15,6 +15,7 @@ import fs from "fs";
 import path from "path";
 import YAML from "yaml";
 import { logger } from "../utils/logger.js";
+import { readString, readInt } from "../utils/env.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -133,7 +134,13 @@ export class ConfigCenter {
         const raw = fs.readFileSync(this.yamlPath, "utf-8");
         this.yamlData = resolveEnvVars(YAML.parse(raw)) as Record<string, unknown>;
         for (const schema of CONFIG_SCHEMA) {
-          const val = getPath(this.yamlData, schema.yamlPath);
+          // model.*_key 按 provider 名匹配 models 数组（避免数组下标随 YAML 顺序漂移）
+          const provider = schema.key.startsWith("model.") && schema.yamlPath.startsWith("models.")
+            ? schema.key.slice("model.".length, -"_key".length)
+            : undefined;
+          const val = provider
+            ? (findModelApiKeyByProvider(this.yamlData, provider) ?? getPath(this.yamlData, schema.yamlPath))
+            : getPath(this.yamlData, schema.yamlPath);
           if (val !== undefined) {
             this.values.set(schema.key, {
               key: schema.key,
@@ -473,6 +480,18 @@ export class ConfigCenter {
 // 辅助函数
 // ═══════════════════════════════════════════════════════════════
 
+/** 按 provider 名从 YAML models 数组定位 apiKey（避免数组下标漂移）。 */
+function findModelApiKeyByProvider(obj: Record<string, unknown>, provider: string): unknown {
+  const models = obj.models;
+  if (!Array.isArray(models)) return undefined;
+  for (const m of models) {
+    if (m && typeof m === "object" && (m as Record<string, unknown>).provider === provider) {
+      return (m as Record<string, unknown>).apiKey;
+    }
+  }
+  return undefined;
+}
+
 function getPath(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split(".");
   let current: unknown = obj;
@@ -499,19 +518,22 @@ function setPath(obj: Record<string, unknown>, path: string, value: unknown): vo
   current[parts[parts.length - 1]] = value;
 }
 
-const ALLOWED_ENV_VARS = new Set([
-  "DATABASE_PATH", "OBSIDIAN_VAULT_PATH", "LOG_LEVEL", "NODE_ENV",
-  "KNOWLEDGE_DB_PATH", "BING_API_KEY",
+const ALLOWED_ENV_VARS = new Set<string>([
+  ...CONFIG_SCHEMA.map((s) => s.envVar),
+  "KNOWLEDGE_DB_PATH", "BING_API_KEY", "OBSIDIAN_API_TOKEN",
+  "OPENROUTER_HTTP_PROXY", "NODE_ENV", "OPENCODE_API_KEY",
 ]);
 
 function resolveEnvVars(obj: unknown): unknown {
   if (typeof obj === "string") {
-    return obj.replace(/\$\{([^}]+)\}/g, (_, name) => {
+    return obj.replace(/\$\{([^}:]+)(?::-([^}]*))?\}/g, (_, name, def) => {
       if (!ALLOWED_ENV_VARS.has(name)) {
+        // 带默认值（${VAR:-default}）的未白名单变量：返回默认值，避免清空
+        if (def !== undefined) return def;
         logger.warn(`[Config] Blocked access to env var: ${name} (not in whitelist)`);
         return "";
       }
-      return process.env[name] ?? "";
+      return process.env[name] ?? def ?? "";
     });
   }
   if (Array.isArray(obj)) return obj.map(resolveEnvVars);
@@ -593,15 +615,15 @@ export function getConfig(): AppConfig {
     models: (cc.getYamlData()?.models ?? []) as ModelConfig[],
     memory: {
       vaultPath: cc.getString("memory.vault_path"),
-      obsidianApiPort: Number(process.env.OBSIDIAN_API_PORT) || 27124,
-      obsidianApiToken: process.env.OBSIDIAN_API_TOKEN || "",
+      obsidianApiPort: readInt("OBSIDIAN_API_PORT", 27124),
+      obsidianApiToken: readString("OBSIDIAN_API_TOKEN", ""),
       databasePath: cc.getString("memory.database_path"),
     },
     crawler: {
-      searchApi: process.env.CRAWLER_SEARCH_API || "multi-engine",
+      searchApi: readString("CRAWLER_SEARCH_API", "multi-engine"),
       serpapiKey: cc.getString("crawler.serpapi_key"),
       maxConcurrent: cc.getNumber("crawler.max_concurrent") || 3,
-      requestDelay: Number(process.env.CRAWLER_REQUEST_DELAY) || 1000,
+      requestDelay: readInt("CRAWLER_REQUEST_DELAY", 1000),
     },
   };
 }

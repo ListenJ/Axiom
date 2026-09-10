@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0017",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题字段完整保留源文本四项（含『运行时密钥/环境注入（gitignored；Windows ACL 仅本人+SYSTEM）』『密钥曾以明文暴露（日志/对话/文件）→ 立即轮换』）；可忽略差异：实体 name 与 triple object 截断于『.env.exa』，格式残缺，命题本体正确。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

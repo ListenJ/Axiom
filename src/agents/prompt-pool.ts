@@ -91,6 +91,13 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000;    // 5 分钟活跃窗口
 const EXTENDED_TTL_MS = 60 * 60 * 1000;  // 1 小时扩展窗口
 const TOP_N_LFU_PROTECT = 3;             // LFU 保护 Top-3
 
+// 动态后缀模板块常量（单一事实来源）：模板组装与 assemblePrompt 的替换 pattern
+// 均由此派生，杜绝两者漂移导致替换永不命中、占位符残留进 system prompt（审计 B2-M1）
+const CONTEXT_BLOCK = "{{#if context}}\n## Context\n{{context}}\n{{/if}}";
+const USER_INPUT_BLOCK = "{{#if user_input}}\n## User Input\n{{user_input}}\n{{/if}}";
+const EXAMPLES_BLOCK =
+  "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}";
+
 // ========== XXH3 哈希实现 ==========
 
 /**
@@ -128,17 +135,6 @@ function estimateTokenCount(text: string): number {
   return Math.ceil(count);
 }
 
-/**
- * 生成 UUID 缓存边界标记
- */
-function generateCacheMarker(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
 // ========== 8 核心角色配置 ==========
 
 const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
@@ -170,6 +166,8 @@ const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
       "Run lint after changes",
       "Follow code conventions",
       "Minimize output tokens",
+      "Read AGENTS.md before editing",
+      "One test -> one implementation -> repeat",
     ],
   },
 
@@ -324,6 +322,8 @@ const ROLE_CONFIGS: Record<AgentRole, RoleConfig> = {
       "Don't fabricate information",
       "Respect user privacy",
       "Stay on topic",
+      "Use tools for deterministic facts",
+      "Lead with conclusion, then evidence",
     ],
   },
 
@@ -431,10 +431,10 @@ export class UserAgentPromptPool {
    * 构建池化条目
    */
   private buildPoolEntry(role: AgentRole, config: RoleConfig): PromptPoolEntry {
-    const cacheMarker = generateCacheMarker();
-
-    // 构建静态前缀 (可缓存部分)
-    const staticPrefix = [
+    // P1-C（前缀缓存计划）：静态前缀必须跨进程重启字节级稳定——CACHE_BOUNDARY marker
+    // 由前缀内容 hash 派生。原 Math.random UUID 使每次重建（含重启）的前缀字节不同，
+    // provider 端前缀缓存按字节前缀匹配，随机 marker 会让缓存命中率归零。
+    const contentLines = [
       config.systemPromptPrefix,
       "",
       "## Available Tools",
@@ -443,32 +443,21 @@ export class UserAgentPromptPool {
       "## Constraints",
       ...config.constraints.map(c => `- ${c}`),
       "",
-      `<!-- CACHE_BOUNDARY: ${cacheMarker} -->`,
-    ].join("\n");
+    ];
+    const cacheMarker = `<!-- CACHE_BOUNDARY: ${xxh3Hash(contentLines.join("\n"))} -->`;
+    const staticPrefix = [...contentLines, cacheMarker].join("\n");
 
-    // 动态后缀模板 (Handlebars 语法)
+    // 动态后缀模板 (Handlebars 语法) — 区块由常量拼装，与替换 pattern 同源
     const dynamicSuffixTemplate = [
       "",
       "## Current Task",
       "{{task_description}}",
       "",
-      "{{#if context}}",
-      "## Context",
-      "{{context}}",
-      "{{/if}}",
+      CONTEXT_BLOCK,
       "",
-      "{{#if user_input}}",
-      "## User Input",
-      "{{user_input}}",
-      "{{/if}}",
+      USER_INPUT_BLOCK,
       "",
-      "{{#if examples}}",
-      "## Examples",
-      "{{#each examples}}",
-      "Input: {{this.input}}",
-      "Output: {{this.output}}",
-      "{{/each}}",
-      "{{/if}}",
+      EXAMPLES_BLOCK,
     ].join("\n");
 
     const prefixHash = xxh3Hash(staticPrefix);
@@ -545,12 +534,12 @@ export class UserAgentPromptPool {
       examples?: Array<{ input: string; output: string }>;
     }
   ): AssembledPrompt {
-    // 简单模板渲染 (替代 Handlebars 以减少依赖)
+    // 简单模板渲染 (替代 Handlebars 以减少依赖) — 替换 pattern 由块常量派生，保证与模板一致
     let dynamicSuffix = entry.dynamicSuffixTemplate;
     dynamicSuffix = dynamicSuffix.replace("{{task_description}}", dynamicVars.task_description);
-    dynamicSuffix = dynamicSuffix.replace("{{#if context}}\n{{context}}\n{{/if}}",
+    dynamicSuffix = dynamicSuffix.replace(CONTEXT_BLOCK,
       dynamicVars.context ? `\n## Context\n${dynamicVars.context}\n` : "");
-    dynamicSuffix = dynamicSuffix.replace("{{#if user_input}}\n{{user_input}}\n{{/if}}",
+    dynamicSuffix = dynamicSuffix.replace(USER_INPUT_BLOCK,
       dynamicVars.user_input ? `\n## User Input\n${dynamicVars.user_input}\n` : "");
 
     // 处理 examples
@@ -558,15 +547,9 @@ export class UserAgentPromptPool {
       const examplesText = dynamicVars.examples
         .map(e => `Input: ${e.input}\nOutput: ${e.output}`)
         .join("\n\n");
-      dynamicSuffix = dynamicSuffix.replace(
-        "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}",
-        `\n## Examples\n${examplesText}\n`
-      );
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, `\n## Examples\n${examplesText}\n`);
     } else {
-      dynamicSuffix = dynamicSuffix.replace(
-        "{{#if examples}}\n## Examples\n{{#each examples}}\nInput: {{this.input}}\nOutput: {{this.output}}\n{{/each}}\n{{/if}}",
-        ""
-      );
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, "");
     }
 
     // 组装完整提示词

@@ -14,6 +14,8 @@
 /** 存储前缀 */
 export type StorePrefix = "vault" | "kg" | "dre";
 
+import { createHash } from "node:crypto";
+
 /** 生成全局 node_id */
 export function createNodeId(
   store: StorePrefix,
@@ -23,6 +25,14 @@ export function createNodeId(
   const normalizedId = identifier
     .replace(/[^a-zA-Z0-9\-_\/]/g, "_")
     .slice(0, 128);
+  // 审计 F-5 / R3 Task 3.4（2026-08-24）：归一化会把全部非 ASCII 字符
+  // （如中文标题）折叠为 "_"——两个不同的纯中文标识符会得到完全相同的
+  // ID，导致 KG 节点被静默合并。当归一化发生信息丢失时追加原文短哈希，
+  // 保证"不同原文 ⇒ 不同 ID"；纯 ASCII 标识符保持既有格式不变。
+  if (normalizedId !== identifier) {
+    const suffix = createHash("sha1").update(identifier).digest("hex").slice(0, 8);
+    return `${store}:${type}:${normalizedId.slice(0, 119)}-${suffix}`;
+  }
   return `${store}:${type}:${normalizedId}`;
 }
 

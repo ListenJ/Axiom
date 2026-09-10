@@ -1,0 +1,12 @@
+{
+  "example_id": "gold-04",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E3"
+  ],
+  "severity": "critical",
+  "rationale": "源文本核心为回退顺序链：『本地 unpdf 优先』（via=pdf-local）→『无文本层（扫描型）才走外部 pdf-worker』→『否则降级说明走 OCR』；候选命题 1 改写为『可走本地 unpdf、外部 pdf-worker、OCR 三条路径』，丢失『本地 unpdf 优先』的优先级命题，且命题 2 将排他条件『才走』弱化为『时走』，改变回退行为含义 → E3 critical（via=pdf-local 标记丢失为次要，并入本类）。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

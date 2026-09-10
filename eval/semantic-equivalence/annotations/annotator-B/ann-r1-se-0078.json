@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0078",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获『定义函数「rerunAdaptive」』一条命题（有据），但漏掉注释中的核心条件命题：『自适应重跑：首次尝试即通过则停止（通过即通过，无需再采样），否则跑满 rerunEach 次』（提前停止条件）、『结果与「跑满 rerunEach 次后 pickBest」完全等价』（等价性结论）、『高通过率轮次（基线为主）省约一半 provider 调用，缩短评测耗时与成本』（成本结论）。条件与结论类关键命题缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

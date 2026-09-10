@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0083",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题：「从失败结果批量生成方法论技能（幂等：同 id 已存在则跳过）」——幂等条件「同 id 已存在则跳过」为关键条件命题；「@returns 新建的 SkillDefinition 列表」为返回值命题；参数语义（has 为「幂等检查（同 skill-promotion deps.has 语义）」、register 为注册函数）亦缺。candidate 仅覆盖「定义函数 craftFailureSkills」，判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

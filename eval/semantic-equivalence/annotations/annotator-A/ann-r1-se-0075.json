@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0075",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题含『dropPp 严格大于 maxDropPp 才判回归（回落等于阈值允许）』（条件与例外）、『UNIQUE(run_tag) 冲突直接抛（retry 由调用方 persistRun 层处理）』及 rawDb/insertRun 接口约定，而候选 propositions/entities/triples/provenance 全为空，按指南 §6.6 空候选对非空源判 not_equivalent + E3。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

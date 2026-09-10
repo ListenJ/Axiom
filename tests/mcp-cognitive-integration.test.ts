@@ -63,7 +63,10 @@ describe("cognitive_loop handler", () => {
     const result = await pipeline.run("JWT 认证失败");
     expect(result.trace.length).toBe(6);
     expect(result.input).toBe("JWT 认证失败");
-    expect(result.totalDurationMs).toBeGreaterThan(0);
+    // performance.now() 亚毫秒精度 + Math.round —— 热路径下整个流水线可在
+    // 0.5ms 内完成，结果为 0 是合法值；断言“已测量且非负”而非“必须 >0”
+    expect(Number.isFinite(result.totalDurationMs)).toBe(true);
+    expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
   });
 
   test("handler 应返回正确的 stages", async () => {

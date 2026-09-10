@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0088",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选 propositions/entities/triples 全空（§6.6：空候选对非空源直接 not_equivalent）。源文本关键命题全部缺失：『统计非空行总数、畸形行数（JSON 解析失败或缺 id/task 字段）与畸形率』（含条件『JSON 解析失败或缺 id/task 字段』）、『只读，不改动文件』（否定）、『供 evolve 前做拒卷门，防脏数据/损坏文件被误归纳产生垃圾 skill』（因果/目的），及 TraceHealth 接口定义本身（如字段『非空行总数 total』）。归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

@@ -5,7 +5,7 @@
  * - Obsidian Vault 是唯一的真理来源（Source of Truth）
  * - 所有记忆以 Markdown 形式存储，人类可读、可版本控制
  * - SQLite 仅作为性能索引（可重建），不存储独立数据
- * - 确定性检索：零向量、零概率、零 embedding
+ * - 确定性检索：以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层），PG vector 为可选历史能力
  * - 所有 Agent 通过 Vault 文件系统共享记忆
  *
  * 记忆类型：
@@ -21,10 +21,12 @@
 import fs from "fs";
 import path from "path";
 import { DeterministicSearchEngine, type SearchResult, type VaultNote } from "./deterministic-search.js";
+import { getRetrievalEngine, type RetrievalResponse, type RetrievalResult } from "../dre/retrieval/deterministic-retrieval-engine.js";
 import { CodeIndexer } from "./code-indexer.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
+import { readString, readInt } from "../utils/env.js";
 
 interface VaultConfig {
   vaultPath: string;
@@ -54,12 +56,16 @@ export class VaultManager {
   private sqliteMemory: SQLiteMemory;
   private slugifyCache = new Map<string, string>();
   private readonly SLUGIFY_CACHE_MAX = 1000;
+  // 增量重建：记录上次索引的 path→mtime，用于跳过未变更笔记（200-400ms → <50ms 热路径）
+  private lastIndexedMtimes = new Map<string, number>();
+  private lastVaultMtime = 0;
+  private reindexCount = 0;
 
   constructor(config: Partial<VaultConfig> = {}) {
     this.config = {
-      vaultPath: config.vaultPath || process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory",
-      apiPort: config.apiPort || Number(process.env.OBSIDIAN_API_PORT) || 27124,
-      apiToken: config.apiToken || process.env.OBSIDIAN_API_TOKEN || "",
+      vaultPath: config.vaultPath || readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
+      apiPort: config.apiPort || readInt("OBSIDIAN_API_PORT", 27124),
+      apiToken: config.apiToken || readString("OBSIDIAN_API_TOKEN", ""),
       dbPath: config.dbPath,
     };
     this.baseUrl = `https://127.0.0.1:${this.config.apiPort}`;
@@ -76,6 +82,90 @@ export class VaultManager {
       vaultPath: this.config.vaultPath,
       notes: this.engine.stats().totalNotes,
     });
+  }
+
+  // ===== FTS 索引重建 =====
+
+  /**
+   * 从 vault 文件系统重建 SQLite FTS 索引（外部同步/直接落盘的新笔记未走 writeNote 时调用，
+   * 否则 memory_notes_fts 为空，chat 自适应检索/全文搜索捞不到 KB 笔记）。
+   * @returns 重建的笔记数
+   */
+  reindexAll(): number {
+    // 确保 Deterministic 引擎先与文件系统同步（外部落盘场景），再以最新列表重建 FTS
+    // 增量：仅对新增/变更的笔记做 upsert，未变更跳过；已删除的笔记从 FTS 删除
+    // vault 目录 mtime 未变时跳过 engine.reload（173 文件全量扫描 100ms+），热路径二次调用 <10ms
+    try {
+      const vaultStat = fs.statSync(this.config.vaultPath);
+      const curMtime = vaultStat.mtimeMs;
+      if (curMtime !== this.lastVaultMtime) {
+        this.engine.reload(this.config.vaultPath);
+        this.lastVaultMtime = curMtime;
+      }
+    } catch {
+      try { this.engine.reload(this.config.vaultPath); } catch {}
+    }
+    const start = performance.now();
+    const paths = this.engine.listNotePaths();
+    const currentSet = new Set(paths);
+    let count = 0;
+    let skipped = 0;
+    const toUpsert: Array<{ note: VaultNote; mtime: number }> = [];
+    for (const relPath of paths) {
+      try {
+        let mtime: number;
+        try { mtime = fs.statSync(path.join(this.config.vaultPath, relPath)).mtimeMs; } catch { mtime = Date.now(); }
+        const prev = this.lastIndexedMtimes.get(relPath);
+        if (prev !== undefined && Math.abs(prev - mtime) < 1) {
+          // mtime 未变，跳过（同一文件 1ms 内视为未变更，防浮点抖动）
+          skipped++;
+          continue;
+        }
+        const note = this.engine.getNote(relPath);
+        if (!note) continue;
+        toUpsert.push({ note, mtime });
+        this.lastIndexedMtimes.set(relPath, mtime);
+      } catch {
+        // 单个笔记读取失败不阻断整体重建
+      }
+    }
+    // 批量 upsert（事务内，173 条单事务 vs 173 事务，快 5-10x）
+    if (toUpsert.length > 0) {
+      const db: any = (this.sqliteMemory as any).db;
+      try { db?.run?.("BEGIN"); } catch {}
+      for (const { note, mtime } of toUpsert) {
+        try {
+          this.sqliteMemory.upsertNote({
+            path: note.path,
+            title: note.title || path.basename(note.path, ".md"),
+            content: note.content,
+            excerpt: note.content.slice(0, 500).replace(/\n/g, " "),
+            tags: note.tags ?? [],
+            paraCategory: (note.frontmatter?.paraCategory as string) ?? "uncategorized",
+            type: (note.frontmatter?.type as string) ?? "note",
+            source: "vault-reindex",
+            confidence: 1,
+            createdAt: mtime,
+            updatedAt: mtime,
+          });
+          count++;
+        } catch {}
+      }
+      try { db?.run?.("COMMIT"); } catch { try { db?.run?.("ROLLBACK"); } catch {} }
+    }
+    // 清理已删除笔记
+    let deleted = 0;
+    for (const prevPath of [...this.lastIndexedMtimes.keys()]) {
+      if (!currentSet.has(prevPath)) {
+        try { if (this.sqliteMemory.deleteNote(prevPath)) deleted++; } catch {}
+        this.lastIndexedMtimes.delete(prevPath);
+      }
+    }
+    this.reindexCount++;
+    const elapsed = performance.now() - start;
+    logger.debug("[Vault] reindexAll incremental", { total: paths.length, upserted: count, skipped, deleted, elapsed: `${elapsed.toFixed(1)}ms`, round: this.reindexCount });
+    // 首轮全量时 skipped=0，热路径二次调用应 <50ms
+    return count;
   }
 
   // ===== 确定性检索 =====
@@ -113,11 +203,59 @@ export class VaultManager {
           seen.add(r.note.path);
         }
       }
+      // S1 缝②：回退链末尾追加 DRE 检索补充（graph/关键词融合）。
+      // 仅当链末结果仍稀疏（<3，spec"FTS 命中<3"语义）才补充——FTS 充足时与现状逐字节一致
+      if (results.length < minResults) {
+        for (const r of this.dreSupplement(query)) {
+          if (!seen.has(r.note.path)) {
+            results.push(r);
+            seen.add(r.note.path);
+          }
+        }
+      }
       results = results.slice(0, limit);
     }
 
     logger.debug("Vault search", { query, fts: ftsResults.length, total: results.length });
     return results;
+  }
+
+  /** DRE 检索补充器注入槽：undefined=默认全局单例，null=显式禁用，函数=注入（测试接缝） */
+  private dreRetriever: ((query: string, opts?: { limit?: number }) => RetrievalResponse) | null | undefined;
+
+  /** 注入 DRE 检索补充器（S1 缝②测试接缝）；传 null 显式禁用 */
+  setDreRetriever(fn: ((query: string, opts?: { limit?: number }) => RetrievalResponse) | null): void {
+    this.dreRetriever = fn;
+  }
+
+  /** DRE 检索补充（回退链末尾）：默认全局单例，异常静默返回空 */
+  private dreSupplement(query: string): SearchResult[] {
+    if (this.dreRetriever === null) return [];
+    try {
+      const resp = this.dreRetriever
+        ? this.dreRetriever(query, { limit: 3 })
+        : getRetrievalEngine().retrieve(query, { limit: 3 });
+      return resp.results.map((r) => this.dreResultToSearchResult(r));
+    } catch (e) {
+      logger.debug("Vault DRE supplement failed", { query, error: e instanceof Error ? e.message : String(e) });
+      return [];
+    }
+  }
+
+  /** DRE 检索结果 → SearchResult（有 notePath 时优先取引擎内真实笔记） */
+  private dreResultToSearchResult(r: RetrievalResult): SearchResult {
+    const note = (r.notePath ? this.engine.getNote(r.notePath) : undefined) ?? {
+      path: r.notePath ?? r.id,
+      title: r.title,
+      content: r.excerpt,
+      frontmatter: {},
+      tags: [],
+      wikiLinks: [],
+      backlinks: [],
+      wordCount: r.excerpt.split(/\s+/).length,
+      modifiedAt: Date.now(),
+    };
+    return { note, score: r.score, reasons: [`dre:${r.source}`, ...r.reasons], excerpt: r.excerpt };
   }
 
   private memoryRecordToVaultNote(record: import("./sqlite-memory.js").MemoryRecord): VaultNote {
@@ -170,9 +308,10 @@ export class VaultManager {
    */
   async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}): Promise<string> {
     // Smart gate: skip low-value writes if context provided
+    // 边缘增强版：规则灰区由边缘小模型裁决（失败回退规则结果）
     if (opts.gateContext) {
       const gate = getMemoryGate();
-      const decision = gate.shouldWrite(content, content, opts.gateContext);
+      const decision = await gate.shouldWriteWithEdge(content, content, opts.gateContext);
       if (!decision.shouldWrite) {
         logger.info("[MemoryGate] Write skipped", { path: notePath, reason: decision.reason, category: decision.category });
         return notePath;
@@ -198,23 +337,35 @@ export class VaultManager {
       throw new Error(`Note already exists: ${notePath} (use overwrite=true or append=true)`);
     }
 
-    fs.writeFileSync(fullPath, finalContent, "utf-8");
+    // Fix 2：原子写（tmp + renameSync，镜像 skill-promotion.ts / skill-quality.ts）。
+    // 先写入临时文件，索引 upsertNote 成功后才 rename 到正式路径；
+    // upsertNote 抛错时清理临时文件，避免“文件已落盘但索引无行”的静默发散（孤文件）。
+    const tmpPath = `${fullPath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      fs.writeFileSync(tmpPath, finalContent, "utf-8");
 
-    // Sync to SQLite index
-    const stat = fs.statSync(fullPath);
-    this.sqliteMemory.upsertNote({
-      path: notePath,
-      title: opts.title || path.basename(notePath, ".md"),
-      content: finalContent,
-      excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
-      tags: opts.tags || [],
-      paraCategory: opts.paraCategory || "resources",
-      type: opts.type || "note",
-      source: opts.source,
-      confidence: opts.confidence ?? 0.7,
-      createdAt: stat.birthtimeMs || stat.ctimeMs,
-      updatedAt: stat.mtimeMs,
-    });
+      const stat = fs.statSync(tmpPath);
+      // Sync to SQLite index —— 失败则抛错，catch 清理 tmp，正式文件不发布
+      this.sqliteMemory.upsertNote({
+        path: notePath,
+        title: opts.title || path.basename(notePath, ".md"),
+        content: finalContent,
+        excerpt: finalContent.slice(0, 500).replace(/\n/g, " "),
+        tags: opts.tags || [],
+        paraCategory: opts.paraCategory || "resources",
+        type: opts.type || "note",
+        source: opts.source,
+        confidence: opts.confidence ?? 0.7,
+        createdAt: stat.birthtimeMs || stat.ctimeMs,
+        updatedAt: stat.mtimeMs,
+      });
+
+      // 索引成功后才发布正式文件
+      fs.renameSync(tmpPath, fullPath);
+    } catch (e) {
+      try { fs.unlinkSync(tmpPath); } catch {}
+      throw e;
+    }
 
     // SQLite FTS index updated via upsertNote above.
     // Deterministic engine rebuilds lazily on next search if needed.
@@ -276,8 +427,12 @@ ${related}
     });
   }
 
-  /** 写入会话日志 */
-  async writeConversationLog(sessionId: string, messages: Array<{ role: string; content: string; timestamp?: string }>): Promise<string> {
+  /** 写入会话日志（gateContext 提供时经 MemoryGate 既有去重+限流约束决定是否落盘，P0-B 2026-08-29） */
+  async writeConversationLog(
+    sessionId: string,
+    messages: Array<{ role: string; content: string; timestamp?: string }>,
+    gateContext?: SignificanceContext,
+  ): Promise<string> {
     const today = new Date().toISOString().slice(0, 10);
     const notePath = `04-Conversations/${today.slice(0, 4)}/${today.slice(5, 7)}/${today}-${sessionId.slice(0, 8)}.md`;
 
@@ -304,6 +459,9 @@ ${messageLines}
       type: "conversation-log",
       paraCategory: "conversations",
       tags: ["conversation", sessionId.slice(0, 8)],
+      // 幂等：同日同会话重复归档时覆盖重建（消息始终从 db 全量读取，不丢失）
+      overwrite: true,
+      ...(gateContext ? { gateContext } : {}),
     });
   }
 
@@ -430,7 +588,7 @@ ${resultLines}
           if (v.length === 0) return "[]";
           const first = v[0];
           if (typeof first === "object" && first !== null) {
-            const names = v.map((item: any) => item.name || item.title || item.query || JSON.stringify(item).slice(0, 40)).join(", ");
+            const names = v.map((item: Record<string, unknown>) => String(item.name ?? item.title ?? item.query ?? JSON.stringify(item).slice(0, 40))).join(", ");
             return `[${v.length} items] ${names.slice(0, 160)}`;
           }
           return JSON.stringify(v).slice(0, 200);
@@ -631,9 +789,19 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
     return notePath;
   }
 
-  /** 获取 Vault 统计 */
+  /** 获取 Vault 统计（以 SQLite 为准，避免 Deterministic 引擎懒更新导致的 0） */
   stats() {
-    return this.engine.stats();
+    try {
+      const sqliteStats = this.sqliteMemory.stats();
+      const engineStats = this.engine.stats() as any;
+      // 取较大者，兼顾外部落盘与 writeNote 场景；保留引擎的其他字段
+      if (sqliteStats.totalNotes > (engineStats.totalNotes ?? 0)) {
+        return { ...engineStats, totalNotes: sqliteStats.totalNotes, totalWords: sqliteStats.totalWords };
+      }
+      return engineStats;
+    } catch {
+      return this.engine.stats();
+    }
   }
 
   /** 获取搜索引擎实例（用于外部同步，如文件监视器） */
@@ -662,7 +830,8 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
     const resolved = path.resolve(this.config.vaultPath, notePath);
     const base = path.resolve(this.config.vaultPath);
     const relative = path.relative(base, resolved);
-    if (relative.startsWith("..") || relative === "..") {
+    // isAbsolute 拦截 Windows 跨盘符/UNC 目标：path.relative 对其返回盘符开头字符串，不以 ".." 起始
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new Error(`Path traversal blocked: ${notePath}`);
     }
     return resolved;

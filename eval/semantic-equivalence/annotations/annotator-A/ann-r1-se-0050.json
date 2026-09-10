@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0050",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题集为空（propositions/entities/triples 均空数组），源文本关键命题『在 dsh 插件目录直接执行构建和测试命令可成功完成』及『无需额外配置』完全未覆盖，按指南 §6.6 空候选对非空源判 not_equivalent，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

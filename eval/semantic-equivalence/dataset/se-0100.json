@@ -1,0 +1,21 @@
+{
+  "id": "se-0100",
+  "source_text": "```ts\nconst now = Date.now();\n    // 审计 F-3（2026-08-24）：此前 `edge-${source.slice(0,20)}-${target.slice(0,20)}-${type}`\n    // 的截断拼接使前 20 字符相同的不同关系共用同一 ID，被 INSERT OR IGNORE\n    // 静默丢弃。改为内容寻址 sha1，不同关系永不碰撞；同一关系重复写入仍幂等。\n    const edgeId = `edge-${createHash(\"sha1\")\n      .update(`${source}|${target}|${type}`)\n      .digest(\"hex\")\n```",
+  "source_origin": "src/crawl/processor/kg-writer.ts#L253-L256",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

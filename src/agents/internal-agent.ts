@@ -47,6 +47,8 @@ import {
   type SmartAssignmentResponse,
 } from "../services/index.js";
 import type { TaskRole } from "../services/index.js";
+import { tokenBudget } from "../components/token-budget.js";
+import type { ComponentBudget, ComponentMessage } from "../components/contracts.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -66,6 +68,7 @@ export interface InternalChatOptions {
   excludeModels?: string[];
   /** Custom label used for token tracking / metrics. Defaults to the role. */
   trackAs?: string;
+  budget?: number | ComponentBudget;
 }
 
 /** Minimal chat result shape returned by `internalAgent.chat`. */
@@ -79,6 +82,21 @@ export interface InternalChatResult {
 
 /** Default role when none is supplied. Matches the router's DEFAULT_ROLE. */
 const DEFAULT_ROLE: TaskRole = "general-chat";
+
+async function compressMessages(
+  messages: ChatMessage[],
+  budget?: number | ComponentBudget,
+): Promise<ChatMessage[]> {
+  if (budget === undefined) return messages;
+  const result = await tokenBudget.compress(messages as unknown as ComponentMessage[], budget);
+  return result.messages;
+}
+
+export interface InternalStreamOptions {
+  intent?: string;
+  preferNativeStream?: boolean;
+  budget?: number | ComponentBudget;
+}
 
 // ---------------------------------------------------------------------------
 // Core API
@@ -96,11 +114,14 @@ export async function chat(
   role: TaskRole = DEFAULT_ROLE,
   options: InternalChatOptions = {},
 ): Promise<InternalChatResult> {
+  const effectiveMessages = await compressMessages(messages, options.budget);
   const result = await router.execute({
     role,
-    messages,
+    messages: effectiveMessages,
     timeout: options.timeout,
     temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    signal: options.signal,
     trackAs: options.trackAs ?? role,
   });
 
@@ -123,10 +144,13 @@ export async function executeWithRole(
   messages: ChatMessage[],
   options: InternalChatOptions = {},
 ): Promise<SmartAssignmentResponse> {
-  return router.executeWithRole(role, messages, {
+  return router.executeWithRole(role, await compressMessages(messages, options.budget), {
     temperature: options.temperature,
     maxTokens: options.maxTokens,
     excludeModels: options.excludeModels,
+    timeout: options.timeout,
+    signal: options.signal,
+    trackAs: options.trackAs,
   });
 }
 
@@ -137,17 +161,19 @@ export async function executeWithRole(
 export async function* stream(
   role: TaskRole,
   messages: ChatMessage[],
-  options: { intent?: string; preferNativeStream?: boolean } = {},
+  options: InternalStreamOptions = {},
 ): AsyncGenerator<ChatStreamEvent> {
-  yield* router.chatStream(role, messages, options);
+  const effectiveMessages = await compressMessages(messages, options.budget);
+  yield* router.chatStream(role, effectiveMessages, options);
 }
 
 /** Streaming chat with the default `general-chat` role. */
 export async function* streamDefault(
   messages: ChatMessage[],
-  options: { intent?: string; preferNativeStream?: boolean } = {},
+  options: InternalStreamOptions = {},
 ): AsyncGenerator<ChatStreamEvent> {
-  yield* router.chatStream(DEFAULT_ROLE, messages, options);
+  const effectiveMessages = await compressMessages(messages, options.budget);
+  yield* router.chatStream(DEFAULT_ROLE, effectiveMessages, options);
 }
 
 // ---------------------------------------------------------------------------

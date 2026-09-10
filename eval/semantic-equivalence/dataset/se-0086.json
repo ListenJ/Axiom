@@ -1,0 +1,55 @@
+{
+  "id": "se-0086",
+  "source_text": "```ts\n/** 从文本中提取最后一个数值 token；无数字返回 null。支持整数/小数/负数（小数分隔符仅 \".\"） */\nexport function extractLastNumber(text: string): number | null {\n  const matches = text.match(/-?\\d+(?:\\.\\d+)?/g);\n  if (!matches || matches.length === 0) return null;\n  return Number(matches[matches.length - 1]);\n}\n\n/** 数值断言：无数字 →「未找到数字」；positive 违反 →「数值非正」；越界 →「数值越界」。reason 不带 [ERROR] 前缀（S3 聚类归\"其他\"桶）。 */\nexport function mustReturnNumber(text: string, opts: NumberAssertion): VerifyResult {\n  const value = extractLastNumber(text);\n  if (value === null) {\n```",
+  "source_origin": "src/agent-evals/verify.ts#L262-L269",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「extractLastNumber」",
+      "定义函数「mustReturnNumber」"
+    ],
+    "entities": [
+      {
+        "name": "extractLastNumber",
+        "type": "function",
+        "link": "kg:function:extractLastNumber"
+      },
+      {
+        "name": "mustReturnNumber",
+        "type": "function",
+        "link": "kg:function:mustReturnNumber"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/verify.ts",
+        "predicate": "defines",
+        "object": "extractLastNumber"
+      },
+      {
+        "subject": "src/agent-evals/verify.ts",
+        "predicate": "defines",
+        "object": "mustReturnNumber"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/verify.ts#L262-L269"
+      },
+      {
+        "prop_index": 1,
+        "origin": "src/agent-evals/verify.ts#L262-L269"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

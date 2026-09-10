@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0042",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『while 』，源文本尾句关键命题『previous long-context benchmarks always ignore the necessity of long reasoning for long-context tasks and treat them as direct QA tasks』完全缺失（含否定性断言与对比结论）；截断前内容（如『they can be well addressed with a sufficient number of reasoning steps』）已保留，缺失部分改变结论，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

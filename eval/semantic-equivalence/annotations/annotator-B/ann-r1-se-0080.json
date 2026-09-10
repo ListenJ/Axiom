@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0080",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获『定义函数「callProviderWithBudget」』一条命题（有据），但漏掉注释中的关键数值/条件命题：『单预算下的 provider 调用：429/5xx/传输层退避重试 3 次，返回 content（可能为空）+ usage』（重试次数 3 与返回契约）与『响应体只解析一次 JSON：content 与 usage 共用同一次 parse 结果』（解析次数约束）。数值与条件类关键命题缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

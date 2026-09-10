@@ -165,13 +165,13 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "deepseek-v4-pro",
     provider: "deepseek",
     model: "deepseek-v4-pro",
-    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research"],
+    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "deep_research", "math", "evaluation", "main_coding"],
     contextWindow: 1000000,
     isFree: false,
     tags: ["main", "reasoning", "coding", "chinese"],
     rpmLimit: 60,
     concurrentLimit: 4,
-    description: "DeepSeek V4 Pro — 1.6T/49B MoE, 1M ctx ($0.43/$0.87 per 1M via OpenRouter)",
+    description: "DeepSeek V4 Pro — 1M ctx, 384K max output, 思考/非思考模式 ($0.435/$0.87 per 1M 直连)",
     priority: 1,
     maxRetries: 3,
     timeout: 120000,
@@ -182,40 +182,24 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "deepseek-v4-flash",
     provider: "deepseek",
     model: "deepseek-v4-flash",
-    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
     contextWindow: 1000000,
     isFree: false,
     tags: ["fast", "coding", "chinese"],
     rpmLimit: 120,
     concurrentLimit: 8,
-    description: "DeepSeek V4 Flash — 284B/13B MoE, 1M ctx, 极速响应 ($0.14/$0.28 per 1M)",
+    description: "DeepSeek V4 Flash — 1M ctx, 384K max output, 思考/非思考模式 ($0.14/$0.28 per 1M 直连)",
     priority: 2,
     maxRetries: 2,
     timeout: 60000,
   },
 
-  // ─── DeepSeek R1 (Reasoning) ───
-  {
-    id: "deepseek-r1",
-    provider: "deepseek",
-    model: "deepseek-reasoner",
-    roles: ["deep_research", "research", "math", "architecture", "evaluation"],
-    contextWindow: 163840,
-    isFree: false,
-    tags: ["reasoning", "rl", "chinese"],
-    rpmLimit: 30,
-    concurrentLimit: 2,
-    description: "DeepSeek R1 — 推理专用模型 ($0.70/$2.50 per 1M)",
-    priority: 1,
-    maxRetries: 3,
-    timeout: 120000,
-  },
 
   // ─── GLM 5.1 (SiliconFlow) ───
   {
     id: "glm-5.1",
     provider: "siliconflow",
-    model: "zhipu/GLM-5.1",
+    model: "Pro/zai-org/GLM-5.1", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5.1 不存在）
     roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "review"],
     contextWindow: 200000,
     isFree: false,
@@ -232,7 +216,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-5",
     provider: "siliconflow",
-    model: "zhipu/GLM-5",
+    model: "zai-org/GLM-5.2", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5 不存在）
     roles: ["code-generation", "general-chat", "research", "general-tool", "review"],
     contextWindow: 200000,
     isFree: false,
@@ -419,6 +403,57 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 30000,
   },
 
+  // ─── SenseNova 6.8 Flash-Lite (Vision — 前端审核/多模态) ───
+  {
+    id: "sensenova-6.8-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.8-flash-lite",
+    roles: ["computer-use", "general-chat", "english", "research"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use", "frontend-review"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.8 Flash-Lite — 轻量多模态模型，支持图像输入理解，用于前端视觉审核 (262K ctx)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── SenseNova 6.7 Flash-Lite (Vision — 备选) ───
+  {
+    id: "sensenova-6.7-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.7-flash-lite",
+    roles: ["computer-use", "general-chat", "english"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.7 Flash-Lite — 轻量多模态备选 (262K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── SenseNova DeepSeek V4 Flash (文本 — 国内免费端点) ───
+  {
+    id: "deepseek-v4-flash-sensenova",
+    provider: "sensenova",
+    model: "deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
+    contextWindow: 1000000,
+    isFree: true,
+    tags: ["fast", "coding", "chinese", "domestic"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "SenseNova DeepSeek V4 Flash — 1M ctx, 免费国内端点 (token.sensenova.cn)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
   // ─── Qwen2.5-VL-72B-Instruct (Vision — 旗舰) ───
   {
     id: "qwen2.5-vl-72b",
@@ -576,13 +611,14 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 20000,
   },
 
-  // ─── GLM-4.7-Flash (Free) via SiliconFlow ───
+  // ─── GLM-4-9B (Free) via SiliconFlow ───
+  // 2026-07-26 实测修正：siliconflow 无 GLM-4.7-Flash:free，免费 GLM 为 THUDM/GLM-4-9B-0414
   {
     id: "glm-4.7-flash-free",
     provider: "siliconflow",
-    model: "zhipu/GLM-4.7-Flash:free",
-    roles: ["general-chat", "general-tool", "english"],
-    contextWindow: 200000,
+    model: "THUDM/GLM-4-9B-0414",
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research"],
+    contextWindow: 128000,
     isFree: true,
     tags: ["free", "chinese", "fast"],
     rpmLimit: 120,
@@ -593,14 +629,33 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     timeout: 30000,
   },
 
+  // ─── GLM-4.7-Flash (ZhiPu 官方 API 直连，免费，用于意图增强/prompt 处理) ───
+  // 与 siliconflow 中转相比：直连延迟更低、稳定性更好、无中间层限流
+  // 用途：agent 系统的提示词处理 / 意图分类 / 轻量推理（非主对话）
+  {
+    id: "glm-4.7-flash-zhipu",
+    provider: "zhipu",
+    model: "glm-4.7-flash",
+    roles: ["general-chat", "general-tool", "english", "intent-classifier", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：覆盖无免费模型的角色（付费链失效时的免费兜底）
+    contextWindow: 200000,
+    isFree: true,
+    tags: ["free", "chinese", "fast", "zhipu", "agent-tool"],
+    rpmLimit: 200,
+    concurrentLimit: 16,
+    description: "GLM-4.7-Flash — 智谱官方 API 免费极速模型 (200K ctx)，用于 agent 提示词处理",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 15000,
+  },
+
   // ─── GLM-4-Flash (ZhiPu 官方 API) ───
   {
     id: "glm-4-flash-zhipu",
     provider: "zhipu",
     model: "glm-4-flash",
-    roles: ["general-chat", "general-tool", "english"],
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：glm-4-flash 实为智谱免费模型
     contextWindow: 128000,
-    isFree: false,
+    isFree: true,
     tags: ["chinese", "fast", "zhipu"],
     rpmLimit: 60,
     concurrentLimit: 5,
@@ -752,7 +807,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     model: "BAAI/bge-m3",
     roles: ["embedding"],
     contextWindow: 8192,
-    isFree: false,
+    isFree: true, // 2026-07-26：BAAI/bge-m3 在 siliconflow 免费档
     tags: ["embedding"],
     rpmLimit: 300,
     concurrentLimit: 5,
@@ -902,7 +957,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     id: "nim-deepseek-v4-flash",
     provider: "nvidia-nim",
     model: "deepseek-ai/deepseek-v4-flash",
-    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
     contextWindow: 163840,
     isFree: false,
     tags: ["fast", "coding", "nim"],
@@ -1022,6 +1077,7 @@ export function listAllRoles(): TaskRole[] {
   }
   return Array.from(roles);
 }
+
 
 
 

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0074",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获两条结构命题（定义函数 isInterpreterMissing、runPython，均有据），但漏掉源文本注释中的关键条件/数值命题：『解释器缺失判定：容器内无该解释器（127 / not found / ENOENT）→ 尝试下一候选』（判定条件与后续动作）与 runPython 的『带 20s 超时保护』（数值）。条件与数值类关键命题缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

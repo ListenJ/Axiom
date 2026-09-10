@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0032",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『最佳形态不是自创协议』『1. 提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面』『2. 在 MCP Registry 发布 server.json 元数据』『3. 提供 SKILL.md / agent plugin 安装引导』『4. 可选提供 A2A Agent Card，把 Axiom 整体暴露为远程 Agent』，否定『不是自创协议』与『可选』限定原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『Agent Card，把』处，截断内容在命题字段完整存在，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

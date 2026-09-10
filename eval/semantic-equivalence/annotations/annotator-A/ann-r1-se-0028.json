@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0028",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题在『recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 *』处截断，丢失公式尾部 bytesPerToken、上限约束『上限：min(..., maxTokensCap=4096)』、示例『→ `min(2900,2200)*1048576/229376 ≈ 10057` tokens（受 cap 截断为 4096）』及修正说明『旧式 `*1024` 为 MB→KB 错配，结果偏小 1024 倍，已于本次修正并同步测试』。丢失内容均为数值/条件/修正类关键命题，E3 critical。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

@@ -42,6 +42,9 @@ pub struct SearchOptions {
     pub para_category: Option<String>,
     pub date_range: Option<DateRange>,
     pub include_reasons: bool,
+    /// M9：是否启用时间衰减新近度加分（默认关闭以保严格确定性）
+    #[serde(default)]
+    pub include_recency: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

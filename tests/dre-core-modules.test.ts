@@ -895,6 +895,72 @@ describe("EpisodicMemory consolidation", () => {
   });
 });
 
+// ========== ActorSystem 有界邮箱（审计整改 O4） ==========
+
+describe("ActorSystem bounded mailbox (O4)", () => {
+  test("邮箱溢出丢最旧并经 healthCheck 暴露 droppedCount", async () => {
+    const { ActorSystem } = await import("../src/dre/actor/system.js");
+    const system = new ActorSystem();
+    await system.register({
+      id: "slow-actor",
+      type: "slow",
+      handle: () => new Promise<never>(() => {}), // 永不处理完 → 邮箱持续积压
+    });
+
+    try {
+      for (let i = 0; i < 300; i++) {
+        system.deliver({
+          id: `m-${i}`,
+          type: "notify",
+          from: "test",
+          to: "slow-actor",
+          topic: "t",
+          payload: i,
+          timestamp: Date.now(),
+        });
+      }
+      await new Promise((r) => setTimeout(r, 10));
+
+      const hc = system.healthCheck().find((a) => a.id === "slow-actor");
+      // 300 条投递：1 条处理中 + 256 条在箱 → 溢出丢弃 43 条最旧
+      expect(hc?.droppedCount).toBe(43);
+    } finally {
+      await system.shutdown();
+    }
+  });
+
+  test("未溢出时 droppedCount 保持 0", async () => {
+    const { ActorSystem } = await import("../src/dre/actor/system.js");
+    const system = new ActorSystem();
+    await system.register({
+      id: "fast-actor",
+      type: "fast",
+      // 注意：响应必须改址回发送方，否则自反馈会形成无限循环
+      handle: async (msg) => ({ ...msg, id: `${msg.id}-resp`, type: "response" as const, to: msg.from, from: "fast-actor" }),
+    });
+
+    try {
+      for (let i = 0; i < 5; i++) {
+        system.deliver({
+          id: `f-${i}`,
+          type: "notify",
+          from: "t",
+          to: "fast-actor",
+          topic: "t",
+          payload: i,
+          timestamp: Date.now(),
+        });
+      }
+      await new Promise((r) => setTimeout(r, 10));
+
+      const hc = system.healthCheck().find((a) => a.id === "fast-actor");
+      expect(hc?.droppedCount).toBe(0);
+    } finally {
+      await system.shutdown();
+    }
+  });
+});
+
 // ========== Kernel (v3.1) ==========
 
 describe("Kernel", () => {

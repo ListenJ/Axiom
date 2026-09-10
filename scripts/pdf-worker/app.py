@@ -64,36 +64,58 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                 }
 
             elif task_type == "pdf:convert" or task_type == "pdf:text":
-                url = payload["url"]
                 proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
                 dest_dir = CACHE_DIR / task_id
                 dest_dir.mkdir(parents=True, exist_ok=True)
 
                 pdf_path = dest_dir / "input.pdf"
                 tasks[task_id]["progress"] = 0.1
-                async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
-                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-                    resp.raise_for_status()
-                    pdf_path.write_bytes(resp.content)
+                # 审计 F-2（2026-08-24）：支持 data_base64 内联上传（本地文件场景），
+                # 与 url 二选一；此前无条件读 payload["url"] 使本地文件任务必失败。
+                data_b64 = payload.get("data_base64")
+                url = payload.get("url")
+                if data_b64:
+                    import base64 as _base64
+                    pdf_path.write_bytes(_base64.b64decode(data_b64))
+                    src_meta = {"source": payload.get("name", "inline")}
+                elif url:
+                    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, proxy=proxy_url) as client:
+                        resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                        resp.raise_for_status()
+                        pdf_path.write_bytes(resp.content)
+                    src_meta = {"url": url}
+                else:
+                    raise KeyError("payload requires 'url' or 'data_base64'")
                 tasks[task_id]["progress"] = 0.3
 
                 markdown = ""
                 try:
                     import fitz
                     doc = fitz.open(pdf_path)
-                    pages = []
-                    for page_num in range(len(doc)):
-                        page = doc[page_num]
-                        text = page.get_text()
-                        pages.append(f"## Page {page_num + 1}\n\n{text}")
-                    markdown = "\n\n".join(pages)
-                    doc.close()
+                    try:
+                        pages = []
+                        for page_num in range(len(doc)):
+                            page = doc[page_num]
+                            text = page.get_text().strip()
+                            if not text:
+                                continue  # 跳过空页，避免噪声页头
+                            pages.append(f"## Page {page_num + 1}\n\n{text}")
+                        markdown = "\n\n".join(pages)
+                        if not markdown.strip():
+                            tasks[task_id]["status"] = "failed"
+                            tasks[task_id]["error"] = "no extractable text"
+                        else:
+                            tasks[task_id]["result"] = {
+                            "markdown": markdown,
+                            "metadata": {**src_meta, "pages": len(pages)},
+                            "file_path": str(pdf_path),
+                        }
+                    finally:
+                        try:
+                            doc.close()
+                        except:
+                            pass
                     tasks[task_id]["progress"] = 0.7
-                    tasks[task_id]["result"] = {
-                        "markdown": markdown,
-                        "metadata": {"url": url, "pages": len(pages)},
-                        "file_path": str(pdf_path),
-                    }
                 except ImportError:
                     output_dir = dest_dir / "mineru_output"
                     output_dir.mkdir(exist_ok=True)
@@ -110,16 +132,23 @@ async def run_task(task_id: str, task_type: str, payload: dict):
                         markdown = mf.read_text(encoding="utf-8")
                     tasks[task_id]["result"] = {
                         "markdown": markdown,
-                        "metadata": {"url": url, "pages": len(md_files)},
+                        "metadata": {**src_meta, "pages": len(md_files)},
                         "file_path": str(output_dir),
                     }
 
-            tasks[task_id]["status"] = "completed"
-            tasks[task_id]["progress"] = 1.0
+            if tasks[task_id].get("status") != "failed":
+                tasks[task_id]["status"] = "completed"
+                tasks[task_id]["progress"] = 1.0
+            else:
+                # M8: keep 0.7 on failed to avoid misleading 1.0 progress
+                if tasks[task_id].get("progress", 0) < 0.7:
+                    tasks[task_id]["progress"] = 0.7
 
         except Exception as e:
             tasks[task_id]["status"] = "failed"
             tasks[task_id]["error"] = str(e)
+            # M8: keep 0.7 on failed (not 1.0)
+            tasks[task_id]["progress"] = 0.7
 
 
 @app.post("/v1/submit")

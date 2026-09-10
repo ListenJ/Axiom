@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, promises as fsPromises } 
 import { join, basename, resolve } from "path";
 import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
-import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions } from "./types.js";
+import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions, PluginContext } from "./types.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { readString } from "../utils/env.js";
 import { safeJsonParse } from "../utils/json.js";
@@ -23,6 +23,7 @@ export class PluginRegistry {
   private db: Database;
   private plugins = new Map<string, Plugin>();
   private activeModules = new Map<string, PluginModule>();
+  private activeToolNames = new Map<string, string[]>(); // pluginId -> 注册的工具名（含 activate 契约增量）
   private toolRegistry: ToolRegistry;
   private pluginDir: string;
 
@@ -68,6 +69,24 @@ export class PluginRegistry {
         enabledAt INTEGER
       )
     `);
+
+    // W3 修复：旧库缺列时补列（CREATE TABLE IF NOT EXISTS 不会升级已有表）
+    const columns = (this.db.query("PRAGMA table_info(plugins)").all() as Array<{ name: string }>).map((c) => c.name);
+    const required: Array<[string, string]> = [
+      ["requiresAxiom", "TEXT"],
+      ["icon", "TEXT"],
+      ["docsUrl", "TEXT"],
+      ["configValues", "TEXT"],
+      ["error", "TEXT"],
+      ["installedAt", "INTEGER"],
+      ["enabledAt", "INTEGER"],
+    ];
+    for (const [col, type] of required) {
+      if (!columns.includes(col)) {
+        this.db.run(`ALTER TABLE plugins ADD COLUMN ${col} ${type}`);
+        logger.info(`[Plugins] migrated: added column ${col}`);
+      }
+    }
   }
 
   /** Load all installed plugins from database */
@@ -171,11 +190,15 @@ export class PluginRegistry {
     }
 
     // Copy to plugin directory
+    // W3 修复：源目录与托管目录相同时就地安装，禁止先删后拷
+    // （此前 targetPath == resolvedPath 时 removeDirectory 会删掉源文件自身）
     const targetPath = join(this.pluginDir, manifest.id);
-    if (existsSync(targetPath)) {
-      await this.removeDirectory(targetPath);
+    if (resolve(targetPath) !== resolvedPath) {
+      if (existsSync(targetPath)) {
+        await this.removeDirectory(targetPath);
+      }
+      await this.copyDirectory(resolvedPath, targetPath);
     }
-    await this.copyDirectory(resolvedPath, targetPath);
 
     // Create plugin record
     const plugin: Plugin = {
@@ -222,11 +245,15 @@ export class PluginRegistry {
     }
 
     // Copy to plugin directory
+    // W3 修复：源目录与托管目录相同时就地安装，禁止先删后拷
+    // （此前 targetPath == resolvedPath 时 removeDirectory 会删掉源文件自身）
     const targetPath = join(this.pluginDir, manifest.id);
-    if (existsSync(targetPath)) {
-      await this.removeDirectory(targetPath);
+    if (resolve(targetPath) !== resolvedPath) {
+      if (existsSync(targetPath)) {
+        await this.removeDirectory(targetPath);
+      }
+      await this.copyDirectory(resolvedPath, targetPath);
     }
-    await this.copyDirectory(resolvedPath, targetPath);
 
     // Create plugin record
     const plugin: Plugin = {
@@ -297,7 +324,12 @@ export class PluginRegistry {
   private async enablePlugin(plugin: Plugin): Promise<void> {
     try {
       // Load module
-      const entryPath = join(plugin.path, plugin.manifest.entry || "index.js");
+      // W3 修复：entry 以 .js 声明但只有 .ts 源码时回退（示例插件的通病）
+      let entryPath = join(plugin.path, plugin.manifest.entry || "index.js");
+      if (!existsSync(entryPath) && entryPath.endsWith(".js")) {
+        const tsCandidate = entryPath.slice(0, -3) + ".ts";
+        if (existsSync(tsCandidate)) entryPath = tsCandidate;
+      }
       if (!existsSync(entryPath)) {
         throw new Error(`Entry file not found: ${entryPath}`);
       }
@@ -306,17 +338,44 @@ export class PluginRegistry {
       const module = await import(entryPath) as { default?: PluginModule; [key: string]: unknown };
       const pluginModule: PluginModule = module.default || module as unknown as PluginModule;
 
-      // Register tools
-      if (pluginModule.tools) {
-        for (const tool of pluginModule.tools) {
-          this.toolRegistry.add(tool);
-          logger.debug(`Registered tool ${tool.name} from plugin ${plugin.manifest.id}`);
+      // W3 修复：兼容两代 SDK —— 旧版 activate(context) 契约优先探测
+      const activatable = pluginModule as unknown as { activate?: (ctx: PluginContext) => void | Promise<void> };
+      if (typeof activatable.activate === "function") {
+        // activate 契约的工具通过 context.toolRegistry 命令式注册：
+        // 记录注册增量供 getActiveTools 展示（否则 activate 型插件工具不可见）
+        const before = new Set(this.toolRegistry.getToolNames());
+        await activatable.activate({
+          toolRegistry: this.toolRegistry,
+          config: plugin.configValues ?? {},
+          logger: {
+            info: (msg: string, ctx?: Record<string, unknown>) => logger.info(`[Plugin:${plugin.manifest.id}] ${msg}`, ctx),
+            warn: (msg: string, ctx?: Record<string, unknown>) => logger.warn(`[Plugin:${plugin.manifest.id}] ${msg}`, ctx),
+            error: (msg: string, ctx?: Record<string, unknown>) => logger.error(`[Plugin:${plugin.manifest.id}] ${msg}`, undefined, ctx),
+            debug: (msg: string, ctx?: Record<string, unknown>) => logger.debug(`[Plugin:${plugin.manifest.id}] ${msg}`, ctx),
+          },
+        });
+        this.activeToolNames.set(
+          plugin.manifest.id,
+          [...new Set([
+            ...(this.activeToolNames.get(plugin.manifest.id) ?? []),
+            ...this.toolRegistry.getToolNames().filter((n) => !before.has(n)),
+          ])],
+        );
+      } else {
+        // 新版 PluginModule 契约：tools + hooks
+        // Register tools
+        if (pluginModule.tools) {
+          for (const tool of pluginModule.tools) {
+            this.toolRegistry.add(tool);
+            logger.debug(`Registered tool ${tool.name} from plugin ${plugin.manifest.id}`);
+          }
+          this.activeToolNames.set(plugin.manifest.id, pluginModule.tools.map((t) => t.name));
         }
-      }
 
-      // Call onEnable hook
-      if (pluginModule.hooks?.onEnable) {
-        await pluginModule.hooks.onEnable();
+        // Call onEnable hook
+        if (pluginModule.hooks?.onEnable) {
+          await pluginModule.hooks.onEnable();
+        }
       }
 
       this.activeModules.set(plugin.manifest.id, pluginModule);
@@ -345,12 +404,18 @@ export class PluginRegistry {
       }
     }
 
+    // W3 修复：disable 时真正卸载工具（此前工具残留，ToolRegistry 无 remove）
+    const toolNames = this.activeToolNames.get(plugin.manifest.id) ?? [];
+    for (const name of toolNames) {
+      this.toolRegistry.remove(name);
+    }
+    this.activeToolNames.delete(plugin.manifest.id);
     this.activeModules.delete(plugin.manifest.id);
     plugin.status = "disabled";
     plugin.enabledAt = undefined;
 
     this.persistPlugin(plugin);
-    logger.info(`Disabled plugin ${plugin.manifest.id}`);
+    logger.info(`Disabled plugin ${plugin.manifest.id} (removed ${toolNames.length} tools)`);
   }
 
   /** Update plugin configuration */
@@ -401,10 +466,11 @@ export class PluginRegistry {
   /** Get all active tools from enabled plugins */
   getActiveTools(): { pluginId: string; tools: string[] }[] {
     const result: { pluginId: string; tools: string[] }[] = [];
-    for (const [pluginId, module] of this.activeModules) {
-      if (module.tools) {
-        result.push({ pluginId, tools: module.tools.map((t) => t.name) });
-      }
+    for (const pluginId of this.activeModules.keys()) {
+      const module = this.activeModules.get(pluginId);
+      const names = this.activeToolNames.get(pluginId)
+        ?? (module?.tools ? module.tools.map((t) => t.name) : []);
+      if (names.length > 0) result.push({ pluginId, tools: names });
     }
     return result;
   }

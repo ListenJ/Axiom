@@ -8,6 +8,8 @@ export interface SandboxOptions {
   maxCpu?: number
   networkAccess?: boolean
   readOnly?: boolean
+  /** docker 镜像标识（如 python:3.11-slim）；缺省由 provider 决定（docker-sandbox 默认 ubuntu:22.04）。 */
+  image?: string
 }
 
 export interface SandboxResult {

@@ -2,16 +2,21 @@
  * Route dispatcher — delegates to route handlers by priority
  */
 import type { RouteContext, RouteHandler } from "./types.js";
-import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm } from "./health.js";
+import { handleMetrics, handleDashboard, handleHealth, handleApiDocs, handleStats as handleHealthStats, handleCacheStats, handleEngines, handleMemoryGateStats, handleTrends, handleConfig, handlePermissionCheck, handlePermissionConfirm, handlePermissionMode } from "./health.js";
 import { handleStats, handleTokenDetails } from "./stats.js";
 import { handlePipelineStream } from "./pipeline.js";
-import { handleToolExecute } from "./tools.js";
+import { handleDreRun } from "./dre.js";
+import { handleListToolInvocations, handleToolExecute } from "./tools.js";
 import { handleSandboxExecute, handleSandboxStatus } from "./sandbox.js";
+import { handleApprovalResolve, handleApprovalPending } from "./approvals.js";
 import { handleChat, handleAgentChat, handleChatStream, handleChatHistory } from "./chat.js";
+import { handleOpenAIChatCompletions } from "./openai-compat.js";
 import { handleVaultSearch, handleWebSearch, handleEnhancedSearch, handleSearchSuggestions, handleSearchStats, handleSearchHistory, handleRecentSearches, handleWebFetch, handleLightpandaStatus, handleDirectSearch, handleQueryDecompose } from "./search.js";
-import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus } from "./vault.js";
+import { handleVaultStats, handleVaultPara, handleVaultTags, handleVaultTagsList, handleVaultNetwork, handleVaultNote, handleVaultWrite, handleVaultAtomic, handleVaultCodeIndex, handleVaultReload, handleVaultWatchStatus, handleVaultDistill, handleBootstrap, handleCodegraphSearch, handleCodegraphInit, handleCodegraphStatus, handleCodegraphFileIndex } from "./vault.js";
 import { handleAgentsStatus, handleOpenCodeModels, handleOpenCodeOpen, handleOpenCodeGenerate, handleOpenCodeRefactor, handleOpenCodeReview, handleOpenCodeTest, handleKimiStatus, handleKimiChat, handleKimiOpen, handleHermesTask, handleComputerUse } from "./agents.js";
+import { handleComponentsStatus, handleNativeAgentStatus } from "./components.js";
 import { handleApiKeys } from "./api-keys.js";
+import { handleMarketplace } from "./marketplace.js";
 import { handleSceneRoutes } from "./scene-routes.js";
 import { handleOCRRoutes } from "./ocr-routes.js";
 import { handleConsciousness } from "./consciousness.js";
@@ -36,6 +41,8 @@ import {
   handleKGEntityDetail,
   handleKGTraverse,
   handleKGBuild,
+  handleKGJobStatus,
+  handleKGJobsList,
   handleKGSearch,
   handleKGGraph,
   handleAdvisorRecommend,
@@ -49,6 +56,11 @@ import {
   handleSaveConversation,
   handleGetConversations,
   handleListSessions,
+  handleRenameSession,
+  handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
+  handleDeleteSession,
   handleKnowledgeSearch,
   handleKnowledgePendingReview,
   handleKnowledgeReviewAction,
@@ -56,6 +68,11 @@ import {
   handleModelUsage,
 } from "./memory-api.js";
 import { handleTraceList, handleTraceDetail } from "./traces.js";
+import { handleGitRoutes } from "./git.js";
+import { handleSettingsCatalog, handleSettingsSearch } from "./settings.js";
+import { handleWorkspaces } from "./workspaces.js";
+import { handleAuditDiagnostics } from "./audit.js";
+import { handleTerminalCreate, handleTerminalStream, handleTerminalInput, handleTerminalClose, handleTerminalList } from "./terminal.js";
 
 /** All route handlers in priority order */
 const handlers: RouteHandler[] = [
@@ -64,6 +81,7 @@ const handlers: RouteHandler[] = [
   handleDashboard,
   // Health & system
   handleHealth,
+  handleAuditDiagnostics,
   handleApiDocs,
   handleHealthStats,
   handleCacheStats,
@@ -74,13 +92,28 @@ const handlers: RouteHandler[] = [
   handleConfig,
   handleTokenDetails,
   handleToolExecute,
+  handleListToolInvocations,
   handleSandboxExecute,
   handleSandboxStatus,
+  handleTerminalCreate,
+  handleTerminalStream,
+  handleTerminalInput,
+  handleTerminalClose,
+  handleTerminalList,
+  handleApprovalResolve,
+  handleApprovalPending,
   // Chat (most common API call)
   handleChatHistory,
   handleChat,
   handleChatStream,
   handleAgentChat,
+  handleRenameSession,
+  handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
+  handleDeleteSession,
+  // OpenAI 兼容端点（/v1/chat/completions）
+  handleOpenAIChatCompletions,
   // Native Bridge (Rust core)
   handleNativeSearch,
   handleNativeRouterPerf,
@@ -118,7 +151,10 @@ const handlers: RouteHandler[] = [
   handleCodegraphSearch,
   handleCodegraphInit,
   handleCodegraphStatus,
+  handleCodegraphFileIndex,
   // Agents
+  handleComponentsStatus,
+  handleNativeAgentStatus,
   handleAgentsStatus,
   handleOpenCodeModels,
   handleOpenCodeOpen,
@@ -133,6 +169,7 @@ const handlers: RouteHandler[] = [
   handleHermesTask,
   // Runtime API key management (MiniMax etc.)
   handleApiKeys,
+  handleMarketplace,
   // Plugin Market (插件市场)
   handlePluginRoutes,
   // Scene Router (MCP 场景驱动工具调用)
@@ -153,6 +190,9 @@ const handlers: RouteHandler[] = [
   handleSaveConversation,
   handleGetConversations,
   handleListSessions,
+  handleArchiveSession,
+  handleSessionSearch,
+  handleSessionLineage,
   handleKnowledgeSearch,
   handleKnowledgePendingReview,
   handleKnowledgeReviewAction,
@@ -182,11 +222,21 @@ const handlers: RouteHandler[] = [
   // Permission Control
   handlePermissionCheck,
   handlePermissionConfirm,
+  handlePermissionMode,
   // Pipeline SSE
   handlePipelineStream,
+  // DRE deterministic reasoning (POST /dre/run)
+  handleDreRun,
   // Agent interaction traces
   handleTraceList,
   handleTraceDetail,
+  // Git service (user git commit/push/status)
+  handleGitRoutes,
+  // Workspaces (工作区列表)
+  handleWorkspaces,
+  // Settings (设置目录 + 语义搜索)
+  handleSettingsCatalog,
+  handleSettingsSearch,
 ];
 
 /**
@@ -224,6 +274,9 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/stats/trends", handler: handleTrends },
     { method: "GET", path: "/config", handler: handleConfig },
     { method: "POST", path: "/config", handler: handleConfig },
+    { method: "GET", path: "/settings/catalog", handler: handleSettingsCatalog },
+    { method: "POST", path: "/settings/search", handler: handleSettingsSearch },
+    { method: "GET", path: "/api/audit/diagnostics", handler: handleAuditDiagnostics },
     { method: "GET", path: "/consciousness/status", handler: handleConsciousness },
     { method: "POST", path: "/consciousness/reflect", handler: handleConsciousness },
     { method: "GET", path: "/proxies", handler: handleProxies },
@@ -233,8 +286,17 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/chat", handler: handleChat },
     { method: "POST", path: "/chat/stream", handler: handleChatStream },
     { method: "POST", path: "/agent-chat", handler: handleAgentChat },
+    { method: "PATCH", path: "/chat/sessions/:id", handler: handleRenameSession },
+    { method: "DELETE", path: "/chat/sessions/:id", handler: handleDeleteSession },
+    { method: "POST", path: "/chat/sessions/:id/archive", handler: handleArchiveSession },
+    { method: "GET", path: "/memory/session-search", handler: handleSessionSearch },
+    { method: "GET", path: "/chat/sessions/:id/lineage", handler: handleSessionLineage },
+    // OpenAI 兼容端点
+    { method: "POST", path: "/v1/chat/completions", handler: handleOpenAIChatCompletions },
     // Pipeline SSE
     { method: "GET", path: "/pipeline/stream", handler: handlePipelineStream },
+    // DRE deterministic reasoning
+    { method: "POST", path: "/dre/run", handler: handleDreRun },
 
     // Search
     { method: "GET", path: "/search", handler: handleVaultSearch },
@@ -251,6 +313,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
 
     // Vault
     { method: "GET", path: "/vault/stats", handler: handleVaultStats },
+    { method: "GET", path: "/vault/para", handler: handleVaultPara },
     { method: "GET", path: "/vault/para/:category", handler: handleVaultPara },
     { method: "GET", path: "/vault/tags", handler: handleVaultTagsList },
     { method: "GET", path: "/vault/tags/:tag", handler: handleVaultTags },
@@ -266,8 +329,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/codegraph/search", handler: handleCodegraphSearch },
     { method: "POST", path: "/codegraph/init", handler: handleCodegraphInit },
     { method: "GET", path: "/codegraph/status", handler: handleCodegraphStatus },
+    { method: "GET", path: "/file-index", handler: handleCodegraphFileIndex },
 
     // Agents
+    { method: "GET", path: "/components", handler: handleComponentsStatus },
+    { method: "GET", path: "/agents/native/status", handler: handleNativeAgentStatus },
     { method: "GET", path: "/agents/status", handler: handleAgentsStatus },
     { method: "GET", path: "/agents/opencode/models", handler: handleOpenCodeModels },
     { method: "POST", path: "/agents/opencode/open", handler: handleOpenCodeOpen },
@@ -303,6 +369,8 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/kg/entity/:name", handler: handleKGEntityDetail },
     { method: "GET", path: "/kg/traverse/:name", handler: handleKGTraverse },
     { method: "POST", path: "/kg/build", handler: handleKGBuild },
+{ method: "GET", path: "/kg/jobs/:id", handler: handleKGJobStatus },
+{ method: "GET", path: "/kg/jobs", handler: handleKGJobsList },
     { method: "POST", path: "/kg/search", handler: handleKGSearch },
     { method: "GET", path: "/kg/graph", handler: handleKGGraph },
     { method: "GET", path: "/advisor/recommend", handler: handleAdvisorRecommend },
@@ -327,6 +395,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/api-keys", handler: handleApiKeys },
     { method: "GET", path: "/api-keys/**", handler: handleApiKeys },
     { method: "DELETE", path: "/api-keys/**", handler: handleApiKeys },
+
+    // Skill / MCP Marketplace (广场)
+    { method: "GET", path: "/marketplace", handler: handleMarketplace },
+    { method: "POST", path: "/marketplace/skills/install", handler: handleMarketplace },
+    { method: "POST", path: "/marketplace/mcp/install", handler: handleMarketplace },
 
     // Plugins (通配 fallback — 内部做多路径匹配)
     { method: "GET", path: "/plugins", handler: handlePluginRoutes },
@@ -367,8 +440,11 @@ export function registerTrieRoutes(engine: HttpRouter): void {
   // Permission control
   { method: "POST", path: "/permissions/check", handler: handlePermissionCheck },
   { method: "POST", path: "/permissions/confirm", handler: handlePermissionConfirm },
+  { method: "GET", path: "/permissions/mode", handler: handlePermissionMode },
+  { method: "POST", path: "/permissions/mode", handler: handlePermissionMode },
   // Tool execution
   { method: "POST", path: "/api/tools/execute", handler: handleToolExecute },
+  { method: "GET", path: "/api/tools/invocations", handler: handleListToolInvocations },
   // Agent interaction traces
   { method: "GET", path: "/traces", handler: handleTraceList },
   { method: "GET", path: "/traces/:id", handler: handleTraceDetail },
@@ -376,6 +452,23 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     // Sandbox execution
     { method: "GET", path: "/sandbox/status", handler: handleSandboxStatus },
     { method: "POST", path: "/sandbox/execute", handler: handleSandboxExecute },
+
+    // Interactive terminal (交互终端 PTY 会话)
+    { method: "POST", path: "/terminal/session", handler: handleTerminalCreate },
+    { method: "GET", path: "/terminal/session/:id/stream", handler: handleTerminalStream },
+    { method: "POST", path: "/terminal/session/:id/input", handler: handleTerminalInput },
+    { method: "DELETE", path: "/terminal/session/:id", handler: handleTerminalClose },
+    { method: "GET", path: "/terminal/sessions", handler: handleTerminalList },
+
+    // Workspaces
+    { method: "GET", path: "/api/workspaces", handler: handleWorkspaces },
+    // Git service (user git commit/push/status)
+    { method: "GET", path: "/api/git/status", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/diff", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/log", handler: handleGitRoutes },
+    { method: "GET", path: "/api/git/branch", handler: handleGitRoutes },
+    { method: "POST", path: "/api/git/commit", handler: handleGitRoutes },
+    { method: "POST", path: "/api/git/push", handler: handleGitRoutes },
   ];
 
   engine.registerBatch(routes);
@@ -383,19 +476,29 @@ export function registerTrieRoutes(engine: HttpRouter): void {
 
 /** Default response when no route matches */
 export function defaultResponse(ctx: RouteContext): Response {
+  // R-017（2026-07-30）：未知路径返回 404 JSON，不再以 200 掩盖；
+  // 端点目录保留辅助排错，正式文档见 GET /api。
   return ctx.jsonResponse({
+    error: true as const,
+    message: `Not Found: ${ctx.req.method} ${ctx.url.pathname}`,
     name: "Axiom Runtime", version: "4.0.0",
     uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
     endpoints: [
       "GET  /                        — Dashboard",
       "GET  /health                  — 健康检查",
+      "GET  /components              — 组件健康面",
+      "GET  /agents/native/status    — Native Agent 状态",
       "POST /chat                    — 模型聊天（自动意图识别）",
       "POST /chat/stream             — SSE 流式聊天（text/event-stream）",
+      "POST /v1/chat/completions     — OpenAI 兼容聊天端点（支持 stream）",
       "GET  /search?q=               — Vault 确定性记忆搜索",
       "GET  /memory-gate/stats        — 记忆门控统计",
       "GET  /stats/trends?days=7      — 趋势数据",
       "GET  /config                   — 系统配置（脱敏）",
       "POST /config                   — 更新配置",
+      "GET  /settings/catalog          — 设置目录",
+      "POST /settings/search           — 设置语义搜索（本地模型）",
+      "GET  /api/audit/diagnostics     — 资源审查诊断（缓存/连接/内存）",
       "GET  /consciousness/status      — 意识模块状态",
       "POST /consciousness/reflect     — 手动触发反思",
       "GET  /web-search?q=           — 多引擎搜索",
@@ -468,11 +571,19 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET    /advisor/status            — 顾问状态",
       "--- Research (深度研究) ---",
       "POST   /research/run              — KG增强深度研究",
+      "--- Interactive Terminal (交互终端) ---",
+      "POST   /terminal/session             — 创建交互式终端会话",
+      "GET    /terminal/session/:id/stream  — 终端输出流 (SSE)",
+      "POST   /terminal/session/:id/input   — 写入终端 stdin",
+      "DELETE /terminal/session/:id         — 关闭终端会话",
+      "GET    /terminal/sessions            — 终端会话诊断",
       "--- Tool Execution (工具执行) ---",
       "POST   /api/tools/execute         — 标准化工具执行",
+      "GET    /api/tools/invocations     — 查询工具调用台账",
       "--- Agent Interaction Traces ---",
       "GET    /traces                    — 列出最近的 Agent 交互追踪",
       "GET    /traces/:id                — 获取指定追踪详情",
     ],
-  }, 200, ctx.baseHeaders);
+  }, 404, ctx.baseHeaders);
 }
+

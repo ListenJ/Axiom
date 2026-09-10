@@ -1,0 +1,40 @@
+{
+  "id": "se-0011",
+  "source_text": "Runtime 内部流程:\n1. ReasoningGraph 分析任务\n2. 检查 KnowledgeStore: 已知项目结构 ✓\n3. 检查 Procedure: 已知如何获取性能指标 ✓\n4. Gap Detection: 不知道\"如何将性能指标映射到具体重构模式\"\n5. → 精准 Prompt: 仅发送性能指标 + 相关代码 + 指定的重构模式\n6. → LLM 输出: 仅生成优化后的代码片段\n```",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L87-L94",
+  "candidate_mr": {
+    "propositions": [
+      "Runtime 内部流程: 1. ReasoningGraph 分析任务 2. 检查 KnowledgeStore: 已知项目结构 ✓ 3. 检查 Procedure: 已知如何获取性能指标 ✓ 4. Gap Detection: 不知道\"如何将性能指标映射到具体重构模式\" 5. → 精准 Prompt: 仅发送性能指标 + 相关代码 + 指定的重构模式 6. → LLM 输出: 仅生成优化后的代码片段"
+    ],
+    "entities": [
+      {
+        "name": "Runtime 内部流程: 1. ReasoningGraph 分析任务 2. 检查 KnowledgeStore: 已知项目结构 ✓ 3. 检查 Procedure: 已知如何获取性能指标 ✓ 4. Gap Detection: 不知道\"如何将性能指标映射到具体重构模式\" 5. → 精准 Prompt: 仅发送性能指标 + 相关代码 + 指定的重构模式 6. → LLM 输出: 仅生成优化后的代",
+        "type": "concept",
+        "link": "kg:concept:Runtime_______1__ReasoningGraph______2_____KnowledgeStore___________3_____Proced-6d729e2a"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "Runtime 内部流程: 1. ReasoningGraph 分析任务 2. 检查 KnowledgeStore: 已知项目结构 ✓ 3. 检查 Procedure: 已知如何获取性能指标 ✓ 4. Gap Detection: 不知道\"如何将性能指标映射到具体重构模式\" 5. → 精准 Prompt: 仅发送性能指标 + 相关代码 + 指定的重构模式 6. → LLM 输出: 仅生成优化后的代"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L87-L94"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

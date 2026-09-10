@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0088",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键命题：「统计非空行总数、畸形行数（JSON 解析失败或缺 id/task 字段）与畸形率」「只读，不改动文件」（否定命题）「供 evolve 前做拒卷门，防脏数据/损坏文件被误归纳产生垃圾 skill」（因果/用途）。按 §6.6，候选空而源非空 → not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

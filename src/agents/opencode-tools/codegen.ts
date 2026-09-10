@@ -20,6 +20,7 @@ export class CodegenExecutor {
     private modelStates: Map<string, ModelRuntimeState>,
     private cwd: string,
     private selectNextModel: () => string,
+    private spawnProc: typeof spawn = spawn,
   ) {}
 
   async callOpenCode(
@@ -37,16 +38,32 @@ export class CodegenExecutor {
     }
     state.totalCalls++;
 
+    // P0-5: the abort signal is consumed by spawn (kills the child on timeout);
+    // `timedOut` marks the kill so the call is rejected with an explicit
+    // timeout error instead of being treated as a normal exit.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    // P0-5: release exactly once across success / error / timeout paths.
+    let released = false;
+    const releaseSemOnce = () => {
+      if (released) return;
+      released = true;
+      state.sem.tryRelease();
+    };
 
     try {
-      const proc = spawn({
+      const proc = this.spawnProc({
         cmd: ["opencode", "run", "--model", model, "--pure", prompt],
         stdout: "pipe",
         stderr: "pipe",
         cwd: this.cwd,
         env: { ...process.env },
+        signal: controller.signal,
       });
 
       const textDecoder = new TextDecoder();
@@ -78,8 +95,14 @@ export class CodegenExecutor {
       const exitCode = await proc.exited;
       clearTimeout(timer);
 
+      // P0-5: a killed (timed out) process must never be treated as success,
+      // even if it produced partial output before the kill.
+      if (timedOut) {
+        throw new Error(`[OpenCodeToolAgent] opencode timeout after ${timeoutMs}ms (model ${model})`);
+      }
+
       const latencyMs = Date.now() - startTime;
-      state.sem.tryRelease();
+      releaseSemOnce();
 
       if (exitCode !== 0 && !output) {
         state.consecutiveFailures++;
@@ -96,10 +119,14 @@ export class CodegenExecutor {
       return { content: cleaned, model, latencyMs };
     } catch (error) {
       clearTimeout(timer);
-      state.sem.tryRelease();
+      releaseSemOnce();
       state.consecutiveFailures++;
       state.totalFailures++;
       checkCircuitBreaker(model, state);
+      // P0-5: surface abort/kill fallout as an explicit timeout error.
+      if (timedOut) {
+        throw new Error(`[OpenCodeToolAgent] opencode timeout after ${timeoutMs}ms (model ${model})`);
+      }
       throw error;
     }
   }

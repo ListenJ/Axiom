@@ -222,4 +222,11 @@ tags: [random]
     const uniquePaths = new Set(paths);
     expect(paths.length).toBe(uniquePaths.size);
   });
+
+  test("内容关键词命中可召回(有界扫描下,P1-T1 护栏)", () => {
+    const engine = new DeterministicSearchEngine(TEST_VAULT);
+    // sqlite-guide.md 正文独有词「嵌入式」——标题/标签/路径均不含 → 纯内容命中路径
+    const results = engine.search("嵌入式");
+    expect(results.some((r) => r.note.path === "03-Resources/sqlite-guide.md")).toBe(true);
+  });
 });

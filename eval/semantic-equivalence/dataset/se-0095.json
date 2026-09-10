@@ -1,0 +1,21 @@
+{
+  "id": "se-0095",
+  "source_text": "```ts\n/**\n   * 带降级的分析：优先视觉分析；无视觉模型时回退为文本引导\n   * （需求 3：无视觉模型 → 基于 CDP 可交互元素生成结构化文字引导，不抛错）。\n   */\n  async analyzeWithFallback(input: ComputerUseInput): Promise<ComputerUseResult> {\n    try {\n      return await this.analyze(input);\n```",
+  "source_origin": "src/agents/computer-use-agent.ts#L186-L189",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

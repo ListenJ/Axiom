@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0020",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题字段完整保留源文本三项修复（含『`data.lines` 不再存在、`data.blocks` 默认不生成』『修复前 OCR 静默返回空文本』『TESSERACT_LANG_PATH` 可覆盖。修复后离线 OCR 可用』及默认值 [\"eng\"]）；可忽略差异：实体 name 与 triple object 截断于『2. **』，格式残缺，命题本体正确。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

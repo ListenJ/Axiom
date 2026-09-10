@@ -8,10 +8,25 @@ import { readString } from "../utils/env.js";
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
+try {
+  db.run(`PRAGMA journal_mode=WAL`);
+  db.run(`PRAGMA busy_timeout=5000`);
+} catch { /* ignore if PRAGMA unsupported in this env */ }
 
 logger.info("[数据库] Initializing database...");
 
 // ========== 核心表 ==========
+
+// 会话元数据表（会话标题持久化；与 conversations 消息表按 session_id 关联）
+db.run(`
+  CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] chat_sessions");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS conversations (
@@ -28,6 +43,44 @@ db.run(`
   )
 `);
 logger.info("[完成] conversations");
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS tool_invocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    args_hash TEXT NOT NULL,
+    result_hash TEXT,
+    args_preview TEXT,
+    result_ref TEXT,
+    status TEXT NOT NULL,
+    latency_ms INTEGER,
+    output_bytes INTEGER,
+    created_at INTEGER NOT NULL
+  )
+`);
+logger.info("[完成] tool_invocations");
+
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_session ON tool_invocations(session_id, created_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_tool_inv_tool ON tool_invocations(tool, created_at DESC)`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS session_lineage (
+    session_id TEXT PRIMARY KEY,
+    parent_session_id TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    message_count INTEGER NOT NULL DEFAULT 0,
+    token_estimate INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS session_lineage_fts USING fts5(session_id UNINDEXED, title, summary, tokenize = 'unicode61')`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_updated ON session_lineage(updated_at DESC)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_session_lineage_parent ON session_lineage(parent_session_id)`);
+logger.info("[完成] session_lineage");
 
 db.run(`
   CREATE TABLE IF NOT EXISTS tasks (
@@ -158,6 +211,34 @@ db.run(`
   )
 `);
 logger.info("[完成] search_history");
+
+// ========== 幻觉判定持久化（S5 校准数据积累 + S4 HITL 真值标注，DDL 与 src/db/hallucination-verdicts.ts 一致） ==========
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS hallucination_verdicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    statement_digest TEXT NOT NULL,
+    statement TEXT,
+    p_value REAL NOT NULL,
+    verdict TEXT NOT NULL,
+    is_accepted INTEGER NOT NULL,
+    evidence_fingerprint TEXT NOT NULL,
+    seam TEXT,
+    label INTEGER,
+    created_at INTEGER NOT NULL
+  )
+`);
+// S4 幂等补列：存量库缺 label 列时 ALTER 补齐（与 hallucination-verdicts.ts ensureLabelColumn 同语义）
+{
+  const cols = db.query("PRAGMA table_info(hallucination_verdicts)").all() as Array<{ name: string }>;
+  if (cols.length > 0 && !cols.some((c) => c.name === "label")) {
+    db.run("ALTER TABLE hallucination_verdicts ADD COLUMN label INTEGER");
+    logger.info("[迁移] hallucination_verdicts 补列 label INTEGER");
+  }
+}
+db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_fingerprint ON hallucination_verdicts(evidence_fingerprint)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_halluc_verdict_created ON hallucination_verdicts(created_at DESC)`);
+logger.info("[完成] hallucination_verdicts");
 
 // ========== FTS5 全文索引 ==========
 

@@ -100,14 +100,23 @@ export async function handleOCRRoutes(ctx: RouteContext): Promise<Response | nul
   if (path === "/ocr/export" && ctx.req.method === "POST") {
     try {
       const body = await ctx.req.json();
-      const { 
-        image, 
-        format = "markdown", 
-        options = {} 
-      }: { 
-        image?: string; 
-        format?: "markdown" | "json" | "text" | "html"; 
-        options?: any;
+      const {
+        image,
+        format = "markdown",
+        options = {}
+      }: {
+        image?: string;
+        format?: "markdown" | "json" | "text" | "html";
+        options?: {
+          languages?: string[];
+          confidenceThreshold?: number;
+          preserveWhitespace?: boolean;
+          psm?: number;
+          layoutAnalysis?: boolean;
+          textCorrection?: boolean;
+          extractStructure?: boolean;
+          minConfidence?: number;
+        };
       } = body;
 
       let doc: StructuredDocument;

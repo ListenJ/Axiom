@@ -17,7 +17,6 @@ import {
   type UnifiedModel,
   type TaskRole,
   type ModelProvider,
-  PROVIDER_CONFIG,
 } from "./models.js";
 import {
   registerModel,

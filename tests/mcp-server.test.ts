@@ -145,9 +145,104 @@ describe("MCP Server", () => {
       registry.add(tool);
       const handlers = registry.buildHttpHandlers();
 
-      expect(async () => {
-        await handlers.error_tool({});
-      }).toThrow();
+      // HTTP handlers 应捕获异常并返回结构化错误对象，避免崩溃 HTTP 服务器
+      const result = await handlers.error_tool({}) as { error: boolean; message: string };
+      expect(result.error).toBe(true);
+      expect(result.message).toContain("Test error");
+      expect(result.message).toContain("error_tool");
+    });
+
+    it("should register tools with MCP server (stdio transport)", () => {
+      const registry = new ToolRegistry();
+      registry.add({
+        name: "stdio_tool",
+        description: "Test stdio registration",
+        inputSchema: { type: "object" },
+        handler: async () => ({ ok: true }),
+      });
+
+      const registered: Array<{ name: string; handler: (args: Record<string, unknown>) => Promise<unknown> }> = [];
+      const mockMcp = {
+        registerTool(name: string, _opts: unknown, handler: (args: Record<string, unknown>) => Promise<unknown>) {
+          registered.push({ name, handler });
+        },
+      } as unknown as import("@modelcontextprotocol/sdk/server/mcp.js").McpServer;
+
+      registry.registerWithMcp(mockMcp);
+      expect(registered).toHaveLength(1);
+      expect(registered[0].name).toBe("stdio_tool");
+    });
+
+    it("should wrap handler errors with isError flag (stdio)", async () => {
+      const registry = new ToolRegistry();
+      registry.add({
+        name: "failing_tool",
+        description: "Always fails",
+        inputSchema: { type: "object" },
+        handler: async () => { throw new Error("Boom"); },
+      });
+
+      let capturedHandler: ((args: Record<string, unknown>) => Promise<unknown>) | null = null;
+      const mockMcp = {
+        registerTool(_name: string, _opts: unknown, handler: (args: Record<string, unknown>) => Promise<unknown>) {
+          capturedHandler = handler;
+        },
+      } as unknown as import("@modelcontextprotocol/sdk/server/mcp.js").McpServer;
+
+      registry.registerWithMcp(mockMcp);
+      expect(capturedHandler).not.toBeNull();
+
+      const result = await capturedHandler!({}) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text) as { error: boolean; message: string };
+      expect(parsed.error).toBe(true);
+      expect(parsed.message).toContain("Boom");
+      expect(parsed.message).toContain("failing_tool");
+    });
+
+    it("should format text output when format=text", async () => {
+      const registry = new ToolRegistry();
+      registry.add({
+        name: "text_tool",
+        description: "Returns text",
+        inputSchema: { type: "object" },
+        handler: async () => "plain string result",
+        format: "text" as const,
+      });
+
+      let capturedHandler: ((args: Record<string, unknown>) => Promise<unknown>) | null = null;
+      const mockMcp = {
+        registerTool(_name: string, _opts: unknown, handler: (args: Record<string, unknown>) => Promise<unknown>) {
+          capturedHandler = handler;
+        },
+      } as unknown as import("@modelcontextprotocol/sdk/server/mcp.js").McpServer;
+
+      registry.registerWithMcp(mockMcp);
+      const result = await capturedHandler!({}) as { content: Array<{ type: string; text: string }> };
+      expect(result.content[0].text).toBe("plain string result");
+    });
+
+    it("should format JSON output by default", async () => {
+      const registry = new ToolRegistry();
+      registry.add({
+        name: "json_tool",
+        description: "Returns object",
+        inputSchema: { type: "object" },
+        handler: async () => ({ key: "value", num: 42 }),
+      });
+
+      let capturedHandler: ((args: Record<string, unknown>) => Promise<unknown>) | null = null;
+      const mockMcp = {
+        registerTool(_name: string, _opts: unknown, handler: (args: Record<string, unknown>) => Promise<unknown>) {
+          capturedHandler = handler;
+        },
+      } as unknown as import("@modelcontextprotocol/sdk/server/mcp.js").McpServer;
+
+      registry.registerWithMcp(mockMcp);
+      const result = await capturedHandler!({}) as { content: Array<{ type: string; text: string }> };
+      const parsed = JSON.parse(result.content[0].text) as { key: string; num: number };
+      expect(parsed.key).toBe("value");
+      expect(parsed.num).toBe(42);
     });
   });
 

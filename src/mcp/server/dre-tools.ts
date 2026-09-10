@@ -2,16 +2,37 @@ import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
 import { getResourceBudgetManager } from "../../dre/system-resource.js";
+import { logger } from "../../utils/logger.js";
 
 let kernel: Kernel | null = null;
+let kernelReady: Promise<Kernel> | null = null;
 
-function getKernel(): Kernel {
-  if (!kernel) {
+/**
+ * 获取（懒启动）DRE Kernel 并确保初始化完成。
+ *
+ * P1 修复：原实现不等待 init 且用 .catch 吞掉错误——首个工具调用存在初始化竞态，
+ * init 失败时引擎半初始化、错误难诊断。现改为：
+ *   - init 被正确 await（同一次启动只 init 一次，promise 缓存）；
+ *   - 失败抛明确错误（"DRE Engine is not ready or failed to initialize: <原因>"），不吞；
+ *   - 失败后清空缓存，下次调用可重试。
+ */
+async function getKernelAsync(): Promise<Kernel> {
+  if (kernel) return kernel;
+  if (!kernelReady) {
     const config = new ConfigLoader().toKernelConfig();
-    kernel = new Kernel({ ...config, tickInterval: 10000, autoTick: true });
-    kernel.init().catch((err) => console.warn("[DRE] Kernel init failed", (err as Error).message));
+    const k = new Kernel({ ...config, tickInterval: 10000, autoTick: true });
+    kernelReady = k
+      .init()
+      .then(() => {
+        kernel = k;
+        return k;
+      })
+      .catch((err) => {
+        kernelReady = null;
+        throw new Error(`DRE Engine is not ready or failed to initialize: ${(err as Error).message}`);
+      });
   }
-  return kernel;
+  return kernelReady;
 }
 
 export async function shutdownKernel(): Promise<void> {
@@ -19,6 +40,7 @@ export async function shutdownKernel(): Promise<void> {
     await kernel.shutdown();
     kernel = null;
   }
+  kernelReady = null;
 }
 
 export function getKernelInstance(): Kernel | null {
@@ -26,6 +48,27 @@ export function getKernelInstance(): Kernel | null {
 }
 
 export function registerDreTools(registry: ToolRegistry): void {
+  registry.add({
+    name: "dre_constraint_inject",
+    description: "需求4：扫描文本命中实践手册错误记录 → 返回可插入 LLM 输入的 DRE 约束词（可追溯来源 id）；也可直接返回注入后的消息",
+    inputSchema: {
+      text: z.string().describe("用户/任务文本（LLM 将收到的输入）"),
+      asMessages: z.boolean().optional().default(false).describe("true 时返回注入后的 system+user 消息"),
+    },
+    handler: async (args: Record<string, unknown>) => {
+      const { constraintWordsFor, injectConstraints, buildMessagesWithConstraints } = await import("../../dre/constraint-injection.js");
+      const text = args.text as string;
+      const { words, entries } = constraintWordsFor(text);
+      const injected = entries.map((e) => e.id);
+      if (args.asMessages) {
+        const built = buildMessagesWithConstraints(text);
+        return { injected, words, messages: built.messages };
+      }
+      return { injected, words, matched: entries.map((e) => ({ id: e.id, title: e.title })) };
+    },
+  });
+
+
   registry.add({
     name: "dre_write_knowledge",
     description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理，需要本地 LLM 服务)",
@@ -39,7 +82,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     handler: async (args) => {
       try {
-        const dre = getKernel().getEngine();
+        const dre = (await getKernelAsync()).getEngine();
         const item: KnowledgeItem = {
           id: `kb-${Date.now()}`,
           title: args.title as string,
@@ -79,7 +122,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       nodeId: z.string().describe("知识条目 ID"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const node = dre.readKnowledge(args.nodeId as string);
       if (!node) {
         return { success: false, error: "Knowledge node not found" };
@@ -112,7 +155,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       limit: z.number().optional().default(10).describe("返回数量"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const results = dre.searchData(args.query as string, {
         domain: args.domain as string,
         paradigm: args.paradigm as string,
@@ -139,7 +182,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       maxNodes: z.number().optional().default(50).describe("最大节点数"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const nodes = dre.subgraph(args.nodeId as string, args.depth as number, args.maxNodes as number);
       return nodes.map((n) => ({
         nodeId: n.nodeId,
@@ -159,7 +202,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     handler: async (args) => {
       try {
-        const dre = getKernel().getEngine();
+        const dre = (await getKernelAsync()).getEngine();
         const result = await dre.consciousnessStep({
           observation: args.observation as string,
           metadata: args.metadata as Record<string, unknown>,
@@ -191,7 +234,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取 DRE 引擎状态",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.getStatus();
     },
   });
@@ -216,7 +259,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       reason: z.string().optional().describe("切换原因 (可选)"),
     },
     handler: async (args) => {
-      const loaded = getKernel().getEngine().switchPersona(args.mode as PersonaMode, args.reason as string);
+      const loaded = (await getKernelAsync()).getEngine().switchPersona(args.mode as PersonaMode, args.reason as string);
       return {
         mode: loaded.config.mode,
         name: loaded.config.name,
@@ -232,7 +275,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取当前 Persona 状态和切换历史",
     inputSchema: {},
     handler: async () => {
-      const persona = getKernel().getEngine().persona;
+      const persona = (await getKernelAsync()).getEngine().persona;
       return {
         ...persona.getContextSummary(),
         temperature: persona.getTemperature(),
@@ -248,7 +291,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "列出所有可用 Persona 模式",
     inputSchema: {},
     handler: async () => {
-      return getKernel().getEngine().persona.getAvailableModes();
+      return (await getKernelAsync()).getEngine().persona.getAvailableModes();
     },
   });
 
@@ -257,7 +300,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取统一认知状态 (Persona + 意识流 + 推理 + 约束 + 目标 + 信念 + 资源 + Atom数据)",
     inputSchema: {},
     handler: async () => {
-      const engine = getKernel().getEngine();
+      const engine = (await getKernelAsync()).getEngine();
       const state = engine.getCognitiveState();
       return {
         ...state,
@@ -275,7 +318,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       input: z.string().describe("输入文本 (问题/任务描述)"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -294,7 +337,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       input: z.string().describe("输入文本 (问题/任务描述)"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -319,7 +362,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       sourceType: z.string().optional().describe("来源类型 (manual, web, llm)"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const { atom } = dre.data.write({
         content: args.content as string,
         kind: args.kind as AtomKind,
@@ -340,7 +383,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       kind: z.enum(["entity", "fact", "rule", "concept", "procedure", "observation", "insight"]).optional().describe("按数据类型过滤"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const result = dre.data.search(args.query as string, {
         limit: (args.limit as number) ?? 10,
       });
@@ -356,7 +399,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取 DataUnifier / AtomEngine 统计信息",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return {
         atomStats: dre.data.getAtomStats(),
       };
@@ -368,7 +411,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "手动持久化所有 Atom 到 SQLite",
     inputSchema: {},
     handler: async () => {
-      getKernel().getEngine().data.persist();
+      (await getKernelAsync()).getEngine().data.persist();
       return { success: true, timestamp: Date.now() };
     },
   });
@@ -380,7 +423,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "列出所有心智模型 (Git冲突/代码重构等领域模型)",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.mentalModels.list().map((m) => ({
         id: m.id,
         name: m.name,
@@ -402,7 +445,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       observations: z.array(z.string()).describe("观察列表"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const result = dre.mentalModels.matchPattern(
         args.modelId as string,
         args.observations as string[]
@@ -420,7 +463,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       observation: z.string().describe("当前观察"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const result = dre.mentalModels.predict(
         args.modelId as string,
         args.observation as string
@@ -440,7 +483,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       conclusion: z.string().optional().describe("结论"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       dre.reasoning.clear();
 
       const premiseNodes = (args.premises as string[]).map((p) =>
@@ -477,7 +520,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "检测推理图中的空洞 (缺失的推理步骤/前提/证据)",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const gaps = dre.reasoning.detectGaps();
       return {
         totalGaps: gaps.length,
@@ -501,7 +544,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       confidence: z.number().optional().default(0.8).describe("置信度"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const node = dre.reasoning.fillGap(
         args.gapId as string,
         args.response as string,
@@ -523,7 +566,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取推理结果 (结论、推理链、总置信度)",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.reasoning.getResult();
     },
   });
@@ -537,7 +580,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       nodeId: z.string().describe("知识节点 ID"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const node = dre.readKnowledge(args.nodeId as string);
       if (!node) return { success: false, error: "知识节点未找到" };
       const { ProcedureKnowledge } = await import("../../dre/index.js");
@@ -558,7 +601,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       context: z.record(z.unknown()).optional().describe("额外上下文 (如 gpu_free_vram_mb, environment)"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.constraints.check(args.action as string, args.context as Record<string, unknown>);
     },
   });
@@ -571,7 +614,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       context: z.record(z.unknown()).optional().describe("额外上下文"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.constraints.selectBest(args.candidates as string[], args.context as Record<string, unknown>);
     },
   });
@@ -583,7 +626,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       dimension: z.enum(["logical", "physical", "field_match", "policy", "temporal"]).optional().describe("约束维度过滤"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const dimension = args.dimension as string | undefined;
       if (dimension) return dre.constraints.listByDimension(dimension as "logical" | "physical" | "field_match" | "policy" | "temporal");
       return dre.constraints.list();
@@ -595,7 +638,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "获取约束求解器统计信息",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.constraints.getStats();
     },
   });
@@ -607,7 +650,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     description: "列出所有 Actor (知识/约束/心智模型/推理)",
     inputSchema: {},
     handler: async () => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       return dre.actors.list();
     },
   });
@@ -621,7 +664,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       payload: z.record(z.unknown()).optional().describe("消息负载"),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       await dre.actors.send("user", args.to as string, "request", args.topic as string, args.payload || {});
       return { sent: true, to: args.to, topic: args.topic };
     },
@@ -637,7 +680,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     tags: ["cognitive", "reasoning", "deterministic"],
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -657,7 +700,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     tags: ["cognitive", "reasoning", "execution", "deterministic"],
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -683,7 +726,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       })).min(1),
     },
     handler: async (args) => {
-      const dre = getKernel().getEngine();
+      const dre = (await getKernelAsync()).getEngine();
       const graph = new TaskGraph();
 
       for (const taskDef of (args.tasks as Array<Record<string, unknown>>)) {
@@ -717,3 +760,4 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 }
+

@@ -83,6 +83,8 @@ export interface CapabilitySearchResult {
 class CapabilityRegistryImpl {
   private providers = new Map<string, CapabilityProvider>();
   private capabilities = new Map<string, Capability>();
+  /** Reverse index: contract → capability ids (avoids O(n) scan in search()) */
+  private capabilitiesByContract = new Map<CapabilityContract, Set<string>>();
   private stats = { searches: 0, selections: 0, fallbacks: 0 };
 
   /**
@@ -109,6 +111,12 @@ class CapabilityRegistryImpl {
         successRate: 1.0,
       };
       this.capabilities.set(cap.id, cap);
+
+      // Update contract index
+      if (!this.capabilitiesByContract.has(contract)) {
+        this.capabilitiesByContract.set(contract, new Set());
+      }
+      this.capabilitiesByContract.get(contract)!.add(cap.id);
     }
 
     logger.info("[CapabilityRegistry] Registered provider", {
@@ -128,8 +136,13 @@ class CapabilityRegistryImpl {
     this.stats.searches++;
     const results: CapabilitySearchResult[] = [];
 
-    for (const cap of this.capabilities.values()) {
-      if (cap.contract !== contract) continue;
+    // Use contract index instead of scanning all capabilities (O(n) → O(k)).
+    const ids = this.capabilitiesByContract.get(contract);
+    if (!ids) return results;
+
+    for (const capId of ids) {
+      const cap = this.capabilities.get(capId);
+      if (!cap) continue;
 
       // Filter by options — use `!== undefined` instead of truthiness so that
       // maxCost=0 (audit mode: only free capabilities) is respected, not skipped.
@@ -217,6 +230,14 @@ class CapabilityRegistryImpl {
     // Remove all capabilities belonging to this provider
     for (const capId of [...this.capabilities.keys()]) {
       if (capId.startsWith(`${providerId}:`)) {
+        const cap = this.capabilities.get(capId);
+        if (cap) {
+          const set = this.capabilitiesByContract.get(cap.contract);
+          if (set) {
+            set.delete(capId);
+            if (set.size === 0) this.capabilitiesByContract.delete(cap.contract);
+          }
+        }
         this.capabilities.delete(capId);
       }
     }
@@ -250,6 +271,7 @@ class CapabilityRegistryImpl {
   reset(): void {
     this.providers.clear();
     this.capabilities.clear();
+    this.capabilitiesByContract.clear();
     this.stats = { searches: 0, selections: 0, fallbacks: 0 };
   }
 
@@ -271,7 +293,11 @@ class CapabilityRegistryImpl {
    * Get capabilities by contract.
    */
   listByContract(contract: CapabilityContract): Capability[] {
-    return Array.from(this.capabilities.values()).filter((c) => c.contract === contract);
+    const ids = this.capabilitiesByContract.get(contract);
+    if (!ids) return [];
+    return Array.from(ids)
+      .map((id) => this.capabilities.get(id))
+      .filter((c): c is Capability => c !== undefined);
   }
 
   /**

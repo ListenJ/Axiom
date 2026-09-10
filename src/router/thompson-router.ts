@@ -4,6 +4,10 @@
 import { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
 
+// 审计 P1-4（2026-08-29）：单 arm 观测上限——内存与 SQLite thompson_observations
+// 均按此界裁最旧，防观测无界增长导致 getEffectiveParams 每次 route 线性变慢、DB 只增不删。
+export const MAX_OBSERVATIONS_PER_ARM = 500;
+
 export interface RouterArm {
   id: string; model: string; provider: string;
   alpha: number; beta: number; metadata?: Record<string, unknown>;
@@ -99,10 +103,15 @@ export class ThompsonRouter {
       for (const row of rows) {
         const arm = this.arms.get(row.id);
         if (arm) { arm.alpha = row.alpha; arm.beta = row.beta; }
-        const obsRows = this.db.query("SELECT success, round, weight FROM thompson_observations WHERE arm_id = ? ORDER BY round").all(row.id) as Array<{success:number;round:number;weight:number}>;
+        // 审计 P1-4：启动侧有界加载（只取每 arm 最新 500 条）+ 一次性清理历史超限行
+        const obsRows = this.db.query("SELECT success, round, weight FROM thompson_observations WHERE arm_id = ? ORDER BY id DESC LIMIT ?").all(row.id, MAX_OBSERVATIONS_PER_ARM) as Array<{success:number;round:number;weight:number}>;
+        obsRows.reverse();
         if (obsRows.length > 0) {
           this.observations.set(row.id, obsRows.map((o) => ({ success: o.success === 1, round: o.round, weight: o.weight })));
         }
+        try {
+          this.db.run("DELETE FROM thompson_observations WHERE arm_id = ? AND id NOT IN (SELECT id FROM thompson_observations WHERE arm_id = ? ORDER BY id DESC LIMIT ?)", [row.id, row.id, MAX_OBSERVATIONS_PER_ARM]);
+        } catch (cleanupErr) { logger.error("[ThompsonRouter] observation startup trim failed: arm=" + row.id, cleanupErr as Error); }
         if (row.total_count > this.totalRounds) this.totalRounds = row.total_count;
       }
       logger.debug("[ThompsonRouter] state loaded", { loadedArms: rows.length, totalRounds: this.totalRounds });
@@ -120,7 +129,12 @@ export class ThompsonRouter {
 
   private saveObservation(armId: string, success: boolean, round: number, weight: number): void {
     if (!this.db) return;
-    try { this.db.run("INSERT INTO thompson_observations (arm_id, success, round, weight) VALUES (?, ?, ?, ?)", [armId, success ? 1 : 0, round, weight]); }
+    try {
+      // 审计 P1-4 顺带修复：INSERT 此前缺 created_at（表 NOT NULL 无默认值）→ 观测落库一直静默失败
+      this.db.run("INSERT INTO thompson_observations (arm_id, success, round, weight, created_at) VALUES (?, ?, ?, ?, ?)", [armId, success ? 1 : 0, round, weight, Date.now()]);
+      // 审计 P1-4：写入侧增量裁剪（O(log n)，idx_obs_arm 索引），DB 每 arm 只保留最新 MAX 条
+      this.db.run("DELETE FROM thompson_observations WHERE arm_id = ? AND id NOT IN (SELECT id FROM thompson_observations WHERE arm_id = ? ORDER BY id DESC LIMIT ?)", [armId, armId, MAX_OBSERVATIONS_PER_ARM]);
+    }
     catch (err) { logger.error("[ThompsonRouter] save observation failed: arm=" + armId, err as Error); }
   }
 
@@ -210,6 +224,17 @@ export class ThompsonRouter {
   // Regret bound: O(sqrt(N * T * log T)) for N arms over T rounds
   // --------------------------------------------------------------------------
   async route(context: RoutingContext): Promise<RoutingDecision> {
+    // 审计 P1-4：空 arms 不再抛错（main.ts 以 arms:[] 构造），返回确定性降级形态；
+    // 消费方以 decision.arm.id === ""（confidence 0、samples 空、reason 以 degraded 起头）识别。
+    if (this.arms.size === 0) {
+      logger.warn("[ThompsonRouter] no arms configured; returning degraded decision");
+      return {
+        arm: { id: "", model: "", provider: "", alpha: 1, beta: 1 },
+        confidence: 0,
+        reason: "degraded: no arms configured",
+        samples: [],
+      };
+    }
     const samples: Array<{ armId: string; value: number }> = [];
     // Thompson Sampling runs unconditionally. Cold arms (alpha+beta-2 < minSamples)
     // carry the uninformative Beta(1,1) prior and are explored naturally; we no
@@ -236,6 +261,8 @@ export class ThompsonRouter {
     this.totalRounds++;
     const obs = this.observations.get(armId) ?? [];
     obs.push({ success, round: this.totalRounds, weight: 1.0 });
+    // 审计 P1-4：内存观测有界，超限裁最旧
+    if (obs.length > MAX_OBSERVATIONS_PER_ARM) obs.splice(0, obs.length - MAX_OBSERVATIONS_PER_ARM);
     this.observations.set(armId, obs);
     if (success) arm.alpha++; else arm.beta++;
     this.saveArmState(armId);
@@ -280,6 +307,9 @@ export class ThompsonRouter {
   getArm(armId: string): RouterArm | undefined { return this.arms.get(armId); }
   getArmIds(): string[] { return Array.from(this.arms.keys()); }
   getTotalRounds(): number { return this.totalRounds; }
+
+  /** 审计 P1-4：观测可观测性——某 arm 当前内存观测条数（裁剪后 ≤ MAX_OBSERVATIONS_PER_ARM）。 */
+  getObservationCount(armId: string): number { return this.observations.get(armId)?.length ?? 0; }
 
   reset(): void {
     for (const arm of this.arms.values()) { arm.alpha = 1; arm.beta = 1; }

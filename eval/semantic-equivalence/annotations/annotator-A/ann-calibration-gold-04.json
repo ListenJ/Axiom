@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-04",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本：『PDF 摄取策略（`ingestPdf`）：**本地 unpdf 优先**（via=pdf-local）→ 无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR』。候选首命题『可走本地 unpdf、外部 pdf-worker、OCR 三条路径』把带优先级的条件回退链弱化为无序的可选路径枚举，丢失『本地 unpdf 优先』这一决定主路径触发条件的关键命题（候选读者无法得知常规 PDF 默认先走本地 unpdf）；第二命题以『无文本层（扫描型）时走外部 pdf-worker』替换源的『才走外部 pdf-worker』，排他条件被削弱。条件从句与优先级差异按指南 §6.5 永不等价，且改变摄取行为含义（E3，关键：丢条件、丢优先级）。via=pdf-local 标记缺失为次要，但上述条件缺失为关键。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

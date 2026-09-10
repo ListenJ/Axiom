@@ -8,16 +8,9 @@
 
 import fs from "fs";
 import path from "path";
+import * as YAML from "yaml";
 import { logger } from "../utils/logger.js";
 import { type SkillDefinition, type PromptTemplate, type SkillFile } from "./types.js";
-
-// Try to import yaml, fallback to JSON-only if not available
-let YAML: typeof import("yaml") | null = null;
-try {
-  YAML = await import("yaml");
-} catch {
-  logger.warn("[SkillLoader] yaml package not available, YAML skill files will be skipped");
-}
 
 export interface SkillLoaderOptions {
   /** Directories to scan for skill files */
@@ -42,6 +35,20 @@ function hashOpts(opts: SkillLoaderOptions): string {
   return JSON.stringify([opts.skillDirs, opts.extensions || ["json", "yaml", "yml"]]);
 }
 
+/** 递归收集目录下的 skill 文件（按扩展名过滤，返回完整路径） */
+function collectSkillFiles(dir: string, extensions: string[]): string[] {
+  const results: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectSkillFiles(fullPath, extensions));
+    } else if (extensions.includes(path.extname(entry.name).slice(1).toLowerCase())) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
 /**
  * Load all skills from configured directories.
  * Results are cached in memory; use forceReload to bust cache.
@@ -63,13 +70,11 @@ export function loadSkillsFromDirectories(opts: SkillLoaderOptions, forceReload 
       continue;
     }
 
-    const files = fs.readdirSync(dir).filter((f) => {
-      const ext = path.extname(f).slice(1).toLowerCase();
-      return extensions.includes(ext);
-    });
+    // 递归收集 skill 文件（支持按主题组织子目录，如 skills/agency-zh/）
+    const files = collectSkillFiles(dir, extensions);
 
-    for (const file of files) {
-      const filePath = path.join(dir, file);
+    for (const filePath of files) {
+      const file = path.basename(filePath);
       try {
         const result = loadSkillFile(filePath);
 
@@ -143,6 +148,22 @@ export function loadSkillFile(filePath: string): SkillFile {
   // Validate minimal structure
   if (!data || typeof data !== "object") {
     throw new Error("Invalid skill file: must be an object");
+  }
+
+  // 兼容裸 SkillDefinition（Hermes SkillPromoter 持久化的单 skill JSON，无 skills 数组包装）
+  const bare = data as Partial<SkillDefinition>;
+  if (!("skills" in data) && typeof bare.id === "string" && typeof bare.promptTemplate === "string") {
+    const skill = bare as SkillDefinition;
+    // 补齐默认值（与 skills 数组分支一致，避免 outputFormat/triggers 等 undefined 穿透）
+    skill.triggers ??= [];
+    skill.requiredTools ??= [];
+    skill.outputFormat ??= "text";
+    skill.version ??= "1.0";
+    return {
+      version: bare.version ?? "1.0",
+      skills: [skill],
+      templates: [],
+    } satisfies SkillFile;
   }
 
   const skillFile = data as SkillFile;
@@ -241,29 +262,38 @@ export function watchSkillDirectories(
   if (!opts.watch) return () => {};
 
   const watchers: fs.FSWatcher[] = [];
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   for (const dir of opts.skillDirs) {
     if (!fs.existsSync(dir)) continue;
 
-    const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
-      if (!filename) return;
-      const ext = path.extname(filename).slice(1).toLowerCase();
-      if (!opts.extensions?.includes(ext)) return;
+    let watcher: fs.FSWatcher;
+    try {
+      watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        const ext = path.extname(filename).slice(1).toLowerCase();
+        if (!opts.extensions?.includes(ext)) return;
 
-      logger.info("[SkillLoader] Skill file changed, reloading", { event: eventType, file: filename });
+        logger.info("[SkillLoader] Skill file changed, reloading", { event: eventType, file: filename });
 
-      // Debounce reload
-      setTimeout(() => {
-        const loaded = loadSkillsFromDirectories(opts);
-        onChange(loaded);
-      }, 100);
-    });
+        // Debounce reload：事件风暴时只保留最后一个 timer
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const loaded = loadSkillsFromDirectories(opts);
+          onChange(loaded);
+        }, 100);
+      });
+    } catch (err) {
+      logger.warn("[SkillLoader] watch failed", { dir, error: (err as Error).message });
+      continue;
+    }
 
     watchers.push(watcher);
   }
 
   // Return cleanup function
   return () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
     for (const watcher of watchers) {
       watcher.close();
     }

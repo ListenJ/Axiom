@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
+import { estimateModelCostUsd } from "./rate-tier.js";
 
 export interface TokenUsageRecord {
   timestamp: number;
@@ -33,6 +34,14 @@ export interface TokenUsageRecord {
   contentLength: number;
   success: boolean;
   fallbackUsed: boolean;
+  /** 成本（USD），DeepSeek V4 按调用时刻峰谷计价，其余模型 0 */
+  costUsd?: number;
+  /** LLM prompt-cache 命中 token（DeepSeek prompt_cache_hit_tokens） */
+  cacheHitTokens?: number;
+  /** LLM prompt-cache 未命中 token（DeepSeek prompt_cache_miss_tokens） */
+  cacheMissTokens?: number;
+  /** 该次调用整体命中本地 llmCache（未发起 API 调用） */
+  cacheHit?: boolean;
 }
 
 export interface TokenStats {
@@ -44,6 +53,7 @@ export interface TokenStats {
   avgTokensPerCall: number;
   successRate: number;
   fallbackRate: number;
+  costUsd: number;
 }
 
 export interface ModelStats extends TokenStats {
@@ -61,6 +71,13 @@ export interface DailyStats {
   totalTokens: number;
   promptTokens: number;
   completionTokens: number;
+  costUsd: number;
+  /** LLM prompt-cache 命中次数（按日聚合；cache_hit=1 或 cache_hit_tokens>0 计 1 次） */
+  cacheHits: number;
+  /** LLM prompt-cache 命中 token（按日聚合） */
+  cacheHitTokens: number;
+  /** LLM prompt-cache 未命中 token（按日聚合） */
+  cacheMissTokens: number;
 }
 
 /** 内存缓冲条目 */
@@ -78,6 +95,7 @@ interface StatsRow {
   avg_tokens: number;
   success_rate: number;
   fallback_rate: number;
+  cost_usd: number;
 }
 
 interface ModelStatsRow extends StatsRow {
@@ -95,6 +113,10 @@ interface DailyStatsRow {
   total_tokens: number;
   prompt_tokens: number;
   completion_tokens: number;
+  cost_usd: number;
+  cache_hits: number;
+  cache_hit_tokens: number;
+  cache_miss_tokens: number;
 }
 
 interface UsageRecordRow {
@@ -110,6 +132,10 @@ interface UsageRecordRow {
   content_length: number;
   success: number;
   fallback_used: number;
+  cost_usd: number;
+  cache_hit_tokens: number;
+  cache_miss_tokens: number;
+  cache_hit: number;
 }
 
 export class TokenTracker {
@@ -144,7 +170,11 @@ export class TokenTracker {
         latency_ms INTEGER DEFAULT 0,
         content_length INTEGER DEFAULT 0,
         success INTEGER DEFAULT 1,
-        fallback_used INTEGER DEFAULT 0
+        fallback_used INTEGER DEFAULT 0,
+        cost_usd REAL DEFAULT 0,
+        cache_hit_tokens INTEGER DEFAULT 0,
+        cache_miss_tokens INTEGER DEFAULT 0,
+        cache_hit INTEGER DEFAULT 0
       )
     `);
 
@@ -154,6 +184,65 @@ export class TokenTracker {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_role ON token_usage(role)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_task_type ON token_usage(task_type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_date ON token_usage(date(timestamp, 'unixepoch'))`);
+
+    // 迁移：老库补 cost_usd 列（SQLite ALTER 不可重复执行，重复列会抛错，吞掉即可）
+    try {
+      this.db.run(`ALTER TABLE token_usage ADD COLUMN cost_usd REAL DEFAULT 0`);
+    } catch { /* 列已存在 */ }
+    // 迁移：老库补 prompt-cache 列（LLM prompt cache 命中/未命中 token 与整体命中标记）
+    for (const col of [
+      "cache_hit_tokens INTEGER DEFAULT 0",
+      "cache_miss_tokens INTEGER DEFAULT 0",
+      "cache_hit INTEGER DEFAULT 0",
+    ]) {
+      try {
+        this.db.run(`ALTER TABLE token_usage ADD COLUMN ${col}`);
+      } catch { /* 列已存在 */ }
+    }
+
+    this.backfillCostUsd();
+  }
+
+  /**
+   * 回算历史成本：对 cost_usd=0 的历史行按行 timestamp 计价（DeepSeek V4 峰谷；
+   * GLM/Kimi/MiniMax 直连价表；未收录跳过）。幂等：回填后 cost_usd>0 不再重复处理。
+   */
+  private backfillCostUsd(): void {
+    try {
+      const rows = this.db.query(`
+        SELECT id, timestamp, model, provider, prompt_tokens, completion_tokens
+        FROM token_usage
+        WHERE cost_usd = 0
+      `).all() as Array<{
+        id: number;
+        timestamp: number;
+        model: string;
+        provider: string;
+        prompt_tokens: number;
+        completion_tokens: number;
+      }>;
+      if (rows.length === 0) return;
+      const update = this.db.prepare(`UPDATE token_usage SET cost_usd = $cost WHERE id = $id`);
+      let filled = 0;
+      this.db.transaction(() => {
+        for (const r of rows) {
+          const cost = estimateModelCostUsd(
+            r.provider,
+            r.model,
+            r.prompt_tokens,
+            r.completion_tokens,
+            new Date(r.timestamp),
+          );
+          if (cost !== undefined) {
+            update.run({ $cost: cost, $id: r.id } as never);
+            filled++;
+          }
+        }
+      })();
+      if (filled > 0) logger.info(`[TokenTracker] Backfilled cost_usd for ${filled} rows (rate-tier)`);
+    } catch (e) {
+      logger.warn("[TokenTracker] cost_usd backfill skipped", { error: e instanceof Error ? e.message : String(e) });
+    }
   }
 
   private startFlushTimer() {
@@ -164,7 +253,17 @@ export class TokenTracker {
 
   /** 记录一次 token 使用 */
   record(record: TokenUsageRecord) {
-    this.buffer.push(record);
+    // DeepSeek V4 按峰谷计价；其余按直连价表（GLM/Kimi/MiniMax）；未收录记 0
+    const costUsd =
+      record.costUsd ??
+      estimateModelCostUsd(
+        record.provider,
+        record.model,
+        record.promptTokens,
+        record.completionTokens,
+        new Date(record.timestamp),
+      ) ?? 0;
+    this.buffer.push({ ...record, costUsd });
     if (this.buffer.length >= this.maxBufferSize) {
       this.flush().catch((e) => logger.warn("[TokenTracker] Flush failed", e));
     }
@@ -178,10 +277,12 @@ export class TokenTracker {
     const stmt = this.db.prepare(`
       INSERT INTO token_usage
         (timestamp, model, provider, role, task_type, prompt_tokens, completion_tokens,
-         total_tokens, latency_ms, content_length, success, fallback_used)
+         total_tokens, latency_ms, content_length, success, fallback_used, cost_usd,
+         cache_hit_tokens, cache_miss_tokens, cache_hit)
       VALUES
         ($timestamp, $model, $provider, $role, $taskType, $promptTokens, $completionTokens,
-         $totalTokens, $latencyMs, $contentLength, $success, $fallbackUsed)
+         $totalTokens, $latencyMs, $contentLength, $success, $fallbackUsed, $costUsd,
+         $cacheHitTokens, $cacheMissTokens, $cacheHit)
     `);
 
     this.db.transaction(() => {
@@ -199,6 +300,10 @@ export class TokenTracker {
           $contentLength: r.contentLength,
           $success: r.success ? 1 : 0,
           $fallbackUsed: r.fallbackUsed ? 1 : 0,
+          $costUsd: r.costUsd ?? 0,
+          $cacheHitTokens: r.cacheHitTokens ?? 0,
+          $cacheMissTokens: r.cacheMissTokens ?? 0,
+          $cacheHit: r.cacheHit ? 1 : 0,
         });
       }
     })();
@@ -227,7 +332,8 @@ export class TokenTracker {
         COALESCE(AVG(latency_ms), 0) as avg_latency,
         COALESCE(AVG(total_tokens), 0) as avg_tokens,
         COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as success_rate,
-        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate
+        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate,
+        COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM token_usage
       ${where}
     `).get(params) as StatsRow;
@@ -241,6 +347,7 @@ export class TokenTracker {
       avgTokensPerCall: Math.round(row.avg_tokens),
       successRate: Math.round(row.success_rate * 100) / 100,
       fallbackRate: Math.round(row.fallback_rate * 100) / 100,
+      costUsd: row.cost_usd ?? 0,
     };
   }
 
@@ -262,7 +369,8 @@ export class TokenTracker {
         COALESCE(AVG(latency_ms), 0) as avg_latency,
         COALESCE(AVG(total_tokens), 0) as avg_tokens,
         COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as success_rate,
-        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate
+        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate,
+        COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM token_usage
       ${where}
       GROUP BY model, provider
@@ -281,6 +389,7 @@ export class TokenTracker {
       avgTokensPerCall: Math.round(r.avg_tokens),
       successRate: Math.round(r.success_rate * 100) / 100,
       fallbackRate: Math.round(r.fallback_rate * 100) / 100,
+      costUsd: r.cost_usd ?? 0,
     }));
   }
 
@@ -301,7 +410,8 @@ export class TokenTracker {
         COALESCE(AVG(latency_ms), 0) as avg_latency,
         COALESCE(AVG(total_tokens), 0) as avg_tokens,
         COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as success_rate,
-        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate
+        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate,
+        COALESCE(SUM(cost_usd), 0) as cost_usd
       FROM token_usage
       ${where}
       GROUP BY role
@@ -319,6 +429,7 @@ export class TokenTracker {
       avgTokensPerCall: Math.round(r.avg_tokens),
       successRate: Math.round(r.success_rate * 100) / 100,
       fallbackRate: Math.round(r.fallback_rate * 100) / 100,
+      costUsd: r.cost_usd ?? 0,
     }));
   }
 
@@ -332,7 +443,11 @@ export class TokenTracker {
         COUNT(*) as total_calls,
         COALESCE(SUM(total_tokens), 0) as total_tokens,
         COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
-        COALESCE(SUM(completion_tokens), 0) as completion_tokens
+        COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+        COALESCE(SUM(cost_usd), 0) as cost_usd,
+        COALESCE(SUM(CASE WHEN cache_hit = 1 OR cache_hit_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_hits,
+        COALESCE(SUM(cache_hit_tokens), 0) as cache_hit_tokens,
+        COALESCE(SUM(cache_miss_tokens), 0) as cache_miss_tokens
       FROM token_usage
       WHERE timestamp >= strftime('%s', 'now', $daysStr)
       GROUP BY date
@@ -345,6 +460,10 @@ export class TokenTracker {
       totalTokens: r.total_tokens,
       promptTokens: r.prompt_tokens,
       completionTokens: r.completion_tokens,
+      costUsd: r.cost_usd ?? 0,
+      cacheHits: r.cache_hits ?? 0,
+      cacheHitTokens: r.cache_hit_tokens ?? 0,
+      cacheMissTokens: r.cache_miss_tokens ?? 0,
     }));
   }
 
@@ -355,7 +474,8 @@ export class TokenTracker {
       SELECT
         timestamp, model, provider, role, task_type,
         prompt_tokens, completion_tokens, total_tokens,
-        latency_ms, content_length, success, fallback_used
+        latency_ms, content_length, success, fallback_used, cost_usd,
+        cache_hit_tokens, cache_miss_tokens, cache_hit
       FROM token_usage
       ORDER BY timestamp DESC
       LIMIT $limit
@@ -374,6 +494,10 @@ export class TokenTracker {
       contentLength: r.content_length,
       success: !!r.success,
       fallbackUsed: !!r.fallback_used,
+      costUsd: r.cost_usd ?? 0,
+      cacheHitTokens: r.cache_hit_tokens ?? 0,
+      cacheMissTokens: r.cache_miss_tokens ?? 0,
+      cacheHit: !!r.cache_hit,
     }));
   }
 
@@ -395,4 +519,5 @@ export function getTokenTracker(): TokenTracker {
   if (!_tracker) _tracker = new TokenTracker();
   return _tracker;
 }
+
 

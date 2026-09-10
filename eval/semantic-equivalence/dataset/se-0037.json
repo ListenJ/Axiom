@@ -1,0 +1,40 @@
+{
+  "id": "se-0037",
+  "source_text": "2026 年的 agent 评测呈现三个明确转向：(1) **从\"只看最终答案\"转向\"轨迹级（trace-aware）评测\"**——ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功；(2) **从\"LLM judge 泛化\"转向\"确定性/可验证验证器 + Agent-as-a-Judge\"**——LLM-as-a-Judge 的偏差、浅层单次推理与无法核对真实观测已被多篇论文量化（跨骨干一致性 κ≤0.231），HVTB 证明人类检查与 LLM judge 都不可靠，可嵌入的确定性 hack 检测才可靠；(3) **从\"单次静态增益\"转向\"持续学习 + 回归控制\"**——\"优化增益只在把回归控制内建进循环时才复合\"直接印证本项目 S5 的 autoCheckRegression 设计。三路 provider 同模型不同 harness 结果不同的实测（Same Model, Different Harness）为本项目三路全铺基准提供直接依据。",
+  "source_origin": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md#L7-L7",
+  "candidate_mr": {
+    "propositions": [
+      "2026 年的 agent 评测呈现三个明确转向：(1) **从\"只看最终答案\"转向\"轨迹级（trace-aware）评测\"**——ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功；(2) **从\"LLM judge 泛化\"转向\"确定性/可验证验证器 + Agent-as-a-Judge\"**——LLM-as-a-Judge 的偏差、浅层单次推理与无法核对真实观测已被多篇论文量化（跨骨干一致性 κ≤0.231），HVTB 证明人类检查与 LLM judge 都不可靠，可嵌入的确定性 hack 检测才可靠；(3) **从\"单次静态增益\"转向\"持续学习 + 回归控制\"**——\"优化增益只在把回归控制内建进循环时才复合\"直接印证本项目 S5 的 autoCheckRegression 设计。三路 provider 同模型不同 harness 结果不同的实测（Same Model, Different Harness）为本项目三路全铺基准提供直接依据。"
+    ],
+    "entities": [
+      {
+        "name": "2026 年的 agent 评测呈现三个明确转向：(1) **从\"只看最终答案\"转向\"轨迹级（trace-aware）评测\"**——ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功；(2) **从\"LLM judge 泛化\"转向\"确定性/可验证验证器 + Agent-as-a-Judge\"**——LLM-as-a-",
+        "type": "concept",
+        "link": "kg:concept:2026____agent_____________1____________________trace-aware________ClawProBench__-41a0a63f"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md",
+        "predicate": "contains",
+        "object": "2026 年的 agent 评测呈现三个明确转向：(1) **从\"只看最终答案\"转向\"轨迹级（trace-aware）评测\"**——ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功；(2) **从\"LLM judge 泛化\"转向\"确定性/可验证验证器 + Agent-as-a-Judge\"**——LLM-as-a-"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/knowledge/agent-eval-benchmarks-2026-09-05.md#L7-L7"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

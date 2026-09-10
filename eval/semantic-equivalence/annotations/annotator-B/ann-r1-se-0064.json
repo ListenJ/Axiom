@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0064",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本为 11 个 src/crawl/*.ts 文件路径的列表，候选命题逐字收录全部 11 项（自『- `src/crawl/concurrent-search.ts`』至『- `src/crawl/unified-search.ts`』），无漏无加；溯源指向 search-crawl/README.md#L15-L25 与 source_origin 一致。可忽略差异：实体 name 与三元组 object 在约 200 字符处截断（止于 lightpanda-search.ts 之后），完整清单保留于 propositions 中；列表合并为单个 concept 实体属粒度合并、语义闭合，不改变命题含义。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

@@ -108,24 +108,7 @@ describe("Thompson", () => {
   }, 15000);
 });
 
-describe("VIB", () => {
-  it("10K items", async () => {
-    const mod = await import("../src/memory/vib-compressor.js");
-    const c = new mod.VIBCompressor({ capacity: 500, existingMemory: Array.from({length:100},(_,i)=>`b${i} x `.repeat(i%10+1)) });
-    const items = Array.from({length:10000}, (_,i) => ({ id:`m${i}`, content:`item ${i} `.repeat((i%50)+1)+"uniq", timestamp: Date.now()+i, source:"t" }));
-    const t0 = performance.now();
-    const r = await c.compress(items);
-    console.log(`  10K: ${(performance.now()-t0).toFixed(0)}ms kept=${r.retained.length}`);
-    expect(r.retained.length).toBe(500);
-  }, 30000);
-
-  it("1MB text", async () => {
-    const mod = await import("../src/memory/vib-compressor.js");
-    const c = new mod.VIBCompressor({ capacity: 10 });
-    const r = await c.compress([{ id:"h", content:"uniq"+"x".repeat(1_000_000)+"end", timestamp: Date.now(), source:"t" }, { id:"s", content:"short uniq", timestamp: Date.now(), source:"t" }]);
-    console.log(`  1MB: kept=${r.retained.length}`);
-  }, 60000);
-});
+// P2-S2：VIB 压缩模块已随幽灵链归档，本 describe 移除。
 
 describe("Mixed", () => {
   it("1K combined load", async () => {
@@ -146,13 +129,10 @@ describe("Mixed", () => {
 describe("Memory", () => {
   it("100 rounds create/destroy", async () => {
     const mC = await import("../src/utils/cache.js");
-    const mV = await import("../src/memory/vib-compressor.js");
     const t0 = performance.now();
     for (let r = 0; r < 100; r++) {
       const c = new mC.Cache({ maxSize: 10000, defaultTtlMs: 100, redis: false });
       for (let i = 0; i < 1000; i++) c.set(`t${r}-${i}`, { r, i, p: "x".repeat(500) });
-      const v = new mV.VIBCompressor({ capacity: 100, existingMemory: ["test"] });
-      await v.compress(Array.from({length:200}, (_,i) => ({ id:`${r}-${i}`, content:`item${i}uniq`, timestamp: Date.now(), source:"t" })));
     }
     console.log(`  100 rounds: ${(performance.now()-t0).toFixed(0)}ms`);
   }, 60000);

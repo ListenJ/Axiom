@@ -12,5 +12,6 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 parking_lot = { workspace = true }
 regex = { workspace = true }
+dashmap = { workspace = true }
 aho-corasick = { workspace = true }
 bytes = { workspace = true }

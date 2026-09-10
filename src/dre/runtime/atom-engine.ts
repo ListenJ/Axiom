@@ -289,6 +289,17 @@ class AtomStoreImpl {
     return { total: this.atoms.size, byKind, ...this.stats };
   }
 
+  /**
+   * Reset all state. Useful for tests (matches scheduler/knowledgeNetwork reset pattern).
+   */
+  reset(): void {
+    this.atoms.clear();
+    this.byKind.clear();
+    this.bySource.clear();
+    this.byParent.clear();
+    this.stats = { created: 0, updated: 0, deleted: 0 };
+  }
+
   // ─── Private ─────────────────────────────────────────────────────
 
   private addToIndex(index: Map<string, Set<string>>, key: string, id: string): void {

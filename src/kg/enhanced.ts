@@ -15,7 +15,9 @@
  */
 
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "./schema.js";
 
 // ========== 类型定义 ==========
 
@@ -151,55 +153,72 @@ export class KnowledgeGraphEnhanced {
   constructor(db: Database) {
     this.db = db;
     this.initializeDatabase();
+    this.restoreGraphFromDb();
+  }
+
+  /**
+   * H7（2026-08-28 审计）：启动时从 DB 全量重建内存 nodes/edges/adjacency。
+   * 此前仅本次运行写入的数据进内存，重启后 subgraph/shortestPath/getNeighbors
+   * 等基于 adjacency 的查询全部空转。代价为一次性 O(N) SELECT（SQLite 本地库可接受）；
+   * 节点超过 10 万行时打日志提示内存占用。
+   */
+  private restoreGraphFromDb(): void {
+    const nodeRows = this.db.prepare("SELECT * FROM kg_nodes").all() as Array<Record<string, unknown>>;
+    if (nodeRows.length > 100_000) {
+      logger.warn(`[kg-enhanced] kg_nodes 共 ${nodeRows.length} 行，全量内存重建可能占用较多内存`);
+    }
+    for (const row of nodeRows) {
+      const node = this.rowToNode(row);
+      this.nodes.set(node.id, node);
+    }
+
+    const edgeRows = this.db.prepare("SELECT * FROM kg_edges").all() as Array<Record<string, unknown>>;
+    for (const row of edgeRows) {
+      const edge: KGEdge = {
+        id: row.id as string,
+        source: row.source as string,
+        target: row.target as string,
+        type: row.type as KGEdgeType,
+        weight: (row.weight as number) ?? 1.0,
+        description: row.description as string | undefined,
+        evidence: safeJsonParse(row.evidence, [], isArrayGuard),
+      };
+      this.edges.set(edge.id, edge);
+      if (!this.adjacency.has(edge.source)) this.adjacency.set(edge.source, []);
+      this.adjacency.get(edge.source)!.push(edge.id);
+      if (!this.adjacency.has(edge.target)) this.adjacency.set(edge.target, []);
+      this.adjacency.get(edge.target)!.push(edge.id);
+    }
   }
 
   private initializeDatabase(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS kg_nodes (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        file_path TEXT,
-        line_number INTEGER,
-        signature TEXT,
-        semantic TEXT,
-        tags TEXT DEFAULT '[]',
-        metadata TEXT DEFAULT '{}',
-        community INTEGER,
-        importance REAL DEFAULT 0.5,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS kg_edges (
-        id TEXT PRIMARY KEY,
-        source TEXT NOT NULL,
-        target TEXT NOT NULL,
-        type TEXT NOT NULL,
-        weight REAL DEFAULT 1.0,
-        description TEXT,
-        evidence TEXT DEFAULT '[]',
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (source) REFERENCES kg_nodes(id),
-        FOREIGN KEY (target) REFERENCES kg_nodes(id)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_source ON kg_edges(source);
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_target ON kg_edges(target);
-      CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON kg_edges(type);
-      CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON kg_nodes(type);
-      CREATE INDEX IF NOT EXISTS idx_kg_nodes_community ON kg_nodes(community);
-    `);
+    // L3（2026-08-29 审计 S2）：DDL 单源于 src/kg/schema.ts（与 kg-writer 共用，消除双份漂移）
+    this.db.exec(KG_SCHEMA_DDL);
+    // W5：kg_nodes_fts（fts5 trigram 独立表 + rowid 触发器）建表 + 存量回填
+    ensureKgFts(this.db);
   }
 
   // ========== 节点管理 ==========
 
   /**
-   * 添加节点
+   * 添加节点 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 type:name 生成稳定 kg_ 哈希 id
+   *
+   * M5（2026-08-29 审计 S2）：哈希公式由 type:name:description 改为 type:name。
+   * 权衡：name 才是实体身份，description 是属性——同 type+name 不同 description
+   * 视为同一实体，后写覆盖（REPLACE 更新属性即幂等），不再因描述变更生成新 id
+   * 而留下旧节点残留。
+   * 存量影响：旧公式生成的哈希 id 不会被新公式匹配，同实体可能残留旧 id 行；
+   * 本地 SQLite 库可接受，不做迁移（如实记录）。
    */
   addNode(node: KGNode): void {
+    if (!node.id || node.id.startsWith("tmp-")) {
+      const hash = createHash("sha256").update(`${node.type}:${node.name}`).digest("hex").slice(0, 16);
+      node.id = `kg_${hash}`;
+    }
     const now = Date.now();
+    // L1（2026-08-29 审计 S2）：REPLACE 前查旧行沿用 created_at 保溯源，仅新建才取当前时间
+    const existingNode = this.db.prepare("SELECT created_at FROM kg_nodes WHERE id = ?").get(node.id) as { created_at: number } | undefined;
+    const createdAt = existingNode?.created_at ?? now;
 
     this.db.prepare(`
       INSERT OR REPLACE INTO kg_nodes (
@@ -220,7 +239,7 @@ export class KnowledgeGraphEnhanced {
       JSON.stringify(node.metadata || {}),
       node.community || null,
       node.importance || 0.5,
-      now,
+      createdAt,
       now
     );
 
@@ -268,10 +287,17 @@ export class KnowledgeGraphEnhanced {
   // ========== 边管理 ==========
 
   /**
-   * 添加边
+   * 添加边 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 source:target:type 生成稳定 kg_ 哈希 id
    */
   addEdge(edge: KGEdge): void {
+    if (!edge.id || edge.id.startsWith("tmp-")) {
+      const hash = createHash("sha256").update(`${edge.source}:${edge.target}:${edge.type}`).digest("hex").slice(0, 16);
+      edge.id = `kg_${hash}`;
+    }
     const now = Date.now();
+    // L1（2026-08-29 审计 S2）：REPLACE 前查旧行沿用 created_at 保溯源，仅新建才取当前时间
+    const existingEdge = this.db.prepare("SELECT created_at FROM kg_edges WHERE id = ?").get(edge.id) as { created_at: number } | undefined;
+    const createdAt = existingEdge?.created_at ?? now;
 
     this.db.prepare(`
       INSERT OR REPLACE INTO kg_edges (
@@ -285,21 +311,25 @@ export class KnowledgeGraphEnhanced {
       edge.weight,
       edge.description || null,
       JSON.stringify(edge.evidence || []),
-      now
+      createdAt
     );
 
     this.edges.set(edge.id, edge);
 
-    // 更新邻接表
+    // 更新邻接表（去重，避免同哈希二次写入产生重复邻接条目）
     if (!this.adjacency.has(edge.source)) {
       this.adjacency.set(edge.source, []);
     }
-    this.adjacency.get(edge.source)!.push(edge.id);
+    if (!this.adjacency.get(edge.source)!.includes(edge.id)) {
+      this.adjacency.get(edge.source)!.push(edge.id);
+    }
 
     if (!this.adjacency.has(edge.target)) {
       this.adjacency.set(edge.target, []);
     }
-    this.adjacency.get(edge.target)!.push(edge.id);
+    if (!this.adjacency.get(edge.target)!.includes(edge.id)) {
+      this.adjacency.get(edge.target)!.push(edge.id);
+    }
   }
 
   /**
@@ -826,10 +856,29 @@ export class KnowledgeGraphEnhanced {
       lineNumber: row.line_number as number | undefined,
       signature: row.signature as string | undefined,
       semantic: row.semantic as string | undefined,
-      tags: JSON.parse((row.tags as string) || "[]"),
-      metadata: JSON.parse((row.metadata as string) || "{}"),
+      tags: safeJsonParse(row.tags, [], isArrayGuard),
+      metadata: safeJsonParse(row.metadata, {}, isObjectGuard),
       community: row.community as number | undefined,
       importance: row.importance as number | undefined,
     };
   }
+}
+
+/** 按行兜底的 JSON 解析：损坏列降级为 fallback，不拖垮整批查询（P0-5） */
+function safeJsonParse<T>(raw: unknown, fallback: T, guard: (v: unknown) => boolean): T {
+  if (typeof raw !== "string" || raw.length === 0) return fallback;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return guard(parsed) ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function isArrayGuard(v: unknown): boolean {
+  return Array.isArray(v);
+}
+
+function isObjectGuard(v: unknown): boolean {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

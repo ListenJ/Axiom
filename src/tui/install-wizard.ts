@@ -450,7 +450,12 @@ async function runInstallation(log: blessed.Widgets.Log) {
     if (config.databaseUrl) envLines.push(`DATABASE_URL=${config.databaseUrl}`);
     if (config.redisUrl) envLines.push(`REDIS_URL=${config.redisUrl}`);
   }
-  fs.writeFileSync(".env", envLines.join("\n") + "\n");
+  // 审计 Low（2026-08-29）：.env 含 AXIOM_AUTH_TOKEN 等密钥，写入即限 0600（此前 0644 组可读）。
+  // writeFileSync 的 mode 仅在新建时生效，对已存在的旧 .env 需显式 chmod 收敛权限。
+  fs.writeFileSync(".env", envLines.join("\n") + "\n", { mode: 0o600 });
+  try {
+    fs.chmodSync(".env", 0o600);
+  } catch {}
   log.log("  ✓ .env");
 
   log.log("{cyan-fg}[3/5] Writing config/axiom.yaml...{/cyan-fg}");
@@ -539,7 +544,12 @@ function renderCurrentStep() {
   screen.render();
 }
 
-let layoutRefs: { content: blessed.Widgets.BoxElement; progress: any } | null = null;
+// blessed 的 ProgressBarElement 类型未把 `filled` 暴露为可写属性，但运行时
+// 确实可以赋值（见 blessed/lib/widgets/progressbar.js 中 `this.filled = ...`）。
+// 使用交叉类型补齐该字段，避免 `any`。
+type ProgressWidget = blessed.Widgets.ProgressBarElement & { filled: number };
+
+let layoutRefs: { content: blessed.Widgets.BoxElement; progress: ProgressWidget } | null = null;
 
 function createLayoutRefs() {
   if (!layoutRefs) {
@@ -548,9 +558,11 @@ function createLayoutRefs() {
     screen.append(progress);
     screen.append(content);
     screen.append(createLayout().footer);
-    layoutRefs = { content, progress };
+    // 运行时 progress 实例上 `filled` 由构造器写入（见 blessed/lib/widgets/progressbar.js），
+    // 此处通过 `as ProgressWidget` 补齐类型，避免 `any`。
+    layoutRefs = { content, progress: progress as ProgressWidget };
   }
-  return layoutRefs;
+  return layoutRefs!;
 }
 
 function nextStep() {

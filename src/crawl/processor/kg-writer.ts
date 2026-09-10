@@ -14,8 +14,10 @@
  */
 
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 import { createNodeId } from "../../kal/node-id.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "../../kg/schema.js";
 import type { ASTNode } from "./markdown-ast.js";
 
 // ========== 类型定义 ==========
@@ -38,39 +40,14 @@ export class KGWriter {
   }
 
   /**
-   * 确保 KG 表存在 (与 KnowledgeGraphEnhanced 保持一致)
+   * 确保 KG 表存在
+   * L3（2026-08-29 审计 S2）：DDL 单源于 src/kg/schema.ts（与 KnowledgeGraphEnhanced 共用，
+   * 消除双份漂移；含索引超集，IF NOT EXISTS 对既有库幂等）
    */
   private ensureTables(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS kg_nodes (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        file_path TEXT,
-        line_number INTEGER,
-        signature TEXT,
-        semantic TEXT,
-        tags TEXT DEFAULT '[]',
-        metadata TEXT DEFAULT '{}',
-        community INTEGER,
-        importance REAL DEFAULT 0.5,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS kg_edges (
-        id TEXT PRIMARY KEY,
-        source TEXT NOT NULL,
-        target TEXT NOT NULL,
-        type TEXT NOT NULL,
-        weight REAL DEFAULT 1.0,
-        description TEXT,
-        evidence TEXT DEFAULT '[]',
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (source) REFERENCES kg_nodes(id),
-        FOREIGN KEY (target) REFERENCES kg_nodes(id)
-      );
-    `);
+    this.db.exec(KG_SCHEMA_DDL);
+    // W5：kg_nodes_fts（fts5 trigram 独立表 + rowid 触发器）建表 + 存量回填
+    ensureKgFts(this.db);
   }
 
   /**
@@ -274,7 +251,13 @@ export class KGWriter {
 
   private addEdge(source: string, target: string, type: string, weight: number): void {
     const now = Date.now();
-    const edgeId = `edge-${source.slice(0, 20)}-${target.slice(0, 20)}-${type}`;
+    // 审计 F-3（2026-08-24）：此前 `edge-${source.slice(0,20)}-${target.slice(0,20)}-${type}`
+    // 的截断拼接使前 20 字符相同的不同关系共用同一 ID，被 INSERT OR IGNORE
+    // 静默丢弃。改为内容寻址 sha1，不同关系永不碰撞；同一关系重复写入仍幂等。
+    const edgeId = `edge-${createHash("sha1")
+      .update(`${source}|${target}|${type}`)
+      .digest("hex")
+      .slice(0, 24)}`;
 
     this.db.prepare(`
       INSERT OR IGNORE INTO kg_edges (

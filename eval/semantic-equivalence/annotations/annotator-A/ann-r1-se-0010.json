@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0010",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。\"及三条理由（硬件检测属 Infrastructure 层插件、Runtime 只关心可用预算数量、可部署在 CPU/GPU/云端/移动端/边缘设备）被候选命题逐字完整保留，否定命题\"不调用 nvidia-smi\"未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

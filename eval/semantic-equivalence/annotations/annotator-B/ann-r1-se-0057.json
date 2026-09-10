@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0057",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本内容与数值：『A next.js web application that integrates AI capabilities with draw.io diagrams』『Language: TypeScript』『Stars: 33399 | Today: 81』，数值 33399/81 无差异。可忽略差异（minor）：实体与三元组标签截断（止于 commands and AI 处），完整内容由命题层承载，属格式残缺且命题正确 → equivalent_with_notes。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

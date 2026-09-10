@@ -1,0 +1,40 @@
+{
+  "id": "se-0014",
+  "source_text": "管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L1269-L1269",
+  "candidate_mr": {
+    "propositions": [
+      "管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。"
+    ],
+    "entities": [
+      {
+        "name": "管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。",
+        "type": "concept",
+        "link": "kg:concept:___Agent__________________token________maxContextWindow_________/_______________-18d2a82a"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L1269-L1269"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

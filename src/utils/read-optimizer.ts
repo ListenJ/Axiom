@@ -144,6 +144,13 @@ export class ReadOptimizerFacade {
     const startTime = Date.now();
     this.stats.totalReads++;
 
+    // 审计 Low（2026-08-29）：blackboard 是 Blackboard-First 管道的必填依赖。此前未注入时
+    // readFromBlackboard 在下方 try 内抛错、被统一 catch 吞掉并降级 fallback——已注册的
+    // executor 被静默绕过，调用方拿到降级数据却无任何异常信号。改为入口处 fail-fast 断言。
+    if (!this.blackboard) {
+      throw new Error("[ReadOptimizer] Blackboard not injected — call setBlackboard() before read()");
+    }
+
     const ctx: InterceptorContext = {
       request,
       metadata: {},
@@ -546,49 +553,19 @@ export class ReadOptimizerFacade {
 
   /**
    * 尝试批量执行 — 如果 executor 的 params 可合并（如 IN 查询、多 symbol）
+   *
+   * 审计 Low（2026-08-29）：原 codegraph/vault 两段"合并查询 + 均分结果"实现已移除。
+   * 原因：合并请求把多个 query 塞进 params.queries，但执行器（read-optimizer-init）
+   * 只读 params.query/params.pattern（单数）——"合并"实际执行的是 items[0] 的查询，
+   * 再把该单查询结果 ceil 均分给所有并发请求者，其余请求者拿到的是无关数据。
+   * 在执行器支持"结果按来源查询对齐"（或返回 per-query 分组）之前，此路径返回 null，
+   * tryBatch 回退到并行单条执行：每个请求精确拿到自己查询的结果。
    */
   private async executeBatched(
-    items: BatchItem[],
-    executor: (req: ReadRequest) => Promise<unknown>
+    _items: BatchItem[],
+    _executor: (req: ReadRequest) => Promise<unknown>
   ): Promise<unknown[] | null> {
-    // 检查是否支持批量合并（基于 action 类型）
-    const action = items[0].request.action;
-    const resource = items[0].request.resource;
-
-    // CodeGraph: searchSymbols / searchFiles 可合并查询列表
-    if (resource === "codegraph" && (action === "searchSymbols" || action === "searchFiles")) {
-      const queries = items.map((i) => String(i.request.params.query || i.request.params.pattern || "")).filter(Boolean);
-      if (queries.length > 1) {
-        const mergedReq: ReadRequest = {
-          ...items[0].request,
-          params: { ...items[0].request.params, queries },
-        };
-        const result = await executor(mergedReq);
-        if (Array.isArray(result)) {
-          // 简单分配：均分结果
-          const perItem = Math.ceil(result.length / items.length);
-          return items.map((_, idx) => result.slice(idx * perItem, (idx + 1) * perItem));
-        }
-      }
-    }
-
-    // Vault: search 可合并关键词
-    if (resource === "vault" && action === "search") {
-      const queries = items.map((i) => String(i.request.params.query || "")).filter(Boolean);
-      if (queries.length > 1) {
-        const mergedReq: ReadRequest = {
-          ...items[0].request,
-          params: { ...items[0].request.params, queries: queries.join(" OR ") },
-        };
-        const result = await executor(mergedReq);
-        if (Array.isArray(result)) {
-          const perItem = Math.ceil(result.length / items.length);
-          return items.map((_, idx) => result.slice(idx * perItem, (idx + 1) * perItem));
-        }
-      }
-    }
-
-    return null; // 不支持批量合并，回退到并行
+    return null; // 不支持按请求对齐的批量合并，回退到并行
   }
 
   private projectFields(data: unknown, fields: string[]): unknown {

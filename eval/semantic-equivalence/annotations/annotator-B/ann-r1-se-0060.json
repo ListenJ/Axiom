@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0060",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本内容与数值：『RAGFlow is a leading open-source Retrieval-Augmented Generation (RAG) engine that fuses cutting-edge RAG with Agent capabilities』『Language: Go』『Stars: 87850 | Today: 139』，数值 87850/139 无差异。可忽略差异（minor）：实体与三元组标签截断（止于 Language 键名处），完整内容由命题层承载，属格式残缺且命题正确 → equivalent_with_notes。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

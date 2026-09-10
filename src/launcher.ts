@@ -327,18 +327,17 @@ async function statusMode(): Promise<void> {
   const health = await checkHealth();
   const processes = pm.list();
 
-  console.log("\n  Service     Status");
-  console.log("  ──────────────────────────");
-  console.log(`  HTTP        ${health.http ? "\x1b[32m● running\x1b[0m" : "\x1b[31m○ stopped\x1b[0m"}`);
-  console.log(`  MCP         ${health.mcp ? "\x1b[32m● running\x1b[0m" : "\x1b[31m○ stopped\x1b[0m"}`);
-  console.log(`  Processes   ${processes.length > 0 ? processes.join(", ") : "none"}`);
-  console.log("");
+  logger.info("  Service     Status");
+  logger.info("  ──────────────────────────");
+  logger.info(`  HTTP        ${health.http ? "\x1b[32m● running\x1b[0m" : "\x1b[31m○ stopped\x1b[0m"}`);
+  logger.info(`  MCP         ${health.mcp ? "\x1b[32m● running\x1b[0m" : "\x1b[31m○ stopped\x1b[0m"}`);
+  logger.info(`  Processes   ${processes.length > 0 ? processes.join(", ") : "none"}`);
 }
 
 // ─── CLI Parser ──────────────────────────────────────────────────────────────
 
 function showHelp(): void {
-  console.log(`
+  logger.info(`
   \x1b[1mAxiom Launcher\x1b[0m - Unified terminal entry point
 
   \x1b[36mUsage:\x1b[0m

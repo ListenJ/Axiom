@@ -24,15 +24,27 @@ import { getActivityTracker } from "./activity-tracker.js";
 import { SkillPromoter, DEFAULT_PROMOTER_CONFIG } from "./skill-promoter.js";
 import { MemoryCurator, DEFAULT_CURATOR_CONFIG } from "./memory-curator.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
+import { getGoalTracker } from "./goal-tracker.js";
 import type { ReflectionOutcome, ReflectionTrigger, MentalState, Belief } from "./types.js";
+import { getDefaultSelfEvolve } from "../../self-evolve/index.js";
+import { promoteInductionsToSkills } from "../../self-evolve/skill-promotion.js";
+import type { Induction, TaskTrace } from "../../self-evolve/types.js";
 
 const REFLECTION_TEMPERATURE = 0.3;
 const REFLECTION_NOTE_PREFIX = "00-Meta/consciousness/reflections";
+const INDUCTION_NOTE_PREFIX = "00-Meta/self-evolve/inductions";
 
 export class ReflectionLoop {
   private running = false;
   private readonly promoter = new SkillPromoter(DEFAULT_PROMOTER_CONFIG);
   private readonly curator = new MemoryCurator(DEFAULT_CURATOR_CONFIG);
+
+  constructor(
+    private readonly options: {
+      selfEvolve?: { selfInduce(traces?: TaskTrace[]): Induction[] };
+      promoteInductions?: (inductions: Induction[]) => string[];
+    } = {},
+  ) {}
 
   async runOnce(trigger: ReflectionTrigger): Promise<ReflectionOutcome> {
     if (this.running) {
@@ -87,6 +99,29 @@ export class ReflectionLoop {
         logger.warn("[Consciousness/ReflectionLoop] curator failed", { error: (e as Error).message });
       }
 
+      // ── induce — 周期性归纳历史执行轨迹（确定性，无 LLM）────────────
+      try {
+        const inductions = this.selfEvolveForInduction().selfInduce();
+        if (inductions.length > 0) {
+          const promoted = this.options.promoteInductions
+            ? this.options.promoteInductions(inductions)
+            : promoteInductionsToSkills(inductions);
+          if (promoted.length > 0) {
+            logger.info("[Consciousness/ReflectionLoop] promoted induced skills", {
+              count: promoted.length,
+            });
+          }
+          const inductionPath = await this.writeInductionNote(inductions);
+          curatorNotePaths.push(inductionPath);
+          logger.info("[Consciousness/ReflectionLoop] induced patterns", {
+            count: inductions.length,
+            top: inductions.slice(0, 3).map((i) => i.pattern),
+          });
+        }
+      } catch (e) {
+        logger.warn("[Consciousness/ReflectionLoop] self-induce failed", { error: (e as Error).message });
+      }
+
       // ── persist insight note ──────────────────────────────────────────
       try {
         const insightPath = await this.writeInsightNote({
@@ -104,6 +139,29 @@ export class ReflectionLoop {
       // ── update self-state ─────────────────────────────────────────────
       const finishedAt = Date.now();
       const extractedMental = this.extractMentalState(summary);
+
+      // 事实核查 + 目标生命周期 + 会话状态追踪（GoalTracker）
+      const tracker = getGoalTracker();
+      const contextText = JSON.stringify(observations);
+      const validation = tracker.validateAgainstContext(
+        extractedMental.goals.map((g) => ({ description: g.description, priority: g.priority })),
+        contextText,
+      );
+      const mergedGoals = tracker.mergeGoals(validation.accepted);
+      tracker.trackHistory(mergedGoals);
+      const drift = tracker.detectDrift();
+      if (drift.drifting) {
+        logger.warn("[Consciousness/ReflectionLoop] 目标漂移检测", { reason: drift.reason });
+      }
+
+      // 将 GoalTracker 管理的目标转换为 stateStore 格式
+      const trackedGoals = tracker.getActiveGoals().map((g) => ({
+        id: g.id,
+        description: g.description,
+        priority: g.priority,
+        status: g.status,
+      }));
+
       stateStore.patch({
         lastReflectionAt: finishedAt,
         tokensSpentThisSession: stateBefore.tokensSpentThisSession + tokensUsed,
@@ -113,7 +171,7 @@ export class ReflectionLoop {
         mental: {
           ...stateBefore.mental,
           currentIntent: extractedMental.intent ?? stateBefore.mental.currentIntent,
-          goals: extractedMental.goals.length > 0 ? extractedMental.goals : stateBefore.mental.goals,
+          goals: trackedGoals.length > 0 ? trackedGoals : stateBefore.mental.goals,
           beliefs: extractedMental.beliefs.length > 0 ? extractedMental.beliefs : stateBefore.mental.beliefs,
           mood: this.extractMood(summary) ?? stateBefore.mental.mood,
         },
@@ -252,18 +310,18 @@ ${args.summary}
         const data = JSON.parse(jsonMatch[1]);
         if (data.intent) result.intent = data.intent;
         if (Array.isArray(data.goals)) {
-          result.goals = data.goals.map((g: any, i: number) => ({
+          result.goals = data.goals.map((g: string | { description?: string; priority?: number }, i: number) => ({
             id: `goal-${Date.now()}-${i}`,
-            description: g.description || String(g),
-            priority: g.priority || 5,
+            description: typeof g === "string" ? g : (g.description || String(g)),
+            priority: typeof g === "object" && g !== null ? (g.priority || 5) : 5,
             status: "active" as const,
           }));
         }
         if (Array.isArray(data.beliefs)) {
-          result.beliefs = data.beliefs.map((b: any, i: number) => ({
+          result.beliefs = data.beliefs.map((b: string | { proposition?: string; confidence?: number }, i: number) => ({
             id: `belief-${Date.now()}-${i}`,
-            proposition: b.proposition || String(b),
-            confidence: b.confidence || 0.5,
+            proposition: typeof b === "string" ? b : (b.proposition || String(b)),
+            confidence: typeof b === "object" && b !== null ? (b.confidence || 0.5) : 0.5,
             supportingEvidence: [],
             contradictingEvidence: [],
             formedAt: Date.now(),
@@ -277,6 +335,42 @@ ${args.summary}
     }
 
     return result;
+  }
+
+  private selfEvolveForInduction(): { selfInduce(traces?: TaskTrace[]): Induction[] } {
+    return this.options.selfEvolve ?? getDefaultSelfEvolve();
+  }
+
+  private async writeInductionNote(inductions: Induction[]): Promise<string> {
+    const date = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+    const path = `${INDUCTION_NOTE_PREFIX}/${date}.md`;
+    const content = [
+      "---",
+      "type: self-evolve-induction",
+      `created: ${new Date().toISOString()}`,
+      "tags: [self-evolve, induction, auto-generated]",
+      "---",
+      "",
+      `# Induced Patterns — ${new Date().toISOString()}`,
+      "",
+      inductions
+        .map(
+          (i, idx) =>
+            `${idx + 1}. **${i.pattern}** — support ${i.support}, success ${(i.successRate * 100).toFixed(0)}%\n   ${i.recommendation}`,
+        )
+        .join("\n"),
+      "",
+      "---",
+      "*Auto-generated by Axiom Consciousness module. Do not edit by hand.*",
+    ].join("\n");
+    return getGlobalVault().writeNote(path, content, {
+      title: `Induction ${date}`,
+      tags: ["self-evolve", "induction", "auto-generated"],
+      type: "self-evolve-induction",
+      paraCategory: "meta",
+      source: "consciousness",
+      confidence: 0.8,
+    });
   }
 
   private skipOutcome(trigger: ReflectionTrigger, reason: string): ReflectionOutcome {

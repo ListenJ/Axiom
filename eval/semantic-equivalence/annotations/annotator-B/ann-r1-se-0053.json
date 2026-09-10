@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0053",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本四项内容：『心情描述：中性』『下一目标：观察系统并等待第一个用户信号』『总结：当前处于观察状态，无活跃目标和信念』及 JSON（intent observe、两 goal priority high、beliefs 为空数组），无命题增删。可忽略差异（minor）：换行扁平化、末尾围栏标记未保留、实体与三元组标签截断（止于 description 键名处），完整内容由命题承载 → equivalent_with_notes。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

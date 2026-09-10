@@ -1,0 +1,15 @@
+{
+  "example_id": "gold-03",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "severity": "critical",
+  "rationale": "源文本：『这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环。』候选命题断言三模块『位于 src/services/ 之外的独立模块，依赖 src/services/ 提供的桥接』。逐一对照：(1) 位置与源『`src/services/` 中的』直接矛盾——实体位置/归属错（E1）；(2) 桥接关系方向颠倒——源中三模块本身就是提供桥接以断环的主体，候选改为依赖 src/services/ 提供的桥接（E2）；(3) 源关键命题『显式断环』（断开循环依赖这一功能与因果）在候选中完全缺失（E3）；(4) 三条 depends-on 三元组及『依赖…桥接』命题在源文本中无任何依据，属凭空添加（E4）。多重关键错误，critical。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

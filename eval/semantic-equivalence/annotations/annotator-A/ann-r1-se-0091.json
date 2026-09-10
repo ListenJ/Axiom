@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0091",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题在候选（仅『定义函数「maybeAutoEvolve」』）中全部缺失：『每次 chat 交换后 fire-and-forget 调用』（调用时机）、『默认 OFF 时不读任何文件』（条件+否定）、『冷却窗口内只付一次小 JSON 读，不做 expensive 的全量轨迹读』（量词『只一次』+ 否定）、『通过全部闸门才执行 evolve』（条件）、代码体『if (!d.enabled()) return { ran: false, reason: \"disabled\" }』（分支行为）。遗漏关键条件/否定命题归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

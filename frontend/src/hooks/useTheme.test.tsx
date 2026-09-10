@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { useTheme } from './useTheme'
 import { useApp } from '@/state/useApp'
@@ -39,5 +39,29 @@ describe('useTheme', () => {
     useApp.setState({ theme: 'light' })
     rerender(<Themed />)
     expect(meta.getAttribute('content')).toBe('#f8fafc')
+  })
+
+  it('resolves system theme to dark fallback when matchMedia is unavailable', () => {
+    useApp.setState({ theme: 'system' })
+    render(<Themed />)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  it('system theme follows matchMedia preference when available', () => {
+    useApp.setState({ theme: 'system' })
+    const listeners: Array<() => void> = []
+    const mq = {
+      matches: true,
+      addEventListener: (_: string, cb: () => void) => listeners.push(cb),
+      removeEventListener: () => {},
+    }
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mq))
+    render(<Themed />)
+    expect(document.documentElement.dataset.theme).toBe('light')
+    // 模拟系统偏好变化 → 无需重渲染即更新
+    mq.matches = false
+    listeners.forEach((cb) => cb())
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    vi.unstubAllGlobals()
   })
 })

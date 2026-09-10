@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0066",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体 name 与三元组 object 均为源文本『A language agnostic overview of the CUDA programming model as well as a brief tour of the CUDA platform.』的逐字复刻，无截断、无漏命题、无加命题；provenance origin 与 source_origin（cuda-programming-guide 文档 #L237-L237）完全一致。候选与源意义相同，无任何差异。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

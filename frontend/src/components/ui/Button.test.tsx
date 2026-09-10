@@ -50,7 +50,7 @@ describe('Button', () => {
     )
     const btn = screen.getByTestId('btn')
     expect(btn.className).toMatch(/h-8/) // sm size
-    expect(btn.className).toMatch(/border/) // secondary has a border
+    expect(btn.className).toMatch(/accent-soft/) // secondary is tonal (accent-soft)
   })
 
   it('merges a custom className', () => {

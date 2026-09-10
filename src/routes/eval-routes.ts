@@ -143,13 +143,13 @@ export async function handleEvalModels(ctx: RouteContext): Promise<Response | nu
 export async function handleEvalRun(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/eval/run" && ctx.req.method === "POST") {
     try {
-      let body: any = {};
+      let body: Record<string, unknown> = {};
       try { body = await ctx.req.json(); } catch { /* empty body ok */ }
 
       const { getModelEvalService } = await import("../eval/model-eval-service.js");
       const service = getModelEvalService();
 
-      const mode = body.mode || "quick"; // "full" | "quick"
+      const mode = (body.mode as string | undefined) || "quick"; // "full" | "quick"
       const includeBenchmarks = body.includeBenchmarks !== false;
       const models = body.models as string[] | undefined;
 
@@ -185,14 +185,14 @@ export async function handleEvalRun(ctx: RouteContext): Promise<Response | null>
 export async function handleEvalAssign(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/eval/assign" && ctx.req.method === "POST") {
     try {
-      let body: any = {};
+      let body: Record<string, unknown> = {};
       try { body = await ctx.req.json(); } catch { /* empty body ok */ }
 
       const { getDynamicModelAssigner } = await import("../router/dynamic-model-assigner.js");
       const assigner = getDynamicModelAssigner();
 
       const report = await assigner.runAssignment({
-        forceRefresh: body.forceRefresh || false,
+        forceRefresh: (body.forceRefresh as boolean | undefined) || false,
         includeBenchmarks: body.includeBenchmarks !== false,
       });
 

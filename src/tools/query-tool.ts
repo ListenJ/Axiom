@@ -86,7 +86,7 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
     if (needWeb) {
       try {
         const searchEngine = store.get("searchEngine") as { search?(query: string, opts?: { limit?: number }): Promise<Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }>> } | undefined;
-        let webResults: any[] = [];
+        let webResults: Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }> = [];
 
         if (searchEngine?.search) {
           webResults = await searchEngine.search(query, { limit: maxResults });

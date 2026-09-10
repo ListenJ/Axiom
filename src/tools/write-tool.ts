@@ -6,7 +6,8 @@
  */
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
+import { isPathSafe } from "../utils/path-safety.js";
 
 export interface WriteInput {
   target: "file" | "memory";
@@ -44,14 +45,19 @@ export const writeTool: Tool<WriteInput, WriteOutput> = {
 
     switch (target) {
       case "file": {
+        // P0-1 路径围栏（审计 N-H1，2026-08-29）：与 mcp/tools/filesystem.ts 同一守卫，
+        // 相对路径按 cwd 解析，仅允许 cwd 内且不落敏感区域（.env/.git 等），防任意写。
+        const resolved = resolve(process.cwd(), path);
+        const safety = isPathSafe(resolved);
+        if (!safety.safe) throw new Error(safety.error);
         const fs = await import("fs/promises");
         // 自动创建父目录
-        const dir = dirname(path);
+        const dir = dirname(resolved);
         if (dir) await fs.mkdir(dir, { recursive: true }).catch(() => {});
         if (append) {
-          await fs.appendFile(path, content, "utf-8");
+          await fs.appendFile(resolved, content, "utf-8");
         } else {
-          await fs.writeFile(path, content, "utf-8");
+          await fs.writeFile(resolved, content, "utf-8");
         }
         bytesWritten = Buffer.byteLength(content, "utf-8");
         break;

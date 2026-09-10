@@ -1,7 +1,29 @@
-/**
+﻿/**
  * Health, metrics, and dashboard routes
  */
 import type { RouteContext } from "./types.js";
+import { safeStringEqual } from "../utils/auth-check.js";
+import { readString } from "../utils/env.js";
+
+/**
+ * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
+ * 放行（fail-open，与 sandbox.ts requireAuthToken 调用语义一致）；
+ * 配置后不匹配 → 403。
+ */
+function requireSecondFactorToken(ctx: RouteContext): Response | null {
+  const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
+  if (!expected) return null;
+  const provided =
+    ctx.req.headers.get("x-api-key") ||
+    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+  if (safeStringEqual(provided, expected)) return null;
+  return ctx.jsonResponse(
+    { error: "Unauthorized - second factor token required" },
+    403,
+    ctx.baseHeaders,
+  );
+}
 
 export async function handleHealth(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/health" && ctx.req.method === "GET") {
@@ -198,29 +220,40 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
       freeOnly: m.freeOnly,
       apiKeyMasked: m.apiKey ? `${m.apiKey.slice(0, 8)}...` : "",
     }));
+    // 安全（2026-07-26 审查修复）：绝不序列化任何令牌/密钥字段。
+    // 此前 gateway.auth.token（即 AXIOM_AUTH_TOKEN）、obsidianApiToken、
+    // serpapiKey 均以明文返回，本地任意进程可窃取并用于远程访问。
+    const { auth: _auth, ...safeGateway } = config.gateway as typeof config.gateway & { auth?: unknown };
+    const { obsidianApiToken: _obsToken, ...safeMemory } = config.memory as typeof config.memory & { obsidianApiToken?: unknown };
+    const { serpapiKey: _serpKey, ...safeCrawler } = config.crawler as typeof config.crawler & { serpapiKey?: unknown };
     return ctx.jsonResponse({
-      gateway: config.gateway,
+      gateway: { ...safeGateway, authConfigured: Boolean(config.gateway?.auth?.token) },
       models: safeModels,
-      memory: config.memory,
-      crawler: config.crawler,
+      memory: safeMemory,
+      crawler: safeCrawler,
     }, 200, ctx.baseHeaders);
   }
   if (ctx.url.pathname === "/config" && ctx.req.method === "POST") {
+    const authErr = requireSecondFactorToken(ctx);
+    if (authErr) return authErr;
     try {
       const body = await ctx.req.json();
-      const { getConfig, reloadConfig } = await import("../core/config-center.js");
-      const current = getConfig();
+      const { reloadConfig } = await import("../core/config-center.js");
       // 只支持更新 gateway 和 crawler 配置
-      const updated = {
-        ...current,
-        gateway: { ...current.gateway, ...body.gateway },
-        crawler: { ...current.crawler, ...body.crawler },
-      };
-      // 写回 YAML（简单实现：直接覆盖）
       const fs = await import("fs");
       const YAML = await import("yaml");
-      const yamlStr = YAML.stringify(updated);
-      fs.writeFileSync("./config/axiom.yaml", yamlStr, "utf-8");
+      // 安全回写：以原始文件为基（parseDocument 保留注释与 ${VAR} 占位符），
+      // 仅应用请求中的增量——绝不把运行时解析后的真实 token/apiKey 序列化回跟踪文件。
+      const raw = fs.readFileSync("./config/axiom.yaml", "utf-8");
+      const doc = YAML.parseDocument(raw);
+      for (const section of ["gateway", "crawler"]) {
+        if (body[section] && typeof body[section] === "object") {
+          for (const [k, v] of Object.entries(body[section])) {
+            doc.setIn([section, k], v);
+          }
+        }
+      }
+      fs.writeFileSync("./config/axiom.yaml", doc.toString(), "utf-8");
       reloadConfig();
       return ctx.jsonResponse({ success: true, message: "Config updated" }, 200, ctx.baseHeaders);
     } catch (e) {
@@ -241,7 +274,7 @@ export async function handlePermissionCheck(ctx: RouteContext): Promise<Response
     }
     if (body.type === "file" && body.path && body.operation) {
       const { checkFilePermission } = await import("../utils/permissions.js")
-      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as any), 200, ctx.baseHeaders)
+      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as "read" | "write" | "delete" | "execute"), 200, ctx.baseHeaders)
     }
     return ctx.jsonResponse({ error: "Invalid request" }, 400)
   } catch (e) {
@@ -259,4 +292,48 @@ export async function handlePermissionConfirm(ctx: RouteContext): Promise<Respon
   } catch (e) {
     return ctx.jsonResponse({ error: String(e) }, 500)
   }
+}
+
+/**
+ * GET/POST /permissions/mode — 查询或设置权限自动接收模式。
+ *
+ * 响应（GET）：
+ *   { autoAccept: boolean, highRiskAlwaysConfirmed: true }
+ *
+ * 请求（POST）：{ autoAccept: boolean }
+ * 响应（POST）：{ autoAccept: boolean, highRiskAlwaysConfirmed: true }
+ *
+ * 安全说明：high-risk 操作永远需要手动确认，不受 autoAccept 影响。
+ */
+export async function handlePermissionMode(ctx: RouteContext): Promise<Response | null> {
+  const path = ctx.url.pathname;
+  if (path !== "/permissions/mode") return null;
+
+  const { isAutoAcceptMode, setAutoAcceptMode } = await import("../utils/permissions.js");
+
+  if (ctx.req.method === "GET") {
+    return ctx.jsonResponse(
+      { autoAccept: isAutoAcceptMode(), highRiskAlwaysConfirmed: true },
+      200,
+      ctx.baseHeaders,
+    );
+  }
+
+  if (ctx.req.method === "POST") {
+    const authErr = requireSecondFactorToken(ctx);
+    if (authErr) return authErr;
+    try {
+      const body = (await ctx.req.json()) as { autoAccept?: boolean };
+      const next = setAutoAcceptMode(!!body.autoAccept);
+      return ctx.jsonResponse(
+        { autoAccept: next, highRiskAlwaysConfirmed: true },
+        200,
+        ctx.baseHeaders,
+      );
+    } catch (e) {
+      return ctx.jsonResponse({ error: String(e) }, 500, ctx.baseHeaders);
+    }
+  }
+
+  return null;
 }

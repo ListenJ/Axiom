@@ -1,6 +1,11 @@
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import { logger } from "../../utils/logger.js";
+import { isPathSafe, resolvePath } from "../../utils/path-safety.js";
+
+// 唯一围栏语义源已迁至 utils/path-safety.ts（消除 tools<->mcp 循环）；re-export 保持既有调用方兼容。
+export { isPathSafe };
 
 export interface FileResult {
   success: boolean;
@@ -33,64 +38,7 @@ export interface SearchResult {
   matched: number;
 }
 
-function resolvePath(filePath: string): string {
-  if (path.isAbsolute(filePath)) {
-    return filePath;
-  }
-  return path.resolve(process.cwd(), filePath);
-}
 
-function isPathSafe(targetPath: string): { safe: boolean; error?: string } {
-  try {
-    const resolved = path.resolve(targetPath);
-    const cwd = process.cwd();
-    const relative = path.relative(cwd, resolved);
-
-    // Check 1: ".."-prefixed relative path means path escapes cwd (standard traversal)
-    // Check 2: absolute relative path means cross-drive on Windows
-    //          (e.g., path.relative("D:\\proj", "C:\\Users") → "C:\\Users")
-    //          This bypasses the ".." check because the result doesn't start with ".."
-    if (relative.startsWith("..") || relative === ".." || path.isAbsolute(relative)) {
-      return {
-        safe: false,
-        error: `Path '${targetPath}' escapes working directory. Only paths within the project are allowed.`,
-      };
-    }
-
-    // Check 3: resolve symlinks to prevent symlink-based traversal
-    // A symlink within cwd could point outside cwd, bypassing the relative check above.
-    // Only check if the path exists (writeFile to a new file won't exist yet).
-    try {
-      const realPath = fsSync.realpathSync(resolved);
-      const realRelative = path.relative(cwd, realPath);
-      if (realRelative.startsWith("..") || realRelative === ".." || path.isAbsolute(realRelative)) {
-        return {
-          safe: false,
-          error: `Path '${targetPath}' resolves to a location outside the working directory (symlink escape).`,
-        };
-      }
-    } catch {
-      // Path doesn't exist yet (e.g., new file write) — parent directory check
-      const parentDir = path.dirname(resolved);
-      try {
-        const realParent = fsSync.realpathSync(parentDir);
-        const parentRelative = path.relative(cwd, realParent);
-        if (parentRelative.startsWith("..") || parentRelative === ".." || path.isAbsolute(parentRelative)) {
-          return {
-            safe: false,
-            error: `Path '${targetPath}' parent directory resolves outside the working directory.`,
-          };
-        }
-      } catch {
-        // Parent doesn't exist either — allow (mkdir will create it within cwd)
-      }
-    }
-
-    return { safe: true };
-  } catch {
-    return { safe: false, error: "Invalid path" };
-  }
-}
 
 export async function readFile(
   filePath: string,
@@ -126,6 +74,23 @@ export async function readFile(
   }
 }
 
+// ===== 同路径写串行化 + 原子替换（2026-09-08 CI 实证修复） =====
+// 直接 open('w')+write 在并发写同一文件时交错出 "firstd" 类损坏产物（POSIX 实证）；
+// Windows 下多路并发 rename 同一目标又确定性 EPERM（MoveFileEx 替换冲突，重试无效）。
+// 方案：进程内按 resolved 路径串行化整段"写临时文件→rename"——
+// 每次调用都成功，最终内容必为某一完整版本（rename 原子替换，进程崩溃也不留半截文件）。
+const writeQueues = new Map<string, Promise<unknown>>();
+
+function queueWrite<T>(resolved: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeQueues.get(resolved) ?? Promise.resolve();
+  const task = prev.then(fn, fn);
+  writeQueues.set(resolved, task);
+  void task.catch(() => {}).then(() => {
+    if (writeQueues.get(resolved) === task) writeQueues.delete(resolved);
+  });
+  return task;
+}
+
 export async function writeFile(
   filePath: string,
   content: string,
@@ -139,11 +104,34 @@ export async function writeFile(
 
   try {
     const dir = path.dirname(resolved);
-    await fs.mkdir(dir, { recursive: true });
+    // 原子 mkdir -p + 捕获 EEXIST/竞态（H-03 TOCTOU 修复）
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch (err) {
+      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误（如 EACCES）由后续写入显式返回
+      logger.debug("[Filesystem] mkdir before write failed, deferring to write error", {
+        dir,
+        error: String(err),
+      });
+    }
+    // TOCTOU 重校验：mkdir 后再次解析真实路径，防止 check→mkdir 窗口的 symlink 抢占
+    const postSafety = isPathSafe(resolved);
+    if (!postSafety.safe) {
+      return { success: false, error: postSafety.error, path: filePath };
+    }
     if (options?.append) {
       await fs.appendFile(resolved, content, "utf-8");
     } else {
-      await fs.writeFile(resolved, content, "utf-8");
+      await queueWrite(resolved, async () => {
+        const tmp = `${resolved}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+        try {
+          await fs.writeFile(tmp, content, "utf-8");
+          await fs.rename(tmp, resolved);
+        } catch (writeErr) {
+          try { await fs.unlink(tmp); } catch { /* tmp 可能尚未创建 */ }
+          throw writeErr;
+        }
+      });
     }
     return { success: true, path: filePath };
   } catch (err: unknown) {
@@ -361,7 +349,24 @@ export async function moveFile(
 
   try {
     const dir = path.dirname(dstResolved);
-    await fs.mkdir(dir, { recursive: true });
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch (err) {
+      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误由后续 rename 显式返回
+      logger.debug("[Filesystem] mkdir before move failed, deferring to rename error", {
+        dir,
+        error: String(err),
+      });
+    }
+    const postDstSafety = isPathSafe(dstResolved);
+    if (!postDstSafety.safe) {
+      return { success: false, error: postDstSafety.error, path: destination };
+    }
+    // 源在重命名前再次校验，防止源在 check 后被替换为外链
+    const postSrcSafety = isPathSafe(srcResolved);
+    if (!postSrcSafety.safe) {
+      return { success: false, error: postSrcSafety.error, path: source };
+    }
     await fs.rename(srcResolved, dstResolved);
     return { success: true, path: destination };
   } catch (err: unknown) {

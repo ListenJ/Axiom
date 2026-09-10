@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0015",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册\"及\"不改变 MCP 协议层的 list_tools 枚举与计费\"的澄清被候选命题逐字完整保留，否定与条件命题未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

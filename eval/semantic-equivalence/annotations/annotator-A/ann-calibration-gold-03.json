@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-03",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E2", "E3", "E4"],
+  "severity": "critical",
+  "rationale": "源文本『这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环。』断言：(1) 三模块是『src/services/ 中的薄桥接模块』——位置在 src/services/ 之内，且三模块本身就是桥接；(2) 其功能是『显式断环』。候选命题『router.ts、consciousness.ts、execution.ts 是位于 src/services/ 之外的独立模块，依赖 src/services/ 提供的桥接』将位置与角色双向写反：『位于 src/services/ 之外』『独立模块』『依赖 src/services/ 提供的桥接』均无源文依据且与『src/services/ 中的』直接相悖（E4 加命题）；三元组 router.ts/consciousness.ts/execution.ts『depends-on』src/services/ 把『三模块是 src/services/ 内的桥接本体』改写为『三模块依赖 src/services/ 的桥接』，主宾/关系方向颠倒（E2）；候选完全丢失关键命题『显式断环』——断环这一因果/功能命题缺失（E3）。按 §5 硬规则，任一 E2/E1 即 not_equivalent（critical），三类逐一登记（§4.3）。",
+  "annotated_at": "2026-09-07T15:42:54.949Z"
+}

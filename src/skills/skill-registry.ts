@@ -3,7 +3,7 @@
  *
  * 功能:
  *   - 管理所有 Skill（内置 + 文件加载 + Hermes 生成）
- *   - 基于 trigger 关键词的确定性匹配（零向量）
+ *   - 基于 trigger 关键词的确定性匹配（纯规则，无余弦）
  *   - Skill 模板填充（变量替换）
  *   - Skill 执行（路由到模型 + 工具调用）
  *   - 与 MCP ToolRegistry 桥接
@@ -18,7 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { router } from "../router/model-router.js";
-import { type SkillDefinition, type PromptTemplate } from "./types.js";
+import { type SkillDefinition, type PromptTemplate, DEFAULT_SKILL_DIRS } from "./types.js";
 import { loadSkillsFromDirectories, type LoadedSkills } from "./skill-loader.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -247,6 +247,37 @@ const BUILTIN_SKILLS: SkillDefinition[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
+// Trigger 匹配辅助
+// ═══════════════════════════════════════════════════════════════
+
+/** 短 ASCII trigger（≤4 字符，如 "doc"/"fix"/"test"）。对它们要求独立成词，防子串误命中。 */
+const SHORT_ASCII_TRIGGER_RE = /^[a-z0-9][a-z0-9_]{0,3}$/i;
+
+/** 转义正则元字符（构造词边界正则时防 trigger 内容被当作元字符解释） */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 单个 trigger 的命中级别：
+ *   0 = 未命中；1 = 分词精确命中（权重低）；2 = 包含命中 / 词边界命中（权重高）。
+ * 短 ASCII trigger 要求独立成词（`\b` 边界），避免 "doc" 命中 "docile" 这类子串误报；
+ * CJK 与长 trigger 沿用 includes（无空格分词，\b 对 CJK 无效）。
+ */
+function triggerMatchLevel(normalized: string, words: Set<string>, trigger: string): 0 | 1 | 2 {
+  const triggerLower = trigger.toLowerCase();
+  if (words.has(triggerLower)) return 1;
+  if (SHORT_ASCII_TRIGGER_RE.test(triggerLower)) {
+    try {
+      return new RegExp(`\\b${escapeRe(triggerLower)}\\b`, "i").test(normalized) ? 2 : 0;
+    } catch {
+      return normalized.includes(triggerLower) ? 2 : 0;
+    }
+  }
+  return normalized.includes(triggerLower) ? 2 : 0;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Skill Registry
 // ═══════════════════════════════════════════════════════════════
 
@@ -258,7 +289,7 @@ export class SkillRegistry {
 
   constructor(options: SkillRegistryOptions = {}) {
     this.options = {
-      skillDirs: ["./skills", "./data/skills"],
+      skillDirs: [...DEFAULT_SKILL_DIRS],
       watch: false,
       matchThreshold: 0.3,
       ...options,
@@ -302,15 +333,20 @@ export class SkillRegistry {
     }
   }
 
-  /** 重新加载所有 skill */
+  /** 重新加载所有 skill（保留运行时注册的 hermes 自进化技能，避免 reload 清空进化成果） */
   reload(): void {
+    const runtime = new Map<string, SkillDefinition>();
+    for (const [id, skill] of this.skills) {
+      if (skill.source === "hermes") runtime.set(id, skill);
+    }
     this.skills.clear();
     this.templates.clear();
     for (const skill of BUILTIN_SKILLS) {
       this.skills.set(skill.id, skill);
     }
     this.loadFileSkills();
-    logger.info("[SkillRegistry] Reloaded");
+    for (const [id, skill] of runtime) this.skills.set(id, skill);
+    logger.info("[SkillRegistry] Reloaded", { runtimePreserved: runtime.size });
   }
 
   // ---------------------------------------------------------------------------
@@ -336,14 +372,14 @@ export class SkillRegistry {
       const matchedTriggers: string[] = [];
 
       for (const trigger of skill.triggers) {
-        const triggerLower = trigger.toLowerCase();
-        // 完整包含匹配（权重高）
-        if (normalized.includes(triggerLower)) {
+        const level = triggerMatchLevel(normalized, words, trigger);
+        // 完整包含/词边界匹配（权重高）
+        if (level === 2) {
           score += trigger.length >= 4 ? 3 : 2;
           matchedTriggers.push(trigger);
         }
         // 分词匹配（权重低）
-        else if (words.has(triggerLower)) {
+        else if (level === 1) {
           score += 1;
           matchedTriggers.push(trigger);
         }
@@ -395,11 +431,11 @@ export class SkillRegistry {
       const matchedTriggers: string[] = [];
 
       for (const trigger of skill.triggers) {
-        const triggerLower = trigger.toLowerCase();
-        if (normalized.includes(triggerLower)) {
+        const level = triggerMatchLevel(normalized, words, trigger);
+        if (level === 2) {
           score += trigger.length >= 4 ? 3 : 2;
           matchedTriggers.push(trigger);
-        } else if (words.has(triggerLower)) {
+        } else if (level === 1) {
           score += 1;
           matchedTriggers.push(trigger);
         }
@@ -431,7 +467,11 @@ export class SkillRegistry {
    *   2. 路由到合适的模型
    *   3. 执行（如果 skill 需要工具，通过 MCP 调用）
    */
-  async execute(match: SkillMatch, context?: Record<string, unknown>): Promise<SkillExecuteResult> {
+  async execute(
+    match: SkillMatch,
+    context?: Record<string, unknown>,
+    options: { maxTokens?: number; timeout?: number; signal?: AbortSignal } = {},
+  ): Promise<SkillExecuteResult> {
     const startTime = Date.now();
     const skill = match.skill;
 
@@ -448,8 +488,18 @@ export class SkillRegistry {
       { role: "user" as const, content: filledPrompt },
     ];
 
+    // 需求 4：LLM 调用前自动注入 DRE 实践手册约束词（命中关键词时）
+    const { autoInjectDreConstraints } = await import("../dre/constraint-injection.js");
+    const injection = autoInjectDreConstraints(messages, filledPrompt);
+    const llmMessages = injection.changed ? injection.messages : messages;
+    if (injection.changed) logger.info("[SkillRegistry] DRE constraints injected", { injected: injection.injected });
+
     try {
-      const result = await router.executeWithRole(role, messages);
+      const result = await router.executeWithRole(role, llmMessages, {
+        ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+        ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+        ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      });
       const latencyMs = Date.now() - startTime;
 
       return {
@@ -479,6 +529,21 @@ export class SkillRegistry {
     const match = this.match(input);
     if (!match) return null;
     return this.execute(match, context);
+  }
+
+  /**
+   * 按 id 执行 skill（模型/工具按需调用入口，MCP skill_run 使用）。
+   * 返回 null 表示 skill 不存在；执行失败返回 content 含错误信息（与 execute 一致）。
+   */
+  async executeById(
+    skillId: string,
+    params: Record<string, string> = {},
+    context?: Record<string, unknown>,
+    options: { maxTokens?: number; timeout?: number; signal?: AbortSignal } = {},
+  ): Promise<SkillExecuteResult | null> {
+    const skill = this.skills.get(skillId);
+    if (!skill) return null;
+    return this.execute({ skill, score: 1, confidence: "high", params }, context, options);
   }
 
   // ---------------------------------------------------------------------------

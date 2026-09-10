@@ -1,0 +1,29 @@
+{
+  "id": "gold-06",
+  "source_text": "核心约束：**全部写操作追加链式哈希验证链**（每条记录带 `prevHash`，篡改即失配），因此数据\"有可以校验的路径、可以追溯实现效果\"（`mind_synapse_verify` / `mind_synapse_trace`）。本地模型仅作**可选**增强（注入 `localModelAssist`），不配置时模块 100% 确定性、零网络依赖。",
+  "source_origin": "docs/MIND-SYNAPSE.md#L11-L13",
+  "candidate_mr": {
+    "propositions": [
+      "全部写操作追加链式哈希验证链，每条记录带 prevHash，篡改即失配",
+      "数据因此有可以校验的路径、可以追溯实现效果（mind_synapse_verify / mind_synapse_trace）",
+      "本地模型仅作可选增强（注入 localModelAssist），不配置时模块 100% 确定性、零网络依赖"
+    ],
+    "entities": [
+      { "name": "mind_synapse_verify", "type": "function", "link": "kg:function:mind-synapse-verify" },
+      { "name": "localModelAssist", "type": "function", "link": "kg:function:local-model-assist" }
+    ],
+    "triples": [],
+    "provenance": [
+      { "prop_index": 0, "origin": "L11-L13" },
+      { "prop_index": 1, "origin": "L11-L13" },
+      { "prop_index": 2, "origin": "L13" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

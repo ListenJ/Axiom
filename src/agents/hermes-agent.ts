@@ -225,15 +225,9 @@ export async function codeReview(
   language: string = "unknown",
   context?: string,
 ): Promise<{ success: boolean; review: string; model: string }> {
-  const apiKey = readString("SILICONFLOW_API_KEY");
-  if (!apiKey) {
-    return {
-      success: false,
-      review: "SILICONFLOW_API_KEY 未设置，无法使用 GLM-5.1 进行代码审查。",
-      model: "THUDM/GLM-5.1",
-    };
-  }
-
+  // 审计 Low（2026-08-29）：不再硬性要求 SILICONFLOW_API_KEY——codeReview 已走
+  // internalAgent.executeWithRole("code-review")，由 model-router 按 role 分派任意可用
+  // provider；无任何可用路由时路由器抛错，由下方 catch 返回明确错误信息。
   const reviewPrompt = `你是一位资深代码审查专家。请对以下${language}代码进行全面审查：
 
 1. **代码质量**: 可读性、命名规范、代码结构

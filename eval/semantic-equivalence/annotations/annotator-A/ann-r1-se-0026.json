@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0026",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『`createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个 `localModelAssist` 函数』『`temperature=0` + 强约束 system 提示 （只允许重排/裁剪、不得新增事实）』『不注入则完全确定性』，数值 0、限定『可选』与否定『不得新增事实』原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『强约束 sy』处，但截断内容在命题字段完整存在；源换行被压平为空格，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

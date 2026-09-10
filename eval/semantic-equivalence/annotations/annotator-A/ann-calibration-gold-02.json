@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-02",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E4", "E3"],
+  "severity": "critical",
+  "rationale": "源文本：『决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备』。候选命题 2『ResourceBudgetManager 定期调用 nvidia-smi 采集 GPU 硬件状态』与源的显式否定『不调用 nvidia-smi 或任何硬件 API』直接相悖，属无据且相悖的加命题（E4，关键：否定/行为含义被颠倒）；同时候选漏掉『不调用任何硬件 API』这一关键否定命题本身，以及三条理由中的两条——『硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心』与『这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备』（E3，漏关键命题：丢理由、丢因果）。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

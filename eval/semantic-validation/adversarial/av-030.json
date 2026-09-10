@@ -1,0 +1,1 @@
+{"id":"av-030","category":"COMBO","variant":"multi-field-type-mismatch","mr":{"propositions":[{"confidence":null,"sourceAnchor":"vault:docs/architecture.md","entityIds":["e-sqlite"]}],"entities":[{"id":"e-sqlite","name":"SQLite"}],"relations":[]}}

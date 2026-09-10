@@ -202,6 +202,9 @@ describe("WorldState Stress", () => {
   });
 
   test("Mental dimensions: 500 beliefs + 500 goals persistence", () => {
+    // worldState 是跨文件共享的单例，其他测试文件可能已写入 belief/goal —— 先清零再计数
+    worldState.set("mental.beliefs", {});
+    worldState.set("mental.goals", {});
     for (let i = 0; i < 500; i++) {
       worldState.setBelief(`b${i}`, `Statement ${i}`, Math.random());
       worldState.setGoal(`g${i}`, `Goal ${i}`, "active");

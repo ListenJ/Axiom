@@ -1,0 +1,13 @@
+{
+  "example_id": "gold-02",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E3",
+    "E4"
+  ],
+  "severity": "critical",
+  "rationale": "源文本明确\"ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API\"，候选却含命题\"ResourceBudgetManager 定期调用 nvidia-smi 采集 GPU 硬件状态\"，该命题无源文本依据且与源的否定断言直接相悖（\"定期\"频率亦无据），属幻觉式加命题 E4。另源文本\"(1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心\"与\"(3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备\"（含\"这使\"因果结论）在候选中缺失，属漏命题 E3；候选仅保留决定句前半与理由(2)。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

@@ -42,11 +42,44 @@ export function readString(key: string, fallback = ""): string {
   return v === undefined || v === "" ? fallback : v;
 }
 
-export function readInt(key: string, fallback: number): number {
+export function readInt(key: string, fallback: number, clamp?: { min?: number; max?: number }): number {
   const v = process.env[key];
   if (v === undefined || v === "") return fallback;
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : fallback;
+  // 严格解析（审计 Low 2026-08-29）：此前 parseInt 宽松解析（"12abc" → 12、前导空白容忍），
+  // 现仅接受纯数字串；非法值回退默认并记 debug 日志。可选范围钳制。
+  if (!/^\d+$/.test(v)) {
+    logger.debug(`readInt(${key}): non-numeric value "${v}", falling back to ${fallback}`);
+    return fallback;
+  }
+  let n = parseInt(v, 10);
+  // 越界防护（审计 2026-09-01）：超出安全整数范围的离谱值（如 MAX_BODY_SIZE=999999999999）
+  // 直接回退默认，避免限制类配置被静默击穿（body 限流/日志轮转等）。
+  if (n > Number.MAX_SAFE_INTEGER || !Number.isSafeInteger(n)) {
+    logger.debug(`readInt(${key}): value "${v}" exceeds safe integer range, falling back to ${fallback}`);
+    return fallback;
+  }
+  if (clamp?.min !== undefined && n < clamp.min) n = clamp.min;
+  if (clamp?.max !== undefined && n > clamp.max) n = clamp.max;
+  return n;
+}
+
+/**
+ * 严格解析非负浮点数（审计 2026-09-01，为数据质量 sentinel 阈值引入）：
+ * 仅接受形如 `0.2` / `0.05` 的十进制小数或整数；非法值回退默认，可选范围钳制。
+ * 返回 NaN / Infinity / 负数一律回退，避免阈值配置失效。
+ */
+export function readNumber(key: string, fallback: number, clamp?: { min?: number; max?: number }): number {
+  const v = process.env[key];
+  if (v === undefined || v === "") return fallback;
+  if (!/^\d+(\.\d+)?$/.test(v)) {
+    logger.debug(`readNumber(${key}): non-numeric value "${v}", falling back to ${fallback}`);
+    return fallback;
+  }
+  let n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  if (clamp?.min !== undefined && n < clamp.min) n = clamp.min;
+  if (clamp?.max !== undefined && n > clamp.max) n = clamp.max;
+  return n;
 }
 
 export function readBool(key: string, fallback = false): boolean {
@@ -124,15 +157,20 @@ export interface EnvVarConfig {
 
 export const REQUIRED_ENV_VARS: EnvVarConfig[] = [
   {
-    name: "DATABASE_URL",
-    required: true,
-    description: "SQLite database connection string",
+    name: "DATABASE_PATH",
+    required: false,
+    default: "./data/agent.db",
+    description: "SQLite database file path",
   },
   {
-    name: "VAULT_PATH",
-    required: true,
+    name: "OBSIDIAN_VAULT_PATH",
+    required: false,
+    default: "./axiom-memory",
     description: "Obsidian vault path for memory storage",
   },
+  // 旧名保留（backup 脚本 / native-bridge 云端检测仍读），但非运行时必需
+  { name: "DATABASE_URL", required: false, description: "Legacy alias — SQLite connection string（backup 脚本/云端检测）" },
+  { name: "VAULT_PATH", required: false, description: "Legacy alias — Obsidian vault path（backup 脚本）" },
   { name: "OPENROUTER_API_KEY", required: false, description: "OpenRouter API key for model routing" },
   { name: "SILICONFLOW_API_KEY", required: false, description: "SiliconFlow API key" },
   { name: "OFOXAI_API_KEY", required: false, description: "OFoxAI API key" },
@@ -237,6 +275,15 @@ export function validateEnv(options?: {
         process.env[config.name] = config.default;
         result.appliedDefaults.push({ name: config.name, value: config.default });
         logger.debug(`Applied default value for ${config.name}: ${config.default}`);
+        // 默认值也要过 validate，防止无效 default 被静默通过（Fix 3）
+        if (config.validate && !config.validate(config.default)) {
+          result.invalid.push({
+            name: config.name,
+            value: config.default,
+            reason: `Failed validation for ${config.description} (default value)`,
+          });
+          result.valid = false;
+        }
       }
       continue;
     }
@@ -284,10 +331,7 @@ export function validateEnv(options?: {
   if (result.appliedDefaults.length > 0) {
     logger.info(`Applied defaults for ${result.appliedDefaults.length} environment variables`);
   }
-  if (result.warnings.length > 0) {
-    for (const warning of result.warnings) result.warnings.push(warning);
-    for (const w of result.warnings) logger.warn(w);
-  }
+  for (const w of result.warnings) logger.warn(w);
   if (!result.valid) {
     if (result.missing.length > 0) {
       logger.error(`Missing required environment variables: ${result.missing.join(", ")}`);

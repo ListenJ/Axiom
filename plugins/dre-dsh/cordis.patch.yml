@@ -1,0 +1,26 @@
+# axiom-dre-dsh bundle patch —— 把 Axiom 确定性推理引擎（DRE）作为独立插件装载进 DeepSeek Harness。
+#
+# 生效顺序（后者获胜）：profile bundles → profile cordis.patch.yml →
+# $DSH_HOME/cordis.patch.yml → 命令行 --patch。
+# 行 id `dre` 是配置树中的稳定身份；覆盖时整段替换 config，需重述全部所需键。
+#
+# 默认值说明：
+#   - mcpEnabled=true：以 stdio 拉起插件内置后端（DRE 引擎 + MCP 服务器，backend/server.js），
+#     仅桥接 DRE 白名单工具，以 dre__<tool> 暴露。
+#   - toolFilter=[]：空数组 = 使用内置 DRE 白名单（dre_/cognitive_/reasoning_/constraint_/actor_/
+#     mental_model_/mind_synapse_ 前缀 + task_graph_execute/mind_suggest 全名）；
+#     显式提供数组时完全替换默认白名单（支持前缀（以 _ 结尾）或全名）。
+#   - synapseEnabled=true：false 时剔除 mind_synapse_* 与 mind_suggest。
+#   - mcpFailOnStartupError=false：容忍模式（连接失败仅告警，插件仍可加载）；
+#     true 为严格模式（初始连接失败即让 fiber 失败）。
+- insert:
+    - id: dre
+      name: 'axiom-dre-dsh'
+      config:
+        mcpEnabled: true
+        # mcpCommand/mcpArgs 缺省=内置后端（<插件>/backend/server.js --stdio）
+        mcpServerName: 'dre'
+        mcpToolCallTimeoutMs: 60000
+        mcpFailOnStartupError: false
+        toolFilter: []
+        synapseEnabled: true

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0093",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题在候选（仅『定义函数「autoCheckEvolve」』）中全部缺失：基准解析优先级链『用户显式 --baseline（run_tag 或纯数字 id）→ 本轮回 baseline 阶段 runId（技能注入 vs 无技能同 held-out 的苹果对苹果）→ 自动历史最优（回落默认）』（顺序型关键命题，改变结论）、『委托 autoCheckRegression，本身无副作用可测』（否定/性质）、『evolve 闭环的回归检测（S5）』（功能定位）。遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

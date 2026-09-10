@@ -1,0 +1,12 @@
+{
+  "example_id": "se-0005",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E3"
+  ],
+  "severity": "critical",
+  "rationale": "候选命题在『（`KNOWLEDGE_USE_LLM=f』处截断，丢失源文本关键命题：『`KNOWLEDGE_USE_LLM=false` 默认关闭』（默认值与否定被截为『f』）、『关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`』、『开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF』（条件分支与回退因果链整体缺失）。按 §6.5，数值/否定/条件差异永不级，E3 critical。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}
