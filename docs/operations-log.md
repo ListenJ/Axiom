@@ -1118,4 +1118,4 @@
 - **操作**（文件级）：scripts/test-full.ts（EXCLUDE_FILES 移除 llm-cache.test.ts 条目及其注释，其余 4 条目不动）。无生产代码改动（勘察无缺陷证据，规则 1）。
 - **验证结果**：`bun run test:full` **3793 pass / 35 skip / 0 fail**（384 文件，exit 0；较上次 +11 pass/+1 文件 = llm-cache 11 用例纳入守护，增量吻合）；tsc --noEmit 退出码 0。
 - **偏差记录**：①任务预期"啃硬 bug"，实际勘察发现是账本拖欠清理（T2→T1 降级，按影响面如实处理）——若跳过 Phase 1 直接改代码即违反规则 6；②账本剩余 4 条目（EventBus 时序 ×2 / scheduler jitter / pcda 负载失稳）均为真时序敏感，修复需先建确定性回路，另行立项。
-- **Commit**：[占位]
+- **Commit**：eb5085b
