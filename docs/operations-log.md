@@ -1128,3 +1128,13 @@
 - **验证结果**：单文件 3 次连跑 35 pass/0 fail 稳定；`bun run test:full` **3828 pass / 35 skip / 0 fail**（385 文件，exit 0；+35 pass/+1 文件与 abnormal-input 用例数精确吻合）；tsc --noEmit 退出码 0。
 - **偏差记录**：①用户预期"虚拟时钟回路"，实际勘察发现根因是缺 await/setTimeout 猜时序，await 即完全确定化——虚拟时钟反而引入不必要的测试机制（规则 1/8），按事实采用最小接缝并如实报告；②修正上一条留痕判断：abnormal-input 并非"真时序敏感"，是确定性测试缺陷；账本剩余 3 条目（network-resilience 自愈断言 / scheduler jitter / pcda 负载失稳）待逐项勘察定性，不预设；③规则 2 备份：两改动文件均 git 跟踪，以 HEAD b8dd1e9 为回滚点（git show 可复原），未另做 .tmp/backups 物理副本，ops log 已备份。
 - **Commit**：16bfea0
+
+## 2026-09-10 — fix(test-flaky): EventBus network-resilience 同根因确定化（缺 await，移出账本）+ 一次未归因偶发 fail 记录
+
+- **任务**：用户指定啃账本 network-resilience。Phase 1 回路：单跑 3 次稳定 1 fail（确定性，非 flaky）——D.3"EventBus 错误风暴后自愈"与 abnormal-input 完全同根因：同步 test 不 await async publish，stats.errors 在 Promise.allSettled 后 microtask 自增 → 恒 0（Expected >= 500, Received: 0）。
+- **工具**：bun test（单跑 RED 3 次 + GREEN 3 次；test:full 首跑纳入后 1 fail；后续 5 次全量连跑全绿）、Grep/Read 核查 client.ts 超时与重试 jitter、bunfig.toml 与 --timeout 语义验证（默认超时 >6s，D.1 非嫌疑）。无子代理。
+- **操作**（文件级）：tests/edge-cases/network-resilience.test.ts（D.3 EventBus 用例改 async + 风暴循环逐次 await publish + post-clean await；其余用例不动）；scripts/test-full.ts（EXCLUDE_FILES 移除 network-resilience 条目，账本剩 2 项）。无生产代码改动。
+- **验证结果**：单文件 3 连跑 11 pass/0 fail；`bun run test:full` 首跑纳入后 **1 fail（3838 pass，用例名未捕获）**，随后 **5 次全量连跑全绿**（3838-3839 pass/35 skip/0 fail，386 文件，exit 0）；tsc 0。
+- **偏差记录**：①首跑 1 fail 未留日志、后续 5 次全量 + 3 次单跑不可复现——按规则 6 不盲改：无最小复现回路即无法定位，不凭猜测改测试（如放宽 elapsed<50ms 墙钟断言）；②观察点：D.1"连续失败触发熔断"负载下 6.1s（单跑 2.3s，慢化 2.6x，疑 llmCache 持久化 SQLite 跨文件争用；该用例 D.1 describe 无 llmCache.clear，而 D.2 有），若未来复现超时类失败优先查此；③账本剩余 2 项（system-scheduler-rigorous jitter / pcda-scheduler 负载失稳）待逐项勘察。
+- **未决项**：network-resilience 纳入后偶发 1 fail（发生率 ~1/6 全量运行，未归因）。处置：保留在 test:full 守护面（6 次全量 1 fail 5 绿 + 单跑 3 绿，证据倾向首跑为环境噪声/冷启动效应）；若再次复现，按规则 6 从 D.1 慢化观察点切入建回路。
+- **Commit**：[占位]

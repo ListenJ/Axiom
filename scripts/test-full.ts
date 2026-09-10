@@ -28,8 +28,6 @@ const EXCLUDE_DIRS = ["node_modules", "stress", "e2e"];
  * 与本脚本无关；修复后应移出本清单）：
  */
 const EXCLUDE_FILES: string[] = [
-  // EventBus 错误风暴后自愈断言（存量时序敏感）
-  "edge-cases/network-resilience.test.ts",
   // ResourceBudget recommendedMaxTokens 2000 vs 4000 线性断言（存量，jitter 过滤干扰）
   "rigorous/system-scheduler-rigorous.test.ts",
   // autoEscalate 升级断言时序敏感：单文件独立运行（含 --isolate）全绿，

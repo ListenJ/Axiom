@@ -307,7 +307,7 @@ describe("D.2 LLMClient 重试机制", () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe("D.3 恢复能力 — 错误风暴后自愈", () => {
-  test("EventBus 错误风暴后仍可正常工作", () => {
+  test("EventBus 错误风暴后仍可正常工作", async () => {
     const subIds: string[] = [];
     let successCount = 0;
 
@@ -326,8 +326,10 @@ describe("D.3 恢复能力 — 错误风暴后自愈", () => {
     );
 
     // 发送 100 个事件（每个触发 5 个错误 + 1 个成功）
+    // publish 为 async：errors 在 Promise.allSettled 结算后自增（microtask），
+    // 必须逐次 await 再读 stats，否则确定性读到 errors=0（原缺 await 是时序缺陷，非 flaky）。
     for (let i = 0; i < 100; i++) {
-      eventBus.publish({ type: "storm-test", source: "test", data: null, priority: "normal" });
+      await eventBus.publish({ type: "storm-test", source: "test", data: null, priority: "normal" });
     }
 
     // 正常 handler 应全部执行（不受错误 handler 影响）
@@ -343,7 +345,7 @@ describe("D.3 恢复能力 — 错误风暴后自愈", () => {
     // 验证清理后系统正常
     let postCleanCount = 0;
     const newSub = eventBus.subscribe("post-storm-test", () => { postCleanCount++; });
-    eventBus.publish({ type: "post-storm-test", source: "test", data: null, priority: "normal" });
+    await eventBus.publish({ type: "post-storm-test", source: "test", data: null, priority: "normal" });
     expect(postCleanCount).toBe(1);
     eventBus.unsubscribe(newSub);
 
