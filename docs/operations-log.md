@@ -1073,4 +1073,4 @@
 - **操作**（文件级）：src/router/task-orchestrator.ts（OrchestratedResult 加 verification 字段、新增 VerificationStatus/VerificationOutcome/AnswerVerifier 类型、execute Step3+4 提为 runOnce 闭包可重跑、新增私有 verifyAndCorrect（passed/corrected/degraded/not-verified 四态，最多修正一次铁律，verify 抛错立即降级不重跑）、buildMessages 加 extraFeedback 参数、executeMultiAgent 补 verification:not-verified 保持类型诚实）；新建 tests/router/task-orchestrator-verify.test.ts（6 用例：未配置零扰动/通过直出/修正后通过+反馈消息断言/修正消息含文本/二次不过降级不第三次/verify 抛错 fail-closed）。
 - **验证结果**：RED（verification 不存在 6 fail）→GREEN 6/6（18 expect）；tsc --noEmit 退出码 0；orchestrator 既有 5 测试文件 31/31 零改动复跑无碰撞（回归铁律：主链路未破坏）。diff 范围核对：仅 task-orchestrator.ts +113/-20 + 新测试，无清单外改动。
 - **偏差记录**：①首版测试用 spyOn 复用致 mock.calls 跨用例累积、toHaveBeenCalledTimes 不可靠，重写为每用例独立闭包计数器+afterEach 显式 restore（测试面缺陷，非实现问题，旧版已备份 .tmp）；②verify 抛错语义：设计为"立即降级不触发修正重跑"（校验器已挂重跑无意义），比计划"裁决失败 fail-closed"更精确，无验收偏差；③executeMultiAgent 暂不接回环（S4 范围仅 execute()），如实标注。
-- **Commit**：[占位]
+- **Commit**：73b0116
