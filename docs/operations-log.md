@@ -1161,3 +1161,13 @@
 - **验证结果**：10 次 test:full 全量连跑 **全部 3871 pass / 35 skip / 0 fail（0/10 复现）**。结合修复前 1/6 复现、修复后累计 14 次全量（4+10）0 复现——证据支持结论：那次偶发 fail 系 await 确定化修复**之前**的 EventBus 缺 await 缺陷所致（该缺陷在纳入运行的同一次修复中已消除），非独立负载问题。未决项关闭。
 - **偏差记录**：①初期在"GC 击穿 50ms"微基准假设上投入一次 harness，虽证伪但快速廉价（单次运行），且随即按规则 6 Phase 6 复盘转向观察驱动，未继续扩权；②结论为"修复即根因"的正向证据（0/14 复现 + 机制吻合），非"无法复现故放弃"；若未来再复现，从 harness 已排除 elapsed 断言、转向 D.2 llmCache.clear 残留或 scheduler 单例跨文件状态切入。
 - **Commit**：5ff547d
+
+## 2026-09-11 — docs(decisions): 前端 D1–D5 决策会议落盘（ADR-001~005 + 纪要），计划 T1 解冻
+
+- **任务**：用户指向前端 UX 完成计划（2026-09-09）的 D1–D5 决策会议。按规则 10 先勘察会前事实（21 页面清单、playwright.config.mjs 无视觉基线、全仓无 toHaveScreenshot、无使用频次埋点），agent 出独立研判，用户（项目经理）逐点表决。
+- **工具**：Glob/Grep/Read 勘察、AskUserQuestion 结构化表决（4 点）、Write 落盘。无子代理。
+- **表决结果**：D1 抗锯齿容差起步（threshold 0.2 + maxDiffPixelRatio 0.002，两周校准）；D2 全量截图+分级门禁（chat/sessions/search 阻断、其余周报）；D3 实测数据驱动（≤50MB git 跟踪，>50MB 回退 LFS/分支，不阻塞）；D4 按产品常识定 chat/sessions/search（步数=可感知交互步数）；D5 Profiler 提交耗时为主 + Vitals 并报。agent 研判与用户表决一致。
+- **操作**（文件级）：新建 docs/decisions/（ADR-001~005 五份 + 2026-09-11-frontend-d1-d5-decision-meeting.md 纪要，含反对意见/回退条件/行动项）；修改 docs/superpowers/plans/2026-09-09-frontend-ux-completion-plan.md 状态行（"待批准"→"D1–D5 已决，T1 解冻"）。无代码改动。
+- **验证结果**：计划批准门槛条款（§"批准门槛"：用户批准 + D1-D5 结论落盘）逐项核对满足；6 份新文档 git 可见；计划状态行与实际决议一致。
+- **偏差记录**：①计划文件与本 log 修改前未做 .tmp/backups 物理副本（规则 2.1 遗漏），两者均 git 跟踪、回滚点 HEAD f22c7cb 可完整复原；②D4 无埋点数据支撑，采用产品常识清单并显式记录回退条件（T4.1 埋点数据可推翻），属"事实缺失下的判断"，已在 ADR-004 标注。
+- **Commit**：[占位]
