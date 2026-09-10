@@ -1179,4 +1179,4 @@
 - **操作**（文件级）：新建 docs/test-reports/frontend-vitest-baseline-20260911.md。
 - **验证结果**：vitest run 实测 **66 文件 / 335 用例全绿（0 fail）**，65.7s；App.tsx 21 路由页 + Login 共 22 页，22 个 .test.tsx 全部含 render + ≥1 用例 → **冒烟缺口=0**。真实发现为深度覆盖与规模倒挂：Settings(631行/3例)、Sessions(407/3)、Git(263/2)、Code(233/2)、Agents(180/2) 列 G1-G5 补测清单；5 个 30 行重定向壳页 1 例即全覆盖（非薄弱点）。
 - **偏差记录**：①首次误用 `bun test`（根 runner）跑前端，识别后改用 `npx vitest run`（frontend/package.json 约定），bun 进程未产生干扰输出即弃；②T1.2 验收"每页 mount 冒烟"已天然达标（存量测试质量好），故本任务实质产出是"确认无缺口 + 量化深度缺口"，未为凑工作量造补测任务（规则 1）；③深度补测 G1-G5 不阻塞 T1.3（像素基线只依赖渲染可达性），建议排期见报告 §4。
-- **Commit**：[占位]
+- **Commit**：2f27538
