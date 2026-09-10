@@ -1150,3 +1150,14 @@
 - **验证结果**：rigorous 单跑 14 pass/0 fail；pcda 单跑/isolate 18 pass/0 fail；`bun run test:full` **4 次全量连跑全绿**（3871 pass/35 skip/0 fail，388 文件，file ledger:0，exit 0；+32 pass/+2 文件与两文件用例数吻合）；tsc 0。pcda 历史 ~1/6 复现率，4 次全绿 + 机制隔离（不再耦合真实墙钟）为充分稳定性证据。
 - **偏差记录**：①rigorous 账本"jitter 归因"经勘察证伪，实为观测点落饱和区——修正记录；②pcda 用 customLoadLevels 中性化性能阈值是隔离测试关注点（端到端测状态机、Check 单测测阈值），非掩盖生产性能问题；真实 p95 性能由 test:stress（.slow.ts）专门度量，本就不属单测职责；③network-resilience 上一轮未归因偶发 fail 在本轮 4 次全量中未复现，继续观察。
 - **Commit**：b3e64bc
+
+## 2026-09-11 — chore(diagnosis): network-resilience 偶发 fail 归因调查（GC 假设证伪 + 10 次负载连跑 0 复现，未决项关闭）
+
+- **任务**：用户指定为 network-resilience 纳入账本后那次未归因偶发 fail（~1/6 全量）建高负载复现 harness。
+- **Phase 1-4（假设驱动，证伪）**：读全文件锁定唯一墙钟上界断言 D.1"熔断拒绝 elapsed<50ms"（tests/edge-cases/network-resilience.test.ts:136）。立假设 H1：拒绝路径 assertBudgetAvailable→getStatus→canRun 的对象分配在全量大堆下触发 major GC 停顿击穿 50ms。建临时 harness（.tmp/nr-gc-harness.test.ts，gitignore 不入仓）：基线/200MB 存活堆/大堆+每 50 轮强制 Bun.gc(true) 三阶段各 3000 次测 elapsed。**结果 H1 证伪**——三阶段 max 仅 1.39ms（同步 throw 路径在 generate L268 缓存 I/O L293 之前，亚毫秒，GC 打不进）。
+- **策略转向（观察驱动）**：承认从未捕获过失败用例名，停止在微基准假设上扩权；改跑真实 test:full 负载 10 次连跑、每次落盘 grep "(fail)"。
+- **工具**：bun test（harness 1 次 + test:full 10 次连跑）、Read/Grep 定位墙钟断言与 generate 拒绝路径顺序。无子代理。
+- **操作**（文件级）：无生产/测试代码改动（纯诊断）。临时产物 .tmp/nr-gc-harness.test.ts 与 10 个 .tmp/nr-cap*.log 调查后删除（规则 4 例外：未跟踪、可重建、无引用）。
+- **验证结果**：10 次 test:full 全量连跑 **全部 3871 pass / 35 skip / 0 fail（0/10 复现）**。结合修复前 1/6 复现、修复后累计 14 次全量（4+10）0 复现——证据支持结论：那次偶发 fail 系 await 确定化修复**之前**的 EventBus 缺 await 缺陷所致（该缺陷在纳入运行的同一次修复中已消除），非独立负载问题。未决项关闭。
+- **偏差记录**：①初期在"GC 击穿 50ms"微基准假设上投入一次 harness，虽证伪但快速廉价（单次运行），且随即按规则 6 Phase 6 复盘转向观察驱动，未继续扩权；②结论为"修复即根因"的正向证据（0/14 复现 + 机制吻合），非"无法复现故放弃"；若未来再复现，从 harness 已排除 elapsed 断言、转向 D.2 llmCache.clear 残留或 scheduler 单例跨文件状态切入。
+- **Commit**：[占位]
