@@ -1020,3 +1020,12 @@
 - **验证结果**：条目守恒 91+96+407=594（拆分前 594）；**内容等价性 SHA256 逐块比对 = IDENTICAL，594 块字节级零损**（含 CRLF/LF 混合终止符原样保留）；主文件 1.26MB→0.19MB，归档 0.29/0.77MB 均 <2MB。
 - **偏差记录**：无（本条留痕本身在拆分后追加，属当月记录，符合规则 5 拆分后主文件保留当月口径）。
 - **Commit**：17382df
+
+## 2026-09-10 — feat(frontend-t3.1): 渲染层级深度扫描脚本（行动计划 P-2）
+
+- **任务**：按前端 UX 完成计划附录 B 冻结契约实现 T3.1——单文件 AST 静态 JSX 嵌套深度审计，产出 >10 层热点清单（T3.3 优化输入）。开工前置=无（纯本地零网络零 LLM）。
+- **工具**：Read 契约 + Write/Edit + bun test + bunx tsc。无子代理。
+- **操作**（文件级）：新建 scripts/frontend/render-depth-audit.ts（纯函数 scanJsxDepth(source)→{maxDepth,hotspots}，typescript 5.9.3 createSourceFile 遍历 JsxElement/JsxSelfClosingElement/JsxFragment 计层，DEPTH_WARN=10 契约冻结，hotspots 深度降序行号升序稳定排序；CLI 薄封装 Bun.Glob 扫 frontend/src 全部 .tsx → reports/frontend/render-depth.{json,md} 双份，无时间戳+路径升序=确定性）；新建 tests/frontend/render-depth-audit.test.ts（15 用例：浅嵌套/自闭合/Fragment/显式 Fragment/条件渲染/无JSX/精确深度 1-6-12/hotspots 阈值严格大于/行号精确/空源/语法错误容错/泛型箭头组件/可选链子元素）。
+- **验证结果**：RED（模块缺失）→GREEN 15/15（22 expect）；CLI 双跑 diff 为空（确定性验收）；tsc --noEmit 退出码 0（scripts 经测试 import 纳入检查）；package.json/bun.lock 零 diff（零新增依赖验收）。实测扫描：115 文件，最深 9 层（Chat/Vault/panels），0 热点（>10 层），分布 0-4 层 80 文件 + 5-9 层 35 文件（解析有效性佐证）。
+- **偏差记录**：首版块注释含 glob 模式 `**/*.tsx`，其中 `*/` 提前终止注释致语法错误（bun build 定位 7:65），改措辞后通过——测试面/实现均一次 GREEN，唯注释自毁一处。
+- **Commit**：[占位]
