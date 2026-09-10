@@ -1101,3 +1101,12 @@
 - **验证结果**：tsc --noEmit 退出码 0；`bun run test:full` **3773 pass / 35 skip / 0 fail**（381 文件，exit 0）；deadcode+docs-consistency 修复后 11/11；mm 切片面并行 190/190。
 - **偏差记录**：①S7 范围本为"纯验证 + 报告"，但 test:full 暴露 3 fail 属门禁回归（P-1 ops log 拆分引入，非 mm 代码）——按规则 6 建反馈回路定位根因后修复（一致性测试排除清单失配月度拆分文件），属收口必要项而非扩权：不修则 S7"全绿"验收不成立；②收口报告落点：仓库无 docs/reports/，遵循计划文档就近原则落 docs/superpowers/plans/*-closeout.md（对齐既有 2026-08-30-p2-closeout 惯例）。
 - **Commit**：2e65e02
+
+## 2026-09-10 — fix(tech-debt): 修复两项被误标 flaky 的确定性技术债（env 登记漂移 + package.json BOM）
+
+- **任务**：用户选定"修两项确定性技术债"。勘察发现 test:full 报 0 fail 但两文件单跑稳定红——它们被 EXCLUDE_FILES 账本排除（注释明写"修复后应移出"）：①env-example-completeness：src 读取的 15 个 env 变量未登记 .env.example；②runtime-audit："package.json 暴露 audit:runtime 脚本"因 package.json 含 UTF-8 BOM（EF BB BF）致 JSON.parse 抛 "Unrecognized token '﻿'"。
+- **工具**：Grep 逐项定位 15 变量读取点与默认值（auto-evolve/risk-monitor/auth-check/client-connector/search-engines/knowledge-pipeline/real-usage/browser-tools/git-health-terminal 路由）；PowerShell 字节级去 BOM；无子代理。
+- **操作**（文件级）：package.json（去首 3 字节 BOM，内容 trimStart(U+FEFF) 比对一致）；.env.example（按主题就近补登 15 变量：网关区 GATEWAY_PORT/PORT/MCP_CONNECT_TIMEOUT_MS、安全区 AXIOM_ALLOW_REMOTE_CDP/AXIOM_ENFORCE_MODE_APPROVAL/AXIOM_SECOND_FACTOR_TOKEN/EDGE_RISK_FAIL_CLOSED/RISK_VERDICT_CACHE_TTL_MS、知识库 KNOWLEDGE_USE_LLM、原生 AXIOM_VRAM_PROBE、爬虫 SEARCH_MAX_PER_DOMAIN、新增十八节自进化 REAL_USAGE_PATH/AXIOM_SELF_EVOLVE_AUTO/COOLDOWN_MS/MIN_NEW_TRACES；凭据类用空占位注释，遵守规则 11）；scripts/test-full.ts（EXCLUDE_FILES 移出 env-example-completeness/runtime-audit 两项，注释"6 项"改自调整表述）。
+- **验证结果**：两测试单跑 9/9 绿；`bun run test:full` **3782 pass / 35 skip / 0 fail**（383 文件，exit 0；较 S7 的 3773 增 9 = 移出账本纳入的用例）；tsc --noEmit 退出码 0；git diff --stat 核对改动仅 3 文件。
+- **偏差记录**：①package.json 属 git 跟踪文件，去 BOM 用字节级 WriteAllBytes 而非文本重写，避免行尾/编码二次污染，改后 content-equal 断言 + JSON.parse 双验；②15 变量登记值全部取代码内实际默认值（Grep 核实），非臆测；③账本移出后 test:full 文件数 381→383，pass 增量与移出用例数吻合，无新引入失败。
+- **Commit**：[占位]

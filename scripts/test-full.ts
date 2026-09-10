@@ -24,16 +24,12 @@ const EXCLUDE_DIRS = ["node_modules", "stress", "e2e"];
  * 单文件黑名单（相对收集根的 POSIX 路径）——"已知 flaky/环境依赖"显式账本。
  * 约定：新增测试在全量跑中发现 flaky/环境依赖 → 先入此清单并注明依据，修复后移除。
  *
- * 以下 6 项均为存量失败（2026-08-30 全量自动发现首次盘点，单文件独立运行可复现，
+ * 以下各项均为存量失败（2026-08-30 全量自动发现首次盘点，单文件独立运行可复现，
  * 与本脚本无关；修复后应移出本清单）：
  */
 const EXCLUDE_FILES: string[] = [
-  // env 模板完整性：src 读取的 env 变量未全部登记 .env.example（登记漂移）
-  "env-example-completeness.test.ts",
   // L3 SQLite 持久化"写入后新实例可读取"（存量失败，operations-log 2026-08-30 P2-S1 已记录）
   "llm-cache.test.ts",
-  // "package.json 暴露 audit:runtime 脚本"断言失败（存量）
-  "runtime-audit.test.ts",
   // EventBus async handler 抛错后仍继续执行后续 handler 的断言（存量时序敏感）
   "edge-cases/abnormal-input.test.ts",
   // EventBus 错误风暴后自愈断言（存量时序敏感）
