@@ -1065,3 +1065,12 @@
 - **验证结果**：cross-validator 33/33（93 expect）；tsc --noEmit 退出码 0；tests/agents/ 37/37 无碰撞。
 - **偏差记录**：①S3 测试追加后未单独跑 RED 即实现（测试 import 的 ArbitrateFn 在 S2 版本必致编译失败，RED 为编译级必然，但流程上应先跑 RED 留证——如实记录，结果面 GREEN 证据完整）；②计划 S3 接缝列"validate 或 dispatch"，实现取"仲裁端口与 dispatch 同构由调用方适配 ValidationPipeline"，与 D3 平票交仲裁语义一致，无验收偏差。
 - **Commit**：3deb4cd
+
+## 2026-09-10 — feat(mm-s4): TaskOrchestrator 审核回环（缺口 B，首次触碰生产主链路）
+
+- **任务**：实施 S4——execute() 新增可选 opts.verify(answer)，实现"执行→指挥回验→带反馈修正一次→再验"回环；未配置 verify 时主链路零扰动（回归验收）。
+- **工具**：Read task-orchestrator.ts 全文（358 行，规则 2）+ Grep 现有 router spy 测试模式（20 处 spyOn(router,executeWithRole) 确认注入惯例）→ 备份 2 文件 → Write RED 测试（6 用例，首版 spy 跨用例累积计数缺陷→重写为闭包计数器+显式 restore，备份旧版）→ Edit 实现 → bun test + tsc + orchestrator 5 文件回归。无子代理。
+- **操作**（文件级）：src/router/task-orchestrator.ts（OrchestratedResult 加 verification 字段、新增 VerificationStatus/VerificationOutcome/AnswerVerifier 类型、execute Step3+4 提为 runOnce 闭包可重跑、新增私有 verifyAndCorrect（passed/corrected/degraded/not-verified 四态，最多修正一次铁律，verify 抛错立即降级不重跑）、buildMessages 加 extraFeedback 参数、executeMultiAgent 补 verification:not-verified 保持类型诚实）；新建 tests/router/task-orchestrator-verify.test.ts（6 用例：未配置零扰动/通过直出/修正后通过+反馈消息断言/修正消息含文本/二次不过降级不第三次/verify 抛错 fail-closed）。
+- **验证结果**：RED（verification 不存在 6 fail）→GREEN 6/6（18 expect）；tsc --noEmit 退出码 0；orchestrator 既有 5 测试文件 31/31 零改动复跑无碰撞（回归铁律：主链路未破坏）。diff 范围核对：仅 task-orchestrator.ts +113/-20 + 新测试，无清单外改动。
+- **偏差记录**：①首版测试用 spyOn 复用致 mock.calls 跨用例累积、toHaveBeenCalledTimes 不可靠，重写为每用例独立闭包计数器+afterEach 显式 restore（测试面缺陷，非实现问题，旧版已备份 .tmp）；②verify 抛错语义：设计为"立即降级不触发修正重跑"（校验器已挂重跑无意义），比计划"裁决失败 fail-closed"更精确，无验收偏差；③executeMultiAgent 暂不接回环（S4 范围仅 execute()），如实标注。
+- **Commit**：[占位]

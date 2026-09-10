@@ -53,13 +53,32 @@ export interface OrchestratedResult {
   totalLatencyMs: number;
   totalTokens: number;
   layersUsed: string[];
+  /** 审核回环结果（S4，缺口 B）：未配置 verify 时 status='not-verified' */
+  verification: VerificationOutcome;
 }
+
+/** 审核回环结论：not-verified=未启用；passed=首验通过；corrected=修正后通过；degraded=修正后仍不过/校验器异常（fail-closed） */
+export type VerificationStatus = "not-verified" | "passed" | "corrected" | "degraded";
+
+export interface VerificationOutcome {
+  status: VerificationStatus;
+  /** verify 被实际调用次数（not-verified=0；passed=1；corrected/degraded(二次不过)=2） */
+  attempts: number;
+}
+
+/** 调用方注入的审核器：判断答案是否达标，不达标时给出修正反馈 */
+export type AnswerVerifier = (
+  answer: string,
+) => Promise<{ ok: boolean; feedback?: string } | boolean> | { ok: boolean; feedback?: string } | boolean;
 
 class TaskOrchestrator {
   /**
    * 执行任务：Understand → Retrieve → Execute → Output
    */
-  async execute(task: string, opts?: { history?: ChatMessage[]; projectPath?: string }): Promise<OrchestratedResult> {
+  async execute(
+    task: string,
+    opts?: { history?: ChatMessage[]; projectPath?: string; verify?: AnswerVerifier },
+  ): Promise<OrchestratedResult> {
     const startTime = Date.now();
 
     // === Step 1: Understand — 识别任务类型 ===
@@ -75,25 +94,34 @@ class TaskOrchestrator {
       });
     }
 
-    // === Step 3: Execute — 执行 ===
-    let subTaskResults: TaskResult[];
-    const messages = this.buildMessages(task, context, opts?.history);
+    // === Step 3+4: Execute → Output（可重跑：审核回环的修正轮复用同一闭包） ===
+    const runOnce = async (extraFeedback?: string) => {
+      let subTaskResults: TaskResult[];
+      const messages = this.buildMessages(task, context, opts?.history, extraFeedback);
 
-    if (taskType.needsMultiRole) {
-      // 多视角并行（如代码审查+重构）
-      logger.info("[Orchestrator] Execute (multi-role)", { roles: taskType.roles });
-      subTaskResults = await this.executeRoles(taskType.roles, messages);
-    } else {
-      // 单一角色直接执行
-      logger.info("[Orchestrator] Execute (single)", { role: taskType.roles[0] });
-      const result = await this.executeSingle(taskType.roles[0], messages);
-      subTaskResults = [result];
-    }
+      if (taskType.needsMultiRole) {
+        // 多视角并行（如代码审查+重构）
+        logger.info("[Orchestrator] Execute (multi-role)", { roles: taskType.roles });
+        subTaskResults = await this.executeRoles(taskType.roles, messages);
+      } else {
+        // 单一角色直接执行
+        logger.info("[Orchestrator] Execute (single)", { role: taskType.roles[0] });
+        const result = await this.executeSingle(taskType.roles[0], messages);
+        subTaskResults = [result];
+      }
 
-    // === Step 4: Output — 返回结果 ===
-    const finalAnswer = taskType.needsMultiRole
-      ? await this.synthesizeAnswer(task, subTaskResults, opts?.history)
-      : (subTaskResults[0]?.content ?? "");
+      const finalAnswer = taskType.needsMultiRole
+        ? await this.synthesizeAnswer(task, subTaskResults, opts?.history)
+        : (subTaskResults[0]?.content ?? "");
+      return { subTaskResults, finalAnswer };
+    };
+
+    let { subTaskResults, finalAnswer } = await runOnce();
+
+    // === Step 5: Verify — 指挥回验（S4 缺口 B；未注入 verify 时零扰动） ===
+    const verifyResult = await this.verifyAndCorrect(opts?.verify, subTaskResults, finalAnswer, runOnce);
+    subTaskResults = verifyResult.subTaskResults;
+    finalAnswer = verifyResult.finalAnswer;
 
     const totalLatencyMs = Date.now() - startTime;
     const totalTokens = subTaskResults.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
@@ -104,6 +132,59 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...new Set(subTaskResults.map((r) => r.layer))],
+      verification: verifyResult.verification,
+    };
+  }
+
+  /**
+   * 审核回环（缺口 B）：verify 不过 → 带 feedback 重跑一次 → 再验。
+   * 铁律：最多修正一次（防无限重试）；verify 自身异常 → fail-closed 降级，主链路答案不丢。
+   * 回传（可能已被修正轮替换的）subTaskResults/finalAnswer，调用方据此更新结果。
+   */
+  private async verifyAndCorrect(
+    verify: AnswerVerifier | undefined,
+    subTaskResults: TaskResult[],
+    answer: string,
+    rerun: (feedback?: string) => Promise<{ subTaskResults: TaskResult[]; finalAnswer: string }>,
+  ): Promise<{ verification: VerificationOutcome; subTaskResults: TaskResult[]; finalAnswer: string }> {
+    if (!verify) {
+      return { verification: { status: "not-verified", attempts: 0 }, subTaskResults, finalAnswer: answer };
+    }
+
+    const judge = async (
+      text: string,
+    ): Promise<{ ok: boolean; feedback?: string; errored: boolean }> => {
+      try {
+        const v = await verify(text);
+        const norm = typeof v === "boolean" ? { ok: v } : { ok: !!v.ok, feedback: v.feedback };
+        return { ...norm, errored: false };
+      } catch (e) {
+        logger.warn(
+          `[Orchestrator] verifier threw (fail-closed degrade): ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return { ok: false, errored: true };
+      }
+    };
+
+    const first = await judge(answer);
+    if (first.ok) {
+      return { verification: { status: "passed", attempts: 1 }, subTaskResults, finalAnswer: answer };
+    }
+    // 校验器自身异常 → 立即降级，不触发修正重跑（校验器已挂，重跑无意义且答案不丢）
+    if (first.errored) {
+      return { verification: { status: "degraded", attempts: 1 }, subTaskResults, finalAnswer: answer };
+    }
+
+    // 修正一轮：把审核反馈作为额外 user 消息追加后重跑
+    const second = await rerun(first.feedback);
+    const rechecked = await judge(second.finalAnswer);
+    return {
+      verification: {
+        status: rechecked.ok ? "corrected" : "degraded",
+        attempts: 2,
+      },
+      subTaskResults: second.subTaskResults,
+      finalAnswer: second.finalAnswer,
     };
   }
 
@@ -167,7 +248,8 @@ class TaskOrchestrator {
   private buildMessages(
     task: string,
     context: { vaultSnippets?: string[]; codeSymbols?: string[] } | null,
-    history?: ChatMessage[]
+    history?: ChatMessage[],
+    extraFeedback?: string,
   ): ChatMessage[] {
     const parts: string[] = [];
 
@@ -188,6 +270,15 @@ class TaskOrchestrator {
     return [
       ...(history ?? []),
       { role: "user", content: parts.join("\n\n") },
+      // S4 审核回环：修正轮把审核反馈作为额外 user 消息追加（末条承载反馈）
+      ...(extraFeedback
+        ? [
+            {
+              role: "user" as const,
+              content: `[Verification Feedback]\n上一版答案未通过审核，请据此修正：\n${extraFeedback}`,
+            },
+          ]
+        : []),
     ];
   }
 
@@ -341,6 +432,8 @@ class TaskOrchestrator {
       totalLatencyMs,
       totalTokens,
       layersUsed: [...layersUsed],
+      // executeMultiAgent 暂不接审核回环（S4 范围仅 execute()），保持类型诚实
+      verification: { status: "not-verified", attempts: 0 },
     };
   }
 
