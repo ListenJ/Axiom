@@ -1037,4 +1037,4 @@
 - **操作**（文件级）：新建 docs/superpowers/plans/2026-09-10-multi-model-collaboration-survey-plan.md——①逐项能力映射表（需求①-⑥ × 现有实现，附精确接口签名+行号）；②真实缺口 3 处（A 交叉验证协调器/B 审核回环/C 用户配置）；③设计文档需修正项（模型名单过时、指标无测量协议、交叉验证与降本张力）；④切片化测试计划 S0-S7（TDD 垂直切片，fake router 零网络）；⑤需用户确认决策 D1-D4。
 - **验证结果**：T0 只读勘察，无代码改动，不需回归；所有接口签名标注来源行号可跳转复核；核心发现——仓库已实现设计文档约 70% 能力（中枢-执行 TaskOrchestrator、注册 registry、分发 Dispatcher/assign、压缩 context-manager、单模型幻觉 detector、提示词 pool），真实缺口仅交叉验证协调层。
 - **偏差记录**：无。计划为草案，未动工（T3 门禁：待用户批准 D1-D4 后冻结）。
-- **Commit**：[占位]
+- **Commit**：4c6a49b
