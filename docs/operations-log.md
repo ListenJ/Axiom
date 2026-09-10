@@ -1092,3 +1092,12 @@
 - **验证结果**：RED（import 编译失败）→GREEN 14/14（45 expect）；tsc --noEmit 退出码 0；agents/router/integration 并行 190/190（2 skip 既有）；全量 3989 pass/10 fail——10 fail 与 S5 基线完全一致（perf 门禁/并发压测/文档 grep 既有失败），零回归。
 - **偏差记录**：①首版实现"trigger 缺省=恒触发（兼容 S5）"致降本铁律用例红（闲聊文本也 dispatch），RED 回路暴露语义错误——改为"恒门控、trigger.force=true 恢复恒触发"（D4 冻结语义：默认即关键结论触发，非全量），同步修正测试假设；②工厂 call 参（crossValidate/excludeModels）与 AnswerVerifier 接缝兼容：orchestrator 只传单参，多余可选参不影响结构赋值。
 - **Commit**：ed79cad
+
+## 2026-09-10 — test(mm-s7): 多模型协同 S1-S7 回归收口（权威门禁全绿 + 附带修复一致性门禁）
+
+- **任务**：实施 S7——tsc + test:full 权威口径全绿 + 收口报告 + 计划回写 + 留痕，关闭多模型协同整期计划。
+- **工具**：Read test-full.ts（确认 --isolate + stress/flaky 账本口径）→ bunx tsc + bun run test:full（后台）→ 定位 3 fail 根因（ops log 月度拆分致文档一致性门禁排除清单失配）→ 备份 2 测试文件 → Edit 修复 → 复跑 → Write 收口报告 + 计划回写。无子代理。
+- **操作**（文件级）：tests/unit/deadcode.test.ts + tests/unit/docs-consistency.test.ts（一致性门禁排除清单：新增 operations-log 目录 + 文件名前缀匹配，覆盖 P-1 月度拆分后的历史留痕文件；active docs 扫描面不变）；新建 docs/superpowers/plans/2026-09-10-multi-model-collaboration-closeout.md（收口报告：交付总览/验证证据/两个既有缺口修复/接线方式/未决项）；docs/superpowers/plans/2026-09-10-multi-model-collaboration-survey-plan.md（状态行改 S1-S7 全部完成；切片表加"状态/commit"列，S1-S7 逐行标 ✅ + 锚点）。
+- **验证结果**：tsc --noEmit 退出码 0；`bun run test:full` **3773 pass / 35 skip / 0 fail**（381 文件，exit 0）；deadcode+docs-consistency 修复后 11/11；mm 切片面并行 190/190。
+- **偏差记录**：①S7 范围本为"纯验证 + 报告"，但 test:full 暴露 3 fail 属门禁回归（P-1 ops log 拆分引入，非 mm 代码）——按规则 6 建反馈回路定位根因后修复（一致性测试排除清单失配月度拆分文件），属收口必要项而非扩权：不修则 S7"全绿"验收不成立；②收口报告落点：仓库无 docs/reports/，遵循计划文档就近原则落 docs/superpowers/plans/*-closeout.md（对齐既有 2026-08-30-p2-closeout 惯例）。
+- **Commit**：[占位]

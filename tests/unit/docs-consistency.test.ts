@@ -4,8 +4,9 @@ import { join } from "path";
 
 function collectDocsHits(pattern: RegExp): string[] {
   const hits: string[] = [];
-  const excludeDirs = new Set(["archive", "reviews", "superpowers"]);
-  const excludeFiles = new Set(["operations-log.md"]);
+  const excludeDirs = new Set(["archive", "reviews", "superpowers", "operations-log"]);
+  // ops log 主文件（docs/operations-log.md）与月度拆分目录（docs/operations-log/YYYY-MM.md）均为历史留痕
+  const isExcludedFile = (name: string) => name.startsWith("operations-log");
   function walk(dir: string) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
@@ -13,7 +14,7 @@ function collectDocsHits(pattern: RegExp): string[] {
         if (excludeDirs.has(e.name)) continue;
         walk(p);
       } else if (e.name.endsWith(".md")) {
-        if (excludeFiles.has(e.name)) continue;
+        if (isExcludedFile(e.name)) continue;
         const c = readFileSync(p, "utf8");
         const lines = c.split("\n");
         lines.forEach((line, idx) => {

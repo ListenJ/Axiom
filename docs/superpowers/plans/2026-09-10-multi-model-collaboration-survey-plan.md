@@ -2,7 +2,7 @@
 
 > 日期：2026-09-10 ｜ 任务级别：T3（架构/新模块，需用户确认关键决策后动工）
 > 设计来源：docs/superpowers/plans/2026-09-09-multi-model-collaboration-design.md
-> 状态：**已冻结（2026-09-10 用户批准 D1-D4=全部建议默认值，见第六节）**；S1 开工
+> 状态：**已冻结（2026-09-10 用户批准 D1-D4=全部建议默认值，见第六节）；S1-S7 全部完成（2026-09-10）**
 > 事实基准：以下接口签名均来自 2026-09-10 实际读码，行号可跳转；标注 事实/推测/判断
 
 ## 一、核心发现：设计文档要的能力，仓库已有 70% 现成实现
@@ -42,16 +42,16 @@
 
 > 门禁：规则 7 垂直切片 + 规则 6 反馈回路 + 规则 5 留痕。所有 LLM 调用经 fake router 注入（对齐 S-A8 生产接口对齐惯例），零网络确定性。
 
-| 切片 | 范围 | 接缝 | 验收 |
-|---|---|---|---|
-| **S0** | 计划冻结 + 关键决策确认（见第六节） | — | 用户批准 D1-D4 |
-| **S1** | `CrossValidator` 纯聚合逻辑（投票/分歧判定），先不接 LLM | 输入 N 个 verdict → 输出 一致/分歧/裁决 | 单测：全一致/2-1分歧/全分歧/单模型退化 |
-| **S2** | `CrossValidator` 接 `Dispatcher.dispatch(role)` **顺序分发**（fake router 注入；excludeModels 须累积前序已用模型以保证"独立模型"去重，故非并发） | deps: {dispatch} | 单测：≥2 角色调用、excludeModels 防重复、错误隔离→abstain |
-| **S3** | 分歧裁决接 `ValidationPipeline`（S-A8 复用）或仲裁角色 | deps: {validate 或 dispatch} | 单测：分歧→触发裁决、裁决失败 fail-closed |
-| **S4** | `TaskOrchestrator` 审核回环（缺口 B）：执行→指挥回验→修正 | 扩展 execute() 可选 verify 阶段 | 单测：回验通过直出、不通过触发一次修正、二次仍不过降级 |
-| **S5** | 端到端 fail-closed 铁律（对齐 S-A8 切片 7）：真实 fake router + 断言交叉验证拦截幻觉结论 | 集成 | 单测：幻觉注入→拦截、正常→放行、协调器异常→fail-closed+告警 |
-| **S6** | 关键结论触发策略（缺口 D，平衡 3.3 与降本）：可配置哪些任务需交叉验证 | options | 单测：触发/不触发边界 |
-| **S7** | 回归收口：tsc + test:full + 报告 + 留痕 | — | 全绿 |
+| 切片 | 范围 | 接缝 | 验收 | 状态 / commit |
+|---|---|---|---|---|
+| **S0** | 计划冻结 + 关键决策确认（见第六节） | — | 用户批准 D1-D4 | ✅ D1-D4 已批 |
+| **S1** | `CrossValidator` 纯聚合逻辑（投票/分歧判定），先不接 LLM | 输入 N 个 verdict → 输出 一致/分歧/裁决 | 单测：全一致/2-1分歧/全分歧/单模型退化 | ✅ `5788948`（15/15） |
+| **S2** | `CrossValidator` 接 `Dispatcher.dispatch(role)` **顺序分发**（fake router 注入；excludeModels 须累积前序已用模型以保证"独立模型"去重，故非并发） | deps: {dispatch} | 单测：≥2 角色调用、excludeModels 防重复、错误隔离→abstain | ✅ `da69371`（27/27） |
+| **S3** | 分歧裁决接 `ValidationPipeline`（S-A8 复用）或仲裁角色 | deps: {validate 或 dispatch} | 单测：分歧→触发裁决、裁决失败 fail-closed | ✅ `3deb4cd`（33/33，仲裁端口与 dispatch 同构） |
+| **S4** | `TaskOrchestrator` 审核回环（缺口 B）：执行→指挥回验→修正 | 扩展 execute() 可选 verify 阶段 | 单测：回验通过直出、不通过触发一次修正、二次仍不过降级 | ✅ `73b0116`（6/6，首次触碰生产主链路，orchestrator 31/31 零扰动） |
+| **S5** | 端到端 fail-closed 铁律（对齐 S-A8 切片 7）：真实 fake router + 断言交叉验证拦截幻觉结论 | 集成 | 单测：幻觉注入→拦截、正常→放行、协调器异常→fail-closed+告警 | ✅ `45476aa`（4/4，附带修复分发异常静默无告警缺口） |
+| **S6** | 关键结论触发策略（缺口 D，平衡 3.3 与降本）：可配置哪些任务需交叉验证 | options | 单测：触发/不触发边界 | ✅ `ed79cad`（14/14，默认即门控 + 不触发零 dispatch） |
+| **S7** | 回归收口：tsc + test:full + 报告 + 留痕 | — | 全绿 | ✅ 见 `docs/superpowers/plans/2026-09-10-multi-model-collaboration-closeout.md` |
 
 **不做项**：缺口 C 用户配置持久化（另立）；设计 5.x 全部指标测量（无协议，先建 S1-S7 功能正确性，性能测量另立 soak）；跨平台调度（设计 8 未来扩展）。
 
