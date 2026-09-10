@@ -1180,3 +1180,12 @@
 - **验证结果**：vitest run 实测 **66 文件 / 335 用例全绿（0 fail）**，65.7s；App.tsx 21 路由页 + Login 共 22 页，22 个 .test.tsx 全部含 render + ≥1 用例 → **冒烟缺口=0**。真实发现为深度覆盖与规模倒挂：Settings(631行/3例)、Sessions(407/3)、Git(263/2)、Code(233/2)、Agents(180/2) 列 G1-G5 补测清单；5 个 30 行重定向壳页 1 例即全覆盖（非薄弱点）。
 - **偏差记录**：①首次误用 `bun test`（根 runner）跑前端，识别后改用 `npx vitest run`（frontend/package.json 约定），bun 进程未产生干扰输出即弃；②T1.2 验收"每页 mount 冒烟"已天然达标（存量测试质量好），故本任务实质产出是"确认无缺口 + 量化深度缺口"，未为凑工作量造补测任务（规则 1）；③深度补测 G1-G5 不阻塞 T1.3（像素基线只依赖渲染可达性），建议排期见报告 §4。
 - **Commit**：2f27538
+
+## 2026-09-11 — feat(T1.3): 像素 diff 基线建设（21 页 Desktop Chrome 单视口，二跑零 diff + 门禁自证）
+
+- **任务**：前端 UX 完成计划 T1.3（附录 A 契约）——建确定性像素 diff 基线。用户指示本轮 Desktop Chrome 单视口。
+- **工具**：Read/Grep 勘察（api.ts 端点面、Sidebar/Chat/Sessions/Tokens 数据消费、App Suspense fallback、契约附录 A）、Write 新建、Playwright（生成/复跑/自证）、run-e2e.cjs（回归）。无子代理。
+- **操作**（文件级）：新建 playwright.snapshot.config.mjs（独立配置，不动 playwright.config.mjs）、e2e-visual/visual-mock.ts（形状感知 catch-all mock：仅拦 fetch/xhr，document/assets fallback 真实后端；workspaces/sessions/models/token-details 等给确定形状）、e2e-visual/visual-snapshot.spec.ts（21 页清单单一事实源 + 就绪判据=Suspense fallback 消失+networkidle+fonts.ready + ADR-001 容差 threshold0.2/maxDiffPixelRatio0.002）、21 个基线 PNG；改 docs/decisions/ADR-003（D3 实测定稿）。
+- **验证结果**：①首跑 --update-snapshots 生成 21 基线；②复跑不带参数 **21/21 零 diff**（可复现自证）；③门禁自证——临时注入 3px 样式差异→chat 红（12959 像素 ratio 0.01>0.002），还原→绿，探针 GATE-SELFTEST 已 grep 确认无残留；④功能 e2e 回归 run-e2e.cjs 全套 exit 0「All E2E tests passed」（视觉 spec 在 e2e-visual/ 不在 run-e2e 读取的 e2e/，物理隔离，存量零影响）；⑤体积实测 21 PNG/3.44MB<<50MB→D3 定 git 跟踪（写 ADR-003）。
+- **偏差记录**：①**契约偏离校正（规则 12 回 Plan）**：初版误将视觉 spec 建在 e2e/ 下（会被 run-e2e.cjs 当功能用例跑、无基线首跑必 fail）且硬编码清单——违反契约"不动 playwright.config.mjs/独立 snapshot 配置"，已删除错建文件回退 e2e/.gitignore，按契约重建为独立 playwright.snapshot.config.mjs + e2e-visual/ 目录；②**清单来源冲突**：契约附录 A 引 DEFAULT_AUDIT_PAGES（仅 9 页 LLM 审核清单），但 ADR-002 已表决 21 页全量——服从更新且明确的 ADR-002，清单落 spec 内单一事实源（不复制），记此偏差；③**视口/浏览器裁剪**：契约矩阵 3 浏览器×3 视口，用户指示本轮 Desktop Chrome 单视口，扩展留待基线稳定后迭代；④tokens 页首跑崩（mock 默认 {} 但页面直读 data.overall.totalTokens），补 token-details fixture 修复（mock 形状不全，非生产 bug）；⑤mask 清单未交付（验收 5）：mock 下无动态区（全空态+固定 health），当前无需 mask，真实数据态基线时再迭代补齐。
+- **Commit**：[占位]
