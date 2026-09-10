@@ -1082,4 +1082,4 @@
 - **操作**（文件级）：新建 tests/integration/multi-model-failclosed.test.ts（4 用例：正常共识 AGREE→passed 放行+excludeModels 去重断言、幻觉共识 DISAGREE→修正一轮仍不过→degraded 拦截、全角色分发异常→abstain→insufficient→仲裁弃权→degraded+logger.warn 告警、平票+仲裁弃权→degraded）；src/agents/cross-validator.ts（validate 分发 catch 补 logger.warn 告警，兑现计划"协调器异常→fail-closed+告警"——原实现仅票面降级 abstain、异常静默，无 warn）。
 - **验证结果**：RED（告警断言 1 fail，其余 3 绿）→GREEN 4/4；tsc --noEmit 退出码 0；agents/router/integration 并行 123/123 绿；全量 3975 pass/10 fail（10 fail 经"暂存改动前后同文件集对比"证实为既有失败：perf 门禁/并发压测/文档 grep 类，与本次 diff 无交集）。
 - **偏差记录**：①计划 S5 接缝列"集成"，实现取"单一 executeWithRole spy 按消息 system 前缀路由三类调用"，未新建独立 fake router 模块——最小化（规则 1），零生产接线改动除告警外；②发现并修复既有缺口：CrossValidator 分发异常原静默转 abstain、无 warn，不满足计划"协调器异常→告警"，补 logger.warn（唯一生产改动）；③直跑 `bun test <多目录>`（非 --parallel）会跨文件 spyOn(router) 泄漏致 S4/S5 假失败——项目标准命令用 --parallel=8 进程隔离，验证一律按权威并行口径。
-- **Commit**：[占位]
+- **Commit**：45476aa
