@@ -78,9 +78,8 @@ eval-results/*
 e2e/*.png
 e2e/**/*.png
 
-# === 像素基线（ADR-003 实测决策）：仅 chromium 3 组合入库；firefox/webkit 待 LFS（ADR-003b） ===
-e2e-visual/visual-snapshot.spec.ts-snapshots/*-firefox-*.png
-e2e-visual/visual-snapshot.spec.ts-snapshots/*-webkit-*.png
+# === 像素基线（ADR-003b）：firefox/webkit-tablet/mobile 经 LFS 入库；webkit-desktop 组合已废弃（ADR-002）不入库 ===
+e2e-visual/visual-snapshot.spec.ts-snapshots/*-webkit-desktop-*.png
 
 # === Generated test fixtures ===
 tests/fixtures/agents-index.json
