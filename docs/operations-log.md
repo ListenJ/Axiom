@@ -1243,4 +1243,4 @@
 - **操作**（文件级）：①AGENTS.md 规则 3 目标仓库改 `gitea`（含 .22 废弃历史说明），版本头 v1.2→v1.3（次版本=规则语义变更，遵守 0.7）；②规则 9 例外条款 `push internal211`→`push gitea`；③skills/axiom-frontend-ui-repair/SKILL.md 提交步骤改 push gitea；④ADR-003b ".22 装 git-lfs 同步"待办作废；⑤.gitattributes 端点注释更新；⑥`git remote remove internal211`（remote 配置无独有数据、可逆，规则 3 文档同步改"已移除"）。历史 plans/specs/reviews 中的 internal211 为当时事实记录，不改。
 - **验证结果**：结构校验（规则 0.7）——规则编号 1-12 连续、"规则 N"引用无越界、无 `push internal211` 残留；`git remote -v` 确认 internal211 移除、internal/gitea 均指 .10；分支跟踪 `internal/*` 不受影响。
 - **偏差记录**：①deploy.sh 的 192.168.0.22 是 runtime-go 集群节点 n2（searchd/agentd 服务），非 git 仓库，属独立部署拓扑，超出本任务范围不动——**待确认：.22 整机废弃则该脚本也需改，已问用户**；②internal211 remote 选择"移除"而非"保留标记"，因用户明示"不再推送"，移除杜绝误推且完全可逆。
-- **Commit**：[PENDING-r3]
+- **Commit**：2e8f8b4
