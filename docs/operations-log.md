@@ -1217,3 +1217,12 @@
 - **验证结果**：矩阵生成 189 PNG（webkit-desktop 63→移除后入仓 63 chromium/7.27MB）；二跑 chromium/firefox/webkit-tablet/mobile **183/183 零 diff**；**门禁自证（规则 6 回路）**：临时 spec `page.addStyleTag` 注入 200×200 色块→阻断级 3 页 `toHaveScreenshot` **红**（像素 diff 捕获），删探针→**绿 3 passed**；探针产物（spec+空快照目录+3 actual PNG）全清、`public/index.html` git 无改动无残留；`bun run test:full` 全绿（见上条）。
 - **偏差记录**：①**webkit-desktop 移除（用户表决）**：Windows WebKit 1440×900 并发渲染不稳定——4 worker 下 6 页连拍 20363px/ratio0.02 不自稳，**workers=1 串行 6/6 通过** → 定性并发抖动非产品缺陷；恢复条件（workers=1 或 macOS runner）记 ADR-002 附录 + 技术债；②**ADR-003 外推证伪**：预估 31MB，实测 88.78MB（firefox/webkit 单张约 chromium 6-7 倍）→ 触发 >50MB 回退条款，用户表决 chromium-only 入仓，firefox/webkit 待 LFS（ADR-003b）；③**自证回路两次踩坑后校正（规则 6 Phase 6）**：初版改 `public/index.html` 注入 → 后端启动时缓存旧内容致注入不生效、失败点落在 waitReady 而非像素 diff（自证无效）；经 Advisor 复核改用 addStyleTag 浏览器上下文注入，绕开缓存精确隔离 toHaveScreenshot；④**写入污染**：Write 工具两次将文件内容截断为 U+2026（run-visual-gate.cjs、测试文件），PowerShell 精确替换修复并去 BOM，提交前全量扫描确认无残留；⑤**范围裁剪**：真实数据态基线/mask 清单未做（mock 态无动态区，留 T2.1 后续）。
 - **Commit**：136cd11
+
+## 2026-09-12 — ops(T3): 启用 .10 Gitea LFS 服务端（ADR-003b 前置）+ 端到端验证
+
+- **任务**：ADR-003b 前置"LFS 服务端验证"。勘察结论：internal211 裸仓库无 git-lfs（不可用）；.10 Gitea `LFS_START_SERVER=false`。用户表决采纳方案 1（启用 Gitea 内置 LFS），批准"现在执行 + 端到端验证"。
+- **工具**：ssh/curl（勘察）、docker exec（改配置/重启/chown）、git-lfs 3.7.1（端到端冒烟）。无子代理。计划落盘 `docs/superpowers/plans/2026-09-12-gitea-lfs-enablement.md`（T3 书面计划）。
+- **操作**（服务端，非本仓库）：①备份 `app.ini`→`/home/data/app.ini.bak-lfs-20260912`（sha256 19927b23…）；②`LFS_START_SERVER false→true` + `docker restart`；③**修复启用后崩溃**：Gitea 回写 LFS_JWT_SECRET 需 app.ini 可写，原 root:root 644 致 permission denied 崩溃循环 → 临时容器 root `chown git:git app.ini`（→600）后恢复；④端到端冒烟：临时仓库 push LFS 对象→服务端落盘→删缓存重拉一致→删临时分支。
+- **验证结果**：batch 端点 404→400/401（LFS handler 响应）；`/api/v1/version` 200（v27.3.1）；push `Uploading LFS objects 100% (1/1)`；服务端 `/data/git/lfs/3e/4a/2f9db74…`；`roundtrip_match=True`；传输走 basic HTTP 自动回退。临时分支/仓库/脚本全清，保留 app.ini 备份用于回滚。
+- **偏差记录**：①**启用开关引发崩溃（规则 6 定位）**：初版计划未预见 LFS 需回写 app.ini，重启后崩溃循环；日志直证 permission denied，chown 修复——教训记入 ADR-003b"关键"节；②**范围严格限定服务端启用+验证**，基线迁移（.gitattributes/迁入/CI 扩列）留 ADR-003b 后续待办，未混入本轮；③PowerShell 嵌套引号多次破坏远程命令，改脚本文件 scp 传输执行规避。
+- **Commit**：[PENDING-lfs]
