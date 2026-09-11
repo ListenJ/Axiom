@@ -1225,4 +1225,4 @@
 - **操作**（服务端，非本仓库）：①备份 `app.ini`→`/home/data/app.ini.bak-lfs-20260912`（sha256 19927b23…）；②`LFS_START_SERVER false→true` + `docker restart`；③**修复启用后崩溃**：Gitea 回写 LFS_JWT_SECRET 需 app.ini 可写，原 root:root 644 致 permission denied 崩溃循环 → 临时容器 root `chown git:git app.ini`（→600）后恢复；④端到端冒烟：临时仓库 push LFS 对象→服务端落盘→删缓存重拉一致→删临时分支。
 - **验证结果**：batch 端点 404→400/401（LFS handler 响应）；`/api/v1/version` 200（v27.3.1）；push `Uploading LFS objects 100% (1/1)`；服务端 `/data/git/lfs/3e/4a/2f9db74…`；`roundtrip_match=True`；传输走 basic HTTP 自动回退。临时分支/仓库/脚本全清，保留 app.ini 备份用于回滚。
 - **偏差记录**：①**启用开关引发崩溃（规则 6 定位）**：初版计划未预见 LFS 需回写 app.ini，重启后崩溃循环；日志直证 permission denied，chown 修复——教训记入 ADR-003b"关键"节；②**范围严格限定服务端启用+验证**，基线迁移（.gitattributes/迁入/CI 扩列）留 ADR-003b 后续待办，未混入本轮；③PowerShell 嵌套引号多次破坏远程命令，改脚本文件 scp 传输执行规避。
-- **Commit**：[PENDING-lfs]
+- **Commit**：6d9cdf1
