@@ -21,3 +21,12 @@
 ## 后果与回退条件
 - 后果：低频页真实回归最多延迟一周被发现（周报级）。
 - 回退：某低频页出现真实回归事故 → 该页即时升阻断级并记入本 ADR 附录。
+
+## 附录：T2.1 矩阵执行修订（2026-09-11）
+- **webkit-desktop 组合移除**（用户表决）：Windows 版 WebKit 在 1440×900 下并发渲染不稳定——
+  4 worker 全矩阵二跑时 chat/code/agents/router/vault/eval 共 6 页报
+  "Failed to take two consecutive stable screenshots"（连拍 20363 px / ratio 0.02，超容差 10 倍且不自稳）；
+  **workers=1 串行单跑 6/6 通过** → 定性为并发相关抖动，非产品缺陷、非基线失配。
+  其余 8 组合（chromium×3 / firefox×3 / webkit-tablet/mobile）二跑 183/183 零 diff。
+- 恢复条件（满足其一）：①CI 对该组合强制 `--workers=1`；②迁移 macOS runner（webkit 原生平台）。恢复前记入技术债清单。
+- 门禁分级不变：阻断级 = chat/sessions/search（chromium 组合，本轮入仓范围），周报级 = 其余 18 页。
