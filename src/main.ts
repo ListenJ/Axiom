@@ -547,7 +547,7 @@ const STATIC_ROOT = "./public";
 // ── 静态资源压缩与缓存（2026-08-06 性能优化） ──────────────────────────
 // 文本类资源 gzip 传输（内存缓存，构建产物不变则缓存命中），
 // /assets/ 下带内容 hash 的文件给 immutable 长缓存（二次加载零协商）。
-import { gzipSync } from "node:zlib";
+import { encodeGzip } from "./utils/static-encoding.ts";
 const COMPRESSIBLE_EXT = new Set([".js", ".css", ".html", ".svg", ".json", ".txt", ".map"]);
 const gzipCache = new Map<string, ArrayBuffer>();
 const GZIP_MIN_BYTES = 1024;
@@ -581,7 +581,7 @@ async function serveStaticFile(pathname: string, req: Request): Promise<Response
       let gz = gzipCache.get(filePath);
       if (!gz) {
         const raw = await file.arrayBuffer();
-        gz = gzipSync(Buffer.from(raw)).buffer as ArrayBuffer;
+        gz = encodeGzip(raw);
         if (gzipCache.size > 128) gzipCache.clear();
         gzipCache.set(filePath, gz);
       }
