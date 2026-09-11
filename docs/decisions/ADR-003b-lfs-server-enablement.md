@@ -35,12 +35,27 @@ Gitea 方案改动小、有 Web 管理面、镜像（gitea-ee:27.3.1）内置 LF
 - **端到端**：临时仓库 `git lfs track *.bin` → push 到 `codex/lfs-smoke-test`，`Uploading LFS objects: 100% (1/1) 46 B` 成功；服务端落盘 `/data/git/lfs/3e/4a/2f9db74…`（oid 分桶）；删本地缓存重拉 `roundtrip_match=True`。传输走 **basic HTTP 自动回退**（SSH remote + 无 token → 回退 `https://192.168.0.10/…`，未认证即可，私有仓库读受 git-auth 保护）。
 - 清理：临时分支已删（`ls-remote` 确认无）、临时仓库/脚本已删、服务器脚本已删（保留 app.ini 备份）。
 
-## 后果与后续（ADR-003b 剩余待办，本次未做）
+## 基线迁入 LFS 施工（2026-09-12，用户表决端点+范围）
 
-- ✅ 前置阻塞解除：LFS 服务端可用。
-- ⏳ 待办：本仓库配 `.gitattributes`（`e2e-visual/**/*.png filter=lfs …`）→ firefox/webkit 基线迁入 LFS → CI 矩阵扩列（webkit-desktop 恢复条件见 ADR-002 附录）。
-- ⚠️ 迁移注意：一旦 `.gitattributes` 生效，**已入仓的 63 张 chromium 基线是普通 blob**，与 LFS 规则冲突需处理（`git lfs migrate import` 或保留 chromium 为普通 blob 仅新增走 LFS）——留待迁移施工时决策，避免本轮扩大范围。
-- 遗留观察：`GITEA_URL` 环境变量指向 .24（502）与 git remote 实际 .10 漂移；`GITEA_TOKEN` 对 .10 API 返回 401。另案校正。
+**端点冲突（关键决策）**：规则 3 主推送目标 internal211（.22 裸仓库）**无 git-lfs 且 data 用户无 sudo**，LFS 对象无法落 .22。用户表决：**基线分支直接推 .10 Gitea**（LFS 已启用），.22 装 git-lfs 由用户执行后再同步。
+
+**迁移范围**：仅 firefox/webkit 入 LFS（105 张），**chromium 63 张保持普通 blob 不动**（7.28MB 未超阈，契合 ADR-003 原意）。webkit-desktop 组合已废弃（ADR-002），其 15 张磁盘残留经 `.gitignore` 排除不入库。
+
+**迁移机制（规则 9：不改写历史）**：用 renormalize——`.gitattributes` 加 `filter=lfs` 规则 + `git add` 触发 clean filter 转 pointer，**新增提交**；否决 `git lfs migrate import`（会改写已推送历史）。
+
+**验证证据**：
+- `git lfs ls-files` = 105（firefox 63 + webkit-tablet 21 + webkit-mobile 21），chromium 命中 0；
+- push gitea：`Uploading LFS objects: 100% (105/105), 66 MB`，分支 `cda7ec9..6aee3a0`；
+- 服务端 `/data/git/lfs` 对象数 106（105 + 冒烟残留 1）；`git lfs fsck` OK；
+- 工作区文件完好（firefox PNG magic `89 50 4E 47` / 1086137 B，未被 pointer 污染）；chromium 63 张未动。
+
+## 后果与后续（剩余待办）
+
+- ✅ 前置阻塞解除 + firefox/webkit 基线已入 LFS（推 .10 gitea）。
+- ⏳ **.22 装 git-lfs**（需用户 sudo）：`sudo apt-get install git-lfs && git lfs install`，之后基线分支方可同步推 internal211（规则 3 单一可信源恢复）。**在此之前基线分支只在 .10**。
+- ⏳ CI 矩阵扩列：firefox/webkit 基线已可用，`.github/workflows/visual-snapshot.yml` 扩列 + chromium 阻断级不变（webkit-desktop 恢复条件见 ADR-002 附录）。
+- ⏳ 冒烟残留对象（1 个 46B）可选清理，无功能影响。
+- 遗留观察：`GITEA_URL` 指向 .24（502）与 remote 实际 .10 漂移；`GITEA_TOKEN` 对 .10 API 返回 401。另案校正。
 
 ## 回滚
 

@@ -1226,3 +1226,12 @@
 - **验证结果**：batch 端点 404→400/401（LFS handler 响应）；`/api/v1/version` 200（v27.3.1）；push `Uploading LFS objects 100% (1/1)`；服务端 `/data/git/lfs/3e/4a/2f9db74…`；`roundtrip_match=True`；传输走 basic HTTP 自动回退。临时分支/仓库/脚本全清，保留 app.ini 备份用于回滚。
 - **偏差记录**：①**启用开关引发崩溃（规则 6 定位）**：初版计划未预见 LFS 需回写 app.ini，重启后崩溃循环；日志直证 permission denied，chown 修复——教训记入 ADR-003b"关键"节；②**范围严格限定服务端启用+验证**，基线迁移（.gitattributes/迁入/CI 扩列）留 ADR-003b 后续待办，未混入本轮；③PowerShell 嵌套引号多次破坏远程命令，改脚本文件 scp 传输执行规避。
 - **Commit**：6d9cdf1
+
+## 2026-09-12 — feat(ADR-003b): firefox/webkit 基线迁入 LFS（105 张，renormalize 不改写历史）
+
+- **任务**：基线迁入 LFS 并处理迁移冲突。勘察发现**端点冲突**：规则 3 主目标 internal211（.22 裸仓库）无 git-lfs 且 data 无 sudo → LFS 对象无法落 .22。用户表决：基线分支直接推 .10 Gitea（LFS 已启用），.22 装 git-lfs 由用户执行后同步。范围：仅 firefox/webkit 入 LFS，chromium 63 张保持普通 blob（7.28MB 未超阈）。
+- **工具**：Read/Grep/Edit（.gitattributes/.gitignore/ADR-003b）、git-lfs 3.7.1（renormalize + push + fsck）、ssh（服务端对象数核验）。无子代理。规则 2（备份 .gitignore/.gitattributes）。
+- **操作**（文件级）：①`.gitattributes` 加 `*-firefox-*`/`*-webkit-tablet-*`/`*-webkit-mobile-*.png filter=lfs`；②`.gitignore` 移除 firefox/webkit 排除、改排除废弃 webkit-desktop（15 张残留不入库）；③`git add` 105 张触发 clean filter 转 pointer（新增提交，非 `git lfs migrate`，规则 9 不改写历史）；④push gitea 上传 LFS 对象。
+- **验证结果**：`git lfs ls-files`=105（chromium 命中 0）；push gitea `Uploading LFS objects 100% (105/105) 66 MB`，分支 `cda7ec9..6aee3a0`；服务端 `/data/git/lfs` 对象 106（105+冒烟残留1）；`git lfs fsck` OK；工作区 firefox PNG magic `8950 4E47`/1086137B 未被 pointer 污染；chromium 63 张未动、工作区干净。
+- **偏差记录**：①**端点冲突（规则 0.6 停机表决）**：internal211 推 LFS 失败实证 `git-lfs-authenticate: command not found` → 基线分支暂只在 .10，.22 装 git-lfs 需用户 sudo（记 ADR-003b 待办）；②**webkit-desktop 15 张残留**：组合已废弃（ADR-002），经 .gitignore 排除不入库、磁盘保留（未删，避免扩大范围）；③迁移用 renormalize 而非 migrate import（后者改写已推送历史，违反规则 9）。
+- **Commit**：6aee3a0
