@@ -1,6 +1,6 @@
 # AGENTS.md — Runtime 底层规则（强约束）
 
-> 规则版本：v1.2（2026-09-09）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据。规则编号只增不插；修改本文件须遵守规则 2/3/5。
+> 规则版本：v1.3（2026-09-12）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据；v1.3：规则 3 目标仓库由 internal211（.22，已废弃）切换为 gitea（.10，LFS 已启用）。规则编号只增不插；修改本文件须遵守规则 2/3/5。
 > 执行顺序：读总则 0.1-0.3 → 判定任务级别 → 冻结任务契约（0.4）→ 按对应规则施工 → 按 0.5 提交完成证据。
 
 以下规则为本仓库所有任务的**强制约束**，任何 agent（含子 agent）执行任务时必须遵守。
@@ -103,9 +103,10 @@
 
 ## 规则 3：所有修改提交到 git 仓库
 
-- 目标仓库：remote 名 `internal211`，SSH 地址 `ssh://data@192.168.0.22/home/data/openclaw-fusion.git`（SSH 密钥已配置）。
-- 禁止直接在 `main`/`master` 上提交业务修改；新分支默认 `codex/<任务简述>`，提交后推送 `internal211 <分支>`。
-- 每个任务的修改完成后：`git add <仅本任务相关文件>` → `git commit` → `git push internal211 <当前分支>`。
+- 目标仓库：remote 名 `gitea`（等同 `internal`），SSH 地址 `ssh://git@192.168.0.10:2222/agent/openclaw-fusion.git`，HTTP `http://192.168.0.10:3000/`（1Panel Gitea 容器，SSH 密钥已配置，LFS 已启用）。
+  - 历史：旧目标 `internal211`（`ssh://data@192.168.0.22/home/data/openclaw-fusion.git`）自 2026-09-12 起**废弃**——.22 服务器停用、无 git-lfs 且无 sudo；gitea（.10）已确认为其完整超集（全分支 + tags + 105 张 LFS 基线对象，见 ADR-003b 与 ops log 2026-09-12）。`internal211` remote 已从本地配置**移除**（避免误推废弃服务器）；历史 URL 见上，如需恢复执行 `git remote add internal211 <url>`。
+- 禁止直接在 `main`/`master` 上提交业务修改；新分支默认 `codex/<任务简述>`，提交后推送 `gitea <分支>`。
+- 每个任务的修改完成后：`git add <仅本任务相关文件>` → `git commit` → `git push gitea <当前分支>`。
 - **只暂存本任务相关文件**，不得把工作区中无关的未提交改动一并提交；提交前用 `git diff --cached --stat` 核对暂存范围。
 - 提交信息写清任务内容；规则文件变更须写明变更目的。
 - 推送后用 `git status -sb` 或 `git ls-remote` 核对远端与本地一致；未推送成功不得声称完成。
@@ -190,7 +191,7 @@
 - `git rebase -i` / `git add -i`（交互式操作，agent 无法可靠处理）
 - 对 `main` / `master` 分支直接 force push
 
-**例外**：上述禁令仅在用户明确指示且不涉及 `main`/`master` 时解除，并在执行前复述即将运行的命令请用户确认；对 `main`/`master` 的 force push 始终禁止。若当前环境无法获得交互确认（如审批策略禁止），不得执行例外操作，停止并报告。规则 3 的正常提交流程（`add` → `commit` → `push internal211 <分支>`）不受此限。
+**例外**：上述禁令仅在用户明确指示且不涉及 `main`/`master` 时解除，并在执行前复述即将运行的命令请用户确认；对 `main`/`master` 的 force push 始终禁止。若当前环境无法获得交互确认（如审批策略禁止），不得执行例外操作，停止并报告。规则 3 的正常提交流程（`add` → `commit` → `push gitea <分支>`）不受此限。
 
 - `git commit --amend` / `git rebase` 仅限**未推送**的本地提交；已推送分支只追加新提交，禁止改写已发布历史。
 

@@ -52,7 +52,7 @@ Gitea 方案改动小、有 Web 管理面、镜像（gitea-ee:27.3.1）内置 LF
 ## 后果与后续（剩余待办）
 
 - ✅ 前置阻塞解除 + firefox/webkit 基线已入 LFS（推 .10 gitea）。
-- ⏳ **.22 装 git-lfs**（需用户 sudo）：`sudo apt-get install git-lfs && git lfs install`，之后基线分支方可同步推 internal211（规则 3 单一可信源恢复）。**在此之前基线分支只在 .10**。
+- ✅ ~~.22 装 git-lfs 后同步 internal211~~ **已作废（2026-09-12 用户确认）**：.22 服务器整体废弃，不再作为任何推送目标；全仓核验（`rev-list --count 3814022..9856a65`=0 + 逐分支对比 + tags/LFS 对象清点）证实 gitea 为 .22 完整超集，无内容遗漏。规则 3 主远端已切换为 `gitea`（AGENTS.md v1.3），`internal211` remote 保留仅作历史引用。
 - ⏳ CI 矩阵扩列：firefox/webkit 基线已可用，`.github/workflows/visual-snapshot.yml` 扩列 + chromium 阻断级不变（webkit-desktop 恢复条件见 ADR-002 附录）。
 - ⏳ 冒烟残留对象（1 个 46B）可选清理，无功能影响。
 - 遗留观察：`GITEA_URL` 指向 .24（502）与 remote 实际 .10 漂移；`GITEA_TOKEN` 对 .10 API 返回 401。另案校正。

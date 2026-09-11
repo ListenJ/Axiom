@@ -3,7 +3,7 @@
 hooks/post-receive text eol=lf
 
 # === 像素基线 LFS（ADR-003b）：仅 firefox/webkit 入 LFS；chromium 保持普通 blob ===
-# 端点：基线分支推 .10 Gitea（LFS_START_SERVER=true）；internal211 需装 git-lfs 后方可同步（见 ADR-003b）
+# 端点：主远端 gitea（.10，LFS_START_SERVER=true）；internal211/.22 已废弃不再推送（AGENTS.md v1.3）
 # webkit-desktop 组合已废弃（ADR-002 附录），其残留不入库
 e2e-visual/visual-snapshot.spec.ts-snapshots/*-firefox-*.png filter=lfs diff=lfs merge=lfs -text
 e2e-visual/visual-snapshot.spec.ts-snapshots/*-webkit-tablet-*.png filter=lfs diff=lfs merge=lfs -text

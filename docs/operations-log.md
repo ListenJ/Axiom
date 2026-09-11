@@ -1235,3 +1235,12 @@
 - **验证结果**：`git lfs ls-files`=105（chromium 命中 0）；push gitea `Uploading LFS objects 100% (105/105) 66 MB`，分支 `cda7ec9..6aee3a0`；服务端 `/data/git/lfs` 对象 106（105+冒烟残留1）；`git lfs fsck` OK；工作区 firefox PNG magic `8950 4E47`/1086137B 未被 pointer 污染；chromium 63 张未动、工作区干净。
 - **偏差记录**：①**端点冲突（规则 0.6 停机表决）**：internal211 推 LFS 失败实证 `git-lfs-authenticate: command not found` → 基线分支暂只在 .10，.22 装 git-lfs 需用户 sudo（记 ADR-003b 待办）；②**webkit-desktop 15 张残留**：组合已废弃（ADR-002），经 .gitignore 排除不入库、磁盘保留（未删，避免扩大范围）；③迁移用 renormalize 而非 migrate import（后者改写已推送历史，违反规则 9）。
 - **Commit**：6aee3a0
+
+## 2026-09-12 — docs(AGENTS v1.3): 规则 3 主远端 internal211(.22) → gitea(.10)，移除 internal211 remote
+
+- **任务**：用户确认 .22 服务器整体废弃，主远端切换至 1Panel Gitea（.10，SSH 2222/HTTP 3000，密钥登录，LFS 已启用）。前置核验（上一任务）证实 gitea 为 .22 完整超集：`rev-list --count 3814022..9856a65`=0、逐分支 hash 一致、tags（v2.2.0/v2.8.2 仅 gitea 有）、105 LFS 对象齐备。
+- **工具**：Read/Grep/Edit（AGENTS.md、SKILL.md、ADR-003b、.gitattributes）、git remote。无子代理。规则 2（备份 AGENTS.md/SKILL.md）。
+- **操作**（文件级）：①AGENTS.md 规则 3 目标仓库改 `gitea`（含 .22 废弃历史说明），版本头 v1.2→v1.3（次版本=规则语义变更，遵守 0.7）；②规则 9 例外条款 `push internal211`→`push gitea`；③skills/axiom-frontend-ui-repair/SKILL.md 提交步骤改 push gitea；④ADR-003b ".22 装 git-lfs 同步"待办作废；⑤.gitattributes 端点注释更新；⑥`git remote remove internal211`（remote 配置无独有数据、可逆，规则 3 文档同步改"已移除"）。历史 plans/specs/reviews 中的 internal211 为当时事实记录，不改。
+- **验证结果**：结构校验（规则 0.7）——规则编号 1-12 连续、"规则 N"引用无越界、无 `push internal211` 残留；`git remote -v` 确认 internal211 移除、internal/gitea 均指 .10；分支跟踪 `internal/*` 不受影响。
+- **偏差记录**：①deploy.sh 的 192.168.0.22 是 runtime-go 集群节点 n2（searchd/agentd 服务），非 git 仓库，属独立部署拓扑，超出本任务范围不动——**待确认：.22 整机废弃则该脚本也需改，已问用户**；②internal211 remote 选择"移除"而非"保留标记"，因用户明示"不再推送"，移除杜绝误推且完全可逆。
+- **Commit**：[PENDING-r3]

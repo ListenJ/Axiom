@@ -69,4 +69,4 @@ description: Axiom 前端 UI 修复与设计系统守则。当要修改 frontend
 2. 备份：复制到 .tmp/backups/<相对路径>。
 3. 修复：最小 diff，优先改 token/组件层（一处修复全站受益）。
 4. 验证：守则 3 清单。
-5. 提交：git add 仅本任务文件 → commit → push internal211。
+5. 提交：git add 仅本任务文件 → commit → push gitea。
