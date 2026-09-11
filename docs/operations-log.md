@@ -1207,7 +1207,7 @@
 - **操作**（文件级）：①新建 `src/utils/static-encoding.ts`——`encodeGzip(ArrayBuffer): ArrayBuffer` 纯函数接缝（小接口大实现，规则 8；main.ts 顶层 Bun.serve 无法轻量 import，故抽函数）；②新建 `tests/utils/static-encoding.test.ts`（4 例：长度恰等 gzip 流/多输入独立/gunzip 还原/小输入）；③`src/main.ts` L550 import 改 `encodeGzip`、L584 `gz = encodeGzip(raw)`（原 `.buffer` 移除）。
 - **验证结果**：TDD 红（Cannot find module）→绿 **4 pass/0 fail**；`bunx tsc --noEmit` **0**；curl 修复后 exit 0（gzip 1975B）；`bun run test:full` **3875 pass/35 skip/0 fail**（389 文件，exit 0；基线 3871/388→+4/+1 吻合新增用例，**零回归**）。
 - **偏差记录**：①**契约扩权（规则 12 回 Plan）**：T2.1 原为纯测试设施，发现生产 bug 后经用户表决（AskUserQuestion）采纳"修生产 bug"而非"测试侧绕过"——理由：诚实根治、避免基线偏离真实网络路径；②临时探针（.tmp-webkit-*.cjs/.tmp-gz-*.ts，未跟踪可重建）调查后删除（规则 4 例外）；③对照服务 job 用完即 StopCommand 终止。
-- **Commit**：[PENDING-gzip]
+- **Commit**：ec8f73f
 
 ## 2026-09-11 — feat(T2.1+T2.3): 像素基线 3×3 矩阵扩展 + CI 双门禁接线（webkit-desktop 移除 + chromium-only 入仓）
 
@@ -1216,4 +1216,4 @@
 - **操作**（文件级）：①`playwright.snapshot.config.mjs` projects 扩为 9 组合（desktop-chromium 沿用名 "chromium" → 21 既有基线零重生成；全 dpr=1 统一）；②`scripts/run-visual-gate.cjs`（新）——门禁 runner，复用 run-e2e 后端生命周期 + 透传 --project/--grep 分级；③`.github/workflows/visual-snapshot.yml`（新）——pixel-blocking（chat/sessions/search × chromium 3 组合，阻断）+ pixel-weekly（其余 18 页，continue-on-error）双 job；④`.gitignore` 排除 `*-firefox-*.png`/`*-webkit-*.png`；⑤ADR-002 附录（webkit-desktop 移除）、ADR-003 T2.1 修订（88.78MB>50MB→chromium-only 入仓）；⑥删 CLAUDE.md（空 0 行 + 未跟踪 + 无代码引用 → 规则 4 例外直删）。
 - **验证结果**：矩阵生成 189 PNG（webkit-desktop 63→移除后入仓 63 chromium/7.27MB）；二跑 chromium/firefox/webkit-tablet/mobile **183/183 零 diff**；**门禁自证（规则 6 回路）**：临时 spec `page.addStyleTag` 注入 200×200 色块→阻断级 3 页 `toHaveScreenshot` **红**（像素 diff 捕获），删探针→**绿 3 passed**；探针产物（spec+空快照目录+3 actual PNG）全清、`public/index.html` git 无改动无残留；`bun run test:full` 全绿（见上条）。
 - **偏差记录**：①**webkit-desktop 移除（用户表决）**：Windows WebKit 1440×900 并发渲染不稳定——4 worker 下 6 页连拍 20363px/ratio0.02 不自稳，**workers=1 串行 6/6 通过** → 定性并发抖动非产品缺陷；恢复条件（workers=1 或 macOS runner）记 ADR-002 附录 + 技术债；②**ADR-003 外推证伪**：预估 31MB，实测 88.78MB（firefox/webkit 单张约 chromium 6-7 倍）→ 触发 >50MB 回退条款，用户表决 chromium-only 入仓，firefox/webkit 待 LFS（ADR-003b）；③**自证回路两次踩坑后校正（规则 6 Phase 6）**：初版改 `public/index.html` 注入 → 后端启动时缓存旧内容致注入不生效、失败点落在 waitReady 而非像素 diff（自证无效）；经 Advisor 复核改用 addStyleTag 浏览器上下文注入，绕开缓存精确隔离 toHaveScreenshot；④**写入污染**：Write 工具两次将文件内容截断为 U+2026（run-visual-gate.cjs、测试文件），PowerShell 精确替换修复并去 BOM，提交前全量扫描确认无残留；⑤**范围裁剪**：真实数据态基线/mask 清单未做（mock 态无动态区，留 T2.1 后续）。
-- **Commit**：[PENDING-t2]
+- **Commit**：136cd11
