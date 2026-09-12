@@ -75,6 +75,7 @@ func main() {
 	batch := flag.Int("batch", 500, "docs per POST (seed mode)")
 	timeout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	qmix := flag.String("mix", "mixed", "query mix: mixed | simple (search mode)")
+	token := flag.String("token", "", "X-Axiom-Token value; required for seed when searchd auth is on")
 	flag.Parse()
 
 	client := &http.Client{
@@ -84,16 +85,16 @@ func main() {
 
 	switch *mode {
 	case "seed":
-		seed(client, *addr, *docs, *batch)
+		seed(client, *addr, *docs, *batch, *token)
 	case "search":
-		load(client, *addr, *qps, *dur, *workers, *qmix)
+		load(client, *addr, *qps, *dur, *workers, *qmix, *token)
 	default:
 		fmt.Fprintln(os.Stderr, "unknown mode:", *mode)
 		os.Exit(2)
 	}
 }
 
-func seed(client *http.Client, addr string, total, batch int) {
+func seed(client *http.Client, addr string, total, batch int, token string) {
 	r := rand.New(rand.NewSource(42))
 	start := time.Now()
 	sent := 0
@@ -113,24 +114,35 @@ func seed(client *http.Client, addr string, total, batch int) {
 			}
 		}
 		body, _ := json.Marshal(ds)
-		resp, err := client.Post(addr+"/documents", "application/json", bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, addr+"/documents", bytes.NewReader(body))
+		if err == nil {
+			req.Header.Set("Content-Type", "application/json")
+			if token != "" {
+				req.Header.Set("X-Axiom-Token", token)
+			}
+			var resp *http.Response
+			resp, err = client.Do(req)
+			if err == nil {
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					fmt.Fprintf(os.Stderr, "seed batch at %d: status %d\n", sent, resp.StatusCode)
+					os.Exit(1)
+				}
+				sent += n
+				fmt.Printf("\rseeded %d/%d", sent, total)
+				continue
+			}
+		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "seed error:", err)
 			os.Exit(1)
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			fmt.Fprintf(os.Stderr, "seed batch at %d: status %d\n", sent, resp.StatusCode)
-			os.Exit(1)
-		}
-		sent += n
-		fmt.Printf("\rseeded %d/%d", sent, total)
 	}
 	fmt.Printf("\nseed done: %d docs in %s\n", total, time.Since(start).Round(time.Millisecond))
 }
 
-func load(client *http.Client, addr string, qps int, dur time.Duration, workers int, qmix string) {
+func load(client *http.Client, addr string, qps int, dur time.Duration, workers int, qmix, token string) {
 	// Query mix: single terms (selective), 2-term AND, field filter, NOT,
 	// OR, prefix — drawn from a fixed vocab sample for reproducibility.
 	mixed := []string{
@@ -169,7 +181,14 @@ func load(client *http.Client, addr string, qps int, dur time.Duration, workers 
 			defer wg.Done()
 			for q := range jobs {
 				start := time.Now()
-				resp, err := client.Get(addr + "/search?q=" + url.QueryEscape(q))
+				req, err := http.NewRequest(http.MethodGet, addr+"/search?q="+url.QueryEscape(q), nil)
+				if err == nil && token != "" {
+					req.Header.Set("X-Axiom-Token", token)
+				}
+				var resp *http.Response
+				if err == nil {
+					resp, err = client.Do(req)
+				}
 				if err != nil {
 					if errSample.Add(1) <= 5 {
 						fmt.Fprintf(os.Stderr, "err sample: %v\n", err)
