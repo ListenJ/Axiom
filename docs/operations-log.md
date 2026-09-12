@@ -1244,3 +1244,12 @@
 - **验证结果**：结构校验（规则 0.7）——规则编号 1-12 连续、"规则 N"引用无越界、无 `push internal211` 残留；`git remote -v` 确认 internal211 移除、internal/gitea 均指 .10；分支跟踪 `internal/*` 不受影响。
 - **偏差记录**：①deploy.sh 的 192.168.0.22 是 runtime-go 集群节点 n2（searchd/agentd 服务），非 git 仓库，属独立部署拓扑，超出本任务范围不动——**待确认：.22 整机废弃则该脚本也需改，已问用户**；②internal211 remote 选择"移除"而非"保留标记"，因用户明示"不再推送"，移除杜绝误推且完全可逆。
 - **Commit**：2e8f8b4
+
+## 2026-09-12/13 — ops(T3): .22 整机退役与 n2 换机五项改造（ADR-006）
+
+- **任务**：用户五项任务书（n2 新机/全链合理性/单机峰值/算法优化/.22 离场）。计划冻结 `docs/superpowers/plans/2026-09-12-node22-decommission-n2-swap.md`（T3）；决策 `docs/decisions/ADR-006-node22-decommission-n2-swap.md`。
+- **工具**：Edit/Write（deploy.sh/loadgen/soak-72h.sh/ADR/README）、bash+ssh+scp（.108/.110/.22 远端）、loadgen（压测/浸泡）、go build/test。无子代理。规则 2（deploy.sh/ops log 均有 .tmp/backups 备份）。
+- **操作**（文件级）：①deploy.sh 重写（n2 默认终态 `listen@192.168.0.110` 有线口、preflight 快速失败、AUTH_TOKEN 透传、GP 自动探测、无 .22 残留）；②loadgen 增 `-token`（X-Axiom-Token，seed/search 共用）；③新增 `scripts/runtime-go/soak-72h.sh`（用户侧 72h 浸泡：RSS/PID 快照 + 判据清单）；④README 新增"拓扑演进"节（当前拓扑/节点添加流程/监控异常/实测表）；⑤ADR-006 落盘；⑥.22 清理执行（tar 155MB 备份校验→停三服务→删 ~/runtime-go 与裸仓库→端口核验清零）。
+- **验证结果**：A3 单机（w1 GP=12）simple 49,943；A4 两实验均无收益回退（写二进制 seed 13.2→14.1/19.4s；微批 v1 simple −74%/v2 mixed −11%）；**A4 回退复测 gate**：WiFi 组 simple 6,613/mixed 7,753（RTT 14-105ms 归因：ping 60ms、eno1 未插线），用户插网线后（n2=.110，HTTP ~2.8ms）**simple 13,804（基线 12,635 +9.3%）/ mixed 10,893（10,711 +1.7%）/ seed 12.98s，零错误**；双节点 /cluster 两节点 healthy、分片各持 16、鉴权矩阵 403/403/200。go build 全包通过、search 包测试 2.7s 全绿。
+- **偏差记录**：①**计划外 IP 漂移连锁**：原 n2 .111 关机后 DHCP 将 .111 分给 w1（w1 残留 searchd 对"n2"健康检查自环假健康）→ 重启指向真 n2；n2 终态有线 .110（计划文档写作时为 .111/.108，deploy.sh 头注记录全程）；②**ADR 编号顺延**：计划原定 ADR-004 已被占用 → ADR-006；③**验证报告未入库**：`docs/reports/` 为 .gitignore 既有策略（0 跟踪先例），报告本地留存，偏差记此；④cluster.go/httpapi.go 仅 CRLF 行尾差异（A4 回退 Write 引入），sed 归零无内容改动；⑤30min 浸泡仍在运行，结果与 72h 用户执行另条补记。
+- **Commit**：`<占位：n2-swap 主提交>`

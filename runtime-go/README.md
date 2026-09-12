@@ -167,6 +167,42 @@ GP_N1=12 GP_N2=16 bash scripts/runtime-go/deploy.sh   # 全核压测模式；GOG
 - 停止：${LAN_NODE_N1} 上 `docker stop searchd-n1`；Windows 侧结束 searchd 进程。重启：`docker start searchd-n1`，w1 以相同 env 重启即可。
 - loadgen 本轮改动：错误采样打印（前 5 条 err sample 输出到 stderr），便于压测排障。
 
+## 拓扑演进（2026-09-13）：.22 退役与 n2 换机
+
+> 决策记录见 `docs/decisions/ADR-006-node22-decommission-n2-swap.md`；验证报告见 `docs/reports/2026-09-12-runtime-go-n2-swap-verification.md`。IP、主机与账号以 `scripts/runtime-go/deploy.sh` 默认值 + 本地 `~/.axiom/axiom-secrets/runtime-go-topology.md` 为准（规则 11）。
+
+### 当前拓扑
+
+- **w1**（Windows，本机）承担 **n1** 角色：本地启动 searchd（`SEARCHD_NODE_ID=n1`，GOMAXPROCS=12），持偶数分片；deploy.sh 无法部署本地 Windows，w1 侧为手动运维。
+- **n2**（Linux 笔记本，deploy.sh 默认 `listen@192.168.0.110` 有线口）：searchd/agentd/pcdad 三守护进程，持奇数分片。该机另有 WiFi 地址，**集群对等地址必须用有线 IP**（WiFi 链路 RTT 14-105ms 抖动，见下文实测）。
+- **退役节点**：data@.22（旧 n2，已停服并清理，tar 备份留存于 .22 本地）；`${LAN_NODE_N1}`（.150，deploy.sh 的 N1 默认值）已离线——scope=n1 会 preflight 失败，属预期。
+- 部署：`bash scripts/runtime-go/deploy.sh [build] [all|n2]`（n2 切换、preflight 快速失败、AUTH_TOKEN 透传、GOMAXPROCS 自动探测已落地）。w1 侧 searchd 手动启动：env 同上节 w1 用法，节点列表含 `n1`（self）与 `n2`（deploy.sh 的 N2_ADDR 默认值）。
+
+### 节点添加流程与验证步骤（复用 deploy.sh）
+
+1. `N2=listen@<新机IP> bash scripts/runtime-go/deploy.sh build all` —— preflight 对每节点 BatchMode SSH 快速失败，明示不可达节点；
+2. 脚本自动：ship 四件套 → 重启三守护进程（幂等，按 pid 文件杀旧进程）→ 各端口 `/healthz` 打点（应 3×200）；
+3. 验证：`curl $N2_ADDR/cluster` 视图两节点均 healthy、分片归属按排序节点 ID 各持 16；写鉴权矩阵（无 token 403 write disabled / 错 token 403 / 对 token 200）；
+4. 单节点下线其余节点时查询降级 `partial:true`（指标 `searchd_partial_queries_total`），属预期行为；
+5. 压测冒烟：`loadgen -mode seed -docs 100000 -token ...` → `seed done` 时间与本文实测表对照。
+
+### 监控与异常处理
+
+- 存活：三守护进程 `/healthz`；集群健康：任一入口 `GET /cluster`（healthy 字段 + 分片归属）。
+- 对端不可达：查询自动降级 partial 并累加 `searchd_partial_queries_total`；写入路由到对端的请求会失败重试——恢复后自动回归，无需重启。
+- 资源：`/metrics` 抓 QPS/p50/p95/p99/错误码/partial 计数；RSS 泄漏与重启判据见 `scripts/runtime-go/soak-72h.sh` 头部说明（72h 浸泡脚本，判据：错误率 0、p95 漂移 <1.5×、RSS <2×、PID 零变化）。
+
+### 实测（HTTP，10 万文档，错误率 0%，2026-09-12/13）
+
+| 场景 | 负载 | 实测 QPS | 延迟 | 说明 |
+|---|---|---|---|---|
+| 单机全分片本地（w1，GP=12，64w 闭环） | simple | **49,943** | — | 旧 2 核数据（17.1k）的 2.9× |
+| 双节点有线（w1 + n2 有线口，RTT <1ms） | simple | **13,804** | p50 3.23ms / p95 17.42ms | 恢复旧基线（12,635）并 +9.3% |
+| 双节点有线（同上） | mixed | **10,893** | p50 5.37ms / p95 10.92ms | 旧基线 10,711 的 +1.7% |
+| 双节点 WiFi 对照（n2 走 WiFi，RTT 14-105ms 抖动） | simple / mixed | 6,613 / 7,753 | simple p95 25.6ms | 与有线同参同码，差距全部来自链路 |
+
+**结论**：① 双节点绝对数字与旧基线同水平（新 n2 有线略快）；② **跨节点链路质量是该架构 QPS 的第一决定因素**——同样的代码与参数，WiFi 抖动链路使 simple QPS 减半；③ 写路径二进制化与查询微批聚合两项 A4 实验均无量化收益（写路径 seed 13.2s→14.1/19.4s；微批 v1 simple −74%、v2 mixed −11%），已回退——跨节点 RPC 已有 P2-12 二进制查询协议 + 按对端分组扇出，剩余开销在链路 RTT 与内核路径，不在此两处。
+
 ## AST 静态分析自体检结果
 
 `astopt.Scan("internal")` 共 31 条命中（22 warn / 9 info），绝大多数在 `_test.go`。生产代码 warn 逐条经 benchmark 取证：2PC 错误路径 happy path 已 0 alloc、search COW 的循环内分配是隔离正确性所必需、锁重试循环分配每调用最多一次——**无安全且有 bench 收益支撑的修复项，未做改动**；info 级（非缓冲 channel）均为刻意的 rendezvous 语义。
