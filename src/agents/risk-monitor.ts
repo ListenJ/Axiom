@@ -45,7 +45,39 @@ export function resetDegradedBypassCount(): void {
 }
 
 function isFailClosedEnabled(): boolean {
+  // 显式开启「所有降级场景一律 fail-closed」（默认 0，见下方说明）
   return readString("EDGE_RISK_FAIL_CLOSED", "0") === "1";
+}
+
+/**
+ * 初筛降级时**必须强制审批**的高危工具（静态判定，不依赖已降级的初筛）。
+ *
+ * 修复（审计 A 的配套项）：初筛依赖外部模型/网络；离线或网络失败时它会被标记为
+ * `degraded`，此时 `edge.risk === "low"` **并不代表真的低风险**，而是"根本没测出来"。
+ * 原实现对这种情况默认直接放行（fail-open）—— 实测后果是 `/mcp/scene` 触发的
+ * `terminal_exec` 调用被一路放行，且日志里明晃晃写着 `failClosed:false`。
+ *
+ * 处置：保留"离线环境不整体阻断"的可用性取舍（不把默认翻成全局 fail-closed），
+ * 但对具备**执行 / 写入 / 外发**能力的工具改为降级时恒需审批 —— 这些正是
+ * 一旦误放行就不可逆的操作。
+ */
+const DEGRADED_MUST_APPROVE_TOOLS: ReadonlySet<string> = new Set([
+  "terminal_exec",
+  "fs_write",
+  "fs_delete",
+  "fs_move",
+  "kg_add_node",
+  "kg_add_edge",
+  "dre_write_knowledge",
+  "github_create_issue",
+  "github_create_pr",
+  "actor_send",
+  "task_graph_execute",
+]);
+
+/** 初筛降级时是否必须强制审批：高危工具恒为 true，其余取决于 EDGE_RISK_FAIL_CLOSED */
+function mustApproveWhenDegraded(toolName: string): boolean {
+  return DEGRADED_MUST_APPROVE_TOOLS.has(toolName) || isFailClosedEnabled();
 }
 
 // ── P2-13：判定缓存 ─────────────────────────────────────────
@@ -221,20 +253,31 @@ export async function monitorToolPayload(
   if (edge.risk === "low") {
     if ((edge as { degraded?: boolean }).degraded === true) {
       degradedBypassCount++;
-      logger.warn("[RiskMonitor] edge screening degraded; bypass recorded", {
+      // 修复（审计 A 配套）：降级时不再对高危工具默认放行。
+      const mustApprove = mustApproveWhenDegraded(toolName);
+      logger.warn("[RiskMonitor] edge screening degraded", {
         toolName,
         payload: payload.slice(0, 120),
         failClosed: isFailClosedEnabled(),
+        highRiskTool: DEGRADED_MUST_APPROVE_TOOLS.has(toolName),
+        verdict: mustApprove ? "require-approval" : "pass",
       });
       auditLogger.log({
         event: "security.degraded_bypass",
         actor: "risk-monitor",
         resource: `${toolName}(${kind})`,
-        outcome: "allowed",
+        outcome: mustApprove ? "denied" : "allowed",
         reason: "edge screening degraded",
       });
-      if (isFailClosedEnabled()) {
-        escalate(toolName, kind, payload, "edge degraded (EDGE_RISK_FAIL_CLOSED=1)");
+      if (mustApprove) {
+        escalate(
+          toolName,
+          kind,
+          payload,
+          DEGRADED_MUST_APPROVE_TOOLS.has(toolName)
+            ? "edge degraded; high-risk tool requires approval"
+            : "edge degraded (EDGE_RISK_FAIL_CLOSED=1)",
+        );
         return "require-approval";
       }
     }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Scene Router — 场景驱动的工具调用系统
  * 
  * 无需 LLM，根据输入文本快速匹配场景并调用 MCP 工具。
@@ -41,12 +41,53 @@ export interface SceneResult {
 }
 
 /** 场景路由器 */
+/**
+ * 不允许被「场景自动执行」触达的高危工具。
+ *
+ * 安全修复（审计 A/`/mcp/scene` RCE）：`execute()` 会把调用方传入的 `context`
+ * 直接展开进工具参数，于是 `POST /mcp/scene {input:"run x", context:{command:"..."}}`
+ * 可以让 `terminal` 场景去跑任意命令（已实测：stdout 回显、exitCode 0）。
+ * 场景是「按关键词自动选工具并执行」，没有任何人工确认环节，因此绝不应触达
+ * 具备副作用/执行能力的工具。此处默认拒绝（可通过构造参数显式放行）。
+ */
+export const RISKY_SCENE_TOOLS: ReadonlySet<string> = new Set([
+  "terminal_exec",
+  "fs_write",
+  "fs_delete",
+  "fs_move",
+]);
+
+export interface SceneRouterOptions {
+  /**
+   * 是否允许场景自动执行 RISKY_SCENE_TOOLS 中的工具。
+   * 默认 **false**（fail-closed）。仅在明确需要且已另行加确认流程时才开启。
+   */
+  allowRiskyTools?: boolean;
+}
+
 export class SceneRouter {
   private scenes: Scene[] = [];
   private registry: ToolRegistry;
+  private allowRiskyTools: boolean;
 
-  constructor(registry: ToolRegistry) {
+  constructor(registry: ToolRegistry, opts?: SceneRouterOptions) {
     this.registry = registry;
+    this.allowRiskyTools = opts?.allowRiskyTools ?? false;
+  }
+
+  /**
+   * 拒绝高风险工具的自动执行。返回一条「已拒绝」的执行记录，或 null 表示放行。
+   */
+  private refuseIfRisky(toolName: string): SceneResult["executed"][number] | null {
+    if (this.allowRiskyTools || !RISKY_SCENE_TOOLS.has(toolName)) return null;
+    return {
+      tool: toolName,
+      success: false,
+      result: null,
+      error:
+        `Refused: "${toolName}" is a high-risk tool; scene auto-execution is disabled by default. ` +
+        `Set allowRiskyTools=true only behind an explicit confirmation flow.`,
+    };
   }
 
   /** 注册场景 */
@@ -108,8 +149,10 @@ export class SceneRouter {
           if (!handler) {
             return { tool: toolName, success: false, result: null, error: `Tool ${toolName} not found` };
           }
+          const refused = this.refuseIfRisky(toolName);
+          if (refused) return refused;
           try {
-            const params = this.buildParams(input, toolName, context);
+            const params = this.buildParams(input, toolName, scene, context);
             const result = await handler(params);
             return { tool: toolName, success: true, result };
           } catch (e: unknown) {
@@ -126,8 +169,13 @@ export class SceneRouter {
           executed.push({ tool: toolName, success: false, result: null, error: `Tool ${toolName} not found` });
           continue;
         }
+        const refused = this.refuseIfRisky(toolName);
+        if (refused) {
+          executed.push(refused);
+          continue;
+        }
         try {
-          const params = this.buildParams(input, toolName, context);
+          const params = this.buildParams(input, toolName, scene, context);
           const result = await handler(params);
           executed.push({ tool: toolName, success: true, result });
         } catch (e: unknown) {
@@ -145,12 +193,26 @@ export class SceneRouter {
   }
 
   /** 构建工具参数 */
-  private buildParams(input: string, toolName: string, context?: Record<string, unknown>): Record<string, unknown> {
-    // 基础参数：输入文本和上下文
-    const params: Record<string, unknown> = {
-      input,
-      ...(context || {}),
-    };
+  private buildParams(
+    input: string,
+    toolName: string,
+    scene: Scene,
+    context?: Record<string, unknown>
+  ): Record<string, unknown> {
+    // 安全修复（审计 A）：**不再整体展开** `context`。
+    // 原实现 `{ input, ...(context || {}) }` 让调用方可以注入**任意参数名** ——
+    // 例如给 terminal 场景的 terminal_exec 注入 `command`，从而实现远程命令执行。
+    // 现在只有场景作者在 `scene.paramMap` 里**显式声明**的映射
+    // （工具参数名 → context 键名）才会被注入。
+    const params: Record<string, unknown> = { input };
+    if (context && scene.paramMap) {
+      for (const [paramName, contextKey] of Object.entries(scene.paramMap)) {
+        if (Object.prototype.hasOwnProperty.call(context, contextKey)) {
+          params[paramName] = context[contextKey];
+        }
+      }
+    }
+    void toolName;
 
     // 从输入提取常见参数
     const fileMatch = input.match(/[\w\-/]+\.(ts|js|py|json|md|txt|yml|yaml)/);

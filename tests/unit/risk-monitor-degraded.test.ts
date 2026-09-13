@@ -88,13 +88,25 @@ describe("风险初筛降级可见性与可选 fail-closed（C-4）", () => {
     else process.env.EDGE_RISK_FAIL_CLOSED = origFailClosed;
   });
 
-  test("降级 low 默认仍放行，但计数器递增（可观测）", async () => {
+  test("降级时高危工具默认升级审批（审计修复：此处原为 fail-open）", async () => {
+    // ⚠️ 行为变更说明（审计 A 配套修复，非测试写错）：
+    // 本用例原先断言 `verdict === "pass"`，即 C-4 决策「降级默认 fail-open 以不阻断离线环境」。
+    // 实测该默认导致 `/mcp/scene` 注入的 terminal_exec 调用被一路放行（命令真实执行，
+    // 日志中可见 failClosed:false）—— 防护在最需要时（离线/模型不可达）恰好失效。
+    // 现改为：**降级 + 高危工具 ⇒ 强制审批**；离线可用性由「非高危工具仍放行」保证（见下一用例）。
     const before = getDegradedBypassCount();
     const verdict = await monitorToolPayload("terminal_exec", { command: "ls" }, {
       screen: async () => ({ risk: "low", degraded: true }),
     });
-    expect(verdict).toBe("pass");
+    expect(verdict).toBe("require-approval");
     expect(getDegradedBypassCount()).toBe(before + 1);
+  });
+
+  test("降级时非高危工具仍放行（保留离线可用性）", async () => {
+    const verdict = await monitorToolPayload("fs_read", { path: "x" }, {
+      screen: async () => ({ risk: "low", degraded: true }),
+    });
+    expect(verdict).toBe("pass");
   });
 
   test("EDGE_RISK_FAIL_CLOSED=1 时降级即升级审批", async () => {

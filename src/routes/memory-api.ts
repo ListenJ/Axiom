@@ -286,7 +286,7 @@ export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Re
   const body = await ctx.req.json().catch(() => ({}));
   const { file, action } = body; // action: "approve" | "reject"
 
-  if (!file || !action) {
+  if (typeof file !== "string" || typeof action !== "string" || !file || !action) {
     return ctx.jsonResponse({ error: "file and action are required" }, 400, ctx.baseHeaders);
   }
 
@@ -294,7 +294,16 @@ export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Re
     const fs = await import("node:fs");
     const path = await import("node:path");
     const vaultPath = readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
-    const filepath = path.join(vaultPath, "03-Knowledge", "atomic-notes", file);
+    const notesRoot = path.resolve(vaultPath, "03-Knowledge", "atomic-notes");
+    const filepath = path.resolve(notesRoot, file);
+
+    // 安全修复（审计 F）：`file` 来自请求体，原实现直接 path.join 进笔记目录并
+    // 读写（含 writeFileSync 落盘），未做包含性校验 —— 传 `../../outside.md`
+    // 即可读写 vault 之外的任意文件。此处强制解析后仍位于 atomic-notes 之内。
+    const rel = path.relative(notesRoot, filepath);
+    if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+      return ctx.jsonResponse({ error: "Invalid file path" }, 400, ctx.baseHeaders);
+    }
 
     if (!fs.existsSync(filepath)) {
       return ctx.jsonResponse({ error: "Note not found" }, 404, ctx.baseHeaders);
