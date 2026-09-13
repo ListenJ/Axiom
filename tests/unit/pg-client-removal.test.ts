@@ -1,42 +1,33 @@
 import { describe, test, expect } from "bun:test";
 import { existsSync, readFileSync } from "fs";
-import { execSync } from "child_process";
 import { join } from "path";
 
 describe("pg-client-removal H-M1-03", () => {
   test("grep pg-client src/ 命中应为 0 (含动态 import)", () => {
-    let hits = "";
-    try {
-      // Prefer ripgrep if available (faster, Windows-friendly)
-      hits = execSync('rg -n "pg-client" src --glob "*.ts" --no-heading 2>nul | find /c /v ""', { encoding: "utf8" } as any);
-      // rg+find returns count with newline; already filtered
-      if (hits.trim() === "") hits = "0";
-    } catch {
-      try {
-        hits = execSync('grep -r "pg-client" src/ --include="*.ts" 2>/dev/null | wc -l', { encoding: "utf8" });
-      } catch {
-        // Fallback: Node fs walk
-        const { readdirSync, readFileSync } = require("fs");
-        const { join } = require("path");
-        let count = 0;
-        function walk(dir: string) {
-          for (const e of readdirSync(dir, { withFileTypes: true })) {
-            const p = join(dir, e.name);
-            if (e.isDirectory()) {
-              if (e.name === "node_modules" || e.name === ".git") continue;
-              walk(p);
-            } else if (e.name.endsWith(".ts")) {
-              const c = readFileSync(p, "utf8");
-              if (c.includes("pg-client")) count++;
-            }
-          }
+    // 审计修复（可移植性 + 有效性）：原实现首选
+    //   execSync('rg -n "pg-client" src --glob "*.ts" --no-heading 2>nul | find /c /v ""')
+    // 这是**纯 Windows** 写法，在 Linux/macOS 上有两个后果：
+    //   1) `2>nul` 不是重定向而是**创建一个名为 `nul` 的文件** —— 实测每次跑测试都会
+    //      在仓库根目录留下它，内容为 `/bin/sh: 1: rg: not found`；
+    //   2) `find /c /v ""` 是 Windows 的 find.exe，Linux 上的 find 语义完全不同，
+    //      整条命令会"成功"返回空串，被下一行当成 "0" ⇒ **断言空转通过**，
+    //      即该检查在 Linux 上从未真正执行过（假阴性）。
+    // 现改为纯 Node 文件遍历：无 shell、无外部命令、跨平台，且真正读取文件计数。
+    const { readdirSync } = require("fs");
+    let count = 0;
+    function walk(dir: string) {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name === "node_modules" || e.name === ".git") continue;
+          walk(p);
+        } else if (e.name.endsWith(".ts")) {
+          if (readFileSync(p, "utf8").includes("pg-client")) count++;
         }
-        walk("src");
-        hits = String(count);
       }
     }
-    const n = parseInt(hits.trim(), 10);
-    expect(n).toBe(0);
+    walk("src");
+    expect(count).toBe(0);
   });
 
   test("src/db/pg-client.ts 应已删除", () => {

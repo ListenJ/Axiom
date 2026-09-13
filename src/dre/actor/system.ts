@@ -82,6 +82,12 @@ export interface ActorContext {
 
 // ========== Actor 实例 ==========
 
+/**
+ * O4 有界邮箱的默认容量（溢出丢最旧，防无界内存增长）。
+ * 可通过 `ActorSystem.register(behavior, { mailboxCapacity })` 按 Actor 调整。
+ */
+export const DEFAULT_MAILBOX_CAPACITY = 256;
+
 class ActorInstance extends EventEmitter {
   readonly id: string;
   readonly behavior: ActorBehavior;
@@ -93,7 +99,7 @@ class ActorInstance extends EventEmitter {
   private processing = false;
   private system: ActorSystem;
 
-  constructor(behavior: ActorBehavior, system: ActorSystem, mailboxCapacity: number = 256) {
+  constructor(behavior: ActorBehavior, system: ActorSystem, mailboxCapacity: number = DEFAULT_MAILBOX_CAPACITY) {
     super();
     this.id = behavior.id;
     this.behavior = behavior;
@@ -260,12 +266,22 @@ export class ActorSystem {
 
   /**
    * 注册 Actor
+   *
+   * @param opts.mailboxCapacity O4 有界邮箱容量（默认 256，溢出丢最旧）。
+   *   此前该值只能由 ActorInstance 构造参数传入，而 register() 不暴露它 ——
+   *   公开 API 上**无法为高并发 Actor 调大邮箱**，导致突发负载下必然丢消息
+   *   （S5 风暴用例即因此失败：单 Actor 收 534 条、容量 256，丢一半）。
+   *   现补上这个旋钮，默认值不变（保持既有内存保护语义）。
    */
-  async register(behavior: ActorBehavior): Promise<void> {
-    const actor = new ActorInstance(behavior, this);
+  async register(behavior: ActorBehavior, opts?: { mailboxCapacity?: number }): Promise<void> {
+    const actor = new ActorInstance(behavior, this, opts?.mailboxCapacity ?? DEFAULT_MAILBOX_CAPACITY);
     this.actors.set(behavior.id, actor);
     await actor.init();
-    logger.info("[ActorSystem] Registered actor", { id: behavior.id, type: behavior.type });
+    logger.info("[ActorSystem] Registered actor", {
+      id: behavior.id,
+      type: behavior.type,
+      mailboxCapacity: opts?.mailboxCapacity ?? DEFAULT_MAILBOX_CAPACITY,
+    });
   }
 
   /**
