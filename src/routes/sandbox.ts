@@ -19,6 +19,11 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
       maxCpu?: number
       networkAccess?: boolean
       readOnly?: boolean
+      /**
+       * @deprecated 高危命令不再接受调用方自行提交的确认码（审计 D：那是「自问自答」，
+       * 不构成独立闸门）。现在改由独立模型审批。该字段保留仅为兼容旧调用方，
+       * **不再影响任何判定**。
+       */
       confirmationId?: string
     }
 
@@ -28,27 +33,63 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
 
     // 1. Permission check
     const permCheck = checkCommandPermission(body.command)
-    if (permCheck.level === "high-risk" && !body.confirmationId) {
-      const { requestConfirmation } = await import("../utils/permissions.js")
-      const id = requestConfirmation(body.command)
-      return ctx.jsonResponse({
-        blocked: true,
-        confirmationId: id,
-        reason: permCheck.reason,
-        message: "高危操作需要确认，请使用确认接口批准后重试",
-      }, 403, ctx.baseHeaders)
-    }
 
-    // 2. If confirmation provided, verify it
-    if (body.confirmationId) {
-      const { confirmOperation } = await import("../utils/permissions.js")
-      const result = confirmOperation(body.confirmationId)
-      // 审计 J-1（2026-08-24）：confirmOperation 返回被批准的原命令，
-      // 此前未与 body.command 比对——持有效确认码可放行任意其他命令。
-      // 对齐 confirmation.ts:52 的标准实现。
-      if (!result.approved || result.command !== body.command) {
-        return ctx.jsonResponse({ error: "确认已过期、无效或不匹配原操作" }, 403, ctx.baseHeaders)
+    // 2. 高危命令：由**独立模型**审批，取代此前的「同一调用方自问自答」。
+    //
+    // 背景（审计 D）：原流程是 requestConfirmation() 把确认码直接返回给**同一个调用方**，
+    // 调用方再把它提交回来即可放行 —— 两次 POST 就能跑 rm -rf /，确认环节不构成
+    // 任何独立闸门。此处改为：由一个**独立的模型**（审批人）对命令做一次独立复核。
+    //
+    // 审批人是谁**不写死**：跟随用户自己的模型配置（多模型时可在设置中指定，
+    // 单模型时直接用那一个）。解析与调用见 src/agents/approver-model.ts。
+    //
+    // 失败语义一律 **fail-closed**：审批人不可用（无模型/无 Key/超时/输出不可解析）
+    // 或审批模型判定拒绝 → 拒绝执行，并返回可读原因与修复指引。
+    if (permCheck.level === "high-risk") {
+      const { requestApproval } = await import("../agents/approver-model.js")
+      const verdict = await requestApproval({
+        command: body.command,
+        context:
+          `cwd=${body.cwd ?? "."} readOnly=${body.readOnly ?? false} ` +
+          `networkAccess=${body.networkAccess ?? false} timeoutMs=${body.timeoutMs ?? 30000}`,
+      })
+
+      const approverInfo = {
+        provider: verdict.provider,
+        model: verdict.model,
+        source: verdict.source,
+        decided: verdict.decided,
       }
+
+      if (!verdict.decided) {
+        return ctx.jsonResponse({
+          blocked: true,
+          rejectedBy: "approver-unavailable",
+          reason: permCheck.reason,
+          approver: approverInfo,
+          error: "高危操作未获批准：审批人不可用",
+          message: verdict.reason,
+        }, 403, ctx.baseHeaders)
+      }
+
+      if (!verdict.approved) {
+        return ctx.jsonResponse({
+          blocked: true,
+          rejectedBy: "approver-denied",
+          reason: permCheck.reason,
+          approver: approverInfo,
+          error: "高危操作被审批模型拒绝",
+          message: verdict.reason,
+        }, 403, ctx.baseHeaders)
+      }
+
+      // 审批通过 → 记审计（含审批人与理由，便于事后追责与复盘）
+      auditSuccess(ctx, "sandbox.high_risk_approved", body.command, {
+        approverProvider: verdict.provider,
+        approverModel: verdict.model,
+        approverSource: verdict.source,
+        approverReason: verdict.reason,
+      })
     }
 
     // 3. Execute in sandbox
