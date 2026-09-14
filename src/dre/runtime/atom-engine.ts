@@ -15,6 +15,7 @@
  */
 
 import { eventBus } from "./event-bus.js";
+import { scoreMatch } from "./text-rank.js";
 import { logger } from "../../utils/logger.js";
 import type { Database } from "bun:sqlite";
 
@@ -262,20 +263,25 @@ class AtomStoreImpl {
   }
 
   /**
-   * Search atoms by content (simple substring match).
+   * Search atoms by content.
+   *
+   * T3 步骤 1.2：由朴素子串匹配升级为「分词 + 打分 + 稳定排序」。
+   * 原实现 `content.includes(query)` 对多词/中文查询几乎必然 0 结果
+   * （`"确定性 检索"` 匹配不到 `"确定性检索"`），且结果按 Map 插入顺序截断、
+   * 凑够 limit 即 break（可能整体漏掉更相关项）。
    */
   search(query: string, limit = 20): Atom[] {
-    const lower = query.toLowerCase();
-    const results: Atom[] = [];
+    if (!query.trim()) return [];
 
+    const scored: Array<{ atom: Atom; score: number }> = [];
     for (const atom of this.atoms.values()) {
-      if (atom.content.toLowerCase().includes(lower)) {
-        results.push(atom);
-        if (results.length >= limit) break;
-      }
+      const score = scoreMatch(query, [atom.content]);
+      if (score > 0) scored.push({ atom, score });
     }
 
-    return results;
+    // 稳定排序：分数降序，同分按 id 升序 —— 同一输入两次调用顺序完全一致（确定性底线）
+    scored.sort((a, b) => b.score - a.score || a.atom.id.localeCompare(b.atom.id));
+    return scored.slice(0, limit).map((s) => s.atom);
   }
 
   /**

@@ -1275,7 +1275,7 @@
 - **操作**（文件级）：①新增 `docs/superpowers/plans/2026-09-14-knowledge-backend-convergence.md`（含 0.4 任务契约、实测测绘、六步执行顺序、影响面清单、规则遵守要点）；②本条目（规则 5）。
 - **验证结果**：计划落盘，契约六要素齐备（任务/验收标准/改动清单/不做项/验证命令/风险回滚）。关键决策已由用户确认（收敛目标 = DRE SQLite）。
 - **偏差记录**：①测绘发现 **KG 写入路径实为 5 处**（用户表述为 4 套），已在计划中如实更正；②**大量非知识后端模块同样 `new Database`**（缓存/凭据/定时/评测共十余处），已在契约"不做项"中逐一列明，避免收敛时误伤；③计划中标注 FTS5 排序语义差异会导致**结果顺序变化**，对拍须按集合差异断言，否则产生假失败。
-- **Commit**：<待回填>
+- **Commit**：bd59c94
 
 ## 2026-09-14 — recon(T3/步骤1.1): DRE 检索能力勘察 —— 结论改变计划重点
 
@@ -1284,4 +1284,13 @@
 - **操作**（文件级）：①`src/dre/runtime/atom-engine.ts:267 search()` 与 `src/dre/runtime/knowledge-network.ts:470 search()` 只读勘察；②`docs/superpowers/plans/2026-09-14-knowledge-backend-convergence.md` 步骤 1 段落更新（按规则 12：Do 阶段发现影响验收标准的问题 → 暂停并回 Plan 更新清单与理由）。
 - **验证结果**：两处 `search()` 均为**朴素子串匹配** —— 整串 `toLowerCase().includes()`、无分词、无打分、无排序、凑够 `limit` 即 `break`。两个模块**均无 FTS5**（grep 计数 0/0）。
 - **偏差记录**：①**结论改变了计划重点**：原计划 1.2 写"若缺则补"，实测后升级为**必须补齐** —— 否则收敛后检索质量会**显著低于**现状（现状至少有 FTS5 的 bm25 排序），本次收敛失去成立前提；②三个具体缺陷已写入计划：无分词（多词查询几乎必然 0 结果，中文尤甚）、无打分排序（结果按 Map 插入顺序截断，相关项可能排在无关项之后）、提前 break（可能漏掉更相关项）；③本步骤验收标准由"确认有检索能力"升级为"检索质量不劣于收敛前"，由步骤 1.3 的对拍评测集量化把关。
+- **Commit**：<待回填>
+
+## 2026-09-14 — feat(T3/步骤1.2): DRE 检索升级为「分词 + 打分 + 稳定排序」
+
+- **任务**：T3 计划步骤 1.2。DRE 现有 `search()` 为朴素子串匹配（步骤 1.1 勘察结论），须补齐才能承担"唯一检索源"。
+- **工具**：Bash（勘察/验证/git）、Read、Write、Edit。无子代理。
+- **操作**（文件级）：①新增 `src/dre/runtime/text-rank.ts`（分词 + 打分，深模块，对外 2 个函数）；②`src/dre/runtime/atom-engine.ts` 的 `search()` 接线（+1 行 import）；③新增 `tests/unit/text-rank.test.ts`（13 例）；④新增 `tests/unit/dre-search.test.ts`（7 例）；⑤`tests/crawl/search-fallback.test.ts` mock 支持本地自建 SearXNG 地址。
+- **验证结果**：`bunx tsc --noEmit` 通过；`text-rank` 13 pass / `dre-search` 7 pass；**全量 `bun run test` 4050 pass / 36 skip / 0 fail**。
+- **偏差记录**：①**测试自身缺陷**：`dre-search` 首版"无关查询"用例的查询串带了测试前缀 `P`，而内容也含 `P` ⇒ 前缀作为 token 正常命中，被误判为失败。这是**正确行为**，已修正测试（改为断言目标原子不出现在结果中），非实现问题；②**连带修复一处既有失败**：`tests/crawl/search-fallback.test.ts` 的 mock 只认公共实例 `sapti.me`，而前序提交（5ba0eeb）已让 SearXNG 地址由 `web-search.yaml` 驱动、默认指向自建实例 ⇒ mock 报 `unexpected host: 127.0.0.1`。已按规则 1 做最小修复（mock 增加本地/内网地址识别）；③按规则 8 评估过"是否需要独立模块"：两个调用点（atom-engine / knowledge-network）确有第二处真实使用，非投机抽象；④本次**仅接线 atom-engine**，`knowledge-network.search()` 作为下一片切片，未在本次一并改动（规则 7 垂直切片）。
 - **Commit**：<待回填>

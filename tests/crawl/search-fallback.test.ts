@@ -21,7 +21,12 @@ const topologyFetch: SearchFetch = async (url: string) => {
   const u = new URL(url);
   if (u.hostname.includes("duckduckgo")) return resp(DDG_CHALLENGE);
   if (u.hostname.includes("bing.com")) return resp(BING_HTML);
-  if (u.hostname.includes("sapti.me")) return resp(SEARX_RESULTS);
+  // SearXNG 地址现由 config/web-search.yaml 的 searxng.base_url 驱动（自建优先），
+  // 因此本地/内网地址也要识别；原实现只认公共实例 sapti.me，
+  // 在"已部署自建实例"的机器上会误报 unexpected host。
+  if (u.hostname.includes("sapti.me") || u.hostname === "127.0.0.1" || u.hostname === "localhost") {
+    return resp(SEARX_RESULTS);
+  }
   throw new Error("unexpected host: " + u.hostname);
 };
 
