@@ -112,6 +112,19 @@
 - [ ] 1.2 **补齐 DRE 检索**（最小可行：分词 + 打分 + 稳定排序 + 不提前截断）
       - 必须保持确定性（同一输入同一输出、同一排序），这是"确定性检索"卖点的底线
       - 不得引入向量/embedding（与"零向量"主张冲突）
+      - [x] 切片 1-2：新增 `src/dre/runtime/text-rank.ts`（`tokenize` CJK 二元组分词 + 打分）
+      - [x] 切片 3：接线 `atomStore.search()` —— 收集全部命中 → 排序 → 再截断（不再提前 break）
+      - [x] 切片 4：打分函数升级为 **BM25**（与 FTS5 同族）
+            —— 自拟权重 `(命中词数×0.6 + 覆盖率×0.4)` **缺少 df 维度**，常见词与稀有词
+            贡献相同分数、判别力差；收敛后要求"检索质量不劣于收敛前"（收敛前是 FTS5 的 bm25），
+            故必须同族。落地 `rankDocuments()`（语料级 df / avgdl / 长度归一化 / 字段权重）。
+            验证：BM25 11 例 + 既有 20 例全绿；全量 4061 pass / 36 skip / 0 fail。
+      - [ ] **切片 4b（必须做，否则 1.2 不成立）**：把 `rankDocuments()` **接线进**
+            `atomStore.search()` 与 `knowledgeNetwork.search()`。
+            **现存缺口（自查发现）**：`atomStore.search()` 仍逐个文档调 `scoreMatch()`，
+            而**单文档没有语料统计**（N=1 / df=1）⇒ IDF 退化为常数，跨文档分数
+            **不可比**，"按相关性排序"名不副实。`rankDocuments` 目前只有测试调用方，
+            属规则 8 意义上的"未接线能力"。接线后再跑一次确定性 + 排序断言。
 - [ ] 1.3 建**对拍脚本**：同一批查询分别走 DRE 与旧后端，输出结果集差异
       —— 该脚本即用户要的「关键词检索 vs 向量检索损失多少召回率」评测集
 - [ ] 1.4 记录基线数字到 `eval-results/`
@@ -165,7 +178,9 @@
 
 | 步骤 | 文件 | 状态 |
 |---|---|---|
-| 1.1 | `src/dre/runtime/atom-engine.ts`、`knowledge-network.ts`（只读勘察） | 待办 |
+| 1.1 | `src/dre/runtime/atom-engine.ts`、`knowledge-network.ts`（只读勘察） | ✅ 完成（结论见步骤 1 的警示块） |
+| 1.2 | `src/dre/runtime/text-rank.ts` | 🔄 新增模块（切片 1-4 已提交）；**切片 4b 待接线** |
+| 1.2 | `src/dre/runtime/atom-engine.ts`（`search()` 接线） | 🔄 切片 3 已接线 `scoreMatch`；切片 4b 改接 `rankDocuments` |
 | 1.3 | `src/agent-evals/*`（对拍脚本，新增） | 待办 |
 | 2.1 | `src/kal/knowledge-access-layer.ts` | 待办 |
 | 2.2 | `src/mcp/server/arena-tools.ts`、`src/eval/arena-collector.ts` | 待办 |
