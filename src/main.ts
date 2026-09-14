@@ -361,8 +361,11 @@ try {
 } catch (e: unknown) { logger.warn("ApprovalBridge subscribe failed", { error: (e as Error).message }); }
 
 // Cron
-try { await import("./cron/scheduler.js"); logger.info("Cron scheduler started"); }
-catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Error).message }); }
+try {
+  const { startCronScheduler } = await import("./cron/scheduler.js");
+  startCronScheduler();
+  logger.info("Cron scheduler started");
+} catch (e: unknown) { logger.warn("Cron scheduler not started", { error: (e as Error).message }); }
 
 // Consciousness (self-reflection module)
 try {

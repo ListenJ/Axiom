@@ -1410,3 +1410,20 @@
   ③**"存在"不等于"内容正确"已实证**：batch API 只报 actions 与 size；本次以重新计算 sha256（内容寻址的硬标准）兜底，避免了"取回 0 字节/错误内容却显示成功"的假阳性。
   ④**该核验是改名后的事后确认**：改名属**同库操作、不迁移对象**，故 LFS 并非改名的前置条件；本次为"核验遗留待办 + 为未来在新机器 clone 立基线"，非"改名卡点"。
 - **Commit**：c70d961
+
+## 2026-09-14 — refactor(cron): 收敛 scheduler 的模块级副作用（最后一项遗留待办）
+
+- **任务**：`src/cron/scheduler.ts` 在**模块顶层**建库、注册 `Bun.cron`、立即执行一次 `healthCheckTask()` 并安装进程级监听器 ⇒ 任何 `import` 它的代码都会落盘建库、注册 4 个全局定时任务、触发真实外呼。按规则 12 收敛为显式启动。
+- **工具**：Bash（备份/验证/git）、Read、Write、Edit。规则 2（备份 `src/cron/scheduler.ts` → `.tmp/backups/`，验证后删除）。
+- **操作**（文件级）：①`src/cron/scheduler.ts`：数据库改**惰性** `getDb()`（import 不落盘）；新增 `startCronScheduler(opts)`（`registerCron` / `runImmediately` / `installProcessHandlers`，默认全开且**幂等**）；cron 注册与进程监听器移入该函数；加 `import.meta.main` 守卫保持 `bun run src/cron/scheduler.ts` 原用法；顶层 `logger.info("starting")` 移入启动函数；②`src/main.ts`：由"靠 import 副作用"改为显式 `startCronScheduler()`；③新增 `tests/unit/cron-scheduler-sideeffects.test.ts`（4 例，子进程隔离观测模块级副作用）；④`tests/unit/scheduler-crash.test.ts`：2 个断言由"import 后断言监听器"改为"显式启动后断言"，并新增 1 例断言 **import 本身不再安装监听器**。
+- **验证结果**：
+  - RED 阶段：3 例因 `startCronScheduler` 不存在失败；第 4 例（任务函数）**超时 5s** —— 精确暴露"import 即触发 `healthCheckTask` 外呼、每次最长 5s 超时"的副作用。
+  - GREEN 后：13/13 pass；同样的子进程用例耗时由 **~5000ms 降至 ~20ms**，即副作用被消除的量化证据。
+  - **`import.meta.main` 守卫实测**：`bun run src/cron/scheduler.ts` 仍自动启动并打印完整注册清单（命令行用法未变）。
+  - `bunx tsc --noEmit` exit 0；**全量 `bun run test` 4078 pass / 36 skip / 0 fail**（基线 4073，+5 为新增/改造用例，零回归）。
+- **偏差记录**：
+  ①**既有测试确实依赖该副作用（预判被证实）**：`scheduler-crash.test.ts` 原以 `await import(...)` 后断言监听器数 > 0。收敛后该断言必然失败，故**同步改为显式启动后断言**（这是"改测试以适配重构"，非放宽断言 —— 另补 1 例反向断言 import 不装监听器，净约束是收紧）。
+  ②**测试环境继承真实 API Key 导致首版非确定性失败**：新测试子进程最初继承 `process.env`，`healthCheckTask` 按真实 key 发起 4 次外呼（正是被测缺陷本身），使用例 5s 超时。已在子进程中显式清空 4 个平台 key 并把任务函数的验证改为"不抛即通过"，与网络解耦。
+  ③**任务函数语义保持不变**：`healthCheckTask`/`heartbeatTask`/`cleanupTask`/`discoverFreeModelsTask` 的签名与返回不变，仅把内部 `db` 换成惰性 `getDb()`。
+  ④**未改** `scheduler-crash.test.ts` 对 SQLITE_BUSY 重试等其余断言（与本次无关，避免扩大范围）。
+- **Commit**：<待回填>
