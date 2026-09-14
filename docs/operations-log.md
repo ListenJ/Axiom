@@ -1323,4 +1323,4 @@
   - **插件包含性**：RED 阶段 3 个攻击面失败；其中**恶意 entry 实测确认越界模块被真实执行**（调试探针 `marker: true`、`status: enabled`）⇒ 非理论风险。修复后 4/4 pass：恶意 `id`（`../../escaped`）与非法 id 被拒、恶意 `entry`（`../../payload.js`）在**安装期**即被拒且 marker 未生成、合法插件未误伤。
   - `bunx tsc --noEmit` exit 0；**全量 `bun run test` 4069 pass / 36 skip / 0 fail**（基线 4061，+8 即新增用例，无回归）。
 - **偏差记录**：①**测试自身缺陷 3 处**（已如实记录）：`Plugin` 无顶层 `id`（应为 `manifest.id`）；测试助手漏返回 `toolRegistry`；测试1 的第二个断言路径算错（`join(pluginDir,"..","..")` 指到 `/tmp` 全局，被先前残留污染）——均为**测试 bug 而非实现问题**，已修正。②**修复位置比原设计更早**：entry 校验落在**安装期**而非启用期（原 Axiom 实现亦为安装期正则 + 启用期兜底），故测试改为断言安装期拒绝 + marker 未生成，比原计划更严格。③**第三项（去伪）未做，待决策**：3 个插件仍用 `Math.random()` 伪造 severity/行号、`plugin.json` 仍声明不存在的 `index.js`、`kg/graph.ts` 仍顶着假的"Louvain"头、`cron/scheduler.ts` 仍有模块级副作用。本仓库已有 `7820915`（插件写入默认关闭）作为**设计分歧**而非遗漏，故是否"去伪"需先确认是修还是撤，未擅自改（规则 12 过度施工红线）。
-- **Commit**：<待回填>
+- **Commit**：8638f46
