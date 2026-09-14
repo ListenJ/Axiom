@@ -1266,4 +1266,4 @@
   - **规则 3（分支命名）**：实际分支为 `fix/audit-critical-security`，与约定 `codex/<任务简述>` 不符。补偿：后续任务改用 `codex/` 前缀；该分支已推送且被引用，不在本次改名（改名需重写远端引用，风险高于收益）。
   - **规则 3（remote 名）**：规则要求 remote 名 `gitea`，实际名为 `origin`（URL 与规则要求一致，指向 .10）。补偿：后续统一用 `git push origin <分支>`；如需严格对齐可 `git remote rename origin gitea`（属独立小任务，未擅自执行）。
 - **验证结果**：`docs/operations-log.md` 追加成功（幂等可检索）；`.tmp/backups/docs/operations-log.md` 备份存在且被 gitignore；`git check-ignore` 确认 `.tmp/`、`archive/` 均不进入常规提交。
-- **Commit**：8a190f9
+- **Commit**：7333523
