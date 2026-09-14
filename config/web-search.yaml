@@ -1,0 +1,200 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# 网络搜索配置（Web Search Configuration）
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 这个文件决定「Axiom 用什么去搜网络」。你可以在 GUI「设置 → 网络搜索」里改，
+# 改完会写回本文件；也可以直接编辑本文件后重启服务。
+#
+# 设计原则
+#   1. **不需要任何 Key 就能用**：默认引擎全部是匿名可用的，装完即可搜。
+#   2. **有 Key 就更强**：登录后送免费额度的服务默认关闭，填了 Key 才启用。
+#   3. **密钥不写在本文件里**：这里只写 `${ENV_VAR}` 引用，Key 放 .env 或 GUI 里填。
+#   4. **自建 SearXNG 优先**：本地自建实例是自己的，不受第三方限流与条款影响；
+#      公共实例只作兜底，且随时可能失效。
+#
+# 想加引擎？在 engines 列表里追加一项即可（id 需有对应实现）。
+# ═══════════════════════════════════════════════════════════════════════════
+
+version: 1
+
+# ── 结果聚合 ───────────────────────────────────────────────────────────────
+aggregate:
+  max_results: 10        # 最终返回给模型的结果条数
+  per_engine: 5          # 每个引擎各自取多少条候选
+  timeout_ms: 15000      # 单个引擎超时
+  dedupe: true           # 按规范化 URL 去重
+  cache_ttl_sec: 1800    # 相同查询的缓存时长（秒）；0 = 不缓存
+  min_relevance: 0.0     # 相关性过滤阈值（0 = 不过滤）
+
+# ── 引擎池 ─────────────────────────────────────────────────────────────────
+# needs_key: false → 匿名可用，装完即生效
+# needs_key: true  → 需在 GUI 或 .env 里填 api_key_env 指定的变量才会启用
+engines:
+  # ═══ 匿名引擎（无需 Key）═══════════════════════════════════════════════
+  - id: searxng
+    label: SearXNG（自建）
+    kind: api
+    enabled: true
+    weight: 1.5
+    needs_key: false
+    note: 自建元搜索引擎，聚合多家上游；见下方 searxng 段。未部署时自动跳过。
+
+  - id: duckduckgo
+    label: DuckDuckGo
+    kind: html
+    enabled: true
+    weight: 1.0
+    needs_key: false
+    note: 匿名可用；偶发反爬挑战，失败时由其他引擎兜底。
+
+  - id: bing
+    label: Bing
+    kind: html
+    enabled: true
+    weight: 0.9
+    needs_key: false
+
+  - id: bing-html
+    label: Bing（HTML 回退）
+    kind: html
+    enabled: true
+    weight: 0.8
+    needs_key: false
+    note: 作为无 Key 可靠回退，其他引擎空结果时由它兜底。
+
+  - id: wikipedia
+    label: 维基百科
+    kind: api
+    enabled: true
+    weight: 0.8
+    needs_key: false
+    note: 适合概念性查询；时效性差。
+
+  - id: google-news
+    label: Google News（RSS）
+    kind: rss
+    enabled: true
+    weight: 0.9
+    needs_key: false
+    note: 新闻时效性好。
+
+  - id: hackernews
+    label: Hacker News
+    kind: api
+    enabled: true
+    weight: 0.6
+    needs_key: false
+    note: 技术圈讨论与热点。
+
+  - id: github
+    label: GitHub
+    kind: api
+    enabled: true
+    weight: 0.6
+    needs_key: false
+    note: 匿名有速率限制；填 GITHUB_TOKEN 可提高额度。
+
+  - id: arxiv
+    label: arXiv
+    kind: api
+    enabled: true
+    weight: 0.6
+    needs_key: false
+    note: 预印本论文。
+
+  - id: crossref
+    label: Crossref
+    kind: api
+    enabled: true
+    weight: 0.6
+    needs_key: false
+    note: 正式发表文献的 DOI 元数据。
+
+  - id: openlibrary
+    label: Open Library
+    kind: api
+    enabled: true
+    weight: 0.5
+    needs_key: false
+    note: 图书检索。
+
+  # ═══ 需 Key（注册后赠送免费额度）══════════════════════════════════════
+  # 默认全部关闭。填了对应环境变量后可在 GUI 里一键启用。
+  - id: tavily
+    label: Tavily
+    kind: api
+    enabled: false
+    weight: 1.4
+    needs_key: true
+    api_key_env: TAVILY_API_KEY
+    free_tier: "注册赠送每月免费额度"
+    signup_url: "https://tavily.com"
+    note: 面向 LLM/RAG 的搜索 API，返回已清洗的正文摘要。
+
+  - id: brave
+    label: Brave Search API
+    kind: api
+    enabled: false
+    weight: 1.3
+    needs_key: true
+    api_key_env: BRAVE_API_KEY
+    free_tier: "免费档每月一定查询量（需注册）"
+    signup_url: "https://brave.com/search/api/"
+    note: 独立索引，中文一般。
+
+  - id: jina-reader
+    label: Jina Reader / Search
+    kind: api
+    enabled: false
+    weight: 1.2
+    needs_key: true
+    api_key_env: JINA_API_KEY
+    free_tier: "无 Key 有匿名额度；带 Key 额度更高"
+    signup_url: "https://jina.ai/reader/"
+    note: 主要用于把网页转成干净 Markdown（web_fetch 场景）。
+
+  - id: google-cse
+    label: Google Programmable Search
+    kind: api
+    enabled: false
+    weight: 1.3
+    needs_key: true
+    api_key_env: GOOGLE_CSE_KEY
+    free_tier: "每天免费查询额度（需自建 CSE 引擎并配 CX）"
+    signup_url: "https://programmablesearchengine.google.com/"
+    note: 还需在 extra 里提供 cx（搜索引擎 ID）。
+
+  - id: serper
+    label: Serper.dev
+    kind: api
+    enabled: false
+    weight: 1.2
+    needs_key: true
+    api_key_env: SERPER_API_KEY
+    free_tier: "注册赠送一次性免费查询数"
+    signup_url: "https://serper.dev"
+    note: 返回 Google SERP 结构化结果。
+
+# ── SearXNG（自建元搜索）────────────────────────────────────────────────────
+searxng:
+  enabled: true
+  # 安装时自动部署到本机（docker compose）；失败不影响其他引擎。
+  auto_deploy: true
+  # 自建实例地址（auto_deploy 后即为本地）
+  base_url: "http://127.0.0.1:8080"
+  bind: "127.0.0.1"
+  port: 8080
+  # settings.yml 中 secret_key 的来源；未设置时由安装脚本生成随机值并写入 .env
+  secret_key_env: SEARXNG_SECRET_KEY
+  # 公共实例兜底：仅当自建不可用时使用。公共实例随时可能失效或关闭 JSON 输出，
+  # 因此默认留空；如需兜底可自行填入。
+  fallback_instances: []
+  # 单个公共实例超时
+  fallback_timeout_ms: 8000
+
+# ── 抓取行为（对目标站点友好）──────────────────────────────────────────────
+policy:
+  respect_robots: true     # 遵守 robots.txt
+  max_concurrency: 3       # 最大并发请求数
+  request_delay_ms: 200    # 同一站点两次请求的最小间隔
+  user_agent: "AxiomBot/1.0 (+local research assistant)"

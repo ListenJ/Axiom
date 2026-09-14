@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 多搜索引擎抽象层 v2.0 (简化版)
  *
  * 支持：DuckDuckGo / Bing / SearXNG
@@ -66,11 +66,11 @@ export interface SearchOptions {
   timeRange?: "d" | "w" | "m" | "y";
 }
 
-/** 搜索引擎基类 */
 /** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
 export type SearchFetch = (url: string, init: RequestInit) => Promise<ProxyFetchResponse>;
 
-abstract class SearchEngine {
+/** 搜索引擎基类 */
+export abstract class SearchEngine {
   abstract readonly name: string;
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
   /** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
@@ -438,18 +438,81 @@ export class BingHtmlEngine extends SearchEngine {
 
 export class SearchAggregator {
   private engines = new Map<string, SearchEngine>();
+  private extraLoaded = false;
+  private fetchImplForExtra?: SearchFetch;
 
   constructor(fetchImpl?: SearchFetch) {
+    this.fetchImplForExtra = fetchImpl;
     this.engines.set("duckduckgo", new DuckDuckGoEngine(fetchImpl));
     this.engines.set("bing", new BingEngine(fetchImpl));
     this.engines.set("bing-html", new BingHtmlEngine(fetchImpl));
     this.engines.set("searxng", new SearXngEngine(undefined, fetchImpl));
   }
 
+  /**
+   * 按需注册扩展引擎（wikipedia / google-news / arxiv / tavily / brave / …）。
+   *
+   * 用**动态 import** 而不是顶层 import：`search-engines-extra.ts` 需要从本文件拿
+   * 基类与类型，顶层互相 import 会形成循环，而本模块底部的 `searchAggregator`
+   * 单例在模块求值时就会 `new`，循环下可能拿到尚未初始化的工厂表。
+   * 放到首次搜索时惰性加载，既无循环也无"import 即副作用"。
+   */
+  private async ensureExtraEngines(): Promise<void> {
+    if (this.extraLoaded) return;
+    this.extraLoaded = true;
+    try {
+      const { EXTRA_ENGINE_FACTORIES } = await import("./search-engines-extra.js");
+      for (const [id, make] of Object.entries(EXTRA_ENGINE_FACTORIES)) {
+        if (!this.engines.has(id)) this.engines.set(id, make(this.fetchImplForExtra));
+      }
+      logger.debug("[SearchAggregator] 扩展引擎已注册", {
+        count: Object.keys(EXTRA_ENGINE_FACTORIES).length,
+      });
+    } catch (e) {
+      logger.warn("[SearchAggregator] 扩展引擎加载失败（不影响核心引擎）", {
+        error: (e as Error).message,
+      });
+    }
+  }
+
+  /** 当前已注册的引擎 id（含扩展引擎，供 GUI / 文档核对配置与实现是否一致） */
+  async listAvailableEngines(): Promise<string[]> {
+    await this.ensureExtraEngines();
+    return Array.from(this.engines.keys()).sort();
+  }
+
   async searchMulti(
     opts: SearchOptions,
-    engines: string[] = ["duckduckgo", "bing-html", "searxng"]
+    engines?: string[]
   ): Promise<SearchEngineResult[]> {
+    await this.ensureExtraEngines();
+
+    // 未显式指定引擎时，**由 config/web-search.yaml 驱动**：
+    // 取「已启用 且（匿名 或 已配好 Key）」的引擎，按权重从高到低排序。
+    // 这样用户在 GUI 里开关引擎、填密钥就能直接改变搜索行为，不需要改代码。
+    if (!engines || engines.length === 0) {
+      let resolved: string[] = [];
+      try {
+        const { loadWebSearchConfig, resolveEngineKey } = await import("./web-search-config.js");
+        const cfg = loadWebSearchConfig();
+        resolved = cfg.engines
+          .filter((e) => e.enabled)
+          .filter((e) => !e.needs_key || Boolean(resolveEngineKey(e)))
+          .filter((e) => this.engines.has(e.id))
+          .sort((a, b) => b.weight - a.weight)
+          .map((e) => e.id);
+        if (resolved.length > 0) {
+          logger.debug("[SearchAggregator] 引擎来自 web-search.yaml", { engines: resolved });
+        }
+      } catch (e) {
+        logger.warn("[SearchAggregator] 读取 web-search.yaml 失败，回退默认引擎组", {
+          error: (e as Error).message,
+        });
+      }
+      // 配置不可用或一个都没启用 → 回退到"匿名三件套"，保证搜索功能永远可用
+      engines = resolved.length > 0 ? resolved : ["duckduckgo", "bing-html", "searxng"];
+    }
+
     // bing-html 作为无 key 可靠回退：显式指定引擎时也追加（duckduckgo 反爬挑战/空结果场景兜底）
     if (!engines.includes("bing-html")) engines = [...engines, "bing-html"];
     const tasks = engines
