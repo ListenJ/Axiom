@@ -252,10 +252,15 @@ describe("Plugin Routes — W3 install path fallback & overwrite (unit)", () => 
   beforeEach(() => {
     db = new Database(":memory:");
     toolRegistry = new ToolRegistry();
+    // 决策（2026-09-14）：插件写入默认关闭。本组测试测的是**安装机制本身**
+    // （路径回退 / overwrite / enable 默认值），因此显式打开开关来测机制；
+    // "默认关闭"这一行为由文件末尾的独立用例专门覆盖。
+    process.env.AXIOM_PLUGINS_ENABLED = "1";
     routes = createPluginRoutes(db, toolRegistry);
   });
 
   afterEach(() => {
+    delete process.env.AXIOM_PLUGINS_ENABLED;
     // 仅关闭 DB —— 不调用 uninstall（会删除 ./plugins/<id> 源目录）
     db.close();
   });
@@ -334,6 +339,57 @@ describe("Plugin Routes — W3 install path fallback & overwrite (unit)", () => 
     // enable 默认 true → 经 enablePlugin 流程后 status 应为 enabled（activate 成功）
     // 或 installed（activate 抛错时保持 installed）
     expect(["enabled", "installed"]).toContain(data.plugin.status);
+  });
+});
+
+describe("插件写入默认关闭（决策 2026-09-14：先不做插件，优先内置工具）", () => {
+  let db: Database;
+  let toolRegistry: ToolRegistry;
+  let routes: ReturnType<typeof createPluginRoutes>;
+
+  beforeEach(() => {
+    db = new Database(":memory:");
+    toolRegistry = new ToolRegistry();
+    delete process.env.AXIOM_PLUGINS_ENABLED; // 保持默认（关闭）
+    routes = createPluginRoutes(db, toolRegistry);
+  });
+
+  afterEach(() => {
+    delete process.env.AXIOM_PLUGINS_ENABLED;
+    db.close();
+  });
+
+  it("未开启开关时，安装被 403 拒绝且说明原因", async () => {
+    const res = await routes.install(
+      new Request("http://localhost/plugins/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: "./plugins/test-plugin" }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { success: boolean; error: string; detail?: string };
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("已关闭");
+    // 必须如实告知"permissions 不会被运行时强制执行"，避免虚假安全感
+    expect(data.detail).toContain("不会");
+  });
+
+  it("开启开关后放行（开关可用于临时恢复）", async () => {
+    process.env.AXIOM_PLUGINS_ENABLED = "1";
+    const res = await routes.install(
+      new Request("http://localhost/plugins/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: "./plugins/test-plugin" }),
+      }),
+    );
+    expect(res.status).not.toBe(403);
+  });
+
+  it("读接口不受开关影响（仍可查看插件状态）", async () => {
+    const res = await routes.list(new Request("http://localhost/plugins"));
+    expect(res.status).not.toBe(403);
   });
 });
 
