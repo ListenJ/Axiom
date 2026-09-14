@@ -32,6 +32,13 @@
 // 指标定义
 // ══════════════════════════════════════════════════════════════════════
 
+/**
+ * 指标 key。
+ * 保持宽松 string 以便扩展；**权威清单以 RUNTIME_METRICS 为准**，
+ * 可用 METRIC_BY_KEY 校验某个 key 是否存在。
+ */
+export type RuntimeMetricKey = string;
+
 export type MetricKind = "capability" | "safety" | "search" | "cost" | "latency";
 
 export interface RuntimeMetricDef {
