@@ -1391,4 +1391,4 @@
   ②**remote 名未改**：规则 3 要求 remote 名 `gitea`，本仓库实际为 `origin`。URL 已指向正确仓库；改名会波及既有脚本，故按规则 3 记差异而非擅自改名（已在 AGENTS.md 中注明对齐命令）。
   ③**凭据处理**：Gitea token 仅经 `curl -K` 配置文件与 git `-c http.extraHeader` 传递，未进 argv、未写入 git config、未进 remote URL；用后销毁（见下一条提交的记录维护说明）。
   ④**LFS 未做本地完整性核验**：本机 **git-lfs 未安装**，105 个 LFS 实体在服务端、本地只有指针。改名不涉及对象迁移（同库内改名），风险低；但"105 对象确实可取回"仍未实测，列为待办。
-- **Commit**：<待回填>
+- **Commit**：5739174
