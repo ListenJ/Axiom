@@ -8,12 +8,11 @@
   "tags": ["git", "workflow", "automation", "commit", "changelog"],
   "license": "MIT",
   "repository": "https://github.com/axiom/plugins/git-workflow-enhanced",
-  "readme": "# Git Workflow Enhanced Plugin\n\nAutomates Git workflows:\n- Smart branch naming from task descriptions\n- Conventional commit message generation\n- PR template generation\n- Changelog management\n- Git hook management",
+  "readme": "# Git Workflow Enhanced Plugin\n\nDeterministic text/template generation from the arguments you pass in — no filesystem or\ngit access, and nothing is written to disk.\n\n- Smart branch naming from task descriptions\n- Conventional commit message generation\n- PR template generation\n- Changelog entry formatting (returns the entry text; it does not write CHANGELOG.md)\n\nAudit note (2026-09-14): the manifest previously also declared `manage_git_hooks`, which\nhad **no implementation at all** — a phantom interface. That declaration was removed so the\nmanifest matches the four tools the plugin actually registers.",
   "icon": "🌿",
-  "tools": ["generate_branch_name", "generate_commit_message", "generate_pr_template", "update_changelog", "manage_git_hooks"],
+  "tools": ["generate_branch_name", "generate_commit_message", "generate_pr_template", "update_changelog"],
   "skills": [],
   "patterns": [],
-  "permissions": ["git:execute", "filesystem:read", "filesystem:write"],
   "config": {
     "schema": {
       "commitStyle": { "type": "string", "default": "conventional", "description": "Commit message style (conventional, semantic, simple)" },

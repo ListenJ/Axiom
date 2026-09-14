@@ -1,25 +1,28 @@
 /**
  * Git Workflow Enhanced Plugin
- * 
- * Provides advanced Git workflow automation:
- * - Smart branch naming
- * - Commit message generation
- * - PR template generation
- * - Changelog management
- * - Git hook management
+ *
+ * 确定性文本/模板生成：按传入参数拼出分支名、commit message、PR 模板与 changelog 条目。
+ * **不读文件、不执行 git、不写盘** —— 只返回文本，由调用方决定如何使用。
+ *
+ * 审计去伪（2026-09-14）：
+ * - 本插件是三个内置插件中**唯一保留行为**的：没有随机数、没有自承模拟，
+ *   4 个 handler 均有真实 return，属确定性实现而非伪造结果。
+ * - plugin.json 原先还声明了 `manage_git_hooks`，但代码中**完全没有该工具**
+ *   （phantom 接口）；已从清单移除，使声明与实际注册的 4 个工具一致。
+ *
+ * 本文件为 .js（由原 index.ts 经编译器转译，仅剥离类型语法，行为不变）：
+ * 顶层 plugins/ 不在 tsconfig 的 include 范围内（仅 src/** 与 tests/**），
+ * 且插件加载器走 `await import(entry)`；原声明 entry=index.js 而只有 index.ts，
+ * 启用时必抛 "Entry file not found"。转为 .js 后插件**真正可加载**。
  */
 
-import type { PluginContext } from "../../src/plugins/types.js";
-
-export default {
-  activate(context: PluginContext) {
+var git_workflow_enhanced_default = {
+  activate(context) {
     const { toolRegistry, config, logger } = context;
-    const commitStyle = (config.commitStyle as string) ?? "conventional";
-    const branchPrefix = (config.branchPrefix as string) ?? "feature";
-    const changelogFormat = (config.changelogFormat as string) ?? "keepachangelog";
-    const enableHooks = (config.enableHooks as boolean) ?? true;
-
-    // Tool: generate_branch_name
+    const commitStyle = config.commitStyle ?? "conventional";
+    const branchPrefix = config.branchPrefix ?? "feature";
+    const changelogFormat = config.changelogFormat ?? "keepachangelog";
+    const enableHooks = config.enableHooks ?? true;
     toolRegistry.add({
       name: "generate_branch_name",
       description: "Generate a semantic branch name from task description",
@@ -28,28 +31,17 @@ export default {
         properties: {
           description: { type: "string", description: "Task description" },
           prefix: { type: "string", description: "Branch prefix (feature, bugfix, hotfix, refactor)" },
-          issueId: { type: "string", description: "Optional issue/ticket ID" },
+          issueId: { type: "string", description: "Optional issue/ticket ID" }
         },
-        required: ["description"],
+        required: ["description"]
       },
-      handler: async (args: Record<string, unknown>) => {
-        const description = args.description as string;
-        const prefix = (args.prefix as string) ?? branchPrefix;
-        const issueId = args.issueId as string | undefined;
-        
+      handler: async (args) => {
+        const description = args.description;
+        const prefix = args.prefix ?? branchPrefix;
+        const issueId = args.issueId;
         logger.info(`Generating branch name for: ${description}`);
-        
-        // Convert description to kebab-case
-        const slug = description
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .substring(0, 50);
-        
-        const branchName = issueId 
-          ? `${prefix}/${issueId}-${slug}`
-          : `${prefix}/${slug}`;
-        
+        const slug = description.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").substring(0, 50);
+        const branchName = issueId ? `${prefix}/${issueId}-${slug}` : `${prefix}/${slug}`;
         return {
           branchName,
           prefix,
@@ -58,13 +50,11 @@ export default {
           suggested: [
             branchName,
             `${prefix}/${slug}`,
-            `${prefix}/${issueId ?? "no-id"}-${slug.substring(0, 30)}`,
-          ],
+            `${prefix}/${issueId ?? "no-id"}-${slug.substring(0, 30)}`
+          ]
         };
-      },
+      }
     });
-
-    // Tool: generate_commit_message
     toolRegistry.add({
       name: "generate_commit_message",
       description: "Generate a conventional commit message from changes",
@@ -74,29 +64,21 @@ export default {
           changes: { type: "string", description: "Description of changes" },
           scope: { type: "string", description: "Component scope (optional)" },
           breaking: { type: "boolean", description: "Is this a breaking change?" },
-          style: { type: "string", enum: ["conventional", "semantic", "simple"], description: "Commit style" },
+          style: { type: "string", enum: ["conventional", "semantic", "simple"], description: "Commit style" }
         },
-        required: ["changes"],
+        required: ["changes"]
       },
-      handler: async (args: Record<string, unknown>) => {
-        const changes = args.changes as string;
-        const scope = args.scope as string | undefined;
-        const breaking = (args.breaking as boolean) ?? false;
-        const style = (args.style as string) ?? commitStyle;
-        
+      handler: async (args) => {
+        const changes = args.changes;
+        const scope = args.scope;
+        const breaking = args.breaking ?? false;
+        const style = args.style ?? commitStyle;
         logger.info(`Generating ${style} commit message`);
-        
-        const type = changes.toLowerCase().includes("fix") ? "fix"
-          : changes.toLowerCase().includes("add") ? "feat"
-          : changes.toLowerCase().includes("refactor") ? "refactor"
-          : changes.toLowerCase().includes("doc") ? "docs"
-          : changes.toLowerCase().includes("test") ? "test"
-          : "chore";
-        
+        const type = changes.toLowerCase().includes("fix") ? "fix" : changes.toLowerCase().includes("add") ? "feat" : changes.toLowerCase().includes("refactor") ? "refactor" : changes.toLowerCase().includes("doc") ? "docs" : changes.toLowerCase().includes("test") ? "test" : "chore";
         const scopeStr = scope ? `(${scope})` : "";
         const breakingStr = breaking ? "!" : "";
-        const subject = changes.split("\n")[0].substring(0, 72);
-        
+        const subject = changes.split(`
+`)[0].substring(0, 72);
         let message = "";
         if (style === "conventional") {
           message = `${type}${scopeStr}${breakingStr}: ${subject}`;
@@ -105,7 +87,6 @@ export default {
         } else {
           message = subject;
         }
-        
         return {
           message,
           type,
@@ -115,13 +96,11 @@ export default {
           suggestions: [
             message,
             `${type}${scopeStr}: ${subject}`,
-            `${type}: ${subject}`,
-          ],
+            `${type}: ${subject}`
+          ]
         };
-      },
+      }
     });
-
-    // Tool: generate_pr_template
     toolRegistry.add({
       name: "generate_pr_template",
       description: "Generate a pull request template",
@@ -131,25 +110,24 @@ export default {
           title: { type: "string", description: "PR title" },
           description: { type: "string", description: "PR description" },
           changes: { type: "array", items: { type: "string" }, description: "List of changes" },
-          type: { type: "string", enum: ["feature", "bugfix", "hotfix", "refactor", "docs"], description: "PR type" },
+          type: { type: "string", enum: ["feature", "bugfix", "hotfix", "refactor", "docs"], description: "PR type" }
         },
-        required: ["title"],
+        required: ["title"]
       },
-      handler: async (args: Record<string, unknown>) => {
-        const title = args.title as string;
-        const description = (args.description as string) ?? "";
-        const changes = (args.changes as string[]) ?? [];
-        const type = (args.type as string) ?? "feature";
-        
+      handler: async (args) => {
+        const title = args.title;
+        const description = args.description ?? "";
+        const changes = args.changes ?? [];
+        const type = args.type ?? "feature";
         logger.info(`Generating PR template for: ${title}`);
-        
         const template = `## ${type.toUpperCase()}: ${title}
 
 ### Description
 ${description || "Brief description of changes"}
 
 ### Changes
-${changes.map((c) => `- ${c}`).join("\n") || "- "}
+${changes.map((c) => `- ${c}`).join(`
+`) || "- "}
 
 ### Type
 - [x] ${type}
@@ -168,17 +146,14 @@ ${type !== "hotfix" ? "- [ ] hotfix" : "- [ ] hotfix"}
 - [ ] Documentation updated
 - [ ] No breaking changes (or marked accordingly)
 `;
-        
         return {
           title,
           type,
           template,
-          markdown: template,
+          markdown: template
         };
-      },
+      }
     });
-
-    // Tool: update_changelog
     toolRegistry.add({
       name: "update_changelog",
       description: "Update changelog with new entry",
@@ -187,40 +162,46 @@ ${type !== "hotfix" ? "- [ ] hotfix" : "- [ ] hotfix"}
         properties: {
           version: { type: "string", description: "Version number" },
           changes: { type: "array", items: { type: "string" }, description: "List of changes" },
-          type: { type: "string", enum: ["added", "changed", "deprecated", "removed", "fixed", "security"], description: "Change type" },
+          type: { type: "string", enum: ["added", "changed", "deprecated", "removed", "fixed", "security"], description: "Change type" }
         },
-        required: ["version", "changes"],
+        required: ["version", "changes"]
       },
-      handler: async (args: Record<string, unknown>) => {
-        const version = args.version as string;
-        const changes = args.changes as string[];
-        const type = (args.type as string) ?? "added";
-        
+      handler: async (args) => {
+        const version = args.version;
+        const changes = args.changes;
+        const type = args.type ?? "added";
         logger.info(`Updating changelog for v${version}`);
-        
         const date = new Date().toISOString().split("T")[0];
-        
         let entry = "";
         if (changelogFormat === "keepachangelog") {
-          entry = `## [${version}] - ${date}\n\n### ${type.charAt(0).toUpperCase() + type.slice(1)}\n${changes.map((c) => `- ${c}`).join("\n")}\n`;
+          entry = `## [${version}] - ${date}
+
+### ${type.charAt(0).toUpperCase() + type.slice(1)}
+${changes.map((c) => `- ${c}`).join(`
+`)}
+`;
         } else {
-          entry = `## ${version} (${date})\n\n- ${changes.join("\n- ")}\n`;
+          entry = `## ${version} (${date})
+
+- ${changes.join(`
+- `)}
+`;
         }
-        
         return {
           version,
           date,
           type,
           entry,
-          format: changelogFormat,
+          format: changelogFormat
         };
-      },
+      }
     });
-
     logger.info("Git Workflow Enhanced plugin activated");
   },
-
-  deactivate(context: PluginContext) {
+  deactivate(context) {
     context.logger.info("Git Workflow Enhanced plugin deactivated");
-  },
+  }
+};
+export {
+  git_workflow_enhanced_default as default
 };

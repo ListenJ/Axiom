@@ -1324,3 +1324,24 @@
   - `bunx tsc --noEmit` exit 0；**全量 `bun run test` 4069 pass / 36 skip / 0 fail**（基线 4061，+8 即新增用例，无回归）。
 - **偏差记录**：①**测试自身缺陷 3 处**（已如实记录）：`Plugin` 无顶层 `id`（应为 `manifest.id`）；测试助手漏返回 `toolRegistry`；测试1 的第二个断言路径算错（`join(pluginDir,"..","..")` 指到 `/tmp` 全局，被先前残留污染）——均为**测试 bug 而非实现问题**，已修正。②**修复位置比原设计更早**：entry 校验落在**安装期**而非启用期（原 Axiom 实现亦为安装期正则 + 启用期兜底），故测试改为断言安装期拒绝 + marker 未生成，比原计划更严格。③**第三项（去伪）未做，待决策**：3 个插件仍用 `Math.random()` 伪造 severity/行号、`plugin.json` 仍声明不存在的 `index.js`、`kg/graph.ts` 仍顶着假的"Louvain"头、`cron/scheduler.ts` 仍有模块级副作用。本仓库已有 `7820915`（插件写入默认关闭）作为**设计分歧**而非遗漏，故是否"去伪"需先确认是修还是撤，未擅自改（规则 12 过度施工红线）。
 - **Commit**：8638f46
+
+## 2026-09-14 — fix(plugins): 去伪 —— 撤掉伪造工具、修正 phantom 接口与假 Louvain 头
+
+- **任务**：仓库收敛第三项（用户决策"去伪：撤掉伪造行为，保留接口"）。对应 Axiom 侧 `0267bcb` 的插件部分，但**未照搬**（理由见偏差①）。
+- **工具**：Bash（勘察/转译/测试/git）、Read、Write、Edit、子代理×4（只读取证）。规则 2（备份三个插件目录 → `.tmp/backups/plugins/`）、规则 4（归档登记 `archive/ARCHIVE-LOG.md`）。
+- **操作**（文件级）：
+  ①`plugins/code-analysis-enhanced/`、`plugins/doc-generator/`：新增可加载的 `index.js`（`tools: []` + 文件头写明审计结论与恢复方式），删除原 `index.ts`；`plugin.json` 的 `tools` 改为 `[]`、readme 改为如实声明未实现、移除从不被校验的 `permissions` 字段；
+  ②`plugins/git-workflow-enhanced/`：**保留** 4 个真实工具，由 `bun build` 转译为可加载 `index.js`，删除原 `index.ts`；`plugin.json` 移除 phantom 的 `manage_git_hooks`，工具列表改为实际的 4 个；
+  ③`src/dre/kg/graph.ts`：头部与 `detectCommunities` 注释的假 "Louvain" 改为"基于连通分量"，并说明该算法无模块度/层次合并；
+  ④新增 `tests/unit/plugin-defabrication.test.ts`（4 例）。
+- **验证结果**：
+  - 三个插件**真正可加载**：`installFromPath(..., {enable:true})` 后状态均为 `enabled`（此前因 `entry:index.js` 而只有 `index.ts`，启用必抛 Entry file not found）。
+  - 伪造行为已撤：两个去伪插件注册工具数为 **0**；`git-workflow-enhanced` 注册 **4** 个真实工具且无 `manage_git_hooks`。
+  - `bunx tsc --noEmit` exit 0；**全量 `bun run test` 4073 pass / 36 skip / 0 fail**（基线 4069，+4 即新增用例，无回归）；`tests/kg-enhanced.test.ts` 13 pass。
+- **偏差记录**：
+  ①**未照搬 Axiom 的修法**：Axiom 把 `plugin.json` 的 `entry` 改为 `index.ts`，但本仓库顶层 `plugins/` **不在 tsconfig include 内**（仅 `src/**`+`tests/**`），且加载器走 `await import(entry)` —— 声明 `.ts` 在运行期仍无法加载，属**假修复**。故改为提供真实可加载的 `.js`，接口才算"真保留"（并有测试证明）。
+  ②**独立判定，未一刀切**：`git-workflow-enhanced` 无随机数、无自承模拟、4 个 handler 均有真实 return，属**确定性真实实现**，故保留其工具；Axiom 将其一并撤掉属更激进路线。此处按本仓库实际代码判定。
+  ③**发现第二类问题（phantom 接口）**：`git-workflow-enhanced/plugin.json` 声明 5 个工具，而代码只注册 4 个，`manage_git_hooks` **完全不存在**。另两个插件的声明数与实际注册数一致。
+  ④**测试自身缺陷 3 处**：`Plugin` 无顶层 `id`（应 `manifest.id`）；助手漏返回 `toolRegistry`；对 `Math.random` 做**文本扫描**会误伤"注释/警告文案中提到该词"的情形（非调用）——已改为**功能性断言**（启用后工具集为空），避免以文本代替行为。
+  ⑤**cron/scheduler.ts 模块级副作用未改**：`tests/unit/scheduler-crash.test.ts:126-137` 明确断言"import 即安装 unhandledRejection/uncaughtException 监听器"，即**既有测试依赖该副作用**；收敛它会打破既有断言，须同步改测试，属独立任务，未混入本次提交（规则 1/12）。
+- **Commit**：<待回填>
