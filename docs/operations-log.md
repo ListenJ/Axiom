@@ -1345,3 +1345,26 @@
   ④**测试自身缺陷 3 处**：`Plugin` 无顶层 `id`（应 `manifest.id`）；助手漏返回 `toolRegistry`；对 `Math.random` 做**文本扫描**会误伤"注释/警告文案中提到该词"的情形（非调用）——已改为**功能性断言**（启用后工具集为空），避免以文本代替行为。
   ⑤**cron/scheduler.ts 模块级副作用未改**：`tests/unit/scheduler-crash.test.ts:126-137` 明确断言"import 即安装 unhandledRejection/uncaughtException 监听器"，即**既有测试依赖该副作用**；收敛它会打破既有断言，须同步改测试，属独立任务，未混入本次提交（规则 1/12）。
 - **Commit**：4e10c72
+
+## 2026-09-14 — feat(searxng): 收敛迁移 —— 配置/部署脚本/研究文档并入本仓库（②③）
+
+- **任务**：仓库收敛第二步。把 Axiom 侧的 9 项产物迁入本仓库（规范仓库），并统一命名。按子代理逐文件比对结论执行：**7 项迁移（4 项整体 + 3 项片段）、1 项无操作（AGENTS.md 逐字节相同）、1 项丢弃**。
+- **工具**：Bash（勘察/备份/yaml 校验/compose 校验/功能测试）、Read、Write、Edit、`docker compose config`、子代理×5（只读取证）。规则 2（备份 5 个文件 → `.tmp/backups/`）。
+- **操作**（文件级）：
+  ①`docker-compose.yml`：新增 `searxng` + `searxng-valkey` 服务与两个命名卷；`axiom-agent` 增加 `SEARXNG_INSTANCE=http://searxng:8080`。**保留**本仓库既有 `user:"1000:1000"` 与 `./plugins:/app/plugins`（冲突报告判定整文件替换会导致插件整体失效 + 挂载卷不可写）。
+  ②`config/searxng/settings.yml`：并集合并（新增 `outgoing`、16 条 `engines`、`image_proxy:false`），**保留**本仓库的 `bind_address:"127.0.0.1"`。
+  ③新增 `scripts/deploy-searxng.sh`（本仓库**声明却缺失**的 `auto_deploy: true` 实现）。
+  ④`.env.example`：SearXNG 段重写（含两个密钥变量说明）。⑤`.env.production.example`：+23 行 SearXNG 段。⑥`README.md`：+106 行（两个小节）。⑦新增 `docs/research/{free-search-apis-2026,no-auth-search-sources}.md`。
+- **验证结果**：
+  - `docker compose config`：**缺密钥时按设计失败**（`required variable SEARXNG_SECRET_KEY is missing`，exit 1）；提供密钥后 exit 0。渲染产物核对：`user: 1000:1000` ✅、`plugins` 挂载 ✅、`SEARXNG_INSTANCE: http://searxng:8080` ✅、容器收到 `SEARXNG_SECRET` ✅、端口 `127.0.0.1:8080` ✅。
+  - `settings.yml`：YAML 合法；程序化比对确认**旧版无任何键丢失**，唯一有意变更 = `secret_key` 占位符。
+  - `deploy-searxng.sh`：`bash -n` 通过；用临时 ENV_FILE 实测 —— 占位值触发生成且**两变量同值(64 hex)**、幂等（重跑不改密钥）、旧态（只有 `SEARXNG_SECRET`）能补齐并保持同值。
+  - 敏感模式扫描（`sk-*`/`AKIA`/`ghp_`/`github_pat_`/`nvapi-`/PRIVATE KEY）：迁移文件与改动文件**零命中**。
+  - `bunx tsc --noEmit` 通过；`docs-consistency` + `deadcode` 门禁 11 pass；**全量 `bun run test` 4073 pass / 36 skip / 0 fail**（与迁移前逐项一致，零回归）。
+- **偏差记录**：
+  ①**修正了原计划的"统一命名"结论（重要）**：原计划要把密钥统一成一个名字，但实测证明**两个变量名是两个不同消费者** —— 上游 `searx/settings_defaults.py` 的 `secret_key` 声明 `environ_name='SEARXNG_SECRET'`（容器读），而 Axiom 应用读 `config/web-search.yaml: secret_key_env`（`SEARXNG_SECRET_KEY`）。**合并即会导致"密钥生成了但某一侧读不到"**。故改为：两者必须同值，由 deploy 脚本保证（并有实测覆盖）。同时让 `secret_key_env` 这个此前"有形状无行为"的字段首次真正有消费者。
+  ②**安全取值优于源仓库**：Axiom 版把 `bind_address` 放宽到 `0.0.0.0` 且 `secret_key` 用上游默认值 `ultrasecretkey`；本仓库保留 `127.0.0.1` 与显式占位值（裸机路径下"默认密钥 + 全网监听"风险已规避）。
+  ③**参数化做了但受限（如实记录）**：LAN 代理地址无法用 env 参数化 —— 已核实 SearXNG **不支持** `settings.yml` 内 `${VAR}` 插值（`settings_loader.py` 只读取 `SEARXNG_SETTINGS_PATH` 这类整值变量）。故将其限定为**单点环境特定值**并加显著标注（换环境只改这一处 / 无代理则删该段），而非引入额外模板层（规则 1）。
+  ④**丢弃 1 项**：`deploy/docker/docker-compose.yml` 未迁移 —— 本仓库已在 `4cb84bb` 主动退役该目录，属旧部署模型（端口 3000 vs 现行 18789），迁移会引入两套互斥部署路径。
+  ⑤**未做**：README 的其余 Axiom-only 改动（审计整改记录、工具数口径等）**未迁移** —— 那会使本仓库已修正的内容回退（含一条已撤回的虚假安全声明），故只迁移 2 个新增小节。
+- **Commit**：<待回填>

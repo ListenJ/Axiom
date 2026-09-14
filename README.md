@@ -83,6 +83,112 @@ curl http://localhost:18789/engines
 # 调用 search_providers_health 工具
 `
 
+### 自建 SearXNG 搜索后端（**可选增强**，非必需）
+
+先给结论，免得被"推荐"误导：**不部署 SearXNG，Axiom 的搜索照样完整可用**。
+应用内置 11 个匿名引擎（`duckduckgo / bing / bing-html / wikipedia / google-news /
+hackernews / github / arxiv / crossref / openlibrary / searxng`），
+实测基线：**自建实例贡献 0 条时，命中率与相关性仍为 100%**。
+SearXNG 的价值是聚合更多上游并共享缓存，不是让搜索"能用"的前提。
+
+那为什么还建议自建？因为公共实例绝大多数**未开启 `format=json`**，
+而 Axiom 正是通过 JSON API 调用它（见
+[`docs/research/no-auth-search-sources.md`](docs/research/no-auth-search-sources.md) §8）：
+
+```bash
+# 一键部署：补齐 .env 密钥 → 拉起 searxng + valkey → 自检 JSON API 且要求结果非空
+bash scripts/deploy-searxng.sh
+
+# 常用子命令
+bash scripts/deploy-searxng.sh status   # 容器状态
+bash scripts/deploy-searxng.sh logs     # 实时日志
+bash scripts/deploy-searxng.sh check    # 只跑 /healthz + JSON API 自检
+bash scripts/deploy-searxng.sh down     # 停止并移除（不影响 Axiom 其他服务）
+```
+
+发生了什么：
+
+1. `docker-compose.yml` 含 `searxng` 与 `searxng-valkey` 两个服务；
+   `axiom-agent` 的 `SEARXNG_INSTANCE` 固定为 `http://searxng:8080`（走 compose 网络）。
+2. 配置来自 [`config/searxng/settings.yml`](config/searxng/settings.yml)，
+   只读挂载到容器 `/etc/searxng/settings.yml`；其中 `search.formats` 已显式启用 `json`。
+3. 宿主机端口默认只绑定 `127.0.0.1:8080`，不对局域网/公网暴露。
+4. 密钥由 compose 从 `SEARXNG_SECRET_KEY` 取值后以 `SEARXNG_SECRET` 注入容器，
+   未设置时 compose 直接报错（不会用占位密钥静默上线）。
+
+裸机运行 Axiom（不经 compose）时，把 `.env` 中的地址指向本机实例：
+
+```bash
+SEARXNG_INSTANCE=http://127.0.0.1:8080
+```
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `SEARXNG_INSTANCE` | `http://127.0.0.1:8080` | Axiom 侧访问地址；compose 内覆盖为 `http://searxng:8080` |
+| `SEARXNG_SECRET_KEY` | 无（必填） | **Axiom 应用**读取的密钥（`config/web-search.yaml: secret_key_env`） |
+| `SEARXNG_SECRET` | 无（必填） | **SearXNG 容器**读取的密钥；由 compose 从上一项取值注入 |
+| `SEARXNG_PORT` | `8080` | 宿主机监听端口（仅回环） |
+| `SEARXNG_VERSION` | `latest` | 镜像 tag，建议生产固定为具体版本 |
+| `SEARXNG_LIMITER` | `false` | 限流/公开实例特性，开启后依赖 `searxng-valkey` |
+
+> **两个密钥变量名不能合并**：它们是两个不同消费者的接口 —— 上游
+> `searx/settings_defaults.py` 里 `secret_key` 的 `environ_name` 就是 `SEARXNG_SECRET`，
+> 而 Axiom 应用读的是 `config/web-search.yaml` 的 `secret_key_env`（`SEARXNG_SECRET_KEY`）。
+> 二者必须同值，`deploy-searxng.sh` 会自动保证；只写其一会出现"密钥生成了但某一侧读不到"。
+
+### 出网：国内直连 / 国外走代理（本机实测）
+
+实测结论：容器**直连国内完全可用**（baidu 995KB / 0.48s / 20 条 / 无验证码），被墙的只有国外。
+所以 `config/searxng/settings.yml` 按引擎分流，并压低了并发：
+
+```yaml
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 6.0
+  pool_connections: 8          # 全局并发上限（默认 100，压测曾把国内引擎打到 CAPTCHA）
+  proxies:
+    all://: [http://192.168.0.111:7897]   # 默认网络 = 国外引擎走 LAN 代理
+  networks:
+    direct:                    # 国内引擎专用网络：清空代理 + 强制 IPv4
+      proxies: {}
+      local_addresses: "0.0.0.0"
+      max_connections: 4
+```
+
+> ⚠️ 上面的代理地址是**部署机实测值，属环境特定配置**。换环境只改这一处；
+> 无代理的部署请整段删除 `outgoing.proxies`。注意 SearXNG **不支持**在
+> `settings.yml` 里做 `${VAR}` 插值（已核实 `settings_loader.py` 只读取
+> `SEARXNG_SETTINGS_PATH` 这类整值变量），所以它只能按环境改文件。
+
+| 引擎 | 网络 | 说明 |
+|---|---|---|
+| `baidu` / `360search` / `quark` / `sogou` | `direct`（直连） | 中文主力。容器没有 IPv6 路由，故锁定 IPv4——不锁的话每个请求先等 IPv6 超时（baidu 实测 5s+ 并报 ENETUNREACH） |
+| `google` / `duckduckgo` / `google news` / `github` | 默认（代理） | 被墙，必须走 LAN 代理 |
+
+- 坑：`networks.<名字>` 里的键**直接透传给 `Network(...)`**，必须用它的构造参数名
+  （`local_addresses` / `max_connections`），而不是 `outgoing` 层的 `source_ips` / `pool_connections`
+  ——写错会直接 crash loop（`TypeError: unexpected keyword argument`）。
+- 容器能直连外网时：删掉 `proxies` 与 `networks`；想全局走代理时：删掉 `networks` 和引擎上的 `network:`。
+- 该 LAN 代理**本身已做国内分流**：同一国内域名直连与走代理拿到的都是国内 IP
+  （实测 `myip.ipip.net` 两边都是广东移动），所以不需要再给它加 GEOIP/GEOSITE 规则。
+
+已知取舍（都实测过，不是猜的）：
+
+- `bing`：`cn.bing.com` 只返回「字典劫持」结果（查“低延迟交易系统架构”给“低”的字典词条）；
+  且 `www.bing.com` 对 SearXNG 的请求回 302、SearXNG 不跟随 → 静默 0 条。已关闭。
+- `sogou`：SearXNG 2026.9.13 上游 bug（`sogou.py:56 resp.next_request` AttributeError）。已关闭。
+- `wikipedia`/`wikidata`/`brave`/`google cse`/`google scholar`/`lingva`/`dictzone`：经代理 403/429。已关闭。
+- `baidu`：引擎走的是 `tn=json` 端点，会被 Baidu 跳到 `wappass.baidu.com` 验证码（普通 HTML 端点正常，
+  属引擎实现差异）。被跳过时 SearXNG 会自动 suspend，过一段时间自动重试。
+
+排查「JSON 接口通、但搜不到结果」：
+
+```bash
+bash scripts/deploy-searxng.sh check       # 0 条会直接判失败，并打印被跳过/失败的引擎
+docker logs --tail 50 axiom-searxng | grep -i "engine timeout"
+curl -s 'http://127.0.0.1:8080/search?q=docker&format=json' | python3 -m json.tool | head -30
+```
+
 ## 前端路由
 
 Dashboard 侧边栏默认展示 **9 个核心入口**（`frontend/src/lib/nav.ts` 的 NAV_ITEMS，按 4 个分区组织）：

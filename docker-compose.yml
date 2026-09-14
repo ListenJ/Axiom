@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   axiom-agent:
     build:
@@ -14,6 +12,10 @@ services:
       - "3001:3001"
     env_file:
       - .env
+    environment:
+      # 容器内访问自建 SearXNG 走 compose 网络（服务名 searxng），
+      # 而非 .env 里给裸机用的 127.0.0.1:8080。见 README「自建 SearXNG 搜索后端」。
+      - SEARXNG_INSTANCE=http://searxng:8080
     volumes:
       - ./data:/app/data
       - ./axiom-memory:/app/axiom-memory
@@ -48,3 +50,80 @@ services:
       - "9222:9222"
     restart: unless-stopped
     mem_limit: 256M
+
+  # ── 自建 SearXNG（可选的搜索聚合增强）────────────────────────────────────
+  # Axiom 自带 11 个匿名引擎，SearXNG **不是必需依赖**：不启动本服务搜索照样可用，
+  # 启动后由它聚合更多上游并共享缓存。一键部署：bash scripts/deploy-searxng.sh
+  #
+  # 密钥说明（**两个名字是两个不同的消费者，不能合并**）：
+  #   SEARXNG_SECRET      —— SearXNG 容器读取（上游 settings_defaults.py 的
+  #                          environ_name='SEARXNG_SECRET'），此处由 compose 传入。
+  #   SEARXNG_SECRET_KEY  —— Axiom 应用读取（config/web-search.yaml 的 secret_key_env）。
+  # 因此 .env 中两个键填同一个值；deploy 脚本会保证这一点。
+  searxng:
+    image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
+    container_name: axiom-searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://localhost:${SEARXNG_PORT:-8080}/}
+      # 必填：openssl rand -hex 32；缺失时 compose 直接报错，避免用占位密钥上线
+      - SEARXNG_SECRET=${SEARXNG_SECRET_KEY:?请在 .env 中设置 SEARXNG_SECRET_KEY（openssl rand -hex 32）}
+      - SEARXNG_VALKEY_URL=valkey://searxng-valkey:6379/0
+      - SEARXNG_LIMITER=${SEARXNG_LIMITER:-false}
+      - SEARXNG_PUBLIC_INSTANCE=false
+      - SEARXNG_IMAGE_PROXY=false
+      # 只读挂载仓库内配置，禁止容器改写宿主机 config/ 的属主
+      - FORCE_OWNERSHIP=false
+    ports:
+      # 默认只监听宿主机回环；Axiom 容器走 compose 网络，不需要对外暴露
+      - "127.0.0.1:${SEARXNG_PORT:-8080}:8080"
+    volumes:
+      - ./config/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    depends_on:
+      searxng-valkey:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # SearXNG 自带 /healthz（searx/webapp.py）；用镜像内 venv 的 python 探测，
+      # 不依赖 wget/curl 是否在基础镜像里（entrypoint.sh 使用的就是同一 venv）
+      test: ["CMD", "/usr/local/searxng/.venv/bin/python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  searxng-valkey:
+    image: docker.io/valkey/valkey:${SEARXNG_VALKEY_VERSION:-9-alpine}
+    container_name: axiom-searxng-valkey
+    restart: unless-stopped
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - searxng-valkey-data:/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  searxng-cache:
+  searxng-valkey-data:
