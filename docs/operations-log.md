@@ -1392,3 +1392,21 @@
   ③**凭据处理**：Gitea token 仅经 `curl -K` 配置文件与 git `-c http.extraHeader` 传递，未进 argv、未写入 git config、未进 remote URL；用后销毁（见下一条提交的记录维护说明）。
   ④**LFS 未做本地完整性核验**：本机 **git-lfs 未安装**，105 个 LFS 实体在服务端、本地只有指针。改名不涉及对象迁移（同库内改名），风险低；但"105 对象确实可取回"仍未实测，列为待办。
 - **Commit**：5739174
+
+## 2026-09-14 — verify(lfs): 105 个 LFS 实体全量核验通过（下载 + sha256 逐一对齐）
+
+- **任务**：核验服务端 LFS 实体**确实可取回且内容正确**（本机未装 git-lfs，工作区只有 132 字节指针；此为收敛任务的遗留待办）。
+- **工具**：Bash（探测/清点）、Python（LFS batch API + 流式下载 + sha256）、`git grep`/`git show`。**未安装任何软件**。
+- **破执检索结论（先查再定）**：①本机**无** git-lfs 二进制（`/usr`、`/opt`、`/snap`、`~/.local` 全扫）；②`npm` 上的 `git-lfs` 包**已于 2015-10-11 下架（E404）**；③系统安装需 sudo（不可得）。⇒ **判定不需要 git-lfs**：Gitea 的 LFS batch API 可直接核验，比装客户端更直接。
+- **操作**（文件级）：新增本条目（无仓库文件改动）。实际动作：①清点全部含 LFS 指针的分支与 OID；②`POST /agent/Axiom.git/info/lfs/objects/batch`（HTTP `Basic` 认证）查询 105 个对象；③**全量下载并逐个重算 sha256** 与 OID 比对。
+- **验证结果**：
+  - 指针清点：**105 个唯一 OID**，分布在 **5 个分支**（`archive/cut-scope-2026-09-14`、`codex/knowledge-backend-convergence`、`codex/node22-decommission-n2-swap`、`codex/self-evolving-agent`、`fix/audit-critical-security`，每分支 105 个指针、OID 集合相同）。`.gitattributes` 3 条 `filter=lfs` 规则。
+  - **存在性**：batch 响应 `请求 105 / 存在 105 / 缺失 0`，且返回的 `size` 与指针声明**逐一一致**（0 处不符）；实体总量 65,971,176 B = **62.9 MiB**。
+  - **内容正确性（决定性）**：**全量下载 105/105，sha256 与 OID 逐一匹配、大小一致，0 失败 0 异常**，耗时 12.7s。抽样阶段先验了 5 个（最小 14,820 B → 最大 1,273,760 B）亦全部通过。
+  - 临时文件（含下载地址与令牌上下文）已 `shred -u` 销毁；令牌特征串在 `/tmp` **零残留**。
+- **偏差记录**：
+  ①**判定"不需要 git-lfs"而非硬装**：三条获取途径全不可行（无二进制/npm 包下架/需 sudo），且 batch API + sha256 是更直接的证据 —— 故未为完成核验而安装软件（规则 1）。
+  ②**认证方案试错并记录**：LFS 端点对 `Bearer` 与 `token` 均返回 **401**，实测 **HTTP `Basic`（`agent:<token>`）通过** —— 该实例的 LFS 端不走 git-lfs 常用的 Bearer。若后续有人照官方文档写 Bearer 会踩同一个坑。
+  ③**"存在"不等于"内容正确"已实证**：batch API 只报 actions 与 size；本次以重新计算 sha256（内容寻址的硬标准）兜底，避免了"取回 0 字节/错误内容却显示成功"的假阳性。
+  ④**该核验是改名后的事后确认**：改名属**同库操作、不迁移对象**，故 LFS 并非改名的前置条件；本次为"核验遗留待办 + 为未来在新机器 clone 立基线"，非"改名卡点"。
+- **Commit**：<待回填>
