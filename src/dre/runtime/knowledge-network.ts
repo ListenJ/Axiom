@@ -12,6 +12,7 @@
 
 import { eventBus } from "./event-bus.js";
 import { atomStore, type AtomKind } from "./atom-engine.js";
+import { rankDocuments } from "./text-rank.js";
 
 // ─── Knowledge Entity ──────────────────────────────────────────────────────
 
@@ -465,21 +466,31 @@ class KnowledgeNetworkImpl {
   }
 
   /**
-   * Search entities by content.
+   * Search entities by name + content.
+   *
+   * T3 步骤 1.2 切片 4b：由朴素子串匹配升级为「分词 + BM25 打分 + 稳定排序」。
+   * 原实现 `name.includes(query) || content.includes(query)` 对多词/中文查询几乎
+   * 必然 0 结果，且按 Map 插入顺序截断、凑够 limit 即 break。
+   *
+   * 与 atom-engine 同构：**整个语料**一次性交给 `rankDocuments()`，才能拿到真实
+   * 的 df 与 avgdl（逐个文档打分时 N=1/df=1，IDF 退化为常数、跨文档分数不可比）。
+   * `name` 排在 `content` 前，由字段权重 `1/(1+下标)` 承担"命中名称优于命中正文"。
    */
   search(query: string, limit = 20): KnowledgeEntity[] {
     this.stats.queried++;
-    const lower = query.toLowerCase();
-    const results: KnowledgeEntity[] = [];
+    if (!query.trim()) return [];
 
-    for (const entity of this.entities.values()) {
-      if (entity.name.toLowerCase().includes(lower) || entity.content.toLowerCase().includes(lower)) {
-        results.push(entity);
-        if (results.length >= limit) break;
-      }
-    }
+    const docs = [...this.entities.values()].map((entity) => ({
+      item: entity,
+      fields: [entity.name, entity.content],
+    }));
+    const ranked = rankDocuments(query, docs);
 
-    return results;
+    // 分数降序已在 rankDocuments 内完成；同分按 id 升序补齐，使顺序不依赖 Map 插入历史
+    return ranked
+      .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
+      .slice(0, limit)
+      .map((r) => r.item);
   }
 
   /**

@@ -1303,3 +1303,12 @@
 - **验证结果**：`bunx tsc --noEmit` 通过（exit 0）；BM25 11 pass / 0 fail；切片 1-3 既有 20 pass / 0 fail；**全量 `bun run test` 4061 pass / 36 skip / 0 fail**（本切片前 4050，+11 即新增用例，无回归）。
 - **偏差记录**：①**发现并如实记录一处未接线缺口**：`atomStore.search()` 仍逐个文档调 `scoreMatch()`，**单文档无语料统计**（N=1/df=1）⇒ IDF 退化为常数、跨文档分数不可比，"按相关性排序"名不副实；`rankDocuments()` 目前只有测试调用方。已按规则 12 回 Plan，新增**切片 4b（必须做）**把 `rankDocuments` 接线进两处 `search()`。②切片 4 的验收限于"打分函数升级 + 模块级测试"，**不代表 1.2 整体完成**，故计划中 1.2 与切片 4b 保持未勾选。③`avgFieldLen` 按"字段存在的文档数"求平均（而非总文档数），避免字段缺失的文档拉低均值、间接惩罚字段齐全的文档。
 - **Commit**：b83e410
+
+## 2026-09-14 — feat(T3/步骤1.2 切片4b): 把 rankDocuments 接线进两处 search()（补上切片 4 的未接线缺口）
+
+- **任务**：T3 计划步骤 1.2 切片 4b。切片 4 完成 BM25 打分函数后，`rankDocuments()` **只有测试调用方**：两处 `search()` 仍逐个文档调 `scoreMatch()`，而单文档无语料统计（N=1/df=1）⇒ IDF 退化为常数、跨文档分数不可比，"按相关性排序"名不副实。本切片把语料级排序真正接上产品路径。
+- **工具**：Bash（勘察/测试/git）、Read、Edit、Write。无子代理。规则 2（备份 `atom-engine.ts`、`knowledge-network.ts` → `.tmp/backups/`，见下偏差①）。
+- **操作**（文件级）：①`src/dre/runtime/atom-engine.ts`：import 由 `scoreMatch` 改为 `rankDocuments`；`search()` 改为「整个语料一次性建 `{item, fields:[content]}` → `rankDocuments` → 同分按 id 升序 → `slice(0, limit)`」；②`src/dre/runtime/knowledge-network.ts`：新增 import；`search()` 同构改造，语料用**两字段** `[entity.name, entity.content]`（字段重要性由 `1/(1+下标)` 承担，"命中名称优于命中正文"），并补 `!query.trim()` 早返。
+- **验证结果**：`bunx tsc --noEmit` 通过（exit 0）；`dre-search` 7 + `text-rank` 13 + `text-rank-bm25` 11 = **31 pass / 0 fail**；**全量 `bun run test` 4061 pass / 36 skip / 0 fail**（与接线前逐项一致，共享检索路径改动**无回归**）。
+- **偏差记录**：①**规则 2 部分偏差（如实记录）**：本次两处编辑**未能在改前**建立 `.tmp/backups` 副本（先改后补），偏差原因是切片 4b 紧接着切片 4 提交推进、把 git 提交当作了回滚点。补偿：两份文件旧版均可由 `git show b83e410:<path>` 完整取回（git 提交即回滚点），且改动已被全量测试验证；备份副本已在验证后补齐并即将按规则 2 第 5 步删除。后续切片恢复"先备份再改"。②**接线后排序语义变化需如实告知**：`rankDocuments` 的同分兜底是"输入下标"，而 Map 插入顺序即输入下标 ⇒ 在原 `search()` 用 `id.localeCompare` 兜底的场景，**同分时的次序可能与之前不同**。已保留 `id.localeCompare` 作为显式二次兜底，使顺序不依赖 Map 插入历史；非同分场景的相关性排序才是本次实质变化，这正是 1.3 对拍评测集要量化的对象。③`atomStore.search()` 与 `knowledgeNetwork.search()` 都改为在空查询时早返（前者原有、后者本次补上），保持两处对外行为一致。
+- **Commit**：<待回填>
