@@ -228,7 +228,10 @@ export class HttpRouter {
       const cached = await this.cache.get(cacheKey);
       if (cached) {
         this.cacheHits++;
-        return cached;
+        // Response 的 body 是一次性流：返回 clone()，否则调用方消费后
+        // 缓存中的原始对象即失效，同一路径的后续请求会抛
+        // `TypeError: Body already used`（经主请求路径的 catch 转成 500）
+        return cached.clone();
       }
     }
 
@@ -264,7 +267,8 @@ export class HttpRouter {
       // 缓存响应
       if (method === "GET" && response && record.meta?.cacheable !== false && response.status < 400) {
         const ttl = record.meta?.cacheTtlMs ?? 30 * 1000;
-        this.cache.set(cacheKey, response, ttl);
+        // 存 clone()：原对象要把 body 流交给本次调用方，缓存必须持有未消费的副本
+        this.cache.set(cacheKey, response.clone(), ttl);
       }
 
       return response;

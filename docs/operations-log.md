@@ -1312,3 +1312,15 @@
 - **验证结果**：`bunx tsc --noEmit` 通过（exit 0）；`dre-search` 7 + `text-rank` 13 + `text-rank-bm25` 11 = **31 pass / 0 fail**；**全量 `bun run test` 4061 pass / 36 skip / 0 fail**（与接线前逐项一致，共享检索路径改动**无回归**）。
 - **偏差记录**：①**规则 2 部分偏差（如实记录）**：本次两处编辑**未能在改前**建立 `.tmp/backups` 副本（先改后补），偏差原因是切片 4b 紧接着切片 4 提交推进、把 git 提交当作了回滚点。补偿：两份文件旧版均可由 `git show b83e410:<path>` 完整取回（git 提交即回滚点），且改动已被全量测试验证；备份副本已在验证后补齐并即将按规则 2 第 5 步删除。后续切片恢复"先备份再改"。②**接线后排序语义变化需如实告知**：`rankDocuments` 的同分兜底是"输入下标"，而 Map 插入顺序即输入下标 ⇒ 在原 `search()` 用 `id.localeCompare` 兜底的场景，**同分时的次序可能与之前不同**。已保留 `id.localeCompare` 作为显式二次兜底，使顺序不依赖 Map 插入历史；非同分场景的相关性排序才是本次实质变化，这正是 1.3 对拍评测集要量化的对象。③`atomStore.search()` 与 `knowledgeNetwork.search()` 都改为在空查询时早返（前者原有、后者本次补上），保持两处对外行为一致。④**确定性实测（补验）**：以 5 条含唯一前缀的原子为语料，同一查询连续调用 `search()` 5 次，结果 id 序列**逐次完全一致**（`allIdentical=true`）；排序实测为「全词命中 > 部分命中 > 低频重叠」，符合 BM25 预期。
 - **Commit**：bfd91be
+
+## 2026-09-14 — fix(consolidation): 移植 Axiom 侧两条独有安全修复（TDD，规则 6/7）
+
+- **任务**：仓库收敛第一步。取证结论（子代理 patch-id 索引 1526 提交 + blob 逐字节比对）显示：Axiom 侧 4 个提交中 `a43a725` 已全部存在于本仓库，`4af0715`/`5531ab0` 各有一项**独有且在本仓库仍活跃**的缺陷。本次移植这两项（第三项"去伪"另议，见偏差③）。
+- **工具**：Bash（勘察/备份/测试/git）、Read、Write、Edit、子代理×4（只读取证）。规则 2（备份 `src/core/http-router.ts`、`src/plugins/plugin-registry.ts` → `.tmp/backups/`）。
+- **操作**（文件级）：①`src/core/http-router.ts`：缓存写入与命中读取均改用 `clone()`（+6/−2）；②`src/plugins/plugin-registry.ts`：新增 `PLUGIN_ID_RE` / `assertValidPluginEntry` / `assertValidManifest`，接在 `installFromPath` 与 `install` 的入口，并在 `enablePlugin` 动态 import 前加解析后路径的包含性兜底；③新增 `tests/unit/http-router-response-cache.test.ts`（4 例）；④新增 `tests/unit/plugin-manifest-containment.test.ts`（4 例）。
+- **验证结果**：
+  - **HTTP-router（阻塞级）**：RED 阶段独立复现 `TypeError: Body already used`（3 fail / 1 pass）；修复后 4/4 pass。机理：`Response` body 是一次性流，缓存对象被消费后同一 GET 路径在 TTL(30s) 内第二次请求必抛，经 `main.ts` catch 转 500。
+  - **插件包含性**：RED 阶段 3 个攻击面失败；其中**恶意 entry 实测确认越界模块被真实执行**（调试探针 `marker: true`、`status: enabled`）⇒ 非理论风险。修复后 4/4 pass：恶意 `id`（`../../escaped`）与非法 id 被拒、恶意 `entry`（`../../payload.js`）在**安装期**即被拒且 marker 未生成、合法插件未误伤。
+  - `bunx tsc --noEmit` exit 0；**全量 `bun run test` 4069 pass / 36 skip / 0 fail**（基线 4061，+8 即新增用例，无回归）。
+- **偏差记录**：①**测试自身缺陷 3 处**（已如实记录）：`Plugin` 无顶层 `id`（应为 `manifest.id`）；测试助手漏返回 `toolRegistry`；测试1 的第二个断言路径算错（`join(pluginDir,"..","..")` 指到 `/tmp` 全局，被先前残留污染）——均为**测试 bug 而非实现问题**，已修正。②**修复位置比原设计更早**：entry 校验落在**安装期**而非启用期（原 Axiom 实现亦为安装期正则 + 启用期兜底），故测试改为断言安装期拒绝 + marker 未生成，比原计划更严格。③**第三项（去伪）未做，待决策**：3 个插件仍用 `Math.random()` 伪造 severity/行号、`plugin.json` 仍声明不存在的 `index.js`、`kg/graph.ts` 仍顶着假的"Louvain"头、`cron/scheduler.ts` 仍有模块级副作用。本仓库已有 `7820915`（插件写入默认关闭）作为**设计分歧**而非遗漏，故是否"去伪"需先确认是修还是撤，未擅自改（规则 12 过度施工红线）。
+- **Commit**：<待回填>
