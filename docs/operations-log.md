@@ -1368,3 +1368,27 @@
   ④**丢弃 1 项**：`deploy/docker/docker-compose.yml` 未迁移 —— 本仓库已在 `4cb84bb` 主动退役该目录，属旧部署模型（端口 3000 vs 现行 18789），迁移会引入两套互斥部署路径。
   ⑤**未做**：README 的其余 Axiom-only 改动（审计整改记录、工具数口径等）**未迁移** —— 那会使本仓库已修正的内容回退（含一条已撤回的虚假安全声明），故只迁移 2 个新增小节。
 - **Commit**：2c646a6
+
+## 2026-09-14 — chore(repo): 仓库收敛完成 —— agent/openclaw-fusion 更名为 agent/Axiom（④）
+
+- **任务**：仓库收敛最后一步（用户确认执行）。消除 `agent/openclaw-fusion` 与陈旧 `agent/Axiom` 并存的双仓库状态。按 T3 判定（远端引用变更 + 不可逆面）。
+- **工具**：Bash（备份/校验/git）、`git fetch`/`ls-remote`、Gitea REST API（`PATCH /repos/{owner}/{repo}`，token 只经 `curl -K` 配置传入，不进 argv/URI）、Edit。规则 2（AGENTS.md 备份，见偏差①）。
+- **操作**（文件级）：
+  ①**数据安全前置**：先把陈旧 `agent/Axiom` 的 4 个独有提交（`4af0715`/`5531ab0`/`0267bcb`/`a43a725`）取回并**推送为 `archive/axiom-old-repo-2026-09-14` 分支**，确认落远端后才动旧仓库（此前已证实这 4 个提交在 openclaw-fusion 全 26 refs 与 GitHub 上均不存在）。
+  ②记录改名前基线（远端 23 个 ref）并备份到仓库外 `/home/listen/repos/.axiom-refs-before-rename-2026-09-14.txt`。
+  ③`PATCH agent/Axiom` → 更名 `Axiom-legacy-2026-09-14`（HTTP 200），腾出仓库名。
+  ④`PATCH agent/openclaw-fusion` → 更名 **`Axiom`**（HTTP 200，默认分支 `master`，134.5 MB）。
+  ⑤本地 remote：本仓库 `origin` 改为 `ssh://git@192.168.0.10:2222/agent/Axiom.git`；陈旧本地仓的 `gitea` remote 改指 legacy 名（避免误推）。
+  ⑥`AGENTS.md` 规则 3 目标仓库更新为 `agent/Axiom`，版本 v1.3 → **v1.4**（规则语义变更=次版本，规则 0.7）。
+- **验证结果**：
+  - **改名零内容变化**：改名前/后 `git ls-remote --heads --tags` 逐行 diff → **23 个 ref 完全一致，SHA 逐一相同**。
+  - 新 URL 可用：`git ls-remote ssh://…/agent/Axiom.git` exit 0；`git push --dry-run` → `Everything up-to-date`（**SSH 通道可直接推送,日常无需 token**）。
+  - 旧仓库**未删除**：`agent/Axiom-legacy-2026-09-14` 仍可读，其 2 个 head 与 `a43a725` 完好 ⇒ 双份保留。
+  - 归档分支已在远端：`archive/axiom-old-repo-2026-09-14` → `a43a725`。
+  - 旁证：GitHub `ListenJ/openclaw-fusion` 返回 **301**（上游也已改名为 Axiom）。
+- **偏差记录**：
+  ①**规则 2 偏差**：`AGENTS.md` 是**先改后备份**（备份落在编辑之后）。补偿：旧版可由 `git show HEAD:AGENTS.md` 完整取回（HEAD 即回滚点），改动已逐行核对；后续严格先备份。
+  ②**remote 名未改**：规则 3 要求 remote 名 `gitea`，本仓库实际为 `origin`。URL 已指向正确仓库；改名会波及既有脚本，故按规则 3 记差异而非擅自改名（已在 AGENTS.md 中注明对齐命令）。
+  ③**凭据处理**：Gitea token 仅经 `curl -K` 配置文件与 git `-c http.extraHeader` 传递，未进 argv、未写入 git config、未进 remote URL；用后销毁（见下一条提交的记录维护说明）。
+  ④**LFS 未做本地完整性核验**：本机 **git-lfs 未安装**，105 个 LFS 实体在服务端、本地只有指针。改名不涉及对象迁移（同库内改名），风险低；但"105 对象确实可取回"仍未实测，列为待办。
+- **Commit**：<待回填>
