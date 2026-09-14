@@ -121,7 +121,13 @@ export class CognitivePipeline {
       worldState.set("cognitive.pipeline.lastStep", {
         stage, output: out, durationMs: s.durationMs, timestamp: Date.now(),
       });
-      worldState.setGoal("current", input, "active");
+      // 审计修复（WorldState 一致性）：setGoal 现在校验 description 非空，
+      // 而这里此前直接把**原始输入**当目标描述写入，空输入会抛错并让整条流水线提前退出
+      // （实测：trace 长度从 6 掉到 1）。
+      // 语义上：空输入**没有可表述的目标** —— 跳过写入，而不是把一个空字符串塞进状态树。
+      // 「空状态的确定性」比没有状态更危险：下游会把空目标当成有效目标。
+      const goalText = input.trim();
+      if (goalText) worldState.setGoal("current", goalText, "active");
       return s;
     };
 
