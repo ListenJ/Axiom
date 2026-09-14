@@ -1267,3 +1267,12 @@
   - **规则 3（remote 名）**：规则要求 remote 名 `gitea`，实际名为 `origin`（URL 与规则要求一致，指向 .10）。补偿：后续统一用 `git push origin <分支>`；如需严格对齐可 `git remote rename origin gitea`（属独立小任务，未擅自执行）。
 - **验证结果**：`docs/operations-log.md` 追加成功（幂等可检索）；`.tmp/backups/docs/operations-log.md` 备份存在且被 gitignore；`git check-ignore` 确认 `.tmp/`、`archive/` 均不进入常规提交。
 - **Commit**：7333523
+
+## 2026-09-14 — plan(T3): 知识后端收敛至 DRE SQLite —— 计划冻结
+
+- **任务**：用户决策「知识后端收敛至 DRE SQLite 一处，不再使用其他后端，砍掉多余的知识库部分」。按总则 0.3 判为 **T3**（模块重构 + 数据迁移 + 接口收敛），须先落盘书面计划并冻结契约。
+- **工具**：Bash（实测测绘：`grep -rl "new Database("`、FTS5/KG 写入路径清点）、Read、Write。无子代理。
+- **操作**（文件级）：①新增 `docs/superpowers/plans/2026-09-14-knowledge-backend-convergence.md`（含 0.4 任务契约、实测测绘、六步执行顺序、影响面清单、规则遵守要点）；②本条目（规则 5）。
+- **验证结果**：计划落盘，契约六要素齐备（任务/验收标准/改动清单/不做项/验证命令/风险回滚）。关键决策已由用户确认（收敛目标 = DRE SQLite）。
+- **偏差记录**：①测绘发现 **KG 写入路径实为 5 处**（用户表述为 4 套），已在计划中如实更正；②**大量非知识后端模块同样 `new Database`**（缓存/凭据/定时/评测共十余处），已在契约"不做项"中逐一列明，避免收敛时误伤；③计划中标注 FTS5 排序语义差异会导致**结果顺序变化**，对拍须按集合差异断言，否则产生假失败。
+- **Commit**：<待回填>
