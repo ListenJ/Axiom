@@ -1293,7 +1293,7 @@
 - **操作**（文件级）：①新增 `src/dre/runtime/text-rank.ts`（分词 + 打分，深模块，对外 2 个函数）；②`src/dre/runtime/atom-engine.ts` 的 `search()` 接线（+1 行 import）；③新增 `tests/unit/text-rank.test.ts`（13 例）；④新增 `tests/unit/dre-search.test.ts`（7 例）；⑤`tests/crawl/search-fallback.test.ts` mock 支持本地自建 SearXNG 地址。
 - **验证结果**：`bunx tsc --noEmit` 通过；`text-rank` 13 pass / `dre-search` 7 pass；**全量 `bun run test` 4050 pass / 36 skip / 0 fail**。
 - **偏差记录**：①**测试自身缺陷**：`dre-search` 首版"无关查询"用例的查询串带了测试前缀 `P`，而内容也含 `P` ⇒ 前缀作为 token 正常命中，被误判为失败。这是**正确行为**，已修正测试（改为断言目标原子不出现在结果中），非实现问题；②**连带修复一处既有失败**：`tests/crawl/search-fallback.test.ts` 的 mock 只认公共实例 `sapti.me`，而前序提交（5ba0eeb）已让 SearXNG 地址由 `web-search.yaml` 驱动、默认指向自建实例 ⇒ mock 报 `unexpected host: 127.0.0.1`。已按规则 1 做最小修复（mock 增加本地/内网地址识别）；③按规则 8 评估过"是否需要独立模块"：两个调用点（atom-engine / knowledge-network）确有第二处真实使用，非投机抽象；④本次**仅接线 atom-engine**，`knowledge-network.search()` 作为下一片切片，未在本次一并改动（规则 7 垂直切片）。
-- **Commit**：<待回填>
+- **Commit**：bd19277
 
 ## 2026-09-14 — feat(T3/步骤1.2 切片4): DRE 检索打分升级为 BM25（与 FTS5 同族）
 
@@ -1302,4 +1302,4 @@
 - **操作**（文件级）：①`src/dre/runtime/text-rank.ts` 重写打分内核为 BM25（`IDF = ln(1+(N-df+0.5)/(df+0.5))`、`tf` 饱和 k1=1.2、长度归一化 b=0.75、多字段加权求和）；新增对外 `rankDocuments()` / `RankableDoc` / `RankedDoc`（语料级 df+avgdl 一次性构建）；`scoreMatch()` 保留为单文档便捷入口（既有调用方与切片 1-3 测试不破坏）；②`tests/unit/text-rank-bm25.test.ts`（上轮遗留的 RED 用例，11 例）。
 - **验证结果**：`bunx tsc --noEmit` 通过（exit 0）；BM25 11 pass / 0 fail；切片 1-3 既有 20 pass / 0 fail；**全量 `bun run test` 4061 pass / 36 skip / 0 fail**（本切片前 4050，+11 即新增用例，无回归）。
 - **偏差记录**：①**发现并如实记录一处未接线缺口**：`atomStore.search()` 仍逐个文档调 `scoreMatch()`，**单文档无语料统计**（N=1/df=1）⇒ IDF 退化为常数、跨文档分数不可比，"按相关性排序"名不副实；`rankDocuments()` 目前只有测试调用方。已按规则 12 回 Plan，新增**切片 4b（必须做）**把 `rankDocuments` 接线进两处 `search()`。②切片 4 的验收限于"打分函数升级 + 模块级测试"，**不代表 1.2 整体完成**，故计划中 1.2 与切片 4b 保持未勾选。③`avgFieldLen` 按"字段存在的文档数"求平均（而非总文档数），避免字段缺失的文档拉低均值、间接惩罚字段齐全的文档。
-- **Commit**：<待回填>
+- **Commit**：b83e410
