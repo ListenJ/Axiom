@@ -1426,4 +1426,4 @@
   ②**测试环境继承真实 API Key 导致首版非确定性失败**：新测试子进程最初继承 `process.env`，`healthCheckTask` 按真实 key 发起 4 次外呼（正是被测缺陷本身），使用例 5s 超时。已在子进程中显式清空 4 个平台 key 并把任务函数的验证改为"不抛即通过"，与网络解耦。
   ③**任务函数语义保持不变**：`healthCheckTask`/`heartbeatTask`/`cleanupTask`/`discoverFreeModelsTask` 的签名与返回不变，仅把内部 `db` 换成惰性 `getDb()`。
   ④**未改** `scheduler-crash.test.ts` 对 SQLITE_BUSY 重试等其余断言（与本次无关，避免扩大范围）。
-- **Commit**：<待回填>
+- **Commit**：7cdaa38
