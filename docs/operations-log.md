@@ -1344,4 +1344,4 @@
   ③**发现第二类问题（phantom 接口）**：`git-workflow-enhanced/plugin.json` 声明 5 个工具，而代码只注册 4 个，`manage_git_hooks` **完全不存在**。另两个插件的声明数与实际注册数一致。
   ④**测试自身缺陷 3 处**：`Plugin` 无顶层 `id`（应 `manifest.id`）；助手漏返回 `toolRegistry`；对 `Math.random` 做**文本扫描**会误伤"注释/警告文案中提到该词"的情形（非调用）——已改为**功能性断言**（启用后工具集为空），避免以文本代替行为。
   ⑤**cron/scheduler.ts 模块级副作用未改**：`tests/unit/scheduler-crash.test.ts:126-137` 明确断言"import 即安装 unhandledRejection/uncaughtException 监听器"，即**既有测试依赖该副作用**；收敛它会打破既有断言，须同步改测试，属独立任务，未混入本次提交（规则 1/12）。
-- **Commit**：<待回填>
+- **Commit**：4e10c72
