@@ -18,7 +18,7 @@ import {
   saveWebSearchConfig,
 } from "../crawl/web-search-config.js";
 import { describeApproverSetup, listConfiguredModels } from "../agents/approver-model.js";
-import { readString } from "../utils/env.js";
+import { readString, writeString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleSettingsCatalog(ctx: RouteContext): Promise<Response | null> {
@@ -118,7 +118,7 @@ export async function handleApproverSettings(ctx: RouteContext): Promise<Respons
       // 写入 .env 的 AXIOM_APPROVER_MODEL，并同步当前进程 env 使其立即生效
       const { upsertEnvVar } = await import("../utils/env-file.js");
       const result = upsertEnvVar("AXIOM_APPROVER_MODEL", model);
-      process.env.AXIOM_APPROVER_MODEL = model;
+      writeString("AXIOM_APPROVER_MODEL", model);
       return ctx.jsonResponse({ ok: true, model, envPath: result.path }, 200, ctx.baseHeaders);
     } catch (e) {
       logger.warn("[Settings] 审批模型写入失败", { error: (e as Error).message });
