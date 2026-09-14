@@ -1427,3 +1427,24 @@
   ③**任务函数语义保持不变**：`healthCheckTask`/`heartbeatTask`/`cleanupTask`/`discoverFreeModelsTask` 的签名与返回不变，仅把内部 `db` 换成惰性 `getDb()`。
   ④**未改** `scheduler-crash.test.ts` 对 SQLITE_BUSY 重试等其余断言（与本次无关，避免扩大范围）。
 - **Commit**：7cdaa38
+
+## 2026-09-14 — chore(repo): main 快进 + 退役 fix/audit-critical-security + 陈旧克隆指向新仓库
+
+- **任务**：用户指令「确保稳定后切入 main，退役 fix/audit-critical-security，本地陈旧部分指向新仓库」。按 T3 判定（分支/远端引用变更）。
+- **工具**：Bash（验证/备份/git）、Gitea REST API（删除远端分支）、curl。规则 4（先归档再删）、规则 5。
+- **操作**（文件级）：①本地新建 `main` 跟踪 `origin/main`，`git merge --ff-only` 到 `codex/knowledge-backend-convergence` 顶端；②`git push origin main`（快进 `7ad30ce..93620c2`）；③新增归档分支 `archive/fix-audit-critical-security-2026-09-14`（`c107bea`）并推送；④`DELETE /repos/agent/Axiom/branches/fix%2Faudit-critical-security`（HTTP **204**）；⑤删除本地分支 `fix/audit-critical-security`；⑥陈旧克隆 `~/repos/Axiom`：`gitea` 与 `origin` 两个 remote 均改指 `ssh://git@192.168.0.10:2222/agent/Axiom.git`，`git fetch` 后 `origin/main` = `93620c2`；⑦`archive/ARCHIVE-LOG.md` 登记本次分支退役。
+- **稳定性验证（合并前，全部新鲜执行）**：
+  - `bunx tsc --noEmit` → **exit 0**
+  - `bun run test`（`--parallel=8 --timeout 15000 ./tests`）→ **4078 pass / 36 skip / 0 fail**（4114 tests / 404 files）
+  - `bun run build` → **exit 0**，592 模块 → `dist/main.js` 11.43 MB
+  - **真实冒烟（构建产物）**：`bun dist/main.js` 启动成功、监听 `127.0.0.1:18789`、`/health` **连打 3 次全 200**（其中一次即验证 http-router 缓存修复在真实服务上生效）、退出后端口释放无残留进程
+  - 合并前置：`git merge-base --is-ancestor origin/main HEAD` → **是祖先** ⇒ **fast-forward，无需 merge commit、无需 force**
+- **验证结果（合并后）**：远端 `refs/heads/main` = **93620c2**（与本地一致）；`refs/heads/master` 仍为 `7ad30ce`（未擅自动）；远端默认分支 HEAD → `refs/heads/master`（**待决**，见偏差③）；`fix/audit-critical-security` 远端已不存在；归档分支 `c107bea` 完好。
+- **零丢失核验（陈旧克隆的未提交改动）**：逐文件比对 + 行级丢失检测 —— `.env.example` / `.env.production.example` / `README.md` / `config/searxng/settings.yml` / `scripts/deploy-searxng.sh` / `AGENTS.md` 的差异**全部为有意改进**（如 `bind_address` 由 `0.0.0.0` 收紧为 `127.0.0.1`、密钥变量统一为两个消费者、README 两小节俱在、AGENTS.md 仅版本号与仓库名更新）；`docs/research/` 两文件**内容完全相同**。陈旧克隆 HEAD `a43a725` 已确认被归档分支包含。
+- **偏差记录**：
+  ①**CI 未实际执行（如实声明）**：按 `ci-cd-pipeline` 铁律"流水线要么实际跑过，要么明确声明只做静态校验"—— 核查发现 Gitea 实例**runner 数为 0**（`/repos/agent/Axiom/actions/runners` → `total_count: 0`）且无 `workflow_runs`，故 `.github/workflows/*.yml` **从未在此实例运行过**。本次只做静态核查 + 本地等价验证（tsc/test/build/冒烟）。
+  ②**CI 与本地存在版本漂移**：`ci.yml` 钉 `BUN_VERSION: "1.3.14"`，本机实际 `bun 1.4.2`（两者经 GitHub Releases API 核验**均为真实版本**，非臆造）。属待决项。
+  ③**远端默认分支仍为 `master`** 且 `master` 停在 `7ad30ce`：本次只按指令推进 `main`，**未擅自改动** `master` 或默认分支设置。这会造成"默认分支落后 899 个提交"的困惑，建议将默认分支切到 `main` 并令 `master` 同步（待用户决策）。
+  ④**发现版本号口径不一致（未修，记入待办）**：`GET /health` 返回 `version: "2.2.0"`（`src/routes/health.ts:40` 硬编码），而同文件 `:99` 另一处写 `"2.9.0"`，`package.json` 为 `4.0.0` —— 三处口径不一。不在本次范围，未擅自改（规则 1/12）。
+  ⑤**陈旧克隆未做工作区清理**：其 9 项未提交改动经核验已全部迁入新仓库，但**未擅自丢弃**（`git checkout .` / `clean` 属规则 9 禁止操作），remote 已指向新仓库供用户自行处置。
+- **Commit**：<待回填>
