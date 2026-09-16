@@ -1253,3 +1253,20 @@
 - **验证结果**：A3 单机（w1 GP=12）simple 49,943；A4 两实验均无收益回退（写二进制 seed 13.2→14.1/19.4s；微批 v1 simple −74%/v2 mixed −11%）；**A4 回退复测 gate**：WiFi 组 simple 6,613/mixed 7,753（RTT 14-105ms 归因：ping 60ms、eno1 未插线），用户插网线后（n2=.110，HTTP ~2.8ms）**simple 13,804（基线 12,635 +9.3%）/ mixed 10,893（10,711 +1.7%）/ seed 12.98s，零错误**；双节点 /cluster 两节点 healthy、分片各持 16、鉴权矩阵 403/403/200。go build 全包通过、search 包测试 2.7s 全绿。
 - **偏差记录**：①**计划外 IP 漂移连锁**：原 n2 .111 关机后 DHCP 将 .111 分给 w1（w1 残留 searchd 对"n2"健康检查自环假健康）→ 重启指向真 n2；n2 终态有线 .110（计划文档写作时为 .111/.108，deploy.sh 头注记录全程）；②**ADR 编号顺延**：计划原定 ADR-004 已被占用 → ADR-006；③**验证报告未入库**：`docs/reports/` 为 .gitignore 既有策略（0 跟踪先例），报告本地留存，偏差记此；④cluster.go/httpapi.go 仅 CRLF 行尾差异（A4 回退 Write 引入），sed 归零无内容改动；⑤30min 浸泡仍在运行，结果与 72h 用户执行另条补记。
 - **Commit**：de71e26（工具链）+ 1b96647（文档），分支 codex/node22-decommission-n2-swap → gitea
+
+## 2026-09-17 — audit: 独立第三方全量代码与架构审计（只读诊断，429 行报告）
+
+- **任务**：用户要求按"怀疑优先于信任"铁律做全量第三方审计（13 个模块 + Phase 0 文件清单 + 分层输出 + 声明 vs 实际对照）。任务分级 T0（只读咨询）+ T1（报告交付物）。任务契约：只诊断不修复；每结论附 文件:行号+代码证据；未覆盖项显式列出；覆盖率不达 100% 不得声称完成。
+- **工具**：5 个只读审计子代理并行（Bernoulli=模块2 Agent编排 54文件 / Copernicus=模块3 MCP工具层 39文件 / Franklin=模块4网络搜索+模块10安全 19文件 / Carson=模块5 KAL+模块6摄取管线 31文件 / Banach=模块8本地推理+模块9 VRAM预算 12文件）；主审计亲自做模块1/7/12/13 + 全部交叉验证 + 实证 harness。规则 6 调试纪律（先建反馈回路）：确定性承诺用"可复现命令"验证而非读代码猜测。
+- **操作**（文件级）：仅新增 `docs/reviews/2026-09-17-independent-full-audit.md`（429 行）+ 本 ops log 条目。**未修改任何业务代码**（`docs/reports/` 为 .gitignore 既有策略，报告改放 `docs/reviews/` 与前轮审计同位）。临时 harness 全部置于已 gitignore 的 `.tmp/`。
+- **验证结果**（实证，非推测）：
+  - 确定性 N=10 重复实验（自写 `.tmp/det-harness2.ts`）：DeterministicSearchEngine 同实例/跨实例/逆序目录创建 均 distinct-signature=1；KAL queryKG/queryDRE 跨实例均=1 → **检索层确定性实证通过**。
+  - 既有确定性测试 6 pass/0 fail；module-exports+registry-validation 13 pass；tools-v3+review-deep 34 pass；docs-consistency 9 pass。
+  - 工具计数实测 `countMcpTools()`：total=189, duplicates=[]（与 README 一致）。
+  - KG 幂等实证：重复摄取同一 AST，nodes 1→1，edges 0，零重复（与声明一致）。
+  - blackboard 同源冲突**实证复现**：1st write verified({tokens:10}) → 2nd conflict(值停留10) → 3rd verified({tokens:30}) → 偶数次写入静默丢失（High）。
+  - 自写 Tarjan SCC 依赖图（411 模块）：**循环依赖 = 0**。
+  - 关键交叉验证（主审计亲自）：C-01 守卫错配（edge-assist.ts 5 处守卫均为 EDGE_KNOWLEDGE_ASSIST 默认启用，不读 KNOWLEDGE_USE_LLM）、C-02（settings-search 默认 cosine+远端 embedding 回落）、C-03（plugin-registry manifest.id 无路径校验 + plugin-routes 默认 enable:true）、C-04（post-processor O→0/l→1 全局替换）、A9-1/A9-3（availableMemory 硬编码 4000 + maxCompute 死字段 grep 零消费方）。
+- **核心结论**：4 项 Critical（C-01 确定性/zero-LLM 承诺被默认启用边缘 LLM 打破；C-02 "不使用向量化"在 settings 默认路径被违反；C-03 插件默认 auto-enable+无路径校验=默认 RCE；C-04 OCR 全局字符腐蚀静默损数据）；6 项 High；覆盖率深度 ≈19.5%（170/873）+ 全量静态 100% → **审核未完成（覆盖率不达标），结论限定在已审范围内**。详见报告第五节未验证项（11 项）。
+- **偏差记录**：①**覆盖率不达标**：873 个核心源文件仅深度审核 ~170 个（19.5%），未逐行审核项已在报告第五节 U-9 显式列明，未声称"全量完成"；②**子代理边界**：5 个子代理均为只读、范围互斥，主审计对全部 Critical/High 做了独立交叉验证（不二手采信）；③MinerU 外部 Python 组件不在本仓库 TS 运行时，标为无法验证（U-1）而非臆断；④用户在聊天中给出的 gitea 密钥按规则 11 未写入任何文件/日志/commit，仅内存使用。
+- **Commit**：本分支本次提交（hash 推送后回填，见下一条记录维护提交）
