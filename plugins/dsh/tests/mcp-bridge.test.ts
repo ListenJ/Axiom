@@ -1,4 +1,6 @@
 import { describe, test, expect } from 'bun:test'
+import path from 'node:path'
+import { existsSync, unlinkSync } from 'node:fs'
 import { publicToolName, extractText, toToolDefinition, createMcpBridge, type McpToolMeta } from '../src/mcp-bridge.js'
 
 const OPTS = {
@@ -61,6 +63,123 @@ describe('createMcpBridge', () => {
     expect(b.toolCount()).toBe(0)
     b.dispose()
     b.dispose()
+  })
+
+  test('服务器退出后自动摘工具并翻转状态（断连感知）', async () => {
+    const fixture = path.resolve(import.meta.dir, 'fixtures', 'echo-mcp.mjs')
+    const b = createMcpBridge({
+      command: process.execPath,
+      args: [fixture, '600'],
+      cwd: process.cwd(),
+      serverName: 'axiom',
+      toolCallTimeoutMs: 5000,
+    })
+    const events: boolean[] = []
+    const off = b.onConnectionChange((connected) => events.push(connected))
+    const registrations: string[] = []
+    const ctx = {
+      logger: { info() {}, warn() {}, error() {} },
+      tools: { register: (def: { name: string }) => { registrations.push(def.name); return () => {} } },
+    }
+    try {
+      await b.connect(ctx as never)
+      expect(b.status().connected).toBe(true)
+      expect(b.toolCount()).toBe(1)
+      expect(registrations).toContain('axiom__echo')
+      // 等夹具服务器退出 → transport close → 桥自摘工具
+      const disconnected = new Promise<void>((resolve) => {
+        const tick = () => (b.status().connected ? setTimeout(tick, 100) : resolve())
+        tick()
+      })
+      await disconnected
+      expect(b.status().connected).toBe(false)
+      expect(b.toolCount()).toBe(0)
+      expect(events.at(-1)).toBe(false)
+    } finally {
+      off()
+      b.dispose()
+    }
+  })
+
+  test('tools/list_changed 通知触发重同步（新增工具被桥接）', async () => {
+    const fixture = path.resolve(import.meta.dir, 'fixtures', 'echo-mcp.mjs')
+    const registrations: string[] = []
+    const b = createMcpBridge({
+      command: process.execPath,
+      args: [fixture, '8000', '300'],
+      cwd: process.cwd(),
+      serverName: 'axiom',
+      toolCallTimeoutMs: 5000,
+    })
+    const ctx = {
+      logger: { info() {}, warn() {}, error() {} },
+      tools: { register: (def: { name: string }) => { registrations.push(def.name); return () => {} } },
+    }
+    try {
+      await b.connect(ctx as never)
+      expect(b.toolCount()).toBe(1)
+      expect(registrations).toEqual(['axiom__echo'])
+      // 夹具在 300ms 后发 list_changed 并多挂一个工具；重同步后应看到 echo2
+      const deadline = Date.now() + 4000
+      while (Date.now() < deadline && b.toolCount() < 2) {
+        await new Promise((r) => setTimeout(r, 100))
+      }
+      expect(b.toolCount()).toBe(2)
+      expect(registrations).toEqual(['axiom__echo', 'axiom__echo', 'axiom__echo2'])
+    } finally {
+      b.dispose()
+    }
+  })
+
+  test('dispose 关闭 stdio 子进程（回归：teardown 先于 close 导致孤儿进程）', async () => {
+    const fixture = path.resolve(import.meta.dir, 'fixtures', 'echo-mcp.mjs')
+    const marker = path.resolve(import.meta.dir, '..', '.dispose-marker')
+    try { unlinkSync(marker) } catch { /* 首次运行不存在 */ }
+    const b = createMcpBridge({
+      command: process.execPath,
+      args: [fixture, '60000'],
+      cwd: process.cwd(),
+      serverName: 'axiom',
+      toolCallTimeoutMs: 5000,
+      env: { DSH_TEST_MARKER: marker },
+    })
+    const ctx = {
+      logger: { info() {}, warn() {}, error() {} },
+      tools: { register: () => () => {} },
+    }
+    await b.connect(ctx as never)
+    expect(b.status().connected).toBe(true)
+    b.dispose()
+    // transport.close() 关闭 stdin → 夹具写入标记文件后退出；若 close 被跳过，标记永不出现
+    const deadline = Date.now() + 4000
+    while (Date.now() < deadline && !existsSync(marker)) {
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    expect(existsSync(marker)).toBe(true)
+    try { unlinkSync(marker) } catch { /* 并发清理 */ }
+  })
+
+  test('dispose 不触发伪断连事件，onConnectionChange 可取消订阅', async () => {
+    const fixture = path.resolve(import.meta.dir, 'fixtures', 'echo-mcp.mjs')
+    const b = createMcpBridge({
+      command: process.execPath,
+      args: [fixture, '30000'], // 主动退出晚于本用例，只测 dispose 路径
+      cwd: process.cwd(),
+      serverName: 'axiom',
+      toolCallTimeoutMs: 5000,
+    })
+    const events: boolean[] = []
+    const off = b.onConnectionChange((connected) => events.push(connected))
+    const ctx = {
+      logger: { info() {}, warn() {}, error() {} },
+      tools: { register: () => () => {} } as never,
+    }
+    await b.connect(ctx as never)
+    expect(events.at(-1)).toBe(true)
+    off()
+    b.dispose()
+    // dispose 后不再收到回调（订阅已取消）
+    expect(events.at(-1)).toBe(true)
   })
 })
 

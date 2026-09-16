@@ -78,7 +78,18 @@ function makeStatusTool(getState: () => Record<string, unknown>): DshToolDefinit
     description: 'Axiom dsh 插件运行状态：MCP 桥、HTTP 服务器与生效配置（诊断用）。',
     parameters: { type: 'object', properties: {} },
     output: {
-      schema: { type: 'object', properties: {}, additionalProperties: false },
+      // schema 必须与 execute 的实际返回值相容，否则 dsh 侧结构校验会拒绝。
+      schema: {
+        type: 'object',
+        properties: {
+          mcp: { type: 'object', additionalProperties: true },
+          server: { type: 'string' },
+          frostedGlass: { type: 'boolean' },
+          config: { type: 'object', additionalProperties: true },
+        },
+        required: ['mcp', 'server', 'frostedGlass', 'config'],
+        additionalProperties: false,
+      },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     execute: async () => getState(),

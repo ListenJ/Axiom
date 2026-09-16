@@ -115,10 +115,19 @@ node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
         frostedGlass: false  # 关闭磨砂主题
 ```
 
+## 桥接行为
+
+- **工具同步**：连接后全量同步 `tools/list`（跟随 `nextCursor` 分页）；服务器发送
+  `notifications/tools/list_changed` 时自动重同步——Axiom 运行期增删工具会即时反映到 dsh。
+- **断连感知**：MCP 服务器进程退出时，桥立即卸载已失效工具并把 `axiom_status` 的
+  `mcp.connected` 置为 `false`（不会出现「工具还在、调用必挂」的假连接状态）。
+  **暂不自动重连**：需要恢复时重新加载插件或重启 dsh profile。
+
 ## 已知边界
 
 - dsh 处于 developer preview：本插件只依赖 `ctx.tools.register` / `ctx.effect` / `ctx.inject` /
   `ctx.get` 这几个稳定接缝，并以结构性类型解耦 `@deepseek-ai/*`，避免随版本漂移。
+- MCP 服务器意外退出后不自动重连（见上「桥接行为」）。
 - `/axiom` 代理仅覆盖 HTTP；WebSocket 升级不代理。
 - 插件本身不携带任何模型密钥；Axiom 的 `.env`（含密钥）留在仓库根，不入 git。
 
