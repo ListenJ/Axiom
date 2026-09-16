@@ -1269,4 +1269,4 @@
   - 关键交叉验证（主审计亲自）：C-01 守卫错配（edge-assist.ts 5 处守卫均为 EDGE_KNOWLEDGE_ASSIST 默认启用，不读 KNOWLEDGE_USE_LLM）、C-02（settings-search 默认 cosine+远端 embedding 回落）、C-03（plugin-registry manifest.id 无路径校验 + plugin-routes 默认 enable:true）、C-04（post-processor O→0/l→1 全局替换）、A9-1/A9-3（availableMemory 硬编码 4000 + maxCompute 死字段 grep 零消费方）。
 - **核心结论**：4 项 Critical（C-01 确定性/zero-LLM 承诺被默认启用边缘 LLM 打破；C-02 "不使用向量化"在 settings 默认路径被违反；C-03 插件默认 auto-enable+无路径校验=默认 RCE；C-04 OCR 全局字符腐蚀静默损数据）；6 项 High；覆盖率深度 ≈19.5%（170/873）+ 全量静态 100% → **审核未完成（覆盖率不达标），结论限定在已审范围内**。详见报告第五节未验证项（11 项）。
 - **偏差记录**：①**覆盖率不达标**：873 个核心源文件仅深度审核 ~170 个（19.5%），未逐行审核项已在报告第五节 U-9 显式列明，未声称"全量完成"；②**子代理边界**：5 个子代理均为只读、范围互斥，主审计对全部 Critical/High 做了独立交叉验证（不二手采信）；③MinerU 外部 Python 组件不在本仓库 TS 运行时，标为无法验证（U-1）而非臆断；④用户在聊天中给出的 gitea 密钥按规则 11 未写入任何文件/日志/commit，仅内存使用。
-- **Commit**：本分支本次提交（hash 推送后回填，见下一条记录维护提交）
+- **Commit**：84f35c0（分支 codex/audit-2026-09-17，已推送 gitea）
