@@ -1452,7 +1452,7 @@
 - **操作**（文件级）：①新建分支 `codex/knowledge-unify-2026-09-17`（自 `codex/audit-2026-09-17`）；②独立 worktree 验证 convergence 分支；③`git merge --no-ff` 并入；④唯一冲突 `docs/operations-log.md` 按时间序并轨双方条目（09-14 收敛侧条目 + 09-17 审计条目，零条目丢失）。
 - **验证结果**（实证）：convergence 分支 `tsc --noEmit` exit 0；全量 `bun test` **4081 pass / 30 skip / 2 fail**——2 fail 经逐一单独复现均确认为**环境性非回归**：㉠OCR 测试缺 tesseract 语言包（`eng.traineddata` 等为未跟踪文件，仅主仓库根存在，fresh worktree 无）；㉡code-analysis 用例并行满载下 30s 超时，**单独跑 666ms 通过**。合并后本分支重跑：`tsc --noEmit` exit 0；全量 **4078 pass / 36 skip / 0 fail**（4114 用例），零回归。
 - **偏差记录**：①工作区有 31 个 e2e 视觉快照 PNG 未跟踪修改（本地重生成产物），按规则 3 **未暂存**，保持原样不动；②本地 remote 名为 `gitea`（URL 指向 `agent/openclaw-fusion.git` 改名跳转，仍可用），AGENTS.md v1.4 记录的"实际为 origin"系另一 clone 的配置差异，不擅自改名。
-- **Commit**：本合并提交（merge commit）
+- **Commit**：ef14e6d（merge commit，已推送 gitea）
 
 ## 2026-09-17 — fix(T2): 砍除远端 embedding 回落链 + LLM 查询改写链（确定性检索修复 C-01/C-02）
 
@@ -1467,4 +1467,4 @@
   6. `README.md`：语义层表述与实现对齐——明确"embedding 只走本地模型、不回落远端 API、检索键不经 LLM 改写"。
 - **验证结果**：`tsc --noEmit` exit 0；定向 `bun test tests/knowledge-edge.test.ts tests/settings-search.test.ts` 28/28 pass；新测试 5/5 pass；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4079 pass / 36 skip / 0 fail**（4115 用例，较合并后基线 4114 净 +1：删 4 改写用例、增 5 确定性用例），零回归。
 - **偏差记录**：①**未删 edge-assist 其余 4 个 LLM 能力**（结构化/质量裁决/近重复/摘要属采集管线而非检索链，超出本指令范围）；其守卫仍为 `EDGE_KNOWLEDGE_ASSIST` 默认启用——审计 C-01 的采集侧一半**仍未修复**，列为未决项。②`stream.ts` 休眠向量路径、`context-manager.ts` 死路径未动（审计 A1-4，超出范围）。③远端 embedding 回落移除后，本地 bge-m3 不可用时设置项搜索退回关键词——语义召回率在此场景下降，是用户认可的取舍（用户明示"保留本地向量检索"）。
-- **Commit**：PENDING
+- **Commit**：1b974b2（已推送 gitea）
