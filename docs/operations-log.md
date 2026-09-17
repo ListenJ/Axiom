@@ -1453,3 +1453,18 @@
 - **验证结果**（实证）：convergence 分支 `tsc --noEmit` exit 0；全量 `bun test` **4081 pass / 30 skip / 2 fail**——2 fail 经逐一单独复现均确认为**环境性非回归**：㉠OCR 测试缺 tesseract 语言包（`eng.traineddata` 等为未跟踪文件，仅主仓库根存在，fresh worktree 无）；㉡code-analysis 用例并行满载下 30s 超时，**单独跑 666ms 通过**。合并后本分支重跑：`tsc --noEmit` exit 0；全量 **4078 pass / 36 skip / 0 fail**（4114 用例），零回归。
 - **偏差记录**：①工作区有 31 个 e2e 视觉快照 PNG 未跟踪修改（本地重生成产物），按规则 3 **未暂存**，保持原样不动；②本地 remote 名为 `gitea`（URL 指向 `agent/openclaw-fusion.git` 改名跳转，仍可用），AGENTS.md v1.4 记录的"实际为 origin"系另一 clone 的配置差异，不擅自改名。
 - **Commit**：本合并提交（merge commit）
+
+## 2026-09-17 — fix(T2): 砍除远端 embedding 回落链 + LLM 查询改写链（确定性检索修复 C-01/C-02）
+
+- **任务**：用户指令②——砍掉"远端 embedding 回落"与"LLM 查询改写"两条链，**保留本地向量检索**（语义召回 + 确定性兼得）。对应审计 C-01（查询入口默认 LLM 改写打破同输入同输出）与 C-02（embedding 回落远端 API）。任务分级 T2（多文件缺陷修复）。
+- **工具**：Bash + Python 脚本化精确替换；规则 2（4 个源文件 + README 备份至 `.tmp/backups/`，验证通过后删除）；规则 7（新增回归测试，垂直切片）。
+- **操作**（文件级）：
+  1. `src/core/settings-search.ts`：`defaultEmbedder` 删除 `modelRouter.embeddings()`（远端 API）回落，本地边缘失败直接 null → 关键词兜底；移除不再使用的 `router` 导入；头部设计说明三级链改两级（本地优先·失败回退）。
+  2. `src/services/knowledge.ts`：删除 `rewriteKnowledgeQueryWithEdge` 调用块，检索键 = 用户原始查询（同输入同输出）。
+  3. `src/knowledge/edge-assist.ts`：移除已无任何生产调用方的 `rewriteKnowledgeQueryWithEdge` 函数（其余 4 个采集期能力保留，不动）；头部能力清单同步。
+  4. `tests/knowledge-edge.test.ts`：移除对应改写用例与导入。
+  5. 新增 `tests/unit/knowledge-query-determinism.test.ts`：双路守卫——静态（三条链不得回到源码）+ 行为（`retrieveKnowledge` 透传原始查询；同输入两次检索键一致，mock unified-search 与 vault 强制网络路径可观测）。
+  6. `README.md`：语义层表述与实现对齐——明确"embedding 只走本地模型、不回落远端 API、检索键不经 LLM 改写"。
+- **验证结果**：`tsc --noEmit` exit 0；定向 `bun test tests/knowledge-edge.test.ts tests/settings-search.test.ts` 28/28 pass；新测试 5/5 pass；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4079 pass / 36 skip / 0 fail**（4115 用例，较合并后基线 4114 净 +1：删 4 改写用例、增 5 确定性用例），零回归。
+- **偏差记录**：①**未删 edge-assist 其余 4 个 LLM 能力**（结构化/质量裁决/近重复/摘要属采集管线而非检索链，超出本指令范围）；其守卫仍为 `EDGE_KNOWLEDGE_ASSIST` 默认启用——审计 C-01 的采集侧一半**仍未修复**，列为未决项。②`stream.ts` 休眠向量路径、`context-manager.ts` 死路径未动（审计 A1-4，超出范围）。③远端 embedding 回落移除后，本地 bge-m3 不可用时设置项搜索退回关键词——语义召回率在此场景下降，是用户认可的取舍（用户明示"保留本地向量检索"）。
+- **Commit**：PENDING

@@ -3,10 +3,9 @@
  *
  * 四个子能力（全部可空返回，EDGE_KNOWLEDGE_ASSIST=0 禁用）：
  *   1. structureKnowledgeWithEdge  — 文档结构化（title/summary/keywords/quality_score）
- *   2. rewriteKnowledgeQueryWithEdge — 自然语言 → 检索关键词
- *   3. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
- *   4. isNearDuplicateWithEdge       — 近重复判断
- *   5. summarizeKnowledgeWithEdge    — 采集摘要
+ *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
+ *   3. isNearDuplicateWithEdge       — 近重复判断
+ *   4. summarizeKnowledgeWithEdge    — 采集摘要
  *
  * 全部 DI fake client，不访问真实端点。
  */
@@ -16,7 +15,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   structureKnowledgeWithEdge,
-  rewriteKnowledgeQueryWithEdge,
   judgeKnowledgeQualityWithEdge,
   isNearDuplicateWithEdge,
   summarizeKnowledgeWithEdge,
@@ -80,33 +78,6 @@ describe("structureKnowledgeWithEdge", () => {
     } finally {
       delete process.env.EDGE_KNOWLEDGE_ASSIST;
     }
-  });
-});
-
-// ─────────────────────────────────────────────────────────
-// rewriteKnowledgeQueryWithEdge
-// ─────────────────────────────────────────────────────────
-
-describe("rewriteKnowledgeQueryWithEdge", () => {
-  test("返回空格分隔关键词串", async () => {
-    const { client } = fakeClient(() => ({ content: '{"keywords":["nginx","反向代理","proxy_pass"]}' }));
-    const r = await rewriteKnowledgeQueryWithEdge("怎么配置 nginx 的反向代理？", client);
-    expect(r).toBe("nginx 反向代理 proxy_pass");
-  });
-
-  test("非数组输出 → null", async () => {
-    const { client } = fakeClient(() => ({ content: '{"keywords": "nginx"}' }));
-    expect(await rewriteKnowledgeQueryWithEdge("q", client)).toBeNull();
-  });
-
-  test("空数组 → null", async () => {
-    const { client } = fakeClient(() => ({ content: '{"keywords":[]}' }));
-    expect(await rewriteKnowledgeQueryWithEdge("q", client)).toBeNull();
-  });
-
-  test("模型异常 → null", async () => {
-    const { client } = fakeClient(() => { throw new Error("down"); });
-    expect(await rewriteKnowledgeQueryWithEdge("q", client)).toBeNull();
   });
 });
 

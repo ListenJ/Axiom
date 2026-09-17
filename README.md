@@ -53,7 +53,8 @@ Axiom 采用简化的 8 核心角色架构，消除冗余并提供清晰的 Agen
 |------|------|-----------|
 | main_coding | 代码生成、重构、实现 | OpenCode |
 | code_review | 代码审查、质量保障、测试生成 | OpenCode + Hermes |
-| esearch | 研究、分析、深度研究 | Hermes + 搜索引擎 |
+| 
+esearch | 研究、分析、深度研究 | Hermes + 搜索引擎 |
 | rchitecture | 系统设计、架构评审 | Hermes |
 | decision | 战略决策、方案评估 | Hermes |
 | general_chat | 通用对话、Q&A | 任意模型 |
@@ -279,7 +280,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
 | PARA 语义 | 同分类笔记提升(+5) | - |
 
-> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（如 `src/dre/consciousness/stream.ts`）使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
+> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（设置项语义搜索 `src/core/settings-search.ts` 与 `src/dre/consciousness/stream.ts`）使用。语义路径的 embedding **只走本地模型**（`EDGE_SETTINGS_SEARCH`，本地 bge-m3），**不回落远端 API**——本地 embedding 不可用时自动降级为关键词兜底；检索键不经 LLM 改写，保持同输入同输出。PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
 
 ```bash
 # 搜索记忆

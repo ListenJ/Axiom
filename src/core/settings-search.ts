@@ -1,16 +1,15 @@
 ﻿/**
  * Settings semantic/keyword search — 设置项语义检索
  *
- * 设计（边缘增强·失败回退）：
+ * 设计（本地优先·失败回退）：
  *  1. 本地 embedding（edge-embeddings，见 src/local-llm/edge-embeddings.ts）
- *  2. 模型路由 embedding（role="embedding" 的 bge-m3）
- *  3. 纯关键词兜底（中文二元组 + 英文 token + 同义词表）
- * 任何一级失败都自动降级，绝不抛错；embedder 可注入以便测试。
+ *  2. 纯关键词兜底（中文二元组 + 英文 token + 同义词表）
+ * 本地 embedding 不可用时自动降级到关键词，绝不抛错；embedder 可注入以便测试。
+ * 注：不回落远端 API embedding —— 语义检索保持本地化与确定性（2026-09-17 移除远端回落链）。
  */
 import { cosineSimilarity } from "../utils/math.js";
 import { SETTINGS_CATALOG, getSectionLabel, type SettingItem } from "./settings-catalog.js";
 import { getEdgeEmbeddings } from "../local-llm/edge-embeddings.js";
-import { router as modelRouter } from "../router/model-router.js";
 
 export type Embedder = (texts: string[]) => Promise<number[][]>;
 
@@ -117,17 +116,12 @@ export function keywordScore(item: SettingItem, query: string): number {
 
 // L9：余弦实现收敛至 src/utils/math.ts
 
-/** 默认 embedding 链：本地边缘 → 模型路由 → null（关键词兜底） */
+/** 默认 embedding 链：本地边缘 → null（关键词兜底）。不回落远端 API */
 export async function defaultEmbedder(texts: string[]): Promise<number[][] | null> {
   try {
-    const edge = await getEdgeEmbeddings(texts);
-    if (edge) return edge;
+    return await getEdgeEmbeddings(texts);
   } catch {
-    // 边缘不可用 → 回落模型路由
-  }
-  try {
-    return await modelRouter.embeddings(texts);
-  } catch {
+    // 本地 embedding 不可用 → 关键词兜底
     return null;
   }
 }

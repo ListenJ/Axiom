@@ -2,10 +2,12 @@
  * 知识库边缘增强 —— 边缘小模型驱动的知识管理四能力
  *
  *   1. structureKnowledgeWithEdge    — 文档结构化（pipeline 优先边缘，失败回退 GLM）
- *   2. rewriteKnowledgeQueryWithEdge — 自然语言问题 → 检索关键词
- *   3. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
- *   4. isNearDuplicateWithEdge       — 采集前近重复判断
- *   5. summarizeKnowledgeWithEdge    — 采集摘要
+ *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
+ *   3. isNearDuplicateWithEdge       — 采集前近重复判断
+ *   4. summarizeKnowledgeWithEdge    — 采集摘要
+ *
+ * 注：检索查询改写（rewriteKnowledgeQueryWithEdge）已于 2026-09-17 移除 ——
+ * LLM 改写打破检索的确定性承诺（同输入同输出），检索键改由用户原始查询直接进入。
  *
  * 全部可空返回（null = 不可用，调用方回退规则/云端路径）。
  * 开关：EDGE_KNOWLEDGE_ASSIST=0 全部禁用（默认启用）。
@@ -74,36 +76,6 @@ export async function structureKnowledgeWithEdge(
     };
   } catch (err) {
     logger.debug("[EdgeKnowledge] structure failed", { error: (err as Error).message });
-    return null;
-  }
-}
-
-/**
- * 检索查询改写：自然语言 → 空格分隔关键词（JSON 数组引导，防跑题）。
- */
-export async function rewriteKnowledgeQueryWithEdge(
-  query: string,
-  client?: GenerateClient,
-): Promise<string | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
-
-  try {
-    const llm = client ?? getEdgeClient();
-    const resp = await llm.generate(
-      `把以下问题改写为知识库检索关键词（2-6 个词）。问题：【${truncate(query, 500)}】只回答JSON {"keywords":["词1","词2"]}`,
-      { maxTokens: 60, answerPrefix: '{"keywords":["' },
-    );
-    const parsed = extractJson<{ keywords?: unknown }>(resp.content ?? "");
-    if (parsed && Array.isArray(parsed.keywords)) {
-      const words = parsed.keywords
-        .filter((w): w is string => typeof w === "string" && w.trim().length > 0)
-        .map((w) => w.trim())
-        .slice(0, 8);
-      if (words.length > 0) return words.join(" ");
-    }
-    return null;
-  } catch (err) {
-    logger.debug("[EdgeKnowledge] query rewrite failed", { error: (err as Error).message });
     return null;
   }
 }

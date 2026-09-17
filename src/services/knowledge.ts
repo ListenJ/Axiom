@@ -85,21 +85,14 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     });
   } catch { /* 统一搜索不可用，queryTool 保持裸 DDG 回退 */ }
 
-  // 边缘查询改写：自然语言 → 检索关键词（失败回退原始查询）
-  let effectiveQuery = req.query;
-  try {
-    const { rewriteKnowledgeQueryWithEdge } = await import("../knowledge/edge-assist.js");
-    const rewritten = await rewriteKnowledgeQueryWithEdge(req.query);
-    if (rewritten) {
-      logger.debug("Knowledge query rewritten by edge model", { original: req.query.slice(0, 60), rewritten });
-      effectiveQuery = rewritten;
-    }
-  } catch { /* 边缘不可用，用原始查询 */ }
+  // 检索键 = 用户原始查询（确定性）：不经过 LLM 改写，同输入同输出。
+  // （2026-09-17 移除 rewriteKnowledgeQueryWithEdge 链 —— LLM 改写引入非确定性，与
+  //   确定性检索承诺冲突；检索键漂移问题随之消除。）
 
   const pipeline = [
     {
       tool: queryTool,
-      input: { query: effectiveQuery, scope: "auto" as const, maxResults: 8 },
+      input: { query: req.query, scope: "auto" as const, maxResults: 8 },
     },
   ];
 
