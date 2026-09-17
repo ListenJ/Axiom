@@ -1484,3 +1484,16 @@
 - **偏差记录**：①**计划口径微调**：原契约写"DDL 收归 sqlite-backend.ts"，实际落为"DDL 单源留在 kg/schema.ts、sqlite-backend.ts 引用执行"——因 kg/schema.ts 已是既有单源且为零依赖叶子，此调整不改变验收标准（唯一表 + 单一 DDL 文本），且改动更小（规则 1）。②**knowledge/entities 两张遗留只读表未清理**（memory-api.ts 只读腿，2 行旧数据）——不在冻结清单内，列为未决项。③`documents` 表为库内历史残留（src 无 DDL 无读写），无法从代码层清除，需 DB 侧处理，列为未决项。④两个节点表保留（不同领域，非重复）——这是方案 A 的核心决策，已获用户确认。
 - **未决项**：①knowledge/entities 遗留只读表处置；②documents 库内残留表；③库文件 3→1 合并（独立运维项，不与本次混入）；④采集管线 edge-assist 其余 4 个 LLM 能力（见 2026-09-17 砍链条目）。
 - **Commit**：d0e84ca（已推送 gitea）
+
+## 2026-09-18 — fix(T2): session 记忆修复 —— blackboard 同源写入豁免 + readOrCompute 并发去重（A2-1/A2-2）
+
+- **任务**：用户指令③（此前降级，其他改动已完结，现开工）。修复审计 High 级会话状态缺陷：**A2-1**（StateStore 累积型自更新隔次清空，已实证）与 **A2-2**（readOrCompute 无互斥，缓存毒丸）。任务分级 T2（bug 修复）。
+- **工具**：Bash + Python 精确替换；规则 6（先建反馈回路：新测试复现真实症状 → 假设 → 修复 → 回归）；规则 2（blackboard.ts 备份至 `.tmp/backups/`，验证通过后删除）。
+- **操作**（文件级）：
+  1. `src/memory/blackboard.ts` `write()`：冲突检测新增**同源豁免**（`existing.sourceId !== sourceId`）。同源写入是同一写入方更新自己的条目，不是跨 agent 冲突；此前 StateStore 固定 confidence=1.0/status=verified/sourceId，每次自更新都命中 `confDiff<0.15 && verified` 被 markConflict 拒收，而 `read()` 把 conflict 条目视为 miss → 会话状态（tokensSpentThisSession/recentInsights/mood/goals）隔次清空。
+  2. `src/memory/blackboard.ts` `readOrCompute()`：新增 **in-flight 去重**（per-key Promise map）。此前 await compute() 间隙的并发 miss 会全部执行 compute，第二个 write 必落 conflict（同值不同对象身份），缓存持续 miss。
+  3. 新增 `tests/unit/state-store-session-memory.test.ts`（4 例：连续 patch 累积 / recentInsights 追加 / 自更新不落 conflict / 并发只 compute 一次）。
+- **验证结果**（实证）：**RED 阶段复现了比审计记录更严重的形态**——4 次连续 patch 后 `read()` 返回 0（因末次落 conflict 条目被 read 判为 miss；审计的 3 次样本止于 30）。修复后 4/4 GREEN；`tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4088 pass / 36 skip / 0 fail**（4124 用例，较上提交 +4），零回归。
+- **偏差记录**：①**仅修 A2-1/A2-2 两个 High**，未动 A2-3/A2-4（跨进程版本分叉、远程更新不发布事件，Medium，Redis 同步可选，单进程场景不触发）与 A5-3（vault 子目录编辑 mtime 脏读窗口，Medium，已有 file-watcher 防抖+启动 reindex+手动 reload 三重缓解）——超出"session 记忆修复"的最小范围，列为未决项。②同源豁免仅作用于本地 write()；远程 applyRemoteUpdate 有独立冲突逻辑（A2-3 范畴），未一并改动，避免跨进程语义误判。
+- **未决项**：①A2-3/A2-4 跨进程同步缺陷；②A5-3 vault 脏读窗口；③用户蓝图中的"session 内容入库 + LRU/LFU + 时间权重 + 长短期记忆"属新功能（非修复），建议单独立项。
+- **Commit**：PENDING
