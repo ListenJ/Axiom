@@ -1496,4 +1496,4 @@
 - **验证结果**（实证）：**RED 阶段复现了比审计记录更严重的形态**——4 次连续 patch 后 `read()` 返回 0（因末次落 conflict 条目被 read 判为 miss；审计的 3 次样本止于 30）。修复后 4/4 GREEN；`tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4088 pass / 36 skip / 0 fail**（4124 用例，较上提交 +4），零回归。
 - **偏差记录**：①**仅修 A2-1/A2-2 两个 High**，未动 A2-3/A2-4（跨进程版本分叉、远程更新不发布事件，Medium，Redis 同步可选，单进程场景不触发）与 A5-3（vault 子目录编辑 mtime 脏读窗口，Medium，已有 file-watcher 防抖+启动 reindex+手动 reload 三重缓解）——超出"session 记忆修复"的最小范围，列为未决项。②同源豁免仅作用于本地 write()；远程 applyRemoteUpdate 有独立冲突逻辑（A2-3 范畴），未一并改动，避免跨进程语义误判。
 - **未决项**：①A2-3/A2-4 跨进程同步缺陷；②A5-3 vault 脏读窗口；③用户蓝图中的"session 内容入库 + LRU/LFU + 时间权重 + 长短期记忆"属新功能（非修复），建议单独立项。
-- **Commit**：PENDING
+- **Commit**：b8e58c1（已推送 gitea）
