@@ -1483,4 +1483,4 @@
 - **验证结果**：`tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4084 pass / 36 skip / 0 fail**（4120 用例，较本分支上一提交 4115 净 +5：新增 6 例、改造替换若干）。切片 2 的 RED 阶段真实暴露 kg_edges 的 `id PK`/`created_at NOT NULL` 约束（旧表无）与行映射列名差异，均已修复并回归。
 - **偏差记录**：①**计划口径微调**：原契约写"DDL 收归 sqlite-backend.ts"，实际落为"DDL 单源留在 kg/schema.ts、sqlite-backend.ts 引用执行"——因 kg/schema.ts 已是既有单源且为零依赖叶子，此调整不改变验收标准（唯一表 + 单一 DDL 文本），且改动更小（规则 1）。②**knowledge/entities 两张遗留只读表未清理**（memory-api.ts 只读腿，2 行旧数据）——不在冻结清单内，列为未决项。③`documents` 表为库内历史残留（src 无 DDL 无读写），无法从代码层清除，需 DB 侧处理，列为未决项。④两个节点表保留（不同领域，非重复）——这是方案 A 的核心决策，已获用户确认。
 - **未决项**：①knowledge/entities 遗留只读表处置；②documents 库内残留表；③库文件 3→1 合并（独立运维项，不与本次混入）；④采集管线 edge-assist 其余 4 个 LLM 能力（见 2026-09-17 砍链条目）。
-- **Commit**：PENDING
+- **Commit**：d0e84ca（已推送 gitea）
