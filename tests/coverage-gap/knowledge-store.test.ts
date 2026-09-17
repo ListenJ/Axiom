@@ -10,9 +10,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { KnowledgeStore } from "../../src/dre/storage/knowledge-store.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "../../src/kg/schema.js";
 import type { KnowledgeParadigm } from "../../src/dre/storage/knowledge-store.js";
 
-/** 创建内存 SQLite 并初始化 knowledge_node / knowledge_revision / kg_edge 表结构 */
+/** 创建内存 SQLite 并初始化 knowledge_node / knowledge_revision / 图谱表（DDL 单源） */
 function createTestDb(): Database {
   const db = new Database(":memory:");
   db.exec("PRAGMA journal_mode=WAL;");
@@ -75,18 +76,10 @@ function createTestDb(): Database {
     END;
   `);
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS kg_edge (
-      src_node TEXT NOT NULL,
-      dst_node TEXT NOT NULL,
-      relation TEXT NOT NULL,
-      weight REAL DEFAULT 1.0,
-      evidence TEXT,
-      PRIMARY KEY (src_node, dst_node, relation)
-    );
-    CREATE INDEX IF NOT EXISTS idx_kg_src ON kg_edge(src_node);
-    CREATE INDEX IF NOT EXISTS idx_kg_rel ON kg_edge(relation);
-  `);
+  // 2026-09-17 后端收敛：图谱表 DDL 单源 kg/schema.ts（kg_nodes + kg_edges + FTS），
+  // 不再在测试里复制旧 kg_edge 结构
+  db.exec(KG_SCHEMA_DDL);
+  ensureKgFts(db);
 
   return db;
 }

@@ -134,18 +134,6 @@ db.run(`
 logger.info("[完成] entities");
 
 db.run(`
-  CREATE TABLE IF NOT EXISTS relationships (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_entity INTEGER NOT NULL,
-    target_entity INTEGER NOT NULL,
-    relation_type TEXT NOT NULL,
-    properties TEXT,
-    created_at INTEGER NOT NULL
-  )
-`);
-logger.info("[完成] relationships");
-
-db.run(`
   CREATE TABLE IF NOT EXISTS model_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     model_name TEXT NOT NULL,
@@ -242,21 +230,7 @@ logger.info("[完成] hallucination_verdicts");
 
 // ========== FTS5 全文索引 ==========
 
-db.run(`
-  CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-    path, title, content,
-    tokenize = 'porter unicode61'
-  )
-`);
-logger.info("[完成] notes_fts (Porter + Unicode61)");
 
-db.run(`
-  CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts_cjk USING fts5(
-    path, title, content,
-    tokenize = 'trigram'
-  )
-`);
-logger.info("[完成] notes_fts_cjk (Trigram)");
 
 // ========== 索引 ==========
 
@@ -268,8 +242,6 @@ db.run(`CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge(topic_key)`)
 db.run(`CREATE INDEX IF NOT EXISTS idx_knowledge_tier ON knowledge(tier)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type)`);
-db.run(`CREATE INDEX IF NOT EXISTS idx_rel_source ON relationships(source_entity)`);
-db.run(`CREATE INDEX IF NOT EXISTS idx_rel_target ON relationships(target_entity)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_model_usage_created ON model_usage(created_at)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_url_hash ON crawl_results(url_hash)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_crawl_site ON crawl_results(site_name)`);

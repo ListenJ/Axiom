@@ -320,13 +320,15 @@ describe("Pipeline", () => {
       )
     `);
     db.exec(`
-      CREATE TABLE IF NOT EXISTS kg_edge (
-        src_node TEXT NOT NULL,
-        dst_node TEXT NOT NULL,
-        relation TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS kg_edges (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        target TEXT NOT NULL,
+        type TEXT NOT NULL,
         weight REAL DEFAULT 1.0,
-        evidence TEXT,
-        PRIMARY KEY (src_node, dst_node, relation)
+        description TEXT,
+        evidence TEXT DEFAULT '[]',
+        created_at INTEGER NOT NULL
       )
     `);
     db.exec(`

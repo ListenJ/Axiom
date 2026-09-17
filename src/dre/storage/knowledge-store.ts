@@ -6,7 +6,7 @@
  * 范式设计 (3NF/4NF):
  * - knowledge_node: 知识条目主表
  * - knowledge_revision: 版本快照 (多值依赖分离)
- * - kg_edge: 知识图谱边
+ * - kg_edges: 知识图谱边（2026-09-17 后端收敛：唯一边表，DDL 由 sqlite-backend 托管，kg/schema.ts 单源）
  * - hypothesis: 假设验证表 (v2.9.0 新增)
  *
  * 知识范式 (v2.9.0 扩展):
@@ -21,6 +21,7 @@
 
 import { Database } from "bun:sqlite";
 import { createHash } from "crypto";
+import { kgEdgeId } from "../../kg/schema.js";
 
 /** 知识范式类型 */
 export type KnowledgeParadigm =
@@ -317,15 +318,21 @@ export class KnowledgeStore {
    * 添加知识图谱边
    */
   addEdge(edge: KGEdge): void {
+    // 2026-09-17 后端收敛：写入唯一边表 kg_edges（列 source/target/type）。
+    // edgeId 采用内容寻址 sha1（与 crawl/processor/kg-writer 同一策略）：
+    // 不同关系永不碰撞；同一关系重复写入幂等（INSERT OR REPLACE 覆盖）。
+    const edgeId = kgEdgeId(edge.srcNode, edge.dstNode, edge.relation);
     this.db.prepare(`
-      INSERT OR REPLACE INTO kg_edge (src_node, dst_node, relation, weight, evidence)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO kg_edges (id, source, target, type, weight, evidence, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
+      edgeId,
       edge.srcNode,
       edge.dstNode,
       edge.relation,
       edge.weight,
-      edge.evidence ? JSON.stringify(edge.evidence) : null
+      edge.evidence ? JSON.stringify(edge.evidence) : null,
+      Date.now(),
     );
   }
 
@@ -334,13 +341,13 @@ export class KnowledgeStore {
    */
   getOutEdges(nodeId: string): KGEdge[] {
     const rows = this.db.prepare(`
-      SELECT * FROM kg_edge WHERE src_node = ?
+      SELECT * FROM kg_edges WHERE source = ?
     `).all(nodeId) as Array<Record<string, unknown>>;
 
     return rows.map((row) => ({
-      srcNode: row.src_node as string,
-      dstNode: row.dst_node as string,
-      relation: row.relation as KGEdge["relation"],
+      srcNode: row.source as string,
+      dstNode: row.target as string,
+      relation: row.type as KGEdge["relation"],
       weight: row.weight as number,
       evidence: row.evidence ? JSON.parse(row.evidence as string) : undefined,
     }));
@@ -351,13 +358,13 @@ export class KnowledgeStore {
    */
   getInEdges(nodeId: string): KGEdge[] {
     const rows = this.db.prepare(`
-      SELECT * FROM kg_edge WHERE dst_node = ?
+      SELECT * FROM kg_edges WHERE target = ?
     `).all(nodeId) as Array<Record<string, unknown>>;
 
     return rows.map((row) => ({
-      srcNode: row.src_node as string,
-      dstNode: row.dst_node as string,
-      relation: row.relation as KGEdge["relation"],
+      srcNode: row.source as string,
+      dstNode: row.target as string,
+      relation: row.type as KGEdge["relation"],
       weight: row.weight as number,
       evidence: row.evidence ? JSON.parse(row.evidence as string) : undefined,
     }));

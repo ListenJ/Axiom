@@ -692,7 +692,7 @@ export class DREngine {
       vfs: { mounts: this.vfs.listMounts() },
       knowledge: {
         nodes: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as { c: number }).c; } catch { return 0; } })(),
-        edges: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as { c: number }).c; } catch { return 0; } })(),
+        edges: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM kg_edges").get() as { c: number }).c; } catch { return 0; } })(),
       },
       consciousness: this.consciousness.getState(),
       kg: {

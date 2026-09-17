@@ -296,56 +296,35 @@ describe("O3-F2: 真实 .md 路径 createNodeId 往返入链可查", () => {
   });
 });
 
-describe("O3-F4: kg_edge 单数表边可见", () => {
-  test("单数表存在时 getReferences 可见其边", async () => {
+describe("O3-F4（2026-09-17 收敛后）：唯一边表 kg_edges", () => {
+  test("kg_edges 边可见（取代旧的双表 UNION）", async () => {
     const db = makeDb();
     seedNode(db, "kg:function:S", "function", "S");
     seedNode(db, "kg:function:T", "function", "T");
-    db.exec(
-      `CREATE TABLE kg_edge (src_node TEXT NOT NULL, dst_node TEXT NOT NULL, relation TEXT NOT NULL)`,
-    );
-    db.run(`INSERT INTO kg_edge (src_node, dst_node, relation) VALUES (?, ?, ?)`, [
-      "kg:function:S",
-      "kg:function:T",
-      "calls",
-    ]);
+    seedEdge(db, "e1", "kg:function:S", "kg:function:T", "calls");
 
     const kal = new KnowledgeAccessLayer(db);
     const refs = await kal.getReferences("kg:function:T");
     expect(refs.some((r) => r.nodeId === "kg:function:S")).toBe(true);
   });
 
-  test("双表并存时两腿均可见", async () => {
+  test("旧单数表 kg_edge 不再被查询（收敛后不再缝合）", async () => {
     const db = makeDb();
     seedNode(db, "kg:function:A", "function", "A");
-    seedNode(db, "kg:function:M", "function", "M");
     seedNode(db, "kg:function:B", "function", "B");
-    seedEdge(db, "e1", "kg:function:A", "kg:function:M", "calls"); // 复数表
+    // 旧表即便物理存在，其边也不再进入结果（KAL 只查 kg_edges）
     db.exec(
       `CREATE TABLE kg_edge (src_node TEXT NOT NULL, dst_node TEXT NOT NULL, relation TEXT NOT NULL)`,
     );
     db.run(`INSERT INTO kg_edge (src_node, dst_node, relation) VALUES (?, ?, ?)`, [
+      "kg:function:A",
       "kg:function:B",
-      "kg:function:M",
-      "related",
-    ]); // 单数表
+      "legacy-should-not-appear",
+    ]);
 
     const kal = new KnowledgeAccessLayer(db);
-    const refs = await kal.getReferences("kg:function:M");
-    const ids = refs.map((r) => r.nodeId).sort();
-    expect(ids).toEqual(["kg:function:A", "kg:function:B"]);
-  });
-
-  test("仅有复数表时旧行为不变（UNION 失败回退不破坏既有结果）", async () => {
-    const db = makeDb();
-    seedNode(db, "kg:function:A", "function", "A");
-    seedNode(db, "kg:function:B", "function", "B");
-    seedEdge(db, "e1", "kg:function:A", "kg:function:B", "calls");
-
-    const kal = new KnowledgeAccessLayer(db);
-    const refs = await kal.getReferences("kg:function:A");
-    expect(refs.length).toBe(1);
-    expect(refs[0].nodeId).toBe("kg:function:B");
+    const refs = await kal.getReferences("kg:function:B");
+    expect(refs.some((r) => r.nodeId === "kg:function:A")).toBe(false);
   });
 });
 

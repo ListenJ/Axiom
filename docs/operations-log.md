@@ -1468,3 +1468,19 @@
 - **验证结果**：`tsc --noEmit` exit 0；定向 `bun test tests/knowledge-edge.test.ts tests/settings-search.test.ts` 28/28 pass；新测试 5/5 pass；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4079 pass / 36 skip / 0 fail**（4115 用例，较合并后基线 4114 净 +1：删 4 改写用例、增 5 确定性用例），零回归。
 - **偏差记录**：①**未删 edge-assist 其余 4 个 LLM 能力**（结构化/质量裁决/近重复/摘要属采集管线而非检索链，超出本指令范围）；其守卫仍为 `EDGE_KNOWLEDGE_ASSIST` 默认启用——审计 C-01 的采集侧一半**仍未修复**，列为未决项。②`stream.ts` 休眠向量路径、`context-manager.ts` 死路径未动（审计 A1-4，超出范围）。③远端 embedding 回落移除后，本地 bge-m3 不可用时设置项搜索退回关键词——语义召回率在此场景下降，是用户认可的取舍（用户明示"保留本地向量检索"）。
 - **Commit**：1b974b2（已推送 gitea）
+
+## 2026-09-17 — feat(T3/方案A): 知识库后端收敛进 DRE 确定性引擎（边表合一 + 双写入器收一 + 孤儿表清理）
+
+- **任务**：用户指令④「知识库后端全部统一到 DRE」。经只读勘察（1 个子代理 + 主审计亲自核查查询/写入路径）确认：**真重复只有图谱边表**（kg_edge vs kg_edges，双双 0 行）；两个节点表（knowledge_node 通用知识 / kg_nodes 代码符号）字段集几乎不重叠，是不同领域概念而非重复。用户确认按**方案 A** 施工（不做节点表合并与库文件合并，见计划文档）。T3 计划已冻结于 `docs/superpowers/plans/2026-09-17-knowledge-backend-unify-dre.md`。
+- **工具**：Bash + Python 精确替换；规则 2（7 个源文件备份至 `.tmp/backups/`，验证通过后删除）；规则 7 垂直切片（每切片 RED→GREEN→回归）；规则 6（以测试为反馈回路，暴露了 kg_edges 的 id/created_at NOT NULL 约束与列名映射两处真实差异）。
+- **操作**（文件级，5 切片）：
+  1. **边表 DDL 收口**：`src/dre/storage/sqlite-backend.ts` 删除 kg_edge 建表，改 exec `kg/schema.ts` 的单源 `KG_SCHEMA_DDL` + `ensureKgFts`（DRE 托管建表；kg/schema.ts 为零依赖叶子，无环）。
+  2. **DRE 边写入**：`src/dre/storage/knowledge-store.ts` addEdge/getOutEdges/getInEdges 改写 kg_edges 列名（source/target/type），edgeId 提取为共享 `kgEdgeId()`。
+  3. **KAL 查询**：`src/kal/knowledge-access-layer.ts` getReferences 删除双表 `UNION ALL` + try/catch 缝合（改单腿查 kg_edges）；queryDRE 补 FTS 优先腿（knowledge_node_fts）+ LIKE 降级，与 queryVault/queryKG 检索能力对齐。
+  4. **写入器收一**：`src/kg/schema.ts` 新增 `kgEdgeId(source,target,type)`（sha1 内容寻址）；`src/kg/enhanced.ts`、`src/crawl/processor/kg-writer.ts`、`src/dre/storage/knowledge-store.ts` 三处 addEdge 统一引用 —— **同一逻辑边在任何写入路径下收敛为同一行**（此前 enhanced 用 kg_<sha256-16>、kg-writer 用 edge-<sha1-24>，同一边会落两行）。
+  5. **孤儿表清理**：`src/db/migrate.ts` 移除 relationships 表 + 其 2 索引 + notes_fts + notes_fts_cjk 的 DDL（全仓零读取）。`src/dre/engine.ts:695` 统计查询 kg_edge→kg_edges。
+  6. **测试**：新增 `tests/unit/kg-backend-unification.test.ts`（6 例：存储结构/边读写/全仓 SQL 静态守卫/跨写入方 id 收敛）；改造 4 个既有测试（knowledge-store 建表改单源 DDL、kal-references O3-F4 块改为"唯一边表+旧表不再被查询"、2 处边 id 格式断言更新为 edge-<sha1-24>）。
+- **验证结果**：`tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4084 pass / 36 skip / 0 fail**（4120 用例，较本分支上一提交 4115 净 +5：新增 6 例、改造替换若干）。切片 2 的 RED 阶段真实暴露 kg_edges 的 `id PK`/`created_at NOT NULL` 约束（旧表无）与行映射列名差异，均已修复并回归。
+- **偏差记录**：①**计划口径微调**：原契约写"DDL 收归 sqlite-backend.ts"，实际落为"DDL 单源留在 kg/schema.ts、sqlite-backend.ts 引用执行"——因 kg/schema.ts 已是既有单源且为零依赖叶子，此调整不改变验收标准（唯一表 + 单一 DDL 文本），且改动更小（规则 1）。②**knowledge/entities 两张遗留只读表未清理**（memory-api.ts 只读腿，2 行旧数据）——不在冻结清单内，列为未决项。③`documents` 表为库内历史残留（src 无 DDL 无读写），无法从代码层清除，需 DB 侧处理，列为未决项。④两个节点表保留（不同领域，非重复）——这是方案 A 的核心决策，已获用户确认。
+- **未决项**：①knowledge/entities 遗留只读表处置；②documents 库内残留表；③库文件 3→1 合并（独立运维项，不与本次混入）；④采集管线 edge-assist 其余 4 个 LLM 能力（见 2026-09-17 砍链条目）。
+- **Commit**：PENDING

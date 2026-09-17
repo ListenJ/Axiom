@@ -13,6 +13,7 @@ import { createHash } from "crypto";
 import type { IBackend, Inode } from "../vfs.js";
 import { NodeType } from "../vfs.js";
 import { logger } from "../../utils/logger.js";
+import { KG_SCHEMA_DDL, ensureKgFts } from "../../kg/schema.js";
 
 export class SqliteBackend implements IBackend {
   private db: Database;
@@ -119,19 +120,11 @@ export class SqliteBackend implements IBackend {
       END;
     `);
 
-    // 知识图谱边表
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS kg_edge (
-        src_node TEXT NOT NULL,
-        dst_node TEXT NOT NULL,
-        relation TEXT NOT NULL,
-        weight REAL DEFAULT 1.0,
-        evidence TEXT,
-        PRIMARY KEY (src_node, dst_node, relation)
-      );
-      CREATE INDEX IF NOT EXISTS idx_kg_src ON kg_edge(src_node);
-      CREATE INDEX IF NOT EXISTS idx_kg_rel ON kg_edge(relation);
-    `);
+    // 知识图谱表（2026-09-17 后端收敛）：DDL 单源在 kg/schema.ts，
+    // 由 DRE 存储层托管建表 —— 唯一边表 kg_edges（旧表 kg_edge 已并入，0 行无迁移）。
+    // kg/schema.ts 为零下游依赖叶子模块，此导入不引入环。
+    this.db.exec(KG_SCHEMA_DDL);
+    ensureKgFts(this.db);
 
     // 推理日志表 (确定性回放)
     this.db.exec(`

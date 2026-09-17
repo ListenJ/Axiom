@@ -17,7 +17,7 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
-import { KG_SCHEMA_DDL, ensureKgFts } from "./schema.js";
+import { KG_SCHEMA_DDL, ensureKgFts, kgEdgeId } from "./schema.js";
 
 // ========== 类型定义 ==========
 
@@ -290,9 +290,10 @@ export class KnowledgeGraphEnhanced {
    * 添加边 — 内容哈希去重（W10）：空 id 或 tmp- 前缀时按 source:target:type 生成稳定 kg_ 哈希 id
    */
   addEdge(edge: KGEdge): void {
+    // 2026-09-17 后端收敛：边 id 统一用 kg/schema.ts 的 kgEdgeId（与摄取管线、
+    // DRE KnowledgeStore 同一公式），同一逻辑边在任何写入路径下收敛为同一行。
     if (!edge.id || edge.id.startsWith("tmp-")) {
-      const hash = createHash("sha256").update(`${edge.source}:${edge.target}:${edge.type}`).digest("hex").slice(0, 16);
-      edge.id = `kg_${hash}`;
+      edge.id = kgEdgeId(edge.source, edge.target, edge.type);
     }
     const now = Date.now();
     // L1（2026-08-29 审计 S2）：REPLACE 前查旧行沿用 created_at 保溯源，仅新建才取当前时间

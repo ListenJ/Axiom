@@ -73,9 +73,10 @@ describe("kg content hash S8", () => {
     kg.addEdge(e1 as any);
     kg.addEdge(e2 as any);
     // after hash, both edges should have same id, so only one edge stored
+    // 2026-09-17 后端收敛：边 id 统一为 kgEdgeId（edge-<sha1-24>）
     const out = kg.getOutEdges("src-1");
     expect(out.length).toBe(1);
-    expect(out[0].id).toMatch(/^kg_/);
+    expect(out[0].id).toMatch(/^edge-[0-9a-f]{24}$/);
   });
 });
 

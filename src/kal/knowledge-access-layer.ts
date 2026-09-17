@@ -373,24 +373,46 @@ export class KnowledgeAccessLayer {
    * 查询 DRE (确定性知识)
    */
   private queryDRE(intent: QueryIntent): KnowledgeUnit[] {
+    // 2026-09-17 后端收敛：补 FTS 优先腿（knowledge_node_fts），与 queryVault/queryKG
+    // 的检索能力对齐；FTS 表缺失时降级 LIKE（老库兼容）。
+    const typeFilterClause = intent.typeFilter
+      ? "AND paradigm IN (" + intent.typeFilter.map(() => "?").join(",") + ")"
+      : "";
+    const limit = intent.limit || 10;
+    const pattern = `%${intent.query}%`;
+
+    const mapRow = (row: {
+      node_id: string;
+      title: string;
+      content: string;
+      domain: string;
+      paradigm: string;
+      confidence: number;
+    }): KnowledgeUnit => ({
+      nodeId: createNodeId("dre", row.domain, row.node_id),
+      store: "dre" as StorePrefix,
+      type: row.paradigm,
+      title: row.title,
+      snippet: (row.content || "").slice(0, 300),
+      relevance: row.confidence || 0.5,
+      tags: [row.domain, row.paradigm],
+      metadata: { id: row.node_id, domain: row.domain },
+    });
+
     try {
-      const searchQuery = `
-        SELECT node_id, title, content, domain, paradigm, confidence
-        FROM knowledge_node
-        WHERE (title LIKE ? OR content LIKE ?)
-        ${intent.typeFilter ? "AND paradigm IN (" + intent.typeFilter.map(() => "?").join(",") + ")" : ""}
-        ORDER BY confidence DESC, node_id ASC
+      const ftsQuery = `
+        SELECT n.node_id, n.title, n.content, n.domain, n.paradigm, n.confidence
+        FROM knowledge_node_fts fts
+        JOIN knowledge_node n ON n.rowid = fts.rowid
+        WHERE knowledge_node_fts MATCH ?
+        ${typeFilterClause}
+        ORDER BY n.confidence DESC, n.node_id ASC
         LIMIT ?
       `;
-
-      const pattern = `%${intent.query}%`;
-      const params: (string | number)[] = [pattern, pattern];
-      if (intent.typeFilter) {
-        params.push(...intent.typeFilter);
-      }
-      params.push(intent.limit || 10);
-
-      const rows = this.db.query(searchQuery).all(...params) as Array<{
+      const ftsParams: (string | number)[] = [intent.query];
+      if (intent.typeFilter) ftsParams.push(...intent.typeFilter);
+      ftsParams.push(limit);
+      const ftsRows = this.db.query(ftsQuery).all(...ftsParams) as Array<{
         node_id: string;
         title: string;
         content: string;
@@ -398,17 +420,33 @@ export class KnowledgeAccessLayer {
         paradigm: string;
         confidence: number;
       }>;
+      if (ftsRows.length > 0) return ftsRows.map(mapRow);
+    } catch (err) {
+      // knowledge_node_fts 缺失（旧库）→ LIKE 兜底腿
+      logger.debug("[KAL] queryDRE fts leg unavailable; degrading to LIKE", { error: String(err) });
+    }
 
-      return rows.map((row) => ({
-        nodeId: createNodeId("dre", row.domain, row.node_id),
-        store: "dre" as StorePrefix,
-        type: row.paradigm,
-        title: row.title,
-        snippet: (row.content || "").slice(0, 300),
-        relevance: row.confidence || 0.5,
-        tags: [row.domain, row.paradigm],
-        metadata: { id: row.node_id, domain: row.domain },
-      }));
+    try {
+      const likeQuery = `
+        SELECT node_id, title, content, domain, paradigm, confidence
+        FROM knowledge_node
+        WHERE (title LIKE ? OR content LIKE ?)
+        ${typeFilterClause}
+        ORDER BY confidence DESC, node_id ASC
+        LIMIT ?
+      `;
+      const likeParams: (string | number)[] = [pattern, pattern];
+      if (intent.typeFilter) likeParams.push(...intent.typeFilter);
+      likeParams.push(limit);
+      const rows = this.db.query(likeQuery).all(...likeParams) as Array<{
+        node_id: string;
+        title: string;
+        content: string;
+        domain: string;
+        paradigm: string;
+        confidence: number;
+      }>;
+      return rows.map(mapRow);
     } catch (err) {
       logger.debug("[KAL] queryDRE degrade to empty", { error: String(err) });
       return [];
@@ -429,28 +467,12 @@ export class KnowledgeAccessLayer {
     const results: KnowledgeUnit[] = [];
 
     try {
-      // O3-F4：复数表 kg_edges 与历史单数表 kg_edge 的出入边 UNION；
-      // 单数表不存在时整体 UNION 失败 → 回退仅复数腿（该腿吞掉并 debug 日志）。
-      let edges: Array<{ source: string; target: string; type: string }>;
-      try {
-        edges = this.db
-          .query(
-            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ?
-             UNION ALL
-             SELECT src_node, dst_node, relation FROM kg_edge WHERE src_node = ? OR dst_node = ?
-             LIMIT 50`,
-          )
-          .all(nodeId, nodeId, nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
-      } catch (err) {
-        logger.debug("[KAL] kg_edge singular-table leg unavailable; falling back to kg_edges only", {
-          error: (err as Error).message,
-        });
-        edges = this.db
-          .query(
-            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
-          )
-          .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
-      }
+      // 2026-09-17 后端收敛：唯一边表 kg_edges（旧表 kg_edge 已并入，缝合 UNION 与回退腿移除）
+      const edges = this.db
+        .query(
+          `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
+        )
+        .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
 
       for (const edge of edges) {
         const otherId = edge.source === nodeId ? edge.target : edge.source;

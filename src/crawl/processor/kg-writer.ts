@@ -17,7 +17,7 @@ import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 import { createNodeId } from "../../kal/node-id.js";
-import { KG_SCHEMA_DDL, ensureKgFts } from "../../kg/schema.js";
+import { KG_SCHEMA_DDL, ensureKgFts, kgEdgeId } from "../../kg/schema.js";
 import type { ASTNode } from "./markdown-ast.js";
 
 // ========== 类型定义 ==========
@@ -254,10 +254,7 @@ export class KGWriter {
     // 审计 F-3（2026-08-24）：此前 `edge-${source.slice(0,20)}-${target.slice(0,20)}-${type}`
     // 的截断拼接使前 20 字符相同的不同关系共用同一 ID，被 INSERT OR IGNORE
     // 静默丢弃。改为内容寻址 sha1，不同关系永不碰撞；同一关系重复写入仍幂等。
-    const edgeId = `edge-${createHash("sha1")
-      .update(`${source}|${target}|${type}`)
-      .digest("hex")
-      .slice(0, 24)}`;
+    const edgeId = kgEdgeId(source, target, type);
 
     this.db.prepare(`
       INSERT OR IGNORE INTO kg_edges (
