@@ -15,6 +15,7 @@
  */
 
 import { eventBus } from "./event-bus.js";
+import { rankDocuments } from "./text-rank.js";
 import { logger } from "../../utils/logger.js";
 import type { Database } from "bun:sqlite";
 
@@ -262,20 +263,29 @@ class AtomStoreImpl {
   }
 
   /**
-   * Search atoms by content (simple substring match).
+   * Search atoms by content.
+   *
+   * T3 步骤 1.2：由朴素子串匹配升级为「分词 + BM25 打分 + 稳定排序」。
+   * 原实现 `content.includes(query)` 对多词/中文查询几乎必然 0 结果
+   * （`"确定性 检索"` 匹配不到 `"确定性检索"`），且结果按 Map 插入顺序截断、
+   * 凑够 limit 即 break（可能整体漏掉更相关项）。
+   *
+   * 切片 4b：必须把**整个语料**一次性交给 `rankDocuments()`，才能拿到真实的
+   * df 与 avgdl。逐个文档调 `scoreMatch()` 时 N=1/df=1，IDF 退化为常数 ⇒
+   * 跨文档分数不可比，"按相关性排序"名不副实。
    */
   search(query: string, limit = 20): Atom[] {
-    const lower = query.toLowerCase();
-    const results: Atom[] = [];
+    if (!query.trim()) return [];
 
-    for (const atom of this.atoms.values()) {
-      if (atom.content.toLowerCase().includes(lower)) {
-        results.push(atom);
-        if (results.length >= limit) break;
-      }
-    }
+    const docs = [...this.atoms.values()].map((atom) => ({ item: atom, fields: [atom.content] }));
+    const ranked = rankDocuments(query, docs);
 
-    return results;
+    // 分数降序已在 rankDocuments 内完成；同分按 id 升序补齐，使顺序不依赖 Map 插入历史
+    // （同一输入两次调用顺序完全一致 —— 确定性底线）
+    return ranked
+      .sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
+      .slice(0, limit)
+      .map((r) => r.item);
   }
 
   /**

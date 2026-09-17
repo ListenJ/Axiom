@@ -34,6 +34,8 @@ export const SETTING_SECTIONS: SettingSection[] = [
   { id: "agent", label: "Agent 适配" },
   { id: "gateway", label: "网关" },
   { id: "crawler", label: "抓取" },
+  { id: "search", label: "网络搜索" },
+  { id: "security", label: "安全" },
   { id: "diagnostics", label: "调试与检查" },
 ];
 
@@ -232,6 +234,69 @@ export const SETTINGS_CATALOG: SettingItem[] = [
     keywords: ["快照", "导出", "复制", "反馈", "诊断", "snapshot"],
     type: "action",
     source: "app",
+  },
+
+  // ── 网络搜索 ──────────────────────────────────────────
+  // 引擎池与参数落在独立配置文件 config/web-search.yaml（不走 axiom.yaml）。
+  {
+    key: "search.engines",
+    section: "search",
+    label: "搜索引擎池",
+    desc:
+      "管理用于联网检索的引擎。匿名引擎（DuckDuckGo / Bing / 维基 / arXiv / Crossref / Hacker News 等）无需任何 Key，装完即可用；" +
+      "标有「需 Key」的是注册后赠送免费额度的服务（Tavily / Brave / Jina / Google CSE / Serper），填入密钥后即可启用。" +
+      "此处改动会写回 config/web-search.yaml。",
+    keywords: ["搜索", "引擎", "search", "engine", "duckduckgo", "bing", "tavily", "brave", "匿名", "免key"],
+    type: "panel",
+    source: "backend",
+  },
+  {
+    key: "search.searxng",
+    section: "search",
+    label: "SearXNG 自建实例",
+    desc:
+      "自建元搜索引擎：聚合多家上游、不受第三方限流与条款影响，是搜索池的首选通道。" +
+      "开启「安装时自动部署」会随产品在本机拉起本地实例（默认 127.0.0.1:8080）；" +
+      "未部署时该引擎自动跳过，不影响其他引擎。公共实例随时可能失效，故默认留空。",
+    keywords: ["searxng", "自建", "元搜索", "实例", "部署", "8080", "聚合"],
+    type: "panel",
+    source: "backend",
+  },
+  {
+    key: "search.aggregate",
+    section: "search",
+    label: "结果聚合与缓存",
+    desc:
+      "控制返回条数、单引擎候选数、单引擎超时、URL 去重、相同查询的缓存时长与相关性过滤阈值。" +
+      "缓存可显著减少对外请求；超时过短会让慢引擎（如 arXiv）总是拿不到结果。",
+    keywords: ["聚合", "条数", "超时", "缓存", "去重", "相关性", "aggregate", "ttl"],
+    type: "panel",
+    source: "backend",
+  },
+  {
+    key: "search.policy",
+    section: "search",
+    label: "抓取礼貌策略",
+    desc:
+      "对目标站点的请求约束：是否遵守 robots.txt、最大并发数、同一站点请求间隔与 User-Agent。" +
+      "默认面向低并发个人/研究用途；调高并发可能触发对方封禁。",
+    keywords: ["robots", "并发", "限流", "间隔", "ua", "礼貌", "爬取"],
+    type: "panel",
+    source: "backend",
+  },
+
+  // ── 安全 ──────────────────────────────────────────────
+  {
+    key: "security.approver",
+    section: "security",
+    label: "高危操作审批模型",
+    desc:
+      "沙箱执行高危命令（如 rm -rf、mkfs 等）时，由一个独立的模型复核后才放行，取代此前「同一调用方自行确认」的做法。" +
+      "审批模型跟随你自己的模型配置：只配了一个模型时系统直接用它、无需设置；配置了多个时可在这里指定专门的审批模型，" +
+      "不指定则按 review → decision 角色的顺序自动挑选。审批人不可用时按 fail-closed 一律拒绝。",
+    keywords: ["审批", "审稿", "高危", "沙箱", "approver", "review", "模型", "rm -rf", "fail-closed"],
+    type: "panel",
+    source: "backend",
   },
 ];
 

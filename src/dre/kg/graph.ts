@@ -6,7 +6,7 @@
  * - BFS 子图检索
  * - 最短证据路径
  * - 按环境指纹检索项目节点
- * - 社区检测 (Louvain)
+ * - 社区划分（基于连通分量；**非** Louvain —— 见 detectCommunities 的说明）
  */
 
 import { logger } from "../../utils/logger.js";
@@ -232,7 +232,12 @@ export class KnowledgeGraph {
   }
 
   /**
-   * 社区检测 (简化版 Louvain)
+   * 社区划分（基于连通分量，**不是** Louvain）
+   *
+   * 审计修正（2026-09-14）：本方法此前在头部与注释里被称作 "Louvain"，
+   * 但实现只是 visited 集合 + 遍历求连通分量 —— 没有模块度、没有层次合并，
+   * 与 Louvain 算法无关。文档与实现不符会让调用方误以为得到了模块度最优划分。
+   * 此处按实现如实命名；若确需 Louvain，应作为独立实现引入并配测试。
    */
   detectCommunities(): Map<string, number> {
     const communities = new Map<string, number>();

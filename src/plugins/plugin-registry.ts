@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync, promises as fsPromises } from "fs";
-import { join, basename, resolve } from "path";
+import { join, basename, resolve, relative, isAbsolute } from "path";
 import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions, PluginContext } from "./types.js";
@@ -17,6 +17,43 @@ import { safeJsonParse } from "../utils/json.js";
 
 /** Plugin storage directory */
 const PLUGIN_DIR = readString("AXIOM_PLUGIN_DIR", "./plugins");
+
+/**
+ * 安全（审计 C-2）：manifest.id 必须是**单个路径段**。
+ *
+ * 原实现只做真值检查，随后 `join(pluginDir, manifest.id)` 直接当目标路径 ⇒
+ * 形如 `../../evil` 的 id 可把插件内容写到插件目录之外。
+ */
+const PLUGIN_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+/**
+ * 安全（审计 C-2）：entry 必须是**不含 `..` 的相对路径**。
+ *
+ * 启用阶段会 `join(plugin.path, entry)` 后 `await import()` ⇒ 形如
+ * `../../payload.js` 的 entry 可加载插件目录之外的任意模块（代码执行）。
+ */
+function assertValidPluginEntry(entry: string): void {
+  if (isAbsolute(entry) || entry.split(/[\\/]/).includes("..")) {
+    throw new Error(
+      `Refusing to load plugin entry outside the plugin directory: ${JSON.stringify(entry)}`,
+    );
+  }
+}
+
+/** 安全（审计 C-2）：校验 manifest 的 id 与 entry（安装期，fail-closed） */
+function assertValidManifest(manifest: PluginManifest): void {
+  if (typeof manifest.id !== "string" || !PLUGIN_ID_RE.test(manifest.id)) {
+    throw new Error(
+      `Invalid plugin id: ${JSON.stringify(manifest.id)} (must match ^[a-zA-Z0-9][a-zA-Z0-9._-]*$)`,
+    );
+  }
+  if (manifest.entry !== undefined) {
+    if (typeof manifest.entry !== "string") {
+      throw new Error(`Invalid plugin entry: expected string, got ${typeof manifest.entry}`);
+    }
+    assertValidPluginEntry(manifest.entry);
+  }
+}
 
 /** Plugin registry for lifecycle management */
 export class PluginRegistry {
@@ -171,6 +208,7 @@ export class PluginRegistry {
       if (!manifest.id || !manifest.name || !manifest.version) {
         throw new Error("Invalid plugin.json: missing required fields (id, name, version)");
       }
+      assertValidManifest(manifest);
     } catch (e) {
       throw new Error(`Failed to parse plugin.json at ${manifestPath}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -225,6 +263,9 @@ export class PluginRegistry {
 
   /** Install a plugin from a JSON manifest */
   async install(manifest: PluginManifest, sourcePath: string, opts: InstallOptions = {}): Promise<Plugin> {
+    // 安全（审计 C-2）：先校验 id / entry，再触碰文件系统
+    assertValidManifest(manifest);
+
     const resolvedPath = resolve(sourcePath);
     if (!existsSync(resolvedPath)) {
       throw new Error(`Plugin path not found: ${resolvedPath}`);
@@ -332,6 +373,18 @@ export class PluginRegistry {
       }
       if (!existsSync(entryPath)) {
         throw new Error(`Entry file not found: ${entryPath}`);
+      }
+
+      // 安全（审计 C-2）：动态 import 前再做一次包含性校验。
+      // 安装期已校验 entry 字符串，但 DB 中的记录可能是旧版本写入的
+      // （或 manifest 被绕过），故在真正执行代码前以解析后的真实路径兜底。
+      const pluginRoot = resolve(plugin.path);
+      const entryReal = resolve(entryPath);
+      const relToRoot = relative(pluginRoot, entryReal);
+      if (relToRoot === "" || relToRoot.startsWith("..") || isAbsolute(relToRoot)) {
+        throw new Error(
+          `Refusing to load plugin entry outside the plugin directory: ${JSON.stringify(entryPath)}`,
+        );
       }
 
       // Dynamic import

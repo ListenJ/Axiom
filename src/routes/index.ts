@@ -69,7 +69,7 @@ import {
 } from "./memory-api.js";
 import { handleTraceList, handleTraceDetail } from "./traces.js";
 import { handleGitRoutes } from "./git.js";
-import { handleSettingsCatalog, handleSettingsSearch } from "./settings.js";
+import { handleSettingsCatalog, handleSettingsSearch, handleWebSearchSettings, handleApproverSettings } from "./settings.js";
 import { handleWorkspaces } from "./workspaces.js";
 import { handleAuditDiagnostics } from "./audit.js";
 import { handleTerminalCreate, handleTerminalStream, handleTerminalInput, handleTerminalClose, handleTerminalList } from "./terminal.js";
@@ -237,6 +237,8 @@ const handlers: RouteHandler[] = [
   // Settings (设置目录 + 语义搜索)
   handleSettingsCatalog,
   handleSettingsSearch,
+  handleWebSearchSettings,
+  handleApproverSettings,
 ];
 
 /**
@@ -276,6 +278,10 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "POST", path: "/config", handler: handleConfig },
     { method: "GET", path: "/settings/catalog", handler: handleSettingsCatalog },
     { method: "POST", path: "/settings/search", handler: handleSettingsSearch },
+    { method: "GET", path: "/settings/web-search", handler: handleWebSearchSettings },
+    { method: "POST", path: "/settings/web-search", handler: handleWebSearchSettings },
+    { method: "GET", path: "/settings/approver", handler: handleApproverSettings },
+    { method: "POST", path: "/settings/approver", handler: handleApproverSettings },
     { method: "GET", path: "/api/audit/diagnostics", handler: handleAuditDiagnostics },
     { method: "GET", path: "/consciousness/status", handler: handleConsciousness },
     { method: "POST", path: "/consciousness/reflect", handler: handleConsciousness },

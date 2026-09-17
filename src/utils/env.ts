@@ -42,6 +42,20 @@ export function readString(key: string, fallback = ""): string {
   return v === undefined || v === "" ? fallback : v;
 }
 
+/**
+ * 在当前进程内设置一个环境变量。
+ *
+ * 为什么要有这个函数而不是直接 `process.env.X = ...`：
+ * 架构门禁（tests/architecture-integrity.test.ts）要求 src/ 里所有 env 访问
+ * **统一经过本模块**，以便集中审计、加白名单与做来源追踪。
+ *
+ * 注意：**只影响当前进程**。需要重启后仍生效请配合
+ * `utils/env-file.ts` 的 `upsertEnvVar()` 写入 .env。
+ */
+export function writeString(key: string, value: string): void {
+  process.env[key] = value;
+}
+
 export function readInt(key: string, fallback: number, clamp?: { min?: number; max?: number }): number {
   const v = process.env[key];
   if (v === undefined || v === "") return fallback;

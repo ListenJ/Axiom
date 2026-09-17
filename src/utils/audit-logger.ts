@@ -37,7 +37,8 @@ metrics.register({
 
 export type AuditEvent =
   | "auth.success" | "auth.failure"
-  | "vault.write" | "sandbox.execute" | "plugin.install" | "plugin.uninstall"
+  | "vault.write" | "sandbox.execute" | "sandbox.high_risk_approved"
+  | "plugin.install" | "plugin.uninstall"
   | "plugin.enable" | "plugin.disable" | "plugin.configure"
   | "apikey.set" | "apikey.delete" | "apikey.test"
   | "skill.install" | "mcp.install"

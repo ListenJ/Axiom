@@ -403,16 +403,29 @@ function makeSandboxCtx(body: unknown): any {
   };
 }
 
-describe("沙箱确认码绑定原命令（J-1）", () => {
-  test("命令 A 的确认码不得放行命令 B（换令牌攻击）", async () => {
+describe("沙箱高危命令的独立审批（审计 D 取代 J-1 的确认码机制）", () => {
+  test("携带他人确认码不能放行高危命令（确认码已不再是闸门）", async () => {
+    // ⚠️ 行为变更说明（审计 D，非测试写错）：
+    // 原用例断言「命令 A 的确认码不得放行命令 B」—— 当时沙箱依赖 body.confirmationId，
+    // 并在路由里比对 result.command !== body.command。但那套机制的本质是
+    // **同一调用方自问自答**：requestConfirmation() 把确认码直接返回给申请者，
+    // 申请者再提交回来即可放行，两次 POST 就能执行 rm -rf /，不构成独立闸门。
+    //
+    // 现在高危流程改为**独立模型审批**（src/agents/approver-model.ts），
+    // 且**完全不再读取** body.confirmationId（字段保留仅为兼容旧调用方）。
+    // 因此本用例改为断言：即便带上一个**有效**确认码，高危命令也不会被放行。
     const prev = process.env.AXIOM_AUTH_TOKEN;
     process.env.AXIOM_AUTH_TOKEN = "test-token-r2";
     try {
-      const id = requestConfirmation("echo confirm-A");
+      const id = requestConfirmation("rm -rf /tmp/whatever");
       const res = (await handleSandboxExecute(
-        makeSandboxCtx({ command: "echo pwned-B", confirmationId: id }),
+        makeSandboxCtx({ command: "rm -rf /", confirmationId: id }),
       )) as Response;
       expect(res.status).toBe(403);
+      const data = (await res.json()) as { rejectedBy?: string };
+      // 拒绝必须来自**审批环节**（测试环境无可用模型 key ⇒ approver-unavailable），
+      // 而不是来自"确认码不匹配"——后者已不参与判定。
+      expect(["approver-unavailable", "approver-denied"]).toContain(data.rejectedBy ?? "");
     } finally {
       if (prev === undefined) delete process.env.AXIOM_AUTH_TOKEN;
       else process.env.AXIOM_AUTH_TOKEN = prev;

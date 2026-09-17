@@ -218,7 +218,13 @@ describe("S5 Actor ask/NACK/超时风暴 800 并发（H1 新链路）", () => {
         return null;
       },
     };
-    await system.register(fastBehavior);
+    // 本用例向 fast-worker 投递 534 条（i%3!=2：267 ping + 267 NACK 路径），
+    // **超出 O4 有界邮箱的默认容量 256**，会触发"溢出丢最旧" ——
+    // 该策略本身是有意的内存保护，但会让本用例的精确计数断言失真
+    // （实测修复前 pongs 只收到 128/267，日志出现 Mailbox overflow droppedTotal:100/200）。
+    // 因此这里按本用例的负载显式调大该 Actor 的邮箱容量，让"风暴下不丢消息"
+    // 这一被断言的性质真正成立。（该旋钮此前在公开 API register() 上不可达，已一并补上。）
+    await system.register(fastBehavior, { mailboxCapacity: 1024 });
     await system.register(slowBehavior);
 
     const N = 800;

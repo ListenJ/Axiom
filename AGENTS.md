@@ -1,6 +1,6 @@
 # AGENTS.md — Runtime 底层规则（强约束）
 
-> 规则版本：v1.3（2026-09-12）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据；v1.3：规则 3 目标仓库由 internal211（.22，已废弃）切换为 gitea（.10，LFS 已启用）。规则编号只增不插；修改本文件须遵守规则 2/3/5。
+> 规则版本：v1.4（2026-09-14）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据；v1.3：规则 3 目标仓库由 internal211（.22，已废弃）切换为 gitea（.10，LFS 已启用）；v1.4：规则 3 目标仓库更名为 `agent/Axiom`（openclaw-fusion 与陈旧 Axiom 两仓库合一），并记录 remote 名差异。规则编号只增不插；修改本文件须遵守规则 2/3/5。
 > 执行顺序：读总则 0.1-0.3 → 判定任务级别 → 冻结任务契约（0.4）→ 按对应规则施工 → 按 0.5 提交完成证据。
 
 以下规则为本仓库所有任务的**强制约束**，任何 agent（含子 agent）执行任务时必须遵守。
@@ -103,8 +103,11 @@
 
 ## 规则 3：所有修改提交到 git 仓库
 
-- 目标仓库：remote 名 `gitea`（等同 `internal`），SSH 地址 `ssh://git@192.168.0.10:2222/agent/openclaw-fusion.git`，HTTP `http://192.168.0.10:3000/`（1Panel Gitea 容器，SSH 密钥已配置，LFS 已启用）。
+- 目标仓库：**`agent/Axiom`**，SSH 地址 `ssh://git@192.168.0.10:2222/agent/Axiom.git`，HTTP `http://192.168.0.10:3000/agent/Axiom`（1Panel Gitea 容器，SSH 密钥已配置，LFS 已启用）。
+  - **2026-09-14 仓库收敛**：原先并存的 `agent/openclaw-fusion` 与陈旧重复的 `agent/Axiom` 已合一 —— 前者**改名为 `agent/Axiom`**（纯改名，零内容变化：23 个 ref 逐 SHA 相同），后者改名为 `agent/Axiom-legacy-2026-09-14` 仅作归档保留（其 4 个独有提交已同时落在 `archive/axiom-old-repo-2026-09-14` 分支）。
+  - **本地 remote 名**：规则要求 `gitea`，实际为 `origin`（URL 已指向上面的 `agent/Axiom`）。差异已记录，未擅自改名以免影响既有脚本；如需严格对齐执行 `git remote rename origin gitea`。
   - 历史：旧目标 `internal211`（`ssh://data@192.168.0.22/home/data/openclaw-fusion.git`）自 2026-09-12 起**废弃**——.22 服务器停用、无 git-lfs 且无 sudo；gitea（.10）已确认为其完整超集（全分支 + tags + 105 张 LFS 基线对象，见 ADR-003b 与 ops log 2026-09-12）。`internal211` remote 已从本地配置**移除**（避免误推废弃服务器）；历史 URL 见上，如需恢复执行 `git remote add internal211 <url>`。
+  - 历史：旧仓库名 `openclaw-fusion` 自 2026-09-14 起不再使用；`agent/Axiom-legacy-*` 只读归档，禁止向其推送。
 - 禁止直接在 `main`/`master` 上提交业务修改；新分支默认 `codex/<任务简述>`，提交后推送 `gitea <分支>`。
 - 每个任务的修改完成后：`git add <仅本任务相关文件>` → `git commit` → `git push gitea <当前分支>`。
 - **只暂存本任务相关文件**，不得把工作区中无关的未提交改动一并提交；提交前用 `git diff --cached --stat` 核对暂存范围。

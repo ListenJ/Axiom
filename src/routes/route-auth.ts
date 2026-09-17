@@ -20,6 +20,7 @@ import { safeStringEqual } from "../utils/auth-check.js";
 export type AuditableEvent =
   | "vault.write"
   | "sandbox.execute"
+  | "sandbox.high_risk_approved"
   | "plugin.install"
   | "plugin.uninstall"
   | "plugin.enable"

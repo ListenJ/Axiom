@@ -87,7 +87,9 @@
     "test:integration": "bun test tests/integration-edge.test.ts",
     "test:full": "bun run scripts/test-full.ts",
     "test:smoke": "bun run scripts/test-smoke.ts",
-    "cache:baseline": "bun run scripts/cache-baseline.ts"
+    "cache:baseline": "bun run scripts/cache-baseline.ts",
+    "eval:runtime": "bun run src/agent-evals/runtime-cli.ts",
+    "eval:runtime:heldout": "bun run src/agent-evals/runtime-cli.ts --split=held-out"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",

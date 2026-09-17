@@ -62,8 +62,9 @@ function ensureSnapshotRepo(): string {
 function getWorkspaceFiles(): string[] {
   const cwd = process.cwd();
   try {
-    const output = execSync(
-      "git ls-files --others --exclude-standard --cached 2>nul || echo ''",
+    const output = execFileSync(
+      "git",
+      ["ls-files", "--others", "--exclude-standard", "--cached"],
       { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
     );
     return output

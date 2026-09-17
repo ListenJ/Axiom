@@ -1,4 +1,22 @@
+# ============================================================================
+# Axiom 自建 SearXNG 实例配置
+#
+# 容器部署：docker-compose.yml 的 searxng 服务把它只读挂载到
+#           /etc/searxng/settings.yml（官方 Compose 模板约定）。
+# 裸机部署：SEARXNG_SETTINGS_PATH=/path/to/config/searxng/settings.yml
+#
+# 官方文档：
+#   https://docs.searxng.org/admin/settings/
+#   https://docs.searxng.org/admin/installation-docker.html
+#
+# 覆盖优先级：标量项可被同名 SEARXNG_* 环境变量覆盖
+#   （见 searx/settings_defaults.py 的 environ_name，环境变量优先级最高）；
+#   **嵌套结构（如 outgoing.proxies / engines）不支持环境变量插值**，
+#   必须按本文件实际修改 —— 已核实 settings_loader.py 只读取
+#   SEARXNG_SETTINGS_PATH 这类整值变量，不做 ${VAR} 展开。
+# ============================================================================
 use_default_settings: true
+
 general:
   instance_name: "Axiom SearXNG"
   debug: false
@@ -7,17 +25,110 @@ search:
   safe_search: 0
   autocomplete: ""
   default_lang: "zh-CN"
+  # Axiom 通过 /search?q=...&format=json 调用（src/crawl/search-engines.ts）。
+  # json 必须在 search.formats 中显式启用，否则 SearXNG 按设计返回 403；
+  # 公共实例大多未开启，这正是自建实例的主要理由。
   formats:
     - html
     - json
 
 server:
+  # port / bind_address 仅对裸机 `python searx/webapp.py` 生效；
+  # 容器内实际监听地址由镜像的 GRANIAN_HOST/GRANIAN_PORT 控制（默认 [::]:8080），
+  # 对外暴露范围由 compose 的端口映射决定（默认只绑 127.0.0.1）。
   port: 8080
+  # 保留回环：裸机路径下不要放宽到 0.0.0.0，除非同时用 SEARXNG_SECRET 强设密钥。
   bind_address: "127.0.0.1"
-  # 生产部署请替换为随机值（openssl rand -hex 32）；默认值仅限本地开发
-  secret_key: "axiom-searxng-dev-local-only"
+  # 占位值，**不是密钥**：compose 中以 SEARXNG_SECRET（来自 .env 的
+  # SEARXNG_SECRET_KEY）覆盖，缺失时 compose 直接报错。裸机部署必须自行用
+  # `openssl rand -hex 32` 生成并设 SEARXNG_SECRET，否则等于用已知默认密钥上线。
+  secret_key: "change-me-openssl-rand-hex-32"
+  # 仅内网自用：关闭限流与公开实例特性。
+  # 如需 limiter/public_instance，请同时打开 valkey 服务并设置
+  # SEARXNG_VALKEY_URL=valkey://searxng-valkey:6379/0
   limiter: false
   public_instance: false
+  image_proxy: false
+
+# ── 出网：国内直连 / 国外走代理 ───────────────────────────────────────────
+# 实测：容器直连国内完全可用（baidu 995KB/0.48s/20 条），被墙的只有国外。
+# 默认网络 = 国外引擎（走下面 all:// 的代理）；network: direct = 国内引擎（清空代理直连）。
+# 该代理自身已对国内域名分流 DIRECT，所以这里只是把国内引擎从代理链路上摘掉，
+# 少一跳、且代理挂了也不影响国内检索。
+#
+# ⚠️ 环境特定值（**换环境只需改这一处**）：下面的代理地址是部署机实测可用的值。
+#    没有代理的部署请整段删除 outgoing.proxies，并去掉各引擎的 `network: direct`
+#    （否则 direct 只是"无代理"，结果等价，但留注释会更清楚）。
+outgoing:
+  request_timeout: 6.0
+  # 上限压到 6s：某个引擎卡住时，整次搜索的最坏延迟不再拖到 10s
+  max_request_timeout: 6.0
+  # 并发上限（默认 100）。压测把国内引擎打出过 CAPTCHA，先收到个位数：
+  # 全局 8 条连接，国内专用网络 4 条。
+  pool_connections: 8
+  proxies:
+    all://:
+      - http://192.168.0.111:7897
+  # 注意：networks.<名字> 里的键直接透传给 Network(...)，用的是它的构造参数名
+  # （local_addresses / max_connections），不是 outgoing 里的 source_ips / pool_connections。
+  networks:
+    direct:
+      # 清空继承来的全局代理 → 直连
+      proxies: {}
+      # 容器没有 IPv6 路由；不锁 IPv4 的话每个请求都要先等 IPv6 超时
+      # （baidu 实测 5s+，还伴随 ENETUNREACH）
+      local_addresses: "0.0.0.0"
+      max_connections: 4
+
+# ── 引擎开关 ──────────────────────────────────────────────────────────────
+# SearXNG 默认只开 wikipedia/ddg/brave/google cse 等，中文引擎默认全是 disabled。
+# 未列出的引擎保持上游默认（currency / mymemory translated 实测可用，故不动）。
+engines:
+  # 【国内 → 直连】
+  - name: baidu
+    disabled: false
+    network: direct
+  - name: 360search
+    disabled: false
+    network: direct
+  - name: quark
+    disabled: false
+    network: direct
+
+  # 【国外 → 走代理（不写 network 即用默认网络）】
+  - name: google
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: google news
+    disabled: false
+  - name: github
+    disabled: false
+
+  # ── 以下本环境不可用，关掉以免每次搜索白等一个超时 ──
+  # bing：cn.bing.com 直连/代理都只返回「字典劫持」结果（查"低延迟交易系统架构"给"低"的字典词条）；
+  #   且 www.bing.com 对 SearXNG 的请求回 302 跳转、SearXNG 不跟随 → 静默 0 条。英文由池子的 bing_rss 覆盖。
+  - name: bing
+    disabled: true
+  # sogou：SearXNG 2026.9.13 上游 bug（sogou.py:56 `resp.next_request` AttributeError），与网络无关。
+  - name: sogou
+    disabled: true
+    network: direct
+  # 以下经代理被上游拒绝：wikipedia/wikidata/google scholar/lingva/dictzone 403、brave 429、google cse 缺 CX。
+  - name: wikipedia
+    disabled: true
+  - name: wikidata
+    disabled: true
+  - name: brave
+    disabled: true
+  - name: google cse
+    disabled: true
+  - name: google scholar
+    disabled: true
+  - name: lingva
+    disabled: true
+  - name: dictzone
+    disabled: true
 
 ui:
   static_use_hash: true

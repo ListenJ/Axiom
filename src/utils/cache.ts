@@ -185,9 +185,14 @@ export class Cache<V = unknown> {
   getSync(key: string): V | undefined {
     const fullKey = this.key(key);
     const entry = this.store.get(fullKey);
-    if (entry && Date.now() <= entry.expiresAt) {
+    const now = Date.now();
+    if (entry && now <= entry.expiresAt) {
       entry.accessCount++;
-      this.touch(fullKey);
+      // 审计优化：内联原 touch()，省掉一次 store.get。
+      // touch() 会再查一次 Map 拿同一个 entry，而这里已经持有它。
+      entry.lastAccessed = now;
+      this.store.delete(fullKey);
+      this.store.set(fullKey, entry);
       this.hitCount++;
       return entry.value;
     }
@@ -196,23 +201,24 @@ export class Cache<V = unknown> {
 
   /** 设置缓存值 — L1 + L2 + L3 */
   set(key: string, value: V, ttlMs?: number): void {
+    // 审计优化：原先一次 set 里调用 3 次 Date.now()，收敛为 1 次。
+    const now = Date.now();
     const fullKey = this.key(key);
     const effectiveTtl = (typeof ttlMs === "number" && !Number.isNaN(ttlMs) && ttlMs >= 0) ? (ttlMs === 0 ? NO_EXPIRY_MS : ttlMs) : this.opts.defaultTtlMs;
-    const expiresAt = Date.now() + effectiveTtl;
+    const expiresAt = now + effectiveTtl;
 
     // L1: 内存
     if (this.store.size >= this.opts.maxSize && !this.store.has(fullKey)) {
       this.evictLRU();
     }
-    // Update order for existing keys (delete+re-insert to move to end)
-    if (this.store.has(fullKey)) {
-      this.store.delete(fullKey);
-    }
+    // Update order for existing keys (delete+re-insert to move to end)。
+    // `Map.delete` 对不存在的键是幂等的，无需先 has() 判断（省一次查找）。
+    this.store.delete(fullKey);
     this.store.set(fullKey, {
       value,
       expiresAt,
       accessCount: 1,
-      lastAccessed: Date.now(),
+      lastAccessed: now,
     });
 
     // L2: Redis (异步，不阻塞)

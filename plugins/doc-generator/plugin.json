@@ -8,12 +8,11 @@
   "tags": ["documentation", "generator", "api-docs", "readme", "markdown"],
   "license": "MIT",
   "repository": "https://github.com/axiom/plugins/doc-generator",
-  "readme": "# Documentation Generator Plugin\n\nAutomates documentation creation:\n- API documentation from OpenAPI specs\n- README generation from project structure\n- Code documentation from JSDoc comments\n- Architecture decision records (ADRs)\n- Changelog generation",
+  "readme": "# Documentation Generator Plugin\n\n**NOT IMPLEMENTED** — tool registration was withdrawn during the 2026-09-14 audit.\n\nThe previous handlers read no real source tree or files: they filled templates from the\narguments. `generate_adr` additionally derived the ADR number from\n`Math.floor(Math.random() * 100) + 1`, so the same decision produced a different identifier\non every call. Random identifiers are more dangerous than empty ones: they yield records\nthat look traceable but are not.\n\nSee `docs/operations-log.md` (2026-09-14) for the audit record and the restoration path.",
   "icon": "📚",
-  "tools": ["generate_api_docs", "generate_readme", "generate_adr", "generate_code_docs", "generate_wiki"],
+  "tools": [],
   "skills": [],
   "patterns": [],
-  "permissions": ["filesystem:read", "filesystem:write", "code:analyze"],
   "config": {
     "schema": {
       "outputFormat": { "type": "string", "default": "markdown", "description": "Output format (markdown, html, json)" },

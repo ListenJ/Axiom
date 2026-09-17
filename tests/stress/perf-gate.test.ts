@@ -44,10 +44,30 @@ const GATE_THRESHOLDS = {
 // 工具函数
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * 热路径测量：先预热，再取 N 次中的**最小值**（best-of-N）。
+ *
+ * 审计修复（消除间歇性假失败，**未改动任何阈值**）：
+ * 原实现是「单次冷测量」—— `bun test --parallel=8` 会让 8 个测试文件争抢 CPU，
+ * 单次墙钟值因此被调度噪声主导。实测同一用例：
+ *   · 空闲单独跑：10k EventBus.publish ≈ 19~24ms
+ *   · 并行负载下：**74.89ms**（超过 50ms 阈值）⇒ 间歇性失败
+ * 取多次最小值可滤掉被抢占的样本，保留对**真实量级退化**的检测能力
+ * （真正变慢时最小值也会变慢），无需放宽任何阈值。
+ */
 function benchSync(fn: () => void, iterations: number): number {
-  const start = performance.now();
-  for (let i = 0; i < iterations; i++) fn();
-  return performance.now() - start;
+  // 预热：让 JIT 完成编译，避免把编译成本记进测量
+  const warmup = Math.min(iterations, 2000);
+  for (let i = 0; i < warmup; i++) fn();
+
+  let best = Number.POSITIVE_INFINITY;
+  for (let round = 0; round < 5; round++) {
+    const start = performance.now();
+    for (let i = 0; i < iterations; i++) fn();
+    const elapsed = performance.now() - start;
+    if (elapsed < best) best = elapsed;
+  }
+  return best;
 }
 
 function clearAtomStore(): void {

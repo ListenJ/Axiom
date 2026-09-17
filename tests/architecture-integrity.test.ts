@@ -105,6 +105,9 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     "launcher.ts",
     "agent-evals/run.ts",
     "agent-evals/registry-cli.ts",
+    // Runtime 评测 CLI：把指标表与过拟合分析打到终端，属"用户可见输出"，
+    // 与 eval/eval-cli.ts 同类。业务/库模块仍必须走 logger。
+    "agent-evals/runtime-cli.ts",
   ]);
 
 function getTsFiles(dir: string): string[] {

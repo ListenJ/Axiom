@@ -18,6 +18,35 @@ import { existsSync } from "fs";
 import { PluginRegistry } from "../plugins/plugin-registry.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { logger } from "../utils/logger.js";
+import { readBool } from "../utils/env.js";
+
+/**
+ * 插件**写入**能力开关，默认 **关闭**。
+ *
+ * 决策（2026-09-14）：先不做插件生态，优先把内置工具优化好。
+ * 原因是当前「manifest 声明权限、运行时零强制」属纯装饰 —— 不被强制的权限系统
+ * 比没有权限系统更危险（虚假安全感）。等权限强制落地后再打开这个开关。
+ *
+ * 只影响写入（install/uninstall/enable/disable）；读接口始终可用。
+ */
+function pluginsEnabled(): boolean {
+  return readBool("AXIOM_PLUGINS_ENABLED", false);
+}
+
+/** 写入被关闭时的统一响应 */
+function pluginsDisabledResponse(operation: string): Response {
+  return Response.json(
+    {
+      success: false,
+      error: `插件${operation}能力当前已关闭（AXIOM_PLUGINS_ENABLED 未开启）`,
+      detail:
+        "本版本以内置工具为主，插件权限系统尚未做运行时强制，因此暂不开放安装/启停。" +
+        "如确需启用，请设置 AXIOM_PLUGINS_ENABLED=1 —— " +
+        "但请注意：manifest 中声明的 permissions 目前**不会**被运行时强制执行。",
+    },
+    { status: 403 },
+  );
+}
 
 /** Create plugin management routes */
 export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
@@ -116,6 +145,8 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
           );
         }
 
+        if (!pluginsEnabled()) return pluginsDisabledResponse("安装");
+
         // 安装路径解析（2026-07-26 W3 修复）：
         // 前端安装按钮只传 pluginId —— 目录不存在时回退到内置可用目录 ./plugins/<id>
         let installPath = body.path;
@@ -153,6 +184,7 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
     // POST /plugins/:id/uninstall - Uninstall a plugin
     uninstall: async (req: Request, { id }: Record<string, string>): Promise<Response> => {
       try {
+        if (!pluginsEnabled()) return pluginsDisabledResponse("卸载");
         await registry.uninstall(id);
         return Response.json({ success: true, message: `Plugin ${id} uninstalled` });
       } catch (e: unknown) {
@@ -167,6 +199,7 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
     // POST /plugins/:id/enable - Enable a plugin
     enable: async (req: Request, { id }: Record<string, string>): Promise<Response> => {
       try {
+        if (!pluginsEnabled()) return pluginsDisabledResponse("启用");
         await registry.enable(id);
         return Response.json({ success: true, message: `Plugin ${id} enabled` });
       } catch (e: unknown) {
@@ -181,6 +214,7 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
     // POST /plugins/:id/disable - Disable a plugin
     disable: async (req: Request, { id }: Record<string, string>): Promise<Response> => {
       try {
+        if (!pluginsEnabled()) return pluginsDisabledResponse("停用");
         await registry.disable(id);
         return Response.json({ success: true, message: `Plugin ${id} disabled` });
       } catch (e: unknown) {

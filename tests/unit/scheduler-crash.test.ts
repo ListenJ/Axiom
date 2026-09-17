@@ -7,6 +7,8 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";
 import { logger } from "../../src/utils/logger";
+import { join } from "path";
+import { tmpdir } from "os";
 
 // Mock fetch early to avoid real network during scheduler import & task execution
 const _originalFetch = globalThis.fetch;
@@ -123,16 +125,35 @@ describe("scheduler crash", () => {
     (Database.prototype as any).query = origQuery;
   });
 
+  // 审计修复（2026-09-14）：监听器改为在 startCronScheduler() 内安装，import 不再有副作用。
+  // 故这两个用例由"import 后断言"改为"显式启动后断言"。
   test("process has unhandledRejection handler that does not exit", async () => {
-    await import("../../src/cron/scheduler.js");
+    const mod = await import("../../src/cron/scheduler.js");
+    const before = process.listeners("unhandledRejection").length;
+    mod.startCronScheduler({ registerCron: false, runImmediately: false });
     const listeners = process.listeners("unhandledRejection");
     // 修复前 listeners 为 0 → RED，修复后 >=1 → GREEN
     expect(listeners.length).toBeGreaterThan(0);
+    expect(listeners.length).toBeGreaterThanOrEqual(before);
   });
 
   test("process has uncaughtException handler", async () => {
-    await import("../../src/cron/scheduler.js");
+    const mod = await import("../../src/cron/scheduler.js");
+    mod.startCronScheduler({ registerCron: false, runImmediately: false });
     const listeners = process.listeners("uncaughtException");
     expect(listeners.length).toBeGreaterThan(0);
+  });
+
+  test("import 本身不再安装监听器（副作用已收敛）", async () => {
+    // 子进程隔离：模块级副作用只能这样观察
+    const proc = Bun.spawnSync({
+      cmd: ["bun", "-e", `await import("./src/cron/scheduler.ts"); console.log("N=" + process.listeners("unhandledRejection").length);`],
+      cwd: join(import.meta.dir, "..", ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, DATABASE_PATH: join(tmpdir(), `nse-${Date.now()}.db`) },
+    });
+    const out = proc.stdout.toString();
+    expect(out).toContain("N=0");
   });
 });

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 多搜索引擎抽象层 v2.0 (简化版)
  *
  * 支持：DuckDuckGo / Bing / SearXNG
@@ -66,11 +66,11 @@ export interface SearchOptions {
   timeRange?: "d" | "w" | "m" | "y";
 }
 
-/** 搜索引擎基类 */
 /** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
 export type SearchFetch = (url: string, init: RequestInit) => Promise<ProxyFetchResponse>;
 
-abstract class SearchEngine {
+/** 搜索引擎基类 */
+export abstract class SearchEngine {
   abstract readonly name: string;
   abstract search(opts: SearchOptions): Promise<SearchEngineResult[]>;
   /** 可注入 fetch（测试用，最高优先，绕过代理/curl 真实网络） */
@@ -82,11 +82,38 @@ abstract class SearchEngine {
 
   protected async fetch(url: string, init: RequestInit = {}): Promise<ProxyFetchResponse> {
     if (this.fetchImpl) return this.fetchImpl(url, init);
+
+    // 本地/内网目标**一律直连**，不走外部代理。
+    //
+    // 审计修复：用户自建的 SearXNG 跑在 127.0.0.1:8080，而请求被 AdaptiveProxy
+    // 送去了外部 HTTP 代理（192.168.0.111:7897），代理当然连不到调用方的 localhost，
+    // 结果返回 502、自建实例形同未部署。
+    // 自建服务（本机或局域网）本质上就是"离用户最近的那一跳"，任何情况下都不该绕外部代理。
+    const isLocalTarget = (u: string): boolean => {
+      try {
+        const h = new URL(u).hostname.toLowerCase();
+        return (
+          h === "localhost" ||
+          h === "::1" ||
+          h === "[::1]" ||
+          h.startsWith("127.") ||
+          h.startsWith("10.") ||
+          h.startsWith("192.168.") ||
+          /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+          h.endsWith(".local") ||
+          h.endsWith(".internal")
+        );
+      } catch {
+        return false;
+      }
+    };
+    const local = isLocalTarget(url);
+
     // 代理 HTTPS 走 curl.exe：Bun 的 tls.connect({socket}) 隧道不稳定（CONNECT 后 TLS 升级挂起），
     // curl 原生支持 HTTP(S) 代理，实测可靠（mihomo 等 HTTP 代理）
     const proxyUrl =
       readString("SEARCH_PROXY") || readString("PROXY_URL") || readString("HTTPS_PROXY") || readString("HTTP_PROXY") || readString("ALL_PROXY");
-    if (proxyUrl && url.startsWith("https://")) {
+    if (!local && proxyUrl && url.startsWith("https://")) {
       // 代理可用性兜底：残留/失效代理配置不应让搜索整体不可用——
       // 仅当代理失败（非 ok 或抛错）时回退直连，成功则直接返回。
       try {
@@ -105,6 +132,8 @@ abstract class SearchEngine {
         headers: init.headers as Record<string, string>,
         body: init.body as string | null,
         signal: controller.signal,
+        // 本地/内网目标强制直连（proxy: null 覆盖自动检测），避免自建服务被送往外部代理
+        ...(local ? { proxy: null } : {}),
       });
       clearTimeout(timer);
       return res;
@@ -328,15 +357,53 @@ export class BingEngine extends SearchEngine {
 
 class SearXngEngine extends SearchEngine {
   readonly name = "searxng";
-  private instance: string;
+  /** 显式传入的实例地址（测试注入），优先于一切配置 */
+  private explicitInstance?: string;
+  /** 解析后的实例地址（惰性，避免在模块初始化期做文件 I/O） */
+  private resolvedInstance?: string;
 
   constructor(instance?: string, fetchImpl?: SearchFetch) {
     super(fetchImpl);
-    this.instance = instance || readString("SEARXNG_INSTANCE", "https://search.sapti.me");
+    this.explicitInstance = instance;
+  }
+
+  /**
+   * 解析 SearXNG 实例地址。
+   *
+   * 优先级（**自建优先**）：
+   *   1. 构造参数显式指定（测试注入）
+   *   2. `config/web-search.yaml` → `searxng.base_url`  ← 用户在配置/GUI 里设的自建地址
+   *   3. 环境变量 `SEARXNG_INSTANCE`
+   *   4. 公共实例兜底
+   *
+   * 审计修复：原实现只读 `SEARXNG_INSTANCE`，默认值又是**公共实例**
+   * `search.sapti.me`，于是「配置里写的自建地址」与「实际请求的地址」完全脱节。
+   * 实测：用户已部署 `127.0.0.1:8080` 的 SearXNG 且 JSON API 正常，但应用仍去打
+   * 公共实例（其证书已过期）并整体超时。现在把配置文件接进来，让自建实例真正生效。
+   */
+  private async resolveInstance(): Promise<string> {
+    if (this.resolvedInstance) return this.resolvedInstance;
+    if (this.explicitInstance) {
+      this.resolvedInstance = this.explicitInstance;
+      return this.resolvedInstance;
+    }
+    try {
+      const { loadWebSearchConfig } = await import("./web-search-config.js");
+      const configured = loadWebSearchConfig().searxng?.base_url;
+      if (configured) {
+        this.resolvedInstance = configured;
+        return configured;
+      }
+    } catch {
+      /* 配置不可读时继续回落，不阻断搜索 */
+    }
+    this.resolvedInstance = readString("SEARXNG_INSTANCE", "https://search.sapti.me");
+    return this.resolvedInstance;
   }
 
   async search(opts: SearchOptions): Promise<SearchEngineResult[]> {
-    const url = new URL(`${this.instance}/search`);
+    const instance = await this.resolveInstance();
+    const url = new URL(`${instance}/search`);
     url.searchParams.set("q", opts.query);
     url.searchParams.set("format", "json");
     url.searchParams.set("language", opts.lang || "zh-CN");
@@ -357,7 +424,12 @@ class SearXngEngine extends SearchEngine {
       snippet: r.content || "",
       date: r.publishedDate,
       source: r.engine || this.extractDomain(r.url || ""),
-      engine: `${this.name}(${r.engine || "unknown"})`,
+      // 审计修复：engine 字段必须**只标识我们这一侧的引擎名**，与其他引擎保持一致。
+      // 原实现写成 `searxng(duckduckgo)` 形式，导致按 engine 分组的聚合/去重
+      // 与「首选引擎是否出结果」的判定全部失配（实测：自建 SearXNG 明明返回了结果，
+      // 兜底率仍被算成 100%）。上游引擎名放进 richSnippets，语义更准确。
+      engine: this.name,
+      richSnippets: r.engine ? { upstreamEngine: r.engine } : undefined,
     }));
   }
 
@@ -438,18 +510,81 @@ export class BingHtmlEngine extends SearchEngine {
 
 export class SearchAggregator {
   private engines = new Map<string, SearchEngine>();
+  private extraLoaded = false;
+  private fetchImplForExtra?: SearchFetch;
 
   constructor(fetchImpl?: SearchFetch) {
+    this.fetchImplForExtra = fetchImpl;
     this.engines.set("duckduckgo", new DuckDuckGoEngine(fetchImpl));
     this.engines.set("bing", new BingEngine(fetchImpl));
     this.engines.set("bing-html", new BingHtmlEngine(fetchImpl));
     this.engines.set("searxng", new SearXngEngine(undefined, fetchImpl));
   }
 
+  /**
+   * 按需注册扩展引擎（wikipedia / google-news / arxiv / tavily / brave / …）。
+   *
+   * 用**动态 import** 而不是顶层 import：`search-engines-extra.ts` 需要从本文件拿
+   * 基类与类型，顶层互相 import 会形成循环，而本模块底部的 `searchAggregator`
+   * 单例在模块求值时就会 `new`，循环下可能拿到尚未初始化的工厂表。
+   * 放到首次搜索时惰性加载，既无循环也无"import 即副作用"。
+   */
+  private async ensureExtraEngines(): Promise<void> {
+    if (this.extraLoaded) return;
+    this.extraLoaded = true;
+    try {
+      const { EXTRA_ENGINE_FACTORIES } = await import("./search-engines-extra.js");
+      for (const [id, make] of Object.entries(EXTRA_ENGINE_FACTORIES)) {
+        if (!this.engines.has(id)) this.engines.set(id, make(this.fetchImplForExtra));
+      }
+      logger.debug("[SearchAggregator] 扩展引擎已注册", {
+        count: Object.keys(EXTRA_ENGINE_FACTORIES).length,
+      });
+    } catch (e) {
+      logger.warn("[SearchAggregator] 扩展引擎加载失败（不影响核心引擎）", {
+        error: (e as Error).message,
+      });
+    }
+  }
+
+  /** 当前已注册的引擎 id（含扩展引擎，供 GUI / 文档核对配置与实现是否一致） */
+  async listAvailableEngines(): Promise<string[]> {
+    await this.ensureExtraEngines();
+    return Array.from(this.engines.keys()).sort();
+  }
+
   async searchMulti(
     opts: SearchOptions,
-    engines: string[] = ["duckduckgo", "bing-html", "searxng"]
+    engines?: string[]
   ): Promise<SearchEngineResult[]> {
+    await this.ensureExtraEngines();
+
+    // 未显式指定引擎时，**由 config/web-search.yaml 驱动**：
+    // 取「已启用 且（匿名 或 已配好 Key）」的引擎，按权重从高到低排序。
+    // 这样用户在 GUI 里开关引擎、填密钥就能直接改变搜索行为，不需要改代码。
+    if (!engines || engines.length === 0) {
+      let resolved: string[] = [];
+      try {
+        const { loadWebSearchConfig, resolveEngineKey } = await import("./web-search-config.js");
+        const cfg = loadWebSearchConfig();
+        resolved = cfg.engines
+          .filter((e) => e.enabled)
+          .filter((e) => !e.needs_key || Boolean(resolveEngineKey(e)))
+          .filter((e) => this.engines.has(e.id))
+          .sort((a, b) => b.weight - a.weight)
+          .map((e) => e.id);
+        if (resolved.length > 0) {
+          logger.debug("[SearchAggregator] 引擎来自 web-search.yaml", { engines: resolved });
+        }
+      } catch (e) {
+        logger.warn("[SearchAggregator] 读取 web-search.yaml 失败，回退默认引擎组", {
+          error: (e as Error).message,
+        });
+      }
+      // 配置不可用或一个都没启用 → 回退到"匿名三件套"，保证搜索功能永远可用
+      engines = resolved.length > 0 ? resolved : ["duckduckgo", "bing-html", "searxng"];
+    }
+
     // bing-html 作为无 key 可靠回退：显式指定引擎时也追加（duckduckgo 反爬挑战/空结果场景兜底）
     if (!engines.includes("bing-html")) engines = [...engines, "bing-html"];
     const tasks = engines

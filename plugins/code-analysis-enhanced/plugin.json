@@ -8,12 +8,11 @@
   "tags": ["code-analysis", "metrics", "security", "dependencies"],
   "license": "MIT",
   "repository": "https://github.com/axiom/plugins/code-analysis-enhanced",
-  "readme": "# Enhanced Code Analysis Plugin\n\nProvides advanced code analysis capabilities:\n- Complexity metrics (cyclomatic, cognitive)\n- Dependency graph generation\n- Security vulnerability detection\n- Code smell detection\n- Architecture analysis",
+  "readme": "# Enhanced Code Analysis Plugin\n\n**NOT IMPLEMENTED** — tool registration was withdrawn during the 2026-09-14 audit.\n\nThe previous handlers returned `Math.random()`-generated complexity scores, pass/fail\nverdicts, vulnerability severities and line numbers, plus a hardcoded dependency graph.\nPlausible-looking random results are more dangerous than empty ones: an empty result gets\nnoticed, a plausible random one does not.\n\nSee `docs/operations-log.md` (2026-09-14) for the audit record and the restoration path.",
   "icon": "🔍",
-  "tools": ["analyze_complexity", "generate_dependency_graph", "detect_vulnerabilities", "find_code_smells"],
+  "tools": [],
   "skills": [],
   "patterns": [],
-  "permissions": ["filesystem:read", "code:analyze"],
   "config": {
     "schema": {
       "maxComplexity": { "type": "number", "default": 10, "description": "Maximum allowed cyclomatic complexity" },
