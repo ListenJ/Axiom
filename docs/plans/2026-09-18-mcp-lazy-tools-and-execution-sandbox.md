@@ -63,3 +63,47 @@
 | 安全守卫 | `defaultToolGuard` 改为委托 `execution-guard`，语义保持 |
 | 工具总数 | 不变（`src/testing/tool-count.ts` 仍为 188，meta 工具不计入既有统计口径） |
 | 依赖 | 无新增 |
+
+---
+
+## 执行后偏差记录（复查用，按规则 12 回 Plan）
+
+计划冻结后执行时出现的偏移，逐条记录原因与影响：
+
+1. **T2-2 的"红→绿用例"改为代码审查 + 既有套件背书**
+   计划要求为 workspace-snapshot 缺口写一条红→绿用例。执行时确认：`revertSnapshot` 的写入位置来自
+   快照仓库的 `git ls-tree` 输出，而 **git tree 路径在结构上不可能包含 `..` 组件**，因此无法构造出
+   一个"删除围栏后确实变绿"的可复现用例——硬造用例会变成同义反复（正是规则 13 批评的模式）。
+   实际做法：把 restore 写入接进唯一收口点（`{ cwdFenced: true }`）作为**纵深防御**，
+   并以既有 `tests/unit/workspace-snapshot-guard.test.ts`（二进制保真 + 部分失败聚合）作为回归门禁。
+   该检查**未经红→绿证明**，如实登记为"防御性改动，非已证漏洞修复"。
+
+2. **新增 `tool_describe` 的 schema 获取方式（计划外实现细节）**
+   计划未规定 schema 来源。实现时评估了三方案：①手写 zod→JSON Schema 转换（会与 SDK 版本漂移，违反规则 8 的"两个适配器才叫真接缝"）；②深路径 import SDK 内部 `toJsonSchemaCompat`（不在包的 `exports` map 内，会随 SDK 升级断裂）；③**探针 McpServer + 公开 `tools/list`**（选用）。
+   选③的理由：只用公开 API、与全量模式 schema 逐字段一致（实测返回含 `additionalProperties`/`$schema` 等 SDK 产出字段）。**未新增依赖**。
+
+3. **收口点最初改写了错误消息，导致 5 个既有用例失败**
+   首版把消息从 `[HardFloor] <reason> (tool=.., field=..)` 改为 `[<code>] <reason> (tool=..)`，
+   全量回归出现 5 fail（`tests/unit/risk-monitor-degraded.test.ts`、`tests/unit/tool-mode-gate.test.ts`
+   按 `/HardFloor/` 断言）。判定为**消息契约回归**而非测试过时，改回 `[HardFloor]` 前缀并保留 `code=` 结构化字段，5 个用例恢复。
+
+4. **"不回显参数值"的意图未真正达成（自查发现，如实登记）**
+   `ExecutionDeniedError` 自身不再拼接参数值，但其 `reason` 来自 `utils/permissions.ts`，
+   而该模块的文本本身含路径（`Sensitive path: /etc/shadow requires manual confirmation`）。
+   实测真实服务端响应确实回显了 `/etc/shadow`。**这是改动前既有行为，本轮未改**；
+   收窄它需连同 `permissions.ts` 的消息格式一起评审，已列入后续项，未在代码注释中宣称已解决。
+
+5. **端到端探针首版无效（方法与结论纠正）**
+   首个 stdio 探针用 `scene_list` + 嵌套敏感参数，结果**未被拒**。排查确认不是守卫失效，而是
+   **MCP SDK 按工具声明的 `inputSchema` 先校验并剥离未声明字段**，`scene_list` 的 schema 不接受该参数，
+   参数根本到不了 handler。改用参数封套（`tool_invoke` 的 `arguments`）后，嵌套拒绝与合法放行均按预期。
+   该 SDK 行为是本收口点的**固有边界**（只能检查 schema 允许进入的参数），已写入架构文档的局限段。
+
+## 覆盖率与残留
+
+- 计划内验收项：T1-1..T1-6 全部已验证（见 ops log 对应条目）；T2-1 / T2-3 / T2-4 已验证；
+  **T2-2 降级为"防御性改动"，未获红→绿证明**（见偏差 1）。
+- 计划**未覆盖**的同类分散点（本轮未动，如实登记）：`src/computer-use/browser-launch.ts` 自有
+  `assertSafeHttpUrl`、`src/knowledge/document-ingest.ts` 自有 `assertReadableFile`、
+  `src/mcp/tools/code-analysis.ts` 的 linter spawn 参数、`src/sandbox/docker-sandbox.ts` 的挂载路径校验。
+  这些仍各自实现，**统一层尚未做到"唯一"**；把它们并入需单独立项。

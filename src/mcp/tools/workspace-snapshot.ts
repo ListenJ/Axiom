@@ -5,6 +5,8 @@ import { existsSync } from "node:fs";
 import { logger } from "../../utils/logger.js";
 
 /** snapshotId 白名单校验（P1-T5）：仅 HEAD 或 6-64 位十六进制，防 git 选项/引用注入 */
+import { guardToolExecution } from "../../sandbox/execution-guard.js";
+
 export function assertValidSnapshotId(id: string): void {
   if (!/^(HEAD|[0-9a-fA-F]{6,64})$/.test(id)) {
     throw new Error(`Invalid snapshotId: ${id.slice(0, 32)}`);
@@ -197,6 +199,10 @@ export async function revertSnapshot(
           stdio: "pipe",
         });
         const dst = path.join(cwd, file);
+        // T3（2026-09-18）：restore 是"由快照内容决定写盘位置"的路径，
+        // 唯一收口点的硬底线不覆盖 cwd 逃逸（合法外部绝对路径场景太多），
+        // 故此处显式开启 cwd 围栏，复用同一实现而不是自建第二套校验。
+        guardToolExecution("snapshot_restore", { path: file }, { cwdFenced: true });
         await fs.mkdir(path.dirname(dst), { recursive: true });
         await fs.writeFile(dst, content);
       } catch (e) {
