@@ -1757,3 +1757,19 @@
 - **偏差记录**：①**修改了 1 个既有测试断言（非静默改绿）**——`tests/port-protocol.test.ts:179` 原断言 `/^node-\d+-/` 把"时间戳前缀"这一**实现细节**写成了契约，而本次修复的目标恰恰是移除时间戳与随机片段。已把它替换为行为契约断言（形态 `^node-[0-9a-f]{16}$` + 同内容同 ID），并在原地留注释说明为何替换。**该改动是契约变更，不是为了让测试变绿而放宽断言**：新断言比原断言更严格（同时检查形态与确定性）。②**未处理其余 `Math.random()` 站点**：`src/dre/runtime/{event-bus,scheduler,knowledge-network,rule-engine}.ts`、`src/dre/mental-model/pool.ts`、`src/dre/actor/system.ts`、`src/agent-evals/*`、`src/routes/*` 等约 18 处 DRE/运行时 ID 仍为时间戳+随机，**未评估**其是否进入确定性输出。③`docs/LIMITATIONS.md:58` 声明"涉及 Date.now()/Math.random() 的模块，其确定性边界将在对应章节按 G-04 披露"，该披露**至今未逐模块完成**，本轮未补。
 - **未覆盖项（如实登记）**：①未对知识写入路径做**实测多次运行一致性**验证（§13.5 要求 N≥5 次跨进程比对）——本轮用单测断言同内容同 ID 代替，**强度低于实测跑批**，属部分验证。②内容寻址**不做近重复归一化**：仅空白差异的内容仍得不同 ID，真正的近重复合并属知识整理层职责，未实现也未评估。③未评估对既有库中已写入的随机 ID 节点的影响（无数据迁移；存量节点 ID 保持不变）。④未验证 `RemoteKnowledgePort` 路径下的行为一致性（同函数在 `handleWrite` 内，推定共用，未实测）。
 - **Commit**：`83403a0`
+
+## 2026-09-18 — docs(T1): 确定性边界逐模块披露（G-04 补齐）+ 防漂移 CI 测试
+
+- **任务**：用户指令「先做 3」——把 `Date.now()`/`Math.random()`/`Map` 遍历的**确定性边界逐模块写实**到 `docs/LIMITATIONS.md`（G-04），并纠正上一轮遗留的**不实引用**。分级 **T1**（文档 + 单个新测试文件；无源码改动）。仅提交 Gitea。
+- **工具**：Bash（`awk`/`grep`/`comm` 三路交叉核对）+ Python 补丁；`bunx tsc`；`bun test`（全量 407 文件）；规则 2（`docs/LIMITATIONS.md` 备份至 `.tmp/backups/docs/`）。
+- **先核实再动手（发现并纠正了自己的错）**：本轮普查**先剥离 `//` 与块注释**再匹配（首轮未剥注释，把 `knowledge-port.ts:261` 的**说明性注释**误计为调用）。据此复算发现交接摘要里的汇总数字**与自己列出的逐文件表自相矛盾**：`Date.now()` 写 30 个文件（表内实为 34）、`Math.random()` 写 9（实为 10）、`randomUUID()` 写 4（实为 3）。已**全部改正**，并新增「计数口径」说明（处数 = 命中行数；`context-engine.ts:240` 一行 2 次调用计 1 处）。
+- **操作**（文件级，3 个）：
+  1. `docs/LIMITATIONS.md`：§5 新增 5.1（界定被检验主张：`AXIOM-ARCHITECTURE.md:16/:545/:1553/:1293/:1521`）、5.2（全量普查表 + 计数口径）、5.2.1（36 文件逐文件清单）、5.3（8 条已核实的确定性边界，每条带 `文件:行号`）、5.4（4 条声明 vs 实际裁定）、5.5（5 条未覆盖项）；改正上述汇总数字；§3 那句**长期未兑现的占位承诺**改为指向 §5 的事实陈述；§5.5 第 5 条据实改写（普查已固化为 CI 测试，但该测试**只防漂移、不判定影响输出**）。
+  2. 新建 `tests/unit/determinism-disclosure.test.ts`（5 用例）：剥离注释后统计 `src/dre/**`+`src/knowledge/**` 的命中文件集，与 §5.2.1 表格做**双向**比对（漏登记 / 错登记都失败），并锁定汇总表数字。
+  3. `docs/operations-log.md`：本条目。
+- **核心技术承诺裁定**：`run()` / `POST /dre/run` 的「**纯确定性**」为 **部分一致** —— 语义结果在同机同 locale 下可复现（5.3①：5 处排序显式带 tie-breaker），但响应内嵌耗时（5.3④）、实体 ID 含随机（5.3⑤）、重试抖动（5.3⑥）、缓存 TTL 依赖墙上时钟（5.3⑦）使**字节级**与**跨环境**不成立；`hybrid-fusion.ts:179` 是全项目**唯一**缺 tie-breaker 的排序点（5.3③），属实现不一致。可承诺口径已写入 5.4 末段。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun test tests/unit/determinism-disclosure.test.ts tests/unit/docs-consistency.test.ts` → **14 pass / 0 fail**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4091 pass / 36 skip / 0 fail**（407 文件；基线 4086 + 新增 5，**无回归**）。
+- **突变测试（证明该 CI 测试真的会拦）**：手动从 §5.2.1 删掉 `kernel.ts` 一行 → 测试**立即失败**并指名 `src/dre/kernel.ts`；还原后 5 pass。非「恒真断言」。
+- **未覆盖项（如实登记，不得据此宣称"审核完成"）**：①253 处命中中**仅 §5.3 列出的那批逐点核实**了是否进入输出，其余（`constraint/solver.ts`、`synapse/*`、`kernel.ts`、`persona/loader.ts` 等）**只登记未判定**；②**未做 N≥5 次跨进程实测一致性**（规则 13.5 要求）——本节基于代码证据与单测，**非跑批实测**，故「确定性」结论强度限于静态证据；③`Map`/`Set` 遍历序未做机器可判定分析（仅人工核实 5 个排序点）；④未覆盖 `src/` 其余目录；⑤`localeCompare` tie-breaker 的确定性只在同 locale/ICU 内成立，未做跨运行时实测。
+- **偏差记录**：①上一轮交接摘要的汇总数字有误（见上），本轮已改正并**在文档中显式记录口径来源**，未静默改数；②本节未改动任何源码——`hybrid-fusion.ts:179` 缺 tie-breaker 等**已核实缺陷留待后续 Round**，不在本轮修（避免边审边改）。
+- **Commit**：`__COMMIT__`
