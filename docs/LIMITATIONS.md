@@ -91,12 +91,12 @@
 | 不确定源 | 命中文件数 | 命中处数（= 命中行数） |
 | --- | --- | --- |
 | `Date.now()` | 34 | 179 |
-| `performance.now()` / `process.hrtime` | 5 | 37 |
+| `performance.now()` / `process.hrtime` | 5 | 39 |
 | `Math.random()` | 10 | 20 |
 | `randomUUID()` | 3 | 7 |
 | `localeCompare()` | 5 | 6 |
 | `new Date()` | 3 | 5 |
-| **合计** | **36 个文件（并集）** | **254 处** |
+| **合计** | **36 个文件（并集）** | **256 处** |
 
 CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否覆盖全部命中文件（防止再次漂移）。
 
@@ -112,7 +112,7 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 | `src/dre/llm/client.ts` | Math.random ×1 / Date.now ×5 | Math.random@200 Date.now@131,183,239,389,465 |
 | `src/dre/mental-model/pool.ts` | Math.random ×2 / Date.now ×11 | Math.random@270,323 Date.now@187,270,323,328,368,384… |
 | `src/dre/persona/loader.ts` | Date.now ×4 | Date.now@68,97,111,150 |
-| `src/dre/pipeline/cognitive-pipeline.ts` | Date.now ×3 / perf/hrtime ×10 | Date.now@122,258,451 perf/hrtime@107,112,137,149,162,172… |
+| `src/dre/pipeline/cognitive-pipeline.ts` | Date.now ×3 / perf/hrtime ×12 | Date.now@229,365,561 perf/hrtime@185,193,214,219,244,256… |
 | `src/dre/pipeline/task-graph.ts` | Math.random ×1 / Date.now ×5 | Math.random@303 Date.now@85,126,215,219,303 |
 | `src/dre/port/knowledge-port.ts` | Date.now ×4 / perf/hrtime ×3 | Date.now@132,140,152,182 perf/hrtime@361,367,372 |
 | `src/dre/port/types.ts` | Math.random ×1 / randomUUID ×1 | Math.random@172 randomUUID@183 |

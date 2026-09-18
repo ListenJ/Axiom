@@ -23,7 +23,7 @@
 | --- | --- | --- | --- |
 | C1 | `ConsensusEngine` 共享可变状态、无锁 | **不成立**（对象已不存在） | `src/main.ts:242-243` 明示 ConsensusEngine 属"已移除"的休眠组件；全仓无实现 |
 | C2 | 异常投票**静默**转弃权 | **不成立** | `src/agents/cross-validator.ts:182-188` 分发异常有 `logger.warn` 且票面 fail-closed |
-| C3 | `CognitivePipeline` 的锁**没有超时会永久卡死** | **成立（High，未修）** | `src/dre/pipeline/cognitive-pipeline.ts:72,96-106` 布尔锁 + 无 deadline 轮询 |
+| C3 | `CognitivePipeline` 的锁**没有超时会永久卡死** | **成立 → 已于 2026-09-19 修复（方案A）** | 原判据 `cognitive-pipeline.ts:72,96-106`（布尔锁 + 无 deadline 轮询）；修复见 §2 的 C3 条目 |
 | C4 | 节点 ID 用 `Math.random()` | **成立**（知识写入路径已修） | `docs/LIMITATIONS.md` §5.3⑤ 清单；已修处见 §5.3⑧ |
 | C5 | `WorldState` 用固定 key 覆盖历史 | **部分成立**（核心已修） | `src/dre/runtime/world-state.ts:179-203` 已加 revision + 历史；通用 `set()` 与固定 key 仍覆盖（部分属设计） |
 | C6 | 无稳定 tie-breaker | **部分成立**（已收敛） | 6 处排序点已带次级键；本轮补修 `src/dre/retrieval/hybrid-fusion.ts:181` |
@@ -75,7 +75,7 @@ if (agree === disagree) {
 
 **判定**："异常→abstain"这一**机制**存在，但"**静默**"不成立：有 warn 日志、且后果是 `finalVerdict=null` 交仲裁（fail-closed），不是"静默丢失"。
 
-### C3 — `CognitivePipeline` 锁无超时会永久卡死 → **成立（High）**
+### C3 — `CognitivePipeline` 锁无超时会永久卡死 → **成立（High）→ 已于 2026-09-19 修复（方案A）**
 
 `src/dre/pipeline/cognitive-pipeline.ts:72`：`private pipelineLock = false`（布尔，非信号量/互斥量）
 
@@ -104,6 +104,31 @@ this.pipelineLock = true
 
 **影响**：一条挂死的流水线可让整个认知层失去响应；竞争下共享的 `worldState` / `reasonBus` 写入可能交叠。
 **是否已有缓解**：**无**。`:268`/`:274` 在成功与 catch 两路释放，但**不覆盖**"内部 await 永不返回"的情形。
+
+**修复（2026-09-19，方案A —— 原子式 FIFO 票据链 + 有界等待 + 单点释放）**：
+
+替换为按下标排队、**无轮询**的票据链（`cognitive-pipeline.ts` 的 `acquireGate()` / `lockChain`）：
+
+```ts
+const prev = this.lockChain
+// ↓ 以下两条语句之间无 await：在事件循环内不可被打断 ⇒ 原子入队（FIFO）
+this.lockChain = prev.then(() => ticket)
+...
+const acquired = await Promise.race([prev.then(() => true as const), timedOut])
+if (!acquired) { void prev.then(() => release()); return null }   // 超时也要归还票据
+```
+
+- **互斥**：入队是同步原子的（读/写 `lockChain` 之间无 `await`），不存在两个调用者同时自认第一的窗口 ⇒ 实测**最大并发 = 1**。
+- **有界等待**：超时（默认 30s，可经 `AXIOM_COGNITIVE_LOCK_TIMEOUT_MS` 或构造参数 `lockTimeoutMs` 覆盖）→
+  `fail-closed` 降级返回 + `logger.warn`（不再永久阻塞、可取消）。
+- **不泄漏队列**：超时者**仍在自己轮到时归还票据** —— 否则链尾被永久堵死（TDD 用例 3 专测这一点）。
+- **单点释放**：解锁移入 `finally`，覆盖正常返回 / 异常 / 未来新增的提前 `return`（旧实现把解锁散落两处）。
+- **可观测**：新增 `getGateStats()`（在闸门区调用数 / 累计超时 / 当前上限），由用例断言。
+
+**TDD 证据**：新增 3 个用例，修复前 `tests/cognitive-pipeline.test.ts` = **20 pass / 1 fail**
+（失败项为"持锁者永不 settle 时等待者必须在超时内返回"，实测 `Received: "timeout"` 等待 2s 未返回），
+修复后 **21 pass / 0 fail**；全量 **4097 pass / 36 skip / 0 fail**。
+**未覆盖**：跨进程/多实例并发（本闸门是**进程内**语义）；分布式锁不在本轮范围。
 
 ### C4 — 节点 ID 用 `Math.random()` → **成立**
 
@@ -145,7 +170,7 @@ this.pipelineLock = true
 
 | 级别 | 项 | 位置 | 为什么现在就要处理 |
 | --- | --- | --- | --- |
-| **High** | C3 认知管道锁无超时 + 互斥不成立 | `src/dre/pipeline/cognitive-pipeline.ts:72,96-106` | 唯一一条**当前代码可复现**的高危项：可导致整个认知层永久阻塞 |
+| ~~High~~ | ~~C3 认知管道锁无超时 + 互斥不成立~~ | `src/dre/pipeline/cognitive-pipeline.ts`（原 :72,96-106） | **已于 2026-09-19 修复（方案A）**，见本节 C3 修复记录 |
 | Medium | C4 其余 ~18 处 `Math.random()` ID 未判定是否进入输出 | `docs/LIMITATIONS.md` §5.5① | 不判定就无法给出"确定性"的完整结论 |
 | Info | C5 pipeline 层固定 key | `cognitive-pipeline.ts:254,262` | 设计取舍，需在文档登记而非当作缺陷 |
 
@@ -156,7 +181,8 @@ this.pipelineLock = true
 1. **历史分支上的同名缺陷未核验**：`gitea/feature/cognitive-runtime`(+56)、`feature/runtime-integration`(+42)、
    `feature/runtime-kernel`(+27) 三条分支相对 HEAD 落后 1422 个提交，**未逐文件核验**其内容。
    若上述 C1/C2 结论出自这些分支，需**单独**对该分支出具报告，不能与本报告的"当前仓库"判定混用。
-2. **C3 未做挂死复现**：本报告基于静态证据（布尔锁 + 无 deadline 轮询）判定，**未**构造"内部 await 永不 settle"的
-   最小复现（构造会引入真实挂起风险）。因此 C3 的**触发条件**是推断，**代码形态**是事实。
+2. ~~**C3 未做挂死复现**~~ → **已补**：2026-09-19 用"`consciousnessStep` 首次调用返回永不 settle 的 Promise"
+   作为最小复现（`tests/cognitive-pipeline.test.ts` 并发闸门用例 2），修复前实测等待 2s 仍未返回（红），
+   修复后 60ms 内 fail-closed 返回（绿）。原"触发条件是推断"的保留意见**已消除**。
 3. **C4 的"是否进入输出"未逐点判定**（同 `docs/LIMITATIONS.md` §5.5 第 1 条）。
 4. 本报告**未覆盖** `src/` 中与运行时无关的目录；判定范围严格限于上述 7 条引用结论。

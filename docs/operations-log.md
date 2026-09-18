@@ -1825,3 +1825,20 @@
 - **未验证项**：历史分支 `gitea/feature/cognitive-runtime`(+56)/`feature/runtime-integration`(+42)/`feature/runtime-kernel`(+27) 相对 HEAD 落后 1422 提交，**未逐文件核验**；若 C1/C2 出自这些分支，须单独出具报告，不得与本报告的"当前仓库"判定混用。
 - **未做（留待用户决策）**：C3 的修复涉及**策略选择**（超时阈值 / 超时后行为：抛错 or 降级 or 拒绝并发），按规则 0.6 不在本轮擅自改动。
 - **Commit**：`19cde85`
+
+## 2026-09-19 — fix(T2): CognitivePipeline 并发闸门（方案A）—— 原子式 FIFO 票据链 + 有界等待 + 单点释放
+
+- **任务**：落地方案A，修复 `docs/reviews/2026-09-18-audit-claims-verification.md` 判定为 High 的 C3 —— 旧实现 `if (locked) { 每 100ms 轮询 } locked = true` 存在①互斥不成立（释放瞬间多个等待者同时 `resolve` ⇒ 并发重叠）②无限等待（无 deadline，持锁者内部 await 永不 settle ⇒ 后续 `run()` 永久阻塞且不可取消）。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash + Python 补丁；`bunx tsc`；`bun test`（全量 408 文件）；规则 2（`cognitive-pipeline.ts` + `tests/cognitive-pipeline.test.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）。
+- **操作**（文件级，4 个）：
+  1. `src/dre/pipeline/cognitive-pipeline.ts`：删除布尔 `pipelineLock` 与轮询等待；新增 `lockChain`（**原子式 FIFO 票据链**）+ `acquireGate()`；新增 `CognitivePipelineOptions.lockTimeoutMs` 与 `DEFAULT_LOCK_TIMEOUT_MS=30_000`（可经 `AXIOM_COGNITIVE_LOCK_TIMEOUT_MS` 覆盖，`readInt` 带 `{min:0,max:600_000}` 钳制）；超时走 fail-closed 降级 + `logger.warn`；释放移到 **`finally` 单点**；新增 `getGateStats()` 可观测。
+  2. `tests/cognitive-pipeline.test.ts`：新增「并发闸门」3 用例（互斥 property / 有界等待 / 超时者不堵队列）。
+  3. `docs/LIMITATIONS.md` + `tests/unit/determinism-disclosure.test.ts`：同步普查数字（本轮新增 2 处 `performance.now()`，perf 命中 37→39、合计 254→**256**；`cognitive-pipeline` 行号刷新）。
+  4. `docs/reviews/2026-09-18-audit-claims-verification.md`：C3 裁定改为「已于 2026-09-19 修复」，补修复记录与 TDD 证据；§4 未验证项第 2 条由"未做挂死复现"改为"已补最小复现"。
+- **算法要点（为什么这样写）**：入队是**同步原子**的——`const prev = this.lockChain; this.lockChain = prev.then(() => ticket)` 两条语句之间**没有 `await`**，在 JS 事件循环内不可被打断，因此不存在"两个调用者都以为排第一"的窗口；顺序即到达顺序（FIFO、零轮询、零定时器轮转）。**最关键的一步**是超时分支里的 `void prev.then(() => release())`：超时者虽放弃等待，**仍须在自己轮到时归还票据**，否则链尾被永久堵死——这正是"有超时"与"有超时且不泄漏队列"的区别（专用用例 3 把守）。
+- **TDD 红→绿**：修复前 `bun test tests/cognitive-pipeline.test.ts` = **20 pass / 1 fail**，失败项为「持锁者内部 await 永不 settle 时，等待者必须在超时内 fail-closed 返回」，实测 `Expected: "resolved" / Received: "timeout"`（等 2s 仍未返回）。修复后 **21 pass / 0 fail**，该用例 **71.77ms** 通过（60ms 超时生效）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4097 pass / 36 skip / 0 fail**（408 文件；基线 4094 + 新增 3，**无回归**）。
+- **附带证据（防漂移机制再次生效）**：本轮新增 2 处 `performance.now()`，上一轮建立的 `tests/unit/determinism-disclosure.test.ts` **当场失败**（perf 37→39），迫使 `docs/LIMITATIONS.md` 同步后才转绿。这是该测试第 **2** 次拦截真实改动。
+- **偏差记录**：①用例 1（最大并发=1）在**旧实现下也通过**——旧实现的互斥失效是**竞态**（需多个等待者的 100ms 轮询恰好落入同一 tick）而非必然失败，故该用例登记为**回归防护**而非红→绿证据；真正的红→绿证据是用例 2。②`lockWaiters` 语义为"处于闸门区的调用数（含持锁者）"，非"纯排队数"，已在字段与 `getGateStats()` 注释中写明，避免误读。
+- **未覆盖项**：①本闸门是**进程内**语义，**不含**跨进程/多实例并发（分布式锁不在本轮范围）；②未做并发压测（N=100 排队）下的延迟分布测量，仅验证正确性；③`runFull`/`runWithLLM` 的**执行阶段**（`executeTaskGraph`）仍未被闸门覆盖——与修复前语义一致，未扩大范围。
+- **Commit**：`__COMMIT__`
