@@ -1579,3 +1579,15 @@
   - 文档一致性：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts tests/audit/resource-audit.test.ts` → 47 pass / 0 fail。
 - **偏差记录**：①**主对话生成（用户主动发起的模型调用）不在本策略范围**，仍按既有路由调用模型——本策略只治理运行时**隐式**发起的辅助 LLM。②`EDGE_RISK_MONITOR` 默认关闭是安全取舍：灰区（正则未命中）不再经边缘初筛，硬底线不受影响，已写入 `LIMITATIONS.md` 已知局限 4。③未改 `settings-search` 的 embedding 默认（非生成式 LLM，且用户此前明确要求保留本地向量检索）。
 - **Commit**：81bb978（已推送 gitea）
+
+## 2026-09-18 — docs(T3 计划): 砍掉「本地推理 + VRAM 管理」范围勘察与冻结草案
+
+- **任务**：用户指令③「砍掉本地推理和 VRAM 管理」。按规则 0.3（T3 必须落盘计划）+ 0.6（范围分歧须停机请用户决策）执行**只读勘察**并落盘计划草案，**未改任何生产代码**。
+- **工具**：Bash（grep/read 只读勘察）。
+- **操作**（文件级）：新增 `docs/superpowers/plans/2026-09-18-cut-local-inference-and-vram.md`（102 行）。
+- **勘察结论（附证据）**：
+  1. VRAM/资源预算子系统影响面 = 2 个源文件（`src/dre/system-resource.ts:51-57,150-190`、`src/dre/system-resource-probe.ts:45-48`）+ 11 个消费点（`src/main.ts:93,196,872`、`src/dre/llm/client.ts:164-170,231-237`、`src/dre/engine.ts:400-444,614,690`、`src/dre/kernel.ts:59-67`、`src/dre/runtime/scheduler.ts:60,76,112,149-151,444-470`、`src/dre/index.ts:47`、`src/mcp/server/dre-tools.ts:242-250`、`src/agents/tool-classifications.ts:69`、`src/routes/chat.ts:184-189`、`src/dre/constraint/solver.ts:539-560`）。
+  2. **唯一范围分歧**：「本地推理」是否包含 `src/local-llm/` 整层。方案 A（推荐）保留 `dre/llm/client.ts` 与 `local-llm/edge-client.ts` 作为指令①的 LLM 调用通道、保留 `edge-embeddings.ts`（本地向量检索，用户此前明确要求保留），仅砍 VRAM 预算与 llama.cpp 管理叙事；方案 B 连带删除本地模型层，与「保留本地向量检索」冲突且需重接 11 个依赖点。
+- **验证结果**：计划文档已落盘；本轮无生产代码变更，故无回归测试需求（只读任务）。
+- **偏差记录**：**计划未冻结**——方案 A/B 需用户确认后方可进入施工；未确认前不动任何生产文件（规则 0.6 停机条件）。
+- **Commit**：__COMMIT_③PLAN__
