@@ -115,9 +115,18 @@ describe("getEdgeClient", () => {
 });
 
 describe("isEdgeEnabled", () => {
-  test("未设置时默认开启", () => {
+  test("未设置时默认关闭（LLM 默认不调用，需显式授权）", () => {
     delete process.env.EDGE_TEST_FLAG;
-    expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(true);
+    expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(false);
+  });
+
+  test("显式授权 =1 时启用", () => {
+    process.env.EDGE_TEST_FLAG = "1";
+    try {
+      expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(true);
+    } finally {
+      delete process.env.EDGE_TEST_FLAG;
+    }
   });
 
   test("'0' 或 'false' 关闭", () => {

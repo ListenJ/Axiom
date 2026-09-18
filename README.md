@@ -290,6 +290,25 @@ bun run src/cli.ts vault:search "Axiom" --limit=5
 curl "http://localhost:18789/search?q=Axiom&limit=5"
 ```
 
+### 🔒 辅助 LLM 默认关闭（显式授权才启用）
+
+> **策略（2026-09-18，审计 C-01/A6-2 收口）**：运行时**默认不调用任何辅助 LLM**，全部走内部规则路径；
+> 仅当用户**显式授权**对应开关后才调用。授权逐能力生效，不存在"一开全开"。
+
+| 任务形态 | 默认行为（未授权） | 授权开关 |
+|---------|------------------|---------|
+| 知识采集 / 结构化（质量裁决、近重复、摘要、标签） | 确定性规则评分 + 规则去重，不调模型 | `KNOWLEDGE_USE_LLM=1` **且** `EDGE_KNOWLEDGE_ASSIST=1` |
+| 记忆整理（标题 / 标签 / 显著性判断） | 规则截断 + 规则阈值 | `EDGE_MEMORY_ASSIST=1` |
+| 提示词改写（聊天前置优化） | 直接用原始输入 | `PROMPT_REWRITE=1`（旧名 `EDGE_PROMPT_REWRITE=1`） |
+| 聊天意图增强 | 关键词意图路由 | `EDGE_PROMPT_OPTIMIZER=1` |
+| 高风险工具灰区初筛 | `permissions.ts` 正则硬底线（不可绕过，始终生效） | `EDGE_RISK_MONITOR=1` |
+| 设置项语义搜索（embedding，非生成式） | 本地 bge-m3 → 失败回退关键词 | 默认开；`EDGE_SETTINGS_SEARCH=0` 关闭 |
+
+- 判定实现：`src/local-llm/edge-client.ts` 的 `isEdgeEnabled`（未设置 = 关闭）与 `src/agents/prompt-optimizer.ts` 的 `isRewriteEnabled`。
+- 显式拒绝（`=0` / `=false` / `=no`）优先于其他开关，用于在已授权环境里临时关停。
+- **不在本策略范围**：用户主动发起的对话生成（主模型调用）不受影响。
+- 回归防线：`tests/unit/llm-default-off-policy.test.ts`。
+
 ### 🧠 Vault 共享记忆库
 
 所有 Agent 读写同一 Obsidian Vault：

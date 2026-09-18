@@ -1551,3 +1551,31 @@
   - 静态复核：`grep -n "enable ?? true" src/routes/plugin-routes.ts` 零命中。
 - **偏差记录**：未改 `plugin-registry.ts` 的 `install*` 默认参数（本任务只治理 HTTP 安装入口的默认值；registry 层调用方均显式传 enable，改动会超出冻结清单）。
 - **Commit**：5bb6c44（已推送 gitea）
+
+## 2026-09-18 — feat(T2/确定性): 辅助 LLM 默认关闭 —— 内部规则路径优先，显式授权才调用（C-01 + A6-2 收口）
+
+- **任务**：用户指令①「默认关闭…在通过用户允许的情况下可以调用 LLM，但默认状态下保持关闭，使用内部规则路径和智能手段完成任务」。对应审计 **C-01**（确定性/zero-LLM 承诺被默认启用的边缘 LLM 打破）与 **A6-2**（采集管线 4 个边缘 LLM 由默认启用的 `EDGE_KNOWLEDGE_ASSIST` 守卫，完全不读 `KNOWLEDGE_USE_LLM`）。任务分级 T2（多文件行为变更 + 测试同步），无新增依赖、无公共接口变更。
+- **工具**：Bash + Python 精确替换；规则 2（源文件与测试备份至 `.tmp/backups/`，验证通过后删除）；规则 7（先写 RED 策略测试 → 再改实现 GREEN，垂直切片）。
+- **任务形态确认（用户要求"确认任务的形态"）——授权矩阵**：
+  | 任务形态 | 默认（未授权） | 授权开关 |
+  | --- | --- | --- |
+  | 知识采集/结构化（质量裁决/近重复/摘要/标签） | 确定性规则评分 + 规则去重 | `KNOWLEDGE_USE_LLM=1` **且** `EDGE_KNOWLEDGE_ASSIST=1` |
+  | 记忆整理（标题/标签/显著性） | 规则截断 + 规则阈值 | `EDGE_MEMORY_ASSIST=1` |
+  | 提示词改写（聊天前置） | 原始输入直通 | `PROMPT_REWRITE=1`（旧名 `EDGE_PROMPT_REWRITE=1`） |
+  | 聊天意图增强 | 关键词意图路由 | `EDGE_PROMPT_OPTIMIZER=1` |
+  | 高风险工具灰区初筛 | `permissions.ts` 正则硬底线（始终生效） | `EDGE_RISK_MONITOR=1` |
+  | 设置项语义搜索（embedding，非生成式） | 本地 bge-m3 → 失败回退关键词 | 默认开（用户此前明确保留本地向量检索） |
+- **操作**（文件级）：
+  1. `src/local-llm/edge-client.ts`：`isEdgeEnabled()` 默认值 `"1"`（默认开启）→ **未设置即关闭**；显式 `1/true/yes` 才放行，`0/false/no` 显式拒绝。头部注释同步。
+  2. `src/agents/prompt-optimizer.ts`：`isRewriteEnabled()` 由"默认开启（任一 `=0` 关闭）"→ **默认关闭**；显式 `=1` 授权启用；**显式拒绝优先**（任一开关 `=0/false/no` 即整体关闭，保住向后兼容用例）；`AXIOM_PRIVACY_MODE=1` 仍无条件关闭。
+  3. `src/knowledge/edge-assist.ts`：新增 `isKnowledgeEdgeEnabled()` = `readBool("KNOWLEDGE_USE_LLM", false) && isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")`，替换 4 处单一守卫——与 `src/knowledge/pipeline.ts` 的 zero-LLM 默认口径对齐，消除审计指出的"双重标准"。
+  4. 测试：新增 `tests/unit/llm-default-off-policy.test.ts`（11 例，覆盖 5 类任务形态的默认关闭 + 授权放行）；`tests/local-llm-edge.test.ts` 默认值断言翻转并新增授权用例；`tests/knowledge-edge.test.ts` / `tests/memory-edge-assist.test.ts` / `tests/prompt-optimizer.test.ts` / `tests/risk-monitor.test.ts` / `tests/unit/risk-monitor-degraded.test.ts` 显式授权（保留"已授权路径"覆盖）。
+  5. 文档：`README.md` 新增「辅助 LLM 默认关闭（显式授权才启用）」小节含授权矩阵；`.env.example` 第十三节新增授权开关清单并更正提示词改写开关注释；`LIMITATIONS.md` 新增已知局限 4（风险初筛默认关闭的安全取舍）。
+- **验证结果**：
+  - RED：`bun test tests/unit/llm-default-off-policy.test.ts` → 6 fail（默认仍调用 LLM：质量裁决/记忆显著性/风险初筛/改写开关均未关闭），症状与审计 C-01/A6-2 描述一致。
+  - GREEN：同一文件 11 pass / 0 fail；定向 7 文件 114 pass / 0 fail。
+  - `./node_modules/typescript/bin/tsc --noEmit` exit 0。
+  - 全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4109 pass / 36 skip / 0 fail**（4145 用例，较上提交 4097 pass 净 +12 = 新增 11 例策略测试 + 1 例授权用例）。零回归。
+  - 文档一致性：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts tests/audit/resource-audit.test.ts` → 47 pass / 0 fail。
+- **偏差记录**：①**主对话生成（用户主动发起的模型调用）不在本策略范围**，仍按既有路由调用模型——本策略只治理运行时**隐式**发起的辅助 LLM。②`EDGE_RISK_MONITOR` 默认关闭是安全取舍：灰区（正则未命中）不再经边缘初筛，硬底线不受影响，已写入 `LIMITATIONS.md` 已知局限 4。③未改 `settings-search` 的 embedding 默认（非生成式 LLM，且用户此前明确要求保留本地向量检索）。
+- **Commit**：__COMMIT_①__

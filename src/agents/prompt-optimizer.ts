@@ -245,11 +245,24 @@ export function getPromptOptimizerMetrics(): PromptOptimizerMetrics {
 // 生产实现：GLM 链 / Skill 匹配
 // ─────────────────────────────────────────────────────────
 
-/** 开关：PROMPT_REWRITE=0 或旧开关 EDGE_PROMPT_REWRITE=0 均关闭（默认开启）；隐私模式整体关闭 */
+/**
+ * 开关：改写是**LLM 调用，默认关闭**（用户指令 2026-09-18）。
+ * 需显式授权：PROMPT_REWRITE=1（或旧开关 EDGE_PROMPT_REWRITE=1）才启用；
+ * 隐私模式（AXIOM_PRIVACY_MODE=1）无条件关闭。
+ */
 export function isRewriteEnabled(): boolean {
-  const off = (v: string) => v === "0" || v.toLowerCase() === "false";
+  const denied = (v: string) => {
+    const n = v.trim().toLowerCase();
+    return n === "0" || n === "false" || n === "no";
+  };
+  const granted = (v: string) => {
+    const n = v.trim().toLowerCase();
+    return n !== "" && !denied(v);
+  };
   if (isPrivacyMode()) return false;
-  return !off(readString("PROMPT_REWRITE")) && !off(readString("EDGE_PROMPT_REWRITE"));
+  // 显式拒绝优先（向后兼容：任一开关 =0/false 即整体关闭）
+  if (denied(readString("PROMPT_REWRITE")) || denied(readString("EDGE_PROMPT_REWRITE"))) return false;
+  return granted(readString("PROMPT_REWRITE")) || granted(readString("EDGE_PROMPT_REWRITE"));
 }
 
 /** 隐私模式（R6）：AXIOM_PRIVACY_MODE=1 时禁止一切云端 LLM 调用（仅本地边缘模型） */

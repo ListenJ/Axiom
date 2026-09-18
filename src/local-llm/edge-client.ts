@@ -4,6 +4,8 @@
  * 用途: 提示词优化 / 高危操作初筛 / vault 文档管理 / 知识库管理
  * 的轻量分类·改写·打标任务, 全部遵循 "边缘增强, 失败回退" 模式。
  *
+ * 注意: 各 EDGE_* 能力开关**默认关闭**（未设置 = 不调用 LLM），需用户显式授权。
+ *
  * 配置 (env):
  * - EDGE_LLM_URL   默认 http://127.0.0.1:9001 (LLMClient 自拼 /v1；内网部署示例 ${LAN_NODE_N1})
  * - EDGE_LLM_MODEL 默认 MiniCPM5-1B (llama.cpp 忽略 model 字段)
@@ -41,12 +43,15 @@ export function getEdgeClient(): LLMClient {
 }
 
 /**
- * 功能开关: env 为 "0"/"false" 时关闭, 未设置默认开启。
- * 用于 EDGE_PROMPT_OPTIMIZER / EDGE_RISK_MONITOR / EDGE_MEMORY_ASSIST / EDGE_KNOWLEDGE_ASSIST
+ * 功能开关: **未设置默认关闭**（最小权限 / LLM 默认不调用）。
+ *
+ * 策略（用户指令 2026-09-18，审计 C-01/A6-2 收口）：运行时默认只走内部规则路径，
+ * 不隐式调用任何辅助 LLM；仅在用户**显式授权**（设为 "1"/"true"/"yes"）后才放行。
+ * 用于 EDGE_PROMPT_OPTIMIZER / EDGE_RISK_MONITOR / EDGE_MEMORY_ASSIST / EDGE_KNOWLEDGE_ASSIST。
  */
 export function isEdgeEnabled(flag: string): boolean {
-  const v = readString(flag, "1").toLowerCase();
-  return v !== "0" && v !== "false";
+  const v = readString(flag).trim().toLowerCase();
+  return v !== "" && v !== "0" && v !== "false" && v !== "no";
 }
 
 /**

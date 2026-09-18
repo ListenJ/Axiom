@@ -10,12 +10,25 @@
  * LLM 改写打破检索的确定性承诺（同输入同输出），检索键改由用户原始查询直接进入。
  *
  * 全部可空返回（null = 不可用，调用方回退规则/云端路径）。
- * 开关：EDGE_KNOWLEDGE_ASSIST=0 全部禁用（默认启用）。
+ *
+ * 开关（**默认全关**，用户指令 2026-09-18 / 审计 C-01+A6-2 收口）：
+ *   任务形态授权 KNOWLEDGE_USE_LLM=1  且  能力开关 EDGE_KNOWLEDGE_ASSIST=1
+ * 两者缺一即走确定性规则路径，不再出现"边缘默认开启 / pipeline 默认关闭"的双重标准。
  */
 
 import { getEdgeClient, isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import type { LLMClient } from "../dre/llm/client.js";
+import { readBool } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+
+/**
+ * 知识采集/结构化链路的 LLM 授权判定。
+ * 任务形态授权（KNOWLEDGE_USE_LLM，默认 false）与能力开关（EDGE_KNOWLEDGE_ASSIST，
+ * 默认关闭）必须同时成立 —— 与 src/knowledge/pipeline.ts 的 zero-LLM 默认口径对齐。
+ */
+function isKnowledgeEdgeEnabled(): boolean {
+  return readBool("KNOWLEDGE_USE_LLM", false) && isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST");
+}
 
 type GenerateClient = Pick<LLMClient, "generate">;
 
@@ -44,7 +57,7 @@ export async function structureKnowledgeWithEdge(
   rawMarkdown: string,
   client?: GenerateClient,
 ): Promise<EdgeStructureResult | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -88,7 +101,7 @@ export async function judgeKnowledgeQualityWithEdge(
   snippet: string,
   client?: GenerateClient,
 ): Promise<{ pass: boolean; reason?: string } | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -118,7 +131,7 @@ export async function isNearDuplicateWithEdge(
   client?: GenerateClient,
 ): Promise<boolean | null> {
   if (candidateTitles.length === 0) return false;
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -143,7 +156,7 @@ export async function summarizeKnowledgeWithEdge(
   markdown: string,
   client?: GenerateClient,
 ): Promise<string | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();

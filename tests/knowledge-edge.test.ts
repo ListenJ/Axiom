@@ -1,7 +1,7 @@
 /**
  * 知识库边缘增强测试 —— 验证 src/knowledge/edge-assist.ts 与 store 标题查询
  *
- * 四个子能力（全部可空返回，EDGE_KNOWLEDGE_ASSIST=0 禁用）：
+ * 四个子能力（全部可空返回；LLM 默认关闭，需 KNOWLEDGE_USE_LLM=1 + EDGE_KNOWLEDGE_ASSIST=1 双授权）：
  *   1. structureKnowledgeWithEdge  — 文档结构化（title/summary/keywords/quality_score）
  *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
  *   3. isNearDuplicateWithEdge       — 近重复判断
@@ -9,7 +9,7 @@
  *
  * 全部 DI fake client，不访问真实端点。
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +20,12 @@ import {
   summarizeKnowledgeWithEdge,
 } from "../src/knowledge/edge-assist.js";
 import { KnowledgeStore } from "../src/knowledge/store.js";
+
+// LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开双开关
+beforeEach(() => {
+  process.env.KNOWLEDGE_USE_LLM = "1";
+  process.env.EDGE_KNOWLEDGE_ASSIST = "1";
+});
 
 function fakeClient(impl: (prompt: string) => { content: string }) {
   let calls = 0;

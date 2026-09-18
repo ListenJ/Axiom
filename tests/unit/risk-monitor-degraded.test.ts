@@ -78,14 +78,19 @@ describe("ToolRegistry 权限硬底线（C-3）", () => {
 
 describe("风险初筛降级可见性与可选 fail-closed（C-4）", () => {
   const origFailClosed = process.env.EDGE_RISK_FAIL_CLOSED;
+  const origRiskMonitor = process.env.EDGE_RISK_MONITOR;
 
   beforeEach(() => {
     resetDegradedBypassCount();
     delete process.env.EDGE_RISK_FAIL_CLOSED;
+    // LLM 默认关闭策略（用户指令 2026-09-18）：本 describe 验证"已授权"路径
+    process.env.EDGE_RISK_MONITOR = "1";
   });
   afterEach(() => {
     if (origFailClosed === undefined) delete process.env.EDGE_RISK_FAIL_CLOSED;
     else process.env.EDGE_RISK_FAIL_CLOSED = origFailClosed;
+    if (origRiskMonitor === undefined) delete process.env.EDGE_RISK_MONITOR;
+    else process.env.EDGE_RISK_MONITOR = origRiskMonitor;
   });
 
   test("降级时高危工具默认升级审批（审计修复：此处原为 fail-open）", async () => {
