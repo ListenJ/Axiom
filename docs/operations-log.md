@@ -1806,3 +1806,22 @@
 - **边界声明（防夸大）**：本实测只覆盖**注入固定依赖的检索路径**；**未覆盖**真实 SQLite 后端、任何 LLM 分支、跨机器/locale/ICU 版本、并发调用。因此它把 §5.5 第 2 条从「未验证」推进到「**有限范围内已实测**」，**不等于**"本项目整体已证明确定性"。
 - **偏差记录**：harness 起初用 `any` 转换图 mock 类型，`tsc` 通过但属类型逃逸；已改为显式收窄（`ConstructorParameters<...>[0]` 的 `graph` 参数类型），重塑后 hash 不变。
 - **Commit**：`675c780`
+
+## 2026-09-18 — docs(T1): 复核「意识层」7 条引用审计结论（3 成立 / 2 不成立 / 2 部分成立）
+
+- **任务**：用户要求"先确认我们之前的检查任务是否完善"。对上一轮审计摘要里被引用的 7 条运行时/共识/状态层结论做**独立复核**，判定哪些对**当前 HEAD** 成立。分级 **T1**（只读核验 + 报告，无源码改动）。仅提交 Gitea。
+- **工具**：Bash/`grep`/`sed` 静态追踪；`bun test tests/unit/world-state-consistency.test.ts`；规则 13（对抗性评审：结论不得强于证据，逐条附 `文件:行号`）。
+- **操作**（文件级，2 个）：
+  1. 新建 `docs/reviews/2026-09-18-audit-claims-verification.md`：7 条结论的逐条裁定 + 代码证据 + 行动项 + 未验证项。
+  2. `docs/operations-log.md`：本条目。
+- **核心裁定（与引用结论相反的两条，需重点注意）**：
+  - **C1「ConsensusEngine 共享可变状态无锁」→ 不成立**：`src/main.ts:240-243` 明示 ConsensusEngine 属"幽灵裁剪""已移除"的休眠组件，全仓无实现。
+  - **C2「异常投票静默转弃权」→ 不成立**：`src/agents/cross-validator.ts:182-188` 分发异常**有 `logger.warn`** 且票面 fail-closed；`aggregateVotes:66-70` 有效票不足/平票一律 `finalVerdict=null` 交仲裁，非"静默丢失"。
+  - **C5「WorldState 固定 key 覆盖历史」→ 部分成立**：belief 路径**已修**（`world-state.ts:179-203` revision + 有界 transition 历史；`tests/unit/world-state-consistency.test.ts` 12 pass），引用描述已过期；pipeline 层固定 key（`cognitive-pipeline.ts:254,262`）属有意取舍。
+  - **C7「约束校验漏字段」→ 不成立**：`world-state.ts:56-70,179-182,150-158,233-242` 已逐字段校验。
+- **唯一当前可复现的高危项**：**C3（High，未修）** `src/dre/pipeline/cognitive-pipeline.ts:72,96-106` —— 布尔 `pipelineLock` + **无 deadline** 的 100ms 轮询等待。
+  两个独立缺陷：①无超时（持锁者内部 await 永不 settle ⇒ 后续 `run()` 永久阻塞，且不可取消）；②check-then-act 丢失唤醒（锁释放瞬间多个 waiter 可能同时 `resolve()` 后各自置 `true` ⇒ **互斥失效、并发执行**）。`:268`/`:274` 的双路释放**不覆盖**该情形，**无缓解**。
+- **偏差记录**：①**落点校正**——初稿按规则 5 用语写 `docs/reports/`，实测该目录被根 `.gitignore` 的 `reports/` 规则排除、仓库 0 跟踪先例，遂改落 `docs/reviews/`（与 `docs/reviews/2026-09-17-independent-full-audit.md` 同位，对齐既有惯例）。②C3 只做了**静态判定**（布尔锁 + 无 deadline 轮询是事实），**未**构造"内部 await 永不 settle"的最小复现（会引入真实挂起风险）——因此**触发条件是推断、代码形态是事实**，已在报告 §4 显式登记。报告初稿有 3 处行号不精确（`set()` 实为 `:90` 而非 `:96`），已逐条校正后提交。
+- **未验证项**：历史分支 `gitea/feature/cognitive-runtime`(+56)/`feature/runtime-integration`(+42)/`feature/runtime-kernel`(+27) 相对 HEAD 落后 1422 提交，**未逐文件核验**；若 C1/C2 出自这些分支，须单独出具报告，不得与本报告的"当前仓库"判定混用。
+- **未做（留待用户决策）**：C3 的修复涉及**策略选择**（超时阈值 / 超时后行为：抛错 or 降级 or 拒绝并发），按规则 0.6 不在本轮擅自改动。
+- **Commit**：`__COMMIT__`
