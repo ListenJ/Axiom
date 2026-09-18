@@ -1756,4 +1756,4 @@
 - **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → 0 error；`bun test tests/port-protocol.test.ts` → **48 pass / 0 fail**；全量 **4086 pass / 36 skip / 0 fail**。
 - **偏差记录**：①**修改了 1 个既有测试断言（非静默改绿）**——`tests/port-protocol.test.ts:179` 原断言 `/^node-\d+-/` 把"时间戳前缀"这一**实现细节**写成了契约，而本次修复的目标恰恰是移除时间戳与随机片段。已把它替换为行为契约断言（形态 `^node-[0-9a-f]{16}$` + 同内容同 ID），并在原地留注释说明为何替换。**该改动是契约变更，不是为了让测试变绿而放宽断言**：新断言比原断言更严格（同时检查形态与确定性）。②**未处理其余 `Math.random()` 站点**：`src/dre/runtime/{event-bus,scheduler,knowledge-network,rule-engine}.ts`、`src/dre/mental-model/pool.ts`、`src/dre/actor/system.ts`、`src/agent-evals/*`、`src/routes/*` 等约 18 处 DRE/运行时 ID 仍为时间戳+随机，**未评估**其是否进入确定性输出。③`docs/LIMITATIONS.md:58` 声明"涉及 Date.now()/Math.random() 的模块，其确定性边界将在对应章节按 G-04 披露"，该披露**至今未逐模块完成**，本轮未补。
 - **未覆盖项（如实登记）**：①未对知识写入路径做**实测多次运行一致性**验证（§13.5 要求 N≥5 次跨进程比对）——本轮用单测断言同内容同 ID 代替，**强度低于实测跑批**，属部分验证。②内容寻址**不做近重复归一化**：仅空白差异的内容仍得不同 ID，真正的近重复合并属知识整理层职责，未实现也未评估。③未评估对既有库中已写入的随机 ID 节点的影响（无数据迁移；存量节点 ID 保持不变）。④未验证 `RemoteKnowledgePort` 路径下的行为一致性（同函数在 `handleWrite` 内，推定共用，未实测）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`83403a0`
