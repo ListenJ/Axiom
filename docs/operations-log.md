@@ -1651,4 +1651,4 @@
 - **声明 vs 实际核查（2 种独立方式）**：①静态 grep 扫描待入库 12 份文件的密钥模式（`sk-*` / `AKIA*` / `ghp_*` / `nvapi-*` / PRIVATE KEY）与内网网段 `192.168.*` → 命中 **0**；②围栏平衡与控制字符校验 → 两版 README 均 52 个围栏（偶数）、控制字符 0。
 - **验证结果**：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **34 pass / 0 fail**；两版 README 的 `docs/*` 链接检查 → **0 死链**；全量 `bun test` 见同任务后续条目。
 - **偏差记录**：①`docs/operations-log/2026-08.md`（9 行）与 `docs/superpowers/plans/2026-08-22-remediation-phase2.md` 存在同类控制字符/围栏问题但**未改**（前者历史留痕、后者已冻结计划，按规则 1/5 不做无关改动）。②**未做知识库（`axiom-memory`）实时入库**：CLI 无 vault 写入命令、HTTP 入库需 18789 服务在跑（当前未启动），故本轮"入库"按「纳入 git 仓库」执行。③`.tmp/` 另有 3 类**未入库**：含真实内网 IP 的部署脚本与 `.err`（规则 11 禁止）、`full-baseline.txt`（3.4MB 测试输出）、其余混合 debug 日志（非实验日志）。
-- **Commit**：PENDING_HASH（待推送 gitea）
+- **Commit**：cdea4c1（已推送 gitea；未推 GitHub）
