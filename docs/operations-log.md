@@ -1526,4 +1526,4 @@
 - **验证结果**：`tsc --noEmit` exit 0（首次编辑因 import 插入锚点错误破坏了 import 块，已修正并复验）；定向 `bun test tests/crawl/ tests/unit/silent-catch-observability.test.ts` 32/32 pass；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4097 pass / 36 skip / 0 fail**（4133 用例，较上提交 +2）。
 - **偏差记录**：**未写行为测试**——前两处需真实网络搜索引擎触发、第三处需 WebSocket CDP 会话，无法建立秒级离线反馈回路（规则 6 Phase 1 不满足）。按规则 7"无测试接缝时用可重复验证命令替代"改用静态守卫断言日志字符串存在 + 裸 catch 模式消失；此为已知弱点，如实记录。
 - **未决项（均为 T3，需用户决策，本轮未动）**：①C-01 采集侧 `EDGE_KNOWLEDGE_ASSIST` 默认开启（`edge-client.ts:47-50` 默认 "1"），摄取管线默认调 LLM，与"zero LLM in path"承诺冲突——需定默认值与文档口径；②C-03 残余 `plugin-routes.ts:162` `enable: body.enable ?? true`（最小权限应默认 false，但会改变既有 UX 与测试 W3-7 断言）；③A9-1 `AXIOM_VRAM_PROBE` 默认关致预算退化为常量 4000（需定探测默认值与失败降级语义）。
-- **Commit**：PENDING
+- **Commit**：b9e3f57（已推送 gitea）
