@@ -134,7 +134,7 @@ describe("G-04 确定性边界披露 — docs/LIMITATIONS.md §5 防漂移", () 
       "performance.now()/process.hrtime": { files: 5, lines: 37 },
       "Math.random()": { files: 10, lines: 20 },
       "randomUUID()": { files: 3, lines: 7 },
-      "localeCompare()": { files: 4, lines: 5 },
+      "localeCompare()": { files: 5, lines: 6 },
       "new Date()": { files: 3, lines: 5 },
     };
     for (const [label, exp] of Object.entries(expected)) {
@@ -143,7 +143,7 @@ describe("G-04 确定性边界披露 — docs/LIMITATIONS.md §5 防漂移", () 
     }
     expect(hitFiles.size).toBe(36);
     const totalLines = [...bySource.values()].reduce((a, h) => a + h.lines, 0);
-    expect(totalLines).toBe(253);
+    expect(totalLines).toBe(254);
   });
 
   test("§5.2 汇总表文本声明的合计与实际一致（36 文件 / 253 处）", () => {
@@ -152,6 +152,6 @@ describe("G-04 确定性边界披露 — docs/LIMITATIONS.md §5 防漂移", () 
     expect(summary).toContain("| `Math.random()` | 10 | 20 |");
     expect(summary).toContain("| `randomUUID()` | 3 | 7 |");
     expect(summary).toContain("**36 个文件（并集）**");
-    expect(summary).toContain("**253 处**");
+    expect(summary).toContain("**254 处**");
   });
 });

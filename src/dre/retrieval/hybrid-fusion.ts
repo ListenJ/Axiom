@@ -174,9 +174,11 @@ export class HybridFusion {
     }
 
     // 3. 排序 + 过滤 + 截断
+    // 同分项以 id 升序作次级键：使顺序不依赖输入 results 的排列（与 retrieval-engine / atom-engine /
+    // knowledge-network / world-state 的 tie-breaker 口径一致；确定性底线，见 docs/LIMITATIONS.md §5.3③）
     const sorted = merged
       .filter((r) => r.fusionScore >= opts.minScore)
-      .sort((a, b) => b.fusionScore - a.fusionScore)
+      .sort((a, b) => b.fusionScore - a.fusionScore || a.id.localeCompare(b.id))
       .slice(0, opts.limit);
 
     const metrics: FusionMetrics = {

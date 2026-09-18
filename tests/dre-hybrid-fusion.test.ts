@@ -414,6 +414,37 @@ describe("HybridFusion — 性能基准", () => {
   });
 });
 
+// ─── 确定性：同分项必须有稳定 tie-breaker（G-04 / LIMITATIONS §5.3③）─────
+
+describe("HybridFusion — 同分序确定性", () => {
+  const fusion = new HybridFusion();
+
+  test("fusionScore 相同时按 id 升序，不依赖输入顺序", () => {
+    const mk = (id: string) => makeResult({ id, score: 50, source: "graph" });
+    const forward = fusion.fuse({ query: "q", results: [mk("a"), mk("b"), mk("c"), mk("d")] });
+    const reversed = fusion.fuse({ query: "q", results: [mk("d"), mk("c"), mk("b"), mk("a")] });
+
+    expect(forward.results.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+    // 同分项的相对顺序不得随输入顺序改变（此前无 tie-breaker → 与输入同序，即 ["d","c","b","a"]）
+    expect(reversed.results.map((r) => r.id)).toEqual(forward.results.map((r) => r.id));
+  });
+
+  test("打乱输入顺序（5! 中的固定样本）输出完全一致", () => {
+    const ids = ["n1", "n2", "n3", "n4", "n5"];
+    const mk = (id: string) => makeResult({ id, score: 42, source: "graph" });
+    const base = fusion.fuse({ query: "q", results: ids.map(mk) }).results.map((r) => r.id);
+    const shuffles = [
+      [...ids].reverse(),
+      [ids[2], ids[0], ids[4], ids[1], ids[3]],
+      [ids[4], ids[3], ids[2], ids[1], ids[0]],
+    ];
+    for (const order of shuffles) {
+      const got = fusion.fuse({ query: "q", results: order.map(mk) }).results.map((r) => r.id);
+      expect(got).toEqual(base);
+    }
+  });
+});
+
 // ─── 单例 ──────────────────────────────────────────────────────────────
 
 describe("HybridFusion — 单例", () => {

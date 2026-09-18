@@ -94,9 +94,9 @@
 | `performance.now()` / `process.hrtime` | 5 | 37 |
 | `Math.random()` | 10 | 20 |
 | `randomUUID()` | 3 | 7 |
-| `localeCompare()` | 4 | 5 |
+| `localeCompare()` | 5 | 6 |
 | `new Date()` | 3 | 5 |
-| **合计** | **36 个文件（并集）** | **253 处** |
+| **合计** | **36 个文件（并集）** | **254 处** |
 
 CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否覆盖全部命中文件（防止再次漂移）。
 
@@ -118,7 +118,7 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 | `src/dre/port/types.ts` | Math.random ×1 / randomUUID ×1 | Math.random@172 randomUUID@183 |
 | `src/dre/reasoning/graph.ts` | Date.now ×10 / randomUUID ×5 | Date.now@104,109,120,125,148,153… randomUUID@104,120,148,176,319 |
 | `src/dre/retrieval/deterministic-retrieval-engine.ts` | Date.now ×2 / perf/hrtime ×16 / localeCompare ×2 | Date.now@545,562 perf/hrtime@260,266,287,301,303,306… localeCompare@493,778 |
-| `src/dre/retrieval/hybrid-fusion.ts` | perf/hrtime ×3 | perf/hrtime@137,151,189 |
+| `src/dre/retrieval/hybrid-fusion.ts` | perf/hrtime ×3 / localeCompare ×1 | perf/hrtime@137,151,189 localeCompare@181 |
 | `src/dre/retrieval/knowledge-wiki.ts` | Date.now ×1 | Date.now@180 |
 | `src/dre/retrieval/observability.ts` | Date.now ×2 | Date.now@158,169 |
 | `src/dre/runtime/atom-engine.ts` | Date.now ×5 / randomUUID ×1 / localeCompare ×1 | Date.now@90,91,151,211,218 randomUUID@90 localeCompare@286 |
@@ -155,15 +155,24 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 `localeCompare` 的结果取决于运行环境 locale 与 ICU 数据版本（Node/Bun 版本差异即可能改变序）。
 **跨机器、跨 locale、跨运行时版本的"同输入同输出"不成立**；同机同配置下成立。
 
-**③ `src/dre/retrieval/hybrid-fusion.ts:179` 是唯一缺 tie-breaker 的排序点。**
+**③ 原为唯一缺 tie-breaker 的排序点 —— 已于 2026-09-18 修复（提交 `1411cd9` 之后的本轮）。**
+
+修复前为 `.sort((a, b) => b.fusionScore - a.fusionScore)`（无次级排序键）；
+其输入经由 `groups`（`Map`，`:204`）按 `results` 数组插入序展开（`:166`、`:205`），
+而 `Array.prototype.sort` 在现代 JS 中稳定，故**同分项的相对顺序取决于调用方传入的 `results` 顺序** ——
+与 ① 中的 5 处相比属**实现不一致**而非设计取舍。
+
+现为（`:181`）：
 
 ```ts
-.sort((a, b) => b.fusionScore - a.fusionScore)   // 无次级排序键
+.sort((a, b) => b.fusionScore - a.fusionScore || a.id.localeCompare(b.id))
 ```
 
-其输入经由 `groups`（`Map`，`:204`）按 `results` 数组插入序展开（`:166`、`:205`）。
-因 `Array.prototype.sort` 在现代 JS 中稳定，**同分项的相对顺序取决于调用方传入的 `results` 顺序**。
-与 ① 中的模块相比，此处缺少同款 tie-breaker，属**实现不一致**而非设计取舍。
+**TDD 复现**：`tests/dre-hybrid-fusion.test.ts`「同分序确定性」2 例 ——
+修复前 **2 fail**（同分项顺序随输入排列变化：`[a,b,c,d]` 与 `[d,c,b,a]` 输出不同），修复后 **23 pass / 0 fail**。
+
+修复后，本节省查范围内**全部已知排序点均带 tie-breaker**：① 的 5 处 + 本处 = **6 处**。
+（注意：本处 tie-breaker 与 ① 一样是 `localeCompare`，同样受 ② 的 locale/ICU 限制。）
 
 **④ 响应体普遍内嵌耗时字段，字节级"同输入同输出"不成立。**
 
@@ -200,7 +209,7 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 
 | # | 声明 | 裁定 | 依据 |
 | --- | --- | --- | --- |
-| ① | `run()` 与 `POST /dre/run` 为"**纯确定性**" | **部分一致** | 检索/排序/合并的**语义结果**在同一 locale 下可复现（5.3①），但响应内嵌耗时（5.3④）、实体 ID 随机（5.3⑤）、重试时序随机（5.3⑥）、缓存与时间相关（5.3⑦）；且 `hybrid-fusion` 缺 tie-breaker（5.3③）使同分序依赖输入序 |
+| ① | `run()` 与 `POST /dre/run` 为"**纯确定性**" | **部分一致** | 检索/排序/合并的**语义结果**在同一 locale 下可复现（5.3①），但响应内嵌耗时（5.3④）、实体 ID 随机（5.3⑤）、重试时序随机（5.3⑥）、缓存与时间相关（5.3⑦）；`hybrid-fusion` 缺 tie-breaker 已于本轮修复（5.3③，TDD 复现 2 fail → 0 fail） |
 | ② | 「LLM 仅作为确定性管道的补全器」 | **部分一致** | 结构上成立（LLM 分支带 `DRE_LLM_SEED=42`，`AXIOM-ARCHITECTURE.md:1521`），但 LLM 补全分支的输出**不保证**同输入同输出（模型侧无确定性保证），仅管道侧确定 |
 | ③ | 本项目"确定性"定位（README/DRE） | **部分一致** | 成立范围：**入参 → 语义结果**（排序/合并/打分）在同机同 locale 下可复现。不成立范围：**字节级响应**、**跨 locale/ICU/运行时版本**、**实体 ID**、**重试时序**、**缓存新鲜度**、**任何含 LLM 的分支** |
 | ④ | 路由层非确定"属设计" | **一致** | `docs/AXIOM-ARCHITECTURE.md:1293` 已显式排除，且 `src/router/thompson-router.ts:157-182` 确为采样实现 —— 声明与实现方向一致 |

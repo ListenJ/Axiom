@@ -1773,3 +1773,20 @@
 - **未覆盖项（如实登记，不得据此宣称"审核完成"）**：①253 处命中中**仅 §5.3 列出的那批逐点核实**了是否进入输出，其余（`constraint/solver.ts`、`synapse/*`、`kernel.ts`、`persona/loader.ts` 等）**只登记未判定**；②**未做 N≥5 次跨进程实测一致性**（规则 13.5 要求）——本节基于代码证据与单测，**非跑批实测**，故「确定性」结论强度限于静态证据；③`Map`/`Set` 遍历序未做机器可判定分析（仅人工核实 5 个排序点）；④未覆盖 `src/` 其余目录；⑤`localeCompare` tie-breaker 的确定性只在同 locale/ICU 内成立，未做跨运行时实测。
 - **偏差记录**：①上一轮交接摘要的汇总数字有误（见上），本轮已改正并**在文档中显式记录口径来源**，未静默改数；②本节未改动任何源码——`hybrid-fusion.ts:179` 缺 tie-breaker 等**已核实缺陷留待后续 Round**，不在本轮修（避免边审边改）。
 - **Commit**：`1411cd9`
+
+## 2026-09-18 — fix(T2): hybrid-fusion 同分序补 tie-breaker（确定性实现不一致收口）
+
+- **任务**：承接上一轮 `docs/LIMITATIONS.md` §5.3③ 已核实的缺陷——`hybrid-fusion.ts:179` 是 DRE/知识层**唯一**没有次级排序键的排序点，同分项顺序随调用方传入的 `results` 排列变化。分级 **T2**（行为修复 + 测试）。仅提交 Gitea。
+- **工具**：Bash + Python 补丁；`bunx tsc`；`bun test`（全量 407 文件）；规则 2（`hybrid-fusion.ts` 备份至 `.tmp/backups/src/dre/retrieval/`）。
+- **复现（先核实再动手）**：读全文后确认 `fuse()` 的排序链为 `merged.filter(...).sort((a,b)=>b.fusionScore-a.fusionScore).slice(...)`，而 §5.3① 的 5 处同类排序均带 `|| a.id.localeCompare(b.id)`。输入经 `groupById`（`Map`）按插入序展开 → 稳定排序保序 → 同分项与输入同序。
+- **操作**（文件级，5 个）：
+  1. `tests/dre-hybrid-fusion.test.ts`：新增「同分序确定性」2 例（**先红**）——同分 4 条正序 vs 逆序输入须输出同序；5 条打乱 3 种排列输出须与基准一致。
+  2. `src/dre/retrieval/hybrid-fusion.ts:181`：`sort((a,b)=>b.fusionScore-a.fusionScore || a.id.localeCompare(b.id))`（附注释说明与其余 5 处口径一致）。
+  3. `docs/LIMITATIONS.md`：§5.2 汇总 `localeCompare()` 4/5 → **5/6**、合计 253 → **254 处**；§5.2.1 `hybrid-fusion` 行补 `localeCompare@181`；§5.3③ 由「唯一缺 tie-breaker」改写为「已修复」并记录 TDD 证据与 locale/ICU 局限；§5.4① 依据同步。
+  4. `tests/unit/determinism-disclosure.test.ts`：期望值同步（localeCompare 5/6、总处数 254）。
+  5. `docs/operations-log.md`：本条目。
+- **验证结果**：TDD 红→绿——修复前 `tests/dre-hybrid-fusion.test.ts` **21 pass / 2 fail**（两例均复现同分项随输入变序），修复后 **23 pass / 0 fail**；`bunx tsc --noEmit -p tsconfig.json` → **0 error**；受影响 4 文件 **47 pass / 0 fail**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4093 pass / 36 skip / 0 fail**（407 文件；基线 4091 + 新增 2，**无回归**）。
+- **附带证据（CI 机制自证有效）**：本修复**新增了 1 处 `localeCompare`**，上一轮新建的 `tests/unit/determinism-disclosure.test.ts` **立即在修复后报错**（`localeCompare` files 4→5、lines 5→6），迫使文档与代码同步更新后方才转绿。即：防漂移测试不是恒真断言，它对本轮真实改动产生了拦截。
+- **偏差记录**：①`mergeGroup` 取基础结果用 `group.reduce((best,r)=>r.score>best.score?r:best)`（严格大于 → 并列时取首个），仍是**输入序敏感**的次级点，但其结果只影响 `base` 字段的选择而非排序；本轮**未改**（避免扩大范围），登记于 §5.5 未覆盖项口径内。②`detectSourceContributions` 返回 `Array.from(contributions.entries())`（`Map` 插入序），同样输入序敏感；本轮**未改**，理由同上。
+- **未覆盖项**：未做 N≥5 次跨进程实测（规则 13.5），本轮以 TDD 单测 + 全量回归替代，强度低于实测跑批；`localeCompare` 的 tie-breaker 结论仍受同 locale/ICU 前提限制。
+- **Commit**：`__COMMIT__`
