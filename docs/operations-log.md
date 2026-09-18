@@ -1864,3 +1864,21 @@
 - **未覆盖项（如实登记，不得据此宣称"并发已全面加固"）**：①扫描器只覆盖「同一方法内同名字段」，**不含**跨方法/跨对象共享、闭包与参数传递的共享、Map 值对象内部可变性、跨线程/跨进程状态；②`src/dre/kernel.ts:tick()` 仅判定为**未验证**（自动驱动是 `while + await` 串行无重叠，但 public API 外部并发可达性未核验）；③`task-graph.executeAll()` 并发**重复调用**不受互斥保护，调用方是否可能并发重复调用未核验；④**未做并发压测**（无 N=100+ 延迟/正确性测量）；⑤EventEmitter 监听器竞态、`setTimeout` 重入等形态不在本次扫描面内。
 - **不做项（留后续）**：`plugin-registry` 三处 TOCTOU（Medium）、`pi-code-tools.ensureInitialized`、`search-engines.resolveInstance`、`launcher.preload`、`logger.rotateIfNeeded`（均 Low）—— 已带 `文件:行号` 登记于报告 §3。
 - **Commit**：`28cd8b2`
+
+## 2026-09-19 — fix(T2): 复核 #15 误判并追加修复 —— ActorSystem.shutdown() 并发重入单飞
+
+- **任务**：承接 28cd8b2（共享可变状态盘点）。复核该报告 #15「`shutdown()` ✅ 已正确」这一裁定时发现**误判**，追加修复。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；两份扫描器 `/tmp/rmw-scan.ts`、`/tmp/rmw-scan2.ts`（重跑取原始输出）；`bunx tsc`；`bun test`（全量 410 文件）；规则 2（4 文件备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 13（结论不得强于证据）。
+- **触发事实（先证据后结论）**：重跑**两份**扫描器，二者都把 `shutdown()` 列为候选 —— `rmw-scan.ts`：`shutdown() 字段 actors: 读@417 → await@419 → 写@430`；`rmw-scan2.ts`：`shutdown() .actors`。即 **错在人工裁定，不在扫描器**。
+- **缺陷（#15，`:417`/`:429`/`:430`）**：`shutdown()` 无单飞守卫 —— 先 `Array.from(this.actors.entries())` 快照，再 `await Promise.all(destroyPromises)`，最后 `this.actors.clear()`。JS 单线程下两次并发 `shutdown()` 都会在 `await` 之前完成快照，故**同一 actor 被 `destroy()` 两次**；而 `ActorInstance.destroy()`（`:247`）**非幂等**（每次都调 `behavior.cleanup()`）⇒ `cleanup()` 跑两次。原裁定的理由「先快照再逐个销毁最后 clear」只证明了**单次调用**自洽，未回答**并发重入**。
+- **操作**（文件级，4 个）：
+  1. `src/dre/actor/system.ts`：新增 `shuttingDown: Promise<void> | null`（`:268`），入口守卫（`:420`），**任何 await 之前同步发布**（`:448`）并缓存 ⇒ 并发/重复 `shutdown()` 复用同一承诺、天然幂等。**时序语义不变**：`stopped = true` 与 `pendingReplies` 清理仍在同步段。
+  2. `tests/dre-actor-lifecycle.test.ts`：新增 2 例（并发 shutdown 只 cleanup 一次；shutdown 幂等）。
+  3. `docs/reviews/2026-09-19-shared-mutable-state-inventory.md`：顶部摘要计数更正（✅18/🟡4/🔴10/已修3 → **✅17/🟡4/🔴11/已修4**）；#15 行改判；§2 标题 3 处→4 处并补该行；新增 **§2.1 更正记录**；§4 新增第 6 条「人工裁定的失效模式」；§5 结论同步。所有行号已按修改后实际位置复核（`:268`/`:418`/`:420`/`:448`）。
+  4. `docs/operations-log.md`：本条目。
+- **TDD 红→绿**：`bun test tests/dre-actor-lifecycle.test.ts` 修复前 **4 pass / 1 fail**（`Expected: 1 / Received: 2`）→ 修复后 **5 pass / 0 fail**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4107 pass / 36 skip / 0 fail**（410 文件；基线 4105 + 新增 2，**无回归**）。
+- **方法学更正（本节重点，不隐藏）**：本报告上一版把两类错误的关系说反了一半 —— 扫描器会**误报**（把已正确实现列为候选），人工裁定会**误放**（把真缺陷判为已正确）。修正后的裁定口径：**凡判"✅ 已正确"，依据必须显式包含并发重入情形；否则只能判 ❓ 未验证**。
+- **未覆盖项**：①本轮只复核对 **#15** 一条做并发重入复查，**#1–#14、#16–#33 未按新口径逐条重审**，故"✅ 17 处"仍可能有同类误放；②未做并发压测（无 N=100+ 测量）；③`shuttingDown` 承诺**缓存不重置**，即 shutdown 后 `register()` 再 `shutdown()` 不会真正执行（与既有"stopped 后不复用"语义一致，但**未加断言**）。
+- **不做项（留后续）**：按新口径对剩余 32 条做并发重入复评（Medium，属独立复审轮次）；上一轮遗留的 `plugin-registry` 三处 TOCTOU 等 7 处见报告 §3。
+- **Commit**：`__COMMIT__`

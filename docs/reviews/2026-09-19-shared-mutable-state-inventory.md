@@ -1,9 +1,12 @@
 # 共享可变状态盘点：无保护读改写（RMW）全量清单与并发强化（2026-09-19）
 
 > **摘要**：对 `src/**` 全量扫描「同一方法内 **先读某字段 → `await` → 再写该字段**」的候选，
-> 得到 **33 处 / 22 文件**；逐条做执行序人工裁定后：**✅ 已正确（同步认领/单飞）18 处**、
-> **🟡 良性（重复工作但结果相同）4 处**、**🔴 真缺陷 10 处**（本轮**已修 3 处**，余 **7 处**登记为后续）、
-> **❓ 未验证 1 处**。（18+4+10+1 = 33，与下表逐行列数一致。）
+> 得到 **33 处 / 22 文件**；逐条做执行序人工裁定后：**✅ 已正确（同步认领/单飞）17 处**、
+> **🟡 良性（重复工作但结果相同）4 处**、**🔴 真缺陷 11 处**（本轮**已修 4 处**，余 **7 处**登记为后续）、
+> **❓ 未验证 1 处**。（17+4+11+1 = 33，与下表逐行列数一致。）
+>
+> **2026-09-19 更正**：原摘要为「✅18 / 🟡4 / 🔴10 / 已修 3」。复核 Scanner 输出后发现 **#15 `shutdown()`
+> 被误判为 ✅**（详见 §2.1），现改为 🔴 并已在本轮修复 ⇒ 计数变为「✅17 / 🟡4 / 🔴11 / 已修 4」。
 > 判据与结论均给 `文件:行号` 证据；**不接受"抽查代表整体"**。
 
 ---
@@ -46,7 +49,7 @@
 | 12 | **`src/components/kernel.ts`** | `init()` | `initialized` | 🔴→**✅ 已修（本轮）** | 原 `:54 has()` → `:67 await` → `:71 add()`：并发 + 共享依赖均重复初始化。已加 `inFlight` 同步发布（`:57`/`:75`） |
 | 13 | `src/dre/actor/system.ts` | `unregister()` | `actors` | 🔴→**✅ 已修（本轮）** | 原 `get()` → `await destroy()` → `delete()`：并发 unregister / 与 shutdown 并发 ⇒ `cleanup()` 跑两次。已改为 **await 之前同步摘除** |
 | 14 | `src/dre/actor/system.ts` | `processNext()` | `processing` | ✅ 已正确 | `:139` 检查与 `:140 = true` 同同步块（单飞）；`:170` finally 释放并递归排空 |
-| 15 | `src/dre/actor/system.ts` | `shutdown()` | `actors` | ✅ 已正确 | `:417` 先快照 `entries()` 再逐个销毁，`:430` 最后 `clear()` |
+| 15 | `src/dre/actor/system.ts` | `shutdown()` | `actors` | 🔴→**✅ 已修（本轮）** | **原裁定「✅ 已正确」系误判**（见 §2.1）：`:417` 快照 `entries()` → `:429 await` → `:430 clear()`，**无单飞守卫**，两次并发 `shutdown()` 会双双快照同一批 actor ⇒ 同一 actor 被 `destroy()` 两次（`ActorInstance.destroy()` `:247` 非幂等）。已加 `shuttingDown` 在途承诺（字段 `:268`；入口守卫 `:420`；同步发布 `:448`） |
 | 16 | **`src/ocr/engine.ts`** | `initialize()` | `worker` | 🔴→**✅ 已修（本轮）** | 原 `if (worker) return` → `await createWorker` → 赋值：并发创建**两个 worker**，第二个覆盖第一个 ⇒ **第一个永不 terminate（句柄/内存泄漏）**。已加 `initializing` 同步发布 + 复用 |
 | 17 | `src/pi-agent/pi-code-tools.ts` | `ensureInitialized()` | `initialized` | 🔴 **A 真缺陷（未修）** | `:42 if (initialized) return` → `:46 await import(...)` → `:55 = true`：无在途守卫，并发重复 import + 重复 `tools.set`（结果幂等，故 Low） |
 | 18 | `src/memory/file-watcher.ts` | `runCodegraphIndex()` | `cgIndexing` | ✅ 已正确 | `:192` 检查与 `:193 = true` 同同步块 |
@@ -70,13 +73,23 @@
 
 ---
 
-## 2. 本轮已修的 3 处（TDD 红→绿）
+## 2. 本轮已修的 4 处（TDD 红→绿）
 
 | 文件 | 缺陷 | 修法（统一为"**在 await 之前同步认领/发布**"） | 红→绿证据 |
 | --- | --- | --- | --- |
 | `src/ocr/engine.ts` | 并发 `initialize()` 创建 2 个 worker，第一个永不 `terminate` ⇒ **句柄/内存泄漏** | 新增 `initializing` 承诺，**读与写之间无 await** ⇒ 同步发布；后到者复用。另：`terminate()` 先等在途初始化落地（否则 `reinitialize()` 语言切换静默失效） | `tests/ocr-engine-single-flight.test.ts`：修复前 **0 pass / 3 fail**，修复后 **3 pass** |
 | `src/components/kernel.ts` | 并发 `init(sameId)` 双双通过 `initialized.has()` ⇒ **组件被启动两次**；共享依赖同样双启 | 新增 `inFlight: Map<id, Promise>`，在任何 await 之前同步发布；后到者 `return existing` | `tests/components/kernel.test.ts`：修复前 **3 pass / 2 fail**（`Expected: 1 / Received: 2`），修复后 **5 pass** |
 | `src/dre/actor/system.ts` | `unregister()` 在 `await destroy()` 之后才 `delete()` ⇒ 并发 unregister / 与 `shutdown()` 并发时 **`cleanup()` 跑两次** | 把 `this.actors.delete(id)` 移到 `await` **之前**（原子认领）；语义取舍：destroy 抛错时不再回填注册表（半销毁 actor 留在注册表比"已摘除"更危险），已在代码注释写明 | `tests/dre-actor-lifecycle.test.ts`：修复前 **1 pass / 2 fail**，修复后 **3 pass** |
+| `src/dre/actor/system.ts` | `shutdown()` **并发重入无单飞守卫**（#15，本轮复核后追加修复） | 新增 `shuttingDown` 在途承诺，在任何 await 之前同步发布并缓存；并发/重复 `shutdown()` 复用同一承诺 ⇒ 天然幂等。**时序语义不变**：`stopped = true` 与 `pendingReplies` 清理仍在同步段完成 | `tests/dre-actor-lifecycle.test.ts`「并发 shutdown 同一 Actor 只 cleanup 一次」：修复前 **4 pass / 1 fail**（`Expected: 1 / Received: 2`），修复后 **5 pass** |
+
+### 2.1 更正记录：本报告 #15 曾把 `shutdown()` 误判为「✅ 已正确」
+
+- **事实**：两份扫描器输出**都**把 `shutdown()` 列为候选（`/tmp/rmw-scan.ts` → `shutdown() 字段 actors: 读@417 → await@419 → 写@430`；`/tmp/rmw-scan2.ts` → `shutdown() .actors`）。
+- **错在哪**：**错在人工裁定，不在扫描器**。初判理由「先快照 `entries()` 再逐个销毁，最后 `clear()`」只证明了**单次调用**内部自洽，
+  却漏掉了**并发重入**：JS 单线程下两次 `shutdown()` 都会在 `await` 之前完成快照，故双双销毁同一批 actor。
+- **教训（与 §0 的"扫描器是启发式"互补）**：本次两类错误**方向相反** —— 扫描器会**误报**（把已正确的实现列为候选），
+  人工则可能**误放**（把真缺陷判为已正确）。因此"候选集由扫描器定、裁定由人做"这一分工里，**人工裁定必须显式回答"并发重入会怎样"**，
+  而不能只回答"单次调用是否自洽"。此条已写入 §4 未覆盖项口径。
 
 **测试接缝说明（规则 8）**：`OCREngine` 新增可选构造参数 `workerFactory`（默认即 `createWorker`）。
 这是**依赖注入接缝**而非投机抽象 —— 它已有第二个实现（测试 fake），并避免了 `mock.module("tesseract.js")` 污染同进程其它用例的问题。
@@ -107,13 +120,19 @@
    现有调用方是否可能并发重复调用**未核验**。
 4. **未做并发压测**：本轮全部结论来自静态执行序分析 + 单测，**没有**做 N=100+ 并发下的延迟/正确性压测。
 5. **本轮未处理进程内其它形态**：如 `EventEmitter` 监听器竞态、`setTimeout` 重入、`Promise.all` 内共享数组写入等，均不在本次扫描面内。
+6. **人工裁定本身的失效模式（由 §2.1 更正暴露）**：本次两类错误方向相反 —— 扫描器会**误报**（把已正确的实现列为候选），
+   人工裁定会**误放**（把真缺陷判为"已正确"，#15 即此例）。故"候选集由扫描器定、裁定由人做"这一分工**不能保证零漏放**；
+   裁定必须对每处**显式回答"并发重入会怎样"**，而本次 #15 只回答了"单次调用是否自洽"。**修正后的口径**：
+   凡裁定为"✅ 已正确"的条目，其依据必须包含并发重入情形的说明；否则只能判为 ❓ 未验证。
 
 ---
 
 ## 5. 结论
 
 - 本次盘点的**分母完整**：`src/**` 全量 .ts 扫描 → 33 处候选 → 22 文件 → **逐条裁定，无遗漏行**。
-- **真缺陷 10 处**（#7/8/9/12/13/16/17/21/22/30），本轮修掉影响最大的 3 处
-  （worker 泄漏、组件双启、actor 双销毁），其中 `OCREngine` 一处是**真实资源泄漏**，另两处是**重复副作用**。
+- **真缺陷 11 处**（#7/8/9/12/13/15/16/17/21/22/30），本轮修掉影响最大的 4 处
+  （worker 泄漏、组件双启、actor 双销毁、shutdown 并发重入），其中 `OCREngine` 一处是**真实资源泄漏**，其余三处是**重复副作用**。
+- **本报告自身经过一次更正**（§2.1）：#15 由「✅ 已正确」改为「🔴 真缺陷（已修）」。
+  该更正来自复核扫描器原始输出，**不是**来自本报告事后自我印证。
 - 值得注意的正面结论：`src/terminal/command-gate.ts`（审批闸门，安全关键）与
   `src/utils/vault-stats-cache.ts` **已经是原子实现**，无需改动 —— 本次推广的模式在本仓库**已有先例**。

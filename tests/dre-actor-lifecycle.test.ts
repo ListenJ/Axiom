@@ -51,3 +51,28 @@ describe("ActorSystem 生命周期并发", () => {
     await expect(sys.unregister("missing")).resolves.toBeUndefined();
   });
 });
+
+describe("ActorSystem shutdown 并发", () => {
+  it("并发 shutdown 同一 Actor 只 cleanup 一次", async () => {
+    let cleanups = 0;
+    const sys = new ActorSystem();
+    await sys.register(makeBehavior("c", () => cleanups++));
+
+    // 两次 shutdown 都会在任一 await 之前快照 this.actors，故双双销毁同一 actor
+    await Promise.all([sys.shutdown(), sys.shutdown()]);
+
+    expect(cleanups).toBe(1);
+    expect(sys.size).toBe(0);
+  });
+
+  it("shutdown 后再 shutdown 不重复 cleanup（幂等）", async () => {
+    let cleanups = 0;
+    const sys = new ActorSystem();
+    await sys.register(makeBehavior("d", () => cleanups++));
+
+    await sys.shutdown();
+    await sys.shutdown();
+
+    expect(cleanups).toBe(1);
+  });
+});
