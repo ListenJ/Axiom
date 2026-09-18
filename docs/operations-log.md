@@ -1610,4 +1610,4 @@
   - 定向：`tests/unit/scheduler.test.ts` + `tests/integration/backend-full-pipeline.test.ts` + `tests/dre-core-modules.test.ts` + `tests/constrained-sampling.test.ts` → 109 pass / 0 fail；`tests/unit/docs-consistency.test.ts` + `tests/architecture-integrity.test.ts` → 34 pass / 0 fail（含 MCP 工具数 189→188 的一致性闸门）。
   - 全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4049 pass / 36 skip / 0 fail**（4085 用例 / 403 文件；文件数较上轮 411 减少 8 = 归档的 8 个专属测试文件）。
 - **偏差记录**：①**清单外追加 11 个文件**（4 份文档 + 7 个测试），已按规则 12 回 Plan 并在计划文档记录理由：`resource_status` 是**真实注册工具**，移除后 MCP 工具数 189→188，4 份文档的当前值声明必须同步（否则 docs-consistency 门禁红）；`AXIOM-ARCHITECTURE.md`/`DRE-ARCHITECTURE.md` 仍描述已移除模块，违反验收标准 5。②`docs/test-reports/SUMMARY.md`、`docs/TEST-STRATEGY-2026-08-21.md`、`docs/audit-verification-log.md` 等**历史报告未改**（属历史留痕，非当前状态声明）。③保留 `src/local-llm/edge-embeddings.ts` 与 `edge-client.ts`（方案 A 明确保留：本地向量检索 + LLM 调用通道）。
-- **Commit**：__COMMIT_③__
+- **Commit**：0a6bd50（已推送 gitea）
