@@ -1790,3 +1790,19 @@
 - **偏差记录**：①`mergeGroup` 取基础结果用 `group.reduce((best,r)=>r.score>best.score?r:best)`（严格大于 → 并列时取首个），仍是**输入序敏感**的次级点，但其结果只影响 `base` 字段的选择而非排序；本轮**未改**（避免扩大范围），登记于 §5.5 未覆盖项口径内。②`detectSourceContributions` 返回 `Array.from(contributions.entries())`（`Map` 插入序），同样输入序敏感；本轮**未改**，理由同上。
 - **未覆盖项**：未做 N≥5 次跨进程实测（规则 13.5），本轮以 TDD 单测 + 全量回归替代，强度低于实测跑批；`localeCompare` 的 tie-breaker 结论仍受同 locale/ICU 前提限制。
 - **Commit**：`bb4bc1e`
+
+## 2026-09-18 — test(T2): 确定性 N≥5 跨进程实测（补齐规则 13.5 缺口）
+
+- **任务**：补齐上一轮 `docs/LIMITATIONS.md` §5.5 第 2 条自认的缺口——「声称确定性的模块必须做 N≥5 次**跨进程**实测（规则 13.5），而非仅凭代码证据」。分级 **T2**（新增验证基建 + 文档证据）。仅提交 Gitea。
+- **工具**：Bash + Python；`bun run scripts/determinism-repro.ts`；`bun test`（全量 408 文件）；规则 2（`docs/LIMITATIONS.md` 备份至 `.tmp/backups/docs/`）。
+- **操作**（文件级，4 个）：
+  1. 新建 `scripts/determinism-repro.ts`：固定夹具（内联常量笔记/实体/边，**不含** `Date.now()`/`Math.random()` 参与构造）驱动 `DeterministicRetrievalEngine.retrieve()`(×3 调用：同实例两次 + 新实例 limit=3) 与 `retrieveWithPaths()`(maxDepth=2)；**丢弃**已披露的易变字段（`latencyMs`/`keywordPhaseMs`/`graphPhaseMs`/`mergePhaseMs`），其余做**递归键排序**规范序列化后取 sha256。
+  2. 新建 `tests/rigorous/determinism-repro.test.ts`：`spawnSync` 拉起 **N=5 个独立进程**，断言 5 个 hash 全等（`distinct.length === 1`）+ hash 形态校验。
+  3. `docs/LIMITATIONS.md`：§5.5 第 2 条由「未做实测」改写为「已补做」，写入实测数字与**未覆盖面**；§5.4 可操作口径补「已有有限实测支撑」限定语。
+  4. `docs/operations-log.md`：本条目。
+- **实测结果**：`bun run scripts/determinism-repro.ts` → `DETERMINISM_HASH=277565320fdd6b44acaf5ce2488237b95908017d09002713de06995d9a3b6194`（payload 14,541 B）；**7 个独立进程 → 1 个不同 hash**。
+- **可证伪性（两个负向对照，证明这不是恒真断言）**：①**夹具突变**——把固定夹具里一条笔记 `score: 88 → 87`，hash 变为 `e329fc99…`，还原后回到 `27756532…`（说明哈希对语义结果敏感）；②**真值注入**——往 payload 注入 `Date.now()` 后跑 CI 测试 → **5 个进程 5 个不同 hash、测试失败**（`Expected: 1 / Received: 5`），移除后 1 pass（说明测试确实能拦住不确定输出）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun test tests/rigorous/determinism-repro.test.ts tests/unit/determinism-disclosure.test.ts` → **6 pass / 0 fail**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4094 pass / 36 skip / 0 fail**（408 文件；基线 4093 + 新增 1，**无回归**）。
+- **边界声明（防夸大）**：本实测只覆盖**注入固定依赖的检索路径**；**未覆盖**真实 SQLite 后端、任何 LLM 分支、跨机器/locale/ICU 版本、并发调用。因此它把 §5.5 第 2 条从「未验证」推进到「**有限范围内已实测**」，**不等于**"本项目整体已证明确定性"。
+- **偏差记录**：harness 起初用 `any` 转换图 mock 类型，`tsc` 通过但属类型逃逸；已改为显式收窄（`ConstructorParameters<...>[0]` 的 `graph` 参数类型），重塑后 hash 不变。
+- **Commit**：`__COMMIT__`
