@@ -180,12 +180,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
     const { maybeAutoEvolve } = await import("../agent-evals/auto-evolve.js");
     void maybeAutoEvolve().catch((err) => logger.warn("[chat] auto-evolve check failed", { error: err instanceof Error ? err.message : String(err) }));
-    // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
-    try {
-      const { getResourceBudgetManager } = await import("../dre/system-resource.js");
-      // 不直接改 availableMemory，仅记录 latency 供未来自适应（预留）
-      logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
-    } catch {}
+    logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
   } catch {}
 
   return response;

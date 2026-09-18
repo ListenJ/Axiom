@@ -115,7 +115,7 @@ describe("docs-consistency Task16 — 文档一致性", () => {
   test("批次5 — README 模块表/审批协议/导航数与实现一致", () => {
     const readme = readFileSync("README.md", "utf8");
 
-    // vram-budget.ts 不存在（实为 system-resource.ts，纯数字预算、无 nvidia-smi 硬件依赖）
+    // vram-budget.ts 不存在（system-resource.ts 已于 2026-09-18 随 VRAM 管理子系统归档移除）
     expect(readme.includes("vram-budget.ts")).toBe(false);
     expect(readme.includes("system-resource.ts")).toBe(true);
     expect(readme.includes("RTX 3050")).toBe(false);

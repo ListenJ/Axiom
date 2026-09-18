@@ -451,35 +451,8 @@ describe("VFS", () => {
 });
 
 // ========== Resource Budget ==========
-
-describe("ResourceBudgetManager", () => {
-  test("should create with default config", async () => {
-    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
-    const mgr = getResourceBudgetManager();
-    expect(mgr).toBeDefined();
-    const status = mgr.getStatus();
-    expect(status.resource).toBeDefined();
-    expect(typeof status.canRunLocal).toBe("boolean");
-  });
-
-  test("should check canRun with default budget", async () => {
-    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
-    const mgr = getResourceBudgetManager();
-    const result = mgr.canRun();
-    expect(typeof result.canRun).toBe("boolean");
-    expect(typeof result.reason).toBe("string");
-    expect(result.resource).toBeDefined();
-  });
-
-  test("should update resource budget", async () => {
-    const { getResourceBudgetManager } = await import("../src/dre/system-resource.js");
-    const mgr = getResourceBudgetManager();
-    mgr.updateResource({ availableMemory: 8000, source: "test" });
-    const status = mgr.getStatus();
-    expect(status.resource.availableMemory).toBe(8000);
-    expect(status.resource.source).toBe("test");
-  });
-});
+// 2026-09-18：VRAM/资源预算子系统（system-resource.ts / ResourceBudgetManager）按
+// 用户指令③ 归档移除，对应断言随之删除；调度器内存准入改用进程堆占用（见 scheduler.ts）。
 
 // ========== Persona System ==========
 

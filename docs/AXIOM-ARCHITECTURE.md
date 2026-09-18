@@ -24,8 +24,9 @@
 **ADR-005: Persona 非 Agent**
 决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。
 
-**ADR-006: 硬件无关资源预算**
-决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。
+**ADR-006: 硬件无关资源预算（2026-09-18 废止）**
+决定（已废止）: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。
+废止理由: 该子系统（含 `system-resource.ts` / `system-resource-probe.ts`）已按用户决策归档移除——本项目不再自托管本地推理, 模型统一按**外部 OpenAI 兼容服务**（Ollama / 云端）对接, 因此不再维护显存与 token 预算钳制。调度器内存准入改为进程堆占用 + 可配置预算（`setBudget({ maxMemoryMB })`）。
 
 Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 
@@ -268,7 +269,6 @@ consciousness/stream.ts:
 │  ├─ MentalModelPool (4预注册状态机模型)                             │
 │  ├─ ActorSystem (4行为: knowledge/constraint/mental-model/reasoning)│
 │  ├─ WorldState + EventBus (状态树 + 事件总线)                      │
-│  ├─ ResourceBudgetManager (硬件无关资源预算)                       │
 │  └─ ConfigLoader (env → KernelConfig)                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -310,9 +310,6 @@ constructor(config: KernelConfig) {
 
 async init(): Promise<void> {
   await this.engine.waitForReady();
-  // 检查资源预算
-  if (!getResourceBudgetManager().getStatus().canRunLocal)
-    logger.warn("Local inference unavailable");
   if (config.autoTick !== false) this.startTickLoop();
   // 订阅关键事件, 更新 worldState
   eventBus.subscribe("reasoning.request", (event) => {
@@ -1181,29 +1178,17 @@ class ConfigLoader {
 
 ---
 
-### 2.15 ResourceBudgetManager — 资源预算 ★ v3.0
+### 2.15 ResourceBudgetManager — 已移除（2026-09-18）
 
-**文件:** `src/dre/system-resource.ts`
+**原文件:** `src/dre/system-resource.ts`（已归档至 `archive/local-inference-vram-removal-2026-09-18/`）
 
-```typescript
-// 硬件无关 — 纯数字比较
-class ResourceBudgetManager {
-  private resource: SystemResource = { maxMemory: 4000, availableMemory: 4000, maxCompute: 100, availableCompute: 100, source: "default" };
+该模块（连同 `system-resource-probe.ts` 的 nvidia-smi VRAM 轮询插件）已按用户指令③ 移除：
+本项目不再自托管本地推理，模型统一按**外部 OpenAI 兼容服务**对接，因此不再需要显存/token 预算钳制。
 
-  updateResource(resource: Partial<SystemResource>): void { /* 由外部插件注入 */ }
-
-  canRun(): ResourceCheckResult {
-    const required = this.modelMemoryMB + this.safetyMarginMB;   // 1100 + 200 = 1300MB
-    if (this.resource.availableMemory < required) {
-      return { canRun: false, reason: `Insufficient memory: ${available} < ${required}`, ... };
-    }
-    const maxTokens = Math.min(Math.floor(availableForKV * 1024 * 1024 / bytesPerToken), maxTokensCap);
-    return { canRun: true, recommendedMaxTokens: maxTokens, ... };
-  }
-}
-```
-
-> **澄清（W3/W4）**：本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts），仅通过数字比较决定 recommendedMaxTokens，无真实显存换页实现。
+移除后的替代：
+- `LLMClient` 直连外部服务，`maxTokens` 仅取调用方显式值 / 配置默认（无预算二次钳制）
+- 调度器内存准入使用 `process.memoryUsage().heapUsed` + `setBudget({ maxMemoryMB })`（默认 4096MB）
+- `resource_status` / `vram_status` 工具与 `GPU_CONSTRAINTS` 同步删除
 
 ---
 
@@ -1354,7 +1339,7 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 
 ## 三、MCP 工具完整清单
 
-> 本系统共注册 189 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173/188 为旧值）。
+> 本系统共注册 188 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173 为旧值；2026-09-18 移除 `resource_status` 后由 189 回落）。
 
 ### 3.0 全工具总览
 
@@ -1404,7 +1389,6 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 | `dre_search_knowledge` | Knowledge | query, domain, paradigm, limit | KnowledgeNode[] | 2.0 |
 | `dre_subgraph` | Knowledge | seedNodeId, depth | KnowledgeNode[] | 2.0 |
 | `dre_consciousness_step` | Consciousness | observation | decision, fallbackLevel | 2.0 |
-| `resource_status` | ResourceBudget | — | canRunLocal, resource | 3.0 |
 | `cognitive_state` | Engine | — | persona+意识流+推理+约束+目标+资源+Atom统计 | 3.1 |
 | `cognitive_pipeline_run` | Pipeline | input | CognitiveLoopResult + fallbackLevel | 3.1 |
 | `cognitive_pipeline_run_full` | Pipeline | input | CognitiveLoopResult + executionGraph | 3.1 |
@@ -1473,7 +1457,6 @@ MCP tool: cognitive_state
   → ReasoningGraph.getStats()           // nodes, edges, gaps
   → ConstraintSolver.getStats()         // total constraints, byDimension
   → WorldState.getGoals() + getBeliefs() + getHypotheses()
-  → ResourceBudgetManager.getStatus()   // availableMemory, canRunLocal
   → DataUnifier.getAtomStats()          // total atoms by kind
 ```
 
@@ -1581,6 +1564,8 @@ await kernel.init();
 | W4 | `verification-engine.ts:114` | `String(object)` → `"[object Object]"` 传给约束求解器 | 使用 `typeof === "object" ? JSON.stringify() : String()` |
 | W6 | `data-unifier.ts:94` | KnowledgeStore 写入失败仅 debug 日志 (生产环境静默丢失) | 升级为 `logger.warn()` |
 | W7 | `system-resource.ts:75` | `updateResource()` 无输入校验 (可注入 NaN/负数) | 添加 `availableMemory >= 0` 和 `maxMemory > 0` 校验 |
+
+> 注：上表为 2026-08 历史修复记录；`system-resource.ts` 已于 2026-09-18 归档移除（见 §2.15）。
 | W8 | `cognitive-pipeline.ts:260-337` | `runFull` 和 `runFullWithLLM` 中 28 行 TaskGraph 逻辑重复 | 建议提取为 `createAndExecuteGraph()` 共享方法 |
 
 ### 7.3 修复验证
@@ -1624,7 +1609,6 @@ await kernel.init();
 | KnowledgeGraph | 7 | add, edges, path, community, serialize |
 | Pipeline | 4 | create, write, FTS5 search |
 | VFS | 2 | mount, longest prefix |
-| **ResourceBudgetManager** | 3 | create, check, update |
 | AgentHarness (deprecated) | 7 | tool call, system prompts |
 | **PersonaLoader** | 5 | init, switch, pop, prompt, allowWrite |
 | **PromptTemplateStore** | 3 | templates, render, listByMode |

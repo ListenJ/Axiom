@@ -10,7 +10,6 @@
  * - Consciousness: 意识流 (工作记忆/短期记忆/长期记忆/反思)
  * - KG: 知识图谱 (实体/关系/子图检索)
  * - Persona: 动态角色加载 (约束+心智模型+能力, 替代 AgentHarness)
- * - SystemResource: 通用资源预算 (替代 VRAM 硬件检测)
  *
  * 目标: 硬件无关, 可部署在 CPU/GPU/云端/移动端
  */
@@ -44,7 +43,6 @@ export { capabilityRegistry, type Capability, type CapabilityProvider, type Capa
 export { contextEngine } from "./runtime/context-engine.js";
 
 // v3.0.0 新增模块
-export { ResourceBudgetManager, getResourceBudgetManager, type SystemResource, type ResourceCheckResult } from "./system-resource.js";
 export { PersonaLoader, PromptTemplateStore, createDefaultPromptStore, DEFAULT_PROMPT_TEMPLATES, SECURITY_PERSONA_CONFIG, CREATIVE_PERSONA_CONFIG, GENERAL_PERSONA_CONFIG } from "./persona/index.js";
 export type { PersonaMode, PersonaConfig, LoadedPersona, PersonaContext, PersonaLoaderConfig, PromptTemplate, TemplateVariables } from "./persona/index.js";
 export { ConfigLoader, type ConfigSource } from "./config.js";

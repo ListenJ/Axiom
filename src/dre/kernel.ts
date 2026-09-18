@@ -9,7 +9,6 @@ import { DREngine, type DREConfig } from "./engine.js";
 import { eventBus, type RuntimeEvent } from "./runtime/event-bus.js";
 import { worldState } from "./runtime/world-state.js";
 import { scheduler } from "./runtime/scheduler.js";
-import { getResourceBudgetManager } from "./system-resource.js";
 import { logger } from "../utils/logger.js";
 
 export interface KernelConfig extends DREConfig {
@@ -55,16 +54,6 @@ export class Kernel {
       startedAt: this._startTime,
       tickInterval: this.config.tickInterval ?? 5000,
     });
-
-    const budget = getResourceBudgetManager();
-    const resourceStatus = budget.getStatus();
-    worldState.set("system.resource", resourceStatus.resource);
-
-    if (!resourceStatus.canRunLocal) {
-      logger.warn("[Kernel] Local inference not available", {
-        availableMemory: resourceStatus.resource.availableMemory,
-      });
-    }
 
     this._state = "idle";
 

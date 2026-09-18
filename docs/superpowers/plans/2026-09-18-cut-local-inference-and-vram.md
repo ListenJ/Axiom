@@ -76,6 +76,14 @@
   - src/dre/constraint/solver.ts（GPU_CONSTRAINTS / VRAM 约束条目）
   - README.md、LIMITATIONS.md（表述同步）
   - tests/unit/system-resource.test.ts（删除并归档）、tests/audit/resource-audit.test.ts、tests/architecture-integrity.test.ts 及相关用例
+  - 【2026-09-18 清单外追加，规则 12 回 Plan】docs/AXIOM-ARCHITECTURE.md、docs/DRE-ARCHITECTURE.md、
+    docs/ARCHITECTURE.md、docs/MCP_TOOLS_GUIDE.md、tests/unit/scheduler.test.ts、
+    tests/constrained-sampling.test.ts、tests/dre-core-modules.test.ts、tests/unit/docs-consistency.test.ts、
+    tests/integration/backend-full-pipeline.test.ts、tests/rigorous/mega-pressure.test.ts、
+    tests/rigorous/real-links-memory-knowledge-prompt.test.ts
+    追加原因: ①`resource_status` 是真实注册工具，移除后 MCP 工具数 189→188，4 份文档的**当前值**声明
+    必须同步（否则 docs-consistency 门禁红）；②`AXIOM-ARCHITECTURE.md`/`DRE-ARCHITECTURE.md` 属"当前架构文档"，
+    仍描述已移除模块，直接违反验收标准 5；③上述测试文件依赖已移除的 ResourceBudgetManager 或断言其存在。
 不做项:
   - 不删除 src/local-llm/edge-embeddings.ts（本地向量检索，用户明确保留）
   - 不删除 dre/llm/client.ts 与 local-llm/edge-client.ts（指令①的 LLM 调用通道）

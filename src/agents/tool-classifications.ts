@@ -66,7 +66,6 @@ export const TOOL_CLASSIFICATIONS: ToolClassification[] = [
   { name: "token_stats_by_role", risk: "safe", category: "monitoring", description: "按角色统计" },
   { name: "token_daily_stats", risk: "safe", category: "monitoring", description: "按天统计" },
   { name: "proxy_status", risk: "safe", category: "monitoring", description: "代理状态" },
-  { name: "vram_status", risk: "safe", category: "monitoring", description: "GPU VRAM 预算状态" },
   // 技能
   { name: "skill_list", risk: "safe", category: "skills", description: "列出技能" },
   // 数据库

@@ -1,7 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getResourceBudgetManager } from "../../src/dre/system-resource.js";
 import { scheduler } from "../../src/dre/runtime/scheduler.js";
 import { eventBus } from "../../src/dre/runtime/event-bus.js";
 import { fallbackTFIDF } from "../../src/knowledge/pipeline.js";
@@ -14,7 +13,7 @@ import { writeFile, readFile, deleteFile } from "../../src/mcp/tools/filesystem.
 describe("后端集成：DRE 调度×资源×事件 贯通", () => {
   beforeEach(() => {
     scheduler.reset();
-    getResourceBudgetManager().updateResource({ maxMemory: 4000, availableMemory: 4000 });
+    scheduler.setBudget({ maxMemoryMB: 8192 });
   });
 
   test("端到端：资源充足→提交→调度→事件→完成 5次回放一致", async () => {
@@ -33,12 +32,11 @@ describe("后端集成：DRE 调度×资源×事件 贯通", () => {
     eventBus.unsubscribe(id);
   });
 
-  test("资源阻塞→恢复：100 available 阻塞，4000 恢复", async () => {
-    getResourceBudgetManager().updateResource({ availableMemory: 100 });
+  test("内存预算阻塞→恢复：预算收紧阻塞，放开后恢复", async () => {
+    scheduler.setBudget({ maxMemoryMB: 1 });
     const t = scheduler.submit({ name: "blocked", priority: "normal", payload: {}, dependencies: [], maxRetries: 0 } as any);
     expect(scheduler.getNext()).toBeNull();
-    getResourceBudgetManager().updateResource({ availableMemory: 4000 });
-    // 防抖 <5% 需大步，100→4000 已足够
+    scheduler.setBudget({ maxMemoryMB: 8192 });
     expect(scheduler.getNext()?.id).toBe(t.id);
     scheduler.complete(t.id, {});
   });

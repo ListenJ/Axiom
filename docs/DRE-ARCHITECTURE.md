@@ -143,6 +143,6 @@ observe → decide(LLM 或规则降级) → 记录 trace → 反思检查
 ## 六、来源与依据
 
 - `src/dre/index.ts`（模块导出总览）
-- `src/dre/{kernel,engine,config,system-resource}.ts`（内核层）
+- `src/dre/{kernel,engine,config}.ts`（内核层；`system-resource.ts` 已于 2026-09-18 归档移除）
 - `src/dre/{storage,kg,pipeline,reasoning,llm,constraint,consciousness,synapse,mental-model,actor,runtime,persona}/` 各模块头部文档
 - `src/mcp/server/dre-tools.ts`（MCP 工具 → DRE 调用映射）

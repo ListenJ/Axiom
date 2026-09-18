@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
 import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
-import { getResourceBudgetManager } from "../../dre/system-resource.js";
 import { logger } from "../../utils/logger.js";
 
 let kernel: Kernel | null = null;
@@ -236,16 +235,6 @@ export function registerDreTools(registry: ToolRegistry): void {
     handler: async () => {
       const dre = (await getKernelAsync()).getEngine();
       return dre.getStatus();
-    },
-  });
-
-  registry.add({
-    name: "resource_status",
-    description: "获取系统资源预算状态 (可用内存、算力、是否可运行本地推理)",
-    inputSchema: {},
-    handler: async () => {
-      const budget = getResourceBudgetManager();
-      return budget.getStatus();
     },
   });
 

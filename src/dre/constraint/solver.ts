@@ -511,7 +511,7 @@ export const RESOURCE_CONSTRAINTS: Constraint[] = [
     dimension: "physical",
     type: "min_value",
     name: "内存最低要求",
-    description: "本地推理需要至少 500MB 可用内存",
+    description: "至少 500MB 可用内存",
     subject: "available_memory_mb",
     params: { min: 500 },
     priority: 3,
@@ -523,38 +523,8 @@ export const RESOURCE_CONSTRAINTS: Constraint[] = [
     dimension: "physical",
     type: "min_value",
     name: "模型内存要求",
-    description: "Qwen3-1.7B Q4_K_M 需要至少 1100MB 内存",
+    description: "至少 1100MB 可用内存",
     subject: "available_memory_mb",
-    params: { min: 1100 },
-    priority: 5,
-    enabled: true,
-    createdAt: Date.now(),
-  },
-];
-
-/**
- * @deprecated Use {@link RESOURCE_CONSTRAINTS} instead (hardware-agnostic)
- */
-const GPU_CONSTRAINTS: Constraint[] = [
-  {
-    id: "gpu-vram-min",
-    dimension: "physical",
-    type: "min_value",
-    name: "GPU VRAM 最低要求",
-    description: "本地推理需要至少 500MB 可用 VRAM",
-    subject: "gpu_free_vram_mb",
-    params: { min: 500 },
-    priority: 3,
-    enabled: true,
-    createdAt: Date.now(),
-  },
-  {
-    id: "gpu-vram-model",
-    dimension: "physical",
-    type: "min_value",
-    name: "模型 VRAM 要求",
-    description: "Qwen3-1.7B Q4_K_M 需要至少 1100MB VRAM",
-    subject: "gpu_free_vram_mb",
     params: { min: 1100 },
     priority: 5,
     enabled: true,

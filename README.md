@@ -2,11 +2,11 @@
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
-> **Deterministic Cognitive Runtime · 189 MCP tools · 8 Persona modes**
+> **Deterministic Cognitive Runtime · 188 MCP tools · 8 Persona modes**
 
 > 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >
-> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/189 MCP 工具/配置/测试覆盖
+> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/188 MCP 工具/配置/测试覆盖
 >
 > 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
 
@@ -21,13 +21,13 @@
 ├─────────────┴─────────────┴─────────────┴───────────────────┤
 │  场景路由层 (SceneRouter, 21场景) │ 智能路由层 (Model Router) │
 ├─────────────────────────────────────────────────────────────┤
-│                    189 MCP Tools                             │
+│                    188 MCP Tools                             │
 ├─────────────────────────────────────────────────────────────┤
 │                     引擎层                                    │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
 │  │Vault引擎 │ │Arena引擎 │ │ KG引擎   │ │ DRE引擎  │       │
 │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │
-│  │KAL统一层 │ │DIP管道   │ │VRAM预算  │ │场景路由  │       │
+│  │KAL统一层 │ │DIP管道   │ │资源准入  │ │场景路由  │       │
 │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │
 │  │心智模型  │ │推理图    │ │约束求解器│ │Actor系统 │       │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
@@ -43,7 +43,7 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-> **架构澄清（W3/W4）**：上图“场景路由层 (SceneRouter)”仅为场景建议，不减少 list_tools 计费；“VRAM 预算”实为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关），无 KV 在 VRAM/系统内存间的换入换出实现。
+> **架构澄清（W3/W4 → 2026-09-18）**：上图"场景路由层 (SceneRouter)"仅为场景建议，不减少 list_tools 计费；"资源准入"为调度器自身的并发/内存准入（进程堆占用 + 可配置预算）。原"VRAM 预算 / KV 换入换出"子系统已按用户决策归档移除——本项目不实现、不再宣称 KV cache 在 VRAM 与系统内存间的换页。
 
 ## 8 核心角色体系 (v2.3+)
 
@@ -262,10 +262,9 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 推理图 | `src/dre/reasoning/graph.ts` | 497 | 缺口检测 + LLM 精确填充 + 链式置信度 |
 | 约束求解 | `src/dre/constraint/solver.ts` | 649 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
 | Actor 系统 | `src/dre/actor/system.ts` | 583 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
-| 资源预算 | `src/dre/system-resource.ts` | 179 | 纯数字预算（硬件无关，双阈值滞回；nvidia-smi 已按设计移除） |
 | 降级链 | `src/dre/engine.ts` | 803 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
 
-> **澄清（W3/W4）**：资源预算不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts）。
+> **2026-09-18 变更**：`src/dre/system-resource.ts`（`ResourceBudgetManager` / `clampMaxTokens`）与 `src/dre/system-resource-probe.ts`（nvidia-smi VRAM 探测）已归档移除——本项目不再自托管本地推理，模型统一按外部 OpenAI 兼容服务（Ollama / 云端）对接，因此不再维护显存与 token 预算钳制；调度器内存准入改为进程堆占用 + 可配置预算。
 
 > ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
 
@@ -367,7 +366,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
+暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值；2026-09-18 移除 `resource_status` 后由 189 回落到 188），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
@@ -405,7 +404,6 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | KAL | `kal_query`, `kal_references` |
 | DIP | `dip_ingest_document`, `dip_query_ast` |
 | 场景路由 | `scene_suggest_tools`, `scene_list` |
-| VRAM | `vram_status` |
 | 心智模型 | `mental_model_list`, `mental_model_match`, `mental_model_predict` |
 | 推理图 | `reasoning_build`, `reasoning_detect_gaps`, `reasoning_fill_gap`, `reasoning_result` |
 | 过程知识 | `procedure_parse` |
@@ -767,7 +765,7 @@ bun test tests/scene-router.test.ts
 
 1. `kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 跨存储引用因本仓库 SQLite **未持久化 wiki_links 表**（wiki-link 图在内存中由 `DeterministicSearchEngine` 从 Markdown 构建），暂未闭环，需后续引入持久化 wiki_links 表或注入 vault 引擎。
 2. 内网拓扑已脱敏为占位符（`${LAN_NODE_N1}` 等），真实地址/账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库不含真实内网信息（见 AGENTS.md 规则 11）。
-3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **189**（CI 与文档均引用此值，不再硬编码静态数字）。
+3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **188**（CI 与文档均引用此值，不再硬编码静态数字；2026-09-18 移除 `resource_status`）。
 
 > 详细操作留痕见 `docs/operations-log.md`；任务计划与逐项结论见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。
 

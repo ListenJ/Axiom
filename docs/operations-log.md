@@ -1591,3 +1591,23 @@
 - **验证结果**：计划文档已落盘；本轮无生产代码变更，故无回归测试需求（只读任务）。
 - **偏差记录**：**计划未冻结**——方案 A/B 需用户确认后方可进入施工；未确认前不动任何生产文件（规则 0.6 停机条件）。
 - **Commit**：82bb985（已推送 gitea）
+
+## 2026-09-18 — refactor(T3/方案A): 移除本地推理 + VRAM 管理子系统（用户指令③）
+
+- **任务**：用户指令③「砍掉本地推理和 VRAM 管理」+ 确认**方案 A**（保留 LLM 调用通道与本地向量检索，仅移除 VRAM/资源预算管理与 llama.cpp 管理叙事）。对应审计 A9-1（预算退化为硬编码 4000MB 常量，High）、A9-3（maxCompute 死字段）、A9-6（GPU_CONSTRAINTS 无数据源）、A8-1（"KV 卸载到系统内存"0 行实现）。任务分级 T3，计划见 `docs/superpowers/plans/2026-09-18-cut-local-inference-and-vram.md`。
+- **工具**：Bash + Python 精确替换；规则 2（源/测试/文档备份至 `.tmp/backups/`，验证通过后删除）；规则 4（先归档 + `archive/ARCHIVE-LOG.md` 记录，再 `git rm`）；规则 7（先改测试/断言，再改实现，最后全量回归）。
+- **操作**（文件级）：
+  1. **删除并归档**（`archive/local-inference-vram-removal-2026-09-18/`）：`src/dre/system-resource.ts`（228 行）、`src/dre/system-resource-probe.ts`（83 行）、`scripts/audit/oom-probe.ts`、`tests/unit/{system-resource,clamp-max-tokens,resource-debounce,resource-hysteresis,resource-sync,vram-probe}.test.ts`、`tests/vram-probe-wiring.test.ts`、`tests/rigorous/system-scheduler-rigorous.test.ts`。
+  2. **LLM 客户端解耦**：`src/dre/llm/client.ts` 删 `effectiveMaxTokens` 的资源预算二次钳制（改为 调用方值 > 配置默认 > 1024）与 `assertBudgetAvailable()` 门禁（含 `generate`/`stream` 两处调用点），移除 `clampMaxTokens`/`getResourceBudgetManager`/`DRELLMError` 导入。
+  3. **编排/内核解耦**：`src/dre/index.ts`（删导出）、`src/dre/kernel.ts`（删启动期预算检查与告警）、`src/dre/engine.ts`（删 `checkResourceBudget()`、健康检查 resources 项、`getDiagnostics`/`getStatus` 的 resource 字段）。
+  4. **调度器**：`src/dre/runtime/scheduler.ts` 删与 ResourceBudgetManager 的双轨同步（6 处）；内存准入数据源改为 `process.memoryUsage().heapUsed`；`maxMemoryMB` 由常量 `DEFAULT_MAX_MEMORY_MB=4096` 提供并仍可 `setBudget` 覆盖。
+  5. **工具/约束/入口**：`src/mcp/server/dre-tools.ts` 删 `resource_status` 工具、`src/agents/tool-classifications.ts` 删 `vram_status` 分类、`src/dre/constraint/solver.ts` 删 `GPU_CONSTRAINTS`（已废弃、无数据源）并改写 RESOURCE_CONSTRAINTS 描述、`src/routes/chat.ts` 删资源预算死调用、`src/main.ts` 删 VRAM 探测挂载与关闭钩子。
+  6. **测试同步**：`tests/{dre-core-modules,constrained-sampling,unit/scheduler,unit/docs-consistency,integration/backend-full-pipeline,rigorous/mega-pressure,rigorous/real-links-memory-knowledge-prompt}.test.ts` 改为堆占用/`setBudget` 口径或删对应断言。
+  7. **文档**：README（架构图"VRAM预算"→"资源准入"、模块表删资源预算行、删 VRAM 工具行、注释改为外部 OpenAI 兼容服务定位）、LIMITATIONS 新增已知局限 5、`docs/AXIOM-ARCHITECTURE.md`（ADR-006 标废止、§2.15 改为"已移除"、删模块/数据流/工具表条目）、`docs/DRE-ARCHITECTURE.md`。
+- **验证结果**：
+  - `./node_modules/typescript/bin/tsc --noEmit` exit 0。
+  - 静态：`grep -rn "ResourceBudgetManager|clampMaxTokens|system-resource|vram_status|resource_status|AXIOM_VRAM_PROBE|canRunLocal|recommendedMaxTokens" src/ --include=*.ts | wc -l` → **0**。
+  - 定向：`tests/unit/scheduler.test.ts` + `tests/integration/backend-full-pipeline.test.ts` + `tests/dre-core-modules.test.ts` + `tests/constrained-sampling.test.ts` → 109 pass / 0 fail；`tests/unit/docs-consistency.test.ts` + `tests/architecture-integrity.test.ts` → 34 pass / 0 fail（含 MCP 工具数 189→188 的一致性闸门）。
+  - 全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4049 pass / 36 skip / 0 fail**（4085 用例 / 403 文件；文件数较上轮 411 减少 8 = 归档的 8 个专属测试文件）。
+- **偏差记录**：①**清单外追加 11 个文件**（4 份文档 + 7 个测试），已按规则 12 回 Plan 并在计划文档记录理由：`resource_status` 是**真实注册工具**，移除后 MCP 工具数 189→188，4 份文档的当前值声明必须同步（否则 docs-consistency 门禁红）；`AXIOM-ARCHITECTURE.md`/`DRE-ARCHITECTURE.md` 仍描述已移除模块，违反验收标准 5。②`docs/test-reports/SUMMARY.md`、`docs/TEST-STRATEGY-2026-08-21.md`、`docs/audit-verification-log.md` 等**历史报告未改**（属历史留痕，非当前状态声明）。③保留 `src/local-llm/edge-embeddings.ts` 与 `edge-client.ts`（方案 A 明确保留：本地向量检索 + LLM 调用通道）。
+- **Commit**：__COMMIT_③__
