@@ -159,7 +159,9 @@ export function createPluginRoutes(db: Database, toolRegistry: ToolRegistry) {
         }
 
         const plugin = await registry.installFromPath(installPath, {
-          enable: body.enable ?? true,
+          // 最小权限（审计 C-03 残余）：不传 enable 时默认仅安装不激活。
+          // 行为变更已获用户批准（2026-09-18）；显式传 enable:true 仍可安装即启用。
+          enable: body.enable ?? false,
           overwrite: body.overwrite ?? false,
         });
 

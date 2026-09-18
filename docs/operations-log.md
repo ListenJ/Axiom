@@ -1536,3 +1536,18 @@
 - **验证结果**：`git check-ignore .claude` 命中；`git status --short` 归零。
 - **偏差记录**：无。
 - **Commit**：331aa2c
+
+## 2026-09-18 — fix(T1/安全性): 插件安装默认不自动激活（C-03 残余，行为变更）
+
+- **任务**：用户指令②「接受行为变更」——审计 C-03 残余项：`src/routes/plugin-routes.ts` 安装接口 `enable: body.enable ?? true` 使**不传 enable 字段即自动激活插件**（注册即执行插件代码），与同文件 `pluginsEnabled()` 默认关闭的"最小权限"取向自相矛盾。任务分级 T1（单文件行为变更 + 测试同步）。
+- **工具**：Bash + Python 精确替换；规则 2（2 个文件备份至 `.tmp/backups/`，验证通过后删除）；规则 7（先改测试 RED → 再改实现 GREEN）。
+- **操作**（文件级）：
+  1. `tests/plugin-market.test.ts`：W3-7 用例由「enable 默认为 true」改写为「enable 默认为 false（最小权限）」，断言 `plugin.status === "installed"`（恒不进入 enablePlugin 流程）。
+  2. `src/routes/plugin-routes.ts`：`enable: body.enable ?? true` → `enable: body.enable ?? false`，并补注释说明行为变更来源（用户批准）与显式 `enable:true` 仍可用。
+- **验证结果**：
+  - RED（实现未改前）：`bun test tests/plugin-market.test.ts` → 1 fail，`Expected: "installed" / Received: "enabled"`，症状与审计描述一致。
+  - GREEN：`bun test tests/plugin-market.test.ts tests/plugin-registry.test.ts` → 20 pass / 2 skip / 0 fail。
+  - `./node_modules/typescript/bin/tsc --noEmit` exit 0。
+  - 静态复核：`grep -n "enable ?? true" src/routes/plugin-routes.ts` 零命中。
+- **偏差记录**：未改 `plugin-registry.ts` 的 `install*` 默认参数（本任务只治理 HTTP 安装入口的默认值；registry 层调用方均显式传 enable，改动会超出冻结清单）。
+- **Commit**：__COMMIT_②__
