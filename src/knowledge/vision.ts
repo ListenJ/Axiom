@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { logger } from "../utils/logger.js";
+import { isWithinBase } from "../utils/path-safety.js";
 import { readString } from "../utils/env.js";
 import { getProviderConfig } from "../utils/api-key-store.js";
 
@@ -279,8 +280,8 @@ function resolveMediaPath(ref: string, baseDir?: string): string | null {
   const base = path.resolve(baseDir ?? process.cwd());
   const resolveInBase = (candidate: string): string | null => {
     const resolved = path.resolve(base, candidate);
-    const rel = path.relative(base, resolved);
-    if (rel.startsWith("..") || path.isAbsolute(rel)) return null; // 绝对路径/.. 逃逸拒绝
+    // T3（2026-09-18）：containment 判定委托唯一原语（原为第 7 处内联重复）
+    if (!isWithinBase(base, resolved)) return null; // 绝对路径/.. 逃逸拒绝
     try {
       if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) return null;
     } catch (err) {
@@ -298,7 +299,7 @@ function resolveMediaPath(ref: string, baseDir?: string): string | null {
     try {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const child = path.join(dir, e.name);
-        if (path.relative(base, child).startsWith("..")) continue; // 不逃逸 baseDir
+        if (!isWithinBase(base, child)) continue; // 不逃逸 baseDir
         if (e.isDirectory()) {
           const found = walk(child, depth + 1);
           if (found) return found;

@@ -1,5 +1,6 @@
 ﻿import path from "node:path";
 import { z } from "zod";
+import { isWithinBase } from "../../utils/path-safety.js";
 import type { ToolDef, ToolRegistry } from "../tool-registry.js";
 import { DEFAULT_SKILL_DIRS } from "../../skills/types.js";
 import {
@@ -139,8 +140,8 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
 function resolveSkillPath(filePath: string, skillDirs: string[]): string {
   const root = path.resolve(skillDirs[0] ?? "./skills");
   const resolved = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(root, filePath);
-  const rel = path.relative(root, resolved);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+  // T3（2026-09-18）：containment 判定委托唯一原语（原为第 5 份重复实现）
+  if (!isWithinBase(root, resolved)) {
     throw new Error(`Invalid skill file path (must stay within skill dirs): ${filePath}`);
   }
   return resolved;

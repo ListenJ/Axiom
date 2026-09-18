@@ -27,6 +27,7 @@ import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
 import { readString, readInt } from "../utils/env.js";
+import { isWithinBase } from "../utils/path-safety.js";
 
 interface VaultConfig {
   vaultPath: string;
@@ -828,10 +829,9 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
    */
   private resolveSafePath(notePath: string): string {
     const resolved = path.resolve(this.config.vaultPath, notePath);
-    const base = path.resolve(this.config.vaultPath);
-    const relative = path.relative(base, resolved);
-    // isAbsolute 拦截 Windows 跨盘符/UNC 目标：path.relative 对其返回盘符开头字符串，不以 ".." 起始
-    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    // T3（2026-09-18）：containment 判定委托唯一原语（原为第 9 份重复实现）；
+    // 跨盘符/UNC 的 isAbsolute 拦截由 isWithinBase 统一处理。
+    if (!isWithinBase(this.config.vaultPath, resolved)) {
       throw new Error(`Path traversal blocked: ${notePath}`);
     }
     return resolved;

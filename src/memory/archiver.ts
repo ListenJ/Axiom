@@ -15,6 +15,7 @@ import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import { getSqliteMemory } from "./sqlite-memory.js";
+import { isWithinBase } from "../utils/path-safety.js";
 
 interface ArchiveRule {
   name: string;
@@ -295,10 +296,8 @@ export class MemoryArchiver {
   private isPathWithinVault(fileRel: string): boolean {
     if (path.isAbsolute(fileRel)) return false;
     const resolved = path.resolve(this.vaultPath, fileRel);
-    const base = path.resolve(this.vaultPath);
-    const relative = path.relative(base, resolved);
-    if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
-    return true;
+    // T3（2026-09-18）：containment 判定委托唯一原语（原为第 8 份重复实现）
+    return isWithinBase(this.vaultPath, resolved);
   }
 
   private parseFrontmatterSafe(filePath: string): Record<string, unknown> {

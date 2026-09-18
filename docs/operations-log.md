@@ -1712,3 +1712,31 @@
 - **偏差记录**：①**首次全量回归 5 fail**——收口点首版把 `[HardFloor]` 前缀改成 `[<code>]`，触发 `tests/unit/risk-monitor-degraded.test.ts`、`tests/unit/tool-mode-gate.test.ts` 的消息契约断言。判定为消息契约回归（非测试过时），已恢复 `[HardFloor]` 前缀 + 追加 `code=` 结构化字段，5 用例恢复。②**T2-2 降级**：workspace-snapshot 的 cwd 围栏为**防御性改动**，未取得红→绿用例——git tree 路径结构上不可能含 `..`，造用例会变成同义反复，详见计划文档"执行后偏差 1"。③**端到端探针首版无效**：初版用 `scene_list` 传嵌套敏感参数未被拒，排查为 **MCP SDK 按 `inputSchema` 剥离未声明字段**（参数到不了 handler），非守卫失效；换参数封套后复现预期行为。该边界已写入架构文档局限段。④**"不回显参数值"未达成**：`ExecutionDeniedError` 自身不拼接值，但 `permissions.ts` 的 reason 文本含路径，实测确实回显；属既有行为，本轮未改，已如实登记。
 - **未覆盖项（如实登记）**：①统一层**尚未唯一**——`src/computer-use/browser-launch.ts`（自有 `assertSafeHttpUrl`）、`src/knowledge/document-ingest.ts`（自有 `assertReadableFile`）、`src/mcp/tools/code-analysis.ts`（linter spawn 参数）、`src/sandbox/docker-sandbox.ts`（挂载路径校验）仍各自实现，未并入。②未覆盖 188 工具中"非常规字段名 + 非路径形态值"的组合（如 base64 编码路径、符号链接名）——递归扫描减少了面但未证明闭合。③未做 fuzz/对抗性输入测试。④`src/mcp/tools/workspace-snapshot.ts` 的 `createSnapshot` 复制循环未接围栏（写入目标是快照目录而非 cwd，未评估为必需）。
 - **Commit**：`bda29b2`
+
+## 2026-09-18 — refactor(T3): containment 收敛到单一语义源（并纠正上一轮夸大的结论）
+
+- **任务**：承接 bda29b2 中自己标记的"统一层尚未唯一"遗留项，继续推进执行沙箱统一层。分级 **T3**（安全边界重构）。**本轮未动 GitHub**（按用户指示：GitHub 同步不阻塞项目推进，只提交 Gitea）。
+- **工具**：Bash + Python 补丁；`grep -rn 'startsWith("\.\.")'` 全仓普查；`bunx tsc`；`bun test`（全量 406 文件）；规则 2（11 份文件备份至 `.tmp/backups/`）。
+- **先核实再动手（纠正上一轮结论）**：上一轮 ops 记录把"尚未唯一"笼统写成 4 处，**该表述不准确**。本轮实际普查结论：
+  - `src/sandbox/docker-sandbox.ts`：**已**复用 `isPathSafe`（其自有规则是 docker 挂载专属：盘符根/宿主系统目录），**不是重复实现** → 上一轮误列。
+  - `src/computer-use/browser-launch.ts`：自有 `assertSafeHttpUrl` 做**协议白名单**，而 `utils/url-safety.ts` 的 `isSafeUrl` 做 **SSRF 私网拦截**——两者策略不同（用户自启浏览器访问 localhost 是合法的），**不是重复实现** → 上一轮误列。
+  - `src/mcp/tools/code-analysis.ts`：走 `executeCommand` 的 args 数组通道（免 shell）+ 扩展名白名单，与路径围栏**不是同一关注点** → 上一轮误列。
+  - 真正的重复是 **containment 判定**（`path.relative` + `..` + `isAbsolute` 跨盘符陷阱），普查得 **11 处**，上一轮只识别出 1 处（document-ingest）。
+- **操作**（文件级，11 个）：
+  1. `src/utils/path-safety.ts`：新增唯一原语 `isWithinBase(base, target)`；`isPathSafe` 的 containment 判定改经该原语（拒绝语义不变）。
+  2. `src/utils/platform.ts`：`escapesBase` 委托（保留"相对 base 解析 + realpath 二次判定"两点平台逻辑）。
+  3. `src/utils/db-guard.ts`：`validatePath` 委托（**该函数全仓无调用方，为死代码**，本轮只收敛逻辑、未删除）。
+  4. `src/knowledge/document-ingest.ts`：`isWithinAnyRoot` → `roots.some(r => isWithinBase(r, resolved))`。
+  5. `src/mcp/tools/terminal.ts`：`isCwdWithinWorkspace` → `isWithinBase(process.cwd(), target)`。
+  6. `src/mcp/server/skill-tools.ts`：`resolveSkillPath` 的逃逸判定委托。
+  7. `src/knowledge/vision.ts`：2 处内联（`resolveInBase` 与目录遍历逃逸检查）委托。
+  8. `src/memory/archiver.ts`：`isPathWithinVault` 委托。
+  9. `src/memory/vault-manager.ts`：`resolveSafePath` 委托。
+  10. `src/plugins/plugin-registry.ts`：动态 import 前的包含性校验委托（保留"entry 指向 pluginRoot 自身也拒绝"的原语义）；顺带移除因此失效的 `relative` 导入。
+  11. `src/routes/memory-api.ts`：笔记路径包含性校验委托（保留"解析结果等于 notesRoot 也拒绝"的原语义）。
+  12. `tests/unit/path-containment.test.ts`（**新增**，7 用例）；`docs/AXIOM-ARCHITECTURE.md` 新增 §3.0.2。
+- **声明 vs 实际核查（2 种独立方式）**：①**静态普查**——`grep -rn 'startsWith("\.\.")'` 全仓复查，收口后非 `path-safety.ts` 的 containment 判定命中为 **0**（剩余命中为 `memory/*` 的显示用 `path.relative`、`platform.ts` 的说明性注释）；②**行为回归**——`bun test --parallel=8 --timeout 15000 ./tests` → **4079 pass / 36 skip / 0 fail**（406 文件），与上一轮 4072 pass 之差恰为新增 7 个用例，**无回归**；`tests/platform.test.ts`（既有 `escapesBase` 用例）、`tests/unit/document-ingest-path-safety.test.ts`、`tests/unit/vault-path-safety.test.ts`、`tests/unit/kb-db-path.test.ts`、`tests/sandbox-escape.test.ts`、`tests/read-tool-fence.test.ts` 全绿。两种方式结论一致。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → 0 error；全量 4079 pass / 36 skip / 0 fail。
+- **偏差记录**：①**语义保持优先于"顺手修正"**：`isWithinBase` 沿用旧有的 `startsWith("..")` 判定，因此 base 内名为 `..foo` 的合法目录仍被误判为逃逸。这是**旧有缺陷**，未在本轮修正——修正属安全语义变更，需单独评审（已写入架构文档）。②`plugin-registry.ts` / `memory-api.ts` 的原判定含 `rel === ""` 特例（目标等于根时也拒绝），委托时**显式保留**该特例，未按原语语义统一放宽。③`db-guard.validatePath` 是死代码，本轮只收敛不删除（删除需走规则 4 归档流程，且超出本任务范围）。
+- **未覆盖项（如实登记）**：①`utils/url-safety.ts`（SSRF）与 `computer-use/browser-launch.ts`（协议白名单）仍各有一套 URL 校验策略，二者**语义不同**，是否统一属独立决策，本轮未动。②`src/mcp/tools/filesystem.ts` 的 `isPathSafe` 调用点（14 处）未改为经 `execution-guard` 的统一入口，仍由工具内部直接调用。③未做对抗性输入测试（如符号链接竞态、TOCTOU）。④`knowledge/document-ingest.ts` 的多根围栏（cwd + vault）仍未接入 `execution-guard` 的 `cwdFenced` 通道，两套入口并存。
+- **Commit**：`__COMMIT__`

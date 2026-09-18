@@ -16,6 +16,7 @@
 
 import fs from "fs";
 import path from "path";
+import { isWithinBase } from "../utils/path-safety.js";
 import type { OCRResult } from "../ocr/engine.js";
 import { postProcessOCR, type StructuredDocument } from "../ocr/post-processor.js";
 import { readDocument } from "./document-reader.js";
@@ -84,11 +85,9 @@ const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 function isWithinAnyRoot(resolved: string, roots: string[]): boolean {
-  return roots.some((root) => {
-    const rel = path.relative(root, resolved);
-    // isAbsolute 拦截 Windows 跨盘符/UNC 目标
-    return !(rel.startsWith("..") || path.isAbsolute(rel));
-  });
+  // T3（2026-09-18）：多根 containment 收敛到唯一原语（原为第 6 份重复实现）；
+  // 跨盘符/UNC 的 isAbsolute 拦截由 isWithinBase 统一处理。
+  return roots.some((root) => isWithinBase(root, resolved));
 }
 
 /** C2 审计修复：file 来源仅允许工作目录/Vault 根之内，拒绝敏感段与符号链接逃逸 */

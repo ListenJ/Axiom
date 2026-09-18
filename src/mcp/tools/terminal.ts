@@ -5,12 +5,12 @@ import { existsSync } from "node:fs";
 import { TIMEOUTS } from "../../constants/timeouts.js";
 import { sanitizeSpawnEnv } from "../../utils/spawn-env.js";
 import { sanitizeCommand } from "../../utils/command-safety.js";
+import { isWithinBase } from "../../utils/path-safety.js";
 
 /** M5 审计修复：cwd 仅允许工作目录之内（含跨盘符/UNC 的 isAbsolute 检查） */
 function isCwdWithinWorkspace(target: string): boolean {
-  const resolved = path.resolve(target);
-  const rel = path.relative(process.cwd(), resolved);
-  return !(rel.startsWith("..") || path.isAbsolute(rel));
+  // T3（2026-09-18）：containment 判定委托唯一原语（原为第 4 份重复实现）
+  return isWithinBase(process.cwd(), target);
 }
 
 export interface CommandResult {

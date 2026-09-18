@@ -1402,6 +1402,26 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
   另：`utils/permissions.ts` 的 reason 文本包含路径（`Sensitive path: <path> requires manual confirmation`），
   收口点未改变该既有行为。
 
+#### 3.0.2 containment 单一语义源（2026-09-18 追加）
+
+`src/utils/path-safety.ts` 此前自称"唯一围栏语义源"，但**该声明不成立**：
+containment 判定（`path.relative` + `..` + `isAbsolute` 的跨盘符陷阱）在本仓库被重复实现了 **11 处**
+（`platform.escapesBase`、`db-guard.validatePath`、`document-ingest.isWithinAnyRoot`、
+`terminal.isCwdWithinWorkspace`、`skill-tools.resolveSkillPath`、`vision` 内联 ×2、
+`archiver.isPathWithinVault`、`vault-manager.resolveSafePath`、`plugin-registry` 内联、`memory-api` 内联）。
+其中 `plugin-registry` 与 `vault-manager` 各自完整复刻了同一段"跨盘符必须查 isAbsolute"的注释。
+
+现已收敛到唯一原语 `isWithinBase(base, target)`，其余 11 处降为薄包装（错误消息与拒绝语义逐条保持不变）。
+`isPathSafe` 自身也改为经该原语做 containment 判定。
+
+- **语义边界**：`isWithinBase` 对**相对** target 按 `process.cwd()` 解析；需要 base 相对解析的调用方
+  须先 `path.resolve(base, rel)`（`escapesBase` 即如此）。
+- **已知过度严格（沿用旧行为，未修）**：base 内名为 `..foo` 的目录会被判为逃逸
+  （`"..foo".startsWith("..")` 为真）。放宽/收紧属安全语义变更，需单独评审。
+- **未纳入**：`memory/*` 中用于**显示/格式化**的 `path.relative` 不属围栏判定，不在本原语范围。
+- **旁证缺陷**：`utils/db-guard.ts` 的 `validatePath` 全仓库**无调用方**（死代码），
+  其 containment 逻辑已随本轮收敛，函数本身是否保留待后续清理决策。
+
 ### 3.1 DRE 领域工具 (16 个)
 
 

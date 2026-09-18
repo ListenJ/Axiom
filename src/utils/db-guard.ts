@@ -4,6 +4,7 @@
  * 提供安全的 SQL 标识符引用、表名白名单验证、输入清洗
  */
 import path from "path";
+import { isWithinBase } from "./path-safety.js";
 
 // Allowlist of valid table names in the system
 const VALID_TABLES = new Set([
@@ -75,11 +76,9 @@ export function sanitizeSqlValue(value: unknown): string {
 
 /** Validate that a path does not escape a base directory */
 export function validatePath(basePath: string, userPath: string): string {
-
   const resolved = path.resolve(basePath, userPath);
-  const base = path.resolve(basePath);
-  const relative = path.relative(base, resolved);
-  if (relative.startsWith("..") || relative === ".." || path.isAbsolute(relative)) {
+  // T3（2026-09-18）：containment 判定委托唯一原语（原为第 3 份重复实现）
+  if (!isWithinBase(basePath, resolved)) {
     throw new Error(`Path traversal detected: ${userPath}`);
   }
   return resolved;

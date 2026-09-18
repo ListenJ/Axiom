@@ -7,13 +7,14 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync, promises as fsPromises } from "fs";
-import { join, basename, resolve, relative, isAbsolute } from "path";
+import { join, basename, resolve, isAbsolute } from "path";  // relative 已随 T3 containment 收敛移除
 import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import type { Plugin, PluginManifest, PluginModule, PluginStatus, InstallOptions, PluginContext } from "./types.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { readString } from "../utils/env.js";
 import { safeJsonParse } from "../utils/json.js";
+import { isWithinBase } from "../utils/path-safety.js";
 
 /** Plugin storage directory */
 const PLUGIN_DIR = readString("AXIOM_PLUGIN_DIR", "./plugins");
@@ -380,8 +381,9 @@ export class PluginRegistry {
       // （或 manifest 被绕过），故在真正执行代码前以解析后的真实路径兜底。
       const pluginRoot = resolve(plugin.path);
       const entryReal = resolve(entryPath);
-      const relToRoot = relative(pluginRoot, entryReal);
-      if (relToRoot === "" || relToRoot.startsWith("..") || isAbsolute(relToRoot)) {
+      // T3（2026-09-18）：containment 判定委托唯一原语（原为第 10 处重复实现）。
+      // entry 指向 pluginRoot 自身（空相对路径）同样拒绝，保持原语义。
+      if (entryReal === pluginRoot || !isWithinBase(pluginRoot, entryReal)) {
         throw new Error(
           `Refusing to load plugin entry outside the plugin directory: ${JSON.stringify(entryPath)}`,
         );

@@ -16,6 +16,8 @@
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { readString } from "./env.js";
+// T3（2026-09-18）：containment 判定委托唯一原语（见 path-safety.ts isWithinBase）
+import { isWithinBase } from "./path-safety.js";
 
 // ─────────────────────────────────────────────────────────
 // 平台基础判断
@@ -118,18 +120,13 @@ export function which(command: string): string | null {
  */
 export function escapesBase(base: string, target: string): boolean {
   const resolved = path.resolve(base, target);
-  const relative = path.relative(base, resolved);
-  if (path.isAbsolute(relative)) return true;
-  if (relative.startsWith("..") || relative === "..") return true;
-  // 解析符号链接后再判定一次
+  // T3（2026-09-18）：字面 containment 与符号链接 containment 均委托唯一原语，
+  // 本函数只保留"相对 base 解析 + realpath 二次判定"这两点平台特有逻辑。
+  if (!isWithinBase(base, resolved)) return true;
   try {
-    const realBase = realpathSync(base);
-    const realTarget = realpathSync(resolved);
-    const realRelative = path.relative(realBase, realTarget);
-    if (path.isAbsolute(realRelative)) return true;
-    if (realRelative.startsWith("..") || realRelative === "..") return true;
+    if (!isWithinBase(realpathSync(base), realpathSync(resolved))) return true;
   } catch {
-    // 目标尚不存在时 realpathSync 会抛错，此时以上面的逻辑判定为准
+    // 目标尚不存在时 realpathSync 会抛错，此时以上面的字面判定为准
   }
   return false;
 }
