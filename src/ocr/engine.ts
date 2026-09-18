@@ -58,19 +58,37 @@ export interface OCRResult {
   duration: number;
 }
 
+/**
+ * tesseract worker 工厂 —— 依赖注入接缝（规则 8：依赖作为参数传入，而非内部硬 new）。
+ * 默认实现即 tesseract.js 的 `createWorker`；测试注入 fake 以避免真实加载语言包/起线程。
+ */
+export type OcrWorkerFactory = (
+  languages: string[],
+  oem: number,
+  options: { logger: (m: { status: string; progress: number }) => void; langPath: string },
+) => Promise<Worker>;
+
 /** OCR Engine */
 export class OCREngine {
   private worker: Worker | null = null;
   private currentLangs: string[] = ["eng"];
   private readonly langPath: string;
+  private readonly workerFactory: OcrWorkerFactory;
+  /**
+   * 在途初始化承诺（single-flight）。
+   * 必须在任何 `await` 之前**同步发布**：否则两个并发 initialize() 都会看到
+   * `worker === null`，各自创建 worker，后一次赋值覆盖前一次 ⇒ 第一个 worker 永不终止（泄漏）。
+   */
+  private initializing: Promise<void> | null = null;
 
   /**
    * Initialize the OCR worker.
    * Must be called before any recognize() calls.
    */
-  constructor(langPath?: string) {
+  constructor(langPath?: string, opts: { workerFactory?: OcrWorkerFactory } = {}) {
     // 默认仓库根（eng.traineddata 所在），保证离线可用；env TESSERACT_LANG_PATH 可覆盖
     this.langPath = (langPath ?? readString("TESSERACT_LANG_PATH", "")) || defaultLangPath();
+    this.workerFactory = opts.workerFactory ?? (createWorker as unknown as OcrWorkerFactory);
   }
 
   /**
@@ -103,13 +121,27 @@ export class OCREngine {
 
   async initialize(languages: string[] = ["eng"]): Promise<void> {
     if (this.worker) return;
+    // single-flight：已有在途初始化 ⇒ 复用同一张承诺，不重复创建 worker。
+    // 读 `initializing` 与下方写回之间没有 await，因此在事件循环内是原子的。
+    if (this.initializing) return this.initializing;
 
     const start = performance.now();
     this.currentLangs = languages;
-    this.assertLangsAvailable(languages);
+    this.assertLangsAvailable(languages); // 保持"语言包缺失同步抛错"的既有语义
 
+    const task = this.createWorkerOnce(languages, start);
+    this.initializing = task; // 同步发布（本行之前无 await）
     try {
-      this.worker = await createWorker(languages, 1, {
+      await task;
+    } finally {
+      this.initializing = null; // 失败也不残留，允许后续重试
+    }
+  }
+
+  /** 真正的 worker 创建（single-flight 任务体） */
+  private async createWorkerOnce(languages: string[], start: number): Promise<void> {
+    try {
+      this.worker = await this.workerFactory(languages, 1, {
         logger: (m) => {
           if (m.status === "recognizing text") {
             logger.debug(`[OCR] ${m.status}: ${Math.round(m.progress * 100)}%`);
@@ -227,6 +259,15 @@ export class OCREngine {
    * Terminate the worker and free resources.
    */
   async terminate(): Promise<void> {
+    // 在途初始化必须先落地：否则 terminate 看不到 worker，随后那张承诺又把 worker 装回来，
+    // reinitialize() 的语言切换会静默失效。
+    if (this.initializing) {
+      try {
+        await this.initializing;
+      } catch {
+        /* 初始化失败：本来就没有 worker 可终止 */
+      }
+    }
     if (this.worker) {
       await this.worker.terminate();
       this.worker = null;

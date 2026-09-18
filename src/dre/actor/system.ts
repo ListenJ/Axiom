@@ -359,10 +359,15 @@ export class ActorSystem {
    */
   async unregister(actorId: string): Promise<void> {
     const actor = this.actors.get(actorId);
-    if (actor) {
-      await actor.destroy();
-      this.actors.delete(actorId);
-    }
+    if (!actor) return;
+    // 原子"认领"：在任何 await 之前把该 actor 从注册表同步摘除
+    // （`get` 与 `delete` 之间没有 await，在事件循环内不可被打断）。
+    // 此前是 `await destroy()` 之后才 delete —— 两个并发 unregister 会双双拿到
+    // 同一个 actor，导致 cleanup() 跑两次；与 shutdown() 并发时同样重复销毁。
+    // 语义取舍（有意）：若 destroy() 抛错，该 actor 不会回到注册表 ——
+    // 半销毁的 actor 留在注册表被后续调用者继续使用，比"已摘除"更危险。
+    this.actors.delete(actorId);
+    await actor.destroy();
   }
 
   /**

@@ -82,4 +82,50 @@ describe("ComponentKernel", () => {
 
     await expect(kernel.initAll()).rejects.toThrow("absent");
   });
+
+  it("并发 init 同一组件只初始化一次（无重复启动）", async () => {
+    let calls = 0;
+    const c: ComponentLifecycle = {
+      id: "c",
+      version: "1.0.0",
+      kind: "tool",
+      init: async () => {
+        calls++;
+        await new Promise((r) => setTimeout(r, 30));
+      },
+      health: async () => ({ id: "c", ready: true, optional: false }),
+      dispose: async () => {},
+    };
+    const kernel = new ComponentKernel();
+    kernel.register(c);
+
+    await Promise.all([kernel.init("c"), kernel.init("c"), kernel.init("c")]);
+
+    expect(calls).toBe(1);
+    expect(kernel.isInitialized("c")).toBe(true);
+  });
+
+  it("并发 init 共享依赖时依赖也只初始化一次", async () => {
+    const calls = new Map<string, number>();
+    const mk = (id: string, deps?: string[]): ComponentLifecycle => ({
+      id,
+      version: "1.0.0",
+      kind: "tool",
+      ...(deps ? { dependencies: deps } : {}),
+      init: async () => {
+        calls.set(id, (calls.get(id) ?? 0) + 1);
+        await new Promise((r) => setTimeout(r, 20));
+      },
+      health: async () => ({ id, ready: true, optional: false }),
+      dispose: async () => {},
+    });
+    const kernel = new ComponentKernel();
+    kernel.register(mk("dep")).register(mk("a", ["dep"])).register(mk("b", ["dep"]));
+
+    await Promise.all([kernel.init("a"), kernel.init("b")]);
+
+    expect(calls.get("dep")).toBe(1);
+    expect(calls.get("a")).toBe(1);
+    expect(calls.get("b")).toBe(1);
+  });
 });

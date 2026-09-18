@@ -1842,3 +1842,25 @@
 - **偏差记录**：①用例 1（最大并发=1）在**旧实现下也通过**——旧实现的互斥失效是**竞态**（需多个等待者的 100ms 轮询恰好落入同一 tick）而非必然失败，故该用例登记为**回归防护**而非红→绿证据；真正的红→绿证据是用例 2。②`lockWaiters` 语义为"处于闸门区的调用数（含持锁者）"，非"纯排队数"，已在字段与 `getGateStats()` 注释中写明，避免误读。
 - **未覆盖项**：①本闸门是**进程内**语义，**不含**跨进程/多实例并发（分布式锁不在本轮范围）；②未做并发压测（N=100 排队）下的延迟分布测量，仅验证正确性；③`runFull`/`runWithLLM` 的**执行阶段**（`executeTaskGraph`）仍未被闸门覆盖——与修复前语义一致，未扩大范围。
 - **Commit**：`54b9a98`
+
+## 2026-09-19 — fix(T2): 共享可变状态盘点（33 处/22 文件）+ 并发强化 3 处（同步认领/单飞发布）
+
+- **任务**：用户选 A —— 把上一轮在 `CognitivePipeline` 建立的原子的做法**推广到其它共享可变状态点**，先做盘点。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash/自写扫描器（`/tmp/rmw-scan*.ts`，含注释剥离与行号校正）；`bunx tsc`；`bun test`（全量 410 文件）；规则 2（4 个待改文件 + 1 个测试备份至 `.tmp/backups/`）；规则 7（3 处均先红后绿）。
+- **盘点方法（判据先行）**：单线程 JS 中**无 `await` 即无交错窗口**，故缺陷必要条件 = "共享字段的**读**与基于该读的**写**之间存在 `await`"。
+  同类缺陷只有两种形态：**A 单飞承诺未同步发布**（并发重复副作用）、**B 先检查后动作 TOCTOU**（双双通过检查）。
+  扫描 `src/**` 全量 .ts → **33 处候选 / 22 文件** → **逐条人工执行序裁定**：✅ 已正确 **18**、🟡 良性 **4**、🔴 真缺陷 **10**（本轮修 3、余 7）、❓ 未验证 **1**（合计 33，与报告逐行一致）。
+- **操作**（文件级，8 个）：
+  1. 新建 `docs/reviews/2026-09-19-shared-mutable-state-inventory.md`：33 处逐条裁定表 + 两类缺陷形态 + 已修/待修 + 未覆盖项。
+  2. `src/ocr/engine.ts`：**worker 泄漏**修复 —— 原 `if (worker) return` → `await createWorker` → 赋值，并发 `initialize()` 会创建**两个 worker**、第二个覆盖第一个 ⇒ **第一个永不 `terminate`**。新增 `initializing` 在途承诺（读与写之间无 await ⇒ 原子发布）；`terminate()` 先等在途初始化落地（否则 `reinitialize()` 语言切换静默失效）；新增可选构造参数 `workerFactory`（DI 接缝，默认 `createWorker`）。
+  3. `src/components/kernel.ts`：**组件双启**修复 —— 原 `initialized.has()` → `await 依赖/init` → `add()`，并发 `init(sameId)` 与**共享依赖**都会重复启动。新增 `inFlight: Map<id, Promise>` 同步发布 + 复用。
+  4. `src/dre/actor/system.ts`：**cleanup 双跑**修复 —— 原 `get()` → `await destroy()` → `delete()`，并发 unregister / 与 `shutdown()` 并发会重复销毁。改为 **await 之前同步摘除认领**；语义取舍（destroy 抛错不回填注册表）已写入代码注释。
+  5. 新建 `tests/ocr-engine-single-flight.test.ts`（3 例）、`tests/dre-actor-lifecycle.test.ts`（3 例）；`tests/components/kernel.test.ts` 增 2 例。
+  6. `docs/operations-log.md`：本条目。
+- **TDD 红→绿**：`tests/ocr-engine-single-flight.test.ts` 修复前 **0 pass / 3 fail** → 修复后 **3 pass**；`tests/components/kernel.test.ts` 修复前 **3 pass / 2 fail**（`Expected: 1 / Received: 2`，依赖被启动两次）→ 修复后 **5 pass**；`tests/dre-actor-lifecycle.test.ts` 修复前 **1 pass / 2 fail** → 修复后 **3 pass**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4105 pass / 36 skip / 0 fail**（410 文件；基线 4097 + 新增 8，**无回归**）。
+- **值得记录的正面结论**：安全关键的 `src/terminal/command-gate.ts`（审批闸门）与 `src/utils/vault-stats-cache.ts` **本来就是原子实现**（同步认领 / 同步发布在途承诺），无需改动 —— 本次推广的模式在本仓库**已有先例**，`vault-stats-cache._refresh` 即范本。
+- **偏差记录**：①**扫描器是启发式，不能直接当结论**——它按"行序首 await / 首写"判断，无法识别闭包内 await（如 `const task = (async()=>{await ...})(); this.inFlight.set(...)` 中发布实际在 await 之前），会**误报**已正确实现；故所有裁定均经人工执行序复核，且该局限已写入报告 §0。②报告初稿的汇总数字（12/6/9/1）为手写，与逐行表**不符**（实际 18/4/10/1），已用 `awk` 逐行计数校正后提交 —— 保留此偏差记录以免"数字无来源"。③`OCREngine` 新增构造参数属**测试接缝**（规则 8 允许：已有第二个实现/fake），非投机配置项。
+- **未覆盖项（如实登记，不得据此宣称"并发已全面加固"）**：①扫描器只覆盖「同一方法内同名字段」，**不含**跨方法/跨对象共享、闭包与参数传递的共享、Map 值对象内部可变性、跨线程/跨进程状态；②`src/dre/kernel.ts:tick()` 仅判定为**未验证**（自动驱动是 `while + await` 串行无重叠，但 public API 外部并发可达性未核验）；③`task-graph.executeAll()` 并发**重复调用**不受互斥保护，调用方是否可能并发重复调用未核验；④**未做并发压测**（无 N=100+ 延迟/正确性测量）；⑤EventEmitter 监听器竞态、`setTimeout` 重入等形态不在本次扫描面内。
+- **不做项（留后续）**：`plugin-registry` 三处 TOCTOU（Medium）、`pi-code-tools.ensureInitialized`、`search-engines.resolveInstance`、`launcher.preload`、`logger.rotateIfNeeded`（均 Low）—— 已带 `文件:行号` 登记于报告 §3。
+- **Commit**：`__COMMIT__`
