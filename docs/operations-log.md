@@ -1535,4 +1535,4 @@
 - **操作**：`.gitignore` 追加 `.claude/`（与既有 `.workbuddy/`、`.v2c/` 同类处理）。
 - **验证结果**：`git check-ignore .claude` 命中；`git status --short` 归零。
 - **偏差记录**：无。
-- **Commit**：待回填
+- **Commit**：331aa2c
