@@ -1863,4 +1863,4 @@
 - **偏差记录**：①**扫描器是启发式，不能直接当结论**——它按"行序首 await / 首写"判断，无法识别闭包内 await（如 `const task = (async()=>{await ...})(); this.inFlight.set(...)` 中发布实际在 await 之前），会**误报**已正确实现；故所有裁定均经人工执行序复核，且该局限已写入报告 §0。②报告初稿的汇总数字（12/6/9/1）为手写，与逐行表**不符**（实际 18/4/10/1），已用 `awk` 逐行计数校正后提交 —— 保留此偏差记录以免"数字无来源"。③`OCREngine` 新增构造参数属**测试接缝**（规则 8 允许：已有第二个实现/fake），非投机配置项。
 - **未覆盖项（如实登记，不得据此宣称"并发已全面加固"）**：①扫描器只覆盖「同一方法内同名字段」，**不含**跨方法/跨对象共享、闭包与参数传递的共享、Map 值对象内部可变性、跨线程/跨进程状态；②`src/dre/kernel.ts:tick()` 仅判定为**未验证**（自动驱动是 `while + await` 串行无重叠，但 public API 外部并发可达性未核验）；③`task-graph.executeAll()` 并发**重复调用**不受互斥保护，调用方是否可能并发重复调用未核验；④**未做并发压测**（无 N=100+ 延迟/正确性测量）；⑤EventEmitter 监听器竞态、`setTimeout` 重入等形态不在本次扫描面内。
 - **不做项（留后续）**：`plugin-registry` 三处 TOCTOU（Medium）、`pi-code-tools.ensureInitialized`、`search-engines.resolveInstance`、`launcher.preload`、`logger.rotateIfNeeded`（均 Low）—— 已带 `文件:行号` 登记于报告 §3。
-- **Commit**：`__COMMIT__`
+- **Commit**：`28cd8b2`
