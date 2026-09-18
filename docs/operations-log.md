@@ -1789,4 +1789,4 @@
 - **附带证据（CI 机制自证有效）**：本修复**新增了 1 处 `localeCompare`**，上一轮新建的 `tests/unit/determinism-disclosure.test.ts` **立即在修复后报错**（`localeCompare` files 4→5、lines 5→6），迫使文档与代码同步更新后方才转绿。即：防漂移测试不是恒真断言，它对本轮真实改动产生了拦截。
 - **偏差记录**：①`mergeGroup` 取基础结果用 `group.reduce((best,r)=>r.score>best.score?r:best)`（严格大于 → 并列时取首个），仍是**输入序敏感**的次级点，但其结果只影响 `base` 字段的选择而非排序；本轮**未改**（避免扩大范围），登记于 §5.5 未覆盖项口径内。②`detectSourceContributions` 返回 `Array.from(contributions.entries())`（`Map` 插入序），同样输入序敏感；本轮**未改**，理由同上。
 - **未覆盖项**：未做 N≥5 次跨进程实测（规则 13.5），本轮以 TDD 单测 + 全量回归替代，强度低于实测跑批；`localeCompare` 的 tie-breaker 结论仍受同 locale/ICU 前提限制。
-- **Commit**：`__COMMIT__`
+- **Commit**：`bb4bc1e`
