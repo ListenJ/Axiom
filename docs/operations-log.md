@@ -1611,3 +1611,12 @@
   - 全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4049 pass / 36 skip / 0 fail**（4085 用例 / 403 文件；文件数较上轮 411 减少 8 = 归档的 8 个专属测试文件）。
 - **偏差记录**：①**清单外追加 11 个文件**（4 份文档 + 7 个测试），已按规则 12 回 Plan 并在计划文档记录理由：`resource_status` 是**真实注册工具**，移除后 MCP 工具数 189→188，4 份文档的当前值声明必须同步（否则 docs-consistency 门禁红）；`AXIOM-ARCHITECTURE.md`/`DRE-ARCHITECTURE.md` 仍描述已移除模块，违反验收标准 5。②`docs/test-reports/SUMMARY.md`、`docs/TEST-STRATEGY-2026-08-21.md`、`docs/audit-verification-log.md` 等**历史报告未改**（属历史留痕，非当前状态声明）。③保留 `src/local-llm/edge-embeddings.ts` 与 `edge-client.ts`（方案 A 明确保留：本地向量检索 + LLM 调用通道）。
 - **Commit**：0a6bd50（已推送 gitea）
+
+## 2026-09-18 — test(T1): 收紧 docs-consistency 的 system-resource 断言口径
+
+- **任务**：VRAM 子系统移除（0a6bd50）后发现 `tests/unit/docs-consistency.test.ts:118-120` 的断言语义已反转——原断言 `expect(readme.includes("system-resource.ts")).toBe(true)` 意在"README 必须记录在位模块"，模块移除后该断言仍为真但意图失效，易被后人误读为"README 须声明该模块存在"。任务分级 T1（单文件测试收紧）。
+- **工具**：Bash + Python 精确替换；规则 2（备份至 `.tmp/backups/tests/unit/`，验证后删除）。
+- **操作**（文件级）：`tests/unit/docs-consistency.test.ts` 将该处改为锁定**新**不变量：README 只允许以"已归档移除"口径提及 `system-resource.ts`，且不得再出现 `vram_status`。
+- **验证结果**：`bun test tests/unit/docs-consistency.test.ts` → 9 pass / 0 fail。
+- **偏差记录**：无（未改生产代码）。
+- **Commit**：__COMMIT_③FIX__
