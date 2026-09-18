@@ -59,10 +59,25 @@ const COMMON_ERRORS: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /[""‟]/g, replacement: '"' },
   { pattern: /[-‐‑‒–—]/g, replacement: "-" },
   { pattern: /[…]/g, replacement: "..." },
-  // Number confusions
-  { pattern: /[O]/g, replacement: "0" }, // Only in numeric contexts would need smarter logic
-  { pattern: /[l]/g, replacement: "1" }, // Similar
 ];
+
+/**
+ * 数字上下文易混字符纠错（审计 C-04 / A6-1，2026-09-18）。
+ *
+ * 仅在**以数字开头且仅由数字与易混字符构成的 token**内做 O→0 / l→1
+ * （如 "1O0"→"100"、"12l"→"121"）。纯字母词（Hello/OCR/Order/L2/O2）
+ * 一律原样保留 —— 此前的全局替换会静默腐蚀全部图片摄取内容并写入知识库。
+ */
+const NUMERIC_CONFUSABLE_TOKEN = /^\d[0-9Ool]*$/;
+
+function correctNumericConfusables(text: string): string {
+  return text
+    .split(/(\s+)/)
+    .map((token) =>
+      NUMERIC_CONFUSABLE_TOKEN.test(token) ? token.replace(/O/g, "0").replace(/l/g, "1") : token,
+    )
+    .join("");
+}
 
 /**
  * Post-process OCR result to improve accuracy.
@@ -171,7 +186,7 @@ function correctText(text: string): string {
   for (const { pattern, replacement } of COMMON_ERRORS) {
     corrected = corrected.replace(pattern, replacement);
   }
-  return corrected.trim();
+  return correctNumericConfusables(corrected).trim();
 }
 
 /** Extract document structure from blocks */

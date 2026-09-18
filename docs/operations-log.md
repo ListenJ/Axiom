@@ -1497,3 +1497,20 @@
 - **偏差记录**：①**仅修 A2-1/A2-2 两个 High**，未动 A2-3/A2-4（跨进程版本分叉、远程更新不发布事件，Medium，Redis 同步可选，单进程场景不触发）与 A5-3（vault 子目录编辑 mtime 脏读窗口，Medium，已有 file-watcher 防抖+启动 reindex+手动 reload 三重缓解）——超出"session 记忆修复"的最小范围，列为未决项。②同源豁免仅作用于本地 write()；远程 applyRemoteUpdate 有独立冲突逻辑（A2-3 范畴），未一并改动，避免跨进程语义误判。
 - **未决项**：①A2-3/A2-4 跨进程同步缺陷；②A5-3 vault 脏读窗口；③用户蓝图中的"session 内容入库 + LRU/LFU + 时间权重 + 长短期记忆"属新功能（非修复），建议单独立项。
 - **Commit**：b8e58c1（已推送 gitea）
+
+## 2026-09-18 — fix(T2/P0): 静默数据腐蚀两处 —— OCR 全局字符替换（C-04）+ 中文标题塌缩（A6-3）
+
+- **任务**：grilling 会话后冻结的 P0 修复（用户指令：优先级检查 + 计划 + TDD 施工）。两项均为审计 Critical/High 且属"不崩溃、不报错、数据错了"的静默腐蚀类型。
+- **工具**：Bash + Python 精确替换；规则 6（先建反馈回路：新测试复现真实症状）；规则 7（垂直切片 RED→GREEN）；规则 2（post-processor.ts / store.ts 备份至 `.tmp/backups/`，验证通过后删除）。
+- **操作**（文件级）：
+  1. **C-04** `src/ocr/post-processor.ts`：从 `COMMON_ERRORS` 移除全局 `[O]→0` 与 `[l]→1`（注释自承"smarter logic"从未实现）；新增 `correctNumericConfusables()` —— 仅对**以数字开头且仅由数字/易混字符构成**的 token 做纠错（`1O0`→`100`、`12l`→`121`），纯字母词一律保留。
+  2. **A6-3①** `src/knowledge/store.ts` `slugify()`：保留 CJK（`\u3400-\u4dbf`/`\u4e00-\u9fff`/`\uf900-\ufaff`），结果为空时回退标题 sha1 短 hash，保证路径非空且稳定。
+  3. **A6-3②** `src/knowledge/store.ts` `storeAsVaultNote()`：`writeNote` 显式传 `overwrite: true` —— 同 URL 重摄幂等覆盖，不再抛 `Note already exists` 被上层 catch 吞成警告。
+  4. 新增 `tests/unit/ocr-postprocessor-integrity.test.ts`（4 例）与 `tests/unit/knowledge-store-title-integrity.test.ts`（3 例，vault 模块边界 fake）。
+- **验证结果**（实证，RED 阶段均复现真实症状）：
+  - C-04 RED：`"Hello World OCR Order"` → `"He11o Wor1d 0CR 0rder"`；`"molecule"` → `"mo1ecu1ie"`（实测输出 `mo1ecu1e`）。修复后 4/4 GREEN。
+  - A6-3 RED：中文标题路径 = `00-Knowledge/philosophy/test/.md`（空文件名），"第一篇文章"与"第二篇文章"碰撞同一路径。修复后 3/3 GREEN。
+  - `tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4095 pass / 36 skip / 0 fail**（4131 用例，较上提交 +7）。首次全量出现 1 例 Actor 并发压力测试失败，单独复跑 8/8 通过 + 第二次全量 0 fail → 判定为 `--parallel=8` 满载下的 flaky，与本改动无关。
+- **偏差记录**：①C-04 采用**保守精度优先**策略（仅 token 以数字开头才纠错），代价是 `1OO` 这类以易混字符结尾的 token 不再纠错——权衡依据：本 bug 的损害是静默腐蚀，精度优先于召回；已在测试中固化该边界。②A6-3 未改 `isCollected(url)` 去重与 pipeline 其他路径（不在冻结清单）。
+- **未决项（本轮不动的 P1+ 项）**：C-01 采集侧 LLM 默认开启（T3，需定默认值）；A9-1 VRAM 探测默认关导致预算退化为常量 4000（T2/T3）；C-03 残余 `plugin-routes.ts:162` `enable ?? true`（T1）；A10-4 三处静默 catch（Medium）。
+- **Commit**：PENDING
