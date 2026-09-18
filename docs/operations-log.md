@@ -1578,4 +1578,4 @@
   - 全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4109 pass / 36 skip / 0 fail**（4145 用例，较上提交 4097 pass 净 +12 = 新增 11 例策略测试 + 1 例授权用例）。零回归。
   - 文档一致性：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts tests/audit/resource-audit.test.ts` → 47 pass / 0 fail。
 - **偏差记录**：①**主对话生成（用户主动发起的模型调用）不在本策略范围**，仍按既有路由调用模型——本策略只治理运行时**隐式**发起的辅助 LLM。②`EDGE_RISK_MONITOR` 默认关闭是安全取舍：灰区（正则未命中）不再经边缘初筛，硬底线不受影响，已写入 `LIMITATIONS.md` 已知局限 4。③未改 `settings-search` 的 embedding 默认（非生成式 LLM，且用户此前明确要求保留本地向量检索）。
-- **Commit**：__COMMIT_①__
+- **Commit**：81bb978（已推送 gitea）
