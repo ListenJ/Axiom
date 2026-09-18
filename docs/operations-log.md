@@ -1550,4 +1550,4 @@
   - `./node_modules/typescript/bin/tsc --noEmit` exit 0。
   - 静态复核：`grep -n "enable ?? true" src/routes/plugin-routes.ts` 零命中。
 - **偏差记录**：未改 `plugin-registry.ts` 的 `install*` 默认参数（本任务只治理 HTTP 安装入口的默认值；registry 层调用方均显式传 enable，改动会超出冻结清单）。
-- **Commit**：__COMMIT_②__
+- **Commit**：5bb6c44（已推送 gitea）
