@@ -1739,4 +1739,4 @@
 - **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → 0 error；全量 4079 pass / 36 skip / 0 fail。
 - **偏差记录**：①**语义保持优先于"顺手修正"**：`isWithinBase` 沿用旧有的 `startsWith("..")` 判定，因此 base 内名为 `..foo` 的合法目录仍被误判为逃逸。这是**旧有缺陷**，未在本轮修正——修正属安全语义变更，需单独评审（已写入架构文档）。②`plugin-registry.ts` / `memory-api.ts` 的原判定含 `rel === ""` 特例（目标等于根时也拒绝），委托时**显式保留**该特例，未按原语语义统一放宽。③`db-guard.validatePath` 是死代码，本轮只收敛不删除（删除需走规则 4 归档流程，且超出本任务范围）。
 - **未覆盖项（如实登记）**：①`utils/url-safety.ts`（SSRF）与 `computer-use/browser-launch.ts`（协议白名单）仍各有一套 URL 校验策略，二者**语义不同**，是否统一属独立决策，本轮未动。②`src/mcp/tools/filesystem.ts` 的 `isPathSafe` 调用点（14 处）未改为经 `execution-guard` 的统一入口，仍由工具内部直接调用。③未做对抗性输入测试（如符号链接竞态、TOCTOU）。④`knowledge/document-ingest.ts` 的多根围栏（cwd + vault）仍未接入 `execution-guard` 的 `cwdFenced` 通道，两套入口并存。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c54eb42`
