@@ -2,15 +2,17 @@
 
 > 引入版本：v4.1（2026-07-25）｜ 入口模块：`src/local-llm/`
 
-边缘小模型层把局域网内部署的小参数模型（llama.cpp）接入 Axiom 运行时，承担**低延迟、低成本的判断类任务**，让大模型专注生成。所有能力遵循仓库既有模式：
+边缘小模型层把本地或局域网内任意 OpenAI 兼容服务（llama.cpp `llama-server`、Ollama 等）接入 Axiom 运行时，承担**低延迟、低成本的判断类任务**，让大模型专注生成。所有能力遵循仓库既有模式：
 
 ```
 确定性 fast path → 边缘 LLM slow path → 失败静默回退（行为退化为接入前）
 ```
 
+> **默认关闭（2026-09-18 起）**：下表所有 `EDGE_*` 能力开关**未设置即关闭**，运行时默认只走内部规则路径，不隐式调用任何辅助 LLM。仅用户显式设为 `1` / `true` / `yes` 后才放行，授权逐能力生效，不存在"一开全开"。判定实现见 `src/local-llm/edge-client.ts:52`（`isEdgeEnabled`）与 `src/agents/prompt-optimizer.ts:253`（`isRewriteEnabled`），回归防线见 `tests/unit/llm-default-off-policy.test.ts`。
+
 ## 部署
 
-- 端点：`http://127.0.0.1:9001`（默认本机 llama.cpp `llama-server`，OpenAI 兼容；内网部署可指向如 `${LAN_NODE_N1}:9001`）
+- 端点：`http://127.0.0.1:9001`（默认本机 OpenAI 兼容服务，如 llama.cpp `llama-server`；内网部署可指向如 `${LAN_NODE_N1}:9001`）
 - 已验证模型：
   | 模型 | transport | 结论 |
   |---|---|---|
@@ -22,14 +24,14 @@
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `EDGE_LLM_URL` | `http://127.0.0.1:9001`（默认本机；内网部署示例 `http://${LAN_NODE_N1}:9001`） | llama.cpp 地址 |
-| `EDGE_LLM_MODEL` | `MiniCPM5-1B` | llama.cpp 忽略 model 字段，仅标识 |
+| `EDGE_LLM_URL` | `http://127.0.0.1:9001`（默认本机；内网部署示例 `http://${LAN_NODE_N1}:9001`） | 边缘模型地址（OpenAI 兼容） |
+| `EDGE_LLM_MODEL` | `MiniCPM5-1B` | 服务端忽略 model 字段时仅作标识 |
 | `EDGE_LLM_TRANSPORT` | `chat` | `completion` = 原生 /completion（思考不可关闭的模型必需） |
-| `EDGE_PROMPT_OPTIMIZER` | `1` | 意图分类增强（边缘第一层） |
-| `PROMPT_REWRITE` | `1` | 提示词改写（GLM 链 + 三重闸门；`EDGE_PROMPT_REWRITE=0` 兼容关闭） |
-| `EDGE_RISK_MONITOR` | `1` | 高危操作双层复核 |
-| `EDGE_MEMORY_ASSIST` | `1` | vault 门控/标题/标签/摘要 |
-| `EDGE_KNOWLEDGE_ASSIST` | `1` | 知识库四能力 |
+| `EDGE_PROMPT_OPTIMIZER` | **关闭**（未设置即关闭） | 意图分类增强（边缘第一层）；`=1` 显式授权 |
+| `PROMPT_REWRITE` | **关闭**（未设置即关闭） | 提示词改写（GLM 链 + 三重闸门）；`=1` 显式授权，`EDGE_PROMPT_REWRITE=0` 兼容关闭 |
+| `EDGE_RISK_MONITOR` | **关闭**（未设置即关闭） | 高危操作双层复核；`=1` 显式授权 |
+| `EDGE_MEMORY_ASSIST` | **关闭**（未设置即关闭） | vault 门控/标题/标签/摘要；`=1` 显式授权 |
+| `EDGE_KNOWLEDGE_ASSIST` | **关闭**（未设置即关闭） | 知识库四能力；需与 `KNOWLEDGE_USE_LLM=1` 同时设置 |
 
 ## 能力地图
 

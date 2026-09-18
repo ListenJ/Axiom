@@ -10,7 +10,7 @@
 - **可追溯**：认知闭环每步产生类型化 trace；突触写操作全链 verify hash；意识流 trace hash。
 - **可回放**：固定种子 + 事件日志（EventBus 保留最近 1000 条）。
 - **防幻觉**：三段甄别（预筛 → 网络校验 → LLM 自推理）；反思教训写入长期记忆；Vault 原件双写校验。
-- **硬件无关**：SystemResource 只问"有多少资源预算"，不问底层硬件。
+- **硬件无关**：内存准入由调度器以进程堆占用（`process.memoryUsage().heapUsed`）对照可配置预算（`setBudget({ maxMemoryMB })`）判定，不探测具体硬件（`src/dre/runtime/scheduler.ts:50,65,76`）。
 
 ## 二、分层架构（判断，依据模块职责）
 
@@ -30,7 +30,7 @@
 │              DataUnifier · ContextEngine · RuleEngine    │
 ├─────────────────────────────────────────────────────────┤
 │ 内核层       Kernel · DREngine · ConfigLoader ·          │
-│              SystemResource · PersonaLoader             │
+│              PersonaLoader                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -42,7 +42,6 @@
 | `Kernel` (kernel.ts) | 极薄启动器：`init()` 启动所有模块、`tick` 驱动循环、生命周期状态机 |
 | `DREngine` (engine.ts) | 主入口：整合全部模块，暴露 `writeKnowledge`/`consciousnessStep`/`constraints`/`actors` 等 |
 | `ConfigLoader` (config.ts) | 配置加载：explicit > env（`DRE_*`）> defaults |
-| `SystemResource` | 资源预算（内存/算力），不依赖具体硬件检测 |
 | `PersonaLoader` | 动态角色加载（约束 + 心智模型 + 能力，替代 AgentHarness） |
 
 ### 存储层

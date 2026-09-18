@@ -38,7 +38,7 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 
 - Vault 确定性搜索（关键词/PARA/标签）— `/vault/stats` 可见笔记数
 - DRE `/dre/run`（认知管线：classify→knowledge→reasoning→constraint→action→reflection）
-- 知识图谱 `/kg/search`（pgvector 语义检索）
+- 知识图谱 `/kg/search`（SQLite 图遍历 + 实体/关系扩展，响应 `backend: "sqlite"`；pgvector 为可选历史能力）
 - Chat 内 `web_search`/`web_fetch` 工具（可继续拉取新资料入库）
 
 ## MinerU 与 零LLM 口径（Task8 澄清）
@@ -51,5 +51,5 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 
 - **整理策略**：`DeterministicSearchEngine` 有界扫描 `CONTENT_SCAN_MAX=200` + Vault 去重（`dedupByTask`）+ 截断 3000 + 噪声过滤（PyMuPDF/mineru）已落地；`src/kal/knowledge-access-layer.ts` 经 `getWikiBacklinks` 与 KG 出入边 UNION 实现跨存储闭环。
 - **证据链**：`HypothesisManager` 净证据占优（`s≥3 && s>c → confirmed; c≥3 && c>s → refuted`）+ 按行 `JSON.parse` 容错已落地；`src/dre/storage/knowledge-store.ts` 支持混合证据驳斥可达。
-- **资源联动**：`ResourceBudgetManager`（`modelMemoryMB=1100 + safety 200 + kvCache 2200`）经 `clampMaxTokens` 与 `VRAM probe`（`nvidia-smi` 60s 轮询）联动，`RTX 3050 Ti 4096MiB` 下推荐 `4096` tokens，`1000MB` 时 `canRun=false` 触发降级（`DRE→vault.search` 保守放行）。
-- **双端探针**：`scripts/audit/dual-probe.ts` 7 探针（health/cron/MCP/重绑定/WS/mineru/DRE）本地 6 PASS + 远端 7 SKIP（`192.168.0.150` 不可达容错），`scripts/audit/oom-probe.ts` 5 探针（`clamp/OOM/nvidia/llama`）0 FAIL。
+- **资源联动（2026-09-18 已移除）**：原 `ResourceBudgetManager` / `clampMaxTokens` / VRAM probe 联动链已随本地推理与显存管理一并归档移除（`src/dre/system-resource.ts`、`system-resource-probe.ts`）。调度器内存准入改为进程堆占用对照可配置预算（`setBudget({ maxMemoryMB })`）。
+- **双端探针**：`scripts/audit/dual-probe.ts` 7 探针（health/cron/MCP/重绑定/WS/mineru/DRE）本地 6 PASS + 远端 7 SKIP（`192.168.0.150` 不可达容错），原 `scripts/audit/oom-probe.ts` 5 探针（`clamp/OOM/nvidia/llama`）随 VRAM 子系统于 2026-09-18 归档移除。

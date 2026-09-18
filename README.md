@@ -1,4 +1,4 @@
-﻿# Axiom Runtime v3.1
+﻿# Axiom Runtime v4.0.0
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
@@ -254,19 +254,19 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 | 模块 | 文件 | 行数¹ | 功能 |
 |------|------|------|------|
-| 知识存储 | `src/dre/storage/knowledge-store.ts` | 776 | 7 种知识范式 + 版本快照 + 实体关系图谱 |
+| 知识存储 | `src/dre/storage/knowledge-store.ts` | 803 | 7 种知识范式 + 版本快照 + 实体关系图谱 |
 | 行为知识 | `knowledge-store.ts` | — | `IF-THEN` 规则解析 → Behavior 模式 |
 | 过程知识 | `knowledge-store.ts` | — | 步骤解析 + 条件分支 + `&&`/`||` 评估 |
 | 假设管理 | `knowledge-store.ts` | — | 5 状态生命周期 + 证据积累 → 自动判定 |
 | 心智模型池 | `src/dre/mental-model/pool.ts` | 563 | 概念图 + 状态转换 + BFS 路径 + 关系扩展匹配 |
 | 推理图 | `src/dre/reasoning/graph.ts` | 497 | 缺口检测 + LLM 精确填充 + 链式置信度 |
-| 约束求解 | `src/dre/constraint/solver.ts` | 649 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
-| Actor 系统 | `src/dre/actor/system.ts` | 583 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
-| 降级链 | `src/dre/engine.ts` | 803 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
+| 约束求解 | `src/dre/constraint/solver.ts` | 619 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
+| Actor 系统 | `src/dre/actor/system.ts` | 647 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
+| 降级链 | `src/dre/engine.ts` | 902 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
 
 > **2026-09-18 变更**：`src/dre/system-resource.ts`（`ResourceBudgetManager` / `clampMaxTokens`）与 `src/dre/system-resource-probe.ts`（nvidia-smi VRAM 探测）已归档移除——本项目不再自托管本地推理，模型统一按外部 OpenAI 兼容服务（Ollama / 云端）对接，因此不再维护显存与 token 预算钳制；调度器内存准入改为进程堆占用 + 可配置预算。
 
-> ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
+> ¹ 行数为 2026-09-18 快照，仅作规模参考；权威结构以源码为准。
 
 ### 🔍 确定性记忆引擎（FTS5 + 关键词打分，余弦仅可选语义层）
 
@@ -366,7 +366,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值；2026-09-18 移除 `resource_status` 后由 189 回落到 188），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
+暴露 188 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173 均为旧值；2026-09-18 移除 `resource_status` 后由 189 回落到 188），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v2.9.2 全面技术报告（已归档）](docs/archive/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
@@ -374,7 +374,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 |------|------|------|
 | 核心工具 | ✅ 始终可用 | 零配置，安装 Bun 即可用 |
 | 配置工具 | ⚙️ 配置后可用 | 需要 API Key |
-| 外部服务 | 🔧 需安装服务 | llama.cpp 等（PostgreSQL 已归档 H-M1-03） |
+| 外部服务 | 🔧 需安装服务 | OpenAI 兼容 LLM 端点（Ollama / 云端）等（PostgreSQL 已归档 H-M1-03） |
 
 **基本功能保证** (零配置即可使用):
 
@@ -429,7 +429,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | 类别 | 服务依赖 | 工具数 | 降级方案 |
 |------|----------|--------|----------|
 | PostgreSQL KG | PostgreSQL + pgvector | 7 | 使用 `kg_enhanced_*` SQLite 工具 |
-| DRE 写入 | llama.cpp + GPU | 2 | 使用 `memory_write` |
+| DRE 写入 | OpenAI 兼容 LLM 端点（`DRE_LLM_URL`） | 2 | 使用 `memory_write` |
 | CLI Agent | OpenCode/Hermes CLI | 3 | 无降级方案 |
 
 ### 🐧 Linux Office 适配器

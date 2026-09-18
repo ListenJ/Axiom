@@ -64,7 +64,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 ## 〇一、LLM 潜力释放四维模型
 
 > 本节阐述 Axiom Runtime 如何通过认知架构设计榨干 LLM 的每一点潜力。
-> 核心论点: LLM 的最大潜力不是"它什么都知道", 而是"它能极其精准地完成一个被严格定义的微任务"。
+> 核心论点: 把 LLM 当作"极其精准地完成一个被严格定义的微任务"的执行器，比期待它"什么都知道"更贴近其真实能力边界。
 > Axiom Runtime 是 LLM 的操作系统 — 负责调度、内存、I/O 与安全。
 
 ### 现状批判: LLM 作为"超级函数"
@@ -1469,9 +1469,9 @@ MCP tool: cognitive_state
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `DRE_DB_PATH` | `"./data/dre.db"` | SQLite 数据库路径 |
-| `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | 本地 LLM API 地址 |
+| `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | LLM API 地址（OpenAI 兼容；默认本机，可指向 Ollama / 云端） |
 | `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型（OpenAI 兼容端点可填云端模型） |
-| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向云端端点时必填；本地 llama.cpp 可省略） |
+| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向非 `127.0.0.1`/`localhost` 端点时必填，否则 `src/dre/config.ts:158` 告警；本机端点可省略） |
 | `DRE_LLM_TEMPERATURE` | `0` | 推理温度 |
 | `DRE_LLM_TOP_K` | `1` | Top-K 采样 |
 | `DRE_LLM_SEED` | `42` | 随机种子 (确定性) |

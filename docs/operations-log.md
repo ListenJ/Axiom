@@ -1620,3 +1620,20 @@
 - **验证结果**：`bun test tests/unit/docs-consistency.test.ts` → 9 pass / 0 fail。
 - **偏差记录**：无（未改生产代码）。
 - **Commit**：c1383b6（已推送 gitea）
+
+## 2026-09-18 — docs(T2): 当前状态文档事实校准 + humanizer-zh 润色（方案A）
+
+- **任务**：用户目标「确认文档 → 用 humanizer-zh 重新查看润色 → 更新到最新状态」。分级 T2（多文件文档事实校准）。**只改文档，未改任何代码。**
+- **工具**：Bash + Python 精确替换；humanizer-zh skill（AI 写作模式扫描）；规则 2（6 份文档备份至 `.tmp/backups/`）。
+- **操作**（文件级，6 份）：
+  1. `docs/EDGE-LLM.md`：开关默认值表 `1`→「关闭（未设置即关闭）」（5 行）+ 新增默认关闭政策段；边缘层定位由「局域网 llama.cpp」改为「任意 OpenAI 兼容服务」。
+  2. `docs/LIMITATIONS.md`：§1「VRAM / KV-Cache 估算边界」整节替换为「已归档移除」记录；工具数 172→188、权威源 `tool-registry.ts`→`src/testing/tool-count.ts`（§2.2/§2.3/§2.4 + 页脚）。
+  3. `docs/DRE-ARCHITECTURE.md`：删 3 处 `SystemResource` 现役表述（设计原则/分层图/模块表），改为调度器堆占用准入。
+  4. `docs/KNOWLEDGE-BASE.md`：删 `ResourceBudgetManager`/VRAM probe 现役条目；`/kg/search` 由「pgvector 语义检索」改为 SQLite 图遍历；删已归档 `oom-probe.ts` 的现役引用。
+  5. `README.md`：标题版本 v3.1→v4.0.0（对齐 `package.json`）；修复唯一死链（`v2.9.2-COMPREHENSIVE-REPORT.md` 已归档）；`llama.cpp + GPU` 依赖行改为 OpenAI 兼容端点；模块表 4 个行数快照更新为实测值。
+  6. `docs/AXIOM-ARCHITECTURE.md`：§5.1 配置表 2 行对齐 `src/dre/config.ts:56,158`；§〇一 消除 1 处「不是…而是…」否定式排比。
+- **声明 vs 实际核查**（2 种独立方式：静态 grep + 源码逐点核对）：工具数文档值 = `src/testing/tool-count.ts` 实测 **188**；EDGE 开关默认值三方一致（文档 / `src/local-llm/edge-client.ts:52-55` / `.env.example:336-353`，均默认关闭）；VRAM + 本地推理在 6 份文档中已无"现役"口径。
+- **验证结果**：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **34 pass / 0 fail**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4049 pass / 36 skip / 0 fail**（4085 用例 / 403 文件，与基线一致）；humanizer-zh 模式重扫 6 份目标文档 0 命中。
+- **偏差记录**：①**规则 2 定向读法**——`docs/AXIOM-ARCHITECTURE.md`（1636 行）未逐行通读，改用「全文标题索引 + 全仓 `VRAM|llama.cpp|system-resource|resource_status` grep（确认无其他现役引用）+ 完整读目标表所在 §5.1」，理由是该文件已在 0a6bd50 对同一子系统系统性更新且本次仅改 2 个单元格，风险低。②首次全量跑到 1 fail（`tests/edge-cases/performance-degradation.test.ts` 的 p99<50ms 基准），隔离重跑 3/3 通过、二次全量 0 fail，判定为 `--parallel=8` 负载下的**计时抖动**，与本次纯文档改动无关（diff 仅 6 个 `.md`）。
+- **未覆盖项（如实登记，覆盖率未达 100%）**：`docs/` 下另有 90 份 active md 未润色（dated 评审/研究/计划/实验/决策/test-reports，及 `COMPREHENSIVE-GUIDE.md`、`PROJECT-GUIDE.md`、`USER-MANUAL.md`、`RUNTIME-SPEC.md`、`STORAGE-EVALUATION.md` 等）；另检出 8 处「不是…而是…」否定式排比分布于 `docs/STORAGE-EVALUATION.md:12,152`、`docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md:12`、`docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:162`、`docs/plans/2026-08-18-streaming-memory-comparison.md:63`、`docs/research/free-search-apis-2026.md:88`、`docs/functional-check-2026-08-16-sensenova.md:3`，本轮未改。
+- **Commit**：PENDING_HASH（待推送 gitea）
