@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-06",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "覆盖向：源文本三大命题均被候选覆盖——『全部写操作追加链式哈希验证链（每条记录带 prevHash，篡改即失配）』→ 候选命题 1；『因此数据\"有可以校验的路径、可以追溯实现效果\"（mind_synapse_verify / mind_synapse_trace）』→ 候选命题 2；『本地模型仅作可选增强（注入 localModelAssist），不配置时模块 100% 确定性、零网络依赖』→ 候选命题 3。量词（『全部』『100%』）、条件（『不配置时』）、因果（『因此』）等关键要素均保留。忠实向：候选三命题均可在源文本逐字定位，无添加命题；实体 mind_synapse_verify / localModelAssist 标注 type=function 是对源文本括号引用的合理解读，非错链。无剩余差异，判 equivalent。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

@@ -1,0 +1,40 @@
+{
+  "id": "se-0033",
+  "source_text": "事实：Hermes 官方 Prompt Assembly 文档把 system prompt 分成 stable -> context -> volatile 三层。stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints；context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.cursorrules），带安全扫描与截断；volatile 包含 memory snapshot、timestamp、session/model/provider 行。",
+  "source_origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L23-L23",
+  "candidate_mr": {
+    "propositions": [
+      "事实：Hermes 官方 Prompt Assembly 文档把 system prompt 分成 stable -> context -> volatile 三层。stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints；context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.cursorrules），带安全扫描与截断；volatile 包含 memory snapshot、timestamp、session/model/provider 行。"
+    ],
+    "entities": [
+      {
+        "name": "事实：Hermes 官方 Prompt Assembly 文档把 system prompt 分成 stable -> context -> volatile 三层。stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints；context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.curso",
+        "type": "concept",
+        "link": "kg:concept:___Hermes____Prompt_Assembly_____system_prompt____stable_-__context_-__volatile_-ef2f304d"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md",
+        "predicate": "contains",
+        "object": "事实：Hermes 官方 Prompt Assembly 文档把 system prompt 分成 stable -> context -> volatile 三层。stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints；context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.curso"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/EXTERNAL-AGENTS-CACHE-OPTIMIZATION-2026-08-09.md#L23-L23"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

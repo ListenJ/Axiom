@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0080",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的定义命题（callProviderWithBudget）有据，但源文本关键命题缺失：『429/5xx/传输层退避重试 3 次』（数值）、返回 content『可能为空』（例外）与『响应体只解析一次 JSON：content 与 usage 共用同一次 parse 结果』（量词，只一次）均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

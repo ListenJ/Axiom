@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0043",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『outdated documents that have data leakage problems』，其后关键命题全部缺失：『an emphasis on short dependency tasks rather than long dependency tasks』（第三项缺陷）、『over 24,000 tokens per document and 6,000 newly generated questions』（数值）、『more than 1,100 high-quality question-answer pairs』、四项发现『(i) commercial models outperformed open-sourced models』等，均为关键命题遗漏，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

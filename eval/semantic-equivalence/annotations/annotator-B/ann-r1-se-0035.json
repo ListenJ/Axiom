@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0035",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本四条纪律：『稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率』『工具结果外置可恢复，避免压缩吞掉信息』『双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康』『注册面与模型可见面分离，按会话裁剪、稳定排序、批量压缩』，条件（provider 支持时）与目的（避免压缩吞掉信息）无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『4. ToolSurface：注册面与模』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

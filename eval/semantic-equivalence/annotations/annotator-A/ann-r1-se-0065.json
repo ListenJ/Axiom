@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0065",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题为源文本逐字投影，完整保留『CUDA is a parallel computing platform and programming model developed by NVIDIA』『enables dramatic increases in computing performance by harnessing the power of the GPU』与领域列举『deep learning, scientific computing, and high-performance computing (HPC)』，无添加无遗漏；可忽略差异：实体名与三元组 object 字段在『It allows developers to acc』处截断，命题本体完整。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

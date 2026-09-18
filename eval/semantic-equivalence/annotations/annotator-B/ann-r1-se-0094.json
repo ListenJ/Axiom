@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0094",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键字段语义：「injectedSkills…（无注入为空）」（条件）「executionError…执行错误（限流/传输/空内容等 provider 侧故障，非能力失败）：不计入能力通过率分母」（否定+条件，直接改变统计口径）「tokenUsage…（provider 未返回时缺失；不阻断评测）」（条件+否定）「costUsd…（美元；仅 internalAgent 路径可能提供，直连路径按 token 数展示）」（限定条件）。按 §6.6 判 not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

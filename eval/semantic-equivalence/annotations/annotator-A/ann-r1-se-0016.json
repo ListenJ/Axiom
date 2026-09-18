@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0016",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致\"及持久化说明（SkillQualityStore 适配器持久化至 data/skill-quality.json、构造时 load 恢复、共用实例、\"残余局限仅在于派生标记本身不落盘\"）在候选命题中逐字完整保留。可忽略差异：entities[0].name 与 triples[0].object 截断于\"skill_run / skill-promotion / agent-\"（约 120 字符上限，截断于 agent-evals 词中），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-10",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E1"],
+  "severity": "critical",
+  "rationale": "源文本明确区分两个不同位置：『**`<仓库根>/.env`** —— 运行时密钥/环境注入』与『**`~/.axiom/axiom-secrets/`** —— 外部服务凭据（`services.credentials` 等）』。候选实体表把 .env 的 link 写为 ~/.axiom/axiom-secrets/.env，将仓库根 .env 与 axiom-secrets 目录两个源文本刻意分开的位置混为一路径，链接指向错误实体（E1，critical）；且此混淆涉密钥存储位置，属行为含义级错误。两条命题本体（『gitignored；Windows ACL 仅本人+SYSTEM』『services.credentials 等』）有据，但实体错链即 not_equivalent。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

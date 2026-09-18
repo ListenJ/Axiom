@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0069",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本全部命题：『binary search, weighted graph algorithms, transitive closure and reduction, range search』与『computational geometry, multithreaded algorithms, and graph theory』，无添加无遗漏；可忽略差异：实体名与三元组 object 字段在『computational geometry, 』处截断，命题本体完整。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

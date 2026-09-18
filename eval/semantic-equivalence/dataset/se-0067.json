@@ -1,0 +1,40 @@
+{
+  "id": "se-0067",
+  "source_text": "An OS virtualizes the machine by providing easy-to-use abstractions of physical resources while masking limitations. In this context, a \nthread\n is a path of execution within a process, and a process may contain multiple threads. Thus, multithreading involves executing multiple threads (i.e., execution units that are part of a process and share the same resources) concurrently, which improves overall responsiveness and efficiency.",
+  "source_origin": "axiom-memory/00-Knowledge/computer-science/os/61-what-is-an-operating-system-introduction-to-computer-scie.md#L232-L234",
+  "candidate_mr": {
+    "propositions": [
+      "An OS virtualizes the machine by providing easy-to-use abstractions of physical resources while masking limitations. In this context, a  thread  is a path of execution within a process, and a process may contain multiple threads. Thus, multithreading involves executing multiple threads (i.e., execution units that are part of a process and share the same resources) concurrently, which improves overall responsiveness and efficiency."
+    ],
+    "entities": [
+      {
+        "name": "An OS virtualizes the machine by providing easy-to-use abstractions of physical resources while masking limitations. In this context, a  thread  is a path of execution within a process, and a process ",
+        "type": "concept",
+        "link": "kg:concept:An_OS_virtualizes_the_machine_by_providing_easy-to-use_abstractions_of_physical_-cc6110d8"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/computer-science/os/61-what-is-an-operating-system-introduction-to-computer-scie.md",
+        "predicate": "contains",
+        "object": "An OS virtualizes the machine by providing easy-to-use abstractions of physical resources while masking limitations. In this context, a  thread  is a path of execution within a process, and a process "
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/computer-science/os/61-what-is-an-operating-system-introduction-to-computer-scie.md#L232-L234"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "se-0071",
+  "source_text": "```ts\n/** 审计 P1-3：单次评测执行超时（与原直跑语义一致，保持 20s）。 */\nconst SANDBOX_TIMEOUT_MS = 20_000;\n/** 生成的 Python 脚本文件名（落在挂载目录内，容器内经 /workspace 相对引用）。 */\nconst GENERATED_SCRIPT = \"generated_code.py\";\n/** 脚本运行目录根：项目内 .tmp 下（docker-sandbox 挂载白名单拒绝宿主用户目录首段，如 os.tmpdir）。 */\nconst RUN_DIR_ROOT = path.resolve(process.cwd(), \".tmp\", \"external-eval-runs\");\n```",
+  "source_origin": "src/agent-evals/external.ts#L42-L44",
+  "candidate_mr": {
+    "propositions": [],
+    "entities": [],
+    "triples": [],
+    "provenance": [],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

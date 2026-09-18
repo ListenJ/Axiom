@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0059",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体、三元组均逐字保留源文本全部内容与数值：『Solution for long term memory for agent coding CLIs and to facilitate handoff between different agent vendors』『Language: Rust』『Stars: 3510 | Today: 335』，无命题缺失或添加，仅空白扁平化 → equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

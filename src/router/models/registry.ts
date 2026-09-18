@@ -1,0 +1,1083 @@
+// src/router/models/registry.ts
+// Unified Model Registry — Single source of truth for all model metadata
+// Consumers: model-router.ts, tool-pool.ts, model-capability-registry.ts
+// Updated: 2026-06-05 with real data from OpenRouter API & OfoxAI
+//
+// Phase B.3 split: types + provider configs moved to sibling files. This
+// file now contains ONLY the UNIFIED_REGISTRY data array and the lookup
+// helpers that operate on it. Backward-compatible: re-exported via
+// `../models.js` and `./index.js`.
+
+import type { ModelProvider, ProviderConfig, TaskRole, UnifiedModel } from "./types.js";
+import { PROVIDER_CONFIG } from "./providers.js";
+
+// ═══════════════════════════════════════════════════════════════
+// Unified Model Registry — All models in one place
+// Updated: 2026-06-05 with verified pricing from OpenRouter & OfoxAI
+// ═══════════════════════════════════════════════════════════════
+export const UNIFIED_REGISTRY: UnifiedModel[] = [
+  // ═══════════════════════════════════════════════════════════════
+  // 旗舰模型 / Flagship Models (2026)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── GPT-5.5 (OpenAI via OpenRouter/OfoxAI) ───
+  {
+    id: "gpt-5.5",
+    provider: "openrouter",
+    model: "openai/gpt-5.5",
+    roles: ["decision", "architecture", "code-generation", "general-chat", "research", "deep_research", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "multimodal"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "GPT-5.5 — OpenAI 旗舰模型 (1M ctx, $4.25/$25.5 per 1M)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── GPT-5.4 Pro (OpenAI via OpenRouter) ───
+  {
+    id: "gpt-5.4-pro",
+    provider: "openrouter",
+    model: "openai/gpt-5.4-pro",
+    roles: ["architecture", "code-generation", "deep_research", "research", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "multimodal"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "GPT-5.4 Pro — OpenAI 高阶模型 (1M ctx, $30/$180 per 1M)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Claude Opus 4.8 (Anthropic via OpenRouter/OfoxAI) ───
+  {
+    id: "claude-opus-4.8",
+    provider: "ofoxai-anthropic",
+    model: "claude-opus-4-8-20260301",
+    roles: ["architecture", "code-generation", "deep_research", "research", "review", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "coding"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "Claude Opus 4.8 — Anthropic 最新旗舰 (1M ctx, $5/$25 per 1M)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Claude Opus 4.7 (Anthropic via OpenRouter/OfoxAI) ───
+  {
+    id: "claude-opus-4.7",
+    provider: "ofoxai-anthropic",
+    model: "claude-opus-4-7-20251101",
+    roles: ["architecture", "code-generation", "deep_research", "research", "review", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "coding"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "Claude Opus 4.7 — Anthropic 旗舰模型 (1M ctx, $5/$25 per 1M)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Claude Sonnet 4.6 (Anthropic via OpenRouter/OfoxAI) ───
+  {
+    id: "claude-sonnet-4.6",
+    provider: "ofoxai-anthropic",
+    model: "claude-sonnet-4-6-20251101",
+    roles: ["code-generation", "code-review", "general-chat", "review", "research", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["mid-tier", "coding", "fast"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "Claude Sonnet 4.6 — 高性能均衡模型 (1M ctx, $3/$15 per 1M)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Gemini 3.1 Pro (Google via OfoxAI/OpenRouter) ───
+  {
+    id: "gemini-3.1-pro",
+    provider: "ofoxai-gemini",
+    model: "gemini-3.1-pro-preview",
+    roles: ["architecture", "code-generation", "general-chat", "research", "deep_research", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "multimodal", "long-context"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Gemini 3.1 Pro — Google 旗舰模型 (1M ctx, $2/$12 per 1M)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Gemini 2.5 Pro (Google via OpenRouter) ───
+  {
+    id: "gemini-2.5-pro",
+    provider: "openrouter",
+    model: "google/gemini-2.5-pro",
+    roles: ["architecture", "code-generation", "general-chat", "research", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "multimodal", "long-context"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Gemini 2.5 Pro — Google 前代旗舰 (1M ctx, $1.25/$10 per 1M)",
+    priority: 3,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 主力任务模型 / Main Task Models (2026)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── GPT-5.4 (OpenAI via OpenRouter) ───
+  {
+    id: "gpt-5.4",
+    provider: "openrouter",
+    model: "openai/gpt-5.4",
+    roles: ["code-generation", "general-chat", "research", "review", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["mid-tier", "reasoning", "multimodal"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "GPT-5.4 — OpenAI 主力模型 (1M ctx, $2.5/$15 per 1M)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Pro ───
+  {
+    id: "deepseek-v4-pro",
+    provider: "deepseek",
+    model: "deepseek-v4-pro",
+    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "deep_research", "math", "evaluation", "main_coding"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["main", "reasoning", "coding", "chinese"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "DeepSeek V4 Pro — 1M ctx, 384K max output, 思考/非思考模式 ($0.435/$0.87 per 1M 直连)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Flash ───
+  {
+    id: "deepseek-v4-flash",
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["fast", "coding", "chinese"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "DeepSeek V4 Flash — 1M ctx, 384K max output, 思考/非思考模式 ($0.14/$0.28 per 1M 直连)",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+
+  // ─── GLM 5.1 (SiliconFlow) ───
+  {
+    id: "glm-5.1",
+    provider: "siliconflow",
+    model: "Pro/zai-org/GLM-5.1", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5.1 不存在）
+    roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["main", "reasoning", "coding", "chinese"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM 5.1 — 智谱旗舰模型 ($0.98/$3.08 per 1M via OpenRouter)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── GLM 5 (SiliconFlow) ───
+  {
+    id: "glm-5",
+    provider: "siliconflow",
+    model: "zai-org/GLM-5.2", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5 不存在）
+    roles: ["code-generation", "general-chat", "research", "general-tool", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["mid-tier", "coding", "chinese"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM 5 — 智谱主力模型 ($0.60/$1.92 per 1M via OpenRouter)",
+    priority: 3,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Kimi K2.6 ───
+  {
+    id: "kimi-k2.6",
+    provider: "kimi",
+    model: "kimi-k2.6",
+    roles: ["code-generation", "code-review", "coding", "general-chat", "research", "review"],
+    contextWindow: 262000,
+    isFree: false,
+    tags: ["coding", "long-context", "chinese"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Kimi K2.6 — Moonshot 代码与长上下文任务 (262K ctx, $0.68/$3.42 per 1M)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Kimi K2.5 ───
+  {
+    id: "kimi-k2.5",
+    provider: "kimi",
+    model: "kimi-k2.5",
+    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    contextWindow: 262000,
+    isFree: false,
+    tags: ["coding", "long-context", "chinese", "balanced"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Kimi K2.5 — Moonshot 均衡模型 (262K ctx, $0.40/$1.90 per 1M)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Kimi Latest ───
+  {
+    id: "kimi-latest",
+    provider: "kimi",
+    model: "kimi-latest",
+    roles: ["general-chat", "general-tool", "english", "review"],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["general", "chinese", "balanced"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Kimi Latest — Moonshot 最新通用模型 (128K context)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── MiniMax M3 ───
+  {
+    id: "minimax-m3",
+    provider: "minimax",
+    model: "MiniMax-M3",
+    roles: ["general-chat", "architecture", "decision", "research", "review", "general-tool"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["long-context", "chinese", "reasoning", "multimodal"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "MiniMax M3 — 1M context 多模态模型 ($0.30/$1.20 per 1M via OpenRouter)",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── MiniMax M2.7 ───
+  {
+    id: "minimax-m2.7",
+    provider: "minimax",
+    model: "MiniMax-M2.7",
+    roles: ["general-chat", "architecture", "decision", "research", "review", "general-tool"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["long-context", "chinese", "reasoning"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "MiniMax M2.7 — 200K context 高效模型 ($0.28/$1.20 per 1M via OpenRouter)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── MiniMax M2.5 ───
+  {
+    id: "minimax-m2.5",
+    provider: "minimax",
+    model: "MiniMax-M2.5",
+    roles: ["general-chat", "general-tool", "english", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["chinese", "fast", "balanced"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "MiniMax M2.5 — 快速均衡模型 ($0.15/$1.15 per 1M via OpenRouter)",
+    priority: 4,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 开源模型 / Open-Weight Models (2026)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Llama 4 Scout ───
+  {
+    id: "llama-4-scout",
+    provider: "openrouter",
+    model: "meta-llama/llama-4-scout",
+    roles: ["code-generation", "general-chat", "english", "general-tool"],
+    contextWindow: 10000000,  // 10M context!
+    isFree: false,
+    tags: ["open-weight", "ultra-long-context", "coding"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Llama 4 Scout — 109B/17B, 10M context window",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 120000,
+  },
+
+  // ─── Llama 4 Maverick ───
+  {
+    id: "llama-4-maverick",
+    provider: "openrouter",
+    model: "meta-llama/llama-4-maverick",
+    roles: ["code-generation", "architecture", "general-chat", "research"],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["open-weight", "coding", "reasoning"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Llama 4 Maverick — 400B/17B, 高性能开源模型",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 120000,
+  },
+
+  // ─── Qwen3.7-Plus ───
+  {
+    id: "qwen3.7-plus",
+    provider: "siliconflow",
+    model: "alibaba/Qwen3.7-Plus",
+    roles: ["code-generation", "general-chat", "general-tool", "review"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["open-weight", "chinese", "balanced", "long-context"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Qwen3.7 Plus — 阿里巴巴增强版 (1M ctx, $0.40/$1.60 per 1M)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Qwen3.5-Flash ───
+  {
+    id: "qwen3.5-flash",
+    provider: "siliconflow",
+    model: "alibaba/Qwen3.5-Flash",
+    roles: ["code-generation", "general-chat", "general-tool"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["open-weight", "chinese", "fast", "budget"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "Qwen3.5 Flash — 极速经济模型 (1M ctx, $0.10/$0.40 per 1M)",
+    priority: 4,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── SenseNova 6.8 Flash-Lite (Vision — 前端审核/多模态) ───
+  {
+    id: "sensenova-6.8-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.8-flash-lite",
+    roles: ["computer-use", "general-chat", "english", "research"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use", "frontend-review"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.8 Flash-Lite — 轻量多模态模型，支持图像输入理解，用于前端视觉审核 (262K ctx)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── SenseNova 6.7 Flash-Lite (Vision — 备选) ───
+  {
+    id: "sensenova-6.7-flash-lite",
+    provider: "sensenova",
+    model: "sensenova-6.7-flash-lite",
+    roles: ["computer-use", "general-chat", "english"],
+    contextWindow: 262144,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "SenseNova 6.7 Flash-Lite — 轻量多模态备选 (262K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── SenseNova DeepSeek V4 Flash (文本 — 国内免费端点) ───
+  {
+    id: "deepseek-v4-flash-sensenova",
+    provider: "sensenova",
+    model: "deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
+    contextWindow: 1000000,
+    isFree: true,
+    tags: ["fast", "coding", "chinese", "domestic"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "SenseNova DeepSeek V4 Flash — 1M ctx, 免费国内端点 (token.sensenova.cn)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 60000,
+  },
+
+  // ─── Qwen2.5-VL-72B-Instruct (Vision — 旗舰) ───
+  {
+    id: "qwen2.5-vl-72b",
+    provider: "siliconflow",
+    model: "Qwen/Qwen2.5-VL-72B-Instruct",
+    roles: ["computer-use", "general-chat", "english", "research"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use", "flagship"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen2.5-VL-72B — 旗舰视觉语言模型，支持高分辨率截图分析和计算机自动化 (32K ctx)",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Qwen2-VL-72B-Instruct (Vision — 备选) ───
+  {
+    id: "qwen2-vl-72b",
+    provider: "siliconflow",
+    model: "Qwen/Qwen2-VL-72B-Instruct",
+    roles: ["computer-use", "general-chat", "english"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen2-VL-72B — 大参数视觉语言模型 (32K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── QVQ-72B-Preview (Vision Reasoning) ───
+  {
+    id: "qvq-72b",
+    provider: "siliconflow",
+    model: "Qwen/QVQ-72B-Preview",
+    roles: ["computer-use", "deep_research", "research", "general-chat"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["vision", "reasoning", "multimodal", "chinese", "computer-use"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "QVQ-72B-Preview — 视觉推理模型，支持深度视觉分析和复杂任务规划 (32K ctx)",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Mistral Medium 3.5 ───
+  {
+    id: "mistral-medium-3.5",
+    provider: "openrouter",
+    model: "mistralai/mistral-medium-3-5",
+    roles: ["code-generation", "general-chat", "english", "general-tool"],
+    contextWindow: 262000,
+    isFree: false,
+    tags: ["open-weight", "coding", "balanced"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Mistral Medium 3.5 — 128B 稠密模型 ($1.50/$7.50 per 1M)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── NVIDIA Nemotron 3 Ultra ───
+  {
+    id: "nvidia-nemotron-3-ultra",
+    provider: "openrouter",
+    model: "nvidia/nemotron-3-ultra-550b-a55b",
+    roles: ["architecture", "code-generation", "research", "general-chat"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["open-weight", "reasoning", "long-context"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "NVIDIA Nemotron 3 Ultra — 550B/55B MoE, 1M ctx ($0.50/$2.50 per 1M)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 120000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 经济型模型 / Budget Models (2026)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── GPT-5.4 Mini ───
+  {
+    id: "gpt-5.4-mini",
+    provider: "openrouter",
+    model: "openai/gpt-5.4-mini",
+    roles: ["decision", "general-tool", "english", "general-chat", "computer-use"],
+    contextWindow: 400000,
+    isFree: false,
+    tags: ["budget", "fast", "multimodal"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "GPT-5.4 Mini — 经济型轻量模型 ($0.75/$4.5 per 1M)",
+    priority: 4,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── GPT-5.4 Nano ───
+  {
+    id: "gpt-5.4-nano",
+    provider: "openrouter",
+    model: "openai/gpt-5.4-nano",
+    roles: ["decision", "general-tool", "english"],
+    contextWindow: 400000,
+    isFree: false,
+    tags: ["budget", "fast", "lightweight"],
+    rpmLimit: 180,
+    concurrentLimit: 10,
+    description: "GPT-5.4 Nano — 超轻量经济模型 ($0.20/$1.25 per 1M)",
+    priority: 5,
+    maxRetries: 2,
+    timeout: 20000,
+  },
+
+  // ─── Gemini 3.5 Flash ───
+  {
+    id: "gemini-3.5-flash",
+    provider: "ofoxai-gemini",
+    model: "gemini-3.5-flash",
+    roles: ["general-chat", "english", "general-tool", "review", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["budget", "fast", "multimodal", "long-context"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "Gemini 3.5 Flash — 极速响应 (1M ctx, $1.5/$9 per 1M)",
+    priority: 4,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── Gemini 3.1 Flash Lite ───
+  {
+    id: "gemini-3.1-flash-lite",
+    provider: "ofoxai-gemini",
+    model: "gemini-3.1-flash-lite",
+    roles: ["general-chat", "english", "general-tool"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["budget", "fast", "lightweight"],
+    rpmLimit: 180,
+    concurrentLimit: 10,
+    description: "Gemini 3.1 Flash Lite — 超轻量经济模型 (1M ctx, $0.25/$1.5 per 1M)",
+    priority: 5,
+    maxRetries: 2,
+    timeout: 20000,
+  },
+
+  // ─── GLM-4-9B (Free) via SiliconFlow ───
+  // 2026-07-26 实测修正：siliconflow 无 GLM-4.7-Flash:free，免费 GLM 为 THUDM/GLM-4-9B-0414
+  {
+    id: "glm-4.7-flash-free",
+    provider: "siliconflow",
+    model: "THUDM/GLM-4-9B-0414",
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research"],
+    contextWindow: 128000,
+    isFree: true,
+    tags: ["free", "chinese", "fast"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "GLM-4.7-Flash — 智谱免费极速模型 (200K ctx)",
+    priority: 5,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── GLM-4.7-Flash (ZhiPu 官方 API 直连，免费，用于意图增强/prompt 处理) ───
+  // 与 siliconflow 中转相比：直连延迟更低、稳定性更好、无中间层限流
+  // 用途：agent 系统的提示词处理 / 意图分类 / 轻量推理（非主对话）
+  {
+    id: "glm-4.7-flash-zhipu",
+    provider: "zhipu",
+    model: "glm-4.7-flash",
+    roles: ["general-chat", "general-tool", "english", "intent-classifier", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：覆盖无免费模型的角色（付费链失效时的免费兜底）
+    contextWindow: 200000,
+    isFree: true,
+    tags: ["free", "chinese", "fast", "zhipu", "agent-tool"],
+    rpmLimit: 200,
+    concurrentLimit: 16,
+    description: "GLM-4.7-Flash — 智谱官方 API 免费极速模型 (200K ctx)，用于 agent 提示词处理",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 15000,
+  },
+
+  // ─── GLM-4-Flash (ZhiPu 官方 API) ───
+  {
+    id: "glm-4-flash-zhipu",
+    provider: "zhipu",
+    model: "glm-4-flash",
+    roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research", "code-generation", "code-review", "architecture"], // 2026-07-26 免费化：glm-4-flash 实为智谱免费模型
+    contextWindow: 128000,
+    isFree: true,
+    tags: ["chinese", "fast", "zhipu"],
+    rpmLimit: 60,
+    concurrentLimit: 5,
+    description: "GLM-4-Flash — 智谱官方 API 极速模型 (128K ctx)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ─── GLM-4.7 ───
+  {
+    id: "glm-4.7",
+    provider: "siliconflow",
+    model: "zhipu/GLM-4.7",
+    roles: ["general-chat", "general-tool", "english", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["budget", "chinese", "fast"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "GLM 4.7 — 智谱经济模型 (200K ctx, $0.40/$1.75 per 1M)",
+    priority: 4,
+    maxRetries: 2,
+    timeout: 30000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 免费模型 / Free Models (OpenRouter)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── OpenRouter Free Tier ───
+  {
+    id: "gemma-4-free",
+    provider: "openrouter",
+    model: "google/gemma-4-26b-a4b-it:free",
+    roles: ["coding", "general-tool", "evaluation", "review"],
+    contextWindow: 128000,
+    isFree: true,
+    tags: ["free", "coding"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Gemma 4 26B — 免费编码与通用",
+  },
+  {
+    id: "gemma-4-31b-free",
+    provider: "openrouter",
+    model: "google/gemma-4-31b-it:free",
+    roles: ["coding", "general-tool", "english", "review"],
+    contextWindow: 128000,
+    isFree: true,
+    tags: ["free", "coding"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Gemma 4 31B — 免费编码与英文",
+  },
+  {
+    id: "qwen3-coder-free",
+    provider: "openrouter",
+    model: "qwen/qwen3-coder:free",
+    roles: ["coding", "general-tool"],
+    contextWindow: 32000,
+    isFree: true,
+    tags: ["free", "coding"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Qwen3 Coder — 免费编码",
+  },
+  {
+    id: "qwen3-next-free",
+    provider: "openrouter",
+    model: "qwen/qwen3-next-80b-a3b-instruct:free",
+    roles: ["general-tool", "english", "review"],
+    contextWindow: 32000,
+    isFree: true,
+    tags: ["free"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Qwen3 Next 80B — 免费通用",
+  },
+  {
+    id: "llama-3.3-free",
+    provider: "openrouter",
+    model: "meta-llama/llama-3.3-70b-instruct:free",
+    roles: ["general-tool", "english"],
+    contextWindow: 131072,
+    isFree: true,
+    tags: ["free"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Llama 3.3 70B — 免费通用",
+  },
+  {
+    id: "gpt-oss-free",
+    provider: "openrouter",
+    model: "openai/gpt-oss-120b:free",
+    roles: ["general-tool", "english", "review"],
+    contextWindow: 128000,
+    isFree: true,
+    tags: ["free", "reasoning"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "GPT-OSS 120B — 免费推理",
+  },
+  {
+    id: "glm-air-free",
+    provider: "openrouter",
+    model: "z-ai/glm-4.5-air:free",
+    roles: ["general-tool", "english"],
+    contextWindow: 32000,
+    isFree: true,
+    tags: ["free"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "GLM 4.5 Air — 免费通用",
+  },
+  {
+    id: "kimi-k2-free",
+    provider: "openrouter",
+    model: "moonshotai/kimi-k2.6:free",
+    roles: ["coding", "general-tool"],
+    contextWindow: 256000,
+    isFree: true,
+    tags: ["free", "coding", "long-context"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "Kimi K2.6 — 免费编码 (256K context)",
+  },
+  {
+    id: "nvidia-nemotron-free",
+    provider: "openrouter",
+    model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    roles: ["general-tool", "english", "research"],
+    contextWindow: 1000000,
+    isFree: true,
+    tags: ["free", "reasoning", "long-context"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "NVIDIA Nemotron 3 Ultra — 免费推理 (1M context)",
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 专用模型 / Specialized Models
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Embedding ───
+  {
+    id: "bge-embedding",
+    provider: "siliconflow",
+    model: "BAAI/bge-m3",
+    roles: ["embedding"],
+    contextWindow: 8192,
+    isFree: true, // 2026-07-26：BAAI/bge-m3 在 siliconflow 免费档
+    tags: ["embedding"],
+    rpmLimit: 300,
+    concurrentLimit: 5,
+    description: "BGE M3 — 向量嵌入模型",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 30000,
+  },
+
+  // ─── Decision / Routing ───
+  {
+    id: "nvidia-nano",
+    provider: "openrouter",
+    model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    roles: ["decision"],
+    contextWindow: 256000,
+    isFree: true,
+    tags: ["fast", "cheap", "free"],
+    rpmLimit: 60,
+    concurrentLimit: 2,
+    description: "NVIDIA Nemotron 3 Nano Omni — 免费快速决策路由",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 15000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // 遗留模型 / Legacy Models (向后兼容)
+  // ═══════════════════════════════════════════════════════════════
+  {
+    id: "deepseek-v3",
+    provider: "deepseek",
+    model: "deepseek-chat",
+    roles: ["architecture", "general-chat"],
+    contextWindow: 64000,
+    isFree: false,
+    tags: ["reasoning", "coding", "legacy"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "DeepSeek V3 — 推理与架构 (legacy, $0.20/$0.80 per 1M)",
+    priority: 5,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+  {
+    id: "deepseek-coder",
+    provider: "deepseek",
+    model: "deepseek-coder",
+    roles: ["code-generation", "code-review", "review"],
+    contextWindow: 32000,
+    isFree: false,
+    tags: ["coding", "legacy"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "DeepSeek Coder — 代码生成 (legacy)",
+    priority: 5,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+  {
+    id: "gpt-4o",
+    provider: "ofoxai",
+    model: "gpt-4o",
+    roles: ["general-chat", "evaluation", "computer-use"],
+    contextWindow: 128000,
+    isFree: false,
+    tags: ["general", "multimodal", "legacy"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "GPT-4o — 通用目的 (legacy)",
+    priority: 4,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+  {
+    id: "gemini-2.0-flash",
+    provider: "ofoxai-gemini",
+    model: "gemini-2.0-flash",
+    roles: ["general-chat", "english", "computer-use"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["fast", "long-context", "multimodal", "legacy"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Gemini 2.0 Flash — 快速通用 (legacy)",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+  {
+    id: "claude-opus-4.6",
+    provider: "ofoxai-anthropic",
+    model: "claude-opus-4-6-20251001",
+    roles: ["architecture", "code-generation"],
+    contextWindow: 1000000,
+    isFree: false,
+    tags: ["flagship", "coding", "legacy"],
+    rpmLimit: 20,
+    concurrentLimit: 1,
+    description: "Claude Opus 4.6 — 前代旗舰 (legacy, $5/$25 per 1M)",
+    priority: 3,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // NVIDIA NIM Models (2026) — 优先级: GLM5.1 最高
+  // Base URL: https://integrate.api.nvidia.com/v1
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── GLM5.1 (NVIDIA NIM, 智谱, 优先级最高) ───
+  {
+    id: "nim-glm5.1",
+    provider: "nvidia-nim",
+    model: "z-ai/glm5.1",
+    roles: ["code-generation", "architecture", "deep_research", "research", "general-chat", "review"],
+    contextWindow: 200000,
+    isFree: false,
+    tags: ["flagship", "reasoning", "coding", "chinese", "nim-priority"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "GLM5.1 (NVIDIA NIM) — 智谱旗舰 754B MoE, 200K ctx, 优先使用",
+    priority: 1,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Pro (NVIDIA NIM) ───
+  {
+    id: "nim-deepseek-v4-pro",
+    provider: "nvidia-nim",
+    model: "deepseek-ai/deepseek-v4-pro",
+    roles: ["code-generation", "architecture", "deep_research", "research", "review"],
+    contextWindow: 163840,
+    isFree: false,
+    tags: ["main", "reasoning", "coding", "nim"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "DeepSeek V4 Pro (NVIDIA NIM) — 1.6T MoE, 128K ctx",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── DeepSeek V4 Flash (NVIDIA NIM) ───
+  {
+    id: "nim-deepseek-v4-flash",
+    provider: "nvidia-nim",
+    model: "deepseek-ai/deepseek-v4-flash",
+    roles: ["code-generation", "general-chat", "general-tool", "review", "english", "coding", "main_coding", "rl", "memory", "intent-classifier"],
+    contextWindow: 163840,
+    isFree: false,
+    tags: ["fast", "coding", "nim"],
+    rpmLimit: 120,
+    concurrentLimit: 8,
+    description: "DeepSeek V4 Flash (NVIDIA NIM) — 极速响应, 128K ctx",
+    priority: 2,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Qwen3 80B Thinking (NVIDIA NIM) ───
+  {
+    id: "nim-qwen3-80b",
+    provider: "nvidia-nim",
+    model: "qwen/qwen3-next-80b-a3b-thinking",
+    roles: ["deep_research", "architecture", "math", "research", "code-generation"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["reasoning", "thinking", "nim"],
+    rpmLimit: 30,
+    concurrentLimit: 2,
+    description: "Qwen3 80B Thinking (NVIDIA NIM) — 推理增强, 128K ctx",
+    priority: 2,
+    maxRetries: 3,
+    timeout: 120000,
+  },
+
+  // ─── Llama 3.3 Nemotron Super (NVIDIA NIM) ───
+  {
+    id: "nim-nemotron-super",
+    provider: "nvidia-nim",
+    model: "nvidia/llama-3.3-nemotron-super-49b-v1",
+    roles: ["general-chat", "code-generation", "review", "general-tool"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["fast", "balanced", "nim"],
+    rpmLimit: 60,
+    concurrentLimit: 4,
+    description: "Nemotron Super 49B (NVIDIA NIM) — 高性能均衡, 128K ctx",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+
+  // ─── Kimi K2.6 (NVIDIA NIM) ───
+  {
+    id: "nim-kimi-k2.6",
+    provider: "nvidia-nim",
+    model: "moonshotai/kimi-k2.6",
+    roles: ["code-generation", "general-chat", "research", "review"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["coding", "chinese", "nim"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "Kimi K2.6 (NVIDIA NIM) — Moonshot 编程模型, 128K ctx",
+    priority: 3,
+    maxRetries: 3,
+    timeout: 90000,
+  },
+
+  // ─── MiniMax M2.7 (NVIDIA NIM) ───
+  {
+    id: "nim-minimax-m2.7",
+    provider: "nvidia-nim",
+    model: "minimaxai/minimax-m2.7",
+    roles: ["general-chat", "code-generation", "research"],
+    contextWindow: 131072,
+    isFree: false,
+    tags: ["fast", "chinese", "nim"],
+    rpmLimit: 40,
+    concurrentLimit: 2,
+    description: "MiniMax M2.7 (NVIDIA NIM) — 快速通用, 128K ctx",
+    priority: 3,
+    maxRetries: 2,
+    timeout: 60000,
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// // ═══════════════════════════════════════════════════════════════
+// Convenience lookups
+// ═══════════════════════════════════════════════════════════════
+
+/** Get all models supporting a specific role
+ * @deprecated Use model-capability-registry's findModelsForRole (supports opts, extensions) */
+function findModelsForRole(role: TaskRole): UnifiedModel[] {
+  return UNIFIED_REGISTRY.filter((m) => m.roles.includes(role));
+}
+
+/** Get a model by ID */
+export function getModel(id: string): UnifiedModel | undefined {
+  return UNIFIED_REGISTRY.find((m) => m.id === id);
+}
+
+/** Get fallback chain for a role (sorted by priority) */
+export function getFallbackChain(role: TaskRole): UnifiedModel[] {
+  return findModelsForRole(role).sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+}
+
+/** List all free models */
+export function listFreeModels(): UnifiedModel[] {
+  return UNIFIED_REGISTRY.filter((m) => m.isFree);
+}
+
+/** List all models */
+export function listAllModels(): UnifiedModel[] {
+  return [...UNIFIED_REGISTRY];
+}
+
+/** List all unique roles */
+export function listAllRoles(): TaskRole[] {
+  const roles = new Set<TaskRole>();
+  for (const m of UNIFIED_REGISTRY) {
+    for (const r of m.roles) roles.add(r);
+  }
+  return Array.from(roles);
+}
+
+
+
+

@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-07",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E4", "E3"],
+  "severity": "critical",
+  "rationale": "源文本明确写『改写/忠实度判别**不再由边缘模型承担**』，候选命题 1『改写/忠实度判别由边缘模型承担』丢失否定词『不再』，断言与源文本相反（§6.5 否定差异永不不等价；按附录 A se-0008 口径，此类逻辑反转命题归 E4）。同时漏两类关键命题（E3）：原因『1B 漂移、2B 照抄，实测不达标』（因果），链路顺序『zhipu 直连优先 → siliconflow GLM-4.7-Flash:free 兜底』（优先级/兜底顺序，改变行为含义）。候选命题 2『GLM-4.7-flash 免费链用于改写/忠实度判别』与 triple handled-by GLM-4.7-flash 本身忠实，但整体语义已因否定反转而不等价。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

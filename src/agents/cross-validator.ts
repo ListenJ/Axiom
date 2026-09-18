@@ -1,0 +1,338 @@
+/**
+ * 多模型协同 S1：CrossValidator 纯聚合逻辑（缺口 A 的投票内核，零 LLM 零网络）
+ *
+ * 设计来源：docs/superpowers/plans/2026-09-10-multi-model-collaboration-survey-plan.md
+ * 决策 D3（已冻结）：多数投票；平票/有效票不足交仲裁角色（S3 接缝 = needsArbitration）。
+ *
+ * 铁律（对齐 S-A8 fail-closed）：任何不确定形态（空票/单票/平票/全弃权）
+ * 一律 needsArbitration=true 且 finalVerdict=null——绝不默认放行。
+ *
+ * 本文件只做纯函数聚合；模型调用（Dispatcher.dispatch）与裁决（ValidationPipeline/
+ * 仲裁角色）分别归 S2/S3，经依赖注入接入（规则 8：接缝在测试面）。
+ */
+import type { TaskRole } from "../router/models/types.js";
+import { logger } from "../utils/logger.js";
+
+/** 单模型验证票：agree=认可结论；disagree=否定结论；abstain=该模型未能给出可判票（超时/解析失败，S2 映射） */
+export type VoteVerdict = "agree" | "disagree" | "abstain";
+
+export interface VerificationVote {
+  model: string;
+  verdict: VoteVerdict;
+}
+
+/** 聚合结局：consensus=有效票全一致；majority=严格多数；tie=平票；insufficient=有效票 <2（不满足 ≥2 独立验证） */
+export type VoteOutcome = "consensus" | "majority" | "tie" | "insufficient";
+
+export interface VoteAggregate {
+  outcome: VoteOutcome;
+  /** consensus/majority 时为定论方向；tie/insufficient 为 null（待 S3 仲裁） */
+  finalVerdict: "agree" | "disagree" | null;
+  /** tie/insufficient=true → 交仲裁角色（D3 冻结语义） */
+  needsArbitration: boolean;
+  agree: number;
+  disagree: number;
+  abstain: number;
+}
+
+/** 满足交叉验证所需的最少有效票数（设计 3.3："至少两个不同模型独立验证"） */
+export const MIN_VALID_VOTES = 2;
+
+/**
+ * 纯聚合：投票列表 → 结构化裁决。
+ * 置换不变（顺序无关）；计数恒等于输入长度（守恒）。
+ */
+export function aggregateVotes(votes: readonly VerificationVote[]): VoteAggregate {
+  let agree = 0;
+  let disagree = 0;
+  let abstain = 0;
+  for (const v of votes) {
+    switch (v.verdict) {
+      case "agree":
+        agree += 1;
+        break;
+      case "disagree":
+        disagree += 1;
+        break;
+      case "abstain":
+        abstain += 1;
+        break;
+    }
+  }
+
+  const valid = agree + disagree;
+  const base = { agree, disagree, abstain };
+
+  if (valid < MIN_VALID_VOTES) {
+    return { ...base, outcome: "insufficient", finalVerdict: null, needsArbitration: true };
+  }
+  if (agree === disagree) {
+    return { ...base, outcome: "tie", finalVerdict: null, needsArbitration: true };
+  }
+  const winner: "agree" | "disagree" = agree > disagree ? "agree" : "disagree";
+  const loser = valid - (winner === "agree" ? agree : disagree);
+  return {
+    ...base,
+    outcome: loser === 0 ? "consensus" : "majority",
+    finalVerdict: winner,
+    needsArbitration: false,
+  };
+}
+
+// ============ S2：分发端口 + 票面解析 + CrossValidator（依赖注入，零直接 import router） ============
+
+/**
+ * 分发端口（D2 冻结：生产接 Dispatcher.dispatch/executeWithRole，测试注入 fake）。
+ * 返回 {model, content}：model 供 excludeModels 去重，content 为模型自由文本票面。
+ * 抛错 = 该角色验证失败（错误隔离，映射 abstain）。
+ */
+export type VoteDispatch = (
+  role: TaskRole,
+  messages: readonly { role: string; content: string }[],
+  opts?: { excludeModels?: string[] },
+) => Promise<{ model: string; content: string | null }>;
+
+/**
+ * 票面文本 → 票。DISAGREE 含 AGREE 子串，必须先判 disagree（子串陷阱）。
+ * 无关键词/空/null → abstain（可判票缺失，不猜测方向——fail-closed）。
+ */
+export function parseVoteVerdict(text: string | null | undefined): VoteVerdict {
+  if (!text) return "abstain";
+  if (/disagree/i.test(text)) return "disagree";
+  if (/agree/i.test(text)) return "agree";
+  return "abstain";
+}
+
+/** 验证者系统提示：要求模型独立判断结论并输出规范票面 */
+function voteMessages(conclusion: string): { role: string; content: string }[] {
+  return [
+    {
+      role: "system",
+      content:
+        "你是独立事实核查员。仅依据你自身的知识与给定的证据判断下述结论是否成立，" +
+        "不要迎合提问者的立场。回答必须以一行 `VERDICT: AGREE` 或 `VERDICT: DISAGREE` 结尾。",
+    },
+    { role: "user", content: conclusion },
+  ];
+}
+
+export interface CrossValidatorDeps {
+  dispatch: VoteDispatch;
+  /**
+   * 仲裁端口（D3 冻结：平票/有效票不足时交裁决；生产可接仲裁角色或 ValidationPipeline，
+   * 接缝与 dispatch 同构由调用方适配，S3 只约定"结论+全票→票"契约）。缺省则分歧保持未决。
+   */
+  arbitrate?: ArbitrateFn;
+}
+
+/**
+ * 仲裁端口：给定结论与分歧票面，产出独立裁决票。
+ * 返回 abstain = 仲裁者亦无法定夺（fail-closed 未决，绝不默认放行）。
+ */
+export type ArbitrateFn = (
+  conclusion: string,
+  votes: readonly VerificationVote[],
+) => Promise<VoteVerdict>;
+
+/** 仲裁阶段结果（needsArbitration=false 时 triggered=false、finalVerdict 透传聚合结论） */
+export interface ArbitrationResult {
+  /** 是否进入仲裁流程（= aggregate.needsArbitration 且已配置 arbitrate） */
+  triggered: boolean;
+  /** 是否得到确定裁决（共识/多数恒 true；仲裁 agree/disagree 为 true；仲裁 abstain/抛错/未配置为 false） */
+  resolved: boolean;
+  /** 仲裁者原始票（未触发仲裁为 null） */
+  verdict: VoteVerdict | null;
+  /** 最终结论方向：共识/多数=聚合结论；仲裁成功=仲裁票；未决=null（fail-closed） */
+  finalVerdict: "agree" | "disagree" | null;
+}
+
+export interface CrossValidationResult {
+  votes: VerificationVote[];
+  aggregate: VoteAggregate;
+  arbitration: ArbitrationResult;
+}
+
+export class CrossValidator {
+  private readonly deps: CrossValidatorDeps;
+
+  constructor(deps: CrossValidatorDeps) {
+    this.deps = deps;
+  }
+
+  /**
+   * 对结论做 ≥N 角色独立交叉验证（设计 3.3）。
+   * 顺序分发（非并发）：excludeModels 须累积前序已用模型，保证"独立模型"语义——
+   * 并发的话后发调用看不到先发返回的模型，去重失效（S2 计划措辞修正，见 ops log 偏差）。
+   * 单角色失败 → abstain 票（错误隔离）；有效票不足由 aggregateVotes 兜底 fail-closed。
+   */
+  async validate(
+    conclusion: string,
+    roles: readonly TaskRole[],
+    opts?: { excludeModels?: readonly string[] },
+  ): Promise<CrossValidationResult> {
+    const used: string[] = [...(opts?.excludeModels ?? [])];
+    const votes: VerificationVote[] = [];
+    for (const role of roles) {
+      try {
+        const res = await this.deps.dispatch(role, voteMessages(conclusion), {
+          excludeModels: [...used],
+        });
+        used.push(res.model);
+        votes.push({ model: res.model, verdict: parseVoteVerdict(res.content) });
+      } catch (e) {
+        // S5 告警铁律（对齐 S-A8 切片 7）：分发异常不得静默，票面降级 abstain 同时留 warn
+        logger.warn(
+          `[CrossValidator] dispatch threw for role ${role} (fail-closed abstain): ${e instanceof Error ? e.message : String(e)}`,
+        );
+        votes.push({ model: `role:${role}`, verdict: "abstain" });
+      }
+    }
+    const aggregate = aggregateVotes(votes);
+    return { votes, aggregate, arbitration: await this.arbitrate(conclusion, votes, aggregate) };
+  }
+
+  /**
+   * 分歧裁决（S3）。铁律：
+   * - 共识/多数（needsArbitration=false）→ 直接透传聚合结论，**绝不叫仲裁**（防翻案已定结论）；
+   * - tie/insufficient 且已配置 arbitrate → 触发仲裁；仲裁 abstain/抛错 → 未决（finalVerdict=null）；
+   * - 未配置 arbitrate → 保持分歧未决（triggered=false，向后兼容 S1/S2 语义）。
+   */
+  private async arbitrate(
+    conclusion: string,
+    votes: readonly VerificationVote[],
+    aggregate: VoteAggregate,
+  ): Promise<ArbitrationResult> {
+    if (!aggregate.needsArbitration) {
+      return {
+        triggered: false,
+        resolved: true,
+        verdict: null,
+        finalVerdict: aggregate.finalVerdict,
+      };
+    }
+    if (!this.deps.arbitrate) {
+      return { triggered: false, resolved: false, verdict: null, finalVerdict: null };
+    }
+    try {
+      const verdict = await this.deps.arbitrate(conclusion, votes);
+      const decided = verdict === "agree" || verdict === "disagree";
+      return {
+        triggered: true,
+        resolved: decided,
+        verdict,
+        finalVerdict: decided ? verdict : null,
+      };
+    } catch {
+      // 仲裁自身异常 → fail-closed 未决（对齐 S-A8 崩坏隔离：绝不默认放行）
+      return { triggered: true, resolved: false, verdict: null, finalVerdict: null };
+    }
+  }
+}
+
+// ============ S6：关键结论触发策略（缺口 D，D4 冻结：可配置策略，非全量交叉验证） ============
+
+/** 触发判定输入（纯函数无隐藏状态，规则 8：启发式是保守近似，调用方可用 force 完全接管） */
+export interface CrossValidationTriggerOptions {
+  /** 显式强制（true=必验 / false=必不验），压过 patterns */
+  force?: boolean;
+  /** 关键结论命中词（缺省 = DEFAULT_CRITICAL_PATTERNS） */
+  criticalPatterns?: readonly RegExp[];
+  /** 豁免词（缺省 = DEFAULT_SKIP_PATTERNS；先于 critical 判定，skip 压过 critical） */
+  skipPatterns?: readonly RegExp[];
+}
+
+/** 默认关键结论词表：事实/结论/决定/方案类输出 + 高风险动作（迁移/上线/回滚）+ 英文对应 */
+export const DEFAULT_CRITICAL_PATTERNS: readonly RegExp[] = [
+  /事实[：:]/,
+  /结论[是为]/,
+  /决定/,
+  /方案/,
+  /架构/,
+  /迁移/,
+  /验收/,
+  /上线/,
+  /发布/,
+  /回滚/,
+  /\bconclusion\b/i,
+  /\bdecision\b/i,
+  /\bdeploy\b/i,
+  /\brelease\b/i,
+  /\barchitecture\b/i,
+  /\bmigration\b/i,
+];
+
+/** 默认豁免词表：寒暄/闲聊/简单应答（降本侧，设计 5.2 张力平衡） */
+export const DEFAULT_SKIP_PATTERNS: readonly RegExp[] = [
+  /闲聊/,
+  /随便聊聊/,
+  /你好/,
+  /您好/,
+  /嗨/,
+  /谢谢/,
+  /好的/,
+  /天气/,
+  /讲个笑话/,
+  /\byes\b/i,
+  /\bno\b/i,
+  /\bhi\b/i,
+  /\bhello\b/i,
+  /\bthanks?\b/i,
+];
+
+/**
+ * 触发判定（D4 冻结语义）：force 显式覆盖 > skip 命中豁免 > critical 命中触发 > 默认不触发。
+ * 保守取向：不确定形态（空文本/无命中）不触发——交叉验证是成本项，全量验证违反降本目标。
+ */
+export function decideCrossValidation(
+  text: string,
+  opts: CrossValidationTriggerOptions = {},
+): boolean {
+  if (opts.force === true) return true;
+  if (opts.force === false) return false;
+  const critical = opts.criticalPatterns ?? DEFAULT_CRITICAL_PATTERNS;
+  const skip = opts.skipPatterns ?? DEFAULT_SKIP_PATTERNS;
+  if (skip.some((re) => re.test(text))) return false;
+  return critical.some((re) => re.test(text));
+}
+
+/** 工厂产出的审核器（结构兼容 TaskOrchestrator 的 AnswerVerifier 接缝，S4） */
+export type TriggeredVerifier = (
+  answer: string,
+  call?: { crossValidate?: boolean; excludeModels?: readonly string[] },
+) => Promise<{ ok: boolean; feedback?: string }>;
+
+/**
+ * 组装"触发策略 + 交叉验证"为可直接注入 orchestrator.execute({verify}) 的审核器。
+ * - 恒按 decideCrossValidation 门控（D4：默认即关键结论触发，非全量）；trigger 配置词表，
+ *   trigger.force=true 可恢复"恒触发"（S5 全量验证语义）；
+ * - 不触发 → 直接 {ok:true} 且**绝不 dispatch**（降本铁律：非关键结论零验证成本）；
+ * - 触发 → 走 CrossValidator 全流程（S1-S3），disagree/未决一律 fail-closed ok:false。
+ */
+export function createCrossValidationVerifier(
+  deps: CrossValidatorDeps,
+  opts: {
+    roles: readonly TaskRole[];
+    validator?: CrossValidator;
+    trigger?: CrossValidationTriggerOptions;
+  },
+): TriggeredVerifier {
+  const validator = opts.validator ?? new CrossValidator(deps);
+  return async (answer, call) => {
+    const decided = decideCrossValidation(answer, {
+      ...opts.trigger,
+      ...(call?.crossValidate !== undefined ? { force: call.crossValidate } : {}),
+    });
+    if (!decided) return { ok: true };
+    const r = await validator.validate(
+      answer,
+      opts.roles,
+      call?.excludeModels ? { excludeModels: call.excludeModels } : undefined,
+    );
+    const verdict = r.arbitration.finalVerdict;
+    if (verdict === "agree") return { ok: true };
+    return {
+      ok: false,
+      feedback: `交叉验证未通过（finalVerdict=${verdict ?? "未决"}，outcome=${r.aggregate.outcome}），请修正`,
+    };
+  };
+}

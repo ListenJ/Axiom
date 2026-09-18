@@ -1,0 +1,40 @@
+{
+  "id": "se-0020",
+  "source_text": "1. **OCR 引擎 tesseract.js v7 API 漂移**：`data.lines` 不再存在、`data.blocks` 默认不生成 →\n   `recognize(img, {}, { blocks: true })` 显式请求，从 `blocks→paragraphs→lines` 提取（兼容旧版 `data.lines`）。\n   修复前 OCR 静默返回空文本。\n2. **OCR 语言数据路径**：未配置 `langPath` → 离线环境静默空文本 →\n   默认指向仓库根（本地 `eng.traineddata`），`TESSERACT_LANG_PATH` 可覆盖。修复后离线 OCR 可用。\n3. **`getOCREngine(undefined)` 导致 worker 初始化挂起** → 默认 `[\"eng\"]`。",
+  "source_origin": "docs/DOCUMENT-INGEST.md#L32-L37",
+  "candidate_mr": {
+    "propositions": [
+      "1. **OCR 引擎 tesseract.js v7 API 漂移**：`data.lines` 不再存在、`data.blocks` 默认不生成 →    `recognize(img, {}, { blocks: true })` 显式请求，从 `blocks→paragraphs→lines` 提取（兼容旧版 `data.lines`）。    修复前 OCR 静默返回空文本。 2. **OCR 语言数据路径**：未配置 `langPath` → 离线环境静默空文本 →    默认指向仓库根（本地 `eng.traineddata`），`TESSERACT_LANG_PATH` 可覆盖。修复后离线 OCR 可用。 3. **`getOCREngine(undefined)` 导致 worker 初始化挂起** → 默认 `[\"eng\"]`。"
+    ],
+    "entities": [
+      {
+        "name": "1. **OCR 引擎 tesseract.js v7 API 漂移**：`data.lines` 不再存在、`data.blocks` 默认不生成 →    `recognize(img, {}, { blocks: true })` 显式请求，从 `blocks→paragraphs→lines` 提取（兼容旧版 `data.lines`）。    修复前 OCR 静默返回空文本。 2. **",
+        "type": "concept",
+        "link": "kg:concept:1____OCR____tesseract_js_v7_API_______data_lines________data_blocks_____________-7572f05c"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/DOCUMENT-INGEST.md",
+        "predicate": "contains",
+        "object": "1. **OCR 引擎 tesseract.js v7 API 漂移**：`data.lines` 不再存在、`data.blocks` 默认不生成 →    `recognize(img, {}, { blocks: true })` 显式请求，从 `blocks→paragraphs→lines` 提取（兼容旧版 `data.lines`）。    修复前 OCR 静默返回空文本。 2. **"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/DOCUMENT-INGEST.md#L32-L37"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

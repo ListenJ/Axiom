@@ -1,0 +1,50 @@
+{
+  "id": "se-0048",
+  "source_text": "## Abstract\n\nOffline evaluation of LLMs is crucial in understanding their capacities, though current methods remain underexplored in existing research. In this work, we focus on the offline evaluation of the chain-of-thought capabilities and show how to optimize LLMs based on the proposed evaluation method. To enable offline feedback with rich knowledge and reasoning paths, we use knowledge graphs (e.g., Wikidata5m) to provide feedback on the generated chain of thoughts. Due to the heterogeneity between LLM reasoning and KG structures, direct interaction and feedback from KGs on LLM behavior are challenging, as they require accurate entity linking and grounding of LLM-generated chains of thought in the KG. To address the above challenge, we propose an offline chain-of-thought evaluation framework, OCEAN, which models chain-of-thought reasoning in LLMs as an MDP and evaluate the policy's alignment with KG preference modeling. To overcome the reasoning heterogeneity and grounding problems, we leverage on-policy KG exploration and RL to model a KG policy that generates token-level likelihood distributions for LLM-generated chain-of-thought reasoning paths, simulating KG reasoning preference. Then we incorporate the knowledge-graph feedback on the validity and alignment of the generated reasoning paths into inverse propensity scores and propose KG-IPS estimator. Theoretically, we prove the unbiasedness of the proposed KG-IPS estimator and provide a lower bound on its variance. With the off-policy evaluated value function, we can directly enable off-policy optimization to further enhance chain-of-thought alignment. Our empirical study shows that OCEAN can be efficiently optimized for generating chain-of-thought reasoning paths with higher estimated values without affecting LLMs' general abilities in downstream tasks or their internal knowledge.",
+  "source_origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/ocean-offline-chain-of-thought-evaluation-and-alignment-in-l.md#L17-L19",
+  "candidate_mr": {
+    "propositions": [
+      "存在章节「Abstract」",
+      "Offline evaluation of LLMs is crucial in understanding their capacities, though current methods remain underexplored in existing research. In this work, we focus on the offline evaluation of the chain-of-thought capabilities and show how to optimize LLMs based on the proposed evaluation method. To enable offline feedback with rich knowledge and reasoning paths, we use knowledge graphs (e.g., Wikidata5m) to provide feedback on the generated chain of thoughts. Due to the heterogeneity between LLM "
+    ],
+    "entities": [
+      {
+        "name": "Abstract",
+        "type": "concept",
+        "link": "kg:concept:Abstract"
+      },
+      {
+        "name": "Offline evaluation of LLMs is crucial in understanding their capacities, though current methods remain underexplored in existing research. In this work, we focus on the offline evaluation of the chain",
+        "type": "concept",
+        "link": "kg:concept:Offline_evaluation_of_LLMs_is_crucial_in_understanding_their_capacities__though_-95babef5"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/ocean-offline-chain-of-thought-evaluation-and-alignment-in-l.md",
+        "predicate": "contains",
+        "object": "Abstract"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/ocean-offline-chain-of-thought-evaluation-and-alignment-in-l.md#L17-L19"
+      },
+      {
+        "prop_index": 1,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/ocean-offline-chain-of-thought-evaluation-and-alignment-in-l.md#L17-L19"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

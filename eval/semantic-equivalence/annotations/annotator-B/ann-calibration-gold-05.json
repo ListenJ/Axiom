@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-05",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E1"],
+  "severity": "critical",
+  "rationale": "源文本：『显式覆盖（设置后优先生效）：`DRE_DB_PATH`（DRE 单独落盘）』——DRE_DB_PATH 是配置项实体。候选实体表把 DRE_DB_PATH 的 link 写为 vault://axiom-memory/00-Knowledge/Project-Data/model-router/README.md，指向与该配置项无关的文档路径，且与同例 KNOWLEDGE_DB_PATH 的 kg:config:knowledge-db-path 链接风格不一致，属实体错链（E1，critical，按 §5 任一 E1 即 not_equivalent）。两条命题本体『DRE_DB_PATH（DRE 单独落盘）』『知识采集单独落盘』均有据，但实体错链已构成结构不等价。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

@@ -1,0 +1,3 @@
+[test]
+# Enable DOM for frontend React tests
+dom = true

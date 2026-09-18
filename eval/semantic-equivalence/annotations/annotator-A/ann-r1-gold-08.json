@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-08",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选五条命题与源文本逐项对应且无关键缺失：『DREngine.writeKnowledge(item) → Pipeline.process(item)』对应命题1（经 Pipeline.process 处理）；『阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore』对应命题2；『riskScore<0.3  → 直接入库』『[0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）』『>0.7           → 阶段3 LLM 自推理（generateConstrained 强约束）』三个阈值分支在命题3中原样保留；『KnowledgeStore 入库（accepted/verdict/confidence/evidenceRefs）』对应命题4；命题5『输入 item 来自 DREngine.writeKnowledge 传入的 item』为箭头记号的确定性单步可推导命题（指南 §6.1 不算 E4）。三元组 DREngine calls Pipeline 有据，实体类型无与源相悖之处，溯源指向 docs/DRE-ARCHITECTURE.md#L95-L101 正确。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

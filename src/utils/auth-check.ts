@@ -1,0 +1,199 @@
+/**
+ * HTTP / WebSocket 认证判定 —— 从 main.ts 抽出的纯逻辑，便于独立单元测试。
+ *
+ * 安全要点（P0 回归防线）：
+ *   - isLocal 必须来自 socket 对端地址（server.requestIP），
+ *     绝不可来自 req.url / Host header —— 客户端可伪造 Host 冒充本地请求。
+ *   - 未配置 AXIOM_AUTH_TOKEN 时 fail-closed：远程请求一律拒绝。
+ *   - 静态豁免仅限真实 SPA 资源扩展名；.json/.txt 被排除，
+ *     因为动态 API 路由可能以它们结尾（如 /traces/<id>.json）。
+ */
+
+import { timingSafeEqual } from "crypto";
+import { logger } from "./logger.js";
+import { readString } from "./env.js";
+
+/** 判定 socket 对端地址是否为回环地址 */
+export function isLocalAddress(address: string | undefined): boolean {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
+
+/**
+ * 常量时间字符串比较 —— 防止时序攻击泄露 API Key。
+ * 长度不同时直接返回 false（key 长度非机密信息）。
+ * 供 REST (checkApiKey) 与 WS 升级鉴权 (ws-auth) 共用，避免重复实现。
+ */
+export function safeStringEqual(a: string | undefined, b: string): boolean {
+  if (typeof a !== "string" || a.length === 0) return false;
+  if (typeof b !== "string" || b.length === 0) return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+// 免认证静态扩展名：真实 SPA 资源类型。不含 .json/.txt（见文件头注释）。
+const AUTH_EXEMPT_EXTS = new Set([
+  ".html", ".js", ".mjs", ".css", ".png", ".jpg", ".jpeg", ".gif",
+  ".svg", ".ico", ".webp", ".woff", ".woff2", ".map",
+]);
+
+// 免认证公共路径（精确匹配）—— Set O(1) 查找，替代数组 includes O(n)
+const PUBLIC_PATHS = new Set(["/health", "/", "/manifest.json", "/sw.js", "/icon.png", "/favicon.ico"]);
+
+// —— DNS 重绑定白名单（Task2）：Host 不可信，仅 Origin 白名单放行 ——
+// 本地回环集合（裸 host 与 host:port 均入白名单，兼容浏览器 Origin 可能不带端口）
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+function buildLocalWhitelist(): Set<string> {
+  const port =
+    readString("AXIOM_GATEWAY_PORT") ||
+    readString("GATEWAY_PORT") ||
+    readString("PORT") ||
+    "18789";
+  const host = readString("HOST", "127.0.0.1");
+  const s = new Set<string>();
+  for (const h of LOCAL_HOSTS) {
+    s.add(h);
+    if (!h.includes(":")) s.add(`${h}:${port}`);
+  }
+  s.add(`${host}:${port}`);
+  s.add(host);
+  s.add(`127.0.0.1:${port}`);
+  s.add(`localhost:${port}`);
+  const corsRaw = readString("CORS_ORIGINS");
+  if (corsRaw) {
+    for (const raw of corsRaw.split(",")) {
+      const o = raw.trim();
+      if (!o || o === "*") continue;
+      try {
+        const u = new URL(o);
+        if (LOCAL_HOSTS.has(u.hostname) || u.hostname === host) s.add(u.host);
+      } catch {}
+    }
+  }
+  return s;
+}
+
+function computeWhitelistEnvHash(): string {
+  return [
+    readString("AXIOM_GATEWAY_PORT"),
+    readString("GATEWAY_PORT"),
+    readString("PORT"),
+    readString("HOST"),
+    readString("CORS_ORIGINS"),
+  ].join("|");
+}
+
+export const LOCAL_ORIGIN_WHITELIST = buildLocalWhitelist();
+let _whitelistEnvHash: string | null = computeWhitelistEnvHash();
+
+export function getLocalWhitelist(): Set<string> {
+  const h = computeWhitelistEnvHash();
+  if (_whitelistEnvHash === h) return LOCAL_ORIGIN_WHITELIST;
+  const next = buildLocalWhitelist();
+  LOCAL_ORIGIN_WHITELIST.clear();
+  for (const v of next) LOCAL_ORIGIN_WHITELIST.add(v);
+  _whitelistEnvHash = h;
+  return LOCAL_ORIGIN_WHITELIST;
+}
+
+export function rebuildWhitelistForTest(): void {
+  _whitelistEnvHash = null;
+  getLocalWhitelist();
+}
+
+/** 供 ws-auth 复用与测试注入 */
+export function isWhitelistedLocalOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    const host = u.host;
+    const hostname = u.hostname;
+    const wl = getLocalWhitelist();
+    return wl.has(host) || wl.has(hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * API 认证检查。
+ * @param req      incoming request（只用其 URL 路径与认证 header，不信任 Host）
+ * @param isLocal 是否回环请求——调用方必须用 socket 对端地址判定（见 isLocalAddress）
+ * @param apiKey  服务端配置的 AXIOM_AUTH_TOKEN；空串表示未配置（fail-closed）
+ * @param pathname 已解析的 URL pathname（可选，避免调用方已解析后重复 new URL）
+ */
+export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, pathname?: string): boolean {
+  // Fail-closed: if no server-side auth token is configured, deny ALL requests.
+  // This protects /chat and other endpoints from open access when env is misconfigured.
+  const path = pathname ?? new URL(req.url).pathname;
+  // Allow local requests without auth (for E2E tests and local development)
+  if (isLocal) {
+    // 审计 J-2（2026-08-24）+ Task2（DNS重绑定）+ I5（GET旁路）：
+    // 本机免认证通道此前对任意写方法放行或仅以 originHost===targetHost 判定同源，
+    // Host 可被 DNS 重绑定伪造（r.evil.com:18789 与 Origin 同域即可绕过）。
+    // 现 Host 去信任：仅 Origin 白名单放行，跨站且无有效凭证一律走 credentialGate。
+    // I5 扩展：敏感 GET（/terminal/*, /vault/*, /kg/*, /search）同样需白名单或 token，
+    // 否则 GET /vault/search, /terminal/sessions 等可经 DNS 重绑定无凭证读取（200 泄露）。
+    const method = req.method.toUpperCase();
+    const isWriteMethod = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+    const isSensitiveGet =
+      (method === "GET" || method === "HEAD") &&
+      (path.startsWith("/terminal") ||
+        path.startsWith("/vault") ||
+        path.startsWith("/kg") ||
+        path === "/search" ||
+        path.startsWith("/search/"));
+    if (isWriteMethod || isSensitiveGet) {
+      const origin = req.headers.get("origin");
+      if (origin) {
+        try {
+          const originHost = new URL(origin).host;
+          const originHostname = new URL(origin).hostname;
+          const wl = getLocalWhitelist();
+          const whitelisted = wl.has(originHost) || wl.has(originHostname);
+          if (!whitelisted) {
+            const auth =
+              req.headers.get("x-api-key") ||
+              req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+            if (!safeStringEqual(auth, apiKey)) {
+              logger.warn("[Auth] local write blocked by CSRF origin check", {
+                path,
+                origin: originHost,
+                target: "whitelist-miss",
+              });
+              return false;
+            }
+          }
+        } catch {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  logger.debug("checkApiKey called", { path, apiKeyExists: !!apiKey, apiKeyLength: apiKey?.length });
+  const staticExt = path.includes(".") ? path.slice(path.lastIndexOf(".")) : "";
+  if (!apiKey) {
+    // No auth token configured: allow static assets and public paths, deny API endpoints
+    // 只对根路径或 /assets/ 下的静态资源豁免扩展名（防止 /vault/write.js 等绕过认证）
+    const isStaticPath = !path.slice(1).includes("/") || path.startsWith("/assets/");
+    if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticPath) return true;
+    if (PUBLIC_PATHS.has(path)) return true;
+    if (path === "/ws") return true;
+    logger.warn("Auth check failed: AXIOM_AUTH_TOKEN not configured");
+    return false;
+  }
+  if (PUBLIC_PATHS.has(path)) return true;
+  // Allow real static assets (JS, CSS, images, fonts, etc.) so the SPA shell loads without auth
+  // 只对根路径或 /assets/ 下的静态资源豁免（防止 /api/data.js 等路径绕过认证）
+  const isStaticAsset = !path.slice(1).includes("/") || path.startsWith("/assets/");
+  if (AUTH_EXEMPT_EXTS.has(staticExt) && isStaticAsset) {
+    logger.debug("Static asset allowed without auth", { path, ext: staticExt });
+    return true;
+  }
+  // WebSocket: check auth in upgrade handler, not here
+  if (path === "/ws") return true;
+  const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  return safeStringEqual(auth, apiKey);
+}

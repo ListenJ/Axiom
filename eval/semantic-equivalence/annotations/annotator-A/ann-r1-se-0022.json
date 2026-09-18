@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0022",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本第五条『- **DI 可测试**：所有边缘函数接受可选 `client` 参数…测试注入 fake，不依赖 LAN 端点。注意：**不要**用 `mock.module` 全局 mock 边缘模块』在候选命题中整体缺失；且审计条目在『升级判定写 `auditLogger`（`security.alert` 事件』处截断，丢失落点『`data/logs/audit.log`』。缺失的 DI 可测试契约与 mock.module 禁令属改变行为含义的关键命题（否定/禁令、测试条件），故 E3 critical。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

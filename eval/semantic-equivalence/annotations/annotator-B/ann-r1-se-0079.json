@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0079",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获『定义函数「callProviderDirect」』一条命题（有据），但漏掉注释中的关键数值/条件命题：『传输层/429/5xx 退避重试 3 次（5s/10s/10s 封顶）』（重试次数与退避数值）、『200 但 content 为空时升级 max_tokens 再试一次』（条件分支）、『usage 取「最终被采用那次调用」的（非空 content 所在那次的用量）』（取值规则）。数值与条件类关键命题全部缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

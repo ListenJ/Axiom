@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0004",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选与源文本逐字一致：『这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环。』实体 name、三元组 object 均完整未截断，溯源 docs/ARCHITECTURE.md#L83-L83 与 source_origin 一致，无增删改。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

@@ -1,0 +1,40 @@
+{
+  "id": "se-0010",
+  "source_text": "决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28",
+  "candidate_mr": {
+    "propositions": [
+      "决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。"
+    ],
+    "entities": [
+      {
+        "name": "决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。",
+        "type": "concept",
+        "link": "kg:concept:____ResourceBudgetManager_____________nvidia-smi_______API______1__________Infra-856acb2f"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L28-L28"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

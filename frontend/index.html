@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('axiom:theme');
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+          if (stored === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) theme = 'light';
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
+    <meta name="theme-color" content="#0f0f11" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Axiom AI Agent v2.3</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

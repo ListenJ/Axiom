@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0072",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选四字段全空，命中 §6.6：空候选 vs 非空源 → not_equivalent + E3。源文本非空且含关键数值/条件命题：解释器候选常量 DEFAULT_PYTHON_CANDIDATES（python3/python，注释『容器为 Linux 环境，解释器候选不再区分宿主平台』）、沙箱镜像常量 SANDBOX_IMAGE=python:3.11-slim（注释『外部评测沙箱镜像：Python 运行时（禁网/只读挂载/20s 超时由 docker-sandbox 保证）』）、『脚本运行目录根：项目内 .tmp 下（docker-sandbox 挂载白名单拒绝宿主用户目录首段，如 os.tmpdir）』。数值与条件类关键命题全部缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

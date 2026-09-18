@@ -1,0 +1,12 @@
+{
+  "example_id": "se-0005",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E3"
+  ],
+  "severity": "critical",
+  "rationale": "源文本\"关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF\"以及条件\"`KNOWLEDGE_USE_LLM=false` 默认关闭\"为关键条件/回退链命题；候选唯一命题在\"（`KNOWLEDGE_USE_LLM=f\"处词中截断，条件不完整且上述关键命题全部缺失（漏掉默认关闭条件、TF-IDF 回退、边缘→云端→TF-IDF 的依次尝试顺序），改变行为含义，属关键命题 E3。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

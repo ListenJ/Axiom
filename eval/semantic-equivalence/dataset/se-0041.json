@@ -1,0 +1,50 @@
+{
+  "id": "se-0041",
+  "source_text": "## Abstract\n\nTypically, training LLMs with long context sizes is computationally expensive, requiring extensive training hours and GPU resources. Existing long-context extension methods usually need additional training procedures to support corresponding long-context windows, where the long-context training data (e.g., 32k) is needed, and high GPU training costs are assumed. To address the aforementioned issues, we propose an Efficient and Extreme length extension method for Large Language Models, called E 2 -LLM, with only one training procedure and dramatically reduced computation cost, which also removes the need to collect long-context data. Concretely, first, the training data of our E 2 -LLM only requires a short length (e.g., 4k), which reduces the tuning cost greatly. Second, the training procedure on the short training context window is performed only once time, and we can support different evaluation context windows at inference. Third, in E 2 - LLM, based on RoPE position embeddings, we introduce two different augmentation methods on the scale and position index parameters for different samples in training. It aims to make the model more robust to the different relative differences when directly interpolating the arbitrary context length at inference. Comprehensive experimental results on multiple benchmark datasets demonstrate the effectiveness of our E 2 -LLM on challenging long-context tasks.",
+  "source_origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/e-2-llm-efficient-and-extreme-length-extension-of-large-lang.md#L17-L19",
+  "candidate_mr": {
+    "propositions": [
+      "存在章节「Abstract」",
+      "Typically, training LLMs with long context sizes is computationally expensive, requiring extensive training hours and GPU resources. Existing long-context extension methods usually need additional training procedures to support corresponding long-context windows, where the long-context training data (e.g., 32k) is needed, and high GPU training costs are assumed. To address the aforementioned issues, we propose an Efficient and Extreme length extension method for Large Language Models, called E 2"
+    ],
+    "entities": [
+      {
+        "name": "Abstract",
+        "type": "concept",
+        "link": "kg:concept:Abstract"
+      },
+      {
+        "name": "Typically, training LLMs with long context sizes is computationally expensive, requiring extensive training hours and GPU resources. Existing long-context extension methods usually need additional tra",
+        "type": "concept",
+        "link": "kg:concept:Typically__training_LLMs_with_long_context_sizes_is_computationally_expensive__r-b030d2bc"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/e-2-llm-efficient-and-extreme-length-extension-of-large-lang.md",
+        "predicate": "contains",
+        "object": "Abstract"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/e-2-llm-efficient-and-extreme-length-extension-of-large-lang.md#L17-L19"
+      },
+      {
+        "prop_index": 1,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/e-2-llm-efficient-and-extreme-length-extension-of-large-lang.md#L17-L19"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

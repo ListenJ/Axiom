@@ -1,0 +1,305 @@
+{
+  "total": 31,
+  "blocked": 31,
+  "blockRate": 1,
+  "allHaveReasonCode": true,
+  "byCategory": {
+    "V1": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V2": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V3": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V4": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V5": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V6": {
+      "total": 3,
+      "blocked": 3
+    },
+    "V7": {
+      "total": 3,
+      "blocked": 3
+    },
+    "COMBO": {
+      "total": 10,
+      "blocked": 10
+    }
+  },
+  "byReasonCode": {
+    "missing-provenance": 4,
+    "dangling-entity-ref": 4,
+    "type-mismatch": 5,
+    "endpoint-not-declared": 3,
+    "cyclic-relation": 3,
+    "empty-propositions": 2,
+    "empty-entities": 1,
+    "not-an-object": 4,
+    "unresolved-entity": 5
+  },
+  "byLevel": {
+    "level-1": 26,
+    "level-2": 5
+  },
+  "cases": [
+    {
+      "id": "av-001",
+      "category": "V1",
+      "variant": "anchor-field-absent",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "missing-provenance"
+    },
+    {
+      "id": "av-002",
+      "category": "V1",
+      "variant": "anchor-prefix-illegal",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "missing-provenance"
+    },
+    {
+      "id": "av-003",
+      "category": "V1",
+      "variant": "anchor-empty-string",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "missing-provenance"
+    },
+    {
+      "id": "av-004",
+      "category": "V2",
+      "variant": "single-dangling-link",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "dangling-entity-ref"
+    },
+    {
+      "id": "av-005",
+      "category": "V2",
+      "variant": "partial-dangling-link",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "dangling-entity-ref"
+    },
+    {
+      "id": "av-006",
+      "category": "V2",
+      "variant": "cross-proposition-dangling",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "dangling-entity-ref"
+    },
+    {
+      "id": "av-007",
+      "category": "V3",
+      "variant": "confidence-out-of-range",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "type-mismatch"
+    },
+    {
+      "id": "av-008",
+      "category": "V3",
+      "variant": "text-not-string",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "type-mismatch"
+    },
+    {
+      "id": "av-009",
+      "category": "V3",
+      "variant": "propositions-not-array",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "type-mismatch"
+    },
+    {
+      "id": "av-010",
+      "category": "V4",
+      "variant": "source-undeclared",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "endpoint-not-declared"
+    },
+    {
+      "id": "av-011",
+      "category": "V4",
+      "variant": "target-undeclared",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "endpoint-not-declared"
+    },
+    {
+      "id": "av-012",
+      "category": "V4",
+      "variant": "both-endpoints-undeclared",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "endpoint-not-declared"
+    },
+    {
+      "id": "av-013",
+      "category": "V5",
+      "variant": "two-cycle",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "cyclic-relation"
+    },
+    {
+      "id": "av-014",
+      "category": "V5",
+      "variant": "self-loop",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "cyclic-relation"
+    },
+    {
+      "id": "av-015",
+      "category": "V5",
+      "variant": "three-cycle",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "cyclic-relation"
+    },
+    {
+      "id": "av-016",
+      "category": "V6",
+      "variant": "empty-propositions",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "empty-propositions"
+    },
+    {
+      "id": "av-017",
+      "category": "V6",
+      "variant": "empty-entities",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "empty-entities"
+    },
+    {
+      "id": "av-018",
+      "category": "V6",
+      "variant": "both-empty",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "empty-propositions"
+    },
+    {
+      "id": "av-019",
+      "category": "V7",
+      "variant": "null-input",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "not-an-object"
+    },
+    {
+      "id": "av-020",
+      "category": "V7",
+      "variant": "string-input",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "not-an-object"
+    },
+    {
+      "id": "av-021",
+      "category": "V7",
+      "variant": "array-input",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "not-an-object"
+    },
+    {
+      "id": "av-022",
+      "category": "COMBO",
+      "variant": "prompt-injection-style",
+      "blocked": true,
+      "level": 2,
+      "reasonCode": "unresolved-entity"
+    },
+    {
+      "id": "av-023",
+      "category": "COMBO",
+      "variant": "ultra-deep-nesting-2000",
+      "blocked": true,
+      "level": 2,
+      "reasonCode": "unresolved-entity"
+    },
+    {
+      "id": "av-024",
+      "category": "COMBO",
+      "variant": "oversized-payload-64k",
+      "blocked": true,
+      "level": 2,
+      "reasonCode": "unresolved-entity"
+    },
+    {
+      "id": "av-025",
+      "category": "COMBO",
+      "variant": "type-mismatch-plus-undeclared-endpoint",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "type-mismatch"
+    },
+    {
+      "id": "av-026",
+      "category": "COMBO",
+      "variant": "dangling-ref-plus-cycle",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "dangling-entity-ref"
+    },
+    {
+      "id": "av-027",
+      "category": "COMBO",
+      "variant": "missing-provenance-plus-empty-entities",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "missing-provenance"
+    },
+    {
+      "id": "av-028",
+      "category": "COMBO",
+      "variant": "array-wrapped-legal-mr",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "not-an-object"
+    },
+    {
+      "id": "av-029",
+      "category": "COMBO",
+      "variant": "injection-plus-oversized",
+      "blocked": true,
+      "level": 2,
+      "reasonCode": "unresolved-entity"
+    },
+    {
+      "id": "av-030",
+      "category": "COMBO",
+      "variant": "multi-field-type-mismatch",
+      "blocked": true,
+      "level": 1,
+      "reasonCode": "type-mismatch"
+    },
+    {
+      "id": "av-031",
+      "category": "COMBO",
+      "variant": "bulk-unresolvable-500",
+      "blocked": true,
+      "level": 2,
+      "reasonCode": "unresolved-entity"
+    }
+  ]
+}

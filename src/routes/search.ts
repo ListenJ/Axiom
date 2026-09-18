@@ -1,0 +1,296 @@
+/**
+ * Search routes: vault search, web search, enhanced search, suggestions, history
+ */
+import { logger } from "../utils/logger.js";
+import { isSafeUrl } from "../utils/url-safety.js";
+import type { RouteContext } from "./types.js";
+import { withTimeout } from "../utils/resilience.js";
+import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
+import type { SearchEngineResult } from "../crawl/search-engines.js";
+import type { UnifiedSearchResult } from "../crawl/unified-search.js";
+import type { StructuredCrawlResult } from "../crawl/data-pipeline.js";
+import type { DeterministicRetrievalEngine, RetrievalResponse } from "../dre/retrieval/deterministic-retrieval-engine.js";
+
+// SSRF 防护已抽至共享模块 utils/url-safety.ts（含重定向逐跳校验，见 proxy-fetch ssrfGuard）
+
+// ─── DRE 检索段（S1 缝①）─────────────────────────────────────────────────
+
+type DreRetriever = (
+  query: string,
+  opts?: { limit?: number },
+) => RetrievalResponse | null | Promise<RetrievalResponse | null>;
+
+// DRE 检索器注入槽：undefined=未注入（默认构建），null=显式禁用，函数=注入（测试/定制）
+let dreRetrieverOverride: DreRetriever | null | undefined;
+
+/** 注入 DRE 检索器（测试接缝）；传 undefined 恢复默认，null 显式禁用 */
+export function setDreRetriever(fn: DreRetriever | null | undefined): void {
+  dreRetrieverOverride = fn;
+}
+
+export const DRE_RETRIEVAL_TIMEOUT_MS = 3000;
+
+/** 3s 超时包装（Promise.race）：超时/异常返回 null（丢弃 DRE 段，不影响主响应） */
+export async function withDreTimeout<T>(p: T | Promise<T>, ms: number = DRE_RETRIEVAL_TIMEOUT_MS): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), ms);
+    });
+    return await Promise.race([Promise.resolve(p), timeout]);
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+let dreEngine: DeterministicRetrievalEngine | null = null;
+let dreEngineVault: unknown;
+
+/**
+ * 收集 DRE 检索段：注入优先；默认引擎注入 knowledgeNetwork 单例（dre/runtime/knowledge-network.ts）
+ * + vault 确定性索引作关键词腿（engine.search，非 vault.search，避免回退链递归）。任何异常静默返回 null。
+ */
+async function collectDreSegment(
+  query: string,
+  vault: RouteContext["vault"],
+  limit: number,
+): Promise<RetrievalResponse | null> {
+  const dreLimit = Math.min(limit, 5);
+  try {
+    if (dreRetrieverOverride !== undefined) {
+      return await withDreTimeout(Promise.resolve().then(() => dreRetrieverOverride!(query, { limit: dreLimit })));
+    }
+    let engine = dreEngine && dreEngineVault === vault ? dreEngine : null;
+    if (!engine) {
+      const { DeterministicRetrievalEngine: DreEngine } = await import("../dre/retrieval/deterministic-retrieval-engine.js");
+      const { knowledgeNetwork } = await import("../dre/runtime/knowledge-network.js");
+      engine = new DreEngine({ keywordSearcher: vault ? vault.getEngine() : null, graph: knowledgeNetwork });
+      dreEngine = engine;
+      dreEngineVault = vault;
+    }
+    return await withDreTimeout(Promise.resolve(engine.retrieve(query, { limit: dreLimit })));
+  } catch {
+    return null;
+  }
+}
+
+export async function handleVaultSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/search" && ctx.req.method === "GET") {
+    const query = ctx.url.searchParams.get("q");
+    // /search 同时是前端页面路由：无 q 且浏览器导航（Accept: text/html）→ 返回 null 让 SPA 回退；API 无 q → 400
+    if (!query) {
+      const accept = ctx.req.headers.get("accept") ?? "";
+      if (accept.includes("text/html")) return null;
+      return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+    }
+    if (!ctx.vault) return ctx.jsonResponse({ error: "Vault not initialized" }, 503, ctx.baseHeaders);
+
+    const types = ctx.url.searchParams.get("types")?.split(",").filter(Boolean);
+    const tags = ctx.url.searchParams.get("tags")?.split(",").filter(Boolean);
+    const para = ctx.url.searchParams.get("para") || undefined;
+    // O5：limit 钳制 ≤100，防止超大 limit 拖垮 vault 检索
+    const limit = Math.min(Number(ctx.url.searchParams.get("limit")) || 20, 100);
+    const results = ctx.vault.search(query, { types, tags, paraCategory: para, limit });
+    const payload: Record<string, unknown> = { query, strategy: "deterministic", results };
+    // S1 缝①：响应并入 DRE 检索段（仅在有结果时包含；异常/超时/未启用静默跳过）
+    const dre = await collectDreSegment(query, ctx.vault, limit);
+    if (dre && dre.results.length > 0) {
+      payload.dre = { results: dre.results, source: "dre-retrieval" };
+    }
+    return ctx.jsonResponse(payload, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleWebSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/web-search" && ctx.req.method === "GET") {
+    const query = ctx.url.searchParams.get("q");
+    if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+
+    const { searchCache } = await import("../utils/cache.js");
+    const { wsManager } = await import("../utils/websocket.js");
+
+    const engines = ctx.url.searchParams.get("engines")?.split(",") || undefined;
+    // O5：num 钳制 ≤30，防止模型可控的 engines×num 叠加击穿上下文预算
+    const num = Math.min(Number(ctx.url.searchParams.get("num")) || 10, 30);
+    const cacheKey = `${query}::${engines?.join(",") || "default"}::${num}`;
+    const rawResults = await searchCache.getOrSet(cacheKey, async () => {
+      return ctx.pipeline.searchMulti(query, { engines, num });
+    }, 10 * 60 * 1000) as SearchEngineResult[];
+    // O5：结果过确定性消毒（截断 title/snippet + 总条数上限）
+    const results = sanitizeSearchResultsForContext(rawResults);
+
+    ctx.db.run(`INSERT INTO search_history (query, query_hash, engines, results_count, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [query, String(Bun.hash(query)), engines?.join(",") || "", results.length, Date.now()]);
+
+    if (ctx.vault) {
+      ctx.vault.writeSearchResult(query, engines || ["duckduckgo"], results.map(r => ({ title: r.title, link: r.link, snippet: r.snippet })))
+        .catch((e: unknown) => logger.warn("Failed to persist search result", { query, error: (e as Error).message }));
+    }
+
+    wsManager.broadcast({ type: "search.completed", payload: { query, resultCount: results.length }, timestamp: new Date().toISOString() });
+    return ctx.jsonResponse({ query, engines, results }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleEnhancedSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/enhanced-search" && ctx.req.method === "GET") {
+    const query = ctx.url.searchParams.get("q");
+    if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+
+    const { unifiedSearch } = await import("../crawl/unified-search.js");
+    const { wsManager } = await import("../utils/websocket.js");
+
+    const mode = (ctx.url.searchParams.get("mode") as "deep" | "academic" | "news" | "code" | "quick") || "quick";
+    const num = Number(ctx.url.searchParams.get("num")) || 10;
+
+    let results: UnifiedSearchResult[];
+    switch (mode) {
+      case "deep": results = await unifiedSearch.deepSearch(query, num); break;
+      case "academic": results = await unifiedSearch.academicSearch(query, num); break;
+      case "news": results = await unifiedSearch.newsSearch(query, num); break;
+      case "code": results = await unifiedSearch.codeSearch(query, num); break;
+      default: results = await unifiedSearch.quickSearch(query, num); break;
+    }
+
+    // Persist search results to Vault + SQLite
+    if (ctx.vault) {
+      ctx.vault.writeSearchResult(query, ['unified'], results.map(r => ({ title: r.title, link: r.link, snippet: r.snippet })))
+        .catch((e: unknown) => logger.warn("Failed to persist unified search result", { query, error: (e as Error).message }));
+    }
+
+    wsManager.broadcast({
+      type: "search.completed",
+      payload: { query, mode, resultCount: results.length },
+      timestamp: new Date().toISOString(),
+    });
+
+    return ctx.jsonResponse({ query, mode, results }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleSearchSuggestions(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/search/suggestions" && ctx.req.method === "GET") {
+    const query = ctx.url.searchParams.get("q");
+    if (!query) return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
+
+    // Simple suggestion: return recent searches matching prefix
+    interface SuggestionRow { query: string }
+    const rows = ctx.db.query(
+      "SELECT DISTINCT query FROM search_history WHERE query LIKE ? ORDER BY created_at DESC LIMIT 10"
+    ).all(`${query}%`) as SuggestionRow[];
+    return ctx.jsonResponse({ query, suggestions: rows.map((r: SuggestionRow) => r.query) }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleSearchStats(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/search/stats" && ctx.req.method === "GET") {
+    const { unifiedSearch } = await import("../crawl/unified-search.js");
+    return ctx.jsonResponse(unifiedSearch.getStats(), 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleSearchHistory(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/search/history" && ctx.req.method === "GET") {
+    const { unifiedSearch } = await import("../crawl/unified-search.js");
+    const limit = Number(ctx.url.searchParams.get("limit")) || 50;
+    const offset = Number(ctx.url.searchParams.get("offset")) || 0;
+    const history = unifiedSearch.getHistory(limit, offset);
+    return ctx.jsonResponse({ history, limit, offset }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleRecentSearches(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/searches/recent" && ctx.req.method === "GET") {
+    const rows = ctx.db.query("SELECT * FROM search_history ORDER BY created_at DESC LIMIT ?").all(Number(ctx.url.searchParams.get("limit")) || 20) as Array<Record<string, unknown>>;
+    return ctx.jsonResponse({ searches: rows }, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+export async function handleWebFetch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname === "/web-fetch" && ctx.req.method === "GET") {
+    const targetUrl = ctx.url.searchParams.get("url");
+    if (!targetUrl) return ctx.jsonResponse({ error: "Missing url param" }, 400, ctx.baseHeaders);
+
+    // SSRF protection: block internal/private IPs and dangerous protocols
+    if (!isSafeUrl(targetUrl)) {
+      return ctx.jsonResponse({ error: "URL blocked by security policy" }, 403, ctx.baseHeaders);
+    }
+
+    const { crawlCache } = await import("../utils/cache.js");
+    const { wsManager } = await import("../utils/websocket.js");
+
+    const cacheKey = `crawl::${targetUrl}`;
+    const cached = await crawlCache.get(cacheKey);
+    let result = cached ? (cached as unknown as StructuredCrawlResult) : undefined;
+    if (!result) {
+      result = (await ctx.pipeline.crawlStructured(targetUrl)) ?? undefined;
+      if (result) {
+        crawlCache.set(cacheKey, result as unknown as Record<string, unknown>, 30 * 60 * 1000);
+        await ctx.pipeline.saveCrawlResult(result);
+      }
+    }
+    if (!result) return ctx.jsonResponse({ error: "Fetch failed" }, 502, ctx.baseHeaders);
+
+    wsManager.broadcast({ type: "crawl.completed", payload: { url: targetUrl, title: result.title }, timestamp: new Date().toISOString() });
+    return ctx.jsonResponse(result, 200, ctx.baseHeaders);
+  }
+  return null;
+}
+
+/** GET /lightpanda/status -- Check Lightpanda availability */
+export async function handleLightpandaStatus(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/lightpanda/status" || ctx.req.method !== "GET") return null;
+  const { getLightpandaStatus } = await import("../crawl/lightpanda-client.js");
+  try {
+    // 有界超时：状态检查不允许无限等待底层二进制/端口探测
+    const status = await withTimeout(getLightpandaStatus(), 3000);
+    return ctx.jsonResponse(status, 200, ctx.baseHeaders);
+  } catch (e) {
+    return ctx.jsonResponse({ available: false, error: e instanceof Error ? e.message : String(e) }, 200, ctx.baseHeaders);
+  }
+}
+
+/** GET /direct-search?q=X&engines=google,bing -- Direct search without API keys */
+export async function handleDirectSearch(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/direct-search" || ctx.req.method !== "GET") return null;
+  const query = ctx.url.searchParams.get("q");
+  if (!query) return ctx.jsonResponse({ error: "Missing q parameter" }, 400, ctx.baseHeaders);
+  // SSRF 防护：若查询本身是 URL（如用户直接传 URL），需校验私网/整数IP
+  if (/^https?:\/\//i.test(query) && !isSafeUrl(query)) {
+    return ctx.jsonResponse({ error: "URL blocked by security policy" }, 403, ctx.baseHeaders);
+  }
+  const engines = ctx.url.searchParams.get("engines")?.split(",") || ["google", "bing"];
+  const num = parseInt(ctx.url.searchParams.get("num") || "10", 10);
+  const { directMultiSearch } = await import("../crawl/lightpanda-search.js");
+  const results = await directMultiSearch(query, { engines, num });
+  return ctx.jsonResponse({ results, count: results.length, query }, 200, ctx.baseHeaders);
+}
+
+/** POST /search/decompose -- Decompose a complex query into sub-queries */
+export async function handleQueryDecompose(ctx: RouteContext): Promise<Response | null> {
+  if (ctx.url.pathname !== "/search/decompose" || ctx.req.method !== "POST") return null;
+  const body = await ctx.req.json().catch(() => ({}));
+  const { query } = body;
+  if (!query) return ctx.jsonResponse({ error: "query is required" }, 400, ctx.baseHeaders);
+
+  const { decomposeQuery } = await import("../agents/query-decomposer.js");
+  const result = decomposeQuery(query);
+
+  // If vault is available, also run search
+  let fragments: import("../agents/query-decomposer.js").KnowledgeFragment[] = [];
+  if (ctx.vault) {
+    const { searchKnowledgeBase } = await import("../agents/query-decomposer.js");
+    fragments = await searchKnowledgeBase(result.subQueries, ctx.vault);
+  }
+
+  return ctx.jsonResponse({ decomposed: result, fragments, count: fragments.length }, 200, ctx.baseHeaders);
+}

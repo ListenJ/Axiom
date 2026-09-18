@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0001",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题为源文本逐字投影：『所有环境变量读取必须通过 `src/utils/env.ts` 的 `readString()`, `readInt()`, `readBool()`。例外白名单：』全量保留，量词『所有』与强制语气『必须』未变；溯源 docs/ARCHITECTURE.md#L199-L199 与 source_origin 一致；实体与三元组均为对同一文本的 contains 断言，无增删命题。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

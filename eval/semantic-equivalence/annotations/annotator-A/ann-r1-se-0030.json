@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0030",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整保留全部五条：『1. **内核只增稳定骨架**：新增能力先问\"能否作为工具/skill/插件\"』『3. **配置不写死**：模型/端点/密钥/汇率/开关一律 env 或配置中心（本轮新增 COST_CNY_PER_USD 汇率可配）』『5. **可测试接缝**：内核纯函数（rate-tier/token-tracker/reasoning-effort）带单元测试；工具层测试走 MCP registry。』。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『配置中心（本』处，但截断内容在命题字段完整存在；源换行压平（如『内核纯函数\n（rate-tier』处残留换行），未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

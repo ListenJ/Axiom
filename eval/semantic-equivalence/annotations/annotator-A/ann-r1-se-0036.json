@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0036",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题（数值全保留）：『最强模型仅 15.2% pass@1（0.95 部分分阈值）』『top 代理仅 20.6%』『失败模式=丢约束、错过任务中途信息、猜而不问用户、跳过验证』及判断部分『我们的自进化（evolve 归纳经验并注入）直接对应 StateM 的\"重激活经验\"杠杆』『本套件暂无长程多步真实执行任务…Phase C 定位中如实声明』。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『**对本项目』处，截断内容在命题字段完整存在；源换行压平，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0031",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本三条要点：『MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）』『桥接实现只用 dsh 稳定接缝（`ctx.tools.register` / `ctx.effect` / `ctx.inject` / `ctx.get`）』『契约与取证详见 `docs/research/deepseek-harness-plugin-2026-08-14.md`』，『可选』限定与『结构性类型解耦』结论无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『（`ctx.tool』处截断，属次要载体字段损失，命题本体完整；换行折叠为格式级差异。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

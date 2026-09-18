@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0077",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获『定义函数「pickBest」』一条命题（有据），但漏掉关键数值/条件命题：『export const DEFAULT_RERUN_EACH = 2』（注释『默认每个任务重跑 2 次取最优，消除单样本波动』，数值 2）与 pickBest 选取语义『任一通过取首个通过；全失败优先保留真实能力失败』『仅在全部尝试都是执行错误时保留首次』（多重条件与优先序）。数值与条件类关键命题缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

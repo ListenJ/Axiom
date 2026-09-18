@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0057",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选唯一命题逐字保留源文本全部内容：「A next.js web application that integrates AI capabilities with draw.io diagrams」「create, modify, and enhance diagrams through natural language commands and AI-assisted visualization」「Language TypeScript」「Stars 33399 | Today 81」均在，数值一致，仅换行归一为空格，语义闭合。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

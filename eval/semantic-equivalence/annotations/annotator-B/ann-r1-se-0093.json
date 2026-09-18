@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0093",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题为 baseline 解析优先级三档：「用户显式 --baseline（run_tag 或纯数字 id）→ 本轮回 baseline 阶段 runId（技能注入 vs 无技能同 held-out 的苹果对苹果）→ 自动历史最优（回落默认）」——优先级/回落条件链为关键条件命题；「委托 autoCheckRegression，本身无副作用可测」——委托关系与性质命题。candidate 仅覆盖「定义函数 autoCheckEvolve」，判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

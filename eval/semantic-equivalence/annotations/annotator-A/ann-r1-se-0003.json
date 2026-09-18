@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0003",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"解耦层:  services             — 唯一允许双向引用的模块 (循环依赖断路器)\"及叶子层/领域层/集成层各条约束在候选命题中逐字完整保留，\"不依赖任何 src 模块\"的限定与\"唯一允许双向引用\"的例外均未丢失，意义闭合。可忽略差异：entities[0].name 与 triples[0].object 截断于\"(循环依赖\"（约 120 字符上限），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

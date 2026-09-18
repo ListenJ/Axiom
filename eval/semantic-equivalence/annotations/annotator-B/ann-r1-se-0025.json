@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0025",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题逐字保留源文本全部关键命题：『**全部写操作追加链式哈希验证链**（每条记录带 `prevHash`，篡改即失配）』『本地模型仅作**可选**增强（注入 `localModelAssist`）』『不配置时模块 100% 确定性、零网络依赖』——量词『全部』、限定『仅作可选』、条件『不配置时』与数值『100%』均无损，『篡改即失配』的因果与可校验/可追溯结论保留；无添加。entities、triples、provenance 完整一致，仅换行折叠为格式级差异。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

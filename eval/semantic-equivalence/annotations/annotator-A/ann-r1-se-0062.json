@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0062",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本为 12 个 src/memory 下文件路径列表，候选命题逐字保留全部 12 项（含首项『- `src/memory/archiver.ts`』与末项『- `src/memory/file-watcher.ts`』），无添加无遗漏；可忽略差异：实体名与三元组 object 字段在『- `src/memory』处截断（distillation-priority 起 6 项未进入辅助字段），命题本体完整。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

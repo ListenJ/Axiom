@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-09",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本：『在特定插件目录（如 dsh）运行 TypeScript 构建和测试命令会成功通过，无需额外配置』。候选 propositions/entities/triples/provenance 全部为空。按指南 §6.6 空候选规则：源非空而候选为空 → not_equivalent；源的关键命题——『在特定插件目录（如 dsh）运行 TypeScript 构建和测试命令会成功通过』及『无需额外配置』——全部缺失（E3，漏全部关键命题，critical）。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

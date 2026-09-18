@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0040",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题（安全规则的条件与否定全保留）：『1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证』『必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造）』『2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed』『其他路径拒绝 + warn』『4. **免认证静态扩展名**…**不含** `.json` / `.txt`（动态 API 路由可能以它们结尾，如 `/traces/<id>.json`）』。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『.html/.js/.css/』处，截断内容在命题字段完整存在；源换行压平，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

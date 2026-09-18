@@ -1,0 +1,40 @@
+{
+  "id": "se-0016",
+  "source_text": "> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-evals 共用该实例）；deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致。残余局限仅在于派生标记本身不落盘、依赖 store 的 load/save 容错。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L1351-L1351",
+  "candidate_mr": {
+    "propositions": [
+      "> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-evals 共用该实例）；deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致。残余局限仅在于派生标记本身不落盘、依赖 store 的 load/save 容错。"
+    ],
+    "entities": [
+      {
+        "name": "> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-",
+        "type": "concept",
+        "link": "kg:concept:__________2026-08-28____________________SkillQualityStore___________data/skill-q-7a9e38d5"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "> **持久化说明（2026-08-28 代码审查勘误）**：技能质量统计经 `SkillQualityStore` 适配器持久化至 `data/skill-quality.json`（`getDefaultQualityTracker()` 注入 `createFileQualityStore()`，构造时 load 恢复，skill_run / skill-promotion / agent-"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L1351-L1351"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

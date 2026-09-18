@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0086",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题：「从文本中提取最后一个数值 token；无数字返回 null。支持整数/小数/负数（小数分隔符仅 \".\"）」——含条件（无数字返回 null）、数值/格式限定；「无数字 →「未找到数字」；positive 违反 →「数值非正」；越界 →「数值越界」」——三分支条件；「reason 不带 [ERROR] 前缀（S3 聚类归\"其他\"桶）」——否定命题。candidate 仅覆盖「定义函数 extractLastNumber」「定义函数 mustReturnNumber」，全部行为性关键命题缺失，判 E3（critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

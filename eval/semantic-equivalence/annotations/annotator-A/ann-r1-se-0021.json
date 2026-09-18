@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0021",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题为源文本逐字投影：『改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标），改由 **GLM-4.7-flash 免费链**』至『siliconflow `GLM-4.7-Flash:free` 兜底。流程：』完整保留，否定（不再由边缘模型承担）、优先级链（zhipu 直连优先 → siliconflow 兜底）均原样；仅换行压平为空格的格式规整，无命题增删，实体/三元组为片段级概念节点且指向正确文档，未引入错误实体或无据命题。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0047",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『The highest-rated reasoning chain is selected to produce the final answer. Experime』，其后关键命题缺失：『Experiments were conducted with five state-of-the-art LLMs (Llama-3.1-8B, Qwen2.5-7B, Phi-4, DeepSeek-LLM-7B, GPT-oss-20B) on three benchmark datasets』『The best model combination achieved an average accuracy of 0.820 across datasets, exceeding the strongest single model (0.777) and majority voting ensembles (up to 0.789)』，实验设置与全部数值结果丢失，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

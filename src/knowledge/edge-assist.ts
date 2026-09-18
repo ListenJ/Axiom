@@ -1,0 +1,173 @@
+/**
+ * 知识库边缘增强 —— 边缘小模型驱动的知识管理四能力
+ *
+ *   1. structureKnowledgeWithEdge    — 文档结构化（pipeline 优先边缘，失败回退 GLM）
+ *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
+ *   3. isNearDuplicateWithEdge       — 采集前近重复判断
+ *   4. summarizeKnowledgeWithEdge    — 采集摘要
+ *
+ * 注：检索查询改写（rewriteKnowledgeQueryWithEdge）已于 2026-09-17 移除 ——
+ * LLM 改写打破检索的确定性承诺（同输入同输出），检索键改由用户原始查询直接进入。
+ *
+ * 全部可空返回（null = 不可用，调用方回退规则/云端路径）。
+ *
+ * 开关（**默认全关**，用户指令 2026-09-18 / 审计 C-01+A6-2 收口）：
+ *   任务形态授权 KNOWLEDGE_USE_LLM=1  且  能力开关 EDGE_KNOWLEDGE_ASSIST=1
+ * 两者缺一即走确定性规则路径，不再出现"边缘默认开启 / pipeline 默认关闭"的双重标准。
+ */
+
+import { getEdgeClient, isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
+import type { LLMClient } from "../dre/llm/client.js";
+import { readBool } from "../utils/env.js";
+import { logger } from "../utils/logger.js";
+
+/**
+ * 知识采集/结构化链路的 LLM 授权判定。
+ * 任务形态授权（KNOWLEDGE_USE_LLM，默认 false）与能力开关（EDGE_KNOWLEDGE_ASSIST，
+ * 默认关闭）必须同时成立 —— 与 src/knowledge/pipeline.ts 的 zero-LLM 默认口径对齐。
+ */
+function isKnowledgeEdgeEnabled(): boolean {
+  return readBool("KNOWLEDGE_USE_LLM", false) && isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST");
+}
+
+type GenerateClient = Pick<LLMClient, "generate">;
+
+/** 结构化结果（与 pipeline.ts StructureResult 对齐） */
+export interface EdgeStructureResult {
+  title: string;
+  summary: string;
+  keywords: string[];
+  quality_score: number;
+  sections: Array<{ heading: string; content: string }>;
+  entities: Array<{ name: string; type: string }>;
+  structured_data: unknown | null;
+}
+
+const MAX_INPUT_CHARS = 4000;
+
+function truncate(s: string, n = MAX_INPUT_CHARS): string {
+  return s.length > n ? s.slice(0, n) : s;
+}
+
+/**
+ * 文档结构化：提取 title/summary/keywords/quality_score。
+ * sections/entities/structured_data 由下游 zod 默认值兜底。
+ */
+export async function structureKnowledgeWithEdge(
+  rawMarkdown: string,
+  client?: GenerateClient,
+): Promise<EdgeStructureResult | null> {
+  if (!isKnowledgeEdgeEnabled()) return null;
+
+  try {
+    const llm = client ?? getEdgeClient();
+    const resp = await llm.generate(
+      `将以下文档结构化为 JSON：{"title":"文档标题","summary":"100字以内摘要","keywords":["关键词1","关键词2"],"quality_score":0.0-1.0}。文档：【${truncate(rawMarkdown, 8000)}】`,
+      { maxTokens: 400, answerPrefix: '{"title":"' },
+    );
+    const parsed = extractJson<{
+      title?: unknown; summary?: unknown; keywords?: unknown; quality_score?: unknown;
+    }>(resp.content ?? "");
+
+    if (!parsed || typeof parsed.title !== "string" || parsed.title.trim().length === 0) return null;
+    if (typeof parsed.summary !== "string") return null;
+
+    const quality = typeof parsed.quality_score === "number"
+      ? Math.max(0, Math.min(1, parsed.quality_score))
+      : 0.5;
+
+    return {
+      title: parsed.title.trim(),
+      summary: parsed.summary,
+      keywords: Array.isArray(parsed.keywords)
+        ? parsed.keywords.filter((k): k is string => typeof k === "string").slice(0, 10)
+        : [],
+      quality_score: quality,
+      sections: [],
+      entities: [],
+      structured_data: null,
+    };
+  } catch (err) {
+    logger.debug("[EdgeKnowledge] structure failed", { error: (err as Error).message });
+    return null;
+  }
+}
+
+/**
+ * 灰区质量裁决：规则评分略低于阈值时给内容第二次机会。
+ */
+export async function judgeKnowledgeQualityWithEdge(
+  title: string,
+  snippet: string,
+  client?: GenerateClient,
+): Promise<{ pass: boolean; reason?: string } | null> {
+  if (!isKnowledgeEdgeEnabled()) return null;
+
+  try {
+    const llm = client ?? getEdgeClient();
+    const resp = await llm.generate(
+      `判断以下采集内容是否有实质知识价值（非广告/导航页/拼凑内容）。标题：【${truncate(title, 200)}】内容：【${truncate(snippet, 1000)}】只回答JSON {"pass": true或false, "reason": "<=15字"}`,
+      { maxTokens: 60, answerPrefix: '{"pass":' },
+    );
+    const parsed = extractJson<{ pass?: unknown; reason?: unknown }>(resp.content ?? "");
+    if (parsed && typeof parsed.pass === "boolean") {
+      return { pass: parsed.pass, reason: typeof parsed.reason === "string" ? parsed.reason : undefined };
+    }
+    return null;
+  } catch (err) {
+    logger.debug("[EdgeKnowledge] quality judge failed", { error: (err as Error).message });
+    return null;
+  }
+}
+
+/**
+ * 近重复判断：新内容与候选标题集合是否实质重复。
+ * 无候选 → false（不调模型）；模型不可用 → null（调用方按不重复处理）。
+ */
+export async function isNearDuplicateWithEdge(
+  newTitle: string,
+  newSnippet: string,
+  candidateTitles: string[],
+  client?: GenerateClient,
+): Promise<boolean | null> {
+  if (candidateTitles.length === 0) return false;
+  if (!isKnowledgeEdgeEnabled()) return null;
+
+  try {
+    const llm = client ?? getEdgeClient();
+    const candidates = candidateTitles.slice(0, 5).map((t, i) => `${i + 1}. ${t}`).join("\n");
+    const resp = await llm.generate(
+      `判断新文档是否与已有文档实质重复（同一主题同一内容，而非仅相关）。新文档：【${truncate(newTitle, 200)}】摘要：【${truncate(newSnippet, 500)}】已有：\n${candidates}\n只回答JSON {"duplicate": true或false}`,
+      { maxTokens: 40, answerPrefix: '{"duplicate":' },
+    );
+    const parsed = extractJson<{ duplicate?: unknown }>(resp.content ?? "");
+    if (parsed && typeof parsed.duplicate === "boolean") return parsed.duplicate;
+    return null;
+  } catch (err) {
+    logger.debug("[EdgeKnowledge] near-dup check failed", { error: (err as Error).message });
+    return null;
+  }
+}
+
+/**
+ * 采集摘要（100 字以内）。
+ */
+export async function summarizeKnowledgeWithEdge(
+  markdown: string,
+  client?: GenerateClient,
+): Promise<string | null> {
+  if (!isKnowledgeEdgeEnabled()) return null;
+
+  try {
+    const llm = client ?? getEdgeClient();
+    const resp = await llm.generate(
+      `用不超过100字概括以下内容的核心要点，只输出概括本身：【${truncate(markdown, 2000)}】`,
+      { maxTokens: 160 },
+    );
+    const summary = (resp.content ?? "").trim().split(/\r?\n/)[0].trim();
+    return summary.length >= 10 ? summary : null;
+  } catch (err) {
+    logger.debug("[EdgeKnowledge] summarize failed", { error: (err as Error).message });
+    return null;
+  }
+}

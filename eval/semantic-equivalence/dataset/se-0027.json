@@ -1,0 +1,40 @@
+{
+  "id": "se-0027",
+  "source_text": "> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）。",
+  "source_origin": "docs/LIMITATIONS.md#L3-L3",
+  "candidate_mr": {
+    "propositions": [
+      "> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）。"
+    ],
+    "entities": [
+      {
+        "name": "> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）。",
+        "type": "concept",
+        "link": "kg:concept:_________________________________________________________src/dre/system-resource-8c6eb18f"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/LIMITATIONS.md",
+        "predicate": "contains",
+        "object": "> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/LIMITATIONS.md#L3-L3"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

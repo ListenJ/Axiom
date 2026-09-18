@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0054",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体、三元组均逐字保留源文本全部内容：『`packages/llm/llm-cost-aware/` — 成本感知路由』『读取模型供应商和成本信息』『免费模型优先用于读取/整理任务』，仅多行缩进被扁平化为空格，无命题增删，语义闭合（§6.4 粒度合并视为等价）→ equivalent。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

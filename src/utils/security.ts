@@ -1,0 +1,186 @@
+import { readString } from "./env.js";
+import { logger } from "./logger.js";
+
+export interface SecurityHeaders {
+  "X-Content-Type-Options": string;
+  "X-Frame-Options": string;
+  "X-XSS-Protection": string;
+  "Referrer-Policy": string;
+  "Permissions-Policy": string;
+  "Strict-Transport-Security"?: string;
+  "Content-Security-Policy"?: string;
+}
+
+export const DEFAULT_SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+};
+
+export function createSecurityHeaders(
+  options?: {
+    hsts?: boolean;
+    csp?: boolean;
+    custom?: Record<string, string>;
+  }
+): Record<string, string> {
+  const headers = { ...DEFAULT_SECURITY_HEADERS };
+
+  if (options?.hsts || readString("NODE_ENV") === "production") {
+    headers["Strict-Transport-Security"] =
+      "max-age=31536000; includeSubDomains; preload";
+  }
+
+  if (options?.csp) {
+    // CSP connect-src 可通过 CSP_CONNECT_SRC 环境变量扩展（逗号分隔的外部 API 端点）
+    // 例如: CSP_CONNECT_SRC=https://api.openai.com,https://api.anthropic.com
+    const extraConnectSrc = readString("CSP_CONNECT_SRC");
+    const connectSrc = extraConnectSrc
+      ? `'self' ws: wss: ${extraConnectSrc.split(",").map((s) => s.trim()).join(" ")}`
+      : "'self' ws: wss:";
+    headers["Content-Security-Policy"] =
+      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src ${connectSrc}; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
+  }
+
+  if (options?.custom) {
+    Object.assign(headers, options.custom);
+  }
+
+  return headers;
+}
+
+/**
+ * 敏感字段名匹配正则 —— 模块级预编译，避免每次调用重建数组 + O(9×N) some/includes 扫描。
+ * 命中 password/token/secret/api_key/apikey/authorization/cookie/credit_card/ssn 的子串（大小写不敏感）。
+ */
+const SENSITIVE_KEY_RE = /password|token|secret|api_?key|authorization|cookie|credit_?card|ssn/i;
+
+export function sanitizeRequestBody(body: unknown): unknown {
+  if (typeof body !== "object" || body === null) {
+    return body;
+  }
+
+  const sanitized = { ...body } as Record<string, unknown>;
+
+  for (const key of Object.keys(sanitized)) {
+    if (SENSITIVE_KEY_RE.test(key)) {
+      sanitized[key] = "[REDACTED]";
+    } else if (typeof sanitized[key] === "object" && sanitized[key] !== null) {
+      sanitized[key] = sanitizeRequestBody(sanitized[key]);
+    }
+  }
+
+  return sanitized;
+}
+
+export function validateContentType(
+  contentType: string | null,
+  allowedTypes: string[] = ["application/json"]
+): boolean {
+  if (!contentType) return false;
+  return allowedTypes.some((type) => contentType.toLowerCase().includes(type));
+}
+
+export function createCorsHeaders(
+  origin?: string,
+  options?: {
+    allowedOrigins?: string[];
+    allowedMethods?: string[];
+    allowedHeaders?: string[];
+    maxAge?: number;
+    allowCredentials?: boolean;
+  }
+): Record<string, string> {
+  const {
+    allowedOrigins = ["*"],
+    allowedMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders = ["Content-Type", "Authorization", "X-Request-ID"],
+    maxAge = 86400,
+    allowCredentials = false,
+  } = options || {};
+
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": allowedMethods.join(", "),
+    "Access-Control-Allow-Headers": allowedHeaders.join(", "),
+    "Access-Control-Max-Age": String(maxAge),
+  };
+
+  // Validate origin
+  const requestOrigin = origin || "";
+  if (allowedOrigins.includes("*")) {
+    headers["Access-Control-Allow-Origin"] = "*";
+  } else if (allowedOrigins.includes(requestOrigin)) {
+    headers["Access-Control-Allow-Origin"] = requestOrigin;
+    if (allowCredentials) {
+      headers["Access-Control-Allow-Credentials"] = "true";
+    }
+  }
+
+  return headers;
+}
+
+// B3-Medium（2026-08-29）：限流记录表原先模块私有且无任何清理 → 无界增长；
+// 导出以便观测/测试，并新增 cleanupRateLimitStore + 模块加载即定时调度。
+export const rateLimitStore = new Map<string, { timestamps: number[] }>();
+
+/** 清理节奏与 checkRateLimit 默认窗口 TTL 对齐 */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * 清理限流记录表：删除最近时间戳已超出 2×窗口的空闲 entry（窗口内的过期时间戳
+ * 由 checkRateLimit 惰性过滤，这里只回收整体空闲的 entry，防 Map 无界增长）。
+ * 返回删除数量。
+ */
+export function cleanupRateLimitStore(now: number = Date.now()): number {
+  let removed = 0;
+  const idleThreshold = now - RATE_LIMIT_WINDOW_MS * 2;
+  for (const [identifier, entry] of rateLimitStore) {
+    const last = entry.timestamps.length > 0 ? entry.timestamps[entry.timestamps.length - 1] : 0;
+    if (last <= idleThreshold) {
+      rateLimitStore.delete(identifier);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+// 模块加载即调度（unref 防驻留，不阻止进程自然退出）
+const rateLimitCleanupTimer = setInterval(() => {
+  cleanupRateLimitStore();
+}, RATE_LIMIT_WINDOW_MS);
+rateLimitCleanupTimer.unref?.();
+
+export function checkRateLimit(
+  identifier: string,
+  options?: {
+    windowMs?: number;
+    maxRequests?: number;
+  }
+): { allowed: boolean; remaining: number; resetTime: number } {
+  const windowMs = options?.windowMs || 60000;
+  const maxRequests = options?.maxRequests || 100;
+  const now = Date.now();
+  const windowStart = now - windowMs;
+
+  let entry = rateLimitStore.get(identifier);
+  if (!entry) {
+    entry = { timestamps: [] };
+    rateLimitStore.set(identifier, entry);
+  }
+
+  entry.timestamps = entry.timestamps.filter(t => t > windowStart);
+  entry.timestamps.push(now);
+
+  const allowed = entry.timestamps.length <= maxRequests;
+  const remaining = Math.max(0, maxRequests - entry.timestamps.length);
+  const resetTime = entry.timestamps.length > 0 ? entry.timestamps[0] + windowMs : now + windowMs;
+
+  if (!allowed) {
+    logger.warn(`Rate limit exceeded for ${identifier}: ${entry.timestamps.length}/${windowMs}ms`);
+  }
+
+  return { allowed, remaining, resetTime };
+}

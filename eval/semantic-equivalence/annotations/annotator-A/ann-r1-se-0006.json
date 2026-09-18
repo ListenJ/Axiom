@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0006",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"决定: LLM 仅作为确定性管道的补全器, 不作为推理主体。\"及其三条理由（确定性推理可测试、可审计、可回放；LLM 不可靠；最小化幻觉影响范围）被候选命题逐字完整保留，含\"仅在确定性管道检测到知识缺口时调用\"的条件，provenance 与 source_origin 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

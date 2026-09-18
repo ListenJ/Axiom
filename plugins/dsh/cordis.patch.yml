@@ -1,0 +1,39 @@
+# axiom-dsh bundle patch —— 把 Axiom AI Agent 作为完整插件装载进 DeepSeek Harness。
+#
+# 生效顺序（后者获胜）：profile bundles → profile cordis.patch.yml →
+# $DSH_HOME/cordis.patch.yml → 命令行 --patch。
+# 行 id `axiom` 是配置树中的稳定身份；覆盖时整段替换 config，需重述全部所需键。
+#
+# 默认值说明：
+#   - mcpEnabled=true：以 stdio 拉起 Axiom MCP 服务器，工具以 axiom__<name> 暴露。
+#   - autoStartServer=false：默认不拉起 Axiom HTTP 主服务（dsh 自带 agent loop）；
+#     需要 Axiom 的 OpenAI-compat 路由/成本/统计时改为 true，并确保端口可用。
+#   - axiomHome 留空时解析顺序：config.axiomHome → $AXIOM_HOME → 插件文件上溯 3 层。
+#   - frostedGlass=true：启用磨砂玻璃主题（透明度分层 + backdrop-filter 效果）。
+- insert:
+    - id: axiom
+      name: 'axiom-dsh'
+      config:
+        axiomHome: ''
+        mcpEnabled: true
+        mcpCommand: 'bun'
+        mcpArgs:
+          - 'run'
+          - 'src/mcp/server.ts'
+          - '--stdio'
+        mcpServerName: 'axiom'
+        mcpToolCallTimeoutMs: 60000
+        mcpFailOnStartupError: false
+        autoStartServer: false
+        serverCommand: 'bun'
+        serverArgs:
+          - 'run'
+          - 'src/main.ts'
+        serverPort: 18789
+        serverStartTimeoutMs: 30000
+        serverHealthPath: '/health'
+        serverApiKey: ''
+        proxyEnabled: true
+        proxyPath: '/axiom'
+        frostedGlass: true
+

@@ -1,0 +1,44 @@
+{
+  "run": "r1",
+  "generated_at": "2026-09-08T10:39:42.088Z",
+  "pending": [
+    {
+      "example_id": "se-0056",
+      "type": "verdict_mismatch",
+      "A": {
+        "verdict": "equivalent",
+        "error_classes": []
+      },
+      "B": {
+        "verdict": "equivalent_with_notes",
+        "error_classes": []
+      }
+    },
+    {
+      "example_id": "se-0057",
+      "type": "verdict_mismatch",
+      "A": {
+        "verdict": "equivalent",
+        "error_classes": []
+      },
+      "B": {
+        "verdict": "equivalent_with_notes",
+        "error_classes": []
+      }
+    },
+    {
+      "example_id": "se-0060",
+      "type": "verdict_mismatch",
+      "A": {
+        "verdict": "equivalent",
+        "error_classes": []
+      },
+      "B": {
+        "verdict": "equivalent_with_notes",
+        "error_classes": []
+      }
+    }
+  ],
+  "incomplete": [],
+  "uncertain_pairs": []
+}

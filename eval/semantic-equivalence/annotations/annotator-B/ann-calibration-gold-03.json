@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-03",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E2", "E4"],
+  "severity": "critical",
+  "rationale": "源文本：『这些循环依赖通过 `src/services/` 中的薄桥接模块 (`router.ts`, `consciousness.ts`, `execution.ts`) 显式断环』——三个模块位于 src/services/ 之中，且它们本身就是断环的桥接本体。候选命题称『位于 src/services/ 之外的独立模块』，方位关系反转（E2）；『依赖 src/services/ 提供的桥接』及三条 depends-on 三元组均为源文本无依据的添加（E4），关系方向与依赖结构皆错，改变架构含义 → critical。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

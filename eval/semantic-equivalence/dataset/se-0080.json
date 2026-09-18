@@ -1,0 +1,40 @@
+{
+  "id": "se-0080",
+  "source_text": "```ts\n/** 单预算下的 provider 调用：429/5xx/传输层退避重试 3 次，返回 content（可能为空）+ usage。\n * 响应体只解析一次 JSON：content 与 usage 共用同一次 parse 结果。 */\nasync function callProviderWithBudget(\n  provider: string,\n  cfg: { baseURL: string; apiKeyEnv: string },\n```",
+  "source_origin": "src/agent-evals/runner.ts#L270-L271",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「callProviderWithBudget」"
+    ],
+    "entities": [
+      {
+        "name": "callProviderWithBudget",
+        "type": "function",
+        "link": "kg:function:callProviderWithBudget"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/runner.ts",
+        "predicate": "defines",
+        "object": "callProviderWithBudget"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/runner.ts#L270-L271"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

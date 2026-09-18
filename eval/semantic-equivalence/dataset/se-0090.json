@@ -1,0 +1,55 @@
+{
+  "id": "se-0090",
+  "source_text": "```ts\n/**\n * Real Usage 采集与进化闭环 — 最小深模块实现\n *\n * 设计：小接口 `capture/load/evolve/clear`，大量行为藏于内部（文件追加、去重、归纳、晋升）。\n * 依赖注入：文件路径可配（env `REAL_USAGE_PATH`），便于测试隔离；进化引擎通过 `createDefaultSelfEvolve` 注入。\n * 确定性：`capture` 追加写为原子 `appendFileSync`；`load` 按行解析；`evolve` 归纳结果排序稳定。\n */\n\nimport * as fs from \"node:fs\";\nimport * as path from \"node:path\";\n```",
+  "source_origin": "src/agent-evals/real-usage.ts#L1-L7",
+  "candidate_mr": {
+    "propositions": [
+      "依赖模块「node:fs」",
+      "依赖模块「node:path」"
+    ],
+    "entities": [
+      {
+        "name": "node:fs",
+        "type": "module",
+        "link": "kg:module:node_fs-a15b7d96"
+      },
+      {
+        "name": "node:path",
+        "type": "module",
+        "link": "kg:module:node_path-78811c13"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/real-usage.ts",
+        "predicate": "depends-on",
+        "object": "node:fs"
+      },
+      {
+        "subject": "src/agent-evals/real-usage.ts",
+        "predicate": "depends-on",
+        "object": "node:path"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/real-usage.ts#L1-L7"
+      },
+      {
+        "prop_index": 1,
+        "origin": "src/agent-evals/real-usage.ts#L1-L7"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

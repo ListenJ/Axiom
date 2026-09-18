@@ -1,0 +1,40 @@
+{
+  "id": "se-0078",
+  "source_text": "```ts\n/**\n * 自适应重跑：首次尝试即通过则停止（通过即通过，无需再采样），否则跑满 rerunEach 次。\n * 结果与「跑满 rerunEach 次后 pickBest」完全等价——pickBest 取首个通过，首次通过\n * 位置之前/之后的重跑样本都不影响其选择；无通过时两者同样跑满全部尝试。\n * 高通过率轮次（基线为主）省约一半 provider 调用，缩短评测耗时与成本。\n */\nexport async function rerunAdaptive(runOnce: () => Promise<TaskResult>, rerunEach: number): Promise<TaskResult> {\n  const n = Math.max(1, rerunEach);\n  const attempts: TaskResult[] = [];\n```",
+  "source_origin": "src/agent-evals/runner.ts#L157-L162",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「rerunAdaptive」"
+    ],
+    "entities": [
+      {
+        "name": "rerunAdaptive",
+        "type": "function",
+        "link": "kg:function:rerunAdaptive"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/runner.ts",
+        "predicate": "defines",
+        "object": "rerunAdaptive"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/runner.ts#L157-L162"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

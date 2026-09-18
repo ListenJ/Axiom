@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0024",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『observe → decide(LLM 或规则降级) → 记录 trace → 反思检查』与『反思触发（连续失败/不一致）→ 生成教训 → 写入长期记忆（KnowledgeStore）』完整保留，触发条件（连续失败/不一致）与写入目标原样。可忽略差异仅为换行压平与源文末尾孤立的 ``` 代码围栏符号未保留（纯格式标记，非命题），无命题增删。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

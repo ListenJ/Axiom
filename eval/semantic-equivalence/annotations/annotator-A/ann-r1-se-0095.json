@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0095",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选 propositions/entities/triples 全空（§6.6）。源文本关键命题全部缺失：『带降级的分析：优先视觉分析；无视觉模型时回退为文本引导』（优先级+条件回退）、『无视觉模型 → 基于 CDP 可交互元素生成结构化文字引导，不抛错』（条件+否定『不抛错』，标注为需求 3）。条件/否定关键命题遗漏归 E3（critical），且 analyzeWithFallback 函数定义本身亦未被捕捉。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

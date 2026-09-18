@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0016",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题字段完整保留源文本（含『构造时 load 恢复』『deprecated 为运行时派生标记，由持久化统计每次重算，重启后判定自动恢复一致』『残余局限仅在于派生标记本身不落盘』）；可忽略差异：实体 name 与 triple object 截断于『skill-promotion / agent-』，格式残缺，命题本体正确。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

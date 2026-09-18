@@ -1,0 +1,50 @@
+{
+  "id": "se-0047",
+  "source_text": "## Abstract\n\nObjective: To enhance the accuracy, interpretability, and robustness of large language models (LLMs) in medical question answering (MedQA). Method: We designed a multi-agent peer-reviewed reasoning method in which multiple LLM agents independently generate chain-of-thought reasoning with candidate answers, then act as peer reviewers to evaluate each other's reasoning for factual correctness and logical soundness. The highest-rated reasoning chain is selected to produce the final answer. Experiments were conducted with five state-of-the-art LLMs (Llama-3.1-8B, Qwen2.5-7B, Phi-4, DeepSeek-LLM-7B, GPT-oss-20B) on three benchmark datasets: HeadQA, MedQA-USMLE, and PubMedQA. Performance was compared against single-model chain-of-thought reasoning and chain-of-thought-based majority voting. Results: Peer-reviewed reasoning consistently outperformed both baselines. The best model combination achieved an average accuracy of 0.820 across datasets, exceeding the strongest single model (0.777) and majority voting ensembles (up to 0.789). The method also scaled effectively with more participating models, while peer assessments reliably distinguished high- from low-quality reasoning chains. Conclusion: The proposed multi-agent peer-reviewed reasoning method enables LLMs to act as both solvers and evaluators, yielding superior performance in MedQA. By emphasizing reasoning quality rather than answer agreement alone, this approach improves accuracy, interpretability, and robustness, offering a promising direction for trustworthy biomedical AI systems.",
+  "source_origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/let-llms-judge-each-other-multi-agent-peer-reviewed-reasonin.md#L17-L19",
+  "candidate_mr": {
+    "propositions": [
+      "存在章节「Abstract」",
+      "Objective: To enhance the accuracy, interpretability, and robustness of large language models (LLMs) in medical question answering (MedQA). Method: We designed a multi-agent peer-reviewed reasoning method in which multiple LLM agents independently generate chain-of-thought reasoning with candidate answers, then act as peer reviewers to evaluate each other's reasoning for factual correctness and logical soundness. The highest-rated reasoning chain is selected to produce the final answer. Experime"
+    ],
+    "entities": [
+      {
+        "name": "Abstract",
+        "type": "concept",
+        "link": "kg:concept:Abstract"
+      },
+      {
+        "name": "Objective: To enhance the accuracy, interpretability, and robustness of large language models (LLMs) in medical question answering (MedQA). Method: We designed a multi-agent peer-reviewed reasoning me",
+        "type": "concept",
+        "link": "kg:concept:Objective__To_enhance_the_accuracy__interpretability__and_robustness_of_large_la-161b15af"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/let-llms-judge-each-other-multi-agent-peer-reviewed-reasonin.md",
+        "predicate": "contains",
+        "object": "Abstract"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/let-llms-judge-each-other-multi-agent-peer-reviewed-reasonin.md#L17-L19"
+      },
+      {
+        "prop_index": 1,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/reasoning-models/let-llms-judge-each-other-multi-agent-peer-reviewed-reasonin.md#L17-L19"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

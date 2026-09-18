@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0040",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本四条认证规则：『必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造）』『**未配 `AXIOM_AUTH_TOKEN`** → fail-closed』『静态资源（`.html/.js/.css/...`）+ 公共路径（`/health`, `/`, `/ws`）放行』『校验 `x-api-key` 或 `Authorization: Bearer` header』『**不含** `.json` / `.txt`（动态 API 路由可能以它们结尾，如 `/traces/<id>.json`）』——否定（绝不/不含/拒绝）、fail-closed 方向与例外清单均无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『静态资源（`.html/.js/.css/』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

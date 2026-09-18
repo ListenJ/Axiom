@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0037",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『(1) **从\"只看最终答案\"转向\"轨迹级（trace-aware）评测\"**——ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功』『(2)…跨骨干一致性 κ≤0.231』『(3) **从\"单次静态增益\"转向\"持续学习 + 回归控制\"**』及『三路 provider 同模型不同 harness 结果不同的实测（Same Model, Different Harness）为本项目三路全铺基准提供直接依据』，数值 κ≤0.231 与因果方向原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『LLM-as-a-』处，截断内容在命题字段完整存在，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

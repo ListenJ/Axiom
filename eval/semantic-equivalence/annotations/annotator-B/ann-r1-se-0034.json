@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0034",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本：『Agent Compressor 默认 50% 触发，Gateway Hygiene 85% 触发，作为 safety net』『>200 字符替换占位符，无 LLM 调用』『保护 head(3) + token-budget tail（默认 target 20%）』『summary 预算 max 12K/20%』，全部数值、阶段顺序（4 阶段）与『无 LLM 调用』限定无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『（默认 target 20%）-』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

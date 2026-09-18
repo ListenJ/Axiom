@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0047",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题止于『Experime』中途截断。源文本实验与结果关键命题全部缺失：模型与数据集列举『Llama-3.1-8B, Qwen2.5-7B, Phi-4, DeepSeek-LLM-7B, GPT-oss-20B』『HeadQA, MedQA-USMLE, and PubMedQA』、数值结果『average accuracy of 0.820』『strongest single model (0.777)』『majority voting ensembles (up to 0.789)』及结论。数值级差异永不级（§6.5）→ not_equivalent（E3）。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

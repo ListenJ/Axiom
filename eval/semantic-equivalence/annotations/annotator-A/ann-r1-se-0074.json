@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0074",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的两条定义命题（isInterpreterMissing、runPython）有据，但源文本关键命题缺失：判定条件『容器内无该解释器（127 / not found / ENOENT）→ 尝试下一候选』与超时数值『带 20s 超时保护』均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

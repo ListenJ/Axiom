@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0002",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段为源文本完整逐字投影，限定词『仅允许在以下场景使用 `as any`』与四个允许场景（含『第三方库兼容 (install-wizard.ts: blessed)』）全部保留；可忽略差异：实体 name 与 triple object 被截断至『…install-wizard.ts: bles』，属标签格式残缺，命题本体正确，contains 断言仍为真。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0082",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题大量缺失：PATH_SKELETON 为「任务路径规划的确定性骨架（结合任务目标与验证期望）」，含四步「明确任务目标与最终产出」「检索项目内已有实现（Glob/Grep）与官方文档（不重复造轮子）」「按验证期望逐项实现/回答，标注每个关键点」「对照自检清单复查，缺口补全或显式标注」；函数职责「对失败结果做自检分析：从 verify 失败原因提取缺口类别并生成自检项」。candidate 仅覆盖「定义函数 selfCheckFailures」，上述行为性关键命题全缺，判 E3（critical）。已有命题有据，无 E4。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

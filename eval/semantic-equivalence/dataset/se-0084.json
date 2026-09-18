@@ -1,0 +1,55 @@
+{
+  "id": "se-0084",
+  "source_text": "```ts\n/** 响应必须包含所有给定子串（大小写不敏感）。 */\nexport function containsAll(text: string, needles: string[]): VerifyResult {\n  const lower = text.toLowerCase();\n  const missing = needles.filter((n) => !lower.includes(n.toLowerCase()));\n  if (missing.length > 0) return fail(`缺少关键内容: ${missing.join(\", \")}`);\n  return pass();\n}\n\n/** 响应必须包含任一给定子串。 */\nexport function containsAny(text: string, needles: string[]): VerifyResult {\n  const lower = text.toLowerCase();\n  if (!needles.some((n) => lower.includes(n.toLowerCase()))) {\n```",
+  "source_origin": "src/agent-evals/verify.ts#L17-L25",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「containsAll」",
+      "定义函数「containsAny」"
+    ],
+    "entities": [
+      {
+        "name": "containsAll",
+        "type": "function",
+        "link": "kg:function:containsAll"
+      },
+      {
+        "name": "containsAny",
+        "type": "function",
+        "link": "kg:function:containsAny"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/verify.ts",
+        "predicate": "defines",
+        "object": "containsAll"
+      },
+      {
+        "subject": "src/agent-evals/verify.ts",
+        "predicate": "defines",
+        "object": "containsAny"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/verify.ts#L17-L25"
+      },
+      {
+        "prop_index": 1,
+        "origin": "src/agent-evals/verify.ts#L17-L25"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

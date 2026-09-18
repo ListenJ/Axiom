@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0084",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本给出两函数的行为契约：『响应必须包含所有给定子串（大小写不敏感）』（量词『所有』+ 大小写规则）与『响应必须包含任一给定子串』（量词『任一』），二者语义不同且均为关键命题。候选仅含『定义函数「containsAll」』『定义函数「containsAny」』两条定义命题，契约命题全部缺失（E3）。候选已有命题忠实有据。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

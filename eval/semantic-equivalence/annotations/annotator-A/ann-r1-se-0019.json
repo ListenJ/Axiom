@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0019",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"PDF 摄取策略（`ingestPdf`）：**本地 unpdf 优先**（via=pdf-local）→ 无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR\"被候选命题逐字完整保留，三级降级顺序与条件限定未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

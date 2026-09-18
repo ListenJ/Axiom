@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0081",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本含多个关键命题，候选（仅『定义函数「buildSystemPrompt」』+ defines 三元组）全部遗漏：条件命题『无技能时保持原样』『overrides 供测试注入门控』；带量词/限定的门控规则『auto-fix-<family>-* 只注入给同任务族；auto-induce-* 全量』；否定命题『质量门控：deprecated 技能不注入』『增益门控：经验证负增益的技能不注入』；行为命题『返回注入的技能 id 列表（供增益反馈记录）』。这些条件/否定/量词命题按 §5 属关键命题（改变行为含义），按 §6.5 无裁量空间。候选已有命题忠实有据，漏命题归 E3。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

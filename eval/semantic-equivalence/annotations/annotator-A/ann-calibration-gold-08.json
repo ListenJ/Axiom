@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-08",
+  "run": "calibration",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本：『DREngine.writeKnowledge(item) → Pipeline.process(item) 阶段1: 规则预筛 + 向量召回 + 冲突检测 → riskScore；riskScore<0.3 → 直接入库；[0.3,0.7] → 阶段2 网络校验（SearchAggregator 多源证据）；>0.7 → 阶段3 LLM 自推理（generateConstrained 强约束）→ KnowledgeStore 入库（accepted/verdict/confidence/evidenceRefs）』。候选命题 1-4 与源流程逐点对应：writeKnowledge 经 Pipeline.process、阶段1 组成与 riskScore 产出、三档阈值 <0.3/[0.3,0.7]/>0.7 分支（含 SearchAggregator 多源证据与 generateConstrained 强约束细节）、最终 KnowledgeStore 入库字段，数值区间与分支条件逐一保留（§6.5 数值无差异）；命题 5『Pipeline.process 接收的输入 item 来自 DREngine.writeKnowledge 传入的 item』由源流程箭头『DREngine.writeKnowledge(item) → Pipeline.process(item)』单步确定性可推导（§6.1 推导链：箭头语义即 writeKnowledge 调用 Pipeline.process 并传参 item），不算 E4；三元组 DREngine calls Pipeline 有据，provenance prop_index 0-4 均与 source_origin 一致。无实质差异。",
+  "annotated_at": "2026-09-07T15:30:19Z"
+}

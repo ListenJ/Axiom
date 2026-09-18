@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0038",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题（数值与限定全保留）：『意图判定(关键词 fast path / 边缘:9001 / 云 glm-4.7-flash，4 重机制)』『静态角色路由表 → model-router.execute(静态优先级+熔断)』『**chat 模型仅见 5 个工具、tool loop 上限 4 轮**』。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『静态优先级+熔断』处，截断内容在命题字段完整存在；源末尾孤立的 ``` 代码围栏符号未保留；源换行压平，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

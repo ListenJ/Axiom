@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0089",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键命题：「归纳晋升依赖注入：默认写真实技能目录（axiom-memory/03-Resources/skills）」（默认行为+定位）「测试/巡检可注入 fake deps 隔离，避免每次 evolve 污染真实 skill 库」（条件+目的/因果）及返回结构（traceCount/inductionCount/created/sampled/refused/health）。按 §6.6 判 not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

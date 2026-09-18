@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0018",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档』与迁移工具『（幂等，可重复执行）』完整保留；各字段完整未截断，溯源 docs/CONFIGURATION.md#L62-L64 一致，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

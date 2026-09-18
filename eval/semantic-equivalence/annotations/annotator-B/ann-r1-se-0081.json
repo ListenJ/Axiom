@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0081",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本 docstring 含多条关键命题：门控条件「auto-fix-<family>-* 只注入给同任务族；auto-induce-* 全量」、否定条件「deprecated 技能不注入；经验证负增益的技能不注入」、条件「无技能时保持原样」、参数说明「overrides 供测试注入门控」及「返回注入的技能 id 列表（供增益反馈记录）」。candidate 仅覆盖「定义函数 buildSystemPrompt」，上述含条件/否定/因果的关键命题全部缺失，判 E3（critical）。candidate 已有命题在源文本中有据（export function buildSystemPrompt），无 E4。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

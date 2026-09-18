@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0023",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载全部关键命题：『DREngine.writeKnowledge(item) → Pipeline.process(item)』『riskScore<0.3  → 直接入库』『[0.3,0.7]      → 阶段2 网络校验（SearchAggregator 多源证据）』『>0.7           → 阶段3 LLM 自推理（generateConstrained 强约束）』『KnowledgeStore 入库（accepted/verdict/confidence/evidenceRefs）』阈值与条件原样。可忽略差异（minor）：源换行被压平为空格；entity.name 与 triples[0].object 截断于『>0.7』处，但截断内容在命题字段完整存在，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

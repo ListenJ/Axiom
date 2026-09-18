@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0033",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『Hermes 官方 Prompt Assembly 文档把 system prompt 分成 stable -> context -> volatile 三层』『stable 包含 SOUL/MEMORY/USER/skills/environment/platform hints』『context 是唯一项目上下文文件（.hermes.md/AGENTS.md/CLAUDE.md/.cursorrules），带安全扫描与截断』『volatile 包含 memory snapshot、timestamp、session/model/provider 行』，唯一性『唯一』与三层结构原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『.curso』处，截断内容在命题字段完整存在，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

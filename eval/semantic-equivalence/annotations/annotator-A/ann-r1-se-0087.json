@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0087",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本关键命题在候选（仅『定义函数「shouldSkipCapture」』）中全部缺失：因果命题『若不隔离 REAL_USAGE_PATH 会往生产 JSONL 追加测试噪声，毒化学习信号』；条件命题『显式 filePath（单元测试/自定义落点）不受影响』『生产默认落点（省略 filePath）在测试环境跳过』；否定/防御命题『大小写鲁棒（validateEnv 接受 Test/TEST，需与之一致，防 CI 设大写绕过守卫）』。按 §5 因果/条件为关键命题，遗漏归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

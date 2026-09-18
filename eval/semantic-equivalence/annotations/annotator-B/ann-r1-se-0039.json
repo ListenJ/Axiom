@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0039",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本核心结论：『DeepSeek 系与智谱均为**自动隐式缓存**（无请求参数可注入）』『仅 OpenAI 官方端点有显式 `prompt_cache_key` 参数』『当前三家 provider（opencode/deepseek-v4-flash、zhipu/glm-4.7-flash、sensenova/deepseek-v4-flash-sensenova）无一适用参数注入』『**P1-D 缩窄为 usage 缓存字段全量透传**（P0-A 已覆盖）』『前缀稳定性（P1-C）成为唯一真正提升命中率的杠杆』——否定（无一适用）与『唯一』量词、provider 枚举均无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『显式 `pro』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

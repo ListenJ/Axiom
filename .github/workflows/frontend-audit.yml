@@ -1,0 +1,49 @@
+name: Frontend Visual Audit
+
+# ??????????? / ???? / E2E??????????
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+      - "public/**"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+      - "public/**"
+
+env:
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  frontend-audit:
+    name: Frontend Visual Audit (SenseNova)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: npx playwright install chromium
+
+      - name: Run frontend visual audit gate
+        run: ./.ci/frontend-audit.sh
+        env:
+          AXIOM_AUTH_TOKEN: "ci-visual-audit-token-at-least-16chars"
+          SENSENOVA_API_KEY: ${{ secrets.SENSENOVA_API_KEY }}
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-audit-report
+          path: reports/frontend-audit-*.md
+          retention-days: 30

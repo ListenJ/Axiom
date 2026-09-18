@@ -1,0 +1,40 @@
+{
+  "id": "se-0002",
+  "source_text": "仅允许在以下场景使用 `as any`：\n- Bun 内部 API (redis-client.ts)\n- SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts)\n- 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts)\n- 第三方库兼容 (install-wizard.ts: blessed)",
+  "source_origin": "docs/ARCHITECTURE.md#L212-L216",
+  "candidate_mr": {
+    "propositions": [
+      "仅允许在以下场景使用 `as any`： - Bun 内部 API (redis-client.ts) - SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts) - 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts) - 第三方库兼容 (install-wizard.ts: blessed)"
+    ],
+    "entities": [
+      {
+        "name": "仅允许在以下场景使用 `as any`： - Bun 内部 API (redis-client.ts) - SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts) - 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts) - 第三方库兼容 (install-wizard.ts: bles",
+        "type": "concept",
+        "link": "kg:concept:____________as_any___-_Bun____API__redis-client_ts__-_SQLite________codegraph-sy-6cd96b92"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "仅允许在以下场景使用 `as any`： - Bun 内部 API (redis-client.ts) - SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts) - 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts) - 第三方库兼容 (install-wizard.ts: bles"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/ARCHITECTURE.md#L212-L216"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

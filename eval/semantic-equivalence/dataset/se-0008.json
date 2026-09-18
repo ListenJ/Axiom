@@ -1,0 +1,40 @@
+{
+  "id": "se-0008",
+  "source_text": "决定: 系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果。理由: (1) 对话式是黑盒 — 用户看到的是输入→输出, 中间过程不可见; (2) 状态式使用户可以看到推理的每一步, 可以随时中断、修正或继续; (3) 状态式更适合工具调用场景 — 每个步骤都可以独立触发工具。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L22-L22",
+  "candidate_mr": {
+    "propositions": [
+      "决定: 系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果。理由: (1) 对话式是黑盒 — 用户看到的是输入→输出, 中间过程不可见; (2) 状态式使用户可以看到推理的每一步, 可以随时中断、修正或继续; (3) 状态式更适合工具调用场景 — 每个步骤都可以独立触发工具。"
+    ],
+    "entities": [
+      {
+        "name": "决定: 系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果。理由: (1) 对话式是黑盒 — 用户看到的是输入→输出, 中间过程不可见; (2) 状态式使用户可以看到推理的每一步, 可以随时中断、修正或继续; (3) 状态式更适合工具调用场景 — 每个步骤都可以独立触发工具。",
+        "type": "concept",
+        "link": "kg:concept:___________eventBus_________worldState________________1_________________________-c03fa572"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "决定: 系统每步发布 eventBus 事件 + 更新 worldState, 而非返回最终结果。理由: (1) 对话式是黑盒 — 用户看到的是输入→输出, 中间过程不可见; (2) 状态式使用户可以看到推理的每一步, 可以随时中断、修正或继续; (3) 状态式更适合工具调用场景 — 每个步骤都可以独立触发工具。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L22-L22"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

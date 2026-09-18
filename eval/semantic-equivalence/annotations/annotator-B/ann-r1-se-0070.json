@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0070",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题、实体 name 与三元组 object 均为源文本整句（含『essential data structures like stacks and queues, linked lists, and trees』至句尾 time and space complexity）的逐字复刻，无截断、无漏无加；provenance origin 与 source_origin（16-best-data-structures-and-algorithms-books 文档 #L1596-L1596）一致。候选与源意义相同，无任何差异。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

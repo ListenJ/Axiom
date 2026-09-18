@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0043",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题止于『outdated documents that have data leakage problems』处截断。源文本后续关键命题全部缺失：『an emphasis on short dependency tasks rather than long dependency tasks』、基准定义『we present LooGLE, a Long Context Generic Language Evaluation benchmark』、数值命题『over 24,000 tokens per document and 6,000 newly generated questions』『more than 1,100 high-quality question-answer pairs』以及四条评估结论『(i) commercial models outperformed open-sourced models』等。数值与结论级关键命题缺失 → not_equivalent（E3）。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

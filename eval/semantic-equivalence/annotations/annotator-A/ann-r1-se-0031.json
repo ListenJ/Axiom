@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0031",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整承载关键命题：『DeepSeek Harness：MCP 工具桥（`axiom__<tool>`，含 vault/kg/token/router/prompt 等）、可选 Axiom HTTP 服务器（OpenAI-compat 端点可作 dsh 的 LLM provider baseURL）』『桥接实现只用 dsh 稳定接缝（`ctx.tools.register` / `ctx.effect` / `ctx.inject` / `ctx.get`）』『契约与取证详见 `docs/research/deepseek-harness-plugin-2026-08-14.md`』，『可选』『只用』限定原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『（`ctx.tool』处，但截断内容在命题字段完整存在；源换行压平，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

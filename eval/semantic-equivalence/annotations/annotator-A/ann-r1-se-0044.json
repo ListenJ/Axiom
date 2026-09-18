@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0044",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『a proprietary 43B GPT and Lla』，源文本核心结果命题缺失：『LLM with 4K context window using simple retrieval-augmentation at generation can achieve comparable performance to finetuned LLM with 16K context window』『retrieval can significantly improve the performance of LLMs regardless of their extended context window sizes』『retrieval-augmented Llama2-70B with 32K context window, outperforms GPT-3.5-turbo-16k and Davinci003』，含数值与因果结论的关键命题遗漏，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0028",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题在推荐 token 公式处截断，止于『recommendedMaxTokens = floor( min(availableForKV, kvCacheMaxMB) * 1024 *』，源文本其后关键内容全部缺失：公式余部与上限『min(..., maxTokensCap=4096)』、数值示例『默认 `availableMemory=4000, modelMemoryMB=1100, kvCacheMaxMB=2200` → `min(2900,2200)*1048576/229376 ≈ 10057` tokens（受 cap 截断为 4096）』、审计记录『（H2 审计修复：旧式 `*1024` 为 MB→KB 错配，结果偏小 1024 倍，已于本次修正并同步测试。）』。按指南 §6.5 数值差异永不级，公式、上限与示例数值均为关键命题，整体缺失即不等价（E3 critical）。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

@@ -1,0 +1,12 @@
+{
+  "example_id": "gold-10",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E1"
+  ],
+  "severity": "critical",
+  "rationale": "候选两条命题忠实复刻源文本（『Windows ACL 仅本人+SYSTEM』『gitignored』『外部服务凭据』等关键内容均在），但实体链路错误：实体 .env 的 link 指向 ~/.axiom/axiom-secrets/.env，而源文本明确分列两个位置——第 1 条『<仓库根>/.env』（运行时密钥/环境注入）与第 2 条『~/.axiom/axiom-secrets/』（外部服务凭据），即仓库根 .env 与 axiom-secrets 目录是源文本刻意区分的两个不同位置；将 .env 错链入 axiom-secrets 目录混淆二者，E1 实体错链 → not_equivalent，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

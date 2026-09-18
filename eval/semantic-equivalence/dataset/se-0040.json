@@ -1,0 +1,40 @@
+{
+  "id": "se-0040",
+  "source_text": "1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证\n   - 必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造）\n2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed\n   - 静态资源（`.html/.js/.css/...`）+ 公共路径（`/health`, `/`, `/ws`）放行\n   - 其他路径拒绝 + warn\n3. **已配 token** → 校验 `x-api-key` 或 `Authorization: Bearer` header\n4. **免认证静态扩展名**：`.html .js .mjs .css .png .jpg .jpeg .gif .svg .ico .webp .woff .woff2 .map`\n   - **不含** `.json` / `.txt`（动态 API 路由可能以它们结尾，如 `/traces/<id>.json`）",
+  "source_origin": "docs/SECURITY-MEASURES.md#L83-L90",
+  "candidate_mr": {
+    "propositions": [
+      "1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证    - 必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造） 2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed    - 静态资源（`.html/.js/.css/...`）+ 公共路径（`/health`, `/`, `/ws`）放行    - 其他路径拒绝 + warn 3. **已配 token** → 校验 `x-api-key` 或 `Authorization: Bearer` header 4. **免认证静态扩展名**：`.html .js .mjs .css .png .jpg .jpeg .gif .svg .ico .webp .woff .woff2 .map`    - **不含** `.json` / `.txt`（动态 API 路由可能以它们结尾，如 `/traces/<id>.json`）"
+    ],
+    "entities": [
+      {
+        "name": "1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证    - 必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造） 2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed    - 静态资源（`.html/.js/.css/",
+        "type": "concept",
+        "link": "kg:concept:1______________127_0_0_1__/____1__/____ffff_127_0_0_1___________-______socket___-4d95c7f8"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/SECURITY-MEASURES.md",
+        "predicate": "contains",
+        "object": "1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证    - 必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造） 2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed    - 静态资源（`.html/.js/.css/"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/SECURITY-MEASURES.md#L83-L90"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

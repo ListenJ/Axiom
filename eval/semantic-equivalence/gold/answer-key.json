@@ -1,0 +1,96 @@
+{
+  "_notice": "预埋答案 key —— 仅限 runner / 仲裁人 / 构建者使用；标注员（含校准会与插桩场景）禁止阅读本文件（ANNOTATION-GUIDE §8/§10）。",
+  "_coverage": {
+    "E0_equivalent": ["gold-01"],
+    "E0_derivable_boundary_sec61": ["gold-08"],
+    "E1_entity_mislink": ["gold-05", "gold-10"],
+    "E2_relation_direction": ["gold-03"],
+    "E4_plus_E3_compound_v11": ["gold-07"],
+    "E3_missing_proposition": ["gold-04"],
+    "E3_empty_candidate_sec66": ["gold-09"],
+    "E4_added_proposition": ["gold-02"],
+    "equivalent_with_notes_provenance_format": ["gold-06"]
+  },
+  "gold": [
+    {
+      "id": "gold-01",
+      "expected_verdict": "equivalent",
+      "expected_error_classes": [],
+      "expected_severity": "none",
+      "planting": "无预埋。三条命题与源逐点对应（四个库并入+归档位置/归档路径/迁移工具幂等），测试基本判定。",
+      "key_rationale_cue": "引用源文本『已并入主库并归档（archive/knowledge-db-merge-2026-08-20/）』『幂等，可重复执行』"
+    },
+    {
+      "id": "gold-02",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E4"],
+      "expected_severity": "critical",
+      "planting": "命题 2『定期调用 nvidia-smi 采集 GPU 硬件状态』为无据添加，且与源『不调用 nvidia-smi 或任何硬件 API』直接相悖。关键命题 E4 → critical。",
+      "key_rationale_cue": "引用源文本『不调用 nvidia-smi 或任何硬件 API』"
+    },
+    {
+      "id": "gold-03",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E2"],
+      "expected_severity": "critical",
+      "planting": "依赖方向颠倒：源说薄桥接模块『位于 src/services/ 中』并用于断环，候选把三个模块写成『位于 services 之外、依赖 src/services/』。关系错向/位置关系错 → E2 critical。",
+      "key_rationale_cue": "引用源文本『src/services/ 中的薄桥接模块』"
+    },
+    {
+      "id": "gold-04",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E3"],
+      "expected_severity": "critical",
+      "planting": "漏掉关键条件『本地 unpdf 优先（via=pdf-local）』的优先级——候选只列三条路径的存在性，丢了回退顺序中的优先语义（改变行为含义）→ E3 critical。『才走』的条件语义同样未保留。",
+      "key_rationale_cue": "引用源文本『本地 unpdf 优先』『才走外部 pdf-worker』"
+    },
+    {
+      "id": "gold-05",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E1"],
+      "expected_severity": "critical",
+      "planting": "命题本体正确，但 DRE_DB_PATH 实体链接指向无关的 vault 笔记（model-router/README.md）——链接指向错误实体 → E1 critical（§6.3：溯源/链接是可判定字段，链错=结构不合法）。",
+      "key_rationale_cue": "link 字段指向 docs/CONFIGURATION.md 中不存在的关联"
+    },
+    {
+      "id": "gold-06",
+      "expected_verdict": "equivalent_with_notes",
+      "expected_error_classes": [],
+      "expected_severity": "minor",
+      "planting": "命题三条全部正确（哈希链/可校验可追溯/本地模型可选且缺省 100% 确定性零网络），仅 provenance origin 格式残缺（『L11-L13』缺文件路径）。注意分辨：这是『引用格式问题』（§5 映射行：仅溯源引用格式问题且命题本体正确 → equivalent_with_notes, minor），不是『引用错』（§6.3 引用错=E1 critical）。error_classes 留空（E1-E4 均未命中），rationale 须写明可忽略差异内容。",
+      "key_rationale_cue": "引用源文本『全部写操作追加链式哈希验证链』『100% 确定性、零网络依赖』；说明 origin 缺路径为格式残缺而非错链"
+    },
+    {
+      "id": "gold-07",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E3", "E4"],
+      "expected_severity": "critical",
+      "planting": "复合：①命题 1 方向完全写反（源『不再由边缘模型承担』→ 候选『由边缘模型承担』）——v1.1 口径（§6.9）反向/否定翻转统一归 E4（原 E2 期望与指南附录 A se-0008 自相矛盾，2026-09-08 对齐修正）；②漏掉免费链内部顺序『zhipu 直连优先 → siliconflow 兜底』→ E3。『1B 漂移、2B 照抄实测不达标』为解释性原因，缺失不计（次要）。一例多类逐一登记。",
+      "key_rationale_cue": "引用源文本『不再由边缘模型承担』『zhipu 直连优先 → siliconflow 兜底』"
+    },
+    {
+      "id": "gold-08",
+      "expected_verdict": "equivalent",
+      "expected_error_classes": [],
+      "expected_severity": "none",
+      "planting": "边界测试（§6.1 可推导不算 E4）：命题 5『Pipeline.process 接收的输入 item 来自 DREngine.writeKnowledge 传入的 item』不在源字面，但从『writeKnowledge(item) → Pipeline.process(item)』经确定性逻辑单步可推出。判 equivalent 而非 E4；rationale 须写明推导链。注意 riskScore 三区间数值不可有差。",
+      "key_rationale_cue": "引用源文本『DREngine.writeKnowledge(item) → Pipeline.process(item)』并给出单步推导说明"
+    },
+    {
+      "id": "gold-09",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E3"],
+      "expected_severity": "critical",
+      "planting": "空候选（§6.6）：源非空（一句完整命题），候选 propositions/entities/triples 全空 → 源关键命题全部缺失 → E3 critical。",
+      "key_rationale_cue": "引用源文本『在特定插件目录（如 dsh）运行 TypeScript 构建和测试命令会成功通过』"
+    },
+    {
+      "id": "gold-10",
+      "expected_verdict": "not_equivalent",
+      "expected_error_classes": ["E1"],
+      "expected_severity": "critical",
+      "planting": "同名实体错位消解（E1 歧义实体）：源中有两个不同位置的配置对象——『<仓库根>/.env』与『~/.axiom/axiom-secrets/』；候选把 .env 实体统一链接到『~/.axiom/axiom-secrets/.env』，即仓库根 .env 被错链到凭据目录 → E1 critical。命题文字本身正确，错在实体消解层。",
+      "key_rationale_cue": "引用源文本『<仓库根>/.env』与『~/.axiom/axiom-secrets/』两处定位，说明 link 错指向后者"
+    }
+  ]
+}

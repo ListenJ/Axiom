@@ -1,0 +1,108 @@
+name: Visual Snapshot Gate
+
+# T2.3 像素 diff 双门禁（ADR-002 分级）：
+#   - blocking：chat/sessions/search，失败阻断 PR
+#   - weekly-report：其余 18 页，continue-on-error，产物入 artifact 供每周裁决
+#   - 存量 LLM 视觉审核链（frontend-audit.yml）负责"变得好不好"，本链负责"变了没有"，互不替代
+#
+# 基线范围（ADR-003 实测决策）：本轮仅 chromium 3 组合（desktop/tablet/mobile）基线入仓，
+#   门禁项目因此限定 chromium-*；firefox/webkit 基线待 LFS 服务端验证（ADR-003b）后扩列。
+#   本地等价命令：node scripts/run-visual-gate.cjs --project=chromium [--grep=...]
+#   （阻断级自证：临时改样式 → 红；还原 → 绿）。
+on:
+  pull_request:
+    branches: [main, master, "codex/**"]
+    paths:
+      - "frontend/**"
+      - "public/**"
+      - "e2e-visual/**"
+      - "playwright.snapshot.config.mjs"
+      - "scripts/run-visual-gate.cjs"
+      - "src/main.ts"
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+      - "public/**"
+      - "e2e-visual/**"
+      - "playwright.snapshot.config.mjs"
+
+env:
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  pixel-blocking:
+    name: Pixel Diff — blocking tier (chat/sessions/search)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend (backend self-hosts public/)
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+          bunx vite build
+          cp -r dist/index.html ../public/index.html
+          Remove-Item -Recurse -Force ../public/assets
+          cp -r dist/assets ../public/assets
+
+      - name: Install Playwright chromium
+        run: npx playwright install chromium
+
+      - name: Pixel gate (阻断级，ADR-002)
+        run: node scripts/run-visual-gate.cjs --project=chromium --project=chromium-tablet --project=chromium-mobile --grep="视觉基线 /(chat|sessions|search)$"
+        env:
+          NODE_ENV: test
+          AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
+
+  pixel-weekly:
+    name: Pixel Diff — weekly tier (remaining 18 pages)
+    runs-on: windows-latest
+    continue-on-error: true # 周报级不阻断（ADR-002），差异进 artifact
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend (backend self-hosts public/)
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+          bunx vite build
+          cp -r dist/index.html ../public/index.html
+          Remove-Item -Recurse -Force ../public/assets
+          cp -r dist/assets ../public/assets
+
+      - name: Install Playwright chromium
+        run: npx playwright install chromium
+
+      - name: Chromium matrix (report-only)
+        id: full
+        run: node scripts/run-visual-gate.cjs --project=chromium --project=chromium-tablet --project=chromium-mobile --reporter=line,json
+        env:
+          NODE_ENV: test
+          AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
+
+      - name: Upload pixel diff artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pixel-diff-weekly-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14

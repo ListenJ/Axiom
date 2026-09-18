@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0012",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"7.   → 如果验证失败: 8.     → 生成修正指令发回 LLM (Refinement Loop) 9.     → 或触发降级规则 (L4: rule-based)\"的验证失败分支及完整九步输出管线（Policy/Semantic/Logical 三项检查）在候选命题中逐字完整保留，条件分支未丢失。可忽略差异：entities[0].name 与 triples[0].object 截断于\"代码语法是否\"（约 120 字符上限），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0042",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选命题为源文本逐字前缀，止于『while 』处中途截断。源文本关键命题缺失：『they can be well addressed with a sufficient number of reasoning steps, guided by specific CoT prompts』及结论『previous long-context benchmarks always ignore the necessity of long reasoning for long-context tasks and treat them as direct QA tasks』在候选中均无对应命题。关键因果与结论性命题缺失 → not_equivalent（E3）。",
+  "annotated_at": "2026-09-07T16:39:09Z"
+}

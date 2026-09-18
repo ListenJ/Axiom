@@ -1,0 +1,40 @@
+{
+  "id": "se-0066",
+  "source_text": "A language agnostic overview of the CUDA programming model as well as a brief tour of the CUDA platform.",
+  "source_origin": "axiom-memory/00-Knowledge/computer-science/comp-arch/cuda-programming-guide-8212-cuda-programming-guide.md#L237-L237",
+  "candidate_mr": {
+    "propositions": [
+      "A language agnostic overview of the CUDA programming model as well as a brief tour of the CUDA platform."
+    ],
+    "entities": [
+      {
+        "name": "A language agnostic overview of the CUDA programming model as well as a brief tour of the CUDA platform.",
+        "type": "concept",
+        "link": "kg:concept:A_language_agnostic_overview_of_the_CUDA_programming_model_as_well_as_a_brief_to-5b0c507d"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/computer-science/comp-arch/cuda-programming-guide-8212-cuda-programming-guide.md",
+        "predicate": "contains",
+        "object": "A language agnostic overview of the CUDA programming model as well as a brief tour of the CUDA platform."
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/computer-science/comp-arch/cuda-programming-guide-8212-cuda-programming-guide.md#L237-L237"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

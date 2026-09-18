@@ -1,0 +1,25 @@
+{
+  "id": "doc-generator",
+  "name": "Documentation Generator",
+  "version": "1.0.0",
+  "author": "Axiom Team",
+  "description": "Auto-generate documentation from code comments, API specs, and project structure",
+  "category": "productivity",
+  "tags": ["documentation", "generator", "api-docs", "readme", "markdown"],
+  "license": "MIT",
+  "repository": "https://github.com/axiom/plugins/doc-generator",
+  "readme": "# Documentation Generator Plugin\n\n**NOT IMPLEMENTED** — tool registration was withdrawn during the 2026-09-14 audit.\n\nThe previous handlers read no real source tree or files: they filled templates from the\narguments. `generate_adr` additionally derived the ADR number from\n`Math.floor(Math.random() * 100) + 1`, so the same decision produced a different identifier\non every call. Random identifiers are more dangerous than empty ones: they yield records\nthat look traceable but are not.\n\nSee `docs/operations-log.md` (2026-09-14) for the audit record and the restoration path.",
+  "icon": "📚",
+  "tools": [],
+  "skills": [],
+  "patterns": [],
+  "config": {
+    "schema": {
+      "outputFormat": { "type": "string", "default": "markdown", "description": "Output format (markdown, html, json)" },
+      "includePrivate": { "type": "boolean", "default": false, "description": "Include private APIs in docs" },
+      "templateDir": { "type": "string", "default": "", "description": "Custom templates directory" },
+      "autoGenerate": { "type": "boolean", "default": true, "description": "Auto-generate docs on file changes" }
+    }
+  },
+  "entry": "index.js"
+}

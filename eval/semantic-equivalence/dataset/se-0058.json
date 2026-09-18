@@ -1,0 +1,40 @@
+{
+  "id": "se-0058",
+  "source_text": "- **Description:** Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills.\n- **Language:** Python\n- **Stars:** 30921 | **Today:** 955\n- **Topics:** -",
+  "source_origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md#L75-L78",
+  "candidate_mr": {
+    "propositions": [
+      "- **Description:** Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills. - **Language:** Python - **Stars:** 30921 | **Today:** 955 - **Topics:** -"
+    ],
+    "entities": [
+      {
+        "name": "- **Description:** Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills. - **Language:** Python - **Stars:** 30921 | **Today:** 955 - **Topics:** -",
+        "type": "concept",
+        "link": "kg:concept:-___Description____Self-evolving_Context_Database_for_AI_Agents__Unify_Agent_Mem-49ab82ec"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md",
+        "predicate": "contains",
+        "object": "- **Description:** Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills. - **Language:** Python - **Stars:** 30921 | **Today:** 955 - **Topics:** -"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/GitHub/trending/2026-08-20.md#L75-L78"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

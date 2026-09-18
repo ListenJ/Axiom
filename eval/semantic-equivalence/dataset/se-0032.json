@@ -1,0 +1,40 @@
+{
+  "id": "se-0032",
+  "source_text": "因此，Axiom 做“知识库 + 网络搜索 + 全套机制外挂组件”的最佳形态不是自创协议，而是：\n1. 提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面；\n2. 在 MCP Registry 发布 server.json 元数据；\n3. 提供 SKILL.md / agent plugin 安装引导；\n4. 可选提供 A2A Agent Card，把 Axiom 整体暴露为远程 Agent。",
+  "source_origin": "docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md#L12-L16",
+  "candidate_mr": {
+    "propositions": [
+      "因此，Axiom 做“知识库 + 网络搜索 + 全套机制外挂组件”的最佳形态不是自创协议，而是： 1. 提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面； 2. 在 MCP Registry 发布 server.json 元数据； 3. 提供 SKILL.md / agent plugin 安装引导； 4. 可选提供 A2A Agent Card，把 Axiom 整体暴露为远程 Agent。"
+    ],
+    "entities": [
+      {
+        "name": "因此，Axiom 做“知识库 + 网络搜索 + 全套机制外挂组件”的最佳形态不是自创协议，而是： 1. 提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面； 2. 在 MCP Registry 发布 server.json 元数据； 3. 提供 SKILL.md / agent plugin 安装引导； 4. 可选提供 A2A Agent Card，把",
+        "type": "concept",
+        "link": "kg:concept:___Axiom_________________________________________1_____MCP_Server_stdio___Stream-b3caa8d9"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md",
+        "predicate": "contains",
+        "object": "因此，Axiom 做“知识库 + 网络搜索 + 全套机制外挂组件”的最佳形态不是自创协议，而是： 1. 提供 MCP Server（stdio + Streamable HTTP），暴露受限外部工具面； 2. 在 MCP Registry 发布 server.json 元数据； 3. 提供 SKILL.md / agent plugin 安装引导； 4. 可选提供 A2A Agent Card，把"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md#L12-L16"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

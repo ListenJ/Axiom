@@ -1,0 +1,40 @@
+{
+  "id": "se-0079",
+  "source_text": "```ts\n/** 直连 provider 调用（OpenAI 兼容协议）：\n * 传输层/429/5xx 退避重试 3 次（5s/10s/10s 封顶）；200 但 content 为空时升级 max_tokens 再试一次\n * （deepseek-v4-flash 隐藏推理会吃光小预算导致空回答，实测 4096 可完成推理并输出内容）。\n * usage 取「最终被采用那次调用」的（非空 content 所在那次的用量）。 */\nasync function callProviderDirect(\n  provider: string,\n  model: string,\n```",
+  "source_origin": "src/agent-evals/runner.ts#L243-L246",
+  "candidate_mr": {
+    "propositions": [
+      "定义函数「callProviderDirect」"
+    ],
+    "entities": [
+      {
+        "name": "callProviderDirect",
+        "type": "function",
+        "link": "kg:function:callProviderDirect"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "src/agent-evals/runner.ts",
+        "predicate": "defines",
+        "object": "callProviderDirect"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "src/agent-evals/runner.ts#L243-L246"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "kg_extract",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "code",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

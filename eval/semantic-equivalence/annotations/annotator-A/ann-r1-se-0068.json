@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0068",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本全部命题：因果链『Open-source projects might struggle to secure consistent funding and professional support, which can lead to them having slower updates and fixes compared to commercial software』与『too many variations of the system can create compatibility issues and confuse users』，无添加；可忽略差异：fragmentation 一词前后换行被折叠为空格、实体名与三元组 object 字段在『commerc』处截断，命题本体完整。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

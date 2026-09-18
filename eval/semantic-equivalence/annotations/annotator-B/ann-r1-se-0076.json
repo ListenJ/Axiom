@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0076",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅捕获『依赖模块「bun:sqlite」』一条命题（有据），但源文本头注释的几乎全部关键命题缺失：『落盘失败不抛（评测照常 stdout/exit）；查询层 sanitize 损坏行』（容错条件）、『eval_task_results：每任务一行，关联 run_id（ON DELETE CASCADE）』（级联删除条件）、『含 summary 快照 + git_commit + src_doc（手工』所在句的 manual baseline 行/exit_code 0 语义、深模块设计与容错惯例说明。关键条件命题大面积缺失 → E3，critical。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0014",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）』『上下文过大时优雅降级（切换更便宜模型处理）』等四个生命周期命题完整保留，条件从句『超阈值』『上下文过大时』均在；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

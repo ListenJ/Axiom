@@ -1,0 +1,40 @@
+{
+  "id": "se-0030",
+  "source_text": "1. **内核只增稳定骨架**：新增能力先问\"能否作为工具/skill/插件\"；只有网关/路由/装载/安全/会话这类骨架变更才进内核。\n2. **工具层薄（thin）**：src/mcp/server/*-tools.ts 只做\"暴露 + 参数校验\"，逻辑下沉到 src/ 模块（如 rate-tier 的纯函数）。\n3. **配置不写死**：模型/端点/密钥/汇率/开关一律 env 或配置中心（本轮新增 COST_CNY_PER_USD 汇率可配）。\n4. **按需加载**：插件/skill 惰性加载，内核启动不拉取全部能力（已有懒加载模式，如 read-optimizer-init / 动态 import）。\n5. **可测试接缝**：内核纯函数（rate-tier/token-tracker/reasoning-effort）带单元测试；工具层测试走 MCP registry。",
+  "source_origin": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md#L44-L48",
+  "candidate_mr": {
+    "propositions": [
+      "1. **内核只增稳定骨架**：新增能力先问\"能否作为工具/skill/插件\"；只有网关/路由/装载/安全/会话这类骨架变更才进内核。 2. **工具层薄（thin）**：src/mcp/server/*-tools.ts 只做\"暴露 + 参数校验\"，逻辑下沉到 src/ 模块（如 rate-tier 的纯函数）。 3. **配置不写死**：模型/端点/密钥/汇率/开关一律 env 或配置中心（本轮新增 COST_CNY_PER_USD 汇率可配）。 4. **按需加载**：插件/skill 惰性加载，内核启动不拉取全部能力（已有懒加载模式，如 read-optimizer-init / 动态 import）。 5. **可测试接缝**：内核纯函数（rate-tier/token-tracker/reasoning-effort）带单元测试；工具层测试走 MCP registry。"
+    ],
+    "entities": [
+      {
+        "name": "1. **内核只增稳定骨架**：新增能力先问\"能否作为工具/skill/插件\"；只有网关/路由/装载/安全/会话这类骨架变更才进内核。 2. **工具层薄（thin）**：src/mcp/server/*-tools.ts 只做\"暴露 + 参数校验\"，逻辑下沉到 src/ 模块（如 rate-tier 的纯函数）。 3. **配置不写死**：模型/端点/密钥/汇率/开关一律 env 或配置中心（本",
+        "type": "concept",
+        "link": "kg:concept:1____________________________/skill/________/__/__/__/______________2_________th-4e5d4ffd"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md",
+        "predicate": "contains",
+        "object": "1. **内核只增稳定骨架**：新增能力先问\"能否作为工具/skill/插件\"；只有网关/路由/装载/安全/会话这类骨架变更才进内核。 2. **工具层薄（thin）**：src/mcp/server/*-tools.ts 只做\"暴露 + 参数校验\"，逻辑下沉到 src/ 模块（如 rate-tier 的纯函数）。 3. **配置不写死**：模型/端点/密钥/汇率/开关一律 env 或配置中心（本"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/ARCHITECTURE-MINIMAL-PLUGIN.md#L44-L48"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0037",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本三个转向及依据：『ClawProBench 在 OpenClaw 运行时上实测证明 final-answer 排行榜会掩盖原生工具面弱点与单次偶然成功』『（跨骨干一致性 κ≤0.231）』『优化增益只在把回归控制内建进循环时才复合』『为本项目三路全铺基准提供直接依据』——三个转向的方向、数值 κ≤0.231、因果表述均无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『LLM-as-a-』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

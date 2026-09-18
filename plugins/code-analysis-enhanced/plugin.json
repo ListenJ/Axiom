@@ -1,0 +1,24 @@
+{
+  "id": "code-analysis-enhanced",
+  "name": "Enhanced Code Analysis",
+  "version": "1.0.0",
+  "author": "Axiom Team",
+  "description": "Advanced code analysis with complexity metrics, dependency graph, and security vulnerability detection",
+  "category": "development",
+  "tags": ["code-analysis", "metrics", "security", "dependencies"],
+  "license": "MIT",
+  "repository": "https://github.com/axiom/plugins/code-analysis-enhanced",
+  "readme": "# Enhanced Code Analysis Plugin\n\n**NOT IMPLEMENTED** — tool registration was withdrawn during the 2026-09-14 audit.\n\nThe previous handlers returned `Math.random()`-generated complexity scores, pass/fail\nverdicts, vulnerability severities and line numbers, plus a hardcoded dependency graph.\nPlausible-looking random results are more dangerous than empty ones: an empty result gets\nnoticed, a plausible random one does not.\n\nSee `docs/operations-log.md` (2026-09-14) for the audit record and the restoration path.",
+  "icon": "🔍",
+  "tools": [],
+  "skills": [],
+  "patterns": [],
+  "config": {
+    "schema": {
+      "maxComplexity": { "type": "number", "default": 10, "description": "Maximum allowed cyclomatic complexity" },
+      "enableSecurityScan": { "type": "boolean", "default": true, "description": "Enable security vulnerability scanning" },
+      "ignoredPatterns": { "type": "array", "default": ["node_modules", "dist", "*.min.js"], "description": "Patterns to ignore during analysis" }
+    }
+  },
+  "entry": "index.js"
+}

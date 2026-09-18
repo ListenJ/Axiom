@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0068",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字复刻源文本全部关键命题：『Open-source projects might struggle to secure consistent funding』（开源项目难获持续资金与专业支持）导致更新与修复慢于商业软件（因果方向保留）；碎片化风险『too many variations of the system can create compatibility issues and confuse users』（条件与结果在位）。无漏无加；溯源 origin 与 source_origin 一致。可忽略差异：实体 name 与三元组 object 在约 200 字符处截断（止于『compared to commerc』），完整文本保留于 propositions 中。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

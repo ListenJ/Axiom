@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0024",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选命题为源文本逐字投影：『observe → decide(LLM 或规则降级) → 记录 trace → 反思检查』与『反思触发（连续失败/不一致）→ 生成教训 → 写入长期记忆（KnowledgeStore）』均完整保留，触发条件『连续失败/不一致』无丢失，链路顺序未变，『（LLM 或规则降级）』的降级语义保留；无添加命题。entities、triples 完整，provenance 指向 docs/DRE-ARCHITECTURE.md#L113-L115 正确。仅换行折叠为空格与行尾代码围栏未收录，属格式级差异。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

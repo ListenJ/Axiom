@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0089",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选 propositions/entities/triples 全空（§6.6）。源文本关键命题全部缺失：『归纳晋升依赖注入：默认写真实技能目录（axiom-memory/03-Resources/skills）』（默认行为）、『测试/巡检可注入 fake deps 隔离，避免每次 evolve 污染真实 skill 库』（条件+否定『避免污染』）、返回结构『{ traceCount, inductionCount, created, sampled, refused?, health? }』。归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

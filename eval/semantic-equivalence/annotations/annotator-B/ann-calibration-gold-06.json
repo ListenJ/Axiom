@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-06",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选三条命题与源文本逐项忠实：『全部写操作追加链式哈希验证链』『每条记录带 `prevHash`，篡改即失配』『不配置时模块 100% 确定性、零网络依赖』均有据，mind_synapse_verify / mind_synapse_trace 与 localModelAssist 对应原文括注，覆盖向与忠实向均闭合，无漏/加命题。唯一差异为溯源引用格式：provenance origin 写作『L11-L13』『L13』，省略了文件路径前缀（完整应为 docs/MIND-SYNAPSE.md#L11-L13），但行号定位本身与样例 source_origin 一致、命题本体正确，按 §6.3 与 §5 映射属可忽略的溯源格式问题 → equivalent_with_notes（minor）。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

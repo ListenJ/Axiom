@@ -1,0 +1,474 @@
+/**
+ * Scheduler — Unified Task Scheduling (Pure)
+ *
+ * Scheduler only handles "when" to run, not "what" to do.
+ * Reasoning is handled by the DRE kernel.
+ *
+ * Responsibilities:
+ * - Task Queue with priority
+ * - Resource awareness (CPU, memory, tokens)
+ * - Agent allocation
+ * - Deadline management
+ * - Preemption for critical tasks
+ */
+
+import { eventBus } from "./event-bus.js";
+import { logger } from "../../utils/logger.js";
+// ─── Task Types ────────────────────────────────────────────────────────────
+
+export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "preempted";
+export type TaskPriority = "critical" | "high" | "normal" | "low" | "background";
+
+export interface ScheduledTask {
+  id: string
+  name: string
+  priority: TaskPriority
+  status: TaskStatus
+  payload: unknown
+  assignedTo?: string
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+  deadline?: number
+  retries: number
+  maxRetries: number
+  dependencies: string[]
+  result?: unknown
+  error?: string
+  /** Earliest time this task can be re-attempted (set on retry backoff). */
+  notBefore?: number
+  /** O4 代数守卫：抢占重派时自增；complete 回传 dispatch 快照以检测陈旧完成 */
+  gen?: number
+}
+
+// ─── Resource Manager ──────────────────────────────────────────────────────
+
+/**
+ * 调度器内存准入上限（MB）。2026-09-18：VRAM/资源预算管理子系统移除后，
+ * 该值恢复为调度器自身的可配置预算（无外部权威源），仍可经 setBudget 覆盖。
+ */
+const DEFAULT_MAX_MEMORY_MB = 4096;
+
+interface ResourceBudget {
+  maxConcurrentTasks: number
+  maxTokensPerMinute: number
+  maxMemoryMB: number
+  currentTasks: number
+  /** L4：预留字段 —— 当前无累加点，不参与准入判断 */
+  currentTokensPerMinute: number
+  currentMemoryMB: number
+}
+
+/** 进程堆占用（MB）——内存准入判断的唯一数据源（不再依赖已移除的资源预算管理器）。 */
+function getEffectiveMemoryUsageMB(): number {
+  try {
+    return Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+  } catch {
+    return 0;
+  }
+}
+
+function hasResources(budget: ResourceBudget): boolean {
+  const effectiveCurrent = getEffectiveMemoryUsageMB();
+  budget.currentMemoryMB = effectiveCurrent;
+  return (
+    budget.currentTasks < budget.maxConcurrentTasks &&
+    effectiveCurrent < budget.maxMemoryMB
+  );
+  // L4 审计修复：移除恒真的 currentTokensPerMinute 死检查（该字段无累加点）。
+  // 字段保留为未来接入真实 token 计量的预留位。
+}
+
+// ─── Priority Queue ────────────────────────────────────────────────────────
+
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+  background: 4,
+};
+
+/** Tasks with priority at or below this threshold are eligible to be preempted by critical tasks. */
+const PREEMPTABLE_PRIORITY: TaskPriority[] = ["low", "background"];
+
+// ─── Scheduler ─────────────────────────────────────────────────────────────
+
+class SchedulerImpl {
+  private queue: ScheduledTask[] = [];
+  private running = new Map<string, ScheduledTask>();
+  private completed: ScheduledTask[] = [];
+  /** Max retained completed/cancelled/failed/preempted tasks before oldest are trimmed. */
+  private maxCompletedHistory = 100;
+  private budget: ResourceBudget = {
+    maxConcurrentTasks: 5,
+    maxTokensPerMinute: 100000,
+    maxMemoryMB: DEFAULT_MAX_MEMORY_MB,
+    currentTasks: 0,
+    currentTokensPerMinute: 0,
+    currentMemoryMB: 0,
+  };
+
+  /**
+   * Submit a task to the scheduler.
+   */
+  submit(task: Omit<ScheduledTask, "id" | "status" | "createdAt" | "retries">): ScheduledTask {
+    const fullTask: ScheduledTask = {
+      ...task,
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      status: "pending",
+      createdAt: Date.now(),
+      retries: 0,
+      gen: task.gen ?? 0,
+    };
+
+    this.queue.push(fullTask);
+    this.queue.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+
+    eventBus.publish({
+      type: "task.submitted",
+      source: "scheduler",
+      data: { id: fullTask.id, name: fullTask.name, priority: fullTask.priority },
+      priority: "normal",
+    });
+
+    return fullTask;
+  }
+
+  /**
+   * Get the next task to execute.
+   * Skips expired tasks (deadline passed) and tasks whose retry backoff hasn't elapsed.
+   */
+  getNext(): ScheduledTask | null {
+    // Auto-fail expired pending tasks
+    this.expirePendingTasks();
+    // M2 看门狗：超期 running 任务终结并释放并发槽位（旧实现只巡检排队队列）
+    this.expireRunningTasks();
+
+    if (!hasResources(this.budget)) {
+      // Try preemption if a critical task is waiting and low-priority tasks are running
+      const criticalWaiting = this.queue.some(
+        (t) => t.status === "pending" && t.priority === "critical" && this.isReady(t),
+      );
+      if (criticalWaiting) {
+        const preempted = this.preemptOne();
+        if (!preempted) return null;
+      } else {
+        return null;
+      }
+    }
+
+    for (let i = 0; i < this.queue.length; i++) {
+      const task = this.queue[i];
+      if (task.status !== "pending") continue;
+      if (!this.isReady(task)) continue;
+
+      this.queue.splice(i, 1);
+      task.status = "running";
+      task.startedAt = Date.now();
+      this.running.set(task.id, task);
+      this.budget.currentTasks++;
+
+      eventBus.publish({
+        type: "task.started",
+        source: "scheduler",
+        data: { id: task.id, name: task.name },
+        priority: "normal",
+      });
+
+      return task;
+    }
+
+    return null;
+  }
+
+  /**
+   * Preempt one running low/background-priority task to free a slot.
+   * The preempted task is re-queued (status=pending) so it can resume later,
+   * rather than being discarded. Returns true if a task was preempted.
+   */
+  private preemptOne(): boolean {
+    for (const [id, task] of this.running) {
+      if (!PREEMPTABLE_PRIORITY.includes(task.priority)) continue;
+
+      this.running.delete(id);
+      this.budget.currentTasks--;
+
+      // Re-queue for later execution — preemption is pause, not cancellation
+      task.status = "pending";
+      // O4 代数守卫：重派前递增代数，使旧执行体的迟到 complete 可被识别并丢弃
+      task.gen = (task.gen ?? 0) + 1;
+      task.error = `Preempted by critical task at ${new Date().toISOString()}`;
+      this.queue.push(task);
+      this.queue.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+
+      eventBus.publish({
+        type: "task.preempted",
+        source: "scheduler",
+        data: { id: task.id, name: task.name, priority: task.priority, requeued: true },
+        priority: "high",
+      });
+
+      logger.warn("[Scheduler] Preempted task (re-queued)", {
+        preemptedId: task.id,
+        preemptedPriority: task.priority,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if a pending task is ready to run (dependencies satisfied, backoff elapsed).
+   */
+  private isReady(task: ScheduledTask): boolean {
+    if (task.notBefore && Date.now() < task.notBefore) return false;
+
+    return task.dependencies.every((depId) =>
+      this.completed.some((c) => c.id === depId && c.status === "completed"),
+    );
+  }
+
+  /**
+   * Mark pending tasks whose deadline has passed as failed.
+   */
+  private expirePendingTasks(): void {    const now = Date.now();
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      const task = this.queue[i];
+      if (task.status !== "pending") continue;
+      if (task.deadline && now > task.deadline) {
+        task.status = "failed";
+        task.error = `Deadline exceeded (${task.deadline})`;
+        task.completedAt = now;
+        this.completed.push(task);
+        this.queue.splice(i, 1);
+
+        eventBus.publish({
+          type: "task.failed",
+          source: "scheduler",
+          data: { id: task.id, error: task.error, reason: "deadline_exceeded" },
+          priority: "high",
+        });
+      }
+    }
+    this.trimCompleted();
+  }
+
+  /**
+   * M2 审计修复：终结已超期的 running 任务并释放并发槽位。
+   * 看门狗强制终态 failed（不重试）—— 挂死的执行体重试大概率再次挂死，
+   * 重试留给可快速失败的显式错误路径。
+   */
+  private expireRunningTasks(): void {
+    const now = Date.now();
+    for (const [id, task] of this.running) {
+      if (!task.deadline || now <= task.deadline) continue;
+      this.running.delete(id);
+      this.budget.currentTasks--;
+      task.status = "failed";
+      task.error = `Deadline exceeded while running (deadline=${task.deadline})`;
+      task.completedAt = now;
+      this.completed.push(task);
+      this.trimCompleted();
+
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error: task.error, reason: "running_deadline_exceeded" },
+        priority: "high",
+      });
+      logger.warn("[Scheduler] Running task exceeded deadline — force failed", { id });
+    }
+  }
+
+  /**
+   * Complete a task.
+   * O4 代数守卫：gen 与 dispatch 时不匹配（或任务已不在 running）→
+   * 视为陈旧完成，warn 并忽略，不产生入队/重执行副作用。
+   */
+  complete(taskId: string, result: unknown, gen?: number): void {
+    const task = this.running.get(taskId);
+    if (!task || (gen !== undefined && (task.gen ?? 0) !== gen)) {
+      logger.warn("[Scheduler] stale complete ignored", {
+        taskId,
+        expectedGen: task?.gen,
+        gotGen: gen,
+      });
+      return;
+    }
+
+    task.status = "completed";
+    task.completedAt = Date.now();
+    task.result = result;
+    this.running.delete(taskId);
+    this.budget.currentTasks--;
+
+    this.completed.push(task);
+    this.trimCompleted();
+
+    eventBus.publish({
+      type: "task.completed",
+      source: "scheduler",
+      data: { id: task.id, name: task.name, duration: task.completedAt - (task.startedAt ?? task.createdAt) },
+      priority: "normal",
+    });
+  }
+
+  /**
+   * Fail a task. With retry backoff (exponential: 100ms × 2^attempt, capped at 5000ms).
+   * `maxRetries` semantics match LLMClient: N = number of retries allowed (excluding
+   * the initial attempt). So maxRetries=0 = 1 attempt, maxRetries=2 = 3 attempts.
+   */
+  /**
+   * 标记任务失败。
+   * 审计 B-1（2026-08-24）：新增 opts.terminal —— 确定性拒绝（如不支持的主题）
+   * 重试必然复现，直接终态失败，不回队、不退避。
+   */
+  fail(taskId: string, error: string, opts?: { terminal?: boolean }): void {
+    const task = this.running.get(taskId);
+    if (!task) return;
+
+    if (opts?.terminal) {
+      task.retries = task.maxRetries + 1;
+      task.status = "failed";
+      task.error = error;
+      task.completedAt = Date.now();
+      this.running.delete(taskId);
+      this.budget.currentTasks--;
+      this.completed.push(task);
+      this.trimCompleted();
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error, terminal: true },
+        priority: "normal",
+      });
+      return;
+    }
+
+    task.retries++;
+    this.running.delete(taskId);
+    this.budget.currentTasks--;
+
+    if (task.retries <= task.maxRetries) {
+      task.status = "pending";
+      task.error = error;
+      // Exponential backoff: 100ms, 200ms, 400ms, ... capped at 5s
+      const backoff = Math.min(100 * Math.pow(2, task.retries - 1), 5000);
+      task.notBefore = Date.now() + backoff;
+      this.queue.push(task);
+      this.queue.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+
+      eventBus.publish({
+        type: "task.retrying",
+        source: "scheduler",
+        data: { id: task.id, retries: task.retries, error, backoffMs: backoff },
+        priority: "normal",
+      });
+    } else {
+      task.status = "failed";
+      task.error = error;
+      task.completedAt = Date.now();
+      this.completed.push(task);
+      this.trimCompleted();
+
+      eventBus.publish({
+        type: "task.failed",
+        source: "scheduler",
+        data: { id: task.id, error },
+        priority: "high",
+      });
+    }
+  }
+
+  /**
+   * Cancel a task.
+   */
+  cancel(taskId: string): boolean {
+    const idx = this.queue.findIndex((t) => t.id === taskId);
+    if (idx !== -1) {
+      this.queue[idx].status = "cancelled";
+      this.completed.push(this.queue[idx]);
+      this.trimCompleted();
+      this.queue.splice(idx, 1);
+      return true;
+    }
+
+    const task = this.running.get(taskId);
+    if (task) {
+      task.status = "cancelled";
+      task.completedAt = Date.now();
+      this.running.delete(taskId);
+      this.budget.currentTasks--;
+      this.completed.push(task);
+      this.trimCompleted();
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Look up a task by ID (any state).
+   */
+  getTask(taskId: string): ScheduledTask | undefined {
+    const queued = this.queue.find((t) => t.id === taskId);
+    if (queued) return queued;
+
+    const running = this.running.get(taskId);
+    if (running) return running;
+
+    return this.completed.find((t) => t.id === taskId);
+  }
+
+  /**
+   * Get queue status.
+   */
+  getStatus(): {
+    queued: number
+    running: number
+    completed: number
+    budget: ResourceBudget
+    tasks: ScheduledTask[]
+  } {
+    return {
+      queued: this.queue.length,
+      running: this.running.size,
+      completed: this.completed.length,
+      budget: { ...this.budget },
+      tasks: [...this.queue, ...Array.from(this.running.values())],
+    };
+  }
+
+  /**
+   * Update resource budget.
+   */
+  setBudget(budget: Partial<ResourceBudget>): void {
+    Object.assign(this.budget, budget);
+  }
+
+  /**
+   * Reset all scheduler state. Useful for tests.
+   */
+  reset(): void {
+    this.queue = [];
+    this.running.clear();
+    this.completed = [];
+    this.budget = {
+      maxConcurrentTasks: 5,
+      maxTokensPerMinute: 100000,
+      maxMemoryMB: DEFAULT_MAX_MEMORY_MB,
+      currentTasks: 0,
+      currentTokensPerMinute: 0,
+      currentMemoryMB: 0,
+    };
+  }
+
+  private trimCompleted(): void {
+    while (this.completed.length > this.maxCompletedHistory) {
+      this.completed.shift();
+    }
+  }
+}
+
+export const scheduler = new SchedulerImpl();

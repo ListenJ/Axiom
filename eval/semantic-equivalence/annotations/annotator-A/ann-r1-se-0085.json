@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0085",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本行为契约『响应必须包含任一给定子串』（量词『任一』）与『响应必须匹配所有正则』（量词『所有』）在候选（仅『定义函数「containsAny」』『定义函数「matchesAll」』）中全部缺失。两契约的量词差异按 §6.5 属不可裁量差异，遗漏关键命题归 E3（critical）。候选已有命题忠实有据。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

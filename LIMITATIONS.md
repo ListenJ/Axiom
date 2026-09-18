@@ -1,0 +1,23 @@
+# 已知局限与审计结论（Limitations & Audit Summary）
+
+> 本文件与 `README.md`「审计与整改状态」双向同步，记录本轮（2026-08-25）三阶段安全/正确性整改的结论与已知局限。
+> 操作留痕详见 `docs/operations-log.md`；任务计划见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。
+
+## 整改完成情况
+
+- **Phase R2（P0 安全线）**：10/10 任务全绿（git 注入白名单、kb 守卫路径、沙箱密钥剥离、SSRF/URL 守卫、密钥 env 隔离等）。
+- **Phase R3（功能死路 / 数据正确性）**：8/8 任务完成（搜索结果钳制、stats 真实数据、kg-writer 内容寻址 edgeId + CJK 节点归一化、pdf-worker 摄取终态、kb 同库单一解析源、curlFetch 异步化、maxTokens 预算钳制、kal_references KG 出入边 UNION）。
+- **Phase R4（文档与声明收口）**：6/6 任务完成（工具数单一事实源、行数快照治理、测试口径统一、检索注释更正、内网信息脱敏、本摘要同步）。
+
+## 已知局限
+
+1. **wiki-link 跨存储引用未闭环**：`kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 图由 `DeterministicSearchEngine` 在内存中从 Markdown 构建，本仓库 SQLite 未持久化 `wiki_links` 表，跨存储引用需后续引入持久化表或注入 vault 引擎。
+2. **内网信息已脱敏**：真实内网地址/主机账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库内一律以占位符表示。占位符词汇表：`${LAN_NODE_N1}`（DRE/模型服务主机，含其 WiFi 口 `${LAN_NODE_N1_WIFI}`）、`${LAN_NODE_N2}`（集群 n2，含被替换的旧机 `${LAN_NODE_N2_LEGACY}`）、`${LAN_NODE_N3}`/`${LAN_NODE_N4}`（测试集群远程节点）、`${LAN_NODE_W1}`（Windows 节点）、`${LAN_NODE_GITEA}`（Gitea/构建机，SSH 2222 / HTTP 3000）、`${LAN_NODE_PDF}`（PDF Worker）、`${LAN_NODE_ORCH}`（编排器）、`${LAN_NODE_LLM}`（LLM Worker，已废弃）、`${LAN_PROXY}`（HTTP 代理）、`${LAN_GATEWAY}`/`${LAN_GATEWAY_ALT}`（网关）、`${LAN_NODE_GUEST}`（访客网段节点）、`${LAN_MODEL_SERVICE}`（模型服务端点）。占位符按原样保留在代码/脚本/配置中时**不是可运行值**，须由环境变量或本地配置显式提供（`scripts/runtime-go/deploy.sh` 等已改为缺失即报错退出）。`runtime-go/modelclient` 默认端点为 `${LAN_MODEL_SERVICE}`，须由 `MODEL_SERVICE_URL` 显式配置。
+3. **工具总数单一事实源**：以 `src/testing/tool-count.ts` 为准，当前 **188**（2026-09-18 移除 `resource_status` 后由 189 回落）；CI 与文档均引用此值，不再硬编码静态数字。
+4. **辅助 LLM 默认关闭带来的安全取舍（2026-09-18）**：`EDGE_RISK_MONITOR` 默认关闭后，高风险工具的**灰区**负载不再经边缘小模型初筛，仅由 `permissions.ts` 的正则硬底线与双层复核的第二层把关。硬底线始终生效（`tests/unit/risk-monitor-degraded.test.ts` 的 HardFloor 用例），但灰区（正则未命中）检测强度低于默认开启时。需要该保护时显式设 `EDGE_RISK_MONITOR=1`（`EDGE_RISK_FAIL_CLOSED=1` 可进一步把初筛降级改为 fail-closed）。
+5. **本地推理定位与 VRAM 管理移除（2026-09-18）**：本项目不再自托管本地推理，也不再维护 VRAM / token 预算钳制。`src/dre/system-resource.ts`（ResourceBudgetManager、clampMaxTokens）与 `src/dre/system-resource-probe.ts`（nvidia-smi VRAM 轮询）已按规则 4 归档移除；`resource_status` / `vram_status` 工具与 `GPU_CONSTRAINTS` 同步删除。模型统一按**外部 OpenAI 兼容服务**对接（Ollama 或云端，由 `DRE_LLM_URL` 指向），因此"KV cache 卸载到系统内存"一类表述在架构文档中已全部清除；调度器内存准入改用进程堆占用 + 可配置预算（`setBudget({ maxMemoryMB })`）。
+
+## 不在本轮整改范围（明确排除）
+
+- `AGENTS.md` 的 git remote（推送工作流必需）、`docs/operations-log.md`（审计留痕不可篡改）、`scripts/runtime-go/deploy.sh`（真实部署脚本须拨真实主机）保留内网地址；其真实值已在本地凭据目录归档。
+- 测试夹具（`tests/security-fixes.test.ts`、`tests/unit/cdp-url-guard.test.ts`、`runtime-go/internal/distrib/node_test.go`）以 `${LAN_NODE_N1}` 作 SSRF/解析负例，改动将破坏安全测试语义，保留。

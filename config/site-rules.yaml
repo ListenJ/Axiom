@@ -1,0 +1,144 @@
+# 站点结构化提取规则配置
+# 为不同域名定义自定义提取规则，让爬虫更精准地提取结构化数据
+
+sites:
+  # GitHub
+  - domain: github.com
+    name: GitHub
+    content_selector: ".markdown-body, .readme article, [data-target='readme-toc.content']"
+    remove_selectors:
+      - ".header"
+      - ".footer"
+      - "aside"
+      - ".repo-sidebar"
+      - ".BorderGrid"
+    fields:
+      title: "h1[data-testid='issue-title'], .repository-content h1, article h1"
+      author: "[data-testid='issue-author'] a, .author a"
+      description: "[data-testid='issue-body'], .markdown-body"
+      stars: ".starring-container .Counter, [title='Stars']"
+      language: ".repository-content .BorderGrid-cell:first-child .text-bold, [data-testid='language-name']"
+
+  # Stack Overflow
+  - domain: stackoverflow.com
+    name: Stack Overflow
+    content_selector: "#mainbar, .question, .answer"
+    remove_selectors:
+      - ".top-bar"
+      - "#left-sidebar"
+      - "#sidebar"
+      - ".js-consent-banner"
+      - ".s-sidebarwidget"
+    fields:
+      title: "#question-header h1"
+      question: "#question .js-post-body"
+      votes: "#question .js-vote-count"
+      tags: ".post-tag"
+      answers: "#answers .js-post-body"
+
+  # 知乎
+  - domain: zhihu.com
+    name: 知乎
+    content_selector: ".Question-mainColumn, .Post-Main, .RichContent-inner"
+    remove_selectors:
+      - ".GlobalSideBar"
+      - ".Question-sideColumn"
+      - ".KfeCollection-LoginDescription"
+      - ".ContentItem-actions"
+    fields:
+      title: "h1.QuestionHeader-title, h1.Post-Title"
+      content: "[data-zop-question], .RichContent-inner"
+      author: ".AuthorInfo-name"
+      votes: ".VoteButton--up"
+
+  # 稀土掘金
+  - domain: juejin.cn
+    name: 稀土掘金
+    content_selector: ".main-area article, .article-content, .markdown-body"
+    remove_selectors:
+      - ".sidebar"
+      - ".index-nav"
+      - ".author-block"
+    fields:
+      title: "h1.article-title, h1.title"
+      content: ".markdown-body, .article-content"
+      author: ".author-name, .user-name"
+      views: ".views-count"
+
+  # CSDN
+  - domain: blog.csdn.net
+    name: CSDN
+    content_selector: "#content_views, article, .blog_container_aside"
+    remove_selectors:
+      - ".toolbar"
+      - ".aside"
+      - ".recommend-box"
+      - ".blog_container_aside"
+    fields:
+      title: "h1.title-article, h1"
+      content: "#content_views"
+      author: ".follow-nickName, .profile-intro-name"
+
+  # MDN Web Docs
+  - domain: developer.mozilla.org
+    name: MDN
+    content_selector: "article.main-page-content"
+    remove_selectors:
+      - ".main-menu-toggle"
+      - ".toc"
+    fields:
+      title: "h1"
+      content: "article.main-page-content"
+      summary: ".summary"
+
+  # Python 官方文档
+  - domain: docs.python.org
+    name: Python Docs
+    content_selector: "[role='main'] .body, [role='main']"
+    remove_selectors:
+      - ".sphinxsidebar"
+    fields:
+      title: "h1"
+      content: "[role='main'] .body"
+      version: ".version_switcher_placeholder"
+
+  # 微信公众号文章
+  - domain: mp.weixin.qq.com
+    name: 微信公众号
+    content_selector: "#js_content"
+    remove_selectors:
+      - ".rich_media_tool"
+      - "#js_pc_qr_code"
+    fields:
+      title: "h2.rich_media_title"
+      content: "#js_content"
+      author: "#js_name"
+      publish_time: "#publish_time"
+
+  # 百度百科
+  - domain: baike.baidu.com
+    name: 百度百科
+    content_selector: ".lemma-summary, .para"
+    remove_selectors:
+      - ".side-content"
+      - ".lemmaWgt-promotion-vbaike"
+    fields:
+      title: "h1"
+      summary: ".lemma-summary"
+      content: ".para"
+
+# 默认规则（匹配不到站点时使用）
+default:
+  content_selector: "article, main, .content, .post, [role='main']"
+  remove_selectors:
+    - "nav"
+    - "header"
+    - "footer"
+    - "aside"
+    - ".sidebar"
+    - ".advertisement"
+    - ".cookie-banner"
+  fields:
+    title: "h1, title"
+    description: "meta[name='description']"
+    author: "meta[name='author']"

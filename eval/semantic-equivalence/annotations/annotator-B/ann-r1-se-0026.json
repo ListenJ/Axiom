@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0026",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题完整保留源文本全部关键命题：『createLocalModelAssist({ baseUrl, apiKey, model })` 返回一个 `localModelAssist` 函数』『会在确定性建议基础上做重排/裁剪』『temperature=0` + 强约束 system 提示』『（只允许重排/裁剪、不得新增事实）。不注入则完全确定性』——可选性、约束（只允许重排/裁剪）、否定（不得新增事实）、条件（不注入则）均无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『强约束 sy』处截断，属次要载体字段损失，命题本体完整；换行折叠为格式级差异。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

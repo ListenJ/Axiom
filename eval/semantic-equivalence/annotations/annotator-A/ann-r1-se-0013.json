@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0013",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "源文本\"本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出\"及澄清内容（实际为 clampMaxTokens token 预算钳制、\"仅通过数字比较决定 recommendedMaxTokens\"、无真实显存换页实现）被候选命题逐字完整保留，多处否定限定未丢失，provenance 一致，无差异。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0017",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本\"密钥曾以明文暴露（日志/对话/文件）→ 立即轮换\"及各项（.env 运行时密钥注入 gitignored 且 Windows ACL 仅本人+SYSTEM、~/.axiom/axiom-secrets/ 外部凭据、新增密钥三步含 env-example-completeness 门禁）在候选命题中逐字完整保留。可忽略差异：entities[0].name 与 triples[0].object 截断于\".env.exa\"（约 120 字符上限），属格式残缺，命题本体完整。",
+  "annotated_at": "2026-09-07T16:04:07Z"
+}

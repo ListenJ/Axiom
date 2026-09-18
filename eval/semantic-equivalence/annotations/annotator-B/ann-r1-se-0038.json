@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0038",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题逐字保留源文本调用链：『POST /chat → optimizePrompt(GLM 改写)』『意图判定(关键词 fast path / 边缘:9001 / 云 glm-4.7-flash，4 重机制)』『constitution 注入 → codegraph+knowledge 并行检索 → selfThink(串行阻塞 LLM)』『model-router.execute(静态优先级+熔断)』『**chat 模型仅见 5 个工具、tool loop 上限 4 轮**』——链路顺序、并行/串行标注与数值（5 个工具、4 轮上限）均无损；无添加。可忽略差异：entities 与 triples 的 name/object 字段在『（静态优先级+熔断』处截断，属次要载体字段损失，命题本体完整。",
+  "annotated_at": "2026-09-07T16:19:13Z"
+}

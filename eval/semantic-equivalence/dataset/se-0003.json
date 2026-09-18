@@ -1,0 +1,40 @@
+{
+  "id": "se-0003",
+  "source_text": "叶子层:  constants, utils     — 不依赖任何 src 模块\n领域层:  memory, router, dre, agents, crawl, db, ocr, kg, kal, skills, tools\n集成层:  mcp, routes, agents  — 可引用所有领域层\n解耦层:  services             — 唯一允许双向引用的模块 (循环依赖断路器)\n```",
+  "source_origin": "docs/ARCHITECTURE.md#L63-L67",
+  "candidate_mr": {
+    "propositions": [
+      "叶子层:  constants, utils     — 不依赖任何 src 模块 领域层:  memory, router, dre, agents, crawl, db, ocr, kg, kal, skills, tools 集成层:  mcp, routes, agents  — 可引用所有领域层 解耦层:  services             — 唯一允许双向引用的模块 (循环依赖断路器)"
+    ],
+    "entities": [
+      {
+        "name": "叶子层:  constants, utils     — 不依赖任何 src 模块 领域层:  memory, router, dre, agents, crawl, db, ocr, kg, kal, skills, tools 集成层:  mcp, routes, agents  — 可引用所有领域层 解耦层:  services             — 唯一允许双向引用的模块 (循环依赖",
+        "type": "concept",
+        "link": "kg:concept:______constants__utils_____________src__________memory__router__dre__agents__cra-40e0379c"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "叶子层:  constants, utils     — 不依赖任何 src 模块 领域层:  memory, router, dre, agents, crawl, db, ocr, kg, kal, skills, tools 集成层:  mcp, routes, agents  — 可引用所有领域层 解耦层:  services             — 唯一允许双向引用的模块 (循环依赖"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/ARCHITECTURE.md#L63-L67"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

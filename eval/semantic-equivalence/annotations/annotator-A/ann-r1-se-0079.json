@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0079",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的定义命题（callProviderDirect）有据，但源文本关键命题缺失：『传输层/429/5xx 退避重试 3 次（5s/10s/10s 封顶）』（数值）、『200 但 content 为空时升级 max_tokens 再试一次』（条件）与 usage 取最终被采用那次调用的口径均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

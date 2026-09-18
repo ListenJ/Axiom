@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0015",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影，否定与限定完整：『SceneRouter 为场景建议，不减少 list_tools 计费』『不改变 MCP 协议层的 list_tools 枚举与计费』及『按需注册才是真实的 token 开销控制手段』均保留；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

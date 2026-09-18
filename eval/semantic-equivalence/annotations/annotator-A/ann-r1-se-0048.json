@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0048",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选第二命题截断于『Due to the heterogeneity between LLM 』，其后关键命题缺失：『we propose an offline chain-of-thought evaluation framework, OCEAN, which models chain-of-thought reasoning in LLMs as an MDP』『into inverse propensity scores and propose KG-IPS estimator』『we prove the unbiasedness of the proposed KG-IPS estimator and provide a lower bound on its variance』，框架本体、估计器与理论结论均丢失，E3。",
+  "annotated_at": "2026-09-07T16:38:09Z"
+}

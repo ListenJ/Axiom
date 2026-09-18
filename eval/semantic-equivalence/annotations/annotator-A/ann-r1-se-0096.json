@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0096",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选仅覆盖忠实命题『依赖模块 ../../utils/logger.js』（import 行有据），但源文本 GoalTracker 的全部核心命题缺失：『用 Jaccard 相似度验证 LLM 提取的 goals/beliefs 是否基于可靠信息源…低相似度的目标被判为潜在幻觉并过滤』（条件+行为）、『合并新目标与已有目标（去重 + 累计计数），而非整体替换』（否定『而非』）、『支持活跃/达成/放弃状态转换，上限管理』、『零额外 LLM 调用』『无外部依赖』（否定/量词）、『单例模式』『提供 reset()』。遗漏关键命题归 E3（critical）。",
+  "annotated_at": "2026-09-08T10:34:26Z"
+}

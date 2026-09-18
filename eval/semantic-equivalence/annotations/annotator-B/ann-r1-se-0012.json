@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0012",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题字段完整保留源文本输出管线九步（含检查问句『是否试图删除生产环境文件?』与失败分支『生成修正指令发回 LLM (Refinement Loop)』『或触发降级规则 (L4: rule-based)』）；可忽略差异：实体 name 与 triple object 截断于『代码语法是否』及源末尾代码围栏未收录，格式残缺，命题本体正确。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

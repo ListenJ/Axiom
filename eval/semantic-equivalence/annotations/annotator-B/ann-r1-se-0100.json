@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0100",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "candidate 为空（propositions/entities/triples/provenance 全空），源文本非空。源文本关键命题：「此前 edge-${source.slice(0,20)}-… 的截断拼接使前 20 字符相同的不同关系共用同一 ID，被 INSERT OR IGNORE 静默丢弃」（旧缺陷因果）「改为内容寻址 sha1，不同关系永不碰撞；同一关系重复写入仍幂等」（新行为+否定性保证「永不碰撞」+幂等条件）。按 §6.6 判 not_equivalent（E3，critical）。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

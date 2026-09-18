@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-06",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "逐命题双向比对：candidate prop0「全部写操作追加链式哈希验证链，每条记录带 prevHash，篡改即失配」逐字对应源文本「全部写操作追加链式哈希验证链（每条记录带 prevHash，篡改即失配）」，量词「全部」保留；prop1 对应「数据\"有可以校验的路径、可以追溯实现效果\"（mind_synapse_verify / mind_synapse_trace）」，含「因此」因果；prop2 合并对应「本地模型仅作可选增强（注入 localModelAssist）」与「不配置时模块 100% 确定性、零网络依赖」，限定词「仅」「可选」、条件从句「不配置时」与数值「100%」均保留，localModelAssist 由 entity 覆盖。覆盖向无关键命题缺失，忠实向无源外添加；实体 mind_synapse_verify / localModelAssist 的 type=function 为对源文本反引号名称的合理解读（源文本未给出相反证据，ambiguity: 类型粒度按合理读取）。溯源 origin 与 source_origin 范围一致。无差异，判 equivalent。",
+  "annotated_at": "2026-09-08T10:31:35Z"
+}

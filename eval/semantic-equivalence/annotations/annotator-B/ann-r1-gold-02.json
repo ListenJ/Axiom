@@ -1,0 +1,13 @@
+{
+  "example_id": "gold-02",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": [
+    "E3",
+    "E4"
+  ],
+  "severity": "critical",
+  "rationale": "源文本明确『不调用 nvidia-smi 或任何硬件 API』，候选命题 2『ResourceBudgetManager 定期调用 nvidia-smi 采集 GPU 硬件状态』无据且与源直接相悖，为否定极性翻转加幻觉细节（『定期』『采集 GPU 硬件状态』），按指南附录先例归 E4 critical；同时缺失关键命题『硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心』与『这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备』，登记 E3。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

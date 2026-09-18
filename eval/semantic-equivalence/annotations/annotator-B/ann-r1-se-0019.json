@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0019",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：优先级『本地 unpdf 优先』与条件链『无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR』完整保留，条件限定词『才』『否则』未变；各字段完整未截断，溯源一致，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

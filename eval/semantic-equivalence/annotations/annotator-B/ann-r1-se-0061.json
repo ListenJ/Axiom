@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0061",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "源文本为 GitHub trending 条目，候选命题逐字复刻全部关键内容：『**Stars:** 3713 | **Today:** 339』『**Language:** Python』『**Topics:** -』与 Description 全文均在，无漏命题无加命题；溯源 origin 与 source_origin（axiom-memory/00-Knowledge/GitHub/trending/2026-08-11.md#L123-L126）一致。可忽略差异：实体 name 与三元组 object 在约 200 字符处截断（止于『**Today』），被截内容仍完整保留于 propositions 中；源内换行被折叠为空格，均不改变语义。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

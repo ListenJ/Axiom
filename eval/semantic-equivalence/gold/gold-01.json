@@ -1,0 +1,28 @@
+{
+  "id": "gold-01",
+  "source_text": "旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档（archive/knowledge-db-merge-2026-08-20/），迁移工具：`bun run scripts/merge-knowledge-dbs.ts`（幂等，可重复执行）。",
+  "source_origin": "docs/CONFIGURATION.md#L62-L64",
+  "candidate_mr": {
+    "propositions": [
+      "旧独立库 code-index.db、dre.db、knowledge.db、axiom-memory.db 已并入主库并归档",
+      "归档位置为 archive/knowledge-db-merge-2026-08-20/",
+      "迁移工具为 bun run scripts/merge-knowledge-dbs.ts，幂等可重复执行"
+    ],
+    "entities": [
+      { "name": "merge-knowledge-dbs.ts", "type": "function", "link": "kg:function:merge-knowledge-dbs" }
+    ],
+    "triples": [],
+    "provenance": [
+      { "prop_index": 0, "origin": "docs/CONFIGURATION.md#L62-L64" },
+      { "prop_index": 1, "origin": "docs/CONFIGURATION.md#L62-L64" },
+      { "prop_index": 2, "origin": "docs/CONFIGURATION.md#L62-L64" }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "manual-planted",
+    "note": "gold 校准题（预埋说明见 gold/answer-key.json，标注员禁读）",
+    "generated_at": "2026-09-07T00:00:00.000Z"
+  }
+}

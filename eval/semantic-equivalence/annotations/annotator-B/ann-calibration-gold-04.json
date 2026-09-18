@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-04",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "源文本加粗强调『本地 unpdf 优先』（via=pdf-local），即本地 unpdf 是默认首选路径，这是改变行为含义的关键顺序命题。候选命题 1 仅表述『可走本地 unpdf、外部 pdf-worker、OCR 三条路径』，把优先级链拉平为并列可选，丢失『优先』这一关键命题（E3，critical）；另丢 via=pdf-local 标记（次要）。候选命题 2『无文本层（扫描型）时走外部 pdf-worker』与命题 3『否则降级说明走 OCR』单独看有据（源：『无文本层（扫描型）才走外部 pdf-worker → 否则降级说明走 OCR』）。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

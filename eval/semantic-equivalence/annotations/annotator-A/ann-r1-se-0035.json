@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0035",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "命题字段完整保留全部四条：『1. ContextCacheDiscipline：稳定前缀 -> 上下文 -> 易变尾部，provider 支持时发送缓存头并采集命中率』『2. RecoverableToolOutput：工具结果外置可恢复，避免压缩吞掉信息』『3. AdaptiveCompaction：双阈值 + head/tail 保护 + tool pair 对齐 + 会话健康』『4. ToolSurface：注册面与模型可见面分离，按会话裁剪、稳定排序、批量压缩』，条件『provider 支持时』原样。可忽略差异（minor）：entity.name 与 triples[0].object 截断于『注册面与模』处，截断内容在命题字段完整存在；源换行压平，未丢失任何命题本体。",
+  "annotated_at": "2026-09-07T16:20:03Z"
+}

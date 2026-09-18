@@ -1,0 +1,50 @@
+{
+  "id": "se-0044",
+  "source_text": "## Abstract\n\nExtending the context window of large language models (LLMs) is getting popular recently, while the solution of augmenting LLMs with retrieval has existed for years. The natural questions are: i) Retrieval-augmentation versus long context window, which one is better for downstream tasks? ii) Can both methods be combined to get the best of both worlds? In this work, we answer these questions by studying both solutions using two state-of-the-art pretrained LLMs, i.e., a proprietary 43B GPT and Llama2-70B. Perhaps surprisingly, we find that LLM with 4K context window using simple retrieval-augmentation at generation can achieve comparable performance to finetuned LLM with 16K context window via positional interpolation on long context tasks, while taking much less computation. More importantly, we demonstrate that retrieval can significantly improve the performance of LLMs regardless of their extended context window sizes. Our best model, retrieval-augmented Llama2-70B with 32K context window, outperforms GPT-3.5-turbo-16k and Davinci003 in terms of average score on nine long context tasks including question answering, query-based summarization, and in-context few-shot learning tasks. It also outperforms its non-retrieval Llama2-70B-32k baseline by a margin, while being much faster at generation. Our study provides general insights on the choice of retrieval-augmentation versus long context extension of LLM for practitioners.",
+  "source_origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/retrieval-meets-long-context-large-language-models.md#L17-L19",
+  "candidate_mr": {
+    "propositions": [
+      "存在章节「Abstract」",
+      "Extending the context window of large language models (LLMs) is getting popular recently, while the solution of augmenting LLMs with retrieval has existed for years. The natural questions are: i) Retrieval-augmentation versus long context window, which one is better for downstream tasks? ii) Can both methods be combined to get the best of both worlds? In this work, we answer these questions by studying both solutions using two state-of-the-art pretrained LLMs, i.e., a proprietary 43B GPT and Lla"
+    ],
+    "entities": [
+      {
+        "name": "Abstract",
+        "type": "concept",
+        "link": "kg:concept:Abstract"
+      },
+      {
+        "name": "Extending the context window of large language models (LLMs) is getting popular recently, while the solution of augmenting LLMs with retrieval has existed for years. The natural questions are: i) Retr",
+        "type": "concept",
+        "link": "kg:concept:Extending_the_context_window_of_large_language_models__LLMs__is_getting_popular_-706277a4"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/retrieval-meets-long-context-large-language-models.md",
+        "predicate": "contains",
+        "object": "Abstract"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/retrieval-meets-long-context-large-language-models.md#L17-L19"
+      },
+      {
+        "prop_index": 1,
+        "origin": "axiom-memory/00-Knowledge/LLM-Context/context-engineering/retrieval-meets-long-context-large-language-models.md#L17-L19"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "vault_summary",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "vault",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

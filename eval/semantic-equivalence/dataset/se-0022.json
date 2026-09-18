@@ -1,0 +1,40 @@
+{
+  "id": "se-0022",
+  "source_text": "- **`LLMClient`（`dre/llm/client.ts`）**：熔断器（3 次/30s）、确定性（temp=0/seed=42）、`chat_template_kwargs` 透传、`transport: chat|completion` 双模式、`answerPrefix` JSON 前缀引导（自动拼回）。\n- **三重闸门**（prompt-optimizer）：输出校验 → 语言一致性（确定性 CJK 比对）→ LLM 忠实度判别。小模型改写可能语义漂移或照抄原文，任一闸门失败即回退原文，绝不外发。\n- **双层复核**（risk-monitor）：边缘初筛 low/medium/high → medium/high 交主模型（router `decision` 角色）复核 → 确认 dangerous 走 `requestApprovalForced`（YOLO 也不豁免，宪法第 4 条）。正则硬底线（`utils/permissions.ts`）不可绕过、不受影响。\n- **审计**：升级判定写 `auditLogger`（`security.alert` 事件，`data/logs/audit.log`）。\n- **DI 可测试**：所有边缘函数接受可选 `client` 参数（`Pick<LLMClient,\"generate\">`），测试注入 fake，不依赖 LAN 端点。注意：**不要**用 `mock.module` 全局 mock 边缘模块——bun 同进程 mock 会泄漏污染其他测试文件。",
+  "source_origin": "docs/EDGE-LLM.md#L65-L69",
+  "candidate_mr": {
+    "propositions": [
+      "- **`LLMClient`（`dre/llm/client.ts`）**：熔断器（3 次/30s）、确定性（temp=0/seed=42）、`chat_template_kwargs` 透传、`transport: chat|completion` 双模式、`answerPrefix` JSON 前缀引导（自动拼回）。 - **三重闸门**（prompt-optimizer）：输出校验 → 语言一致性（确定性 CJK 比对）→ LLM 忠实度判别。小模型改写可能语义漂移或照抄原文，任一闸门失败即回退原文，绝不外发。 - **双层复核**（risk-monitor）：边缘初筛 low/medium/high → medium/high 交主模型（router `decision` 角色）复核 → 确认 dangerous 走 `requestApprovalForced`（YOLO 也不豁免，宪法第 4 条）。正则硬底线（`utils/permissions.ts`）不可绕过、不受影响。 - **审计**：升级判定写 `auditLogger`（`security.alert` 事件"
+    ],
+    "entities": [
+      {
+        "name": "- **`LLMClient`（`dre/llm/client.ts`）**：熔断器（3 次/30s）、确定性（temp=0/seed=42）、`chat_template_kwargs` 透传、`transport: chat|completion` 双模式、`answerPrefix` JSON 前缀引导（自动拼回）。 - **三重闸门**（prompt-optimizer）：输出校验 → 语",
+        "type": "concept",
+        "link": "kg:concept:-____LLMClient___dre/llm/client_ts_________3__/30s______temp_0/seed_42___chat_te-8ac7e1ea"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/EDGE-LLM.md",
+        "predicate": "contains",
+        "object": "- **`LLMClient`（`dre/llm/client.ts`）**：熔断器（3 次/30s）、确定性（temp=0/seed=42）、`chat_template_kwargs` 透传、`transport: chat|completion` 双模式、`answerPrefix` JSON 前缀引导（自动拼回）。 - **三重闸门**（prompt-optimizer）：输出校验 → 语"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/EDGE-LLM.md#L65-L69"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

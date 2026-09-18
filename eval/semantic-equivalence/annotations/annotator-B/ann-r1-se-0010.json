@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0010",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选为源文本逐字投影：『ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API』及三条理由完整保留，含否定『不调用』『不关心预算来源』与结论『这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备』；各字段完整未截断，无增删。",
+  "annotated_at": "2026-09-07T15:57:48Z"
+}

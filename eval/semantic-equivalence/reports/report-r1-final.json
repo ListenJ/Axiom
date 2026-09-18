@@ -1,0 +1,29 @@
+{
+  "run": "r1",
+  "phase": "final",
+  "rates": {
+    "n": 100,
+    "contested": 0,
+    "uncertain": 0,
+    "denominator": 100,
+    "strict": 0.23,
+    "loose": 0.57,
+    "equivalent": 23,
+    "equivalent_with_notes": 34,
+    "not_equivalent": 43
+  },
+  "kappa_pre_arbitration": 0.953839052161871,
+  "contested": [],
+  "unresolved": [],
+  "adopted_stats": {
+    "A": 0,
+    "B": 3,
+    "arbitrator": 0
+  },
+  "dist_merged": {
+    "E1": 0,
+    "E2": 0,
+    "E3": 86,
+    "E4": 0
+  }
+}

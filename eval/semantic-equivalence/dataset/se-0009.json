@@ -1,0 +1,40 @@
+{
+  "id": "se-0009",
+  "source_text": "决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。",
+  "source_origin": "docs/AXIOM-ARCHITECTURE.md#L25-L25",
+  "candidate_mr": {
+    "propositions": [
+      "决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。"
+    ],
+    "entities": [
+      {
+        "name": "决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。",
+        "type": "concept",
+        "link": "kg:concept:____Persona___Runtime___________________________Agent_________1__Agent__________-6bfa2db8"
+      }
+    ],
+    "triples": [
+      {
+        "subject": "docs/AXIOM-ARCHITECTURE.md",
+        "predicate": "contains",
+        "object": "决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。"
+      }
+    ],
+    "provenance": [
+      {
+        "prop_index": 0,
+        "origin": "docs/AXIOM-ARCHITECTURE.md#L25-L25"
+      }
+    ],
+    "confidence": "high"
+  },
+  "task_type": "doc_ingest",
+  "generation": {
+    "method": "kg-writer-extraction-projection",
+    "tool": "eval/semantic-equivalence/tools/build-dataset.ts",
+    "manifest": "eval/semantic-equivalence/tools/dataset-manifest.jsonl",
+    "source_kind": "docs",
+    "note": "现状基线（R1）：candidate_mr 为现有确定性抽取产出的确定性投影，零人工润色；溯源为片段级（节点级行号未被现有管线保留）",
+    "generated_at": "2026-09-07T14:54:28.043Z"
+  }
+}

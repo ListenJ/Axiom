@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0078",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的定义命题（rerunAdaptive）有据，但源文本关键命题缺失：条件分支『首次尝试即通过则停止（通过即通过，无需再采样），否则跑满 rerunEach 次』与结论『结果与「跑满 rerunEach 次后 pickBest」完全等价』均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}

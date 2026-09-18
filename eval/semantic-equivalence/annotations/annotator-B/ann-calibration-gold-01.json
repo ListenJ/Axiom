@@ -1,0 +1,10 @@
+{
+  "example_id": "gold-01",
+  "run": "calibration",
+  "annotator": "B",
+  "verdict": "equivalent",
+  "error_classes": [],
+  "severity": "none",
+  "rationale": "候选三条命题与源文本逐项双向比对全覆盖且忠实：源文本『旧独立库（code-index.db / dre.db / knowledge.db / axiom-memory.db）已并入主库并归档（archive/knowledge-db-merge-2026-08-20/）』对应候选命题 1-2（含归档位置），『迁移工具：`bun run scripts/merge-knowledge-dbs.ts`（幂等，可重复执行）』对应候选命题 3（工具与幂等性均在）。无漏命题、无加命题、无实体错链，差异仅为同义改写（斜杠并列改顿号、去括号），按 §6.4 判 equivalent。",
+  "annotated_at": "2026-09-07T15:25:42Z"
+}

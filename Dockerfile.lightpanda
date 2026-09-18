@@ -1,0 +1,13 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY lightpanda-linux /usr/local/bin/lightpanda
+RUN chmod +x /usr/local/bin/lightpanda
+
+EXPOSE 9222
+
+ENTRYPOINT ["lightpanda"]
+CMD ["serve"]

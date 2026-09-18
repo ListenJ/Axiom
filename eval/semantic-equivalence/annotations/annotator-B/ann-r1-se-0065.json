@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0065",
+  "run": "r1",
+  "annotator": "B",
+  "verdict": "equivalent_with_notes",
+  "error_classes": [],
+  "severity": "minor",
+  "rationale": "候选命题为源文本逐字复刻：『CUDA is a parallel computing platform and programming model developed by NVIDIA』至句尾（加速计算密集型应用、广泛用于 deep learning、scientific computing、HPC）全部关键命题在位，无漏无加；溯源 origin 与 source_origin 一致。可忽略差异：实体 name 与三元组 object 在约 200 字符处截断（止于『It allows developers to acc』），完整文本保留于 propositions 中，不改变语义。",
+  "annotated_at": "2026-09-07T17:05:24Z"
+}

@@ -1,0 +1,10 @@
+{
+  "example_id": "se-0077",
+  "run": "r1",
+  "annotator": "A",
+  "verdict": "not_equivalent",
+  "error_classes": ["E3"],
+  "severity": "critical",
+  "rationale": "候选登记的定义命题（pickBest）有据，但源文本关键命题缺失：数值『默认每个任务重跑 2 次取最优』（DEFAULT_RERUN_EACH = 2）与选择语义『任一通过取首个通过；全失败优先保留真实能力失败』『仅在全部尝试都是执行错误时保留首次』（条件与例外）均未捕获 → E3 critical。",
+  "annotated_at": "2026-09-07T17:09:21Z"
+}
