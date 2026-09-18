@@ -1805,4 +1805,4 @@
 - **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun test tests/rigorous/determinism-repro.test.ts tests/unit/determinism-disclosure.test.ts` → **6 pass / 0 fail**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4094 pass / 36 skip / 0 fail**（408 文件；基线 4093 + 新增 1，**无回归**）。
 - **边界声明（防夸大）**：本实测只覆盖**注入固定依赖的检索路径**；**未覆盖**真实 SQLite 后端、任何 LLM 分支、跨机器/locale/ICU 版本、并发调用。因此它把 §5.5 第 2 条从「未验证」推进到「**有限范围内已实测**」，**不等于**"本项目整体已证明确定性"。
 - **偏差记录**：harness 起初用 `any` 转换图 mock 类型，`tsc` 通过但属类型逃逸；已改为显式收窄（`ConstructorParameters<...>[0]` 的 `graph` 参数类型），重塑后 hash 不变。
-- **Commit**：`__COMMIT__`
+- **Commit**：`675c780`
