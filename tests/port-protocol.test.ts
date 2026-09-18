@@ -176,7 +176,25 @@ describe("LocalKnowledgePort", () => {
       });
 
       expect(res.ok).toBe(true);
-      expect((res.data as any).nodeId).toMatch(/^node-\d+-/);
+      // T3（2026-09-18）契约变更：原断言 `/^node-\d+-/` 锁定了"时间戳前缀"这一**实现细节**，
+      // 而确定性要求恰恰是要移除时间戳与随机片段（见本文件末尾 "knowledge.write 确定性与幂等"）。
+      // 改为断言**行为契约**：前缀稳定、形态可复现、同内容同 ID。
+      const id = (res.data as any).nodeId as string;
+      expect(id).toMatch(/^node-[0-9a-f]{16}$/);
+      const again = await port.execute({
+        method: "knowledge.write",
+        params: {
+          node: {
+            title: "Auto ID Node",
+            content: "Content for auto-id test.",
+            domain: "test",
+            paradigm: "fact",
+            confidence: 0.8,
+            sourceType: "manual" as const,
+          },
+        },
+      });
+      expect((again.data as any).nodeId).toBe(id);
     });
 
     test("重复写入同 nodeId 应递增 revision", async () => {
@@ -714,5 +732,90 @@ describe("接口一致性", () => {
     expect(DEFAULT_RETRY_CONFIG.backoffMultiplier).toBe(2);
     expect(DEFAULT_RETRY_CONFIG.maxBackoffMs).toBe(5000);
     expect(DEFAULT_RETRY_CONFIG.jitter).toBe(0.2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// T3（2026-09-18）：knowledge.write 的确定性与幂等
+//
+// 背景：未提供 nodeId 时，原实现生成 `node-${Date.now()}-${Math.random()}`。
+// 后果有两层：
+//   ① 确定性——同一内容重复写入得到不同 nodeId，与"同输入同输出"的确定性承诺冲突；
+//   ② 幂等性——store.write 以 node_id 为主键做 revision 递增，随机 ID 使重复摄取
+//      同一文档**每次新建一个节点**，产生重复节点而非更新。
+// 修复方向：nodeId 由内容派生（content-addressed），使同内容得到同 ID。
+// ═══════════════════════════════════════════════════════════════
+
+describe("knowledge.write 确定性与幂等（T3）", () => {
+  let db: Database;
+  let store: KnowledgeStore;
+  let port: LocalKnowledgePort;
+
+  beforeEach(() => {
+    db = createTestDb();
+    store = new KnowledgeStore(db);
+    port = new LocalKnowledgePort(store, { db });
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  /** 不提供 nodeId 的写入参数（复现自动生成路径） */
+  const autoIdParams = (content: string, title = "Auto Id Node", domain = "programming") => ({
+    node: { title, content, domain, paradigm: "fact", confidence: 0.9, sourceType: "manual" as const },
+  });
+
+  test("同内容重复写入（未提供 nodeId）→ nodeId 逐字相同（确定性）", async () => {
+    const a = await port.execute({ method: "knowledge.write", params: autoIdParams("alpha content") });
+    const b = await port.execute({ method: "knowledge.write", params: autoIdParams("alpha content") });
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect((a.data as any).nodeId).toBe((b.data as any).nodeId);
+  });
+
+  test("跨实例（新 port/新 store，同一 DB）同内容 → nodeId 仍相同（非进程内记忆）", async () => {
+    const a = await port.execute({ method: "knowledge.write", params: autoIdParams("beta content") });
+    const port2 = new LocalKnowledgePort(new KnowledgeStore(db), { db });
+    const b = await port2.execute({ method: "knowledge.write", params: autoIdParams("beta content") });
+    expect((a.data as any).nodeId).toBe((b.data as any).nodeId);
+  });
+
+  test("同内容重复摄取 3 次 → 仅 1 个节点，revision 递增到 3（幂等）", async () => {
+    const r1 = await port.execute({ method: "knowledge.write", params: autoIdParams("gamma content") });
+    const r2 = await port.execute({ method: "knowledge.write", params: autoIdParams("gamma content") });
+    const r3 = await port.execute({ method: "knowledge.write", params: autoIdParams("gamma content") });
+
+    const count = (db.prepare("SELECT COUNT(*) AS c FROM knowledge_node").get() as { c: number }).c;
+    expect(count).toBe(1);
+    expect((r1.data as any).revision).toBe(1);
+    expect((r2.data as any).revision).toBe(2);
+    expect((r3.data as any).revision).toBe(3);
+  });
+
+  test("不同内容 → 不同 nodeId", async () => {
+    const a = await port.execute({ method: "knowledge.write", params: autoIdParams("delta one") });
+    const b = await port.execute({ method: "knowledge.write", params: autoIdParams("delta two") });
+    expect((a.data as any).nodeId).not.toBe((b.data as any).nodeId);
+  });
+
+  test("标题不同但内容相同 → nodeId 不同（标题参与寻址）", async () => {
+    const a = await port.execute({ method: "knowledge.write", params: autoIdParams("same body", "Title A") });
+    const b = await port.execute({ method: "knowledge.write", params: autoIdParams("same body", "Title B") });
+    expect((a.data as any).nodeId).not.toBe((b.data as any).nodeId);
+  });
+
+  test("显式提供 nodeId 时仍被尊重（不强制内容寻址）", async () => {
+    const res = await port.execute({
+      method: "knowledge.write",
+      params: { node: { ...autoIdParams("explicit").node, nodeId: "caller:chosen:id" } },
+    });
+    expect((res.data as any).nodeId).toBe("caller:chosen:id");
+  });
+
+  test("nodeId 不含时间戳/随机片段（形态约束：稳定前缀 + 定长 hex）", async () => {
+    const res = await port.execute({ method: "knowledge.write", params: autoIdParams("shape content") });
+    const id = (res.data as any).nodeId as string;
+    expect(id).toMatch(/^node-[0-9a-f]{16}$/);
   });
 });

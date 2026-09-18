@@ -1740,3 +1740,20 @@
 - **偏差记录**：①**语义保持优先于"顺手修正"**：`isWithinBase` 沿用旧有的 `startsWith("..")` 判定，因此 base 内名为 `..foo` 的合法目录仍被误判为逃逸。这是**旧有缺陷**，未在本轮修正——修正属安全语义变更，需单独评审（已写入架构文档）。②`plugin-registry.ts` / `memory-api.ts` 的原判定含 `rel === ""` 特例（目标等于根时也拒绝），委托时**显式保留**该特例，未按原语语义统一放宽。③`db-guard.validatePath` 是死代码，本轮只收敛不删除（删除需走规则 4 归档流程，且超出本任务范围）。
 - **未覆盖项（如实登记）**：①`utils/url-safety.ts`（SSRF）与 `computer-use/browser-launch.ts`（协议白名单）仍各有一套 URL 校验策略，二者**语义不同**，是否统一属独立决策，本轮未动。②`src/mcp/tools/filesystem.ts` 的 `isPathSafe` 调用点（14 处）未改为经 `execution-guard` 的统一入口，仍由工具内部直接调用。③未做对抗性输入测试（如符号链接竞态、TOCTOU）。④`knowledge/document-ingest.ts` 的多根围栏（cwd + vault）仍未接入 `execution-guard` 的 `cwdFenced` 通道，两套入口并存。
 - **Commit**：`c54eb42`
+
+## 2026-09-18 — fix(T2): 知识节点 ID 改为内容寻址（确定性与幂等）
+
+- **任务**：承接审计「确定性」专项——DRE/知识层自动生成的实体 ID 使用 `Date.now()` + `Math.random()`。本轮先取**知识写入路径**（与"重复摄取是否产生重复节点"这一幂等性质疑直接相关）。分级 **T2**（行为修复，含既有测试契约变更）。仅提交 Gitea。
+- **工具**：Bash + Python 补丁；`bunx tsc`；`bun test`（全量 406 文件）；规则 2（2 份文件备份至 `.tmp/backups/`）。
+- **先核实再动手**：全仓 `Math.random()` 共 **43 处**，但**不能一刀切**——`docs/AXIOM-ARCHITECTURE.md:1293` 已明确把路由层 Thompson 采样排除在"同输入同输出"承诺之外（属设计），`utils/resilience.ts`、`dre/llm/client.ts` 的抖动用于防惊群（有实际工程目的），`frontend-audit.ts`/`vision.ts` 的随机名是临时文件名（不进入确定性输出）。本轮只处理**位于确定性承诺范围内、且 ID 会进入输出**的知识写入路径。
+- **操作**（文件级，2 个）：
+  1. `src/dre/port/knowledge-port.ts`：新增导出纯函数 `deriveNodeId({title, content, domain})` = `node-` + `sha256(标题 \0 内容 \0 领域)` 前 16 位 hex；`handleWrite` 在调用方未提供 `nodeId` 时改用它（原为 `` `node-${Date.now()}-${Math.random()…}` ``）。显式传入的 `nodeId` 仍被尊重。
+  2. `tests/port-protocol.test.ts`：新增 7 个用例（确定性 / 跨实例可复现 / 幂等 / 内容不同则 ID 不同 / 标题参与寻址 / 显式 ID 仍生效 / ID 形态）；并**修改** 1 个既有用例的断言（见偏差 ①）。
+- **声明 vs 实际核查（2 种独立方式）**：①**红→绿**——先写用例复现症状，修改前实测 4 fail（确定性、跨实例、幂等、形态），修改后 48 pass / 0 fail；②**全量回归**——`bun test --parallel=8 --timeout 15000 ./tests` → **4086 pass / 36 skip / 0 fail**（406 文件），与上一轮 4079 pass 之差恰为新增 7 个用例，**无回归**。两种方式结论一致。
+- **修复的两个具体缺陷（可复现）**：
+  - **确定性**：同一内容连续写入，原实现返回两个不同 `nodeId`；现返回同一 ID（跨 `LocalKnowledgePort` 实例、同一 DB 亦成立，非进程内记忆）。
+  - **幂等性**：`KnowledgeStore.write` 以 `node_id` 为主键做 revision 递增，随机 ID 使**重复摄取同一文档每次新建一个节点**；现同内容 3 次写入 → `knowledge_node` 行数 **1**、revision **1→2→3**（测试断言）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → 0 error；`bun test tests/port-protocol.test.ts` → **48 pass / 0 fail**；全量 **4086 pass / 36 skip / 0 fail**。
+- **偏差记录**：①**修改了 1 个既有测试断言（非静默改绿）**——`tests/port-protocol.test.ts:179` 原断言 `/^node-\d+-/` 把"时间戳前缀"这一**实现细节**写成了契约，而本次修复的目标恰恰是移除时间戳与随机片段。已把它替换为行为契约断言（形态 `^node-[0-9a-f]{16}$` + 同内容同 ID），并在原地留注释说明为何替换。**该改动是契约变更，不是为了让测试变绿而放宽断言**：新断言比原断言更严格（同时检查形态与确定性）。②**未处理其余 `Math.random()` 站点**：`src/dre/runtime/{event-bus,scheduler,knowledge-network,rule-engine}.ts`、`src/dre/mental-model/pool.ts`、`src/dre/actor/system.ts`、`src/agent-evals/*`、`src/routes/*` 等约 18 处 DRE/运行时 ID 仍为时间戳+随机，**未评估**其是否进入确定性输出。③`docs/LIMITATIONS.md:58` 声明"涉及 Date.now()/Math.random() 的模块，其确定性边界将在对应章节按 G-04 披露"，该披露**至今未逐模块完成**，本轮未补。
+- **未覆盖项（如实登记）**：①未对知识写入路径做**实测多次运行一致性**验证（§13.5 要求 N≥5 次跨进程比对）——本轮用单测断言同内容同 ID 代替，**强度低于实测跑批**，属部分验证。②内容寻址**不做近重复归一化**：仅空白差异的内容仍得不同 ID，真正的近重复合并属知识整理层职责，未实现也未评估。③未评估对既有库中已写入的随机 ID 节点的影响（无数据迁移；存量节点 ID 保持不变）。④未验证 `RemoteKnowledgePort` 路径下的行为一致性（同函数在 `handleWrite` 内，推定共用，未实测）。
+- **Commit**：`__COMMIT__`

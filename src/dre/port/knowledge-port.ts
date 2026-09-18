@@ -21,6 +21,7 @@ import {
   type KnowledgeNode,
   type KnowledgeRevision,
 } from "../storage/knowledge-store.js";
+import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 import {
   type PortRequest,
@@ -256,8 +257,13 @@ export class LocalKnowledgePort extends BaseKnowledgePort {
       throwPortError("VALIDATION_ERROR", "node.domain is required");
     }
 
-    // 生成 nodeId（调用方未提供时）
-    const nodeId = node!.nodeId || `node-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    // 生成 nodeId（调用方未提供时）：内容寻址。
+    // T3（2026-09-18）：原实现为 `node-${Date.now()}-${Math.random()}`，带来两个后果——
+    //   ① 确定性：同一内容重复写入得到不同 nodeId，与"同输入同输出"的确定性承诺冲突；
+    //   ② 幂等性：KnowledgeStore.write 以 node_id 为主键做 revision 递增，
+    //      随机 ID 使重复摄取同一文档每次新建节点，产生重复节点而非更新。
+    // 改为由 title + content + domain 派生后，同内容恒得同 ID，重复摄取退化为 revision 递增。
+    const nodeId = node!.nodeId || deriveNodeId(node!);
 
     try {
       const written = this.store.write({
@@ -512,4 +518,23 @@ export function createRemotePort(
   options?: { apiKey?: string; headers?: Record<string, string>; retryConfig?: Partial<RetryConfig> },
 ): RemoteKnowledgePort {
   return new RemoteKnowledgePort(baseUrl, options);
+}
+
+/**
+ * 内容寻址 nodeId（T3，2026-09-18）。
+ *
+ * `sha256(title \0 content \0 domain)` 取前 16 位 hex，前缀 `node-`。
+ * - 同内容 + 同标题 + 同 domain → 恒等 ID（确定性）
+ * - 任一不同 → 不同 ID（标题/领域参与寻址，避免不同语义的节点相撞）
+ * - 不含时间戳与随机片段，故跨进程、跨机器可复现
+ *
+ * 语义边界（如实登记）：这是**内容寻址**而非去重策略——两条仅空白差异的内容
+ * 仍会得到不同 ID。真正的近重复归一化属知识整理层职责，不在本函数范围。
+ */
+export function deriveNodeId(node: { title: string; content: string; domain: string }): string {
+  const h = createHash("sha256")
+    .update(`${node.title}\u0000${node.content}\u0000${node.domain}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `node-${h}`;
 }
