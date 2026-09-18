@@ -1619,4 +1619,4 @@
 - **操作**（文件级）：`tests/unit/docs-consistency.test.ts` 将该处改为锁定**新**不变量：README 只允许以"已归档移除"口径提及 `system-resource.ts`，且不得再出现 `vram_status`。
 - **验证结果**：`bun test tests/unit/docs-consistency.test.ts` → 9 pass / 0 fail。
 - **偏差记录**：无（未改生产代码）。
-- **Commit**：__COMMIT_③FIX__
+- **Commit**：c1383b6（已推送 gitea）
