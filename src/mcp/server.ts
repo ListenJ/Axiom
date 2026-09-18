@@ -72,7 +72,12 @@ const mcp = new McpServer({
 
 // ===== 工具定义（单一事实来源） =====
 
-const registry = new ToolRegistry();
+// 真懒加载开关（2026-09-18，T3）：
+// 默认关闭 → tools/list 行为与历史逐字节一致。
+// AXIOM_MCP_LAZY_TOOLS=1 → tools/list 只下发 tool_search/tool_describe/tool_invoke，
+// 其余工具定义在客户端显式取用前不进入上下文（小模型场景的 token 成本主项）。
+const lazyTools = readString("AXIOM_MCP_LAZY_TOOLS", "0") === "1";
+const registry = new ToolRegistry({ lazy: lazyTools });
 const recoverableOutputStore = new RecoverableOutputStore({
   maxEntries: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES", "1000")) || 1000,
   ttlMs: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_TTL_MS", String(60 * 60 * 1000))) || 60 * 60 * 1000,

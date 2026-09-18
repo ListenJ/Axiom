@@ -412,7 +412,11 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 | Actor | `actor_list`, `actor_send` |
 | 认知闭环 | `cognitive_loop` |
 
-> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段。
+> **澄清（W3/W4，2026-09-18 更新）**：SceneRouter 为场景建议，**不**减少 list_tools 计费——它不能替代按需注册。
+> 真懒加载已实现并实测：设 `AXIOM_MCP_LAZY_TOOLS=1` 后 `tools/list` 只下发 `tool_search`/`tool_describe`/`tool_invoke`
+> 三个 meta 工具，其余 188 个工具定义在客户端显式取用前不进入上下文。同一 registry 实测 **188 工具 / 72,388 字节 → 3 工具 / 1,274 字节（-98.2%）**。
+> 默认 **关闭**（未设该变量时与历史行为逐字节一致）；开启后调用链为 `tool_search` → `tool_describe` → `tool_invoke`，
+> 且 `tool_invoke` 与全量模式共用同一 handler 链（含同一安全守卫）。
 
 **配置工具类别** (需 API Key):
 

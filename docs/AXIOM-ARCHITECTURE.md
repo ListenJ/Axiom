@@ -1376,7 +1376,10 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 | 需安装 | OCR | 2 | Tesseract |
 | 需安装 | Playwright | 1 | playwright |
 
-> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举与计费。
+> **澄清（W3/W4，2026-09-18 更新）**：SceneRouter 为场景建议，不减少 list_tools 计费，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举。
+> 真实的 list_tools 开销控制由 `AXIOM_MCP_LAZY_TOOLS=1` 提供的**真懒加载**承担：只下发 `tool_search`/`tool_describe`/`tool_invoke`
+> 三个 meta 工具，其余工具定义按需取用。实测同一 registry：188 工具 / 72,388 字节 → 3 工具 / 1,274 字节（-98.2%）。
+> 默认关闭。`tool_invoke` 复用同一 handler 链（含安全守卫），不构成新的绕过路径。
 
 ### 3.1 DRE 领域工具 (16 个)
 

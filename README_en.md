@@ -398,7 +398,11 @@ Even with no external configuration, the agent can still:
 | Actor | `actor_list`, `actor_send` |
 | Cognitive loop | `cognitive_loop` |
 
-> **Clarification (W3/W4)**: SceneRouter only suggests scenarios and does not reduce `list_tools` billing. Real token savings come from registering tools on demand, which is the only genuine way to control token cost.
+> **Clarification (W3/W4, updated 2026-09-18)**: SceneRouter only suggests scenarios and does **not** reduce `list_tools` billing — it is not a substitute for on-demand registration.
+> Real lazy loading is now implemented and measured: with `AXIOM_MCP_LAZY_TOOLS=1`, `tools/list` returns only the three meta tools
+> `tool_search` / `tool_describe` / `tool_invoke`; the remaining 188 tool definitions do not enter the context until explicitly requested.
+> Same registry, measured: **188 tools / 72,388 bytes → 3 tools / 1,274 bytes (-98.2%)**. Default is **off** (byte-for-byte identical to the previous behaviour).
+> When enabled the call chain is `tool_search` → `tool_describe` → `tool_invoke`, and `tool_invoke` shares the exact same handler chain (including the same security guard) as full mode.
 
 **Configured tool categories** (require an API key):
 

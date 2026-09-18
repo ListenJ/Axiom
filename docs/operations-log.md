@@ -1670,3 +1670,25 @@
 - **偏差记录**：①**GitHub SSH 22 端口不可用**——首次 `git push origin` 传至约 10 分钟后被 `Connection closed by 20.205.243.166 port 22` 中断（非认证问题，`ssh -T git@github.com` 可通）。改用 SSH over 443（`ssh.github.com:443`，已写入 `known_hosts`）后推送成功；随后将本地 `origin` URL 永久改为 `ssh://git@ssh.github.com:443/ListenJ/Axiom.git`（仅本地 `.git/config`，不入库），避免复现同一故障。②**脱敏范围超出用户 4 文件的最小口径**——README/LIMITATIONS 已声明"仓库不含真实内网信息"，实测仍有 42 个文件含内网地址，属**声明 vs 实际不一致**；按规则 11（最高优先级）在公开快照中一并脱敏。③**公开快照与私有源存在有意差异**：脱敏、排除产物、脚本失败语义；`LIMITATIONS.md` 原将 `scripts/runtime-go/deploy.sh` 列为"保留内网地址"的豁免项，公开快照中**不适用该豁免**。④`config/searxng/settings.yml` 的 `${LAN_PROXY}` 不是 SearXNG 可解析的值，已就地加注释要求使用者替换。
 - **未覆盖项（如实登记）**：①主仓库自身的部分脱敏未跟进——`README.md`/`LIMITATIONS.md` 的"不含真实内网信息"声明在**私有 Gitea 仓库中仍然不成立**（`scripts/runtime-go/deploy.sh` 按既有政策保留真实地址，但有 29 个其它文件的内网地址与本轮公开快照的差异未回写主仓库），本轮按规则 1 未改动主仓库源码与文档。②GitHub 侧未配置分支保护/Ruleset，公开快照分支可被误推——未在本轮范围内。
 - **Commit**：`28c717a`（快照提交 `7f8000b`，仅在 GitHub，不入 gitea 分支线）
+
+## 2026-09-18 — feat(T3): MCP 真懒加载（tools/list 体积 -98.2%，实测）
+
+- **任务**：用户指令「A，然后先完成我们的 MCP 真懒加载和执行沙箱统一层」。本条目仅覆盖**第 1 件**（懒加载）。分级 **T3**（MCP 协议面变更），计划文档 `docs/plans/2026-09-18-mcp-lazy-tools-and-execution-sandbox.md`。
+- **工具**：Bash + Python 补丁；`bunx tsc`；`bun test`；真实 stdio 协议测量脚本（node + `bun run src/mcp/server.ts --stdio`，非 mock）；规则 2（6 份文件备份至 `.tmp/backups/`）。
+- **操作**（文件级，6 个）：
+  1. `src/mcp/tool-registry.ts`：`ToolRegistry` 增加 `ToolRegistryOptions { guard?, lazy? }` 与 `isLazy`；`registerWithMcp` 拆出 `registerOne`，新增 `registerLazySurface` 注册 3 个 meta 工具（`tool_search`/`tool_describe`/`tool_invoke`）；新增 `rankToolsByQuery`（词命中打分，同分按 name 字典序，保证同输入同输出）。
+  2. `src/mcp/server.ts:79-80`：`AXIOM_MCP_LAZY_TOOLS`（默认 `0`）→ `new ToolRegistry({ lazy })`。
+  3. `.env.example:181-186`：新增开关与实测数字说明。
+  4. `README.md:415-420`、`README_en.md:401-405`、`docs/AXIOM-ARCHITECTURE.md:1379-1382`：原「真实 token 节省需按需注册」的澄清改为**已实现 + 实测数字**，消除声明与实现不一致。
+  5. `tests/mcp-lazy-tools.test.ts`（新增，9 用例）：经 **真实 MCP 协议**（`McpServer` + `Client` + `InMemoryTransport`）测量 `tools/list`，不使用内部数组断言。
+- **关键实现决策**：`tool_describe` 的 `inputSchema` **不自己写 zod→JSON Schema 转换**（会与 SDK 版本漂移），而是把工具注册到一个从不连接传输的探针 `McpServer`，经 `InMemoryTransport` 走一次公开 `tools/list` 取回 schema——因此 describe 结果与全量模式下客户端所见**逐字段一致**（实测返回含 `additionalProperties`/`$schema` 等 SDK 产出字段）。仅用公开 API，无新增依赖。
+- **声明 vs 实际核查（2 种独立方式）**：①**单元层**——`bun test tests/mcp-lazy-tools.test.ts` 用真实协议测 60 工具合成 registry，断言 `lazy` 模式下 `tools.length<=5` 且序列化字节降幅 ≥95%；②**进程级实测**——`node /tmp/mcp-measure.mjs` 拉起真实 `src/mcp/server.ts --stdio`，发 `initialize`+`tools/list` 读取真实响应：
+  - 全量（默认）：`{"toolCount":188,"payloadBytes":72388}`
+  - 懒加载：`{"toolCount":3,"payloadBytes":1274,"sample":["tool_search","tool_describe","tool_invoke"]}`
+  - 降幅 **98.24%**（约 18k tokens → 约 0.3k tokens，按 4 字符/token 粗算）。
+  两种方式结论一致，无矛盾。
+- **端到端链路实测**（真实 188 工具 registry，懒加载模式）：`tool_search("token stats")` 命中 → `tool_describe` 返回完整 schema → `tool_invoke(token_stats)` 真实执行并返回真实数据（`totalCalls 5792 / totalTokens 242613`），证明 meta 层不是空壳。
+- **验证结果**：`bun test tests/mcp-lazy-tools.test.ts` → **9 pass / 0 fail**；回归 `tests/mcp-server.test.ts tests/tool-registry-dedup.test.ts tests/unit/docs-consistency.test.ts tests/mcp/ tests/mcp-stdio-live.test.ts` → **59 pass / 0 fail**；`bun test tests/mcp-lazy-tools.test.ts tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **43 pass / 0 fail**；`bunx tsc --noEmit -p tsconfig.json` → 0 error。
+- **偏差记录**：①**默认关闭**（`AXIOM_MCP_LAZY_TOOLS=0`）——用户此前对辅助 LLM 要求"默认关闭、经允许才启用"，懒加载同属改变对外行为的开关，按同口径处理，未擅自改变默认协议面。②计划中「T1-6 默认模式 tools/list 与改动前逐字节一致」以**工具数 188 + 全量 72,388 字节**的实测值佐证，未做改动前后的字节级 diff（改动前未留基线样本）；断言依据为 `registerWithMcp` 非懒加载分支与改动前逻辑等价（同一 `registerOne` 循环体），属**部分验证**。③未做 `notifications/tools/list_changed` 动态注册（客户端支持不一致），已列入计划"不做项"。④`docs/MCP_TOOLS_GUIDE.md` 未同步懒加载章节，列入后续项。
+- **未覆盖项（如实登记）**：①未验证真实第三方客户端（Claude Code/Cursor）在懒加载模式下的端到端交互；②未测 meta 工具在 188 工具规模下的检索命中质量（无召回率评测集）；③HTTP 传输未单独实测懒加载（与 stdio 共用 `registerWithMcp`，仅代码路径推定）。
+- **Commit**：`__COMMIT__`
