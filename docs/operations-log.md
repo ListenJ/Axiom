@@ -1514,3 +1514,16 @@
 - **偏差记录**：①C-04 采用**保守精度优先**策略（仅 token 以数字开头才纠错），代价是 `1OO` 这类以易混字符结尾的 token 不再纠错——权衡依据：本 bug 的损害是静默腐蚀，精度优先于召回；已在测试中固化该边界。②A6-3 未改 `isCollected(url)` 去重与 pipeline 其他路径（不在冻结清单）。
 - **未决项（本轮不动的 P1+ 项）**：C-01 采集侧 LLM 默认开启（T3，需定默认值）；A9-1 VRAM 探测默认关导致预算退化为常量 4000（T2/T3）；C-03 残余 `plugin-routes.ts:162` `enable ?? true`（T1）；A10-4 三处静默 catch（Medium）。
 - **Commit**：f61bb5e（已推送 gitea）
+
+## 2026-09-18 — fix(T1): 静默失败可观测性 —— 三处 catch 补日志（A10-4）
+
+- **任务**：grilling 后优先级计划的 P3 中可立即执行项（Medium，无外部依赖）。审计 A10-4：三处 `catch` 完全无日志不上抛，故障不可观测，与项目其余关键路径"catch 均有 logger.warn"的既有规范不一致。
+- **工具**：Bash + Python 精确替换；规则 2（两文件备份至 `.tmp/backups/`，验证通过后删除）；规则 7（无行为接缝，用静态守卫替代 —— 见偏差）。
+- **操作**（文件级）：
+  1. `src/crawl/unified-search.ts`：补 `logger` 导入；缓存写（`search_cache` INSERT）与历史写（`search_history` INSERT）两处 catch 补 `logger.debug`，不再静默吞错。
+  2. `src/crawl/lightpanda-client.ts`：CDP 交互元素 JSON 解析失败处补 `logger.debug` 后再 `resolve([])`。
+  3. 新增 `tests/unit/silent-catch-observability.test.ts`（2 例静态守卫）。
+- **验证结果**：`tsc --noEmit` exit 0（首次编辑因 import 插入锚点错误破坏了 import 块，已修正并复验）；定向 `bun test tests/crawl/ tests/unit/silent-catch-observability.test.ts` 32/32 pass；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4097 pass / 36 skip / 0 fail**（4133 用例，较上提交 +2）。
+- **偏差记录**：**未写行为测试**——前两处需真实网络搜索引擎触发、第三处需 WebSocket CDP 会话，无法建立秒级离线反馈回路（规则 6 Phase 1 不满足）。按规则 7"无测试接缝时用可重复验证命令替代"改用静态守卫断言日志字符串存在 + 裸 catch 模式消失；此为已知弱点，如实记录。
+- **未决项（均为 T3，需用户决策，本轮未动）**：①C-01 采集侧 `EDGE_KNOWLEDGE_ASSIST` 默认开启（`edge-client.ts:47-50` 默认 "1"），摄取管线默认调 LLM，与"zero LLM in path"承诺冲突——需定默认值与文档口径；②C-03 残余 `plugin-routes.ts:162` `enable: body.enable ?? true`（最小权限应默认 false，但会改变既有 UX 与测试 W3-7 断言）；③A9-1 `AXIOM_VRAM_PROBE` 默认关致预算退化为常量 4000（需定探测默认值与失败降级语义）。
+- **Commit**：PENDING

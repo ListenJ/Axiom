@@ -693,7 +693,11 @@ export async function extractInteractiveElements(
         try {
           const data = JSON.parse(msg.result.result.value);
           resolve(data as InteractiveElement[]);
-        } catch { resolve([]); }
+        } catch (err) {
+          // A10-4（2026-09-18）：解析失败此前静默返回空数组，故障不可观测
+          logger.debug("[Lightpanda] interactive-element JSON parse failed", { error: String(err) });
+          resolve([]);
+        }
       }
       if (msg.error) {
         clearTimeout(timer);
