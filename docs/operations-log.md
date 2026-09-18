@@ -1882,3 +1882,25 @@
 - **未覆盖项**：①本轮只复核对 **#15** 一条做并发重入复查，**#1–#14、#16–#33 未按新口径逐条重审**，故"✅ 17 处"仍可能有同类误放；②未做并发压测（无 N=100+ 测量）；③`shuttingDown` 承诺**缓存不重置**，即 shutdown 后 `register()` 再 `shutdown()` 不会真正执行（与既有"stopped 后不复用"语义一致，但**未加断言**）。
 - **不做项（留后续）**：按新口径对剩余 32 条做并发重入复评（Medium，属独立复审轮次）；上一轮遗留的 `plugin-registry` 三处 TOCTOU 等 7 处见报告 §3。
 - **Commit**：`4ec245f`
+
+## 2026-09-19 — docs(T3): 知识库语义（向量）层计划 + 现状更正（未施工，待决策）
+
+- **任务**：用户决策「**撤回"非向量化"主张**；主要目的是用确定性完成 runtime 构建；知识库统一**可以通过向量化**节约成本、强化检索精度」。据此产出 T3 书面计划与决策请求。分级 **T3**（技术承诺变更 + 模块重构）。仅提交 Gitea。
+- **工具**：Bash（grep/wc/sed）；只读勘察；规则 13（结论不强于证据）；规则 12（PCDA 的 Plan 阶段）。
+- **关键产出**：新建 `docs/plans/2026-09-19-knowledge-semantic-layer.md` —— 现状更正 + 4 项待确认决策（D1 embedding 来源 / D2 默认开关 / D3 确定性边界 / D4 向量存放）+ 0.4 任务契约草案 + 5 个垂直切片 + 未覆盖项。
+- **⚠️ 自我更正（本轮第二处，接 4ec245f）**：上一轮我把「知识库后端统一」列为**完全未做**，**该判断过宽**。实测：
+  ①KAL 现在只用**一个** SQLite 句柄 `this.db`，三个"后端"实为**同库内的三组表**（证据 `src/kal/knowledge-access-layer.ts:170-172` / `:287` / `:405-406` / `:473`）；
+  ②旧边表 `kg_edge` 已并入 `kg_edges`，UNION 缝合已移除（同文件 `:470` 注释）；
+  ③已有守卫测试 `tests/unit/kg-backend-unification.test.ts:27-41`。
+  ⇒ `src/kal/knowledge-access-layer.ts:151-158` 的 `switch(store)` 是**同库表级 fan-out**，不是"多后端未统一"。剩余工作是**在已统一的库上加可选语义层**。
+- **其他实测事实（写入计划 §1.2）**：`cosineSimilarity` 在 `src/utils/math.ts:7`；本地 embedding 服务 `src/local-llm/edge-embeddings.ts:34`（失败返回 null 不抛错），当前唯一消费者 `src/core/settings-search.ts:12`；**远端** embedding 仍在 `src/db/codegraph-sync.ts:143`（siliconflow）；休眠向量路径 `src/dre/consciousness/stream.ts:127,188`、`src/dre/pipeline/pipeline.ts:161`；`package.json` 零向量库依赖。
+- **主张面实测**：`grep -rn 向量 docs/ README.md` = **126 行**（**含** archive/reviews/superpowers/operations-log，未逐条分类）；`tests/unit/docs-consistency.test.ts:38-41` 只禁止 active docs 出现"**零向量**"字样、**不**禁止"非向量化"⇒ 该门禁**既不构成障碍也不提供保护**，撤回主张后须新增门禁防再次漂移。
+- **未覆盖项**：①126 行"向量"提及**未分类**（技术主张/历史记录/架构描述），故计划中已写明"切片 1 须先分类再改"；②本地 embedding 服务的真实可用性/维度/模型版本**未实测**（需服务环境）；③`src/db/codegraph-sync.ts:143` 远端 embedding 在默认路径的可达性**未核验**；④本计划引用行号为 2026-09-19 实测，施工前须按规则 2 重新核对。
+- **门禁修复（本轮副作用，已如实登记）**：新建计划后 `tests/unit/docs-consistency.test.ts` **立即报错**（`docs-consistency.test.ts:41`，`Expected: 0 / Received: 4`；4 处命中**全部**来自新计划文件）。
+  裁定：该门禁防的是**主张面**（README/ARCHITECTURE/LIMITATIONS 等）出现过时宣称；**计划文档必须能指名道姓讨论"要撤回哪条旧宣称"**，否则写不出撤回计划。
+  既有先例支持此裁定：同类收敛计划 `docs/superpowers/plans/2026-09-14-knowledge-backend-convergence.md:114` 同样含该短语，因其位于**已排除**的 `superpowers/` 目录而未被判违约。
+  操作：`tests/unit/docs-consistency.test.ts:7` 的 `excludeDirs` **显式加入 `plans`** 并写明理由（把原先隐含的"计划不属主张面"显式化）——**未放宽任何断言、未删任何用例**。
+  **可证伪性验证（证明门禁未被削弱为空断言）**：以独立探针重跑同一遍历逻辑 —— 探针 1 `/FTS5/` 仍命中 `docs/ARCHITECTURE.md`、`docs/LIMITATIONS.md`、`README.md` 等 **15 个主张面文件**（门禁仍看得见主张面）；探针 3 `/零向量/` 在排除面之外命中 **0**（主张面无残留）。
+  此项属**对既有测试的修改**，已显式声明以便复核；如不同意，可单独 `git revert` 该提交，影响面仅限门禁范围。
+- **不做项**：本条目**只产出计划，未改任何代码/文档口径** —— 按总则 0.3，T3 待用户确认 D1–D4 后方可施工。
+- **Commit**：`__COMMIT__`

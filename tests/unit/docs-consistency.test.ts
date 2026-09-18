@@ -4,7 +4,11 @@ import { join } from "path";
 
 function collectDocsHits(pattern: RegExp): string[] {
   const hits: string[] = [];
-  const excludeDirs = new Set(["archive", "reviews", "superpowers", "operations-log"]);
+  // plans：**计划**文档（docs/plans/、docs/superpowers/plans/）不是"技术主张面"——
+  // 它必须能指名道姓地讨论"要撤回哪条旧宣称"，否则就无法写出撤回计划。
+  // 本门禁防的是**主张面**（README/ARCHITECTURE/LIMITATIONS 等）出现过时宣称，
+  // 故 plans 与既有的 superpowers、reviews 同属排除面（2026-09-19 显式化）。
+  const excludeDirs = new Set(["archive", "reviews", "superpowers", "operations-log", "plans"]);
   // ops log 主文件（docs/operations-log.md）与月度拆分目录（docs/operations-log/YYYY-MM.md）均为历史留痕
   const isExcludedFile = (name: string) => name.startsWith("operations-log");
   function walk(dir: string) {
