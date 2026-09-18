@@ -1652,3 +1652,21 @@
 - **验证结果**：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **34 pass / 0 fail**；两版 README 的 `docs/*` 链接检查 → **0 死链**；全量 `bun test` 见同任务后续条目。
 - **偏差记录**：①`docs/operations-log/2026-08.md`（9 行）与 `docs/superpowers/plans/2026-08-22-remediation-phase2.md` 存在同类控制字符/围栏问题但**未改**（前者历史留痕、后者已冻结计划，按规则 1/5 不做无关改动）。②**未做知识库（`axiom-memory`）实时入库**：CLI 无 vault 写入命令、HTTP 入库需 18789 服务在跑（当前未启动），故本轮"入库"按「纳入 git 仓库」执行。③`.tmp/` 另有 3 类**未入库**：含真实内网 IP 的部署脚本与 `.err`（规则 11 禁止）、`full-baseline.txt`（3.4MB 测试输出）、其余混合 debug 日志（非实验日志）。
 - **Commit**：cdea4c1（已推送 gitea；未推 GitHub）
+
+## 2026-09-18 — chore(T3): 方案 A —— 生成无历史公开快照并推送 GitHub
+
+- **任务**：用户指令「按方案 A 施工 … 可以进入 github 的内容提交到 github，本地仓库保留完整的文档和代码」。分级 **T3**（对外发布 + 脱敏，涉及不可逆的公开动作）。**主仓库源码零改动**。
+- **工具**：Bash + Python 正则脱敏脚本；`git worktree`（独立 orphan 工作区，不污染主工作区）；规则 2 不适用（未修改主仓库既有文件）。
+- **操作**（全部发生在临时工作区 `/tmp/axiom-public`，任务结束后 `git worktree remove` 清理）：
+  1. **建 orphan 快照分支** `codex/public-2026-09-18`（`fe510254` 为内容基线，无 git ancestry）。**理由（实测）**：`AGENTS.md` 存在于 10 个历史提交、`docs/operations-log*` 存在于 1108/1259 个历史提交，普通提交会经 history 泄露；`git-filter-repo` 未安装且 `.git` 达 359MB，重写历史风险高于收益。
+  2. **排除**：`AGENTS.md`、`docs/operations-log.md`、`docs/operations-log/`、`eval-results/`（34 份）。
+  3. **排除编译产物** `runtime-go/bin/`（5 项 / ~65MB；`runtime-go/README.md:102` 自述"linux 二进制输出…（不入库）"，与项目既有政策一致）。
+  4. **排除像素基线** `e2e-visual/**/*-{firefox,webkit-tablet,webkit-mobile}-*.png`（105 个 LFS 对象 / ~64MB，测试产物）。仓库体积由 95MB 降至 32MB。
+  5. **内网地址脱敏**：15 条规则、**79 处替换**、覆盖 30 个非测试文件（`.env.example`、两份 README、`LIMITATIONS.md`、`config/searxng/settings.yml`、12 份 `docs/`、`runtime-go/README.md`、4 个 `scripts/`、`src/cli.ts`、`src/crawl/search-engines.ts`、`src/testing/cluster/types.ts`）→ `${LAN_NODE_N1|N2|N3|N4|N1_WIFI|N2_LEGACY|W1|GITEA|PDF|ORCH|LLM|GUEST}` / `${LAN_PROXY}` / `${LAN_GATEWAY*}`。占位符词汇表写入 `LIMITATIONS.md`，两版 README 对齐；新增 `PUBLICATION.md` 说明快照与源仓库差异。
+  6. **脚本失败语义收紧**：`scripts/runtime-go/deploy.sh`、`soak-72h.sh`、`scripts/deploy-pdf-worker.sh` 的默认值改为 `${VAR:?…}`，缺失即报错退出（避免脱敏后静默展开成 `listen@` 连错主机）。
+  7. **推送** `codex/public-2026-09-18` → GitHub `ListenJ/Axiom`（详情见"偏差记录 ①"）。
+- **声明 vs 实际核查（2 种独立方式）**：①`git grep --cached` 全索引扫描内网网段 → 非豁免路径命中 **0**（豁免：14 个安全测试夹具 + `external-benchmarks/mbpp.jsonl`，均以 `192.168.x`/`10.x` 作 SSRF/私网负例，属测试语义必需）；②密钥模式扫描（`sk-*`/`AKIA*`/`ghp_*`/`xox*`/PRIVATE KEY）→ 命中项**全部为测试假值**（`logger-redact*.test.ts`、`rate-limiter.test.ts`、`CONFIGURATION.md` 文档示例），无真实凭据；③`bash -n` 校验 3 个被改脚本语法通过；④推送后 `git ls-remote` 远端 SHA `7f8000bb5485e77e429b7b94e07f005549651e3d` == 本地 HEAD。
+- **验证结果**：快照 2083 文件 / 307,718 行；远端 ref 与本地逐 SHA 一致；主仓库 `codex/knowledge-unify-2026-09-17` 保持 `fe510254` 与 `gitea` 同步，工作区 clean。
+- **偏差记录**：①**GitHub SSH 22 端口不可用**——首次 `git push origin` 传至约 10 分钟后被 `Connection closed by 20.205.243.166 port 22` 中断（非认证问题，`ssh -T git@github.com` 可通）。改用 SSH over 443（`ssh.github.com:443`，已写入 `known_hosts`）后推送成功；随后将本地 `origin` URL 永久改为 `ssh://git@ssh.github.com:443/ListenJ/Axiom.git`（仅本地 `.git/config`，不入库），避免复现同一故障。②**脱敏范围超出用户 4 文件的最小口径**——README/LIMITATIONS 已声明"仓库不含真实内网信息"，实测仍有 42 个文件含内网地址，属**声明 vs 实际不一致**；按规则 11（最高优先级）在公开快照中一并脱敏。③**公开快照与私有源存在有意差异**：脱敏、排除产物、脚本失败语义；`LIMITATIONS.md` 原将 `scripts/runtime-go/deploy.sh` 列为"保留内网地址"的豁免项，公开快照中**不适用该豁免**。④`config/searxng/settings.yml` 的 `${LAN_PROXY}` 不是 SearXNG 可解析的值，已就地加注释要求使用者替换。
+- **未覆盖项（如实登记）**：①主仓库自身的部分脱敏未跟进——`README.md`/`LIMITATIONS.md` 的"不含真实内网信息"声明在**私有 Gitea 仓库中仍然不成立**（`scripts/runtime-go/deploy.sh` 按既有政策保留真实地址，但有 29 个其它文件的内网地址与本轮公开快照的差异未回写主仓库），本轮按规则 1 未改动主仓库源码与文档。②GitHub 侧未配置分支保护/Ruleset，公开快照分支可被误推——未在本轮范围内。
+- **Commit**：`__COMMIT__`（快照提交 `7f8000b`，仅在 GitHub，不入 gitea 分支线）
