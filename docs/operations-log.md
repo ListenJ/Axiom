@@ -1824,4 +1824,4 @@
 - **偏差记录**：①**落点校正**——初稿按规则 5 用语写 `docs/reports/`，实测该目录被根 `.gitignore` 的 `reports/` 规则排除、仓库 0 跟踪先例，遂改落 `docs/reviews/`（与 `docs/reviews/2026-09-17-independent-full-audit.md` 同位，对齐既有惯例）。②C3 只做了**静态判定**（布尔锁 + 无 deadline 轮询是事实），**未**构造"内部 await 永不 settle"的最小复现（会引入真实挂起风险）——因此**触发条件是推断、代码形态是事实**，已在报告 §4 显式登记。报告初稿有 3 处行号不精确（`set()` 实为 `:90` 而非 `:96`），已逐条校正后提交。
 - **未验证项**：历史分支 `gitea/feature/cognitive-runtime`(+56)/`feature/runtime-integration`(+42)/`feature/runtime-kernel`(+27) 相对 HEAD 落后 1422 提交，**未逐文件核验**；若 C1/C2 出自这些分支，须单独出具报告，不得与本报告的"当前仓库"判定混用。
 - **未做（留待用户决策）**：C3 的修复涉及**策略选择**（超时阈值 / 超时后行为：抛错 or 降级 or 拒绝并发），按规则 0.6 不在本轮擅自改动。
-- **Commit**：`__COMMIT__`
+- **Commit**：`19cde85`
