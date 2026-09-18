@@ -1527,3 +1527,12 @@
 - **偏差记录**：**未写行为测试**——前两处需真实网络搜索引擎触发、第三处需 WebSocket CDP 会话，无法建立秒级离线反馈回路（规则 6 Phase 1 不满足）。按规则 7"无测试接缝时用可重复验证命令替代"改用静态守卫断言日志字符串存在 + 裸 catch 模式消失；此为已知弱点，如实记录。
 - **未决项（均为 T3，需用户决策，本轮未动）**：①C-01 采集侧 `EDGE_KNOWLEDGE_ASSIST` 默认开启（`edge-client.ts:47-50` 默认 "1"），摄取管线默认调 LLM，与"zero LLM in path"承诺冲突——需定默认值与文档口径；②C-03 残余 `plugin-routes.ts:162` `enable: body.enable ?? true`（最小权限应默认 false，但会改变既有 UX 与测试 W3-7 断言）；③A9-1 `AXIOM_VRAM_PROBE` 默认关致预算退化为常量 4000（需定探测默认值与失败降级语义）。
 - **Commit**：b9e3f57（已推送 gitea）
+
+## 2026-09-18 — chore(T1): 忽略 Claude Code 本地设置目录
+
+- **任务**：工作区清理——`.claude/settings.local.json` 为工具态本地文件，一直以未跟踪状态出现在 `git status`。
+- **工具**：Bash + Python 追加。
+- **操作**：`.gitignore` 追加 `.claude/`（与既有 `.workbuddy/`、`.v2c/` 同类处理）。
+- **验证结果**：`git check-ignore .claude` 命中；`git status --short` 归零。
+- **偏差记录**：无。
+- **Commit**：待回填

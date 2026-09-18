@@ -184,3 +184,6 @@ plugins/dsh/preview/screenshots/
 .server-pid.txt
 tmp-toctou-target/
 .v2c/
+
+# Claude Code 本地设置（工具态，不入库）
+.claude/
