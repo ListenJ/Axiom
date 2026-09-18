@@ -1669,4 +1669,4 @@
 - **验证结果**：快照 2083 文件 / 307,718 行；远端 ref 与本地逐 SHA 一致；主仓库 `codex/knowledge-unify-2026-09-17` 保持 `fe510254` 与 `gitea` 同步，工作区 clean。
 - **偏差记录**：①**GitHub SSH 22 端口不可用**——首次 `git push origin` 传至约 10 分钟后被 `Connection closed by 20.205.243.166 port 22` 中断（非认证问题，`ssh -T git@github.com` 可通）。改用 SSH over 443（`ssh.github.com:443`，已写入 `known_hosts`）后推送成功；随后将本地 `origin` URL 永久改为 `ssh://git@ssh.github.com:443/ListenJ/Axiom.git`（仅本地 `.git/config`，不入库），避免复现同一故障。②**脱敏范围超出用户 4 文件的最小口径**——README/LIMITATIONS 已声明"仓库不含真实内网信息"，实测仍有 42 个文件含内网地址，属**声明 vs 实际不一致**；按规则 11（最高优先级）在公开快照中一并脱敏。③**公开快照与私有源存在有意差异**：脱敏、排除产物、脚本失败语义；`LIMITATIONS.md` 原将 `scripts/runtime-go/deploy.sh` 列为"保留内网地址"的豁免项，公开快照中**不适用该豁免**。④`config/searxng/settings.yml` 的 `${LAN_PROXY}` 不是 SearXNG 可解析的值，已就地加注释要求使用者替换。
 - **未覆盖项（如实登记）**：①主仓库自身的部分脱敏未跟进——`README.md`/`LIMITATIONS.md` 的"不含真实内网信息"声明在**私有 Gitea 仓库中仍然不成立**（`scripts/runtime-go/deploy.sh` 按既有政策保留真实地址，但有 29 个其它文件的内网地址与本轮公开快照的差异未回写主仓库），本轮按规则 1 未改动主仓库源码与文档。②GitHub 侧未配置分支保护/Ruleset，公开快照分支可被误推——未在本轮范围内。
-- **Commit**：`__COMMIT__`（快照提交 `7f8000b`，仅在 GitHub，不入 gitea 分支线）
+- **Commit**：`28c717a`（快照提交 `7f8000b`，仅在 GitHub，不入 gitea 分支线）
