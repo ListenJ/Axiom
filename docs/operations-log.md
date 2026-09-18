@@ -1637,3 +1637,18 @@
 - **偏差记录**：①**规则 2 定向读法**——`docs/AXIOM-ARCHITECTURE.md`（1636 行）未逐行通读，改用「全文标题索引 + 全仓 `VRAM|llama.cpp|system-resource|resource_status` grep（确认无其他现役引用）+ 完整读目标表所在 §5.1」，理由是该文件已在 0a6bd50 对同一子系统系统性更新且本次仅改 2 个单元格，风险低。②首次全量跑到 1 fail（`tests/edge-cases/performance-degradation.test.ts` 的 p99<50ms 基准），隔离重跑 3/3 通过、二次全量 0 fail，判定为 `--parallel=8` 负载下的**计时抖动**，与本次纯文档改动无关（diff 仅 6 个 `.md`）。
 - **未覆盖项（如实登记，覆盖率未达 100%）**：`docs/` 下另有 90 份 active md 未润色（dated 评审/研究/计划/实验/决策/test-reports，及 `COMPREHENSIVE-GUIDE.md`、`PROJECT-GUIDE.md`、`USER-MANUAL.md`、`RUNTIME-SPEC.md`、`STORAGE-EVALUATION.md` 等）；另检出 8 处「不是…而是…」否定式排比分布于 `docs/STORAGE-EVALUATION.md:12,152`、`docs/AGENT-EXTERNAL-COMPONENT-LANDSCAPE-2026-08-09.md:12`、`docs/BROWSER-AGENT-STRATEGY-2026-08-09.md:162`、`docs/plans/2026-08-18-streaming-memory-comparison.md:63`、`docs/research/free-search-apis-2026.md:88`、`docs/functional-check-2026-08-16-sensenova.md:3`，本轮未改。
 - **Commit**：d76a4f3（已推送 gitea）
+
+## 2026-09-18 — docs(T2): 中文/英文双语文档 + 实验记录与日志入库（仅 Gitea）
+
+- **任务**：用户指令「润色和更新为中英文两个文档；实验记录和一些实验日志入库；不进入 Github 只在 gitea 存储」。分级 T2（文档与数据入库，**无生产代码变更**）。
+- **工具**：Bash + Python；humanizer-zh（英文行文按直接、少模板原则书写）；规则 2（`README.md`、`docs/REMINDERS.md` 备份至 `.tmp/backups/`）。
+- **操作**（文件级，共 6 类）：
+  1. **修复控制字符损坏（本轮新发现缺陷）**：`README.md` 八角色表 3 行被 `\x07`(BEL)、`\x09`(TAB) 与误断行破坏，`` ```bash `` 围栏退化为 `` `\x08ash ``；`docs/REMINDERS.md:24-26` 同类围栏损坏。按原文重建后，两文件控制字符命中 0、围栏数恢复偶数（README 52）。
+  2. **新增英文版 `README_en.md`**（764 行 / 41KB）：中文 README 的忠实英文对应版，覆盖架构图、8 角色、6 搜索引擎与 SearXNG 部署、前端路由、快速开始、三种模式、认知运行时、确定性记忆引擎、辅助 LLM 默认关闭矩阵、Vault/KG/MCP、188 工具表、CLI、OpenCode/Kimi/MiniMax/Hermes、API/环境变量/技术栈/测试/审计状态。
+  3. **双语互链**：`README.md:7` 与 `README_en.md:7` 增加「中文 ｜ English」选择器，沿用 `plugins/*` 既有 `README_en.md` 约定。
+  4. **实验记录入库**：`eval-results/` 3 份未跟踪记录（2026-09-05 sensenova / sensenova-66 / zhipu）`git add -f` 入库（该目录 `.gitignore` 为 `*`，沿用既有 20 份记录的跟踪方式）。
+  5. **实验日志入库**：`.tmp/eval-logs/*.log` 9 份（~140KB）复制到 `eval-results/logs/` 并入库。
+- **声明 vs 实际核查（2 种独立方式）**：①静态 grep 扫描待入库 12 份文件的密钥模式（`sk-*` / `AKIA*` / `ghp_*` / `nvapi-*` / PRIVATE KEY）与内网网段 `192.168.*` → 命中 **0**；②围栏平衡与控制字符校验 → 两版 README 均 52 个围栏（偶数）、控制字符 0。
+- **验证结果**：`bun test tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **34 pass / 0 fail**；两版 README 的 `docs/*` 链接检查 → **0 死链**；全量 `bun test` 见同任务后续条目。
+- **偏差记录**：①`docs/operations-log/2026-08.md`（9 行）与 `docs/superpowers/plans/2026-08-22-remediation-phase2.md` 存在同类控制字符/围栏问题但**未改**（前者历史留痕、后者已冻结计划，按规则 1/5 不做无关改动）。②**未做知识库（`axiom-memory`）实时入库**：CLI 无 vault 写入命令、HTTP 入库需 18789 服务在跑（当前未启动），故本轮"入库"按「纳入 git 仓库」执行。③`.tmp/` 另有 3 类**未入库**：含真实内网 IP 的部署脚本与 `.err`（规则 11 禁止）、`full-baseline.txt`（3.4MB 测试输出）、其余混合 debug 日志（非实验日志）。
+- **Commit**：PENDING_HASH（待推送 gitea）

@@ -1,0 +1,1114 @@
+[36m[16:50:24] INFO [0m 开始评测 164 个任务（并发 1）...
+[36m[16:50:28] INFO [0m [AdaptiveProxy] Initializing...
+[36m[16:50:28] INFO [0m [AdaptiveProxy] Discovered proxy candidates {"count":1,"proxies":{"0":"clash-verge(127.0.0.1:7897)"}}
+[36m[16:50:28] INFO [0m [AdaptiveProxy] Switched proxy {"from":"none","to":"127.0.0.1:7897","label":"clash-verge","latency":7}
+[36m[16:50:32] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-pjf81b --network none ...
+[36m[16:50:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-liwjjj --network none ...
+[36m[16:50:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-l91kyh --network none ...
+[33m[16:50:50] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[16:50:54] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[16:50:58] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9f099n --network none ...
+[36m[16:51:04] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-p3z25t --network none ...
+[36m[16:51:10] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-441cte --network none ...
+[36m[16:51:15] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tit3qc --network none ...
+[36m[16:51:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-p1slv1 --network none ...
+[36m[16:51:28] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-a8y5zt --network none ...
+[36m[16:51:34] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-y0hqw5 --network none ...
+[36m[16:51:40] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ir1kua --network none ...
+[36m[16:51:46] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-jphayo --network none ...
+[36m[16:51:53] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-rblvfl --network none ...
+[36m[16:51:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7ybfzc --network none ...
+[36m[16:52:04] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-l1dqtg --network none ...
+[36m[16:52:11] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0p1dgb --network none ...
+[36m[16:52:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-21naih --network none ...
+[36m[16:52:24] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-e98etq --network none ...
+[36m[16:52:30] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-qck6dc --network none ...
+[33m[16:52:34] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[16:52:36] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3wplf6 --network none ...
+[36m[16:52:42] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-va7ch0 --network none ...
+[36m[16:52:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-u22wg7 --network none ...
+[36m[16:52:56] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2z2mnt --network none ...
+[36m[16:53:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-e7iqje --network none ...
+[36m[16:53:08] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-gca2yg --network none ...
+[36m[16:53:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-m0qmo1 --network none ...
+[36m[16:53:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ure3jq --network none ...
+[36m[16:53:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fxr21m --network none ...
+[36m[16:53:33] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tggr30 --network none ...
+[36m[16:53:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-yawhdw --network none ...
+[36m[16:53:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-xd7bzv --network none ...
+[36m[16:53:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hgyq0h --network none ...
+[36m[16:53:56] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-bdhmmb --network none ...
+[36m[16:54:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ubvv25 --network none ...
+[36m[16:54:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-kmjv52 --network none ...
+[36m[16:54:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-s66cm2 --network none ...
+[36m[16:54:48] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2iayht --network none ...
+[36m[16:54:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-v3fyy6 --network none ...
+[36m[16:55:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-gt46sm --network none ...
+[36m[16:55:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-k8h2xi --network none ...
+[36m[16:55:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-e21tsu --network none ...
+[36m[16:55:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0jpy9f --network none ...
+[36m[16:55:32] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-iyvs0i --network none ...
+[36m[16:55:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7kwamp --network none ...
+[36m[16:55:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cdv9gw --network none ...
+[36m[16:55:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-146pxx --network none ...
+[33m[16:58:54] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[16:59:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3qfnur --network none ...
+[36m[16:59:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-m9wj24 --network none ...
+[36m[16:59:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5ecsab --network none ...
+[36m[16:59:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1uyt3y --network none ...
+[36m[16:59:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1dvyez --network none ...
+[36m[16:59:58] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fs3hlr --network none ...
+[36m[17:00:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8l570y --network none ...
+[33m[17:00:08] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:00:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cygmod --network none ...
+[33m[17:00:43] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:03:47] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[33m[17:04:33] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:04:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-x241o6 --network none ...
+[36m[17:04:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5v79kl --network none ...
+[36m[17:04:51] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-srs4gf --network none ...
+[36m[17:04:57] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9iy35r --network none ...
+[36m[17:05:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-vd9lo1 --network none ...
+[36m[17:06:09] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ntrtdf --network none ...
+[33m[17:06:14] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:06:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-16educ --network none ...
+[36m[17:06:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-jwve1d --network none ...
+[33m[17:06:31] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:06:36] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4o2i2v --network none ...
+[36m[17:06:42] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0hvarb --network none ...
+[36m[17:06:48] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dvfhkk --network none ...
+[33m[17:06:53] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:06:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9vfzfu --network none ...
+[33m[17:06:59] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:07:03] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:07:08] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:07:09] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ti6hc5 --network none ...
+[33m[17:07:14] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:07:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4c73wa --network none ...
+[33m[17:07:20] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:07:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-bf9lbw --network none ...
+[36m[17:07:29] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5dsibi --network none ...
+[36m[17:07:36] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2ubny6 --network none ...
+[36m[17:07:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d66gej --network none ...
+[36m[17:07:51] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dmhimg --network none ...
+[36m[17:07:56] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2uydwm --network none ...
+[36m[17:08:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1822c5 --network none ...
+[36m[17:08:08] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-meu4pw --network none ...
+[36m[17:08:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-o2ldnp --network none ...
+[36m[17:08:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5z7djd --network none ...
+[33m[17:08:24] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:08:26] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5epjn0 --network none ...
+[36m[17:08:33] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8n8afv --network none ...
+[33m[17:11:37] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[17:11:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5exh0u --network none ...
+[36m[17:11:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-czyywd --network none ...
+[36m[17:11:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-a5x8pf --network none ...
+[36m[17:12:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-axfjv8 --network none ...
+[36m[17:12:08] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-a3k3n8 --network none ...
+[33m[17:12:13] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:12:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-xjxs69 --network none ...
+[36m[17:12:28] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-39ewxm --network none ...
+[36m[17:12:33] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hemuni --network none ...
+[33m[17:12:38] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:12:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-gb46t3 --network none ...
+[33m[17:12:48] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:12:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-entyy7 --network none ...
+[33m[17:12:58] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:13:04] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ny0q5q --network none ...
+[33m[17:16:08] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[17:16:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-eofosu --network none ...
+[36m[17:16:36] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-oiboe0 --network none ...
+[36m[17:16:42] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mnpwz6 --network none ...
+[36m[17:16:48] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-i7fcnh --network none ...
+[36m[17:16:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9d23ot --network none ...
+[36m[17:17:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-aigxvb --network none ...
+[36m[17:17:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-q0tb05 --network none ...
+[36m[17:17:17] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hgxllr --network none ...
+[36m[17:17:23] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-yuvtt6 --network none ...
+[36m[17:17:32] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d2tbfz --network none ...
+[36m[17:17:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ez8l2d --network none ...
+[33m[17:18:04] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:18:25] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1cz8v2 --network none ...
+[36m[17:18:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-vhz5hd --network none ...
+[36m[17:18:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-scw8fl --network none ...
+[33m[17:18:54] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:18:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-42woqo --network none ...
+[36m[17:19:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ylrq3p --network none ...
+[33m[17:19:06] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:19:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zk533s --network none ...
+[36m[17:19:30] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tdub36 --network none ...
+[36m[17:19:41] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4nk2eg --network none ...
+[36m[17:19:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-twabk1 --network none ...
+[36m[17:20:00] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9mt8pw --network none ...
+[33m[17:20:05] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:20:11] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-bcg7zd --network none ...
+[36m[17:20:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-h6qjbd --network none ...
+[33m[17:20:26] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:20:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ecayms --network none ...
+[36m[17:20:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5xu75x --network none ...
+[36m[17:20:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-x5sbhd --network none ...
+[33m[17:21:04] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:21:08] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:21:12] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0k37xo --network none ...
+[36m[17:21:34] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1itx0d --network none ...
+[36m[17:21:47] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2s1cke --network none ...
+[36m[17:22:12] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0v756f --network none ...
+[36m[17:22:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-o3cfln --network none ...
+[36m[17:22:29] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-h1ceik --network none ...
+[36m[17:22:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zf2d7q --network none ...
+[36m[17:22:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-81v5ol --network none ...
+[36m[17:22:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-69s5aa --network none ...
+[36m[17:23:04] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-icn4xh --network none ...
+[36m[17:23:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4grosc --network none ...
+[36m[17:23:39] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tz57x4 --network none ...
+[36m[17:23:47] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ogf6xm --network none ...
+[36m[17:23:57] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8nzrh2 --network none ...
+[36m[17:24:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tqrcwp --network none ...
+[33m[17:24:18] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:24:30] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-27su73 --network none ...
+[36m[17:24:36] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fphtx6 --network none ...
+[33m[17:24:41] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:25:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-jxd5rk --network none ...
+[33m[17:25:06] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:25:10] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:28:14] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[17:28:34] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-jpb9zi --network none ...
+[36m[17:29:30] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-at8s67 --network none ...
+[36m[17:29:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-93wbut --network none ...
+[36m[17:30:05] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4848e1 --network none ...
+[36m[17:30:15] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4zqyab --network none ...
+[36m[17:31:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-55257a --network none ...
+[36m[17:31:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d75wyv --network none ...
+[36m[17:31:29] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ub5f4i --network none ...
+[36m[17:31:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-trmdu7 --network none ...
+[36m[17:32:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5z7ps8 --network none ...
+[36m[17:32:32] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zckgco --network none ...
+[33m[17:32:37] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:32:41] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[17:32:45] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[17:32:57] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mpvp28 --network none ...
+[33m[17:36:01] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[17:36:25] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8b2x6o --network none ...
+[36m[17:37:12] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-asles5 --network none ...
+[36m[17:37:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fpcnu1 --network none ...
+[36m[17:38:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hxndaf --network none ...
+[36m[17:38:09] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-81sp1z --network none ...
+[36m[17:38:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-rbl42e --network none ...
+[36m[17:38:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hz4bb5 --network none ...
+[36m[17:39:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tpmlqz --network none ...
+[36m[17:39:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1ku1m1 --network none ...
+[36m[17:39:23] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-s8rrab --network none ...
+[36m[17:39:31] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-p0xm2q --network none ...
+[36m[17:39:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tlq3sg --network none ...
+[36m[17:39:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-bmf4uu --network none ...
+[36m[17:40:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tp7u74 --network none ...
+[36m[17:40:41] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-2dvdu1 --network none ...
+[36m[17:41:05] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ahpez8 --network none ...
+[36m[17:41:37] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-syhc64 --network none ...
+[36m[17:42:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-33lsyh --network none ...
+[36m[17:42:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mlftfw --network none ...
+[36m[17:43:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-sctnmq --network none ...
+[33m[17:46:54] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[17:47:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-yspn1w --network none ...
+[36m[17:48:09] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d1wp8w --network none ...
+[36m[17:48:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-m5k06b --network none ...
+[36m[17:48:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7349le --network none ...
+[36m[17:49:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5lp8il --network none ...
+[36m[17:50:10] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-uaubj0 --network none ...
+[36m[17:51:46] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0ogkwc --network none ...
+[36m[17:52:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-vw28l0 --network none ...
+[36m[17:52:35] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-r77izz --network none ...
+[36m[17:53:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-pfbpkm --network none ...
+[36m[17:53:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-f7m46t --network none ...
+[36m[17:54:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dsub9u --network none ...
+[36m[17:55:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cqhap7 --network none ...
+[36m[17:55:48] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-m1mb0y --network none ...
+[36m[17:55:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-axbf43 --network none ...
+[36m[17:56:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-g79jmi --network none ...
+[36m[17:57:59] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-nzwb3p --network none ...
+[36m[17:58:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-kpt838 --network none ...
+[36m[17:58:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-oaud20 --network none ...
+[36m[17:59:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-6ug2w7 --network none ...
+[36m[17:59:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hp661c --network none ...
+[36m[18:00:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ganxva --network none ...
+[33m[18:00:17] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[18:03:21] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[18:03:42] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-h29tqh --network none ...
+[36m[18:03:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-uycxfb --network none ...
+[36m[18:04:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3alvbb --network none ...
+[33m[18:07:24] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[18:07:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-la6sdy --network none ...
+[36m[18:08:28] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dr9ish --network none ...
+[36m[18:09:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7b0l45 --network none ...
+[36m[18:09:29] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-lgzkkh --network none ...
+[36m[18:09:47] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4z5ef9 --network none ...
+[36m[18:10:18] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ychdwd --network none ...
+[36m[18:11:15] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tad8ts --network none ...
+[33m[18:11:19] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[18:11:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0uoxzq --network none ...
+[33m[18:11:49] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[18:12:10] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zbxjo2 --network none ...
+[36m[18:12:45] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0qcfpl --network none ...
+[36m[18:13:18] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-qkblkj --network none ...
+[36m[18:13:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-i14u1p --network none ...
+[36m[18:15:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-xu3325 --network none ...
+[36m[18:16:57] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-f4i5yf --network none ...
+[36m[18:17:35] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3yhzhq --network none ...
+[36m[18:19:23] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-g67n5w --network none ...
+[36m[18:20:18] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-amnj3t --network none ...
+[36m[18:20:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3vqwd0 --network none ...
+[33m[18:20:47] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[18:21:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d0g5jf --network none ...
+[36m[18:21:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-xpuhdy --network none ...
+[36m[18:22:12] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-pyi9by --network none ...
+[36m[18:22:46] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tkjiv4 --network none ...
+[36m[18:23:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mm2byu --network none ...
+[36m[18:24:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-3i1fjd --network none ...
+[33m[18:27:11] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[18:28:06] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5pznfc --network none ...
+[36m[18:28:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-q5gfmg --network none ...
+[36m[18:29:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-yisc2q --network none ...
+[36m[18:29:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ddszrw --network none ...
+[36m[18:30:23] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mefp51 --network none ...
+[36m[18:30:58] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-1wqo5c --network none ...
+[36m[18:31:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-d2akrs --network none ...
+[36m[18:32:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-r7qogr --network none ...
+[36m[18:33:32] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-nf13v8 --network none ...
+[36m[18:34:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-to6f87 --network none ...
+[33m[18:37:21] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[18:38:06] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-y9jnk4 --network none ...
+[36m[18:38:51] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-jddogr --network none ...
+[36m[18:39:23] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-hc0syr --network none ...
+[36m[18:39:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-t245wf --network none ...
+[36m[18:40:40] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-qhleou --network none ...
+[36m[18:41:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9lvj34 --network none ...
+[33m[18:42:33] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[18:43:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-s2wpf1 --network none ...
+[36m[18:43:46] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-j5cql3 --network none ...
+[36m[18:43:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-p4mqmo --network none ...
+[36m[18:43:58] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ikmztw --network none ...
+[36m[18:44:04] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-kdqy6w --network none ...
+[36m[18:44:10] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-t7nzt6 --network none ...
+[36m[18:44:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4njfsi --network none ...
+[36m[18:44:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ktfgvf --network none ...
+[36m[18:44:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-z5y7kh --network none ...
+[36m[18:44:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mmpmbr --network none ...
+[36m[18:44:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-iiinbz --network none ...
+[36m[18:44:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cdc0ri --network none ...
+[36m[18:45:02] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9y2pwm --network none ...
+[36m[18:45:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fnzz02 --network none ...
+[36m[18:45:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-bgeowk --network none ...
+[36m[18:45:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-5mhltm --network none ...
+[36m[18:45:26] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-gww8v2 --network none ...
+[36m[18:45:33] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-b6g4r3 --network none ...
+[36m[18:45:53] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0dws2l --network none ...
+[36m[18:46:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-n8ebt3 --network none ...
+[36m[18:46:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-seopf5 --network none ...
+[36m[18:46:47] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-lp4097 --network none ...
+[36m[18:47:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-byxcyn --network none ...
+[36m[18:47:22] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-urdw6b --network none ...
+[36m[18:47:43] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cao7ft --network none ...
+[36m[18:48:06] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-mn9bn1 --network none ...
+[36m[18:48:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-birok4 --network none ...
+[36m[18:48:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-azrnvg --network none ...
+[36m[18:48:34] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-683jfc --network none ...
+[36m[18:48:42] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7edde1 --network none ...
+[36m[18:48:49] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-siymg2 --network none ...
+[36m[18:48:55] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-xnzved --network none ...
+[36m[18:49:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-tzge87 --network none ...
+[36m[18:49:08] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ymj41d --network none ...
+[36m[18:50:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-0gpcgm --network none ...
+[36m[18:50:14] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ndahz5 --network none ...
+[36m[18:50:21] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fzuqd2 --network none ...
+[36m[18:50:29] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dd5bn5 --network none ...
+[36m[18:51:16] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-6kfyon --network none ...
+[36m[18:51:48] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-q625io --network none ...
+[36m[18:51:54] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8zmkfv --network none ...
+[36m[18:52:01] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-9hrzbo --network none ...
+[36m[18:52:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-t5mojb --network none ...
+[36m[18:52:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-frcnzj --network none ...
+[36m[18:52:19] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-gpbgfq --network none ...
+[36m[18:52:24] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-nc935r --network none ...
+[36m[18:52:30] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-v35vdg --network none ...
+[36m[18:52:38] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-elupm7 --network none ...
+[36m[18:52:44] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zdzm9z --network none ...
+[36m[18:52:50] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-cy0hj8 --network none ...
+[36m[18:52:56] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-zo6ht4 --network none ...
+[33m[18:56:00] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[36m[18:56:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-dqjev5 --network none ...
+[36m[18:56:20] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-6edxyg --network none ...
+[36m[18:56:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-p24p8y --network none ...
+[36m[18:56:34] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-lxbzxm --network none ...
+[36m[18:56:40] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-nfq2bn --network none ...
+[36m[18:57:07] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-j6tx29 --network none ...
+[36m[18:57:13] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-qg0lwo --network none ...
+[36m[18:57:27] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-4ko63m --network none ...
+[36m[18:57:35] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ou7z6y --network none ...
+[36m[18:57:40] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-8v20sj --network none ...
+[36m[18:57:46] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-f2htjo --network none ...
+[36m[18:57:52] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-7d3m5x --network none ...
+[36m[18:57:58] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-g77ukh --network none ...
+[36m[18:58:03] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-z3qolp --network none ...
+[36m[18:58:09] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-fwhbrs --network none ...
+[36m[18:58:15] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-lflnwb --network none ...
+[36m[18:58:33] INFO [0m [DockerSandbox] Running: docker run --rm --name sandbox-ea7lds --network none ...
+[36m[18:58:34] INFO [0m [EvalRegistry] 已入库 run#22 2026-09-06T16-50-24-329Z.83616（164 任务, passRate=2.5%）
+[33m[18:58:34] WARN [0m [EvalRegistry] ⚠️ 回归检测: 通过率回落 97.5pp（阈值 10pp）vs 基准 run#20 2026-09-05T20-00-27-169Z.33936（退出码 2）
+# Agent 能力边界评测报告
+
+- 任务数: 164 ｜ 通过: 4 ｜ 通过率: 2.5% ｜ 执行错误: 1（不计入通过率分母）
+- train 通过率: 0% ｜ held-out 通过率: 2.5%
+- held-out 泛化率: N/A（无 train 数据）
+- 平均延迟: 27628ms ｜ p50: 6602ms ｜ p95: 190004ms ｜ p99: 228470ms ｜ 平均输出长度: 199
+- 缓存命中: 4843 tokens ｜ 平均 30/调用
+
+## 分族结果
+
+| 任务族 | 通过率 | 通过/总数 |
+| --- | --- | --- |
+| coding | 2.5% | 4/164 |
+
+## 明细
+
+| ID | 族 | split | 通过 | 延迟(ms) | 模型 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- |
+| HE-HumanEval/0 | coding | held-out | ❌ | 6327 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    return False
+                ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/1 | coding | held-out | ❌ | 5794 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    current = []
+IndentationError: unexpected indent
+| HE-HumanEval/2 | coding | held-out | ❌ | 6874 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    return number - int(number)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/3 | coding | held-out | ❌ | 4752 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    for op in operations:
+IndentationError: unexpected indent
+| HE-HumanEval/4 | coding | held-out | ❌ | 4829 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    mean = sum(numbers) / len(numbers)
+                                      ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/5 | coding | held-out | ❌ | 4888 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    for i, num in enumerate(numbers):
+IndentationError: unexpected indent
+| HE-HumanEval/6 | coding | held-out | ❌ | 5100 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    for group in paren_string.split():
+IndentationError: unexpected indent
+| HE-HumanEval/7 | coding | held-out | ❌ | 4569 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return [s for s in strings if substring in s]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/8 | coding | held-out | ❌ | 4746 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    product = 1
+IndentationError: unexpected indent
+| HE-HumanEval/9 | coding | held-out | ❌ | 6002 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    result = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/10 | coding | held-out | ✅ | 5111 | glm-4.7-flash |  |
+| HE-HumanEval/11 | coding | held-out | ❌ | 5133 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    for i in range(len(a)):
+IndentationError: unexpected indent
+| HE-HumanEval/12 | coding | held-out | ❌ | 4759 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    longest_str = strings[0]
+                            ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/13 | coding | held-out | ❌ | 4953 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    return a
+            ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/14 | coding | held-out | ❌ | 4602 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 10
+    return [string[:i] for i in range(1, len(string) + 1)]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/15 | coding | held-out | ❌ | 5241 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    return ' '.join(str(i) for i in range(n + 1))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/16 | coding | held-out | ❌ | 4456 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    return len(set(string.lower()))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/17 | coding | held-out | ❌ | 4899 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    return [note_map[note] for note in music_string.split()]
+IndentationError: unexpected indent
+| HE-HumanEval/18 | coding | held-out | ❌ | 4875 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    start = 0
+IndentationError: unexpected indent
+| HE-HumanEval/19 | coding | held-out | ❌ | 27741 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    words = numbers.split()
+IndentationError: unexpected indent
+| HE-HumanEval/20 | coding | held-out | ❌ | 5746 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    min_diff = float('inf')
+IndentationError: unexpected indent
+| HE-HumanEval/21 | coding | held-out | ❌ | 5446 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    max_val = max(numbers)
+IndentationError: unexpected indent
+| HE-HumanEval/22 | coding | held-out | ❌ | 4521 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return [x for x in values if isinstance(x, int)]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/23 | coding | held-out | ❌ | 4551 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    for _ in string:
+IndentationError: unexpected indent
+| HE-HumanEval/24 | coding | held-out | ❌ | 190004 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    for i in range(n // 2, 0, -1):
+                                  ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/25 | coding | held-out | ❌ | 11491 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    while n % 2 == 0:
+IndentationError: unexpected indent
+| HE-HumanEval/26 | coding | held-out | ❌ | 4850 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    result = []
+IndentationError: unexpected indent
+| HE-HumanEval/27 | coding | held-out | ❌ | 4758 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 9
+    return string.swapcase()
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/28 | coding | held-out | ❌ | 29370 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return ''.join(strings)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/29 | coding | held-out | ❌ | 4645 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return [s for s in strings if s.startswith(prefix)]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/30 | coding | held-out | ❌ | 4518 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    return [x for x in l if x > 0]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/31 | coding | held-out | ❌ | 5270 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 23
+    if n <= 3:
+              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/32 | coding | held-out | ❌ | 65183 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 26
+    b = xs[-2]
+IndentationError: unexpected indent
+| HE-HumanEval/33 | coding | held-out | ❌ | 5488 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    indices = [i for i in range(len(l)) if i % 3 == 0]
+IndentationError: unexpected indent
+| HE-HumanEval/34 | coding | held-out | ❌ | 4509 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 9
+    return sorted(set(l))
+    ^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/35 | coding | held-out | ❌ | 4677 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    for num in l[1:]:
+IndentationError: unexpected indent
+| HE-HumanEval/36 | coding | held-out | ❌ | 4963 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    for i in range(1, n):
+IndentationError: unexpected indent
+| HE-HumanEval/37 | coding | held-out | ❌ | 5237 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    evens.sort()
+IndentationError: unexpected indent
+| HE-HumanEval/38 | coding | held-out | ❌ | 5196 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    groups = [(group[2] + group[:2]) if len(group) == 3 else group for group in groups]
+IndentationError: unexpected indent
+| HE-HumanEval/39 | coding | held-out | ❌ | 5903 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    count = 0
+             ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/40 | coding | held-out | ❌ | 6434 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 22
+    if n < 3:
+IndentationError: unexpected indent
+| HE-HumanEval/41 | coding | held-out | ❌ | 4475 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    return n * n
+    ^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/42 | coding | held-out | ❌ | 4627 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    return [x + 1 for x in l]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/43 | coding | held-out | ❌ | 4854 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    for num in l:
+IndentationError: unexpected indent
+| HE-HumanEval/44 | coding | held-out | ❌ | 5705 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    digits = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/45 | coding | held-out | ❌ | 4644 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 9
+    return a * h / 2
+    ^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/46 | coding | held-out | ❌ | 5762 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    if n == 0 or n == 1:
+                        ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/47 | coding | held-out | ❌ | 6755 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    n = len(l_sorted)
+IndentationError: unexpected indent
+| HE-HumanEval/48 | coding | held-out | ❌ | 6820 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    return text == text[::-1]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/49 | coding | held-out | ❌ | 4609 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    return pow(2, n, p)
+    ^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/50 | coding | held-out | ❌ | 5238 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    return "".join([chr(((ord(ch) - 5 - ord("a")) % 26) + ord("a")) for ch in s])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/51 | coding | held-out | ❌ | 4999 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    result = ""
+IndentationError: unexpected indent
+| HE-HumanEval/52 | coding | held-out | ❌ | 189729 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    return True
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/53 | coding | held-out | ❌ | 5005 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    return x + y
+    ^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/54 | coding | held-out | ❌ | 5114 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    return sorted(s0) == sorted(s1)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/55 | coding | held-out | ❌ | 5181 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    elif n == 1:
+                ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/56 | coding | held-out | ❌ | 5051 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    for char in brackets:
+IndentationError: unexpected indent
+| HE-HumanEval/57 | coding | held-out | ❌ | 26403 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    increasing = decreasing = True
+                                  ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/58 | coding | held-out | ❌ | 20530 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return sorted(set(l1) & set(l2))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/59 | coding | held-out | ❌ | 8544 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    while i * i <= n:
+IndentationError: unexpected indent
+| HE-HumanEval/60 | coding | held-out | ❌ | 5577 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    return n * (n + 1) // 2
+                           ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/61 | coding | held-out | ❌ | 8757 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    for char in brackets:
+IndentationError: unexpected indent
+| HE-HumanEval/62 | coding | held-out | ❌ | 9472 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    result = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/63 | coding | held-out | ❌ | 5526 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    elif n == 1:
+                ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/64 | coding | held-out | ❌ | 5695 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    vowels = {'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U'}
+IndentationError: unexpected indent
+| HE-HumanEval/65 | coding | held-out | ❌ | 13038 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    n = len(s)
+IndentationError: unexpected indent
+| HE-HumanEval/66 | coding | held-out | ❌ | 13300 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    for char in s:
+IndentationError: unexpected indent
+| HE-HumanEval/67 | coding | held-out | ❌ | 7587 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    apples = int(words[0])
+IndentationError: unexpected indent
+| HE-HumanEval/68 | coding | held-out | ❌ | 21253 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 39
+    min_even = None
+                   ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/69 | coding | held-out | ❌ | 23632 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    freq = Counter(lst)
+IndentationError: unexpected indent
+| HE-HumanEval/70 | coding | held-out | ❌ | 5524 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    result = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/71 | coding | held-out | ❌ | 5685 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    else:
+         ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/72 | coding | held-out | ❌ | 11089 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    return q == q[::-1] and sum(q) <= w
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/73 | coding | held-out | ❌ | 16604 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    count = 0
+IndentationError: unexpected indent
+| HE-HumanEval/74 | coding | held-out | ❌ | 8570 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    len2 = sum(len(s) for s in lst2)
+IndentationError: unexpected indent
+| HE-HumanEval/75 | coding | held-out | ❌ | 10955 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    for i in range(2, a):
+                         ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/76 | coding | held-out | ❌ | 5345 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    if x == 1:
+              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/77 | coding | held-out | ⚠️ | 4297 | glm-4.7-flash | 执行错误 |
+  - 执行错误: [ERROR] zhipu empty content after retries
+| HE-HumanEval/78 | coding | held-out | ❌ | 202947 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 22
+    count = 0
+IndentationError: unexpected indent
+| HE-HumanEval/79 | coding | held-out | ❌ | 6390 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    binary = ""
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/80 | coding | held-out | ❌ | 9560 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    for i in range(len(s) - 2):
+                               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/81 | coding | held-out | ❌ | 9119 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 29
+    for gpa in grades:
+IndentationError: unexpected indent
+| HE-HumanEval/82 | coding | held-out | ❌ | 18730 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    if n < 2:
+IndentationError: unexpected indent
+| HE-HumanEval/83 | coding | held-out | ❌ | 28717 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 10
+    return 2 * (10 ** (n - 1))
+                              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/84 | coding | held-out | ✅ | 15415 | glm-4.7-flash |  |
+| HE-HumanEval/85 | coding | held-out | ❌ | 206601 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    for i in range(1, len(lst), 2):
+IndentationError: unexpected indent
+| HE-HumanEval/86 | coding | held-out | ❌ | 30362 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    return ' '.join(''.join(sorted(word)) for word in s.split(' '))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/87 | coding | held-out | ❌ | 5269 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 24
+    for row_idx, row in enumerate(lst):
+IndentationError: unexpected indent
+| HE-HumanEval/88 | coding | held-out | ❌ | 5305 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    if len(array) == 1:
+                       ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/89 | coding | held-out | ❌ | 12773 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    for char in s:
+IndentationError: unexpected indent
+| HE-HumanEval/90 | coding | held-out | ❌ | 6224 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    unique_sorted = sorted(set(lst))
+                                    ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/91 | coding | held-out | ❌ | 20459 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    sentences = S.split('.')
+IndentationError: unexpected indent
+| HE-HumanEval/92 | coding | held-out | ❌ | 18121 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    return (isinstance(x, int) and isinstance(y, int) and isinstance(z, int)) and (x + y == z or x + z == y or y + z == x)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxErr
+| HE-HumanEval/93 | coding | held-out | ❌ | 31323 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    for char in message:
+IndentationError: unexpected indent
+| HE-HumanEval/94 | coding | held-out | ❌ | 42342 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    for num in lst:
+IndentationError: unexpected indent
+| HE-HumanEval/95 | coding | held-out | ❌ | 207887 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    keys = list(dict.keys())
+                            ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/96 | coding | held-out | ❌ | 10738 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 26
+    primes = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/97 | coding | held-out | ❌ | 36843 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    return (abs(a) % 10) * (abs(b) % 10)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/98 | coding | held-out | ❌ | 95354 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    for i in range(0, len(s), 2):
+IndentationError: unexpected indent
+| HE-HumanEval/99 | coding | held-out | ❌ | 14558 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 23
+    except ValueError:
+                      ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/100 | coding | held-out | ❌ | 37259 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    current = n
+IndentationError: unexpected indent
+| HE-HumanEval/101 | coding | held-out | ❌ | 66247 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return s.replace(',', ' ').split()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/102 | coding | held-out | ❌ | 10357 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    if x % 2 == 0:
+                  ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/103 | coding | held-out | ❌ | 68990 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    total = (n + m) * (m - n + 1) // 2
+                                      ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/104 | coding | held-out | ❌ | 25490 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    for num in x:
+IndentationError: unexpected indent
+| HE-HumanEval/105 | coding | held-out | ❌ | 22913 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 28
+    mapping = {
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/106 | coding | held-out | ❌ | 204193 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    for i in range(1, n + 1):
+IndentationError: unexpected indent
+| HE-HumanEval/107 | coding | held-out | ❌ | 12381 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 27
+    odd_count = 0
+IndentationError: unexpected indent
+| HE-HumanEval/108 | coding | held-out | ❌ | 214086 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    for num in arr:
+IndentationError: unexpected indent
+| HE-HumanEval/109 | coding | held-out | ❌ | 47982 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 32
+    n = len(arr)
+                ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/110 | coding | held-out | ❌ | 16868 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    odd_in_lst2 = sum(1 for x in lst2 if x % 2 != 0)
+IndentationError: unexpected indent
+| HE-HumanEval/111 | coding | held-out | ❌ | 55956 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    counts = {}
+IndentationError: unexpected indent
+| HE-HumanEval/112 | coding | held-out | ❌ | 25109 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    is_palindrome = result == result[::-1]
+IndentationError: unexpected indent
+| HE-HumanEval/113 | coding | held-out | ❌ | 34319 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    for s in lst:
+IndentationError: unexpected indent
+| HE-HumanEval/114 | coding | held-out | ❌ | 32792 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 13
+    current_min = nums[0]
+                         ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/115 | coding | held-out | ❌ | 103124 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 39
+    return math.ceil(total_water / capacity)
+IndentationError: unexpected indent
+| HE-HumanEval/116 | coding | held-out | ❌ | 107621 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    return sorted(arr, key=lambda x: (bin(x).count('1'), x))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/117 | coding | held-out | ❌ | 24307 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    vowels = set('aeiouAEIOU')
+                              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/118 | coding | held-out | ❌ | 33111 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    for i in range(1, len(word) - 1):
+IndentationError: unexpected indent
+| HE-HumanEval/119 | coding | held-out | ❌ | 21378 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    for order in [(s1, s2), (s2, s1)]:
+IndentationError: unexpected indent
+| HE-HumanEval/120 | coding | held-out | ❌ | 16635 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 29
+    return arr_sorted[:k]
+IndentationError: unexpected indent
+| HE-HumanEval/121 | coding | held-out | ❌ | 238104 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return sum(lst[i] for i in range(0, len(lst), 2) if lst[i] % 2 != 0)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/122 | coding | held-out | ❌ | 35246 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    for i in range(k):
+IndentationError: unexpected indent
+| HE-HumanEval/123 | coding | held-out | ❌ | 38333 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 22
+    collatz_sequence = [n]
+                          ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/124 | coding | held-out | ❌ | 51769 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 25
+    parts = date.split('-')
+                           ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/125 | coding | held-out | ❌ | 46606 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    elif ',' in txt:
+                    ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/126 | coding | held-out | ❌ | 228470 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    for i in range(len(lst) - 1):
+                                 ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/127 | coding | held-out | ❌ | 30216 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 24
+    end = min(interval1[1], interval2[1])
+IndentationError: unexpected indent
+| HE-HumanEval/128 | coding | held-out | ❌ | 49150 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    sign_product = 1
+                    ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/129 | coding | held-out | ❌ | 108718 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 35
+    n = len(grid)
+IndentationError: unexpected indent
+| HE-HumanEval/130 | coding | held-out | ❌ | 5231 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 22
+    if n == 1:
+              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/131 | coding | held-out | ❌ | 5018 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    found_odd = False
+IndentationError: unexpected indent
+| HE-HumanEval/132 | coding | held-out | ❌ | 5051 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    for char in string:
+IndentationError: unexpected indent
+| HE-HumanEval/133 | coding | held-out | ❌ | 4599 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    return sum(int(x) ** 2 for x in lst)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/134 | coding | held-out | ❌ | 4780 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    if not words:
+IndentationError: unexpected indent
+| HE-HumanEval/135 | coding | held-out | ❌ | 5371 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    return -1
+             ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/136 | coding | held-out | ❌ | 5104 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    positives = [x for x in lst if x > 0]
+IndentationError: unexpected indent
+| HE-HumanEval/137 | coding | held-out | ❌ | 5848 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 23
+    a_float = convert_to_float(a)
+                                 ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/138 | coding | held-out | ❌ | 18685 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    return n % 2 == 0 and (n - 8) % 4 == 0
+                                          ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/139 | coding | held-out | ❌ | 5046 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    for i in range(1, n + 1):
+IndentationError: unexpected indent
+| HE-HumanEval/140 | coding | held-out | ❌ | 19518 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    i = 0
+IndentationError: unexpected indent
+| HE-HumanEval/141 | coding | held-out | ❌ | 19870 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 19
+    name_part, ext_part = file_name.split('.')
+                                              ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/142 | coding | held-out | ❌ | 7521 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    for i, num in enumerate(lst):
+IndentationError: unexpected indent
+| HE-HumanEval/143 | coding | held-out | ❌ | 13050 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 35
+    words = sentence.split()
+                            ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/144 | coding | held-out | ✅ | 5499 | glm-4.7-flash |  |
+| HE-HumanEval/145 | coding | held-out | ❌ | 5206 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 17
+    return sorted(nums, key=lambda x: (digit_sum(x), nums.index(x)))
+                                                                    ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/146 | coding | held-out | ❌ | 5868 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 12
+    for num in nums:
+IndentationError: unexpected indent
+| HE-HumanEval/147 | coding | held-out | ❌ | 5739 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    count = 0
+IndentationError: unexpected indent
+| HE-HumanEval/148 | coding | held-out | ❌ | 7721 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    if planet1 not in planets or planet2 not in planets:
+IndentationError: unexpected indent
+| HE-HumanEval/149 | coding | held-out | ❌ | 31005 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    return sorted([word for word in lst if len(word) % 2 == 0], key=lambda x: (len(x), x))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/150 | coding | held-out | ❌ | 6135 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    for i in range(2, int(n**0.5) + 1):
+                                       ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/151 | coding | held-out | ❌ | 4923 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 15
+    return sum(x*x for x in lst if isinstance(x, int) and x > 0 and x % 2 != 0)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/152 | coding | held-out | ❌ | 4644 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 18
+    return [abs(g - s) for s, g in zip(game, guess)]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/153 | coding | held-out | ❌ | 7111 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 21
+    strongest_ext = None
+IndentationError: unexpected indent
+| HE-HumanEval/154 | coding | held-out | ❌ | 5005 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    if b_len == 0:
+IndentationError: unexpected indent
+| HE-HumanEval/155 | coding | held-out | ❌ | 190425 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    even = 0
+IndentationError: unexpected indent
+| HE-HumanEval/156 | coding | held-out | ❌ | 6602 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 20
+    syb = [
+IndentationError: unexpected indent
+| HE-HumanEval/157 | coding | held-out | ✅ | 5262 | glm-4.7-flash |  |
+| HE-HumanEval/158 | coding | held-out | ❌ | 25904 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    max_unique = 0
+IndentationError: unexpected indent
+| HE-HumanEval/159 | coding | held-out | ❌ | 12670 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 34
+    else:
+         ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/160 | coding | held-out | ❌ | 4916 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 28
+    return eval(''.join(f'{operand[i]}{operator[i]}' for i in range(len(operator))) + f'{operand[-1]}')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'return' outside function
+| HE-HumanEval/161 | coding | held-out | ❌ | 5020 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 16
+    result = []
+               ^
+IndentationError: unindent does not match any outer indentation level
+| HE-HumanEval/162 | coding | held-out | ❌ | 4663 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 11
+    if not text:
+IndentationError: unexpected indent
+| HE-HumanEval/163 | coding | held-out | ❌ | 4888 | glm-4.7-flash |  |
+  - 失败原因: File "/workspace/generated_code.py", line 14
+    return [i for i in range(start, end + 1) if i % 2 == 0]
+IndentationError: unexpected indent
+## 失败聚类
+
+| 桶 | 数量 | 代表样例 |
+| --- | --- | --- |
+| 其他 | 159 | File "/workspace/generated_code.py", line 17
+    return False
+                ^
+IndentationError: unindent does not matc；File "/workspace/generated_code.py", line 14
+    current = []
+IndentationError: unexpected indent；File "/workspace/generated_code.py", line 13
+    return number - int(number)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError |
+| 执行错误 | 1 | [ERROR] zhipu empty content after retries |
+
+HUMANEVAL EXIT:2

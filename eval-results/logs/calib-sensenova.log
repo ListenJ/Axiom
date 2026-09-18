@@ -1,0 +1,89 @@
+[36m[20:00:49] INFO [0m 开始评测 3 个任务（并发 2）...
+[36m[20:01:52] INFO [0m [AdaptiveProxy] Initializing...
+[36m[20:01:52] INFO [0m [AdaptiveProxy] Discovered proxy candidates {"count":1,"proxies":{"0":"clash-verge(127.0.0.1:7897)"}}
+[36m[20:01:52] INFO [0m [AdaptiveProxy] Switched proxy {"from":"none","to":"127.0.0.1:7897","label":"clash-verge","latency":8}
+[33m[20:01:52] WARN [0m [AgentEval] deepseek-v4-flash transport error (ECONNREFUSED), retry in 5000ms
+[33m[20:01:55] WARN [0m [AgentEval] deepseek-v4-flash transport error (Client network socket disconnected before secure TLS connection was established), retry in 5000ms
+[36m[20:02:13] INFO [0m [EvalRegistry] 已入库 run#19 2026-09-05T20-00-49-473Z.63772（3 任务, passRate=100%）
+{
+  "summary": {
+    "total": 3,
+    "passed": 3,
+    "passRate": 100,
+    "byFamily": {
+      "knowledge": {
+        "total": 2,
+        "passed": 2,
+        "passRate": 100,
+        "executionErrors": 0
+      },
+      "self-evolve": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 100,
+        "executionErrors": 0
+      }
+    },
+    "trainRate": 100,
+    "heldOutRate": 100,
+    "generalizationRatio": 1,
+    "avgLatencyMs": 28617,
+    "latencyP50": 8264,
+    "latencyP95": 70288,
+    "latencyP99": 70288,
+    "avgOutputLength": 300,
+    "executionErrors": 0,
+    "totalCostUsd": null,
+    "avgCostUsd": null,
+    "avgPromptTokens": 104,
+    "avgCompletionTokens": 191
+  },
+  "results": [
+    {
+      "taskId": "KNOW-02",
+      "family": "knowledge",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 8264,
+      "outputLength": 456,
+      "model": "deepseek-v4-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 104,
+        "completionTokens": 253,
+        "totalTokens": 357
+      }
+    },
+    {
+      "taskId": "KNOW-05",
+      "family": "knowledge",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 70288,
+      "outputLength": 109,
+      "model": "deepseek-v4-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 103,
+        "completionTokens": 94,
+        "totalTokens": 197
+      }
+    },
+    {
+      "taskId": "EVOLVE-06",
+      "family": "self-evolve",
+      "split": "held-out",
+      "passed": true,
+      "latencyMs": 7298,
+      "outputLength": 334,
+      "model": "deepseek-v4-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 106,
+        "completionTokens": 226,
+        "totalTokens": 332
+      }
+    }
+  ],
+  "failures": []
+}
