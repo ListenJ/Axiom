@@ -1513,4 +1513,4 @@
   - `tsc --noEmit` exit 0；全量 `bun test --parallel=8 --timeout 15000 ./tests` **4095 pass / 36 skip / 0 fail**（4131 用例，较上提交 +7）。首次全量出现 1 例 Actor 并发压力测试失败，单独复跑 8/8 通过 + 第二次全量 0 fail → 判定为 `--parallel=8` 满载下的 flaky，与本改动无关。
 - **偏差记录**：①C-04 采用**保守精度优先**策略（仅 token 以数字开头才纠错），代价是 `1OO` 这类以易混字符结尾的 token 不再纠错——权衡依据：本 bug 的损害是静默腐蚀，精度优先于召回；已在测试中固化该边界。②A6-3 未改 `isCollected(url)` 去重与 pipeline 其他路径（不在冻结清单）。
 - **未决项（本轮不动的 P1+ 项）**：C-01 采集侧 LLM 默认开启（T3，需定默认值）；A9-1 VRAM 探测默认关导致预算退化为常量 4000（T2/T3）；C-03 残余 `plugin-routes.ts:162` `enable ?? true`（T1）；A10-4 三处静默 catch（Medium）。
-- **Commit**：PENDING
+- **Commit**：f61bb5e（已推送 gitea）
