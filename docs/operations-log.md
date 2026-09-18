@@ -1691,7 +1691,7 @@
 - **验证结果**：`bun test tests/mcp-lazy-tools.test.ts` → **9 pass / 0 fail**；回归 `tests/mcp-server.test.ts tests/tool-registry-dedup.test.ts tests/unit/docs-consistency.test.ts tests/mcp/ tests/mcp-stdio-live.test.ts` → **59 pass / 0 fail**；`bun test tests/mcp-lazy-tools.test.ts tests/unit/docs-consistency.test.ts tests/architecture-integrity.test.ts` → **43 pass / 0 fail**；`bunx tsc --noEmit -p tsconfig.json` → 0 error。
 - **偏差记录**：①**默认关闭**（`AXIOM_MCP_LAZY_TOOLS=0`）——用户此前对辅助 LLM 要求"默认关闭、经允许才启用"，懒加载同属改变对外行为的开关，按同口径处理，未擅自改变默认协议面。②计划中「T1-6 默认模式 tools/list 与改动前逐字节一致」以**工具数 188 + 全量 72,388 字节**的实测值佐证，未做改动前后的字节级 diff（改动前未留基线样本）；断言依据为 `registerWithMcp` 非懒加载分支与改动前逻辑等价（同一 `registerOne` 循环体），属**部分验证**。③未做 `notifications/tools/list_changed` 动态注册（客户端支持不一致），已列入计划"不做项"。④`docs/MCP_TOOLS_GUIDE.md` 未同步懒加载章节，列入后续项。
 - **未覆盖项（如实登记）**：①未验证真实第三方客户端（Claude Code/Cursor）在懒加载模式下的端到端交互；②未测 meta 工具在 188 工具规模下的检索命中质量（无召回率评测集）；③HTTP 传输未单独实测懒加载（与 stdio 共用 `registerWithMcp`，仅代码路径推定）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`2c18822`
 
 ## 2026-09-18 — refactor(T3): 执行沙箱统一层 —— MCP 工具唯一硬底线收口点
 
@@ -1711,4 +1711,4 @@
 - **验证结果**：`bun test tests/execution-guard.test.ts` → **14 pass / 0 fail**；`bunx tsc --noEmit -p tsconfig.json` → 0 error；**全量** `bun test --parallel=8 --timeout 15000 ./tests` → **4072 pass / 36 skip / 0 fail**（405 文件），与基线 4049 pass 之差恰为新增 23 个用例（9+14），**无回归、无用例被静默禁用**。
 - **偏差记录**：①**首次全量回归 5 fail**——收口点首版把 `[HardFloor]` 前缀改成 `[<code>]`，触发 `tests/unit/risk-monitor-degraded.test.ts`、`tests/unit/tool-mode-gate.test.ts` 的消息契约断言。判定为消息契约回归（非测试过时），已恢复 `[HardFloor]` 前缀 + 追加 `code=` 结构化字段，5 用例恢复。②**T2-2 降级**：workspace-snapshot 的 cwd 围栏为**防御性改动**，未取得红→绿用例——git tree 路径结构上不可能含 `..`，造用例会变成同义反复，详见计划文档"执行后偏差 1"。③**端到端探针首版无效**：初版用 `scene_list` 传嵌套敏感参数未被拒，排查为 **MCP SDK 按 `inputSchema` 剥离未声明字段**（参数到不了 handler），非守卫失效；换参数封套后复现预期行为。该边界已写入架构文档局限段。④**"不回显参数值"未达成**：`ExecutionDeniedError` 自身不拼接值，但 `permissions.ts` 的 reason 文本含路径，实测确实回显；属既有行为，本轮未改，已如实登记。
 - **未覆盖项（如实登记）**：①统一层**尚未唯一**——`src/computer-use/browser-launch.ts`（自有 `assertSafeHttpUrl`）、`src/knowledge/document-ingest.ts`（自有 `assertReadableFile`）、`src/mcp/tools/code-analysis.ts`（linter spawn 参数）、`src/sandbox/docker-sandbox.ts`（挂载路径校验）仍各自实现，未并入。②未覆盖 188 工具中"非常规字段名 + 非路径形态值"的组合（如 base64 编码路径、符号链接名）——递归扫描减少了面但未证明闭合。③未做 fuzz/对抗性输入测试。④`src/mcp/tools/workspace-snapshot.ts` 的 `createSnapshot` 复制循环未接围栏（写入目标是快照目录而非 cwd，未评估为必需）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`bda29b2`
