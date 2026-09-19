@@ -9,6 +9,7 @@ import path from "node:path";
 import { internalAgent } from "../agents/internal-agent.js";
 import { getProviderConfig } from "../utils/api-key-store.js";
 import { loadSkillsFromDirectories, clearSkillCache } from "../skills/skill-loader.js";
+import type { LoadedSkills } from "../skills/skill-loader.js";
 import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
 import { getDefaultQualityTracker } from "../self-evolve/skill-quality.js";
 import { getDefaultGainTracker } from "./skill-gain.js";
@@ -401,13 +402,21 @@ export function buildSystemPrompt(
   overrides?: {
     gain?: { shouldInject(skillId: string, family: TaskFamily): boolean };
     quality?: { getSkillQuality(skillId: string): { deprecated?: boolean } | undefined };
+    /**
+     * 技能加载注入接缝（rule 8：依赖作为参数传入）。
+     * 缺省读真实技能目录；**测试必须注入固定集合** ——
+     * 否则断言次数会随本机安装的技能数变化而静默退化
+     * （2026-09-19 实测：同一测试 Linux 21 次 expect / Windows 仅 5 次）。
+     */
+    loadSkills?: () => LoadedSkills;
   },
 ): { prompt: string | undefined; injectedSkillIds: string[] } {
   const base = task.systemPrompt;
   if (!injectSkills) return { prompt: base, injectedSkillIds: [] };
   try {
-    clearSkillCache();
-    const loaded = loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true);
+    const loaded = overrides?.loadSkills
+      ? overrides.loadSkills()
+      : (clearSkillCache(), loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] }, true));
     const quality = overrides?.quality ?? getDefaultQualityTracker();
     const gain = overrides?.gain ?? getDefaultGainTracker();
     const skills = [...loaded.skills.values()].filter((s) => {

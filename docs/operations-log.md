@@ -2290,3 +2290,30 @@
 - **未覆盖项**：①`expect` 差 16 的具体断言仍未定位；②Windows 上**全量** `./tests` 未跑（本轮口径与 CI job 一致，为可移植子集）；③跨进程并发压实**未保护**（承接上一条：仓库无既有锁工具，属新基建，未做）。
 - **不做项**：未在 Windows 跑全量套件；未加跨进程锁；未清理 Windows worktree（留作后续验证复用）。
 - **Commit**：`3ee911f`
+
+## 2026-09-20 — fix(T2): 定位并修复 expect 差 16 —— runner-gate 测试的环境依赖（静默退化）
+
+- **任务**：解决用户标注条目的第 4 项「expect 差 16 的具体断言仍未定位」。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`ssh` + **Git Bash `bash -s`**（stdin 喂脚本，彻底绕开 cmd 引号解析）；`bun test`；规则 7；规则 8（依赖注入）；规则 13。
+- **定位方法（不做猜测，逐层收敛）**：
+  1. 先排除了测试文件内的 `process.platform` / 条件分支（**零命中**）。
+  2. 单独跑两个路径敏感单测：`tests/unit/path-containment.test.ts` 双端均 **15 expect**、`tests/unit/filesystem.test.ts` 双端均 **12 expect** ⇒ 与本差额无关。
+  3. 对 `tests/agent-evals/` **逐文件计 expect**：Linux 合计 **1498**、Windows 合计 **1482**（差恰为 16），再做 `diff`。
+  4. **精确定位到单一文件**：`tests/agent-evals/runner-gate.test.ts` —— Linux **21** 次、Windows **5** 次。
+- **根因（是环境差异，不是平台行为差异）**：该测试原实现调用 `buildSystemPrompt`，而其内部
+  `runner.ts:410` 用 `loadSkillsFromDirectories({ skillDirs: [...DEFAULT_SKILL_DIRS] })` **读真实技能目录**；
+  断言又写在 `for (const id of r.injectedSkillIds)` **循环内** ⇒ **断言次数取决于本机装了多少个 `auto-*` 技能**。
+  Linux 上循环进 ~17 次，Windows worktree 上**循环一次都没进** ⇒ 那条"家族匹配"断言在 Windows 上**等于没断言**（静默退化）。
+- **修法（两处）**：
+  1. `src/agent-evals/runner.ts`：`overrides` 增加 **`loadSkills?: () => LoadedSkills`** 注入接缝（rule 8：依赖作为参数传入）。
+     缺省仍读真实目录，**生产行为不变**；注入时不走缓存清理。
+  2. `tests/agent-evals/runner-gate.test.ts`：重写为**固定技能集**（同族/异族 auto-fix + auto-induce + 无关技能），
+     并把"循环里逐个看"换成 **`toEqual` 精确集合断言** ⇒ 断言不再依赖环境，也无法再静默退化。
+     同时补了两条此前没有的门控用例（deprecated 质量门、shouldInject 增益门）。
+- **TDD 红→绿**：重写后**修复前 2 pass / 3 fail**（注入未被支持，读到真实技能）→ 实现接缝后 **5 pass / 0 fail**（expect 固定为 9，与环境无关）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**。
+- **顺带记录（Git Bash 调用方式，供复用）**：`ssh host "\"C:\\Program Files\\Git\\bin\\bash.exe\" -s" < script.sh`
+  —— 脚本经 stdin 传送，**完全避开 cmd.exe 的引号解析**；此前的 `-lc "..."` 写法在含引号时会被 cmd 吃掉导致
+  `The system cannot find the path specified.`（该错误来自 cmd，不是 bash）。
+- **未覆盖项**：①`expect` 计数用的是"逐文件独立跑"的和，与聚合运行存在共享模块状态差异的可能（本次两端均与此口径一致，风险低）；②未审计**其它**测试是否也存在同类"依赖本机技能/数据目录"的静默退化。
+- **Commit**：`__COMMIT__`
