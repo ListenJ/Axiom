@@ -261,6 +261,8 @@ export interface ExecuteChatOptions {
   executeTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   /** 工具循环最大轮数 */
   maxToolIterations?: number;
+  /** 任务标识（A4）：透传到 token 记录，便于按任务查看用量 */
+  taskId?: string;
 }
 
 /**
@@ -278,13 +280,15 @@ export async function executeChat(
       tools: options.tools,
       executeTool: options.executeTool,
       maxIterations: options.maxToolIterations,
+      // A4：路由实测走的是本（工具循环）分支，taskId 必须在这里也透传
+      taskId: options.taskId,
     });
   }
   if (intentInfo) {
-    return router.routeByIntent(intentInfo.intent, messages);
+    return router.routeByIntent(intentInfo.intent, messages, { taskId: options.taskId });
   }
   if (taskType) {
-    return router.chat(taskType, messages);
+    return router.chat(taskType, messages, { taskId: options.taskId });
   }
-  return router.chat("general-chat", messages);
+  return router.chat("general-chat", messages, { taskId: options.taskId });
 }

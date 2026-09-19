@@ -41,12 +41,23 @@ mock.module(path.join(ROOT, "src", "agent-evals", "real-usage.js"), () => ({
 }));
 
 // ── mock 主模型路由：离线成功（assistant 内容非空 → success=true → 进入采集块）──
+// A4（2026-09-20）：记录路由收到的 options.taskId —— 用于断言"token 用量与轨迹共用同一任务 id"。
+const routerCalls: Array<{ via: string; taskId?: string }> = [];
 const MOCK_ASSISTANT = "定位：连接池耗尽导致数据库超时。修复：把最大连接数从 5 提到 10。";
 mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => ({
   router: {
-    routeByIntent: () => ({ content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "code" }),
-    chat: () => ({ content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "general", usage: { total_tokens: 3 } }),
-    executeWithRole: () => ({ content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "general", usage: { total_tokens: 5 } }),
+    routeByIntent: (_i: string, _m: unknown, opts?: { taskId?: string }) => {
+      routerCalls.push({ via: "routeByIntent", taskId: opts?.taskId });
+      return { content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "code" };
+    },
+    chat: (_t: unknown, _m: unknown, opts?: { taskId?: string }) => {
+      routerCalls.push({ via: "chat", taskId: opts?.taskId });
+      return { content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "general", usage: { total_tokens: 3 } };
+    },
+    executeWithRole: (_r: unknown, _m: unknown, opts?: { taskId?: string }) => {
+      routerCalls.push({ via: "executeWithRole", taskId: opts?.taskId });
+      return { content: MOCK_ASSISTANT, model: "m1", provider: "p1", layer: "general", usage: { total_tokens: 5 } };
+    },
   },
 }));
 
@@ -88,7 +99,7 @@ beforeAll(async () => {
   handleAgentChat = routes.handleAgentChat;
 });
 
-beforeEach(() => { captured.length = 0; });
+beforeEach(() => { captured.length = 0; routerCalls.length = 0; });
 
 /** 轻量 fake db（形态与 tests/chat-memory-loop.test.ts 一致） */
 function makeFakeDb() {
@@ -144,6 +155,11 @@ describe("路由级：sessionId 是否真的交给了用量采集", () => {
     const hit = captured.find((c) => c.source === "chat");
     expect(hit, "应有一次 source=chat 的采集").toBeDefined();
     expect(hit!.sessionId).toBe("route-sess-aaa");
+
+    // A4：路由收到的 taskId 必须与轨迹 id **同一个** —— 这是"按任务把用量与轨迹对上"的前提
+    const routed = routerCalls.find((c) => c.taskId !== undefined);
+    expect(routed, "路由应收到 options.taskId").toBeDefined();
+    expect(routed!.taskId).toBe(hit!.id as string);
   });
 
   it("POST /agent-chat 显式带 sessionId → 采集 payload 携带该 sessionId", async () => {
@@ -156,6 +172,10 @@ describe("路由级：sessionId 是否真的交给了用量采集", () => {
     const hit = captured.find((c) => c.source === "agent-chat");
     expect(hit).toBeDefined();
     expect(hit!.sessionId).toBe("route-sess-bbb");
+
+    const routed = routerCalls.find((c) => c.taskId !== undefined);
+    expect(routed).toBeDefined();
+    expect(routed!.taskId).toBe(hit!.id as string);
   });
 
   it("POST /agent-chat 不带 sessionId → 不写入该字段（刻意不对称：不伪造 UUID）", async () => {

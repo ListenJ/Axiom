@@ -128,3 +128,55 @@ describe("TokenTracker 显式分类", () => {
     }
   });
 });
+
+describe("TokenTracker 任务标识（A4）", () => {
+  it("taskId 落库并可读回；缺省不写该字段", async () => {
+    const tracker = new TokenTracker(DB);
+    try {
+      tracker.record(rec({ category: "main", taskId: "task-abc", totalTokens: 10 }));
+      tracker.record(rec({ category: "embedding", totalTokens: 5 })); // 无 taskId
+      await tracker.flush();
+
+      const rows = tracker.getRecentUsage(10);
+      const withTask = rows.find((r) => r.taskId === "task-abc");
+      expect(withTask).toBeDefined();
+      expect(withTask?.totalTokens).toBe(10);
+      // 未标注 taskId 的记录不得被猜测回填
+      expect(rows.filter((r) => r.taskId === undefined).length).toBeGreaterThan(0);
+    } finally {
+      await tracker.close();
+    }
+  });
+
+  it("老库无 task_id 列时经迁移可写入并读回", async () => {
+    const db = new Database(DB_LEGACY);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS token_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        role TEXT,
+        task_type TEXT,
+        prompt_tokens INTEGER DEFAULT 0,
+        completion_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        latency_ms INTEGER DEFAULT 0,
+        content_length INTEGER DEFAULT 0,
+        success INTEGER DEFAULT 1,
+        fallback_used INTEGER DEFAULT 0,
+        cost_usd REAL DEFAULT 0
+      )
+    `);
+    db.close();
+
+    const tracker = new TokenTracker(DB_LEGACY);
+    try {
+      tracker.record(rec({ taskId: "legacy-task", totalTokens: 3 }));
+      await tracker.flush();
+      expect(tracker.getRecentUsage(1)[0]?.taskId).toBe("legacy-task");
+    } finally {
+      await tracker.close();
+    }
+  });
+});

@@ -38,6 +38,13 @@ export interface TokenUsageRecord {
    * 未标注时按 'unknown' 参与聚合（不回填猜测值，避免污染分类）。
    */
   category?: string;
+  /**
+   * 任务标识（A4，2026-09-20）：把同一"任务"产生的多次模型调用关联起来，
+   * 供"按任务看用量"（A5 的读取面）使用。与 role/taskType/category 语义不同：
+   * 前三者描述"哪类调用"，本字段描述"哪一次任务"。
+   * 缺省不写（不猜测回填）。
+   */
+  taskId?: string;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -146,6 +153,7 @@ interface UsageRecordRow {
   role: string | null;
   task_type: string | null;
   category: string | null;
+  task_id: string | null;
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
@@ -186,6 +194,7 @@ export class TokenTracker {
         role TEXT,
         task_type TEXT,
         category TEXT,
+        task_id TEXT,
         prompt_tokens INTEGER DEFAULT 0,
         completion_tokens INTEGER DEFAULT 0,
         total_tokens INTEGER DEFAULT 0,
@@ -226,9 +235,14 @@ export class TokenTracker {
     try {
       this.db.run(`ALTER TABLE token_usage ADD COLUMN category TEXT`);
     } catch { /* 列已存在 */ }
+    // 迁移：老库补 task_id 列（A4；重复列会抛错，吞掉即可）
+    try {
+      this.db.run(`ALTER TABLE token_usage ADD COLUMN task_id TEXT`);
+    } catch { /* 列已存在 */ }
     // ⚠️ 顺序要求：category 索引必须建在 ALTER 之后——老库此前没有该列，
     // 提前建索引会抛 "no such column: category"（本实现首次即踩中，见测试"老库无 category 列"）。
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_category ON token_usage(category)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_task_id ON token_usage(task_id)`);
 
     this.backfillCostUsd();
   }
@@ -306,11 +320,11 @@ export class TokenTracker {
 
     const stmt = this.db.prepare(`
       INSERT INTO token_usage
-        (timestamp, model, provider, role, task_type, category, prompt_tokens, completion_tokens,
+        (timestamp, model, provider, role, task_type, category, task_id, prompt_tokens, completion_tokens,
          total_tokens, latency_ms, content_length, success, fallback_used, cost_usd,
          cache_hit_tokens, cache_miss_tokens, cache_hit)
       VALUES
-        ($timestamp, $model, $provider, $role, $taskType, $category, $promptTokens, $completionTokens,
+        ($timestamp, $model, $provider, $role, $taskType, $category, $taskId, $promptTokens, $completionTokens,
          $totalTokens, $latencyMs, $contentLength, $success, $fallbackUsed, $costUsd,
          $cacheHitTokens, $cacheMissTokens, $cacheHit)
     `);
@@ -324,6 +338,7 @@ export class TokenTracker {
           $role: r.role ?? null,
           $taskType: r.taskType ?? null,
           $category: r.category ?? null,
+          $taskId: r.taskId ?? null,
           $promptTokens: r.promptTokens,
           $completionTokens: r.completionTokens,
           $totalTokens: r.totalTokens,
@@ -546,7 +561,7 @@ export class TokenTracker {
     const safeLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
     const rows = this.db.query(`
       SELECT
-        timestamp, model, provider, role, task_type, category,
+        timestamp, model, provider, role, task_type, category, task_id,
         prompt_tokens, completion_tokens, total_tokens,
         latency_ms, content_length, success, fallback_used, cost_usd,
         cache_hit_tokens, cache_miss_tokens, cache_hit
@@ -562,6 +577,7 @@ export class TokenTracker {
       role: r.role ?? undefined,
       taskType: r.task_type ?? undefined,
       category: r.category ?? undefined,
+      taskId: r.task_id ?? undefined,
       promptTokens: r.prompt_tokens,
       completionTokens: r.completion_tokens,
       totalTokens: r.total_tokens,

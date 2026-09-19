@@ -84,10 +84,14 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  // A4（2026-09-20）：先算任务 id，随后**同时**用于 ①token 用量记录（经 executeChat→router→trackCall）
+  // 与 ②真实使用轨迹 capture —— 两侧共用同一 id，A5 才能"按任务"把用量与轨迹对上。
+  const chatTaskId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
     executeTool,
+    taskId: chatTaskId,
   });
 
   // P0-C（2026-08-29）：幻觉防线接火 —— 响应正文过请求级 factBase 校验（缝①）。
@@ -169,7 +173,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     const latencyMs = Date.now() - chatStartedAt;
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({
-      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: chatTaskId,
       task: lastPrompt || "chat",
       success,
       model: String(result.model ?? result.provider ?? ""),
@@ -211,10 +215,13 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  // A4：同 /chat —— 任务 id 同时用于 token 记录与轨迹 capture
+  const agentChatTaskId = `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
     executeTool,
+    taskId: agentChatTaskId,
   });
 
   const response = ctx.jsonResponse({
@@ -240,7 +247,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     const success = Boolean(result.content && result.content.trim().length > 0);
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({
-      id: `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: agentChatTaskId,
       task: String(message ?? "").slice(0, 4000),
       success,
       model: String(result.model ?? result.provider ?? ""),

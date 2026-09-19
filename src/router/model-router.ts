@@ -110,6 +110,8 @@ export interface ExecuteInput {
   /** 外部中止信号（透传给 provider 调用） */
   signal?: AbortSignal;
   trackAs?: string;
+  /** 任务标识（A4）：把同一任务的多次调用关联起来，供按任务查看用量 */
+  taskId?: string;
   /**
    * Models to skip during fallback iteration. Used by `executeWithRole`
    * (single-shot) and `dispatcher.dispatchBatch` (`preventDuplicateModels: true`)
@@ -160,7 +162,7 @@ function trackCall(
     /** 该次调用整体命中本地 llmCache（未发起 API 调用） */
     cacheHit?: boolean;
   },
-  meta?: { role?: string; taskType?: string }
+  meta?: { role?: string; taskType?: string; taskId?: string }
 ) {
   // 缓存命中（cacheHit=true）即使 0 token 也要落库（观测 prompt-cache/语义缓存命中）
   const usage = result.usage ?? {};
@@ -172,6 +174,7 @@ function trackCall(
     provider,
     role: meta?.role,
     taskType: meta?.taskType,
+    taskId: meta?.taskId,
     promptTokens: usage.prompt_tokens ?? 0,
     completionTokens: usage.completion_tokens ?? 0,
     totalTokens: usage.total_tokens ?? 0,
@@ -326,7 +329,7 @@ export class MultiPlatformRouter {
   // 所有角色调用最终都走到这里，集中处理 fallback、tracking、timeout
   // ---------------------------------------------------------------------------
   async execute(input: ExecuteInput): Promise<ExecuteOutput> {
-    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, tools, thinking } = input;
+    const { role, messages, timeout = TIMEOUTS.API_DEFAULT, temperature, maxTokens, signal, trackAs, taskId, tools, thinking } = input;
     // 轻任务默认非思考模式（显式 thinking 优先）
     const effectiveThinking = thinking ?? defaultThinkingForRole(role);
     // 确定性角色默认 temperature=0（english/translation/localization/evaluation），激活确定性响应缓存
@@ -407,7 +410,7 @@ export class MultiPlatformRouter {
                 success: true,
                 fallbackUsed: false,
                 cacheHit: true,
-              }, { role: trackAs ?? role, taskType: trackAs ?? role });
+              }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
               return {
                 content: semanticHit.answer,
                 model: "cache",
@@ -440,7 +443,7 @@ export class MultiPlatformRouter {
               success: true,
               fallbackUsed: false,
               cacheHit: true,
-            }, { role: trackAs ?? role, taskType: trackAs ?? role });
+            }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
             return {
               content: cached.content,
               model: cached.model,
@@ -470,7 +473,7 @@ export class MultiPlatformRouter {
             usage: response.usage,
             latencyMs,
             success: true,
-          }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
           // S4② 成功记录点同步学习反馈（缓存命中路径不计——无真实模型调用信号）
           this.reportThompsonFeedback(model.id, true);
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
@@ -540,7 +543,7 @@ export class MultiPlatformRouter {
           trackCall(model.model, model.provider, messages, {
             latencyMs: Date.now() - loopStart,
             success: false,
-          }, { role: trackAs ?? role, taskType: trackAs ?? role });
+          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
           // S4② 失败记录点同步学习反馈（失败语义 = trackCall success:false）
           this.reportThompsonFeedback(model.id, false);
           // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
@@ -606,8 +609,8 @@ export class MultiPlatformRouter {
     return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "evaluation" };
   }
 
-  async chat(taskType: TaskRole | string, messages: ChatMessage[]): Promise<ChatResponse> {
-    const result = await this.execute({ role: taskType as TaskRole, messages, trackAs: "chat" });
+  async chat(taskType: TaskRole | string, messages: ChatMessage[], opts?: { taskId?: string }): Promise<ChatResponse> {
+    const result = await this.execute({ role: taskType as TaskRole, messages, trackAs: "chat", taskId: opts?.taskId });
     return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "general" };
   }
 
@@ -989,7 +992,7 @@ export class MultiPlatformRouter {
   // 扁平化意图路由
   // ---------------------------------------------------------------------------
 
-  async routeByIntent(intent: string, messages: ChatMessage[], options?: { preferTool?: boolean }): Promise<ChatResponse> {
+  async routeByIntent(intent: string, messages: ChatMessage[], options?: { preferTool?: boolean; taskId?: string }): Promise<ChatResponse> {
     const route = INTENT_ROUTE_TABLE[intent];
 
     if (route) {
@@ -1093,7 +1096,7 @@ export class MultiPlatformRouter {
    * fallback), which matches what `chat()` and `chatStream()` already
    * returned.
    */
-  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string; thinking?: boolean }): Promise<SmartAssignmentResponse> {
+  async executeWithRole(role: TaskRole, messages: ChatMessage[], options?: { temperature?: number; maxTokens?: number; excludeModels?: string[]; tools?: ToolCallDef[]; timeout?: number; signal?: AbortSignal; trackAs?: string; thinking?: boolean; taskId?: string }): Promise<SmartAssignmentResponse> {
     const out = await this.execute({
       role,
       messages,

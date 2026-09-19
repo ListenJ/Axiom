@@ -2581,3 +2581,27 @@
   ③全仓 `EBUSY`/`rmSync` 扫描未做（可能有同类 Windows 隐患未被触发）。
 - **不做项**：未修 Linux 侧环境敏感断言（属独立课题：需先建立"性能/内存断言清单"再统一下沉到报告层）。
 - **Commit**：`4189429`
+
+## 2026-09-20 — feat(T2): A4 —— taskId 贯通到 token 记录（按任务把"用量"与"轨迹"对上）
+
+- **任务**：用户裁定"按建议顺序继续完善"，先做 **A4**（接口变更）。分级 **T2**（纯附加式可选参数，不改既有行为）。仅提交 Gitea。
+- **设计（附加式，不破坏既有调用方）**：沿既有 `trackAs` 同一条通路**平行**新增一个 `taskId`，一路透传到 `trackCall` → `TokenUsageRecord`；
+  `chat.ts` 让**同一次交换的 token 记录与轨迹 capture 共用同一个 id**，A5 才能"按任务"把两者对上。
+- **改动清单（6 文件，全部为可选参数/附加列）**：
+  1. `src/router/token-tracker.ts`：`TokenUsageRecord.taskId?`；建表加 `task_id` 列；**老库 ALTER 迁移**；索引；INSERT 与 `getRecentUsage` 读写打通。
+  2. `src/router/model-router.ts`：`trackCall` 的 `meta` 增 `taskId?` 并写入记录；`ExecuteInput.taskId?`；`execute()` 解构并把 `taskId` 带到 **4 处** `trackCall`；
+     `executeWithRole` 的 options 增 `taskId?`；`chat(taskType, messages, opts?)` 与 `routeByIntent(..., options?)` 增 `taskId?`。
+  3. `src/services/chat.ts`：`ExecuteChatOptions.taskId?`，并透传到 **3 条**委派路径（`routeByIntent` / `chat` ×2）。
+  4. `src/services/tool-loop.ts`：`ToolLoopOptions.taskId?` + 透传给 `router.executeWithRole`。
+  5. `src/routes/chat.ts`：`/chat` 与 `/agent-chat` 在**调用前**生成 taskId，传入 `executeChat`，并**复用为轨迹 capture 的 id**。
+- **⚠️ 测试当场抓出我接线漏了一条（本轮最有价值的发现）**：我最初只接了 `chat`/`routeByIntent` 两条委派，断言立刻失败（`Received: undefined`）——
+  实测这两个路由**实际走的是工具循环分支**（`executeChat` 里 `options.tools?.length` 为真 → `runToolLoop` → `router.executeWithRole`）。
+  ⇒ 已在 `tool-loop.ts` 补上透传。**若无这条断言，A4 会以"代码写了但真实路径不生效"的形式静默失效（典型"有形状无行为"）。**
+- **TDD/验证**：`tests/token-tracker-category.test.ts` 新增 2 例（taskId 落库读回 + **老库迁移**）；
+  `tests/agent-evals/chat-capture-session.case.ts` 扩展为**断言相关性**：路由收到的 `taskId` 必须**等于**该次轨迹的 `id`（`/chat` 与 `/agent-chat` 各一处）。
+  定向 **7 pass / 0 fail**；`bunx tsc --noEmit` → **0 error**；全量 `bun run test` → **4007 pass / 67 skip / 0 fail**（4074 tests，412 文件，19.38s，**无回归**）。
+- **未覆盖项**：①**流式路径未接线** —— `/chat-stream` 的两处 capture（`:702`/`:750`）仍用各自的 id，未把 taskId 透传进流式调用链（登记为 A4 残余）；
+  ②**router→trackCall 未做端到端断言**（只断言到"路由收到 taskId"）—— 原因是 `getTokenTracker()` 单例未暴露可注入的 DB 路径，测试会写生产 `./data/token-usage.db`；
+  ③`taskId` 未与 `agent-trace` 的 `AgentTrace.taskId` 统一（两者目前是同一 id 的"约定"，未做类型级绑定）。
+- **不做项**：未改流式链路；未给 `getTokenTracker()` 加 env 注入（属独立小改，需先确认是否值得）。
+- **Commit**：`__COMMIT__`
