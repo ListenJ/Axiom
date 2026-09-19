@@ -237,6 +237,41 @@
 
 ---
 
+### 3.1 切片 A3 规格：轨迹保留策略（体积 × 时间 × 会话，联合会话处理）
+
+**用户裁定（2026-09-19）**：按**体积 + 时间 + 会话**联合处理，精细化操作。
+
+**语义（已实现为纯函数并测锁定，`src/agent-evals/trace-retention.ts`）**
+
+| # | 规则 | 理由 |
+|---|---|---|
+| 1 | **会话原子**：同一 `sessionId` 的记录整组保留或整组淘汰，绝不拆散 | 回看一个会话只看到半截，比看不到更糟 |
+| 2 | **时间维度**：最后活动早于 `now - retentionMs` 的会话整组淘汰 | 兑现保留窗口承诺 |
+| 3 | **体积维度**：仍超 `maxBytes` 时，按会话最后活动时间**从旧到新**整组淘汰 | 有界磁盘 |
+| 4 | **会话豁免**：最后活动在 `activeWindowMs` 内的会话**不被体积规则淘汰** | 正在进行的对话不该因文件变大被削尾 |
+| 5 | **下限只约束体积**：`minKeepRecords` 防止体积裁剪把日志压到不可用；**不**阻止时间淘汰 | 否则 `retentionMs` 会被静默违背（超窗数据留着不放） |
+| 6 | **确定性**：`now` 为入参（不读系统时钟）；同 `lastActivity` 按 unitKey **码元序** tie-break（不用 `localeCompare`） | 与本项目"确定性优先"一致 |
+
+**分组键**：`s:<sessionId>` / `o:<id>`（前缀避免"无 sessionId 的记录 id"与真实 sessionId 撞名）。
+
+**TDD 证据**：`tests/agent-evals/trace-retention.test.ts` 8 例 —— 修复前 **0 pass / 1 error**（模块不存在）→ 修复后 **8 pass / 0 fail**。
+覆盖：时间整组淘汰、会话原子、体积从旧到新、活跃会话豁免、全活跃时宁可超限、硬下限、无 sessionId 独立单元、确定性（5 次一致）。
+
+**⚠️ 已做 / 未做（不得混为一谈）**
+
+- **已做（A3a）**：纯函数 `selectRetained()` / `recordBytes()` + 类型 + 8 例测试。**不碰文件系统**。
+- **未做（A3b）**：文件压实 `compactTraceFile()`（临时文件 + 原子 rename）+ 在 `capture` 后按策略触发；
+  **当前磁盘仍是纯追加、无上限** —— 未做前**不得**宣称"磁盘已有界"。
+- **未做（A3c）**：`chat.ts` 的 4 个采集点（`:171`/`:241`/`:694`/`:741`）**尚未传 `sessionId`**
+  ⇒ 现阶段所有记录都按**独立单元**（`o:<id>`）参与，**会话原子与豁免实际不生效**。
+  必须在 A3c 把 `normalizedSessionId`（`chat.ts:111`，经 `src/db/session-store.ts:29 normalizeSessionId`）传入后才算"联合会话处理"落地。
+- **未做（A3d）**：策略默认值的 env 化（`maxBytes`/`retentionMs`/`activeWindowMs`/`minKeepRecords`）。
+  纯函数只接受 policy 入参，**默认值尚未接线**，故现在**不可**说"可通过环境变量配置"。
+
+**候选默认值（待 A3d 落定，勿提前宣称可用）**：`maxBytes` 32 MiB、`retentionMs` 30 天、`activeWindowMs` 24 小时、`minKeepRecords` 200。
+
+---
+
 ## 四、未验证 / 未覆盖（如实登记）
 
 1. 本文行号与计数为 2026-09-19 实测；施工前须按规则 2 重新核对。

@@ -2031,3 +2031,28 @@
 - **未完成 / 下一步**：**A3 磁盘有界落盘**（注意：现有 `real-usage` 为**纯追加、无上限**，若不加上限，等于把内存泄漏搬到磁盘）；**A4 taskId 贯通到 token 记录**（需改 `src/router/model-router.ts:164-183` 的 `meta` 形态 —— **接口变更，按总则 0.6 改前回 Plan 报备**）；**A5 读取面**（`GET /traces/:id` 组装步骤 + 分类用量）。
 - **未覆盖项**：①A3 的保留策略（按条数/体积/时间）**未定**；②`RealUsageTrace` 新增字段对 `evolveFromRealUsage` 归纳链路的**影响未评估**（字段为可选，理论上无影响，但**未实测**）；③C 落地后 `agent-trace` 内存表是否仍需保留**未决策**。
 - **Commit**：`c11ce94`
+
+## 2026-09-19 — feat(T2): 切片 A3a 轨迹保留策略纯函数（体积 × 时间 × 会话联合）
+
+- **任务**：用户裁定保留策略"按**体积 + 时间 + 会话**联合处理，精细化操作"。本轮先落**策略内核**（纯函数）。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash（grep/sed）；`bunx tsc`；`bun test`（全量 413 文件）；规则 2（计划与 `real-usage.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 8（深模块：小接口 + 大实现、纯函数）；规则 12。
+- **施工前状态核验（避免把"会话"当假设）**：确认会话概念**真实存在**且 id 在采集点可得 ——
+  ① `src/db/migrate.ts:22-27` `chat_sessions(session_id PK, title, created_at, updated_at)`；
+  ② `src/db/session-store.ts:29-31` `normalizeSessionId()`（空则 `randomUUID()` ⇒ **必定有值**）；
+  ③ `src/routes/chat.ts:111` `const normalizedSessionId = normalizeSessionId(sessionId)` ⇒ 采集点上游可得；
+  ④ 采集点 `chat.ts:171/241/694/741`（4 处，非 3 处）**当前均未传 sessionId**。
+- **本轮交付（A3a）**：新建 `src/agent-evals/trace-retention.ts` —— 纯函数 `selectRetained(records, policy, now)` + `recordBytes()` + `RetentionRecord/RetentionPolicy/RetentionOutcome` 类型。
+  语义 6 条（会话原子 / 时间整组淘汰 / 体积从旧到新 / 活跃会话豁免 / 下限只约束体积 / 确定性）**全部写入代码注释与计划 §3.1**。
+  设计取舍显式化：①**不读系统时钟**（`now` 入参）；②tie-break 用**码元比较**而非 `localeCompare`（避免 locale 依赖）；③分组键加 `s:`/`o:` 前缀，防"无 sessionId 记录的 id"与真实 sessionId 撞名；④**函数不碰文件系统**（可测、可复用）。
+- **TDD 红→绿**：`tests/agent-evals/trace-retention.test.ts` 修复前 **0 pass / 1 error**（模块不存在）→ 修复后 **8 pass / 0 fail**。
+  覆盖：时间整组淘汰、会话原子（同会话不同时出现在 keep/drop）、体积从旧到新、活跃会话豁免、全活跃时**宁可超限**、硬下限、无 sessionId 独立单元、确定性（5 次同结果）。
+- **⚠️ 我自己的测试缺陷（如实记录）**：确定性用例初版断言写错了对象 —— `rec("b1","beta",…)` 的 **id 是 `b1`、sessionId 才是 `beta`**，我却断言 `keep == ["beta"]`。该失败**不是实现问题**，是测试期望错误；已改为断言 `["b1"]` 并加注释点明 id/sessionId 的区别。若不区分，会误把"测试写错"当成"实现有 bug"。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4123 pass / 36 skip / 0 fail**（413 文件；基线 4115 + 新增 8，**无回归**）。
+- **⚠️ 已做 / 未做必须分清（不得宣称"磁盘已有界"）**：
+  - **已做（A3a）**：策略内核纯函数 + 测试。**不碰文件系统**。
+  - **未做（A3b）**：文件压实 `compactTraceFile()`（临时文件 + 原子 rename）与触发接线。**当前磁盘仍是纯追加、无上限** —— `real-usage` 的 JSONL 不会因为本提交而变小。
+  - **未做（A3c）**：`chat.ts` 4 个采集点**尚未传 `sessionId`** ⇒ 现阶段所有记录按**独立单元**（`o:<id>`）参与，**会话原子与豁免实际不生效**。这是"联合会话处理"真正落地的**必要条件**。
+  - **未做（A3d）**：策略默认值的 env 化。纯函数只接受 policy 入参，**默认值未接线**，故现在**不可**说"可通过环境变量配置"。
+- **未覆盖项**：①候选默认值（32 MiB / 30 天 / 24 小时 / 200 条）**未经真实数据验证**，仅为建议值；②策略对 `evolveFromRealUsage` 归纳链路的**影响未评估**（淘汰会减少学习样本，可能影响 selfInduce）；③未做并发压测（压实与写入并发时的竞态未验证）。
+- **不做项**：未改 `real-usage` 的既有写入行为（保持纯追加），避免在 A3b 落地前出现"半套有界"。
+- **Commit**：`__COMMIT__`
