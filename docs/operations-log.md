@@ -2006,3 +2006,28 @@
 - **本轮**未做**（有意识的收口，规则 12）**：①未把 `taskId` 贯通到路由链（接口变更，待决策）；②未改 `agent-trace.ts`（其存储形态待决策）；③**未新增 MCP 工具或 HTTP 暴露** —— 暴露形态正是上述待决项，且新增工具会触发 `tests/unit/docs-consistency.test.ts` 的"工具数与 registry 精确相等"门禁、连带 5 份文档计数，属切片 E 的口径收敛范围，不宜在此处零散改。
 - **未覆盖项**：①分类取值集合（`main`/`subagent`/`embedding`/`tool`/`other`）目前**只在注释与文档中约定**，**无任何代码强制**；②**尚无调用方向 `record()` 传 `category`** ⇒ 现网数据仍全部落在 `'unknown'`（这是刻意的：先建能力、后接调用方，避免半成品污染口径）；③`agent-trace` 是否应改为持久化/有界保留，**未评估**。
 - **Commit**：`c9a9266`
+
+## 2026-09-19 — feat(T2): 方案C 状态确认（skill 驱动）+ 切片 A2 映射层落地
+
+- **任务**：用户选**方案 C**（轨迹持久化 + taskId 贯通），并要求"调用 skill 确认真实状态"。分级 **T2**。仅提交 Gitea。
+- **调用的 skill（3 个，均按各自协议执行）**：`methodology-ascetic-breaker`（动手前先检索**项目内既有资产**，禁止重造轮子）、`verification-before-completion`（论证前先取**新鲜可执行证据**）、`methodology-source-fidelity`（关键断言可追溯、结论不强于来源）。
+- **工具**：Bash（grep/sed）；`bunx tsc`；`bun test`（全量 412 文件）；规则 2（计划与 `real-usage.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 12。
+- **状态确认结论（改变了 C 的实现路径）**：
+  | 要素 | 既有实现 | 粒度 | 持久 | 缺口 |
+  |---|---|---|---|---|
+  | 轨迹步骤 | `src/utils/agent-trace.ts`（内存 Map） | step | ❌ 完成即删 | 无持久化 |
+  | 任务轨迹 | `src/agent-evals/real-usage.ts`（JSONL） | task | ✅ **已生产接线** | 无 token/category |
+  | token 用量 | `src/router/token-tracker.ts`（SQLite） | call | ✅ | 无 taskId |
+  | 上下文传播 | 无 `AsyncLocalStorage`/`async_hooks`（全仓零命中） | — | — | 关联键只能**显式传参** |
+- **⚠️ 自我更正（措辞，非事实）**：我上轮称轨迹"跑完就查不到"是"真实可用性缺口"，该措辞**不准确**。实测为 **B3-Medium 审计的有意修复且被测试锁定** —— `tests/agent-trace-bounded.test.ts:2-7` 头部明写"审计症状：completeTrace/failTrace 不删 activeTraces 条目 → 长进程内 trace 随任务数无界增长"。新鲜证据：该文件 **3 pass / 0 fail**。⇒ 准确定性：**内存有界 ↔ 可回看历史的有意取舍**；并由此得出一条**硬约束**：方案 C **不得回退** 该修复，持久化只能落磁盘侧。
+- **关键资产（若不检索就会重造）**：`real-usage` JSONL 采集管线 —— `:29 REAL_USAGE_PATH`（默认 `data/real-usage-traces.jsonl`，env 可覆盖）、`:96-120 captureRealUsageTrace()`（批处理队列 + per-target 串行写链）、`:133-151 loadRealUsageTraces()`；且 `src/agent-evals/auto-evolve.ts:4` 记载"**已接线 chat 三处**"。⇒ C 应**复用**该管线，而非新建存储（也避免新增依赖）。
+- **⚠️ 兼容性陷阱（本轮最关键发现）**：`loadRealUsageTraces` 的收行条件是 `:143` `typeof obj.id === "string" && typeof obj.task === "string"`；而 `AgentTrace` 形状为 `{agentName, taskId, startTime, steps, status, result?}`，**既无 `id` 也无 `task`** ⇒ 原样写入会被**静默跳过**（文件有行、读出为空、不报错）。**已用负向对照用例钉死该陷阱。**
+- **本轮交付：切片 A2（映射层）**
+  1. `src/agent-evals/real-usage.ts`：新增 `captureAgentTrace(trace: AgentTrace, opts)` —— 显式映射 `taskId→id`、补 `task`、`status→success`；`RealUsageTrace` 增可选 `totalTokens?`/`tokensByCategory?`。依赖方向为 **agent-evals → utils**（`agent-trace.ts` 是叶子模块，无环）。
+  2. 新建 `tests/agent-evals/agent-trace-capture.test.ts`（4 例），含**负向对照**：AgentTrace 原样落盘 → `loadRealUsageTraces` 返回 **0 条**（证明映射层不可省）。
+- **TDD 红→绿**：修复前 **0 pass / 1 fail**（`SyntaxError: Export named 'captureAgentTrace' not found`）→ 修复后 **4 pass / 0 fail**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4115 pass / 36 skip / 0 fail**（412 文件；基线 4111 + 新增 4，**无回归**）；`tests/agent-trace-bounded.test.ts` → **3 pass / 0 fail**（B3-Medium 修复未被回退）。
+- **计划同步**：`docs/plans/2026-09-19-user-configured-models-and-usage-trace.md` 新增 §1.9 状态确认；切片 A 按方案 C **重定义**为 A1（已完成）/A2（本轮完成）/A3/A4/A5。
+- **未完成 / 下一步**：**A3 磁盘有界落盘**（注意：现有 `real-usage` 为**纯追加、无上限**，若不加上限，等于把内存泄漏搬到磁盘）；**A4 taskId 贯通到 token 记录**（需改 `src/router/model-router.ts:164-183` 的 `meta` 形态 —— **接口变更，按总则 0.6 改前回 Plan 报备**）；**A5 读取面**（`GET /traces/:id` 组装步骤 + 分类用量）。
+- **未覆盖项**：①A3 的保留策略（按条数/体积/时间）**未定**；②`RealUsageTrace` 新增字段对 `evolveFromRealUsage` 归纳链路的**影响未评估**（字段为可选，理论上无影响，但**未实测**）；③C 落地后 `agent-trace` 内存表是否仍需保留**未决策**。
+- **Commit**：`__COMMIT__`

@@ -108,6 +108,48 @@
 
 ---
 
+### 1.9 施工前状态确认（2026-09-19，按 skill 协议执行）
+
+> 依 `methodology-ascetic-breaker`（动手前先检索**项目内既有资产**）+ `verification-before-completion`（论证前先取**新鲜可执行证据**）执行。
+> 结论：**方案 C 的实现路径被显著修正 —— 不应新建 trace 存储，而应复用已生产接线的采集管线。**
+
+**(1) 四个子系统的真实状态**
+
+| 要素 | 既有实现 | 粒度 | 是否持久 | 缺口 |
+|---|---|---|---|---|
+| 轨迹步骤 | `src/utils/agent-trace.ts`（内存 Map） | **step 级** | ❌ 完成即删 | 无持久化 |
+| 任务轨迹 | `src/agent-evals/real-usage.ts`（JSONL） | **task 级** | ✅ **已生产接线** | 无 token/category |
+| token 用量 | `src/router/token-tracker.ts`（SQLite） | **call 级** | ✅ | 无 taskId（本轮已补 category） |
+| 上下文传播 | —— | —— | —— | **无** `AsyncLocalStorage`/`async_hooks`（全仓零命中） |
+
+**(2) 我上一轮的一处表述需要更正（结论不得强于证据）**
+我称轨迹"跑完就查不到"是"真实可用性缺口"，该措辞**不准确**。实测：这是 **B3-Medium 审计的有意修复**，且有测试锁定 ——
+`tests/agent-trace-bounded.test.ts:2-7` 头部即写明"审计症状：completeTrace/failTrace 不删 activeTraces 条目 → 长进程内 trace 随任务数无界增长"。
+本轮新鲜执行证据：`bun test tests/agent-trace-bounded.test.ts` → **3 pass / 0 fail**（含 `getTrace(...)` 断言为 `null`、`getAllTraces()` 增量归零）。
+⇒ 准确定性：**这是"有界内存"与"可回看历史"之间的有意取舍**，不是疏漏。
+⇒ **对方案 C 的硬约束：C 不得回退 B3-Medium 的修复**（内存表仍须有界），持久化只能落在**磁盘侧**。
+
+**(3) 关键资产：`real-usage` JSONL 采集管线（可复用，勿重建）**
+- `src/agent-evals/real-usage.ts:29` `REAL_USAGE_PATH` = `data/real-usage-traces.jsonl`（env 可覆盖）。
+- `:96-120` `captureRealUsageTrace()` —— 批处理队列 + per-target 串行写链，避免并发交错。
+- `:133-151` `loadRealUsageTraces()` —— 逐行解析、坏行告警跳过。
+- **已接线生产**：`src/agent-evals/auto-evolve.ts:4` 注明"captureRealUsageTrace **已接线 chat 三处** → data/real-usage-traces.jsonl"。
+- 记录形状：`RealUsageTrace extends TaskTrace`（`self-evolve/types.ts:68-73` = `{id, task, plan?, success}`）+ `{model?, latencyMs?, timestamp?, source?, feedback?}`。
+
+**(4) ⚠️ 兼容性陷阱（若误用会导致"静默无记录"）**
+`loadRealUsageTraces` 的收行条件是 **`:143` `typeof obj.id === "string" && typeof obj.task === "string"`**。
+而 `AgentTrace` 的形状是 `{agentName, taskId, startTime, steps, status, result?}`，**既无 `id` 也无 `task`**
+⇒ 若把 `AgentTrace` 原样写入该 JSONL，**加载时会被 `:143` 静默跳过**（只留下文件里的死行，不报错）。
+**故 C 必须做形状映射**（`taskId → id`、补 `task`、`status → success`），否则功能"看起来写了、实际读不到"。
+
+**(5) 由此确定的 C 实现路径**
+1. 复用 `real-usage` 的写入/读取管线（不新建存储、不新增依赖）；
+2. 为轨迹补 `id`/`task`/`success` 的**映射层**（避开 (4) 的静默丢弃）；
+3. token 与轨迹的关联用**显式传参**（无 `AsyncLocalStorage` 可用）；
+4. 磁盘文件需**有界**（现有 `real-usage` 是纯追加，**无上限**——这是 C 必须新增的部分，否则只是把内存泄漏换成磁盘增长）。
+
+---
+
 ## 二、决策已确认（2026-09-19 冻结）
 
 | # | 用户裁定 | 落地含义（施工基线） |
@@ -144,10 +186,24 @@
 
 > 原则：**先做不被 Q1 影响的**（用量可观测、事实源收敛），再做破坏性的移除。
 
-**切片 A｜轨迹用量可观测（不依赖 Q1，可先做）**
-- `TokenUsageRecord` 新增显式 `category` 字段（Q3）；`agent-trace.ts` 增加 token/分类字段；
-  与 `TokenTracker` 建立**明确关联键**（关联键取值须先核验，见 §4 第 3 条）；`GET /traces` 暴露按分类的用量。
-- 产出：分类聚合的 TDD 用例；轨迹可见 token 消耗。
+**切片 A（方案 C，按 §1.9 的状态确认重定义）｜轨迹用量可观测**
+
+> 设计基线：**复用** `real-usage` JSONL 管线；**不改回** B3-Medium 的内存有界修复；
+> 关联键走**显式传参**（无 `AsyncLocalStorage` 可用）。
+
+- **A1（已完成，c9a9266）**：`TokenUsageRecord.category` 显式分类字段 + 老库迁移 + `getStatsByCategory()`；
+  TDD 红→绿 0/4 → 4/4。
+- **A2｜映射层（先做，避免 §1.9(4) 的静默丢弃）**：新增 `AgentTrace → RealUsageTrace` 的映射
+  （`taskId → id`、补 `task`、`status → success`），并**加一条守门用例**：映射后的记录必须能通过
+  `loadRealUsageTraces():143` 的收行条件 —— 该用例是防"写了读不到"的唯一机制。
+- **A3｜完成时落盘（磁盘有界）**：`completeTrace`/`failTrace` 出口处**追加**写入 JSONL（复用 `capture`）；
+  同时**必须**为文件增加**保留上限**（现有 `real-usage` 为纯追加、无上限；不回退内存有界的同时，不能把泄漏搬到磁盘）。
+  保留策略需与 §4 的未决项一并定（按条数/按体积/按时间）。
+- **A4｜taskId 贯通到 token 记录**：`TokenUsageRecord` 增加显式 `taskId?`；由调用方**显式传入**
+  （需改 `src/router/model-router.ts:164-183` 的 `meta` 形态 —— 属接口变更，改前回 Plan 报备）。
+- **A5｜读取面**：`GET /traces/:id` 在轨迹已出表时，改为从 JSONL + TokenTracker 组装
+  「步骤（若有）+ 按 category 的 token 用量」；`GET /traces` 暴露历史列表（受 A3 上限约束）。
+- 产出：A2/A3/A4/A5 各自的红→绿用例；"已完成任务可回看其分类用量"可被端到端验证。
 
 **切片 B0｜事实源收敛（自定义 provider 的**前置**，Q2）**
 - 把外围约 90 处 `"*_API_KEY"` 字面量与 provider baseURL 逐步收敛到 `src/utils/api-key-store.ts`，

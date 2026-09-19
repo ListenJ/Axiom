@@ -11,6 +11,7 @@ import * as path from "node:path";
 import { logger } from "../utils/logger.js";
 import { readNumber, readString } from "../utils/env.js";
 import type { TaskTrace } from "../self-evolve/types.js";
+import type { AgentTrace } from "../utils/agent-trace.js";
 import type { InductionPromotionDeps } from "../self-evolve/skill-promotion.js";
 
 export interface RealUsageTrace extends TaskTrace {
@@ -24,6 +25,10 @@ export interface RealUsageTrace extends TaskTrace {
   source?: string;
   /** 反馈：显式 thumbsUp/thumbsDown 或隐式 success */
   feedback?: string;
+  /** 该任务的 token 总量（计划切片 A） */
+  totalTokens?: number;
+  /** 按显式分类的 token 用量，如 { main: 1200, embedding: 300 }（决策 Q3） */
+  tokensByCategory?: Record<string, number>;
 }
 
 export const REAL_USAGE_PATH = readString("REAL_USAGE_PATH", path.join(process.cwd(), "data", "real-usage-traces.jsonl"));
@@ -84,6 +89,45 @@ async function flushPending(target: string): Promise<void> {
  * handleChat）若不隔离 REAL_USAGE_PATH 会往生产 JSONL 追加测试噪声，毒化学习信号。
  * 生产默认落点（省略 filePath）在测试环境跳过；显式 filePath（单元测试/自定义落点）不受影响。
  */
+/**
+ * AgentTrace → RealUsageTrace 的**映射层**（计划切片 A2）。
+ *
+ * 为什么必须有它：`loadRealUsageTraces()` 的收行条件是
+ *   `typeof obj.id === "string" && typeof obj.task === "string"`（见下方 load 实现）
+ * 而 `AgentTrace` 只有 `{ agentName, taskId, startTime, steps, status, result? }`。
+ * 直接把 AgentTrace 写进 JSONL，加载时会被**静默跳过**（文件有行、读出来为空、不报错）。
+ * 因此这里显式做形状映射，并由测试
+ * `tests/agent-evals/agent-trace-capture.test.ts` 的负向对照用例钉死该陷阱。
+ */
+export interface AgentTraceCaptureOptions {
+  /** 落点（测试隔离用；缺省走 REAL_USAGE_PATH） */
+  filePath?: string;
+  /** 任务描述。AgentTrace 只有 taskId、没有任务描述，故需调用方补。缺省回落 agentName。 */
+  task?: string;
+  model?: string;
+  latencyMs?: number;
+  totalTokens?: number;
+  tokensByCategory?: Record<string, number>;
+}
+
+export async function captureAgentTrace(
+  trace: AgentTrace,
+  opts: AgentTraceCaptureOptions = {},
+): Promise<void> {
+  const mapped: RealUsageTrace = {
+    id: trace.taskId,                        // ← 满足 loader 的 id 条件
+    task: opts.task ?? trace.agentName,      // ← 满足 loader 的 task 条件
+    success: trace.status === "completed",   // running/failed 均视为未成功
+    timestamp: trace.startTime,
+    source: "agent-trace",
+    ...(opts.model !== undefined ? { model: opts.model } : {}),
+    ...(opts.latencyMs !== undefined ? { latencyMs: opts.latencyMs } : {}),
+    ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
+    ...(opts.tokensByCategory !== undefined ? { tokensByCategory: opts.tokensByCategory } : {}),
+  };
+  await captureRealUsageTrace(mapped, opts.filePath);
+}
+
 function shouldSkipCapture(filePath?: string): boolean {
   if (filePath !== undefined) return false; // 显式路径（单元测试/自定义落点）不跳过
   // 生产默认落点：测试环境跳过。大小写鲁棒（validateEnv 接受 Test/TEST，需与之一致，防 CI 设大写绕过守卫）
