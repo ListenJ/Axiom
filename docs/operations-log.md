@@ -2512,3 +2512,21 @@
   已从备份回退原文件（现 `close(): void` 仅 1 处）。**教训**：加方法前先 grep 该方法名。
 - **未覆盖项**：①Windows 侧待验证（下一条记录）；②`eng.traineddata` 是否应入库 / 或改用小夹具，**未决策**（当前选择"缺包即跳过"）。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — fix(T2): Windows EBUSY 残余 2 例 —— 临时目录删除改为有界重试
+
+- **任务**：承接上一条的 9 条 Windows 不兼容修复。Windows 实测后**9 fail → 2 fail**（另 1 例 OCR 按预期 skip），残余 2 例需补。分级 **T2**。
+- **残留事实（Windows 实测）**：`kg-backend-unification.test.ts` 站点 1 **已通过**（补 `backend.close()` 生效），
+  但站点 2（`:84`）与站点 3（`:151`）**仍报 `EBUSY: resource busy or locked, rm '<tmpdir>'`** ——
+  尽管两处的 `db.close(); backend.close();` **都已在位**。
+- **根因判断（与仓库既有记录一致）**：`src/utils/logger.ts:95-107` 已记录过同类现象 ——
+  **文件句柄在 `close()` 后并非立即由 OS 释放**（该处为此专门等 `close` 事件、上限 1s）。
+  站点 1 无 `KnowledgeStore` 参与、活动更少，故先释放；站点 2/3 多一层边写入活动，释放更晚。
+  ⇒ 这不是"少关了一个句柄"（已逐个核对：`SqliteBackend` 仅 1 个 connection，`KnowledgeStore` 只接收外部 `db`、不自开），而是**释放时机**问题。
+- **修法**：在该测试文件内新增 `rmTempDirWithRetry(dir, attempts=10, waitMs=100)` —— 有界重试（至多 ~1s），
+  且**最后一次仍失败则抛出**（**不静默掩盖**）。替换该文件全部 **4 处**临时目录清理点（含 `tmpDb()` helper 的内联清理）。
+- **验证**：本机（Linux）`bun test tests/unit/kg-backend-unification.test.ts` → **6 pass / 0 fail**；`bunx tsc --noEmit` → **0 error**。Windows 侧结果见下一条。
+- **偏差记录（我自己的失误）**：首次打补丁时我在**插入 helper 之后**才统计旧字符串出现次数，
+  而 helper 正文本身含同一字符串 ⇒ 计数变 5、断言失败中止（文件未被修改）。已改为**先替换、后插 helper**。教训：计数要在插入前做。
+- **未覆盖项**：①Windows 侧待验证（下一条）；②`rg "EBUSY"` 未做全仓扫描 —— 其它测试可能也有同类"close 后立即 rm"的写法而未在 Windows 暴露（因从未在 Windows 跑过）。
+- **Commit**：`__COMMIT__`

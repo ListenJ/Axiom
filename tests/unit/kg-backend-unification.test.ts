@@ -18,11 +18,32 @@ import { KnowledgeStore } from "../../src/dre/storage/knowledge-store.js";
 import { KnowledgeAccessLayer } from "../../src/kal/knowledge-access-layer.js";
 import { kgEdgeId } from "../../src/kg/schema.js";
 
+/**
+ * Windows 下删除临时目录（2026-09-20）。
+ *
+ * 为什么需要重试：`src/utils/logger.ts:95` 已记录同类现象 ——
+ * **SQLite 的文件句柄在 close() 后并非立即由 OS 释放**，此刻 rmSync 会抛
+ * `EBUSY: resource busy or locked`（POSIX 无此约束，故 Linux 侧从不暴露）。
+ * 这里做**有界重试**（至多 ~1s），且**最后一次仍失败就抛出** —— 不静默掩盖。
+ */
+function rmTempDirWithRetry(dir: string, attempts = 10, waitMs = 100): void {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      if (i === attempts - 1) throw e;
+      Bun.sleepSync(waitMs);
+    }
+  }
+}
+
+
 function tmpDb(): { db: Database; path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), "kg-unify-"));
   const path = join(dir, "test.db");
   const db = new Database(path);
-  return { db, path, cleanup: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { db, path, cleanup: () => { db.close(); rmTempDirWithRetry(dir); } };
 }
 
 describe("切片1：DRE 存储托管唯一边表 kg_edges", () => {
@@ -42,7 +63,7 @@ describe("切片1：DRE 存储托管唯一边表 kg_edges", () => {
       db.close();
       backend.close();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDirWithRetry(dir);
     }
   });
 });
@@ -81,7 +102,7 @@ describe("切片2：DRE 边写入/读取走 kg_edges 列名", () => {
       db.close();
       backend.close();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDirWithRetry(dir);
     }
   });
 });
@@ -148,7 +169,7 @@ describe("切片4：跨写入方边 id 收敛（同一逻辑边 = 同一行）",
       db.close();
       backend.close();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDirWithRetry(dir);
     }
   });
 });
