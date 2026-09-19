@@ -2605,3 +2605,30 @@
   ③`taskId` 未与 `agent-trace` 的 `AgentTrace.taskId` 统一（两者目前是同一 id 的"约定"，未做类型级绑定）。
 - **不做项**：未改流式链路；未给 `getTokenTracker()` 加 env 注入（属独立小改，需先确认是否值得）。
 - **Commit**：`dfea7a0`
+
+## 2026-09-20 — feat(T2): 补完 A4 三项残余（流式接线 / 端到端断言 / id 构造唯一）
+
+- **任务**：用户裁定"补完 A4"。对象为上一条 A4 自认的三项未做项。分级 **T2**。仅提交 Gitea。
+- **残余 1｜流式链路未接线 → 已接线**：
+  - 纠正我上一条的一处判断：`chatStream` **并非不记录用量** —— 它内部有 **3 处** `trackCall`（native 流成功 / 缓冲回落成功 / 失败），
+    我先前只看了 40 行上下文导致误判（已实测确认并改正）。
+  - 改动：`chatStream` 的 options 增 `taskId?` 并解构；3 处 `trackCall` 的 meta 均带上 `taskId`；
+    `routes/chat.ts` 流式入口**在调用前**生成 `chatStreamTaskId`，传给 `chatStream`，并让**两处**轨迹 capture（成功 / 错误）**复用同一 id**。
+- **残余 2｜`router → trackCall` 无端到端断言 → 已补**：
+  - 为打通该断言，给 `getTokenTracker()` 增加 **`TOKEN_USAGE_DB` env 注入**（缺省值 `./data/token-usage.db` **不变**），使测试不再写生产库。
+  - 新建 `tests/router/usage-taskid.case.ts`：在**加载期**打桩 `provider-caller`，随后驱动**真实** `router.chat("coding", …, {taskId})`
+    → 真实 `trackCall` → TokenTracker 落库 → **按 taskId 读回并断言**（这才是"用量与轨迹共用同一 id"的中段证明，此前只断言到"路由收到 taskId"）。
+  - 外壳 `tests/router/usage-taskid.test.ts` 用 `spawnSync` 在**独立进程**运行该 case —— 沿用本仓库既有做法，
+    避免模块级 `mock.module` 污染同进程其它用例（这是我在 A3c 那轮踩过的坑）。
+- **残余 3｜id 构造仅靠"约定" → 收敛为唯一构造点**：
+  新增 `src/utils/task-id.ts` 的 `newTaskId(prefix)`；`routes/chat.ts` 三处（`chat` / `agent-chat` / `chat-stream`）全部改用它。
+  **如实说明**：这解决的是"**构造点唯一**"，**不是名义类型（branded type）** —— 两侧对外仍是 `string`；若将来要做品牌类型，改这一个函数即可铺开。
+- **⚠️ 门禁当场抓出我一处遗漏（本轮"细小处"）**：全量运行中 `env 模板完整性` 失败 ——
+  我新增的 `TOKEN_USAGE_DB` **未登记到 `.env.example`**。已补登记（含注释），该门禁恢复 **2 pass / 0 fail**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun run test` → **4008 pass / 67 skip / 0 fail**
+  （4075 tests / 413 文件 / 24.03s，**无回归**）；定向 3 文件 **8 pass / 0 fail**。
+- **未覆盖项**：①**名义类型未做**（见残余 3 说明，属有意取舍）；②全量里 pre-existing 的
+  `code-analysis N-H2 > getCodeActions` **30s 超时**仍偶发（本轮另一次全量中复现过一次）—— 属已登记的环境敏感类，未修；
+  ③流式路径的 `taskId` **只做了类型与人工审查**，**未加路由级断言**（流式 SSE 需消费 ReadableStream，成本高于本轮范围）。
+- **不做项**：未做品牌类型；未修 `code-analysis` 超时类；未加流式路由级断言。
+- **Commit**：`__COMMIT__`

@@ -19,6 +19,7 @@ import type { Database } from "bun:sqlite";
 import type { VaultManager } from "../memory/vault-manager.js";
 import type { SignificanceContext } from "../memory/memory-gate.js";
 import { normalizeSessionId, persistChatMessage, getSessionMessages } from "../db/session-store.js";
+import { newTaskId } from "../utils/task-id.js";
 import { assessStatement } from "../memory/hallucination-detector.js";
 import { recordHallucinationVerdict } from "../db/hallucination-verdicts.js";
 
@@ -86,7 +87,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
   // A4（2026-09-20）：先算任务 id，随后**同时**用于 ①token 用量记录（经 executeChat→router→trackCall）
   // 与 ②真实使用轨迹 capture —— 两侧共用同一 id，A5 才能"按任务"把用量与轨迹对上。
-  const chatTaskId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const chatTaskId = newTaskId("chat");
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
@@ -216,7 +217,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
   // A4：同 /chat —— 任务 id 同时用于 token 记录与轨迹 capture
-  const agentChatTaskId = `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const agentChatTaskId = newTaskId("agent-chat");
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
@@ -623,7 +624,10 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
 
       try {
         const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+        // A4：流式同样生成任务 id，并让 token 记录与两处轨迹 capture（成功/错误）共用它
+        const chatStreamTaskId = newTaskId("chat-stream");
         streamIter = router.chatStream(roleForStream, chatMessages, {
+          taskId: chatStreamTaskId,
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
           ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -706,7 +710,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 const success = Boolean(ev.content && ev.content.trim().length > 0);
                 const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
                 void captureRealUsageTrace({
-                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: chatStreamTaskId,
                   task: lastPrompt || "chat-stream",
                   success,
                   model: String(ev.model ?? ev.provider ?? ""),
@@ -754,7 +758,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
                 const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
                 void captureRealUsageTrace({
-                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: chatStreamTaskId,
                   task: lastPrompt || "chat-stream",
                   success: false,
                   latencyMs: Date.now() - streamStartedAt,

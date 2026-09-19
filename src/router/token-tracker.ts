@@ -18,6 +18,7 @@ import { Database } from "bun:sqlite";
 import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { estimateModelCostUsd } from "./rate-tier.js";
 
@@ -607,7 +608,9 @@ export class TokenTracker {
 let _tracker: TokenTracker | null = null;
 
 export function getTokenTracker(): TokenTracker {
-  if (!_tracker) _tracker = new TokenTracker();
+  // A4（2026-09-20）：DB 路径可经 env 注入 —— 使"router → trackCall → 落库"这条链可被
+  // **端到端断言**而不写生产 ./data/token-usage.db。缺省行为不变。
+  if (!_tracker) _tracker = new TokenTracker(readString("TOKEN_USAGE_DB", "./data/token-usage.db"));
   return _tracker;
 }
 

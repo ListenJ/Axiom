@@ -639,6 +639,8 @@ export class MultiPlatformRouter {
       maxToolIterations?: number;
       /** DeepSeek 思考模式开关（默认开启；false = 非思考模式） */
       thinking?: boolean;
+      /** 任务标识（A4）：与本次流式交换的轨迹 capture 共用同一 id */
+      taskId?: string;
     }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
@@ -646,6 +648,7 @@ export class MultiPlatformRouter {
     const intentLabel = options?.intent;
     const reasoningEffort = options?.reasoningEffort;
     const thinking = options?.thinking ?? defaultThinkingForRole(role);
+    const taskId = options?.taskId;
     const models = findModelsForRole(role);
     if (models.length === 0) {
       logger.warn(`[Router/chatStream] No models for role: ${role}`);
@@ -831,7 +834,7 @@ export class MultiPlatformRouter {
                 latencyMs,
                 success: true,
                 fallbackUsed: false,
-              }, { role, taskType: "chat-stream" });
+              }, { role, taskType: "chat-stream", taskId });
               metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
               metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
               logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
@@ -881,7 +884,7 @@ export class MultiPlatformRouter {
               latencyMs,
               success: true,
               fallbackUsed: !preferNative,
-            }, { role, taskType: "chat-stream" });
+            }, { role, taskType: "chat-stream", taskId });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
             routerBreaker.recordSuccess(breakerKey);
@@ -916,7 +919,7 @@ export class MultiPlatformRouter {
           trackCall(model.model, model.provider, messages, {
             latencyMs: Date.now() - loopStart,
             success: false,
-          }, { role, taskType: "chat-stream" });
+          }, { role, taskType: "chat-stream", taskId });
           if (attempt < maxRetries - 1) {
             const delay = calculateBackoffDelay(attempt);
             await new Promise((r) => setTimeout(r, delay));
