@@ -2117,4 +2117,4 @@
   - **Windows 获取真实结果的可行路径**：① 在 Windows 机器跑 `bun test tests/agent-evals/`；② 或在 CI 增一个 `windows-latest` job 跑该目录（需改 `.github/workflows/`，属独立改动，未擅自做）。
 - **未完成 / 下一步**：**A3b** 文件压实（临时文件 + 原子 rename）+ signals 采集接线（`statfsSync` 的 Windows 行为须在 A3b 实测）；**A4** taskId 贯通（接口变更，改前报备）；**A5** 读取面。
 - **未覆盖项**：①`sessionCount` 现已可被真实填充（站点 1/3/4），但**尚无代码去消费它** —— 采集接线属 A3b；②路由级断言未加（本轮只测了字段贯通与分组语义，**未**对 `handleChat*` 做端到端断言），故"chat 路由确实带上了 sessionId"目前**仅有静态证据**（`:178`/`:708`/`:755`）而无运行时证据；③`sessionId` 写入 JSONL 后的**隐私面未评估**（会话标识是否算用户数据、是否需要脱敏）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`83e7d39`
