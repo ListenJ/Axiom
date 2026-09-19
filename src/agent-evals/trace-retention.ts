@@ -157,3 +157,113 @@ export function selectRetained(
     droppedBySize,
   };
 }
+
+// ============================================================================
+// 场景自适应：策略推导（切片 A3d）
+// ============================================================================
+
+const GIB = 1024 ** 3;
+const MIB = 1024 ** 2;
+const HOUR = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR;
+
+/**
+ * 推导用的阈值与边界。**具名常量**（不散落魔法数），改动只在此处。
+ *
+ * 取值理由：本系统跑在**用户本机**（无运维兜底），故以"磁盘不会被日志撑爆"
+ * 为第一约束 —— 体积上限取可用空间的 1% 并夹在 [4 MiB, 256 MiB]：
+ * 下夹保证日志仍可用，上夹保证磁盘再大也不会无界增长。
+ */
+export const POLICY_BOUNDS = {
+  maxBytesFloor: 4 * MIB,
+  maxBytesCeiling: 256 * MIB,
+  minKeepFloor: 50,
+  minKeepCeiling: 2000,
+  /** 可用空间低于此值 → 临界档（保留窗口收到最短） */
+  freeDiskCriticalBytes: 2 * GIB,
+  /** 可用空间低于此值（但不低于临界）→ 紧张档 */
+  freeDiskTightBytes: 10 * GIB,
+  /** 体积上限 = 可用空间 / 该除数（1%） */
+  freeDiskShareDivisor: 100,
+  /** 每会话为下限预留的记录数 */
+  recordsPerSessionForMinKeep: 10,
+  /** 平均每会话记录数超过此值 → 视为"高密度对话"，收窄豁免窗口 */
+  densePerSessionThreshold: 50,
+  retentionDaysNormal: 90,
+  retentionDaysTight: 30,
+  retentionDaysCritical: 7,
+  activeWindowMsNormal: 24 * HOUR,
+  activeWindowMsDense: 12 * HOUR,
+} as const;
+
+/** 推导策略所需的**可观测输入**。调用方负责采集（副作用在边界上），并应记录以便复现。 */
+export interface RetentionSignals {
+  /** 当前日志文件字节数 */
+  fileBytes: number;
+  /** 当前记录条数 */
+  recordCount: number;
+  /** 涉及的不同会话数 */
+  sessionCount: number;
+  /** 所在卷的可用字节数（如 `fs.statfsSync(dir)` 的 `bavail * bsize`） */
+  freeDiskBytes: number;
+}
+
+function clampInt(value: number, lo: number, hi: number): number {
+  if (!Number.isFinite(value)) return lo;
+  return Math.min(hi, Math.max(lo, Math.floor(value)));
+}
+
+/**
+ * 由**场景信号**推导保留策略。**纯函数**：不读时钟、不碰文件系统、无随机。
+ *
+ * 与确定性的关系（重要）：自适应本身会让"何时跑"影响"留下哪些记录"。
+ * 本模块的做法是把副作用**挡在边界外** —— 这里只做 signals → policy 的纯映射，
+ * 因此**只要 signals 相同，policy 必相同**；调用方记录 signals 即可完整复现一次裁剪决策。
+ */
+export function resolvePolicy(signals: RetentionSignals): RetentionPolicy {
+  const free = Number.isFinite(signals.freeDiskBytes) && signals.freeDiskBytes > 0
+    ? signals.freeDiskBytes
+    : 0;
+
+  // 1) 磁盘压力分档 → 保留窗口
+  const retentionDays =
+    free < POLICY_BOUNDS.freeDiskCriticalBytes
+      ? POLICY_BOUNDS.retentionDaysCritical
+      : free < POLICY_BOUNDS.freeDiskTightBytes
+        ? POLICY_BOUNDS.retentionDaysTight
+        : POLICY_BOUNDS.retentionDaysNormal;
+
+  // 2) 体积上限 = 可用空间 1%，夹在 [4 MiB, 256 MiB]
+  const maxBytes = clampInt(
+    Math.floor(free / POLICY_BOUNDS.freeDiskShareDivisor),
+    POLICY_BOUNDS.maxBytesFloor,
+    POLICY_BOUNDS.maxBytesCeiling,
+  );
+
+  // 3) 记录下限随会话数缩放（会话多则多留，保证每个会话都有样本）
+  const sessions = Number.isFinite(signals.sessionCount) && signals.sessionCount > 0
+    ? Math.floor(signals.sessionCount)
+    : 0;
+  const minKeepRecords = clampInt(
+    sessions * POLICY_BOUNDS.recordsPerSessionForMinKeep,
+    POLICY_BOUNDS.minKeepFloor,
+    POLICY_BOUNDS.minKeepCeiling,
+  );
+
+  // 4) 活跃豁免窗口随"记录密度"调整：高密度对话收窄窗口，避免豁免把文件顶在上限之上
+  const records = Number.isFinite(signals.recordCount) && signals.recordCount > 0
+    ? signals.recordCount
+    : 0;
+  const perSession = sessions > 0 ? records / sessions : records;
+  const activeWindowMs =
+    perSession > POLICY_BOUNDS.densePerSessionThreshold
+      ? POLICY_BOUNDS.activeWindowMsDense
+      : POLICY_BOUNDS.activeWindowMsNormal;
+
+  return {
+    maxBytes,
+    retentionMs: retentionDays * DAY_MS,
+    activeWindowMs,
+    minKeepRecords,
+  };
+}

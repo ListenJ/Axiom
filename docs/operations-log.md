@@ -2056,3 +2056,34 @@
 - **未覆盖项**：①候选默认值（32 MiB / 30 天 / 24 小时 / 200 条）**未经真实数据验证**，仅为建议值；②策略对 `evolveFromRealUsage` 归纳链路的**影响未评估**（淘汰会减少学习样本，可能影响 selfInduce）；③未做并发压测（压实与写入并发时的竞态未验证）。
 - **不做项**：未改 `real-usage` 的既有写入行为（保持纯追加），避免在 A3b 落地前出现"半套有界"。
 - **Commit**：`eeab49c`
+
+## 2026-09-19 — feat(T2): 切片 A3d 策略场景自适应推导（纯函数边界化解确定性冲突）
+
+- **任务**：用户裁定"默认值没有偏好，**根据对应的场景在使用中动态调整**"。据此实现策略的场景自适应**推导**。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash（grep/sed）；`bunx tsc`；`bun test`（全量 414 文件）；规则 2（计划与 `trace-retention.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 8（纯函数深模块）；规则 10（主动指出用户方向与既有承诺的冲突）。
+- **⚠️ 我先指出的冲突（规则 10）**：自适应若读系统状态，"**何时跑**"就会影响"**留下哪些记录**"，**直接冲击本项目"确定性优先"**。若不做处理，这就是自相矛盾而不是进化。
+- **化解方式（本轮核心设计）—— 切分纯函数边界**：
+  ```
+  副作用边界（调用方采集）: fileBytes / recordCount / sessionCount / freeDiskBytes(statfsSync)
+        ▼
+  resolvePolicy(signals)   —— 纯函数：signals → policy（同入同出）
+        ▼
+  selectRetained(records, policy, now)  —— 纯函数（now 为入参）
+        ▼
+  副作用边界（调用方原子重写文件）
+  ```
+  ⇒ **signals 相同 ⇒ policy 必相同**；调用方**记录 signals** 即可完整复现一次裁剪决策。
+  磁盘探测复用既有先例：`src/core/health-checker.ts:232-233`（`statfsSync`）。
+- **本轮交付（A3d）**：`src/agent-evals/trace-retention.ts` 追加 `resolvePolicy()` / `RetentionSignals` / `POLICY_BOUNDS`（阈值**全部具名**，不散落魔法数）。
+  规则：①磁盘压力分档 → 7/30/90 天；②体积上限 = 可用空间 1%，夹 [4 MiB, 256 MiB]（下夹保可用、**上夹保永不无界增长**）；③记录下限 = 会话数 × 10，夹 [50, 2000]；④活跃豁免窗口按记录密度 12h/24h。
+- **TDD 红→绿**：`tests/agent-evals/trace-policy-resolve.test.ts` 修复前 **0 pass / 1 error**（`resolvePolicy` 不存在）→ 修复后 **7 pass / 0 fail**；与 A3a 合计 **15 pass / 0 fail**。
+  覆盖：三档单调性、体积夹取与缩放单调、下限缩放与夹取、密度切换、确定性（5 次一致）、**全零边界不产出非法值**、窗口为整天粒度。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4130 pass / 36 skip / 0 fail**（414 文件；基线 4123 + 新增 7，**无回归**）。
+- **⚠️ 已做 / 未做（不得宣称"保留策略已自动生效"）**：
+  - **已做（A3d）**：`signals → policy` 的纯推导 + 测试。
+  - **未做**：**采集接线** —— `resolvePolicy` 目前**没有任何生产调用方**，`statfsSync`/文件大小/sessionCount 尚未采集。
+  - **未做（A3c）**：采集点仍未传 `sessionId` ⇒ `sessionCount` 恒为 0 ⇒ 下限一律取 50，**会话维度在自适应当前也不生效**。
+  - **未做（A3b）**：文件压实与原子重写 ⇒ **磁盘仍是纯追加、无上限**。
+- **未覆盖项**：①阈值取值（2 GiB / 10 GiB / 1% / 50 条）**未经真实数据验证**，属工程判断；②`statfsSync` 在 Windows 的可用性**未实测**（本项目目标平台含 Windows，而该 API 的跨平台行为需验证）；③自适应策略对 `evolveFromRealUsage` 学习样本量的**影响未评估**；④未做并发下"读取 signals → 裁剪"之间的竞态分析。
+- **不做项**：未把 `resolvePolicy` 接到任何调用点 —— 接线须与 A3b（原子重写）一起做，否则"读了 signals 却没能力裁剪"只是摆设。
+- **Commit**：`__COMMIT__`
