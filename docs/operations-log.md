@@ -2454,3 +2454,35 @@
   ②`test:stress` 扩为整目录后，**其在本机的总耗时未测量**（未跑，避免超时）；③`indexProject` 的静默跳过未修。
 - **不做项**：未改 `test-full.ts` 的排除清单内容；未改 codeindex 的生产 DB 形态（仍并入主库）；未改 `catch` 语义。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — test(T1): (a)/(b) 的双端验收 + Windows 既有不兼容清单（9 条，已对照归因）
+
+- **任务**：对 (a)/(b) 两处修复做 Windows 侧验收。分级 **T1**。仅提交 Gitea。
+- **工具**：`ssh` + **Git Bash `bash -s`（stdin）**；`bun test`；**跨提交对照**；规则 13。
+- **Windows 侧准备**：worktree `D:\openclaw-fusion-verify` 同步至 `1e4bab93`。
+- **(b) 验收**：`bun test tests/codeindex/local-index.test.ts` → **4 tests / 14 expect / 0 fail**（与 Linux 一致）。
+- **(a) 验收（重要）**：Windows 上 `bun run test` **跑得起来了**（此前本地脚本在 Windows 从未这样跑过）：
+  ```
+  [test-full] collected 412 test files (excluded dirs: node_modules/stress/e2e, slow suffix: .slow.ts, file ledger: 0)
+  [test-full] passthrough: --parallel=8
+  ```
+  ⇒ collector 与 `--parallel` 透传**跨平台成立**；排除口径与 Linux 完全一致（同为 412 文件）。
+- **⚠️ 但 Windows 上全量有 9 条失败（Linux 0 条）——已用对照实验归因：与本次改动无关**：
+  | 提交 | 结果 |
+  |---|---|
+  | 基线 **`ad516b4`**（(a)/(b) 之前） | **12 pass / 9 fail** |
+  | 当前 **`1e4bab93`**（(a)/(b) 之后） | **12 pass / 9 fail** |
+  两次跑的是**同一组 4 个文件**且逐项一致 ⇒ 这 9 条是**既有 Windows 不兼容**，在 (a) 让"本地口径与 CI 一致"之前**从未在 Windows 上被执行过**。
+- **9 条清单（登记为 Windows 兼容backlog，本机 Linux 全部通过）**：
+  1. `tests/unit/knowledge-store-title-integrity.test.ts` ×3：`A6-3 中文标题不得塌缩为空路径`（2 例）+ `重复摄取同一标题幂等`（1 例）
+     —— 疑似中文标题→路径生成在 Windows 上的差异。
+  2. `tests/ocr.test.ts` ×1：`OCR Engine > should get engine with default config`
+     —— 疑似默认 `langPath`（`fileURLToPath(new URL("../../"))`）在 Windows 产出反斜杠路径。
+  3. `tests/unit/determinism-disclosure.test.ts` ×2：G-04 §5.2.1 防漂移**两条都失败**（漏登记 / 错登记）
+     —— 疑似该测试的文件路径表在 Windows 用 `\` 分隔导致与 `docs/LIMITATIONS.md` 中的 `/` 口径不匹配（**两侧同时失败**正是这类"表对不上"的特征）。
+  4. `tests/unit/kg-backend-unification.test.ts` ×3：`切片1/切片2/切片4`（kg_edges 建表与边读写）
+     —— 疑似同一类路径/DB 差异，**未定位到具体断言**。
+- **未覆盖项**：①上述 9 条的**具体失败断言未逐条定位**（本轮只做到"归因到既有 Windows 不兼容"）；
+  ②未在 Windows 跑 `test:stress`（整目录，耗时未测）；③`test:stress` 扩目录后的总耗时仍未测。
+- **不做项**：未修上述 9 条 Windows 不兼容（属独立课题，且需要 Windows 环境逐条调试）。
+- **Commit**：`__COMMIT__`
