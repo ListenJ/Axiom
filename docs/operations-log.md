@@ -2631,4 +2631,4 @@
   `code-analysis N-H2 > getCodeActions` **30s 超时**仍偶发（本轮另一次全量中复现过一次）—— 属已登记的环境敏感类，未修；
   ③流式路径的 `taskId` **只做了类型与人工审查**，**未加路由级断言**（流式 SSE 需消费 ReadableStream，成本高于本轮范围）。
 - **不做项**：未做品牌类型；未修 `code-analysis` 超时类；未加流式路由级断言。
-- **Commit**：`__COMMIT__`
+- **Commit**：`024bd90`
