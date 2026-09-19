@@ -1940,3 +1940,21 @@
 - **未覆盖项**：①**阻塞切片 3 的实际执行**——用户这把 `SILICONFLOW_API_KEY` 是否**实际开通** `BAAI/bge-m3` **未核验**（传输与模型存在 ≠ 该 key 有权调用）；②消耗估算常量 `charsPerToken` 的边界取值**无权威来源**（需按该模型分词器确定），当前只有方法与"估算"标注；③`127.0.0.1:9001` 去留三选一**未落定**（并入切片 1）；④A1–A10 **全部为待实现**，未在真机跑过。
 - **不做项**：本条目**未改任何业务代码**；切片 1 未开工（其范围含文档口径收敛 + 遗留处置，待本轮复核通过后启动）。
 - **Commit**：`32c3c41`
+
+## 2026-09-19 — docs(T3): 新增"用户自配模型 + 用量可观测"计划；修订知识库计划 D1（未施工）
+
+- **任务**：用户指令——去掉 siliconflow 等免费模型；单加一处设置由用户选 subagent 模型与 embedding 模型；本地只定协议、用户自填 `base_url`/key/协议并自选思考等级与上下文；该类消耗的 token 要在**轨迹中按分类显示**；原 key 停用；删除 `127.0.0.1:9001`。按总则 0.3/0.4（新增范围须回 Plan）产出书面计划与决策请求。分级 **T3**。仅提交 Gitea。
+- **工具**：Bash（grep/wc/sed）；只读勘察；规则 2（两份计划文件备份至 `.tmp/backups/docs/plans/`）；规则 11（未读取 `.env` 内容）；规则 13。
+- **关键实测（写入新计划 §1）**：
+  ① **协议适配器已存在**：`src/utils/api-key-store.ts:19,42` `adapter: ApiAdapter`，取值 `openai|anthropic|gemini|opencode`（`:278`）；`src/router/models/providers.ts:7-12` 由 api-key-store **派生**（自称唯一事实源）。
+  ② **但"新增自定义 provider"不支持**：`src/routes/api-keys.ts:109` `if (!isKnownProvider(provider))` → 400 `Unknown provider`（`:110-114`）—— 现有能力仅是"为已知 provider 覆盖 key/baseURL"。
+  ③ **siliconflow 深度耦合**：`registry.ts:201,218,375,392,460,477,494,618,671,806` 等 10 处模型条目 + `providers.ts:12`/`api-key-store.ts:70-72`/`env.ts:189`/`cli.ts:94,103,151,278`/`main.ts:379,385`/`cron/scheduler.ts:49`/`memory/bootstrap.ts:234`/`model-advisor.ts:112,208,211`/`dynamic-model-assigner.ts:164,176`/`reasoning-effort.ts:94`/`db/codegraph-sync.ts:140`/`tui/install-wizard.ts:442`/`models/types.ts:7`。
+  ④ **token 计量已存在**：`src/router/token-tracker.ts:1-45`（prompt/completion/total + role/taskType/costUsd/cacheHit 等，独立 SQLite `./data/token-usage.db`，多维聚合）。
+  ⑤ **但轨迹无 token 字段**：`src/utils/agent-trace.ts`（72 行）中 `grep token|Token|role|category|model` **零命中**；`src/routes/traces.ts:4-16` 仅暴露 `GET /traces`、`GET /traces/:id`。
+  ⑥ 设置面落点：`src/core/settings-catalog.ts:42` → `src/routes/settings.ts:27`。
+  ⑦ **删除 9001 影响面小且封闭**：仅 `src/local-llm/edge-embeddings.ts`（`:14` 硬编码）、`src/core/settings-search.ts:12`（唯一运行时消费者）、`tests/settings-search.test.ts`（182 行）；另 `src/utils/proxy-fetch.ts:57` 仅为**注释**提及。
+- **操作**（文件级，3 个）：①**新建** `docs/plans/2026-09-19-user-configured-models-and-usage-trace.md`（现状测绘 + Q1–Q4 决策请求 + 切片 A–E + 未覆盖项）；②`docs/plans/2026-09-19-knowledge-semantic-layer.md`：**修订 D1**（embedding 来源由"siliconflow 免费档"改为"用户自配模型"）并加修订块，说明连带影响；③`docs/operations-log.md`：本条目。
+- **停机请求决策（规则 0.6：范围不清）**：Q1 的语义**存在歧义**——"去掉 siliconflow 等免费模型"可解为 (a) 彻底移除 provider（30+ 文件、会使既有用户路由失效）(b) 仅取消预选/默认、保留供用户自配 (c) 仅移除 embedding 用的 `bge-embedding`。三者工程量与破坏性差异极大，**在 Q1 落定前不动代码**。
+- **未覆盖项**：①§1.3 命中清单**未逐条判定**"必须改/可保留/仅注释"；②`TokenTracker` 与 `agent-trace` 之间**是否已有隐式关联键**（如 requestId）**未核验**；③"思考等级"取值域与"上下文窗口"可配置形式**未勘察**；④移除 siliconflow 对既有用户的**影响面与迁移路径未评估**（属 Q1=(a) 前置）；⑤用户 `.env` 中该 key 是否已清除**未核验**（未读取其内容，规则 11）。
+- **不做项**：**未改任何业务代码**；`edge-embeddings.ts` 的删除**未执行**——它属规则 4 的"删除"操作，且 `settings-search` 语义腿去向取决于 Q4，故并入切片 D 统一处理，避免返工。
+- **Commit**：`__COMMIT__`
