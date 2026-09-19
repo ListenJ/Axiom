@@ -2511,7 +2511,7 @@
   造成 `src/knowledge/store.ts` 出现两个 `close()`；`tsc` 报 **`TS2393: Duplicate function implementation`** 拦下，
   已从备份回退原文件（现 `close(): void` 仅 1 处）。**教训**：加方法前先 grep 该方法名。
 - **未覆盖项**：①Windows 侧待验证（下一条记录）；②`eng.traineddata` 是否应入库 / 或改用小夹具，**未决策**（当前选择"缺包即跳过"）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`f9757fc`
 
 ## 2026-09-20 — fix(T2): Windows EBUSY 残余 2 例 —— 临时目录删除改为有界重试
 
@@ -2529,7 +2529,7 @@
 - **偏差记录（我自己的失误）**：首次打补丁时我在**插入 helper 之后**才统计旧字符串出现次数，
   而 helper 正文本身含同一字符串 ⇒ 计数变 5、断言失败中止（文件未被修改）。已改为**先替换、后插 helper**。教训：计数要在插入前做。
 - **未覆盖项**：①Windows 侧待验证（下一条）；②`rg "EBUSY"` 未做全仓扫描 —— 其它测试可能也有同类"close 后立即 rm"的写法而未在 Windows 暴露（因从未在 Windows 跑过）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`edc65d5`
 
 ## 2026-09-20 — fix(T2): 定位 EBUSY 真因（WAL -shm 映射未随 close 释放）并据实处理
 
@@ -2556,4 +2556,4 @@
   ②未做全仓 `EBUSY`/`rmSync` 扫描 —— 其它测试可能有同类写法，只是从未在 Windows 跑过；
   ③生产部署若在 Windows 上频繁开关 DB，可能遗留 `-wal`/`-shm`（**未评估**，登记为观察项）。
 - **不做项**：未改 `SqliteBackend` 的 WAL 设置（生产语义，不能为测试让步）；未引入 checkpoint（实测无效）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`be0f3d0`
