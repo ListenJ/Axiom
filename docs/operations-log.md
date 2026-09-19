@@ -2139,4 +2139,4 @@
 - **停机请求决策（规则 0.3/0.6，T3 门禁）**：**本轮未改任何 workflow**。原因是 D3（CI 运行位置：继续 GitHub / 同时建 Gitea Actions / 迁到 Gitea）**未定**，而它直接决定"加目录加在哪"；且 D1（是否扩触发面）若不批准，加 Windows job 对本分支**无任何产出**。已在设计文档 §五 列出 D1–D4 与建议。
 - **未覆盖项**：①Windows 首跑是否绿**未实测**（本机只有 Linux）；②`bun install --frozen-lockfile`/`bun test` 在 `windows-latest` 的可用性**未验证**；③Windows runner 耗时/额度成本**未评估**；④L1 "≤5 min" 目标**未测量**（现有 `test:full` 实际耗时未统计）；⑤**`/chat-stream` 的两个采集点（`:708`/`:755`）仍未做路由级断言**（SSE 需消费 ReadableStream，本轮未做）—— 故站点 3/4 依旧只有静态证据。
 - **不做项**：未改 `.github/workflows/*`；未新增 Gitea CI 配置；未新增 Windows runner。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c8c4cf2`
