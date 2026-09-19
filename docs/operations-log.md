@@ -1979,4 +1979,4 @@
 - **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun test --parallel=8 --timeout 15000 ./tests` → **4107 pass / 36 skip / 0 fail**（410 文件，**无回归**）；`tests/unit/docs-consistency.test.ts` + `tests/utils/provider-config-convergence.test.ts` → **12 pass / 0 fail**。
 - **未覆盖项**：①外围约 90 处字面量的收敛**未执行**（切片 B0）；②`TokenTracker`↔`agent-trace` 关联键**未核验**；③"思考等级/上下文窗口"可配置形式**未勘察**；④Q1=(a) 的迁移路径**未设计**（切片 C 前置）；⑤§2.1 词典方案**未实测**，仅为工程判断。
 - **不做项**：**未移除任何 provider、未删除 `edge-embeddings.ts`**（前者属 Q1 切片 C 且迁移路径未定；后者属规则 4 的删除流程且取决于切片 D 文案）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`92743c5`
