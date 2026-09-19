@@ -2530,3 +2530,30 @@
   而 helper 正文本身含同一字符串 ⇒ 计数变 5、断言失败中止（文件未被修改）。已改为**先替换、后插 helper**。教训：计数要在插入前做。
 - **未覆盖项**：①Windows 侧待验证（下一条）；②`rg "EBUSY"` 未做全仓扫描 —— 其它测试可能也有同类"close 后立即 rm"的写法而未在 Windows 暴露（因从未在 Windows 跑过）。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — fix(T2): 定位 EBUSY 真因（WAL -shm 映射未随 close 释放）并据实处理
+
+- **任务**：承接上一条。上一版的"有界重试"在 Windows 上**耗尽后仍抛错**（实测 998ms ≈ 10×100ms），
+  说明我的"句柄释放是异步的"假设**不成立**。本轮做**定向实验**定位真因。分级 **T2**。
+- **定向实验（在 Windows worktree 内跑真实脚本，逐一对照）**：
+  | 场景 | 目录内文件 | 删除结果 |
+  |---|---|---|
+  | A 仅 `SqliteBackend` | `agent.db` | **OK** |
+  | B `SqliteBackend` + `Database` | `agent.db` | **OK** |
+  | C 再加 `KnowledgeStore.addEdge/getOutEdges` | `agent.db` + **`agent.db-wal`** + **`agent.db-shm`** | **EBUSY** |
+  | D 同 C，但关闭前加 `PRAGMA wal_checkpoint(TRUNCATE)` | 同上 | **仍 EBUSY** |
+- **真因（有据）**：`src/dre/storage/sqlite-backend.ts:27` 设置 `PRAGMA journal_mode=WAL`；
+  一旦走**写路径**即产生 `-wal`/`-shm`，而 **`-shm` 是内存映射文件**，在 **Bun/Windows 下
+  `Database.close()` 之后本进程内仍未释放**（POSIX 无此约束 ⇒ Linux 从不暴露）。
+  checkpoint **无效**已实测排除。⇒ 这**不是**"测试少关了一个句柄"（A/B 证明基础关闭路径正确），
+  而是**运行时/平台的映射释放行为**。
+- **据实处理（不静默）**：把该文件的临时目录清理改为 `cleanupTempDir()` —— 有界重试（5×100ms），
+  **最终仍失败则打印明确告警**（含原因）而**不让正确性用例失败**。
+  理由：本用例主题是 **kg_edges 的正确性**，不是临时目录卫生；残留物位于 OS 临时目录、由系统回收。
+  代码注释与 ops log 均写明该运行时行为，**不是吞错**。
+- **验证**：本机（Linux）`bun test tests/unit/kg-backend-unification.test.ts` → **6 pass / 0 fail**；`bunx tsc --noEmit` → **0 error**。Windows 侧见下一条。
+- **未覆盖项**：①**该 Bun/Windows WAL `-shm` 释放行为未上报上游**（是运行时问题，非本仓库代码缺陷）；
+  ②未做全仓 `EBUSY`/`rmSync` 扫描 —— 其它测试可能有同类写法，只是从未在 Windows 跑过；
+  ③生产部署若在 Windows 上频繁开关 DB，可能遗留 `-wal`/`-shm`（**未评估**，登记为观察项）。
+- **不做项**：未改 `SqliteBackend` 的 WAL 设置（生产语义，不能为测试让步）；未引入 checkpoint（实测无效）。
+- **Commit**：`__COMMIT__`
