@@ -22,6 +22,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { perfBudget } from "../support/perf-budget.js";
 import {
   DeterministicRetrievalEngine,
   _resetRetrievalEngineForTest,
@@ -710,8 +711,10 @@ describe("场景 6：边界条件测试", () => {
     expect(resp).toBeDefined();
     // 2. 应返回结果（"keyword0" 在实体内容中能匹配到所有 50 个 Concept）
     expect(resp.results.length).toBeGreaterThan(0);
-    // 3. 延迟应 < 500ms（超大查询允许较高延迟，但不应崩溃或超时）
-    expect(resp.metrics.latencyMs).toBeLessThan(500);
+    // 3. 不应**挂起**：本用例主题是"超大查询不崩溃/不截断"，不是机器速度。
+    //    绝对墙钟阈值属基准口径（并行套件下实测偶发红），默认只做防挂起上界；
+    //    严格阈值（500ms）由专属性能门禁在 AXIOM_PERF_ASSERT=1 下启用。
+    expect(resp.metrics.latencyMs).toBeLessThan(perfBudget(500, 5000));
 
     console.log(`[Scenario6.2] huge-query: results=${resp.results.length}, latency=${resp.metrics.latencyMs}ms`);
     console.log(`[Stress] scenario6-huge-query: ${resp.metrics.latencyMs}ms`);

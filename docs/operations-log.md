@@ -2376,3 +2376,42 @@
   ②全量套件里的性能断言在本机偶发失败一事（已由上一条以干净 HEAD 对比归因）**未修**，属既有测试口径问题。
 - **不做项**：未改既有性能断言；未在 Windows 跑全量套件。
 - **Commit**：`fde9b26`
+
+## 2026-09-20 — test(T2): 统一性能断言口径 —— 默认套件只做防挂起，严格阈值归专属性能门禁
+
+- **任务**：用户要求"把全量套件那几条绝对性能断言的口径收一下"。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`bunx tsc`；`bun test`（全量 418 文件）；**干净 HEAD worktree 对照**；规则 2/12/13。
+- **问题定性（先有证据再改）**：默认套件以 `--parallel=8` 运行，而若干用例断言的是**绝对墙钟/内存阈值**。
+  实测证据：`tests/stress/high-intensity-load.test.ts` 的 `p99<50ms` 等**在干净 HEAD（3f2551c）上同样 2 fail**；
+  `performance-degradation.test.ts` 同一棵树交替跑 3 次 0 fail、另一次 1 fail；`retrieval-workflows.test.ts` 的 `latencyMs < 500` 在并行下偶发。
+  ⇒ **绝对墙钟阈值是基准（benchmark），不是正确性**；放在并行套件里当门禁必然偶发红，而偶发红的门禁会让人习惯性忽略红灯。
+- **建立的口径（与仓库既有结构一致）**：默认套件只做**防挂起上界**（拦住卡死/数量级爆炸）；**严格阈值仅在 `AXIOM_PERF_ASSERT=1` 下生效**。
+  这与 CI `stress-test` job 既有的分层（`test:gate` 阻塞 / `stress:compare` 仅报告）同源，只是把分层下沉到断言级。
+- **本轮改动（文件级）**：
+  1. **新建** `tests/support/perf-budget.ts`：口径的**单一出处**（`PERF_ASSERT_STRICT` + `perfBudget(strictMs, relaxedMs)`），并写明问题与依据。
+  2. `tests/business-scenarios/retrieval-workflows.test.ts`：`latencyMs < 500` → `perfBudget(500, 5000)`（该用例主题是"超大查询不崩溃/不截断"，延迟只是防挂起）。
+  3. `tests/edge-cases/performance-degradation.test.ts`：3 处（`publishTime<20`、`p99<50`、`p99<100`）→ 走 `perfBudget`。
+  4. `tests/perf-benchmark.test.ts`：**整文件**改为 `PERF_ASSERT_STRICT ? describe : describe.skip`
+     —— 它是**微基准**（逐操作均值如 `avg<0.0045ms`，共 31 条），且**本就有专属脚本 `test:perf`**，不该在并行套件里当门禁。
+  5. `tests/stress/high-intensity-load.test.ts`：**14 处绝对阈值**改走 `perfBudget`；
+     **相对阈值保持原样**（`errorRate<0.05`、`degradationRatio<3` —— 它们抗负载，正是该用的写法）。
+  6. `package.json`：`test:perf` / `test:stress` / `test:gate` 三个专属脚本前置 **`AXIOM_PERF_ASSERT=1`**（严格阈值不丢）。
+  7. `.github/workflows/ci.yml`：`stress-test` job 新增一步 **report-only** `bun run test:perf || true`
+     —— 口径改了但**信号不能丢**：基准移出默认套件后，在这里留一个可对比的数字来源（与 `stress:compare` 同级）。
+- **验证结果**：
+  - `bunx tsc --noEmit -p tsconfig.json` → **0 error**。
+  - 默认模式（三文件）：**0 fail**（基准 31 条转为 **skip**）—— 实测 `31 skip / 0 fail`。
+  - 严格模式：`AXIOM_PERF_ASSERT=1 bun test tests/perf-benchmark.test.ts` → **31 pass / 0 fail**（16s，单独跑）⇒ 严格阈值**确实还在生效**，不是被关掉。
+  - 全量套件：**原本的绝对性能断言失败已消失**（`E.4 p99<50ms`、`[perf-extreme] Cache memory ceiling` 不再出现）。
+- **⚠️ 但全量套件仍未全绿，剩下的是**另两类**问题（与本次口径无关，已另行取证）**：
+  1. **`C. 5 层管道端到端压力测试 > Layer 0+1+2` 失败：是 15s 超时，不是阈值**。日志显示
+     `p99=45.63ms`（界内 2000）、`paths=90000 > 0`，而该用例耗时 **16.5s > `--timeout 15000`**。
+     根因：CI 的权威运行器 `scripts/test-full.ts:21` **整目录排除 `stress/`**，而本地 `bun test ./tests` 会跑它 ⇒ **本地与 CI 口径不一致**。
+  2. **`tests/codeindex/local-index.test.ts` 4 例失败：并行下跨进程共享 SQLite 文件**。
+     证据：该文件**隔离跑 4 pass / 0 fail**；`getCodeIndexDb()` 用 `new Database(dbPath())`（**真实文件**，非 `:memory:`），
+     而它用的是**临时 fixture**（因此与本次新增文件无关）。
+- **未覆盖项**：①`0.8`/`0.6` 与各 `relaxed` 倍率（多为 5–10×）**未经跨机器标定**，属工程判断；
+  ②上述两类问题**未修**（超时类需改本地/CI 口径一致性，DB 类需改共享文件为按项目隔离或 `:memory:`）—— 均超出"性能断言口径"范围，登记为后续；
+  ③`--path-ignore-patterns` 在本 Bun 版本下**实测不生效**（跑了 5 个文件一个都没排除），故未依赖它。
+- **不做项**：未改 `scripts/test-full.ts` 的排除清单；未改本地 `test` 脚本的运行语义；未改 codeindex 的 DB 形态。
+- **Commit**：`__COMMIT__`

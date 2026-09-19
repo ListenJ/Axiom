@@ -255,6 +255,15 @@ jobs:
         env:
           NODE_ENV: test
 
+      # 口径（2026-09-20）：微基准的绝对阈值是"机器速度"断言，与并行套件天然冲突，
+      # 故已从默认套件移出（默认 skip），在此以 AXIOM_PERF_ASSERT=1 单独运行。
+      # 与 stress:compare 同列 report-only：CI runner 性能波动大，不宜作为合并门禁；
+      # 它的价值是"给出可对比的数字"，不是"拦截合入"。
+      - name: Run micro-benchmarks (report-only, strict thresholds)
+        run: bun run test:perf || true
+        env:
+          NODE_ENV: test
+
       - name: Run full stress suite with baseline comparison
         run: bun run stress:compare || true
         env:
