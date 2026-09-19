@@ -2087,3 +2087,34 @@
 - **未覆盖项**：①阈值取值（2 GiB / 10 GiB / 1% / 50 条）**未经真实数据验证**，属工程判断；②`statfsSync` 在 Windows 的可用性**未实测**（本项目目标平台含 Windows，而该 API 的跨平台行为需验证）；③自适应策略对 `evolveFromRealUsage` 学习样本量的**影响未评估**；④未做并发下"读取 signals → 裁剪"之间的竞态分析。
 - **不做项**：未把 `resolvePolicy` 接到任何调用点 —— 接线须与 A3b（原子重写）一起做，否则"读了 signals 却没能力裁剪"只是摆设。
 - **Commit**：`e669354`
+
+## 2026-09-19 — feat(T2): 切片 A3c 会话标识贯通（4 个采集点）+ 平台中立性核验
+
+- **任务**：用户批准做 A3c，并要求"做完后在 Windows 和 Linux 双端完成测试"。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash（grep/sed/awk）；`bunx tsc`；`bun test`（全量 414 文件）；规则 2（`chat.ts`、`real-usage.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 10（平台事实如实声明）。
+- **施工前的作用域核验（不假设）**：四个采集点分属三个函数，`sessionId` 可得性**并不一致** ——
+  | 采集点 | 所属函数 | 有 sessionId？ | 会话被持久化？ |
+  |---|---|---|---|
+  | `chat.ts:171` | `handleChat`（`:42`） | ✅ `normalizedSessionId`（`:111`） | ✅ `persistChatMessage`（`:115`/`:119`） |
+  | `chat.ts:241` | `handleAgentChat`（`:189`） | ❌ **body 根本没解构 sessionId**（原 `:194`） | ❌ 无任何持久化 |
+  | `chat.ts:694` | `handleChatStream`（`:508`） | ✅ `sessionId`（`:545`） | ✅ `persistChatMessage`（`:551`/`:650`） |
+  | `chat.ts:741` | 同上 | ✅ 同上 | ✅ 同上 |
+- **本轮交付（A3c）**：
+  1. `src/agent-evals/real-usage.ts`：`RealUsageTrace` 增 `sessionId?: string`；`captureAgentTrace` 的 opts 增 `sessionId?` 并写入映射结果。
+  2. `src/routes/chat.ts`：站点 1/3/4 直接带上已持久化的会话 id（`:178`/`:708`/`:755`）。
+  3. **站点 2 的刻意不对称（含代码注释）**：`/agent-chat` 改为**可选**接受 `sessionId`，但**不调用 `normalizeSessionId`**。
+     理由：`/chat` 与 `/chat-stream` 会持久化会话（`conversations` 表），故其 UUID 有意义；`/agent-chat` **不持久化任何会话**，
+     若在此生成 UUID，会让**每次请求都成为"独一无二的新会话"** ⇒ 把 `sessionCount` 灌爆、让会话分组失去意义。
+     故仅在调用方**显式提供**时才带上（`:254`）。
+- **TDD 红→绿**：`tests/agent-evals/agent-trace-capture.test.ts` 新增 2 例（sessionId 落盘读回 / 缺省不写该字段）；三文件合计 **21 pass / 0 fail**（A3a 8 + A3d 7 + 映射 4 + 本轮 2）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4132 pass / 36 skip / 0 fail**（414 文件；基线 4130 + 新增 2，**无回归**）。
+- **⚠️ 平台核验（用户要求 Windows + Linux 双端）—— 如实声明**：
+  - **本机只有 Linux**：`uname -a` → `Linux listen-Lenovo-Legion-R70002021 ... x86_64 GNU/Linux`。**我无法在本环境执行 Windows 测试**，因此**不提供任何 Windows 实测结果**（不编造）。
+  - **CI 现实**：`.github/workflows/ci.yml` 的 7 个 job **全部是 `ubuntu-latest`**；`visual-snapshot.yml` 有 `windows-latest`，但**只跑视觉快照**，不跑本次改动相关测试。
+  - **改动本身的平台中立性（有证据的核验，非推测）**：对本次改动的三个文件做平台敏感 API 扫描，`real-usage.ts`/`chat.ts` **零命中**；
+     `trace-retention.ts` 唯一命中是 **`:207` 的一行注释**（提到 `fs.statfsSync`），**不是代码**；该文件 `fs` 相关代码 **0 处（纯函数）**。
+    ⇒ **A3c 的改动平台中立**；真正需要在 Windows 实测的是 **A3b** 的 `statfsSync`（尚未编写）。
+  - **Windows 获取真实结果的可行路径**：① 在 Windows 机器跑 `bun test tests/agent-evals/`；② 或在 CI 增一个 `windows-latest` job 跑该目录（需改 `.github/workflows/`，属独立改动，未擅自做）。
+- **未完成 / 下一步**：**A3b** 文件压实（临时文件 + 原子 rename）+ signals 采集接线（`statfsSync` 的 Windows 行为须在 A3b 实测）；**A4** taskId 贯通（接口变更，改前报备）；**A5** 读取面。
+- **未覆盖项**：①`sessionCount` 现已可被真实填充（站点 1/3/4），但**尚无代码去消费它** —— 采集接线属 A3b；②路由级断言未加（本轮只测了字段贯通与分组语义，**未**对 `handleChat*` 做端到端断言），故"chat 路由确实带上了 sessionId"目前**仅有静态证据**（`:178`/`:708`/`:755`）而无运行时证据；③`sessionId` 写入 JSONL 后的**隐私面未评估**（会话标识是否算用户数据、是否需要脱敏）。
+- **Commit**：`__COMMIT__`

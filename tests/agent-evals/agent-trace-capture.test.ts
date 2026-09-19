@@ -83,3 +83,32 @@ describe("AgentTrace → RealUsage 映射", () => {
     expect(loaded[0]?.tokensByCategory?.embedding).toBe(300);
   });
 });
+
+describe("切片 A3c：会话标识贯通", () => {
+  const tmpPath = path.join(process.cwd(), ".tmp", "test-agent-trace-session.jsonl");
+
+  afterEach(async () => {
+    await clearRealUsageTraces(tmpPath);
+    try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+  });
+
+  test("captureAgentTrace 携带 sessionId 时可落盘并读回", async () => {
+    startTrace("agent-s", "task-sess-1");
+    const trace = completeTrace("task-sess-1", "ok");
+
+    await captureAgentTrace(trace!, { filePath: tmpPath, task: "会话任务", sessionId: "sess-abc" });
+
+    const loaded = await loadRealUsageTraces(tmpPath);
+    expect(loaded[0]?.sessionId).toBe("sess-abc");
+  });
+
+  test("缺省 sessionId 时不写入该字段（保持独立单元语义）", async () => {
+    startTrace("agent-t", "task-sess-2");
+    const trace = completeTrace("task-sess-2", "ok");
+
+    await captureAgentTrace(trace!, { filePath: tmpPath, task: "无会话任务" });
+
+    const loaded = await loadRealUsageTraces(tmpPath);
+    expect(loaded[0]?.sessionId).toBeUndefined();
+  });
+});

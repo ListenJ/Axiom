@@ -29,6 +29,12 @@ export interface RealUsageTrace extends TaskTrace {
   totalTokens?: number;
   /** 按显式分类的 token 用量，如 { main: 1200, embedding: 300 }（决策 Q3） */
   tokensByCategory?: Record<string, number>;
+  /**
+   * 会话标识（切片 A3c）。用于保留策略的**会话原子**分组与活跃豁免。
+   * 仅在调用方确有"被持久化的会话"时才应带上 —— 不要为无会话的端点伪造 UUID，
+   * 否则每次请求都会变成一个独立会话，反而让分组失去意义（见 chat.ts 站点 2 注释）。
+   */
+  sessionId?: string;
 }
 
 export const REAL_USAGE_PATH = readString("REAL_USAGE_PATH", path.join(process.cwd(), "data", "real-usage-traces.jsonl"));
@@ -108,6 +114,8 @@ export interface AgentTraceCaptureOptions {
   latencyMs?: number;
   totalTokens?: number;
   tokensByCategory?: Record<string, number>;
+  /** 会话标识；缺省则该轨迹作为独立单元参与保留判定 */
+  sessionId?: string;
 }
 
 export async function captureAgentTrace(
@@ -124,6 +132,7 @@ export async function captureAgentTrace(
     ...(opts.latencyMs !== undefined ? { latencyMs: opts.latencyMs } : {}),
     ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
     ...(opts.tokensByCategory !== undefined ? { tokensByCategory: opts.tokensByCategory } : {}),
+    ...(opts.sessionId !== undefined ? { sessionId: opts.sessionId } : {}),
   };
   await captureRealUsageTrace(mapped, opts.filePath);
 }

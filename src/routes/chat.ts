@@ -175,6 +175,7 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       model: String(result.model ?? result.provider ?? ""),
       latencyMs,
       source: "chat",
+      sessionId: normalizedSessionId,
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
     // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
@@ -191,7 +192,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
 
   const agentChatStartedAt = Date.now();
   const body = await ctx.req.json();
-  const { message, history = [], taskType, budget } = body;
+  const { message, history = [], taskType, budget, sessionId } = body;
   const messages: Array<{ role: string; content: string }> = [
     ...(history as Array<{ role: string; content: string }>),
     { role: "user", content: message },
@@ -245,6 +246,12 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
       model: String(result.model ?? result.provider ?? ""),
       latencyMs: Date.now() - agentChatStartedAt,
       source: "agent-chat",
+      // 注意（2026-09-19 切片 A3c）：此处**不**用 normalizeSessionId。
+      // /chat 与 /chat-stream 会用它并在 conversations 表持久化会话，故其 UUID 有意义；
+      // /agent-chat 不持久化任何会话，若在此生成 UUID，会让每次请求都成为一个
+      // "独一无二的新会话"，反而把 sessionCount 灌爆、让会话分组失去意义。
+      // 故仅在调用方**显式提供** sessionId 时才带上。
+      ...(typeof sessionId === "string" && sessionId.trim() ? { sessionId: sessionId.trim() } : {}),
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
     // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
@@ -698,6 +705,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   model: String(ev.model ?? ev.provider ?? ""),
                   latencyMs: Date.now() - streamStartedAt,
                   source: "chat-stream",
+                  sessionId,
                   feedback: success ? "auto-success" : "auto-fail",
                 }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
                 // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
@@ -744,6 +752,7 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                   success: false,
                   latencyMs: Date.now() - streamStartedAt,
                   source: "chat-stream",
+                  sessionId,
                   feedback: "stream-error",
                 }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
               } catch {}
