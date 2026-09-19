@@ -2195,3 +2195,28 @@
 - **未覆盖项**：①`expect()` 差 16 的**具体断言未逐条定位**；②未在本轮给测试发现加 `dist` 排除（属独立改进，见下"不做项"）；③未跑 Windows 上的**全量** `./tests`（仅跑了可移植子集，符合 D2 的 report-only 定位）。
 - **不做项（留后续，避免本轮扩大范围）**：给测试发现加 `dist/` 排除（如 `package.json` 的 test 脚本加 `--path-ignore-patterns` 或测试前清理 `dist/`）；Windows 全量套件接入 CI。
 - **Commit**：`5b3b736`
+
+## 2026-09-19 — feat(T2): 切片 A3b 轨迹文件压实（原子重写 + 场景自适应策略接线）
+
+- **任务**：用户批准开 A3b，并要求"在 Windows 使用 **Git Bash** 完成需要在 Windows 执行的任务，避免 PowerShell 转义问题"。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`ssh -o BatchMode=yes` + **Git Bash**（`C:\Program Files\Git\bin\bash.exe`，`MINGW64_NT-10.0-26200`，已验证可用）；`bunx tsc`；`bun test`（全量 416 文件）；规则 2（`real-usage.ts` 备份）；规则 7（先红后绿）；规则 8（策略可注入）。
+- **施工前核验（两项，均有实测证据）**：
+  1. **`statfsSync` 双端可用性**（我在 A3d 标记的**未验证平台风险点**）——实测解除：
+     Linux `bsize=4096 bavail=90247258 freeBytes≈344 GiB`；Windows `bsize=4096 bavail=152675888 freeBytes≈582 GiB`。两端均 **OK**，非推测。
+  2. **既有资产检索（避免重造）**：同目录 `src/agent-evals/auto-evolve.ts:71-80` 已有 `tmp + renameSync` 原子写范式；
+     `src/utils/logger.ts:95-107` 已记录 **Windows 特有坑**："`end()` 是异步关闭，立即 `renameSync` 在 Windows 上会因**文件句柄未释放**而 EPERM/EBUSY"。
+- **本轮交付（A3b）**：`src/agent-evals/real-usage.ts` 新增 `compactRealUsageTraces(filePath?, opts?)` + `CompactionResult`。
+  四条实现约束**逐条有据**：①**先 `flushPending`**（否则刚采集未落盘的记录会在重写时被抹掉）；②**tmp + `renameSync`**（镜像 `auto-evolve.ts:71`，失败清临时文件后原样抛出）；③**不用流式读句柄**（`readFileSync` 读完即关，规避 `logger.ts:95` 记的 Windows EPERM/EBUSY 路径）；④**策略可注入**（`opts.policy`），否则"体积超限"在 300+ GiB 空闲的机器上无法构造，等于没测。
+  另：`opts.now` 可注入（不读系统时钟）；返回体含 `signals`（fileBytes/recordCount/sessionCount/freeDiskBytes）以便**复现一次裁剪决策**；`statfsSync` 失败时**记 warn 并退化为 0**（落到最严档），不假装成功；畸形行计入 `malformedDropped` **显式上报**，不静默丢弃。
+- **TDD 红→绿**：`tests/agent-evals/trace-compaction.test.ts` 修复前 **0 pass / 1 error**（`compactRealUsageTraces` 不存在）→ 修复后 **7 pass / 0 fail**。
+  覆盖：无淘汰时**跳过且文件逐字节不变**、超期整组淘汰、体积超限（注入策略）、signals 与真实文件一致、重写后为完整有效 JSONL 且**无 .tmp 残留**、文件不存在不抛错、**压实前自动 flush 挂起写入**。
+- **⚠️ 我自己的两处失误（如实记录）**：
+  ① **测试期望写错（本会话第 2 次）**：两条用例用了 `LOOSE` 策略（10 年窗口）去测"超期淘汰"，40 天前的记录当然不算超期 ⇒ 实现返回 `skipped=true`，我却断言 `false`。
+     该失败**不是实现问题**；已新增 `TIME_30D`（30 天窗口）专用于超期场景。**教训**：测试里的策略对象名（LOOSE）不能替代对它**实际语义**的检查。
+  ② `tsc` 抓到类型错误：`records` 声明为 `Record<string, unknown>[]`，不满足 `RetentionRecord[]`（缺 `id: string`）。已改为 `RetentionRecord[]` 并加注释说明形状校验后才入列 —— **是类型系统拦下的，不是靠人眼**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4140 pass / 36 skip / 0 fail**（416 文件；基线 4133 + 新增 7，**无回归**）。
+- **⚠️ 已做 / 未做（不得宣称"磁盘已自动有界"）**：`compactRealUsageTraces` **目前没有任何生产调用方** —— 即**没有任何时机触发压实**。
+  仍需：①调用时机（写入后按阈值触发 / 定时 / 显式命令）；②与 `capture` 的并发关系（压实期间的新写入如何不丢，当前靠 `flushPending` 只覆盖"压实开始时已入队"的部分）。这两项未做 ⇒ **磁盘此刻仍不会被自动压实**。
+- **未覆盖项**：①**Windows 实测待补**（本轮流程：Linux 全绿 → 提交推送 → Windows 经 Git Bash 拉取并复跑；结果记于下一条）；②压实后 `bytesAfter` 采用 `selectRetained` 的计算值，**未与重写后文件实际大小二次校验**；③并发压实（两个进程同时 compact）**无锁**，未分析。
+- **不做项**：未加调用时机；未加并发锁；未改 `capture` 既有写入语义。
+- **Commit**：`__COMMIT__`

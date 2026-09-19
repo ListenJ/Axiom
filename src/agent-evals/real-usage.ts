@@ -13,6 +13,13 @@ import { readNumber, readString } from "../utils/env.js";
 import type { TaskTrace } from "../self-evolve/types.js";
 import type { AgentTrace } from "../utils/agent-trace.js";
 import type { InductionPromotionDeps } from "../self-evolve/skill-promotion.js";
+import {
+  resolvePolicy,
+  selectRetained,
+  type RetentionPolicy,
+  type RetentionRecord,
+  type RetentionSignals,
+} from "./trace-retention.js";
 
 export interface RealUsageTrace extends TaskTrace {
   /** 使用的模型 */
@@ -201,6 +208,139 @@ export async function loadRealUsageTraces(filePath?: string): Promise<RealUsageT
     }
   }
   return traces;
+}
+
+/** 压实结果（含 signals 与策略，便于复现一次裁剪决策） */
+export interface CompactionResult {
+  /** true = 未重写文件（无可淘汰项 / 文件不存在） */
+  skipped: boolean;
+  reason?: "no-file" | "nothing-to-drop";
+  policy: RetentionPolicy;
+  signals: RetentionSignals;
+  bytesBefore: number;
+  bytesAfter: number;
+  kept: number;
+  dropped: number;
+  droppedByTime: number;
+  droppedBySize: number;
+  /** 解析失败/形状不合规而被丢弃的行数（显式上报，不静默） */
+  malformedDropped: number;
+}
+
+/**
+ * 压实轨迹文件：按「体积 × 时间 × 会话」策略裁剪并**原子重写**（切片 A3b）。
+ *
+ * 为什么需要：A3a/A3d 只交付了纯函数，**磁盘仍是无上限纯追加** ——
+ * 只落盘不设限，等于把 B3-Medium 修掉的内存无界增长搬到磁盘。
+ *
+ * 关键实现约束（均有据可查）：
+ *  1. **先 flush 挂起批次**：否则刚采集但尚未落盘的记录会在重写时被抹掉。
+ *  2. **tmp + renameSync 原子重写**：镜像同目录 `auto-evolve.ts:71` 的既有范式；
+ *     失败清理临时文件后原样抛出，由调用方容错。
+ *  3. **不用流式读句柄**：`logger.ts:95` 记录过 Windows 上"句柄未释放即 renameSync
+ *     导致 EPERM/EBUSY"的坑；此处用 `readFileSync`（读完即关），规避该路径。
+ *  4. **策略可注入**：`opts.policy` 供测试构造"体积超限"（真实磁盘有 300+ GiB 空闲，
+ *     不注入就无法构造该场景，等于没测）。缺省则由 `resolvePolicy(signals)` 按场景推导。
+ */
+export async function compactRealUsageTraces(
+  filePath?: string,
+  opts?: { policy?: RetentionPolicy; now?: number },
+): Promise<CompactionResult> {
+  const target = resolvePath(filePath);
+  await flushPending(target); // 约束 1
+
+  const emptySignals: RetentionSignals = {
+    fileBytes: 0, recordCount: 0, sessionCount: 0, freeDiskBytes: 0,
+  };
+
+  if (!fs.existsSync(target)) {
+    return {
+      skipped: true, reason: "no-file",
+      policy: opts?.policy ?? resolvePolicy(emptySignals),
+      signals: emptySignals,
+      bytesBefore: 0, bytesAfter: 0,
+      kept: 0, dropped: 0, droppedByTime: 0, droppedBySize: 0, malformedDropped: 0,
+    };
+  }
+
+  const content = fs.readFileSync(target, "utf-8"); // 约束 3：读完即关，不留句柄
+  const lines = content.split("\n").filter((l) => l.trim().length > 0);
+  const records: RetentionRecord[] = [];
+  let malformedDropped = 0;
+  for (const line of lines) {
+    try {
+      // 形状校验后才入列：与 loadRealUsageTraces 的收行条件保持一致，避免"写了读不到"
+      const obj = JSON.parse(line) as RetentionRecord;
+      if (obj && typeof obj.id === "string" && typeof obj.task === "string") records.push(obj);
+      else malformedDropped++;
+    } catch {
+      malformedDropped++;
+    }
+  }
+
+  const fileBytes = fs.statSync(target).size;
+  const sessionCount = new Set(
+    records.map((r) => r.sessionId).filter((v): v is string => typeof v === "string" && v.length > 0),
+  ).size;
+
+  let freeDiskBytes = 0;
+  try {
+    const st = fs.statfsSync(path.dirname(target));
+    freeDiskBytes = Number(st.bavail) * Number(st.bsize);
+  } catch (e) {
+    // 平台不支持时保守取 0（→ resolvePolicy 落到最严档），并如实记日志，不假装成功
+    logger.warn("[RealUsage] statfsSync unavailable; fallback to 0", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  const signals: RetentionSignals = { fileBytes, recordCount: records.length, sessionCount, freeDiskBytes };
+  const policy = opts?.policy ?? resolvePolicy(signals);
+  const now = opts?.now ?? Date.now();
+  const outcome = selectRetained(records, policy, now);
+
+  if (outcome.drop.length === 0 && malformedDropped === 0) {
+    return {
+      skipped: true, reason: "nothing-to-drop",
+      policy, signals,
+      bytesBefore: outcome.bytesBefore, bytesAfter: outcome.bytesBefore,
+      kept: outcome.keep.length, dropped: 0,
+      droppedByTime: 0, droppedBySize: 0, malformedDropped: 0,
+    };
+  }
+
+  // 约束 2：原子重写
+  const payload = outcome.keep.length > 0
+    ? outcome.keep.map((r) => JSON.stringify(r)).join("\n") + "\n"
+    : "";
+  const tmpPath = `${target}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tmpPath, payload, "utf-8");
+    fs.renameSync(tmpPath, target);
+  } catch (e) {
+    try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+    throw e;
+  }
+
+  logger.info("[RealUsage] compacted trace file", {
+    kept: outcome.keep.length,
+    dropped: outcome.drop.length,
+    malformedDropped,
+    bytesBefore: outcome.bytesBefore,
+    bytesAfter: outcome.bytesAfter,
+  });
+
+  return {
+    skipped: false,
+    policy, signals,
+    bytesBefore: outcome.bytesBefore,
+    bytesAfter: outcome.bytesAfter,
+    kept: outcome.keep.length,
+    dropped: outcome.drop.length,
+    droppedByTime: outcome.droppedByTime,
+    droppedBySize: outcome.droppedBySize,
+    malformedDropped,
+  };
 }
 
 /**
