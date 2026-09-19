@@ -2415,3 +2415,42 @@
   ③`--path-ignore-patterns` 在本 Bun 版本下**实测不生效**（跑了 5 个文件一个都没排除），故未依赖它。
 - **不做项**：未改 `scripts/test-full.ts` 的排除清单；未改本地 `test` 脚本的运行语义；未改 codeindex 的 DB 形态。
 - **Commit**：`ad516b4`
+
+## 2026-09-20 — fix(T2): 修 (a) 本地/CI 口径不一致 + (b) codeindex 共享主库争用
+
+- **任务**：用户裁定"修 a 然后修 b"。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`bunx tsc`；`bun run test`（权威 collector）；规则 2/8/12/13。
+
+### (a) 本地 `test` 与 CI `test:full` 口径不一致 → 已消除
+
+- **根因（实测）**：权威运行器 `scripts/test-full.ts:21` **整目录排除 `stress/`**（`EXCLUDE_DIRS = ["node_modules","stress","e2e"]`），
+  而 `package.json` 的 `"test"` 是 `bun test --parallel=8 ./tests` —— **会跑 stress/**。
+  后果：`C. 5 层管道` 这类重负载用例在本地耗时 **16.5s > `--timeout 15000`** 而超时（日志显示其
+  `p99=45.63ms`、`paths=90000` **均在界内**，即失败与阈值无关），在 CI 则**从不发生**。
+- **修法（保持"排除口径唯一出处"）**：给 `test-full.ts` 增加 **`--parallel=N` 透传**，
+  并让本地 `"test": "bun run scripts/test-full.ts --parallel=8"` **复用同一个 collector**。
+  ⇒ 排除清单只有一份，本地与 CI 不会漂移；本地仍是并行的（实测 **18.9s**）。
+  另把 `"test:stress"` 由单文件扩为**整个 `tests/stress/` 目录**，避免 `high-intensity-load.test.ts`
+  在移出默认套件后**失去所有自动运行入口**（该脚本本就以 `AXIOM_PERF_ASSERT=1` 跑严格阈值）。
+- **证据**：`bun run test` → 日志 `collected 412 test files (excluded dirs: node_modules/stress/e2e, slow suffix: .slow.ts, file ledger: 0)`
+  + `passthrough: --parallel=8`；结果 **4005 pass / 67 skip / 0 fail**（412 文件，**18.89s**），退出码 **0**。
+
+### (b) `tests/codeindex/local-index.test.ts` 并行下 4 例失败 → 已修
+
+- **根因（实测）**：代码索引**并入主库**（`src/codeindex/local-index.ts:42-45`：`dbPath()` = `DATABASE_PATH`，默认 `./data/agent.db`），
+  而该测试**未按仓库既有约定隔离主库**。多进程并发争用同一 DB 文件时，
+  `indexProject` 内"单文件解析失败跳过"的 `catch`（`:283-285`）会**静默少索引**，表现为 `expect(r.files).toBe(2)` 失败。
+  实测对照：并行全量下该文件 **4 fail**；**单独跑 4 pass / 0 fail**。
+- **修法**：按仓库既有约定隔离 —— 该文件在模块作用域把 `process.env.DATABASE_PATH` 指向 `mkdtempSync` 的临时库，
+  并在 `afterAll` 恢复原值 + 清理临时目录。
+  依据：`tests/unit/cron-scheduler-sideeffects.test.ts` / `tests/unit/kb-db-path.test.ts` / `tests/unit/scheduler-crash.test.ts` /
+  `tests/utils/env-runtime-vars.test.ts` **均已采用同一手法**（不是本次新造的约定）。
+- **证据**：单独跑 **4 pass / 0 fail**；与 3 个 DB 重度用例**同批并行** **20 pass / 0 fail**；全量 collector 运行 **0 fail**。
+- **顺带登记（未修，属可观测性问题）**：`indexProject` 的 `catch {}` 会**静默跳过**解析失败的文件，
+  只在计数断言处间接暴露。这属于"静默失败"，与项目既有整改方向（A10-4 补日志）同类，本轮**未改**以避免扩大范围。
+
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun run test`（本地权威口径）→ **4005 pass / 67 skip / 0 fail**（412 文件，18.89s，退出码 0）。
+- **未覆盖项**：①Windows 侧待验证（下一步：同步 worktree 后跑 `bun run test` 与该两处定向用例）；
+  ②`test:stress` 扩为整目录后，**其在本机的总耗时未测量**（未跑，避免超时）；③`indexProject` 的静默跳过未修。
+- **不做项**：未改 `test-full.ts` 的排除清单内容；未改 codeindex 的生产 DB 形态（仍并入主库）；未改 `catch` 语义。
+- **Commit**：`__COMMIT__`

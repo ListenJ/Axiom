@@ -87,10 +87,19 @@ if (import.meta.main) {
     `[test-full] collected ${files.length} test files ` +
       `(excluded dirs: ${EXCLUDE_DIRS.join("/")}, slow suffix: ${SLOW_SUFFIX}, file ledger: ${EXCLUDE_FILES.length})`,
   );
+  // 透传 --parallel=N：本 collector 是**唯一**的排除口径出处（本地 test 与 CI test:full 共用），
+  // 但两者对速度的要求不同 —— CI 串行求稳，本地可并行求快。若不透传，本地就得自建一份排除清单，
+  // 那就又回到"两份清单必然漂移"的老问题（2026-09-20 修：本地 test 曾跑 stress/，而 CI 排除它，
+  // 导致 stress 重负载用例在本地 15s 超时、在 CI 从不发生）。
+  const argv = process.argv.slice(2);
+  const parallelArg = argv.find((a) => a.startsWith("--parallel="));
+  const passthrough = parallelArg ? [parallelArg] : [];
+  if (passthrough.length > 0) console.log(`[test-full] passthrough: ${passthrough.join(" ")}`);
+
   // --isolate：每文件独立全局对象——结构性根治跨文件状态泄漏（mock.module/单例/env 残留）
   // 造成的组合序干扰（2026-08-30 实测：非隔离 80 fail → 隔离 8 fail，其中 6 为上列存量）；
   // --timeout 15000：对齐 package.json "test" 脚本约定（隔离冷启动下长测试 5s 默认会误杀）。
-  const proc = Bun.spawn([process.execPath, "test", "--isolate", "--timeout", "15000", ...files], {
+  const proc = Bun.spawn([process.execPath, "test", "--isolate", "--timeout", "15000", ...passthrough, ...files], {
     cwd: repoRoot,
     stdio: ["inherit", "inherit", "inherit"],
   });
