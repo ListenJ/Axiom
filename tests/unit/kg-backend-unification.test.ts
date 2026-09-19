@@ -30,7 +30,8 @@ describe("切片1：DRE 存储托管唯一边表 kg_edges", () => {
     const dir = mkdtempSync(join(tmpdir(), "dre-"));
     const path = join(dir, "agent.db");
     try {
-      new SqliteBackend(path);
+      // Windows：SqliteBackend 自己持句柄，不 close 就 rmSync 会 EBUSY（POSIX 无此约束）
+      const backend = new SqliteBackend(path);
       const db = new Database(path, { readonly: true });
       const tables = db
         .query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'kg%'")
@@ -39,6 +40,7 @@ describe("切片1：DRE 存储托管唯一边表 kg_edges", () => {
       expect(names).toContain("kg_edges");
       expect(names).not.toContain("kg_edge");
       db.close();
+      backend.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -51,7 +53,7 @@ describe("切片2：DRE 边写入/读取走 kg_edges 列名", () => {
     const path = join(dir, "agent.db");
     try {
       // SqliteBackend 托管建表（唯一边表 kg_edges）
-      new SqliteBackend(path);
+      const backend = new SqliteBackend(path);
       const db = new Database(path);
       const store = new KnowledgeStore(db);
       store.addEdge({
@@ -77,6 +79,7 @@ describe("切片2：DRE 边写入/读取走 kg_edges 列名", () => {
       });
       expect(store.getOutEdges("nodeA").length).toBe(1);
       db.close();
+      backend.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -129,7 +132,7 @@ describe("切片4：跨写入方边 id 收敛（同一逻辑边 = 同一行）",
     const dir = mkdtempSync(join(tmpdir(), "kg-conv-"));
     const path = join(dir, "agent.db");
     try {
-      new SqliteBackend(path); // 托管建表
+      const backend = new SqliteBackend(path); // 托管建表
       const db = new Database(path);
       const store = new KnowledgeStore(db);
       store.addEdge({ srcNode: "X", dstNode: "Y", relation: "related-to", weight: 1 });
@@ -143,6 +146,7 @@ describe("切片4：跨写入方边 id 收敛（同一逻辑边 = 同一行）",
       const n = (db.query("SELECT COUNT(*) AS c FROM kg_edges").get() as { c: number }).c;
       expect(n).toBe(1);
       db.close();
+      backend.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

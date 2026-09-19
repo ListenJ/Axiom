@@ -83,7 +83,9 @@ function census(): { bySource: Map<string, Hit>; hitFiles: Set<string> } {
           fileHit = true;
         }
       }
-      if (fileHit) hitFiles.add(file);
+      // 归一化为 POSIX 分隔符：§5.2.1 表格里的路径一律用 '/'，而 walkTs 在 Windows
+      // 产出 '\'，不归一化会导致两侧集合**完全不相交**（实测：Expected 1 / Received 38）。
+      if (fileHit) hitFiles.add(file.replace(/\\/g, "/"));
     }
   }
   return { bySource, hitFiles };

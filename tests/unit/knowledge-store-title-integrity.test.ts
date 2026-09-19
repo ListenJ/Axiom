@@ -40,7 +40,14 @@ const { KnowledgeStore } = await import(join(REPO, "src", "knowledge", "store.js
 function tmpStore(): { store: unknown; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), "ks-title-"));
   const store = new (KnowledgeStore as never as new (p: string) => unknown)(join(dir, "k.db"));
-  return { store, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  // Windows：store 自己持有 DB 句柄，不先 close 则 rmSync 抛 EBUSY（POSIX 无此约束）
+  return {
+    store,
+    cleanup: () => {
+      (store as { close?: () => void }).close?.();
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 const OPTS = {

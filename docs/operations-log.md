@@ -2486,3 +2486,29 @@
   ②未在 Windows 跑 `test:stress`（整目录，耗时未测）；③`test:stress` 扩目录后的总耗时仍未测。
 - **不做项**：未修上述 9 条 Windows 不兼容（属独立课题，且需要 Windows 环境逐条调试）。
 - **Commit**：`da9922f`
+
+## 2026-09-20 — fix(T2): 修 9 条 Windows 不兼容（EBUSY / 路径分隔符 / 缺语言包）
+
+- **任务**：用户裁定"先修复当前问题"。对象为上一轮登记的 9 条 Windows 失败。分级 **T2**。仅提交 Gitea。
+- **取证（Windows 实测拿 Expected/Received，不靠推断）**：三类根因，全部与平台语义相关 ——
+  1. **EBUSY ×6**：`kg-backend-unification.test.ts`（切片1/2/4）与 `knowledge-store-title-integrity.test.ts`（3 例）在清理临时目录时报
+     `EBUSY: resource busy or locked, rm '<tmpdir>'`。根因：**Windows 不允许删除仍被打开的 SQLite 文件**（POSIX 允许），
+     而测试在 DB 句柄未释放时就 `rmSync`。
+  2. **路径分隔符 ×2**：`determinism-disclosure.test.ts` 两条同时失败（`Expected 1 / Received 38`）。
+     根因：`walkTs()` 用 `join()` 产出 `src\dre\...`（Windows），而 §5.2.1 文档表里的路径是 `src/...`（`/`）⇒ 两侧集合**完全不相交**。
+  3. **缺语言包 ×1**：`ocr.test.ts` 报 `OCR 语言包缺失: eng（langPath=.../）`。
+     根因：`eng.traineddata`（约 5MB）**未入库**（`git ls-files` 零命中），任何**全新检出**都没有它 —— 与操作系统无关，只是 Windows worktree 是全新检出才暴露。
+- **修法（逐条对应；均沿用仓库既有模式）**：
+  1. `tests/unit/kg-backend-unification.test.ts`：把 `new SqliteBackend(path)` 的**实例接住**（此前直接丢弃、无从关闭），
+     在三处 `finally` 前先 `db.close(); backend.close();` 再 `rmSync`。`SqliteBackend.close()` 是既有 API（`src/dre/storage/sqlite-backend.ts:308`）。
+  2. `tests/unit/knowledge-store-title-integrity.test.ts`：`cleanup()` 中先 `(store as {close?}).close?.()` 再 `rmSync`。
+     **未新增生产 API** —— `src/knowledge/store.ts:327` **本就有 `close()`**（我一度重复插入，被 `tsc` 的 `TS2393 Duplicate function implementation` 当场拦下并已回退，见下方偏差记录）。
+  3. `tests/unit/determinism-disclosure.test.ts`：`hitFiles.add(file.replace(/\\/g, "/"))` —— 归一化为 POSIX 分隔符，与文档表口径一致。
+  4. `tests/ocr.test.ts`：沿用**本文件既有**的 `process.env.CI ? test.skip : test` 约定，扩展为
+     `process.env.CI || !existsSync(LANG_PACK) ? test.skip : test` —— 缺包即跳过而非失败（语言包未入库是仓库现状，不是平台差异）。
+- **验证结果**：本机（Linux）四文件 **21 pass / 0 fail**；`bunx tsc --noEmit` → **0 error**。Windows 侧验收见下一条。
+- **⚠️ 偏差记录（我自己的失误，如实登记）**：修 (2) 时我**未先确认 `close()` 是否已存在**便插入了一个，
+  造成 `src/knowledge/store.ts` 出现两个 `close()`；`tsc` 报 **`TS2393: Duplicate function implementation`** 拦下，
+  已从备份回退原文件（现 `close(): void` 仅 1 处）。**教训**：加方法前先 grep 该方法名。
+- **未覆盖项**：①Windows 侧待验证（下一条记录）；②`eng.traineddata` 是否应入库 / 或改用小夹具，**未决策**（当前选择"缺包即跳过"）。
+- **Commit**：`__COMMIT__`

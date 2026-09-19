@@ -8,12 +8,17 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { getOCREngine, terminateOCREngine, type OCRResult } from "../src/ocr/engine.js";
 import { postProcessOCR, exportDocument, type StructuredDocument } from "../src/ocr/post-processor.js";
 
 describe("OCR Engine", () => {
-  // CI 环境跳过（Tesseract worker 加载慢），本地实跑——不再以 expect(true) 假通过
-  const maybeTest = process.env.CI ? test.skip : test;
+  // CI 环境跳过（Tesseract worker 加载慢），本地实跑——不再以 expect(true) 假通过。
+  // 追加（2026-09-20）：eng.traineddata（约 5MB）**未入库**，任何全新检出（任意平台）都没有它；
+  // 缺包时 `assertLangsAvailable` 会直接抛错。沿用本文件既有 skip 约定，缺包即跳过而非失败。
+  const LANG_PACK = join(import.meta.dir, "..", "eng.traineddata");
+  const maybeTest = process.env.CI || !existsSync(LANG_PACK) ? test.skip : test;
   maybeTest("should get engine with default config", async () => {
     const engine = await getOCREngine();
     expect(engine).toBeDefined();
