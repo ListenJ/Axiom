@@ -2174,4 +2174,4 @@
   ③ **`test` job 仍是重 L1**（含 Playwright E2E），与设计文档"L1 ≤ 5 min"目标不符；拆分未做（避免本轮扩大范围）。
   ④ Windows worktree 复用 `D:\openclaw-fusion\node_modules` 的 junction，deps 变更时需重装。
 - **不做项**：未新增 Gitea CI；未拆分 `test` job；未对 Windows 机做任何写操作（除 worktree 与 junction 两项新增物）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`968227d`
