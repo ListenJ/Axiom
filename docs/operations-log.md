@@ -2140,3 +2140,38 @@
 - **未覆盖项**：①Windows 首跑是否绿**未实测**（本机只有 Linux）；②`bun install --frozen-lockfile`/`bun test` 在 `windows-latest` 的可用性**未验证**；③Windows runner 耗时/额度成本**未评估**；④L1 "≤5 min" 目标**未测量**（现有 `test:full` 实际耗时未统计）；⑤**`/chat-stream` 的两个采集点（`:708`/`:755`）仍未做路由级断言**（SSE 需消费 ReadableStream，本轮未做）—— 故站点 3/4 依旧只有静态证据。
 - **不做项**：未改 `.github/workflows/*`；未新增 Gitea CI 配置；未新增 Windows runner。
 - **Commit**：`c8c4cf2`
+
+## 2026-09-19 — ci(T3): 触发面扩 codex/** + Windows report-only job；fix(T2): 修复 mock.module 跨文件污染；Windows 实测
+
+- **任务**：用户裁定 D1（扩 `codex/**` 跑 L1）、D2（Windows 初期 report-only）、D4（L3 维持 main/master），并给出 Windows 主机 `18336@192.168.0.100` 用于双端测试。本轮落地 CI 并完成**真实 Windows 验证**。仅提交 Gitea。
+- **工具**：Bash；`ssh`（Windows 主机，BatchMode）；`spawnSync` 子进程隔离；`bunx tsc`；`bun test`（全量 415 文件）；规则 2（`ci.yml` 等备份至 `.tmp/backups/`）；规则 7/13（对照实验 + 可证伪）；规则 9（未对其工作区做任何破坏性操作）。
+- **一、Windows 主机接入（真实环境，非声明）**：`ssh -o BatchMode=yes 18336@192.168.0.100` 连通。
+  实测：`whoami` = `dandelion\18336`；`ver` = Windows 10.0.26200；`bun --version` = **1.3.14**（与 CI 锁定的 `BUN_VERSION` 一致）；仓库位于 `D:\openclaw-fusion`（另一分支 `codex/node22-decommission-n2-swap`，`git status` **干净**）。
+  **做法（不打扰其检出）**：`git fetch gitea` → `FETCH_HEAD = a12bae0`（与本地 HEAD 一致，**该机可拉取本分支**）；
+  再以 **worktree** 隔离：`git worktree add D:\openclaw-fusion-verify a12bae0`，并以 `mklink /J` 复用既有 `node_modules`（避免重装依赖）。
+  ⚠️ 该 worktree **仍在**（D:\openclaw-fusion-verify），后续 A3b 的 Windows 验证直接复用；不再需要时可 `git worktree remove D:\openclaw-fusion-verify`。
+- **二、Windows 实测结果（真实执行，非外推）**：`bun test`（4 个目标文件）→ **24 pass / 0 fail**（含保留策略 8、场景推导 7、映射 6、路由断言 3），与 Linux 同集合结果一致。
+- **三、⚠️ 发现并修复一个我自己引入的严重测试缺陷（mock.module 跨文件污染）**
+  - 起因：为 CI 选型实测"按目录跑"这一假设，结果**不成立**：全量 `bun test ./tests` = 4135 pass / **0 fail**，
+    但 `bun test tests/agent-evals/` = 481 pass / **17 fail**。
+  - **对照实验定位**（不做取样推测）：3 个 real-usage 文件单独跑 = **17 pass / 0 fail**；同一批**加上我新增的用例文件** = **9 pass / 11 fail**。
+  - **根因**：该用例在**模块加载期**调 `mock.module()` 替换 `agent-evals/real-usage.js`；Bun「**先加载全部测试文件、再执行**」⇒ 替换在加载期即污染同进程邻居（`tests/proxy-fetch-hardening.test.ts:11` 早有此警告）。
+    **`afterAll` 里 `mock.restore()` 无效**（已实测）：污染发生在**执行之前**。
+  - **修法**：真正需要 mock 的用例改名为 `chat-capture-session.case.ts`（**刻意不是 `*.test.ts`**，避开自动发现），
+    由外壳 `chat-capture-session.test.ts` 用 `spawnSync` 在**独立进程**执行并断言子进程 `0 fail`且 `pass ≥ 3`（防用例被删空导致恒真）。与 `tests/rigorous/determinism-repro.test.ts` 的进程隔离做法一致。
+  - **修复后**：`bun test tests/agent-evals/` → **496 pass / 0 fail**（38 文件）。
+- **四、CI 落地（`.github/workflows/ci.yml`）**：
+  1. **D1** `on.push.branches` → `[main, master, "codex/**"]`（`codex/**` 此前**完全不触发 CI**）。
+  2. **D4** 给 `stress-test`/`security-scan`/`deploy-smoke` 各加 `if:`（仅 PR 或 main/master）⇒ codex 分支只跑 L1；`build` 原已限定 main/master。
+  3. **D2** 新增 `windows-portable` job（`windows-latest`，`continue-on-error: true`），跑
+     `bun test tests/agent-evals/ tests/unit/path-containment.test.ts tests/unit/filesystem.test.ts`；转正条件（连续 10 次全绿后摘掉 `continue-on-error`）写入注释。
+  - **命令先验证再写入**：该命令在本机 `NODE_ENV=test` 下实测 **507 pass / 0 fail**（40 文件）。
+  - **YAML 解析校验**：`yaml.parse` 成功，jobs = test/dre-plugin/kb-plugin/build/stress-test/security-scan/deploy-smoke/**windows-portable**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4133 pass / 36 skip / 0 fail**（415 文件；较上轮 4135 少 2 是因 3 条路由断言合并为 1 条隔离外壳测试，**非回归**）。
+- **未覆盖 / 待决**：
+  ① **D3 未明确**：用户列出了三个选项（维持 GitHub / 同时在 Gitea 建 Actions / 迁到 Gitea）但未指明；本轮按**维持 GitHub**实施，**未新增任何 Gitea CI 配置**。Gitea Actions 需自建 runner，属独立工程量。
+  ② `windows-portable` 的 **CI 首跑结果未知**（本轮只做了 SSH 直连实测，未触发 GitHub Actions——本分支的 push 只到 Gitea）。
+  ③ **`test` job 仍是重 L1**（含 Playwright E2E），与设计文档"L1 ≤ 5 min"目标不符；拆分未做（避免本轮扩大范围）。
+  ④ Windows worktree 复用 `D:\openclaw-fusion\node_modules` 的 junction，deps 变更时需重装。
+- **不做项**：未新增 Gitea CI；未拆分 `test` job；未对 Windows 机做任何写操作（除 worktree 与 junction 两项新增物）。
+- **Commit**：`__COMMIT__`

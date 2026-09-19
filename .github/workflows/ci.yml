@@ -2,7 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, master]
+    # D1（2026-09-19）：开发分支也要跑 L1 —— 此前只监听 main/master，
+    # 导致 codex/* 分支的提交完全不触发 CI（CI 对日常开发无效）。
+    branches: [main, master, "codex/**"]
   pull_request:
     branches: [main, master]
 
@@ -216,6 +218,9 @@ jobs:
     name: Stress & Performance Gate
     runs-on: ubuntu-latest
     needs: test
+    # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
+    # codex/** 的 push 只跑 L1（test + windows-portable）。
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     # 性能门禁是合并门禁；extreme-stress 与 baseline 对比仅作报告（避免 CI 抖动误报）
     steps:
       - uses: actions/checkout@v4
@@ -277,6 +282,9 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: test
+    # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
+    # codex/** 的 push 只跑 L1（test + windows-portable）。
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
 
@@ -303,6 +311,9 @@ jobs:
     name: Linux Deploy Smoke (pm2 + runtime audit)
     runs-on: ubuntu-latest
     needs: test
+    # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
+    # codex/** 的 push 只跑 L1（test + windows-portable）。
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
 
@@ -353,3 +364,32 @@ jobs:
           done
           curl -fsS http://127.0.0.1:18799/health > /dev/null
           pm2 delete axiom-agent
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # D2（2026-09-19）：Windows 可移植子集（report-only）
+  #
+  # 为什么只跑子集：Windows runner 更慢更贵；这里只要覆盖**平台敏感面** ——
+  # 文件 I/O、路径语义、JSONL 追加/加载、保留策略与会话贯通。
+  # 为什么 report-only：首跑是否全绿未经验证（本地只有 Linux）。
+  # 转正条件：连续 10 次全绿后摘掉 continue-on-error，避免"一加就红、然后被永久忽略"。
+  # 注意：不加 needs: test —— 它应在 L1 失败时也照常产出平台信号。
+  # ─────────────────────────────────────────────────────────────────────────
+  windows-portable:
+    name: Windows Portable (report-only)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run portable subset (agent-evals + path-sensitive)
+        run: bun test tests/agent-evals/ tests/unit/path-containment.test.ts tests/unit/filesystem.test.ts
+        env:
+          NODE_ENV: test

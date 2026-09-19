@@ -121,3 +121,49 @@ windows-portable:
 3. Windows runner 的**耗时/额度成本未评估**。
 4. L1 "≤ 5 min" 的**目标值未测量**（现有 `test:full` 实际耗时未统计）。
 5. **本设计未改任何 workflow**；G1–G4 均处于"已发现、未处理"状态。
+
+---
+
+## 七、实施记录（2026-09-19）
+
+**用户裁定**：D1 = **扩**（`codex/**` 跑 L1）；D2 = 初期 **report-only**，连续绿后转正；D4 = L3 **维持 main/master**；D3 未明确（见下）。
+
+**已落地（`.github/workflows/ci.yml`）**
+1. **D1**：`on.push.branches` 由 `[main, master]` 扩为 `[main, master, "codex/**"]`。
+2. **D4**：给 `stress-test` / `security-scan` / `deploy-smoke` 三个 L3 job 各加 `if:`，仅在 **PR 或 main/master** 上运行 ⇒ `codex/**` 的 push 只跑 L1。
+   `build`（CD）原本已限定 main/master，未动。
+3. **D2**：新增 `windows-portable` job（`windows-latest`、`continue-on-error: true`），跑
+   `bun test tests/agent-evals/ tests/unit/path-containment.test.ts tests/unit/filesystem.test.ts`（`NODE_ENV=test`）。
+   转正条件已写入 workflow 注释：**连续 10 次全绿后摘掉 `continue-on-error`**。
+
+**命令验证**：上述测试命令在本机先跑过 —— `NODE_ENV=test` 下 **507 pass / 0 fail**（40 文件）。不先把命令跑通就写进 CI，等于把未验证的东西塞进流水线。
+
+### ⚠️ 实施中发现的真问题：按目录跑测试曾**必然失败**，且原因在测试自身
+
+CI 方案原本要"跑一个目录"。实施前实测该假设，结果**不成立**：
+
+| 运行方式 | Linux 结果 |
+|---|---|
+| 全量 `bun test ./tests` | 4135 pass / **0 fail** |
+| 仅目录 `bun test tests/agent-evals/` | 481 pass / **17 fail** |
+| 3 个 real-usage 文件（不含新用例） | 17 pass / **0 fail** |
+| 同上 **+ 新用例文件** | 9 pass / **11 fail** |
+
+**根因**：新增的路由级断言用例在**模块加载期**调用 `mock.module()` 替换 `agent-evals/real-usage.js`。
+Bun 是「**先加载全部测试文件、再执行**」，故该替换会污染**同进程**的其它测试文件 ——
+正是 `tests/proxy-fetch-hardening.test.ts:11` 早已警告过的坑。
+**在 `afterAll` 里调 `mock.restore()` 无效**（已实测）：污染发生在**执行之前**，清理来不及。
+
+**修法（已落地）**：把真正需要 mock 的用例改名为 **`chat-capture-session.case.ts`**（刻意不是 `*.test.ts`，
+避开自动发现），由外壳 `chat-capture-session.test.ts` 用 `spawnSync` 在**独立进程**里跑它并断言子进程 `0 fail`。
+与仓库既有做法一致（`tests/rigorous/determinism-repro.test.ts` 同样用 `spawnSync` 做进程隔离）。
+
+**修复后**：`bun test tests/agent-evals/` → **496 pass / 0 fail**（38 文件）。
+
+**教训（写给以后的 CI 选型）**：**"能跑一个目录"不能默认成立** —— 只要目录里有任何模块级 mock，目录就不再是可组合的测试单元。CI 的门禁粒度选择必须先实测，不能照着"全量绿"外推。
+
+### D3 仍未定（阻塞 Gitea 侧）
+
+用户回复列出了 D3 的三个选项（维持 GitHub / 同时在 Gitea 建 Actions / 迁到 Gitea），**未指明其一**。
+本轮按**维持 GitHub** 实施（即选项 a），并**未**新增任何 Gitea CI 配置。
+⇒ 若实际意图是 (b) 或 (c)，需另开一轮：Gitea Actions 需要自建 runner，属独立工程量。
