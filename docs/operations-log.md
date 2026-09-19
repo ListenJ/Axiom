@@ -2030,4 +2030,4 @@
 - **计划同步**：`docs/plans/2026-09-19-user-configured-models-and-usage-trace.md` 新增 §1.9 状态确认；切片 A 按方案 C **重定义**为 A1（已完成）/A2（本轮完成）/A3/A4/A5。
 - **未完成 / 下一步**：**A3 磁盘有界落盘**（注意：现有 `real-usage` 为**纯追加、无上限**，若不加上限，等于把内存泄漏搬到磁盘）；**A4 taskId 贯通到 token 记录**（需改 `src/router/model-router.ts:164-183` 的 `meta` 形态 —— **接口变更，按总则 0.6 改前回 Plan 报备**）；**A5 读取面**（`GET /traces/:id` 组装步骤 + 分类用量）。
 - **未覆盖项**：①A3 的保留策略（按条数/体积/时间）**未定**；②`RealUsageTrace` 新增字段对 `evolveFromRealUsage` 归纳链路的**影响未评估**（字段为可选，理论上无影响，但**未实测**）；③C 落地后 `agent-trace` 内存表是否仍需保留**未决策**。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c11ce94`
