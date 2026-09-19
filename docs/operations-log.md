@@ -2356,3 +2356,23 @@
   ③全量套件里的绝对性能断言**未修**（属既有测试口径问题，改动超本次范围，登记为后续）。
 - **不做项**：未改既有性能断言；未加定时/后台压实调度（触发仍挂在 capture 尾部）。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — test(T1): 双端验收（Git Bash）—— expect 差 16 归零，515=515 逐项一致
+
+- **任务**：对标注条目第 1–4 项的修复做 Windows 侧验收。分级 **T1**。仅提交 Gitea。
+- **工具**：`ssh` + **Git Bash `bash -s`（stdin 喂脚本）**；`bun test`；规则 13。
+- **Windows 侧准备**：worktree `D:\openclaw-fusion-verify` 由 `ff905d28` 同步至 **`91420d36`**。
+- **验收结果（逐项一致，非"大致相同"）**：
+  | 口径 | Linux | Windows |
+  |---|---|---|
+  | `runner-gate.test.ts`（#4 修复目标） | **5 tests / 9 expect / 0 fail** | **5 tests / 9 expect / 0 fail** |
+  | 压实三文件（compaction + trigger + lock） | **29 tests / 81 expect / 0 fail** | **29 tests / 81 expect / 0 fail** |
+  | CI 全口径（源文件，`NODE_ENV=test`） | **515 tests / 38 files / 1536 expect / 0 fail** | **515 tests / 38 files / 1536 expect / 0 fail** |
+  - **关键**：修复前 Windows 上 `runner-gate` 仅 **5** 次 expect（循环零进入=静默退化），现为 **9**，与 Linux 相同；
+    全口径 expect 由「Linux 1525 vs Windows 1509（差 16）」变为 **两侧 1536（差 0）** ⇒ 标注条目第 4 项**闭环**。
+  - 本轮双端覆盖到的平台敏感路径：**`openSync(...,"wx")` 独占创建锁**、**陈旧锁接管**、**mtime 判定的 .tmp 清理**、
+    **`renameSync` 覆盖已存在文件**、**`statfsSync`**、以及 **`flushChains` 写链与压实互斥**。
+- **未覆盖项**：①绝对性能/延迟断言类用例**未在 Windows 跑**（本轮口径与 CI job 一致，为可移植子集）；
+  ②全量套件里的性能断言在本机偶发失败一事（已由上一条以干净 HEAD 对比归因）**未修**，属既有测试口径问题。
+- **不做项**：未改既有性能断言；未在 Windows 跑全量套件。
+- **Commit**：`__COMMIT__`
