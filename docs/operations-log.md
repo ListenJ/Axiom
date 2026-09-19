@@ -2118,3 +2118,25 @@
 - **未完成 / 下一步**：**A3b** 文件压实（临时文件 + 原子 rename）+ signals 采集接线（`statfsSync` 的 Windows 行为须在 A3b 实测）；**A4** taskId 贯通（接口变更，改前报备）；**A5** 读取面。
 - **未覆盖项**：①`sessionCount` 现已可被真实填充（站点 1/3/4），但**尚无代码去消费它** —— 采集接线属 A3b；②路由级断言未加（本轮只测了字段贯通与分组语义，**未**对 `handleChat*` 做端到端断言），故"chat 路由确实带上了 sessionId"目前**仅有静态证据**（`:178`/`:708`/`:755`）而无运行时证据；③`sessionId` 写入 JSONL 后的**隐私面未评估**（会话标识是否算用户数据、是否需要脱敏）。
 - **Commit**：`83e7d39`
+
+## 2026-09-19 — test(T2): 路由级断言（sessionId 真到达采集）+ docs(T3): CI/CD 架构设计
+
+- **任务**：用户指令"在 CI 加一个目录，然后先设计好我们的 CI/CD 架构，完成后在开始测试"+"先补上路由级断言"。本轮做**路由级断言**（T2）与**CI/CD 架构设计**（T3）。仅提交 Gitea。
+- **工具**：Bash（grep/sed/awk）；`bunx tsc`；`bun test`（全量 415 文件）；规则 2（`chat.ts` 备份至 `.tmp/backups/`）；规则 7（红→绿 + **可证伪探针**）；规则 12（T3 未获确认前不改 workflow）。
+- **一、路由级断言（T2，已交付）**：新建 `tests/agent-evals/chat-capture-session.test.ts`，在**路由层**驱动真实 `handleChat` / `handleAgentChat`（复用 `tests/chat-memory-loop.test.ts` 的脚手架：mock `model-router` 使对话离线成功），并以 `mock.module` **整模块替换** `agent-evals/real-usage.js` 拦截采集 payload（**不落盘**，避免污染真实 JSONL；模块替换补全了全部运行时导出，防同进程内符号变 undefined）。
+  3 例：①`POST /chat` 带 sessionId → payload 携带同一 id；②`POST /agent-chat` **显式**带 sessionId → 携带；③`POST /agent-chat` **不带** → 该字段不写入（验证"不伪造 UUID"的刻意不对称）。
+  这补上了上一轮登记的缺口——此前 A3c **只有静态证据**（源码行），现已有运行时证据。
+- **可证伪性验证（关键，防恒真断言）**：临时删除 `chat.ts` 中站点 1 的 `sessionId: normalizedSessionId,` 后重跑 →
+  **FAIL**：`Expected: "route-sess-aaa" / Received: undefined`；还原后 **3 pass / 0 fail**。⇒ 该断言**确实会拦**，非恒真。
+- **二、CI/CD 架构设计（T3，仅设计未实施）**：新建 `docs/plans/2026-09-19-cicd-architecture.md`。实测现状与四缺口：
+  - 现状：仅 `.github/workflows/` 三份（**无** `.gitea/`/`.woodpecker`/`.drone`/`.gitlab-ci.yml`）；`ci.yml` 7 个 job **全部 `ubuntu-latest`**（`test`/`dre-plugin`/`kb-plugin`/`build`/`stress-test`/`security-scan`/`deploy-smoke`）；CD = `build` job 推 GHCR，仅 main/master。
+  - **G1（最高）触发面不含开发分支**：`ci.yml:3-7` 只监听 `main,master` ⇒ 当前分支 `codex/knowledge-unify-2026-09-17` **一个 job 都不会触发**。⇒ **不修此项，"加一个目录"加了也没有结果输出。**
+  - G2 **零 Windows 覆盖**：全仓唯一 `windows-latest` 在 `visual-snapshot.yml:36,68`，只跑视觉快照。
+  - G3 门禁与报告分层不一致：同文件并存阻塞 / `\|\| true` / `continue-on-error` 三种写法，"CI 绿了代表什么"无统一读法。
+  - G4 代码入库在 Gitea、验证在 GitHub ⇒ "入库"与"被验证"不在同一处。
+  - 设计方案：L1 快速门禁（任意分支）→ L2 平台矩阵（linux-full + windows-ports）→ L3 重型（main/master 或标签）；并给出 `windows-portable` job 草案（含 `continue-on-error` 与"连续绿后转正"路径）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4135 pass / 36 skip / 0 fail**（415 文件；基线 4132 + 新增 3，**无回归**；亦**未出现 `mock.module` 跨文件泄漏**导致的连带失败）。
+- **停机请求决策（规则 0.3/0.6，T3 门禁）**：**本轮未改任何 workflow**。原因是 D3（CI 运行位置：继续 GitHub / 同时建 Gitea Actions / 迁到 Gitea）**未定**，而它直接决定"加目录加在哪"；且 D1（是否扩触发面）若不批准，加 Windows job 对本分支**无任何产出**。已在设计文档 §五 列出 D1–D4 与建议。
+- **未覆盖项**：①Windows 首跑是否绿**未实测**（本机只有 Linux）；②`bun install --frozen-lockfile`/`bun test` 在 `windows-latest` 的可用性**未验证**；③Windows runner 耗时/额度成本**未评估**；④L1 "≤5 min" 目标**未测量**（现有 `test:full` 实际耗时未统计）；⑤**`/chat-stream` 的两个采集点（`:708`/`:755`）仍未做路由级断言**（SSE 需消费 ReadableStream，本轮未做）—— 故站点 3/4 依旧只有静态证据。
+- **不做项**：未改 `.github/workflows/*`；未新增 Gitea CI 配置；未新增 Windows runner。
+- **Commit**：`__COMMIT__`
