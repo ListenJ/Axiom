@@ -1958,3 +1958,25 @@
 - **未覆盖项**：①§1.3 命中清单**未逐条判定**"必须改/可保留/仅注释"；②`TokenTracker` 与 `agent-trace` 之间**是否已有隐式关联键**（如 requestId）**未核验**；③"思考等级"取值域与"上下文窗口"可配置形式**未勘察**；④移除 siliconflow 对既有用户的**影响面与迁移路径未评估**（属 Q1=(a) 前置）；⑤用户 `.env` 中该 key 是否已清除**未核验**（未读取其内容，规则 11）。
 - **不做项**：**未改任何业务代码**；`edge-embeddings.ts` 的删除**未执行**——它属规则 4 的"删除"操作，且 `settings-search` 语义腿去向取决于 Q4，故并入切片 D 统一处理，避免返工。
 - **Commit**：`6b22a96`
+
+## 2026-09-19 — fix(T2): 审计"唯一事实源"自称（裁定=不一致）+ 修正表述并补编译期穷尽性断言
+
+- **任务**：用户 Q2 指令——审查 `providers.ts` 自称"唯一事实源：api-key-store…杜绝双份漂移"，**不正确就修正它**；Q1=(a) 彻底移除免费模型；Q3=显式分类字段；Q4=评估有无更好的 embedding 方案。分级 **T2**（表述修正 + 类型级护栏）。仅提交 Gitea。
+- **工具**：Bash（grep/wc/sed）；`bunx tsc`；`bun test`（全量 410 文件）；规则 2（`providers.ts` 与两份计划备份至 `.tmp/backups/`）；规则 13；规则 10。
+- **审计裁定：不一致（该表述在系统级不成立，仅在 router 兼容层这一对关系上成立）**。证据：
+  ① **部分成立**：`providers.ts:11-38` 经 `getProviderConfig()` 派生且缺失即抛错（`:33-35`）；守护测试 `tests/utils/provider-config-convergence.test.ts:24-31` 逐字段比对 `baseURL`/`apiKeyEnv`。
+  ② **证伪**：`"*_API_KEY"` 字面量在 `src/` 共 **约 107 处**，其中 api-key-store 仅 **17 处**；外围 `cli.ts` 19 / `cli/setup.ts` 16 / `core/config-center.ts` 8 / `model-advisor.ts` 7 / `utils/env.ts` 6 / `main.ts` 6 / `routes/models.ts` 5 / `memory/bootstrap.ts` 4 / `cron/scheduler.ts` 4 等。
+  ③ provider `baseURL` 在 api-key-store 之外硬编码：`cli/setup.ts` 7 / `model-advisor.ts` 5 / `routes/models.ts` 3 / `cron/scheduler.ts` 3 / `cli.ts` 3 / `main.ts` 2 / `health-checker.ts` 2 等。
+  ④ **存在"更富"的第二事实源**：`src/router/model-advisor.ts:110-120` 持有 `{name, baseURL, apiKeyEnv, models[], pricing}` —— 其中 `models[]`/`pricing` 是 api-key-store **没有**的字段。
+- **守护测试的两条覆盖缺口（实测）**：①**单向** —— `:25` 只遍历 `PROVIDER_CONFIG`，未断言反向；②**穷尽性无机制** —— `ALL_MODEL_PROVIDERS` 原为 `: ModelProvider[]` 注解，该注解把元素类型**拓宽**，使任何 `Exclude<…>` 恒为 `never`；"与 types.ts 保持一致"**仅为注释约定**。
+- **操作**（文件级，3 个）：①`src/router/models/providers.ts:1-22` 头部改为**精确表述**（单一事实源只覆盖**传输字段**、只在 router 兼容层成立，列出外围多表清单）；`:38` 改 `as const satisfies readonly ModelProvider[]`；`:42-46` 新增**编译期穷尽性断言** `MissingModelProvider`；②`docs/plans/2026-09-19-user-configured-models-and-usage-trace.md`：新增 §1.8 审计全文、§2 决策冻结（Q1=a/Q2/Q3/Q4）、§2.1 的 embedding 方案评估、§3 切片 A/B0/B/C/D/E/F、§4 未覆盖项；③`docs/operations-log.md`：本条目。
+- **⚠️ 自捕获（本轮关键，必须记录）**：**我第一版的穷尽性断言是恒真的**——因 `const ALL_MODEL_PROVIDERS: ModelProvider[]` 的注解把元素类型拓宽为 `ModelProvider`，`Exclude<ModelProvider, ModelProvider>` 恒为 `never`。
+  我用**可证伪探针**（删掉名单里的 `"sensenova"` 后跑 tsc）发现探针**通过**（`PROBE_TSC_EXIT=0`，应失败），据此定位并修正为 `as const satisfies`；**重跑同一探针 → 失败**（`error TS2322: Type 'boolean' is not assignable to type '["ALL_MODEL_PROVIDERS 缺少 provider", "sensenova"]'`，`PROBE_EXIT=2`），还原后 tsc 通过。
+  ⇒ 这正是本次审计反复出现的"**有形状无行为**"模式，落在了我自己的修复上；不跑探针就会把恒真断言当成护栏交付。
+- **Q1 记录**：(a) 彻底移除，**必须附迁移路径**（既有用户升级后不得静默失效）。**移除对既有用户的影响面与迁移路径未评估，已写为该切片的强制前置**（计划 §4 第 5 条）。
+- **Q3 记录**：`TokenUsageRecord` 新增**显式** `category` 字段（初值 `main`/`subagent`/`embedding`/`tool`/`other`），**不复用** `role`/`taskType`。
+- **Q4 记录（对用户前提的事实异议，规则 10）**：用户表述"搜索效率会降低"。评估结论：**没有更优的单一替代**；建议分层（BM25 → 确定性同义词扩展 → 授权后 embedding）。并**更正**：删掉 embedding 后**少了网络往返，延迟通常下降**，下降的是**语义召回**——故文案须区分"召回质量下降"与"响应延迟"，**不得**笼统写"效率降低"（会误导用户以为变慢）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`bun test --parallel=8 --timeout 15000 ./tests` → **4107 pass / 36 skip / 0 fail**（410 文件，**无回归**）；`tests/unit/docs-consistency.test.ts` + `tests/utils/provider-config-convergence.test.ts` → **12 pass / 0 fail**。
+- **未覆盖项**：①外围约 90 处字面量的收敛**未执行**（切片 B0）；②`TokenTracker`↔`agent-trace` 关联键**未核验**；③"思考等级/上下文窗口"可配置形式**未勘察**；④Q1=(a) 的迁移路径**未设计**（切片 C 前置）；⑤§2.1 词典方案**未实测**，仅为工程判断。
+- **不做项**：**未移除任何 provider、未删除 `edge-embeddings.ts`**（前者属 Q1 切片 C 且迁移路径未定；后者属规则 4 的删除流程且取决于切片 D 文案）。
+- **Commit**：`__COMMIT__`
