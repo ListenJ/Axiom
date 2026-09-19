@@ -2005,4 +2005,4 @@
 - **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4111 pass / 36 skip / 0 fail**（411 文件；基线 4107 + 新增 4，**无回归**）。
 - **本轮**未做**（有意识的收口，规则 12）**：①未把 `taskId` 贯通到路由链（接口变更，待决策）；②未改 `agent-trace.ts`（其存储形态待决策）；③**未新增 MCP 工具或 HTTP 暴露** —— 暴露形态正是上述待决项，且新增工具会触发 `tests/unit/docs-consistency.test.ts` 的"工具数与 registry 精确相等"门禁、连带 5 份文档计数，属切片 E 的口径收敛范围，不宜在此处零散改。
 - **未覆盖项**：①分类取值集合（`main`/`subagent`/`embedding`/`tool`/`other`）目前**只在注释与文档中约定**，**无任何代码强制**；②**尚无调用方向 `record()` 传 `category`** ⇒ 现网数据仍全部落在 `'unknown'`（这是刻意的：先建能力、后接调用方，避免半成品污染口径）；③`agent-trace` 是否应改为持久化/有界保留，**未评估**。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c9a9266`
