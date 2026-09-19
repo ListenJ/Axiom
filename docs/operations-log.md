@@ -2220,3 +2220,26 @@
 - **未覆盖项**：①**Windows 实测待补**（本轮流程：Linux 全绿 → 提交推送 → Windows 经 Git Bash 拉取并复跑；结果记于下一条）；②压实后 `bytesAfter` 采用 `selectRetained` 的计算值，**未与重写后文件实际大小二次校验**；③并发压实（两个进程同时 compact）**无锁**，未分析。
 - **不做项**：未加调用时机；未加并发锁；未改 `capture` 既有写入语义。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-19 — test(T1): A3b 的 Windows 实测（Git Bash）与双端对拍 491=491
+
+- **任务**：按用户要求"在 Windows 使用 **Git Bash** 完成需要在 Windows 执行的任务"，完成 A3b 的双端实测。分级 **T1**。仅提交 Gitea。
+- **工具**：`ssh -o BatchMode=yes` → `"C:\Program Files\Git\bin\bash.exe" -lc "..."`；`bun test`；规则 13（差异必须解释）。
+- **Git Bash 调用方式（踩坑记录，供复用）**：远端默认 shell 是 **cmd.exe**。
+  - 用**单引号**包裹 `-lc` 脚本会被 cmd 当字面量处理 → 报 `The system cannot find the path specified.`（不是 bash 报的，是 cmd 报的）。
+  - **可用写法**：`ssh host "\"C:\\Program Files\\Git\\bin\\bash.exe\" -lc \"<脚本，内部避免双引号>\""`。
+  - 路径用 MSYS 风格：`/d/openclaw-fusion-verify`（对应 `D:\`）。`NODE_ENV=test bun test ...` 的前置赋值在 Git Bash 下正常。
+- **Windows 实测（worktree @ `7f87a7be`）**：
+  - A3b 相关三文件：**22 pass / 0 fail**（compaction 7 + retention 8 + policy 7）。
+    **关键**：该结果意味着 `renameSync` **覆盖已存在文件**与 **`statfsSync`** 在 Windows 上**真实执行通过** —— 这正是我此前标记的 EPERM/EBUSY 风险路径，现已有实测结论。
+  - CI 全口径命令：**491 pass / 0 fail（36 文件）**。
+- **双端对拍（同口径：源文件，不含 `dist/`）**：
+  | 平台 | 结果 | 文件数 |
+  |---|---|---|
+  | Linux | **491 pass / 0 fail** | 36 |
+  | Windows | **491 pass / 0 fail** | 36 |
+  **完全一致**（仅 expect 调用数 1490 vs 1474，同前次，未逐条定位）。
+- **顺带再次确证上一条登记的 `dist` 污染**：Linux 按目录跑为 **514 pass / 41 文件**，Windows 为 **491 / 36**；差额 **5 文件 / 23 用例**恰好等于 Linux 本地 `dist/tests/agent-evals/*.test.js` 的陈旧副本数。⇒ 差异**已完全解释**，非平台行为差异。
+- **未覆盖项**：①expect 调用数差 16/15 的**具体断言**仍未逐条定位；②Windows 上**全量** `./tests` 未跑（A3b 范围内只跑了可移植子集）；③**`compactRealUsageTraces` 仍无生产调用方** —— 压实不会被自动触发（承接上一条的未做项）。
+- **不做项**：未加压实调用时机；未加并发锁；未在 Windows 跑全量套件。
+- **Commit**：`__COMMIT__`
