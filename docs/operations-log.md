@@ -2271,3 +2271,22 @@
 - **未覆盖项**：①触发阈值/冷却取值（0.8 / 10 分钟）**未经真实负载验证**，属工程判断；②**跨进程并发压实**未保护；③Windows 实测待补（本轮 Linux 全绿 → 推送 → Windows 经 Git Bash 复跑，结果记于下一条）；④压实期间若进程崩溃，`.tmp` 残留**无清理机制**（下次压实会生成新名，不会覆盖，但残留会累积）。
 - **不做项**：未加跨进程锁；未加 `.tmp` 残留清理；未改 `capture` 的既有写入语义（仅在其尾部追加 fire-and-forget 触发）。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-19 — test(T1): A3b 后半的 Windows 实测（Git Bash）与双端对拍 504=504
+
+- **任务**：按用户要求用 **Git Bash** 在 Windows 复跑 A3b 后半的改动。分级 **T1**。仅提交 Gitea。
+- **工具**：`ssh -o BatchMode=yes` → `"C:\Program Files\Git\bin\bash.exe" -lc "<脚本>"`；`bun test`；规则 13。
+- **Windows 侧准备**：worktree `D:\openclaw-fusion-verify` 由 `7f87a7be` 同步至 **`ff905d28`**（`git fetch` + `checkout --detach FETCH_HEAD`）。
+- **实测结果（真实执行，非外推）**：
+  | 口径 | Linux | Windows |
+  |---|---|---|
+  | A3b 四个文件（compaction / trigger / retention / policy） | **35 pass / 0 fail** | **35 pass / 0 fail** |
+  | CI 全口径（`tests/agent-evals/` 源文件 + 两个单测，`NODE_ENV=test`） | **504 pass / 0 fail（37 文件）** | **504 pass / 0 fail（37 文件）** |
+  用例数与文件数**完全一致**；`expect` 调用数 1525 vs 1509（差 16，同前两次，**仍未逐条定位**）。
+- **本轮实测覆盖到的平台敏感路径**（这是双端对拍的实际价值）：
+  ① **原子重写** —— `writeFileSync(tmp)` + `renameSync(tmp, target)` **覆盖已存在文件**（Windows 上是 EPERM/EBUSY 高风险路径，`logger.ts:95` 有前车之鉴）；
+  ② **`statfsSync`** —— 廉价探测与策略推导都会调用；
+  ③ **`flushChains` 写链排队** —— 含"压实期间并发 capture 不丢"的断言在 Windows 上同样通过。
+- **未覆盖项**：①`expect` 差 16 的具体断言仍未定位；②Windows 上**全量** `./tests` 未跑（本轮口径与 CI job 一致，为可移植子集）；③跨进程并发压实**未保护**（承接上一条：仓库无既有锁工具，属新基建，未做）。
+- **不做项**：未在 Windows 跑全量套件；未加跨进程锁；未清理 Windows worktree（留作后续验证复用）。
+- **Commit**：`__COMMIT__`
