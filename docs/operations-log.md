@@ -2453,7 +2453,7 @@
 - **未覆盖项**：①Windows 侧待验证（下一步：同步 worktree 后跑 `bun run test` 与该两处定向用例）；
   ②`test:stress` 扩为整目录后，**其在本机的总耗时未测量**（未跑，避免超时）；③`indexProject` 的静默跳过未修。
 - **不做项**：未改 `test-full.ts` 的排除清单内容；未改 codeindex 的生产 DB 形态（仍并入主库）；未改 `catch` 语义。
-- **Commit**：`__COMMIT__`
+- **Commit**：`1e4bab9`
 
 ## 2026-09-20 — test(T1): (a)/(b) 的双端验收 + Windows 既有不兼容清单（9 条，已对照归因）
 
@@ -2485,4 +2485,4 @@
 - **未覆盖项**：①上述 9 条的**具体失败断言未逐条定位**（本轮只做到"归因到既有 Windows 不兼容"）；
   ②未在 Windows 跑 `test:stress`（整目录，耗时未测）；③`test:stress` 扩目录后的总耗时仍未测。
 - **不做项**：未修上述 9 条 Windows 不兼容（属独立课题，且需要 Windows 环境逐条调试）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`da9922f`
