@@ -2175,3 +2175,23 @@
   ④ Windows worktree 复用 `D:\openclaw-fusion\node_modules` 的 junction，deps 变更时需重装。
 - **不做项**：未新增 Gitea CI；未拆分 `test` job；未对 Windows 机做任何写操作（除 worktree 与 junction 两项新增物）。
 - **Commit**：`968227d`
+
+## 2026-09-19 — test(T1): Windows/Linux 双端对拍（473=473）+ 发现 dist 陈旧副本污染本地测试口径
+
+- **任务**：用户要求"在 windows 和 linux 双端完成测试获取真实环境的内容"。本轮完成**真实双端对拍**并定位一处计数差异。分级 **T1**（验证 + 记录）。仅提交 Gitea。
+- **工具**：Bash；`ssh -o BatchMode=yes`（Windows 主机）；`bun test`；规则 13（差异必须解释，不得跳过）。
+- **双端环境（实测）**：Linux = `listen-Lenovo-Legion-R70002021` x86_64；Windows = `dandelion\18336`，Windows 10.0.26200，**bun 1.3.14**（与 CI 锁定版本一致），检出于 worktree `D:\openclaw-fusion-verify`（detached @ `968227d`）。
+- **对拍结果（同口径：`tests/agent-evals/` 的 33 个源测试文件，`NODE_ENV=test`）**：
+  | 平台 | 结果 | 文件数 |
+  |---|---|---|
+  | Linux | **473 pass / 0 fail** | 33 |
+  | Windows | **473 pass / 0 fail** | 33 |
+  **用例数完全一致**；仅 `expect()` 调用数差 16（1440 vs 1424），推测为平台条件分支内的断言，**未逐条定位**（登记为未覆盖项）。
+- **CI 命令双端结果**（`bun test tests/agent-evals/ tests/unit/path-containment.test.ts tests/unit/filesystem.test.ts`，`NODE_ENV=test`）：
+  Linux **507 pass / 0 fail（40 文件）**；Windows **484 pass / 0 fail（35 文件）**。差异 5 文件 / 23 用例 —— 已定位，见下。
+- **🔍 差异根因（已定位，非推测）**：Linux 本地存在 **`dist/tests/agent-evals/*.test.js` 共 5 个编译副本**，被 Bun 的目录发现一并执行；Windows 的 worktree **无 `dist/`**。
+  证据：① `git check-ignore -v dist` → `.gitignore:11:dist/`（**被忽略，不在版本库**）；② 产物陈旧 —— `dist/tests/agent-evals/verify.test.js` 时间戳 **2026-08-13**，而源文件 `tests/agent-evals/verify.test.ts` 为 **2026-09-05**（**相差约 3 周**）。
+  ⇒ **影响面**：对 CI **无影响**（全新检出无 `dist/`，故 CI 上两端一致）；但**本地按目录跑测试会混入陈旧编译副本**，导致本地计数虚高、且可能对着**旧代码**判定通过。
+- **未覆盖项**：①`expect()` 差 16 的**具体断言未逐条定位**；②未在本轮给测试发现加 `dist` 排除（属独立改进，见下"不做项"）；③未跑 Windows 上的**全量** `./tests`（仅跑了可移植子集，符合 D2 的 report-only 定位）。
+- **不做项（留后续，避免本轮扩大范围）**：给测试发现加 `dist/` 排除（如 `package.json` 的 test 脚本加 `--path-ignore-patterns` 或测试前清理 `dist/`）；Windows 全量套件接入 CI。
+- **Commit**：`__COMMIT__`
