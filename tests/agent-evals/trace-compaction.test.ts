@@ -230,3 +230,30 @@ describe("精细化触发（A3b 后半）", () => {
     expect(ids).not.toContain("old");  // 超期记录确实被淘汰
   });
 });
+
+describe("回收到低水位（修复「触发却不回收」）", () => {
+  // 缺陷（2026-09-19 发现）：
+  // 触发阈值是 maxBytes 的 0.8，但 selectRetained 只在 keptBytes > maxBytes 时才淘汰
+  // ⇒ 文件处在 (0.8·max, max] 区间时，触发一次全量「读+解析+重写」扫描，却**一条都不淘汰**
+  //   （skipped=true）。白付代价、且每次冷却到期都会重复白付。
+  // 修法：触发用高水位，**回收目标用低水位**（hysteresis）。
+  it("文件介于低水位与上限之间时，确实回收（而非空跑一次）", async () => {
+    const now = Date.now();
+    const pad = "z".repeat(200);
+    // 12 条 ≈ 2.6KB；策略上限设为 4KB（触发阈值 3.2KB），回收目标 2KB
+    writeLines(Array.from({ length: 12 }, (_, i) => rec(`r${i}`, `s${i}`, now - 1000 * (12 - i), pad)));
+    const policy: RetentionPolicy = { maxBytes: 4096, retentionMs: 3650 * DAY, activeWindowMs: 0, minKeepRecords: 1 };
+    const before = fs.statSync(FILE).size;
+    expect(before).toBeGreaterThan(3072); // > 0.8·4096（会触发）
+    expect(before).toBeLessThanOrEqual(4096); // ≤ 上限（旧逻辑下一条都不会被淘汰）
+
+    const out = await maybeCompactRealUsageTraces(FILE, {
+      policy, now, force: true, reclaimToBytes: 2048,
+    });
+
+    expect(out.ran).toBe(true);
+    expect(out.result?.skipped).toBe(false);       // 关键：不是空跑
+    expect(out.result!.dropped).toBeGreaterThan(0);
+    expect(fs.statSync(FILE).size).toBeLessThan(before);
+  });
+});

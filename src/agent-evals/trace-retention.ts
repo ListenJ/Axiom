@@ -293,6 +293,16 @@ export function resolvePolicy(signals: RetentionSignals): RetentionPolicy {
 export const COMPACTION_TRIGGER_DEFAULTS = {
   triggerRatio: 0.8,
   cooldownMs: 10 * 60 * 1000,
+  /**
+   * **回收低水位**比例：触发用高水位（triggerRatio），回收目标用低水位。
+   *
+   * 为什么必须有它（2026-09-19 发现的可证明缺陷）：`selectRetained` 只在
+   * `keptBytes > maxBytes` 时才淘汰。若触发阈值是 0.8·max，则文件处在
+   * (0.8·max, max] 区间时会**触发一次全量扫描却一条都不淘汰**（skipped=true）——
+   * 白付读+解析+重写的代价，且每次冷却到期都会重复白付。
+   * 置入低水位后，每次压实会真正回收到 `reclaimRatio · maxBytes`，换来足够的增长余量。
+   */
+  reclaimRatio: 0.6,
 } as const;
 
 /** 廉价探测所需的输入：**只需两次系统调用**（statSync 体积 + statfsSync 可用空间） */
@@ -310,8 +320,10 @@ export interface CompactionDecision {
   reason: "below-threshold" | "cooldown" | "trigger";
   /** 由可用空间推导出的体积上限 */
   effectiveMaxBytes: number;
-  /** 触发阈值 = floor(上限 × triggerRatio) */
+  /** 触发阈值（高水位） = floor(上限 × triggerRatio) */
   thresholdBytes: number;
+  /** 回收目标（低水位） = floor(上限 × reclaimRatio)；压实会向此值收敛，而非仅削到上限 */
+  reclaimTargetBytes: number;
 }
 
 /**
@@ -321,7 +333,7 @@ export interface CompactionDecision {
  */
 export function decideCompaction(
   signals: CompactionTriggerSignals,
-  opts?: { triggerRatio?: number; cooldownMs?: number },
+  opts?: { triggerRatio?: number; cooldownMs?: number; reclaimRatio?: number },
 ): CompactionDecision {
   const effectiveMaxBytes = resolveMaxBytes(signals.freeDiskBytes);
 
@@ -329,18 +341,22 @@ export function decideCompaction(
   const triggerRatio = Number.isFinite(rawRatio) ? Math.min(1, Math.max(0.01, rawRatio)) : COMPACTION_TRIGGER_DEFAULTS.triggerRatio;
   const thresholdBytes = Math.floor(effectiveMaxBytes * triggerRatio);
 
+  const rawReclaim = opts?.reclaimRatio ?? COMPACTION_TRIGGER_DEFAULTS.reclaimRatio;
+  const reclaimRatio = Number.isFinite(rawReclaim) ? Math.min(1, Math.max(0.01, rawReclaim)) : COMPACTION_TRIGGER_DEFAULTS.reclaimRatio;
+  const reclaimTargetBytes = Math.max(1, Math.floor(effectiveMaxBytes * reclaimRatio));
+
   const cooldownMs = opts?.cooldownMs ?? COMPACTION_TRIGGER_DEFAULTS.cooldownMs;
   if (
     signals.lastCompactionAt !== null &&
     Number.isFinite(signals.lastCompactionAt) &&
     signals.now - signals.lastCompactionAt < cooldownMs
   ) {
-    return { compact: false, reason: "cooldown", effectiveMaxBytes, thresholdBytes };
+    return { compact: false, reason: "cooldown", effectiveMaxBytes, thresholdBytes, reclaimTargetBytes };
   }
 
   const fileBytes = Number.isFinite(signals.fileBytes) && signals.fileBytes > 0 ? signals.fileBytes : 0;
   if (fileBytes < thresholdBytes) {
-    return { compact: false, reason: "below-threshold", effectiveMaxBytes, thresholdBytes };
+    return { compact: false, reason: "below-threshold", effectiveMaxBytes, thresholdBytes, reclaimTargetBytes };
   }
-  return { compact: true, reason: "trigger", effectiveMaxBytes, thresholdBytes };
+  return { compact: true, reason: "trigger", effectiveMaxBytes, thresholdBytes, reclaimTargetBytes };
 }

@@ -271,6 +271,8 @@ async function rewriteTraceFile(
   target: string,
   policyIn?: RetentionPolicy,
   nowIn?: number,
+  /** 回收目标（低水位）。给出时用它覆盖 policy.maxBytes，使压实真正收敛到低水位 */
+  reclaimToBytes?: number,
 ): Promise<CompactionResult> {
 
   const emptySignals: RetentionSignals = {
@@ -321,7 +323,11 @@ async function rewriteTraceFile(
   const signals: RetentionSignals = { fileBytes, recordCount: records.length, sessionCount, freeDiskBytes };
   const policy = policyIn ?? resolvePolicy(signals);
   const now = nowIn ?? Date.now();
-  const outcome = selectRetained(records, policy, now);
+  // 低水位回收：只覆盖 maxBytes，其余策略（时间窗口/活跃豁免/下限）保持不变
+  const selectionPolicy = reclaimToBytes !== undefined
+    ? { ...policy, maxBytes: reclaimToBytes }
+    : policy;
+  const outcome = selectRetained(records, selectionPolicy, now);
 
   if (outcome.drop.length === 0 && malformedDropped === 0) {
     return {
@@ -519,6 +525,8 @@ export interface MaybeCompactionOutcome {
   result?: CompactionResult;
   /** true = 复用了进行中的压实（single-flight 去重） */
   deduped?: boolean;
+  /** 被他进程的跨进程锁挡住（本次未压实） */
+  blockedBy?: "other-process";
 }
 
 let _compactionInFlight: Promise<MaybeCompactionOutcome> | null = null;
@@ -555,7 +563,9 @@ export function maybeCompactRealUsageTraces(
     now?: number;
     /** true = 跳过阈值/冷却判断，直接压实（供显式命令/维护用） */
     force?: boolean;
-    trigger?: { triggerRatio?: number; cooldownMs?: number };
+    trigger?: { triggerRatio?: number; cooldownMs?: number; reclaimRatio?: number };
+    /** 显式指定回收目标（测试/维护用）；缺省在自行推导策略时取 decision.reclaimTargetBytes */
+    reclaimToBytes?: number;
   },
 ): Promise<MaybeCompactionOutcome> {
   // single-flight：本函数**非 async**，赋值前无 await ⇒ 同步发布，无交错窗口
@@ -580,7 +590,8 @@ async function runMaybeCompact(
     policy?: RetentionPolicy;
     now?: number;
     force?: boolean;
-    trigger?: { triggerRatio?: number; cooldownMs?: number };
+    trigger?: { triggerRatio?: number; cooldownMs?: number; reclaimRatio?: number };
+    reclaimToBytes?: number;
   },
 ): Promise<MaybeCompactionOutcome> {
   const now = opts?.now ?? Date.now();
@@ -613,11 +624,157 @@ async function runMaybeCompact(
 
   // —— 排队重写：先 flush（把自己接到当前链尾），再把重写挂到链上 ——
   await flushPending(target);
-  const prev = flushChains.get(target) ?? Promise.resolve();
-  const work = prev.then(() => rewriteTraceFile(target, opts?.policy, opts?.now));
-  flushChains.set(target, work.then(() => undefined, () => undefined));
-  const result = await work;
+
+  // 跨进程互斥：拿不到锁说明他进程正在压实，本次直接让路（不覆盖对方结果）
+  const lock = tryAcquireCompactionLock(target, { now });
+  if (!lock) {
+    return { ran: false, decision, blockedBy: "other-process" };
+  }
+
+  let work: Promise<CompactionResult>;
+  try {
+    sweepStaleTempFiles(target, { now }); // 顺手清理崩溃残留（在锁保护下）
+    const prev = flushChains.get(target) ?? Promise.resolve();
+    // 语义：仅当**由本函数自行推导策略**时才施加低水位；调用方显式注入 policy 时尊重其语义
+    // （除非另给了 reclaimToBytes）。
+    const reclaimTo = opts?.reclaimToBytes ?? (opts?.policy ? undefined : decision.reclaimTargetBytes);
+    work = prev.then(() => rewriteTraceFile(target, opts?.policy, opts?.now, reclaimTo));
+    flushChains.set(target, work.then(() => undefined, () => undefined));
+  } catch (e) {
+    lock.release();
+    throw e;
+  }
+
+  let result: CompactionResult;
+  try {
+    result = await work;
+  } finally {
+    lock.release();
+  }
 
   _lastCompactionAt = opts?.now ?? Date.now();
   return { ran: true, decision, result };
+}
+
+// ============================================================================
+// 跨进程压实锁 + 陈旧 .tmp 清理（补 A3b 的两处未解决项）
+// ============================================================================
+
+export interface CompactionLockHandle {
+  path: string;
+  token: string;
+  release: () => void;
+}
+
+/**
+ * 尝试获取**跨进程**压实锁（`${target}.lock`，`O_EXCL` 独占创建）。
+ *
+ * 为什么需要：此前的 single-flight 只覆盖**进程内**；两个进程同时压实同一 JSONL 时，
+ * 会各自读到旧内容再各自重写，后写者覆盖先写者。
+ *
+ * 陈旧锁接管：持锁进程崩溃会留下锁文件。若 `now - startedAt > staleMs` 则视为陈旧并接管
+ * （**否则该文件会被永久锁死、再也无法压实**）。锁内容不可读/格式坏同样按陈旧处理。
+ *
+ * 边界：接管存在极小的竞态窗口（两个进程可能同时判定陈旧）。这属于"崩溃恢复"与
+ * "严格互斥"之间不可避免的取舍；正常路径（未崩溃）下互斥是严格的。
+ */
+export function tryAcquireCompactionLock(
+  filePath: string,
+  opts: { now?: number; staleMs?: number } = {},
+): CompactionLockHandle | null {
+  const now = opts.now ?? Date.now();
+  const staleMs = opts.staleMs ?? 5 * 60 * 1000;
+  const lockPath = `${filePath}.lock`;
+  ensureDir(filePath);
+
+  const tryCreate = (): CompactionLockHandle | null => {
+    const token = `${process.pid}-${now}-${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      const fd = fs.openSync(lockPath, "wx"); // O_EXCL：已存在即失败，不会覆盖
+      fs.writeSync(fd, JSON.stringify({ token, pid: process.pid, startedAt: now }));
+      fs.closeSync(fd);
+      return {
+        path: lockPath,
+        token,
+        release: () => {
+          try {
+            const cur = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as { token?: string };
+            if (cur?.token === token) fs.unlinkSync(lockPath); // 只释放自己的锁
+          } catch { /* 已被接管或已删除 */ }
+        },
+      };
+    } catch (e) {
+      if ((e as { code?: string }).code === "EEXIST") return null;
+      throw e;
+    }
+  };
+
+  const first = tryCreate();
+  if (first) return first;
+
+  try {
+    const info = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as { startedAt?: number };
+    const startedAt = typeof info?.startedAt === "number" ? info.startedAt : 0;
+    if (now - startedAt > staleMs) {
+      fs.unlinkSync(lockPath);
+      return tryCreate();
+    }
+    return null;
+  } catch {
+    // 读不了/格式坏 → 按陈旧处理，避免永久锁死
+    try { fs.unlinkSync(lockPath); } catch { /* ignore */ }
+    return tryCreate();
+  }
+}
+
+/**
+ * 清理**陈旧**的 `.tmp` 残留（压实期间进程崩溃所留）。
+ *
+ * 判定依据是 **mtime**（文件真实年龄），而非文件名里的时间戳 ——
+ * 文件名格式可能来自别的写入者，mtime 才是可靠依据。
+ * **新鲜 `.tmp` 一律不动**：它可能属于另一次正在进行的写入，误删会丢数据。
+ */
+export function sweepStaleTempFiles(
+  filePath: string,
+  opts: { now?: number; staleMs?: number } = {},
+): number {
+  const now = opts.now ?? Date.now();
+  const staleMs = opts.staleMs ?? 60 * 60 * 1000;
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  if (!fs.existsSync(dir)) return 0;
+
+  let removed = 0;
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.startsWith(`${base}.`) || !name.endsWith(".tmp")) continue;
+    const full = path.join(dir, name);
+    try {
+      const st = fs.statSync(full);
+      if (now - st.mtimeMs > staleMs) {
+        fs.unlinkSync(full);
+        removed++;
+      }
+    } catch { /* 竞争删除等，忽略 */ }
+  }
+  return removed;
+}
+
+/**
+ * 带**跨进程锁**的压实。返回 `null` 表示**未取得锁**（他进程正在压实），本次跳过。
+ */
+export async function compactRealUsageTracesLocked(
+  filePath: string,
+  policy?: RetentionPolicy,
+  now?: number,
+  opts?: { staleMs?: number; tempStaleMs?: number },
+): Promise<CompactionResult | null> {
+  const lock = tryAcquireCompactionLock(filePath, { now, staleMs: opts?.staleMs });
+  if (!lock) return null;
+  try {
+    sweepStaleTempFiles(filePath, { now, staleMs: opts?.tempStaleMs });
+    await flushPending(filePath);
+    return await rewriteTraceFile(filePath, policy, now);
+  } finally {
+    lock.release();
+  }
 }

@@ -2317,3 +2317,42 @@
   `The system cannot find the path specified.`（该错误来自 cmd，不是 bash）。
 - **未覆盖项**：①`expect` 计数用的是"逐文件独立跑"的和，与聚合运行存在共享模块状态差异的可能（本次两端均与此口径一致，风险低）；②未审计**其它**测试是否也存在同类"依赖本机技能/数据目录"的静默退化。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — feat(T2): 压实加固 —— 跨进程锁 + .tmp 清理 + 低水位回收（解决标注条目第 1/2/3 项）
+
+- **任务**：解决用户标注条目的第 1、2、3 项（跨进程并发未保护 / 阈值冷却未经负载验证 / .tmp 残留无清理）。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`bunx tsc`；`bun test`（全量 418 文件）；**干净 HEAD worktree 对比实验**；规则 2/7/8/13。
+- **① 跨进程锁（此前只有进程内 single-flight）**：新增 `tryAcquireCompactionLock()`
+  —— `${target}.lock` 以 **`openSync(path,"wx")`（O_EXCL）独占创建**，内容 `{token,pid,startedAt}`；
+  **陈旧锁可接管**（`now - startedAt > staleMs`，**否则崩溃进程会把该文件永久锁死**）；锁文件不可读/格式坏同样按陈旧处理；
+  `release()` **只删自己的锁**（比对 token）。
+  已接入 `maybeCompactRealUsageTraces`：取不到锁即让路，返回 `{ran:false, blockedBy:"other-process"}`，**不覆盖对方结果**。
+- **③ .tmp 残留清理**：新增 `sweepStaleTempFiles()` —— 依据 **mtime**（文件真实年龄，而非文件名里的时间戳）判定陈旧；
+  **新鲜 `.tmp` 一律不动**（可能属于另一次正在进行的写入，误删会丢数据）；只处理**本 target** 的临时文件。在锁保护下调用。
+- **② 阈值/冷却的"负载验证"→ 发现并修复一个可证明的设计缺陷**：
+  - **缺陷**：触发阈值是 `0.8·maxBytes`，但 `selectRetained` **只在 `keptBytes > maxBytes` 时才淘汰**。
+    故文件处在 `(0.8·max, max]` 区间时，会**触发一次全量「读+解析+重写」扫描却一条都不淘汰**（`skipped=true`）——
+    白付代价，且每次冷却到期都会重复白付。
+  - **修法（滞回 hysteresis）**：触发用**高水位**（`triggerRatio` 0.8），**回收目标用低水位**
+    （新增 `reclaimRatio` 0.6）；`decideCompaction` 返回 `reclaimTargetBytes`，压实以 `{...policy, maxBytes: reclaimTargetBytes}` 交给 `selectRetained`，
+    使每次压实**真正收敛到低水位**，换来足够增长余量。
+  - 语义收口：**仅当由本函数自行推导策略时**才施加低水位；调用方显式注入 `policy` 时尊重其语义（除非另给 `reclaimToBytes`）。
+- **TDD 红→绿**：
+  - 锁与 .tmp 清理：`tests/agent-evals/trace-compaction-lock.test.ts` **0 pass / 1 error**（模块不存在）→ **8 pass / 0 fail**。
+    覆盖：同 target 互斥、释放后可再取、**陈旧锁接管**、未过期锁不被抢、清陈旧 .tmp、**不误删新鲜 .tmp**、不碰别的 target、
+    **锁被占用时带锁压实返回 null（不覆盖对方）**、无竞争时正常压实并释放锁。
+  - 低水位回收：`tests/agent-evals/trace-compaction.test.ts` 新增用例 **12 pass / 1 fail** → **13 pass / 0 fail**
+    （断言"处于低水位与上限之间时**确实回收**而非空跑一次"，实测 kept=6/dropped=6、bytes 3522→1764）。
+- **⚠️ 全量套件的失败归因（干净 HEAD 对比实验，结论：与本次改动无关）**：
+  两次全量出现 1 fail / 3 fail，涉及 `边界 6.2 超大查询`、`E.4 延迟分位数 p99<50ms`、`perf-extreme 缓存内存上限`、`C. 5 层管道`，
+  **全部是绝对延迟/性能断言**。用 `git worktree` 建**干净 HEAD（3f2551c）**副本做对照：
+  - `tests/stress/high-intensity-load.test.ts`：干净 HEAD **2 fail** = 我的树 **2 fail** ⇒ **预存在的环境敏感**，与本次改动无关。
+  - `tests/edge-cases/performance-degradation.test.ts`：**交替各跑 3 次**，干净 HEAD 与我的树**均为 10 pass / 0 fail** ⇒ 早先那次失败是**运行间方差**。
+  ⇒ 准确定性：**全量套件含若干绝对性能/延迟断言，在本机负载下会偶发失败**；这也直接影响 CI 的"全绿"口径（已登记，见下）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；压实相关三文件 **21 pass / 0 fail**（compaction 13 + trigger 8）；
+  全量套件**因上述预存在性能断言偶发失败**，故本轮**不声称"全量 0 fail"**，而以"与干净 HEAD 同表现"为准。
+- **未覆盖项**：①**陈旧锁接管存在极小竞态窗口**（两进程可能同时判定陈旧）—— 属"崩溃恢复"与"严格互斥"之间的取舍，已在代码注释写明；
+  ②`reclaimRatio=0.6` 与 `triggerRatio=0.8` **仍属工程判断**（未做真实负载下的吞吐/回收集合测量）；
+  ③全量套件里的绝对性能断言**未修**（属既有测试口径问题，改动超本次范围，登记为后续）。
+- **不做项**：未改既有性能断言；未加定时/后台压实调度（触发仍挂在 capture 尾部）。
+- **Commit**：`__COMMIT__`
