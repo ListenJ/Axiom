@@ -2604,4 +2604,4 @@
   ②**router→trackCall 未做端到端断言**（只断言到"路由收到 taskId"）—— 原因是 `getTokenTracker()` 单例未暴露可注入的 DB 路径，测试会写生产 `./data/token-usage.db`；
   ③`taskId` 未与 `agent-trace` 的 `AgentTrace.taskId` 统一（两者目前是同一 id 的"约定"，未做类型级绑定）。
 - **不做项**：未改流式链路；未给 `getTokenTracker()` 加 env 注入（属独立小改，需先确认是否值得）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`dfea7a0`
