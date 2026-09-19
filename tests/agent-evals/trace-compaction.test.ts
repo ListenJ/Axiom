@@ -17,6 +17,8 @@ import {
   compactRealUsageTraces,
   captureRealUsageTrace,
   flushRealUsageTraces,
+  maybeCompactRealUsageTraces,
+  resetCompactionStateForTest,
 } from "../../src/agent-evals/real-usage.js";
 import type { RetentionPolicy } from "../../src/agent-evals/trace-retention.js";
 
@@ -53,6 +55,7 @@ function readAll(): Array<Record<string, unknown>> {
 beforeEach(() => {
   fs.mkdirSync(TMP_DIR, { recursive: true });
   try { fs.rmSync(FILE); } catch { /* ignore */ }
+  resetCompactionStateForTest(); // 模块级压实状态跨用例隔离
 });
 
 afterEach(() => {
@@ -153,5 +156,77 @@ describe("轨迹文件压实（A3b）", () => {
     expect(r.signals.recordCount).toBe(1);
     expect(readAll().map((x) => x.id)).toEqual(["fresh"]);
     await flushRealUsageTraces(FILE);
+  });
+});
+
+
+describe("精细化触发（A3b 后半）", () => {
+  it("远低于阈值 → 不压（below-threshold），文件未动", async () => {
+    const now = Date.now();
+    writeLines([rec("a", "s1", now - 1000)]);
+    const before = fs.readFileSync(FILE, "utf-8");
+
+    const out = await maybeCompactRealUsageTraces(FILE, { now });
+
+    expect(out.ran).toBe(false);
+    expect(out.decision.reason).toBe("below-threshold");
+    expect(fs.readFileSync(FILE, "utf-8")).toBe(before);
+  });
+
+  it("force=true 跳过阈值判断，直接压实", async () => {
+    const now = Date.now();
+    writeLines([rec("old", "s", now - 40 * DAY), rec("new", "s2", now - 1000)]);
+
+    const out = await maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now, force: true });
+
+    expect(out.ran).toBe(true);
+    expect(out.result?.skipped).toBe(false);
+    expect(readAll().map((x) => x.id)).toEqual(["new"]);
+  });
+
+  it("冷却生效：压实后立刻再触发 → cooldown", async () => {
+    const now = Date.now();
+    writeLines([rec("old", "s", now - 40 * DAY), rec("new", "s2", now - 1000)]);
+
+    const first = await maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now, force: true });
+    expect(first.ran).toBe(true);
+
+    // 刻意**不传** force：`force` 的文档语义就是"跳过阈值/冷却直接压实"，
+    // 用它去验冷却等于自相矛盾。
+    const second = await maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now });
+    expect(second.ran).toBe(false);
+    expect(second.decision.reason).toBe("cooldown");
+  });
+
+  it("single-flight：并发触发只有一个真跑，另一个标记 deduped", async () => {
+    const now = Date.now();
+    writeLines([rec("old", "s", now - 40 * DAY), rec("new", "s2", now - 1000)]);
+
+    const [a, b] = await Promise.all([
+      maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now, force: true }),
+      maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now, force: true }),
+    ]);
+
+    const ranCount = [a, b].filter((x) => x.ran).length;
+    const dedupedCount = [a, b].filter((x) => x.deduped).length;
+    expect(ranCount).toBe(1);
+    expect(dedupedCount).toBe(1);
+  });
+
+  it("链安全：压实期间进来的采集**不会丢**（追加落在新文件上）", async () => {
+    const now = Date.now();
+    writeLines([rec("old", "s", now - 40 * DAY), rec("new", "s2", now - 1000)]);
+
+    const compacting = maybeCompactRealUsageTraces(FILE, { policy: TIME_30D, now, force: true });
+    // 压实进行中：新采集入队（不 await，模拟真实 fire-and-forget 调用）
+    await captureRealUsageTrace({ id: "during", task: "t", success: true, timestamp: now - 500 }, FILE);
+
+    await compacting;
+    await flushRealUsageTraces(FILE);
+
+    const ids = readAll().map((x) => x.id).sort();
+    expect(ids).toContain("during");   // 关键：压实期间写入未被重写吞掉
+    expect(ids).toContain("new");
+    expect(ids).not.toContain("old");  // 超期记录确实被淘汰
   });
 });

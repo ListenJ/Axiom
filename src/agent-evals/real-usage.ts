@@ -14,8 +14,11 @@ import type { TaskTrace } from "../self-evolve/types.js";
 import type { AgentTrace } from "../utils/agent-trace.js";
 import type { InductionPromotionDeps } from "../self-evolve/skill-promotion.js";
 import {
+  COMPACTION_TRIGGER_DEFAULTS,
+  decideCompaction,
   resolvePolicy,
   selectRetained,
+  type CompactionDecision,
   type RetentionPolicy,
   type RetentionRecord,
   type RetentionSignals,
@@ -177,6 +180,14 @@ export async function captureRealUsageTrace(trace: RealUsageTrace, filePath?: st
     const t = setTimeout(() => { void flushPending(target); }, 50);
     flushTimers.set(target, t as unknown as ReturnType<typeof setTimeout>);
   }
+
+  // 精细化触发：廉价探测（stat + statfs）→ 仅在超阈值且过冷却时才排队重写。
+  // fire-and-forget：压实是维护行为，失败**不得**影响采集主流程。
+  void maybeCompactRealUsageTraces(target).catch((e) =>
+    logger.warn("[RealUsage] compaction trigger failed", {
+      error: e instanceof Error ? e.message : String(e),
+    }),
+  );
 }
 
 /**
@@ -248,6 +259,19 @@ export async function compactRealUsageTraces(
 ): Promise<CompactionResult> {
   const target = resolvePath(filePath);
   await flushPending(target); // 约束 1
+  return rewriteTraceFile(target, opts?.policy, opts?.now);
+}
+
+/**
+ * 核心重写（不做 flush、不排队）——调用方负责保证"队列已空且无并发追加"。
+ * 拆分出来的原因：`maybeCompactRealUsageTraces` 需要把重写**排进 per-target 写链**
+ * （避免与 appendFile 赛跑），若在链内再调 `flushPending` 会自锁。
+ */
+async function rewriteTraceFile(
+  target: string,
+  policyIn?: RetentionPolicy,
+  nowIn?: number,
+): Promise<CompactionResult> {
 
   const emptySignals: RetentionSignals = {
     fileBytes: 0, recordCount: 0, sessionCount: 0, freeDiskBytes: 0,
@@ -256,7 +280,7 @@ export async function compactRealUsageTraces(
   if (!fs.existsSync(target)) {
     return {
       skipped: true, reason: "no-file",
-      policy: opts?.policy ?? resolvePolicy(emptySignals),
+      policy: policyIn ?? resolvePolicy(emptySignals),
       signals: emptySignals,
       bytesBefore: 0, bytesAfter: 0,
       kept: 0, dropped: 0, droppedByTime: 0, droppedBySize: 0, malformedDropped: 0,
@@ -295,8 +319,8 @@ export async function compactRealUsageTraces(
   }
 
   const signals: RetentionSignals = { fileBytes, recordCount: records.length, sessionCount, freeDiskBytes };
-  const policy = opts?.policy ?? resolvePolicy(signals);
-  const now = opts?.now ?? Date.now();
+  const policy = policyIn ?? resolvePolicy(signals);
+  const now = nowIn ?? Date.now();
   const outcome = selectRetained(records, policy, now);
 
   if (outcome.drop.length === 0 && malformedDropped === 0) {
@@ -482,4 +506,118 @@ if (import.meta.main) {
     logger.info(`Real usage traces: ${traces.length}`);
     for (const t of traces.slice(-10)) logger.info(`- [${t.success ? "OK" : "FAIL"}] ${t.id}: ${t.task.slice(0, 60)}`);
   }
+}
+
+// ============================================================================
+// 精细化触发：廉价探测 → 纯决策 → 排队重写
+// ============================================================================
+
+export interface MaybeCompactionOutcome {
+  /** true = 本次真的执行了重写 */
+  ran: boolean;
+  decision: CompactionDecision;
+  result?: CompactionResult;
+  /** true = 复用了进行中的压实（single-flight 去重） */
+  deduped?: boolean;
+}
+
+let _compactionInFlight: Promise<MaybeCompactionOutcome> | null = null;
+let _lastCompactionAt: number | null = null;
+
+/** 诊断/测试用：上次压实时间（毫秒）；null = 从未压实 */
+export function getLastCompactionAt(): number | null {
+  return _lastCompactionAt;
+}
+
+/** 测试用：重置模块级压实状态（避免用例间串扰） */
+export function resetCompactionStateForTest(): void {
+  _compactionInFlight = null;
+  _lastCompactionAt = null;
+}
+
+/**
+ * 精细化触发入口：**廉价探测 → 决策 → 仅在值得时排队重写**。
+ *
+ * 分层理由：
+ *  - 全量压实要读+解析+重写整个文件，代价与文件大小同阶；
+ *    故先用**两次系统调用**（`statSync` 体积 / `statfsSync` 可用空间）判断是否值得扫。
+ *  - 判断本身是纯函数 `decideCompaction`（冷却优先于阈值，防止高压下反复重写）。
+ *  - 真正重写时**排进 per-target 写链**（复用既有 `flushChains`）⇒ 不会与 `appendFile`
+ *    赛跑：此时新到的采集只会入队，其 flush 排在本次重写之后，追加落在**新文件**上，不丢数据。
+ *
+ * 并发边界（如实标注）：single-flight 只覆盖**进程内**；
+ * 多进程同时压实同一文件**未加跨进程锁**（仓库无既有锁工具，见 ops log）。
+ */
+export function maybeCompactRealUsageTraces(
+  filePath?: string,
+  opts?: {
+    policy?: RetentionPolicy;
+    now?: number;
+    /** true = 跳过阈值/冷却判断，直接压实（供显式命令/维护用） */
+    force?: boolean;
+    trigger?: { triggerRatio?: number; cooldownMs?: number };
+  },
+): Promise<MaybeCompactionOutcome> {
+  // single-flight：本函数**非 async**，赋值前无 await ⇒ 同步发布，无交错窗口
+  if (_compactionInFlight) {
+    // 语义：`ran` = **本次调用是否执行了重写**。被去重者复用了别人的结果，
+    // 故 ran=false + deduped=true，避免调用方误以为自己也跑了一次。
+    return _compactionInFlight.then((r) => ({ ...r, ran: false, deduped: true }));
+  }
+  const target = resolvePath(filePath);
+  const run = runMaybeCompact(target, opts);
+  const tracked = run.then(
+    (r) => { _compactionInFlight = null; return r; },
+    (e) => { _compactionInFlight = null; throw e; },
+  );
+  _compactionInFlight = tracked;
+  return tracked;
+}
+
+async function runMaybeCompact(
+  target: string,
+  opts?: {
+    policy?: RetentionPolicy;
+    now?: number;
+    force?: boolean;
+    trigger?: { triggerRatio?: number; cooldownMs?: number };
+  },
+): Promise<MaybeCompactionOutcome> {
+  const now = opts?.now ?? Date.now();
+
+  // —— 廉价探测（两次系统调用；不解析文件）——
+  let fileBytes = 0;
+  let freeDiskBytes = 0;
+  if (fs.existsSync(target)) {
+    try { fileBytes = fs.statSync(target).size; } catch { fileBytes = 0; }
+    try {
+      const st = fs.statfsSync(path.dirname(target));
+      freeDiskBytes = Number(st.bavail) * Number(st.bsize);
+    } catch (e) {
+      // 平台不支持时保守取 0（→ 最严档），并如实记日志
+      logger.warn("[RealUsage] statfsSync unavailable during compaction probe", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      freeDiskBytes = 0;
+    }
+  }
+
+  const decision = decideCompaction(
+    { fileBytes, freeDiskBytes, now, lastCompactionAt: _lastCompactionAt },
+    opts?.trigger,
+  );
+
+  if (!decision.compact && !opts?.force) {
+    return { ran: false, decision };
+  }
+
+  // —— 排队重写：先 flush（把自己接到当前链尾），再把重写挂到链上 ——
+  await flushPending(target);
+  const prev = flushChains.get(target) ?? Promise.resolve();
+  const work = prev.then(() => rewriteTraceFile(target, opts?.policy, opts?.now));
+  flushChains.set(target, work.then(() => undefined, () => undefined));
+  const result = await work;
+
+  _lastCompactionAt = opts?.now ?? Date.now();
+  return { ran: true, decision, result };
 }

@@ -2243,3 +2243,31 @@
 - **未覆盖项**：①expect 调用数差 16/15 的**具体断言**仍未逐条定位；②Windows 上**全量** `./tests` 未跑（A3b 范围内只跑了可移植子集）；③**`compactRealUsageTraces` 仍无生产调用方** —— 压实不会被自动触发（承接上一条的未做项）。
 - **不做项**：未加压实调用时机；未加并发锁；未在 Windows 跑全量套件。
 - **Commit**：`5edc4ef`
+
+## 2026-09-19 — feat(T2): 切片 A3b 后半 —— 精细化触发（廉价探测 + 冷却 + 写链排队 + single-flight）
+
+- **任务**：用户裁定"需要**精细化操作**"，为 `compactRealUsageTraces` 补上**触发时机**与并发保护。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash；`bunx tsc`；`bun test`（全量 417 文件）；规则 2（两文件备份）；规则 7（先红后绿）；规则 8（复用既有接缝）；规则 12。
+- **施工前检索（避免新造基建）**：
+  - **single-flight 是仓库既有范式**：`src/utils/vault-stats-cache.ts:108-110`（`_refreshing: Promise | null` + 早返回）。
+  - **没有跨进程锁工具**：全仓无 `wx` 独占创建、无 lockfile 抽象。⇒ 引入文件锁协议属**新基建**，本轮**不做**（规则 1），改为**如实标注边界**（见下）。
+  - **关键洞察**：仓库已有 **per-target `flushChains` 串行写链**（`real-usage.ts:62-64`）。压实应**排进同一条链**，而不是另造屏障 —— 这样它与 `appendFile` 天然互斥。
+- **本轮交付（两层分离，沿用 A3a/A3d 的"纯决策 + 副作用"思路）**：
+  1. **纯决策层**（`trace-retention.ts`）：抽出 `resolveMaxBytes(freeDiskBytes)`（消除与 `resolvePolicy` 的重复，供廉价探测直接调用）；新增 `COMPACTION_TRIGGER_DEFAULTS` / `CompactionTriggerSignals` / `CompactionDecision` / `decideCompaction()`。
+     判定顺序：**冷却优先于阈值**（持续高压下每批都压实会把 CPU/IO 打满而收益递减）。参数可覆盖（`triggerRatio` 默认 0.8、`cooldownMs` 默认 10 分钟），比例夹在 [0.01, 1]。
+  2. **执行层**（`real-usage.ts`）：`maybeCompactRealUsageTraces()` —— **廉价探测（`statSync` 体积 + `statfsSync` 可用空间，共两次系统调用，不解析文件）→ 纯决策 → 仅在值得时才排队重写**。
+     重写**排进同一 `flushChains`**：先 `flushPending`（把自己接到链尾），再把 `rewriteTraceFile` 挂到链上；此后新到的采集只入队，其 flush 排在本次重写之后 ⇒ **追加落在新文件上，不丢**。
+     为此把原 `compactRealUsageTraces` 拆为「公开入口（先 flush）」+「`rewriteTraceFile`（核心重写，不做 flush/排队）」，避免链内自锁。
+  3. **接线**：`captureRealUsageTrace` 尾部 fire-and-forget 触发探测；压实是维护行为，**失败不影响采集主流程**（仅记 warn）。
+- **TDD 红→绿**：新增 13 例 —— 决策层 8 例（修复前 **0 pass / 1 error** → **8 pass / 0 fail**），执行层 5 例（同文件 **10 pass / 2 fail** → **12 pass / 0 fail**）。
+  关键用例：**链安全** —— 压实进行中调用 `capture`，最终文件**同时**含新记录 `during` 与新保留记录，且超期记录已被淘汰 ⇒ 证明"重写不会吞掉并发写入"。
+- **两处修复（性质不同，如实区分）**：
+  ① **实现的语义瑕疵**：被 single-flight 去重的调用原样透传了 `ran: true`，会让调用方误以为"自己也跑了一次"。已改为 `ran: false, deduped: true`（`ran` 定义为"**本次调用**是否执行了重写"）。
+  ② **我的测试与文档语义矛盾**：冷却用例给第二次调用也传了 `force: true`，而 `force` 的**文档语义就是"跳过阈值/冷却直接压实"** —— 用它去验冷却等于自相矛盾。已改为第二次**不传 force**。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4153 pass / 36 skip / 0 fail**（417 文件；基线 4140 + 新增 13，**无回归**）—— 注意本轮把触发接进了 `capture`，全量绿说明**未对其它采集相关用例产生副作用**。
+- **并发边界（如实标注，不夸大）**：single-flight **只覆盖进程内**（模块级变量）。
+  **多进程同时压实同一文件未加跨进程锁** —— 仓库无既有锁工具，引入锁协议（含陈旧锁回收、崩溃恢复）属新基建且未被需求驱动，故本轮**明确不做**。
+  适用条件：当前部署为**单进程**（`deploy-smoke` 用 pm2 单实例）时该缺口不触发；若将来多进程写同一 JSONL，须重开此议题。
+- **未覆盖项**：①触发阈值/冷却取值（0.8 / 10 分钟）**未经真实负载验证**，属工程判断；②**跨进程并发压实**未保护；③Windows 实测待补（本轮 Linux 全绿 → 推送 → Windows 经 Git Bash 复跑，结果记于下一条）；④压实期间若进程崩溃，`.tmp` 残留**无清理机制**（下次压实会生成新名，不会覆盖，但残留会累积）。
+- **不做项**：未加跨进程锁；未加 `.tmp` 残留清理；未改 `capture` 的既有写入语义（仅在其尾部追加 fire-and-forget 触发）。
+- **Commit**：`__COMMIT__`

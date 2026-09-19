@@ -220,6 +220,20 @@ function clampInt(value: number, lo: number, hi: number): number {
  * 本模块的做法是把副作用**挡在边界外** —— 这里只做 signals → policy 的纯映射，
  * 因此**只要 signals 相同，policy 必相同**；调用方记录 signals 即可完整复现一次裁剪决策。
  */
+/**
+ * 由可用空间推导体积上限（可用空间的 1%，夹在 [4 MiB, 256 MiB]）。
+ * 单独抽出的原因：**廉价探测**只需这一项即可判断"值不值得全量扫描"，
+ * 不必为此构造完整的 `RetentionSignals`（那需要先解析整个文件）。
+ */
+export function resolveMaxBytes(freeDiskBytes: number): number {
+  const free = Number.isFinite(freeDiskBytes) && freeDiskBytes > 0 ? freeDiskBytes : 0;
+  return clampInt(
+    Math.floor(free / POLICY_BOUNDS.freeDiskShareDivisor),
+    POLICY_BOUNDS.maxBytesFloor,
+    POLICY_BOUNDS.maxBytesCeiling,
+  );
+}
+
 export function resolvePolicy(signals: RetentionSignals): RetentionPolicy {
   const free = Number.isFinite(signals.freeDiskBytes) && signals.freeDiskBytes > 0
     ? signals.freeDiskBytes
@@ -234,11 +248,7 @@ export function resolvePolicy(signals: RetentionSignals): RetentionPolicy {
         : POLICY_BOUNDS.retentionDaysNormal;
 
   // 2) 体积上限 = 可用空间 1%，夹在 [4 MiB, 256 MiB]
-  const maxBytes = clampInt(
-    Math.floor(free / POLICY_BOUNDS.freeDiskShareDivisor),
-    POLICY_BOUNDS.maxBytesFloor,
-    POLICY_BOUNDS.maxBytesCeiling,
-  );
+  const maxBytes = resolveMaxBytes(free);
 
   // 3) 记录下限随会话数缩放（会话多则多留，保证每个会话都有样本）
   const sessions = Number.isFinite(signals.sessionCount) && signals.sessionCount > 0
@@ -266,4 +276,71 @@ export function resolvePolicy(signals: RetentionSignals): RetentionPolicy {
     activeWindowMs,
     minKeepRecords,
   };
+}
+
+
+// ============================================================================
+// 压实触发决策（切片 A3b 后半：精细化触发）
+// ============================================================================
+
+/**
+ * 触发参数默认值。**具名常量**，可经 opts 覆盖（精细化调节）。
+ *
+ * `triggerRatio = 0.8`：体积达到**上限的 80%** 才考虑压实 —— 留 20% 余量，
+ *   避免压完很快又触到上限而反复重写。
+ * `cooldownMs = 10 分钟`：持续高压下若每批都压实，CPU/IO 会被打满而收益递减。
+ */
+export const COMPACTION_TRIGGER_DEFAULTS = {
+  triggerRatio: 0.8,
+  cooldownMs: 10 * 60 * 1000,
+} as const;
+
+/** 廉价探测所需的输入：**只需两次系统调用**（statSync 体积 + statfsSync 可用空间） */
+export interface CompactionTriggerSignals {
+  fileBytes: number;
+  freeDiskBytes: number;
+  /** 当前时间（毫秒）——入参而非读时钟，保证可复现 */
+  now: number;
+  /** 上次压实时间；null = 从未压过 */
+  lastCompactionAt: number | null;
+}
+
+export interface CompactionDecision {
+  compact: boolean;
+  reason: "below-threshold" | "cooldown" | "trigger";
+  /** 由可用空间推导出的体积上限 */
+  effectiveMaxBytes: number;
+  /** 触发阈值 = floor(上限 × triggerRatio) */
+  thresholdBytes: number;
+}
+
+/**
+ * 判定"该不该压实"。**纯函数**：不读时钟、不碰文件系统、无随机。
+ *
+ * 判定顺序（冷却优先于阈值）：冷却期内即便超阈值也不压，避免高压下反复重写。
+ */
+export function decideCompaction(
+  signals: CompactionTriggerSignals,
+  opts?: { triggerRatio?: number; cooldownMs?: number },
+): CompactionDecision {
+  const effectiveMaxBytes = resolveMaxBytes(signals.freeDiskBytes);
+
+  const rawRatio = opts?.triggerRatio ?? COMPACTION_TRIGGER_DEFAULTS.triggerRatio;
+  const triggerRatio = Number.isFinite(rawRatio) ? Math.min(1, Math.max(0.01, rawRatio)) : COMPACTION_TRIGGER_DEFAULTS.triggerRatio;
+  const thresholdBytes = Math.floor(effectiveMaxBytes * triggerRatio);
+
+  const cooldownMs = opts?.cooldownMs ?? COMPACTION_TRIGGER_DEFAULTS.cooldownMs;
+  if (
+    signals.lastCompactionAt !== null &&
+    Number.isFinite(signals.lastCompactionAt) &&
+    signals.now - signals.lastCompactionAt < cooldownMs
+  ) {
+    return { compact: false, reason: "cooldown", effectiveMaxBytes, thresholdBytes };
+  }
+
+  const fileBytes = Number.isFinite(signals.fileBytes) && signals.fileBytes > 0 ? signals.fileBytes : 0;
+  if (fileBytes < thresholdBytes) {
+    return { compact: false, reason: "below-threshold", effectiveMaxBytes, thresholdBytes };
+  }
+  return { compact: true, reason: "trigger", effectiveMaxBytes, thresholdBytes };
 }
