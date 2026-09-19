@@ -1980,3 +1980,29 @@
 - **未覆盖项**：①外围约 90 处字面量的收敛**未执行**（切片 B0）；②`TokenTracker`↔`agent-trace` 关联键**未核验**；③"思考等级/上下文窗口"可配置形式**未勘察**；④Q1=(a) 的迁移路径**未设计**（切片 C 前置）；⑤§2.1 词典方案**未实测**，仅为工程判断。
 - **不做项**：**未移除任何 provider、未删除 `edge-embeddings.ts`**（前者属 Q1 切片 C 且迁移路径未定；后者属规则 4 的删除流程且取决于切片 D 文案）。
 - **Commit**：`92743c5`
+
+## 2026-09-19 — feat(T2): 切片 A（前半）TokenTracker 显式分类字段 + 关联键核验（结论：不存在）
+
+- **任务**：用户批准执行切片 A（轨迹用量可观测）。按上轮承诺，**先只做关联键核验**再决定是否往下。分级 **T2**。仅提交 Gitea。
+- **工具**：Bash（grep/sed）；`bunx tsc`；`bun test`（全量 411 文件）；规则 2（`token-tracker.ts` 备份至 `.tmp/backups/`）；规则 7（先红后绿）；规则 12（越界即停）。
+- **🔎 承诺的核验结论：`TokenTracker` 与 `agent-trace` 之间\*\*不存在\*\*可复用的关联键。** 证据：
+  ① `src/router/token-tracker.ts` 的 `TokenUsageRecord` 字段仅有 `timestamp/model/provider/role/taskType/tokens/latency/contentLength/success/fallbackUsed/costUsd/cacheHit*`；`grep taskId|traceId|requestId` **零命中**（`id?: number` 是 DB 自增行号，非业务关联）。
+  ② 唯一写入点 `src/router/model-router.ts:164-183`：`meta` 只传 `{ role?, taskType? }`（`:164`），**调用链上没有 task/trace id 可用**。
+  ③ `src/utils/agent-trace.ts:14-21` 的 `AgentTrace.taskId` 是另一套标识，**从未进入 token 记录**。
+  ⇒ 需要**新增接口**（把 taskId 贯通到路由调用链），属"计划未覆盖的公共接口变更"。按总则 0.6 **停机请求决策**，未擅自设计。
+- **⚠️ 附加发现（比前者更硬的结构性阻塞）**：`agent-trace` 的轨迹**在完成时即被删除**，故 `GET /traces` **只能看到"运行中"的轨迹**，看不到已结束任务的用量。证据：
+  `agent-trace.ts:52` `completeTrace()` 内 `activeTraces.delete(taskId)`；`:62` `failTrace()` 同样 delete；`:70-72` `getAllTraces()` 读的正是 `activeTraces`。
+  且该路径**确实被使用**：`src/agents/opencode-tools/tool-agent.ts:94` 与 `:189` 都会调 `completeTrace(taskId, …)`。
+  ⇒ "在轨迹中显示 token 消耗"这一需求，在当前实现下对**已完成任务**结构性做不到，必须先定轨迹的存储形态。
+  （另注：`src/self-evolve/engine.ts:280 recordTrace` 是**另一套** `TaskTrace` 存储（上限 `MAX_TRACES` 的裁剪数组），与 `/traces` 无关，**不可**当作现成历史。）
+- **本轮已交付（不依赖上述决策的部分）**：
+  1. `src/router/token-tracker.ts`：`TokenUsageRecord` 新增**显式** `category?: string`（决策 Q3，不复用 role/taskType）；
+     新增 `CategoryStats`/`CategoryStatsRow` 类型；建表加 `category` 列；**老库 ALTER 迁移**；索引；INSERT 与 `getRecentUsage` 读写打通；
+     新增 `getStatsByCategory()`（未标注归 `'unknown'`，**不做猜测回填**）。
+  2. 新建 `tests/token-tracker-category.test.ts`（4 例）：分类聚合、unknown 隔离、recent 读回、**老库迁移**。
+- **TDD 红→绿**：`bun test tests/token-tracker-category.test.ts` 修复前 **0 pass / 4 fail**（含 `getStatsByCategory is not a function`）→ 修复后 **4 pass / 0 fail**。
+- **实现中踩中的真实缺陷（已修，并写入代码注释）**：`category` 索引最初与其它索引同处建表块，**位于 ALTER 迁移之前** ⇒ 老库（无该列）启动即抛 `no such column: category`，被"老库无 category 列"用例**当场拦下**。已把该索引移到 ALTER 之后，并在代码注释中写明顺序要求。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；全量 `bun test --parallel=8 --timeout 15000 ./tests` → **4111 pass / 36 skip / 0 fail**（411 文件；基线 4107 + 新增 4，**无回归**）。
+- **本轮**未做**（有意识的收口，规则 12）**：①未把 `taskId` 贯通到路由链（接口变更，待决策）；②未改 `agent-trace.ts`（其存储形态待决策）；③**未新增 MCP 工具或 HTTP 暴露** —— 暴露形态正是上述待决项，且新增工具会触发 `tests/unit/docs-consistency.test.ts` 的"工具数与 registry 精确相等"门禁、连带 5 份文档计数，属切片 E 的口径收敛范围，不宜在此处零散改。
+- **未覆盖项**：①分类取值集合（`main`/`subagent`/`embedding`/`tool`/`other`）目前**只在注释与文档中约定**，**无任何代码强制**；②**尚无调用方向 `record()` 传 `category`** ⇒ 现网数据仍全部落在 `'unknown'`（这是刻意的：先建能力、后接调用方，避免半成品污染口径）；③`agent-trace` 是否应改为持久化/有界保留，**未评估**。
+- **Commit**：`__COMMIT__`

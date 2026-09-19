@@ -27,6 +27,17 @@ export interface TokenUsageRecord {
   provider: string;
   role?: string;
   taskType?: string;
+  /**
+   * 显式分类（决策 Q3，2026-09-19）：这笔消耗"属于谁"。
+   * 与 role/taskType 语义不同，故**不复用**它们：
+   *   main       — 主模型对话/推理
+   *   subagent   — 子代理
+   *   embedding  — 词嵌入（知识库语义层等）
+   *   tool       — 工具调用相关模型开销
+   *   other      — 其它
+   * 未标注时按 'unknown' 参与聚合（不回填猜测值，避免污染分类）。
+   */
+  category?: string;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -63,6 +74,11 @@ export interface ModelStats extends TokenStats {
 
 export interface RoleStats extends TokenStats {
   role: string;
+}
+
+/** 按分类聚合的统计（决策 Q3） */
+export interface CategoryStats extends TokenStats {
+  category: string;
 }
 
 export interface DailyStats {
@@ -107,6 +123,10 @@ interface RoleStatsRow extends StatsRow {
   role: string;
 }
 
+interface CategoryStatsRow extends StatsRow {
+  category: string;
+}
+
 interface DailyStatsRow {
   date: string;
   total_calls: number;
@@ -125,6 +145,7 @@ interface UsageRecordRow {
   provider: string;
   role: string | null;
   task_type: string | null;
+  category: string | null;
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
@@ -164,6 +185,7 @@ export class TokenTracker {
         provider TEXT NOT NULL,
         role TEXT,
         task_type TEXT,
+        category TEXT,
         prompt_tokens INTEGER DEFAULT 0,
         completion_tokens INTEGER DEFAULT 0,
         total_tokens INTEGER DEFAULT 0,
@@ -199,6 +221,14 @@ export class TokenTracker {
         this.db.run(`ALTER TABLE token_usage ADD COLUMN ${col}`);
       } catch { /* 列已存在 */ }
     }
+
+    // 迁移：老库补 category 列（决策 Q3 显式分类；重复列会抛错，吞掉即可）
+    try {
+      this.db.run(`ALTER TABLE token_usage ADD COLUMN category TEXT`);
+    } catch { /* 列已存在 */ }
+    // ⚠️ 顺序要求：category 索引必须建在 ALTER 之后——老库此前没有该列，
+    // 提前建索引会抛 "no such column: category"（本实现首次即踩中，见测试"老库无 category 列"）。
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_tu_category ON token_usage(category)`);
 
     this.backfillCostUsd();
   }
@@ -276,11 +306,11 @@ export class TokenTracker {
 
     const stmt = this.db.prepare(`
       INSERT INTO token_usage
-        (timestamp, model, provider, role, task_type, prompt_tokens, completion_tokens,
+        (timestamp, model, provider, role, task_type, category, prompt_tokens, completion_tokens,
          total_tokens, latency_ms, content_length, success, fallback_used, cost_usd,
          cache_hit_tokens, cache_miss_tokens, cache_hit)
       VALUES
-        ($timestamp, $model, $provider, $role, $taskType, $promptTokens, $completionTokens,
+        ($timestamp, $model, $provider, $role, $taskType, $category, $promptTokens, $completionTokens,
          $totalTokens, $latencyMs, $contentLength, $success, $fallbackUsed, $costUsd,
          $cacheHitTokens, $cacheMissTokens, $cacheHit)
     `);
@@ -293,6 +323,7 @@ export class TokenTracker {
           $provider: r.provider,
           $role: r.role ?? null,
           $taskType: r.taskType ?? null,
+          $category: r.category ?? null,
           $promptTokens: r.promptTokens,
           $completionTokens: r.completionTokens,
           $totalTokens: r.totalTokens,
@@ -433,6 +464,49 @@ export class TokenTracker {
     }));
   }
 
+  /**
+   * 按显式分类分组统计（决策 Q3）。
+   * 未标注 category 的记录归入 'unknown'——**不做猜测回填**，否则分类口径会被污染。
+   */
+  getStatsByCategory(opts?: { since?: number; limit?: number }): CategoryStats[] {
+    const params: Record<string, number | string> = {};
+    let where = "";
+    if (opts?.since) { where = "WHERE timestamp >= $since"; params.$since = opts.since; }
+    const limit = opts?.limit ?? 20;
+
+    const rows = this.db.query(`
+      SELECT
+        COALESCE(category, 'unknown') as category,
+        COUNT(*) as total_calls,
+        COALESCE(SUM(prompt_tokens), 0) as prompt_tokens,
+        COALESCE(SUM(completion_tokens), 0) as completion_tokens,
+        COALESCE(SUM(total_tokens), 0) as total_tokens,
+        COALESCE(AVG(latency_ms), 0) as avg_latency,
+        COALESCE(AVG(total_tokens), 0) as avg_tokens,
+        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as success_rate,
+        COALESCE(SUM(CASE WHEN fallback_used = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 0) as fallback_rate,
+        COALESCE(SUM(cost_usd), 0) as cost_usd
+      FROM token_usage
+      ${where}
+      GROUP BY category
+      ORDER BY total_tokens DESC
+      LIMIT $limit
+    `).all({ ...params, $limit: limit }) as CategoryStatsRow[];
+
+    return rows.map((r) => ({
+      category: r.category,
+      totalCalls: r.total_calls,
+      totalPromptTokens: r.prompt_tokens,
+      totalCompletionTokens: r.completion_tokens,
+      totalTokens: r.total_tokens,
+      avgLatencyMs: Math.round(r.avg_latency),
+      avgTokensPerCall: Math.round(r.avg_tokens),
+      successRate: Math.round(r.success_rate * 100) / 100,
+      fallbackRate: Math.round(r.fallback_rate * 100) / 100,
+      costUsd: r.cost_usd ?? 0,
+    }));
+  }
+
   /** 按天统计 */
   getDailyStats(days = 30): DailyStats[] {
     const safeDays = Math.max(1, Math.min(Math.floor(days), 3650));
@@ -472,7 +546,7 @@ export class TokenTracker {
     const safeLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
     const rows = this.db.query(`
       SELECT
-        timestamp, model, provider, role, task_type,
+        timestamp, model, provider, role, task_type, category,
         prompt_tokens, completion_tokens, total_tokens,
         latency_ms, content_length, success, fallback_used, cost_usd,
         cache_hit_tokens, cache_miss_tokens, cache_hit
@@ -487,6 +561,7 @@ export class TokenTracker {
       provider: r.provider,
       role: r.role ?? undefined,
       taskType: r.task_type ?? undefined,
+      category: r.category ?? undefined,
       promptTokens: r.prompt_tokens,
       completionTokens: r.completion_tokens,
       totalTokens: r.total_tokens,
