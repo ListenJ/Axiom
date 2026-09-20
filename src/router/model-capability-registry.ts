@@ -5,6 +5,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 import {
   UNIFIED_REGISTRY,
   getModel as _getModel,
@@ -14,6 +15,23 @@ import {
 } from "./models.js";
 
 export type { TaskRole, ModelProvider };
+
+/**
+ * 开发/测试模型放行开关（2026-09-20 用户裁定：SiliconFlow 暂留，**仅 dev/test**，不作发布的一部分）。
+ *
+ * - 未设置 / 非 `1` ⇒ `devOnly` 模型**不参与自动解析**（发布默认行为）；
+ * - 显式 `AXIOM_ALLOW_DEV_MODELS=1` ⇒ 放行，供开发与测试使用。
+ *
+ * 为什么做成"默认关门"而不是"删条目"：删条目会让 dev/test 无法再验证 embedding 通路；
+ * 而"默认关门 + 显式放行"既保住发布面干净，又保住开发能力。守护测试：
+ * `tests/unit/release-path-dev-models.test.ts`。
+ */
+export const DEV_MODELS_ENV = "AXIOM_ALLOW_DEV_MODELS";
+
+/** 是否显式放行 devOnly 模型（每次调用读取，便于测试与运行期切换）。 */
+export function areDevModelsAllowed(): boolean {
+  return readString(DEV_MODELS_ENV, "") === "1";
+}
 
 export interface ModelCapability {
   id: string;
@@ -31,6 +49,8 @@ export interface ModelCapability {
   baseURL?: string;
   /** 用户自定义 API key（callProvider override 优先，不进仓库） */
   apiKey?: string;
+  /** 仅开发/测试用：默认不参与自动解析（见 DEV_MODELS_ENV） */
+  devOnly?: boolean;
 }
 
 export interface AssignmentResult {
@@ -56,6 +76,7 @@ function toCapability(um: UnifiedModel): ModelCapability {
     timeout: um.timeout,
     maxRetries: um.maxRetries,
     isFree: um.isFree,
+    devOnly: um.devOnly,
   };
 }
 
@@ -123,11 +144,16 @@ export function findModelsForRole(role: TaskRole, opts?: {
   // Use cached role index — O(1) lookup instead of O(n) scan
   const cached = getRoleIndex().get(role);
   if (!cached) return [];
-  if (!opts) return cached;
+
+  // 发布面闸门：devOnly 模型默认被过滤掉（不依赖 opts，故必须置于 `if (!opts)` 之前）。
+  // 该过滤发生在**每次调用**而非缓存构建期，因此运行期切换 DEV_MODELS_ENV 立即生效，
+  // 也不需要 invalidateCache()（缓存里仍保留全量，只是出口处过滤）。
+  const visible = areDevModelsAllowed() ? cached : cached.filter((m) => !m.devOnly);
+  if (!opts) return visible;
 
   // Apply optional filters (creates a new array to avoid mutating the cache)
   const results: ModelCapability[] = [];
-  for (const model of cached) {
+  for (const model of visible) {
     if (opts.minContextWindow && model.contextWindow < opts.minContextWindow) continue;
     if (opts.excludeAdapters && model.adapter) continue;
     if (opts.excludeModels?.includes(model.id)) continue;

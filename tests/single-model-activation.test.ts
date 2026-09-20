@@ -46,10 +46,15 @@ describe("单模型接入全功能", () => {
     }
   });
 
-  it("视觉/嵌入角色按设计不要求 deepseek（多模态/嵌入端点另行配置）", () => {
-    for (const role of ["computer-use", "embedding"] as TaskRole[]) {
-      expect(findModelsForRole(role).length).toBeGreaterThan(0);
-    }
+  it("视觉角色仍有非 deepseek 的多模态候选（能力不因 siliconflow 退出发布面而丢失）", () => {
+    expect(findModelsForRole("computer-use").length).toBeGreaterThan(0);
+  });
+
+  it("嵌入角色**默认无候选** —— siliconflow embedding 已退出发布面（2026-09-20 政策）", () => {
+    // 政策：SiliconFlow 仅 dev/test（devOnly，需 AXIOM_ALLOW_DEV_MODELS=1 放行）。
+    // 故发布默认下 embedding **不应**有任何 siliconflow 路由；用户自配 embedding 模型走
+    // user-config-loader 的 EXTENSIONS，不受本断言影响（故按 provider 过滤而非断言为空数组）。
+    expect(findModelsForRole("embedding").filter((m) => m.provider === "siliconflow")).toEqual([]);
   });
 
   it("仅配置 DEEPSEEK_API_KEY 时，listConfiguredProviders 只返回 deepseek", () => {
@@ -65,5 +70,4 @@ describe("单模型接入全功能", () => {
     expect(providers).toContain("deepseek");
   });
 });
-
 

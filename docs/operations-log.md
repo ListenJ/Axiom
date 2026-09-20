@@ -3089,3 +3089,49 @@
   ②真实 embedder **仍未接进生产检索调用点**；③**跨进程 N≥5 确定性实测**（A6）未做；④A8 对拍（词法+语义）未做。
 - **不做项**：未改 `registry.ts` / `api-key-store`；未接生产检索路径；未发起任何真实网络请求（全离线）。
 - **Commit**：`9e821cf`
+
+## 2026-09-20 — feat(T3): 发布面闸门 —— SiliconFlow 仅 dev/test（devOnly + AXIOM_ALLOW_DEV_MODELS）
+
+- **任务**：用户裁定"**暂时保留 SiliconFlow，但只作为开发测试使用，不作为实际发布的部分**"（取代此前 Q1=(a) 彻底移除）。
+  该裁定必须落成**可验证行为**，不能只写注释。分级 **T3**（模型供给面 + 默认路由行为变更）。仅提交 Gitea。
+- **① 机制（4 处，缺一即声明不成立）**：
+  1. `src/router/models/types.ts`：`UnifiedModel.devOnly` 字段（带语义说明）；
+  2. `src/router/model-capability-registry.ts`：`DEV_MODELS_ENV = "AXIOM_ALLOW_DEV_MODELS"`、`areDevModelsAllowed()`，
+     并在 `findModelsForRole` **出口**过滤 devOnly（置于 `if (!opts)` **之前**，否则不带 opts 的调用会绕过闸门）；
+     过滤在**每次调用**而非缓存构建期 ⇒ 运行期切换立即生效、无需 `invalidateCache()`；
+  3. `src/router/models/registry.ts`（10 个 siliconflow 条目）+ `config/model-router.yaml`（8 个条目）：标 `devOnly: true`；
+  4. `src/router/user-config-loader.ts`：`devOnly` **透传**到 capability —— 否则 yaml 里那条 siliconflow
+     embedding 会**绕过闸门**（这是最容易漏的一处）。
+- **② 独立实测（两种方法，结论一致）**：
+  - 方法 A（进程内探针，`.tmp/probe/release-surface.ts`）：默认 10/61 条被扣留，**所有角色解析结果泄漏面 = NONE**，
+    embedding 候选 = 无；放行后泄漏 40 条 ⇒ 闸门**可逆、非删除**。
+  - 方法 B（独立子进程）：默认下 `router.embeddings()` 抛 `No embedding route configured`；**故意注入假 key 后仍抛同一错误**
+    ⇒ 证明短路发生在**路由解析处**（`model-router.ts:1057`）而非网络层（`:1066`），即"连请求都构造不出来"。
+- **③ 连带行为变更（已披露，不是静默）**：
+  - 发布默认下 **embedding 角色无候选** ⇒ 向量语义检索无内置来源，须**用户自配** embedding 模型
+    （符合 D1；`AXIOM_EMBEDDING_CONSENT` 默认 `ask` ⇒ 零网络请求）；调用方降级为词法/哈希路径，**不抛致命错、不挂起**；
+  - 视觉/computer-use 角色仍有**非 SiliconFlow** 候选（`sensenova-*` 等）⇒ 该能力**不丢失**，仅默认模型从 Qwen-VL 变为其它；
+  - 其余角色去掉 siliconflow 后仍有非 siliconflow 候选（实测：除 embedding 外**无角色依赖 siliconflow 独占**）。
+- **④ 两条既有测试按**新政策**更新（不是"改测试凑绿"，见偏差记录）**：
+  - `tests/single-model-activation.test.ts`：原断言"embedding 角色必须有候选"编码的是**旧发布面假设**；
+    改为断言"embedding 角色默认无 siliconflow 候选"（把新政策变成守卫），并单独保留 computer-use 候选非空；
+  - `tests/computer-use-integration.test.ts`：原断言"Qwen2.5-VL-72B 必须是默认视觉模型"同上；
+    改为断言"视觉候选非空 **且** 其中不含 siliconflow"。
+- **⑤ 新增守卫测试**：`tests/unit/release-path-dev-models.test.ts`（9 例）—— 标记非空且全为 siliconflow、
+  默认不可解析、**任意角色**都不含 devOnly、显式按 id 仍可取到（闸门≠删除）、放行后恢复、真实 yaml 解析层带 devOnly、
+  真实 yaml 端到端默认不泄漏 / 放行后可用、独立子进程零网络短路。
+- **⑥ 文档/模板同步**：README 新增"模型供给：SiliconFlow 仅 dev/test"小节（含连带影响，明确区分**召回质量**与**响应延迟**）；
+  `.env.example` 在 SiliconFlow 段标注 dev/test-only 与 `AXIOM_ALLOW_DEV_MODELS=1`；
+  两份计划（knowledge-semantic-layer 的 D5、user-configured-models 的 Q1 修订块）同步。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4068 pass / 67 skip / 0 fail（22.3s）**；
+  独立子进程与进程内探针各一次（见②）。
+- **偏差记录（如实）**：本轮**修改了两条既有测试的断言**。判定依据：它们断言的是"siliconflow 模型出现在默认解析里"，
+  而用户已裁定该情形必须**不成立**；若保留原断言则等于把用户裁定当成"测试失败"处理。改后的断言**方向相反**，
+  因此不是放宽，而是把新政策写成门禁。
+- **未覆盖项**：①`listFreeModels()` / `model-advisor.discoverSiliconFlowModels()` / `cron/scheduler.ts` 仍在
+  **发现类**路径上引用 siliconflow（属"发现/CLI"而非"路由解析"）——本轮**未**纳入闸门，**未验证**其在发布面是否算依赖；
+  ②`src/agents/computer-use-agent.ts:334` 的错误文案仍列 SiliconFlow 为可选供应商（Low；改它需连带改
+  `tests/computer-use/agent-fallback.test.ts:11` 的精确文案断言，为控制范围本轮未做）；
+  ③外围约 90 处 provider 字面量（切片 B0）仍未收敛。
+- **不做项**：未删除任何 siliconflow 条目/provider（用户已改为"保留"）；未改 api-key-store；未发起任何真实网络请求。
+- **Commit**：`__COMMIT__`

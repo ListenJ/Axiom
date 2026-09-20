@@ -309,6 +309,25 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 - **不在本策略范围**：用户主动发起的对话生成（主模型调用）不受影响。
 - 回归防线：`tests/unit/llm-default-off-policy.test.ts`。
 
+### 🧪 模型供给：SiliconFlow 仅 dev/test，发布面不依赖它
+
+> **政策（2026-09-20 用户裁定）**：SiliconFlow 相关条目**保留在代码里**，但**默认不参与模型解析** ——
+> 即**发布路径不依赖 SiliconFlow**；开发/测试可显式放行。
+
+| 项 | 发布默认 | dev/test |
+|----|---------|----------|
+| 解析行为 | `devOnly` 条目被 `findModelsForRole` **过滤掉** | 设 `AXIOM_ALLOW_DEV_MODELS=1` 即恢复既有路由（无需改文件） |
+| embedding 角色 | **无候选** ⇒ 语义检索降级为确定性词法 | `bge-embedding`（`BAAI/bge-m3`）可用 |
+| 向量检索的正式路径 | **用户自配** embedding 模型（`AXIOM_EMBEDDING_CONSENT=yes` 才发起调用；默认 `ask` = 零网络请求） | 同左 |
+
+- 实现位置：`src/router/models/types.ts`（`devOnly` 字段）、`src/router/model-capability-registry.ts`（出口闸门）、
+  `src/router/models/registry.ts` 与 `config/model-router.yaml`（条目标记）、`src/router/user-config-loader.ts`（透传）。
+- 连带影响（**可验证**，不是含糊描述）：发布默认下 embedding 角色无候选 ⇒ `ModelRouter.embeddings()`
+  抛 `No embedding route configured`，调用方降级为词法/哈希路径；**语义召回（同义不同词、跨语言、缩写）缺失**，
+  但**响应延迟不变或略降**（无网络往返）。要启用向量语义检索须**用户自配 embedding 模型**。
+- 视觉/computer-use 角色仍有**非 SiliconFlow** 的多模态候选，故该能力不因本政策丢失。
+- 回归防线：`tests/unit/release-path-dev-models.test.ts`。
+
 ### 🧠 Vault 共享记忆库
 
 所有 Agent 读写同一 Obsidian Vault：

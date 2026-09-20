@@ -159,6 +159,14 @@
 | **Q3** | **显式分类字段** | `TokenUsageRecord` 新增显式 `category` 字段（初值集合 `main` / `subagent` / `embedding` / `tool` / `other`），**不复用** `role`/`taskType`。 |
 | **Q4** | 先看**有没有更好的 embedding 实现方式**；不行则在删除时**告知用户影响**（无法词嵌入、搜索效率降低等） | 评估见 **§2.1**（结论：没有单一更优替代，但有"分层"改进）。删除 `edge-embeddings` 时必须输出**影响披露文案**；⚠️ 文案须**区分"召回质量下降"与"响应延迟"**，不得笼统说"效率降低"（见 §2.1 末）。 |
 
+> **Q1 修订（2026-09-20，晚于上表）**：用户裁定 **"暂时保留 SiliconFlow，但只作为开发测试使用，不作为实际发布的部分"** ——
+> 即 **取代** Q1=(a) 的"彻底移除"。落地形态改为**默认关门的闸门**（`devOnly` + `AXIOM_ALLOW_DEV_MODELS`），
+> 因为"删除"会让 dev/test 无法再验证 embedding/多模态通路，而"闸门"同时保住发布面干净与开发能力。
+> 已落地范围：`registry.ts` 10 个 siliconflow 条目 + `config/model-router.yaml` 8 个条目标 `devOnly`；
+> `findModelsForRole` 出口过滤；`user-config-loader` 透传。守护测试 `tests/unit/release-path-dev-models.test.ts`。
+> **连带影响（必须知悉）**：发布默认下 **embedding 角色无候选**（符合 D1：须用户自配模型），
+> `router.embeddings()` 抛 `No embedding route configured` 并由调用方降级；视觉/computer-use 仍有非 SiliconFlow 候选，能力不丢。
+
 ### 2.1 Q4 专项：有没有更好的 embedding 实现方式
 
 **结论：没有"更优的单一替代"。** 逐个评估如下（均为工程判断，标注依据强度）：

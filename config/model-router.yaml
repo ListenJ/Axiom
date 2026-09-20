@@ -11,6 +11,7 @@
 # ========== L1 决策层 ==========
 decision:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -29,6 +30,7 @@ decision:
 # ========== L2 架构层 ==========
 architecture:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -42,6 +44,7 @@ architecture:
 # ========== L3 代码层 ==========
 code-generation:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -59,6 +62,7 @@ code-generation:
 
 code-review:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -72,6 +76,7 @@ code-review:
 # ========== L4 评估层 ==========
 evaluation:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -95,6 +100,7 @@ research:
     maxRetries: 2
     timeout: 60000
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 2
     maxRetries: 1
@@ -103,6 +109,7 @@ research:
 # ========== L5 通用对话 ==========
 general-chat:
   - provider: siliconflow
+    devOnly: true
     model: zhipu/GLM-5.1
     priority: 0
     maxRetries: 2
@@ -140,9 +147,13 @@ rl:
     timeout: 120000
 
 # ========== 嵌入 ==========
+# 2026-09-20 用户裁定：SiliconFlow 暂留，但**仅作开发/测试**，不作为发布的一部分。
+# `devOnly: true` ⇒ 默认不参与 findModelsForRole 解析（发布面不出现）；
+# dev/test 需要时设 `AXIOM_ALLOW_DEV_MODELS=1` 即可复用本条目，无需改文件。
 embedding:
   - provider: siliconflow
     model: BAAI/bge-m3
+    devOnly: true
     priority: 0
     maxRetries: 2
     timeout: 30000
