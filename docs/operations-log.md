@@ -3408,4 +3408,4 @@
   ④未测大盘知识库（真实库）的索引耗时与 token 成本；
   ⑤`AXIOM_ALLOW_DEV_MODELS=1` 会一次性放行 10 条 siliconflow 条目（无更细粒度开关）。
 - **不做项**：未改 KAL 的 SQL/词法腿；未把索引接入采集管线；未改 registry/registry 语义；未写真实凭据进仓库。
-- **Commit**：`__COMMIT__`
+- **Commit**：`e8899d4`

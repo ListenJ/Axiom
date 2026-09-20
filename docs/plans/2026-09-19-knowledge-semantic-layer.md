@@ -236,9 +236,10 @@
 - 产出：A2（未授权零网络请求）、A3（披露四要素 + 估算纯函数）、A4（拒绝后仍可用 + 影响文案）全部可测。
 
 **切片 4｜向量落地（同一 SQLite 新表）+ 写入路径**
-- **状态：✅ 已完成（2026-09-20）。** `9e821cf` 落表（`embedding-store.ts`）+ 拼装层（`semantic-layer.ts`）；
-  `a6330f2` 补**写入腿/查询腿**（`semantic-index.ts`）。**尚未接采集/摄取管线**（表默认空，须调用方显式触发）⇒
-  该项**仍未完成**，见下方"未完成项"。
+- **状态：✅ 已完成（2026-09-21）。** `9e821cf` 落表（`embedding-store.ts`）+ 拼装层（`semantic-layer.ts`）；
+  `a6330f2` 补**写入腿/查询腿**（`semantic-index.ts`）；`e8899d4` 补**写入腿的生产触发者**
+  （`scripts/index-knowledge-embeddings.ts` + `kb-corpus.ts`），并以真实模型实测落库（indexed=2/2, dim=1024）。
+  **仍未接采集/摄取管线** ⇒ 新文档需**显式重跑该脚本**才产生向量（见下方"未完成项"）。
 - **复用** `ModelRouter.embeddings()`（`src/router/model-router.ts:1051-1078`）作为传输层，**不新建 embedding 客户端**；
   授权门置于其**调用之前**（`consent !== yes` 时该函数不可达）。
 - 新增 embedding 表（同一库，D4），写入路径**仅在 consent=yes** 时可达。
@@ -247,12 +248,14 @@
 - 产出：A7（同库、无新依赖）。
 
 **切片 5｜候选召回接线 + 稳定排序门禁**
-- **状态：⚠️ 部分完成（2026-09-20）。**
-  - 已完成：稳定排序与"不依赖 Map 遍历顺序"门禁（`tests/unit/semantic-recall.test.ts`）；
-    **一个真实生产调用点**已接线 —— `POST /settings/search` 经授权门叠加语义打分（`a6330f2`，
-    路由级断言 `tests/routes/settings-search-consent.test.ts`）。
-  - 未完成：`KnowledgeAccessLayer.query()` 的合并**未接**（需要"按 id 取回 KnowledgeUnit"的语料级查询面，
-    当前只有 `getReferences(nodeId)`，形状不匹配）⇒ 知识库查询路径仍**只有词法腿**。
+- **状态：✅ 已完成（2026-09-21）。**
+  - 稳定排序与"不依赖 Map 遍历顺序"门禁：`tests/unit/semantic-recall.test.ts`；
+  - `POST /settings/search` 经授权门叠加语义打分（`a6330f2`，路由级断言 `tests/routes/settings-search-consent.test.ts`）；
+  - **`KnowledgeAccessLayer.query()` 合并语义候选**（`e559974`）：新增 `SemanticRecallPort` 端口 +
+    跨存储 `nodeId` 物化（kg 主键直查 / vault 归一化不可逆走缓存→适配器→路径枚举 / dre 枚举 `(node_id, domain)` 重算）；
+    9 例测试覆盖"未注入即逐字节不变 / 乱序注入结果一致 / 幽灵 id 缺席不崩 / 降级"；
+  - **组合根接线**（`e8899d4`）：`src/mcp/server/kg-tools.ts` 的 `getKAL()` 注入端口；
+    真实模型端到端实测：英文查询召回零 token 重叠的中文笔记（`source=semantic`, `relevance=0.585`）。
 - 向量**仅**参与候选召回；最终排序带稳定 tie-breaker（同分按 node_id 升序）。
 - 新增门禁测试：同分稳定性 + **乱序遍历对拍**（构造 Map 插入序不同的等价输入，断言结果一致）。
 - 产出：A5。
@@ -297,6 +300,10 @@
    故**知识库查询路径当前仍只有词法腿**；已接线的唯一生产调用点是 `POST /settings/search`。
 2. **A7 的"写入路径"缺生产触发器**：`indexNodeEmbeddings()` 无管线调用方 ⇒ `knowledge_embeddings` 表
    在真实使用中**默认为空**。当前唯一真实写入者是评测脚本。
+   > **2026-09-21 销账**：第 1、2 条均已解决 —— A5 见切片 5 状态（`e559974` + `e8899d4` 的组合根接线），
+   > A7 见切片 4 状态（`e8899d4` 的索引脚本，真实模型实测落库）。
+   > **仍未完成的替代项**：索引**未接采集管线**（新文档需手动重跑脚本）；语料 5000 行/表上限；
+   > vault/dre 物化未命中缓存时是 O(N) 短列枚举。
 3. **A1（改动前后逐字节一致的语义层对拍）未单独做**：切片 1 已把设置项搜索的内置 embedding 移除并有
    行为锁定断言（`engine === "keyword"`），但未做"A1 要求的逐字节对拍"这一独立证据。
 4. **A9（文档口径收敛）部分完成**：README 已更新（收录/语义层/dev-only 闸门/连带影响），

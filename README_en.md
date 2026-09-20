@@ -316,6 +316,25 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 - Vision / computer-use still has **non-SiliconFlow** multimodal candidates, so that capability is not lost.
 - Regression guard: `tests/unit/release-path-dev-models.test.ts`.
 
+### 🧠 Knowledge-base vector semantic retrieval (optional; off by default, zero network requests)
+
+The knowledge base (Vault / KG / DRE) uses **deterministic lexical retrieval** by default. To add semantic recall
+(synonyms, cross-lingual) you must take three **explicit** steps — missing any one of them keeps the path at
+zero network requests instead of silently calling out:
+
+1. **Consent**: `AXIOM_EMBEDDING_CONSENT=yes` (default `ask` = never called; `no` prints the missing capabilities
+   and their impact);
+2. **Model**: the release surface does **not** include SiliconFlow — configure your own embedding model
+   (or, for development/testing, set `AXIOM_ALLOW_DEV_MODELS=1` to reuse `BAAI/bge-m3`);
+3. **Index**: `bun run scripts/index-knowledge-embeddings.ts` (the write leg; it prints the resolved DB path and
+   model tag so you can cross-check against the read side).
+
+`kal_query` will then **add** semantic candidates on top of the lexical results (marked `metadata.source = "semantic"`);
+vectors are used for **candidate recall only**, and final ordering keeps the stable tie-breaker. Indexing is
+**not** rebuilt automatically when documents are ingested (re-run the script after adding documents).
+Measured gains and their limits: `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
+(12-document sample, **do not extrapolate to production recall**).
+
 ### 🧠 Shared Vault memory
 
 Every agent reads and writes the same Obsidian vault:

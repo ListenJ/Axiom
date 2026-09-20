@@ -328,6 +328,21 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 - 视觉/computer-use 角色仍有**非 SiliconFlow** 的多模态候选，故该能力不因本政策丢失。
 - 回归防线：`tests/unit/release-path-dev-models.test.ts`。
 
+### 🧠 知识库向量语义检索（可选，默认关闭、零网络请求）
+
+知识库（Vault / KG / DRE）默认走**确定性词法检索**。想叠加"同义不同词 / 跨语言"的语义召回，需要三步**显式**动作
+（缺任一步都保持零网络请求，不会静默调用）：
+
+1. **授权**：`AXIOM_EMBEDDING_CONSENT=yes`（默认 `ask` = 不调用；`no` 会打印缺失能力与影响）；
+2. **配模型**：发布面**不含** SiliconFlow，须由用户自配 embedding 模型（或开发/测试设 `AXIOM_ALLOW_DEV_MODELS=1`
+   复用 `BAAI/bge-m3`）；
+3. **建索引**：`bun run scripts/index-knowledge-embeddings.ts`（写入腿；脚本会打印解析到的 DB 路径与模型标签，
+   供与读取端核对）。
+
+之后 `kal_query` 会在词法结果之外**补入**语义候选（结果里以 `metadata.source = "semantic"` 标注），
+向量**只做候选召回**、最终排序仍带稳定 tie-breaker。索引目前**不会**随文档入库自动重建（新文档需重跑该脚本）。
+实测收益与边界见 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`（12 条语料小样本，**不可外推为线上召回率**）。
+
 ### 🧠 Vault 共享记忆库
 
 所有 Agent 读写同一 Obsidian Vault：
