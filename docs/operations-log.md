@@ -3001,7 +3001,7 @@
 - **未覆盖项**：①**未核实免费/计费口径**（见上，需官方文档或账单页）；②**未测该 key 的额度/限流**（`rpmLimit` 等）；
   ③未把真实 embedder 接进语义层（属下一步 C'）；④未验证其它 7 个 embedding 模型的可用性（只验证了 `BAAI/bge-m3`）。
 - **不做项**：未执行任何 siliconflow 移除；未改 registry / api-key-store 内容；未把 key 写入任何文档或代码。
-- **Commit**：`__COMMIT__`
+- **Commit**：`92abba0`
 
 ## 2026-09-20 — feat(T2): C' 第一步 —— 授权门 → 真实 embedder（未授权即**零调用**）
 
@@ -3024,4 +3024,4 @@
   ③真实 embedder **尚未真正接入检索**（本轮只做到"授权后拿得到 embedder"，未接进排序）；
   ④未核实免费/计费口径与限流额度。
 - **不做项**：未改 registry / api-key-store；未执行 siliconflow 移除；未在测试中发起真实网络请求（全离线）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`08c0e09`
