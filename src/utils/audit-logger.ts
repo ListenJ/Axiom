@@ -41,6 +41,8 @@ export type AuditEvent =
   | "plugin.install" | "plugin.uninstall"
   | "plugin.enable" | "plugin.disable" | "plugin.configure"
   | "apikey.set" | "apikey.delete" | "apikey.test"
+  // 切片 B（2026-09-20）：注册用户自定义 provider
+  | "apikey.custom.register"
   | "skill.install" | "mcp.install"
   | "rate_limit.exceeded" | "config.change" | "ws_flood" | "security.alert"
   | "security.degraded_bypass"

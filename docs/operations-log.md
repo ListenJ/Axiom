@@ -2870,3 +2870,35 @@
   ④披露文案**未做中英双语**（仓库文档有中英双语惯例，本模块暂只中文）。
 - **不做项**：未接线、未发任何网络请求、未改检索实现（切片 3 只做授权与估算）。
 - **Commit**：`354c3c5`
+
+## 2026-09-20 — feat(T2): 用户自配模型切片 B —— 自定义 provider（写入同一事实源 + 可持久化）
+
+- **任务**：用户选 **A**（先做"用户自配模型"计划的切片 B），为知识库语义层切片 4 提供可用的 embedding 来源。分级 **T2**。仅提交 Gitea。
+- **Q2 的约束（必须遵守）**：自定义 provider 要放进**同一个事实源**，**不得新建第二事实源**。故全部实现在 `src/utils/api-key-store.ts` **内部**。
+- **交付（5 文件）**：
+  1. `src/utils/api-key-store.ts`：新增自定义 provider 注册表（模块内 `Map`）+ `registerCustomProvider()` **带完整校验**（名称格式/不与内置名冲突/baseURL 必须 http(s)/adapter 在支持集合内/apiKey 非空，**失败返回可读错误而非抛异常**）+
+     `isCustomProvider` / `isResolvableProvider` / `listCustomProviders` / `getCustomProvider` / `unregisterCustomProvider`；
+     `getProviderConfig()` 现在**也解析自定义条目**。
+     **关键设计**：自定义条目的密钥**复用既有 override 通路**（`setApiKeyOverride`），且 `getProviderConfig(custom)` 返回 `apiKeyEnv: ""` ——
+     于是 `getEffectiveApiKey` 先读 override 即命中，**这两个既有函数一行都不用改**。⇒ 密钥没有第二处存储。
+  2. `src/utils/api-key-persistence.ts`：`api_key_overrides` 表**加两列** `adapter` / `display_name`（含老库 `ALTER` 迁移，沿用本仓库既有模式）；
+     `saveApiKeyOverride(..., extra?)` 支持扩展字段；`loadApiKeyOverrides` 读回它们。
+     ⇒ **复用同一张表**，没有新建存储。
+  3. `loadOverrides()`：启动时按 `adapter` 字段**重建自定义 provider** ⇒ 重启后仍可解析（否则"持久化"名不副实）。
+  4. `src/routes/api-keys.ts`：未知 provider **不再一律 400** —— 若同时给出 `adapter` + `baseURL` + `apiKey` 则注册为自定义 provider；
+     **落库失败（如未配 `AXIOM_ENCRYPTION_KEY`，加密为 fail-closed）时回滚内存注册并返回 500**，避免"本次可用、重启消失"的半状态；
+     未给齐三字段仍 400，并附 `hint` 说明需要哪三个字段。
+  5. `src/routes/route-auth.ts` + `src/utils/audit-logger.ts`：新增可审计事件 `apikey.custom.register`（**两个联合类型都要登记**，否则 tsc 报类型不匹配 —— 这正是被编译器拦下的）。
+- **测试**：新建 `tests/unit/custom-provider.test.ts`（**10 例**）：
+  校验矩阵（非法名 / 撞内置名 / 非 http(s) / 不支持的 adapter / 空 key）、解析链（`getProviderConfig`→`getEffectiveApiKey`→`getEffectiveBaseURL`）、注销、
+  **路由注册成功 + 已落库**（用真内存 DB + 真加密密钥）、**重启恢复**（`loadOverrides(loadApiKeyOverrides(db))` 重建）、缺字段 400 + hint。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向 **10 pass / 0 fail**；全量 `bun run test` → **4101 tests / 67 skip / 0 fail**（417 文件 / 29.12s，**无回归**）。
+- **未覆盖项（如实登记，属切片 B 的后续增量）**：
+  ① **模型级元数据未做** —— 计划里还提到"**模型名 + 思考等级 + 上下文窗口**"，本轮只做到 **provider 级**（协议/端点/密钥）；
+  ② `listProviderStatus()`（GET /api-keys 的返回）**尚未包含自定义 provider** —— 前端目前看不到它们；
+  ③ **B0（外围约 90 处 provider 字面量收敛）未做** —— 它是"事实源系统级成立"的前置，与本切片独立；
+  ④ **无 UI/CLI**：目前只能经 `POST /api-keys` 注册；
+  ⑤ 自定义 provider **未接入 `PROVIDER_CONFIG` 派生的 router 兼容层**（`router/models/providers.ts` 的 `ALL_MODEL_PROVIDERS` 是编译期常量，自定义条目不在其中）——
+     即：**能被 `api-key-store` 解析，但还不能被 model-router 当模型路由使用**。这一条对切片 4 是关键前置，需在下一轮处理。
+- **不做项**：未做模型级元数据；未改 router 兼容层；未做 B0；未做 UI。
+- **Commit**：`__COMMIT__`

@@ -25,6 +25,10 @@ export type RouteHandler = (ctx: RouteContext) => Promise<Response | null>;
 
 /** Request body for POST /api-keys */
 export interface ApiKeyRequestBody {
+  /** 自定义 provider 的协议（openai/anthropic/gemini/opencode）；内置 provider 不需要 */
+  adapter?: string;
+  /** 自定义 provider 的展示名（可选，缺省用 provider 名） */
+  displayName?: string;
   provider: string;
   apiKey: string;
   baseURL?: string;
