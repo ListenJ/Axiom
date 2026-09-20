@@ -38,6 +38,12 @@
 1. **协议层只做 1 个**：OpenAI-compatible 适配器（统一 base_url 映射 + Bearer + /chat/completions + SSE + tools + image_url + /v1/embeddings）。覆盖：OpenAI、DeepSeek、SiliconFlow、智谱、Moonshot、MiniMax、OpenRouter、NVIDIA NIM、Mistral、xAI、Together、Groq、Ollama、llama.cpp、LM Studio（15+ 家）。
 2. **归一化映射表**：各家扩展参数字段不同（reasoning_content / thinking.type / thinking.keep / reasoning_effort / <think>），按模型路由的「供应商参数映射表」收敛，业务层不写多套。
 3. **嵌入统一 1 家**：SiliconFlow bge-m3（8192 tokens、免费额度、VL 嵌入）或智谱 embedding-3（可调维度）或 OpenRouter 统一嵌入。
+
+> **2026-09-20 修订**：第 3 条**不再成立** —— 用户裁定 SiliconFlow 仅 dev/test、
+> 不作为发布的一部分（`devOnly` 闸门，dev/test 用 `AXIOM_ALLOW_DEV_MODELS=1` 放行）。
+> 当前口径：**发布面不预设任何 embedding 供应商**，由**用户自配**模型（自填 base_url / key / 协议），
+> 且调用须显式授权（`AXIOM_EMBEDDING_CONSENT=yes`，默认 `ask` = 零网络请求）。
+> 本文余下对 SiliconFlow 的协议/能力描述**仍按其 API 实际行为**有效，但**不等于发布面默认可用**。
 4. **可选第二协议**：Anthropic Messages 适配器（覆盖 Claude Code/OpenCode 直连场景；DeepSeek/SiliconFlow/智谱/MiniMax/NVIDIA NIM/LM Studio 已自带该面）。
 5. **MCP 工具面**：stdio + Streamable HTTP 双传输，严格实现 initialize → capabilities → notifications/initialized、tools/list（JSON Schema inputSchema）、tools/call（isError/structuredContent）、tools/list_changed。
 6. **不建议**：为 Gemini 原生格式专门写适配器（无一家强制要求）；直接接各家原生协议（除非用专有能力）。

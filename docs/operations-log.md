@@ -3255,4 +3255,34 @@
   ②`indexNodeEmbeddings()` 无生产管线触发者（表默认空）；③A8 未测延迟与成本；
   ④真实模型 `abbreviation` 零召回未做进一步调参（阈值/查询改写属新决策）。
 - **不做项**：未改 KAL 查询实现；未挂采集管线；未引入向量库依赖；未把 key 写入任何仓库文件。
+- **Commit**：`b4a358d`
+
+## 2026-09-21 — docs(T1): 文档↔实现一致性收口（英文 README 陈旧声明 + SiliconFlow 政策同步 + 局限登记）
+
+- **任务**：把本轮（dev-only 闸门、语义层接线只做一半）带来的**文档漂移**收口。分级 **T1**（纯文档，无代码行为变更）。
+- **触发（实测）**：`grep` active docs 发现中文 README 已更新、**英文 README 仍是旧口径**：
+  - `README_en.md:268` 仍称"embeddings 只来自本地模型（`EDGE_SETTINGS_SEARCH`、local bge-m3），**永不回落远端**"；
+  - `README_en.md:290` 仍写"Local bge-m3 → 失败回落关键词 | 默认开启，用 `EDGE_SETTINGS_SEARCH=0` 关闭"。
+  而实现上：`src/local-llm/edge-embeddings.ts` **已于 2026-09-20 删除**，本地 embedding 供给不存在；
+  `EDGE_SETTINGS_SEARCH` 已不再是该路径的开关。⇒ **英文 README 与实现不一致**（中文 README 已改，漏了英文那份）。
+- **操作（文件级，6 个）**：
+  1. `README_en.md`：①检索段改为与中文 README 对齐的口径（内置本地 embedding 已移除 ⇒ 默认纯关键词、零网络请求；
+     语义打分须调用方注入；embedding 调用受 `AXIOM_EMBEDDING_CONSENT`（默认 `ask`）门控）；
+     ②设置项语义搜索表格行同步；③新增"Model supply: SiliconFlow is dev/test only"小节（含连带影响，明确区分
+     **语义召回缺失** 与 **延迟不变或略降**）。⇒ 中英文两份文档口径重新对齐。
+  2. `LIMITATIONS.md`：新增**已知局限 6**（知识库向量语义层**只完成一半接线**：KAL 未合并语义候选、
+     `indexNodeEmbeddings()` 无生产触发者 ⇒ 表默认空；唯一真实调用点是 `POST /settings/search`）
+     与**已知局限 7**（SiliconFlow 仅 dev/test ⇒ 发布默认无 embedding 候选；语义召回缺失、延迟不变或略降）。
+  3. `docs/ARCHITECTURE.md`：§8 检索行补上知识库语义层的模块/存储/排序/门控事实，并**显式标注"接线只完成一半"**并指向 LIMITATIONS。
+  4. `docs/SECURITY-REVIEW.md`：加 **2026-09-20 修订块** —— 该文 2026-07-26 的"免费链路实测通过"表里
+     依赖 SiliconFlow 的条目（全角色兜底 / embedding / 提示词增强兜底）**已退出发布面**；
+     **不改写历史结论**，只标注其时效边界。
+  5. `docs/EDGE-LLM.md`：标注 GLM 免费链的 siliconflow 一段已退出发布面（发布默认只剩 zhipu 直连）。
+  6. `docs/PROTOCOL-COMPATIBILITY-2026-08-11.md`：标注"嵌入统一 1 家 = SiliconFlow"**不再成立**；
+     当前口径 = 发布面不预设 embedding 供应商、由用户自配且须显式授权。
+- **验证结果**：`bun test tests/unit/docs-consistency.test.ts tests/env-example-completeness.test.ts tests/unit/release-path-dev-models.test.ts` → **20 pass / 0 fail**。
+- **未覆盖项**：①本轮只扫了 `README*.md` / `LIMITATIONS.md` / `docs/*.md`（排除 archive/reviews/superpowers/operations-log/plans 的既有权口）；
+  `docs/AGENT-ARCHITECTURE.md`、`docs/AXIOM-ARCHITECTURE.md` 内的 embedding 代码示例**未逐条复核**（下一步）；
+  ②未新增"文档不得宣称 siliconflow 为默认嵌入源"的**自动门禁**（本轮只有人工核对 + 既有 docs-consistency 的有限规则）。
+- **不做项**：未改任何源码；未改历史留痕（operations-log 更早条目）；未重写其它日期文档的历史结论。
 - **Commit**：`__COMMIT__`

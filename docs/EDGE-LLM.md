@@ -50,6 +50,10 @@
 
 改写/忠实度判别**不再由边缘模型承担**（1B 漂移、2B 照抄，实测不达标），改由 **GLM-4.7-flash 免费链**：zhipu 直连优先 → siliconflow `GLM-4.7-Flash:free` 兜底。流程：
 
+> **2026-09-20 修订**：该兜底链的 **siliconflow 一段已退出发布面**（用户裁定 SiliconFlow 仅 dev/test，
+> 落地为 `devOnly` 闸门）。发布默认下**只有 zhipu 直连这一段**；dev/test 可设
+> `AXIOM_ALLOW_DEV_MODELS=1` 恢复整条链。上文的链路图描述**政策变更前**的设计。
+
 ```
 用户输入 → 跳过规则 → Skill 匹配（agency-zh 201 角色 + Hermes 自进化 + 内置）
         → GLM 改写（命中专家则以其工作流为框架）

@@ -265,7 +265,7 @@ A four-stage retrieval funnel where every result has an explicit score source:
 | Relational inference | wiki-link outbound (+10) / inbound (+8) / 2-hop (+4) | - |
 | PARA semantics | Same-category notes boosted (+5) | - |
 
-> Under the hood: SQLite FTS5 plus keyword scoring is the default deterministic retrieval path. `cosineSimilarity` has been consolidated into a shared implementation (`src/utils/math.ts`) used only by embedding-enabled optional semantic paths (settings search in `src/core/settings-search.ts` and `src/dre/consciousness/stream.ts`). Embeddings on the semantic path come from a **local model only** (`EDGE_SETTINGS_SEARCH`, local bge-m3) and **never fall back to a remote API** — if the local embedding model is unavailable, retrieval degrades to keyword search. Query keys are never rewritten by an LLM, so the same input produces the same output. PG vector (`pgvector`) is an optional legacy capability (H-M1-03), enabled when PG is present. `KNOWLEDGE_USE_LLM=false` is the default; LLM structuring runs only when it is turned on.
+> Under the hood: SQLite FTS5 plus keyword scoring is the default deterministic retrieval path. `cosineSimilarity` has been consolidated into a shared implementation (`src/utils/math.ts`) and is used only by embedding-enabled optional semantic paths (`src/dre/consciousness/stream.ts`; settings search in `src/core/settings-search.ts` since 2026-09-20 uses it only when an embedder is injected). **The built-in local embedding for settings search has been removed** (the former `127.0.0.1:9001` bge-m3 service, deleted 2026-09-20), so that path is **keyword-only with zero network requests by default**; semantic scoring can still be injected by callers via `searchSettings({ embedder })`. Embedding calls are gated by **explicit user consent** (`AXIOM_EMBEDDING_CONSENT`, default `ask` = never called). Query keys are never rewritten by an LLM, so the same input produces the same output. PG vector (`pgvector`) is an optional legacy capability (H-M1-03), enabled when PG is present. `KNOWLEDGE_USE_LLM=false` is the default; LLM structuring runs only when it is turned on.
 
 ```bash
 # Search the memory vault
@@ -287,12 +287,34 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 | Prompt rewriting (chat pre-processing) | The raw input is used directly | `PROMPT_REWRITE=1` (legacy name `EDGE_PROMPT_REWRITE=1`) |
 | Chat intent enhancement | Keyword-based intent routing | `EDGE_PROMPT_OPTIMIZER=1` |
 | Grey-zone pre-screening for high-risk tools | The `permissions.ts` regex hard floor (unbypassable, always active) | `EDGE_RISK_MONITOR=1` |
-| Settings semantic search (embeddings, non-generative) | Local bge-m3 → falls back to keywords on failure | On by default; disable with `EDGE_SETTINGS_SEARCH=0` |
+| Settings semantic search (embeddings, non-generative) | **Built-in local embedding removed** (former `127.0.0.1:9001` bge-m3) ⇒ keyword-only; callers may inject an embedder via `searchSettings({ embedder })` | Keyword-only by default, zero network requests; semantic scoring requires `AXIOM_EMBEDDING_CONSENT=yes` **and** a user-configured embedding model |
 
 - Implementation: `isEdgeEnabled` in `src/local-llm/edge-client.ts` (unset = off) and `isRewriteEnabled` in `src/agents/prompt-optimizer.ts`.
 - An explicit refusal (`=0` / `=false` / `=no`) takes precedence over other switches, so you can stop a capability temporarily even in an authorized environment.
 - **Out of scope for this policy**: conversations you start yourself (main-model calls) are unaffected.
 - Regression guard: `tests/unit/llm-default-off-policy.test.ts`.
+
+### 🧪 Model supply: SiliconFlow is dev/test only — the release surface does not depend on it
+
+> **Policy (user decision, 2026-09-20)**: SiliconFlow entries **stay in the codebase**, but they are
+> **excluded from default model resolution** — the release path does not depend on SiliconFlow.
+> Development and testing can explicitly opt in.
+
+| Aspect | Release default | dev/test |
+|--------|-----------------|----------|
+| Resolution | `devOnly` entries are filtered out by `findModelsForRole` | Set `AXIOM_ALLOW_DEV_MODELS=1` to restore the previous routing (no file edits needed) |
+| `embedding` role | **No candidates** ⇒ semantic retrieval degrades to deterministic lexical search | `bge-embedding` (`BAAI/bge-m3`) available |
+| Production path for vectors | **User-configured** embedding model (`AXIOM_EMBEDDING_CONSENT=yes` required; default `ask` = zero network requests) | same |
+
+- Implementation: `src/router/models/types.ts` (`devOnly` field), `src/router/model-capability-registry.ts`
+  (the exit gate), `src/router/models/registry.ts` and `config/model-router.yaml` (entry flags),
+  `src/router/user-config-loader.ts` (pass-through).
+- Consequence (**verifiable**, not a vague statement): with the release default there is no embedding route, so
+  `ModelRouter.embeddings()` throws `No embedding route configured` and callers degrade to lexical/hash paths —
+  **semantic recall (synonyms, cross-lingual, abbreviations) is unavailable** while **response latency stays the
+  same or drops slightly** (no network round trip). Vector search requires a **user-configured** embedding model.
+- Vision / computer-use still has **non-SiliconFlow** multimodal candidates, so that capability is not lost.
+- Regression guard: `tests/unit/release-path-dev-models.test.ts`.
 
 ### 🧠 Shared Vault memory
 

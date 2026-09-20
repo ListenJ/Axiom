@@ -16,6 +16,16 @@
 3. **工具总数单一事实源**：以 `src/testing/tool-count.ts` 为准，当前 **188**（2026-09-18 移除 `resource_status` 后由 189 回落）；CI 与文档均引用此值，不再硬编码静态数字。
 4. **辅助 LLM 默认关闭带来的安全取舍（2026-09-18）**：`EDGE_RISK_MONITOR` 默认关闭后，高风险工具的**灰区**负载不再经边缘小模型初筛，仅由 `permissions.ts` 的正则硬底线与双层复核的第二层把关。硬底线始终生效（`tests/unit/risk-monitor-degraded.test.ts` 的 HardFloor 用例），但灰区（正则未命中）检测强度低于默认开启时。需要该保护时显式设 `EDGE_RISK_MONITOR=1`（`EDGE_RISK_FAIL_CLOSED=1` 可进一步把初筛降级改为 fail-closed）。
 5. **本地推理定位与 VRAM 管理移除（2026-09-18）**：本项目不再自托管本地推理，也不再维护 VRAM / token 预算钳制。`src/dre/system-resource.ts`（ResourceBudgetManager、clampMaxTokens）与 `src/dre/system-resource-probe.ts`（nvidia-smi VRAM 轮询）已按规则 4 归档移除；`resource_status` / `vram_status` 工具与 `GPU_CONSTRAINTS` 同步删除。模型统一按**外部 OpenAI 兼容服务**对接（Ollama 或云端，由 `DRE_LLM_URL` 指向），因此"KV cache 卸载到系统内存"一类表述在架构文档中已全部清除；调度器内存准入改用进程堆占用 + 可配置预算（`setBudget({ maxMemoryMB })`）。
+6. **知识库向量语义层：只完成一半接线（2026-09-20）**：向量表（`knowledge_embeddings`，与知识表**同库**）、授权门、写入腿/查询腿、候选融合排序都已实现并有测试；
+   但 **`KnowledgeAccessLayer.query()` 尚未合并语义候选**，且 **`indexNodeEmbeddings()` 没有生产管线触发者**（表在真实使用中**默认为空**）。
+   ⇒ 当前**唯一**真实接线的语义调用点是 `POST /settings/search`（须 `AXIOM_EMBEDDING_CONSENT=yes` 且有可用 embedding 模型）。
+   知识库查询路径**仍只有确定性词法腿**。量化差异见 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
+   （真实模型实测：语义三类 Recall@5 **0.0% → 45.5%**；语料 12 条 / 用例 14 条，**不可外推为线上召回率**）。
+7. **SiliconFlow 仅 dev/test ⇒ 发布默认下无任何 embedding 候选（2026-09-20）**：用户裁定 SiliconFlow 只作开发测试、不作为发布的一部分，
+   落地为 `devOnly` 闸门（`findModelsForRole` 默认过滤该 provider 的 10 条模型条目；dev/test 设 `AXIOM_ALLOW_DEV_MODELS=1` 放行）。
+   连带影响（**可验证**）：发布默认下 `ModelRouter.embeddings()` 抛 `No embedding route configured`，调用方降级到词法/哈希路径；
+   **语义召回（同义不同词 / 跨语言 / 缩写）不可用**，而**响应延迟不变或略降**（无网络往返）。
+   要启用向量语义检索，须**用户自配** embedding 模型（自填 base_url / key / 协议）。视觉/computer-use 仍有非 SiliconFlow 候选，该能力不丢失。
 
 ## 不在本轮整改范围（明确排除）
 
