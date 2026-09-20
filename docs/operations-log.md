@@ -3308,4 +3308,25 @@
 - **顺带发现（未处理，登记）**：Windows 侧 Bun **1.3.14** vs Linux **1.4.2** 的版本差异尚未评估 ——
   若 CI 固定 1.3.14，则本机 Linux 的全量结果与 CI 的运行时**不完全同源**。
 - **不做项**：未改产品代码；未在 Windows 跑全量套件（仅定向 7 文件）+ `tsc`。
+- **Commit**：`af3e456`
+
+## 2026-09-21 — test(T2): 双端实测结论（Windows 定向 31 pass / 0 fail + Linux 全量）
+
+- **任务**：完成用户要求的**双端（Linux / Windows）真实环境验证**并如实留痕。分级 **T2**（验证，无产品代码变更）。
+- **Windows（`18336@192.168.0.100`，Bun 1.3.14，Git Bash；工作树 `D:\openclaw-fusion-verify`）**：
+  - `git fetch gitea` → checkout `af3e456a` → `bunx tsc --noEmit` = **TSC_OK**；
+  - 定向 7 文件：**31 pass / 0 fail**（`BUN_EXIT=0`）——
+    含 `release-path-dev-models`（发布面闸门）、`semantic-index`（写入/查询腿）、`settings-search-consent`（路由级授权门）、
+    `token-tracker-exit`（进程退出守卫，**修复后通过**）、`usage-category`（子进程隔离的 category 生产者）、
+    `semantic-determinism-cross-process`（**5 进程** hash 唯一）、`lexical-vs-semantic-recall`（A8 三个守卫）。
+- **Linux（本机）**：`bunx tsc --noEmit` = 0 error；全量 `bun run test` = **4090 pass / 67 skip / 0 fail**。
+- **结论（只陈述实测）**：本轮新增的语义层、发布面闸门、用量分类与 A6/A8 守卫**在两端均通过**；
+  上一轮 Windows 专属的路径转义缺陷**已修复并复测通过**。
+- **未覆盖项（如实登记）**：
+  1. **未在 Windows 跑全量套件**（仅 `tsc` + 定向 7 文件）；
+  2. **A8 真实模型模式**未在 Windows 跑（凭据只存 Linux 侧 `~/.axiom/axiom-secrets/`，规则 11 不跨机复制）；
+  3. **Bun 版本不同源**：Windows **1.3.14**（= 仓库 `packageManager`/CI 固定值）vs 本机 Linux **1.4.2** ⇒
+     本机 Linux 全量的**运行时**与 CI 不完全同源（已知历史差异，例如 Bun 1.4.x 的测试发现/`--path-ignore-patterns` 行为）。
+  4. Windows 工作树 `node_modules` 是主检出的 **junction**（非独立安装）⇒ 依赖解析路径与干净 CI 不同。
+- **不做项**：未在 Windows 上改动代码或提交（仅只读 checkout + 跑测试）；未把凭据复制到 Windows。
 - **Commit**：`__COMMIT__`
