@@ -6,6 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll } from "bun:test";
+import { perfBudget } from "./support/perf-budget.js";
 import { tmpdir } from "os";
 import { join } from "path";
 import { Database } from "bun:sqlite";
@@ -196,7 +197,7 @@ describe("KnowledgeGraph index performance", () => {
     const time = performance.now() - start;
     logger.info("[Bench] KnowledgeGraph nodesByDomain (10000 nodes)", { time: `${(time * 1000).toFixed(2)}µs`, results: results.length });
     expect(results.length).toBe(100); // 100 domains, evenly distributed
-    expect(time).toBeLessThan(1); // O(1) Map lookup 应 < 1ms
+    expect(time).toBeLessThan(perfBudget(1, 20)); // O(1) Map lookup；严格 1ms 见 AXIOM_PERF_ASSERT=1
   });
 
   test("nodesByDomain 索引 vs 线性扫描 (验证 O(1))", () => {
@@ -352,7 +353,7 @@ describe("ReasoningGraph gap detection", () => {
     const gaps = graph.detectGaps();
     const time = performance.now() - start;
     logger.info("[Bench] ReasoningGraph detectGaps (100 nodes)", { time: `${time.toFixed(2)}ms`, gaps: gaps.length });
-    expect(time).toBeLessThan(50);
+    expect(time).toBeLessThan(perfBudget(50, 500));
   });
 });
 

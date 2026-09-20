@@ -2664,3 +2664,41 @@
   ④列表按"内存 + JSONL 各自保序"合并，**未做全局时间排序**（当前顺序：运行中在前、落盘按写入序在内）。
 - **不做项**：未加分页；未透出成本；未改 `agent-trace` 的 B3-Medium 出表语义（那是被测试锁定的既有修复）。
 - **Commit**：`f1847d2`
+
+## 2026-09-20 — test(T2): 环境敏感断言清单 + 下沉（扫描 57 处/25 文件）
+
+- **任务**：按建议顺序执行"Linux 环境敏感断言清单 + 下沉"，目标是让"全绿"这个信号重新可信。分级 **T2**。仅提交 Gitea。
+- **工具**：自写扫描器（`/tmp/perf-scan.ts`）；`bun test`（全量 414 文件）；规则 2/12/13。
+- **先做清单（不靠"跑到哪条算哪条"）**：扫描器遍历 `tests/**/*.test.ts`，先收集"由 `performance.now()` 差值
+  或 `process.memoryUsage()` 差值派生"的标识符，再找对它们做 `toBeLessThan` 的断言行 ⇒
+  **57 处 / 25 个文件**。扫描器局限（同变量模式、不覆盖超时型、不覆盖非 memoryUsage 的内存断言）已写入文档。
+- **分层处置（本次核心判断：不是所有 57 处都该改）**：
+  1. **`tests/stress/**`（4 文件 / 18 处）**：权威运行器 `scripts/test-full.ts` 的 `EXCLUDE_DIRS` **整目录排除 stress**，
+     它们由 `test:stress`（带 `AXIOM_PERF_ASSERT=1`）以**严格阈值**单独跑 ⇒ **不污染门禁，无需改动**。
+  2. **`tests/perf-benchmark.test.ts`（4 处）**：早前已整文件 gate（`PERF_ASSERT_STRICT ? describe : describe.skip`）。
+  3. **本轮新 gate（有实测失败证据）**：
+     - `tests/benchmark.test.ts`：`:199 <1ms`、`:355 <50ms` → `perfBudget(1,20)` / `perfBudget(50,500)`
+       （实测失败样本：`KnowledgeGraph index performance > nodesByDomain`）。
+     - `tests/consciousness-goal-tracker.test.ts`：3 处时间阈值（`<5/<10/<2` ms）+ **1 处堆增长 `<5MB`** → `perfBudget`。
+       **关键取舍**：堆增长是 GC 时机相关的**基准**断言，故只 gate 它；
+       而"历史/活跃目标数量受上限约束"这两条**结构性**断言**保持严格**（那才是真正的"有界"保证）。
+       实测失败样本：`超长会话（200 轮）后堆内存增长应保持有界`（**串行 `test:full` 下亦复现**）。
+  4. **超时型（不在上述扫描面）**：`tests/code-analysis-shell-safety.test.ts` 4 处 `30s` → **`120s`（防挂起）**。
+     依据：该文件断言的是**判定结果**（恶意 filePath 是否被拒 / 合法文件是否被误拒），**不是速度**；
+     而 `getCodeActions` 会真实 spawn `npx eslint`（`src/mcp/tools/code-analysis.ts:545`）——
+     负载下实测出现过 **30004ms** 的失败，与判定无关。
+- **清单文档**：新建 `docs/reviews/2026-09-20-env-sensitive-assertions-inventory.md`
+  （摘要 / 方法与局限 / 分层处置 / 超时型 / **4 个实测失败样本** / **未处理候选 17 文件** / 未验证项）。
+- **未处理候选的诚实登记（17 个文件）**：**未逐一验证**它们是否真的会 flake。理由：逐文件多次运行取样成本高于本轮范围；
+  且其中不少阈值是**宽松的防挂起界**（如 `duration < 5000`），盲目放宽反而**削弱**真挂起检测。
+  建议按"实测出现 → 处理该文件"推进，与 `scripts/test-full.ts` 的 `EXCLUDE_FILES` 账本既有约定一致。
+- **偏差记录（我自己的两处失误，均被工具当场拦下）**：①`tests/consciousness-goal-tracker.test.ts` 位于 **`tests/` 根**，
+  我最初按子目录写了 `../support/perf-budget.js` ⇒ 运行时报 `Cannot find module`，改为 `./support/...`；
+  ②`tests/benchmark.test.ts` 的 `bun:test` import 含 `beforeAll`，锚点未匹配 ⇒ 该文件未被写入（断言中止），修正锚点后重打。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；定向（两文件）**41 pass / 0 fail**；
+  `code-analysis-shell-safety` **12 pass / 0 fail**（隔离下 759ms 完成，印证此前是负载所致）；
+  全量 `bun run test` → **4012 pass / 67 skip / 0 fail**（4079 tests / 414 文件 / 50.23s）。
+- **未覆盖项**：①**未做跨机器标定**（`relaxed` 倍率多为 5–10×，属工程判断）；②未统计各文件 flake 频率；
+  ③扫描器三类局限（内联表达式 / 超时型 / 非 memoryUsage 内存断言）未消除；④17 个候选文件未逐一分级。
+- **不做项**：未盲目放宽 17 个候选文件（避免削弱真挂起检测）；未改 `stress/` 与 `perf-benchmark` 的既有 gate。
+- **Commit**：`__COMMIT__`
