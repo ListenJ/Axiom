@@ -2736,3 +2736,36 @@
   其内容仅存于本地工作区；③未扫描**其它**文档是否仍隐含引用已删除模块（只核了 README/ARCHITECTURE/LIMITATIONS 三处主口径）。
 - **不做项**：未把"授权门/用户自配模型"写进文档（顺序约束，已顺延）；未改 `routes/settings.ts` 与 `settings-catalog`。
 - **Commit**：`e1f765b`
+
+## 2026-09-20 — test(T2): 知识库语义层切片 2 —— 纯词法召回基线（A8 基线一半）
+
+- **任务**：用户裁定"继续"（切片 2：评测集与基线）。分级 **T2**。仅提交 Gitea。
+- **先查既有资产（避免重造）**：`eval-results/` 已存在且**有既定产物格式**（`<harness>-<date>-<描述>.md`）；
+  `scripts/bench-kal-retrieval.ts` 是**性能**基准（LIKE vs FTS5 的**延迟**），**不是召回**评测 ⇒ 切片 2 需另建召回 harness。
+- **被测对象的选择（有理由）**：`src/dre/runtime/text-rank.ts` 的 `rankDocuments()` —— 确定性 **BM25** 排序器，
+  也是 DRE 检索（`atomStore.search` / `knowledgeNetwork.search`）实际使用的**词法腿**；纯函数、可用内联语料驱动、可复现。
+- **交付**：
+  1. 新建 `scripts/eval-lexical-recall-baseline.ts`：语料 **12 条**（内联、无网络/DB）、用例 **14 条**、分 4 类
+     （synonym 4 / cross-lingual 4 / abbreviation 3 / **lexical-control 3**）；指标 Recall@1/5/10 + MRR。
+  2. 产物入库 `eval-results/lexical-recall-baseline-2026-09-20.md`（含逐条明细、口径、边界声明）。
+  3. 守卫测试 `tests/rigorous/lexical-recall-baseline.test.ts`（跑脚本 + exit 0 + 产物存在 + 对照组确实命中）。
+- **实测基线（纯词法）**：
+  | 类别 | n | Recall@1 | Recall@5 | Recall@10 | MRR |
+  |---|---|---|---|---|---|
+  | lexical-control | 3 | **100.0%** | 100.0% | 100.0% | 1.000 |
+  | synonym | 4 | 0.0% | 0.0% | 0.0% | 0.000 |
+  | cross-lingual | 4 | 0.0% | 0.0% | 0.0% | 0.000 |
+  | abbreviation | 3 | 0.0% | 0.0% | 0.0% | 0.000 |
+  ⇒ 语义三类合计 **11 条，Recall@5 = 0.0%**；对照组合计 3 条 **100.0%**。
+- **关键设计：用例自我校验（本轮最有价值的一点）**：语义类用例**必须与目标文档零 token 重叠**，
+  否则该用例其实是词法题，会**高估**词法能力、把基线做假。脚本在评测前逐条断言，不满足即 **exit 1**。
+  **该机制当场拦下我初稿的 6 条不合格用例**（`重叠=下游,拖垮` / `重叠=进程,占用,用只,只增…` 等）——
+  CJK **二元组**分词使"看似同义不同词"的查询极易与目标重叠。已重写这 6 条。
+  另设 `lexical-control` 对照组（**刻意共享 token**）证明 harness 确实能测到"命中"，不是恒 0 的空跑。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；脚本自校验 0 违规；
+  守卫测试 **1 pass / 0 fail**；全量 `bun run test` → **4014 pass / 67 skip / 0 fail**（4081 tests / 415 文件 / 19.91s）。
+- **未覆盖项**：①**规模小**（语料 12 / 用例 14），**不可外推为线上召回率**；②用例由本人构造、**存在选择偏差**；
+  ③**只测召回不测延迟**；④**未接入真实 SQLite/KAL 路径**（那是切片 4/5 的集成面），此处测的是排序器本身；
+  ⑤基线数字**未在 Windows 复跑**（本脚本纯函数、无平台敏感 API，风险低但仍属未验证）。
+- **不做项**：未加 embedding 对照（待切片 4/5）；未改检索实现（切片 2 只做"先量化"）。
+- **Commit**：`__COMMIT__`
