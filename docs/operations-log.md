@@ -3330,3 +3330,37 @@
   4. Windows 工作树 `node_modules` 是主检出的 **junction**（非独立安装）⇒ 依赖解析路径与干净 CI 不同。
 - **不做项**：未在 Windows 上改动代码或提交（仅只读 checkout + 跑测试）；未把凭据复制到 Windows。
 - **Commit**：`f7bcdea`
+
+## 2026-09-21 — feat(T2): A5 后半 —— KAL query() 合并语义候选（含跨存储 nodeId 物化）
+- **任务**：补上 A5 的缺口 —— `KnowledgeAccessLayer.query()` 此前**只有词法腿**，语义候选无法进入知识库查询结果。分级 **T2**（核心查询路径，但**纯增量、未注入即零行为变化**）。
+- **设计（为什么这样做，含被否决的选项）**：
+  - 新增端口 `SemanticRecallPort`（`recall(query,{topK}) → {id,score}[]`），由**组合根注入**；
+    `KnowledgeAccessLayer` 不 import 网络层/embedding 实现（依赖注入，规则 8）⇒ 可离线完整测试。
+  - **合并位置刻意放在"每库归一化之后、排序之前"**：放在归一化前会让新候选抬高该库 max、把词法分重新缩放（污染词法腿）；
+    放在排序后则新候选不参与排序（等于没召回）。代码注释里写清了这两条否决理由。
+  - **打分口径**：已在词法结果中的条目取 `max(词法分, 余弦)`；仅语义召回的条目直接用余弦分。两腿均为 0..1。
+  - **候选顺序不被信任**：本层自行规范化为 `(score desc, node_id 码元升序)`（同 id 取最高分），
+    注入方乱序不影响结果 —— 这是"不依赖注入/Map 遍历顺序"的落点。
+  - **⚠️ 否决"全局加 nodeId 次级键"**：vault 腿的 relevance 是常量 0.8，归一化后**全部并列 1.0**，
+    其真实顺序只存在于 SQL `ORDER BY rank` 中、靠 `sort` 的**稳定性**保留。若加 nodeId 次级键，
+    vault 结果会被按路径字典序重排 ⇒ **破坏 FTS 排序**。故比较器保持原样，确定性改由三处保证
+    （每库 SQL 带 id 次级键 / stores 顺序固定 / 语义候选已规范化），理由写入代码注释防后人"顺手优化"。
+  - 新增私有 `materializeUnitsByNodeId()`（**跨存储**把 nodeId 还原为 KnowledgeUnit）：
+    kg 按主键直查（`kg_nodes.id` 即完整 node_id，审计 M14）；vault 因归一化不可逆，
+    依次走 **反查缓存 → 适配器 `listNotePaths()` → `SELECT path FROM memory_notes` 精确重算比对**（命中即停）；
+    dre 枚举 `(node_id, domain)` 重算 `createNodeId` 比对后再取正文。物化不到的 id **直接缺席**（不伪造），
+    数量不齐时 `logger.debug` 记录。
+- **测试（+9 例，全离线假端口，`tests/kal-semantic-merge.test.ts`）**：
+  ①未注入 vs 注入空端口 ⇒ 结果逐字节一致（且词法结果不被误标 semantic）；②词法召不到的条目被补入并标记 `source=semantic`；
+  ③重叠时取 max（低余弦保持词法分 / 高余弦取胜）+ 不重复插入；④**乱序注入 ⇒ 输出完全一致**（同分按 node_id 升序）；
+  ⑤同输入 5 次逐字节一致；⑥端口抛错 ⇒ 降级纯词法不抛；⑦**幽灵 id 缺席但不崩**；
+  ⑧**跨存储物化**（vault 归一化不可逆路径 + dre domain/node_id）；⑨端口契约（`limit`→`topK`、查询串原样透传）。
+- **回归**：既有 KAL 相关 7 个测试文件 **49 pass / 0 fail**（`kal-kg-fts` / `kal-deterministic-order` / `kal-references` /
+  `kg-backend-unification` / `dre-search` / `knowledge-query-determinism` / `fts-trigram-migration`）—— 证明既有词法路径未被改动。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4099 pass / 67 skip / 0 fail**。
+- **未覆盖项（本提交的边界，必须知悉）**：**组合根本次未接线** —— 生产上还没有任何地方构造该端口
+  （`src/mcp/server/kg-tools.ts` 的 `getKAL(db)` 仍是两参构造）。原因见下条：
+  **写入腿（A7）尚无生产触发者**，若先接只读端口就会出现"对着空表召回"的假接线。
+  因此接线顺序被定为 **先写入腿（A7）→ 再组合根**，本次先交付可测试的合并能力。
+- **不做项**：未改 KAL 的 SQL/词法腿；未加全局 nodeId 次级键（理由见上）；未接组合根；未引依赖。
+- **Commit**：`__COMMIT__`
