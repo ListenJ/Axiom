@@ -3536,4 +3536,4 @@
   → **46 pass / 0 fail**（`BUN_EXIT=0`）——含本轮的**破环层**改动，说明 `memory → services` / `dre → services` 两端一致。
 - **Linux（本机）**：`bun run test` → **4133 pass / 67 skip / 0 fail**。
 - **未覆盖项**：推送腿的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
-- **Commit**：`__COMMIT__`
+- **Commit**：`4d27b2d`
