@@ -2941,3 +2941,31 @@
   ⑤自定义 provider **能否真正被 `findModelsForRole` 选中**未做端到端验证（需先有模型级条目）。
 - **不做项**：未改 `user-config-loader` / `routes/models.ts` / EXTENSIONS 链路（避免动既有的前端管理页）。
 - **Commit**：`03120c3`
+
+## 2026-09-20 — test(T2): B' —— 验证"自定义 provider + 模型级注册"端到端可用（不新建机制）
+
+- **任务**：用户裁定"先 B 后 C"。**B' = 模型级注册**，目标是让自定义 provider **端到端可用**。分级 **T2**。仅提交 Gitea。
+- **先查既有资产，结论是"不需要新建机制"**：
+  - `model-capability-registry.ts:74-80`：`getAllCapabilities() = UNIFIED_REGISTRY（内置） + EXTENSIONS.values()`；
+    `registerModel()`（`:193`）写入 EXTENSIONS 并 `invalidateCache()`；`findModelsForRole()`（`:118`）走该索引 ⇒ **模型一注册即被检索到**。
+  - `user-config-loader.ts` 用的**正是**这条通路（`data/model-config.json` / `config/model-router.yaml` → `registerModel`），且 `baseURL`/`apiKey` 透传到 capability（`provider-caller:70-71` 在 `override.apiKey` 存在时放行未知 provider）。
+  ⇒ **模型级注册本就有完整通路（含前端 `/models`）**，故 B' **只做验证与回归锁定**，不新增第二套。
+- **交付**：`tests/unit/custom-provider.test.ts` 新增 **2 例**端到端断言 ——
+  ① 先 `registerCustomProvider()`（provider 级：协议/端点/凭据），再 `registerModel({provider: <自定义>, roles:["embedding"]})`（模型级：模型名/角色/上下文），
+  断言 `findModelsForRole("embedding")` **能选到该模型**、`PROVIDER_CONFIG` 能解析其端点、`isProviderConfigured` 为 true；
+  ② `unregisterModel()` 后**不残留在角色索引**。
+  ⇒ 即：**"provider 定义在哪 + model 定义是什么"两层可以组合工作**，且组合行为被测试锁住。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；定向 **14 pass / 0 fail**；
+  全量 `bun run test` → **4105 tests / 67 skip / 0 fail**（417 文件 / 27.97s）。
+- **偏差记录（我自己的失误）**：测试里两处类型转换写错 ——
+  ① `PROVIDER_CONFIG[NAME as never]` 被 tsc 报 `Property 'baseURL' does not exist on type 'never'`；
+  ② `expect(found[0].provider).toBe(NAME)` 报字面量类型不匹配（`"my-embed-endpoint"` 不在 `ModelProvider` 联合内）。
+  分别改为显式宽松转换与 `as unknown as ModelProvider`。**都是编译器拦下的，不是靠人眼。**
+- **仍未解决（与本轮结论直接相关）**：**凭据双路仍未收敛** ——
+  `user-config-loader` 的模型条目可**内联** `apiKey`/`baseURL`，与本轮 provider 注册表的 `api_key_overrides` **并存** ⇒ 用户自定义端点的凭据仍有两处。
+  收敛需要改 `user-config-loader` + `routes/models.ts`（前端管理页链路），属独立改动（即上轮提的 A'），**本轮未动**。
+- **未覆盖项**：①**凭据双路**（见上）；②模型级条目**未并入** provider 注册流程（目前语义上仍要"两处各配一次"）；
+  ③`listProviderStatus()` 仍未含自定义 provider；④B0（外围约 90 处字面量收敛）未做；
+  ⑤**未做真实网络调用验证**（本轮只验证"能被选中"，未验证"端到端发出请求并成功"——需真实端点，本机无）。
+- **不做项**：未新建模型注册机制；未改 `user-config-loader` / `routes/models.ts`。
+- **Commit**：`__COMMIT__`

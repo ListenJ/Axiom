@@ -23,6 +23,8 @@ import { Database } from "bun:sqlite";
 import { initApiKeyOverridesTable, loadApiKeyOverrides } from "../../src/utils/api-key-persistence.js";
 import { loadOverrides } from "../../src/utils/api-key-store.js";
 import { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "../../src/router/models/providers.js";
+import { registerModel, unregisterModel, findModelsForRole } from "../../src/router/model-capability-registry.js";
+import type { ModelProvider, TaskRole } from "../../src/router/models.js";
 
 const NAME = "my-embed-endpoint";
 const KEY = "sk-custom-test-123456";
@@ -180,5 +182,44 @@ describe("router 兼容层：自定义 provider 可被解析（切片 B 接线�
     unregisterCustomProvider(NAME);
     expect((PROVIDER_CONFIG as Record<string, unknown>)[NAME]).toBeUndefined();
     expect(listConfiguredProviders()).not.toContain(NAME as never);
+  });
+});
+
+describe("端到端：自定义 provider + 模型级注册 ⇒ 可被 findModelsForRole 选中（B\u0027）", () => {
+  it("注册 provider 与其模型后，该模型进入 embedding 角色索引（既有 EXTENSIONS 通路）", () => {
+    const modelId = `${NAME}-embed`;
+    registerCustomProvider({ provider: NAME, baseURL: "https://example.com/v1", adapter: "openai", apiKey: KEY });
+    // 模型级注册走**既有**机制（user-config-loader 用的同一条 registerModel → EXTENSIONS）
+    registerModel({
+      id: modelId,
+      provider: NAME as ModelProvider,
+      model: "text-embedding-test",
+      roles: ["embedding"] as TaskRole[],
+      contextWindow: 8192,
+      tags: ["embedding"],
+    });
+    try {
+      const found = findModelsForRole("embedding" as TaskRole).filter((m) => m.id === modelId);
+      expect(found.length).toBe(1);
+      expect(found[0]!.provider).toBe(NAME as unknown as ModelProvider);
+
+      // router 兼容层同时可解析其 provider 配置（Proxy）且视为"已配置"（凭据在 override 通路）
+      const viaRouter = (PROVIDER_CONFIG as Record<string, { baseURL: string } | undefined>)[NAME];
+      expect(viaRouter?.baseURL).toBe("https://example.com/v1");
+      expect(isProviderConfigured(NAME as unknown as ModelProvider)).toBe(true);
+    } finally {
+      unregisterModel(modelId);
+    }
+  });
+
+  it("注销模型后不再出现在角色索引（不残留）", () => {
+    const modelId = `${NAME}-embed2`;
+    registerModel({
+      id: modelId, provider: NAME as ModelProvider, model: "m", roles: ["embedding"] as TaskRole[],
+      contextWindow: 4096, tags: [],
+    });
+    expect(findModelsForRole("embedding" as TaskRole).some((m) => m.id === modelId)).toBe(true);
+    unregisterModel(modelId);
+    expect(findModelsForRole("embedding" as TaskRole).some((m) => m.id === modelId)).toBe(false);
   });
 });
