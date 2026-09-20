@@ -3432,4 +3432,4 @@
   `adaptive-proxy-exit` / `architecture-integrity`）→ **47 pass / 0 fail**（`BUN_EXIT=0`）。
 - **说明**：`architecture-integrity` 在 Windows 同样通过，说明本轮为满足"单目录 ≤8 个顶层依赖"所做的分层调整两端一致。
 - **未覆盖项**：本轮 A7 索引脚本的**真实模型**端到端只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实 embedding。
-- **Commit**：`__COMMIT__`
+- **Commit**：`ae3ea55`
