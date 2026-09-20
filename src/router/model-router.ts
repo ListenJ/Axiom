@@ -113,6 +113,12 @@ export interface ExecuteInput {
   /** 任务标识（A4）：把同一任务的多次调用关联起来，供按任务查看用量 */
   taskId?: string;
   /**
+   * 用量分类（Q3，2026-09-19）：这笔消耗"属于谁"。
+   * 缺省按调用形态取值（本方法缺省 `main`）；子代理等调用方应**显式**传入自己的分类，
+   * 不要在 router 里按 role 猜（避免污染分类）。
+   */
+  category?: string;
+  /**
    * Models to skip during fallback iteration. Used by `executeWithRole`
    * (single-shot) and `dispatcher.dispatchBatch` (`preventDuplicateModels: true`)
    * to avoid re-trying models that already failed for this call.
@@ -162,7 +168,7 @@ function trackCall(
     /** 该次调用整体命中本地 llmCache（未发起 API 调用） */
     cacheHit?: boolean;
   },
-  meta?: { role?: string; taskType?: string; taskId?: string }
+  meta?: { role?: string; taskType?: string; taskId?: string; category?: string }
 ) {
   // 缓存命中（cacheHit=true）即使 0 token 也要落库（观测 prompt-cache/语义缓存命中）
   const usage = result.usage ?? {};
@@ -175,6 +181,8 @@ function trackCall(
     role: meta?.role,
     taskType: meta?.taskType,
     taskId: meta?.taskId,
+    // Q3（2026-09-19）：显式分类。**由调用点给出**，不在此处按 role 猜（避免污染分类）。
+    ...(meta?.category ? { category: meta.category } : {}),
     promptTokens: usage.prompt_tokens ?? 0,
     completionTokens: usage.completion_tokens ?? 0,
     totalTokens: usage.total_tokens ?? 0,
@@ -410,7 +418,7 @@ export class MultiPlatformRouter {
                 success: true,
                 fallbackUsed: false,
                 cacheHit: true,
-              }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
+              }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId, category: input.category ?? "main" });
               return {
                 content: semanticHit.answer,
                 model: "cache",
@@ -443,7 +451,7 @@ export class MultiPlatformRouter {
               success: true,
               fallbackUsed: false,
               cacheHit: true,
-            }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
+            }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId, category: input.category ?? "main" });
             return {
               content: cached.content,
               model: cached.model,
@@ -473,7 +481,7 @@ export class MultiPlatformRouter {
             usage: response.usage,
             latencyMs,
             success: true,
-          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
+          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId, category: input.category ?? "main" });
           // S4② 成功记录点同步学习反馈（缓存命中路径不计——无真实模型调用信号）
           this.reportThompsonFeedback(model.id, true);
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
@@ -543,7 +551,7 @@ export class MultiPlatformRouter {
           trackCall(model.model, model.provider, messages, {
             latencyMs: Date.now() - loopStart,
             success: false,
-          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId });
+          }, { role: trackAs ?? role, taskType: trackAs ?? role, taskId, category: input.category ?? "main" });
           // S4② 失败记录点同步学习反馈（失败语义 = trackCall success:false）
           this.reportThompsonFeedback(model.id, false);
           // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
@@ -609,8 +617,18 @@ export class MultiPlatformRouter {
     return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "evaluation" };
   }
 
-  async chat(taskType: TaskRole | string, messages: ChatMessage[], opts?: { taskId?: string }): Promise<ChatResponse> {
-    const result = await this.execute({ role: taskType as TaskRole, messages, trackAs: "chat", taskId: opts?.taskId });
+  async chat(
+    taskType: TaskRole | string,
+    messages: ChatMessage[],
+    opts?: { taskId?: string; category?: string },
+  ): Promise<ChatResponse> {
+    const result = await this.execute({
+      role: taskType as TaskRole,
+      messages,
+      trackAs: "chat",
+      ...(opts?.taskId ? { taskId: opts.taskId } : {}),
+      ...(opts?.category ? { category: opts.category } : {}),
+    });
     return { content: result.content, model: result.model, provider: result.provider, usage: result.usage, layer: "general" };
   }
 
@@ -641,6 +659,8 @@ export class MultiPlatformRouter {
       thinking?: boolean;
       /** 任务标识（A4）：与本次流式交换的轨迹 capture 共用同一 id */
       taskId?: string;
+      /** 用量分类（Q3）：缺省 `main`；子代理等调用方应显式传入 */
+      category?: string;
     }
   ): AsyncGenerator<ChatStreamEvent> {
     const role = taskType as TaskRole;
@@ -834,7 +854,7 @@ export class MultiPlatformRouter {
                 latencyMs,
                 success: true,
                 fallbackUsed: false,
-              }, { role, taskType: "chat-stream", taskId });
+              }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
               metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
               metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
               logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
@@ -884,7 +904,7 @@ export class MultiPlatformRouter {
               latencyMs,
               success: true,
               fallbackUsed: !preferNative,
-            }, { role, taskType: "chat-stream", taskId });
+            }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
             routerBreaker.recordSuccess(breakerKey);
@@ -919,7 +939,7 @@ export class MultiPlatformRouter {
           trackCall(model.model, model.provider, messages, {
             latencyMs: Date.now() - loopStart,
             success: false,
-          }, { role, taskType: "chat-stream", taskId });
+          }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
           if (attempt < maxRetries - 1) {
             const delay = calculateBackoffDelay(attempt);
             await new Promise((r) => setTimeout(r, delay));
@@ -970,13 +990,13 @@ export class MultiPlatformRouter {
         toolPool.recordLatency(model.id, latencyMs);
         toolPool.markRequestSuccess(model.id);
         const result: ChatResponse = { ...response, model: model.id, provider: model.provider, layer: "tool" };
-        trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: "tool" });
+        trackCall(model.id, model.provider, messages, { usage: response.usage, latencyMs, success: true }, { role, taskType: "tool", category: "tool" });
         return result;
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         toolPool.markRequestFailure(model.id, msg);
         lastError = error instanceof Error ? error : new Error(String(error));
-        trackCall(model.id, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role, taskType: "tool" });
+        trackCall(model.id, model.provider, messages, { latencyMs: Date.now() - startTime, success: false }, { role, taskType: "tool", category: "tool" });
         logger.warn(`[Router] Tool ${model.id} failed (attempt ${attempt + 1})`, { error: msg });
         await this.delay(calculateBackoffDelay(attempt, { baseDelay: 1000 }));
       }
@@ -1063,6 +1083,7 @@ export class MultiPlatformRouter {
 
     const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
 
+    const startTime = Date.now();
     const res = await proxyFetch(`${baseURL}/embeddings`, {
       method: "POST",
       headers: {
@@ -1073,7 +1094,31 @@ export class MultiPlatformRouter {
     });
 
     if (!res.ok) throw new Error(`Embedding request failed: ${res.status}`);
-    const data = await res.json() as { data?: Array<{ embedding?: number[] }> };
+    const data = await res.json() as {
+      data?: Array<{ embedding?: number[] }>;
+      usage?: { prompt_tokens?: number; total_tokens?: number };
+    };
+
+    // 用量可观测（Q3）：embedding 消耗此前**完全没有落库** ⇒ 轨迹的按分类聚合里看不到这笔钱。
+    // OpenAI 兼容的 /embeddings 响应带 usage（SiliconFlow BAAI/bge-m3 实测含 prompt_tokens），
+    // 故这里以 category="embedding" 记一条；无 usage 字段时不落库（沿用 trackCall 的既有语义：
+    // 没有 token 数字就不写，不猜）。
+    if (data.usage?.total_tokens) {
+      getTokenTracker().record({
+        timestamp: Date.now(),
+        model: model.model,
+        provider: model.provider,
+        taskType: "embedding",
+        category: "embedding",
+        promptTokens: data.usage.prompt_tokens ?? 0,
+        completionTokens: 0,
+        totalTokens: data.usage.total_tokens,
+        latencyMs: Date.now() - startTime,
+        contentLength: texts.reduce((sum, t) => sum + t.length, 0),
+        success: true,
+        fallbackUsed: false,
+      });
+    }
     return data.data?.map((d) => d.embedding ?? []) ?? [];
   }
 

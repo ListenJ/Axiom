@@ -3170,4 +3170,39 @@
   语料级查询面，当前只有 `getReferences(nodeId)`，形状不匹配）—— 属**未完成项**，不是"已完成但没写文档"；
   ③A6 跨进程 N≥5 确定性实测、A8 词法 vs 词法+语义对拍**仍未做**。
 - **不做项**：未改 KAL 查询实现；未挂采集管线；未引入向量库依赖；未发起真实网络请求。
+- **Commit**：`a6330f2`
+
+## 2026-09-20 — fix(T2): 补完 Q3/A5「按分类的 token 用量」—— category 此前**没有任何生产者**
+
+- **任务**：用户此前要求"这部分会消耗 token，消耗多少在轨迹中显示，**根据对应的分类**显示消耗了多少 token"。
+  本轮在推进语义层时实测发现：**该功能是"有形状无行为"** —— 分级字段、SQLite 列、`getStatsByCategory()`、
+  `/traces` 的按分类聚合（A5）**全都在**，但全仓 `trackCall(...)` 的 meta **从未传过 category**，
+  故聚合结果只会是 `unknown`。本轮把生产者补上。分级 **T2**。
+- **实测证据（修复前）**：`grep -n "category" src/router/model-router.ts` → 0 命中（`trackCall` 的 meta 只有
+  `role/taskType/taskId`）；`grep -rn "\.record(" src/` → 仅 `model-router.ts:171` 与 `agents/opencode-tools/tool-agent.ts:256`，
+  两者都不写 category。⇒ A5 的展示层读到的永远是 `unknown`。
+- **改动（文件级，1 个源文件）**：
+  - `trackCall()` 的 meta 增加 `category?` 并**原样写入**记录（缺省不写 ⇒ 仍是 `unknown`，**不按 role 猜**，
+    与 Q3"不复用 role/taskType"的口径一致）；
+  - `ExecuteInput` 增加 `category?`（缺省 `main`）；`execute()` 的 4 处 trackCall（含缓存命中/失败路径）带上
+    `input.category ?? "main"`；`chat()` 的 opts 增加 `category?` 并透传（**子代理等调用方显式覆盖的入口**）；
+  - `chatStream()` 的 options 增加 `category?`，3 处 trackCall 带上（缺省 `main`）；
+  - `tool()` 的 2 处 trackCall 记为 `tool`；
+  - **`embeddings()` 补上用量落库**（`category: "embedding"`）：这笔消耗此前**完全没落库**（`embeddings()` 既不
+    调 `trackCall` 也不写记录），所以"向量检索花了多少 token"在轨迹里根本看不到。响应带 `usage` 时写入
+    `prompt_tokens/total_tokens`（OpenAI 兼容 `/embeddings` 响应带 usage；无 usage 则不写，沿用"不猜"语义）。
+- **测试（+2 文件，子进程隔离）**：`tests/router/usage-category.case.ts`（真用例）+ `usage-category.test.ts`（外壳）。
+  case 在加载期 `mock.module` 掉 `provider-caller` 与 `proxy-fetch`（**零网络**），断言：
+  ① chat 缺省 → `main`；② `chat(..., {category:"subagent"})` → `subagent`（显式覆盖生效）；
+  ③ tool → `tool`；④ embeddings → `embedding` **且聚合里该桶 tokens > 0**；⑤ **每条记录都带 category**
+  （防"漏一个调用点 ⇒ 又变 unknown"）；⑥ 聚合结果**不含 `unknown`**。
+  另：case 里显式设 `AXIOM_ALLOW_DEV_MODELS=1`（embedding 角色在发布默认下无候选，属 dev/test 路径）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向 2 pass / 0 fail；**全量 `bun run test` → 4085 pass / 67 skip / 0 fail**。
+- **顺带**：回填上一提交（语义索引 + /settings/search 接线）的 hash 占位符 → `a6330f2`（记录维护，规则 5）。
+- **未覆盖项（如实）**：①`src/agents/opencode-tools/tool-agent.ts:256` 的记录**仍未分类** —— 它是 subagent 还是
+  tool 需要产品口径裁定，按"不猜"原则本轮**留作 unknown**；②`executeWithRole()` 自身不直接 trackCall
+  （经 `execute()`），故其分类跟随 `ExecuteInput.category`（缺省 `main`）—— 若将来它用于子代理，须显式传 category；
+  ③`AXIOM_ALLOW_DEV_MODELS` 的 env 读取走常量而非字面量，`tests/env-example-completeness.test.ts` 的扫描
+  正则**看不见**它（已在 `.env.example` 手工登记，不存在漂移）。
+- **不做项**：未改 TokenTracker 的 schema/聚合；未改 `/traces` 展示；未给 opencode tool-agent 猜分类。
 - **Commit**：`__COMMIT__`
