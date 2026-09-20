@@ -89,6 +89,13 @@ export interface CategoryStats extends TokenStats {
   category: string;
 }
 
+/** 按任务的用量汇总（A5）：分类 → token 数 */
+export interface TaskUsageSummary {
+  totalCalls: number;
+  totalTokens: number;
+  byCategory: Record<string, number>;
+}
+
 export interface DailyStats {
   date: string;
   totalCalls: number;
@@ -555,6 +562,40 @@ export class TokenTracker {
       cacheHitTokens: r.cache_hit_tokens ?? 0,
       cacheMissTokens: r.cache_miss_tokens ?? 0,
     }));
+  }
+
+  /**
+   * 按任务聚合用量（A5，2026-09-20）。
+   *
+   * 一次 SQL 查多个 taskId（避免列表页 N+1）；返回"分类 → token 数"的汇总。
+   * 仅聚合 **taskId 非空** 的记录 —— 未标注任务的调用不属于任何任务，不猜测归属。
+   */
+  getUsageByTasks(taskIds: readonly string[]): Map<string, TaskUsageSummary> {
+    const out = new Map<string, TaskUsageSummary>();
+    const ids = taskIds.filter((id) => typeof id === "string" && id.length > 0);
+    if (ids.length === 0) return out;
+
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = this.db.query(`
+      SELECT
+        task_id,
+        COALESCE(category, 'unknown') as category,
+        COUNT(*) as calls,
+        COALESCE(SUM(total_tokens), 0) as tokens
+      FROM token_usage
+      WHERE task_id IN (${placeholders})
+      GROUP BY task_id, category
+      ORDER BY task_id, category
+    `).all(...ids) as Array<{ task_id: string; category: string; calls: number; tokens: number }>;
+
+    for (const r of rows) {
+      const cur = out.get(r.task_id) ?? { totalCalls: 0, totalTokens: 0, byCategory: {} };
+      cur.totalCalls += r.calls;
+      cur.totalTokens += r.tokens;
+      cur.byCategory[r.category] = (cur.byCategory[r.category] ?? 0) + r.tokens;
+      out.set(r.task_id, cur);
+    }
+    return out;
   }
 
   /** 最近使用记录 */

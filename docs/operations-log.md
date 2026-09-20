@@ -2632,3 +2632,35 @@
   ③流式路径的 `taskId` **只做了类型与人工审查**，**未加路由级断言**（流式 SSE 需消费 ReadableStream，成本高于本轮范围）。
 - **不做项**：未做品牌类型；未修 `code-analysis` 超时类；未加流式路由级断言。
 - **Commit**：`024bd90`
+
+## 2026-09-20 — feat(T2): A5 —— `GET /traces` 读取面：按 taskId 拼装「轨迹 + 按分类用量」
+
+- **任务**：用户裁定"开始"（A5）。分级 **T2**。仅提交 Gitea。
+- **要解决的问题（先说清现状）**：原 `traces.ts` 只读 `agent-trace` 的内存表，而该表在 `completeTrace/failTrace` 时**主动删除**条目
+  （B3-Medium 修复：防长进程内无界增长，**有测试锁定**）⇒ **已完成任务一律 404**，读取面对"跑完的任务"等于不可用。
+- **A5 的做法：按 **taskId** 把三方数据拼起来**（这正是 A4 交到手上的钥匙）：
+  | 来源 | 提供什么 | 何时有 |
+  |---|---|---|
+  | `utils/agent-trace`（内存） | 完整 `steps` | 仅**运行中** |
+  | `agent-evals/real-usage`（JSONL） | 任务级信息（task/success/timestamp/sessionId/source） | **已完成**（受 A3 保留策略约束） |
+  | `router/token-tracker`（SQLite） | **按 category 的用量** | 有 taskId 的记录（A4 贯通） |
+  三者**都不存在**才 404；否则组装返回，并在响应里**如实标注来源**（`source: in-memory | jsonl`）。
+- **数据层（2 个新接口）**：
+  1. `TokenTracker.getUsageByTasks(taskIds)`：**一次分组 SQL** 查多个 taskId（避免列表页 N+1），
+     返回 `{totalCalls, totalTokens, byCategory}`；**仅聚合 taskId 非空**的记录（未标注任务的不猜测归属）。
+  2. `real-usage.findRealUsageTrace(id)` / `loadRecentTraces(limit)`：按 id 查（**后写优先**）/ 取最近 N 条。
+- **路由层**：`GET /traces?limit=N`（1–200，缺省 50）合并两侧、同 id 以**运行中优先**（它带 steps）；
+  `GET /traces/:id` 组装并可返回 `usage`。
+- **TDD 断言（4 例，路由级，非单函数）**：`tests/routes/traces-a5.test.ts` ——
+  ①**先断言前提** `getTrace(TASK_ID) === null`（证明已完成任务确实已出表），再断言仍能**由 JSONL + 按 taskId 用量组装出 200**，
+  且 `usage.totalTokens=120`、`byCategory.main=100`、`byCategory.embedding=20`；
+  ②运行中任务返回内存 `steps`，且 `usage` 为 null（**无记录不得凭空造**）；③三方皆无 → **404**；④列表含该任务且带用量、`source` 标注为 `jsonl`。
+  **隔离**：`TOKEN_USAGE_DB` 与 `REAL_USAGE_PATH` 均指向临时文件，绝不写生产库/真实 JSONL。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；A5 定向 **4 pass / 0 fail**；
+  全量 `bun run test` → **4012 pass / 67 skip / 0 fail**（4079 tests / 414 文件 / 17.57s，**无回归**）。
+- **未覆盖项**：①列表**未分页**（只有 `limit`，无 cursor/offset）—— 数据量上去需补；
+  ②`usage` 只给"分类 → token 数"的汇总，**未给每类的时间分布/成本**（`costUsd` 已在库里，未透出）；
+  ③**流式任务**的轨迹仍可能与用量对不上（流式的路由级断言本就未做，见 A4 残余）；
+  ④列表按"内存 + JSONL 各自保序"合并，**未做全局时间排序**（当前顺序：运行中在前、落盘按写入序在内）。
+- **不做项**：未加分页；未透出成本；未改 `agent-trace` 的 B3-Medium 出表语义（那是被测试锁定的既有修复）。
+- **Commit**：`__COMMIT__`

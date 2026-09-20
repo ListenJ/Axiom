@@ -374,6 +374,28 @@ async function rewriteTraceFile(
 }
 
 /**
+ * 按 id 查找一条已落盘轨迹（A5 读取面用；找不到返回 null）。
+ * 注意：`loadRealUsageTraces` 会先 flush 挂起批次，因此对刚采集的记录也能查到。
+ */
+export async function findRealUsageTrace(id: string, filePath?: string): Promise<RealUsageTrace | null> {
+  const all = await loadRealUsageTraces(filePath);
+  // 后写优先：同一 id 若被更新过，取最后一次
+  for (let i = all.length - 1; i >= 0; i--) {
+    if (all[i]!.id === id) return all[i]!;
+  }
+  return null;
+}
+
+/**
+ * 取最近 N 条已落盘轨迹（A5 列表页用）。文件本身受 A3 的保留策略约束（体积×时间×会话）。
+ */
+export async function loadRecentTraces(limit = 50, filePath?: string): Promise<RealUsageTrace[]> {
+  const all = await loadRealUsageTraces(filePath);
+  const n = Math.max(1, Math.min(Math.floor(limit), 500));
+  return all.slice(-n);
+}
+
+/**
  * 清空轨迹（测试/维护用）
  */
 export async function clearRealUsageTraces(filePath?: string): Promise<void> {
