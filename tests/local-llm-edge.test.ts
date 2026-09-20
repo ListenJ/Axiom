@@ -7,7 +7,8 @@
  * - isEdgeEnabled 功能开关
  * - extractJson 容错解析
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { LLMClient } from "../src/dre/llm/client.js";
 import { getEdgeClient, isEdgeEnabled, extractJson } from "../src/local-llm/edge-client.js";
 
@@ -106,6 +107,16 @@ describe("LLMClient completion transport", () => {
 });
 
 describe("getEdgeClient", () => {
+  // 2026-09-20：EDGE_LLM_URL 由"有默认值"改为**必填**（原默认 9001 实测无人监听）。
+  // ⚠️ 必须在 beforeAll 里设、用完立刻还原 —— 若放在**模块作用域**，会因"Bun 先加载全部文件再执行"
+  // 而泄漏到同进程的其它测试文件（实测会让 chat-memory-loop 假通过，掩盖真失败）。
+  const prevUrl = process.env.EDGE_LLM_URL;
+  beforeAll(() => { process.env.EDGE_LLM_URL = "http://127.0.0.1:19999"; });
+  afterAll(() => {
+    if (prevUrl === undefined) delete process.env.EDGE_LLM_URL;
+    else process.env.EDGE_LLM_URL = prevUrl;
+  });
+
   test("返回单例", () => {
     const a = getEdgeClient();
     const b = getEdgeClient();
@@ -153,5 +164,19 @@ describe("extractJson", () => {
 
   test("垃圾输入返回 null", () => {
     expect(extractJson("not json at all")).toBeNull();
+  });
+});
+
+describe("getEdgeClient 配置缺失（2026-09-20 裁定）", () => {
+  test("未配置 EDGE_LLM_URL 时应立即报错（不再默认 127.0.0.1:9001）", () => {
+    // 单例已在同进程创建过，故用独立进程验证"缺配置"分支
+    const r = spawnSync(
+      "bun",
+      ["-e", 'const m=await import("./src/local-llm/edge-client.ts"); try { m.getEdgeClient(); console.log("NO_THROW"); } catch (e) { console.log("THREW:" + (e as Error).message.slice(0,40)); }'],
+      { encoding: "utf8", cwd: process.cwd(), env: { ...process.env, EDGE_LLM_URL: "" } },
+    );
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    expect(out).toContain("THREW:");
+    expect(out).toContain("EDGE_LLM_URL");
   });
 });

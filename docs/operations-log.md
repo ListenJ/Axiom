@@ -2805,3 +2805,38 @@
   ③**LLM 通道 9001 的去留未决**（需用户裁定）；④切片 2 的"规模小/选择偏差"属评测固有边界，无法靠加样例消除。
 - **不做项**：未动 `edge-client.ts`（用户指令指向 embedding 侧；改它属另一议题）；未逐文件跑候选 flake 取样。
 - **Commit**：`3d7c93f`
+
+## 2026-09-20 — fix(T2): 9001 裁定（保留通道 / 去掉死端点默认值）+ 连带回归修复 + env 残留清理
+
+- **任务**：用户裁定"9001 交由你裁定"。分级 **T2**（改默认配置 + 一处组合根注入语义）。仅提交 Gitea。
+- **取证（先证据后裁定）**：对 `127.0.0.1:9001` 实测 —— `curl` **`Couldn't connect to server`**（`HTTP=000`），
+  `ss -ltnp` / `netstat -ltnp` 均**查不到监听**。⇒ 该端口**无任何服务**（用户浏览器停在那个 URL，但那是打不开的页面）。
+- **裁定**：
+  1. **不删除 `src/local-llm/edge-client.ts`** —— 它是 5 个消费者（`memory/distiller`、`memory/edge-assist`、
+     `knowledge/edge-assist`、`local-llm/risk-screen`、`agents/intent-enhancer`）共用的"边缘增强"通道，
+     且**各 EDGE_* 能力开关默认全关**（未设置 = 不调用 LLM）。删它 = 移除一整条可选能力，超出"9001 去留"的范围。
+  2. **去掉硬编码默认端点**：`EDGE_LLM_URL` 由"有默认 `http://127.0.0.1:9001`"改为**必填**；
+     启用边缘能力却未配置时**立即抛错**（fail loud），而不是指向死端口 → 连不上 → 静默走兜底、让人无法分辨"没配"还是"挂了"。
+     这与本地方向（"用户自填 base_url"）一致。各调用点本就按"边缘增强·失败回退"包了 try/catch，故抛错 = 走兜底 **+ 知道是配置缺失**。
+- **连带回归（我的改动暴露的既有设计问题，已修）**：改成 throw 后全量出现 **8 fail**（`chat-memory-loop`）。
+  栈定位到 **`src/routes/chat.ts:79`**：`preflightDeps.edge = { …, client: getEdgeClient() }` 是**急切求值** ——
+  即便 `EDGE_PROMPT_OPTIMIZER` **未启用**也照样构造客户端。
+  ⇒ 与 `PreflightDeps.edge = null`（注释明写"**= 快路径禁用，走串行**"）的既有降级语义相悖。
+  修法：改为**条件注入** —— 启用时注入真客户端，未启用时 `edge` 保持 `null`。修复后 `chat-memory-loop` **8 tests / 0 fail**。
+- **⚠️ 我自己的测试环境泄漏（本轮最有价值的教训）**：修 `tests/local-llm-edge.test.ts` 时，我在**模块作用域**设了
+  `process.env.EDGE_LLM_URL`；由于 **Bun 先加载全部测试文件再执行**，该 env **泄漏到同进程的其它文件**，
+  使 `chat-memory-loop` **假通过**（原本 4 pass / 4 fail 变成 0 fail）—— **掩盖了真失败**。
+  已改为该 describe 的 `beforeAll`/`afterAll` 内设/还原；复验：两文件同进程 **20 tests / 0 fail**，且单独跑 `chat-memory-loop` 也 **8/0**。
+  另 `tests/audit/resource-audit.test.ts` 也有一条依赖旧默认值的用例，同样改为显式提供 + try/finally 还原。
+- **顺带清理 env 残留（同一议题的"细小处"）**：`.env.example` 中删除 **5 条已无读取方**的条目 ——
+  `EMBEDDINGS_BASE_URL`（**指向 `api.siliconflow.cn`**，正是要移除的供应商）、`EMBEDDINGS_MODEL`、
+  `EDGE_EMBED_URL`、`EDGE_EMBED_MODEL`、`EDGE_SETTINGS_SEARCH`（其唯一读取方 `edge-embeddings.ts` 已删除）。
+  并用 `grep` 核实 **src 中确无读取方**（非猜测）。`EDGE_LLM_URL` 的示例行补充"仅当启用 EDGE_* 时必填"。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`local-llm-edge` → **12 pass / 0 fail**（含新增"缺配置即报错"用例）；
+  `chat-memory-loop` → **8 pass / 0 fail**；`resource-audit` → **13 pass / 0 fail**；`env 模板完整性` → **2 pass / 0 fail**；
+  全量 `bun run test` → **4082 tests / 67 skip / 0 fail**（415 文件 / 17.79s）。
+- **未覆盖项**：①**其它调用 `getEdgeClient()` 的生产路径**未逐一核验是否都在 try/catch 内（本轮只验了路由组合根那条栈）；
+  ②未验证"启用边缘能力 + 正确配置 URL"的**端到端可用性**（本机 9001 无服务，且我不擅自起服务）；
+  ③`edge-client` 与"用户自配模型"两条本地能力**长期是否合并**未决（属用户自配模型计划的切片 B）。
+- **不做项**：未删除 `edge-client`；未改动其熔断/重试/传输配置。
+- **Commit**：`__COMMIT__`

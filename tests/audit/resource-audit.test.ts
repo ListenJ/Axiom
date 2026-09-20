@@ -155,10 +155,19 @@ describe("兜底机制（边缘增强·失败回退）", () => {
   });
 
   it("边缘 LLM 客户端带熔断/重试配置（共享单例，仅断言能力存在）", () => {
-    const client = getEdgeClient();
-    expect(typeof client.generate).toBe("function");
-    expect(client.getCircuitState()).toBeDefined();
-    expect(Number.isFinite(client.getStats().retryCount)).toBe(true);
+    // 2026-09-20：EDGE_LLM_URL 由"有默认值"改为**必填**（原默认 127.0.0.1:9001 实测无服务在监听），
+    // 故构造前需显式提供；用完立即还原，避免同进程其它测试文件受影响。
+    const prevUrl = process.env.EDGE_LLM_URL;
+    process.env.EDGE_LLM_URL = prevUrl ?? "http://127.0.0.1:19999";
+    try {
+      const client = getEdgeClient();
+      expect(typeof client.generate).toBe("function");
+      expect(client.getCircuitState()).toBeDefined();
+      expect(Number.isFinite(client.getStats().retryCount)).toBe(true);
+    } finally {
+      if (prevUrl === undefined) delete process.env.EDGE_LLM_URL;
+      else process.env.EDGE_LLM_URL = prevUrl;
+    }
   });
 });
 
