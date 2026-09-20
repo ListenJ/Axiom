@@ -51,7 +51,7 @@ export interface ProxyFetchOptions {
    *    - crawl/lightpanda-client.ts：CDP 端点 http://127.0.0.1:9222（url-safety DEFAULT_CDP_URL）；
    *    - router/model-router.ts、agents/computer-use-agent.ts、agent-evals/runner.ts、
    *      agents/kimi-code-agent.ts：getEffectiveBaseURL/*_BASE_URL 可解析到本地模型端点
-   *      （如 127.0.0.1:9001 边缘 LLM/embeddings）。
+   *      （如 127.0.0.1:9001 边缘 LLM；embedding 侧客户端已于 2026-09-20 删除）。
    *  若后续改默认开，需先落地调用方白名单（如 ProxyFetchOptions 增 ssrfAllowHosts 精确
    *  放行回环 CDP/本地 LLM），或仅在处理用户可控 URL 的入口（web_fetch、routes/search）
    *  强制 ssrfGuard:true。注：原 local-llm/edge-embeddings.ts（本地 9001 embedding）已于 2026-09-20 删除。 */

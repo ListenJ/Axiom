@@ -268,6 +268,9 @@ export function indexProject(projectPath: string, projectName = path.basename(pr
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     let symbolCount = 0;
+    // 静默失败可观测化（A10-4 同类）：此前解析失败被 catch{} 吞掉，只在计数断言处间接暴露。
+    let failedFiles = 0;
+    const failedSamples: string[] = [];
     const nameToIds = new Map<string, number[]>();
     for (const file of files) {
       try {
@@ -281,8 +284,17 @@ export function indexProject(projectPath: string, projectName = path.basename(pr
           nameToIds.set(s.name, arr);
         }
       } catch {
-        // 单文件解析失败跳过
+        // 单文件解析失败：**计数并汇总告警**（不再静默跳过）；仍保持"跳过该文件、继续索引其余"的行为
+        failedFiles++;
+        if (failedSamples.length < 3) failedSamples.push(file);
       }
+    }
+    if (failedFiles > 0) {
+      logger.warn("[CodeIndex] 部分文件索引失败（已跳过，不影响其余文件）", {
+        failedFiles,
+        totalFiles: files.length,
+        samples: failedSamples,
+      });
     }
     const callInsert = db.prepare(`
       INSERT OR IGNORE INTO code_calls (project, caller_id, callee_id, file_path, line)

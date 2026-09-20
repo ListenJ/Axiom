@@ -2769,3 +2769,39 @@
   ⑤基线数字**未在 Windows 复跑**（本脚本纯函数、无平台敏感 API，风险低但仍属未验证）。
 - **不做项**：未加 embedding 对照（待切片 4/5）；未改检索实现（切片 2 只做"先量化"）。
 - **Commit**：`6a46c7a`
+
+## 2026-09-20 — fix(T2): 销账本轮未覆盖项（残留引用扫描 / 静默失败可观测 / test:stress 超时缺陷）
+
+- **任务**：用户裁定"先完成当前未能覆盖和未能完善的部分"。对象 = 切片 1/2 及前几轮登记在案的未覆盖项。分级 **T2**。仅提交 Gitea。
+- **① 残留引用扫描（切片 1 登记"只核了三处主口径文档"）→ 已做全仓扫描**：
+  扫描 `edge-embeddings | EDGE_SETTINGS_SEARCH | 127.0.0.1:9001`（排除 archive/reviews/superpowers/operations-log）。
+  结果与处置：
+  - ✅ `tests/settings-search.test.ts:121,150`、`src/core/settings-search.ts:8`：**有意保留**的"已删除"说明性注释。
+  - 🔧 `src/utils/proxy-fetch.ts:54`：注释仍写"（如 127.0.0.1:9001 边缘 LLM/**embeddings**）" ⇒ 已改为"边缘 LLM；**embedding 侧客户端已于 2026-09-20 删除**"。
+  - ⚠️ **重要发现（必须报告）**：`src/local-llm/edge-client.ts:29` **仍默认 `http://127.0.0.1:9001`** —— 那是**边缘 LLM 通道**，不是 embedding。
+    2026-09-18 的归档记录明确「**保留不动** …edge-client.ts（LLM 调用通道）」，而用户本次指令指向 `edge-embeddings.ts:14`
+    ⇒ **本次只删了 embedding 侧；9001 并未从仓库消失**。已在另一份计划（`2026-09-19-user-configured-models-and-usage-trace.md` 切片 D）
+    显式标注为**部分完成**，并写明"LLM 通道是否也弃用 9001 需用户单独裁定"（当前默认关闭：`isEdgeEnabled()` 未设置即关）。
+- **② 静默失败可观测化（此前登记：`indexProject` 的 `catch {}` 会静默跳过解析失败的文件）→ 已修**：
+  `src/codeindex/local-index.ts`：`catch {}` 改为**计数 + 样本收集**，循环后若 `failedFiles > 0` 则
+  `logger.warn("[CodeIndex] 部分文件索引失败（已跳过，不影响其余文件）", { failedFiles, totalFiles, samples })`。
+  **行为不变**（仍跳过该文件继续索引其余），只是不再不可观测。与仓库既有 A10-4 整改方向一致。
+- **③ `test:stress` 总耗时此前未测 → 已测，并**查出并修掉一个真实缺陷****：
+  - 首测：**45.09s / 246 pass / 2 fail** —— 失败为 `C. 5 层管道 > Layer 0+1+2`（12482ms）与
+    `D. 瓶颈定位 > 持续 5000 次查询`（8026ms）。
+  - **根因（不是阈值被突破，是超时）**：`test:stress` 脚本**没传 `--timeout`** ⇒ 走 Bun **默认 5s** 每用例超时，
+    而这两条本来就 >5s ⇒ **假失败**。
+  - 修法：`"test:stress": "AXIOM_PERF_ASSERT=1 bun test --timeout 120000 tests/stress/"`（120s 属**防挂起**，不改变各用例自身的严格性能阈值）。
+  - 复测：**42.28s / 248 pass / 0 fail**。
+- **④ 环境敏感候选（此前登记 17 个文件未逐一验证）→ 做了实测取样而非猜测**：
+  连续 **3 次**全量 `bun run test` ⇒ **三次均 0 fail**（4081 tests / 415 文件；耗时 32.74s / 19.61s / 18.07s）。
+  ⇒ 本轮修掉的那几处（`benchmark` / `consciousness-goal-tracker` / `code-analysis` 超时）**很可能就是主要来源**；
+  但**仍不声称"17 个候选都已排除"** —— 3 次取样不足以覆盖低频 flake。
+- **⑤ 顺带发现（新，未修）**：三次运行中 `expect()` 调用数出现 **130264 / 130263 / 130264** 的波动
+  ⇒ 存在**条件性断言**（某分支依赖运行时状态才执行）。**未定位到具体断言**，登记为后续观察项。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`tests/codeindex/local-index.test.ts` → **4 pass / 0 fail**；
+  `test:stress` → **248 pass / 0 fail**（42.28s）；全量 ×3 → **均 0 fail**。
+- **未覆盖项**：①17 个候选文件**未逐一验证**（只有 3 次全量取样）；②**expect 计数波动未定位**；
+  ③**LLM 通道 9001 的去留未决**（需用户裁定）；④切片 2 的"规模小/选择偏差"属评测固有边界，无法靠加样例消除。
+- **不做项**：未动 `edge-client.ts`（用户指令指向 embedding 侧；改它属另一议题）；未逐文件跑候选 flake 取样。
+- **Commit**：`__COMMIT__`

@@ -222,8 +222,12 @@
 - **必须**附迁移路径：启动时若检测到配置里仍引用被移除的 provider → 输出**显式告警**与迁移指引，**不得静默失效**。
 - 产出：全量测试绿；迁移告警有测试覆盖。
 
-**切片 D｜删除 `127.0.0.1:9001`（Q4）**
-- 按规则 4：归档 `src/local-llm/edge-embeddings.ts` → `archive/`，登记 `archive/ARCHIVE-LOG.md`，再 `git rm`。
+**切片 D｜删除 `127.0.0.1:9001`（Q4）** —— 🟡 **部分完成（2026-09-20，随知识库语义层切片 1 执行）**
+- ✅ **embedding 侧已完成**：按规则 4 归档 `src/local-llm/edge-embeddings.ts` → `archive/edge-embeddings-removal-2026-09-20/`，
+  登记 `archive/ARCHIVE-LOG.md`（并显式推翻 2026-09-18 归档里"保留不动"的结论），随后 `git rm`。
+- ⚠️ **9001 并未从仓库消失**：`src/local-llm/edge-client.ts:29` 仍**默认** `http://127.0.0.1:9001` —— 那是**边缘 LLM 通道**，
+  2026-09-18 归档记录明确「保留不动 …edge-client.ts（LLM 调用通道）」。用户的删除指令指向 `edge-embeddings.ts:14`，
+  故本次**只删 embedding 侧**；**LLM 通道是否也弃用 9001 需用户单独裁定**（当前默认关闭：`isEdgeEnabled()` 未设置即关）。
 - `src/core/settings-search.ts:12` 的语义腿：按 §2.1 的分层策略处置（先退化为词法；同义词扩展层见切片 F）。
 - **必须**输出 §2.1 末的影响披露文案（区分召回质量 vs 延迟）。
 - 同步 `tests/settings-search.test.ts`、`src/utils/proxy-fetch.ts:57` 注释与相关文档。
