@@ -3285,4 +3285,4 @@
   `docs/AGENT-ARCHITECTURE.md`、`docs/AXIOM-ARCHITECTURE.md` 内的 embedding 代码示例**未逐条复核**（下一步）；
   ②未新增"文档不得宣称 siliconflow 为默认嵌入源"的**自动门禁**（本轮只有人工核对 + 既有 docs-consistency 的有限规则）。
 - **不做项**：未改任何源码；未改历史留痕（operations-log 更早条目）；未重写其它日期文档的历史结论。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c68189f`
