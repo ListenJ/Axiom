@@ -3485,4 +3485,4 @@
   → **42 pass / 0 fail**（`BUN_EXIT=0`）。
 - **Linux（本机）**：`bun run test` → **4124 pass / 67 skip / 0 fail**。
 - **未覆盖项**：增量索引的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
-- **Commit**：`__COMMIT__`
+- **Commit**：`de13c4e`
