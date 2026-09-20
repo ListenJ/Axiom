@@ -3025,3 +3025,39 @@
   ④未核实免费/计费口径与限流额度。
 - **不做项**：未改 registry / api-key-store；未执行 siliconflow 移除；未在测试中发起真实网络请求（全离线）。
 - **Commit**：`08c0e09`
+
+## 2026-09-20 — feat(T2): C' 第二步 —— 语义候选召回 + 稳定排序；⚠️ 两项环境/配置发现
+
+- **任务**：用户两次"继续"，推进 C'（切片 4/5）。分级 **T2**。仅提交 Gitea。
+- **① 交付：`src/knowledge/semantic-recall.ts` —— D3 硬约束的实现处**
+  - **向量只做候选召回**：语义候选只把"词面不重合但语义相近"的条目**补进候选集**，不单独决定排序；
+  - **总分 = max(词法分, 语义分)**（与 `settings-search` 既有语义层口径一致；**取 max 而非相加** —— 相加会让两条腿不可比且放大小分数抖动）；
+  - **稳定 tie-breaker**：排序键 **(score desc, id 码元升序)**，id 比较用 `<`/`>` **而非 `localeCompare`**（避免 locale 依赖）；
+  - **不依赖 Map 遍历顺序**：`Map` 只用于查分，候选顺序以 **items 数组**为准；
+  - 纯函数：无时钟、无随机、无网络（词法分与 embedder 均由调用方注入）。
+- **测试 6 例**（`tests/unit/semantic-recall.test.ts`）：语义候选补召回、max 语义、**同分按 id 升序（输入乱序不变）**、
+  **Map 插入序不同 ⇒ 输出一致**、同输入 5 次一致、无分条目被排除。
+- **② 顺带修：`tests/rigorous/mega-pressure.test.ts` 的 500 并发用例超时**
+  - 现象：`500 并发 prepareChatContext` 实测空载 ~5s、负载下 **17.6s** ⇒ Bun **默认 5s** 直接误杀，全量里的 15s 也不够。
+  - 修法：加显式 **120s「防挂起」上界**（口径与 `tests/code-analysis-shell-safety.test.ts` 一致：断言的是**结果**，不是速度）。
+- **⚠️ 发现一（环境）：本机处于严重降级，最近两次全量结果**在环境上已失效****
+  - 实测：`load average: 47.57`；内存 15G 总 / 14G 已用 / **available 仅 1G**；
+    `ps` 显示 **5+ 个 python 进程各持 RSS 7–8 GB**（各占 44–52% 内存，已运行 ~12 分钟），另有 qoder / ChatGPT 在跑。
+  - 后果：全量耗时从正常的 ~20-30s 涨到 **121s / 286s**，并出现 `E2E Runtime (real I/O) OpenCode`、`MCP stdio 真实连通`、
+    `wiki-link 归一化碰撞` 等**互相无关**的 15-33s 失败 —— 典型的资源耗尽特征。
+  - **结论：这些失败不能归因于本仓库代码**；我**不据此下代码结论**。已改用**负载不敏感的定向验证**：
+    本轮改动 3 文件 **26 pass / 0 fail（7.92s）**。
+- **⚠️ 发现二（配置）：把 key 放进 `.env` 会**改变测试行为与耗时****
+  - 实测对照（同一文件 `tests/memory/link-collision.test.ts`）：**有 `SILICONFLOW_API_KEY` → 649ms；无 → 91ms（7×）**。
+  - 机理：`.env` 由 Bun 自动加载 ⇒ 该 key 让"依赖 SILICONFLOW_API_KEY 的路径"认为 provider **已配置**，进而触发网络尝试。
+  - **处置**：key **只保留在 `~/.axiom/axiom-secrets/siliconflow.credentials`（mode 600）**，**已从 `.env` 摘除**。
+    这也正是规则 11 的要求（真实凭据只存本地非仓库目录）。需要真实调用时**显式导出**该变量，而不是放进 `.env`。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向 **26 pass / 0 fail**。
+  **全量未取得可信结果**（环境降级），**故本轮不声称"全量 0 fail"** —— 待环境恢复后需复测。
+- **偏差记录（我自己的失误）**：`semantic-recall` 首条测试我写了一个**自相矛盾**的期望
+  （`expect([...]).toEqual(["kb-c","kb-a"])` 并附注释自问 "0.9 > 1??"），已改为 `["kb-a","kb-c"]` 并写清理由。
+- **未覆盖项**：①**embedding 表落地**（同一 SQLite）未做；②**真实 embedder 尚未接进检索**（本轮只做了"授权后拿得到 embedder"与"候选召回排序"两块）；
+  ③**跨进程 N≥5 确定性实测**（A6）未做；④**Q1 冲突未裁定**（"彻底移除 siliconflow" vs 本次要求使用其免费 embedding）；
+  ⑤**全量回归待环境恢复后复测**。
+- **不做项**：未执行 siliconflow 移除；未把 key 写入 `.env` 或任何仓库文件；未改既有检索实现。
+- **Commit**：`__COMMIT__`

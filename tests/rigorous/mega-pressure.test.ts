@@ -138,5 +138,8 @@ describe("Mega 压力：知识→LLM 500 并发注入不击穿预算", () => {
       expect(ctx.length).toBeLessThan(20000);
     }
     vault.close();
-  });
+    // 显式「防挂起」上界（2026-09-20）：本用例发 500 并发 prepareChatContext，
+    // 实测空载 ~5s、负载下 17.6s —— Bun 默认 5s 直接误杀，全量里的 15s 也不够。
+    // 口径与 tests/code-analysis-shell-safety.test.ts 一致：断言的是**结果**，不是速度。
+  }, 120000);
 });
