@@ -2735,4 +2735,4 @@
   本轮只有定性披露；②`archive/` 被 `.gitignore` 排除，故归档记录**不在版本库内**（与仓库既有约定一致），
   其内容仅存于本地工作区；③未扫描**其它**文档是否仍隐含引用已删除模块（只核了 README/ARCHITECTURE/LIMITATIONS 三处主口径）。
 - **不做项**：未把"授权门/用户自配模型"写进文档（顺序约束，已顺延）；未改 `routes/settings.ts` 与 `settings-catalog`。
-- **Commit**：`__COMMIT__`
+- **Commit**：`e1f765b`
