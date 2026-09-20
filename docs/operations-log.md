@@ -2902,3 +2902,42 @@
      即：**能被 `api-key-store` 解析，但还不能被 model-router 当模型路由使用**。这一条对切片 4 是关键前置，需在下一轮处理。
 - **不做项**：未做模型级元数据；未改 router 兼容层；未做 B0；未做 UI。
 - **Commit**：`6ac6445`
+
+## 2026-09-20 — feat(T2): 自定义 provider 接进 router 兼容层；⚠️ 发现与既有机制重叠
+
+- **任务**：用户裁定"继续"——把自定义 provider 接进 model-router（切片 4 的硬前置）。分级 **T2**。仅提交 Gitea。
+- **交付（2 文件 + 2 例测试）**：
+  1. `src/router/models/providers.ts`：`PROVIDER_CONFIG` 由**启动时静态快照**改为 **Proxy 动态解析** ——
+     内置条目照旧；未命中时回落到 `getProviderConfig(prop)`（现已能解析运行时注册的自定义 provider）。
+     **消费方（`provider-caller` 等）一行未改**，类型签名保持不变。
+     原因：静态快照下 `PROVIDER_CONFIG[custom]` 恒为 `undefined` ⇒ `provider-caller` 拿不到配置 ⇒
+     自定义条目"存得进、查得到，却**路由不过去**"。
+  2. `isProviderConfigured()`：自定义 provider 的密钥在 runtime override 通路（`apiKeyEnv === ""`），**不能只看 `process.env`**；
+     `listConfiguredProviders()`：改为**内置 ∪ 运行时自定义**（此前会把自定义漏掉，导致"已配置却列不出来"）。
+  3. 测试 +2：注册后 `PROVIDER_CONFIG` / `isProviderConfigured` / `listConfiguredProviders` 都能看到它；注销后不残留。
+- **⚠️ 重要发现（如实登记，与本切片**自身**有关）："用户自配模型端点"这件事，仓库里**本来就有**另一套机制** ——
+  - `src/router/user-config-loader.ts`：读 `data/model-config.json`（由**前端 `/models` 管理页**经 `routes/models.ts` 写入）
+    与 `config/model-router.yaml`，转换成 `ModelCapability` 后经 `registerModel()` 注入 capability registry 的 **EXTENSIONS**，
+    `findModelsForRole` **立即生效**；`baseURL`/`apiKey` **透传到 capability**。
+  - `src/router/provider-caller.ts:70-71`：`if (!config && !override?.apiKey) throw new Error("Unknown provider")` ——
+    即**只要 capability 自带 `override.apiKey`，未知 provider 本来就放行**。
+  ⇒ **结论：我上一轮做的 provider 注册表与本机制在"用户端点 + baseURL + apiKey"这一层**部分重叠**。**
+  - **我这份新增的、原机制没有的**：①provider 级**校验**（名称格式/baseURL 必须 http(s)/协议白名单）；
+    ②**HTTP 注册路由**（`POST /api-keys`）；③落在 `api_key_overrides` 的**持久化**；④`PROVIDER_CONFIG` 可解析。
+  - **重叠的**：为"用户自定义端点"配置 baseURL/apiKey 这件事，现在**有两条路**（`data/model-config.json` 与 `api_key_overrides`）。
+    这正是本项目反复要避免的"重复后端 / 第二事实源"，**由我上一轮的实现引入，必须自陈**。
+- **建议的分工（待用户裁定，本轮不改既有机制）**：
+  - **provider 级**（协议 / 端点 / 凭据 / 校验）→ `api-key-store`（本轮新增）；
+  - **模型级**（模型名 / 角色 / 上下文窗口 / 思考等级）→ `user-config-loader` + `/models`（既有，含 UI）。
+  即"**provider 定义在哪、model 定义是什么**"两层；但需要把 `user-config-loader` 里**内联的 apiKey** 收敛为"引用 provider 名"，
+  否则凭据仍有两处。**该收敛涉及前端 `routes/models.ts` 与既有 EXTENSIONS 链路，属独立改动，本轮未动。**
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；定向 **12 pass / 0 fail**；
+  `provider-config-convergence`（既有收敛护栏）→ **3 pass / 0 fail**（Proxy 未破坏内置行为）；
+  全量 `bun run test` → **4103 tests / 67 skip / 0 fail**（417 文件 / 18.29s）。
+- **偏差记录（我自己的失误）**：新测试初稿用 `PROVIDER_CONFIG[NAME as never]` 索引 `Record<ModelProvider, …>`，
+  被 tsc 报 `Property 'baseURL' does not exist on type 'never'`；已改为显式宽松转换。
+- **未覆盖项**：①**凭据双路未收敛**（见上，需用户裁定 + 独立改动）；②模型级元数据（模型名/思考等级/上下文窗口）**未并入** provider 注册；
+  ③`listProviderStatus()`（GET /api-keys 返回）**仍未包含自定义 provider**；④B0（外围 ~90 处 provider 字面量收敛）未做；
+  ⑤自定义 provider **能否真正被 `findModelsForRole` 选中**未做端到端验证（需先有模型级条目）。
+- **不做项**：未改 `user-config-loader` / `routes/models.ts` / EXTENSIONS 链路（避免动既有的前端管理页）。
+- **Commit**：`__COMMIT__`

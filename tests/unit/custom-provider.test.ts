@@ -22,6 +22,7 @@ import type { RouteContext } from "../../src/routes/types.js";
 import { Database } from "bun:sqlite";
 import { initApiKeyOverridesTable, loadApiKeyOverrides } from "../../src/utils/api-key-persistence.js";
 import { loadOverrides } from "../../src/utils/api-key-store.js";
+import { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "../../src/router/models/providers.js";
 
 const NAME = "my-embed-endpoint";
 const KEY = "sk-custom-test-123456";
@@ -161,5 +162,23 @@ describe("路由：未知 provider 不再一律拒绝", () => {
     const body = (await res.json()) as { hint?: string };
     expect(body.hint).toContain("adapter");
     expect(isCustomProvider(NAME)).toBe(false);
+  });
+});
+
+describe("router 兼容层：自定义 provider 可被解析（切片 B 接线）", () => {
+  it("注册后 PROVIDER_CONFIG / isProviderConfigured / listConfiguredProviders 都能看到它", () => {
+    registerCustomProvider({ provider: NAME, baseURL: "https://example.com/v1", adapter: "openai", apiKey: KEY });
+    // 关键：此前 PROVIDER_CONFIG 是启动时静态快照，自定义条目恒为 undefined ⇒ provider-caller 拿不到配置
+    const viaRouter = (PROVIDER_CONFIG as Record<string, { baseURL: string } | undefined>)[NAME];
+    expect(viaRouter?.baseURL).toBe("https://example.com/v1");
+    expect(isProviderConfigured(NAME as never)).toBe(true);
+    expect(listConfiguredProviders()).toContain(NAME as never);
+  });
+
+  it("注销后 router 兼容层也不再解析它（不残留）", () => {
+    registerCustomProvider({ provider: NAME, baseURL: "https://example.com/v1", adapter: "openai", apiKey: KEY });
+    unregisterCustomProvider(NAME);
+    expect((PROVIDER_CONFIG as Record<string, unknown>)[NAME]).toBeUndefined();
+    expect(listConfiguredProviders()).not.toContain(NAME as never);
   });
 });

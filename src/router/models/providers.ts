@@ -17,7 +17,7 @@
  * 收敛外围表的范围见 `docs/plans/2026-09-19-user-configured-models-and-usage-trace.md`（切片 B 前置）。
  */
 import type { ModelProvider, ProviderConfig } from "./types.js";
-import { getProviderConfig } from "../../utils/api-key-store.js";
+import { getProviderConfig, getEffectiveApiKey, listCustomProviders } from "../../utils/api-key-store.js";
 
 /** router 侧支持的 provider 集合。**穷尽性由下方编译期断言强制**，不再依赖人工保持一致。 */
 // 注意：必须用 `as const satisfies` 而非 `: ModelProvider[]` 注解——
@@ -57,16 +57,44 @@ function buildProviderConfig(): Record<ModelProvider, ProviderConfig> {
   return out;
 }
 
-export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = buildProviderConfig();
+const BUILTIN_CONFIG: Record<ModelProvider, ProviderConfig> = buildProviderConfig();
+
+/**
+ * router 侧 provider 配置 —— **Proxy 动态解析**（切片 B，2026-09-20）。
+ *
+ * 为什么不能用启动时构建的静态对象：`getProviderConfig` 现在也能解析**用户自定义 provider**
+ * （运行时经 `POST /api-keys` 注册），若仍取静态快照，`PROVIDER_CONFIG[custom]` 恒为 `undefined`
+ * ⇒ `provider-caller` 无法为自定义端点构造请求 —— 即"存得进、查得到，却**路由不过去**"。
+ *
+ * Proxy 只改**取值**行为：内置条目照旧；未命中时回落到"运行时自定义 provider"。
+ * 消费方（`provider-caller` 等）**无需改动**，类型签名也保持不变。
+ */
+export const PROVIDER_CONFIG: Record<ModelProvider, ProviderConfig> = new Proxy(BUILTIN_CONFIG, {
+  get(target, prop, receiver) {
+    if (typeof prop === "string") {
+      const hit = Reflect.get(target, prop, receiver);
+      if (hit !== undefined) return hit;
+      const custom = getProviderConfig(prop); // 命中自定义 provider 时返回其 { baseURL, apiKeyEnv: "" }
+      return custom;
+    }
+    return Reflect.get(target, prop, receiver);
+  },
+}) as Record<ModelProvider, ProviderConfig>;
 
 /** Check if a provider is configured (its API key env var is set). */
 export function isProviderConfigured(provider: ModelProvider): boolean {
   const config = PROVIDER_CONFIG[provider];
   if (!config) return false;
+  // 自定义 provider 的密钥在 runtime override 通路里（apiKeyEnv 为空串），不能只看 process.env
+  if (config.apiKeyEnv === "") return !!getEffectiveApiKey(provider, "");
   return !!process.env[config.apiKeyEnv];
 }
 
 /** List configured providers (those with API keys present in env). */
 export function listConfiguredProviders(): ModelProvider[] {
-  return ALL_MODEL_PROVIDERS.filter(isProviderConfigured);
+  // 内置 ∪ 运行时自定义（后者此前会被漏掉，导致"已配置却列不出来"）
+  const custom: ModelProvider[] = listCustomProviders()
+    .map((c) => c.provider as ModelProvider)
+    .filter((p) => isProviderConfigured(p));
+  return [...ALL_MODEL_PROVIDERS.filter(isProviderConfigured), ...custom];
 }
