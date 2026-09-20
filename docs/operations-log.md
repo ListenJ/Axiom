@@ -3526,3 +3526,14 @@
   ④未测大体量库/高频写入下的推送开销；⑤Windows 未跑真实模型（凭据不跨机）。
 - **不做项**：未改 KAL 查询/物化；未做内容哈希变更检测（推送式已覆盖已接路径的修改）；未给未接路径挂钩子（属独立决策）。
 - **Commit**：`572c530`
+
+## 2026-09-21 — test(T2): 推送腿切片的双端复测（Windows 46 pass / 0 fail + Linux 全量）
+
+- **任务**：对"写入即索引（推送腿）"切片做双端验证。分级 **T2**（验证，无代码变更）。
+- **Windows（`18336@192.168.0.100`，Bun 1.3.14，Git Bash，工作树 `D:\openclaw-fusion-verify`）**：
+  checkout `572c5305` → `bunx tsc --noEmit` = **TSC_OK**；
+  定向 4 文件（`embedding-index-hook` / `architecture-integrity` / `incremental-index` / `pipeline-embedding-index`）
+  → **46 pass / 0 fail**（`BUN_EXIT=0`）——含本轮的**破环层**改动，说明 `memory → services` / `dre → services` 两端一致。
+- **Linux（本机）**：`bun run test` → **4133 pass / 67 skip / 0 fail**。
+- **未覆盖项**：推送腿的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
+- **Commit**：`__COMMIT__`
