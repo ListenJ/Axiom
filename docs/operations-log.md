@@ -2969,3 +2969,36 @@
   ⑤**未做真实网络调用验证**（本轮只验证"能被选中"，未验证"端到端发出请求并成功"——需真实端点，本机无）。
 - **不做项**：未新建模型注册机制；未改 `user-config-loader` / `routes/models.ts`。
 - **Commit**：`c3a5616`
+
+## 2026-09-20 — chore(T1): 接入 SiliconFlow 免费 embedding 作真实模型（凭据本地化 + 官方 API 实证）
+
+- **任务**：用户提供 SiliconFlow API key 与官方文档链接，要求"取免费的 embedding 模型做**真实模型**，然后继续完成任务"。分级 **T1**（凭据处置 + 外部事实验证）。仅提交 Gitea。
+- **① 凭据处置（规则 11 最高优先级）**：
+  - 真实 key **只写入本地非仓库两处**：`~/.axiom/axiom-secrets/siliconflow.credentials`（**mode 600**，52 字节）与仓库根 `.env`（**gitignored**，`git ls-files .env` = **0**）。
+  - **本条目、commit message、任何文档均不回显 key 明文**。
+  - **泄漏扫描（全仓、含未跟踪文件）**：该 key 仅命中 **1 处** = `./.env`（预期）；**被 git 跟踪的文件命中 0 处**。
+  - ⚠️ 提示：该 key 出现在**聊天记录**中；若该记录会被他人看到，建议轮换。**我不会把它写进任何仓库文件。**
+- **② 官方来源核验（`methodology-source-fidelity`：关键事实须可追溯）**：
+  - 文档站是 Next.js 渲染，`.md` / `llms.txt` 端点均 404，**取不到正文**（如实记录，不装作查过）。
+  - 改用**更硬的证据 —— 直接对官方 API 探测**，以响应本身为准：
+    - `GET /v1/models?sub_type=embedding` → **200**，列出 **8 个** embedding 模型：
+      `Qwen/Qwen3-VL-Embedding-8B`、`Qwen/Qwen3-Embedding-8B`、`Qwen/Qwen3-Embedding-4B`、`Qwen/Qwen3-Embedding-0.6B`、
+      `BAAI/bge-m3`、`BAAI/bge-large-en-v1.5`、`BAAI/bge-large-zh-v1.5`、`Pro/BAAI/bge-m3`。
+    - `POST /v1/embeddings`（`model=BAAI/bge-m3`，2 条输入）→ **HTTP 200 / 0.27s**，`data` 2 条、**向量维度 = 1024**、
+      `usage = {prompt_tokens: 17, completion_tokens: 0, total_tokens: 17}`。
+  - **事实 / 判断 分离**：端点、模型名、维度、token 用量均为**实测事实**；"该模型是否计费"**未实测**（响应不含计价字段），
+    仓库登记 `registry.ts:815` 标 `isFree: true`（2026-07-26）**仅作参考，不能当承诺**。
+  - 现状对齐：`bge-embedding` 早已注册在 `src/router/models/registry.ts:805-818`（provider=`siliconflow`、model=`BAAI/bge-m3`、
+    `roles:["embedding"]`），且 `ModelRouter.embeddings()`（`src/router/model-router.ts:1051-1078`）**已实现**该调用通路。
+    ⇒ "接真实模型"**不需要新写传输层**，只需把该通路接进语义层并置于授权门之后。
+- **③ ⚠️ 与既有裁定的冲突（必须请用户确认，不得自行调和）**：
+  - 2026-09-19 的 **Q1 裁定是 (a)「彻底移除 siliconflow 等免费模型」**，并已写入
+    `docs/plans/2026-09-19-user-configured-models-and-usage-trace.md` 的切片 C（含"必须附迁移路径"）。
+  - 本次指令要求**使用** siliconflow 的免费 embedding 模型 ⇒ **与该裁定直接冲突**。
+  - **本轮只做"接入并验证"**，**未执行切片 C 的移除**，也未改动 registry 中的 siliconflow 条目。
+  - **请明确**：Q1=(a) 是否**仍然成立**？三种可能：(i) 移除范围**仅限预选的 chat 模型**，embedding 除外；
+    (ii) embedding 也一并移除（则本次接入作废）；(iii) 撤回 Q1=(a)，改为"仅取消预选、保留用户可配"。
+- **未覆盖项**：①**未核实免费/计费口径**（见上，需官方文档或账单页）；②**未测该 key 的额度/限流**（`rpmLimit` 等）；
+  ③未把真实 embedder 接进语义层（属下一步 C'）；④未验证其它 7 个 embedding 模型的可用性（只验证了 `BAAI/bge-m3`）。
+- **不做项**：未执行任何 siliconflow 移除；未改 registry / api-key-store 内容；未把 key 写入任何文档或代码。
+- **Commit**：`__COMMIT__`
