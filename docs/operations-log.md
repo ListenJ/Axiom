@@ -2901,4 +2901,4 @@
   ⑤ 自定义 provider **未接入 `PROVIDER_CONFIG` 派生的 router 兼容层**（`router/models/providers.ts` 的 `ALL_MODEL_PROVIDERS` 是编译期常量，自定义条目不在其中）——
      即：**能被 `api-key-store` 解析，但还不能被 model-router 当模型路由使用**。这一条对切片 4 是关键前置，需在下一轮处理。
 - **不做项**：未做模型级元数据；未改 router 兼容层；未做 B0；未做 UI。
-- **Commit**：`__COMMIT__`
+- **Commit**：`6ac6445`
