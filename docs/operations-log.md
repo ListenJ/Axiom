@@ -3475,3 +3475,14 @@
   ④语料 5000 行/表上限（触顶报 `truncated`，不自动续跑）；⑤未测大体量库的增量耗时。
 - **不做项**：未改 KAL 查询/物化实现；未引入 content_hash 变更检测；未给其它写入路径挂钩子（属独立决策）；未改 registry。
 - **Commit**：`d68bd97`
+
+## 2026-09-21 — test(T2): 增量索引切片的双端复测（Windows 42 pass / 0 fail + Linux 全量）
+
+- **任务**：对 A7 后半（增量索引 + 管线收尾接线）做双端验证。分级 **T2**（验证，无代码变更）。
+- **Windows（`18336@192.168.0.100`，Bun 1.3.14，Git Bash，工作树 `D:\openclaw-fusion-verify`）**：
+  checkout `d68bd979` → `bunx tsc --noEmit` = **TSC_OK**；
+  定向 4 文件（`incremental-index` / `pipeline-embedding-index` / `determinism-disclosure` / `architecture-integrity`）
+  → **42 pass / 0 fail**（`BUN_EXIT=0`）。
+- **Linux（本机）**：`bun run test` → **4124 pass / 67 skip / 0 fail**。
+- **未覆盖项**：增量索引的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
+- **Commit**：`__COMMIT__`
