@@ -3422,3 +3422,14 @@
   之后回填脚本因找不到 `__COMMIT__` 占位符而报错（`AssertionError: 0`）才发现。本次补记即为此，**未改写已推送历史**（规则 9）。
 - **未覆盖项**：同上一提交（A5 已完成；索引未接管线、5000 行上限、物化 O(N) 枚举仍为未决项）。
 - **Commit**：`ec59e8e`（补记；被记录的改动本身是 `cd977bf`）
+
+## 2026-09-21 — test(T2): A5/A7 切片的 Windows 复测（47 pass / 0 fail）
+
+- **任务**：对本轮 A5（KAL 语义合并）/ A7（写入腿 + 组合根）改动做双端验证。分级 **T2**（验证，无代码变更）。
+- **Windows（`18336@192.168.0.100`，Bun 1.3.14，Git Bash，工作树 `D:\openclaw-fusion-verify`）**：
+  `git fetch gitea` → checkout `ae4bdb9d` → `bunx tsc --noEmit` = **TSC_OK**；
+  定向 6 文件（`kal-semantic-merge` / `kb-corpus` / `kb-corpus-kal-roundtrip` / `semantic-recall-port` /
+  `adaptive-proxy-exit` / `architecture-integrity`）→ **47 pass / 0 fail**（`BUN_EXIT=0`）。
+- **说明**：`architecture-integrity` 在 Windows 同样通过，说明本轮为满足"单目录 ≤8 个顶层依赖"所做的分层调整两端一致。
+- **未覆盖项**：本轮 A7 索引脚本的**真实模型**端到端只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实 embedding。
+- **Commit**：`__COMMIT__`
