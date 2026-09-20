@@ -341,8 +341,14 @@ vectors are used for **candidate recall only**, and final ordering keeps the sta
    step, covering only nodes that have no vector yet (idempotent); `scripts/index-knowledge-embeddings.ts` can also
    be re-run manually at any time.
 
-**Not covered yet**: the bulk vault re-index path (and other direct `sqliteMemory.upsertNote` callers) is not hooked;
-**deletion is not synced** (vectors of deleted nodes remain).
+**Deletion sync**: when a note/node is deleted its vectors are removed too — (1) `SQLiteMemory.deleteNote` prunes the
+matching vector immediately after a successful delete; (2) the sweep leg (index script and collection pipeline, on by
+default) removes orphan vectors in the same corpus scan. **Two safety gates**: pruning is *refused* when the corpus was
+truncated or any store failed to read (absence then does not prove deletion), and the skip reason shows up in
+`pruneSkipped`. Deletion sync is local-only — it never calls a model and costs no tokens.
+
+**Not covered yet**: the bulk vault re-index path (and other direct `sqliteMemory.upsertNote` callers) is not on the
+push hook — their new content is picked up by the sweep leg.
 Measured gains and their limits: `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
 (12-document sample, **do not extrapolate to production recall**).
 

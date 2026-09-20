@@ -19,6 +19,7 @@ import {
   type IncrementalIndexDeps,
 } from "../../src/knowledge/incremental-index.js";
 import { indexNodeEmbeddings } from "../../src/knowledge/semantic-index.js";
+import { createNodeId } from "../../src/kal/node-id.js";
 import { KGWriter } from "../../src/crawl/processor/kg-writer.js";
 
 const MODEL = "probe/embed-model";
@@ -135,7 +136,7 @@ describe("增量索引（A7 后半）", () => {
     const vec = countingEmbedder({ calls: 0 });
     await indexNodeEmbeddings(
       { db, embedder: vec, model: MODEL, now: 1 },
-      [{ nodeId: (await import("../../src/kal/node-id.js")).createNodeId("vault", "note", "n1.md"), content: "title1 body1" }],
+      [{ nodeId: createNodeId("vault", "note", "n1.md"), content: "title1 body1" }],
     );
     expect(loadIndexedNodeIds(db, MODEL).size).toBe(1);
 
@@ -198,5 +199,79 @@ describe("增量索引（A7 后半）", () => {
     const db = new Database(":memory:");
     expect(loadIndexedNodeIds(db, MODEL).size).toBe(0);
     db.close();
+  });
+
+  // ── 删除同步（pruneOrphans）──────────────────────────────────────────────
+
+  test("9) pruneOrphans 开启 ⇒ 清掉「已不存在于任何知识表」的向量行", async () => {
+    const db = makeDb();
+    seedNotes(db, 2);
+    const embedder = countingEmbedder({ calls: 0 });
+    await indexNodeEmbeddings(
+      { db, embedder, model: MODEL, now: 1 },
+      [
+        { nodeId: createNodeId("vault", "note", "n1.md"), content: "title1 body1" },
+        { nodeId: createNodeId("vault", "note", "n2.md"), content: "title2 body2" },
+        { nodeId: createNodeId("vault", "note", "deleted.md"), content: "gone" }, // 孤儿：库里没有这条
+      ],
+    );
+    expect(loadIndexedNodeIds(db, MODEL).size).toBe(3);
+
+    const report = await runIncrementalIndex(db, deps({ pruneOrphans: true }));
+    expect(report.pruned).toBe(1);
+    expect(report.pruneSkipped).toBeUndefined();
+    expect(report.skipped).toBe("nothing-to-index"); // 两篇已有向量 ⇒ 无需补
+    expect(loadIndexedNodeIds(db, MODEL).size).toBe(2);
+    db.close();
+  });
+
+  test("10) 未开启 pruneOrphans ⇒ pruneSkipped=disabled，孤儿保留", async () => {
+    const db = makeDb();
+    seedNotes(db, 1);
+    await indexNodeEmbeddings(
+      { db, embedder: countingEmbedder({ calls: 0 }), model: MODEL, now: 1 },
+      [{ nodeId: createNodeId("vault", "note", "ghost.md"), content: "ghost" }],
+    );
+    const report = await runIncrementalIndex(db, deps());
+    expect(report.pruned).toBe(0);
+    expect(report.pruneSkipped).toBe("disabled");
+    // 孤儿（ghost）保留；同时扫描腿把缺向量的 n1 补上了 ⇒ 共 2 行
+    expect(loadIndexedNodeIds(db, MODEL).size).toBe(2);
+    db.close();
+  });
+
+  test("11) 安全闸：语料触顶 ⇒ 拒绝清理（缺席≠已删除）", async () => {
+    const db = makeDb();
+    seedNotes(db, 3);
+    await indexNodeEmbeddings(
+      { db, embedder: countingEmbedder({ calls: 0 }), model: MODEL, now: 1 },
+      [{ nodeId: createNodeId("vault", "note", "n3.md"), content: "title3 body3" }],
+    );
+    // limitPerStore=1 ⇒ 语料只含 n1，n3 的向量看起来"孤儿"，但它其实存在 ⇒ 绝不能删
+    const report = await runIncrementalIndex(db, deps({ pruneOrphans: true, limitPerStore: 1 }));
+    expect(report.pruneSkipped).toBe("corpus-truncated");
+    expect(report.pruned).toBe(0);
+    // n3 的向量**未被误删**；同时 n1 被补上 ⇒ 共 2 行（这才是"拒绝清理"的证据）
+    expect(loadIndexedNodeIds(db, MODEL).size).toBe(2);
+    db.close();
+  });
+
+  test("12) 安全闸：有存储读取失败 ⇒ 拒绝清理（否则会误删该存储的全部向量）", async () => {
+    const bare = new Database(":memory:");
+    bare.exec(`CREATE TABLE kg_nodes (id TEXT PRIMARY KEY, type TEXT, name TEXT, description TEXT, semantic TEXT, importance REAL, created_at INTEGER, updated_at INTEGER);`);
+    bare.run(
+      `INSERT INTO kg_nodes (id, type, name, description, semantic, importance, created_at, updated_at)
+       VALUES ('kg:concept:a', 'concept', 'A', 'body a', NULL, 0.5, 0, 0)`,
+    );
+    // 预置一条 dre 向量，但 dre 表在本库里不存在（读取失败）⇒ 它看起来是孤儿，绝不能删
+    await indexNodeEmbeddings(
+      { db: bare, embedder: countingEmbedder({ calls: 0 }), model: MODEL, now: 1 },
+      [{ nodeId: createNodeId("dre", "storage", "kn-x"), content: "x" }],
+    );
+    const report = await runIncrementalIndex(bare, deps({ pruneOrphans: true }));
+    expect(report.pruneSkipped).toBe("corpus-error");
+    expect(report.pruned).toBe(0);
+    expect(loadIndexedNodeIds(bare, MODEL).size).toBe(2); // dre 向量 + 新写入的 kg 向量
+    bare.close();
   });
 });

@@ -105,3 +105,22 @@ export function deleteEmbeddingsForOtherModels(db: Database, keepModel: string):
   const after = (db.query(`SELECT COUNT(*) AS c FROM ${EMBEDDING_TABLE}`).get() as { c: number }).c;
   return Math.max(0, before - after);
 }
+
+/**
+ * 按 nodeId 批量删除向量行（**删除同步**用，2026-09-21）。
+ *
+ * 语义：节点在知识库里已不存在 ⇒ 它的向量必须一起消失，否则会成为**永久残留**的脏数据
+ * （召回时会指向已删除节点，物化不到、白占扫描预算）。跨模型删除：nodeId 不存在与"哪个模型产的向量"无关。
+ *
+ * 返回实际删除行数（便于上报，不静默）。`ids` 为空 ⇒ 不执行 DB 写入，直接返回 0。
+ */
+export function deleteEmbeddingsByNodeIds(db: Database, ids: readonly string[]): number {
+  if (ids.length === 0) return 0;
+  const placeholders = ids.map(() => "?").join(",");
+  const before = (
+    db.query(`SELECT COUNT(*) AS c FROM ${EMBEDDING_TABLE} WHERE node_id IN (${placeholders})`).get(...ids) as { c: number }
+  ).c;
+  if (before === 0) return 0;
+  db.run(`DELETE FROM ${EMBEDDING_TABLE} WHERE node_id IN (${placeholders})`, [...ids]);
+  return before;
+}

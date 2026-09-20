@@ -21,6 +21,7 @@ import type { Database } from "bun:sqlite";
 import { logger } from "../utils/logger.js";
 import { collectKnowledgeCorpus } from "./kb-corpus.js";
 import { indexNodeEmbeddings, type IndexableNode } from "./semantic-index.js";
+import { deleteEmbeddingsByNodeIds } from "./embedding-store.js";
 import type { EmbeddingConsentMode, EmbeddingsCall } from "./embedding-consent.js";
 
 export interface IncrementalIndexDeps {
@@ -40,10 +41,19 @@ export interface IncrementalIndexDeps {
    * 本模块保持无时钟、可复现，也就不必进 LIMITATIONS §5 的不确定性披露表。
    */
   now: number;
+  /**
+   * **删除同步**（2026-09-21，仅扫描腿生效）：在同一次语料扫描里清掉"nodeId 已不存在于任何知识表"的向量行。
+   * 默认关闭；开启后仍有**两道安全闸**（见 `pruneSkipped`）：语料被截断或有任一存储读取失败时**拒绝清理** ——
+   * 那时"不在语料里"无法证明"已被删除"，误删会导致静默丢向量。
+   */
+  pruneOrphans?: boolean;
 }
 
 /** 本次未做索引的**显式原因**（不静默跳过） */
 export type IncrementalIndexSkipReason = "not-authorized" | "no-route" | "nothing-to-index";
+
+/** 未执行删除同步的原因（非空 = 没清，以及为什么；不静默） */
+export type PruneSkipReason = "disabled" | "corpus-truncated" | "corpus-error";
 
 export interface IncrementalIndexReport {
   /** 解析到的模型标签（未解析到时为 null） */
@@ -66,12 +76,26 @@ export interface IncrementalIndexReport {
   corpusIssues: string[];
   /** 未预期错误的可读原因（非空即本次未完成；不抛给调用方） */
   error?: string;
+  /** 本次删除的孤儿向量行数（删除同步） */
+  pruned: number;
+  /** 未执行删除同步的原因（未开启 / 语料被截断 / 有存储读取失败） */
+  pruneSkipped?: PruneSkipReason;
 }
 
 const DEFAULT_BATCH_SIZE = 32;
 
 function baseReport(model: string | null): IncrementalIndexReport {
-  return { model, corpusSize: 0, alreadyIndexed: 0, attempted: 0, indexed: 0, failed: 0, dim: 0, corpusIssues: [] };
+  return {
+    model,
+    corpusSize: 0,
+    alreadyIndexed: 0,
+    attempted: 0,
+    indexed: 0,
+    failed: 0,
+    dim: 0,
+    corpusIssues: [],
+    pruned: 0,
+  };
 }
 
 /** 读出"当前模型已索引"的 nodeId 集合。表不存在（老库/首次）⇒ 空集合，不算错误。 */
@@ -143,7 +167,30 @@ export async function runIncrementalIndex(
       logger.warn("[IncrementalIndex] corpus unreadable", { error: msg });
       return { ...report, error: msg };
     }
-    if (pending.length === 0) return { ...report, skipped: "nothing-to-index" };
+
+    // ── 删除同步（可选）：同一次语料扫描里清掉"nodeId 已不存在"的向量行 ──
+    let pruned = 0;
+    let pruneSkipped: PruneSkipReason | undefined;
+    if (!deps.pruneOrphans) {
+      pruneSkipped = "disabled";
+    } else if (storesWithError > 0) {
+      // 有存储读失败 ⇒ 其节点不在语料里，**不能**据此判定"已删除"（否则会误删该存储的全部向量）
+      pruneSkipped = "corpus-error";
+    } else if (corpusIssues.some((i) => i.endsWith(":truncated"))) {
+      // 触顶 ⇒ 语料不完整，缺席不等于删除
+      pruneSkipped = "corpus-truncated";
+    } else {
+      const corpusIds = new Set(corpus.nodes.map((n) => n.nodeId));
+      const orphans = [...indexedIds].filter((id) => !corpusIds.has(id)).sort();
+      if (orphans.length > 0) {
+        pruned = deleteEmbeddingsByNodeIds(db, orphans);
+        logger.info("[IncrementalIndex] pruned orphan embeddings", { orphans: orphans.length, pruned });
+      }
+    }
+
+    if (pending.length === 0) {
+      return { ...report, pruned, ...(pruneSkipped ? { pruneSkipped } : {}), skipped: "nothing-to-index" };
+    }
 
     const batchSize = deps.batchSize && deps.batchSize > 0 ? Math.floor(deps.batchSize) : DEFAULT_BATCH_SIZE;
     let indexed = 0;
@@ -158,7 +205,7 @@ export async function runIncrementalIndex(
       failed += stats.failed;
       if (stats.dim > 0) dim = stats.dim;
     }
-    return { ...report, attempted: pending.length, indexed, failed, dim };
+    return { ...report, attempted: pending.length, indexed, failed, dim, pruned, ...(pruneSkipped ? { pruneSkipped } : {}) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.warn("[IncrementalIndex] failed", { error: msg });

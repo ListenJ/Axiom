@@ -21,7 +21,7 @@ import { router } from "../../router/model-router.js";
  * - 否则把 db 与三个依赖一起交给 `runPipeline`，由 `runIncrementalIndex` 自行门控
  *   （未授权/无路由 ⇒ **连库都不读**，直接返回 skipped）。
  */
-function buildEmbeddingIndexOption(skip: boolean) {
+function buildEmbeddingIndexOption(skip: boolean, skipPrune: boolean) {
   if (skip) return undefined;
   const dbPath = resolveKnowledgeDbPath();
   if (!existsSync(dbPath)) {
@@ -35,6 +35,9 @@ function buildEmbeddingIndexOption(skip: boolean) {
     resolveModelTag: () => embeddingModelTagOf(findModelsForRole("embedding")),
     consent: resolveEmbeddingConsent,
     now: Date.now(),
+    // 删除同步：默认开启（纯本地 DB 操作、不耗 token）；`--no-prune-orphans` 可关。
+    // 两道安全闸在 runIncrementalIndex 内（语料触顶 / 有存储读失败时拒绝清理）。
+    pruneOrphans: !skipPrune,
   };
 }
 
@@ -105,7 +108,10 @@ export async function handleKnowledgePipeline(args: string[]): Promise<void> {
     }
   }
 
-  const embeddingIndex = buildEmbeddingIndexOption(flags["index-embeddings"] === "false")
+  const embeddingIndex = buildEmbeddingIndexOption(
+    flags["index-embeddings"] === "false",
+    flags["prune-orphans"] === "false",
+  )
   const result = await runPipeline({
     githubTrending: flags["github"] === "true",
     bookTopics: flags["topics"] ? flags["topics"].split(",") : undefined,
@@ -127,6 +133,8 @@ export async function handleKnowledgePipeline(args: string[]): Promise<void> {
     console.log(
       `  Embedding idx:  indexed=${i.indexed}/${i.attempted} failed=${i.failed}` +
         (i.skipped ? ` skipped=${i.skipped}` : "") +
+        ` pruned=${i.pruned}` +
+        (i.pruneSkipped ? ` pruneSkipped=${i.pruneSkipped}` : "") +
         (i.corpusIssues.length > 0 ? ` issues=${i.corpusIssues.join(",")}` : ""),
     )
   }

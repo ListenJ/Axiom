@@ -21,7 +21,7 @@ import { resolveEmbeddingConsent } from "../knowledge/embedding-consent.js";
 import { embeddingModelTagOf } from "../knowledge/embedding-model.js";
 import {
   createKnowledgeEmbeddingIndexer,
-  setKnowledgeEmbeddingIndexer,
+  setKnowledgeIndexSink,
 } from "./knowledge-index-hook.js";
 
 export interface EnableOptions {
@@ -32,10 +32,10 @@ export interface EnableOptions {
 /** 装配（或 `disable: true` 时清除）写入侧索引钩子；返回 dispose。 */
 export function enableKnowledgeEmbeddingIndex(db: Database, opts: EnableOptions = {}): () => void {
   if (opts.disable) {
-    setKnowledgeEmbeddingIndexer(null);
-    return () => setKnowledgeEmbeddingIndexer(null);
+    setKnowledgeIndexSink(null);
+    return () => setKnowledgeIndexSink(null);
   }
-  setKnowledgeEmbeddingIndexer(
+  setKnowledgeIndexSink(
     createKnowledgeEmbeddingIndexer(db, {
       embeddings: (texts) => router.embeddings(texts),
       resolveModelTag: () => embeddingModelTagOf(findModelsForRole("embedding")),
@@ -44,5 +44,5 @@ export function enableKnowledgeEmbeddingIndex(db: Database, opts: EnableOptions 
       now: Date.now(),
     }),
   );
-  return () => setKnowledgeEmbeddingIndexer(null);
+  return () => setKnowledgeIndexSink(null);
 }

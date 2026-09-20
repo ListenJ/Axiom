@@ -28,8 +28,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { resolveKnowledgeDbPath } from "../src/knowledge/kb-db-path.js";
-import { collectKnowledgeCorpus } from "../src/knowledge/kb-corpus.js";
-import { indexNodeEmbeddings } from "../src/knowledge/semantic-index.js";
+import { runIncrementalIndex } from "../src/knowledge/incremental-index.js";
 import { countEmbeddings, deleteEmbeddingsForOtherModels } from "../src/knowledge/embedding-store.js";
 import { embeddingModelTagOf } from "../src/knowledge/embedding-model.js";
 import {
@@ -52,6 +51,8 @@ const num = (raw: string | undefined, fallback: number): number => {
 const batchSize = num(arg("batch"), 32);
 const limitPerStore = num(arg("limit"), 5000);
 const pruneOthers = process.argv.includes("--prune-other-models");
+// 删除同步（清掉已被删除节点的向量行）：默认开启；`--no-prune-orphans` 关闭。
+const pruneOrphans = !process.argv.includes("--no-prune-orphans");
 
 // ── 门 1：授权 ────────────────────────────────────────────────────────────────
 const consent = resolveEmbeddingConsent();
@@ -89,41 +90,45 @@ console.log(`[index] model=${model} batch=${batchSize} limitPerStore=${limitPerS
 
 const db = new Database(dbPath);
 
-// ── 采集语料 ─────────────────────────────────────────────────────────────────
-const corpus = collectKnowledgeCorpus(db, { limitPerStore });
-for (const store of ["vault", "kg", "dre"] as const) {
-  const s = corpus.perStore[store];
-  console.log(
-    `[corpus] ${store}: collected=${s.collected} skipped(empty)=${s.skipped} truncated=${s.truncated}` +
-      (s.error ? ` error=${s.error}` : ""),
-  );
-}
-const corpusErrors = (["vault", "kg", "dre"] as const).filter((s) => corpus.perStore[s].error);
+// ── 增量索引 + 删除同步（复用 runIncrementalIndex：同一实现来源，避免脚本与管线两套逻辑漂移） ──
+// 语义：模型标签没变 ⇒ 只补缺向量；标签变了（换模型）⇒ 等价于全量重建；pruneOrphans ⇒ 清掉已删除节点的向量行。
+const report = await runIncrementalIndex(db, {
+  embeddings: embedder,
+  resolveModelTag: () => model,
+  consent: () => consent,
+  now: Date.now(),
+  batchSize,
+  limitPerStore,
+  pruneOrphans,
+});
+
+console.log(`[index] model=${model} corpus=${report.corpusSize} alreadyIndexed=${report.alreadyIndexed}`);
+console.log(
+  `[index] attempted=${report.attempted} indexed=${report.indexed} failed=${report.failed} dim=${report.dim}` +
+    (report.skipped ? ` skipped=${report.skipped}` : ""),
+);
+console.log(
+  `[index] prunedOrphans=${report.pruned}` + (report.pruneSkipped ? ` pruneSkipped=${report.pruneSkipped}` : ""),
+);
+for (const issue of report.corpusIssues) console.log(`[corpus-issue] ${issue}`);
+
+const corpusErrors = report.corpusIssues.filter((i) => i.includes(":error:"));
 if (corpusErrors.length === 3) {
   console.error("三个存储都采集失败 —— 库结构不符或库文件不对，终止（不产出空索引）");
   db.close();
   process.exit(4);
 }
-if (corpus.nodes.length === 0) {
+if (report.corpusSize === 0) {
   console.error("语料为空 —— 无可索引内容（库为空？），终止");
   db.close();
   process.exit(4);
 }
-
-// ── 分批嵌入并落库 ───────────────────────────────────────────────────────────
-let indexed = 0;
-let failed = 0;
-let dim = 0;
-const NOW = Date.now();
-for (let i = 0; i < corpus.nodes.length; i += batchSize) {
-  const batch = corpus.nodes.slice(i, i + batchSize);
-  const stats = await indexNodeEmbeddings({ db, embedder, model, now: NOW }, batch);
-  indexed += stats.indexed;
-  failed += stats.failed;
-  if (stats.dim > 0) dim = stats.dim;
+if (report.error) {
+  console.error(`索引失败：${report.error}`);
+  db.close();
+  process.exit(4);
 }
 
-console.log(`[index] indexed=${indexed}/${corpus.nodes.length} failed=${failed} dim=${dim}`);
 console.log(`[index] rows(model=${model})=${countEmbeddings(db, model)}`);
 if (pruneOthers) {
   const removed = deleteEmbeddingsForOtherModels(db, model);
@@ -131,12 +136,12 @@ if (pruneOthers) {
 }
 db.close();
 
-if (indexed === 0 && corpus.nodes.length > 0) {
+if (report.attempted > 0 && report.indexed === 0) {
   console.error("一条都没写成功 —— embedding 调用或维度校验失败，检查网络/凭据/模型名");
   process.exit(3);
 }
-if (failed > 0) {
-  console.error(`⚠️ 有 ${failed} 条未能写入（维度不符/返回为空）；重复运行可重试，但请先查清原因`);
+if (report.failed > 0) {
+  console.error(`⚠️ 有 ${report.failed} 条未能写入（维度不符/返回为空）；重复运行可重试，但请先查清原因`);
   process.exit(5);
 }
 console.log("[index] done（token 用量已记入 TokenTracker，category=\"embedding\"）");

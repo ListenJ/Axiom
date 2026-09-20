@@ -25,9 +25,14 @@
      **内容被修改**（nodeId 不变）同样会重新嵌入（覆盖式 upsert）。未装配/未授权时该钩子是**空操作**（不读库、不触网）；
    - **扫描腿（兜底）**：采集管线（`knowledge:pipeline` → `runPipeline`）收尾调用 `runIncrementalIndex()`，
      只索引**还没有向量**的节点（幂等）；另有全量脚本 `scripts/index-knowledge-embeddings.ts`；
+   - **删除同步（2026-09-21 已做）**：①推送 —— `SQLiteMemory.deleteNote` 删行成功后立即清掉同 nodeId 的向量；
+     ②扫描 —— `runIncrementalIndex({pruneOrphans:true})`（索引脚本默认开启、采集管线默认开启、`--no-prune-orphans` 可关）
+     在同一次语料扫描里清掉"nodeId 已不存在于任何知识表"的向量行。**两道安全闸**：语料被截断（触顶）或**任一存储读取失败**时
+     **拒绝清理** —— 那时"不在语料里"无法证明"已被删除"，误删会静默丢向量（该跳过原因会出现在 `pruneSkipped` 里，不静默）。
+     删除同步是**纯本地 DB 操作，不调模型、不耗 token**（已实测：无 embedding 调用即可 prune）。
    - **仍未接**：从磁盘批量重建的 vault-reindex 路径（`vault-manager` 内批量 `upsertNote`）与**其它直接调用
-     `sqliteMemory.upsertNote` 的写入方**；**删除同步**（节点删除后向量行残留）；
-     同步写入方（`KnowledgeStore.write`）的推送是 **fire-and-forget**（尽力而为），漏掉的由幂等扫描腿补齐；
+     `sqliteMemory.upsertNote` 的写入方**（其新增内容由扫描腿补齐）；
+     同步写入方（`KnowledgeStore.write` / `SQLiteMemory.deleteNote`）的通知是 **fire-and-forget**（尽力而为），漏掉的由幂等扫描腿补齐；
    - 语料上限 5000 行/表（触顶会报 `truncated`，不自动续跑）；vault/dre 物化在缓存未命中时是 O(N) 短列枚举。
    ⇒ 端到端能力**已实测跑通**（真实 `bge-m3`：英文查询召回零 token 重叠的中文笔记，`relevance=0.585` 且 `source=semantic`）；
    扫描腿实测：新插入 1 条 ⇒ `attempted=1 / indexed=1`（已有 2 条跳过），随后召回该新文档（0.588）；

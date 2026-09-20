@@ -354,6 +354,8 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
         indexed: report.indexed,
         failed: report.failed,
         skipped: report.skipped,
+        pruned: report.pruned,
+        pruneSkipped: report.pruneSkipped,
         issues: report.corpusIssues.length,
       })
       if (report.error) result.errors.push(`embedding index: ${report.error}`)

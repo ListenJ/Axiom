@@ -349,8 +349,11 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 2. **扫描腿（兜底）**：采集管线（`knowledge:pipeline`）收尾调用**增量索引**，只补"还没有向量"的节点（幂等）；
    也可随时手动重跑 `scripts/index-knowledge-embeddings.ts`。
 
-**仍未覆盖**：从磁盘批量重建（vault-reindex）与其它直接调用 `sqliteMemory.upsertNote` 的写入方不在钩子内；
-**删除同步**未做（节点删除后向量行残留）。
+**删除同步**：笔记/节点被删除后，向量会一起清掉 —— ①`SQLiteMemory.deleteNote` 删行成功后**立即**清同 nodeId 的向量；
+②扫描腿（索引脚本与采集管线，默认开启）会在同一次语料扫描里清掉孤儿向量。**两道安全闸**：语料触顶或有存储读取失败时
+**拒绝清理**（此时"缺席"不能证明"已删除"），跳过原因出现在 `pruneSkipped` 里。删除同步不调模型、**不耗 token**。
+
+**仍未覆盖**：从磁盘批量重建（vault-reindex）与其它直接调用 `sqliteMemory.upsertNote` 的写入方不在推送钩子内（其新增内容由扫描腿补齐）。
 实测收益与边界见 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`（12 条语料小样本，**不可外推为线上召回率**）。
 
 ### 🧠 Vault 共享记忆库

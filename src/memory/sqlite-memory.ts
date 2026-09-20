@@ -18,6 +18,8 @@ import fs from "fs";
 import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { notifyKnowledgeDeleted } from "../services/knowledge-index-hook.js";
+import { vaultNoteNodeId } from "../kal/knowledge-node-id.js";
 
 /**
  * SQLite 记忆库 DB 路径的唯一解析源（审计 E-1 / R3 Task 3.2）。
@@ -562,7 +564,12 @@ export class SQLiteMemory {
 
   deleteNote(notePath: string): boolean {
     const result = this.db.run("DELETE FROM memory_notes WHERE path = ?", [notePath]);
-    return result.changes > 0;
+    const removed = result.changes > 0;
+    // 删除同步（2026-09-21）：行真的被删掉后，通知索引侧清掉**同 nodeId 的向量**。
+    // 本方法是同步的 ⇒ fire-and-forget（`notifyKnowledgeDeleted` 自身**永不抛**，故不会有未处理 rejection）。
+    // 未装配/未实现 prune ⇒ 空操作；漏掉的由幂等扫描腿（`runIncrementalIndex({pruneOrphans:true})`）兜底。
+    if (removed) void notifyKnowledgeDeleted([vaultNoteNodeId(notePath)]);
+    return removed;
   }
 
   archiveNotePath(notePath: string, archivePath: string): boolean {

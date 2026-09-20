@@ -14,7 +14,7 @@
  * 不该 import `src/router/`（分层 + 架构门禁）。故采用**可注入钩子**：
  *   - 写入方只喊一声 `notifyKnowledgeWritten([...])`（不关心谁来索引、有没有索引）；
  *   - **组合根**（`src/main.ts` / `src/mcp/server.ts` / `src/mcp/kb-backend.ts`）在启动时用
- *     `setKnowledgeEmbeddingIndexer()` 注入真实实现（见 `src/services/knowledge-embedding-index.ts`）。
+ *     `setKnowledgeIndexSink()` 注入真实实现（见 `src/services/knowledge-embedding-index.ts`）。
  *   这与本仓库 `model-router.setThompsonRouter(port)` 的既有做法同型。
  *
  * ## 三条硬性质（都是可测的，不是口号）
@@ -37,18 +37,30 @@ export interface IndexableUnit {
   content: string;
 }
 
-export type KnowledgeEmbeddingIndexer = (nodes: readonly IndexableUnit[]) => Promise<void>;
+/**
+ * 索引侧的**全部能力**（写入 + 删除）。用单个 sink 而不是两个全局，是为了保证
+ * "索引与删除同步由同一处装配/清除"——否则很容易只装了写入、忘了删除（那正是脏数据的来源）。
+ */
+export interface KnowledgeIndexSink {
+  /** 索引刚写入/更新的单元 */
+  index(nodes: readonly IndexableUnit[]): Promise<void>;
+  /**
+   * 删除这些 nodeId 的向量（节点已从知识库删除）。
+   * 可选：老装配方未提供时，钩子退化为"不删除"并**不做任何 DB 操作**（由扫描腿兜底清理）。
+   */
+  prune?(nodeIds: readonly string[]): Promise<void>;
+}
 
-let indexer: KnowledgeEmbeddingIndexer | null = null;
+let sink: KnowledgeIndexSink | null = null;
 
-/** 注入/清除索引实现（返回可选 dispose，便于测试与热重载）。 */
-export function setKnowledgeEmbeddingIndexer(fn: KnowledgeEmbeddingIndexer | null): void {
-  indexer = fn;
+/** 注入/清除索引 sink（传 null 清除）。 */
+export function setKnowledgeIndexSink(next: KnowledgeIndexSink | null): void {
+  sink = next;
 }
 
 /** 当前是否已注入（供状态查询/测试）。 */
-export function hasKnowledgeEmbeddingIndexer(): boolean {
-  return indexer !== null;
+export function hasKnowledgeIndexSink(): boolean {
+  return sink !== null;
 }
 
 /**
@@ -59,13 +71,22 @@ export function hasKnowledgeEmbeddingIndexer(): boolean {
 export function createKnowledgeEmbeddingIndexer(
   db: Database,
   deps: IncrementalIndexDeps,
-): KnowledgeEmbeddingIndexer {
-  return async (nodes) => {
-    const report = await indexFreshNodes(db, nodes, deps);
-    if (report.error) logger.warn("[EmbeddingIndexHook] index failed", { error: report.error, nodes: nodes.length });
-    if (report.failed > 0) {
-      logger.warn("[EmbeddingIndexHook] partial failure", { failed: report.failed, attempted: report.attempted });
-    }
+): KnowledgeIndexSink {
+  return {
+    index: async (nodes) => {
+      const report = await indexFreshNodes(db, nodes, deps);
+      if (report.error) logger.warn("[EmbeddingIndexHook] index failed", { error: report.error, nodes: nodes.length });
+      if (report.failed > 0) {
+        logger.warn("[EmbeddingIndexHook] partial failure", { failed: report.failed, attempted: report.attempted });
+      }
+    },
+    prune: async (nodeIds) => {
+      // 删除同步：纯本地 DB 操作（**不调模型、不耗 token**），故不需要授权门；
+      // 但需要表存在 —— 首次写入前表可能还没有，此时无事可删。
+      const { deleteEmbeddingsByNodeIds } = await import("../knowledge/embedding-store.js");
+      const pruned = deleteEmbeddingsByNodeIds(db, nodeIds);
+      if (pruned > 0) logger.info("[EmbeddingIndexHook] pruned embeddings", { pruned, requested: nodeIds.length });
+    },
   };
 }
 
@@ -77,14 +98,34 @@ export function createKnowledgeEmbeddingIndexer(
  * fire-and-forget（如 `KnowledgeStore.write`）—— 后者是尽力而为，漏掉的由幂等 sweep 兜底。
  */
 export async function notifyKnowledgeWritten(nodes: readonly IndexableUnit[]): Promise<void> {
-  if (!indexer) return;
+  if (!sink) return;
   if (nodes.length === 0) return;
   try {
-    await indexer(nodes);
+    await sink.index(nodes);
   } catch (err) {
     logger.warn("[EmbeddingIndexHook] indexer threw; write path unaffected", {
       error: err instanceof Error ? err.message : String(err),
       nodes: nodes.length,
+    });
+  }
+}
+
+/**
+ * 通知"这些 nodeId 对应的知识单元已被删除"（删除同步，2026-09-21）。
+ *
+ * 与写入通知同型：未注入 / sink 未实现 `prune` ⇒ **空操作**；实现抛错 ⇒ 吞进 `logger.warn`（删除路径不受影响）。
+ * 兜底：即便这里漏了，扫描腿（`runIncrementalIndex({pruneOrphans:true})`）会在下次语料扫描时清掉残留。
+ */
+export async function notifyKnowledgeDeleted(nodeIds: readonly string[]): Promise<void> {
+  if (!sink?.prune) return;
+  const ids = nodeIds.filter((id) => typeof id === "string" && id.length > 0);
+  if (ids.length === 0) return;
+  try {
+    await sink.prune(ids);
+  } catch (err) {
+    logger.warn("[EmbeddingIndexHook] prune threw; delete path unaffected", {
+      error: err instanceof Error ? err.message : String(err),
+      nodeIds: ids.length,
     });
   }
 }

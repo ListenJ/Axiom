@@ -308,8 +308,11 @@
    > **2026-09-21 三次更新**：其它写入路径也已接**推送腿**（`VaultManager.writeNote` / `KnowledgeStore.write` /
    > MCP `kg_write` → `services/knowledge-index-hook.ts`，组合根 `enableKnowledgeEmbeddingIndex(db)` 装配）；
    > 内容**被修改**也会重新嵌入。真实模型实测：一次 `writeNote` 即产生向量行（dim=1024），随后英文查询召回（0.537, semantic）。
-   > **仍未完成的替代项**：批量 vault-reindex 路径与其它直接 `upsertNote` 调用方未接；**删除同步**未做；
-   > 同步写入方的推送是 fire-and-forget（由幂等扫描腿兜底）；语料 5000 行/表上限；
+   > **2026-09-21 四次更新**：**删除同步已做** —— 推送（`SQLiteMemory.deleteNote` → 清同 nodeId 向量）+
+   > 扫描（`runIncrementalIndex({pruneOrphans:true})`，含"语料触顶/存储读失败则拒绝清理"两道安全闸；不耗 token）。
+   > 实测：真实脚本对含 1 条孤儿向量的库 `prunedOrphans=1`、`attempted=0`（零 embedding 调用）。
+   > **仍未完成的替代项**：批量 vault-reindex 路径与其它直接 `upsertNote` 调用方未接推送（由扫描腿补齐）；
+   > 同步写入方/删除方的通知是 fire-and-forget（由幂等扫描腿兜底）；语料 5000 行/表上限；
    > vault/dre 物化未命中缓存时是 O(N) 短列枚举。
 3. **A1（改动前后逐字节一致的语义层对拍）未单独做**：切片 1 已把设置项搜索的内置 embedding 移除并有
    行为锁定断言（`engine === "keyword"`），但未做"A1 要求的逐字节对拍"这一独立证据。

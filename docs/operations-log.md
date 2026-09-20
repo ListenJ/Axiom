@@ -3537,3 +3537,37 @@
 - **Linux（本机）**：`bun run test` → **4133 pass / 67 skip / 0 fail**。
 - **未覆盖项**：推送腿的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
 - **Commit**：`4d27b2d`
+
+## 2026-09-21 — feat(T2): 删除同步 —— 向量不再随节点删除而残留
+
+- **任务**：清掉最后一个"越积越脏"的数据面：节点/笔记删除后向量行残留（用户已确认该项优先）。分级 **T2**。
+- **① 推送删除**：`SQLiteMemory.deleteNote` 行真的删掉后 `void notifyKnowledgeDeleted([vaultNoteNodeId(path)])`
+  （同步方法 ⇒ fire-and-forget；`notifyKnowledgeDeleted` **永不抛**，不会产生未处理 rejection）。
+- **② 扫描删除**：`runIncrementalIndex({pruneOrphans:true})` 在**同一次语料扫描**里清孤儿（不额外扫库）：
+  `orphans = indexedIds − corpusIds` ⇒ `deleteEmbeddingsByNodeIds()`。索引脚本与采集管线**默认开启**，`--no-prune-orphans` 关闭。
+  - **两道安全闸（关键）**：①语料触顶（`truncated`）⇒ 拒绝清理；②**任一存储读取失败** ⇒ 拒绝清理。
+    理由："不在语料里"只有在"语料完整"时才等于"已被删除"；否则会**静默误删**该存储的全部向量。
+    跳过原因写入 `pruneSkipped`（`disabled` / `corpus-truncated` / `corpus-error`），**不静默**。
+  - **零 token**：删除同步是纯本地 DB 操作，不调模型（实测：无 embedding 调用的运行也能 prune）。
+- **③ 钩子 API 收敛**：`services/knowledge-index-hook.ts` 从"单个 indexer 函数"改为 **sink 对象**
+  (`{index, prune?}`) + `setKnowledgeIndexSink` —— 保证"索引与删除同步**由同一处装配/清除**"，
+  否则很容易只装写入、忘装删除（那正是脏数据的来源）。`prune` 可选：未实现时退化为不删除而不报错。
+- **④ 脚本收敛**：`scripts/index-knowledge-embeddings.ts` 改为复用 `runIncrementalIndex()`（删掉脚本里手工的
+  "采集+分批"循环）—— 脚本与管线**只有一套实现**，不会漂移；同时自然获得增量语义与删除同步。
+- **测试（+6 例，累计 12+12+4=28 例相关）**：
+  - `incremental-index.test.ts` 增 4：孤儿被清（`pruned=1`）；未开启 ⇒ `pruneSkipped=disabled` 且孤儿保留；
+    **触顶 ⇒ `corpus-truncated` 且孤儿不被误删**；**存储读失败 ⇒ `corpus-error` 且不被误删**；
+  - `embedding-index-hook.test.ts` 改写并增：sink.prune 真的删行 / 未实现 prune 为空操作 / prune 抛错不抛；
+    **行为级**：`SQLiteMemory.deleteNote` 删除后推送正确 nodeId（且向量随之消失）。
+- **真实脚本实测（无需网络）**：向测试库插入 1 条孤儿向量 ⇒ 跑索引脚本
+  ⇒ `[IncrementalIndex] pruned orphan embeddings {orphans:1, pruned:1}`、`prunedOrphans=1`、`attempted=0`（**零 embedding 调用**）、
+  `rows(model=...)=3`、`exit=0`。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4139 pass / 67 skip / 0 fail**。
+- **文档同步**：`LIMITATIONS.md` 局限 6（删除同步已做 + 两道安全闸 + 零 token）、`docs/ARCHITECTURE.md` §8、
+  计划 §6 四次更新、README 中英。
+- **未覆盖项（如实）**：①批量 vault-reindex 路径与其它直接 `upsertNote` 调用方仍未接**推送**（新增内容由扫描腿补齐）；
+  ②同步写入方/删除方的通知是 fire-and-forget，进程在"删库后、清向量前"退出会漏（由扫描腿兜底）；
+  ③KG/DRE **没有删除 API**（本轮未新增），故其删除同步只能靠扫描腿；④未测大体量库的 prune 耗时；
+  ⑤Windows 未跑真实模型（凭据不跨机）。
+- **不做项**：未新增 KG/DRE 删除 API（属功能决策，不在本任务）；未改检索/物化逻辑；未引入内容哈希变更检测。
+- **Commit**：`__COMMIT__`
