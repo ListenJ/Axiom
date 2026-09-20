@@ -3002,3 +3002,26 @@
   ③未把真实 embedder 接进语义层（属下一步 C'）；④未验证其它 7 个 embedding 模型的可用性（只验证了 `BAAI/bge-m3`）。
 - **不做项**：未执行任何 siliconflow 移除；未改 registry / api-key-store 内容；未把 key 写入任何文档或代码。
 - **Commit**：`__COMMIT__`
+
+## 2026-09-20 — feat(T2): C' 第一步 —— 授权门 → 真实 embedder（未授权即**零调用**）
+
+- **任务**：用户提供 SiliconFlow key（见上一条）后要求"继续完成任务"。本步把**授权门**与**真实 embedding 调用**接起来。分级 **T2**。仅提交 Gitea。
+- **交付**：`src/knowledge/embedding-consent.ts` 新增 `createConsentedEmbedder(deps, opts?)`：
+  - 非 `yes`（默认 `ask` / 明确 `no`）→ **返回 `null`** ⇒ 调用方**物理上拿不到可调用的 embedder**，"未授权即零请求"不是靠自觉，而是**结构上不可能**；
+  - `yes` → 返回包装函数，转发到**注入的** `embeddings`（真实实现 = `ModelRouter.embeddings()`）；
+  - 底层失败（网络/限流/鉴权）→ **返回空数组降级**，不抛错（沿用"边缘增强·失败回退"语义，不阻断主流程）。
+  - 依赖注入（rule 8）：本模块**不 import 网络层**，真实实现由调用方传入 —— 因此可在**无网络**下被完整测试。
+- **测试（+4 例，锁住 A2）**：
+  ① `ask`/`no` 时**返回 null 且底层调用计数为 0**（关键：是"零调用"，不是"调了但忽略结果"）；
+  ② `yes` 时返回可用 embedder 且**转发参数**到注入实现；
+  ③ `yes` 但底层抛错 → `resolves.toEqual([])` 降级；
+  ④ **缺省读环境**（未设置 ⇒ `ask` ⇒ null）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向 **13 pass / 0 fail**；全量 `bun run test` → **4109 tests / 67 skip / 0 fail**（417 文件 / 25.38s）。
+- **偏差记录（我自己的失误）**：测试里 `let got: string[] | null = null` 在**闭包内赋值**，TS 控制流分析不追踪 ⇒
+  断言处被收窄为 `null`、报 `Argument of type 'string[]' is not assignable to parameter of type 'null'`；已改为 `as unknown` 断言。
+- **仍未解决**：①**Q1 冲突待用户裁定**（Q1=(a) 曾定"彻底移除 siliconflow"，而本次要求**使用**其免费 embedding ⇒ 直接冲突，**本轮未执行任何移除**）；
+  ②切片 4 的**其余部分**未做：embedding 表落地（同库）、候选召回接线、稳定 tie-breaker（同分 node_id 升序）、不依赖 Map 遍历顺序的门禁、跨进程 N≥5 确定性实测；
+  ③真实 embedder **尚未真正接入检索**（本轮只做到"授权后拿得到 embedder"，未接进排序）；
+  ④未核实免费/计费口径与限流额度。
+- **不做项**：未改 registry / api-key-store；未执行 siliconflow 移除；未在测试中发起真实网络请求（全离线）。
+- **Commit**：`__COMMIT__`

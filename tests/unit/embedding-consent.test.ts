@@ -17,6 +17,7 @@ import {
   estimateEmbeddingTokenRange,
   buildEmbeddingConsentPrompt,
   buildEmbeddingDenialImpact,
+  createConsentedEmbedder,
 } from "../../src/knowledge/embedding-consent.js";
 
 const ORIG = process.env[EMBEDDING_CONSENT_ENV];
@@ -99,5 +100,39 @@ describe("披露文案", () => {
     expect(text).toContain("略降");
     // 关键：不得出现"效率降低"这类会被读成"变慢"的笼统表述
     expect(text).not.toContain("效率降低");
+  });
+});
+
+describe("授权门 → 真实 embedder（切片 4 第一步）", () => {
+  it("未授权（ask/no）时**根本不交出 embedder** ⇒ 调用方物理上无法发起请求", () => {
+    let called = 0;
+    const deps = { embeddings: async () => { called++; return [[1, 2, 3]]; } };
+
+    expect(createConsentedEmbedder(deps, { mode: "ask" })).toBeNull();
+    expect(createConsentedEmbedder(deps, { mode: "no" })).toBeNull();
+    expect(called).toBe(0); // 关键：零调用，不是"调了但忽略结果"
+  });
+
+  it("已授权（yes）时才返回可用 embedder，并转发到注入的真实实现", async () => {
+    let got: string[] | null = null;
+    const deps = { embeddings: async (texts: string[]) => { got = texts; return [[0.1, 0.2]]; } };
+
+    const embedder = createConsentedEmbedder(deps, { mode: "yes" });
+    expect(embedder).not.toBeNull();
+    const vecs = await embedder!(["你好"]);
+    expect(got as unknown).toEqual(["你好"]);
+    expect(vecs[0]!.length).toBe(2);
+  });
+
+  it("已授权但底层失败 → 返回空数组降级（不抛错、不阻断主流程）", async () => {
+    const deps = { embeddings: async () => { throw new Error("429 rate limited"); } };
+    const embedder = createConsentedEmbedder(deps, { mode: "yes" })!;
+    await expect(embedder(["x"])).resolves.toEqual([]);
+  });
+
+  it("缺省取环境授权状态（未设置 ⇒ ask ⇒ null）", () => {
+    delete process.env[EMBEDDING_CONSENT_ENV];
+    const deps = { embeddings: async () => [[1]] };
+    expect(createConsentedEmbedder(deps)).toBeNull();
   });
 });

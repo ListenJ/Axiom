@@ -134,3 +134,39 @@ export function buildEmbeddingDenialImpact(): string {
     "响应延迟：不变或**略降**（少了网络往返）；下降的是**语义召回**，不是速度。",
   ].join("\n");
 }
+
+
+// ============================================================================
+// 授权门 → 真实 embedder（切片 4 第一步）
+// ============================================================================
+
+/** 真实 embedding 调用形态（与 `ModelRouter.embeddings(texts)` 一致） */
+export type EmbeddingsCall = (texts: string[]) => Promise<number[][]>;
+
+/**
+ * 依**授权状态**决定是否交出 embedder：
+ * - 非 `yes`（含默认 `ask` / 明确 `no`）→ 返回 `null`，**调用方据此不发起任何网络请求**；
+ * - `yes` → 返回一个包装函数，内部调用注入的 `embeddings`；
+ *   失败（网络/限流/鉴权）→ **返回 null 表示降级**，不抛错（沿用"边缘增强·失败回退"语义）。
+ *
+ * 为什么把判断放在这里而不是散在调用点：**"未授权即零请求"必须是一处可测的闸门**，
+ * 否则每个调用点各写一遍，迟早漏一处（见 tests/unit/embedding-consent.test.ts 的断言）。
+ *
+ * 依赖注入（rule 8）：真实实现（`ModelRouter.embeddings`）由调用方传入，本模块不 import 网络层。
+ */
+export function createConsentedEmbedder(
+  deps: { embeddings: EmbeddingsCall },
+  opts?: { mode?: EmbeddingConsentMode },
+): EmbeddingsCall | null {
+  const mode = opts?.mode ?? resolveEmbeddingConsent();
+  if (mode !== "yes") return null; // ← 未授权：**连包装函数都不给**，物理上无法发起请求
+
+  return async (texts: string[]): Promise<number[][]> => {
+    try {
+      return await deps.embeddings(texts);
+    } catch (e) {
+      // 降级：调用方回落到确定性词法路径（不抛错，不阻断主流程）
+      return [];
+    }
+  };
+}
