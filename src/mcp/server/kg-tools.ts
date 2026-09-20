@@ -7,6 +7,7 @@ import { KnowledgeAccessLayer } from "../../kal/knowledge-access-layer.js";
 import { buildSemanticRecallPort } from "../../knowledge/semantic-recall-port.js";
 import { resolveEmbeddingConsent } from "../../knowledge/embedding-consent.js";
 import { embeddingModelTagOf } from "../../knowledge/embedding-model.js";
+import { notifyKnowledgeWritten } from "../../services/knowledge-index-hook.js";
 import { findModelsForRole } from "../../router/model-capability-registry.js";
 import { router } from "../../router/model-router.js";
 import { createNodeId } from "../../kal/node-id.js";
@@ -110,6 +111,10 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
       const writer = new KGWriter(db);
       const writeResult = writer.writeAST(ast, title, sourceUrl);
+
+      // 语义索引（2026-09-21）：把本次写入的 KG 节点**推送**给索引钩子（未注入/未授权时零成本）。
+      // 失败不影响写入结果（钩子永不抛）；漏掉的由幂等 `runIncrementalIndex()` 兜底。
+      await notifyKnowledgeWritten(writeResult.indexable ?? []);
 
       return {
         success: true,

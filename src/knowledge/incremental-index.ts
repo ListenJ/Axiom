@@ -165,3 +165,53 @@ export async function runIncrementalIndex(
     return { ...baseReport(model), error: msg };
   }
 }
+
+/**
+ * **推送式**索引：写入方把"我刚写了这几条"交给本函数，只索引这几条。
+ *
+ * 与 `runIncrementalIndex`（扫全库补缺口）的区别与取舍：
+ * - 推送式**精确**：不扫库、不会因为库里有大量历史未索引条目而**意外产生巨额 token 消耗**；
+ *   且写入方知道内容 ⇒ **文档被修改**（内容变、nodeId 不变）也能重新嵌入（覆盖式 upsert）。
+ * - 扫描式**兜底**：用于采集管线收尾/人工重跑，能补齐任何"推送时漏掉"的条目（例如进程在
+ *   写库后、嵌入前退出）。
+ * 两者是互补关系，**都需要保留**；调用方按场景选。
+ *
+ * 门控与 `runIncrementalIndex` 一致：未授权 / 无路由 ⇒ **不碰数据库、不调模型**，直接返回。
+ * 同样**不抛错**（写入路径不应因向量索引失败而失败）。
+ */
+export async function indexFreshNodes(
+  db: Database,
+  nodes: readonly IndexableNode[],
+  deps: IncrementalIndexDeps,
+): Promise<IncrementalIndexReport> {
+  let model: string | null = null;
+  try {
+    model = deps.resolveModelTag();
+  } catch (err) {
+    return { ...baseReport(null), error: `resolveModelTag failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (deps.consent() !== "yes") return { ...baseReport(model), skipped: "not-authorized" };
+  if (!model) return { ...baseReport(null), skipped: "no-route" };
+  if (nodes.length === 0) return { ...baseReport(model), skipped: "nothing-to-index" };
+
+  try {
+    const batchSize = deps.batchSize && deps.batchSize > 0 ? Math.floor(deps.batchSize) : DEFAULT_BATCH_SIZE;
+    let indexed = 0;
+    let failed = 0;
+    let dim = 0;
+    for (let i = 0; i < nodes.length; i += batchSize) {
+      const stats = await indexNodeEmbeddings(
+        { db, embedder: deps.embeddings, model, now: deps.now },
+        nodes.slice(i, i + batchSize),
+      );
+      indexed += stats.indexed;
+      failed += stats.failed;
+      if (stats.dim > 0) dim = stats.dim;
+    }
+    return { ...baseReport(model), corpusSize: nodes.length, attempted: nodes.length, indexed, failed, dim };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn("[IncrementalIndex] fresh-node index failed", { error: msg });
+    return { ...baseReport(model), error: msg };
+  }
+}

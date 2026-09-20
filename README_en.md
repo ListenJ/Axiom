@@ -332,11 +332,17 @@ zero network requests instead of silently calling out:
 `kal_query` will then **add** semantic candidates on top of the lexical results (marked `metadata.source = "semantic"`);
 vectors are used for **candidate recall only**, and final ordering keeps the stable tie-breaker.
 
-**Keeping the index fresh**: the collection pipeline (`knowledge:pipeline`) runs an **incremental index** as its
-final step, covering only nodes that have no vector yet (idempotent; when unauthorized it does not even read the
-database). **Other write paths** (the MCP `kg_write` tool, direct vault writes, the DRE store) are *not* on that
-hook — re-run `scripts/index-knowledge-embeddings.ts` after those. Documents that are **edited** (content changes,
-id unchanged) are not re-embedded automatically.
+**Keeping the index fresh** (two legs):
+1. **Index on write (push leg)**: `VaultManager.writeNote`, `KnowledgeStore.write` and the MCP `kg_write` tool push
+   what they just wrote to the index hook (wired by the composition root via `enableKnowledgeEmbeddingIndex(db)`),
+   so **both new and edited content gets embedded automatically**; when the hook is not wired or consent is missing
+   it is a no-op (no DB reads, no network);
+2. **Sweep leg (fallback)**: the collection pipeline (`knowledge:pipeline`) runs an incremental index as its final
+   step, covering only nodes that have no vector yet (idempotent); `scripts/index-knowledge-embeddings.ts` can also
+   be re-run manually at any time.
+
+**Not covered yet**: the bulk vault re-index path (and other direct `sqliteMemory.upsertNote` callers) is not hooked;
+**deletion is not synced** (vectors of deleted nodes remain).
 Measured gains and their limits: `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
 (12-document sample, **do not extrapolate to production recall**).
 

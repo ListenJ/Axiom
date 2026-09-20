@@ -3486,3 +3486,43 @@
 - **Linux（本机）**：`bun run test` → **4124 pass / 67 skip / 0 fail**。
 - **未覆盖项**：增量索引的**真实 embedding** 端到端仍只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实模型。
 - **Commit**：`de13c4e`
+
+## 2026-09-21 — feat(T2): 写入即索引（推送腿）—— vault / DRE / KG 三条写入路径全部接线
+
+- **任务**：把"需要人工重跑索引脚本"的例外清掉 —— 三条写入路径写完就产生/更新向量。分级 **T2**（跨模块写入路径 + 组合根）。
+- **① 新增推送式索引** `indexFreshNodes(db, nodes, deps)`（`src/knowledge/incremental-index.ts`）：
+  与 `runIncrementalIndex`（扫全库补缺口）互补 —— 推送式**精确**：不扫库、**不会因库里有大量历史未索引条目而意外产生巨额 token**；
+  且写入方知道内容 ⇒ **修改（nodeId 不变）也会重新嵌入**。门控与永不抛的语义同扫描式。
+- **② 新增钩子层** `src/services/knowledge-index-hook.ts`（可注入、默认空操作）：
+  `setKnowledgeEmbeddingIndexer()` / `notifyKnowledgeWritten()`；未装配 ⇒ 立即返回（不读库、不触网）；
+  实现抛错 ⇒ 吞进 `logger.warn`（**写路径不受影响**）。
+  - **位置选择（被架构门禁逼出来的）**：初版放在 `src/knowledge/` ⇒ 立刻造成
+    `memory <-> knowledge`、`dre <-> knowledge` **两个目录级环**（`architecture-integrity` Test 15 失败）。
+    修法：钩子放到 `src/services/`（本仓库文档明确的**破环层**），且钩子模块**只依赖 utils**；
+    nodeId 映射下沉到 `src/kal/knowledge-node-id.ts`（`kal` 只依赖 utils ⇒ 两条边都不成环）。
+- **③ nodeId 口径单一来源** `src/kal/knowledge-node-id.ts`：`vaultNoteNodeId` / `dreKnowledgeNodeId` / `kgNodeId`，
+  写入侧与 `kb-corpus`/KAL 共用（此前散在两处）。**并注明**与 `node-id.ts` 里历史哈希口径 `vaultPathToNodeId` 的区别（勿混用）。
+- **④ 三条写入路径接线**：
+  - `src/memory/vault-manager.ts`：`writeNote` 落盘+建索引成功后 `await notifyKnowledgeWritten([本条])`；
+  - `src/dre/storage/knowledge-store.ts`：`write()` 事务提交后推送（**同步方法 ⇒ fire-and-forget**，钩子永不抛，故无未处理 rejection；
+    漏掉的由幂等扫描腿兜底）；
+  - `src/crawl/processor/kg-writer.ts` 新增 `WriteResult.indexable`（`upsertNode` 累积）→ `src/mcp/server/kg-tools.ts` 的
+    `kg_write` 写入后 `await notifyKnowledgeWritten(writeResult.indexable)`。
+- **⑤ 组合根装配（3 处）**：`src/main.ts`、`src/mcp/server.ts`、`src/mcp/kb-backend.ts` 各一行
+  `enableKnowledgeEmbeddingIndex(db)`（`src/services/knowledge-embedding-index.ts`：router embeddings + 标签 + 授权 + `now`）。
+  **装配 ≠ 授权**：三道门在 `indexFreshNodes` 内部、每次写入重新求值 ⇒ 未授权时与未装配等价。
+- **测试（+1 文件 / 9 例，全离线）** `tests/unit/embedding-index-hook.test.ts`：未注入即返回；注入后入参正确、清除后不再调用；
+  实现抛错永不抛；装配实现继承门控（**已关闭句柄探针**证明未授权不碰库；已授权真的写库）；
+  以及**行为级**验证写入方确实在喊 —— `VaultManager.writeNote` 推送的 nodeId 等于 `vaultNoteNodeId(path)`、
+  `KnowledgeStore.write` 推送 dre nodeId、`KGWriter.writeAST` 产出 `indexable`；
+  另有文本级门禁钉住"3 个组合根都装配 + 3 个写入方都推送"（防「造了没人喊」）。
+- **⑥ 真实模型端到端实测（推送腿）**：临时库 + 临时 vault ⇒ `enableKnowledgeEmbeddingIndex(db)` ⇒ `writeNote(...)`
+  ⇒ `EMBEDDING_ROWS=[{"node_id":"vault:note:03-Resources/_______md-72fb4fec","model":"siliconflow/BAAI/bge-m3","dim":1024}]`
+  （**无人工脚本**即产生向量）⇒ 英文查询 `how to avoid a cascading failure`
+  ⇒ `RESULT relevance=0.537 semantic=true title=熔断器模式`、**PUSH_HOOK_RECALLED=true**（`exit=0 / 0s`）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4133 pass / 67 skip / 0 fail**。
+- **未覆盖项（如实）**：①从磁盘批量重建的 vault-reindex 路径与**其它直接 `sqliteMemory.upsertNote` 的调用方**未接；
+  ②**删除同步**未做（节点删除后向量行残留）；③同步写入方（`KnowledgeStore.write`）推送为尽力而为，漏掉的靠扫描腿；
+  ④未测大体量库/高频写入下的推送开销；⑤Windows 未跑真实模型（凭据不跨机）。
+- **不做项**：未改 KAL 查询/物化；未做内容哈希变更检测（推送式已覆盖已接路径的修改）；未给未接路径挂钩子（属独立决策）。
+- **Commit**：`__COMMIT__`

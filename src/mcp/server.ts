@@ -57,10 +57,13 @@ import { registerRecoverableOutputTools } from "./server/recoverable-output-tool
 import { registerMindTools } from "./server/mind-tools.js";
 import { registerBrowserTools } from "./server/browser-tools.js";
 import { registerDocumentTools } from "./server/document-tools.js";
+import { enableKnowledgeEmbeddingIndex } from "../services/knowledge-embedding-index.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
+// 写入侧语义索引装配（2026-09-21）：未授权/无路由时零成本；详见 services/knowledge-embedding-index.ts
+enableKnowledgeEmbeddingIndex(db);
 
 // 初始化 Vault（共享记忆库）
 const vault = getGlobalVault();

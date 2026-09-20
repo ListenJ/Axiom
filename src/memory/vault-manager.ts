@@ -23,6 +23,8 @@ import path from "path";
 import { DeterministicSearchEngine, type SearchResult, type VaultNote } from "./deterministic-search.js";
 import { getRetrievalEngine, type RetrievalResponse, type RetrievalResult } from "../dre/retrieval/deterministic-retrieval-engine.js";
 import { CodeIndexer } from "./code-indexer.js";
+import { notifyKnowledgeWritten } from "../services/knowledge-index-hook.js";
+import { vaultNoteNodeId } from "../kal/knowledge-node-id.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
@@ -370,6 +372,13 @@ export class VaultManager {
 
     // SQLite FTS index updated via upsertNote above.
     // Deterministic engine rebuilds lazily on next search if needed.
+
+    // 语义索引（2026-09-21）：file + SQLite 都已落定后**推送**本条笔记。
+    // 未注入索引器（默认）/未授权时 `notifyKnowledgeWritten` 立即返回（不读库、不触网）。
+    // 这里用 await：写入路径已是异步的，能保证嵌入在返回前完成；失败也不会抛出（见钩子实现）。
+    await notifyKnowledgeWritten([
+      { nodeId: vaultNoteNodeId(notePath), content: `${opts.title || path.basename(notePath, ".md")} ${finalContent}` },
+    ]);
 
     // Record write for gate dedup tracking
     if (opts.gateContext) {

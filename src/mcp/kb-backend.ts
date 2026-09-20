@@ -20,6 +20,7 @@ import { resolveSqliteMemoryDbPath } from "../memory/sqlite-memory.js";
 import { readString, readInt } from "../utils/env.js";
 import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
 import { logger } from "../utils/logger.js";
+import { enableKnowledgeEmbeddingIndex } from "../services/knowledge-embedding-index.js";
 
 const mcp = new McpServer({ name: "Axiom KB MCP Server", version: "0.1.0" });
 const registry = new ToolRegistry();
@@ -36,6 +37,9 @@ mkdirSync(path.dirname(dbPath), { recursive: true });
 
 const db = new Database(dbPath);
 const vault = getGlobalVault();
+
+// 写入侧语义索引装配（2026-09-21）：未授权/无路由时零成本（不读库、不触网）
+enableKnowledgeEmbeddingIndex(db);
 
 // 注册知识库全部工具：Vault 记忆（memory_*/code_index）+ 知识图谱（kg_*/kal_*/dip_*）
 registerVaultTools(registry, vault);

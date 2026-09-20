@@ -16,18 +16,22 @@
 3. **工具总数单一事实源**：以 `src/testing/tool-count.ts` 为准，当前 **188**（2026-09-18 移除 `resource_status` 后由 189 回落）；CI 与文档均引用此值，不再硬编码静态数字。
 4. **辅助 LLM 默认关闭带来的安全取舍（2026-09-18）**：`EDGE_RISK_MONITOR` 默认关闭后，高风险工具的**灰区**负载不再经边缘小模型初筛，仅由 `permissions.ts` 的正则硬底线与双层复核的第二层把关。硬底线始终生效（`tests/unit/risk-monitor-degraded.test.ts` 的 HardFloor 用例），但灰区（正则未命中）检测强度低于默认开启时。需要该保护时显式设 `EDGE_RISK_MONITOR=1`（`EDGE_RISK_FAIL_CLOSED=1` 可进一步把初筛降级改为 fail-closed）。
 5. **本地推理定位与 VRAM 管理移除（2026-09-18）**：本项目不再自托管本地推理，也不再维护 VRAM / token 预算钳制。`src/dre/system-resource.ts`（ResourceBudgetManager、clampMaxTokens）与 `src/dre/system-resource-probe.ts`（nvidia-smi VRAM 轮询）已按规则 4 归档移除；`resource_status` / `vram_status` 工具与 `GPU_CONSTRAINTS` 同步删除。模型统一按**外部 OpenAI 兼容服务**对接（Ollama 或云端，由 `DRE_LLM_URL` 指向），因此"KV cache 卸载到系统内存"一类表述在架构文档中已全部清除；调度器内存准入改用进程堆占用 + 可配置预算（`setBudget({ maxMemoryMB })`）。
-6. **知识库向量语义层：已接线；采集管线收尾会**增量**补索引，其余写入路径仍需重跑脚本（2026-09-21 更新）**：
+6. **知识库向量语义层：写入侧推送 + 采集收尾扫描，两条腿都已接线（2026-09-21 更新）**：
    向量表（`knowledge_embeddings`，与知识表**同库**）、授权门、写入腿、查询腿、候选融合与**跨存储物化**
    （`KnowledgeAccessLayer.query()` 合并语义候选）均已实现并有测试；组合根
    （`src/mcp/server/kg-tools.ts` 的 `getKAL`）已注入端口。
-   - **已接**：采集管线（`knowledge:pipeline` → `runPipeline`）收尾调用 `runIncrementalIndex()`
-     **只索引还没有向量的节点**（幂等；未授权/无路由时**连库都不读**）；
-   - **未接**：MCP 写工具（`kg_write`）、vault 直写（`vault-manager.upsertNote`）、DRE `knowledge-store` 的写入**不在**该钩子内
-     ⇒ 这些路径产生的新内容仍需重跑 `scripts/index-knowledge-embeddings.ts`（幂等，重跑安全）；
-   - **不做变更检测**：文档被**修改**（内容变、nodeId 不变）不会自动重新嵌入；节点**删除**后向量行会残留；
+   - **推送腿（写入即索引）**：`VaultManager.writeNote`、`KnowledgeStore.write`、MCP `kg_write` 三条写入路径
+     都会把刚写的单元推给钩子（`services/knowledge-index-hook.ts`，由组合根 `enableKnowledgeEmbeddingIndex(db)` 装配）。
+     **内容被修改**（nodeId 不变）同样会重新嵌入（覆盖式 upsert）。未装配/未授权时该钩子是**空操作**（不读库、不触网）；
+   - **扫描腿（兜底）**：采集管线（`knowledge:pipeline` → `runPipeline`）收尾调用 `runIncrementalIndex()`，
+     只索引**还没有向量**的节点（幂等）；另有全量脚本 `scripts/index-knowledge-embeddings.ts`；
+   - **仍未接**：从磁盘批量重建的 vault-reindex 路径（`vault-manager` 内批量 `upsertNote`）与**其它直接调用
+     `sqliteMemory.upsertNote` 的写入方**；**删除同步**（节点删除后向量行残留）；
+     同步写入方（`KnowledgeStore.write`）的推送是 **fire-and-forget**（尽力而为），漏掉的由幂等扫描腿补齐；
    - 语料上限 5000 行/表（触顶会报 `truncated`，不自动续跑）；vault/dre 物化在缓存未命中时是 O(N) 短列枚举。
    ⇒ 端到端能力**已实测跑通**（真实 `bge-m3`：英文查询召回零 token 重叠的中文笔记，`relevance=0.585` 且 `source=semantic`）；
-   增量路径亦实测：新插入 1 条文档 ⇒ `attempted=1 / indexed=1`（已有 2 条跳过），随后同一查询召回该新文档（0.588）。
+   扫描腿实测：新插入 1 条 ⇒ `attempted=1 / indexed=1`（已有 2 条跳过），随后召回该新文档（0.588）；
+   推送腿实测：`VaultManager.writeNote` 一次写入即产生向量行（dim=1024），随后英文查询召回该笔记（0.537, `source=semantic`）。
    量化收益见 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
    （语义三类 Recall@5 **0.0% → 45.5%**；语料 12 条 / 用例 14 条，**不可外推为线上召回率**）。
 7. **SiliconFlow 仅 dev/test ⇒ 发布默认下无任何 embedding 候选（2026-09-20）**：用户裁定 SiliconFlow 只作开发测试、不作为发布的一部分，

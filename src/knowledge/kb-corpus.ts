@@ -18,7 +18,7 @@
  * - 空文本条目**跳过并计数**（`skipped`），不产生"空向量"。
  */
 import type { Database } from "bun:sqlite";
-import { createNodeId } from "../kal/node-id.js";
+import { vaultNoteNodeId, dreKnowledgeNodeId } from "../kal/knowledge-node-id.js";
 import { logger } from "../utils/logger.js";
 import type { IndexableNode } from "./semantic-index.js";
 
@@ -82,7 +82,7 @@ export function collectKnowledgeCorpus(db: Database, opts: CollectCorpusOptions 
       .all(probeLimit) as Array<{ path: string; title: string; content: string }>;
     const slice = rows.slice(0, limitPerStore);
     perStore.vault.truncated = rows.length > limitPerStore;
-    for (const r of slice) take("vault", createNodeId("vault", "note", r.path), `${r.title ?? ""} ${r.content ?? ""}`);
+    for (const r of slice) take("vault", vaultNoteNodeId(r.path), `${r.title ?? ""} ${r.content ?? ""}`);
   } catch (err) {
     perStore.vault.error = err instanceof Error ? err.message : String(err);
     logger.debug("[kb-corpus] vault collection degraded", { error: perStore.vault.error });
@@ -108,7 +108,7 @@ export function collectKnowledgeCorpus(db: Database, opts: CollectCorpusOptions 
       .all(probeLimit) as Array<{ node_id: string; domain: string; title: string; content: string }>;
     const slice = rows.slice(0, limitPerStore);
     perStore.dre.truncated = rows.length > limitPerStore;
-    for (const r of slice) take("dre", createNodeId("dre", r.domain, r.node_id), `${r.title ?? ""} ${r.content ?? ""}`);
+    for (const r of slice) take("dre", dreKnowledgeNodeId(r.domain, r.node_id), `${r.title ?? ""} ${r.content ?? ""}`);
   } catch (err) {
     perStore.dre.error = err instanceof Error ? err.message : String(err);
     logger.debug("[kb-corpus] dre collection degraded", { error: perStore.dre.error });

@@ -205,6 +205,10 @@ await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
 const config = getConfig();
 const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
+// 写入侧语义索引装配（2026-09-21）：未授权（默认 ask）/无 embedding 路由时**零成本**（不读库、不触网）。
+// 装配 ≠ 授权：三道门在 indexFreshNodes 内部，每次写入重新求值 ⇒ 运行期改授权立即生效。
+const { enableKnowledgeEmbeddingIndex } = await import("./services/knowledge-embedding-index.js");
+enableKnowledgeEmbeddingIndex(db);
 // 启动时执行幂等迁移（建 conversations/search_history/notes_fts 等核心表；首次运行必需，docker 空数据目录也适用）
 await import("./db/migrate.js");
 const startupTime = Date.now();
@@ -901,5 +905,4 @@ logger.info(`╔═════════════════════�
 ║ API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
-
 

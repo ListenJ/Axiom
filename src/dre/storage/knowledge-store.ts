@@ -22,6 +22,8 @@
 import { Database } from "bun:sqlite";
 import { createHash } from "crypto";
 import { kgEdgeId } from "../../kg/schema.js";
+import { notifyKnowledgeWritten } from "../../services/knowledge-index-hook.js";
+import { dreKnowledgeNodeId } from "../../kal/knowledge-node-id.js";
 
 /** 知识范式类型 */
 export type KnowledgeParadigm =
@@ -202,6 +204,13 @@ export class KnowledgeStore {
     });
 
     txn();
+
+    // 语义索引（2026-09-21）：事务提交后**推送**本条知识条目（含"修改"场景 —— 内容变、id 不变也会重新嵌入）。
+    // `write()` 是同步方法，不能 await ⇒ 这里 fire-and-forget（`notifyKnowledgeWritten` 自身**永不抛**，
+    // 故不会有未处理的 rejection）。进程若在"写库后、嵌入前"退出会漏，由幂等的 `runIncrementalIndex()` 兜底。
+    void notifyKnowledgeWritten([
+      { nodeId: dreKnowledgeNodeId(node.domain, node.nodeId), content: `${node.title} ${node.content}` },
+    ]);
 
     return {
       ...node,
