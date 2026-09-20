@@ -27,7 +27,7 @@
  */
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import { readString } from "../src/utils/env.js";
+import { resolveKnowledgeDbPath } from "../src/knowledge/kb-db-path.js";
 import { collectKnowledgeCorpus } from "../src/knowledge/kb-corpus.js";
 import { indexNodeEmbeddings } from "../src/knowledge/semantic-index.js";
 import { countEmbeddings, deleteEmbeddingsForOtherModels } from "../src/knowledge/embedding-store.js";
@@ -79,7 +79,7 @@ if (!embedder) {
 }
 
 // ── 同库校验（打印出来供与读取端核对） ─────────────────────────────────────────
-const dbPath = arg("db") ?? (readString("KB_DB_PATH") || readString("DATABASE_PATH", "./data/agent.db"));
+const dbPath = arg("db") ?? resolveKnowledgeDbPath();
 if (!existsSync(dbPath)) {
   console.error(`数据库不存在：${dbPath}（不会自动创建空库，避免把空库当成"索引成功"）`);
   process.exit(2);

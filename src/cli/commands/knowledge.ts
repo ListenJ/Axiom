@@ -2,6 +2,41 @@ import { getKnowledgeStore } from "../../knowledge/store.js";
 import { collectKnowledge } from "../../knowledge/collector.js";
 import { runPipeline } from "../../knowledge/pipeline.js";
 import { getKnowledgeUpdater } from "../../knowledge/auto-updater.js";
+import { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { resolveKnowledgeDbPath } from "../../knowledge/kb-db-path.js";
+import { resolveEmbeddingConsent } from "../../knowledge/embedding-consent.js";
+import { embeddingModelTagOf } from "../../knowledge/embedding-model.js";
+import { findModelsForRole } from "../../router/model-capability-registry.js";
+import { router } from "../../router/model-router.js";
+
+/**
+ * 采集收尾用的**增量索引依赖**（A7 后半，2026-09-21）。
+ *
+ * 组合根职责：`src/knowledge/` 不 import `src/router/`（分层 + 架构门禁 Test 9），
+ * 故真实 embedding 依赖只能在 CLI/服务这一层注入。
+ *
+ * 返回值语义：
+ * - `undefined` ⇒ 跳过（显式 `--index-embeddings=false`，或**库文件不存在**——不自动建空库）；
+ * - 否则把 db 与三个依赖一起交给 `runPipeline`，由 `runIncrementalIndex` 自行门控
+ *   （未授权/无路由 ⇒ **连库都不读**，直接返回 skipped）。
+ */
+function buildEmbeddingIndexOption(skip: boolean) {
+  if (skip) return undefined;
+  const dbPath = resolveKnowledgeDbPath();
+  if (!existsSync(dbPath)) {
+    console.warn(`[Pipeline] 跳过 embedding 增量索引：知识库不存在（${dbPath}）`);
+    return undefined;
+  }
+  const db = new Database(dbPath);
+  return {
+    db,
+    embeddings: (texts: string[]) => router.embeddings(texts),
+    resolveModelTag: () => embeddingModelTagOf(findModelsForRole("embedding")),
+    consent: resolveEmbeddingConsent,
+    now: Date.now(),
+  };
+}
 
 export async function handleKnowledgeCollect(args: string[]) {
   const domain = args.find((a) => a.startsWith("--domain="))?.slice(9);
@@ -70,12 +105,16 @@ export async function handleKnowledgePipeline(args: string[]): Promise<void> {
     }
   }
 
+  const embeddingIndex = buildEmbeddingIndexOption(flags["index-embeddings"] === "false")
   const result = await runPipeline({
     githubTrending: flags["github"] === "true",
     bookTopics: flags["topics"] ? flags["topics"].split(",") : undefined,
     pdfWorkerUrl: flags["pdf-worker"] || undefined,
     convertPdf: flags["convert"] === "true",
+    ...(embeddingIndex ? { embeddingIndex } : {}),
   })
+  // 索引在收尾后不再需要连接（避免 CLI 结束后仍持有句柄）
+  embeddingIndex?.db.close()
 
   console.log(`\nPipeline Results:`)
   console.log(`  GitHub repos:  ${result.githubReposCollected}`)
@@ -83,6 +122,14 @@ export async function handleKnowledgePipeline(args: string[]): Promise<void> {
   console.log(`  PDFs converted: ${result.pdfsConverted}`)
   console.log(`  Notes written: ${result.notesWritten}`)
   console.log(`  Duration:      ${(result.durationMs / 1000).toFixed(1)}s`)
+  if (result.embeddingIndex) {
+    const i = result.embeddingIndex
+    console.log(
+      `  Embedding idx:  indexed=${i.indexed}/${i.attempted} failed=${i.failed}` +
+        (i.skipped ? ` skipped=${i.skipped}` : "") +
+        (i.corpusIssues.length > 0 ? ` issues=${i.corpusIssues.join(",")}` : ""),
+    )
+  }
   if (result.errors.length > 0) {
     console.log(`  Errors:        ${result.errors.length}`)
     for (const e of result.errors) console.log(`    - ${e}`)

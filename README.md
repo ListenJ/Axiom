@@ -340,7 +340,11 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
    供与读取端核对）。
 
 之后 `kal_query` 会在词法结果之外**补入**语义候选（结果里以 `metadata.source = "semantic"` 标注），
-向量**只做候选召回**、最终排序仍带稳定 tie-breaker。索引目前**不会**随文档入库自动重建（新文档需重跑该脚本）。
+向量**只做候选召回**、最终排序仍带稳定 tie-breaker。
+
+**索引如何保持新鲜**：采集管线（`knowledge:pipeline`）收尾会调用**增量索引**，只补"还没有向量"的节点（幂等；
+未授权时连库都不读）。**其它写入路径**（MCP 写工具 `kg_write`、vault 直写、DRE store）不在该钩子内 ——
+这些路径产生的新内容请**重跑** `scripts/index-knowledge-embeddings.ts`。文档**被修改**（内容变、id 不变）不会自动重新嵌入。
 实测收益与边界见 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`（12 条语料小样本，**不可外推为线上召回率**）。
 
 ### 🧠 Vault 共享记忆库

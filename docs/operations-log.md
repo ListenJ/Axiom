@@ -3433,3 +3433,45 @@
 - **说明**：`architecture-integrity` 在 Windows 同样通过，说明本轮为满足"单目录 ≤8 个顶层依赖"所做的分层调整两端一致。
 - **未覆盖项**：本轮 A7 索引脚本的**真实模型**端到端只在 Linux 跑（凭据不跨机，规则 11）；Windows 未跑真实 embedding。
 - **Commit**：`ae3ea55`
+
+## 2026-09-21 — feat(T2): A7 后半 —— 采集管线收尾自动**增量**索引（只补无向量的节点）
+
+- **任务**：接上最后一个缺口 —— 采集/摄取写入新文档后，向量表没有对应行，语义召回漏掉新内容（此前只能人工重跑全量脚本）。分级 **T2**。
+- **① 新增 `src/knowledge/incremental-index.ts`**：
+  - `runIncrementalIndex(db, deps)`：**先判授权与路由，再碰数据库** —— 未授权（默认 `ask`）/无路由时
+    **既不调模型、也不读库**（连语料扫描都不做），这是"默认关闭零成本"的前提；
+  - 已授权 ⇒ 扫描语料 → `loadIndexedNodeIds()` 比对 → 只嵌入**还没有向量**的节点 → 分批写入；
+  - **不抛错**：任何异常收敛进 report 的 `error` 字段（采集不应因向量索引失败而失败）；
+  - **三个存储全读失败**（库句柄关闭/结构不符）⇒ 报 `corpus unreadable` 错误，**不伪装成 `nothing-to-index`**
+    （否则调用方会把"索引彻底没跑"当成"已是最新"）；
+  - 时间戳**由调用方注入**（`deps.now`）而非本模块 `Date.now()` ⇒ 不进 LIMITATIONS §5 的不确定性披露表，保持可复现。
+  - 纯函数 `selectUnindexedNodes()`（保序，便于测试）。
+- **② 管线接线 `src/knowledge/pipeline.ts`**：`PipelineOptions.embeddingIndex`（含 `db` + 依赖，由**组合根**注入）⇒
+  `runPipeline` 收尾调用增量索引，结果写入 `PipelineResult.embeddingIndex`；
+  `error`/`failed>0` 会推入 `result.errors`（不静默）；索引异常有最后一道 try/catch，**不让采集失败**。
+  - **分层**：`src/knowledge/` 不 import `src/router/`（架构门禁 Test 9）⇒ 真实依赖只能在 CLI/服务层注入。
+- **③ 组合根 `src/cli/commands/knowledge.ts`**：`buildEmbeddingIndexOption()` 提供真实依赖（router + 标签 + 授权），
+  并在命令结束时 `db.close()`；`--index-embeddings=false` 可显式跳过；**库文件不存在则不建空库**（打印跳过原因）。
+- **④ 单一 DB 路径口径** `src/knowledge/kb-db-path.ts`（`KB_DB_PATH`→`DATABASE_PATH`→`./data/agent.db`）：
+  索引脚本与 CLI 同源，避免"写 A 库、读 B 库"这类**不报错的空召回**。
+- **测试（+2 文件 / +12 例）**：
+  - `tests/unit/incremental-index.test.ts`（8）：**用"已关闭的 Database 句柄"做可证伪探针**证明未授权/无路由时**不碰库**；
+    只补缺口；幂等第二次零调用；失败计数不抛；表缺失与触顶进 `corpusIssues`；纯函数保序；读已索引集合表缺失返空集。
+  - `tests/unit/pipeline-embedding-index.test.ts`（4）：未配置 ⇒ 无该字段；未授权 ⇒ `skipped` 且不碰库；
+    已授权 ⇒ 报告计数 + `failed` 进 `errors`；索引异常不让采集失败。
+- **⑤ 真实模型端到端实测（增量路径）**：向测试库**新插入 1 条**文档后跑增量索引
+  ⇒ `REPORT={"model":"siliconflow/BAAI/bge-m3","corpusSize":3,"alreadyIndexed":2,"attempted":1,"indexed":1,"dim":1024,"corpusIssues":[]}`
+  （**只嵌入新增那条**，已有 2 条跳过）；随后英文查询 `how to avoid a cascading failure`
+  ⇒ `RESULT relevance=0.588 semantic=true title=熔断器模式`、**NEW_DOC_RECALLED_BY_SEMANTIC=true**（新文档被语义腿召回）。
+  - ⚠️ 同一轮的首次查询因**网络瞬时卡顿**超时（`exit=124`）；重跑同查询 `exit=0 / 0s` 并命中。
+    即：该次超时是**外部网络**问题，不是代码问题；降级行为（无候选→纯词法）本身按设计工作。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4124 pass / 67 skip / 0 fail**。
+  - 期间 `determinism-disclosure`（G-04 门禁）因新增 `Date.now()` 命中而失败 ⇒ 选择**把时间戳改成调用方注入**
+    而不是去改披露数字（更符合既有约定，也让模块保持无时钟）。
+- **文档同步**：`LIMITATIONS.md` 局限 6（明确"已接采集管线 / 其它写入路径需重跑脚本 / 不做变更检测与删除同步"）、
+  `docs/ARCHITECTURE.md` §8、计划 §6 二次更新、README 中英（索引新鲜度一节）。
+- **未覆盖项（如实）**：①MCP `kg_write`、vault 直写、DRE `knowledge-store` 写入**不在钩子内**；
+  ②文档**被修改**不会重新嵌入（无 content_hash 比对）；③节点**删除**后向量行残留；
+  ④语料 5000 行/表上限（触顶报 `truncated`，不自动续跑）；⑤未测大体量库的增量耗时。
+- **不做项**：未改 KAL 查询/物化实现；未引入 content_hash 变更检测；未给其它写入路径挂钩子（属独立决策）；未改 registry。
+- **Commit**：`__COMMIT__`

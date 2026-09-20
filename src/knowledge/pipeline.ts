@@ -10,6 +10,8 @@ import { preprocessKnowledge } from "./preprocessor.js"
 import { assessQuality } from "./quality-assessor.js"
 import { structureKnowledgeWithEdge } from "./edge-assist.js"
 import { describeMediaInMarkdown } from "./vision.js"
+import { runIncrementalIndex, type IncrementalIndexDeps, type IncrementalIndexReport } from "./incremental-index.js"
+import type { Database } from "bun:sqlite"
 
 const ZHIPU_API_BASE = readString("KNOWLEDGE_LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
 const STRUCTURE_SYSTEM_PROMPT = `你是一个知识提取专家。将用户提供的原始文本按以下 JSON Schema 结构化输出：
@@ -180,6 +182,14 @@ export interface PipelineOptions {
   pdfWorkerUrl?: string
   /** Convert discovered PDFs to markdown */
   convertPdf?: boolean
+  /**
+   * 采集收尾：把**新入库**的文档增量索引成向量（A7 后半，2026-09-21）。
+   *
+   * 依赖由**组合根**注入（含 `db` + embedding 依赖），因为 `src/knowledge/` 不 import `src/router/`（分层约束）。
+   * **缺省 undefined ⇒ 完全跳过**（不读库、不触网），保证"默认关闭"零成本；
+   * 传入但未授权/无路由时，`runIncrementalIndex` 也会在**碰数据库之前**返回（见 incremental-index.ts 的门控顺序）。
+   */
+  embeddingIndex?: IncrementalIndexDeps & { db: Database }
 }
 
 export interface PipelineResult {
@@ -191,6 +201,8 @@ export interface PipelineResult {
   skippedEmpty: number
   errors: string[]
   durationMs: number
+  /** 采集收尾的增量索引结果（未配置 `embeddingIndex` 时为 undefined） */
+  embeddingIndex?: IncrementalIndexReport
 }
 
 /**
@@ -327,6 +339,30 @@ export async function runPipeline(opts: PipelineOptions = {}): Promise<PipelineR
         logger.warn(`[Pipeline] ${msg}`)
         result.errors.push(msg)
       }
+    }
+  }
+
+  // 采集收尾：增量索引（把本次新入库的文档补成向量）。
+  // 未配置 ⇒ 完全跳过；已配置但未授权/无路由 ⇒ runIncrementalIndex 在碰库之前返回。
+  // 索引失败**不得**让采集失败（写入 result + errors，管线照常收尾）。
+  if (opts.embeddingIndex) {
+    try {
+      const report = await runIncrementalIndex(opts.embeddingIndex.db, opts.embeddingIndex)
+      result.embeddingIndex = report
+      logger.info("[Pipeline] embedding index", {
+        model: report.model,
+        indexed: report.indexed,
+        failed: report.failed,
+        skipped: report.skipped,
+        issues: report.corpusIssues.length,
+      })
+      if (report.error) result.errors.push(`embedding index: ${report.error}`)
+      if (report.failed > 0) result.errors.push(`embedding index: ${report.failed} node(s) failed`)
+    } catch (err) {
+      // runIncrementalIndex 自身不抛；此处是最后一道防线（例如 db 句柄已被关闭）
+      const msg = `embedding index failed: ${(err as Error).message}`
+      logger.warn(`[Pipeline] ${msg}`)
+      result.errors.push(msg)
     }
   }
 

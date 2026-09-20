@@ -330,8 +330,13 @@ zero network requests instead of silently calling out:
    model tag so you can cross-check against the read side).
 
 `kal_query` will then **add** semantic candidates on top of the lexical results (marked `metadata.source = "semantic"`);
-vectors are used for **candidate recall only**, and final ordering keeps the stable tie-breaker. Indexing is
-**not** rebuilt automatically when documents are ingested (re-run the script after adding documents).
+vectors are used for **candidate recall only**, and final ordering keeps the stable tie-breaker.
+
+**Keeping the index fresh**: the collection pipeline (`knowledge:pipeline`) runs an **incremental index** as its
+final step, covering only nodes that have no vector yet (idempotent; when unauthorized it does not even read the
+database). **Other write paths** (the MCP `kg_write` tool, direct vault writes, the DRE store) are *not* on that
+hook — re-run `scripts/index-knowledge-embeddings.ts` after those. Documents that are **edited** (content changes,
+id unchanged) are not re-embedded automatically.
 Measured gains and their limits: `eval-results/lexical-vs-semantic-recall-2026-09-20.md`
 (12-document sample, **do not extrapolate to production recall**).
 
