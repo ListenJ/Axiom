@@ -2940,4 +2940,4 @@
   ③`listProviderStatus()`（GET /api-keys 返回）**仍未包含自定义 provider**；④B0（外围 ~90 处 provider 字面量收敛）未做；
   ⑤自定义 provider **能否真正被 `findModelsForRole` 选中**未做端到端验证（需先有模型级条目）。
 - **不做项**：未改 `user-config-loader` / `routes/models.ts` / EXTENSIONS 链路（避免动既有的前端管理页）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`03120c3`
