@@ -15,14 +15,22 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(import.meta.dir, "../..");
+/**
+ * ⚠️ 必须用 `file://` URL 而不是裸路径：把 Windows 路径（`D:\a\b.ts`）直接插进子脚本的
+ * JS 字符串里，`\a`/`\b` 会被当**转义字符**吃掉，变成 `D:ab.ts` ⇒ 子进程报
+ * `Cannot find package`。该缺陷**只在 Windows 上出现**（Linux 路径是 `/`，无转义问题），
+ * 由双端实测当场发现（2026-09-21）。
+ */
+const TRACKER_URL = pathToFileURL(join(ROOT, "src", "router", "token-tracker.ts")).href;
 
 describe("TokenTracker 定时器 unref", () => {
   it("记一条用量后进程能自然退出（不靠 close()）", () => {
     const dir = mkdtempSync(join(tmpdir(), "tracker-exit-"));
     const script = `
-      import { getTokenTracker } from "${join(ROOT, "src", "router", "token-tracker.ts")}";
+      import { getTokenTracker } from ${JSON.stringify(TRACKER_URL)};
       getTokenTracker().record({
         timestamp: Date.now(),
         model: "probe-model",

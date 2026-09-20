@@ -3286,3 +3286,26 @@
   ②未新增"文档不得宣称 siliconflow 为默认嵌入源"的**自动门禁**（本轮只有人工核对 + 既有 docs-consistency 的有限规则）。
 - **不做项**：未改任何源码；未改历史留痕（operations-log 更早条目）；未重写其它日期文档的历史结论。
 - **Commit**：`c68189f`
+
+## 2026-09-21 — fix(T2): 双端实测发现的 Windows 专属缺陷（子脚本内嵌 Windows 路径被转义吃掉）
+
+- **任务**：按用户要求做**双端（Linux + Windows）实测**，获取真实环境证据。分级 **T2**（测试代码缺陷，非产品代码）。
+- **环境（实测）**：Windows 主机 `18336@192.168.0.100`，Bun **1.3.14**；经 `"C:\Program Files\Git\bin\bash.exe" -s`
+  以 Git Bash 执行（避开 cmd/PowerShell 引号问题）；验证工作树 `D:\openclaw-fusion-verify`
+  （`node_modules` 为主检出 junction）；`git fetch gitea` 后 checkout `ea9b4a3`。
+  **注意**：本机 Linux 的 Bun 是 **1.4.2**，与仓库 `packageManager`/CI 固定的 **1.3.14** 不同（见下方未覆盖项）。
+- **Windows 首轮结果**：`bunx tsc --noEmit` → **TSC_OK**（0 error）；定向 7 文件 **30 pass / 1 fail**
+  （A6 5 进程确定性、A8 三个守卫、授权门路由、语义索引、release-path 闸门、category 生产者**全部在 Windows 通过**）。
+- **失败项与归因（真缺陷，非环境噪声）**：`tests/unit/token-tracker-exit.test.ts` 在 Windows 报
+  `Cannot find package 'D:openclaw-fusion-verifysrc\router\token-tracker.ts'`。
+  根因：我把 `join(ROOT, ...)` 的**裸路径**插进了子进程脚本的 **JS 字符串字面量**中，
+  Windows 路径的反斜杠被当作**转义序列**吃掉（`\o`/`\s` 消失）⇒ 路径被拼接破坏。
+  Linux 路径用 `/`，故**该缺陷只在 Windows 显形**。
+- **修复**：改用 `pathToFileURL(...).href` + `JSON.stringify(...)` 注入子脚本（与平台无关，无转义问题），
+  并在代码注释里写清"为什么不能内嵌裸路径"。
+- **验证（Linux）**：`bun test tests/unit/token-tracker-exit.test.ts` → **1 pass / 0 fail**。
+- **Windows 复测**：见下一条记录（本条目先落修复，复测结果单独留痕，避免把"待验证"写成"已验证"）。
+- **顺带发现（未处理，登记）**：Windows 侧 Bun **1.3.14** vs Linux **1.4.2** 的版本差异尚未评估 ——
+  若 CI 固定 1.3.14，则本机 Linux 的全量结果与 CI 的运行时**不完全同源**。
+- **不做项**：未改产品代码；未在 Windows 跑全量套件（仅定向 7 文件）+ `tsc`。
+- **Commit**：`__COMMIT__`
