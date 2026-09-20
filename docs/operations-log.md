@@ -3329,4 +3329,4 @@
      本机 Linux 全量的**运行时**与 CI 不完全同源（已知历史差异，例如 Bun 1.4.x 的测试发现/`--path-ignore-patterns` 行为）。
   4. Windows 工作树 `node_modules` 是主检出的 **junction**（非独立安装）⇒ 依赖解析路径与干净 CI 不同。
 - **不做项**：未在 Windows 上改动代码或提交（仅只读 checkout + 跑测试）；未把凭据复制到 Windows。
-- **Commit**：`__COMMIT__`
+- **Commit**：`f7bcdea`
