@@ -3409,3 +3409,16 @@
   ⑤`AXIOM_ALLOW_DEV_MODELS=1` 会一次性放行 10 条 siliconflow 条目（无更细粒度开关）。
 - **不做项**：未改 KAL 的 SQL/词法腿；未把索引接入采集管线；未改 registry/registry 语义；未写真实凭据进仓库。
 - **Commit**：`e8899d4`
+
+## 2026-09-21 — docs(T1): 语义层接线完成后的口径同步（补记）
+
+- **任务**：A5/A7 接线完成后，把"已完成/仍未完成"的**声明面**同步，避免文档落后于实现。分级 **T1**（纯文档）。
+- **操作（5 个文件）**：`LIMITATIONS.md`（局限 6 改写为"已接线但索引需显式触发"、新增局限 8 记录两处未 unref 定时器已修+同模式 16 处的未决边界）、
+  `docs/ARCHITECTURE.md` §8（检索行改为"已接线 / 索引手动 / 发布默认无 embedding 路由"）、
+  `docs/plans/2026-09-19-knowledge-semantic-layer.md`（切片 4/5 标完成并附提交号，§6 的 A5/A7 两条销账且列出替代未完成项）、
+  `README.md` + `README_en.md`（新增三步启用说明：授权 → 配模型 → 建索引，并写明索引不会随入库自动重建）。
+- **验证结果**：`docs-consistency` + `env-example-completeness` + `architecture-integrity` → **36 pass / 0 fail**；`bunx tsc --noEmit` → 0 error。
+- **偏差记录（记录维护失误，如实）**：本条目**漏写** —— 提交 `cd977bf` 时我只回填了上一提交的 hash，没为本改动新增条目，
+  之后回填脚本因找不到 `__COMMIT__` 占位符而报错（`AssertionError: 0`）才发现。本次补记即为此，**未改写已推送历史**（规则 9）。
+- **未覆盖项**：同上一提交（A5 已完成；索引未接管线、5000 行上限、物化 O(N) 枚举仍为未决项）。
+- **Commit**：`__COMMIT__`（补记；被记录的改动本身是 `cd977bf`）
