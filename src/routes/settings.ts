@@ -2,7 +2,7 @@
  * Settings routes — 设置目录与语义搜索
  *
  * GET  /settings/catalog — 返回设置目录（无敏感值）
- * POST /settings/search  — 语义搜索（本地 embedding → 路由 embedding → 关键词兜底）
+ * POST /settings/search  — 语义搜索（**授权后**才走路由 embedding；未授权/失败 → 纯关键词，零网络请求）
  *
  * 另含两个「面板数据」端点（供设置页中 type=panel 的条目消费）：
  *   GET/POST /settings/web-search — 网络搜索：引擎池状态与开关、SearXNG、聚合与抓取策略
@@ -11,6 +11,8 @@
 import type { RouteContext } from "./types.js";
 import { SETTING_SECTIONS, SETTINGS_CATALOG } from "../core/settings-catalog.js";
 import { searchSettings } from "../core/settings-search.js";
+import { router } from "../router/model-router.js";
+import { createConsentedEmbedder } from "../knowledge/embedding-consent.js";
 import {
   describeWebSearchSetup,
   listEngineStatus,
@@ -137,7 +139,11 @@ export async function handleSettingsSearch(ctx: RouteContext): Promise<Response 
     if (!q) {
       return ctx.jsonResponse({ error: "Missing q param" }, 400, ctx.baseHeaders);
     }
-    const result = await searchSettings(q, { limit: body.limit });
+    // D1/D5 授权门：未授权（默认 `ask`）⇒ `createConsentedEmbedder` 返回 `null`
+    // ⇒ `searchSettings` 拿到 null 即纯关键词路径，**一次网络请求都不发**。
+    // 逐请求构造（不在模块作用域构造）：避免 import 期副作用，且运行期改授权立即生效。
+    const embedder = createConsentedEmbedder({ embeddings: (texts) => router.embeddings(texts) });
+    const result = await searchSettings(q, { limit: body.limit, embedder });
     return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

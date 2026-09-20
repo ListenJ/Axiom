@@ -3134,4 +3134,40 @@
   `tests/computer-use/agent-fallback.test.ts:11` 的精确文案断言，为控制范围本轮未做）；
   ③外围约 90 处 provider 字面量（切片 B0）仍未收敛。
 - **不做项**：未删除任何 siliconflow 条目/provider（用户已改为"保留"）；未改 api-key-store；未发起任何真实网络请求。
+- **Commit**：`0c25a3f`
+
+## 2026-09-20 — feat(T2): C' 第四步 —— 语义索引写入腿/查询腿 + 生产接线（/settings/search 授权门）
+
+- **任务**：补完切片 4/5 的**真实行为**（此前只有"排序器"，没有东西写向量、也没有东西读向量做召回 = 有形状无行为）。分级 **T2**。
+- **① 新增 `src/knowledge/semantic-index.ts`（两条腿）**：
+  - **写入腿** `indexNodeEmbeddings()`：语料 → embedder → `knowledge_embeddings`（同库，D4）；
+    同 nodeId 覆盖 ⇒ 重复摄取幂等；`indexed/failed/dim` **显式报数**（失败不静默）；
+    同批维度不一致的条目**不写**（避免混维度入库）；
+  - **查询腿** `recallBySimilarity()`：query → embedder → 与**已落库全部向量**逐行余弦 → top-K 候选；
+    排序键 **(score desc, node_id 码元升序)**，显式 sort ⇒ **与 Map 遍历顺序无关**（D3）；
+    阈值默认复用 `SEMANTIC_MIN_SIMILARITY`（单一出处）；
+  - **授权门在调用方**：两函数都接受 `EmbeddingsCall | null`，`null` ⇒ **零调用、零写库、零候选**；
+    模块不 import 网络层（依赖注入，rule 8）。
+  - **边界如实声明**：查询腿是**全表暴力余弦**（O(语料 × 维度)）；上万条须换 ANN —— 届时是新决策（D4 裁定不引向量库）。
+- **② 生产接线（切片 5）：`src/routes/settings.ts` 的 `POST /settings/search`**
+  - 逐请求构造 `createConsentedEmbedder({ embeddings: (t) => router.embeddings(t) })`；
+  - **未授权（默认 `ask`）⇒ null ⇒ 纯关键词、零网络请求**（与改造前行为一致，无回归风险）；
+  - 已授权 `yes` ⇒ 门真的打开：叠加语义打分（`engine` 变 `semantic`/`hybrid`）；
+  - embedding 失败 ⇒ 降级关键词，路由仍 **200**（不把检索打成 500）；
+  - 逐请求构造而非模块作用域：避免 import 期副作用 + 运行期改授权立即生效（此前 9001 的"急切构造回归"教训）。
+- **测试（+16 例，全离线，无真实网络）**：
+  - `tests/unit/semantic-index.test.ts`（12）：未授权零调用/不建表、写入幂等、条数不符报数、维度不一致拒写、
+    embedder 抛错降级、语义召回、**同分按 node_id 且不同插入序结果一致**、阈值过滤、5 次一致、
+    旧库缺表自动建、查询腿抛错降级；
+  - `tests/routes/settings-search-consent.test.ts`（4）：未授权**零调用**、已授权门**确实打开**（调用计数=1 且 engine 变化）、
+    失败降级仍 200、路径不匹配放行。
+  - 注：用 `spyOn(router, "embeddings")` 而非 `mock.module`（后者进程级污染，仓库已有踩坑记录）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4084 pass / 67 skip / 0 fail**。
+- **顺带**：回填上一提交（发布面闸门）的 hash 占位符 → `0c25a3f`（记录维护，规则 5）。
+- **未覆盖项**：①**知识库侧的自动接线未做** —— `indexNodeEmbeddings` 尚未挂到采集/摄取管线，
+  故 KB 的 `knowledge_embeddings` 表默认仍为空（只有评测脚本/调用方显式触发才会写）；
+  ②`recallBySimilarity` 尚未接进 `KnowledgeAccessLayer.query()`（KAL 的合并需要"按 id 取回 KnowledgeUnit"的
+  语料级查询面，当前只有 `getReferences(nodeId)`，形状不匹配）—— 属**未完成项**，不是"已完成但没写文档"；
+  ③A6 跨进程 N≥5 确定性实测、A8 词法 vs 词法+语义对拍**仍未做**。
+- **不做项**：未改 KAL 查询实现；未挂采集管线；未引入向量库依赖；未发起真实网络请求。
 - **Commit**：`__COMMIT__`
