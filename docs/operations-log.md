@@ -3061,3 +3061,31 @@
   ⑤**全量回归待环境恢复后复测**。
 - **不做项**：未执行 siliconflow 移除；未把 key 写入 `.env` 或任何仓库文件；未改既有检索实现。
 - **Commit**：`62bb1f0`
+
+## 2026-09-20 — feat(T2): C' 第三步 —— D4 向量表落地（同一 SQLite）+ 语义层拼装
+
+- **任务**：用户"继续"要求把 C' 推完（切片 4 剩余部分）。分级 **T2**。仅提交 Gitea。
+- **① 交付：`src/knowledge/embedding-store.ts` —— D4 的落地点**
+  - **同一个 SQLite**（与知识表同库）新增表 `knowledge_embeddings`：`node_id` 主键、`model`/`dim`/`vector`/`updated_at`；
+    不引入任何向量库依赖（D4 裁定）。
+  - **换模型清账**：向量随 `model`/`dim` 落行 ⇒ 换 embedding 模型时按 `model` 过滤，并可用
+    `deleteEmbeddingsForOtherModels()` 清掉旧模型行，避免**两种模型的向量混用**（静默错误）。
+  - **幂等**：`node_id` 冲突即覆盖 ⇒ 重复摄取同一文档**不产生第二行**（KG Writer 幂等性的一环）。
+  - **不读时钟**：`now` 由调用方传入（确定性）。
+- **② 交付：`src/knowledge/semantic-layer.ts` —— 三块零件拼装（授权门 + 向量 + 稳定排序）**
+  - `embedder === null`（未授权）⇒ **纯词法，且一次都不调用**（结构上拿不到 embedder）；
+  - embedder 抛错/返回空/长度不符 ⇒ **降级纯词法**，`semanticUsed=false`（不抛错、不挂起）；
+  - 余弦用**共享实现** `src/utils/math.ts` 的 `cosineSimilarity`（不手写第二份）；
+  - 阈值 `SEMANTIC_MIN_SIMILARITY = 0.5` 为**具名常量**（非魔法数）；低于阈值不进候选；
+  - 最终排序完全交给 `rankWithSemanticRecall`（score desc, id **码元**升序）；
+  - `semanticUsed` 只在**候选真的被采纳**时为 true（不把"调了但没起作用"记成用过）。
+- **测试（+10 例）**：`tests/unit/embedding-store.test.ts`（5）+ `tests/unit/semantic-layer.test.ts`（5）——
+  覆盖同库建表/幂等覆盖/维度不符计 `malformed`/换模型清账/未授权零调用/语义补召回/失败降级/阈值/5 次一致。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向 **29 pass / 0 fail**；
+  **全量 `bun run test` → 4058 pass / 67 skip / 0 fail（4125 tests / 420 files / 25.79s）**。
+  （注：本机负载已从 47 回落到 ~1.5、available 内存 7G ⇒ 此前"环境降级导致全量不可信"的条件**已解除**，
+  本轮全量结果**可用**。）
+- **未覆盖项**：①**SiliconFlow 尚未落成"仅 dev/test"的可验证约束**（本轮未动，用户最新指令要求补）；
+  ②真实 embedder **仍未接进生产检索调用点**；③**跨进程 N≥5 确定性实测**（A6）未做；④A8 对拍（词法+语义）未做。
+- **不做项**：未改 `registry.ts` / `api-key-store`；未接生产检索路径；未发起任何真实网络请求（全离线）。
+- **Commit**：`__COMMIT__`
