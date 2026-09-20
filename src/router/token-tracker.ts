@@ -301,6 +301,11 @@ export class TokenTracker {
     this.flushTimer = setInterval(() => {
       this.flush().catch((e) => logger.warn("[TokenTracker] Auto-flush failed", e));
     }, this.flushIntervalMs);
+    // 不能把**短命进程**钉死：任何走过 trackCall 的 CLI/脚本（如评测脚本、
+    // `ModelRouter.embeddings()` 记用量后的单次调用）本应自然退出，但未 unref 的
+    // setInterval 会一直持有事件循环 ⇒ 进程永不退出（实测：评测脚本写完报告仍挂着）。
+    // 长驻服务不受影响：定时器照常触发刷盘，只是不再阻止进程结束。
+    (this.flushTimer as unknown as { unref?: () => void }).unref?.();
   }
 
   /** 记录一次 token 使用 */
@@ -654,5 +659,4 @@ export function getTokenTracker(): TokenTracker {
   if (!_tracker) _tracker = new TokenTracker(readString("TOKEN_USAGE_DB", "./data/token-usage.db"));
   return _tracker;
 }
-
 

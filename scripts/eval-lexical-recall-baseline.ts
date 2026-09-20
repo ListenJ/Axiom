@@ -23,68 +23,21 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { rankDocuments, tokenize } from "../src/dre/runtime/text-rank.js";
+import { rankDocuments } from "../src/dre/runtime/text-rank.js";
+import {
+  RECALL_EVAL_CASES as CASES,
+  RECALL_EVAL_CORPUS as CORPUS,
+  selfCheckRecallCases,
+} from "./eval-fixtures/recall-corpus.js";
 
 const DATE = "2026-09-20";
 const TOP_KS = [1, 5, 10] as const;
 
-interface Doc { id: string; title: string; content: string }
-interface Case { category: "synonym" | "cross-lingual" | "abbreviation" | "lexical-control"; query: string; expect: string }
-
-/** 语料：12 条，覆盖连接池/内存/协议全称/规范缩写/幂等/日志/慢查询/用量/缓存/可观测性 等 */
-const CORPUS: Doc[] = [
-  { id: "kb-pool", title: "数据库连接池耗尽", content: "连接池耗尽导致请求超时，需调大最大连接数并排查慢查询。" },
-  { id: "kb-memleak", title: "内存持续上涨", content: "进程常驻占用只增不减，疑有对象未回收，需排查引用链。" },
-  { id: "kb-rest", title: "Representational State Transfer", content: "An architectural style using stateless resources and standard HTTP verbs." },
-  { id: "kb-csp", title: "Content Security Policy", content: "Restricts which scripts may execute, mitigating cross-site scripting." },
-  { id: "kb-rag", title: "Retrieval Augmented Generation", content: "Combines a retriever with a generator to ground answers in documents." },
-  { id: "kb-breaker", title: "熔断器模式", content: "下游持续失败时快速失败，避免级联故障拖垮上游。" },
-  { id: "kb-idem", title: "写入的重复执行语义", content: "同一操作重放多次与执行一次效果相同，是安全重试的前提。" },
-  { id: "kb-wal", title: "预写日志", content: "Write-ahead logging 保证崩溃后可恢复，先落盘再改数据。" },
-  { id: "kb-slowq", title: "慢查询优化", content: "为高频过滤字段建索引，避免全表扫描造成长尾。" },
-  { id: "kb-token", title: "调用消耗统计", content: "按模型与分类聚合每次调用的用量。" },
-  { id: "kb-cache", title: "热点失效风暴", content: "某条目一过期，瞬间大量请求压到后端。" },
-  { id: "kb-obs", title: "可观测性三支柱", content: "日志、指标、分布式追踪。" },
-];
-
-const CASES: Case[] = [
-  // ── 语义型：与目标文档**零 token 重叠**（下面自校验会强制该性质） ──
-  { category: "synonym", query: "调用链雪崩要怎样自保", expect: "kb-breaker" },
-  { category: "synonym", query: "垃圾堆越积越多最后会怎样", expect: "kb-memleak" },
-  { category: "synonym", query: "同样的按钮连点两下会扣两次钱吗", expect: "kb-idem" },
-  { category: "synonym", query: "怎么防止流量同时涌向数据库", expect: "kb-cache" },
-
-  { category: "cross-lingual", query: "occupancy keeps growing and never released", expect: "kb-memleak" },
-  { category: "cross-lingual", query: "how to avoid a cascading failure", expect: "kb-breaker" },
-  { category: "cross-lingual", query: "avoid long tail by indexing filter columns", expect: "kb-slowq" },
-  { category: "cross-lingual", query: "recover after a crash", expect: "kb-wal" },
-
-  { category: "abbreviation", query: "REST", expect: "kb-rest" },
-  { category: "abbreviation", query: "CSP", expect: "kb-csp" },
-  { category: "abbreviation", query: "RAG", expect: "kb-rag" },
-
-  // ── 对照：**刻意共享 token**，词法应当命中（证明 harness 没坏） ──
-  { category: "lexical-control", query: "连接池", expect: "kb-pool" },
-  { category: "lexical-control", query: "熔断器", expect: "kb-breaker" },
-  { category: "lexical-control", query: "可观测性", expect: "kb-obs" },
-];
-
 const docById = new Map(CORPUS.map((d) => [d.id, d]));
 const docs = CORPUS.map((d) => ({ item: d, fields: [d.title, d.content] }));
 
-// ── 用例自我校验 ──
-const overlapFailures: string[] = [];
-for (const c of CASES) {
-  const target = docById.get(c.expect)!;
-  const q = new Set(tokenize(c.query));
-  const t = new Set([...tokenize(target.title), ...tokenize(target.content)]);
-  const inter = [...q].filter((x) => t.has(x));
-  if (c.category === "lexical-control") {
-    if (inter.length === 0) overlapFailures.push(`[control 必须共享 token] ${c.query} -> ${c.expect}`);
-  } else if (inter.length > 0) {
-    overlapFailures.push(`[语义类不得重叠] ${c.category} "${c.query}" -> ${c.expect} 重叠=${inter.join(",")}`);
-  }
-}
+// ── 用例自我校验（夹具模块提供，语义类不得与目标文档 token 重叠） ──
+const overlapFailures = selfCheckRecallCases(CORPUS, CASES);
 if (overlapFailures.length > 0) {
   console.error("用例自我校验失败（否则会高估词法能力）：");
   for (const f of overlapFailures) console.error("  - " + f);

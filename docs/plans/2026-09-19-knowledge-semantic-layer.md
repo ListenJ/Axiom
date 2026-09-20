@@ -226,6 +226,9 @@
 - 产出：A8 的**基线一半**（另一半 = 切片 4/5 落地后的"词法+语义"对照）。
 
 **切片 3｜授权门 + Token/配额估算 + 披露文案（不含向量，可纯离线测试）**
+- **状态：✅ 已完成（2026-09-20，`354c3c5` 授权门/估算/文案 + `08c0e09` 授权门→真实 embedder）。**
+  验证：`tests/unit/embedding-consent.test.ts`；A2（未授权零调用）另有路由级断言
+  `tests/routes/settings-search-consent.test.ts`（`a6330f2`）。
 - 实现 `AXIOM_EMBEDDING_CONSENT` ∈ {`ask`(默认),`yes`,`no`} 状态机。
 - 实现消耗估算纯函数（输入 = 本地 KB 统计，输出 = 区间），常量具名化并注明来源；
   口径按 §1.4 修正为「配额消耗 + 计费不确定性」，不得直接写"免费"或"一定扣费"。
@@ -233,6 +236,9 @@
 - 产出：A2（未授权零网络请求）、A3（披露四要素 + 估算纯函数）、A4（拒绝后仍可用 + 影响文案）全部可测。
 
 **切片 4｜向量落地（同一 SQLite 新表）+ 写入路径**
+- **状态：✅ 已完成（2026-09-20）。** `9e821cf` 落表（`embedding-store.ts`）+ 拼装层（`semantic-layer.ts`）；
+  `a6330f2` 补**写入腿/查询腿**（`semantic-index.ts`）。**尚未接采集/摄取管线**（表默认空，须调用方显式触发）⇒
+  该项**仍未完成**，见下方"未完成项"。
 - **复用** `ModelRouter.embeddings()`（`src/router/model-router.ts:1051-1078`）作为传输层，**不新建 embedding 客户端**；
   授权门置于其**调用之前**（`consent !== yes` 时该函数不可达）。
 - 新增 embedding 表（同一库，D4），写入路径**仅在 consent=yes** 时可达。
@@ -241,11 +247,25 @@
 - 产出：A7（同库、无新依赖）。
 
 **切片 5｜候选召回接线 + 稳定排序门禁**
+- **状态：⚠️ 部分完成（2026-09-20）。**
+  - 已完成：稳定排序与"不依赖 Map 遍历顺序"门禁（`tests/unit/semantic-recall.test.ts`）；
+    **一个真实生产调用点**已接线 —— `POST /settings/search` 经授权门叠加语义打分（`a6330f2`，
+    路由级断言 `tests/routes/settings-search-consent.test.ts`）。
+  - 未完成：`KnowledgeAccessLayer.query()` 的合并**未接**（需要"按 id 取回 KnowledgeUnit"的语料级查询面，
+    当前只有 `getReferences(nodeId)`，形状不匹配）⇒ 知识库查询路径仍**只有词法腿**。
 - 向量**仅**参与候选召回；最终排序带稳定 tie-breaker（同分按 node_id 升序）。
 - 新增门禁测试：同分稳定性 + **乱序遍历对拍**（构造 Map 插入序不同的等价输入，断言结果一致）。
 - 产出：A5。
 
 **切片 6｜跨进程确定性实测 + 对拍收口**
+- **状态：✅ 已完成（2026-09-20）。**
+  - A6：`scripts/determinism-semantic-recall.ts` + `tests/rigorous/semantic-determinism-cross-process.test.ts`
+    （**5 个独立进程** hash 唯一 + 语义候选非空防空跑）。
+  - A8：`scripts/eval-lexical-vs-semantic-recall.ts`（**与基线共用夹具** `scripts/eval-fixtures/recall-corpus.ts`），
+    真实模型模式实测（SiliconFlow `BAAI/bge-m3`，dim 1024）：
+    **语义三类 Recall@5 0.0% → 45.5%**（cross-lingual 0% → 100%、synonym 0% → 25%、abbreviation 0% → 0%），
+    对照组 100% → 100%（无回归）。产物 `eval-results/lexical-vs-semantic-recall-2026-09-20.md`。
+    **边界**：12 条语料 / 14 条用例，规模小，**不可外推为线上召回率**。
 - 仿 `scripts/determinism-repro.ts`：N>=5 独立进程取哈希，断言唯一。
 - 完成 A8 对拍（词法 vs 词法+语义），数字入库。
 - 产出：A6、A8。
@@ -269,3 +289,19 @@
    D1 已裁定以 API key 模型为主来源，故它**不再是前置条件**，但其去留须在切片 1 落定（见 §4 切片 1）。
 9. 本地 embedding 服务的**真实可用性、维度、模型版本**未实测（需服务运行环境）。
 10. **本计划的验收标准尚未在任何真机上跑过一次** —— A1–A10 全部为**待实现**状态，不得当作既有能力引用。
+    **更正（2026-09-20）**：A2/A3/A4/A7/A8/A6 已有实测证据（见 §4 各切片状态）；A1/A5/A9 见下方未完成项。
+
+## 六、仍未完成项（2026-09-20 收口时的如实清单）
+
+1. **A5 只完成一半**：`KnowledgeAccessLayer.query()` 仍未合并语义候选（缺"按 id 取回 KnowledgeUnit"的语料级查询面）。
+   故**知识库查询路径当前仍只有词法腿**；已接线的唯一生产调用点是 `POST /settings/search`。
+2. **A7 的"写入路径"缺生产触发器**：`indexNodeEmbeddings()` 无管线调用方 ⇒ `knowledge_embeddings` 表
+   在真实使用中**默认为空**。当前唯一真实写入者是评测脚本。
+3. **A1（改动前后逐字节一致的语义层对拍）未单独做**：切片 1 已把设置项搜索的内置 embedding 移除并有
+   行为锁定断言（`engine === "keyword"`），但未做"A1 要求的逐字节对拍"这一独立证据。
+4. **A9（文档口径收敛）部分完成**：README 已更新（收录/语义层/dev-only 闸门/连带影响），
+   `docs-consistency` 门禁保持非空；但未逐条复核其它 active docs 对"向量"的表述。
+5. **真实模型的 token 成本**：`ModelRouter.embeddings()` 现已把用量记入 TokenTracker
+   （`category="embedding"`，2026-09-20），但本计划**未**据此给出"全库嵌入一次要花多少钱"的实测账单。
+6. **`AXIOM_ALLOW_DEV_MODELS=1` 是 dev/test 的唯一开关**：它同时放行 10 条 siliconflow 模型条目
+   （含 embedding）；**没有**"只放行 embedding 一条"的更细粒度开关。若将来需要，属新决策。

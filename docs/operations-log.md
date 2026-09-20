@@ -3205,4 +3205,54 @@
   ③`AXIOM_ALLOW_DEV_MODELS` 的 env 读取走常量而非字面量，`tests/env-example-completeness.test.ts` 的扫描
   正则**看不见**它（已在 `.env.example` 手工登记，不存在漂移）。
 - **不做项**：未改 TokenTracker 的 schema/聚合；未改 `/traces` 展示；未给 opencode tool-agent 猜分类。
+- **Commit**：`8989319`
+
+## 2026-09-20 — feat(T2): C' 收口 —— A8 对拍（真实模型）+ A6 跨进程确定性 + 修 TokenTracker 钉死进程
+
+- **任务**：完成知识库语义层计划的切片 6（A6 跨进程确定性 + A8 对拍），并修掉实测中暴露的进程挂死缺陷。分级 **T2**。
+- **① A8 对拍（先量化，再声明）**：新增 `scripts/eval-lexical-vs-semantic-recall.ts`。
+  - **两半共用同一夹具**：把语料/用例抽到 `scripts/eval-fixtures/recall-corpus.ts`（含用例自校验函数），
+    基线脚本与本脚本**都 import 它** —— 避免复制两份导致"差值不可比"。重构后**重跑基线，产物逐字节未变**（`git diff` 为空）。
+  - **两种模式，且不静默降级**：`--embedder=fake`（离线，仅证明 harness 可跑，产物里显式标注"不代表语义质量"）；
+    缺省 `--embedder=siliconflow` 需三条件齐备（`AXIOM_ALLOW_DEV_MODELS=1` + 真实 key + `AXIOM_EMBEDDING_CONSENT=yes`），
+    否则 **exit 2 并列出缺什么**（绝不悄悄退回假 embedder 产出"看起来很真"的假数字）。
+  - **真实模型实测**（SiliconFlow `BAAI/bge-m3`，实测 dim **1024**，2026-09-20，dev/test 路径）：
+    | 类别 | n | Recall@5 | MRR |
+    |---|---|---|---|
+    | lexical-control | 3 | 100.0% → 100.0% | 1.000 → 1.000 |
+    | synonym | 4 | 0.0% → 25.0% | 0.000 → 0.063 |
+    | cross-lingual | 4 | 0.0% → **100.0%** | 0.000 → 0.625 |
+    | abbreviation | 3 | 0.0% → 0.0% | 0.000 → 0.000 |
+    **语义三类汇总（11 条）：Recall@5 0.0% → 45.5%**；对照组无回归。
+  - 产物入库（`git add -f`，该目录被 `.gitignore` 排除但基线产物已是既有惯例）：
+    `eval-results/lexical-vs-semantic-recall-2026-09-20.md`（真实）与 `...-fake.md`（离线）。
+  - **边界**：12 条语料 / 14 条用例，**不可外推为线上召回率**；用例自造、存在选择偏差；只测召回不测延迟/成本。
+  - 注意 `abbreviation`（REST/CSP/RAG）在 0.5 阈值下**零召回** —— 说明"向量≠万能"，缩写场景仍是确定性的短板。
+- **② A6 跨进程确定性**：新增 `scripts/determinism-semantic-recall.ts` +
+  `tests/rigorous/semantic-determinism-cross-process.test.ts`（**5 个独立进程**）。
+  - 固定语料 + 固定假 embedder ⇒ 对 `indexNodeEmbeddings → recallBySimilarity → rankWithSemanticRecall`
+    的候选与最终排序做规范序列化（对象键递归排序）后取 sha256：5 个进程 hash **唯一**
+    （实测 `04ab20a2...c30`，候选总数 7）。
+  - **防恒真**：候选总数为 0 时脚本 `exit 2`（否则"空跑出恒等 hash"会变成假证据）。
+  - **不承诺**：跨机/跨后端浮点一致性（本脚本用固定假 embedder，同机跑）；真实模型侧变动不在承诺范围。
+- **③ 实测暴露并修复的缺陷（不是我预设的改动，是跑出来的）**：
+  - **症状**：真实模型模式跑完、报告已写完，进程**仍不退出**，必须手动 `kill`。
+  - **归因**：`TokenTracker` 构造函数里的自动刷盘 `setInterval`（`token-tracker.ts:301`）**未 `unref()`** ⇒
+    一直持有事件循环。任何"记一次用量就结束"的 CLI/脚本都会被钉住（本轮因 `embeddings()` 新增用量落库而立刻显形）。
+  - **修复**：`startFlushTimer()` 里对定时器调用 `unref?.()`（长驻服务行为不变：照常定时刷盘，只是不再阻止进程退出）。
+  - **守卫**：`tests/unit/token-tracker-exit.test.ts` —— 子进程记一条用量后**不调用 close()** 自然走到结尾，
+    断言 `status === 0`；**可证伪性已实测**：把 `unref` 那行拿掉后该用例 **fail（子进程被 15s 超时杀掉）**，恢复后 pass。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；定向：基线守卫 + A8 守卫 4 pass、A6 1 pass、tracker 退出 1 pass；
+  **全量 `bun run test` → 4090 pass / 67 skip / 0 fail**。
+- **顺带**：回填上一提交（category 生产者）的 hash 占位符 → `8989319`（记录维护，规则 5）。
+- **⚠️ 规则 11 偏差记录（我的操作失误，如实报告）**：执行 `cut -d= -f1 ~/.axiom/axiom-secrets/siliconflow.credentials`
+  本意为"只看变量名"时，因该文件**不含 `=`、内容是裸 key**，命令把**密钥明文**打印到了会话输出。
+  - 影响面：密钥值出现在本次会话记录中（该 key 此前已在用户消息里出现过一次）；**未写入任何仓库文件**
+    （`git status` 无 `.env`/凭据文件改动，全仓跟踪文件仍 0 命中）。
+  - 补偿：后续取 key 一律用 `export VAR="$(tr -d '\n' < <file>)"` 形式，**不再打印内容**。
+  - 建议：**轮换该 SiliconFlow key**（由用户执行，agent 不得外传凭据）。
+- **未覆盖项**：①知识库查询路径（`KnowledgeAccessLayer.query()`）仍未合并语义候选 —— 见计划 §6 未完成项；
+  ②`indexNodeEmbeddings()` 无生产管线触发者（表默认空）；③A8 未测延迟与成本；
+  ④真实模型 `abbreviation` 零召回未做进一步调参（阈值/查询改写属新决策）。
+- **不做项**：未改 KAL 查询实现；未挂采集管线；未引入向量库依赖；未把 key 写入任何仓库文件。
 - **Commit**：`__COMMIT__`
