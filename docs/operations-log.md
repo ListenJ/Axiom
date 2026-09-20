@@ -3363,4 +3363,49 @@
   **写入腿（A7）尚无生产触发者**，若先接只读端口就会出现"对着空表召回"的假接线。
   因此接线顺序被定为 **先写入腿（A7）→ 再组合根**，本次先交付可测试的合并能力。
 - **不做项**：未改 KAL 的 SQL/词法腿；未加全局 nodeId 次级键（理由见上）；未接组合根；未引依赖。
+- **Commit**：`e559974`
+
+## 2026-09-21 — feat(T2): A7 写入腿 + 组合根接线（知识库语义检索**真正跑通**）
+
+- **任务**：补上 A7（`indexNodeEmbeddings()` **没有生产触发者** ⇒ 向量表永远空）并把 A5 的端口接到组合根，
+  使"知识库查询吃上语义召回"从**能力**变成**可运行**。分级 **T2**。
+- **① 标签单一来源** `src/knowledge/embedding-model.ts`：`embeddingModelTagOf(models) → provider/model`。
+  写入腿与读取腿**必须同一标签**，否则会出现"写进去了、读不出来、且不报错"的最恶性失效模式。
+- **② 语料采集** `src/knowledge/kb-corpus.ts`：三个知识表 → `{nodeId, content}`；
+  vault/dre 用 `createNodeId`、kg 用**原样 id**（审计 M14）；每表 `ORDER BY <确定性键> + LIMIT`（默认 5000，内存有界）；
+  触顶记 `truncated=true`、空文本记 `skipped`、缺表记 `error` —— **四种状态都不静默**。
+- **③ 生产端口** `src/knowledge/semantic-recall-port.ts`：授权门 → 标签 → `recallBySimilarity`；
+  **三道门每次调用重新求值**（运行期改授权/换模型立即生效，不学 9001 死端点的构造期快照教训）。
+- **④ 组合根接线** `src/mcp/server/kg-tools.ts`：`getKAL()` 注入端口（真实依赖在此提供）。
+- **⑤ 写入腿入口** `scripts/index-knowledge-embeddings.ts`：前置不足即 `exit 2` 并打印披露/影响文案（**不静默降级**）；
+  同库校验（`KB_DB_PATH`→`DATABASE_PATH`→`./data/agent.db`，**打印解析结果**供与读取端核对）；分批嵌入；可选 `--prune-other-models`。
+- **⑥ 实测暴露并修复的第二个"钉死进程"缺陷**：
+  - 症状：索引脚本干完活（打印完统计）**进程不退出**，只能被 `timeout` 杀。
+  - 定位：`src/utils/adaptive-proxy.ts:340` 的健康检查 `setInterval` **未 unref**（与上一轮 TokenTracker 同一类缺陷）。
+    影响面：**任何**走过 `proxyFetch` 的 CLI/脚本。
+  - 修复：`unref?.()`（长驻服务照常健康检查，只是不再阻止进程结束）。
+  - 守卫：`tests/unit/adaptive-proxy-exit.test.ts`（子进程 `initAdaptiveProxy({autoDetect:false,probeUrls:[]})` 后自然退出）；
+    **可证伪性已实测**：拿掉 `unref` 那行 ⇒ 该用例 **fail（子进程 20s 超时被杀）**，恢复后 pass。
+  - 修复后实测：同一索引命令 **exit=0 / 5s**（此前 180s 超时才被杀）。
+- **⑦ 端到端实测（真实模型，dev/test 路径）**：
+  - `MODEL=siliconflow/BAAI/bge-m3`；`CORPUS=2`；`INDEX={"indexed":2,"failed":0,"dim":1024}`（**写入腿真的落库**）；
+  - 查询 `occupancy keeps growing and never released`（英文，与目标中文笔记**零 token 重叠**）⇒
+    `RESULT store=vault ... relevance=0.585 semantic=true title=内存持续上涨`，**SEMANTIC_ONLY_HIT=true**；
+    `exit=0 / 1s`。⇒ A5+A7 **端到端跑通**（词法召不到、语义补进来、跨存储物化成功）。
+  - 阈值实测：同一批里 `连接池耗尽` 与查询余弦 **0.383 < 0.5** 被正确排除（不是"什么都召回"）。
+- **⑧ 仓库架构门禁当场拦下我的分层违规（好信号）**：`knowledge` 目录因这两个新文件 import `router`
+  使"单目录顶层依赖数"从 8 涨到 **9**，`tests/architecture-integrity.test.ts` Test 9 **失败**。
+  修法（不是放宽门禁）：把"取哪个路由"从 knowledge 层移出 ⇒
+  `embeddingModelTagOf(models)` 改为**纯函数**、端口三个依赖**全部由调用方注入**，
+  knowledge 不再 import router（回到 8）。并新增测试钉住这条分层（`semantic-recall-port.test.ts` 第 6 例）。
+- **测试（+4 文件 / +20 例）**：`kb-corpus`（5）、`kb-corpus-kal-roundtrip`（1，**漂移守卫**：语料 id 必须能被 KAL 物化）、
+  `semantic-recall-port`（6，含零调用与分层守卫）、`adaptive-proxy-exit`（1，进程退出守卫）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4112 pass / 67 skip / 0 fail**。
+- **顺带**：回填上一提交（A5 后半）的 hash 占位符 → `e559974`（记录维护，规则 5）。
+- **未覆盖项**：①**索引需要人工/定时触发**（未接采集管线自动重建：新文档入库后不会自动产生向量，直到跑该脚本）；
+  ②语料上限 5000/表（触顶会显式报 `truncated`，但**没有**自动分批续跑）；
+  ③vault/dre 物化在缓存未命中时是 O(N) 枚举（仅读短列，命中即停；未加反向索引）；
+  ④未测大盘知识库（真实库）的索引耗时与 token 成本；
+  ⑤`AXIOM_ALLOW_DEV_MODELS=1` 会一次性放行 10 条 siliconflow 条目（无更细粒度开关）。
+- **不做项**：未改 KAL 的 SQL/词法腿；未把索引接入采集管线；未改 registry/registry 语义；未写真实凭据进仓库。
 - **Commit**：`__COMMIT__`

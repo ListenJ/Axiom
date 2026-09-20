@@ -338,6 +338,10 @@ export async function initAdaptiveProxy(overrides?: Partial<AdaptiveProxyConfig>
 
   // 3. 定时健康检查
   healthCheckTimer = setInterval(runHealthCheck, config.healthCheckInterval);
+  // 不能把**短命进程**钉死：任何走过 `proxyFetch` 的 CLI/脚本（评测、索引、一次性任务）本应自然退出，
+  // 但未 unref 的 setInterval 会一直持有事件循环 ⇒ 进程永不退出（实测：索引脚本干完活却挂到超时才被杀）。
+  // 长驻服务不受影响：定时器照常触发健康检查，只是不再阻止进程结束。
+  (healthCheckTimer as unknown as { unref?: () => void }).unref?.();
 }
 
 /**
