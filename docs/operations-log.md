@@ -2702,3 +2702,37 @@
   ③扫描器三类局限（内联表达式 / 超时型 / 非 memoryUsage 内存断言）未消除；④17 个候选文件未逐一分级。
 - **不做项**：未盲目放宽 17 个候选文件（避免削弱真挂起检测）；未改 `stress/` 与 `perf-benchmark` 的既有 gate。
 - **Commit**：`4935502`
+
+## 2026-09-20 — docs/fix(T2): 知识库语义层切片 1 —— 口径核实后更正范围 + 删除 9001 遗留
+
+- **任务**：用户裁定"开始"（切片 1：口径收敛 + 遗留处置）。分级 **T2**。仅提交 Gitea。
+- **⚠️ 执行时发现**计划前提不成立**，已更正计划并据实调整范围**：
+  - 切片 1 首条是"撤回'非向量化'主张"。实测：6 个 active docs 中搜 `非向量化|不使用向量|零向量|无向量`
+    **仅 1 处命中** —— `docs/STORAGE-EVALUATION.md:76`，且它位于 **"SQLite 劣势"** 段落，陈述的是
+    **FTS5 本身不支持语义相似度**（**准确**，非项目主张）⇒ **无须撤回**。
+  - 判据来源是我早前那句"126 行含向量"—— 那是**宽口径 grep**（凡出现"向量"二字），**不等于主张面**；
+    我据此把它写成了待办，属**计划层错误**。已在 `docs/plans/2026-09-19-knowledge-semantic-layer.md` 的切片 1 内更正。
+  - 主张面对 embedding 的表述与代码**一致**（README 表格 ↔ `edge-embeddings.ts:19` 默认 `"1"`）⇒ **无 drift**。
+- **顺序约束（不可现在做）**：把"授权门 / 用户自配模型 / 语义层默认开启"写进文档 = 描述**尚未实现**的能力
+  （授权门在切片 3、向量落地在切片 4）⇒ 现在写就是**制造新的 doc-vs-impl drift**。**已顺延**至切片 3/4 落地时同批更新。
+- **本轮实际执行（可如实描述现状的部分）**：
+  1. **按规则 4 归档 + 删除** `src/local-llm/edge-embeddings.ts`（用户已定"不再使用 `127.0.0.1:9001`"）：
+     归档至 `archive/edge-embeddings-removal-2026-09-20/src/local-llm/edge-embeddings.ts`，并在 `archive/ARCHIVE-LOG.md` 追加记录；
+     该记录**显式推翻** 2026-09-18 归档里"**保留不动** edge-embeddings.ts"的结论，避免两份归档互相矛盾而无说明。
+  2. `src/core/settings-search.ts`：移除内置 embedding 供给（删 `defaultEmbedder` 与其 import）⇒
+     **默认纯关键词、零网络请求**；`embedder` **注入接缝保留**（`opts.embedder ?? null`）；头部注释同步。
+  3. `src/utils/proxy-fetch.ts:57`：注释里"local-llm/edge-embeddings.ts 走原生 fetch"已更新为"该模块已于 2026-09-20 删除"。
+  4. `tests/settings-search.test.ts`：移除已无意义的 `EDGE_SETTINGS_SEARCH` 环境变量舞蹈（其唯一读取方已删除）；
+     **新增行为锁定断言** —— 未注入 embedder 时 `engine === "keyword"`（防将来静默回退到隐式 embedding）。
+  5. **影响披露（Q4 要求，三处文档）**：`README.md`（长段落 + 表格行）、`docs/ARCHITECTURE.md`、`docs/LIMITATIONS.md` 均写明：
+     **语义召回（同义不同词 / 跨语言）在该路径丢失**；**响应延迟不变或略降**（少了本地 HTTP 往返）。
+     刻意**不写"搜索效率降低"** —— 否则会让读者误以为变慢。
+  6. 原"修 `edge-embeddings.ts:9-10` 陈旧注释"一条**随文件删除自动消解**（注释与被引用的能力同时移除）。
+- **验证结果**：`bunx tsc --noEmit -p tsconfig.json` → **0 error**；`settings-search` → **14 pass / 0 fail**；
+  文档门禁 `docs-consistency` + `determinism-disclosure` → **14 pass / 0 fail**（**未破坏** §5.2.1 的逐文件表解析）；
+  全量 `bun run test` → **4013 pass / 67 skip / 0 fail**（4080 tests / 414 文件 / 16.51s）。
+- **未覆盖项**：①**语义召回损失未量化** —— 按计划应在**切片 2（评测集）**给出"纯词法 vs 词法+语义"的对拍数字，
+  本轮只有定性披露；②`archive/` 被 `.gitignore` 排除，故归档记录**不在版本库内**（与仓库既有约定一致），
+  其内容仅存于本地工作区；③未扫描**其它**文档是否仍隐含引用已删除模块（只核了 README/ARCHITECTURE/LIMITATIONS 三处主口径）。
+- **不做项**：未把"授权门/用户自配模型"写进文档（顺序约束，已顺延）；未改 `routes/settings.ts` 与 `settings-catalog`。
+- **Commit**：`__COMMIT__`

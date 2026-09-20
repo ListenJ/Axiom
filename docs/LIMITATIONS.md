@@ -25,6 +25,10 @@
 
 ### 2.1 问题溯源
 
+- **2026-09-20 变更（如实披露）**：`src/local-llm/edge-embeddings.ts`（硬编码 `127.0.0.1:9001` 的本地 embedding 客户端）**已删除**。
+  影响：设置项搜索（`src/core/settings-search.ts`）**失去内置 embedding 供给 ⇒ 退化为纯关键词**；
+  **语义召回（同义不同词 / 跨语言）在该路径上丢失**，而**响应延迟不变或略降**（少了本地 HTTP 往返）。
+  替代：`searchSettings({ embedder })` 注入接缝保留，待接入用户自配 embedding 模型。归档记录见 `archive/ARCHIVE-LOG.md`（2026-09-20 条）。
 - **审计定位**：`docs/ARCHITECTURE.md:10` 与 `docs/PROJECT-GUIDE.md:27` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”，与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts:186`）”不一致；工具数文档宣称 133/150/173 vs 当时实测 172 去重（现为 188，见 §2.2）。
 - **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：`src/testing/tool-count.ts` 实测 **188**（server/**+server.ts 内联+register-external-tools+3 adaptTool，零重复；历史口径 172 为旧值，tests/unit/docs-consistency.test.ts 动态锁定）。
 

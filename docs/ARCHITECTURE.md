@@ -285,7 +285,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 | 维度 | 现状 | 说明 |
 |------|------|------|
-| 检索 | 确定性 FTS5 + 关键词权重（`deterministic-search.ts`）为默认；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用 | 非历史宣称，而是“确定性为主、向量可选” |
+| 检索 | 确定性 FTS5 + 关键词权重（`deterministic-search.ts`）为默认；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用（设置项搜索自 2026-09-20 起：内置本地 embedding 已移除，仅在被注入 embedder 时用）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用 | 非历史宣称，而是"确定性为主、向量可选" |
 | LLM | `src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
 | 历史 PG | `src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力为可选历史，非“已移除”即不可用 | 按需启用 |
 | MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **188** 个去重工具，零重复 | 文档中 133/150/172/173 为历史值，已统一为 188 |

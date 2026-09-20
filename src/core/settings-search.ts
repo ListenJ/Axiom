@@ -1,15 +1,17 @@
 ﻿/**
  * Settings semantic/keyword search — 设置项语义检索
  *
- * 设计（本地优先·失败回退）：
- *  1. 本地 embedding（edge-embeddings，见 src/local-llm/edge-embeddings.ts）
- *  2. 纯关键词兜底（中文二元组 + 英文 token + 同义词表）
- * 本地 embedding 不可用时自动降级到关键词，绝不抛错；embedder 可注入以便测试。
- * 注：不回落远端 API embedding —— 语义检索保持本地化与确定性（2026-09-17 移除远端回落链）。
+ * 设计：
+ *  1. **关键词检索为默认且唯一的内置路径**（中文二元组 + 英文 token + 同义词表）；
+ *  2. `embedder` 可**注入**：调用方提供 embedding 实现时，叠加语义打分（与关键词取最大值）。
+ *
+ * 2026-09-20：随 `src/local-llm/edge-embeddings.ts`（硬编码 127.0.0.1:9001）**删除**，
+ * **内置 embedding 供给已移除** ⇒ 默认不再尝试任何 embedding（因而没有网络请求）。
+ * 影响（已在 README / LIMITATIONS 披露）：同义不同词 / 跨语言的召回退回**纯关键词**水平；
+ * 响应延迟**不变或略降**（少了本地 HTTP 往返）。
  */
 import { cosineSimilarity } from "../utils/math.js";
 import { SETTINGS_CATALOG, getSectionLabel, type SettingItem } from "./settings-catalog.js";
-import { getEdgeEmbeddings } from "../local-llm/edge-embeddings.js";
 
 export type Embedder = (texts: string[]) => Promise<number[][]>;
 
@@ -117,15 +119,6 @@ export function keywordScore(item: SettingItem, query: string): number {
 // L9：余弦实现收敛至 src/utils/math.ts
 
 /** 默认 embedding 链：本地边缘 → null（关键词兜底）。不回落远端 API */
-export async function defaultEmbedder(texts: string[]): Promise<number[][] | null> {
-  try {
-    return await getEdgeEmbeddings(texts);
-  } catch {
-    // 本地 embedding 不可用 → 关键词兜底
-    return null;
-  }
-}
-
 export interface SearchOptions {
   /** null = 仅关键词；函数 = 语义+关键词混合；缺省 = 默认链 */
   embedder?: Embedder | null;
@@ -149,7 +142,9 @@ export async function searchSettings(query: string, opts: SearchOptions = {}): P
   const semanticScores = new Map<string, number>();
   let semanticUsed = false;
 
-  const embedder = opts.embedder === undefined ? defaultEmbedder : opts.embedder;
+  // 内置 embedding 供给已移除（2026-09-20）⇒ 缺省即"无 embedding"（纯关键词）。
+  // 调用方仍可经 opts.embedder 注入实现来叠加语义打分。
+  const embedder = opts.embedder ?? null;
   if (embedder) {
     try {
       const texts = [q, ...catalog.map(itemText)];

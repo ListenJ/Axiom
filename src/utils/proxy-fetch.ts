@@ -54,7 +54,7 @@ export interface ProxyFetchOptions {
    *      （如 127.0.0.1:9001 边缘 LLM/embeddings）。
    *  若后续改默认开，需先落地调用方白名单（如 ProxyFetchOptions 增 ssrfAllowHosts 精确
    *  放行回环 CDP/本地 LLM），或仅在处理用户可控 URL 的入口（web_fetch、routes/search）
-   *  强制 ssrfGuard:true。注：local-llm/edge-embeddings.ts 走原生 fetch，不经本模块。 */
+   *  强制 ssrfGuard:true。注：原 local-llm/edge-embeddings.ts（本地 9001 embedding）已于 2026-09-20 删除。 */
   ssrfGuard?: boolean;
 }
 

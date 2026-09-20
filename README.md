@@ -280,7 +280,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
 | PARA 语义 | 同分类笔记提升(+5) | - |
 
-> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（设置项语义搜索 `src/core/settings-search.ts` 与 `src/dre/consciousness/stream.ts`）使用。语义路径的 embedding **只走本地模型**（`EDGE_SETTINGS_SEARCH`，本地 bge-m3），**不回落远端 API**——本地 embedding 不可用时自动降级为关键词兜底；检索键不经 LLM 改写，保持同输入同输出。PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
+> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在有 embedding 的可选语义路径使用（`src/dre/consciousness/stream.ts`；设置项搜索 `src/core/settings-search.ts` 自 2026-09-20 起仅在被注入 embedder 时使用）。**设置项语义搜索的内置本地 embedding 已移除**（原 `127.0.0.1:9001` 的 bge-m3，2026-09-20 删除）⇒ 该路径**默认纯关键词、零网络请求**；语义打分仍可由调用方经 `searchSettings({ embedder })` 注入（待接入用户自配 embedding 模型）。检索键不经 LLM 改写，保持同输入同输出。PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
 
 ```bash
 # 搜索记忆
@@ -302,7 +302,7 @@ curl "http://localhost:18789/search?q=Axiom&limit=5"
 | 提示词改写（聊天前置优化） | 直接用原始输入 | `PROMPT_REWRITE=1`（旧名 `EDGE_PROMPT_REWRITE=1`） |
 | 聊天意图增强 | 关键词意图路由 | `EDGE_PROMPT_OPTIMIZER=1` |
 | 高风险工具灰区初筛 | `permissions.ts` 正则硬底线（不可绕过，始终生效） | `EDGE_RISK_MONITOR=1` |
-| 设置项语义搜索（embedding，非生成式） | 本地 bge-m3 → 失败回退关键词 | 默认开；`EDGE_SETTINGS_SEARCH=0` 关闭 |
+| 设置项语义搜索（embedding，非生成式） | **内置本地 embedding 已移除**（原 127.0.0.1:9001 bge-m3）⇒ 默认纯关键词；可经 `searchSettings({ embedder })` 注入 | 默认即关键词、零网络请求；待接入**用户自配 embedding 模型** |
 
 - 判定实现：`src/local-llm/edge-client.ts` 的 `isEdgeEnabled`（未设置 = 关闭）与 `src/agents/prompt-optimizer.ts` 的 `isRewriteEnabled`。
 - 显式拒绝（`=0` / `=false` / `=no`）优先于其他开关，用于在已授权环境里临时关停。
