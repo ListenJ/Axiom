@@ -2968,4 +2968,4 @@
   ③`listProviderStatus()` 仍未含自定义 provider；④B0（外围约 90 处字面量收敛）未做；
   ⑤**未做真实网络调用验证**（本轮只验证"能被选中"，未验证"端到端发出请求并成功"——需真实端点，本机无）。
 - **不做项**：未新建模型注册机制；未改 `user-config-loader` / `routes/models.ts`。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c3a5616`
