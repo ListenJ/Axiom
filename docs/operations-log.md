@@ -3639,4 +3639,4 @@
   ②TUI（`src/tui/app.ts`）复用同一函数 ⇒ 自动获益，但**未在 TUI 交互中实测**；
   ③B0（外围约 90 处 provider 字面量收敛）仍未做。
 - **不做项**：未改 provider 注册/校验语义；未给自定义 provider 加"区域变体"概念；未动前端。
-- **Commit**：`__COMMIT__`
+- **Commit**：`dbfefd7`
