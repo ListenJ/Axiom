@@ -310,7 +310,7 @@ interface SecurityAlert {
 |---|---|---|---|
 | I1 | 无能力声明 ⇒ 不可注册；能力由注册处声明，不由名字推断 | `ToolDef.capability` 必填，`add()` 未声明即抛 | S-1 / S-2 |
 | I2 | 判定发生在**实际 I/O 那一行**：realpath + 逐跳锚点 + 沙箱根外切 | `safeFs` 五法内部，字符串前缀判定不作为唯一依据 | S-3 |
-| I3 | 鉴权先于缓存，缓存键含调用方身份，且默认可缓存=false | `src/core/http-router.ts` 的 `execute` 顺序 + `meta.cacheable` | S-4 |
+| I3 | 鉴权先于缓存，缓存键含调用方身份，且默认可缓存=false | `src/core/http-router.ts` 的 `execute` 顺序 + `meta.cacheable` | S-4、S-11 |
 | I4 | 跨调用序列可见：单次都合规不等于链式合规，且回环不构成豁免维度 | `reviewSequence` 按 principal 分桶（主体由传输边界标注，守卫在派发时读取）；审批通道内不得出现地址判定 | S-7、S-10 |
 
 能力词表（唯一权威见 `src/utils/permissions.ts`）：`internal`、`fs.read`、`fs.write`、`fs.delete`、`fs.glob`、
@@ -355,7 +355,7 @@ interface SecurityAlert {
 | L4 | 改名/包装绕守卫：`write` → `my_write` | 守卫按 `tool.name` 查表 | 名字不参与授权：`add()` 必须带 capability；以名字为键的表已删除。**改入参名同样不脱管**：路径/URL 由值形态认领，命令由注册处声明（缺声明不可注册） | S-1、S-2、S-8、`tests/mcp/payload-shape-guard.test.ts` |
 | L5 | MCP 子进程工具名 `mcp_<server>_<tool>` 绕过父侧守卫 | 名字变了 | 包装时显式声明 `mcp.external`：改名不改能力。声明与能力同挂表面类型 `ToolSurfaceLike`，包装层要么整体转发、要么重新声明，剥离即注册期抛错 | S-2 |
 | L6 | 回环免鉴权扩大面（本机任何进程 = 全 API） | `AXIOM_ALLOW_LOCAL_BYPASS` 默认 true；MCP HTTP 另有第二处无条件放行 | 默认 false，且**只有一个开关来源**：网关与 MCP HTTP 共用 `localBypassEnabled()` | S-6（含"第二入口"静态扫描） |
-| L7 | 缓存旁路鉴权（先查缓存后匹配 ⇒ 上一条响应任何人可取） | 缓存不看身份；`cacheable` 隐含为真 | `cacheable` 须显式声明（当前无路由声明 ⇒ 默认不缓存）；键含凭据摘要分桶；查缓存排在路由匹配之后 | S-4 |
+| L7 | 缓存旁路鉴权（先查缓存后匹配 ⇒ 上一条响应任何人可取） | 缓存不看身份；`cacheable` 隐含为真 | `cacheable` 须显式声明（当前无路由声明 ⇒ 默认不缓存）；键含凭据摘要分桶；查缓存排在路由匹配之后 | S-4、S-11 |
 | L8 | 审批/豁免开关"忘记设置即关闭" | PTY 审批模式空值 ⇒ `off`；豁免开启且绑定非回环时无声 | 空值 ⇒ `risky`（显式 `off` 才关），未知值 ⇒ `strict`；`ALLOW_LOCAL_BYPASS=1` + 非回环绑定 ⇒ 启动 `logger.warn` + `security.alert` 审计 | S-6、`tests/command-gate.test.ts` |
 | L9 | 前端 `poolFilter` 改名绕开高危工具池 | 池筛选在前端可选 | 授权在服务器侧 `decideCapability`，前端筛选只影响可见性不影响授权 | I1 结构保证 |
 | L10 | 模型自己把执行模式切到 `yolo` ⇒ 关掉 HITL | 切模式工具无门禁 | `set_mode` / 回退目标为 `yolo` 时必须经审批，未获批准保持当前模式 | `src/mcp/server/mode-tools.ts` |
@@ -401,7 +401,7 @@ interface SecurityAlert {
 | 形态认领出的路径只做锚点裁决 | 越界与否取决于工具真实落点（vault / axiom home 在 cwd 之外），派发前冒充越界会把合法写入打成拒绝 | 派发前漏掉的"异形字段 + 越界"组合由 `safeFs` 在 I/O 点兜住（I2）；这是刻意不对称，登记以免被误读为已完成 |
 | `mcp.external` 不参与派发前裁决 | 外部 MCP 工具的参数形状由远端决定，把非 URL 负载套出网/路径规则只会误判 | 实际 I/O 发生在远端进程，父侧只剩复核层（整体序列化送主模型复核）与 I4 链路计数：远端工具的读写对判定内核是**不可见**的 |
 | `getWorkspaceFiles` 用 `2>nul` | POSIX 下会留下名为 `nul` 的文件；非 git 目录返回空而非报错 | 行为缺陷，不构成本轮链路 |
-| 路由响应缓存当前无路由声明 `cacheable` | 缓存实际不生效（性能换安全） | 需要按端点显式开启并复核身份分桶 |
+| 路由响应缓存当前无路由声明 `cacheable` | 缓存实际不生效（性能换安全）；默认关闭由 S-4 锁行为，"谁声明了开启"由 S-11 锁清单（清单当前为空） | 开启某端点需逐条裁决两件事：该响应是否与调用方无关、能否容忍 TTL 内陈旧；开启者须同时进 S-11 清单，不接受静默声明。本轮不开任何端点 |
 
 ---
 
@@ -569,7 +569,7 @@ interface SecurityAlert {
 | [route-auth.test.ts](../tests/route-auth.test.ts) | per-route 二次认证 |
 | [auth-check.test.ts](../tests/auth-check.test.ts) | 网关认证与回环豁免 |
 | [command-gate.test.ts](../tests/command-gate.test.ts) | 交互终端审批门（含"未配置=risky"） |
-| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-10（I1–I4 的机器门） |
+| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-11（I1–I4 的机器门） |
 | [command-danger-single-source.test.ts](../tests/command-danger-single-source.test.ts) | 命令危险判据两层级结论一致（S-9 的行为面） |
 | [call-context.test.ts](../tests/call-context.test.ts) | 主体上下文的传播与凭证派生（改名/并发不串桶） |
 | [call-principal-plumbing.test.ts](../tests/call-principal-plumbing.test.ts) | 主体从传输边界流到守卫的整条管道（S-10 的行为面） |

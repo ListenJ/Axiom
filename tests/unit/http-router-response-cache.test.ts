@@ -11,8 +11,11 @@ import type { RouteContext } from "../../src/routes/types.js";
  * 再次发送同一个对象会抛 `TypeError: Body already used`。
  *
  * 影响路径：`main.ts` 用 `httpRouter.execute()` 作为主请求路径，catch 块把异常
- * 转成 500 ⇒ **同一 GET 路径在 TTL(默认 30s) 内的第二次请求必然 500**。
- * 触发条件极宽：GET + status<400 + 路由未显式 `cacheable: false`（无路由设置该项）。
+ * 转成 500 ⇒ **同一路径在 TTL(默认 30s) 内的第二次请求必然 500**。
+ *
+ * 前提口径（S3 / I3 后）：响应缓存按路由显式开启 —— 只有 `GET` 且
+ * `meta.cacheable === true` 才走缓存。因此本文件逐条声明 `cacheable: true`，
+ * 锁住的是**开启缓存之后**那条路上的对象复用缺陷；默认不缓存由 S-4 单独锁。
  *
  * 断言的是**对外可观察行为**（两次请求都能读到 body），不是内部实现 ——
  * 无论修复用 clone 还是别的方式，只要行为正确就通过。
@@ -42,7 +45,7 @@ describe("HttpRouter 缓存的 Response 可重复发送", () => {
         handlerCalls++;
         return ctx.jsonResponse({ ok: true, run: handlerCalls });
       },
-      meta: { description: "health" },
+      meta: { description: "health", cacheable: true },
     });
 
     // 第 1 次：缓存未命中 → 执行 handler → 写入缓存
@@ -74,6 +77,7 @@ describe("HttpRouter 缓存的 Response 可重复发送", () => {
       method: "GET",
       path: "/stats",
       handler: async (ctx) => ctx.jsonResponse({ uptime: 42, nested: { a: [1, 2, 3] } }),
+      meta: { cacheable: true },
     });
 
     const first = await router.execute(makeCtx("GET", "/stats"));
@@ -88,8 +92,8 @@ describe("HttpRouter 缓存的 Response 可重复发送", () => {
 
   it("不同路径各自独立缓存，互不串味", async () => {
     const router = new HttpRouter();
-    router.register({ method: "GET", path: "/a", handler: async (ctx) => ctx.jsonResponse({ p: "a" }) });
-    router.register({ method: "GET", path: "/b", handler: async (ctx) => ctx.jsonResponse({ p: "b" }) });
+    router.register({ method: "GET", path: "/a", handler: async (ctx) => ctx.jsonResponse({ p: "a" }), meta: { cacheable: true } });
+    router.register({ method: "GET", path: "/b", handler: async (ctx) => ctx.jsonResponse({ p: "b" }), meta: { cacheable: true } });
 
     const a1 = await router.execute(makeCtx("GET", "/a"));
     const b1 = await router.execute(makeCtx("GET", "/b"));

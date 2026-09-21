@@ -97,37 +97,15 @@ register(record: RouteRecord): void {
 }
 ```
 
-The `execute()` method (line 173) ties caching, matching, and handler invocation:
+`execute()` ties matching, caching, and handler invocation. Its ordering and cache key are security-relevant, so they are locked by gates instead of copied here — the hand-copied body that used to sit in this section had drifted into describing four behaviors the code no longer has (cache consulted before matching, the consumed `Response` object handed out twice, a key without the caller, and every GET cached by default):
 
-```typescript
-// src/core/http-router.ts
-async execute(ctx: RouteContext): Promise<Response | null> {
-  const { req, url } = ctx;
-  const cacheKey = `${method}:${pathname}:${url.search}`;
+- Matching comes first; the cache is only read for a path that already matched a record, so caching cannot become a second way past authorization (gate S-4).
+- Caching is opt-in per route: only `GET` with `meta.cacheable === true` and a status below 400 gets stored, and any new declaration must also appear in the S-11 registry. No production route opts in today, so handlers run on every request.
+- The cache key carries the caller's identity dimension derived from the credential headers, so one caller cannot read another caller's stored response (gates S-4 / S-10).
+- Cached and returned responses are `clone()`s: a `Response` body is a one-shot stream, and re-sending the consumed object turns the second request inside the TTL into a 500.
+- The handler runs inside `runAsCallPrincipal(...)` — that is how the tool guards learn who made this call (gate S-10).
 
-  // Step 1: Cache hit (GET only)
-  if (method === "GET") {
-    const cached = await this.cache.get(cacheKey);
-    if (cached) { this.cacheHits++; return cached; }
-  }
-
-  // Step 2: Trie match
-  const matched = this.match(method, pathname);
-
-  // Step 3: Execute with performance timing
-  const startTime = performance.now();
-  const response = await record.handler(ctx);
-  const latency = performance.now() - startTime;
-  this.recordPerf(endpointKey, latency);
-  // Cache the response
-  if (method === "GET" && response && record.meta?.cacheable !== false && response.status < 400) {
-    this.cache.set(cacheKey, response, record.meta?.cacheTtlMs ?? 30 * 1000);
-  }
-  return response;
-}
-```
-
-The `match()` method (line 130) walks segment-by-segment: literal match first, then `:param` fallback, then `/**` wildcard:
+The `match()` method walks segment-by-segment: literal match first, then `:param` fallback, then `/**` wildcard:
 
 ```typescript
 // src/core/http-router.ts

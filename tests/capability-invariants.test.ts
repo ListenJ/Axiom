@@ -616,3 +616,19 @@ describe("S-10 工具执行边界必须标注调用主体", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ─── S-11 响应缓存只能按路由显式开启（R4，I3 的默认值维度）────────────────────
+describe("S-11 生产路由的响应缓存开启清单", () => {
+  // 缓存一份响应 = 把它交给后来的调用方读。开哪条路由是逐条裁决（该响应是否与调用方
+  // 无关、能否容忍 TTL 内陈旧），不是随手加的一个字段 —— 所以新增声明必须同时出现在
+  // 这份清单里，使"偷偷开始缓存"成为一次必须被看见的改动。
+  // 当前生产面无人开启：默认关闭是行为基线，其行为面由 S-4 锁。
+  const CACHEABLE_ROUTES: string[] = [];
+
+  it("src 内声明 cacheable: true 的文件与本清单一致", () => {
+    const hits = walkTs("src")
+      .filter((rel) => /cacheable\s*:\s*true/.test(read(rel)))
+      .sort();
+    expect(hits).toEqual([...CACHEABLE_ROUTES].sort());
+  });
+});
