@@ -560,3 +560,24 @@ describe("S-8 命令类负载只认声明，不认形态猜测", () => {
     expect(hits.length).toBe(1);
   });
 });
+
+// ─── S-9 命令危险判据单源（R3-B，§2.7.4 第 1 条）─────────────────────────────
+describe("S-9 命令危险判据只有一个定义点", () => {
+  it("危险判据清单只有一个导出点", () => {
+    const defs = walkTs("src").filter((rel) => /export const COMMAND_DANGER_RULES\b/.test(read(rel)));
+    expect(defs).toEqual(["src/utils/command-safety.ts"]);
+  });
+
+  it("派发前与执行点都调用同一个判定入口，且没有别处再立模式清单", () => {
+    // 行为等值由 tests/command-danger-single-source.test.ts 锁；这里锁"没有第二份清单"这个结构
+    const pre = read("src/utils/permissions.ts");
+    expect(pre).toContain("commandDanger(");
+    expect(pre).not.toMatch(/HIGH_RISK_PATTERNS\s*=\s*\[/);
+    const exec = read("src/utils/command-safety.ts");
+    expect(exec).toContain("if (commandDanger(command))");
+    const offenders = walkTs("src")
+      .filter((rel) => rel !== "src/utils/command-safety.ts")
+      .filter((rel) => /(const|let)\s+\w*(HIGH_RISK|DANGEROUS|STRUCTURAL)_PATTERNS\s*=/.test(read(rel)));
+    expect(offenders).toEqual([]);
+  });
+});

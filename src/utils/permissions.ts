@@ -4,6 +4,7 @@
  * Permission levels for operations, with high-risk operation safeguards.
  */
 import * as path from "node:path"
+import { commandDanger } from "./command-safety.js"
 import { readString } from "./env.js"
 
 export type PermissionLevel = "normal" | "admin" | "high-risk"
@@ -15,37 +16,20 @@ export interface PermissionCheck {
   reason?: string
 }
 
-const HIGH_RISK_PATTERNS = [
-  { pattern: /rm\s+-rf\s+\//, description: "Full disk recursive delete" },
-  { pattern: /mkfs/, description: "Filesystem format" },
-  { pattern: /dd\s+if=\/dev/, description: "Raw device write" },
-  { pattern: /fdisk/, description: "Disk partition manipulation" },
-  { pattern: /chmod\s+777/, description: "Overly permissive file mode" },
-  { pattern: /shutdown/, description: "System shutdown" },
-  { pattern: /reboot/, description: "System reboot" },
-  { pattern: /passwd/, description: "Password change" },
-  { pattern: /useradd/, description: "User creation" },
-  { pattern: /deluser|userdel/, description: "User deletion" },
-  { pattern: /sudo\s+rm/, description: "Root-level deletion" },
-  { pattern: /wget.*\.sh\s*\|/, description: "Piped shell execution from URL" },
-  { pattern: /curl.*\|.*bash/, description: "Piped shell execution from URL" },
-  { pattern: /drop\s+table/i, description: "Database table deletion" },
-  { pattern: /truncate\s+table/i, description: "Database table truncation" },
-  { pattern: /DELETE\s+FROM/i, description: "Database mass deletion" },
-]
-
 /**
- * Check if a command or operation is high-risk.
+ * 高危命令判定 —— 本函数只是 PermissionCheck 形状的适配层，判据在
+ * `command-safety.ts` 的 `COMMAND_DANGER_RULES`（R3-B 单源：这里曾另立一份
+ * `HIGH_RISK_PATTERNS`，不去混淆、缺提权/账号类，于是同一条命令在派发前与执行点
+ * 可得相反结论）。
  */
 export function checkCommandPermission(command: string): PermissionCheck {
-  for (const item of HIGH_RISK_PATTERNS) {
-    if (item.pattern.test(command)) {
-      return {
-        allowed: false,
-        requiresConfirmation: true,
-        level: "high-risk",
-        reason: `High-risk operation detected: ${item.description}`,
-      }
+  const danger = commandDanger(command)
+  if (danger) {
+    return {
+      allowed: false,
+      requiresConfirmation: true,
+      level: "high-risk",
+      reason: `High-risk operation detected: ${danger}`,
     }
   }
   return { allowed: true, requiresConfirmation: false, level: "normal" }
@@ -481,8 +465,8 @@ export function confirmOperation(id: string): { approved: boolean; command?: str
 // 用户可在前端 UI 切换"权限自动接收/手动确认"。开启后，"normal" 级别
 // 操作（普通文件读写、安全命令）会被自动放行，无需用户点击确认。
 //
-// 安全护栏：HIGH_RISK_PATTERNS 命中的操作（rm -rf /、mkfs、DROP TABLE
-// 等）永远需要手动确认，autoAcceptMode 无法绕过。这由 checkCommandPermission
+// 安全护栏：`COMMAND_DANGER_RULES`（command-safety.ts 单源）命中的操作（rm -rf /、mkfs、
+// DROP TABLE 等）永远需要手动确认，autoAcceptMode 无法绕过。这由 checkCommandPermission
 // 与 checkFilePermission 在判断前先做 high-risk 检测保证。
 //
 // 模式仅存在于内存（进程级单例），重启后恢复默认（手动确认）。

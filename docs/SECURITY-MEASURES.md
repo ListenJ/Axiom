@@ -375,7 +375,7 @@ interface SecurityAlert {
 修正后的口径（可判定，不再依赖"多几层"这个数量论证）：
 
 1. **每层判定同一批事实**：能力 + 已规范化的目标 + 调用方身份，不各自维护第二份清单（S-5 锚点单源、
-   S-6 默认值单源、I2 只在 I/O 点判定）。
+   S-6 默认值单源、S-9 命令危险判据单源、I2 只在 I/O 点判定）。
 2. **失效方向统一为拒绝**：未声明、未配置、未识别、无审批者 ⇒ 一律拒绝或升级，不默认放行（fail-closed）。
 3. **跨层组合要过序列复核**：单层都过不等于链路过（I4）。
 4. 因此"纵深"成立与否的可判据是：**同一份判定内核是否出现在每个特权落点**，而不是层数。
@@ -395,7 +395,7 @@ interface SecurityAlert {
 | `db_query` 的 SQL 守卫是前缀词表 | 按最坏能力声明为 `db.write` | 只读保证需换成语句解析才能声称；派发前又把 SQL 文本按路径裁决（`db.write` 的判据是 filesystem，字段 `sql`/`query`/`statement`），既不防护也可能误伤，同属本条债 |
 | `plugins/dre-dsh/backend/server.js` 与 `plugins/kb-dsh/backend/server.js` 是能力内核之前的旧构建 | 两个入库的压缩产物各带一份注册器编译副本：42 与 29 处注册零 `capability`，其守卫按字段名正则（`command|script|cmd`、`path|file|target|destination|from|to`）与工具名正则推导读写语义；源码侧同名注册点已逐个带声明 | 直接运行这两个产物等于回到名字正则内核：改名即脱管（L4/L5），I1 与 S-8 都不生效。修复动作为 `plugins/<name>-dsh` 里 `bun run build:backend` 重建（打包入口 `src/mcp/dre-backend.ts` / `src/mcp/kb-backend.ts` 走的就是现行 `ToolRegistry`）；本轮未重建：产物差异是压缩文件整体重写，且插件测试需独立跑，留待与 R3 的默认值收敛一起验 |
 | 命令类负载不靠值形态认领 | `proc.exec` 的派发前裁决只覆盖注册处声明的字段与常见命令字段（`command`/`script`/`cmd`/`code`/`args`）；把命令藏在别的字段名里，派发前取不到 | 漏的部分由执行点兜：`terminal_exec` 与 PTY 审批门共用 `sanitizeCommand`（含去混淆），加上 I4 序列复核的 `write-then-execute` 配对。声明缺失由 S-8 拦在注册期，属 fail-closed 而非绕过 |
-| 命令危险模式有两份清单 | 派发前走 `permissions.ts` 的 `HIGH_RISK_PATTERNS`，执行点走 `command-safety.ts` 的 `DANGEROUS_PATTERNS` + `STRUCTURAL_PATTERNS`（带去混淆归一，前者没有） | 同一条命令在两条路径上可得不同结论，违反"每层判定同一批事实"（§2.7.4 第 1 条）。R3 收敛为单源 |
+| 命令危险判据已单源，但白名单模式只在执行点生效 | 派发前与执行点现在同调 `commandDanger`（清单只有一份，S-9 锁结构、`tests/command-danger-single-source.test.ts` 锁结论相等）；差异剩下一处：`AXIOM_TERMINAL_WHITELIST` 启用时执行点额外按命令位放行 | 白名单模式下执行点**严于**派发前，方向是 fail-closed（多拒不少放），故不构成绕过的接缝；登记以免被读成"两层完全同构" |
 | 经 `adaptTool` 包装的流水线工具没有 `payloadFields` 通道 | `src/tools` 的 `Tool` 类型未含该字段，包装后无法声明命令目标；当前无 `proc.exec` 流水线工具 | 将来若新增，注册即被 S-8 拒（不是静默放行），届时先扩 `Tool` 类型再转发 |
 | 形态认领出的路径只做锚点裁决 | 越界与否取决于工具真实落点（vault / axiom home 在 cwd 之外），派发前冒充越界会把合法写入打成拒绝 | 派发前漏掉的"异形字段 + 越界"组合由 `safeFs` 在 I/O 点兜住（I2）；这是刻意不对称，登记以免被误读为已完成 |
 | `mcp.external` 不参与派发前裁决 | 外部 MCP 工具的参数形状由远端决定，把非 URL 负载套出网/路径规则只会误判 | 实际 I/O 发生在远端进程，父侧只剩复核层（整体序列化送主模型复核）与 I4 链路计数：远端工具的读写对判定内核是**不可见**的 |
@@ -568,9 +568,10 @@ interface SecurityAlert {
 | [route-auth.test.ts](../tests/route-auth.test.ts) | per-route 二次认证 |
 | [auth-check.test.ts](../tests/auth-check.test.ts) | 网关认证与回环豁免 |
 | [command-gate.test.ts](../tests/command-gate.test.ts) | 交互终端审批门（含"未配置=risky"） |
-| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-7（I1–I4 的机器门） |
+| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-9（I1–I4 的机器门） |
+| [command-danger-single-source.test.ts](../tests/command-danger-single-source.test.ts) | 命令危险判据两层级结论一致（S-9 的行为面） |
 | [architecture-integrity.test.ts](../tests/architecture-integrity.test.ts) | 架构完整性（utils/ leaf layer、env 读取收口） |
-| [doc-contract.test.ts](../tests/doc-contract.test.ts) | 文档↔代码一致性门 D1–D9 |
+| [doc-contract.test.ts](../tests/doc-contract.test.ts) | 文档↔代码一致性门 D1–D10 |
 
 ### 7.2 验证命令
 
