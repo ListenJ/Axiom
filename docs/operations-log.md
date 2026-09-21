@@ -1451,7 +1451,7 @@
 
 ---
 
-## 2026-09-22 01:41 +0800 — S3 移植到主干（R0：零冲突文件落地 + 红基线）【WIP，勿并入】
+## 2026-09-22 01:34 +0800 — S3 移植到主干（R0：零冲突文件落地 + 红基线）【WIP，勿并入】
 
 - **任务**：经方案比选，S3 冲突处理定为**在 `internal/main` 上重放**（否决"合 main 进旧分支"与"直接开 PR 解冲突"）。本条只做 R0：把 S3 产物中 main 从未触碰的文件整搬落地，并建立真实红基线。
 - **工具**：Qoder 主代理（git worktree / git merge-file / Read / cp / bun test / tsc），无子代理。
@@ -1461,4 +1461,4 @@
 - **验证**：`bun run lint` 基线（main 原样）exit=0；换内核后 main 自身安全套件 `tests/rigorous/security-rigorous.test.ts tests/unit/permission-middleware.test.ts tests/security-fixes.test.ts` → **96 pass / 0 fail**（证明判定内核收敛未回退 main 的 C-01/N-H1 修复）。R0 后状态：`bun run lint` 106 处 error（全部指向 45 个待合并文件：`ToolDef.capability`、`registry.getCapabilities()`、`risk-monitor.screenToolCall/reviewSequence/resetSequences`、路由 `principalOf`），`tests/capability-invariants.test.ts` 19 pass / 17 fail，`tests/doc-contract.test.ts` 5 pass / 11 fail（main 文档仍是旧口径）。**本分支此刻为红，属移植中途，禁止并入主干。**
 - **矛盾与残留（如实记录）**：(1) 旧分支 `codex/doc-caliber-doc-contract-gate-2026-09-21` 的门禁全绿只在 `master` 旧世系成立，本条起验证口径改以 main 为准；(2) 整搬的 `docs/SECURITY-MEASURES.md` 等 6 份文档含旧世系的量化口径（177 注册点等），需 R2 后按 main 重算，doc-contract 的 11 条失败即此项；(3) `permission-middleware` 名字表与 `tests/rigorous`、`tests/unit/permission-middleware` 两处断言其"非受控工具默认放行"，R1 要决定是删表改能力驱动还是保留为纵深，尚待与用户确认；(4) 本工作树的 `.tmp/backups/` 已建，验证后删除。
 - **敏感资产扫描（规则 11）**：本条涉及的 38 个搬入文件对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----` 命中 0；`AGENTS.md` 未在本分支改动（规则 3 的 remote 修正已在旧世系提交 `847f486`，R1 合并时需带过来）。
-- **Commit**：占位（随后由记录维护提交回填）
+- **Commit**：cc712ea（本条时间戳由 01:41 更正为实际 01:34，并回填 hash；更正属记录维护，规则 5）
