@@ -1,4 +1,4 @@
-﻿# 审计整改计划（2026-08-24 全量审计 → 分阶段修复）
+# 审计整改计划（2026-08-24 全量审计 → 分阶段修复）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 

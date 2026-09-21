@@ -44,7 +44,14 @@ const BANNED = [
 
 // 历史结论件按名字显式豁免（评审/审计/评估/操作日志保留原话作为证据）；
 // 带日期的**策略件**（如 BROWSER-AGENT-STRATEGY-2026-08-09.md）不豁免，仍在口径范围内。
-const HISTORY = /(^|\/)(operations-log|CHANGELOG)\.md$|REVIEW|AUDIT|ASSESSMENT|EVALUATION/;
+// 必须对**相对路径**做大小写无关的名词匹配：仓库里的证据件命名是小写带日期
+// （`docs/review-2026-08-18-project-wide-audit.md`、`docs/reviews/…`），且操作日志按月拆成
+// `docs/operations-log/2026-07.md` —— 旧写法拿 basename 去配 `(^|/)operations-log\.md$`，
+// 斜杠永远匹配不上，于是这些证据件全被当成规范件扫（R5 实测：D3 的 89 条里 55 条、
+// D4 的 52 条里 41 条、D9 的 493 条里 301 条都出自这类文件）。
+// 词边界用 `[\/._-]` 而非 `\b`：`preview` 不得被当成 `review` 蒙进豁免面。
+const HISTORY =
+  /(^|[\/._-])(?:operations-log|changelog)(?=$|[\/._-])|(^|[\/._-])(?:reviews?|audits?|assessments?|evaluations?|eval)(?=$|[\/._-])/i;
 
 function mdFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -67,12 +74,12 @@ function caliberDocs(): string[] {
 // 引用一个"必须不存在"的路径正是该句的语义，机器门不应把警告改成沉默。
 function specDocs(): string[] {
   return caliberDocs()
-    .filter((f) => !HISTORY.test(path.basename(f)))
+    .filter((f) => !HISTORY.test(f))
     .concat(exists("README.md") ? ["README.md"] : []);
 }
 
 function caliberScope(): string[] {
-  const docs = caliberDocs().filter((f) => !HISTORY.test(path.basename(f)));
+  const docs = caliberDocs().filter((f) => !HISTORY.test(f));
   const ts = walkTs("src").concat(walkTs("tests"));
   // 本门自身逐字写出禁语清单，扫描自己必然自锁 —— 排除（理由见文件头边界声明）。
   const self = "tests/doc-contract.test.ts";
@@ -89,6 +96,73 @@ function walkTs(dir: string): string[] {
     else if (rel.endsWith(".ts") && !rel.endsWith(".d.ts")) out.push(rel);
   }
   return out;
+}
+
+// ─── D0 扫描范围自证：豁免面放宽会让红安静消失，所以先把两面钉住 ──────────────
+// HISTORY 决定 D1/D2/D3/D4/D9 扫哪些文档。它若被写宽，后果不是"门变松"而是"门不再说话"，
+// 这类改动必须由一条不依赖它的门看着：规范件必须在册、证据件必须豁免、两侧数量都不得漂移。
+describe("D0 口径扫描范围自证", () => {
+  // 规范件：改代码时必须同步的口径文档，被误豁免即门失效
+  const MUST_BE_IN_SCOPE = [
+    "docs/SECURITY-MEASURES.md", "docs/AXIOM-ARCHITECTURE.md", "docs/ARCHITECTURE.md",
+    "docs/PROJECT-GUIDE.md", "docs/LIMITATIONS.md", "docs/CONFIGURATION.md",
+    "docs/COMPREHENSIVE-GUIDE.md", "docs/MCP_TOOLS_GUIDE.md", "docs/USER-MANUAL.md",
+    "docs/PHILOSOPHY.md", "docs/security/tool-capability-declarations.md", "README.md",
+  ];
+  // 证据件：评审/审计/评估/按月操作日志，保留问题原话作证据，不得被口径规则改写
+  const MUST_BE_EXEMPT = [
+    "docs/operations-log.md", "docs/operations-log/2026-07.md", "docs/operations-log/2026-08.md",
+    "docs/reviews/2026-08-28-independent-full-audit.md", "docs/review-2026-08-19-dre-plugin-lightweight.md",
+    "docs/code-review-2026-08-17.md", "docs/audit-verification-log.md",
+    "docs/knowledge/agent-decision-chain-assessment-2026-08-29.md",
+  ];
+
+  it("规范件全在扫描面内，证据件全豁免", () => {
+    for (const rel of MUST_BE_IN_SCOPE) expect(HISTORY.test(rel), `规范件被误豁免: ${rel}`).toBeFalse();
+    for (const rel of MUST_BE_EXEMPT) expect(HISTORY.test(rel), `证据件未被豁免: ${rel}`).toBeTrue();
+  });
+
+  it("在册面不塌方、豁免面不扩张", () => {
+    const spec = specDocs();
+    const exempted = caliberDocs().filter((f) => HISTORY.test(f));
+    // 实测：caliberDocs 108 篇 = 规范件 67 + 证据件 41。上限只留 4 个余量：
+    // 再往下豁免就得逐件点名并说明理由，不能靠把正则写宽。
+    expect(spec.length).toBeGreaterThanOrEqual(60);
+    expect(exempted.length).toBeLessThanOrEqual(45);
+    expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
+  });
+
+  it("`preview` 一类名字不得被当成 review 蒙进豁免面", () => {
+    // 名字豁免的固有极限：只有以路径分段出现的证据件名词才算数（`preview` 不是 review），
+    // 但 `docs/my-evaluation-guide.md` 这种"名字像证据件的规范件"仍会被吞 —— 所以豁免面
+    // 有上方那条数量上限兜着，新增豁免必须被看见。
+    for (const probe of ["docs/preview.md", "docs/ui-preview-notes.md", "docs/SAMPLES.md"]) {
+      expect(HISTORY.test(probe), probe).toBeFalse();
+    }
+    expect(HISTORY.test("docs/agent-eval-baseline-2026-09-05.md")).toBeTrue();
+  });
+});
+
+// D1 完整性判据。TAB 只在**代码围栏之外**才算损伤：围栏内是真实源码缩进（Go/gofmt、Makefile
+// 本就使用制表符），一律按"被吃掉的首字母"处理会逼文档撒谎。R5 实测的分界：
+// docs/superpowers/plans/2026-08-25-audit-p0p1-remediation.md 的 ```go 块内 44 处行中制表符是合法代码；
+// README.md 的 "| <TAB>ool_use"（补回 't' 即 tool_use）才是损伤。
+function integrityOffenders(rel: string, txt: string, hasBom: boolean): string[] {
+  const offenders: string[] = hasBom ? [`${rel}: BOM`] : [];
+  let inFence = false;
+  txt.split("\n").forEach((line, i) => {
+    if (/^\s*(?:```|~~~)/.test(line)) inFence = !inFence;
+    if (line.includes("\r")) offenders.push(`${rel}:${i + 1}: CR`);
+    [...line].forEach((ch, col) => {
+      const code = ch.charCodeAt(0);
+      // CR 由上一行的行级判据报出（含行号），此处再报一次会让 offender 数虚高一倍 —— R5 实测：
+      // 6,277 处 CRLF 被计成 12,554 条，掩盖了"BOM 只有 13 个"这类真实分布。
+      if (code < 32 && code !== 13 && !(ch === "\t" && (col === 0 || inFence))) {
+        offenders.push(`${rel}:${i + 1}: 控制字符 0x${code.toString(16)}`);
+      }
+    });
+  });
+  return offenders;
 }
 
 // ─── D1 禁语：绝对化断言不得回流到规范件与源码注释 ────────────────────────────
@@ -115,7 +189,7 @@ describe("D1 口径禁语", () => {
     expect(hits).toEqual([]);
   });
 
-  it("全部 markdown 文档文本完整：无 BOM / 无 CR / 无 C0（TAB 仅允许行首缩进）", () => {
+  it("全部 markdown 文档文本完整：无 BOM / 无 CR / 无 C0（正文 TAB 视同损伤，代码围栏内除外）", () => {
     // 实测依据：同一写入路径把单字母替换成它的转义控制符，静默吃掉标识符首字母 ——
     // README.md: "research"→CR+"esearch"、"tool_use"→TAB+"ool_use"，一个 ``` 围栏被压成单反引号；
     // docs/operations-log.md: 39 处（"frontend"→FF+"rontend"、"bunx"→BS+"unx"、"tests"→TAB+"ests"、
@@ -125,20 +199,24 @@ describe("D1 口径禁语", () => {
     const scanned = mdFiles("docs").concat(exists("README.md") ? ["README.md"] : []);
     for (const rel of scanned) {
       const buf = fs.readFileSync(path.join(repoRoot, rel));
-      if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) offenders.push(`${rel}: BOM`);
-      buf.toString("utf8").split("\n").forEach((line, i) => {
-        if (line.includes("\r")) offenders.push(`${rel}:${i + 1}: CR`);
-        [...line].forEach((ch, col) => {
-          const code = ch.charCodeAt(0);
-          if (code < 32 && !(ch === "\t" && col === 0)) {
-            offenders.push(`${rel}:${i + 1}: 控制字符 0x${code.toString(16)}`);
-          }
-        });
-      });
+      offenders.push(...integrityOffenders(rel, buf.toString("utf8"), buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf));
     }
     expect(offenders).toEqual([]);
     // 覆盖面自证：范围被悄悄收窄时本条先红
     expect(scanned.length).toBeGreaterThan(20);
+  });
+
+  it("围栏内 TAB 放行、正文 TAB 仍报（豁免不得把真损伤一起放过）", () => {
+    // 正文 TAB 取真实形态：'t' 被吃掉，补回才是词（tool_use）
+    expect(integrityOffenders("x.md", "title\n| tool_use | 工具调用 |\n", false)).toEqual([]);
+    expect(integrityOffenders("x.md", "title\n| \tool_use | 工具调用 |\n", false)).toEqual([
+      "x.md:2: 控制字符 0x9",
+    ]);
+    // 围栏内 gofmt 缩进：行中 TAB 不得报
+    expect(integrityOffenders("x.md", "```go\n\treturn func(next http.Handler) {\n\t\tif !isWrite(r) {\n```\n", false)).toEqual([]);
+    // 围栏不是免死金牌：块内 C0/CR 照样报
+    expect(integrityOffenders("x.md", "```go\n\u0007ssertX()\n```\n", false)).toEqual(["x.md:2: 控制字符 0x7"]);
+    expect(integrityOffenders("x.md", "```\rx\n```\n", false)).toEqual(["x.md:1: CR"]);
   });
 });
 
@@ -147,7 +225,7 @@ describe("D2 权威文档唯一", () => {
   it("自称式「唯一权威」命中 ≤ 1 且落在 AXIOM-ARCHITECTURE.md", () => {
     const selfClaims: string[] = [];
     for (const rel of caliberDocs().concat(["README.md"])) {
-      if (!exists(rel) || HISTORY.test(path.basename(rel))) continue;
+      if (!exists(rel) || HISTORY.test(rel)) continue;
       read(rel).split("\n").forEach((line, i) => {
         if (!line.includes("唯一权威")) return;
         const isForward = /已合并到|已迁移到|指向|见 |参见/.test(line) || /AXIOM-ARCHITECTURE\.md/.test(line);

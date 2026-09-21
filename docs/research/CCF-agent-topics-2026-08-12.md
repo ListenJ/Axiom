@@ -1,4 +1,4 @@
-﻿---
+---
 type: research-note
 created: 2026-08-12
 tags: [research, ccf, paper, agent, topic-selection]

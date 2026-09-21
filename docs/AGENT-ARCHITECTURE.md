@@ -1,4 +1,4 @@
-﻿---
+---
 type: architecture
 created: 2026-08-12
 tags: [agent, architecture, toolchain, self-evolve, sandbox]

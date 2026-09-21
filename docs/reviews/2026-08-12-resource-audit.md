@@ -1,4 +1,4 @@
-﻿---
+---
 type: review
 created: 2026-08-12
 tags: [backend, resource-audit, performance, memory]

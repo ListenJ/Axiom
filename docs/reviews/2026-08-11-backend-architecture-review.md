@@ -1,4 +1,4 @@
-﻿# 后端架构审核报告 — 2026-08-11
+# 后端架构审核报告 — 2026-08-11
 
 > 审核范围：`D:\openclaw-fusion\src`（后端）
 > 审核方式：只读代码审查 + 架构护栏测试静态分析（`tests/architecture-integrity.test.ts`）

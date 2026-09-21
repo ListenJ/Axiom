@@ -1,4 +1,4 @@
-﻿---
+---
 type: research-note
 created: 2026-08-11
 tags: [self-evolution, openrsi, rise, research, design]

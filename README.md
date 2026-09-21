@@ -1,4 +1,4 @@
-﻿# Axiom Runtime v3.1
+# Axiom Runtime v3.1
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
@@ -53,11 +53,11 @@ Axiom 采用简化的 8 核心角色架构，消除冗余并提供清晰的 Agen
 |------|------|-----------|
 | main_coding | 代码生成、重构、实现 | OpenCode |
 | code_review | 代码审查、质量保障、测试生成 | OpenCode + Hermes |
-| esearch | 研究、分析、深度研究 | Hermes + 搜索引擎 |
-| rchitecture | 系统设计、架构评审 | Hermes |
+| research | 研究、分析、深度研究 | Hermes + 搜索引擎 |
+| architecture | 系统设计、架构评审 | Hermes |
 | decision | 战略决策、方案评估 | Hermes |
 | general_chat | 通用对话、Q&A | 任意模型 |
-| 	ool_use | 工具调用 (翻译/数学/OCR) | OpenCode (免费模型) |
+| tool_use | 工具调用 (翻译/数学/OCR) | OpenCode (免费模型) |
 | computer_use | UI 自动化、浏览器控制 | Computer Use Agent |
 
 > **Agent 分工原则**: Hermes 用于深度项目解析和架构决策，OpenCode 利用免费模型作为子代理处理编码和搜索任务，Computer Use Agent 负责 UI 自动化。
@@ -75,13 +75,13 @@ Axiom 支持 6 个搜索引擎，从免费到商业级全覆盖：
 | MiniMax | Token Plan | MINIMAX_API_KEY | https://minimax.chat |
 | SerpAPI | 100次/月 | SERPAPI_KEY | https://serpapi.com |
 
-`ash
+```bash
 # 检查搜索引擎健康状态
 curl http://localhost:18789/engines
 
 # MCP 工具检查
 # 调用 search_providers_health 工具
-`
+```
 
 ### 自建 SearXNG 搜索后端（**可选增强**，非必需）
 
