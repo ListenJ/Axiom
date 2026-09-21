@@ -1552,7 +1552,7 @@
 - **操作**（文件级）：`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts` 各两处改动 —— ① 引入 `localBypassEnabled(process.env)` 得 `allowLocalBypass`；② 鉴权调用改 `checkApiKey(req, allowLocalBypass && isLocalAddress(remoteAddr), apiKey)`。顺带删去注释里手抄的 `server.ts:439-447` 行号锚点（D9 口径：行号必漂，只指到文件）。默认绑定 `127.0.0.1`、`*_MCP_HOST`/`AXIOM_AUTH_TOKEN` 读取、stdio 分支与工具注册面均未动。
 - **验证结果（新鲜执行）**：`bun test ./tests/capability-invariants.test.ts` → S-6 由红转绿（offender 列表转空），整件 40/40；`bun test ./tests/mcp-backend-auth.test.ts` → 3/3（该文件只锁"接线存在"，行为语义另由 `tests/auth-check.test.ts` 覆盖 ⇒ 本片真正的门是 S-6 的静态扫描）；`bun run lint`（`tsc --noEmit`）→ exit 0。全量套件并入下一片记录。
 - **红线**：不改 `checkApiKey` 本体与 `localBypassEnabled` 默认值；两后端 stdio 分支不含鉴权，未动。
-- **Commit**：占位（初稿提交后回填 hash；回填提交属记录维护，不再追加新条目）
+- **Commit**：87b6b46（`87b6b46a600ba50ab9b59cc14a6199cbc980efd7`）
 
 ## 2026-09-22 06:26 +0800 — R3-② 命令危险判据收敛为单源（新增 S-9 门，§2.7.4 第 1 条）
 
@@ -1573,4 +1573,4 @@
 - **红线**：不改判定层级（HardFloor ①、复核 ②、审批桥顺序不动）；不改 `sanitizeCommand` 的白名单分支与错误文案；`db.write` 仍按 filesystem 裁决（该债留在 §2.7.5 原行，本片不动，避免把 SQL 语义判据混进命令清单）。
 - **矛盾与残留**：① 白名单模式（`AXIOM_TERMINAL_WHITELIST`）只在执行点生效，两层并非完全同构 —— 已按 fail-closed 方向登记；② 判据仍是正则黑名单，`find / -delete`、变量间接（`a=rm; $a -rf /`）、`rm -r --force` 仍不覆盖，单源只保证"两层同样漏"，不保证"不漏"；③ 合并后派发前也做去混淆，理论上多一层误伤面（如命令字段值里出现 `passwd` 字样），本片语料未见，但样本非全量。
 - **并入判定**：本分支仍带已知红（R4/R5 + 环境件），只推分支不并入 `main`（与 R0/R1/R2 同口径）。
-- **Commit**：占位（初稿提交后回填 hash；回填提交属记录维护，不再追加新条目）
+- **Commit**：edf323e（`edf323e72e490b62acc7eb416db82e5a32b677a4`；两片已推送 `internal codex/s3-on-main-2026-09-22`，`baadc7cf..edf323e7`。本条与上一条 hash 由占位符回填，回填提交属记录维护，规则 5）
