@@ -12,6 +12,7 @@ import { ToolRegistry } from "./tool-registry.js";
 import { readString, readInt } from "../utils/env.js";
 import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
 import { localBypassEnabled } from "../utils/security-defaults.js";
+import { credentialPrincipal, runAsCallPrincipal } from "../utils/call-context.js";
 import { logger } from "../utils/logger.js";
 
 const mcp = new McpServer({ name: "Axiom DRE MCP Server", version: "0.1.0" });
@@ -58,7 +59,9 @@ if (useStdio) {
       registry.registerWithMcp(reqServer);
       const httpTransport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await reqServer.connect(httpTransport);
-      return httpTransport.handleRequest(req);
+      // 主体标注（R3-③ / I4）：本后端是并列的第二条工具执行入口，不标注则其调用
+      // 与别的调用方共用 "unassigned" 桶（链路会互相误接，审计也答不出是谁）
+      return runAsCallPrincipal(credentialPrincipal(req.headers), () => httpTransport.handleRequest(req));
     },
   });
 }

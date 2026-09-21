@@ -30,6 +30,7 @@ import { z } from "zod";
 import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import { screenPayloadWithEdge, type EdgeRisk, type PayloadKind } from "../local-llm/risk-screen.js";
 import { auditLogger } from "../utils/audit-logger.js";
+import { UNATTRIBUTED_PRINCIPAL } from "../utils/call-context.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -148,7 +149,7 @@ export interface ToolCallView {
   readonly args: unknown;
   /** 仅用于审计标注 */
   readonly toolName?: string;
-  /** 序列复核的主体键；缺省归入同一会话主体 */
+  /** 序列复核的主体键；缺省归入 unassigned 共桶（缺标注不等于免序列，见 R3-③） */
   readonly principal?: string;
   /** 注册处声明的"目标在哪个入参"（S-8）：命令类负载没有名字之外的认法 */
   readonly payloadFields?: PayloadFields;
@@ -465,7 +466,7 @@ export async function reviewSequence(
   const now = (options.now ?? Date.now)();
   const windowMs = options.windowMs ?? SEQUENCE_WINDOW_MS;
   const burstLimit = options.burstLimit ?? SEQUENCE_BURST_LIMIT;
-  const principal = call.principal ?? "unassigned";
+  const principal = call.principal ?? UNATTRIBUTED_PRINCIPAL;
 
   const recent = (sequences.get(principal) ?? []).filter((e) => now - e.at < windowMs);
   const burst = observed.filter((c) => HIGH_IMPACT.has(c)).length;

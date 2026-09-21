@@ -581,3 +581,38 @@ describe("S-9 命令危险判据只有一个定义点", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ─── S-10 序列复核的主体由调用上下文供给（R3-③，I4 的身份维度）───────────────
+describe("S-10 工具执行边界必须标注调用主体", () => {
+  // 能拿到请求对象、又会执行已注册工具的边界。新增此类边界必须同时登记并接线。
+  const BOUNDARIES = [
+    "src/core/http-router.ts",
+    "src/mcp/server.ts",
+    "src/mcp/dre-backend.ts",
+    "src/mcp/kb-backend.ts",
+  ];
+
+  it("守卫从当次调用的上下文读主体，并把主体交给序列复核", () => {
+    const src = read("src/mcp/tool-registry.ts");
+    expect(src).toContain("callPrincipalOr(");
+    expect(/const call = \{[^}]*\bprincipal\b[^}]*\}/.test(src)).toBeTrue();
+  });
+
+  it("每条可识别调用方的执行边界都出现在已标注清单里", () => {
+    for (const rel of BOUNDARIES) expect(read(rel)).toContain("runAsCallPrincipal(");
+    const wired = walkTs("src")
+      .filter((rel) => rel !== "src/utils/call-context.ts")
+      .filter((rel) => /\brunAsCallPrincipal\s*\(/.test(read(rel)))
+      .sort();
+    expect(wired).toEqual([...BOUNDARIES].sort());
+  });
+
+  it("缺省主体桶只有一个常量，别处不得再写字面量", () => {
+    const defs = walkTs("src").filter((rel) => /export const UNATTRIBUTED_PRINCIPAL\b/.test(read(rel)));
+    expect(defs).toEqual(["src/utils/call-context.ts"]);
+    const offenders = walkTs("src")
+      .filter((rel) => rel !== "src/utils/call-context.ts")
+      .filter((rel) => /[=?:]\s*["']unassigned["']/.test(read(rel)));
+    expect(offenders).toEqual([]);
+  });
+});

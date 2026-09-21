@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 91 | 本文件 |
+| 2026-09（当月） | 137 | 本文件 |
 
 ---
 
@@ -1574,3 +1574,28 @@
 - **矛盾与残留**：① 白名单模式（`AXIOM_TERMINAL_WHITELIST`）只在执行点生效，两层并非完全同构 —— 已按 fail-closed 方向登记；② 判据仍是正则黑名单，`find / -delete`、变量间接（`a=rm; $a -rf /`）、`rm -r --force` 仍不覆盖，单源只保证"两层同样漏"，不保证"不漏"；③ 合并后派发前也做去混淆，理论上多一层误伤面（如命令字段值里出现 `passwd` 字样），本片语料未见，但样本非全量。
 - **并入判定**：本分支仍带已知红（R4/R5 + 环境件），只推分支不并入 `main`（与 R0/R1/R2 同口径）。
 - **Commit**：edf323e（`edf323e72e490b62acc7eb416db82e5a32b677a4`；两片已推送 `internal codex/s3-on-main-2026-09-22`，`baadc7cf..edf323e7`。本条与上一条 hash 由占位符回填，回填提交属记录维护，规则 5）
+
+## 2026-09-22 06:57 +0800 — R3-③ 序列复核主体接线：守卫按当次调用归集，不再一律 `unassigned`（新增 S-10 门）
+
+- **任务**：§2.7.5 首行的登记债 —— `defaultToolGuard` 调 `reviewSequence` 时不传 principal，全体调用方共用 `"unassigned"` 一个桶，I4 的身份维度形同虚设。目标：把"谁在发起这次调用"从传输边界带到守卫，并按真实粒度记录口径（不得把凭证摘要写成用户身份）。
+- **前置量测（先证症状再改）**：接线前对 `tests/call-principal-plumbing.test.ts` 求 RED → **2 pass / 7 fail**（9 例）。关键判别例是反向的那条：调用方 B1 先 `fs.write`、B2 再 `proc.exec`，接线前 B2 被 `复核判定为高危操作` 阻止（1002ms 走审批桥的无处理者自动拒绝路径）⇒ 既存缺陷不只是"审计答不出是谁"，还有**跨调用方互相续链**（一方写入即可让无关另一方的高危动作提前进审批，也可被反向用来制造噪声）。同一文件里"同一主体 write→exec 被升级"与"未标注仍共桶"两条在接线前即通过，说明缺的是身份供给而非链路识别。
+- **工具**：Read（`tool-registry.ts` 全文、`http-router.ts` 全文、`risk-monitor.ts` 的 `ToolCallView`/`reviewSequence`/`escalate`、`mcp/server.ts` 与两个插件后端的请求处理段、`approval-bridge.ts` 的无处理者分支、`node_modules/@modelcontextprotocol/sdk/dist/esm/server/webStandardStreamableHttp.js` 的 `onmessage` 派发位置）、Write（新测试 2 件）、Edit（源码 6 处 + 门件 1 处 + 文档 4 处）、Bash（bun test 红→绿 / tsc / test:arch / test:smoke / 全量 / 变异探针）。无子代理。AGENTS 规则 2（备份 `.tmp/backups/` 下 8 件 → 通读 → 最小改动 → 验证 → 删备份）与规则 7（垂直切片：守卫消费 → 上下文常量单源 → 路由边界 → 门）执行。
+- **操作**（文件级）：
+  1. `src/utils/call-context.ts`（新增）：`AsyncLocalStorage` 主体载体（`currentCallPrincipal` / `callPrincipalOr` / `runAsCallPrincipal`）+ 凭证→主体派生 `credentialPrincipal`（`authorization` 或 `x-api-key` 原始头值取 sha256 截 16，无凭证归 `anonymous`）+ 两个桶名常量 `UNATTRIBUTED_PRINCIPAL="unassigned"`、`ANONYMOUS_PRINCIPAL="anonymous"`。选 ALS 而非显式传参的理由写在该文件头：守卫是 `add()` 期包进 handler 的，拿不到当次请求对象，而一次请求可嵌套执行（路由→工具→skill→再入工具）。
+  2. `tests/call-context.test.ts`（新增，5 例）：边界外为 null、同步与 await 后均传播、并发分支不串桶、嵌套继承、凭证摘要稳定且不泄原文。
+  3. `src/mcp/tool-registry.ts`：`defaultToolGuard` 的 ② 层新增 `const principal = callPrincipalOr()` 并把 `principal` 放进 `reviewSequence` 的 call 对象；注释写清"主体必须来自当次调用而不是注册期"与"未标注落共桶是 fail-closed"。派发前 ① 层的 `principal: "tool:" + toolName` **不改**（该字段只随 `CapabilityCheck` 透传、不进任何判定，且它标的是"哪次派发被裁过"，与序列层的"谁"不同维度）。
+  4. `src/agents/risk-monitor.ts`：`call.principal ?? "unassigned"` → `?? UNATTRIBUTED_PRINCIPAL`（缺省桶名不再写第二份字面量），`ToolCallView.principal` 注释更正为"缺省归入 unassigned 共桶（缺标注不等于免序列）"。
+  5. `src/core/http-router.ts`：`defaultPrincipal` 由自带 sha256 实现改为委托 `credentialPrincipal(ctx.req.headers)`（与 I4 共用同一份身份口径，删掉本地 `createHash` 依赖）；`execute` 内 `principal` 只算一次，缓存键与 handler 执行同用；Step 2 改为 `await runAsCallPrincipal(principal, () => record.handler(ctx))`。
+  6. `src/mcp/server.ts`、`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts`：三条 MCP HTTP 后端的 `httpTransport.handleRequest(req)` 包进 `runAsCallPrincipal(credentialPrincipal(req.headers), …)`。依据（读 SDK 源码核实，非推测）：SDK 在 `handleRequest` 内以 `this.onmessage?.(message)` 派发 JSON-RPC 请求（JSON 模式在 `new Promise(executor)` 体内、SSE 模式在返回 `Response` 前的 for 循环内），工具执行链从该作用域派生 ⇒ ALS 可穿透。
+  7. `tests/call-principal-plumbing.test.ts`（新增，9 例）：同主体升级并阻止 / **不同主体不共窗**（判别例）/ 未标注仍共桶 / 升级留痕带主体（断言 `security.alert` 的 `metadata.payload` 含 `r3c-caller-D → [proc.exec]`、`reason` 含 `write-then-execute`）/ 路由 handler 跨 await 仍持主体且与 `credentialPrincipal` 同值 / 不同凭证不同桶 / 无凭证归 `anonymous` / 缺省桶名单源 / 凭证派生只有一个定义点。
+  8. `tests/capability-invariants.test.ts`：新增 **S-10**（3 例）——守卫从上下文读主体且把主体交给序列复核；4 条可识别调用方的执行边界恰为已标注清单（`walkTs("src")` 反向求差，新增边界须显式登记）；`unassigned` 字面量除定义点外不得再出现在 `= ? :` 位置。结构门与行为门分工照旧：S-10 锁"接线点在位"，新测试锁"结论随主体而变"。
+  9. `docs/SECURITY-MEASURES.md`：I4 行的门列补 S-10；§2.7.4 第 1 条括注加"S-10 调用主体单点标注"；§2.7.5 删除已封堵的原首行，替换为两行新残留（主体粒度只到凭证/边界，stdio/TUI/进程内直调仍共桶；限流器 `extractUserKey` 另算一份身份）；§7.1 门件表 `S-1…S-9`→`S-1…S-10` 并补 `call-context.test.ts`、`call-principal-plumbing.test.ts` 两行。
+- **门的活性证明（防"只断言不失效"）**：两次受控变异，均在原文件上做、事后逐字还原并以 `diff` 确认零差异。① 从 `const call = {…}` 里删掉 `principal` → S-10 第一条 RED（`expect(...).toBeTrue()` Received: false，且失败断言正是那条正则）；② 把 `kb-backend.ts` 的包裹还原成裸 `handleRequest` → S-10 第二条 RED（`toContain` 打回整文件）。两次变异都只跑目标 `-t` 过滤，还原后复跑为绿。
+- **顺带查出（非本片引入，未擅自扩大改动面）**：写"凭证→主体派生单源"门时全量扫 `src/`，命中 4 处 sha256 截 16 的伴生件——`src/utils/rate-limiter.ts:275 extractUserKey`（真·第二份身份口径：先剥 `Bearer ` 再取摘要，与 `credentialPrincipal` 对原始头值取摘要不同源）、`src/dre/synapse/store.ts:19 synapseHash`、`src/kg/enhanced.ts:215,294`（内容指纹，与身份无关）。后果与处置：门收窄到"缓存分桶 + 序列复核"这一条派生（S-10 只锁 `credentialPrincipal` 的导出点与两处消费者），限流键的分歧登记为待裁决项（并入会改限流分桶语义），文档 §2.7.5 同步行。
+- **验证结果（全部新鲜执行）**：目标 5 件 `bun test ./tests/call-principal-plumbing.test.ts ./tests/capability-invariants.test.ts ./tests/call-context.test.ts ./tests/command-danger-single-source.test.ts ./tests/risk-monitor.test.ts` → **121 pass / 0 fail**（capability-invariants 45/45，含 S-10 三条）。`bun run lint` → exit 0（首跑拦到一条 TS2339：夹具把 ctx 断成 `never` 后取 `.req`，改为返回 `{ctx, req}`）；`bun run test:arch` → **25 pass / 0 fail**；`bun run test:smoke` → **63 pass / 0 fail**（与基线一致）。全量（`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun test --parallel=8 --timeout 15000 ./tests`）→ **4223 pass / 36 skip / 13 fail**（4272 tests / 414 files / 32.40s）：11 条 doc-contract（R5 既存）+ 1 条 HttpRouter 缓存（R4 既存）+ 1 条 OCR（缺 `tessdata`，环境件）⇒ 与上一片同口径，实质红 13→13 未增，本片新增的 17 条用例全绿；上一片登记的两条负载抖动（stress C.5、performance-degradation E.4）本次未触发，仍按已知 flaky 登记不撤。`tests/doc-contract.test.ts` 单独复跑 8 pass / 11 fail 与基线逐条一致（文档编辑未引入新红）。
+- **敏感资产扫描（规则 11）**：本片新增/修改行对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----`/`192.168.` 命中 **0**；测试夹具用的是 `r3c-token-*`、`fixture-*` 与 `http://r3c.test` 伪域，不触及真实主机。任务 #32（历史条目里 3 处既存私有地址）仍待用户裁决，本片未改任何历史条目。
+- **红线**：不动守卫分层顺序（⓪ 模式 → ① HardFloor → ② 复核/序列 → 审批桥）；不把 `reviewSequence` 的配对规则或阈值改了（`SEQUENCE_WINDOW_MS`/`SEQUENCE_BURST_LIMIT`/`CHAIN_PAIRS` 逐字未动）；不改缓存键形态（仍是 `method:path:search#principal`，principal 的**取值**因单源委托而逐字不变）；不为凑绿把 stdio/TUI 伪装成某个主体。
+- **矛盾与残留**：① 已认证主体不存在——标签只到"凭证摘要 / `anonymous` / 传输边界"，同一 token 的多条连接仍同桶，跨连接协同不受本片约束；② stdio MCP、TUI、进程内直调无请求对象 ⇒ 仍共 `unassigned` 桶（保守方向：链路会互相接续，不会漏判，但审计仍答不出是谁）；③ **三条 MCP 后端的包裹没有端到端行为测试**——只有 S-10 的结构门与 SDK 源码阅读支撑，真正的"HTTP 请求→工具执行→主体入桶"链路未跑通（要起 `Bun.serve` 与 MCP 客户端才有条件证），此处如实标注为未证；④ 限流器身份口径分歧（见"顺带查出"）。
+- **记录维护（非新增条目）**：本文件头"归档索引"的当月条目数由 91 更正为 137（按 `^## 2026-09` 实数）；该列自 8 月末拆分后未随条目递增更新，趁本片一并校正，不另开提交。
+- **并入判定**：本分支仍带已知红（R4/R5 + 环境件），只推分支不并入 `main`（与 R0/R1/R2 同口径）。
+- **Commit**：占位 `R3C_HASH`（提交后回填）

@@ -12,6 +12,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 import { zodToJsonSchema } from "../utils/tool-surface.js";
 import { CAPABILITY_PAYLOAD, adjudicateCallPayloads } from "../utils/permissions.js";
+import { callPrincipalOr } from "../utils/call-context.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import type { Capability, PayloadFields } from "../utils/permissions.js";
@@ -79,8 +80,12 @@ async function defaultToolGuard(
   }
 
   // ── ② 能力驱动的双层复核 + 跨调用序列复核（I4：单调用看不出链式提权）──
+  // 序列复核的键是**主体**，所以主体必须来自当次调用而不是注册期：守卫是 add() 时
+  // 包进 handler 的，拿不到请求对象，只能读异步上下文（传输边界用 runAsCallPrincipal 标注）。
+  // 边界没标注时落 "unassigned" 共桶（fail-closed：缺身份不等于免序列）。
+  const principal = callPrincipalOr();
   const { screenToolCall, reviewSequence } = await import("../agents/risk-monitor.js");
-  const call = { capabilities: capability, args, toolName, payloadFields };
+  const call = { capabilities: capability, args, toolName, payloadFields, principal };
   const screened = await screenToolCall(call);
   const sequenced = await reviewSequence(call);
   if (screened !== "require-approval" && sequenced !== "require-approval") return;

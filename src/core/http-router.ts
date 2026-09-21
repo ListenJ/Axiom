@@ -11,7 +11,7 @@
 import { logger } from "../utils/logger.js";
 import type { RouteContext, RouteHandler } from "../routes/types.js";
 import { Cache } from "../utils/cache.js";
-import { createHash } from "node:crypto";
+import { credentialPrincipal, runAsCallPrincipal } from "../utils/call-context.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -118,15 +118,11 @@ class RingBuffer<T> {
 
 /**
  * 默认身份维度：由凭证头派生，无凭证归入 anonymous 分桶。
- * 用 SHA-256 截断而非非加密哈希 —— 参与键值的凭证由调用方选择，
- * 可造碰撞的哈希等于让攻击者挤进别人的缓存分桶。原文凭证不入键，
- * 避免凭证随诊断输出/键快照外泄。
+ * 派生规则在 src/utils/call-context.ts 单源（SHA-256 截断、原文凭证不入标签）：
+ * 缓存分桶（S-4 / I3）与跨调用序列复核（I4）必须用同一个主体口径，
+ * 否则"绕过缓存"与"续上别人的链路"会按两套身份各自成立。
  */
-const defaultPrincipal: PrincipalOf = (ctx) => {
-  const credential = ctx.req.headers.get("authorization") ?? ctx.req.headers.get("x-api-key");
-  if (!credential) return "anonymous";
-  return `cred:${createHash("sha256").update(credential).digest("hex").slice(0, 16)}`;
-};
+const defaultPrincipal: PrincipalOf = (ctx) => credentialPrincipal(ctx.req.headers);
 
 export class HttpRouter {
   private root = new Map<string, TrieNode>(); // method -> trie root
@@ -261,7 +257,8 @@ export class HttpRouter {
     const endpointKey = `${method} ${record.path}`;
     // 只有显式声明 cacheable 的 GET 才缓存；键含身份维度（不同 principal 互不取回）。
     const cacheable = method === "GET" && record.meta?.cacheable === true;
-    const cacheKey = `${method}:${pathname}:${url.search}#${this.principalOf(ctx)}`;
+    const principal = this.principalOf(ctx);
+    const cacheKey = `${method}:${pathname}:${url.search}#${principal}`;
 
     if (cacheable) {
       const cached = await this.cache.get(cacheKey);
@@ -286,7 +283,9 @@ export class HttpRouter {
     let error = false;
 
     try {
-      const response = await record.handler(ctx);
+      // 主体标注进异步上下文：路由 handler 里的工具调用由此拿到调用方身份，
+      // 跨调用序列复核（I4）才按"同一个调用方"归集，而不是全体共用一个桶（R3-③）
+      const response = await runAsCallPrincipal(principal, () => record.handler(ctx));
       const latency = performance.now() - startTime;
 
       // 记录性能

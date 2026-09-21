@@ -36,6 +36,7 @@ import { registerPromptTools } from "./server/prompt-tools.js";
 import { registerOrchestratorTools } from "./server/orchestrator-tools.js";
 import { registerNativeTools } from "./server/native-tools.js";
 import { initializeComponentKernel } from "../agents/component-bootstrap.js";
+import { credentialPrincipal, runAsCallPrincipal } from "../utils/call-context.js";
 import { registerSceneTools } from "./server/scene-tools.js";
 import { ToolRegistry } from "./tool-registry.js";
 import {
@@ -432,7 +433,12 @@ if (transport === "stdio") {
         sessionIdGenerator: undefined,
       });
       await reqServer.connect(httpTransport);
-      const response = await httpTransport.handleRequest(req);
+      // 主体标注（R3-③ / I4）：SDK 在 handleRequest 内同步把消息交给 onmessage，
+      // 工具执行链由此派生 ⇒ 异步上下文能穿透到守卫。无凭证（回环豁免）落 anonymous 桶。
+      const response = await runAsCallPrincipal(
+        credentialPrincipal(req.headers),
+        () => httpTransport.handleRequest(req),
+      );
       // 无状态模式下每请求新建 server+transport（SDK 要求）；请求结束（响应体流尽或
       // 客户端中途断开）时 close，释放 _streamMapping/_requestResponseMap 与监听器，
       // 避免长生命周期进程下逐请求累积。
