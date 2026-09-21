@@ -3602,3 +3602,15 @@
   ③门禁只覆盖 `setInterval(`，未覆盖 `setTimeout` 递归自调度这类等价模式；④未逐一评估 6 条例外的运行时行为差异。
 - **不做项**：未改检索/物化/KAL 查询路径；未新增 KG/DRE 删除 API；未把门禁挂到独立 CI job（它随现有 `bun run test` 进入 CI）。
 - **Commit**：`c09c828`
+
+## 2026-09-21 — test(T2): 推送腿补全 + 定时器门禁的双端复测（Windows 55 pass / 0 fail + Linux 全量）
+
+- **任务**：对"批量重建推送 + 定时器 unref 门禁"切片做双端验证。分级 **T2**（验证，无代码变更）。
+- **Windows（`18336@192.168.0.100`，Bun 1.3.14，Git Bash，工作树 `D:\openclaw-fusion-verify`）**：
+  checkout `c09c8283` → `bunx tsc --noEmit` = **TSC_OK**；
+  定向 5 文件（`timer-unref-guard` / `vault-reindex-push` / `incremental-index` / `embedding-index-hook` / `architecture-integrity`）
+  → **55 pass / 0 fail**（`BUN_EXIT=0`）。
+- **Linux（本机）**：`bun run test` → **4146 pass / 67 skip / 0 fail**。
+- **说明**：`timer-unref-guard` 的行为级子进程断言在 Windows 同样通过 ⇒ 三类后台维护定时器在两端都不再钉住短命进程。
+- **未覆盖项**：真实 embedding 端到端仍只在 Linux 跑（凭据不跨机，规则 11）。
+- **Commit**：`__COMMIT__`
