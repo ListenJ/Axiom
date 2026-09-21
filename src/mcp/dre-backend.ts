@@ -11,6 +11,7 @@ import { registerMindTools } from "./server/mind-tools.js";
 import { ToolRegistry } from "./tool-registry.js";
 import { readString, readInt } from "../utils/env.js";
 import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
+import { localBypassEnabled } from "../utils/security-defaults.js";
 import { logger } from "../utils/logger.js";
 
 const mcp = new McpServer({ name: "Axiom DRE MCP Server", version: "0.1.0" });
@@ -33,13 +34,14 @@ if (useStdio) {
 } else {
   // HTTP 模式（远程调试用；默认仅回环）
   const port = readInt("DRE_MCP_PORT", 3001);
-  // 审计 B1（2026-08-29）：HTTP 后端零鉴权修复 —— 与 server.ts:439-447 同一 checkApiKey 语义：
-  // isLocalAddress(requestIP) 判定回环，回环请求豁免 token（写方法仍受 Origin 白名单约束）；
+  // 审计 B1（2026-08-29）：HTTP 后端零鉴权修复 —— 与 server.ts 同一 checkApiKey 语义。
+  // S3 / L6：回环豁免与网关共用同一开关且默认关闭 —— 本机进程不得有第二条无条件免鉴权入口。
   // 远程请求必须 x-api-key（AXIOM_AUTH_TOKEN 未配置时 fail-closed 全拒）。
   // 暴露面说明：默认仅绑定回环；DRE_MCP_HOST=0.0.0.0 时对网络暴露，
   // 全部远程请求走 token 鉴权，未配置 token 则一律 401。
   const hostname = readString("DRE_MCP_HOST", "127.0.0.1");
   const apiKey = readString("AXIOM_AUTH_TOKEN");
+  const allowLocalBypass = localBypassEnabled(process.env);
   const { WebStandardStreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
   );
@@ -48,7 +50,7 @@ if (useStdio) {
     hostname,
     async fetch(req, server) {
       const remoteAddr = server.requestIP(req)?.address;
-      if (!checkApiKey(req, isLocalAddress(remoteAddr), apiKey)) {
+      if (!checkApiKey(req, allowLocalBypass && isLocalAddress(remoteAddr), apiKey)) {
         logger.warn("[DRE MCP] Unauthorized request rejected", { remote: remoteAddr });
         return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
       }

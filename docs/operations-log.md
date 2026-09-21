@@ -1544,3 +1544,12 @@
   - **并入判定**：本分支仍带已知红（R3/R4/R5 + 环境件），**只推分支不并入 `main`**（与 R1/R2 同口径）
 - **矛盾与残留**：① 抽取器只看 `.add({` 字面量，运行期由远端 `listTools()` 决定的注册、以及不走 `add()` 的调用面不在表内 —— 表尾"这张表不证明什么"已明写这一边界；② `"fixed"` 的真实性仍由人保证（机器只校验字段名确实存在于 schema），表里"24 处 fixed"是**声明数**不是**正确数**；③ 打包产物旧构建是新登记的洞，未修；④ `tiersFor` 对 `db.write` 会显示"入参可裁决"，读者易误读为已防护 ⇒ 以表尾脚注说明，不改判据（改了会与 §2.7.5 的债项脱钩）。
 - **Commit**：8299750（`8299750b5613e42a7500a23403976e9a803d68b6`；已推送 `internal codex/s3-on-main-2026-09-22`，`c44c3763..8299750b`。本条 hash 由占位符回填，回填提交属记录维护，规则 5）
+
+## 2026-09-22 06:26 +0800 — R3-① 回环豁免并入单源：两个 MCP HTTP 后端不再无条件信任本机
+
+- **任务**：R3 第一片，收掉上一片记录在案的"唯一红仍是 S-6 回环单源"。S-6 的静态扫描判据是"调用 `isLocalAddress(` 的源文件必须同时调用 `localBypassEnabled(`"，offender 为 `src/mcp/dre-backend.ts` 与 `src/mcp/kb-backend.ts`：两者 HTTP 模式把回环地址直接当作 `isLocal` 传给 `checkApiKey` ⇒ 网关侧默认关闭豁免之后，本机任意进程仍可从 3001/3002 端口免 token 拿到全 API —— L6 没封堵，只是换了个入口。`docs/SECURITY-MEASURES.md` 的 L6 行早已写"只有一个开关来源"，本片之前那是宣称不是事实。
+- **工具**：Read（两后端通读 + `src/utils/security-defaults.ts`、`src/utils/auth-check.ts` 语义核对）、Edit（各 2 处）、Bash（bun test / tsc）。无子代理。AGENTS 规则 2（备份 `.tmp/backups/src/mcp/{dre,kb}-backend.ts` → 通读 → 最小改动 → 验证）执行；备份在两片验证通过后统一删除。
+- **操作**（文件级）：`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts` 各两处改动 —— ① 引入 `localBypassEnabled(process.env)` 得 `allowLocalBypass`；② 鉴权调用改 `checkApiKey(req, allowLocalBypass && isLocalAddress(remoteAddr), apiKey)`。顺带删去注释里手抄的 `server.ts:439-447` 行号锚点（D9 口径：行号必漂，只指到文件）。默认绑定 `127.0.0.1`、`*_MCP_HOST`/`AXIOM_AUTH_TOKEN` 读取、stdio 分支与工具注册面均未动。
+- **验证结果（新鲜执行）**：`bun test ./tests/capability-invariants.test.ts` → S-6 由红转绿（offender 列表转空），整件 40/40；`bun test ./tests/mcp-backend-auth.test.ts` → 3/3（该文件只锁"接线存在"，行为语义另由 `tests/auth-check.test.ts` 覆盖 ⇒ 本片真正的门是 S-6 的静态扫描）；`bun run lint`（`tsc --noEmit`）→ exit 0。全量套件并入下一片记录。
+- **红线**：不改 `checkApiKey` 本体与 `localBypassEnabled` 默认值；两后端 stdio 分支不含鉴权，未动。
+- **Commit**：占位（初稿提交后回填 hash；回填提交属记录维护，不再追加新条目）
