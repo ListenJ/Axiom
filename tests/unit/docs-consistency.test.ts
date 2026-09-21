@@ -35,9 +35,11 @@ function collectDocsHits(pattern: RegExp): string[] {
 }
 
 describe("docs-consistency Task16 — 文档一致性", () => {
-  test("无过时零向量描述 — grep 零向量 命中为 0 (active docs, 排除 archive/reviews/superpowers/operations-log)", () => {
-    const hits = collectDocsHits(/零向量/);
-    if (hits.length > 0) console.log("[docs-consistency] 零向量 hits:\n" + hits.join("\n"));
+  // 本 describe 里的三处 doc-caliber:quote：本门把禁语原话当判据逐字写出，由 tests/doc-contract.test.ts
+  // 的 D1 行级哨兵放行（该门不再整文件豁免自己或别的门）。
+  test("无过时零向量描述 — grep 零向量 命中为 0 (active docs, 排除 archive/reviews/superpowers/operations-log)", () => { // doc-caliber:quote
+    const hits = collectDocsHits(/零向量/); // doc-caliber:quote
+    if (hits.length > 0) console.log("[docs-consistency] 零向量 hits:\n" + hits.join("\n")); // doc-caliber:quote
     expect(hits.length).toBe(0);
   });
 

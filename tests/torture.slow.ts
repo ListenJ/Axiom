@@ -219,7 +219,7 @@ describe("Chaos Concurrency", () => {
   }, 15000);
 });
 
-// 6. PromptEngineer (W3 重构验证: 零向量匹配 + 模板填充鲁棒性)
+// 6. PromptEngineer (W3 重构验证: 纯规则匹配 + 模板填充鲁棒性)
 describe("Chaos PromptEngineer", () => {
   it("Fuzz: 1K 随机任务描述不崩溃 + 返回结构合法", async () => {
     const { getPromptEngineer } = await import("../src/agents/prompt-engineer.js");

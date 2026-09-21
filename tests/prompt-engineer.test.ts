@@ -1,5 +1,5 @@
 /**
- * Prompt Engineer 验证测试 (零向量, 纯规则驱动)
+ * Prompt Engineer 验证测试 (纯规则驱动，无 embedding / 向量依赖)
  */
 
 import { describe, test, expect } from "bun:test";
@@ -10,9 +10,9 @@ import { getPromptEngineer, PromptEngineer } from "../src/agents/prompt-engineer
 const promptEngineer = getPromptEngineer();
 import { DEFAULT_PROMPT_DIR, DEFAULT_SKILL_DIRS } from "../src/skills/types.js";
 
-describe("Prompt Engineer - 零向量提示词引擎", () => {
+describe("Prompt Engineer - 确定性提示词引擎（纯规则驱动）", () => {
   test("1. 模板匹配 - 确定性规则", () => {
-    console.log("\n[测试] 1: 模板匹配 (零向量)");
+    console.log("\n[测试] 1: 模板匹配 (纯规则)");
 
     // 代码审查场景
     const match1 = promptEngineer.matchTemplate("帮我审查这段代码的安全性");
@@ -127,8 +127,8 @@ describe("Prompt Engineer - 零向量提示词引擎", () => {
     try { fs.unlinkSync(filePath); } catch {}
   });
 
-  test("8. 零向量验证", () => {
-    console.log("\n[测试] 8: 零向量验证");
+  test("8. 无向量方法验证", () => {
+    console.log("\n[测试] 8: 无向量方法验证");
 
     // 确认没有使用任何向量操作
     const engineer = new PromptEngineer();
@@ -144,7 +144,7 @@ describe("Prompt Engineer - 零向量提示词引擎", () => {
     expect(hasSimilarity).toBe(false);
     expect(hasCosine).toBe(false);
 
-    console.log(`  [完成] 零向量验证通过`);
+    console.log(`  [完成] 无向量方法验证通过`);
     console.log(`     - 无 embedding 方法: ${!hasEmbedding}`);
     console.log(`     - 无 vector 方法: ${!hasVector}`);
     console.log(`     - 无 similarity 方法: ${!hasSimilarity}`);

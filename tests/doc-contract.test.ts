@@ -38,9 +38,20 @@ const registry: Registry = JSON.parse(read("config/nondeterminism.json"));
 
 // ─── 口径扫描范围 ────────────────────────────────────────────────────────────
 const BANNED = [
-  "零向量", "零概率", "零 embedding", "零embedding",
-  "不使用任何 ML", "不使用任何模型", "不使用任何 ML 模型",
+  "零向量", "零概率", "零 embedding", "零embedding", // doc-caliber:quote
+  "不使用任何 ML", "不使用任何模型", "不使用任何 ML 模型", // doc-caliber:quote
 ];
+
+// 门自身必须把禁语清单作为数据写出来，逐字引用不可避免；解决办法不是豁免整个文件
+// （那等于本门对自己免检 —— 改坏门自己再没有任何门看着），而是行级引用哨兵：
+// 只有带哨兵的那一行跳过禁语判定，同文件其余行照常扫。
+const QUOTE_SENTINEL = "doc-caliber:quote";
+
+function bannedHitOn(line: string): string | null {
+  if (line.includes(QUOTE_SENTINEL)) return null;
+  return BANNED.find((phrase) => line.includes(phrase)) ?? null;
+}
+
 
 // 历史结论件按名字显式豁免（评审/审计/评估/操作日志保留原话作为证据）；
 // 带日期的**策略件**（如 BROWSER-AGENT-STRATEGY-2026-08-09.md）不豁免，仍在口径范围内。
@@ -81,9 +92,9 @@ function specDocs(): string[] {
 function caliberScope(): string[] {
   const docs = caliberDocs().filter((f) => !HISTORY.test(f));
   const ts = walkTs("src").concat(walkTs("tests"));
-  // 本门自身逐字写出禁语清单，扫描自己必然自锁 —— 排除（理由见文件头边界声明）。
-  const self = "tests/doc-contract.test.ts";
-  return ["README.md", "AGENTS.md", ...docs, ...ts].filter((f) => exists(f) && f !== self);
+  // 本门自身也在扫描面内：逐字引用禁语的两行由行级哨兵放行（见 QUOTE_SENTINEL 与 D1 的在册条），
+  // 不再整文件豁免 —— 文件级豁免会让"改坏本门"这件事脱离所有门的视野。
+  return ["README.md", "AGENTS.md", ...docs, ...ts].filter((f) => exists(f));
 }
 
 function walkTs(dir: string): string[] {
@@ -172,14 +183,34 @@ describe("D1 口径禁语", () => {
     for (const rel of caliberScope()) {
       const lines = read(rel).split("\n");
       lines.forEach((line, i) => {
-        const hit = BANNED.find((phrase) => line.includes(phrase));
+        const hit = bannedHitOn(line);
         if (hit) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
       });
     }
     expect(hits).toEqual([]);
   });
 
+  it("引用哨兵只豁免它所在的那一行（豁免不得变成免检文件）", () => {
+    // 合法引用：把禁语当判据逐字写出的行
+    expect(bannedHitOn('  "零向量", // doc-caliber:quote')).toBeNull();
+    // 同一文件的其它行不获得豁免
+    expect(bannedHitOn("本系统零向量。")).toBe("零向量"); // doc-caliber:quote
+    // 已知极限：哨兵与真断言写在同一行时会一起放过 —— 由下方在册条逐文件盯着，
+    // 新增引用行必须改这条断言，改动在 diff 里可见。
+    expect(bannedHitOn("// doc-caliber:quote 这里偷偷写零概率")).toBeNull();
+  });
+
+  it("依赖哨兵的引用行全部在册，且本门自身在扫描面内", () => {
+    const quoting = caliberScope().filter((rel) =>
+      read(rel).split("\n").some((line) => line.includes(QUOTE_SENTINEL) && BANNED.some((p) => line.includes(p))),
+    );
+    expect(quoting.sort()).toEqual(["tests/doc-contract.test.ts", "tests/unit/docs-consistency.test.ts"]);
+    // 文件级豁免已删除：本门被写坏时必须有门说话
+    expect(caliberScope()).toContain("tests/doc-contract.test.ts");
+  });
+
   it("vault 生成件（openclaw-memory 笔记）同样不含禁语", () => {
+    // vault 笔记没有"引用禁语作判据"的正当场景，故这里不走 bannedHitOn，不吃哨兵豁免。
     const hits: string[] = [];
     for (const rel of mdFiles("openclaw-memory")) {
       read(rel).split("\n").forEach((line, i) => {

@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 139 | 本文件 |
+| 2026-09（当月） | 140 | 本文件 |
 
 ---
 
@@ -1642,4 +1642,23 @@
 - **矛盾与残留**：① 完整性扫描与口径扫描共用 `HISTORY` 但范围不同（前者 `mdFiles("docs")` 含 `docs/superpowers/`、后者 `caliberDocs()` 不含）⇒ 同一篇 superpowers 计划件受完整性扫描却不入口径扫描，这是刻意的，但意味着"豁免面"在两处不是同一个集合，读红单时容易混；② 围栏感知靠 ``` 行计数切换，若某篇文档本身有**奇数**个围栏行，其后的 TAB 会被整体误判为"围栏内"——本次语料未见，但没有任何门把"围栏行数成偶"看着（候选新规则，与待办 #34 同族）；③ `accelint-readme-writer` 的复原未获反查；④ `docs/REMINDERS.md` L24/L26 的围栏结构、`eval-results/*.md` 的 13 个 BOM 属登记未修；⑤ 本片只证明"门的判据在真实语料上不再产自身假阳性"，没有证明 156 篇 md 的口径正确性 —— 后者仍是 R5-c/d/e 的活。
 - **并入判定**：本分支仍带 10 条已知红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4 同口径）。
 - **Commit**：28f413a（`28f413aa5f17357e97467fb5bf891477292818fa`；已推送 `internal codex/s3-on-main-2026-09-22`，`698ea35a..28f413aa`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
+
+## 2026-09-22 07:51 +0800 — R5-c 口径禁语清零：行级引用哨兵取代门的文件级自豁免 + 12 处断言改写
+
+- **任务**：R5 第三片，消掉 D1「BANNED 短语在口径范围内 0 命中」的 15 条红。拆成两件事：① 门侧 —— 本门原先把 `tests/doc-contract.test.ts` 整个文件排除在扫描面外（因为清单必须逐字写出禁语），这等价于"改坏门自己没有任何门看着"；改为**行级引用哨兵**，把文件级豁免删掉。② 文档/代码侧 —— 12 处真实的绝对断言改写为可核验的机制陈述。R5-d（D2/D3/D4/D9 引用与手抄）、R5-e（D6/D7/D8 登记表与清单）留后续提交。
+- **前置量测（先枚举再改）**：D1 红单 15 条全部落在 `.ts`（`grep` 反查 md：命中 10 篇全在豁免面内 —— `docs/superpowers/**` 由 `caliberDocs()` 排除，`docs/operations-log.md`、`docs/reviews/**` 由 `HISTORY` 豁免 ⇒ md 侧 0 红）。分布：`src/utils/math.ts:4,5`、`src/dre/runtime/text-rank.ts:23,26`、`src/semantic/symbolic-similarity.ts:51`、`tests/prompt-engineer.test.ts:2,13,15,130,131,147`、`tests/torture.slow.ts:222`、`tests/unit/docs-consistency.test.ts:38,39,40`（+ 门自身 `:41,42` 因文件级豁免而不可见）。
+- **判断（为何不照红单逐条改字）**：那 3 条红是**另一道门的判据文本**（`docs-consistency` 用 `collectDocsHits(/零向量/)` 复查同一件事），把它按"禁语"改写等于删掉一条保护，正解是让"引用禁语作判据"成为可声明的例外；其余 12 条是真正的口径断言，逐处按代码事实改写。改写不做信息删减：`math.ts` 的"零向量 → 0"落成"任一侧模长为 0 → 0"，与该函数实际判据 `if (na === 0 || nb === 0) return 0`（`src/utils/math.ts:17`）严格对齐，比原词更准。
+- **工具**：Read（`math.ts`、`symbolic-similarity.ts`、`text-rank.ts` 头部、`prompt-engineer.test.ts` 全文、`torture.slow.ts:205-244`、`docs-consistency.test.ts` 全文、`doc-contract.test.ts` 的 D0/D1 块与 scope helper）、Edit（7 个文件）、Bash（红→绿、三次受控变异、tsc、test:arch、内存封顶全量、规则 11 扫描）。无子代理。规则 2：7 件先备份 `.tmp/backups/`（含本片新写的 `docs/operations-log.md` 备份）→ 通读 → 最小改动 → 验证，备份在提交后删。规则 7 垂直切片：先改门并**看到红**，再消红。
+- **操作**（文件级）：
+  1. `tests/doc-contract.test.ts`：新增 `QUOTE_SENTINEL = "doc-caliber:quote"` 与 `bannedHitOn(line)`（**只**放过带哨兵的那一行），D1 的两处判定改走它；`caliberScope()` 删除 `const self = "tests/doc-contract.test.ts"` 的文件级豁免 ⇒ 本门进入自己的扫描面；`BANNED` 两条数据行与自证条的 1 处负控行加哨兵注释。新增 2 例自证：`引用哨兵只豁免它所在的那一行（豁免不得变成免检文件）`（含"哨兵与真断言同行即一起放过"这一已知极限的显式断言）、`依赖哨兵的引用行全部在册，且本门自身在扫描面内`（按**文件集合**全等登记，不列行号 —— 列行号会与 D9 的禁手抄锚点自相矛盾且随编辑漂移）。`vault 生成件` 一条刻意不走 `bannedHitOn`：生成笔记没有"引用禁语作判据"的正当场景，不给它哨兵豁免通道。
+  2. `tests/unit/docs-consistency.test.ts`：三条引用行加 `// doc-caliber:quote` 并在其上写明引用理由；该门的判据、用例名、豁免口径一字未动。
+  3. 12 处改写（均为注释/文本，无运行时语义）：`src/utils/math.ts:4-5` 零向量→任一侧模长为 0、全零输入；`src/dre/runtime/text-rank.ts:23,26` 卖点"零向量"→"纯词法匹配 / **纯词法**"（该文件自身下一句本就是"纯词法匹配，不引入 embedding / 向量库"）；`src/semantic/symbolic-similarity.ts:51` "与原向量实现零向量口径一致"→"与原向量实现在空输入时的口径一致"；`tests/prompt-engineer.test.ts` 6 处（文件头→"纯规则驱动，无 embedding / 向量依赖"、describe→"确定性提示词引擎（纯规则驱动）"、用例 8 名→"无向量方法验证"，该用例断言的正是 `PromptEngineer` 原型上无 `embed/vector/similarity/cosine` 方法，改名后与断言更贴合）；`tests/torture.slow.ts:222` 注释→"纯规则匹配"。
+  4. `docs/operations-log.md`：本条目；文首归档索引当月条目数 139→140（`grep -c '^## 2026-09'` 实数）。
+- **门的活性证明（三次受控变异，均在原文件上改、事后按内存中的原文回写并断言零差异，未使用任何 `git checkout`/`restore`）**：① 删去 `BANNED` 首行的哨兵 → D1「0 命中」RED 且 offender **恰 1 条**（`tests/doc-contract.test.ts:41`）⇒ 哨兵是承重的，不是装饰；② 把 `if (line.includes(QUOTE_SENTINEL))` 改成永假 → D1 RED（列出 8 条带哨兵引用行）+ 自证条 RED；③ 把 `bannedHitOn` 改成无条件 `return null`（行级豁免扩成全局消音）→ **D1「0 命中」仍绿**、自证条 RED ⇒ 如实记录：这道条"绿"在门被写坏时是沉默，哨兵的活性由两条自证承担，读红单时不得把「0 命中绿」当唯一证据。三次还原后复跑 16 pass / 9 fail 不变。
+- **验证结果（全部新鲜执行）**：改门后、加哨兵前实测 **16** offenders（原 15 + 新自证条自身的 1 处引用），逐条与预期同名 ⇒ 红是可归因的；改后 `bun test ./tests/doc-contract.test.ts` → **16 pass / 9 fail**（25 tests；R5-b 基线 13 pass / 10 fail / 23 tests ⇒ D1 红清零、新增 2 例自证全绿）。`bun test ./tests/unit/docs-consistency.test.ts ./tests/prompt-engineer.test.ts` → 9 pass / 0 fail 与 10 pass / 0 fail（两道门的用例名与断言均未改，改名只动 describe/用例文本）。`bun run lint` → exit 0；`bun run test:arch` → **25 pass / 0 fail**；全量（`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun test --parallel=8 --timeout 15000 ./tests`）→ **4233 pass / 36 skip / 10 fail**（4279 tests / 414 files / 31.14s；R5-b 基线 4229/36/12）：剩余 10 条 = 9 条 doc-contract（D2 1、D3 路径 15 + 链接 9、D4 表格 48 + 内联 3、D6 锚块缺失、D7 未登记 7 文件、D8 §3.0 领域文件 0 vs 23、D9 锚点 43）+ OCR（缺 `tessdata`，环境件）；上一片登记的 `perf-benchmark` `EventBus 100k` 负载抖动本次未触发 ⇒ 无新红、零运行时改动。
+- **敏感资产扫描（规则 11）**：`git diff -U0 | grep '^+' | grep -cE "sk-[A-Za-z0-9]{16}|AKIA|ghp_|BEGIN [A-Z ]*PRIVATE KEY|192\.168\.|ssh://|Bearer [A-Za-z0-9._-]{20}"` → **1**，且经定位该行就是本条"敏感资产扫描"自身（`192.168.` 与 `ssh://` 作为**待扫模式名**出现，非真实地址）⇒ 排除本行自述后真实命中 **0**。本片刻意不引入 `path:line` 形态的引用清单（见操作 1 的理由）。任务 #32（历史条目既存私有地址）仍待用户裁决，本片未动任何历史条目。
+- **红线**：`BANNED` 七个短语一字未动（只加行尾注释）；`HISTORY` 谓词与豁免面未扩；不删 `docs-consistency` 的重复门；不改任何运行时行为；不改写证据件里的原话。
+- **矛盾与残留**：① 仓库现在有**两条**独立的禁语门且豁免口径不同 —— `doc-contract` D1 按整条相对路径做名词匹配，`docs-consistency` 按目录名排除 `{archive, reviews, superpowers, operations-log}` 再加分支名前缀 ⇒ 同一篇文档可能一边在册、一边豁免（例：`docs/my-evaluation-guide.md` 在 D1 被豁免、在 `docs-consistency` 在册）。本片只做引用豁免，未收敛双源（收敛要改判据语义，超出 R5-c 口径），与待办 #34 同族登记；② 哨兵的滥用极限是"真断言与哨兵写在同一行即放过"，在册条只到**文件粒度**，逐行清单需以行号为代价 ⇒ 现由"新增引用行必须改这条全等断言"承担可见性；③ 历史证据件里出现的旧用例名（如 `docs/reviews/2026-08-21-final-acceptance.md:54` 引用的"无过时零向量描述"）不随本次 describe/用例改名更新 —— 证据件保持原话，是刻意的不一致；④ `tests/torture.slow.ts` 文件名不匹配 `*.test.ts`，默认 `bun test` 收不到，本片改的虽是注释，但它在 D1 扫描面内而在测试执行面外这一事实值得记（属 R6 门禁接入范围）。
+- **并入判定**：本分支仍带 9 条 doc-contract 已知红 + 1 条环境红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b 同口径）。
+- **Commit**：占位（本提交完成后由回填提交补录 hash；回填提交属记录维护，规则 5）
 

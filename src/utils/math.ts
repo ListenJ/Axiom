@@ -1,8 +1,8 @@
 /**
  * 共享数值工具（L9 审计修复：收敛三处重复的手写余弦实现）
  *
- * 语义：零向量 / 长度不匹配 → 0（与 settings-search 版一致，消除
- * context-manager 旧版在零向量时返回 NaN 的隐患）。
+ * 语义：任一侧模长为 0 / 长度不匹配 → 0（与 settings-search 版一致，消除
+ * context-manager 旧版在全零输入时返回 NaN 的隐患）。
  */
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (!a || !b || a.length !== b.length || a.length === 0) return 0;
