@@ -324,7 +324,8 @@ interface SecurityAlert {
 都是命令行形状，靠形态猜测会把正常写文档打成提权 —— 故 `proc.exec` 不走形态识别，改为注册处必须说明目标
 承载在哪个入参（或显式声明"目标由实现固定"）：**缺声明即不可注册**（S-8，`ToolRegistry.add()` 内强制）。
 
-177 处工具注册点的逐条声明与判据见 [工具能力声明表](./security/tool-capability-declarations.md)。
+逐注册点的声明与判据见 [工具能力声明表](./security/tool-capability-declarations.md) —— 该表由 `src/testing/tool-declarations.ts`
+从注册代码重生成，注册点计数写在表首行；D10 门要求仓库里的文件与重生成结果逐字相等，故本文不复述任何计数。
 
 #### 2.7.2 执行锚点（写一律拒，读同样拒）
 
@@ -391,7 +392,8 @@ interface SecurityAlert {
 | lsp 工具的 `npx` 隐式出网 | 声明为 `proc.exec`，未附 `net.outbound` | 声明偏窄：包下载是网络行为 |
 | `SKILL_DIR` 可指向 `config/` | 技能装载读 `config/` 时未要求 `cfg.write` | 若技能写回 config 需补声明 |
 | `vendor/pi-agent` 分支不可达 | 该引擎的落点未纳入 `safeFs` | 只有走 pi-code-engine 的路径受影响；无法在本机验证 |
-| `db_query` 的 SQL 守卫是前缀词表 | 按最坏能力声明为 `db.write` | 只读保证需换成语句解析才能声称 |
+| `db_query` 的 SQL 守卫是前缀词表 | 按最坏能力声明为 `db.write` | 只读保证需换成语句解析才能声称；派发前又把 SQL 文本按路径裁决（`db.write` 的判据是 filesystem，字段 `sql`/`query`/`statement`），既不防护也可能误伤，同属本条债 |
+| `plugins/dre-dsh/backend/server.js` 与 `plugins/kb-dsh/backend/server.js` 是能力内核之前的旧构建 | 两个入库的压缩产物各带一份注册器编译副本：42 与 29 处注册零 `capability`，其守卫按字段名正则（`command|script|cmd`、`path|file|target|destination|from|to`）与工具名正则推导读写语义；源码侧同名注册点已逐个带声明 | 直接运行这两个产物等于回到名字正则内核：改名即脱管（L4/L5），I1 与 S-8 都不生效。修复动作为 `plugins/<name>-dsh` 里 `bun run build:backend` 重建（打包入口 `src/mcp/dre-backend.ts` / `src/mcp/kb-backend.ts` 走的就是现行 `ToolRegistry`）；本轮未重建：产物差异是压缩文件整体重写，且插件测试需独立跑，留待与 R3 的默认值收敛一起验 |
 | 命令类负载不靠值形态认领 | `proc.exec` 的派发前裁决只覆盖注册处声明的字段与常见命令字段（`command`/`script`/`cmd`/`code`/`args`）；把命令藏在别的字段名里，派发前取不到 | 漏的部分由执行点兜：`terminal_exec` 与 PTY 审批门共用 `sanitizeCommand`（含去混淆），加上 I4 序列复核的 `write-then-execute` 配对。声明缺失由 S-8 拦在注册期，属 fail-closed 而非绕过 |
 | 命令危险模式有两份清单 | 派发前走 `permissions.ts` 的 `HIGH_RISK_PATTERNS`，执行点走 `command-safety.ts` 的 `DANGEROUS_PATTERNS` + `STRUCTURAL_PATTERNS`（带去混淆归一，前者没有） | 同一条命令在两条路径上可得不同结论，违反"每层判定同一批事实"（§2.7.4 第 1 条）。R3 收敛为单源 |
 | 经 `adaptTool` 包装的流水线工具没有 `payloadFields` 通道 | `src/tools` 的 `Tool` 类型未含该字段，包装后无法声明命令目标；当前无 `proc.exec` 流水线工具 | 将来若新增，注册即被 S-8 拒（不是静默放行），届时先扩 `Tool` 类型再转发 |

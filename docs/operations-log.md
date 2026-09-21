@@ -1520,3 +1520,27 @@
 - **偏差（与任务书不一致处，需用户确认或否决）**：任务书 R2-D 写的是"取负载改由值形态驱动（绝对/相对路径形态、URL 形态、**命令形态**）"。命令形态**没有**按字面实现 —— 命令与散文在语法上不可区分，实测反例即 `snapshot_create` 的 `message`、`git_commit` 的提交说明（形如 `clean up passwd handling` 会被 `HIGH_RISK_PATTERNS` 命中），猜形态会把正常写文档打成提权。改为：路径/URL 按形态认领（加速器表退化为加速器），命令按注册处声明 + S-8 强制（无声明即不可注册）。红线用例（多行正文含锚点名放行、散文含空格放行）与 `§2.7.5` 的登记行共同锁住这一取舍。
 - **矛盾与残留（未擅自扩范围修复）**：① `proc.exec` 的 `"fixed"` 声明由人写、机器不校验其真实性（只校验 schema 存在性），登记表（R2-F）须逐条给出证据；② 命令危险模式仍是两份清单（`permissions.ts` 的 `HIGH_RISK_PATTERNS` 无去混淆，`command-safety.ts` 有），违反 §2.7.4 第 1 条，转 R3；③ `mcp.external` 的远端读写对判定内核不可见（参数形状在远端），只有复核层与 I4 计数；④ `payloadCandidatesForCapability` 是"声明字段 + 规范字段 + 加速器字段"**并集**而非替换，声明不能缩小裁决面（保守方向，不会成为绕过通道）；⑤ `checkToolPermission` 生产仍零调用方（R1 残留①，接线与否待决）；⑥ `reviewSequence` 主体仍退化为一律 `"unassigned"`（R3）；⑦ 形态认领只认 string 入参，嵌套对象内的路径（如 `{ops:[{file:"..."}]}`）不进入派发前裁决，靠 `safeFs` 兜底 —— 是否扩到递归取值待裁决（登记，不在本片做）。
 - **Commit**：e30c377（`e30c3778cb80eda12b6d4e23f3e0ccccf0d7d2d8`；已推送 `internal codex/s3-on-main-2026-09-22`，`7b7b1902..e30c3778`。本条 hash 由占位符回填，回填提交属记录维护，规则 5）
+
+---
+
+## 2026-09-22 06:05 +0800 — R2-F 能力声明登记表入库（由代码重生成 + D10 一致性门）
+
+- **任务**：R2 收尾片 R2-F —— 把 `docs/security/tool-capability-declarations.md`（R0 起一直是死链）变成由注册代码重生成的登记表并加门，同时回答"能力声明到底覆盖了几个注册点"。
+- **工具**：Qoder 主代理（Read / Edit / Write / Grep / Bash + `tsc --noEmit` + `bun test`），无子代理。规则 2 备份→读全文→改→验证→删备份、规则 5 留痕、规则 7 垂直切片（D10 先红后绿）、规则 11 敏感扫描均已执行；规则 9 无违反。
+- **执行的操作（文件级：3 新建 + 2 改）**：
+  - 新建 `src/testing/tool-declarations.ts`：`addLiterals`（括号配平取 `.add({…})` 整段，跳过字符串与注释）、`propertyText`、`topLevelSchemaKeys`（内联对象或 `z.object({…})` 取顶层键，取不到即 `null` = 不可静态核）、`capabilityList`、`payloadFieldsText`、`tiersFor`（分档文字**只读 `CAPABILITY_PAYLOAD`**，与派发前裁决共用一份口径，不另立词表）、`collectToolDeclarations`、`renderDeclarationsDoc`（不写时间戳、不写行号 ⇒ 逐字可重生成）。
+  - 新建 `scripts/gen-capability-declarations.mjs`：默认只打印统计，`--write` 重写文档。首版缺陷已修：`new URL("..").pathname` 带尾斜杠时 `abs.slice(root.length + 1)` 会削掉相对路径首字符（表头输出成 `lugins/...`），改用 `fileURLToPath` 并去尾斜杠。
+  - `tests/doc-contract.test.ts` 新增 **D10** 三条：登记表存在（否则 `docs/SECURITY-MEASURES.md` 的 3 处链接是死链）／与重生成结果**逐字相等**／抽取器正向对照（`terminal_exec` = `proc.exec→["command"]`、`snapshot_create` = `proc.exec→fixed`、`fs_read` 带 `fs.read`、固定名注册 >150、打包产物被扫到但不进逐条表、手写插件 `plugins/git-workflow-enhanced/index.js` 必须在表内 —— 后两条互锁，防"把 plugins 整个排除掉"蒙过门）。
+  - `docs/SECURITY-MEASURES.md`：§2.7.1 的"177 处工具注册点"手抄计数改为指向生成表首行（本文不再复述任何计数）；§2.7.5 补两条（`db.write` 把 SQL 文本按 filesystem 裁决，既不防护也可能误伤，并入既有 `db_query` 行；两个插件打包产物是能力内核之前的旧构建）。
+  - 新建 `docs/security/tool-capability-declarations.md`（由脚本生成，349 行）。
+- **登记表测得的事实**（重新测得，不是复述旧文档）：固定名注册 **186** 处、动态名 **1** 处（`src/mcp/client-connector.ts` 的 `mcp_${name}_${tool.name}`）、声明 `proc.exec` **25** 处（24 处 `"fixed"` + 1 处声明 `command`，与 R2-D 提交的 25 处吻合）、**未声明能力 0 处**、schema 不可静态核 1 处。
+- **本片新发现的洞（登记表自己咬出来的，未修）**：`plugins/dre-dsh/backend/server.js`（726 KB）与 `plugins/kb-dsh/backend/server.js`（4.2 MB）是提交入库的压缩产物，内含 42 与 29 处注册且**零 `capability`**。判据链：其 `package.json` 的 `build:backend` 是 `bun build ../../src/mcp/dre-backend.ts --minify`（打包入口用的就是现行 `ToolRegistry`），而源码侧同名注册点 `src/mcp/server/dre-tools.ts`（35）+ `mind-tools.ts`（7）= 42 条**全部带声明** ⇒ 产物是 R1 之前的旧构建，里面生效的仍是按字段名/工具名正则的旧守卫（`command|script|cmd`、`path|file|target|destination|from|to`、按工具名推 delete/write/read）。运行这两个产物等于回到名字正则内核，I1 与 S-8 都不生效。**本片只登记不重建**（重建＝压缩文件整体重写、diff 数 MB、插件测试需独立跑），是否立即重建待用户裁决。
+- **验证结果（全部新鲜执行）**：
+  - `bun run lint`（`tsc --noEmit`）→ **exit 0**
+  - `bun test ./tests/doc-contract.test.ts ./tests/capability-invariants.test.ts` → D10 三条**全绿**；S-1…S-8 全绿（唯一红仍是 S-6 回环单源，R3 已知）；doc-contract 其余 11 条红与基线**同名同数**（R5 范围），且新增件不在任何 offender 列表内：`docs/security/tool-capability-declarations.md:` 命中 **0**，D1 的 43 处命中全为既存文件
+  - 全量（内存封顶、与基线同口径）`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun test --parallel=8 --timeout 15000 ./tests` → **4171 pass / 36 skip / 15 fail**（4222 tests / 411 files / 36.33s）。相对 R2-A/B/D/E 的 4169/14：+3 为 D10 用例；多出的第 15 个失败是 `tests/edge-cases/performance-degradation.test.ts` 的 E.4 p99 分位数 —— 单跑该文件 p99=22.99ms **通过** ⇒ 判为 `--parallel=8` 下的时序抖动（环境相关），登记为已知 flaky，不计为本片引入
+  - **D10 存活证明**（非"绿即可信"）：往生成的文档末尾手工追加一行 `| terminal_exec | proc.exec | 手抄一行 | 1 | 人工改写 |` ⇒ "逐字一致"立即转红；恢复后转绿。手抄与事后改表都跑不掉
+  - **敏感资产扫描（规则 11）**：新增/修改文件对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----`/`192.168.` 命中 **0**
+  - **并入判定**：本分支仍带已知红（R3/R4/R5 + 环境件），**只推分支不并入 `main`**（与 R1/R2 同口径）
+- **矛盾与残留**：① 抽取器只看 `.add({` 字面量，运行期由远端 `listTools()` 决定的注册、以及不走 `add()` 的调用面不在表内 —— 表尾"这张表不证明什么"已明写这一边界；② `"fixed"` 的真实性仍由人保证（机器只校验字段名确实存在于 schema），表里"24 处 fixed"是**声明数**不是**正确数**；③ 打包产物旧构建是新登记的洞，未修；④ `tiersFor` 对 `db.write` 会显示"入参可裁决"，读者易误读为已防护 ⇒ 以表尾脚注说明，不改判据（改了会与 §2.7.5 的债项脱钩）。
+- **Commit**：占位（初稿随代码提交，推送后回填 hash）

@@ -353,3 +353,43 @@ describe("D9 禁止 file:line 手抄锚点", () => {
     expect(ANCHOR.test("`src/main.ts` 的 `Bun.serve()`")).toBeFalse();
   });
 });
+
+// ─── D10 能力声明登记表由代码重生成，禁止手抄 ────────────────────────────────
+describe("D10 能力声明登记表与代码同源", () => {
+  const DOC = "docs/security/tool-capability-declarations.md";
+
+  it("登记表存在（SECURITY-MEASURES 有指向它的链接，缺件即死链）", () => {
+    expect(exists(DOC)).toBe(true);
+  });
+
+  it("登记表与 `scripts/gen-capability-declarations.mjs` 的重生成结果逐字一致", async () => {
+    const { collectToolDeclarations, renderDeclarationsDoc } = await import(
+      "../src/testing/tool-declarations.js"
+    );
+    const regenerated = renderDeclarationsDoc(collectToolDeclarations(repoRoot));
+    expect(read(DOC)).toBe(regenerated);
+  });
+
+  it("抽取器覆盖到生产注册点（正向对照，防零命中假绿）", async () => {
+    const { collectToolDeclarations, renderDeclarationsDoc } = await import(
+      "../src/testing/tool-declarations.js"
+    );
+    type Row = ReturnType<typeof collectToolDeclarations>[number];
+    const rows = collectToolDeclarations(repoRoot);
+    const source = rows.filter((r: Row) => !r.bundle && r.nameKind === "literal");
+    const byName = new Map(source.map((r: Row) => [r.name, r]));
+    // 已知站点逐个回代：能力与目标声明都必须出现在表里
+    expect(byName.get("terminal_exec")?.capability).toContain("proc.exec");
+    expect(byName.get("terminal_exec")?.payloadFieldsText).toBe('proc.exec→["command"]');
+    expect(byName.get("snapshot_create")?.payloadFieldsText).toBe("proc.exec→fixed");
+    expect(byName.get("fs_read")?.capability ?? byName.get("fs_write")?.capability).toContain("fs.read");
+    expect(source.length).toBeGreaterThan(150);
+    // 打包产物被扫到、但不混进逐条表：它自带一份注册器副本，不在本表口径内
+    expect(rows.some((r: Row) => r.bundle)).toBeTrue();
+    const rendered = renderDeclarationsDoc(rows);
+    expect(rendered).toContain("## 打包产物内的注册面");
+    expect(rendered).not.toContain("## plugins/dre-dsh/backend/server.js");
+    // 手写插件（逐行走 add()）必须在表内，否则上面的排除就是"顺手把 plugins 全删了"
+    expect(rendered).toContain("## plugins/git-workflow-enhanced/index.js");
+  });
+});
