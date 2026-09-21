@@ -1,6 +1,6 @@
 ﻿import path from "node:path";
 import { z } from "zod";
-import type { ToolDef, ToolRegistry } from "../tool-registry.js";
+import { createRegistry, type ToolDef, type ToolRegistry } from "../tool-registry.js";
 import { DEFAULT_SKILL_DIRS } from "../../skills/types.js";
 import {
   loadSkillsFromDirectories,
@@ -78,8 +78,8 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
     },
     {
       name: "skill_create",
-      // saveSkillFile → fs.mkdirSync + fs.writeFileSync（skill-loader.ts:208,220）；
-      // 目标由 resolveSkillPath 约束在 skillDirs 内，守卫另按 filePath 负载复核
+      // saveSkillFile → safeFs.writeFile（realpath + 逐跳锚点在写盘那一行判定，R2-B）；
+      // resolveSkillPath 只把目标约束在 skillDirs 内，不替代执行点
       capability: ["fs.write"],
       description: "创建新的 skill 文件",
       inputSchema: {
@@ -94,7 +94,7 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
           description: args.description as string,
           author: args.author as string | undefined,
         });
-        saveSkillFile(resolveSkillPath(String(args.filePath), dirs), boilerplate);
+        await saveSkillFile(resolveSkillPath(String(args.filePath), dirs), boilerplate);
         return { success: true, filePath: args.filePath, boilerplate };
       },
     },
@@ -146,7 +146,14 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
   ];
 }
 
-/** 按名称执行 skill 工具（原生 function-calling 与 MCP 共用的分发入口） */
+/** 独立派发用的默认注册表：与 MCP 注册同走 add() 的守卫包裹（R2-A，封堵绕过守卫的并列入口）。 */
+let standaloneRegistry: ToolRegistry | null = null;
+
+export async function runSkillTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  standaloneRegistry ??= createRegistry(buildSkillToolSurfaces());
+  return standaloneRegistry.execute(name, args);
+}
+
 /** 把用户提供的 skill 文件路径约束到 skillDirs 白名单内（拒绝绝对路径与 .. 逃逸）。 */
 function resolveSkillPath(filePath: string, skillDirs: string[]): string {
   const root = path.resolve(skillDirs[0] ?? "./skills");
@@ -156,12 +163,6 @@ function resolveSkillPath(filePath: string, skillDirs: string[]): string {
     throw new Error(`Invalid skill file path (must stay within skill dirs): ${filePath}`);
   }
   return resolved;
-}
-
-export async function runSkillTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-  const tool = buildSkillToolSurfaces().find((t) => t.name === name);
-  if (!tool) throw new Error(`Unknown skill tool: ${name}`);
-  return tool.handler(args);
 }
 
 /** MCP 注册入口：把 skill 工具面注册进 ToolRegistry */

@@ -120,7 +120,10 @@ export function authorizePath(
     }
     for (const rb of realBases) {
       const realRelative = path.relative(rb, found.real);
-      if (realRelative === "" || realRelative.startsWith(".")) continue;
+      // 只跳过"解析结果就是沙箱根"这一种情形。越界已由上面的 withinAny 拦下，
+      // 而 startsWith(".") 会把 .git / .ssh / .github / .env 一并放行——那几个恰是
+      // 提权落点最高的锚点：一条指向它们的沙箱内符号链接即可绕过逐跳判定（R2-B）。
+      if (realRelative === "") continue;
       const decision = decideCapability({
         capability,
         target: path.join(base, realRelative),

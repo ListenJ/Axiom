@@ -36,6 +36,7 @@ import {
   CAPABILITY_PAYLOAD as PERMISSION_CAPABILITY_PAYLOAD,
   payloadForCapability,
   type Capability,
+  type PayloadFields,
 } from "../utils/permissions.js";
 
 /** 复核结论 */
@@ -149,6 +150,8 @@ export interface ToolCallView {
   readonly toolName?: string;
   /** 序列复核的主体键；缺省归入同一会话主体 */
   readonly principal?: string;
+  /** 注册处声明的"目标在哪个入参"（S-8）：命令类负载没有名字之外的认法 */
+  readonly payloadFields?: PayloadFields;
 }
 
 /** 复核结果（null = 复核不可用） */
@@ -205,12 +208,14 @@ export const SCREENED_CAPABILITIES: ReadonlySet<Capability> = new Set(
 );
 
 /**
- * 从工具参数中提取被复核负载。按声明能力顺序取第一个有效字段，
+ * 从工具参数中提取被复核负载。顺序：注册处声明的目标字段 → 常见字段名 → 值形态识别，
  * 一次调用只产出一条负载（content 之类的正文字段不参与，避免整份文件进提示词）。
+ * 值形态这一步是 R2-D 加的：只认路径/URL 两种语法，所以把 `path` 改名成 `vault_path`
+ * 仍能被人看的这一眼里拿到目标；命令类不猜（散文与命令行不可区分），靠声明。
  */
 export function extractPayload(call: ToolCallView): { kind: PayloadKind; payload: string } | null {
   for (const capability of call.capabilities) {
-    const picked = payloadForCapability(capability, call.args);
+    const picked = payloadForCapability(capability, call.args, call.payloadFields?.[capability]);
     if (picked) return picked;
     // 外部 MCP 工具的参数形状由远端决定，没有固定字段可认 —— 整体序列化后送筛，
     // 否则"包装工具零观测"会让 L5 重新出现。

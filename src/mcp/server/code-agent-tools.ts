@@ -14,6 +14,7 @@ export function registerCodeAgentTools(registry: ToolRegistry): void {
   registry.add({
     name: "code_generate",
     capability: ["net.outbound", "proc.exec", "fs.read", "fs.write", "db.write"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "使用 AI 模型生成代码（自动注入 CodeGraph 上下文，支持免费模型）",
     inputSchema: {
       prompt: z.string().describe("代码生成需求描述"),
@@ -92,6 +93,7 @@ export function registerCodeAgentTools(registry: ToolRegistry): void {
   registry.add({
     name: "opencode_status",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "检查 OpenCode Agent 状态和可用模型",
     inputSchema: {},
     handler: async () => {

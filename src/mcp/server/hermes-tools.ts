@@ -6,6 +6,7 @@ export function registerHermesTools(registry: ToolRegistry): void {
   registry.add({
     name: "project_research",
     capability: ["proc.exec", "fs.read", "fs.write", "db.write", "net.outbound"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "使用 Hermes Agent 进行深度研究",
     inputSchema: {
       topic: z.string().describe("研究主题"),
@@ -20,6 +21,7 @@ export function registerHermesTools(registry: ToolRegistry): void {
   registry.add({
     name: "hermes_status",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "检查 Hermes Agent 安装状态",
     inputSchema: {},
     handler: async () => {

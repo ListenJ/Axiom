@@ -211,6 +211,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "terminal_exec",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": ["command"] },
     description: "执行终端命令（有安全检查）",
     inputSchema: {
       command: z.string().describe("要执行的命令"),
@@ -227,6 +228,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "terminal_list",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "列出当前进程",
     inputSchema: {},
     handler: async () => listProcesses(),
@@ -235,6 +237,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "terminal_info",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取系统信息",
     inputSchema: {},
     handler: async () => getSystemInfo(),
@@ -244,6 +247,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "git_status",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取 Git 仓库状态",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径，默认当前目录"),
@@ -254,6 +258,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "git_diff",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取 Git diff",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -272,6 +277,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "git_log",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取 Git 提交历史",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -288,6 +294,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "git_branch",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取 Git 分支信息",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -298,6 +305,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "git_blame",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取文件 Git blame 信息",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -346,6 +354,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   registry.add({
     name: "code_diagnostics",
     capability: ["proc.exec", "fs.read"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取 TypeScript 诊断信息",
     inputSchema: {
       filePath: z.string().optional().describe("指定文件路径，默认全项目"),

@@ -100,49 +100,163 @@ export type Capability =
 // 读同一个 CAPABILITY_PAYLOAD，新增字段只需改这一处。
 
 export type CapabilityPayloadKind = "command" | "path" | "url";
+/** 裁决类别：`decideCapability` 的分派读这里，"取哪个负载"与"怎么判"不维护两张表 */
+export type CapabilityJudgment = "filesystem" | "outbound" | "command";
 
 export interface CapabilityPayloadSpec {
   readonly kind: CapabilityPayloadKind;
+  readonly judgment: CapabilityJudgment;
   readonly fields: readonly string[];
+  /**
+   * 字段名**加速器**：按名取到的负载做完整裁决（越界 + 锚点）。
+   * 它不是闸门 —— 未列出的同形态字段由 `shapeAdjudicable` 那条路补上，
+   * 所以把 `path` 改名成 `vault_path` 只会降级为"锚点裁决"，不会脱离判定。
+   */
+  readonly acceleratorFields: readonly string[];
+  /**
+   * 该能力的负载可否由**值形态**认出。路径与 URL 有可判别语法 ⇒ 可以；
+   * 命令与散文不可区分（`snapshot_create` 的 `message` 里出现 "passwd" 就是命令行形状），
+   * 故 `proc.exec` 不走形态识别，改由注册处声明目标字段（`declaredTargetRequired`）。
+   */
+  readonly shapeAdjudicable: boolean;
+  /** 派发前是否裁决（`mcp.external` 例外：远端参数形状未知，非 URL 负载交给出网规则只会误判） */
+  readonly preDispatch: boolean;
+  /** 注册处必须声明"哪个入参承载本能力的目标"，或显式声明 "fixed" */
+  readonly declaredTargetRequired: boolean;
 }
+
+/** 路径类目标字段名加速器（原 `defaultToolGuard` 里那张 30 键名正则并入此处：全仓只有一份） */
+const PATH_ACCELERATORS: readonly string[] = [
+  "path", "file", "filePath", "file_path", "directory", "dir", "dirPath", "dir_path",
+  "projectPath", "repoPath", "repo_path", "absPath", "abs_path", "newPath", "new_path",
+  "oldPath", "old_path", "srcPath", "src_path", "destPath", "dest_path", "destination",
+  "dest", "target", "source", "from", "to", "outputPath", "output_path", "folder", "cwd",
+];
+
+const payloadSpec = (
+  kind: CapabilityPayloadKind,
+  judgment: CapabilityJudgment,
+  fields: readonly string[],
+  options: Partial<Pick<CapabilityPayloadSpec, "acceleratorFields" | "shapeAdjudicable" | "preDispatch" | "declaredTargetRequired">> = {},
+): CapabilityPayloadSpec => ({
+  kind,
+  judgment,
+  fields,
+  acceleratorFields: options.acceleratorFields ?? [],
+  shapeAdjudicable: options.shapeAdjudicable ?? false,
+  preDispatch: options.preDispatch ?? true,
+  declaredTargetRequired: options.declaredTargetRequired ?? false,
+});
+
+/** 路径类能力：加速器字段做完整裁决，其余路径形态取值做锚点裁决 */
+const fileSpec = (fields: readonly string[]): CapabilityPayloadSpec =>
+  payloadSpec("path", "filesystem", fields, { acceleratorFields: PATH_ACCELERATORS, shapeAdjudicable: true });
 
 /**
  * `internal` 刻意不在表内：纯计算/状态查询没有外部副作用，不进入判定与初筛。
  */
 export const CAPABILITY_PAYLOAD: Readonly<Partial<Record<Capability, CapabilityPayloadSpec>>> = {
-  "proc.exec": { kind: "command", fields: ["command", "script", "cmd", "code", "args"] },
-  "db.write": { kind: "command", fields: ["sql", "query", "statement"] },
-  "fs.read": {
-    kind: "path",
-    fields: ["path", "file", "filePath", "directory", "dir", "projectPath", "repoPath"],
-  },
-  "fs.write": {
-    kind: "path",
-    fields: ["path", "file", "filePath", "destination", "dest", "target", "directory", "dir"],
-  },
-  "fs.delete": { kind: "path", fields: ["path", "file", "filePath", "directory", "dir"] },
-  "fs.glob": { kind: "path", fields: ["pattern", "path", "projectPath", "dir"] },
-  "cfg.write": { kind: "path", fields: ["path", "key", "filePath"] },
-  "net.outbound": { kind: "url", fields: ["url", "href", "target", "endpoint"] },
-  // 外部 MCP 工具的参数形状由远端决定：先按常见字段取，取不到由调用方整体序列化
-  "mcp.external": { kind: "path", fields: ["url", "command", "path", "file"] },
+  // 命令与散文不可区分 ⇒ 不做形态识别，改由注册处声明目标字段（无声明即不可注册）
+  "proc.exec": payloadSpec("command", "command", ["command", "script", "cmd", "code", "args"], {
+    declaredTargetRequired: true,
+  }),
+  // SQL 文本按路径裁决没有意义（语句解析未实现，见 §2.7.5）⇒ 只保留路径类入参的完整裁决
+  "db.write": payloadSpec("command", "filesystem", ["sql", "query", "statement"], {
+    acceleratorFields: PATH_ACCELERATORS,
+  }),
+  "fs.read": fileSpec(["path", "file", "filePath", "directory", "dir", "projectPath", "repoPath"]),
+  "fs.write": fileSpec(["path", "file", "filePath", "destination", "dest", "target", "directory", "dir"]),
+  "fs.delete": fileSpec(["path", "file", "filePath", "directory", "dir"]),
+  "fs.glob": fileSpec(["pattern", "path", "projectPath", "dir"]),
+  "cfg.write": fileSpec(["path", "key", "filePath"]),
+  "net.outbound": payloadSpec("url", "outbound", ["url", "href", "target", "endpoint"], {
+    shapeAdjudicable: true,
+  }),
+  // 外部 MCP 工具参数形状由远端决定：复核层整体序列化送筛（risk-monitor），派发前不裁决
+  "mcp.external": payloadSpec("path", "outbound", ["url", "command", "path", "file"]),
 };
 
-/** 取某一次调用里指定能力的负载；没有对应字段则返回 null（不猜测）。 */
+/** 注册处对"目标在哪个入参"的声明；"fixed" = 目标由实现固定，入参里没有可裁决对象。 */
+export type PayloadFieldDeclaration = readonly string[] | "fixed";
+export type PayloadFields = Readonly<Partial<Record<Capability, PayloadFieldDeclaration>>>;
+
+/** 只有短、单行、不含空白的字符串才可能是"目标"；正文与散文不参评。 */
+function looksAdjudicableValue(value: string): boolean {
+  const v = value.trim();
+  return v.length > 0 && v.length <= 512 && !/[\r\n]/.test(v) && !/\s/.test(v);
+}
+
+/** 值形态识别：带方案的 URL 字面量。 */
+export function looksUrlLike(value: string): boolean {
+  if (!looksAdjudicableValue(value)) return false;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value.trim());
+}
+
+/**
+ * 值形态识别：一个字符串"看起来就是"文件路径目标。
+ * 刻意保守 —— 含空白（标题/正文/多行内容）一律不算；误判的代价是把正常调用推进审批。
+ */
+export function looksPathLike(value: string): boolean {
+  if (!looksAdjudicableValue(value) || looksUrlLike(value)) return false;
+  const v = value.trim().replace(/\\/g, "/");
+  if (v === "~" || v.startsWith("~/") || v.startsWith("/") || v.startsWith("./") || v.startsWith("../")) return true;
+  if (/^\.[\w.-]+$/.test(v)) return true; // 点开头隐藏名：.env / .bashrc / .gitconfig
+  if (v.includes("/")) return true; // 分段相对路径：src/a.ts / owner/repo
+  return /\.[A-Za-z0-9]{1,8}$/.test(v); // 带扩展名的相对文件名：notes.txt
+}
+
+export interface CapabilityPayloadCandidate {
+  readonly kind: CapabilityPayloadKind;
+  readonly payload: string;
+  readonly field: string;
+  /** true = 字段名在声明/加速器清单里（完整裁决）；false = 值形态认出（只裁与上下文无关的规则） */
+  readonly declared: boolean;
+}
+/** 某次调用里指定能力的全部可裁决负载：声明字段优先，值形态补齐改名后的同类字段。 */
+export function payloadCandidatesForCapability(
+  capability: Capability,
+  args: unknown,
+  declaredFields?: PayloadFieldDeclaration,
+): CapabilityPayloadCandidate[] {
+  const spec = CAPABILITY_PAYLOAD[capability];
+  if (!spec || typeof args !== "object" || args === null) return [];
+  if (declaredFields === "fixed") return []; // 目标由实现固定，入参里没有可裁决对象
+  const record = args as Record<string, unknown>;
+  const out: CapabilityPayloadCandidate[] = [];
+  const takenFields = new Set<string>();
+  const seenValue = new Set<string>();
+  const push = (field: string, value: unknown, declared: boolean): void => {
+    if (typeof value !== "string") return;
+    const payload = value.trim();
+    if (!payload) return;
+    const key = field + "\u0000" + payload;
+    if (seenValue.has(key)) return;
+    seenValue.add(key);
+    takenFields.add(field);
+    out.push({ kind: spec.kind, payload, field, declared });
+  };
+  for (const field of declaredFields ?? []) push(field, record[field], true);
+  for (const field of spec.fields) push(field, record[field], true);
+  for (const field of spec.acceleratorFields) push(field, record[field], true);
+  if (spec.shapeAdjudicable) {
+    // 字段名不在任何清单里：由值形态认领（后续只裁与上下文无关的规则）
+    const matches = spec.kind === "url" ? looksUrlLike : looksPathLike;
+    for (const [field, value] of Object.entries(record)) {
+      if (takenFields.has(field) || typeof value !== "string") continue;
+      if (matches(value)) push(field, value, false);
+    }
+  }
+  return out;
+}
+
+/** 取某一次调用里指定能力的第一条负载；没有可裁决字段则返回 null（不猜测）。 */
 export function payloadForCapability(
   capability: Capability,
   args: unknown,
+  declaredFields?: PayloadFieldDeclaration,
 ): { kind: CapabilityPayloadKind; payload: string } | null {
-  const spec = CAPABILITY_PAYLOAD[capability];
-  if (!spec || typeof args !== "object" || args === null) return null;
-  const record = args as Record<string, unknown>;
-  for (const field of spec.fields) {
-    const value = record[field];
-    if (typeof value === "string" && value.trim().length > 0) {
-      return { kind: spec.kind, payload: value.trim() };
-    }
-  }
-  return null;
+  const first = payloadCandidatesForCapability(capability, args, declaredFields)[0];
+  return first ? { kind: first.kind, payload: first.payload } : null;
 }
 
 export interface ExecutionAnchor {
@@ -213,6 +327,17 @@ function anchorHitPerHop(relative: string): string | null {
   return null;
 }
 
+/**
+ * 执行锚点命中（**不依赖沙箱根**的那一半判定）。
+ *
+ * 派发前初筛只能用它：一条叫 `vault_path` 的入参指向 `/home/x/.axiom/vault` 时，
+ * 是否越界取决于该工具真正的落点，只有实际 I/O 点（safe-fs）知道；
+ * 而"字符串里出现锚点"与上下文无关，改名脱离不了它。
+ */
+export function executionAnchorHit(target: string): string | null {
+  return anchorHitPerHop(target);
+}
+
 function decideFilesystem(check: CapabilityCheck): CapabilityDecision {
   const base = process.cwd();
   const abs = path.resolve(base, check.target);
@@ -258,26 +383,68 @@ function decideOutbound(check: CapabilityCheck): CapabilityDecision {
  * 由调用方（src/utils/safe-fs.ts 在实际 I/O 点）完成后传入已规范化的目标。
  */
 export function decideCapability(check: CapabilityCheck): CapabilityDecision {
-  switch (check.capability) {
-    case "internal":
-      return { allow: true };
-    case "fs.read":
-    case "fs.write":
-    case "fs.delete":
-    case "fs.glob":
-    case "cfg.write":
-    case "db.write":
+  const spec = CAPABILITY_PAYLOAD[check.capability];
+  if (!spec) {
+    // 表外档位（含被绕过类型检查传进来的串）一律拒绝：裁决规则不存在即不可得
+    return check.capability === "internal"
+      ? { allow: true }
+      : { allow: false, reason: `unknown capability '${check.capability}': no adjudication rule` };
+  }
+  switch (spec.judgment) {
+    case "filesystem":
       return decideFilesystem(check);
-    case "net.outbound":
-    case "mcp.external":
+    case "outbound":
       return decideOutbound(check);
-    case "proc.exec": {
+    case "command": {
       const cmd = checkCommandPermission(check.target);
-      return cmd.allowed
-        ? { allow: true }
-        : { allow: false, reason: cmd.reason ?? "high-risk command" };
+      return cmd.allowed ? { allow: true } : { allow: false, reason: cmd.reason ?? "high-risk command" };
     }
   }
+}
+
+export interface CallPayloadAdjudication {
+  readonly capabilities: readonly Capability[];
+  readonly args: unknown;
+  /** 调用主体（审计用） */
+  readonly principal?: string;
+  /** 注册处声明的"目标在哪个入参"；未声明时走字段加速器 + 值形态识别 */
+  readonly payloadFields?: PayloadFields;
+}
+
+/**
+ * 派发前对一次调用的全部候选负载做裁决：任一候选被拒即整体拒绝（fail-closed）。
+ * 守卫层（`src/mcp/tool-registry.ts`）与权限中间件读这一份口径，不各自维护第二份。
+ *
+ * 两条刻意的不对称：
+ * - 命令类负载不靠形态猜测（散文与命令行不可区分），只认注册处声明与常见命令字段；
+ * - 形态识别出的**路径**只裁锚点，不裁越界 —— 合法落点可以在 cwd 之外（vault / axiom home），
+ *   是否越界由实际 I/O 点判定（I2）。
+ */
+export function adjudicateCallPayloads(check: CallPayloadAdjudication): CapabilityDecision {
+  for (const capability of check.capabilities) {
+    const spec = CAPABILITY_PAYLOAD[capability];
+    if (!spec || !spec.preDispatch) continue;
+    const candidates = payloadCandidatesForCapability(capability, check.args, check.payloadFields?.[capability]);
+    for (const candidate of candidates) {
+      const decision =
+        candidate.declared || spec.judgment !== "filesystem"
+          ? decideCapability({ capability, target: candidate.payload, principal: check.principal })
+          : anchorOnlyDecision(candidate.payload);
+      if (decision.allow) continue;
+      return {
+        allow: false,
+        reason: capability + ": " + (decision.reason ?? "denied") + " (field=" + candidate.field + ")",
+      };
+    }
+  }
+  return { allow: true };
+}
+
+function anchorOnlyDecision(target: string): CapabilityDecision {
+  const hit = executionAnchorHit(target);
+  return hit
+    ? { allow: false, reason: "target '" + target + "' is an execution anchor (" + hit + ")" }
+    : { allow: true };
 }
 
 const pendingConfirmations = new Map<string, { command: string; timestamp: number; expiresAt: number }>()

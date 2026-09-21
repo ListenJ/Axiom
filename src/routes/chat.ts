@@ -10,10 +10,10 @@ import { prepareChatContext, executeChat } from "../services/index.js";
 import { defaultPreflightDeps } from "../services/chat-preflight.js";
 import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { startSelfThought, attachSelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
-import { buildSkillToolSurfaces, runSkillTool } from "../mcp/server/skill-tools.js";
+import { buildSkillToolSurfaces } from "../mcp/server/skill-tools.js";
 import { toOpenAITools } from "../utils/tool-surface.js";
 import { z } from "zod";
-import type { ToolDef } from "../mcp/tool-registry.js";
+import { createRegistry, type ToolDef } from "../mcp/tool-registry.js";
 import type { DataPipeline } from "../crawl/data-pipeline.js";
 import type { Database } from "bun:sqlite";
 import type { VaultManager } from "../memory/vault-manager.js";
@@ -465,15 +465,16 @@ export function buildChatToolConfig(pipeline: DataPipeline): {
   tools: ReturnType<typeof toOpenAITools>;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 } {
-  const skillTools = buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list");
-  const webTools = buildWebToolSurfaces(pipeline);
+  const surfaces: ToolDef[] = [
+    ...buildSkillToolSurfaces().filter((t) => t.name === "skill_run" || t.name === "skill_list"),
+    ...buildWebToolSurfaces(pipeline),
+  ];
+  // 原生 function-calling 是 MCP 之外的第二条执行入口：必须经同一注册表派发，
+  // 否则 add() 装上的守卫（HardFloor / 双层复核 / I4 序列 / 强制审批）在这条路径上整体失效（R2-A）。
+  const registry = createRegistry(surfaces);
   return {
-    tools: toOpenAITools([...skillTools, ...webTools]),
-    executeTool: async (name, args) => {
-      const web = webTools.find((t) => t.name === name);
-      if (web) return web.handler(args);
-      return runSkillTool(name, args);
-    },
+    tools: toOpenAITools(surfaces),
+    executeTool: (name, args) => registry.execute(name, args),
   };
 }
 

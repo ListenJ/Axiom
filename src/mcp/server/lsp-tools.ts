@@ -6,6 +6,7 @@ export function registerLspTools(registry: ToolRegistry): void {
   registry.add({
     name: "code_quick_diagnostics",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "快速诊断单个文件（使用增量检查，更快）",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -16,6 +17,7 @@ export function registerLspTools(registry: ToolRegistry): void {
   registry.add({
     name: "code_actions",
     capability: ["proc.exec", "fs.read"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "获取代码修复建议（Code Actions）",
     inputSchema: {
       filePath: z.string().describe("文件路径"),

@@ -25,6 +25,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
     name: "browser_guide",
     capability: ["net.outbound", "proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "无视觉模型时的文本引导：基于 CDP 可交互元素（精确坐标）生成结构化操作引导（任务/元素表/建议操作/验证步骤）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -58,6 +59,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
     name: "browser_locate",
     capability: ["net.outbound", "proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "无头浏览器精确定位：按文本/role/tag/index 查询页面元素，返回实测边界框（x/y/宽/高/中心）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -87,6 +89,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
     name: "browser_launch",
     capability: ["proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "启动用户的默认浏览器打开指定 URL（Windows: start / Linux: xdg-open / macOS: open），用于真实页面核对与电脑操控",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -130,6 +133,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
     name: "frontend_visual_review",
     capability: ["net.outbound", "proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "前端视觉审核：对 URL 截图（CDP）或直接图片，用 SenseNova 视觉模型输出结构化审核（布局/对比度/交互/一致性/渲染）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -148,6 +152,7 @@ export function registerBrowserTools(registry: ToolRegistry): void {
   registry.add({
     name: "frontend_audit",
     capability: ["fs.read", "fs.delete", "net.outbound", "proc.exec"],
+    payloadFields: { "proc.exec": "fixed" },
     description: "前端页面审核流水线：对一组页面逐页截图（Playwright 无头）→ SenseNova 视觉审核 → 汇总报告（verdict/问题/统计）",
     exposure: ["external", "safe-external"],
     inputSchema: {

@@ -317,6 +317,13 @@ interface SecurityAlert {
 `net.outbound`、`proc.exec`、`cfg.write`、`db.write`、`mcp.external`。词表**刻意没有**「读取凭据」档 ——
 `~/.axiom/axiom-secrets/` 与 `.env` 是执行锚点，无可授权路径，无声明即不可得。
 
+**派发前裁决怎样取出目标（R2-D）**：取负载按**值形态**认领，字段名清单只作加速器、不作闸门。
+路径与 URL 有可判别语法（单行、无空白、URL 有 scheme、路径有分隔符或扩展名），所以把 `path` 改名成
+`vault_path` 只会从"完整裁决"降级为"锚点裁决"，不会脱离判定；正文类入参（多行、含空白的 `content`、
+`message`）不参评，写文档不构成提权。命令与散文**不可区分** —— `snapshot_create` 的 `message`、git 提交说明
+都是命令行形状，靠形态猜测会把正常写文档打成提权 —— 故 `proc.exec` 不走形态识别，改为注册处必须说明目标
+承载在哪个入参（或显式声明"目标由实现固定"）：**缺声明即不可注册**（S-8，`ToolRegistry.add()` 内强制）。
+
 177 处工具注册点的逐条声明与判据见 [工具能力声明表](./security/tool-capability-declarations.md)。
 
 #### 2.7.2 执行锚点（写一律拒，读同样拒）
@@ -333,6 +340,10 @@ interface SecurityAlert {
 | CI 与运行时 | `.github/workflows/`、`ld.so.preload`、`ld.so.conf.d` |
 | 本仓自有敏感落点 | `data/model-config.json`、`data/*.db` |
 
+锚点判定对**逻辑路径**与**真实路径**都要做：沙箱内一条指向锚点的符号链接（含点开头目录，如
+`.github/workflows/`、`.ssh/`、`.git/`）与直接写锚点等价，`safeFs` 的 realpath 复核必须覆盖这一形态，
+`tests/capability-invariants.test.ts` 的 S-3 用例把"文件符号链接"和"目录符号链接"两种形状都锁为拒绝。
+
 #### 2.7.3 提权链路封堵矩阵（L1–L10）
 
 | # | 链路 | 旧防线为何失效 | 现状 | 门/用例 |
@@ -340,8 +351,8 @@ interface SecurityAlert {
 | L1 | 写文件 → `~/.bashrc` / `.git/hooks/pre-commit` / crontab / systemd unit → 下次执行即提权 | `write` 工具无路径守卫；守卫按名字查表不认这个名字 | `safeFs.write` 在 I/O 点判定 + 锚点拒写；快照还原的落点取自外部可控的 git 树，同样过 `safeFs` | S-3、`tests/workspace-snapshot.test.ts` |
 | L2 | 递归列举 → 子项越过守卫 → `.env` 回显 → 经 `net.outbound` 外发 | 只对 root 过检，子项不管 | `readDir` 逐项判定；锚点**读也拒**（不只写） | S-3（`readDir 逐项判定`） |
 | L3 | `read` 工具 `source:"web"` 直接 `fetch(path)` → SSRF 打自家服务 / 内网元数据 | 无协议与宿主校验 | `net.outbound`：仅 http/https；回环、链路本地、RFC1918 默认拒；`AXIOM_NET_ALLOWLIST` 只登记精确主机名，IP 字面量永不豁免 | S-3、`tests/security-fixes.test.ts` |
-| L4 | 改名/包装绕守卫：`write` → `my_write` | 守卫按 `tool.name` 查表 | 名字不参与授权：`add()` 必须带 capability；以名字为键的表已删除 | S-1、S-2 |
-| L5 | MCP 子进程工具名 `mcp_<server>_<tool>` 绕过父侧守卫 | 名字变了 | 包装时显式声明 `mcp.external`：改名不改能力 | S-2 |
+| L4 | 改名/包装绕守卫：`write` → `my_write` | 守卫按 `tool.name` 查表 | 名字不参与授权：`add()` 必须带 capability；以名字为键的表已删除。**改入参名同样不脱管**：路径/URL 由值形态认领，命令由注册处声明（缺声明不可注册） | S-1、S-2、S-8、`tests/mcp/payload-shape-guard.test.ts` |
+| L5 | MCP 子进程工具名 `mcp_<server>_<tool>` 绕过父侧守卫 | 名字变了 | 包装时显式声明 `mcp.external`：改名不改能力。声明与能力同挂表面类型 `ToolSurfaceLike`，包装层要么整体转发、要么重新声明，剥离即注册期抛错 | S-2 |
 | L6 | 回环免鉴权扩大面（本机任何进程 = 全 API） | `AXIOM_ALLOW_LOCAL_BYPASS` 默认 true；MCP HTTP 另有第二处无条件放行 | 默认 false，且**只有一个开关来源**：网关与 MCP HTTP 共用 `localBypassEnabled()` | S-6（含"第二入口"静态扫描） |
 | L7 | 缓存旁路鉴权（先查缓存后匹配 ⇒ 上一条响应任何人可取） | 缓存不看身份；`cacheable` 隐含为真 | `cacheable` 须显式声明（当前无路由声明 ⇒ 默认不缓存）；键含凭据摘要分桶；查缓存排在路由匹配之后 | S-4 |
 | L8 | 审批/豁免开关"忘记设置即关闭" | PTY 审批模式空值 ⇒ `off`；豁免开启且绑定非回环时无声 | 空值 ⇒ `risky`（显式 `off` 才关），未知值 ⇒ `strict`；`ALLOW_LOCAL_BYPASS=1` + 非回环绑定 ⇒ 启动 `logger.warn` + `security.alert` 审计 | S-6、`tests/command-gate.test.ts` |
@@ -373,13 +384,19 @@ interface SecurityAlert {
 | 项 | 现状 | 影响 |
 |---|---|---|
 | `defaultToolGuard` 调 `reviewSequence` 时未传 principal | 所有调用方共用 `"unassigned"` 桶 | 序列复核偏保守（更容易升级），但**身份维度未真正隔离**：需要在传输层把 principal 接进守卫 |
-| `net.outbound` 只在读工具的 web 分支强制 | 其他出网点（provider 调用、插件、MCP 客户端）仍走 `proxy-fetch` 的 SSRF 守卫，不走 `decideCapability` | 词表里的 `net.outbound` 目前不是所有出网络的强制点 |
+| `net.outbound` 只在读工具的 web 分支强制 | 其他出网点（provider 调用、插件、MCP 客户端）仍走 `proxy-fetch` 的 SSRF 守卫，不走 `decideCapability` | 词表里的 `net.outbound` 目前不是所有出网络的强制点。R3 补：在执行点接 `decideOutbound`，前置条件是给出"本地端点白名单"的可配置表达（SearXNG / CDP / 网关自身都在回环上，直接强制会把自家服务全打断）|
+| 自进化落盘三处未经 `safeFs`（`data/skill-quality.json`、`axiom-memory/03-Resources/skills/`、consciousness promoter 的 `skillDirRel`）| 落点文件名由 slug 生成、不受模型控制，但写入本身是裸 `fs` 调用，穿过预先放好的符号链接即可落到锚点 | 未在本轮封堵的原因是要先定沙箱根：`safeFs` 的根固定为 `process.cwd()` 且 `roots` 只收窄，而这些落点可能是 cwd 之外的 axiom home，直接套判定会把合法写入静默打成"持久化失效"（两处调用方都吞错）。另起第二份符号链接判定会重新制造"两份互不复用的路径守卫"，故留待 R3 与沙箱根策略一起解 |
 | `vault-manager` / `knowledge-graph-builder` / `model-output-store` 的写盘未经 `safeFs` | 落点在 vault/kg 目录内，非锚点 | I2 未覆盖这三条内部路径；扩面需逐个评估行为变更 |
 | 远程 CI 执行无能力档 | 词表只有 `proc.exec`/`net.outbound`，触发远端 runner 需两者组合 | 组合已被 I4 复核覆盖，但无独立档位 |
 | lsp 工具的 `npx` 隐式出网 | 声明为 `proc.exec`，未附 `net.outbound` | 声明偏窄：包下载是网络行为 |
 | `SKILL_DIR` 可指向 `config/` | 技能装载读 `config/` 时未要求 `cfg.write` | 若技能写回 config 需补声明 |
 | `vendor/pi-agent` 分支不可达 | 该引擎的落点未纳入 `safeFs` | 只有走 pi-code-engine 的路径受影响；无法在本机验证 |
 | `db_query` 的 SQL 守卫是前缀词表 | 按最坏能力声明为 `db.write` | 只读保证需换成语句解析才能声称 |
+| 命令类负载不靠值形态认领 | `proc.exec` 的派发前裁决只覆盖注册处声明的字段与常见命令字段（`command`/`script`/`cmd`/`code`/`args`）；把命令藏在别的字段名里，派发前取不到 | 漏的部分由执行点兜：`terminal_exec` 与 PTY 审批门共用 `sanitizeCommand`（含去混淆），加上 I4 序列复核的 `write-then-execute` 配对。声明缺失由 S-8 拦在注册期，属 fail-closed 而非绕过 |
+| 命令危险模式有两份清单 | 派发前走 `permissions.ts` 的 `HIGH_RISK_PATTERNS`，执行点走 `command-safety.ts` 的 `DANGEROUS_PATTERNS` + `STRUCTURAL_PATTERNS`（带去混淆归一，前者没有） | 同一条命令在两条路径上可得不同结论，违反"每层判定同一批事实"（§2.7.4 第 1 条）。R3 收敛为单源 |
+| 经 `adaptTool` 包装的流水线工具没有 `payloadFields` 通道 | `src/tools` 的 `Tool` 类型未含该字段，包装后无法声明命令目标；当前无 `proc.exec` 流水线工具 | 将来若新增，注册即被 S-8 拒（不是静默放行），届时先扩 `Tool` 类型再转发 |
+| 形态认领出的路径只做锚点裁决 | 越界与否取决于工具真实落点（vault / axiom home 在 cwd 之外），派发前冒充越界会把合法写入打成拒绝 | 派发前漏掉的"异形字段 + 越界"组合由 `safeFs` 在 I/O 点兜住（I2）；这是刻意不对称，登记以免被误读为已完成 |
+| `mcp.external` 不参与派发前裁决 | 外部 MCP 工具的参数形状由远端决定，把非 URL 负载套出网/路径规则只会误判 | 实际 I/O 发生在远端进程，父侧只剩复核层（整体序列化送主模型复核）与 I4 链路计数：远端工具的读写对判定内核是**不可见**的 |
 | `getWorkspaceFiles` 用 `2>nul` | POSIX 下会留下名为 `nul` 的文件；非 git 目录返回空而非报错 | 行为缺陷，不构成本轮链路 |
 | 路由响应缓存当前无路由声明 `cacheable` | 缓存实际不生效（性能换安全） | 需要按端点显式开启并复核身份分桶 |
 

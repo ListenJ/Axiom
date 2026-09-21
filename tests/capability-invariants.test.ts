@@ -266,6 +266,45 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
     expect(err!.message.toLowerCase()).toContain("denied");
   });
 
+  it("沙箱内符号链接指向沙箱外的执行锚点时同样拒绝（点开头目录不得被跳过）", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    const link = "src/link-to-env";
+    try {
+      fs.symlinkSync(path.join(sandbox, ".env"), link);
+      let err: Error | null = null;
+      try {
+        await safeFs.readFile(link);
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err).not.toBeNull();
+      expect(err!.message.toLowerCase()).toContain("denied");
+    } finally {
+      fs.rmSync(link, { force: true });
+    }
+  });
+
+  it("沙箱内目录符号链接指向锚点目录：不得把新文件写进锚点目录", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    const link = "src/link-to-hooks";
+    const landed = path.join(sandbox, ".git/hooks/injected");
+    try {
+      fs.symlinkSync(path.join(sandbox, ".git/hooks"), link, "dir");
+      let err: Error | null = null;
+      try {
+        await safeFs.writeFile(`${link}/injected`, "escalation fixture");
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err).not.toBeNull();
+      expect(err!.message.toLowerCase()).toContain("denied");
+      expect(fs.existsSync(landed)).toBe(false);
+    } finally {
+      fs.rmSync(link, { force: true });
+      fs.rmSync(landed, { force: true });
+    }
+  });
+
   it("readDir 逐项判定：目录可读，.env 内容不外泄", async () => {
     const safeFs = await import("../src/utils/safe-fs.js");
     const entries = await safeFs.readDir(".");
@@ -287,18 +326,28 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
     expect(err!.message.toLowerCase()).toContain("denied");
   });
 
-  it("src/tools 与 src/mcp/tools 不再直接调用裸文件系统 I/O", () => {
+  it("承载工具写入的目录不再直接调用裸文件系统 I/O", () => {
     const offenders: string[] = [];
     const bare = [
-      /(?:^|[^.\w])fs(?:Sync)?\.(readFile|writeFile|appendFile|readdir|rm|unlink|rename|mkdir)\s*\(/,
+      /(?:^|[^.\w])fs(?:Sync)?\.(readFile|writeFile|appendFile|readdir|rm|unlink|rename|mkdir)(Sync)?\s*\(/,
       /await import\(\s*["']fs\/promises["']\s*\)/,
     ];
-    for (const dir of ["src/tools", "src/mcp/tools"]) {
+    // 写侧名单单独扩：skill 落盘由模型可触达（skill_create），写入穿过符号链接就是提权落点。
+    // src/self-evolve 与 src/agents/consciousness 的同型裸写（skill-quality.ts 的持久化、
+    // skill-promotion.ts 与 skill-promoter.ts 的落盘）尚未并入：它们的目标根可能是
+    // cwd 之外的 axiom home，扩名单前要先定沙箱根策略（R3 条目，见 operations-log）。
+    const writeOnly = /(?:^|[^.\w])fs(?:Sync)?\.(writeFile|appendFile|rm|unlink|rename|mkdir)(Sync)?\s*\(/;
+    const scope: Array<[string, RegExp[]]> = [
+      ["src/tools", bare],
+      ["src/mcp/tools", bare],
+      ["src/skills", [writeOnly]],
+    ];
+    for (const [dir, patterns] of scope) {
       for (const rel of walkTs(dir)) {
         if (rel.endsWith("safe-fs.ts")) continue;
         read(rel).split("\n").forEach((line, i) => {
           if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) return;
-          if (bare.some((re) => re.test(line))) offenders.push(`${rel}:${i + 1}`);
+          if (patterns.some((re) => re.test(line))) offenders.push(`${rel}:${i + 1}`);
         });
       }
     }
@@ -475,5 +524,39 @@ describe("S-7 链路组合可见（I4）", () => {
   it("审批通道不得引用回环地址作为豁免依据", () => {
     const src = read("src/utils/approval-bridge.ts");
     expect(src).not.toMatch(/isLocalAddress|requestIP|127\.0\.0\.1/);
+  });
+});
+
+// ─── S-8 命令类目标必须声明（R2-D）──────────────────────────────────────────
+describe("S-8 命令类负载只认声明，不认形态猜测", () => {
+  const procExecLiterals = () => {
+    const out: Array<{ rel: string; index: number; literal: string }> = [];
+    for (const rel of [...walkTs("src"), ...walkTs("plugins")]) {
+      addLiterals(read(rel))
+        .filter((lit) => /\bhandler\s*:/.test(lit))
+        .forEach((literal, i) => {
+          const caps = literal.match(/\bcapability\s*:\s*\[[^\]]*\]/);
+          if (caps && /["']proc\.exec["']/.test(caps[0])) {
+            out.push({ rel, index: i + 1, literal });
+          }
+        });
+    }
+    return out;
+  };
+  const hasDeclaration = (lit: string) =>
+    /\bpayloadFields\s*:\s*\{[^}]*["']proc\.exec["']/.test(lit);
+
+  it("每一处 proc.exec 注册都声明了 payloadFields['proc.exec']", () => {
+    const offenders = procExecLiterals()
+      .filter(({ literal }) => !hasDeclaration(literal))
+      .map(({ rel, index }) => `${rel} #${index}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("扫描确实覆盖到生产注册（正向对照，防零命中假绿）", () => {
+    const hits = procExecLiterals().filter(({ rel, literal }) =>
+      rel === "src/mcp/register-external-tools.ts" && hasDeclaration(literal) && /terminal_exec/.test(literal),
+    );
+    expect(hits.length).toBe(1);
   });
 });

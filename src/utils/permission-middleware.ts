@@ -14,10 +14,11 @@
  * safeFs + decideCapability 判定保证，不在这里再表达一遍第二份口径。
  */
 import {
-  decideCapability,
+  adjudicateCallPayloads,
   payloadForCapability,
   requestConfirmation,
   type Capability,
+  type PayloadFields,
 } from "./permissions.js"
 import { logger } from "./logger.js"
 
@@ -27,6 +28,8 @@ export interface ToolPermissionCall {
   readonly args: Record<string, unknown>;
   /** 仅用于审计标注与确认单上下文 */
   readonly toolName?: string;
+  /** 注册处声明的"目标在哪个入参"（S-8） */
+  readonly payloadFields?: PayloadFields;
 }
 
 export interface ToolPermissionResult {
@@ -36,11 +39,11 @@ export interface ToolPermissionResult {
 }
 
 /**
- * 逐项裁决声明的能力：任一能力的负载命中硬底线即整体拒绝，并给出确认单 ID。
+ * 逐项裁决声明的能力：任一候选负载命中硬底线即整体拒绝，并给出确认单 ID。
  *
- * 结论对同一 (capabilities, args) 输入确定 —— 不调模型、不触网、不看时钟。
+ * 结论对同一 (capabilities, args, payloadFields) 输入确定 —— 不调模型、不触网、不看时钟。
  * 权威判定仍在实际 I/O 点（src/utils/safe-fs.ts，I2）；本中间件是派发前的那一道，
- * 两处读同一份规则源（permissions.ts），不存在第二份敏感清单。
+ * 与守卫层共用 `adjudicateCallPayloads` 这**一个**函数，而不是"同一份规则的第二次实现"。
  */
 export function checkToolPermission(call: ToolPermissionCall): ToolPermissionResult {
   const label = call.toolName ?? call.capabilities.join("+");
@@ -51,24 +54,25 @@ export function checkToolPermission(call: ToolPermissionCall): ToolPermissionRes
     return { allowed: false, reason };
   }
 
-  for (const capability of call.capabilities) {
-    const picked = payloadForCapability(capability, call.args);
-    // 本次调用没有携带该能力的负载（如只查状态的 internal 档位）：无可判定对象，跳过
-    if (!picked) continue;
-    const decision = decideCapability({
-      capability,
-      target: picked.payload,
-      principal: `tool:${label}`,
-    });
-    if (decision.allow) continue;
-    const detail = decision.reason ?? "denied";
-    logger.warn(`[Permission] Blocked ${label} (${capability}): ${detail}`);
-    return {
-      allowed: false,
-      confirmationId: requestConfirmation(picked.payload),
-      reason: `${capability}: ${detail}`,
-    };
-  }
+  const decision = adjudicateCallPayloads({
+    capabilities: call.capabilities,
+    args: call.args,
+    principal: `tool:${label}`,
+    payloadFields: call.payloadFields,
+  });
+  if (decision.allow) return { allowed: true };
 
-  return { allowed: true };
+  const detail = decision.reason ?? "denied";
+  logger.warn(`[Permission] Blocked ${label}: ${detail}`);
+  const payload = firstPayload(call);
+  return { allowed: false, confirmationId: requestConfirmation(payload), reason: detail };
+}
+
+/** 确认单要展示"被拦下的那个值"：取第一条候选负载，取不到时退回声明能力拼接的摘要。 */
+function firstPayload(call: ToolPermissionCall): string {
+  for (const capability of call.capabilities) {
+    const picked = payloadForCapability(capability, call.args, call.payloadFields?.[capability]);
+    if (picked) return picked.payload;
+  }
+  return call.capabilities.join("+");
 }

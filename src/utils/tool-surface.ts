@@ -1,12 +1,13 @@
-import type { Capability } from "./permissions.js";
+import type { Capability, PayloadFields } from "./permissions.js";
 
 /**
  * 工具表面：名字/入参/执行体，以及**它自己的授权声明**。
  *
- * `capability` 放在这里而不是只放在 ToolDef 上，是因为工具会被包装转发
- * （recoverable-output 外置大输出、MCP 子进程 `mcp_${server}_${tool}` 等）。
- * 包装靠 `{ ...tool }` 透传字段，声明跟着表面走才不会在包装那一层被剥离（L9）：
- * 一旦"包装后类型里不再有 capability"，注册守卫就只能靠名字反查，改名即脱管。
+ * 声明放在这里而不是只放在 ToolDef 上，是因为工具会被包装转发
+ * （recoverable-output 外置大输出、MCP 子进程 `mcp_${server}_${tool}` 等）：
+ * 包装层要么原样转发这个表面，要么在注册处重新声明一遍。两种都合法，但都不允许
+ * "只剩名字、声明没了" —— 一旦声明可被剥离，守卫就退回按名字反查，改名即脱管（L4/L5/L9）。
+ * 剥离的后果是注册期抛错（I1 缺 capability、S-8 缺 payloadFields），不是静默放行。
  */
 export interface ToolSurfaceLike {
   name: string;
@@ -16,6 +17,11 @@ export interface ToolSurfaceLike {
   handler: (args: Record<string, unknown>) => Promise<unknown>;
   /** 该工具需要的能力（S3 / I1：无声明即不可注册；包装器必须原样转发） */
   capability: readonly Capability[];
+  /**
+   * 该能力的目标在哪个入参（S3 / S-8：命令类负载只能靠声明，不能靠值形态猜）。
+   * 与 `capability` 同源同理由：包装层透传，否则改名/包装即脱离裁决。
+   */
+  payloadFields?: PayloadFields;
 }
 // ─── 原生 function-calling 支持（OpenAI 兼容 tools）────────────────────────
 

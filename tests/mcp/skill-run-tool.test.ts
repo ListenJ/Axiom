@@ -5,11 +5,24 @@
  *   - skill_run 注册在 ToolRegistry 中（exposure 含 internal/external）；
  *   - handler 按 skillId 执行并返回结果；未知 skillId → reject。
  */
-import { describe, test, expect, beforeEach, spyOn } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll, beforeEach, spyOn } from "bun:test";
 import { ToolRegistry, type ToolDef } from "../../src/mcp/tool-registry.js";
 import { buildSkillToolSurfaces, registerSkillTools, runSkillTool } from "../../src/mcp/server/skill-tools.js";
 import { resetSkillRegistry } from "../../src/skills/skill-registry.js";
+import { resetSequences } from "../../src/agents/risk-monitor.js";
 import { router, type SmartAssignmentResponse } from "../../src/router/model-router.js";
+
+// runSkillTool 自 R2-A 起经真实守卫派发（封堵绕过 add() 包裹的并列入口）。本文件只测 skill
+// 分发语义，概率层与跨调用序列都会把无关的升级审批混进来 ⇒ 关掉初筛、逐条清空序列。
+const origEdge = process.env.EDGE_RISK_MONITOR;
+beforeAll(() => {
+  process.env.EDGE_RISK_MONITOR = "0";
+});
+afterAll(() => {
+  if (origEdge === undefined) delete process.env.EDGE_RISK_MONITOR;
+  else process.env.EDGE_RISK_MONITOR = origEdge;
+});
+beforeEach(() => resetSequences());
 
 function findTool(registry: ToolRegistry, name: string): ToolDef {
   const tools = (registry as unknown as { tools: ToolDef[] }).tools;
@@ -85,6 +98,6 @@ describe("skill tool surfaces + dispatcher", () => {
   });
 
   test("runSkillTool throws for unknown tool name", async () => {
-    await expect(runSkillTool("nope", {})).rejects.toThrow("Unknown skill tool: nope");
+    await expect(runSkillTool("nope", {})).rejects.toThrow("Unknown tool: nope");
   });
 });

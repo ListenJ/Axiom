@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import * as YAML from "yaml";
 import { logger } from "../utils/logger.js";
+import * as safeFs from "../utils/safe-fs.js";
 import { type SkillDefinition, type PromptTemplate, type SkillFile } from "./types.js";
 
 export interface SkillLoaderOptions {
@@ -204,8 +205,7 @@ export function loadSkillFile(filePath: string): SkillFile {
 /**
  * Save a skill file to disk
  */
-export function saveSkillFile(filePath: string, skillFile: SkillFile): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+export async function saveSkillFile(filePath: string, skillFile: SkillFile): Promise<void> {
   const ext = path.extname(filePath).toLowerCase();
 
   let content: string;
@@ -217,7 +217,9 @@ export function saveSkillFile(filePath: string, skillFile: SkillFile): void {
     throw new Error(`Unsupported skill file format: ${ext}`);
   }
 
-  fs.writeFileSync(filePath, content, "utf-8");
+  // 执行点强制（R2-B）：裸 writeFileSync 只被调用方的字符串前缀判定约束，
+  // skill 目录里一条指向执行锚点的符号链接就能把写入送出围栏。
+  await safeFs.writeFile(filePath, content, { principal: "tool:skill_create" });
 }
 
 /**

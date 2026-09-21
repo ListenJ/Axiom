@@ -10,9 +10,11 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
+import { zodToJsonSchema } from "../utils/tool-surface.js";
+import { CAPABILITY_PAYLOAD, adjudicateCallPayloads } from "../utils/permissions.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
-import type { Capability } from "../utils/permissions.js";
+import type { Capability, PayloadFields } from "../utils/permissions.js";
 
 /** 工具可见性：internal 仅内部 Agent，external 可被外部 MCP 使用 */
 export type ToolExposure = "internal" | "external" | "safe-external";
@@ -24,6 +26,8 @@ export type ToolGuard = (
   toolName: string,
   capability: readonly Capability[],
   args: Record<string, unknown>,
+  /** 注册处声明的"目标在哪个入参"（R2-D / S-8：命令类负载只能靠声明，不能靠猜） */
+  payloadFields?: PayloadFields,
 ) => Promise<void>;
 
 /**
@@ -37,6 +41,7 @@ async function defaultToolGuard(
   toolName: string,
   capability: readonly Capability[],
   args: Record<string, unknown>,
+  payloadFields?: PayloadFields,
 ): Promise<void> {
   // ── ⓪ 执行模式门控（审计 O1，2026-08-25）──
   // Plan 封禁无条件生效（blockedTools/破坏性/未分类工具直接拒绝）；YOLO 直通；
@@ -57,38 +62,25 @@ async function defaultToolGuard(
     }
   }
 
-  // ── ① 入参初筛：字段名扫描集沿用 HardFloor，但操作类型改由**声明的能力**推导 ──
-  // 原实现用 /delete|remove/i、/write|create|move/i 正则匹配 toolName 来猜操作，
-  // 于是改名或经 adaptTool 包装的工具会静默换档（G1 类缺陷的结构根因）。
-  // 权威判定仍在实际 I/O 点（src/utils/safe-fs.ts，I2）；本初筛只拦派发前的明显越界，
-  // 且与 safe-fs 共用 permissions.ts 这一份锚点/规则源，不再维护第二份敏感清单。
-  const { checkCommandPermission, checkFilePermission } = await import("../utils/permissions.js");
-  const scansPaths = capability.some((c) => c.startsWith("fs.") || c === "cfg.write" || c === "db.write");
-  const scansCommands = capability.includes("proc.exec");
-  const pathOp = capability.includes("fs.delete")
-    ? ("delete" as const)
-    : capability.includes("fs.write") || capability.includes("cfg.write") || capability.includes("db.write")
-      ? ("write" as const)
-      : ("read" as const);
-  for (const [key, value] of Object.entries(args)) {
-    if (typeof value !== "string" || !value.trim()) continue;
-    if (scansCommands && /command|script|cmd/i.test(key)) {
-      const c = checkCommandPermission(value);
-      if (!c.allowed) {
-        throw new Error(`[HardFloor] ${c.reason ?? "high-risk command"} (tool=${toolName}, field=${key})`);
-      }
-    }
-    if (scansPaths && /^(path|file|filePath|file_path|target|destination|source|url|from|to|repoPath|repo_path|cwd|dir|dirPath|dir_path|folder|directory|absPath|abs_path|newPath|new_path|oldPath|old_path|destPath|dest_path|srcPath|src_path|outputPath|output_path)$/i.test(key)) {
-      const f = checkFilePermission(value, pathOp);
-      if (!f.allowed) {
-        throw new Error(`[HardFloor] ${f.reason ?? "sensitive path"} (tool=${toolName}, field=${key})`);
-      }
-    }
+  // ── ① 派发前裁决：目标负载的取法与判法全部在判定内核（permissions.ts），本层不持有任何清单 ──
+  // 原实现在这里挂了两张**字段名**表（/command|script|cmd/i 与 30 个路径键名的正则），
+  // 于是把 `path` 改名成 `vault_path` 就能让同一次写入脱离派发前判定 —— 与 G1 的
+  // "改名脱离工具名表"同构，只是这次漏的是参数。现在：
+  //   路径/URL 由值形态认出（改名不脱管）；命令由注册处声明（散文与命令行不可区分，不能猜）。
+  // 权威判定仍在实际 I/O 点（src/utils/safe-fs.ts，I2），本层只拦派发前的明显越界。
+  const adjudicated = adjudicateCallPayloads({
+    capabilities: capability,
+    args,
+    principal: "tool:" + toolName,
+    payloadFields,
+  });
+  if (!adjudicated.allow) {
+    throw new Error("[HardFloor] " + (adjudicated.reason ?? "denied") + " (tool=" + toolName + ")");
   }
 
   // ── ② 能力驱动的双层复核 + 跨调用序列复核（I4：单调用看不出链式提权）──
   const { screenToolCall, reviewSequence } = await import("../agents/risk-monitor.js");
-  const call = { capabilities: capability, args, toolName };
+  const call = { capabilities: capability, args, toolName, payloadFields };
   const screened = await screenToolCall(call);
   const sequenced = await reviewSequence(call);
   if (screened !== "require-approval" && sequenced !== "require-approval") return;
@@ -100,6 +92,39 @@ async function defaultToolGuard(
   if (!approved) {
     throw new Error(`[RiskMonitor] 复核判定为高危操作且未获批准，已阻止执行: ${toolName}`);
   }
+}
+
+/**
+ * 声明可裁决门（S-8）。命令类目标无法由值形态认出 —— 散文与命令行不可区分
+ * （`snapshot_create` 的 `message`、git 提交说明都是反例），所以声明 `proc.exec` 的工具
+ * 必须自己说明目标在哪个入参，或显式声明 "fixed"（目标由实现固定，入参里没有可裁决对象）。
+ * 声明的字段名必须是 schema 里真实存在的属性：拼错的声明等于没有声明，
+ * 宁可启动期抛错，也不要运行时静默不检查。
+ */
+export function checkPayloadDeclaration(tool: ToolDef): string | null {
+  for (const capability of tool.capability) {
+    if (!CAPABILITY_PAYLOAD[capability]?.declaredTargetRequired) continue;
+    const declared = tool.payloadFields?.[capability];
+    if (declared === undefined) {
+      return `工具 '${tool.name}' 声明 ${capability} 但未声明 payloadFields.${capability}：派发前无从取出命令负载`;
+    }
+    if (declared === "fixed") continue;
+    const properties = schemaPropertyNames(tool.inputSchema);
+    const unknown = properties && properties.length > 0
+      ? declared.filter((field) => !properties.includes(field))
+      : [];
+    if (unknown.length > 0) {
+      return `工具 '${tool.name}' 的 payloadFields.${capability} 引用了 schema 里不存在的入参：${unknown.join(", ")}`;
+    }
+  }
+  return null;
+}
+
+/** inputSchema → 属性名；schema 不枚举属性（外部 MCP 透传等）时返回 null = 不可核 */
+function schemaPropertyNames(inputSchema: unknown): string[] | null {
+  const json = zodToJsonSchema(inputSchema) as { properties?: Record<string, unknown> };
+  const props = json?.properties;
+  return props && typeof props === "object" ? Object.keys(props) : null;
 }
 
 /** Tool definition */
@@ -133,14 +158,20 @@ export class ToolRegistry {
       logger.warn(`[ToolRegistry] tool "${tool.name}" already registered, skipping duplicate add`);
       return this;
     }
+    // I1 的另一半：声明了能力还得说清"目标在哪个入参"，否则该声明不可裁决（S-8）
+    const declarationIssue = checkPayloadDeclaration(tool);
+    if (declarationIssue) {
+      throw new Error(`[ToolRegistry] ${declarationIssue}：声明不可裁决即不可注册（S3 / S-8）`);
+    }
     const guard = this.guard;
     const capability = tool.capability;
+    const payloadFields = tool.payloadFields;
     const exposures: ToolExposure[] = tool.exposure?.length ? [...tool.exposure] : ["internal"];
     const wrapped: ToolDef = {
       ...tool,
       exposure: exposures,
       handler: async (args: Record<string, unknown>) => {
-        await guard(tool.name, capability, args);
+        await guard(tool.name, capability, args, payloadFields);
         return tool.handler(args);
       },
     };
@@ -151,6 +182,14 @@ export class ToolRegistry {
   /** 已注册工具声明的能力（未注册返回空数组） */
   getCapabilities(name: string): readonly Capability[] {
     return this.tools.find((t) => t.name === name)?.capability ?? [];
+  }
+
+  /** 按名派发执行（守卫已包裹在 handler 上）。工具面对象上的 handler 不得被外部直接调用。
+   *  async：返回类型是 Promise，未知名字也必须以 rejection 呈现，不得同步抛出。 */
+  async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
+    const tool = this.tools.find((t) => t.name === name);
+    if (!tool) throw new Error(`[ToolRegistry] Unknown tool: ${name}`);
+    return tool.handler(args);
   }
 
   /** Register all tools with MCP stdio server */
@@ -204,7 +243,11 @@ export class ToolRegistry {
           return await originalHandler(args);
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : String(e);
+          // success:false 是调用方唯一能识别"这次没执行"的字段：守卫拒绝（HardFloor /
+          // 复核未获批 / 审批超时）以 throw 呈现，若只回 {error,message}，只判
+          // result.success 的场景与认知管道会把拒绝读成成功（R2-E）
           return {
+            success: false,
             error: true,
             message: `工具 "${tool.name}" 执行失败: ${errMsg}`,
           };

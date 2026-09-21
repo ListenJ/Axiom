@@ -6,6 +6,7 @@
  */
 
 import { ToolRegistry } from "./tool-registry.js";
+import type { Capability } from "../utils/permissions.js";
 
 /** 场景匹配函数 */
 type SceneMatcher = (input: string) => boolean;
@@ -42,24 +43,20 @@ export interface SceneResult {
 
 /** 场景路由器 */
 /**
- * 不允许被「场景自动执行」触达的高危工具。
+ * 无副作用能力集：场景自动执行的放行白名单。
  *
- * 安全修复（审计 A/`/mcp/scene` RCE）：`execute()` 会把调用方传入的 `context`
- * 直接展开进工具参数，于是 `POST /mcp/scene {input:"run x", context:{command:"..."}}`
- * 可以让 `terminal` 场景去跑任意命令（已实测：stdout 回显、exitCode 0）。
- * 场景是「按关键词自动选工具并执行」，没有任何人工确认环节，因此绝不应触达
- * 具备副作用/执行能力的工具。此处默认拒绝（可通过构造参数显式放行）。
+ * 安全修复（审计 A/`/mcp/scene` RCE）延续：`execute()` 会按关键词自动选工具并执行，
+ * 中间没有任何人工确认环节，因此具备副作用的工具不得因"名字不在表里"而被放行。
+ * 旧实现是一张 `RISKY_SCENE_TOOLS` 工具名表（terminal_exec / fs_write / fs_delete / fs_move），
+ * 改名或经 adaptTool 包装即静默脱离（L4/L9 同型）；现按**注册处声明的 capability** 判定，
+ * 与 `defaultToolGuard`、`safe-fs` 同一份词表。词表新增档位默认视为有副作用（fail-closed）。
  */
-export const RISKY_SCENE_TOOLS: ReadonlySet<string> = new Set([
-  "terminal_exec",
-  "fs_write",
-  "fs_delete",
-  "fs_move",
-]);
+const SIDE_EFFECT_FREE_CAPABILITIES: ReadonlySet<Capability> = new Set(["internal", "fs.read", "fs.glob"]);
 
 export interface SceneRouterOptions {
   /**
-   * 是否允许场景自动执行 RISKY_SCENE_TOOLS 中的工具。
+   * 是否允许场景自动执行有副作用的工具（fs.write / fs.delete / cfg.write / db.write /
+   * proc.exec / net.outbound / mcp.external）。
    * 默认 **false**（fail-closed）。仅在明确需要且已另行加确认流程时才开启。
    */
   allowRiskyTools?: boolean;
@@ -76,18 +73,29 @@ export class SceneRouter {
   }
 
   /**
-   * 拒绝高风险工具的自动执行。返回一条「已拒绝」的执行记录，或 null 表示放行。
+   * 拒绝有副作用工具的自动执行。返回一条「已拒绝」的执行记录，或 null 表示放行。
    */
   private refuseIfRisky(toolName: string): SceneResult["executed"][number] | null {
-    if (this.allowRiskyTools || !RISKY_SCENE_TOOLS.has(toolName)) return null;
-    return {
+    if (this.allowRiskyTools) return null;
+    const capability = this.registry.getCapabilities(toolName);
+    const refused = () => ({
       tool: toolName,
       success: false,
       result: null,
       error:
-        `Refused: "${toolName}" is a high-risk tool; scene auto-execution is disabled by default. ` +
-        `Set allowRiskyTools=true only behind an explicit confirmation flow.`,
-    };
+        `Refused: "${toolName}" declares side-effect capability (${capability.join(", ")}); ` +
+        `scene auto-execution is disabled by default. Set allowRiskyTools=true only behind an explicit confirmation flow.`,
+    });
+    // 未注册或未声明能力 ⇒ 无从判定，按 I1 fail-closed 拒绝（无声明即不可得）
+    if (capability.length === 0) {
+      return {
+        tool: toolName,
+        success: false,
+        result: null,
+        error: `Refused: "${toolName}" has no declared capability; scene auto-execution requires a declaration (S3 / I1).`,
+      };
+    }
+    return capability.some((c) => !SIDE_EFFECT_FREE_CAPABILITIES.has(c)) ? refused() : null;
   }
 
   /** 注册场景 */
@@ -124,6 +132,24 @@ export class SceneRouter {
     return null;
   }
 
+  /**
+   * 把 handler 的返回值归一为执行记录。
+   *
+   * `buildHttpHandlers` 的拒绝（守卫抛错）以 `{success:false,error:true,message}` 呈现而不抛出，
+   * 因此"未执行"必须在这里被读出来：否则场景结果会把被拒的一步记成成功（R2-E）。
+   */
+  private stepOf(toolName: string, result: unknown): SceneResult["executed"][number] {
+    const shape = (result ?? {}) as { success?: unknown; error?: unknown; message?: unknown };
+    const refused = shape.success === false || shape.error === true;
+    if (!refused) return { tool: toolName, success: true, result };
+    return {
+      tool: toolName,
+      success: false,
+      result,
+      error: typeof shape.message === "string" ? shape.message : `${toolName} refused`,
+    };
+  }
+
   /** 执行场景 */
   async execute(input: string, context?: Record<string, unknown>): Promise<SceneResult> {
     const start = performance.now();
@@ -154,7 +180,7 @@ export class SceneRouter {
           try {
             const params = this.buildParams(input, toolName, scene, context);
             const result = await handler(params);
-            return { tool: toolName, success: true, result };
+            return this.stepOf(toolName, result);
           } catch (e: unknown) {
             return { tool: toolName, success: false, result: null, error: e instanceof Error ? e.message : String(e) };
           }
@@ -177,7 +203,7 @@ export class SceneRouter {
         try {
           const params = this.buildParams(input, toolName, scene, context);
           const result = await handler(params);
-          executed.push({ tool: toolName, success: true, result });
+          executed.push(this.stepOf(toolName, result));
         } catch (e: unknown) {
           executed.push({ tool: toolName, success: false, result: null, error: e instanceof Error ? e.message : String(e) });
         }

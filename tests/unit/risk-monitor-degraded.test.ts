@@ -9,7 +9,9 @@
  *   1. ToolRegistry 默认守卫在复核前执行硬底线：高危命令/敏感路径直接拒绝；
  *   2. 初筛降级时计数器递增并写审计事件；降级处置按能力分档 ——
  *      特权能力（proc.exec / fs.write / …）一律升级审批，其余由 EDGE_RISK_FAIL_CLOSED 决定；
- *   3. 只读档位（fs.read）不进概率层，因此"离线可用性"不再依赖降级放行这条路径。
+ *   3. 只读档位（fs.read）不进概率层，因此"离线可用性"不再依赖降级放行这条路径；
+ *   4. S-8（R2-D）：命令类负载不做形态猜测，声明 proc.exec 就必须声明目标入参 ——
+ *      本文件的 proc.exec 夹具因此都带 `{ "proc.exec": ["command"] }`，与运行时传的 args 同名。
  */
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { ToolRegistry } from "../../src/mcp/tool-registry.js";
@@ -20,9 +22,13 @@ import {
   resetDegradedBypassCount,
   type RiskMonitorDeps,
 } from "../../src/agents/risk-monitor.js";
-import type { Capability } from "../../src/utils/permissions.js";
+import type { Capability, PayloadFields } from "../../src/utils/permissions.js";
 
-function probe(capability: readonly Capability[], name = "hardfloor_probe") {
+function probe(
+  capability: readonly Capability[],
+  name = "hardfloor_probe",
+  payloadFields?: PayloadFields,
+) {
   const registry = new ToolRegistry(); // 默认守卫
   const state = { executed: false };
   registry.add({
@@ -30,6 +36,7 @@ function probe(capability: readonly Capability[], name = "hardfloor_probe") {
     description: "probe",
     inputSchema: {},
     capability,
+    payloadFields,
     handler: async () => {
       state.executed = true;
       return { ok: true };
@@ -53,7 +60,7 @@ describe("ToolRegistry 权限硬底线（C-3）", () => {
   beforeEach(() => resetSequences());
 
   test("声明 proc.exec 的工具，command 命中硬底线直接拒绝执行", async () => {
-    const { run, state } = probe(["proc.exec"]);
+    const { run, state } = probe(["proc.exec"], "hardfloor_probe", { "proc.exec": ["command"] });
     let err: Error | null = null;
     try {
       await run({ command: "rm -rf /" });
@@ -72,12 +79,12 @@ describe("ToolRegistry 权限硬底线（C-3）", () => {
   });
 
   test("改名不影响过闸：同一 proc.exec 声明换成任意名字照样拒绝", async () => {
-    const { run } = probe(["proc.exec"], "mcp_github_whatever_wrapper");
+    const { run } = probe(["proc.exec"], "mcp_github_whatever_wrapper", { "proc.exec": ["command"] });
     await expect(run({ command: "DROP TABLE users" })).rejects.toThrow(/HardFloor/);
   });
 
   test("安全负载正常执行（未被守卫误伤）", async () => {
-    const { run, state } = probe(["proc.exec"], "hardfloor_probe3");
+    const { run, state } = probe(["proc.exec"], "hardfloor_probe3", { "proc.exec": ["command"] });
     expect(await run({ command: "ls -la" })).toEqual({ ok: true });
     expect(state.executed).toBe(true);
   });

@@ -270,6 +270,7 @@ registerModeTools(registry);
 registry.add({
   name: "snapshot_create",
   capability: ["proc.exec", "fs.read", "fs.write"],
+  payloadFields: { "proc.exec": "fixed" },
   description: "创建工作区快照（保存当前所有文件状态）",
   inputSchema: {
     message: z.string().optional().describe("快照说明信息"),
@@ -282,6 +283,7 @@ registry.add({
 registry.add({
   name: "snapshot_revert",
   capability: ["proc.exec", "fs.read", "fs.write"],
+  payloadFields: { "proc.exec": "fixed" },
   description: "回退到指定快照",
   inputSchema: {
     snapshotId: z.string().describe("快照ID（commit hash）"),
@@ -294,6 +296,7 @@ registry.add({
 registry.add({
   name: "snapshot_list",
   capability: ["proc.exec"],
+  payloadFields: { "proc.exec": "fixed" },
   description: "列出所有工作区快照",
   inputSchema: {},
   handler: async () => {
@@ -304,6 +307,7 @@ registry.add({
 registry.add({
   name: "snapshot_diff",
   capability: ["proc.exec", "fs.read", "fs.write"],
+  payloadFields: { "proc.exec": "fixed" },
   description: "查看快照差异",
   inputSchema: {
     snapshotId: z.string().optional().describe("快照ID，不提供则对比最近两次快照"),
@@ -316,6 +320,7 @@ registry.add({
 registry.add({
   name: "snapshot_status",
   capability: ["proc.exec"],
+  payloadFields: { "proc.exec": "fixed" },
   description: "获取快照系统状态",
   inputSchema: {},
   handler: async () => {
