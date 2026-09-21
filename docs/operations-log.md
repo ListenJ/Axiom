@@ -1660,5 +1660,5 @@
 - **红线**：`BANNED` 七个短语一字未动（只加行尾注释）；`HISTORY` 谓词与豁免面未扩；不删 `docs-consistency` 的重复门；不改任何运行时行为；不改写证据件里的原话。
 - **矛盾与残留**：① 仓库现在有**两条**独立的禁语门且豁免口径不同 —— `doc-contract` D1 按整条相对路径做名词匹配，`docs-consistency` 按目录名排除 `{archive, reviews, superpowers, operations-log}` 再加分支名前缀 ⇒ 同一篇文档可能一边在册、一边豁免（例：`docs/my-evaluation-guide.md` 在 D1 被豁免、在 `docs-consistency` 在册）。本片只做引用豁免，未收敛双源（收敛要改判据语义，超出 R5-c 口径），与待办 #34 同族登记；② 哨兵的滥用极限是"真断言与哨兵写在同一行即放过"，在册条只到**文件粒度**，逐行清单需以行号为代价 ⇒ 现由"新增引用行必须改这条全等断言"承担可见性；③ 历史证据件里出现的旧用例名（如 `docs/reviews/2026-08-21-final-acceptance.md:54` 引用的"无过时零向量描述"）不随本次 describe/用例改名更新 —— 证据件保持原话，是刻意的不一致；④ `tests/torture.slow.ts` 文件名不匹配 `*.test.ts`，默认 `bun test` 收不到，本片改的虽是注释，但它在 D1 扫描面内而在测试执行面外这一事实值得记（属 R6 门禁接入范围）。
 - **并入判定**：本分支仍带 9 条 doc-contract 已知红 + 1 条环境红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b 同口径）。
-- **Commit**：占位（本提交完成后由回填提交补录 hash；回填提交属记录维护，规则 5）
+- **Commit**：88e569e（`88e569ec54acf1d7f96b4435337d23b3228eeb80`；已推送 `internal codex/s3-on-main-2026-09-22`，`7d0c055a..88e569ec`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
 
