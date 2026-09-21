@@ -15,6 +15,7 @@ import { getGlobalVault } from "../memory/vault-manager.js";
 import { withRetry, withTimeout } from "../utils/resilience.js";
 import { logger } from "../utils/logger.js";
 import { checkApiKey, isLocalAddress } from "../utils/auth-check.js";
+import { localBypassEnabled } from "../utils/security-defaults.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import { registerVaultTools } from "./server/vault-tools.js";
 import { registerWebTools } from "./server/web-tools.js";
@@ -35,7 +36,7 @@ import { registerPromptTools } from "./server/prompt-tools.js";
 import { registerOrchestratorTools } from "./server/orchestrator-tools.js";
 import { registerNativeTools } from "./server/native-tools.js";
 import { initializeComponentKernel } from "../agents/component-bootstrap.js";
-import { SceneRouter, DEFAULT_SCENES } from "./scene-router.js";
+import { registerSceneTools } from "./server/scene-tools.js";
 import { ToolRegistry } from "./tool-registry.js";
 import {
   createSnapshot,
@@ -95,6 +96,7 @@ registerWebTools(registry, pipeline);
 // -- SerpAPI 深度搜索工具 --
 registry.add({
   name: "serpapi_search",
+  capability: ["net.outbound", "fs.write", "db.write"],
   description: "使用 SerpAPI 执行 Google 深度搜索，结果以结构化 Markdown 保存到 Vault，含完整原始 JSON",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
@@ -168,6 +170,7 @@ registerGitHubTools(registry);
 
 registry.add({
   name: "serpapi_search_and_crawl",
+  capability: ["net.outbound", "fs.write", "db.write"],
   description: "SerpAPI 搜索 + 自动爬取前 N 个结果",
   inputSchema: {
     query: z.string().describe("搜索关键词"),
@@ -266,6 +269,7 @@ registerModeTools(registry);
 
 registry.add({
   name: "snapshot_create",
+  capability: ["proc.exec", "fs.read", "fs.write"],
   description: "创建工作区快照（保存当前所有文件状态）",
   inputSchema: {
     message: z.string().optional().describe("快照说明信息"),
@@ -277,6 +281,7 @@ registry.add({
 
 registry.add({
   name: "snapshot_revert",
+  capability: ["proc.exec", "fs.read", "fs.write"],
   description: "回退到指定快照",
   inputSchema: {
     snapshotId: z.string().describe("快照ID（commit hash）"),
@@ -288,6 +293,7 @@ registry.add({
 
 registry.add({
   name: "snapshot_list",
+  capability: ["proc.exec"],
   description: "列出所有工作区快照",
   inputSchema: {},
   handler: async () => {
@@ -297,6 +303,7 @@ registry.add({
 
 registry.add({
   name: "snapshot_diff",
+  capability: ["proc.exec", "fs.read", "fs.write"],
   description: "查看快照差异",
   inputSchema: {
     snapshotId: z.string().optional().describe("快照ID，不提供则对比最近两次快照"),
@@ -308,6 +315,7 @@ registry.add({
 
 registry.add({
   name: "snapshot_status",
+  capability: ["proc.exec"],
   description: "获取快照系统状态",
   inputSchema: {},
   handler: async () => {
@@ -337,6 +345,7 @@ registerKgTools(registry, db);
 
 registry.add({
   name: "proxy_status",
+  capability: ["internal"],
   description: "获取代理状态信息",
   inputSchema: {},
   handler: async () => {
@@ -351,47 +360,8 @@ registry.add({
 
 
 
-// ===== 场景路由工具 (工具懒加载) =====
-
-const sceneRouter = new SceneRouter(registry);
-sceneRouter.addScenes(DEFAULT_SCENES);
-
-registry.add({
-  name: "scene_suggest_tools",
-  description: "根据输入文本推荐工具子集 (降低 context token 消耗)",
-  inputSchema: {
-    input: z.string().describe("用户输入或任务描述"),
-  },
-  handler: async (args) => {
-    const input = args.input as string;
-    const scene = sceneRouter.match(input);
-    if (!scene) {
-      return {
-        matched: false,
-        suggestion: "core",
-        tools: ["fs_read", "fs_list", "git_status", "terminal_info"],
-        message: "未匹配到特定场景，使用核心工具集",
-      };
-    }
-    return {
-      matched: true,
-      sceneId: scene.id,
-      sceneName: scene.name,
-      description: scene.description,
-      tools: scene.tools,
-      parallel: scene.parallel,
-    };
-  },
-});
-
-registry.add({
-  name: "scene_list",
-  description: "列出所有可用场景及其工具集",
-  inputSchema: {},
-  handler: async () => {
-    return sceneRouter.listScenes();
-  },
-});
+// -- 场景路由工具 (extracted to server/scene-tools.ts) --
+registerSceneTools(registry);
 
 // ===== 进程退出清理 =====
 
@@ -432,9 +402,11 @@ if (transport === "stdio") {
   const port = Number(readString("MCP_PORT", "3001"));
   // 安全（2026-07-26 审查修复）：
   // - 默认仅绑定回环（MCP_HOST=0.0.0.0 才暴露网络，此前 Bun 默认 0.0.0.0 全无认证）
-  // - 与网关一致的认证：回环放行，远程必须 x-api-key（AXIOM_AUTH_TOKEN 未配置时 fail-closed）
+  // - 与网关一致的认证：远程必须 x-api-key（AXIOM_AUTH_TOKEN 未配置时 fail-closed）；
+  //   回环豁免与网关共用同一开关且默认关闭（S3 / L6），本机进程不再有第二条免鉴权入口
   const hostname = readString("MCP_HOST", "127.0.0.1");
   const apiKey = readString("AXIOM_AUTH_TOKEN");
+  const allowLocalBypass = localBypassEnabled(process.env);
 
   const { WebStandardStreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
@@ -445,7 +417,7 @@ if (transport === "stdio") {
     hostname,
     async fetch(req, server) {
       const remoteAddr = server.requestIP(req)?.address;
-      if (!checkApiKey(req, isLocalAddress(remoteAddr), apiKey)) {
+      if (!checkApiKey(req, allowLocalBypass && isLocalAddress(remoteAddr), apiKey)) {
         logger.warn("[MCP] Unauthorized request rejected", { remote: remoteAddr });
         return Response.json({ error: "Unauthorized — invalid or missing API key" }, { status: 401 });
       }
@@ -477,5 +449,13 @@ if (transport === "stdio") {
       return new Response(passthrough.readable, response);
     },
   });
-  logger.info(`[MCP] Server running on http://${hostname}:${port} (streamable-http, auth: ${apiKey ? "x-api-key required for remote" : "FAIL-CLOSED no token"})`);
+  logger.info(
+    `[MCP] Server running on http://${hostname}:${port} (streamable-http, auth: ${
+      apiKey
+        ? allowLocalBypass
+          ? "x-api-key required, except loopback bypass is ON"
+          : "x-api-key required for all requests"
+        : "FAIL-CLOSED no token"
+    })`,
+  );
 }

@@ -11,11 +11,12 @@
  * ④ label 列迁移幂等：旧库（无 label 列）ensure 后补列不丢数据，重复 ensure 幂等
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { ConformalHallucinationDetector } from "../src/memory/hallucination-detector.js";
 import { ToolRegistry } from "../src/mcp/tool-registry.js";
 import { registerSafetyTools } from "../src/mcp/server/safety-tools.js";
+import { resetSequences } from "../src/agents/risk-monitor.js";
 import {
   ensureHallucinationVerdictsTable,
   recordHallucinationVerdict,
@@ -97,6 +98,10 @@ describe("① setLabel 落库与读取", () => {
 });
 
 describe("② hallucination_feedback MCP 工具", () => {
+  // 本组只验入参校验与落库：db.write 属特权能力，I4 序列复核会跨用例累计到突发上限，
+  // 累计到第 8 次即升级审批（无审批桥 → 拒绝），把与主题无关的失败混进来。逐条清空。
+  beforeEach(() => resetSequences());
+
   function makeRegistry(db: Database) {
     const registry = new ToolRegistry();
     registerSafetyTools(registry, db);

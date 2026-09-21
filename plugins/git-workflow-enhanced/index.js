@@ -25,6 +25,7 @@ var git_workflow_enhanced_default = {
     const enableHooks = config.enableHooks ?? true;
     toolRegistry.add({
       name: "generate_branch_name",
+      capability: ["internal"],
       description: "Generate a semantic branch name from task description",
       inputSchema: {
         type: "object",
@@ -57,6 +58,7 @@ var git_workflow_enhanced_default = {
     });
     toolRegistry.add({
       name: "generate_commit_message",
+      capability: ["internal"],
       description: "Generate a conventional commit message from changes",
       inputSchema: {
         type: "object",
@@ -103,6 +105,7 @@ var git_workflow_enhanced_default = {
     });
     toolRegistry.add({
       name: "generate_pr_template",
+      capability: ["internal"],
       description: "Generate a pull request template",
       inputSchema: {
         type: "object",
@@ -156,6 +159,7 @@ ${type !== "hotfix" ? "- [ ] hotfix" : "- [ ] hotfix"}
     });
     toolRegistry.add({
       name: "update_changelog",
+      capability: ["internal"],
       description: "Update changelog with new entry",
       inputSchema: {
         type: "object",

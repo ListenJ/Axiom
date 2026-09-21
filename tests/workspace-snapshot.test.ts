@@ -47,13 +47,16 @@ describe("snapshot_revert 不得写回执行锚点", () => {
     try {
       const { revertSnapshot } = await import("../src/mcp/tools/workspace-snapshot.js");
       const result = await revertSnapshot(snapshotId);
-      expect(result.success).toBe(true);
 
       expect(existsSync(path.join(sandbox, "restored.txt"))).toBe(true);
       expect(readFileSync(path.join(sandbox, "restored.txt"), "utf-8")).toBe("hello");
       // 锚点文件必须缺席：还原不得成为写锚点的旁路
       expect(existsSync(path.join(sandbox, ".env"))).toBe(false);
       expect(existsSync(path.join(sandbox, ".github", "workflows", "ci.yml"))).toBe(false);
+      // 锚点拒写按整改 D5 的契约上报（任一文件未落盘即 success:false，并把落点聚合进 errors），
+      // 不静默吞掉 —— 调用方必须看得见"这个快照里有还原不了的文件"。
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual([".env", ".github/workflows/ci.yml"]);
     } finally {
       process.chdir(saved);
       rmSync(sandbox, { recursive: true, force: true });

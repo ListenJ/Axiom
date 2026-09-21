@@ -10,6 +10,7 @@ function tool(handler: ToolDef["handler"]): ToolDef {
     name: "probe",
     description: "probe tool",
     inputSchema: {},
+    capability: ["fs.read"],
     handler,
   };
 }
@@ -59,5 +60,16 @@ describe("RecoverableToolOutput", () => {
     expect(placeholder.recoverable).toBe(true);
     const entry = store.read(placeholder.toolId);
     expect(entry!.text).toContain("y".repeat(1000));
+  });
+
+  it("包装后仍携带授权声明（L9：包装器不得剥离 capability）", async () => {
+    const store = new RecoverableOutputStore();
+    const src = tool(async () => ({ large: "z".repeat(1000) }));
+    const wrapped = wrapWithRecoverableOutput(src, store, 128);
+    expect(wrapped.capability).toEqual(["fs.read"]);
+    // 大输出走的是包装层，被转发的仍是同一份声明 —— 注册守卫据它判定，不看名字
+    const out = (await wrapped.handler({})) as { recoverable?: boolean };
+    expect(out.recoverable).toBe(true);
+    expect(wrapped.name).toBe(src.name);
   });
 });

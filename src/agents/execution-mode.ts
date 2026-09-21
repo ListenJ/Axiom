@@ -19,13 +19,14 @@
 
 import { logger } from "../utils/logger.js";
 import { getApprovalBridge, type ApprovalRisk } from "../utils/approval-bridge.js";
-import { monitorToolPayload } from "./risk-monitor.js";
+import { screenToolCall } from "./risk-monitor.js";
 import {
   TOOL_CLASSIFICATIONS,
   type ExecutionMode,
   type ToolClassification,
   type ToolRisk,
 } from "./tool-classifications.js";
+import type { Capability } from "../utils/permissions.js";
 
 export { TOOL_CLASSIFICATIONS };
 export type { ExecutionMode, ToolClassification, ToolRisk };
@@ -259,6 +260,7 @@ export function getCurrentMode(): ExecutionMode {
 /** 包装工具执行，自动检查模式 */
 export async function executeWithModeGuard<T>(
   toolName: string,
+  capability: readonly Capability[],
   args: unknown,
   executeFn: () => Promise<T>
 ): Promise<T> {
@@ -267,10 +269,9 @@ export async function executeWithModeGuard<T>(
     throw new Error(`[ExecutionMode] Blocked: ${check.reason}`);
   }
 
-  // ── 高危操作双层复核：边缘初筛 → 主模型复核 → 强制 HITL ──
-  // 监视静态分级表感知不到的负载内容（如 terminal_exec 里的 rm -rf /usr）
-  // 失败语义：初筛降级/复核否决 → 不影响下方原有审批流程
-  const verdict = await monitorToolPayload(toolName, args);
+  // ── 特权调用复核：能力驱动（不按工具名查表），升级后强制 HITL ──
+  // 静态分级表感知不到负载内容（如 terminal_exec 里的 rm -rf /usr），故按能力取负载
+  const verdict = await screenToolCall({ capabilities: capability, args, toolName });
   if (verdict === "require-approval") {
     logger.warn(`[ExecutionMode] Risk monitor escalated ${toolName} to mandatory approval`);
     const approved = await executionMode.requestApprovalForced(toolName, args);

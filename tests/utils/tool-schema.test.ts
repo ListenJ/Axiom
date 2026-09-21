@@ -25,13 +25,26 @@ describe("zodToJsonSchema", () => {
 describe("toOpenAITools", () => {
   test("converts ToolSurfaceLike list into OpenAI function tool defs", () => {
     const tools: ToolSurfaceLike[] = [
-      { name: "skill_run", description: "按需执行 skill", inputSchema: skillSchema, handler: async () => ({}) },
+      {
+        name: "skill_run",
+        description: "按需执行 skill",
+        inputSchema: skillSchema,
+        capability: ["fs.read"],
+        handler: async () => ({}),
+      },
     ];
     const defs = toOpenAITools(tools);
     expect(defs).toHaveLength(1);
     expect(defs[0].type).toBe("function");
     expect(defs[0].function.name).toBe("skill_run");
     expect((defs[0].function.parameters as { required?: string[] }).required).toEqual(["skillId"]);
+  });
+
+  test("capability 属于授权面，不得出现在发给模型的 tools 里", () => {
+    const defs = toOpenAITools([
+      { name: "skill_run", description: "d", inputSchema: skillSchema, capability: ["fs.read"], handler: async () => ({}) },
+    ]);
+    expect(JSON.stringify(defs)).not.toContain("fs.read");
   });
 });
 

@@ -1,34 +1,44 @@
 /**
- * 高危操作双层复核监视器 —— 边缘初筛 → 主模型复核 → 强制 HITL
+ * 特权调用复核器 —— 能力驱动的灰区初筛 + 确定性链路复核
  *
- * 定位：execution-mode.ts 的 executeWithModeGuard 在执行前调用。
- * 监视对象为正则硬底线（permissions.ts，不可绕过）覆盖不到的**灰区**操作：
- * 静态分级表按工具名定级（如 terminal_exec=caution），但无法感知
- * 负载内容（`rm -rf /usr` 与 `ls` 同为 terminal_exec）。
+ * 定位：由 `src/mcp/tool-registry.ts` 的注册守卫在执行前调用（S3 / P2）。
+ * 监视对象为正则硬底线（permissions.ts 的 `decideCapability`）覆盖不到的**灰区**
+ * 负载内容：静态判定能看出"这是一次 fs.write"，看不出"这条命令是 rm -rf /usr"。
  *
- * 双层流程：
- *   1. 边缘小模型初筛（~0.3-1s）：low → 直接放行
- *   2. medium/high → 主模型（router decision 角色）复核
- *   3. 复核确认 dangerous → "require-approval"（由调用方强制 HITL，YOLO 也不豁免）
+ * 两层，职责不同且互不依赖（层间独立性）：
+ *   1. `screenToolCall`：概率层。边缘小模型初筛 → 主模型复核 → 升级审批。
+ *      只负责"建议是否要人来把关"，不授予任何能力；可用 EDGE_RISK_MONITOR=0
+ *      关掉，关掉后确定性层仍然强制。
+ *   2. `reviewSequence`：确定性层。跨调用序列复核（I4），纯本地计数，不调模型，
+ *      因此不受任何概率层开关影响，也**没有回环/地址豁免**（键只有主体）。
  *
- * 回退语义：
- *   - 初筛失败/降级 → 放行（fail-open，不打断 agent）
+ * 关键设计：判定输入是**能力**（`Capability`）而不是工具名。
+ * 旧实现用一张"工具名 → 是否筛查"的常量表查表，未登记的名字一律放行 ——
+ * 审计 G1 证实真正暴露的 `write` 工具名根本不在表里，复核对它恒为 pass。
+ * 现在只要声明了 `proc.exec` / `fs.write` 等能力，改名、包装、MCP 子进程工具
+ * （`mcp_${server}_${tool}`）都同样进入复核（封堵 L4 / L5 / L9）。
+ *
+ * 回退语义（概率层）：
+ *   - 初筛失败/降级 → 放行（不打断 agent，确定性层不受影响）
  *   - 复核失败 + 初筛 high → 升级审批（fail-closed）
  *   - 复核失败 + 初筛 medium → 放行（fail-open）
- *   - EDGE_RISK_MONITOR=0 → 完全旁路
  *
  * 所有升级判定写 auditLogger（security.alert 事件）。
  */
 
 import { z } from "zod";
 import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
-import { screenPayloadWithEdge, type EdgeRiskResult, type PayloadKind } from "../local-llm/risk-screen.js";
-import { TOOL_CLASSIFICATIONS } from "./tool-classifications.js";
+import { screenPayloadWithEdge, type EdgeRisk, type PayloadKind } from "../local-llm/risk-screen.js";
 import { auditLogger } from "../utils/audit-logger.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import {
+  CAPABILITY_PAYLOAD as PERMISSION_CAPABILITY_PAYLOAD,
+  payloadForCapability,
+  type Capability,
+} from "../utils/permissions.js";
 
-/** 监视结论 */
+/** 复核结论 */
 export type RiskVerdict = "pass" | "require-approval";
 
 /**
@@ -50,7 +60,7 @@ function isFailClosedEnabled(): boolean {
 }
 
 /**
- * 初筛降级时**必须强制审批**的高危工具（静态判定，不依赖已降级的初筛）。
+ * 初筛降级时**必须强制审批**的能力集（静态判定，不依赖已降级的初筛）。
  *
  * 修复（审计 A 的配套项）：初筛依赖外部模型/网络；离线或网络失败时它会被标记为
  * `degraded`，此时 `edge.risk === "low"` **并不代表真的低风险**，而是"根本没测出来"。
@@ -58,26 +68,30 @@ function isFailClosedEnabled(): boolean {
  * `terminal_exec` 调用被一路放行，且日志里明晃晃写着 `failClosed:false`。
  *
  * 处置：保留"离线环境不整体阻断"的可用性取舍（不把默认翻成全局 fail-closed），
- * 但对具备**执行 / 写入 / 外发**能力的工具改为降级时恒需审批 —— 这些正是
- * 一旦误放行就不可逆的操作。
+ * 但对具备**执行 / 写入 / 删除 / 外发 / 改配置 / 改库**能力的调用改为降级时恒需审批
+ * —— 这些正是一旦误放行就不可逆的操作。
+ *
+ * R1 变更：这里原本是 11 个工具名（DEGRADED_MUST_APPROVE_TOOLS）。按名字查表有两个
+ * 实测缺陷：改名/包装（`mcp_${server}_${tool}`）即脱离名单，且未登记的名字一律 fail-open；
+ * 按能力判定后同一结论自动覆盖全部 183 个注册点，名单不再需要维护。
  */
-const DEGRADED_MUST_APPROVE_TOOLS: ReadonlySet<string> = new Set([
-  "terminal_exec",
-  "fs_write",
-  "fs_delete",
-  "fs_move",
-  "kg_add_node",
-  "kg_add_edge",
-  "dre_write_knowledge",
-  "github_create_issue",
-  "github_create_pr",
-  "actor_send",
-  "task_graph_execute",
+const DEGRADED_MUST_APPROVE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  "proc.exec",
+  "fs.write",
+  "fs.delete",
+  "cfg.write",
+  "db.write",
+  "net.outbound",
+  "mcp.external",
 ]);
 
-/** 初筛降级时是否必须强制审批：高危工具恒为 true，其余取决于 EDGE_RISK_FAIL_CLOSED */
-function mustApproveWhenDegraded(toolName: string): boolean {
-  return DEGRADED_MUST_APPROVE_TOOLS.has(toolName) || isFailClosedEnabled();
+/** 初筛不可用（降级或抛异常）时的处置：持有高危能力者恒需审批，其余取决于 EDGE_RISK_FAIL_CLOSED */
+function degradedPolicy(capabilities: readonly Capability[]): {
+  highRisk: boolean;
+  mustApprove: boolean;
+} {
+  const highRisk = capabilities.some((c) => DEGRADED_MUST_APPROVE_CAPABILITIES.has(c));
+  return { highRisk, mustApprove: highRisk || isFailClosedEnabled() };
 }
 
 // ── P2-13：判定缓存 ─────────────────────────────────────────
@@ -127,6 +141,16 @@ function cacheVerdict(kind: PayloadKind, payload: string, verdict: RiskVerdict):
   });
 }
 
+/** 一次工具调用的判定输入：能力 + 负载。名字与地址一律不参与判定。 */
+export interface ToolCallView {
+  readonly capabilities: readonly Capability[];
+  readonly args: unknown;
+  /** 仅用于审计标注 */
+  readonly toolName?: string;
+  /** 序列复核的主体键；缺省归入同一会话主体 */
+  readonly principal?: string;
+}
+
 /** 复核结果（null = 复核不可用） */
 export interface ReviewResult {
   dangerous: boolean;
@@ -134,7 +158,7 @@ export interface ReviewResult {
 }
 
 /**
- * 复核输出 schema（S3 结构化输出收紧：dangerous 必须为布尔、reason 可选字符串；
+ * 复核输出 schema（结构化输出收紧：dangerous 必须为布尔、reason 可选字符串；
  * 导出供测试复用）。校验失败 → reviewWithDecisionModel 返回 null →
  * 既有"复核不可用"回退语义不变（fail-closed/fail-open 按初筛等级由调用方处理）。
  */
@@ -143,93 +167,110 @@ export const riskReviewSchema = z.object({
   reason: z.string().optional(),
 });
 
+/** 初筛结论（degraded 可选：注入的替代适配器可不提供） */
+export interface ScreenOutcome {
+  risk: EdgeRisk;
+  reason?: string;
+  degraded?: boolean;
+}
+
 /** 可注入依赖（测试用 fake；生产为真实实现） */
 export interface RiskMonitorDeps {
-  screen?: (payload: string, kind: PayloadKind) => Promise<EdgeRiskResult>;
+  screen?: (payload: string, kind: PayloadKind) => Promise<ScreenOutcome>;
   review?: (payload: string, kind: PayloadKind) => Promise<ReviewResult | null>;
 }
 
-/** 类别 → 负载形态映射（仅收录可识别 command/path 形态的类别） */
-const CATEGORY_SPEC: Partial<Record<string, { kind: PayloadKind; fields: string[] }>> = {
-  terminal: { kind: "command", fields: ["command", "script"] },
-  filesystem: { kind: "path", fields: ["path", "file", "target", "destination", "from", "to"] },
-  snapshot: { kind: "path", fields: ["path", "name", "target"] },
-};
+// 能力 → 负载取法由 `permissions.ts` 的 CAPABILITY_PAYLOAD 单源提供（R1）：
+// 判定层与复核层读同一份字段清单，新增字段只改一处。
+// `internal` 不在表内（纯计算/状态查询不进入初筛）。`net.outbound` 同时在表里和
+// `decideOutbound`（协议 + 宿主白名单）里，两者职责不同：白名单是**裁决**，本层只决定
+// 要不要把人拉进来把关 —— 模型意见只能加严，不能放宽确定性结论。
+// （main 的审计 P6 曾用工具名补齐 `browser_launch` 的 URL 负载，改名即失效，故改为按能力取。）
 
 /**
- * M4 审计修复：审查清单由 TOOL_CLASSIFICATIONS 单一数据源动态派生，
- * 并显式补齐注册表遗漏的高危工具（browser_launch / knowledge_ingest_document）。
+ * 进入概率层初筛的能力集合（派生自单一数据源，不含 `fs.read`）。
+ *
+ * `fs.read` 在 `CAPABILITY_PAYLOAD` 里（判定层要用它取目标路径、序列层要用它记
+ * L2 半链），但**不进初筛**：读负载只有一个路径字符串，越界与锚点已由
+ * `decideFilesystem` 确定性裁决，剩下的灰区为空；每次读盘再问一遍小模型
+ * （`EDGE_RISK_MONITOR` 默认开）只有延迟没有信号。`fs.glob` 不在豁免内 ——
+ * 递归模式串无法逐条裁决（一条模式可命中整个 `.env` 家族），是枚举泄漏唯一的人可把关点。
  */
-const SCREENED_TOOLS: Record<string, { kind: PayloadKind; fields: string[] }> = (() => {
-  const map: Record<string, { kind: PayloadKind; fields: string[] }> = {};
-  for (const t of TOOL_CLASSIFICATIONS) {
-    if (t.risk === "safe") continue;
-    const spec = CATEGORY_SPEC[t.category];
-    if (spec) map[t.name] = spec;
-  }
-  // 漏网高危补齐（审计 P6）：负载形态特殊，无法由类别推导
-  map["browser_launch"] = { kind: "url", fields: ["url"] };
-  map["knowledge_ingest_document"] = { kind: "path", fields: ["file"] };
-  return map;
-})();
+const NOT_SCREENED: ReadonlySet<Capability> = new Set<Capability>(["fs.read"]);
 
-/** 当前被双层复核监视的工具名集合（供测试与可观测性使用） */
-export const SCREENED_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(SCREENED_TOOLS));
+export const SCREENED_CAPABILITIES: ReadonlySet<Capability> = new Set(
+  (Object.keys(PERMISSION_CAPABILITY_PAYLOAD) as Capability[]).filter(
+    (c) => !NOT_SCREENED.has(c),
+  ),
+);
 
 /**
- * 从工具参数中提取被监视负载。无需监视的工具/无有效负载返回 null。
+ * 从工具参数中提取被复核负载。按声明能力顺序取第一个有效字段，
+ * 一次调用只产出一条负载（content 之类的正文字段不参与，避免整份文件进提示词）。
  */
-export function extractPayload(
-  toolName: string,
-  args: unknown,
-): { kind: PayloadKind; payload: string } | null {
-  const spec = SCREENED_TOOLS[toolName];
-  if (!spec || typeof args !== "object" || args === null) return null;
-
-  const record = args as Record<string, unknown>;
-  for (const field of spec.fields) {
-    const value = record[field];
-    if (typeof value === "string" && value.trim().length > 0) {
-      return { kind: spec.kind, payload: value.trim() };
+export function extractPayload(call: ToolCallView): { kind: PayloadKind; payload: string } | null {
+  for (const capability of call.capabilities) {
+    const picked = payloadForCapability(capability, call.args);
+    if (picked) return picked;
+    // 外部 MCP 工具的参数形状由远端决定，没有固定字段可认 —— 整体序列化后送筛，
+    // 否则"包装工具零观测"会让 L5 重新出现。
+    if (capability === "mcp.external") {
+      const serialized = safeSerialize(call.args);
+      if (serialized) return { kind: "command", payload: serialized };
     }
   }
   return null;
 }
 
+function safeSerialize(args: unknown): string | null {
+  try {
+    const s = JSON.stringify(args);
+    return s && s !== "{}" ? s.slice(0, 500) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * 对工具调用做双层风险监视。
+ * 概率层：对一次特权调用做双层风险初筛 + 复核。
  *
- * @returns "pass" 放行 | "require-approval" 升级强制人工审批
+ * @returns "pass" 放行 | "require-approval" 升级强制人工审批（YOLO 也不豁免）
  */
-export async function monitorToolPayload(
-  toolName: string,
-  args: unknown,
-  deps?: RiskMonitorDeps,
+export async function screenToolCall(
+  call: ToolCallView,
+  deps: RiskMonitorDeps = {},
 ): Promise<RiskVerdict> {
-  if (!isEdgeEnabled("EDGE_RISK_MONITOR")) return "pass";
-
-  const extracted = extractPayload(toolName, args);
+  // 能力集合决定要不要进概率层（不看名字、不看负载内容）：全为只读/内部时无事可筛
+  if (!call.capabilities.some((c) => SCREENED_CAPABILITIES.has(c))) return "pass";
+  const extracted = extractPayload(call);
   if (!extracted) return "pass";
-
   const { kind, payload } = extracted;
+  const label = call.toolName ?? call.capabilities.join("+");
+  // 注入任一适配器即视为测试路径：判定缓存不得影响 DI 断言
+  const cacheEnabled = deps.screen === undefined && deps.review === undefined;
 
-  // ── 判定缓存命中（P2-13）：仅生产路径（无注入 deps）启用，DI 测试不受影响；
-  // approval 结论复放仍走 escalate 保审计链 ──
-  const cached = !deps ? getCachedVerdict(kind, payload) : null;
+  // ── 判定缓存命中（P2-13）：approval 结论复放仍走 escalate 保审计链 ──
+  const cached = cacheEnabled ? getCachedVerdict(kind, payload) : null;
   if (cached) {
-    logger.debug("[RiskMonitor] verdict cache hit", { toolName, kind });
+    logger.debug("[RiskMonitor] verdict cache hit", { label, kind });
     if (cached === "require-approval") {
-      escalate(toolName, kind, payload, "cached verdict: require-approval");
+      escalate(label, kind, payload, "cached verdict: require-approval");
     }
     return cached;
   }
 
-  const screen = deps?.screen ?? screenPayloadWithEdge;
-  const review = deps?.review ?? reviewWithDecisionModel;
-  const cacheEnabled = !deps;
+  // 注入的 screen 表示调用方显式提供了初筛适配器，不受生产开关影响（测试即走这条）
+  // 概率层总开关：关掉只影响初筛/复核，不影响任何确定性强制
+  const screen =
+    deps.screen ?? (isEdgeEnabled("EDGE_RISK_MONITOR") ? screenPayloadWithEdge : null);
+  if (!screen) {
+    logger.debug("[RiskMonitor] probabilistic layer switched off; deterministic enforcement unaffected");
+    return "pass";
+  }
+  const review = deps.review ?? reviewWithDecisionModel;
 
   // ── 第一层：边缘初筛 ──
-  let edge: EdgeRiskResult;
+  let edge: ScreenOutcome;
   try {
     edge = await screen(payload, kind);
   } catch (err) {
@@ -239,12 +280,21 @@ export async function monitorToolPayload(
     auditLogger.log({
       event: "security.degraded_bypass",
       actor: "risk-monitor",
-      resource: `${toolName}(${kind})`,
+      resource: `${label}(${kind})`,
       outcome: "allowed",
       reason: `screen threw: ${(err as Error).message}`,
     });
-    if (isFailClosedEnabled()) {
-      escalate(toolName, kind, payload, "screen unavailable (EDGE_RISK_FAIL_CLOSED=1)");
+    // 抛异常与 degraded 同源（"根本没测出来"），处置必须一致，否则换一个失败方式即可绕过
+    const thrown = degradedPolicy(call.capabilities);
+    if (thrown.mustApprove) {
+      escalate(
+        label,
+        kind,
+        payload,
+        thrown.highRisk
+          ? "screen unavailable; high-risk capability requires approval"
+          : "screen unavailable (EDGE_RISK_FAIL_CLOSED=1)",
+      );
       return "require-approval";
     }
     return "pass";
@@ -253,29 +303,30 @@ export async function monitorToolPayload(
   if (edge.risk === "low") {
     if ((edge as { degraded?: boolean }).degraded === true) {
       degradedBypassCount++;
-      // 修复（审计 A 配套）：降级时不再对高危工具默认放行。
-      const mustApprove = mustApproveWhenDegraded(toolName);
+      // 修复（审计 A 配套）：降级时不再对高危调用默认放行（R1：判据由工具名改为能力）
+      const degraded = degradedPolicy(call.capabilities);
       logger.warn("[RiskMonitor] edge screening degraded", {
-        toolName,
+        label,
+        capabilities: call.capabilities.join("+"),
         payload: payload.slice(0, 120),
         failClosed: isFailClosedEnabled(),
-        highRiskTool: DEGRADED_MUST_APPROVE_TOOLS.has(toolName),
-        verdict: mustApprove ? "require-approval" : "pass",
+        highRiskCapability: degraded.highRisk,
+        verdict: degraded.mustApprove ? "require-approval" : "pass",
       });
       auditLogger.log({
         event: "security.degraded_bypass",
         actor: "risk-monitor",
-        resource: `${toolName}(${kind})`,
-        outcome: mustApprove ? "denied" : "allowed",
+        resource: `${label}(${kind})`,
+        outcome: degraded.mustApprove ? "denied" : "allowed",
         reason: "edge screening degraded",
       });
-      if (mustApprove) {
+      if (degraded.mustApprove) {
         escalate(
-          toolName,
+          label,
           kind,
           payload,
-          DEGRADED_MUST_APPROVE_TOOLS.has(toolName)
-            ? "edge degraded; high-risk tool requires approval"
+          degraded.highRisk
+            ? "edge degraded; high-risk capability requires approval"
             : "edge degraded (EDGE_RISK_FAIL_CLOSED=1)",
         );
         return "require-approval";
@@ -288,13 +339,13 @@ export async function monitorToolPayload(
     return "pass";
   }
 
-  logger.warn(`[RiskMonitor] edge flagged ${edge.risk} risk: ${toolName}`, {
+  logger.warn(`[RiskMonitor] edge flagged ${edge.risk} risk: ${label}`, {
     payload: payload.slice(0, 120),
     reason: edge.reason,
   });
 
   // ── 第二层：主模型复核 ──
-  let reviewResult: ReviewResult | null = null;
+  let reviewResult: ReviewResult | null;
   try {
     reviewResult = await review(payload, kind);
   } catch (err) {
@@ -305,19 +356,19 @@ export async function monitorToolPayload(
   }
 
   if (reviewResult?.dangerous === true) {
-    escalate(toolName, kind, payload, `edge=${edge.risk}, review=dangerous: ${reviewResult.reason ?? ""}`);
+    escalate(label, kind, payload, `edge=${edge.risk}, review=dangerous: ${reviewResult.reason ?? ""}`);
     if (cacheEnabled) cacheVerdict(kind, payload, "require-approval");
     return "require-approval";
   }
 
   if (reviewResult === null && edge.risk === "high") {
     // 复核不可用 + 初筛 high → fail-closed
-    escalate(toolName, kind, payload, "edge=high, review=unavailable (fail-closed)");
+    escalate(label, kind, payload, "edge=high, review=unavailable (fail-closed)");
     if (cacheEnabled) cacheVerdict(kind, payload, "require-approval");
     return "require-approval";
   }
 
-  logger.info(`[RiskMonitor] cleared after review: ${toolName}`, {
+  logger.info(`[RiskMonitor] cleared after review: ${label}`, {
     edgeRisk: edge.risk,
     review: reviewResult === null ? "unavailable" : "not-dangerous",
   });
@@ -328,13 +379,138 @@ export async function monitorToolPayload(
   return "pass";
 }
 
+// ─── 确定性层：跨调用序列复核（I4）─────────────────────────────────────────
+
+/** 序列窗口（ms）：只回看这段时间内的调用 */
+export const SEQUENCE_WINDOW_MS = 60_000;
+/** 窗口内高影响能力调用条数上限：超出即认为正在批量推进特权操作 */
+export const SEQUENCE_BURST_LIMIT = 8;
+
+/** 除 internal 外的能力都可参与链路匹配（链路两端的"读"也是链路的一环） */
+function isObservable(capability: Capability): boolean {
+  return capability !== "internal";
+}
+
+/**
+ * 高影响能力：会改变进程外状态或把数据送出进程。纯读不计入计数（读是常态，
+ * 读的特权性由 safeFs 逐次裁决），但纯读仍参与下面的链路匹配。
+ */
+const HIGH_IMPACT: ReadonlySet<Capability> = new Set<Capability>([
+  "proc.exec",
+  "cfg.write",
+  "db.write",
+  "mcp.external",
+  "net.outbound",
+  "fs.write",
+  "fs.delete",
+]);
+
+/**
+ * 链路配对（方向敏感）：先前调用含 A 类、当前调用含 B 类即视为一次组合放大。
+ * 依据 §3 矩阵：L2 读到即外发、L1 写可执行位再执行。
+ */
+const CHAIN_PAIRS: ReadonlyArray<{
+  then: readonly Capability[];
+  now: readonly Capability[];
+  why: string;
+}> = [
+  {
+    then: ["fs.read", "fs.glob"],
+    now: ["net.outbound", "mcp.external"],
+    why: "read-then-send (L2)",
+  },
+  {
+    then: ["fs.write", "fs.delete", "cfg.write"],
+    now: ["proc.exec"],
+    why: "write-then-execute (L1)",
+  },
+];
+
+interface SequenceEntry {
+  readonly at: number;
+  readonly capabilities: readonly Capability[];
+}
+
+/** 主体 → 近期特权调用。键只有主体，没有任何地址/回环维度。 */
+const sequences = new Map<string, SequenceEntry[]>();
+
+export interface SequenceOptions {
+  /** 命中链路时回调（守卫据此走审批；审计已在内部落笔） */
+  onEscalate?: (reason: string) => void;
+  /** 可注入时钟（测试用） */
+  now?: () => number;
+  windowMs?: number;
+  burstLimit?: number;
+}
+
+/**
+ * 确定性层：跨调用序列复核（I4，封堵 L1/L2 的组合放大与 L8 的"单次都合规"论证）。
+ *
+ * 单次授权不等于链式授权：一次 fs.write 与一次 proc.exec 各自都能获批，
+ * 连起来就是"写下可执行内容再执行它"。本函数只计数与配对，不调模型，
+ * 因此无法被概率层开关关掉；升级后清空该主体窗口，避免逐条骚扰。
+ */
+export async function reviewSequence(
+  call: ToolCallView,
+  options: SequenceOptions = {},
+): Promise<RiskVerdict> {
+  const observed = call.capabilities.filter(isObservable);
+  if (observed.length === 0) return "pass";
+
+  const now = (options.now ?? Date.now)();
+  const windowMs = options.windowMs ?? SEQUENCE_WINDOW_MS;
+  const burstLimit = options.burstLimit ?? SEQUENCE_BURST_LIMIT;
+  const principal = call.principal ?? "unassigned";
+
+  const recent = (sequences.get(principal) ?? []).filter((e) => now - e.at < windowMs);
+  const burst = observed.filter((c) => HIGH_IMPACT.has(c)).length;
+
+  let reason: string | null = null;
+  if (burst > 0) {
+    const highImpactCount = recent.filter((e) => e.capabilities.some((c) => HIGH_IMPACT.has(c))).length;
+    if (highImpactCount + 1 >= burstLimit) {
+      reason = `${highImpactCount + 1} high-impact calls within ${windowMs}ms (burst limit ${burstLimit})`;
+    }
+  }
+  if (!reason) {
+    for (const pair of CHAIN_PAIRS) {
+      const prior = recent.some((e) => e.capabilities.some((c) => pair.then.includes(c)));
+      const current = observed.some((c) => pair.now.includes(c));
+      if (prior && current) {
+        reason = `chain ${pair.why}`;
+        break;
+      }
+    }
+  }
+
+  recent.push({ at: now, capabilities: observed });
+  sequences.set(principal, recent);
+
+  if (!reason) return "pass";
+
+  sequences.set(principal, []);
+  escalate(
+    call.toolName ?? observed.join("+"),
+    observed.includes("proc.exec") ? "command" : "path",
+    `${principal} → [${observed.join(", ")}]`,
+    reason,
+  );
+  options.onEscalate?.(reason);
+  return "require-approval";
+}
+
+/** 仅供测试与长会话清理：清空序列状态 */
+export function resetSequences(): void {
+  sequences.clear();
+}
+
 /** 升级记录：审计日志 + warn */
-function escalate(toolName: string, kind: PayloadKind, payload: string, detail: string): void {
-  logger.warn(`[RiskMonitor] ESCALATED ${toolName}: ${detail}`, { payload: payload.slice(0, 120) });
+function escalate(label: string, kind: PayloadKind, payload: string, detail: string): void {
+  logger.warn(`[RiskMonitor] ESCALATED ${label}: ${detail}`, { payload: payload.slice(0, 120) });
   auditLogger.log({
     event: "security.alert",
     actor: "risk-monitor",
-    resource: `${toolName}(${kind})`,
+    resource: `${label}(${kind})`,
     outcome: "denied",
     reason: detail,
     metadata: { payload: payload.slice(0, 500) },

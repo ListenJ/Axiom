@@ -29,6 +29,7 @@ const nodeType = z.enum(["concept", "skill", "memory", "scene", "goal"]);
 export function registerMindTools(registry: ToolRegistry): void {
   registry.add({
     name: "mind_synapse_create",
+    capability: ["db.write"],
     description: "创建神经突触（源节点 → 目标节点的加权关联），带可校验哈希",
     inputSchema: {
       sourceId: z.string().describe("源节点 id（概念/技能/记忆/场景/目标）"),
@@ -49,6 +50,7 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_synapse_activate",
+    capability: ["db.write"],
     description: "激活某节点的全部出边突触（Hebbian 增强 + 全局轻微衰减）",
     inputSchema: {
       sourceId: z.string().describe("源节点 id"),
@@ -62,6 +64,7 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_synapse_spread",
+    capability: ["db.write"],
     description: "扩散激活：从种子节点沿突触 BFS，强度随跳数衰减（扩散/独立思考）",
     inputSchema: {
       seedIds: z.array(z.string()).min(1).describe("种子节点 id 列表"),
@@ -76,6 +79,8 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_synapse_suggest",
+    // 建议本身是排序，但每次命中会落一条 suggest trace（src/dre/synapse/engine.ts:225）
+    capability: ["db.write"],
     description: "基于场景+目标给出确定性下一步建议（可追溯 via 路径与理由）",
     inputSchema: {
       scene: z.string().describe("当前场景描述"),
@@ -90,6 +95,7 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_synapse_verify",
+    capability: ["internal"],
     description: "校验突触数据完整性（重算哈希比对 + 验证链完整性），返回可追溯结论",
     inputSchema: { synapseId: z.string().describe("突触 id") },
     handler: async (args: Record<string, unknown>) => {
@@ -100,6 +106,7 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_synapse_trace",
+    capability: ["internal"],
     description: "追溯突触的完整验证链（创建/激活/扩散/衰减/建议记录）",
     inputSchema: { synapseId: z.string().describe("突触 id") },
     handler: async (args: Record<string, unknown>) => {
@@ -110,6 +117,8 @@ export function registerMindTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mind_suggest",
+    // 无 recordScene 时也必须 db.write：advisor.suggest → suggestNextSteps 落 suggest trace
+    capability: ["db.write"],
     description: "心智模块×自进化：基于场景+目标给出下一步建议（突触扩散激活，可追溯 via 路径），支持把场景/目标写入突触后建议",
     inputSchema: {
       scene: z.string().describe("当前场景描述"),

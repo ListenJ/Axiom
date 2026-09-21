@@ -7,6 +7,8 @@ function makeTool(name: string, exposure?: ToolExposure[]): ToolDef {
     description: `Tool ${name}`,
     inputSchema: { type: "object" },
     exposure,
+    // 假工具无特权面：如实声明 internal（本文件只测 exposure 派发）
+    capability: ["internal"],
     handler: async () => ({ name }),
   };
 }

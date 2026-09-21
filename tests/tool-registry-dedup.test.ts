@@ -10,7 +10,8 @@ import { ToolRegistry } from "../src/mcp/tool-registry.js";
 import { logger } from "../src/utils/logger.js";
 
 function makeTool(name: string) {
-  return { name, description: `tool ${name}`, inputSchema: {}, handler: async () => ({ ok: true }) };
+  // internal：假工具不触碰任何特权资源，声明与实现一致（I1 只要求"如实声明"）
+  return { name, description: `tool ${name}`, inputSchema: {}, capability: ["internal"] as const, handler: async () => ({ ok: true }) };
 }
 
 describe("L4: ToolRegistry.add 同名去重", () => {

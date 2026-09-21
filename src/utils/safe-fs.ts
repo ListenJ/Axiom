@@ -151,6 +151,34 @@ export async function readFile(target: string, opts?: SafeFsOptions): Promise<Bu
   return fsp.readFile(abs);
 }
 
+// ===== 同路径写串行化（进程内） =====
+// 每次调用都成功，最终内容必为某一完整版本：rename 原子替换，进程崩溃也不留半截文件。
+const writeQueues = new Map<string, Promise<unknown>>();
+
+function queueWrite<T>(abs: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeQueues.get(abs) ?? Promise.resolve();
+  const task = prev.then(fn, fn);
+  writeQueues.set(abs, task);
+  void task
+    .catch(() => {})
+    .then(() => {
+      if (writeQueues.get(abs) === task) writeQueues.delete(abs);
+    });
+  return task;
+}
+
+/** mkdir -p 的 EEXIST 竞态可忽略：真实错误（EACCES 等）由后续写入显式抛出。 */
+async function ensureParent(abs: string): Promise<void> {
+  const parent = path.dirname(abs);
+  if (parent && parent !== abs) {
+    try {
+      await fsp.mkdir(parent, { recursive: true });
+    } catch {
+      /* 交由紧邻的写盘步骤返回真实错误 */
+    }
+  }
+}
+
 export interface WriteOptions extends SafeFsOptions {
   /** 追加而非覆盖 */
   append?: boolean;
@@ -158,22 +186,42 @@ export interface WriteOptions extends SafeFsOptions {
   capability?: Capability;
 }
 
-/** 写入（含父目录创建，父目录同样逐跳判定）。 */
+/**
+ * 写入（含父目录创建，父目录同样逐跳判定）。
+ *
+ * 串行化 + 原子替换自 mcp/tools/filesystem.ts 上收到这里（R1）：
+ * 那两处修复由 CI 实证过（并发写同一文件会交错出损坏产物；Windows 下并发 rename
+ * 同一目标确定性 EPERM），若只留在某一个工具里，其他调用方（write 基元、快照还原、
+ * 插件）会各自重新踩一遍。授权与写盘同点，围栏不因调用方而异。
+ */
 export async function writeFile(
   target: string,
   data: string | Buffer,
   opts?: WriteOptions,
 ): Promise<void> {
-  const abs = authorizePath(target, opts?.capability ?? "fs.write", opts);
-  const parent = path.dirname(abs);
-  if (parent && parent !== abs) {
-    await fsp.mkdir(parent, { recursive: true });
-  }
-  if (opts?.append) {
-    await fsp.appendFile(abs, data);
-  } else {
-    await fsp.writeFile(abs, data);
-  }
+  const capability = opts?.capability ?? "fs.write";
+  const abs = authorizePath(target, capability, opts);
+  await ensureParent(abs);
+  await queueWrite(abs, async () => {
+    // mkdir→write 窗口复核：父目录可能在这一步之间被换成指向沙箱外的链接（H-03 TOCTOU）
+    authorizePath(target, capability, opts);
+    if (opts?.append) {
+      await fsp.appendFile(abs, data);
+      return;
+    }
+    const tmp = `${abs}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+    try {
+      await fsp.writeFile(tmp, data);
+      await fsp.rename(tmp, abs);
+    } catch (writeErr) {
+      try {
+        await fsp.unlink(tmp);
+      } catch {
+        /* tmp 可能尚未创建 */
+      }
+      throw writeErr;
+    }
+  });
 }
 
 export interface DirEntry {
@@ -211,6 +259,7 @@ export async function readDir(
   return out;
 }
 
+/** 移动/重命名：源按 fs.delete、目标按 fs.write 各自判定，缺一即拒。 */
 export async function move(
   from: string,
   to: string,
@@ -218,11 +267,27 @@ export async function move(
 ): Promise<void> {
   const src = authorizePath(from, "fs.delete", opts);
   const dst = authorizePath(to, "fs.write", opts);
-  await fsp.mkdir(path.dirname(dst), { recursive: true });
-  await fsp.rename(src, dst);
+  await ensureParent(dst);
+  await queueWrite(dst, async () => {
+    // mkdir→rename 窗口复核：目标与源都可能在此期间被替换为指向沙箱外的链接
+    authorizePath(to, "fs.write", opts);
+    authorizePath(from, "fs.delete", opts);
+    await fsp.rename(src, dst);
+  });
 }
 
+/**
+ * 删除 —— 仅单文件 unlink，目录一律拒绝（fs_delete 的对外声明同此）。
+ *
+ * 刻意不提供 recursive rm：一旦这个原语自带递归，任何调用方都拿到"整棵子树消失"
+ * 的爆破半径（S3 / L6），而当前没有需要递归删除的生产调用方。
+ */
 export async function remove(target: string, opts?: SafeFsOptions): Promise<void> {
   const abs = authorizePath(target, "fs.delete", opts);
-  await fsp.rm(abs, { recursive: true, force: false });
+  const stat = await fsp.lstat(abs);
+  if (stat.isDirectory()) {
+    throw new CapabilityDeniedError(`'${target}' is a directory; remove() deletes single files only`);
+  }
+  await fsp.unlink(abs);
 }
+

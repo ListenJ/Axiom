@@ -119,7 +119,7 @@ describe("插件 manifest 包含性（id / entry 不得逃出插件目录）", (
       mkdirSync(src, { recursive: true });
       writeFileSync(
         join(src, "index.js"),
-        "export default { tools: [{ name: 'good_ping', description: 'p', inputSchema: { type: 'object' }, handler: async () => ({ ok: true }) }] };\n",
+        "export default { tools: [{ name: 'good_ping', description: 'p', inputSchema: { type: 'object' }, capability: ['internal'], handler: async () => ({ ok: true }) }] };\n",
       );
 
       const installed = await registry.install(manifest("good-plugin", "index.js"), src, { enable: true });

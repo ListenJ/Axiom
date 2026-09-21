@@ -6,6 +6,7 @@
  *   工具执行记录的是 compute (CPU/内存/耗时) 而非 token。
  */
 import { logger } from "../utils/logger.js";
+import type { Capability } from "../utils/permissions.js";
 
 // ─── 进度回调 ──────────────────────────────────────
 export type ProgressStage = "validate" | "execute" | "transform" | "complete" | "error" | "timeout" | "loop-detected"
@@ -131,6 +132,11 @@ export interface ToolOutput<O = unknown> {
 export interface Tool<I = unknown, O = unknown> {
   readonly name: string;
   readonly description: string;
+  /**
+   * 该工具需要的能力（S3 / I1）。注册处必须声明，未声明即拒绝注册；
+   * 声明只决定「进入哪条筛查路径」，沙箱边界由 safeFs 在实际 I/O 点强制。
+   */
+  readonly capability: readonly Capability[];
   /** 工具消耗 compute 而非 model token */
   readonly consumesModelToken: boolean; // true if this tool calls LLM
   validate?(input: I): string | null;

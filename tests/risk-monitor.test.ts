@@ -10,9 +10,11 @@
  *   另有确定性层 reviewSequence（跨调用链路复核），不受概率层开关影响。
  *
  * 回退语义（概率层）：
- *   - 边缘层失败 → low + degraded（fail-open，不打断 agent）
- *   - 复核失败 + 边缘 high → 升级审批（fail-closed）
- *   - 复核失败 + 边缘 medium → 放行（fail-open）
+ *   - 边缘层自身失败 → 返回 low + degraded（不抛异常）
+ *   - 初筛降级/抛异常 → 按能力分档：特权能力（proc.exec / fs.write / …）升级审批，
+ *     其余档位放行以保离线可用（EDGE_RISK_FAIL_CLOSED=1 时一律升级）—— 审计 C-4 口径
+ *   - 复核失败 + 初筛 high → 升级审批（fail-closed）
+ *   - 复核失败 + 初筛 medium → 放行（fail-open）
  *
  * 全部通过 DI fake 测试，不访问真实端点与真实 router。
  */
@@ -101,8 +103,9 @@ describe("extractPayload（能力驱动，不看工具名）", () => {
       .toEqual({ kind: "path", payload: "a.ts" });
   });
 
-  test("net.outbound 不进入初筛（放行与否由 decideOutbound 确定性裁决）", () => {
-    expect(extractPayload(call({ capabilities: ["net.outbound"], args: { url: "https://x" } }))).toBeNull();
+  test("net.outbound 取 url 负载（放不放行仍由 decideOutbound 确定性裁决，此处只决定要不要人把关）", () => {
+    expect(extractPayload(call({ capabilities: ["net.outbound"], args: { url: "https://x" } })))
+      .toEqual({ kind: "url", payload: "https://x" });
   });
 
   test("外部 MCP 工具参数形状未知时整体序列化送筛（否则包装工具零观测）", () => {
@@ -196,11 +199,16 @@ describe("screenToolCall", () => {
     expect(v).toBe("pass");
   });
 
-  test("初筛异常 → fail-open 放行，不触发复核", async () => {
+  test("初筛异常按能力分档处置：特权能力升级审批，且一律不触发复核", async () => {
+    // 口径归一（审计 C-4，见 tests/unit/risk-monitor-degraded.test.ts）：初筛"根本没测出来"
+    // 时不再无条件放行，否则离线/模型不可达恰好是最短绕过路径。
     const { deps: d, counts } = deps("throw", true);
     const v = await screenToolCall(call({}), d);
-    expect(v).toBe("pass");
+    expect(v).toBe("require-approval");
     expect(counts().reviewCalls).toBe(0);
+    // 无特权信号的档位（fs.glob）仍不打断 agent
+    const { deps: d2 } = deps("throw", true);
+    expect(await screenToolCall({ capabilities: ["fs.glob"], args: { pattern: "src/**" } }, d2)).toBe("pass");
   });
 
   test("初筛 high + 复核异常 → fail-closed 升级审批", async () => {

@@ -24,6 +24,7 @@ const hallucinationFeedbackSchema = {
 export function registerSafetyTools(registry: ToolRegistry, db: Database): void {
   registry.add({
     name: "hallucination_feedback",
+    capability: ["db.write"],
     description:
       "HITL 真值标注：为幻觉判定记录（hallucination_verdicts）写入人工真值标签" +
       "（label 1=事实 / 0=幻觉），校准管道优先采用；吞错不抛出",

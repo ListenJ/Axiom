@@ -1,11 +1,22 @@
 import * as fs from "node:fs/promises";
-import * as fsSync from "node:fs";
 import * as path from "node:path";
-import { logger } from "../../utils/logger.js";
-import { isPathSafe, resolvePath } from "../../utils/path-safety.js";
+import {
+  authorizePath,
+  readDir as safeReadDir,
+  readFile as safeReadFile,
+  writeFile as safeWriteFile,
+  move as safeMove,
+  remove as safeRemove,
+} from "../../utils/safe-fs.js";
 
-// 唯一围栏语义源已迁至 utils/path-safety.ts（消除 tools<->mcp 循环）；re-export 保持既有调用方兼容。
-export { isPathSafe };
+/** 调用主体标识：只进审计，不参与放行判定 */
+const PRINCIPAL = "mcp:filesystem";
+
+/**
+ * 本文件不再自带路径守卫：围栏语义（越界/锚点/realpath）与写盘机制
+ * （串行化、原子替换、mkdir 后重校验）都由 utils/safe-fs.ts 在执行点完成（S3 / I2）。
+ * utils/path-safety.ts 仍在 docker-sandbox 的挂载白名单里使用，与本工具无关。
+ */
 
 export interface FileResult {
   success: boolean;
@@ -39,24 +50,23 @@ export interface SearchResult {
 }
 
 
+/** 把 safeFs 的拒绝原因映射回工具返回值（保持既有 {success:false,error} 契约） */
+function deniedMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export async function readFile(
   filePath: string,
   options?: { offset?: number; limit?: number }
 ): Promise<FileResult> {
-  const resolved = resolvePath(filePath);
-  const safety = isPathSafe(resolved);
-  if (!safety.safe) {
-    return { success: false, error: safety.error, path: filePath };
-  }
-
   try {
+    const abs = authorizePath(filePath, "fs.read", { principal: PRINCIPAL });
     // Check file size to prevent memory exhaustion
-    const stats = await fs.stat(resolved);
+    const stats = await fs.stat(abs);
     if (stats.size > 10 * 1024 * 1024) {
       return { success: false, error: `File too large (${(stats.size / 1024 / 1024).toFixed(1)}MB > 10MB limit)`, path: filePath };
     }
-    const content = await fs.readFile(resolved, "utf-8");
+    const content = (await safeReadFile(filePath, { principal: PRINCIPAL })).toString("utf-8");
     let result = content;
     if (options?.offset !== undefined || options?.limit !== undefined) {
       const lines = content.split("\n");
@@ -74,94 +84,32 @@ export async function readFile(
   }
 }
 
-// ===== 同路径写串行化 + 原子替换（2026-09-08 CI 实证修复） =====
-// 直接 open('w')+write 在并发写同一文件时交错出 "firstd" 类损坏产物（POSIX 实证）；
-// Windows 下多路并发 rename 同一目标又确定性 EPERM（MoveFileEx 替换冲突，重试无效）。
-// 方案：进程内按 resolved 路径串行化整段"写临时文件→rename"——
-// 每次调用都成功，最终内容必为某一完整版本（rename 原子替换，进程崩溃也不留半截文件）。
-const writeQueues = new Map<string, Promise<unknown>>();
-
-function queueWrite<T>(resolved: string, fn: () => Promise<T>): Promise<T> {
-  const prev = writeQueues.get(resolved) ?? Promise.resolve();
-  const task = prev.then(fn, fn);
-  writeQueues.set(resolved, task);
-  void task.catch(() => {}).then(() => {
-    if (writeQueues.get(resolved) === task) writeQueues.delete(resolved);
-  });
-  return task;
-}
-
 export async function writeFile(
   filePath: string,
   content: string,
   options?: { append?: boolean }
 ): Promise<FileResult> {
-  const resolved = resolvePath(filePath);
-  const safety = isPathSafe(resolved);
-  if (!safety.safe) {
-    return { success: false, error: safety.error, path: filePath };
-  }
-
   try {
-    const dir = path.dirname(resolved);
-    // 原子 mkdir -p + 捕获 EEXIST/竞态（H-03 TOCTOU 修复）
-    try {
-      await fs.mkdir(dir, { recursive: true });
-    } catch (err) {
-      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误（如 EACCES）由后续写入显式返回
-      logger.debug("[Filesystem] mkdir before write failed, deferring to write error", {
-        dir,
-        error: String(err),
-      });
-    }
-    // TOCTOU 重校验：mkdir 后再次解析真实路径，防止 check→mkdir 窗口的 symlink 抢占
-    const postSafety = isPathSafe(resolved);
-    if (!postSafety.safe) {
-      return { success: false, error: postSafety.error, path: filePath };
-    }
-    if (options?.append) {
-      await fs.appendFile(resolved, content, "utf-8");
-    } else {
-      await queueWrite(resolved, async () => {
-        const tmp = `${resolved}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
-        try {
-          await fs.writeFile(tmp, content, "utf-8");
-          await fs.rename(tmp, resolved);
-        } catch (writeErr) {
-          try { await fs.unlink(tmp); } catch { /* tmp 可能尚未创建 */ }
-          throw writeErr;
-        }
-      });
-    }
+    await safeWriteFile(filePath, content, { append: options?.append, principal: PRINCIPAL });
     return { success: true, path: filePath };
   } catch (err: unknown) {
     return {
       success: false,
-      error: `Failed to write '${filePath}': ${err instanceof Error ? err.message : String(err)}`,
+      error: deniedMessage(err),
       path: filePath,
     };
   }
 }
 
 export async function listDirectory(dirPath: string): Promise<DirectoryResult> {
-  const resolved = resolvePath(dirPath);
-  const safety = isPathSafe(resolved);
-  if (!safety.safe) {
-    return { success: false, error: safety.error, path: dirPath };
-  }
-
   try {
-    const entries = await fs.readdir(resolved, { withFileTypes: true });
+    const resolved = authorizePath(dirPath, "fs.glob", { principal: PRINCIPAL });
+    const entries = await safeReadDir(dirPath, { principal: PRINCIPAL });
     const result = await Promise.all(
       entries.map(async (entry) => {
-        const type: "file" | "directory" | "symlink" = entry.isDirectory()
-          ? "directory"
-          : entry.isSymbolicLink()
-            ? "symlink"
-            : "file";
         let size: number | undefined;
         let modified: string | undefined;
-        if (entry.isFile()) {
+        if (entry.type === "file") {
           try {
             const stat = await fs.stat(path.join(resolved, entry.name));
             size = stat.size;
@@ -170,7 +118,7 @@ export async function listDirectory(dirPath: string): Promise<DirectoryResult> {
             // ignore stat errors
           }
         }
-        return { name: entry.name, type, size, modified };
+        return { name: entry.name, type: entry.type, size, modified };
       })
     );
     return { success: true, entries: result, path: dirPath };
@@ -191,12 +139,13 @@ export async function searchFiles(
     maxResults?: number;
   }
 ): Promise<SearchResult> {
-  const searchPath = resolvePath(options?.path ?? ".");
-  const safety = isPathSafe(searchPath);
-  if (!safety.safe) {
+  let searchPath: string;
+  try {
+    searchPath = authorizePath(options?.path ?? ".", "fs.glob", { principal: PRINCIPAL });
+  } catch (err: unknown) {
     return {
       success: false,
-      error: safety.error,
+      error: deniedMessage(err),
       searched: 0,
       matched: 0,
     };
@@ -220,11 +169,13 @@ export async function searchFiles(
 
   async function scan(dir: string): Promise<void> {
     if (results.length >= maxResults) return;
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    // 逐项判定：safeReadDir 会剔除无权访问的条目（.env / .git / 数据库……），
+    // 旧实现对 root 过检后直接回显子项内容，构成 L2 外泄通道。
+    const entries = await safeReadDir(dir, { principal: PRINCIPAL });
     for (const entry of entries) {
       if (results.length >= maxResults) break;
       const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
+      if (entry.type === "directory") {
         if (
           entry.name === "node_modules" ||
           entry.name === ".git" ||
@@ -234,7 +185,7 @@ export async function searchFiles(
           continue;
         }
         await scan(fullPath);
-      } else if (entry.isFile()) {
+      } else if (entry.type === "file") {
         // Skip binary files
         const ext = path.extname(entry.name).toLowerCase();
         const binaryExts = [
@@ -260,7 +211,7 @@ export async function searchFiles(
         if (binaryExts.includes(ext)) continue;
 
         try {
-          const content = await fs.readFile(fullPath, "utf-8");
+          const content = (await safeReadFile(fullPath, { principal: PRINCIPAL })).toString("utf-8");
           const lines = content.split("\n");
           for (let i = 0; i < lines.length; i++) {
             if (regex.test(lines[i])) {
@@ -282,7 +233,7 @@ export async function searchFiles(
   try {
     const stat = await fs.stat(searchPath);
     if (stat.isFile()) {
-      const content = await fs.readFile(searchPath, "utf-8");
+      const content = (await safeReadFile(searchPath, { principal: PRINCIPAL })).toString("utf-8");
       const lines = content.split("\n");
       for (let i = 0; i < lines.length; i++) {
         if (regex.test(lines[i])) {
@@ -314,14 +265,8 @@ export async function searchFiles(
 }
 
 export async function deleteFile(filePath: string): Promise<FileResult> {
-  const resolved = resolvePath(filePath);
-  const safety = isPathSafe(resolved);
-  if (!safety.safe) {
-    return { success: false, error: safety.error, path: filePath };
-  }
-
   try {
-    await fs.unlink(resolved);
+    await safeRemove(filePath, { principal: PRINCIPAL });
     return { success: true, path: filePath };
   } catch (err: unknown) {
     return {
@@ -336,38 +281,8 @@ export async function moveFile(
   source: string,
   destination: string
 ): Promise<FileResult> {
-  const srcResolved = resolvePath(source);
-  const dstResolved = resolvePath(destination);
-  const srcSafety = isPathSafe(srcResolved);
-  const dstSafety = isPathSafe(dstResolved);
-  if (!srcSafety.safe) {
-    return { success: false, error: srcSafety.error, path: source };
-  }
-  if (!dstSafety.safe) {
-    return { success: false, error: dstSafety.error, path: destination };
-  }
-
   try {
-    const dir = path.dirname(dstResolved);
-    try {
-      await fs.mkdir(dir, { recursive: true });
-    } catch (err) {
-      // recursive mkdir 的 EEXIST 竞态可忽略；真实错误由后续 rename 显式返回
-      logger.debug("[Filesystem] mkdir before move failed, deferring to rename error", {
-        dir,
-        error: String(err),
-      });
-    }
-    const postDstSafety = isPathSafe(dstResolved);
-    if (!postDstSafety.safe) {
-      return { success: false, error: postDstSafety.error, path: destination };
-    }
-    // 源在重命名前再次校验，防止源在 check 后被替换为外链
-    const postSrcSafety = isPathSafe(srcResolved);
-    if (!postSrcSafety.safe) {
-      return { success: false, error: postSrcSafety.error, path: source };
-    }
-    await fs.rename(srcResolved, dstResolved);
+    await safeMove(source, destination, { principal: PRINCIPAL });
     return { success: true, path: destination };
   } catch (err: unknown) {
     return {
@@ -379,10 +294,8 @@ export async function moveFile(
 }
 
 export async function fileExists(filePath: string): Promise<boolean> {
-  const resolved = resolvePath(filePath);
-  const safety = isPathSafe(resolved);
-  if (!safety.safe) return false;
   try {
+    const resolved = authorizePath(filePath, "fs.read", { principal: PRINCIPAL });
     await fs.access(resolved);
     return true;
   } catch {

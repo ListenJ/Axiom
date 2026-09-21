@@ -11,6 +11,7 @@ export const DEFAULT_STEP_TIMEOUT_MS = 120_000;
 export function registerOrchestratorTools(registry: ToolRegistry): void {
   registry.add({
     name: "orchestrator_execute_task",
+    capability: ["net.outbound"],
     description: "执行单个 Agent 任务",
     inputSchema: {
       type: z.string().describe("任务类型 (如 code-generation, research, analysis)"),
@@ -37,6 +38,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "orchestrator_execute_plan",
+    capability: ["net.outbound"],
     description: "执行编排计划 (串行/并行/DAG)",
     inputSchema: {
       name: z.string().describe("计划名称"),
@@ -98,6 +100,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "orchestrator_list_agents",
+    capability: ["internal"],
     description: "列出所有注册的 Agent",
     inputSchema: {},
     handler: async () => {
@@ -114,6 +117,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "orchestrator_health_check",
+    capability: ["internal"],
     description: "检查所有 Agent 健康状态",
     inputSchema: {},
     handler: async () => {
@@ -125,6 +129,7 @@ export function registerOrchestratorTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "orchestrator_status",
+    capability: ["internal"],
     description: "获取编排器状态",
     inputSchema: {},
     handler: async () => {

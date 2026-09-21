@@ -15,6 +15,7 @@ import {
 export function registerTokenTools(registry: ToolRegistry): void {
   registry.add({
     name: "token_stats",
+    capability: ["internal"],
     description: "获取总体 token 使用统计（调用次数、token 消耗、成功率、延迟）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -33,6 +34,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "token_stats_by_model",
+    capability: ["internal"],
     description: "按模型统计 token 使用情况",
     inputSchema: {
       since: z.number().optional().describe("起始时间戳（毫秒）"),
@@ -50,6 +52,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "token_stats_by_role",
+    capability: ["internal"],
     description: "按角色统计 token 使用情况",
     inputSchema: {
       since: z.number().optional().describe("起始时间戳（毫秒）"),
@@ -67,6 +70,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "token_daily_stats",
+    capability: ["internal"],
     description: "按天统计 token 使用情况",
     inputSchema: {
       days: z.number().optional().default(7).describe("最近多少天"),
@@ -80,6 +84,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "rate_tier_status",
+    capability: ["internal"],
     description: "DeepSeek 峰谷调度状态：当前峰/谷、高峰窗口、V4 实时单价（USD）与 CNY 汇率（成本优化决策用）",
     inputSchema: {},
     handler: async () => {
@@ -109,6 +114,7 @@ export function registerTokenTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cache_stats",
+    capability: ["internal"],
     description: "缓存优化全景：LLM 响应缓存 / 语义搜索 / 爬虫缓存命中率与规模，提示词优化器命中与闸门指标，以及按日的 prompt-cache token 命中（DeepSeek prompt_cache_hit_tokens）",
     inputSchema: {
       days: z.number().optional().default(7).describe("最近多少天的 prompt-cache 聚合"),

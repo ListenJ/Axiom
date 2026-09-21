@@ -6,8 +6,7 @@
  */
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
-import { dirname, resolve } from "node:path";
-import { isPathSafe } from "../utils/path-safety.js";
+import * as safeFs from "../utils/safe-fs.js";
 
 export interface WriteInput {
   target: "file" | "memory";
@@ -26,6 +25,7 @@ export interface WriteOutput {
 export const writeTool: Tool<WriteInput, WriteOutput> = {
   name: "write",
   description: "写入文件或记忆库",
+  capability: ["fs.write"],
   consumesModelToken: false,
 
   validate(input: WriteInput): string | null {
@@ -45,20 +45,12 @@ export const writeTool: Tool<WriteInput, WriteOutput> = {
 
     switch (target) {
       case "file": {
-        // P0-1 路径围栏（审计 N-H1，2026-08-29）：与 mcp/tools/filesystem.ts 同一守卫，
-        // 相对路径按 cwd 解析，仅允许 cwd 内且不落敏感区域（.env/.git 等），防任意写。
-        const resolved = resolve(process.cwd(), path);
-        const safety = isPathSafe(resolved);
-        if (!safety.safe) throw new Error(safety.error);
-        const fs = await import("fs/promises");
-        // 自动创建父目录
-        const dir = dirname(resolved);
-        if (dir) await fs.mkdir(dir, { recursive: true }).catch(() => {});
-        if (append) {
-          await fs.appendFile(resolved, content, "utf-8");
-        } else {
-          await fs.writeFile(resolved, content, "utf-8");
-        }
+        // safeFs 在实际写盘前做越界 / 逐跳锚点 / realpath 判定（S3 / I2），
+        // 旧实现在这里直接 fs.writeFile，提权锚点（shell rc、git hook、cron）无防线。
+        await safeFs.writeFile(path, content, {
+          append,
+          principal: `tool:${this.name}`,
+        });
         bytesWritten = Buffer.byteLength(content, "utf-8");
         break;
       }

@@ -24,6 +24,7 @@ import { registerShutdownHook, setupGracefulShutdown } from "./utils/graceful-sh
 import { createSecurityHeaders } from "./utils/security.js";
 import { createRateLimitMiddleware, apiLimiter } from "./utils/rate-limiter.js";
 import { isLocalAddress, checkApiKey } from "./utils/auth-check.js";
+import { bypassExposureWarning, localBypassEnabled } from "./utils/security-defaults.js";
 import { auditLogger } from "./utils/audit-logger.js";
 import { getTrafficClassifier, type TrafficFeatures } from "./utils/traffic-classifier.js";
 import { metrics } from "./utils/metrics.js";
@@ -621,11 +622,13 @@ async function isStaticAsset(pathname: string): Promise<boolean> {
 }
 
 const API_KEY = readString("AXIOM_AUTH_TOKEN");
+const BIND_HOST = readString("HOST", "127.0.0.1");
 
-// Local (loopback) requests skip auth for E2E tests and local development.
-// Set AXIOM_ALLOW_LOCAL_BYPASS=0 when a reverse proxy runs on the same host,
-// otherwise all proxied traffic appears to originate from 127.0.0.1.
-const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
+// Loopback auth bypass is OFF by default (S3 / S-6, closes L6): any local process
+// — including one an agent planted — would otherwise get every API for free, and a
+// same-host reverse proxy makes proxied traffic look like 127.0.0.1.
+// Set AXIOM_ALLOW_LOCAL_BYPASS=1 explicitly only when you accept that risk locally.
+const ALLOW_LOCAL_BYPASS = localBypassEnabled(process.env);
 // Optional: trust X-Forwarded-* headers from a reverse proxy that terminates TLS
 // and is co-located on loopback (e.g., nginx on 127.0.0.1). When enabled, the
 // LAST X-Forwarded-For entry is used as the effective remote address for
@@ -633,9 +636,27 @@ const ALLOW_LOCAL_BYPASS = readBool("AXIOM_ALLOW_LOCAL_BYPASS", true);
 // 伪造面与部署前提：XFF 末项由"紧邻的可信反向代理"追加（客户端可控的是前面的项），
 // 因此仅在"恰好一层可信代理且其总是追加 socket peer 到 XFF 末尾"的部署下成立；
 // 多层代理需由最外层代理重写 XFF，否则不得开启本开关。
+// 注意：开启本开关后 isLocal 判定输入变成请求头，因此它和 ALLOW_LOCAL_BYPASS
+// 组合使用时等于把"谁能免鉴权"交给请求头 —— 只在代理确实重写 XFF 时启用。
 const TRUST_PROXY_HEADERS = readBool("TRUST_PROXY_HEADERS", false);
 
-logger.info("[SERVER] Auth relaxed for localhost/127.0.0.1 — starting...");
+logger.info(
+  ALLOW_LOCAL_BYPASS
+    ? "[SERVER] AXIOM_ALLOW_LOCAL_BYPASS=1 — localhost/127.0.0.1 requests skip auth (security-relevant)"
+    : "[SERVER] All requests require auth, including localhost",
+);
+
+const bypassWarning = bypassExposureWarning(ALLOW_LOCAL_BYPASS, BIND_HOST);
+if (bypassWarning) {
+  logger.warn(`[SERVER] ${bypassWarning}`);
+  auditLogger.log({
+    event: "security.alert",
+    actor: "gateway",
+    resource: "auth.loopback_bypass",
+    outcome: "allowed",
+    reason: bypassWarning,
+  });
+}
 
 // SPA route whitelist — module-level Set avoids per-request allocation.
 const SPA_ROUTES = new Set([
@@ -649,7 +670,7 @@ const SPA_INDEX_FILE = Bun.file(`${STATIC_ROOT}/index.html`);
 
 const server = Bun.serve({
   port,
-  hostname: readString("HOST", "127.0.0.1"),
+  hostname: BIND_HOST,
   async fetch(req, server) {
     const startTime = performance.now();
     const url = new URL(req.url);

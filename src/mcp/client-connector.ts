@@ -169,6 +169,8 @@ export async function connectExternalMcpServers(
           name: `mcp_${name}_${tool.name}`,
           description: `[${name}] ${tool.description ?? tool.name}`,
           inputSchema: tool.inputSchema ?? {},
+          // 名字带了前缀，能力不变：守卫按 capability 判定，改名/包装不会脱管（S3 / L5）
+          capability: ["mcp.external"],
           handler: async (args) => connected.callTool({ name: tool.name, arguments: args }),
           tags: ["external-mcp", name],
         });

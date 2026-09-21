@@ -1,83 +1,95 @@
 /**
- * 审计 C-3 / C-4 / 整改 R2 Task 2.5 —— 权限硬底线接线 + 双层复核降级可见性
+ * 审计 C-3 / C-4 —— 权限硬底线接线 + 双层复核降级可见性（R1 能力口径）
  *
  * 修复前：
  *   - permissions.ts 的 HIGH_RISK_PATTERNS 硬底线全仓零调用方（死代码）；
  *   - 边缘初筛降级/失败时双层复核整体旁路且无任何痕迹（双重 fail-open）。
  *
- * 修复后契约：
+ * 修复后契约（R1 之后判据从"工具名"换成"声明能力"）：
  *   1. ToolRegistry 默认守卫在复核前执行硬底线：高危命令/敏感路径直接拒绝；
- *   2. 初筛降级时计数器递增并写审计事件；EDGE_RISK_FAIL_CLOSED=1 时升级审批。
+ *   2. 初筛降级时计数器递增并写审计事件；降级处置按能力分档 ——
+ *      特权能力（proc.exec / fs.write / …）一律升级审批，其余由 EDGE_RISK_FAIL_CLOSED 决定；
+ *   3. 只读档位（fs.read）不进概率层，因此"离线可用性"不再依赖降级放行这条路径。
  */
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { ToolRegistry } from "../../src/mcp/tool-registry.js";
 import {
-  monitorToolPayload,
+  screenToolCall,
+  resetSequences,
   getDegradedBypassCount,
   resetDegradedBypassCount,
+  type RiskMonitorDeps,
 } from "../../src/agents/risk-monitor.js";
+import type { Capability } from "../../src/utils/permissions.js";
+
+function probe(capability: readonly Capability[], name = "hardfloor_probe") {
+  const registry = new ToolRegistry(); // 默认守卫
+  const state = { executed: false };
+  registry.add({
+    name,
+    description: "probe",
+    inputSchema: {},
+    capability,
+    handler: async () => {
+      state.executed = true;
+      return { ok: true };
+    },
+  });
+  const wrapped = (
+    registry as unknown as { tools: Array<{ handler: (a: Record<string, unknown>) => Promise<unknown> }> }
+  ).tools[0];
+  expect(wrapped).toBeDefined();
+  return { run: (args: Record<string, unknown>) => wrapped!.handler(args), state };
+}
 
 describe("ToolRegistry 权限硬底线（C-3）", () => {
-  test("command 字段命中 HIGH_RISK_PATTERNS 直接拒绝执行", async () => {
-    const registry = new ToolRegistry(); // 默认守卫
-    let executed = false;
-    registry.add({
-      name: "hardfloor_probe",
-      description: "probe",
-      inputSchema: {},
-      handler: async () => {
-        executed = true;
-        return { ok: true };
-      },
-    } as any);
+  // 概率层与初筛端点无关：本组只锁确定性硬底线，关掉概率层以免测试触达真实边缘模型
+  beforeAll(() => {
+    process.env.EDGE_RISK_MONITOR = "0";
+  });
+  afterAll(() => {
+    delete process.env.EDGE_RISK_MONITOR;
+  });
+  beforeEach(() => resetSequences());
 
-    const meta = registry.getToolsMeta()[0];
-    const wrapped = (registry as unknown as { tools: Array<{ handler: (a: any) => Promise<unknown> }> }).tools[0];
-    expect(wrapped).toBeDefined();
-
+  test("声明 proc.exec 的工具，command 命中硬底线直接拒绝执行", async () => {
+    const { run, state } = probe(["proc.exec"]);
     let err: Error | null = null;
     try {
-      await wrapped.handler({ command: "rm -rf /", _meta: meta });
+      await run({ command: "rm -rf /" });
     } catch (e) {
       err = e as Error;
     }
     expect(err).not.toBeNull();
     expect(String(err!.message)).toContain("High-risk operation detected");
-    expect(executed).toBe(false);
+    expect(state.executed).toBe(false);
   });
 
-  test("敏感路径删除被拒绝，普通命令放行", async () => {
-    const registry = new ToolRegistry();
-    registry.add({
-      name: "hardfloor_probe_delete",
-      description: "probe",
-      inputSchema: {},
-      handler: async () => ({ ok: true }),
-    } as any);
-    const wrapped = (registry as unknown as { tools: Array<{ handler: (a: any) => Promise<unknown> }> }).tools[0];
-
-    // 工具名含 delete → path 字段按 delete 语义过闸
-    await expect(
-      wrapped.handler({ path: "/etc/shadow" }),
-    ).rejects.toThrow(/HardFloor/);
+  test("操作类型由声明能力推导（fs.delete 声明下 path 按 delete 语义过闸）", async () => {
+    const { run, state } = probe(["fs.delete"], "hardfloor_probe_delete");
+    await expect(run({ path: "/etc/shadow" })).rejects.toThrow(/HardFloor/);
+    expect(state.executed).toBe(false);
   });
 
-  test("普通负载不受影响（不触网：非监视工具名）", async () => {
-    const registry = new ToolRegistry();
-    registry.add({
-      name: "hardfloor_probe3",
-      description: "probe",
-      inputSchema: {},
-      handler: async () => ({ ok: true }),
-    } as any);
-    const wrapped = (registry as unknown as { tools: Array<{ handler: (a: any) => Promise<unknown> }> }).tools[0];
-    const r = await wrapped.handler({ command: "ls -la" });
-    expect(r).toEqual({ ok: true });
+  test("改名不影响过闸：同一 proc.exec 声明换成任意名字照样拒绝", async () => {
+    const { run } = probe(["proc.exec"], "mcp_github_whatever_wrapper");
+    await expect(run({ command: "DROP TABLE users" })).rejects.toThrow(/HardFloor/);
+  });
+
+  test("安全负载正常执行（未被守卫误伤）", async () => {
+    const { run, state } = probe(["proc.exec"], "hardfloor_probe3");
+    expect(await run({ command: "ls -la" })).toEqual({ ok: true });
+    expect(state.executed).toBe(true);
   });
 });
 
-describe("风险初筛降级可见性与可选 fail-closed（C-4）", () => {
+describe("风险初筛降级可见性与分档处置（C-4）", () => {
   const origFailClosed = process.env.EDGE_RISK_FAIL_CLOSED;
+
+  const degradedLow = (over: Partial<RiskMonitorDeps> = {}): RiskMonitorDeps => ({
+    screen: async () => ({ risk: "low" as const, degraded: true }),
+    ...over,
+  });
 
   beforeEach(() => {
     resetDegradedBypassCount();
@@ -88,48 +100,61 @@ describe("风险初筛降级可见性与可选 fail-closed（C-4）", () => {
     else process.env.EDGE_RISK_FAIL_CLOSED = origFailClosed;
   });
 
-  test("降级时高危工具默认升级审批（审计修复：此处原为 fail-open）", async () => {
+  test("降级 + 特权能力 → 升级审批并计数（审计修复：此处原为 fail-open）", async () => {
     // ⚠️ 行为变更说明（审计 A 配套修复，非测试写错）：
-    // 本用例原先断言 `verdict === "pass"`，即 C-4 决策「降级默认 fail-open 以不阻断离线环境」。
-    // 实测该默认导致 `/mcp/scene` 注入的 terminal_exec 调用被一路放行（命令真实执行，
-    // 日志中可见 failClosed:false）—— 防护在最需要时（离线/模型不可达）恰好失效。
-    // 现改为：**降级 + 高危工具 ⇒ 强制审批**；离线可用性由「非高危工具仍放行」保证（见下一用例）。
+    // 本用例原先断言 verdict === "pass"，即 C-4 决策「降级默认 fail-open 以不阻断离线环境」。
+    // 实测该默认导致注入的 terminal_exec 调用被一路放行（命令真实执行）——
+    // 防护在最需要时（离线/模型不可达）恰好失效。现按能力分档，离线可用性另由只读豁免保证。
     const before = getDegradedBypassCount();
-    const verdict = await monitorToolPayload("terminal_exec", { command: "ls" }, {
-      screen: async () => ({ risk: "low", degraded: true }),
-    });
+    const verdict = await screenToolCall(
+      { capabilities: ["proc.exec"], args: { command: "ls" } },
+      degradedLow(),
+    );
     expect(verdict).toBe("require-approval");
     expect(getDegradedBypassCount()).toBe(before + 1);
   });
 
-  test("降级时非高危工具仍放行（保留离线可用性）", async () => {
-    const verdict = await monitorToolPayload("fs_read", { path: "x" }, {
-      screen: async () => ({ risk: "low", degraded: true }),
-    });
+  test("只读档位根本不进概率层：不初筛、不计数、不受降级影响", async () => {
+    let screened = 0;
+    const before = getDegradedBypassCount();
+    const verdict = await screenToolCall(
+      { capabilities: ["fs.read"], args: { path: "x" } },
+      degradedLow({
+        screen: async () => {
+          screened++;
+          return { risk: "low" as const, degraded: true };
+        },
+      }),
+    );
     expect(verdict).toBe("pass");
+    expect(screened).toBe(0);
+    expect(getDegradedBypassCount()).toBe(before);
   });
 
-  test("EDGE_RISK_FAIL_CLOSED=1 时降级即升级审批", async () => {
+  test("非特权能力默认 fail-open，EDGE_RISK_FAIL_CLOSED=1 时一律升级", async () => {
+    const globCall = { capabilities: ["fs.glob"] as const, args: { pattern: "**/*.env" } };
+    expect(await screenToolCall(globCall, degradedLow())).toBe("pass");
     process.env.EDGE_RISK_FAIL_CLOSED = "1";
-    const verdict = await monitorToolPayload("terminal_exec", { command: "ls" }, {
-      screen: async () => ({ risk: "low", degraded: true }),
-    });
-    expect(verdict).toBe("require-approval");
+    expect(await screenToolCall(globCall, degradedLow())).toBe("require-approval");
   });
 
-  test("screen 抛异常在 fail-closed 下同样升级", async () => {
+  test("screen 抛异常与 degraded 同源处置：两种失败方式都不能用来绕过", async () => {
+    const throwing = { screen: async () => { throw new Error("edge down"); } };
+    expect(await screenToolCall({ capabilities: ["proc.exec"], args: { command: "ls" } }, throwing)).toBe(
+      "require-approval",
+    );
     process.env.EDGE_RISK_FAIL_CLOSED = "1";
-    const verdict = await monitorToolPayload("terminal_exec", { command: "ls" }, {
-      screen: async () => { throw new Error("edge down"); },
-    });
-    expect(verdict).toBe("require-approval");
+    expect(await screenToolCall({ capabilities: ["fs.glob"], args: { pattern: "*" } }, throwing)).toBe(
+      "require-approval",
+    );
   });
 
   test("非降级的正常 low 不计数", async () => {
     const before = getDegradedBypassCount();
-    await monitorToolPayload("terminal_exec", { command: "ls" }, {
-      screen: async () => ({ risk: "low", degraded: false }),
-    });
+    await screenToolCall(
+      { capabilities: ["proc.exec"], args: { command: "ls" } },
+      { screen: async () => ({ risk: "low" as const, degraded: false }) },
+    );
     expect(getDegradedBypassCount()).toBe(before);
   });
 });

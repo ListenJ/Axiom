@@ -58,6 +58,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   // ── MiniMax ──────────────────────────────────────────────────────
   registry.add({
     name: "minimax_web_search",
+    capability: ["net.outbound"],
     description: "MiniMax 网络搜索（实时搜索结果，支持中文优化）",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -86,6 +87,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "minimax_image_understand",
+    capability: ["net.outbound"],
     description: "MiniMax 图像识别（分析图像内容，支持 URL 或 base64）",
     inputSchema: {
       image: z.string().describe("图像 URL 或 base64 编码数据"),
@@ -108,6 +110,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "minimax_health",
+    capability: ["net.outbound"],
     description: "检查 MiniMax API 连接状态",
     inputSchema: {},
     handler: async () => {
@@ -127,6 +130,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   // ── File System ──────────────────────────────────────────────────
   registry.add({
     name: "fs_read",
+    capability: ["fs.read"],
     description: "读取文件内容（支持偏移和限制）",
     inputSchema: {
       path: z.string().describe("文件路径"),
@@ -142,6 +146,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_write",
+    capability: ["fs.write"],
     description: "写入或追加文件内容",
     inputSchema: {
       path: z.string().describe("文件路径"),
@@ -156,6 +161,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_list",
+    capability: ["fs.read"],
     description: "列出目录内容",
     inputSchema: {
       path: z.string().optional().describe("目录路径，默认当前目录"),
@@ -165,6 +171,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_search",
+    capability: ["fs.glob", "fs.read"],
     description: "在文件中搜索内容",
     inputSchema: {
       query: z.string().describe("搜索关键词或正则表达式"),
@@ -180,6 +187,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_delete",
+    capability: ["fs.delete"],
     description: "删除文件（仅支持单文件 unlink；不支持目录）",
     inputSchema: {
       path: z.string().describe("要删除的路径"),
@@ -189,6 +197,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "fs_move",
+    capability: ["fs.delete", "fs.write"],
     description: "移动或重命名文件",
     inputSchema: {
       source: z.string().describe("源路径"),
@@ -201,6 +210,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   // ── Terminal ─────────────────────────────────────────────────────
   registry.add({
     name: "terminal_exec",
+    capability: ["proc.exec"],
     description: "执行终端命令（有安全检查）",
     inputSchema: {
       command: z.string().describe("要执行的命令"),
@@ -216,6 +226,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "terminal_list",
+    capability: ["proc.exec"],
     description: "列出当前进程",
     inputSchema: {},
     handler: async () => listProcesses(),
@@ -223,6 +234,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "terminal_info",
+    capability: ["proc.exec"],
     description: "获取系统信息",
     inputSchema: {},
     handler: async () => getSystemInfo(),
@@ -231,6 +243,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   // ── Git ───────────────────────────────────────────────────────────
   registry.add({
     name: "git_status",
+    capability: ["proc.exec"],
     description: "获取 Git 仓库状态",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径，默认当前目录"),
@@ -240,6 +253,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "git_diff",
+    capability: ["proc.exec"],
     description: "获取 Git diff",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -257,6 +271,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "git_log",
+    capability: ["proc.exec"],
     description: "获取 Git 提交历史",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -272,6 +287,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "git_branch",
+    capability: ["proc.exec"],
     description: "获取 Git 分支信息",
     inputSchema: {
       repoPath: z.string().optional().describe("仓库路径"),
@@ -281,6 +297,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "git_blame",
+    capability: ["proc.exec"],
     description: "获取文件 Git blame 信息",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -293,6 +310,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
   // ── Code Analysis ────────────────────────────────────────────────
   registry.add({
     name: "code_symbols",
+    capability: ["fs.read"],
     description: "查找代码中的符号（函数、类、接口等）",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -315,6 +333,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_references",
+    capability: ["fs.glob", "fs.read"],
     description: "查找符号引用",
     inputSchema: {
       symbol: z.string().describe("符号名称"),
@@ -326,6 +345,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_diagnostics",
+    capability: ["proc.exec", "fs.read"],
     description: "获取 TypeScript 诊断信息",
     inputSchema: {
       filePath: z.string().optional().describe("指定文件路径，默认全项目"),
@@ -335,6 +355,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_outline",
+    capability: ["fs.read"],
     description: "获取文件代码大纲",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -344,6 +365,7 @@ export function registerExternalTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_analyze",
+    capability: ["fs.read"],
     description: "分析代码复杂度、依赖和 TODO",
     inputSchema: {
       filePath: z.string().describe("文件路径"),

@@ -11,6 +11,7 @@ import { readString } from "../../utils/env.js";
 export function registerDocumentTools(registry: ToolRegistry): void {
   registry.add({
     name: "knowledge_ingest_document",
+    capability: ["fs.read", "net.outbound"],
     description: "摄取文档/网页：URL 或本地文件 → 按类型路由（HTML→Markdown / PDF→pdf-worker / 图片→OCR+排版框架），返回规范化 Markdown 与布局信息",
     exposure: ["external", "safe-external"],
     inputSchema: {

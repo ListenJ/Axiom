@@ -52,8 +52,8 @@ Omini（`${LAN_NODE_N1}:/home/listen/Omini`，CUDA 推理引擎，克隆于 `.tm
 
 ### 端口设计与用户回退余地（答案）
 
-- 网关默认 `127.0.0.1:18789`（`HOST`/`AXIOM_GATEWAY_PORT` 可改）；**回环豁免**（`AXIOM_ALLOW_LOCAL_BYPASS`，默认开）就是给用户的回退通道——token 丢失时本机永远可进，远程未配 token 时敏感路由 503 fail-closed，无后门
-- MCP 现在同样：回环默认可用，远程必须 token
+- 网关默认 `127.0.0.1:18789`（`HOST`/`AXIOM_GATEWAY_PORT` 可改）；**回环豁免**（`AXIOM_ALLOW_LOCAL_BYPASS`）默认**关闭**——本机请求同样要带 token（S3 / L6：任何本机进程与同主机反向代理都不再免鉴权）。需要本机免 token 调试时显式设 `=1` 并承担该风险；token 丢失的恢复路径是直接改 `.env` 里的 `AXIOM_AUTH_TOKEN`（文件属主即本机用户）。远程未配 token 时敏感路由 503 fail-closed
+- MCP 现在同样：远程必须 token；回环豁免与网关共用同一开关，默认不放行本机
 - 端口被占用=启动即崩（fail-fast），换端口即可；token 比较为常量时间
 
 ### 残留风险（未修，需决策）

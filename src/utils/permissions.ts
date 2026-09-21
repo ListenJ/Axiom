@@ -91,6 +91,60 @@ export type Capability =
   | "db.write"
   | "mcp.external";
 
+// ─── 能力 → 参数负载取法（判定与复核的唯一一份表）───────────────────────────
+//
+// 这张表原本存在两份：permission-middleware 按**工具名**查表挑字段
+// （command/script/cmd/code/args），risk-monitor 按**能力**挑字段
+// （command/script/cmd）。两份清单不一致，且按名字的那份未登记即不检查 ——
+// G1 类缺陷的成因就是"多一份清单"。现在判定（本文件）与复核（risk-monitor）
+// 读同一个 CAPABILITY_PAYLOAD，新增字段只需改这一处。
+
+export type CapabilityPayloadKind = "command" | "path" | "url";
+
+export interface CapabilityPayloadSpec {
+  readonly kind: CapabilityPayloadKind;
+  readonly fields: readonly string[];
+}
+
+/**
+ * `internal` 刻意不在表内：纯计算/状态查询没有外部副作用，不进入判定与初筛。
+ */
+export const CAPABILITY_PAYLOAD: Readonly<Partial<Record<Capability, CapabilityPayloadSpec>>> = {
+  "proc.exec": { kind: "command", fields: ["command", "script", "cmd", "code", "args"] },
+  "db.write": { kind: "command", fields: ["sql", "query", "statement"] },
+  "fs.read": {
+    kind: "path",
+    fields: ["path", "file", "filePath", "directory", "dir", "projectPath", "repoPath"],
+  },
+  "fs.write": {
+    kind: "path",
+    fields: ["path", "file", "filePath", "destination", "dest", "target", "directory", "dir"],
+  },
+  "fs.delete": { kind: "path", fields: ["path", "file", "filePath", "directory", "dir"] },
+  "fs.glob": { kind: "path", fields: ["pattern", "path", "projectPath", "dir"] },
+  "cfg.write": { kind: "path", fields: ["path", "key", "filePath"] },
+  "net.outbound": { kind: "url", fields: ["url", "href", "target", "endpoint"] },
+  // 外部 MCP 工具的参数形状由远端决定：先按常见字段取，取不到由调用方整体序列化
+  "mcp.external": { kind: "path", fields: ["url", "command", "path", "file"] },
+};
+
+/** 取某一次调用里指定能力的负载；没有对应字段则返回 null（不猜测）。 */
+export function payloadForCapability(
+  capability: Capability,
+  args: unknown,
+): { kind: CapabilityPayloadKind; payload: string } | null {
+  const spec = CAPABILITY_PAYLOAD[capability];
+  if (!spec || typeof args !== "object" || args === null) return null;
+  const record = args as Record<string, unknown>;
+  for (const field of spec.fields) {
+    const value = record[field];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return { kind: spec.kind, payload: value.trim() };
+    }
+  }
+  return null;
+}
+
 export interface ExecutionAnchor {
   readonly pattern: RegExp;
   readonly label: string;

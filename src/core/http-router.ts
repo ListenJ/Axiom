@@ -3,7 +3,7 @@
  *
  * 替代 routes/index.ts 的线性 handler 数组，采用：
  *   - 前缀树 (Trie) 路由匹配 — O(path深度) 而非 O(n)
- *   - 请求级缓存 — 相同 GET 请求自动缓存
+ *   - 请求级缓存 — 仅显式声明 meta.cacheable 的 GET，按调用方身份分桶
  *   - 性能分析中间件 — 自动收集延迟/吞吐量数据
  *   - 热点检测 — 自动识别高频端点并预加载
  */
@@ -11,6 +11,7 @@
 import { logger } from "../utils/logger.js";
 import type { RouteContext, RouteHandler } from "../routes/types.js";
 import { Cache } from "../utils/cache.js";
+import { createHash } from "node:crypto";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -22,11 +23,18 @@ export interface RouteRecord {
   handler: RouteHandler;
   meta?: {
     description?: string;
+    /** 必须显式置 true 才进响应缓存（S3 / I3：默认不缓存） */
     cacheable?: boolean;
     cacheTtlMs?: number;
     tags?: string[];
   };
 }
+
+/**
+ * 身份维度提取器（S3 / I3）：缓存键必须含调用方身份，否则不同 principal
+ * 互相取回对方可见的响应。默认实现按凭证派生，生产可注入真实的已认证主体。
+ */
+export type PrincipalOf = (ctx: { req: Request }) => string;
 
 export interface PerfMetrics {
   totalRequests: number;
@@ -108,6 +116,18 @@ class RingBuffer<T> {
 // 高性能路由引擎
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * 默认身份维度：由凭证头派生，无凭证归入 anonymous 分桶。
+ * 用 SHA-256 截断而非非加密哈希 —— 参与键值的凭证由调用方选择，
+ * 可造碰撞的哈希等于让攻击者挤进别人的缓存分桶。原文凭证不入键，
+ * 避免凭证随诊断输出/键快照外泄。
+ */
+const defaultPrincipal: PrincipalOf = (ctx) => {
+  const credential = ctx.req.headers.get("authorization") ?? ctx.req.headers.get("x-api-key");
+  if (!credential) return "anonymous";
+  return `cred:${createHash("sha256").update(credential).digest("hex").slice(0, 16)}`;
+};
+
 export class HttpRouter {
   private root = new Map<string, TrieNode>(); // method -> trie root
   private cache: Cache<Response>;
@@ -117,8 +137,14 @@ export class HttpRouter {
   private cacheHits = 0;
   private cacheMisses = 0;
   private readonly maxPerfEntries = 1000;
+  private readonly principalOf: PrincipalOf;
 
-  constructor(options?: { cacheMaxSize?: number; cacheTtlMs?: number }) {
+  constructor(options?: {
+    cacheMaxSize?: number;
+    cacheTtlMs?: number;
+    principalOf?: PrincipalOf;
+  }) {
+    this.principalOf = options?.principalOf ?? defaultPrincipal;
     this.cache = new Cache<Response>({
       namespace: "router_cache",
       maxSize: options?.cacheMaxSize ?? 200,
@@ -221,21 +247,10 @@ export class HttpRouter {
     const { req, url } = ctx;
     const method = req.method;
     const pathname = url.pathname;
-    const cacheKey = `${method}:${pathname}:${url.search}`;
 
-    // Step 1: 尝试缓存 (仅 GET 请求)
-    if (method === "GET") {
-      const cached = await this.cache.get(cacheKey);
-      if (cached) {
-        this.cacheHits++;
-        // Response 的 body 是一次性流：返回 clone()，否则调用方消费后
-        // 缓存中的原始对象即失效，同一路径的后续请求会抛
-        // `TypeError: Body already used`（经主请求路径的 catch 转成 500）
-        return cached.clone();
-      }
-    }
-
-    // Step 2: 路由匹配
+    // Step 1: 路由匹配。缓存查询必须排在匹配之后（S3 / I3）：
+    // 匹配前查缓存会让缓存成为鉴权之外的第二条通道 —— 未授权方凭 URL 即可取回
+    // 上一位调用方的响应，且路由是否存在本身也成了可探测的信息。
     const matched = this.match(method, pathname);
     if (!matched) {
       this.cacheMisses++;
@@ -244,6 +259,20 @@ export class HttpRouter {
 
     const { record, params } = matched;
     const endpointKey = `${method} ${record.path}`;
+    // 只有显式声明 cacheable 的 GET 才缓存；键含身份维度（不同 principal 互不取回）。
+    const cacheable = method === "GET" && record.meta?.cacheable === true;
+    const cacheKey = `${method}:${pathname}:${url.search}#${this.principalOf(ctx)}`;
+
+    if (cacheable) {
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        this.cacheHits++;
+        // Response 的 body 是一次性流：返回 clone()，否则本次消费后缓存中的
+        // 原始对象即失效，TTL 内的后续请求会抛 `TypeError: Body already used`
+        // （经主请求路径的 catch 转成 500）。写入侧同样存 clone()。
+        return cached.clone();
+      }
+    }
 
     // 将路径参数注入 URL (供 handler 使用)
     if (Object.keys(params).length > 0) {
@@ -252,7 +281,7 @@ export class HttpRouter {
       }
     }
 
-    // Step 3: 执行 handler 并计时
+    // Step 2: 执行 handler 并计时
     const startTime = performance.now();
     let error = false;
 
@@ -265,7 +294,7 @@ export class HttpRouter {
       this.requestCounts.set(endpointKey, (this.requestCounts.get(endpointKey) || 0) + 1);
 
       // 缓存响应
-      if (method === "GET" && response && record.meta?.cacheable !== false && response.status < 400) {
+      if (cacheable && response && response.status < 400) {
         const ttl = record.meta?.cacheTtlMs ?? 30 * 1000;
         // 存 clone()：原对象要把 body 流交给本次调用方，缓存必须持有未消费的副本
         this.cache.set(cacheKey, response.clone(), ttl);

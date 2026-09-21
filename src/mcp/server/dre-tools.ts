@@ -50,6 +50,7 @@ export function getKernelInstance(): Kernel | null {
 export function registerDreTools(registry: ToolRegistry): void {
   registry.add({
     name: "dre_constraint_inject",
+    capability: ["internal"],
     description: "需求4：扫描文本命中实践手册错误记录 → 返回可插入 LLM 输入的 DRE 约束词（可追溯来源 id）；也可直接返回注入后的消息",
     inputSchema: {
       text: z.string().describe("用户/任务文本（LLM 将收到的输入）"),
@@ -71,6 +72,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_write_knowledge",
+    capability: ["db.write", "net.outbound", "fs.write"],
     description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理，需要本地 LLM 服务)",
     inputSchema: {
       title: z.string().describe("知识标题"),
@@ -117,6 +119,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_read_knowledge",
+    capability: ["internal"],
     description: "读取知识条目",
     inputSchema: {
       nodeId: z.string().describe("知识条目 ID"),
@@ -146,6 +149,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_search_knowledge",
+    capability: ["internal"],
     description: "搜索知识库",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -175,6 +179,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_subgraph",
+    capability: ["internal"],
     description: "知识图谱子图检索 (BFS)",
     inputSchema: {
       nodeId: z.string().describe("起始节点 ID"),
@@ -195,6 +200,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_consciousness_step",
+    capability: ["db.write", "net.outbound", "fs.write"],
     description: "意识流处理步骤 (三级降级: 本地LLM → 云API → 规则推理)",
     inputSchema: {
       observation: z.string().describe("观察内容"),
@@ -231,6 +237,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "dre_status",
+    capability: ["internal"],
     description: "获取 DRE 引擎状态",
     inputSchema: {},
     handler: async () => {
@@ -241,6 +248,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "resource_status",
+    capability: ["internal"],
     description: "获取系统资源预算状态 (可用内存、算力、是否可运行本地推理)",
     inputSchema: {},
     handler: async () => {
@@ -253,6 +261,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "persona_switch",
+    capability: ["internal"],
     description: "切换 Persona 模式 (plan/code/retrieve/reflect/audit/creative/general)",
     inputSchema: {
       mode: z.enum(["plan", "code", "retrieve", "reflect", "audit", "creative", "research", "general"]).describe("Persona 模式"),
@@ -272,6 +281,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "persona_status",
+    capability: ["internal"],
     description: "获取当前 Persona 状态和切换历史",
     inputSchema: {},
     handler: async () => {
@@ -288,6 +298,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "persona_list",
+    capability: ["internal"],
     description: "列出所有可用 Persona 模式",
     inputSchema: {},
     handler: async () => {
@@ -297,6 +308,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cognitive_state",
+    capability: ["internal"],
     description: "获取统一认知状态 (Persona + 意识流 + 推理 + 约束 + 目标 + 信念 + 资源 + Atom数据)",
     inputSchema: {},
     handler: async () => {
@@ -313,6 +325,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cognitive_pipeline_run",
+    capability: ["db.write", "net.outbound", "fs.write"],
     description: "运行认知管道 (含 LLM 降级链: L1确定→L2本地LLM→L3云→L4规则)",
     inputSchema: {
       input: z.string().describe("输入文本 (问题/任务描述)"),
@@ -332,6 +345,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cognitive_pipeline_run_full",
+    capability: ["db.write", "net.outbound", "fs.write"],
     description: "运行认知管道 + TaskGraph 执行 (含 LLM 降级链)",
     inputSchema: {
       input: z.string().describe("输入文本 (问题/任务描述)"),
@@ -353,6 +367,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "data_write",
+    capability: ["db.write"],
     description: "通过 DataUnifier 统一写入数据 (创建 Atom + 持久化到 KnowledgeStore)",
     inputSchema: {
       content: z.string().describe("数据内容"),
@@ -376,6 +391,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "data_search",
+    capability: ["internal"],
     description: "通过 DataUnifier 统一搜索 (Atom + KnowledgeStore)",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -396,6 +412,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "data_stats",
+    capability: ["internal"],
     description: "获取 DataUnifier / AtomEngine 统计信息",
     inputSchema: {},
     handler: async () => {
@@ -408,6 +425,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "data_persist",
+    capability: ["db.write"],
     description: "手动持久化所有 Atom 到 SQLite",
     inputSchema: {},
     handler: async () => {
@@ -420,6 +438,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mental_model_list",
+    capability: ["internal"],
     description: "列出所有心智模型 (Git冲突/代码重构等领域模型)",
     inputSchema: {},
     handler: async () => {
@@ -439,6 +458,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mental_model_match",
+    capability: ["internal"],
     description: "在心智模型中匹配模式 (观察→概念链→状态路径)",
     inputSchema: {
       modelId: z.string().describe("心智模型 ID (如 git-conflict, code-refactor)"),
@@ -457,6 +477,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "mental_model_predict",
+    capability: ["internal"],
     description: "基于心智模型预测下一步 (状态→触发→预测状态)",
     inputSchema: {
       modelId: z.string().describe("心智模型 ID"),
@@ -477,6 +498,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "reasoning_build",
+    capability: ["internal"],
     description: "构建推理图 (添加前提→推理→结论，自动检测空洞)",
     inputSchema: {
       premises: z.array(z.string()).describe("前提列表"),
@@ -517,6 +539,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "reasoning_detect_gaps",
+    capability: ["internal"],
     description: "检测推理图中的空洞 (缺失的推理步骤/前提/证据)",
     inputSchema: {},
     handler: async () => {
@@ -537,6 +560,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "reasoning_fill_gap",
+    capability: ["internal"],
     description: "用 LLM 结果填补推理图空洞",
     inputSchema: {
       gapId: z.string().describe("空洞 ID"),
@@ -563,6 +587,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "reasoning_result",
+    capability: ["internal"],
     description: "获取推理结果 (结论、推理链、总置信度)",
     inputSchema: {},
     handler: async () => {
@@ -575,6 +600,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "procedure_parse",
+    capability: ["internal"],
     description: "从知识节点中解析过程性知识 (步骤序列、条件分支、循环)",
     inputSchema: {
       nodeId: z.string().describe("知识节点 ID"),
@@ -595,6 +621,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "constraint_check",
+    capability: ["internal"],
     description: "检查动作是否满足所有约束 (逻辑/物理/语义/策略/时间)",
     inputSchema: {
       action: z.string().describe("要检查的动作"),
@@ -608,6 +635,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "constraint_select_best",
+    capability: ["internal"],
     description: "从候选动作中选择满足约束的最佳动作",
     inputSchema: {
       candidates: z.array(z.string()).describe("候选动作列表"),
@@ -621,6 +649,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "constraint_list",
+    capability: ["internal"],
     description: "列出所有约束 (可按维度过滤)",
     inputSchema: {
       dimension: z.enum(["logical", "physical", "field_match", "policy", "temporal"]).optional().describe("约束维度过滤"),
@@ -635,6 +664,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "constraint_stats",
+    capability: ["internal"],
     description: "获取约束求解器统计信息",
     inputSchema: {},
     handler: async () => {
@@ -647,6 +677,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "actor_list",
+    capability: ["internal"],
     description: "列出所有 Actor (知识/约束/心智模型/推理)",
     inputSchema: {},
     handler: async () => {
@@ -657,6 +688,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "actor_send",
+    capability: ["internal"],
     description: "向 Actor 发送消息 (触发主动响应)",
     inputSchema: {
       to: z.string().describe("目标 Actor ID (knowledge/constraint/mental-model/reasoning)"),
@@ -674,6 +706,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cognitive_loop",
+    capability: ["net.outbound"],
     description: "执行完整认知闭环 (Observation→State→Knowledge→Reasoning→Constraint→Action→Reflection), 零LLM确定性管道, 可追踪每一步的中间结果",
     inputSchema: {
       input: z.string().describe("用户输入或观察文本"),
@@ -694,6 +727,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "cognitive_loop_full",
+    capability: ["db.write", "net.outbound", "fs.write"],
     description: "认知闭环 + TaskGraph 执行 (包含认知推理+动作执行+回滚), 基于 runFull()",
     inputSchema: {
       input: z.string().describe("用户输入或任务描述"),
@@ -714,6 +748,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "task_graph_execute",
+    capability: ["db.write"],
     description: "创建并执行任务图 (TaskGraph): 任务并行/依赖解析/失败回滚, 支持 Checkpoint/Resume",
     inputSchema: {
       tasks: z.array(z.object({

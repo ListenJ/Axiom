@@ -107,7 +107,8 @@ describe("[P0-1] permissions 敏感路径拦截纳入 read", () => {
     const { checkFilePermission } = await import("../src/utils/permissions.js");
     const check = checkFilePermission(".env", "read");
     expect(check.allowed).toBeFalse();
-    expect(check.reason).toMatch(/sensitive|敏感/i);
+    // 口径变更（S3）：读被拒的落点是"执行锚点"表，不再是旧的"敏感路径"措辞
+    expect(check.reason).toMatch(/sensitive|敏感|execution anchor|锚点/i);
   });
 
   it("read 合法路径不受影响", async () => {

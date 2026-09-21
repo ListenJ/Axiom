@@ -15,7 +15,7 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
 import * as riskScreen from "../../src/local-llm/risk-screen.js";
 import {
-  monitorToolPayload,
+  screenToolCall,
   resetRiskVerdictCache,
 } from "../../src/agents/risk-monitor.js";
 import type { EdgeRiskResult } from "../../src/local-llm/risk-screen.js";
@@ -37,8 +37,13 @@ mock.module("../../src/router/model-router.js", () => ({
   },
 }));
 
-const TOOL = "browser_launch";
-const ARGS = { url: "https://example.com/api" };
+// R1：判定输入是**能力**而非工具名。browser_launch 一类"打开远端地址"的工具声明
+// net.outbound，缓存键按 (kind="url", payload) 归集 —— 与工具叫什么、由谁包装无关。
+const CALL = {
+  capabilities: ["net.outbound"] as const,
+  args: { url: "https://example.com/api" },
+  toolName: "browser_launch",
+};
 
 let screenCalls = 0;
 let screenImpl = async (): Promise<EdgeRiskResult> => ({ risk: "low" } as EdgeRiskResult);
@@ -64,8 +69,8 @@ afterEach(() => {
 
 describe("风险判定缓存（P2-13，生产路径）", () => {
   test("干净 low 放行被缓存：screen 仅调用一次", async () => {
-    const v1 = await monitorToolPayload(TOOL, ARGS);
-    const v2 = await monitorToolPayload(TOOL, ARGS);
+    const v1 = await screenToolCall(CALL);
+    const v2 = await screenToolCall(CALL);
     expect(v1).toBe("pass");
     expect(v2).toBe("pass");
     expect(screenCalls).toBe(1);
@@ -73,8 +78,8 @@ describe("风险判定缓存（P2-13，生产路径）", () => {
 
   test("require-approval 可缓存：二次不触达 screen/review 且结论保持", async () => {
     screenImpl = async () => ({ risk: "high", reason: "suspicious" } as EdgeRiskResult);
-    const v1 = await monitorToolPayload(TOOL, ARGS);
-    const v2 = await monitorToolPayload(TOOL, ARGS);
+    const v1 = await screenToolCall(CALL);
+    const v2 = await screenToolCall(CALL);
     expect(v1).toBe("require-approval");
     expect(v2).toBe("require-approval");
     expect(screenCalls).toBe(1);
@@ -83,16 +88,16 @@ describe("风险判定缓存（P2-13，生产路径）", () => {
 
   test("degraded low 不缓存：每次真实初筛", async () => {
     screenImpl = async () => ({ risk: "low", degraded: true } as EdgeRiskResult);
-    await monitorToolPayload(TOOL, ARGS);
-    await monitorToolPayload(TOOL, ARGS);
+    await screenToolCall(CALL);
+    await screenToolCall(CALL);
     expect(screenCalls).toBe(2);
   });
 
   test("resetRiskVerdictCache 后重新走双层", async () => {
-    await monitorToolPayload(TOOL, ARGS);
+    await screenToolCall(CALL);
     expect(screenCalls).toBe(1);
     resetRiskVerdictCache();
-    await monitorToolPayload(TOOL, ARGS);
+    await screenToolCall(CALL);
     expect(screenCalls).toBe(2);
   });
 });

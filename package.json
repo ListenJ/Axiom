@@ -76,6 +76,7 @@
     "tauri:build": "cd frontend && bun install && bun run build && cd .. && tauri build",
     "test:core": "bun test tests/cache-stress.test.ts tests/thompson-stress.test.ts tests/redis-client.test.ts tests/module-exports.test.ts tests/services-chat.test.ts tests/registry-validation.test.ts tests/property-based.test.ts tests/tools-v3.test.ts tests/review-deep.test.ts tests/dre-memory-deep.test.ts tests/adapt-tool.test.ts",
     "test:arch": "bun test tests/architecture-integrity.test.ts",
+    "test:docs": "bun test tests/doc-contract.test.ts",
     "test:perf": "bun test tests/perf-benchmark.test.ts",
     "test:stress": "bun test tests/stress/extreme-stress.test.ts",
     "test:gate": "bun test tests/stress/perf-gate.test.ts",

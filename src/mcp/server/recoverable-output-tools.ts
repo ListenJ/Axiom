@@ -8,6 +8,7 @@ export function registerRecoverableOutputTools(
 ): void {
   registry.add({
     name: "read_tool_result",
+    capability: ["internal"],
     description: "读取被 RecoverableToolOutput 外置的大工具结果",
     exposure: ["external", "safe-external"],
     format: "text",
@@ -28,6 +29,7 @@ export function registerRecoverableOutputTools(
 
   registry.add({
     name: "recoverable_output_stats",
+    capability: ["internal"],
     description: "查看外置大结果存储统计",
     exposure: ["external", "safe-external"],
     inputSchema: {},

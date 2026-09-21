@@ -1,8 +1,25 @@
-import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { execSync, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { logger } from "../../utils/logger.js";
+import {
+  readFile as safeReadFile,
+  writeFile as safeWriteFile,
+} from "../../utils/safe-fs.js";
+
+/** 快照目录相对工作区根的路径（safeFs 的判定以此为基准，不用绝对路径绕过逐跳） */
+const SNAPSHOT_REL = ".axiom/snapshots";
+const PRINCIPAL = "mcp:workspace-snapshot";
+
+/**
+ * 把工作区文件复制进快照树。读写都过 safeFs（S3 / I2）：
+ * 锚点文件（.env、运行时库、git 元数据）既读不到也写不进快照树，
+ * 否则等于把凭据二次落地到一个可被还原/读回的位置。
+ */
+async function copyIntoSnapshot(file: string): Promise<void> {
+  const content = await safeReadFile(file, { principal: PRINCIPAL });
+  await safeWriteFile(path.join(SNAPSHOT_REL, file), content, { principal: PRINCIPAL });
+}
 
 /** snapshotId 白名单校验（P1-T5）：仅 HEAD 或 6-64 位十六进制，防 git 选项/引用注入 */
 export function assertValidSnapshotId(id: string): void {
@@ -42,7 +59,7 @@ export interface SnapshotDiffResult {
 }
 
 function getSnapshotDir(): string {
-  return path.join(process.cwd(), ".axiom", "snapshots");
+  return path.join(process.cwd(), SNAPSHOT_REL);
 }
 
 function ensureSnapshotRepo(): string {
@@ -93,7 +110,6 @@ export async function createSnapshot(
 ): Promise<SnapshotResult> {
   try {
     const snapshotDir = ensureSnapshotRepo();
-    const cwd = process.cwd();
     const files = getWorkspaceFiles();
 
     if (files.length === 0) {
@@ -105,13 +121,10 @@ export async function createSnapshot(
 
     // Copy files to snapshot directory
     for (const file of files) {
-      const src = path.join(cwd, file);
-      const dst = path.join(snapshotDir, file);
       try {
-        await fs.mkdir(path.dirname(dst), { recursive: true });
-        await fs.copyFile(src, dst);
+        await copyIntoSnapshot(file);
       } catch (e) {
-        logger.warn(`Failed to copy ${file} for snapshot: ` + e);
+        logger.warn(`Skipped ${file} for snapshot: ` + e);
       }
     }
 
@@ -162,7 +175,6 @@ export async function revertSnapshot(
 ): Promise<SnapshotResult> {
   try {
     const snapshotDir = getSnapshotDir();
-    const cwd = process.cwd();
     assertValidSnapshotId(snapshotId);
 
     // Validate snapshot exists
@@ -196,9 +208,10 @@ export async function revertSnapshot(
           cwd: snapshotDir,
           stdio: "pipe",
         });
-        const dst = path.join(cwd, file);
-        await fs.mkdir(path.dirname(dst), { recursive: true });
-        await fs.writeFile(dst, content);
+        // 落点来自 git ls-tree，属外部可控输入：一律经 safeFs 判定后再写。
+        // 锚点（.git/hooks、.env、CI 工作流、运行时库…）拒写 —— 还原不得成为写锚点的旁路（S3 / L1）。
+        // safeFs.writeFile 内部已 mkdir -p 父目录，无需另行建目录。
+        await safeWriteFile(file, content, { principal: PRINCIPAL });
       } catch (e) {
         logger.warn(`Failed to restore ${file}: ` + e);
         failures.push(file);
@@ -275,11 +288,12 @@ export async function diffSnapshot(
       // We need to stage current workspace, then diff
       const currentFiles = getWorkspaceFiles();
       for (const file of currentFiles) {
-        const src = path.join(cwd, file);
-        const dst = path.join(snapshotDir, file);
-        if (existsSync(src)) {
-          await fs.mkdir(path.dirname(dst), { recursive: true });
-          await fs.copyFile(src, dst);
+        if (existsSync(path.join(cwd, file))) {
+          try {
+            await copyIntoSnapshot(file);
+          } catch (e) {
+            logger.warn(`Skipped ${file} for diff: ` + e);
+          }
         }
       }
       execSync("git add -A", { cwd: snapshotDir, stdio: "pipe" });

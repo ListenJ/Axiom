@@ -1,9 +1,21 @@
+import type { Capability } from "./permissions.js";
+
+/**
+ * 工具表面：名字/入参/执行体，以及**它自己的授权声明**。
+ *
+ * `capability` 放在这里而不是只放在 ToolDef 上，是因为工具会被包装转发
+ * （recoverable-output 外置大输出、MCP 子进程 `mcp_${server}_${tool}` 等）。
+ * 包装靠 `{ ...tool }` 透传字段，声明跟着表面走才不会在包装那一层被剥离（L9）：
+ * 一旦"包装后类型里不再有 capability"，注册守卫就只能靠名字反查，改名即脱管。
+ */
 export interface ToolSurfaceLike {
   name: string;
   description: string;
   inputSchema: unknown;
   format?: "json" | "text";
   handler: (args: Record<string, unknown>) => Promise<unknown>;
+  /** 该工具需要的能力（S3 / I1：无声明即不可注册；包装器必须原样转发） */
+  capability: readonly Capability[];
 }
 // ─── 原生 function-calling 支持（OpenAI 兼容 tools）────────────────────────
 

@@ -5,6 +5,7 @@ import type { VaultManager } from "../../memory/vault-manager.js";
 export function registerVaultTools(registry: ToolRegistry, vault: VaultManager): void {
   registry.add({
     name: "memory_search",
+    capability: ["fs.read"],
     description: "确定性搜索 Vault 中的记忆笔记（关键词 + PARA + 标签 + 关系推导）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -30,6 +31,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_read",
+    capability: ["fs.read"],
     description: "读取指定路径的 Vault 笔记",
     exposure: ["external", "safe-external"],
     inputSchema: { path: z.string().describe("笔记路径，如 '00-Meta/SOUL.md'") },
@@ -42,6 +44,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_write",
+    capability: ["fs.write", "db.write"],
     description: "写入 Vault 笔记（自动处理 frontmatter 和路径）",
     inputSchema: {
       path: z.string().describe("笔记路径"),
@@ -64,6 +67,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_atomic",
+    capability: ["fs.write", "db.write"],
     description: "写入原子笔记（Zettelkasten 风格）",
     inputSchema: {
       title: z.string().describe("笔记标题"),
@@ -83,6 +87,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_browse",
+    capability: ["fs.read"],
     description: "按 PARA 分类或标签浏览 Vault 笔记",
     inputSchema: {
       by: z.enum(["para", "tag"]).describe("浏览方式"),
@@ -99,6 +104,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_network",
+    capability: ["fs.read"],
     description: "获取 Vault 笔记的关联网络（wiki-link 1-2 跳）",
     inputSchema: {
       path: z.string().describe("笔记路径"),
@@ -112,6 +118,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "memory_stats",
+    capability: ["internal"],
     description: "Vault 记忆库统计",
     inputSchema: {},
     handler: async () => vault.stats(),
@@ -119,6 +126,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
   registry.add({
     name: "code_index",
+    capability: ["fs.glob", "fs.read", "fs.write"],
     description: "将项目源代码索引到 Vault（所有 Agent 可共享检索）",
     inputSchema: {},
     handler: async () => {

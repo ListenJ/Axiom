@@ -19,6 +19,8 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
   return [
     {
       name: "skill_list",
+      // loadSkillsFromDirectories → collectSkillFiles/readFileSync：递归读取 skillDirs 下的文件
+      capability: ["fs.read"],
       description: "列出所有已加载的 skills 和 prompt templates",
       exposure: ["external", "safe-external"],
       inputSchema: {
@@ -59,6 +61,8 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
     },
     {
       name: "skill_reload",
+      // forceReload 重新走 collectSkillFiles/readFileSync；clearSkillCache 仅清内存缓存
+      capability: ["fs.read"],
       description: "重新从磁盘加载所有 skill 文件",
       inputSchema: {},
       handler: async () => {
@@ -74,6 +78,9 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
     },
     {
       name: "skill_create",
+      // saveSkillFile → fs.mkdirSync + fs.writeFileSync（skill-loader.ts:208,220）；
+      // 目标由 resolveSkillPath 约束在 skillDirs 内，守卫另按 filePath 负载复核
+      capability: ["fs.write"],
       description: "创建新的 skill 文件",
       inputSchema: {
         filePath: z.string().describe("skill 文件路径（.json 或 .yaml）"),
@@ -93,6 +100,11 @@ export function buildSkillToolSurfaces(skillDirs: string[] = [...DEFAULT_SKILL_D
     },
     {
       name: "skill_run",
+      // getSkillRegistry() 懒构造 → loadFileSkills 读 skill 目录（fs.read）；
+      // registry.execute → router.executeWithRole 出网调模型（net.outbound）；
+      // auto-* 技能命中时 getDefaultQualityTracker().recordSkillOutcome 原子写
+      // data/skill-quality.json（skill-quality.ts:108-111）
+      capability: ["fs.read", "fs.write", "net.outbound"],
       description:
         "按需执行指定 skill（模型可直接调用）：给出 skillId 与模板参数，返回执行结果。skillId 可用 skill_list 查询。",
       exposure: ["internal", "external"],

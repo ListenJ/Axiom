@@ -118,30 +118,42 @@ describe("严苛：命令安全 注入变体", () => {
 });
 
 describe("严苛：权限中间件 边界与确定性", () => {
-  test("高危 terminal_exec 5次回放一致拒绝", () => {
-    const results = Array.from({ length: 5 }, () => checkToolPermission("terminal_exec", { cmd: "rm -rf /" } as any));
-    expect(results.every(r => r.allowed === false)).toBe(true);
+  const execCall = (args: Record<string, unknown>) =>
+    checkToolPermission({ capabilities: ["proc.exec"], args, toolName: "terminal_exec" });
+
+  test("高危命令 5次回放一致拒绝且 reason 逐字一致", () => {
+    const results = Array.from({ length: 5 }, () => execCall({ cmd: "rm -rf /" }));
+    expect(results.every((r) => r.allowed === false)).toBe(true);
+    expect(new Set(results.map((r) => r.reason)).size).toBe(1);
   });
 
-  test("非受控工具应放行且 5次一致", () => {
-    const results = Array.from({ length: 5 }, () => checkToolPermission("fs_read" as any, { path: "/tmp/a.txt" } as any));
-    expect(results.every(r => r.allowed === true)).toBe(true);
+  test("纯 internal 声明一致放行；越界路径一致拒绝（判定不看名字也不看时钟）", () => {
+    const readonly = Array.from({ length: 5 }, () =>
+      checkToolPermission({ capabilities: ["internal"], args: { path: "/tmp/a.txt" }, toolName: "fs_read" }),
+    );
+    expect(readonly.every((r) => r.allowed === true)).toBe(true);
+    const escapes = Array.from({ length: 5 }, () =>
+      checkToolPermission({ capabilities: ["fs.read"], args: { path: "/tmp/a.txt" }, toolName: "fs_read" }),
+    );
+    expect(escapes.every((r) => r.allowed === false)).toBe(true);
   });
 
-  test("大小写与变体：Cmd 包装仍拒绝", () => {
-    // 当前实现对大小写敏感及 rd 变体覆盖有限，已知局限：仅验证不崩
-    const r1 = checkToolPermission("terminal_exec", { command: "CMD /C rd /s /q C:\\" } as any);
-    const r2 = checkToolPermission("terminal_exec", { cmd: "powershell Remove-Item C:\\ -Recurse" } as any);
-    const r3 = checkToolPermission("terminal_exec", { command: "cmd /c rd /s /q C:\\" } as any);
-    expect(typeof r1.allowed).toBe("boolean");
-    expect(typeof r2.allowed).toBe("boolean");
-    expect(typeof r3.allowed).toBe("boolean");
+  test("大小写与变体：Cmd / rd / powershell 包装 —— 当前硬底线未覆盖，仅验证判定不崩", () => {
+    // 已知局限（沿用 main 的口径，不把它固化为"应当放行"）：HIGH_RISK_PATTERNS 是
+    // Unix 命令形状，Windows 变体既可能漏判也可能因越界路径被拒，故只断言结论可判定。
+    for (const args of [
+      { command: "CMD /C rd /s /q C:\\" },
+      { cmd: "powershell Remove-Item C:\\ -Recurse" },
+      { command: "cmd /c rd /s /q C:\\" },
+    ]) {
+      expect(typeof execCall(args).allowed).toBe("boolean");
+    }
   });
 
   test("并发 50 权限检查不崩且结果一致", async () => {
     const results = await Promise.all(
-      Array.from({ length: 50 }, () => Promise.resolve(checkToolPermission("terminal_exec", { cmd: "rm -rf /" } as any)))
+      Array.from({ length: 50 }, () => Promise.resolve(execCall({ cmd: "rm -rf /" })))
     );
-    expect(results.every(r => !r.allowed)).toBe(true);
+    expect(results.every((r) => !r.allowed)).toBe(true);
   });
 });

@@ -9,6 +9,8 @@ export default {
       name: "hook_plugin_ping",
       description: "test tool from hook-plugin",
       inputSchema: {},
+      // I1：注册必须声明能力。本工具只回常量，不触碰任何特权资源。
+      capability: ["internal"],
       handler: async () => ({ ok: true }),
     },
   ],

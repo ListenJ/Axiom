@@ -412,6 +412,9 @@ export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
   return [
     {
       name: "web_fetch",
+      // 与 src/mcp/server/web-tools.ts 的同一工具面保持一致：crawlStructured
+      // 出网（proxyFetch）并写 ./data/raw/<hash>.json（saveRaw）
+      capability: ["fs.write", "net.outbound"],
       description: "抓取网页并提取结构化数据（自动写入 Vault 记忆库）",
       inputSchema: { url: z.string().url().describe("目标 URL") },
       handler: async (args) => {
@@ -427,6 +430,8 @@ export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
     },
     {
       name: "web_search",
+      // pipeline.searchMulti → SearchEngine.fetch → proxyFetch / curlFetch（search-engines.ts:120,130）
+      capability: ["net.outbound"],
       description: "多引擎联网搜索（结果自动写入 Vault）",
       inputSchema: {
         query: z.string().describe("搜索关键词"),
@@ -443,6 +448,8 @@ export function buildWebToolSurfaces(pipeline: DataPipeline): ToolDef[] {
     },
     {
       name: "search_engines_list",
+      // listEngines 只遍历内存引擎表 + 读环境变量判断可用性（search-engines.ts:617）
+      capability: ["internal"],
       description: "列出可用搜索引擎",
       inputSchema: {},
       handler: async () => {

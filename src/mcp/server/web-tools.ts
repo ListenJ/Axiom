@@ -13,6 +13,9 @@ import { searchAggregator, sanitizeSearchResultsForContext } from "../../crawl/s
 export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline): void {
   registry.add({
     name: "web_fetch",
+    // crawlStructured：proxyFetch 真实出网（data-pipeline.ts:334）+ saveRaw 落盘
+    // ./data/raw/<hash>.json（data-pipeline.ts:931），故同时声明 fs.write 与 net.outbound
+    capability: ["fs.write", "net.outbound"],
     description: "抓取网页并提取结构化数据（自动写入 Vault 记忆库）",
     inputSchema: { url: z.string().url().describe("目标 URL") },
     handler: async (args) => {
@@ -28,6 +31,8 @@ export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline)
 
   registry.add({
     name: "web_search",
+    // pipeline.searchMulti → SearchEngine.fetch → proxyFetch / curlFetch（search-engines.ts:120,130）
+    capability: ["net.outbound"],
     description: "多引擎搜索（结果自动写入 Vault）",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -46,6 +51,8 @@ export function registerWebTools(registry: ToolRegistry, pipeline: DataPipeline)
 
   registry.add({
     name: "search_engines_list",
+    // listEngines 只遍历内存引擎表 + 读环境变量判断可用性（search-engines.ts:617）
+    capability: ["internal"],
     description: "列出可用搜索引擎",
     exposure: ["external", "safe-external"],
     inputSchema: {},

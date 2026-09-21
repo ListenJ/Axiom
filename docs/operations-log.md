@@ -1462,3 +1462,34 @@
 - **矛盾与残留（如实记录）**：(1) 旧分支 `codex/doc-caliber-doc-contract-gate-2026-09-21` 的门禁全绿只在 `master` 旧世系成立，本条起验证口径改以 main 为准；(2) 整搬的 `docs/SECURITY-MEASURES.md` 等 6 份文档含旧世系的量化口径（177 注册点等），需 R2 后按 main 重算，doc-contract 的 11 条失败即此项；(3) `permission-middleware` 名字表与 `tests/rigorous`、`tests/unit/permission-middleware` 两处断言其"非受控工具默认放行"，R1 要决定是删表改能力驱动还是保留为纵深，尚待与用户确认；(4) 本工作树的 `.tmp/backups/` 已建，验证后删除。
 - **敏感资产扫描（规则 11）**：本条涉及的 38 个搬入文件对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----` 命中 0；`AGENTS.md` 未在本分支改动（规则 3 的 remote 修正已在旧世系提交 `847f486`，R1 合并时需带过来）。
 - **Commit**：cc712ea（本条时间戳由 01:41 更正为实际 01:34，并回填 hash；更正属记录维护，规则 5）
+
+---
+
+## 2026-09-22 02:52 +0800 — R1 内核收敛：main 侧守卫改能力驱动 + 全量测试对齐（并完成 494b3b7 的重放提交）
+
+- **任务**：用户指令「同意，按能力驱动的方案重构并更新测试」。范围＝删掉 main 遗留在 `permission-middleware` / `risk-monitor` 的**名字表**，改为按工具自己声明的 capability 分派，并把所有断言旧行为的测试对齐到能力口径；同一提交里完成 `494b3b7`（S3-P0…P5）的重放收尾（R0 之后 cherry-pick 一直停在"冲突已解、未提交"状态）。
+- **工具**：Qoder 主代理（Read / Edit / Write / Grep / Bash / tsc / bun test）+ 子代理 A1/A2（main 侧注册点清点）、A3（capability 声明批量补齐与独立诊断，A3 明确拒改主代理正在编辑的文件）。规则 2 备份、规则 5 留痕、规则 7 逐条红绿、规则 9 未触碰任何禁止命令。
+- **执行的操作（文件级，共 53 个文件：52 改 + 1 新建）**：
+  - **判定内核（唯一来源）**：`src/utils/permission-middleware.ts` 重写为 `checkToolPermission(call)`——按 `call.capabilities` 逐能力取负载并交 `decideCapability` 裁决，能力集为空即拒（`no capability declared`），删掉 11 个工具名的表；`src/agents/risk-monitor.ts` 的初筛集合改由 `CAPABILITY_PAYLOAD` 派生（导出 `SCREENED_CAPABILITIES`，剔除 `fs.read`/`internal`），"要不要进概率层"只看能力集不看名字与负载内容；`src/mcp/tool-registry.ts` 的 HardFloor 由**声明能力**推导操作类型（不再从工具名猜 write/delete），并删掉与 `ToolSurfaceLike` 重复的 `capability` 字段声明；`src/utils/tool-surface.ts` 把 `capability` 上移到**工具表面**，使 `{ ...tool }` 包装无法在包装层剥离授权声明（封堵 L9）。
+  - **注册点补齐**：main 的 `src/mcp/server/*.ts`（browser/document/dre/kg/mind/orchestrator/recoverable-output/safety/skill/token/vault/web 等）、`src/mcp/tools/*`、`src/tools/*`、`src/mcp/register-external-tools.ts`、`plugins/git-workflow-enhanced/index.js`、两个测试夹具逐个补 `capability`。以 tsc 当枚举器（因本分支把 `capability` 变为必填）：报错站点 67 → 41 → **0**，不靠人肉搜索漏站点。
+  - **架构门合规**：合并后的 `src/mcp/server.ts` 为 502 行，超 `test:arch` 的 ≤500 规则；把场景路由的 41 行整块抽到**新文件** `src/mcp/server/scene-tools.ts`（`registerSceneTools`，两个工具均声明 `capability: ["internal"]`，函数体逐字搬运），`server.ts` 降到 461 行。**未删除任何仓库文件**，故规则 4 的归档步骤不适用（被移动的代码块随本提交进入 git 历史，新文件即其正式版本）。
+  - **测试更新（口径变更，逐条给理由）**：`tests/unit/permission-middleware.test.ts`、`tests/unit/risk-monitor-coverage.test.ts`、`tests/unit/risk-monitor-degraded.test.ts`、`tests/unit/tool-mode-gate.test.ts` 按能力 API 重写（新增"改名不影响判定""包装后仍携带声明""capability 不得出现在发给模型的 tools 里"等断言）；`tests/workspace-snapshot.test.ts` 的 L1 用例改断 main 的 D5 契约（`success:false` + `errors:[".env",".github/workflows/ci.yml"]`，普通文件仍恢复、锚点仍缺席）；`tests/read-tool-fence.test.ts` 的 `reason` 正则接受"执行锚点"词汇（旧口径是"敏感路径"）；`tests/unit/plugin-manifest-containment.test.ts` 动态生成的插件源补 `capability:['internal']`；`tests/hallucination-feedback.test.ts` 加 `beforeEach(resetSequences)`（见残留⑥）；`tests/risk-monitor.test.ts` 头注释与两条断言回代到 C-4 口径；`tests/agents/risk-verdict-cache.test.ts` 由已删除的 `monitorToolPayload` 改调用 `screenToolCall`；`tests/rigorous/security-rigorous.test.ts`、`tests/utils/tool-schema.test.ts`、`tests/components/recoverable-output.test.ts`、`tests/tool-registry-dedup.test.ts`、`tests/mcp/tool-registry-external.test.ts` 对齐新类型。
+- **验证结果（全部新鲜执行）**：
+  - `bun run lint`（`tsc --noEmit`）→ **exit 0**，原始输出文件内 `error TS` **0** 命中（按既往教训以原文件核算，不采信管道计数）
+  - `bun run test:arch` → **25 pass / 0 fail**（含 `server.ts` ≤500 行规则转绿）
+  - `bun test tests/capability-invariants.test.ts` → **35 pass / 1 fail**（唯一失败＝S-6 回环单源，R3 已知红）
+  - `bun test --parallel=8 --timeout 15000 ./tests`（`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G` 包裹）→ **4141 pass / 36 skip / 14 fail**（4191 tests / 407 files / 31.74s）。相对 R0 红基线的 27 fail 净减 13，R1 范围内失败清零。
+  - **14 项失败逐条归因**：11 × `tests/doc-contract.test.ts`（R5：main 文档仍是旧口径；D8 的实测集合现为 25 个 `src/mcp/server/*-tools.ts`，已含本次新增的 `scene-tools.ts`，文档侧读到 `[]`）、1 × S-6（R3：`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts` 并列信任本机）、1 × `HttpRouter 缓存` 用例（R4：路由未 `cacheable:true` 前响应缓存实际不生效）、1 × `tests/ocr.test.ts`「should get engine with default config」（**环境缺件**：`/usr/share/tessdata` 不存在、`TESSERACT_LANG_PATH` 未设、仓库不跟踪任何 `traineddata`；该用例在 `7cdbca29` 诚信化前是 `expect(true)` 假绿）。
+  - **敏感资产扫描（规则 11）**：53 个改动文件对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----` 命中 **0**（唯一的 ≥40 字符命中为 diff 内的文件路径）；`.env.example` 新增内容仅为开关注释与占位；改动文件中无 `192.168.0.22` 残留。
+  - **并入判定**：主干 `internal/main` 此前是 0 fail，本分支仍有 14 项已知红（R3/R4/R5 + 环境件），**因此本条只推分支，不并入 main**；并入需等 R2–R5 收口或由用户明确放行。
+- **矛盾与残留（如实记录，未擅自扩范围修复）**：
+  ① `checkToolPermission` 在**生产仍零调用方**（只有测试与 `src/mcp/tool-registry.ts` 头部一处过时注释提到它）——实际闸门是 `defaultToolGuard` + `safe-fs`。这是"声明 vs 实际"的分离，接线与否属 R2 决策。
+  ② **能力→负载表覆盖不全**：`web_search`、`skill_list`、`skill_reload`、`skill_run` 与 `web_fetch` 的 `fs.write`，以及 `db.write` 类工具的 `sourceId/scene/verdictId` 参数都不在 `CAPABILITY_PAYLOAD` 里 ⇒ 守卫取不到负载、等价静默放行。I1 只保证"有声明"，不保证"声明可裁决"（子代理 A3 实测，R2 必须登记并补齐）。
+  ③ `skill_create` 用裸 `fs.writeFileSync` 写盘（`src/skills/skill-loader.ts:220`），绕过 `safe-fs` ⇒ I2"在实际 I/O 调用点强制"缺位。
+  ④ `SynapseStore` 的 `new Database("./data/synapse.db")` 同样绕过 `safe-fs`，而 `data/*.db` 在执行锚点表内。
+  ⑤ CDP 浏览器工具声明 `net.outbound` 后撞上回环默认拒绝——与 S-6 同源，需 R3/R4 的默认值与豁免清单一起定。
+  ⑥ **离线（无 edge 模型）时特权调用一律升级审批**：`hallucination_feedback` 这类 `db.write` 工具连打 8 次即触发 I4 突发上限（`SEQUENCE_BURST_LIMIT=8`，序列状态是模块级、主体键退化为 `unassigned`），无审批桥时 1 秒自动拒绝。本次以测试隔离（`resetSequences`）处理，产品侧后果与逃生阀 `EDGE_RISK_MONITOR=0` 需在 R3 文档化；同时 `reviewSequence` 的主体未按身份分桶，也是 R3 项。
+  ⑦ 审批被拒后经 `buildHttpHandlers` 返回的是 `{error:true,message}`，**不含 `success:false`** ⇒ 只判 `result.success` 的调用方拿到 `undefined`（本次红测的直接原因之一），契约需在 R2 统一。
+  ⑧ 模式审批仍需 `AXIOM_ENFORCE_MODE_APPROVAL=1` 才生效（L8 同型缺陷未在本条范围内收紧）。
+  ⑨ web 工具存在两处定义（`registerWebTools` 与 `buildWebToolSurfaces`），即 S-5 反对的"第二份清单"；`web_fetch`/`web_search` 的描述宣称"自动写入 Vault"，实现里 `savedToVault: true` 是硬编码。
+- **Commit**：{{R1_HASH}}（回填后本条更新，回填提交属记录维护，不再追加新业务条目）

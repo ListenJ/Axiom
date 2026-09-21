@@ -30,6 +30,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kal_query",
+    capability: ["internal"],
     description: "统一知识查询 (跨 Vault/KG/DRE 一次查询，自动 fan-out + 结果合并)",
     exposure: ["external", "safe-external"],
     inputSchema: {
@@ -54,6 +55,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kal_references",
+    capability: ["internal"],
     description: "查找知识条目的跨存储引用 (通过 node_id)",
     inputSchema: {
       nodeId: z.string().describe("全局 node_id (如 vault:note:xxx, kg:function:yyy)"),
@@ -68,6 +70,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "dip_ingest_document",
+    capability: ["db.write"],
     description: "文档→KG管道: 解析 Markdown 为 AST → 提取实体 → 写入知识图谱 (零LLM)",
     inputSchema: {
       markdown: z.string().describe("Markdown 文档内容"),
@@ -114,6 +117,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "dip_query_ast",
+    capability: ["internal"],
     description: "确定性 AST 树查询 (在已索引的文档中搜索节点，零LLM)",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -149,6 +153,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_stats",
+    capability: ["internal"],
     description: "获取知识图谱统计信息 (SQLite)",
     inputSchema: {},
     handler: async () => {
@@ -159,6 +164,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entities",
+    capability: ["internal"],
     description: "查询知识图谱实体 (SQLite)",
     inputSchema: {
       type: z.string().optional().describe("实体类型过滤"),
@@ -177,6 +183,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_entity_detail",
+    capability: ["internal"],
     description: "获取知识图谱实体详情及关系 (SQLite)",
     inputSchema: { name: z.string().describe("实体名称") },
     handler: async (args) => {
@@ -191,6 +198,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_traverse",
+    capability: ["internal"],
     description: "知识图谱遍历 (SQLite)",
     inputSchema: {
       entityName: z.string().describe("起始实体名称"),
@@ -207,6 +215,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_build",
+    capability: ["fs.glob", "fs.read", "db.write"],
     description: "触发知识图谱构建",
     inputSchema: {
       projectPath: z.string().optional().describe("项目路径"),
@@ -229,6 +238,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_search",
+    capability: ["internal"],
     description: "知识图谱语义搜索",
     inputSchema: {
       query: z.string().describe("搜索查询"),
@@ -253,6 +263,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_graph",
+    capability: ["internal"],
     description: "获取知识图谱可视化数据 (SQLite)",
     inputSchema: {},
     handler: async () => {
@@ -265,6 +276,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_add_node",
+    capability: ["db.write"],
     description: "添加知识图谱节点",
     inputSchema: {
       type: z.enum(["function", "class", "module", "interface", "type", "variable", "file", "directory", "concept", "entity"]).describe("节点类型"),
@@ -295,6 +307,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_add_edge",
+    capability: ["db.write"],
     description: "添加知识图谱边",
     inputSchema: {
       source: z.string().describe("源节点 ID"),
@@ -321,6 +334,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_search_nodes",
+    capability: ["internal"],
     description: "搜索知识图谱节点",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -345,6 +359,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_subgraph",
+    capability: ["internal"],
     description: "获取知识图谱子图 (BFS)",
     inputSchema: {
       nodeId: z.string().describe("起始节点 ID"),
@@ -374,6 +389,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_shortest_path",
+    capability: ["internal"],
     description: "查找两个节点之间的最短路径",
     inputSchema: {
       startId: z.string().describe("起始节点 ID"),
@@ -391,6 +407,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_detect_communities",
+    capability: ["internal"],
     description: "检测知识图谱社区",
     inputSchema: {},
     handler: async () => {
@@ -407,6 +424,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_echarts_data",
+    capability: ["internal"],
     description: "获取 ECharts 可视化数据",
     inputSchema: {
       maxNodes: z.number().optional().default(200).describe("最大节点数"),
@@ -423,6 +441,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_d3_data",
+    capability: ["internal"],
     description: "获取 D3.js 可视化数据",
     inputSchema: {
       maxNodes: z.number().optional().default(200).describe("最大节点数"),
@@ -435,6 +454,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_nl_query",
+    capability: ["internal"],
     description: "自然语言查询知识图谱",
     inputSchema: {
       question: z.string().describe("自然语言问题"),
@@ -447,6 +467,7 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "kg_enhanced_stats",
+    capability: ["internal"],
     description: "获取知识图谱增强统计信息",
     inputSchema: {},
     handler: async () => {

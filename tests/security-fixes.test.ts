@@ -94,13 +94,13 @@ describe("filesystem 沙箱敏感区域拒绝", () => {
   test(".env 拒绝", async () => {
     const r = await readFile(".env");
     expect(r.success).toBe(false);
-    expect(r.error).toContain("denied area");
+    expect(r.error).toContain("execution anchor");
   });
 
   test(".env.production 拒绝", async () => {
     const r = await readFile(".env.production.example");
     expect(r.success).toBe(false);
-    expect(r.error).toContain("denied area");
+    expect(r.error).toContain("execution anchor");
   });
 
   test(".git 路径拒绝", async () => {
@@ -111,7 +111,7 @@ describe("filesystem 沙箱敏感区域拒绝", () => {
   test("运行时数据库拒绝", async () => {
     const r = await readFile("data/agent.db");
     expect(r.success).toBe(false);
-    expect(r.error).toContain("denied area");
+    expect(r.error).toContain("execution anchor");
   });
 
   test("model-config.json 拒绝", async () => {
@@ -162,14 +162,15 @@ describe("router 永久性失败处理（纯逻辑）", () => {
 import { ToolRegistry } from "../src/mcp/tool-registry.js";
 
 describe("ToolRegistry 安全守卫", () => {
-  test("守卫在 handler 之前被调用（携带工具名与参数）", async () => {
-    const seen: Array<[string, Record<string, unknown>]> = [];
+  test("守卫在 handler 之前被调用（携带工具名、声明能力与参数）", async () => {
+    const seen: Array<[string, readonly string[], Record<string, unknown>]> = [];
     const registry = new ToolRegistry({
-      guard: async (name, args) => { seen.push([name, args]); },
+      guard: async (name, capability, args) => { seen.push([name, capability, args]); },
     });
     let handlerRan = false;
     registry.add({
       name: "test_tool",
+      capability: ["internal"],
       description: "t",
       inputSchema: {},
       handler: async () => { handlerRan = true; return { ok: true }; },
@@ -178,16 +179,17 @@ describe("ToolRegistry 安全守卫", () => {
     const result = await handlers.test_tool({ a: 1 }) as { ok: boolean };
     expect(result.ok).toBe(true);
     expect(handlerRan).toBe(true);
-    expect(seen).toEqual([["test_tool", { a: 1 }]]);
+    expect(seen).toEqual([["test_tool", ["internal"], { a: 1 }]]);
   });
 
   test("守卫抛异常时 handler 不执行（阻止高危操作）", async () => {
     const registry = new ToolRegistry({
-      guard: async () => { throw new Error("[RiskMonitor] 双层复核判定为高危操作，已阻止执行"); },
+      guard: async () => { throw new Error("[RiskMonitor] 能力复核判定为高危操作，已阻止执行"); },
     });
     let handlerRan = false;
     registry.add({
       name: "terminal_exec",
+      capability: ["internal"],
       description: "t",
       inputSchema: {},
       handler: async () => { handlerRan = true; return { ok: true }; },
@@ -199,11 +201,12 @@ describe("ToolRegistry 安全守卫", () => {
     expect(result.message).toContain("已阻止执行");
   });
 
-  test("默认守卫对未监视工具直接放行（无网络调用）", async () => {
-    // 默认守卫 = 双层复核；未在 SCREENED_TOOLS 中的工具 extractPayload=null → pass
+  test("默认守卫对只声明 internal 的工具直接放行（无网络调用）", async () => {
+    // 默认守卫 = 能力驱动双层复核；internal 无特权负载可取 → extractPayload=null → pass
     const registry = new ToolRegistry();
     registry.add({
       name: "unrelated_tool",
+      capability: ["internal"],
       description: "t",
       inputSchema: {},
       handler: async () => ({ ok: true }),
