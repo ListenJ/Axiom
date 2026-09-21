@@ -3601,4 +3601,4 @@
   ②同步写入方/删除方的通知是 fire-and-forget，进程在"写库后、索引前"退出会漏（扫描腿兜底）；
   ③门禁只覆盖 `setInterval(`，未覆盖 `setTimeout` 递归自调度这类等价模式；④未逐一评估 6 条例外的运行时行为差异。
 - **不做项**：未改检索/物化/KAL 查询路径；未新增 KG/DRE 删除 API；未把门禁挂到独立 CI job（它随现有 `bun run test` 进入 CI）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`c09c828`
