@@ -5,6 +5,7 @@ import { getQuickDiagnostics, getCodeActions, detectLanguage } from "../tools/co
 export function registerLspTools(registry: ToolRegistry): void {
   registry.add({
     name: "code_quick_diagnostics",
+    capability: ["proc.exec"],
     description: "快速诊断单个文件（使用增量检查，更快）",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -14,6 +15,7 @@ export function registerLspTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_actions",
+    capability: ["proc.exec", "fs.read"],
     description: "获取代码修复建议（Code Actions）",
     inputSchema: {
       filePath: z.string().describe("文件路径"),
@@ -23,6 +25,7 @@ export function registerLspTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "code_detect_language",
+    capability: ["internal"],
     description: "检测文件编程语言",
     inputSchema: {
       filePath: z.string().describe("文件路径"),

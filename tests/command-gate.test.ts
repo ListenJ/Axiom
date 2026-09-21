@@ -2,7 +2,8 @@
  * R-024 交互终端审批门（CommandGate）测试
  *
  * 覆盖：
- *  - off 模式直接放行（默认，向后兼容）
+ *  - 未配置环境 → 默认 risky（S-6：忘记设置不等于没有审批），危险命令触发审批
+ *  - 显式 off 模式直接放行
  *  - risky 模式：危险命令触发审批（risk=destructive）；拒绝 → Ctrl-C + denied 提示；安全命令直接放行
  *  - strict 模式：任意非空命令触发审批（危险命令 risk=destructive，其余 unknown）；空行放行
  *  - 行缓冲语义：字符逐个 ingest 不触发审批，回车才整行判定（xterm 逐键转发场景）
@@ -76,8 +77,9 @@ function deferredBridge(): {
 }
 
 describe("CommandGate 模式解析", () => {
-  it("未设置/off=放行；risky/strict 生效；未知值 fail-closed 按 strict", () => {
-    expect(parseApprovalMode("")).toBe("off");
+  it("未配置=安全侧默认 risky；显式 off 才放行；未知值 fail-closed 按 strict", () => {
+    expect(parseApprovalMode(undefined)).toBe("risky");
+    expect(parseApprovalMode("")).toBe("risky");
     expect(parseApprovalMode("off")).toBe("off");
     expect(parseApprovalMode("risky")).toBe("risky");
     expect(parseApprovalMode("strict")).toBe("strict");
@@ -87,10 +89,20 @@ describe("CommandGate 模式解析", () => {
 });
 
 describe("CommandGate 审批行为", () => {
-  it("off 模式（默认）：命令直接透传，不触发审批", async () => {
+  it("未配置模式（默认 risky）：危险命令仍要走审批，不会静默透传", async () => {
+    delete process.env[MODE];
+    const session = new FakeSession();
+    const bridge = makeBridge([false]);
+    const gate = new CommandGate(session, { bridge });
+    await gate.write("rm -rf /\r");
+    expect(bridge.calls.length).toBe(1);
+    expect(session.written).toContain("\x03");
+  });
+
+  it("off 模式（显式设置）：命令直接透传，不触发审批", async () => {
     const session = new FakeSession();
     const bridge = makeBridge();
-    const gate = new CommandGate(session, { bridge });
+    const gate = new CommandGate(session, { bridge, mode: "off" });
     await gate.write("echo hi\r");
     expect(session.written).toBe("echo hi\r");
     expect(bridge.calls.length).toBe(0);

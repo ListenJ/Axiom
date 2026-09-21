@@ -1,0 +1,23 @@
+{
+  "_readme": [
+    "安全开关登记表（S3 / S-6 的声明侧）。运行时取值来自 src/utils/security-defaults.ts，",
+    "本文件只登记「契约上应当为何」，由 tests/capability-invariants.test.ts 的 S-6 断言两者一致。",
+    "口径：豁免/审批类开关未配置时一律按安全侧解释，配置错误不得成为提权入口。"
+  ],
+  "switches": [
+    {
+      "env": "AXIOM_ALLOW_LOCAL_BYPASS",
+      "secureDefault": false,
+      "values": "1|true|yes 开启；其余（含未配置）关闭",
+      "rationale": "回环地址免鉴权让任何本机进程（含被植入的）直接获得全部 API；反向代理同主机部署时代理流量亦呈现为 127.0.0.1。需本机免 token 调试时显式设 1。",
+      "enforcedAt": "src/utils/security-defaults.ts:localBypassEnabled / src/main.ts"
+    },
+    {
+      "env": "AXIOM_PTY_APPROVAL_MODE",
+      "secureDefault": "risky",
+      "values": "off|risky|strict；未知值 fail-closed 按 strict",
+      "rationale": "交互终端是 proc.exec 的最长链路。未配置即 off 等于「忘记设置 = 无审批」，故默认 risky：sanitizeCommand 判定为危险或白名单外的整行命令走 HITL 审批。",
+      "enforcedAt": "src/terminal/command-gate.ts:parseApprovalMode"
+    }
+  ]
+}

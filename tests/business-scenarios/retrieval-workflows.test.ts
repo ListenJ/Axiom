@@ -117,7 +117,7 @@ GraphRAG 多跳 500 查询 p99 < 200ms。5000 持续查询 p99 < 100ms。`,
       title: "5 层架构",
       content: `# 5 层确定性检索架构
 Layer 0 确定性检索引擎、Layer 1 GraphRAG、Layer 2 知识编译、Layer 3 验证链、Layer 4 融合排序、Layer 5 可观测性。
-零向量零 embedding，纯确定性 token + 图遍历。`,
+检索决策由确定性 token + 图遍历给出。`,
     },
     {
       path: "research/boundary.md",

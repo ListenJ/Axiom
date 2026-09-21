@@ -1,0 +1,199 @@
+{
+  "$comment": "非确定组件登记表 —— 文档口径的唯一机器来源。tests/doc-contract.test.ts 校验：每条 switch 字面量与默认值必须与代码一致（D5），且本表必须与 docs/AXIOM-ARCHITECTURE.md 的「非确定组件清单」表逐行一致（D6）。role 语义：decision=模型输出改变控制流/检索/准入/安全结论；advisory=只标记不决定；generation=只产出内容；scheduling=只选模型。",
+  "ratchet": {
+    "maxDecisionRoles": 8,
+    "targetDecisionRoles": 0,
+    "$note": "当前 8 条 decision 为已核实存量；C 收敛（spec §4）与 S3 落地后逐条下调，禁止上调"
+  },
+  "defaults": {
+    "isEdgeEnabled": {
+      "file": "src/local-llm/edge-client.ts",
+      "value": "1",
+      "$note": "env 未设置即视为开启：isEdgeEnabled() → readString(flag, \"1\")"
+    }
+  },
+  "entries": [
+    {
+      "id": "ND-01",
+      "name": "设置项语义检索",
+      "role": "decision",
+      "switch": "EDGE_SETTINGS_SEARCH",
+      "switchFile": "src/local-llm/edge-embeddings.ts",
+      "default": "1",
+      "defaultVia": "readString-default",
+      "codeFile": "src/core/settings-search.ts",
+      "provenance": true,
+      "provenanceField": "engine / matchType",
+      "fallback": "关键词兜底 keywordScore()"
+    },
+    {
+      "id": "ND-02",
+      "name": "意图标签 LLM 改写（决定是否触发检索）",
+      "role": "decision",
+      "switch": "EDGE_PROMPT_OPTIMIZER",
+      "switchFile": "src/agents/intent-enhancer.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/services/chat.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "保留 rawIntent"
+    },
+    {
+      "id": "ND-03",
+      "name": "检索 query 边缘改写",
+      "role": "decision",
+      "switch": "EDGE_KNOWLEDGE_ASSIST",
+      "switchFile": "src/knowledge/edge-assist.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/services/knowledge.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "原 query"
+    },
+    {
+      "id": "ND-04",
+      "name": "知识采集质量判定（边缘 LLM）",
+      "role": "decision",
+      "switch": "EDGE_KNOWLEDGE_ASSIST",
+      "switchFile": "src/knowledge/edge-assist.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/knowledge/collector.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "确定性打分"
+    },
+    {
+      "id": "ND-05",
+      "name": "近重复去重判定（边缘 LLM）",
+      "role": "decision",
+      "switch": "EDGE_KNOWLEDGE_ASSIST",
+      "switchFile": "src/knowledge/edge-assist.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/knowledge/collector.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "不判重"
+    },
+    {
+      "id": "ND-06",
+      "name": "共形 p 值占质量分 accuracy 权重 0.4",
+      "role": "decision",
+      "switch": null,
+      "switchFile": "src/knowledge/quality-assessor.ts",
+      "default": "alpha=0.1（常量，不可配置）",
+      "defaultVia": "presence",
+      "codeFile": "src/knowledge/quality-assessor.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "无 factBase 时给中位分 0.5"
+    },
+    {
+      "id": "ND-07",
+      "name": "共形幻觉判定 isHallucination = pValue < alpha",
+      "role": "decision",
+      "switch": null,
+      "switchFile": "src/memory/hallucination-detector.ts",
+      "default": "alpha=0.1（构造参数）",
+      "defaultVia": "presence",
+      "codeFile": "src/memory/math-enhanced-memory.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "无"
+    },
+    {
+      "id": "ND-08",
+      "name": "工具调用风险边缘初筛（low 即放行，fail-open）",
+      "role": "decision",
+      "switch": "EDGE_RISK_MONITOR",
+      "switchFile": "src/agents/risk-monitor.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/mcp/tool-registry.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "确认层复核"
+    },
+    {
+      "id": "ND-09",
+      "name": "知识结构化抽取（边缘 LLM 生成）",
+      "role": "generation",
+      "switch": "EDGE_KNOWLEDGE_ASSIST",
+      "switchFile": "src/knowledge/edge-assist.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/knowledge/pipeline.ts",
+      "provenance": true,
+      "provenanceField": "source",
+      "fallback": "GLM 远端兜底"
+    },
+    {
+      "id": "ND-10",
+      "name": "记忆摘要/蒸馏（边缘 LLM 生成）",
+      "role": "generation",
+      "switch": "EDGE_MEMORY_ASSIST",
+      "switchFile": "src/memory/distiller.ts",
+      "default": "1",
+      "defaultVia": "isEdgeEnabled",
+      "codeFile": "src/memory/edge-assist.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "确定性截断 summarize()"
+    },
+    {
+      "id": "ND-11",
+      "name": "提示词改写/增强（LLM 生成）",
+      "role": "generation",
+      "switch": "PROMPT_REWRITE",
+      "switchFile": "src/agents/prompt-optimizer.ts",
+      "default": "未设置即开启（!off(readString(\"PROMPT_REWRITE\"))）",
+      "defaultVia": "presence",
+      "codeFile": "src/agents/prompt-optimizer.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "原 prompt；隐私模式整体关闭"
+    },
+    {
+      "id": "ND-12",
+      "name": "Thompson Sampling 模型路由",
+      "role": "scheduling",
+      "switch": null,
+      "switchFile": "src/router/thompson-router.ts",
+      "default": "arms=[] 时惰性（未配置臂不参与采样）",
+      "defaultVia": "presence",
+      "codeFile": "src/main.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "确定性 fallback 链"
+    },
+    {
+      "id": "ND-13",
+      "name": "上下文向量记忆层（cosine 相似度检索）",
+      "role": "dormant",
+      "switch": null,
+      "switchFile": "src/context/context-manager.ts",
+      "default": "无独立开关；需配置 embedding 角色模型方生效，且当前 4 个入口零调用方",
+      "defaultVia": "presence",
+      "codeFile": "src/context/context-manager.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "哈希 embedding（非语义）"
+    },
+    {
+      "id": "ND-14",
+      "name": "意识流 episodic 向量检索与向量聚类（cosine）",
+      "role": "dormant",
+      "switch": null,
+      "switchFile": "src/dre/consciousness/stream.ts",
+      "default": "无开关；embedding 由调用方注入，仓库内当前无调用方传入向量",
+      "defaultVia": "presence",
+      "codeFile": "src/dre/consciousness/stream.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "无向量时 score=0 / 跳过聚类"
+    }
+  ]
+}

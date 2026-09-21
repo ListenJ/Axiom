@@ -5,6 +5,7 @@ import type { ToolRegistry } from "../tool-registry.js";
 export function registerDbTools(registry: ToolRegistry, db: Database): void {
   registry.add({
     name: "db_query",
+    capability: ["db.write"],
     description: "执行 SQLite 查询（只读）",
     inputSchema: {
       sql: z.string().describe("SELECT 查询语句"),
@@ -25,6 +26,7 @@ export function registerDbTools(registry: ToolRegistry, db: Database): void {
 
   registry.add({
     name: "list_free_models",
+    capability: ["internal"],
     description: "列出当前可用的免费模型",
     inputSchema: {},
     handler: async () => {

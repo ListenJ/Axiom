@@ -5,6 +5,7 @@ import { router } from "../../router/model-router.js";
 export function registerRouterTools(registry: ToolRegistry): void {
   registry.add({
     name: "model_chat",
+    capability: ["net.outbound", "fs.write"],
     description: "通过多平台路由器发送聊天请求",
     inputSchema: {
       taskType: z.enum(["general-chat", "code-generation", "complex-reasoning"]).describe("任务类型"),

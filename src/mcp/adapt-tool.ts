@@ -21,6 +21,7 @@ export function adaptTool<I, O>(
   return {
     name: tool.name,
     description: tool.description,
+    capability: [...tool.capability],
     inputSchema: z.object({}).passthrough(),
     handler: async (args: Record<string, unknown>): Promise<O> => {
       // 运行时校验

@@ -44,7 +44,7 @@ imports: ["fs", "path", "deterministic-search.js", "code-indexer.js", "utils-log
  * - Obsidian Vault 是唯一的真理来源（Source of Truth）
  * - 所有记忆以 Markdown 形式存储，人类可读、可版本控制
  * - SQLite 仅作为性能索引（可重建），不存储独立数据
- * - 确定性检索：零向量、零概率、零 embedding
+ * - 确定性检索：检索与排序决策由关键词 + PARA + 标签算法承担，不经概率模型
  * - 所有 Agent 通过 Vault 文件系统共享记忆
  *
  * 记忆类型：

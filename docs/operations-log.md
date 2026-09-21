@@ -1448,3 +1448,17 @@
   ④**发现版本号口径不一致（未修，记入待办）**：`GET /health` 返回 `version: "2.2.0"`（`src/routes/health.ts:40` 硬编码），而同文件 `:99` 另一处写 `"2.9.0"`，`package.json` 为 `4.0.0` —— 三处口径不一。不在本次范围，未擅自改（规则 1/12）。
   ⑤**陈旧克隆未做工作区清理**：其 9 项未提交改动经核验已全部迁入新仓库，但**未擅自丢弃**（`git checkout .` / `clean` 属规则 9 禁止操作），remote 已指向新仓库供用户自行处置。
 - **Commit**：4c38995
+
+---
+
+## 2026-09-22 01:41 +0800 — S3 移植到主干（R0：零冲突文件落地 + 红基线）【WIP，勿并入】
+
+- **任务**：经方案比选，S3 冲突处理定为**在 `internal/main` 上重放**（否决"合 main 进旧分支"与"直接开 PR 解冲突"）。本条只做 R0：把 S3 产物中 main 从未触碰的文件整搬落地，并建立真实红基线。
+- **工具**：Qoder 主代理（git worktree / git merge-file / Read / cp / bun test / tsc），无子代理。
+- **前置事实测量**：以 `7ad30ce4` 为基线，S3 改动 84 文件中 **39 个 main 从未触碰**（`git diff --quiet base internal/main -- <f>` 判据，可整搬）、**45 个需三方合并**；main 相对基线为 1578 文件 / +107848 行，`registry.add({` 字面量 **183 处**（旧分支 177），且 main 完全缺少 `src/utils/safe-fs.ts`、`src/utils/security-defaults.ts`、`config/security-defaults.json`、`config/nondeterminism.json`、`tests/capability-invariants.test.ts`、`tests/doc-contract.test.ts`、`docs/security/tool-capability-declarations.md`。
+- **main 侧内核现状（移植要收敛的对象）**：`src/utils/permission-middleware.ts:19-27` 是以工具名为键的守卫表（11 个名字）、`:74-76` 对表外工具默认放行，且 `checkToolPermission` 无生产调用方（仅 `tests/rigorous/security-rigorous.test.ts`、`tests/unit/permission-middleware.test.ts` 引用）；实际闸门是 `src/mcp/tool-registry.ts:52-80` 的 HardFloor（按参数**字段名**正则初筛）；`src/utils/path-safety.ts:42-47` 的 DENIED_SEGMENTS **不含 `.github/workflows`**（写 CI 工作流这条提权链路在 main 上敞开），`:78-86` 在 realpath 双失败时显式 fail-open；`src/mcp/tool-registry.ts:42` 的模式审批需 `AXIOM_ENFORCE_MODE_APPROVAL=1` 才生效 ⇒ 未配置即不审批，属 L8 同型缺陷。
+- **执行的操作（文件级）**：新建工作树 `/home/listen/.qoder/worktrees/app/e001f4/s3-on-main`（分支 `codex/s3-on-main-2026-09-22`，基于 `internal/main` = `0ba2cb4`，`node_modules` 按既有约定符号链接）。整搬 38 个零冲突文件（`docs/security/tool-capability-declarations.md` **刻意不搬**：其 177 条表在 main 的 183 个注册点上必然失真，留待 R2 重新生成）。`src/utils/permissions.ts` 走 `git merge-file --diff3` 三方合并：保留本侧 `decideCapability` 单源判定，同时回代验证 main 的 13 行改动语义未丢 —— `.env`/`.env.local` 读拒、`.environment`/`my.env.bak` 不误伤（main 的 Low 修复）、`.git/config` 与 `data/*.db` 读拒、`/etc/passwd` 读拒、`.github/workflows/*` 写拒（main 原缺）、沙箱内普通文件读写放行。
+- **验证**：`bun run lint` 基线（main 原样）exit=0；换内核后 main 自身安全套件 `tests/rigorous/security-rigorous.test.ts tests/unit/permission-middleware.test.ts tests/security-fixes.test.ts` → **96 pass / 0 fail**（证明判定内核收敛未回退 main 的 C-01/N-H1 修复）。R0 后状态：`bun run lint` 106 处 error（全部指向 45 个待合并文件：`ToolDef.capability`、`registry.getCapabilities()`、`risk-monitor.screenToolCall/reviewSequence/resetSequences`、路由 `principalOf`），`tests/capability-invariants.test.ts` 19 pass / 17 fail，`tests/doc-contract.test.ts` 5 pass / 11 fail（main 文档仍是旧口径）。**本分支此刻为红，属移植中途，禁止并入主干。**
+- **矛盾与残留（如实记录）**：(1) 旧分支 `codex/doc-caliber-doc-contract-gate-2026-09-21` 的门禁全绿只在 `master` 旧世系成立，本条起验证口径改以 main 为准；(2) 整搬的 `docs/SECURITY-MEASURES.md` 等 6 份文档含旧世系的量化口径（177 注册点等），需 R2 后按 main 重算，doc-contract 的 11 条失败即此项；(3) `permission-middleware` 名字表与 `tests/rigorous`、`tests/unit/permission-middleware` 两处断言其"非受控工具默认放行"，R1 要决定是删表改能力驱动还是保留为纵深，尚待与用户确认；(4) 本工作树的 `.tmp/backups/` 已建，验证后删除。
+- **敏感资产扫描（规则 11）**：本条涉及的 38 个搬入文件对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----` 命中 0；`AGENTS.md` 未在本分支改动（规则 3 的 remote 修正已在旧世系提交 `847f486`，R1 合并时需带过来）。
+- **Commit**：占位（随后由记录维护提交回填）

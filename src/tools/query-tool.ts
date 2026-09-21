@@ -30,6 +30,7 @@ export interface QueryOutput {
 export const queryTool: Tool<QueryInput, QueryOutput> = {
   name: "query",
   description: "搜索网络或本地知识库",
+  capability: ["net.outbound"],
   consumesModelToken: false,
 
   validate(input: QueryInput): string | null {

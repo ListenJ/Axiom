@@ -1,0 +1,479 @@
+/**
+ * S3 安全不变式门 —— 提权阻断的机器落点
+ *
+ * 命题来源：docs/superpowers/specs/2026-09-21-privilege-escalation-defense-design.md §4
+ * 分工：tests/doc-contract.test.ts（D 系列）管文档与代码是否一致；本门管强制点本身是否成立。
+ *
+ * 写法约定：
+ *   - 被测模块一律用动态 import，使"实现尚未落地"表现为单条红，而不是整文件加载失败。
+ *   - 行为优先：能在公共接口上测的（safeFs / HttpRouter / 守卫 / 默认值）不用静态扫描；
+ *     只有"某张表不得存在""某个清单不得有第二份"这类结构性命题才扫源码文本。
+ *   - 文件系统用真实 tmpdir（含符号链接与 .. 变体），不 mock。
+ */
+import { describe, it, expect, afterAll } from "bun:test";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+const repoRoot = path.join(import.meta.dir, "..");
+const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), "utf8");
+const exists = (rel: string) => fs.existsSync(path.join(repoRoot, rel));
+const existsIn = (abs: string) => fs.existsSync(abs) && fs.statSync(abs).isFile();
+
+function walkTs(dir: string): string[] {
+  const abs = path.join(repoRoot, dir);
+  if (!fs.existsSync(abs)) return [];
+  const out: string[] = [];
+  for (const ent of fs.readdirSync(abs, { withFileTypes: true })) {
+    const rel = `${dir}/${ent.name}`;
+    if (ent.isDirectory()) out.push(...walkTs(rel));
+    else if (ent.name.endsWith(".ts")) out.push(rel);
+  }
+  return out;
+}
+
+/** 取出 `.add({` 起、括号配平到闭合的整段字面量文本（跳过字符串与注释） */
+function addLiterals(src: string): string[] {
+  const out: string[] = [];
+  for (let i = src.indexOf(".add({"); i !== -1; i = src.indexOf(".add({", i + 1)) {
+    let depth = 0;
+    let j = i + 4;
+    for (; j < src.length; j++) {
+      const ch = src[j];
+      if (ch === '"' || ch === "'" || ch === "`") {
+        j++;
+        while (j < src.length && src[j] !== ch) {
+          if (src[j] === "\\") j++;
+          j++;
+        }
+        continue;
+      }
+      if (ch === "/" && src[j + 1] === "/") {
+        while (j < src.length && src[j] !== "\n") j++;
+        continue;
+      }
+      if (ch === "/" && src[j + 1] === "*") {
+        j += 2;
+        while (j < src.length && !(src[j] === "*" && src[j + 1] === "/")) j++;
+        j++;
+        continue;
+      }
+      if (ch === "(" || ch === "{" || ch === "[") depth++;
+      else if (ch === ")" || ch === "}" || ch === "]") {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    out.push(src.slice(i, j + 1));
+  }
+  return out;
+}
+
+// ─── 真实文件系统夹具 ────────────────────────────────────────────────────────
+const originalCwd = process.cwd();
+const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "axiom-cap-"));
+fs.mkdirSync(path.join(sandbox, ".git/hooks"), { recursive: true });
+fs.mkdirSync(path.join(sandbox, "src"), { recursive: true });
+// 夹具内需要是一个"合法项目根"：模块级单例（如 src/utils/cache.ts 的 ./data/agent.db）
+// 在本文件 chdir 之后才被 import，缺 data/ 会以 SQLITE_CANTOPEN 直接掀掉整条用例。
+fs.mkdirSync(path.join(sandbox, "data"), { recursive: true });
+fs.writeFileSync(path.join(sandbox, ".env"), "AXIOM_AUTH_TOKEN=fixture-not-a-real-token\n");
+fs.writeFileSync(path.join(sandbox, "src/ok.ts"), "export const ok = 1;\n");
+// 沙箱内的符号链接指向沙箱外：仅靠字符串前缀判定会被骗过
+fs.symlinkSync(path.join(os.homedir(), ".bashrc"), path.join(sandbox, "escape-link"));
+process.chdir(sandbox);
+
+afterAll(() => {
+  process.chdir(originalCwd);
+  fs.rmSync(sandbox, { recursive: true, force: true });
+});
+
+// ─── S-1 守卫按能力推导，不按工具名查表 ──────────────────────────────────────
+describe("S-1 能力驱动筛查（封堵 L4/L5）", () => {
+  it("risk-monitor 中不存在以工具名为键的守卫表", () => {
+    const src = read("src/agents/risk-monitor.ts");
+    expect(src).not.toContain("SCREENED_TOOLS");
+    expect(src).not.toMatch(/Record<\s*string\s*,\s*\{\s*kind:\s*PayloadKind/);
+  });
+
+  it("全新工具名只要声明 proc.exec，高危命令仍被升级到审批", async () => {
+    const { screenToolCall } = await import("../src/agents/risk-monitor.js");
+    let screened = "";
+    const verdict = await screenToolCall(
+      { capabilities: ["proc.exec"], args: { command: "rm -rf /usr" } },
+      {
+        screen: async (payload) => {
+          screened = payload;
+          return { risk: "high", reason: "fixture" };
+        },
+        review: async () => ({ dangerous: true, reason: "fixture" }),
+      },
+    );
+    expect(screened).toBe("rm -rf /usr");
+    expect(verdict).toBe("require-approval");
+  });
+
+  it("internal 能力（无特权 I/O）不进入筛查", async () => {
+    const { screenToolCall } = await import("../src/agents/risk-monitor.js");
+    let called = 0;
+    const verdict = await screenToolCall(
+      { capabilities: ["internal"], args: { path: "/etc/passwd" } },
+      {
+        screen: async () => {
+          called++;
+          return { risk: "high", reason: "fixture" };
+        },
+        review: async () => ({ dangerous: true, reason: "fixture" }),
+      },
+    );
+    expect(called).toBe(0);
+    expect(verdict).toBe("pass");
+  });
+
+  it("fs.write 能力的 path 负载与 proc.exec 同样进入初筛", async () => {
+    const { screenToolCall } = await import("../src/agents/risk-monitor.js");
+    const seen: string[] = [];
+    await screenToolCall(
+      { capabilities: ["fs.write"], args: { path: "/root/.ssh/authorized_keys", content: "x" } },
+      {
+        screen: async (payload) => {
+          seen.push(payload);
+          return { risk: "low", reason: "fixture" };
+        },
+        review: async () => null,
+      },
+    );
+    expect(seen).toEqual(["/root/.ssh/authorized_keys"]);
+  });
+});
+
+// ─── S-2 无声明不可注册（I1）────────────────────────────────────────────────
+describe("S-2 注册即声明能力（I1，封堵 L4）", () => {
+  it("未声明 capability 的注册在 add() 即抛错", async () => {
+    const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
+    const registry = new ToolRegistry({ guard: async () => {} });
+    expect(() =>
+      registry.add({
+        name: "no_capability_declared",
+        description: "fixture",
+        inputSchema: {},
+        handler: async () => ({}),
+      } as never),
+    ).toThrow(/capability/);
+  });
+
+  it("capability 为空数组同样拒绝（不得用空声明蒙过）", async () => {
+    const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
+    const registry = new ToolRegistry({ guard: async () => {} });
+    expect(() =>
+      registry.add({
+        name: "empty_capability",
+        description: "fixture",
+        inputSchema: {},
+        capability: [],
+        handler: async () => ({}),
+      }),
+    ).toThrow(/capability/);
+  });
+
+  it("声明内部能力的注册通过且元数据可见", async () => {
+    const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
+    const registry = new ToolRegistry({ guard: async () => {} });
+    registry.add({
+      name: "declared",
+      description: "fixture",
+      inputSchema: {},
+      capability: ["internal"],
+      handler: async () => ({}),
+    });
+    expect(registry.getCapabilities("declared")).toEqual(["internal"]);
+  });
+
+  it("源码与内置插件的每一处 registry.add({…}) 字面量都带 capability", () => {
+    const offenders: string[] = [];
+    // plugins/ 不在 tsconfig include 内（无类型强制），只能靠这里扫到
+    for (const rel of [...walkTs("src"), ...walkTs("plugins")]) {
+      // 只看 ToolDef 字面量（必带 handler）；Set.add({…}) 之类的同名方法不参与
+      addLiterals(read(rel))
+        .filter((lit) => /\bhandler\s*:/.test(lit))
+        .forEach((lit, i) => {
+          if (!/\bcapability\s*:/.test(lit)) offenders.push(`${rel} #${i + 1}`);
+        });
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("adaptTool 把 Tool.capability 透传到 ToolDef，src/tools 每个工具都声明", async () => {
+    const src = read("src/mcp/adapt-tool.ts");
+    expect(src).toMatch(/\bcapability\s*:/);
+    const missing: string[] = [];
+    for (const rel of walkTs("src/tools")) {
+      if (rel.endsWith("types.ts") || rel.endsWith("pipeline.ts")) continue;
+      const text = read(rel);
+      if (/export const \w+Tool\b/.test(text) && !/\bcapability\s*:/.test(text)) missing.push(rel);
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
+// ─── S-3 强制点在实际 I/O 那一行（I2）──────────────────────────────────────
+describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
+  const deniedTargets = [
+    [".git/hooks/pre-commit", "git hook"],
+    ["/etc/sudoers.d/axiom", "sudoers"],
+    [path.join(os.homedir(), ".bashrc"), "shell rc"],
+    [path.join(os.homedir(), ".ssh/authorized_keys"), "authorized_keys"],
+    ["/etc/crontab", "crontab"],
+    [path.join(os.homedir(), ".config/systemd/user/evil.service"), "systemd unit"],
+    [".env", "密钥文件"],
+  ] as const;
+
+  for (const [target, label] of deniedTargets) {
+    it(`写${label}被拒且目标内容不变`, async () => {
+      const safeFs = await import("../src/utils/safe-fs.js");
+      const abs = path.isAbsolute(target) ? target : path.join(sandbox, target);
+      const before = existsIn(abs) ? fs.readFileSync(abs, "utf8") : null;
+      let err: Error | null = null;
+      try {
+        await safeFs.writeFile(target, "escalation fixture");
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err).not.toBeNull();
+      expect(err!.message.toLowerCase()).toContain("denied");
+      const after = existsIn(abs) ? fs.readFileSync(abs, "utf8") : null;
+      expect(after).toBe(before);
+    });
+  }
+
+  it("沙箱内普通文件可写可读", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    await safeFs.writeFile("src/new-file.ts", "export const added = 2;\n");
+    const back = await safeFs.readFile("src/new-file.ts");
+    expect(back.toString()).toContain("added");
+  });
+
+  it("沙箱内符号链接指向沙箱外时拒绝（字符串前缀判定会被骗过）", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    expect(fs.existsSync("escape-link")).toBe(true);
+    let err: Error | null = null;
+    try {
+      await safeFs.readFile("escape-link");
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).not.toBeNull();
+    expect(err!.message.toLowerCase()).toContain("denied");
+  });
+
+  it("readDir 逐项判定：目录可读，.env 内容不外泄", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    const entries = await safeFs.readDir(".");
+    const names = entries.map((e) => e.name);
+    expect(names).toContain("src");
+    const leaked = names.filter((n) => n === ".env");
+    expect(leaked).toEqual([]);
+  });
+
+  it("路径字符串守卫不得作为唯一判定（.. 归一后仍受控）", async () => {
+    const safeFs = await import("../src/utils/safe-fs.js");
+    let err: Error | null = null;
+    try {
+      await safeFs.readFile("src/../../etc/passwd");
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).not.toBeNull();
+    expect(err!.message.toLowerCase()).toContain("denied");
+  });
+
+  it("src/tools 与 src/mcp/tools 不再直接调用裸文件系统 I/O", () => {
+    const offenders: string[] = [];
+    const bare = [
+      /(?:^|[^.\w])fs(?:Sync)?\.(readFile|writeFile|appendFile|readdir|rm|unlink|rename|mkdir)\s*\(/,
+      /await import\(\s*["']fs\/promises["']\s*\)/,
+    ];
+    for (const dir of ["src/tools", "src/mcp/tools"]) {
+      for (const rel of walkTs(dir)) {
+        if (rel.endsWith("safe-fs.ts")) continue;
+        read(rel).split("\n").forEach((line, i) => {
+          if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) return;
+          if (bare.some((re) => re.test(line))) offenders.push(`${rel}:${i + 1}`);
+        });
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+// ─── S-5 执行锚点清单单一来源 ────────────────────────────────────────────────
+describe("S-5 执行锚点清单唯一权威", () => {
+  it("锚点清单只有一个导出点", () => {
+    const defs = walkTs("src").filter((rel) => /export const EXECUTION_ANCHORS\b/.test(read(rel)));
+    expect(defs).toEqual(["src/utils/permissions.ts"]);
+  });
+
+  it("清单覆盖提权落点类别", async () => {
+    const { EXECUTION_ANCHORS } = await import("../src/utils/permissions.js");
+    const labels = EXECUTION_ANCHORS.map((a) => a.label).join("|");
+    for (const needle of ["shell rc", "hook", "cron", "systemd", "sudoers", "authorized_keys"]) {
+      expect(labels.toLowerCase()).toContain(needle);
+    }
+  });
+
+  it("文件系统工具不再自带第二份黑名单", () => {
+    expect(read("src/mcp/tools/filesystem.ts")).not.toContain("DENIED_SEGMENTS");
+  });
+});
+
+// ─── S-4 鉴权先于缓存（I3）──────────────────────────────────────────────────
+describe("S-4 缓存不得成为鉴权之外的第二条通道（I3，封堵 L7）", () => {
+  const makeCtx = (method: string, p: string, headers: Record<string, string> = {}) =>
+    ({
+      url: new URL(`http://localhost${p}`),
+      req: new Request(`http://localhost${p}`, { method, headers }),
+      vault: null,
+      db: null as never,
+      pipeline: null as never,
+      healthMonitor: null as never,
+      fileWatcher: null,
+      startupTime: Date.now(),
+      baseHeaders: {},
+      jsonResponse: (data: unknown, status = 200) =>
+        new Response(JSON.stringify(data), { status }),
+    }) as never;
+
+  it("GET 默认可缓存 ⇒ 必须显式声明才缓存", async () => {
+    const { HttpRouter } = await import("../src/core/http-router.js");
+    const router = new HttpRouter({ cacheMaxSize: 20, cacheTtlMs: 60_000 });
+    let calls = 0;
+    router.register({
+      method: "GET",
+      path: "/probe/no-cache",
+      handler: async () => new Response(`v${++calls}`),
+    });
+    await router.execute(makeCtx("GET", "/probe/no-cache"));
+    const second = await router.execute(makeCtx("GET", "/probe/no-cache"));
+    expect(await second!.text()).toBe("v2");
+    expect(calls).toBe(2);
+  });
+
+  it("显式 cacheable 的路由仍然命中缓存（性能不回退到零）", async () => {
+    const { HttpRouter } = await import("../src/core/http-router.js");
+    const router = new HttpRouter({ cacheMaxSize: 20, cacheTtlMs: 60_000 });
+    let calls = 0;
+    router.register({
+      method: "GET",
+      path: "/probe/cached",
+      meta: { cacheable: true },
+      handler: async () => new Response(`v${++calls}`),
+    });
+    await router.execute(makeCtx("GET", "/probe/cached"));
+    const second = await router.execute(makeCtx("GET", "/probe/cached"));
+    expect(await second!.text()).toBe("v1");
+    expect(calls).toBe(1);
+  });
+
+  it("缓存键含身份维度：不同 principal 不得互相取回响应", async () => {
+    const { HttpRouter } = await import("../src/core/http-router.js");
+    const router = new HttpRouter({
+      cacheMaxSize: 20,
+      cacheTtlMs: 60_000,
+      principalOf: (ctx: { req: Request }) => (ctx.req.headers.get("x-api-key") ? "credentialed" : "anonymous"),
+    });
+    let calls = 0;
+    router.register({
+      method: "GET",
+      path: "/probe/identity",
+      meta: { cacheable: true },
+      handler: async () => new Response(`v${++calls}`),
+    });
+    await router.execute(makeCtx("GET", "/probe/identity", { "x-api-key": "fixture-token" }));
+    const anon = await router.execute(makeCtx("GET", "/probe/identity"));
+    expect(calls).toBe(2);
+    expect(await anon!.text()).toBe("v2");
+  });
+
+  it("缓存查询不得出现在路由匹配之前", () => {
+    const src = read("src/core/http-router.ts");
+    const execute = src.slice(src.indexOf("async execute("));
+    const body = execute.slice(0, execute.indexOf("\n  }\n"));
+    expect(body.indexOf("this.cache.get(")).toBeGreaterThan(body.indexOf("this.match("));
+  });
+});
+
+// ─── S-6 审批/豁免开关默认安全侧 ─────────────────────────────────────────────
+describe("S-6 安全开关默认值（封堵 L6/L8）", () => {
+  it("PTY 审批模式缺配置不再是 off", async () => {
+    const { parseApprovalMode } = await import("../src/terminal/command-gate.js");
+    expect(parseApprovalMode(undefined)).toBe("risky");
+    expect(parseApprovalMode("")).toBe("risky");
+    expect(parseApprovalMode("off")).toBe("off");
+  });
+
+  it("回环免鉴权默认关闭，显式 =1 才开", async () => {
+    const { localBypassEnabled } = await import("../src/utils/security-defaults.js");
+    expect(localBypassEnabled({})).toBe(false);
+    expect(localBypassEnabled({ AXIOM_ALLOW_LOCAL_BYPASS: "0" })).toBe(false);
+    expect(localBypassEnabled({ AXIOM_ALLOW_LOCAL_BYPASS: "1" })).toBe(true);
+  });
+
+  it("main.ts 不再把 true 作为该开关的默认值", () => {
+    expect(read("src/main.ts")).not.toMatch(/readBool\(\s*"AXIOM_ALLOW_LOCAL_BYPASS"\s*,\s*true\s*\)/);
+  });
+
+  it("代码默认值与 config/security-defaults.json 登记一致", async () => {
+    const { SECURITY_DEFAULTS } = await import("../src/utils/security-defaults.js");
+    expect(exists("config/security-defaults.json")).toBe(true);
+    const registered = JSON.parse(read("config/security-defaults.json")) as {
+      switches: Array<{ env: string; secureDefault: string | boolean }>;
+    };
+    expect(registered.switches.length).toBeGreaterThan(1);
+    for (const sw of registered.switches) {
+      expect([true, false, "off", "risky", "strict"]).toContain(SECURITY_DEFAULTS[sw.env]);
+      expect(String(SECURITY_DEFAULTS[sw.env])).toBe(String(sw.secureDefault));
+    }
+  });
+
+  it("回环豁免与网络暴露叠加时启动留痕（不静默）", async () => {
+    const { bypassExposureWarning } = await import("../src/utils/security-defaults.js");
+    expect(bypassExposureWarning(false, "0.0.0.0")).toBeNull();
+    expect(bypassExposureWarning(true, "127.0.0.1")).toBeNull();
+    expect(bypassExposureWarning(true, "localhost")).toBeNull();
+    expect(bypassExposureWarning(true, "0.0.0.0")).toInclude("AXIOM_ALLOW_LOCAL_BYPASS");
+    // 判定必须真的接在网关启动路径上，否则只是躺着没人调的纯函数
+    expect(read("src/main.ts")).toMatch(/bypassExposureWarning\(/);
+  });
+
+  it("回环豁免只有一个开关来源：并列入口不得无条件信任本机", () => {
+    // 网关默认值收紧后，MCP HTTP 等第二处服务端若直接把 isLocalAddress() 当作
+    // isLocal 传给鉴权函数，就等于换了个地方继续放行本机请求（L6 未封堵）。
+    const offenders = walkTs("src")
+      .filter((rel) => rel !== "src/utils/auth-check.ts") // 定义处不参与
+      .filter((rel) => /isLocalAddress\(/.test(read(rel)) && !/localBypassEnabled\(/.test(read(rel)));
+    expect(offenders).toEqual([]);
+  });
+});
+
+// ─── S-7 跨调用序列复核不因回环而豁免（I4）──────────────────────────────────
+describe("S-7 链路组合可见（I4）", () => {
+  it("同一 principal 连续多次特权调用被升级到审批", async () => {
+    const { reviewSequence, resetSequences } = await import("../src/agents/risk-monitor.js");
+    resetSequences();
+    const call = { capabilities: ["fs.write" as const], args: { path: "src/a.ts" } };
+    let escalated = false;
+    for (let i = 0; i < 12; i++) {
+      if ((await reviewSequence(call, { onEscalate: () => (escalated = true) })) === "require-approval") {
+        escalated = true;
+        break;
+      }
+    }
+    expect(escalated).toBe(true);
+    resetSequences();
+  });
+
+  it("审批通道不得引用回环地址作为豁免依据", () => {
+    const src = read("src/utils/approval-bridge.ts");
+    expect(src).not.toMatch(/isLocalAddress|requestIP|127\.0\.0\.1/);
+  });
+});

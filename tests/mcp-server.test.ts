@@ -15,6 +15,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       const tool: ToolDef = {
         name: "test_tool",
+        capability: ["internal"],
         description: "A test tool",
         inputSchema: { type: "object" },
         handler: async (args) => ({ result: "ok", args }),
@@ -29,6 +30,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       const tool: ToolDef = {
         name: "test_tool",
+        capability: ["internal"],
         description: "A test tool",
         inputSchema: { type: "object" },
         handler: async (args) => ({ result: "ok", args }),
@@ -45,12 +47,14 @@ describe("MCP Server", () => {
       const tools: ToolDef[] = [
         {
           name: "tool_a",
+          capability: ["internal"],
           description: "Tool A",
           inputSchema: { type: "object" },
           handler: async () => ({}),
         },
         {
           name: "tool_b",
+          capability: ["internal"],
           description: "Tool B",
           inputSchema: { type: "object" },
           handler: async () => ({}),
@@ -74,12 +78,14 @@ describe("MCP Server", () => {
       const result = registry
         .add({
           name: "tool_1",
+          capability: ["internal"],
           description: "Tool 1",
           inputSchema: { type: "object" },
           handler: async () => ({}),
         })
         .add({
           name: "tool_2",
+          capability: ["internal"],
           description: "Tool 2",
           inputSchema: { type: "object" },
           handler: async () => ({}),
@@ -93,6 +99,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       const tool: ToolDef = {
         name: "echo",
+        capability: ["internal"],
         description: "Echo tool",
         inputSchema: { type: "object" },
         handler: async (args) => ({ echo: args.message }),
@@ -110,6 +117,7 @@ describe("MCP Server", () => {
 
       registry.add({
         name: "add",
+        capability: ["internal"],
         description: "Add two numbers",
         inputSchema: { type: "object" },
         handler: async (args) => ({ result: (args.a as number) + (args.b as number) }),
@@ -117,6 +125,7 @@ describe("MCP Server", () => {
 
       registry.add({
         name: "multiply",
+        capability: ["internal"],
         description: "Multiply two numbers",
         inputSchema: { type: "object" },
         handler: async (args) => ({ result: (args.a as number) * (args.b as number) }),
@@ -135,6 +144,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       const tool: ToolDef = {
         name: "error_tool",
+        capability: ["internal"],
         description: "Tool that throws",
         inputSchema: { type: "object" },
         handler: async () => {
@@ -156,6 +166,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       registry.add({
         name: "stdio_tool",
+        capability: ["internal"],
         description: "Test stdio registration",
         inputSchema: { type: "object" },
         handler: async () => ({ ok: true }),
@@ -177,6 +188,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       registry.add({
         name: "failing_tool",
+        capability: ["internal"],
         description: "Always fails",
         inputSchema: { type: "object" },
         handler: async () => { throw new Error("Boom"); },
@@ -204,6 +216,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       registry.add({
         name: "text_tool",
+        capability: ["internal"],
         description: "Returns text",
         inputSchema: { type: "object" },
         handler: async () => "plain string result",
@@ -226,6 +239,7 @@ describe("MCP Server", () => {
       const registry = new ToolRegistry();
       registry.add({
         name: "json_tool",
+        capability: ["internal"],
         description: "Returns object",
         inputSchema: { type: "object" },
         handler: async () => ({ key: "value", num: 42 }),

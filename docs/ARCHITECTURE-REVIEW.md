@@ -82,7 +82,7 @@
 
 ### 安全性（本轮修复后）
 
-端口默认回环 + 回环豁免回退通道；敏感路由 503 fail-closed；key at-rest 加密；SSRF/沙箱/env 三层纵深；双层 LLM 复核 + HITL 闭环。剩余 OPEN 项全部在 RISK-REGISTER 跟踪。
+端口默认回环 + 回环豁免需显式开启（`AXIOM_ALLOW_LOCAL_BYPASS` 默认关闭）；敏感路由 503 fail-closed；key at-rest 加密；SSRF/沙箱/env 三层纵深；双层 LLM 复核 + HITL 闭环。剩余 OPEN 项全部在 RISK-REGISTER 跟踪。
 
 ## 5. 前端部件审查
 

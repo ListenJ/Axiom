@@ -5,6 +5,7 @@ import { getArenaCollector } from "../../eval/arena-collector.js";
 export function registerArenaTools(registry: ToolRegistry): void {
   registry.add({
     name: "arena_collect",
+    capability: ["net.outbound", "db.write"],
     description: "采集竞技场榜单数据 (LMSYS/OpenCompass/HuggingFace/LLM Stats)",
     inputSchema: {
       source: z.string().optional().describe("指定源名称 (如 'LMSYS Arena')，不指定则采集全部"),
@@ -21,6 +22,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_search_models",
+    capability: ["internal"],
     description: "搜索竞技场榜单中的模型 (FTS5 BM25 确定性检索)",
     inputSchema: {
       query: z.string().describe("搜索关键词"),
@@ -34,6 +36,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_get_model_scores",
+    capability: ["internal"],
     description: "获取模型在所有基准上的分数",
     inputSchema: {
       model_name: z.string().describe("模型名称"),
@@ -46,6 +49,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_benchmark_ranking",
+    capability: ["internal"],
     description: "获取基准上所有模型的排名",
     inputSchema: {
       benchmark: z.string().describe("基准名称 (如 'MMLU', 'HumanEval', 'arena-elo')"),
@@ -59,6 +63,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_composite_ranking",
+    capability: ["internal"],
     description: "获取综合评分排名 (确定性加权公式)",
     inputSchema: {
       limit: z.number().optional().default(50).describe("返回数量"),
@@ -71,6 +76,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_role_recommendation",
+    capability: ["internal"],
     description: "获取角色推荐 (确定性矩阵乘法匹配)",
     inputSchema: {
       role: z.enum(["code-generation", "research", "math", "general-chat", "architecture", "decision", "review", "general-tool"]).describe("角色类型"),
@@ -84,6 +90,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_stats",
+    capability: ["internal"],
     description: "获取竞技场榜单统计信息",
     inputSchema: {},
     handler: async () => {
@@ -94,6 +101,7 @@ export function registerArenaTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "arena_sources",
+    capability: ["internal"],
     description: "列出所有可用的榜单数据源",
     inputSchema: {},
     handler: async () => {

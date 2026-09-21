@@ -30,6 +30,7 @@ import {
 export function registerGitHubTools(registry: ToolRegistry): void {
   registry.add({
     name: "github_list_repos",
+    capability: ["net.outbound"],
     description: "列出 GitHub 仓库",
     inputSchema: {
       type: z.enum(["all", "owner", "public", "private", "member"]).optional().default("owner").describe("仓库类型"),
@@ -61,6 +62,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_get_repo",
+    capability: ["net.outbound"],
     description: "获取 GitHub 仓库详情",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -87,6 +89,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_create_repo",
+    capability: ["net.outbound"],
     description: "创建 GitHub 仓库",
     inputSchema: {
       name: z.string().describe("仓库名称"),
@@ -117,6 +120,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_fork_repo",
+    capability: ["net.outbound"],
     description: "Fork GitHub 仓库",
     inputSchema: {
       owner: z.string().describe("源仓库所有者"),
@@ -140,6 +144,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_issues",
+    capability: ["net.outbound"],
     description: "列出 GitHub Issues",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -173,6 +178,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_create_issue",
+    capability: ["net.outbound"],
     description: "创建 GitHub Issue",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -200,6 +206,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_add_issue_comment",
+    capability: ["net.outbound"],
     description: "添加 GitHub Issue 评论",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -223,6 +230,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_prs",
+    capability: ["net.outbound"],
     description: "列出 GitHub Pull Requests",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -254,6 +262,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_create_pr",
+    capability: ["net.outbound"],
     description: "创建 GitHub Pull Request",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -284,6 +293,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_review_pr",
+    capability: ["net.outbound"],
     description: "审查 GitHub Pull Request",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -311,6 +321,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_get_pr_files",
+    capability: ["net.outbound"],
     description: "获取 GitHub PR 变更文件列表",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -335,6 +346,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_get_file_contents",
+    capability: ["net.outbound"],
     description: "获取 GitHub 文件内容",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -374,6 +386,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_directory",
+    capability: ["net.outbound"],
     description: "列出 GitHub 仓库目录内容",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -400,6 +413,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_search_code",
+    capability: ["net.outbound"],
     description: "搜索 GitHub 代码",
     inputSchema: {
       query: z.string().describe("搜索查询（GitHub 搜索语法）"),
@@ -430,6 +444,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_releases",
+    capability: ["net.outbound"],
     description: "列出 GitHub Releases",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -459,6 +474,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_create_release",
+    capability: ["net.outbound"],
     description: "创建 GitHub Release",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -491,6 +507,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_workflows",
+    capability: ["net.outbound"],
     description: "列出 GitHub Actions 工作流",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -510,6 +527,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_trigger_workflow",
+    capability: ["net.outbound"],
     description: "触发 GitHub Actions 工作流",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -529,6 +547,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_list_workflow_runs",
+    capability: ["net.outbound"],
     description: "列出 GitHub Actions 工作流运行记录",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -561,6 +580,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_get_workflow_run",
+    capability: ["net.outbound"],
     description: "获取 GitHub Actions 工作流运行详情",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),
@@ -590,6 +610,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_health",
+    capability: ["net.outbound"],
     description: "检查 GitHub API 连接状态",
     inputSchema: {},
     handler: async () => {
@@ -609,6 +630,7 @@ export function registerGitHubTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "github_get_issue",
+    capability: ["net.outbound"],
     description: "获取 GitHub Issue 详情",
     inputSchema: {
       owner: z.string().describe("仓库所有者"),

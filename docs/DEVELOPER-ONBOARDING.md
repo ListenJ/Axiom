@@ -57,7 +57,7 @@ curl -X POST http://127.0.0.1:3001 \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 
-# 预期: 返回 130+ 工具的 meta 信息
+# 预期: 返回全部已注册工具的 meta 信息（工具清单以注册表为准，见 §7 项目结构）
 ```
 
 ## 4. 配置
@@ -149,7 +149,9 @@ curl -X POST http://127.0.0.1:3001 \
 ### 5.4 运行认知管道
 
 ```bash
-# 纯确定性推理 (6 步闭环, 零 LLM)
+# 确定性认知闭环：classify → knowledge → reasoning → constraint → action → reflection
+# 口径：该工具走 CognitivePipeline.run()，其决策字段由规则/检索承担；LLM 降级在 runWithLLM()/runFullWithLLM()，
+#       属另一条方法。注意 run() 的第 6 步会经 engine.consciousnessStep()，当前接线落到规则分支。
 curl -X POST http://127.0.0.1:3001 \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"cognitive_loop","arguments":{"input":"分析这个项目的架构"}}}'
@@ -190,7 +192,7 @@ curl -X POST http://127.0.0.1:3001 \
 ## 6. 运行测试
 
 ```bash
-# 运行 DRE 核心模块测试 (93 tests, 0 fail expected)
+# 运行 DRE 核心模块测试 —— 必须 0 fail；条数与耗时以命令输出为准，不抄录
 bun test tests/dre-core-modules.test.ts
 
 # 运行全部测试 (若存在)
@@ -204,7 +206,7 @@ openclaw-fusion/
 ├── src/
 │   ├── dre/                  # DRE 确定性推理引擎 (核心)
 │   │   ├── kernel.ts         # 极薄启动器 (init/tick/shutdown)
-│   │   ├── engine.ts         # 引擎主入口 (12 个子系统)
+│   │   ├── engine.ts         # 引擎主入口（子系统整合 + 固定初始化顺序）
 │   │   ├── config.ts         # 配置加载器 (env → KernelConfig)
 │   │   ├── system-resource.ts# 硬件无关资源预算
 │   │   ├── vfs.ts            # VFS / StorageAdapter
@@ -217,14 +219,19 @@ openclaw-fusion/
 │   │   ├── runtime/          # DataUnifier, AtomEngine, EventBus, WorldState...
 │   │   └── storage/          # KnowledgeStore (SQLite FTS5)
 │   ├── mcp/
-│   │   └── server.ts         # MCP 服务器 (3400+ 行, 133 工具)
+│   │   ├── server.ts         # MCP 服务器入口：只编排注册，不含内联工具定义
+│   │   ├── server/           # *-tools.ts 领域文件（工具真正注册处）
+│   │   ├── tool-registry.ts  # ToolDef + ToolRegistry 抽象
+│   │   └── register-external-tools.ts  # 外部 MCP server 转发的工具
 │   ├── main.ts               # HTTP 服务器入口
 │   └── launcher.ts           # 统一启动器
 ├── docs/
-│   ├── AXIOM-ARCHITECTURE.md # 唯一权威架构文档 (1388 行)
-│   └── archive/              # 历史版本存档
+│   ├── AXIOM-ARCHITECTURE.md # 架构白皮书：能力口径与非确定组件清单的定义处
+│   ├── ARCHITECTURE.md       # 分层规则与质量红线（派生件）
+│   ├── superpowers/specs/    # 设计与实施计划（含提权阻断模型）
 ├── tests/
-│   └── dre-core-modules.test.ts # 93 tests, 22 describe 组
+│   ├── doc-contract.test.ts  # 文档↔代码一致性门（D1–D9）
+│   └── dre-core-modules.test.ts # DRE 子系统行为测试
 ├── README.md
 └── package.json
 ```
@@ -240,5 +247,5 @@ openclaw-fusion/
 | 修改认知管道步骤 | `src/dre/pipeline/cognitive-pipeline.ts` — `run()` |
 | 添加新约束 | `src/dre/constraint/solver.ts` — `RESOURCE_CONSTRAINTS` 等 |
 | 修改记忆策略 | `src/dre/consciousness/stream.ts` — `EpisodicMemory` |
-| 添加新的 MCP 工具 | `src/mcp/server.ts` — `registry.add()` |
+| 添加新的 MCP 工具 | `src/mcp/server/` 下对应领域文件 — `registerXxxTools()` 内 `registry.add()` |
 | 写测试 | `tests/dre-core-modules.test.ts` — 添加 `describe()` 块 |

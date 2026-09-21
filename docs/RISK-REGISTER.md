@@ -1,4 +1,4 @@
-﻿# 风险登记册（Risk Register）
+# 风险登记册（Risk Register）
 
 > 建立：2026-07-26 ｜ 维护机制：每次安全/架构审查刷新；每条含 状态/严重度/负责人动作
 > 状态机：OPEN（待修）→ MITIGATED（已缓解）→ ACCEPTED（知情接受）→ CLOSED（闭环验证）

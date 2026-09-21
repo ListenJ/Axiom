@@ -4,9 +4,9 @@
  * 把 HITL ApprovalBridge 审批链接入交互式终端的"整行命令"输入：
  *   - 非回车字符实时透传 stdin（vi/less 等交互程序不受影响）；
  *   - 遇到行终止符（\r\n | \r | \n）才把当前行作为命令做判定；
- *   - AXIOM_PTY_APPROVAL_MODE=off|risky|strict（默认 off，保持现状向后兼容）：
- *       off    直接放行（现状）
- *       risky  sanitizeCommand 判定危险/白名单外才走审批（risk=destructive）
+ *   - AXIOM_PTY_APPROVAL_MODE=off|risky|strict（未配置=risky，S3 / S-6 封堵 L8）：
+ *       off    直接放行（须显式设置才生效）
+ *       risky  默认档：sanitizeCommand 判定危险/白名单外才走审批（risk=destructive）
  *       strict 任意非空命令都走审批（危险命令 risk=destructive，其余 unknown）
  *   - 审批/缓冲期间后续输入进入有界队列：完整行按序审批；期间键入的部分字符
  *     在结算后统一冲刷（避免被拒绝时的 Ctrl-C 误清下一行）；
@@ -21,11 +21,12 @@ import { sanitizeCommand } from "../utils/command-safety.js";
 import { getApprovalBridge, type ApprovalRisk } from "../utils/approval-bridge.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { PTY_APPROVAL_DEFAULT_MODE, PTY_APPROVAL_MODE_ENV } from "../utils/security-defaults.js";
 
 export type PtyApprovalMode = "off" | "risky" | "strict";
 
-/** 环境变量名：AXIOM_PTY_APPROVAL_MODE=off|risky|strict */
-export const PTY_APPROVAL_MODE_ENV = "AXIOM_PTY_APPROVAL_MODE";
+/** 环境变量名：AXIOM_PTY_APPROVAL_MODE=off|risky|strict（名称与默认值登记在 security-defaults） */
+export { PTY_APPROVAL_MODE_ENV };
 
 /** 审批桥的最小接口（真实 ApprovalBridge 结构兼容；测试可注入 fake） */
 export interface ApprovalBridgeLike {
@@ -39,7 +40,7 @@ export interface ApprovalBridgeLike {
 export interface CommandGateOptions {
   /** 审批桥；默认进程级 getApprovalBridge() */
   bridge?: ApprovalBridgeLike;
-  /** 模式；默认读 AXIOM_PTY_APPROVAL_MODE（未设置=off） */
+  /** 模式；默认读 AXIOM_PTY_APPROVAL_MODE（未设置=risky） */
   mode?: PtyApprovalMode;
   /** 审批/缓冲期间可积压的完整行上限，默认 32 */
   maxQueue?: number;
@@ -62,10 +63,12 @@ interface LineItem {
   written: boolean;
 }
 
-/** 解析审批模式；未知值 fail-closed 按 strict 处理 */
+/** 解析审批模式；未配置取安全侧默认（risky），未知值 fail-closed 按 strict 处理 */
 export function parseApprovalMode(raw: string | undefined): PtyApprovalMode {
   const v = (raw ?? "").trim().toLowerCase();
-  if (v === "" || v === "off") return "off";
+  // 旧行为：未配置 = off，等于"忘记设置就没有审批"（L8）。S-6 改为显式 off 才关闭。
+  if (v === "") return PTY_APPROVAL_DEFAULT_MODE;
+  if (v === "off") return "off";
   if (v === "risky") return "risky";
   if (v === "strict") return "strict";
   logger.warn(

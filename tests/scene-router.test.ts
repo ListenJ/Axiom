@@ -21,6 +21,7 @@ describe("SceneRouter", () => {
     registry.add({
       name,
       description: `Mock ${name}`,
+      capability: ["internal"],
       inputSchema: {},
       handler: async (args) => ({ mock: true, name }),
     });

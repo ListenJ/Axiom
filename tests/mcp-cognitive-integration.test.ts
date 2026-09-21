@@ -164,18 +164,21 @@ describe("Cognitive MCP 场景路由", () => {
     // 注册认知工具 (简化版)
     registry.add({
       name: "cognitive_loop",
+      capability: ["internal"],
       description: "认知闭环",
       inputSchema: { input: { type: "string" } },
       handler: async (args) => ({ trace: [], conclusion: null }),
     });
     registry.add({
       name: "cognitive_loop_full",
+      capability: ["internal"],
       description: "认知闭环+执行",
       inputSchema: { input: { type: "string" } },
       handler: async (args) => ({ trace: [], conclusion: null, executionGraph: {} }),
     });
     registry.add({
       name: "task_graph_execute",
+      capability: ["internal"],
       description: "任务图执行",
       inputSchema: {
         tasks: {

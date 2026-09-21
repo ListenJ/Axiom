@@ -5,6 +5,7 @@ import { getComponentKernel } from "../../components/kernel.js";
 export function registerNativeTools(registry: ToolRegistry): void {
   registry.add({
     name: "native_toolchain_status",
+    capability: ["internal"],
     description:
       "获取 Native Agent 组件工具链状态（token-budget / native-general / native-code / native-research）",
     inputSchema: {},
@@ -22,6 +23,7 @@ export function registerNativeTools(registry: ToolRegistry): void {
 
   registry.add({
     name: "native_agent_execute",
+    capability: ["net.outbound"],
     description: "通过 Native Agent 组件执行任务",
     inputSchema: {
       type: z.string().describe("任务类型（code-generation / research / general-chat）"),

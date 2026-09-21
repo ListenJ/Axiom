@@ -128,7 +128,7 @@ describe("E2E Runtime (real I/O)", () => {
       const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
       const { z } = await import("zod");
       const reg = new ToolRegistry();
-      reg.add({ name: "e2e_test", description: "e2e test tool", inputSchema: { msg: z.string() }, handler: async (args) => ({ echoed: args.msg }) });
+      reg.add({ name: "e2e_test", description: "e2e test tool", capability: ["internal"], inputSchema: { msg: z.string() }, handler: async (args) => ({ echoed: args.msg }) });
       expect(reg.size).toBe(1);
       expect(reg.getToolsMeta()[0].name).toBe("e2e_test");
     });
@@ -146,7 +146,7 @@ describe("E2E Runtime (real I/O)", () => {
       const { ToolRegistry } = await import("../src/mcp/tool-registry.js");
       const { z } = await import("zod");
       const reg = new ToolRegistry();
-      reg.add({ name: "echo", description: "echo", inputSchema: { input: z.string() }, handler: async (args) => ({ result: args.input }) });
+      reg.add({ name: "echo", description: "echo", capability: ["internal"], inputSchema: { input: z.string() }, handler: async (args) => ({ result: args.input }) });
       const handlers = reg.buildHttpHandlers();
       const result = await handlers.echo({ input: "hello" });
       expect(result).toEqual({ result: "hello" });

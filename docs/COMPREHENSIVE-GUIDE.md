@@ -9,10 +9,10 @@
 
 ### 1.1 Server Startup — `Bun.serve()`
 
-Everything begins in `src/main.ts:442` where the HTTP server is created:
+Everything begins in `src/main.ts` where the HTTP server is created:
 
 ```typescript
-// src/main.ts:442-449
+// src/main.ts
 const server = Bun.serve({
   port,
   hostname: readString("HOST", "127.0.0.1"),
@@ -25,18 +25,18 @@ const server = Bun.serve({
 
 Each request enters this single `fetch` handler. Before the Trie-based router is invoked, the request passes through:
 
-1. **CORS** — OPTIONS requests return immediately (`main.ts:451`)
-2. **Auth gate** — `checkApiKey()` verifies `x-api-key` or `Authorization` header (`main.ts:454`)
-3. **WebSocket** — `/ws` path upgraded to WS protocol (`main.ts:459`)
-4. **Rate limiting** — sliding window check (`main.ts:472`)
-5. **Body size** — POST/PUT bodies checked against `MAX_BODY_SIZE` (`main.ts:478`)
+1. **CORS** — OPTIONS requests return immediately (`main.ts`)
+2. **Auth gate** — `checkApiKey()` verifies `x-api-key` or `Authorization` header (`main.ts`)
+3. **WebSocket** — `/ws` path upgraded to WS protocol (`main.ts`)
+4. **Rate limiting** — sliding window check (`main.ts`)
+5. **Body size** — POST/PUT bodies checked against `MAX_BODY_SIZE` (`main.ts`)
 
 ### 1.2 Route Registration — `registerTrieRoutes()`
 
-At startup, routes register into the `HttpRouter` via `src/routes/index.ts:181`:
+At startup, routes register into the `HttpRouter` via `src/routes/index.ts`:
 
 ```typescript
-// src/main.ts:340-343
+// src/main.ts
 const httpRouter = getHttpRouter();
 registerTrieRoutes(httpRouter);
 logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes().length });
@@ -45,7 +45,7 @@ logger.info("[HttpRouter] Trie routes registered", { count: httpRouter.getRoutes
 The registration function defines an array of `RouteRecord` objects:
 
 ```typescript
-// src/routes/index.ts:179-229
+// src/routes/index.ts
 import { HttpRouter, type RouteRecord } from "../core/http-router.js";
 
 export function registerTrieRoutes(engine: HttpRouter): void {
@@ -64,10 +64,10 @@ export function registerTrieRoutes(engine: HttpRouter): void {
 
 ### 1.3 Trie Matching — `HttpRouter`
 
-The `HttpRouter` (`src/core/http-router.ts:64`) builds a prefix tree keyed by HTTP method. `register()` splits the path on `/` and walks/creates nodes:
+The `HttpRouter` (`src/core/http-router.ts`) builds a prefix tree keyed by HTTP method. `register()` splits the path on `/` and walks/creates nodes:
 
 ```typescript
-// src/core/http-router.ts:87-119
+// src/core/http-router.ts
 register(record: RouteRecord): void {
   const { method, path } = record;
   const methodLower = method.toUpperCase();
@@ -100,7 +100,7 @@ register(record: RouteRecord): void {
 The `execute()` method (line 173) ties caching, matching, and handler invocation:
 
 ```typescript
-// src/core/http-router.ts:173-234
+// src/core/http-router.ts
 async execute(ctx: RouteContext): Promise<Response | null> {
   const { req, url } = ctx;
   const cacheKey = `${method}:${pathname}:${url.search}`;
@@ -130,7 +130,7 @@ async execute(ctx: RouteContext): Promise<Response | null> {
 The `match()` method (line 130) walks segment-by-segment: literal match first, then `:param` fallback, then `/**` wildcard:
 
 ```typescript
-// src/core/http-router.ts:130-167
+// src/core/http-router.ts
 match(method: string, path: string): { record: RouteRecord; params: Record<string, string> } | null {
   const trie = this.root.get(method.toUpperCase());
   if (!trie) return null;
@@ -161,10 +161,10 @@ match(method: string, path: string): { record: RouteRecord; params: Record<strin
 
 ### 1.4 Handler Example — `/health`
 
-The health handler at `src/routes/health.ts:6` receives `RouteContext` and returns a JSON response:
+The health handler at `src/routes/health.ts` receives `RouteContext` and returns a JSON response:
 
 ```typescript
-// src/routes/health.ts:6-27
+// src/routes/health.ts
 export async function handleHealth(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/health" && ctx.req.method === "GET") {
     const checks = await ctx.healthMonitor.checkAll();
@@ -189,20 +189,20 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
 
 ### 1.5 `RouteContext` Construction
 
-The context is built inline in the fetch handler (`main.ts:488-491`):
+The context is built inline in the fetch handler (`main.ts`):
 
 ```typescript
-// src/main.ts:488-491
+// src/main.ts
 const ctx: RouteContext = {
   url, req, vault, db, pipeline, healthMonitor, fileWatcher,
   startupTime, baseHeaders, jsonResponse,
 };
 ```
 
-The type is defined at `src/routes/types.ts:11`:
+The type is defined at `src/routes/types.ts`:
 
 ```typescript
-// src/routes/types.ts:11-22
+// src/routes/types.ts
 export interface RouteContext {
   url: URL;
   req: Request;
@@ -217,7 +217,7 @@ export interface RouteContext {
 }
 ```
 
-After the Trie router, there is a fallback chain (`main.ts:496-508`):
+After the Trie router, there is a fallback chain (`main.ts`):
 1. `serveStaticFile(url.pathname)` — SPA assets from `./public/`
 2. `httpRouter.execute(ctx)` — Trie-based routing
 3. `dispatch(ctx)` — legacy linear fallback
@@ -229,10 +229,10 @@ After the Trie router, there is a fallback chain (`main.ts:496-508`):
 
 ### 2.1 Writing a Note — `writeNote()`
 
-The `VaultManager.writeNote()` method at `src/memory/vault-manager.ts:171` is the central write path:
+The `VaultManager.writeNote()` method at `src/memory/vault-manager.ts` is the central write path:
 
 ```typescript
-// src/memory/vault-manager.ts:171-231
+// src/memory/vault-manager.ts
 async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}): Promise<string> {
   // Smart gate: skip low-value writes if context provided
   if (opts.gateContext) {
@@ -294,10 +294,10 @@ async writeNote(notePath: string, content: string, opts: WriteNoteOptions = {}):
 
 ### 2.2 Path Safety — `resolveSafePath()`
 
-Path traversal is blocked at `src/memory/vault-manager.ts:661`:
+Path traversal is blocked at `src/memory/vault-manager.ts`:
 
 ```typescript
-// src/memory/vault-manager.ts:661-669
+// src/memory/vault-manager.ts
 private resolveSafePath(notePath: string): string {
   const resolved = path.resolve(this.config.vaultPath, notePath);
   const base = path.resolve(this.config.vaultPath);
@@ -311,10 +311,10 @@ private resolveSafePath(notePath: string): string {
 
 ### 2.3 Frontmatter Construction — `buildFrontmatter()`
 
-YAML frontmatter is built at `src/memory/vault-manager.ts:671` with ordered keys:
+YAML frontmatter is built at `src/memory/vault-manager.ts` with ordered keys:
 
 ```typescript
-// src/memory/vault-manager.ts:671-696
+// src/memory/vault-manager.ts
 private buildFrontmatter(opts: Record<string, unknown>): string {
   const fmKeys = ["title", "type", "created", "updated", "source", "tags", "confidence"];
   const fmEntries: Array<[string, unknown]> = [];
@@ -344,10 +344,10 @@ private buildFrontmatter(opts: Record<string, unknown>): string {
 
 ### 2.4 Reading a Note — `readNote()`
 
-The read path at `vault-manager.ts:138` reads from disk (the source of truth):
+The read path at `vault-manager.ts` reads from disk (the source of truth):
 
 ```typescript
-// src/memory/vault-manager.ts:138-148
+// src/memory/vault-manager.ts
 readNote(notePath: string): { content: string; frontmatter: Record<string, unknown> } | null {
   try {
     const fullPath = this.resolveSafePath(notePath);
@@ -363,10 +363,10 @@ readNote(notePath: string): { content: string; frontmatter: Record<string, unkno
 
 ### 2.5 Searching — SQLite FTS5 + Deterministic Fallback
 
-The `search()` method at `vault-manager.ts:84` uses a two-tier strategy:
+The `search()` method at `vault-manager.ts` uses a two-tier strategy:
 
 ```typescript
-// src/memory/vault-manager.ts:84-121
+// src/memory/vault-manager.ts
 search(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string }): SearchResult[] {
   const limit = opts?.limit ?? 10;
 
@@ -402,10 +402,10 @@ search(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]
 
 ### 2.6 Archiver's `parseFrontmatter()` — Cross-Platform Line Endings
 
-The archiver at `src/memory/archiver.ts:227` normalizes `\r\n` before parsing:
+The archiver at `src/memory/archiver.ts` normalizes `\r\n` before parsing:
 
 ```typescript
-// src/memory/archiver.ts:227-250
+// src/memory/archiver.ts
 private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
   const normalized = content.replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---/);
@@ -436,10 +436,10 @@ Compare with the vault-manager's local `parseFrontmatter()` at line 698 — it u
 
 ### 2.7 `getGlobalVault()` Singleton
 
-The singleton at `src/memory/vault-manager.ts:753` is the single entry point:
+The singleton at `src/memory/vault-manager.ts` is the single entry point:
 
 ```typescript
-// src/memory/vault-manager.ts:753-759
+// src/memory/vault-manager.ts
 let _globalVault: VaultManager | null = null;
 export function getGlobalVault(): VaultManager {
   if (!_globalVault) {
@@ -449,7 +449,12 @@ export function getGlobalVault(): VaultManager {
 }
 ```
 
-This is used instead of `new VaultManager()` throughout the codebase to ensure one instance per process.
+`getGlobalVault()` exists to avoid repeated instantiation, but it is not the only construction
+path: `new VaultManager({...})` is still called directly from `src/main.ts`,
+`src/memory/distiller.ts`, `src/memory/bootstrap.ts` and `src/crawl/data-pipeline.ts`.
+Per-process uniqueness is therefore an intent, not an enforced invariant — a caller that needs
+the shared instance must go through `getGlobalVault()`, and a caller that passes a custom
+`vaultPath` must construct its own.
 
 ---
 
@@ -457,10 +462,10 @@ This is used instead of `new VaultManager()` throughout the codebase to ensure o
 
 ### 3.1 Server Structure — `mcp/server.ts`
 
-The MCP server is created at `src/mcp/server.ts:57`:
+The MCP server is created at `src/mcp/server.ts`:
 
 ```typescript
-// src/mcp/server.ts:57-64
+// src/mcp/server.ts
 const mcp = new McpServer({
   name: "Axiom Agent MCP Server",
   version: "2.9.2",
@@ -472,7 +477,7 @@ const registry = new ToolRegistry();
 It supports both stdio and HTTP transport (line 387):
 
 ```typescript
-// src/mcp/server.ts:387-461
+// src/mcp/server.ts
 const transport = process.argv.includes("--stdio") ? "stdio" : "http";
 
 if (transport === "stdio") {
@@ -513,10 +518,10 @@ if (transport === "stdio") {
 
 ### 3.2 ToolRegistry
 
-The registry (`src/mcp/tool-registry.ts:28`) stores `ToolDef` entries and provides dual registration:
+The registry (`src/mcp/tool-registry.ts`) stores `ToolDef` entries and provides dual registration:
 
 ```typescript
-// src/mcp/tool-registry.ts:28-35
+// src/mcp/tool-registry.ts
 export class ToolRegistry {
   private tools: ToolDef[] = [];
 
@@ -549,10 +554,10 @@ export class ToolRegistry {
 
 ### 3.3 The `registerVaultTools(registry, vault)` Pattern
 
-All domain files follow the same convention. From `src/mcp/server.ts:74`:
+All domain files follow the same convention. From `src/mcp/server.ts`:
 
 ```typescript
-// src/mcp/server.ts:18
+// src/mcp/server.ts
 import { registerVaultTools, registerWebTools } from "./server/vault-tools.js";
 // ...
 registerVaultTools(registry, vault);
@@ -576,10 +581,10 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 ### 3.4 `adaptTool` Bridge
 
-The adapt tool at `src/mcp/adapt-tool.ts:17` bridges `Tool<I,O>` (pipeline) to `ToolDef` (MCP):
+The adapt tool at `src/mcp/adapt-tool.ts` bridges `Tool<I,O>` (pipeline) to `ToolDef` (MCP):
 
 ```typescript
-// src/mcp/adapt-tool.ts:17-45
+// src/mcp/adapt-tool.ts
 export function adaptTool<I, O>(
   tool: Tool<I, O>,
   overrides?: Partial<Pick<ToolDef, "tags" | "format">>,
@@ -611,19 +616,19 @@ export function adaptTool<I, O>(
 }
 ```
 
-Used in `server.ts:72` to inject pipeline-aware tools:
+Used in `server.ts` to inject pipeline-aware tools:
 
 ```typescript
-// src/mcp/server.ts:72
+// src/mcp/server.ts
 for (const td of adaptTools([readTool, writeTool, queryTool])) registry.add(td);
 ```
 
 ### 3.5 Complete Tool Handler Example — `serpapi_search`
 
-The full serpapi_search tool at `src/mcp/server.ts:80` shows the complete registration pattern:
+The full serpapi_search tool at `src/mcp/server.ts` shows the complete registration pattern:
 
 ```typescript
-// src/mcp/server.ts:80-149
+// src/mcp/server.ts
 registry.add({
   name: "serpapi_search",
   description: "Use SerpAPI to execute Google deep search, results saved to Vault as structured Markdown with full raw JSON",
@@ -667,18 +672,18 @@ registry.add({
 
 ### 4.1 Frontmatter Parsing — The `\r\n` Problem
 
-Two `parseFrontmatter()` implementations exist. The vault-manager version (`vault-manager.ts:698`) uses `\n` directly:
+Two `parseFrontmatter()` implementations exist. The vault-manager version (`vault-manager.ts`) uses `\n` directly:
 
 ```typescript
-// src/memory/vault-manager.ts:698-700
+// src/memory/vault-manager.ts
 private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
 ```
 
-The archiver version (`archiver.ts:227`) normalizes first, making it correct for Windows line endings:
+The archiver version (`archiver.ts`) normalizes first, making it correct for Windows line endings:
 
 ```typescript
-// src/memory/archiver.ts:227-229
+// src/memory/archiver.ts
 private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
   const normalized = content.replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---/);
@@ -688,10 +693,10 @@ Both parse YAML-like key-value pairs manually without a YAML library for perform
 
 ### 4.2 `safeHostname()` — Safe URL Parsing
 
-The distiller's `safeHostname()` at `src/memory/distiller.ts:18` returns a fallback when URL parsing fails:
+The distiller's `safeHostname()` at `src/memory/distiller.ts` returns a fallback when URL parsing fails:
 
 ```typescript
-// src/memory/distiller.ts:18-26
+// src/memory/distiller.ts
 export function safeHostname(url: string): string {
   try {
     return new URL(url).hostname;
@@ -706,7 +711,7 @@ export function safeHostname(url: string): string {
 Used in `extractFromWebContent()` (line 179) to label code snippets with their source domain:
 
 ```typescript
-// src/memory/distiller.ts:178-183
+// src/memory/distiller.ts
 ideas.push({
   title: `Code Fragment #${codeIndex} (${sourceUrl ? safeHostname(sourceUrl) : "web"})`,
   content: `\`\`\`\n${code}\n\`\`\``,
@@ -716,10 +721,10 @@ ideas.push({
 
 ### 4.3 Memory Gate — Null Context Guard
 
-The `SignificanceContext` behind `shouldWrite()` at `src/memory/memory-gate.ts:107` contains a defensive null check:
+The `SignificanceContext` behind `shouldWrite()` at `src/memory/memory-gate.ts` contains a defensive null check:
 
 ```typescript
-// src/memory/memory-gate.ts:107-120
+// src/memory/memory-gate.ts
 shouldWrite(response: string, userMessage: string, ctx: SignificanceContext): WriteDecision {
   // Defense: null/undefined params degrade gracefully
   if (!response || !userMessage || !ctx) {
@@ -734,7 +739,7 @@ shouldWrite(response: string, userMessage: string, ctx: SignificanceContext): Wr
 The significance scoring (line 174-253) uses a multi-factor weighted system:
 
 ```typescript
-// src/memory/memory-gate.ts:175-253
+// src/memory/memory-gate.ts
 let confidence = 0;
 const reasons: string[] = [];
 
@@ -765,10 +770,10 @@ return { shouldWrite: false, reason: `Confidence too low`, confidence, category:
 
 ### 4.4 Conformal Retriever — NaN Defense
 
-The `ConformalRetriever.retrieve()` at `src/memory/conformal-retriever.ts:256` clamps similarity scores to prevent NaN from propagating:
+The `ConformalRetriever.retrieve()` at `src/memory/conformal-retriever.ts` clamps similarity scores to prevent NaN from propagating:
 
 ```typescript
-// src/memory/conformal-retriever.ts:276-289
+// src/memory/conformal-retriever.ts
 for (const doc of candidates) {
   let similarity: number;
   try {
@@ -790,7 +795,7 @@ for (const doc of candidates) {
 The p-value calculation at line 342 uses binary search for O(log n) evaluation:
 
 ```typescript
-// src/memory/conformal-retriever.ts:342-353
+// src/memory/conformal-retriever.ts
 private computePValue(nonconformityScore: number): number {
   if (this.n === 0) return 1.0; // No calibration data → conservative: max p-value
   const countGeq = this.countGreaterOrEqual(nonconformityScore);
@@ -800,10 +805,10 @@ private computePValue(nonconformityScore: number): number {
 
 ### 4.5 Loop Detection — Rate-Limited Throttling
 
-The `detectLoop` function at `src/tools/types.ts:74` tracks recent call hashes per minute:
+The `detectLoop` function at `src/tools/types.ts` tracks recent call hashes per minute:
 
 ```typescript
-// src/tools/types.ts:74-91
+// src/tools/types.ts
 const recentCalls = new Map<string, number[]>();
 
 export function detectLoop(toolName: string, input: string): boolean {
@@ -847,10 +852,10 @@ export { PROVIDER_CONFIG, isProviderConfigured, listConfiguredProviders } from "
 export { UNIFIED_REGISTRY, getModel, getFallbackChain, listFreeModels, listAllModels, listAllRoles } from "./models/registry.js";
 ```
 
-The architecture test at `tests/architecture-integrity.test.ts:239` enforces this:
+The architecture test at `tests/architecture-integrity.test.ts` enforces this:
 
 ```typescript
-// tests/architecture-integrity.test.ts:239-244
+// tests/architecture-integrity.test.ts
 it("router/models.ts must not use export *", () => {
   const filePath = path.join(srcDir, "router", "models.ts");
   const content = fs.readFileSync(filePath, "utf-8");
@@ -863,7 +868,7 @@ it("router/models.ts must not use export *", () => {
 The services layer at `src/services/` breaks circular dependencies. For example, the `agents` module imports from `router`, and `router` imports from `agents` — this circular pair is broken by routing both through `services/`:
 
 ```typescript
-// src/services/router.ts:1-18
+// src/services/router.ts
 /**
  * Router service — re-exports from router/ for the services layer.
  *
@@ -892,7 +897,7 @@ export { router, type ChatMessage, type ChatStreamEvent, type SmartAssignmentRes
 The circular pairs are explicitly listed in the architecture test exemptions:
 
 ```typescript
-// tests/architecture-integrity.test.ts:363-371
+// tests/architecture-integrity.test.ts
 const KNOWN_CIRCULAR_PAIRS = new Set<string>([
   "agents <-> services",
   "core <-> routes",
@@ -909,7 +914,7 @@ const KNOWN_CIRCULAR_PAIRS = new Set<string>([
 The legacy `utils/config.ts` was merged into `src/core/config-center.ts` to create a single configuration entry point. The `getConfig()` function at line 574 reads from the `ConfigCenter` singleton:
 
 ```typescript
-// src/core/config-center.ts:574-596
+// src/core/config-center.ts
 export function getConfig(): AppConfig {
   const cc = getConfigCenter();
   return {
@@ -939,14 +944,14 @@ The merge eliminated duplicate env-var reading logic and ensured all configurati
 
 ### 5.4 Why `createDefaultMentalModelPool` Was Inlined
 
-Previously, multiple factory functions created `MentalModelPool` instances with different configurations. After refactoring, there is a single `new MentalModelPool()` call at `src/dre/engine.ts:123`:
+Previously, multiple factory functions created `MentalModelPool` instances with different configurations. After refactoring, there is a single `new MentalModelPool()` call at `src/dre/engine.ts`:
 
 ```typescript
-// src/dre/engine.ts:123
+// src/dre/engine.ts
 this.mentalModels = new MentalModelPool();
 ```
 
-All variants were consolidated because the pool is always initialized with the same defaults. The exported type at `src/dre/index.ts:31` remains:
+All variants were consolidated because the pool is always initialized with the same defaults. The exported type at `src/dre/index.ts` remains:
 
 ```typescript
 export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, type Simulation, type SimulationStep } from "./mental-model/pool.js";
@@ -954,10 +959,10 @@ export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, t
 
 ### 5.5 Why EventBus Uses O(1) Ring Buffer
 
-The `EventBusImpl` at `src/dre/runtime/event-bus.ts:42` uses a ring buffer for the event log instead of an unbounded array:
+The `EventBusImpl` at `src/dre/runtime/event-bus.ts` uses a ring buffer for the event log instead of an unbounded array:
 
 ```typescript
-// src/dre/runtime/event-bus.ts:62-69
+// src/dre/runtime/event-bus.ts
 this.stats.published++;
 if (this.eventLog.length < this.maxLogSize) {
   this.eventLog.push(fullEvent);
@@ -970,7 +975,7 @@ this.eventLogIndex = (this.eventLogIndex + 1) % this.maxLogSize;
 The `getRecentEvents()` method reads from the ring buffer with modular arithmetic:
 
 ```typescript
-// src/dre/runtime/event-bus.ts:123-135
+// src/dre/runtime/event-bus.ts
 getRecentEvents(count = 20): RuntimeEvent[] {
   const len = this.eventLog.length;
   if (len === 0) return [];
@@ -985,7 +990,7 @@ getRecentEvents(count = 20): RuntimeEvent[] {
 }
 ```
 
-This improved 100k publish from 77ms to 29ms (a 2.65x speedup) by eliminating the O(n) `shift()` on the event log array.
+The log is read with modular index arithmetic instead of `shift()`/re-slice over an ever-growing array, so tail reads stay O(count) no matter how many events were published. Measured cost is reported by the `[perf] EventBus publish` and `[perf-extreme] EventBus 100k publish` cases in `bun test tests/perf-benchmark.test.ts`; speedup ratios are not restated here because a ratio without a stored baseline cannot be re-checked.
 
 ---
 
@@ -993,12 +998,12 @@ This improved 100k publish from 77ms to 29ms (a 2.65x speedup) by eliminating th
 
 ### 6.1 Architecture Integrity Tests (22 Checks)
 
-Defined at `tests/architecture-integrity.test.ts:134`, these run via `bun run test:arch`. They enforce:
+Defined at `tests/architecture-integrity.test.ts`, these run via `bun run test:arch`. They enforce:
 
 **Layer constraints** (test 1, line 136): utils/ must not import from higher layers:
 
 ```typescript
-// tests/architecture-integrity.test.ts:136-158
+// tests/architecture-integrity.test.ts
 it("src/utils/ must not import from higher layers", () => {
   const re = /(?:from\s+['"]|import\s*\(\s*['"])\.\.\/(memory|router|agents|mcp|dre|routes|services)\//;
   const violations: string[] = [];
@@ -1015,10 +1020,10 @@ it("src/utils/ must not import from higher layers", () => {
 });
 ```
 
-**process.env whitelist** (test 2, line 161): only 9 whitelisted files may read env vars directly:
+**process.env whitelist** (test 2, `ENV_WHITELIST` in `tests/architecture-integrity.test.ts`): only the files enumerated in the set may read env vars directly. The set in the test is the authority; it is reproduced here as documentation, not as a budget to keep in sync:
 
 ```typescript
-// tests/architecture-integrity.test.ts:123-132
+// tests/architecture-integrity.test.ts
 const ENV_WHITELIST = new Set([
   "utils/env.ts", "core/config-center.ts", "utils/logger.ts",
   "utils/proxy-fetch.ts", "utils/api-key-store.ts",
@@ -1026,10 +1031,10 @@ const ENV_WHITELIST = new Set([
 ]);
 ```
 
-**Code quality** checks include: `as any` ≤ 25 total (test 3, line 190), `@ts-expect-error` ≤ 1 (test 4, line 205), no `console.log/error` outside whitelist (test 16, line 407), `: any` annotations ≤ 90 (test 17, line 428), descriptive `throw` messages ≥ 10 chars (test 18, line 447), exported functions in `utils/` must have return types (test 19, line 475):
+**Code quality** checks include: an `as any` total budget plus a per-file cap, an `@ts-expect-error` budget, no `console.log`/`console.error` outside `CONSOLE_WHITELIST` and `cli/commands/`, a `: any` annotation budget, `throw new Error()` carrying a descriptive message, and return-type annotations on exported `utils/` functions. Every threshold is declared inside `tests/architecture-integrity.test.ts`; the numbers are deliberately not restated here, because a copy of a budget is how a budget quietly gets raised:
 
 ```typescript
-// tests/architecture-integrity.test.ts:474-487
+// tests/architecture-integrity.test.ts
 it("all exported functions in utils/ must have return type annotations", () => {
   const files = walkDir(path.join(srcDir, "utils"));
   const violations: string[] = [];
@@ -1044,12 +1049,12 @@ it("all exported functions in utils/ must have return type annotations", () => {
 });
 ```
 
-### 6.2 Performance Benchmarks (32 Benchmarks)
+### 6.2 Performance Benchmarks
 
-Defined at `tests/perf-benchmark.test.ts`, these include extreme benchmarks that must sustain 200% of normal load:
+Defined at `tests/perf-benchmark.test.ts`. Two families coexist and mean different things: `[perf]` cases measure per-operation throughput of a hot path, `[perf-extreme]` cases push a fixed operation count against an absolute ceiling (a wall-clock budget, an LRU size cap, a factory-called-exactly-once invariant). The `200% uplift` comment in the source describes the suite doubling in case count, **not** a load factor — there is no "sustain 200% of normal load" assertion in the file:
 
 ```typescript
-// tests/perf-benchmark.test.ts:305-315 — Cache 100k set+get < 200ms
+// tests/perf-benchmark.test.ts — Cache 100k set+get < 200ms
 it("[perf-extreme] Cache 100k set+get < 200ms", () => {
   const { Cache } = require("../src/utils/cache.js");
   const cache = new Cache({ maxSize: 200000, defaultTtlMs: 60000, redis: false, persistent: false });
@@ -1061,7 +1066,7 @@ it("[perf-extreme] Cache 100k set+get < 200ms", () => {
   expect(avg).toBeLessThan(0.002);
 });
 
-// tests/perf-benchmark.test.ts:329-344 — Concurrent getOrSet factory once
+// tests/perf-benchmark.test.ts — Concurrent getOrSet factory once
 it("[perf-extreme] Cache concurrent getOrSet 1000 → factory exactly once", async () => {
   const { Cache } = require("../src/utils/cache.js");
   const cache = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false, persistent: false });
@@ -1077,24 +1082,30 @@ it("[perf-extreme] Cache concurrent getOrSet 1000 → factory exactly once", asy
 ```
 
 ```typescript
-// tests/perf-benchmark.test.ts:346-361 — Memory ceiling: 1M writes → maxSize=10000
-it("[perf-extreme] Cache memory ceiling: 1M entries, maxSize=10000", () => {
-  const { Cache } = require("../src/utils/cache.js");
+// tests/perf-benchmark.test.ts — Memory ceiling: 500k writes, maxSize=10000
+it("[perf-extreme] Cache memory ceiling: 500k entries, maxSize=10000", async () => {
+  const { Cache } = await import("../src/utils/cache.js");
   const cache = new Cache({ maxSize: 10000, defaultTtlMs: 60000, redis: false, persistent: false });
-  for (let i = 0; i < 1_000_000; i++) {
+  let peakSize = 0;
+  for (let i = 0; i < 500_000; i++) {
     cache.set(`k-${i}`, i);
+    if (i % 100000 === 0) peakSize = Math.max(peakSize, cache.stats().size);
   }
-  expect(cache.stats().size).toBeLessThanOrEqual(10000);
+  peakSize = Math.max(peakSize, cache.stats().size);
+  expect(peakSize).toBeLessThanOrEqual(10000);
 });
 ```
 
-### 6.3 Property-Based Tests (46 Invariants)
+### 6.3 Property-Based Tests
 
-The PBT suite at `tests/property-based.test.ts` covers 6 modules with invariants:
+The suites in `tests/property-based.test.ts` are `PBT Cache`, `PBT Thompson`, `PBT HttpRouter`,
+`PBT Vault (Mock)`, `PBT ConfigCenter` and `SOAK`. Each invariant is an `it("INV…")` case, so the
+per-suite and total counts are derivable with
+`grep -c 'it("' tests/property-based.test.ts` — they are not restated here.
 
-**Cache (11 invariants, lines 13-108):**
+**Cache:**
 ```typescript
-// tests/property-based.test.ts:14-21 — INV1: set→get returns same value
+// tests/property-based.test.ts — INV1: set→get returns same value
 it("INV1: set->get returns same value", async () => {
   const { Cache } = await import("../src/utils/cache.js");
   const c = new Cache({ maxSize: 1000, defaultTtlMs: 60000, redis: false });
@@ -1105,18 +1116,30 @@ it("INV1: set->get returns same value", async () => {
 });
 ```
 
-**HttpRouter (3 invariants, lines 269-299):**
+**HttpRouter:**
 ```typescript
-// tests/property-based.test.ts:270-277 — INV1: 1000 random routes
-it("INV1: match registered route for 1000 random routes", () => {
-  // ...statistical sampling of route matching correctness
-});
+// tests/property-based.test.ts — every registered path must resolve
+it("INV1: registered paths match", async () => {
+  const { HttpRouter } = await import("../src/core/http-router.js");
+  const r = new HttpRouter({ redis: false } as any);
+  const paths: string[] = [];
+  for (let i = 0; i < 1000; i++) {
+    const p = `/a/v${rand(10)}/r/${randStr(8)}/${i}`;
+    paths.push(p);
+    r.register({ method: "GET", path: p, handler: async () => new Response("ok") });
+  }
+  for (const p of paths) {
+    const ctx: any = { url: new URL(`http://h${p}`), req: new Request(`http://h${p}`), /* … */ };
+    const res = await r.execute(ctx);
+    expect(res).not.toBeNull();
+  }
+}, 30000);
 ```
 
-**Vault (13 invariants, lines 296-367):**
+**Vault (Mock):**
 ```typescript
-// tests/property-based.test.ts:296-307 — Atomic note round-trip
-it("INV7: atomic note round trip", async () => {
+// tests/property-based.test.ts — atomic note write is immediately readable
+it("INV7: atomicNote writes a readable note", async () => {
   const { MockVaultManager } = await import("./helpers/vault-mock.js");
   const vault = new MockVaultManager();
   const path = await vault.writeAtomicNote("My Atomic Idea", "core insight here", { tags: ["atomic"] });
@@ -1129,10 +1152,10 @@ it("INV7: atomic note round trip", async () => {
 
 ### 6.4 SOAK Test (5000 Iterations)
 
-The SOAK test at `tests/property-based.test.ts:427` exercises Cache + HttpRouter + ThompsonRouter in a single 5000-iteration loop:
+The SOAK test at `tests/property-based.test.ts` exercises Cache + HttpRouter + ThompsonRouter in a single 5000-iteration loop:
 
 ```typescript
-// tests/property-based.test.ts:427-450
+// tests/property-based.test.ts
 describe("SOAK", () => {
   it("Cache+Router+TS 5000 iterations", async () => {
     const [mC, mR, mT] = await Promise.all([
@@ -1171,7 +1194,7 @@ describe("SOAK", () => {
 `tests/helpers/vault-mock.ts` provides a lightweight in-memory mock that replaces the file-system-backed `VaultManager`:
 
 ```typescript
-// tests/helpers/vault-mock.ts:9-117
+// tests/helpers/vault-mock.ts
 export class MockVaultManager {
   public calls: MockCallRecord[] = [];
   public notes = new Map<string, VaultNote>();
@@ -1205,23 +1228,26 @@ export class MockVaultManager {
 }
 ```
 
-The mock tracks all calls (enabling `callCount` assertions) while avoiding filesystem I/O. Performance benchmarks use it for vault operations — 10k mock writes complete in ~17ms vs 200ms+ for real filesystem operations.
+The mock tracks all calls (enabling `callCount` assertions) while avoiding filesystem I/O. Performance benchmarks use it for vault operations, so what the `[perf-extreme] Vault …` ceilings measure is the in-memory bookkeeping path — they are not measurements of real filesystem writes, and must not be quoted as vault throughput.
 
 ---
 
 ## Summary
 
-| Path | Lines | Key Pattern |
-|------|-------|-------------|
-| `src/main.ts` | 576 | `Bun.serve()` entry, Trie router, auth gate |
-| `src/core/http-router.ts` | 369 | O(1) Trie matching, cache, perf reporting |
-| `src/routes/index.ts` | 416 | `registerTrieRoutes()`, handler imports |
-| `src/memory/vault-manager.ts` | 761 | Deterministic vault, FTS5+fallback search |
-| `src/mcp/server.ts` | 462 | Dual transport, 15 domain registrations |
-| `src/mcp/tool-registry.ts` | 103 | `ToolDef` + `ToolRegistry` abstraction |
-| `src/dre/runtime/event-bus.ts` | 144 | O(1) ring buffer, priority dispatch |
-| `src/memory/memory-gate.ts` | 331 | Significance scoring, null guard |
-| `src/memory/conformal-retriever.ts` | 456 | NaN clamp, binary-search p-value |
-| `tests/architecture-integrity.test.ts` | 543 | 22 checks, layer/code-quality/perf |
-| `tests/perf-benchmark.test.ts` | 557 | 32 benchmarks, extreme (200%) |
-| `tests/property-based.test.ts` | 451 | 46 invariants, 5000 SOAK |
+> 本表不写行数与检查条数（`tests/doc-contract.test.ts` 的 D4 门禁止手抄定量指标）；
+> 计数以 `wc -l <路径>` 与 `bun run test:arch` / `bun run test:docs` 的输出为准。
+
+| Path | Key Pattern |
+|------|-------------|
+| `src/main.ts` | `Bun.serve()` entry, Trie router, auth gate |
+| `src/core/http-router.ts` | O(1) Trie matching, cache, perf reporting |
+| `src/routes/index.ts` | `registerTrieRoutes()`, handler imports |
+| `src/memory/vault-manager.ts` | Deterministic vault, FTS5+fallback search |
+| `src/mcp/server.ts` | Dual transport, domain-file registrations (`src/mcp/server/*-tools.ts`) |
+| `src/mcp/tool-registry.ts` | `ToolDef` + `ToolRegistry` abstraction |
+| `src/dre/runtime/event-bus.ts` | O(1) ring buffer, priority dispatch |
+| `src/memory/memory-gate.ts` | Significance scoring, null guard |
+| `src/memory/conformal-retriever.ts` | NaN clamp, binary-search p-value |
+| `tests/architecture-integrity.test.ts` | layer / code-quality / perf checks |
+| `tests/perf-benchmark.test.ts` | `[perf]` throughput + `[perf-extreme]` absolute ceilings |
+| `tests/property-based.test.ts` | invariants, 5000-iteration SOAK |

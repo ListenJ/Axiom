@@ -1,15 +1,15 @@
 # Axiom Runtime — 安全措施文档
 
-> **版本**：V4.0（Phase 1-4 安全加固）
-> **更新时间**：2026-07-21
+> **版本**：V4.1（Phase 1-4 安全加固 + S3 能力授权与提权封堵）
+> **更新时间**：2026-09-22
 > **适用对象**：安全工程师 / 运维人员 / 合规审计
-> **配套文档**：[USER-MANUAL.md](./USER-MANUAL.md) / [operations-log.md](./operations-log.md)
+> **配套文档**：[USER-MANUAL.md](./USER-MANUAL.md) / [operations-log.md](./operations-log.md) / [工具能力声明表](./security/tool-capability-declarations.md)
 
 ---
 
 ## 1. 安全架构总览
 
-Axiom Runtime V4 采用**六层纵深防护**模型，每层独立失效不影响其他层：
+Axiom Runtime V4 采用**六层纵深防护**模型，另有一个贯穿各层的执行内核（能力授权 + 执行锚点，见 2.7）：
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -28,9 +28,9 @@ Axiom Runtime V4 采用**六层纵深防护**模型，每层独立失效不影�
 ```
 
 **设计原则**：
-- **fail-closed**：默认拒绝，配置缺失时拒绝而非放行
-- **最小权限**：每个端点只授予必要权限
-- **纵深防御**：多层独立防护，单层失效不导致系统失守
+- **fail-closed**：默认拒绝，配置缺失时拒绝而非放行；对开关而言"未配置"取安全侧默认值而非"关闭"
+- **最小权限**：权限按**能力声明**授予，不按工具名推断；能力在执行点复核
+- **纵深防御**：层数本身不构成防御，成立条件是"同一份判定内核出现在每个特权落点"（反例见 2.7.4）
 - **可观测性**：所有敏感操作留痕，异常自动告警
 
 ---
@@ -76,12 +76,15 @@ Referrer-Policy: strict-origin-when-cross-origin
 
 #### 2.2.1 网关认证（`checkApiKey`）
 
-**位置**：[src/utils/auth-check.ts](../src/utils/auth-check.ts)
+**位置**：[src/utils/auth-check.ts](../src/utils/auth-check.ts)（判定）+ [src/utils/security-defaults.ts](../src/utils/security-defaults.ts)（回环豁免开关的唯一来源）
 
 **判定逻辑**：
 
-1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ 免认证
+1. **本地回环请求**（`127.0.0.1` / `::1` / `::ffff:127.0.0.1`）→ **默认不免认证**
+   - `isLocal` 由调用方计算：`AXIOM_ALLOW_LOCAL_BYPASS=1 && isLocalAddress(socket 对端地址)`，未配置即 false（S3 / L6）
    - 必须来自 socket 对端地址（`server.requestIP`），**绝不**来自 `Host` header（可伪造）
+   - 豁免开启且绑定非回环地址时启动打 warn + `security.alert` 留痕（同主机反代转发的远程流量在 socket 层呈现为 `127.0.0.1`）
+   - 网关与 MCP HTTP 服务共用同一开关：静态门要求任何使用 `isLocalAddress()` 的服务端入口必须同时引用 `localBypassEnabled()`，否则视为并列绕行点
 2. **未配 `AXIOM_AUTH_TOKEN`** → fail-closed
    - 静态资源（`.html/.js/.css/...`）+ 公共路径（`/health`, `/`, `/ws`）放行
    - 其他路径拒绝 + warn
@@ -217,7 +220,7 @@ Retry-After: <seconds>            # 仅在被限流时存在
 | `event` | AuditEvent | 事件类型（见下表） |
 | `actor` | string | 操作发起者（IP 或 "system"） |
 | `resource` | string? | 受影响资源路径 |
-| `outcome` | "success" / "failure" / "denied" | 操作结果 |
+| `outcome` | "success" / "failure" / "denied" / "allowed" | 操作结果（`allowed` 用于"已放行但需留痕"的配置风险） |
 | `reason` | string? | 失败/拒绝原因 |
 | `metadata` | object? | 附加元数据 |
 
@@ -230,10 +233,12 @@ Retry-After: <seconds>            # 仅在被限流时存在
 | 沙箱 | `sandbox.execute` |
 | 插件 | `plugin.install` / `plugin.uninstall` / `plugin.enable` / `plugin.disable` / `plugin.configure` |
 | API Key | `apikey.set` / `apikey.delete` / `apikey.test` |
+| 外部能力安装 | `skill.install` / `mcp.install` |
 | 限流 | `rate_limit.exceeded` |
 | 配置 | `config.change` |
 | WebSocket | `ws_flood` |
-| 安全 | `security.alert` |
+| 流量检测 | `traffic.malicious` / `traffic.suspicious` |
+| 安全 | `security.alert`（提权复核升级、回环豁免与暴露面叠加等配置风险） |
 
 **写入特性**：
 
@@ -291,6 +296,95 @@ interface SecurityAlert {
 
 ---
 
+### 2.7 能力授权与提权链路封堵（Layer 2/3 的执行内核）
+
+**为什么单列一节**：上面六层是"请求进入系统"的纵深，而提权链路发生在"模型已经拿到一次合法调用权之后" ——
+工具能写文件、能起进程、能出网，任何一次合法调用都可以是链路的起点。因此这一层保护的对象不是端口，
+而是**下一次执行**：`写文件 → 落到可执行锚点 → 下次 shell/服务/CI/登录以更高权限执行它`。
+
+**位置**：判定内核 [src/utils/permissions.ts](../src/utils/permissions.ts) + 执行点 [src/utils/safe-fs.ts](../src/utils/safe-fs.ts) + 注册门 [src/mcp/tool-registry.ts](../src/mcp/tool-registry.ts) + 序列复核 [src/agents/risk-monitor.ts](../src/agents/risk-monitor.ts)
+
+#### 2.7.1 四条不变式（机器门锁死）
+
+| # | 不变式 | 落点 | 门 |
+|---|---|---|---|
+| I1 | 无能力声明 ⇒ 不可注册；能力由注册处声明，不由名字推断 | `ToolDef.capability` 必填，`add()` 未声明即抛 | S-1 / S-2 |
+| I2 | 判定发生在**实际 I/O 那一行**：realpath + 逐跳锚点 + 沙箱根外切 | `safeFs` 五法内部，字符串前缀判定不作为唯一依据 | S-3 |
+| I3 | 鉴权先于缓存，缓存键含调用方身份，且默认可缓存=false | `src/core/http-router.ts` 的 `execute` 顺序 + `meta.cacheable` | S-4 |
+| I4 | 跨调用序列可见：单次都合规不等于链式合规，且回环不构成豁免维度 | `reviewSequence` 按 principal 分桶；审批通道内不得出现地址判定 | S-7 |
+
+能力词表（唯一权威见 `src/utils/permissions.ts`）：`internal`、`fs.read`、`fs.write`、`fs.delete`、`fs.glob`、
+`net.outbound`、`proc.exec`、`cfg.write`、`db.write`、`mcp.external`。词表**刻意没有**「读取凭据」档 ——
+`~/.axiom/axiom-secrets/` 与 `.env` 是执行锚点，无可授权路径，无声明即不可得。
+
+177 处工具注册点的逐条声明与判据见 [工具能力声明表](./security/tool-capability-declarations.md)。
+
+#### 2.7.2 执行锚点（写一律拒，读同样拒）
+
+锚点清单是单一来源（S-5 保证全仓只有一个定义点）：一旦被写入，就等于"下一次 shell / 服务 / CI / 登录"
+以更高权限执行我们刚写下的内容 —— 提权链路的最后一跳。
+
+| 类别 | 例子 |
+|---|---|
+| git 元数据与配置 | `.git/`、`.git/hooks/`、`.gitconfig` |
+| 登录 shell | `.bashrc` / `.zshrc` / `.profile` 等 rc 系列 |
+| 计划任务与服务 | `crontab`、`cron.d`、`systemd/`、`*.service`、`rc.local` |
+| 权限与凭据 | `sudoers(.d)`、`.ssh/`、`authorized_keys`、`.axiom/axiom-secrets/`、`.env*` |
+| CI 与运行时 | `.github/workflows/`、`ld.so.preload`、`ld.so.conf.d` |
+| 本仓自有敏感落点 | `data/model-config.json`、`data/*.db` |
+
+#### 2.7.3 提权链路封堵矩阵（L1–L10）
+
+| # | 链路 | 旧防线为何失效 | 现状 | 门/用例 |
+|---|---|---|---|---|
+| L1 | 写文件 → `~/.bashrc` / `.git/hooks/pre-commit` / crontab / systemd unit → 下次执行即提权 | `write` 工具无路径守卫；守卫按名字查表不认这个名字 | `safeFs.write` 在 I/O 点判定 + 锚点拒写；快照还原的落点取自外部可控的 git 树，同样过 `safeFs` | S-3、`tests/workspace-snapshot.test.ts` |
+| L2 | 递归列举 → 子项越过守卫 → `.env` 回显 → 经 `net.outbound` 外发 | 只对 root 过检，子项不管 | `readDir` 逐项判定；锚点**读也拒**（不只写） | S-3（`readDir 逐项判定`） |
+| L3 | `read` 工具 `source:"web"` 直接 `fetch(path)` → SSRF 打自家服务 / 内网元数据 | 无协议与宿主校验 | `net.outbound`：仅 http/https；回环、链路本地、RFC1918 默认拒；`AXIOM_NET_ALLOWLIST` 只登记精确主机名，IP 字面量永不豁免 | S-3、`tests/security-fixes.test.ts` |
+| L4 | 改名/包装绕守卫：`write` → `my_write` | 守卫按 `tool.name` 查表 | 名字不参与授权：`add()` 必须带 capability；以名字为键的表已删除 | S-1、S-2 |
+| L5 | MCP 子进程工具名 `mcp_<server>_<tool>` 绕过父侧守卫 | 名字变了 | 包装时显式声明 `mcp.external`：改名不改能力 | S-2 |
+| L6 | 回环免鉴权扩大面（本机任何进程 = 全 API） | `AXIOM_ALLOW_LOCAL_BYPASS` 默认 true；MCP HTTP 另有第二处无条件放行 | 默认 false，且**只有一个开关来源**：网关与 MCP HTTP 共用 `localBypassEnabled()` | S-6（含"第二入口"静态扫描） |
+| L7 | 缓存旁路鉴权（先查缓存后匹配 ⇒ 上一条响应任何人可取） | 缓存不看身份；`cacheable` 隐含为真 | `cacheable` 须显式声明（当前无路由声明 ⇒ 默认不缓存）；键含凭据摘要分桶；查缓存排在路由匹配之后 | S-4 |
+| L8 | 审批/豁免开关"忘记设置即关闭" | PTY 审批模式空值 ⇒ `off`；豁免开启且绑定非回环时无声 | 空值 ⇒ `risky`（显式 `off` 才关），未知值 ⇒ `strict`；`ALLOW_LOCAL_BYPASS=1` + 非回环绑定 ⇒ 启动 `logger.warn` + `security.alert` 审计 | S-6、`tests/command-gate.test.ts` |
+| L9 | 前端 `poolFilter` 改名绕开高危工具池 | 池筛选在前端可选 | 授权在服务器侧 `decideCapability`，前端筛选只影响可见性不影响授权 | I1 结构保证 |
+| L10 | 模型自己把执行模式切到 `yolo` ⇒ 关掉 HITL | 切模式工具无门禁 | `set_mode` / 回退目标为 `yolo` 时必须经审批，未获批准保持当前模式 | `src/mcp/server/mode-tools.ts` |
+
+#### 2.7.4 层间独立性：反例与现状（对"纵深防御"的修正）
+
+§1 曾经的口号是"多层独立防护，单层失效不导致系统失守"，本轮已改为可判据口径。**数量论证在 2026-09 之前
+不成立**，逐行审计给出的反例（同一份代码里可复核）：
+
+- **反例 A（L4/L5）**：Layer 3 的审批守卫按 `tool.name` 查表 ⇒ 只要新增或改名一个工具，这一层对该工具
+  **静默失效**，而 Layer 2（认证）完全正常 —— 表现为"两层都在，防护却没了"。独立层的成立前提是每层的
+  判定对象不会因为别处改动而漂移；名字表违反了这一条。
+- **反例 B（L6/L7）**：Layer 2 判定为"本机 ⇒ 免鉴权"，Layer 3 的响应缓存又不看身份 ⇒ 认证层的豁免直接
+  变成缓存层的越权读取通道。两层不独立：一层的输出是另一层的输入。
+- **反例 C（L8）**：Layer 3 的审批层存在但默认关闭 ⇒ "有 HITL" 与 "HITL 生效" 是两件事，配置缺省即失效。
+
+修正后的口径（可判定，不再依赖"多几层"这个数量论证）：
+
+1. **每层判定同一批事实**：能力 + 已规范化的目标 + 调用方身份，不各自维护第二份清单（S-5 锚点单源、
+   S-6 默认值单源、I2 只在 I/O 点判定）。
+2. **失效方向统一为拒绝**：未声明、未配置、未识别、无审批者 ⇒ 一律拒绝或升级，不默认放行（fail-closed）。
+3. **跨层组合要过序列复核**：单层都过不等于链路过（I4）。
+4. 因此"纵深"成立与否的可判据是：**同一份判定内核是否出现在每个特权落点**，而不是层数。
+
+#### 2.7.5 未封堵项（如实记录，不声称完成）
+
+| 项 | 现状 | 影响 |
+|---|---|---|
+| `defaultToolGuard` 调 `reviewSequence` 时未传 principal | 所有调用方共用 `"unassigned"` 桶 | 序列复核偏保守（更容易升级），但**身份维度未真正隔离**：需要在传输层把 principal 接进守卫 |
+| `net.outbound` 只在读工具的 web 分支强制 | 其他出网点（provider 调用、插件、MCP 客户端）仍走 `proxy-fetch` 的 SSRF 守卫，不走 `decideCapability` | 词表里的 `net.outbound` 目前不是所有出网络的强制点 |
+| `vault-manager` / `knowledge-graph-builder` / `model-output-store` 的写盘未经 `safeFs` | 落点在 vault/kg 目录内，非锚点 | I2 未覆盖这三条内部路径；扩面需逐个评估行为变更 |
+| 远程 CI 执行无能力档 | 词表只有 `proc.exec`/`net.outbound`，触发远端 runner 需两者组合 | 组合已被 I4 复核覆盖，但无独立档位 |
+| lsp 工具的 `npx` 隐式出网 | 声明为 `proc.exec`，未附 `net.outbound` | 声明偏窄：包下载是网络行为 |
+| `SKILL_DIR` 可指向 `config/` | 技能装载读 `config/` 时未要求 `cfg.write` | 若技能写回 config 需补声明 |
+| `vendor/pi-agent` 分支不可达 | 该引擎的落点未纳入 `safeFs` | 只有走 pi-code-engine 的路径受影响；无法在本机验证 |
+| `db_query` 的 SQL 守卫是前缀词表 | 按最坏能力声明为 `db.write` | 只读保证需换成语句解析才能声称 |
+| `getWorkspaceFiles` 用 `2>nul` | POSIX 下会留下名为 `nul` 的文件；非 git 目录返回空而非报错 | 行为缺陷，不构成本轮链路 |
+| 路由响应缓存当前无路由声明 `cacheable` | 缓存实际不生效（性能换安全） | 需要按端点显式开启并复核身份分桶 |
+
+---
+
 ## 3. 安全策略
 
 ### 3.1 密钥管理
@@ -316,7 +410,7 @@ interface SecurityAlert {
 
 ### 3.3 fail-closed 原则
 
-所有安全相关配置缺失时**拒绝而非放行**：
+所有安全相关配置缺失时**拒绝而非放行**；对开关而言"未配置"不等于"关闭"，而是取安全侧默认值：
 
 | 场景 | 行为 |
 |---|---|
@@ -324,6 +418,14 @@ interface SecurityAlert {
 | 未配 `AXIOM_ENCRYPTION_KEY` 写 API Key | throw |
 | 未配 `AXIOM_AUTH_TOKEN` 访问敏感路由 | 503 |
 | 解密失败 | 跳过记录 + warn |
+| 未设 `AXIOM_ALLOW_LOCAL_BYPASS` | 不豁免回环（默认 false），本机请求同样要 token |
+| 已设 `AXIOM_ALLOW_LOCAL_BYPASS=1` 且绑定非回环 | 放行但启动 `logger.warn` + `security.alert` 留痕（不静默） |
+| 未设 `AXIOM_PTY_APPROVAL_MODE` | `risky`（不是 `off`）：危险命令仍需审批 |
+| `AXIOM_PTY_APPROVAL_MODE` 为未知值 | `strict` |
+| 审批请求无 handler | 超时后自动拒绝 |
+| 工具注册未声明 `capability` | `add()` 抛错，工具不进入注册表 |
+| 目标命中执行锚点（git 元数据、rc、sudoers、`.ssh/`、`.env*` 等） | 读写一律拒绝 |
+| 出网目标为回环 / 链路本地 / 内网且不在 `AXIOM_NET_ALLOWLIST` | 拒绝（IP 字面量不豁免） |
 
 ---
 
@@ -437,24 +539,43 @@ interface SecurityAlert {
 
 ### 7.1 安全相关测试覆盖
 
-| 测试文件 | 用例数 | 覆盖范围 |
-|---|---|---|
-| [security-hardening.test.ts](../tests/security-hardening.test.ts) | 36 | V4 安全加固核心功能 |
-| [security-hardening-extended.test.ts](../tests/security-hardening-extended.test.ts) | 39 | V4 边界与异常路径 |
-| [audit-logger.test.ts](../tests/audit-logger.test.ts) | 9 | 审计日志基础 + 轮转 |
-| [architecture-integrity.test.ts](../tests/architecture-integrity.test.ts) | 22 | 架构完整性（utils/ leaf layer） |
-| [route-auth.test.ts](../tests/route-auth.test.ts) | ~10 | per-route 二次认证 |
-| [auth-check.test.ts](../tests/auth-check.test.ts) | ~8 | 网关认证 |
-| **合计** | **124** | **全部通过** |
+本文档不手抄用例数（数字会随用例增减腐烂）；用例数以运行下列命令的实际输出为准。
+
+| 测试文件 | 覆盖范围 |
+|---|---|
+| [security-hardening.test.ts](../tests/security-hardening.test.ts) | V4 安全加固核心功能 |
+| [security-hardening-extended.test.ts](../tests/security-hardening-extended.test.ts) | V4 边界与异常路径 |
+| [audit-logger.test.ts](../tests/audit-logger.test.ts) | 审计日志基础 + 轮转 |
+| [route-auth.test.ts](../tests/route-auth.test.ts) | per-route 二次认证 |
+| [auth-check.test.ts](../tests/auth-check.test.ts) | 网关认证与回环豁免 |
+| [command-gate.test.ts](../tests/command-gate.test.ts) | 交互终端审批门（含"未配置=risky"） |
+| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-7（I1–I4 的机器门） |
+| [architecture-integrity.test.ts](../tests/architecture-integrity.test.ts) | 架构完整性（utils/ leaf layer、env 读取收口） |
+| [doc-contract.test.ts](../tests/doc-contract.test.ts) | 文档↔代码一致性门 D1–D9 |
 
 ### 7.2 验证命令
 
 ```bash
 # 类型检查
-bunx tsc --noEmit
+bun run lint
 
-# V4 安全相关测试合集
+# 文档↔代码一致性门（口径、死链、登记表、手抄指标）
+bun run test:docs
+
+# 能力不变式门（提权封堵）
+bun test tests/capability-invariants.test.ts
+
+# 架构完整性门
+bun run test:arch
+
+# 交互终端审批门
+bun test tests/command-gate.test.ts
+
+# 安全相关测试合集
 bun test tests/security-hardening.test.ts tests/security-hardening-extended.test.ts tests/audit-logger.test.ts tests/architecture-integrity.test.ts tests/route-auth.test.ts tests/auth-check.test.ts
+
+# 全量测试
+bun run test
 
 # 健康检查（运行时验证）
 curl http://127.0.0.1:18789/health | jq '.checks[] | select(.component == "安全")'
@@ -463,6 +584,8 @@ curl http://127.0.0.1:18789/health | jq '.checks[] | select(.component == "安�
 tail -100 data/logs/audit.log | jq .
 ```
 
+安全开关的默认值以 `config/security-defaults.json`（声明侧）与 [src/utils/security-defaults.ts](../src/utils/security-defaults.ts)（运行侧）为唯一来源，两者由 S-6 门锁定一致。
+
 ---
 
 ## 8. 相关文档
@@ -470,5 +593,7 @@ tail -100 data/logs/audit.log | jq .
 - [USER-MANUAL.md](./USER-MANUAL.md) — 用户操作手册
 - [COMPREHENSIVE-GUIDE.md](./COMPREHENSIVE-GUIDE.md) — 完整架构指南
 - [AXIOM-ARCHITECTURE.md](./AXIOM-ARCHITECTURE.md) — 权威架构文档
+- [提权阻断模型设计](./superpowers/specs/2026-09-21-privilege-escalation-defense-design.md) — 能力授权与提权链路的完整设计
+- [工具能力声明表](./security/tool-capability-declarations.md) — 逐注册点的能力与判据
+- [SECURITY-REVIEW.md](./SECURITY-REVIEW.md) — 安全评审结论（历史件，保留原话作为证据）
 - [operations-log.md](./operations-log.md) — 操作留痕
-- [V4 后续完善开发计划](../.trae/documents/v4-followup-development-plan.md)
