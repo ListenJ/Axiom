@@ -294,6 +294,8 @@ export function listProviderStatus(): Array<{
   source: "env" | "runtime" | "config" | "none";
   configured: boolean;
   masked: string;
+  /** true = 用户注册的自定义 provider（切片 B）；内置项不带该字段 */
+  custom?: boolean;
 }> {
   const out: Array<{
     provider: string;
@@ -306,6 +308,7 @@ export function listProviderStatus(): Array<{
     source: "env" | "runtime" | "config" | "none";
     configured: boolean;
     masked: string;
+    custom?: boolean;
   }> = [];
 
   for (const [provider, cfg] of Object.entries(PROVIDER_CONFIG)) {
@@ -325,6 +328,28 @@ export function listProviderStatus(): Array<{
       source: override ? "runtime" : envKey ? "env" : "none",
       configured: !!effectiveKey,
       masked: effectiveKey ? maskKey(effectiveKey) : "",
+    });
+  }
+
+  // 自定义 provider（2026-09-21）：此前**只列内置项** ⇒ 设置面板/TUI 看不到用户自配的 provider，
+  // 且 `GET /api-keys/:provider`、`POST /api-keys/:provider/test` 会对其返回 404（明明已注册可用）。
+  // 追加在末尾并按 provider 名排序：**确定性顺序**（不受 Map 插入序影响）。
+  const customs = [...customProviders.values()].sort((a, b) => (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0));
+  for (const c of customs) {
+    const override = store.get(c.provider);
+    const effectiveKey = override?.apiKey ?? "";
+    out.push({
+      provider: c.provider,
+      apiKeyEnv: "",
+      baseURL: getEffectiveBaseURL(c.provider, "", c.baseURL),
+      adapter: c.adapter,
+      region: "global",
+      displayName: c.displayName,
+      hasRegionalVariants: false,
+      source: effectiveKey ? "runtime" : "none",
+      configured: !!effectiveKey,
+      masked: effectiveKey ? maskKey(effectiveKey) : "",
+      custom: true,
     });
   }
 

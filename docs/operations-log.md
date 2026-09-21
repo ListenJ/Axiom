@@ -3614,3 +3614,29 @@
 - **说明**：`timer-unref-guard` 的行为级子进程断言在 Windows 同样通过 ⇒ 三类后台维护定时器在两端都不再钉住短命进程。
 - **未覆盖项**：真实 embedding 端到端仍只在 Linux 跑（凭据不跨机，规则 11）。
 - **Commit**：`3f432fc`
+
+## 2026-09-21 — fix(T2): 自定义 provider 的可见性与路由可达性（此前列表缺失、详情/测试恒 404）
+
+- **任务**：清掉切片 B/B' 遗留的可见性缺口 —— 用户自配的 provider 能用（路由可解析）却在**列表里看不见、查不到、测不了**。分级 **T2**。
+- **实测证据（修复前）**：`listProviderStatus()` 只遍历内置 `PROVIDER_CONFIG`；`src/routes/api-keys.ts` 的
+  `POST /api-keys/:provider/test`、`GET /api-keys/:provider`、`DELETE /api-keys/:provider` 三处守卫用
+  `isKnownProvider()`（仅内置）⇒ 对已注册的自定义 provider **恒 404**。可证伪复测：把 `GET` 的守卫改回
+  `isKnownProvider` ⇒ 用例返回 **404**；改回修复版 ⇒ **200**（同一用例，差距即缺陷）。
+- **改动（2 个源文件）**：
+  - `src/utils/api-key-store.ts`：`listProviderStatus()` **追加自定义 provider**（`custom: true`、`region: "global"`、
+    `adapter`/`baseURL`/`displayName` 取注册值、`apiKeyEnv: ""`、密钥只回**脱敏**值），并按 provider 名排序 ⇒
+    **顺序确定**（不受 Map 插入序影响）。返回值新增可选字段 `custom?: boolean`（附加式，内置项不带）。
+  - `src/routes/api-keys.ts`：`GET/:provider`、`DELETE/:provider`、`POST/:provider/test` 三处守卫改为
+    `isResolvableProvider`（内置 ∪ 自定义）；**`POST /api-keys` 里"名字不是内置 ⇒ 走注册"那处仍用 `isKnownProvider`**
+    （语义正确：那里问的是"是不是内置"，不是"能不能用"）。
+- **测试（+5 例，`tests/unit/custom-provider.test.ts`）**：列表含自定义项且带 `custom`/协议/baseURL/脱敏 key（**断言不出现明文 key**）；
+  自定义项按名排序（确定性）；`GET /api-keys/:provider` 对自定义项 **200**（并注明修复前恒 404）；
+  `GET /api-keys` 列表含自定义项（设置面板可见）；**未注册的名字仍 404**（证明放宽没有变成"放行任意名字"）。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4151 pass / 67 skip / 0 fail**。
+- **销账**：`docs/operations-log.md` 中三处历史条目（2026-09-20/21 的 B、B'、C' 收尾）都把
+  "`listProviderStatus()` 未含自定义 provider" 列为**未覆盖项**；本条目即其闭合。历史条目**不改写**（规则 5/9）。
+- **未覆盖项（如实）**：①前端 `frontend/` 是否有单独的 provider 白名单/文案未核验（本轮只保证 API 面）；
+  ②TUI（`src/tui/app.ts`）复用同一函数 ⇒ 自动获益，但**未在 TUI 交互中实测**；
+  ③B0（外围约 90 处 provider 字面量收敛）仍未做。
+- **不做项**：未改 provider 注册/校验语义；未给自定义 provider 加"区域变体"概念；未动前端。
+- **Commit**：`__COMMIT__`

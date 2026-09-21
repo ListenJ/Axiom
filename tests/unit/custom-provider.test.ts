@@ -13,6 +13,7 @@ import {
   isCustomProvider,
   listCustomProviders,
   unregisterCustomProvider,
+  listProviderStatus,
   getProviderConfig,
   getEffectiveApiKey,
   getEffectiveBaseURL,
@@ -221,5 +222,96 @@ describe("端到端：自定义 provider + 模型级注册 ⇒ 可被 findModels
     expect(findModelsForRole("embedding" as TaskRole).some((m) => m.id === modelId)).toBe(true);
     unregisterModel(modelId);
     expect(findModelsForRole("embedding" as TaskRole).some((m) => m.id === modelId)).toBe(false);
+  });
+});
+
+/**
+ * 2026-09-21 修复：自定义 provider 此前**不出现在 provider 列表**，
+ * 且 `GET /api-keys/:provider` / `POST /api-keys/:provider/test` 对它恒 404
+ * —— 明明已注册可用，却在设置面板里看不见、查不到、测不了。
+ */
+describe("自定义 provider：可见性与路由可达性（2026-09-21 修复）", () => {
+  it("listProviderStatus() 含自定义项（带 custom 标记、协议、baseURL、脱敏 key）", () => {
+    registerCustomProvider({
+      provider: NAME, baseURL: "https://example.com/v1", adapter: "anthropic", apiKey: KEY, displayName: "我的自配端点",
+    });
+    const status = listProviderStatus();
+    const mine = status.find((p) => p.provider === NAME);
+    expect(mine, "自定义 provider 应出现在列表里").toBeDefined();
+    expect(mine!.custom).toBe(true);
+    expect(mine!.adapter).toBe("anthropic");
+    expect(mine!.baseURL).toBe("https://example.com/v1");
+    expect(mine!.displayName).toBe("我的自配端点");
+    expect(mine!.configured).toBe(true);
+    expect(mine!.masked).toContain("****"); // 只回脱敏值
+    expect(mine!.masked).not.toContain(KEY); // 绝不明文回显
+    // 内置项不受影响、不带 custom 标记
+    const builtin = status.find((p) => p.provider === "deepseek");
+    expect(builtin).toBeDefined();
+    expect(builtin!.custom).toBeUndefined();
+  });
+
+  it("自定义项按 provider 名排序追加 ⇒ 顺序确定（不受注册先后影响）", () => {
+    registerCustomProvider({ provider: "zz-last", baseURL: "https://z.example/v1", adapter: "openai", apiKey: KEY });
+    registerCustomProvider({ provider: "aa-first", baseURL: "https://a.example/v1", adapter: "openai", apiKey: KEY });
+    try {
+      const customs = listProviderStatus().filter((p) => p.custom).map((p) => p.provider);
+      expect(customs).toEqual([...customs].sort());
+    } finally {
+      unregisterCustomProvider("zz-last");
+      unregisterCustomProvider("aa-first");
+    }
+  });
+
+  it("GET /api-keys/:provider 对自定义项返回 200（修复前恒 404）", async () => {
+    const db = makeDb();
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    registerCustomProvider({
+      provider: NAME, baseURL: "https://example.com/v1", adapter: "openai", apiKey: KEY,
+    });
+    const ctx = makeCtx({}, db);
+    (ctx as { url: URL }).url = new URL(`http://x/api-keys/${NAME}`);
+    (ctx as { req: Request }).req = new Request(`http://x/api-keys/${NAME}`, {
+      method: "GET",
+      headers: { "x-api-key": "test-token-16chars" },
+    });
+    const res = (await handleApiKeys(ctx)) as Response;
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { provider?: string; custom?: boolean };
+    expect(body.provider).toBe(NAME);
+    expect(body.custom).toBe(true);
+    db.close();
+  });
+
+  it("GET /api-keys 列表包含自定义项（设置面板可见）", async () => {
+    const db = makeDb();
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    registerCustomProvider({
+      provider: NAME, baseURL: "https://example.com/v1", adapter: "openai", apiKey: KEY,
+    });
+    const ctx = makeCtx({}, db);
+    (ctx as { req: Request }).req = new Request("http://x/api-keys", {
+      method: "GET",
+      headers: { "x-api-key": "test-token-16chars" },
+    });
+    const res = (await handleApiKeys(ctx)) as Response;
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { providers: Array<{ provider: string; custom?: boolean }> };
+    expect(body.providers.some((p) => p.provider === NAME && p.custom === true)).toBe(true);
+    db.close();
+  });
+
+  it("未注册的 provider 仍然 404（不因放宽而放行任意名字）", async () => {
+    const db = makeDb();
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    const ctx = makeCtx({}, db);
+    (ctx as { url: URL }).url = new URL("http://x/api-keys/definitely-not-registered");
+    (ctx as { req: Request }).req = new Request("http://x/api-keys/definitely-not-registered", {
+      method: "GET",
+      headers: { "x-api-key": "test-token-16chars" },
+    });
+    const res = (await handleApiKeys(ctx)) as Response;
+    expect(res.status).toBe(404);
+    db.close();
   });
 });

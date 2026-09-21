@@ -20,6 +20,7 @@ import {
   setApiKeyOverride,
   clearApiKeyOverride,
   isKnownProvider,
+  isResolvableProvider,
   registerCustomProvider,
   unregisterCustomProvider,
   getEffectiveApiKey,
@@ -61,7 +62,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const testMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)\/test$/);
   if (testMatch && ctx.req.method === "POST") {
     const provider = testMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 自定义 provider 也可测连通性（2026-09-21 修复：此前只认内置项 ⇒ 已注册的自定义项被 404）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     const status = listProviderStatus().find((p) => p.provider === provider);
@@ -194,7 +196,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const getMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (getMatch && ctx.req.method === "GET") {
     const provider = getMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 内置 ∪ 自定义（2026-09-21 修复：自定义 provider 此前查详情恒 404）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     const entry = listProviderStatus().find((p) => p.provider === provider);
@@ -205,7 +208,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const deleteMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (deleteMatch && ctx.req.method === "DELETE") {
     const provider = deleteMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 内置 ∪ 自定义（2026-09-21 修复：自定义 provider 此前无法清 override）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     // Delete from DB first, then clear memory — ensures consistency
