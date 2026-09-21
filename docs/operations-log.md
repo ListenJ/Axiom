@@ -3613,4 +3613,4 @@
 - **Linux（本机）**：`bun run test` → **4146 pass / 67 skip / 0 fail**。
 - **说明**：`timer-unref-guard` 的行为级子进程断言在 Windows 同样通过 ⇒ 三类后台维护定时器在两端都不再钉住短命进程。
 - **未覆盖项**：真实 embedding 端到端仍只在 Linux 跑（凭据不跨机，规则 11）。
-- **Commit**：`__COMMIT__`
+- **Commit**：`3f432fc`
