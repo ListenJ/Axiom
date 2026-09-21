@@ -100,6 +100,10 @@ export class SharedBlackboard {
     // 定期清理过期条目
     const interval = options?.cleanupIntervalMs ?? 60 * 1000;
     this.cleanupTimer = setInterval(() => this.cleanup(), interval);
+    // 不把短命进程钉死（2026-09-21）：本定时器是**后台维护**语义，不应成为进程存活的唯一理由。
+    // `unref()` 不影响进程存活期间的正常触发，只让"只剩它在跑"时进程能自然退出
+    // （同类缺陷曾两次由实测发现：TokenTracker 自动刷盘、AdaptiveProxy 健康检查）。
+    (this.cleanupTimer as unknown as { unref?: () => void }).unref?.();
 
     // 可选 Redis 跨进程同步
     if (options?.redis !== false) {

@@ -3571,3 +3571,34 @@
   ⑤Windows 未跑真实模型（凭据不跨机）。
 - **不做项**：未新增 KG/DRE 删除 API（属功能决策，不在本任务）；未改检索/物化逻辑；未引入内容哈希变更检测。
 - **Commit**：`2a5b388`
+
+## 2026-09-21 — feat(T2): 推送腿补全（批量重建）+ 把"定时器不钉死进程"沉淀成门禁
+
+- **任务**：①补上推送腿最后一个缺口（`reindexAll` 批量重建路径）；②把反复出现的"未 unref 定时器钉死短命进程"从**人工审计**升级为**CI 门禁**。分级 **T2**。
+- **① 推送腿补全** `src/memory/vault-manager.ts` 的 `reindexAll()`：批量 upsert 事务**提交后**，
+  把 `toUpsert` **一次性批量推送**给索引钩子（不是逐条 ⇒ 不会产生 N 次 embedding 调用）。
+  - 场景：外部落盘 / 重命名后走批量重建的内容，此前要等下一次**扫描腿**才有向量；
+  - 同步方法 ⇒ fire-and-forget（钩子永不抛）；未装配/未授权 ⇒ 空操作；
+  - 守卫 `tests/unit/vault-reindex-push.test.ts`（3 例）：批量推送**一次**、nodeId 与索引口径一致（`vaultNoteNodeId`）、
+    无变更的第二次重建**不推送**、未装配 sink 时不抛。
+- **② 定时器 unref 门禁** `tests/unit/timer-unref-guard.test.ts`（4 例）—— 把实测抓到**两次**的同类缺陷固化：
+  - 规则：`src/` 下凡含 `setInterval(` 的文件**必须真实调用** `unref()`；
+  - **例外逐条登记理由**（6 条：`main.ts` 服务心跳、`tui/app.ts` 主循环、`knowledge/auto-updater` 常驻更新器、
+    `dre/kernel.ts` keep-alive tick、`agents/consciousness/index.ts` 轮询循环、`routes/chat.ts` 请求级 SSE 心跳），
+    并**双向校验**（陈旧登记同样失败）+ 理由非空断言；
+  - **行为级**：子进程里挂起三个后台维护定时器后自然退出（不调用任何 `stop()`）。
+  - ⚠️ **首版规则被自己的注释蒙混过关（实测）**：初版用 `text.includes("unref")`，我把 `unref` 调用删掉、
+    只留注释里出现的 "unref()" 字样时，**静态断言仍然通过**（只有行为级用例失败）。已收紧为正则匹配**调用**
+    （`.unref()` / `.unref?.()` 两种写法都覆盖），并用同一探针复测：删掉调用 ⇒ **静态断言失败**。
+- **③ 顺带把三处后台维护定时器补 unref**（同模式收口）：`memory/blackboard.ts` 清理定时器、
+  `utils/resilience.ts` 健康检查定时器、`router/dynamic-model-assigner.ts` 刷新定时器。
+  语义：`unref()` **不影响进程存活期间的正常触发**，只让"只剩它在跑"时进程能自然退出。
+- **验证结果**：`bunx tsc --noEmit` → **0 error**；**全量 `bun run test` → 4146 pass / 67 skip / 0 fail**。
+  门禁可证伪性实测：删掉 `blackboard` 的 `unref` ⇒ 静态断言 + 行为级用例**双双失败**；恢复后 4 pass。
+- **文档同步**：`LIMITATIONS.md` 局限 6（推送腿 4 条路径、批量重建已接）、局限 8（改为"系统性收口 + 门禁 + 例外清单 + 首版规则被注释蒙混的经过"）、
+  `docs/ARCHITECTURE.md` §8（去掉已完成的"仍缺"项）。
+- **未覆盖项（如实）**：①**其它直接调用 `sqliteMemory.upsertNote` 的写入方**仍未接推送（新增内容由扫描腿补齐）；
+  ②同步写入方/删除方的通知是 fire-and-forget，进程在"写库后、索引前"退出会漏（扫描腿兜底）；
+  ③门禁只覆盖 `setInterval(`，未覆盖 `setTimeout` 递归自调度这类等价模式；④未逐一评估 6 条例外的运行时行为差异。
+- **不做项**：未改检索/物化/KAL 查询路径；未新增 KG/DRE 删除 API；未把门禁挂到独立 CI job（它随现有 `bun run test` 进入 CI）。
+- **Commit**：`__COMMIT__`

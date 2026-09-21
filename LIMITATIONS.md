@@ -20,8 +20,9 @@
    向量表（`knowledge_embeddings`，与知识表**同库**）、授权门、写入腿、查询腿、候选融合与**跨存储物化**
    （`KnowledgeAccessLayer.query()` 合并语义候选）均已实现并有测试；组合根
    （`src/mcp/server/kg-tools.ts` 的 `getKAL`）已注入端口。
-   - **推送腿（写入即索引）**：`VaultManager.writeNote`、`KnowledgeStore.write`、MCP `kg_write` 三条写入路径
-     都会把刚写的单元推给钩子（`services/knowledge-index-hook.ts`，由组合根 `enableKnowledgeEmbeddingIndex(db)` 装配）。
+   - **推送腿（写入即索引）**：`VaultManager.writeNote`（单条）、`VaultManager.reindexAll`（批量重建，事务提交后一次性推送）、
+     `KnowledgeStore.write`、MCP `kg_write` 四条写入路径都会把刚写的单元推给钩子
+     （`services/knowledge-index-hook.ts`，由组合根 `enableKnowledgeEmbeddingIndex(db)` 装配）。
      **内容被修改**（nodeId 不变）同样会重新嵌入（覆盖式 upsert）。未装配/未授权时该钩子是**空操作**（不读库、不触网）；
    - **扫描腿（兜底）**：采集管线（`knowledge:pipeline` → `runPipeline`）收尾调用 `runIncrementalIndex()`，
      只索引**还没有向量**的节点（幂等）；另有全量脚本 `scripts/index-knowledge-embeddings.ts`；
@@ -30,8 +31,8 @@
      在同一次语料扫描里清掉"nodeId 已不存在于任何知识表"的向量行。**两道安全闸**：语料被截断（触顶）或**任一存储读取失败**时
      **拒绝清理** —— 那时"不在语料里"无法证明"已被删除"，误删会静默丢向量（该跳过原因会出现在 `pruneSkipped` 里，不静默）。
      删除同步是**纯本地 DB 操作，不调模型、不耗 token**（已实测：无 embedding 调用即可 prune）。
-   - **仍未接**：从磁盘批量重建的 vault-reindex 路径（`vault-manager` 内批量 `upsertNote`）与**其它直接调用
-     `sqliteMemory.upsertNote` 的写入方**（其新增内容由扫描腿补齐）；
+   - **仍未接**：**其它直接调用 `sqliteMemory.upsertNote` 的写入方**（批量重建 `vault-manager.reindexAll` 已接：
+     事务提交后**一次性批量推送**，见 `tests/unit/vault-reindex-push.test.ts`）；
      同步写入方（`KnowledgeStore.write` / `SQLiteMemory.deleteNote`）的通知是 **fire-and-forget**（尽力而为），漏掉的由幂等扫描腿补齐；
    - 语料上限 5000 行/表（触顶会报 `truncated`，不自动续跑）；vault/dre 物化在缓存未命中时是 O(N) 短列枚举。
    ⇒ 端到端能力**已实测跑通**（真实 `bge-m3`：英文查询召回零 token 重叠的中文笔记，`relevance=0.585` 且 `source=semantic`）；
@@ -44,12 +45,15 @@
    连带影响（**可验证**）：发布默认下 `ModelRouter.embeddings()` 抛 `No embedding route configured`，调用方降级到词法/哈希路径；
    **语义召回（同义不同词 / 跨语言 / 缩写）不可用**，而**响应延迟不变或略降**（无网络往返）。
    要启用向量语义检索，须**用户自配** embedding 模型（自填 base_url / key / 协议）。视觉/computer-use 仍有非 SiliconFlow 候选，该能力不丢失。
-8. **两处"未 unref 的 setInterval 钉死短命进程"已修（2026-09-21）**：`TokenTracker` 自动刷盘与 `AdaptiveProxy` 健康检查
-   两处定时器此前未 `unref()`，导致**任何记过用量或走过 `proxyFetch` 的 CLI/脚本干完活也不退出**（两次均由实测发现：
-   评测脚本 / 索引脚本打印完结果后挂到 `timeout` 才被杀）。两处均已修 + 各自有**可证伪**的进程退出守卫测试。
-   **同模式审计（未逐一处理）**：全仓另有 16 处 `setInterval(`，其中 6 个文件已带 `unref`；剩余（如 `memory/blackboard`、
-   `utils/resilience`、`knowledge/auto-updater`、`router/dynamic-model-assigner`、`agents/consciousness` 等）
-   **未逐处判定"是否应当 unref"** —— 部分定时器（如 `main.ts` 的心跳）本身就是长驻语义，属**已知未决项**。
+8. **"未 unref 的 setInterval 钉死短命进程"已系统性收口（2026-09-21）**：该类缺陷被实测抓到**两次**
+   （`TokenTracker` 自动刷盘、`AdaptiveProxy` 健康检查 ⇒ 评测脚本/索引脚本干完活不退出，挂到 `timeout` 才被杀）。
+   现状：**后台维护类定时器全部 `unref`**（本轮补 `memory/blackboard`、`utils/resilience`、`router/dynamic-model-assigner`），
+   并把判定固化成**门禁测试** `tests/unit/timer-unref-guard.test.ts`：
+   - 规则：`src/` 下凡有 `setInterval(` 的文件**必须**真实调用 `unref()`（正则匹配**调用**；
+     首版用子串匹配，实测被自己的注释蒙混过关 ⇒ 已收紧，并把经过写进测试注释）；
+   - 例外**逐条登记理由**（6 条：服务心跳、TUI 主循环、常驻更新器、DRE 内核 keep-alive、意识层轮询、SSE 请求级心跳），
+     且**双向校验**（陈旧登记同样失败）+ 行为级子进程退出断言（可证伪：删掉任一 `unref` 即失败）。
+   - 已知未决：**未**逐一评估这些例外之外的运行时行为差异（它们本就是有意长驻）。
 
 ## 不在本轮整改范围（明确排除）
 

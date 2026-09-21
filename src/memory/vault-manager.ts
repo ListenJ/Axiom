@@ -155,6 +155,17 @@ export class VaultManager {
         } catch {}
       }
       try { db?.run?.("COMMIT"); } catch { try { db?.run?.("ROLLBACK"); } catch {} }
+
+      // 推送腿补全（2026-09-21）：**批量重建**这一路径此前不在推送钩子内 ⇒ 外部落盘/重命名后
+      // 新内容要等下一次扫描腿才有向量。这里在事务提交后**一次性批量推送**（不是逐条，避免 N 次
+      // embedding 调用）。`reindexAll` 是同步方法 ⇒ fire-and-forget（钩子永不抛，不会产生未处理
+      // rejection）；未装配/未授权时为空操作。
+      void notifyKnowledgeWritten(
+        toUpsert.map(({ note }) => ({
+          nodeId: vaultNoteNodeId(note.path),
+          content: `${note.title ?? ""} ${note.content ?? ""}`,
+        })),
+      );
     }
     // 清理已删除笔记
     let deleted = 0;
