@@ -1492,4 +1492,4 @@
   ⑦ 审批被拒后经 `buildHttpHandlers` 返回的是 `{error:true,message}`，**不含 `success:false`** ⇒ 只判 `result.success` 的调用方拿到 `undefined`（本次红测的直接原因之一），契约需在 R2 统一。
   ⑧ 模式审批仍需 `AXIOM_ENFORCE_MODE_APPROVAL=1` 才生效（L8 同型缺陷未在本条范围内收紧）。
   ⑨ web 工具存在两处定义（`registerWebTools` 与 `buildWebToolSurfaces`），即 S-5 反对的"第二份清单"；`web_fetch`/`web_search` 的描述宣称"自动写入 Vault"，实现里 `savedToVault: true` 是硬编码。
-- **Commit**：{{R1_HASH}}（回填后本条更新，回填提交属记录维护，不再追加新业务条目）
+- **Commit**：25f67e1（`25f67e1a8744ae5fb27c245ed3c46eb1f9bf1add`；本条 hash 由占位符回填，回填提交属记录维护，规则 5）
