@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 150 | 本文件 |
+| 2026-09（当月） | 151 | 本文件 |
 
 ---
 
@@ -1921,3 +1921,14 @@
 - **回滚**：revert 本片单个提交即可（仅 `docs/operations-log/2026-08.md` 15 行 + 本记录，无代码无迁移）。
 - **记录维护**：归档索引 2026-09（当月）149 → 150。注：L1911 那句"149 → 150"是 R3-① 条目**当时**的陈述，其后被本次合并的重复条目消除回退（索引 150→149，见合并留痕），故本条的 149→150 是再次递增，不是同一处改动的重复登记。
 - **Commit**：fec0a28（`fec0a281ea0dd248c50fc3e5397c8bfd6290ba5e`；已推送 `internal codex/s3-on-main-2026-09-22`，`f4eb61ff..fec0a281`，`git ls-remote` 与本地 HEAD 全等。本行 hash 由回填提交补录，回填提交属记录维护，不再追加新业务记录，规则 5）
+## 2026-09-22 20:52 +0800 — R6① 点名路径静默失效断言（bun test 混点时丢路径且 EXIT=0）：前提测准 + 判据自检 + 真实数据的可逆红证
+
+- **任务**：#23 前半（用户批准设计 A，范围=执行侧断言，不改任何门的行为）。后半"摆动性能断言政策"（3 条负载敏感百分位 + OCR 环境红是否入 `EXCLUDE_FILES` 账本）**未裁决，本片不动阈值/并发/账本**。
+- **前提修正（事实，5 探针）**：此前记录的"`bun test <打错路径>` 静默 EXIT=0"不完整 ⇒ ① 打错路径**单独**出现时是响的：裸形 `bun test tests/does-not-exist-xyz.test.ts` 与 `./` 形各自 EXIT=1 并在输出里点名；② **与有效路径混点**才静默：`bun test ./tests/doc-contract.test.ts ./tests/does-not-exist-xyz.test.ts` ⇒ EXIT=0，输出 `Ran 35 tests across 1 file.`，缺失路径在 stdout+stderr 里 **0 次提及**（裸形同）；③ `bun test <file> -t "打错的选择器"` ⇒ EXIT=1（`matched 0 tests`），选择器类已 fail-closed。多路径门只有 `test:core`（11 条）落在此形状内。
+- **工具**：Read/Edit/Bash（`bun test`、`bun -e` 量测、python3 做可逆变异）、`bun run lint`。无子代理（同文件禁止并行编辑）。规则 2：备份 `tests/test-full-script.test.ts` 与 `package.json`（后者供变异）到 `.tmp/backups/`，通读后最小改动，验证通过后删备份。规则 7：垂直切片红→绿，红一次由"移除判据函数"取得（`ReferenceError: findMissing is not defined`），非事后补测。
+- **操作**（文件级，仅 `tests/test-full-script.test.ts` 一件）：新增纯函数 `extractNamedPaths(cmd)`（只认含 `bun test` 的脚本、剥 `./`、跳 flag、收 `tests` 目录与 `tests/*` 文件）+ `findMissing(paths, exists)`（exists 作参数注入，规则 8）+ 真实数据辅助 `readScripts()`/`missingAgainstRepo()`；新增 3 用例 —— 判据自检（合成 typo 必红、存在的不误伤、flag 与收集器脚本不参判）、真实 `package.json` 点名路径存在性（含"抽取非空"反恒绿哨兵）、往真实脚本注入一条 typo 端到端判红；文件头补记本不变式守护的缺陷形态。
+- **验证结果（全部新鲜执行）**：`bun test --isolate ./tests/test-full-script.test.ts` → **5 pass / 0 fail / 11 expects**；**真实数据的可逆红证**：把 `test:core` 里的 `tests/cache-stress.test.ts` 临时改成 `tests/cache-strss.test.ts` → 2 条用例判红并逐条点名该路径 → `finally` 复原，md5 与备份全等且 `git diff -- package.json` 空 → 复跑回绿；`bun run test:docs` 35/0、`bun run test:arch` 25/0、`bun run lint`（`tsc --noEmit`）exit 0；全量 `systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun run test:full` → collected **408** 文件、**4132 pass / 36 skip / 1 fail**、4169 tests / 130636 expects / 132.50s，唯一红 = 既存环境件 `OCR Engine > should get engine with default config`（`src/ocr/engine.ts:98 assertLangsAvailable` 缺 tessdata，R5-g/F-2/R3-① 同一条，本片不碰 OCR 路径）。计数守恒（防把口径差读成回退）：R3-① 终值 414 文件出自 `bun test --parallel=8 ./tests`（bun 自收），本片 408 出自 `test:full`（排 `stress/e2e/*.slow.ts`），机器证明 `408 + stress 目录 6 件 = 414` ✓。断言面全量清点（非抽样）：87 条脚本里 8 条点名 `bun test` 路径，共 **18 个参数实例（17 个 `.test.ts` + 1 个 `tests` 目录），去重 18，存在性缺失 0**。
+- **矛盾与边界（如实登记，不择一采信）**：① 量测仪器自纠 —— 首轮用 `... | tail; echo ${PIPESTATUS[0]}` 读退出码，`-t` 探针读到 0 而直取读到 1，两者矛盾 ⇒ 定"无管道直取退出码"为承重方法，混点两条已按此复测；② 后台任务完成通知报 `exit code 0`，那是外层 shell（末命令为 `tail`）的码，**套件本身 `error: script "test:full" exited with code 1`**，以日志行为准；③ 本判据覆盖"下次全量/CI 时红"，**不覆盖**打错当次的终端调用不报错（那是设计 B 包装器，本片按规则 1 不做），也不覆盖 `bun test` 子串过滤**过度匹配**（加量非吞量）；④ 若将来某脚本用 `-t "…tests/…"` 传带引号的选择器，按空白切分会误抽该 token（现存 87 条脚本零使用），登记不修。
+- **回滚**：revert 本片单个提交即可（1 个测试文件 + 本记录，无生产代码、无门行为改动）。
+- **记录维护**：归档索引 2026-09（当月）150 → 151。
+- **Commit**：占位（本条初稿，主提交后由回填提交补 hash；回填提交属记录维护，规则 5）
