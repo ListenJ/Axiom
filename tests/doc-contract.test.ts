@@ -273,6 +273,21 @@ describe("D3 文档引用存活", () => {
   // 只匹配"目录前缀 + 文件名 + 扩展名"的完整路径；尖括号占位符（tests/mcp-<name>.test.ts）不入选。
   const PATH_REF = /`((?:src|tests|config|frontend|scripts|docs)\/[\w./@-]+\.(?:ts|tsx|sql|ya?ml|json|md|rs|toml|html))`/g;
   const LOCAL_LINK = /\[[^\]]*\]\(([^)\s#]+)(?:#[^)]*)?\)/g;
+
+  // 行内代码里的 `[x](y)` 是代码文本而不是链接 —— markdown 不渲染它，把它当死链会逼文档改代码示例。
+  // 实测：`registry.buildHttpHandlers()[name](args)`（AXIOM-ARCHITECTURE.md 的注入流程一节）被报成死链 "→ args"。
+  // 覆写用等长空格，偏移不变 ⇒ 报出的行号仍指原文那一行。
+  const stripInlineCode = (text: string): string => text.replace(/`[^`\n]*`/gu, (s) => " ".repeat(s.length));
+  function localLinks(text: string): Array<{ raw: string; line: number }> {
+    const scannable = stripInlineCode(text);
+    const out: Array<{ raw: string; line: number }> = [];
+    for (const m of scannable.matchAll(LOCAL_LINK)) {
+      const raw = m[1];
+      if (/^(https?:|mailto:|data:|\/\/)/.test(raw)) continue;
+      out.push({ raw, line: scannable.slice(0, m.index).split("\n").length });
+    }
+    return out;
+  }
   it("规范件反引号中的仓库路径 100% 存在", () => {
     const missing: string[] = [];
     let checked = 0;
@@ -296,20 +311,24 @@ describe("D3 文档引用存活", () => {
     const missing: string[] = [];
     let checked = 0;
     for (const rel of specDocs()) {
-      const text = read(rel);
-      for (const m of text.matchAll(LOCAL_LINK)) {
-        const raw = m[1];
-        if (/^(https?:|mailto:|data:|\/\/)/.test(raw)) continue;
-        checked++;
+      const links = localLinks(read(rel));
+      checked += links.length;
+      for (const { raw, line } of links) {
         const target = path.normalize(path.join(path.dirname(rel), raw.replace(/^\.\//, "")));
-        if (!exists(target)) {
-          const line = text.slice(0, m.index).split("\n").length;
-          missing.push(`${rel}:${line} → ${raw}`);
-        }
+        if (!exists(target)) missing.push(`${rel}:${line} → ${raw}`);
       }
     }
     expect(missing).toEqual([]);
     expect(checked).toBeGreaterThan(60);
+  });
+
+  it("行内代码内的方括号-圆括号形态不算链接（覆写不得把真链接一起抹掉）", () => {
+    // 被抹掉的只能是代码文本：代码示例里的 `[name](args)` 不入选
+    expect(localLinks("1. 建图：`registry.buildHttpHandlers()[name](args)` 直调")).toEqual([]);
+    // 真链接必须照旧入选，且行号按原文计（覆写保长度的直接后果）
+    expect(localLinks("标题\n见 [指南](./docs/x.md) 与 `code [a](b)`\n")).toEqual([{ raw: "./docs/x.md", line: 2 }]);
+    // 外链继续排除
+    expect(localLinks("[官网](https://example.com/a)")).toEqual([]);
   });
 });
 
@@ -440,7 +459,7 @@ describe("D8 MCP 领域文件清单与实际一致", () => {
 describe("D9 禁止 file:line 手抄锚点", () => {
   // 实测依据：docs/COMPREHENSIVE-GUIDE.md 的 87 处锚点中 35 处指向错误行（偏移 +106~+215 行），
   // 1 处区间越界（引用 `server.ts:387-461` 而文件仅 437 行）；D3 只验文件存在，抓不到行号失真。
-  const ANCHOR = /[\w./@-]+\.(?:ts|tsx|js|jsx|md|json|rs|sql|ya?ml|toml|py|go):\d+(?:-\d+)?/g;
+  const ANCHOR = /[\w./@-]+\.(?:ts|tsx|js|jsx|md|json|rs|sql|ya?ml|toml|py|go):\d+(?:-\d+)?(?!\.\d)(?![\d%])/g;
   it("规范件中不存在 `path.ext:NN` 形态的行号锚点", () => {
     const offenders: string[] = [];
     for (const rel of specDocs()) {
@@ -460,6 +479,18 @@ describe("D9 禁止 file:line 手抄锚点", () => {
     expect(ANCHOR.test("see `src/main.ts:442-449`")).toBeTrue();
     ANCHOR.lastIndex = 0;
     expect(ANCHOR.test("`src/main.ts` 的 `Bun.serve()`")).toBeFalse();
+    // 覆盖率百分比不是行号锚点：实测 `ts:100% / 88.89%`、`ts:66.67% Funcs` 这类测得值被当成
+    // 锚点报出（docs/test-reports/SUMMARY.md 一次报 5 条），判据若把"数字前缀"一律算锚点，
+    // 就等于逼报告件删掉真实数据来换取绿灯。
+    ANCHOR.lastIndex = 0;
+    expect(ANCHOR.test("`src/utils/url-safety.ts:100% / 88.89%`")).toBeFalse();
+    ANCHOR.lastIndex = 0;
+    expect(ANCHOR.test("`src/dre/system-resource.ts:66.67% Funcs`")).toBeFalse();
+    // 反向兜住：锚点后紧跟句号/逗号/中文，仍是锚点，不得成为逃出口
+    ANCHOR.lastIndex = 0;
+    expect(ANCHOR.test("见 `src/main.ts:12`。")).toBeTrue();
+    ANCHOR.lastIndex = 0;
+    expect(ANCHOR.test("源码：`src/dre/system-resource.ts:53,68`")).toBeTrue();
   });
 });
 

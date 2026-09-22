@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 140 | 本文件 |
+| 2026-09（当月） | 141 | 本文件 |
 
 ---
 
@@ -1662,3 +1662,29 @@
 - **并入判定**：本分支仍带 9 条 doc-contract 已知红 + 1 条环境红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b 同口径）。
 - **Commit**：88e569e（`88e569ec54acf1d7f96b4435337d23b3228eeb80`；已推送 `internal codex/s3-on-main-2026-09-22`，`7d0c055a..88e569ec`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
 
+
+## 2026-09-22 08:04 +0800 — R5-d① 门判据假阳性纠正（行内代码不算链接 / 覆盖率百分比不算行号锚点）+ D2 权威唯一收口
+
+- **任务**：R5-d 的总目标是把 D2/D3/D4/D9 的剩余红清零。本片（切片①）只动三处：D3 与 D9 各自的**判据缺陷**，加 D2 的一处真实口径冲突。顺序理由与 R5-a 同 —— 红单本身失真时逐条改文档，就会把真实测得值（覆盖率）和代码示例（`[name](args)`）按错误判据改掉。
+- **前置量测（动工前一次性 dump 全量红单到 `.tmp/r5d-offenders.txt`，再逐条归因，不按首条直觉开工）**：
+  - 基线（HEAD `88e569e`）：`bun test ./tests/doc-contract.test.ts` → **16 pass / 9 fail**。逐条计数：D2 自称式「唯一权威」**2**（上限 1）、D3 反引号路径 **15**、D3 本地链接 **9**、D4 表格行数 **48**、D4 内联行数 **3**、D6 缺 `<!-- BEGIN:nondeterminism-registry -->` 锚块、D7 未登记决策符号文件 **7**、D8 §3.0 列出 **0** 条 vs 实际 23、D9 行号锚点 **43**。
+  - D3 链接的 9 条里 **1** 条是门误判：`docs/AXIOM-ARCHITECTURE.md:1013 → args`，来源是 `registry.buildHttpHandlers()[name](args)` —— 行内代码里的方括号-圆括号，markdown 不渲染成链接，读者点不动，判它是死链等于逼文档改代码示例。
+  - D9 的 43 条里 **5** 条是门误判：`docs/test-reports/SUMMARY.md:16,17,18,19,21` 的 `src/dre/system-resource.ts:66.67% Funcs`、`url-safety.ts:100% / 88.89%`、`event-bus.ts:75% / 85%` 等是**覆盖率测得值**，形态像 `文件:数字` 而语义是百分比。同文件 `:31` 的 `src/utils/platform.ts:133`（`withExecutableExt` 定位）是真锚点，本片**不**豁免。
+  - D2 的 2 条：`docs/AXIOM-ARCHITECTURE.md:3`（判据指定的权威落点）与 `docs/PROJECT-GUIDE.md:3`「本文档是 Axiom 项目的**唯一权威**入门与参考文档」—— 后者是真实的第二权威声明，且与同文件下一行"深层架构细节请参考 ARCHITECTURE.md"自相矛盾。
+- **判断（9 条红里只有 1 条属于"文档说谎"）**：D3/D9 的两条若不改判据，代价不是"多几条红"，而是后续切片（48 处行数、38 处锚点）在被污染的名册上逐条核对，并会诱导"删真实数据换绿灯"。故本片只改"什么算一次引用"这一层，不碰禁的形态本身。
+- **工具**：Read（`tests/doc-contract.test.ts` 的 D2/D3/D9 块、`docs/PROJECT-GUIDE.md` 文首、`.tmp/r5d-offenders.txt` 全量红单、`docs/AXIOM-ARCHITECTURE.md:1011-1015`、`docs/test-reports/SUMMARY.md:16,31`）、Edit（3 个文件）、Bash（红→绿、三次受控变异、tsc、test:arch、内存封顶全量、规则 11 扫描）。无子代理。规则 2（3 件先备份 `.tmp/backups/` → 通读 → 最小改动 → 验证 → 待提交后删）与规则 7（垂直切片：判据纠正 → 自证断言 → 变异证活性）执行。
+- **操作**（文件级）：
+  1. `tests/doc-contract.test.ts` D3：本地链接扫描前先 `stripInlineCode` —— 把 `` `...` `` 覆写为**等长空格**，因此偏移不变 ⇒ 报出的行号仍指原文那一行；链接求取抽为 `localLinks()` 供判据与自证共用（避免"自证测的是另一份逻辑"）。新增 1 例自证：代码示例内的 `[name](args)` 不入选、真链接照旧入选且行号按原文计、外链继续排除。
+  2. `tests/doc-contract.test.ts` D9：`ANCHOR` 尾部加两个否定前瞻 `(?!\.\d)(?![\d%])`，把 `ts:66.67%` 与 `ts:100%` 排除在锚点之外；在既有"锚点禁令不得被门自身绕过"自检里加 **4** 条断言 —— 2 条正向（百分比、小数必须判非锚点）+ 2 条反向（`:12` 后跟中文句号、`:53,68` 后跟逗号仍必须是锚点 ⇒ 前瞻不得成为逃出口）。
+  3. `docs/PROJECT-GUIDE.md:3`：「本文档是 Axiom 项目的**唯一权威**入门与参考文档」→ 改为入门/操作参考定位并前向指向 `AXIOM-ARCHITECTURE.md`（D2 本就放行"见 / 参见 / 指向"这类前向引用形态）。H1「项目权威指南」未动 —— 判据只拦自称"唯一权威"，改写 H1 属于自行扩大口径（登记为残留②）。
+- **门的活性证明（三次受控变异，Python 驱动在原文件上单点改写，事后 `cp` 还原并以 `diff -q` 确认零差异，未对脏文件使用任何 `git checkout`/`restore`）**：
+  - M1 取消 D3 的行内代码覆写 → `17 pass / 9 fail`，RED 的正是新增的 D3 自证条 ⇒ 覆写有承重，不是把扫描面整体缩掉。
+  - M2 取消 D9 的百分比排除（去掉 `(?![\d%])`）→ `17 pass / 9 fail`，RED 的是 D9 自检条 ⇒ 前瞻有承重。
+  - M3 把前瞻**写宽**成"句号即逃出口"（`(?![\d%.])`）→ `17 pass / 9 fail`，RED 的仍是 D9 自检条 ⇒ 反向断言确实兜得住"以修 bug 为名把豁免写宽"这类改坏。
+  三次还原后复跑与本片绿基线一致（18 pass / 8 fail，8 条红逐条同名）。
+- **验证结果（全部新鲜执行）**：`bun test ./tests/doc-contract.test.ts` → **18 pass / 8 fail**（26 tests；本片前 16/9）。差异可归因：D2 整条转绿、D3 链接 9→8、D9 43→38、新增 1 条自证转绿 ⇒ fail 9→8、pass 16→18。剩余 8 条逐条计数：D3 路径 15、D3 链接 8、D4 表格 48、D4 内联 3、D6 缺锚块、D7 未登记文件 7、D8 0-vs-23、D9 锚点 38。`bun run lint` → exit 0；`bun run test:arch` → **25 pass / 0 fail**；全量（`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun test --parallel=8 --timeout 15000 ./tests`）→ **4235 pass / 36 skip / 9 fail**（4280 tests / 414 files / 31.77s；R5-b 基线 4229/36/12）：实质红为 8 条 doc-contract + 1 条 OCR（缺 `tessdata`，环境件）⇒ 无新红；R5-b 登记的第三条已知 flaky（perf-benchmark `EventBus 100k publish`，并行抖动）本次未触发，按已知登记不撤。
+- **敏感资产扫描（规则 11）**：本片新增行对 `sk-*`(≥16)/`AKIA*`/`ghp_*`/`-----BEGIN *PRIVATE KEY-----`/`192.168.`/`ssh://`/`Bearer <长串>` 命中 **0**（`git diff -U0 | grep '^+' | grep -oE …` 空输出）。
+- **红线**：不改禁的形态（禁语清单、`文件 | 行数` 形态、`path.ext:NN` 主模式）；不为凑绿扩 `HISTORY`/`specDocs`/`caliberDocs` 豁免面（本片一字未动）；不删任何真实测得值 —— 纠正的是判据，不是数据；D4/D6/D7/D8/D10 未被触碰。
+- **矛盾与残留**：① D3 的两半对"反引号"语义不一致 —— `PATH_REF` 把反引号当作"点名一个文件"（这恰是它的定义，故**不能**复用 `stripInlineCode`），`localLinks` 把反引号当作代码文本。同一对符号在一条规则里两种解释，读红单时容易混，登记不并；② D2 只拦自称"唯一权威"，`docs/PROJECT-GUIDE.md` 的 H1「项目权威指南」属同族口径却不被拦 ⇒ 判据覆盖面与真实口径不重合，这类"语义同族、形态不同"的漏拦在 D4（表格 vs 内联 vs 本片的 `path.ext:NNN` 变体）上反复出现；③ 百分比排除依赖"`:` 后数字紧跟 `%` 或小数点"，若将来出现被误写成百分比的真锚点（`file.ts:12%`）会被放过 —— 当前语料无此形态，不为假设加判据；④ 本片只消掉 9 条红里判据失真的 2 条，其余 7 条是文档与代码的真实漂移，留给 R5-d②③④。
+- **并入判定**：本分支仍带 8 条已知红 + 1 条环境红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c 同口径）。
+- **Commit**：占位符（本片主提交；回填后替换，回填提交属记录维护，规则 5）

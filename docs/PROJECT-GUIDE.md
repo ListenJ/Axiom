@@ -1,6 +1,6 @@
 # Axiom Runtime 项目权威指南
 
-> **本文档是 Axiom 项目的唯一权威入门与参考文档。**
+> 本文档是 Axiom 项目的入门与操作参考；全系统架构权威见 [AXIOM-ARCHITECTURE.md](./AXIOM-ARCHITECTURE.md)。
 > 最后更新: 2026-07-17 · 版本: v4.0.0
 >
 > 深层架构细节请参考 [ARCHITECTURE.md](./ARCHITECTURE.md)；历史变更见 [CHANGELOG.md](../CHANGELOG.md)。
