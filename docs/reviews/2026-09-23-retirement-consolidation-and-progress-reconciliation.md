@@ -159,6 +159,11 @@ docs/LIMITATIONS.md                    src/mcp/tool-registry.ts
 本轮复测 `git ls-remote gitea HEAD` → **`7ad30ce4`**，即默认分支仍是落后 `main` 901 个提交的 `master`。
 任何从 Gitea 网页/新克隆进来的默认视角看到的都是陈旧线。**建议优先处置这一项**。
 
+> **2026-09-23 03:40 已处置**：经用户提供 token，`PATCH /api/v1/repos/agent/Axiom` 返回 **HTTP 200**、
+> `default_branch = "main"`，git 侧独立复测 `git ls-remote --symref internal HEAD` → `ref: refs/heads/main`
+> （HEAD = `0ba2cb45`）。响应同时确认 `full_name` 仍为 `agent/Axiom`，非误改名。
+> 09-14 登记的这条待决项至此收口，凭据处置与风险登记见 ops log 同日条目。
+
 ### 4.6 文档与本机配置的口径差
 
 `AGENTS.md` v1.4 规则 3 称"本地 remote 名实际为 `origin`，URL 已指向 `agent/Axiom`"。
@@ -170,7 +175,7 @@ docs/LIMITATIONS.md                    src/mcp/tool-registry.ts
 
 1. **主线归一方向**：ku(+164) / s3(+54) / doc-caliber(+11) 谁是主干，还是先冻结其中两条。
    连带裁决：两份 v1.5 哪份算数（规则 0.7 不兼容变更）。
-2. **Gitea 默认分支** `master` → `main`（§4.5，最低成本、消除最大困惑）。
+2. ~~**Gitea 默认分支** `master` → `main`~~ **已于 03:40 完成**（HTTP 200 + `ls-remote --symref` 双向回读，见 §4.5 补记）。编号保留不重排。
 3. **凭据处置**：CHIA transcript 原始件里的 LLM key 轮换；`credentials/U7-credentials.tar` 是否并入 `.axiom/axiom-secrets`。
 4. **其余 6 个 `*-from-linux-*` 目录**（`D:\Omini` 28G、`D:\lianghua` 13G、`predict-chemical` 4.6G、
    `Axiom-from-linux` 916M、`chia-repo-audit` 148M、`gitea-migrate` 258M）本轮按用户选择**未纳入**。

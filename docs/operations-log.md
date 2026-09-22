@@ -1967,3 +1967,13 @@
 - **验证结果**：①超集：`comm -23 <(s3:AGENTS.md) <(v1.6)` = **0 行**；②门禁差分：基线 13 条唯一失败 / 装入 v1.6 仍 13 条且**逐条相同**，双向 `comm` 皆空 ⇒ **0 新红、0 修复**；`D12 判据自检` **pass**（门是活的）；bun 退出码 1（首次读成 0 是 `| tail` 吞了退出码，已更正做法）；③新基线复算 ahead/behind：ku +164/−56、s3 +0/−0、doc-caliber +11/−955，与 §4.2 的 main 基准数算术自洽（56=54+2、955=901+54）；④`git ls-remote internal` = 服务端真实值，已取代跟踪引用作核对判据。
 - **偏差记录**：①**环境性假红（已查明机制，非行尾问题）**：doc-contract 13 条红在基线（s3 原生 v1.5）与装入 v1.6 后**逐条相同**（双向 `comm` 皆空）⇒ 与本次改动无关。机制实测：`D12` 期望 0 命中、实际 88，其中 86 条落在 `docs/`（`operations-log/`、`operations-log.md`、`superpowers/plans|specs`、`reports/`）＝F-2 豁免的 D 层历史留痕，而 `AGENTS.md`/`README.md`/`.env.example` **真规范面命中 0**；失败输出路径为 `docs\x\y.md:N` 反斜杠形态 ⇒ 该门的 POSIX 分隔符排除式在 Windows 上失效。**本稿曾把根因写成"CRLF"，已撤回**：改用 `tr -cd '\r' | wc -c` 直数后实测四个版本 CR 字节**全为 0**（先前 `grep -c $'\r'` 的模式被吞成空模式、匹配全部行，读数无效）。结论：本机只能看差分、不能拿绝对绿度当合并前提；修该门的排除式属另一条线（规则 1）；②v1.6 把推送目标改为 `internal` 后，`gitea/<分支>` 本地跟踪引用不再更新（实测服务端 `41372ecf` vs `gitea/…`= `680dbc3b`），差点误判已推送提交"不可解析"；③09-14 DRE 条目的 `<待回填>` 在 `main` 上由本轮回填为 `2adc74f7`，而 **s3 线早已回填同一 hash**（独立推导一致），故本分支不重复该动作；④原分支的 4 个提交（`b94d97c1`/`680dbc3b`/`df99f351`/`41372ecf`）留在 `codex/retirement-consolidation-2026-09-23` 上不删不改写，本分支只重放其内容。
 - **Commit**：186aa708
+
+## 2026-09-23 03:40 +0800 — 运维：Gitea 默认分支 `master` → `main`（09-14 遗留待决项收口）
+
+- **任务**：用户指令「改为 main」并提供 API token。级别 T3（共享远端服务设置写入）。
+- **工具**：curl（Gitea REST v1，PATCH）、`git ls-remote --symref` 回读。凭据取自本机非仓库目录，未写入任何入库文件。
+- **操作**：①token 落 `C:\Users\<user>\.axiom\axiom-secrets\gitea.token`（规则 11 指定位置，仓库外）；②`GET /api/v1/repos/agent/Axiom` 确认改动前 `default_branch = "master"`、`private = true`；③`PATCH` 提交 `{"name":"Axiom","default_branch":"main"}`；④删除两份 API 响应临时件。
+- **验证结果**：PATCH **HTTP 200**，响应回读 `full_name = "agent/Axiom"`（名称未变，非误改名）、`default_branch = "main"`；git 侧独立复测 `git ls-remote --symref internal HEAD` → **`ref: refs/heads/main`**，HEAD = `0ba2cb45`。改动前该指针为 `7ad30ce4`（落后 901 提交），即 09-14 ops log 偏差③登记的待决项，**至此收口**。
+- **凭据处置状态（规则 11，只记名称/位置/状态）**：`gitea-api-token`，位置 `~/.axiom/axiom-secrets/gitea.token`，本次仅用于该单一只写操作。**风险登记**：该 token 以明文出现在会话输入中，属"已被第三处知悉"，**建议作业结束后在 Gitea 侧撤销或轮换**；仓库/工作区/日志/提交信息中均未出现其明文（本条亦不回显）。
+- **偏差记录**：①**本会话操作失误一条并已当场纠正**：第一次写凭据文件时落入了一个**并非用户提供**的 40 位十六进制串（我自己拼错），随即用原值覆写，并以"长度 40 / 前缀 eddfa / 后缀 ce02e"三项形态比对确认文件内容与用户提供值一致后才发起请求——该错误值不是任何真实凭据，且已被覆盖；教训是凭据类字面量必须复制而非转写。②撤回本报告初稿对门禁红的"CRLF"归因（见 §8.3 更正记录），实测四个版本 CR 字节均为 0。
+- **Commit**：待回填
