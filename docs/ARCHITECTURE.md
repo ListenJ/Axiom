@@ -55,7 +55,7 @@ src/
 ├── workers/         — 远程 Worker 客户端 (pdf-worker, llm-worker)
 ```
 
-**数据库:** SQLite 为唯一运行时数据库；PostgreSQL 已迁移为可选历史能力 (H-M1-03)。`src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。
+**数据库:** SQLite 为唯一运行时数据库；PostgreSQL 已迁移为可选历史能力 (H-M1-03)。`src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库（`Dockerfile` 会 COPY 进镜像）但运行时代码无消费者 —— 唯一提到它的源码是 `src/utils/db-guard.ts` 的一条注释；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 
 ### 2.1 分层规则
 
@@ -287,7 +287,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 |------|------|------|
 | 检索 | 确定性 FTS5 + 关键词权重（`deterministic-search.ts`）为默认；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用 | 非历史宣称，而是“确定性为主、向量可选” |
 | LLM | `src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
-| 历史 PG | `src/db/pg-client.ts` 已删除，`pg-schema.sql` 仅归档保留；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力为可选历史，非“已移除”即不可用 | 按需启用 |
+| 历史 PG | `src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力为可选历史，非“已移除”即不可用 <!-- doc-caliber:absent: src/db/pg-client.ts --> | 按需启用 |
 | MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **189** 个去重工具，零重复 | 文档中 133/150/172/173/188 为历史值，已统一为 189 |
 
 *更新：2026-08-21 Task16 文档一致性校准（可选 LLM、PG 可选历史）；2026-08-25 检索口径校准（FTS5+关键词为默认、余弦仅可选语义层）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，2026-08-30 S4 新增 hallucination_feedback 后为 189（以 `src/testing/tool-count.ts` 为准）。*

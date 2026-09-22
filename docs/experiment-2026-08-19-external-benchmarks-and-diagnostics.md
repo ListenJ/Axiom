@@ -14,7 +14,7 @@
 | 约束生成诊断 | `src/dre/llm/client.ts` | 区分「LLM 不可用」与「内容不符合 schema」；候选分歧时标记 `modeAmbiguous` |
 | DRE JSON 解析诊断 | `src/dre/engine.ts` | JSON.parse 失败时给出可诊断错误，保持降级链 |
 | OCR 语言包诊断 | `src/ocr/engine.ts` | langPath 不存在时给友好错误，避免 readdirSync ENOENT 崩溃 |
-| DSH 磨砂主题 | `plugins/dsh/src/frosted-glass.css`（新增）、`index.ts`、`config.ts`、`cordis.patch.yml`、`package.json`、`tests/config.test.ts`、`scripts/`、`preview/` | 将 Axiom 玻璃拟态设计语言映射到 DSH（`--dsw-*` 变量 + backdrop-filter） |
+| DSH 磨砂主题 | `plugins/dsh/src/frosted-glass.css`（新增）、`index.ts`、`config.ts`、`cordis.patch.yml`、`package.json`、`plugins/dsh/tests/config.test.ts`、`scripts/`、`preview/` | 将 Axiom 玻璃拟态设计语言映射到 DSH（`--dsw-*` 变量 + backdrop-filter） |
 
 ## 二、可证伪假设（判断）
 

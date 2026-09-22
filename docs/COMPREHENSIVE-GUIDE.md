@@ -746,40 +746,11 @@ if (confidence >= this.config.minConfidence) {
 return { shouldWrite: false, reason: `Confidence too low`, confidence, category: "low-value" };
 ```
 
-### 4.4 Conformal Retriever — NaN Defense
+### 4.4 Conformal Retriever — removed (tombstone)
 
-The `ConformalRetriever.retrieve()` at `src/memory/conformal-retriever.ts` clamps similarity scores to prevent NaN from propagating:
+`src/memory/conformal-retriever.ts` no longer exists: `ConformalRetriever` was part of the dormant chain (VIBCompressor / MathEnhancedMemory / ConsensusEngine) archived out of the runtime in c3b2d351 (2026-08-30, "P2-S2 幽灵裁剪"). The live record of that decision sits in the dormant-chain comment in `src/main.ts` and the header note of `tests/math-breakthroughs.test.ts`. <!-- doc-caliber:absent: src/memory/conformal-retriever.ts -->
 
-```typescript
-// src/memory/conformal-retriever.ts
-for (const doc of candidates) {
-  let similarity: number;
-  try {
-    similarity = similarityFn(query, doc);
-  } catch (e) {
-    logger.error(`[ConformalRetriever] similarityFn threw for doc`, ...);
-    similarity = 0;
-  }
-
-  // Boundary check: NaN/Infinity → 0 (most conservative), clamp [0, 1]
-  const clampedSimilarity = Number.isFinite(similarity) ? Math.max(0, Math.min(1, similarity)) : 0;
-
-  const nonconformityScore = 1 - clampedSimilarity;
-  const pValue = this.computePValue(nonconformityScore);
-  pValues.set(doc, pValue);
-}
-```
-
-The p-value calculation at line 342 uses binary search for O(log n) evaluation:
-
-```typescript
-// src/memory/conformal-retriever.ts
-private computePValue(nonconformityScore: number): number {
-  if (this.n === 0) return 1.0; // No calibration data → conservative: max p-value
-  const countGeq = this.countGreaterOrEqual(nonconformityScore);
-  return (countGeq + 1) / (this.n + 1);
-}
-```
+This subsection used to hand-copy the module's NaN clamping loop and its binary-search p-value helper, including a hand-written line number. A copied body has no referent once the module is gone, so the excerpts were deleted rather than "updated"; if the pattern itself matters, read the pre-cleanup blob from git history with `git show c3b2d351^:src/memory/conformal-retriever.ts`.
 
 ### 4.5 Loop Detection — Rate-Limited Throttling
 
@@ -1225,7 +1196,6 @@ The mock tracks all calls (enabling `callCount` assertions) while avoiding files
 | `src/mcp/tool-registry.ts` | `ToolDef` + `ToolRegistry` abstraction |
 | `src/dre/runtime/event-bus.ts` | O(1) ring buffer, priority dispatch |
 | `src/memory/memory-gate.ts` | Significance scoring, null guard |
-| `src/memory/conformal-retriever.ts` | NaN clamp, binary-search p-value |
 | `tests/architecture-integrity.test.ts` | layer / code-quality / perf checks |
 | `tests/perf-benchmark.test.ts` | `[perf]` throughput + `[perf-extreme]` absolute ceilings |
 | `tests/property-based.test.ts` | invariants, 5000-iteration SOAK |

@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 141 | 本文件 |
+| 2026-09（当月） | 142 | 本文件 |
 
 ---
 
@@ -1688,3 +1688,28 @@
 - **矛盾与残留**：① D3 的两半对"反引号"语义不一致 —— `PATH_REF` 把反引号当作"点名一个文件"（这恰是它的定义，故**不能**复用 `stripInlineCode`），`localLinks` 把反引号当作代码文本。同一对符号在一条规则里两种解释，读红单时容易混，登记不并；② D2 只拦自称"唯一权威"，`docs/PROJECT-GUIDE.md` 的 H1「项目权威指南」属同族口径却不被拦 ⇒ 判据覆盖面与真实口径不重合，这类"语义同族、形态不同"的漏拦在 D4（表格 vs 内联 vs 本片的 `path.ext:NNN` 变体）上反复出现；③ 百分比排除依赖"`:` 后数字紧跟 `%` 或小数点"，若将来出现被误写成百分比的真锚点（`file.ts:12%`）会被放过 —— 当前语料无此形态，不为假设加判据；④ 本片只消掉 9 条红里判据失真的 2 条，其余 7 条是文档与代码的真实漂移，留给 R5-d②③④。
 - **并入判定**：本分支仍带 8 条已知红 + 1 条环境红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c 同口径）。
 - **Commit**：9c99f81（`9c99f81d9c1facbcb193791e68eee8128d6924cd`；已推送 `internal codex/s3-on-main-2026-09-22`，`978a1e0f..9c99f81d`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
+
+
+## 2026-09-22 08:24 +0800 — R5-d② 文档引用存活清零（D3 路径 15 + 本地链接 8 → 0）：tombstone 从"整行消音"改为"点名式反向断言"
+
+- **任务**：R5-d 切片②。切片①只纠正判据失真，本片按红单逐条核对"文档说的话是否还成立"，把 D3 两半（反引号路径、markdown 本地链接）清零；D4（表格 48 + 内联 3）、D6（缺锚块）、D7（未登记 7 文件）、D8（0 vs 23）、D9（锚点 38）各自留后续切片，不并进本片凑绿。
+- **前置量测（15 条路径红逐条 `git log` / `git show --stat` 反查，不按首条直觉开工）**：
+  - **4 + 1 条插件内简写路径**：`docs/plans/2026-08-19-dre-dsh-plugin.md:40,42,46,48` 的 `tests/mcp-bridge.test.ts`/`src/config.ts`/`tests/config.test.ts`/`src/index.ts`，同文件 Files 段已用 `plugins/dre-dsh/...` 完整前缀 ⇒ 是同一份计划里的写法不一致，补全前缀（4 件逐一 `test -e` 确认存在）；`docs/experiment-2026-08-19-external-benchmarks-and-diagnostics.md:17` 的 `tests/config.test.ts` 同理落为 `plugins/dsh/tests/config.test.ts`。
+  - **2 条外部仓库路径**：`docs/research/deepseek-harness-plugin-2026-08-14.md:15` 的 `docs/user/develop/basic/tool.md`、`docs/cordis-primer.md` 属上游 `deepseek-harness` 仓库而非本仓 ⇒ 加 `deepseek-harness/` 前缀并写明"路径相对**上游仓库根**，不在本仓库"。同段落 `packages/...` 形态本就因前缀不匹配不被拦，说明这是既有表述形态而非新造豁免通道。
+  - **1 条占位符**：`docs/PROJECT-GUIDE.md:543` `tests/mcp-xxx.test.ts` → `tests/mcp-<domain>.test.ts`（`xxx` 形态易被当成文件名，`<domain>` 是约定形态）。
+  - **7 条"已删除模块"的真实引用**：`src/db/pg-client.ts` ×4（`docs/ARCHITECTURE.md:58,290`、`docs/LIMITATIONS.md:62`、`docs/functional-check-2026-08-16-sensenova.md:46`）、`src/memory/math-enhanced-memory.ts` ×1（`docs/AXIOM-ARCHITECTURE.md:1328`）、`src/memory/conformal-retriever.ts` ×2（`docs/COMPREHENSIVE-GUIDE.md:751,1228`）。删除提交经 git 反查确认：pg-client = 38966d12（2026-08-21，H-M1-03），conformal-retriever 与 math-enhanced-memory = c3b2d351（2026-08-30，P2-S2 幽灵裁剪），两文件的删除行数在 `git show --stat` 中逐一见证 ⇒ 文档"已删除/归档删除"的表述**不是谎**，红因是 D3 无条件要求路径存在会逼文档删掉"我们删过什么"。故建 tombstone 通道而非改文档。
+  - **8 条链接红**：`docs/PROJECT-GUIDE.md:584-590` 7 行（`api-audit-report.md`/`review-core.md`/`review-frontend.md`/`review-security.md`/`review-knowledge.md`/`REVIEW-2026-07-17.md` 六件经 `git show --stat a6db7411` 确认已移除；`changelog.md` 实际在仓库根且名为 `CHANGELOG.md`）→ 接替为 2 行（`reviews/` 目录 + `../CHANGELOG.md`）；`README.md:350` 指向不存在的 `docs/v2.9.2-COMPREHENSIVE-REPORT.md` → 删该链接、保留同句的 MCP 指南链接。
+- **判断（为何"每行加个注释"不成立）**：第一版把哨兵做成"整行消音"，实测新增 **12** 条红 —— `tombstone 失效 → src/main.ts 仍存在`、`→ src/db/pg-schema.sql 仍存在`、`→ docs/ARCHITECTURE.md 仍存在` 等：墓碑行通常同时点名活文件（"旧件已删，新件仍在"是最自然的写法），整行消音等于把活引用一起放过，反向断言随即失效。改为**标记必须点名自己豁免哪个路径**，并加"空转"反向检查（点名了、本行却无反引号引用 ⇒ 文档改版后遗留的墓碑）。这与 R5-c 引用哨兵同构：**豁免的粒度必须等于声明的粒度**。
+- **顺带纠正的真实文档错误（不是为凑绿）**：① `docs/ARCHITECTURE.md:58,290` 与 `docs/LIMITATIONS.md:62` 原写"`pg-schema.sql` 仅归档保留"，实测该文件**仍在仓库**（`Dockerfile` 会 COPY 进镜像，运行时代码无消费者，源码侧仅 `src/utils/db-guard.ts` 一条注释提到）⇒ 改为可核验表述并补删除提交号；写"全仓唯一提及处"时经 `grep -rl pg-schema` 反查发现 `Dockerfile`/`package.json` 也命中，故限定为"源码"并显式点名 Dockerfile 行为。② `docs/COMPREHENSIVE-GUIDE.md` §4.4 逐字抄了整段已删模块的 TypeScript（含手写 `at line 342`）⇒ 以墓碑 + 在役记录（`src/main.ts` 休眠链注释、`tests/math-breakthroughs.test.ts` 文件头，两处均已读到原文确认）+ 历史读取命令替换，并删汇总表对应行；删段后核查围栏计数为偶（100）。③ `docs/PROJECT-GUIDE.md` 附录 A 的"完整架构白皮书（69KB）"是手抄测得值，提交时实测 75,105 B（=73.3 KB）已漂移 ⇒ 去掉该度量（该形态不被 D4 覆盖，属任务 #34 登记的漏拦族）。
+- **工具**：Read（D3 块全文、四篇文档相关段落、`tests/math-breakthroughs.test.ts` 头部、`src/main.ts` 休眠注释）、Edit（8 文件）、Bash（`git log`/`git show --stat` 反查删除提交、`test -e` 存在性、红→绿、三次受控变异、tsc、test:arch、内存封顶全量、规则 11 扫描）、Python（6 处哨兵迁移逐处 `assert count==` 后替换，不做静默多替换；全 md 的 `plugins/` 引用普查）。无子代理。规则 2：12 件（11 改动件 + 本日志）先备份 `.tmp/backups/` → 通读 → 最小改动 → 验证，备份待提交后删。规则 7 垂直切片：改门（看到红）→ 迁文档（转绿）→ 变异证活性。
+- **操作**（文件级）：
+  1. `tests/doc-contract.test.ts`：`PATH_REF` 目录集合加 `plugins`（前置普查：全 md 的 `plugins/` 引用 33 条，唯一死引用 `docs/superpowers/plans/2026-09-14-knowledge-backend-convergence.md:32` 在口径豁免面内，纳入后 D3 仍绿 ⇒ 未借本片扩/缩豁免面）；行级标记由裸 `<!-- doc-caliber:absent -->` 升级为 `<!-- doc-caliber:absent: <path>[, <path>] -->`（新增 `ABSENT_MARK`/`absentTargets`），`deadPathOffenders` 改为"点名才豁免 + 空转即报"并返回 `checked`；主判据保留 `checked > 200` 覆盖面自证并加"至少一条墓碑在册"的通道自证；新增 2 例 —— 反向断言自检（6 组断言：未点名死路径仍报／点名且确不存在则通过且入册／点名但仍存在报"失效"／同行活路径不受影响／同行第二条未点名死路径仍报／空转报）、使用 tombstone 的文件集合全等登记。
+  2. 文档 10 篇：`docs/ARCHITECTURE.md`(2 哨兵 + PG 口径)、`docs/LIMITATIONS.md`(1)、`docs/functional-check-2026-08-16-sensenova.md`(1 + 标注"本条此后失效")、`docs/COMPREHENSIVE-GUIDE.md`(§4.4 墓碑 + 表行删除)、`docs/AXIOM-ARCHITECTURE.md`(接线点去已删模块 + 1 哨兵)、`docs/PROJECT-GUIDE.md`(占位符 + 附录 A 两行 + 去 69KB)、`README.md`(删死链)、`docs/experiment-2026-08-19-external-benchmarks-and-diagnostics.md`(1)、`docs/plans/2026-08-19-dre-dsh-plugin.md`(4)、`docs/research/deepseek-harness-plugin-2026-08-14.md`(外部仓库路径标注)。
+  3. `docs/operations-log.md`：本条目；当月条目数 141→142（`grep -c '^## 2026-09'` 实数）。
+- **门的活性证明（三次受控变异：Python 在原文件单点改写 → 跑门 → `cp` 还原 → `cmp` 断言零差异，未对脏文件使用任何 `git checkout`/`restore`）**：M1 删"空转"检查 → D3 自检条 RED（其余 D3 条不变绿 ⇒ 该检查唯一承重处正是墓碑遗留）；M2 把"点名才豁免"改回"整行消音"（`marked.includes(target)` → `marked.length > 0`）→ **主判据 RED 且**自检条 RED（真实文档的墓碑行都带活路径，整行消音当场把活引用误判为"失效"）；M3 删"失效"反向断言（墓碑退化为纯消音器）→ 自检条 RED 而**主判据仍绿** ⇒ 如实记录：墓碑是否仍在断言"不存在"只由自检条承重，读红单时不得把「D3 绿」单独当证据。三次还原后复跑 22 pass / 6 fail 不变。
+- **验证结果（全部新鲜执行）**：`bun test ./tests/doc-contract.test.ts` → **22 pass / 6 fail**（28 tests；切片①为 18 pass / 8 fail、26 tests）。差异可归因：D3 路径 15→0、D3 链接 8→0（2 条转绿）+ 新增 2 条自证（绿）⇒ pass +4、fail −2。剩余 6 条逐条计数：D4 表格 48、D4 内联 3、D6 缺 `<!-- BEGIN:nondeterminism-registry -->`、D7 未登记 7 文件、D8 §3.0 列 0 vs 实际 23、D9 锚点 38。`bun run lint` → exit 0；`bun run test:arch` → **25 pass / 0 fail**；全量（`systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun test --parallel=8 --timeout 15000 ./tests`）→ **4238 pass / 36 skip / 8 fail**（4282 tests / 414 files / 31.97s；①基线 4235/36/9）：8 条 = 6 条 doc-contract + OCR（缺 `tessdata`，环境件）+ `perf-benchmark` `EventBus 100k publish`（R5-b 登记的第三条已知 flaky，本次**复现**，非本片引入，登记不撤）。本片零运行时改动 ⇒ 无新红。
+- **敏感资产扫描（规则 11）**：`git diff -U0 | grep '^+' | grep -nE "192\.168\.|10\.0\.|sk-[A-Za-z0-9]{8}|ghp_|AKIA|BEGIN [A-Z ]*PRIVATE KEY|://[^ ]*:[^ ]*@"` → 空输出（真实命中 **0**）。同片涉及的 `docs/functional-check-2026-08-16-sensenova.md:50` 局域网代理地址属历史既存项（任务 #32），本片未新增、未清理。
+- **红线**：不扩 `HISTORY`/`specDocs`/`caliberDocs` 豁免面；不碰 D4/D6/D7/D8/D9 判据；不改任何运行时行为；墓碑只用于**已 git 反查确认删除**的路径；被替换的手抄代码段留"如何取历史版本"的指针而非静默删除。
+- **矛盾与残留**：① `docs/STORAGE-EVALUATION.md:18` 仍写 `src/db/pg-client.ts` 存在、且称"`isPgAvailable()` 返回 `false`"（该函数已随文件整体删除，句子无宿主）—— 因文件名含 `EVALUATION` 而在 `HISTORY` 名词豁免面内，**门看不见这条真谎**；本片按"不顺手收豁免面"只登记，收口要与 #34 的漏拦族一起裁决；② `package.json:46` `db:init` 仍输出"pg-schema.sql 已归档"，与"仍在仓库且被 `Dockerfile` COPY"直接矛盾 —— 纠正它需要规则 4 的归档裁决（真归档 or 改口径），属用户决策面，本片只在 ARCHITECTURE/LIMITATIONS 里把"运行时"限定词补上，未动 PG 存废；③ 两道禁语门双源（R5-c 残留①）未动；④ 墓碑登记维持**文件粒度**全等（逐行清单要付行号代价，与 D9 自相矛盾），其滥用极限仍是"同一行里点名即豁免"，现由自检条的第 4/5 组断言界定；⑤ D4 的 48 + D9 的 38 是存量主体，切片③④处理。
+- **并入判定**：本分支仍带 6 条已知红 + 1 条环境红 + 1 条已知 flaky，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c/d① 同口径）。
+- **Commit**：{{HASH_PLACEHOLDER}}

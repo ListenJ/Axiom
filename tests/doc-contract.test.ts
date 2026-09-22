@@ -271,7 +271,9 @@ describe("D2 权威文档唯一", () => {
 // ─── D3 死引用：文档点名的源文件必须存在 ─────────────────────────────────────
 describe("D3 文档引用存活", () => {
   // 只匹配"目录前缀 + 文件名 + 扩展名"的完整路径；尖括号占位符（tests/mcp-<name>.test.ts）不入选。
-  const PATH_REF = /`((?:src|tests|config|frontend|scripts|docs)\/[\w./@-]+\.(?:ts|tsx|sql|ya?ml|json|md|rs|toml|html))`/g;
+  // plugins 必须在集合内：插件是本仓库的正式交付面（plugins/dre-dsh 等），且本片把若干
+  // "插件目录内简写路径"改写为完整路径 —— 若扫描面不认 plugins/，那次改写就等于把引用移出视野。
+  const PATH_REF = /`((?:src|tests|config|frontend|scripts|docs|plugins)\/[\w./@-]+\.(?:ts|tsx|sql|ya?ml|json|md|rs|toml|html))`/g;
   const LOCAL_LINK = /\[[^\]]*\]\(([^)\s#]+)(?:#[^)]*)?\)/g;
 
   // 行内代码里的 `[x](y)` 是代码文本而不是链接 —— markdown 不渲染它，把它当死链会逼文档改代码示例。
@@ -288,22 +290,53 @@ describe("D3 文档引用存活", () => {
     }
     return out;
   }
-  it("规范件反引号中的仓库路径 100% 存在", () => {
-    const missing: string[] = [];
+
+  // tombstone 标记 `<!-- doc-caliber:absent: <逗号分隔的路径> -->`：声明"标记里点名的这些仓库路径已被删除"。
+  // 它不是消音器而是**反向断言** —— 被点名的路径必须真的保持不存在，哪天它重新出现（或有人想用这个
+  // 标记去藏一个活文件）照样报红。动机：`src/db/pg-client.ts` 的"已删除"是文档的正常内容，若 D3 无条件
+  // 要求路径存在，就等于逼文档删掉"我们删过什么"。
+  // 为什么标记必须自带路径名：首版按"整行"生效，实测一行里同时写有死路径（pg-client）与活路径
+  // （pg-schema.sql / main.ts）时，整行豁免会把活文件一起放走 —— 墓碑成了免检区。
+  const ABSENT_SENTINEL = "doc-caliber:absent";
+  const ABSENT_MARK = /<!--\s*doc-caliber:absent:\s*([^>]*?)\s*-->/g;
+  const absentTargets = (line: string): string[] =>
+    [...line.matchAll(ABSENT_MARK)].flatMap((m) => m[1].split(",").map((s) => s.trim()).filter(Boolean));
+  function deadPathOffenders(rel: string, text: string): { problems: string[]; tombstoned: string[]; checked: number } {
+    const problems: string[] = [];
+    const tombstoned: string[] = [];
     let checked = 0;
-    for (const rel of specDocs()) {
-      const text = read(rel);
-      for (const m of text.matchAll(PATH_REF)) {
+    text.split("\n").forEach((line, i) => {
+      const marked = absentTargets(line);
+      const honoured = new Set<string>();
+      for (const m of line.matchAll(PATH_REF)) {
         checked++;
         const target = m[1].replace(/^\.\//, "");
-        if (!exists(target)) {
-          const line = text.slice(0, m.index).split("\n").length;
-          missing.push(`${rel}:${line} → ${target}`);
-        }
+        const alive = exists(target);
+        if (marked.includes(target)) {
+          honoured.add(target);
+          if (alive) problems.push(`${rel}:${i + 1}: tombstone 失效 → ${target} 仍存在`);
+          else tombstoned.push(`${rel}:${i + 1} → ${target}`);
+        } else if (!alive) problems.push(`${rel}:${i + 1} → ${target}`);
       }
+      // 空转：标记点名的路径没出现在本行的反引号引用里 ⇒ 文档改过、墓碑忘了删（或写错了行）
+      for (const claimed of marked) if (!honoured.has(claimed)) problems.push(`${rel}:${i + 1}: tombstone 空转 → 标记点名 ${claimed}，本行却无反引号引用`);
+    });
+    return { problems, tombstoned, checked };
+  }
+
+  it("规范件反引号中的仓库路径 100% 存在（或带 tombstone 且确实仍是删除态）", () => {
+    const problems: string[] = [];
+    const tombstoned: string[] = [];
+    let checked = 0;
+    for (const rel of specDocs()) {
+      const r = deadPathOffenders(rel, read(rel));
+      checked += r.checked;
+      problems.push(...r.problems);
+      tombstoned.push(...r.tombstoned);
     }
-    expect(missing).toEqual([]);
+    expect(problems).toEqual([]);
     expect(checked).toBeGreaterThan(200); // 覆盖面自证：低于此说明扫描范围被悄悄收窄
+    expect(tombstoned.length).toBeGreaterThan(0); // 通道自证：一条没人用的豁免通道等于没写
   });
 
   it("规范件 markdown 本地链接目标 100% 存在", () => {
@@ -329,6 +362,38 @@ describe("D3 文档引用存活", () => {
     expect(localLinks("标题\n见 [指南](./docs/x.md) 与 `code [a](b)`\n")).toEqual([{ raw: "./docs/x.md", line: 2 }]);
     // 外链继续排除
     expect(localLinks("[官网](https://example.com/a)")).toEqual([]);
+  });
+
+  it("tombstone 是反向断言不是消音器（自检：只豁免它点名的那个路径）", () => {
+    // 未标记 + 路径不存在 ⇒ 照旧报死引用
+    expect(deadPathOffenders("d.md", "见 `src/__no_such__.ts` 的说法\n").problems).toEqual(["d.md:1 → src/__no_such__.ts"]);
+    // 标记点名 + 路径确实不存在 ⇒ 放行，且计入 tombstoned 清单
+    const dead = deadPathOffenders("d.md", "`src/__no_such__.ts` 已删除 <!-- doc-caliber:absent: src/__no_such__.ts -->\n");
+    expect(dead.problems).toEqual([]);
+    expect(dead.tombstoned).toEqual(["d.md:1 → src/__no_such__.ts"]);
+    // 点名一个**存在**的路径 ⇒ 必须报失效：豁免通道不得用来藏活文件
+    expect(deadPathOffenders("d.md", "`tests/doc-contract.test.ts` 已删除 <!-- doc-caliber:absent: tests/doc-contract.test.ts -->\n").problems)
+      .toEqual(["d.md:1: tombstone 失效 → tests/doc-contract.test.ts 仍存在"]);
+    // 同行未被点名的路径不受影响 —— 这正是整行豁免版做不到的（实测：pg-client 与 pg-schema.sql 同行）
+    const mixed = deadPathOffenders("d.md", "`src/__no_such__.ts` 已删，`tests/doc-contract.test.ts` 仍在 <!-- doc-caliber:absent: src/__no_such__.ts -->\n");
+    expect(mixed.problems).toEqual([]);
+    expect(mixed.tombstoned).toEqual(["d.md:1 → src/__no_such__.ts"]);
+    expect(deadPathOffenders("d.md", "`src/__no_such__.ts` 已删，`src/__gone_too__.ts` 也已删 <!-- doc-caliber:absent: src/__no_such__.ts -->\n").problems)
+      .toEqual(["d.md:1 → src/__gone_too__.ts"]);
+    // 空转：标记点名的路径没出现在本行 ⇒ 墓碑是文档改版后遗留的，必须被清掉
+    expect(deadPathOffenders("d.md", "这里没有任何路径 <!-- doc-caliber:absent: src/__no_such__.ts -->\n").problems)
+      .toEqual(["d.md:1: tombstone 空转 → 标记点名 src/__no_such__.ts，本行却无反引号引用"]);
+  });
+
+  it("使用 tombstone 的文件全部在册（新增墓碑引用必须改这条）", () => {
+    const files = specDocs().filter((rel) => read(rel).includes(ABSENT_SENTINEL)).sort();
+    expect(files).toEqual([
+      "docs/ARCHITECTURE.md",
+      "docs/AXIOM-ARCHITECTURE.md",
+      "docs/COMPREHENSIVE-GUIDE.md",
+      "docs/LIMITATIONS.md",
+      "docs/functional-check-2026-08-16-sensenova.md",
+    ]);
   });
 });
 

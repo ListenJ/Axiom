@@ -43,7 +43,7 @@
 
 ### PostgreSQL（已完成 ✅）
 - data 服务器原生 postgres 需 sudo（不可用）→ 改用 **pgvector/pgvector:pg16 docker 容器**（5433，含 vector 扩展），凭据在本地 secrets + .env（git-ignored）。
-- 恢复被移除的真实 `src/db/pg-client.ts`（DATABASE_URL 连接池 / isPgAvailable / initPgSchema / pgQuery / pgBulkInsert / pgVectorSearch）。
+- 恢复被移除的真实 `src/db/pg-client.ts`（DATABASE_URL 连接池 / isPgAvailable / initPgSchema / pgQuery / pgBulkInsert / pgVectorSearch）。**本条此后失效**：该文件又被 38966d12（2026-08-21，H-M1-03）移除，当前口径见 `docs/ARCHITECTURE.md` 的数据库节。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 - 实测：schema 初始化成功；`/kg/stats` 21268 节点 15316 边；`/kg/entities`、`/kg/search`（语义）全通。
 
 ### 网络搜索（已完成 ✅，代理方案替代 CDN/浏览器）

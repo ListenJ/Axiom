@@ -37,15 +37,15 @@ export function matchTool(name: string, filter: string[]): boolean {
   return filter.some((f) => f.endsWith("_") ? name.startsWith(f) : name === f)
 }
 ```
-**Step 3 测试（先写后实现，TDD）：** `tests/mcp-bridge.test.ts` 断言过滤、前缀、哈希防塌缩、extractText。
+**Step 3 测试（先写后实现，TDD）：** `plugins/dre-dsh/tests/mcp-bridge.test.ts` 断言过滤、前缀、哈希防塌缩、extractText。
 
-## Task 3: 配置解析 `src/config.ts`
+## Task 3: 配置解析 `plugins/dre-dsh/src/config.ts`
 
 **Files:**
 - Create: `plugins/dre-dsh/src/config.ts`（`AxiomDreConfig`：axiomHome/mcpEnabled/mcpCommand/mcpArgs/mcpEnv/mcpServerName/mcpToolCallTimeoutMs/mcpFailOnStartupError/toolFilter/synapseEnabled；`normalizeConfig` 全默认值；`configSummary` 不含密钥；`resolveAxiomHome` 上溯 3 层）
-**Step 3 测试：** `tests/config.test.ts`（默认值/非法回退/synapseEnabled=false 时 summary 标记/密钥排除/toolFilter 归一化）。
+**Step 3 测试：** `plugins/dre-dsh/tests/config.test.ts`（默认值/非法回退/synapseEnabled=false 时 summary 标记/密钥排除/toolFilter 归一化）。
 
-## Task 4: 插件入口 `src/index.ts`
+## Task 4: 插件入口 `plugins/dre-dsh/src/index.ts`
 
 **Files:**
 - Create: `plugins/dre-dsh/src/index.ts`

@@ -347,7 +347,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md) 和 [v4.0.0 全面技术报告](docs/v2.9.2-COMPREHENSIVE-REPORT.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
+暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 

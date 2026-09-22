@@ -59,7 +59,7 @@
 
 - **检索**：默认确定性检索（`deterministic-search.ts` 标题 3x/标签 2.5x/内容 1x/路径 0.5x；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
 - **LLM**：`src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM` 控，默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
-- **PG**：`src/db/pg-client.ts` 已删，`pg-schema.sql` 仅归档；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。
+- **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 - **工具数**：权威 172 去重（`count-tools.mjs` 181 含 client-connector 等非 MCP 面，去重后 172；`AXIOM-ARCHITECTURE.md` 133、`README` 133/150、`AGENT-ARCHITECTURE.md` 173 已统一为 172）。
 
 ### 2.3 当前边界与待校准项

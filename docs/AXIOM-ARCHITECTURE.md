@@ -1325,7 +1325,7 @@ class ConformalHallucinationDetector {
 }
 ```
 
-**接线点:** `src/main.ts`（`alpha: 0.05` 初始化）、`src/crawl/result-scorer.ts`、`src/knowledge/quality-assessor.ts`、`src/memory/math-enhanced-memory.ts`。
+**接线点:** `src/main.ts`（`alpha: 0.05` 初始化）、`src/crawl/result-scorer.ts`、`src/knowledge/quality-assessor.ts`。曾列于此的 `src/memory/math-enhanced-memory.ts` 已随休眠链在 c3b2d351 归档删除，不再是接线点。 <!-- doc-caliber:absent: src/memory/math-enhanced-memory.ts -->
 
 ---
 

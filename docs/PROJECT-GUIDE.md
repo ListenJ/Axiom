@@ -540,7 +540,7 @@ bun run tauri:build     # 构建桌面安装包
 2. 导出 `registerXxxTools(registry: ToolRegistry, deps?: XxxDeps): void`
 3. 在 `src/mcp/server.ts` 或对应 routes 文件中调用 `registerXxxTools(registry)`
 4. 工具定义使用 `zod` schema 描述参数
-5. 添加测试 `tests/mcp-xxx.test.ts`，验证 `registerWithMcp` 注册成功
+5. 添加测试 `tests/mcp-<domain>.test.ts`，验证 `registerWithMcp` 注册成功
 6. 运行 `bun test tests/mcp-server.test.ts` 验证不破坏现有工具
 
 ### Q9: 添加新模型平台
@@ -579,15 +579,10 @@ bun run tauri:build     # 构建桌面安装包
 |------|------|---------|
 | **PROJECT-GUIDE.md**（本文档） | 权威入门参考，覆盖项目全貌 | 第一次接触项目、需要快速了解架构 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 架构深度参考，分层与依赖关系 | 需要理解模块边界、依赖方向 |
-| [AXIOM-ARCHITECTURE.md](./AXIOM-ARCHITECTURE.md) | 完整架构白皮书（69KB），含数学模型 | 需要深入理解 VIB/Conformal/Thompson 等数学突破 |
+| [AXIOM-ARCHITECTURE.md](./AXIOM-ARCHITECTURE.md) | 完整架构白皮书，含数学模型 | 需要深入理解 VIB/Conformal/Thompson 等数学突破 |
 | [DEVELOPER-ONBOARDING.md](./DEVELOPER-ONBOARDING.md) | 开发者上手指南 | 第一次本地启动、配置 IDE |
-| [api-audit-report.md](./api-audit-report.md) | API 审计报告 | 排查 API 一致性问题 |
-| [review-core.md](./review-core.md) | 核心代码审查 | 排查核心模块问题 |
-| [review-frontend.md](./review-frontend.md) | 前端代码审查 | 排查前端问题 |
-| [review-security.md](./review-security.md) | 安全审查 | 安全合规检查 |
-| [review-knowledge.md](./review-knowledge.md) | 知识系统审查 | 排查记忆/知识库问题 |
-| [changelog.md](./changelog.md) | 版本变更日志 | 升级版本时查阅 |
-| [REVIEW-2026-07-17.md](./REVIEW-2026-07-17.md) | 本次综合审查报告 | 了解当前代码质量与改进建议 |
+| [reviews/](./reviews/) | 历次审查与审计报告（按日期命名的目录；旧版散件 `api-audit-report.md`/`review-core.md`/`review-frontend.md`/`review-security.md`/`review-knowledge.md`/`REVIEW-2026-07-17.md` 已在 a6db7411 移除，由该目录中的日期件接替） | 排查 API/核心/前端/安全/知识系统的历史结论 |
+| [../CHANGELOG.md](../CHANGELOG.md) | 版本变更日志（仓库根） | 升级版本时查阅 |
 
 ## 附录 B: 关键脚本速查
 

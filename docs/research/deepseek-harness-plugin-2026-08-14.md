@@ -12,7 +12,7 @@
   - `packages/mcp/mcp-client/src/{index,tools,transport}.ts`（MCP stdio/HTTP 桥接参考实现）
   - `packages/host/webserver/src/index.ts`（webServer 路由注册服务）
   - `packages/llm/llm-deepseek/src/index.ts`（LLM provider：baseURL 可配，OpenAI 兼容）
-- 官方文档：`docs/user/develop/basic/tool.md`、`docs/cordis-primer.md`
+- 官方文档（路径相对**上游仓库根**，不在本仓库）：`deepseek-harness/docs/user/develop/basic/tool.md`、`deepseek-harness/docs/cordis-primer.md`
 - npm：`@deepseek-ai/dsh-tools@0.0.1-rc.1`、`@deepseek-ai/cordis@4.0.1`、`@modelcontextprotocol/sdk@1.30.0`
 
 ## 关键结论（事实）
