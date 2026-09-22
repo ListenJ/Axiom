@@ -3,7 +3,7 @@
  * 支持滑动窗口、令牌桶两种算法
  */
 
-import crypto from "node:crypto";
+import { credentialDigest } from "./call-context.js";
 
 interface RateLimitRule {
   windowMs: number;   // 时间窗口 (ms)
@@ -271,12 +271,10 @@ export class MultiDimensionLimiter {
   }
 }
 
-/** 从 Request 提取 user key（x-api-key 的 sha256 hash 前 16 字符）。无认证返回 undefined。 */
+/** 限流用户维度的键：与鉴权/主体标签同一份凭证口径（见 callerCredential）。
+ *  无凭证返回 undefined ⇒ MultiDimensionLimiter.check 只按 IP + global 维度计。 */
 export function extractUserKey(req: Request): string | undefined {
-  const apiKey = req.headers.get("x-api-key") ||
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!apiKey) return undefined;
-  return crypto.createHash("sha256").update(apiKey).digest("hex").slice(0, 16);
+  return credentialDigest(req.headers);
 }
 
 /** 多维度限流中间件 */

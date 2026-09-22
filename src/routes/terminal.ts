@@ -11,6 +11,7 @@ import { CommandGate } from "../terminal/command-gate.js";
 import type { PtySession } from "../terminal/pty-session.js";
 import { safeStringEqual } from "../utils/auth-check.js";
 import { requireAuthToken } from "./route-auth.js";
+import { callerCredential } from "../utils/call-context.js";
 
 /**
  * 二因素写保护（审计 S1，2026-08-25；I3 2026-08-27）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
@@ -24,8 +25,7 @@ function requireSecondFactorToken(ctx: RouteContext): Response | null {
   const provided =
     ctx.req.headers.get("x-second-factor") ||
     ctx.req.headers.get("x-axiom-second-factor") ||
-    ctx.req.headers.get("x-api-key") ||
-    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    callerCredential(ctx.req.headers) ||
     "";
   if (safeStringEqual(provided, expected)) return null;
   return ctx.jsonResponse(

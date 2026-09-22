@@ -89,6 +89,8 @@ Referrer-Policy: strict-origin-when-cross-origin
    - 静态资源（`.html/.js/.css/...`）+ 公共路径（`/health`, `/`, `/ws`）放行
    - 其他路径拒绝 + warn
 3. **已配 token** → 校验 `x-api-key` 或 `Authorization: Bearer` header
+   - 取哪一份凭证、去不去 `Bearer` 方案前缀，全仓只有一个定义点：`callerCredential()`（`src/utils/call-context.ts`）。网关判定、per-route 二次认证、二因素回退、WS 升级、限流用户维度、主体标签一律经它 —— 口径分家会让"鉴权采用的凭证"与"归因所用的凭证"不是同一份（S-12 锁结构）
+   - 刻意保留的行为差异：无凭证时 `extractUserKey` 返回 `undefined` ⇒ 限流只按 IP + global 维度计，不把匿名流量并进一个共享用户配额；`credentialPrincipal` 同处则归 `anonymous` 桶（两处用途不同，不是两份口径）
 4. **免认证静态扩展名**：`.html .js .mjs .css .png .jpg .jpeg .gif .svg .ico .webp .woff .woff2 .map`
    - **不含** `.json` / `.txt`（动态 API 路由可能以它们结尾，如 `/traces/<id>.json`）
 
@@ -311,7 +313,7 @@ interface SecurityAlert {
 | I1 | 无能力声明 ⇒ 不可注册；能力由注册处声明，不由名字推断 | `ToolDef.capability` 必填，`add()` 未声明即抛 | S-1 / S-2 |
 | I2 | 判定发生在**实际 I/O 那一行**：realpath + 逐跳锚点 + 沙箱根外切 | `safeFs` 五法内部，字符串前缀判定不作为唯一依据 | S-3 |
 | I3 | 鉴权先于缓存，缓存键含调用方身份，且默认可缓存=false | `src/core/http-router.ts` 的 `execute` 顺序 + `meta.cacheable` | S-4、S-11 |
-| I4 | 跨调用序列可见：单次都合规不等于链式合规，且回环不构成豁免维度 | `reviewSequence` 按 principal 分桶（主体由传输边界标注，守卫在派发时读取）；审批通道内不得出现地址判定 | S-7、S-10 |
+| I4 | 跨调用序列可见：单次都合规不等于链式合规，且回环不构成豁免维度 | `reviewSequence` 按 principal 分桶（主体 = `credentialPrincipal()` 派生的**参与鉴权的那份凭证**摘要，由传输边界标注，守卫在派发时读取）；审批通道内不得出现地址判定 | S-7、S-10、S-12 |
 
 能力词表（唯一权威见 `src/utils/permissions.ts`）：`internal`、`fs.read`、`fs.write`、`fs.delete`、`fs.glob`、
 `net.outbound`、`proc.exec`、`cfg.write`、`db.write`、`mcp.external`。词表**刻意没有**「读取凭据」档 ——
@@ -371,11 +373,15 @@ interface SecurityAlert {
 - **反例 B（L6/L7）**：Layer 2 判定为"本机 ⇒ 免鉴权"，Layer 3 的响应缓存又不看身份 ⇒ 认证层的豁免直接
   变成缓存层的越权读取通道。两层不独立：一层的输出是另一层的输入。
 - **反例 C（L8）**：Layer 3 的审批层存在但默认关闭 ⇒ "有 HITL" 与 "HITL 生效" 是两件事，配置缺省即失效。
+- **反例 D（R3-① 实测，I4 的身份维度）**：认证层取 `x-api-key`（存在时 `Authorization` 从不参与比较），
+  而序列复核的主体标签优先取 `Authorization` 且不剥 `Bearer` 前缀 ⇒ 已认证的调用方用一个**从不被校验的头**
+  轮转自己的主体标签，而 `sequences` 只按主体分桶、无全局兜底，burst 计数与链路配对检测同时失效。
+  "两层各自算一份 who"与"两层各自算一份 what"（反例 A）是同一类失效：判定对象漂移，层就不独立。
 
 修正后的口径（可判定，不再依赖"多几层"这个数量论证）：
 
 1. **每层判定同一批事实**：能力 + 已规范化的目标 + 调用方身份，不各自维护第二份清单（S-5 锚点单源、
-   S-6 默认值单源、S-9 命令危险判据单源、S-10 调用主体单点标注、I2 只在 I/O 点判定）。
+   S-6 默认值单源、S-9 命令危险判据单源、S-10 调用主体单点标注、S-12 凭证提取单源、I2 只在 I/O 点判定）。
 2. **失效方向统一为拒绝**：未声明、未配置、未识别、无审批者 ⇒ 一律拒绝或升级，不默认放行（fail-closed）。
 3. **跨层组合要过序列复核**：单层都过不等于链路过（I4）。
 4. 因此"纵深"成立与否的可判据是：**同一份判定内核是否出现在每个特权落点**，而不是层数。
@@ -384,9 +390,8 @@ interface SecurityAlert {
 
 | 项 | 现状 | 影响 |
 |---|---|---|
-| 主体粒度只到"凭证 / 传输边界"，不是用户身份 | 已标注的边界：HTTP 路由（`src/core/http-router.ts`）与三条 MCP HTTP 后端（`src/mcp/server.ts`、`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts`），主体 = 凭证头摘要或 `anonymous`；守卫经 `AsyncLocalStorage` 在派发时读取 | 未标注的路径（stdio MCP、TUI、进程内直调）仍共 `unassigned` 桶：链路会互相接续，方向偏保守（多升级不漏判），但审计答不出是谁。本系统没有已认证用户，凭证摘要不得被读成用户身份 |
-| 限流器的调用方键另算一份 | `src/utils/rate-limiter.ts` 的 `extractUserKey` 先剥 `Bearer ` 前缀再取 sha256 截断，与 `credentialPrincipal`（对原始头值取摘要）不同源 | 限流分桶与缓存/序列分桶是两套"谁"：同一 token 在三层可能得到不同标签。合并会改限流键语义（Bearer 与原文同桶、无凭证时的 IP 回退），故未随本片一并动，登记待裁决 |
-| `net.outbound` 只在读工具的 web 分支强制 | 其他出网点（provider 调用、插件、MCP 客户端）仍走 `proxy-fetch` 的 SSRF 守卫，不走 `decideCapability` | 词表里的 `net.outbound` 目前不是所有出网络的强制点。R3 补：在执行点接 `decideOutbound`，前置条件是给出"本地端点白名单"的可配置表达（SearXNG / CDP / 网关自身都在回环上，直接强制会把自家服务全打断）|
+| 主体粒度只到"凭证 / 传输边界"，不是用户身份 | 已标注的边界：HTTP 路由（`src/core/http-router.ts`）与三条 MCP HTTP 后端（`src/mcp/server.ts`、`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts`），主体 = `credentialPrincipal()` 派生的凭证摘要或 `anonymous`，其取值与鉴权共用 `callerCredential()`（R3-① / S-12）；守卫经 `AsyncLocalStorage` 在派发时读取 | 未标注的路径（stdio MCP、TUI、进程内直调）仍共 `unassigned` 桶：链路会互相接续，方向偏保守（多升级不漏判），但审计答不出是谁。本系统没有已认证用户，凭证摘要不得被读成用户身份 |
+| `net.outbound` 只在读工具的 web 分支强制 | 该分支已在执行点落地：`crawlStructured` 对 `proxyFetch` 传 `ssrfGuard: true`，初始 URL 与每一跳都过 `src/utils/url-safety.ts`（回环 / RFC1918 / 链路本地 / IPv6 ULA / 整数与八进制 IP 变形），故模型可控 URL 直取本机服务已被拦。其余出网点（provider 调用、插件、MCP 客户端）仍走 `proxy-fetch` 的默认关闭守卫，不走 `decideCapability`；`src/local-llm/edge-embeddings.ts` 用原生 `fetch`，完全不经该守卫面（其 `base` 来自配置，非模型可控 URL） | 词表里的 `net.outbound` 目前不是所有出网络的强制点。R3 补：在执行点接 `decideOutbound`，前置条件是给出"本地端点白名单"的可配置表达（SearXNG / CDP / 网关自身都在回环上，直接强制会把自家服务全打断）|
 | 自进化落盘三处未经 `safeFs`（`data/skill-quality.json`、`axiom-memory/03-Resources/skills/`、consciousness promoter 的 `skillDirRel`）| 落点文件名由 slug 生成、不受模型控制，但写入本身是裸 `fs` 调用，穿过预先放好的符号链接即可落到锚点 | 未在本轮封堵的原因是要先定沙箱根：`safeFs` 的根固定为 `process.cwd()` 且 `roots` 只收窄，而这些落点可能是 cwd 之外的 axiom home，直接套判定会把合法写入静默打成"持久化失效"（两处调用方都吞错）。另起第二份符号链接判定会重新制造"两份互不复用的路径守卫"，故留待 R3 与沙箱根策略一起解 |
 | `vault-manager` / `knowledge-graph-builder` / `model-output-store` 的写盘未经 `safeFs` | 落点在 vault/kg 目录内，非锚点 | I2 未覆盖这三条内部路径；扩面需逐个评估行为变更 |
 | 远程 CI 执行无能力档 | 词表只有 `proc.exec`/`net.outbound`，触发远端 runner 需两者组合 | 组合已被 I4 复核覆盖，但无独立档位 |
@@ -559,7 +564,7 @@ interface SecurityAlert {
 
 ### 7.1 安全相关测试覆盖
 
-本文档不手抄用例数（数字会随用例增减腐烂）；用例数以运行下列命令的实际输出为准。
+本文档不手抄用例数与门条数（数字会随用例增减腐烂）；用例数以运行下列命令的实际输出为准。
 
 | 测试文件 | 覆盖范围 |
 |---|---|
@@ -569,12 +574,12 @@ interface SecurityAlert {
 | [route-auth.test.ts](../tests/route-auth.test.ts) | per-route 二次认证 |
 | [auth-check.test.ts](../tests/auth-check.test.ts) | 网关认证与回环豁免 |
 | [command-gate.test.ts](../tests/command-gate.test.ts) | 交互终端审批门（含"未配置=risky"） |
-| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式 S-1…S-11（I1–I4 的机器门） |
+| [capability-invariants.test.ts](../tests/capability-invariants.test.ts) | S3 能力不变式门（S 系列，I1–I4 的机器门） |
 | [command-danger-single-source.test.ts](../tests/command-danger-single-source.test.ts) | 命令危险判据两层级结论一致（S-9 的行为面） |
 | [call-context.test.ts](../tests/call-context.test.ts) | 主体上下文的传播与凭证派生（改名/并发不串桶） |
 | [call-principal-plumbing.test.ts](../tests/call-principal-plumbing.test.ts) | 主体从传输边界流到守卫的整条管道（S-10 的行为面） |
 | [architecture-integrity.test.ts](../tests/architecture-integrity.test.ts) | 架构完整性（utils/ leaf layer、env 读取收口） |
-| [doc-contract.test.ts](../tests/doc-contract.test.ts) | 文档↔代码一致性门 D1–D10 |
+| [doc-contract.test.ts](../tests/doc-contract.test.ts) | 文档↔代码一致性门（D 系列） |
 
 ### 7.2 验证命令
 

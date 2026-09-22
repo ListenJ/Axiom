@@ -36,12 +36,38 @@ export function runAsCallPrincipal<T>(principal: string, fn: () => T): T {
 }
 
 /**
- * 凭证 → 主体标签：SHA-256 截断，原文不入标签（会随审计与键快照外泄）。
+ * 凭证提取的**唯一**口径：`x-api-key` 优先，回退 `Authorization` 并去掉 `Bearer` 方案前缀。
+ *
+ * 与鉴权判定（`src/utils/auth-check.ts` 的 `checkApiKey`）逐字同语义，这一点是安全属性而非风格：
+ * 主体标签必须由**真正参与鉴权的那份凭证**决定。若口径不一致（曾用 `authorization ?? x-api-key`
+ * 且不剥前缀），携带有效 `x-api-key` 的请求里 `Authorization` 从不被比较，却决定了主体 ——
+ * 调用方换一次随机字符串就换一个新的 `sequences` 桶，I4 的 burst 计数与链路配对检测同时失效。
+ */
+export function callerCredential(headers: { get(name: string): string | null }): string | undefined {
+  return (
+    headers.get("x-api-key") ||
+    headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    undefined
+  );
+}
+
+/**
+ * 凭证 → 摘要（SHA-256 截断 16 位，原文不入摘要：会随审计与键快照外泄）。
  * 用加密哈希而非可造碰撞的非加密哈希：参与键值的凭证由调用方选择。
- * 响应缓存分桶（S-4 / I3）与序列复核（I4）共用这一份派生，不再各写一遍。
+ * 限流的用户维度（`extractUserKey`）与主体标签（`credentialPrincipal`）共用这一份摘要。
+ */
+export function credentialDigest(headers: { get(name: string): string | null }): string | undefined {
+  const credential = callerCredential(headers);
+  if (!credential) return undefined;
+  return createHash("sha256").update(credential).digest("hex").slice(0, 16);
+}
+
+/**
+ * 凭证 → 主体标签。响应缓存分桶（S-4 / I3）、序列复核（I4）与限流用户维度共用同一份
+ * 凭证口径（见 `callerCredential`）—— 三份口径各自为政时，主体可由调用方指定。
  */
 export function credentialPrincipal(headers: { get(name: string): string | null }): string {
-  const credential = headers.get("authorization") ?? headers.get("x-api-key");
-  if (!credential) return ANONYMOUS_PRINCIPAL;
-  return `cred:${createHash("sha256").update(credential).digest("hex").slice(0, 16)}`;
+  const digest = credentialDigest(headers);
+  if (!digest) return ANONYMOUS_PRINCIPAL;
+  return `cred:${digest}`;
 }

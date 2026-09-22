@@ -525,6 +525,37 @@ describe("S-7 链路组合可见（I4）", () => {
     const src = read("src/utils/approval-bridge.ts");
     expect(src).not.toMatch(/isLocalAddress|requestIP|127\.0\.0\.1/);
   });
+
+  it("主体标签不得由调用方指定：轮转未被校验的 Authorization 不得重置 I4 计数", async () => {
+    // 症状复现（R3-①）：x-api-key 携带有效 token 即过鉴权（`checkApiKey` 的 `||` 短路使
+    // Authorization 从不参与比较），而主体标签若优先取 Authorization，调用方就能用一次
+    // 随机字符串换一个 sequences 桶 —— burst 与 CHAIN_PAIRS 都只在桶内查（`reviewSequence`
+    // 内 `sequences.get(principal)`）。
+    const { reviewSequence, resetSequences, SEQUENCE_BURST_LIMIT } = await import(
+      "../src/agents/risk-monitor.js"
+    );
+    const { credentialPrincipal } = await import("../src/utils/call-context.js");
+    resetSequences();
+    const principalOf = (n: number) =>
+      credentialPrincipal(
+        new Headers({ "x-api-key": "valid-token", authorization: `Bearer rotate-${n}` }),
+      );
+    expect(new Set([1, 2, 3].map(principalOf)).size).toBe(1); // 前提：轮转不换身份
+    let escalated = false;
+    for (let i = 0; i < SEQUENCE_BURST_LIMIT + 4; i++) {
+      const call = {
+        capabilities: ["fs.write" as const],
+        args: { path: "src/a.ts" },
+        principal: principalOf(i),
+      };
+      if ((await reviewSequence(call, { onEscalate: () => (escalated = true) })) === "require-approval") {
+        escalated = true;
+        break;
+      }
+    }
+    expect(escalated).toBeTrue();
+    resetSequences();
+  });
 });
 
 // ─── S-8 命令类目标必须声明（R2-D）──────────────────────────────────────────
@@ -630,5 +661,39 @@ describe("S-11 生产路由的响应缓存开启清单", () => {
       .filter((rel) => /cacheable\s*:\s*true/.test(read(rel)))
       .sort();
     expect(hits).toEqual([...CACHEABLE_ROUTES].sort());
+  });
+});
+
+// ─── S-12 凭证提取只有一个定义点（R3-①，身份口径不得有第二份）──────────────────
+describe("S-12 凭证提取只有一个定义点", () => {
+  // 动因（R3-① 实测；"收口前"指本门落地前的状态）：同一个"取 x-api-key 还是 Authorization、
+  // 去不去 Bearer 前缀"的表达式散落在 8 个文件的 9 处提取点，其中 `credentialPrincipal` 一处
+  // 反向优先取 `authorization` 且不剥前缀 —— 于是"鉴权采用哪份凭证"与"主体按哪份凭证归因"分家。
+  // 携带有效 x-api-key 的请求里 Authorization 从不被比较（`checkApiKey` 的 `||`），却决定主体标签；
+  // 而 risk-monitor 的 sequences 只按 principal 分桶（`reviewSequence` 取 `sequences.get(principal)`，无全局兜底），
+  // 轮转这个从不校验的头即每问一个新计数器 ⇒ I4 的 burst 与链路配对检测同时失效。
+  // 出网点（`Authorization: \`Bearer ${key}\`` 之类）是**写入**请求头，不是提取，不得被本判据命中。
+  const EXTRACT = /headers\.get\(\s*["'](?:authorization|x-api-key)["']\s*\)/i;
+  const HOME = "src/utils/call-context.ts";
+
+  it("凭证头提取表达式只在单源函数里出现（别处一律调用 callerCredential）", () => {
+    const offenders = walkTs("src")
+      .filter((rel) => rel !== HOME)
+      .filter((rel) => EXTRACT.test(read(rel)))
+      .sort();
+    expect(offenders).toEqual([]);
+  });
+
+  it("判据自检：单源函数确实含提取表达式，且鉴权与限流都改经它（门不得对自己免检）", () => {
+    // 正向对照：若提取写法整体改名，offenders 会静默变成空清单而恒绿 —— 本条就是为此准备的。
+    expect(EXTRACT.test(read(HOME))).toBeTrue();
+    const DELEGATES = /callerCredential\(|credentialDigest\(/;
+    const notDelegating = ["src/utils/auth-check.ts", "src/utils/rate-limiter.ts", "src/main.ts", HOME]
+      .filter((rel) => !DELEGATES.test(read(rel)));
+    expect(notDelegating).toEqual([]);
+    // 主体标签必须由该摘要派生，不得在 credentialPrincipal 里再读一次头
+    const principalBody = read(HOME).split("function credentialPrincipal")[1] ?? "";
+    expect(principalBody.slice(0, 220)).toContain("credentialDigest(headers)");
+    expect(principalBody.slice(0, 220)).not.toContain("headers.get(");
   });
 });

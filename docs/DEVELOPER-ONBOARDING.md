@@ -230,7 +230,7 @@ openclaw-fusion/
 │   ├── ARCHITECTURE.md       # 分层规则与质量红线（派生件）
 │   ├── superpowers/specs/    # 设计与实施计划（含提权阻断模型）
 ├── tests/
-│   ├── doc-contract.test.ts  # 文档↔代码一致性门（D1–D9）
+│   ├── doc-contract.test.ts  # 文档↔代码一致性门（D 系列，条数以 bun run test:docs 输出为准）
 │   └── dre-core-modules.test.ts # DRE 子系统行为测试
 ├── README.md
 └── package.json

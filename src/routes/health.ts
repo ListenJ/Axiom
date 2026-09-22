@@ -4,6 +4,7 @@
 import type { RouteContext } from "./types.js";
 import { safeStringEqual } from "../utils/auth-check.js";
 import { readString } from "../utils/env.js";
+import { callerCredential } from "../utils/call-context.js";
 
 /**
  * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
@@ -13,10 +14,7 @@ import { readString } from "../utils/env.js";
 function requireSecondFactorToken(ctx: RouteContext): Response | null {
   const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
   if (!expected) return null;
-  const provided =
-    ctx.req.headers.get("x-api-key") ||
-    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    "";
+  const provided = callerCredential(ctx.req.headers) ?? "";
   if (safeStringEqual(provided, expected)) return null;
   return ctx.jsonResponse(
     { error: "Unauthorized - second factor token required" },

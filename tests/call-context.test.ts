@@ -62,4 +62,22 @@ describe("call-context 主体承载", () => {
     // 原文凭证不得出现在主体里（会随审计/键快照外泄）
     expect(a).not.toInclude("shared-token");
   });
+
+  test("主体只由真正参与鉴权的凭证决定：x-api-key 固定时轮转未被校验的 Authorization 不得换桶", () => {
+    // 鉴权侧（`checkApiKey` 的凭证比较）取 `x-api-key || authorization(去 Bearer)`，
+    // 即 x-api-key 存在时 Authorization 从不参与比较。一个从不被校验的头不得决定身份。
+    const h = (init: Record<string, string>) => new Headers(init);
+    const labels = [1, 2, 3].map((n) =>
+      credentialPrincipal(h({ "x-api-key": "shared-token", authorization: `Bearer rotate-${n}` })),
+    );
+    expect(new Set(labels).size).toBe(1);
+    expect(labels[0]).toBe(credentialPrincipal(h({ "x-api-key": "shared-token" })));
+  });
+
+  test("同一凭证换头名呈现必须同桶（Bearer 前缀不是身份的一部分）", () => {
+    const h = (init: Record<string, string>) => new Headers(init);
+    expect(credentialPrincipal(h({ authorization: "Bearer shared-token" }))).toBe(
+      credentialPrincipal(h({ "x-api-key": "shared-token" })),
+    );
+  });
 });

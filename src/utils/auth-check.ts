@@ -12,6 +12,7 @@
 import { timingSafeEqual } from "crypto";
 import { logger } from "./logger.js";
 import { readString } from "./env.js";
+import { callerCredential } from "./call-context.js";
 
 /** 判定 socket 对端地址是否为回环地址 */
 export function isLocalAddress(address: string | undefined): boolean {
@@ -153,9 +154,7 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
           const wl = getLocalWhitelist();
           const whitelisted = wl.has(originHost) || wl.has(originHostname);
           if (!whitelisted) {
-            const auth =
-              req.headers.get("x-api-key") ||
-              req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+            const auth = callerCredential(req.headers);
             if (!safeStringEqual(auth, apiKey)) {
               logger.warn("[Auth] local write blocked by CSRF origin check", {
                 path,
@@ -194,6 +193,6 @@ export function checkApiKey(req: Request, isLocal: boolean, apiKey: string, path
   }
   // WebSocket: check auth in upgrade handler, not here
   if (path === "/ws") return true;
-  const auth = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const auth = callerCredential(req.headers);
   return safeStringEqual(auth, apiKey);
 }

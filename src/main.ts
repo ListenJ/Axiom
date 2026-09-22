@@ -14,6 +14,7 @@ import type { ServerWebSocket } from "bun";
 import { VaultManager } from "./memory/vault-manager.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
 import { logger } from "./utils/logger.js";
+import { callerCredential } from "./utils/call-context.js";
 import { getConfig, getConfigCenter } from "./core/config-center.js";
 import { wsManager } from "./utils/websocket.js";
 import { checkWsUpgradeAuth, WS_AUTH_SUBPROTOCOL } from "./utils/ws-auth.js";
@@ -718,7 +719,7 @@ const server = Bun.serve({
     // WebSocket — verify auth token before upgrade (localhost always allowed for dev)
     if (url.pathname === "/ws") {
       const wsAuth = checkWsUpgradeAuth({
-        headerAuth: req.headers.get("x-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || null,
+        headerAuth: callerCredential(req.headers) ?? null,
         protocolHeader: req.headers.get("sec-websocket-protocol") ?? null,
         queryToken: url.searchParams.get("token") ?? null,
         isLocal,

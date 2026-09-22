@@ -15,6 +15,7 @@ import type { RouteContext } from "./types.js";
 import { readString } from "../utils/env.js";
 import { auditLogger } from "../utils/audit-logger.js";
 import { safeStringEqual } from "../utils/auth-check.js";
+import { callerCredential } from "../utils/call-context.js";
 
 /** 审计事件类型（与 AuditEvent 中需审计的成功事件对齐） */
 export type AuditableEvent =
@@ -55,9 +56,7 @@ export function requireAuthToken(ctx: RouteContext): Response | null {
     );
   }
 
-  const provided =
-    ctx.req.headers.get("x-api-key") ||
-    ctx.req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const provided = callerCredential(ctx.req.headers);
 
   if (!safeStringEqual(provided, token)) {
     auditLogger.log({
