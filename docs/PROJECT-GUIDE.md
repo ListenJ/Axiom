@@ -24,7 +24,7 @@
 
 ### 1.1 定位
 
-Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"手写余弦（`src/memory/deterministic-search.ts` + `src/dre/consciousness/stream.ts:cosineSimilarity`）+ PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts:186` 默认 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
+Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"手写余弦（`src/memory/deterministic-search.ts` + `src/dre/consciousness/stream.ts:cosineSimilarity`）+ PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关默认走 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
 
 ### 1.2 关键指标
 

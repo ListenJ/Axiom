@@ -1,6 +1,6 @@
 # 系统边界与已知限制（Limitations）
 
-> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts:106` VRAM 估算校准（Critical 05）。
+> 摘要：本文档披露当前实现中因简化估算、外部依赖缺失或待校准数值导致的边界行为，供审计与运维参考。首个条目为 `src/dre/system-resource.ts` 的 VRAM 估算校准（审计报告 Critical 05）。
 
 ---
 
@@ -8,8 +8,8 @@
 
 ### 1.1 问题溯源
 
-- **审计定位**：`src/dre/system-resource.ts:106`（审计报告写作 `src/core/system-resource.ts:106`，实际路径为 `src/dre/system-resource.ts`）`bytesPerToken = 2` 导致 114688 倍误差：`2200 MB` 预算下旧公式 `2200*1024/2 = 1_126_400` tokens（受 `maxTokensCap=4096` 截断为 4096），实际仅约 9 tokens。
-- **修复提交**：`fix(core): 校准 bytesPerToken 114688倍误差 src/dre/system-resource.ts:68,106`（同时溯源 `src/core/system-resource.ts:106` 以兼容审计引用）。
+- **审计定位**：`src/dre/system-resource.ts` 中 `ResourceBudgetManager.bytesPerToken` 旧值为 `2`，导致 114688 倍误差：`2200 MB` 预算下旧公式 `2200*1024/2 = 1_126_400` tokens（受 `maxTokensCap=4096` 截断为 4096），实际仅约 9 tokens。原始逐行定位见 `docs/reviews/2026-08-20-full-audit-strong-constraint.md` 的 Critical 05 条目（历史证据件，行号以该文件为准）。
+- **修复提交**：`141608c4`，subject 为 `fix(core): 校准 bytesPerToken 114688倍误差` 加审计报告当时给出的路径锚点。注意该锚点沿用了 `src/core` 前缀，而仓库中从未追踪过对应文件（`git log --all -- src/core/system-resource.ts` 空命中；本文件由 `944a7222` 作为 `src/dre/system-resource.ts` 新增，无重命名记录），故 subject 里的路径不可当作变更目标读。
 
 ### 1.2 校准推导
 
@@ -21,7 +21,7 @@
                 = 229376 bytes
                 ≈ 224 KB (÷1024) / 229 KB (÷1000)
   ```
-  源码：`src/dre/system-resource.ts:53,68`；测试锁定：`tests/unit/system-resource.test.ts:12-15`。
+  源码：`src/dre/system-resource.ts`（`bytesPerToken` 字段声明与其构造函数默认值 `28 * 2048 * 2 * 2`）；测试锁定：`tests/unit/system-resource.test.ts`（`229376` 推导断言 + "2200MB KV 预算 ≈ 10057 tokens（封顶前）" 用例）。
 - **推荐 token 公式**：
   ```ts
   availableForKV = availableMemory - modelMemoryMB; // MB
@@ -52,13 +52,13 @@
 
 ### 2.1 问题溯源
 
-- **审计定位**：`docs/ARCHITECTURE.md:10` 与 `docs/PROJECT-GUIDE.md:27` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”，与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts:186`）”不一致；工具数文档宣称 133/150/173 vs 实际 172 去重。
+- **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数文档宣称 133/150/173 vs 实际 172 去重。
 - **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：`src/testing/tool-count.ts` 实测 **188**（server/**+server.ts 内联+register-external-tools+3 adaptTool，零重复；历史口径 172 为旧值，tests/unit/docs-consistency.test.ts 动态锁定）。
 
 ### 2.2 校准后声明
 
 - **检索**：默认确定性检索（`deterministic-search.ts` 标题 3x/标签 2.5x/内容 1x/路径 0.5x；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
-- **LLM**：`src/knowledge/pipeline.ts:186` 受 `KNOWLEDGE_USE_LLM` 控，默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
+- **LLM**：`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关（`readBool("KNOWLEDGE_USE_LLM", false)` 共两处读取：图/视频自动理解分支与内容结构化分支各一处）默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
 - **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 - **工具数**：权威 172 去重（`count-tools.mjs` 181 含 client-connector 等非 MCP 面，去重后 172；`AXIOM-ARCHITECTURE.md` 133、`README` 133/150、`AGENT-ARCHITECTURE.md` 173 已统一为 172）。
 

@@ -25,16 +25,16 @@
 
 | 模块 | 文件 | 效能 | 难度 | 覆盖率目标 | 严苛度 | 必须类型 | 已达 |
 |---|---|---|---|---|---|---|---|
-| system-resource | `dre/system-resource.ts:53` | P0 | H | **≥90%** | 5次回放 + 并发 100 + 边界 1300/1299 | L1 单元 + L2 集成 | 83% 单测 → 联合 85% 达标 |
-| scheduler | `dre/runtime/scheduler.ts:54` | P0 | H | **≥90%** | 抢占 + deadline + 100 有序 | L1 + L2 管线 | 61% → 需补 |
-| event-bus/actor | `dre/runtime/{event-bus:71,actor:103}` | P0 | H | **≥90%** | 100 并发不丢 + 顺序 + 500ms 串行 | L1 + L2 | 85%/61% 已补 |
-| native-bridge | `native-bridge.ts:61` | P0 | H | **≥90%** | Win32 .exe + 僵尸 kill + 真机 `cargo` | L2 集成 + smoke | 96% 达标 |
-| permission | `utils/permission-middleware.ts:15` | P1 | M | **≥95%** | 大小写 + 并发 50 | L1 | 69% → 需补 |
-| command-safety | `utils/command-safety.ts:16` | P1 | M | **≥95%** | 11 危险 + 白名单 | L1 + 模糊 | 95% 达标 |
-| url-safety | `utils/url-safety.ts:20` | P1 | M | **≥95%** | 20 拦截 + 整数/hex | L1 + 模糊 | 88% → 补至 95 |
-| filesystem | `mcp/tools/filesystem.ts:43` | P1 | M | **≥90%** | 50 并发 + TOCTOU | L1 + L2 | 4% → 已补 100% 沙箱 |
-| knowledge | `knowledge/pipeline.ts:49` | P0 | M | **≥85%** | 5次回放 + 中英 + 并发 50 | L1 | 100% 达标 |
-| lightpanda | `crawl/lightpanda-client.ts:111` | P2 | H | **≥80%** | 10 SSRF + 超时降级 | L2 集成 | 100% 达标 |
+| system-resource | `src/dre/system-resource.ts` | P0 | H | **≥90%** | 5次回放 + 并发 100 + 边界 1300/1299 | L1 单元 + L2 集成 | 83% 单测 → 联合 85% 达标 |
+| scheduler | `src/dre/runtime/scheduler.ts` | P0 | H | **≥90%** | 抢占 + deadline + 100 有序 | L1 + L2 管线 | 61% → 需补 |
+| event-bus/actor | `src/dre/runtime/event-bus.ts` + `src/dre/actor/system.ts` | P0 | H | **≥90%** | 100 并发不丢 + 顺序 + 500ms 串行 | L1 + L2 | 85%/61% 已补 |
+| native-bridge | `src/native-bridge.ts` | P0 | H | **≥90%** | Win32 .exe + 僵尸 kill + 真机 `cargo` | L2 集成 + smoke | 96% 达标 |
+| permission | `src/utils/permission-middleware.ts` | P1 | M | **≥95%** | 大小写 + 并发 50 | L1 | 69% → 需补 |
+| command-safety | `src/utils/command-safety.ts` | P1 | M | **≥95%** | 11 危险 + 白名单 | L1 + 模糊 | 95% 达标 |
+| url-safety | `src/utils/url-safety.ts` | P1 | M | **≥95%** | 20 拦截 + 整数/hex | L1 + 模糊 | 88% → 补至 95 |
+| filesystem | `src/mcp/tools/filesystem.ts` | P1 | M | **≥90%** | 50 并发 + TOCTOU | L1 + L2 | 4% → 已补 100% 沙箱 |
+| knowledge | `src/knowledge/pipeline.ts` | P0 | M | **≥85%** | 5次回放 + 中英 + 并发 50 | L1 | 100% 达标 |
+| lightpanda | `src/crawl/lightpanda-client.ts` | P2 | H | **≥80%** | 10 SSRF + 超时降级 | L2 集成 | 100% 达标 |
 | docs/deadcode | `tests/unit/*` | P3 | L | **100%** | 0 命中 | L1 | 100% |
 | frontend 21页 | `frontend/src/pages/*.tsx` | P3 | M | **单元 100%** / **e2e 15→21** | 路由 + 标题 + 200 | L1 vitest + L3 Playwright | 单元 100% / e2e 46 达标 |
 

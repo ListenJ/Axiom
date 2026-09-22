@@ -11,7 +11,7 @@
 ### Task 1: 默认主题修复（F1）
 
 **Files:**
-- Modify: `frontend/src/state/useApp.ts:57-61`（readInitialTheme 默认 'dark'）
+- Modify: `frontend/src/state/useApp.ts`（readInitialTheme 默认 'dark'）
 - Modify: `frontend/index.html`（内联脚本按 localStorage 预置 data-theme，消除 FOUC）
 - Test: `frontend/src/state/useApp.test.ts`（新增：无 localStorage 时默认 dark；有 'light' 时保持 light）
 
@@ -58,8 +58,8 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 ### Task 3: Button danger/success hover 修复（F3）
 
 **Files:**
-- Modify: `frontend/src/components/ui/Button.tsx:29,31`
-- Modify: `frontend/src/components/chat-panels.tsx:404`（失败徽标）
+- Modify: `frontend/src/components/ui/Button.tsx`（danger/success 变体的 hover class）
+- Modify: `frontend/src/components/chat-panels.tsx`（失败徽标）
 
 **Step 1: 现状复现**：暗色下 danger/success hover = 白底白字。
 **Step 2: 实现**
@@ -73,7 +73,7 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 ### Task 4: BottomNav 定位修复（F4）
 
 **Files:**
-- Modify: `frontend/src/components/layout/BottomNav.tsx:23-35`
+- Modify: `frontend/src/components/layout/BottomNav.tsx`（NavLink className 与激活指示条定位）
 
 **Step 1: 实现**：NavLink className 加 `relative`，激活指示条保持 `absolute -top-px`；图标区 `h-6`→`h-7` 并保证点击区 min-h。
 **Step 2: 验证**：lint；真实渲染（in-app Browser 或 Playwright）移动视口检查指示条位置。
@@ -84,7 +84,7 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 ### Task 5: 迷你聊天 key 修复（F5）
 
 **Files:**
-- Modify: `frontend/src/components/rightbar/panels.tsx:736`
+- Modify: `frontend/src/components/rightbar/panels.tsx`（nextIdRef 初始化）
 
 **Step 1: 实现**：`const nextIdRef = useRef(1)`（需要时 import useRef），替换 `const nextIdRef = { current: 1 }`；或复用 `chat-utils.nextId()`。
 **Step 2: 验证**：lint；连续发送两条消息无 duplicate key 告警（真实渲染）。
@@ -95,8 +95,8 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 ### Task 6: Router / Code 状态真实性
 
 **Files:**
-- Modify: `frontend/src/pages/Router.tsx:63`（默认 '未知'，仅当有任一成功值才用该值）
-- Modify: `frontend/src/pages/Code.tsx:133`（status 按 ok/error/unknown 映射 accent）
+- Modify: `frontend/src/pages/Router.tsx`（默认 '未知'，仅当有任一成功值才用该值）
+- Modify: `frontend/src/pages/Code.tsx`（status 按 ok/error/unknown 映射 accent）
 
 **Step 1: 写失败测试**（如无现成测试则用真实渲染断言）：
 - Router：三接口全 rejected 时页面路由状态显示「未知」而非 ok。

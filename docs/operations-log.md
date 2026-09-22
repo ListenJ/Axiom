@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 143 | 本文件 |
+| 2026-09（当月） | 144 | 本文件 |
 
 ---
 
@@ -1734,3 +1734,30 @@
 - **矛盾与残留**：① D4 只认 `` `文件` | 数字 `` 与 `` `文件`（N 行）`` 两形态，本片刻意**不扩判据**，因此以下同族手抄仍看不见：`docs/PROJECT-GUIDE.md` 概览表（第 34-40 行）（`源文件数 260+` 实测 426、`代码行数 ~70,000` 实测 115,915、`测试文件 68 个` 实测 414 个 `*.test.ts`、`测试总数 ~1,170` 实测 4,282、`MCP 工具 189（15+ 领域文件）` 领域文件实测 23、`HTTP 路由 280+` 与 8 月实测 165 需复核）、`docs/ARCHITECTURE.md` 表内裸文件名（如 `| \`knowledge-store.ts\` |` 无 `src/` 前缀 ⇒ 也在 D3 视野外）；② `docs/PROJECT-GUIDE.md` §3.1 仍写"手写余弦全文搜索"，与权威件 `ARCHITECTURE.md` 的"FTS5 + 关键词为默认、余弦仅可选语义层"不同口径 —— 属 R5-c 口径族的残留而非禁语命中，与①的概览表并成 ③-b 一片处理；③ README 的 `> **澄清（W3/W4）**` 一句用裸文本 `src/dre/system-resource.ts`（无反引号）→ D3 不把它当引用，登记为"引用形态依赖反引号"这一判据边界；④ `EventBus 100k publish` 连续两片复现（350ms / 阈值 300ms）已不再是偶发抖动，需按性能问题或阈值调整单独裁决，不再记作 flaky（本片未动，属 R6 门禁接入时的口径决策）。
 - **并入判定**：本分支仍带 4 条已知红 + 1 条环境红 + 1 条性能红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c/d①② 同口径）。
 - **Commit**：8231f19（`8231f19961ba31203227c681ced5b98396b4faad`；已推送 `internal codex/s3-on-main-2026-09-22`，`c3c0643d..8231f199`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
+
+
+## 2026-09-22 08:46 +0800 — R5-d④ D9 行号锚点清零（38 行 / 44 处 → 0）：抄来的 commit subject 是假的，登记后改为可核验指针
+
+- **任务**：R5-d 切片④，消掉 D9 的红（规范件内 `` `path.ext:NN` `` 形态的手抄行号锚点）。本片**零门改动**，纯文档侧；D6（缺锚块）、D7（未登记 7 文件）、D8（§3.0 列 0 vs 实际 23）留 R5-e，不并进本片凑绿。
+- **前置量测（判据先在基线上回代，再动手）**：用 D9 的 `ANCHOR` 正则逐行跑 8 篇改动件的 `git show HEAD:<file>` 与当前工作区，得起点 **38 行 / 44 处** —— `docs/AXIOM-ARCHITECTURE.md` 11 行/12 处、`docs/TEST-STRATEGY-2026-08-21.md` 9 行/9 处、`docs/plans/2026-08-11-frontend-aesthetic-repair.md` 7/7、`docs/LIMITATIONS.md` 6 行/11 处、`docs/ARCHITECTURE.md` 2/2、`README.md` 1/1、`docs/PROJECT-GUIDE.md` 1/1、`docs/test-reports/SUMMARY.md` 1/1（行数≠处数：主判据按"每行首个命中"报一条，故 LIMITATIONS 6 行藏 11 处）。逐处先分类再改：**现役指针**（文档声称"现在这里"）改符号/命令，**历史证据**（审计当时的定位）指向证据件与 commit，不把历史事实当漂移抹掉。
+- **量测挖出的真错（三类，均非格式问题）**：
+  1. **抄错的 commit subject**：`docs/LIMITATIONS.md` 的"修复提交"条把 subject 抄作 `fix(core): 校准 bytesPerToken 114688倍误差 src/dre/system-resource.ts:68,106`，而 `git show -s --format=%s 141608c4` 给的是 `fix(core): 校准 bytesPerToken 114688倍误差 src/core/system-resource.ts:106` —— 路径前缀与锚点两处都不符。
+  2. **无据的"溯源"句**：同条括号宣称"同时溯源 `src/core/...` 以兼容审计引用"。`git show --stat 141608c4` 只含 4 件（`docs/LIMITATIONS.md`、`docs/operations-log.md`、`src/dre/system-resource.ts`、`tests/unit/system-resource.test.ts`），零 `src/core/` 变更 ⇒ "溯源兼容"一事从未发生；该 commit body 首行确为"溯源 Qwen3-1.7B 28\*2048\*2\*2≈229KB/token…"，即"溯源"是**常数推导**的溯源，被误接到路径上。
+  3. **一个不存在的路径被三级放大成权威表述**：`git log --all -- src/core/system-resource.ts` 空命中，`git log --diff-filter=AR -- '*system-resource.ts'` 只有 `944a7222` 以 `src/dre/system-resource.ts` 新增（无重命名记录）⇒ 该文件从未存在于任何分支。审计报告本身写的是裸 `system-resource:106`（`docs/reviews/2026-08-20-full-audit-strong-constraint.md` 的 Critical 05 条），`src/core/` 前缀来自 `docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md`（其 Files 段与它 prescribed 的 `git commit -m`），提交信息照抄计划、限制文档再照抄提交信息 ⇒ 传播链是"计划 → commit → 权威文档"，与行号漂移无关，是**手抄文本**的代价。
+  - 现役锚点的漂移实测：`src/knowledge/pipeline.ts:186` → `readBool("KNOWLEDGE_USE_LLM", false)` 实际两处（图/视频自动理解分支、内容结构化分支），旧锚点漂 65 行；`src/dre/system-resource.ts:53,68` → 现为字段声明与构造函数默认值 `28 * 2048 * 2 * 2`；`tests/unit/system-resource.test.ts:12-15` → 用例名"2200MB KV 预算 ≈ 10057 tokens（封顶前）"与 `229376` 推导断言。
+- **判断（三条替换规则）**：① 现役指针改**符号名 + 语义定位**（`ResourceBudgetManager.bytesPerToken`、`KNOWLEDGE_USE_LLM` 开关），不写新行号；② 历史定位改指**证据件与 commit hash**（`docs/reviews/…` 的 Critical 05 条在 `HISTORY` 豁免面内，行号留在那里才合法）；③ commit 文本**不再手抄**，只给 hash 与 `git show -s --format=%s <hash>` 的取法 —— D9 正则会把 subject 里的 `path.ts:106` 当锚点命中，"逐字复制权威文本"与"禁止手抄锚点"天然冲突，用可复现命令替代复制。
+- **工具**：Bash（`git show HEAD:<file>` + 复刻 D9 正则的独立回代脚本量测起点/终点、`git log --all`/`--diff-filter=AR`/`--stat` 反查路径与提交、`grep -c` 数现役 `readBool` 读取点、红→绿、tsc、test:arch、docs-consistency + architecture-integrity、内存封顶全量、规则 11 扫描）、Read（`docs/LIMITATIONS.md` 全文、`docs/AXIOM-ARCHITECTURE.md` §7.2、门 D9 段）、Edit（9 件）。无子代理。规则 2：8 改动件 + 本日志先备份 `.tmp/backups/` → 通读 → 最小改动 → 验证 → 提交后删备份。
+- **操作**（文件级）：
+  1. `docs/LIMITATIONS.md`（6 行 / 11 处）：摘要行、§1.1 审计定位与修复提交（含上述三条错误的更正）、§1.2 源码/测试锁定行、§2.1 审计定位、§2.2 LLM 条。
+  2. `docs/AXIOM-ARCHITECTURE.md`（11 行 / 12 处）：§2.20 技能质量闭环的两处锚点改为完整路径（`src/mcp/server/skill-tools.ts`、`src/self-evolve/skill-promotion.ts`，后者经 `find` 反查确认 `src/dre/skill-promotion.ts` 不存在）；§7.2 C1–C4/W1–W8 两表去 `:NN`，并在表前加"裸文件名不解析为当前路径"的来源说明（见残留①）。
+  3. `docs/TEST-STRATEGY-2026-08-21.md`（9 行）：必修模块表 9 行的文件列统一为 `src/…` 完整路径 ⇒ D3 由"看不见"变为"可校验"（改后 D3 绿即逐条存在性证明）；另**自愿**清掉 `dre/runtime/{event-bus:71,actor:103}` 花括号形态，改为 `src/dre/runtime/event-bus.ts` + `src/dre/actor/system.ts`（`ActorSystem` 的实际宿主，经 `tests/unit/actor.test.ts` 的 import 反查；仓库中不存在 `actor.ts`）。
+  4. `docs/plans/2026-08-11-frontend-aesthetic-repair.md`（7 处）：Task1/3/4/5/6 的 Files 段去行号，裸锚改语义指针（`Button.tsx`（danger/success 变体的 hover class）、`panels.tsx`（nextIdRef 初始化）等），计划文体本身保留。
+  5. `docs/ARCHITECTURE.md`（2）、`docs/PROJECT-GUIDE.md`（1）、`docs/test-reports/SUMMARY.md`（1：`src/utils/platform.ts:133 withExecutableExt` → 符号形态）：按规则①改口径；`README.md`（1）的 SearXNG 上游 `sogou.py` 第 56 行**保留数字**但改写为"版本号已钉死，行号属该版本快照"的散文形态 —— 它是外部仓库的既有事实且已注明版本，不是本仓现役指针。
+  6. `docs/operations-log.md`：本条目；当月条目数 143→144（`grep -c '^## 2026-09'` 实数）。
+- **门的活性证明**：本片不动门，故不重复受控变异。D9 承重由门内自检条（`锚点禁令不得被门自身绕过`，含 `:442-449`、`:12`、`:53,68` 三组正例与 `100%`、`88.89%`、`66.67%` 两组反例）持续承重，本片跑测时该条为绿 ⇒ 与"文档清零"互为独立证据。**但如实记录盲区**：`{event-bus:71,actor:103}` 这类花括号/裸名形态本就不被 `ANCHOR` 命中（它要求 `.ext:` 前缀），所以"D9 绿"不等于"锚点清零"—— 该行是自愿清的，不是门逼出来的。
+- **验证结果（全部新鲜执行）**：`bun test ./tests/doc-contract.test.ts` → **25 pass / 3 fail**（28 tests；③基线 24/4）：D9 主判据转绿，独立回代脚本复测 8 件全部 `after=0 行 / 0 处`；剩余 3 条 = D6 缺锚块、D7 未登记 7 文件、D8 §3.0 列 0 vs 实际 23（本片未触）。`bun run lint` → exit 0；`bun run test:arch` → **25 pass / 0 fail**；`bun test ./tests/unit/docs-consistency.test.ts ./tests/architecture-integrity.test.ts` → **34 pass / 0 fail**（含文档 grep 门，证明改口径未破坏其它断言）；全量（内存封顶）**两次新鲜执行**：第一次 → **4241 pass / 36 skip / 5 fail**（4282 tests / 414 files / 31.44s；③基线 4240/36/6），差量恰为 D9 一条转绿；文档条目落库后复跑 → **4242 pass / 36 skip / 4 fail**（30.88s），余 4 条 = D6/D7/D8 + OCR（缺 `tessdata`，环境件），`EventBus 100k publish` 本次以 223.25ms 通过 ⇒ 见残留③。本片零运行时改动。
+- **敏感资产扫描（规则 11）**：`git diff -U0` 的新增行扫 `sk-[A-Za-z0-9]{10,}`、`AKIA[0-9A-Z]{16}`、`ghp_`、`-----BEGIN *PRIVATE KEY-----`、`://user:pass@`、`192.168.`、`10.0.` 及裸 IPv4 形态 → 真实命中 **0**。
+- **红线**：不动 D9 判据与 `HISTORY`/`specDocs`/`caliberDocs` 豁免面；不为凑绿把历史证据改成"没有定位"（改为可核验的证据件/commit 指针）；不改任何运行时行为；不并 D6/D7/D8 进本片；歧义文件名不猜路径。
+- **矛盾与残留**：① `docs/AXIOM-ARCHITECTURE.md` §7.2 两表的"文件"列是 2026-07-04 审查记录当时的裸名，其中 `kernel.ts` 仓库有两份（`src/dre/kernel.ts`、`src/components/kernel.ts`）、`engine.ts` 有四份、`actor.ts` 一份都没有 ⇒ 补全目录必凭猜，本片只加"不解析"说明并把该形态登记给 #34（同族还有 `docs/ARCHITECTURE.md` 表内 `knowledge-store.ts`、`tests/unit/*`、`frontend/src/pages/*.tsx` 等通配/裸名形态，D3/D9 均不覆盖）；② 假路径已写进 commit subject，改它等于改历史（不做）⇒ 只能文档侧记真，同时暴露"文档不得手抄 commit 文本"应成为独立禁则（并入 #34 漏拦族）；③ `EventBus 100k publish` 三次观测 **350.15 / 334.35 / 223.25 ms**，阈值 300ms **落在观测带内** ⇒ 更正上一片"改判性能红"的说法：它不是确定性性能回归，而是**阈值贴着抖动带上沿**，同机同码可在红绿之间摆动。R6 门禁接入时必须裁决：按负载放宽阈值，或改为多次取中位数后判定（本片不动）；④ `docs/PROJECT-GUIDE.md` 概览表（第 34-40 行）手抄规模值与 §3.1"手写余弦"口径仍未动（切片③-b）。
+- **并入判定**：本分支仍带 3 条已知红（D6/D7/D8）+ 1 条环境红（OCR 缺 `tessdata`）+ 1 条摆动性能红（`EventBus 100k publish` 观测带 223–350ms vs 阈值 300ms），只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c/d①②③ 同口径）。
+- **Commit**：待回填（本条目随主提交入库，回填提交属记录维护，规则 5）

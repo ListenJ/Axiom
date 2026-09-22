@@ -176,7 +176,7 @@ outgoing:
 
 - `bing`：`cn.bing.com` 只返回「字典劫持」结果（查“低延迟交易系统架构”给“低”的字典词条）；
   且 `www.bing.com` 对 SearXNG 的请求回 302、SearXNG 不跟随 → 静默 0 条。已关闭。
-- `sogou`：SearXNG 2026.9.13 上游 bug（`sogou.py:56 resp.next_request` AttributeError）。已关闭。
+- `sogou`：SearXNG 2026.9.13 上游 bug（上游 `sogou.py` 第 56 行的 `resp.next_request` AttributeError，版本号已钉死，行号属该版本快照）。已关闭。
 - `wikipedia`/`wikidata`/`brave`/`google cse`/`google scholar`/`lingva`/`dictzone`：经代理 403/429。已关闭。
 - `baidu`：引擎走的是 `tn=json` 端点，会被 Baidu 跳到 `wappass.baidu.com` 验证码（普通 HTML 端点正常，
   属引擎实现差异）。被跳过时 SearXNG 会自动 suspend，过一段时间自动重试。

@@ -28,7 +28,7 @@
 ## 3. 跨平台
 
 - **Windows**：`withExecutableExt('axiom-local') → axiom-local.exe` PASS，`path.join a\b\c` 验证 `sep=\`，`isSafeUrl 2130706433→false` 拦截整数 IP，`sanitizeCommand cmd /c` 拦截。
-- **Linux**：未本地执行，以 `src/utils/platform.ts:133 withExecutableExt` 逻辑 `win32 ? .exe : ''` 及 CI `ubuntu-latest` 覆盖；`AXIOM_NATIVE=true` 烟雾需 CI 每日 `deploy-smoke` 验证 `curl 18799/health 200`。
+- **Linux**：未本地执行，以 `src/utils/platform.ts` 的 `withExecutableExt` 逻辑 `win32 ? .exe : ''` 及 CI `ubuntu-latest` 覆盖；`AXIOM_NATIVE=true` 烟雾需 CI 每日 `deploy-smoke` 验证 `curl 18799/health 200`。
 
 ## 4. 安全基线
 

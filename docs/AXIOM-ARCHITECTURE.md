@@ -1344,7 +1344,7 @@ applySelfThought / formatSelfThought / tokenize / stableHash / buildEscalationQu
 MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 ```
 
-**技能质量闭环:** `recordSkillOutcome`（`src/mcp/server/skill-tools.ts:116`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`skill-promotion.ts:67`）。
+**技能质量闭环:** `recordSkillOutcome`（`src/mcp/server/skill-tools.ts`）→ deprecated 判定（`skill-quality.ts`：calls ≥ 3 且成功率 < 0.5）→ promotion 跳过 deprecated 技能（`src/self-evolve/skill-promotion.ts`）。
 
 **接线点:** `src/agents/orchestrator.ts`（`Pick<SelfEvolveEngine, "selfImprove">` 注入构造）。
 
@@ -1565,23 +1565,25 @@ await kernel.init();
 
 #### Critical 修复详情
 
+> 下表「文件」列为审查记录当时的裸文件名，不解析为当前路径（`kernel.ts`/`engine.ts`/`stream.ts` 等在仓库中有同名多份），故不受 D3 路径存活校验覆盖；当时的逐行定位已由 D9 清理，以本表「问题」列与对应 commit 为准。
+
 | ID | 文件 | 问题 | 修复 |
 |----|------|------|------|
-| C1 | `kernel.ts:108` | `ActorSystem.send()` 调用签名错误 (传入对象而非 5 个位置参数) → tick 循环静默失效 | 改为 5 参数: `send("kernel", target, "request", "execute", task)` |
-| C2 | `atom-engine.ts:395,399` | SQLite 行数据 `as AtomKind` / `as AtomConfidence` 强制类型转换 — 数据库损坏时静默接受无效值 | 添加 `validKinds`/`validConfidences` Set 校验, 无效行跳过 + warn 日志 |
-| C3 | `config.ts:80-83` | `Number("abc")` → `NaN` 静默注入配置 | 添加 `isNaN()` 守卫 + warn 日志, `continue` 跳过 |
-| C4 | `stream.ts:137-147` | `archive()` 和 `cleanup()` 对无 TTL 条目的默认值不一致 (`0` vs `Infinity`) → 条目被无限重复归档 | 统一使用 `?? Infinity` (无 TTL 条目永不过期) |
+| C1 | `kernel.ts` | `ActorSystem.send()` 调用签名错误 (传入对象而非 5 个位置参数) → tick 循环静默失效 | 改为 5 参数: `send("kernel", target, "request", "execute", task)` |
+| C2 | `atom-engine.ts` | SQLite 行数据 `as AtomKind` / `as AtomConfidence` 强制类型转换 — 数据库损坏时静默接受无效值 | 添加 `validKinds`/`validConfidences` Set 校验, 无效行跳过 + warn 日志 |
+| C3 | `config.ts` | `Number("abc")` → `NaN` 静默注入配置 | 添加 `isNaN()` 守卫 + warn 日志, `continue` 跳过 |
+| C4 | `stream.ts` | `archive()` 和 `cleanup()` 对无 TTL 条目的默认值不一致 (`0` vs `Infinity`) → 条目被无限重复归档 | 统一使用 `?? Infinity` (无 TTL 条目永不过期) |
 
 #### Warning 修复详情
 
 | ID | 文件 | 问题 | 修复 |
 |----|------|------|------|
-| W1 | `engine.ts:241` | `nextStage` 日志映射不完整 (只有 stage 0/2, 缺少 3) | 添加 `stage === 3 ? "llmverify" : "unknown"` |
-| W3 | `cognitive-pipeline.ts:521-536` | 推理节点被孤立, 结论直接引用前提而非推理节点 | 捕获 `addInference()` 返回 ID, 结论引用推理节点 |
-| W4 | `verification-engine.ts:114` | `String(object)` → `"[object Object]"` 传给约束求解器 | 使用 `typeof === "object" ? JSON.stringify() : String()` |
-| W6 | `data-unifier.ts:94` | KnowledgeStore 写入失败仅 debug 日志 (生产环境静默丢失) | 升级为 `logger.warn()` |
-| W7 | `system-resource.ts:75` | `updateResource()` 无输入校验 (可注入 NaN/负数) | 添加 `availableMemory >= 0` 和 `maxMemory > 0` 校验 |
-| W8 | `cognitive-pipeline.ts:260-337` | `runFull` 和 `runFullWithLLM` 中 28 行 TaskGraph 逻辑重复 | 建议提取为 `createAndExecuteGraph()` 共享方法 |
+| W1 | `engine.ts` | `nextStage` 日志映射不完整 (只有 stage 0/2, 缺少 3) | 添加 `stage === 3 ? "llmverify" : "unknown"` |
+| W3 | `cognitive-pipeline.ts` | 推理节点被孤立, 结论直接引用前提而非推理节点 | 捕获 `addInference()` 返回 ID, 结论引用推理节点 |
+| W4 | `verification-engine.ts` | `String(object)` → `"[object Object]"` 传给约束求解器 | 使用 `typeof === "object" ? JSON.stringify() : String()` |
+| W6 | `data-unifier.ts` | KnowledgeStore 写入失败仅 debug 日志 (生产环境静默丢失) | 升级为 `logger.warn()` |
+| W7 | `system-resource.ts` | `updateResource()` 无输入校验 (可注入 NaN/负数) | 添加 `availableMemory >= 0` 和 `maxMemory > 0` 校验 |
+| W8 | `cognitive-pipeline.ts` | `runFull` 和 `runFullWithLLM` 中 28 行 TaskGraph 逻辑重复 | 建议提取为 `createAndExecuteGraph()` 共享方法 |
 
 ### 7.3 修复验证
 
