@@ -88,54 +88,54 @@ core   → routes   ← agents        (路由注册)
 
 ### 3.1 `memory/` — Vault 确定性记忆引擎
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `vault-manager.ts` | 640 | 核心记忆管理 (read/write/search/browse) |
-| `deterministic-search.ts` | 603 | 确定性全文搜索（FTS5 + 关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
-| `sqlite-memory.ts` | 492 | SQLite FTS5 索引持久化 |
-| `archiver.ts` | 265 | 记忆归档 (frontmatter 处理) |
-| `distiller.ts` | 168 | 记忆蒸馏 (Web/对话→结构化笔记) |
-| `codegraph-index.ts` | 509 | 代码符号索引 |
-| `bootstrap.ts` | 262 | Agent 记忆引导初始化 |
+| 组件 | 职责 |
+|------|------|
+| `vault-manager.ts` | 核心记忆管理 (read/write/search/browse) |
+| `deterministic-search.ts` | 确定性全文搜索（FTS5 + 关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
+| `sqlite-memory.ts` | SQLite FTS5 索引持久化 |
+| `archiver.ts` | 记忆归档 (frontmatter 处理) |
+| `distiller.ts` | 记忆蒸馏 (Web/对话→结构化笔记) |
+| `codegraph-index.ts` | 代码符号索引 |
+| `bootstrap.ts` | Agent 记忆引导初始化 |
 
 **单例模式:** `getGlobalVault()` 是唯一获取 VaultManager 实例的方式。禁止 `new VaultManager()`。
 
 ### 3.2 `router/` — 模型路由
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `model-router.ts` | 728 | 多平台模型路由 (fallback, retry, streaming) |
-| `models/registry.ts` | 933 | 模型注册表 (UnifiedModel 数据) |
-| `model-capability-registry.ts` | 162 | 能力注册表 (推荐式, 支持 opts+EXTENSIONS) |
-| `tool-pool.ts` | 240 | 工具执行池 (并发/限流) |
-| `thompson-router.ts` | 314 | Thompson Sampling 多臂赌博机路由 |
+| 组件 | 职责 |
+|------|------|
+| `model-router.ts` | 多平台模型路由 (fallback, retry, streaming) |
+| `models/registry.ts` | 模型注册表 (UnifiedModel 数据) |
+| `model-capability-registry.ts` | 能力注册表 (推荐式, 支持 opts+EXTENSIONS) |
+| `tool-pool.ts` | 工具执行池 (并发/限流) |
+| `thompson-router.ts` | Thompson Sampling 多臂赌博机路由 |
 
 **查询入口统一:** `model-capability-registry.ts:findModelsForRole()` 是唯一推荐查询入口。旧版 `registry.ts:findModelsForRole()` 已标记 `@deprecated`。
 
 ### 3.3 `mcp/` — MCP 服务器
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `server.ts` | 407 | 服务器入口 + 工具注册编排 |
-| `server/vault-tools.ts` | 148 | Vault 核心工具 |
-| `server/kg-tools.ts` | 524 | 知识图谱工具 |
-| `server/dre-tools.ts` | 719 | DRE 推理工具 |
-| `server/github-tools.ts` | 617 | GitHub 工具 |
-| `server/code-agent-tools.ts` | 93 | 编码 Agent 工具 |
-| `server/arena-tools.ts` | 96 | 竞技场榜单工具 |
-| `server/orchestrator-tools.ts` | 118 | 多 Agent 编排工具 |
-| `total 16 域文件` | — | 遵循 `registerXxxTools(registry, deps?)` 模式 |
+| 组件 | 职责 |
+|------|------|
+| `server.ts` | 服务器入口 + 工具注册编排 |
+| `server/vault-tools.ts` | Vault 核心工具 |
+| `server/kg-tools.ts` | 知识图谱工具 |
+| `server/dre-tools.ts` | DRE 推理工具 |
+| `server/github-tools.ts` | GitHub 工具 |
+| `server/code-agent-tools.ts` | 编码 Agent 工具 |
+| `server/arena-tools.ts` | 竞技场榜单工具 |
+| `server/orchestrator-tools.ts` | 多 Agent 编排工具 |
+| 其余领域文件 | 同遵循 `registerXxxTools(registry, deps?)` 模式；`src/mcp/server/` 下 `*-tools.ts` 清单不手抄，以 `ls src/mcp/server/*-tools.ts` 实测为准 |
 
 ### 3.4 `dre/` — 确定性推理引擎
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `engine.ts` | 732 | DRE 引擎主控 (14+ 子系统编排) |
-| `constraint/solver.ts` | 583 | 约束求解器 (resource, policy, temporal) |
-| `runtime/knowledge-network.ts` | 577 | 知识网络 (实体+关系+预测) |
-| `runtime/rule-engine.ts` | 745 | 规则引擎 (if-then + 学习) |
-| `runtime/event-bus.ts` | 145 | 事件总线 (O(1) 环形缓冲区) |
-| `pipeline/cognitive-pipeline.ts` | 555 | 认知管道 (感知→推理→行动) |
+| 组件 | 职责 |
+|------|------|
+| `engine.ts` | DRE 引擎主控 (14+ 子系统编排) |
+| `constraint/solver.ts` | 约束求解器 (resource, policy, temporal) |
+| `runtime/knowledge-network.ts` | 知识网络 (实体+关系+预测) |
+| `runtime/rule-engine.ts` | 规则引擎 (if-then + 学习) |
+| `runtime/event-bus.ts` | 事件总线 (O(1) 环形缓冲区) |
+| `pipeline/cognitive-pipeline.ts` | 认知管道 (感知→推理→行动) |
 
 ---
 

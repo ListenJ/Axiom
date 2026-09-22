@@ -1264,7 +1264,7 @@ class LLMClient {
 
 ### 2.17 ContextManager — 上下文管理器
 
-**文件:** `src/context/context-manager.ts`（537 行）
+**文件:** `src/context/context-manager.ts`
 
 管理 Agent 对话上下文的生命周期：监控上下文 token 用量（对照 `maxContextWindow`，超阈值触发分割/压缩）；历史上下文经记忆层存取（`MemoryEntry`，支持检索与过期）；支持并行分块处理（`ContextChunk`）；上下文过大时优雅降级（切换更便宜模型处理）。
 
@@ -1289,7 +1289,7 @@ export const contextManager = new ContextManager(); // 模块级单例
 
 ### 2.18 ThompsonRouter — 汤普森采样模型路由
 
-**文件:** `src/router/thompson-router.ts`（314 行）
+**文件:** `src/router/thompson-router.ts`
 
 Contextual Thompson Sampling 多臂赌博机：arm 集由调用方注入（`RouterArm[]`），对已注册的 model arm 按后验自适应选择；`reportFeedback` 按成败更新 Beta(alpha, beta)，arm 统计可持久化到 SQLite。当前 `src/main.ts` 以空 arm 集初始化，选择行为在 arm 注册后生效。
 
@@ -1311,7 +1311,7 @@ class ThompsonRouter {
 
 ### 2.19 HallucinationDetector — 幻觉检测器（归纳式共形预测）
 
-**文件:** `src/memory/hallucination-detector.ts`（567 行）
+**文件:** `src/memory/hallucination-detector.ts`
 
 基于归纳式共形预测（Inductive Conformal Prediction）的陈述核验：对陈述 statement 定义非一致性度量 `s(statement) = 1 − max_evidence_score(statement, factBase)`，经校准集（`CalibrationPair[]`）得到分位数与 p 值，输出 `HallucinationVerdict`（含证据项 `EvidenceItem`）。
 
@@ -1331,7 +1331,7 @@ class ConformalHallucinationDetector {
 
 ### 2.20 SelfEvolve — 测试时自我进化引擎组
 
-**文件:** `src/self-evolve/`（engine.ts 380 / index.ts 103 / mind-suggest.ts 103 / skill-promotion.ts 103 / skill-quality.ts 140 / types.ts 102，共 931 行）
+**文件:** `src/self-evolve/`（engine.ts / index.ts / mind-suggest.ts / skill-promotion.ts / skill-quality.ts / types.ts；规模不手抄，以 `wc -l src/self-evolve/*.ts` 实测为准）
 
 思想来源：OpenRSI（FrontisAI × 清华）的原子算子 Draft/Improve/Debug/Crossover 与 RISE（arXiv 2407.18219）的测试时自我改进；本实现将"模型训练级算子"降级为**提示词级算子 + 确定性评估**——无训练、无额外基础设施，契合简约主基调。
 

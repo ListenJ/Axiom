@@ -251,22 +251,21 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 
 10 项架构改进 + 7 项核心缺陷修复，从碎片化多智能体系统升级为统一认知运行时：
 
-| 模块 | 文件 | 行数¹ | 功能 |
-|------|------|------|------|
-| 知识存储 | `src/dre/storage/knowledge-store.ts` | 776 | 7 种知识范式 + 版本快照 + 实体关系图谱 |
-| 行为知识 | `knowledge-store.ts` | — | `IF-THEN` 规则解析 → Behavior 模式 |
-| 过程知识 | `knowledge-store.ts` | — | 步骤解析 + 条件分支 + `&&`/`||` 评估 |
-| 假设管理 | `knowledge-store.ts` | — | 5 状态生命周期 + 证据积累 → 自动判定 |
-| 心智模型池 | `src/dre/mental-model/pool.ts` | 563 | 概念图 + 状态转换 + BFS 路径 + 关系扩展匹配 |
-| 推理图 | `src/dre/reasoning/graph.ts` | 497 | 缺口检测 + LLM 精确填充 + 链式置信度 |
-| 约束求解 | `src/dre/constraint/solver.ts` | 649 | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
-| Actor 系统 | `src/dre/actor/system.ts` | 583 | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
-| 资源预算 | `src/dre/system-resource.ts` | 179 | 纯数字预算（硬件无关，双阈值滞回；nvidia-smi 已按设计移除） |
-| 降级链 | `src/dre/engine.ts` | 803 | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| 知识存储 | `src/dre/storage/knowledge-store.ts` | 7 种知识范式 + 版本快照 + 实体关系图谱 |
+| 行为知识 | `knowledge-store.ts` | `IF-THEN` 规则解析 → Behavior 模式 |
+| 过程知识 | `knowledge-store.ts` | 步骤解析 + 条件分支 + `&&`/`||` 评估 |
+| 假设管理 | `knowledge-store.ts` | 5 状态生命周期 + 证据积累 → 自动判定 |
+| 心智模型池 | `src/dre/mental-model/pool.ts` | 概念图 + 状态转换 + BFS 路径 + 关系扩展匹配 |
+| 推理图 | `src/dre/reasoning/graph.ts` | 缺口检测 + LLM 精确填充 + 链式置信度 |
+| 约束求解 | `src/dre/constraint/solver.ts` | 5 维 (逻辑/物理/语义/策略/时间) + 12 类型 |
+| Actor 系统 | `src/dre/actor/system.ts` | 消息邮箱 + 4 预注册 Actor + ask/NACK 编排闭环 |
+| 资源预算 | `src/dre/system-resource.ts` | 纯数字预算（硬件无关，双阈值滞回；nvidia-smi 已按设计移除） |
+| 降级链 | `src/dre/engine.ts` | 本地 LLM → 云 API → 规则引擎（坏输出统一抛错降级） |
 
 > **澄清（W3/W4）**：资源预算不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts）。
 
-> ¹ 行数为 2026-08-22 快照，仅作规模参考；权威结构以源码为准。
 
 ### 🔍 确定性记忆引擎（FTS5 + 关键词打分，余弦仅可选语义层）
 

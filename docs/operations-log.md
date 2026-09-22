@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 142 | 本文件 |
+| 2026-09（当月） | 143 | 本文件 |
 
 ---
 
@@ -1713,3 +1713,24 @@
 - **矛盾与残留**：① `docs/STORAGE-EVALUATION.md:18` 仍写 `src/db/pg-client.ts` 存在、且称"`isPgAvailable()` 返回 `false`"（该函数已随文件整体删除，句子无宿主）—— 因文件名含 `EVALUATION` 而在 `HISTORY` 名词豁免面内，**门看不见这条真谎**；本片按"不顺手收豁免面"只登记，收口要与 #34 的漏拦族一起裁决；② `package.json:46` `db:init` 仍输出"pg-schema.sql 已归档"，与"仍在仓库且被 `Dockerfile` COPY"直接矛盾 —— 纠正它需要规则 4 的归档裁决（真归档 or 改口径），属用户决策面，本片只在 ARCHITECTURE/LIMITATIONS 里把"运行时"限定词补上，未动 PG 存废；③ 两道禁语门双源（R5-c 残留①）未动；④ 墓碑登记维持**文件粒度**全等（逐行清单要付行号代价，与 D9 自相矛盾），其滥用极限仍是"同一行里点名即豁免"，现由自检条的第 4/5 组断言界定；⑤ D4 的 48 + D9 的 38 是存量主体，切片③④处理。
 - **并入判定**：本分支仍带 6 条已知红 + 1 条环境红 + 1 条已知 flaky，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c/d① 同口径）。
 - **Commit**：47867d2（`47867d28b502f6dd0784cc826256c53cd1e22795`；已推送 `internal codex/s3-on-main-2026-09-22`，`9fe73e8e..47867d28`。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
+
+
+## 2026-09-22 08:31 +0800 — R5-d③ D4 手抄行数清零（表格 48 行 + 内联 3 处）：先量腐烂率，再删列而不是刷数
+
+- **任务**：R5-d 切片③，消掉 D4 的两条红（`文件 | 行数` 表行 48、`` `文件`（N 行）`` 内联 3）。本片**零门改动**，纯文档侧。
+- **前置量测（逐行 `wc -l` 实测，先证明"红单说的是真的"再动手）**：把 52 处手抄规模值（48 表行 + 3 内联 + 1 处 D4 未覆盖的同族内联）与代码实测对表 ——
+  - **恰等 6 处 / 腐烂 46 处 ≈ 88%**。`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 的 41 条可解析行里只有 2 条对得上（两处 `runtime/rule-engine.ts` 745），其余 39 条偏差或 basename 不唯一（`server.ts`、`engine.ts` 各命中 2/4 个候选）；README 7 行中 4 行偏差（knowledge-store 776→796、actor/system 583→647、system-resource 179→228、engine 803→960）；AXIOM 内联 4 处中 3 处偏差（thompson-router 314→344、hallucination-detector 567→720、self-evolve 931→1,110）。
+  - **跨文档自相矛盾实证**：同一个 `src/memory/vault-manager.ts` 在 ARCHITECTURE 写 640、在 PROJECT-GUIDE 写 761，实测 **930** —— 两本权威入门件对同一事实各执一词且都错，这正是 D4 立项理由的现场证据（非推断）。
+- **判断（为何删列而非刷新数字）**：刷新等于再抄一次，第二次腐烂只是时间问题（上表 88% 即第一次腐烂的实测率）；而行数不是能力声明、不进任何裁决路径，为它建"生成 + 门"的永久税换不回信息量 —— 与 D10 的能力登记表相反（那张表是安全关键、必须与代码同源，所以生成）。故：**列删除、职责保留**，并在表内把"要规模请实测"的指针写清（`wc -l` / `ls` 命令级），不改判据也不扩豁免面。
+- **工具**：Bash（`wc -l` / `git ls-files` 逐行实测、`git diff` 复核、红→绿、tsc、test:arch、docs-consistency + architecture-integrity、内存封顶全量、规则 11 扫描）、Python（8 张表按表头单元格定位列序号后整列删除，逐处 `assert count==1` 才替换，不做静默多替换）、Read（三处表与内联现场）。无子代理。规则 2：4 件（`README.md`/`docs/ARCHITECTURE.md`/`docs/PROJECT-GUIDE.md`/`docs/AXIOM-ARCHITECTURE.md`）+ 本日志先备份 `.tmp/backups/` → 通读 → 最小改动 → 验证 → 提交后删备份。
+- **操作**（文件级）：
+  1. `docs/ARCHITECTURE.md`：§3.1/3.2/3.3/3.4 四张表去 `行数` 列（26 行）；顺带把 `| \`total 16 域文件\` | … |` 改为不带数字的表述并给实测指针 —— 该"16"与 `ls src/mcp/server/*-tools.ts` 实测 **23** 矛盾（同族手抄，D4 判据不覆盖它，本片一并清）。
+  2. `docs/PROJECT-GUIDE.md`：§3.1/3.2/3.3 三张表去列（15 行）。
+  3. `README.md`：认知运行时表去 `行数¹` 列（7 行）+ 删掉随它失效的脚注行「¹ 行数为 2026-08-22 快照…」（保留另一条 W3/W4 澄清脚注，未动）。
+  4. `docs/AXIOM-ARCHITECTURE.md`：§2.14/2.16/2.18 三处内联 `（N 行）` 删除；另把 §2.20 的 `（engine.ts 380 / …，共 931 行）` 改为纯文件清单 + `wc -l` 指针（该形态是 D4 漏拦，实测 1,110）。
+- **验证结果（全部新鲜执行）**：`bun test ./tests/doc-contract.test.ts` → **24 pass / 4 fail**（28 tests；切片②为 22/6）：D4 两条转绿，pass +2、fail −2；剩余 4 条 = D6 缺锚块、D7 未登记 7 文件、D8 §3.0 列 0 vs 实际 23、D9 锚点 38（本片未触 D9，条数与②一致）。`bun run lint` → exit 0；`bun run test:arch` → **25 pass / 0 fail**；`bun test ./tests/unit/docs-consistency.test.ts ./tests/architecture-integrity.test.ts` → **34 pass / 0 fail**（含 S7「文档不再宣称 KV 换页」等文档 grep 门，证明去列未破坏其它文档断言）；全量 → **4240 pass / 36 skip / 6 fail**（4282 tests / 414 files / 31.38s；②基线 4238/36/8）：4 条 doc-contract + OCR（缺 `tessdata`，环境件）+ `perf-benchmark` `EventBus 100k publish`（已知 flaky，连续两片复现 ⇒ 见残留④）。本片零运行时改动。
+- **敏感资产扫描（规则 11）**：`git diff -U0 | grep '^+' | grep -nE "192\.168\.|10\.0\.|sk-[A-Za-z0-9]{8}|ghp_|AKIA|BEGIN [A-Z ]*PRIVATE KEY|://[^ ]*:[^ ]*@"` → 空输出（真实命中 **0**）。
+- **红线**：不动 D4 判据与豁免面（`HISTORY`/`specDocs`/`caliberDocs` 一字未改）；不删职责描述列；不改任何数字为"新实测值"（避免再抄）；`docs/ARCHITECTURE.md` 的表结构变化保持 markdown 合法（去列后表头/分隔行/数据行单元格数一致，逐表目视复核）。
+- **矛盾与残留**：① D4 只认 `` `文件` | 数字 `` 与 `` `文件`（N 行）`` 两形态，本片刻意**不扩判据**，因此以下同族手抄仍看不见：`docs/PROJECT-GUIDE.md` 概览表（第 34-40 行）（`源文件数 260+` 实测 426、`代码行数 ~70,000` 实测 115,915、`测试文件 68 个` 实测 414 个 `*.test.ts`、`测试总数 ~1,170` 实测 4,282、`MCP 工具 189（15+ 领域文件）` 领域文件实测 23、`HTTP 路由 280+` 与 8 月实测 165 需复核）、`docs/ARCHITECTURE.md` 表内裸文件名（如 `| \`knowledge-store.ts\` |` 无 `src/` 前缀 ⇒ 也在 D3 视野外）；② `docs/PROJECT-GUIDE.md` §3.1 仍写"手写余弦全文搜索"，与权威件 `ARCHITECTURE.md` 的"FTS5 + 关键词为默认、余弦仅可选语义层"不同口径 —— 属 R5-c 口径族的残留而非禁语命中，与①的概览表并成 ③-b 一片处理；③ README 的 `> **澄清（W3/W4）**` 一句用裸文本 `src/dre/system-resource.ts`（无反引号）→ D3 不把它当引用，登记为"引用形态依赖反引号"这一判据边界；④ `EventBus 100k publish` 连续两片复现（350ms / 阈值 300ms）已不再是偶发抖动，需按性能问题或阈值调整单独裁决，不再记作 flaky（本片未动，属 R6 门禁接入时的口径决策）。
+- **并入判定**：本分支仍带 4 条已知红 + 1 条环境红 + 1 条性能红，只推分支不并入 `main`（与 R0/R1/R2/R3/R4/R5-a/b/c/d①② 同口径）。
+- **Commit**：{{HASH_PLACEHOLDER_3}}

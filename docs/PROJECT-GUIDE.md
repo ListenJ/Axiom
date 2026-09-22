@@ -149,38 +149,38 @@ db     ↔ memory                   (通过 services 断环)
 
 ### 3.1 memory/ — Vault 确定性记忆引擎
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `vault-manager.ts` | 761 | 核心记忆管理 (read/write/search/browse)，单例 |
-| `deterministic-search.ts` | ~603 | 手写余弦全文搜索（关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
-| `sqlite-memory.ts` | ~492 | SQLite FTS5 索引持久化 |
-| `codegraph-index.ts` | ~509 | 代码符号索引 |
-| `archiver.ts` / `distiller.ts` | — | 记忆归档 / 蒸馏 |
+| 组件 | 职责 |
+|------|------|
+| `vault-manager.ts` | 核心记忆管理 (read/write/search/browse)，单例 |
+| `deterministic-search.ts` | 手写余弦全文搜索（关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
+| `sqlite-memory.ts` | SQLite FTS5 索引持久化 |
+| `codegraph-index.ts` | 代码符号索引 |
+| `archiver.ts` / `distiller.ts` | 记忆归档 / 蒸馏 |
 
 **入口**: `getGlobalVault()` 是唯一获取实例方式，禁止 `new VaultManager()`。
 
 ### 3.2 dre/ — 确定性推理引擎
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `engine.ts` | 777 | DRE 引擎主控（14+ 子系统编排）|
-| `constraint/solver.ts` | ~583 | 约束求解器 (resource, policy, temporal) |
-| `runtime/knowledge-network.ts` | ~577 | 知识网络 (实体 + 关系 + 预测) |
-| `runtime/rule-engine.ts` | 745 | 规则引擎 (if-then + 学习) |
-| `pipeline/cognitive-pipeline.ts` | ~555 | 认知管道 (感知 → 推理 → 行动) |
-| `storage/knowledge-store.ts` | 776 | 知识持久化 |
+| 组件 | 职责 |
+|------|------|
+| `engine.ts` | DRE 引擎主控（14+ 子系统编排）|
+| `constraint/solver.ts` | 约束求解器 (resource, policy, temporal) |
+| `runtime/knowledge-network.ts` | 知识网络 (实体 + 关系 + 预测) |
+| `runtime/rule-engine.ts` | 规则引擎 (if-then + 学习) |
+| `pipeline/cognitive-pipeline.ts` | 认知管道 (感知 → 推理 → 行动) |
+| `storage/knowledge-store.ts` | 知识持久化 |
 
 **预设**: `PRESETS.minimal/standard/production/research`，快速接入用 `createDRE(PRESETS.standard())`。
 
 ### 3.3 router/ — 模型路由
 
-| 组件 | 行数 | 职责 |
-|------|------|------|
-| `model-router.ts` | 811 | 多平台路由 (fallback, retry, streaming) |
-| `models/registry.ts` | 1027 | 模型注册表 (UnifiedModel 数据) |
-| `model-capability-registry.ts` | ~162 | 能力注册表（推荐式，**唯一查询入口**）|
-| `thompson-router.ts` | ~314 | Thompson Sampling 多臂赌博机 |
-| `tool-pool.ts` | ~240 | 工具执行池 (并发 / 限流) |
+| 组件 | 职责 |
+|------|------|
+| `model-router.ts` | 多平台路由 (fallback, retry, streaming) |
+| `models/registry.ts` | 模型注册表 (UnifiedModel 数据) |
+| `model-capability-registry.ts` | 能力注册表（推荐式，**唯一查询入口**）|
+| `thompson-router.ts` | Thompson Sampling 多臂赌博机 |
+| `tool-pool.ts` | 工具执行池 (并发 / 限流) |
 
 **查询入口统一**: `model-capability-registry.ts:findModelsForRole()`。旧版 `registry.ts:findModelsForRole()` 已 `@deprecated`。
 
