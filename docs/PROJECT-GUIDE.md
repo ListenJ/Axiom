@@ -24,22 +24,36 @@
 
 ### 1.1 定位
 
-Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"手写余弦（`src/memory/deterministic-search.ts` + `src/dre/consciousness/stream.ts:cosineSimilarity`）+ PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关默认走 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
+Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"确定性检索为主（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引 + `src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，二者均由 `src/memory/vault-manager.ts` 的 `search()` 串接）+ 共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用 + PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关默认走 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
 
 ### 1.2 关键指标
 
-| 属性 | 值 |
+规模类数值**不手抄**（D4 立项依据：R5-d③ 实测 52 处手抄规模值中 88% 已与代码不符）。下表只给口径，取法见随后的命令块；带"门承重"标注的行由测试断言保证与实现一致。
+
+| 属性 | 口径 |
 |------|-----|
-| 语言 / 运行时 | TypeScript 5.x / Bun 1.3+ |
-| 源文件数 | 260+ 个 (`src/`) |
-| 代码行数 | ~70,000 |
-| 测试文件 | 68 个 |
-| 测试总数 | ~1,170 (后端 1042 + 前端 154) |
-| MCP 工具 | 189 个（15+ 领域文件，去重计数以 `src/mcp/tool-registry.ts` 为准） |
-| HTTP 路由 | 280+ 个端点 |
-| `as any` 总数 | 6（上限 25）|
-| `@ts-expect-error` | ≤ 1 |
-| 前端页面 | 18 个（React + Vite）|
+| 语言 / 运行时 | TypeScript 与 Bun 的版本以 `package.json` 与 `bun --version` 为准 |
+| 源文件数 | `src/` 下的 `.ts` 文件数 |
+| 代码行数 | 同一文件集合的行数合计 |
+| 测试文件 | 后端 `tests/` 下的 `*.test.ts`；前端组件测试另计 |
+| 测试总数 | 一次完整 `bun test ./tests` 的末行输出 |
+| MCP 工具 | 去重注册数（权威 = `src/testing/tool-count.ts`，由 `tests/unit/docs-consistency.test.ts` 对 README / ARCHITECTURE / AXIOM-ARCHITECTURE / MCP_TOOLS_GUIDE 精确相等承重；本指南不复制该数字）· 领域文件数为 `src/mcp/server/` 下 `*-tools.ts` 的个数 |
+| HTTP 路由 | 端点以 `src/routes/` 各模块的 `RouteRecord` 声明为准，不在此汇总 |
+| `as any` | 上限 25，门承重并打印当前值 |
+| `@ts-expect-error` | 与 `@ts-ignore` 合并计数，上限 1，同一门承重 |
+| 前端页面 | 两个口径并存，引用时必须写明是哪一个：① 页面组件 = `frontend/src/pages/` 下非 `*.test.tsx` 的 `.tsx`；② 导航入口 = `frontend/src/lib/nav.ts` 中绝对路径条目数（门锁 9，README 同口径）|
+
+```sh
+git ls-files 'src/*.ts' 'src/**/*.ts' | wc -l                     # 源文件数
+git ls-files 'src/*.ts' 'src/**/*.ts' | xargs wc -l | tail -1     # 代码行数
+find tests -name '*.test.ts' | wc -l                              # 后端测试文件数
+ls frontend/src/pages/*.test.tsx | wc -l                          # 前端组件测试数
+bun test ./tests                                                  # 测试总数（末行）
+bun run scripts/count-tools.mjs                                   # MCP 去重工具数（权威生成）
+ls src/mcp/server/*-tools.ts | wc -l                              # MCP 领域文件数
+bun test ./tests/architecture-integrity.test.ts                   # as any / @ts-* 当前值与上限
+bun test ./tests/unit/docs-consistency.test.ts                    # 工具数与导航入口数的相等断言
+```
 
 ### 1.3 技术栈
 
@@ -152,7 +166,7 @@ db     ↔ memory                   (通过 services 断环)
 | 组件 | 职责 |
 |------|------|
 | `vault-manager.ts` | 核心记忆管理 (read/write/search/browse)，单例 |
-| `deterministic-search.ts` | 手写余弦全文搜索（关键词 + PARA + 标签 + 关系推导；PG vector 可选） |
+| `deterministic-search.ts` | 确定性关键词打分引擎：精确匹配（文件名/标题/ID/别名）→ 关键词按匹配次数线性加成（优先级 标题 > 标签 > 路径 > 内容，各设上限；常量以该文件 `search()` 为准，本表不复制数值）→ wiki-link 关系推导 → PARA 语义提升；FTS5 主索引在 `sqlite-memory.ts`，由 `vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity` 仅在有 embedding 的可选语义层，PG vector 为可选历史能力 |
 | `sqlite-memory.ts` | SQLite FTS5 索引持久化 |
 | `codegraph-index.ts` | 代码符号索引 |
 | `archiver.ts` / `distiller.ts` | 记忆归档 / 蒸馏 |

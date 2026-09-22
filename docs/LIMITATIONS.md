@@ -52,30 +52,30 @@
 
 ### 2.1 问题溯源
 
-- **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数文档宣称 133/150/173 vs 实际 172 去重。
-- **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：`src/testing/tool-count.ts` 实测 **188**（server/**+server.ts 内联+register-external-tools+3 adaptTool，零重复；历史口径 172 为旧值，tests/unit/docs-consistency.test.ts 动态锁定）。
+- **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数旧宣称在多篇文档间各执一词（历史曾见 133/150/172/173），与动态实测去重值不一致。
+- **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：唯一事实源是 `src/testing/tool-count.ts` 的 `countMcpTools()`，`bun run scripts/count-tools.mjs` 由它生成供文档引用的片段（该脚本自身不计数，只委托），`tests/unit/docs-consistency.test.ts` 对 README、`AXIOM-ARCHITECTURE.md`、`ARCHITECTURE.md`、`MCP_TOOLS_GUIDE.md` 做"声明值 == 实测值"的精确相等断言（受控文件清单以该测试为准，本文与 `docs/PROJECT-GUIDE.md` 不在其内）；本文不复制该数值。
 
 ### 2.2 校准后声明
 
-- **检索**：默认确定性检索（`deterministic-search.ts` 标题 3x/标签 2.5x/内容 1x/路径 0.5x；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
+- **检索**：默认确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数线性加分为补（优先级 标题 > 标签 > 路径 > 内容，各设上限；加权常量以该文件 `search()` 为唯一事实源，本文不复制数值），二者由 `src/memory/vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
 - **LLM**：`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关（`readBool("KNOWLEDGE_USE_LLM", false)` 共两处读取：图/视频自动理解分支与内容结构化分支各一处）默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
 - **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
-- **工具数**：权威 172 去重（`count-tools.mjs` 181 含 client-connector 等非 MCP 面，去重后 172；`AXIOM-ARCHITECTURE.md` 133、`README` 133/150、`AGENT-ARCHITECTURE.md` 173 已统一为 172）。
+- **工具数**：口径以 `src/testing/tool-count.ts` 的 `countMcpTools()` 实测值为准（零重复断言同在 `docs-consistency`）；引用该数值的文档以 `bun run scripts/count-tools.mjs` 生成，禁止手抄。历史 133/150/172/173 与本文旧版"权威 172"均为已腐烂快照，一律废止。
 
 ### 2.3 当前边界与待校准项
 
 | 维度 | 现状 | 影响 | 后续校准 |
 |---|---|---|---|
 | 余弦阈值精度 | `cosineSimilarity`（`src/utils/math.ts` 共享实现）为 FP64 归一化，未含向量归一化预处理差异，阈值 0.7 为经验值 | 跨域检索召回率依赖阈值，极短文本余弦抖动 | 待 `docs/LIMITATIONS.md` 中补充 PBT 用例校准 0.7 阈值 |
-| PG vector 切换 | 无自动检测 PG 可用性，`pgvector` 需手动 `isPgAvailable` 启用 | 默认 FTS5 无法利用向量语义，PG 启用后需重建索引 | 后续任务引入 `getPG().isAvailable()` 自动回退 |
+| PG vector 切换 | PG 客户端已随 H-M1-03 删除（`src/db/pg-client.ts`），当前 `src/` 下无任何可调用的 PG 入口（本节旧口径给出的 `isPgAvailable`/`getPG()` 已无宿主，仅存一条说明其已移除的注释） | 默认 FTS5 无向量语义召回；"手动启用"这条路今天不存在，需 PG 时必须重建客户端与索引迁移 | 按规则 4 先裁决 `src/db/pg-schema.sql` 存废（仍在仓库、无运行时消费者），再决定是否恢复该能力；在此之前文档不得给出可调用 PG 符号 <!-- doc-caliber:absent: src/db/pg-client.ts --> |
 | LLM 可选性 | `KNOWLEDGE_USE_LLM=false` 时全走 TF-IDF，无法利用 LLM 结构化 | 长文本结构化召回率低于 LLM 模式 | 待评估 TF-IDF vs LLM 质量对比并披露 |
-| 工具数漂移 | 新增工具需手动更新文档 172，`tool-registry.ts` 无 CI 断言防漂移 | 文档与实现易再次不一致 | 后续任务拟加 `tests/unit/docs-consistency.test.ts` 工具数 172 CI 断言（本任务已落地） |
+| 工具数漂移 | 权威计数与文档声明的相等断言已落地（`tests/unit/docs-consistency.test.ts` 对受控文件清单内的文档做"声明值 == `countMcpTools()` 实测值"精确相等 + 零重复），新增工具后跑生成器取数即可 | 受控清单是测试里硬编码的文件名数组 ⇒ 清单外的规范件（含本文旧版"权威 172"）仍可能各说各话，且这类"手抄公式/代码块/数值"形态本身无门覆盖 | 把受控清单扩到 `caliberDocs` 全量，或规定非权威件不得出现数值；与"手抄件漏拦"合并裁决 |
 
 ### 2.4 使用建议
 
-- 将 `deterministic-search.ts` 视为默认检索，PG vector 仅在需语义检索且 PG 可用时启用；`cosineSimilarity` 阈值 0.7 可按 `consolidate()` 调用方覆盖。
+- Vault 检索的默认入口是 `src/memory/vault-manager.ts` 的 `search()`（FTS5 主索引 + 确定性关键词加分为补）；PG vector 当前不可启用（客户端已删，见 §2.3），需语义检索时只有 embedding 可选语义层一条路；`cosineSimilarity` 阈值 0.7 是 `consolidate()` 的默认参数，调用方可覆盖。
 - 知识库 keep `KNOWLEDGE_USE_LLM=false` 以满足确定性承诺，需 LLM 结构化时显式开启并接受 `structureKnowledgeWithEdge` 失败回退 TF-IDF。
-- 工具数以 `src/mcp/tool-registry.ts: size` 为权威，文档 172 为快照；新增工具后请同步 `README.md`/`AXIOM-ARCHITECTURE.md`/`AGENT-ARCHITECTURE.md` 并重跑 `tests/unit/docs-consistency.test.ts`。
+- 工具数以 `src/testing/tool-count.ts` 的 `countMcpTools()` 为权威（`src/mcp/tool-registry.ts` 的 `size` 是运行时注册表大小，口径不同，不作为文档数值来源）；新增工具后跑 `bun run scripts/count-tools.mjs` 取生成片段，再跑 `bun test ./tests/unit/docs-consistency.test.ts` 复验。
 
 ---
 
@@ -104,4 +104,4 @@
 
 ---
 
-*最后更新：2026-08-27（Task8: 澄清 mineru 零LLM 边界：判别式 PP-DocLayoutV2/Unimernet/印章 OCR，依赖 70 包 wheel 3.4.5，零生成式 vs 零神经推理双口径；检索口径 FTS5+关键词为默认、共享 cosineSimilarity 仅可选语义层；工具数以 `src/testing/tool-count.ts`=189 为准）*
+*最后更新：2026-08-27（Task8: 澄清 mineru 零LLM 边界：判别式 PP-DocLayoutV2/Unimernet/印章 OCR，依赖 70 包 wheel 3.4.5，零生成式 vs 零神经推理双口径；检索口径 FTS5+关键词为默认、共享 cosineSimilarity 仅可选语义层；工具数以 `src/testing/tool-count.ts` 实测为准（数值不手抄））*
