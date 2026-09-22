@@ -746,7 +746,7 @@ bun test tests/scene-router.test.ts
 **已知局限（如实登记）**：
 
 1. `kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 跨存储引用因本仓库 SQLite **未持久化 wiki_links 表**（wiki-link 图在内存中由 `DeterministicSearchEngine` 从 Markdown 构建），暂未闭环，需后续引入持久化 wiki_links 表或注入 vault 引擎。
-2. 内网地址的入库口径（2026-09-22 F-2 校正，原句"仓库不含真实内网信息"过头）：**规范面已清零** —— `docs/` 规范件、`README.md`、`AGENTS.md`、`.env.example` 不含内网地址，改由 `${LAN_*}`/`<host>` 占位符加"取值见本机 `git remote -v` / 部署配置"的指针表达，并由 `tests/doc-contract.test.ts` 的 D12 机器锁定。**脚本与配置的功能默认值、历史留痕仍保留字面量**（`scripts/**`、`config/searxng/settings.yml`、`src/**` 兜底常量、`docs/operations-log*`、`docs/reviews/**`、`docs/superpowers/**`、ADR 里的 `.10`/`.22` 短写），按裁决登记未改；换环境的权威取值在部署方自持的配置里，不在本文档。
+2. 内网地址的入库口径（2026-09-22 F-2 校正，原句"仓库不含真实内网信息"过头）：**规范面已清零** —— `docs/` 规范件、`README.md`、`AGENTS.md`、`.env.example` 不含内网地址，改由 `${LAN_*}`/`<host>` 占位符加"取值见本机 `git remote -v` / 部署配置"的指针表达，并由 `tests/doc-contract.test.ts` 的 D12 机器锁定。**脚本与配置的功能默认值、历史留痕仍保留字面量**（`scripts/**`、`config/searxng/settings.yml`、`src/**` 兜底常量、`docs/operations-log*`、`docs/reviews/**`、`docs/superpowers/**`、ADR 里的 `.10`/`.22` 短写），按裁决登记未改（逐层清单与实测命中数见 `docs/operations-log.md` 的 F-2 条目，本文档不复制计数以免再次漂移）；换环境的权威取值在部署方自持的配置里，不在本文档。
 3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **189**（CI 与文档均引用此值，不再硬编码静态数字）。
 
 > 详细操作留痕见 `docs/operations-log.md`；任务计划与逐项结论见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。
