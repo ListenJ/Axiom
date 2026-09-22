@@ -37,6 +37,7 @@ Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"
 | 代码行数 | 同一文件集合的行数合计 |
 | 测试文件 | 后端 `tests/` 下的 `*.test.ts`；前端组件测试另计 |
 | 测试总数 | 一次完整 `bun test ./tests` 的末行输出 |
+| 测试点名路径 | `package.json` 里 `bun test` 点名的 `tests` 路径必须存在，由 `tests/test-full-script.test.ts` 门承重（含"抽取非空"反恒绿哨兵）。口径依据：`bun test` 在无效路径与有效路径**混点**时静默丢弃该路径且退出码为 0，跑门本身不能自证，故清单必须机器核验（证据见 `docs/test-reports/2026-09-22-r6-named-path-silent-swallow.md`） |
 | MCP 工具 | 去重注册数（权威 = `src/testing/tool-count.ts`，由 `tests/unit/docs-consistency.test.ts` 对 README / ARCHITECTURE / AXIOM-ARCHITECTURE / MCP_TOOLS_GUIDE 精确相等承重；本指南不复制该数字）· 领域文件数为 `src/mcp/server/` 下 `*-tools.ts` 的个数 |
 | HTTP 路由 | 端点以 `src/routes/` 各模块的 `RouteRecord` 声明为准，不在此汇总 |
 | `as any` | 上限 25，门承重并打印当前值 |
@@ -53,6 +54,7 @@ bun run scripts/count-tools.mjs                                   # MCP 去重�
 ls src/mcp/server/*-tools.ts | wc -l                              # MCP 领域文件数
 bun test ./tests/architecture-integrity.test.ts                   # as any / @ts-* 当前值与上限
 bun test ./tests/unit/docs-consistency.test.ts                    # 工具数与导航入口数的相等断言
+bun test ./tests/test-full-script.test.ts                         # 点名路径接线不变式（防混点静默丢路径）
 ```
 
 ### 1.3 技术栈

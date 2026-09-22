@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 151 | 本文件 |
+| 2026-09（当月） | 152 | 本文件 |
 
 ---
 
@@ -1928,7 +1928,20 @@
 - **工具**：Read/Edit/Bash（`bun test`、`bun -e` 量测、python3 做可逆变异）、`bun run lint`。无子代理（同文件禁止并行编辑）。规则 2：备份 `tests/test-full-script.test.ts` 与 `package.json`（后者供变异）到 `.tmp/backups/`，通读后最小改动，验证通过后删备份。规则 7：垂直切片红→绿，红一次由"移除判据函数"取得（`ReferenceError: findMissing is not defined`），非事后补测。
 - **操作**（文件级，仅 `tests/test-full-script.test.ts` 一件）：新增纯函数 `extractNamedPaths(cmd)`（只认含 `bun test` 的脚本、剥 `./`、跳 flag、收 `tests` 目录与 `tests/*` 文件）+ `findMissing(paths, exists)`（exists 作参数注入，规则 8）+ 真实数据辅助 `readScripts()`/`missingAgainstRepo()`；新增 3 用例 —— 判据自检（合成 typo 必红、存在的不误伤、flag 与收集器脚本不参判）、真实 `package.json` 点名路径存在性（含"抽取非空"反恒绿哨兵）、往真实脚本注入一条 typo 端到端判红；文件头补记本不变式守护的缺陷形态。
 - **验证结果（全部新鲜执行）**：`bun test --isolate ./tests/test-full-script.test.ts` → **5 pass / 0 fail / 11 expects**；**真实数据的可逆红证**：把 `test:core` 里的 `tests/cache-stress.test.ts` 临时改成 `tests/cache-strss.test.ts` → 2 条用例判红并逐条点名该路径 → `finally` 复原，md5 与备份全等且 `git diff -- package.json` 空 → 复跑回绿；`bun run test:docs` 35/0、`bun run test:arch` 25/0、`bun run lint`（`tsc --noEmit`）exit 0；全量 `systemd-run --user --scope -p MemoryMax=8G -p MemorySwapMax=8G bun run test:full` → collected **408** 文件、**4132 pass / 36 skip / 1 fail**、4169 tests / 130636 expects / 132.50s，唯一红 = 既存环境件 `OCR Engine > should get engine with default config`（`src/ocr/engine.ts:98 assertLangsAvailable` 缺 tessdata，R5-g/F-2/R3-① 同一条，本片不碰 OCR 路径）。计数守恒（防把口径差读成回退）：R3-① 终值 414 文件出自 `bun test --parallel=8 ./tests`（bun 自收），本片 408 出自 `test:full`（排 `stress/e2e/*.slow.ts`），机器证明 `408 + stress 目录 6 件 = 414` ✓。断言面全量清点（非抽样）：87 条脚本里 8 条点名 `bun test` 路径，共 **18 个参数实例（17 个 `.test.ts` + 1 个 `tests` 目录），去重 18，存在性缺失 0**。
+- **证据链接（规则 5：详细证据外置）**：本片完整证据（5 探针原始输出、三条断言与红→绿记录、87 条脚本的断言面全量清点、`408 + stress 6 = 414` 守恒推导、4 条边界与复现命令）落盘 `docs/test-reports/2026-09-22-r6-named-path-silent-swallow.md`，与本条链接由"口径接线"提交一并入库（追加链接 bullet 属记录维护，不新增业务记录）。
 - **矛盾与边界（如实登记，不择一采信）**：① 量测仪器自纠 —— 首轮用 `... | tail; echo ${PIPESTATUS[0]}` 读退出码，`-t` 探针读到 0 而直取读到 1，两者矛盾 ⇒ 定"无管道直取退出码"为承重方法，混点两条已按此复测；② 后台任务完成通知报 `exit code 0`，那是外层 shell（末命令为 `tail`）的码，**套件本身 `error: script "test:full" exited with code 1`**，以日志行为准；③ 本判据覆盖"下次全量/CI 时红"，**不覆盖**打错当次的终端调用不报错（那是设计 B 包装器，本片按规则 1 不做），也不覆盖 `bun test` 子串过滤**过度匹配**（加量非吞量）；④ 若将来某脚本用 `-t "…tests/…"` 传带引号的选择器，按空白切分会误抽该 token（现存 87 条脚本零使用），登记不修。
 - **回滚**：revert 本片单个提交即可（1 个测试文件 + 本记录，无生产代码、无门行为改动）。
 - **记录维护**：归档索引 2026-09（当月）150 → 151。
 - **Commit**：80dece5（`80dece578a8b9609acabfcbfa0b7dbd76e46f5ad`；已推送 `internal codex/s3-on-main-2026-09-22`，`f8930144..80dece57`，`git ls-remote` 与本地 HEAD 全等。本行 hash 由回填提交补录，回填提交属记录维护，不再追加新业务记录，规则 5）
+
+## 2026-09-22 21:03 +0800 — R6① 证据外置 + "测试点名路径"口径接入 PROJECT-GUIDE（用户指令：内容进仓库、需要的文档整理好也进仓库）
+
+- **任务**：把 R6① 的可证伪证据从 ops log 单条搬出为独立证据件，并让"测试点名路径"这条口径在 `docs/PROJECT-GUIDE.md` 的口径表与 1.2 取法命令块里可发现。范围 = 文档三件，零代码零门行为改动。
+- **工具**：Read/Edit/Write/Bash。无子代理（同一文件禁止并行编辑）。规则 2：`docs/PROJECT-GUIDE.md`、`docs/operations-log.md` 改前备份到 `.tmp/backups/docs/`、通读后最小改动、验证通过后删备份；新报告为新建件，无旧版本可备份。
+- **操作**（文件级）：① 新建 `docs/test-reports/2026-09-22-r6-named-path-silent-swallow.md`；② `docs/PROJECT-GUIDE.md` 两处：口径表新增"测试点名路径"行（含"跑门本身不能自证，故清单必须机器核验"的口径依据与证据件链接）、1.2 取法命令块新增 `bun test ./tests/test-full-script.test.ts` 一行；③ 本条 + R6① 条目的证据链接 bullet + 归档索引 151 → 152。
+- **落点判定（事实，先查后写）**：规则 5 用语是 `docs/reports/`，实测根 `.gitignore:68` 有 `reports/` 规则 ⇒ 该目录在本仓 0 跟踪先例（既有留痕同日 1200/1255/1907 三处同判）；`docs/test-reports/` 已在库且有先例件（`SUMMARY.md`、`frontend-vitest-baseline-20260911.md`），`git check-ignore` 对新报告返回未忽略（exit 1）⇒ 证据件落后者，不新建被 ignore 的目录。
+- **门在扫这件（报告不是免检件，红→绿双向已证）**：`HISTORY` 豁免正则只覆盖 `operations-log|changelog` 与 `review|audit|assessment|evaluation|eval`，"test-reports"不匹配 ⇒ 新报告在 `specDocs()` 扫描面内。判据回代：报告全文 D9 形态命中 **0**；活性变异（往报告尾部追加一条 `tests/doc-contract.test.ts:999`）→ `bun run test:docs` **EXIT=1** 并在红单里点名该文件的行 ⇒ 门真的读到此件；`finally` 复原后 md5 与变异前全等（`43798e22…`），`git status` 只剩本片三件改动。
+- **验证结果（新鲜执行）**：`bun run test:docs` → **35 pass / 0 fail / 204 expects / EXIT 0**（变异复原后再跑一次取此值）；`bun run lint` 不适用（本片零 `.ts`/`package.json` 改动），未跑并在此如实登记。规则 11（只对新增/改动行判定，全文件计数另列）：新报告全文与 PROJECT-GUIDE 改行的高熵、私网地址命中均为 **0**；ops-log 本次新增行里 `AKIA`/`ghp_`/`-----BEGIN` 各命中 1 次 —— 逐条核对是**本条把判据模式名本身写进了正文**（描述"扫了什么"），非凭据，与 AGENTS.md 规则 11 同形态 ⇒ 判为夹具。ops-log 全文件既存命中（高熵 43、私网 10）属 #32 的既存待裁项，本片未增未减。迁移目标的寻址不进任何入库文件（只在本机 shell 与运维记忆里）。
+- **回滚**：revert 本片单个提交即可（2 件文档改 + 1 件文档新建，无代码、无迁移）。
+- **记录维护**：归档索引 2026-09（当月）151 → 152。
+- **Commit**：占位（本行 hash 由回填提交补录，回填提交属记录维护，不再追加新业务记录，规则 5）
