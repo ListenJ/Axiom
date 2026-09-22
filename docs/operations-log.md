@@ -1908,4 +1908,4 @@
 - **未决项 / 后续（待用户裁决，本片未动）**：#29 残留（其余出网点接 `decideOutbound`，前置＝"本地端点白名单"的可配置表达；`edge-embeddings.ts` 原生 `fetch`）、#30（自进化裸 `fs` 写，前置＝沙箱根 vs axiom home 策略）、#32（D 层地址留痕，已裁决只登记）、#34、#39（安装向导仍采集 PG URL）、#40；Gitea 是否真的执行 `.github/workflows/*` 仍不可从工作区证实。本分支仍**只推分支不并 `main`**，与 R0–R5-g/F-2 同口径，等 R6 定性能断言政策。
 - **回滚**：revert 本片单个提交即可（`src` 8 件 + `tests` 2 件 + `docs` 3 件；无迁移、无配置变更、无数据落盘）。
 - **记录维护**：归档索引 2026-09（当月）条目数 149 → 150。
-- **Commit**：__PENDING__（待回填；推送目标 `internal codex/s3-on-main-2026-09-22`）
+- **Commit**：5b6e493（`5b6e493acc0450af09f4b1c2d9416c64aafaa981`；已推送 `internal codex/s3-on-main-2026-09-22`，`557b0ba2..5b6e493a`，`git ls-remote` 与本地 HEAD 全等。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
