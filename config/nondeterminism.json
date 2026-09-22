@@ -1,5 +1,5 @@
 {
-  "$comment": "非确定组件登记表 —— 文档口径的唯一机器来源。tests/doc-contract.test.ts 校验：每条 switch 字面量与默认值必须与代码一致（D5），且本表必须与 docs/AXIOM-ARCHITECTURE.md 的「非确定组件清单」表逐行一致（D6）。role 语义：decision=模型输出改变控制流/检索/准入/安全结论；advisory=只标记不决定；generation=只产出内容；scheduling=只选模型。",
+  "$comment": "非确定组件登记表 —— 文档口径的唯一机器来源。tests/doc-contract.test.ts 校验：每条 switch 字面量与默认值必须与代码一致（D5），且本表必须与 docs/AXIOM-ARCHITECTURE.md 的「非确定组件清单」表逐行一致（D6）。role 语义：decision=模型输出改变控制流/检索/准入/安全结论；advisory=只标记不决定；generation=只产出内容；scheduling=只选模型；dormant=代码在位但当前无生产调用方注入非确定输入；kernel=被其它登记条目复用的确定性纯函数（自身无开关、无随机源，登记以锁定共享定义宿主）。",
   "ratchet": {
     "maxDecisionRoles": 8,
     "targetDecisionRoles": 0,
@@ -194,6 +194,19 @@
       "provenance": false,
       "provenanceField": null,
       "fallback": "无向量时 score=0 / 跳过聚类"
+    },
+    {
+      "id": "ND-15",
+      "name": "共享 cosine 相似度核（ND-01 / ND-13 / ND-14 复用的确定性纯函数）",
+      "role": "kernel",
+      "switch": null,
+      "switchFile": "src/utils/math.ts",
+      "default": "无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream）",
+      "defaultVia": "presence",
+      "codeFile": "src/utils/math.ts",
+      "provenance": false,
+      "provenanceField": null,
+      "fallback": "无（本条目是被复用的计算核，不是独立检索路径）"
     }
   ]
 }

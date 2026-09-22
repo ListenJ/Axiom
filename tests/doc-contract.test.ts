@@ -13,6 +13,7 @@
 import { describe, it, expect } from "bun:test";
 import fs from "fs";
 import path from "path";
+import ts from "typescript";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
 const read = (rel: string): string => fs.readFileSync(path.join(repoRoot, rel), "utf8");
@@ -107,6 +108,22 @@ function walkTs(dir: string): string[] {
     else if (rel.endsWith(".ts") && !rel.endsWith(".d.ts")) out.push(rel);
   }
   return out;
+}
+
+// 非确定符号的「代码引用点」识别：以 TS 语法树的 Identifier 节点为准。
+// 注释是 trivia、字符串/模板串是 literal，都不产生 Identifier；而定义名、import/export 绑定、
+// 调用（含 `this.sym(...)`）与裸别名引用都会。子串匹配（`text.includes(sym)`）会把
+// 「本文件不使用 cosineSimilarity」这句口径当成使用点 —— D7 自检锁住两侧形态，防判据被改宽。
+function codeIdentifierRefs(source: string, syms: readonly string[]): string[] {
+  const sf = ts.createSourceFile("probe.ts", source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const want = new Set(syms);
+  const hits = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && want.has(node.text)) hits.add(node.text);
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return [...hits];
 }
 
 // ─── D0 扫描范围自证：豁免面放宽会让红安静消失，所以先把两面钉住 ──────────────
@@ -492,15 +509,35 @@ describe("D7 概率层不得承担决策（棘轮）", () => {
   });
 
   it("代码中不存在未登记的非确定决策符号", () => {
-    // 决策型符号所在文件必须出现在登记表（switchFile/codeFile）中，否则需先登记再合并。
+    // 决策型符号的**代码引用点**所在文件必须出现在登记表（switchFile/codeFile）中，否则需先登记再合并。
+    // 实测依据（R5-e）：判据初版是 `text.includes(sym)`，当时 7 个红点里有 6 个的符号只出现在文件头注释与
+    // CLI 输出串中（"确定性检索为主，共享 cosineSimilarity 仅可选语义层"）—— 即在声明"本文件不用它"的句子里
+    // 提到了它。把这 6 个文件登记成"非确定组件"等于往机器来源里写假事实，删掉这句口径又是丢掉真实信息，
+    // 所以修的是引用形态识别（见 codeIdentifierRefs 与下一条自检），不是登记表面。
     const declared = new Set(registry.entries.flatMap((e) => [e.switchFile, (e as never as { codeFile?: string }).codeFile ?? ""]));
     const watch = ["cosineSimilarity", "isNearDuplicateWithEdge", "rewriteKnowledgeQueryWithEdge", "judgeKnowledgeQualityWithEdge"];
     const unregistered: string[] = [];
     for (const rel of walkTs("src")) {
       const text = read(rel);
-      if (watch.some((sym) => text.includes(sym)) && !declared.has(rel)) unregistered.push(rel);
+      if (!watch.some((sym) => text.includes(sym))) continue; // 廉价子串预筛，命中者才进语法树
+      if (codeIdentifierRefs(text, watch).length > 0 && !declared.has(rel)) unregistered.push(rel);
     }
     expect(unregistered).toEqual([]);
+  });
+
+  it("引用形态识别自检：注释与字符串不算使用点，定义/绑定/调用/别名算", () => {
+    const SYM = "cosineSimilarity";
+    const used = (src: string): boolean => codeIdentifierRefs(src, [SYM]).length > 0;
+    // 误报面（判据初版在此全部判红，实测 7 红中的 6 红即此类）
+    expect(used("/** 共享 cosineSimilarity 仅可选语义层 */\nexport const m = 1;\n")).toBe(false);
+    expect(used("// cosineSimilarity 不在本文件使用\nexport const m = 1;\n")).toBe(false);
+    expect(used("export const msg = (): void => console.log(`共享 cosineSimilarity 仅可选语义层`);\n")).toBe(false);
+    // 漏报面（真实引用必须判红）
+    expect(used("import { cosineSimilarity } from \"./math.js\";\n")).toBe(true);
+    expect(used("export function cosineSimilarity(a: number[], b: number[]): number { return 0; }\n")).toBe(true);
+    expect(used("const s = cosineSimilarity(a, b);\n")).toBe(true);
+    expect(used("const s = this.cosineSimilarity(a, b);\n")).toBe(true);
+    expect(used("export const alias = cosineSimilarity;\n")).toBe(true);
   });
 });
 
