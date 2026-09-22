@@ -13,7 +13,7 @@
 |---|---|---|
 | 2026-07 | 96 | [operations-log/2026-07.md](./operations-log/2026-07.md) |
 | 2026-08 | 407 | [operations-log/2026-08.md](./operations-log/2026-08.md) |
-| 2026-09（当月） | 149 | 本文件 |
+| 2026-09（当月） | 150 | 本文件 |
 
 ---
 
@@ -1910,3 +1910,14 @@
 - **回滚**：revert 本片单个提交即可（`src` 8 件 + `tests` 2 件 + `docs` 3 件；无迁移、无配置变更、无数据落盘）。
 - **记录维护**：归档索引 2026-09（当月）条目数 149 → 150。
 - **Commit**：5b6e493（`5b6e493acc0450af09f4b1c2d9416c64aafaa981`；已推送 `internal codex/s3-on-main-2026-09-22`，`557b0ba2..5b6e493a`，`git ls-remote` 与本地 HEAD 全等。本行 hash 由回填提交补录，回填提交属记录维护，规则 5）
+
+## 2026-09-22 — fix(docs): ops-log 归档件 15 处转义吃首字母残体复原（用户重裁 B 档）
+
+- **任务**：#43 收口。`docs/operations-log/2026-08.md` 有 15 处历史留痕的行首标识符被反斜杠转义吃掉首字母（`\r` 塌成 CR 吃 `r`、`\n` 塌成 LF 吃 `n`），而那些 CR 后来被 R5-b 的 `CRLF→LF 5,518 处` 归一化**当行尾**剥除 ⇒ 字节证据不可恢复。用户初裁"只补 CR 铁证 3 处"，我复核自裁判据后否证该前提（规模 6→15、CR 铁证 3→2，详见 R3-① 条目的事后追加），据证据分层重裁为 **B 档：15 处全补**。
+- **工具**：Read、Bash（`git rev-list --objects --all` + 单次 `git cat-file --batch` 做全量 distinct blob 扫描）、Write/Edit（`.tmp/` 下 6 个量测与修复脚本：`locate-3-cr-sites.ts`、`census-cr-sites2.ts`、`classify-cr-evidence.ts`、`census-midword-breaks.ts`、`repair-eaten-letters.ts`、`verify-repair.ts`）。无子代理（同一文件禁止并行编辑）。**规则 2 偏离如实登记**：待改文件 802,733 字节 / 5,519 行超读窗，未逐行人工通读，改以机器守恒证明替代（逐行等值比对 + 只允许"行首插入 1 个字母"）；备份 `.tmp/backups/docs/operations-log/2026-08.md` 以 `cmp` 验等后动工，提交与推送核验通过后删除。
+- **操作**（文件级）：只改 `docs/operations-log/2026-08.md` 一件，15 处行首各补 1 字母 —— L1911/2114/2115/2129/2130/2145/2146 补 `n`（`npm run …`）、L2167 `rightbarOpen`、L2171 `readInitialRightbarOpen`、L2173 `nav.locator`、L4033 `npx skills find`、L4303 `risk-monitor.ts`、L4304 `risk-screen.ts`、L4306 `runtime-go/internal/agent/cluster.go`、L4342 `native/crates/search`（后四处的补法由存活文本唯一确定）。**不合并断行**：合并会让后 3,000+ 行重编号并作废既有记录里的行号引用，超出本次裁决范围。修复脚本 fail-closed（断言行数 5,519、无 CR、`(前导行尾, 行首片段)` 邻接全文件唯一、写出字节增量恰 +15），首跑即在 L4341 断言处 abort —— 我把探针输出格式的**收尾引号**误当成文件内容（实际行尾是一个反斜杠），未写出任何半改状态。
+- **验证**：方式一 逐行比对 ⇒ 差异行恰 15、每行仅"行首多 1 个 `n`/`r` 且其余字节全等"、非差异行逐字等值、字节 802,733→802,748、行数不变、无新增行尾空白、CR 仍 0。方式二 孤儿片段扫描 ⇒ 备份命中 15（对照，证明判据对缺陷敏感）、当前命中 0。**记脚本错一处（不回改期望数字）**：方式二原用 `^[a-z]` 当缺陷判据，但它只是**候选**筛 —— 修好的 `npm`、`risk-…` 同样以小写起头，故"当前应为 0"的期望本身错，已换成孤儿片段判据。门 `bun run test:docs` → **35 pass / 0 fail**。规则 11 按**内容集合**核验（本片改行首，`git diff` 会把整行显示成新增）⇒ `192.168.*|10.*` 67→67、`sk-*` 18→18、`password|token=` 2→2，排序集合全等 ⇒ 未引入新地址或凭据；既存者属 #32。反查证据：`runtime-go/internal/agent/cluster.go`、`src/agents/risk-monitor.ts`、`src/local-llm/risk-screen.ts`、`native/crates/search/`、`frontend/src/state/useApp.ts` 的 `rightbarOpen`（L28/L132）与 `readInitialRightbarOpen`（L115）在仓库**真实存在**；另 9 处无仓库可对照。
+- **矛盾与残留**：① `test:run` 已不在 `package.json` 87 个脚本内（`lint` 在，值为 `tsc --noEmit`）⇒ 复原的是**历史脚本名**，不改述语文；② `nav.locator` 与 `hasText` 全仓 **0 命中**（该条目自记"e2e spec 属本地产物不入库"）⇒ 属"上下文体"复原，标为判断非事实；③ L4342 同句的 `search\：` 与行首反斜杠是**吃引号/吃冒号**另一族（非缺字母），本片不动；④ 两线分叉未收敛：`8dff4f8b` 侧该句本就完好，合并 `2026-08.md` 仍会冲突。
+- **回滚**：revert 本片单个提交即可（仅 `docs/operations-log/2026-08.md` 15 行 + 本记录，无代码无迁移）。
+- **记录维护**：归档索引 2026-09（当月）149 → 150。注：L1911 那句"149 → 150"是 R3-① 条目**当时**的陈述，其后被本次合并的重复条目消除回退（索引 150→149，见合并留痕），故本条的 149→150 是再次递增，不是同一处改动的重复登记。
+- **Commit**：占位（回填提交属记录维护，不再追加新业务记录）
