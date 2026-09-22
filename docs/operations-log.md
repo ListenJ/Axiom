@@ -1977,3 +1977,15 @@
 - **凭据处置状态（规则 11，只记名称/位置/状态）**：`gitea-api-token`，位置 `~/.axiom/axiom-secrets/gitea.token`，本次仅用于该单一只写操作。**风险登记**：该 token 以明文出现在会话输入中，属"已被第三处知悉"，**建议作业结束后在 Gitea 侧撤销或轮换**；仓库/工作区/日志/提交信息中均未出现其明文（本条亦不回显）。
 - **偏差记录**：①**本会话操作失误一条并已当场纠正**：第一次写凭据文件时落入了一个**并非用户提供**的 40 位十六进制串（我自己拼错），随即用原值覆写，并以"长度 40 / 前缀 eddfa / 后缀 ce02e"三项形态比对确认文件内容与用户提供值一致后才发起请求——该错误值不是任何真实凭据，且已被覆盖；教训是凭据类字面量必须复制而非转写。②撤回本报告初稿对门禁红的"CRLF"归因（见 §8.3 更正记录），实测四个版本 CR 字节均为 0。
 - **Commit**：43e0ee9a
+
+## 2026-09-23 04:10 +0800 — T0 勘察 + 设计：runtime 强制面（C safeFs 扩面 / D net.outbound）方案稿，未施工
+
+- **任务**：用户指令「其他项目的文件不再进入当前工作区，专注 runtime 开发」，并选定「先要 C/D 的设计方案」。级别 T0（只读勘察 + 出设计文档，不写业务代码）。
+- **工具**：SearchWorkspace（runtime 模块地图与未完成面盘点）、Bash（grep/find/ls、三门实测）、Read。未派子代理。
+- **操作**（文件级）：新建 `docs/superpowers/plans/2026-09-23-safefs-and-outbound-enforcement-design.md`；开发分支 `codex/runtime-safefs-outbound-design` 起于路线线（含 AGENTS v1.6，`HEAD..codex/s3-on-main-2026-09-22` = 0）。本条不改任何 `src/`。
+- **基线实测（开工前提）**：`bun x tsc --noEmit` **exit 0**；`bun run audit:runtime` **16/16 pass**；`bun run test` **4236 pass / 34 skip / 28 fail / exit 1**（4298 tests、414 files、114.38s）。28 条分类：13 条 doc-contract（§4.3/§8.3 已证为 Windows 分隔符假红）、2 条 `S-3 safeFs 符号链接`（`EFAULT … rm 'src/link-to-hooks'`，本机不可验证，**未留残file**）、2 条 `O1a/O1c`（夹具缺陷，见下）、4 条 LLMClient（离线网络，含 57.5s/19.3s 超时）、5 条性能压力（绝对值不可信）、2 条未定性（logger 1 + `(unnamed)` 1）。
+- **挖出的真缺陷（登记未修）**：`tests/unit/tool-mode-gate.test.ts:150` 把 `"D:/workspace/normal.txt"` 当"良性路径"夹具。该 token **在 Linux 上是相对路径**（落在沙箱内、放行）、**在 Windows 上是绝对路径**（逃出 `process.cwd()` 锚点）⇒ 内核拒绝正确、夹具错误。配套 `:141` 的 `/etc/shadow` 同样需要重做锚定，非单行修复。
+- **一条文档落差**：`docs/SECURITY-MEASURES.md` §2.7.5 称 6 个裸写点，实测 `src/memory/knowledge-graph-builder.ts` 对 `fs.`/`writeFile`/`mkdir`/`Database`/`INSERT` **零命中** ⇒ C 的真实范围是 **4 点**（`skill-quality.ts:108,111`、`skill-promoter.ts:120,121`、`vault-manager.ts:323,345`、`src/utils/model-output-store.ts:295,304`）。按 F-2 口径只登记不改文档。
+- **偏差记录（含两处本会话自查纠错）**：①设计稿初稿提出"`src/` 内不得出现裸 `fetch(`、豁免清单为空则通过"的门，落盘前实测该口径命中 **26 个文件**（去 `proxy-fetch.ts` 自身 25）⇒ 该门**立不起来**且违反规则 1，**提交前**改为仓库已有先例的棘轮门（对照 doc-contract D7），并在文中明写这次纠错；②"18 个 proxyFetch 消费方"是**导入面**不是出网点数，已在 §3.1 限定口径，并补出 D-1 的自身盲区（25 个裸 fetch 文件不经 proxyFetch，翻默认值对它们无效）；③工具链事实更新：本机 `bun 1.3.14`（等于 CI 钉版）、`go1.26.0`、`cargo1.97.1` ⇒ 旧结论"Go 编不过 / cargo 不在 PATH / 性能只能估算"是退役机状态，已作废。
+- **未做**：任何 `src/` 改动、夹具修复、doc-contract 门的分隔符修复（均待 §6 四项裁决后另起提交）。
+- **Commit**：待回填
