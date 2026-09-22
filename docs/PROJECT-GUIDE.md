@@ -534,7 +534,7 @@ bun run tauri:build     # 构建桌面安装包
 **解决**：
 - 服务层使用 `withDbLock(fn)` 串行化写入
 - 长事务改用 `db.transaction(() => {...})` 包裹
-- 不要试图"切换 PostgreSQL"：本仓当前无 PG 入口（PG 客户端已随 H-M1-03 删除，口径见 `docs/LIMITATIONS.md` §2.3），`DATABASE_URL` 在 `src/utils/env.ts` 的 `REQUIRED_ENV_VARS` 里标注为 "Legacy alias — SQLite connection string"，设为 `postgres://…` 不会改变数据库后端，只会让 `src/native-bridge.ts` 据此判定为云端部署；并发写压力以上面的串行化与 WAL 缓解
+- 不要试图"切换 PostgreSQL"：TS 运行时无 PG 数据面入口（PG 客户端已随 H-M1-03 删除，`src/` 下无客户端、无开关；native 云端件的 PG 池只作存活探针，口径见 `docs/LIMITATIONS.md` §2.3），`DATABASE_URL` 在 `src/utils/env.ts` 的 `REQUIRED_ENV_VARS` 里标注为 "Legacy alias — SQLite connection string"，设为 `postgres://…` 不会改变数据库后端，只会让 `src/native-bridge.ts` 据此判定为云端部署；并发写压力以上面的串行化与 WAL 缓解
 - WAL 模式默认已开启（`PRAGMA journal_mode=WAL`）
 
 ### Q7: Native bridge (Rust) 启动失败

@@ -5,7 +5,8 @@
  * 覆盖：D1 禁语（含 src/tests 的 .ts）+ 全部 markdown 文本完整（BOM/CR/C0） / D2 权威唯一 / D3 文档引用不死（反引号路径 +
  *       markdown 本地链接） / D4 禁手抄行数 /
  *       D5 非确定组件登记 ↔ 代码默认值 / D6 登记表 ↔ 文档表 / D7 decision 存量棘轮 /
- *       D8 文档列出的 MCP 领域文件 ↔ 实际注册点 / D9 禁 file:line 手抄锚点
+ *       D8 文档列出的 MCP 领域文件 ↔ 实际注册点 / D9 禁 file:line 手抄锚点 /
+ *       D11 仓库级"无 PG"否定句必须限定范围并点名披露 native 例外
  *
  * 边界（诚实声明）：本门只覆盖可机器判定命题。散文论述不受保护 —— 因此规范文档中
  * 不得写入定量指标与绝对断言，只允许指向本门与 config/nondeterminism.json 的指针。
@@ -633,5 +634,82 @@ describe("D10 能力声明登记表与代码同源", () => {
     expect(rendered).not.toContain("## plugins/dre-dsh/backend/server.js");
     // 手写插件（逐行走 add()）必须在表内，否则上面的排除就是"顺手把 plugins 全删了"
     expect(rendered).toContain("## plugins/git-workflow-enhanced/index.js");
+  });
+});
+
+// ─── D11 仓库级 PG 否定句必须限定范围并披露例外 ───────────────────────────────
+// 动因（F-1 实测）：`native/crates/cloud`（axiom-cloud 二进制，`native/Cargo.toml` 的
+// `members = ["crates/*"]` 在工作区内，`package.json` 有 native:build:cloud，
+// `src/native-bridge.ts` 按 edition 选这个 binary）接受 DATABASE_URL 并真的建了 PostgreSQL 池，
+// 而文档当时写的是"本仓当前无 PG 入口 / 无 PG 驱动与入口"。一条过头的否定断言与一条过时的
+// 肯定断言是同一种失真，且更难被发现 —— 所以范围限定与例外披露都要能被机器逼出来。
+describe("D11 仓库级 PG 否定句需限定范围并披露例外", () => {
+  // 仓库级主语的"无 PG"断言：TS 运行时的实话被说成了全仓的事实。
+  const REPO_NEGATION = /(本仓当前无 PG|本仓无 PG|仓库内无 PG|全仓无 PG|无 PG 驱动与入口|无 PG 入口)/;
+  // PG 语句执行面（tokio/deadpool-postgres 的方法名）；探针用的 pool.get() 不在其内。
+  const PG_SQL_SITE = /\.(query|query_opt|query_raw|execute|simple_query)\s*[<(]/;
+  const rsFiles = (dir: string): string[] => {
+    if (!fs.existsSync(path.join(repoRoot, dir))) return [];
+    const out: string[] = [];
+    for (const e of fs.readdirSync(path.join(repoRoot, dir), { withFileTypes: true })) {
+      const rel = path.join(dir, e.name);
+      if (e.isDirectory()) out.push(...rsFiles(rel));
+      else if (e.name.endsWith(".rs")) out.push(rel.replace(/\\/g, "/"));
+    }
+    return out;
+  };
+
+  it("规范件（含 README/AGENTS）内仓库级「无 PG」句 0 命中", () => {
+    const scope = caliberDocs()
+      .filter((f) => !HISTORY.test(f))
+      .concat(exists("README.md") ? ["README.md"] : [], exists("AGENTS.md") ? ["AGENTS.md"] : []);
+    const offenders: string[] = [];
+    for (const rel of scope) {
+      read(rel)
+        .split("\n")
+        .forEach((line, i) => {
+          if (REPO_NEGATION.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 80)}`);
+        });
+    }
+    expect(offenders).toEqual([]);
+    // 覆盖面自证：扫描面塌掉时本条先红，不允许靠"少扫几个文件"变绿
+    expect(scope.length).toBeGreaterThan(50);
+  });
+
+  it("native 云端件的 PG 例外被点名披露（说清它建了什么池、为什么不算数据面）", () => {
+    const lines = read("docs/LIMITATIONS.md").split("\n");
+    const disclosed = lines.filter((l) => l.includes("native/crates/cloud"));
+    expect(disclosed.length).toBe(1);
+    expect(disclosed[0]).toContain("DATABASE_URL");
+    expect(disclosed[0]).toContain("create_pool");
+    expect(disclosed[0]).toMatch(/探针|探测/);
+  });
+
+  it("披露与代码同源：native 的 PG 池仍只是存活探针（长出 SQL 执行面即红，逼口径同步）", () => {
+    const pgFiles = rsFiles("native/crates").filter((rel) => /deadpool_postgres|tokio_postgres/.test(read(rel)));
+    expect(pgFiles.length).toBeGreaterThan(0); // 正向对照：整个件被删不得让"零执行点"假绿
+    const sqlSites: string[] = [];
+    for (const rel of pgFiles) {
+      read(rel)
+        .split("\n")
+        .forEach((line, i) => {
+          if (PG_SQL_SITE.test(line)) {
+            sqlSites.push(`${rel}:${i + 1}`);
+          }
+        });
+    }
+    expect(sqlSites).toEqual([]);
+  });
+
+  it("判据自检：被禁形态真的会红、限定后的口径不误伤（门不得对自己免检）", () => {
+    expect(REPO_NEGATION.test('- 不要试图"切换 PostgreSQL"：本仓当前无 PG 入口（PG 客户端已随 H-M1-03 删除）')).toBeTrue();
+    expect(REPO_NEGATION.test("PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，无 PG 驱动与入口）")).toBeTrue();
+    expect(REPO_NEGATION.test("SQLite 为唯一运行时数据库；H-M1-03 移除后无 PG 入口")).toBeTrue();
+    // 限定面 + 已披露例外的口径不得命中
+    expect(REPO_NEGATION.test("TS 运行时检索栈无 PG 路径（native 云端件另有存活探针池，见 `docs/LIMITATIONS.md` §2.3）")).toBeFalse();
+    expect(REPO_NEGATION.test("PG vector 当前不可启用（H-M1-03 已删客户端，无启用路径）")).toBeFalse();
+    // 镜像断言的正向对照：PG_SQL_SITE 必须真能抓到查询面，否则"零执行点"是正则写坏的假绿
+    expect(PG_SQL_SITE.test('        let rows = client.query("SELECT 1", &[]).await?;')).toBeTrue();
+    expect(PG_SQL_SITE.test("        pool.get().await // 仅取连接做存活探测")).toBeFalse();
   });
 });

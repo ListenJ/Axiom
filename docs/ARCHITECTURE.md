@@ -7,7 +7,7 @@
 
 ## 1. 项目概览
 
-Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 Agent 之下的基础设施层（ADR-001「Runtime 优先于 Agent」，见 AXIOM-ARCHITECTURE §〇），为上层 Agent/宿主提供确定性认知基建（检索/记忆/KG/推理/工具面）与模型调用效率（缓存/路由/预算），而非又一个 Agent。核心设计理念是**确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引、`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，两者均无向量计算；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，无 PG 驱动与入口，默认且唯一为 SQLite FTS5）**。确定性检索（关键词按匹配次数加成，优先级 标题 > 标签 > 路径 > 内容 + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
+Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 Agent 之下的基础设施层（ADR-001「Runtime 优先于 Agent」，见 AXIOM-ARCHITECTURE §〇），为上层 Agent/宿主提供确定性认知基建（检索/记忆/KG/推理/工具面）与模型调用效率（缓存/路由/预算），而非又一个 Agent。核心设计理念是**确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引、`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，两者均无向量计算；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，TS 运行时内无 PG 路径，默认且唯一为 SQLite FTS5；native 云端件的探针例外见 `docs/LIMITATIONS.md` §2.3）**。确定性检索（关键词按匹配次数加成，优先级 标题 > 标签 > 路径 > 内容 + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
 
 | 属性 | 值 |
 |------|-----|
@@ -55,7 +55,7 @@ src/
 ├── workers/         — 远程 Worker 客户端 (pdf-worker, llm-worker)
 ```
 
-**数据库:** SQLite 为唯一运行时数据库；PostgreSQL 能力当前不可用（H-M1-03 移除后无 PG 入口：`package.json` 依赖与 `bun.lock` 均无 PG 驱动，`src/mcp`/`src/routes`/`src/tools` 内零 `postgres`/`pgvector` 引用）。`src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库（`Dockerfile` 会 COPY 进镜像）但运行时代码无消费者 —— 唯一提到它的源码是 `src/utils/db-guard.ts` 的一条注释；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
+**数据库:** SQLite 为 TS 运行时唯一有数据面的数据库；PostgreSQL 在 TS 运行时不可用（H-M1-03 移除后无 PG 数据面入口：`package.json` 依赖与 `bun.lock` 均无 PG 驱动，`src/mcp`/`src/routes`/`src/tools` 内零 `postgres`/`pgvector` 引用）。`src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库（`Dockerfile` 会 COPY 进镜像）但运行时代码无消费者 —— 唯一提到它的源码是 `src/utils/db-guard.ts` 的一条注释；所有持久化通过 `sqlite-memory.ts` (FTS5)、`kg/enhanced.ts` (SQLite KG) 和 `codegraph-sync.ts` (SQLite 本地索引) 完成；native 云端件 `axiom-cloud` 另有一条只作存活探针的 PG 池（crate 内 PG 语句执行点实测 0），例外口径见 `docs/LIMITATIONS.md` §2.3。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 
 ### 2.1 分层规则
 
@@ -287,7 +287,7 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 |------|------|------|
 | 检索 | 确定性检索为默认：`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补（由 `src/memory/vault-manager.ts` 的 `search()` 串接：FTS 命中不足或质量偏低时用确定性引擎补充）；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；PG vector 当前不可启用（H-M1-03 已删客户端，无启用路径） | 非历史宣称，而是“确定性为主、向量可选” |
 | LLM | `src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
-| 历史 PG | `src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 能力当前不可启用：`package.json` 依赖与 `bun.lock` 均无 PG 驱动，无任何开关或入口 <!-- doc-caliber:absent: src/db/pg-client.ts --> | 需 PG 时先按规则 4 裁决 `src/db/pg-schema.sql` 存废，再重建客户端与索引迁移 |
+| 历史 PG | `src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 数据面能力在 TS 运行时不可启用：`package.json` 依赖与 `bun.lock` 均无 PG 驱动，TS 运行时内无任何开关或入口 <!-- doc-caliber:absent: src/db/pg-client.ts --> | 需 PG 时先按规则 4 裁决 `src/db/pg-schema.sql` 存废，再重建客户端与索引迁移 |
 | MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **189** 个去重工具，零重复 | 文档中 133/150/172/173/188 为历史值，已统一为 189 |
 
 *更新：2026-08-21 Task16 文档一致性校准（可选 LLM、PG 可选历史 —— 后者为旧口径，已随 H-M1-03 废止，现状见 §8）；2026-08-25 检索口径校准（FTS5+关键词为默认、余弦仅可选语义层）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，2026-08-30 S4 新增 hallucination_feedback 后为 189（以 `src/testing/tool-count.ts` 为准）。*
