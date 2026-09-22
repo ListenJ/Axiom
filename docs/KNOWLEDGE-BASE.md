@@ -38,7 +38,7 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 
 - Vault 确定性搜索（关键词/PARA/标签）— `/vault/stats` 可见笔记数
 - DRE `/dre/run`（认知管线：classify→knowledge→reasoning→constraint→action→reflection）
-- 知识图谱 `/kg/search`（pgvector 语义检索）
+- 知识图谱 `/kg/search`（SQLite 后端，处理入口在 `src/routes/knowledge-graph.ts`；响应体标注 `backend: "sqlite"`）
 - Chat 内 `web_search`/`web_fetch` 工具（可继续拉取新资料入库）
 
 ## MinerU 与 零LLM 口径（Task8 澄清）

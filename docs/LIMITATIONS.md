@@ -52,14 +52,14 @@
 
 ### 2.1 问题溯源
 
-- **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称与实际“PG vector 可选（H-M1-03，可选历史能力，默认 SQLite FTS5）”不一致；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数旧宣称在多篇文档间各执一词（历史曾见 133/150/172/173），与动态实测去重值不一致。
+- **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称曾与实际“PG vector 可选（历史能力，默认 SQLite FTS5）”不一致；但该“可选”口径自 H-M1-03（PG 客户端已删，38966d12）起也已废止 —— PG 当前不可启用，现状见 §2.3；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数旧宣称在多篇文档间各执一词（历史曾见 133/150/172/173），与动态实测去重值不一致。
 - **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：唯一事实源是 `src/testing/tool-count.ts` 的 `countMcpTools()`，`bun run scripts/count-tools.mjs` 由它生成供文档引用的片段（该脚本自身不计数，只委托），`tests/unit/docs-consistency.test.ts` 对 README、`AXIOM-ARCHITECTURE.md`、`ARCHITECTURE.md`、`MCP_TOOLS_GUIDE.md` 做"声明值 == 实测值"的精确相等断言（受控文件清单以该测试为准，本文与 `docs/PROJECT-GUIDE.md` 不在其内）；本文不复制该数值。
 
 ### 2.2 校准后声明
 
-- **检索**：默认确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数线性加分为补（优先级 标题 > 标签 > 路径 > 内容，各设上限；加权常量以该文件 `search()` 为唯一事实源，本文不复制数值），二者由 `src/memory/vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector（`pgvector`）为可选历史能力 H-M1-03，默认关闭，需 PG 时启用，非历史旧宣称。
+- **检索**：默认确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数线性加分为补（优先级 标题 > 标签 > 路径 > 内容，各设上限；加权常量以该文件 `search()` 为唯一事实源，本文不复制数值），二者由 `src/memory/vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用，`consolidate(0.7)` 阈值聚类）；PG vector 当前不可启用（H-M1-03 已删客户端，无启用路径，见 §2.3），非历史旧宣称。
 - **LLM**：`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关（`readBool("KNOWLEDGE_USE_LLM", false)` 共两处读取：图/视频自动理解分支与内容结构化分支各一处）默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
-- **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 能力为可选历史（`pgvector` 需显式启用），非旧移除宣称即不可用。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
+- **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 当前不可启用 —— `package.json` 依赖与 `bun.lock` 均无 PG 驱动，`src/` 下无客户端、无开关、无入口，恢复需先重建客户端与索引迁移（口径见 §2.3）。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 - **工具数**：口径以 `src/testing/tool-count.ts` 的 `countMcpTools()` 实测值为准（零重复断言同在 `docs-consistency`）；引用该数值的文档以 `bun run scripts/count-tools.mjs` 生成，禁止手抄。历史 133/150/172/173 与本文旧版"权威 172"均为已腐烂快照，一律废止。
 
 ### 2.3 当前边界与待校准项

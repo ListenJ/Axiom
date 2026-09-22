@@ -2,7 +2,7 @@
  * 确定性记忆搜索引擎 — 磁盘优先、按需加载版
  *
  * 设计哲学：
- * - 检索以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层，需 embedding 时启用），PG vector 为可选历史能力
+ * - 本引擎只做关键词计数与结构化加成：不实现 FTS5（主索引在 src/memory/sqlite-memory.ts，由 src/memory/vault-manager.ts 的 search() 串接）、不做向量计算（共享 cosineSimilarity 仅 src/core/settings-search.ts 可选语义层，需 embedding 时启用）；PG 路径已随 H-M1-03 移除，当前无 PG 入口
  * - 笔记内容常驻磁盘，内存仅保留轻量级索引
  * - 按需读取：匹配时用索引，返回结果时才读内容
  * - 可解释：每个结果都有明确的得分来源

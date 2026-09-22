@@ -54,7 +54,7 @@ Axiom 的差异化资产是“控制面”而非“另一个学习体”：
 | 维度 | Hermes | Axiom |
 |------|--------|-------|
 | 核心 | 自进化学习闭环 | 确定性认知运行时 + 控制平面 |
-| 记忆 | FTS5 + LLM 摘要 + Honcho | 确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 主索引 + `src/memory/deterministic-search.ts` 的关键词打分；共享 `cosineSimilarity` 仅在有 embedding 的可选语义层；PG vector 为可选历史能力）+ KG + DRE |
+| 记忆 | FTS5 + LLM 摘要 + Honcho | 确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 主索引 + `src/memory/deterministic-search.ts` 的关键词打分；共享 `cosineSimilarity` 仅在有 embedding 的可选语义层；PG vector 当前不可启用（客户端已随 H-M1-03 删除））+ KG + DRE |
 | 技能 | agentskills.io / 自创建技能 | Skill 加载器 + MCP 工具注册（去重数以 `src/testing/tool-count.ts` 实测为准，本文不复制数值） |
 | 界面 | CLI/消息网关 | Web Dashboard + WebSocket + 审批 + CLI/TUI |
 | 浏览器 | 通过工具调用 | 目前仅抓取；需补实时标签控制 |

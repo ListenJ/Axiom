@@ -18,7 +18,7 @@
  *   - 小接口：retrieve(query) 是唯一公开入口
  *   - 接受依赖不创建依赖：keywordSearcher 与 graph 通过构造注入
  *   - 接口即测试面：全部可通过 retrieve() 验证
- *   - 检索以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层，需 embedding 时启用），PG vector 为可选历史能力
+ *   - 检索为确定性关键词 + 图谱联合打分：不实现 FTS5（关键词侧由构造注入，见 src/routes/search.ts 传入 vault 的 DeterministicSearchEngine）、不做向量计算（共享 cosineSimilarity 仅 src/core/settings-search.ts 可选语义层）；PG 路径已随 H-M1-03 移除
  */
 
 import { logger } from "../../utils/logger.js";

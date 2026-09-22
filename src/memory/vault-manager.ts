@@ -5,7 +5,7 @@
  * - Obsidian Vault 是唯一的真理来源（Source of Truth）
  * - 所有记忆以 Markdown 形式存储，人类可读、可版本控制
  * - SQLite 仅作为性能索引（可重建），不存储独立数据
- * - 确定性检索：以 FTS5 + 关键词打分为主（共享 cosineSimilarity 仅 settings-search 可选语义层），PG vector 为可选历史能力
+ * - 确定性检索：search() 先走 src/memory/sqlite-memory.ts 的 FTS5 主索引，命中不足或质量偏低时用 src/memory/deterministic-search.ts 的关键词引擎补充（共享 cosineSimilarity 仅 src/core/settings-search.ts 可选语义层）；PG 路径已随 H-M1-03 移除，当前无 PG 入口
  * - 所有 Agent 通过 Vault 文件系统共享记忆
  *
  * 记忆类型：

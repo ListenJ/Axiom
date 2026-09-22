@@ -278,7 +278,7 @@ Axiom 三种执行模式（[CodeWhale 启发](https://codewhale.dev)）：
 | 关系推导 | wiki-link 出链(+10) / 入链(+8) / 2跳(+4) | - |
 | PARA 语义 | 同分类笔记提升(+5) | - |
 
-> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（如 `src/dre/consciousness/stream.ts`）使用；PG vector（`pgvector`）为可选历史能力 H-M1-03，需 PG 时启用；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
+> 底层：默认 SQLite FTS5 + 关键词打分为确定性检索；`cosineSimilarity` 已收敛为共享实现（`src/utils/math.ts`），仅在启用 embedding 的可选语义路径（如 `src/dre/consciousness/stream.ts`）使用；PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，无启用路径，见 `docs/LIMITATIONS.md` §2.3）；`KNOWLEDGE_USE_LLM=false` 默认关闭，仅开启时走 LLM 结构化。
 
 ```bash
 # 搜索记忆
@@ -346,7 +346,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 为可选历史能力（H-M1-03）。
+暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 当前不可启用（H-M1-03 已删客户端）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 
@@ -354,7 +354,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 |------|------|------|
 | 核心工具 | ✅ 始终可用 | 零配置，安装 Bun 即可用 |
 | 配置工具 | ⚙️ 配置后可用 | 需要 API Key |
-| 外部服务 | 🔧 需安装服务 | llama.cpp 等（PostgreSQL 已归档 H-M1-03） |
+| 外部服务 | 🔧 需安装服务 | llama.cpp 等（PostgreSQL 已随 H-M1-03 移除；`src/db/pg-schema.sql` 仍在仓库但无运行时消费者） |
 
 **基本功能保证** (零配置即可使用):
 
@@ -409,7 +409,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 | 类别 | 服务依赖 | 工具数 | 降级方案 |
 |------|----------|--------|----------|
-| PostgreSQL KG | PostgreSQL + pgvector | 7 | 使用 `kg_enhanced_*` SQLite 工具 |
+| PostgreSQL KG | 无外部服务（PG 客户端已随 H-M1-03 删除，见 `docs/LIMITATIONS.md` §2.3） | 旧值 7 已废止（不手抄新值） | 原 PG 侧工具已不存在；KG 侧现存 `kg_enhanced_stats`，计数以 `src/testing/tool-count.ts` 为准 |
 | DRE 写入 | llama.cpp + GPU | 2 | 使用 `memory_write` |
 | CLI Agent | OpenCode/Hermes CLI | 3 | 无降级方案 |
 

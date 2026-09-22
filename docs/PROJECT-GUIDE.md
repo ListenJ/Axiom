@@ -24,7 +24,7 @@
 
 ### 1.1 定位
 
-Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"确定性检索为主（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引 + `src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，二者均由 `src/memory/vault-manager.ts` 的 `search()` 串接）+ 共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用 + PG vector 可选（`pgvector` 可选历史能力 H-M1-03，默认 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关默认走 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
+Axiom Runtime 是一个**确定性 AI Agent 框架**，核心设计理念是 **"确定性检索为主（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引 + `src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，二者均由 `src/memory/vault-manager.ts` 的 `search()` 串接）+ 共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用 + PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，口径见 `docs/LIMITATIONS.md` §2.3；默认且唯一为 SQLite FTS5）"**。确定性检索（关键词+PARA+标签+关系推导）为默认，LLM 仅在 `KNOWLEDGE_USE_LLM=true` 时作为可选能力介入（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关默认走 TF-IDF 回退）。LLM 在此框架中从"推理主体"降级为 **Cognitive Accelerator（认知加速器）**，确定性推理才是系统核心。
 
 ### 1.2 关键指标
 
@@ -166,7 +166,7 @@ db     ↔ memory                   (通过 services 断环)
 | 组件 | 职责 |
 |------|------|
 | `vault-manager.ts` | 核心记忆管理 (read/write/search/browse)，单例 |
-| `deterministic-search.ts` | 确定性关键词打分引擎：精确匹配（文件名/标题/ID/别名）→ 关键词按匹配次数线性加成（优先级 标题 > 标签 > 路径 > 内容，各设上限；常量以该文件 `search()` 为准，本表不复制数值）→ wiki-link 关系推导 → PARA 语义提升；FTS5 主索引在 `sqlite-memory.ts`，由 `vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity` 仅在有 embedding 的可选语义层，PG vector 为可选历史能力 |
+| `deterministic-search.ts` | 确定性关键词打分引擎：精确匹配（文件名/标题/ID/别名）→ 关键词按匹配次数线性加成（优先级 标题 > 标签 > 路径 > 内容，各设上限；常量以该文件 `search()` 为准，本表不复制数值）→ wiki-link 关系推导 → PARA 语义提升；FTS5 主索引在 `sqlite-memory.ts`，由 `vault-manager.ts` 的 `search()` 串接；共享 `cosineSimilarity` 仅在有 embedding 的可选语义层，PG vector 当前不可启用（`docs/LIMITATIONS.md` §2.3） |
 | `sqlite-memory.ts` | SQLite FTS5 索引持久化 |
 | `codegraph-index.ts` | 代码符号索引 |
 | `archiver.ts` / `distiller.ts` | 记忆归档 / 蒸馏 |
@@ -534,7 +534,7 @@ bun run tauri:build     # 构建桌面安装包
 **解决**：
 - 服务层使用 `withDbLock(fn)` 串行化写入
 - 长事务改用 `db.transaction(() => {...})` 包裹
-- 生产环境推荐切换 PostgreSQL：设置 `DATABASE_URL=postgres://...`
+- 不要试图"切换 PostgreSQL"：本仓当前无 PG 入口（PG 客户端已随 H-M1-03 删除，口径见 `docs/LIMITATIONS.md` §2.3），`DATABASE_URL` 在 `src/utils/env.ts` 的 `REQUIRED_ENV_VARS` 里标注为 "Legacy alias — SQLite connection string"，设为 `postgres://…` 不会改变数据库后端，只会让 `src/native-bridge.ts` 据此判定为云端部署；并发写压力以上面的串行化与 WAL 缓解
 - WAL 模式默认已开启（`PRAGMA journal_mode=WAL`）
 
 ### Q7: Native bridge (Rust) 启动失败
