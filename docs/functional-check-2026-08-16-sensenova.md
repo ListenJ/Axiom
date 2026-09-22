@@ -47,6 +47,6 @@
 - 实测：schema 初始化成功；`/kg/stats` 21268 节点 15316 边；`/kg/entities`、`/kg/search`（语义）全通。
 
 ### 网络搜索（已完成 ✅，代理方案替代 CDN/浏览器）
-- 根因链：duckduckgo 直连超时 → data 服务器 mihomo 代理 192.168.0.10:7890 可达海外（curl 验证 200）→ app 的 proxyFetch HTTPS 在 Bun 的 `tls.connect({socket})` 隧道挂起（CONNECT 200 后 TLS 升级不兼容）→ **搜索引擎 fetch() 配代理时改用 curl.exe**。
+- 根因链：duckduckgo 直连超时 → data 服务器上的 mihomo 代理（`<部署机地址>:7890`，规则 11 不入库）可达海外（curl 验证 200）→ app 的 proxyFetch HTTPS 在 Bun 的 `tls.connect({socket})` 隧道挂起（CONNECT 200 后 TLS 升级不兼容）→ **搜索引擎 fetch() 配代理时改用 curl.exe**。
 - 实测：`/web-search` 返回 10 条真实结果；chat 内 `web_search`/`web_fetch` 工具真实调用并获取「Node.js 2026 起每年一个主版本、Node 27 起全 LTS」。
 - 说明：SEARCH_PROXY 仅作用于搜索，避免 Bun 隧道影响其他 HTTPS 调用；searxng docker 因服务器 8080 被 1Panel openresty 劫持 + 容器上游 TUN 不通而弃用；浏览器/插件搜索方案暂不需要（Playwright 仍在依赖中作备选）。

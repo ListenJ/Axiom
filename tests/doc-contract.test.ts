@@ -6,7 +6,8 @@
  *       markdown 本地链接） / D4 禁手抄行数 /
  *       D5 非确定组件登记 ↔ 代码默认值 / D6 登记表 ↔ 文档表 / D7 decision 存量棘轮 /
  *       D8 文档列出的 MCP 领域文件 ↔ 实际注册点 / D9 禁 file:line 手抄锚点 /
- *       D11 仓库级"无 PG"否定句必须限定范围并点名披露 native 例外
+ *       D11 仓库级"无 PG"否定句必须限定范围并点名披露 native 例外 /
+ *       D12 规范面（含 AGENTS.md 与 .env.example）不得出现内网地址明文
  *
  * 边界（诚实声明）：本门只覆盖可机器判定命题。散文论述不受保护 —— 因此规范文档中
  * 不得写入定量指标与绝对断言，只允许指向本门与 config/nondeterminism.json 的指针。
@@ -711,5 +712,71 @@ describe("D11 仓库级 PG 否定句需限定范围并披露例外", () => {
     // 镜像断言的正向对照：PG_SQL_SITE 必须真能抓到查询面，否则"零执行点"是正则写坏的假绿
     expect(PG_SQL_SITE.test('        let rows = client.query("SELECT 1", &[]).await?;')).toBeTrue();
     expect(PG_SQL_SITE.test("        pool.get().await // 仅取连接做存活探测")).toBeFalse();
+  });
+});
+
+// ─── D12 规范面不得出现内网地址明文 ─────────────────────────────────────────
+// 动因（F-2 实测）：AGENTS.md 规则 3 长期把仓库远端的 SSH/HTTP 完整地址与一个已退役服务器的
+// 地址+账号抄进正文，规范件里另有 worker 的真实内网 IP 和可直接执行的 `ssh-copy-id git@…`。
+// 本门 RED 时实测 11 件 / 22 行。地址本身即攻击面（拓扑 + 端口 + 账号名），且"以某台机器的地址
+// 为准"的写法在服务器迁移后必然失真 —— R5-g 的 F-1 已经证明：靠人工记得回填是做不到的。
+// 故把"规范面不出现内网地址"变成机器判定：远端取值指向本机 `git remote -v`，节点地址用 ${LAN_*} 占位。
+// 自检语料一律用合成私网地址（192.168.99.x / 10.1.2.3），判据强度不变但不再把真实端点写回仓库。
+describe("D12 规范面不得出现内网地址明文", () => {
+  // RFC1918 私有段：10/8、172.16/12、192.168/16。四段完整匹配，故 "Node 10.0.0 以上" 不误伤。
+  const RFC1918 = /\b(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b/;
+  const LAN_ADDR = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
+
+  // 规范面 = 规范件（含 README）+ AGENTS.md + .env.example（模板会被复制到真实部署，同样不得带地址）
+  function lanScope(): string[] {
+    const extra = ["AGENTS.md", ".env.example"].filter(exists);
+    return specDocs().concat(extra.filter((f) => !specDocs().includes(f)));
+  }
+
+  it("规范面（含 README/AGENTS/.env.example）内网地址 0 命中", () => {
+    const scope = lanScope();
+    const offenders: string[] = [];
+    for (const rel of scope) {
+      read(rel)
+        .split("\n")
+        .forEach((line, i) => {
+          if (RFC1918.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
+        });
+    }
+    expect(offenders).toEqual([]);
+    // 覆盖面自证：扫描面塌掉时本条先红，不允许靠"少扫几个文件"变绿
+    expect(scope.length).toBeGreaterThan(60);
+    expect(scope).toContain("AGENTS.md");
+    expect(scope).toContain(".env.example");
+  });
+
+  it("判据自检：私网形态真的会红、回环/公网/版本号不误伤（门不得对自己免检）", () => {
+    // 三种真实出现过的形态（带端口的 SSH URL / user@host 裸址 / 表格单元），一律换成 192.168.99.x 合成值
+    expect(RFC1918.test("ssh://git@192.168.99.10:2222/agent/example.git")).toBeTrue();
+    expect(RFC1918.test("旧目标 ssh://svc@192.168.99.22/home/svc/example.git")).toBeTrue();
+    expect(RFC1918.test("| PDF Worker | 192.168.99.11 | MinerU |")).toBeTrue();
+    expect(RFC1918.test("http://10.1.2.3:3000")).toBeTrue();
+    expect(RFC1918.test("代理 172.20.10.5")).toBeTrue();
+    // 回环与监听通配是本仓正常口径，不得命中
+    expect(RFC1918.test("默认监听 http://127.0.0.1:3000")).toBeFalse();
+    expect(RFC1918.test("host = 0.0.0.0")).toBeFalse();
+    // 公网 DNS 与版本号形态不得命中（四段完整匹配，三段地址不参与）
+    expect(RFC1918.test("公共 DNS 114.114.114.114")).toBeFalse();
+    expect(RFC1918.test("要求 Node 10.0.0 以上")).toBeFalse();
+    // 阳性对照：在合成语料上 RFC1918 必须与"私网行"集合精确相等，且被更宽的 LAN_ADDR 覆盖。
+    // 取仓库真实状态做对照会让本条在脱敏完成后失去判别力（恒为 0==0）。
+    const corpus = [
+      "ssh://git@192.168.99.10:2222/agent/example.git",
+      "监听 http://127.0.0.1:3000",
+      "worker 192.168.99.11 上跑 PDF",
+      "公共 DNS 114.114.114.114",
+      "proxy 10.3.4.5:7897",
+      "要求 Node 10.0.0 以上",
+    ];
+    expect(corpus.filter((l) => RFC1918.test(l)).length).toBe(3);
+    expect(corpus.map((_, i) => String(i)).filter((i) => RFC1918.test(corpus[Number(i)]))).toEqual(["0", "2", "4"]);
+    expect(corpus.map((_, i) => String(i)).filter((i) => LAN_ADDR.test(corpus[Number(i)]))).toEqual([
+      "0", "1", "2", "3", "4",
+    ]);
   });
 });

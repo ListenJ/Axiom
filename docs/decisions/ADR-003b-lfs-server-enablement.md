@@ -7,8 +7,11 @@
 
 | 候选远端 | git-lfs 服务端 | 结论 |
 |---|---|---|
-| `internal211`（`data@192.168.0.22` 裸仓库） | 未安装：`git-lfs: command not found`、无 `lfs/` 目录、无 `git-lfs-transfer` | ❌ LFS over SSH 不可用 |
-| `internal`/`gitea`（`git@192.168.0.10:2222`，Gitea `1Panel-gitea-cbmb`） | `app.ini`：`LFS_START_SERVER = false` | ❌ 未启用（但内置 Go LFS server，可一键开启） |
+| `internal211`（退役服务器上的裸仓库） | 未安装：`git-lfs: command not found`、无 `lfs/` 目录、无 `git-lfs-transfer` | ❌ LFS over SSH 不可用 |
+| `internal`/`gitea`（Gitea 容器，SSH 端口非默认） | `app.ini`：`LFS_START_SERVER = false` | ❌ 未启用（但内置 Go LFS server，可一键开启） |
+
+> 两台服务器的地址、端口与账号按规则 11 不入库（`internal211` 已退役，禁止再按其寻址）；
+> 本机取值以 `git remote -v` 为准，私有拓扑登记在运维自持的部署配置里。
 
 ## 决定
 
@@ -32,7 +35,7 @@ Gitea 方案改动小、有 Web 管理面、镜像（gitea-ee:27.3.1）内置 LF
 ## 验证证据（2026-09-12）
 
 - **配置层**：LFS batch 端点由 404（无路由）→ 400/401（LFS handler 响应，`Content-Type: application/vnd.git-lfs+json`）；服务健康 `/api/v1/version` 200（v27.3.1）、首页 200。
-- **端到端**：临时仓库 `git lfs track *.bin` → push 到 `codex/lfs-smoke-test`，`Uploading LFS objects: 100% (1/1) 46 B` 成功；服务端落盘 `/data/git/lfs/3e/4a/2f9db74…`（oid 分桶）；删本地缓存重拉 `roundtrip_match=True`。传输走 **basic HTTP 自动回退**（SSH remote + 无 token → 回退 `https://192.168.0.10/…`，未认证即可，私有仓库读受 git-auth 保护）。
+- **端到端**：临时仓库 `git lfs track *.bin` → push 到 `codex/lfs-smoke-test`，`Uploading LFS objects: 100% (1/1) 46 B` 成功；服务端落盘 `/data/git/lfs/3e/4a/2f9db74…`（oid 分桶）；删本地缓存重拉 `roundtrip_match=True`。传输走 **basic HTTP 自动回退**（SSH remote + 无 token → 回退到 Gitea 自身的 HTTP 端点（地址不入库，规则 11），未认证即可，私有仓库读受 git-auth 保护）。
 - 清理：临时分支已删（`ls-remote` 确认无）、临时仓库/脚本已删、服务器脚本已删（保留 app.ini 备份）。
 
 ## 基线迁入 LFS 施工（2026-09-12，用户表决端点+范围）

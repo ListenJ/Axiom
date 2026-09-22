@@ -60,7 +60,7 @@ docker build -t axiom-agent .
 docker compose up -d
 ```
 
-`Dockerfile` 现包含前端构建阶段，镜像内 `public/` 为最新 SPA 产物。远端 `data@192.168.0.10` 已验证：`docker build -t axiom-agent:2026-08-08` 成功，容器内压测 40/40 通过；本地 `native:build`、`build:go`、`build:server/cli/mcp` 均通过。
+`Dockerfile` 现包含前端构建阶段，镜像内 `public/` 为最新 SPA 产物。远端 docker 主机（登录账号与地址按规则 11 不入库）已验证：`docker build -t axiom-agent:2026-08-08` 成功，容器内压测 40/40 通过；本地 `native:build`、`build:go`、`build:server/cli/mcp` 均通过。
 
 ## 7. 已知边界
 

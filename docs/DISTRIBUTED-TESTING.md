@@ -34,7 +34,9 @@
 |-----------|--------------------------|--------|-----------------|---------|---------|
 | local     | Local Dev Machine        | 本地   | -               | -       | 8       |
 | node-150  | Server ${LAN_NODE_N1}     | 远程   | ${LAN_NODE_N1}   | data    | 16      |
-| node-021  | Remote Node 192.168.0.21 | 远程   | 192.168.0.21    | git     | 12      |
+| node-021  | Remote Node ${LAN_NODE_021} | 远程   | ${LAN_NODE_021}   | git     | 12      |
+
+> 表中 `${LAN_NODE_*}` 是部署拓扑占位符：真实地址与账号按规则 11 不入库，取值由部署方自持（本机可用 `git remote -v` 与自身 SSH 配置核对）。
 
 ## PCDA 循环
 
@@ -171,11 +173,11 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
 
 # 复制公钥到远程节点
 ssh-copy-id data@${LAN_NODE_N1}
-ssh-copy-id git@192.168.0.21
+ssh-copy-id git@${LAN_NODE_021}
 
 # 验证连接
 ssh data@${LAN_NODE_N1} echo ok
-ssh git@192.168.0.21 echo ok
+ssh git@${LAN_NODE_021} echo ok
 ```
 
 SSH 执行器使用以下选项避免交互式提示：

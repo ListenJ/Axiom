@@ -19,7 +19,7 @@
 - 论文原文 PDF：52 篇 → `axiom-memory/03-Resources/papers/<Domain>/<Subdomain>/<arxiv-id>.pdf`
 - 结构化笔记：52 篇（frontmatter：title/arxiv_id/date/domain/framework/subdomain/tags/authors/pdf + Abstract + unpdf 全文提取）+ 8 篇项目模块笔记 + 1 篇清单 → `axiom-memory/00-Knowledge/<Domain>/<Subdomain>/`
 - 来源：arxiv API（2026-08 最新研究，`cat:cs.AI/CL/CV/LG/DC` 分类 + `abs:` 字段精确检索）
-- 同步：本地与 docker 服务器（192.168.0.10 容器挂载卷）均已就位；docker VaultManager notes=149
+- 同步：本地与 docker 主机（容器挂载卷；主机地址按规则 11 不入库）均已就位；docker VaultManager notes=149
 
 ## 复现（采集脚本）
 
@@ -52,4 +52,4 @@ curl -X POST http://127.0.0.1:18789/kg/build -d '{"scope":"vault"}'
 - **整理策略**：`DeterministicSearchEngine` 有界扫描 `CONTENT_SCAN_MAX=200` + Vault 去重（`dedupByTask`）+ 截断 3000 + 噪声过滤（PyMuPDF/mineru）已落地；`src/kal/knowledge-access-layer.ts` 经 `getWikiBacklinks` 与 KG 出入边 UNION 实现跨存储闭环。
 - **证据链**：`HypothesisManager` 净证据占优（`s≥3 && s>c → confirmed; c≥3 && c>s → refuted`）+ 按行 `JSON.parse` 容错已落地；`src/dre/storage/knowledge-store.ts` 支持混合证据驳斥可达。
 - **资源联动**：`ResourceBudgetManager`（`modelMemoryMB=1100 + safety 200 + kvCache 2200`）经 `clampMaxTokens` 与 `VRAM probe`（`nvidia-smi` 60s 轮询）联动，`RTX 3050 Ti 4096MiB` 下推荐 `4096` tokens，`1000MB` 时 `canRun=false` 触发降级（`DRE→vault.search` 保守放行）。
-- **双端探针**：`scripts/audit/dual-probe.ts` 7 探针（health/cron/MCP/重绑定/WS/mineru/DRE）本地 6 PASS + 远端 7 SKIP（`192.168.0.150` 不可达容错），`scripts/audit/oom-probe.ts` 5 探针（`clamp/OOM/nvidia/llama`）0 FAIL。
+- **双端探针**：`scripts/audit/dual-probe.ts` 7 探针（health/cron/MCP/重绑定/WS/mineru/DRE）本地 6 PASS + 远端 7 SKIP（远端节点不可达时的容错，地址不入库 — 规则 11），`scripts/audit/oom-probe.ts` 5 探针（`clamp/OOM/nvidia/llama`）0 FAIL。

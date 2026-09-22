@@ -147,7 +147,7 @@ outgoing:
   max_request_timeout: 6.0
   pool_connections: 8          # 全局并发上限（默认 100，压测曾把国内引擎打到 CAPTCHA）
   proxies:
-    all://: [http://192.168.0.111:7897]   # 默认网络 = 国外引擎走 LAN 代理
+    all://: [http://<proxy-host>:7897]   # 默认网络 = 国外引擎走 LAN 代理
   networks:
     direct:                    # 国内引擎专用网络：清空代理 + 强制 IPv4
       proxies: {}
@@ -155,9 +155,10 @@ outgoing:
       max_connections: 4
 ```
 
-> ⚠️ 上面的代理地址是**部署机实测值，属环境特定配置**。换环境只改这一处；
-> 无代理的部署请整段删除 `outgoing.proxies`。注意 SearXNG **不支持**在
-> `settings.yml` 里做 `${VAR}` 插值（已核实 `settings_loader.py` 只读取
+> ⚠️ 上面的 `<proxy-host>` 是**占位符**，不是可直接使用的地址：真实值只写在本机
+> `config/searxng/settings.yml` 的 `outgoing.proxies`（规则 11 不把内网地址复制进 README），
+> 属环境特定配置，换环境只改那一个文件；无代理的部署请整段删除 `outgoing.proxies`。
+> 注意 SearXNG **不支持**在 `settings.yml` 里做 `${VAR}` 插值（已核实 `settings_loader.py` 只读取
 > `SEARXNG_SETTINGS_PATH` 这类整值变量），所以它只能按环境改文件。
 
 | 引擎 | 网络 | 说明 |
@@ -745,7 +746,7 @@ bun test tests/scene-router.test.ts
 **已知局限（如实登记）**：
 
 1. `kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 跨存储引用因本仓库 SQLite **未持久化 wiki_links 表**（wiki-link 图在内存中由 `DeterministicSearchEngine` 从 Markdown 构建），暂未闭环，需后续引入持久化 wiki_links 表或注入 vault 引擎。
-2. 内网拓扑已脱敏为占位符（`${LAN_NODE_N1}` 等），真实地址/账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库不含真实内网信息（见 AGENTS.md 规则 11）。
+2. 内网地址的入库口径（2026-09-22 F-2 校正，原句"仓库不含真实内网信息"过头）：**规范面已清零** —— `docs/` 规范件、`README.md`、`AGENTS.md`、`.env.example` 不含内网地址，改由 `${LAN_*}`/`<host>` 占位符加"取值见本机 `git remote -v` / 部署配置"的指针表达，并由 `tests/doc-contract.test.ts` 的 D12 机器锁定。**脚本与配置的功能默认值、历史留痕仍保留字面量**（`scripts/**`、`config/searxng/settings.yml`、`src/**` 兜底常量、`docs/operations-log*`、`docs/reviews/**`、`docs/superpowers/**`、ADR 里的 `.10`/`.22` 短写），按裁决登记未改；换环境的权威取值在部署方自持的配置里，不在本文档。
 3. 工具总数以 `src/testing/tool-count.ts` 为单一事实源，当前 **189**（CI 与文档均引用此值，不再硬编码静态数字）。
 
 > 详细操作留痕见 `docs/operations-log.md`；任务计划与逐项结论见 `docs/superpowers/plans/2026-08-24-audit-remediation-plan.md`。

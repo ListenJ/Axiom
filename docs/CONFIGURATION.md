@@ -71,7 +71,7 @@ POST /config {"gateway":{"bind":"127.0.0.1"}}
 
 ## 6. 双端探针环境变量
 
-- `LISTEN_SSH_TARGET`：`scripts/audit/dual-probe.ts` 远端 SSH 目标，默认 `data@192.168.0.150`（`process.env.LISTEN_SSH_TARGET ?? "data@192.168.0.150"`）。
+- `LISTEN_SSH_TARGET`：`scripts/audit/dual-probe.ts` 的远端 SSH 目标，`<user>@<host>` 形态；未设置时代码回退到一台内网主机 —— 真实地址与账号按规则 11 不入库，字面量以脚本内的兜底常量为准。
 - `LISTEN_HEALTH_URL`：健康检查 URL，默认 `http://127.0.0.1:18789/health`（`process.env.LISTEN_HEALTH_URL ?? "http://127.0.0.1:18789/health"`），本地与远端复用。
 
 ## 7. 校验门禁

@@ -1,6 +1,6 @@
 # AGENTS.md — Runtime 底层规则（强约束）
 
-> 规则版本：v1.4（2026-09-14）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据；v1.3：规则 3 目标仓库由 internal211（.22，已废弃）切换为 gitea（.10，LFS 已启用）；v1.4：规则 3 目标仓库更名为 `agent/Axiom`（openclaw-fusion 与陈旧 Axiom 两仓库合一），并记录 remote 名差异。规则编号只增不插；修改本文件须遵守规则 2/3/5。
+> 规则版本：v1.5（2026-09-22）。v1.1：新增规则 12；v1.2：新增总则与任务分级/完成证据；v1.3：规则 3 目标仓库由已退役的 `internal211` 切换到 Gitea 远端（LFS 已启用）；v1.4：规则 3 目标仓库更名为 `agent/Axiom`（openclaw-fusion 与陈旧 Axiom 两仓库合一），并记录 remote 名差异；v1.5：规则 3 按规则 11 收口为"唯一远端 `internal`、不在文档中复制 IP/URL、地址以本机 `git remote -v` 为准"，推送目标由 `gitea` 改为 `internal`，并补记主干为 `main`（`master` 冻结）—— 原因：文档里的地址在服务器迁移后必然失真且无人回填，规则 11 也禁止入库文档承载私有拓扑。规则编号只增不插；修改本文件须遵守规则 2/3/5。
 > 执行顺序：读总则 0.1-0.3 → 判定任务级别 → 冻结任务契约（0.4）→ 按对应规则施工 → 按 0.5 提交完成证据。
 
 以下规则为本仓库所有任务的**强制约束**，任何 agent（含子 agent）执行任务时必须遵守。
@@ -103,13 +103,14 @@
 
 ## 规则 3：所有修改提交到 git 仓库
 
-- 目标仓库：**`agent/Axiom`**，SSH 地址 `ssh://git@192.168.0.10:2222/agent/Axiom.git`，HTTP `http://192.168.0.10:3000/agent/Axiom`（1Panel Gitea 容器，SSH 密钥已配置，LFS 已启用）。
+- 目标仓库：**唯一远端 `internal`**（`gitea` 与其同指一处 —— Gitea 容器，SSH 密钥已配置，LFS 已启用）。具体地址、端口与账号以本机 `git remote -v` 为准，**不在本文档中复制 IP/URL**（规则 11）。
   - **2026-09-14 仓库收敛**：原先并存的 `agent/openclaw-fusion` 与陈旧重复的 `agent/Axiom` 已合一 —— 前者**改名为 `agent/Axiom`**（纯改名，零内容变化：23 个 ref 逐 SHA 相同），后者改名为 `agent/Axiom-legacy-2026-09-14` 仅作归档保留（其 4 个独有提交已同时落在 `archive/axiom-old-repo-2026-09-14` 分支）。
-  - **本地 remote 名**：规则要求 `gitea`，实际为 `origin`（URL 已指向上面的 `agent/Axiom`）。差异已记录，未擅自改名以免影响既有脚本；如需严格对齐执行 `git remote rename origin gitea`。
-  - 历史：旧目标 `internal211`（`ssh://data@192.168.0.22/home/data/openclaw-fusion.git`）自 2026-09-12 起**废弃**——.22 服务器停用、无 git-lfs 且无 sudo；gitea（.10）已确认为其完整超集（全分支 + tags + 105 张 LFS 基线对象，见 ADR-003b 与 ops log 2026-09-12）。`internal211` remote 已从本地配置**移除**（避免误推废弃服务器）；历史 URL 见上，如需恢复执行 `git remote add internal211 <url>`。
+  - **本机 remote 实测**：`internal` 与 `gitea` 指向同一远端（其 URL 路径仍是仓库改名前的 `agent/openclaw-fusion`，服务端改名后按重定向解析），推送目标取 `internal`；`origin` 指向外部托管站点，**禁止向 `origin` 推送**（规则 9/11）。v1.4 之前本文档写的"规则要求 `gitea`，实际为 `origin`"是仓库收敛前的旧事实，已作废。
+  - 历史：旧目标 `internal211`（另一台服务器的裸仓库）自 2026-09-12 起**废弃** —— 该服务器停用、无 git-lfs 且无 sudo；现远端已确认为其完整超集（全分支 + tags + 105 张 LFS 基线对象，见 ADR-003b 与 ops log 2026-09-12）。`internal211` remote 已从本地配置**移除**（避免误推废弃服务器）；禁止再按其寻址，其地址与账号也不在本文档中复制（规则 11）。
   - 历史：旧仓库名 `openclaw-fusion` 自 2026-09-14 起不再使用；`agent/Axiom-legacy-*` 只读归档，禁止向其推送。
-- 禁止直接在 `main`/`master` 上提交业务修改；新分支默认 `codex/<任务简述>`，提交后推送 `gitea <分支>`。
-- 每个任务的修改完成后：`git add <仅本任务相关文件>` → `git commit` → `git push gitea <当前分支>`。
+- 主干分支是 `main`；`master` 是已冻结的旧线（仅存在于 `main` 的历史中），只作历史锚点，不再新增提交，也不再作为推送目标。
+- 禁止直接在 `main`/`master` 上提交业务修改；新分支默认 `codex/<任务简述>`，提交后推送 `internal <分支>`。
+- 每个任务的修改完成后：`git add <仅本任务相关文件>` → `git commit` → `git push internal <当前分支>`。
 - **只暂存本任务相关文件**，不得把工作区中无关的未提交改动一并提交；提交前用 `git diff --cached --stat` 核对暂存范围。
 - 提交信息写清任务内容；规则文件变更须写明变更目的。
 - 推送后用 `git status -sb` 或 `git ls-remote` 核对远端与本地一致；未推送成功不得声称完成。
@@ -194,7 +195,7 @@
 - `git rebase -i` / `git add -i`（交互式操作，agent 无法可靠处理）
 - 对 `main` / `master` 分支直接 force push
 
-**例外**：上述禁令仅在用户明确指示且不涉及 `main`/`master` 时解除，并在执行前复述即将运行的命令请用户确认；对 `main`/`master` 的 force push 始终禁止。若当前环境无法获得交互确认（如审批策略禁止），不得执行例外操作，停止并报告。规则 3 的正常提交流程（`add` → `commit` → `push gitea <分支>`）不受此限。
+**例外**：上述禁令仅在用户明确指示且不涉及 `main`/`master` 时解除，并在执行前复述即将运行的命令请用户确认；对 `main`/`master` 的 force push 始终禁止。若当前环境无法获得交互确认（如审批策略禁止），不得执行例外操作，停止并报告。规则 3 的正常提交流程（`add` → `commit` → `push internal <分支>`）不受此限。
 
 - `git commit --amend` / `git rebase` 仅限**未推送**的本地提交；已推送分支只追加新提交，禁止改写已发布历史。
 

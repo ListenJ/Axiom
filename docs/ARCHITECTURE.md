@@ -298,11 +298,15 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 系统采用三机分布式架构进行知识采集与处理：
 
-| 节点 | IP | 角色 | 硬件 |
+| 节点 | 地址（部署参数，不入库） | 角色 | 硬件 |
 |------|-----|------|------|
-| 编排器 | 192.168.2.121 | Bun/Node 运行时 | Windows, 无 GPU |
-| PDF Worker | 192.168.2.11 | MinerU + FastAPI (CPU) | E5-2450, Intel X520 万兆 |
-| LLM Worker | 192.168.2.150 | 推理服务 (预留) | RTX 3050, Python 3.14 |
+| 编排器 | `${LAN_ORCHESTRATOR}` | Bun/Node 运行时 | Windows, 无 GPU |
+| PDF Worker | `${LAN_PDF_WORKER}` | MinerU + FastAPI (CPU) | E5-2450, Intel X520 万兆 |
+| LLM Worker | `${LAN_LLM_WORKER}` | 推理服务 (预留) | RTX 3050, Python 3.14 |
+
+> 三机地址与登录账号属部署拓扑，按规则 11 不入库（占位符只表达"哪个角色在哪台机"，不表达可寻址信息）。
+> 脚本/代码侧的字面量默认值（`scripts/deploy-pdf-worker.sh`、`src/cli.ts` 的 `--pdf-worker` 示例）本轮只登记未改，
+> 换环境时以参数或环境变量覆盖。
 
 ### 通信协议
 

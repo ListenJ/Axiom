@@ -328,13 +328,15 @@ event: error    → { type: "error", message }
 ### 5.3 知识采集流（三机分布式）
 
 ```
-编排器 (192.168.2.121) → 提交任务
-  → PDF Worker (192.168.2.11, MinerU + FastAPI)
+编排器 → 提交任务
+  → PDF Worker (MinerU + FastAPI)
     POST /v1/submit → { task_id, status: "queued" }
     GET  /v1/status/{task_id} → { status, progress, result }
-  → LLM Worker (192.168.2.150, 推理服务)
+  → LLM Worker (推理服务)
   → 结果回写 → knowledge/pipeline.ts → KG 实体抽取 → SQLite
 ```
+
+> 三机地址与账号按规则 11 不入库；角色↔占位符的对应关系见 `docs/ARCHITECTURE.md` §10。
 
 ### 5.4 DRE 认知管道
 
