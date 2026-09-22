@@ -1988,4 +1988,4 @@
 - **一条文档落差**：`docs/SECURITY-MEASURES.md` §2.7.5 称 6 个裸写点，实测 `src/memory/knowledge-graph-builder.ts` 对 `fs.`/`writeFile`/`mkdir`/`Database`/`INSERT` **零命中** ⇒ C 的真实范围是 **4 点**（`skill-quality.ts:108,111`、`skill-promoter.ts:120,121`、`vault-manager.ts:323,345`、`src/utils/model-output-store.ts:295,304`）。按 F-2 口径只登记不改文档。
 - **偏差记录（含两处本会话自查纠错）**：①设计稿初稿提出"`src/` 内不得出现裸 `fetch(`、豁免清单为空则通过"的门，落盘前实测该口径命中 **26 个文件**（去 `proxy-fetch.ts` 自身 25）⇒ 该门**立不起来**且违反规则 1，**提交前**改为仓库已有先例的棘轮门（对照 doc-contract D7），并在文中明写这次纠错；②"18 个 proxyFetch 消费方"是**导入面**不是出网点数，已在 §3.1 限定口径，并补出 D-1 的自身盲区（25 个裸 fetch 文件不经 proxyFetch，翻默认值对它们无效）；③工具链事实更新：本机 `bun 1.3.14`（等于 CI 钉版）、`go1.26.0`、`cargo1.97.1` ⇒ 旧结论"Go 编不过 / cargo 不在 PATH / 性能只能估算"是退役机状态，已作废。
 - **未做**：任何 `src/` 改动、夹具修复、doc-contract 门的分隔符修复（均待 §6 四项裁决后另起提交）。
-- **Commit**：待回填
+- **Commit**：b7a11c2a
