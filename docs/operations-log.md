@@ -2301,3 +2301,15 @@
 - **偏差与未做**：没重跑 `smoke:linux` 的结论（链式作业尚未走到那步，走完后另条留痕）；`.tmp/winexe/` 因先前 shell 的工作目录留在里面暂时删不掉（`Device or resource busy`，与 `.tmp/go386` 同一类），位于 gitignore 内不影响仓库。
 - **回滚**：单提交 revert。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+
+## 2026-09-24 04:47 +0800 — T1 记录：Linux 侧唯一可用产出路径是容器内编译，`--platform=linux` 在本机必失败
+
+- **任务**：把上一刀链式作业里暴露的 Linux 重建失败根因固化，避免下一个人重走同一条死路。级别 T1（只改 ADR-009）。
+- **工具**：主 agent Bash（`tasklist`、`docker run`、`find -printf`）、Grep/Read。
+- **实测**：`--target=bun --platform=linux` ⇒ 成功 0 / 失败 6，逐条 `Failed to extract executable for 'bun-linux-x64-v1.3.14'. The download may be incomplete.`（交叉编译要当场下载目标平台运行时，本机这条下载不完整）。同一代码容器内 `bun build … --compile --target=bun-linux-x64` ⇒ `[4.563s] compile`、产出 105,199,744 B 新二进制（时间戳从 22:28 变 03:46）。
+- **自身失误（记下来）**：链式脚本没加错误门，第 1 步失败后仍执行了 `package:linux`；它因为**强制要求 `--bin`** 而如实退出，否则就会拿 22:28 的旧二进制打出三个"看似新"的包。⇒ 链式作业必须逐步判退出码，不能假设下游会拦住。
+- **操作**：`docs/decisions/ADR-009-...md` 新增"Linux 侧只能在容器里编译"节，写清三步正确次序与 `MSYS_NO_PATHCONV=1` 的适用边界。
+- **验证结果**：新二进制 mtime `03:46`、尺寸与旧件同为 105,199,744 B（同目标同版本，尺寸一致属预期）；包重建与 `smoke:linux` 的结果在下一条记录里。
+- **偏差与未做**：没有把"容器内编译"接进 `matrix.ts`（那是构建流程改动，需要先量清 `--platform=linux` 在网络可用环境下是否本就能过 —— 若是，则该修的是网络前提而不是脚本）。
+- **回滚**：文档单提交 revert。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

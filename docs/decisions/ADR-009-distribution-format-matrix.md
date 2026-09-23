@@ -84,3 +84,24 @@ bun run smoke:linux            # 或 --only=deb|rpm|appimage 单跑
 **顺带查出一处版本串不一致（未修）**：`/health` 的响应体里 `version` 是硬编码 `"2.2.0"`（`src/routes/health.ts:38`，另有 `src/memory/bootstrap.ts:79` 与 `src/cli/setup.ts:134` 的横幅同值），而 `package.json` 与包名、deb/rpm 版本都是 **4.0.0**。后果：任何拿 `/health` 的 `version` 做发布校验的流程都会判红或误判成旧版。这是**发布面自述与实际版本脱节**，属独立缺陷，本 ADR 只登记不顺手改（改哪几处、是否改读 `package.json` 需先定口径）。
 
 **仍成立的边界**：Bun 无 32 位 Windows 目标 ⇒ TS 应用本体不做 32 位，32 位只对 `runtime-go/` 的 Go 服务承诺；macOS 无机器不分发。Windows 侧只有裸 exe，无安装包格式，故"安装/卸载冒烟"不适用，冒烟证据形态与 deb/rpm/AppImage 不同，不可互相替代。
+
+### Linux 侧只能在容器里编译：`--platform=linux` 在这台机上必失败（2026-09-24 实测）
+
+`bun run scripts/build/matrix.ts --target=bun --platform=linux` 的结果是 **成功 0 失败 6**，逐条报错为
+`Failed to extract executable for 'bun-linux-x64-v1.3.14'. The download may be incomplete.`（aarch64 同）。
+机制：交叉编译需要**当场下载目标平台的 Bun 运行时**再解包，本机这条下载不完整 ⇒ 六个目标全灭。
+对照：同一份代码在容器里 `docker run … oven/bun:1.3.14 bun build src/main.ts --compile --target=bun-linux-x64`
+→ `[4.563s] compile`，产出 105,199,744 B 的新二进制。**这就是约束 #4 那条"容器内原生编译"的真实用途** ——
+它不只是"更快"，而是这台机上唯一可用的 Linux 产出路径。
+
+因此发布流程里 Linux 侧的正确次序是：
+1. `MSYS_NO_PATHCONV=1 docker run --rm -v D:/openclaw-fusion:/app -w /app oven/bun:1.3.14 bun build src/main.ts --compile --target=bun-linux-x64 --outfile dist/bun/linux/x64/axiom-server`
+   （`MSYS_NO_PATHCONV=1` 只对**手打**的 docker 命令必要，见约束 #5）；
+2. `bun run package:linux -- --bin dist/bun/linux/x64/axiom-server` —— **`--bin` 是必填**，
+   不给就如实退出 `找不到 linux 二进制`。这条 fail-closed 是有意的：它拒绝在缺输入时拿旧二进制打包。
+3. `bun run verify:artifacts` 与 `bun run smoke:linux`。
+
+**踩到并如实记下的自身失误**：我第一次串这三步时用了 `--platform=linux`（走不通的路径），并且链式脚本没加
+错误门（无 `set -e`），于是第 1 步失败后第 2 步仍被执行 —— 幸好 `package:linux` 自己要求 `--bin` 才肯动手，
+否则就会拿 22:28 的旧二进制重打出三个"看起来是新"的包。⇒ **链式作业必须逐步判退出码**，
+"下游会自己发现"不是可靠假设；这里下游确实发现了，但那是巧合而非设计保证。
