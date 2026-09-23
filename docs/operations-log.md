@@ -2377,3 +2377,12 @@
 - **偏差与未做**：Windows 三入口点本轮只做**构建**未再逐个实跑（04:45 条已有那三份的实跑证据；版本刀改了横幅与 CLI 字符串，严格说 Windows 侧的运行证据已落后一刀 —— 下一刀应重跑 `axiom-cli.exe --help` 与 `/health` 再宣称一致）。链未接进 CI（`dist/` 不入库）。
 - **回滚**：无源码改动，记录条目可直删。
 - **Commit**：ef3c14c9
+
+## 2026-09-24 04:19 +0800 — T1 复跑：版本刀后的 Windows 产物实跑，自述版本已与包版本一致
+
+- **任务**：补上一条我自己标注的落后 —— 门控链重建了 Windows 三份产物但未重跑，而版本刀改过横幅与 CLI 字符串。级别 T1（只跑产物 + 记录）。
+- **验证结果**：`axiom-cli.exe --help` 出真实用法屏；`axiom-server.exe` `GET /health` → **200**，`version = 4.0.0`、`checks.database=true`、`checks.vault=true`，横幅实读 `Axiom Runtime v4.0.0` ⇒ **发出去的 Windows 二进制自述版本与包版本一致**（此前是 2.2.0 对 4.0.0）。
+- **进程卫生（吸取本轮的错）**：清理只按映像名定向杀自己的探测进程（`taskkill //F //IM axiom-server.exe //T`），`tasklist` 复查残留 **0**；不再用 `//IM bun.exe` 群杀（那会连带杀掉并行作业，本轮已因此作废一份串行读数）。
+- **未做**：`axiom-mcp.exe` 本轮未重跑（其证据仍是 04:45 条：起服务、注册 `mind_synapse_*`/`browser_*`、绑 :3001、日志自标 auth fail-closed）。
+- **回滚**：无源码改动。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

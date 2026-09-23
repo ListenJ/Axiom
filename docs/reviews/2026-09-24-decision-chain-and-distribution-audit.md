@@ -46,3 +46,13 @@
 - Laya 那份 `laya-local-decision-model` 在 **用户级目录** `~/.qoder/skills/laya-local-decision-model/SKILL.md`（6,350 B），**仓库内对它零引用**（`grep -rln "laya-local-decision-model"` 命中 0）。
 - ⇒ 该 skill 既不在 git 历史里，也不在 deb/rpm/AppImage 的文件清单里。换机器或全新克隆会得到：决策链代码在、运行手册不在。
 - 是否应把它随仓库分发属设计选择（用户级技能 vs 项目内置技能两种作用域本就不同），交裁决；本报告只登记事实，不擅自搬迁。若决定入库，需同时决定它是否进包（进包则要改 `linux-bundles` 的文件清单）。
+
+## 六、版本刀之后的 Windows 复跑（2026-09-24 04:18）
+
+上一节记录里我标过一处自认的落后：门控链重建了 Windows 三份产物但没再逐个实跑，而版本刀动过横幅与 CLI 字符串。已补齐：
+
+- `axiom-cli.exe --help` → 真实用法屏（首行 `Axiom AI Agent CLI`）。
+- `axiom-server.exe` → `GET /health` **200**，`version = 4.0.0`（**发出去的 Windows 二进制现在自述与包版本一致**），`checks.database = true`、`checks.vault = true`；横幅实读 `Axiom Runtime v4.0.0`。
+- 收尾按映像名定向 `taskkill //F //IM axiom-server.exe //T`，`tasklist` 复查残留 **0**（不再重犯"群杀 bun.exe"那次错误：只杀自己的探测进程，且用 `tasklist` 计数确认）。
+
+⇒ 首节表格里的 `Windows exe 64 位` 一行，证据基线已推进到含版本刀的产物。`axiom-mcp.exe` 本轮未重跑（其证据仍是 04:45 条那次：起服务、注册工具、绑 :3001、auth fail-closed）。
