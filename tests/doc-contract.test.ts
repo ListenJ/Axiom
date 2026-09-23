@@ -72,8 +72,12 @@ function mdFiles(dir: string): string[] {
   const out: string[] = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, e.name);
+    // 统一成正斜杠相对路径再返回：所有排除式（HISTORY 的分隔符字符类、
+    // `startsWith("docs/superpowers/")`、登记表里的 switchFile）都按 POSIX 写，
+    // Windows 上返回反斜杠会让它们**全部匹配不上** ⇒ 豁免面静默失效、
+    // 证据件被当规范件扫，本门在该平台上从此说不出话（只能靠人工比对红名单）。
     if (e.isDirectory()) out.push(...mdFiles(full));
-    else if (e.name.endsWith(".md")) out.push(path.relative(repoRoot, full));
+    else if (e.name.endsWith(".md")) out.push(path.relative(repoRoot, full).replace(/\\/g, "/"));
   }
   return out;
 }
@@ -107,7 +111,7 @@ function walkTs(dir: string): string[] {
     if (e.name === "_archive" || e.name === "node_modules") continue;
     const rel = path.join(dir, e.name);
     if (e.isDirectory()) out.push(...walkTs(rel));
-    else if (rel.endsWith(".ts") && !rel.endsWith(".d.ts")) out.push(rel);
+    else if (rel.endsWith(".ts") && !rel.endsWith(".d.ts")) out.push(rel.replace(/\\/g, "/"));
   }
   return out;
 }

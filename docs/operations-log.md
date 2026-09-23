@@ -2130,3 +2130,16 @@
 - **偏差与未做**：①新接线只在 `package:linux` 成功路径末尾执行，未做失败路径刷清单（失败即 die，清单本就不该记半成品）；②`package:linux` 端到端重跑（约 7 分钟 Docker 构建）未做，本轮用直接调用生成器验证同一函数，等价但少了那一段真实产物刷新时序；③Windows 侧仍无安装包形态，清单里的 exe 是裸文件。
 - **回滚**：单提交 revert 即回到"清单只由 build:matrix 产出"。
 - **Commit**：5f52fe6a
+
+## 2026-09-24 01:40 +0800 — T2 修门禁本身的平台性缺陷：doc-contract 在 Windows 上豁免面静默失效，13 条恒红里 6 条是它自己造出来的
+
+- **任务**：目标要求"没有错漏和完美运行"。验收判据一直被写成"§1 的 17 条稳定红不得增大 + 人工比对红名单"，而"只能人工比对"这件事本身就是门的缺陷。查其机制。级别 T2（改的是门自身，不改任何被门保护的口径内容）。
+- **工具**：主 agent Grep/Read/Edit、`bun test tests/doc-contract.test.ts` 前后差分、`git ls-files` / `git check-ignore` 定性。
+- **根因（一处，命中两类判据）**：`mdFiles()`/`walkTs()` 用 `path.relative`/`path.join` 返回**反斜杠**相对路径，而本门所有排除式都按 POSIX 写 —— `!f.startsWith("docs/superpowers/")`、`HISTORY` 的字符类 `[\/._-]`（只含正斜杠）、登记表里的 `switchFile` 值。Windows 上这些排除**全部匹配不上** ⇒ 豁免面静默失效，证据件/设计件被当规范件扫。上一轮我只把它登记成"本机 chronic 红，只看差分"，没去修判据。
+- **操作**（文件级）：`tests/doc-contract.test.ts` 的 `mdFiles` 与 `walkTs` 各加一处 `.replace(/\\\\/g, "/")` 归一并注明原因；未改任何正则、未动任何豁免名单、未改任何文档内容。
+- **验证结果（前后差分）**：`bun test tests/doc-contract.test.ts` 红条 **13 → 7**，变绿 6 条（D1 禁语、D1 哨兵在册、D11、D3 tombstone、D3 markdown 链接、D7 未登记非确定符号），**新增红 0 条**；`bun run lint` exit 0；`outbound-fetch-ratchet` + `architecture-integrity` 共 39 pass / 0 fail 未受影响。**稳定红基线因此由 17 更正为 11**（设计方案 §5 表里的"17"与"13 条 chronic 红"的分解需按下一刀重述）。
+- **余下 7 条的定性（不再是平台假红，是门第一次真正说话）**：① `docs/archive/*.md` 引发的 D12 内网地址、D3 反引号路径、D4 手抄行数×2、D9 file:line 锚点、D1 markdown 文本完整 —— 实测该目录**被 gitignore 且 `git ls-files` 命中 0**，即仓库门在扫不入仓的本地归档残留，属另一类机械性范围错误（另刀处理，不与本刀混）；② D2「唯一权威」是**真实内容发现**：`docs/MCP_TOOLS_GUIDE.md`、`docs/PHILOSOPHY.md`、`docs/AXIOM-ARCHITECTURE.md` 三处自称（判据要求 ≤1 且落在 AXIOM-ARCHITECTURE.md），修法是改口径归属而非扩豁免。
+- **为什么不算"为凑绿改判据"**：本刀只把路径形态统一成正斜杠，让**已写好的**排除式按设计生效；没有放宽任何一条判据的语义，也没有新增豁免项。反向证据是 D0 那组"扫描范围自证"用例未变绿未变红 —— 若排除面被写宽，它会先叫。
+- **偏差与未做**：①`docs/archive/` 范围错误未在本刀修（要同时更新 D0 的在册清单，属独立一刀）；②D2 的三处自称未改口径（涉及规范件权威归属表述，按规则 1 需要单独任务与用户确认哪份是权威）；③设计方案 §5 表的基线数字 17 待按 11 重述。
+- **回滚**：单提交 revert 即回到"13 条恒红、只能人工比对差分"。
+- **Commit**：`<待回填>`
