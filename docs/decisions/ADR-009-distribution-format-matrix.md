@@ -11,7 +11,7 @@
 | 2 | **Go 可以出 32 位 Windows** | `CGO_ENABLED=0 GOOS=windows GOARCH=386 go build ./cmd/pcdad` → exit 0，产出 15,054,336 B `pcdad.exe` |
 | 3 | **bun 交叉编译 linux 在这台机器上不可用** | `--platform=linux` → `Failed to extract executable for 'bun-linux-x64-v1.3.14'`；加 `HTTPS_PROXY` 后同样失败 ⇒ 不是网络单点问题 |
 | 4 | 容器内原生编译可绕过 #3 | `docker run … oven/bun:1.3.14 bun build src/main.ts --compile` → `[3.127s] compile dist/bun/linux/x64/axiom-server`，105,199,744 B |
-| 5 | Git Bash 会篡改容器参数里的绝对路径 | `-w /app` 被改成 `C:/Program Files/Git/app` → docker 报 working directory invalid；须 `MSYS_NO_PATHCONV=1` |
+| 5 | Git Bash 会篡改容器参数里的绝对路径 | `-w /app` 被改成 `C:/Program Files/Git/app` → docker 报 working directory invalid；须 `MSYS_NO_PATHCONV=1`。**边界已实测**：该改写只发生在经 Git Bash 的调用上 —— `linux-bundles.ts`/`smoke-linux.ts` 用 `Bun.spawn` 直接给 argv，不经 shell，实测带 Windows 绝对路径的 `-v D:\…\appdir:/stage` 正常挂载并构建成功。⇒ 这个前缀是**人手敲 docker 时的前置**，不是脚本缺陷；脚本内自检已判定为不需要（为不会发生的路径加检查属规则 1 禁止的投机防御） |
 | 6 | Bun 在 Windows 不经 shell 时不补 `.exe` | 探测 `["docker", …]` 恒失败；`docker.exe` 才可（`wsl.exe` 同理，故 Laya 链路一直是通的） |
 | 7 | `{{.ServerVersion}}` 只属于 `docker info` | `docker version -f '{{.ServerVersion}}'` → `can't evaluate field … in type system.versionInfo` |
 | 8 | appimagetool 有三个硬依赖 | 缺 `file` → `file command is missing but required`；`.desktop` 只在 `usr/share/applications/` 下 → `Desktop file not found`；desktop 无 `Icon=` 或根目录无 `<name>.png` → `Icon entry not found in desktop file`。⇒ 容器需装 `file`（`squashfs-tools` 供解包核验），且 `.desktop` 与 `axiom.png` 都要在 AppDir 根 |
@@ -50,10 +50,12 @@
 | `dist/pkg/axiom_4.0.0_amd64.deb` | 26,640,924 B | `apt-get install` 进 `debian:stable-slim` 成功；`dpkg -s axiom` 的 `Depends: ca-certificates` 顶格生效；启动后 `GET /health` 在 2 次轮询内返回 **200** 且 `status:"ok"` |
 | `dist/pkg/axiom-4.0.0-1.x86_64.rpm` | 28,491,464 B | `rpm -ivh` 进 `fedora:latest` 成功（`rpm -q axiom` → `axiom-4.0.0-1.x86_64`）；`rpm -ql axiom` 只有 5 条：`/usr/bin/axiom`、`/usr/share/applications/axiom.desktop`、两条 hicolor 目录、`axiom.png`，无系统目录所有权；`GET /health` **200** |
 | `dist/pkg/Axiom-4.0.0.x86_64.AppImage` | 38,425,792 B | `--appimage-extract` 解包后 `AppRun` 与 `usr/bin/axiom` 均在位且可执行（`file` 判为 `ELF 64-bit LSB executable, x86-64`，105,199,744 B）；执行 `./AppRun` 后 `GET /health` **200** |
-| `dist/bun/windows/x64/axiom-server.exe` | 已产出 | `bun run scripts/build/matrix.ts --target=server --platform=windows` ✓，并生成 `dist/CHECKSUMS.txt`。**未做 Windows 侧的安装/运行时冒烟**（无对应包格式，exe 直接执行未在本轮验证） |
+| `dist/bun/windows/x64/axiom-server.exe` | 110,041,088 B | **已实测运行**：`sha256sum` 与 `dist/CHECKSUMS.txt` 逐字一致；在空目录里以默认 env 直跑该 exe，`GET /health` 在 2 次轮询内返 **200** 且响应体含 `status:"ok"`，工作目录自建 `data/`、`plugins/`。仍是**裸执行**而非安装包冒烟（Windows 侧无包格式），且未验卸载/服务注册（本就不提供） |
 | Windows 32 位（Go 服务） | 已验证可编 | 约束 #2；矩阵已加 `windows/386` 目标 |
 
-一次跑齐三种格式的验收命令（本轮 `3/3 通过`）：
+> **Windows 与 Linux 包的一个实测行为差异**（登记以免被当成等价产物）：同一个 `main.ts` 编译出的入口，Windows exe 启动日志为 `[Edition] Detected: cloud`，而 Linux 容器内为 `[Edition] Detected: local` + `[NativeBridge] Binary not found: ./native/target/release/axiom-local`。差异来自 `native/target/release/` 在 Windows 上有构建物、在容器里没有 ⇒ **三种 Linux 包实际跑的是不带动画核的降级形态**。`detectEdition` 的这一分支目前不受任何测试覆盖（本轮未补，属 D 组之外的事）。
+
+一次跑齐三种 Linux 格式的验收命令（本轮 `3/3 通过`）：
 
 ```bash
 bun run package:linux -- --bin dist/bun/linux/x64/axiom-server

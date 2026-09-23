@@ -2078,3 +2078,16 @@
 - **偏差与未做**：①D-A 是**扫描门不是执行点**，不得读作"出网已受判"，`net.outbound` 的实际强制仍属 D-B；②未覆盖 WebSocket / 子进程自行联网等非 `fetch` 通道，只确认 `http.request` 在 `src/` 内仅存在于 `proxy-fetch.ts` 一处（无旁路）；③`knowledge-port.ts` 与 `synapse/engine.ts` 两条死路径只做登记不做删除（删文件须走规则 4 归档，且不在本刀验收面内）；④D-B 前置的 allow-list 载体与 ADR-007 的 P-1/P-2/P-3 仍待用户裁决。
 - **回滚**：本刀单提交，`git revert` 即撤掉门与清单；未触碰任何 `src/` 运行时文件。
 - **Commit**：fd2cea44
+
+## 2026-09-24 01:05 +0800 — T1 补口：Windows x64 产物做真机运行时冒烟；两条历史"未做"按实测结案
+
+- **任务**：把 ADR-009 里两处挂着的不做项结案。级别 T1（文档 + 一次性探针，无 `src/` 改动）。冻结契约：验收 = win-x64 exe 实测能起并返 `/health` 200；两条旧"未做"要么做掉、要么给出可复现的"不该做"理由。
+- **工具**：主 agent Bash（`sha256sum`、`netstat`）、一次性探针 `.tmp/win-smoke.ts`（Bun.spawn 起 exe → 轮询 → kill，跑完即删，未入库）。
+- **操作**（文件级）：`docs/decisions/ADR-009-distribution-format-matrix.md` ①产出表把 win-x64 行从"已产出/未做冒烟"改写为实测结果（110,041,088 B、sha256 与 `dist/CHECKSUMS.txt` 逐字一致、2 次轮询内 200 且 `status:"ok"`、自建 `data/`+`plugins/`），②新增一条 Windows/Linux 行为差异登记，③约束 #5 补实测边界并把"脚本内自检 MSYS"判为不做。
+- **验证结果**：win-x64 冒烟 `HEALTH 200 at poll 2` + `status_ok_in_body=true`，退出码 0。差异事实：Windows exe 启动为 `[Edition] Detected: cloud`，Linux 容器为 `local` + `[NativeBridge] Binary not found` ⇒ **三种 Linux 包跑的是无 native 的降级形态**，且 `detectEdition` 这条分支目前无测试覆盖（本轮未补，登记为后续）。`doc-contract` 仍 22 pass / 13 fail（ chronic 红不变）。
+- **两条旧"未做"的结案方式**：①**MSYS 脚本内自检 → 判定不做**，理由是可复现的：`Bun.spawn` 不经 shell，带 Windows 绝对路径的 `-v` 实测正常挂载并完成构建，MSYS 改写只发生在人手敲 docker 时；为不会发生的路径加检查属规则 1 禁止的投机防御。②**Windows 侧运行时冒烟 → 已做**（上段），但仍**未**做安装包形态冒烟（Windows 侧本就不产出包格式），这点在 ADR-009 表里写死为"裸执行"。
+- **顺带清账**：`.tmp/backups/` 内本轮 4 份 + 上轮 3 份备份在验证通过后全部删除（规则 2 第 5 步）；被删文件的现态均已提交推送，`path-safety.ts` 的旧版另有 `archive/safefs-single-source-2026-09-23/` 与 git 历史（f748107b）双保险。`dist/pkg/` 下探针误写的两份 server log 已清。
+- **对规则 5 口径的一处如实澄清**：上一轮"grep 占位符 = 0"的读数指的是 **Commit 字段**无占位；本轮 `grep -c "<待回填>"` 恒有 1 处命中，落在 v1.6 变更条目的**散文引文**里（描述"09-14 条目的 `<待回填>` 已由回填写成 2adc74f7"这件事），不是未回填的字段，故不改。
+- **偏差与未做**：①win-x64 是裸 exe 冒烟，无安装/卸载面；②`detectEdition` 的 cloud/local 分支无测试（新增测试属另一刀，不在本 T1 范围）；③Go 32 位服务仍只验过"可编"，未验运行。
+- **回滚**：单提交 revert 即回；无代码改动。
+- **Commit**：`<待回填>`
