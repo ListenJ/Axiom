@@ -1999,3 +1999,14 @@
 - **验证结果**：`bun test tests/unit/tool-mode-gate.test.ts` → **10 pass / 0 fail**（退出码 0）。全量 `bun run test` 连跑三次：**28 → 17 → 17**，第 2、3 次失败集 `comm` 双向**全空**（逐条相同），第 1 次独有的 11 条中仅 2 条由本次修复消除，其余 **9 条为跨运行抖动**（压测/网络/日志类：`AtomEngine 5000`、`Mega 500`、`E.4 延迟分位`、`C.5 层管道`、`CognitivePipeline throughput`、`D.1 熔断`、`LLMClient` 网络×2、`Logger`）。`bun x tsc --noEmit` → **exit 0**。
 - **偏差记录**：①首跑 #1 的"28 fail"**不可作为基线**——真实稳定基线是 17 条（13 doc-contract Windows 假红 + 2 `S-3 safeFs 符号链接` EFAULT 本机不可验证 + 2 其他）。这条直接改写了 C/D 的验收协议：判据必须是"17 条稳定红不增大 + 新测试同机跑 ≥3 次取交集"，单次运行不作数；②我最初把 11 条消失全归给这次修复，重跑第三次才分清 2 真修 / 9 抖动——**一次对照不足以区分修复与抖动**，已把该口径写进设计稿 §5；③备份文件 `.tmp/backups/docs/ops-a.md` 与 `tests/unit/tool-mode-gate.test.ts` 副本在验证通过后删除。
 - **Commit**：待回填
+
+## 2026-09-23 04:50 +0800 — docs(design) 更正：撤回 D-3① 推荐，并把基线改写成三次运行的稳定红口径
+
+- **任务**：T1 文档更正（同一条设计稿的自检纠偏，不新增施工）。
+- **工具**：Bash（`bun` 内联脚本实跑 `isSafeUrl`、`grep` 计数、三次 `bun run test` 集合差分）、Edit。
+- **操作**（文件级）：`docs/superpowers/plans/2026-09-23-safefs-and-outbound-enforcement-design.md` —— ①§3.2 撤回初稿 D-3 的第①步（把 `edge-embeddings` 接 `isSafeUrl`/`proxyFetch`），改为 D-A 棘轮门（零行为变更，可立即做）+ D-B 收口（前置 allow-list 载体）；②§1 把"28 条红的分类表"整张删掉，替换为三次运行的实测集规模与稳定红/抖动拆分；③§4 夹具状态从"建议先修"改为"已修并验证"，并补全四个夹具的期望与处置（哪些没动、为什么）；④§5 判据行改写；⑤§6 把已被实测回答的问题（C-Q 落点可否在 cwd 外、F-Q 夹具）标为已定，只剩 C 选型与 allow-list 载体两问。
+- **撤回的证据**：`src/local-llm/edge-embeddings.ts:16` 的默认端点是 `http://127.0.0.1:9001`，实跑 `isSafeUrl` 得 `DENY http://127.0.0.1:9001/v1/embeddings`、`DENY http://localhost:9001/x`、`ALLOW https://api.openai.com/v1/embeddings`、`DENY http://192.168.0.150:9/v1` ⇒ 套守卫会把它自己的默认配置判死；又因该模块"不可用/超时/非 2xx 一律返回 null 不抛错"，失败形态是**边缘语义搜索静默失效**——与 C 组最怕的失败形状同一种。
+- **另一条已定事实**：`OBSIDIAN_VAULT_PATH` / `DATABASE_PATH` 默认为 cwd 相对但可被运维改成任意绝对路径（`.env.example:142,144`），无 `AXIOM_HOME` 收口 ⇒ **C 的根必须可配**，这直接把"C-1 各站点自证锚点"排除出候选。
+- **验证结果**：文档改动不影响代码，`tsc` 与三门结果沿用上一条（exit 0 / 16-16 / 稳定红 17）。
+- **偏差记录**：初稿在推荐位上写了一个未经实跑的方案（D-3①），靠"它是个旁路所以套守卫更安全"的直觉成立、被一次 4 行的 `isSafeUrl` 实测推翻。教训：**给安全收口方案定价前，先拿被保护对象的默认配置回代判据**——否则很可能把功能判死而不是把洞堵住。已按此把 D 的步序改为"D-A 不需政策先做、D-B 前置 allow-list"。
+- **Commit**：待回填
