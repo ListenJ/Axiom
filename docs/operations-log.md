@@ -2033,3 +2033,14 @@
 - **回滚**：本刀单提交，`git revert` 即可；`path-safety.ts` 原文在 `archive/safefs-single-source-2026-09-23/` 与 git 历史中双存。
 - **未做（明确边界）**：C-0 剩余 2/3（document-ingest、escapesBase）不在本刀；`.ssh`/`.axiom` 收紧的符号链接行为验收本机不可跑（`S-3` EFAULT），需 Linux runner。
 - **Commit**：f748107b
+
+## 2026-09-23 06:10 +0800 — T2 施工：ADR-007 C-1 基件 `safeFsFor` 工厂入库；4 个写点绑定经实测**冻结待裁决**
+
+- **任务**：接 C-0 继续 C-1。级别 T2 → 施工中升为**停机请示**（总则 0.6：验收前提被实测推翻、且涉及部署配置不兼容）。
+- **工具**：主 agent Bash/Read/Edit/Write；`bun test` 红→绿、`bun x tsc --noEmit`；grep 反查调用者与夹具落点。
+- **操作**（文件级）：新建 `src/utils/safe-fs-for.ts`（薄工厂：只做转发，根越界检测也交给 `authorizePath` 探一次，拒绝即构造期抛 `SafeFsRootConfigError`）与 `tests/unit/safe-fs-for.test.ts`；ADR-007 追加"C-1 前提不成立"一节。**未改 4 个写点**、未动 `document-ingest`。
+- **验证结果**：工厂测试先红（模块不存在，`0 pass / 1 fail / 1 error`）后绿 **13 pass / 0 fail**；`tsc --noEmit` 第一次 exit 2 抓到 `Capability` 未从 `safe-fs` 再导出（改从 `permissions` 取类型），修后 **exit 0**。过程中自我纠正 1 条测试错写：我按"相对 target 相对绑定根解析"来断言，实测语义是**相对沙箱根 `cwd` 解析、绑定 roots 只定义允许区** ⇒ 是我测试错、实现没错，已把该语义写进 `SafeFsBound.assertAllowed` 注释。
+- **停止施工的证据（本 ADR 第三条被实测推翻的前提）**：`effectiveRoots`（`safe-fs.ts:39-49`）静默丢弃越界根，故"配置根落在 cwd 之外"在当前不变式下无法表达；且仓库自己的测试就用沙箱外路径当合法落点（`tests/hardening-t8-low.test.ts:74` 的 `mkdtempSync(join(tmpdir(), …))` 传给 `:82`/`:90` 的 `createFileQualityStore`）⇒ 绑定 4 个写点会**打破现有测试与外置 vault 部署**，属破坏性变更，不该由我默认掉。
+- **交付状态如实声明**：`safeFsFor` 当前**零消费者**，不得读作"这 4 处已受围栏保护"；§2.7.5 的 C 组条目仍然挂着。待用户在 P-1（`AXIOM_SANDBOX_ROOT` 可配根，推荐）/ P-2（只围栏模型可控写点）/ P-3（维持现状仅登记）之间裁决。
+- **回滚**：本刀单提交，`git revert` 即可；无既有行为变更被引入。
+- **Commit**：待回填
