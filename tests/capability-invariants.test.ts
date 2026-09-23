@@ -72,6 +72,17 @@ function addLiterals(src: string): string[] {
 // ─── 真实文件系统夹具 ────────────────────────────────────────────────────────
 const originalCwd = process.cwd();
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "axiom-cap-"));
+// 上一次运行的沙箱此刻已可删（进程退出 ⇒ SQLite 句柄释放），但没人回收就会一直堆在
+// %TEMP%（本机实测累积 22 个）。afterAll 里删不掉自己：`src/utils/cache.ts` 的模块级
+// 单例在 chdir 之后打开了沙箱内 data/agent.db，句柄活到进程结束 —— 要根治得给该单例
+// 加关闭出口，那是生产改动，不在本刀。这里只做 best-effort 回收：跳过当前沙箱，
+// 删不掉就留着下次再试，绝不因此让门变红。
+for (const stale of fs.readdirSync(os.tmpdir())) {
+  if (!stale.startsWith("axiom-cap-")) continue;
+  const p = path.join(os.tmpdir(), stale);
+  if (p === sandbox) continue;
+  try { fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, maxRetryTime: 300 }); } catch { /* 仍被占用，留待下次 */ }
+}
 fs.mkdirSync(path.join(sandbox, ".git/hooks"), { recursive: true });
 fs.mkdirSync(path.join(sandbox, "src"), { recursive: true });
 // 夹具内需要是一个"合法项目根"：模块级单例（如 src/utils/cache.ts 的 ./data/agent.db）
@@ -85,7 +96,25 @@ process.chdir(sandbox);
 
 afterAll(() => {
   process.chdir(originalCwd);
-  fs.rmSync(sandbox, { recursive: true, force: true });
+  // 清理钩子不是断言 —— 它失败只说明"沙箱没删掉"，不代表任何不变式被违反。
+  // Windows 上本文件把 cwd chdir 进沙箱，且沙箱内 `data/agent.db` 被模块级单例打开过，
+  // 句柄未释放时 rmSync 直接 EBUSY ⇒ 制造一条与判据无关的 `(fail) (unnamed)`，
+  // 并把临时沙箱留在 %TEMP%（本机实测已堆到 19 个 axiom-cap-*）。
+  // 处置：重试若干次；仍失败就明确报泄漏，而不是让门去断言"我删不掉自己的临时目录"。
+  let lastErr: unknown;
+  for (let i = 0; i < 5; i++) {
+    try {
+      fs.rmSync(sandbox, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      lastErr = err;
+      const until = Date.now() + 200 * (i + 1);
+      while (Date.now() < until) { /* 等句柄释放 */ }
+    }
+  }
+  console.warn(
+    `[capability-invariants] 沙箱清理失败（非判据失败），临时目录泄漏：${sandbox} —— ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+  );
 });
 
 // ─── S-1 守卫按能力推导，不按工具名查表 ──────────────────────────────────────
