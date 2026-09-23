@@ -2032,4 +2032,4 @@
 - **登记的预期行为变更**：docker 只读挂载 `<cwd>/.ssh` 与 `<cwd>/.axiom/axiom-secrets` 由"放行"变"拒绝"（收紧，容器本就不该读到宿主凭据目录），已由判定表锁住。
 - **回滚**：本刀单提交，`git revert` 即可；`path-safety.ts` 原文在 `archive/safefs-single-source-2026-09-23/` 与 git 历史中双存。
 - **未做（明确边界）**：C-0 剩余 2/3（document-ingest、escapesBase）不在本刀；`.ssh`/`.axiom` 收紧的符号链接行为验收本机不可跑（`S-3` EFAULT），需 Linux runner。
-- **Commit**：待回填
+- **Commit**：f748107b
