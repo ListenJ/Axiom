@@ -2385,4 +2385,4 @@
 - **进程卫生（吸取本轮的错）**：清理只按映像名定向杀自己的探测进程（`taskkill //F //IM axiom-server.exe //T`），`tasklist` 复查残留 **0**；不再用 `//IM bun.exe` 群杀（那会连带杀掉并行作业，本轮已因此作废一份串行读数）。
 - **未做**：`axiom-mcp.exe` 本轮未重跑（其证据仍是 04:45 条：起服务、注册 `mind_synapse_*`/`browser_*`、绑 :3001、日志自标 auth fail-closed）。
 - **回滚**：无源码改动。
-- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+- **Commit**：1f04aabb
