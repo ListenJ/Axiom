@@ -2064,7 +2064,7 @@
 - **实测推翻我自己的（撤回，未留错误结论）**：子代理报告称 `decideOutbound` 对十进制 `http://2130706433:9001/` 会 ALLOW（与 `isSafeUrl` 不同口径）。我按 13.1「结论不能强于证据」亲自回代跑：`new URL()` 已把十进制/十六进制/八进制全部归一成 `127.0.0.1`，实测 `cap=DENY`，与 `isSafeUrl=false` 一致 ⇒ **该断言不成立，撤回**。同一次探针**证实**两条：①`AXIOM_NET_ALLOWLIST` 填 `127.0.0.1` 会放行（`permissions.ts` 的注释写"IP 字面量永不豁免"，与代码不一致）；②同一 allow-list 只作用于 `decideCapability`，`isSafeUrl` 不读它 → 两守卫口径分裂。均登记给 D-B。
 - **偏差与未做**：①**未做 Windows 侧安装/运行时冒烟**（无包格式，exe 直跑未在本轮验证）；②**包内不含 Rust 侧载**：`native/target/release/` 本机只有 Windows 形态产物，Linux 无构建物可打 ⇒ 包内 `initNativeBridge` 走 WARN 降级，native 路由/检索不可用（已写进 ADR-009 后果，不作为本轮缺陷）；③`MSYS_NO_PATHCONV=1` 仍是脚本外的运行前置，**脚本内自检未做**（本轮所有容器调用都走 Bun.spawn 不经 shell，脚本自身不受影响；人手敲 docker 时才会踩）；④appimagetool 依旧 continuous 构建不可钉版；⑤冒烟需外网（容器内现装 curl），已写进 ADR-009。
 - **回滚**：本刀单提交（`linux-bundles.ts` 的两处包元数据修复 + 冒烟脚本 + ADR 更正），`git revert` 即回到「产出存在但不保证装得上」的旧口径；`dist/pkg/` 为构建产物不入库。
-- **Commit**：`<待回填>`
+- **Commit**：6aa14651
 
 ## 2026-09-24 01:02 +0800 — T2 施工：D-A 出网裸 fetch 棘轮门建成（零运行时行为变更），并纠正其基线口径 26→23
 
@@ -2077,4 +2077,4 @@
 - **撤回一条子代理结论**：其称十进制 `http://2130706433:9001/` 会绕过 `decideOutbound`。实测 `new URL()` 已把十进制/十六进制/八进制 IPv4 归一为 `127.0.0.1`，判 `DENY` 且与 `isSafeUrl` 一致 ⇒ 断言不成立，已在 §9.3 落字撤回，D-B 不为此立项。
 - **偏差与未做**：①D-A 是**扫描门不是执行点**，不得读作"出网已受判"，`net.outbound` 的实际强制仍属 D-B；②未覆盖 WebSocket / 子进程自行联网等非 `fetch` 通道，只确认 `http.request` 在 `src/` 内仅存在于 `proxy-fetch.ts` 一处（无旁路）；③`knowledge-port.ts` 与 `synapse/engine.ts` 两条死路径只做登记不做删除（删文件须走规则 4 归档，且不在本刀验收面内）；④D-B 前置的 allow-list 载体与 ADR-007 的 P-1/P-2/P-3 仍待用户裁决。
 - **回滚**：本刀单提交，`git revert` 即撤掉门与清单；未触碰任何 `src/` 运行时文件。
-- **Commit**：`<待回填>`
+- **Commit**：fd2cea44
