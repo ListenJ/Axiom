@@ -67,7 +67,10 @@ describe("O1a: Plan 封禁无条件生效", () => {
   test("plan 模式下只读工具正常放行", async () => {
     executionMode.setMode("plan");
     const { wrapped, wasExecuted } = makeProbe("fs_read", ["fs.read"]);
-    const r = await wrapped.handler({ path: "D:/tmp/ok.txt" });
+    // 良性样本必须是"沙箱根之内"的路径。原夹具写 `D:/tmp/ok.txt`：该 token 在 Linux 上
+    // 无盘符语义 ⇒ 相对路径 ⇒ 落在 cwd 内；在 Windows 上是绝对路径 ⇒ 逃出锚点 ⇒ 硬底线
+    // 正确拒绝而测试期望放行。改成显式相对片段，两端同义。
+    const r = await wrapped.handler({ path: "notes/ok.txt" });
     expect(r).toEqual({ ok: true });
     expect(wasExecuted()).toBe(true);
   });
@@ -147,7 +150,8 @@ describe("O1c: 权限硬底线键名扩展", () => {
   test("扩展键名普通值不受影响", async () => {
     executionMode.setMode("agent");
     const { wrapped, wasExecuted } = makeProbe("hardfloor_probe_ok_delete", ["fs.delete"]);
-    const r = await wrapped.handler({ filePath: "D:/workspace/normal.txt" });
+    // 同上：良性样本必须落在沙箱根之内，`D:/…` 形态在 Windows 上会被解析成绝对路径而逃逸。
+    const r = await wrapped.handler({ filePath: "workspace/normal.txt" });
     expect(r).toEqual({ ok: true });
     expect(wasExecuted()).toBe(true);
   });

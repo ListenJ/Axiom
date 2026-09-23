@@ -1989,3 +1989,13 @@
 - **偏差记录（含两处本会话自查纠错）**：①设计稿初稿提出"`src/` 内不得出现裸 `fetch(`、豁免清单为空则通过"的门，落盘前实测该口径命中 **26 个文件**（去 `proxy-fetch.ts` 自身 25）⇒ 该门**立不起来**且违反规则 1，**提交前**改为仓库已有先例的棘轮门（对照 doc-contract D7），并在文中明写这次纠错；②"18 个 proxyFetch 消费方"是**导入面**不是出网点数，已在 §3.1 限定口径，并补出 D-1 的自身盲区（25 个裸 fetch 文件不经 proxyFetch，翻默认值对它们无效）；③工具链事实更新：本机 `bun 1.3.14`（等于 CI 钉版）、`go1.26.0`、`cargo1.97.1` ⇒ 旧结论"Go 编不过 / cargo 不在 PATH / 性能只能估算"是退役机状态，已作废。
 - **未做**：任何 `src/` 改动、夹具修复、doc-contract 门的分隔符修复（均待 §6 四项裁决后另起提交）。
 - **Commit**：b7a11c2a
+
+## 2026-09-23 04:40 +0800 — test(fixtures)：`tool-mode-gate` 良性路径夹具改为沙箱根内相对片段（T2）
+
+- **任务**：修 §设计稿 4 登记的跨平台夹具缺陷，让 C/D 的回归信号可信。级别 T2（改测试面，不改运行时行为）。
+- **工具**：Bash（grep 定位、`bun test` 单文件与全量三次运行）、Read、Edit。未派子代理。
+- **操作**（文件级）：`tests/unit/tool-mode-gate.test.ts` —— `:70` 的 `D:/tmp/ok.txt` → `notes/ok.txt`；`:150` 的 `D:/workspace/normal.txt` → `workspace/normal.txt`；各加一行说明"为何必须是根内相对片段"。`:63`（期望 ModeGate 拒绝、本就通过）与 `:141`（`/etc/shadow` 敏感样例、Windows 下仍命中并通过对）按规则 1 **未动**。
+- **根因（实测两条错文，非推测）**：`D:/…` 形态在 Linux 无盘符语义 ⇒ 相对路径 ⇒ 落 cwd 内 ⇒ 放行；在 Windows 是绝对路径 ⇒ 逃逸 ⇒ 内核拒绝。实际报错：`fs.read: target 'D:/tmp/ok.txt' escapes sandbox root D:\openclaw-fusion (field=path)` 与 `fs.delete: … 'D:/workspace/normal.txt' … (field=filePath)`。**内核正确、夹具错误。**
+- **验证结果**：`bun test tests/unit/tool-mode-gate.test.ts` → **10 pass / 0 fail**（退出码 0）。全量 `bun run test` 连跑三次：**28 → 17 → 17**，第 2、3 次失败集 `comm` 双向**全空**（逐条相同），第 1 次独有的 11 条中仅 2 条由本次修复消除，其余 **9 条为跨运行抖动**（压测/网络/日志类：`AtomEngine 5000`、`Mega 500`、`E.4 延迟分位`、`C.5 层管道`、`CognitivePipeline throughput`、`D.1 熔断`、`LLMClient` 网络×2、`Logger`）。`bun x tsc --noEmit` → **exit 0**。
+- **偏差记录**：①首跑 #1 的"28 fail"**不可作为基线**——真实稳定基线是 17 条（13 doc-contract Windows 假红 + 2 `S-3 safeFs 符号链接` EFAULT 本机不可验证 + 2 其他）。这条直接改写了 C/D 的验收协议：判据必须是"17 条稳定红不增大 + 新测试同机跑 ≥3 次取交集"，单次运行不作数；②我最初把 11 条消失全归给这次修复，重跑第三次才分清 2 真修 / 9 抖动——**一次对照不足以区分修复与抖动**，已把该口径写进设计稿 §5；③备份文件 `.tmp/backups/docs/ops-a.md` 与 `tests/unit/tool-mode-gate.test.ts` 副本在验证通过后删除。
+- **Commit**：待回填
