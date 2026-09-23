@@ -2044,3 +2044,13 @@
 - **交付状态如实声明**：`safeFsFor` 当前**零消费者**，不得读作"这 4 处已受围栏保护"；§2.7.5 的 C 组条目仍然挂着。待用户在 P-1（`AXIOM_SANDBOX_ROOT` 可配根，推荐）/ P-2（只围栏模型可控写点）/ P-3（维持现状仅登记）之间裁决。
 - **回滚**：本刀单提交，`git revert` 即可；无既有行为变更被引入。
 - **Commit**：d44d9342
+
+## 2026-09-23 06:20 +0800 — T3 Laya 决策链接入 + Linux/Windows 分发管线（ADR-008 / ADR-009）
+
+- **任务**：目标 = 用本机 WSL 的 Laya 决策头打通"决策-执行链条"，并使项目可分发为 Windows exe 32/64 与 Linux deb/rpm/AppImage（mac 暂不）。T3。
+- **工具**：Bash（`wsl.exe` 真调、`docker` 容器构建、`go` 交叉编译探测）、Write/Edit、`bun test`/`tsc`/`audit:runtime`；`architecture`、`find-skills` 技能。未派子代理。
+- **操作**（文件级）：新增 `src/decision/laya-triage.ts`（闸门内核）、`src/decision/laya-cli.ts`（`--check`/`--spec`/`--run`，动作面只含本地只读核验）、`scripts/laya/laya_gate.py`（模型侧仅出概率）、`tests/unit/laya-triage.test.ts`、`scripts/package/linux-bundles.ts`（deb/rpm/AppImage 容器构建 + 真 PNG 图标生成）、`docs/decisions/ADR-008-laya-decision-chain.md`、`ADR-009-distribution-format-matrix.md`、`docs/decisions/laya/{README.md,verification-triage.json}`；`package.json` 加 `decide:laya`/`package:linux`；`scripts/build/matrix.ts` 的 `GO_PLATFORMS` 加 `windows/386`。**未**把 Laya 接进 `defaultToolGuard`（零生产路径影响）。
+- **验证结果（端到端真跑，非推断）**：①`bun test tests/unit/laya-triage.test.ts` **16 pass / 0 fail**；`tsc --noEmit` **exit 0**。②`decide:laya -- --check` → `{laya_import:true, ckpt_exists:true, typed_decisions:true}`；`--spec` → 两条只读核验 AUTO、`engineering` 那条 ESCALATE；`--run` → `EXECUTED verify:typecheck ok=true`、`EXECUTED verify:runtime-audit ok=true`、`ESCALATED release:tag-and-push`（未执行）。③分发产物：`axiom_4.0.0_amd64.deb` 26,639,984 B（`dpkg-deb -c` 见 `-rwxr-xr-x root/root ./usr/bin/axiom` 105,199,744 B）、`axiom-4.0.0-1.x86_64.rpm` 28,495,129 B（`rpm -qlp` 含 `/usr/share/icons/hicolor/256x256/apps/axiom.png`）、`Axiom-4.0.0.x86_64.AppImage` 38,425,792 B（解包后 `file` 判 `ELF 64-bit LSB executable, x86-64`）。④Windows x64 `axiom-server.exe` 产出并生成 `dist/CHECKSUMS.txt`；Go `windows/386` 实编通过（`pcdad.exe` 15,054,336 B）。
+- **实测推翻我自己的四处（均已回改，未留错误结论）**：①`predict()` 的 questions 必须是 **dict**，我按 list 传被库里 `list.keys()` 打回；②"Bun 能出 32 位 Windows"不成立（`Unsupported target "x86"`）⇒ 32 位只承诺 Go 服务；③`--platform=linux` 交叉编译在本机必失败（`Failed to extract executable for bun-linux-x64-v1.3.14`，加代理同样失败）⇒ 改容器内原生编译；④appimagetool 的三连硬依赖（`file`、AppDir 根 `.desktop`、根图标）——图标我选择**真生成 PNG** 而非塞空文件充数。
+- **偏差与未做**：①Git Bash 会改写容器参数里的绝对路径（`-w /app` → `C:/Program Files/Git/app`），脚本必须配 `MSYS_NO_PATHCONV=1` 运行 —— 属运行前置，已写进 ADR-009，但**尚未在脚本内自检**（缺它时报错信息不指向真因）；②Bun 在 Windows 不补 `.exe`（`docker`→`docker.exe`）曾让我误报"docker 不可用"；③包内目录模式继承 Windows mount 呈 `drwxrwxrwx`，二进制位已容器内 `chmod 755` 修正，目录位偏松属待修美观项；④appimagetool 取自 continuous 构建（实测 `built on 2023-03-08`）无法钉版，URL 可由 `APPIMAGETOOL_URL` 指向内网镜像；⑤**未做打包后二进制的运行时冒烟**（`axiom-server` 真启动并监听）；⑥macOS 保留在 `PLATFORM_TARGETS` 但不进分发清单；⑦Laya 未接入工具授权链，仅作为独立决策 CLI。
+- **Commit**：待回填

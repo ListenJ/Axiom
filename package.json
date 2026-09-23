@@ -90,7 +90,9 @@
     "test:smoke": "bun run scripts/test-smoke.ts",
     "cache:baseline": "bun run scripts/cache-baseline.ts",
     "eval:runtime": "bun run src/agent-evals/runtime-cli.ts",
-    "eval:runtime:heldout": "bun run src/agent-evals/runtime-cli.ts --split=held-out"
+    "eval:runtime:heldout": "bun run src/agent-evals/runtime-cli.ts --split=held-out",
+    "decide:laya": "bun run src/decision/laya-cli.ts",
+    "package:linux": "bun run scripts/package/linux-bundles.ts"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",

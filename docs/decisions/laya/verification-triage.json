@@ -1,0 +1,71 @@
+{
+  "state": {
+    "project": "Axiom runtime (axiom-agent 4.0.0)",
+    "branch": "codex/runtime-safefs-outbound-design",
+    "measured_this_session": {
+      "tsc_noEmit_exit": 0,
+      "audit_runtime_checks_pass": 16,
+      "audit_runtime_checks_fail": 0,
+      "full_test_pass": 4259,
+      "full_test_stable_red": 17,
+      "full_test_flaky_observed": 9,
+      "bun_version": "1.3.14",
+      "go_version": "go1.26.0",
+      "cargo_version": "1.97.1"
+    },
+    "distribution_targets_requested": [
+      "windows exe x64",
+      "windows exe x86 32-bit",
+      "linux deb amd64",
+      "linux rpm x86_64",
+      "linux AppImage x86_64"
+    ],
+    "measured_constraints": {
+      "bun_compile_rejects_windows_x86": true,
+      "bun_error_text": "error: Unsupported target x86 in bun-win32-x86",
+      "go_can_cross_compile_windows_386": true,
+      "docker_server_available": "29.5.3 linux"
+    },
+    "open_engineering_choices": [
+      "ADR-007 P-1 configurable sandbox root vs P-2 fence only model-controllable writes vs P-3 status quo"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "verify:typecheck",
+      "domain": "triage",
+      "questions": {
+        "approval": {
+          "type": "noul",
+          "instructions": "Does running a local read-only TypeScript type check (bun x tsc --noEmit) before building Linux distribution packages require the human owner to approve it first, given it writes nothing outside dist/ and mutates no shared state?"
+        }
+      },
+      "irreversibleQuestions": [],
+      "forbiddenAuto": []
+    },
+    {
+      "id": "verify:runtime-audit",
+      "domain": "triage",
+      "questions": {
+        "approval": {
+          "type": "noul",
+          "instructions": "Does running the local runtime audit gate (bun run audit:runtime, 16 read-only resource-bounds checks) before building Linux distribution packages require the human owner to approve it first, given it is read-only and reports pass/fail only?"
+        }
+      },
+      "irreversibleQuestions": [],
+      "forbiddenAuto": []
+    },
+    {
+      "id": "release:tag-and-push",
+      "domain": "engineering",
+      "questions": {
+        "approval": {
+          "type": "noul",
+          "instructions": "Should the release tag be created and pushed to the shared remote right now without the human owner deciding the ADR-007 root policy first?"
+        }
+      },
+      "irreversibleQuestions": ["approval"],
+      "forbiddenAuto": ["push"]
+    }
+  ]
+}

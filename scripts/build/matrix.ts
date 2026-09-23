@@ -61,6 +61,9 @@ const GO_PLATFORMS: Array<{ os: string; arch: string }> = [
   { os: "linux", arch: "amd64" },
   { os: "linux", arch: "arm64" },
   { os: "windows", arch: "amd64" },
+  // 32 位 Windows：Bun 无 win-x86 编译目标（`Unsupported target "x86"`），
+  // 但 Go 服务可以 ⇒ 32 位机上可交付的是这三个守护进程，不是 TS 应用本体。
+  { os: "windows", arch: "386" },
   { os: "darwin", arch: "amd64" },
   { os: "darwin", arch: "arm64" },
 ];
