@@ -2277,3 +2277,15 @@
 - **偏差与未做**：没把它接进 `.ci/run.sh`（CI 全新克隆没有 `dist/`，接进去只会恒红；它是发布前的人工/流水线门，不是提交门）。没在本刀重建产物（同机另有全量测试与打包在跑，抢占负载会制造假红，见本机稳定红口径）。
 - **回滚**：删两个文件即可，无生产改动。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+
+## 2026-09-24 03:38 +0800 — T1 记录：Laya 链条实测为"CLI 作闸"，运行期派发路径未挂钩
+
+- **任务**：核对目标第一句"使用 laya 与我们的项目完成自动化决策-执行链条"在**当前代码**里的真实形状。级别 T1（只改 ADR，不改代码）。
+- **工具**：主 agent Grep/Read/Bash；`bun run src/decision/laya-cli.ts` 的 `--check` / `--spec` / `--spec --run` 三种调用，实打实走 WSL 上的 421M 模型。
+- **实测（决策半）**：`--check` ⇒ `{"python":"/root/.venvs/laya/bin/python","ckpt_exists":true,"typed_decisions":true,"laya_import":true}`；`--spec docs/decisions/laya/verification-triage.json` ⇒ `AUTO verify:typecheck`、`AUTO verify:runtime-audit`、`ESCALATE release:tag-and-push`，升级理由是**领域 engineering 不可委托**（走的是确定性非委托表，不是模型意见）。
+- **实测（执行半）**：`--run` ⇒ `EXECUTED verify:typecheck ok=true`、`EXECUTED verify:runtime-audit ok=true`、`ESCALATED release:tag-and-push :: …` ⇒ 决策→执行/升级的分派在真模型上闭环。
+- **实测（未接线）**：`createLayaTriage` 在 `src/` 内只有 `src/decision/laya-cli.ts` 一个引用（另一处是单测）⇒ **运行时工具派发路径没有任何调用方**。逐个考察候选挂钩点后排除：`risk-monitor.ts:271` 的 `deps.screen` 是逐次工具调用的负载风险初筛，把 Laya 接上去正是 ADR-008 更正节否证过的用法（`noul` 不分离 blast radius）；`pcda-scheduler` 的 `escalate` 是负载级别切换，且 `act()` 无模型槽位。
+- **操作**（文件级）：`docs/decisions/ADR-008-laya-decision-chain.md` 新增"未接线"节，写清链的真实形状是"CLI 作闸 + 可逆动作注册表，由人/上层 agent 显式调用"，并规定交付说明不得写成"运行时自动决策"。
+- **偏差与未做**：没有为了"看起来自动"而把 Laya 塞进 `screen` 槽位 —— 那会被我自己的实测否证，也违背"模型意见只能加严、不放宽确定性结论"的既有不变式。升级为运行期自动挂钩属 T3（新跨模块接口 + WSL 前向进派发热路径 + 需先定分档与降级），按规则 0.6 交用户裁决，本刀不擅动。
+- **回滚**：文档单提交 revert。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
