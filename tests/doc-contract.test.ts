@@ -82,9 +82,17 @@ function mdFiles(dir: string): string[] {
   return out;
 }
 
+/**
+ * 只存在于工作区的本地目录：仓库一致性门不得扫它们 —— 那既不是任何提交能修好的红，
+ * 也会让同一份门在不同机器上给出不同答案。两条都实测过：gitignore 命中且 `git ls-files` 为 0。
+ * 防滥用靠 D0 的"在册面不塌方"下界：往这里堆真规范件来躲门，spec.length 会跌破下限并先报警。
+ */
+const LOCAL_ONLY_DOC_DIRS = ["docs/archive/", "docs/reports/"];
+const isLocalOnlyDoc = (f: string): boolean => LOCAL_ONLY_DOC_DIRS.some((p) => f.startsWith(p));
+
 function caliberDocs(): string[] {
   // docs/superpowers/ 下是设计与实施记录（引用问题原话作为证据），与历史结论件同样豁免口径扫描。
-  return mdFiles("docs").filter((f) => !f.startsWith("docs/superpowers/"));
+  return mdFiles("docs").filter((f) => !f.startsWith("docs/superpowers/") && !isLocalOnlyDoc(f));
 }
 
 // 规范件 = 口径文档去掉历史结论件，再加 README。D3/D4 的保护范围即此集合。
@@ -250,7 +258,10 @@ describe("D1 口径禁语", () => {
     // 一处 commit hash 首字母变 NUL，使整个文件被 grep 判为二进制）。
     // 这类损伤读 diff 看不出来，且会让"按字面串比对文档与代码"的门产生假阴性 —— 故历史件也在完整性范围内。
     const offenders: string[] = [];
-    const scanned = mdFiles("docs").concat(exists("README.md") ? ["README.md"] : []);
+    // 历史件与实施记录都在完整性范围内（上面注明的理由）；只摘掉 LOCAL_ONLY_DOC_DIRS ——
+    // 那里是 gitignore 的本地落盘区，扫它只会让门的结果取决于本机盘上有什么。
+    const scanned = mdFiles("docs").filter((f) => !isLocalOnlyDoc(f))
+      .concat(exists("README.md") ? ["README.md"] : []);
     for (const rel of scanned) {
       const buf = fs.readFileSync(path.join(repoRoot, rel));
       offenders.push(...integrityOffenders(rel, buf.toString("utf8"), buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf));
@@ -415,6 +426,8 @@ describe("D3 文档引用存活", () => {
       "docs/AXIOM-ARCHITECTURE.md",
       "docs/COMPREHENSIVE-GUIDE.md",
       "docs/LIMITATIONS.md",
+      // ADR-007：C-0 删掉的 src/utils/path-safety.ts 在文内仍被叙述，故按墓碑口径点名。
+      "docs/decisions/ADR-007-safefs-single-source-and-configurable-root.md",
       "docs/functional-check-2026-08-16-sensenova.md",
     ]);
   });

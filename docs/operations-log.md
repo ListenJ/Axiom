@@ -2143,3 +2143,20 @@
 - **偏差与未做**：①`docs/archive/` 范围错误未在本刀修（要同时更新 D0 的在册清单，属独立一刀）；②D2 的三处自称未改口径（涉及规范件权威归属表述，按规则 1 需要单独任务与用户确认哪份是权威）；③设计方案 §5 表的基线数字 17 待按 11 重述。
 - **回滚**：单提交 revert 即回到"13 条恒红、只能人工比对差分"。
 - **Commit**：e647e9d4
+
+## 2026-09-24 01:52 +0800 — T2 续修门禁：本地专用目录不再入库范围 + 月度日志行尾归一 + 我自己留下的死引用与手抄行号；doc-contract 首次 35/0
+
+- **任务**：上一刀只把 13 条恒红降到 7，余下每条都要定性到"平台噪声 / 内容真缺陷 / 判据范围错"三级之一再处置。级别 T2。
+- **工具**：主 agent Grep/Read/Edit、一次性替换脚本（`.tmp/fix-adr007.ts`，逐条精确匹配、命中 0 次即抛错，跑完即删）、`bun test tests/doc-contract.test.ts` 分步差分、`git ls-files` / `git check-ignore` 定性。
+- **操作**（文件级）：
+  1. `tests/doc-contract.test.ts`：新增 `LOCAL_ONLY_DOC_DIRS = ["docs/archive/", "docs/reports/"]` 并用于 `caliberDocs()` 与 markdown 完整性检查（两处都实测过：gitignore 命中且 `git ls-files` 为 0）；按门自己的规定把 ADR-007 登记进"使用 tombstone 的文件"在册清单。
+  2. `docs/operations-log/2026-07.md`：CRLF→LF 归一（2661 处 CR → 0），并逐字证明正文等价（`orig.replace(/\r/g,"") === after` 为 true，字节数 307,497→304,836，行数不变）。**实测全仓已入库的 md 里只有这一个文件带 CR**，8 月那份 5519 行早已是 LF。
+  3. `docs/decisions/ADR-007-…md`：17 行改写 —— 把 `path-safety.ts:42-47`、`safe-fs.ts:51`、`document-ingest.ts:86`、`hardening-t8-low.test.ts:74` 等**手抄行号换成符号锚点**（`DENIED_SEGMENTS` / `withinAny()` / `isWithinAnyRoot()` / `createFileQualityStore` 用例），给已删除的 `src/utils/path-safety.ts` 引用补 `doc-caliber:absent` 墓碑，并把"从未创建过的拟新增路径"从反引号里摘出来（反引号在 D3 语义里就是"仓库里存在的路径"）。
+  4. `docs/SECURITY-MEASURES.md` §2.7.5 出网那行：追加 D-A 已落地的指针（在册清单 + 判据文件），并把两条口径分裂写进规范面，同时明确该门"只登记不强制"。
+- **上一刀引入的红，被另一道门当场抓到**：`env 模板完整性` 报 `LAYA_PYTHON`、`LAYA_WSL_DISTRO` 未在 `.env.example` 登记。根因是我为修 arch 门把 `process.env.LAYA_*` 改成 `readString("LAYA_*")` —— 该门扫的正是 `readString/readInt/readBool`，**直读 `process.env` 会绕过它**。也就是说：上一刀的修复让这两个 env 第一次被模板门看见，而模板门是对的（规则 11「配置不写死、模板齐全」）。处置：`.env.example` 补两条注释项并注明有内置默认值。修后 `env-example-completeness` + `doc-contract` 合跑 **37 pass / 0 fail**。
+  ⇒ 记一条通用教训：**换 API 形态可能改变可见性**，改完必须跑全量而不是只跑被修的那道门；本轮第一次全量就是因为只跑了 arch 与 laya 两处，才让这条拖到全量才现。
+- **判据没有变宽**：唯一放宽范围的是"未入仓的本地目录不扫"，其依据是 `git ls-files` 命中 0 —— 仓库门扫不入仓文件既不是任何提交能修好的红，也会让同一份门在不同机器上给不同答案。反向保险是 D0 既有的"在册面不塌方"下界（改动后规范件 73 篇 ≥ 下限 60）：往这里堆真规范件来躲门会先触发 D0。- **验证结果（分步）**：`bun test tests/doc-contract.test.ts` 由 **22 pass / 13 fail → 35 pass / 0 fail**（中间态 28/7 → 31/4 → 33/2 → 34/1）；每步都单独复跑确认无新增红；`bun run lint` exit 0；改动文件 CR=0、无 BOM。**新稳定红基线 = 7 条**：三次背靠背全量运行为 8 / 11 / 9，交集 7 条 = 2 条 `S-3` 符号链接（本机 EFAULT）+ 4 条负载/时序阈值项 + 1 条 `(unnamed)`；单次最多 11，其中 4 条属跨运行抖动（`C. 5 层管道`、`D. 持续负载`、`D.1 熔断器`、`Mega 500 并发`、`S4-②`、`性能门禁 热路径` 各只在一次出现）。旧口径"17 条"已在设计稿 §1/§5 与 ADR-007 验收行同步更正为 7（按仓库惯例不改写原测量记录，另立更正段）。
+- **一处我自己的读数错误（已纠正）**：判定"含 CR 的文件是否入库"时，我在 `bun -e` 里用 `execSync('git ls-files --error-unmatch … 2>nul')`，`2>nul` 在非 cmd 下发疯并打印 "The system cannot find the path specified."，导致我一度把两个文件都读成"未入库"。改为一次性取 `git ls-files` 全集再查表，结论翻正：**月度日志是入库文件，因此那条红是真的内容缺陷（必须归一），只有 archive 是未入库**。这正是记忆里"读到的退出码不一定是作业的退出码"那一坑的复发。
+- **偏差与未做**：①D9 的判据只认 `file.ext:NN` 形态，ADR-007 里"（L4-L11）"这类不带文件名的行号仍不被拦 —— 属判据覆盖面，不在本刀扩；②`docs/reports/` 与 `docs/archive/` 现在被排除在扫描面外，若将来把这些目录**改为入库**，必须同步把它们移出 `LOCAL_ONLY_DOC_DIRS`，否则会出现"入库了却没人查"的静默豁免（本轮已在常量注释里写明依据，靠 D0 数量下界兜）；③新基线 7 条里的 4 条时序项**未逐条定位根因**，只做了定性：`CognitivePipeline 6-step` 实测是**撞到 15s 套件超时**（不是差阈值），另三条是并发/网络下的延迟分位；把它们当"性能缺陷已修"是错的，本轮没有修，只是不再被 13 条噪声盖住。④符号链接两条仍需 Linux runner。
+- **回滚**：单提交 revert；行尾归一 revert 会把 CRLF 装回去但不改变任何文字。
+- **Commit**：`<待回填>`
