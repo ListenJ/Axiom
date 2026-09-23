@@ -5,16 +5,23 @@
  * 且本机实测存在三项能力缺陷（不推理输入中的数值、不处理否定、措辞敏感）。
  * 因此本模块的设计原则是：**模型只被允许提高警觉，永远不允许降低警觉**。
  *
- * 三条写死在代码里、不受模型输出影响的闸门（与 scripts/laya/laya_gate.py 同口径）：
- *   1. 动作不可逆 / 涉及外写 ⇒ 一律 ESCALATE；
+ * 三条写死在代码里、不受模型输出影响的闸门（模型侧 `scripts/laya/laya_gate.py` 只出概率，
+ * 裁定全部在这里）：
+ *   1. 模型**选中的那个选项**的爆炸半径属外写/不可逆 ⇒ ESCALATE；未登记半径的选项同样升级
+ *      （登记表是唯一依据，未知的动作不允许自动执行）；
  *   2. `choice` 的 top1−top2 < 0.15 ⇒ ESCALATE（模型自己拿不定）；
- *   3. 任一 `noul(需批准)` > 0.5 ⇒ ESCALATE。
- * 另加两条本机实测-derived 的约束：
- *   4. 领域为数值/工程裁决的决策 ⇒ 直接 ESCALATE（实测它读不懂 `gain=0.000002 vs 0.0025`）；
- *   5. 模型不可用（WSL/权重缺失/超时）⇒ UNAVAILABLE，**绝不退化成 AUTO**。
+ *   另加三条本机实测-derived 的约束：
+ *   3. 领域为数值/工程裁决的决策 ⇒ 直接 ESCALATE（实测它读不懂 `gain=0.000002 vs 0.0025`）；
+ *   4. 模型不可用（WSL/权重缺失/超时）⇒ UNAVAILABLE，**绝不退化成 AUTO**。
+ *
+ * 半径必须按**选项**登记、不能按问题登记：实测 noul 头与爆炸半径分不开
+ * （Spearman(tier, noul)=+0.41、min(tier3) < max(tier0)），把它当批准判据不是保守而是常数；
+ * 而"这道题里有不可逆选项"也不等于"选中的动作不可逆" —— 曾据此把模型选中的
+ * 最不可逆性最低的选项判成外写动作。所以 noul 在这里只做交叉核对（记 notes、不改裁定）。
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { readString } from "../utils/env.js";
 
 export type LayaDomain = "triage" | "escalation" | "numeric" | "engineering";
 
@@ -36,12 +43,25 @@ export interface LayaAnswer {
   score?: number;
 }
 
+/** 动作的爆炸半径（与 scripts/laya 侧登记表同一分档）。后两档不得自动执行。 */
+export type BlastRadius = "local_reversible" | "preauthorized_spend" | "external_write" | "destructive";
+export const ESCALABLE_RADII: readonly BlastRadius[] = ["external_write", "destructive"];
+
 export interface LayaDecision {
   id: string;
   domain: LayaDomain;
   questions: Record<string, LayaQuestion>;
-  /** 这些 key 一旦选中对应动作即不可逆/外写 ⇒ 无条件升级 */
-  irreversibleQuestions?: string[];
+  /**
+   * 选项 → 爆炸半径。**按选项登记，不按问题登记**：一道题里有不可逆选项，
+   * 不代表模型选中的那个不可逆。未登记的选项按未知动作处理 ⇒ 升级。
+   * 同一决策内各 choice 题的选项名不得重名（半径按选项名索引）。
+   */
+  optionBlastRadius?: Record<string, BlastRadius>;
+  /**
+   * 纯 noul/score 题没有"选项"可登记，于是按**该决策闸住的动作本身**登记半径。
+   * 两者都缺 ⇒ 无从判定可逆性 ⇒ 一律升级；剥掉 noul 的裁定权不能把这类决策变成没有闸门。
+   */
+  actionBlastRadius?: BlastRadius;
   /** 即使 margin 够大也不得自动执行的**选项** */
   forbiddenAuto?: string[];
 }
@@ -54,17 +74,21 @@ export interface LayaGateSpec {
 export interface TriageResult {
   id: string;
   verdict: "AUTO" | "ESCALATE" | "UNAVAILABLE";
+  /** 判定的**成因**：AUTO 时为空。 */
   reasons: string[];
+  /** 交叉核对痕迹（如 noul 与登记表不一致）：只记录，不参与裁定。 */
+  notes?: string[];
   chosen?: string;
   margin?: number;
 }
 
 export interface LayaThresholds {
   marginMin: number;
-  escalateNoul: number;
+  /** noul 的交叉核对线：越过它且与登记表结论不一致时留痕，不据此升级。 */
+  noulCrossCheck: number;
 }
 
-export const DEFAULT_THRESHOLDS: LayaThresholds = { marginMin: 0.15, escalateNoul: 0.5 };
+export const DEFAULT_THRESHOLDS: LayaThresholds = { marginMin: 0.15, noulCrossCheck: 0.5 };
 
 /** 依赖注入：判定核心与"怎么问到模型"解耦，测试用 fake、生产用 WSL runner。 */
 export interface LayaTriageDeps {
@@ -113,9 +137,11 @@ export function createLayaTriage(deps: LayaTriageDeps): LayaTriage {
 
     return spec.decisions.map((dec) => {
       const reasons: string[] = [];
+      const notes: string[] = [];
       let auto = true;
       let chosen: string | undefined;
       let margin: number | undefined;
+      const nouls: Array<{ q: string; v: number }> = [];
 
       if (NON_DELEGABLE_DOMAINS.includes(dec.domain)) {
         return {
@@ -126,37 +152,63 @@ export function createLayaTriage(deps: LayaTriageDeps): LayaTriage {
       }
 
       const answers = answersByDecision[dec.id] ?? {};
-      for (const [q, qs] of Object.entries(dec.questions)) {
+      for (const q of Object.keys(dec.questions)) {
         const r = answers[q];
         if (!r) {
           auto = false;
           reasons.push(`${q}: 模型未作答`);
           continue;
         }
-        const irreversible = dec.irreversibleQuestions?.includes(q) ?? false;
-        // "是否需人批准"这类语义写在 instructions 上，question key 只是标识符
-        const askText = qs.type === "choice" ? q : qs.instructions;
         if (r.type === "choice" && r.probabilities) {
           const top = Object.entries(r.probabilities).sort((a, b) => b[1] - a[1]);
           chosen = top[0]?.[0];
           margin = (top[0]?.[1] ?? 0) - (top[1]?.[1] ?? 0);
-          if (irreversible || (chosen && dec.forbiddenAuto?.includes(chosen))) {
+          if (chosen && dec.forbiddenAuto?.includes(chosen)) {
             auto = false;
-            reasons.push(`${q}: 选中 ${chosen} 属不可逆/禁止自动动作`);
+            reasons.push(`${q}: 选中 ${chosen} 在 forbiddenAuto 清单内`);
           }
           if (margin < th.marginMin) {
             auto = false;
             reasons.push(`${q}: margin ${margin.toFixed(3)} < ${th.marginMin}`);
           }
         } else if (r.type === "noul") {
-          const v = r.noul ?? 0;
-          if (v > th.escalateNoul && /批准|approv/i.test(askText)) {
-            auto = false;
-            reasons.push(`${q}: noul ${v.toFixed(3)} > ${th.escalateNoul} 需人批准`);
-          }
+          nouls.push({ q, v: r.noul ?? 0 });
         }
       }
-      return { id: dec.id, verdict: auto ? "AUTO" : "ESCALATE", reasons, chosen, margin };
+
+      // 半径按「这次真正要执行的东西」取：选中了选项就按选项登记，没有选项
+      // （纯 noul/score 题）就按该决策所闸住的动作登记。两者都没登记 ⇒ 升级，
+      // 因为登记表是唯一依据 —— 未知动作不允许自动执行。
+      const radius = chosen ? dec.optionBlastRadius?.[chosen] : dec.actionBlastRadius;
+      if (!radius) {
+        auto = false;
+        reasons.push(chosen
+          ? `选中 ${chosen} 未登记爆炸半径（未知动作不自动执行）`
+          : "该决策未登记 actionBlastRadius（无半径即无从判定可逆性）");
+      } else if (ESCALABLE_RADII.includes(radius)) {
+        auto = false;
+        reasons.push(`${chosen ? `选中 ${chosen}` : "该动作"} 半径=${radius} ⇒ 外写/不可逆`);
+      }
+
+      // noul 与爆炸半径实测分不开（Spearman +0.41、min(tier3)<max(tier0)），拿它裁定
+      // 等于给闸门加常数（一切都升级、自动化归零）。这里只做交叉核对：不一致就留痕，不改裁定。
+      const escalable = radius !== undefined && ESCALABLE_RADII.includes(radius);
+      for (const { q, v } of nouls) {
+        if (v > th.noulCrossCheck && !escalable) {
+          notes.push(`${q}: noul ${v.toFixed(3)} 高，但登记表半径=${radius ?? "未登记"}（可逆侧）— 以登记表为准`);
+        } else if (v <= th.noulCrossCheck && escalable) {
+          notes.push(`${q}: noul ${v.toFixed(3)} 低，但登记表半径=${radius}（外写/不可逆）— 以登记表为准`);
+        }
+      }
+
+      return {
+        id: dec.id,
+        verdict: (auto ? "AUTO" : "ESCALATE") as TriageResult["verdict"],
+        reasons,
+        ...(notes.length ? { notes } : {}),
+        chosen,
+        margin,
+      };
     });
   }
 
@@ -210,8 +262,8 @@ export function toWslPath(winPath: string): string {
 }
 
 export function createWslLayaRunner(opts: WslLayaRunnerOptions = {}) {
-  const distro = process.env.LAYA_WSL_DISTRO ?? opts.distro ?? "Arch";
-  const python = process.env.LAYA_PYTHON ?? "/root/.venvs/laya/bin/python";
+  const distro = readString("LAYA_WSL_DISTRO") || opts.distro || "Arch";
+  const python = readString("LAYA_PYTHON", "/root/.venvs/laya/bin/python");
   const timeoutMs = opts.timeoutMs ?? 120_000;
   const repoRoot = opts.repoRoot ?? process.cwd();
   const scriptRel = opts.script ?? path.join("scripts", "laya", "laya_gate.py");

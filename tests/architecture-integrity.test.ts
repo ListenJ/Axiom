@@ -101,6 +101,9 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     "cli/setup.ts",
     "eval/eval-cli.ts",
     "eval/eval-runner.ts",
+    // decision/laya-cli.ts 与上面几个同属 CLI 入口：它的 console 输出就是交付物
+    // （人/agent 读的分诊结果），判定逻辑在 laya-triage.ts 里且返回结果不打字。
+    "decision/laya-cli.ts",
     "core/health-checker.ts",
     "launcher.ts",
     "agent-evals/run.ts",

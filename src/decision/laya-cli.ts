@@ -10,6 +10,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { readString } from "../utils/env.js";
 import {
   createLayaTriage,
   createWslLayaRunner,
@@ -52,8 +53,8 @@ function parseArgs(argv: string[]) {
 async function doCheck(): Promise<number> {
   const gate = toWslPath(path.resolve(process.cwd(), "scripts", "laya", "laya_gate.py"));
   const p = Bun.spawn(
-    ["wsl.exe", "-d", process.env.LAYA_WSL_DISTRO ?? "Arch", "--",
-      process.env.LAYA_PYTHON ?? "/root/.venvs/laya/bin/python",
+    ["wsl.exe", "-d", readString("LAYA_WSL_DISTRO", "Arch"), "--",
+      readString("LAYA_PYTHON", "/root/.venvs/laya/bin/python"),
       gate, "--check"],
     { stdout: "pipe", stderr: "pipe" },
   );
@@ -87,7 +88,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   } else {
     for (const r of results) {
       const extra = r.chosen ? ` chosen=${r.chosen} margin=${r.margin?.toFixed(3)}` : "";
-      console.log(`${r.verdict.padEnd(11)} ${r.id}${extra}${r.reasons.length ? `\n              · ${r.reasons.join("\n              · ")}` : ""}`);
+      const notes = r.notes?.length ? `\n              ⚠ ${r.notes.join("\n              ⚠ ")}` : "";
+      console.log(`${r.verdict.padEnd(11)} ${r.id}${extra}${r.reasons.length ? `\n              · ${r.reasons.join("\n              · ")}` : ""}${notes}`);
     }
   }
   return results.some((r) => r.verdict === "UNAVAILABLE") ? 3 : 0;

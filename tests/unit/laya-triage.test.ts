@@ -24,7 +24,11 @@ const approvalQ: Record<string, LayaQuestion> = {
 
 const spec = (over: Partial<LayaGateSpec> = {}): LayaGateSpec => ({
   state: { project: "axiom", tsc_exit: 0 },
-  decisions: [{ id: "d-choice", domain: "triage", questions: choiceQ, irreversibleQuestions: [], forbiddenAuto: [] }],
+  decisions: [{
+    id: "d-choice", domain: "triage", questions: choiceQ,
+    optionBlastRadius: { a: "local_reversible", b: "local_reversible" },
+    forbiddenAuto: [],
+  }],
   ...over,
 });
 
@@ -62,35 +66,106 @@ describe("闸门规则（与 laya_gate.py 同口径）", () => {
     expect(r.reasons.join(" ")).toMatch(/margin 0\.030 < 0\.15/);
   });
 
-  it("选中不可逆动作 ⇒ 即使 margin 很大也 ESCALATE", async () => {
+  it("选中的**选项**半径为外写 ⇒ 即使 margin 很大也 ESCALATE", async () => {
     const s = spec({
-      decisions: [{ id: "d-choice", domain: "triage", questions: choiceQ, irreversibleQuestions: ["next step?"] }],
+      decisions: [{
+        id: "d-choice", domain: "triage", questions: choiceQ,
+        optionBlastRadius: { a: "external_write", b: "local_reversible" },
+      }],
     });
     const t = createLayaTriage({
       run: fake({ "d-choice": { "next step?": { type: "choice", probabilities: { a: 0.99, b: 0.01 } } } }),
     });
     const [r] = await t.triage(s);
     expect(r.verdict).toBe("ESCALATE");
-    expect(r.reasons.join(" ")).toMatch(/不可逆|禁止自动/);
+    expect(r.reasons.join(" ")).toMatch(/半径=external_write ⇒ 外写\/不可逆/);
   });
 
-  it("noul > 0.5 且问的是「需人批准」⇒ ESCALATE；低概率不升级", async () => {
-    const s = spec({ decisions: [{ id: "d-choice", domain: "escalation", questions: approvalQ }] });
-    const hi = createLayaTriage({ run: fake({ "d-choice": { approval: { type: "noul", noul: 0.72 } } }) });
-    expect((await hi.triage(s))[0].verdict).toBe("ESCALATE");
-    const lo = createLayaTriage({ run: fake({ "d-choice": { approval: { type: "noul", noul: 0.31 } } }) });
-    expect((await lo.triage(s))[0].verdict).toBe("AUTO");
-  });
-
-  it("noul 高但问句不涉及批准 ⇒ 不因此升级（避免把任意 noul 当否决）", async () => {
+  // D5 回归：半径必须按选项判。上一版按**问题**登记不可逆，于是同一道题里
+  // 模型选中最低不可逆性的那个选项，也被连带判成"属不可逆/外写动作"。
+  it("同一题里有外写选项，但模型选中的是可逆选项 ⇒ 不得因不可逆升级", async () => {
     const s = spec({
       decisions: [{
-        id: "d-choice", domain: "escalation",
-        questions: { stat: { type: "noul", instructions: "这些统计是否支持结论？" } },
+        id: "d-choice", domain: "triage", questions: choiceQ,
+        optionBlastRadius: { a: "external_write", b: "local_reversible" },
       }],
     });
-    const t = createLayaTriage({ run: fake({ "d-choice": { stat: { type: "noul", noul: 0.9 } } }) });
-    expect((await t.triage(s))[0].verdict).toBe("AUTO");
+    const t = createLayaTriage({
+      run: fake({ "d-choice": { "next step?": { type: "choice", probabilities: { b: 0.93, a: 0.07 } } } }),
+    });
+    const [r] = await t.triage(s);
+    expect(r.chosen).toBe("b");
+    expect(r.verdict).toBe("AUTO");
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("选中的选项未登记半径 ⇒ ESCALATE（登记表是唯一依据，未知动作不自动执行）", async () => {
+    const s = spec({
+      decisions: [{
+        id: "d-choice", domain: "triage", questions: choiceQ,
+        optionBlastRadius: { b: "local_reversible" },
+      }],
+    });
+    const t = createLayaTriage({
+      run: fake({ "d-choice": { "next step?": { type: "choice", probabilities: { a: 0.9, b: 0.1 } } } }),
+    });
+    const [r] = await t.triage(s);
+    expect(r.verdict).toBe("ESCALATE");
+    expect(r.reasons.join(" ")).toMatch(/未登记爆炸半径/);
+  });
+
+  // noul 与爆炸半径实测分不开（Spearman +0.41、min(tier3)<max(tier0)）：
+  // 把它当批准判据不是保守，是让闸门对所有输入都 ESCALATE、自动化归零。
+  // 故 noul 只做交叉核对留痕，裁定权在登记表。
+  it("noul 再高也不改裁定：登记表说可逆就仍 AUTO，但留下不一致的痕迹", async () => {
+    const s = spec({
+      decisions: [{
+        id: "d-choice", domain: "escalation", questions: approvalQ,
+        actionBlastRadius: "local_reversible",
+      }],
+    });
+    const hi = createLayaTriage({ run: fake({ "d-choice": { approval: { type: "noul", noul: 0.72 } } }) });
+    const [r] = await hi.triage(s);
+    expect(r.verdict).toBe("AUTO");
+    expect(r.reasons).toEqual([]);
+    expect(r.notes?.join(" ")).toMatch(/noul 0\.720 高.*以登记表为准/s);
+  });
+
+  // 剥掉 noul 的裁定权之后，纯 noul 题的闸门只能来自动作半径登记；
+  // 漏登记必须是升级，否则这类决策会变成"没有任何闸门"。
+  it("纯 noul 决策未登记 actionBlastRadius ⇒ ESCALATE（不得因失去 noul 判据而变成无闸门）", async () => {
+    const s = spec({
+      decisions: [{ id: "d-choice", domain: "escalation", questions: approvalQ }],
+    });
+    const t = createLayaTriage({ run: fake({ "d-choice": { approval: { type: "noul", noul: 0.02 } } }) });
+    const [r] = await t.triage(s);
+    expect(r.verdict).toBe("ESCALATE");
+    expect(r.reasons.join(" ")).toMatch(/未登记 actionBlastRadius/);
+  });
+
+  it("noul 低但登记表判外写 ⇒ 仍按登记表 ESCALATE，并留不一致痕迹", async () => {
+    const s = spec({
+      decisions: [{
+        id: "d-mixed", domain: "escalation",
+        questions: {
+          "next step?": { type: "choice", options: { a: "甲", b: "乙" } },
+          approval: { type: "noul", instructions: "该动作是否需要用户批准后才可执行？" },
+        },
+        optionBlastRadius: { a: "destructive", b: "local_reversible" },
+      }],
+    });
+    const t = createLayaTriage({
+      run: fake({
+        "d-mixed": {
+          "next step?": { type: "choice", probabilities: { a: 0.95, b: 0.05 } },
+          approval: { type: "noul", noul: 0.11 },
+        },
+      }),
+    });
+    const [r] = await t.triage(s);
+    expect(r.verdict).toBe("ESCALATE");
+    expect(r.reasons.join(" ")).toMatch(/半径=destructive/);
+    expect(r.notes?.join(" ")).toMatch(/noul 0\.110 低.*以登记表为准/s);
   });
 
   it("模型没作答 ⇒ ESCALATE（缺答不等于通过）", async () => {
@@ -160,8 +235,8 @@ describe("decideAndRun：只跑 AUTO 且必须有对应动作", () => {
     const ran: string[] = [];
     const s = spec({
       decisions: [
-        { id: "go", domain: "triage", questions: choiceQ },
-        { id: "stop", domain: "triage", questions: choiceQ },
+        { id: "go", domain: "triage", questions: choiceQ, optionBlastRadius: { yes: "local_reversible", no: "local_reversible" } },
+        { id: "stop", domain: "triage", questions: choiceQ, optionBlastRadius: { yes: "local_reversible", no: "local_reversible" } },
       ],
     });
     const t = createLayaTriage({

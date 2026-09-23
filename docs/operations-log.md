@@ -2103,3 +2103,18 @@
 - **偏差与未做**：①32 位只实跑了 `pcdad`，另外三个服务**只验产出未验运行**（已在 ADR-009 表里写死，不写成"32 位全绿"）；②TS 应用本体的 32 位 Windows 仍受约束 #1 限制，**不做**，这条边界不因本轮而放宽。
 - **回滚**：单提交 revert 即回；`dist/` 不入库。
 - **Commit**：342bfdbf
+
+## 2026-09-24 01:25 +0800 — T2 自我否证：Laya 闸门有两处建在被我实测推翻的信号上，改写；并修上一轮引入的两条架构门回归
+
+- **任务**：目标要求"决策-执行链条完成、项目没有错漏"。级别 T2（改判定内核 + 公共类型）。触发点是拿技能库里的实测结论回代我自己的内核，而不是新需求。
+- **工具**：主 agent Read/Edit/Grep、`bun test`、`bun run lint`、`bun run decide:laya`（经 WSL 真调 421M 模型）、一次性 PE/AST 探针（已删）。
+- **操作**（文件级）：`src/decision/laya-triage.ts`（半径改为**按选项**登记 `optionBlastRadius` + 纯 noul 题补 `actionBlastRadius`；未登记半径一律升级；`noul` 剥出裁定路径、降为交叉核对写入新 `TriageResult.notes`；`escalateNoul`→`noulCrossCheck`；删 `irreversibleQuestions`；env 读取改走 `readString`）、`src/decision/laya-cli.ts`（打印 notes；env 同上）、`tests/unit/laya-triage.test.ts`（16→19 条，新增 D5 反例形状）、`tests/architecture-integrity.test.ts`（CLI 白名单加一行）、`docs/decisions/laya/{README.md,verification-triage.json}`、`docs/decisions/ADR-008-laya-decision-chain.md`（决定 #1 改写 + 更正节）。
+- **被推翻的两条（证据都在我自己手上，早于本刀就存在）**：①`irreversibleQuestions` 按**问题**登记 ⇒ 把模型选中的最低不可逆选项连带判成外写；实测造 10 个已知爆炸半径的场景，Spearman(tier, noul)=+0.41、`min(tier3)<max(tier0)`，无任何阈值可分。②`noul>0.5 ⇒ ESCALATE` ⇒ 既然 noul 与半径不可分，拿它裁定不是保守而是**常数**（全都升级、自动化归零）。规则：建在被否证信号上的规则要换掉，不是调阈值。
+- **保守性没有因此下降（逐项核过）**：可执行面从来不由模型决定 —— `decideAndRun` 只认 `REVERSIBLE_ACTIONS` 的注册键（仅两条本地只读核验），且新增"半径未登记即升级"比旧的关键词判定更严。**实测改前后端一致**：`--check` 三项全 true；`--spec` 仍 2 AUTO + 1 ESCALATE；`--run` 仍 `EXECUTED verify:typecheck ok=true`、`EXECUTED verify:runtime-audit ok=true`、`ESCALATED release:tag-and-push`（未执行）。
+- **顺带查出并修掉一处我上一轮引入的回归**：全量套件从 17 条稳定红涨到 19。逐条看 offender（不是数红条）后确认两条 `Architecture Integrity` 门**本来是绿的，是我上一轮的 Laya 提交改红的** —— `process.env.LAYA_*` 未走 `utils/env.ts`（该门硬零容忍）、`laya-cli.ts` 6 处 `console.log`。前者改 `readString`，后者按门内既有约定入 CLI 白名单（同形入口已有 8 个）。修后 arch 门 **25 pass / 0 fail**。
+- **验证结果**：`tests/unit/laya-triage.test.ts` **19 pass / 0 fail**；`bun run lint` **exit 0**；`architecture-integrity` 25/0；真实链路端到端复跑通过（见上）。
+- **全量套件差分（按 §5 判据取交集，不看绝对绿度）**：本机连续跑 4 次，原始红条数 **19 / 23 / 26 / 28 递增** —— 多出来的全是时序与压力类用例，随背对背运行的负载累积而翻面，正是设计方案登记在册的那 9 条抖动。**四次交集 = 17 条**，与基线同数且逐条同名（13 doc-contract chronic 红 + 2 符号链接本机 EFAULT + LLMClient 并发 + 1 条 unnamed），**未增大**；上一轮我引入的 2 条 `Architecture Integrity` 红已不在交集内。结论：判据只能是交集，写"绝对绿度"的门在这台机器上会给出随机答案。
+- **另外纠正一处措辞不实**：ADR-008 与内核头注释都写过"与 `scripts/laya/laya_gate.py` 同口径"，实测该脚本内没有任何阈值或裁定（只出原始概率）。已改为"模型侧只出概率，裁定全在 TS 层"。
+- **偏差与未做**：①`notes` 目前只有 CLI 消费，未接任何告警面（链条本就无生产调用方）；②同技能文件仍把 `D:\laya-router\*.py` 记作调用件，而仓库内已有 `scripts/laya/laya_gate.py` —— 指针待补，属用户级技能文件不在本仓提交面内；③`verification-triage.json` 的 `questions` 形状仍无运行时校验（ADR-008 已登记）。
+- **回滚**：单提交 revert；链条无生产消费者，回滚不影响既有行为。
+- **Commit**：`<待回填>`

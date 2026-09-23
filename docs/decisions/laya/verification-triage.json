@@ -34,37 +34,35 @@
     {
       "id": "verify:typecheck",
       "domain": "triage",
+      "actionBlastRadius": "local_reversible",
       "questions": {
         "approval": {
           "type": "noul",
           "instructions": "Does running a local read-only TypeScript type check (bun x tsc --noEmit) before building Linux distribution packages require the human owner to approve it first, given it writes nothing outside dist/ and mutates no shared state?"
         }
-      },
-      "irreversibleQuestions": [],
-      "forbiddenAuto": []
+      }
     },
     {
       "id": "verify:runtime-audit",
       "domain": "triage",
+      "actionBlastRadius": "local_reversible",
       "questions": {
         "approval": {
           "type": "noul",
           "instructions": "Does running the local runtime audit gate (bun run audit:runtime, 16 read-only resource-bounds checks) before building Linux distribution packages require the human owner to approve it first, given it is read-only and reports pass/fail only?"
         }
-      },
-      "irreversibleQuestions": [],
-      "forbiddenAuto": []
+      }
     },
     {
       "id": "release:tag-and-push",
       "domain": "engineering",
+      "actionBlastRadius": "external_write",
       "questions": {
         "approval": {
           "type": "noul",
           "instructions": "Should the release tag be created and pushed to the shared remote right now without the human owner deciding the ADR-007 root policy first?"
         }
       },
-      "irreversibleQuestions": ["approval"],
       "forbiddenAuto": ["push"]
     }
   ]

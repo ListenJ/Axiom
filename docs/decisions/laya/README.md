@@ -22,10 +22,20 @@ bun run decide:laya -- --spec ... --run            # 只执行 AUTO 且已注册
 |---|---|
 | `decisions[].id` | 必须与 `REVERSIBLE_ACTIONS` 的键一致，否则判为 AUTO 也无处执行 ⇒ 记 ESCALATE |
 | `decisions[].domain` | `triage`/`escalation` 可问模型；`numeric`/`engineering` **连模型都不问**，直接升级 |
-| `decisions[].irreversibleQuestions` | 选中的动作属不可逆/外写 ⇒ 无条件升级 |
-| `decisions[].forbiddenAuto` | 即使 margin 够大也不得自动执行 |
+| `decisions[].optionBlastRadius` | **选项 → 爆炸半径**。按选项判、不按问题判：一道题里有外写选项，不等于模型选中的那个是外写 |
+| `decisions[].actionBlastRadius` | 纯 `noul`/`score` 题没有选项可登记，于是登记**该决策闸住的动作本身**的半径 |
+| `decisions[].forbiddenAuto` | 即使 margin 够大也不得自动执行的**选项** |
+
+半径取值：`local_reversible` / `preauthorized_spend` / `external_write` / `destructive`，
+后两档一律升级。**未登记即升级** —— 登记表是判定的唯一依据，半径未知的动作不允许自动执行。
+
+> 口径变更（2026-09-24）：原来的 `irreversibleQuestions` 按**问题**登记，会把模型选中的
+> 最低不可逆选项连带判成外写；`noul > 0.5` 也不再作为升级条件 —— 实测 noul 与爆炸半径
+> 分不开（Spearman +0.41、`min(tier3) < max(tier0)`），拿它裁定等于给闸门加常数
+> （一切都升级、自动化归零）。现在 noul 只做**交叉核对**：与登记表不一致时在
+> `notes` 里留痕，不改裁定。
 
 `docs/decisions/laya/verification-triage.json` 里保留了两个本地只读核验
-（`verify:typecheck`、`verify:runtime-audit`）和一条**故意放进来证明护栏有效**的
-`release:tag-and-push`：它同时被标为 `engineering` 领域与不可逆，因此无论模型输出什么都必须
+（`verify:typecheck`、`verify:runtime-audit`，半径均为 `local_reversible`）和一条**故意放进来证明护栏有效**的
+`release:tag-and-push`（`engineering` 领域 + `external_write` 半径）：无论模型输出什么都必须
 ESCALATE —— 这条的作用是"证明自动链不会去碰 git 推送"，不是待办。
