@@ -2366,4 +2366,14 @@
 - **我在这条链上又犯了一次错（如实记）**：用 `sed '0,/占位/s//dc6c8a90/'` 回填时，`0,/…/` 命中的是**文件中第一条**占位而非我本轮那条 ⇒ 把 `04:12` 审计报告条目的 Commit 误填成 `dc6c8a90`（那是 04:08 版本刀的 hash）。已按行号逐条改回并 `git log` 序列核对：`2341=dc6c8a90 / 2352=5556778c / 2361=3b0a0598`。**判据：回填 hash 必须按条目行号定位并逐条与 `git log --oneline` 对序，不能用"替换第一处"的模式。**
 - **同时刻读数**：`verify:artifacts` **OK**（版本刀改过 `src/` 后重新构建，15 份交付物再次全部不早于 `src/` 最新提交）；`smoke:linux` 在新产物上 deb `deb_depends_field=ok` + `health_http_code=200`、rpm `%files` 枚举 + `200` 均 PASS，AppImage 在跑。
 - **性质**：记录维护，无业务改动。
+- **Commit**：54f7dfa2
+
+## 2026-09-24 04:17 +0800 — T1 记录：门控重建链全绿，三产物在含版本刀的最新代码上 3/3 通过
+
+- **任务**：版本刀改过 `src/` 之后产物再次落后，用**逐步判退出码**的门控链重跑一次，把"分发面"钉在最新提交上。级别 T1（无源码改动，只跑链 + 记录）。
+- **工具**：主 agent Bash（`/tmp/final.sh`：`matrix --target=bun --platform=windows` → 容器内 `bun build --compile --target=bun-linux-x64` → `package:linux -- --bin …` → `verify:artifacts` → `smoke:linux`，每步 `|| { echo FAIL; fail=1; }`）。
+- **验证结果**：链尾 **`fail=0`**；`verify:artifacts` **OK**（15 份交付物全部不早于 `src/` 最新提交，PE 位数与路径一致，清单与磁盘双向一致）；`smoke:linux` **3/3 PASS**（deb `deb_depends_field=ok`、rpm `%files` 枚举 5 项、AppImage 解包直跑，三者 `health_http_code=200` + `PROBE_OK=1`）。产物时间戳 `04:09–04:13`。
+- **与 04:02 条的区别**：那次是三包首次重建到"含 SSRF 修复"的代码；本次基线又前进了版本单源一刀，故重新走同一条链并复验。这条链本身现在就是发布前应跑的次序，已写进 ADR-009 的"Linux 侧只能在容器里编译"节。
+- **偏差与未做**：Windows 三入口点本轮只做**构建**未再逐个实跑（04:45 条已有那三份的实跑证据；版本刀改了横幅与 CLI 字符串，严格说 Windows 侧的运行证据已落后一刀 —— 下一刀应重跑 `axiom-cli.exe --help` 与 `/health` 再宣称一致）。链未接进 CI（`dist/` 不入库）。
+- **回滚**：无源码改动，记录条目可直删。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
