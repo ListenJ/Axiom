@@ -74,3 +74,30 @@
 **还查出一处会咬人的事实**：`dist/tests/` 里有 **174 份编译后的 `.test.js` 副本**（`dist/` 已 gitignore，故不影响全新克隆的 CI，但影响本机）。直接跑其中 `dist/tests/architecture-integrity.test.js` ⇒ **18 pass / 4 fail**，而源码那份 25 pass / 0 fail —— 因为编译副本停留在今天修复之前。这解释了我串行日志里"同一个 arch 用例既 pass 又 fail"的怪读数，也是我自己一度误推"`bun test tests/` 被 dist 污染"的起因（并非：带 `tests/` 位置参数时不吞 dist，我是显式指到 dist 路径才跑到了副本）。
 
 **方法论结论（写给下一个量这条门的人）**：本项目**没有单一的"标准测试命令"** —— 三个入口给 7 / 90 / 93 三种读数。任何"全量绿度"的断言必须先写清用的是哪一个入口、`--parallel` 取值、以及 `dist/` 是否在工作树里。
+
+## 九、续做入口（可复跑，不依赖本报告的叙述）
+
+```bash
+# 1) 标准命令之争的三种读数（同一棵树，先后各跑一次；约 5 分钟/次）
+bun run test                                        # → 4318 pass / 7 fail（带 --parallel=8）
+bun test --timeout 15000 ./tests                    # → 4243 pass / 90 fail（去掉该开关）
+# 2) 取 90 红的唯一失败名（供聚类用；注意 bun 的表头含 ANSI，别按 ^tests 行首归属）
+bun test --timeout 15000 ./tests > /tmp/noparallel.txt 2>&1
+grep -aoE "^\(fail\).*" /tmp/noparallel.txt | sed 's/\[[0-9.]*ms\]//' | sort -u > /tmp/fails.txt
+# 3) 两两配对缩小污染者（先取红最多的文件族）
+bun test <A> <B> --timeout 15000                    # 单跑全绿、成对变红 ⇒ 指向 A 或 B 的全局态
+```
+
+三条已验证的前提，别重复调研：
+1. **`process.chdir` 不是元凶** —— `capability-invariants` 与 `architecture-integrity` 同进程串行 = 74 pass / 0 fail。
+2. **`--parallel=8` 是掩盖项而非致害项** —— 见 §八 的 7 vs 90。
+3. **报任何绿度必须带三元组**（入口命令 / `--parallel` 取值 / `dist/` 是否在工作树内）；`dist/tests/` 内有 174 份编译 `.test.js` 副本，显式指路径才会跑到。
+
+分发面复跑（已证 `fail=0`，改动 `src/` 后需重跑）：
+```bash
+bun run scripts/build/matrix.ts --target=bun --platform=windows
+MSYS_NO_PATHCONV=1 docker run --rm -v D:/openclaw-fusion:/app -w /app oven/bun:1.3.14 \
+  bun build src/main.ts --compile --target=bun-linux-x64 --outfile dist/bun/linux/x64/axiom-server
+bun run package:linux -- --bin dist/bun/linux/x64/axiom-server   # --bin 必填
+bun run verify:artifacts && bun run smoke:linux                  # 期望 OK + 3/3
+```
