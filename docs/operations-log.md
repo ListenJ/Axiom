@@ -2010,3 +2010,14 @@
 - **验证结果**：文档改动不影响代码，`tsc` 与三门结果沿用上一条（exit 0 / 16-16 / 稳定红 17）。
 - **偏差记录**：初稿在推荐位上写了一个未经实跑的方案（D-3①），靠"它是个旁路所以套守卫更安全"的直觉成立、被一次 4 行的 `isSafeUrl` 实测推翻。教训：**给安全收口方案定价前，先拿被保护对象的默认配置回代判据**——否则很可能把功能判死而不是把洞堵住。已按此把 D 的步序改为"D-A 不需政策先做、D-B 前置 allow-list"。
 - **Commit**：3875692d
+
+## 2026-09-23 05:20 +0800 — T3 决策记录：ADR-007 路径判定单源化与沙箱根可配（提案，未施工）
+
+- **任务**：用户指令「使用 skill 解决我们的问题」→ 对 C 组（safeFs 扩面）做架构裁决。级别 T3（影响授权内核与公共接口面）。按规则 8"设计建议不等于施工授权"，本轮**只出决策记录**，未改任何 `src/`。
+- **工具**：`architecture` 技能（用户显式点选，按其 ADR 规范与否决理由体例产出）、Bash（grep/sed 定点核对导入面与清单包含关系）、Read（读 `path-safety.ts` 全文 93 行）、SearchWorkspace（上一轮 runtime 盘点）。
+- **操作**（文件级）：新建 `docs/decisions/ADR-007-safefs-single-source-and-configurable-root.md`；`docs/superpowers/plans/2026-09-23-...-design.md` §2 顶部加"已被 ADR-007 取代并扩展"的指认（避免留下两份互相矛盾的规范文档）。
+- **勘察改变结论的三处（均为实测，非推断）**：①全仓（`src/`+`tests/`）**只有 1 处 import** `path-safety`（`docker-sandbox.ts:4`，调用点 `:38`），`resolvePath` 零消费者（`agent-evals/real-usage.ts:31` 那个同名符号是局部函数），且 `tests/` 无任何测试 import 过它 ⇒ 第二份守卫**无自身测试**；②两份文件**各自声称唯一**（`path-safety.ts:2/:20` vs `safe-fs.ts:2`），而 `safe-fs.ts` L4-L11 叙述的"两份守卫已终结"与现状不符；③清单包含关系经定点核对：`path-safety` 的 4 条 `DENIED_SEGMENTS` 是 `permissions.ts` 锚点的**真子集**（`.env`→`:270`、`.git`→`:260`、`data/*.db`→`:274`、`data/model-config.json`→`:273`），后者另有 `.ssh`/`sudoers`/`crontab`/`systemd`/`id_rsa`/`.axiom\/axiom-secrets` 等约 10 项 ⇒ 切换到 safeFs **只会更严不会放松**。
+- **决定**：C 拆三刀并按依赖排序 —— **C-0** 收敛第二份守卫（1 个调用点，不引入抽象）、**C-1** `safeFsFor(policy)` 薄工厂 + 4 写点绑定（工厂内不得含任何路径判断）、**C-2** 两处吞错显式化（行为变更，单独提交）。否决原 C-1（roots 各传一遍、漏传无判据）、原 C-2（命名根集中化：改公共接口 + 回归 9 消费者 + 当下只有 1 个用户 ⇒ YAGNI）、以及"直接套现有 safeFs"（会静默打死合法写入）。三条机器判据：结构门 / 结论相等门（照抄 `tests/command-danger-single-source.test.ts` 的"锁结论相等"先例）/ 不可构造门（工厂无默认根）。
+- **验证方式**：本轮无代码改动 ⇒ 三门沿用上一条结果（`tsc` exit 0、`audit:runtime` 16/16、稳定红 17）。ADR 内每条事实断言均给 `文件:行号`，其中"切换更严不更松"这条**先有反向前提、后被定点 grep 推翻**（见偏差①），故 ADR 里保留了核对口径而非只留结论。
+- **偏差记录**：①**一次自我纠正**：我最初据窗口推断"两份清单各有对方没有的项"，据此打算把 C-0 写成"先并清单再换"。落笔前重跑定点 grep，实测方向相反（`path-safety` ⊂ `permissions`）⇒ 若按错推断施工会白改 `permissions.ts` 锚点。教训与本轮 D-3① 撤回同源：**改判据前先量方向**。②ADR-007 唯一保留的真实行为差异是 `path-safety.ts:77-86` 对新路径父目录无法 realpath 时 **fail-open**，而 safe-fs 逐跳偏 fail-closed，docker 挂载目录允许尚不存在 ⇒ 已在 C-0 内列为"必须显式裁决并写测试锁住"，不得以"统一了"为由略过。③技能是用户点选的，非我自主判断引入。
+- **Commit**：待回填

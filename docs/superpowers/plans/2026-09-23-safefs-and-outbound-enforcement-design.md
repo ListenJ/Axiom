@@ -43,6 +43,11 @@
 
 ## 2 C 组：把裸 `fs` 写点收进 `safeFs`
 
+> **本节已被 `docs/decisions/ADR-007-safefs-single-source-and-configurable-root.md` 取代并扩展（2026-09-23 同日晚些时候）。**
+> 写本节时还不知道的第二份守卫：`src/utils/path-safety.ts:22 isPathSafe()` 仍在 `src/sandbox/docker-sandbox.ts:38` 活着，
+> 于是 C 的第一步从"C-1/C-2/C-3 选一个抽象"变成"先把那一份收敛掉"（ADR-007 的 C-0）。
+> 下面三个选项的对比仍然有效，但它回答的是"根怎么绑"，不回答"两份守卫怎么办"。以 ADR-007 为准。
+
 ### 2.1 现状（逐点定位，含一条不可复现的声明）
 
 `safeFs` 的公开面（`src/utils/safe-fs.ts`）：`authorizePath:75`、`readFile:152`、`writeFile:200`、`readDir:241`、`move:266`、`remove:288`。
