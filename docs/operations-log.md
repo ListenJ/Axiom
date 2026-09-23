@@ -2386,3 +2386,12 @@
 - **未做**：`axiom-mcp.exe` 本轮未重跑（其证据仍是 04:45 条：起服务、注册 `mind_synapse_*`/`browser_*`、绑 :3001、日志自标 auth fail-closed）。
 - **回滚**：无源码改动。
 - **Commit**：1f04aabb
+
+## 2026-09-24 04:21 +0800 — T1 补证：`axiom-mcp.exe` 答出真实 MCP initialize 握手
+
+- **任务**：上一条留了"mcp 本轮未重跑"。本刀补到**协议级**证据，不只是"进程起得来"。级别 T1（跑产物 + 记录）。
+- **验证结果**：`AXIOM_AUTH_TOKEN` 配置后 `POST /mcp` 带 `initialize` ⇒ **HTTP 200**，响应 `event: message` + `data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true}}…`；定向 `taskkill //F //IM axiom-mcp.exe //T` 后 `tasklist` 残留 **0**。⇒ Windows 三份产物现各有运行证据（CLI 用法屏 / server `/health` 200 自述 4.0.0 / mcp 握手 200）。
+- **顺带观察，未判定**：同一次探测 `/mcp`、`/sse`、`/` 三条路径都返回同样的握手结果。**没有读挂载代码就不判它是缺陷**；若确实路径不敏感，客户端 URL 写错也能连上，会掩盖配置错误。登记待核 `src/mcp/server.ts` 的挂载点。
+- **偏差与未做**：未验证"不带 token 时被拒"的同一批次（此前那次是日志自标 auth fail-closed，属另一条证据）；未跑 `tools/list` 全量对账。
+- **回滚**：无源码改动。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
