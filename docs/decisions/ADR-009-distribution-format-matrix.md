@@ -52,7 +52,7 @@
 | `dist/pkg/axiom-4.0.0-1.x86_64.rpm` | 28,491,464 B | `rpm -ivh` 进 `fedora:latest` 成功（`rpm -q axiom` → `axiom-4.0.0-1.x86_64`）；`rpm -ql axiom` 只有 5 条：`/usr/bin/axiom`、`/usr/share/applications/axiom.desktop`、两条 hicolor 目录、`axiom.png`，无系统目录所有权；`GET /health` **200** |
 | `dist/pkg/Axiom-4.0.0.x86_64.AppImage` | 38,425,792 B | `--appimage-extract` 解包后 `AppRun` 与 `usr/bin/axiom` 均在位且可执行（`file` 判为 `ELF 64-bit LSB executable, x86-64`，105,199,744 B）；执行 `./AppRun` 后 `GET /health` **200** |
 | `dist/bun/windows/x64/axiom-server.exe` | 110,041,088 B | **已实测运行**：`sha256sum` 与 `dist/CHECKSUMS.txt` 逐字一致；PE 头 `Machine=0x8664` + 可选头 magic `0x20b`（PE32+，即真 64 位）；在空目录里以默认 env 直跑该 exe，`GET /health` 在 2 次轮询内返 **200** 且响应体含 `status:"ok"`，工作目录自建 `data/`、`plugins/`。仍是**裸执行**而非安装包冒烟（Windows 侧无包格式），且未验卸载/服务注册（本就不提供） |
-| Windows 32 位（Go 服务） | 4 个服务已产出并实跑 | `dist/go/windows/386/{pcdad,searchd,agentd,loadgen}.exe`（PE32/`0x14c`，见约束 #2）；`pcdad.exe` 实测 `/healthz` 200。其余三个本轮**只验产出未验运行** |
+| Windows 32 位（Go 服务） | 4 个服务已产出，**3 个已端到端实跑** | `dist/go/windows/386/{pcdad,searchd,agentd,loadgen}.exe`（PE32/`0x14c`，见约束 #2）。实跑证据：`pcdad` `GET /healthz` → 200；`searchd` 与 `agentd` 各 200；**32 位 `loadgen` 作客户端打 32 位 `searchd`** —— seed 200 篇 21ms、search 300 请求 **0 错误**、p99 0.80ms。顺带验到写端点守卫的形状：未带 token 时 403（`SEARCHD_AUTH_TOKEN` 未设置时写端点直接禁用，报错点名该 env；带 token 后 seed 通过）⇒ 这是 fail-closed 默认，不是缺陷。`loadgen` 无独立守护形态（它是客户端），故"4 个服务全部当服务跑"不适用 |
 
 > **Windows 与 Linux 包的一个实测行为差异**（登记以免被当成等价产物）：同一个 `main.ts` 编译出的入口，Windows exe 启动日志为 `[Edition] Detected: cloud`，而 Linux 容器内为 `[Edition] Detected: local` + `[NativeBridge] Binary not found: ./native/target/release/axiom-local`。差异来自 `native/target/release/` 在 Windows 上有构建物、在容器里没有 ⇒ **三种 Linux 包实际跑的是不带动画核的降级形态**。`detectEdition` 的这一分支目前不受任何测试覆盖（本轮未补，属 D 组之外的事）。
 
