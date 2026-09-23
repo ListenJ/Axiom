@@ -2243,4 +2243,4 @@
 - **我自己在验证途中犯的错（记下来）**：第二次起服务时只 `export` 了 token、漏了 `SEARCHD_ADDR`，服务听在默认 :9103 而我去探 :19103，得到的是"连接被拒"，一度像产物问题。`searchd3.log` 里那行 `listening on :9103` 才把它戳穿 —— **连接被拒先查自己有没有把端口设上，别记到被测对象头上**。
 - **偏差**：`.tmp/go386/` 因有先前 shell 的工作目录留在里面而暂时删不掉（`Device or resource busy`），位于 gitignore 的 `.tmp` 内，不影响仓库。
 - **回滚**：文档单提交 revert。
-- **Commit**：`<待回填>`
+- **Commit**：ad8e0166
