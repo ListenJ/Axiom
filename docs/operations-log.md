@@ -2289,3 +2289,15 @@
 - **偏差与未做**：没有为了"看起来自动"而把 Laya 塞进 `screen` 槽位 —— 那会被我自己的实测否证，也违背"模型意见只能加严、不放宽确定性结论"的既有不变式。升级为运行期自动挂钩属 T3（新跨模块接口 + WSL 前向进派发热路径 + 需先定分档与降级），按规则 0.6 交用户裁决，本刀不擅动。
 - **回滚**：文档单提交 revert。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+
+## 2026-09-24 04:45 +0800 — T2 分发面实证：三个 Windows 入口点全部实跑，并修掉我自己那条门的一处误报
+
+- **任务**：目标要求 deb / windows exe 32·64 / rpm / AppImage 可分发。上一刀的 `verify:artifacts` 查出产物过期，本刀重建 + 逐个实跑 + 修门。级别 T2。
+- **工具**：主 agent Bash（`bun run scripts/build/matrix.ts --target=bun --platform=windows`、`curl`、`tasklist`/`taskkill`、`bun x tsc`）、Grep/Read/Edit；后台链式作业 `b723u2s29`（test×2 → 重建 win/linux → 打三种包 → `smoke:linux`）。
+- **实测（Windows 三入口点全部可运行）**：`axiom-cli.exe --help` 输出 1,464 B 真实用法屏；`axiom-mcp.exe` 初始化 SQLite/Vault、注册 `mind_synapse_*`+`browser_*`、绑 :3001 且日志自标 `auth: FAIL-CLOSED no token`；`axiom-server.exe` `GET /health` → **200** `{"status":"ok","checks":{database:true,vault:true}}`。**我自己探错过的两件事**：①第一次拿 :3000 探 server，实际听 **18789**，得到 HTTP=000 一度像产物问题；②`pkill -f` 在本机 Git Bash 是 busybox 版、**不支持 `-f`**，前两次的清理其实没生效（`tasklist` 查出 2 个残留），改用 `taskkill //F //IM <exe> //T` 后残留归 **0**。
+- **操作**（文件级）：①`scripts/build/verify-artifacts.ts` 新鲜度基线**按产物家族分别取** —— `bun/*`、`pkg/*` 比 `src/`，`go/*` 比 `runtime-go/`（`go.mod` 所在）；②ADR-009 新增"发布树新鲜度"节 + 三入口点证据表 + 版本串缺陷登记；③本条留痕。
+- **验证结果**：门的读数从"15 份全过期"经重建降到 **4 份**（linux bun 二进制 + 三个包，正是链式作业在跑的部分），`bun x tsc --noEmit` exit 0。**我这条门自己也有一处误报并已修**：原先一律拿 `src/` 当基线，会把 8 份 Go 产物恒判红（`runtime-go/` 最后提交是 09-12，差 11 天）—— 一条会误报的门下一次就会被当噪声忽略。
+- **顺带查出、未修的缺陷**：`/health` 响应体的 `version` 是硬编码 `"2.2.0"`（`src/routes/health.ts:38`；`src/memory/bootstrap.ts:79`、`src/cli/setup.ts:134` 同值），而 `package.json`/包版本是 **4.0.0** ⇒ 任何按 `/health` 版本做发布校验的流程都会误判。登记进 ADR-009，不在本刀顺手改（改读 `package.json` 还是改常量需先定口径）。
+- **偏差与未做**：没重跑 `smoke:linux` 的结论（链式作业尚未走到那步，走完后另条留痕）；`.tmp/winexe/` 因先前 shell 的工作目录留在里面暂时删不掉（`Device or resource busy`，与 `.tmp/go386` 同一类），位于 gitignore 内不影响仓库。
+- **回滚**：单提交 revert。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

@@ -19,11 +19,18 @@ const repoRoot = path.resolve(import.meta.dir, "..", "..");
 const DIST = path.join(repoRoot, "dist");
 const wantHash = process.argv.includes("--hash");
 
-function newestSourceCommitUnix(): number {
-  const r = spawnSync("git", ["log", "-1", "--format=%ct", "--", "src/"], { cwd: repoRoot, encoding: "utf8" });
-  if (r.status !== 0 || !r.stdout.trim()) throw new Error(`git 不可用或无提交：${r.stderr || r.stdout}`);
+function newestSourceCommitUnix(forPath: string): number {
+  const r = spawnSync("git", ["log", "-1", "--format=%ct", "--", forPath], { cwd: repoRoot, encoding: "utf8" });
+  if (r.status !== 0 || !r.stdout.trim()) throw new Error(`git 不可用或该路径无提交：${forPath} —— ${r.stderr || r.stdout}`);
   return Number(r.stdout.trim());
 }
+
+/**
+ * 每个产物家族按"真正产出它的那棵树"计新鲜度。
+ * 一视同仁地拿 src/ 去比会把 runtime-go/ 的 8 份 Go 产物永远判红 —— 它们不读 src/，
+ * 一条会误报的门很快就会被下一个人当噪声忽略。
+ */
+const FAMILY_SOURCE: Record<string, string> = { bun: "src/", pkg: "src/", go: "runtime-go/" };
 
 function walk(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -44,12 +51,17 @@ function deliverables(): string[] {
 }
 
 // ── ① 新鲜度 ────────────────────────────────────────────────────────────────
-const srcAt = newestSourceCommitUnix();
+const baseline = new Map<string, number>();
 const stale: { rel: string; ageH: string }[] = [];
 for (const f of deliverables()) {
   if (path.basename(f) === "CHECKSUMS.txt") continue;
+  const rel = path.relative(DIST, f).replace(/\\/g, "/");
+  const srcOf = FAMILY_SOURCE[rel.split("/")[0]];
+  if (!srcOf) continue;
+  if (!baseline.has(srcOf)) baseline.set(srcOf, newestSourceCommitUnix(srcOf));
+  const at = baseline.get(srcOf)!;
   const m = fs.statSync(f).mtimeMs / 1000;
-  if (m < srcAt) stale.push({ rel: path.relative(DIST, f).replace(/\\/g, "/"), ageH: ((srcAt - m) / 3600).toFixed(1) });
+  if (m < at) stale.push({ rel, ageH: ((at - m) / 3600).toFixed(1) });
 }
 
 // ── ② PE 位数 ───────────────────────────────────────────────────────────────
@@ -101,7 +113,7 @@ if (wantHash) {
 
 // ── 结论 ────────────────────────────────────────────────────────────────────
 const fail: string[] = [];
-if (stale.length) fail.push(`过期产物 ${stale.length} 份（晚于 src/ 最新提交 ${new Date(srcAt * 1000).toISOString()}）：\n  ${stale.slice(0, 12).map((s) => `${s.rel} 落后 ${s.ageH}h`).join("\n  ")}`);
+if (stale.length) fail.push(`过期产物 ${stale.length} 份（各家族基线：${[...baseline].map(([k, v]) => `${k}=${new Date(v * 1000).toISOString()}`).join(" ")}）：\n  ${stale.slice(0, 12).map((s) => `${s.rel} 落后 ${s.ageH}h`).join("\n  ")}`);
 if (peBad.length) fail.push(`PE 位数与路径声称不符 ${peBad.length} 份：\n  ${peBad.join("\n  ")}`);
 if (untracked.length) fail.push(`未列入 CHECKSUMS 的产物 ${untracked.length} 份：\n  ${untracked.join("\n  ")}`);
 if (phantom.length) fail.push(`CHECKSUMS 里指向不存在文件的条目 ${phantom.length} 份：\n  ${phantom.join("\n  ")}`);

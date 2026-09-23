@@ -64,3 +64,23 @@ bun run smoke:linux            # 或 --only=deb|rpm|appimage 单跑
 ```
 
 > **第二轮更正记录**：本 ADR 初版的「实测产出」表用 `dpkg-deb -c` 与 `rpm -qlp` 的文件清单作证据，并据此把 deb/rpm 记为「已实测」。该证据**不足以支撑那个结论** —— 它验的是"包里有这些文件"，用户要的是"能分发"。真实情况是当时那两个包都不可用：rpm 装不上（约束 #9），deb 的依赖声明是空的（约束 #10）。初版 rpm 那一行还只抄了 `rpm -qlp` 输出里的 3 个文件、把同时列出的 5 个目录条目省掉了，正好省掉了暴露缺陷的那部分。此处不改写历史表，改为在本节说明，并把判据换成上表的安装 + 探活口径（决定 #4）。
+
+## 发布树新鲜度（2026-09-24 第三轮实测）
+
+本 ADR 此前的"已实测运行"全靠一次性 `bun -e` 探针支撑，仓库里没有可重复的核验命令。补 `bun run verify:artifacts`（`scripts/build/verify-artifacts.ts`）后，首跑即查出：`dist/bun/windows/x64/axiom-cli.exe` 与 `axiom-mcp.exe` 停在 **2026-08-08**（落后 `src/` 最新提交约 **46 天**），而 `CHECKSUMS.txt` 把三份一起列出、sha256 逐字可对 ⇒ **"在清单上"不等于"是当前代码编出来的"**。矩阵的 `BUN_ENTRY_POINTS` 一直含这三个入口点，说明历史上只跑了子集且无人发现。
+
+**新鲜度基线按产物家族分别取**，不是一律拿 `src/` 比：`dist/go/*` 由 `runtime-go/`（`go.mod` 在那里）产出，与 TS 源无关。实测把两者混用一个基线时，8 份 Go 产物被恒判红（基线差 11 天），这种误报会让整条门在下一次被当噪声忽略。现口径：`bun/*`、`pkg/*` 比 `src/`，`go/*` 比 `runtime-go/`。
+
+**三个 Windows 入口点的运行证据**（03:34 重建后的产物，直接在 `dist/bun/windows/x64/` 取件跑）：
+
+| 产物 | 实测 |
+|---|---|
+| `axiom-cli.exe` | `--help` 输出真实用法屏（1,464 B，含 `status/chat/research/analyze/health/tui`）|
+| `axiom-mcp.exe` | 启动即初始化 SQLite 与 Vault、注册 `mind_synapse_*` 与 `browser_*` 工具，绑 `127.0.0.1:3001`，日志显式标 **auth: FAIL-CLOSED no token** ⇒ 未配 token 时默认拒绝，不是缺陷 |
+| `axiom-server.exe` | `GET /health` → **200** `{"status":"ok","checks":{database:true,vault:true,…}}`；监听端口是 **18789**（不是 3000，我第一次探错了）|
+
+跑完 `taskkill //F //IM` 三个入口点，`tasklist` 复查残留 **0**。
+
+**顺带查出一处版本串不一致（未修）**：`/health` 的响应体里 `version` 是硬编码 `"2.2.0"`（`src/routes/health.ts:38`，另有 `src/memory/bootstrap.ts:79` 与 `src/cli/setup.ts:134` 的横幅同值），而 `package.json` 与包名、deb/rpm 版本都是 **4.0.0**。后果：任何拿 `/health` 的 `version` 做发布校验的流程都会判红或误判成旧版。这是**发布面自述与实际版本脱节**，属独立缺陷，本 ADR 只登记不顺手改（改哪几处、是否改读 `package.json` 需先定口径）。
+
+**仍成立的边界**：Bun 无 32 位 Windows 目标 ⇒ TS 应用本体不做 32 位，32 位只对 `runtime-go/` 的 Go 服务承诺；macOS 无机器不分发。Windows 侧只有裸 exe，无安装包格式，故"安装/卸载冒烟"不适用，冒烟证据形态与 deb/rpm/AppImage 不同，不可互相替代。
