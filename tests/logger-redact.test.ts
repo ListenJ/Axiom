@@ -45,9 +45,25 @@ afterEach(async () => {
   }
 });
 
-/** 等待 fileStream 写入完成（writeFile 是异步的） */
+/**
+ * 等待 fileStream 写入落盘（writeFile 是异步的，log() 不 await）。
+ *
+ * 这里原先是固定 `setTimeout(30)` —— 拿"睡一会儿"当同步代理。`--parallel=8` 全量跑时
+ * CPU 争用会让 30ms 不够用：日志行还没落盘就读文件，`content` 为空 ⇒ `JSON.parse("")`
+ * 抛错，表现为 3 条与脱敏逻辑无关的红（单跑该文件 14 pass / 0 fail，全量偶发红）。
+ * 改成轮询到"文件非空且连续两次读到的内容一致"，带硬超时上限 —— 不再猜时长。
+ */
 async function flush(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  const deadline = Date.now() + 3000;
+  let prev: string | null = null;
+  for (;;) {
+    let cur = "";
+    try { cur = fs.readFileSync(logPath, "utf8"); } catch { /* 文件还没创建 */ }
+    if (cur.trim() !== "" && prev === cur) return;
+    prev = cur;
+    if (Date.now() > deadline) return; // 交给下游断言报"内容不符"，不吞掉真实失败
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 /** 读取日志文件的最后一行并 parse 为对象 */

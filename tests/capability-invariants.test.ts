@@ -81,7 +81,7 @@ for (const stale of fs.readdirSync(os.tmpdir())) {
   if (!stale.startsWith("axiom-cap-")) continue;
   const p = path.join(os.tmpdir(), stale);
   if (p === sandbox) continue;
-  try { fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, maxRetryTime: 300 }); } catch { /* 仍被占用，留待下次 */ }
+  try { fs.rmSync(p, { recursive: true, force: true, maxRetries: 3 }); } catch { /* 仍被占用，留待下次 */ }
 }
 fs.mkdirSync(path.join(sandbox, ".git/hooks"), { recursive: true });
 fs.mkdirSync(path.join(sandbox, "src"), { recursive: true });
@@ -230,7 +230,10 @@ describe("S-2 注册即声明能力（I1，封堵 L4）", () => {
         });
     }
     expect(offenders).toEqual([]);
-  });
+  // 显式预算：本条走遍 src/ + plugins/ 全部 .ts 源码文本，本机并行实测 4.8s，已逼近
+  // bun 默认的 5s 单用例超时；`.ci/run.sh` 用的正是裸 `bun test`。沿用本仓既有写法
+  // （benchmark / code-analysis-shell-safety 等自报预算）。
+  }, 30_000);
 
   it("adaptTool 把 Tool.capability 透传到 ToolDef，src/tools 每个工具都声明", async () => {
     const src = read("src/mcp/adapt-tool.ts");
@@ -606,19 +609,23 @@ describe("S-8 命令类负载只认声明，不认形态猜测", () => {
   const hasDeclaration = (lit: string) =>
     /\bpayloadFields\s*:\s*\{[^}]*["']proc\.exec["']/.test(lit);
 
+  // 显式预算：这几条要走遍 src/ + plugins/ 的源码文本。本机并行下实测 2.1–4.8s，
+  // 已是 bun 默认 5s 单用例超时的九成 —— 而 `.ci/run.sh` 用的正是裸 `bun test`，
+  // 差一点就变成一条与判据无关的 CI 超时红。沿用本仓既有写法（benchmark、
+  // code-analysis-shell-safety 等都自报预算）。
   it("每一处 proc.exec 注册都声明了 payloadFields['proc.exec']", () => {
     const offenders = procExecLiterals()
       .filter(({ literal }) => !hasDeclaration(literal))
       .map(({ rel, index }) => `${rel} #${index}`);
     expect(offenders).toEqual([]);
-  });
+  }, 30_000);
 
   it("扫描确实覆盖到生产注册（正向对照，防零命中假绿）", () => {
     const hits = procExecLiterals().filter(({ rel, literal }) =>
       rel === "src/mcp/register-external-tools.ts" && hasDeclaration(literal) && /terminal_exec/.test(literal),
     );
     expect(hits.length).toBe(1);
-  });
+  }, 30_000);
 });
 
 // ─── S-9 命令危险判据单源（R3-B，§2.7.4 第 1 条）─────────────────────────────
