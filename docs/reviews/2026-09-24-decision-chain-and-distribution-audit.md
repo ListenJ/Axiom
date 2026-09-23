@@ -56,3 +56,21 @@
 - 收尾按映像名定向 `taskkill //F //IM axiom-server.exe //T`，`tasklist` 复查残留 **0**（不再重犯"群杀 bun.exe"那次错误：只杀自己的探测进程，且用 `tasklist` 计数确认）。
 
 ⇒ 首节表格里的 `Windows exe 64 位` 一行，证据基线已推进到含版本刀的产物。`axiom-mcp.exe` 本轮未重跑（其证据仍是 04:45 条那次：起服务、注册工具、绑 :3001、auth fail-closed）。
+
+## 八、重要更正与新高置信结论：`--parallel=8` 在**掩盖**失败（2026-09-24 04:35）
+
+先前我把全量的 7 条红判为"并行耦合"，并把"CI 恒红"撤回。两个读数都不完整。同一棵树上按三种调用各跑一次（超时都固定 15000ms）：
+
+| 调用 | 结果 |
+|---|---|
+| `bun run test`（= `bun test --parallel=8 --timeout 15000 ./tests`） | 4318 pass / **7 fail**，417 文件 |
+| `bun test --timeout 15000 ./tests`（**去掉 `--parallel=8`**） | 4243 pass / **90 fail**，418 文件 |
+| `bun test --timeout 40000 --path-ignore-patterns="dist/*" tests/` | 4313 pass / 93 fail，430 文件 |
+
+方向与我的假设**相反**：不是并发把测试跑坏了，而是 **`--parallel=8` 让 83 条测试从红变绿**。⇒ 这 83 条在"多个测试文件共用一个进程"时会互相污染（跨文件的全局态：未复原的 `globalThis.fetch` 桩、进程级 env 改写、模块级单例一类），而**文件级并行恰好把它们分到不同 worker，于是看不见**。
+
+**这条直接改变 CI 结论**（我上一版撤回得太早）：`.ci/run.sh` 用的是 `docker run … bun test`，`.github/workflows/ci.yml` 用的是 `bun test --timeout 60000 tests/` —— **两条都不带 `--parallel`**，也就是都落在本机量到 90/93 这一族形状的那一侧；只有 `bun run test` 这一个入口带掩盖性开关。诚实口径分两层：①本机 Windows 实测——不带 `--parallel` 即 90 红；②CI 侧（Linux 容器）读数**未测**，但用的是同一类调用，不能假定它绿。
+
+**还查出一处会咬人的事实**：`dist/tests/` 里有 **174 份编译后的 `.test.js` 副本**（`dist/` 已 gitignore，故不影响全新克隆的 CI，但影响本机）。直接跑其中 `dist/tests/architecture-integrity.test.js` ⇒ **18 pass / 4 fail**，而源码那份 25 pass / 0 fail —— 因为编译副本停留在今天修复之前。这解释了我串行日志里"同一个 arch 用例既 pass 又 fail"的怪读数，也是我自己一度误推"`bun test tests/` 被 dist 污染"的起因（并非：带 `tests/` 位置参数时不吞 dist，我是显式指到 dist 路径才跑到了副本）。
+
+**方法论结论（写给下一个量这条门的人）**：本项目**没有单一的"标准测试命令"** —— 三个入口给 7 / 90 / 93 三种读数。任何"全量绿度"的断言必须先写清用的是哪一个入口、`--parallel` 取值、以及 `dist/` 是否在工作树里。

@@ -2395,3 +2395,15 @@
 - **偏差与未做**：未验证"不带 token 时被拒"的同一批次（此前那次是日志自标 auth fail-closed，属另一条证据）；未跑 `tools/list` 全量对账。
 - **回滚**：无源码改动。
 - **Commit**：6d2bdd45
+
+## 2026-09-24 04:36 +0800 — T2 诊断收口（#18/#16）：`--parallel=8` 在掩盖 83 条跨文件污染，CI 结论随之反转
+
+- **任务**：定位"全量并行下 7 条恒定红"的机制。级别 T2（诊断 + 记录，未改测试）。
+- **工具**：主 agent Bash（三种调用各跑全量：`bun run test` / 去掉 `--parallel=8` / 加 `--path-ignore-patterns`；两文件成对同跑实验；直接跑 `dist/tests` 副本）、Grep。
+- **假设被实测推翻两次**：①"cwd 泄漏"——`capability-invariants` + `architecture-integrity` 同进程串行 = **74 pass / 0 fail**，不成立；②"并发把测试跑红"——方向相反：**去掉 `--parallel=8` 后 7 → 90 条红**，即文件级并行在**掩盖**跨文件全局态污染。
+- **实测三读数**：`bun run test`（`--parallel=8`）4318/7；`bun test --timeout 15000 ./tests` 4243/**90**；带 `--path-ignore-patterns="dist/*"` 的 40s 版 4313/93。⇒ 本仓**没有单一标准测试命令**，三个入口给三种绿度。
+- **CI 结论反转（诚实记账）**：我上一版撤回"CI 恒红"撤回得过头 —— `.ci/run.sh` 用 `docker run … bun test`、`ci.yml` 用 `bun test --timeout 60000 tests/`，**两条都不带 `--parallel`**，落在本机量到 90 红的那一侧。本机（Windows）侧是实测；CI（Linux 容器）侧读数仍未测，只说"不能假定它绿"。
+- **附带查出**：`dist/tests/` 有 174 份编译 `.test.js` 副本（`dist/` 已 gitignore），其中 `architecture-integrity.test.js` 直跑 18 pass / **4 fail**，而源码版 25 pass / 0 fail —— 副本停在今天修复前。这解释了"同一用例既 pass 又 fail"的怪读数，也是我一度误推"`bun test tests/` 被 dist 污染"的来源（实际显式指路径才会跑到）。
+- **偏差与未做**：没有逐条定位这 83 条的共享态（候选：未 `mockRestore` 的 `globalThis.fetch` 桩、进程级 env 改写、模块级单例）；没有改 `.ci/run.sh` 或 `package.json` 的测试入口 —— 统一入口属判据变更，需先定"以哪个口径为准"，交裁决；容器侧复跑未做（一次约 5 分钟 × 3 次取交集）。
+- **回滚**：无代码改动，记录可删。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
