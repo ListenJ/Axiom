@@ -1,7 +1,7 @@
 import * as path from "node:path"
 import { logger } from "../utils/logger.js"
 import { sanitizeSpawnEnv } from "../utils/spawn-env.js"
-import { isPathSafe } from "../utils/path-safety.js"
+import { authorizePath, CapabilityDeniedError } from "../utils/safe-fs.js"
 import { readStreamWithLimit, MAX_OUTPUT_BYTES } from "./process-sandbox.js"
 import type { SandboxProvider, SandboxOptions, SandboxResult } from "./types.js"
 
@@ -19,7 +19,7 @@ const WIN_SYSTEM_DIRS = new Set([
 /**
  * 审计 B3（2026-08-29）：挂载目录白名单校验。
  * 拒绝：文件系统/盘符绝对根（"/"、"C:\"）、宿主系统目录、以及（checkCwdFence 时）
- * cwd 逃逸与 .git/.env/运行时数据库等敏感段（复用 utils/path-safety isPathSafe 唯一语义源）。
+ * cwd 逃逸与敏感段（复用 utils/safe-fs authorizePath，能力 fs.read —— ADR-007 C-0 单源化）。
  * 默认回退 "/tmp" 为内置只读工作区（常量、非用户输入），仅过根/系统目录规则；
  * 显式 opts.cwd（客户端可控）全量校验。
  */
@@ -35,9 +35,15 @@ function assertMountDirAllowed(raw: string, checkCwdFence: boolean): void {
     throw new Error(`mount dir rejected (host system directory): ${raw}`)
   }
   if (checkCwdFence) {
-    const fence = isPathSafe(resolved)
-    if (!fence.safe) {
-      throw new Error(`mount dir rejected: ${fence.error ?? "unsafe path"}`)
+    // 围栏判定单源（ADR-007 C-0）：与文件系统特权执行点共用同一内核，
+    // 只读挂载（-v … :ro）⇒ 能力取 fs.read。非拒绝类异常原样上抛，不伪装成"目录被拒"。
+    try {
+      authorizePath(resolved, "fs.read")
+    } catch (err) {
+      if (err instanceof CapabilityDeniedError) {
+        throw new Error(`mount dir rejected: ${err.message}`)
+      }
+      throw err
     }
   }
 }

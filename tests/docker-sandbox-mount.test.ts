@@ -77,6 +77,66 @@ describe("[T4-③] docker-sandbox 挂载白名单", () => {
     expect(res.error).toMatch(/mount dir rejected/i);
   });
 
+  // ── ADR-007 C-0：围栏单源化后新增的收紧项 ──────────────────────────────
+  // 这两条在旧实现（utils/path-safety 的 4 条 DENIED_SEGMENTS）下是**放行**的，
+  // 属第二份守卫漏掉的提权落点；单源后由 permissions.ts 的锚点清单拦下。
+  // 实测对照见 ADR-007 背景 ③：12 条语料中仅这 2 条判定不同，方向全为更严。
+  it("挂载 .ssh 目录被拒（单源后由 permissions 锚点拦下，旧围栏放行）", async () => {
+    const spy = spySpawn();
+    try {
+      const res = await dockerSandbox.execute({
+        command: "echo hi",
+        cwd: path.join(process.cwd(), ".ssh"),
+      });
+      expect(res.error).toMatch(/mount dir rejected/i);
+      expect(spy.mock.calls.length).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("挂载 .axiom/axiom-secrets 被拒（同上，凭据目录不得进只读挂载）", async () => {
+    const res = await dockerSandbox.execute({
+      command: "echo hi",
+      cwd: path.join(process.cwd(), ".axiom", "axiom-secrets"),
+    });
+    expect(res.error).toMatch(/mount dir rejected/i);
+  });
+
+  // 表驱动锁住单源围栏的完整决策面（原"结论相等对照探针"的固化形态）：
+  // 新增语料只会让清单变长，任何一行被改动都必须是显式裁决过的。
+  describe("[T4-③] 挂载围栏判定表（单源 = safe-fs authorizePath，能力 fs.read）", () => {
+    const table: Array<[string, string, "allow" | "deny"]> = [
+      ["根内合法目录", LEGAL_DIR, "allow"],
+      ["根内不存在的多层目录", ".tmp-t4-mount/a/b/c", "allow"],
+      ["根内 .git", path.join(process.cwd(), ".git"), "deny"],
+      ["根内 .env", path.join(process.cwd(), ".env"), "deny"],
+      ["根内运行时数据库", path.join(process.cwd(), "data", "agent.db"), "deny"],
+      ["根内模型密钥配置", path.join(process.cwd(), "data", "model-config.json"), "deny"],
+      ["根内 .ssh", path.join(process.cwd(), ".ssh"), "deny"],
+      ["根内凭据目录", path.join(process.cwd(), ".axiom", "axiom-secrets"), "deny"],
+      ["相对 .. 逃逸", "../outside-probe", "deny"],
+      ["文件系统根", "/", "deny"],
+    ];
+    for (const [label, dir, expected] of table) {
+      it(`${label} → ${expected}`, async () => {
+        const spy = spySpawn();
+        try {
+          const res = await dockerSandbox.execute({ command: "echo hi", cwd: dir });
+          if (expected === "deny") {
+            expect(res.error).toMatch(/mount dir rejected/i);
+            expect(spy.mock.calls.length).toBe(0);
+          } else {
+            expect(res.error).toBeUndefined();
+            expect(spy.mock.calls.length).toBe(1);
+          }
+        } finally {
+          spy.mockRestore();
+        }
+      });
+    }
+  });
+
   it.skipIf(process.platform !== "win32")("挂载 Windows 盘符根 C:\\ 被拒", async () => {
     const res = await dockerSandbox.execute({ command: "echo hi", cwd: "C:\\" });
     expect(res.error).toMatch(/mount dir rejected/i);
@@ -189,9 +249,11 @@ describe("[T4-③] docker-sandbox 输出截断（对齐 process-sandbox 1MB）",
 describe("[T4-③] docker-sandbox 静态断言", () => {
   const src = readFileSync(path.join(import.meta.dir, "../src/sandbox/docker-sandbox.ts"), "utf-8");
 
-  it("挂载白名单校验存在（isPathSafe + 绝对根拒绝）", () => {
-    expect(src).toMatch(/isPathSafe/);
+  it("挂载白名单校验存在（单源 authorizePath + 绝对根拒绝）", () => {
+    expect(src).toMatch(/authorizePath/);
     expect(src).toMatch(/mount dir rejected/i);
+    // ADR-007 C-0：本文件不得再引用第二份围栏实现
+    expect(src).not.toMatch(/isPathSafe|path-safety/);
   });
 
   it("1MB 截断常量与流式读取接线存在", () => {

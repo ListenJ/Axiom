@@ -15,7 +15,8 @@ const PRINCIPAL = "mcp:filesystem";
 /**
  * 本文件不再自带路径守卫：围栏语义（越界/锚点/realpath）与写盘机制
  * （串行化、原子替换、mkdir 后重校验）都由 utils/safe-fs.ts 在执行点完成（S3 / I2）。
- * utils/path-safety.ts 仍在 docker-sandbox 的挂载白名单里使用，与本工具无关。
+ * utils/path-safety.ts 已于 ADR-007 C-0 下线（其最后一个消费者 docker-sandbox 挂载栅栏
+ * 改走同一 authorizePath）⇒ 全仓路径围栏只剩 utils/safe-fs.ts 一份实现。
  */
 
 export interface FileResult {

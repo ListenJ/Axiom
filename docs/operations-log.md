@@ -2021,3 +2021,15 @@
 - **验证方式**：本轮无代码改动 ⇒ 三门沿用上一条结果（`tsc` exit 0、`audit:runtime` 16/16、稳定红 17）。ADR 内每条事实断言均给 `文件:行号`，其中"切换更严不更松"这条**先有反向前提、后被定点 grep 推翻**（见偏差①），故 ADR 里保留了核对口径而非只留结论。
 - **偏差记录**：①**一次自我纠正**：我最初据窗口推断"两份清单各有对方没有的项"，据此打算把 C-0 写成"先并清单再换"。落笔前重跑定点 grep，实测方向相反（`path-safety` ⊂ `permissions`）⇒ 若按错推断施工会白改 `permissions.ts` 锚点。教训与本轮 D-3① 撤回同源：**改判据前先量方向**。②ADR-007 唯一保留的真实行为差异是 `path-safety.ts:77-86` 对新路径父目录无法 realpath 时 **fail-open**，而 safe-fs 逐跳偏 fail-closed，docker 挂载目录允许尚不存在 ⇒ 已在 C-0 内列为"必须显式裁决并写测试锁住"，不得以"统一了"为由略过。③技能是用户点选的，非我自主判断引入。
 - **Commit**：9ce4b00b
+
+## 2026-09-23 05:40 +0800 — T2 施工：ADR-007 C-0 路径围栏单源化（docker 挂载栅栏改走 safe-fs，第二份守卫出库）
+
+- **任务**：用户批准按 ADR-007 开工。本刀只做 C-0。级别 T2（多文件、含行为收紧、有回归测试与回滚点）。
+- **工具**：主 agent Bash/Read/Edit/Write；`bun test` 单文件与全量、`bun x tsc --noEmit`、`bun run audit:runtime`；一次 12 语料的三侧判定对照探针（临时件，跑完即删）。规则 4（先归档记录再 `git rm`）、规则 7（先红后绿）、规则 2（改前备份）。
+- **操作**（文件级）：①`src/sandbox/docker-sandbox.ts`：import 换 `authorizePath`/`CapabilityDeniedError`，`:37-41` 围栏改 `authorizePath(resolved, "fs.read")`，**非拒绝类异常原样上抛**（不把崩溃伪装成"目录被拒"），头注释同步；能力取 `fs.read` 的依据是 `:101` 的挂载本就是 `:ro`。②`src/utils/path-safety.ts` 先归档到 `archive/safefs-single-source-2026-09-23/src/utils/` 并记 `ARCHIVE-LOG.md`，再 `git rm`（两个导出消费者均为 0）。③`src/mcp/tools/filesystem.ts` 头注释里"仍在 docker-sandbox 使用"的陈述随事实更新。④`tests/docker-sandbox-mount.test.ts`：新增 2 条收紧用例 + 10 行围栏判定表 + 静态断言改为"本文件不得再出现 `isPathSafe`/`path-safety`"。⑤`tests/filesystem-symlink.test.ts` 原本 `readFileSync("src/utils/path-safety.ts")`（文件已删必红），重写为指向 `safe-fs.ts` 并在注释中**声明它只是静态断言、不证明符号链接防线有效**。⑥ADR-007 追加"施工实测与前提更正"节。
+- **验证结果（红→绿可复现回路）**：改测试后先跑 → **25 pass / 4 fail**，失败恰为预测的 4 条（`.ssh`、`.axiom` 各 1 条独立 + 判定表 2 行）；改实现后 → **29 pass / 0 fail**。`bun x tsc --noEmit` **exit 0**；`tests/security-fixes.test.ts` **37 pass / 0 fail**；`bun run audit:runtime` **overall=pass 16/16**。全量 `bun run test` 两次：**18 fail → 17 fail**，17 与改动前稳定红基线逐条相同 ⇒ **零新增红**。多出的那条 `CognitivePipeline throughput` 经 5 次观测定性为顺序/并行依赖 + 网络敏感（隔离跑 3/3 红，日志为 `[LLM] Retryable error … Unable to connect` 的退避吃掉了延迟预算；并行跑一次红一次绿），非本刀引入。
+- **实测推翻本 ADR 两条前提（均为自查所获）**：①"fail-open 是唯一真实行为差异"错 —— 12 语料三侧对照只有 2 条不一致且方向全为 safe-fs **更严**（`.ssh`/`.axiom` 旧实现放行），"根内不存在的单层/多层目录"三侧一致 ALLOW ⇒ 迁移无需额外分支；②"第二份守卫只剩 docker 一处"错 —— 实际按 `realpathSync` 反查另有 `document-ingest.ts:86 isWithinAnyRoot`（含第三份敏感段清单 `INGEST_DENIED_SEGMENTS`，为 permissions 锚点子集）与 `platform.ts escapesBase`（生产零消费者、只有自身测试）。⇒ C-0 完成 **1/3**；`document-ingest` 那份因 roots 含 `resolve(OBSIDIAN_VAULT_PATH)`（`:97`，可在 cwd 外）**必须等 C-1 的可配根**才能并，这反过来给 C-1 补上了规则 8 要求的第二个真实适配器。
+- **登记的预期行为变更**：docker 只读挂载 `<cwd>/.ssh` 与 `<cwd>/.axiom/axiom-secrets` 由"放行"变"拒绝"（收紧，容器本就不该读到宿主凭据目录），已由判定表锁住。
+- **回滚**：本刀单提交，`git revert` 即可；`path-safety.ts` 原文在 `archive/safefs-single-source-2026-09-23/` 与 git 历史中双存。
+- **未做（明确边界）**：C-0 剩余 2/3（document-ingest、escapesBase）不在本刀；`.ssh`/`.axiom` 收紧的符号链接行为验收本机不可跑（`S-3` EFAULT），需 Linux runner。
+- **Commit**：待回填

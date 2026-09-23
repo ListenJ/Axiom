@@ -1,27 +1,28 @@
 import { describe, it, expect } from "bun:test";
-import fs from "fs"; import path from "path"; import os from "os";
+import fs from "fs";
 
-describe("filesystem symlink S5", () => {
-  it("新文件父目录经 symlink 逃逸应被拦截", async () => {
-    // 检查 isPathSafe 是否导出，若未导出则改测内部逻辑 via 读取文件内容是否含父目录 realpath
-    const content = fs.readFileSync("src/utils/path-safety.ts","utf8");
-    // 实现后应包含对父目录 realpath 的处理
-    const hasParentRealpath = content.includes("realpathSync") && content.includes("parent");
-    expect(hasParentRealpath).toBe(true);
+/**
+ * ADR-007 C-0 后，符号链接围栏逻辑的唯一居所是 src/utils/safe-fs.ts
+ * （原 src/utils/path-safety.ts 已下线，归档于 archive/safefs-single-source-2026-09-23/）。
+ *
+ * 诚实声明：下面是**静态断言**，不是行为测试 —— 真正的符号链接逃逸行为覆盖在
+ * tests/security-fixes 家族的 `S-3 safeFs 在 I/O 点强制` 用例里，而那两条在本机
+ * （Windows，创建符号链接受限）会 EFAULT 无法执行。因此本文件只锁"逻辑没被删掉"，
+ * 不得把它读成符号链接防线已被本文件证明有效。
+ */
+const SAFE_FS = "src/utils/safe-fs.ts";
+
+describe("filesystem symlink S5（单源 = safe-fs）", () => {
+  it("父目录链经 realpath 复核的逻辑仍在", () => {
+    const content = fs.readFileSync(SAFE_FS, "utf8");
+    expect(content).toContain("realpathSync");
+    // realAncestor 逐跳上溯：新路径自身不存在时按最近存在的祖先判定
+    expect(content).toContain("realAncestor");
   });
 
-  it("已存在路径的 realpath 仍生效", async () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(),"fs-test-"));
-    const real = path.join(tmp,"real");
-    fs.mkdirSync(real);
-    const link = path.join(tmp,"link");
-    try { fs.symlinkSync(real, link, "dir"); } catch {}
-    // 构造一个通过 link 的已存在文件
-    fs.writeFileSync(path.join(real,"a.txt"),"hi");
-    // 若工具存在，此处可直接调 isPathSafe（若导出）
-    // 降级为静态检查：文件应已包含 realpathSync 分支
-    const content = fs.readFileSync("src/utils/path-safety.ts","utf8");
-    expect(content).toContain("realpathSync");
-    fs.rmSync(tmp,{recursive:true,force:true});
+  it("越界与符号链接逃逸各自有独立的拒绝分支", () => {
+    const content = fs.readFileSync(SAFE_FS, "utf8");
+    expect(content).toMatch(/escapes sandbox root/);
+    expect(content).toMatch(/symlink escape/);
   });
 });

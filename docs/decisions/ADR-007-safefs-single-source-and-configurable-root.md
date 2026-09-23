@@ -42,3 +42,34 @@
 - (-) **符号链接验收在本机不可跑**（`S-3` 两条 `EFAULT … rm 'src/link-to-hooks'`）⇒ C-0/C-1 的符号链接用例必须在 Linux runner 上取绿，或本机开 Windows 开发者模式复测并把该前提写进验收，**不得默认成立**。
 - 回退：三刀各自独立提交，任一刀 `git revert` 即可；C-0 的回退 = 恢复 `docker-sandbox.ts` 的 `isPathSafe` 调用与 `path-safety.ts` 的实现。
 - 验收口径：稳定红 **17 条不得增大**；涉及时序的新测试同机跑 ≥3 次取交集（实测同基线三次为 28 / 17 / 17，见设计稿 §1）。
+
+## 施工实测与前提更正（2026-09-23，C-0 落地时）
+
+本 ADR 上文的两处前提在施工中被实测修正。**两条都是我自己核对时抓出来的，不是外部反馈。**
+
+1. **"唯一真实行为差异是 fail-open"这句错了。** 用 12 条语料实跑三侧判定（`isPathSafe` / `authorizePath(fs.read)` / `authorizePath(fs.write)`）：
+   **结论不一致只有 2 条，且方向全部是 safe-fs 更严** —— `<cwd>/.ssh` 与 `<cwd>/.axiom/axiom-secrets` 旧实现**放行**、单源后由 `permissions.ts:267`/`:269` 锚点拦下；
+   其余 10 条（含"根内不存在的单层/多层目录"）三侧一致。⇒ `path-safety.ts:77-86` 的 fail-open **不构成迁移障碍**，
+   safe-fs 的 `realAncestor()` 在整条链都不存在时返回 null 并跳过 realpath 复核，两侧对"尚不存在的路径"行为相同。C-0 因此**不需要额外分支**。
+   能力取 `fs.read` 的依据是该挂载本身是只读的（`docker-sandbox.ts:101` 的 `-v ${mountDir}:/workspace:ro`），不是随手挑的。
+2. **"全仓第二份守卫只剩 docker 一处"这句也错了，实际是三份。** 施工时按 `realpathSync` / `startsWith("..")` 反查发现：
+   | 包含判定实现 | 位置 | `src/` 内消费者 | 与 `permissions.ts` 锚点清单的关系 |
+   |---|---|---|---|
+   | `withinAny()` | `src/utils/safe-fs.ts:51` | 9 个文件（权威） | 权威清单本身（14 条 `anchor()`） |
+   | `isWithinAnyRoot()` | `src/knowledge/document-ingest.ts:86` | 1（`assertReadableFile`） | 另有 `INGEST_DENIED_SEGMENTS`（`.env`/`.git` 2 条）——**第三份敏感段清单**，且是 permissions 的子集 |
+   | `isPathSafe()` | `src/utils/path-safety.ts` | — | **本 ADR C-0 已删除**（归档 `archive/safefs-single-source-2026-09-23/`） |
+   | `escapesBase()` | `src/utils/platform.ts` | **0（只有自身测试引用）** | 无清单，纯判定 |
+
+   ⇒ 两处修正结论：**C-0 只完成 1/3**；`document-ingest` 那份**不能并进 C-0**，因为它的 roots 是
+   `[process.cwd(), resolve(OBSIDIAN_VAULT_PATH)]`（`:97`）——**含一个可落在 cwd 之外的配置根**，
+   而 `safe-fs` 的 `effectiveRoots` 只允许从 cwd 收窄 ⇒ **必须先有 C-1 的可配根**。
+   反过来，这也给了 C-1 一直缺的"第二个真实适配器"（规则 8）：合并前 `document-ingest` 与 `safe-fs` 是两个独立需求方，
+   C-1 不再是投机抽象。另可考虑把纯判定下沉到 `platform.escapesBase`（它已有测试、当前生产零消费者）作为唯一 primitive。
+3. 敏感段清单三份并存，与 R3-B 修过的"命令危险判据两份清单"是同一缺陷类别在路径维度复发；
+   `INGEST_DENIED_SEGMENTS` 与 `path-safety` 的 `DENIED_SEGMENTS` 都是 permissions 锚点的子集 ⇒ 收敛方向明确（并集已在 permissions，删除即收紧），
+   但**必须逐条实测确认没有"只存在于子清单"的项**后才能删 —— 本次 C-0 用的正是这个口径。
+
+**C-0 落地结果**：`docker-sandbox.ts` 挂载栅栏改走 `authorizePath(resolved, "fs.read")`，非 `CapabilityDeniedError` 的异常原样上抛（不把崩溃伪装成"目录被拒"）；
+`path-safety.ts` 归档后出库；`tests/docker-sandbox-mount.test.ts` 补 2 条收紧用例 + 10 行围栏判定表 + 静态断言改为"`src` 内不得再出现 `isPathSafe`/`path-safety`"；
+`tests/filesystem-symlink.test.ts` 原本读 `path-safety.ts` 源码文本、随之下线，重写为指向 `safe-fs.ts` 并**在注释里声明它只是静态断言**（真正的符号链接行为覆盖是 `S-3`，本机 EFAULT 不可跑）。
+ADR 里 `.ssh`/`.axiom` 两条收紧是**登记的预期行为变更**：容器只读挂载本就不该能读到宿主凭据目录。
