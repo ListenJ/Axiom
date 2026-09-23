@@ -27,6 +27,7 @@
     "audit:runtime": "bun run scripts/runtime-audit.ts",
     "audit:frontend": "bun run scripts/frontend-audit.ts",
     "smoke:linux": "bun run scripts/package/smoke-linux.ts",
+    "verify:artifacts": "bun run scripts/build/verify-artifacts.ts",
     "discover": "bun run scripts/discover-free-models.ts",
     "migrate": "bun run src/db/migrate.ts",
     "demo": "bun run scripts/demo-crawl.ts",

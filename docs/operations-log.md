@@ -2266,3 +2266,14 @@
 - **偏差与未做**：没有把 `os.homedir()` 从该文件移除（其它用例另有用途）；没有给 `escape-link` 之外那两处锚点链接再加"不悬空"自证——它们的目标由夹具自己 `writeFileSync` 出来，性质上不会悬空。上一刀记的"Windows 符号链接属已知平台红"这条判断作废，已按实测更正记忆。
 - **回滚**：单提交 revert。
 - **Commit**：a6d9a405
+
+## 2026-09-24 03:33 +0800 — T1 新增发布树静态核验 `verify:artifacts`：查出的第一条就是 46 天的旧件
+
+- **任务**：目标要求"可分发为 deb / windows exe 32·64 / rpm / AppImage"，但核对 `dist/` 时发现 ADR-009 的"已实测运行"全靠一次性 `bun -e` 探针支撑，仓库里没有可重复的产物核验命令。本刀把这条判据固化。级别 T1（新增 1 个脚本 + 1 条 npm script，不改任何构建逻辑）。
+- **工具**：主 agent Read/Grep/Write/Edit/Bash。
+- **动因（实测）**：`dist/bun/windows/x64/axiom-cli.exe` 与 `axiom-mcp.exe` 时间戳 **2026-08-08 21:56**，同目录 `axiom-server.exe` 是 09-23 22:24；`CHECKSUMS.txt`（579 条）把三份一起列出且逐字可对 ⇒ **"在清单上"不等于"是当前代码编出来的"**。矩阵的 `BUN_ENTRY_POINTS` 确实含这三个入口点，说明历史上只跑了子集而没人发现。
+- **操作**：新增 `scripts/build/verify-artifacts.ts` —— ①新鲜度：交付物 mtime 不得早于 `git log -1 -- src/` 的提交时刻；②PE 位数：路径声称 `windows/x64` 必须 `Machine=0x8664`+magic `0x20b`，`windows/386` 必须 `0x14c`+`0x10b`；③`CHECKSUMS.txt` 与磁盘双向一致（列出即存在、存在即列出），`--hash` 才逐字节校 sha256。交付物口径限定 `dist/{bun,go,pkg}`，不含 `dist/src`、`dist/tests`、`dist/main.js` 这类构建中间物。
+- **验证结果**：在当前这份树上首跑如实 **FAIL**：`交付物 15 份全部早于 src/ 最新提交`，其中 cli/mcp 两份 **落后 1109.4h（约 46 天）**，其余落后 2.2–4.9h。`bun x tsc --noEmit` exit 0。**该脚本此刻是红的，且应当是红的** —— 重建由并行的下一刀完成，绿度不靠放宽判据取得。
+- **偏差与未做**：没把它接进 `.ci/run.sh`（CI 全新克隆没有 `dist/`，接进去只会恒红；它是发布前的人工/流水线门，不是提交门）。没在本刀重建产物（同机另有全量测试与打包在跑，抢占负载会制造假红，见本机稳定红口径）。
+- **回滚**：删两个文件即可，无生产改动。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
