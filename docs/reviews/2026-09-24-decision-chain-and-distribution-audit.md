@@ -37,3 +37,12 @@
 1. 曾把 7 条并行红笼统归为"已知负载抖动"——三次集合的包含关系显示 r1 是 r2、r3 的真子集，它们是**逐次都红**，不是抖动。
 2. 曾断言"CI 恒红"——那是从本机 Windows 读数外推，两条 CI 路径的超时与平台都不同，不成立。
 3. deb 的一次 FAIL 是**我自己造的**：并发跑两次冒烟、且在其安装过程中原地重打了 `.deb`。单跑即通过。
+
+## 五、追加：`全流程 skill` 的实际作用域（2026-09-24 04:13 实测）
+
+目标里"我们也构建了 skill 完成我们的全流程任务"这一项，落盘位置需要写清，否则会误以为它随产品分发：
+
+- 仓库内的 `SKILL.md` 只有 **2 份**：`skills/axiom-frontend-ui-repair/`、`mcp/external/`。
+- Laya 那份 `laya-local-decision-model` 在 **用户级目录** `~/.qoder/skills/laya-local-decision-model/SKILL.md`（6,350 B），**仓库内对它零引用**（`grep -rln "laya-local-decision-model"` 命中 0）。
+- ⇒ 该 skill 既不在 git 历史里，也不在 deb/rpm/AppImage 的文件清单里。换机器或全新克隆会得到：决策链代码在、运行手册不在。
+- 是否应把它随仓库分发属设计选择（用户级技能 vs 项目内置技能两种作用域本就不同），交裁决；本报告只登记事实，不擅自搬迁。若决定入库，需同时决定它是否进包（进包则要改 `linux-bundles` 的文件清单）。

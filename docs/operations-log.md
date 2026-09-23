@@ -2350,3 +2350,12 @@
 - **偏差与未做**：报告不写 `file:line` 手抄锚点（D9 禁此形态，本轮已被它抓过一次），一律用"文件 + 符号名"；未把报告链接进 README（README 属规范件，加链接需同步其口径段，不在本刀）。
 - **回滚**：删单文件即可。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+
+## 2026-09-24 04:14 +0800 — T1 审计追加：`全流程 skill` 只在用户级目录，仓库零引用、不随包分发
+
+- **任务**：核目标里"我们也构建了 skill 完成我们的全流程任务"的落盘作用域。级别 T1（追加一节证据件）。
+- **实测**：仓库内 `SKILL.md` 只有 2 份（`skills/axiom-frontend-ui-repair/`、`mcp/external/`）；Laya 那份在 `~/.qoder/skills/laya-local-decision-model/SKILL.md`（6,350 B），`grep -rln "laya-local-decision-model"` 在仓库内**命中 0** ⇒ 既不在 git 历史，也不在 deb/rpm/AppImage 的文件清单里。换机器或全新克隆会得到"决策链代码在、运行手册不在"。
+- **操作**：`docs/reviews/2026-09-24-decision-chain-and-distribution-audit.md` 追加第五节，只登记事实；是否入库/入包属设计选择（用户级技能与项目内置技能本就两种作用域），交裁决，不擅自搬迁。
+- **验证结果**：`doc-contract` **35 pass / 0 fail**（证据件豁免形态未变，未动 D0 名单）。
+- **回滚**：删该节即可。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
