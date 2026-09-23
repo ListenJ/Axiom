@@ -90,9 +90,21 @@ fs.mkdirSync(path.join(sandbox, "src"), { recursive: true });
 fs.mkdirSync(path.join(sandbox, "data"), { recursive: true });
 fs.writeFileSync(path.join(sandbox, ".env"), "AXIOM_AUTH_TOKEN=fixture-not-a-real-token\n");
 fs.writeFileSync(path.join(sandbox, "src/ok.ts"), "export const ok = 1;\n");
-// 沙箱内的符号链接指向沙箱外：仅靠字符串前缀判定会被骗过
-fs.symlinkSync(path.join(os.homedir(), ".bashrc"), path.join(sandbox, "escape-link"));
+// 沙箱内的符号链接指向沙箱外：仅靠字符串前缀判定会被骗过。
+// 目标必须由夹具自己造：原先指向 `~/.bashrc`，而本机（Windows）主目录里没有这个文件 ⇒
+// 链接悬空 ⇒ existsSync("escape-link") 返 false，下面那条用例在 setup 处就断了，
+// "越界链接被拒"这条不变式在 Windows 发行产物上其实从未执行过（Linux 上恰好存在该文件才显绿）。
+const escapeRoot = `${sandbox}-escape`;
+fs.mkdirSync(escapeRoot, { recursive: true });
+const escapeTarget = path.join(escapeRoot, "outside-secret.txt");
+fs.writeFileSync(escapeTarget, "outside-the-sandbox\n");
+fs.symlinkSync(escapeTarget, path.join(sandbox, "escape-link"));
 process.chdir(sandbox);
+
+/** 删符号链接本身而不是它指向的内容：Windows 上 rmSync 对目录链接返 EFAULT，unlink 两端都可用。 */
+function removeLink(p: string): void {
+  try { fs.unlinkSync(p); } catch { /* 链接没建成，无需回收 */ }
+}
 
 afterAll(() => {
   process.chdir(originalCwd);
@@ -105,6 +117,7 @@ afterAll(() => {
   for (let i = 0; i < 5; i++) {
     try {
       fs.rmSync(sandbox, { recursive: true, force: true });
+      fs.rmSync(escapeRoot, { recursive: true, force: true });
       return;
     } catch (err) {
       lastErr = err;
@@ -288,6 +301,11 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
   it("沙箱内符号链接指向沙箱外时拒绝（字符串前缀判定会被骗过）", async () => {
     const safeFs = await import("../src/utils/safe-fs.js");
     expect(fs.existsSync("escape-link")).toBe(true);
+    // 夹具自证：链接必须**不悬空**且确实指向沙箱外 —— 上一版因目标不存在而在这里就红，
+    // 于是守卫从未被执行，红的是夹具、看起来却像"平台不支持符号链接"。
+    const escaped = fs.realpathSync("escape-link");
+    expect(fs.existsSync(escaped)).toBe(true);
+    expect(escaped.startsWith(fs.realpathSync(sandbox) + path.sep)).toBe(false);
     let err: Error | null = null;
     try {
       await safeFs.readFile("escape-link");
@@ -312,7 +330,7 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
       expect(err).not.toBeNull();
       expect(err!.message.toLowerCase()).toContain("denied");
     } finally {
-      fs.rmSync(link, { force: true });
+      removeLink(link);
     }
   });
 
@@ -332,7 +350,7 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
       expect(err!.message.toLowerCase()).toContain("denied");
       expect(fs.existsSync(landed)).toBe(false);
     } finally {
-      fs.rmSync(link, { force: true });
+      removeLink(link);
       fs.rmSync(landed, { force: true });
     }
   });

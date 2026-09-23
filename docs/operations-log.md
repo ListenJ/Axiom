@@ -2253,4 +2253,16 @@
 - **验证结果**：新组修前 **3 fail**（失败形状是 promise **resolve** 出被拒主机的响应体，即漏洞真实可达；只断言"抛错"会假绿，故桩刻意模拟传输层自跳转，并给桩自带 hop 上限以免旧实现无限递归挂住）⇒ 修后 fence+ratchet **33 pass / 0 fail**。判据非恒绿经变异测试：把 read-tool 的声明改回 false ⇒ 该用例如实报 red。`bun x tsc --noEmit` **exit 0**。回归面 `tools-v3 / e2e-runtime / integration-edge / mcp-backend-auth / review-deep / adapt-tool / architecture-integrity / capability-invariants` **160 pass / 2 fail**，2 条均为已登记的 Windows 符号链接红（`escape-link` 根本没建成 + `rm` EFAULT），落点在 safe-fs 不在本刀；同一次运行里 `[capability-invariants] 沙箱清理失败…泄漏` 那条**按设计**显式报出（EBUSY），说明上一刀的"清理失败不得静默"生效。
 - **偏差与未做**：没给 `redirectPerHop` 的 AST 判据扩到任意别名（`const f = globalThis.fetch` 形态仍返 false）——换新别名的失败方向是**报红逼人来看**，不是自动放行；行为层证据在 fence 测试而非该判据。没动 `decideOutbound` 那句"IP 字面量永不豁免"与实际代码不一致的注释：改注释还是改语义是政策选择，待 D-Q。没重构 `document-ingest` 的重复循环（两处 5 行同形不构成抽接缝的理由，规则 1/8）。`native-routes` 越端点面与"运维可写主机"三点仍留 D-B。
 - **回滚**：单提交 revert。
+- **Commit**：c0c525b2
+
+## 2026-09-24 03:29 +0800 — T2 夹具修复：S-3 符号链接两条"平台红"是悬空链接，Windows 侧不变式此前从未执行
+
+- **任务**：上一刀回归里 2 条 `S-3` 仍红，被记为"Windows 不支持符号链接"的已知平台红。本刀去证这个归因。级别 T2（只改测试夹具，无生产改动）。
+- **工具**：主 agent Bash（`bun -e` 探针）、Grep/Read/Edit、`bun test` 三次复跑、`bun x tsc`。
+- **实测（推翻归因）**：本机 `fs.symlinkSync` 对 **file / dir / junction 三种形态全部建成成功** ⇒ 不是权限也不是平台缺口。真因两条：①夹具把 `escape-link` 指向 `~/.bashrc`，而本机 `os.homedir()` 下**没有该文件** ⇒ 链接悬空 ⇒ `existsSync` 返 false ⇒ 用例在 setup 断言处就红，`safeFs.readFile` 那一步**从未执行过**；②清理钩子用 `fs.rmSync(link, {force:true})` 删**目录**符号链接，Windows 上实测返 `EFAULT: bad address in system call argument`（该用例的 denied 断言其实已通过，红在 finally）。探针还测得 `rmdirSync`/`unlinkSync` 删链接本身且目标完好，Linux 上 `rmdir` 对符号链接返 ENOTDIR ⇒ 取两端都可用的 `unlinkSync`。
+- **操作**（文件级）：`tests/capability-invariants.test.ts` — ①越界链接的目标改由夹具自建（`${sandbox}-escape/outside-secret.txt`，仍在沙箱外，性质不变），②给该用例加夹具自证（链接不悬空 + `realpathSync` 确实落在沙箱外），③新增 `removeLink()` 并替换两处链接回收，④`afterAll` 连带回收 escape 目录。
+- **验证结果**：**守卫在 Windows 上如实 DENY** —— `capability-invariants` 连跑 3 次均 **49 pass / 0 fail**（三次逐条相同），此前红的是夹具不是实现；`bun x tsc --noEmit` exit 0；`doc-contract + architecture-integrity + env-example-completeness` 合跑 **62 pass / 0 fail**。
+- **意义与影响面**：这条不变式（"符号链接越界必须被 I/O 点封堵"）是我们要分发的 **Windows exe** 的安全面，修复前它在 Windows 上是**未验证**而非"验证失败"。稳定红集因此少 2 条；不改动任何生产代码。
+- **偏差与未做**：没有把 `os.homedir()` 从该文件移除（其它用例另有用途）；没有给 `escape-link` 之外那两处锚点链接再加"不悬空"自证——它们的目标由夹具自己 `writeFileSync` 出来，性质上不会悬空。上一刀记的"Windows 符号链接属已知平台红"这条判断作废，已按实测更正记忆。
+- **回滚**：单提交 revert。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
