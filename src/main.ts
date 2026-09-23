@@ -11,6 +11,7 @@
  */
 import { Database } from "bun:sqlite";
 import type { ServerWebSocket } from "bun";
+import { APP_VERSION } from "./version.js";
 import { VaultManager } from "./memory/vault-manager.js";
 import { DataPipeline } from "./crawl/data-pipeline.js";
 import { logger } from "./utils/logger.js";
@@ -218,7 +219,7 @@ await import("./db/migrate.js");
 const startupTime = Date.now();
 
 logger.info("Axiom AI Agent 启动", {
-  version: "2.3.0",
+  version: APP_VERSION,
   edition,
   native: isNativeReady(),
   node: process.version,
@@ -919,7 +920,7 @@ for (const name of Object.keys(nets)) {
 const lanUrl = `http://${lanIp}:${port}`;
 
 logger.info(`╔══════════════════════════════════════════════════════════════════════╗
-║     Axiom Runtime v4.0 — Vault 核心记忆引擎运行中              ║
+║     Axiom Runtime v${APP_VERSION} — Vault 核心记忆引擎运行中          ║
 ║ 记忆: Obsidian Vault (确定性推理)                                   ║
 ║ 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
 ║ 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║

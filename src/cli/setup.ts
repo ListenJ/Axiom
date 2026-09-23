@@ -1,5 +1,6 @@
 import { createInterface } from "readline";
 import { writeFileSync, readFileSync, existsSync } from "fs";
+import { APP_VERSION } from "../version.js";
 import { join } from "path";
 
 interface ProviderConfig {
@@ -131,7 +132,7 @@ function printBanner() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           Axiom AI Agent - 交互式配置向导                  ║
-║                        v2.2.0                                ║
+║                        v${APP_VERSION}                                ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
 }

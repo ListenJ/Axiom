@@ -2326,3 +2326,16 @@
 - **偏差与未做**：`/health` 的 `version` 仍是硬编码 `2.2.0`（与包版本 4.0.0 脱节，另 5 处各说一套），已建任务 #19 并写清可行修法与不可行路径（`tsconfig` 未开 `resolveJsonModule` 且 `include` 不含 package.json），本刀不动以免留半截改动；`.tmp/winexe`、`.tmp/go386` 因先前 shell 的 CWD 占用暂时删不掉（gitignore 内）。
 - **回滚**：单提交 revert（文档与脚本各自独立可 revert）。
 - **Commit**：0a9ec8d9
+
+## 2026-09-24 04:08 +0800 — T2 版本自述收成单源：同一个 4.0.0 产物此前对外自述五种版本
+
+- **任务**：修掉上一刀登记的 `/health` 版本不一致。级别 T2（改运行时自述面）。
+- **工具**：主 agent Bash（`bun run src/main.ts` 起服务 + `curl`、`bun x tsc`、`bun test`）、sed/Write。
+- **实测范围比登记更宽**：五套字面量并存 —— `/health` 报 `2.2.0`、其 API 索引进项报 `2.9.0`、启动日志报 `2.3.0`、运行横幅报 `v4.0`、`systemStatus.version` 报 `2.2.0`，另 CLI 向导 `v2.2.0`；包版本取 `package.json` = 4.0.0。**全量测试此前一条都不红**（没有任何断言读过这些字段），所以缺陷对门完全隐形。
+- **操作**（文件级）：①新建 `src/version.ts`（唯一来源 `APP_VERSION`）；②`src/main.ts`（启动日志字段 + 横幅）、`src/routes/health.ts`（两处）、`src/memory/bootstrap.ts`、`src/cli/setup.ts` 共 6 处改读它并补 import；③新建 `tests/version-consistency.test.ts`（等值断言 + 落点扫描 + 判据自检）；④ADR-009 把"未修"改成"已修"并补末节。
+- **为何不读 package.json**：`tsconfig.json` 未开 `resolveJsonModule`、`include` 只含 `src/**`+`tests/**`，且编译成单文件二进制后运行期拿不到该文件 ⇒ 用代码常量 + 测试钉住，而不是靠人记得改 6 处。
+- **验证结果**：**实跑起服务读端点**（不是读源码）：`GET /health` → `version = 4.0.0`，横幅实读为 `Axiom Runtime v4.0.0`（grep 命中 1）；`bun x tsc --noEmit` exit 0；新门 3 pass / 0 fail；`version-consistency + architecture-integrity + doc-contract + env-example-completeness` 合跑 65 条中 **1 红**，红的是 **D9 抓到我自己在 ADR 里手抄的 `file:line` 锚点** ⇒ 改文档（换成"文件 + 符号名"）而非放宽门，改后 `doc-contract` **35 pass / 0 fail**。
+- **我自己造成的两处损害（如实记）**：①清理探测进程时用了 `taskkill //F //IM bun.exe //T`，**按映像名杀会连带杀掉并行跑的其它 bun 作业**（当时的全量串行实验即被波及）—— 该用端口/PID 或窗口标题定位；②第一次链式作业没判退出码（见 04:02 条）。
+- **偏差与未做**：没顺手把 `/api/version` 端点补齐（它属鉴权面，实测返 Unauthorized 是正确默认）；横幅框线宽度按字符数手工对齐（`v4.0`→`v4.0.0` 删 2 空格、`v2.2.0`→`v4.0.0` 等长未动），没引入对齐计算。
+- **回滚**：单提交 revert（含新建两文件）。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

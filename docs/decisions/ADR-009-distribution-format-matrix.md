@@ -81,7 +81,7 @@ bun run smoke:linux            # 或 --only=deb|rpm|appimage 单跑
 
 跑完 `taskkill //F //IM` 三个入口点，`tasklist` 复查残留 **0**。
 
-**顺带查出一处版本串不一致（未修）**：`/health` 的响应体里 `version` 是硬编码 `"2.2.0"`（`src/routes/health.ts:38`，另有 `src/memory/bootstrap.ts:79` 与 `src/cli/setup.ts:134` 的横幅同值），而 `package.json` 与包名、deb/rpm 版本都是 **4.0.0**。后果：任何拿 `/health` 的 `version` 做发布校验的流程都会判红或误判成旧版。这是**发布面自述与实际版本脱节**，属独立缺陷，本 ADR 只登记不顺手改（改哪几处、是否改读 `package.json` 需先定口径）。
+**顺带查出一处版本串不一致（已修，见末节"版本自述单源"）**：`/health` 的响应体里 `version` 是硬编码 `"2.2.0"`，而 `package.json` 与包名、deb/rpm 版本都是 **4.0.0**。后果：任何拿 `/health` 的 `version` 做发布校验的流程都会判红或误判成旧版。这是**发布面自述与实际版本脱节**，属独立缺陷，本 ADR 只登记不顺手改（改哪几处、是否改读 `package.json` 需先定口径）。
 
 **仍成立的边界**：Bun 无 32 位 Windows 目标 ⇒ TS 应用本体不做 32 位，32 位只对 `runtime-go/` 的 Go 服务承诺；macOS 无机器不分发。Windows 侧只有裸 exe，无安装包格式，故"安装/卸载冒烟"不适用，冒烟证据形态与 deb/rpm/AppImage 不同，不可互相替代。
 
@@ -122,3 +122,22 @@ bun run smoke:linux            # 或 --only=deb|rpm|appimage 单跑
 1. 第一次串"重建→打包→冒烟"时链式脚本**没有逐步判退出码**，Linux 交叉编译失败（约束 #4 节）之后打包照跑；`package:linux` 因为强制要 `--bin` 才如实退出，否则就会拿旧二进制打出三个看似全新的包。
 2. 我随后又起了第二次冒烟，而**第一次链的冒烟容器还在跑**，同时我在它安装过程中把 `.deb` 原地重打（03:47、03:50 各一次）⇒ 冒烟报 deb FAIL 且只吐一行读数。真因是我的并发，不是包。** deb 单独重跑即 `PROBE_OK=1`。**
    顺手补了这条 blindness：`apt-get install` 原先 `>/dev/null 2>&1`，在 `set -euo pipefail` 下失败时**不留任何原因**；现在失败会把 apt 输出尾部 25 行打出来，`test -x` 失败也会 `ls -l`。判据红就得能说出为什么红。
+
+## 版本自述单源（2026-09-24 已修）
+
+上面登记的那处不一致实测比最初记的更宽：同一个 4.0.0 产物对外自述**五种**版本 ——
+`/health` 响应体 `2.2.0`、其 API 索引进项 `2.9.0`、启动日志字段 `2.3.0`、运行横幅 `v4.0`、
+`systemStatus.version` `2.2.0`，另 CLI 向导横幅 `v2.2.0`。包侧版本取自 `package.json` = 4.0.0。
+**整套测试此前一条都不红** —— 因为没有任何断言读过这些字段，缺陷对门完全隐形。
+
+修法：新增 `src/version.ts` 导出 `APP_VERSION`，上述 6 处全部改读它；不放成"读 package.json"
+是因为 `tsconfig` 未开 `resolveJsonModule` 且 `include` 只含 `src/**`、`tests/**`，且编译成单文件
+二进制后运行期拿不到 `package.json`。改由 `tests/version-consistency.test.ts` 把两者钉成相等
+（含"判据自检"一条，防门对自己免检）。
+
+证据：`GET /health` 实跑返回 `version = 4.0.0`（原为 2.2.0），运行横幅实读为
+`Axiom Runtime v4.0.0`；`bun x tsc --noEmit` exit 0；新门 3 pass；`doc-contract` 35 pass / 0 fail。
+
+**本刀也被自己的门抓到一次**：我在 ADR 里手抄了 `file:line` 锚点，`D9 禁止 file:line 手抄锚点`
+随即变红 —— 规范件的行号会随代码腐烂，这正是 D9 存在的理由。已把锚点改成"文件 + 符号名"
+（如 `src/routes/health.ts` 的 `getHealth`），改文档而不是放宽门。

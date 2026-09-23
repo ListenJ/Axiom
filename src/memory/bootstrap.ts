@@ -13,6 +13,7 @@
 
 import { VaultManager } from "./vault-manager.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
+import { APP_VERSION } from "../version.js";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
 
@@ -76,7 +77,7 @@ export class AgentBootstrap {
     // 4. 系统状态
     const stats = this.vault.stats();
     const systemStatus = {
-      version: "2.2.0",
+      version: APP_VERSION,
       vaultNotes: stats.totalNotes,
       availableModels: this.getAvailableModels(),
       lastBoot: new Date().toISOString(),

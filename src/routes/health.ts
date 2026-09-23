@@ -3,6 +3,7 @@
  */
 import type { RouteContext } from "./types.js";
 import { safeStringEqual } from "../utils/auth-check.js";
+import { APP_VERSION } from "../version.js";
 import { readString } from "../utils/env.js";
 import { callerCredential } from "../utils/call-context.js";
 
@@ -35,7 +36,7 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
     const { wsManager } = await import("../utils/websocket.js");
 
     return ctx.jsonResponse({
-      status: "ok", timestamp: new Date().toISOString(), version: "2.2.0",
+      status: "ok", timestamp: new Date().toISOString(), version: APP_VERSION,
       uptime: Math.floor((Date.now() - ctx.startupTime) / 1000),
       checks, searchEngines: searchAggregator.listEngines(),
       vault: vStats ? { notes: vStats.totalNotes, words: vStats.totalWords } : null,
@@ -94,7 +95,7 @@ export async function handleApiDocs(ctx: RouteContext): Promise<Response | null>
     const overallStats = tracker.getOverallStats();
 
     return ctx.jsonResponse({
-      version: "2.9.0",
+      version: APP_VERSION,
       documentation: {
         health: "GET /health — System health with module status",
         metrics: "GET /metrics — Prometheus-format metrics",
