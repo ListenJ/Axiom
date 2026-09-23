@@ -2406,4 +2406,4 @@
 - **附带查出**：`dist/tests/` 有 174 份编译 `.test.js` 副本（`dist/` 已 gitignore），其中 `architecture-integrity.test.js` 直跑 18 pass / **4 fail**，而源码版 25 pass / 0 fail —— 副本停在今天修复前。这解释了"同一用例既 pass 又 fail"的怪读数，也是我一度误推"`bun test tests/` 被 dist 污染"的来源（实际显式指路径才会跑到）。
 - **偏差与未做**：没有逐条定位这 83 条的共享态（候选：未 `mockRestore` 的 `globalThis.fetch` 桩、进程级 env 改写、模块级单例）；没有改 `.ci/run.sh` 或 `package.json` 的测试入口 —— 统一入口属判据变更，需先定"以哪个口径为准"，交裁决；容器侧复跑未做（一次约 5 分钟 × 3 次取交集）。
 - **回滚**：无代码改动，记录可删。
-- **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+- **Commit**：7c2a94e5
