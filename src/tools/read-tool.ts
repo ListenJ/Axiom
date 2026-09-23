@@ -27,6 +27,9 @@ export interface ReadOutput {
   length: number;
 }
 
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 export const readTool: Tool<ReadInput, ReadOutput> = {
   name: "read",
   description: "读取文件/网页/记忆库内容",
@@ -72,18 +75,35 @@ export const readTool: Tool<ReadInput, ReadOutput> = {
 
       case "web": {
         // L3：SSRF。旧实现直接 fetch(path)，可打 127.0.0.1:自家端口 与内网元数据地址。
-        const decision = decideCapability({
-          capability: "net.outbound",
-          target: path,
-          principal: `tool:${this.name}`,
-        });
-        if (!decision.allow) throw new Error(`denied: ${decision.reason}`);
-        const response = await fetch(path, {
-          signal: AbortSignal.timeout(ctx.context.maxCpuMs),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${path}`);
-        content = await response.text();
-        mimeType = response.headers.get("content-type") ?? "text/html";
+        // D-B（2026-09-23）：只裁初始 URL 仍是残窗 —— 不设 redirect:"manual" 时跳转由传输层
+        // 完成，被禁主机可以藏在一次 302 后面。与 document-ingest 的 B3-Medium 修复同形：
+        // 逐跳复查 + 跳数上限。
+        let current = path;
+        let hops = 0;
+        for (;;) {
+          const decision = decideCapability({
+            capability: "net.outbound",
+            target: current,
+            principal: `tool:${this.name}`,
+          });
+          if (!decision.allow) throw new Error(`denied: ${decision.reason}`);
+          const response = await fetch(current, {
+            redirect: "manual",
+            signal: AbortSignal.timeout(ctx.context.maxCpuMs),
+          });
+          const location = response.headers.get("location");
+          if (!REDIRECT_STATUSES.has(response.status) || !location) {
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${path}`);
+            content = await response.text();
+            mimeType = response.headers.get("content-type") ?? "text/html";
+            break;
+          }
+          if (hops >= MAX_REDIRECTS) {
+            throw new Error(`too many redirects (> ${MAX_REDIRECTS}): ${current}`);
+          }
+          hops++;
+          current = new URL(location, current).href;
+        }
         break;
       }
 

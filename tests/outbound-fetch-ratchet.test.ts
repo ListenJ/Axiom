@@ -54,11 +54,38 @@ const roster = JSON.parse(read("config/outbound-fetch-baseline.json")) as {
 };
 
 /** 单文件的出网形态计数：direct = 裸 fetch(...) 调用，aliased = globalThis.fetch 的任意出现。 */
+const isGlobalThisFetch = (n: ts.Node): boolean =>
+  ts.isPropertyAccessExpression(n) && n.name.text === "fetch"
+  && ts.isIdentifier(n.expression) && n.expression.text === "globalThis";
+
+/** 该 fetch 调用是否显式要求"不要自动跟随跳转"（逐跳复查的必要机制）。 */
+const FETCH_CALLEE_NAME = /^(?:fetch|fetchImpl|fetchFn)$/;
+function isManualFetchCall(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node) || node.arguments.length < 2) return false;
+  const callee = node.expression;
+  const named = ts.isIdentifier(callee) ? callee.text : null;
+  if (!((named !== null && FETCH_CALLEE_NAME.test(named)) || isGlobalThisFetch(callee))) return false;
+  const init = node.arguments[1];
+  if (!ts.isObjectLiteralExpression(init)) return false;
+  return init.properties.some((p) =>
+    ts.isPropertyAssignment(p) && p.name.getText() === "redirect"
+    && ts.isStringLiteral(p.initializer) && p.initializer.text === "manual",
+  );
+}
+
+function hasManualRedirect(source: string): boolean {
+  const sf = ts.createSourceFile("probe.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (isManualFetchCall(node)) found = true;
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return found;
+}
+
 function fetchForms(source: string): { direct: number; aliased: number } {
   const sf = ts.createSourceFile("probe.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const isGlobalThisFetch = (n: ts.Node): boolean =>
-    ts.isPropertyAccessExpression(n) && n.name.text === "fetch"
-    && ts.isIdentifier(n.expression) && n.expression.text === "globalThis";
   let direct = 0;
   let aliased = 0;
   const visit = (node: ts.Node): void => {
@@ -167,6 +194,20 @@ describe("D-A 扫描判据自证（防门被改宽或改窄后安静失效）", 
     expect(fetchForms("// 旧实现直接 fetch(path) 可打回环\n/* globalThis.fetch */")).toEqual({ direct: 0, aliased: 0 });
   });
 
+  it("逐跳机制判据自证：只有显式 manual 才算，注释与 follow 都不算", () => {
+    expect(hasManualRedirect('await fetch(u, { redirect: "manual", signal: s });')).toBe(true);
+    expect(hasManualRedirect('await globalThis.fetch(u, { redirect: "manual" });')).toBe(true);
+    expect(hasManualRedirect("await fetch(u, { signal: s });")).toBe(false);
+    expect(hasManualRedirect('await fetch(u, { redirect: "follow" });')).toBe(false);
+    // 注释里写着 redirect:"manual" 不算证据（B3-Medium 的历史注释就有这句话）
+    expect(hasManualRedirect('// 改为 redirect:"manual" + 循环\nawait fetch(u);')).toBe(false);
+    // 别名形态：document-ingest 调的是 fetchImpl，不是 fetch
+    expect(hasManualRedirect('const f = opts.fetchImpl ?? globalThis.fetch;\nawait f(u, { redirect: "manual" });')).toBe(false);
+    expect(hasManualRedirect('const fetchImpl = globalThis.fetch;\nawait fetchImpl(u, { redirect: "manual" });')).toBe(true);
+    // 名字里带 fetch 但语义无关的调用不算（宁可漏报成红，也不自动放行）
+    expect(hasManualRedirect('await fetchData(u, { redirect: "manual" });')).toBe(false);
+  });
+
   it("grep 口径会多报的文件确实不含出网调用（口径差的依据）", () => {
     for (const rel of ["src/mcp/server.ts", "src/mcp/dre-backend.ts", "src/mcp/kb-backend.ts", "src/utils/proxy-fetch.ts"]) {
       expect(fetchForms(read(rel)).direct).toBe(0);
@@ -205,7 +246,20 @@ describe("D-A 产出：谁能决定目的主机 —— 三分名单（D-B 的输
   it("挂了守卫但逐跳不复查的点数量 == 在册预算（修好一个就下调）", () => {
     const gap = P.modelControllableHostSites.filter((f) => !byFile.get(f)!.redirectPerHop);
     expect(gap.length).toBe(P.guardWithRedirectGapMax);
-    expect(gap).toEqual(["src/tools/read-tool.ts"]);
+    expect(gap).toEqual([]);
+  });
+
+  it("在册的 redirectPerHop 必须与源码事实一致（不得凭清单自称已逐跳复查）", () => {
+    // 上两条用例读的是 JSON 里的声明值 —— 只改清单就能把预算"下调"到 0，
+    // 那样的门会说谎。这里把声明回扣到 AST 可见的机制证据上。
+    for (const s of roster.sites) {
+      if (s.redirectPerHop !== hasManualRedirect(read(s.file))) {
+        throw new Error(
+          `${s.file}: 清单声明 redirectPerHop=${s.redirectPerHop}，但源码里`
+          + `${hasManualRedirect(read(s.file)) ? "有" : "没有"} redirect:\"manual\" 的 fetch 实参`,
+        );
+      }
+    }
   });
 
   it("无生产调用方的出网点：可达性结论必须可机器复查（接上调用方即红）", () => {

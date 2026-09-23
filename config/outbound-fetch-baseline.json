@@ -18,7 +18,7 @@
     "hostPathOnlySites": ["src/routes/native-routes.ts"],
     "operatorWritableHostSites": ["src/router/provider-caller.ts", "src/utils/api-key-store.ts", "src/workers/pdf-worker.ts"],
     "inboundUrlSources": ["inbound-request", "mixed"],
-    "guardWithRedirectGapMax": 1,
+    "guardWithRedirectGapMax": 0,
     "unreachableSitesMax": 2
   },
   "sites": [
@@ -29,7 +29,7 @@
     { "file": "src/dre/llm/client.ts", "direct": 2, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "this.config.baseUrl 来自 EDGE_LLM_URL / DRE_LLM_URL，两处默认值都是回环，未配置即打本机" },
     { "file": "src/dre/port/knowledge-port.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": false, "deadProofSymbol": "createRemotePort", "deadProofFiles": 3, "endpoint": "caller-supplied", "note": "RemoteKnowledgePort/createRemotePort 在 src/ 内只有定义处与两处 re-export 桶文件，无调用方；tests 里以回环实参构造但不触发该 fetch" },
     { "file": "src/dre/synapse/engine.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": false, "deadProofSymbol": "createLocalModelAssist", "deadProofFiles": 3, "endpoint": "caller-supplied", "note": "createLocalModelAssist 同样只有定义处与两处 re-export 桶文件；其注释声称的 MIND_LOCAL_LLM_URL 全仓无读取点，属注释与实现不符" },
-    { "file": "src/knowledge/document-ingest.ts", "direct": 0, "aliased": 1, "urlSource": "inbound-request", "guard": "isSafeUrl", "redirectPerHop": true, "reachable": true, "endpoint": "model-or-caller", "note": "全仓唯一做到逐跳复查的点：redirect manual + 循环 isSafeUrl + 跳数上限（B3-Medium 修复）" },
+    { "file": "src/knowledge/document-ingest.ts", "direct": 0, "aliased": 1, "urlSource": "inbound-request", "guard": "isSafeUrl", "redirectPerHop": true, "reachable": true, "endpoint": "model-or-caller", "note": "逐跳复查的原创实现（B3-Medium 修复）：redirect manual + 循环 isSafeUrl + 跳数上限；read-tool 的 D-B 修复与之同形，全仓这类点共 2 处" },
     { "file": "src/knowledge/pipeline.ts", "direct": 1, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "KNOWLEDGE_LLM_BASE_URL，默认公网 https；只校验 KEY 存在，不校验 URL" },
     { "file": "src/knowledge/sources/github-trending.ts", "direct": 2, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "主机字面量 github.com / api.github.com，模型可控的 query 已过 encodeURIComponent" },
     { "file": "src/knowledge/sources/z-library.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "主机取自 OPEN_BOOK_SOURCES 内的 searchUrl 模板（全为写死公网主机）；文件名与内容不符，册内无 z-library 条目" },
@@ -42,7 +42,7 @@
     { "file": "src/routes/models.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "KNOWN_PROVIDERS 的 baseURL 全为写死公网 https；路径参数只能选表内 id，未知 id 直接 404" },
     { "file": "src/routes/native-routes.ts", "direct": 1, "aliased": 0, "urlSource": "mixed", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "own-loopback", "note": "主机为 NATIVE_BASE 字面量回环，pathname 与 search 由入站请求原样拼接 → 换不来主机，但可越到 sidecar 的其它端点" },
     { "file": "src/tools/query-tool.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "html.duckduckgo.com 字面量 + encodeURIComponent(query)" },
-    { "file": "src/tools/read-tool.ts", "direct": 1, "aliased": 0, "urlSource": "inbound-request", "guard": "decideCapability", "redirectPerHop": false, "reachable": true, "endpoint": "model-or-caller", "note": "source=web 分支的 path 直接来自 MCP 工具入参；过 net.outbound 裁决，但 fetch 未设 redirect manual → 只裁初始 URL，逐跳不复查" },
+    { "file": "src/tools/read-tool.ts", "direct": 1, "aliased": 0, "urlSource": "inbound-request", "guard": "decideCapability", "redirectPerHop": true, "reachable": true, "endpoint": "model-or-caller", "note": "source=web 分支的 path 直接来自 MCP 工具入参；D-B（2026-09-23）改为 redirect:\"manual\" + 逐跳 decideCapability + 跳数上限，被拒跳转那一跳不再发出请求（行为证据在 tests/read-tool-fence.test.ts 的 [D-B] 组）" },
     { "file": "src/utils/api-key-store.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "getEffectiveBaseURL 的 override 可由 POST /api-keys 请求体写入，写路径只有 http/https 协议校验，不查主机与内网" },
     { "file": "src/workers/pdf-worker.ts", "direct": 2, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "baseUrl 两个来源：CLI 旗标（不过任何守卫）与 MCP 工具入参 ?? AXIOM_PDF_WORKER_URL；后者由 tool-registry 的 adjudicateCallPayloads 裁决" }
   ]

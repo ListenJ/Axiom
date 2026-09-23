@@ -2244,3 +2244,13 @@
 - **偏差**：`.tmp/go386/` 因有先前 shell 的工作目录留在里面而暂时删不掉（`Device or resource busy`），位于 gitignore 的 `.tmp` 内，不影响仓库。
 - **回滚**：文档单提交 revert。
 - **Commit**：ad8e0166
+
+## 2026-09-24 03:22 +0800 — T2 D-B 机械半：`read-tool` 逐跳出网裁决，并补一处会说谎的门
+
+- **任务**：收掉 §9.3(1) 登记的存量缺口——`source=web` 过了 `decideCapability` 却不设 `redirect:"manual"`，被禁主机可藏在一次 302 之后。级别 T2（改运行时执行路径 + 判据）。政策半（allow-list 载体 D-Q）不在此刀。
+- **工具**：主 agent Grep/Read/Edit/Bash（`bun test`、`bun x tsc`）。未用子代理。
+- **操作**（文件级）：①`src/tools/read-tool.ts` web 分支改逐跳循环（manual + 每跳重裁 + 上限 5，与 `document-ingest` 同形，未抽公共助手）；②`tests/read-tool-fence.test.ts` 新增 `[D-B]` 组 7 条；③`config/outbound-fetch-baseline.json` 的 `guardWithRedirectGapMax` 1→0、read-tool `redirectPerHop` 改 true、`document-ingest` 那句"全仓唯一"随事实更正；④`tests/outbound-fetch-ratchet.test.ts` 新增"声明必须回扣源码"用例 + AST 判据自证，并把 `isGlobalThisFetch` 提到模块级供两处复用；⑤设计方案追加 §10。
+- **验证结果**：新组修前 **3 fail**（失败形状是 promise **resolve** 出被拒主机的响应体，即漏洞真实可达；只断言"抛错"会假绿，故桩刻意模拟传输层自跳转，并给桩自带 hop 上限以免旧实现无限递归挂住）⇒ 修后 fence+ratchet **33 pass / 0 fail**。判据非恒绿经变异测试：把 read-tool 的声明改回 false ⇒ 该用例如实报 red。`bun x tsc --noEmit` **exit 0**。回归面 `tools-v3 / e2e-runtime / integration-edge / mcp-backend-auth / review-deep / adapt-tool / architecture-integrity / capability-invariants` **160 pass / 2 fail**，2 条均为已登记的 Windows 符号链接红（`escape-link` 根本没建成 + `rm` EFAULT），落点在 safe-fs 不在本刀；同一次运行里 `[capability-invariants] 沙箱清理失败…泄漏` 那条**按设计**显式报出（EBUSY），说明上一刀的"清理失败不得静默"生效。
+- **偏差与未做**：没给 `redirectPerHop` 的 AST 判据扩到任意别名（`const f = globalThis.fetch` 形态仍返 false）——换新别名的失败方向是**报红逼人来看**，不是自动放行；行为层证据在 fence 测试而非该判据。没动 `decideOutbound` 那句"IP 字面量永不豁免"与实际代码不一致的注释：改注释还是改语义是政策选择，待 D-Q。没重构 `document-ingest` 的重复循环（两处 5 行同形不构成抽接缝的理由，规则 1/8）。`native-routes` 越端点面与"运维可写主机"三点仍留 D-B。
+- **回滚**：单提交 revert。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

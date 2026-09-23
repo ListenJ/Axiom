@@ -277,3 +277,26 @@ D-A 已建成：`tests/outbound-fetch-ratchet.test.ts`（14 pass）+ `config/out
 - 不覆盖 `proxyFetch` 的 18 个导入方（§3.2 已纠正：导入面 ≠ 出网点，逐点判定属 D-B）。
 - 不覆盖 WebSocket / `Bun.spawn` 子进程自行联网等非 `fetch` 通道；只确认了 `http.request` 无旁路（§9.1）。
 
+---
+
+## 10 D-B 机械半已收口（2026-09-24）：`read-tool` 逐跳裁决，政策半仍待裁决
+
+§9.3(1) 登记的那条缺口已按 D-A 定的形状修掉：`src/tools/read-tool.ts` 的 `source=web` 分支改为
+`redirect: "manual"` + 每跳重过 `decideCapability` + 跳数上限 5（与 `document-ingest` 的 B3-Medium 同形）。
+在册预算 `guardWithRedirectGapMax` 由 1 下调到 0。
+
+**证据不是"我改了就绿"**：夹具桩刻意模拟"传输层自己跟随跳转"，只回 302 的桩会让旧实现因 `!res.ok` 也抛错、
+于是测不到那个洞。三条用例（内网元数据跳转、协议相对 `//169.254.169.254/`、9 跳长链）修前全部 resolve 出
+被拒主机的响应体，修后全部抛错且断言"被拒那一跳根本没发出请求"；另三条红线（公网→公网、相对 Location、
+file 分支不触网）锁住不误伤。
+
+**顺手补了一处会说谎的门**：`redirectPerHop` 原先只是在册清单里的一个**自述字段**，"修好一个就下调"那条用例
+读的是 JSON 而不是源码 —— 只改清单就能把预算调到 0。新增一条把声明回扣到 AST 可见机制的用例，并对该判据
+做了自检（注释里的 `redirect:"manual"` 不算、`redirect:"follow"` 不算、`fetchData` 这类名字不算）。
+残留边界：判据按仓库实际用到的被调名（`fetch`/`fetchImpl`/`fetchFn`/`globalThis.fetch`）识别，换新别名会
+**报红而不是自动放行**（实测把声明改回 false 即触发 red）。行为层的证据仍在 fence 测试，不在这个 AST 判据里。
+
+**仍未做、且必须由用户先裁的一半**：§9.3(2) 的 allow-list 载体（D-Q），以及 `decideOutbound` 那句
+"IP 字面量永不豁免"的注释与 `allowlist.includes(host)` 实现不一致 —— 改注释还是改语义是政策选择，
+不在机械收口里擅动。`native-routes` 的越端点面与"运维可写主机"三点也仍按 §9.2 留在 D-B。
+
