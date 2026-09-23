@@ -9,7 +9,7 @@
  *      runWithLLM 落回 deterministic/rule（零 LLM token）
  *   D. 跨会话记忆：会话 A 写入 blackboard → 会话 B 读取命中
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyOn } from "bun:test";
 import fs from "fs";
 import path from "path";
 import { initDreKernel, shutdownDreKernel } from "../src/dre/host.js";
@@ -91,12 +91,27 @@ describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
     const k = await initDreKernel();
     expect(k).not.toBeNull();
     const pipeline = new CognitivePipeline(k!.getEngine());
-    const res = await pipeline.runWithLLM("分析知识库检索模块的性能瓶颈");
+    // 断言的是**降级语义**（fallbackLevel 与 6 阶段轨迹），不是 TCP 重试要多久。
+    // 无 sidecar 的环境里每次 LLM 调用都是"连接层失败 ⇒ 一律可重试 ⇒ 指数退避"，
+    // 6 步管道累计要等 >15s ⇒ 本条在 CI（`.ci/run.sh` 用裸 `bun test`）与任何无
+    // 本地 LLM 的机器上必然以超时收场。用 404（不在 DEFAULT_RETRYABLE_STATUS 内）
+    // 顶掉网络层：不重试、不退避，走的仍是同一条"LLM 不可用 ⇒ 确定性降级"分支。
+    const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+      (async () => new Response("not found", { status: 404 })) as unknown as typeof fetch,
+    );
+    let res;
+    try {
+      res = await pipeline.runWithLLM("分析知识库检索模块的性能瓶颈");
+    } finally {
+      fetchSpy.mockRestore();
+    }
     expect(["deterministic", "rule"] as string[]).toContain(res.fallbackLevel as string);
     expect((res.trace ?? []).map((s) => s.stage)).toEqual([
       "classify", "knowledge", "reasoning", "constraint", "action", "reflection",
     ]);
-  });
+  // 显式预算：6 步管道本身要跑数秒，bun 默认的 5s 单用例超时在 `.ci/run.sh`（裸 `bun test`）
+  // 下会把一条降级语义断言判成超时。这里声明用例需要的时长，不改判据、不放宽断言。
+  }, 20_000);
 });
 
 describe("D. 跨会话记忆（blackboard）", () => {

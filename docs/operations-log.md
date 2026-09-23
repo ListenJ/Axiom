@@ -2160,3 +2160,18 @@
 - **偏差与未做**：①D9 的判据只认 `file.ext:NN` 形态，ADR-007 里"（L4-L11）"这类不带文件名的行号仍不被拦 —— 属判据覆盖面，不在本刀扩；②`docs/reports/` 与 `docs/archive/` 现在被排除在扫描面外，若将来把这些目录**改为入库**，必须同步把它们移出 `LOCAL_ONLY_DOC_DIRS`，否则会出现"入库了却没人查"的静默豁免（本轮已在常量注释里写明依据，靠 D0 数量下界兜）；③新基线 7 条里的 4 条时序项**未逐条定位根因**，只做了定性：`CognitivePipeline 6-step` 实测是**撞到 15s 套件超时**（不是差阈值），另三条是并发/网络下的延迟分位；把它们当"性能缺陷已修"是错的，本轮没有修，只是不再被 13 条噪声盖住。④符号链接两条仍需 Linux runner。
 - **回滚**：单提交 revert；行尾归一 revert 会把 CRLF 装回去但不改变任何文字。
 - **Commit**：f73c1b2d
+
+## 2026-09-24 01:19 +0800 — T2 修测试判据：两条"稳定红"其实同一根因 —— 基准与降级测试在替 TCP 重试策略付账，CI 里必红
+
+- **任务**：新基线 7 条里定性未明的时序类红。级别 T2（只改测试，不改生产行为）。冻结契约：验收 = 相关用例在无本地 LLM 的环境下稳定通过，且**断言语义不变**（不许靠放宽阈值/降并发凑绿）。
+- **工具**：主 agent Grep/Read/Edit、`bun test` 单文件与全量复跑、`-- -t` 定位单用例复现（规则 6 的紧回路：先证它单跑也红，再动手）。
+- **根因（实测，不是推测）**：`src/dre/llm/client.ts` 的 `isRetryableError(err)` 在**无 statusCode 时对任意 `Error` 返回 true** ⇒ "没有 sidecar 监听"这种连接层失败一律可重试，每次调用 3 次尝试 + 指数退避（`baseDelayMs` 200 → 400）。`CognitivePipeline.run()` 一次走 6 步、多处调 LLM ⇒ 累计数秒全记在延迟账上。
+- **复现与影响面**：`bun test tests/benchmark.test.ts -t "6-step"` **单跑也红**，死法是 `timed out after 5000ms`（bun 默认单用例超时），而不是"差阈值"。⇒ `.ci/run.sh` 用的正是裸 `bun test`（默认 5s），这条与 `B+C. DRE 无 LLM 降级链` 在**任何没有本地 LLM 的环境（含 CI）里必红**，红的还是"流水线应在合理时间内完成""降级到 deterministic/rule"这类口径断言。
+- **操作**（文件级）：`tests/benchmark.test.ts` 与 `tests/dre-scenarios.test.ts` 各加一处 `spyOn(globalThis,"fetch")` 返回 **404**（不在 `DEFAULT_RETRYABLE_STATUS = {429,500,502,503,504}` 内 ⇒ 不重试、不退避），并在注释里写明为什么。断言一字未改：仍是 `trace.length===6`、`fallbackLevel ∈ {deterministic,rule}`、`avg<2000ms` —— 走的是同一条"LLM 不可用 ⇒ 确定性降级"分支，只是不再等退避。
+- **验证结果**：两份文件合跑 **14 pass / 0 fail**、4.07s（此前单是 benchmark 一份就要 20.3s 且该用例红）。全量：单文件红名单里 `CognitivePipeline`、`E.4`、`B+C 降级链` 消失；两次背靠背运行 5 / 15 条，**交集 5 条** = 2 条 `S-3` 符号链接（本机 EFAULT）+ `LLMClient 50 并发` + `Mega 500 并发` + `(unnamed)`。
+- **退避只是第一因，第二因差点被我写成"已修"**：隔离 fetch 后 `CognitivePipeline` 仍 3 次红 3 次。取数值才发现 `avg≈540ms × 10 次 ≈ 5.4s` **本身就越过 bun 默认的 5s 单用例超时** —— 与退避无关，是这条基准的自然时长。`bun run test`（`package.json` 带 `--timeout 15000`）能过，`.ci/run.sh` 的裸 `bun test`（默认 5s）过不去，这就是它在 CI 必红的第二半原因。处置：给这两条用例**各自声明预算**（`test(..., 20_000)`）并在注释写明理由，断言一字未动（既没有收紧 `avg<2000ms`，也没有减并发）。改后 `benchmark` 与 `dre-scenarios` 各连跑 3 次均 **10 pass / 0 fail**、**4 pass / 0 fail**；`tsc` exit 0。
+  ⇒ 自我纠正：本条初稿把"退避"写成了唯一根因、并称二者已"降级为负载敏感"。若照那版提交，留痕就会高估修复程度 —— 数值（max 5.4–6.7s、avg 540ms）才是把第二因逼出来的东西。
+- **一处我差点搞错的定性（幸好先查了）**：`LLMClient 50 并发` 我一开始归到"同一个退避根因"，准备照方抓药。读 `tests/stress/extreme-stress.test.ts:412` 才发现它**已经配了 `retry:{maxRetries:0}`** —— 压根不走退避，它测的是"50 个并发连接到 :1 并在 5s 内全部失败"，慢是本机负载下的真实并发建连开销。⇒ **不改**：降并发或放宽 5s 都是把断言改成我能过的样子，不是修缺陷。同理 `Mega 500 并发` 未动。
+- **偏差与未做**：①**没有改生产重试策略**：把"连接被拒"判为不可重试会影响真实的瞬时抖动场景，属行为变更，需单独裁决（登记为候选：给 `LLMClientConfig.retry` 增 `retryConnectionErrors` 开关，默认 true 以保持现网语义）；②`CognitivePipeline` 首次迭代仍 ~3.8s（预热），高负载下仍可能翻面 —— 现在是负载敏感而非系统性红，如实登记；③`E.4 p99<50ms` 本轮未查（它在两次运行里各出现 1 次，属同类负载敏感）。
+- **回滚**：单提交 revert 即回到"两条在 CI 必红"。
+- **Commit**：`<待回填>`

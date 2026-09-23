@@ -5,7 +5,7 @@
  * 使用 Bun 内置的基准工具
  */
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll, spyOn } from "bun:test";
 import { tmpdir } from "os";
 import { join } from "path";
 import { Database } from "bun:sqlite";
@@ -41,14 +41,28 @@ function cleanup() {
 describe("CognitivePipeline throughput", () => {
   let engine: DREngine;
   let pipeline: CognitivePipeline;
-
+  let fetchSpy: ReturnType<typeof spyOn> | undefined;
   beforeAll(() => {
+    // 基准测的是**管道**的吞吐与延迟，不是 TCP 重试策略。夹具里的
+    // mainLLM.baseUrl 指向没人监听的 :8080，而 LLMClient 对"无状态码的连接层错误"
+    // 一律按可重试处理（isRetryableError → err instanceof Error），于是一次
+    // pipeline.run() 的 6 步里多处 LLM 调用各自还要跑 3 次尝试 + 指数退避
+    // （200ms→400ms），将约 0.6s×LLM调用次数 记在延迟账上。后果不只是本机：
+    // `.ci/run.sh` 用的是裸 `bun test`（默认 5s/用例），这条在**没有本地 LLM sidecar
+    // 的环境里必红**，红的还是"流水线应在合理时间内完成"这种口径断言。
+    //
+    // 这里用 404 顶掉网络层：404 不在 DEFAULT_RETRYABLE_STATUS(429/5xx) 内 ⇒ 不重试、
+    // 不退避，但走的仍是"LLM 不可用 ⇒ 确定性降级"这条与之前完全相同的分支，
+    // 断言的 trace.length===6 语义不变。
     engine = new DREngine({
       dbPath: tempDb(),
       mainLLM: { baseUrl: "http://localhost:8080", model: "bench", maxTokens: 128 },
       workingMemoryCapacity: 16,
     });
     pipeline = new CognitivePipeline(engine);
+    fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+      (async () => new Response("not found", { status: 404 })) as unknown as typeof fetch,
+    );
 
     // 预填充知识库 (模拟 100 条知识)
     for (let i = 0; i < 100; i++) {
@@ -66,6 +80,16 @@ describe("CognitivePipeline throughput", () => {
     }
   });
 
+  afterAll(() => {
+    fetchSpy?.mockRestore();
+    fetchSpy = undefined;
+  });
+
+  // 显式声明本用例的预算，不靠运行器的默认值。
+  // 实测 10 次 × 约 540ms ≈ 5.4s 已经**越过 bun 默认的 5s 单用例超时**：
+  // `bun run test`（package.json 里带 `--timeout 15000`）能过，而 `.ci/run.sh` 用的是
+  // 裸 `bun test` ⇒ 同一条断言在 CI 里以超时收场，红的还是"流水线应在合理时间内完成"
+  // 这种口径。断言本身（avg<2000ms）不动 —— 收紧或放宽它都是在改判据，不是在修缺陷。
   test("CognitivePipeline 6-step 延迟 (10 次)", async () => {
     const inputs = [
       "JWT 认证失败怎么处理",
@@ -91,7 +115,7 @@ describe("CognitivePipeline throughput", () => {
 
     // 流水线应在合理时间内完成
     expect(avg).toBeLessThan(2000);
-  });
+  }, 20_000);
 
   test("CognitivePipeline 并发 5 路", async () => {
     const start = performance.now();
