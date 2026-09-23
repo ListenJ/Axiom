@@ -31,6 +31,7 @@
    这条是约束 #9/#10 逼出来的：原口径（`dpkg-deb -c` / `rpm -qlp` 看内容）放过这两种坏包。
 5. **`package:linux` 之后必须接 `smoke:linux` 才算分发就绪**，构建脚本头部注释同样写了这条衔接。
 6. **macOS 保留构建能力但不进发布矩阵**：`PLATFORM_TARGETS` 里 darwin 条目不删（删了会连带砍掉本地开发与未来可能），只是在分发清单里排除。
+7. **每类产物都必须进 `dist/CHECKSUMS.txt`，且清单由单一实现生成**（`scripts/build/checksums.ts`）。这条是补的缺口：清单原先只在 `build:matrix` 末尾刷新，而三种 Linux 包由 `package:linux` 单独产出 ⇒ 按本 ADR 的文档顺序跑完打包，**包根本不在清单里**，收件人无从校验。现在 `package:linux` 结尾也调它，两个入口共用一份哈希逻辑。清单不再给自己记账（那会把上一版清单的哈希写进本版，形成无从校验的自引用）。
 
 ## 后果
 

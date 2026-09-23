@@ -18,6 +18,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, copyFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import path from "node:path";
+import { generateChecksums } from "../build/checksums.js";
 
 const REPO = process.cwd();
 const STAGE = path.join(REPO, ".tmp", "pkg", "appdir");
@@ -270,6 +271,11 @@ async function main(): Promise<number> {
   }
   console.log("[package:linux] 已产出：\n  " + produced.join("\n  "));
   if (missing.length) die(`以下产物缺失或为空：${missing.join(", ")}`);
+
+  // 产物必须进分发清单，否则收件人无从校验。清单原本只在 build:matrix 末尾刷新，
+  // 而按本文件头部的文档顺序跑（package:linux → smoke:linux）时它根本不会更新。
+  generateChecksums(OUT.replace(/[\\/]pkg$/, ""));
+
   return 0;
 }
 

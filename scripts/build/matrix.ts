@@ -14,9 +14,9 @@
  * 构建产物输出到 dist/ 目录，按 target/platform/arch 分类。
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, cpSync, rmSync } from "fs";
-import { createHash } from "crypto";
+import { existsSync, mkdirSync, statSync, cpSync, rmSync } from "fs";
 import path from "path";
+import { generateChecksums } from "./checksums.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 配置：入口点 × 平台矩阵
@@ -119,44 +119,6 @@ async function run(cmd: string[], opts?: { cwd?: string; env?: Record<string, st
   });
   const exitCode = await proc.exited;
   return exitCode === 0;
-}
-
-/** 递归收集目录下所有文件（返回相对 dist/ 的路径） */
-function collectFiles(dir: string, base: string = dir): string[] {
-  const results: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...collectFiles(fullPath, base));
-    } else if (entry.isFile()) {
-      results.push(path.relative(base, fullPath).replace(/\\/g, "/"));
-    }
-  }
-  return results;
-}
-
-/** 扫描 dist/ 目录生成 SHA256 校验和文件（CHECKSUMS.txt） */
-function generateChecksums(): void {
-  if (!existsSync(DIST_DIR)) {
-    console.log("\n[checksums] dist/ 不存在，跳过校验和生成");
-    return;
-  }
-  const files = collectFiles(DIST_DIR).sort();
-  if (files.length === 0) {
-    console.log("\n[checksums] dist/ 为空，跳过校验和生成");
-    return;
-  }
-  const lines: string[] = [`# axiom-agent build checksums`, `# generated: ${new Date().toISOString()}`, ``];
-  let counted = 0;
-  for (const relPath of files) {
-    const fullPath = path.join(DIST_DIR, relPath);
-    const hash = createHash("sha256").update(readFileSync(fullPath)).digest("hex");
-    lines.push(`${hash}  ${relPath}`);
-    counted++;
-  }
-  const checksumFile = path.join(DIST_DIR, "CHECKSUMS.txt");
-  writeFileSync(checksumFile, lines.join("\n") + "\n", "utf-8");
-  console.log(`\n[checksums] 已生成 ${path.relative(ROOT, checksumFile)}（${counted} 个文件）`);
 }
 
 /** 构建 Bun 编译目标 (单文件二进制) */
@@ -386,7 +348,7 @@ async function main(): Promise<void> {
   const elapsed = ((performance.now() - start) / 1000).toFixed(1);
 
   // 生成校验和（仅当有产物时）
-  generateChecksums();
+  generateChecksums(DIST_DIR);
 
   console.log(`\n${"═".repeat(60)}`);
   console.log(`  构建完成 — 耗时 ${elapsed}s`);

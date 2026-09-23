@@ -2117,4 +2117,16 @@
 - **另外纠正一处措辞不实**：ADR-008 与内核头注释都写过"与 `scripts/laya/laya_gate.py` 同口径"，实测该脚本内没有任何阈值或裁定（只出原始概率）。已改为"模型侧只出概率，裁定全在 TS 层"。
 - **偏差与未做**：①`notes` 目前只有 CLI 消费，未接任何告警面（链条本就无生产调用方）；②同技能文件仍把 `D:\laya-router\*.py` 记作调用件，而仓库内已有 `scripts/laya/laya_gate.py` —— 指针待补，属用户级技能文件不在本仓提交面内；③`verification-triage.json` 的 `questions` 形状仍无运行时校验（ADR-008 已登记）。
 - **回滚**：单提交 revert；链条无生产消费者，回滚不影响既有行为。
+- **Commit**：3d2e870d
+
+## 2026-09-24 01:36 +0800 — T2 修分发缺口：按文档顺序产出的 Linux 包根本不在 CHECKSUMS 清单里
+
+- **任务**：目标要求"可分发"。核验上一轮新增的 4 个 32 位 Go 产物是否被 `dist/CHECKSUMS.txt` 覆盖时，发现更根本的问题：清单只在 `build:matrix` 末尾生成，而三种 Linux 包由 `package:linux` 单独产出。级别 T2（跨两个构建脚本 + 新模块）。
+- **工具**：主 agent Grep/Read/Edit/Write、`bun run lint`、`sha256sum` 对账。
+- **操作**（文件级）：抽出 `scripts/build/checksums.ts`（`generateChecksums(distDir)`，含"清单不给自己记账"一条）；`scripts/build/matrix.ts` 删本地 `collectFiles`/`generateChecksums` 与随之失效的 4 个导入，改调新模块；`scripts/package/linux-bundles.ts` 在产物断言通过后刷新清单；`docs/decisions/ADR-009-distribution-format-matrix.md` 增决定 #7。
+- **为什么不是各写一份**：两个入口都要刷同一份清单，复制哈希逻辑等于制造第二口径 —— 本仓库刚为同类问题（两份守卫清单、两份命令危险判据）付出过返工成本，这里按规则 8 收成一个实现。
+- **验证结果**：`bun run lint` **exit 0**；直接调 `generateChecksums("dist")` → **579 个文件**入册；`grep -c CHECKSUMS.txt dist/CHECKSUMS.txt` = **0**（不再自我引用）；`pkg/axiom_4.0.0_amd64.deb`、`pkg/axiom-4.0.0-1.x86_64.rpm`、`pkg/Axiom-4.0.0.x86_64.AppImage` 与 `go/windows/386/pcdad.exe` 均在册；抽 deb 一条与现场 `sha256sum` 逐字 **MATCH**（清单不是摆设）。
+- **自我引用这条为什么顺手改**：原实现把上一版清单的哈希写进本版清单，收件人按清单校验时会得到一个"指向自己前一刻"的条目，属我正在使之成为验收依据的那份清单自身的正确性问题，不是无关美化。
+- **偏差与未做**：①新接线只在 `package:linux` 成功路径末尾执行，未做失败路径刷清单（失败即 die，清单本就不该记半成品）；②`package:linux` 端到端重跑（约 7 分钟 Docker 构建）未做，本轮用直接调用生成器验证同一函数，等价但少了那一段真实产物刷新时序；③Windows 侧仍无安装包形态，清单里的 exe 是裸文件。
+- **回滚**：单提交 revert 即回到"清单只由 build:matrix 产出"。
 - **Commit**：`<待回填>`
