@@ -2221,3 +2221,14 @@
 - **偏差与未做**：①`resilience.test.ts` 两处 `setTimeout(1000)` 是**故意的延迟模拟**（测超时/熔断窗口），不属这一类，未动；②`logger-redact` 的 `afterEach` 仍留 30ms 收尾睡（清理竞态、包在 try 内不会致红），根治要 logger 暴露可 await 的 flush，属生产接口改动，登记不顺手做；③高并发阈值类（`LLMClient 50 并发`、`Mega 500`、`E.4 p99`）**仍未动**，理由同前：放宽阈值等于把判据改成能过的样子。
 - **回滚**：单提交 revert。
 - **Commit**：1f852944
+
+## 2026-09-24 01:04 +0800 — T1 补口：`scripts/` 读的 5 个 env 全都不在配置模板里（含我自己引入的那个）
+
+- **任务**：上一刀"换 `readString` 才让 `LAYA_*` 被模板门看见"暴露了一件事——`env 模板完整性` 与 arch 门都只扫 `src/`。顺着这条查 `scripts/` 侧的可见性。级别 T1（只改 `.env.example`）。
+- **工具**：主 agent Grep/Read/Edit、`bun test` 双门复跑。
+- **实测**：`scripts/` 共读 19 个 env，其中 **5 个在 `.env.example` 里没有任何条目**：`VAULT_PATH`、`BACKUP_DIR`、`KEEP_BACKUPS`、`COMPRESS_BACKUPS`（`scripts/backup.ts`）与 `APPIMAGETOOL_URL`（`scripts/package/linux-bundles.ts`）。最后一项是**我自己本轮引入、还写进了 ADR-009 的离线镜像开关**，却漏了登记 —— 属于我这次改动直接造成的错漏，不是历史遗留。
+- **操作**：按代码里的真实默认值补进模板并分组注明"arch 门只扫 src/，这几项不会被自动查、不配也能跑"。默认值逐条取自读点（`./axiom-memory`、`./backups`、`7`、`true`、上游 continuous URL），没有凭记忆填。
+- **验证结果**：复跑差集检查 ⇒ 脚本侧 env 缺失数 **5 → 0**；`doc-contract` + `env-example-completeness` 合跑 **37 pass / 0 fail**（模板在 D12 规范面内，新内容不含内网地址，故不触门）。
+- **偏差与未做**：没有把 `scripts/` 纳入 `env 模板完整性` 的扫描面 —— 扩扫描面属判据变更，且会一次性牵出上面这 5 条之外的历史项，需要单独一刀并先量数。当前是靠本条留痕 + 模板注释显式化，不是靠门。
+- **回滚**：单提交 revert。
+- **Commit**：`<待回填>`
