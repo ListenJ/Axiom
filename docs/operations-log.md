@@ -2043,4 +2043,4 @@
 - **停止施工的证据（本 ADR 第三条被实测推翻的前提）**：`effectiveRoots`（`safe-fs.ts:39-49`）静默丢弃越界根，故"配置根落在 cwd 之外"在当前不变式下无法表达；且仓库自己的测试就用沙箱外路径当合法落点（`tests/hardening-t8-low.test.ts:74` 的 `mkdtempSync(join(tmpdir(), …))` 传给 `:82`/`:90` 的 `createFileQualityStore`）⇒ 绑定 4 个写点会**打破现有测试与外置 vault 部署**，属破坏性变更，不该由我默认掉。
 - **交付状态如实声明**：`safeFsFor` 当前**零消费者**，不得读作"这 4 处已受围栏保护"；§2.7.5 的 C 组条目仍然挂着。待用户在 P-1（`AXIOM_SANDBOX_ROOT` 可配根，推荐）/ P-2（只围栏模型可控写点）/ P-3（维持现状仅登记）之间裁决。
 - **回滚**：本刀单提交，`git revert` 即可；无既有行为变更被引入。
-- **Commit**：待回填
+- **Commit**：d44d9342
