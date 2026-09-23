@@ -11,6 +11,9 @@
  *
  * 每个产物构建后**必须实测存在且非空**才算成功；任何一步失败都直接非零退出，
  * 不接受"命令没报错=已产出"这种代理信号。
+ *
+ * 「存在」不等于「装得上、跑得起来」：安装 + 启动 + /health 的验收在冒烟里，
+ * 构建完请接着跑 `bun run smoke:linux`（它会把三种包各自装进干净容器再探活）。
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, copyFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
@@ -133,6 +136,8 @@ function buildAppDir(binPath: string, version: string): void {
   const iconDir = path.join(STAGE, "usr", "share", "icons", "hicolor", "256x256", "apps");
   mkdirSync(iconDir, { recursive: true });
   writeFileSync(path.join(iconDir, "axiom.png"), icon);
+  // Description 是 deb822 多行字段，其后任何缩进行都会被当作它的续行吞掉，
+  // 所以 Depends 必须排在 Description 之前且顶格（实测：缩进写法产出的包 Depends 为空）。
   writeFileSync(
     path.join(REPO, ".tmp", "pkg", "control"),
     [
@@ -140,8 +145,8 @@ function buildAppDir(binPath: string, version: string): void {
       `Version: ${version}`,
       "Architecture: amd64",
       "Maintainer: Axiom Project",
+      "Depends: ca-certificates",
       `Description: ${SUMMARY}`,
-      " Depends: ca-certificates",
       "",
     ].join("\n"),
   );
@@ -187,7 +192,10 @@ async function main(): Promise<number> {
     "deb",
   );
 
-  // ── rpm：fedora + rpmbuild，用 spec 把 AppDir 整体作为 %files ─────────
+  // ── rpm：fedora + rpmbuild ───────────────────────────────────────────
+  // %files 只列本包真正独有的路径：写 `/usr` 会让包声明 /usr、/usr/bin、/usr/share
+  // 等目录所有权，与 filesystem 包冲突，实测 `rpm -ivh` 直接拒绝安装。
+  // hicolor/256x256/apps 两层目录无人认领，须显式 %dir，否则 rpmbuild 报 unpacked。
   const rpmName = `axiom-${version}-1.x86_64.rpm`;
   const specPath = path.join(REPO, ".tmp", "pkg", "axiom.spec");
   writeFileSync(
@@ -206,7 +214,11 @@ async function main(): Promise<number> {
       "mkdir -p %{buildroot}/usr/bin %{buildroot}/usr/share/applications",
       "cp -a /stage/usr/. %{buildroot}/usr/",
       "%files",
-      "/usr",
+      "/usr/bin/axiom",
+      "/usr/share/applications/axiom.desktop",
+      "%dir /usr/share/icons/hicolor/256x256",
+      "%dir /usr/share/icons/hicolor/256x256/apps",
+      "/usr/share/icons/hicolor/256x256/apps/axiom.png",
       "",
     ].join("\n"),
   );
