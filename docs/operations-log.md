@@ -2313,3 +2313,16 @@
 - **偏差与未做**：没有把"容器内编译"接进 `matrix.ts`（那是构建流程改动，需要先量清 `--platform=linux` 在网络可用环境下是否本就能过 —— 若是，则该修的是网络前提而不是脚本）。
 - **回滚**：文档单提交 revert。
 - **Commit**：占位（本刀 hash 由后续记录维护提交回填）
+
+## 2026-09-24 04:02 +0800 — T2 分发面收口：三产物重建到 HEAD 并 3/3 冒烟通过，同时补上我自己那条门的盲区
+
+- **任务**：把"可分发"从"产物存在"推到"产物是当前代码、装得上、起得来"。级别 T2。
+- **工具**：主 agent Bash（`docker run … oven/bun:1.3.14 bun build --compile`、`package:linux`、`verify:artifacts`、`smoke:linux`、`bun x tsc`）、Read/Edit/sed。
+- **操作**（文件级）：①`scripts/package/smoke-linux.ts` 的 deb 分支：`apt-get install` 失败改为打印 `/tmp/apt.log` 尾部 25 行、`test -x` 失败改为 `ls -l`；②ADR-009 新增"全产物重建到 HEAD 后的冒烟读数"节，含两条我自己造的假读数。
+- **验证结果**：`bun run smoke:linux` 干净单跑 **3/3 PASS**（deb `deb_depends_field=ok`、rpm `%files` 枚举 5 项无裸 `/usr`、AppImage 解包直跑，三者 `health_http_code=200` + `PROBE_OK=1`）；`bun run verify:artifacts` **OK**（15 份交付物均不早于 `src/` 最新提交，PE 位数与路径一致，清单与磁盘双向一致）；`bun x tsc --noEmit` exit 0。
+- **我自己犯的两错（如实记）**：①链式作业未逐步判退出码，Linux 交叉编译 6/6 失败后仍往下跑打包（幸而 `package:linux` 强制 `--bin` 才没拿旧二进制出包）；②**并发两次冒烟 + 在其安装过程中原地重打 `.deb`** ⇒ deb 报假 FAIL 且只吐一行读数，真因是我的调度而非包。单跑即 PASS。
+- **改判据而非改结论**：deb 假 FAIL 暴露的是门自身看不见原因，所以修的是"失败必须打原文"，不是把 deb 判绿的手续放宽。
+- **过程性破坏与修复**：第一次 Edit 误在 TS 模板字面量里写了反引号，使 `smoke-linux.ts` 无法解析（`Expected identifier but found "]"`）；已用 `sed` 改写该行并 `tsc` 复验 exit 0，未提交过破坏态。
+- **偏差与未做**：`/health` 的 `version` 仍是硬编码 `2.2.0`（与包版本 4.0.0 脱节，另 5 处各说一套），已建任务 #19 并写清可行修法与不可行路径（`tsconfig` 未开 `resolveJsonModule` 且 `include` 不含 package.json），本刀不动以免留半截改动；`.tmp/winexe`、`.tmp/go386` 因先前 shell 的 CWD 占用暂时删不掉（gitignore 内）。
+- **回滚**：单提交 revert（文档与脚本各自独立可 revert）。
+- **Commit**：占位（本刀 hash 由后续记录维护提交回填）

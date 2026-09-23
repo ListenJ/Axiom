@@ -80,10 +80,13 @@ apt-get update -qq >/dev/null 2>&1
 dpkg -l ca-certificates >/dev/null 2>&1 \\
   && echo "preexisting_ca_certificates=yes" || echo "preexisting_ca_certificates=no"
 apt-get install -y -qq --no-install-recommends curl >/dev/null 2>&1
-apt-get install -y -qq "/pkg/$PKG" >/dev/null 2>&1
+# 装不上时必须把 apt 与 dpkg 的原文吐出来：set -euo pipefail 叠上 >/dev/null 会让整条
+# 冒烟只剩一行读数，红得看不出原因（2026-09-24 实测踩过）。
+apt-get install -y -qq "/pkg/$PKG" >/tmp/apt.log 2>&1 \\
+  || { echo "FAIL: apt-get install 未成功"; tail -25 /tmp/apt.log; exit 1; }
 dpkg -s axiom | grep -q '^Depends: ca-certificates' \\
   && echo "deb_depends_field=ok" || { echo "FAIL: control 的 Depends 未生效"; dpkg -s axiom; exit 1; }
-test -x /usr/bin/axiom
+test -x /usr/bin/axiom || { echo "FAIL: /usr/bin/axiom 不可执行"; ls -l /usr/bin/axiom; exit 1; }
 mkdir -p /work && cd /work
 /usr/bin/axiom >/tmp/server.log 2>&1 &
 probe $!
