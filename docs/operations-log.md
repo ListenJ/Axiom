@@ -2065,3 +2065,16 @@
 - **偏差与未做**：①**未做 Windows 侧安装/运行时冒烟**（无包格式，exe 直跑未在本轮验证）；②**包内不含 Rust 侧载**：`native/target/release/` 本机只有 Windows 形态产物，Linux 无构建物可打 ⇒ 包内 `initNativeBridge` 走 WARN 降级，native 路由/检索不可用（已写进 ADR-009 后果，不作为本轮缺陷）；③`MSYS_NO_PATHCONV=1` 仍是脚本外的运行前置，**脚本内自检未做**（本轮所有容器调用都走 Bun.spawn 不经 shell，脚本自身不受影响；人手敲 docker 时才会踩）；④appimagetool 依旧 continuous 构建不可钉版；⑤冒烟需外网（容器内现装 curl），已写进 ADR-009。
 - **回滚**：本刀单提交（`linux-bundles.ts` 的两处包元数据修复 + 冒烟脚本 + ADR 更正），`git revert` 即回到「产出存在但不保证装得上」的旧口径；`dist/pkg/` 为构建产物不入库。
 - **Commit**：`<待回填>`
+
+## 2026-09-24 01:02 +0800 — T2 施工：D-A 出网裸 fetch 棘轮门建成（零运行时行为变更），并纠正其基线口径 26→23
+
+- **任务**：执行设计方案 §3.3 推荐的第一步 D-A。冻结契约：验收 = ①以现状冻结在册、新增裸 fetch 即红；②每行标注 URL 来源，产出"哪些出网点的目的主机可被外部决定"这份事实；**不做** D-B 的强制、不引入 allow-list、不改任何运行时行为。级别 T2（新增门 + 清单 + 文档回写，零生产路径改动）。
+- **工具**：主 agent Bash/Read/Edit/Write、`bun test`、`bun run lint`、`bun run audit:runtime`、TS 编译器 API 写临时探针（`.tmp/probe-ast*.ts`、`.tmp/probe-url.ts`，未入库）；子代理 1 个（`general-purpose` 只读出网 URL 来源，其一条断言被我实测推翻）。
+- **操作**（文件级）：新建 `config/outbound-fetch-baseline.json`（23 行在册：直连/别名计数、URL 来源、守卫、逐跳、可达性、端点类别、逐行注据）与 `tests/outbound-fetch-ratchet.test.ts`（14 用例）；`docs/superpowers/plans/2026-09-23-safefs-and-outbound-enforcement-design.md` 追加 §9（口径更正、三分名单、D-B 前置的两条口径分裂、撤回记录、D-A 边界）并把 §5 表里 D-A 那行从"可"改为"已建成 + 新口径"。
+- **验证结果（红→绿可复现）**：`bun test tests/outbound-fetch-ratchet.test.ts` **14 pass / 0 fail**；临时放一个含裸 `fetch` 的 `src/utils/__gate-probe.ts` → 该门立刻 **1 fail**，删除后回 **14 pass**（证明"新增即红"不是纸面承诺）。`bun run lint` **exit 0**；`audit:runtime` **16/16**；`doc-contract` 前后同为 22 pass / 13 fail（本机已知 chronic 红），且经逐条比对，新入库的 3 个文件与设计方案新增区间（>215 行）**均不在任何 offender 列表内**。
+- **实测推翻的两处（都改了判据，没改事实迁就绿）**：①**基线口径 26 → 23**：初稿 §3.2 的 grep 把 `Bun.serve` 的入站 `fetch` 处理器 3 处、名为 `fetch` 的方法声明 1 处、注释 1 处当成出网点；改 AST 判据后为 23 文件 / 29 直连 / 4 处 `globalThis.fetch` 引用。且只扫 `fetch(` 会**漏掉整个** `src/computer-use/frontend-review.ts`（它走 `opts.fetchImpl ?? globalThis.fetch`）⇒ 门把 `globalThis.fetch` 的任意引用也计入，并配一条"扫描判据自证"把四种形态钉住。②**政策断言写不下**：我最初把判据写成"URL 含入站成分的点必须挂守卫"，实测立刻红在 `src/routes/native-routes.ts` —— 它主机是字面量回环、只有 path/query 跟着请求走，**换不掉主机**。不为凑绿而豁免它，改为按"谁能决定目的主机"切三分名单（模型可选主机 / 仅路径可控 / 运维可写主机），并加一条完备性用例强制任何新的可达外部影响点必须归入其一。
+- **交付给 D-B 的两条新事实（均亲自回代，非转述）**：①`src/` 内仅 `document-ingest.ts` 设 `redirect: "manual"` 并逐跳复查，而**模型可控**的 `read-tool.ts` 只裁初始 URL ⇒ D-B 对"模型可选主机"档的强制必须含逐跳；②`AXIOM_NET_ALLOWLIST` 只被 `decideCapability` 读取，`isSafeUrl` 不读它，且 `decideOutbound` 注释称"IP 字面量永不豁免"而代码是 `allowlist.includes(host)` —— 实测以回环 IP 登记即放行 ⇒ **注释与实现不一致 + 两守卫口径分裂**，D-Q 的三选都必须回答"这份 allow-list 由几个守卫读取"。
+- **撤回一条子代理结论**：其称十进制 `http://2130706433:9001/` 会绕过 `decideOutbound`。实测 `new URL()` 已把十进制/十六进制/八进制 IPv4 归一为 `127.0.0.1`，判 `DENY` 且与 `isSafeUrl` 一致 ⇒ 断言不成立，已在 §9.3 落字撤回，D-B 不为此立项。
+- **偏差与未做**：①D-A 是**扫描门不是执行点**，不得读作"出网已受判"，`net.outbound` 的实际强制仍属 D-B；②未覆盖 WebSocket / 子进程自行联网等非 `fetch` 通道，只确认 `http.request` 在 `src/` 内仅存在于 `proxy-fetch.ts` 一处（无旁路）；③`knowledge-port.ts` 与 `synapse/engine.ts` 两条死路径只做登记不做删除（删文件须走规则 4 归档，且不在本刀验收面内）；④D-B 前置的 allow-list 载体与 ADR-007 的 P-1/P-2/P-3 仍待用户裁决。
+- **回滚**：本刀单提交，`git revert` 即撤掉门与清单；未触碰任何 `src/` 运行时文件。
+- **Commit**：`<待回填>`

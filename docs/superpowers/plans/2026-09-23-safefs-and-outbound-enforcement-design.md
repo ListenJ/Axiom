@@ -209,7 +209,7 @@
 | 新增的性能/时序类测试自身 | ❌ 单次不可信 | 必须同机跑 ≥3 次取交集后才允许进判据 |
 | C 的符号链接逃逸验收 | ❌ 本机不可（EFAULT） | 需 Linux runner；或本机开启 Windows 开发者模式后复测（该前提必须写进验收，不得默认成立） |
 | C 的"漏绑根即失败"架构测试 | ✅ 可 | 纯静态/单测，不依赖符号链接 |
-| D-A 的棘轮门（裸 `fetch` 存量在册、只拦增量）+ 来源分类清单 | ✅ 可 | 纯源码扫描；基线在册清单 = **26 个文件**（口径见 §3.2），只允许变短 |
+| D-A 的棘轮门（裸 `fetch` 存量在册、只拦增量）+ 来源分类清单 | ✅ **已建成** | 纯源码扫描；`tests/outbound-fetch-ratchet.test.ts` + `config/outbound-fetch-baseline.json`。基线口径由初稿的 grep 26 文件更正为 **AST 23 文件 / 29 次直连调用 + 4 处 `globalThis.fetch` 引用**（见 §9） |
 | D-B 的强制面端到端 | ⚠️ 部分 | 需要 SearXNG/CDP/网关在跑，属 `AXIOM_LIVE_SERVER` 那一类环境；且必须先有 allow-list 载体 |
 | Go / Rust 侧 | ✅ 现在可 | `go1.26.0` / `cargo 1.97.1` 均在 PATH |
 
@@ -229,3 +229,46 @@
    顺带确认：**D-A 棘轮门是否现在就做**（它零运行时行为变更，不需要等 D-B 的政策）。
 
 裁决后按总则 0.4 冻结任务契约再开工；每刀一个提交、一条 ops log，验收判据一律写成 §5 那两条（稳定红不增大 + 新测试 ≥3 次取交集），不写"绝对全绿"。
+
+## 9 D-A 施工记录（2026-09-24）—— 口径更正与 D-B 的事实基础
+
+D-A 已建成：`tests/outbound-fetch-ratchet.test.ts`（14 pass）+ `config/outbound-fetch-baseline.json`（23 行在册）。**零运行时行为变更** —— 这道门只扫描与登记，不拦任何真实请求，不得读作"出网已受判"。
+
+### 9.1 基线口径：grep 26 → AST 23（第四处口径纠正）
+
+§3.2 用 `grep -rlE '(^|[^a-zA-Z0-9_.])fetch\s*\('` 量的 26 个文件里，有 5 个是假阳性：`Bun.serve({ async fetch(req, server) })` 的入站处理器 3 处（`src/mcp/server.ts`、`src/mcp/dre-backend.ts`、`src/mcp/kb-backend.ts`）、名为 `fetch` 的方法声明 1 处（`src/crawl/search-engines.ts`，它内部转 `proxyFetch`）、注释文本 1 处（`src/utils/proxy-fetch.ts`）。
+
+改用 TS 语法树后实测口径为 **23 个文件 / 29 次直连 `fetch(...)` 调用 / 4 处 `globalThis.fetch` 引用**。门里有一条"扫描判据自证"用例把这四种形态各自的归属反向锁住，防止判据后来被改宽或改窄而门安静失效（照 §doc-contract 的 D0 先例）。
+
+**只扫 `fetch(` 调用会整片失明**：`src/computer-use/frontend-review.ts` 走 `opts.fetchImpl ?? globalThis.fetch` 再调用、`src/router/provider-caller.ts` 走 `const fetchFn = globalThis.fetch` 再调用 —— 两个文件里没有一处 `fetch(` 直连调用。所以门把 `globalThis.fetch` 的**任意引用**也计入。第三个出网通道也一并量过：`http.request` 在 `src/` 内只出现在 `src/utils/proxy-fetch.ts` 一处，即认可的载体内部，无旁路。
+
+### 9.2 「谁能决定目的主机」三分，而不是「URL 变量长什么样」
+
+初稿的 `模型可控 / 运维配置 / 固定端点` 三档在落地时不够用：`src/routes/native-routes.ts` 的 URL 形如 `${NATIVE_BASE}${url.pathname}${url.search}`，主机是字面量回环、**换不掉**，但路径与查询串跟着入站请求走。按变量长相它属"入站可控"，按危害它和"模型能填任意主机"根本不是一回事。
+
+因此在册清单按后者切成三份互斥名单，并由一条"完备性"用例强制任何新的可达外部影响点必须归入其一：
+
+| 名单 | 在册 | 现状 |
+|---|---|---|
+| 模型/入站可选**主机** | `src/knowledge/document-ingest.ts`、`src/tools/read-tool.ts` | 两点都已挂守卫 ⇒ 该预算为 0，未挂守卫的新点直接红 |
+| 主机固定、仅路径可控 | `src/routes/native-routes.ts` | 未挂 `net.outbound` 守卫，但打不到别的主机；风险面是越到 sidecar 的其它端点 |
+| 运维可写主机（经认证 HTTP 体 / CLI 旗标 / env） | `src/router/provider-caller.ts`、`src/utils/api-key-store.ts`、`src/workers/pdf-worker.ts` | 三点都无 URL 校验；`POST /api-keys` 的写路径只判 http/https 协议，不查主机与内网 |
+
+另登记 2 个**无生产调用方**的可达性结论（`src/dre/port/knowledge-port.ts` 的 `createRemotePort`、`src/dre/synapse/engine.ts` 的 `createLocalModelAssist`，`src/` 内除定义处与 re-export 桶文件外均无引用），并由用例把"提及该符号的文件数"钉死 —— 谁接上调用方，门就红，迫使重新分类，而不是让 `reachable:false` 悄悄变成假事实。顺带一条：`synapse/engine.ts` 的注释声称"仅在配置了 `MIND_LOCAL_LLM_URL` 时由调用方启用"，实测该 env 名在全仓只出现在这行注释里，没有任何代码读它。
+
+### 9.3 D-B 必须知道的两条口径分裂（均经亲自回代，不采信转述）
+
+1. **`redirect` 逐跳不复查是存量缺口**：`src/` 内只有 `src/knowledge/document-ingest.ts` 设了 `redirect: "manual"` 并逐跳复查，而那处的代码注释已经把失败形状写明白了（"只校验初始 URL，重定向逐跳不校验 ⇒ SSRF 残窗"）。同一个形状在**模型可控**的 `src/tools/read-tool.ts` 上仍然开着：它过了 `decideCapability`，但 `fetch` 只传 `signal`，重定向由运行时跟随且不二次裁决。⇒ D-B 对"模型可选主机"这一档的强制必须包含逐跳，否则只裁初始 URL 等于没裁。
+2. **`AXIOM_NET_ALLOWLIST` 与 `isSafeUrl` 不共享豁免**：实测把 `127.0.0.1` 写进该 env 后，`decideCapability({capability:"net.outbound"})` 对回环返 ALLOW，而同一 URL 的 `isSafeUrl` 仍返 false。两个后果：
+   - `src/utils/permissions.ts` 的 `decideOutbound` 注释写"只有显式登记的主机名可豁免；**IP 字面量永不豁免**"，而代码是 `if (!allowlist.includes(host))`，没有任何 IP 字面量排除 ⇒ **注释与实现不一致**，实测以 `127.0.0.1` 登记即放行。
+   - allow-list 只作用于 `decideCapability` 一侧。若 D-B 让某些点改走 `proxyFetch(ssrfGuard)`，同一份 allow-list 对它们**无效**，会出现"登记了仍被打死"的静默失效 —— 与 §3.2 撤回 D-3① 时担心的是同一类失败形状。
+   ⇒ **裁决点 D-Q 的三选都必须回答"这份 allow-list 由几个守卫读取"**，否则载体选了、口径仍分裂。这是 D-A 交付的新事实，初稿没有。
+
+> **撤回一条转述结论**：本轮子代理报告断言 `decideOutbound` 对 `http://2130706433:9001/` 这类十进制回环会 ALLOW（因 `LOOPBACK_OR_LINK_LOCAL` 只做点分前缀匹配、不做归一化）。按规则 13.1 亲自回代实测：`new URL()` 会把十进制/十六进制/八进制 IPv4 全部归一，`hostname` 已是 `127.0.0.1`，实测 `cap=DENY` 且与 `isSafeUrl=false` 一致 ⇒ **该断言不成立，撤回**，D-B 不需要为此立项。
+
+### 9.4 D-A 不做什么
+
+- 不改任何运行时行为、不给任何点新增守卫、不引入 allow-list —— 这三件都在 D-B。
+- 不覆盖 `proxyFetch` 的 18 个导入方（§3.2 已纠正：导入面 ≠ 出网点，逐点判定属 D-B）。
+- 不覆盖 WebSocket / `Bun.spawn` 子进程自行联网等非 `fetch` 通道；只确认了 `http.request` 无旁路（§9.1）。
+
