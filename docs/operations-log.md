@@ -1998,7 +1998,7 @@
 - **根因（实测两条错文，非推测）**：`D:/…` 形态在 Linux 无盘符语义 ⇒ 相对路径 ⇒ 落 cwd 内 ⇒ 放行；在 Windows 是绝对路径 ⇒ 逃逸 ⇒ 内核拒绝。实际报错：`fs.read: target 'D:/tmp/ok.txt' escapes sandbox root D:\openclaw-fusion (field=path)` 与 `fs.delete: … 'D:/workspace/normal.txt' … (field=filePath)`。**内核正确、夹具错误。**
 - **验证结果**：`bun test tests/unit/tool-mode-gate.test.ts` → **10 pass / 0 fail**（退出码 0）。全量 `bun run test` 连跑三次：**28 → 17 → 17**，第 2、3 次失败集 `comm` 双向**全空**（逐条相同），第 1 次独有的 11 条中仅 2 条由本次修复消除，其余 **9 条为跨运行抖动**（压测/网络/日志类：`AtomEngine 5000`、`Mega 500`、`E.4 延迟分位`、`C.5 层管道`、`CognitivePipeline throughput`、`D.1 熔断`、`LLMClient` 网络×2、`Logger`）。`bun x tsc --noEmit` → **exit 0**。
 - **偏差记录**：①首跑 #1 的"28 fail"**不可作为基线**——真实稳定基线是 17 条（13 doc-contract Windows 假红 + 2 `S-3 safeFs 符号链接` EFAULT 本机不可验证 + 2 其他）。这条直接改写了 C/D 的验收协议：判据必须是"17 条稳定红不增大 + 新测试同机跑 ≥3 次取交集"，单次运行不作数；②我最初把 11 条消失全归给这次修复，重跑第三次才分清 2 真修 / 9 抖动——**一次对照不足以区分修复与抖动**，已把该口径写进设计稿 §5；③备份文件 `.tmp/backups/docs/ops-a.md` 与 `tests/unit/tool-mode-gate.test.ts` 副本在验证通过后删除。
-- **Commit**：待回填
+- **Commit**：8fa0fba2
 
 ## 2026-09-23 04:50 +0800 — docs(design) 更正：撤回 D-3① 推荐，并把基线改写成三次运行的稳定红口径
 
@@ -2009,4 +2009,4 @@
 - **另一条已定事实**：`OBSIDIAN_VAULT_PATH` / `DATABASE_PATH` 默认为 cwd 相对但可被运维改成任意绝对路径（`.env.example:142,144`），无 `AXIOM_HOME` 收口 ⇒ **C 的根必须可配**，这直接把"C-1 各站点自证锚点"排除出候选。
 - **验证结果**：文档改动不影响代码，`tsc` 与三门结果沿用上一条（exit 0 / 16-16 / 稳定红 17）。
 - **偏差记录**：初稿在推荐位上写了一个未经实跑的方案（D-3①），靠"它是个旁路所以套守卫更安全"的直觉成立、被一次 4 行的 `isSafeUrl` 实测推翻。教训：**给安全收口方案定价前，先拿被保护对象的默认配置回代判据**——否则很可能把功能判死而不是把洞堵住。已按此把 D 的步序改为"D-A 不需政策先做、D-B 前置 allow-list"。
-- **Commit**：待回填
+- **Commit**：3875692d
