@@ -2407,3 +2407,24 @@
 - **偏差与未做**：没有逐条定位这 83 条的共享态（候选：未 `mockRestore` 的 `globalThis.fetch` 桩、进程级 env 改写、模块级单例）；没有改 `.ci/run.sh` 或 `package.json` 的测试入口 —— 统一入口属判据变更，需先定"以哪个口径为准"，交裁决；容器侧复跑未做（一次约 5 分钟 × 3 次取交集）。
 - **回滚**：无代码改动，记录可删。
 - **Commit**：7c2a94e5
+
+## 2026-09-25 02:20 +0800 — T2 建设：Jev skill 扫描→Laya skill 入库 + 全自动审计链（Linux 原生 runner）
+
+- **任务**：按目标三步——①网络检索"类似决策模型的 skill"（Jev = TypeSafe AI 2026-09-15 发布的 System One Model，与 Laya 同类），把可迁移纪律映射进 Laya 链；②用户级 `laya-local-decision-model` skill 入库（解决 2026-09-24 §五"仓库零引用"）；③实现全自动审计链并过 Laya 闸实跑。级别 T2（新增为主，改 3 个既有文件，均有备份）。
+- **工具**：WebSearch×4、主 agent 施工、Bash 实跑。
+- **交付**：`skills/laya-local-decision-model/SKILL.md`、`docs/research/system-one-decision-model-skills-2026-09-25.md`、`src/decision/audit-chain.ts`（5 只读 stage：inventory/vector-scan/claims/determinism-scan/laya-determinism + 链驱动 + CLI）、`src/decision/laya-triage.ts` +`createLocalLayaRunner`/`selectRunnerKind`（Linux 不经 wsl.exe）、`src/decision/laya-cli.ts`（注册动作 + 平台自适应 + 修 `--spec` indexOf 隐患）、`docs/decisions/laya/audit-chain-triage.json`、`tests/unit/audit-chain.test.ts`、package.json `audit:chain`、architecture-integrity 白名单 +1。
+- **验证结果**：单测 35 pass/0 fail（audit-chain 16 + laya-triage 19）；三道门 audit:runtime 16/16、architecture-integrity 25/25、doc-contract 35/35；**全链实跑**：真模型分诊 6 决策 → 5 stage `EXECUTED ok=true`、`release:tag-and-push` ESCALATED（领域封杀，护栏证明）、noul 交叉核对 5 条留痕；**模型侧确定性**：同 spec 跨进程 N=5 逐字节一致（exit 0×5）；施工中抓到并修掉 layaDeterminism 假绿（5 次 exit=2 的一致报错曾被当成"确定"→ `determinismVerdict` 要求全零退出，假绿回归锁进单测）。
+- **偏差与未做**：WSL Arch 内无 bun，"Linux 原生整链"以 `selectRunnerKind`+单测锁分支、以 `--stages-only` 提供人工直跑口，真 Linux 整链实跑留待有 bun 的 Linux 机；KAL 查询 N≥5 独立运行未测；模块 1-6/8-12 深审未做（分母已建）。
+- **回滚**：新增文件整体可删；`laya-triage.ts`/`laya-cli.ts`/`package.json`/`architecture-integrity.test.ts` 备份于 `.tmp/backups/`（验证通过后已删）。
+- **Commit**：`<待回填>`
+
+## 2026-09-25 02:35 +0800 — T2 诊断收口：90 红谜题根因=8 文件 mock.module 泄漏，串行 91→5（87 条闭环）
+
+- **任务**：按 2026-09-24 §九配方执行 90 红诊断并修复（用户目标"除算力需求外的任务"）。级别 T2（诊断 + 8 个测试文件修复 + 2 处文档对齐 + env 登记）。
+- **工具**：主 agent Bash（串行全量 ×3、逐文件单跑、两两配对、紧邻前文定位）、审计链 stage 产出证据。
+- **根因**：bun 的 `mock.module` 是**进程级原地改写且 mock.restore() 不还原**——8 个测试文件 mock `model-router.js` 等真模块后零还原，串行单进程下毒化其后全部文件；`--parallel=8` 把文件分进不同 worker 恰好掩盖（§八之谜的代码级答案）。受害指纹：`router.assign/routeByIntent is not a function`、`buildEnhancedSystemPrompt` 缺身份声明。
+- **修复**：全部按 consciousness.test.ts:194-207 先例——**mock 前快照真导出（必须在 mock.module 之前求值，否则展开到的是已被改写的命名空间——修复 v1 就这样无效过）+ afterAll 回灌**。涉及 hallucination-wiring（6 mock，毒源头目）/chat-memory-loop/internal-agent-budget/routes-chat-validation/services-chat（5 mock）/minimax/archiver-safe-move/risk-verdict-cache（relative 路径未复现泄漏，一并补齐 + env 还原）。
+- **验证结果**：串行三轮 4258/**91** → 4289/**60** → **4344/5**（4344 含新增 16 测试）；最小红对红→绿闭环（毒源+model-router 6 红→0、+intent-enhancer 21→0、+prompt-optimizer 1→0）；修复后 8 文件单跑全绿。**真红两处当场修**：env 门缺 `AUDIT_DET_RUNS`/`AUDIT_LAYA_TIMEOUT_MS`（本任务自己引入，已登记 `.env.example`，门 2/0）；`README.md:1` v3.1→v4.0.0、`LIMITATIONS.md:16` 188→189（与权威 `count-tools`=189 对齐）。**残余 4 条为时序型**（pdf-worker ×3 fetch 桩跨文件竞态 `res.json is not a function`、retrieval-workflows 场景 1 相位双计 2.0≥1.1），单跑与全部定向配对均绿，需全量二分定位——指纹与紧邻前文已写进审计报告 F7 留档下轮。
+- **偏差与未做**：残余 4 条未修（二分成本 ~8×4 分钟，收益递减）；`bun run test`（--parallel=8）口径未重跑（其掩盖面即本轮修复面）；CI（Linux 容器）侧读数仍未测。
+- **回滚**：8 个测试文件 + `.env.example` + README/LIMITATIONS 备份于 `.tmp/backups/`（验证通过后已删）；逐文件 revert 即回滚。
+- **Commit**：`<待回填>`

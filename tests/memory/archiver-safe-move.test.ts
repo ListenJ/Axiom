@@ -6,12 +6,20 @@
  * 使用 mock.module 隔离 sqlite-memory 单例（跨文件污染见风险测试套件注释）。
  */
 
-import { beforeAll, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dir, "..", "..");
+
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+import * as realSqliteMemory from "../../src/memory/sqlite-memory.js";
+const REAL_SQLITE_MEMORY = { ...realSqliteMemory };
+afterAll(() => {
+  mock.module(path.join(ROOT, "src", "memory", "sqlite-memory.js"), () => REAL_SQLITE_MEMORY);
+});
 
 // 隔离 sqlite-memory 单例：每个测试用各自的可控 fake
 let archiveNotePathImpl: (from: string, to: string) => void = () => {

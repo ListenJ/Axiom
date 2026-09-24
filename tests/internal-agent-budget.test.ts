@@ -1,8 +1,16 @@
-import { describe, it, expect, beforeAll, mock } from "bun:test";
+import { describe, it, expect, beforeAll, mock, afterAll } from "bun:test";
 import path from "path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
 const captured: Array<{ role: string; messages: Array<{ role: string; content: string }> }> = [];
+
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+import * as realModelRouter from "../src/router/model-router.js";
+const REAL_MODEL_ROUTER = { ...realModelRouter };
+afterAll(() => {
+  mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => REAL_MODEL_ROUTER);
+});
 
 mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => ({
   router: {

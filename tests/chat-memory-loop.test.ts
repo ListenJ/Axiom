@@ -22,6 +22,15 @@ import path from "path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
 
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：本文件的
+// model-router mock 曾毒化同进程其后所有 router 依赖文件（2026-09-25 串行全量实测）。
+// mock.module 原地改写命名空间 ⇒ 快照必须在任何 mock.module 之前求值。
+import * as realModelRouter from "../src/router/model-router.js";
+const REAL_MODEL_ROUTER = { ...realModelRouter };
+afterAll(() => {
+  mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => REAL_MODEL_ROUTER);
+});
+
 // ── 环境隔离（在被测调用发生前设置；readString 每次调用时读取）──
 // 隐私模式（R6）：关闭 GLM 改写与联网知识检索，测试零外发请求。
 // bun test 同进程跑多个文件，env 是进程级共享状态：保存原值，afterAll 恢复，

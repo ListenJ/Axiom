@@ -9,10 +9,18 @@
  * 测试模式与 tests/services-chat.test.ts 相同：mock 重型协作者（model-router /
  * self-evolve barrel），保持 services/chat 真实逻辑；intent=false 绕过 LLM 意图链。
  */
-import { describe, it, expect, mock, beforeAll } from "bun:test";
+import { describe, it, expect, mock, beforeAll, afterAll } from "bun:test";
 import path from "path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
+
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+import * as realModelRouter from "../src/router/model-router.js";
+const REAL_MODEL_ROUTER = { ...realModelRouter };
+afterAll(() => {
+  mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => REAL_MODEL_ROUTER);
+});
 
 // Mock 重型协作者（绝对路径，与 services-chat.test.ts 同一接缝）。
 // 注意：不要 mock src/self-evolve/index.js —— Bun 的 mock.module 会沿 barrel

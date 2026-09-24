@@ -12,15 +12,26 @@
  * 4. resetRiskVerdictCache 清空后重新走双层。
  */
 
-import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, afterAll, spyOn, mock } from "bun:test";
 import * as riskScreen from "../../src/local-llm/risk-screen.js";
+import * as realModelRouterModule from "../../src/router/model-router.js";
 import {
   screenToolCall,
   resetRiskVerdictCache,
 } from "../../src/agents/risk-monitor.js";
 import type { EdgeRiskResult } from "../../src/local-llm/risk-screen.js";
 
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+const REAL_MODEL_ROUTER = { ...realModelRouterModule };
+const ENV_ORIGINAL_EDGE_RISK_MONITOR = process.env.EDGE_RISK_MONITOR;
 process.env.EDGE_RISK_MONITOR = "1";
+afterAll(() => {
+  mock.module("../../src/router/model-router.js", () => REAL_MODEL_ROUTER);
+  // 进程级 env 同样是跨文件共享态：用了就还（chat-memory-loop.test.ts 同款纪律）
+  if (ENV_ORIGINAL_EDGE_RISK_MONITOR === undefined) delete process.env.EDGE_RISK_MONITOR;
+  else process.env.EDGE_RISK_MONITOR = ENV_ORIGINAL_EDGE_RISK_MONITOR;
+});
 
 const reviewState = {
   calls: 0,

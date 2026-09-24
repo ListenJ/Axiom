@@ -1,10 +1,30 @@
 /**
  * Chat service tests — using absolute path mocks for reliable interception
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, afterAll } from "bun:test";
 import path from "path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
+
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+import * as realModelRouter from "../src/router/model-router.js";
+import * as realCodegraphIndex from "../src/memory/codegraph-index.js";
+import * as realIntentEnhancer from "../src/agents/intent-enhancer.js";
+import * as realPromptOptimizer from "../src/agents/prompt-optimizer.js";
+import * as realQueryDecomposer from "../src/agents/query-decomposer.js";
+const REAL_MODEL_ROUTER = { ...realModelRouter };
+const REAL_CODEGRAPH_INDEX = { ...realCodegraphIndex };
+const REAL_INTENT_ENHANCER = { ...realIntentEnhancer };
+const REAL_PROMPT_OPTIMIZER = { ...realPromptOptimizer };
+const REAL_QUERY_DECOMPOSER = { ...realQueryDecomposer };
+afterAll(() => {
+  mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => REAL_MODEL_ROUTER);
+  mock.module(path.join(ROOT, "src", "memory", "codegraph-index.js"), () => REAL_CODEGRAPH_INDEX);
+  mock.module(path.join(ROOT, "src", "agents", "intent-enhancer.js"), () => REAL_INTENT_ENHANCER);
+  mock.module(path.join(ROOT, "src", "agents", "prompt-optimizer.js"), () => REAL_PROMPT_OPTIMIZER);
+  mock.module(path.join(ROOT, "src", "agents", "query-decomposer.js"), () => REAL_QUERY_DECOMPOSER);
+});
 
 // Mock using absolute paths
 const mockRouterMod = path.join(ROOT, "src", "router", "model-router.js");

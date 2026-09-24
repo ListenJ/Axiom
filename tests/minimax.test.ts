@@ -2,7 +2,15 @@
  * MiniMax MCP 工具测试
  * 测试网络搜索和图像识别功能
  */
-import { describe, it, expect, beforeAll, mock } from "bun:test";
+import { describe, it, expect, afterAll, beforeAll, mock } from "bun:test";
+import * as realProxyFetch from "../src/utils/proxy-fetch.js";
+
+// 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
+// 任何 mock.module 之前求值（mock.module 原地改写命名空间）。
+const REAL_PROXY_FETCH = { ...realProxyFetch };
+afterAll(() => {
+  mock.module("../src/utils/proxy-fetch.js", () => REAL_PROXY_FETCH);
+});
 
 // Mock the network boundary (proxyFetch) before the tool module is imported so
 // tests stay deterministic and never hit api.minimax.io.

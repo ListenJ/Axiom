@@ -16,10 +16,31 @@
  * pValue 恒 1.0，可疑判定仅由 confidence（证据相似度）驱动，可观测不阻断。
  */
 
-import { describe, test, expect, mock } from "bun:test";
+import { describe, test, expect, mock, afterAll } from "bun:test";
 import path from "path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
+
+// ── 模块 mock 泄漏防线（与 tests/consciousness.test.ts:194-207 同一口径）──
+// Bun 的 mock.module 是进程级原地改写，且 mock.restore() 不还原它：本文件的 6 个
+// mock 曾毒化其后同进程运行的所有测试文件（2026-09-25 实测：串行全量 91 红，
+// 最小红对 = 本文件 + model-router 6 红 / intent-enhancer 21 红 / prompt-optimizer 1 红）。
+// 因此在任何 mock.module 之前先捕获原始导出，套件结束后显式回灌模块注册表。
+import * as realModelRouter from "../src/router/model-router.js";
+import * as realIntentEnhancer from "../src/agents/intent-enhancer.js";
+import * as realPromptOptimizer from "../src/agents/prompt-optimizer.js";
+import * as realReadOptimizerInit from "../src/utils/read-optimizer-init.js";
+import * as realCodegraphIndex from "../src/memory/codegraph-index.js";
+import * as realKnowledge from "../src/services/knowledge.js";
+
+// 快照必须在**任何 mock.module 之前**求值：mock.module 是原地改写命名空间对象，
+// 若在 afterAll 里才展开，拿到的是已被 mock 覆盖后的属性（实测：修复 v1 因此无效）。
+const REAL_MODEL_ROUTER = { ...realModelRouter };
+const REAL_INTENT_ENHANCER = { ...realIntentEnhancer };
+const REAL_PROMPT_OPTIMIZER = { ...realPromptOptimizer };
+const REAL_READ_OPTIMIZER_INIT = { ...realReadOptimizerInit };
+const REAL_CODEGRAPH_INDEX = { ...realCodegraphIndex };
+const REAL_KNOWLEDGE = { ...realKnowledge };
 
 // ── 模块 mock（与 tests/services-chat.test.ts 同型：绝对路径 mock.module，确定性、零网络）──
 // isRewriteEnabled=false 关闭边缘合并快路径；shouldEnhanceIntent=false 关闭意图 LLM 增强。
@@ -61,6 +82,18 @@ mock.module(path.join(ROOT, "src", "services", "knowledge.js"), () => ({
     totalResults: 1,
   }),
 }));
+
+// 套件结束后把 mock 前捕获的真导出快照重新注册回模块注册表（mock.restore() 不还原
+// module mock，实测残留会毒化同进程后续文件 —— 见 consciousness.test.ts:194-207 同款注释）。
+afterAll(() => {
+  mock.restore();
+  mock.module(path.join(ROOT, "src", "router", "model-router.js"), () => REAL_MODEL_ROUTER);
+  mock.module(path.join(ROOT, "src", "agents", "intent-enhancer.js"), () => REAL_INTENT_ENHANCER);
+  mock.module(path.join(ROOT, "src", "agents", "prompt-optimizer.js"), () => REAL_PROMPT_OPTIMIZER);
+  mock.module(path.join(ROOT, "src", "utils", "read-optimizer-init.js"), () => REAL_READ_OPTIMIZER_INIT);
+  mock.module(path.join(ROOT, "src", "memory", "codegraph-index.js"), () => REAL_CODEGRAPH_INDEX);
+  mock.module(path.join(ROOT, "src", "services", "knowledge.js"), () => REAL_KNOWLEDGE);
+});
 
 import {
   assessStatement,

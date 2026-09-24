@@ -13,7 +13,7 @@
 
 1. **wiki-link 跨存储引用未闭环**：`kal_references` 仅覆盖知识图谱出入边 UNION。Vault wiki-link 图由 `DeterministicSearchEngine` 在内存中从 Markdown 构建，本仓库 SQLite 未持久化 `wiki_links` 表，跨存储引用需后续引入持久化表或注入 vault 引擎。
 2. **内网信息已脱敏**：真实内网地址/主机账号/硬件仅存于本地非仓库凭据目录 `~/.axiom/axiom-secrets/`，仓库内一律以 `${LAN_NODE_N1}`/`${LAN_NODE_N2}`/`${LAN_NODE_W1}` 等占位符表示（AGENTS.md 规则 11）。`runtime-go/modelclient` 默认端点为 `${LAN_MODEL_SERVICE}`，须由 `MODEL_SERVICE_URL` 显式配置。
-3. **工具总数单一事实源**：以 `src/testing/tool-count.ts` 为准，当前 **188**；CI 与文档均引用此值，不再硬编码静态数字。
+3. **工具总数单一事实源**：以 `src/testing/tool-count.ts` 为准，当前 **189**；CI 与文档均引用此值，不再硬编码静态数字。
 
 ## 不在本轮整改范围（明确排除）
 

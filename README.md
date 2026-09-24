@@ -1,4 +1,4 @@
-# Axiom Runtime v3.1
+# Axiom Runtime v4.0.0
 
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
