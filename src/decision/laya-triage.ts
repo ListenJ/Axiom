@@ -241,6 +241,68 @@ export function createLayaTriage(deps: LayaTriageDeps): LayaTriage {
 }
 
 /**
+ * Linux 原生 runner：在 bun 与 Laya venv 同机的 Linux 上直接调 python，
+ * 不经 wsl.exe。与 WSL runner 逐参数同形（同一 laya_gate.py、同一 --stdin-json 协议），
+ * 只有进程拉起方式不同 —— 换机只换 runner，不换裁定层。
+ */
+export interface LocalLayaRunnerOptions {
+  python?: string;
+  script?: string;
+  repoRoot?: string;
+  timeoutMs?: number;
+}
+
+export function createLocalLayaRunner(opts: LocalLayaRunnerOptions = {}) {
+  const python = readString("LAYA_PYTHON", opts.python ?? "/root/.venvs/laya/bin/python");
+  const timeoutMs = opts.timeoutMs ?? 120_000;
+  const repoRoot = opts.repoRoot ?? process.cwd();
+  const scriptRel = opts.script ?? path.join("scripts", "laya", "laya_gate.py");
+  const scriptAbs = path.resolve(repoRoot, scriptRel);
+
+  return async (spec: LayaGateSpec): Promise<Record<string, Record<string, LayaAnswer>>> => {
+    if (!existsSync(scriptAbs)) throw new Error(`缺少 ${scriptRel}`);
+
+    const proc = Bun.spawn([python, scriptAbs, "--stdin-json"], {
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    proc.stdin.write(JSON.stringify(spec));
+    proc.stdin.end();
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const killed = new Promise<"timeout">((res) => {
+      if (timeoutMs > 0) timer = setTimeout(() => { proc.kill(); res("timeout"); }, timeoutMs);
+    });
+    const settled = await Promise.race([proc.exited, killed]);
+    clearTimeout(timer);
+    const out = await new Response(proc.stdout).text();
+    const errText = await new Response(proc.stderr).text();
+    if (settled === "timeout") throw new Error(`laya_gate 超时（${timeoutMs}ms）`);
+    if (settled !== 0) throw new Error(`laya_gate 退出码 ${settled}：${errText.slice(0, 200)}`);
+    try {
+      return JSON.parse(out) as Record<string, Record<string, LayaAnswer>>;
+    } catch {
+      throw new Error(`laya_gate 输出不是 JSON：${out.slice(0, 160)}`);
+    }
+  };
+}
+
+/** 平台 → runner 种类。Windows 走 WSL，其余（Linux/macOS）走本机 python。 */
+export function selectRunnerKind(platform: string = process.platform): "wsl" | "local" {
+  return platform === "win32" ? "wsl" : "local";
+}
+
+/** 按当前平台选生产 runner；测试用 platform 参数固定分支。 */
+export function createPlatformLayaRunner(
+  opts: WslLayaRunnerOptions & LocalLayaRunnerOptions & { platform?: string } = {},
+) {
+  return selectRunnerKind(opts.platform) === "wsl"
+    ? createWslLayaRunner(opts)
+    : createLocalLayaRunner(opts);
+}
+
+/**
  * 生产 runner：经 WSL 调用仓库内的 scripts/laya/laya_gate.py。
  * 一律用 args 数组直传、不经 shell ⇒ 不存在命令注入面，也不受 Windows 引号规则影响
  * （本文件的上一版就是被 Windows→WSL 命令串引号吃掉变量才测错了）。

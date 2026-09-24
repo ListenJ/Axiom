@@ -104,6 +104,9 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     // decision/laya-cli.ts 与上面几个同属 CLI 入口：它的 console 输出就是交付物
     // （人/agent 读的分诊结果），判定逻辑在 laya-triage.ts 里且返回结果不打字。
     "decision/laya-cli.ts",
+    // decision/audit-chain.ts 同属 CLI 入口（bun run audit:chain / --stages-only）：
+    // stage 台账打到终端是交付物；扫描实现体不打字。
+    "decision/audit-chain.ts",
     "core/health-checker.ts",
     "launcher.ts",
     "agent-evals/run.ts",

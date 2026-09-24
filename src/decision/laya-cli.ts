@@ -12,12 +12,30 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { readString } from "../utils/env.js";
 import {
+  AUDIT_STAGE_IDS,
+  AUDIT_STAGES,
+  type AuditStageContext,
+  type AuditStageId,
+} from "./audit-chain.js";
+import {
   createLayaTriage,
-  createWslLayaRunner,
+  createPlatformLayaRunner,
+  selectRunnerKind,
   toWslPath,
   type LayaGateSpec,
   type TriageResult,
 } from "./laya-triage.js";
+
+/** 审计 stage 的默认上下文；与 runAuditChain 的缺省保持同一口径。 */
+function auditStageContext(): AuditStageContext {
+  const repoRoot = process.cwd();
+  return {
+    repoRoot,
+    outDir: path.join(repoRoot, ".tmp", "audit"),
+    specPath: path.join(repoRoot, "docs", "decisions", "laya", "audit-chain-triage.json"),
+    runs: Number(readString("AUDIT_DET_RUNS", "5")),
+  };
+}
 
 /** 可自动执行的动作：全部本地、只读或幂等可逆。新增必须同时补测试。 */
 export const REVERSIBLE_ACTIONS: Record<string, { describe: string; run: () => Promise<{ ok: boolean; detail: string }> }> = {
@@ -39,25 +57,38 @@ export const REVERSIBLE_ACTIONS: Record<string, { describe: string; run: () => P
       return { ok: code === 0, detail: `exit=${code} ${out.slice(-300)}` };
     },
   },
+  // 审计链五个只读 stage：实现体在 audit-chain.ts（单测直接打实现体），
+  // 这里只做"注册键 → 上下文"的绑定。半径登记见 audit-chain-triage.json。
+  ...Object.fromEntries(
+    AUDIT_STAGE_IDS.map((id) => [id, {
+      describe: `审计链 stage（实现体 audit-chain.ts:${id}）`,
+      run: async () => AUDIT_STAGES[id as AuditStageId](auditStageContext()),
+    }]),
+  ),
 };
+
+function flagValue(argv: string[], flag: string): string {
+  const i = argv.indexOf(flag);
+  return i >= 0 ? (argv[i + 1] ?? "") : "";
+}
 
 function parseArgs(argv: string[]) {
   return {
     check: argv.includes("--check"),
     run: argv.includes("--run"),
     json: argv.includes("--json"),
-    spec: argv[argv.indexOf("--spec") + 1] ?? "",
+    spec: flagValue(argv, "--spec"),
   };
 }
 
 async function doCheck(): Promise<number> {
   const gate = toWslPath(path.resolve(process.cwd(), "scripts", "laya", "laya_gate.py"));
-  const p = Bun.spawn(
-    ["wsl.exe", "-d", readString("LAYA_WSL_DISTRO", "Arch"), "--",
-      readString("LAYA_PYTHON", "/root/.venvs/laya/bin/python"),
-      gate, "--check"],
-    { stdout: "pipe", stderr: "pipe" },
-  );
+  const python = readString("LAYA_PYTHON", "/root/.venvs/laya/bin/python");
+  // Windows 宿主经 WSL；Linux 原生直接调 venv python（--check 秒级，不加载模型）
+  const cmd = selectRunnerKind() === "wsl"
+    ? ["wsl.exe", "-d", readString("LAYA_WSL_DISTRO", "Arch"), "--", python, gate, "--check"]
+    : [python, path.resolve(process.cwd(), "scripts", "laya", "laya_gate.py"), "--check"];
+  const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
   const code = await p.exited;
   const out = await new Response(p.stdout).text();
   console.log(out.trim() || JSON.stringify({ ok: false, error: `laya_gate --check 退出码 ${code}` }));
@@ -72,7 +103,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     return 2;
   }
   const spec = JSON.parse(readFileSync(a.spec, "utf8")) as LayaGateSpec;
-  const triage = createLayaTriage({ run: createWslLayaRunner() });
+  const triage = createLayaTriage({ run: createPlatformLayaRunner() });
 
   if (a.run) {
     const actions = Object.fromEntries(Object.entries(REVERSIBLE_ACTIONS).map(([id, v]) => [id, v.run]));
