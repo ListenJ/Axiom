@@ -2416,7 +2416,7 @@
 - **验证结果**：单测 35 pass/0 fail（audit-chain 16 + laya-triage 19）；三道门 audit:runtime 16/16、architecture-integrity 25/25、doc-contract 35/35；**全链实跑**：真模型分诊 6 决策 → 5 stage `EXECUTED ok=true`、`release:tag-and-push` ESCALATED（领域封杀，护栏证明）、noul 交叉核对 5 条留痕；**模型侧确定性**：同 spec 跨进程 N=5 逐字节一致（exit 0×5）；施工中抓到并修掉 layaDeterminism 假绿（5 次 exit=2 的一致报错曾被当成"确定"→ `determinismVerdict` 要求全零退出，假绿回归锁进单测）。
 - **偏差与未做**：WSL Arch 内无 bun，"Linux 原生整链"以 `selectRunnerKind`+单测锁分支、以 `--stages-only` 提供人工直跑口，真 Linux 整链实跑留待有 bun 的 Linux 机；KAL 查询 N≥5 独立运行未测；模块 1-6/8-12 深审未做（分母已建）。
 - **回滚**：新增文件整体可删；`laya-triage.ts`/`laya-cli.ts`/`package.json`/`architecture-integrity.test.ts` 备份于 `.tmp/backups/`（验证通过后已删）。
-- **Commit**：`<待回填>`
+- **Commit**：d1286e18
 
 ## 2026-09-25 02:35 +0800 — T2 诊断收口：90 红谜题根因=8 文件 mock.module 泄漏，串行 91→5（87 条闭环）
 
@@ -2427,4 +2427,4 @@
 - **验证结果**：串行三轮 4258/**91** → 4289/**60** → **4344/5**（4344 含新增 16 测试）；最小红对红→绿闭环（毒源+model-router 6 红→0、+intent-enhancer 21→0、+prompt-optimizer 1→0）；修复后 8 文件单跑全绿。**真红两处当场修**：env 门缺 `AUDIT_DET_RUNS`/`AUDIT_LAYA_TIMEOUT_MS`（本任务自己引入，已登记 `.env.example`，门 2/0）；`README.md:1` v3.1→v4.0.0、`LIMITATIONS.md:16` 188→189（与权威 `count-tools`=189 对齐）。**残余 4 条为时序型**（pdf-worker ×3 fetch 桩跨文件竞态 `res.json is not a function`、retrieval-workflows 场景 1 相位双计 2.0≥1.1），单跑与全部定向配对均绿，需全量二分定位——指纹与紧邻前文已写进审计报告 F7 留档下轮。
 - **偏差与未做**：残余 4 条未修（二分成本 ~8×4 分钟，收益递减）；`bun run test`（--parallel=8）口径未重跑（其掩盖面即本轮修复面）；CI（Linux 容器）侧读数仍未测。
 - **回滚**：8 个测试文件 + `.env.example` + README/LIMITATIONS 备份于 `.tmp/backups/`（验证通过后已删）；逐文件 revert 即回滚。
-- **Commit**：`<待回填>`
+- **Commit**：c1f0b7bd
