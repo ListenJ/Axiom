@@ -59,7 +59,7 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 
 **Files:**
 - Modify: `frontend/src/components/ui/Button.tsx`（danger/success 变体的 hover class）
-- Modify: `frontend/src/components/chat-panels.tsx`（失败徽标）
+- Modify: `frontend/src/components/chat-panels.tsx`（失败徽标） <!-- doc-caliber:absent: frontend/src/components/chat-panels.tsx -->（2026-09-25 随 Chat 页移除）
 
 **Step 1: 现状复现**：暗色下 danger/success hover = 白底白字。
 **Step 2: 实现**
@@ -84,7 +84,7 @@ Run: `cd frontend && bun test src/state/useApp.test.ts` → PASS；`cd frontend 
 ### Task 5: 迷你聊天 key 修复（F5）
 
 **Files:**
-- Modify: `frontend/src/components/rightbar/panels.tsx`（nextIdRef 初始化）
+- Modify: `frontend/src/components/rightbar/panels.tsx`（nextIdRef 初始化） <!-- doc-caliber:absent: frontend/src/components/rightbar/panels.tsx -->（2026-09-25 随 Chat 页移除）
 
 **Step 1: 实现**：`const nextIdRef = useRef(1)`（需要时 import useRef），替换 `const nextIdRef = { current: 1 }`；或复用 `chat-utils.nextId()`。
 **Step 2: 验证**：lint；连续发送两条消息无 duplicate key 告警（真实渲染）。

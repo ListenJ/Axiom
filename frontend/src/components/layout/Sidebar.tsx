@@ -159,12 +159,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const currentSession = new URLSearchParams(location.search).get('session')
 
   const openSession = (sessionId: string) => {
-    navigate(`/chat?session=${encodeURIComponent(sessionId)}`)
+    navigate(`/sessions?session=${encodeURIComponent(sessionId)}`)
     onClose()
   }
 
-  const startNewChat = () => {
-    navigate('/chat')
+  const openWorkspace = () => {
+    navigate('/agents')
     onClose()
   }
 
@@ -209,7 +209,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       }
       setSessions((prev) => prev.filter((s) => s.session_id !== sessionId))
       clearChatTitle(sessionId)
-      if (currentSession === sessionId) navigate('/chat')
+      if (currentSession === sessionId) navigate('/sessions')
     } catch {
       window.alert('删除会话失败，请重试')
     } finally {
@@ -333,9 +333,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
         <button
           type="button"
-          onClick={startNewChat}
+          onClick={openWorkspace}
           className="press flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-[var(--shell-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          aria-label="返回对话"
+          aria-label="返回工作区"
           title="Axiom"
         >
           <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[var(--accent)] text-xs font-bold text-[var(--on-accent)] shadow-[var(--shadow-sm)]">
@@ -366,16 +366,16 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </div>
       </div>
 
-      {/* 新建对话 */}
+      {/* 进入工作区 */}
       <div className="shrink-0 px-3 pb-3 pt-1">
         <button
           type="button"
-          onClick={startNewChat}
+          onClick={openWorkspace}
           className="press flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border-strong)] bg-transparent px-3 py-2 text-sm font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          aria-label="开启新对话"
+          aria-label="进入工作区"
         >
           <Plus size={16} />
-          <span className={collapsed ? 'lg:hidden' : ''}>开启新对话</span>
+          <span className={collapsed ? 'lg:hidden' : ''}>进入工作区</span>
         </button>
       </div>
 
@@ -389,7 +389,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <div className={`px-3 py-2 ${collapsed ? 'lg:hidden' : ''}`}>
             <p className="text-2xs text-[var(--text-muted)]">暂无项目</p>
             <p className="mt-1 text-2xs text-[var(--text-muted)]">
-              点击「开启新对话」开始，或打开设置检查工作区服务。
+              点击「进入工作区」开始，或打开设置检查工作区服务。
             </p>
           </div>
         ) : (

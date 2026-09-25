@@ -29,7 +29,7 @@
 
 | # | 级别 | 位置 | 证据 | 影响 | 处置 |
 | --- | --- | --- | --- | --- | --- |
-| U1 | Medium（架构） | `src/services/chat.ts:166,192` vs `src/mcp/server/kg-tools.ts:16` | chat 的知识检索走 `services/knowledge.ts` 独立管线（privacy 门 + edge 查询改写 + unifiedSearch web 回退 + vault 经 localStore 注入），**绕过 KAL**；KAL 扇出面只有 MCP 侧在用 ⇒ 同一份知识三个查询口径（KAL 归一化 / chat 管线 / kg CLI 直连） | 检索语义与排序口径分叉；KAL 的归一化与容错改进惠及不到 chat | **登记待裁决（T3）**：把 prepareChatContext 的本地知识检索改走 KAL，或让 retrieveKnowledge 成为 KAL 前端。涉及 chat 行为变化，不擅自重路由 |
+| U1 | Medium（架构） | `src/services/chat.ts:166,192` vs `src/mcp/server/kg-tools.ts:16` | chat 的知识检索走 `services/knowledge.ts` 独立管线（privacy 门 + edge 查询改写 + unifiedSearch web 回退 + vault 经 localStore 注入），**绕过 KAL**；KAL 扇出面只有 MCP 侧在用 ⇒ 同一份知识三个查询口径（KAL 归一化 / chat 管线 / kg CLI 直连） | 检索语义与排序口径分叉；KAL 的归一化与容错改进惠及不到 chat | **部分落地（2026-09-25）**：Chat 前端页整体移除（首页即 /agents 工作区）；`queryTool` 本地腿切 `vault.searchHybrid`——chat/CLI/页面统一到同一检索实现与可选语义层；chat→KAL 全量重路由仍开放（需 KnowledgeUnit 形状适配，T3） |
 | U2 | Medium（架构） | `src/kal/knowledge-access-layer.ts:147-158` | KAL 扇出仅 vault/kg/dre；`knowledge_sources`/`dictionary`（collector 的记账表）不在查询面。现状可接受——爬取正文以 vault note 进检索（`storeAsVaultNote`），记账表只有 dedup/stats 读者（`store.ts:82,89,260`） | 若未来要按来源/域聚合检索，需扩 KAL 第四路 | 登记即可（语义现状自洽） |
 | U3 | Low（清理） | `data/knowledge.db`（4KB，mtime 08-21） | merge 前残骸：仅 `scripts/merge-knowledge-dbs.ts:19` 以历史口径引用；KnowledgeStore 实际读 `DATABASE_PATH`=agent.db（`store.ts:14`） | 混淆"哪个库是真知识库"（本轮审计自己都被它误导过一次） | **本轮已移** `archive/side-db-2026-09-25/`（与 axiom-memory.db 同批，未删除） |
 | U4 | Info（数据考古） | `data/agent.db` 表清单 | 多代表结构并存：`entities/relationships`（旧代）、`kg_edge`（历史单数）、`kg_nodes/kg_edges`（现行复数）、`knowledge_node/knowledge_revision`；KAL 对单数表有显式回退兼容（O3-F4） | 清表属数据迁移且有回退保护，暂无风险 | 登记；迁移待 KG 面整体治理时一并做 |

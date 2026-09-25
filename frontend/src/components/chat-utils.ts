@@ -8,8 +8,24 @@
  *  - toChatMessages：将内部 Message[] 转为 API ChatMessage[]
  *  - copyToClipboard：跨浏览器兼容的复制实现
  */
-import type { Message } from './chat-panels'
 import { formatDate } from '@/lib/format'
+
+/** 内部消息模型（原 chat-panels.ts 定义，Chat 页移除后随工具函数迁至此） */
+export interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  streaming?: boolean
+  error?: boolean
+  /** 思考过程片段（来自 reasoning trace） */
+  thinking?: string[]
+  /** 文件修改明细 */
+  fileChanges?: Array<{ path: string; action: 'create' | 'edit' | 'delete'; diff?: string }>
+  /** 工具调用明细 */
+  toolCalls?: Array<{ name: string; args?: string; result?: string; status?: 'ok' | 'error'; duration?: number }>
+  /** 元数据：模型、provider、用量 */
+  meta?: { model?: string; provider?: string; usage?: Record<string, unknown> }
+}
 
 /** 生成短随机 ID（用于消息标识）。结合 Math.random 与 Date.now，碰撞概率极低。 */
 export function nextId(): string {

@@ -52,7 +52,9 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
 
     if (vault?.search) {
       try {
-        const local = vault.search(query, { limit: maxResults });
+        // U1 统一检索面（ADR-010）：本地腿走 searchHybrid——与 CLI/页面同一实现；
+        // MEMORY_SEMANTIC_SEARCH 关闭或端点缺失时内部逐项等于 search（fail-open）。
+        const local = await vault.searchHybrid(query, { limit: maxResults });
         for (const item of local) {
           results.push({
             source: "local",

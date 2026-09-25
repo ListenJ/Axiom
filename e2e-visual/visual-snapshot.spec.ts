@@ -24,12 +24,11 @@ const SCREENSHOT_OPTS = {
 
 type PageCase = { path: string; name: string; anchor?: string };
 
-// 单一事实源：21 页（App.tsx 路由 + login）
+// 单一事实源：20 页（App.tsx 路由 + login；chat 页已移除，首页即 /agents 工作区）
 const PAGES: PageCase[] = [
-  { path: "/chat", name: "chat", anchor: "会话题目" },
+  { path: "/agents", name: "agents", anchor: "智能体" },
   { path: "/search", name: "search", anchor: "搜索" },
   { path: "/code", name: "code", anchor: "代码" },
-  { path: "/agents", name: "agents", anchor: "智能体" },
   { path: "/router", name: "router", anchor: "模型路由" },
   { path: "/vault", name: "vault", anchor: "知识库" },
   { path: "/kg", name: "kg", anchor: "知识图谱" },

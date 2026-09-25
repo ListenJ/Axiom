@@ -17,7 +17,7 @@
 | WebSocket 事件层 | `src/utils/websocket.ts` | `subscribe/unsubscribe/ping`、`broadcast`、连接数限制、64KB 消息限制、历史回放 | 事件推送用；未承载浏览器控制协议 |
 | WebSocket 鉴权 | `src/main.ts` | 通过 `Sec-WebSocket-Protocol` 子协议携带凭证，本地开发放行 | 未校验 CDP relay 来源，未做标签组授权 |
 | Lightpanda/CDP | `src/crawl/lightpanda-client.ts` | `renderWithCDP`、`captureScreenshot`、`extractInteractiveElements`、`executeCDPAction`、`fetchPageContent` | 每次调用创建新 target 后关闭；无持久标签页、无事件流、无 iframe/shadow DOM 处理、无可访问性树 |
-| 前端 BrowserPanel | `frontend/src/components/rightbar/panels.tsx` | 输入 URL → 抓取结果展示 | 不是实时交互式浏览器控制台 |
+| 前端 BrowserPanel | `frontend/src/components/rightbar/panels.tsx` <!-- doc-caliber:absent: frontend/src/components/rightbar/panels.tsx -->（2026-09-25 随 Chat 页移除；BrowserPanel 能力并入 agent 工作区） | 输入 URL → 抓取结果展示 | 不是实时交互式浏览器控制台 |
 | Hermes 集成 | `src/agents/hermes-agent.ts` | spawn `hermes chat -q -Q` 子进程，做深度研究/代码审查，结果写入 Vault | 外部 CLI；未嵌入 Hermes 学习闭环 |
 | 生产依赖 | `package.json` | 无 Playwright/Puppeteer 生产依赖 | 浏览器自动化仍偏“抓取工具” |
 

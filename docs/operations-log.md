@@ -2493,3 +2493,13 @@
 - **偏差与未做**：chat 重路由（U1）仍待裁决；VaultManager 自身连接未并入 backend（文件/watcher 生命周期独立，WAL 同库并发安全——已在 backend.ts 头注释如实划界）；embeddings_cache 首启全库嵌入 183 篇（分块 32）。
 - **回滚**：全部为新增文件/可选参数/新表；revert 即回滚，embeddings_cache 可 DROP。
 - **Commit**：291f7db5
+
+## 2026-09-25 06:00 +0800 — T3 前端去 Chat 化：首页即 Agent 工作区 + U1 统一检索面部分落地
+
+- **任务**：用户指令——Chat 页移除，进入即整体 Agent 部分（工作区），其余经设置页；按建议完成其他部分（U1）。级别 T3（前端删页 + 路由/导航/组件级联 + 检索面统一）。
+- **执行**：①前端删除 `pages/Chat.tsx`+test、`chat-panels.tsx`+usage test、`components/chat/`（10 文件：Composer/ModelPicker/MarkdownContent 等，消费关系核实全部页内闭环）、`components/rightbar/`（RightToolbar 仅 Chat 渲染）——共 16 文件；②App.tsx index 重定向 /chat→**/agents**（eager），去 chat 路由；③Header：品牌钮/「新建对话」改指 /agents、去「打开工具台」与 setRightbarOpen；④Sidebar：会话打开/删除回退 → /sessions，「开启新对话」→「进入工作区」(/agents)；⑤`chat-utils.ts` 的 Message 类型从已删 chat-panels 迁入（断链修复）；⑥e2e-visual 去 /chat 用例（21→20 页）+ 删 8 张 chat 快照；⑦U1 部分：`query-tool.ts` 本地腿 `vault.search`→`searchHybrid`——chat/CLI/页面统一到同一检索实现与可选语义层（KAL 全量重路由仍开放：KnowledgeUnit 形状适配属后续）。
+- **门指认修复（如实记账）**：D3 抓到三处文档引用已删文件——按墓碑口径（`doc-caliber:absent` 行内标记 + D3 使用者在册表登记 BROWSER-AGENT-STRATEGY / frontend-aesthetic-repair 两文档）；D3 另发现 integration.test 未用 import 与 chat-utils 断链（Message 类型迁址）。
+- **验证结果**：前端 vitest **310/310**（60 文件）、`tsc -b && vite build` 绿、audit:frontend blocking=0；后端全门 113/0（doc-contract 含墓碑登记表、memory、arch、env）；audit:runtime 16/16；tsc 零错。
+- **偏差与未做**：后端 /chat API 与会话数据保留（agent 管道与 Sessions 页历史）；chat→KAL 全量重路由（KnowledgeUnit 形状适配）开放；e2e-visual 全量重摄未跑（playwright 需起服务，属运行批）。
+- **回滚**：git revert 本提交即还原（删除文件经归档分支 codex/archive-2026-09-25 与历史可达）。
+- **Commit**：`<待回填>`

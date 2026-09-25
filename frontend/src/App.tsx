@@ -3,13 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import Button from '@/components/ui/Button'
 import LoadingDots from '@/components/ui/LoadingDots'
-import Chat from '@/pages/Chat'
+import Agents from '@/pages/Agents'
 
-// 路由级懒加载：主对话页保持 eager，其余页面按需分包（配合 vite manualChunks）
+// 路由级懒加载：Agent 工作区保持 eager，其余页面按需分包（配合 vite manualChunks）
 const Login = lazy(() => import('@/pages/Login'))
 const Search = lazy(() => import('@/pages/Search'))
 const Code = lazy(() => import('@/pages/Code'))
-const Agents = lazy(() => import('@/pages/Agents'))
 const Vault = lazy(() => import('@/pages/Vault'))
 const KG = lazy(() => import('@/pages/KG'))
 const Plugins = lazy(() => import('@/pages/Plugins'))
@@ -82,12 +81,11 @@ function App() {
             {/* 登录页独立于 Layout：仅 401 时由 api 客户端强制跳转（见 lib/api.ts） */}
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Layout />}>
-              {/* 首页与对话合并："/" 直接进入对话页（无消息时显示欢迎模式） */}
-              <Route index element={<Navigate to="/chat" replace />} />
-              <Route path="chat" element={<Chat />} />
+              {/* 首页即 Agent 工作区（Chat 页已移除，其余功能经设置页配置） */}
+              <Route index element={<Navigate to="/agents" replace />} />
+              <Route path="agents" element={<Agents />} />
               <Route path="search" element={<Search />} />
               <Route path="code" element={<Code />} />
-              <Route path="agents" element={<Agents />} />
               <Route path="router" element={<Router />} />
               <Route path="vault" element={<Vault />} />
               <Route path="kg" element={<KG />} />

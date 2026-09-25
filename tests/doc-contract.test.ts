@@ -428,11 +428,15 @@ describe("D3 文档引用存活", () => {
     expect(files).toEqual([
       "docs/ARCHITECTURE.md",
       "docs/AXIOM-ARCHITECTURE.md",
+      // BrowserPanel/工具台随 2026-09-25 Chat 页移除（右栏 panels.tsx），文内历史叙述按墓碑口径点名。
+      "docs/BROWSER-AGENT-STRATEGY-2026-08-09.md",
       "docs/COMPREHENSIVE-GUIDE.md",
       "docs/LIMITATIONS.md",
       // ADR-007：C-0 删掉的 src/utils/path-safety.ts 在文内仍被叙述，故按墓碑口径点名。
       "docs/decisions/ADR-007-safefs-single-source-and-configurable-root.md",
       "docs/functional-check-2026-08-16-sensenova.md",
+      // 2026-08-11 前端修缮计划引用的 chat-panels/rightbar 随 Chat 页移除（2026-09-25），墓碑点名。
+      "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
     ]);
   });
 });
