@@ -6,6 +6,21 @@ import { safeStringEqual } from "../utils/auth-check.js";
 import { APP_VERSION } from "../version.js";
 import { readString } from "../utils/env.js";
 import { callerCredential } from "../utils/call-context.js";
+import { z } from "zod";
+import { readValidatedJson } from "./body-validation.js";
+
+// R1 整改（轮 4/批 2）：权限检查/确认两端点原为 `as {...}` 断言（operation 未验证即
+// 传给 checkFilePermission）——补 zod 形状面。
+const permissionCheckSchema = z.object({
+  type: z.enum(["command", "file"]),
+  command: z.string().max(8000).optional(),
+  path: z.string().max(1024).optional(),
+  operation: z.enum(["read", "write", "delete", "execute"]).optional(),
+});
+
+const permissionConfirmSchema = z.object({
+  confirmationId: z.string().min(1).max(200),
+});
 
 /**
  * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
@@ -265,15 +280,17 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
 
 export async function handlePermissionCheck(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/permissions/check" || ctx.req.method !== "POST") return null
+  const parsed = await readValidatedJson(ctx, permissionCheckSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   try {
-    const body = await ctx.req.json() as { type: "command" | "file"; command?: string; path?: string; operation?: string }
     if (body.type === "command" && body.command) {
       const { checkCommandPermission } = await import("../utils/permissions.js")
       return ctx.jsonResponse(checkCommandPermission(body.command), 200, ctx.baseHeaders)
     }
     if (body.type === "file" && body.path && body.operation) {
       const { checkFilePermission } = await import("../utils/permissions.js")
-      return ctx.jsonResponse(checkFilePermission(body.path, body.operation as "read" | "write" | "delete" | "execute"), 200, ctx.baseHeaders)
+      return ctx.jsonResponse(checkFilePermission(body.path, body.operation), 200, ctx.baseHeaders)
     }
     return ctx.jsonResponse({ error: "Invalid request" }, 400)
   } catch (e) {
@@ -283,8 +300,10 @@ export async function handlePermissionCheck(ctx: RouteContext): Promise<Response
 
 export async function handlePermissionConfirm(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/permissions/confirm" || ctx.req.method !== "POST") return null
+  const parsed = await readValidatedJson(ctx, permissionConfirmSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
   try {
-    const body = await ctx.req.json() as { confirmationId: string }
     const { confirmOperation } = await import("../utils/permissions.js")
     const result = confirmOperation(body.confirmationId)
     return ctx.jsonResponse(result, result.approved ? 200 : 403, ctx.baseHeaders)

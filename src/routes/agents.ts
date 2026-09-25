@@ -3,9 +3,11 @@
  */
 import type { RouteContext } from "./types.js";
 import { z } from "zod";
+import { readValidatedJson } from "./body-validation.js";
 
 /** R1 整改（轮 4 审计）：本路由此前直接解构 body 透传（temperature/timeout 无类型/范围
- *  校验即达 LLM 调用）——对齐 chat.ts（M11 同病先例）的 zod 口径。 */
+ *  校验即达 LLM 调用）——对齐 chat.ts（M11 同病先例）的 zod 口径；读体/报错统一走
+ *  routes/body-validation.ts 共享缝。 */
 const opencodeOpenSchema = z.object({
   model: z.string().max(200).optional(),
   prompt: z.string().max(32000).optional(),
@@ -23,15 +25,28 @@ const kimiChatSchema = z.object({
   timeout: z.number().int().min(1000).max(600000).optional(),
 });
 
-function parseJsonBody(raw: unknown, schema: z.ZodType): { ok: true; data: unknown } | { ok: false; error: string } {
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "validation failed";
-    return { ok: false, error: `Invalid request body — ${detail}` };
-  }
-  return { ok: true, data: parsed.data };
-}
+const kimiOpenSchema = z.object({
+  prompt: z.string().max(32000).optional(),
+});
+
+const hermesTaskSchema = z.object({
+  prompt: z.string().max(32000).optional(),
+  cwd: z.string().max(1024).optional(),
+  timeoutMs: z.number().int().min(1000).max(3600000).optional(),
+});
+
+const opencodeGenerateSchema = z.object({
+  prompt: z.string().max(32000).optional(),
+  language: z.string().max(40).optional(),
+  context: z.string().max(64000).optional(),
+  model: z.string().max(200).optional(),
+});
+
+const opencodeRefactorSchema = z.object({
+  code: z.string().max(128000).optional(),
+  description: z.string().max(8000).optional(),
+  language: z.string().max(40).optional(),
+});
 
 /** 依赖不可用（CDP/浏览器）→ 503，其余内部错误 → 500。 */
 function toAgentErrorStatus(msg: string): number {
@@ -81,15 +96,9 @@ export async function handleOpenCodeModels(ctx: RouteContext): Promise<Response 
 
 export async function handleOpenCodeOpen(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/open" && ctx.req.method === "POST") {
-    let raw: unknown;
-    try {
-      raw = await ctx.req.json();
-    } catch {
-      return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
-    }
-    const parsed = parseJsonBody(raw, opencodeOpenSchema);
-    if (!parsed.ok) return ctx.jsonResponse({ error: parsed.error }, 400, ctx.baseHeaders);
-    const body = parsed.data as z.infer<typeof opencodeOpenSchema>;
+    const parsed = await readValidatedJson(ctx, opencodeOpenSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const model = body.model || "opencode/deepseek-v4-flash-free";
     const prompt = body.prompt || "";
     return ctx.jsonResponse({
@@ -121,15 +130,9 @@ export async function handleKimiStatus(ctx: RouteContext): Promise<Response | nu
 export async function handleKimiChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/kimi/chat" && ctx.req.method === "POST") {
     const { kimiCodeChat, checkKimiCodeApiKey, getKimiCodeGuide, KIMI_CODE_MODEL } = await import("../agents/kimi-code-agent.js");
-    let raw: unknown;
-    try {
-      raw = await ctx.req.json();
-    } catch {
-      return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
-    }
-    const parsed = parseJsonBody(raw, kimiChatSchema);
-    if (!parsed.ok) return ctx.jsonResponse({ error: parsed.error }, 400, ctx.baseHeaders);
-    const body = parsed.data as z.infer<typeof kimiChatSchema>;
+    const parsed = await readValidatedJson(ctx, kimiChatSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     if (!checkKimiCodeApiKey()) {
       return ctx.jsonResponse({ error: "KIMI_CODE_API_KEY not configured", guide: getKimiCodeGuide() }, 503, ctx.baseHeaders);
     }
@@ -153,7 +156,9 @@ export async function handleKimiChat(ctx: RouteContext): Promise<Response | null
 
 export async function handleKimiOpen(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/kimi/open" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    const parsed = await readValidatedJson(ctx, kimiOpenSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const prompt = body.prompt || "";
     return ctx.jsonResponse({
       command: `bun run src/cli.ts kimi:open ${prompt ? "\"" + prompt + "\" " : ""}`,
@@ -166,7 +171,9 @@ export async function handleKimiOpen(ctx: RouteContext): Promise<Response | null
 
 export async function handleHermesTask(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/hermes/task" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    const parsed = await readValidatedJson(ctx, hermesTaskSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { checkHermes, runHermesTask } = await import("../agents/hermes-agent.js");
     const installed = await checkHermes();
     if (!installed) {
@@ -185,7 +192,9 @@ export async function handleHermesTask(ctx: RouteContext): Promise<Response | nu
 
 export async function handleOpenCodeGenerate(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/generate" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    const parsed = await readValidatedJson(ctx, opencodeGenerateSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { executeCodeGenerate } = await import("../agents/opencode-agent.js");
     try {
       const result = await executeCodeGenerate({
@@ -205,7 +214,9 @@ export async function handleOpenCodeGenerate(ctx: RouteContext): Promise<Respons
 
 export async function handleOpenCodeRefactor(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/refactor" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    const parsed = await readValidatedJson(ctx, opencodeRefactorSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { executeCodeRefactor } = await import("../agents/opencode-agent.js");
     try {
       const result = await executeCodeRefactor({
@@ -224,7 +235,14 @@ export async function handleOpenCodeRefactor(ctx: RouteContext): Promise<Respons
 
 export async function handleOpenCodeReview(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/review" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    const opencodeReviewSchema = z.object({
+      code: z.string().max(128000).optional(),
+      language: z.string().max(40).optional(),
+      context: z.string().max(64000).optional(),
+    });
+    const parsed = await readValidatedJson(ctx, opencodeReviewSchema);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { executeCodeReview } = await import("../agents/opencode-agent.js");
     try {
       const result = await executeCodeReview({

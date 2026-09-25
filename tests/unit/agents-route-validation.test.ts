@@ -13,6 +13,8 @@ import type { RouteContext } from "../../src/routes/types.js";
 import {
   handleOpenCodeOpen,
   handleKimiChat,
+  handleHermesTask,
+  handleOpenCodeReview,
 } from "../../src/routes/agents.js";
 
 function makeCtx(pathname: string, method: string, rawBody?: string): RouteContext {
@@ -72,6 +74,20 @@ describe("agents 路由输入校验（R1 首批）", () => {
   it("opencode/open：prompt 超长（>32000）⇒ 400", async () => {
     const res = await handleOpenCodeOpen(
       makeCtx("/agents/opencode/open", "POST", JSON.stringify({ prompt: "x".repeat(32001) })),
+    )!;
+    expect((await bodyOf(res!)).status).toBe(400);
+  });
+
+  it("hermes/task：cwd 传非字符串（对象）⇒ 400，不达 spawn", async () => {
+    const res = await handleHermesTask(
+      makeCtx("/agents/hermes/task", "POST", JSON.stringify({ prompt: "hi", cwd: { evil: true } })),
+    )!;
+    expect((await bodyOf(res!)).status).toBe(400);
+  });
+
+  it("opencode/review：code 超长（>128000）⇒ 400", async () => {
+    const res = await handleOpenCodeReview(
+      makeCtx("/agents/opencode/review", "POST", JSON.stringify({ code: "y".repeat(128001) })),
     )!;
     expect((await bodyOf(res!)).status).toBe(400);
   });

@@ -2544,3 +2544,12 @@
 - **偏差与未做**：R1 剩余 ~34 路由未 zod 化（整改线按流量分批，research 等下一批）；L1 语义选择（agent 模式=HTTP+MCP）如与原意不符可再调——help 文本未改。
 - **回滚**：三个备份于 .tmp/backups（验证通过后删）；agents.ts 校验为纯增分支，revert 即回滚。
 - **Commit**：2ea50d30
+
+## 2026-09-25 13:55 +0800 — T2 R1 第二批：共享 body 校验缝 + agents 剩余 5 口/sandbox/health 权限面 zod
+
+- **任务**：R1 整改线第二批（用户"继续"）。级别 T2（共享缝新建 + 4 文件校验加固）。
+- **交付**：①`src/routes/body-validation.ts`——readValidatedJson 共享缝（畸形 JSON/校验失败统一 400 形状，与 chat.ts M11 同口径）；②`routes/agents.ts` 剩余 5 口 zod 化（kimi/open、hermes/task 含 cwd/timeoutMs、opencode/generate、refactor、review）——本文件 7 个 POST 口现全覆盖，本地 helper 切共享缝；③`routes/sandbox.ts`——/sandbox/execute 形状面补齐（原 `as {...}` 断言下 command 可传对象、args 可传非数组直达 spawn；confirmationId 废弃字段保留透传，审计 D 语义不变）；④`routes/health.ts`——/permissions/check + /confirm zod（operation 原为 as 断言即达 checkFilePermission）。
+- **验证结果**：新负例 3 条（hermes cwd 对象 400、review code 超长 400、既有 5 条）+ security-fixes 36 条全绿（审批 D 流程与新 schema 兼容）；全门 136/0；audit:runtime 16/16；tsc 零错。
+- **登记剩余**：memory-api/marketplace/consciousness/knowledge-graph/api-keys 等低危读面（.catch(()=>({})) 已兜）留第三批；F7 二分、e2e-visual 重摄仍开放。
+- **回滚**：三文件备份 .tmp/backups/src/routes/；共享缝为新增文件，revert 即回滚。
+- **Commit**：`<待回填>`

@@ -1,6 +1,23 @@
 import type { RouteContext } from "./types.js"
+import { z } from "zod"
 import { checkCommandPermission } from "../utils/permissions.js"
 import { requireAuthToken, auditSuccess } from "./route-auth.js"
+import { readValidatedJson } from "./body-validation.js"
+
+// R1 整改（轮 4/批 2）：原 `as {...}` 断言无类型形状校验（command 可传对象、args 可传
+// 非数组即达 spawn）——补 zod 形状面。confirmationId 已废弃不参与判定（审计 D），仅为
+// 旧调用方兼容保留透传。
+const sandboxExecuteSchema = z.object({
+  command: z.string().min(1).max(8000),
+  args: z.array(z.string().max(4000)).max(100).optional(),
+  cwd: z.string().max(1024).optional(),
+  timeoutMs: z.number().int().min(100).max(3600000).optional(),
+  maxMemoryMb: z.number().int().min(16).max(65536).optional(),
+  maxCpu: z.number().min(0.1).max(64).optional(),
+  networkAccess: z.boolean().optional(),
+  readOnly: z.boolean().optional(),
+  confirmationId: z.string().max(200).optional(),
+})
 
 export async function handleSandboxExecute(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/sandbox/execute" || ctx.req.method !== "POST") return null
@@ -9,28 +26,11 @@ export async function handleSandboxExecute(ctx: RouteContext): Promise<Response 
   const authErr = requireAuthToken(ctx)
   if (authErr) return authErr
 
+  const parsed = await readValidatedJson(ctx, sandboxExecuteSchema)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.data
+
   try {
-    const body = await ctx.req.json() as {
-      command: string
-      args?: string[]
-      cwd?: string
-      timeoutMs?: number
-      maxMemoryMb?: number
-      maxCpu?: number
-      networkAccess?: boolean
-      readOnly?: boolean
-      /**
-       * @deprecated 高危命令不再接受调用方自行提交的确认码（审计 D：那是「自问自答」，
-       * 不构成独立闸门）。现在改由独立模型审批。该字段保留仅为兼容旧调用方，
-       * **不再影响任何判定**。
-       */
-      confirmationId?: string
-    }
-
-    if (!body.command) {
-      return ctx.jsonResponse({ error: "command is required" }, 400, ctx.baseHeaders)
-    }
-
     // 1. Permission check
     const permCheck = checkCommandPermission(body.command)
 
